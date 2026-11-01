@@ -1,4 +1,4 @@
-import type { ExtensionManifest, ExtensionName } from "@fresnel/contracts/extensions";
+import type { ExtensionLayer, ExtensionName } from "@fresnel/contracts/extensions";
 import type { Tier } from "./tier.ts";
 
 /** 안전 모드를 켠 경로(X.operations.spec §4.6.1) */
@@ -16,7 +16,7 @@ export const NO_STARTUP_OPTIONS: StartupOptions = { safeMode: { active: false },
 export interface LoadCandidate {
   readonly name: ExtensionName;
   readonly tier: Tier;
-  readonly layer: ExtensionManifest["layer"];
+  readonly layer: ExtensionLayer;
 }
 
 export type SkipReason = "safe_mode" | "disabled_flag";

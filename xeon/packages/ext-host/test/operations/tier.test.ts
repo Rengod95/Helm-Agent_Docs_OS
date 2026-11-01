@@ -38,7 +38,7 @@ test("tier: guard handler always runs first", async () => {
         makeUnit(
           {
             name,
-            points: ["tool.call.before"],
+            hooks: ["tool.call.before"],
             loadIndex,
             layer: name === "core-tools" ? "L1" : "plugin",
           },
@@ -66,7 +66,7 @@ test("tier: first fold stops at outer guard deny", async () => {
   policy.admit({ name: "tier-inner", source: "user", trust: "user", essential: false }, "plugin");
   policy.admit({ name: "core-tools", source: "builtin", trust: "builtin", essential: true }, "L1");
   await t.host.install(
-    makeUnit({ name: "tier-inner", points: ["tool.call.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "tier-inner", hooks: ["tool.call.before"], loadIndex: 0 }, (g) => {
       g.on("tool.call.before", () => {
         calls.push("user");
         return undefined;
@@ -75,7 +75,7 @@ test("tier: first fold stops at outer guard deny", async () => {
   );
   await t.host.install(
     makeUnit(
-      { name: "core-tools", points: ["tool.call.before"], loadIndex: 1, layer: "L1" },
+      { name: "core-tools", hooks: ["tool.call.before"], loadIndex: 1, layer: "L1" },
       (g) => {
         g.on("tool.call.before", () => {
           calls.push("guard");
@@ -107,7 +107,7 @@ test("tier: lexicographic order within tier", async () => {
     async ([name, loadIndex]) => {
       policy.admit({ name, source: "user", trust: "user", essential: false }, "plugin");
       await t.host.install(
-        makeUnit({ name, points: ["tool.call.before"], loadIndex }, (g) => {
+        makeUnit({ name, hooks: ["tool.call.before"], loadIndex }, (g) => {
           g.on("tool.call.before", () => {
             calls.push(`${name}#1`);
             return undefined;

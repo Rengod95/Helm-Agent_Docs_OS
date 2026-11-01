@@ -2,7 +2,7 @@
 export { PrimitiveError, type ExtDiagnostic, type PrimitiveErrorCode } from "./errors.ts";
 export {
   ExtHostPortKey,
-  LeaseArbiterPortKey,
+  DriveLockArbiterPortKey,
   InputQueuePortKey,
   LoopPortKey,
   ProcessPortKey,
@@ -10,7 +10,7 @@ export {
   RecordCommitPortKey,
   ScopedStorePortKey,
   type InputQueuePort,
-  type LeaseArbiterPort,
+  type DriveLockArbiterPort,
   type LoopPort,
   type PortKey,
   type PortLookup,
@@ -40,17 +40,17 @@ export { type BoundaryContribution, type BoundaryHooks, type BoundarySignal } fr
 export {
   createExtHost,
   hostInternalsOf,
-  scopeToggleSourceOf,
+  registrationToggleSourceOf,
   type ExtHost,
   type ExtHostDeps,
   type ExtensionUnit,
   type InstallResult,
   type LeaseInfo,
-  type ResetScopeStateHostError,
+  type ResetRegistrationStateHostError,
   type PlatformContext,
   type PlatformModule,
   type PlatformSetupError,
-  type ScopeToggleSourceOf,
+  type RegistrationToggleSourceOf,
 } from "./host.ts";
 export { SessionFeedPortKey } from "./lifecycle.ts";
 export {
@@ -60,8 +60,8 @@ export {
 } from "./event-query.ts";
 export {
   hostOf,
-  type ScopeCallContext,
-  type ScopeHostApi,
+  type RegistrationCallContext,
+  type RegistrationHostApi,
   type StateMigration,
 } from "./host-api.ts";
 export {
@@ -88,7 +88,7 @@ export {
   webProviderRegistrationOf,
 } from "./resources.ts";
 export type { ExtChange } from "./core.ts";
-export type { ScopeInfo, ScopeSetupOutcome } from "./scope.ts";
+export type { RegistrationInfo, RegistrationSetupOutcome } from "./registration.ts";
 export {
   DEFAULT_DRIVE_LIMITS,
   withDriveDefaults,

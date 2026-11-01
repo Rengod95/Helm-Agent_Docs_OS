@@ -26,7 +26,7 @@ test("tap continues after throw", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "tap-a", points: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "tap-a", hooks: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
       g.on("boundary.settle.after", () => {
         calls.push("a");
         throw new Error("boom");
@@ -34,7 +34,7 @@ test("tap continues after throw", async () => {
     }),
   );
   await t.host.install(
-    makeUnit({ name: "tap-b", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "tap-b", hooks: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
       g.on("boundary.settle.after", () => {
         calls.push("b");
       });
@@ -63,7 +63,7 @@ test("tap ignores returned value", async () => {
   await t.host.openThread(thread);
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "tap-val", points: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "tap-val", hooks: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
       g.on(
         "boundary.settle.after",
         noisyTap(() => calls.push("val")),
@@ -71,7 +71,7 @@ test("tap ignores returned value", async () => {
     }),
   );
   await t.host.install(
-    makeUnit({ name: "tap-next", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "tap-next", hooks: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
       g.on("boundary.settle.after", () => {
         calls.push("next");
       });
@@ -114,7 +114,7 @@ test("policy run replaces own timer", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "tap-run", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "tap-run", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", () => {});
     }),
   );
@@ -141,12 +141,12 @@ test("settled reported once per success", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "ok-one", points: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "ok-one", hooks: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
       g.on("boundary.settle.after", () => {});
     }),
   );
   await t.host.install(
-    makeUnit({ name: "bad-one", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "bad-one", hooks: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
       g.on("boundary.settle.after", () => {
         throw new Error("x");
       });

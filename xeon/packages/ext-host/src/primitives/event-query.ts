@@ -28,7 +28,7 @@ export type EventQueryError =
 
 /**
  * 활성 가지의 내구 이벤트를 kind 접두로 거른다. 이 조회는 호스트 쪽 도구(group-sdk 계측, 승격 보고)용이고 확장 scope에는
- * 열지 않는다. 확장 레코드는 `ScopeApi.readRecords`가 `readsRecordKinds` 검사와 함께 맡는다.
+ * 열지 않는다. 확장 레코드는 `RegistrationApi.readRecords`가 `readsRecordKinds` 검사와 함께 맡는다.
  */
 export function createEventQuery(
   ports: PortLookup,

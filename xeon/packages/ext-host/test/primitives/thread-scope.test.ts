@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { makeDraft } from "../../src/primitives/drafts.ts";
-import { hostInternalsOf, scopeToggleSourceOf } from "../../src/primitives/index.ts";
+import { hostInternalsOf, registrationToggleSourceOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { makeGroupUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
 
@@ -28,7 +28,7 @@ test("a scope turned off in one thread keeps running in the other", async () => 
   const seen: string[] = [];
   const disposed: string[] = [];
   await t.host.install(
-    makeUnit({ name: "ts-one", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "ts-one", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
@@ -40,7 +40,7 @@ test("a scope turned off in one thread keeps running in the other", async () => 
   await t.host.openThread(a);
   await t.host.openThread(b);
   await t.settled();
-  scopeToggleSourceOf(t.host).request("ts-one", false, "request", a);
+  registrationToggleSourceOf(t.host).request("ts-one", false, "request", a);
   await t.settled();
 
   await fire(t, a, "k-a");
@@ -48,7 +48,7 @@ test("a scope turned off in one thread keeps running in the other", async () => 
   expect(seen).toEqual([b]);
   // 한 thread가 아직 쓰므로 세대는 그대로다
   expect(disposed).toEqual([]);
-  expect(t.host.scopes()[0]).toMatchObject({ status: "enabled", generation: 1 });
+  expect(t.host.registrations()[0]).toMatchObject({ status: "enabled", generation: 1 });
   expect(changes(t, a)).toEqual([
     { scopeId: "ts-one", status: "enabled" },
     { scopeId: "ts-one", status: "disabled" },
@@ -56,11 +56,11 @@ test("a scope turned off in one thread keeps running in the other", async () => 
   expect(changes(t, b)).toEqual([{ scopeId: "ts-one", status: "enabled" }]);
 
   // 마지막 thread에서도 끄면 세대가 해제된다
-  scopeToggleSourceOf(t.host).request("ts-one", false, "request", b);
+  registrationToggleSourceOf(t.host).request("ts-one", false, "request", b);
   await t.settled();
   expect(disposed).toEqual(["gen"]);
   expect(hostInternalsOf(t.host).core.registry.size()).toBe(0);
-  expect(t.host.scopes()[0]).toMatchObject({ status: "disabled" });
+  expect(t.host.registrations()[0]).toMatchObject({ status: "disabled" });
 });
 
 test("a thread can turn on a scope that is off by default, without touching the others", async () => {
@@ -69,7 +69,7 @@ test("a thread can turn on a scope that is off by default, without touching the 
   const b = t.newThread();
   const seen: string[] = [];
   await t.host.install(
-    makeUnit({ name: "ts-opt", points: ["boundary.settle.after"], initialEnabled: false }, (g) => {
+    makeUnit({ name: "ts-opt", hooks: ["boundary.settle.after"], initialEnabled: false }, (g) => {
       g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
@@ -78,7 +78,7 @@ test("a thread can turn on a scope that is off by default, without touching the 
   await t.host.openThread(a);
   await t.host.openThread(b);
   await t.settled();
-  scopeToggleSourceOf(t.host).request("ts-opt", true, "request", a);
+  registrationToggleSourceOf(t.host).request("ts-opt", true, "request", a);
   await t.settled();
   await fire(t, a, "k1");
   await fire(t, b, "k2");
@@ -87,11 +87,11 @@ test("a thread can turn on a scope that is off by default, without touching the 
   expect(changes(t, b)).toEqual([]);
 
   // B도 켜면 같은 세대를 쓴다(setup이 다시 실행되지 않는다)
-  scopeToggleSourceOf(t.host).request("ts-opt", true, "request", b);
+  registrationToggleSourceOf(t.host).request("ts-opt", true, "request", b);
   await t.settled();
   await fire(t, b, "k3");
   expect(seen).toEqual([a, b]);
-  expect(t.host.scopes()[0]).toMatchObject({ generation: 1 });
+  expect(t.host.registrations()[0]).toMatchObject({ generation: 1 });
 });
 
 test("a whole-scope request replaces the per-thread requests and applies to new threads", async () => {
@@ -99,7 +99,7 @@ test("a whole-scope request replaces the per-thread requests and applies to new 
   const a = t.newThread();
   const seen: string[] = [];
   await t.host.install(
-    makeUnit({ name: "ts-all", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "ts-all", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
@@ -107,17 +107,17 @@ test("a whole-scope request replaces the per-thread requests and applies to new 
   );
   await t.host.openThread(a);
   await t.settled();
-  scopeToggleSourceOf(t.host).request("ts-all", false, "request", a);
+  registrationToggleSourceOf(t.host).request("ts-all", false, "request", a);
   await t.settled();
   await fire(t, a, "k1");
   expect(seen).toEqual([]);
   // 전체 켜기는 thread별 끄기 요청을 지운다
-  t.host.scope("ts-all")?.enable();
+  t.host.registration("ts-all")?.enable();
   await t.settled();
   await fire(t, a, "k2");
   expect(seen).toEqual([a]);
   // 전체 끄기 뒤에 연 thread는 꺼진 상태로 시작한다
-  t.host.scope("ts-all")?.disable();
+  t.host.registration("ts-all")?.disable();
   await t.settled();
   const b = t.newThread();
   await t.host.openThread(b);
@@ -125,7 +125,7 @@ test("a whole-scope request replaces the per-thread requests and applies to new 
   await fire(t, b, "k3");
   await fire(t, a, "k4");
   expect(seen).toEqual([a]);
-  expect(t.host.scopes()[0]).toMatchObject({ status: "disabled" });
+  expect(t.host.registrations()[0]).toMatchObject({ status: "disabled" });
 });
 
 test("turning a scope off in one thread releases only that thread's lease", async () => {
@@ -144,7 +144,7 @@ test("turning a scope off in one thread releases only that thread's lease", asyn
   await t.settled();
   expect(t.host.leaseOf(a)).toMatchObject({ scopeId: "ts-group", status: "active" });
   expect(t.host.leaseOf(b)).toMatchObject({ scopeId: "ts-group", status: "active" });
-  scopeToggleSourceOf(t.host).request("ts-group", false, "request", a);
+  registrationToggleSourceOf(t.host).request("ts-group", false, "request", a);
   await t.settled();
   expect(t.host.leaseOf(a)).toBeNull();
   expect(t.host.leaseOf(b)).not.toBeNull();
@@ -154,7 +154,7 @@ test("turning a scope off in one thread releases only that thread's lease", asyn
 });
 
 const reopenUnit = () =>
-  makeUnit({ name: "ts-reopen", points: ["boundary.settle.after"] }, () => {});
+  makeUnit({ name: "ts-reopen", hooks: ["boundary.settle.after"] }, () => {});
 
 test("reopening a thread does not write scope.changed again for scopes it already recorded", async () => {
   const first = await createTestHost();
@@ -184,7 +184,7 @@ test("a default-enabled scope turned off in a thread stays off after reopening a
   const b = first.newThread();
   const seen: string[] = [];
   const unitOf = () =>
-    makeUnit({ name: "ts-off", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "ts-off", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
@@ -193,7 +193,7 @@ test("a default-enabled scope turned off in a thread stays off after reopening a
   await first.host.openThread(a);
   await first.host.openThread(b);
   await first.settled();
-  scopeToggleSourceOf(first.host).request("ts-off", false, "request", a);
+  registrationToggleSourceOf(first.host).request("ts-off", false, "request", a);
   await first.settled();
   expect((await snapshotOf(first.records, a)).disabled).toEqual(["ts-off"]);
   expect((await snapshotOf(first.records, a)).enabled).toEqual([]);
@@ -223,7 +223,7 @@ test("a default-enabled scope turned off in a thread stays off after reopening a
   expect(changes(second, b)).toHaveLength(1);
 
   // 끈 thread에서 다시 켜면 새 키로 기록된다
-  scopeToggleSourceOf(second.host).request("ts-off", true, "request", a);
+  registrationToggleSourceOf(second.host).request("ts-off", true, "request", a);
   await second.settled();
   expect(changes(second, a).at(-1)).toEqual({ scopeId: "ts-off", status: "enabled" });
   expect((await snapshotOf(second.records, a)).scopeTransitions["ts-off"]).toBe(3);
@@ -264,7 +264,7 @@ test("onChange reports toggle requests, their application and lease changes; a t
   const off = t.host.onChange((change) => {
     seen.push(`${change.kind}:${change.scopeId}:${change.threadId ?? "all"}`);
   });
-  t.host.scope("ts-notify")?.disable();
+  t.host.registration("ts-notify")?.disable();
   // 요청은 곧바로 알린다(상태줄의 "다음 단계 경계에 적용")
   expect(seen).toEqual(["scope:ts-notify:all"]);
   await t.settled();
@@ -273,7 +273,7 @@ test("onChange reports toggle requests, their application and lease changes; a t
   expect(t.diagnostics.some((d) => d.message.includes("onChange listener threw"))).toBe(true);
   off();
   const before = seen.length;
-  t.host.scope("ts-notify")?.enable();
+  t.host.registration("ts-notify")?.enable();
   await t.settled();
   expect(seen).toHaveLength(before);
 });

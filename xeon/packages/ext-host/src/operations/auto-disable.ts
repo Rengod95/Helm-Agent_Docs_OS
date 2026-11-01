@@ -1,5 +1,5 @@
 import { attempt } from "@fresnel/contracts";
-import type { ExtensionName, ScopeId } from "@fresnel/contracts/extensions";
+import type { ExtensionName, RegistrationId } from "@fresnel/contracts/extensions";
 import type { ScopeChangedPayload, ScopeHandlerFailedPayload } from "@fresnel/contracts/records";
 import type { FailureLedger, FailureStats, HandlerOutcomeRecord } from "./failure.ts";
 import { ownerKey, type HandlerOwnerKey, type HookId, type Tier } from "./tier.ts";
@@ -59,19 +59,19 @@ export type ScopeChangeReason = NonNullable<ScopeChangedPayload["reason"]>;
 /**
  * scope 제어 포트. 조립 루트가 ExtHost에 늦게 연결한다. 요청만 기록하고 적용은 다음 단계 경계다
  */
-export interface ScopeControl {
-  requestDisable(scopeId: ScopeId, reason: ScopeChangeReason): void;
-  requestEnable(scopeId: ScopeId, reason: ScopeChangeReason): void;
-  scopesOf(extension: ExtensionName): readonly ScopeId[];
+export interface RegistrationControl {
+  requestDisable(scopeId: RegistrationId, reason: ScopeChangeReason): void;
+  requestEnable(scopeId: RegistrationId, reason: ScopeChangeReason): void;
+  scopesOf(extension: ExtensionName): readonly RegistrationId[];
 }
 
-/** ExtHost에서 ScopeControl을 만드는 재료. primitives의 scopeToggleSourceOf가 돌려준다 */
-export interface ScopeToggleSource {
-  scopes(): readonly { readonly id: ScopeId; readonly extension: ExtensionName }[];
-  request(scopeId: ScopeId, enabled: boolean, reason: ScopeChangeReason): void;
+/** ExtHost에서 RegistrationControl을 만드는 재료. primitives의 registrationToggleSourceOf가 돌려준다 */
+export interface RegistrationToggleSource {
+  scopes(): readonly { readonly id: RegistrationId; readonly extension: ExtensionName }[];
+  request(scopeId: RegistrationId, enabled: boolean, reason: ScopeChangeReason): void;
 }
 
-export function createScopeControl(source: ScopeToggleSource): ScopeControl {
+export function createRegistrationControl(source: RegistrationToggleSource): RegistrationControl {
   return {
     requestDisable: (scopeId, reason) => {
       source.request(scopeId, false, reason);
@@ -171,12 +171,12 @@ export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNo
 }
 
 export interface AutoDisabler {
-  /** 장부에 기록하고 판정한다. 기준을 넘으면 ScopeControl.requestDisable(…, "auto_disable")을 부른다 */
+  /** 장부에 기록하고 판정한다. 기준을 넘으면 RegistrationControl.requestDisable(…, "auto_disable")을 부른다 */
   onOutcome(outcome: HandlerOutcomeRecord): void;
   /** 사용자가 다시 켤 때. 장부를 비우고 requestEnable을 부른다 */
   reenable(key: HandlerOwnerKey): void;
   /**
-   * 장부와 자동으로 꺼진 주체 표만 비운다. 켜기 요청은 부르지 않는다. 켜기를 다른 경로(`ScopeHandle.enable()`)로 이미 하는
+   * 장부와 자동으로 꺼진 주체 표만 비운다. 켜기 요청은 부르지 않는다. 켜기를 다른 경로(`RegistrationHandle.enable()`)로 이미 하는
    * `/group on`과 설정 토글이 부른다. 이것을 빼먹으면 다시 켠 확장이 재시작 전까지 자동 끄기 대상이 되지 못한다
    */
   clearLedger(key: HandlerOwnerKey): void;
@@ -193,7 +193,7 @@ export interface AutoDisablerDeps {
   readonly ledger: FailureLedger;
   /** 설정 live 반영 */
   readonly policy: () => AutoDisablePolicy;
-  readonly scopes: ScopeControl;
+  readonly scopes: RegistrationControl;
   readonly hooks: { disable(id: HookId): void; enable(id: HookId): void };
   readonly notifier: OperationsNotifier;
   /** essential 확장 등 tier 밖의 면제. 없으면 면제 tier만 본다 */

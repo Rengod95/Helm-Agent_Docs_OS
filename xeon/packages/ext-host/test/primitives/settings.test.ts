@@ -12,10 +12,11 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.primitives", defs }]);
   expect(catalog.ok).toBe(true);
   expect(defs.map((def) => def.key).toSorted()).toEqual([
-    "x.primitives.activeDriveGroup",
+    "x.primitives.activeDriver",
     "x.primitives.capabilityProviders",
     "x.primitives.driveDefaultLimits",
     "x.primitives.driveLimits",
+    "x.primitives.driveRequiresGroup",
     "x.primitives.leaseWaitLimit",
   ]);
   expect(primitivesSettings.defs.driveLimits.default).toEqual({});
@@ -33,8 +34,11 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
     expect(def.ui?.widget).toBe("table");
   }
   expect(primitivesSettings.defs.leaseWaitLimit.default).toBe(8);
-  expect(primitivesSettings.defs.activeDriveGroup.default).toBeNull();
+  expect(primitivesSettings.defs.activeDriver.default).toBeNull();
   expect(primitivesSettings.defs.capabilityProviders.default).toEqual({});
+  expect(primitivesSettings.defs.driveRequiresGroup.default).toBe(true);
+  expect(primitivesSettings.defs.driveRequiresGroup.runtimeChange).toBe("restart");
+  expect(primitivesSettings.defs.driveRequiresGroup.allowedScopes).toEqual(["managed", "user"]);
   expect(primitivesSettings.defs.driveLimits.runtimeChange).toBe("nextTurn");
   expect(primitivesSettings.defs.capabilityProviders.runtimeChange).toBe("restart");
   for (const def of defs) {
@@ -49,6 +53,16 @@ test("a static settings source defaults to the default caps, no ceiling, no sele
   const thread = fixedIdFactory().next("thr");
   expect(source.driveDefaultLimits(thread)).toEqual(DEFAULT_DRIVE_LIMITS);
   expect(source.driveLimits(thread)).toEqual({});
-  expect(source.activeDriveGroup(thread)).toBeNull();
+  expect(source.activeDriver(thread)).toBeNull();
   expect(source.capabilityProviders()).toEqual({});
+});
+
+test("the drive policy reads group-only by default and can be opened by the static source", () => {
+  expect(createStaticPrimitivesSettings().driveRequiresGroup()).toBe(true);
+  expect(createStaticPrimitivesSettings({ driveRequiresGroup: true }).driveRequiresGroup()).toBe(
+    true,
+  );
+  expect(createStaticPrimitivesSettings({ driveRequiresGroup: false }).driveRequiresGroup()).toBe(
+    false,
+  );
 });

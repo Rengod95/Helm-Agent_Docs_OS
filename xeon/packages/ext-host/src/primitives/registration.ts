@@ -4,16 +4,18 @@ import {
   validateUsage,
   type ExtensionUsage,
   type ManifestIssue,
-  type ScopeApi,
-  type ScopeDef,
-  type ScopeHandle,
-  type ScopeId,
-  type ScopeSetup,
-  type ScopeStatus,
+  pluginDefaultEnabled,
+  pluginsOf,
+  type RegistrationApi,
+  type RegistrationDef,
+  type RegistrationHandle,
+  type RegistrationId,
+  type RegistrationSetup,
+  type RegistrationStatus,
 } from "@fresnel/contracts/extensions";
 import type { CapabilityId } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { eraseScope } from "../erase.ts";
+import { eraseRegistration } from "../erase.ts";
 import { withoutAmbient } from "./ambient.ts";
 import {
   newUsage,
@@ -21,8 +23,8 @@ import {
   type Generation,
   type HostCore,
   type InstalledUnit,
-  type ScopeRecord,
-  type ScopeToggleReason,
+  type RegistrationRecord,
+  type RegistrationToggleReason,
   type ThreadRuntime,
 } from "./core.ts";
 import type { AnyState } from "./erased-types.ts";
@@ -34,10 +36,10 @@ import type { StateResetError, StateService } from "./state.ts";
 
 // ── 공개 모양 ──────────────────────────────────────────────────────────────
 
-export interface ScopeInfo {
-  readonly id: ScopeId;
+export interface RegistrationInfo {
+  readonly id: RegistrationId;
   readonly extension: string;
-  readonly status: ScopeStatus;
+  readonly status: RegistrationStatus;
   /** 꺼져 있으면 마지막 세대 */
   readonly generation: number;
   /** requires 기능이 없어 켜지지 못한 경우의 부족 기능 */
@@ -47,8 +49,8 @@ export interface ScopeInfo {
 }
 
 /** install 안의 시작 적용 결과. scope 하나에 하나(X.primitives.spec §3.2) */
-export interface ScopeSetupOutcome {
-  readonly scopeId: ScopeId;
+export interface RegistrationSetupOutcome {
+  readonly scopeId: RegistrationId;
   /** applied: setup 성공, 세대 열림. failed: setup 실패로 disabled. skipped: 초기 요청이 꺼짐. deferred: 실행 중 thread가 있어 다음 경계로 미룸 */
   readonly status: "applied" | "failed" | "skipped" | "deferred";
   readonly failure?: {
@@ -68,60 +70,65 @@ type SetupResult =
     }
   | {
       readonly ok: false;
-      readonly failure: NonNullable<ScopeSetupOutcome["failure"]>;
+      readonly failure: NonNullable<RegistrationSetupOutcome["failure"]>;
       readonly issues: readonly ManifestIssue[];
       readonly waiting: readonly CapabilityId[];
     };
 
-export interface ScopeRuntime {
-  /** scope 하나의 ScopeHandle */
-  handleOf(record: ScopeRecord): ScopeHandle;
-  /** install의 ScopeFn 구현 */
-  define<S>(unit: InstalledUnit, id: ScopeId, def: ScopeDef<S>, setup: ScopeSetup<S>): ScopeHandle;
+export interface RegistrationRuntime {
+  /** scope 하나의 RegistrationHandle */
+  handleOf(record: RegistrationRecord): RegistrationHandle;
+  /** install의 RegistrationFn 구현 */
+  define<S>(
+    unit: InstalledUnit,
+    id: RegistrationId,
+    def: RegistrationDef<S>,
+    setup: RegistrationSetup<S>,
+  ): RegistrationHandle;
   /**
    * 토글 요청을 기록한다. 적용은 단계 경계나 유휴 적용에서 한다. threadId가 있으면 그 thread만의 요청이고,
    * 없으면 전체 요청이다(전체 기본값을 바꾸고 thread별 요청을 지운다)
    */
   request(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     enabled: boolean,
-    reason?: ScopeToggleReason,
+    reason?: RegistrationToggleReason,
     threadId?: ThreadId,
   ): void;
   /** install: 초기 켜기 요청을 정한다. 설정 값이 있으면 매니페스트·정의 기본값을 덮는다 */
-  setInitial(record: ScopeRecord, enabled: boolean): void;
+  setInitial(record: RegistrationRecord, enabled: boolean): void;
   /** install: 초기 요청이 참이면 바로 켜기를 적용한다(실행 중 thread가 없을 때) */
-  startupApply(record: ScopeRecord): Promise<ScopeSetupOutcome>;
+  startupApply(record: RegistrationRecord): Promise<RegistrationSetupOutcome>;
   /** prepare: 요청과 현재 상태의 차이를 적용한다. 세대 닫기와 setup 실행이 여기서 일어난다 */
   applyToggles(thread: ThreadRuntime, txn: BoundaryTxn): Promise<void>;
   /** settle: 커밋 결과에 따라 세대를 열거나 정리하고, 실패면 되돌린다 */
   settle(thread: ThreadRuntime, txn: BoundaryTxn, result: "committed" | "failed"): Promise<void>;
   /** 경계 없이 즉시 내린다(uninstall, dispose). 열린 임대는 disabled 반납 예정이 된다 */
-  teardown(record: ScopeRecord): Promise<void>;
+  teardown(record: RegistrationRecord): Promise<void>;
   /**
    * thread를 열 때 이미 세대가 열린 scope를 그 thread의 켜짐 집합에 올린다(상태 문서 준비 포함).
    * 상태 문서가 맞지 않으면 올리지 않고 진단한다
    */
   seedThread(thread: ThreadRuntime): Promise<void>;
   /** 공급자 재시작으로 apply가 다시 불렸다. 새 세대로 다시 만들 것을 기록하고 적용을 예약한다(N-02) */
-  markStale(record: ScopeRecord, generation: Generation): void;
+  markStale(record: RegistrationRecord, generation: Generation): void;
   /** 한 scope의 status를 요청·세대·thread 켜짐에서 다시 계산한다 */
-  refreshStatus(record: ScopeRecord): void;
+  refreshStatus(record: RegistrationRecord): void;
   /**
    * 저장된 상태가 스키마·버전 검사를 못 넘겨 이 thread에서 켜지지 못한 scope의 상태 문서를 `initial`로 다시 쓴다(재설정 경로).
    * 마지막 오류가 저장 상태 오류가 아니면 `not_refused`다. 성공하면 thread의 거부와 마지막 오류를 지우고 적용을 예약한다.
    * scope를 다시 켜는 일은 하지 않는다(setup 실패로 꺼진 scope는 호출자가 `enable()`한다)
    */
   resetState(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     thread: ThreadRuntime,
-  ): Promise<Result<{ readonly rev: number }, ResetScopeStateError>>;
-  info(record: ScopeRecord): ScopeInfo;
+  ): Promise<Result<{ readonly rev: number }, ResetRegistrationStateError>>;
+  info(record: RegistrationRecord): RegistrationInfo;
   /** 실행 중인 thread가 있는가 */
   anyRunning(): boolean;
 }
 
-export type ResetScopeStateError = StateResetError | { readonly kind: "not_refused" };
+export type ResetRegistrationStateError = StateResetError | { readonly kind: "not_refused" };
 
 /** 재설정이 고치는 오류: 저장된 상태 문서가 이 판의 선언과 맞지 않는 경우 */
 const STORED_STATE_ERRORS: ReadonlySet<PrimitiveErrorCode> = new Set([
@@ -131,8 +138,11 @@ const STORED_STATE_ERRORS: ReadonlySet<PrimitiveErrorCode> = new Set([
   "state_migration_failed",
 ]);
 
-export interface ScopeRuntimeDeps {
-  readonly makeApi: (record: ScopeRecord, generation: Generation) => ScopeApi<AnyState>;
+export interface RegistrationRuntimeDeps {
+  readonly makeApi: (
+    record: RegistrationRecord,
+    generation: Generation,
+  ) => RegistrationApi<AnyState>;
   readonly state: StateService;
   readonly lease: LeaseBroker;
   /** 토글 요청이 들어왔을 때 유휴 적용을 예약한다. threadId가 있으면 그 thread만 */
@@ -150,13 +160,16 @@ function messageOf(error: unknown): string {
 }
 
 /** 이 thread가 scope를 켜 두기를 바라는가: thread별 요청이 있으면 그것, 없으면 전체 기본값 */
-function wantedBy(thread: ThreadRuntime, record: ScopeRecord): boolean {
+function wantedBy(thread: ThreadRuntime, record: RegistrationRecord): boolean {
   return thread.want.get(record.id)?.enabled ?? record.desired;
 }
 
-export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): ScopeRuntime {
+export function createRegistrationRuntime(
+  core: HostCore,
+  deps: RegistrationRuntimeDeps,
+): RegistrationRuntime {
   /** 세대의 onDispose를 등록 역순으로 차례로 실행한다. 예외는 기록하고 다음으로 간다 */
-  async function runDisposers(record: ScopeRecord, generation: Generation): Promise<void> {
+  async function runDisposers(record: RegistrationRecord, generation: Generation): Promise<void> {
     const list = generation.disposers.splice(0).toReversed();
     await eachInOrder(list, async (dispose) => {
       try {
@@ -164,7 +177,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       } catch (error) {
         core.deps.report({
           level: "error",
-          code: "scope_inactive",
+          code: "registration_inactive",
           scopeId: record.id,
           extension: record.extension,
           message: `onDispose of scope ${record.id} threw`,
@@ -176,7 +189,10 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
   }
 
   /** 세대를 완전히 정리한다: 닫기 → 중단 신호 → fiber 해제(등록 해제기 실행) → onDispose */
-  async function disposeGeneration(record: ScopeRecord, generation: Generation): Promise<void> {
+  async function disposeGeneration(
+    record: RegistrationRecord,
+    generation: Generation,
+  ): Promise<void> {
     generation.open = false;
     generation.closed = true;
     generation.abort.abort(new DOMException(`scope ${record.id} generation closed`, "AbortError"));
@@ -186,7 +202,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       } catch (error) {
         core.deps.report({
           level: "error",
-          code: "scope_inactive",
+          code: "registration_inactive",
           scopeId: record.id,
           extension: record.extension,
           message: `fiber of scope ${record.id} failed to dispose`,
@@ -197,13 +213,13 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     await runDisposers(record, generation);
   }
 
-  function missingCapabilities(record: ScopeRecord): readonly CapabilityId[] {
-    return toCapabilityIds((record.manifest.requires ?? []).map((req) => req.id)).filter(
+  function missingCapabilities(record: RegistrationRecord): readonly CapabilityId[] {
+    return toCapabilityIds((record.plugin.decl.requires ?? []).map((req) => req.id)).filter(
       (id) => core.bridge.service(capabilityServiceName(id)) === undefined,
     );
   }
 
-  async function runSetup(record: ScopeRecord): Promise<SetupResult> {
+  async function runSetup(record: RegistrationRecord): Promise<SetupResult> {
     record.busy = true;
     try {
       return await runSetupInner(record);
@@ -212,7 +228,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     }
   }
 
-  async function runSetupInner(record: ScopeRecord): Promise<SetupResult> {
+  async function runSetupInner(record: RegistrationRecord): Promise<SetupResult> {
     record.generationCount += 1;
     const generation: Generation = {
       scopeId: record.id,
@@ -247,7 +263,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     const captured: { error?: unknown; set: boolean } = { set: false };
     const opened = core.bridge.openFiber({
       name: `${record.id}#${generation.number}`,
-      inject: toCapabilityIds((record.manifest.requires ?? []).map((req) => req.id)).map(
+      inject: toCapabilityIds((record.plugin.decl.requires ?? []).map((req) => req.id)).map(
         capabilityServiceName,
       ),
       apply: async (fiber) => {
@@ -266,7 +282,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
           const returned = await withoutAmbient(() => record.setup(api));
           if (typeof returned === "object" && !returned.ok) {
             // setup이 시작할 수 없다고 값으로 알렸다. fiber는 던져야 닫히므로 같은 실패 경로로 보낸다
-            throw new PrimitiveError("scope_setup_failed", returned.error.reason, {
+            throw new PrimitiveError("registration_setup_failed", returned.error.reason, {
               scopeId: record.id,
               cause: returned.error.cause,
             });
@@ -292,14 +308,14 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     cancelTimer();
 
     if (raced === "timeout") {
-      // 늦게 끝난 setup의 등록은 세대가 닫혀 있어 scope_inactive로 버려진다
+      // 늦게 끝난 setup의 등록은 세대가 닫혀 있어 registration_inactive로 버려진다
       generation.closed = true;
       generation.abort.abort(new DOMException("scope setup budget exceeded", "TimeoutError"));
       core.track(
         opened.dispose().catch((error: unknown) => {
           core.deps.report({
             level: "warning",
-            code: "scope_inactive",
+            code: "registration_inactive",
             scopeId: record.id,
             message: "late fiber of a timed out setup failed to dispose",
             cause: error,
@@ -328,7 +344,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       recordKinds: [...generation.usage.recordKinds],
       readsRecordKinds: [...generation.usage.readsRecordKinds],
     };
-    const issues = validateUsage(record.manifest, usage);
+    const issues = validateUsage(record.manifest, record.plugin, usage);
     if (issues.some((issue) => issue.severity === "error")) {
       await disposeGeneration(record, generation);
       return { ok: false, failure: { kind: "threw" }, issues, waiting: [] };
@@ -337,7 +353,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
   }
 
   function markFailed(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     result: Extract<SetupResult, { ok: false }>,
     error?: PrimitiveError,
   ): void {
@@ -349,7 +365,8 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     record.generation = null;
     record.status = "disabled";
     record.waiting = result.waiting;
-    const code: PrimitiveErrorCode = error?.code ?? result.failure.code ?? "scope_setup_failed";
+    const code: PrimitiveErrorCode =
+      error?.code ?? result.failure.code ?? "registration_setup_failed";
     record.lastError = {
       code,
       message:
@@ -360,7 +377,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     };
     core.deps.report({
       level: "error",
-      code: "scope_setup_failed",
+      code: "registration_setup_failed",
       scopeId: record.id,
       extension: record.extension,
       message: record.lastError.message,
@@ -378,20 +395,20 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
   }
 
   /** 어느 thread라도 켜 두기를 바라는가. 열린 thread가 없으면 전체 기본값이다 */
-  function wantedAnywhere(record: ScopeRecord): boolean {
+  function wantedAnywhere(record: RegistrationRecord): boolean {
     if (core.threads.size === 0) return record.desired;
     return [...core.threads.values()].some((thread) => wantedBy(thread, record));
   }
 
   /** 세대를 계속 열어 둘 이유가 있는가: 켜 두기를 바라거나 이미 켜져 있는 thread가 있다 */
-  function neededAnywhere(record: ScopeRecord): boolean {
+  function neededAnywhere(record: RegistrationRecord): boolean {
     if (core.threads.size === 0) return record.desired;
     return [...core.threads.values()].some(
       (thread) => thread.active.has(record.id) || wantedBy(thread, record),
     );
   }
 
-  function refreshStatus(record: ScopeRecord): void {
+  function refreshStatus(record: RegistrationRecord): void {
     const generation = record.generation;
     const live = generation !== null && generation.open && !generation.stale;
     const wanted = wantedAnywhere(record);
@@ -405,7 +422,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
   }
 
   /** 공급자 재시작으로 Cordis가 apply를 다시 불렀다. 새 세대로 다시 만들 것을 기록하고 적용을 예약한다(N-02, 결정 D8) */
-  function markStale(record: ScopeRecord, generation: Generation): void {
+  function markStale(record: RegistrationRecord, generation: Generation): void {
     if (generation.stale || generation.closed) return;
     generation.stale = true;
     generation.open = false;
@@ -421,14 +438,14 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     deps.requestApply();
   }
 
-  const handles = new WeakMap<ScopeRecord, ScopeHandle>();
+  const handles = new WeakMap<RegistrationRecord, RegistrationHandle>();
 
-  function handleOf(record: ScopeRecord): ScopeHandle {
+  function handleOf(record: RegistrationRecord): RegistrationHandle {
     const cached = handles.get(record);
     if (cached !== undefined) return cached;
-    const handle: ScopeHandle = {
+    const handle: RegistrationHandle = {
       id: record.id,
-      get status(): ScopeStatus {
+      get status(): RegistrationStatus {
         return record.status;
       },
       enable: () => toggle(record, true, undefined, undefined),
@@ -438,7 +455,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     return handle;
   }
 
-  function refuse(record: ScopeRecord, thread: ThreadRuntime, error: PrimitiveError): void {
+  function refuse(record: RegistrationRecord, thread: ThreadRuntime, error: PrimitiveError): void {
     thread.refused.add(record.id);
     record.lastError = { code: error.code, message: error.message };
     core.deps.report({
@@ -453,7 +470,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
   }
 
   /** stale 세대를 정리하고 새 세대를 만들 수 있게 record.generation을 비운다 */
-  async function discardStale(record: ScopeRecord): Promise<void> {
+  async function discardStale(record: RegistrationRecord): Promise<void> {
     const generation = record.generation;
     if (generation === null || !generation.stale) return;
     record.generation = null;
@@ -461,9 +478,9 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
   }
 
   function toggle(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     enabled: boolean,
-    reason: ScopeToggleReason | undefined,
+    reason: RegistrationToggleReason | undefined,
     threadId: ThreadId | undefined,
   ): void {
     if (threadId === undefined) {
@@ -495,26 +512,32 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     define(unit, id, def, setup) {
       const existing = core.scopes.get(id);
       if (existing !== undefined) {
-        throw new PrimitiveError("scope_duplicate", `scope ${id} is already defined`, {
+        throw new PrimitiveError("registration_duplicate", `scope ${id} is already defined`, {
           scopeId: id,
         });
       }
       if (id !== unit.name && !id.startsWith(`${unit.name}/`)) {
         throw new PrimitiveError(
-          "scope_foreign_id",
-          `scope id ${id} does not start with the extension name ${unit.name}`,
+          "registration_foreign_id",
+          `registration id ${id} does not start with the extension name ${unit.name}`,
           { scopeId: id },
         );
       }
-      const isPrimary = id === unit.name;
-      const initial = isPrimary
-        ? (def.defaultEnabled ?? unit.manifest.defaultEnabled ?? true)
-        : (def.defaultEnabled ?? false);
-      const erased = eraseScope(def, setup);
-      const record: ScopeRecord = {
+      const plugin = pluginsOf(unit.manifest).find((entry) => entry.registrationId === id);
+      if (plugin === undefined) {
+        throw new PrimitiveError(
+          "registration_unknown_plugin",
+          `registration id ${id} is not a plugin declared in the manifest of ${unit.name}`,
+          { scopeId: id },
+        );
+      }
+      const initial = def.defaultEnabled ?? pluginDefaultEnabled(unit.manifest, plugin);
+      const erased = eraseRegistration(def, setup);
+      const record: RegistrationRecord = {
         id,
         extension: unit.name,
         manifest: unit.manifest,
+        plugin,
         loadIndex: unit.loadIndex,
         builtin: unit.builtin,
         ...erased,
@@ -616,7 +639,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
         if (!thread.active.has(record.id) || wantedBy(thread, record)) continue;
         thread.active.delete(record.id);
         txn.deactivating.push(record);
-        deps.lease.releaseForScopeIn(thread, record.id, "disabled");
+        deps.lease.releaseForRegistrationIn(thread, record.id, "disabled");
       }
       // 어느 thread도 쓰지 않는 세대는 닫는다
       for (const record of records) {
@@ -729,7 +752,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
         thread.want.delete(record.id);
         thread.active.delete(record.id);
       }
-      deps.lease.releaseForScope(record.id, "disabled");
+      deps.lease.releaseForRegistration(record.id, "disabled");
       record.generation = null;
       if (generation !== null) await disposeGeneration(record, generation);
       record.status = "disabled";
@@ -738,7 +761,7 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       const holding = [...core.threads.values()].some(
         (thread) => thread.lease?.scopeId === record.id && thread.lease.status === "active",
       );
-      const drive: ScopeInfo["drive"] = record.driveError
+      const drive: RegistrationInfo["drive"] = record.driveError
         ? "error"
         : holding
           ? "holding"

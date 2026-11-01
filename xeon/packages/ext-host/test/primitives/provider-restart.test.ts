@@ -32,7 +32,7 @@ async function setup(): Promise<{
       {
         name: "pr-consumer",
         loadIndex: 1,
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
@@ -59,19 +59,19 @@ test("a provider restart re-runs the consumer setup at the next step boundary, n
   const { t, thread, setups, handled } = await setup();
   expect(setups()).toBe(1);
   t.loop.setRunning(thread, true);
-  t.host.scope("pr-provider")?.disable();
+  t.host.registration("pr-provider")?.disable();
   await t.boundary(thread).stepEnd();
   await t.settled();
   // 공급자가 내려가면 소비자의 등록이 해제된다
   await fire(t, thread, "k0");
   expect(handled).toEqual([]);
 
-  t.host.scope("pr-provider")?.enable();
+  t.host.registration("pr-provider")?.enable();
   await t.boundary(thread).stepEnd();
   await t.settled();
   // 공급자가 돌아와 Cordis가 apply를 다시 불렀지만 setup은 아직 다시 실행되지 않았다
   expect(setups()).toBe(1);
-  expect(t.host.scope("pr-consumer")?.status).toBe("enabling");
+  expect(t.host.registration("pr-consumer")?.status).toBe("enabling");
   await fire(t, thread, "k1");
   expect(handled).toEqual([]);
 
@@ -80,7 +80,7 @@ test("a provider restart re-runs the consumer setup at the next step boundary, n
   expect(setups()).toBe(2);
   // 켜짐 기록은 그대로라 새 scope.changed가 없다
   expect(drafts.filter((draft) => draft.kind === "scope.changed")).toEqual([]);
-  expect(t.host.scopes().find((scope) => scope.id === "pr-consumer")).toMatchObject({
+  expect(t.host.registrations().find((info) => info.id === "pr-consumer")).toMatchObject({
     status: "enabled",
     generation: 2,
   });
@@ -90,9 +90,9 @@ test("a provider restart re-runs the consumer setup at the next step boundary, n
 
 test("an idle thread applies the new generation right after the provider returns", async () => {
   const { t, thread, setups, handled } = await setup();
-  t.host.scope("pr-provider")?.disable();
+  t.host.registration("pr-provider")?.disable();
   await t.settled();
-  t.host.scope("pr-provider")?.enable();
+  t.host.registration("pr-provider")?.enable();
   await t.settled();
   expect(setups()).toBe(2);
   await fire(t, thread, "k1");

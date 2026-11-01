@@ -1,8 +1,8 @@
 import {
-  SCOPE_ID_PATTERN,
+  REGISTRATION_ID_PATTERN,
   type DriveLimits,
   type ExtensionName,
-  type ScopeId,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
@@ -36,7 +36,7 @@ const DriveLimitsSchema = Type.Object(
 
 /**
  * x.primitives.* 설정 키(X.primitives.spec §6).
- * activeDriveGroup의 위젯은 문서가 select로 적었지만 F의 D8 규칙이 select에 range.enum을 요구한다.
+ * activeDriver의 위젯은 문서가 select로 적었지만 F의 D8 규칙이 select에 range.enum을 요구한다.
  * 후보 목록은 ExtHost.scopes()에서 오므로 정적 enum을 둘 수 없어 text로 둔다.
  */
 export const primitivesSettings: SettingGroup<
@@ -44,7 +44,8 @@ export const primitivesSettings: SettingGroup<
   {
     readonly driveDefaultLimits: SettingDefInput;
     readonly driveLimits: SettingDefInput;
-    readonly activeDriveGroup: SettingDefInput;
+    readonly activeDriver: SettingDefInput;
+    readonly driveRequiresGroup: SettingDefInput;
     readonly capabilityProviders: SettingDefInput;
     readonly leaseWaitLimit: SettingDefInput;
   }
@@ -77,8 +78,11 @@ export const primitivesSettings: SettingGroup<
     },
     since: "0.1.0",
   },
-  activeDriveGroup: {
-    type: Type.Union([Type.String({ pattern: SCOPE_ID_PATTERN, maxLength: 65 }), Type.Null()]),
+  activeDriver: {
+    type: Type.Union([
+      Type.String({ pattern: REGISTRATION_ID_PATTERN, maxLength: 65 }),
+      Type.Null(),
+    ]),
     default: null,
     runtimeChange: "nextTurn",
     allowedScopes: ["user", "project", "launch"],
@@ -86,8 +90,22 @@ export const primitivesSettings: SettingGroup<
       tab: "plugins",
       widget: "text",
       order: 110,
-      label: "구동 그룹",
-      help: "drive를 쓰는 그룹이 둘 이상일 때 임대를 받을 그룹의 scope id.",
+      label: "주도 플러그인",
+      help: "drive를 쓰는 Registration이 둘 이상일 때 drive lock을 받을 Registration id.",
+    },
+    since: "0.1.0",
+  },
+  driveRequiresGroup: {
+    type: Type.Boolean(),
+    default: true,
+    runtimeChange: "restart",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "plugins",
+      widget: "toggle",
+      order: 112,
+      label: "drive는 플러그인 그룹만",
+      help: "켜 두면 플러그인 그룹의 구성원만 drive를 등록합니다. 끄면 그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다. Registration을 다시 켜거나 확장을 다시 불러올 때 적용합니다.",
     },
     since: "0.1.0",
   },
@@ -124,7 +142,8 @@ export const primitivesSettings: SettingGroup<
 export interface StaticPrimitivesSettings {
   readonly driveDefaultLimits?: DriveLimits;
   readonly driveLimits?: DriveLimits;
-  readonly activeDriveGroup?: ScopeId | null;
+  readonly activeDriver?: RegistrationId | null;
+  readonly driveRequiresGroup?: boolean;
   readonly capabilityProviders?: Readonly<Record<string, ExtensionName>>;
   readonly leaseWaitLimit?: number;
 }
@@ -144,7 +163,8 @@ export function createStaticPrimitivesSettings(
   return {
     driveDefaultLimits: (_threadId: ThreadId) => withDriveDefaults(values.driveDefaultLimits ?? {}),
     driveLimits: (_threadId: ThreadId) => values.driveLimits ?? {},
-    activeDriveGroup: (_threadId: ThreadId) => values.activeDriveGroup ?? null,
+    activeDriver: (_threadId: ThreadId) => values.activeDriver ?? null,
+    driveRequiresGroup: () => values.driveRequiresGroup ?? true,
     capabilityProviders: () => values.capabilityProviders ?? {},
     leaseWaitLimit: (_threadId: ThreadId) => values.leaseWaitLimit ?? DEFAULT_LEASE_WAIT_LIMIT,
   };

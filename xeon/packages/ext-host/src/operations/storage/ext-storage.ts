@@ -5,7 +5,7 @@ import {
   ScopedStorePortKey,
   type ExtensionName,
   type PortLookup,
-  type ScopeApi,
+  type RegistrationApi,
 } from "@fresnel/contracts/extensions";
 import {
   ownerOfKind,
@@ -533,7 +533,7 @@ function hasStorage(policy: DispatchPolicy): policy is DispatchPolicy & StorageH
  * 확장 코드가 자기 저장 영역을 얻는 함수 [제안]. hostOf(g)와 같은 방식으로 setup이 받은 g를 받는다.
  * ext-host가 만든 g가 아니면 PrimitiveError("no_context"). 격리 확장이면 defineTables가 isolated 오류를 낸다
  */
-export function storageOf<S>(g: ScopeApi<S>): ExtStorage {
+export function storageOf<S>(g: RegistrationApi<S>): ExtStorage {
   const internals = scopeInternalsOf(g);
   const policy = internals.core.deps.policy;
   if (!hasStorage(policy)) {

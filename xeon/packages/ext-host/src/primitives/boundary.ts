@@ -7,7 +7,8 @@ import {
   type ExtCommitResult,
   type RecordCommitPort,
   type ExtThreadSnapshot,
-  type ScopeId,
+  extensionPrefix,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import type { DurableEventDraft } from "@fresnel/contracts/records";
 import type {
@@ -23,7 +24,7 @@ import { keyPart } from "./keys.ts";
 import type { EffectWorkerPort } from "./effect-worker.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import type { LeaseBroker } from "./lease.ts";
-import type { ScopeRuntime } from "./scope.ts";
+import type { RegistrationRuntime } from "./registration.ts";
 
 export type { BoundarySignal } from "./core.ts";
 
@@ -71,12 +72,12 @@ function commitPlanOf(
   core: HostCore,
   txn: BoundaryTxn,
 ): { readonly requestId: string; readonly fingerprintSource: readonly string[] } {
-  const generationOf = (id: ScopeId): number => {
+  const generationOf = (id: RegistrationId): number => {
     const record = core.scopes.get(id);
     return record?.generation?.number ?? record?.generationCount ?? 0;
   };
   // 한 세대가 여러 thread에서 켜졌다 꺼졌다 할 수 있어 같은 thread의 전이 횟수를 키에 더한다(P-28)
-  const flipOf = (id: ScopeId): string => {
+  const flipOf = (id: RegistrationId): string => {
     const flips = core.threads.get(txn.signal.threadId)?.flips.get(id) ?? 0;
     return flips === 0 ? "" : `.${flips}`;
   };
@@ -126,14 +127,14 @@ function commitIdleTxn(
 
 export function createBoundary(
   core: HostCore,
-  scope: ScopeRuntime,
+  scope: RegistrationRuntime,
   lease: LeaseBroker,
   effects: EffectWorkerPort,
   lifecycle: Lifecycle,
 ): BoundaryService {
   function reconcile(thread: ThreadRuntime, txn: BoundaryTxn): void {
     // 이 경계가 끝난 뒤 이 thread에서 켜져 있을 scope
-    const future = new Set<ScopeId>(thread.active);
+    const future = new Set<RegistrationId>(thread.active);
     for (const record of txn.activating) future.add(record.id);
     for (const record of txn.deactivating) future.delete(record.id);
     const disabled = [...thread.recordedEnabled].filter((id) => !future.has(id)).toSorted();
@@ -223,7 +224,7 @@ export function createBoundary(
   /** 방금 커밋된 켜짐의 seq는 커밋 결과에 없어 저장소에서 다시 읽는다. 읽지 못하면 그 scope는 seq 없이(null) 중재한다 */
   async function refreshEnabledAtSeq(
     thread: ThreadRuntime,
-    ids: readonly ScopeId[],
+    ids: readonly RegistrationId[],
   ): Promise<void> {
     const port = core.ports.get(RecordCommitPortKey);
     if (port === undefined) return;
@@ -425,7 +426,7 @@ export function createBoundary(
           threadId,
           scopeId,
           extension: record.extension,
-          kind: record.manifest.kind === "group" ? "group" : "plugin",
+          prefix: extensionPrefix(record.manifest),
         });
       }
       requestApply(threadId);

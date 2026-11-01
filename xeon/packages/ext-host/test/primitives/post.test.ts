@@ -25,7 +25,7 @@ test("duplicate requestId", async () => {
   const { t, thread } = await setup();
   const receipts: PostReceipt[] = [];
   await t.host.install(
-    makeUnit({ name: "post-dup", points: ["boundary.settle.after"], usesPost: true }, (g) => {
+    makeUnit({ name: "post-dup", hooks: ["boundary.settle.after"], usesPost: true }, (g) => {
       g.on("boundary.settle.after", async () => {
         receipts.push(
           await g.post({ kind: "user", content: "hi" }, { when: "followUp", requestId: "same" }),
@@ -51,7 +51,7 @@ test("post requires usesPost", async () => {
   const { t, thread } = await setup();
   const errors: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "post-undeclared", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "post-undeclared", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", async () => {
         try {
           await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "x" });
@@ -77,7 +77,7 @@ test("post scoped by scope", async () => {
     ] as const,
     async ([name, loadIndex]) => {
       await t.host.install(
-        makeUnit({ name, points: ["boundary.settle.after"], usesPost: true, loadIndex }, (g) => {
+        makeUnit({ name, hooks: ["boundary.settle.after"], usesPost: true, loadIndex }, (g) => {
           g.on("boundary.settle.after", async () => {
             const receipt = await g.post(
               { kind: "user", content: "hi" },
@@ -99,7 +99,7 @@ test("post outside a thread context is no_thread, and a bad requestId is a TypeE
   const { t, thread } = await setup();
   const outcome = await t.host.install(
     makeUnit(
-      { name: "post-setup", points: ["boundary.settle.after"], usesPost: true },
+      { name: "post-setup", hooks: ["boundary.settle.after"], usesPost: true },
       async (g) => {
         await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "x" });
       },
@@ -110,7 +110,7 @@ test("post outside a thread context is no_thread, and a bad requestId is a TypeE
 
   const errors: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "post-badid", points: ["boundary.settle.after"], usesPost: true }, (g) => {
+    makeUnit({ name: "post-badid", hooks: ["boundary.settle.after"], usesPost: true }, (g) => {
       g.on("boundary.settle.after", async () => {
         try {
           await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "" });
@@ -128,7 +128,7 @@ test("post without the queue port is port_unavailable", async () => {
   const { t, thread } = await setup({ without: ["queue"] });
   const errors: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "post-noport", points: ["boundary.settle.after"], usesPost: true }, (g) => {
+    makeUnit({ name: "post-noport", hooks: ["boundary.settle.after"], usesPost: true }, (g) => {
       g.on("boundary.settle.after", async () => {
         try {
           await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "x" });

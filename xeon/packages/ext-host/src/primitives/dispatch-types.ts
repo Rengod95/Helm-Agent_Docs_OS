@@ -6,7 +6,7 @@ import type {
   FirstSig,
   HookName,
   HookSignatures,
-  ScopeId,
+  RegistrationId,
   TapSig,
 } from "@fresnel/contracts/extensions";
 import type { HandlerEntryInfo } from "./registry.ts";
@@ -24,7 +24,7 @@ interface DispatchOptionsBase {
   /** 디스패치 전체의 취소 신호. 핸들러 ctx.signal의 부모다 */
   readonly signal?: AbortSignal;
   /** 있으면 그 scope의 핸들러만 실행한다. 수명주기 지점의 소유 scope 거르기에 쓴다(ADR-0017 §3.6) */
-  readonly onlyScope?: ScopeId;
+  readonly onlyScope?: RegistrationId;
 }
 
 export type DispatchOptions<N extends HookName> =
@@ -49,7 +49,7 @@ export interface AnyDispatchOptions extends DispatchOptionsBase {
 }
 
 export interface HandlerRef {
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   /** 레지스트리 등록 순번 */
   readonly seq: number;

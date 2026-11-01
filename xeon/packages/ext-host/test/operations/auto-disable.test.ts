@@ -4,7 +4,7 @@ import {
   createAutoDisabler,
   createFailureLedger,
   createLogNotifier,
-  createScopeControl,
+  createRegistrationControl,
   createVolatileNotifier,
   DEFAULT_AUTO_DISABLE,
   judgeAutoDisable,
@@ -12,7 +12,7 @@ import {
   type HandlerOutcomeRecord,
   type OperationsNotifier,
   type ScopeChangeReason,
-  type ScopeControl,
+  type RegistrationControl,
   type Tier,
 } from "../../src/operations/index.ts";
 import { makeUnit } from "../primitives/fixtures/support.ts";
@@ -39,7 +39,7 @@ interface Recorder {
   readonly requests: string[];
   readonly notices: string[];
   readonly projections: string[];
-  readonly scopes: ScopeControl;
+  readonly scopes: RegistrationControl;
   readonly notifier: OperationsNotifier;
 }
 
@@ -253,7 +253,7 @@ test("autoDisable: log notifier and scope control adapter", () => {
   notifier.projectionFailed("ext:flaky-ext", "projection_failed", false);
   expect(lines[1]).toBe("forced disable: ext:flaky-ext (projection_failed) kept enabled (exempt)");
   const calls: string[] = [];
-  const control = createScopeControl({
+  const control = createRegistrationControl({
     scopes: () => [
       { id: "a-ext", extension: "a-ext" },
       { id: "a-ext/sub", extension: "a-ext" },
@@ -275,7 +275,7 @@ test("autoDisable: applied at step boundary", async () => {
   policy.admit({ name: "auto-bad", source: "user", trust: "user", essential: false }, "plugin");
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "auto-bad", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "auto-bad", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", () => {
         calls.push("handler");
         throw new Error("always fails");
@@ -295,7 +295,7 @@ test("autoDisable: applied at step boundary", async () => {
   await fire("2");
   // 요청은 기록되었지만 적용 전이다: 실행 중인 디스패치는 끊기지 않고 핸들러는 계속 돈다
   expect(harness.requests).toEqual(["disable:auto-bad:auto_disable"]);
-  expect(t.host.scope("auto-bad")?.status).toBe("disabling");
+  expect(t.host.registration("auto-bad")?.status).toBe("disabling");
   await fire("3");
   expect(calls).toHaveLength(3);
   expect(harness.requests).toHaveLength(1);

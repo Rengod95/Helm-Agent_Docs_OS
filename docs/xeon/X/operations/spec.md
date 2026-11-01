@@ -82,7 +82,7 @@ import type { Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
 import type {
-  ExtensionManifest, ExtensionName, Fold, HookDecl, HookName, HookSignatures, ScopeApi, ScopeId,
+  ExtensionManifest, ExtensionName, Fold, HookDecl, HookName, HookSignatures, RegistrationApi, RegistrationId,
 } from "@fresnel/contracts/extensions";
 // 호스트 포트는 F가 정본이다(F.extensions.spec §3.2.1 ports.ts). 이 문서는 정의하지 않는다
 import type {
@@ -115,7 +115,7 @@ export type HookId = string;   // §3.7 HOOK_ID_PATTERN
 
 /** 핸들러를 등록한 주체 */
 export type HandlerOwner =
-  | { readonly type: "extension"; readonly name: ExtensionName; readonly scopeId: ScopeId }
+  | { readonly type: "extension"; readonly name: ExtensionName; readonly scopeId: RegistrationId }
   | { readonly type: "hook"; readonly hookId: HookId };
 
 /** 실패 장부와 진단의 키. "ext:<확장 이름>" 또는 "hook:<훅 id>" */
@@ -149,7 +149,7 @@ export interface TierInput {
   readonly source: InstallSource;
   /** X.loading-trust.spec §4.6.1의 유효 등급 */
   readonly trust: TrustLevel;
-  readonly layer: ExtensionManifest["layer"];
+  readonly layer: ExtensionLayer;
 }
 
 export type TierError =
@@ -313,13 +313,13 @@ export function judgeAutoDisable(stats: FailureStats, policy: AutoDisablePolicy,
 export type ScopeChangeReason = "request" | "auto_disable" | "safe_mode" | "startup_disable";
 
 /**
- * scope 제어 포트. ExtHost.scope(id)의 ScopeHandle.enable/disable과 ExtHost.scopes()(X.primitives.spec §3.2)를 감싼다.
- * ScopeHandle에는 사유 인자가 없으므로 사유를 scope.changed에 싣는 경로는 primitives 추가 요청이다(§10 미결 4)
+ * scope 제어 포트. ExtHost.scope(id)의 RegistrationHandle.enable/disable과 ExtHost.scopes()(X.primitives.spec §3.2)를 감싼다.
+ * RegistrationHandle에는 사유 인자가 없으므로 사유를 scope.changed에 싣는 경로는 primitives 추가 요청이다(§10 미결 4)
  */
-export interface ScopeControl {
-  requestDisable(scopeId: ScopeId, reason: ScopeChangeReason): void;
-  requestEnable(scopeId: ScopeId, reason: ScopeChangeReason): void;
-  scopesOf(extension: ExtensionName): readonly ScopeId[];
+export interface RegistrationControl {
+  requestDisable(scopeId: RegistrationId, reason: ScopeChangeReason): void;
+  requestEnable(scopeId: RegistrationId, reason: ScopeChangeReason): void;
+  scopesOf(extension: ExtensionName): readonly RegistrationId[];
 }
 
 /** 사용자 알림 포트. 구현은 휘발 이벤트 발신(§4.3.4) */
@@ -340,11 +340,11 @@ export interface VolatileNotifierDeps {
 export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNotifier;
 
 export interface AutoDisabler {
-  /** 장부에 기록하고 판정한다. 기준을 넘으면 ScopeControl.requestDisable(…, "auto_disable")을 부른다 */
+  /** 장부에 기록하고 판정한다. 기준을 넘으면 RegistrationControl.requestDisable(…, "auto_disable")을 부른다 */
   onOutcome(outcome: HandlerOutcomeRecord): void;
   /** 사용자가 다시 켤 때. 장부를 비우고 requestEnable을 부른다 */
   reenable(key: HandlerOwnerKey): void;
-  /** 장부와 자동으로 꺼진 주체 표만 비운다. 켜기 요청은 부르지 않는다. 켜기를 `ScopeHandle.enable()`로 이미 하는 `/group on`과 설정 토글이 부른다 */
+  /** 장부와 자동으로 꺼진 주체 표만 비운다. 켜기 요청은 부르지 않는다. 켜기를 `RegistrationHandle.enable()`로 이미 하는 `/group on`과 설정 토글이 부른다 */
   clearLedger(key: HandlerOwnerKey): void;
   /**
    * 기준과 무관하게 바로 끈다. 격리 확장의 재시작 한도 초과(X.loading-trust.spec §4.9.7)와 투영기 실패(§5 6번)에서 쓴다.
@@ -358,7 +358,7 @@ export interface AutoDisabler {
 export function createAutoDisabler(deps: {
   readonly ledger: FailureLedger;
   readonly policy: () => AutoDisablePolicy;      // 설정 live 반영
-  readonly scopes: ScopeControl;
+  readonly scopes: RegistrationControl;
   readonly hooks: { disable(id: HookId): void; enable(id: HookId): void };
   readonly notifier: OperationsNotifier;
   readonly isExempt?: (key: HandlerOwnerKey) => boolean;   // essential 확장 면제. 조립 루트(createOperationsPolicy)가 admit 정보로 준다
@@ -492,7 +492,7 @@ export interface ExtStorage {
  * ext-host가 만든 g가 아니면 PrimitiveError("no_context"). 신뢰 등급의 저장 권한이 "none"이거나 격리 확장이면
  * defineTables가 isolated 오류를 낸다(X.loading-trust.spec §3.1 TRUST_MATRIX.storage, §4.9.6)
  */
-export function storageOf(g: ScopeApi<unknown>): ExtStorage;
+export function storageOf(g: RegistrationApi<unknown>): ExtStorage;
 ```
 
 ```ts
@@ -594,7 +594,7 @@ export interface StartupOptions {
 export interface LoadCandidate {
   readonly name: ExtensionName;
   readonly tier: Tier;
-  readonly layer: ExtensionManifest["layer"];
+  readonly layer: ExtensionLayer;
 }
 
 export type SkipReason = "safe_mode" | "disabled_flag";
@@ -738,12 +738,12 @@ export interface OperationsDeps {
   readonly setTimer: (ms: number, fn: () => void) => () => void;
   /** x.operations.* 유효 값 읽기. 조립 루트(L4 host)가 설정 서비스에 연결해 넘긴다(PrimitivesSettingsSource와 같은 방식) */
   readonly settings: OperationsSettingsSource;
-  readonly scopes: ScopeControl;
+  readonly scopes: RegistrationControl;
   readonly notifier: OperationsNotifier;
   readonly hooks: { disable(id: HookId): void; enable(id: HookId): void };
   /**
    * 포트 조회(X.primitives.spec §3.6). 저장 영역은 ProjectorRegistryPortKey·ScopedStorePortKey, 외부 훅은 ProcessPortKey를 꺼낸다.
-   * 정책이 ExtHost보다 먼저 만들어지므로 조립 루트가 ExtHost.ports를 가리키는 늦은 연결로 넘긴다(ScopeControl과 같은 방식)
+   * 정책이 ExtHost보다 먼저 만들어지므로 조립 루트가 ExtHost.ports를 가리키는 늦은 연결로 넘긴다(RegistrationControl과 같은 방식)
    */
   readonly ports: PortLookup;
 }
@@ -768,7 +768,7 @@ export interface OperationsPolicy extends DispatchPolicy {
   /** 리소스 이름 충돌 판정(`createResourcePolicy(deps.reservedNames ?? NO_RESERVED_NAMES)`). 조립 루트가 ExtHostDeps.resourcePolicy에 넘긴다 */
   readonly resources: ResourcePolicy;
   /** 로더가 확장을 설치하기 전(X.loading-trust.spec §4.3.1 6a단계)에 부른다. assignTier 결과를 표에 넣고 면제 여부(essential)를 기억한다 */
-  admit(info: Pick<LoadedExtensionInfo, "name" | "source" | "trust" | "essential">, layer: ExtensionManifest["layer"]): Result<Tier, TierError>;
+  admit(info: Pick<LoadedExtensionInfo, "name" | "source" | "trust" | "essential">, layer: ExtensionLayer): Result<Tier, TierError>;
   /** 확장 제거나 설치 실패 때 표와 장부에서 뺀다 */
   forget(name: ExtensionName): void;
   /** x.operations.budget.setupMs 유효 값. 조립 루트가 ExtHostDeps.setupBudgetMs에 넘긴다 */
@@ -787,7 +787,7 @@ export interface OperationsPolicy extends DispatchPolicy {
 export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy;
 ```
 
-- 조립 순서 [제안]: L4 host가 `createOperationsPolicy`를 먼저 만들고, 그 결과를 `ExtHostDeps.policy`, `ExtHostDeps.setupBudgetMs`(`() => policy.setupBudgetMs()`), `ExtHostDeps.resourcePolicy`(`policy.resources`)에 넣어 `createExtHost`를 부른다. 이어 `OperationsDeps.ports`와 `ScopeControl`의 늦은 연결을 그 `ExtHost`에 잇고, `createExtensionLoader({ host, policy, … })`로 로더를 만들어 `loadAll`을 부른다(`X.loading-trust.spec` §3.5). 로더는 확장마다 6a단계(설치 전)에서 `admit`을 부른다.
+- 조립 순서 [제안]: L4 host가 `createOperationsPolicy`를 먼저 만들고, 그 결과를 `ExtHostDeps.policy`, `ExtHostDeps.setupBudgetMs`(`() => policy.setupBudgetMs()`), `ExtHostDeps.resourcePolicy`(`policy.resources`)에 넣어 `createExtHost`를 부른다. 이어 `OperationsDeps.ports`와 `RegistrationControl`의 늦은 연결을 그 `ExtHost`에 잇고, `createExtensionLoader({ host, policy, … })`로 로더를 만들어 `loadAll`을 부른다(`X.loading-trust.spec` §3.5). 로더는 확장마다 6a단계(설치 전)에서 `admit`을 부른다.
 - `admit`이 `TierError`를 내면 로더는 그 확장을 설치하지 않는다(`tier_rejected`). 로더의 신뢰 판정(4단계)이 이미 같은 경우를 걸러내므로 이 오류는 방어 검사다.
 
 ## 4. 동작 규칙
@@ -819,7 +819,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `user`·`project`·`managed` | `builtin` | 로더가 먼저 `trust_exceeds_source`로 거부한다 | `TierError.source_trust_mismatch`(방어 검사) |
 
 - 신뢰 등급과의 연결: tier는 신뢰 등급을 실행 순서로 옮긴 값이다. 신뢰가 높은 출처일수록 바깥에 있고, 바깥 tier의 결정은 안쪽 tier가 뒤집지 못한다(§4.1.3). 신뢰 판정 자체는 `X.loading-trust.spec`이다.
-- L0 패키지는 on을 쓰지 않는다(`architecture.layers.spec` §4.3.3 2번). L0는 `ExtHost.registerPlatform`으로 포트만 제공하고(X.primitives.spec §3.2) tier를 받지 않는다. 그래서 `TierInput.layer`(`ExtensionManifest["layer"]`)에 L0가 없어도 빠지는 경우가 없다. 샌드박스 강제를 on 핸들러로 둘 필요가 생기면 `fresnel.sandbox` 포트를 쓰는 L1 내장 확장이 맡고 그 확장을 `GUARD_EXTENSIONS`에 넣는다 [가정: `L0.sandbox.spec`은 강제를 실행 경로(`fresnel.exec`)에서 하고 on 핸들러를 두지 않는다]. §10 미결 20.
+- L0 패키지는 on을 쓰지 않는다(`architecture.layers.spec` §4.3.3 2번). L0는 `ExtHost.registerPlatform`으로 포트만 제공하고(X.primitives.spec §3.2) tier를 받지 않는다. 그래서 `TierInput.layer`(`ExtensionLayer`, 확장의 유효 층)에 L0가 없어도 빠지는 경우가 없다. 샌드박스 강제를 on 핸들러로 둘 필요가 생기면 `fresnel.sandbox` 포트를 쓰는 L1 내장 확장이 맡고 그 확장을 `GUARD_EXTENSIONS`에 넣는다 [가정: `L0.sandbox.spec`은 강제를 실행 경로(`fresnel.exec`)에서 하고 on 핸들러를 두지 않는다]. §10 미결 20.
 
 #### 4.1.3 fold별 결과
 
@@ -959,7 +959,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 적용 규칙:
 
-- 끄기는 `ScopeControl.requestDisable(scopeId, "auto_disable")`로 그 확장의 모든 scope에 요청한다. 적용은 다음 단계 경계다(`F.extensions.spec` §4.5). 실행 중인 디스패치와 step은 끊지 않는다.
+- 끄기는 `RegistrationControl.requestDisable(scopeId, "auto_disable")`로 그 확장의 모든 scope에 요청한다. 적용은 다음 단계 경계다(`F.extensions.spec` §4.5). 실행 중인 디스패치와 step은 끊지 않는다.
 - 요청 뒤 적용 전까지의 호출도 실패 처리 규칙은 그대로 적용한다. 그 사이의 실패는 장부에 넣지만 두 번째 요청을 만들지 않는다.
 - drive 임대를 가진 그룹이 꺼지면 임대 반납 순서는 `F.extensions.spec` §4.5 비활성화 적용 순서를 따른다(`lease.released`의 `reason: "disabled"`).
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
@@ -979,7 +979,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 #### 4.3.5 다시 켜기
 
-- 사용자가 명령(`fresnel ext enable <name>`과 대화 중 같은 이름의 슬래시 명령 [제안], X.primitives.spec §6의 명령 가정과 같은 이름, 소유 `L4.cli.spec`)이나 설정 화면 토글로 다시 켠다. `AutoDisabler.reenable`이 장부를 비우고 `requestEnable(…, "request")`를 부른다. `ScopeHandle.enable()`로 켜는 경로(`/group on`, 로더의 `settingChanged`)는 `AutoDisabler.clearLedger`로 장부만 비운다.
+- 사용자가 명령(`fresnel ext enable <name>`과 대화 중 같은 이름의 슬래시 명령 [제안], X.primitives.spec §6의 명령 가정과 같은 이름, 소유 `L4.cli.spec`)이나 설정 화면 토글로 다시 켠다. `AutoDisabler.reenable`이 장부를 비우고 `requestEnable(…, "request")`를 부른다. `RegistrationHandle.enable()`로 켜는 경로(`/group on`, 로더의 `settingChanged`)는 `AutoDisabler.clearLedger`로 장부만 비운다.
 - 자동으로 다시 켜지 않는다. 재시작하면 장부가 비어 다시 실린다(§4.3.3).
 - 다시 켠 뒤 같은 기준으로 다시 꺼질 수 있다. 시간 간격 조건(쿨다운)은 두지 않는다 [제안].
 
@@ -1023,10 +1023,10 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 #### 4.4.4 쓰기와 같은 트랜잭션
 
 - [제안] 확장 테이블 쓰기는 확장 투영(`ExtProjection.apply`)으로만 한다. 투영기는 코어 커밋 트랜잭션 안에서 이벤트마다 실행되므로(`eng.transactions.design` §4.3 "cap·ext 투영", §4.4 4단계), 확장 쓰기는 코어 커밋과 같은 트랜잭션에 들어간다. 코어 커밋이 롤백되면 확장 쓰기도 롤백된다.
-- 확장이 커밋에 이벤트를 넣는 경로는 기존 셋이다. boundary chain 결과의 `entries`, `ScopeApi.commit`(scope 상태), `ScopeApi.record`(그룹 레코드)(`F.extensions.spec` §3.2, §3.5). 확장 투영은 이 이벤트를 받아 자기 테이블을 고친다.
+- 확장이 커밋에 이벤트를 넣는 경로는 기존 셋이다. boundary chain 결과의 `entries`, `RegistrationApi.commit`(scope 상태), `RegistrationApi.record`(그룹 레코드)(`F.extensions.spec` §3.2, §3.5). 확장 투영은 이 이벤트를 받아 자기 테이블을 고친다.
 - L0 트랜잭션 핸들은 X가 직접 쥐지 않는다. X는 투영기를 `fresnel.session`에 등록하고, `SessionWriter.commit`이 트랜잭션 안에서 `ProjectionTx`를 투영기에 넘긴다. X는 그 `ProjectionTx`를 `ExtWriters`로 감싼다. 이것이 "L0.store 트랜잭션 핸들을 SessionWriter 경유로 받는 방식"이고, `F.records.spec` §3.8의 [제안](확장 테이블 쓰기를 같은 트랜잭션에 넣는 방법은 `L0.store.spec`과 X가 정한다)에 대한 X 쪽 답이다.
 - `apply`는 동기 순수 함수다. 시계, 난수, 네트워크, 파일을 쓰지 않는다(`eng.events.design` §5.1 규칙 1, TX-01). 쓰기 메서드가 돌려준 `ExtRowError`는 `apply`의 반환값으로 올린다(`return tables.pins.upsert(…)`). `apply`가 오류를 돌려주면 X가 투영기 `apply` 안에서 `ProjectionRollback`을 던져 커밋 전체를 롤백하고, 저장소는 `ProjectorFailure`로 알린다(`F.records.spec` §3.9). `apply`가 예외를 던져도 같다. 이 실패는 핸들러 실패 장부에 넣지 않는다(커밋 경로의 문제이고 `projection_failed`로 자동 끄기에 쓴다).
-- `kinds`에는 자기 접두 kind와 코어 kind만 둘 수 있다. 다른 확장의 kind를 넣으면 `kind_not_owned`다. 다른 그룹의 공개 정보는 `ScopeApi.readRecords`로 읽는다(`F.extensions.spec` §4.8).
+- `kinds`에는 자기 접두 kind와 코어 kind만 둘 수 있다. 다른 확장의 kind를 넣으면 `kind_not_owned`다. 다른 그룹의 공개 정보는 `RegistrationApi.readRecords`로 읽는다(`F.extensions.spec` §4.8).
 - 재생: 투영 테이블은 이벤트에서 다시 만들 수 있다. `ExtProjection.version`을 올리면 그 확장 테이블만 지우고 이벤트 전체를 재생해 다시 만든다. 이것이 1차의 스키마 마이그레이션 방식이다.
 - 이벤트에서 다시 만들 수 없는 부가 데이터(캐시, 외부에서 가져온 자료)를 둘 테이블과 그 마이그레이션(열 추가 등)은 2차다(§10 미결 8).
 
@@ -1058,7 +1058,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 #### 4.4.8 scope 상태 문서와의 관계
 
-- scope 상태 문서(`ScopeApi.commit`)는 확장의 정본 상태다. 이벤트 kind로 커밋되고 kind 이름과 형식은 `X.primitives.spec`이 정한다.
+- scope 상태 문서(`RegistrationApi.commit`)는 확장의 정본 상태다. 이벤트 kind로 커밋되고 kind 이름과 형식은 `X.primitives.spec`이 정한다.
 - 접두 테이블은 확장의 부가 데이터다. 상태 문서보다 크거나 질의가 필요한 자료(목록, 색인, 집계)를 둔다. 접두 테이블의 내용은 이벤트(상태 커밋, 그룹 레코드, boundary entries)에서 투영으로 만든다.
 - 상태 문서는 다른 그룹이 읽지 않는다. 접두 테이블도 다른 확장이 읽지 않는다. 공개할 정보는 그룹 레코드로 낸다(`F.extensions.spec` §3.6).
 - 확장 kind 접두는 F 규칙(`x.`/`grp.`, `F.records.spec` §3.2)이다. `eng.transactions.design`·`eng.events.design`도 같은 접두로 고쳤다([결정: review.decisions-2 T-21]).
@@ -1284,7 +1284,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - on: 모든 on 디스패치에 정렬 키(§4.1), 시간 예산(§4.2), 실패 처리(§4.3)를 적용한다. 외부 훅은 on 핸들러의 한 종류로 같은 디스패치에 들어간다(§4.7).
 - post: 이 문서의 규칙이 적용되지 않는다. post는 커밋 단위 기록이고 시간 예산이 없다. 안전 모드에서 빠진 확장은 post를 쓸 수 없다(실리지 않으므로).
 - drive: 시간 예산 밖이다(§4.2.5). 자동 끄기가 drive 그룹에 적용되면 임대 반납이 함께 일어난다(§4.3.3).
-- scope: 자동 끄기와 안전 모드 끄기는 scope 끄기 경로(`ScopeControl`)를 쓴다. 토글 적용 시점은 `X.primitives.spec`과 `F.extensions.spec` §4.5를 따른다.
+- scope: 자동 끄기와 안전 모드 끄기는 scope 끄기 경로(`RegistrationControl`)를 쓴다. 토글 적용 시점은 `X.primitives.spec`과 `F.extensions.spec` §4.5를 따른다.
 - 확장 투영(`ExtProjection`)은 커밋 경로의 투영기이며 훅 선언 대상이 아니다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -1308,13 +1308,13 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 | 이름 | 출처 |
 |---|---|
-| `HookName`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `Fold`, `ExtensionName`, `ExtensionManifest`, `ScopeId`, `HandlerContext` | F.extensions.spec |
+| `HookName`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `Fold`, `ExtensionName`, `ExtensionManifest`, `RegistrationId`, `HandlerContext` | F.extensions.spec |
 | `PortLookup`, `ProjectorRegistryPort`(`register`, `onFailure`), `ScopedStorePort`(`scoped(owner)`), `HookProcessPort`, `HookRunSpec`, `HookRawRun`과 키 | F.extensions.spec §3.2.1 `ports.ts` |
 | `Projector`, `ProjectorRegistry`, `StoreService` | F.records.spec §3.9 |
 | `DurableEventEnvelope`, `EventKind`, `parseEventKind`, `ScopeChangedPayload` | F.records.spec |
 | `SettingDef`, `defineSettings`, 키 문법, 범위 | F.wire-settings.spec |
 | 도구 이름 허용 문자, 도구 순서 키 | F.capabilities.spec |
-| `DispatchPolicy`(`onHandlerSettled`·`run` 포함, §3.4), `HandlerGate`, `HandlerRunOutcome`, `ExtHost.scope`·`scopes`·`install`·`ports`(ScopeControl과 포트의 바탕), `ExtHostDeps.now`·`setTimer`·`setupBudgetMs`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord`, `hostOf`, `ExtHost.ports`로 꺼내는 포트 키(F 이름 재export), UI 포트 | X.primitives.spec §3.2~§3.9 |
+| `DispatchPolicy`(`onHandlerSettled`·`run` 포함, §3.4), `HandlerGate`, `HandlerRunOutcome`, `ExtHost.scope`·`scopes`·`install`·`ports`(RegistrationControl과 포트의 바탕), `ExtHostDeps.now`·`setTimer`·`setupBudgetMs`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord`, `hostOf`, `ExtHost.ports`로 꺼내는 포트 키(F 이름 재export), UI 포트 | X.primitives.spec §3.2~§3.9 |
 | `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 프로젝트 신뢰, 제거 흐름, 격리 확장의 outbox | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9 |
 | `Projector`, `ProjectionTx`, 투영 규칙 | eng.events.design §5.1 |
 | 커밋 순서, `SessionWriter`, `StoreService.scoped`, outbox 표 | eng.transactions.design §4, §7 |
@@ -1370,7 +1370,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 4. F.records 추가 요청(F 부분 해소).
    - `ScopeChangedPayload.reason?`(`"request" | "auto_disable" | "safe_mode" | "startup_disable"`)은 `F.records.spec` §3.3에 들어갔다. 값 정본은 이 문서의 `ScopeChangeReason`이다.
    - 휘발 kind `scope.handler_failed`는 `F.records.spec` §3.3 코어 카탈로그에 코어 영역 `scope`로 들어갔다(`ScopeHandlerFailedPayloadSchema`).
-   - [미결] 남은 일: `ScopeHandle.enable`/`disable`에 사유 인자가 없어 `ScopeControl`의 사유를 `scope.changed`에 싣는 경로가 없다. `X.primitives.spec` §3.2에 사유 인자 추가를 요청한다.
+   - [미결] 남은 일: `RegistrationHandle.enable`/`disable`에 사유 인자가 없어 `RegistrationControl`의 사유를 `scope.changed`에 싣는 경로가 없다. `X.primitives.spec` §3.2에 사유 인자 추가를 요청한다.
 5. (해소, M2 O-07) [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않고 X 공개 API의 별도 함수 `hostOf(g).awaitUser`로 연결했다(§4.2.3). 핸들러에 UI 포트 자체를 주는 일은 L2.dialog가 정한다.
 6. (해소, M3-REQ-36) [결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영 `apply` 예외의 복구 경로(§5 6번)는 투영기를 정지한 뒤 커밋을 다시 시도하는 것으로 정했다. 세션을 읽기 전용으로 여는 방식은 채택하지 않았다. 정지와 재시도의 구현 위치는 `L1.persistence.spec`이다.
 7. [미결] 자동 끄기의 영속 여부. 현재 [제안]은 프로세스 단위(재시작하면 다시 실림)다. 여러 번의 시작에서 반복해 꺼지는 확장을 `ext.<name>.enabled=false`로 기록할지, 사용자 확인을 받을지.

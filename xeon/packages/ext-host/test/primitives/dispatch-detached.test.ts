@@ -32,7 +32,7 @@ test("detached tap returns before its handlers run and keeps their order", async
   const waiting = gate();
   const order: string[] = [];
   await t.host.install(
-    makeUnit({ name: "dt-a", points: ["thread.info.after"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "dt-a", hooks: ["thread.info.after"], loadIndex: 0 }, (g) => {
       g.on("thread.info.after", async () => {
         order.push("a:start");
         await waiting.promise;
@@ -41,7 +41,7 @@ test("detached tap returns before its handlers run and keeps their order", async
     }),
   );
   await t.host.install(
-    makeUnit({ name: "dt-b", points: ["thread.info.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "dt-b", hooks: ["thread.info.after"], loadIndex: 1 }, (g) => {
       g.on("thread.info.after", () => {
         order.push("b");
       });
@@ -67,7 +67,7 @@ test("a late failure is reported to the policy only, not in the outcome", async 
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "dt-fail", points: ["thread.info.after"] }, (g) => {
+    makeUnit({ name: "dt-fail", hooks: ["thread.info.after"] }, (g) => {
       g.on("thread.info.after", async () => {
         await Promise.resolve();
         throw new Error("late boom");
@@ -95,7 +95,7 @@ test("closing the thread aborts a running detached handler and drops the rest wi
   const calls: string[] = [];
   let signalAborted: boolean | undefined;
   await t.host.install(
-    makeUnit({ name: "dt-slow", points: ["thread.info.after"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "dt-slow", hooks: ["thread.info.after"], loadIndex: 0 }, (g) => {
       g.on("thread.info.after", async (_payload, ctx) => {
         calls.push("slow");
         await waiting.promise;
@@ -105,7 +105,7 @@ test("closing the thread aborts a running detached handler and drops the rest wi
     }),
   );
   await t.host.install(
-    makeUnit({ name: "dt-next", points: ["thread.info.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "dt-next", hooks: ["thread.info.after"], loadIndex: 1 }, (g) => {
       g.on("thread.info.after", () => {
         calls.push("next");
       });
@@ -133,7 +133,7 @@ test("a detached handler still gets the time budget", async () => {
   await t.host.openThread(thread);
   let aborted = false;
   await t.host.install(
-    makeUnit({ name: "dt-budget", points: ["thread.info.after"] }, (g) => {
+    makeUnit({ name: "dt-budget", hooks: ["thread.info.after"] }, (g) => {
       g.on("thread.info.after", (_payload, ctx) => {
         ctx.signal.addEventListener("abort", () => {
           aborted = true;
@@ -158,7 +158,7 @@ test("a thread that is not open can still receive a detached dispatch", async ()
   const thread = t.newThread();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "dt-unopened", points: ["thread.info.after"] }, (g) => {
+    makeUnit({ name: "dt-unopened", hooks: ["thread.info.after"] }, (g) => {
       g.on("thread.info.after", () => {
         calls.push("ran");
       });

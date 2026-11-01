@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
-  LeaseArbiterPortKey,
-  type LeaseCandidate,
-  type ScopeId,
+  DriveLockArbiterPortKey,
+  type DriveLockCandidate,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import type { PlatformModule } from "../../src/primitives/index.ts";
 import {
@@ -39,11 +39,11 @@ function kinds(t: Host, thread: ThreadId, kind: string): readonly unknown[] {
 
 test("the arbiter port picks the holder and receives every eligible candidate", async () => {
   const t = await createTestHost();
-  const seen: (readonly LeaseCandidate[])[] = [];
+  const seen: (readonly DriveLockCandidate[])[] = [];
   await t.host.registerPlatform({
     name: "test-groups",
     setup(ctx) {
-      ctx.providePort(LeaseArbiterPortKey, {
+      ctx.providePort(DriveLockArbiterPortKey, {
         choose(_threadId, candidates) {
           seen.push(candidates);
           return candidates.find((candidate) => candidate.scopeId === "ls-b")?.scopeId ?? null;
@@ -72,7 +72,7 @@ test("an arbiter that returns null leaves the thread without a lease", async () 
   await t.host.registerPlatform({
     name: "test-groups",
     setup(ctx) {
-      ctx.providePort(LeaseArbiterPortKey, { choose: (): ScopeId | null => null });
+      ctx.providePort(DriveLockArbiterPortKey, { choose: (): RegistrationId | null => null });
     },
   });
   const calls: string[] = [];
@@ -85,11 +85,11 @@ test("an arbiter that returns null leaves the thread without a lease", async () 
 });
 
 test("choosing another drive group revokes the current lease and grants the chosen one", async () => {
-  let chosen: ScopeId | null = "ls-one";
+  let chosen: RegistrationId | null = "ls-one";
   const base = createStaticPrimitivesSettings();
   const source: PrimitivesSettingsSource = {
     ...base,
-    activeDriveGroup: () => chosen,
+    activeDriver: () => chosen,
   };
   const t = await createTestHost({ settingsSource: source });
   const calls: string[] = [];
@@ -123,10 +123,10 @@ test("choosing another drive group revokes the current lease and grants the chos
 });
 
 test("a named group that is not a candidate does not revoke the holder", async () => {
-  let chosen: ScopeId | null = "ls-hold";
+  let chosen: RegistrationId | null = "ls-hold";
   const source: PrimitivesSettingsSource = {
     ...createStaticPrimitivesSettings(),
-    activeDriveGroup: () => chosen,
+    activeDriver: () => chosen,
   };
   const t = await createTestHost({ settingsSource: source });
   const calls: string[] = [];
@@ -172,11 +172,11 @@ test("a group released as idle is a candidate again only after a turn settles", 
   expect(invocations).toBeGreaterThanOrEqual(3);
 });
 
-function arbiterRecording(seen: (readonly LeaseCandidate[])[]): PlatformModule {
+function arbiterRecording(seen: (readonly DriveLockCandidate[])[]): PlatformModule {
   return {
     name: "test-groups",
     setup(ctx) {
-      ctx.providePort(LeaseArbiterPortKey, {
+      ctx.providePort(DriveLockArbiterPortKey, {
         choose(_threadId, candidates) {
           seen.push(candidates);
           return null;
@@ -188,7 +188,7 @@ function arbiterRecording(seen: (readonly LeaseCandidate[])[]): PlatformModule {
 
 test("candidates carry the seq of the last scope.changed enabled, from the snapshot after a restart too", async () => {
   const t = await createTestHost();
-  const seen: (readonly LeaseCandidate[])[] = [];
+  const seen: (readonly DriveLockCandidate[])[] = [];
   await t.host.registerPlatform(arbiterRecording(seen));
   await installDriveGroups(t, ["sq-a", "sq-b"], []);
   const thread = t.newThread();
@@ -210,7 +210,7 @@ test("candidates carry the seq of the last scope.changed enabled, from the snaps
   const second = await createTestHost({
     shared: { records: t.records, loop: t.loop, queue: t.queue },
   });
-  const afterRestart: (readonly LeaseCandidate[])[] = [];
+  const afterRestart: (readonly DriveLockCandidate[])[] = [];
   await second.host.registerPlatform(arbiterRecording(afterRestart));
   await installDriveGroups(second, ["sq-a", "sq-b"], []);
   await second.host.openThread(thread);

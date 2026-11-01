@@ -1,17 +1,17 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
-  ExtensionManifest,
+  ExtensionLayer,
   ExtensionName,
   HookName,
-  ScopeId,
+  RegistrationId,
 } from "@fresnel/contracts/extensions";
 
 /** 정책이 보는 핸들러 항목의 읽기 전용 모습(X.primitives.spec §3.4) */
 export interface HandlerEntryInfo {
   readonly point: HookName;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
-  readonly layer: ExtensionManifest["layer"];
+  readonly layer: ExtensionLayer;
   readonly builtin: boolean;
   readonly loadIndex: number;
   /** 레지스트리 등록 순번. ExtHost 전체에서 단조 증가 */

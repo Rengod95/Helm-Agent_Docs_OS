@@ -97,7 +97,7 @@ test("throw releases and keeps handlers", async () => {
   const handlerCalls: string[] = [];
   let driveCalls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "drv-throw", points: ["boundary.settle.after"] }, (g) => {
+    makeGroupUnit({ name: "drv-throw", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", () => {
         handlerCalls.push("handler");
       });
@@ -112,7 +112,7 @@ test("throw releases and keeps handlers", async () => {
   expect(driveCalls).toBe(1);
   const released = t.records.events(thread).find((event) => event.kind === "lease.released");
   expect(released?.payload).toMatchObject({ reason: "error" });
-  expect(t.host.scopes()[0]?.drive).toBe("error");
+  expect(t.host.registrations()[0]?.drive).toBe("error");
   // on 핸들러는 계속 실행되고, 토글 전에는 다시 부여·호출하지 않는다
   await t.host.dispatch(
     "boundary.settle.after",
@@ -215,7 +215,8 @@ test("the defaults and the ceiling are read for the thread that receives the lea
         asked.push(`ceiling:${threadId}`);
         return threadId === state.quiet ? { maxTurns: 1 } : {};
       },
-      activeDriveGroup: () => null,
+      driveRequiresGroup: () => true,
+      activeDriver: () => null,
       capabilityProviders: () => ({}),
     },
   });
@@ -248,7 +249,7 @@ test("the ceiling cuts the default too, and it also caps a field that has no def
 });
 
 test("single lease among two groups", async () => {
-  const { t, thread } = await setup({ settings: { activeDriveGroup: "drv-two" } });
+  const { t, thread } = await setup({ settings: { activeDriver: "drv-two" } });
   const calls: string[] = [];
   await eachInOrder(
     [

@@ -38,10 +38,13 @@ export const SDK: SdkModules = {
 export interface PluginFiles {
   readonly name: string;
   readonly version?: string;
-  readonly points?: readonly string[];
+  /** 루트 플러그인(id 없음)의 hooks. 생략하면 `boundary.settle.after` 하나 */
+  readonly hooks?: readonly string[];
   readonly trustLevel?: string;
+  /** 루트 플러그인의 층. 생략하면 `plugin` */
   readonly layer?: string;
-  readonly kind?: string;
+  /** 참이면 플러그인 그룹(`group: {}`) */
+  readonly group?: boolean;
   /** 엔트리 파일 본문. 생략하면 `on` 핸들러 하나를 등록하는 기본 엔트리다 */
   readonly entry?: string;
 }
@@ -53,8 +56,8 @@ function defaultEntry(name: string): string {
   return `import * as kit from "${kitSpecifier}";
 import { ok } from "@fresnel/contracts";
 import { Type } from "typebox";
-export const extension = ({ scope }) => {
-  scope(${JSON.stringify(name)}, {}, (g) => {
+export const extension = ({ register }) => {
+  register(${JSON.stringify(name)}, {}, (g) => {
     kit.verify(${JSON.stringify(name)}, Type, ok);
     g.on("boundary.settle.after", () => {
       kit.record(${JSON.stringify(name)} + ":fired");
@@ -72,14 +75,17 @@ export async function writePlugin(
 ): Promise<string> {
   const root = join(extensionsDir, dir);
   const manifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     name: files.name,
     version: files.version ?? "1.0.0",
-    layer: files.layer ?? "plugin",
-    kind: files.kind ?? "plugin",
     entry: "./src/index.ts",
-    points: files.points ?? ["boundary.settle.after"],
-    usesDrive: false,
+    plugins: [
+      {
+        layer: files.layer ?? "plugin",
+        hooks: files.hooks ?? ["boundary.settle.after"],
+      },
+    ],
+    ...(files.group === true ? { group: {} } : {}),
     ...(files.trustLevel === undefined ? {} : { trust: { level: files.trustLevel } }),
   };
   await putFile(join(root, ".fresnel-plugin", "plugin.json"), JSON.stringify(manifest, null, 2));

@@ -5,13 +5,15 @@ import {
   RecordCommitPortKey,
   type ExtCommitRejectCode,
   type ExtRecordRow,
+  type ExtensionManifest,
   type GroupRecord,
   type RecordKind,
   type RecordCommitPort,
   type RecordKindDecl,
   type RecordQuery,
   type RecordSubject,
-  type ScopeId,
+  extensionPrefix,
+  type RegistrationId,
   validateGroupRecord,
 } from "@fresnel/contracts/extensions";
 import {
@@ -20,7 +22,13 @@ import {
   type ExtensionEventKind,
 } from "@fresnel/contracts/records";
 import { ambient, type Ambient } from "./ambient.ts";
-import type { Generation, HostCore, ScopeRecord, StateCacheEntry, ThreadRuntime } from "./core.ts";
+import type {
+  Generation,
+  HostCore,
+  RegistrationRecord,
+  StateCacheEntry,
+  ThreadRuntime,
+} from "./core.ts";
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
 import { deepFreeze } from "./freeze.ts";
@@ -62,14 +70,14 @@ function isUpdateFailure(code: string): code is StateUpdateError["kind"] {
 
 export interface StateService {
   /** 핸들러 ctx.state용 마지막 커밋 상태. 상태 선언이 없으면 undefined */
-  docOf(threadId: ThreadId, scopeId: ScopeId): unknown;
+  docOf(threadId: ThreadId, scopeId: RegistrationId): unknown;
   /** (thread, scope)의 활성 가지 위 상태 판 */
-  revOf(threadId: ThreadId, scopeId: ScopeId): number;
-  state(record: ScopeRecord, generation: Generation): unknown;
-  commit(record: ScopeRecord, generation: Generation, next: unknown): Promise<unknown>;
+  revOf(threadId: ThreadId, scopeId: RegistrationId): number;
+  state(record: RegistrationRecord, generation: Generation): unknown;
+  commit(record: RegistrationRecord, generation: Generation, next: unknown): Promise<unknown>;
   /** 상태 커밋과 그룹 레코드를 한 트랜잭션으로 낸다(M3-REQ-24 [제안]) */
   commitWith(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     next: unknown,
     records: readonly RecordInput[],
@@ -79,26 +87,26 @@ export interface StateService {
    * 저장소가 판 충돌을 내면 상태를 다시 읽고 한 번 더 적용하며, 두 번째도 충돌이면 err(state_conflict)다
    */
   update(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     fn: (prev: unknown) => unknown,
     records: (next: unknown) => readonly RecordInput[],
   ): Promise<Result<unknown, StateUpdateError>>;
   record(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     kind: RecordKind,
     subject: RecordSubject,
     payload: JsonValue,
   ): Promise<void>;
   recordPrivate(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     kind: RecordKind,
     payload: JsonValue,
   ): Promise<void>;
   readRecords(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     query: RecordQuery,
   ): Promise<readonly GroupRecord[]>;
@@ -108,7 +116,7 @@ export interface StateService {
    * 저장된 버전이 선언보다 높으면 오류를 돌려준다
    */
   prepareStored(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     thread: ThreadRuntime,
   ): Promise<PrimitiveError | undefined>;
@@ -117,7 +125,7 @@ export interface StateService {
    * 이전 판은 기록에 남고 활성 가지의 최신 판만 바뀐다. 같은 판의 재호출은 같은 키라 한 번만 쓴다
    */
   resetStored(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     thread: ThreadRuntime,
   ): Promise<Result<{ readonly rev: number }, StateResetError>>;
 }
@@ -130,16 +138,13 @@ export type StateResetError =
   | { readonly kind: "rejected"; readonly code: ExtCommitRejectCode };
 
 /** scope 상태 커밋의 이벤트 kind: <x|grp>.<이름>.state.committed (X.primitives.spec §4.6.1) */
-function stateKindOf(manifest: {
-  readonly kind: string;
-  readonly name: string;
-}): ExtensionEventKind {
-  return `${manifest.kind === "group" ? "grp" : "x"}.${manifest.name}.state.committed`;
+function stateKindOf(manifest: Pick<ExtensionManifest, "group" | "name">): ExtensionEventKind {
+  return `${extensionPrefix(manifest)}.${manifest.name}.state.committed`;
 }
 
-function assertGeneration(record: ScopeRecord, generation: Generation): void {
+function assertGeneration(record: RegistrationRecord, generation: Generation): void {
   if (generation.closed) {
-    throw new PrimitiveError("scope_inactive", `scope ${record.id} generation is closed`, {
+    throw new PrimitiveError("registration_inactive", `scope ${record.id} generation is closed`, {
       scopeId: record.id,
     });
   }
@@ -149,7 +154,7 @@ function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
-function cacheOf(record: ScopeRecord, thread: ThreadRuntime): StateCacheEntry {
+function cacheOf(record: RegistrationRecord, thread: ThreadRuntime): StateCacheEntry {
   const stored = thread.states.get(record.id);
   if (stored !== undefined) return stored;
   const decl = record.def.state;
@@ -162,7 +167,7 @@ interface Identity {
   readonly fingerprint: JsonValue;
 }
 
-function nextIdentity(record: ScopeRecord, amb: Ambient, letter: "" | "c" | "r"): Identity {
+function nextIdentity(record: RegistrationRecord, amb: Ambient, letter: "" | "c" | "r"): Identity {
   assertHandlerAlive(record, amb);
   if (amb.drive !== null) {
     const n = amb.drive.i;
@@ -188,7 +193,7 @@ function nextIdentity(record: ScopeRecord, amb: Ambient, letter: "" | "c" | "r")
 }
 
 /** 시간 예산을 넘겨 버려진 핸들러(좀비)는 더 쓰지 못한다. 쓰기는 호출 때와 줄 안 실행 때 모두 이 검사를 거친다 */
-function assertHandlerAlive(record: ScopeRecord, amb: Ambient): void {
+function assertHandlerAlive(record: RegistrationRecord, amb: Ambient): void {
   if (amb.handler?.signal.aborted === true) {
     throw new PrimitiveError(
       "handler_aborted",
@@ -209,17 +214,17 @@ function noteEffect(amb: Ambient): void {
   if (amb.drive !== null) amb.drive.effects += 1;
 }
 
-function queueKey(thread: ThreadRuntime, record: ScopeRecord): string {
+function queueKey(thread: ThreadRuntime, record: RegistrationRecord): string {
   return `${thread.threadId}|${record.id}`;
 }
 
 export interface StateHooks {
   /** 명령·도구 호출(ambient의 `invocation`)이 상태 판을 올렸다. 임대 쪽이 drive 재호출을 예약한다(X.primitives.spec §4.6.6) */
-  directCommitted(thread: ThreadRuntime, record: ScopeRecord): void;
+  directCommitted(thread: ThreadRuntime, record: RegistrationRecord): void;
 }
 
 export function createStateService(core: HostCore, hooks: StateHooks): StateService {
-  function threadOf(amb: Ambient | undefined, record: ScopeRecord): ThreadRuntime {
+  function threadOf(amb: Ambient | undefined, record: RegistrationRecord): ThreadRuntime {
     if (amb === undefined) {
       throw new PrimitiveError("no_thread", "no thread context (setup body or detached callback)", {
         scopeId: record.id,
@@ -234,7 +239,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
     return thread;
   }
 
-  function portOf(record: ScopeRecord): RecordCommitPort {
+  function portOf(record: RegistrationRecord): RecordCommitPort {
     const port = core.ports.get(RecordCommitPortKey);
     if (port === undefined) {
       throw new PrimitiveError(
@@ -250,11 +255,11 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
 
   /** 낮은 버전의 저장 상태를 훅으로 옮기고 새 판으로 커밋한다. 같은 판을 다시 옮기면 같은 키라 replayed다 */
   async function migrateStored(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     thread: ThreadRuntime,
     stored: StateCacheEntry,
-    decl: NonNullable<ScopeRecord["def"]["state"]>,
+    decl: NonNullable<RegistrationRecord["def"]["state"]>,
   ): Promise<PrimitiveError | undefined> {
     const migrate = generation.migration;
     if (migrate === null) {
@@ -374,7 +379,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
   }
 
   /** 저장소의 활성 가지 상태로 캐시를 다시 채운다. 읽지 못하면 storage_unavailable */
-  async function refreshStates(record: ScopeRecord, thread: ThreadRuntime): Promise<void> {
+  async function refreshStates(record: RegistrationRecord, thread: ThreadRuntime): Promise<void> {
     const loaded = await portOf(record).loadThread(thread.threadId);
     if (!loaded.ok) {
       throw new PrimitiveError(
@@ -396,13 +401,13 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
 
   /** 공개 기록 초안 하나를 검사해 만든다. `record`와 `commitWith`가 같은 규칙을 쓴다 */
   function recordDraftOf(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     thread: ThreadRuntime,
     input: RecordInput,
   ): DurableEventDraft {
     generation.usage.recordKinds.add(input.kind);
-    const decl = record.manifest.recordKinds?.find((candidate) => candidate.kind === input.kind);
+    const decl = record.plugin.decl.recordKinds?.find((candidate) => candidate.kind === input.kind);
     if (decl === undefined) {
       throw new PrimitiveError(
         "record_kind_undeclared",
@@ -439,7 +444,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
    * 저장소가 판 충돌로 거부해도 conflict다. `records`는 같은 요청의 초안으로 실어 상태와 함께 커밋된다(M3-REQ-24)
    */
   async function commitNow(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     thread: ThreadRuntime,
     amb: Ambient,
     next: unknown,
@@ -516,7 +521,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
 
   /** `commit`과 `commitWith`: 호출 순서대로 줄을 세우고, 호출 때의 판을 기대 판으로 쓴다 */
   async function commitQueued(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     next: unknown,
     records: readonly RecordInput[],
@@ -616,7 +621,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
     async record(record, generation, kind, subject, payload) {
       assertGeneration(record, generation);
       generation.usage.recordKinds.add(kind);
-      const decl = record.manifest.recordKinds?.find((candidate) => candidate.kind === kind);
+      const decl = record.plugin.decl.recordKinds?.find((candidate) => candidate.kind === kind);
       if (decl === undefined) {
         throw new PrimitiveError("record_kind_undeclared", `record kind ${kind} is not declared`, {
           scopeId: record.id,
@@ -661,7 +666,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
       const prefix = ownKindPrefix(record.manifest);
       const area = kind.split(".")[2];
       const declaredPublic =
-        record.manifest.recordKinds?.some((decl) => decl.kind === kind) === true;
+        record.plugin.decl.recordKinds?.some((decl) => decl.kind === kind) === true;
       if (
         !kind.startsWith(prefix) ||
         !RECORD_KIND_REGEX.test(kind) ||
@@ -695,7 +700,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
     async readRecords(record, generation, query) {
       assertGeneration(record, generation);
       generation.usage.readsRecordKinds.add(query.kind);
-      if (!isKindReadable(record.manifest, query.kind)) {
+      if (!isKindReadable(record.manifest, record.plugin.decl.readsRecordKinds, query.kind)) {
         throw new PrimitiveError("read_kind_undeclared", `reading ${query.kind} is not declared`, {
           scopeId: record.id,
         });
@@ -721,7 +726,9 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
       }
       const rows = queried.value;
       const own = new Map(
-        (record.manifest.recordKinds ?? []).map((decl) => [decl.kind, decl.version]),
+        record.manifest.plugins
+          .flatMap((p) => p.recordKinds ?? [])
+          .map((decl) => [decl.kind, decl.version]),
       );
       for (const row of rows) {
         const declared = own.get(row.kind);
@@ -825,7 +832,7 @@ export function createStateService(core: HostCore, hooks: StateHooks): StateServ
 }
 
 /** 거부된 커밋 코드를 확장이 받는 오류로 옮긴다. invalid는 X 결함이라 Bug다 */
-function rejectionError(record: ScopeRecord, code: ExtCommitRejectCode): PrimitiveError {
+function rejectionError(record: RegistrationRecord, code: ExtCommitRejectCode): PrimitiveError {
   switch (code) {
     case "state_conflict":
       return new PrimitiveError("state_conflict", `state of ${record.id} changed; read it again`, {
@@ -849,7 +856,7 @@ function rejectionError(record: ScopeRecord, code: ExtCommitRejectCode): Primiti
 }
 
 function throwIfRejected(
-  record: ScopeRecord,
+  record: RegistrationRecord,
   result: { readonly status: string; readonly code?: string },
 ): void {
   if (result.status !== "rejected") return;

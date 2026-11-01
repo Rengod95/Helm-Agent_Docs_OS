@@ -43,7 +43,7 @@ test("capabilities: a provider outside the required range does not count", async
       moduleOf({
         name: "cap-new-user",
         layer: "L3",
-        kind: "group",
+        group: {},
         requires: [{ id: "demo.echo", range: "^2.0.0" }],
       }),
     ]),
@@ -65,7 +65,7 @@ test("capabilities: a provider in range feeds the consumer, in load order", asyn
         {
           name: "cap-consumer",
           layer: "L3",
-          kind: "group",
+          group: {},
           requires: [{ id: "demo.echo", range: "^1.0.0" }],
         },
         (g) => {
@@ -108,7 +108,7 @@ test("capabilities: provider failure cascades", async () => {
   const consumer = moduleOf({
     name: "cap-casc-user",
     layer: "L3",
-    kind: "group",
+    group: {},
     requires: [{ id: "demo.echo", range: "^1.0.0" }],
   });
   const report = await harness.loader.loadAll(

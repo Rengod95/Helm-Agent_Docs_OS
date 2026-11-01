@@ -2,7 +2,7 @@ import type {
   ExtensionManifest,
   LoaderFs,
   LoaderPaths,
-  ScopeSetup,
+  RegistrationSetup,
   TrustStoreBackend,
 } from "@fresnel/contracts/extensions";
 import {
@@ -50,7 +50,7 @@ export interface ModuleInput extends ManifestInput {
 /** 내장 모듈 하나. setup은 주 scope의 setup이다 */
 export function moduleOf(
   input: ModuleInput,
-  setup: ScopeSetup<never> = () => {},
+  setup: RegistrationSetup<never> = () => {},
 ): BuiltinExtensionModule {
   const base = input.manifest ?? makeManifest(input);
   const manifest: ExtensionManifest = {
@@ -61,8 +61,8 @@ export function moduleOf(
   };
   return {
     manifest,
-    extension: ({ scope }) => {
-      scope(manifest.name, {}, setup);
+    extension: ({ register }) => {
+      register(manifest.name, {}, setup);
     },
     ...(input.essential === undefined ? {} : { essential: input.essential }),
   };

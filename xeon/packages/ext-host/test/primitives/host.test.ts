@@ -33,16 +33,16 @@ test("install maps setup outcomes", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
 
-  // setup의 선언 밖 on은 failed(point_undeclared)이고 등록은 남지 않는다
+  // setup의 선언 밖 on은 failed(hook_undeclared)이고 등록은 남지 않는다
   const undeclared = await t.host.install(
-    makeUnit({ name: "host-undecl", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "host-undecl", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => undefined);
       g.on("boundary.step.after", () => undefined);
     }),
   );
   expect(undeclared.setups[0]).toMatchObject({
     status: "failed",
-    failure: { kind: "threw", code: "point_undeclared" },
+    failure: { kind: "threw", code: "hook_undeclared" },
   });
   expect(undeclared.entryError).toBeUndefined();
 
@@ -53,9 +53,9 @@ test("install maps setup outcomes", async () => {
       throw new Error("entry broke");
     },
   });
-  expect(entryThrew.scopes).toEqual([]);
+  expect(entryThrew.registrations).toEqual([]);
   expect(entryThrew.entryError).toBeInstanceOf(Error);
-  expect(t.host.scope("host-entry")).toBeUndefined();
+  expect(t.host.registration("host-entry")).toBeUndefined();
 
   // setup이 그 밖의 예외를 던지면 threw
   const threw = await t.host.install(
@@ -72,21 +72,21 @@ test("install maps setup outcomes", async () => {
   );
   expect(refused.setups[0]).toMatchObject({
     status: "failed",
-    failure: { kind: "threw", code: "scope_setup_failed" },
+    failure: { kind: "threw", code: "registration_setup_failed" },
   });
-  expect(t.host.scope("host-refused")?.status).toBe("disabled");
+  expect(t.host.registration("host-refused")?.status).toBe("disabled");
 
   // 실행 중 thread가 있으면 deferred
   t.loop.setRunning(thread, true);
   const deferred = await t.host.install(
-    makeUnit({ name: "host-defer", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "host-defer", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => undefined);
     }),
   );
   expect(deferred.setups[0]?.status).toBe("deferred");
   // 실행 중에는 단계 경계가 켜기를 적용한다
   await t.boundary(thread).stepEnd();
-  expect(t.host.scope("host-defer")?.status).toBe("enabled");
+  expect(t.host.registration("host-defer")?.status).toBe("enabled");
   t.loop.setRunning(thread, false);
 });
 
@@ -95,7 +95,7 @@ test("setup that outlives its budget fails with timeout and its late registratio
   const gate = holdOpen();
   const lateErrors: unknown[] = [];
   const pending = t.host.install(
-    makeUnit({ name: "host-slow", points: ["tool.call.before"] }, async (g) => {
+    makeUnit({ name: "host-slow", hooks: ["tool.call.before"] }, async (g) => {
       await gate.promise;
       try {
         g.on("tool.call.before", () => undefined);
@@ -110,7 +110,9 @@ test("setup that outlives its budget fails with timeout and its late registratio
   expect(outcome.setups[0]).toMatchObject({ status: "failed", failure: { kind: "timeout" } });
   gate.open();
   await t.settled();
-  expect(lateErrors[0] instanceof PrimitiveError && lateErrors[0].code).toBe("scope_inactive");
+  expect(lateErrors[0] instanceof PrimitiveError && lateErrors[0].code).toBe(
+    "registration_inactive",
+  );
 });
 
 test("registerPlatform provides ports and surfaces setup errors", async () => {
@@ -213,7 +215,7 @@ test("only built-in extensions reach ports", async () => {
   expect(codes).toEqual(["service_reserved", "service_reserved", "ok", "ok"]);
 });
 
-test("hostOf rejects a foreign ScopeApi", async () => {
+test("hostOf rejects a foreign RegistrationApi", async () => {
   expect(() => hostOf(unsafeInput({}))).toThrow(PrimitiveError);
 });
 
@@ -222,13 +224,13 @@ test("uninstall removes definitions and handlers", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "host-gone", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "host-gone", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => undefined);
     }),
   );
   await t.boundary(thread).stepEnd();
   await t.host.uninstall("host-gone");
-  expect(t.host.scope("host-gone")).toBeUndefined();
+  expect(t.host.registration("host-gone")).toBeUndefined();
   const drafts = await t.boundary(thread).stepEnd();
   expect(drafts.map((draft) => draft.payload)).toEqual([
     { scopeId: "host-gone", status: "disabled" },
@@ -245,10 +247,10 @@ test("install stops waiting for an entry when its signal aborts", async () => {
   await flushMicrotasks(20);
   controller.abort();
   const result = await pending;
-  expect(result.scopes).toEqual([]);
+  expect(result.registrations).toEqual([]);
   expect(result.entryError).toBeInstanceOf(PrimitiveError);
   expect(result.entryError instanceof PrimitiveError && result.entryError.code).toBe(
-    "scope_setup_failed",
+    "registration_setup_failed",
   );
   gate.open();
   // 중단된 설치의 이름은 다시 쓸 수 있다

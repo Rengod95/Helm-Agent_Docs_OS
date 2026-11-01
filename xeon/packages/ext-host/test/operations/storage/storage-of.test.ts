@@ -215,7 +215,7 @@ test("storage: a failing projection of an essential extension rolls back, keeps 
   expect(result.committed).toBe(false);
   expect(harness.requests).toEqual([]);
   expect(policy.autoDisabler.disabled()).toEqual([]);
-  expect(t.host.scope("stor-ess")?.status).toBe("enabled");
+  expect(t.host.registration("stor-ess")?.status).toBe("enabled");
   expect(harness.notices).toEqual(["projection-failed:ext:stor-ess:projection_failed:false"]);
 });
 

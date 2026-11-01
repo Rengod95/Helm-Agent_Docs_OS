@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import { attemptAsync, Bug, parseJson } from "@fresnel/contracts";
 import { isSemVer, type CapabilityId, type SemVer } from "@fresnel/contracts/capabilities";
 import {
+  effectiveLayer,
   validateManifest,
   validateManifestSet,
   type ExtensionManifest,
@@ -584,11 +585,11 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       name: record.name,
       source: record.source,
       trust: record.trust,
-      layer: manifest.layer,
+      layer: effectiveLayer(manifest),
     });
     if (!tier.ok) return undefined;
     const filtered = startupFilter(
-      [{ name: record.name, tier: tier.value, layer: manifest.layer }],
+      [{ name: record.name, tier: tier.value, layer: effectiveLayer(manifest) }],
       startup,
     );
     return filtered.skipped[0]?.reason;
@@ -645,12 +646,12 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       for (const record of alive.filter((candidate) => candidate.state === "resolved")) {
         const manifest = record.manifest;
         if (manifest === undefined) continue;
-        for (const requirement of manifest.requires ?? []) {
+        for (const requirement of manifest.plugins.flatMap((plugin) => plugin.requires ?? [])) {
           const provided = alive.some(
             (other) =>
               other !== record &&
               (other.state === "resolved" || other.state === "active") &&
-              (other.manifest?.provides ?? []).some(
+              (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
                 (provision) =>
                   provision.id === requirement.id &&
                   satisfiesRange(provision.version, requirement.range),
@@ -677,12 +678,15 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
 
   /** 요구한 기능을 공급하기로 한 확장이 모두 활성화되지 못했으면 그 기능 id를 돌려준다 */
   function deadProvider(record: ExtRecord): CapabilityId | undefined {
-    for (const requirement of record.manifest?.requires ?? []) {
+    for (const requirement of record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ??
+      []) {
       const potential = order.some(
         (other) =>
           other !== record &&
           (other.state === "resolved" || other.state === "loading" || other.state === "active") &&
-          (other.manifest?.provides ?? []).some((provision) => provision.id === requirement.id),
+          (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
+            (provision) => provision.id === requirement.id,
+          ),
       );
       const core = [...(deps.coreCapabilities ?? [])].some(([id]) => id === requirement.id);
       if (!potential && !core) return toCapabilityIds([requirement.id])[0];
@@ -745,7 +749,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       trust: record.trust,
       essential: record.essential,
     };
-    const admitted = deps.policy.admit(info, manifest.layer);
+    const admitted = deps.policy.admit(info, effectiveLayer(manifest));
     if (!admitted.ok) {
       fail(
         record,
@@ -799,12 +803,12 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     const orphan = order
       .filter((candidate) => candidate.state === "active")
       .find((record) =>
-        (record.manifest?.requires ?? []).some(
+        (record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? []).some(
           (requirement) => !hasProvider(record, requirement.id),
         ),
       );
     if (orphan === undefined) return;
-    const lost = (orphan.manifest?.requires ?? []).find(
+    const lost = (orphan.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? []).find(
       (requirement) => !hasProvider(orphan, requirement.id),
     );
     fail(
@@ -824,14 +828,16 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       (other) =>
         other !== record &&
         other.state === "active" &&
-        (other.manifest?.provides ?? []).some((provision) => provision.id === id),
+        (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
+          (provision) => provision.id === id,
+        ),
     );
     return provider || [...(deps.coreCapabilities ?? [])].some(([coreId]) => coreId === id);
   }
 
   /**
    * 취소 신호는 단계 경계와 확장 하나를 설치하기 직전에 확인하고(TY-22) `ExtHost.install`에도 넘긴다. 설치 중 취소되면
-   * 엔트리 실행을 기다리지 않고 `entryError`(`scope_setup_failed`)로 끝나 그 확장이 `entry_threw`가 된다.
+   * 엔트리 실행을 기다리지 않고 `entryError`(`registration_setup_failed`)로 끝나 그 확장이 `entry_threw`가 된다.
    * 단계 경계에서 취소되면 시작을 거부하는 것과 같은 LoadAbortError를 던진다
    */
   function throwIfCancelled(signal: AbortSignal, before: string): void {
@@ -1118,8 +1124,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       const enabled = enabledSettingOf(record) ?? record.manifest?.defaultEnabled ?? true;
       if (record.state === "disabled" && enabled) return ensureLoaded(name, signal);
       if (record.state === "active") {
-        for (const info of deps.host.scopes().filter((scope) => scope.extension === name)) {
-          const handle = deps.host.scope(info.id);
+        for (const info of deps.host.registrations().filter((scope) => scope.extension === name)) {
+          const handle = deps.host.registration(info.id);
           if (enabled) handle?.enable();
           else handle?.disable();
         }

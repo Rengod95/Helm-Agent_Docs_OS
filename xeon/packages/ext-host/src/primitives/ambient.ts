@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { HookName, ScopeId } from "@fresnel/contracts/extensions";
+import type { HookName, RegistrationId } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { HandlerGate } from "./dispatch-types.ts";
 
@@ -19,7 +19,7 @@ export interface DriveInvocation {
 /** 핸들러와 drive 함수의 비동기 흐름에 싣는 맥락(X.primitives.spec §4.2 withAmbient) */
 export interface Ambient {
   readonly threadId: ThreadId;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   /** 핸들러 안이면 실행 중인 지점, drive 안이면 null */
   readonly point: HookName | null;
   /** 핸들러 안이면 디스패치 키, drive 안이면 null */

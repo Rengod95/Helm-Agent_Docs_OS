@@ -17,7 +17,7 @@ test("first throw yields FIRST_DENY", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "first-a", points: ["tool.call.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "first-a", hooks: ["tool.call.before"], loadIndex: 0 }, (g) => {
       g.on("tool.call.before", () => {
         calls.push("a");
         throw new Error("boom");
@@ -25,7 +25,7 @@ test("first throw yields FIRST_DENY", async () => {
     }),
   );
   await t.host.install(
-    makeUnit({ name: "first-b", points: ["tool.call.before"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "first-b", hooks: ["tool.call.before"], loadIndex: 1 }, (g) => {
       g.on("tool.call.before", () => {
         calls.push("b");
         return undefined;
@@ -47,12 +47,12 @@ test.each([0, "", null, false, { block: false }])("first %p is not a decision", 
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "first-bad", points: ["tool.call.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "first-bad", hooks: ["tool.call.before"], loadIndex: 0 }, (g) => {
       g.on("tool.call.before", returning(bad));
     }),
   );
   await t.host.install(
-    makeUnit({ name: "first-after", points: ["tool.call.before"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "first-after", hooks: ["tool.call.before"], loadIndex: 1 }, (g) => {
       g.on("tool.call.before", () => {
         calls.push("after");
         return undefined;
@@ -72,7 +72,7 @@ test.each([0, "", null, false, { block: false }])("first %p is not a decision", 
 test("first undefined passes through", async () => {
   const { t, thread } = await setup();
   await t.host.install(
-    makeUnit({ name: "first-pass", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "first-pass", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => undefined);
     }),
   );
@@ -89,7 +89,7 @@ test("first returns the first valid decision and stops", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "first-deny", points: ["tool.call.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "first-deny", hooks: ["tool.call.before"], loadIndex: 0 }, (g) => {
       g.on("tool.call.before", () => {
         calls.push("deny");
         return { block: true, reason: "no" };
@@ -97,7 +97,7 @@ test("first returns the first valid decision and stops", async () => {
     }),
   );
   await t.host.install(
-    makeUnit({ name: "first-late", points: ["tool.call.before"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "first-late", hooks: ["tool.call.before"], loadIndex: 1 }, (g) => {
       g.on("tool.call.before", () => {
         calls.push("late");
         return undefined;
@@ -122,7 +122,7 @@ test("first timeout denies", async () => {
   const { t, thread } = await setup(policy);
   let handlerSignal: AbortSignal | undefined;
   await t.host.install(
-    makeUnit({ name: "first-slow", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "first-slow", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", (_payload, ctx) => {
         handlerSignal = ctx.signal;
         return new Promise<undefined>(() => {});
@@ -151,7 +151,7 @@ test("first handler that finishes within budget still counts", async () => {
   };
   const { t, thread } = await setup(policy);
   await t.host.install(
-    makeUnit({ name: "first-timely", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "first-timely", hooks: ["tool.call.before"] }, (g) => {
       g.on(
         "tool.call.before",
         () =>

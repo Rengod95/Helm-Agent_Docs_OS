@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { ToolsPortKey, type ScopeApi, type ToolResourceDef } from "@fresnel/contracts/extensions";
+import {
+  ToolsPortKey,
+  type RegistrationApi,
+  type ToolResourceDef,
+} from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import { hostOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
@@ -25,7 +29,7 @@ interface Setup {
 }
 
 async function work(
-  g: ScopeApi<{ n: number }>,
+  g: RegistrationApi<{ n: number }>,
   threadId: ThreadId,
   text: string,
 ): Promise<{ n: number }> {
@@ -57,7 +61,7 @@ async function boot(): Promise<Setup> {
     makeUnit(
       {
         name: "direct",
-        kind: "group",
+        group: {},
         recordKinds: [
           {
             kind: "grp.direct.note.recorded",

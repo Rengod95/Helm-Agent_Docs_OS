@@ -184,7 +184,7 @@ test("naming: registry exposes both names of a clash whatever the install order,
       ).toEqual(["nm-a:pin", "nm-b:pin"]);
 
       // 한쪽을 끄면 남은 쪽이 짧은 이름을 받는다
-      t.host.scope("nm-a")?.disable();
+      t.host.registration("nm-a")?.disable();
       await t.settled();
       expect([...tools.keys()]).toEqual(["pin"]);
       expect(t.host.resources.list("command").map((r) => r.exposed)).toEqual(["pin"]);

@@ -25,7 +25,7 @@ async function runHandler(
     signalAborted: undefined,
   };
   await t.host.install(
-    makeUnit({ name: "uw-ext", points: ["boundary.settle.after"], builtin: false }, (g) => {
+    makeUnit({ name: "uw-ext", hooks: ["boundary.settle.after"], builtin: false }, (g) => {
       g.on("boundary.settle.after", async () => {
         if (wait === "user") {
           await hostOf(g).awaitUser((signal) => {
@@ -76,7 +76,7 @@ test("awaitUser: the wait gets a signal that follows the handler and the caller'
   const seen: boolean[] = [];
   const own = new AbortController();
   await t.host.install(
-    makeUnit({ name: "uw-sig", points: ["boundary.settle.after"], builtin: false }, (g) => {
+    makeUnit({ name: "uw-sig", hooks: ["boundary.settle.after"], builtin: false }, (g) => {
       g.on("boundary.settle.after", async () => {
         await hostOf(g).awaitUser(
           (signal) => {

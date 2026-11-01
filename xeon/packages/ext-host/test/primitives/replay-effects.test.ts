@@ -93,7 +93,7 @@ test("on handler: only idempotent writes with an explicit requestId reach the pr
       {
         name: "re-on",
         loadIndex: 1,
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
@@ -189,9 +189,9 @@ test("an undeclared write goes through a request record and the worker, once", a
     makeUnit(
       {
         name: "ew-grp",
-        kind: "group",
+        group: {},
         loadIndex: 1,
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
@@ -271,7 +271,7 @@ test("after a restart, a started request without a result is closed as unknown w
     makeUnit(
       {
         name: "ew-grp",
-        kind: "group",
+        group: {},
         loadIndex: 1,
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
@@ -382,9 +382,9 @@ test("a worker pass that throws does not block the later requests of the scope",
     makeUnit(
       {
         name: "ew-flaky",
-        kind: "group",
+        group: {},
         loadIndex: 1,
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
@@ -419,17 +419,25 @@ test("two scopes of one extension keep their effect requests apart even with the
   await t.host.openThread(thread);
   const manifest = makeManifest({
     name: "ew-two",
-    kind: "group",
-    points: ["boundary.settle.after"],
+    group: {},
+    hooks: ["boundary.settle.after"],
     requires: [{ id: "demo.echo", range: "^1.0.0" }],
+    extraPlugins: [
+      {
+        id: "side",
+        layer: "L3",
+        hooks: ["boundary.settle.after"],
+        requires: [{ id: "demo.echo", range: "^1.0.0" }],
+      },
+    ],
   });
   await t.host.install({
     manifest,
     loadIndex: 1,
     builtin: true,
-    entry: ({ scope }) => {
+    entry: ({ register }) => {
       for (const id of ["ew-two", "ew-two/side"]) {
-        scope(id, { defaultEnabled: true }, (g) => {
+        register(id, { defaultEnabled: true }, (g) => {
           g.on("boundary.settle.after", async () => {
             await hostOf(g).requestEffect({
               capability: "demo.echo",
@@ -479,7 +487,7 @@ test("a provider's own tools are not judged as replayed code", async () => {
       {
         name: "re-outer",
         loadIndex: 1,
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
@@ -523,7 +531,7 @@ async function replayCodes(providerBuiltin: boolean): Promise<Record<string, str
       {
         name: "re-on",
         loadIndex: 1,
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {

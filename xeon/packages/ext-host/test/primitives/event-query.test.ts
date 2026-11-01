@@ -87,6 +87,6 @@ test("toolOwner names the scope that registered the tool, by exposed or requeste
   );
   const owner = t.host.toolOwner("probe");
   expect(owner?.extension).toBe("owner-a");
-  expect(owner?.scopeId).toBe(t.host.scopes().find((s) => s.extension === "owner-a")?.id);
+  expect(owner?.scopeId).toBe(t.host.registrations().find((s) => s.extension === "owner-a")?.id);
   expect(t.host.toolOwner("missing")).toBeUndefined();
 });

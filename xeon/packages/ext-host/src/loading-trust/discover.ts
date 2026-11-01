@@ -1,10 +1,11 @@
 import { join, sep } from "node:path";
 import { attemptAsync } from "@fresnel/contracts";
-import type {
-  ExtensionEntry,
-  ExtensionManifest,
-  LoaderFs,
-  LoaderPaths,
+import {
+  effectiveLayer,
+  type ExtensionEntry,
+  type ExtensionManifest,
+  type LoaderFs,
+  type LoaderPaths,
 } from "@fresnel/contracts/extensions";
 import { BUILTIN_LAYER_ORDER, type OrderKey } from "./load-order.ts";
 import { eachInOrder } from "../primitives/sequence.ts";
@@ -46,7 +47,7 @@ export function candidatesFromBuiltins(
 
 /** 내장 후보의 순서 키. 층 값이 표에 없으면 plugin 뒤로 둔다 */
 export function orderKeyOfBuiltin(manifest: ExtensionManifest): OrderKey {
-  const index = BUILTIN_LAYER_ORDER.indexOf(manifest.layer);
+  const index = BUILTIN_LAYER_ORDER.indexOf(effectiveLayer(manifest));
   return {
     source: "builtin",
     layerIndex: index < 0 ? BUILTIN_LAYER_ORDER.length : index,

@@ -36,7 +36,7 @@ test("budget: first timeout boundary 29999/30000", async () => {
   const thread = early.t.newThread();
   await early.t.host.openThread(thread);
   await early.t.host.install(
-    makeUnit({ name: "bud-early", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "bud-early", hooks: ["tool.call.before"] }, (g) => {
       g.on(
         "tool.call.before",
         () =>
@@ -60,7 +60,7 @@ test("budget: first timeout boundary 29999/30000", async () => {
   await late.t.host.openThread(lateThread);
   let signal: AbortSignal | undefined;
   await late.t.host.install(
-    makeUnit({ name: "bud-late", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "bud-late", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", (_payload, ctx) => {
         signal = ctx.signal;
         return new Promise<undefined>(() => {});
@@ -90,12 +90,12 @@ test("budget: chain timeout skips only that patch", async () => {
   await t.host.openThread(thread);
   const seen: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "bud-slow", points: ["input.user.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "bud-slow", hooks: ["input.user.before"], loadIndex: 0 }, (g) => {
       g.on("input.user.before", () => new Promise<undefined>(() => {}));
     }),
   );
   await t.host.install(
-    makeUnit({ name: "bud-next", points: ["input.user.before"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "bud-next", hooks: ["input.user.before"], loadIndex: 1 }, (g) => {
       g.on("input.user.before", (_payload, current) => {
         seen.push(current);
         return { action: "transform", text: "done" };
@@ -239,7 +239,7 @@ test("budget: session.shutdown handler is cut at 2000ms", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "bud-shutdown", points: ["thread.shutdown"] }, (g) => {
+    makeUnit({ name: "bud-shutdown", hooks: ["thread.shutdown"] }, (g) => {
       g.on("thread.shutdown", () => new Promise<void>(() => {}));
     }),
   );
@@ -262,7 +262,7 @@ test("budget: drive has no time budget", async () => {
   const abortions: string[] = [];
   const gate = deferred<void>();
   await t.host.install(
-    makeUnit({ name: "bud-drive", kind: "group", usesDrive: true }, (g) => {
+    makeUnit({ name: "bud-drive", group: {}, drives: true }, (g) => {
       g.drive(async (loop) => {
         loop.signal.addEventListener("abort", () => abortions.push("aborted"));
         await gate.promise;

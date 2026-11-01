@@ -1,4 +1,4 @@
-import type { ExtensionName, ManifestIssue, ScopeId } from "@fresnel/contracts/extensions";
+import type { ExtensionName, ManifestIssue, RegistrationId } from "@fresnel/contracts/extensions";
 
 /** X.primitives.spec §3.10. ManifestIssue 코드와 겹치는 항목은 같은 문자열을 쓴다 */
 export type PrimitiveErrorCode =
@@ -14,11 +14,12 @@ export type PrimitiveErrorCode =
   | "lease_revoked"
   | "lease_budget"
   | "handler_aborted"
-  | "scope_inactive"
-  | "scope_foreign_id"
-  | "scope_duplicate"
-  | "scope_setup_failed"
-  | "point_undeclared"
+  | "registration_inactive"
+  | "registration_foreign_id"
+  | "registration_duplicate"
+  | "registration_setup_failed"
+  | "hook_undeclared"
+  | "registration_unknown_plugin"
   | "state_undeclared"
   | "state_schema"
   | "state_conflict"
@@ -42,7 +43,7 @@ export type PrimitiveErrorCode =
   | "resource_name_invalid";
 
 export interface PrimitiveErrorOptions {
-  readonly scopeId?: ScopeId;
+  readonly scopeId?: RegistrationId;
   readonly cause?: unknown;
 }
 
@@ -50,7 +51,7 @@ export interface PrimitiveErrorOptions {
 export class PrimitiveError extends Error {
   override readonly name: string = "PrimitiveError";
   readonly code: PrimitiveErrorCode;
-  readonly scopeId: ScopeId | undefined;
+  readonly scopeId: RegistrationId | undefined;
 
   constructor(code: PrimitiveErrorCode, message: string, options?: PrimitiveErrorOptions) {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause });
@@ -70,7 +71,7 @@ export interface ExtDiagnostic {
     | "drive_limits_clamped"
     /** 시작 때 이미 열린 scope의 켜짐을 알리는 정보 진단 등 */
     | "scope_notice";
-  readonly scopeId?: ScopeId;
+  readonly scopeId?: RegistrationId;
   readonly extension?: ExtensionName;
   readonly message: string;
   readonly cause?: unknown;

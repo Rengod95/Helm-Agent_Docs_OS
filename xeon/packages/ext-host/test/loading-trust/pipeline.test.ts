@@ -6,7 +6,7 @@ import {
   verdictOfInstall,
   type LoadDiagnosticCode,
 } from "../../src/loading-trust/index.ts";
-import { hostInternalsOf, type InstallResult } from "../../src/primitives/index.ts";
+import { hostInternalsOf, PrimitiveError, type InstallResult } from "../../src/primitives/index.ts";
 import { flushMicrotasks } from "../../src/testing/index.ts";
 import { rejectionOf } from "../primitives/fixtures/support.ts";
 import { createLoaderHarness, moduleOf } from "./support/harness.ts";
@@ -15,7 +15,7 @@ test("pipeline: undeclared point fails load", async () => {
   const harness = await createLoaderHarness();
   const report = await harness.loader.loadAll(
     harness.options([
-      moduleOf({ name: "pipe-undecl", points: ["tool.call.before"] }, (g) => {
+      moduleOf({ name: "pipe-undecl", hooks: ["tool.call.before"] }, (g) => {
         g.on("tool.call.before", () => undefined);
         g.on("boundary.step.after", () => undefined);
       }),
@@ -24,10 +24,10 @@ test("pipeline: undeclared point fails load", async () => {
   const info = report.extensions[0];
   expect(info?.state).toBe("error");
   const usage = info?.diagnostics.find((entry) => entry.code === "usage_invalid");
-  expect(usage?.issues?.[0]?.code).toBe("point_undeclared");
+  expect(usage?.issues?.[0]?.code).toBe("hook_undeclared");
   // 그 확장의 다른 등록도 남지 않는다
   expect(hostInternalsOf(harness.t.host).core.registry.size()).toBe(0);
-  expect(harness.t.host.scope("pipe-undecl")).toBeUndefined();
+  expect(harness.t.host.registration("pipe-undecl")).toBeUndefined();
   expect(harness.policy.tiers.get("pipe-undecl")).toBeUndefined();
 });
 
@@ -35,7 +35,7 @@ test("pipeline: one throwing extension does not block others", async () => {
   const harness = await createLoaderHarness();
   const bad = moduleOf({ name: "pipe-b" }, () => {});
   const modules = [
-    moduleOf({ name: "pipe-a", points: ["tool.call.before"] }, (g) => {
+    moduleOf({ name: "pipe-a", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => undefined);
     }),
     {
@@ -53,7 +53,7 @@ test("pipeline: one throwing extension does not block others", async () => {
     ["pipe-c", "active"],
   ]);
   expect(report.diagnostics.map((entry) => entry.code)).toContain("entry_threw");
-  expect(harness.t.host.scope("pipe-b")).toBeUndefined();
+  expect(harness.t.host.registration("pipe-b")).toBeUndefined();
 });
 
 test("pipeline: essential failure aborts start", async () => {
@@ -140,7 +140,7 @@ test("pipeline: late registration after timeout dropped", async () => {
   const gate = Promise.withResolvers<void>();
   const loading = harness.loader.loadAll(
     harness.options([
-      moduleOf({ name: "pipe-slow", points: ["tool.call.before"] }, async (g) => {
+      moduleOf({ name: "pipe-slow", hooks: ["tool.call.before"] }, async (g) => {
         await gate.promise;
         // 세대가 닫혀 있어 거부된다. 거부는 값으로 받고 확인은 아래 단언이 한다
         const late = attempt(() => g.on("tool.call.before", () => undefined));
@@ -165,7 +165,7 @@ test("pipeline: runtime undeclared on rejected only", async () => {
   const codes: string[] = [];
   const report = await harness.loader.loadAll(
     harness.options([
-      moduleOf({ name: "pipe-runtime", points: ["boundary.settle.after"] }, (g) => {
+      moduleOf({ name: "pipe-runtime", hooks: ["boundary.settle.after"] }, (g) => {
         g.on("boundary.settle.after", () => {
           try {
             g.on("boundary.step.after", () => undefined);
@@ -182,25 +182,32 @@ test("pipeline: runtime undeclared on rejected only", async () => {
     { turnId: harness.t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
-  expect(codes).toEqual(["point_undeclared"]);
+  expect(codes).toEqual(["hook_undeclared"]);
   expect(harness.loader.list()[0]?.state).toBe("active");
 });
 
 function resultOf(partial: Partial<InstallResult>): InstallResult {
-  return { name: "map-ext", scopes: ["map-ext"], setups: [], issues: [], ...partial };
+  return {
+    name: "map-ext",
+    registrations: ["map-ext"],
+    unregistered: [],
+    setups: [],
+    issues: [],
+    ...partial,
+  };
 }
 
 test("pipeline: install delegation and error mapping", () => {
   const table: readonly [Partial<InstallResult>, LoadDiagnosticCode][] = [
-    [{ entryError: new Error("x"), scopes: [] }, "entry_threw"],
-    [{ scopes: [] }, "usage_invalid"],
+    [{ entryError: new Error("x"), registrations: [] }, "entry_threw"],
+    [{ registrations: [] }, "usage_invalid"],
     [
       {
         setups: [
           {
             scopeId: "map-ext",
             status: "failed",
-            failure: { kind: "threw", code: "point_undeclared" },
+            failure: { kind: "threw", code: "hook_undeclared" },
             issues: [],
           },
         ],
@@ -268,7 +275,12 @@ test("pipeline: install delegation and error mapping", () => {
           scopeId: "map-ext",
           status: "applied",
           issues: [
-            { severity: "warning", code: "point_unused", path: "/points/0", message: "unused" },
+            {
+              severity: "warning",
+              code: "hook_unused",
+              path: "/plugins/0/hooks/0",
+              message: "unused",
+            },
           ],
         },
       ],
@@ -276,6 +288,53 @@ test("pipeline: install delegation and error mapping", () => {
   );
   expect(warned.ok).toBe(true);
   expect(warned.diagnostics[0]?.code).toBe("usage_warning");
+});
+
+test("pipeline: a declared plugin the entry did not register is a warning and the install stays ok", () => {
+  const verdict = verdictOfInstall(
+    resultOf({ registrations: ["map-ext"], unregistered: ["map-ext/extra"] }),
+  );
+  expect(verdict.ok).toBe(true);
+  expect(verdict.diagnostics).toEqual([
+    {
+      severity: "warning",
+      code: "plugin_not_registered",
+      message: "plugin map-ext/extra is declared in the manifest but the entry did not register it",
+      issues: [
+        {
+          severity: "warning",
+          code: "plugin_not_registered",
+          path: "",
+          message: "plugin map-ext/extra was not registered",
+        },
+      ],
+    },
+  ]);
+});
+
+test("pipeline: an entry that throws registration_unknown_plugin maps to entry_threw with that issue", () => {
+  const thrown = new PrimitiveError(
+    "registration_unknown_plugin",
+    "registration id map-ext/nope is not a plugin declared in the manifest of map-ext",
+    { scopeId: "map-ext/nope" },
+  );
+  const verdict = verdictOfInstall(resultOf({ entryError: thrown, registrations: [] }));
+  expect(verdict.ok).toBe(false);
+  expect(verdict.diagnostics).toEqual([
+    {
+      severity: "error",
+      code: "entry_threw",
+      message: `entry of map-ext threw: ${thrown.message}`,
+      issues: [
+        {
+          severity: "error",
+          code: "registration_unknown_plugin",
+          path: "",
+          message: thrown.message,
+        },
+      ],
+    },
+  ]);
 });
 
 test("pipeline: install failure maps through a fake host and the loader never imports Cordis", async () => {
@@ -355,7 +414,7 @@ test("pipeline: admit rejection skips install", async () => {
   expect(installed).toEqual(["pipe-tier"]);
   expect(report.extensions[0]?.state).toBe("error");
   expect(report.diagnostics.map((entry) => entry.code)).toEqual(["tier_rejected"]);
-  expect(harness.t.host.scope("pipe-tier")).toBeUndefined();
+  expect(harness.t.host.registration("pipe-tier")).toBeUndefined();
 });
 
 test("pipeline: an aborted signal stops loadAll before the next install", async () => {

@@ -35,7 +35,7 @@ X가 정하지 않는 것:
 | 도메인 | 계획 v2 | 한 줄 책임 | 소유 설정 키 | 문서 | 1차 / 2차 |
 |---|---|---|---|---|---|
 | loading-trust | X-a 로딩과 신뢰 | 탐색, 로드 순서, 매니페스트 검증 흐름(로드 파이프라인), 신뢰 등급과 프로젝트 신뢰, 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치 | `ext.<name>.enabled`, `ext.<name>.isolation`, `x.loading-trust.*` | `X.loading-trust.spec`, `X.loading-trust.plan` | 1차: 로딩, 정적 검증, 프로젝트 신뢰. 2차: 프로세스 격리. M3a: 외부 확장 로더, 안전 모드, SDK 가상 모듈, 기본 플러그인 설치 |
-| primitives | X-b 원시 연산 네 개 | 4연산 실행, 디스패처, post 큐, drive 임대 중재, scope 토글·상태, 리소스 등록, `@fresnel/ext-host` 공개 API, `DispatchPolicy`·`ResourcePolicy` 인터페이스 | `x.primitives.*`(`driveLimits`, `activeDriveGroup`, `capabilityProviders`) | `X.primitives.spec`, `X.primitives.plan` | 1차 전부 |
+| primitives | X-b 원시 연산 네 개 | 4연산 실행, 디스패처, post 큐, drive 임대 중재, scope 토글·상태, 리소스 등록, `@fresnel/ext-host` 공개 API, `DispatchPolicy`·`ResourcePolicy` 인터페이스 | `x.primitives.*`(`driveLimits`, `activeDriver`, `capabilityProviders`) | `X.primitives.spec`, `X.primitives.plan` | 1차 전부 |
 | operations | X-c 운영 규칙 | tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(`ExtStorage`), 이름 충돌, 안전 모드, 외부 훅 프로토콜. `DispatchPolicy`·`ResourcePolicy` 구현 | `x.operations.*` | `X.operations.spec`, `X.operations.plan` | 1차: tier, 예산·실패 격리, 저장 영역. 2차: 이름 충돌, 안전 모드, 외부 훅 |
 
 - [제안] 소유 경계 조정: `F.extensions.spec` §1·§4.2는 tier와 핸들러 시간 예산을 primitives 몫으로 적었다. X 세 문서는 계획 v2 X-c와 `eng.transactions.design` §8을 근거로 operations 소유로 둔다. primitives는 `DispatchPolicy` 주입 구멍만 정의한다. F 문구 수정 요청은 §8 미결 1이다.
@@ -58,10 +58,10 @@ X가 정하지 않는 것:
 | 대상 | 규칙 | 정본 |
 |---|---|---|
 | 확장 이름 `ExtensionName` | `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음, [결정: review.decisions-2 U-18]). 매니페스트 `kind`는 `plugin` 또는 `group` | `F.extensions.spec` §3.1 |
-| `ScopeId` | `<확장 이름>` 또는 `<확장 이름>/<하위 이름>`(`SCOPE_ID_PATTERN`). 주 scope id는 확장 이름 | `F.extensions.spec` §3.2 |
+| `RegistrationId` | `<확장 이름>` 또는 `<확장 이름>/<하위 이름>`(`REGISTRATION_ID_PATTERN`). 주 scope id는 확장 이름 | `F.extensions.spec` §3.2 |
 | 이벤트·레코드 kind | 플러그인 `x.<확장 이름>.<영역>.<이름>`, 그룹 `grp.<그룹 이름>.<영역>.<이름>`. scope 상태 커밋은 `<x\|grp>.<이름>.state.committed`이고 영역 `state`는 X 예약 | `F.records.spec` §3.2, `X.primitives.spec` §4.6.1 |
 | X가 쓰는 코어 kind | `scope.changed`, `lease.acquired`, `lease.released`. post는 core-tasks가 쓰는 `input.queued`로 남는다(`post.accepted` retire, [결정: review.decisions-2 U-05]). 추가 요청: `scope.handler_failed`(휘발), `ScopeChangedPayload.reason` | `F.records.spec` §3.3, `X.operations.spec` §10 |
-| 비공개 기록 kind | 자기 접두(`grp.<그룹>.*`, 플러그인 `x.<이름>.*`)만. `ScopeApi.recordPrivate`로 쓰고 다른 확장의 `readRecords`로 조회되지 않는다([결정: review.decisions-2 T-21]) | `X.primitives.spec` §4.6.5 |
+| 비공개 기록 kind | 자기 접두(`grp.<그룹>.*`, 플러그인 `x.<이름>.*`)만. `RegistrationApi.recordPrivate`로 쓰고 다른 확장의 `readRecords`로 조회되지 않는다([결정: review.decisions-2 T-21]) | `X.primitives.spec` §4.6.5 |
 | 설정 키 | X 층 `x.loading-trust.*`, `x.primitives.*`, `x.operations.*`. 확장 `ext.<확장 이름>.<이름>`, 예약 `ext.<name>.enabled`, `ext.<name>.isolation` | `F.wire-settings.spec` §3.8.1, §3.8.3 |
 | DB 테이블 | 확장 `x_<확장 이름의 하이픈을 밑줄로>_<지역 이름>`, 지역 이름 `^[a-z][a-z0-9]{0,31}$`(밑줄 없음, [결정: review.decisions-2 U-18]). X 내부 `xh_*`(예: `xh_ext_tables`) | `X.operations.spec` §4.4.2, `eng.context-map.design` §5.2 |
 | 서비스 이름 | 기능 바인딩 `cap:<CapabilityId>`, 공급자별 `cap:<CapabilityId>@<확장 이름>`. 포트는 `fresnel.*`(예약). 같은 `fresnel.*` 이름에 등록되는 F 서비스 인터페이스가 X 포트를 부분형으로 포함한다([결정: review.decisions-2 D-04]). X 자신은 `fresnel.ext` | `X.primitives.spec` §3.6 규칙 6, §3.7, `eng.context-map.design` §5.3 |
@@ -85,7 +85,7 @@ X가 정하지 않는 것:
 | L1 `core-loop`, `core-tools`, `core-context`, `core-models`, `core-persistence` | `ExtHost.dispatch`(훅 발화), `ExtHost.boundary`(단계 경계 `prepare`/`settle`), 포트 제공(`LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort` 등, `hostOf(g).providePort`), 확장 투영기 등록 받기 | `X.primitives.spec` §3.2~§3.6, `X.operations.spec` §4.4.4 |
 | L2 `cap-*` | 기능 공급자 등록(`hostOf(g).provide`), 리소스 등록(도구, MCP 서버), on 핸들러 | `X.primitives.spec` §3.7~§3.9 |
 | L3 `group-sdk`, `group-helm`, `group-learning` | scope(상태 문서, `commit`, `record`/`readRecords`), on, post, drive(Helm만, 학습 그룹은 쓰지 않음), `storageOf(g)`의 확장 전용 테이블 | `X.primitives.spec` §4.4~§4.7, `X.operations.spec` §3.4 |
-| L4 `apps/host` | 조립: `createOperationsPolicy` → `createExtHost`(`policy`, `setupBudgetMs`, `resourcePolicy`) → `registerPlatform`(L0) → `createExtensionLoader({ host, policy, … })` → `loadAll`. 로더는 Cordis 서비스가 아니고 조립 루트가 직접 쥔다. `OperationsDeps.ports`·`ScopeControl` 늦은 연결, `x.*` 설정 그룹과 `LoadReport.settingGroups`의 `buildCatalog`, `StartupHealthStore`, 설정 소스 연결 | `X.primitives.spec` §3.2, `X.loading-trust.spec` §3.5, `X.operations.spec` §3.8 |
+| L4 `apps/host` | 조립: `createOperationsPolicy` → `createExtHost`(`policy`, `setupBudgetMs`, `resourcePolicy`) → `registerPlatform`(L0) → `createExtensionLoader({ host, policy, … })` → `loadAll`. 로더는 Cordis 서비스가 아니고 조립 루트가 직접 쥔다. `OperationsDeps.ports`·`RegistrationControl` 늦은 연결, `x.*` 설정 그룹과 `LoadReport.settingGroups`의 `buildCatalog`, `StartupHealthStore`, 설정 소스 연결 | `X.primitives.spec` §3.2, `X.loading-trust.spec` §3.5, `X.operations.spec` §3.8 |
 | L4 `apps/cli`, `apps/desktop`, 설정 화면 | 활성화 토글(`ext.<name>.enabled`), 신뢰 대화상자(`TrustPrompter`), 안전 모드(`--safe-mode`, `--disable-ext`, 설정 항목), drive 임대 상한·구동 그룹 화면(`x.primitives.*`), 확장 목록·진단·자동 끄기 상태 | `X.loading-trust.spec` §6, `X.primitives.spec` §6, `X.operations.spec` §4.6.5, §6 |
 
 ## 6. 층 경계

@@ -33,7 +33,7 @@ test("commit schema and conflict", async () => {
   await t.host.openThread(thread);
   const codes: (string | undefined)[] = [];
   await t.host.install(
-    makeUnit({ name: "st-basic", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "st-basic", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async () => {
         // 스키마를 어긴 값
         codes.push(await codeOf(() => g.commit({ n: -1 })));
@@ -57,7 +57,7 @@ test("rerun handler commit is idempotent", async () => {
   await t.host.openThread(thread);
   const seen: { state: unknown; returned: unknown }[] = [];
   await t.host.install(
-    makeUnit({ name: "st-rerun", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "st-rerun", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async (_payload, ctx) => {
         const returned = await g.commit({ n: ctx.state.n + 1 });
         seen.push({ state: ctx.state, returned });
@@ -89,7 +89,7 @@ test("state is frozen, undeclared state and size are rejected", async () => {
   const codes: (string | undefined)[] = [];
   let frozen = false;
   await t.host.install(
-    makeUnit({ name: "st-none", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "st-none", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", async () => {
         codes.push(await codeOf(() => g.state()));
         codes.push(await codeOf(() => g.commit(unsafeInput({}))));
@@ -100,7 +100,7 @@ test("state is frozen, undeclared state and size are rejected", async () => {
     makeUnit(
       {
         name: "st-big",
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         loadIndex: 1,
         def: {
           state: {
@@ -153,8 +153,8 @@ test("record and read declarations", async () => {
     makeUnit(
       {
         name: "rec-group",
-        kind: "group",
-        points: ["boundary.settle.after"],
+        group: {},
+        hooks: ["boundary.settle.after"],
         recordKinds: [
           {
             kind: "grp.rec-group.note.recorded",
@@ -202,8 +202,8 @@ test("recordPrivate is hidden from other extensions", async () => {
     makeUnit(
       {
         name: "prv-learning",
-        kind: "group",
-        points: ["boundary.settle.after"],
+        group: {},
+        hooks: ["boundary.settle.after"],
         recordKinds: [
           {
             kind: "grp.prv-learning.skill.proposed",
@@ -235,8 +235,8 @@ test("recordPrivate is hidden from other extensions", async () => {
     makeUnit(
       {
         name: "prv-other",
-        kind: "group",
-        points: ["boundary.settle.after"],
+        group: {},
+        hooks: ["boundary.settle.after"],
         loadIndex: 1,
         readsRecordKinds: ["grp.prv-learning.*"],
       },
@@ -266,7 +266,7 @@ test("rewind restores the state of the active branch", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "st-rewind", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "st-rewind", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async (_payload, ctx) => {
         await g.commit({ n: ctx.state.n + 1 });
       });
@@ -286,7 +286,7 @@ test("rewind restores the state of the active branch", async () => {
   await t.settled();
   const seen: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "st-peek", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "st-peek", hooks: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
       g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });

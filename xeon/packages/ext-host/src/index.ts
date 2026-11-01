@@ -1,5 +1,5 @@
 // @fresnel/ext-host 공개 진입점. X.primitives.spec §3.1 표의 이름만 이름을 적어 다시 내보낸다(export * 금지).
-// 표에 없는 내부 이름(HandlerRegistry, ScopeRuntime, LeaseBroker, CordisBridge 등)은 나가지 않는다.
+// 표에 없는 내부 이름(HandlerRegistry, RegistrationRuntime, LeaseBroker, CordisBridge 등)은 나가지 않는다.
 export {
   // primitives §3.2
   createExtHost,
@@ -7,14 +7,14 @@ export {
   type ExtHostDeps,
   type ExtensionUnit,
   type InstallResult,
-  type ScopeSetupOutcome,
+  type RegistrationSetupOutcome,
   type PlatformModule,
   type PlatformSetupError,
   type PlatformContext,
   type ExtDiagnostic,
   type ExtChange,
   type LeaseInfo,
-  type ResetScopeStateHostError,
+  type ResetRegistrationStateHostError,
   // primitives §3.3~§3.5
   type PayloadOf,
   type DispatchOptions,
@@ -47,8 +47,8 @@ export {
   ScopedStorePortKey,
   type ProcessPort,
   ProcessPortKey,
-  type LeaseArbiterPort,
-  LeaseArbiterPortKey,
+  type DriveLockArbiterPort,
+  DriveLockArbiterPortKey,
   ExtHostPortKey,
   SessionFeedPortKey,
   SessionBranchPortKey,
@@ -61,8 +61,8 @@ export {
   providerServiceName,
   isReservedServiceName,
   hostOf,
-  type ScopeHostApi,
-  type ScopeCallContext,
+  type RegistrationHostApi,
+  type RegistrationCallContext,
   type StateMigration,
   // primitives §3.9 (리소스 레지스트리와 리소스 포트, F 이름 다시 export)
   McpPortKey,
@@ -87,7 +87,7 @@ export {
   type ToolsPort,
   webProviderRegistrationOf,
   // primitives §3.9, §3.10, §6
-  type ScopeInfo,
+  type RegistrationInfo,
   PrimitiveError,
   type PrimitiveErrorCode,
   primitivesSettings,
@@ -185,11 +185,15 @@ export {
   type OperationsSettingsSource,
   type ReservedNames,
   type ScopeChangeReason,
-  type ScopeControl,
+  type RegistrationControl,
   type Tier,
 } from "./operations/index.ts";
 
 // 조립 루트(L4 host)가 ExtHost·정책·로더를 이을 때 필요한 이름 [제안: 문서 표에 없어 문서 반영을 요청한다]
-export { scopeToggleSourceOf, type ScopeToggleSourceOf } from "./primitives/index.ts";
-export { createScopeControl, type AdmitInfo, type ScopeToggleSource } from "./operations/index.ts";
+export { registrationToggleSourceOf, type RegistrationToggleSourceOf } from "./primitives/index.ts";
+export {
+  createRegistrationControl,
+  type AdmitInfo,
+  type RegistrationToggleSource,
+} from "./operations/index.ts";
 export type { LoaderSettingsSource } from "./loading-trust/index.ts";

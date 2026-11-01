@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { ok } from "@fresnel/contracts";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { DurableEventEnvelope, EventFeed, CommitListener } from "@fresnel/contracts/records";
-import { RecordCommitPortKey, type ScopeDef } from "@fresnel/contracts/extensions";
+import { RecordCommitPortKey, type RegistrationDef } from "@fresnel/contracts/extensions";
 import { SessionFeedPortKey } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { Type } from "typebox";
@@ -38,11 +38,11 @@ function rejectedIn(t: Host, thread: ThreadId): unknown[] {
 }
 
 test("a drive request that waits past the limit is refused with lease.rejected, and the lifecycle point fires after the commit", async () => {
-  const t = await createTestHost({ settings: { activeDriveGroup: "lr-a", leaseWaitLimit: 1 } });
+  const t = await createTestHost({ settings: { activeDriver: "lr-a", leaseWaitLimit: 1 } });
   const thread = t.newThread();
   const heard: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "lr-listener", points: ["lifecycle.lease.rejected"], loadIndex: 5 }, (g) => {
+    makeUnit({ name: "lr-listener", hooks: ["lifecycle.lease.rejected"], loadIndex: 5 }, (g) => {
       g.on("lifecycle.lease.rejected", (payload) => {
         heard.push(payload);
       });
@@ -74,11 +74,11 @@ test("a drive request that waits past the limit is refused with lease.rejected, 
 });
 
 test("a failed boundary commit does not fire the lifecycle point", async () => {
-  const t = await createTestHost({ settings: { activeDriveGroup: "lr-a", leaseWaitLimit: 1 } });
+  const t = await createTestHost({ settings: { activeDriver: "lr-a", leaseWaitLimit: 1 } });
   const thread = t.newThread();
   const heard: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "lr-listener", points: ["lifecycle.lease.rejected"], loadIndex: 5 }, (g) => {
+    makeUnit({ name: "lr-listener", hooks: ["lifecycle.lease.rejected"], loadIndex: 5 }, (g) => {
       g.on("lifecycle.lease.rejected", (payload) => {
         heard.push(payload);
       });
@@ -132,7 +132,7 @@ test("agent.settled from the commit feed reaches only the owner scope's handler"
   const heard: string[] = [];
   await eachInOrder(["lc-a", "lc-b"].entries(), async ([loadIndex, name]) => {
     await t.host.install(
-      makeUnit({ name, loadIndex, points: ["lifecycle.agent.settled"] }, (g) => {
+      makeUnit({ name, loadIndex, hooks: ["lifecycle.agent.settled"] }, (g) => {
         g.on("lifecycle.agent.settled", (payload) => {
           heard.push(`${name}:${payload.requestId}`);
         });
@@ -192,7 +192,7 @@ test("agent.settled from the commit feed reaches only the owner scope's handler"
 // ── 리뷰 지적 D2, D5, D6 ──
 
 const CounterSchema = Type.Object({ n: Type.Integer({ minimum: 0 }) });
-const counterDef: ScopeDef<{ n: number }> = {
+const counterDef: RegistrationDef<{ n: number }> = {
   state: { schema: CounterSchema, initial: { n: 0 }, version: 1 },
 };
 
@@ -217,7 +217,7 @@ function mutableSettings(
   const base = createStaticPrimitivesSettings({ leaseWaitLimit });
   const state = { active: initial };
   return {
-    source: { ...base, activeDriveGroup: () => state.active },
+    source: { ...base, activeDriver: () => state.active },
     set(next) {
       state.active = next;
     },
@@ -328,7 +328,7 @@ test("a lifecycle handler reads the post-commit state, not the state before the 
     makeUnit(
       {
         name: "lc-state",
-        points: ["lifecycle.agent.settled", "boundary.settle.after"],
+        hooks: ["lifecycle.agent.settled", "boundary.settle.after"],
         def: counterDef,
       },
       (g) => {
@@ -363,7 +363,7 @@ test("an agent.settled written on the parent thread by core-agents (turnId null)
   const heard: string[] = [];
   await eachInOrder(["lc-a", "lc-b"].entries(), async ([loadIndex, name]) => {
     await t.host.install(
-      makeUnit({ name, loadIndex, points: ["lifecycle.agent.settled"] }, (g) => {
+      makeUnit({ name, loadIndex, hooks: ["lifecycle.agent.settled"] }, (g) => {
         g.on("lifecycle.agent.settled", (payload) => {
           heard.push(
             `${name}:${payload.childThreadId}:${payload.requestId}:${payload.report?.text}`,
@@ -417,7 +417,7 @@ test("an event that arrives while its thread is closed is held and fires when th
   });
   const heard: string[] = [];
   await t.host.install(
-    makeUnit({ name: "lc-held", points: ["lifecycle.agent.settled"] }, (g) => {
+    makeUnit({ name: "lc-held", hooks: ["lifecycle.agent.settled"] }, (g) => {
       g.on("lifecycle.agent.settled", (payload) => {
         heard.push(payload.requestId);
       });

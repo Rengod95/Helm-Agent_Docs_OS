@@ -7,13 +7,14 @@ import type {
   LoaderFs,
   ManifestIssue,
 } from "@fresnel/contracts/extensions";
+import { PrimitiveError } from "../primitives/errors.ts";
 import type { ExtensionUnit, InstallResult } from "../primitives/host.ts";
 import type { BuiltinExtensionModule } from "./discover.ts";
 import type { LoadDiagnosticCode } from "./pipeline.ts";
 
 /** setup이 던진 PrimitiveError 코드 가운데 선언 대조 위반인 것들과 같은 문자열의 ManifestIssue 코드(X.loading-trust.spec §4.4.3 표) */
 const USAGE_ISSUE_CODES: Readonly<Record<string, ManifestIssue["code"]>> = {
-  point_undeclared: "point_undeclared",
+  hook_undeclared: "hook_undeclared",
   post_undeclared: "post_undeclared",
   drive_undeclared: "drive_undeclared",
   drive_requires_group: "drive_requires_group",
@@ -47,20 +48,43 @@ function issuesOf(code: ManifestIssue["code"], message: string): readonly Manife
 export function verdictOfInstall(result: InstallResult): InstallVerdict {
   const diagnostics: InstallDiagnostic[] = [];
   if (result.entryError !== undefined) {
+    const unknownPlugin =
+      result.entryError instanceof PrimitiveError &&
+      result.entryError.code === "registration_unknown_plugin";
     diagnostics.push({
       severity: "error",
       code: "entry_threw",
       message: `entry of ${result.name} threw: ${messageOf(result.entryError)}`,
+      ...(unknownPlugin
+        ? {
+            issues: issuesOf("registration_unknown_plugin", messageOf(result.entryError)),
+          }
+        : {}),
     });
     return { ok: false, diagnostics };
   }
-  if (result.scopes.length === 0) {
+  if (result.registrations.length === 0) {
     diagnostics.push({
       severity: "error",
       code: "usage_invalid",
-      message: `${result.name} defined no scope`,
+      message: `${result.name} registered no plugin`,
     });
     return { ok: false, diagnostics };
+  }
+  for (const id of result.unregistered) {
+    diagnostics.push({
+      severity: "warning",
+      code: "plugin_not_registered",
+      message: `plugin ${id} is declared in the manifest but the entry did not register it`,
+      issues: [
+        {
+          severity: "warning",
+          code: "plugin_not_registered",
+          path: "",
+          message: `plugin ${id} was not registered`,
+        },
+      ],
+    });
   }
   for (const setup of result.setups) {
     if (setup.status === "failed" && setup.failure !== undefined) {

@@ -12,7 +12,7 @@ import {
   type McpServerResourceDef,
   type PortLookup,
   type ProviderResourceDef,
-  type ScopeId,
+  type RegistrationId,
   type ToolResourceDef,
   type Unsubscribe,
 } from "@fresnel/contracts/extensions";
@@ -48,7 +48,7 @@ export interface ResourceRecord {
   readonly name: string;
   /** 사용자·모델에 보이는 이름. 이름 정책(`ResourcePolicy`)이 정한다. 정책이 없으면 name이다 */
   readonly exposed: string;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   /** 내장 패키지의 등록인가. 이름 예약 판정에 쓴다(X.operations.spec §4.5 규칙 2) */
   readonly builtin: boolean;
@@ -59,7 +59,7 @@ export interface ResourceRecord {
 /** `ResourcePolicy.exposeAll`이 레코드마다 돌려주는 노출 이름. 레코드는 (kind, scopeId, name)으로 가리킨다 */
 export interface ResourceExposure {
   readonly kind: ResourceKind;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly name: string;
   readonly exposed: string;
   /** 짧은 이름을 받지 못한 이유. too_long이면 등록을 거부한다 */
@@ -168,7 +168,7 @@ function hasBlankOrControl(text: string): boolean {
 export interface ResourceSpec {
   readonly kind: ResourceKind;
   readonly name: string;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   readonly builtin: boolean;
   readonly def: unknown;
@@ -181,7 +181,7 @@ export interface ResourceStore extends ResourceRegistry {
    */
   add(spec: ResourceSpec): Result<() => void, PrimitiveError>;
   /** 이 scope가 등록한 flag의 현재 값. L4가 정한 값이 없으면 선언의 기본값 */
-  flagValue(scopeId: ScopeId, name: string): boolean | string | undefined;
+  flagValue(scopeId: RegistrationId, name: string): boolean | string | undefined;
 }
 
 interface Entry {
@@ -192,7 +192,7 @@ interface Entry {
 
 const NOOP = (): void => {};
 
-function keyOf(kind: ResourceKind, scopeId: ScopeId, name: string): string {
+function keyOf(kind: ResourceKind, scopeId: RegistrationId, name: string): string {
   return `${kind}\u0000${scopeId}\u0000${name}`;
 }
 
@@ -469,7 +469,7 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
   };
 }
 
-function portMissing(name: string, scopeId: ScopeId): PrimitiveError {
+function portMissing(name: string, scopeId: RegistrationId): PrimitiveError {
   return new PrimitiveError("port_unavailable", `port ${name} is not provided`, { scopeId });
 }
 

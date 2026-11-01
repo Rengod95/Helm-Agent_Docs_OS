@@ -19,7 +19,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 마일스톤 | 범위 | 스펙 절 | 소비자 |
 |---|---|---|---|
 | M0 | tier 정렬 키(`TIERS`, `orderKeyOf`, `compareOrderKey`, `assignTier`, `TierTable`)와 `DispatchPolicy.tierOf`·`budgetMs`·`onHandlerFailure`·`onHandlerSettled`·`run` 연결(X.primitives.spec §3.4). 핸들러 시간 예산(`runWithBudget`, `BudgetGate`, `awaitUser`, `budgetClassOf`, `DEFAULT_BUDGETS_MS`)과 UI 대기 제외. 예산 초과·예외의 fold별 처리(tap 기록, first `FIRST_DENY`, chain 패치 버림)를 primitives 디스패처에 연결. 확장 단위 실패 집계(`FailureLedger`)와 `HandlerOutcomeRecord` 기록. 1차 설정 키 중 예산 키 | §3.1~§3.3, §4.1~§4.2, §4.3.1~§4.3.2, §6 | X.primitives 디스패처, L1 훅 발화 |
-| M1 | `ExtStorage` 최소형: 접두 테이블 정의·DDL, 확장 투영으로 코어 커밋과 같은 트랜잭션 쓰기, 읽기, 소유 장부 `xh_ext_tables`. 테스트 그룹이 이를 사용한다. 자동 끄기(`judgeAutoDisable`, `AutoDisabler`, `ScopeControl` 연결)와 알림. 자동 끄기 설정 키 | §3.3~§3.4, §4.3.3~§4.3.5, §4.4.1~§4.4.5, §4.4.8 | M1 스모크 테스트 그룹, L3 group-sdk |
+| M1 | `ExtStorage` 최소형: 접두 테이블 정의·DDL, 확장 투영으로 코어 커밋과 같은 트랜잭션 쓰기, 읽기, 소유 장부 `xh_ext_tables`. 테스트 그룹이 이를 사용한다. 자동 끄기(`judgeAutoDisable`, `AutoDisabler`, `RegistrationControl` 연결)와 알림. 자동 끄기 설정 키 | §3.3~§3.4, §4.3.3~§4.3.5, §4.4.1~§4.4.5, §4.4.8 | M1 스모크 테스트 그룹, L3 group-sdk |
 | M2 이후 | 이름 충돌 네임스페이스(`resolveNames`). 안전 모드와 `--disable-ext`, 연속 시작 실패 제안. 외부 훅 프로토콜(설정, 실행, 해석, 환경 정리)은 M4로 옮겼다 [결정: 2026-10-28 사용자]. 접두 밖 접근 차단 강화(`checkStatement` 상시화 검토, authorizer 조사), `ExtQuery` 범위 조건. 확장 테이블 삭제(`ExtStorageAdmin`). 보존 테이블과 열 추가 마이그레이션(스펙 §10 미결 8 결정 뒤) | §3.5~§3.7, §4.4.6~§4.4.7, §4.5~§4.7 | X.loading-trust(제거, 로더), L4 host·cli·settings-ui |
 
 - M0에서 F.records의 휘발 kind `scope.handler_failed` 추가(스펙 §10 미결 4)가 아직이면 알림은 운영 로그로만 남기고, kind가 생기면 같은 `OperationsNotifier` 구현을 바꾼다.
@@ -40,7 +40,7 @@ xeon/packages/ext-host/
     failure.ts           # FailureKind, HandlerResultKind, HandlerOutcomeRecord, fromHandlerFailure,
                          # FailureStats, FailureLedger, createFailureLedger
     auto-disable.ts      # AutoDisablePolicy, DEFAULT_AUTO_DISABLE, AUTO_DISABLE_EXEMPT_TIERS,
-                         # AutoDisableVerdict, judgeAutoDisable, ScopeChangeReason, ScopeControl,
+                         # AutoDisableVerdict, judgeAutoDisable, ScopeChangeReason, RegistrationControl,
                          # OperationsNotifier, AutoDisabler, createAutoDisabler
     storage/
       ext-storage.ts     # ExtQuery, ExtTableReader/Writer, ExtReaders/Writers, ExtProjection, ExtTables,
@@ -74,7 +74,7 @@ xeon/packages/ext-host/
 ```
 
 - import 방향: `tier` ← `budget` ← `failure` ← `auto-disable` ← `index`. `storage/tables` ← `storage/guard` ← `storage/ext-storage`. `hooks/config` ← `hooks/protocol` ← `hooks/run`. `naming`, `safe-mode`는 `tier`만 import한다. `index.ts`만 모든 파일을 import한다.
-- 외부 import: `@fresnel/contracts`(루트, `/extensions`, `/records`, `/conversation`, `/settings`)와 `typebox`만 쓴다. 같은 패키지의 `../primitives/index.ts`(`DispatchPolicy`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy` 등)와 `../loading-trust/index.ts`(`TrustLevel`, `InstallSource`, `LoadedExtensionInfo`)는 타입만 import한다(`import type`). 그래서 도메인 사이 값 순환이 없다. `operations/`는 Cordis를 import하지 않는다 [제안]. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이고(X.primitives.plan §2), operations는 포트(`ScopeControl`, `PortLookup`, 설정 포트)로만 받는다. 이 규칙은 `eng.dependency-rules.guide` DR-11(Cordis는 `ext-host`만 import)보다 좁고, X.primitives.plan §6 4번의 grep 검사로 확인한다.
+- 외부 import: `@fresnel/contracts`(루트, `/extensions`, `/records`, `/conversation`, `/settings`)와 `typebox`만 쓴다. 같은 패키지의 `../primitives/index.ts`(`DispatchPolicy`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy` 등)와 `../loading-trust/index.ts`(`TrustLevel`, `InstallSource`, `LoadedExtensionInfo`)는 타입만 import한다(`import type`). 그래서 도메인 사이 값 순환이 없다. `operations/`는 Cordis를 import하지 않는다 [제안]. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이고(X.primitives.plan §2), operations는 포트(`RegistrationControl`, `PortLookup`, 설정 포트)로만 받는다. 이 규칙은 `eng.dependency-rules.guide` DR-11(Cordis는 `ext-host`만 import)보다 좁고, X.primitives.plan §6 4번의 grep 검사로 확인한다.
 - L0·L1 기능(`fresnel.store`, `fresnel.session`, `fresnel.process`)은 Cordis 서비스 주입으로 받는다. primitives가 주입받은 서비스를 `ExtHost.ports`(`PortLookup`)로 내놓고, 조립 루트가 그것을 `OperationsDeps.ports`로 늦은 연결해 넘긴다. operations는 `ProjectorRegistryPortKey`·`ScopedStorePortKey`(저장 영역, `storageOf`)와 `ProcessPortKey`(외부 훅)로 꺼낸다(X.primitives.spec §3.6, `architecture.layers.spec` §4.3.3).
 - 시계와 타이머는 `ExtHostDeps`와 같은 `now`, `setTimer` 함수로 받는다(X.primitives.spec §3.2). [결정: review.decisions-2 U-03] F에는 `./testing` 서브패스가 없고 테스트 대역은 각 패키지 `test/` 안에 둔다. 그래서 `test/operations/support/manual-clock.ts`에 F `Clock` 인터페이스로 `ManualClock`을 두고 두 함수를 만든다. 같은 패키지의 `@fresnel/ext-host/testing` 가짜 타이머(X.primitives.plan P-03)가 같은 일을 하면 그것을 쓴다.
 - [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 저장 대역은 `test/operations/support/` 안에 F 인터페이스(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 만든다. 실제 bun:sqlite 저장소로 같은 계약 시나리오를 돌리는 일은 L0.store.plan ST-23(`ext-storage.contract.int.test.ts`, L0.store.spec §9 18번)이 맡는다(O-15).
@@ -95,7 +95,7 @@ xeon/packages/ext-host/
 | O-07 | UI 포트 래핑: primitives가 핸들러에 주는 UI 포트·승인 대기를 `awaitUser`로 감싼다. signal 합치기(`AbortSignal.any`). [결정: review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않으므로 M2에 둔다 | X.primitives.plan(UI 포트, 스펙 §10 미결 5), O-04 | S | M2 |
 | O-08 | `failure.ts`: `fromHandlerFailure`, `FailureLedger`(연속 수, 창, aborted·`value_from_tap` 제외), `onHandlerFailure`·`onHandlerSettled` 구현 | O-06 | M | M0 |
 | O-09 | `OperationsNotifier` 기본 구현: 운영 로그. F.records에 `scope.handler_failed`가 생기면 휘발 이벤트 발신으로 바꾼다 | F.records.plan(kind 추가 요청, 스펙 §10 미결 4), O-08 | S | M0 |
-| O-10 | `auto-disable.ts`: `judgeAutoDisable`, `createAutoDisabler`(요청 1회 보장, 면제 tier, 훅 끄기 자리), 자동 끄기 설정 키 5개 | P-09(scope 토글, `ScopeControl`의 바탕), O-08 | M | M1 |
+| O-10 | `auto-disable.ts`: `judgeAutoDisable`, `createAutoDisabler`(요청 1회 보장, 면제 tier, 훅 끄기 자리), 자동 끄기 설정 키 5개 | P-09(scope 토글, `RegistrationControl`의 바탕), O-08 | M | M1 |
 | O-11 | `scope.changed`의 `reason` 기록 연결. F 필드가 없으면 M1은 운영 로그에만 사유를 남긴다 | F.records.plan(`ScopeChangedPayload.reason` 추가 요청), O-10 | S | M1 |
 | O-12 | `storage/tables.ts`: 이름 규칙, `parseExtTableName`, `columnTypeOf`, `tableDdl`(인용, STRICT, 인덱스 이름) | F.extensions.plan(`ExtensionName`) | M | M1 |
 | O-13 | `storage/guard.ts`: `checkStatement`(접두 대조, 금지 키워드, 여러 문장). 테스트·디버그 빌드에서 O-14가 만든 모든 문장에 적용 | O-12 | S | M1 |

@@ -29,7 +29,7 @@ test("a restarted host picks up enabled scopes, state and the open lease", async
   const acquiredAfter = second.records.events(thread).filter((e) => e.kind === "lease.acquired");
   expect(acquiredAfter).toHaveLength(1);
   expect(second.loop.turns).toHaveLength(1);
-  expect(second.host.scopes()[0]).toMatchObject({ status: "enabled", drive: "holding" });
+  expect(second.host.registrations()[0]).toMatchObject({ status: "enabled", drive: "holding" });
 });
 
 test("the drive function is re-invoked after a restart with the same request key", async () => {

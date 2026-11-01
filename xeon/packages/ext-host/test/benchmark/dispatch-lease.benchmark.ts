@@ -158,7 +158,7 @@ async function measureLease(): Promise<void> {
 /** 디스패치 배치 하나의 핸들러 하나당 평균 시간(ms). budgeted가 참이면 OperationsPolicy(기본 예산) 경로다 */
 async function dispatchBatch(budgeted: boolean): Promise<number> {
   let handled = 0;
-  const unit = makeUnit({ name: "benchmark-tap", points: [TAP_HOOK] }, (g) => {
+  const unit = makeUnit({ name: "benchmark-tap", hooks: [TAP_HOOK] }, (g) => {
     g.on(TAP_HOOK, () => {
       handled += 1;
     });

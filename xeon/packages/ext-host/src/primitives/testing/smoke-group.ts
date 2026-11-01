@@ -3,42 +3,46 @@ import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-  type ScopeApi,
+  type RegistrationApi,
 } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import type { ExtensionUnit } from "../host.ts";
 
 /**
  * M1 스모크 테스트 그룹의 매니페스트. F.extensions.plan의 test/extensions/fixtures/smoke-group.manifest.json과
- * 같은 내용이다(X.primitives.plan P-21). 상태와 drive를 쓰려고 usesPost·usesDrive·recordKinds를 선언한다
+ * 같은 내용이다(X.primitives.plan P-21). 상태와 drive를 쓰려고 usesPost·drives·recordKinds를 선언한다
  */
 export const SMOKE_GROUP_MANIFEST: ExtensionManifest = defineManifest({
-  schemaVersion: 1,
+  schemaVersion: 2,
   name: "smoke-group",
   version: "0.1.0",
   displayName: "Smoke group",
   description:
     "M1 walking-skeleton smoke group. Uses on(tool.call.before, boundary.step.after), post and drive.",
   defaultEnabled: true,
-  layer: "L3",
-  kind: "group",
   entry: "./src/index.ts",
-  points: ["tool.call.before", "boundary.step.after"],
-  usesPost: true,
-  usesDrive: true,
-  recordKinds: [
+  plugins: [
     {
-      kind: "grp.smoke-group.note.recorded",
-      version: 1,
-      description: "A note the smoke group leaves for other groups.",
-      payload: {
-        type: "object",
-        properties: { text: { type: "string" } },
-        required: ["text"],
-        additionalProperties: false,
-      },
+      layer: "L3",
+      hooks: ["tool.call.before", "boundary.step.after"],
+      usesPost: true,
+      drives: true,
+      recordKinds: [
+        {
+          kind: "grp.smoke-group.note.recorded",
+          version: 1,
+          description: "A note the smoke group leaves for other groups.",
+          payload: {
+            type: "object",
+            properties: { text: { type: "string" } },
+            required: ["text"],
+            additionalProperties: false,
+          },
+        },
+      ],
     },
   ],
+  group: {},
   trust: { level: "builtin" },
 });
 
@@ -50,7 +54,7 @@ export interface SmokeGroupOptions {
   readonly driveTurns?: number;
   readonly loadIndex?: number;
   /** setup 안에서 더 할 일. 예: storageOf(g)로 확장 전용 테이블을 정의한다(X.operations.plan O-16) */
-  readonly extend?: (g: ScopeApi<SmokeState>) => void;
+  readonly extend?: (g: RegistrationApi<SmokeState>) => void;
 }
 
 interface SmokeState {
@@ -73,8 +77,8 @@ export function createSmokeGroup(options: SmokeGroupOptions): {
   const driveTurns = options.driveTurns ?? 1;
   const probe: SmokeGroupProbe = { deniedCalls: [], turnEndThreads: [] };
 
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(
+  const entry: ExtensionEntry = ({ manifest, register }) => {
+    register(
       manifest.name,
       { state: { schema: SmokeStateSchema, initial: { count: 0 }, version: 1 } },
       (g) => {

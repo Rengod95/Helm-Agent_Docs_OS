@@ -8,7 +8,7 @@ import { toJsonValue, type JsonValue, type ThreadId } from "@fresnel/contracts/c
 import {
   RecordCommitPortKey,
   type ExtensionName,
-  type ScopeId,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import type { ExtensionEventKind } from "@fresnel/contracts/records";
 import { Type, type Static } from "typebox";
@@ -67,17 +67,19 @@ type Requested = Static<typeof RequestedSchema>;
 export type EffectKindArea = "requested" | "started" | "settled";
 
 export function effectKindOf(
-  manifest: { readonly kind: string; readonly name: string },
+  prefix: "grp" | "x",
+  name: ExtensionName,
   area: EffectKindArea,
 ): ExtensionEventKind {
-  return `${manifest.kind === "group" ? "grp" : "x"}.${manifest.name}.effect.${area}`;
+  return `${prefix}.${name}.effect.${area}`;
 }
 
 interface EffectJob {
   readonly threadId: ThreadId;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
-  readonly kind: "group" | "plugin";
+  /** 확장 접두(`extensionPrefix`): 플러그인 그룹이면 grp, 아니면 x */
+  readonly prefix: "grp" | "x";
 }
 
 /** 워커 포트. 커밋된 요청을 읽어 실행하는 쪽이 구현한다(기본 구현은 X의 `createEffectWorker`) */
@@ -146,7 +148,7 @@ export function createEffectWorker(core: HostCore, defs: CapabilityDefLookup): E
       drafts: [
         makeDraft(core.deps.ids, {
           threadId: job.threadId,
-          kind: effectKindOf({ kind: job.kind, name: job.extension }, area),
+          kind: effectKindOf(job.prefix, job.extension, area),
           payload,
         }),
       ],
@@ -157,7 +159,7 @@ export function createEffectWorker(core: HostCore, defs: CapabilityDefLookup): E
   async function drainOnce(job: EffectJob): Promise<void> {
     const port = core.ports.get(RecordCommitPortKey);
     if (port === undefined) return;
-    const prefix = `${job.kind === "group" ? "grp" : "x"}.${job.extension}.effect.`;
+    const prefix = `${job.prefix}.${job.extension}.effect.`;
     const queried = await port.queryRecords(
       job.threadId,
       { kind: `${prefix.slice(0, -1)}.*` },

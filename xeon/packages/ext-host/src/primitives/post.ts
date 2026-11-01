@@ -5,15 +5,15 @@ import {
   type PostItem,
   type PostOptions,
   type PostReceipt,
-  type ScopeId,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { ambient } from "./ambient.ts";
-import type { Generation, HostCore, ScopeRecord } from "./core.ts";
+import type { Generation, HostCore, RegistrationRecord } from "./core.ts";
 import { PrimitiveError } from "./errors.ts";
 
 export interface PostQueue {
   post(
-    record: ScopeRecord,
+    record: RegistrationRecord,
     generation: Generation,
     item: PostItem,
     options: PostOptions,
@@ -23,7 +23,7 @@ export interface PostQueue {
 const MAX_REQUEST_ID = 64;
 
 /** 입력 큐가 받지 않은 이유를 확장이 받는 오류로 옮긴다. 저장소 실패는 storage_unavailable이다 */
-function postFailure(error: EnqueueError, scopeId: ScopeId): Error {
+function postFailure(error: EnqueueError, scopeId: RegistrationId): Error {
   switch (error.kind) {
     case "invalid_request_id":
       return new TypeError(`post requestId is invalid: ${error.requestId}`);
@@ -58,12 +58,16 @@ export function createPostQueue(core: HostCore): PostQueue {
   return {
     async post(record, generation, item, options) {
       if (generation.closed) {
-        throw new PrimitiveError("scope_inactive", `scope ${record.id} generation is closed`, {
-          scopeId: record.id,
-        });
+        throw new PrimitiveError(
+          "registration_inactive",
+          `scope ${record.id} generation is closed`,
+          {
+            scopeId: record.id,
+          },
+        );
       }
       generation.usage.post = true;
-      if (record.manifest.usesPost !== true) {
+      if (record.plugin.decl.usesPost !== true) {
         throw new PrimitiveError("post_undeclared", `${record.id} used post without usesPost`, {
           scopeId: record.id,
         });

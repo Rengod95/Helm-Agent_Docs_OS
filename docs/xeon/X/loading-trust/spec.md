@@ -18,7 +18,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 근거:
 
-- [결정] 훅은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3).
+- [결정] 훅은 on(fold tap/first/chain), post, drive(배타 drive lock), Registration 4연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3).
 - [결정] DI는 Cordis 하나다. `cordis`를 import하는 패키지는 `ext-host` 하나다(adr.0002 §3, eng.dependency-rules.guide DR-11). vendored Cordis에는 `@cordisjs/plugin-loader`가 없다(`xeon/vendor/cordis/UPSTREAM.json` `notCopied`). 설정 파일 기반 로딩은 ext-host가 직접 구현한다(adr.0002 §4.2).
 - [결정] 확장 프로세스 격리는 사용자가 확장마다 켜는 2차 선택 기능이고 기본값은 꺼짐이다(`_research/layer-plan-v2-notes.md` "확장 프로세스 격리는 기본값이 아니어도 된다", `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0006 §4.2).
 - 층 구성 계획 v2 X-a 행: 확장 로딩(그대로, Cordis), 기능 선언 정적 검증(설계), 프로젝트 신뢰(포크, pi `trust-manager.ts`·`project-trust.ts`), 프로세스 격리(자체, vscode-jsonrpc 9.0.3)(`_research/packages.md` §4.5, §2.5).
@@ -38,7 +38,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 다루지 않는 것:
 
 - 매니페스트 스키마, 지점 46행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
-- 4연산 실행, 디스패처, post 큐, drive 임대 중재, scope 토글·상태, 리소스 등록 API, 설정 키 `x.primitives.*`: X.primitives.spec.
+- 4연산 실행, 디스패처, post 큐, drive lock 중재, Registration 토글·상태, 리소스 등록 API, 설정 키 `x.primitives.*`: X.primitives.spec.
 - tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(접두 테이블 API), 이름 충돌 규칙, 안전 모드, 외부 훅 프로토콜(M4로 옮김 [결정: 2026-10-28 사용자]), 설정 키 `x.operations.*`: X.operations.spec. tier와 시간 예산은 operations 소유로 본다 [제안]. F.extensions.spec §1·§4.2의 primitives 표기는 정합성 단계에서 고친다.
 - 설정 파일 경로와 읽기, 유효 값 계산: F.wire-settings.spec과 L1.persistence.spec. 이 문서는 키 정의와 신뢰 전 적용 제외 규칙만 둔다.
 - 자식 프로세스 기동·종료의 OS 구현: L0.process.spec.
@@ -62,7 +62,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 ## 3. 인터페이스
 
-F에서 가져오는 이름은 F 문서 그대로 쓴다: `ExtensionManifest`, `ExtensionManifestSchema`, `ExtensionName`, `ExtensionEntry`, `ScopeFn`, `ScopeApi`, `ManifestIssue`, `ManifestIssueCode`, `ExtensionUsage`, `validateManifest`, `validateUsage`, `validateManifestSet`, `HookName`, `HOOKS`, `FIRST_DENY`, `PostItem`, `PostOptions`(F.extensions.spec), `CapabilityId`, `SemVer`, `ServiceKey`(F.capabilities.spec), `SettingDef`, `SettingDefInput`, `SettingCatalog`, `CatalogIssue`, `SettingNamespace`, `defineSettings`, `settingsFromManifest`, `buildCatalog`(F.wire-settings.spec).
+F에서 가져오는 이름은 F 문서 그대로 쓴다: `ExtensionManifest`, `ExtensionManifestSchema`, `ExtensionName`, `ExtensionEntry`, `RegistrationFn`, `RegistrationApi`, `ManifestIssue`, `ManifestIssueCode`, `ExtensionUsage`, `validateManifest`, `validateUsage`, `validateManifestSet`, `HookName`, `HOOKS`, `FIRST_DENY`, `PostItem`, `PostOptions`(F.extensions.spec), `CapabilityId`, `SemVer`, `ServiceKey`(F.capabilities.spec), `SettingDef`, `SettingDefInput`, `SettingCatalog`, `CatalogIssue`, `SettingNamespace`, `defineSettings`, `settingsFromManifest`, `buildCatalog`(F.wire-settings.spec).
 
 ### 3.1 신뢰 등급과 설치 위치 (`trust/levels.ts`)
 
@@ -96,7 +96,7 @@ export interface TrustPermissions {
   /** project_trust 지점에 on을 걸 수 있는가 */
   readonly onProjectTrust: boolean;
   readonly post: boolean;
-  /** kind가 group이고 usesDrive가 참일 때 */
+  /** 플러그인의 `drives`가 참이고 정책 `x.primitives.driveRequiresGroup`(X.primitives.spec §4.4.1)이 허용할 때 */
   readonly drive: boolean;
   /** 도구·명령·provider 등록(X.primitives.spec 리소스 등록) */
   readonly resources: boolean;
@@ -201,7 +201,7 @@ export type LoadDiagnosticCode =
   | "tier_rejected"
   | "entry_not_found" | "entry_import_failed" | "entry_not_function" | "entry_threw"
   | "setup_threw" | "setup_timeout" | "setup_action"
-  | "usage_invalid" | "usage_warning"
+  | "usage_invalid" | "usage_warning" | "plugin_not_registered"
   | "essential_failed" | "disabled_by_setting" | "safe_mode" | "disabled_flag"
   | "isolation_unavailable" | "isolation_point_unsupported" | "isolation_drive_unsupported"
   | "isolation_exited" | "isolation_restart_limit" | "isolation_protocol";
@@ -652,7 +652,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 ### 4.1 기본 로딩 방식
 
 - [결정] 기본 로딩은 같은 프로세스의 Cordis 플러그인이다. 격리는 확장마다 사용자가 켜는 2차 선택이다(§1 근거).
-- [제안] 로더는 검증을 마친 확장을 `ExtensionUnit`(정규화 매니페스트, 엔트리, `loadIndex`, `builtin`)으로 만들어 `ExtHost.install(unit)`에 넘긴다(X.primitives.spec §3.2). 엔트리 호출, scope 정의 수집, scope 세대마다의 Cordis fiber 생성, scope setup 실행과 시간 예산, setup 직후 `validateUsage`는 primitives가 한다(X.primitives.spec §4.5.3, §4.5.6). 로더는 `InstallResult`를 진단으로 옮긴다(§4.4.3).
+- [제안] 로더는 검증을 마친 확장을 `ExtensionUnit`(정규화 매니페스트, 엔트리, `loadIndex`, `builtin`)으로 만들어 `ExtHost.install(unit)`에 넘긴다(X.primitives.spec §3.2). 엔트리 호출, Registration 정의 수집(플러그인마다 하나), 세대마다의 Cordis fiber 생성, setup 실행과 시간 예산, setup 직후 `validateUsage`(그 Registration의 플러그인 항목으로)는 primitives가 한다(X.primitives.spec §4.5.3, §4.5.6). 로더는 `InstallResult`를 진단으로 옮긴다(§4.4.3).
 - 로더는 Cordis(`@fresnel/vendor-cordis`)를 import하지 않는다. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이다(X.primitives.plan §2). Cordis 객체(`Context`, `Fiber`)는 확장 코드에 넘기지 않는다(adr.0002 §3).
 - 로드 세대는 엔트리를 다시 실행하는 단위(핫 리로드, 격리 재시작)다. scope를 켤 때마다 바뀌는 scope 세대(X.primitives.spec §2)와 다르다. 다시 로드할 때 로더는 `ExtHost.uninstall` 뒤 새 `install`을 부른다. 세대 번호는 `LoadedExtensionInfo.generation`과 진단 레코드에 남긴다.
 
@@ -711,8 +711,8 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 - `drive_conflict`, `capability_unprovided` 경고는 진단만 남긴다. 실행 중 임대는 X.primitives가 하나만 준다.
 - 7단계에서 scope setup이 던지거나 시간 예산을 넘으면 primitives가 그 scope의 fiber를 해제해 setup 동안의 등록(on, drive, 리소스, onDispose)을 모두 되돌린다(X.primitives.spec §4.5.3).  시간 예산 값은 X.operations.spec의 `x.operations.budget.setupMs`이고, `ExtHostDeps.setupBudgetMs`로 primitives에 들어간다.
 - 7·8단계에서 실패한 확장은 로더가 `ExtHost.uninstall`과 `policy.forget`을 불러 남은 정의와 tier 표 항목을 지운다.
-- 8단계의 `point_undeclared`, `post_undeclared`, `drive_undeclared`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`는 오류다. 7단계처럼 등록이 되돌려진 상태이고 `error`로 둔다. `point_unused`는 경고다(`usage_warning`).
-- 시작 때는 첫 turn 전이므로 install이 켜기를 바로 적용한다(X.primitives.spec §4.5.6 시작 적용). 실행 중 `ensureLoaded`처럼 thread가 돌고 있으면 켜기는 다음 단계 경계에 적용되고(F.extensions.spec §4.5), 그 setup 실패는 9단계 뒤 `ScopeInfo.lastError`로만 보인다 [제안].
+- 8단계의 `hook_undeclared`, `post_undeclared`, `drive_undeclared`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`는 오류다. 7단계처럼 등록이 되돌려진 상태이고 `error`로 둔다. `hook_unused`는 경고다(`usage_warning`).
+- 시작 때는 첫 turn 전이므로 install이 켜기를 바로 적용한다(X.primitives.spec §4.5.6 시작 적용). 실행 중 `ensureLoaded`처럼 thread가 돌고 있으면 켜기는 다음 단계 경계에 적용되고(F.extensions.spec §4.5), 그 setup 실패는 9단계 뒤 `RegistrationInfo.lastError`로만 보인다 [제안].
 
 #### 4.3.2 실패 격리
 
@@ -750,27 +750,28 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 #### 4.4.3 설치 위임과 오류 변환
 
-1. 로더는 한 로드 세대에 `ExtHost.install(unit)`을 정확히 한 번 부른다. 엔트리 호출(`{ manifest, scope }`, `manifest`는 정규화·동결 값)과 scope 실행은 install 안에서 일어난다(X.primitives.spec §3.2, §4.5.6).
-2. 엔트리 본문에서 부를 수 있는 연산은 `scope(id, def, setup)`뿐이다(F `ExtensionEntry`). `on`, `drive`, `onDispose`, 리소스 등록, `capability(key)`는 scope setup 안에서 부른다. 이 문서에서 "setup"은 scope setup(`ScopeSetup`)만 뜻한다.
-3. 엔트리는 최소 하나의 scope를 만든다. 주 scope id는 매니페스트 `name`이다(F.extensions.spec §3.2). `InstallResult.scopes`가 비어 있고 `entryError`도 없으면 `usage_invalid`다 [제안].
-4. scope setup 본문은 thread 맥락 밖이다. 그래서 `state()`, `commit`, `post`, `record`, `readRecords`는 `PrimitiveError("no_thread")`로 거부된다(X.primitives.spec §4.6.3). pi도 로딩 중 동작 메서드를 막는다(`loader.ts:157-162`).
-5. 엔트리 본문과 scope setup은 `x.operations.budget.setupMs` 예산 안에서 await된다. 넘긴 뒤 늦게 끝난 setup의 등록은 scope 세대가 닫혀 있으므로 버려진다(X.primitives.spec §4.5.3, `_research/notes/X-2.md` §0 6번).
-6. 활성화 뒤의 등록 호출(예: 핸들러 안의 `on`)은 primitives가 호출마다 검사한다. 선언 밖이면 그 호출만 `PrimitiveError("point_undeclared")`로 거부하고 `ExtHostDeps.report`로 진단을 남긴다. 확장 전체를 끄지는 않는다 [제안]. 반복 위반의 자동 끄기는 X.operations.spec 몫이다. 이 경우는 로더 진단이 아니다.
+1. 로더는 한 로드 세대에 `ExtHost.install(unit)`을 정확히 한 번 부른다. 엔트리 호출(`{ manifest, register }`, `manifest`는 정규화·동결 값)과 Registration 실행은 install 안에서 일어난다(X.primitives.spec §3.2, §4.5.6).
+2. 엔트리 본문에서 부를 수 있는 연산은 `register(id, def, setup)`뿐이다(F `ExtensionEntry`). `on`, `drive`, `onDispose`, 리소스 등록, `capability(key)`는 Registration setup 안에서 부른다. 이 문서에서 "setup"은 Registration setup(`RegistrationSetup`)만 뜻한다.
+3. 엔트리는 매니페스트의 플러그인마다 Registration 하나를 만든다. 루트 플러그인의 Registration id는 매니페스트 `name`, 그 밖은 `<name>/<플러그인 id>`다(F.extensions.spec §3.1 `registrationIdOf`). 선언했지만 만들지 않은 플러그인은 `plugin_not_registered`(warning)다 [제안]. `register`가 선언하지 않은 id를 받으면 `registration_unknown_plugin`으로 엔트리가 던진다. `InstallResult.registrations`가 비어 있고 `entryError`도 없으면 `usage_invalid`다 [제안].
+4. Registration setup 본문은 thread 맥락 밖이다. 그래서 `state()`, `commit`, `post`, `record`, `readRecords`는 `PrimitiveError("no_thread")`로 거부된다(X.primitives.spec §4.6.3). pi도 로딩 중 동작 메서드를 막는다(`loader.ts:157-162`).
+5. 엔트리 본문과 Registration setup은 `x.operations.budget.setupMs` 예산 안에서 await된다. 넘긴 뒤 늦게 끝난 setup의 등록은 scope 세대가 닫혀 있으므로 버려진다(X.primitives.spec §4.5.3, `_research/notes/X-2.md` §0 6번).
+6. 활성화 뒤의 등록 호출(예: 핸들러 안의 `on`)은 primitives가 호출마다 검사한다. 선언 밖이면 그 호출만 `PrimitiveError("hook_undeclared")`로 거부하고 `ExtHostDeps.report`로 진단을 남긴다. 확장 전체를 끄지는 않는다 [제안]. 반복 위반의 자동 끄기는 X.operations.spec 몫이다. 이 경우는 로더 진단이 아니다.
 
 [제안] 오류를 던지는 층과 로더 진단 코드의 대응:
 
 | 일어나는 곳 | 던지는 쪽과 값 | `InstallResult`에서 보이는 곳 | 로더 진단 코드 | 확장 상태 |
 |---|---|---|---|---|
 | 엔트리 import(외부 확장) | 로더(Bun `import()`) | 해당 없음(install 전) | `entry_not_found`, `entry_import_failed`, `entry_not_function` | `error` |
-| 엔트리 본문 예외 | 확장 코드 예외, `PrimitiveError`(`scope_foreign_id`, `scope_duplicate`) | `entryError` | `entry_threw` | `error` |
-| 엔트리가 scope를 만들지 않음 | 없음 | `scopes` 빈 배열 | `usage_invalid` | `error` |
-| setup 안의 선언 밖 연산 | `PrimitiveError`(`point_undeclared`, `post_undeclared`, `drive_undeclared`, `drive_requires_group`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`) | `setups[].failure`(`threw`, `code`) | `usage_invalid`(issues에 같은 코드) | `error` |
+| 엔트리 본문 예외 | 확장 코드 예외, `PrimitiveError`(`registration_foreign_id`, `registration_duplicate`, `registration_unknown_plugin`. 마지막은 `usage_invalid`가 아니라 `entry_threw`의 issues로 코드를 싣는다) | `entryError` | `entry_threw` | `error` |
+| 엔트리가 Registration을 만들지 않음 | 없음 | `registrations` 빈 배열 | `usage_invalid` | `error` |
+| setup 안의 선언 밖 연산 | `PrimitiveError`(`hook_undeclared`, `post_undeclared`, `drive_undeclared`, `drive_requires_group`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`) | `setups[].failure`(`threw`, `code`) | `usage_invalid`(issues에 같은 코드) | `error` |
 | setup 본문의 thread 맥락 연산 | `PrimitiveError("no_thread")` | `setups[].failure`(`threw`, `code: "no_thread"`) | `setup_action` | `error` |
 | setup의 그 밖 예외 | 확장 코드 예외, 그 밖의 `PrimitiveError` | `setups[].failure`(`threw`) | `setup_threw` | `error` |
 | setup 시간 초과 | primitives(`setupBudgetMs`) | `setups[].failure`(`timeout`) | `setup_timeout` | `error` |
 | setup 직후 `validateUsage` 오류 | primitives | `setups[].issues`(error) | `usage_invalid` | `error` |
 | setup 직후 `validateUsage` 경고 | primitives | `setups[].issues`(warning) | `usage_warning` | `active` 유지 |
-| 활성 뒤 선언 밖 `on` | `PrimitiveError("point_undeclared")`, 그 호출만 | 없음(`ExtHostDeps.report`) | 없음 | `active` 유지 |
+| 선언한 플러그인을 엔트리가 `register`하지 않음 | primitives(`unregistered`) | `unregistered` | `plugin_not_registered`(warning, issues에 같은 코드) | `active` 유지 |
+| 활성 뒤 선언 밖 `on` | `PrimitiveError("hook_undeclared")`, 그 호출만 | 없음(`ExtHostDeps.report`) | 없음 | `active` 유지 |
 
 - 한 확장의 scope 가운데 하나라도 `failed`이면 그 확장 전체를 `error`로 두고 `uninstall`한다 [제안]. 확장 안의 scope 일부만 살리는 규칙은 두지 않는다.
 - `ExtensionUsageError`라는 별도 클래스는 두지 않는다. 확장이 받는 오류는 `PrimitiveError`(X.primitives.spec §3.10) 하나다.
@@ -836,7 +837,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 - `enabled`가 거짓이면 엔트리를 import하지 않고 실행하지 않는다(5a단계 `disabled`). 내장 확장은 모듈이 이미 import되어 있지만 엔트리를 부르지 않는다.
 - `isolation`의 세션 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 프로젝트 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 매니페스트 `isolation`은 요청이고 실제 값은 이 설정이 정한다(F.extensions.spec §6).
 - 내장 확장에는 `isolation` 키를 만들지 않는다. 내장 확장의 격리는 금지다(§4.6).
-- 예약 키의 `layer`는 매니페스트 `layer`를 따른다. `plugin`이면 `L2`로 본다(F.wire-settings.spec §3.8.3 [가정]을 따른다).
+- 예약 키의 `layer`는 확장의 유효 층(`effectiveLayer`, 플러그인 `layer` 가운데 가장 높은 층, F.extensions.spec §3.1)을 따른다. `plugin`이면 `L2`로 본다. 켜기 키는 확장 단위 하나이고 플러그인 단위 키는 만들지 않는다. `group.members` 밖의 플러그인을 따로 끄는 길은 두지 않는다(M4 밖) [제안](F.wire-settings.spec §3.8.3 [가정]을 따른다).
 - `ui`: 두 키 모두 `tab: "plugins"`. `enabled`는 `toggle`, `isolation`은 `select`다.
 
 #### 4.5.3 `foreignNamespace`와 로딩
@@ -847,7 +848,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 #### 4.5.4 카탈로그 재조립
 
-- 외부 확장 그룹이 자기 설정을 읽는 길은 `ScopeHostApi.settingValue`다(X.primitives.spec §3.8). 내장이 아닌 확장은 `fresnel.*` 포트를 쓸 수 없지만 이 메서드로 `ext.<자기 이름>.*` 키만 읽는다. 그룹 설정 이름공간은 신뢰 `user`이면 `ext.<id>`다(`defineGroup`).
+- 외부 확장 그룹이 자기 설정을 읽는 길은 `RegistrationHostApi.settingValue`다(X.primitives.spec §3.8). 내장이 아닌 확장은 `fresnel.*` 포트를 쓸 수 없지만 이 메서드로 `ext.<자기 이름>.*` 키만 읽는다. 그룹 설정 이름공간은 신뢰 `user`이면 `ext.<id>`다(`defineGroup`).
 - 카탈로그는 시작 때 한 번 만들고 외부 확장이 낸 키는 적재 뒤에야 알려진다. 그래서 조립 루트가 적재 전에 키를 알아야 하는 확장(기본 플러그인 Helm)은 `reservedExtensionSettings(manifest, source)`를 X 루트에서 import해 예약 키(`enabled`, `isolation`)를 만들고, 자기 설정 그룹(`ext.<id>.*`)은 그 그룹의 `defineSettings` 값을 함께 카탈로그에 넣는다. 확장이 선언한 키를 적재 뒤에 카탈로그에 잇는 일은 하지 않는다 [제안: 시작 때 정적 카탈로그가 설정 스키마 산출물(`schema/`)의 원천이어서].
 - `LoadReport.settingGroups`는 `rejected`가 아닌 확장의 그룹(`ext.<name>`)만 담는다. `x.*` 설정 그룹(`primitivesSettings`, `loadingTrustSettings`, `operationsSettings`)은 조립 루트(L4 host)가 코어 그룹, `LoadReport.settingGroups`와 함께 `buildCatalog`에 넣는다.
 - 확장 그룹끼리 `duplicateKey`가 나면(같은 이름은 3단계에서 막히므로 [가정] 생기지 않는다) 로드 순서가 뒤인 확장을 `rejected`로 바꾸고 다시 조립한다. 다시 조립한 결과도 `ok: false`이면 남은 이슈는 코어 키 문제이므로 조립 루트가 시작을 거부한다(L4.host-service.spec §4.1 5번).
@@ -870,7 +871,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | `project` | 예 | 예 | 아니오 | 예 | 예 | 예 | prefix | optional |
 | `untrusted` | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | none | notLoaded |
 
-- `drive`는 그 위에 F 규칙(`kind: "group"`, `usesDrive: true`)을 함께 만족해야 한다.
+- `drive`는 그 위에 F 규칙(`plugins[].drives: true`와 정책 `x.primitives.driveRequiresGroup`, F.extensions.spec §4.6)을 함께 만족해야 한다. 정책을 풀어도 `untrusted`는 로드되지 않으므로 `drive`를 못 쓴다.
 - `project` 등급의 `thread.trust.before` 금지는 순서 때문이기도 하다. 프로젝트 확장은 신뢰 판정 뒤에 로드된다(§4.7.4). 로더는 `points`에 `thread.trust.before`가 있는 프로젝트 매니페스트를 `usage_invalid`로 거부한다.
 - 격리 `forbidden`: 내장 확장은 L0~L2 서비스를 같은 프로세스에서 제공하므로 격리하지 않는다.
 - 저장 `prefix`는 X.operations.spec의 확장 접두 테이블 API를 쓸 수 있다는 뜻이다. 격리 확장은 등급과 무관하게 직접 접근이 없다(§4.9.6).
@@ -888,7 +889,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 #### 4.6.4 외부 확장이 공급하는 기능의 `idempotent` 선언 [결정: M3-REQ-31]
 
 - 값 집합: `trust.level`은 `builtin`, `user`, `project`, `untrusted` 넷이다(§4.6.1). 새 값을 더하지 않는다.
-- 외부 그룹(`kind: "group"`)의 등급은 설치 위치가 정한다. `user`·`managed` 위치는 `user`, `project` 위치는 프로젝트 신뢰가 `allow`일 때만 `project`다. `drive`는 두 등급 모두 허용이고 F 규칙(`usesDrive: true`)을 함께 만족해야 한다(§4.6.2).
+- 외부 플러그인 그룹(`group` 선언이 있는 확장)의 등급은 설치 위치가 정한다. `user`·`managed` 위치는 `user`, `project` 위치는 프로젝트 신뢰가 `allow`일 때만 `project`다. `drive`는 두 등급 모두 허용이고 F 규칙(`usesDrive: true`)을 함께 만족해야 한다(§4.6.2).
 - `idempotent` 선언은 F 기능 정의(`MethodDef.idempotent`)에 있고 공급자가 그 약속을 지키는지는 적합성 시험(ADR-0015 §3.6)으로만 확인된다. 외부 확장은 시험을 강제할 수 없다.
 - 그래서 기능의 현재 공급자가 내장 확장(`builtin: true`, 저장소의 적합성 시험을 통과한 코드)일 때만 `idempotent` 선언을 믿는다. 공급자가 외부 확장(`user`, `project`)이면 X 기능 래퍼는 그 기능의 `idempotent` 메서드를 선언 없음으로 본다. on 핸들러와 drive 함수처럼 재실행되는 문맥에서는 `effect_not_allowed`이고 공급자를 부르지 않는다. 재실행되지 않는 문맥(도구 `execute`, 명령 처리기)에는 영향이 없다.
 - 판정은 호출마다 현재 바인딩된 공급자로 한다. 공급자가 바뀌면 다음 호출부터 새 공급자의 등급을 쓴다. 바인딩이 없으면 믿지 않는다(닫힌 쪽).
@@ -1055,12 +1056,12 @@ flowchart LR
 
 - [제안] 지점 N이 격리 가능하려면 `HOOKS[N].payload`와 `HOOKS[N].result`가 JSON 왕복 가능한 스키마여야 한다. `isolatableHooks()`는 스키마를 훑어 `Type.Unknown()`, 함수, `Uint8Array`, `AbortSignal`을 포함한 지점을 뺀다.
 - [제안] 위 계산과 별개로 고빈도 휘발 지점 `request.stream`, `boundary.message.update`, `tool.execution.update`는 격리 불가로 둔다. 스트림 조각마다 프로세스 왕복을 하면 지연이 커지기 때문이다.
-- 격리 확장의 `points`에 격리 불가 지점이 있으면 `error`(`isolation_point_unsupported`)다. 같은 프로세스로 몰래 바꾸지 않는다. 사용자가 격리를 요청했기 때문이다.
+- 격리 확장의 `plugins[].hooks`에 격리 불가 지점이 있으면 `error`(`isolation_point_unsupported`)다. 같은 프로세스로 몰래 바꾸지 않는다. 사용자가 격리를 요청했기 때문이다.
 - M1 이후 페이로드가 정확화되면(F.extensions.plan M2) 목록이 바뀐다. 목록은 코드가 계산하고 문서는 규칙만 둔다.
 
 #### 4.9.5 drive
 
-- [제안] 격리 확장은 `drive`를 쓸 수 없다. `usesDrive: true`이고 `isolation: "process"`면 `error`(`isolation_drive_unsupported`)다.
+- [제안] 격리 확장은 `drive`를 쓸 수 없다. `plugins[].drives: true`이고 `isolation: "process"`면 `error`(`isolation_drive_unsupported`)다.
 - 이유: `LoopHandle`의 `turn`, `spawn`은 오래 걸리는 양방향 호출이고, drive 재호출 규칙(F.extensions.spec §4.6)을 프로세스 재시작과 함께 맞추는 설계가 없다. 허용 여부는 §10 미결 8.
 
 #### 4.9.6 기록 경로와 접근 경계
@@ -1087,8 +1088,8 @@ flowchart LR
 | 사례 | 처리 |
 |---|---|
 | `plugin.json`이 JSON이 아님 | `rejected`(`manifest_parse`). 다른 확장은 계속 |
-| 매니페스트의 `points`에 없는 지점에 scope setup 중 `on` | primitives가 `PrimitiveError("point_undeclared")`로 setup을 끝내고 등록을 되돌린다 → `usage_invalid`(issues에 `point_undeclared`), `error`(F.extensions.spec §5 1번, §4.4.3 표) |
-| 활성 뒤 핸들러 안에서 선언 밖 지점에 `on` | 그 호출만 `PrimitiveError("point_undeclared")`로 거부, primitives 진단(`ExtHostDeps.report`). 확장은 계속 |
+| 플러그인의 `hooks`에 없는 Hook에 Registration setup 중 `on` | primitives가 `PrimitiveError("hook_undeclared")`로 setup을 끝내고 등록을 되돌린다 → `usage_invalid`(issues에 `hook_undeclared`), `error`(F.extensions.spec §5 1번, §4.4.3 표) |
+| 활성 뒤 핸들러 안에서 선언 밖 지점에 `on` | 그 호출만 `PrimitiveError("hook_undeclared")`로 거부, primitives 진단(`ExtHostDeps.report`). 확장은 계속 |
 | 엔트리 본문이 throw | `error`(`entry_threw`). 등록 없음. 다른 확장과 시작은 계속 |
 | scope setup이 throw | `error`(`setup_threw`). 등록 되돌림. 다른 확장과 시작은 계속 |
 | scope setup 본문에서 `post`·`state()` 호출 | `PrimitiveError("no_thread")` → `error`(`setup_action`) |
@@ -1158,11 +1159,11 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 | 이름 | 출처 |
 |---|---|
-| `ExtensionManifest`, `ExtensionEntry`, `ScopeFn`, `validateManifest`, `validateUsage`, `validateManifestSet`, `ManifestIssue`, `HOOKS`, `FIRST_DENY`, `HookName`, `ProjectTrustDecision` | F.extensions.spec |
+| `ExtensionManifest`, `ExtensionEntry`, `RegistrationFn`, `validateManifest`, `validateUsage`, `validateManifestSet`, `ManifestIssue`, `HOOKS`, `FIRST_DENY`, `HookName`, `ProjectTrustDecision` | F.extensions.spec |
 | 로더 포트 `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`와 부속 타입(`TrustPromptRequest`, `TrustOption`, `TrustUpdate`, `TrustChoice`, `TrustChoiceKind`), `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild` | F.extensions.spec §3.2.1 `ports.ts` |
 | `settingsFromManifest`, `buildCatalog`, `defineSettings`, `SettingDef`, `CatalogIssue` | F.wire-settings.spec |
 | `CapabilityId`, `SemVer`, 범위 비교 [가정: `satisfies` 함수] | F.capabilities.spec |
-| `ExtHost.install`·`uninstall`·`registerPlatform`·`ports`, `ExtensionUnit`, `InstallResult`, `ScopeSetupOutcome`, `PrimitiveError`, `ProcessPortKey`, `ScopeFn` 구현, 디스패처, 리소스 등록, 코어 기능 레지스트리, scope 켜기·끄기 | X.primitives.spec |
+| `ExtHost.install`·`uninstall`·`registerPlatform`·`ports`, `ExtensionUnit`, `InstallResult`, `RegistrationSetupOutcome`, `PrimitiveError`, `ProcessPortKey`, `RegistrationFn` 구현, 디스패처, 리소스 등록, 코어 기능 레지스트리, scope 켜기·끄기 | X.primitives.spec |
 | `OperationsPolicy.admit`·`forget`, `startupFilter`·`StartupOptions`(순수 함수와 타입), `ExtStorageAdmin`, 시간 예산(`x.operations.budget.setupMs`), 실패 격리·자동 끄기, 안전 모드, 접두 테이블 API, 외부 훅 | X.operations.spec |
 | 의존 규칙(DR-07, DR-11, DR-14) | eng.dependency-rules.guide |
 | outbox 규칙(§7) | eng.transactions.design |
@@ -1173,7 +1174,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 ## 9. 수용 기준
 
-1. `points`에 `tool.call.before`만 선언한 확장이 scope setup에서 `on("boundary.step.after", …)`을 호출하면 그 확장은 `error`이고 진단 코드는 `usage_invalid`, `issues`에 `point_undeclared`가 있다. 그 확장의 다른 등록도 남지 않는다.
+1. `hooks`에 `tool.call.before`만 선언한 플러그인이 Registration setup에서 `on("boundary.step.after", …)`을 호출하면 그 확장은 `error`이고 진단 코드는 `usage_invalid`, `issues`에 `hook_undeclared`가 있다. 그 확장의 다른 등록도 남지 않는다.
 2. 내장 필수가 아닌 확장 셋 중 가운데 확장의 엔트리가 throw해도 나머지 둘은 `active`이고 `loadAll`은 성공한다.
 3. `essential: true` 내장 확장의 엔트리가 throw하면 `loadAll`이 `LoadAbortError`를 던지고 진단에 `essential_failed`가 있다.
 4. 프로젝트 신뢰 판정 전에는 프로젝트 확장의 엔트리 모듈이 import되지 않는다(가짜 `LoaderFs`와 import 기록기로 확인). `thread.trust.before` 핸들러가 `no`를 돌려주면 끝까지 import되지 않는다.

@@ -104,7 +104,7 @@ xeon/packages/ext-host/
 | L-31 | `default-plugin.ts`: `installDefaultPlugin`(첫 실행 복사, 버전 비교 교체, 임시 디렉터리 후 이동) | L-14 | S | M3a |
 | L-22 | `isolation/rpc.ts`·`child-main.ts`: vscode-jsonrpc 연결(`StreamMessageReader`/`Writer`), `IsoMethods`, 스키마 검사, `init` 왕복, 자식 쪽 scope 스텁과 취소 전달 | L-14, P-30(`ProcessPortKey`), L0.process 포트 구현 [가정] | L | M2(2차) |
 | L-23 | `isolation/proxy.ts`: 선언 지점에만 프록시 핸들러 등록, 디스패치 직렬화, 결과 스키마 검사, 시간 예산 초과 → 예외(fold 규칙), 취소 → `killGraceMs` 뒤 `SIGKILL`, `isolatableHooks`, 격리 불가 지점·drive 거부, 도구 프록시 | L-22, P-06(디스패처), O-05(시간 예산) | L | M2(2차) |
-| L-24 | `isolation/outbox-agent.ts`: 자식의 `post`·`commit`·`record`를 확장 scope로 실행, 자식 `requestId` 그대로 사용 | L-22, P-09(ScopeRuntime), P-12(상태 커밋) | M | M2(2차) |
+| L-24 | `isolation/outbox-agent.ts`: 자식의 `post`·`commit`·`record`를 확장 scope로 실행, 자식 `requestId` 그대로 사용 | L-22, P-09(RegistrationRuntime), P-12(상태 커밋) | M | M2(2차) |
 | L-25 | 격리 수명: 비정상 종료 감지, 재시작 정책(`maxRestarts`, `restartWindowSec`, 지수 대기), 한도 초과 → `error` + scope 끄기 요청, `dispose`와 서비스 모드 유휴 종료 경로 | L-23 | M | M2(2차) |
 | L-26 | 핫 리로드(개발용): `reload(name)`, 세대 증가, 질의 접미 재import, 격리 확장은 재시작 | L-14, L-25 | M | M2 이후 |
 | L-27 | 문서 대조 검사: 스펙 §4.6.2 표 ↔ `TRUST_MATRIX`, (pi 표는 삭제) | L-02 | S | M0(신뢰 표) |
@@ -155,14 +155,14 @@ xeon/packages/ext-host/
 
 | 파일 | 테스트 | 확인할 동작 | 스펙 |
 |---|---|---|---|
-| `pipeline.test.ts` | `undeclared point fails load` | `points: ["tool.call.before"]`인 확장이 setup에서 `boundary.step.after`에 `on`하면 `error`, `usage_invalid`, issues에 `point_undeclared`, 남은 등록 0 | §9-1 |
+| `pipeline.test.ts` | `undeclared point fails load` | `points: ["tool.call.before"]`인 확장이 setup에서 `boundary.step.after`에 `on`하면 `error`, `usage_invalid`, issues에 `hook_undeclared`, 남은 등록 0 | §9-1 |
 | | `one throwing extension does not block others` | 확장 셋 중 가운데가 throw해도 나머지 둘 `active`, `loadAll` 성공 | §9-2 |
 | | `essential failure aborts start` | `essential: true` 확장이 throw하면 `LoadAbortError`, 진단 `essential_failed` | §9-3 |
 | | `manifest parse error rejected` | 잘못된 JSON 매니페스트는 `rejected`(`manifest_parse`), 다른 확장 계속 | §5 |
 | | `unknown key warning kept` | 최상위 미지 키는 경고 진단만 남고 `active` | §4.3.1 |
 | | `post during setup rejected` | scope setup 중 `post`는 `PrimitiveError("no_thread")`이고 로더 진단은 `setup_action`, 확장 `error` | §4.4.3 |
 | | `late registration after timeout dropped` | 시간 예산 초과 뒤 끝난 setup의 등록은 scope 세대가 닫혀 버려진다(`setup_timeout`) | §4.4.3-5 |
-| | `runtime undeclared on rejected only` | 활성 뒤 핸들러 안의 선언 밖 `on`은 그 호출만 `PrimitiveError("point_undeclared")`, 확장은 `active` 유지 | §4.4.3-6 |
+| | `runtime undeclared on rejected only` | 활성 뒤 핸들러 안의 선언 밖 `on`은 그 호출만 `PrimitiveError("hook_undeclared")`, 확장은 `active` 유지 | §4.4.3-6 |
 | | `install delegation and error mapping` | 가짜 `ExtHost`로 `InstallResult`의 `entryError`·`setups[].failure`·`issues`가 스펙 §4.4.3 표의 진단 코드로 바뀐다. 로더 파일에 Cordis import 0건 | §9-19 |
 | | `admit rejection skips install` | `policy.admit`이 `TierError`면 `install` 호출 0회, 진단 `tier_rejected` | §9-20 |
 | `load-order.test.ts` | `deterministic order` | 같은 후보 집합을 무작위로 섞은 100가지 입력에서 결과와 `loadIndex`가 같다 | §9-10 |

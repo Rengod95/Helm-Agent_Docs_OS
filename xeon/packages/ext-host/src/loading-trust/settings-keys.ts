@@ -1,4 +1,4 @@
-import type { ExtensionManifest } from "@fresnel/contracts/extensions";
+import { effectiveLayer, type ExtensionManifest } from "@fresnel/contracts/extensions";
 import {
   defineSettings,
   type SettingDef,
@@ -52,7 +52,7 @@ export function reservedExtensionSettings(
   const inputs: Record<string, SettingDefInput> =
     source === "builtin" ? { enabled } : { enabled, isolation };
   const group = defineSettings(namespace, inputs);
-  const layer = manifest.layer === "plugin" ? "L2" : manifest.layer;
+  const layer = effectiveLayer(manifest) === "plugin" ? "L2" : effectiveLayer(manifest);
   const defs: SettingDef[] = Object.values<SettingDef>(group.defs).map((def) =>
     Object.assign({}, def, { layer }),
   );

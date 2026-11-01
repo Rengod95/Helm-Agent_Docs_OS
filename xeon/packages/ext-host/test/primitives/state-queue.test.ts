@@ -37,7 +37,7 @@ test("updateState queues overlapping updates, so none is lost", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "sq-update", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "sq-update", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async () => {
         const host = hostOf(g);
         await Promise.all([1, 2, 3].map(() => host.updateState((prev) => ({ n: prev.n + 1 }))));
@@ -55,7 +55,7 @@ test("overlapping commits keep CAS: the first wins and the second sees state_con
   await t.host.openThread(thread);
   const outcomes: string[] = [];
   await t.host.install(
-    makeUnit({ name: "sq-cas", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "sq-cas", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async () => {
         const first = g.commit({ n: 1 });
         const second = g.commit({ n: 2 });
@@ -86,7 +86,7 @@ test("a store-level conflict is retried once by updateState and surfaces from co
   await t.host.openThread(thread);
   const seen: { update?: unknown; commit?: string } = {};
   await t.host.install(
-    makeUnit({ name: "sq-store", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "sq-store", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async () => {
         t.records.failNext("state_conflict");
         const updated = await hostOf(g).updateState((prev) => ({ n: prev.n + 10 }));
@@ -109,7 +109,7 @@ test("updateState returns state_conflict as a value when the retry conflicts too
   await t.host.openThread(thread);
   let kind = "";
   await t.host.install(
-    makeUnit({ name: "sq-twice", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "sq-twice", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async () => {
         let calls = 0;
         const done = await hostOf(g).updateState((prev) => {
@@ -135,8 +135,8 @@ test("commitWith writes the state and the records in one transaction", async () 
     makeUnit(
       {
         name: "sq-rec",
-        kind: "group",
-        points: ["boundary.settle.after"],
+        group: {},
+        hooks: ["boundary.settle.after"],
         def: counterDef,
         recordKinds: noteKinds,
       },
@@ -171,8 +171,8 @@ test("a conflicting commitWith leaves no record behind", async () => {
     makeUnit(
       {
         name: "sq-rec",
-        kind: "group",
-        points: ["boundary.settle.after"],
+        group: {},
+        hooks: ["boundary.settle.after"],
         def: counterDef,
         recordKinds: noteKinds,
       },
@@ -205,8 +205,8 @@ test("commitWith validates the record like record() does", async () => {
     makeUnit(
       {
         name: "sq-rec",
-        kind: "group",
-        points: ["boundary.settle.after"],
+        group: {},
+        hooks: ["boundary.settle.after"],
         def: counterDef,
         recordKinds: noteKinds,
       },
@@ -242,7 +242,7 @@ test("the idempotency identity is taken at call time, in call order, even when t
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "sq-id", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "sq-id", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async () => {
         const first = hostOf(g).updateState((prev) => ({ n: prev.n + 1 }));
         const second = hostOf(g).updateState((prev) => ({ n: prev.n + 1 }));
@@ -270,7 +270,7 @@ test("a handler that was aborted (budget exceeded) cannot write afterwards", asy
   const gate = Promise.withResolvers<void>();
   const outcomes: string[] = [];
   await t.host.install(
-    makeUnit({ name: "sq-zombie", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+    makeUnit({ name: "sq-zombie", hooks: ["boundary.settle.after"], def: counterDef }, (g) => {
       g.on("boundary.settle.after", async () => {
         await gate.promise;
         const commit = await rejectionOf(() => g.commit({ n: 5 }));

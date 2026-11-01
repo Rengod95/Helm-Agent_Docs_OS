@@ -6,7 +6,7 @@ import {
   type CollectHookName,
   type FirstHookName,
   type HookName,
-  type ScopeId,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { eraseDispatchOptions, restoreOutcome } from "../erase.ts";
 import { withAmbient } from "./ambient.ts";
@@ -58,7 +58,7 @@ export interface DispatcherDeps {
   readonly strict: boolean;
   readonly report: (diagnostic: ExtDiagnostic) => void;
   /** 핸들러 ctx.state. 디스패치 시작 때의 마지막 커밋 상태 */
-  readonly stateOf: (threadId: ThreadId, scopeId: ScopeId) => unknown;
+  readonly stateOf: (threadId: ThreadId, scopeId: RegistrationId) => unknown;
   /** detached tap의 작업을 호스트가 추적한다(whenSettled가 기다리고 거부는 진단으로 남긴다) */
   readonly track: (task: Promise<unknown>) => void;
   /** thread가 닫히면 중단되는 신호. 없으면(열지 않은 thread) undefined. detached tap은 세션 종료 뒤 실행하지 않고 결과를 버린다 */

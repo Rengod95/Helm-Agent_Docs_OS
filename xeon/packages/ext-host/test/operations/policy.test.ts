@@ -80,7 +80,7 @@ test("policy: essential extensions are exempt from auto disable", async () => {
     "L2",
   );
   await t.host.install(
-    makeUnit({ name: "pol-essential", points: ["boundary.settle.after"], layer: "L2" }, (g) => {
+    makeUnit({ name: "pol-essential", hooks: ["boundary.settle.after"], layer: "L2" }, (g) => {
       g.on("boundary.settle.after", () => {
         throw new Error("always");
       });
@@ -103,7 +103,7 @@ test("policy: setup budget comes from x.operations.budget.setupMs", async () => 
   const { t, policy } = harness;
   expect(policy.setupBudgetMs()).toBe(200);
   const pending = t.host.install(
-    makeUnit({ name: "pol-slow", points: ["tool.call.before"] }, () => new Promise<void>(() => {})),
+    makeUnit({ name: "pol-slow", hooks: ["tool.call.before"] }, () => new Promise<void>(() => {})),
   );
   await flushMicrotasks(200);
   await t.timers.advance(200);
@@ -118,7 +118,7 @@ test("policy: handlers run through runWithBudget and report settled once", async
   await t.host.openThread(thread);
   policy.admit({ name: "pol-tap", source: "user", trust: "user", essential: false }, "plugin");
   await t.host.install(
-    makeUnit({ name: "pol-tap", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "pol-tap", hooks: ["boundary.settle.after"] }, (g) => {
       g.on("boundary.settle.after", () => new Promise<void>(() => {}));
     }),
   );
@@ -134,12 +134,12 @@ test("policy: handlers run through runWithBudget and report settled once", async
   expect(policy.ledger.stats("ext:pol-tap")).toMatchObject({ consecutive: 1, totalFailures: 1 });
   // 정상 호출은 연속 수를 0으로 돌린다
   const second = await t.host.install(
-    makeUnit({ name: "pol-fine", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "pol-fine", hooks: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
       g.on("boundary.settle.after", () => {});
     }),
   );
   expect(second.setups[0]?.status).toBe("applied");
-  t.host.scope("pol-tap")?.disable();
+  t.host.registration("pol-tap")?.disable();
   await t.settled();
   await t.host.dispatch(
     "boundary.settle.after",

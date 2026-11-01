@@ -7,10 +7,10 @@ import { readDoc } from "../support/docs.ts";
 
 /** 문서 표에 없지만 조립 루트가 필요해 더한 이름 [제안]. 문서 반영을 요청한다 */
 const ADDITIONS: ReadonlySet<string> = new Set([
-  "scopeToggleSourceOf",
-  "ScopeToggleSourceOf",
-  "createScopeControl",
-  "ScopeToggleSource",
+  "registrationToggleSourceOf",
+  "RegistrationToggleSourceOf",
+  "createRegistrationControl",
+  "RegistrationToggleSource",
   "AdmitInfo",
   "LoaderSettingsSource",
   "ExtDiagnostic", // §3.2에 정의되어 있으나 §3.1 표에는 빠져 있다
@@ -26,7 +26,7 @@ const REQUIRED_VALUES: readonly string[] = [
   "ProjectorRegistryPortKey",
   "ScopedStorePortKey",
   "ProcessPortKey",
-  "LeaseArbiterPortKey",
+  "DriveLockArbiterPortKey",
   "ExtHostPortKey",
   "capabilityServiceName",
   "providerServiceName",
@@ -99,7 +99,7 @@ test("public surface: exports are the spec §3.1 names plus the documented addit
 test("public surface: internal names do not leave the package", async () => {
   const exported = await exportedNames();
   for (const internal of [
-    "ScopeRuntime",
+    "RegistrationRuntime",
     "PostQueue",
     "LeaseBroker",
     "HandlerRegistry",

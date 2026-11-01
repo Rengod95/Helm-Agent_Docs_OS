@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ScopeApi } from "@fresnel/contracts/extensions";
+import type { RegistrationApi } from "@fresnel/contracts/extensions";
 import { hostInternalsOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost, memoryRecordStore } from "../../src/testing/index.ts";
 import { makeGroupUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
@@ -12,7 +12,7 @@ test("disable applies at step boundary", async () => {
   const order: string[] = [];
   const handlerCalls: string[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "scp-group", points: ["tool.call.before"] }, (g) => {
+    makeGroupUnit({ name: "scp-group", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => {
         handlerCalls.push("tool.call.before");
         return undefined;
@@ -30,12 +30,12 @@ test("disable applies at step boundary", async () => {
   );
   await t.host.openThread(thread);
   await t.settled();
-  expect(t.host.scopes()[0]?.drive).toBe("holding");
+  expect(t.host.registrations()[0]?.drive).toBe("holding");
 
   // 사용자 turn이 도는 중에 끄기를 요청한다
   t.loop.setRunning(thread, true);
-  t.host.scope("scp-group")?.disable();
-  expect(t.host.scope("scp-group")?.status).toBe("disabling");
+  t.host.registration("scp-group")?.disable();
+  expect(t.host.registration("scp-group")?.status).toBe("disabling");
   await t.settled();
   // 아직 경계 전이다: 핸들러는 계속 실행되고 켜짐 기록도 그대로다
   await t.host.dispatch("tool.call.before", toolCall, { threadId: thread, dispatchKey: "before" });
@@ -64,7 +64,7 @@ test("disable applies at step boundary", async () => {
   });
   await t.host.boundary.settle(signal, "committed");
   expect(order).toEqual(["onDispose-2", "onDispose-1"]);
-  expect(t.host.scope("scp-group")?.status).toBe("disabled");
+  expect(t.host.registration("scp-group")?.status).toBe("disabled");
   expect(hostInternalsOf(t.host).core.registry.size()).toBe(0);
 });
 
@@ -73,7 +73,7 @@ test("enable while idle", async () => {
   const thread = t.newThread();
   const handlerCalls: string[] = [];
   const outcome = await t.host.install(
-    makeUnit({ name: "scp-idle", points: ["tool.call.before"], initialEnabled: false }, (g) => {
+    makeUnit({ name: "scp-idle", hooks: ["tool.call.before"], initialEnabled: false }, (g) => {
       g.on("tool.call.before", () => {
         handlerCalls.push("x");
         return undefined;
@@ -83,11 +83,11 @@ test("enable while idle", async () => {
   expect(outcome.setups[0]?.status).toBe("skipped");
   await t.host.openThread(thread);
   await t.settled();
-  expect(t.host.scope("scp-idle")?.status).toBe("disabled");
-  t.host.scope("scp-idle")?.enable();
-  expect(t.host.scope("scp-idle")?.status).toBe("enabling");
+  expect(t.host.registration("scp-idle")?.status).toBe("disabled");
+  t.host.registration("scp-idle")?.enable();
+  expect(t.host.registration("scp-idle")?.status).toBe("enabling");
   await t.settled();
-  expect(t.host.scope("scp-idle")?.status).toBe("enabled");
+  expect(t.host.registration("scp-idle")?.status).toBe("enabled");
   const changed = t.records.events(thread).filter((event) => event.kind === "scope.changed");
   expect(changed.map((event) => event.payload)).toEqual([
     { scopeId: "scp-idle", status: "enabled" },
@@ -101,7 +101,7 @@ test("dispose releases registrations", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "scp-dispose", points: ["tool.call.before", "boundary.step.after"] }, (g) => {
+    makeUnit({ name: "scp-dispose", hooks: ["tool.call.before", "boundary.step.after"] }, (g) => {
       g.on("tool.call.before", () => undefined);
       g.on("boundary.step.after", () => undefined);
     }),
@@ -109,24 +109,24 @@ test("dispose releases registrations", async () => {
   await t.settled();
   const registry = hostInternalsOf(t.host).core.registry;
   expect(registry.size()).toBe(2);
-  t.host.scope("scp-dispose")?.disable();
+  t.host.registration("scp-dispose")?.disable();
   await t.settled();
   expect(registry.size()).toBe(0);
-  expect(t.host.scope("scp-dispose")?.status).toBe("disabled");
+  expect(t.host.registration("scp-dispose")?.status).toBe("disabled");
 });
 
 test("stale generation rejected", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.openThread(thread);
-  let captured: ScopeApi<never> | undefined;
+  let captured: RegistrationApi<never> | undefined;
   await t.host.install(
-    makeUnit({ name: "scp-stale", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "scp-stale", hooks: ["tool.call.before"] }, (g) => {
       captured = g;
     }),
   );
   await t.settled();
-  t.host.scope("scp-stale")?.disable();
+  t.host.registration("scp-stale")?.disable();
   await t.settled();
   let code: string | undefined;
   try {
@@ -134,11 +134,11 @@ test("stale generation rejected", async () => {
   } catch (error) {
     code = error instanceof PrimitiveError ? error.code : undefined;
   }
-  expect(code).toBe("scope_inactive");
+  expect(code).toBe("registration_inactive");
   // 다시 켜면 새 세대가 열리고 옛 g는 여전히 닫혀 있다
-  t.host.scope("scp-stale")?.enable();
+  t.host.registration("scp-stale")?.enable();
   await t.settled();
-  expect(t.host.scopes()[0]).toMatchObject({ status: "enabled", generation: 2 });
+  expect(t.host.registrations()[0]).toMatchObject({ status: "enabled", generation: 2 });
 });
 
 test("onDispose runs in reverse order and survives a throwing function", async () => {
@@ -161,7 +161,7 @@ test("onDispose runs in reverse order and survives a throwing function", async (
     }),
   );
   await t.settled();
-  t.host.scope("scp-order")?.disable();
+  t.host.registration("scp-order")?.disable();
   await t.settled();
   expect(order).toEqual(["third", "second", "first"]);
 });
@@ -171,13 +171,13 @@ test("last toggle request wins and a cancelled disable keeps the scope", async (
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "scp-flip", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "scp-flip", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => undefined);
     }),
   );
   await t.settled();
   t.loop.setRunning(thread, true);
-  const handle = t.host.scope("scp-flip");
+  const handle = t.host.registration("scp-flip");
   handle?.disable();
   expect(handle?.status).toBe("disabling");
   handle?.enable();
@@ -198,7 +198,7 @@ test("a failed commit rolls back the toggle and retries at the next boundary", a
   const disposed: string[] = [];
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "scp-retry", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "scp-retry", hooks: ["tool.call.before"] }, (g) => {
       g.on("tool.call.before", () => undefined);
       g.onDispose(() => {
         disposed.push("gen");
@@ -207,37 +207,40 @@ test("a failed commit rolls back the toggle and retries at the next boundary", a
   );
   await t.settled();
   t.loop.setRunning(thread, true);
-  t.host.scope("scp-retry")?.disable();
+  t.host.registration("scp-retry")?.disable();
   await t.boundary(thread).stepEnd({ fail: true });
   // 되돌려져 핸들러가 다시 열린다. 정리는 하지 않았다
   expect(disposed).toEqual([]);
   expect(hostInternalsOf(t.host).core.registry.size()).toBe(1);
-  expect(t.host.scope("scp-retry")?.status).toBe("disabling");
+  expect(t.host.registration("scp-retry")?.status).toBe("disabling");
   await t.boundary(thread).stepEnd();
   expect(disposed).toEqual(["gen"]);
-  expect(t.host.scope("scp-retry")?.status).toBe("disabled");
+  expect(t.host.registration("scp-retry")?.status).toBe("disabled");
 });
 
 test("sub-scope ids and duplicates", async () => {
   const t = await createTestHost();
   const codes: string[] = [];
   const outcome = await t.host.install({
-    ...makeUnit({ name: "scp-multi" }, () => {}),
-    entry: ({ scope }) => {
-      scope("scp-multi", {}, () => {});
-      scope("scp-multi/review", {}, () => {});
+    ...makeUnit(
+      { name: "scp-multi", extraPlugins: [{ id: "review", layer: "plugin", hooks: [] }] },
+      () => {},
+    ),
+    entry: ({ register }) => {
+      register("scp-multi", {}, () => {});
+      register("scp-multi/review", {}, () => {});
       for (const id of ["other-ext", "scp-multi"]) {
         try {
-          scope(id, {}, () => {});
+          register(id, {}, () => {});
         } catch (error) {
           if (error instanceof PrimitiveError) codes.push(error.code);
         }
       }
     },
   });
-  expect(outcome.scopes).toEqual(["scp-multi", "scp-multi/review"]);
-  expect(codes).toEqual(["scope_foreign_id", "scope_duplicate"]);
-  // 하위 scope의 기본값은 꺼짐이다
+  expect(outcome.registrations).toEqual(["scp-multi", "scp-multi/review"]);
+  expect(codes).toEqual(["registration_foreign_id", "registration_duplicate"]);
+  // 하위 Registration의 기본값은 꺼짐이다
   expect(outcome.setups.map((setup) => setup.status)).toEqual(["applied", "skipped"]);
 });
 
@@ -260,27 +263,27 @@ test("idle application commits under a key derived from committed values, so a r
   const t = await createTestHost({ shared: { records: flaky } });
   const thread = t.newThread();
   await t.host.install(
-    makeUnit({ name: "scp-key", points: ["tool.call.before"], initialEnabled: false }, (g) => {
+    makeUnit({ name: "scp-key", hooks: ["tool.call.before"], initialEnabled: false }, (g) => {
       g.on("tool.call.before", () => undefined);
     }),
   );
   await t.host.openThread(thread);
   await t.settled();
-  t.host.scope("scp-key")?.enable();
+  t.host.registration("scp-key")?.enable();
   await t.settled();
   // 첫 적용은 응답을 잃어 실패로 정산됐다. 다시 적용하면 같은 키라 기록된 결과를 받고 이벤트가 겹치지 않는다
-  t.host.scope("scp-key")?.enable();
+  t.host.registration("scp-key")?.enable();
   await t.settled();
   const changed = base.events(thread).filter((event) => event.kind === "scope.changed");
   expect(changed).toHaveLength(1);
   expect(keys.length).toBeGreaterThanOrEqual(2);
   expect(new Set(keys).size).toBe(1);
   expect(keys[0]).toBe("scope:scp-key:1:enabled");
-  expect(t.host.scope("scp-key")?.status).toBe("enabled");
+  expect(t.host.registration("scp-key")?.status).toBe("enabled");
 });
 
 const restartUnitOf = () =>
-  makeUnit({ name: "scp-restart", points: ["tool.call.before"], initialEnabled: false }, (g) => {
+  makeUnit({ name: "scp-restart", hooks: ["tool.call.before"], initialEnabled: false }, (g) => {
     g.on("tool.call.before", () => undefined);
   });
 
@@ -291,9 +294,9 @@ test("re-enabling a scope after a restart is not swallowed by a commit key an ea
   await first.host.install(unitOf());
   await first.host.openThread(thread);
   await first.settled();
-  first.host.scope("scp-restart")?.enable();
+  first.host.registration("scp-restart")?.enable();
   await first.settled();
-  first.host.scope("scp-restart")?.disable();
+  first.host.registration("scp-restart")?.disable();
   await first.settled();
 
   // 재시작: 세대 번호는 다시 세지만 전이 횟수는 스냅샷(scopeTransitions)에서 이어받아 이전 실행의 키와 겹치지 않는다
@@ -303,7 +306,7 @@ test("re-enabling a scope after a restart is not swallowed by a commit key an ea
   await second.host.install(unitOf());
   await second.host.openThread(thread);
   await second.settled();
-  second.host.scope("scp-restart")?.enable();
+  second.host.registration("scp-restart")?.enable();
   await second.settled();
   const changed = second.records
     .events(thread)
@@ -343,7 +346,7 @@ async function disableRacingIdle(
   );
   await t.host.openThread(thread);
   await t.settled();
-  t.host.scope("scp-race")?.disable();
+  t.host.registration("scp-race")?.disable();
   await ticks(delay);
   await t.boundary(thread).idle();
   await t.settled();
@@ -357,7 +360,7 @@ async function disableRacingIdle(
           ? String(payload.status)
           : "";
       }),
-    handle: t.host.scope("scp-race")?.status,
+    handle: t.host.registration("scp-race")?.status,
   };
 }
 

@@ -74,12 +74,12 @@ test("a plugin importing a contracts subpath gets the host's module without the 
   const kitSpecifier = ["@fresnel", "group-sdk"].join("/");
   await writePlugin(userExtensions, "sub", {
     name: "sub",
-    points: [],
+    hooks: [],
     entry: `import * as kit from "${kitSpecifier}";
 import { CapabilityError } from "@fresnel/contracts/capabilities";
 import { ok } from "@fresnel/contracts";
-export const extension = ({ scope }) => {
-  scope("sub", {}, (g) => {
+export const extension = ({ register }) => {
+  register("sub", {}, (g) => {
     kit.record("sub:error:" + String(CapabilityError === kit.capabilityError));
     kit.record("sub:ok:" + String(typeof ok));
   });
@@ -106,7 +106,7 @@ test("safe mode skips user extensions without importing them", async () => {
   expect(report.settingGroups.map((group) => group.namespace)).toEqual(["ext.hello"]);
   await fire(harness);
   expect(fakeGroupSdk.seen).toEqual([]);
-  expect(harness.t.host.scope("hello")).toBeUndefined();
+  expect(harness.t.host.registration("hello")).toBeUndefined();
 });
 
 test("safe mode keeps L1 and L2 built-ins and drops L3 built-in groups", async () => {
@@ -116,7 +116,7 @@ test("safe mode keeps L1 and L2 built-ins and drops L3 built-in groups", async (
       [
         moduleOf({ name: "core-x", layer: "L1" }),
         moduleOf({ name: "cap-x", layer: "L2" }),
-        moduleOf({ name: "group-x", layer: "L3", kind: "group" }),
+        moduleOf({ name: "group-x", layer: "L3", group: {} }),
       ],
       { cwd: project, startup: { safeMode: { active: true }, disabled: [] } },
     ),
@@ -310,7 +310,7 @@ test("cancelling during an external entry ends loading instead of hanging", asyn
   controller.abort();
   const error = await rejected;
   expect(error).toBeInstanceOf(LoadAbortError);
-  expect(harness.t.host.scope("slow")).toBeUndefined();
+  expect(harness.t.host.registration("slow")).toBeUndefined();
 });
 
 test("a dot directory such as a leftover .staging is not an extension", async () => {

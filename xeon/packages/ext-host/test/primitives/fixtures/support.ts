@@ -1,6 +1,14 @@
 import { defineCapability } from "@fresnel/contracts/capabilities";
 import { Type } from "typebox";
-import type { ExtensionManifest, ScopeDef, ScopeSetup } from "@fresnel/contracts/extensions";
+import type {
+  ExtensionLayer,
+  ExtensionManifest,
+  GroupDecl,
+  HookName,
+  PluginDecl,
+  RegistrationDef,
+  RegistrationSetup,
+} from "@fresnel/contracts/extensions";
 import type {
   AssistantMessage,
   ToolResultMessage,
@@ -50,57 +58,70 @@ export const assistantStop: AssistantMessage = {
   timestamp: 1_700_000_000_004,
 };
 
+/**
+ * 루트 플러그인(id 없음) 하나의 선언과 확장 수준 필드. 루트 뒤의 플러그인은 `extraPlugins`로 준다.
+ * 루트의 `layer`는 생략하면 `plugin`(그룹이면 `L3`)이다
+ */
 export interface ManifestInput {
   readonly name: string;
-  readonly layer?: ExtensionManifest["layer"];
-  readonly kind?: ExtensionManifest["kind"];
-  readonly points?: ExtensionManifest["points"];
-  readonly usesPost?: boolean;
-  readonly usesDrive?: boolean;
+  /** 플러그인 그룹이면 `{}`(구성원은 모든 플러그인), 구성원을 고르려면 `{ members: [...] }` */
+  readonly group?: GroupDecl;
+  /** 확장 수준 기본 켜짐. 루트 플러그인의 기본값이 된다 */
   readonly defaultEnabled?: boolean;
-  readonly requires?: ExtensionManifest["requires"];
-  readonly optional?: ExtensionManifest["optional"];
-  readonly provides?: ExtensionManifest["provides"];
-  readonly recordKinds?: ExtensionManifest["recordKinds"];
-  readonly readsRecordKinds?: ExtensionManifest["readsRecordKinds"];
+  readonly layer?: ExtensionLayer;
+  readonly hooks?: readonly HookName[];
+  readonly usesPost?: boolean;
+  readonly drives?: boolean;
+  readonly requires?: PluginDecl["requires"];
+  readonly optional?: PluginDecl["optional"];
+  readonly provides?: PluginDecl["provides"];
+  readonly recordKinds?: PluginDecl["recordKinds"];
+  readonly readsRecordKinds?: PluginDecl["readsRecordKinds"];
+  /** 루트 뒤에 붙는 플러그인 선언. 각각 `id`가 있어야 한다 */
+  readonly extraPlugins?: readonly PluginDecl[];
 }
 
-/** validateManifest를 통과하는 최소 매니페스트 */
+/** validateManifest를 통과하는 최소 매니페스트(스키마 2). 루트 플러그인 하나와 `extraPlugins` */
 export function makeManifest(input: ManifestInput): ExtensionManifest {
-  const kind = input.kind ?? "plugin";
-  return {
-    schemaVersion: 1,
-    name: input.name,
-    version: "0.1.0",
-    layer: input.layer ?? (kind === "group" ? "L3" : "plugin"),
-    kind,
-    entry: "./src/index.ts",
-    points: input.points ?? [],
-    usesDrive: input.usesDrive ?? false,
+  const root: PluginDecl = {
+    layer: input.layer ?? (input.group === undefined ? "plugin" : "L3"),
+    hooks: [...(input.hooks ?? [])],
     ...(input.usesPost === undefined ? {} : { usesPost: input.usesPost }),
-    ...(input.defaultEnabled === undefined ? {} : { defaultEnabled: input.defaultEnabled }),
+    ...(input.drives === undefined ? {} : { drives: input.drives }),
     ...(input.requires === undefined ? {} : { requires: input.requires }),
     ...(input.optional === undefined ? {} : { optional: input.optional }),
     ...(input.provides === undefined ? {} : { provides: input.provides }),
     ...(input.recordKinds === undefined ? {} : { recordKinds: input.recordKinds }),
     ...(input.readsRecordKinds === undefined ? {} : { readsRecordKinds: input.readsRecordKinds }),
   };
+  return {
+    schemaVersion: 2,
+    name: input.name,
+    version: "0.1.0",
+    entry: "./src/index.ts",
+    plugins: [root, ...(input.extraPlugins ?? [])],
+    ...(input.defaultEnabled === undefined ? {} : { defaultEnabled: input.defaultEnabled }),
+    ...(input.group === undefined ? {} : { group: input.group }),
+  };
 }
 
 export interface UnitInput<S> extends ManifestInput {
-  readonly def?: ScopeDef<S>;
+  readonly def?: RegistrationDef<S>;
   readonly loadIndex?: number;
   readonly builtin?: boolean;
   readonly initialEnabled?: boolean;
 }
 
-/** 주 scope 하나를 정의하는 확장 단위 */
-export function makeUnit<S = never>(input: UnitInput<S>, setup: ScopeSetup<S>): ExtensionUnit {
+/** 루트 플러그인의 Registration 하나를 정의하는 확장 단위. 나머지 플러그인은 등록하지 않는다 */
+export function makeUnit<S = never>(
+  input: UnitInput<S>,
+  setup: RegistrationSetup<S>,
+): ExtensionUnit {
   const manifest = makeManifest(input);
   return {
     manifest,
-    entry: ({ scope }) => {
-      scope(manifest.name, input.def ?? {}, setup);
+    entry: ({ register }) => {
+      register(manifest.name, input.def ?? {}, setup);
     },
     loadIndex: input.loadIndex ?? 0,
     builtin: input.builtin ?? true,
@@ -123,12 +144,12 @@ export const toolResultMessage: ToolResultMessage = {
   timestamp: 1_700_000_000_005,
 };
 
-/** drive를 쓰는 그룹 확장 단위 */
+/** drive를 쓰는 플러그인 그룹 확장 단위: `group: {}`와 루트 플러그인 `drives: true` */
 export function makeGroupUnit<S = never>(
-  input: Omit<UnitInput<S>, "kind" | "usesDrive">,
-  setup: ScopeSetup<S>,
+  input: Omit<UnitInput<S>, "group" | "drives">,
+  setup: RegistrationSetup<S>,
 ): ExtensionUnit {
-  return makeUnit({ ...input, kind: "group", usesDrive: true }, setup);
+  return makeUnit({ ...input, group: {}, drives: true }, setup);
 }
 
 /** 시험 전용: 타입을 어긴 값을 흉내 낸다. 스키마·가드가 막는지 확인할 때만 쓴다 */

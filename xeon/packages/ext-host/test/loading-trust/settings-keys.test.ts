@@ -26,7 +26,7 @@ test("settings: enabled false skips setup", async () => {
   expect(entryCalls).toBe(0);
   expect(report.extensions[0]?.state).toBe("disabled");
   expect(report.diagnostics.map((entry) => entry.code)).toEqual(["disabled_by_setting"]);
-  expect(harness.t.host.scope("set-off")).toBeUndefined();
+  expect(harness.t.host.registration("set-off")).toBeUndefined();
 });
 
 test("settings: enable at runtime loads once", async () => {
@@ -38,9 +38,9 @@ test("settings: enable at runtime loads once", async () => {
     harness.options([
       {
         ...late,
-        extension: ({ scope }) => {
+        extension: ({ register }) => {
           entryCalls += 1;
-          scope("set-late", {}, () => {});
+          register("set-late", {}, () => {});
         },
       },
     ]),
@@ -54,7 +54,7 @@ test("settings: enable at runtime loads once", async () => {
   await harness.loader.ensureLoaded("set-late", signal);
   await harness.loader.settingChanged("set-late", signal);
   expect(entryCalls).toBe(1);
-  expect(harness.t.host.scope("set-late")?.status).toBe("enabled");
+  expect(harness.t.host.registration("set-late")?.status).toBe("enabled");
 });
 
 test("settings: turning an active extension off and on requests scope toggles", async () => {
@@ -63,10 +63,10 @@ test("settings: turning an active extension off and on requests scope toggles", 
   const signal = new AbortController().signal;
   harness.settings.enabled.set("set-flip", false);
   await harness.loader.settingChanged("set-flip", signal);
-  expect(harness.t.host.scope("set-flip")?.status).toBe("disabling");
+  expect(harness.t.host.registration("set-flip")?.status).toBe("disabling");
   harness.settings.enabled.set("set-flip", true);
   await harness.loader.settingChanged("set-flip", signal);
-  expect(harness.t.host.scope("set-flip")?.status).toBe("enabled");
+  expect(harness.t.host.registration("set-flip")?.status).toBe("enabled");
 });
 
 test("settings: an explicit enabled=true overrides the manifest default", async () => {
@@ -76,7 +76,7 @@ test("settings: an explicit enabled=true overrides the manifest default", async 
     harness.options([moduleOf({ name: "set-default-off", defaultEnabled: false })]),
   );
   expect(report.extensions[0]?.state).toBe("active");
-  expect(harness.t.host.scope("set-default-off")?.status).toBe("enabled");
+  expect(harness.t.host.registration("set-default-off")?.status).toBe("enabled");
   // 설정 값이 없으면 매니페스트 기본값(꺼짐)을 따른다
   const second = await createLoaderHarness();
   const other = await second.loader.loadAll(
@@ -100,7 +100,7 @@ test("settings: foreign namespace rejects load", async () => {
   expect(foreign?.state).toBe("rejected");
   expect(report.diagnostics.map((entry) => entry.code)).toEqual(["settings_rejected"]);
   expect(report.settingGroups.map((group) => group.owner)).toEqual(["set-fine"]);
-  expect(harness.t.host.scope("set-foreign")).toBeUndefined();
+  expect(harness.t.host.registration("set-foreign")).toBeUndefined();
 });
 
 test("settings: reserved key in userConfig", async () => {
@@ -157,12 +157,16 @@ test("settings: reserved defs shape", () => {
     expect(def.ui?.tab).toBe("plugins");
   }
   expect(RESERVED_EXT_KEYS).toEqual(["enabled", "isolation"]);
+  // 외부 plugin 층은 L2로 적는다. 플러그인 그룹(group 선언)의 층은 L3다
   expect(
-    reservedExtensionSettings({ ...manifest, layer: "plugin" }, "builtin").defs[0]?.layer,
+    reservedExtensionSettings(makeManifest({ name: "set-shape", layer: "plugin" }), "builtin")
+      .defs[0]?.layer,
   ).toBe("L2");
   expect(
-    reservedExtensionSettings({ ...manifest, layer: "L3", kind: "group" }, "builtin").defs[0]
-      ?.layer,
+    reservedExtensionSettings(
+      makeManifest({ name: "set-shape", layer: "L3", group: {} }),
+      "builtin",
+    ).defs[0]?.layer,
   ).toBe("L3");
   const catalog = buildCatalog([
     { owner: "set-shape", namespace: external.namespace, defs: external.defs },

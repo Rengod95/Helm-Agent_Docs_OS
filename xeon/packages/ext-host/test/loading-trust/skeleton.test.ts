@@ -53,7 +53,7 @@ test("skeleton: turning the group off through the setting applies at the next st
   t.loop.setRunning(thread, true);
   harness.settings.enabled.set("smoke-group", false);
   await harness.loader.settingChanged("smoke-group", new AbortController().signal);
-  expect(t.host.scope("smoke-group")?.status).toBe("disabling");
+  expect(t.host.registration("smoke-group")?.status).toBe("disabling");
   const drafts = await t.boundary(thread).stepEnd();
   expect(drafts.map((draft) => draft.kind)).toEqual(["lease.released", "scope.changed"]);
   expect(drafts[0]?.payload).toMatchObject({ reason: "disabled" });
@@ -69,7 +69,7 @@ test("skeleton: dispose uninstalls in reverse load order and clears the policy t
   );
   expect(harness.policy.tiers.get("smoke-group")).toBe("builtin");
   await harness.loader.dispose();
-  expect(t.host.scope("smoke-group")).toBeUndefined();
+  expect(t.host.registration("smoke-group")).toBeUndefined();
   expect(harness.policy.tiers.get("smoke-group")).toBeUndefined();
 });
 

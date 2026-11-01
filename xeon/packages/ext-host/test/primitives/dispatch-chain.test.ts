@@ -22,12 +22,12 @@ test("chain merge rejection skips", async () => {
   const { t, thread } = await setup();
   const seen: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "chain-bad", points: ["boundary.message.after"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "chain-bad", hooks: ["boundary.message.after"], loadIndex: 0 }, (g) => {
       g.on("boundary.message.after", () => ({ message: assistantStop }));
     }),
   );
   await t.host.install(
-    makeUnit({ name: "chain-good", points: ["boundary.message.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "chain-good", hooks: ["boundary.message.after"], loadIndex: 1 }, (g) => {
       g.on("boundary.message.after", (_payload, current) => {
         seen.push(current.message);
         return { message: { ...userText, content: "edited" } };
@@ -49,7 +49,7 @@ test("chain stop halts", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "chain-h", points: ["input.user.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "chain-h", hooks: ["input.user.before"], loadIndex: 0 }, (g) => {
       g.on("input.user.before", () => {
         calls.push("h");
         return { action: "handled" };
@@ -57,7 +57,7 @@ test("chain stop halts", async () => {
     }),
   );
   await t.host.install(
-    makeUnit({ name: "chain-after", points: ["input.user.before"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "chain-after", hooks: ["input.user.before"], loadIndex: 1 }, (g) => {
       g.on("input.user.before", () => {
         calls.push("after");
         return { action: "transform", text: "x" };
@@ -79,7 +79,7 @@ test("chain payload stays original", async () => {
   const payload = { text: "hi", source: "interactive" as const };
   const seen: { payload: unknown; current: unknown }[] = [];
   await t.host.install(
-    makeUnit({ name: "chain-one", points: ["input.user.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "chain-one", hooks: ["input.user.before"], loadIndex: 0 }, (g) => {
       g.on("input.user.before", (p, current) => {
         seen.push({ payload: p, current });
         return { action: "transform", text: "one" };
@@ -87,7 +87,7 @@ test("chain payload stays original", async () => {
     }),
   );
   await t.host.install(
-    makeUnit({ name: "chain-two", points: ["input.user.before"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "chain-two", hooks: ["input.user.before"], loadIndex: 1 }, (g) => {
       g.on("input.user.before", (p, current) => {
         seen.push({ payload: p, current });
         return { action: "transform", text: "two" };
@@ -126,12 +126,12 @@ test("boundary finalize once", async () => {
   const { t, thread } = await setup();
   const finalized: BoundaryValue[] = [];
   await t.host.install(
-    makeUnit({ name: "chain-turn", points: ["boundary.step.after"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "chain-turn", hooks: ["boundary.step.after"], loadIndex: 0 }, (g) => {
       g.on("boundary.step.after", () => ({ continue: true }));
     }),
   );
   await t.host.install(
-    makeUnit({ name: "chain-turn2", points: ["boundary.step.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "chain-turn2", hooks: ["boundary.step.after"], loadIndex: 1 }, (g) => {
       g.on("boundary.step.after", () => ({ continue: false }));
     }),
   );
@@ -169,7 +169,7 @@ test("chain has no next", async () => {
     return undefined;
   };
   await t.host.install(
-    makeUnit({ name: "chain-twice", points: ["input.user.before"] }, (g) => {
+    makeUnit({ name: "chain-twice", hooks: ["input.user.before"] }, (g) => {
       g.on("input.user.before", handler);
       g.on("input.user.before", handler);
     }),
@@ -199,7 +199,7 @@ test("strict payloads are frozen", async () => {
   const { t, thread } = await setup();
   let frozen = false;
   await t.host.install(
-    makeUnit({ name: "chain-freeze", points: ["input.user.before"] }, (g) => {
+    makeUnit({ name: "chain-freeze", hooks: ["input.user.before"] }, (g) => {
       g.on("input.user.before", (payload) => {
         frozen = Object.isFrozen(payload);
         return undefined;

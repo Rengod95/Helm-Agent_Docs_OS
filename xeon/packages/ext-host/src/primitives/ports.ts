@@ -17,7 +17,7 @@ export type {
   // 프로세스 실행 (fresnel.process)
   ProcessPort,
   // 임대 정책 (fresnel.groups, 선택)
-  LeaseArbiterPort,
+  DriveLockArbiterPort,
 } from "@fresnel/contracts/extensions";
 export {
   LoopPortKey,
@@ -26,7 +26,7 @@ export {
   ProjectorRegistryPortKey,
   ScopedStorePortKey,
   ProcessPortKey,
-  LeaseArbiterPortKey,
+  DriveLockArbiterPortKey,
 } from "@fresnel/contracts/extensions";
 
 export { ExtHostPortKey } from "./host.ts";

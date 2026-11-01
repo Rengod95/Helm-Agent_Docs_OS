@@ -43,7 +43,7 @@ test("a provider binds its capability and a consumer reads it", async () => {
     makeUnit(
       {
         name: "demo-consumer",
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
         loadIndex: 1,
       },
@@ -92,7 +92,9 @@ test("two providers do not collide in Cordis, but need a selection", async () =>
     status: "failed",
     failure: { kind: "threw", code: "capability_unavailable" },
   });
-  expect(t.host.scopes().find((scope) => scope.id === "demo-user")?.waiting).toEqual(["demo.echo"]);
+  expect(t.host.registrations().find((info) => info.id === "demo-user")?.waiting).toEqual([
+    "demo.echo",
+  ]);
 });
 
 test("a provider with a different major version is not bound", async () => {
@@ -121,7 +123,7 @@ test("capability rules: undeclared, optional-missing, provide without declaratio
     makeUnit(
       {
         name: "cap-rules",
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         optional: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
@@ -175,7 +177,7 @@ test("a disabled provider takes its capability away", async () => {
     ),
   );
   expect(first.setups[0]?.status).toBe("applied");
-  t.host.scope("demo-gone")?.disable();
+  t.host.registration("demo-gone")?.disable();
   await t.settled();
   const second = await t.host.install(
     makeUnit(
@@ -216,7 +218,7 @@ async function answerOf(
       {
         name,
         loadIndex: 9,
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
@@ -268,7 +270,7 @@ test("the selection moves to the other provider when the chosen one is disabled"
   await installTwoProviders(t);
   expect(await answerOf(t, "demo-before")).toBe("demo-p2");
   // 고른 공급자가 내려가면 남은 하나가 후보다. 선택이 없는 공급자 하나는 그대로 바인딩된다
-  t.host.scope("demo-p2")?.disable();
+  t.host.registration("demo-p2")?.disable();
   await t.settled();
   expect(await answerOf(t, "demo-after")).toBe("demo-p1");
 });

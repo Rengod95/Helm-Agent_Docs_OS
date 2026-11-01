@@ -1,5 +1,5 @@
 import { assertNever, err, ok, type Result } from "@fresnel/contracts";
-import type { ExtensionManifest, ExtensionName, ScopeId } from "@fresnel/contracts/extensions";
+import type { ExtensionLayer, ExtensionName, RegistrationId } from "@fresnel/contracts/extensions";
 import type { HandlerEntryInfo } from "../primitives/dispatch-types.ts";
 import type { InstallSource, TrustLevel } from "../loading-trust/trust/levels.ts";
 
@@ -18,7 +18,7 @@ export type HookId = string;
 
 /** 핸들러를 등록한 주체 */
 export type HandlerOwner =
-  | { readonly type: "extension"; readonly name: ExtensionName; readonly scopeId: ScopeId }
+  | { readonly type: "extension"; readonly name: ExtensionName; readonly scopeId: RegistrationId }
   | { readonly type: "hook"; readonly hookId: HookId };
 
 /** 실패 장부와 진단의 키. "ext:<확장 이름>" 또는 "hook:<훅 id>" */
@@ -63,7 +63,7 @@ export interface TierInput {
   readonly source: InstallSource;
   /** X.loading-trust.spec §4.6.1의 유효 등급 */
   readonly trust: TrustLevel;
-  readonly layer: ExtensionManifest["layer"];
+  readonly layer: ExtensionLayer;
 }
 
 export type TierError =

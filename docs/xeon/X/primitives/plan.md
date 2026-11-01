@@ -18,7 +18,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 |---|---|---|---|
 | M0 | Cordis 래퍼(`cordis-bridge.ts`: 루트, scope fiber, effect, dispose, 포트 inject), 레지스트리와 스냅샷, 세대 가드, fold 디스패처 tap·first·chain(시간 예산 포함, `DEFAULT_DISPATCH_POLICY`, `DispatchPolicy`의 선택 메서드 `run`·`onHandlerSettled`), X.operations 정책 결합(P-20), 인메모리 포트로 동작하는 post(멱등), drive 단일 그룹(임대 부여·상한·재호출·반납), scope enable/disable 최소형(경계 훅 `prepare`/`settle`, 유휴 적용), 상태 문서 `state()`/`commit()`(마이그레이션 제외), `createExtHost`·`install`(시작 적용, `InstallResult`)·`registerPlatform`·`ExtHost.ports`·`hostOf`(provide·port만), `@fresnel/ext-host/testing`의 인메모리 포트·가짜 타이머 | §5 단위 테스트 중 M0 표시 항목 | L1 core-loop·core-tools 구현자(훅 발화), X.loading-trust(L-06), X.operations(O-03, O-06), M1 스모크 |
 | M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`fresnel.loop`, `fresnel.tasks`, `fresnel.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 기능 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
-| M2 이후 | 임대 중재 설정(`x.primitives.activeDriveGroup`, `LeaseArbiterPort`, `revoked`), 상태 마이그레이션 훅, 리소스 등록 전체(도구·명령·키 조합·플래그·provider·MCP·렌더러, `ResourceRegistry`, `ResourcePolicy`), 진짜 detached tap, 그룹 간 이벤트 격리(호스트 안쪽 휘발 버스), 공급자 여럿의 선택 설정(`x.primitives.capabilityProviders`), thread별 scope 켜짐 상태(서비스 모드) | §5의 M2 표시 항목 | L3 Helm·학습 그룹, X.loading-trust(외부 확장 로더), L4 설정 화면 |
+| M2 이후 | 임대 중재 설정(`x.primitives.activeDriver`, `DriveLockArbiterPort`, `revoked`), 상태 마이그레이션 훅, 리소스 등록 전체(도구·명령·키 조합·플래그·provider·MCP·렌더러, `ResourceRegistry`, `ResourcePolicy`), 진짜 detached tap, 그룹 간 이벤트 격리(호스트 안쪽 휘발 버스), 공급자 여럿의 선택 설정(`x.primitives.capabilityProviders`), thread별 scope 켜짐 상태(서비스 모드) | §5의 M2 표시 항목 | L3 Helm·학습 그룹, X.loading-trust(외부 확장 로더), L4 설정 화면 |
 
 - M0에서 `dispatch: "detached"` 지점(5개)은 await 방식으로 실행했다 [제안]. 결과와 실패 규칙은 같고 지연만 다르다. 진짜 detached 실행은 M2(P-25)에서 구현했다.
 - M0의 경계 기여는 L1 경계 커밋에 넣지 않고 `RecordCommitPort.commit`으로 따로 커밋한다(spec §3.5 끝 항목). M1에서 L1이 `BoundaryContribution.drafts`를 C5 커밋에 넣는다.
@@ -46,12 +46,12 @@ xeon/packages/ext-host/
         first.ts
         chain.ts
       boundary.ts          # BoundaryHooks, BoundarySignal, BoundaryContribution, 유휴 적용
-      scope.ts             # ScopeRuntime: 정의, 상태기계, 세대, 적용 순서, ScopeInfo
+      scope.ts             # RegistrationRuntime: 정의, 상태기계, 세대, 적용 순서, RegistrationInfo
       state.ts             # 상태 캐시, commit, 마이그레이션, record, readRecords
       post.ts              # PostQueue
       lease.ts             # LeaseBroker: 중재, 차수, 상한 클램프, 반납, LoopHandle, 호출 루프
       resources.ts         # ResourceRegistry, ResourcePolicy, X 보관 *ResourceDef, F ToolsPort·ModelsPort·McpPort와 리소스 정의 재export
-      host-api.ts          # hostOf, ScopeHostApi
+      host-api.ts          # hostOf, RegistrationHostApi
       host.ts              # createExtHost, ExtHost, ExtHostDeps, ExtensionUnit, InstallResult
       settings.ts          # primitivesSettings = defineSettings("x.primitives", …)
       testing/
@@ -71,7 +71,7 @@ xeon/packages/ext-host/
 
 - `src/testing/`과 `src/index.ts`는 이 문서의 binds(`src/primitives/**`) 밖이다. 두 파일은 재export 한 줄씩만 두고 내용은 `src/primitives/` 안에 둔다. 위치는 eng.testing.guide §1.2의 `@fresnel/ext-host/testing` 행을 따른다.
 - 공개 export 규칙 [제안]:
-  - `src/index.ts`는 X.primitives.spec §3.1 표의 이름만 이름을 적어 재export한다. `export *`를 쓰지 않는다. 내부 이름(`ScopeRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`)은 루트로 나가지 않는다.
+  - `src/index.ts`는 X.primitives.spec §3.1 표의 이름만 이름을 적어 재export한다. `export *`를 쓰지 않는다. 내부 이름(`RegistrationRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`)은 루트로 나가지 않는다.
   - loading-trust와 operations 도메인 코드는 같은 패키지 안이므로 `../primitives/index.ts`에서 내부 이름을 import한다.
   - F 타입은 재export하지 않는다. 소비자는 `@fresnel/contracts/extensions`에서 직접 가져온다(F 타입 재정의·이중 경로 방지).
 - Cordis import 범위(eng.dependency-rules.guide DR-11) [제안]: `@fresnel/vendor-cordis`는 `src/primitives/cordis-bridge.ts`만 import한다. loading-trust·operations가 Cordis 기능이 필요하면 `cordis-bridge.ts`의 함수를 쓴다. oxlint `no-restricted-imports` 예외를 이 파일 하나로 좁히는 설정을 eng.toolchain.guide 담당과 조율한다. 조율 전에는 패키지 단위 예외(DR-11 원문)로 둔다.
@@ -91,20 +91,20 @@ xeon/packages/ext-host/
 | P-06 | `dispatch.ts`, `fold/tap.ts`·`first.ts`·`chain.ts`: `runOne`(동기 예외·거부 통일, 시간 예산, `AbortController` 연결, `policy.run`이 있으면 위임, `aborted`는 보고 없이 fold 실패 처리, 성공 시 `onHandlerSettled`), `HandlerGate`·`HandlerRunOutcome`, 정렬 `(tier, loadIndex, seq)`, first의 결정 스키마 검사와 `FIRST_DENY` 대체, chain의 merge 거부 skip·`stop`·`finalize`(누락은 `Bug`), `strict` 모드 페이로드 검사·동결, `DEFAULT_DISPATCH_POLICY` | P-04, P-05, F E4(`HOOKS`, `FIRST_DENY`, `CHAIN_RULES`) | L | M0 |
 | P-07 | `cordis-bridge.ts`: 루트 `Context` 생성, scope 세대마다 `ctx.plugin`으로 fiber 생성, `effect` 래퍼(해제기 멱등), `onDispose` 묶음 effect(역순 순차), `provide` disposer 타입 교정과 await, 포트별 inject 플러그인(ACTIVE에서 참조 설정, 해제에서 비움), 루트 dispose. `cordis.contract.test.ts` | P-02 | M | M0 |
 | P-08 | `post.ts`: `PostQueue.post(scope, item, options)`, `usesPost` 검사(`validateUsage`), `requestId` 길이 검사, `InputQueuePort.enqueue` 위임, `PostReceipt` | P-03, P-05, F E9 | S | M0 |
-| P-09 | `scope.ts`, `boundary.ts`: `ScopeFn` 구현(정의, id 검사), 상태기계 4상태(마지막 요청 우선), 켜기 적용(fiber 생성 → setup → `validateUsage` → `scope.changed` 초안 → `settle`에서 세대 열기), 끄기 적용(세대 닫기 → 임대 반납 초안 → `scope.changed` 초안 → `settle`에서 abort와 `fiber.dispose()`), `settle(failed)` 되돌리기, 유휴 적용(`LoopPort.whenIdle`), 세대 가드, `ScopeInfo` | P-04, P-07 | L | M0 |
+| P-09 | `scope.ts`, `boundary.ts`: `RegistrationFn` 구현(정의, id 검사), 상태기계 4상태(마지막 요청 우선), 켜기 적용(fiber 생성 → setup → `validateUsage` → `scope.changed` 초안 → `settle`에서 세대 열기), 끄기 적용(세대 닫기 → 임대 반납 초안 → `scope.changed` 초안 → `settle`에서 abort와 `fiber.dispose()`), `settle(failed)` 되돌리기, 유휴 적용(`LoopPort.whenIdle`), 세대 가드, `RegistrationInfo` | P-04, P-07 | L | M0 |
 | P-10 | `lease.ts` 중재부 `LeaseBroker`: drive 등록 검사(`drive_requires_group`, `drive_undeclared`, `drive_duplicate`, `drive_outside_setup`), 후보 계산, 단일 후보 부여, `leaseEpoch`, `leaseId` 발급, 상한 클램프(설정 × `DriveOptions`), `lease.acquired`·`lease.released` 초안, 반납 사유 6종, `releasing` 상태 | P-09 | M | M0 |
 | P-11 | `lease.ts` 구동부: `LoopHandle`(`turn`, `spawn`, `budget` getter, `signal`), 기본 requestId `${leaseId}:${baseRev}.${i}`, 사용량 집계(재생 제외), 호출 예약(`turn_settled`·`idle`), 같은 판 연속 무효과 반납, 예외 반납과 오류 표시, 동시 호출 금지 | P-10, P-12(상태 판) | L | M0 |
 | P-12 | `state.ts`: 상태 캐시(`openThread`에서 적재), `state()`, `commit()`(스키마, 크기, 멱등 키, `expectStateRev`), 상태 이벤트 kind `<x\|grp>.<name>.state.committed` 초안 | P-05, P-07, P-03 | M | M0 |
-| P-13 | `host.ts`, `host-api.ts`: `createExtHost`, `install`(엔트리 실행과 `entryError`, scope 정의 수집, 시작 적용 spec §4.5.6과 `ScopeSetupOutcome`, `setupBudgetMs`), `uninstall`, `dispatch`·`boundary`·`openThread`·`closeThread`·`dispose` 연결, `hostOf`(M0는 `provide`, `providePort`, `port`), `fresnel.ext` 서비스 등록, `src/index.ts` 공개 목록(spec §3.1 표 전체. loading-trust·operations 행은 그 도메인 작업이 끝날 때 더한다) | P-06, P-08, P-09, P-11, P-12 | M | M0 |
+| P-13 | `host.ts`, `host-api.ts`: `createExtHost`, `install`(엔트리 실행과 `entryError`, scope 정의 수집, 시작 적용 spec §4.5.6과 `RegistrationSetupOutcome`, `setupBudgetMs`), `uninstall`, `dispatch`·`boundary`·`openThread`·`closeThread`·`dispose` 연결, `hostOf`(M0는 `provide`, `providePort`, `port`), `fresnel.ext` 서비스 등록, `src/index.ts` 공개 목록(spec §3.1 표 전체. loading-trust·operations 행은 그 도메인 작업이 끝날 때 더한다) | P-06, P-08, P-09, P-11, P-12 | M | M0 |
 | P-14 | `testing/host.ts`: `createTestHost`와 경계 도우미(`stepEnd`, `turnSettled`, `idle`) | P-13 | S | M0 |
-| P-15 | `state.ts` 확장: `record`(`validateGroupRecord`), `readRecords`(읽기 선언 검사, `queryRecords`의 셋째 인자 `reader`에 호출한 확장 이름을 넘겨 다른 확장의 비공개 행 제외, `record_version_unknown` 진단), `recordPrivate`(자기 접두·`state` 영역·공개 kind 중복 검사, `visibility: "private"` 커밋, `record`와 같은 멱등 키, spec §4.6.5, [결정: review.decisions-2 T-21]). `testing/ports.ts`의 `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터를 더한다(F.records.spec §3.9 비공개 기록 규칙 3) | P-12, F E6(`ScopeApi.recordPrivate`), F E9 | S | M1 |
+| P-15 | `state.ts` 확장: `record`(`validateGroupRecord`), `readRecords`(읽기 선언 검사, `queryRecords`의 셋째 인자 `reader`에 호출한 확장 이름을 넘겨 다른 확장의 비공개 행 제외, `record_version_unknown` 진단), `recordPrivate`(자기 접두·`state` 영역·공개 kind 중복 검사, `visibility: "private"` 커밋, `record`와 같은 멱등 키, spec §4.6.5, [결정: review.decisions-2 T-21]). `testing/ports.ts`의 `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터를 더한다(F.records.spec §3.9 비공개 기록 규칙 3) | P-12, F E6(`RegistrationApi.recordPrivate`), F E9 | S | M1 |
 | P-16 | 재개: `openThread`가 `ExtThreadSnapshot`으로 켜짐 상태·상태 판·열린 임대·차수를 복원하고 첫 경계에서 drive 재호출 또는 `restart` 반납 | P-11, P-12 | M | M1 |
 | P-17 | `services.ts` 기능 바인딩(공급자 하나): `hostOf(g).provide` → `providerServiceName` provide, 바인딩 플러그인이 `capabilityServiceName`으로 다시 provide, scope fiber의 `inject`를 `requires`에서 계산, `capability(key)` 구현(`optional`은 루트 조회) | P-07, P-13 | M | M1 |
-| P-18 | `settings.ts`: `primitivesSettings`(`driveDefaultLimits`, `driveLimits`, `activeDriveGroup`, `capabilityProviders`) 선언과 `PrimitivesSettingsSource` 기본 구현(`driveDefaultLimits` 기본 4/8/400000, 천장 없음, review.decisions-2 U-12) | P-13, F.wire-settings.plan(`defineSettings`) | S | M1 |
+| P-18 | `settings.ts`: `primitivesSettings`(`driveDefaultLimits`, `driveLimits`, `activeDriver`, `capabilityProviders`) 선언과 `PrimitivesSettingsSource` 기본 구현(`driveDefaultLimits` 기본 4/8/400000, 천장 없음, review.decisions-2 U-12) | P-13, F.wire-settings.plan(`defineSettings`) | S | M1 |
 | P-19 | `testing/port-contract.ts`: `runPortContract`(runTurn 멱등, `leaseEpoch` 펜싱, `whenIdle` 중 turn 시작 차단, enqueue 멱등, `expectStateRev` 충돌). L1 core-loop·core-tasks·core-persistence가 자기 테스트에서 돌린다 | P-03, P-13 | M | M1 |
 | P-20 | `DispatchPolicy` 결합: X.operations 구현을 `ExtHostDeps.policy`로 받는 통합 테스트(tier 정렬, `run` 위임 예산, 실패·성공 보고) | P-06, O-03, O-06 | S | M0 |
 | P-21 | `testing/smoke-group.ts`: M1 스모크 그룹(매니페스트는 F.extensions.plan `fixtures/smoke-group.manifest.json`과 같은 내용). `tool.call.before`에서 특정 도구 거부, `boundary.step.after`에서 엔트리 추가, `post(followUp)`, drive로 `loop.turn` 1회 후 commit | P-13, P-15 | S | M1 |
-| P-22 | 임대 중재 설정: `activeDriveGroup`, `LeaseArbiterPort` 주입, `drive_conflict` 경고, `revoked` 반납, `idle` 반납 뒤 재후보 조건 | P-10, P-18 | M | M2 |
+| P-22 | 임대 중재 설정: `activeDriver`, `DriveLockArbiterPort` 주입, `drive_conflict` 경고, `revoked` 반납, `idle` 반납 뒤 재후보 조건 | P-10, P-18 | M | M2 |
 | P-23 | 상태 마이그레이션: `hostOf(g).migrateState`, 버전 비교, 마이그레이션 판 커밋, `future_version` 거부 | P-12 | S | M2 |
 | P-24 | `resources.ts` 전체: `ResourceRegistry`, `ResourcePolicy` 결합, 도구·provider·MCP 포트 위임, 명령·키 조합·플래그·렌더러 X 보관, effect 자동 해제, 구독 알림 | P-07, P-13, L1.tools.spec·L1.models.spec·L2.mcp.spec 포트 합의 | L | M2 |
 | P-25 | 진짜 detached tap: 대기 없는 실행, 늦은 실패 보고, 세션 종료 뒤 결과 폐기 | P-06 | S | M2 |
@@ -164,7 +164,7 @@ xeon/packages/ext-host/
 | `post.test.ts` | `duplicate requestId` | 같은 `requestId` 두 번째 post가 `duplicate: true`, 큐 항목 1개(수용 9) | M0 |
 | | `post requires usesPost` | `usesPost` 없는 매니페스트의 post는 `post_undeclared`(수용 10) | M0 |
 | | `post scoped by scope` | 다른 scope의 같은 `requestId`는 중복이 아니다 | M0 |
-| `lease.test.ts` | `single lease among two groups` | 두 drive 그룹 + `activeDriveGroup`이 하나를 가리키면 그 함수만 호출, 다른 쪽 0회(수용 11) | M2 |
+| `lease.test.ts` | `single lease among two groups` | 두 drive 그룹 + `activeDriver`이 하나를 가리키면 그 함수만 호출, 다른 쪽 0회(수용 11) | M2 |
 | | `limits clamp to settings` | `DriveOptions.limits.maxTurns 10`, 설정 5 → `lease.acquired.limits.maxTurns` 5(수용 19) | M0 |
 | | `third turn rejected at turns 2` | `maxTurns: 2`에서 세 번째 `loop.turn`이 `lease_budget`, 임대 `releasing`(수용 12) | M0 |
 | `drive.test.ts` | `reinvoke replays committed turn` | 같은 상태 판 재호출 시 같은 기본 requestId, `replayed: true`, 새 turn 없음(수용 13) | M0 |
@@ -173,7 +173,7 @@ xeon/packages/ext-host/
 | `scope.test.ts` | `disable applies at step boundary` | turn 중 `disable()` → `disabling`, 진행 중 `loop.turn` 정착까지 진행, 경계에서 핸들러 제외 → `lease.released` → `onDispose` 순서(수용 16) | M0 |
 | | `enable while idle` | 유휴 thread에서 `enable()` → `whenIdle` 안에서 적용, `scope.changed` 커밋(수용 17) | M0 |
 | | `dispose releases registrations` | 끄면 on 핸들러, `provide` 서비스, 등록 도구가 모두 해제(수용 18). 도구는 M2에서 추가 | M0/M2 |
-| | `stale generation rejected` | 꺼진 scope의 옛 `g`로 `on` → `scope_inactive`(수용 22). Cordis 비활성 fiber에서 `on` 함정 회귀 | M0 |
+| | `stale generation rejected` | 꺼진 scope의 옛 `g`로 `on` → `registration_inactive`(수용 22). Cordis 비활성 fiber에서 `on` 함정 회귀 | M0 |
 | | `onDispose runs in reverse order` | 등록 역순으로 차례 실행, 앞 함수 예외 뒤에도 다음 함수 실행 | M0 |
 | `state.test.ts` | `commit schema and conflict` | 스키마 위반 `state_schema`, 같은 판 두 번째 커밋 `state_conflict`(수용 20) | M0 |
 | | `rerun handler commit is idempotent` | 같은 `dispatchKey`로 핸들러를 두 번 실행하면 두 번째 commit이 `replayed`, 판이 한 번만 오른다 | M0 |
@@ -187,7 +187,7 @@ xeon/packages/ext-host/
 | | `a tool run in a child conversation writes to that conversation only` | 자식 thread에만 기록·상태가 남는다(REQ-LN-04) | M3a |
 | | `without an open thread or a thread id the writes still fail with no_thread` | 닫힌 thread의 도구와 `threadId: null` 명령은 `no_thread` | M3a |
 | `services.test.ts` | `service names` | `cap:web.search`, `cap:web.search@web-exa`, 두 공급자 provide 시 Cordis 오류 없음(수용 23) | M1 |
-| `host.test.ts` | `install maps setup outcomes` | setup의 선언 밖 `on`은 `failed`(`point_undeclared`)이고 등록 0, 엔트리 본문 예외는 `entryError`, 실행 중 thread가 있으면 `deferred`(수용 25). `registerPlatform` 포트가 `ports.get`으로 보인다(수용 26) | M0 |
+| `host.test.ts` | `install maps setup outcomes` | setup의 선언 밖 `on`은 `failed`(`hook_undeclared`)이고 등록 0, 엔트리 본문 예외는 `entryError`, 실행 중 thread가 있으면 `deferred`(수용 25). `registerPlatform` 포트가 `ports.get`으로 보인다(수용 26) | M0 |
 | `cordis.contract.test.ts` | `bail treats zero as decision` | vendored `bail`이 `0`을 결정으로 돌려준다(함정이 여전히 있음을 고정) | M0 |
 | | `waterfall next twice throws` | `next` 두 번 호출 시 `next() called multiple times` | M0 |
 | | `emit does not isolate errors` | 앞 리스너가 던지면 뒤 리스너가 실행되지 않고 호출자에게 전파 | M0 |
@@ -212,7 +212,7 @@ xeon/packages/ext-host/
 2. X.primitives.spec §9 수용 기준 1~26이 §5의 테스트 이름과 대응되고(표의 "수용 n" 표기), M2 항목(11, 18의 도구 부분)을 뺀 나머지가 M1까지 통과한다.
 3. `just verify`가 종료코드 0이다. 특히 `check-layers`와 `depcruise`가 통과한다. `@fresnel/ext-host`가 `platform-*`, `core-*`, `cap-*`, `group-*`, `apps/*`를 import하지 않는다(F와 vendor만).
 4. `@fresnel/vendor-cordis` import가 `src/primitives/cordis-bridge.ts` 한 파일에만 있다(grep 0건 확인. 다른 도메인 파일 포함).
-5. F 타입을 재정의하지 않는다. `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ExtensionEntry`, `validate*`는 `@fresnel/contracts/extensions`에서 import한다. 같은 이름의 `interface`·`type`·`const` 선언이 ext-host 안에 0건이다(F.extensions.plan §6 5번 교차 확인 항목).
+5. F 타입을 재정의하지 않는다. `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLock`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `ExtensionEntry`, `validate*`는 `@fresnel/contracts/extensions`에서 import한다. 같은 이름의 `interface`·`type`·`const` 선언이 ext-host 안에 0건이다(F.extensions.plan §6 5번 교차 확인 항목).
 6. 문서-코드 이름 대조: X.primitives.spec §3.1 표(primitives·loading-trust·operations 행 전체)의 공개 이름 전부가 `src/index.ts`에서 export되고, 표에 없는 이름은 export되지 않는다(테스트 `host.test.ts`의 `public surface` 항목이 `Object.keys(await import("@fresnel/ext-host"))` 값 이름과 타입 전용 이름 목록을 대조한다 [제안]). 마일스톤 중간에는 아직 만들지 않은 loading-trust·operations 이름을 대조 목록에서 빼고, 그 작업(L-*, O-*)이 끝날 때 더한다. 최종 목록은 §3.1 표와 같아야 한다.
 7. M1: 모델 테이프 스모크에서 스모크 그룹을 turn 중에 끄면 다음 단계 경계에서 `scope.changed { disabled }`와 `lease.released { disabled }`가 커밋되고, 진행 중인 turn은 정착까지 진행한다(`_research/foundation-plan.md` §6).
 
@@ -236,12 +236,12 @@ xeon/packages/ext-host/
 
 | 작업 | 상태 | 비고 |
 |---|---|---|
-| P-22 | 완료 | `LeaseArbiterPort` 주입, `activeDriveGroup` 중재, `drive_conflict`, `revoked` 반납(이름 지정 그룹이 후보일 때, spec §4.4.1 5번), `idle`·`budget` 반납 뒤 재후보 조건. `lease.test.ts` |
+| P-22 | 완료 | `DriveLockArbiterPort` 주입, `activeDriver` 중재, `drive_conflict`, `revoked` 반납(이름 지정 그룹이 후보일 때, spec §4.4.1 5번), `idle`·`budget` 반납 뒤 재후보 조건. `lease.test.ts` |
 | P-23 | 완료 | `hostOf(g).migrateState`, 버전 비교, 새 판 커밋(`mig:` 키), `state_future_version` 거부. thread에서 켤 때 준비한다. `migration.test.ts` |
 | P-27 | 완료 | `capabilityProviders` 선택, major 불일치 제외 진단, `capability_ambiguous`. `services.test.ts` |
 | P-28 | 완료 | thread별 켜짐 집합·요청, 세대 공유와 마지막 thread에서 해제, thread별 임대. 재시작을 넘는 전이 횟수와 끈 scope 복원은 `ExtThreadSnapshot.scopeTransitions`·`disabled`로 해소(spec §10). `thread-scope.test.ts` |
 | group-sdk 요청 2·3·4 | 완료 | `ExtHost.leaseOf`, `ExtHost.onChange`, `TestHost.restart` |
-| group-sdk 요청 1 | 완료 | `LeaseCandidate.enabledAtSeq`(F `ports.ts`)와 `ExtThreadSnapshot.enabledAtSeq`. ext-host는 열 때 스냅샷에서, 켠 경계를 커밋한 뒤 `loadThread`에서 채운다. `lease.test.ts` |
+| group-sdk 요청 1 | 완료 | `DriveLockCandidate.enabledAtSeq`(F `ports.ts`)와 `ExtThreadSnapshot.enabledAtSeq`. ext-host는 열 때 스냅샷에서, 켠 경계를 커밋한 뒤 `loadThread`에서 채운다. `lease.test.ts` |
 | N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`의 `Result`화(`ExtRowError`). 다른 패키지 호출처는 없다 |
 | P-24 | 완료 | `resources.ts`: `ResourceRegistry`(`list`·`subscribe`·`setFlag`), `ResourcePolicy` 결합(쌍 판정 + 집합 판정 `exposeAll`), 도구·provider·MCP 포트 위임, 명령·단축키·플래그·렌더러 보관, effect 자동 해제, `hostOf(g).register*`·`getFlag`. `resources.test.ts` |
 | P-25 | 완료 | detached tap은 완료를 기다리지 않고 `detached: true`를 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 정책·진단으로만 보고된다. 예산은 받고 thread가 닫히면 중단·폐기한다. `dispatch-detached.test.ts` |

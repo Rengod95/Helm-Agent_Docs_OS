@@ -21,7 +21,7 @@ async function storedV1(
     makeUnit(
       {
         name,
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         def: { state: { schema: V1, initial: { n: 0 }, version: 1 } },
       },
       (g) => {
@@ -55,7 +55,7 @@ function v2Unit(
   return makeUnit(
     {
       name,
-      points: ["boundary.settle.after"],
+      hooks: ["boundary.settle.after"],
       def: { state: { schema: V2, initial: { count: 0, label: "" }, version: 2 } },
     },
     setup,
@@ -79,7 +79,7 @@ test("a lower stored version is migrated and committed as a new revision", async
   await second.host.openThread(thread);
   await second.settled();
   expect(calls).toEqual([[{ n: 4 }, 1]]);
-  expect(second.host.scopes()[0]).toMatchObject({ status: "enabled" });
+  expect(second.host.registrations()[0]).toMatchObject({ status: "enabled" });
   const snapshot = await snapshotOf(second.records, thread);
   expect(snapshot.states).toMatchObject([
     { version: 2, rev: 2, doc: { count: 4, label: "migrated" } },
@@ -122,7 +122,7 @@ test("a lower stored version without a hook keeps the scope off", async () => {
   );
   await second.host.openThread(thread);
   await second.settled();
-  expect(second.host.scopes()[0]?.lastError?.code).toBe("state_migration_missing");
+  expect(second.host.registrations()[0]?.lastError?.code).toBe("state_migration_missing");
   expect(second.diagnostics.map((d) => d.code)).toContain("state_migration_missing");
   await second.host.dispatch(
     "boundary.settle.after",
@@ -158,7 +158,7 @@ test("a stored version above the declared one is refused", async () => {
   );
   await second.host.openThread(thread);
   await second.settled();
-  expect(second.host.scopes()[0]?.lastError?.code).toBe("state_future_version");
+  expect(second.host.registrations()[0]?.lastError?.code).toBe("state_future_version");
 });
 
 test("a migration result that breaks the schema or throws is refused", async () => {
@@ -171,7 +171,7 @@ test("a migration result that breaks the schema or throws is refused", async () 
   );
   await second.host.openThread(bad.thread);
   await second.settled();
-  expect(second.host.scopes()[0]?.lastError?.code).toBe("state_schema");
+  expect(second.host.registrations()[0]?.lastError?.code).toBe("state_schema");
 
   const thrown = await storedV1("mig-throw");
   const third = await restarted(thrown.first);
@@ -184,7 +184,7 @@ test("a migration result that breaks the schema or throws is refused", async () 
   );
   await third.host.openThread(thrown.thread);
   await third.settled();
-  expect(third.host.scopes()[0]?.lastError?.code).toBe("state_migration_failed");
+  expect(third.host.registrations()[0]?.lastError?.code).toBe("state_migration_failed");
 });
 
 test("migrateState is only allowed once, inside setup, for a scope with state", async () => {
@@ -230,7 +230,7 @@ test("migrateState is only allowed once, inside setup, for a scope with state", 
   ]);
 });
 
-test("resetScopeState rewrites a stored state that breaks its schema with the declared initial, and the scope runs again", async () => {
+test("resetRegistrationState rewrites a stored state that breaks its schema with the declared initial, and the scope runs again", async () => {
   const { first, thread } = await storedV1("mig-reset");
   const strict = Type.Object({ n: Type.Integer({ minimum: 10 }) });
   const second = await restarted(first);
@@ -239,7 +239,7 @@ test("resetScopeState rewrites a stored state that breaks its schema with the de
     makeUnit(
       {
         name: "mig-reset",
-        points: ["boundary.settle.after"],
+        hooks: ["boundary.settle.after"],
         def: { state: { schema: strict, initial: { n: 10 }, version: 1 } },
       },
       (g) => {
@@ -251,20 +251,20 @@ test("resetScopeState rewrites a stored state that breaks its schema with the de
   );
   await second.host.openThread(thread);
   await second.settled();
-  const scopeId = second.host.scopes()[0]?.id;
-  expect(second.host.scopes()[0]?.lastError?.code).toBe("state_schema");
+  const scopeId = second.host.registrations()[0]?.id;
+  expect(second.host.registrations()[0]?.lastError?.code).toBe("state_schema");
   if (scopeId === undefined) throw new Error("scope missing");
 
-  expect(await second.host.resetScopeState(thread, "nope")).toEqual({
+  expect(await second.host.resetRegistrationState(thread, "nope")).toEqual({
     ok: false,
-    error: { kind: "unknown_scope" },
+    error: { kind: "unknown_registration" },
   });
-  expect(await second.host.resetScopeState(second.newThread(), scopeId)).toEqual({
+  expect(await second.host.resetRegistrationState(second.newThread(), scopeId)).toEqual({
     ok: false,
     error: { kind: "thread_not_open" },
   });
 
-  expect(await second.host.resetScopeState(thread, scopeId)).toEqual({
+  expect(await second.host.resetRegistrationState(thread, scopeId)).toEqual({
     ok: true,
     value: { rev: 2 },
   });
@@ -272,7 +272,7 @@ test("resetScopeState rewrites a stored state that breaks its schema with the de
   expect((await snapshotOf(second.records, thread)).states).toMatchObject([
     { version: 1, rev: 2, doc: { n: 10 } },
   ]);
-  expect(second.host.scopes()[0]?.lastError).toBeUndefined();
+  expect(second.host.registrations()[0]?.lastError).toBeUndefined();
   await second.host.dispatch(
     "boundary.settle.after",
     { turnId: second.ids.next("trn"), aborted: false },
@@ -280,7 +280,7 @@ test("resetScopeState rewrites a stored state that breaks its schema with the de
   );
   expect(ran).toEqual([{ n: 10 }]);
   // 오류가 없으면 다시 쓰지 않는다
-  expect(await second.host.resetScopeState(thread, scopeId)).toEqual({
+  expect(await second.host.resetRegistrationState(thread, scopeId)).toEqual({
     ok: false,
     error: { kind: "not_refused" },
   });

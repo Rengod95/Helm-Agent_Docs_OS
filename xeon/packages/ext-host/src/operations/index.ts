@@ -2,7 +2,7 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import {
   HOOKS,
-  type ExtensionManifest,
+  type ExtensionLayer,
   type ExtensionName,
   type PortLookup,
 } from "@fresnel/contracts/extensions";
@@ -19,7 +19,7 @@ import {
   createLogNotifier,
   type AutoDisabler,
   type OperationsNotifier,
-  type ScopeControl,
+  type RegistrationControl,
 } from "./auto-disable.ts";
 import {
   budgetMsFrom,
@@ -87,15 +87,15 @@ export {
 export {
   createAutoDisabler,
   createLogNotifier,
-  createScopeControl,
+  createRegistrationControl,
   createVolatileNotifier,
   DEFAULT_AUTO_DISABLE,
   judgeAutoDisable,
   type AutoDisablePolicy,
   type OperationsNotifier,
   type ScopeChangeReason,
-  type ScopeControl,
-  type ScopeToggleSource,
+  type RegistrationControl,
+  type RegistrationToggleSource,
 } from "./auto-disable.ts";
 export {
   createStaticOperationsSettings,
@@ -135,7 +135,7 @@ export interface OperationsDeps {
   /** x.operations.* 유효 값 읽기. 조립 루트가 설정 서비스에 연결해 넘긴다 */
   readonly settings: OperationsSettingsSource;
   /** ExtHost보다 먼저 만들어지므로 조립 루트가 늦게 연결한다 */
-  readonly scopes: ScopeControl;
+  readonly scopes: RegistrationControl;
   readonly notifier?: OperationsNotifier;
   readonly hooks?: { disable(id: HookId): void; enable(id: HookId): void };
   /** 포트 조회. 정책이 ExtHost보다 먼저 만들어지므로 조립 루트가 ExtHost.ports를 가리키는 늦은 연결로 넘긴다 */
@@ -173,7 +173,7 @@ export interface OperationsPolicy extends DispatchPolicy {
   /** 리소스 이름 충돌 판정. 조립 루트가 `ExtHostDeps.resourcePolicy`에 넘긴다(O-19) */
   readonly resources: ResourcePolicy;
   /** 로더가 확장을 설치하기 전(6a단계)에 부른다. assignTier 결과를 표에 넣고 면제 여부(essential)를 기억한다 */
-  admit(info: AdmitInfo, layer: ExtensionManifest["layer"]): Result<Tier, TierError>;
+  admit(info: AdmitInfo, layer: ExtensionLayer): Result<Tier, TierError>;
   /** 확장 제거나 설치 실패 때 표와 장부에서 뺀다 */
   forget(name: ExtensionName): void;
   /** x.operations.budget.setupMs 유효 값. 조립 루트가 ExtHostDeps.setupBudgetMs에 넘긴다 */

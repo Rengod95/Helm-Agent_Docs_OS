@@ -62,6 +62,7 @@ export type LoadDiagnosticCode =
   | "setup_action"
   | "usage_invalid"
   | "usage_warning"
+  | "plugin_not_registered"
   | "essential_failed"
   | "disabled_by_setting"
   | "safe_mode"

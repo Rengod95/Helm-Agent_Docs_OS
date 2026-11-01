@@ -2,6 +2,7 @@ import { err, ok, type Result } from "@fresnel/contracts";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import { portAs } from "../erase.ts";
+import { pluginsOf } from "@fresnel/contracts/extensions";
 import type {
   SetupRefusal,
   ExtensionEntry,
@@ -11,8 +12,8 @@ import type {
   HookName,
   PortKey,
   PortLookup,
-  ScopeHandle,
-  ScopeId,
+  RegistrationHandle,
+  RegistrationId,
   Unsubscribe,
 } from "@fresnel/contracts/extensions";
 import { createCapabilityBindings } from "./bindings.ts";
@@ -30,7 +31,7 @@ import type {
   ExtChange,
   HostCore,
   InstalledUnit,
-  ScopeRecord,
+  RegistrationRecord,
   ThreadOpenOptions,
   ThreadRuntime,
   PrimitivesSettingsSource,
@@ -48,7 +49,7 @@ import {
 } from "./dispatch.ts";
 import { PrimitiveError, type ExtDiagnostic } from "./errors.ts";
 import { deepFreeze } from "./freeze.ts";
-import { createScopeApi } from "./host-api.ts";
+import { createRegistrationApi } from "./host-api.ts";
 import { createLeaseBroker } from "./lease.ts";
 import { createPortProvider } from "./port-provider.ts";
 import { eachInOrder } from "./sequence.ts";
@@ -61,18 +62,18 @@ import {
   type ResourceRegistry,
 } from "./resources.ts";
 import {
-  createScopeRuntime,
-  type ResetScopeStateError,
-  type ScopeInfo,
-  type ScopeSetupOutcome,
-} from "./scope.ts";
+  createRegistrationRuntime,
+  type ResetRegistrationStateError,
+  type RegistrationInfo,
+  type RegistrationSetupOutcome,
+} from "./registration.ts";
 import { createStateService } from "./state.ts";
 
 export type {} from "./errors.ts";
 
 /** 확장 호스트 자신(서비스 fresnel.ext, 제공 ext-host). ExtHost가 X 타입이라 F에 둘 수 없다 */
 export const ExtHostPortKey: PortKey<ExtHost> = { name: "fresnel.ext" };
-export type {} from "./scope.ts";
+export type {} from "./registration.ts";
 export type {} from "./core.ts";
 
 export interface ExtHostDeps {
@@ -113,7 +114,7 @@ export interface ExtensionUnit {
   readonly builtin: boolean;
   /**
    * 주 scope의 초기 켜기 요청. `ext.<name>.enabled` 설정 값이 있으면 로더가 넘긴다 [제안].
-   * 없으면 ScopeDef.defaultEnabled, 매니페스트 defaultEnabled, true 순으로 정한다(X.primitives.spec §4.5.1)
+   * 없으면 RegistrationDef.defaultEnabled, 매니페스트 defaultEnabled, true 순으로 정한다(X.primitives.spec §4.5.1)
    */
   readonly initialEnabled?: boolean;
 }
@@ -121,10 +122,12 @@ export interface ExtensionUnit {
 export interface InstallResult {
   readonly name: ExtensionName;
   /** 엔트리가 정의한 scope. 엔트리가 던졌으면 빈 배열 */
-  readonly scopes: readonly ScopeId[];
+  readonly registrations: readonly RegistrationId[];
+  /** 매니페스트에 선언했지만 엔트리가 `register`하지 않은 플러그인의 Registration id(로더 진단 `plugin_not_registered`) */
+  readonly unregistered: readonly RegistrationId[];
   /** 엔트리 본문이 던진 값. 있으면 setups는 비어 있고 등록은 남지 않는다 */
   readonly entryError?: unknown;
-  readonly setups: readonly ScopeSetupOutcome[];
+  readonly setups: readonly RegistrationSetupOutcome[];
   /** setups[].issues의 합 */
   readonly issues: readonly ManifestIssue[];
 }
@@ -162,9 +165,9 @@ interface InstallOptions {
   readonly signal?: AbortSignal;
 }
 
-export type ResetScopeStateHostError =
-  | ResetScopeStateError
-  | { readonly kind: "unknown_scope" }
+export type ResetRegistrationStateHostError =
+  | ResetRegistrationStateError
+  | { readonly kind: "unknown_registration" }
   | { readonly kind: "thread_not_open" };
 
 export interface ExtHost {
@@ -172,15 +175,15 @@ export interface ExtHost {
   registerPlatform(module: PlatformModule): Promise<Result<void, PlatformSetupError>>;
   /**
    * 엔트리를 실행해 scope 정의를 모으고, 기본 활성 scope의 켜기를 시작 적용한다.
-   * signal이 중단되면 엔트리 실행을 기다리지 않고 entryError(scope_setup_failed)로 끝낸다
+   * signal이 중단되면 엔트리 실행을 기다리지 않고 entryError(registration_setup_failed)로 끝낸다
    */
   install(unit: ExtensionUnit, options?: InstallOptions): Promise<InstallResult>;
   /** 모든 scope를 내리고 정의를 지운다. 경계 없이 즉시 해제한다 */
   uninstall(name: ExtensionName): Promise<void>;
   /** 포트 조회. 같은 패키지의 loading-trust·operations와 조립 루트가 쓴다 */
   readonly ports: PortLookup;
-  scope(id: ScopeId): ScopeHandle | undefined;
-  scopes(): readonly ScopeInfo[];
+  registration(id: RegistrationId): RegistrationHandle | undefined;
+  registrations(): readonly RegistrationInfo[];
   /** L1이 지점을 발화할 때 부른다 */
   dispatch<N extends HookName>(
     point: N,
@@ -220,10 +223,10 @@ export interface ExtHost {
    * 대상 thread가 열려 있고 그 scope의 마지막 오류가 저장 상태 오류(`state_schema`, `state_future_version`, `state_migration_*`)여야 한다.
    * 성공해도 scope를 켜지 않는다. setup 실패로 꺼진 scope는 호출자가 `scope(id).enable()`로 다시 켠다
    */
-  resetScopeState(
+  resetRegistrationState(
     threadId: ThreadId,
-    scopeId: ScopeId,
-  ): Promise<Result<{ readonly rev: number }, ResetScopeStateHostError>>;
+    scopeId: RegistrationId,
+  ): Promise<Result<{ readonly rev: number }, ResetRegistrationStateHostError>>;
   /** 도구 이름(노출 이름 또는 등록 이름)을 등록한 scope의 리소스 기록. 없으면 undefined(M3-REQ-39 도구 소유 scope 조회) */
   toolOwner(name: string): ResourceRecord | undefined;
   /** 모든 scope를 즉시 끄고 Cordis 루트를 해제한다. 프로세스 종료용 */
@@ -233,7 +236,7 @@ export interface ExtHost {
 /** thread 하나의 임대 정보 */
 export interface LeaseInfo {
   readonly leaseId: string;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly leaseEpoch: number;
   /** active: 사용 중. releasing: 반납이 정해졌고 다음 경계에서 커밋된다 */
   readonly status: "active" | "releasing";
@@ -244,24 +247,24 @@ export interface ExtHostInternals {
   readonly core: HostCore;
   /** 추적 중인 작업(drive 호출, 유휴 적용, 기능 바인딩)이 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
-  /** 토글 요청을 사유와 함께 기록한다(X.operations ScopeControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
+  /** 토글 요청을 사유와 함께 기록한다(X.operations RegistrationControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
   requestScope(
-    scopeId: ScopeId,
+    scopeId: RegistrationId,
     enabled: boolean,
-    reason?: ScopeToggleRequestReason,
+    reason?: RegistrationToggleRequestReason,
     threadId?: ThreadId,
   ): void;
 }
 
-type ScopeToggleRequestReason = "request" | "auto_disable" | "safe_mode" | "startup_disable";
+type RegistrationToggleRequestReason = "request" | "auto_disable" | "safe_mode" | "startup_disable";
 
-/** X.operations ScopeControl의 재료. 조립 루트가 createScopeControl에 넘긴다 */
-export interface ScopeToggleSourceOf {
-  scopes(): readonly { readonly id: ScopeId; readonly extension: ExtensionName }[];
+/** X.operations RegistrationControl의 재료. 조립 루트가 createRegistrationControl에 넘긴다 */
+export interface RegistrationToggleSourceOf {
+  scopes(): readonly { readonly id: RegistrationId; readonly extension: ExtensionName }[];
   request(
-    scopeId: ScopeId,
+    scopeId: RegistrationId,
     enabled: boolean,
-    reason: ScopeToggleRequestReason,
+    reason: RegistrationToggleRequestReason,
     threadId?: ThreadId,
   ): void;
 }
@@ -281,10 +284,10 @@ export function hostInternalsOf(host: ExtHost): ExtHostInternals {
 }
 
 /** ExtHost의 scope 토글 요청 통로. 사유를 scope.changed에 싣는다(X.operations.spec §4.3.4) */
-export function scopeToggleSourceOf(host: ExtHost): ScopeToggleSourceOf {
+export function registrationToggleSourceOf(host: ExtHost): RegistrationToggleSourceOf {
   const internals = hostInternalsOf(host);
   return {
-    scopes: () => host.scopes().map((info) => ({ id: info.id, extension: info.extension })),
+    scopes: () => host.registrations().map((info) => ({ id: info.id, extension: info.extension })),
     request: (scopeId, enabled, reason, threadId) => {
       internals.requestScope(scopeId, enabled, reason, threadId);
     },
@@ -330,7 +333,7 @@ async function withBudget<T>(
         cancel = setTimer(budgetMs, () => {
           reject(
             new PrimitiveError(
-              "scope_setup_failed",
+              "registration_setup_failed",
               `entry exceeded its time budget (${budgetMs}ms)`,
             ),
           );
@@ -343,7 +346,7 @@ async function withBudget<T>(
     contenders.push(
       new Promise<never>((_resolve, reject) => {
         const onAbort = (): void => {
-          reject(new PrimitiveError("scope_setup_failed", "install was cancelled"));
+          reject(new PrimitiveError("registration_setup_failed", "install was cancelled"));
         };
         if (signal.aborted) onAbort();
         signal.addEventListener("abort", onAbort, { once: true });
@@ -469,7 +472,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   }
 
   const resources = createResourceStore({ ports, policy: deps.resourcePolicy, report });
-  const kick: { directCommitted: (thread: ThreadRuntime, record: ScopeRecord) => void } = {
+  const kick: { directCommitted: (thread: ThreadRuntime, record: RegistrationRecord) => void } = {
     directCommitted: () => {},
   };
   const state = createStateService(core, {
@@ -487,9 +490,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   kick.directCommitted = (thread, record) => {
     lease.onDirectCommit(thread, record.id);
   };
-  const scope = createScopeRuntime(core, {
+  const scope = createRegistrationRuntime(core, {
     makeApi: (record, generation) =>
-      createScopeApi(
+      createRegistrationApi(
         {
           core,
           state,
@@ -530,7 +533,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     await ready;
     const name = unit.manifest.name;
     if (core.units.has(name)) {
-      throw new PrimitiveError("scope_duplicate", `extension ${name} is already installed`, {
+      throw new PrimitiveError("registration_duplicate", `extension ${name} is already installed`, {
         scopeId: name,
       });
     }
@@ -549,7 +552,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         Promise.resolve().then(() =>
           unit.entry({
             manifest: installed.manifest,
-            scope: (id, def, setup) => scope.define(installed, id, def, setup),
+            register: (id, def, setup) => scope.define(installed, id, def, setup),
           }),
         ),
         resolved.setupBudgetMs(),
@@ -563,9 +566,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     if (entryFailed) {
       for (const id of installed.scopeIds) core.scopes.delete(id);
       core.units.delete(name);
-      return { name, scopes: [], entryError, setups: [], issues: [] };
+      return { name, registrations: [], unregistered: [], entryError, setups: [], issues: [] };
     }
-    const setups: ScopeSetupOutcome[] = [];
+    const setups: RegistrationSetupOutcome[] = [];
     await eachInOrder(installed.scopeIds, async (id) => {
       const record = core.scopes.get(id);
       if (record === undefined) return "continue";
@@ -575,11 +578,34 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       setups.push(await scope.startupApply(record));
       return "continue";
     });
+    // 플러그인 그룹은 한 번에 켜고 끈다: 구성원 하나의 setup이 실패하면 그룹 전체 켜기가 실패한다.
+    // 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: F.extensions.spec §4.5]
+    const memberIds = new Set(
+      pluginsOf(installed.manifest)
+        .filter((entry) => entry.inGroup)
+        .map((entry) => entry.registrationId),
+    );
+    if (
+      memberIds.size > 1 &&
+      setups.some((outcome) => outcome.status === "failed" && memberIds.has(outcome.scopeId))
+    ) {
+      await eachInOrder([...memberIds], async (id) => {
+        const record = core.scopes.get(id);
+        if (record === undefined || !record.desired) return "continue";
+        // 열린 thread가 없으면 적용할 경계가 없으므로 바로 내린다
+        if (core.threads.size === 0) await scope.teardown(record);
+        else scope.request(record, false, undefined, undefined);
+        return "continue";
+      });
+    }
     // 열려 있는 유휴 thread에서 켜짐 기록과 임대 부여를 판단하게 한다
     if (core.threads.size > 0) boundary.requestApply();
     return {
       name,
-      scopes: [...installed.scopeIds],
+      registrations: [...installed.scopeIds],
+      unregistered: pluginsOf(installed.manifest)
+        .map((entry) => entry.registrationId)
+        .filter((id) => !installed.scopeIds.includes(id)),
       setups,
       issues: setups.flatMap((outcome) => outcome.issues),
     };
@@ -632,7 +658,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
             if (typeof returned === "object" && !returned.ok) {
               // Cordis는 apply가 던져야 fiber를 실패로 닫는다. 던진 값은 아래에서 start.failure로 바꾼다
               started.failure = returned.error;
-              throw new PrimitiveError("scope_setup_failed", `${module.name} did not start`);
+              throw new PrimitiveError("registration_setup_failed", `${module.name} did not start`);
             }
           } catch (error) {
             captured.error = error;
@@ -674,19 +700,19 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     ports,
     resources,
     queryEvents: createEventQuery(ports),
-    async resetScopeState(threadId, scopeId) {
+    async resetRegistrationState(threadId, scopeId) {
       const record = core.scopes.get(scopeId);
-      if (record === undefined) return err({ kind: "unknown_scope" });
+      if (record === undefined) return err({ kind: "unknown_registration" });
       const thread = core.threads.get(threadId);
       if (thread === undefined) return err({ kind: "thread_not_open" });
       return scope.resetState(record, thread);
     },
     toolOwner: (name) => toolOwnerOf(resources, name),
-    scope(id) {
+    registration(id) {
       const record = core.scopes.get(id);
       return record === undefined ? undefined : scope.handleOf(record);
     },
-    scopes() {
+    registrations() {
       return [...core.scopes.values()].map((record) => scope.info(record));
     },
     dispatch(point, payload, options) {
@@ -745,7 +771,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       if (!finished) {
         report({
           level: "warning",
-          code: "scope_inactive",
+          code: "registration_inactive",
           message: `host dispose gave up waiting after ${DISPOSE_GRACE_MS}ms for an abandoned setup`,
         });
       }

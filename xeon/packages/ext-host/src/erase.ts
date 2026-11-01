@@ -4,8 +4,8 @@ import type {
   Handler,
   HookName,
   PortKey,
-  ScopeDef,
-  ScopeSetup,
+  RegistrationDef,
+  RegistrationSetup,
   ChainHookName,
   ChainRule,
   CollectHookName,
@@ -57,15 +57,15 @@ export function eraseDrive<S>(fn: DriveFn<S>): DriveCall {
 }
 
 /** 상태 타입 S를 지운 scope 정의와 setup. 같은 정의에서 만든 g만 setup에 넘긴다 */
-export function eraseScope<S>(
-  def: ScopeDef<S>,
-  setup: ScopeSetup<S>,
-): { readonly def: ScopeDef<AnyState>; readonly setup: ScopeSetup<AnyState> } {
+export function eraseRegistration<S>(
+  def: RegistrationDef<S>,
+  setup: RegistrationSetup<S>,
+): { readonly def: RegistrationDef<AnyState>; readonly setup: RegistrationSetup<AnyState> } {
   return {
     // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 상태 타입 S를 지운 보관용 정의 (eng.typescript.guide TY-06)
-    def: def as unknown as ScopeDef<AnyState>,
-    // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: setup은 g: ScopeApi<S>를 받고 같은 정의의 g만 넘긴다 (eng.typescript.guide TY-06)
-    setup: setup as unknown as ScopeSetup<AnyState>,
+    def: def as unknown as RegistrationDef<AnyState>,
+    // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: setup은 g: RegistrationApi<S>를 받고 같은 정의의 g만 넘긴다 (eng.typescript.guide TY-06)
+    setup: setup as unknown as RegistrationSetup<AnyState>,
   };
 }
 

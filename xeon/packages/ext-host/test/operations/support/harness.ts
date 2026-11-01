@@ -7,16 +7,16 @@ import {
 } from "@fresnel/contracts/extensions";
 import {
   createOperationsPolicy,
-  createScopeControl,
+  createRegistrationControl,
   createStaticOperationsSettings,
   type OperationsNotifier,
   type ReservedNames,
   type OperationsPolicy,
-  type ScopeControl,
+  type RegistrationControl,
   type StaticOperationsSettings,
 } from "../../../src/operations/index.ts";
 import {
-  scopeToggleSourceOf,
+  registrationToggleSourceOf,
   type ExtHost,
   type PortKey,
   type PortLookup,
@@ -34,7 +34,7 @@ import { createFakeSession, type FakeSession } from "./fake-session.ts";
 export interface OperationsHarness {
   readonly t: TestHost;
   readonly policy: OperationsPolicy;
-  /** 정책이 ScopeControl로 보낸 요청 */
+  /** 정책이 RegistrationControl로 보낸 요청 */
   readonly requests: string[];
   readonly notices: string[];
 }
@@ -46,15 +46,15 @@ export interface HarnessOptions {
   readonly reservedNames?: ReservedNames;
 }
 
-/** 정책이 ExtHost보다 먼저 만들어지므로 ScopeControl·포트를 늦게 연결한다(조립 순서, X.operations.spec §3.8) */
+/** 정책이 ExtHost보다 먼저 만들어지므로 RegistrationControl·포트를 늦게 연결한다(조립 순서, X.operations.spec §3.8) */
 export async function createOperationsHarness(
   options: HarnessOptions = {},
 ): Promise<OperationsHarness> {
   const timers = fakeTimers();
-  const late: { host?: ExtHost; scopes?: ScopeControl } = {};
+  const late: { host?: ExtHost; scopes?: RegistrationControl } = {};
   const requests: string[] = [];
   const notices: string[] = [];
-  const scopes: ScopeControl = {
+  const scopes: RegistrationControl = {
     requestDisable: (scopeId, reason) => {
       requests.push(`disable:${scopeId}:${reason}`);
       late.scopes?.requestDisable(scopeId, reason);
@@ -99,7 +99,7 @@ export async function createOperationsHarness(
     setupBudget: () => policy.setupBudgetMs(),
   });
   late.host = t.host;
-  late.scopes = createScopeControl(scopeToggleSourceOf(t.host));
+  late.scopes = createRegistrationControl(registrationToggleSourceOf(t.host));
   return { t, policy, requests, notices };
 }
 

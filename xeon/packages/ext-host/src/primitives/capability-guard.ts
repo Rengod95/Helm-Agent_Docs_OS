@@ -12,7 +12,7 @@ import {
   type ExtensionName,
   type ReplayContext,
   type ReplayEffect,
-  type ScopeId,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import { ambient, withoutAmbient, type Ambient } from "./ambient.ts";
 
@@ -43,7 +43,7 @@ export interface GuardTarget {
    */
   readonly providerTrusted: () => boolean;
   readonly extension: ExtensionName;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
 }
 
 type AnyMethod = (...args: readonly unknown[]) => unknown;

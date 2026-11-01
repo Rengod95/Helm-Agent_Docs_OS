@@ -66,8 +66,8 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 import type {
   HookName, HookSignatures, HookDecl, TapSig, FirstSig, ChainSig, FirstHookName, ChainHookName,
   Handler, HandlerContext, ExtensionOps, PostItem, PostOptions, PostReceipt, PostWhen,
-  DriveFn, DriveOptions, DriveLimits, LeaseBudget, LoopHandle, DriveLease, LeaseId, TurnInput, TurnOutcome,
-  SpawnSpec, SpawnOutcome, ScopeId, ScopeDef, ScopeApi, ScopeSetup, ScopeStatus, ScopeHandle, ScopeFn,
+  DriveFn, DriveOptions, DriveLimits, DriveLockBudget, LoopHandle, DriveLock, DriveLockId, TurnInput, TurnOutcome,
+  SpawnSpec, SpawnOutcome, RegistrationId, RegistrationDef, RegistrationApi, RegistrationSetup, RegistrationStatus, RegistrationHandle, RegistrationFn,
   ExtensionEntry, ExtensionManifest, ExtensionName, GroupRecord, RecordKind, RecordQuery, RecordSubject,
   ManifestIssue, Unsubscribe, SetupRefusal,
 } from "@fresnel/contracts/extensions";
@@ -78,7 +78,7 @@ import type { ThreadId, TurnId, StepId, JsonValue, Usage, IdFactory } from "@fre
 // 호스트 포트와 리소스 등록 정의는 F ports.ts가 정본이다(F.extensions.spec §3.2.1, 이 문서 §3.6·§3.9)
 import type {
   PortKey, PortLookup, LoopPort, InputQueuePort, RecordCommitPort, ProjectorRegistryPort, ScopedStorePort,
-  ProcessPort, LeaseArbiterPort, ToolsPort, ModelsPort, McpPort,
+  ProcessPort, DriveLockArbiterPort, ToolsPort, ModelsPort, McpPort,
   ToolResourceDef, ProviderResourceDef, McpServerResourceDef,
 } from "@fresnel/contracts/extensions";
 ```
@@ -89,17 +89,17 @@ import type {
 
 | 이름 | 종류 | 정의 |
 |---|---|---|
-| `createExtHost`, `ExtHost`, `ExtHostDeps`, `ExtensionUnit`, `InstallResult`, `ScopeSetupOutcome`, `PlatformModule`, `PlatformContext`, `PlatformSetupError`, `LeaseInfo`, `ExtChange` | 함수, 인터페이스 | 이 문서 §3.2 |
+| `createExtHost`, `ExtHost`, `ExtHostDeps`, `ExtensionUnit`, `InstallResult`, `RegistrationSetupOutcome`, `PlatformModule`, `PlatformContext`, `PlatformSetupError`, `LeaseInfo`, `ExtChange` | 함수, 인터페이스 | 이 문서 §3.2 |
 | `DispatchOptions`, `DispatchOutcome`, `TapOutcome`, `FirstOutcome`, `ChainOutcome`, `HandlerRef`, `HandlerFailure`, `PayloadOf` | 타입 | 이 문서 §3.3 |
 | `DispatchPolicy`, `HandlerEntryInfo`, `HandlerGate`, `HandlerRunOutcome`, `DEFAULT_DISPATCH_POLICY` | 인터페이스, 타입, 상수 | 이 문서 §3.4 |
 | `BoundaryHooks`, `BoundarySignal`, `BoundaryContribution` | 인터페이스 | 이 문서 §3.5 |
-| `PortKey`, `PortLookup`, `LoopPort`, `LoopPortKey`, `InputQueuePort`, `InputQueuePortKey`, `RecordCommitPort`, `RecordCommitPortKey`, `ProjectorRegistryPort`, `ProjectorRegistryPortKey`, `ScopedStorePort`, `ScopedStorePortKey`, `ProcessPort`, `ProcessPortKey`, `LeaseArbiterPort`, `LeaseArbiterPortKey` 및 부속 타입 | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.6) |
+| `PortKey`, `PortLookup`, `LoopPort`, `LoopPortKey`, `InputQueuePort`, `InputQueuePortKey`, `RecordCommitPort`, `RecordCommitPortKey`, `ProjectorRegistryPort`, `ProjectorRegistryPortKey`, `ScopedStorePort`, `ScopedStorePortKey`, `ProcessPort`, `ProcessPortKey`, `DriveLockArbiterPort`, `DriveLockArbiterPortKey` 및 부속 타입 | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.6) |
 | `ExtHostPortKey`, `SessionFeedPortKey`, `SessionBranchPortKey` | 상수 | 이 문서 §3.6, §4.11, §4.6.4 |
-| `EventPrefixQuery`, `EventQueryError`, `ResetScopeStateHostError` | 타입 | 이 문서 §3.2, §4.6.4 |
+| `EventPrefixQuery`, `EventQueryError`, `ResetRegistrationStateHostError` | 타입 | 이 문서 §3.2, §4.6.4 |
 | `capabilityServiceName`, `providerServiceName`, `isReservedServiceName` | 함수 | 이 문서 §3.7 |
 | `capabilityDefTable`, `CapabilityDefLookup` | 함수, 타입 | 이 문서 §4.4.7 |
-| `hostOf`, `ScopeHostApi`, `ScopeCallContext`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
-| `ScopeInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `CommandOutput`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스, 타입 | 이 문서 §3.9 |
+| `hostOf`, `RegistrationHostApi`, `RegistrationCallContext`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
+| `RegistrationInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `CommandOutput`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스, 타입 | 이 문서 §3.9 |
 | `webProviderRegistrationOf` | 함수 | 이 문서 §3.9, §3.9.1 |
 | `ToolsPort`, `ModelsPort`, `McpPort`, `ToolsPortKey`, `ModelsPortKey`, `McpPortKey`, `ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef` | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.9) |
 | `PrimitiveError`, `PrimitiveErrorCode` | 클래스, 타입 | 이 문서 §3.10 |
@@ -117,7 +117,7 @@ import type {
 | `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.8) |
 | `VirtualModuleRegistry` | 인터페이스 | X.loading-trust.spec §3.9 |
 | `Tier`, `TIERS` | 타입, 상수 | X.operations.spec §3.1 |
-| `ScopeChangeReason`, `ScopeControl`, `OperationsNotifier`, `HandlerOutcomeRecord`, `FailureStats` | 타입, 인터페이스 | X.operations.spec §3.3 |
+| `ScopeChangeReason`, `RegistrationControl`, `OperationsNotifier`, `HandlerOutcomeRecord`, `FailureStats` | 타입, 인터페이스 | X.operations.spec §3.3 |
 | `createVolatileNotifier` | 함수 | X.operations.spec §3.3 |
 | `storageOf`, `ExtStorage`, `ExtTables`, `ExtProjection`, `ExtTableDef`, `ExtTableDefs`, `ExtQuery`, `ExtTableReader`, `ExtTableWriter`, `ExtRowError`, `ExtStorageError`, `ExtStorageAdmin`, `ExtTableRecord`, `extTablePrefix`, `parseExtTableName` | 함수, 인터페이스 | X.operations.spec §3.4 |
 | `createResourcePolicy`, `ReservedNames` | 함수, 인터페이스 | X.operations.spec §3.5 |
@@ -127,7 +127,7 @@ import type {
 | `createOperationsPolicy`, `OperationsPolicy`, `OperationsDeps`, `OperationsSettingsSource` | 함수, 인터페이스 | X.operations.spec §3.8 |
 | `operationsSettings` | `defineSettings` 결과 | X.operations.spec §6 |
 
-패키지 안에서만 쓰는 이름(`ScopeRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`, `hostInternalsOf`)은 `src/primitives/index.ts`에서만 export하고 루트에서 재export하지 않는다. loading-trust와 operations 코드는 같은 패키지 안이라 이 경로로 import한다. loading-trust·operations의 다른 이름(예: `assignTier`, `runWithBudget`, `PI_COMPAT_TABLE`)도 같은 방식으로 패키지 안에서만 쓴다. 공개가 필요해지면 이 표에 행을 더한다.
+패키지 안에서만 쓰는 이름(`RegistrationRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`, `hostInternalsOf`)은 `src/primitives/index.ts`에서만 export하고 루트에서 재export하지 않는다. loading-trust와 operations 코드는 같은 패키지 안이라 이 경로로 import한다. loading-trust·operations의 다른 이름(예: `assignTier`, `runWithBudget`, `PI_COMPAT_TABLE`)도 같은 방식으로 패키지 안에서만 쓴다. 공개가 필요해지면 이 표에 행을 더한다.
 
 ### 3.2 호스트 생성과 수명
 
@@ -161,14 +161,15 @@ export interface ExtHostDeps {
 export interface PrimitivesSettingsSource {
   driveDefaultLimits(threadId: ThreadId): DriveLimits; // x.primitives.driveDefaultLimits (review.decisions-2 U-12). session 범위까지 합친 값, 빠진 필드는 내장 기본값으로 채움
   driveLimits(threadId: ThreadId): DriveLimits;        // x.primitives.driveLimits (천장). session 범위까지 합친 값
-  activeDriveGroup(threadId: ThreadId): ScopeId | null; // x.primitives.activeDriveGroup
+  activeDriver(threadId: ThreadId): RegistrationId | null; // x.primitives.activeDriver
+  driveRequiresGroup(): boolean;                       // x.primitives.driveRequiresGroup (기본 true). 등록 시점(setup)에 읽는다
   capabilityProviders(): Readonly<Record<CapabilityId, ExtensionName>>; // x.primitives.capabilityProviders
 }
 
 export interface ExtDiagnostic {
   readonly level: "error" | "warning" | "info";
   readonly code: PrimitiveErrorCode | ManifestIssue["code"] | "handler_failed";
-  readonly scopeId?: ScopeId;
+  readonly scopeId?: RegistrationId;
   readonly extension?: ExtensionName;
   readonly message: string;
   readonly cause?: unknown;
@@ -185,8 +186,8 @@ export interface ExtensionUnit {
 }
 
 /** install 안의 시작 적용(§4.5.6) 결과. scope 하나에 하나 */
-export interface ScopeSetupOutcome {
-  readonly scopeId: ScopeId;
+export interface RegistrationSetupOutcome {
+  readonly scopeId: RegistrationId;
   /** applied: setup 성공, 세대 열림. failed: setup 실패로 disabled. skipped: 초기 요청이 꺼짐. deferred: 실행 중 thread가 있어 다음 경계로 미룸 */
   readonly status: "applied" | "failed" | "skipped" | "deferred";
   /** failed일 때만. threw는 setup이 던지거나 거부함, timeout은 setupBudgetMs 초과 */
@@ -203,10 +204,10 @@ export interface ScopeSetupOutcome {
 export interface InstallResult {
   readonly name: ExtensionName;
   /** 엔트리가 정의한 scope. 엔트리가 던졌으면 빈 배열 */
-  readonly scopes: readonly ScopeId[];
+  readonly scopes: readonly RegistrationId[];
   /** 엔트리 본문이 던진 값. 있으면 setups는 비어 있고 등록은 남지 않는다 */
   readonly entryError?: unknown;
-  readonly setups: readonly ScopeSetupOutcome[];
+  readonly setups: readonly RegistrationSetupOutcome[];
   /** setups[].issues의 합 */
   readonly issues: readonly ManifestIssue[];
 }
@@ -244,13 +245,13 @@ export interface ExtHost {
   /** L0 플랫폼 패키지를 등록한다. 조립 루트가 확장 설치 전에 부른다. setup이 err를 돌려주면 그 모듈의 등록을 거두고 PlatformSetupError를 돌려준다(시작 실패). setup이 던지면 그대로 던진다(버그) */
   registerPlatform(module: PlatformModule): Promise<Result<void, PlatformSetupError>>;
   /** 엔트리를 실행해 scope 정의를 모으고, 기본 활성 scope의 켜기를 시작 적용한다(§4.5.6) */
-  install(unit: ExtensionUnit, options?: { readonly signal?: AbortSignal }): Promise<InstallResult>;   // signal이 중단되면 엔트리 실행을 기다리지 않고 entryError(scope_setup_failed)로 끝낸다
+  install(unit: ExtensionUnit, options?: { readonly signal?: AbortSignal }): Promise<InstallResult>;   // signal이 중단되면 엔트리 실행을 기다리지 않고 entryError(registration_setup_failed)로 끝낸다
   /** 모든 scope를 끄기 요청하고, 적용이 끝나면 정의를 지운다 */
   uninstall(name: ExtensionName): Promise<void>;
   /** 포트 조회. 같은 패키지의 loading-trust·operations와 조립 루트가 쓴다. 확장 코드는 hostOf(g).port를 쓴다 */
   readonly ports: PortLookup;
-  scope(id: ScopeId): ScopeHandle | undefined;
-  scopes(): readonly ScopeInfo[];
+  registration(id: RegistrationId): RegistrationHandle | undefined;
+  scopes(): readonly RegistrationInfo[];
   /** L1이 지점을 발화할 때 부른다(§4.1) */
   dispatch<N extends HookName>(point: N, payload: PayloadOf<N>, options: DispatchOptions<N>): Promise<DispatchOutcome<N>>;
   /** L1 루프가 단계 경계와 유휴 진입 때 부른다(§3.5) */
@@ -278,9 +279,9 @@ export interface ExtHost {
   /**
    * 저장된 상태가 스키마·버전 검사를 못 넘겨 켜지지 못한 scope의 상태를 선언의 `initial`로 다시 쓴다(재설정 경로, M3b B4-GRP).
    * 대상 thread가 열려 있고 그 scope의 마지막 오류가 `state_schema`, `state_future_version`, `state_migration_missing`, `state_migration_failed` 중 하나여야 한다.
-   * 이전 판은 기록에 남고 새 판(rev+1)이 최신이 된다. 성공해도 scope를 켜지 않는다. setup 실패로 꺼진 scope는 호출자가 `scope(id).enable()`로 다시 켠다
+   * 이전 판은 기록에 남고 새 판(rev+1)이 최신이 된다. 성공해도 scope를 켜지 않는다. setup 실패로 꺼진 scope는 호출자가 `registration(id).enable()`로 다시 켠다
    */
-  resetScopeState(threadId: ThreadId, scopeId: ScopeId): Promise<Result<{ readonly rev: number }, ResetScopeStateHostError>>;
+  resetRegistrationState(threadId: ThreadId, scopeId: RegistrationId): Promise<Result<{ readonly rev: number }, ResetRegistrationStateHostError>>;
   /** 도구 이름(노출 이름, 없으면 등록 이름)을 등록한 scope의 `ResourceRecord`. 없으면 undefined(M3-REQ-39 도구 소유 scope 조회) */
   toolOwner(name: string): ResourceRecord | undefined;
   /** 모든 scope를 즉시 끄고 Cordis 루트를 해제한다. 프로세스 종료용. 경계 적용 없이 바로 해제한다 */
@@ -290,8 +291,8 @@ export interface ExtHost {
 export function createExtHost(deps: ExtHostDeps): ExtHost;
 
 export interface LeaseInfo {
-  readonly leaseId: LeaseId;
-  readonly scopeId: ScopeId;
+  readonly leaseId: DriveLockId;
+  readonly scopeId: RegistrationId;
   /** 그 scope의 활성 가지 위 `lease.acquired` 개수(§4.4.1 7번) */
   readonly leaseEpoch: number;
   /** active: 사용 중. releasing: 반납이 정해졌고 다음 경계 커밋을 기다린다 */
@@ -301,7 +302,7 @@ export interface LeaseInfo {
 export interface ExtChange {
   /** scope: 토글 요청, 적용, 오류 표시, 켜짐 집합 변화. lease: 임대 부여나 반납이 커밋됨 */
   readonly kind: "scope" | "lease";
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   /** thread 단위 변화면 그 thread, 전체 요청이면 null */
   readonly threadId: ThreadId | null;
 }
@@ -309,8 +310,8 @@ export interface ExtChange {
 
 - `createExtHost`는 Cordis 루트 `Context`를 안에서 만든다(`context.ts:36-49`). 루트와 `Context` 타입은 밖으로 내보내지 않는다(eng.dependency-rules.guide DR-11).
 - `createExtHost`가 만든 `ExtHost`는 Cordis 서비스 `fresnel.ext`로 등록된다(eng.context-map.design §5.3). L1 내장 확장은 `hostOf(g).port(ExtHostPortKey)`로 얻는다(§3.6). `ExtHost`에는 로더 속성을 두지 않는다. 로더(`ExtensionLoader`)는 Cordis 서비스가 아니고 조립 루트가 직접 쥔다(X.loading-trust.spec §3.5).
-- 책임 분담 [제안]: 엔트리 탐색, import, 매니페스트 검증, 신뢰 판정, 설정 연결, 기능 요구 충족은 loading-trust가 하고 그 결과를 `ExtensionUnit`으로 넘긴다. 엔트리 호출(`ExtensionEntry`), scope 정의 수집, scope 세대마다의 Cordis fiber 생성, scope setup 실행과 시간 예산, setup 직후 `validateUsage`는 `install`과 §4.5의 `ScopeRuntime`이 한다. loading-trust는 Cordis를 직접 쓰지 않고 `InstallResult`를 진단으로 옮긴다(X.loading-trust.spec §4.4.3).
-- 엔트리 본문은 F `ExtensionEntry`가 받는 `{ manifest, scope }`만 쓴다. 그래서 엔트리 본문에서 부를 수 있는 연산은 `scope(id, def, setup)`뿐이다. `on`, `drive`, `post` 등 `ScopeApi` 연산은 scope setup이나 그 뒤의 핸들러·drive 함수 안에서 부른다. 이 문서에서 "setup"은 scope setup(`ScopeSetup`)만 뜻한다.
+- 책임 분담 [제안]: 엔트리 탐색, import, 매니페스트 검증, 신뢰 판정, 설정 연결, 기능 요구 충족은 loading-trust가 하고 그 결과를 `ExtensionUnit`으로 넘긴다. 엔트리 호출(`ExtensionEntry`), scope 정의 수집, scope 세대마다의 Cordis fiber 생성, scope setup 실행과 시간 예산, setup 직후 `validateUsage`는 `install`과 §4.5의 `RegistrationRuntime`이 한다. loading-trust는 Cordis를 직접 쓰지 않고 `InstallResult`를 진단으로 옮긴다(X.loading-trust.spec §4.4.3).
+- 엔트리 본문은 F `ExtensionEntry`가 받는 `{ manifest, register }`만 쓴다. 그래서 엔트리 본문에서 부를 수 있는 연산은 `register(id, def, setup)`뿐이다. `on`, `drive`, `post` 등 `RegistrationApi` 연산은 Registration setup이나 그 뒤의 핸들러·drive 함수 안에서 부른다. 이 문서에서 "setup"은 Registration setup(`RegistrationSetup`)만 뜻한다.
 - `registerPlatform`은 L0 패키지마다 Cordis fiber 하나를 만들어 `setup`을 실행한다. L0 패키지는 매니페스트 층 값(`ExtensionLayerSchema`)에 L0가 없으므로 `install` 경로를 쓰지 않는다. `providePort`는 `fresnel.*` 이름만 받는다(§3.7 예약 규칙의 L0 예외). 등록 순서는 조립 루트가 정하고, 의존하는 포트가 먼저 등록되어 있어야 한다 [제안]. 시작 실패(디렉터리 준비, 플랫폼 판별 같은 예상 가능한 실패)는 `setup`이 `err({ reason, cause })`로 알린다. fiber는 던져야 닫히므로 호스트가 그 값을 내부에서 던져 fiber를 닫고, `registerPlatform`은 던진 값을 `PlatformSetupError`로 되돌려 돌려준다. 그 모듈이 제공한 포트는 남지 않는다(eng.typescript.guide TY-24).
 
 ### 3.3 디스패치 타입
@@ -340,7 +341,7 @@ export type DispatchOptions<N extends HookName> =
     : DispatchOptionsBase;
 
 export interface HandlerRef {
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   /** 레지스트리 등록 순번 */
   readonly seq: number;
@@ -411,7 +412,7 @@ export type DispatchOutcome<N extends HookName> =
 // primitives/dispatch.ts
 export interface HandlerEntryInfo {
   readonly point: HookName;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   readonly layer: ExtensionManifest["layer"];
   readonly builtin: boolean;
@@ -472,7 +473,7 @@ export interface BoundarySignal {
   readonly turnId?: TurnId;
   readonly stepId?: StepId;
   /** 이 경계를 만든 turn이 drive 임대의 loop.turn으로 시작됐으면 그 임대 id */
-  readonly drivenBy?: LeaseId;
+  readonly drivenBy?: DriveLockId;
 }
 
 export interface BoundaryContribution {
@@ -518,7 +519,7 @@ export type {
   // 프로세스 실행 (fresnel.process). spawn 사용처는 X.loading-trust.spec §3.8, run 사용처는 X.operations.spec §3.7
   ProcessPort, IsolationProcessPort, IsolationSpawnSpec, IsolatedChild, HookProcessPort, HookRunSpec, HookRawRun,
   // 임대 정책 (fresnel.groups, 선택)
-  LeaseArbiterPort, LeaseCandidate,
+  DriveLockArbiterPort, DriveLockCandidate,
 } from "@fresnel/contracts/extensions";
 export {
   LoopPortKey,                // { name: "fresnel.loop" }
@@ -527,7 +528,7 @@ export {
   ProjectorRegistryPortKey,   // { name: "fresnel.session", member: "projectors" }
   ScopedStorePortKey,         // { name: "fresnel.store" }
   ProcessPortKey,             // { name: "fresnel.process" }
-  LeaseArbiterPortKey,        // { name: "fresnel.groups" }
+  DriveLockArbiterPortKey,        // { name: "fresnel.groups" }
 } from "@fresnel/contracts/extensions";
 
 // ── 확장 호스트 자신 (서비스 fresnel.ext, 제공 ext-host) ───────────────
@@ -536,7 +537,7 @@ export const ExtHostPortKey: PortKey<ExtHost>;               // { name: "fresnel
 
 X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
 
-- `RecordCommitPort`는 records가 extensions보다 낮아 `ScopeId`, `LeaseId`, `DriveLimits`, `RecordQuery`, `GroupRecord`, `ExtensionName` 자리에 같은 모양의 타입(`string`, `ExtRecordQuery`, `ExtRecordRow`)을 쓴다(F.records.spec §3.9 이름 대응 주석). X는 F extensions 이름의 값을 그대로 넘기고, 돌려받은 `ExtRecordRow`를 `GroupRecord`로 다룬다.
+- `RecordCommitPort`는 records가 extensions보다 낮아 `RegistrationId`, `DriveLockId`, `DriveLimits`, `RecordQuery`, `GroupRecord`, `ExtensionName` 자리에 같은 모양의 타입(`string`, `ExtRecordQuery`, `ExtRecordRow`)을 쓴다(F.records.spec §3.9 이름 대응 주석). X는 F extensions 이름의 값을 그대로 넘기고, 돌려받은 `ExtRecordRow`를 `GroupRecord`로 다룬다.
 - `queryRecords(threadId, query, reader)`의 `reader`는 호출한 확장의 이름(`ExtensionName`)이다. X는 `readRecords`를 부른 scope의 확장 이름을 넣는다(§4.6.4). 포트는 private 행을 `reader`가 소유 확장일 때만 돌려준다(F.records.spec §3.9 비공개 기록 규칙 3).
 - `ProjectorRegistryPort`는 `Pick<ProjectorRegistry, "register" | "onFailure">`다. `register(projector)`는 `Result<{ dispose(): void }, ProjectorRegisterError>`를 돌려준다(L1.persistence.spec §3.4). 투영기 이름은 `"ext.<확장 이름>"`이다.
 - `ScopedStorePort`는 `Pick<StoreService, "scoped">`다. `scoped(owner)`의 인자는 소유자 id다. 확장 테이블은 `"ext.<확장 이름>"`, 호스트 소유 장부는 `"xh"`를 넘긴다(L0.store.spec §4.5 소유자 표). 접두(`x_<name>_`, `xh_`)를 넘기지 않는다.
@@ -545,7 +546,7 @@ X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
 
 1. X는 포트마다 내부 Cordis 플러그인 하나를 두고 `inject: [<포트 이름>]`으로 주입받는다. 포트 fiber가 ACTIVE가 되면 참조를 잡고, 해제되면 참조를 비운다. 포트를 따로 두므로 한 포트가 없어도 나머지 연산은 동작한다.
 2. 포트가 없을 때: `dispatch`는 포트 없이 동작한다. `post`는 `InputQueuePort`, `drive`는 `LoopPort`와 `RecordCommitPort`, `commit`·`record`·`readRecords`는 `RecordCommitPort`가 필요하다. 없으면 `PrimitiveError("port_unavailable")`로 거부한다. drive 임대는 두 포트가 모두 있을 때만 부여한다.
-3. `LeaseArbiterPort`는 선택이다. 없으면 §4.4.1의 기본 규칙을 쓴다.
+3. `DriveLockArbiterPort`는 선택이다. 없으면 §4.4.1의 기본 규칙을 쓴다.
 4. `fresnel.*` 이름의 서비스는 `ExtensionUnit.builtin`이 참인 확장과 `registerPlatform`으로 등록한 L0 패키지만 제공할 수 있다(§3.7).
 5. 확장이 아닌 사용처의 포트 경로 [제안]: X 안의 loading-trust·operations는 Cordis를 쓰지 않고 `ExtHost.ports`(`PortLookup`)로 포트를 얻는다. operations는 `OperationsDeps.ports`로 받은 `PortLookup`에서 `ProjectorRegistryPortKey`·`ScopedStorePortKey`(확장 전용 저장, `storageOf`)와 `ProcessPortKey`(외부 훅)를 꺼낸다. operations 정책은 `ExtHost`보다 먼저 만들어지므로 조립 루트가 `ExtHost.ports`를 늦은 연결로 넘긴다(X.operations.spec §3.8). 로더의 `IsolationProcessPort`는 조립 루트가 `ExtHost.ports.get(ProcessPortKey)`로 꺼내 `LoaderDeps.process`에 넣는다(X.loading-trust.spec §3.5).
 6. [결정: review.decisions-2 D-04] 포트와 서비스 인터페이스의 관계. 같은 서비스 이름에 등록되는 서비스 인터페이스는 F에 있고, 이 포트를 부분형으로 포함한다. 서비스 이름 하나에는 인터페이스 하나만 등록되므로 X 포트의 메서드와 서비스 인터페이스의 메서드가 어긋나지 않는다.
@@ -560,9 +561,9 @@ X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
    | `fresnel.tools` | `ToolService`(`@fresnel/contracts/services`) | `ToolsPort`(§3.9) |
    | `fresnel.models` | `ModelService`(`@fresnel/contracts/services`) | `ModelsPort`(§3.9) |
    | `fresnel.mcp` | `McpService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/mcp.ts`) | `McpPort`(§3.9) |
-   | `fresnel.groups` | `GroupService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/groups.ts`) | `LeaseArbiterPort` |
+   | `fresnel.groups` | `GroupService`(`@fresnel/contracts/services`, F.capabilities.spec §3.12 `services/groups.ts`) | `DriveLockArbiterPort` |
 
-   - L1.loop.spec의 `LoopService extends LoopPort`와 `threadStatus`가 이 규칙의 예다. L1.tools.spec `ToolService extends ToolsPort`, L1.models.spec의 `registerProvider`, L2.mcp.spec §3.2 `McpService extends McpPort`, F.capabilities.spec §3.12 `GroupService extends LeaseArbiterPort`도 같은 규칙을 따른다.
+   - L1.loop.spec의 `LoopService extends LoopPort`와 `threadStatus`가 이 규칙의 예다. L1.tools.spec `ToolService extends ToolsPort`, L1.models.spec의 `registerProvider`, L2.mcp.spec §3.2 `McpService extends McpPort`, F.capabilities.spec §3.12 `GroupService extends DriveLockArbiterPort`도 같은 규칙을 따른다.
 7. [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 포트 가짜는 X `test/`와 `@fresnel/ext-host/testing` 안에 F 인터페이스로 만든다.
 
 ### 3.7 Cordis 서비스 이름 유도
@@ -590,14 +591,14 @@ export function isReservedServiceName(name: string): boolean;
 
 ### 3.8 scope 확장 API (`hostOf`)
 
-F의 `ScopeApi<S>`에는 서비스 제공, 포트 조회, 리소스 등록, 상태 마이그레이션이 없다. F 타입을 바꾸지 않고 X가 같은 scope에 붙는 부가 API를 준다.
+F의 `RegistrationApi<S>`에는 서비스 제공, 포트 조회, 리소스 등록, 상태 마이그레이션이 없다. F 타입을 바꾸지 않고 X가 같은 scope에 붙는 부가 API를 준다.
 
 ```ts
 // primitives/host-api.ts
 export type StateMigration = (doc: JsonValue, fromVersion: number) => JsonValue;
 
 /** 지금 실행 중인 재실행 문맥. signal은 on에서는 핸들러 호출의 취소 신호, drive에서는 임대의 취소 신호다 */
-export interface ScopeCallContext {
+export interface RegistrationCallContext {
   readonly kind: "on" | "drive";
   readonly threadId: ThreadId;
   readonly signal: AbortSignal;
@@ -605,8 +606,8 @@ export interface ScopeCallContext {
   readonly point?: HookName;
 }
 
-export interface ScopeHostApi<S = unknown> {
-  readonly scopeId: ScopeId;
+export interface RegistrationHostApi<S = unknown> {
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   /** 기능 공급자 등록. key.capability는 매니페스트 provides에 있어야 한다. fiber effect로 추적한다 */
   provide<Api>(key: ServiceKey<Api>, impl: Api): void;
@@ -621,7 +622,7 @@ export interface ScopeHostApi<S = unknown> {
   settingValue(key: string): unknown;
   /** 상태 문서 마이그레이션. setup 안에서 한 번만 부른다 */
   migrateState(fn: StateMigration): void;
-  /** 상태 커밋과 그룹 레코드를 한 트랜잭션으로 낸다(§4.6.1, M3-REQ-24 [제안]). F `ScopeApi.commit`에 둘째 인자가 없어 여기에 둔다 */
+  /** 상태 커밋과 그룹 레코드를 한 트랜잭션으로 낸다(§4.6.1, M3-REQ-24 [제안]). F `RegistrationApi.commit`에 둘째 인자가 없어 여기에 둔다 */
   commitWith(next: S, records: readonly RecordInput[]): Promise<Readonly<S>>;
   /** 줄 세운 읽기-계산-커밋(§4.6.1, M3-REQ-23 [제안]). 실패는 값이다 */
   updateState(fn: (prev: Readonly<S>) => S, records?: (next: S) => readonly RecordInput[]): Promise<Result<Readonly<S>, StateUpdateError>>;
@@ -631,7 +632,7 @@ export interface ScopeHostApi<S = unknown> {
    * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥을 돌려준다(§4.2 ambient). setup, 명령 처리기, 도구 execute(이 둘은 ambient는 있지만 재실행되는 문맥이 아니다, §4.6.6),
    * 기능 공급자 안, drive의 turn·spawn 안과 다른 scope의 문맥에서는 undefined다
    */
-  callContext(): ScopeCallContext | undefined;
+  callContext(): RegistrationCallContext | undefined;
   /**
    * 사용자 응답(대화상자, 승인) 대기를 감싼다. 핸들러 안에서 부르면 wait 동안 핸들러 시간 예산 시계를 멈추고,
    * wait에는 핸들러의 취소 신호와 options.signal을 AbortSignal.any로 합쳐 넘긴다. 핸들러 밖에서는 그대로 실행한다
@@ -652,22 +653,22 @@ export interface ScopeHostApi<S = unknown> {
 }
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
-export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S>;
+export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S>;
 ```
 
-- `hostOf`는 `WeakMap<ScopeApi, ScopeHostApi>`로 찾는다. 같은 g에 대해 같은 객체를 돌려준다.
+- `hostOf`는 `WeakMap<RegistrationApi, RegistrationHostApi>`로 찾는다. 같은 g에 대해 같은 객체를 돌려준다.
 - `callContext`는 ambient(§4.2 `withAmbient`)를 읽는다. ambient의 `scopeId`가 g를 만든 scope와 다르면 undefined다. drive 문맥의 `signal`은 `LoopHandle.signal`과 같은 임대 신호이고, on 문맥의 `signal`은 핸들러 `ctx.signal`과 같아 시간 초과 때 abort된 상태가 된다. drive의 `turn`·`spawn`과 기능 공급자 호출은 ambient를 끊으므로(§4.4.7) 그 안에서는 undefined다. 이 값으로 L3가 `g.delegate`의 thread를 얻고, on·drive에서 허용되지 않는 연산을 거부한다.
 - 포트로 넘기는 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)는 F.extensions.spec §3.2.1 정의를 쓰고, X가 보관하는 리소스 정의(`CommandResourceDef` 등)는 §3.9에 둔다.
-- [미결] F.extensions.spec §3.2 `ScopeApi`에 `provide`를 두지 않은 상태에서 L2 공급자가 이 API로 등록하는 방식이 F.capabilities.spec의 의도와 같은지. 다른 안은 F `ScopeApi`에 `provide<Api>(key, impl)`를 추가하는 것이다.
+- [미결] F.extensions.spec §3.2 `RegistrationApi`에 `provide`를 두지 않은 상태에서 L2 공급자가 이 API로 등록하는 방식이 F.capabilities.spec의 의도와 같은지. 다른 안은 F `RegistrationApi`에 `provide<Api>(key, impl)`를 추가하는 것이다.
 
 ### 3.9 scope 정보, 리소스 표, 리소스 포트
 
 ```ts
 // primitives/scope.ts
-export interface ScopeInfo {
-  readonly id: ScopeId;
+export interface RegistrationInfo {
+  readonly id: RegistrationId;
   readonly extension: ExtensionName;
-  readonly status: ScopeStatus;
+  readonly status: RegistrationStatus;
   readonly generation: number;          // 꺼져 있으면 마지막 세대
   /** 켜졌지만 requires 기능이 없어 fiber가 PENDING인 경우의 부족 기능 */
   readonly waiting: readonly CapabilityId[];
@@ -684,7 +685,7 @@ export interface ResourceRecord {
   readonly name: string;
   /** 사용자·모델에 보이는 이름. ResourcePolicy가 정하고 정책이 없으면 name이다. L4와 모델은 이 이름을 쓴다 */
   readonly exposed: string;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   /** 내장 패키지의 등록인가. 이름 예약 판정에 쓴다 */
   readonly builtin: boolean;
@@ -719,7 +720,7 @@ export interface ResourcePolicy {
 /** exposeAll이 레코드마다 돌려준다. 레코드는 (kind, scopeId, name)으로 가리킨다 */
 export interface ResourceExposure {
   readonly kind: ResourceKind;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly name: string;
   readonly exposed: string;
   /** 짧은 이름을 받지 못한 이유. too_long이면 등록을 거부한다 */
@@ -780,8 +781,8 @@ export type PrimitiveErrorCode =
   | "post_undeclared"
   | "drive_requires_group" | "drive_undeclared" | "drive_duplicate" | "drive_outside_setup"
   | "lease_inactive" | "lease_revoked" | "lease_budget" | "handler_aborted"
-  | "scope_inactive" | "scope_foreign_id" | "scope_duplicate" | "scope_setup_failed"
-  | "point_undeclared"
+  | "registration_inactive" | "registration_foreign_id" | "registration_duplicate" | "registration_setup_failed"
+  | "hook_undeclared"
   | "state_undeclared" | "state_schema" | "state_conflict" | "state_too_large"
   | "state_migration_missing" | "state_migration_failed" | "state_migration_duplicate"
   | "state_migration_outside_setup" | "state_future_version"
@@ -792,13 +793,13 @@ export type PrimitiveErrorCode =
 
 export class PrimitiveError extends Error {
   readonly code: PrimitiveErrorCode;
-  readonly scopeId: ScopeId | undefined;
-  constructor(code: PrimitiveErrorCode, message: string, options?: { scopeId?: ScopeId; cause?: unknown });
+  readonly scopeId: RegistrationId | undefined;
+  constructor(code: PrimitiveErrorCode, message: string, options?: { scopeId?: RegistrationId; cause?: unknown });
 }
 ```
 
-- 확장이 부르는 연산(`on`, `post`, `drive`, `commit`, `record`, `readRecords`, `capability`, `hostOf(g).*`)은 실패 시 `PrimitiveError`를 던지거나 거부한다. F `ScopeApi`의 메서드가 `Promise`나 값을 돌려주는 형태라 Result를 쓰지 않는다 [제안, F.capabilities.spec §3.2와 같은 예외 기반 서비스 경계].
-- `ManifestIssue` 코드와 겹치는 항목(`point_undeclared`, `post_undeclared`, `drive_undeclared`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`, `drive_requires_group`)은 같은 문자열을 쓴다. X는 이 검사를 `validateUsage`로 하고 결과 코드를 그대로 옮긴다. 로더는 scope setup이 이 코드의 `PrimitiveError`로 끝나면 `usage_invalid` 진단으로 옮긴다(X.loading-trust.spec §4.4.3 표).
+- 확장이 부르는 연산(`on`, `post`, `drive`, `commit`, `record`, `readRecords`, `capability`, `hostOf(g).*`)은 실패 시 `PrimitiveError`를 던지거나 거부한다. F `RegistrationApi`의 메서드가 `Promise`나 값을 돌려주는 형태라 Result를 쓰지 않는다 [제안, F.capabilities.spec §3.2와 같은 예외 기반 서비스 경계].
+- `ManifestIssue` 코드와 겹치는 항목(`hook_undeclared`, `post_undeclared`, `drive_undeclared`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`, `drive_requires_group`)은 같은 문자열을 쓴다. X는 이 검사를 `validateUsage`로 하고 결과 코드를 그대로 옮긴다. 로더는 scope setup이 이 코드의 `PrimitiveError`로 끝나면 `usage_invalid` 진단으로 옮긴다(X.loading-trust.spec §4.4.3 표).
 - [제안] L1 결함(훅 발화 코드의 잘못)은 `PrimitiveError`가 아닌 `Bug`(eng.typescript.guide)로 던진다. 대상은 페이로드 스키마 위반(`Bug("dispatch.payload_invalid: …")`)과 `finalize` 누락(`Bug("dispatch.finalize_missing: …")`)이다. 확장이 고칠 수 있는 오류만 `PrimitiveError`다.
 
 ## 4. 동작 규칙
@@ -819,7 +820,7 @@ Cordis는 두 가지에만 쓴다.
 
 레지스트리 규칙:
 
-1. `g.on(point, handler)`는 (a) 세대가 열려 있는지(§4.5.4), (b) `validateUsage`의 `point_undeclared`에 걸리지 않는지 확인한 뒤, `fiber.effect(() => { registry.add(entry); return () => registry.remove(entry) })`로 등록한다. 반환하는 `Unsubscribe`는 effect 해제기를 감싼 함수이고 여러 번 불러도 한 번만 동작한다.
+1. `g.on(point, handler)`는 (a) 세대가 열려 있는지(§4.5.4), (b) `validateUsage`의 `hook_undeclared`에 걸리지 않는지 확인한 뒤, `fiber.effect(() => { registry.add(entry); return () => registry.remove(entry) })`로 등록한다. 반환하는 `Unsubscribe`는 effect 해제기를 감싼 함수이고 여러 번 불러도 한 번만 동작한다.
 2. 등록 순번 `seq`는 ExtHost 전체에서 단조 증가하는 정수다.
 3. 디스패치 시작 때 `registry.snapshot(point, threadId)`가 항목 배열을 복사한다. 이 배열에는 스냅샷 시점에 세대가 열려 있고 그 thread에서 켜진 scope의 항목만 들어간다. 디스패치 도중의 `add`·`remove`·토글은 진행 중인 디스패치에 반영되지 않는다(pi `runner.ts:269-271` `snapshotEventHandlers`와 같다).
 4. 스냅샷에 들어간 항목의 scope가 디스패치 도중 꺼져도 그 디스패치에서는 실행된다. 끄기 적용은 단계 경계에서만 일어나고 디스패치는 step 안에서 일어나므로 실제로는 겹치지 않는다. detached tap만 경계를 넘어 실행될 수 있다.
@@ -867,7 +868,7 @@ ownRun(work, budget, outer):
 - 시간 초과 뒤에도 핸들러 Promise는 계속 돈다. X는 결과를 버리고 `ctx.signal`을 중단 상태로 바꾼다. 늦게 끝난 핸들러의 반환값은 쓰지 않고, 늦게 던진 오류는 `policy.onHandlerFailure`로만 보고한다. 강제로 멈추지 못한다(§5 13번).
 - `aborted`(사용자 중단, 세션 종료, 세대 닫힘으로 끝남)는 fold에서 실패와 같이 처리한다(`failure: "closed"`인 first는 `FIRST_DENY`, `open`인 first와 collect는 그 핸들러를 건너뜀, chain은 그 패치 생략, tap은 계속). 다만 `onHandlerFailure`로 보고하지 않는다. X.operations.spec §4.3.1의 `aborted` 분류와 같다.
 - 성공 보고 [제안]: fold 처리가 끝난 뒤 그 호출이 `onHandlerFailure`로 보고되지 않았으면(`result_invalid`, `merge_rejected`도 실패다) `policy.onHandlerSettled?.(info, activeMs)`를 한 번 부른다. `value_from_tap`은 실패가 아니므로 성공 보고를 막지 않는다.
-- `withAmbient`는 `node:async_hooks`의 `AsyncLocalStorage`로 현재 thread와 디스패치 키를 핸들러 비동기 흐름에 싣는다 [제안]. `ScopeApi.state()`, `commit`, `post`, `record`가 이 값을 읽는다(§4.6.3). [가정] Bun 1.4의 `AsyncLocalStorage`가 await 경계를 넘어 값을 유지한다. M0 단위 테스트로 확인한다.
+- `withAmbient`는 `node:async_hooks`의 `AsyncLocalStorage`로 현재 thread와 디스패치 키를 핸들러 비동기 흐름에 싣는다 [제안]. `RegistrationApi.state()`, `commit`, `post`, `record`가 이 값을 읽는다(§4.6.3). [가정] Bun 1.4의 `AsyncLocalStorage`가 await 경계를 넘어 값을 유지한다. M0 단위 테스트로 확인한다.
 
 tap:
 
@@ -983,16 +984,16 @@ lifecycle [결정: adr.0017]:
 
 #### 4.4.1 등록과 중재
 
-1. `g.drive(fn, options)`는 setup 안에서만 부를 수 있다. 밖에서 부르면 `drive_outside_setup`이다. 매니페스트 `kind`가 `group`이 아니면 `drive_requires_group`, `usesDrive`가 참이 아니면 `drive_undeclared`, 같은 scope에서 두 번 부르면 `drive_duplicate`다. 그룹당 슬롯은 하나다([결정] ADR-0007 §3.1).
+1. `g.drive(fn, options)`는 setup 안에서만 부를 수 있다. 밖에서 부르면 `drive_outside_setup`이다. 정책 `x.primitives.driveRequiresGroup`(기본 `true`)이 참이고 이 플러그인이 플러그인 그룹의 구성원(`inGroup`)이 아니면 `drive_requires_group`, 플러그인의 `drives`가 참이 아니면 `drive_undeclared`, 같은 Registration에서 두 번 부르면 `drive_duplicate`다. Registration당 슬롯은 하나다([결정] ADR-0007 §3.1). 정책을 거짓으로 풀면 `drives: true`를 선언한 모든 플러그인이 등록할 수 있다([결정: 2026-11-01 사용자]). 정책은 setup 때 읽으므로 바뀐 값은 Registration을 다시 켜거나 `ext.reload`할 때 적용된다. `untrusted` 확장은 로드되지 않으므로 정책과 무관하게 drive를 못 쓴다.
 2. 등록은 임대를 만들지 않는다. 등록은 fiber effect이고, scope가 꺼지면 함께 사라진다.
 3. 임대는 thread마다 하나다. 한 thread에서 동시에 임대를 가진 scope는 최대 하나다([결정] ADR-0007 §3.6). 임대 부여는 경계 훅(`step_end`, `turn_settled`, `idle`)과 `openThread`에서만 판단한다.
 3a. [결정: M3b B3-L1M, 오케스트레이터 기본값] `openThread(threadId, { child: true })`로 연 서브에이전트 자식 대화에는 임대를 부여하지 않는다. 자식 대화의 구동은 위임한 쪽(`loop.spawn`, 그룹 `delegate`)이 맡으므로 그 대화에서 drive 함수가 돌면 안 된다. 호스트는 자식 turn을 여는 감싸개에서 이 인자를 준다.
-4. 후보는 그 thread에서 켜져 있고 drive 등록이 있고 오류 상태가 아닌 scope다. 고르는 순서 [제안]:
-   - `LeaseArbiterPort`가 있으면 그 결과를 쓴다(L3.group-sdk.spec의 `DriveArbiter`).
+4. 후보는 그 thread에서 켜져 있고 drive 등록이 있고 오류 상태가 아닌 Registration이다. 고르는 순서 [제안]:
+   - `DriveLockArbiterPort`가 있으면 그 결과를 쓴다(L3.group-sdk.spec의 `DriveArbiter`).
    - 없으면 후보가 하나일 때 그 scope를 고른다.
-   - 둘 이상이면 설정 `x.primitives.activeDriveGroup`(thread 범위 값)이 가리키는 후보를 고른다. drive 보유 그룹을 고르는 설정은 이 키 하나다([결정: review.decisions-2 S-15]). 설정이 없거나 후보 밖이면 아무에게도 주지 않고 `drive_conflict` 경고를 낸다. 사용자는 L4 설정 화면에서 고른다(F.extensions.spec §5 5번).
+   - 둘 이상이면 설정 `x.primitives.activeDriver`(thread 범위 값)이 가리키는 후보를 고른다. drive 보유 그룹을 고르는 설정은 이 키 하나다([결정: review.decisions-2 S-15]). 설정이 없거나 후보 밖이면 아무에게도 주지 않고 `drive_conflict` 경고를 낸다. 사용자는 L4 설정 화면에서 고른다(F.extensions.spec §5 5번).
    - 후보는 그 thread에서 켜진 scope만 센다(§4.5.2). 한 thread에서 꺼진 그룹은 다른 thread의 후보여도 이 thread의 후보가 아니다.
-5. 이미 임대가 있으면 중재자와 후보 수를 다시 묻지 않는다. 설정 `x.primitives.activeDriveGroup`이 다른 그룹을 가리킬 때만 예외다. 가리킨 그룹이 이 thread의 후보(켜져 있고 drive를 등록했고 오류 상태가 아니고 `idle`·`budget` 반납 뒤 대기 중이 아님)이면 현재 임대를 `revoked` 사유로 `releasing`으로 바꾼다. 반납은 다음 경계 커밋에서 기록되고, 그 커밋이 끝나면 곧바로 이어서 후보를 다시 판단해 가리킨 그룹에 `lease.acquired`를 기록한다. 가리킨 그룹이 후보가 아니면 현재 임대를 유지한다. 진행 중인 `loop.turn`은 끊지 않는다(§4.4.4). 설정이 `null`로 바뀌거나 중재자가 다른 그룹을 고르게 되어도 회수하지 않는다. 회수는 사용자가 이름을 지정한 경우의 동작이다([결정: P-22]).
+5. 이미 임대가 있으면 중재자와 후보 수를 다시 묻지 않는다. 설정 `x.primitives.activeDriver`이 다른 그룹을 가리킬 때만 예외다. 가리킨 그룹이 이 thread의 후보(켜져 있고 drive를 등록했고 오류 상태가 아니고 `idle`·`budget` 반납 뒤 대기 중이 아님)이면 현재 임대를 `revoked` 사유로 `releasing`으로 바꾼다. 반납은 다음 경계 커밋에서 기록되고, 그 커밋이 끝나면 곧바로 이어서 후보를 다시 판단해 가리킨 그룹에 `lease.acquired`를 기록한다. 가리킨 그룹이 후보가 아니면 현재 임대를 유지한다. 진행 중인 `loop.turn`은 끊지 않는다(§4.4.4). 설정이 `null`로 바뀌거나 중재자가 다른 그룹을 고르게 되어도 회수하지 않는다. 회수는 사용자가 이름을 지정한 경우의 동작이다([결정: P-22]).
 6. 부여: `leaseEpoch = 그 scope의 직전 차수 + 1`, `leaseId = ids`로 만든 불투명 문자열(40자 이하) [제안]. 경계 기여에 `lease.acquired { leaseId, scopeId, limits }`(F.records.spec §3.3)를 넣는다. 임대 상태는 `active`다.
 7. `lease.acquired`의 `leaseEpoch`(F `LeaseAcquiredPayload.leaseEpoch`, 선택 필드)에 부여한 차수를 싣는다. 재개 때는 `ExtThreadSnapshot.openLease.leaseEpoch`와 `leaseEpochs`로 같은 임대를 같은 `leaseId`·차수로 이어 간다(`restore`). 옛 기록처럼 필드가 없으면 활성 가지 위 scope별 `lease.acquired` 개수로 다시 센다. 되감은 뒤에는 버려진 가지의 차수 값이 다시 나올 수 있고, 펜싱과 멱등 키는 `leaseId`(임대마다 새로 발급)를 함께 쓰므로 섞이지 않는다.
 8. [제안, M3-REQ-28, D-M3-05 a] 대기와 거부. 임대를 받지 못한 후보(다른 그룹이 임대를 가졌거나 중재자가 다른 그룹을 골랐음)는 대기한다. X는 경계마다 후보별 대기를 세며 `turn_settled`와 `idle` 경계가 한 번 지날 때마다 1을 더한다(`step_end`는 세지 않는다). 값이 `x.primitives.leaseWaitLimit`(기본 8, §6)을 넘으면 그 경계 기여에 내구 이벤트 `lease.rejected { groupId, reason: "wait_limit", requestSeq }`를 싣는다. `requestSeq`는 thread 안에서 후보가 대기를 시작한 순번이다. 거부된 scope는 그 thread에서 다음 임대 반납이 커밋될 때까지 다시 세지 않고, 반납이 커밋되면 모든 후보가 새로 대기를 시작한다. 거부 이벤트의 커밋 키는 `lease:<대기 scope>:rejected:<임대를 가진 scope>.<그 임대 차수>`다. 둘 다 커밋된 값이라 thread를 다시 열어 `requestSeq`가 0부터 다시 시작해도 다른 임대 아래의 거부와 키가 겹쳐 사라지지 않는다. 같은 임대 아래의 같은 거부를 다시 열린 thread가 한 번 더 내면 `replayed`로 한 건만 남는다. 경계 커밋이 실패하면 그 경계가 올린 대기 계수를 되돌린다. 거부는 그룹의 `on`, `post`, `commit`을 막지 않는다. 이벤트가 커밋되면 `lifecycle.lease.rejected`가 발화한다(§4.11). `GroupStatus.drive "rejected"`를 채우는 일은 group-sdk 몫이다.
@@ -1004,7 +1005,7 @@ lifecycle [결정: adr.0017]:
    - 일반 기본값 `x.primitives.driveDefaultLimits`(기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`): 상한을 명시하지 않은 임대에 쓴다.
    - 그룹 덮어쓰기: 그룹이 자기 설정(예: `ext.helm.driveLimits`, Helm 기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`)을 `DriveOptions.limits`로 넘긴다.
    - 천장 `x.primitives.driveLimits`(기본 `{}`, 천장 없음): 어떤 임대도 이 값을 넘지 못한다.
-2. 실효 상한은 필드마다 정한다. 먼저 `base[k] = DriveOptions.limits[k] ?? driveDefaultLimits(threadId)[k]`다. `driveLimits(threadId)[k]`가 있으면 `min(base[k], driveLimits(threadId)[k])`, 없으면 `base[k]`다. `base[k]`도 천장도 없으면 그 필드는 상한 없음(`LeaseBudget`의 `null`)이다. 두 설정은 임대를 받는 thread로 읽는다(둘 다 session 범위를 받는 키이기 때문이다). 사용자가 `driveDefaultLimits`에 일부 필드만 적으면(`{ maxTurns: 6 }`) 빠진 필드는 내장 기본값(`withDriveDefaults`)으로 채워 돌려준다. 그래서 필드를 비워도 기본 상한은 사라지지 않고, 상한을 풀려면 큰 값을 적는다. `DriveOptions.limits`가 천장보다 크면 천장 값으로 클램프하고 `info` 진단을 낸다(F.extensions.spec §6).
+2. 실효 상한은 필드마다 정한다. 먼저 `base[k] = DriveOptions.limits[k] ?? driveDefaultLimits(threadId)[k]`다. `driveLimits(threadId)[k]`가 있으면 `min(base[k], driveLimits(threadId)[k])`, 없으면 `base[k]`다. `base[k]`도 천장도 없으면 그 필드는 상한 없음(`DriveLockBudget`의 `null`)이다. 두 설정은 임대를 받는 thread로 읽는다(둘 다 session 범위를 받는 키이기 때문이다). 사용자가 `driveDefaultLimits`에 일부 필드만 적으면(`{ maxTurns: 6 }`) 빠진 필드는 내장 기본값(`withDriveDefaults`)으로 채워 돌려준다. 그래서 필드를 비워도 기본 상한은 사라지지 않고, 상한을 풀려면 큰 값을 적는다. `DriveOptions.limits`가 천장보다 크면 천장 값으로 클램프하고 `info` 진단을 낸다(F.extensions.spec §6).
 3. 실효 상한은 임대 부여 때 한 번 정하고 `lease.acquired.limits`에 기록한다. 임대 도중 설정을 바꿔도 현재 임대에는 반영하지 않는다 [제안].
 4. 사용량: `turns`는 새로 실행된(재생이 아닌) `loop.turn` 수, `spawns`는 새로 실행된 `loop.spawn` 수, `tokens`는 그 결과 `usage.totalTokens`의 합이다 [가정: pi-ai `Usage`의 필드 이름]. 재개 때는 `OpenLease.used`로 복원한다.
 5. 검사 시점은 `loop.turn`·`loop.spawn` 호출 직전이다. 남은 양이 0 이하면 `PrimitiveError("lease_budget")`로 거부하고 임대를 `releasing`으로 바꾼다. 실행 중인 turn이 토큰 상한을 넘겨도 그 turn을 끊지 않는다.
@@ -1078,7 +1079,7 @@ makeLoopHandle(lease, inv):
 | `budget` | 상한 소진으로 `releasing` | 다음 경계 |
 | `error` | drive 함수 예외 | 다음 경계. 함수가 이미 반환했으므로 진행 중인 `loop.turn`이 없다 |
 | `idle` | 같은 판으로 연속 두 번 효과 없음 | 다음 경계 |
-| `revoked` | `x.primitives.activeDriveGroup`이 다른 후보 그룹을 가리켜 회수(§4.4.1 5번) | 다음 경계. 같은 thread의 다음 부여는 이어서 판단 |
+| `revoked` | `x.primitives.activeDriver`이 다른 후보 그룹을 가리켜 회수(§4.4.1 5번) | 다음 경계. 같은 thread의 다음 부여는 이어서 판단 |
 | `restart` | 재개 때 임대 scope가 설치되지 않았거나 꺼져 있음 | `openThread` 직후 첫 경계 |
 
 - `releasing` 상태에서 `loop.turn`·`loop.spawn`은 `lease_revoked`(사유가 budget이면 `lease_budget`)로 거부한다.
@@ -1087,10 +1088,10 @@ makeLoopHandle(lease, inv):
 
 #### 4.4.6 Helm과 학습 그룹의 공존
 
-[결정] Helm과 학습 그룹은 L3 기본 그룹이고 학습 그룹은 drive를 쓰지 않는다(F.extensions.spec §4.6).
+[결정] Helm과 학습은 L3 기본 플러그인 그룹이고 학습은 `drives: false`라 drive를 쓰지 않는다(F.extensions.spec §4.6). 그룹의 Registration만 주도 후보다.
 
 ```text
-thread T, 두 scope 모두 켜짐
+thread T, 두 Registration 모두 켜짐
   helm      : drive 등록, on(before_agent_start chain, tool_call first, turn_end chain), post
   learning  : on(turn_end chain, agent_settled tap), post, 백그라운드 위임(fresnel.agents)
 경계 b1: 후보 = [helm] → helm 임대 부여(lease.acquired)
@@ -1120,9 +1121,10 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 
 #### 4.5.1 정의
 
-1. `host.scope(id, def, setup)`(F `ScopeFn`)는 정의만 등록하고 `ScopeHandle`을 돌려준다. setup은 켜기가 적용될 때 실행된다. `install`이 엔트리를 부르면서 넘기는 `scope`가 이 함수다(§3.2).
-2. 주 scope의 id는 매니페스트 `name`이다. 하위 scope는 `<name>/<하위>`다(`SCOPE_ID_PATTERN`). 다른 확장 이름으로 시작하는 id는 `scope_foreign_id`, 같은 id를 두 번 정의하면 `scope_duplicate`다.
-3. 초기 켜기 요청: `ext.<name>.enabled` 설정 값(X.loading-trust.spec 소유)이 있으면 그 값, 없으면 `ScopeDef.defaultEnabled ?? manifest.defaultEnabled ?? true`다 [제안]. 하위 scope는 매니페스트 기본값을 따르지 않고 `ScopeDef.defaultEnabled ?? false`다 [제안].
+1. `host.register(id, def, setup)`(F `RegistrationFn`)는 정의만 등록하고 `RegistrationHandle`을 돌려준다. setup은 켜기가 적용될 때 실행된다. `install`이 엔트리를 부르면서 넘기는 `register`가 이 함수다(§3.2).
+2. Registration id는 F `registrationIdOf`가 정한다: 루트 플러그인은 매니페스트 `name`, 그 밖은 `<name>/<플러그인 id>`다(`REGISTRATION_ID_PATTERN`). 다른 확장 이름으로 시작하는 id는 `registration_foreign_id`, 이 확장이 `plugins[]`에 선언하지 않은 id는 `registration_unknown_plugin`, 같은 id를 두 번 정의하면 `registration_duplicate`다. 선언했지만 `register`하지 않은 플러그인은 로더 진단 `plugin_not_registered`(warning)다 [제안].
+3. 초기 켜기 요청: `ext.<name>.enabled` 설정 값(X.loading-trust.spec 소유)이 있으면 그 값, 없으면 `RegistrationDef.defaultEnabled ?? plugins[].defaultEnabled ?? (루트 ? manifest.defaultEnabled ?? true : false)`다(F `pluginDefaultEnabled`) [제안]. 옛 규칙의 "하위 scope는 `false`"와 같은 결과다.
+4. 플러그인 그룹의 구성원(`group.members` 전체)은 한 번에 켜지고 꺼진다. 한 구성원의 setup이 실패하면 그룹 전체 켜기가 실패(`disabled`에 머묾)하고 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: 기본값, 미결]. 구현은 설치(시작 켜기) 때의 setup 실패에 적용한다. 설치 뒤 구성원 하나만 따로 켜고 끄는 길(`RegistrationHandle`)은 Registration 단위로 남는다(M4 후속).
 
 #### 4.5.2 상태기계
 
@@ -1137,11 +1139,11 @@ stateDiagram-v2
   disabling --> enabled: enable() (적용 전 취소)
 ```
 
-- `enable()`, `disable()`은 요청만 기록하고 즉시 돌아온다(F.extensions.spec §3.2 `ScopeHandle`). 요청은 마지막 것이 이긴다. 적용 시점에 원하는 상태가 현재 상태와 같으면 아무것도 하지 않는다.
-- 상태 값은 F `ScopeStatus` 네 가지다. 실패 정보는 `ScopeInfo.lastError`, 의존 부족은 `ScopeInfo.waiting`으로 보인다.
+- `enable()`, `disable()`은 요청만 기록하고 즉시 돌아온다(F.extensions.spec §3.2 `RegistrationHandle`). 요청은 마지막 것이 이긴다. 적용 시점에 원하는 상태가 현재 상태와 같으면 아무것도 하지 않는다.
+- 상태 값은 F `RegistrationStatus` 네 가지다. 실패 정보는 `RegistrationInfo.lastError`, 의존 부족은 `RegistrationInfo.waiting`으로 보인다.
 - 토글 요청은 사용자 조작(L4 명령·설정)과 `ext.<name>.enabled` 설정 변경에서 온다. 요청 자체는 이벤트로 남기지 않고, 적용 결과만 `scope.changed`로 남긴다(F.records.spec §3.3) [제안]. eng.transactions.design §4.8도 같은 코어 kind를 쓴다.
 - 켜짐 상태는 thread마다 둔다(`scope.changed`는 thread 이벤트다)([결정: P-28], M2 구현).
-  - 요청은 두 층이다. `ScopeHandle.enable()`·`disable()`은 전체 기본값(`ScopeRecord.desired`)을 바꾸고 모든 thread의 별도 요청을 지운다. 새로 여는 thread도 이 기본값으로 시작한다. 한 thread만의 요청은 조립 루트가 쓰는 `scopeToggleSourceOf(host).request(scopeId, enabled, reason, threadId)`(세션 범위 `ext.<name>.enabled`)로 기록한다. 이 요청은 그 thread만 바꾼다.
+  - 요청은 두 층이다. `RegistrationHandle.enable()`·`disable()`은 전체 기본값(`RegistrationRecord.desired`)을 바꾸고 모든 thread의 별도 요청을 지운다. 새로 여는 thread도 이 기본값으로 시작한다. 한 thread만의 요청은 조립 루트가 쓰는 `registrationToggleSourceOf(host).request(scopeId, enabled, reason, threadId)`(세션 범위 `ext.<name>.enabled`)로 기록한다. 이 요청은 그 thread만 바꾼다.
   - 디스패치 스냅샷은 그 thread에서 켜진 scope의 핸들러만 고른다. 켜진 scope는 세대가 열려 있고 그 thread가 켠 상태(`ThreadRuntime.active`)인 것이다. 열어 두지 않은 thread(M0 시험)는 세대가 열려 있으면 켜진 것으로 본다.
   - 세대와 fiber는 scope마다 하나이고 한 thread라도 켜 두거나 켜기를 바라는 동안 살아 있다. 어느 thread도 쓰지 않으면 다음 경계 적용에서 닫는다. 다른 thread가 이미 연 세대를 켜는 thread는 setup을 다시 실행하지 않고 그 thread의 켜짐 집합과 상태 문서 준비(§4.6.1 3번)만 한다. `onDispose`는 세대를 닫을 때 한 번 실행된다.
   - 임대, 상태 판, `scope.changed`는 thread마다 따로다. 한 thread에서 scope를 끄면 그 thread의 임대만 `disabled`로 반납한다.
@@ -1152,9 +1154,9 @@ stateDiagram-v2
 켜기(`enabling` → `enabled`), `prepare` 안에서:
 
 1. 새 세대 번호와 `AbortController`를 만든다.
-2. `ctx.plugin({ name: scopeId, inject: requires 기능 이름들, apply })`로 fiber를 만든다. `apply` 안에서 F `ScopeApi`와 `hostOf` 객체를 만들고 setup을 await한다. setup 안의 모든 등록은 이 fiber의 effect다. setup에는 `ExtHostDeps.setupBudgetMs()` 예산을 건다. 넘으면 fiber를 dispose하고 실패(`timeout`)로 처리한다. 예산을 넘긴 뒤 늦게 끝난 setup의 등록은 세대가 닫혀 있으므로 `scope_inactive`로 버린다.
-3. setup이 던지거나 거부하면(선언 밖 `on`의 `point_undeclared`, setup 본문의 `state()`·`post` 등이 낸 `no_thread` 포함) fiber를 dispose하고 실패(`threw`, 그 `PrimitiveError` 코드)로 처리한다. setup이 끝나면 `validateUsage(manifest, usage)`를 부른다. 오류가 있으면 fiber를 dispose하고 실패로 처리한다. 실패한 scope는 `scope_setup_failed`로 `disabled`에 머물고 `ScopeInfo.lastError`에 원인을 둔다.
-4. 이 thread의 상태 문서를 준비한다(§4.6.1 3번). setup이 끝난 뒤에 하므로 setup이 `hostOf(g).migrateState`로 등록한 훅을 쓸 수 있다. 마이그레이션이 필요한데 훅이 없으면 `state_migration_missing`, 저장된 버전이 선언보다 높으면 `state_future_version`으로 실패 처리한다. 세대를 새로 만드는 켜기는 전체 실패(`disabled`)가 되고, 다른 thread가 쓰는 열린 세대에 더하는 켜기는 그 thread만 거부한다(`ScopeInfo.lastError`와 진단, 그 thread가 다시 토글하기 전까지 재시도하지 않는다).
+2. `ctx.plugin({ name: scopeId, inject: requires 기능 이름들, apply })`로 fiber를 만든다. `apply` 안에서 F `RegistrationApi`와 `hostOf` 객체를 만들고 setup을 await한다. setup 안의 모든 등록은 이 fiber의 effect다. setup에는 `ExtHostDeps.setupBudgetMs()` 예산을 건다. 넘으면 fiber를 dispose하고 실패(`timeout`)로 처리한다. 예산을 넘긴 뒤 늦게 끝난 setup의 등록은 세대가 닫혀 있으므로 `registration_inactive`로 버린다.
+3. setup이 던지거나 거부하면(선언 밖 `on`의 `hook_undeclared`, setup 본문의 `state()`·`post` 등이 낸 `no_thread` 포함) fiber를 dispose하고 실패(`threw`, 그 `PrimitiveError` 코드)로 처리한다. setup이 끝나면 `validateUsage(manifest, usage)`를 부른다. 오류가 있으면 fiber를 dispose하고 실패로 처리한다. 실패한 scope는 `registration_setup_failed`로 `disabled`에 머물고 `RegistrationInfo.lastError`에 원인을 둔다.
+4. 이 thread의 상태 문서를 준비한다(§4.6.1 3번). setup이 끝난 뒤에 하므로 setup이 `hostOf(g).migrateState`로 등록한 훅을 쓸 수 있다. 마이그레이션이 필요한데 훅이 없으면 `state_migration_missing`, 저장된 버전이 선언보다 높으면 `state_future_version`으로 실패 처리한다. 세대를 새로 만드는 켜기는 전체 실패(`disabled`)가 되고, 다른 thread가 쓰는 열린 세대에 더하는 켜기는 그 thread만 거부한다(`RegistrationInfo.lastError`와 진단, 그 thread가 다시 토글하기 전까지 재시도하지 않는다).
 5. 경계 기여에 `scope.changed { scopeId, status: "enabled" }`를 넣는다.
 6. `settle(committed)`에서 세대를 연다. 이때부터 디스패치 스냅샷에 들어간다. `settle(failed)`면 fiber를 dispose하고 `enabling`으로 남겨 다음 경계에서 다시 시도한다.
 
@@ -1167,13 +1169,13 @@ stateDiagram-v2
 
 - `onDispose`는 F 타입에 남긴다. X는 setup 중 받은 `onDispose` 함수들을 fiber effect 하나에 모아 등록 역순으로 차례로 await한다. Cordis가 effect들을 동시에 해제하기 때문이다(`fiber.ts:453-463`). 정리 함수의 예외는 기록하고 다음 함수로 간다.
 - 큐에 이미 들어간 post 항목은 그대로 둔다(F.extensions.spec §4.5). 끈 scope가 넣은 steer·followUp·next 항목도 예정대로 소비된다.
-- 끈 scope의 `ScopeApi` 메서드를 늦게 부르면(정리 뒤 남은 비동기 콜백) `scope_inactive`로 거부한다.
+- 끈 scope의 `RegistrationApi` 메서드를 늦게 부르면(정리 뒤 남은 비동기 콜백) `registration_inactive`로 거부한다.
 
 #### 4.5.4 세대 가드
 
 - 세대는 scope마다 1부터 증가한다. 등록 함수(`on`, `drive`, `hostOf(g).register*`, `provide`)는 호출한 `g`의 세대가 열려 있는지 확인한다. setup 실행 중(세대가 아직 열리기 전)의 등록은 허용한다.
-- 공급자 재시작으로 Cordis가 소비자 fiber의 apply를 다시 부르면(X-2 §6.3) X는 setup을 바로 다시 실행하지 않는다. 그 세대에 `stale`을 표시하고(`ScopeInfo.status`는 `enabling`) 유휴 적용을 예약한다. 다음 단계 경계의 `prepare`(유휴면 곧바로 이어지는 유휴 적용)가 낡은 세대를 치우고(`onDispose` 포함) 새 세대로 setup을 다시 실행한다. 공급자가 내려갈 때 Cordis가 그 세대의 등록(on, drive, 리소스, provide)을 이미 해제했으므로 그 사이 소비자의 핸들러는 스냅샷에 없다. 임대는 두고 새 세대의 drive 함수로 이어 간다. 켜짐 기록이 그대로라 새 `scope.changed`는 쓰지 않는다. 새 세대의 setup이 실패하면 일반 켜기 실패와 같다([결정: D8, `review.open-issues` N-02]).
-- 옛 세대의 g로 부른 등록은 `scope_inactive`로 거부한다. Cordis `assertActive`가 PENDING·UNLOADING에서 던지지 않는 점(`fiber.ts:218-221`)을 이 가드가 메운다.
+- 공급자 재시작으로 Cordis가 소비자 fiber의 apply를 다시 부르면(X-2 §6.3) X는 setup을 바로 다시 실행하지 않는다. 그 세대에 `stale`을 표시하고(`RegistrationInfo.status`는 `enabling`) 유휴 적용을 예약한다. 다음 단계 경계의 `prepare`(유휴면 곧바로 이어지는 유휴 적용)가 낡은 세대를 치우고(`onDispose` 포함) 새 세대로 setup을 다시 실행한다. 공급자가 내려갈 때 Cordis가 그 세대의 등록(on, drive, 리소스, provide)을 이미 해제했으므로 그 사이 소비자의 핸들러는 스냅샷에 없다. 임대는 두고 새 세대의 drive 함수로 이어 간다. 켜짐 기록이 그대로라 새 `scope.changed`는 쓰지 않는다. 새 세대의 setup이 실패하면 일반 켜기 실패와 같다([결정: D8, `review.open-issues` N-02]).
+- 옛 세대의 g로 부른 등록은 `registration_inactive`로 거부한다. Cordis `assertActive`가 PENDING·UNLOADING에서 던지지 않는 점(`fiber.ts:218-221`)을 이 가드가 메운다.
 
 #### 4.5.5 실행 중인 turn이 없을 때의 적용 시점
 
@@ -1184,7 +1186,7 @@ F.extensions.spec §4.5와 L3.readme가 위임한 항목이다.
 1. X는 `LoopPort.whenIdle(threadId, apply)`를 부른다. L1은 `apply`가 끝날 때까지 새 turn 시작을 막는다.
 2. `apply`는 `boundary.prepare({ kind: "idle" })`, `RecordCommitPort.commit({ requestId: "scope:<scopeId>:<세대>" 또는 임대 키, drafts })`, `boundary.settle(...)`을 차례로 실행한다. 키에 넣는 scope id의 `/`는 `:`로 바꾼다(예: `scope:helm:review:3`). [결정: review.decisions-2 U-13] 커밋 키 형식의 정본은 eng.transactions.design의 `COMMIT_KEY_PATTERN`이고 `/`는 그 패턴에 없다.
 3. 실행 중에 요청이 오면 다음 단계 경계에서 적용한다. 같은 요청이 유휴 적용과 경계 적용 양쪽에 걸리지 않게 요청마다 처리 표시를 둔다.
-4. [결정] 유휴 적용과 다른 경계 훅은 한 thread에서 겹치지 않는다. 유휴 적용이 진행 중이면(`prepare`부터 `settle`까지) 그 사이에 들어온 `boundary.prepare`는 적용이 끝난 뒤에 시작한다. 반대로 루프가 커밋한 경계(`turn_settled`)가 아직 정산되지 않았으면 유휴 적용은 시작하지 않고 그 경계가 정산된 뒤에 다시 요청한다. 겹치면 뒤 prepare가 앞 txn을 실패로 되돌려 이미 커밋된 끄기·켜기가 `scope.changed`로 두 번 기록되고 `ScopeHandle.status`가 `disabling`에 남기 때문이다.
+4. [결정] 유휴 적용과 다른 경계 훅은 한 thread에서 겹치지 않는다. 유휴 적용이 진행 중이면(`prepare`부터 `settle`까지) 그 사이에 들어온 `boundary.prepare`는 적용이 끝난 뒤에 시작한다. 반대로 루프가 커밋한 경계(`turn_settled`)가 아직 정산되지 않았으면 유휴 적용은 시작하지 않고 그 경계가 정산된 뒤에 다시 요청한다. 겹치면 뒤 prepare가 앞 txn을 실패로 되돌려 이미 커밋된 끄기·켜기가 `scope.changed`로 두 번 기록되고 `RegistrationHandle.status`가 `disabling`에 남기 때문이다.
 
 근거: 유휴 thread에는 다가올 단계 경계가 없다. 경계까지 미루면 사용자가 다음 입력을 보낼 때까지 토글이 보류된다. 유휴 상태에는 중간에 끊길 step이 없으므로 즉시 적용해도 경계 적용과 같은 보장을 낸다. L1이 turn 시작을 막는 동안 적용하므로 입력과 경합하지 않는다.
 
@@ -1196,17 +1198,17 @@ F.extensions.spec §4.5와 L3.readme가 위임한 항목이다.
 
 1. `unit.entry({ manifest, scope })`를 한 번 부르고 await한다. 엔트리가 던지면 정의한 scope를 지우고 `entryError`에 담아 돌려준다. 엔트리 본문의 시간 예산은 scope setup과 같은 `setupBudgetMs`다.
 2. 초기 켜기 요청(§4.5.1 3번)이 참인 scope마다, 실행 중인 thread가 없으면 켜기 적용 1~3단계(fiber 생성, setup, `validateUsage`)를 바로 실행하고 세대를 연다(`applied` 또는 `failed`). 첫 turn 전이므로 단계 경계까지 미룰 이유가 없다. 상태 문서 준비(4단계)는 thread가 열릴 때(`openThread`) 한다.
-3. 실행 중인 thread가 있으면(예: 실행 중 `ensureLoaded`) 시작 적용을 하지 않고 켜기 요청만 기록한다(`deferred`). 적용은 다음 경계의 일반 켜기 적용(§4.5.3)이고, 실패는 `ScopeInfo.lastError`로만 보인다.
+3. 실행 중인 thread가 있으면(예: 실행 중 `ensureLoaded`) 시작 적용을 하지 않고 켜기 요청만 기록한다(`deferred`). 적용은 다음 경계의 일반 켜기 적용(§4.5.3)이고, 실패는 `RegistrationInfo.lastError`로만 보인다.
 4. 초기 요청이 거짓인 scope는 `skipped`다.
 
 - 시작 적용으로 켜진 scope의 `scope.changed`는 install 시점에 커밋하지 않는다. thread를 열 때(`openThread`) 이미 세대가 열린 scope를 그 thread의 켜짐 집합에 올리고(`seedThread`), `ExtThreadSnapshot.enabled`와 켜짐 집합이 다를 때만 첫 경계 기여에 넣는다. 같으면 아무것도 쓰지 않는다(`review.open-issues` N-01). 이미 열린 thread가 있는 상태에서 설치하면 그 thread들을 같은 방식으로 바로 켠다.
-- setup 실패 원인은 `ScopeSetupOutcome.failure`로 돌려준다. 로더는 이것을 진단 코드로 옮긴다(X.loading-trust.spec §4.4.3 표).
+- setup 실패 원인은 `RegistrationSetupOutcome.failure`로 돌려준다. 로더는 이것을 진단 코드로 옮긴다(X.loading-trust.spec §4.4.3 표).
 
 ### 4.6 상태 문서, 기록, 레코드
 
 #### 4.6.1 상태 문서와 커밋
 
-1. 상태 문서는 (thread, scope)마다 하나다. `ScopeDef.state`가 없는 scope는 상태가 없다. 그런 scope에서 `state()`·`commit()`을 부르면 `state_undeclared`다.
+1. 상태 문서는 (thread, scope)마다 하나다. `RegistrationDef.state`가 없는 scope는 상태가 없다. 그런 scope에서 `state()`·`commit()`을 부르면 `state_undeclared`다.
 2. 처음 읽을 때 저장된 문서가 없으면 `StateDecl.initial`을 판 0으로 쓴다. 판 0은 저장하지 않는다.
 3. 상태 문서는 thread에서 scope를 켤 때 준비한다(thread를 열 때 이미 세대가 열린 scope, 경계 적용의 켜기, 시작 적용 때 이미 열린 thread). 저장된 판이 없으면 할 일이 없다. 저장된 `version`이 같으면 `StateDecl.schema`로 검사해 어기면 `state_schema`다. 작으면 setup이 `hostOf(g).migrateState`로 등록한 함수를 `(doc, fromVersion)`으로 부른다. 결과를 `StateDecl.schema`로 검사하고 크기를 확인한 뒤 새 판(`rev + 1`, `prevEventId`는 저장된 판의 이벤트 id, `version`은 선언 버전)으로 커밋한다. 이 커밋은 `RecordCommitPort.commit`으로 경계 기여와 따로 하고(`expectStateRev`로 충돌 검사) 키는 `mig:<scope 해시>:<저장 버전>-<선언 버전>:<저장 판>`이라 같은 이동을 다시 하면 `replayed`다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 크기를 넘으면 `state_too_large`로 그 thread의 켜기를 실패시킨다. 저장된 `version`이 더 크면 `state_future_version`으로 그 scope를 그 thread에서 켜지 않는다(F.records.spec §3.7 규칙 3의 `future_version`과 같은 취지). `migrateState`는 setup 안에서(`state_migration_outside_setup`) 상태를 선언한 scope(`state_undeclared`)가 한 번만(`state_migration_duplicate`) 부를 수 있다.
 4. `commit(next)`:
@@ -1253,7 +1255,7 @@ commit(next):
 - 멱등 신원(키와 지문)은 `record`·`recordPrivate`와 같이 호출 시점에 호출 순서대로 받는다. 줄에서 기다리는 `commit`·`updateState`도 같다. `updateState`의 재시도는 같은 신원에 접미사 `.a1`을 붙인 키와 지문을 쓰고 호출 순번을 더 쓰지 않는다. 시간 예산을 넘겨 버려진 핸들러(좀비)나 닫힌 세션의 핸들러는 신원을 받을 때와 줄에서 실행될 때 `handler_aborted`로 거부되어 커밋하지 못한다(`commit`, `commitWith`, `updateState`, `record`, `recordPrivate`).
 - [제안, M3-REQ-23] 같은 프로세스 안의 직렬화. X는 (thread, scope)마다 커밋 줄을 하나 둔다. `commit`은 호출 순서대로 하나씩 실행하고, 호출 때의 판을 기대 판으로 잡는다. 앞 커밋이 끝난 뒤 캐시 판이 기대 판과 다르면 저장소를 부르지 않고 `state_conflict`다(앞선 커밋이 이긴다). 줄 덕분에 겹친 호출의 결과가 호출 순서만으로 정해진다.
 - [제안, M3-REQ-23] `hostOf(g).updateState(fn, records?)`는 줄 안에서 최신 상태를 읽어 `fn`을 적용하고 커밋한다. 같은 프로세스의 겹침으로는 충돌하지 않아 갱신을 잃지 않는다. 저장소가 판 충돌을 내면(다른 프로세스, 가지 이동) 저장소에서 상태를 다시 읽고 `fn`을 한 번 더 적용하며, 두 번째도 충돌이면 `err({ kind: "state_conflict" })`다. `state_schema`, `state_too_large`, `storage_unavailable`, `lease_revoked`도 던지지 않고 값으로 돌려준다. 이것으로 Helm `updateState` 큐를 지울 수 있다.
-- [제안, M3-REQ-24] `hostOf(g).commitWith(next, records)`는 상태 커밋 초안과 `records`의 그룹 레코드 초안을 한 `RecordCommitPort.commit` 요청으로 낸다(같은 requestId, 같은 트랜잭션). 레코드는 `record`와 같은 검사(`record_kind_undeclared`, `record_invalid`)를 받고, 상태가 충돌하면 레코드도 남지 않는다. `updateState`의 `records`도 같다. F `ScopeApi.commit(next)`는 둘째 인자가 없어 F 변경(`commit(next, { records })`) 대신 X 부가 API로 둔다.
+- [제안, M3-REQ-24] `hostOf(g).commitWith(next, records)`는 상태 커밋 초안과 `records`의 그룹 레코드 초안을 한 `RecordCommitPort.commit` 요청으로 낸다(같은 requestId, 같은 트랜잭션). 레코드는 `record`와 같은 검사(`record_kind_undeclared`, `record_invalid`)를 받고, 상태가 충돌하면 레코드도 남지 않는다. `updateState`의 `records`도 같다. F `RegistrationApi.commit(next)`는 둘째 인자가 없어 F 변경(`commit(next, { records })`) 대신 X 부가 API로 둔다.
 - 핸들러가 받는 `ctx.state`는 디스패치 시작 때의 캐시 값이다. 같은 디스패치 안의 `commit`은 뒤 핸들러의 `ctx.state`를 바꾸지 않는다. `g.state()`는 호출 시점의 캐시 값을 돌려준다.
 
 #### 4.6.2 상태 캐시
@@ -1264,7 +1266,7 @@ commit(next):
 
 #### 4.6.3 thread 맥락
 
-- F `ScopeApi`의 `state`, `commit`, `post`, `record`, `readRecords`는 thread 인자가 없다. X는 디스패치(§4.2 `withAmbient`)와 drive 호출(§4.4.3)이 연 비동기 맥락에서 thread를 읽는다.
+- F `RegistrationApi`의 `state`, `commit`, `post`, `record`, `readRecords`는 thread 인자가 없다. X는 디스패치(§4.2 `withAmbient`)와 drive 호출(§4.4.3)이 연 비동기 맥락에서 thread를 읽는다.
 - 맥락 밖(setup 본문, 핸들러가 띄운 타이머의 늦은 콜백 중 맥락이 끊긴 경우)에서 부르면 `no_thread`로 거부한다. 확장 도구 `execute`와 명령 처리기는 §4.6.6의 호출 맥락을 받으므로 맥락 밖이 아니다.
 - [미결] 타이머·외부 이벤트에서 시작하는 post(예: L2 schedule의 예약 입력은 포트 경로라 해당 없음, 확장 자체 타이머)를 허용할지. 허용하려면 F `PostOptions`에 `threadId?`를 더해야 한다.
 
@@ -1288,20 +1290,20 @@ readRecords(query):
 ```
 
 - [결정: M3-REQ-39, M3b B4-GRP] 계측·승격 집계용 내구 이벤트 조회는 둘이다. 확장 scope 안에서는 `readRecords`의 kind 접두 질의(`grp.<이름>.*`, 자기 접두이거나 `readsRecordKinds`가 덮을 때)를 쓴다. 코어 이벤트(`turn.*`, `lease.*`, `tool.*`)는 `ExtRecordQuery.kind`가 확장 kind만 받으므로 호스트용 `ExtHost.queryEvents(threadId, { kindPrefix, limit? })`로 읽는다. 이 조회는 서비스 `fresnel.session`의 `readBranch`(`SessionBranchPortKey`) 위에서 활성 가지를 커밋 순서로 거르고, 확장 scope에는 열지 않는다. 도구 소유 scope 조회는 `ExtHost.toolOwner(name)`이고 `resources.list("tool")`의 `ResourceRecord`(`scopeId`, `extension`)를 돌려준다.
-- [결정: M3b B4-GRP] 저장된 상태가 스키마·버전 검사를 못 넘기면(`state_schema`, `state_future_version`, `state_migration_*`) scope는 그 thread에서 켜지지 않고 `lastError`가 남는다. 되돌릴 길은 `ExtHost.resetScopeState(threadId, scopeId)`다. 활성 가지의 마지막 판 위에 선언 `initial`을 새 판(rev+1)으로 커밋하고(키 `reset:<scope 해시>:<기존 rev>`, 같은 판의 재호출은 한 번만 쓴다) 거부와 `lastError`를 지운 뒤 적용을 예약한다. 이전 판은 기록에 남는다. 오류가 저장 상태 오류가 아니면 `not_refused`, scope나 열린 thread가 없으면 `unknown_scope`·`thread_not_open`이다. 사람 확인은 호출하는 L3·L4의 몫이다.
-- 플러그인(`kind: "plugin"`)도 `x.<name>.` 레코드를 쓸 수 있다. `GroupRecord.groupId`에는 확장 이름이 들어간다 [제안, F `GroupId = ExtensionName`].
+- [결정: M3b B4-GRP] 저장된 상태가 스키마·버전 검사를 못 넘기면(`state_schema`, `state_future_version`, `state_migration_*`) scope는 그 thread에서 켜지지 않고 `lastError`가 남는다. 되돌릴 길은 `ExtHost.resetRegistrationState(threadId, scopeId)`다. 활성 가지의 마지막 판 위에 선언 `initial`을 새 판(rev+1)으로 커밋하고(키 `reset:<scope 해시>:<기존 rev>`, 같은 판의 재호출은 한 번만 쓴다) 거부와 `lastError`를 지운 뒤 적용을 예약한다. 이전 판은 기록에 남는다. 오류가 저장 상태 오류가 아니면 `not_refused`, scope나 열린 thread가 없으면 `unknown_scope`·`thread_not_open`이다. 사람 확인은 호출하는 L3·L4의 몫이다.
+- `group` 선언이 없는 확장도 `x.<name>.` 레코드를 쓸 수 있다. `GroupRecord.groupId`에는 확장 이름이 들어간다 [제안, F `GroupId = ExtensionName`].
 - 읽기 범위는 현재 thread다 [제안]. 다른 thread의 레코드 조회는 M2 이후 별도 질의로 둔다.
 - 대상 그룹이 설치되어 있지 않아도 빈 목록이나 기존 기록을 돌려준다(F.extensions.spec §5 8번).
 - `readRecords`는 다른 확장이 `recordPrivate`로 쓴 행을 돌려주지 않는다(§4.6.5). `readsRecordKinds`가 `grp.<id>.*`처럼 넓게 선언되어도 같다. 거르는 일은 포트가 `reader` 인자로 한다(F.records.spec §3.9 비공개 기록 규칙 3). X는 `reader`에 `readRecords`를 부른 scope의 확장 이름만 넣고, 다른 확장 이름을 넣지 않는다.
 
 #### 4.6.5 recordPrivate
 
-[결정: review.decisions-2 T-21] 비공개 기록 연산은 `ScopeApi.recordPrivate(kind, payload)`다(F.extensions.spec §3.2, §4.8). 다른 확장이 읽지 않는 자기 이력(예: L3.learning.spec §3.7.1의 `grp.learning.proposal.*`, L3.group-sdk.spec의 `grp.<그룹>.metrics.recorded`)을 남긴다.
+[결정: review.decisions-2 T-21] 비공개 기록 연산은 `RegistrationApi.recordPrivate(kind, payload)`다(F.extensions.spec §3.2, §4.8). 다른 확장이 읽지 않는 자기 이력(예: L3.learning.spec §3.7.1의 `grp.learning.proposal.*`, L3.group-sdk.spec의 `grp.<그룹>.metrics.recorded`)을 남긴다.
 
 ```text
 recordPrivate(kind, payload):
   amb = ambient()                                         // 없으면 no_thread
-  prefix = manifest.kind == "group" ? `grp.${manifest.name}.` : `x.${manifest.name}.`
+  prefix = extensionPrefix(manifest) == "grp" ? `grp.${manifest.name}.` : `x.${manifest.name}.`   // group 선언이 있으면 grp
   kind가 prefix로 시작하지 않음, RECORD_KIND_PATTERN 위반, 영역이 state, recordKinds에 선언된 공개 kind와 같음
     → throw PrimitiveError("record_private_invalid")
   bytes = utf8(JSON.stringify(payload)); bytes > ENVELOPE_MAX_BYTES - 4096 → state_too_large
@@ -1451,9 +1453,9 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 14. 재개 때 열린 임대의 scope가 설치되어 있지 않음: 첫 경계에서 `lease.released { reason: "restart" }`.
 15. 상태 커밋 경합: 뒤 커밋은 `state_conflict`. 확장이 다시 읽고 계산해야 한다.
 16. 상태 문서가 256 KiB 근처: `state_too_large`로 거부. 큰 데이터는 L2 지식 저장소나 확장 전용 테이블(X.operations.spec)에 둔다.
-17. 공급자 확장이 꺼져 기능 바인딩이 사라짐: 그 기능을 `requires`한 scope의 fiber가 Cordis 규칙대로 PENDING이 되고(`ScopeInfo.waiting`), 그 세대의 핸들러는 스냅샷에서 빠진다. 공급자가 돌아오면 새 세대로 setup이 다시 실행된다. 이 연쇄는 경계와 무관하게 즉시 일어난다(§10 미결).
+17. 공급자 확장이 꺼져 기능 바인딩이 사라짐: 그 기능을 `requires`한 scope의 fiber가 Cordis 규칙대로 PENDING이 되고(`RegistrationInfo.waiting`), 그 세대의 핸들러는 스냅샷에서 빠진다. 공급자가 돌아오면 새 세대로 setup이 다시 실행된다. 이 연쇄는 경계와 무관하게 즉시 일어난다(§10 미결).
 18. 포트 부재(`fresnel.loop` 등이 등록되지 않음): 해당 연산만 `port_unavailable`. 디스패치는 동작한다.
-19. 끈 scope의 늦은 콜백이 `on`이나 `post`를 부름: `scope_inactive`.
+19. 끈 scope의 늦은 콜백이 `on`이나 `post`를 부름: `registration_inactive`.
 20. 상태 커밋 뒤 소비 커밋 전 크래시: 재시작 뒤 핸들러가 이미 커밋된 판을 보고 다시 실행된다. 같은 키의 커밋은 `replayed`이고 X는 저장된 doc을 캐시와 반환값에 쓴다(§4.6.1 재실행 규칙).
 21. 되감기 뒤 상태: 활성 가지 위 마지막 상태로 돌아간다. 버려진 가지의 판과 임대는 보이지 않는다(§4.6.1 활성 가지 규칙).
 22. 저장소가 쓰기 잠금 대기 초과나 저장 매체 실패를 돌려줌: `storage_unavailable`. 저장소가 `key_reused`를 돌려줌: X 결함이라 `Bug`다.
@@ -1466,14 +1468,15 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 |---|---|---|---|---|---|
 | `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, launch | `nextTurn`. 다음 임대 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
 | `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(천장 없음) | managed, user, project, launch | `nextTurn`. 다음 임대 부여부터 | 같은 탭의 "drive 상한 천장"(숫자 칸 세 개) |
-| `x.primitives.activeDriveGroup` | `ScopeId \| null` | `null` | user, project, launch | `nextTurn`. 다른 후보 그룹을 가리키면 현재 임대를 다음 경계에서 `revoked`로 반납하고 이어서 부여(§4.4.1 5번) | 같은 탭 "구동 그룹" 선택. 후보 목록은 `ExtHost.scopes()`의 drive 등록 scope |
+| `x.primitives.activeDriver` | `RegistrationId \| null` | `null` | user, project, launch | `nextTurn`. 다른 후보 그룹을 가리키면 현재 임대를 다음 경계에서 `revoked`로 반납하고 이어서 부여(§4.4.1 5번) | 같은 탭 "주도 플러그인" 선택. 후보 목록은 `ExtHost.registrations()`의 drive 등록 Registration |
+| `x.primitives.driveRequiresGroup` [제안] | boolean | `true` | managed, user | `restart`(의미: Registration을 다시 켜거나 `ext.reload`할 때 적용, §4.4.1 1번) | 같은 탭 "drive는 플러그인 그룹만" 토글. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. project 범위로 풀 수 없다(신뢰 관문 우회 방지) |
 | `x.primitives.leaseWaitLimit` [제안] | 정수≥1 | `8` | user, project, launch | `nextTurn` | 같은 탭 "임대 대기 상한" 숫자 칸. 단위는 `turn_settled`·`idle` 경계 수(§4.4.1 8번) |
 | `x.primitives.capabilityProviders` | `Record<CapabilityId, ExtensionName>` | `{}` | user, project | `restart` | 같은 탭 "기능 공급자" 표 |
 
-- `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `activeDriveGroup`은 `select`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
-- [결정: review.decisions-2 S-15] drive 보유 그룹 설정은 `x.primitives.activeDriveGroup` 하나다. L3 문서는 별도 키를 두지 않고 이 키를 쓴다. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
+- `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `activeDriver`는 `text`(후보 목록이 동적이라 select 불가), `driveRequiresGroup`은 `toggle`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
+- [결정: review.decisions-2 S-15] drive 보유 그룹 설정은 `x.primitives.activeDriver` 하나다. L3 문서는 별도 키를 두지 않고 이 키를 쓴다. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
 - [결정: review.decisions-2 U-12] 상한을 명시하지 않은 임대의 기본값은 `driveDefaultLimits` `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. 값 근거는 Helm 기본값과 같다(`L3.helm.spec` §6) [제안]. 그룹 덮어쓰기(예: `ext.helm.driveLimits`)는 각 그룹이 소유하고 `DriveOptions.limits`로 넘긴다. `driveLimits`는 천장이고 기본값 `{}`다(§4.4.2).
-- 명령 [가정: L4.cli.spec이 이름을 정한다]: `fresnel ext drive <scopeId>`가 `activeDriveGroup`을 세션 범위로 바꾸고, `fresnel ext enable|disable <scopeId>`가 `ScopeHandle.enable/disable`을 부른다.
+- 명령 [가정: L4.cli.spec이 이름을 정한다]: `fresnel ext drive <registrationId>`가 `activeDriver`를 세션 범위로 바꾸고, `fresnel ext enable|disable <registrationId>`가 `RegistrationHandle.enable/disable`을 부른다.
 - 파일: 사용자·프로젝트 설정 파일의 같은 키(F.wire-settings.spec).
 
 ## 7. 훅
@@ -1485,7 +1488,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | `on` | 레지스트리, 스냅샷, fold 디스패처, 시간 예산 | 기록하지 않는다. fold 결과는 해당 이벤트(예: `effect.intent`)에 남는다 |
 | `post` | `InputQueuePort.enqueue` 위임, 멱등, `usesPost` 검사 | `input.queued`(`source.type: "extension"`) |
 | `drive` | `LeaseBroker`, `LoopHandle`, 재호출 루프, 상한 | `lease.acquired`, `lease.released`, drive turn의 `turn.started` |
-| `scope` | `ScopeRuntime`, 세대, 상태 커밋, record, recordPrivate | `scope.changed`, `<x\|grp>.<name>.state.committed`, 그룹 레코드 kind, 비공개 기록 kind |
+| `scope` | `RegistrationRuntime`, 세대, 상태 커밋, record, recordPrivate | `scope.changed`, `<x\|grp>.<name>.state.committed`, 그룹 레코드 kind, 비공개 기록 kind |
 
 - `post`, `drive`, `boundary.settle.before`의 `continue`가 겹치는 문제(ADR-0007 §4.2)는 다음 구분으로 둔다. 같은 turn 안의 한 번 연장은 경계 지점 chain의 `continue`, 다음 turn에 붙는 입력은 `post`, turn을 스스로 시작하는 루프 소유는 `drive`다.
 - 재생: on 핸들러는 다시 실행해도 되는 질의다([결정] F.extensions.spec §4.3). 재개 때 열린 의도는 저장된 최종 인자를 쓰고 `tool.call.before` 핸들러를 다시 부르지 않는다(eng.events.design §7.1 3번). 이 판단은 L1이 하며, L1은 그 경우 `dispatch`를 부르지 않는다.
@@ -1497,24 +1500,24 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `createExtHost`, `ExtHost`, `ExtHostDeps`, `ExtensionUnit`, `InstallResult`, `ScopeSetupOutcome` | X.loading-trust.spec(검증 뒤 `install`, 결과의 진단 변환, 제거 때 `uninstall`), L4.host-service.spec(조립 루트) |
+| `createExtHost`, `ExtHost`, `ExtHostDeps`, `ExtensionUnit`, `InstallResult`, `RegistrationSetupOutcome` | X.loading-trust.spec(검증 뒤 `install`, 결과의 진단 변환, 제거 때 `uninstall`), L4.host-service.spec(조립 루트) |
 | `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext` | L0 플랫폼 패키지 문서, L4.host-service.spec(조립 루트) |
 | `ExtHost.dispatch`, `DispatchOptions`, `DispatchOutcome`, `BoundaryHooks` | L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec, L2.mcp.spec(`thread.mcp.after`) |
 | `DispatchPolicy`(`onHandlerSettled`, `run` 포함), `HandlerGate`, `HandlerRunOutcome`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord` | X.operations.spec |
-| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 키(F 이름 재export, 정의는 F.extensions.spec §3.2.1), `ExtHostPortKey` | L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, X.operations.spec(`ExtHost.ports`로 조회) |
-| `hostOf`, `ScopeHostApi` | L1·L2 내장 확장, L3.group-sdk.spec, X.loading-trust.spec(외부 확장 로더) |
+| `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 키(F 이름 재export, 정의는 F.extensions.spec §3.2.1), `ExtHostPortKey` | L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-sdk.spec, X.operations.spec(`ExtHost.ports`로 조회) |
+| `hostOf`, `RegistrationHostApi` | L1·L2 내장 확장, L3.group-sdk.spec, X.loading-trust.spec(외부 확장 로더) |
 | `capabilityServiceName`, `providerServiceName` | F.capabilities.spec §3.5(위임 답), L2 전체 |
-| `ScopeInfo`, `ResourceRegistry`, 설정 키 `x.primitives.*` | L4.settings-ui.spec, L4.cli.spec, L4.desktop.spec |
+| `RegistrationInfo`, `ResourceRegistry`, 설정 키 `x.primitives.*` | L4.settings-ui.spec, L4.cli.spec, L4.desktop.spec |
 | `@fresnel/ext-host/testing`의 테스트 호스트(인메모리 포트, 가짜 타이머 연결) | eng.testing.guide §1.2, L1·L3 테스트 |
 
 요구:
 
 | 이름 | 출처 |
 |---|---|
-| `HookName`, `HookSignatures`, `HOOKS`, `HookDecl`, `FIRST_DENY`, `CHAIN_RULES`, `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `LeaseBudget`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ScopeFn`, `ExtensionEntry`, `GroupRecord`, `validateManifest`, `validateUsage`, `validateManifestSet`, `validateGroupRecord` | F.extensions.spec |
+| `HookName`, `HookSignatures`, `HOOKS`, `HookDecl`, `FIRST_DENY`, `CHAIN_RULES`, `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLock`, `DriveLimits`, `DriveLockBudget`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry`, `GroupRecord`, `validateManifest`, `validateUsage`, `validateManifestSet`, `validateGroupRecord` | F.extensions.spec |
 | `CapabilityId`, `ServiceKey`, `ApiOf` | F.capabilities.spec |
 | `DurableEventDraft`, `EventId`, `ENVELOPE_MAX_BYTES`, `Projector`, `StoreDb`, 코어 kind `scope.changed`·`lease.acquired`·`lease.released`·`input.queued`·`thread.leaf_moved`와 payload, leaf·`parentId` 분기 트리 | F.records.spec |
-| 호스트 포트와 키(`PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `IsolationProcessPort`, `HookProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `*PortKey`), 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`) | F.extensions.spec §3.2.1 `ports.ts` |
+| 호스트 포트와 키(`PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `IsolationProcessPort`, `HookProcessPort`, `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `*PortKey`), 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`) | F.extensions.spec §3.2.1 `ports.ts` |
 | `RecordCommitPort`, `ExtCommitRequest`(`visibility` 포함), `ExtRecordQuery`, `ExtRecordRow`와 부속 타입, `queryRecords`의 `reader` 인자와 비공개 기록 규칙 | F.records.spec §3.9 |
 | `ProjectorRegistry.register`의 반환(`Result<{ dispose }, ProjectorRegisterError>`) | L1.persistence.spec §3.4 |
 | setup 시간 예산 값(`OperationsPolicy.setupBudgetMs`) | X.operations.spec §3.8 |
@@ -1525,7 +1528,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | 탐색·로드 순서(`loadIndex`)·신뢰(`builtin`)·`ext.<name>.enabled` | X.loading-trust.spec |
 | tier 값, 시간 예산 값, 자동 끄기, 이름 충돌 판정 | X.operations.spec |
 | 단계 경계 훅 호출, `finalize` 검증, `whenIdle`, `runTurn` 멱등 | L1.loop.spec |
-| `DriveArbiter`(LeaseArbiterPort 구현) | L3.group-sdk.spec §3.5 |
+| `DriveArbiter`(DriveLockArbiterPort 구현) | L3.group-sdk.spec §3.5 |
 
 ## 9. 수용 기준
 
@@ -1541,7 +1544,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 8. 시간 예산 50ms 정책에서 100ms 걸리는 first 핸들러는 `timeout` 실패와 `FIRST_DENY` 결정을 낸다(가짜 타이머로 진행).
 9. 같은 `requestId`로 두 번 post하면 두 번째 `PostReceipt.duplicate`가 참이고 큐 항목은 하나다.
 10. `usesPost`가 없는 매니페스트의 scope가 post하면 `post_undeclared`로 거부된다.
-11. drive를 등록한 두 그룹이 켜져 있고 `x.primitives.activeDriveGroup`이 그중 하나를 가리키면 그 그룹의 drive 함수만 호출되고, 다른 그룹의 함수 호출 횟수는 0이다.
+11. drive를 등록한 두 그룹이 켜져 있고 `x.primitives.activeDriver`이 그중 하나를 가리키면 그 그룹의 drive 함수만 호출되고, 다른 그룹의 함수 호출 횟수는 0이다.
 12. `maxTurns: 2` 임대에서 세 번째 `loop.turn`은 `lease_budget`으로 거부되고 임대 상태가 `releasing`이 된다.
 13. 첫 호출에서 `loop.turn` 한 번 뒤 프로세스 재시작을 흉내 내고 같은 상태 판으로 다시 호출하면, 같은 기본 `requestId`가 만들어지고 `runTurn`이 `replayed: true`를 돌려주며 새 turn이 실행되지 않는다.
 14. drive 함수가 같은 상태 판으로 두 번 연속 효과 없이 반환하면 임대가 `idle` 사유로 반납된다.
@@ -1552,10 +1555,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 19. `DriveOptions.limits.maxTurns: 10`이고 설정 `x.primitives.driveLimits.maxTurns: 5`이면 `lease.acquired.limits.maxTurns`가 5다. `DriveOptions.limits`가 없고 `driveDefaultLimits`가 기본값이면 `lease.acquired.limits`가 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`다. 사용자가 `driveDefaultLimits`를 `{ maxTurns: 6 }`로만 적으면 `maxSpawns`와 `maxTokens`는 내장 기본값 8과 400000을 쓴다. session 범위에 적은 상한은 그 thread의 임대에만 적용된다(두 설정을 `threadId`로 읽는다).
 20. `commit`에 스키마를 어기는 값을 넘기면 `state_schema`, 같은 판에 대한 두 번째 커밋은 `state_conflict`다.
 21. `record`에 선언하지 않은 kind를 넘기면 `record_kind_undeclared`, `readRecords`에 `readsRecordKinds`에 없는 kind를 넘기면 `read_kind_undeclared`다.
-22. 꺼진 scope의 옛 `g`로 `on`을 부르면 `scope_inactive`다.
+22. 꺼진 scope의 옛 `g`로 `on`을 부르면 `registration_inactive`다.
 23. `capabilityServiceName("web.search")`는 `"cap:web.search"`, `providerServiceName("web.search", "web-exa")`는 `"cap:web.search@web-exa"`이고, 두 공급자가 같은 기능을 provide해도 Cordis 등록 오류가 나지 않는다.
 24. `DispatchPolicy.run`을 가진 정책을 넘기면 디스패처는 자기 타이머를 쓰지 않고 모든 핸들러를 `run`으로 실행한다. 성공한 호출마다 `onHandlerSettled`가 한 번 불리고, `aborted`로 끝난 호출은 `onHandlerFailure`로 보고되지 않는다.
-25. scope setup이 선언 밖 지점에 `on`을 부르면 `install` 결과의 그 scope가 `failed`이고 `failure.code`가 `point_undeclared`이며, 그 scope의 등록은 남지 않는다. 엔트리 본문이 던지면 `entryError`가 있고 `scopes`가 비어 있다.
+25. scope setup이 선언 밖 지점에 `on`을 부르면 `install` 결과의 그 scope가 `failed`이고 `failure.code`가 `hook_undeclared`이며, 그 scope의 등록은 남지 않는다. 엔트리 본문이 던지면 `entryError`가 있고 `scopes`가 비어 있다.
 26. `registerPlatform`으로 등록한 L0 모듈이 `providePort(ScopedStorePortKey, impl)`를 부르면 `ExtHost.ports.get(ScopedStorePortKey)`가 그 구현을 돌려준다. L0 모듈의 setup이 `err({ reason, cause })`를 돌려주면 `registerPlatform`은 `{ ok: false, error: { kind: "setup_failed", module, reason, cause } }`를 돌려주고 그 모듈의 포트는 조회되지 않는다. setup이 던지면 `registerPlatform`이 그대로 던진다(버그).
 27. on 핸들러가 카운터를 1 올려 커밋한 뒤 소비 커밋 전 재시작을 흉내 내면, 다시 실행된 핸들러의 `ctx.state`는 커밋된 판이고, 같은 키의 커밋은 `replayed`이며 `commit`의 반환값·캐시·저장소의 doc이 모두 처음 커밋한 값과 같다.
 28. 판 2까지 커밋하고 판 1 이벤트 뒤로 되감은 뒤 `openThread`를 다시 부르면 `state()`는 판 1의 doc이고, 다음 커밋은 `expectStateRev.rev = 1`로 성공해 판 2(새 `event_id`, `prev_event_id` = 판 1 이벤트 id)가 된다.
@@ -1563,8 +1566,8 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 30. [M3-REQ-102] 도구 `execute`와 명령 처리기 안에서 `recordPrivate`, `record`, `commit`, `state()`가 `no_thread` 없이 동작한다. 같은 도구 호출 id(명령은 호출 id)로 다시 실행하면 기록과 상태 커밋이 한 번만 남고, 다른 id면 새로 남는다. 위임 자식 대화에서 실행된 도구의 기록은 그 자식 대화에만 남는다. thread가 열려 있지 않거나 명령의 `threadId`가 `null`이면 `no_thread`다.
 30. `recordPrivate`에 다른 확장 접두 kind, 영역 `state` kind, `recordKinds`에 선언된 공개 kind를 넘기면 모두 `record_private_invalid`다.
 31. `fresnel.tools`에 등록된 가짜 `ToolService`가 `ToolsPort`를 포함하면 `hostOf(g).registerTool`이 그 서비스의 `register`를 부르고, scope를 끄면 해제된다.
-32. (M2, X.1) `LeaseArbiterPort`가 있으면 후보 전체(`scopeId`, `extension`, `loadIndex`, `defaultEnabled`)를 받아 고른 그룹이 임대를 받고, 임대가 있는 동안에는 다시 묻지 않는다. `null`을 돌려주면 임대가 없다.
-33. (M2, X.1) 임대를 가진 그룹이 있을 때 `activeDriveGroup`이 다른 후보 그룹을 가리키면, 다음 경계에서 `lease.released { reason: "revoked" }`와 가리킨 그룹의 `lease.acquired`가 차례로 기록되고 가리킨 그룹의 drive 함수가 호출된다. 후보가 아닌 그룹을 가리키면 임대를 유지한다. `idle`로 반납된 그룹은 다음 `turn_settled`(또는 상태 판 변화) 전까지 후보가 아니다.
+32. (M2, X.1) `DriveLockArbiterPort`가 있으면 후보 전체(`scopeId`, `extension`, `loadIndex`, `defaultEnabled`)를 받아 고른 그룹이 임대를 받고, 임대가 있는 동안에는 다시 묻지 않는다. `null`을 돌려주면 임대가 없다.
+33. (M2, X.1) 임대를 가진 그룹이 있을 때 `activeDriver`이 다른 후보 그룹을 가리키면, 다음 경계에서 `lease.released { reason: "revoked" }`와 가리킨 그룹의 `lease.acquired`가 차례로 기록되고 가리킨 그룹의 drive 함수가 호출된다. 후보가 아닌 그룹을 가리키면 임대를 유지한다. `idle`로 반납된 그룹은 다음 `turn_settled`(또는 상태 판 변화) 전까지 후보가 아니다.
 34. (M2, X.1) 저장된 상태가 낮은 버전이면 `migrateState` 훅의 결과가 새 판(`rev + 1`, 선언 버전)으로 커밋된다. 훅이 없으면 `state_migration_missing`, 훅이 던지면 `state_migration_failed`, 결과가 스키마를 어기면 `state_schema`, 저장된 버전이 선언보다 높으면 `state_future_version`이고 그 thread에서는 켜지지 않는다. 같은 이동을 두 번째 시작에서 다시 하지 않는다.
 35. (M2, X.1) 같은 기능의 공급자가 둘이면 `capabilityProviders`가 고른 공급자만 `cap:<id>`에 바인딩된다. 설정이 없거나 후보가 아닌 확장을 가리키면 `capability_ambiguous` 진단을 내고 바인딩하지 않는다. major가 다른 공급자는 진단과 함께 제외된다.
 36. (M2, X.1) 두 thread가 열려 있을 때 한 thread에서 scope를 끄면 그 thread의 핸들러와 임대만 빠지고 세대는 유지된다. 마지막 thread에서도 끄면 세대가 닫히고 `onDispose`가 한 번 실행된다. 전체 `enable()`·`disable()`은 thread별 요청을 지운다.
@@ -1587,7 +1590,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - 포트 정본 이전(해소, [결정: review.decisions-2 U-14, D-04]): 모든 호스트 포트, 리소스 등록 포트와 리소스 정의, 키는 F.extensions.spec §3.2.1 `ports.ts`에 있고, `RecordCommitPort`와 부속 타입(`ExtCommitRequest.visibility` 포함)은 F.records.spec §3.9에 있다. 이 문서는 §3.6·§3.9에서 F 이름을 다시 export만 하고, ext-host 고유 키는 `ExtHostPortKey`뿐이다. `queryRecords`의 셋째 인자 `reader`도 F.records.spec §3.9에 반영됐고 §4.6.4가 호출한 확장 이름을 넘긴다.
 - 서비스 인터페이스(해소, [결정: review.decisions-2 D-04]): 같은 서비스 이름의 포트를 부분형으로 포함하는 서비스 인터페이스(`LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`)는 F `@fresnel/contracts/services`(F.capabilities.spec §3.12)에, `SessionService`와 `StoreService`는 F.records.spec §3.9에 있다(§3.6 규칙 6 표). L1.tools.spec, L1.models.spec, L2.mcp.spec §3.2, L3.group-sdk.spec §3.8도 같은 구성을 쓴다.
 - F.extensions.spec §1·§4.2 문구(해소): tier 정의와 핸들러 시간 예산은 X.operations 소유이고 primitives는 `DispatchPolicy` 주입 구멍만 둔다(§1). F.extensions.spec §1과 §4.2가 이미 X.operations.spec을 가리킨다.
-- [미결] F `ScopeApi`에 `provide`를 넣을지, X `hostOf(g).provide`로 둘지(§3.8).
+- [미결] F `RegistrationApi`에 `provide`를 넣을지, X `hostOf(g).provide`로 둘지(§3.8).
 - `LeaseAcquiredPayload.leaseEpoch`(해소, F M3a A2): 선택 필드로 추가되었고 X가 채운다(§4.4.1 7번).
 - [미결] F.extensions.spec §3.2 `TurnInput.requestId` 주석의 순번 정의를 `<상태 판>.<호출 안 일련번호>`로 구체화하는 문구 수정(§4.4.4).
 - [미결] 상태 이벤트 kind의 영역 `state` 예약을 F `validateManifest` 오류 코드(`record_kind_reserved`)로 둘지(§4.6.1).
@@ -1599,7 +1602,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - [미결] 기능 공급자 선택 규칙(설정 `x.primitives.capabilityProviders`)이 F.capabilities.spec §5 1번의 "provider 선택은 X와 각 L2 spec"과 맞는지, L2 spec별 기본 선택이 필요한지(§3.7).
 - [미결] `registerVirtualModel`과 명령 전용 세션 제어의 지원 여부(§4.8, `_research/notes/X-3.md` §5).
 - [결정: review.decisions-2 U-01] scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§3.5, §4.5.3). 이 문서는 "단계 경계"만 쓴다.
-- 이름 정리(해소): eng.transactions.design·eng.events.design의 옛 키(`drive:…`, `spawn:…`, `scope:<scopeId>:<clientUlid>`, `ext:<extId>:…`)와 옛 kind(`scope.toggled`, `drive.leased`)는 고쳐졌다. 확장 kind 접두는 `x.`/`grp.`이다([결정: review.decisions-2 T-21]). 확장 id는 `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두는 `x_<name의 하이픈을 밑줄로>_`다([결정: review.decisions-2 U-18]). F.extensions.spec `EXTENSION_NAME_PATTERN`·`SCOPE_ID_PATTERN`·`RECORD_KIND_PATTERN`, eng.context-map.design §5.2 `EXT_ID_PATTERN`, eng.domain-types.guide DT-08, L0.store.spec, adr.0004도 이 결정대로 `{1,31}`과 `x_` 접두를 쓴다.
+- 이름 정리(해소): eng.transactions.design·eng.events.design의 옛 키(`drive:…`, `spawn:…`, `scope:<scopeId>:<clientUlid>`, `ext:<extId>:…`)와 옛 kind(`scope.toggled`, `drive.leased`)는 고쳐졌다. 확장 kind 접두는 `x.`/`grp.`이다([결정: review.decisions-2 T-21]). 확장 id는 `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두는 `x_<name의 하이픈을 밑줄로>_`다([결정: review.decisions-2 U-18]). F.extensions.spec `EXTENSION_NAME_PATTERN`·`REGISTRATION_ID_PATTERN`·`RECORD_KIND_PATTERN`, eng.context-map.design §5.2 `EXT_ID_PATTERN`, eng.domain-types.guide DT-08, L0.store.spec, adr.0004도 이 결정대로 `{1,31}`과 `x_` 접두를 쓴다.
 - install 시작 적용으로 켜진 scope의 `scope.changed`(해소, M2 X.3): thread를 열 때 저장된 켜짐 상태와 다를 때만 첫 경계 기여에 넣는다(§4.5.6). `ExtThreadSnapshot.enabled`가 실제로 채워지면(core-persistence의 `ext.loadThread`, PS-16) 다시 열기에서 중복 기록이 없다. `loadThread`가 빈 `enabled`를 돌려주는 M1 대역은 같은 기록을 다시 남긴다(`review.open-issues` N-01).
 - [미결] F `TrustRequestSchema.level` 값(builtin/user/project/untrusted)은 [가정]이고 X.loading-trust.spec이 확정한다. 이 문서는 `ExtensionUnit.builtin` 불리언만 쓴다.
 - [미결] `@fresnel/ext-host/src/index.ts`는 다른 작업자가 작성 중이다. §3.1 공개 이름과 충돌하면 이 문서를 기준으로 맞추되 충돌 내용을 여기에 적는다(현재 파일은 `export {}` 스텁이라 충돌 없음).
@@ -1614,11 +1617,11 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 53. (M3) `hostOf(g).callContext()`는 on 핸들러 안에서 `kind: "on"`, thread, 지점, 살아 있는 신호를, drive 함수 안에서 `kind: "drive"`와 `LoopHandle.signal`과 같은 신호를 돌려준다. setup, 호출 뒤의 바깥, 다른 scope의 핸들러 안, drive의 `turn`·`spawn` 안에서는 undefined이고, 시간 초과한 핸들러의 문맥은 abort된 신호를 보인다(§3.8).
 55. (M3b) `ExtHost.queryEvents`는 활성 가지의 내구 이벤트를 kind 접두로 커밋 순서대로 돌려주고 `limit`을 지키며, 되감아 버린 가지의 이벤트와 접두 밖 이벤트는 돌려주지 않는다. 접두가 비면 `invalid_prefix`, 읽기 포트가 없으면 `port_unavailable`이다(§4.6.4).
 56. (M3b) `ExtHost.toolOwner(name)`이 도구를 등록한 scope의 `ResourceRecord`를 돌려주고 없는 이름은 undefined다(§4.6.4).
-57. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetScopeState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
+57. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetRegistrationState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
 - [미결] 기능 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 기능 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
 - [미결] 임대 대기 상한의 단위와 기본값 8(§4.4.1 8번, §6). 경계 수 대신 시간으로 둘지.
 - [미결] 요청 레코드 워커의 소유(X 또는 L1 백그라운드)와 결과 통지(§4.10). X 구현은 [제안]이다.
 - [미결] `lifecycle.agent.settled`의 `owner`가 `tool`이거나 없을 때의 구독자 범위(§4.11).
 - (닫힘, M3b B4-GRP) 코어 이벤트(`turn.*`, `tool.*`)의 계측 조회는 `ExtHost.queryEvents`가 맡는다(§4.6.4, M3-REQ-39).
-- [미결] F `ScopeApi.commit`에 `records` 옵션을 둘지. 지금은 `hostOf(g).commitWith`다(§4.6.1).
+- [미결] F `RegistrationApi.commit`에 `records` 옵션을 둘지. 지금은 `hostOf(g).commitWith`다(§4.6.1).

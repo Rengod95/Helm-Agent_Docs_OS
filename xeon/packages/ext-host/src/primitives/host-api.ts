@@ -1,6 +1,7 @@
 import type { ServiceKey, WebProviderRegistration } from "@fresnel/contracts/capabilities";
 import { Bug, ok, type Result } from "@fresnel/contracts";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
+import { extensionPrefix } from "@fresnel/contracts/extensions";
 import type {
   DriveOptions,
   ExtensionName,
@@ -15,8 +16,8 @@ import type {
   RecordKind,
   RecordQuery,
   RecordSubject,
-  ScopeApi,
-  ScopeId,
+  RegistrationApi,
+  RegistrationId,
   Unsubscribe,
 } from "@fresnel/contracts/extensions";
 import {
@@ -35,7 +36,7 @@ import {
   type EffectWorkerPort,
 } from "./effect-worker.ts";
 import { guardCapabilityService, type CapabilityDefLookup } from "./capability-guard.ts";
-import type { Generation, HostCore, ScopeRecord } from "./core.ts";
+import type { Generation, HostCore, RegistrationRecord } from "./core.ts";
 import type { AnyState } from "./erased-types.ts";
 import { PrimitiveError } from "./errors.ts";
 import { createPortProvider } from "./port-provider.ts";
@@ -59,10 +60,10 @@ import type { RecordInput, StateService, StateUpdateError } from "./state.ts";
 export type { StateMigration } from "./state-migration.ts";
 
 /**
- * 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수). `ScopeHostApi.callContext`가 돌려준다.
+ * 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수). `RegistrationHostApi.callContext`가 돌려준다.
  * `signal`은 on에서는 핸들러 호출의 취소 신호(예산 초과, 세션 종료로 abort), drive에서는 임대의 취소 신호다
  */
-export interface ScopeCallContext {
+export interface RegistrationCallContext {
   readonly kind: "on" | "drive";
   readonly threadId: ThreadId;
   readonly signal: AbortSignal;
@@ -71,8 +72,8 @@ export interface ScopeCallContext {
 }
 
 /** setup이 받은 g에 붙는 부가 API(X.primitives.spec §3.8) */
-export interface ScopeHostApi<S = unknown> {
-  readonly scopeId: ScopeId;
+export interface RegistrationHostApi<S = unknown> {
+  readonly scopeId: RegistrationId;
   readonly extension: ExtensionName;
   /** 기능 공급자 등록. key.capability는 매니페스트 provides에 있어야 한다. fiber effect로 추적한다 */
   provide<Api>(key: ServiceKey<Api>, impl: Api): void;
@@ -92,7 +93,7 @@ export interface ScopeHostApi<S = unknown> {
   migrateState(fn: StateMigration): void;
   /**
    * 상태 커밋과 그룹 레코드를 한 트랜잭션으로 낸다(M3-REQ-24 [제안]). 레코드 kind는 `record`와 같은 검사를 받는다.
-   * F `ScopeApi.commit`에는 둘째 인자가 없어 이 메서드를 둔다. 상태가 충돌하면 레코드도 남지 않는다
+   * F `RegistrationApi.commit`에는 둘째 인자가 없어 이 메서드를 둔다. 상태가 충돌하면 레코드도 남지 않는다
    */
   /**
    * 선언 없는 쓰기 요청(ADR-0015 §3.5, M3-REQ-27 [제안]). 요청 레코드를 커밋하고 효과 워커가 재실행되지 않는 문맥에서 실행한다.
@@ -104,7 +105,7 @@ export interface ScopeHostApi<S = unknown> {
    * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥(thread, 취소 신호, on이면 지점). setup, 명령 처리기, 도구 `execute`,
    * 기능 공급자 안, drive의 turn·spawn 안처럼 재실행되지 않는 곳과 다른 scope의 문맥에서는 undefined다
    */
-  callContext(): ScopeCallContext | undefined;
+  callContext(): RegistrationCallContext | undefined;
   commitWith(next: S, records: readonly RecordInput[]): Promise<Readonly<S>>;
   /**
    * 줄 세운 읽기-계산-커밋(M3-REQ-23 [제안]). 같은 (thread, scope)의 `commit`·`updateState`는 호출 순서대로 하나씩 실행된다.
@@ -143,19 +144,19 @@ export interface ScopeHostApi<S = unknown> {
 }
 
 /** 같은 패키지의 operations가 쓰는 g의 내부 정보 */
-export interface ScopeInternals {
+export interface RegistrationInternals {
   readonly core: HostCore;
-  readonly record: ScopeRecord;
+  readonly record: RegistrationRecord;
   readonly generation: Generation;
 }
 
-const hostApis = new WeakMap<object, ScopeHostApi<AnyState>>();
-const internals = new WeakMap<object, ScopeInternals>();
+const hostApis = new WeakMap<object, RegistrationHostApi<AnyState>>();
+const internals = new WeakMap<object, RegistrationInternals>();
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
 /** 도구 `execute`와 명령 처리기가 여는 ambient. 디스패치 키는 호출 id이고, 재실행 검사와 시간 예산은 받지 않는다 */
 function directAmbient(
-  scopeId: ScopeId,
+  scopeId: RegistrationId,
   threadId: ThreadId,
   invocation: "tool" | "command",
   id: string,
@@ -175,25 +176,28 @@ function directAmbient(
 /** 조립 루트가 `fresnel.settings`로 올리는 설정 읽기. L3 group-sdk의 `GroupSettingsSource`와 같은 이름·모양이다 */
 const SETTINGS_READ_PORT: PortKey<{ value(key: string): unknown }> = { name: "fresnel.settings" };
 
-export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S> {
+export function hostOf<S>(g: RegistrationApi<S>): RegistrationHostApi<S> {
   const found = hostApis.get(g);
   if (found === undefined) {
-    throw new PrimitiveError("no_context", "hostOf needs a ScopeApi created by ext-host");
+    throw new PrimitiveError("no_context", "hostOf needs a RegistrationApi created by ext-host");
   }
-  const witness: TypeWitness<ScopeHostApi<S>> = {};
+  const witness: TypeWitness<RegistrationHostApi<S>> = {};
   return restoreAs(witness, found);
 }
 
 /** 패키지 안에서만 쓴다. ext-host가 만든 g의 호스트 핵심과 scope 기록 */
-export function scopeInternalsOf<S>(g: ScopeApi<S>): ScopeInternals {
+export function scopeInternalsOf<S>(g: RegistrationApi<S>): RegistrationInternals {
   const found = internals.get(g);
   if (found === undefined) {
-    throw new PrimitiveError("no_context", "scopeInternalsOf needs a ScopeApi created by ext-host");
+    throw new PrimitiveError(
+      "no_context",
+      "scopeInternalsOf needs a RegistrationApi created by ext-host",
+    );
   }
   return found;
 }
 
-export interface ScopeApiDeps {
+export interface RegistrationApiDeps {
   readonly core: HostCore;
   readonly state: StateService;
   readonly post: PostQueue;
@@ -203,9 +207,9 @@ export interface ScopeApiDeps {
   readonly effects: EffectWorkerPort;
 }
 
-function assertOpen(record: ScopeRecord, generation: Generation): void {
+function assertOpen(record: RegistrationRecord, generation: Generation): void {
   if (generation.closed) {
-    throw new PrimitiveError("scope_inactive", `scope ${record.id} generation is closed`, {
+    throw new PrimitiveError("registration_inactive", `scope ${record.id} generation is closed`, {
       scopeId: record.id,
     });
   }
@@ -216,13 +220,14 @@ function fiberOf(generation: Generation): NonNullable<Generation["fiber"]> {
   return generation.fiber;
 }
 
-export function createScopeApi(
-  deps: ScopeApiDeps,
-  record: ScopeRecord,
+export function createRegistrationApi(
+  deps: RegistrationApiDeps,
+  record: RegistrationRecord,
   generation: Generation,
-): ScopeApi<AnyState> {
+): RegistrationApi<AnyState> {
   const { core } = deps;
   const manifest = record.manifest;
+  const plugin = record.plugin;
 
   function requirePortAccess(): void {
     if (!record.builtin) {
@@ -234,14 +239,14 @@ export function createScopeApi(
     }
   }
 
-  const api: ScopeApi<AnyState> = {
+  const api: RegistrationApi<AnyState> = {
     id: record.id,
     on<N extends HookName>(point: N, handler: Handler<N>): Unsubscribe {
       assertOpen(record, generation);
-      if (!manifest.points.includes(point)) {
+      if (!plugin.decl.hooks.includes(point)) {
         throw new PrimitiveError(
-          "point_undeclared",
-          `on("${point}") is not listed in the manifest points of ${record.extension}`,
+          "hook_undeclared",
+          `on("${point}") is not listed in the hooks of plugin ${record.id}`,
           { scopeId: record.id },
         );
       }
@@ -250,7 +255,7 @@ export function createScopeApi(
         point,
         scopeId: record.id,
         extension: record.extension,
-        layer: manifest.layer,
+        layer: plugin.decl.layer,
         builtin: record.builtin,
         loadIndex: record.loadIndex,
         seq: core.registry.nextSeq(),
@@ -274,18 +279,20 @@ export function createScopeApi(
           },
         );
       }
-      if (manifest.kind !== "group") {
-        throw new PrimitiveError("drive_requires_group", "only a group may register drive", {
+      if (plugin.decl.drives !== true) {
+        throw new PrimitiveError("drive_undeclared", "drive was used but drives is not true", {
           scopeId: record.id,
         });
       }
-      if (!manifest.usesDrive) {
-        throw new PrimitiveError("drive_undeclared", "drive was used but usesDrive is not true", {
-          scopeId: record.id,
-        });
+      if (core.deps.settings.driveRequiresGroup() && !plugin.inGroup) {
+        throw new PrimitiveError(
+          "drive_requires_group",
+          "x.primitives.driveRequiresGroup is on and this plugin is not a member of a plugin group",
+          { scopeId: record.id },
+        );
       }
       if (generation.drive !== null) {
-        throw new PrimitiveError("drive_duplicate", "a group has one drive slot", {
+        throw new PrimitiveError("drive_duplicate", "a registration has one drive slot", {
           scopeId: record.id,
         });
       }
@@ -318,8 +325,8 @@ export function createScopeApi(
       assertOpen(record, generation);
       const id = key.capability;
       const declared =
-        (manifest.requires ?? []).some((entry) => entry.id === id) ||
-        (manifest.optional ?? []).some((entry) => entry.id === id);
+        (plugin.decl.requires ?? []).some((entry) => entry.id === id) ||
+        (plugin.decl.optional ?? []).some((entry) => entry.id === id);
       if (!declared) {
         throw new PrimitiveError(
           "capability_undeclared",
@@ -356,13 +363,13 @@ export function createScopeApi(
     },
   };
 
-  const host: ScopeHostApi<AnyState> = {
+  const host: RegistrationHostApi<AnyState> = {
     scopeId: record.id,
     extension: record.extension,
     provide<Api>(key: ServiceKey<Api>, impl: Api): void {
       assertOpen(record, generation);
       const id = key.capability;
-      const provision = (manifest.provides ?? []).find((entry) => entry.id === id);
+      const provision = (plugin.decl.provides ?? []).find((entry) => entry.id === id);
       if (provision === undefined) {
         throw new PrimitiveError(
           "capability_undeclared",
@@ -411,8 +418,8 @@ export function createScopeApi(
     async requestEffect(request) {
       assertOpen(record, generation);
       const declared =
-        (manifest.requires ?? []).some((entry) => entry.id === request.capability) ||
-        (manifest.optional ?? []).some((entry) => entry.id === request.capability);
+        (plugin.decl.requires ?? []).some((entry) => entry.id === request.capability) ||
+        (plugin.decl.optional ?? []).some((entry) => entry.id === request.capability);
       if (!declared) {
         throw new PrimitiveError(
           "capability_undeclared",
@@ -424,20 +431,25 @@ export function createScopeApi(
         throw new TypeError(`effect key must be 1-${EFFECT_KEY_MAX} chars`);
       }
       generation.usage.capabilities.add(request.capability);
-      await deps.state.recordPrivate(record, generation, effectKindOf(manifest, "requested"), {
-        scopeId: record.id,
-        key: request.key,
-        capability: request.capability,
-        method: request.method,
-        input: request.input,
-      });
+      await deps.state.recordPrivate(
+        record,
+        generation,
+        effectKindOf(extensionPrefix(manifest), manifest.name, "requested"),
+        {
+          scopeId: record.id,
+          key: request.key,
+          capability: request.capability,
+          method: request.method,
+          input: request.input,
+        },
+      );
       const threadId = ambient()?.threadId;
       if (threadId !== undefined) {
         deps.effects.schedule({
           threadId,
           scopeId: record.id,
           extension: record.extension,
-          kind: manifest.kind === "group" ? "group" : "plugin",
+          prefix: extensionPrefix(manifest),
         });
       }
     },

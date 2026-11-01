@@ -15,7 +15,7 @@ test("snapshot ignores mid-dispatch changes", async () => {
   await t.host.openThread(thread);
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "snap-a", points: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "snap-a", hooks: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
       let added = false;
       g.on("boundary.settle.after", () => {
         calls.push("a");
@@ -30,7 +30,7 @@ test("snapshot ignores mid-dispatch changes", async () => {
   );
   const off = { current: () => {} };
   await t.host.install(
-    makeUnit({ name: "snap-b", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "snap-b", hooks: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
       off.current = g.on("boundary.settle.after", () => {
         calls.push("b");
       });
@@ -76,7 +76,7 @@ test("order is tier load seq", async () => {
   await eachInOrder(specs, async (spec) => {
     await t.host.install(
       makeUnit(
-        { name: spec.name, points: ["boundary.settle.after"], loadIndex: spec.loadIndex },
+        { name: spec.name, hooks: ["boundary.settle.after"], loadIndex: spec.loadIndex },
         (g) => {
           g.on("boundary.settle.after", () => {
             calls.push(`${spec.name}#1`);
@@ -112,7 +112,7 @@ test("unsubscribe idempotent", async () => {
   const calls: string[] = [];
   const off = { current: () => {} };
   await t.host.install(
-    makeUnit({ name: "unsub", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "unsub", hooks: ["boundary.settle.after"] }, (g) => {
       off.current = g.on("boundary.settle.after", () => {
         calls.push("x");
       });

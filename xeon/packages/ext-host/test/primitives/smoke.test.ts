@@ -89,12 +89,12 @@ test("turning the group off mid-turn applies at the step boundary and lets the t
   expect(t.loop.turns).toHaveLength(1);
   expect(t.loop.status(thread)).toBe("running");
 
-  t.host.scope("smoke-group")?.disable();
+  t.host.registration("smoke-group")?.disable();
   const drafts = await t.boundary(thread).stepEnd();
   expect(drafts.map((draft) => draft.kind)).toEqual(["lease.released", "scope.changed"]);
   expect(drafts[0]?.payload).toMatchObject({ reason: "disabled" });
   expect(drafts[1]?.payload).toMatchObject({ status: "disabled" });
-  expect(t.host.scope("smoke-group")?.status).toBe("disabled");
+  expect(t.host.registration("smoke-group")?.status).toBe("disabled");
 
   // 진행 중이던 turn은 끊기지 않고 정착까지 진행한다
   expect(t.loop.turns[0]?.signal.aborted).toBe(false);

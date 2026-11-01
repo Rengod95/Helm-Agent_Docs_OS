@@ -43,7 +43,7 @@ test("collect: every handler gets the original payload and no current, contribut
     result: () => { message?: ReturnType<typeof hint>; systemPrompt?: string } | undefined,
   ) =>
     t.host.install(
-      makeUnit({ name, points: ["input.agent.before"], loadIndex }, (g) => {
+      makeUnit({ name, hooks: ["input.agent.before"], loadIndex }, (g) => {
         g.on("input.agent.before", (...args) => {
           seenArgs.push(args.length);
           return result();
@@ -69,14 +69,14 @@ test("collect: every handler gets the original payload and no current, contribut
 test("collect is fail-open: a throwing handler loses only its contribution", async () => {
   const { t, thread } = await setup();
   await t.host.install(
-    makeUnit({ name: "col-throw", points: ["thread.resources"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "col-throw", hooks: ["thread.resources"], loadIndex: 0 }, (g) => {
       g.on("thread.resources", () => {
         throw new Error("boom");
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "col-ok", points: ["thread.resources"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "col-ok", hooks: ["thread.resources"], loadIndex: 1 }, (g) => {
       g.on("thread.resources", () => ({ skillPaths: ["/s"] }));
     }),
   );
@@ -97,7 +97,7 @@ test("collect is fail-open: a throwing handler loses only its contribution", asy
 test("collect with strict checks drops a contribution that breaks the result schema", async () => {
   const { t, thread } = await setup();
   await t.host.install(
-    makeUnit({ name: "col-bad", points: ["input.agent.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "col-bad", hooks: ["input.agent.before"], loadIndex: 0 }, (g) => {
       g.on("input.agent.before", () => {
         const bad: unknown = { systemPrompt: 5 };
         return Object.assign({}, bad);
@@ -117,14 +117,14 @@ test("session.compact.before is fail-open: a throwing handler is skipped and the
   const { t, thread } = await setup();
   const payload = compactPayload(thread, t.ids.next("evt"));
   await t.host.install(
-    makeUnit({ name: "cmp-throw", points: ["thread.compact.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "cmp-throw", hooks: ["thread.compact.before"], loadIndex: 0 }, (g) => {
       g.on("thread.compact.before", () => {
         throw new Error("boom");
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "cmp-cancel", points: ["thread.compact.before"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "cmp-cancel", hooks: ["thread.compact.before"], loadIndex: 1 }, (g) => {
       g.on("thread.compact.before", () => ({ cancel: true, reason: "later" }));
     }),
   );
@@ -140,7 +140,7 @@ test("session.compact.before is fail-open: a throwing handler is skipped and the
 test("session.compact.before with only a throwing handler gives no decision, never a deny", async () => {
   const { t, thread } = await setup();
   await t.host.install(
-    makeUnit({ name: "cmp-only", points: ["thread.compact.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "cmp-only", hooks: ["thread.compact.before"], loadIndex: 0 }, (g) => {
       g.on("thread.compact.before", () => {
         throw new Error("boom");
       });
@@ -158,7 +158,7 @@ test("session.compact.before with only a throwing handler gives no decision, nev
 test("guard points are fail-closed", async () => {
   const { t, thread } = await setup();
   await t.host.install(
-    makeUnit({ name: "grd-throw", points: ["guard.tool.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "grd-throw", hooks: ["guard.tool.before"], loadIndex: 0 }, (g) => {
       g.on("guard.tool.before", () => {
         throw new Error("boom");
       });
@@ -187,7 +187,7 @@ test("a guard handler can block with a reason and no handler means pass", async 
   });
   expect(pass.decision).toBeUndefined();
   await t.host.install(
-    makeUnit({ name: "grd-block", points: ["guard.output.before"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "grd-block", hooks: ["guard.output.before"], loadIndex: 0 }, (g) => {
       g.on("guard.output.before", () => ({ block: true, reason: "no" }));
     }),
   );
@@ -202,14 +202,14 @@ test("lifecycle points dispatch as tap and fail open", async () => {
   const { t, thread } = await setup();
   const seen: string[] = [];
   await t.host.install(
-    makeUnit({ name: "lc-throw", points: ["lifecycle.lease.rejected"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "lc-throw", hooks: ["lifecycle.lease.rejected"], loadIndex: 0 }, (g) => {
       g.on("lifecycle.lease.rejected", () => {
         throw new Error("boom");
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "lc-ok", points: ["lifecycle.lease.rejected"], loadIndex: 1 }, (g) => {
+    makeUnit({ name: "lc-ok", hooks: ["lifecycle.lease.rejected"], loadIndex: 1 }, (g) => {
       g.on("lifecycle.lease.rejected", (payload) => {
         seen.push(payload.groupId);
       });

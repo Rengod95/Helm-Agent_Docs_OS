@@ -1,6 +1,10 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { hostOf, type ScopeCallContext, type ScopeHostApi } from "../../src/primitives/index.ts";
+import {
+  hostOf,
+  type RegistrationCallContext,
+  type RegistrationHostApi,
+} from "../../src/primitives/index.ts";
 import { createTestHost, flushMicrotasks } from "../../src/testing/index.ts";
 import { createOperationsHarness } from "../operations/support/harness.ts";
 import { makeGroupUnit, makeUnit } from "./fixtures/support.ts";
@@ -11,9 +15,9 @@ test("callContext is the on context with thread, point and a live signal inside 
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.openThread(thread);
-  const seen: (ScopeCallContext | undefined)[] = [];
+  const seen: (RegistrationCallContext | undefined)[] = [];
   await t.host.install(
-    makeUnit({ name: "cc-on", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "cc-on", hooks: ["tool.call.before"] }, (g) => {
       const host = hostOf(g);
       seen.push(host.callContext());
       g.on("tool.call.before", async () => {
@@ -37,9 +41,9 @@ test("callContext is undefined outside on and drive after setup", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.openThread(thread);
-  let host: ScopeHostApi | undefined;
+  let host: RegistrationHostApi | undefined;
   await t.host.install(
-    makeUnit({ name: "cc-out", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "cc-out", hooks: ["tool.call.before"] }, (g) => {
       host = hostOf(g);
     }),
   );
@@ -47,7 +51,10 @@ test("callContext is undefined outside on and drive after setup", async () => {
 });
 
 test("callContext is the drive context with the lease signal, and cut inside turn and spawn", async () => {
-  const inTurn: { host: ScopeHostApi | undefined; seen: (ScopeCallContext | undefined)[] } = {
+  const inTurn: {
+    host: RegistrationHostApi | undefined;
+    seen: (RegistrationCallContext | undefined)[];
+  } = {
     host: undefined,
     seen: [],
   };
@@ -70,8 +77,10 @@ test("callContext is the drive context with the lease signal, and cut inside tur
     },
   });
   const thread = t.newThread();
-  const driveSeen: { context: ScopeCallContext | undefined; loopSignal: AbortSignal | undefined } =
-    { context: undefined, loopSignal: undefined };
+  const driveSeen: {
+    context: RegistrationCallContext | undefined;
+    loopSignal: AbortSignal | undefined;
+  } = { context: undefined, loopSignal: undefined };
   await t.host.install(
     makeGroupUnit({ name: "cc-drive" }, (g) => {
       const host = hostOf(g);
@@ -99,7 +108,7 @@ test("callContext only reports the scope that owns g", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.openThread(thread);
-  const owner: { host: ScopeHostApi | undefined } = { host: undefined };
+  const owner: { host: RegistrationHostApi | undefined } = { host: undefined };
   const seen: { own: ThreadId | undefined; other: ThreadId | undefined } = {
     own: undefined,
     other: undefined,
@@ -110,7 +119,7 @@ test("callContext only reports the scope that owns g", async () => {
     }),
   );
   await t.host.install(
-    makeUnit({ name: "cc-caller", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "cc-caller", hooks: ["tool.call.before"] }, (g) => {
       const host = hostOf(g);
       g.on("tool.call.before", () => {
         seen.own = host.callContext()?.threadId;
@@ -127,9 +136,9 @@ test("a timed-out handler's context reports an aborted signal", async () => {
   const { t } = await createOperationsHarness();
   const thread = t.newThread();
   await t.host.openThread(thread);
-  let context: ScopeCallContext | undefined;
+  let context: RegistrationCallContext | undefined;
   await t.host.install(
-    makeUnit({ name: "cc-timeout", points: ["tool.call.before"] }, (g) => {
+    makeUnit({ name: "cc-timeout", hooks: ["tool.call.before"] }, (g) => {
       const host = hostOf(g);
       g.on("tool.call.before", () => {
         context = host.callContext();

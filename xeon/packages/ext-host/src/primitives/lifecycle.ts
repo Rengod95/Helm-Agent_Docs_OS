@@ -4,7 +4,7 @@ import {
   LIFECYCLE_HOOKS,
   type LifecycleEventKind,
   type PortKey,
-  type ScopeId,
+  type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import {
   AgentSettledEventPayloadSchema,
@@ -45,7 +45,7 @@ function isLifecycleKind(kind: string): kind is LifecycleEventKind {
 /** `agent.settled`의 위임 주체가 scope나 drive이면 그 scope의 핸들러만 받는다 [제안: 소유 scope 거르기는 X, F.extensions.spec 지점 45행] */
 function ownerScopeOf(
   owner: { readonly kind: string; readonly scopeId?: string } | undefined,
-): ScopeId | undefined {
+): RegistrationId | undefined {
   if (owner === undefined || owner.kind === "tool") return undefined;
   return owner.scopeId;
 }

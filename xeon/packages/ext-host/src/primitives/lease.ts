@@ -1,13 +1,14 @@
 import { Bug } from "@fresnel/contracts";
 import {
-  LeaseArbiterPortKey,
+  DriveLockArbiterPortKey,
   LoopPortKey,
   RecordCommitPortKey,
   type DriveLimits,
-  type LeaseBudget,
+  pluginDefaultEnabled,
+  type DriveLockBudget,
   type LoopHandle,
   type OpenLease,
-  type ScopeId,
+  type RegistrationId,
   type SpawnOutcome,
   type SpawnSpec,
   type TurnInput,
@@ -21,7 +22,7 @@ import type {
   HostCore,
   LeaseRuntime,
   ReleaseReason,
-  ScopeRecord,
+  RegistrationRecord,
   ThreadRuntime,
 } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
@@ -36,9 +37,13 @@ export interface LeaseBroker {
   /** openThread: 저장된 열린 임대를 되살린다. 설치되지 않았거나 꺼진 scope의 임대는 restart로 반납 예정이 된다 */
   restore(thread: ThreadRuntime, open: OpenLease | null): void;
   /** scope가 꺼지면 모든 thread에서 그 scope의 임대를 반납 예정(disabled)으로 바꾼다 */
-  releaseForScope(scopeId: ScopeId, reason: ReleaseReason): void;
+  releaseForRegistration(scopeId: RegistrationId, reason: ReleaseReason): void;
   /** 한 thread에서만 scope가 꺼질 때 그 thread의 임대를 반납 예정으로 바꾼다(P-28) */
-  releaseForScopeIn(thread: ThreadRuntime, scopeId: ScopeId, reason: ReleaseReason): void;
+  releaseForRegistrationIn(
+    thread: ThreadRuntime,
+    scopeId: RegistrationId,
+    reason: ReleaseReason,
+  ): void;
   /** prepare: 반납 예정 임대의 lease.released 초안 */
   collectReleases(thread: ThreadRuntime, txn: BoundaryTxn): void;
   /** prepare: 후보 계산과 lease.acquired 초안 */
@@ -50,7 +55,7 @@ export interface LeaseBroker {
   /** settle 뒤: 경계 종류에 맞게 drive 함수를 부른다 */
   onBoundary(thread: ThreadRuntime, signal: BoundarySignal): void;
   /** 명령·도구 호출이 상태 판을 올렸다: 임대가 있고 thread가 유휴면 drive를 한 번 예약한다(X.primitives.spec §4.4.3) */
-  onDirectCommit(thread: ThreadRuntime, scopeId: ScopeId): void;
+  onDirectCommit(thread: ThreadRuntime, scopeId: RegistrationId): void;
   /** 임대를 반납 예정으로 바꾼다. 활성이 아니면 아무 일도 하지 않는다 */
   release(lease: LeaseRuntime, reason: ReleaseReason): void;
 }
@@ -104,7 +109,7 @@ function leaseError(lease: LeaseRuntime): PrimitiveError {
       });
 }
 
-function budgetOf(lease: LeaseRuntime): LeaseBudget {
+function budgetOf(lease: LeaseRuntime): DriveLockBudget {
   return {
     turns: remaining(lease.limits.maxTurns, lease.used.turns),
     spawns: remaining(lease.limits.maxSpawns, lease.used.spawns),
@@ -217,7 +222,7 @@ export function createLeaseBroker(
         }
         return result.outcome;
       },
-      get budget(): LeaseBudget {
+      get budget(): DriveLockBudget {
         return budgetOf(lease);
       },
       get signal(): AbortSignal {
@@ -278,7 +283,7 @@ export function createLeaseBroker(
       }
       record.driveError = true;
       record.lastError = {
-        code: error instanceof PrimitiveError ? error.code : "scope_setup_failed",
+        code: error instanceof PrimitiveError ? error.code : "registration_setup_failed",
         message: error instanceof Error ? error.message : "drive function threw",
       };
       core.deps.report({
@@ -345,8 +350,8 @@ export function createLeaseBroker(
     core.track(invoke(thread, lease));
   }
 
-  function candidatesFor(thread: ThreadRuntime, txn: BoundaryTxn): ScopeRecord[] {
-    const out: ScopeRecord[] = [];
+  function candidatesFor(thread: ThreadRuntime, txn: BoundaryTxn): RegistrationRecord[] {
+    const out: RegistrationRecord[] = [];
     for (const record of core.scopes.values()) {
       if (record.driveError) continue;
       const activeHere = thread.active.has(record.id) || txn.activating.includes(record);
@@ -376,8 +381,8 @@ export function createLeaseBroker(
       warnPortOnce(thread, loop === undefined ? "fresnel.loop" : "fresnel.session");
       return;
     }
-    let chosen: ScopeRecord | undefined;
-    const arbiter = core.ports.get(LeaseArbiterPortKey);
+    let chosen: RegistrationRecord | undefined;
+    const arbiter = core.ports.get(DriveLockArbiterPortKey);
     if (arbiter !== undefined) {
       const picked = arbiter.choose(
         thread.threadId,
@@ -385,7 +390,8 @@ export function createLeaseBroker(
           scopeId: record.id,
           extension: record.extension,
           loadIndex: record.loadIndex,
-          defaultEnabled: record.def.defaultEnabled ?? record.manifest.defaultEnabled ?? true,
+          defaultEnabled:
+            record.def.defaultEnabled ?? pluginDefaultEnabled(record.manifest, record.plugin),
           enabledAtSeq: thread.enabledAtSeq.get(record.id) ?? null,
         })),
       );
@@ -393,13 +399,13 @@ export function createLeaseBroker(
     } else if (candidates.length === 1) {
       chosen = candidates[0];
     } else {
-      const active = core.deps.settings.activeDriveGroup(thread.threadId);
+      const active = core.deps.settings.activeDriver(thread.threadId);
       chosen = candidates.find((record) => record.id === active);
       if (chosen === undefined) {
         core.deps.report({
           level: "warning",
           code: "drive_conflict",
-          message: `drive groups ${candidates.map((record) => record.id).join(", ")} are enabled; set x.primitives.activeDriveGroup`,
+          message: `drive groups ${candidates.map((record) => record.id).join(", ")} are enabled; set x.primitives.activeDriver`,
         });
       }
     }
@@ -544,12 +550,12 @@ export function createLeaseBroker(
         !record.generation.stale;
       if (!alive) release(lease, "restart");
     },
-    releaseForScope(scopeId, reason) {
+    releaseForRegistration(scopeId, reason) {
       for (const thread of core.threads.values()) {
         if (thread.lease?.scopeId === scopeId) release(thread.lease, reason);
       }
     },
-    releaseForScopeIn(thread, scopeId, reason) {
+    releaseForRegistrationIn(thread, scopeId, reason) {
       if (thread.lease?.scopeId === scopeId) release(thread.lease, reason);
     },
     release,
@@ -557,7 +563,7 @@ export function createLeaseBroker(
       const lease = thread.lease;
       if (lease !== null && lease.status === "active" && lease.committed) {
         // 사용자가 다른 그룹을 구동 그룹으로 골랐고 그 그룹이 후보이면 현재 임대를 회수한다(P-22 revoked)
-        const named = core.deps.settings.activeDriveGroup(thread.threadId);
+        const named = core.deps.settings.activeDriver(thread.threadId);
         if (named !== null && named !== lease.scopeId) {
           const target = candidatesFor(thread, txn).find((record) => record.id === named);
           if (target !== undefined) release(lease, "revoked");

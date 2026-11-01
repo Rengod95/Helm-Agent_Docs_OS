@@ -7,13 +7,14 @@ import type {
   ExtensionManifest,
   ExtensionName,
   HookName,
+  PluginEntry,
   PortLookup,
   RecordKind,
-  ScopeApi,
-  ScopeDef,
-  ScopeId,
-  ScopeSetup,
-  ScopeStatus,
+  RegistrationApi,
+  RegistrationDef,
+  RegistrationId,
+  RegistrationSetup,
+  RegistrationStatus,
 } from "@fresnel/contracts/extensions";
 import type {
   DurableEventDraft,
@@ -38,8 +39,13 @@ export interface PrimitivesSettingsSource {
   driveDefaultLimits(threadId: ThreadId): DriveLimits;
   /** x.primitives.driveLimits. 어떤 임대도 넘지 못하는 천장. thread의 session 범위 값까지 합친 실효 값 */
   driveLimits(threadId: ThreadId): DriveLimits;
-  /** x.primitives.activeDriveGroup */
-  activeDriveGroup(threadId: ThreadId): ScopeId | null;
+  /** x.primitives.activeDriver */
+  activeDriver(threadId: ThreadId): RegistrationId | null;
+  /**
+   * x.primitives.driveRequiresGroup(기본 true). 참이면 플러그인 그룹의 구성원이 아닌 플러그인은 drive를 등록하지 못한다
+   * (`drive_requires_group`). 등록 시점(setup)에 읽으므로 Registration을 다시 켜거나 `ext.reload`할 때 바뀐 값이 적용된다
+   */
+  driveRequiresGroup(): boolean;
   /** x.primitives.capabilityProviders */
   capabilityProviders(): Readonly<Record<string, ExtensionName>>;
   /**
@@ -86,21 +92,21 @@ export interface UsageRecorder {
 }
 
 export interface Generation {
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly number: number;
   readonly abort: AbortController;
   /** setup 실행 중 */
   setupPhase: boolean;
   /** 핸들러가 디스패치 스냅샷에 들어가는 상태 */
   open: boolean;
-  /** 닫힘. 이 세대의 g로 부르는 등록 함수는 scope_inactive다 */
+  /** 닫힘. 이 세대의 g로 부르는 등록 함수는 registration_inactive다 */
   closed: boolean;
   opened: OpenedFiber | null;
   fiber: FiberHandle | null;
   readonly usage: UsageRecorder;
   drive: { readonly fn: DriveCall; readonly options: DriveOptions } | null;
   readonly disposers: (() => void | Promise<void>)[];
-  api: ScopeApi<AnyState> | null;
+  api: RegistrationApi<AnyState> | null;
   /** 상태 마이그레이션 훅(`hostOf(g).migrateState`). setup 안에서 한 번만 등록한다 */
   migration: StateMigration | null;
   /**
@@ -112,34 +118,36 @@ export interface Generation {
   closing: boolean;
 }
 
-interface ScopeLastError {
+interface RegistrationLastError {
   readonly code: PrimitiveErrorCode;
   readonly message: string;
 }
 
-export type ScopeToggleReason = NonNullable<ScopeChangedPayload["reason"]>;
+export type RegistrationToggleReason = NonNullable<ScopeChangedPayload["reason"]>;
 
-/** thread 하나의 켜기·끄기 요청. 없으면 ScopeRecord.desired(전체 기본값)를 따른다(P-28) */
+/** thread 하나의 켜기·끄기 요청. 없으면 RegistrationRecord.desired(전체 기본값)를 따른다(P-28) */
 interface ThreadWant {
   readonly enabled: boolean;
-  readonly reason: ScopeToggleReason | undefined;
+  readonly reason: RegistrationToggleReason | undefined;
 }
 
-export interface ScopeRecord {
-  readonly id: ScopeId;
+export interface RegistrationRecord {
+  readonly id: RegistrationId;
   readonly extension: ExtensionName;
   readonly manifest: ExtensionManifest;
+  /** 이 Registration의 플러그인 선언. 한 확장의 Registration은 플러그인마다 하나다 */
+  readonly plugin: PluginEntry;
   readonly loadIndex: number;
   readonly builtin: boolean;
-  readonly def: ScopeDef<AnyState>;
-  readonly setup: ScopeSetup<AnyState>;
+  readonly def: RegistrationDef<AnyState>;
+  readonly setup: RegistrationSetup<AnyState>;
   /** 마지막 켜기·끄기 요청 */
   desired: boolean;
-  reason: ScopeToggleReason | undefined;
-  status: ScopeStatus;
+  reason: RegistrationToggleReason | undefined;
+  status: RegistrationStatus;
   generationCount: number;
   generation: Generation | null;
-  lastError: ScopeLastError | undefined;
+  lastError: RegistrationLastError | undefined;
   waiting: readonly CapabilityId[];
   /** drive 함수가 던져 오류 표시가 된 scope. 끄고 켜기 전까지 후보가 아니다 */
   driveError: boolean;
@@ -153,7 +161,7 @@ export type ReleaseReason = LeaseReleasedPayload["reason"];
 
 export interface LeaseRuntime {
   readonly leaseId: string;
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly threadId: ThreadId;
   readonly leaseEpoch: number;
   readonly limits: DriveLimits;
@@ -190,16 +198,16 @@ export interface BoundaryTxn {
   readonly signal: BoundarySignal;
   readonly drafts: DurableEventDraft[];
   /** setup을 마치고 settle에서 세대를 열 scope */
-  readonly opening: ScopeRecord[];
+  readonly opening: RegistrationRecord[];
   /** settle에서 이 thread의 켜짐 집합에 더할 scope. opening을 포함한다 */
-  readonly activating: ScopeRecord[];
+  readonly activating: RegistrationRecord[];
   /** prepare에서 이 thread의 켜짐 집합에서 뺀 scope. 커밋이 실패하면 되돌린다 */
-  readonly deactivating: ScopeRecord[];
+  readonly deactivating: RegistrationRecord[];
   /** prepare에서 세대를 닫고 settle에서 정리할 scope */
-  readonly closing: ScopeRecord[];
+  readonly closing: RegistrationRecord[];
   /** 이 커밋이 반영되면 기록된 켜짐 집합에 더하거나 뺄 scope */
-  readonly recordEnabled: ScopeId[];
-  readonly recordDisabled: ScopeId[];
+  readonly recordEnabled: RegistrationId[];
+  readonly recordDisabled: RegistrationId[];
   /** 이 커밋에서 반납이 기록될 임대 */
   readonly releasing: LeaseRuntime[];
   /** 이 커밋에서 부여가 기록될 임대 */
@@ -207,15 +215,15 @@ export interface BoundaryTxn {
   /** 이 커밋에서 `lease.rejected`로 기록될 임대 요청(M3-REQ-28) */
   readonly rejected: LeaseRejection[];
   /** 이 경계가 대기 계수를 올린 scope. 커밋이 실패하면 되돌린다 */
-  readonly waited: ScopeId[];
+  readonly waited: RegistrationId[];
 }
 
 /** 대기 상한을 넘겨 거부된 임대 요청 하나 */
 interface LeaseRejection {
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   readonly requestSeq: number;
   /** 거부 때 임대를 가진 scope와 그 임대 차수. 둘 다 커밋된 값이라 thread를 다시 열어도 같은 거부에 같은 값이다(커밋 키 재료) */
-  readonly holder: ScopeId | null;
+  readonly holder: RegistrationId | null;
   readonly holderEpoch: number;
 }
 
@@ -231,29 +239,29 @@ export interface ThreadRuntime {
   readonly abort: AbortController;
   /** 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(L1.agents 자식은 위임 주체가 구동한다) */
   readonly child: boolean;
-  states: Map<ScopeId, StateCacheEntry>;
+  states: Map<RegistrationId, StateCacheEntry>;
   /** 저장소에 기록된 켜짐 집합(활성 가지 기준). scope.changed 초안은 이 집합과 active의 차이로 만든다 */
-  recordedEnabled: Set<ScopeId>;
+  recordedEnabled: Set<RegistrationId>;
   /** 이 thread에서 핸들러가 디스패치되는 scope. 세대가 열려 있고 이 thread가 켜 둔 scope다(P-28) */
-  active: Set<ScopeId>;
+  active: Set<RegistrationId>;
   /** thread별 켜기·끄기 요청 */
-  want: Map<ScopeId, ThreadWant>;
+  want: Map<RegistrationId, ThreadWant>;
   /** 상태 문서가 맞지 않아 이 thread에서 켜지 못한 scope. 이 thread가 다시 토글하기 전까지 다시 시도하지 않는다 */
-  refused: Set<ScopeId>;
+  refused: Set<RegistrationId>;
   /** scope별 활성 가지 위 scope.changed 수(열 때 스냅샷에서 시작해 커밋마다 오른다). 커밋 키를 전이마다 구분한다 */
-  flips: Map<ScopeId, number>;
+  flips: Map<RegistrationId, number>;
   /** 켜진 scope의 마지막 scope.changed{enabled} seq. 임대 후보의 enabledAtSeq가 된다 */
-  enabledAtSeq: Map<ScopeId, number>;
-  leaseEpochs: Map<ScopeId, number>;
+  enabledAtSeq: Map<RegistrationId, number>;
+  leaseEpochs: Map<RegistrationId, number>;
   lease: LeaseRuntime | null;
   /** 임대를 받지 못하고 기다리는 후보. requestSeq는 대기를 시작한 순번, waited는 넘긴 `turn_settled`·`idle` 경계 수 */
-  leaseWait: Map<ScopeId, { readonly requestSeq: number; waited: number }>;
+  leaseWait: Map<RegistrationId, { readonly requestSeq: number; waited: number }>;
   /** 대기 상한을 넘겨 거부된 scope. 다음 임대 반납이 커밋되면 다시 후보가 된다 */
-  leaseRejected: Set<ScopeId>;
+  leaseRejected: Set<RegistrationId>;
   /** 다음 임대 요청 순번 */
   nextRequestSeq: number;
   /** 임대를 반납한 scope가 다음 turn_settled 또는 상태 판 변화 전까지 후보에서 빠지는 표(반납 때의 판) */
-  cooldown: Map<ScopeId, number>;
+  cooldown: Map<RegistrationId, number>;
   txn: BoundaryTxn | null;
   /** 같은 thread에서 포트 부재 경고를 한 번만 내는 표시 */
   warnedPorts: Set<string>;
@@ -274,7 +282,7 @@ export interface InstalledUnit {
   readonly manifest: ExtensionManifest;
   readonly loadIndex: number;
   readonly builtin: boolean;
-  readonly scopeIds: ScopeId[];
+  readonly scopeIds: RegistrationId[];
 }
 
 export interface HostCore {
@@ -283,7 +291,7 @@ export interface HostCore {
   readonly registry: HandlerRegistry;
   readonly dispatcher: Dispatcher;
   readonly ports: PortLookup;
-  readonly scopes: Map<ScopeId, ScopeRecord>;
+  readonly scopes: Map<RegistrationId, RegistrationRecord>;
   readonly threads: Map<ThreadId, ThreadRuntime>;
   readonly units: Map<ExtensionName, InstalledUnit>;
   /**
@@ -296,7 +304,7 @@ export interface HostCore {
   /** 기능 바인딩 변경이 끝나기를 기다린다 */
   flushBindings(): Promise<void>;
   /** thread에서 scope의 핸들러가 디스패치되는가. 열지 않은 thread(M0 시험)는 세대가 열려 있으면 참이다 */
-  activeIn(threadId: ThreadId, scopeId: ScopeId): boolean;
+  activeIn(threadId: ThreadId, scopeId: RegistrationId): boolean;
   /** 변경 구독자에게 알린다(ExtHost.onChange). 구독자의 예외는 기록하고 넘어간다 */
   notify(change: ExtChange): void;
 }
@@ -305,7 +313,7 @@ export interface HostCore {
 export interface ExtChange {
   /** scope: 토글 요청·적용·오류 표시가 바뀜. lease: 임대 부여·반납이 커밋됨 */
   readonly kind: "scope" | "lease";
-  readonly scopeId: ScopeId;
+  readonly scopeId: RegistrationId;
   /** thread 단위 변경이면 그 thread, 전체 변경이면 null */
   readonly threadId: ThreadId | null;
 }

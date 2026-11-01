@@ -136,7 +136,7 @@ test("resources are registered in the ports and the registry, and released when 
   });
   expect(events).toHaveLength(7);
 
-  t.host.scope("res-all")?.disable();
+  t.host.registration("res-all")?.disable();
   await t.settled();
   expect(fakes.tools.size + fakes.providers.size + fakes.servers.size).toBe(0);
   expect(t.host.resources.list()).toEqual([]);
@@ -147,7 +147,7 @@ test("flags keep the value L4 sets and fall back to the declared default", async
   const t = await createTestHost();
   const seen: (boolean | string | undefined)[] = [];
   await t.host.install(
-    makeUnit({ name: "res-flag", points: ["boundary.settle.after"] }, (g) => {
+    makeUnit({ name: "res-flag", hooks: ["boundary.settle.after"] }, (g) => {
       const host = hostOf(g);
       host.registerFlag("mode", { type: "string", default: "fast" });
       host.registerFlag("dry", { type: "boolean" });
@@ -303,7 +303,7 @@ test("a throwing registry listener does not stop the others", async () => {
     }),
   );
   off();
-  t.host.scope("res-listen")?.disable();
+  t.host.registration("res-listen")?.disable();
   await t.settled();
   expect(seen).toEqual(["one"]);
   expect(t.diagnostics.some((d) => d.message.includes("ResourceRegistry listener"))).toBe(true);
@@ -431,7 +431,7 @@ test("disabling the scope removes the web provider record and tells subscribers 
     }),
   );
   expect(events).toEqual(["added:web_provider:web.search"]);
-  t.host.scope("web-off")?.disable();
+  t.host.registration("web-off")?.disable();
   await t.settled();
   expect(t.host.resources.list("web_provider")).toEqual([]);
   expect(events).toEqual(["added:web_provider:web.search", "removed:web_provider:web.search"]);

@@ -23,14 +23,11 @@ async function writeBundle(version: string, marker: string): Promise<void> {
   await putFile(
     join(source, ".fresnel-plugin", "plugin.json"),
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "helm",
       version,
-      layer: "plugin",
-      kind: "plugin",
       entry: "./dist/index.js",
-      points: [],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: [] }],
     }),
   );
   await putFile(join(source, "dist", "index.js"), marker);
@@ -84,14 +81,11 @@ test("a newer install is not downgraded", async () => {
   await putFile(
     join(destination, ".fresnel-plugin", "plugin.json"),
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "helm",
       version: "2.0.0",
-      layer: "plugin",
-      kind: "plugin",
       entry: "./dist/index.js",
-      points: [],
-      usesDrive: false,
+      plugins: [{ layer: "plugin", hooks: [] }],
     }),
   );
   const result = await installDefaultPlugin({ fs: realInstallFs, source, destination });
