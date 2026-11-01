@@ -862,10 +862,10 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 흐름:
 
 1. 요청자: 도구 승인은 core-tools 파이프라인(§4.2 5c)이 낸다. 질문과 계획 승인은 L2 dialog·work 능력이 자기 도구의 실행 안에서 `xeon.approvals.request`를 부른다(eng.context-map.design §4.4 표 3행).
-2. 커밋: `request`는 한 커밋에 `approval.requested`와 `checkpoint.step`(`ToolRunContext.drafts.waitingCheckpoint`, `next: "await_input"`(L1.loop.spec §4.5 재진입 표), 해당 호출의 `pendingToolCalls[].waiting = "approval"`)을 쓴다. requestId는 §3.9 표다. 커밋 뒤 `session.prompt.before`를 발화한다.
+2. 커밋: `request`는 한 커밋에 `approval.requested`와 `checkpoint.step`(`ToolRunContext.drafts.waitingCheckpoint`, `next: "await_input"`(L1.loop.spec §4.5 재진입 표), 해당 호출의 `pendingToolCalls[].waiting = "approval"`)을 쓴다. requestId는 §3.9 표다. 커밋 뒤 `thread.prompt.before`를 발화한다.
    - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 도구 승인은 의도 전이라 `pendingToolCalls[].effectId`가 null이고, 도구 실행 안에서 낸 질문·계획 요청은 그 호출의 `effect.intent`의 `effectId`를 싣는다. `waiting`은 모두 `"approval"`이다(저장소의 A1 예외가 이 값만 받는다). 활성 호출이 없는 요청(그룹 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
 3. 대기: 메모리 대기 목록에 넣고 응답을 기다린다. 대기 중에 도는 프로세스는 없다(architecture.runtime-flow.design §4.5).
-4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `session.prompt.after`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
+4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `thread.prompt.after`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
 5. 결과 반영:
    - tool: allow → 파이프라인 6단계로 간다. deny → `{ block: true, reason }`. 사유 문장은 `"[xeon:denied_by_user] The user denied this tool call."`에 feedback이 있으면 `" Feedback: <feedback>"`를 붙인다.
    - plan: allow이고 `answer.mode`가 있으면 `ToolService.setMode(threadId, mode, "plan_approval")`을 부른다. 계획 도구의 결과 내용은 L2.work.spec이 정한다.
@@ -997,14 +997,14 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 | 키 | 타입 | 기본값 | runtimeChange | allowedScopes | 탭 | widget |
 |---|---|---|---|---|---|---|
-| `l1.tools.permissionMode` | `"default" \| "acceptEdits" \| "plan" \| "bypass"` | `"default"` | live | managed, user, project, local, session | permissions | select |
+| `l1.tools.permissionMode` | `"default" \| "acceptEdits" \| "plan" \| "bypass"` | `"default"` | live | managed, user, project, local, launch | permissions | select |
 | `l1.tools.bypassAllowed` | boolean | `true` | live | managed | permissions | toggle |
-| `l1.tools.rules` | `PolicyRule[]` | `[]` | live | managed, user, project, local, session | permissions | table |
+| `l1.tools.rules` | `PolicyRule[]` | `[]` | live | managed, user, project, local, launch | permissions | table |
 | `l1.tools.output.maxLines` | integer(100~100,000) | 2000 | nextTurn | managed, user, project, local | tools | number |
 | `l1.tools.output.maxBytes` | integer(1,024~1,048,576) | 51200 | nextTurn | managed, user, project, local | tools | number |
 | `l1.tools.exposure.deferThreshold` | integer(0~128) | 64 | nextTurn | managed, user, project, local | tools | number |
-| `l1.tools.unattended.approval` [제안] | `"wait" \| "deny" \| "expire"` | `"expire"` | nextTurn | managed, user, project, local, session | permissions | select |
-| `l1.tools.unattended.timeoutSeconds` [제안] | integer(1~604,800) | 3600 | nextTurn | managed, user, project, local, session | permissions | number |
+| `l1.tools.unattended.approval` [제안] | `"wait" \| "deny" \| "expire"` | `"expire"` | nextTurn | managed, user, project, local, launch | permissions | select |
+| `l1.tools.unattended.timeoutSeconds` [제안] | integer(1~604,800) | 3600 | nextTurn | managed, user, project, local, launch | permissions | number |
 
 - `l1.tools.rules`는 범위별로 모아 티어를 붙인다(§4.5). 화면은 각 규칙의 출처 범위와 파일을 보인다(`_research/settings.md` §2.6 "규칙 편집기, 우선순위 표시, 각 규칙이 나온 파일 표시").
 - `l1.tools.exposure.deferThreshold`가 0이면 auto 도구는 모두 지연 도구다. 64는 [제안] 값이다. 근거가 되는 provider 측정값은 없다 [가정].
@@ -1022,8 +1022,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 | `tool.execution.before` | tap | §4.2 1 | core-tools가 `prepare`(또는 준비 없이 닫는 `settleRejected`)에서 발화한다 |
 | `tool.execution.update` | tap | §4.2 8 | `execute`의 진행 콜백에서 발화한다 |
 | `tool.execution.after` | tap | §4.2 11 | 호출 마감(`execute`, 준비 중 닫힘, `settleRejected`) 뒤 발화한다 |
-| `session.prompt.before` | tap(detached) | §4.7 2, `approval.requested` 커밋 뒤 | F.extensions.spec §7 배정과 같다 |
-| `session.prompt.after` | tap(detached) | §4.7 4, `approval.resolved` 커밋 뒤 | 같음 |
+| `thread.prompt.before` | tap(detached) | §4.7 2, `approval.requested` 커밋 뒤 | F.extensions.spec §7 배정과 같다 |
+| `thread.prompt.after` | tap(detached) | §4.7 4, `approval.resolved` 커밋 뒤 | 같음 |
 
 - `ToolCallPayload.capability`는 능력 도구일 때 채운다(F.capabilities.spec §7).
 - [결정: M3-REQ-71, M3-02] `tool.call.before`, `guard.tool.before`, `tool.result`의 페이로드는 `risk`(도구 등급), `hints`(도구 작성자의 힌트, 없으면 `{}`), `caller`(`ToolRunContext.caller`)를 항상 채운다. Helm의 쓰기 판정과 그룹 핸들러의 자식 대화 구분에 쓴다. `tool.execution.after`는 비밀을 가린 호출 인자 `input`과 `stepId`를 싣는다(실행 전에 닫힌 호출도 같다). F 스키마에서는 이 필드들이 아직 선택이다: 채우는 쪽이 갖춰졌으므로 필수로 올릴 수 있다(F 변경 요청, 이 문서는 고치지 않는다).

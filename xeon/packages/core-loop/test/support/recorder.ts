@@ -1,9 +1,9 @@
-import { defineManifest, type ExtensionEntry, type PointName } from "@xeon/contracts/extensions";
+import { defineManifest, type ExtensionEntry, type HookName } from "@xeon/contracts/extensions";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import type { FakeSession } from "./fake-session.ts";
 
 /** 한 번 발화된 지점과 그 순간 마지막으로 커밋된 이벤트 종류 */
-interface PointSighting {
+interface HookSighting {
   readonly point: string;
   readonly lastKind: string;
   readonly eventCount: number;
@@ -11,22 +11,22 @@ interface PointSighting {
 
 export interface Recorder {
   readonly unit: ExtensionUnit;
-  readonly sightings: PointSighting[];
+  readonly sightings: HookSighting[];
   /** 지점 이름만(같은 지점이 이어지면 하나로 줄인다) */
   order(): string[];
 }
 
-const TAP_POINTS = [
+const TAP_HOOKS = [
   "boundary.turn.before",
   "boundary.step.before",
   "boundary.message.before",
   "boundary.message.update",
   "boundary.turn.after",
   "boundary.settle.after",
-] as const satisfies readonly PointName[];
+] as const satisfies readonly HookName[];
 
 export function createRecorder(fake: FakeSession, name = "recorder"): Recorder {
-  const sightings: PointSighting[] = [];
+  const sightings: HookSighting[] = [];
   const see = (point: string): void => {
     const events = fake.events();
     sightings.push({ point, lastKind: events.at(-1)?.kind ?? "", eventCount: events.length });
@@ -39,7 +39,7 @@ export function createRecorder(fake: FakeSession, name = "recorder"): Recorder {
     kind: "plugin",
     entry: "./index.ts",
     points: [
-      ...TAP_POINTS,
+      ...TAP_HOOKS,
       "input.user.before",
       "input.agent.before",
       "boundary.message.after",
@@ -50,7 +50,7 @@ export function createRecorder(fake: FakeSession, name = "recorder"): Recorder {
   });
   const entry: ExtensionEntry = ({ manifest: own, scope }) => {
     scope(own.name, {}, (g) => {
-      for (const point of TAP_POINTS) {
+      for (const point of TAP_HOOKS) {
         g.on(point, () => {
           see(point);
         });

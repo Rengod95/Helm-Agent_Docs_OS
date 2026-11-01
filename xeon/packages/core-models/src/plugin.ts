@@ -21,7 +21,7 @@ import {
   type ExtHost,
   type PortKey,
 } from "@xeon/ext-host";
-import type { PointInput, ProviderDispatcher } from "./request-points.ts";
+import type { HookInput, ProviderDispatcher } from "./request-points.ts";
 import { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
 import { DEFAULT_MODELS_SETTINGS } from "./settings.ts";
 
@@ -159,7 +159,7 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
   };
 }
 
-function tapOptions(input: PointInput): {
+function tapOptions(input: HookInput): {
   readonly threadId: ThreadId;
   readonly dispatchKey: string;
   readonly signal?: AbortSignal;

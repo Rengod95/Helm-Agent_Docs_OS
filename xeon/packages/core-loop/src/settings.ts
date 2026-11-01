@@ -16,7 +16,7 @@ export const LOOP_REPEAT_ENABLED_DEFAULT: boolean = true;
 export const LOOP_REPEAT_ACTION_OBSERVATION_DEFAULT: number = 4;
 export const LOOP_REPEAT_ACTION_ERROR_DEFAULT: number = 3;
 
-const SCOPES = ["managed", "user", "project", "local", "session"] as const;
+const SCOPES = ["managed", "user", "project", "local", "launch"] as const;
 
 const group = defineSettings("l1.loop", {
   maxSteps: {

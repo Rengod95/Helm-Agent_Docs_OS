@@ -133,7 +133,7 @@ describe("threads.create", () => {
 });
 
 describe("child threads (inheritOwnerFrom)", () => {
-  test("acquires session:<child> for the same holder, keeps the token and writes with it", async () => {
+  test("acquires thread:<child> for the same holder, keeps the token and writes with it", async () => {
     const h = await openHarness();
     const parent = newThread(h, "parent");
     const childId = h.ids.next("thr");
@@ -141,13 +141,13 @@ describe("child threads (inheritOwnerFrom)", () => {
       h.service.threads.create({ threadId: childId, inheritOwnerFrom: parent.token }),
     );
     expect(created.token).toEqual({
-      resource: `session:${childId}`,
+      resource: `thread:${childId}`,
       holderId: TEST_HOLDER_A.holderId,
       epoch: 1,
     });
     // 부모와 같은 holder가 자식 임대를 쥐고 있어 바로 쓸 수 있다
     expect(startTurn(h, childId).threadId).toBe(childId);
-    expect(h.store.leases.inspect(`session:${childId}`)).toMatchObject({ ok: true });
+    expect(h.store.leases.inspect(`thread:${childId}`)).toMatchObject({ ok: true });
     expectProjectionsRebuildable(h.store.db);
   });
 
@@ -159,7 +159,7 @@ describe("child threads (inheritOwnerFrom)", () => {
       h.service.threads.create({ threadId: childId, inheritOwnerFrom: parent.token }),
     );
     await h.service.release(childId, "quit");
-    expect(expectOk(h.store.leases.inspect(`session:${childId}`))).toBeNull();
+    expect(expectOk(h.store.leases.inspect(`thread:${childId}`))).toBeNull();
     await h.service.release(parent.threadId, "quit");
     expect(expectOk(h.store.leases.inspect(parent.token.resource))).not.toBeNull();
     expect(created.token).not.toBeNull();
@@ -171,7 +171,7 @@ describe("child threads (inheritOwnerFrom)", () => {
     const parent = newThread(h, "parent");
     const childId = h.ids.next("thr");
     expectOk(h.service.threads.create({ threadId: childId, inheritOwnerFrom: parent.token }));
-    h.store.leases.loseLease(`session:${childId}`);
+    h.store.leases.loseLease(`thread:${childId}`);
     expect(lost).toEqual([childId]);
     expect(() => startTurn(h, childId)).toThrow("ownership_lost");
   });
@@ -187,7 +187,7 @@ describe("child threads (inheritOwnerFrom)", () => {
         inheritOwnerFrom: parent.token,
       }),
     ).toThrow("store.schema_invalid");
-    expect(expectOk(h.store.leases.inspect(`session:${childId}`))).toBeNull();
+    expect(expectOk(h.store.leases.inspect(`thread:${childId}`))).toBeNull();
     // 반납했으므로 다시 얻으면 epoch가 오른다(펜싱 토큰의 단조성)
     const retried = expectOk(
       h.service.threads.create({ threadId: childId, inheritOwnerFrom: parent.token }),

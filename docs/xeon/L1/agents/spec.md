@@ -329,7 +329,7 @@ export type AgentJudgedPayload = JudgeRecord;
 2. 멱등 확인(§4.5): 같은 부모·같은 자식 requestId의 `agent.spawned`가 있으면 새로 만들지 않는다. 조회는 커밋 안의 `TxView.agentByRequestId`다(L1.persistence.spec §3.2).
 3. 커밋 [결정: L1B.4]: F `ThreadCreateInput`에는 다른 대화의 초안을 같은 커밋에 싣는 자리가 없어 두 커밋으로 나눈다. (1) `threads.create({ creationKey: "spawn:" + sha256(부모 threadId, 자식 requestId) 앞 40자, inheritOwnerFrom })`로 자식을 만든다. (2) 부모 대화에 `agent.spawned`를 커밋한다(`build` 안에서 `TxView.agentByRequestId`로 같은 requestId를 먼저 보고, 있으면 `exists`로 그 연결을 따른다). 두 커밋 사이에 죽으면 같은 `creationKey`가 같은 자식을 돌려주므로(`replayed: true`) 중복 자식이 생기지 않는다. 이어서 자식 임대를 다시 얻고 쓰기로 연다. `L1.persistence.spec` §4.10.1이 같은 결정을 적는다. 한 커밋으로 합치려면 F에 부모 초안을 받는 자리가 필요하다 [미결: F 요청]. fork 지점이 `item`이면 `threads.fork`로 만들고 임대는 `ownership.leases`로 얻는다. `event` 지점은 세션에 이벤트 기준 fork가 없어 `agents.invalid_request`다.
    - 부모 토큰 [미결]: `SpawnOrigin`에도 `SessionService`에도 부모의 `LeaseToken`이 없다. `AgentsOwnership.parentToken(threadId)`를 조립 루트가 넘긴다(F 요청: `SessionService`의 소유 토큰 조회 또는 `SpawnOrigin.parentToken`).
-   - 자식 쓰기 소유 [제안]: 자식 thread의 쓰기 소유자는 부모 thread의 소유자(같은 엔진 인스턴스)다. 이 커밋 직전에 core-persistence가 부모 토큰의 holder로 `session:<childThreadId>` 임대를 `xeon.store.leases.acquire`로 얻는다(`L1.persistence.spec` §3.8 `ThreadCreateInput.inheritOwnerFrom`, §4.10.1). 새 id라 경합이 없고, 커밋이 실패하면 반납한다. 소유 확인 면제는 자식의 첫 이벤트 `thread.started` 하나뿐이다. 같은 커밋의 부모 `agent.spawned`와 이후 자식의 `turn.started`, 도구 효과, 부모의 `agent.settled`는 각 thread의 토큰으로 확인한다(`L1.persistence.spec` §4.1 2단계).
+   - 자식 쓰기 소유 [제안]: 자식 thread의 쓰기 소유자는 부모 thread의 소유자(같은 엔진 인스턴스)다. 이 커밋 직전에 core-persistence가 부모 토큰의 holder로 `thread:<childThreadId>` 임대를 `xeon.store.leases.acquire`로 얻는다(`L1.persistence.spec` §3.8 `ThreadCreateInput.inheritOwnerFrom`, §4.10.1). 새 id라 경합이 없고, 커밋이 실패하면 반납한다. 소유 확인 면제는 자식의 첫 이벤트 `thread.started` 하나뿐이다. 같은 커밋의 부모 `agent.spawned`와 이후 자식의 `turn.started`, 도구 효과, 부모의 `agent.settled`는 각 thread의 토큰으로 확인한다(`L1.persistence.spec` §4.1 2단계).
    - 하트비트는 core-persistence가 자식 토큰에 건다. 자식 임대는 자식 정착(6번) 뒤 `release`로 반납한다.
    - 부모 임대 상실(`lease_lost`, `ownership_lost`)은 소유 트리 취소로 자식 전체에 전파한다. 부모 thread 노드에 `abort(…, { code: "lease_lost" }, { background: true })`를 걸어 백그라운드 자식도 멈춘다(`eng.transactions.design` §3.3 규칙 2 "임대를 잃으면 메모리 작업을 모두 취소", `L1.tasks.spec` `AbortCode`). 자식 임대 상실도 그 자식 노드를 같은 사유로 취소한다.
    - 다른 프로세스(CLI와 데스크톱)가 자식 thread를 쓰기로 열려 하면 임대가 이미 있으므로 잠금 실패 경로(위임·관찰·분기)로 간다(`L1.persistence.spec` §4.9).
@@ -415,7 +415,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 멱등: `spawn`·`delegate`는 부모 대화의 `agent.spawned`에서 같은 requestId를 찾는다(커밋 안의 조회 `TxView.agentByRequestId`, 투영 `p_agents`, L1.persistence.spec §3.2·§3.10, eng.transactions.design §4.7). 있으면:
   - 정착했으면(`agent.settled` 있음) 기록된 결과를 돌려준다(`reused: true`). 자식을 다시 돌리지 않는다.
   - 진행 중이고 이 프로세스에서 살아 있으면 그 실행을 기다린다.
-  - 진행 중인데 재시작으로 끊겼으면 자식 대화를 재개한다. 재개 전에 부모 소유자가 자식 임대를 다시 얻고(`session:<childThreadId>`) `openForWrite(child, token)`으로 쓰기 소유를 연다 [제안]. `ResumePlan.openChildren`의 자식도 같은 순서다. 자식 대화의 재개 규칙(결과 불명 효과 처리 포함)은 L1.persistence.spec을 따른다.
+  - 진행 중인데 재시작으로 끊겼으면 자식 대화를 재개한다. 재개 전에 부모 소유자가 자식 임대를 다시 얻고(`thread:<childThreadId>`) `openForWrite(child, token)`으로 쓰기 소유를 연다 [제안]. `ResumePlan.openChildren`의 자식도 같은 순서다. 자식 대화의 재개 규칙(결과 불명 효과 처리 포함)은 L1.persistence.spec을 따른다.
 - 그래서 재개 뒤 같은 spawn requestId로 다시 불러도 자식이 중복 생성되지 않는다(§9).
 - [가정] F.extensions.spec §4.6 "이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다"를 이 규칙이 구현한다.
 
@@ -512,7 +512,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | `l1.agents.maxDepth` | integer(0~5) | 1 | nextTurn | managed, user, project, local | models | number |
 | `l1.agents.maxConcurrent` | integer(1~32) | 8 | nextTurn | managed, user, project, local | models | number |
 | `l1.agents.resultMaxChars` | integer(1,000~200,000) | 24000 | nextTurn | managed, user, project, local | models | number |
-| `l1.agents.judge.maxRuns` | integer(1~20) | 3 | nextTurn | managed, user, project, local, session | models | number |
+| `l1.agents.judge.maxRuns` | integer(1~20) | 3 | nextTurn | managed, user, project, local, launch | models | number |
 
 - `maxDepth: 0`이면 서브에이전트를 쓰지 않는다(opencode `subagent_depth` 0 관례, `_research/settings.md` §2.9).
 - `maxConcurrent`는 소유 트리 루트 하나의 동시 자식 수다. 전체 동시 수는 L1.tasks.spec의 `l1.tasks.limits.subagents`(기본 16)이고 이 문서는 그 키를 다시 정의하지 않는다. 기본 8은 [제안] 값이다. Helm 렌즈 상한 `l3.helm.maxLenses`(최대 8, L3.helm.spec)가 한 번에 돌 수 있고, 전체 풀의 절반이라 다른 대화가 남은 슬롯을 쓸 수 있다.
@@ -584,7 +584,7 @@ export type AgentJudgedPayload = JudgeRecord;
 8. `agent.judged`가 커밋된 뒤 재개하면 같은 `(goalRef, run)`의 `judge`가 `{ kind: "recorded" }`를 돌려주고 모델을 부르지 않는다.
 9. 동시 상한 2에서 자식 3개를 생성하면 세 번째는 `queued`이고, 앞의 하나가 정착한 뒤 실행된다.
 10. 백그라운드 위임의 완료 보고는 부모 대화에 `custom` item 하나로 들어간다. `agent.settled` 커밋 전 장애 주입 지점에서 끊으면 `agent.settled`와 보고 `input.queued`가 둘 다 없고, 커밋 뒤에 끊으면 둘 다 있다.
-11. 자식 생성 뒤 자식 thread의 `session:<childThreadId>` 임대 holder는 부모와 같다. 부모 임대를 다른 프로세스가 인수하면 포그라운드·백그라운드 자식 모두의 신호가 켜지고 자식의 다음 커밋은 `ownership_lost`다.
+11. 자식 생성 뒤 자식 thread의 `thread:<childThreadId>` 임대 holder는 부모와 같다. 부모 임대를 다른 프로세스가 인수하면 포그라운드·백그라운드 자식 모두의 신호가 켜지고 자식의 다음 커밋은 `ownership_lost`다.
 
 ## 10. 미결 사항
 

@@ -327,7 +327,7 @@ describe("rebuild", () => {
       projector_state: expect.any(String),
     });
     // 다시 만든 투영기는 처음 여는 thread의 열기 보고에 한 번 실린다
-    const token = restarted.store.leases.takeover(`session:${threadId}`, TEST_HOLDER_B);
+    const token = restarted.store.leases.takeover(`thread:${threadId}`, TEST_HOLDER_B);
     expect(expectOk(restarted.service.openForWrite(threadId, token)).rebuilt).toEqual(["core"]);
     expect(expectOk(restarted.service.openForWrite(threadId, token)).rebuilt).toEqual([]);
     const state = restarted.store.raw

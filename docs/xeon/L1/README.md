@@ -161,21 +161,21 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | 24 | `boundary.settle.before` | boundary | chain | loop | 같음 |
 | 25 | `boundary.turn.after` | boundary | tap | loop | 같음 |
 | 26 | `boundary.settle.after` | boundary | tap | loop | 같음 |
-| 27 | `session.trust.before` | session | first | X(`X.loading-trust.spec`) | 같음. L1 밖 |
-| 28 | `session.resources` | session | collect | X(`X.loading-trust.spec`) | 같음. L1 밖 |
-| 29 | `session.mcp.after` | session | tap(detached) | L2.mcp(`L2.mcp.spec`) | 같음. L1 밖 |
-| 30 | `session.start` | session | tap | persistence | 같음 |
-| 31 | `session.info.after` | session | tap(detached) | persistence | 같음 |
-| 32 | `session.switch.before` | session | first | persistence | 같음 |
-| 33 | `session.fork.before` | session | first | persistence | 같음 |
-| 34 | `session.compact.before` | session | first | context | 같음(§13 (c)에서 F §7을 고쳤다) |
-| 35 | `session.compact.after` | session | tap | context | 같음 |
-| 36 | `session.compact.failed` | session | tap | context | 같음 |
-| 37 | `session.tree.before` | session | first | persistence | 같음 |
-| 38 | `session.tree.after` | session | tap | persistence | 같음 |
-| 39 | `session.shutdown` | session | tap | persistence | 같음 |
-| 40 | `session.prompt.before` | session | tap(detached) | tools | 같음. 승인 프로토콜이 발화한다(`L1.tools.spec` §7) |
-| 41 | `session.prompt.after` | session | tap(detached) | tools | 같음 |
+| 27 | `thread.trust.before` | thread | first | X(`X.loading-trust.spec`) | 같음. L1 밖 |
+| 28 | `thread.resources` | thread | collect | X(`X.loading-trust.spec`) | 같음. L1 밖 |
+| 29 | `thread.mcp.after` | thread | tap(detached) | L2.mcp(`L2.mcp.spec`) | 같음. L1 밖 |
+| 30 | `thread.start` | thread | tap | persistence | 같음 |
+| 31 | `thread.info.after` | thread | tap(detached) | persistence | 같음 |
+| 32 | `thread.switch.before` | thread | first | persistence | 같음 |
+| 33 | `thread.fork.before` | thread | first | persistence | 같음 |
+| 34 | `thread.compact.before` | thread | first | context | 같음(§13 (c)에서 F §7을 고쳤다) |
+| 35 | `thread.compact.after` | thread | tap | context | 같음 |
+| 36 | `thread.compact.failed` | thread | tap | context | 같음 |
+| 37 | `thread.tree.before` | thread | first | persistence | 같음 |
+| 38 | `thread.tree.after` | thread | tap | persistence | 같음 |
+| 39 | `thread.shutdown` | thread | tap | persistence | 같음 |
+| 40 | `thread.prompt.before` | thread | tap(detached) | tools | 같음. 승인 프로토콜이 발화한다(`L1.tools.spec` §7) |
+| 41 | `thread.prompt.after` | thread | tap(detached) | tools | 같음 |
 | 42 | `guard.model.before` | guard | first | loop | adr.0017로 더한 지점. 발화 위치는 `L1.loop.spec`이 정한다(M3-REQ-109). 내장 검사는 없다 |
 | 43 | `guard.tool.before` | guard | first | tools | 같음. 발화 위치는 `L1.tools.spec`이 정한다(M3-REQ-109) |
 | 44 | `guard.output.before` | guard | first | loop | 같음. 출력 대상은 [가정] |

@@ -58,8 +58,8 @@ describe("l1.context settings", () => {
   });
 
   test("compactionInstructions does not accept the session scope", () => {
-    expect(defOf("l1.context.compactionInstructions").allowedScopes).not.toContain("session");
-    expect(defOf("l1.context.autoCompact").allowedScopes).toContain("session");
+    expect(defOf("l1.context.compactionInstructions").allowedScopes).not.toContain("launch");
+    expect(defOf("l1.context.autoCompact").allowedScopes).toContain("launch");
   });
 });
 

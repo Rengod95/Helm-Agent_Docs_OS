@@ -9,10 +9,10 @@ export {
 } from "./item-pages.ts";
 export { type RetentionApi } from "./retention.ts";
 export {
-  createSessionPoints,
-  NO_SESSION_POINTS,
+  createThreadHooks,
+  NO_THREAD_HOOKS,
   type SessionDispatcher,
-  type SessionPoints,
+  type ThreadHooks,
 } from "./points.ts";
 export {
   SESSION_EXTENSION_NAME,

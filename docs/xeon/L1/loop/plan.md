@@ -18,7 +18,7 @@ binds: [xeon/packages/core-loop/**]
 
 | 마일스톤 | 범위 | L1-b 구성요소(계획 단계) |
 |---|---|---|
-| M0(선행, 다른 패키지) | `contracts`의 F 타입(`AgentEventMapper` 시그니처, `StepCheckpoint`, `POINTS`, `BoundaryValue`), `platform-store`, `core-persistence` 커밋 API, `ext-host` 디스패치 최소형 | — |
+| M0(선행, 다른 패키지) | `contracts`의 F 타입(`AgentEventMapper` 시그니처, `StepCheckpoint`, `HOOKS`, `BoundaryValue`), `platform-store`, `core-persistence` 커밋 API, `ext-host` 디스패치 최소형 | — |
 | M1 걸어 다니는 골격 | 자체 루프(진입점 `runTurn(entry)`, 단계 함수, 도구 배치), 이벤트 매퍼, 커밋 지점 T1~T4·T6, 단계 체크포인트, 재개 진입(`next` 판별자 전부), 입력 admit(`input` 지점), 모델 테이프 한 턴과 강제 종료 뒤 재개(`_research/foundation-plan.md` §6 M1 스모크), `l1.loop.maxSteps` | 턴 사이클(1차), 예산 pi 방식의 단계 상한·중단(1차), 단계 전 준비 훅(1차) |
 | M2 L2 능력과 Helm(`product.scope.spec` §4.3) | 완료 게이트 횟수 상한(`l1.loop.gate.maxContinues`), drive 연동(`loop.turn` 멱등)의 정식 테스트, 추론 예산 설정 연결(`thinkingBudgets`), `input.bash.before` 진입점, `await_input` 재진입의 승인 응답 연결, 자식 thread turn 진입점 `runChildTurn`(L1.agents M2) | 완료 게이트(2차 구성요소의 앞당김), 예산의 추론 레벨별 토큰 예산(1차) |
 | M3 | 목표 판정 소비 지점(`boundary.settle.before` 핸들러 계약, `L2.work.spec`·`L1.agents.spec`과 함께) | (L2-e 목표 지속과 연결) |
@@ -90,7 +90,7 @@ xeon/packages/core-loop/
 
 - 모델 테이프 가짜는 `eng.testing.guide` TS-04가 정한 `@xeon/core-models/testing`(`loadTape`, `tape`, `tapePlayer`, `contextHash`, `t`)을 테스트 파일에서만 import한다(DR-08, DR-14 예외 3). 테이프 파일은 `core-loop/test/tapes/`에 둔다(TS-06).
 - `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`는 import하지 않는다(DR-07, adr.0009). streamFn과 도구 선언 차이 계산은 `xeon.models` 서비스에서 받고, 대화 타입은 `@xeon/contracts/conversation`의 F 정의를 쓴다.
-- `loop/` 아래 파일 중 원본 함수에서 출발한 것(`run-turn.ts`, `stream-response.ts`, `tool-batch.ts`)은 머리에 출처 주석을 단다. 원본 구조에서 벗어난 줄에는 `// XEON-PATCH: <id>`를 단다. 나머지는 자체 코드다.
+- `loop/` 아래 파일 중 원본 함수에서 출발한 것(`run-turn.ts`, `stream-response.ts`, `tool-batch.ts`)은 머리에 출처 주석을 단다. 원본 구조에서 벗어난 줄에는 `// FRESNEL-PATCH: <id>`를 단다. 나머지는 자체 코드다.
 - 스모크 시나리오 테스트(`*.scenario.test.ts`)는 `apps/cli/test/`에 하나만 둔다(TS-01, TS-06). core-loop는 그 스모크가 쓰는 테이프 일부를 함께 만든다.
 
 ## 3. 작업 분해
@@ -139,9 +139,9 @@ xeon/packages/core-loop/
 포크 수행 규칙:
 
 1. 원본은 npm tarball을 풀어 `sourcesContent`에서 꺼내거나 `~/projects/_ref/pi-src`에서 읽는다. 어느 쪽도 실행하지 않는다. `_ref`에는 쓰지 않는다.
-2. `UPSTREAM.json`: `upstream: "https://github.com/earendil-works/pi"`, `package: "@earendil-works/pi-agent-core"`, `version: "1.3.0"`, `tarballSha1`, `license: "MIT"`, `copiedPaths`(원본 함수와 줄 범위 → Xeon 파일), `notCopied`, `modifications`(XEON-PATCH id 목록).
+2. `UPSTREAM.json`: `upstream: "https://github.com/earendil-works/pi"`, `package: "@earendil-works/pi-agent-core"`, `version: "1.3.0"`, `tarballSha1`, `license: "MIT"`, `copiedPaths`(원본 함수와 줄 범위 → Xeon 파일), `notCopied`, `modifications`(FRESNEL-PATCH id 목록).
 3. `LICENSE.pi`: pi 저장소 루트 `LICENSE` 원문. 배포물 서드파티 고지에도 넣는다(adr.0003 §3.4).
-4. 출처 주석과 `XEON-PATCH` 표지는 adr.0009 §3.6 형식이다.
+4. 출처 주석과 `FRESNEL-PATCH` 표지는 adr.0009 §3.6 형식이다.
 
 업스트림 추종 [결정: adr.0009 §3.7]. pi-agent-core 새 판은 따라가지 않는다. 루프 버그를 고칠 때 원본에 같은 수정이 있는지 참고로 본다. 옮기면 `UPSTREAM.json` `modifications`에 원본 판과 함수를 적는다. pi-ai 판 올림은 `L1.models.plan`의 체크리스트를 따르고, core-loop 쪽 확인은 녹화 테이프 재생(`recordedFrom.piAi`, TS-04)과 `loop.contract.test.ts`다.
 

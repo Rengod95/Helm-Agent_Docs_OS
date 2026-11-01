@@ -592,11 +592,11 @@ M1은 두 모드 모두 구현하지 않는다(`mode_not_supported`). M2에서 B
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui |
 |---|---|---|---|---|---|---|
-| `l1.tasks.limits.tools` | integer | 8 | min 1, max 64 | `live` | managed, user, project, local, session | execution, number, order 10, "동시 도구 실행 수", unit "개" |
-| `l1.tasks.limits.subagents` | integer | 16 | min 1, max 100 | `live` | managed, user, project, local, session | execution, number, order 20, "동시 서브에이전트 수", unit "개" |
-| `l1.tasks.limits.modelCalls` | integer | 16 | min 1, max 100 | `live` | managed, user, project, local, session | execution, number, order 30, "동시 모델 요청 수", unit "개" |
-| `l1.tasks.queue.steeringMode` | string | `"one-at-a-time"` | enum `["all", "one-at-a-time"]` | `live` | managed, user, project, local, session | execution, select, order 40, "방향 수정 입력 배치" |
-| `l1.tasks.queue.followUpMode` | string | `"one-at-a-time"` | enum `["all", "one-at-a-time"]` | `live` | managed, user, project, local, session | execution, select, order 50, "후속 입력 배치" |
+| `l1.tasks.limits.tools` | integer | 8 | min 1, max 64 | `live` | managed, user, project, local, launch | execution, number, order 10, "동시 도구 실행 수", unit "개" |
+| `l1.tasks.limits.subagents` | integer | 16 | min 1, max 100 | `live` | managed, user, project, local, launch | execution, number, order 20, "동시 서브에이전트 수", unit "개" |
+| `l1.tasks.limits.modelCalls` | integer | 16 | min 1, max 100 | `live` | managed, user, project, local, launch | execution, number, order 30, "동시 모델 요청 수", unit "개" |
+| `l1.tasks.queue.steeringMode` | string | `"one-at-a-time"` | enum `["all", "one-at-a-time"]` | `live` | managed, user, project, local, launch | execution, select, order 40, "방향 수정 입력 배치" |
+| `l1.tasks.queue.followUpMode` | string | `"one-at-a-time"` | enum `["all", "one-at-a-time"]` | `live` | managed, user, project, local, launch | execution, select, order 50, "후속 입력 배치" |
 
 - 모든 키의 `layer`는 `"L1"`, `since`는 `"0.1.0"`, `secret` 없음.
 

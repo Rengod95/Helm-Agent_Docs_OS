@@ -100,10 +100,10 @@ function settle(h: Harness, parentId: ThreadId, childThreadId: ThreadId, request
 }
 
 function tokenOf(h: Harness, threadId: ThreadId): LeaseToken {
-  const info = h.store.leases.inspect(`session:${threadId}`);
+  const info = h.store.leases.inspect(`thread:${threadId}`);
   if (!info.ok || info.value === null) throw new Bug("no lease");
   return {
-    resource: `session:${threadId}`,
+    resource: `thread:${threadId}`,
     holderId: info.value.holderId,
     epoch: info.value.epoch,
   };

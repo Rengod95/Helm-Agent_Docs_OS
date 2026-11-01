@@ -40,10 +40,10 @@ const DEPS: RecoverDeps = {
 };
 
 function tokenOf(h: Harness, threadId: string): LeaseToken {
-  const info = h.store.leases.inspect(`session:${threadId}`);
+  const info = h.store.leases.inspect(`thread:${threadId}`);
   if (!info.ok || info.value === null) throw new Bug("no lease");
   return {
-    resource: `session:${threadId}`,
+    resource: `thread:${threadId}`,
     holderId: info.value.holderId,
     epoch: info.value.epoch,
   };
@@ -78,7 +78,7 @@ describe("openForWrite", () => {
   test("thread_not_found for an unknown thread", async () => {
     const h = await fileHarness();
     const ghost = h.ids.next("thr");
-    const lease = expectOk(h.store.leases.acquire(`session:${ghost}`, TEST_HOLDER_A));
+    const lease = expectOk(h.store.leases.acquire(`thread:${ghost}`, TEST_HOLDER_A));
     expect(h.service.openForWrite(ghost, lease)).toEqual({
       ok: false,
       error: { kind: "thread_not_found", threadId: ghost },

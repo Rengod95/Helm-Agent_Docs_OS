@@ -45,7 +45,7 @@ async function restart(dbPath: string, threadId: ThreadId): Promise<Harness> {
   const store = await openTestStore({ path: dbPath, clock });
   const h = await openHarness({ store, clock, ids: fixedIdFactory(2) });
   // OS 잠금은 프로세스가 죽으면 풀린다. 새 소유자가 임대를 인수한다(epoch + 1)
-  const token = store.leases.takeover(`session:${threadId}`, TEST_HOLDER_B);
+  const token = store.leases.takeover(`thread:${threadId}`, TEST_HOLDER_B);
   expectOk(h.service.openForWrite(threadId, token));
   return h;
 }

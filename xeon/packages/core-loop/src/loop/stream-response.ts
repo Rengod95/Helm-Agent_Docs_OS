@@ -8,9 +8,9 @@ import { saltAssistantMessage, saltStreamEvent, toolCallSalt } from "./tool-call
 import { currentStep, failureText, overrides, type TurnRun } from "./turn-run.ts";
 
 // L1.loop.spec §3.2 단계 3 `streamResponse`. `modelCalls` 슬롯을 잡고 streamFn을 불러 부분 메시지를 이벤트로 낸다.
-// XEON-PATCH: no-context-array — 원본과 달리 컨텍스트 배열에 push하지 않는다. 최종 메시지만 돌려주고, 기록은 commitResponse가 한다.
-// XEON-PATCH: no-api-key — getApiKey·apiKey 처리는 없다. core-models가 키를 임대한다.
-// XEON-PATCH: model-slot — streamFn을 `modelCalls` 슬롯으로 감싼다(L1.tasks.spec §4.5 C1).
+// FRESNEL-PATCH: no-context-array — 원본과 달리 컨텍스트 배열에 push하지 않는다. 최종 메시지만 돌려주고, 기록은 commitResponse가 한다.
+// FRESNEL-PATCH: no-api-key — getApiKey·apiKey 처리는 없다. core-models가 키를 임대한다.
+// FRESNEL-PATCH: model-slot — streamFn을 `modelCalls` 슬롯으로 감싼다(L1.tasks.spec §4.5 C1).
 
 /** `xeon.models`의 streamFn을 `modelCalls` 슬롯으로 감싼 것(L1.tasks.spec §4.5 C1). 전역 기본 streamFn은 없다 */
 function modelStreamFn(run: TurnRun): StreamFn {

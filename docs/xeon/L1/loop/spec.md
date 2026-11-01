@@ -493,7 +493,7 @@ sequenceDiagram
    - 도구 광고(`xeon.tools.advertise`)에 넘기는 `activated`는 이 대화의 `tool_search` 효과 결과(`structuredContent.activated`)의 합집합이다(`L1.tools.spec` §4.1 규칙 5). 루프는 turn마다 활성 가지를 한 번 읽어 집합을 만들고, 같은 turn의 `tool_search` 결과는 도구 배치가 끝날 때 더한다. 재개한 turn도 같은 방법으로 집합을 다시 만들어 광고 목록이 끊기지 않은 실행과 같다(`loop/activation.ts`).
    - 요청 전 임계 검사(`loop/compaction.ts`, M2 마감 G2-01): 모델을 해석한 뒤 조립 앞에서 `xeon.context.shouldCompact(threadId, leaf, binding)`을 부르고, 참이면 `compact({ reason: "threshold", binding, contextWindow, willRetry: false, signal })`를 한다. 컴팩션 커밋은 `core.context` 생산자가 하고, 루프는 커밋 피드로 leaf를 새 값으로 옮긴 뒤 그 leaf로 조립한다. 컴팩션이 실패하거나(`summary_failed` 등) 건너뛰거나(`nothing_to_summarize`) 확장이 거부해도 turn은 멈추지 않는다. 경고를 남기고 이 turn의 남은 단계에서는 다시 시도하지 않는다(`state.compactionBlocked`). 그 요청이 창을 넘으면 아래 오버플로우 복구가 한 번 더 시도한다. `l1.context.autoCompact`가 거짓이면 `shouldCompact`가 거짓이다.
    - 오버플로우 복구: `streamResponse`가 돌려준 종결 메시지가 `stopReason: "error"`이고 `xeon.models.classify(message, contextWindow)`가 `context_overflow`이면 `xeon.context.recoverOverflow(threadId, stepId, message, binding)`을 부른다. `retry`면 실패한 시도를 커밋하지 않고(매퍼가 열어 둔 item만 휘발 알림으로 닫는다) 앞 시도가 쌓은 prelude를 버리고 같은 단계의 요청을 한 번 다시 만들어 보낸다. 단계 시작(`step.started`)은 한 번이다. 다시 보낸 응답이 또 오버플로우여도 복구는 단계당 한 번뿐이므로 그 응답을 오류로 커밋하고 turn은 `failed`로 끝난다. `fail`(`second_overflow`, `compaction_failed`, `compaction_cancelled`, `disabled`)이면 오류 응답을 그대로 커밋하고 사유를 경고로 남긴다. 재개한 turn도 같은 길을 쓴다.
-   - 호출하지 않는 것: 수동 컴팩션(`/compact`)은 루프가 부르지 않는다. wire 메서드 `thread.compact`(`F.wire-settings.spec` §3.3.1)가 정했고, 호출자는 L4 host가 `ContextService.compact({ reason: "manual", … })`로 부른다(진행 중인 turn이 있으면 `turn.busy`로 거절하므로 루프와 겹치지 않는다). 떠난 가지 요약은 `L1.context.spec` §4.9 A안대로 호출자(L4 host의 `/tree` 처리)가 `session.tree.before` 결과를 본 뒤 `summarizeBranch`를 부르고 `moveLeaf`에 넘기므로 루프가 부르지 않는다.
+   - 호출하지 않는 것: 수동 컴팩션(`/compact`)은 루프가 부르지 않는다. wire 메서드 `thread.compact`(`F.wire-settings.spec` §3.3.1)가 정했고, 호출자는 L4 host가 `ContextService.compact({ reason: "manual", … })`로 부른다(진행 중인 turn이 있으면 `turn.busy`로 거절하므로 루프와 겹치지 않는다). 떠난 가지 요약은 `L1.context.spec` §4.9 A안대로 호출자(L4 host의 `/tree` 처리)가 `thread.tree.before` 결과를 본 뒤 `summarizeBranch`를 부르고 `moveLeaf`에 넘기므로 루프가 부르지 않는다.
 3. `openStep`은 단계 경계에 적용된 scope 토글(F.extensions.spec §4.5)을 반영해 도구 광고를 다시 받는다. 모델 바인딩도 여기서 정한다.
 4. `endStep` 안의 순서: (a) 결과 없는 호출이 없음을 확인(배치가 이미 닫았다, §3.3 규칙 4. 진입 `turn_end`의 `closing`만 여기서 닫는다) → (b) `boundary.step.after` chain → (c) 정착 후보 판정(도구 호출 없음 또는 배치 `terminate`, 그리고 `inputs.peek`의 steer 없음) → (d) 후보면 `boundary.settle.before` chain → (e) `finalizeBoundary` 두 값 → (f) 예산·게이트·중단 판정으로 계속 여부 결정 → (g) T4 커밋(build 안에서 `inputs.drain(view, …, "stepEnd", { continuing })`) → (h) `StepNext` 반환(배치된 입력은 `placed`로 다음 요청 앞에 붙는다). `stopReason`이 `error`·`aborted`이면 (d)는 `outcome`을 그대로 넘기고 `StepNext`는 `settle`이다.
 5. (c)의 `peek`와 (g)의 커밋 안 선택 사이에 steer가 새로 들어오면 (g)가 그 steer를 고른다. 이때 이미 발화한 `boundary.settle.before`의 엔트리는 그대로 커밋하고 turn은 이어간다 [제안]. 핸들러는 재실행해도 되는 질의라 결과가 어긋나지 않는다.
@@ -707,11 +707,11 @@ runChildTurn(req):
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui | 단계 |
 |---|---|---|---|---|---|---|---|
-| `l1.loop.maxSteps` | integer | 0 | min 0, max 10000 | `nextTurn` | managed, user, project, local, session | budgets, number, order 10, "turn당 최대 단계", help "0이면 상한 없음", unit "단계" | M1 |
-| `l1.loop.gate.maxContinues` | integer | 8 | min 0, max 100 | `nextTurn` | managed, user, project, local, session | budgets, number, order 20, "완료 게이트 연속 계속 상한", help "0이면 boundary 계속 지시를 따르지 않음", unit "회" | M2 |
-| `l1.loop.repeat.enabled` | boolean | true | — | `live` | managed, user, project, local, session | budgets, toggle, order 30, "반복 감지 알림" | M3b |
-| `l1.loop.repeat.actionObservation` | integer | 4 | min 2, max 50 | `live` | managed, user, project, local, session | budgets, number, order 31, "같은 행동-관찰 반복 임계", unit "회" | M3b |
-| `l1.loop.repeat.actionError` | integer | 3 | min 2, max 50 | `live` | managed, user, project, local, session | budgets, number, order 32, "같은 행동-오류 반복 임계", unit "회" | M3b |
+| `l1.loop.maxSteps` | integer | 0 | min 0, max 10000 | `nextTurn` | managed, user, project, local, launch | budgets, number, order 10, "turn당 최대 단계", help "0이면 상한 없음", unit "단계" | M1 |
+| `l1.loop.gate.maxContinues` | integer | 8 | min 0, max 100 | `nextTurn` | managed, user, project, local, launch | budgets, number, order 20, "완료 게이트 연속 계속 상한", help "0이면 boundary 계속 지시를 따르지 않음", unit "회" | M2 |
+| `l1.loop.repeat.enabled` | boolean | true | — | `live` | managed, user, project, local, launch | budgets, toggle, order 30, "반복 감지 알림" | M3b |
+| `l1.loop.repeat.actionObservation` | integer | 4 | min 2, max 50 | `live` | managed, user, project, local, launch | budgets, number, order 31, "같은 행동-관찰 반복 임계", unit "회" | M3b |
+| `l1.loop.repeat.actionError` | integer | 3 | min 2, max 50 | `live` | managed, user, project, local, launch | budgets, number, order 32, "같은 행동-오류 반복 임계", unit "회" | M3b |
 
 - 모든 키의 `layer`는 `"L1"`, `since`는 그 단계 첫 릴리스 판(M1 키는 `"0.1.0"`)이다.
 - `l1.loop.maxSteps`는 `F.wire-settings.spec` §3.8.3 사용 예와 같은 정의다.
@@ -769,7 +769,7 @@ runChildTurn(req):
 | `ExtHost` 디스패치(`dispatch(point, payload)`, 서비스 `xeon.ext`), 현재 `leaseRefs`·`scopeRef`, 단계 경계 토글 적용 알림, `LoopPort`·`LoopTurnRequest`·`LoopTurnResult`·`LoopSpawnRequest`·`LoopSpawnResult` 모양(§3.6) | X.primitives.spec |
 | `AgentEventMapInit`, `AgentEventMapper`, `LifecycleEvent`, 상태 enum, `ItemRecord` | F.conversation.spec §3.5 |
 | `StepCheckpoint`, `VolatileEventEnvelope`, `DurableEventDraft`, `parseEventKind`, `checkEnvelopeSize`, 카탈로그 | F.records.spec |
-| `POINTS`, 페이로드·패치 타입, `BoundaryValue`, `TurnOutcome`, `PostItem` | F.extensions.spec |
+| `HOOKS`, 페이로드·패치 타입, `BoundaryValue`, `TurnOutcome`, `PostItem` | F.extensions.spec |
 | 모델 테이프 `@xeon/core-models/testing` | eng.testing.guide TS-04(테스트 파일에서만 import, DR-14 예외 3) |
 
 ### 8.1 F 요청 사항

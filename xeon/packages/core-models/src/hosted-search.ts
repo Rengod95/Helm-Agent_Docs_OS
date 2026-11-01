@@ -303,7 +303,7 @@ export function createHostedSearch(deps: HostedSearchDeps): HostedSearchPort {
           rawEventSink: (data) => {
             accumulator.push(data);
           },
-          skipPoints: true,
+          skipHooks: true,
         },
       });
       const message = await stream.result();

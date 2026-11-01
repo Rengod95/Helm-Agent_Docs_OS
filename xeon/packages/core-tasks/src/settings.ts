@@ -9,7 +9,7 @@ import {
 import { Type } from "typebox";
 import { DEFAULT_POOL_LIMITS, type TasksSettingsSource } from "./settings-source.ts";
 
-const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
+const ALL_SCOPES = ["managed", "user", "project", "local", "launch"] as const;
 
 /** l1.tasks.* 설정 키 다섯 개(L1.tasks.spec §6): 동시 상한 셋과 입력 큐 배치 모드 둘 */
 export const tasksSettings: SettingGroup<
@@ -60,7 +60,7 @@ export const tasksSettings: SettingGroup<
     default: "one-at-a-time",
     range: { enum: ["all", "one-at-a-time"] },
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: { tab: "execution", widget: "select", order: 40, label: "방향 수정 입력 배치" },
     since: "0.1.0",
   },
@@ -69,7 +69,7 @@ export const tasksSettings: SettingGroup<
     default: "one-at-a-time",
     range: { enum: ["all", "one-at-a-time"] },
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "project", "local", "session"],
+    allowedScopes: ["managed", "user", "project", "local", "launch"],
     ui: { tab: "execution", widget: "select", order: 50, label: "후속 입력 배치" },
     since: "0.1.0",
   },

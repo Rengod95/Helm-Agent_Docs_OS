@@ -95,7 +95,7 @@ interface CallInternals {
   /** 어댑터가 낸 원시 스트림 이벤트를 받는다 */
   readonly rawEventSink?: (data: unknown) => void;
   /** 참이면 요청 지점(before_provider_request 등)을 발화하지 않는다. thread에 속하지 않는 호출이다 */
-  readonly skipPoints?: boolean;
+  readonly skipHooks?: boolean;
 }
 
 export interface Pipeline {
@@ -194,7 +194,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
 
   /** 이 호출이 쓰는 지점 발화기. thread에 속하지 않는 내부 호출은 지점을 발화하지 않는다 */
   function dispatcherOf(spec: CallSpec): ProviderDispatcher | null {
-    return spec.internal?.skipPoints === true ? null : deps.dispatcher;
+    return spec.internal?.skipHooks === true ? null : deps.dispatcher;
   }
 
   /** 비밀 참조에서 푼 헤더 이름(소문자). before_provider_headers에서 값을 가린다 */
@@ -222,9 +222,9 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     const marks: CacheMarks | undefined =
       api === "anthropic-messages" && retention !== "none" ? spec.options?.cacheMarks : undefined;
     const hasOverlayHeaders = Object.keys(deps.overlay(spec.provider)?.headers ?? {}).length > 0;
-    const hasHeadersPoint = dispatcher?.beforeProviderHeaders !== undefined;
-    const hasResponsePoint = dispatcher?.afterProviderResponse !== undefined;
-    const hasStreamPoint = dispatcher?.providerStreamEvent !== undefined;
+    const hasHeadersHook = dispatcher?.beforeProviderHeaders !== undefined;
+    const hasResponseHook = dispatcher?.afterProviderResponse !== undefined;
+    const hasStreamHook = dispatcher?.providerStreamEvent !== undefined;
     const base = {
       threadId: ctx.threadId,
       ...(ctx.signal === undefined ? {} : { signal: ctx.signal }),
@@ -249,7 +249,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
       ...(spec.options?.toolChoice === undefined ? {} : { toolChoice: spec.options.toolChoice }),
       ...(spec.apiKey === undefined ? {} : { apiKey: spec.apiKey }),
       // 6: 헤더 확정 뒤. 등록부의 비밀 참조 헤더를 풀고, before_provider_headers에는 인증 값을 가린 사본을 보낸다
-      ...(hasOverlayHeaders || hasHeadersPoint
+      ...(hasOverlayHeaders || hasHeadersHook
         ? {
             transformHeaders: async (
               headers: Record<string, string | null>,
@@ -257,7 +257,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
               const merged: Record<string, string | null> = hasOverlayHeaders
                 ? { ...headers, ...(await overlayHeaders(spec)) }
                 : headers;
-              if (dispatcher === null || !hasHeadersPoint) return merged;
+              if (dispatcher === null || !hasHeadersHook) return merged;
               const plan = planHeaders(merged, secretHeaderNames(spec.provider));
               const final = await dispatcher.beforeProviderHeaders?.({
                 ...base,
@@ -309,7 +309,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
             },
           }),
       // 8: 응답 수신. 인증·쿠키 헤더는 뺀다
-      ...(dispatcher === null || !hasResponsePoint
+      ...(dispatcher === null || !hasResponseHook
         ? {}
         : {
             onResponse: async (response: { status: number; headers: Record<string, string> }) => {
@@ -323,12 +323,12 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
             },
           }),
       // 9: 원시 스트림 이벤트. 지원하는 어댑터만 부른다
-      ...((dispatcher === null || !hasStreamPoint) && rawSink === undefined
+      ...((dispatcher === null || !hasStreamHook) && rawSink === undefined
         ? {}
         : {
             onProviderStreamEvent: async (data: unknown) => {
               rawSink?.(data);
-              if (dispatcher === null || !hasStreamPoint) return;
+              if (dispatcher === null || !hasStreamHook) return;
               streamEvents += 1;
               await dispatcher.providerStreamEvent?.({
                 ...base,
@@ -348,8 +348,8 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
    * 레벨만 다르면 thinking_level_select(detached)다. 같은 thread·역할·scope의 직전 호출과 비교하고, 직전 호출이 없으면
    * (처음이거나 프로세스를 다시 띄운 뒤) previous가 null인 model_select를 한 번 낸다
    */
-  async function fireSelectPoints(spec: CallSpec, keyOf: (point: string) => string): Promise<void> {
-    if (spec.internal?.skipPoints === true) return;
+  async function fireSelectHooks(spec: CallSpec, keyOf: (point: string) => string): Promise<void> {
+    if (spec.internal?.skipHooks === true) return;
     const dispatcher = deps.dispatcher;
     const { ctx } = spec;
     const key = `${ctx.threadId}|${ctx.role}|${ctx.scopeId ?? ""}`;
@@ -440,7 +440,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
         const options = requestOptions(spec, model.api, keyOf);
         // 요청을 보내기 직전에만 바인딩 변경 지점을 발화한다. 지점 핸들러를 기다리는 동안에도 스트림은 먼저 돌려준다
         source = lazyStream(requestModel, async () => {
-          await fireSelectPoints(spec, keyOf);
+          await fireSelectHooks(spec, keyOf);
           return deps.models.streamSimple(requestModel, spec.context, options);
         });
       } catch (error) {

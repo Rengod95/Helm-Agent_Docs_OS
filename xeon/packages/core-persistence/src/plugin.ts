@@ -16,7 +16,7 @@ import type {
 import { SessionPortKey, StoreServicePortKey } from "@xeon/contracts/services";
 import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@xeon/ext-host";
 import type { PersistenceSettings } from "./deps.ts";
-import { createSessionPoints } from "./points.ts";
+import { createThreadHooks } from "./points.ts";
 import { createSessionService } from "./service.ts";
 
 export const SESSION_EXTENSION_NAME = "core-persistence";
@@ -76,7 +76,7 @@ export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
         putBlob: (bytes, mediaType) => store.putBlob(bytes, mediaType),
         clock: options.clock,
         ids: options.ids,
-        points: createSessionPoints(host.port(ExtHostPortKey)),
+        points: createThreadHooks(host.port(ExtHostPortKey)),
         ...(options.logger === undefined ? {} : { logger: options.logger }),
         ...(options.faults === undefined ? {} : { faults: options.faults }),
         ...(options.eventKinds === undefined ? {} : { eventKinds: options.eventKinds }),

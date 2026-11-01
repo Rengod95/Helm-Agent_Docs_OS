@@ -5,35 +5,35 @@ import type { ModelBinding, ModelRole } from "@xeon/contracts/services";
 // 이 모양으로 감싼다. 이 파일은 Cordis도 ext-host도 import하지 않는다.
 
 /** 모든 발화에 붙는 공통 입력 */
-export interface PointInput {
+export interface HookInput {
   readonly threadId: ThreadId;
   /** 결정적 키. pi-ai 재시도로 같은 요청에 다시 불려도 같은 값이다 */
   readonly dispatchKey: string;
   readonly signal?: AbortSignal;
 }
 
-export interface RequestPointInput extends PointInput {
+export interface RequestHookInput extends HookInput {
   readonly provider: string;
   readonly modelId: string;
   readonly role: ModelRole;
 }
 
-export interface BeforeProviderRequestInput extends RequestPointInput {
+export interface BeforeProviderRequestInput extends RequestHookInput {
   readonly payload: unknown;
 }
 
-export interface BeforeProviderHeadersInput extends RequestPointInput {
+export interface BeforeProviderHeadersInput extends RequestHookInput {
   /** 이름은 소문자. 인증 헤더 값은 "[secret]"로 가린 사본이다 */
   readonly headers: Readonly<Record<string, string>>;
 }
 
-export interface AfterProviderResponseInput extends RequestPointInput {
+export interface AfterProviderResponseInput extends RequestHookInput {
   readonly status: number;
   /** 인증·쿠키 헤더를 뺀 응답 헤더 */
   readonly headers: Readonly<Record<string, string>>;
 }
 
-export interface ProviderStreamEventInput extends PointInput {
+export interface ProviderStreamEventInput extends HookInput {
   readonly provider: string;
   readonly api: string;
   readonly model: string;
@@ -42,13 +42,13 @@ export interface ProviderStreamEventInput extends PointInput {
 
 export type ModelSelectSource = "set" | "route" | "restore" | "fallback";
 
-export interface ModelSelectInput extends PointInput {
+export interface ModelSelectInput extends HookInput {
   readonly binding: ModelBinding;
   readonly previous: ModelBinding | null;
   readonly source: ModelSelectSource;
 }
 
-export interface ThinkingLevelSelectInput extends PointInput {
+export interface ThinkingLevelSelectInput extends HookInput {
   readonly role: ModelRole;
   readonly level: ModelThinkingLevel;
   readonly previousLevel: ModelThinkingLevel | null;

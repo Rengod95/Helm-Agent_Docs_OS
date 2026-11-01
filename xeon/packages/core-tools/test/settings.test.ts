@@ -21,7 +21,7 @@ test("precedence is managed, session, local, project, user and out-of-range valu
   const config = readScalarConfig([
     layer("user", { "l1.tools.permissionMode": "acceptEdits", "l1.tools.output.maxLines": 500 }),
     layer("project", { "l1.tools.permissionMode": "plan" }),
-    layer("session", { "l1.tools.permissionMode": "bypass" }),
+    layer("launch", { "l1.tools.permissionMode": "bypass" }),
     layer("local", { "l1.tools.output.maxLines": 50 }),
   ]);
   // session이 project와 user를 이긴다. 범위 밖 값(maxLines 50 < 100)은 건너뛰고 아래 층을 쓴다
@@ -37,7 +37,7 @@ test("bypassAllowed is read from the managed scope only; output limits are not a
     readScalarConfig([layer("managed", { "l1.tools.bypassAllowed": false })]).bypassAllowed,
   ).toBe(false);
   expect(
-    readScalarConfig([layer("session", { "l1.tools.output.maxBytes": 4096 })]).output.maxBytes,
+    readScalarConfig([layer("launch", { "l1.tools.output.maxBytes": 4096 })]).output.maxBytes,
   ).toBe(51_200);
   expect(readScalarConfig([layer("user", { "l1.tools.permissionMode": "nope" })]).mode).toBe(
     "default",

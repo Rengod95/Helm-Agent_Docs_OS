@@ -37,7 +37,7 @@ test("l1_loop_declares_the_step_and_gate_keys_with_the_documented_shape", () => 
     since: "0.1.0",
     ui: { tab: "budgets", widget: "number", unit: "단계" },
   });
-  expect(def?.allowedScopes).toEqual(["managed", "user", "project", "local", "session"]);
+  expect(def?.allowedScopes).toEqual(["managed", "user", "project", "local", "launch"]);
 });
 
 test("the_setting_definitions_pass_the_catalog_rules", () => {
@@ -78,7 +78,7 @@ test("l1_loop_declares_the_repeat_keys_with_the_documented_shape", () => {
     ui: { tab: "budgets", widget: "number", order: 32, unit: "회" },
   });
   for (const def of [enabled, observation, error]) {
-    expect(def?.allowedScopes).toEqual(["managed", "user", "project", "local", "session"]);
+    expect(def?.allowedScopes).toEqual(["managed", "user", "project", "local", "launch"]);
   }
 });
 

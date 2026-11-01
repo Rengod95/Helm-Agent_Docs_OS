@@ -3,7 +3,7 @@ import type { EventId } from "@xeon/contracts/conversation";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { branchItemsOf, completeTurn, itemAt, leafOfThread } from "./support/branching.ts";
 import { expectOk, newThread, openHarness, startTurn, reopenHarness } from "./support/harness.ts";
-import { recordingPoints } from "./support/points.ts";
+import { recordingHooks } from "./support/points.ts";
 import { TEST_HOLDER_A } from "./support/sqlite-store.ts";
 
 const TOOL = { toolCallId: "tc1", toolName: "read", replay: "safe" } as const;
@@ -154,7 +154,7 @@ describe("moveLeaf", () => {
   });
 
   test("session_before_tree cancels without a commit; a decision summary is adopted", async () => {
-    const cancelled = recordingPoints({ cancel: { "session.tree.before": "no" } });
+    const cancelled = recordingHooks({ cancel: { "thread.tree.before": "no" } });
     const h = await openHarness({ points: cancelled.points });
     const { threadId } = newThread(h);
     completeTurn(h, threadId);
@@ -165,11 +165,11 @@ describe("moveLeaf", () => {
       await h.service.threads.moveLeaf(threadId, target, { reason: "branch", requestKey: "mv1" }),
     ).toEqual({
       ok: false,
-      error: { kind: "cancelled_by_extension", point: "session.tree.before", reason: "no" },
+      error: { kind: "cancelled_by_extension", point: "thread.tree.before", reason: "no" },
     });
     expect(h.store.rowCounts()).toEqual(before);
 
-    const summarized = recordingPoints({ treeSummary: { summary: "by extension" } });
+    const summarized = recordingHooks({ treeSummary: { summary: "by extension" } });
     const g = await openHarness({ points: summarized.points });
     const thread = newThread(g);
     completeTurn(g, thread.threadId);
@@ -262,7 +262,7 @@ describe("revert", () => {
   });
 
   test("session_before_tree refuses a revert and session.tree.after fires after a commit", async () => {
-    const refused = recordingPoints({ cancel: { "session.tree.before": "keep" } });
+    const refused = recordingHooks({ cancel: { "thread.tree.before": "keep" } });
     const h = await openHarness({ points: refused.points });
     const { threadId } = newThread(h);
     completeTurn(h, threadId);
@@ -270,15 +270,15 @@ describe("revert", () => {
     const result = await h.service.threads.revert(threadId, itemAt(h, threadId, 1).itemId, "rv1");
     expect(result.ok).toBe(false);
     expect(
-      refused.calls.map((call) => call.point).filter((point) => point !== "session.start"),
-    ).toEqual(["session.tree.before"]);
+      refused.calls.map((call) => call.point).filter((point) => point !== "thread.start"),
+    ).toEqual(["thread.tree.before"]);
   });
 });
 
 describe("fork", () => {
   // spec plan fork_creates_new_thread_with_forked_from
   test("fork_creates_new_thread_with_forked_from: the origin is untouched", async () => {
-    const recording = recordingPoints();
+    const recording = recordingHooks();
     const h = await openHarness({ points: recording.points });
     const { threadId } = newThread(h, "origin");
     completeTurn(h, threadId);
@@ -296,9 +296,9 @@ describe("fork", () => {
     });
     expect(kindsFrom(h, newId)).toEqual(["thread.started"]);
     const forkCalls = recording.calls.filter(
-      (call) => call.threadId === newId || call.point === "session.fork.before",
+      (call) => call.threadId === newId || call.point === "thread.fork.before",
     );
-    expect(forkCalls.map((call) => call.point)).toEqual(["session.fork.before", "session.start"]);
+    expect(forkCalls.map((call) => call.point)).toEqual(["thread.fork.before", "thread.start"]);
     expect(forkCalls[1]?.payload).toEqual({
       reason: "fork",
       threadId: newId,
@@ -311,7 +311,7 @@ describe("fork", () => {
     const h = await openHarness();
     const threadId = h.ids.next("thr");
     expectOk(h.service.threads.create({ threadId, title: "w", workspace: "/proj" }));
-    const token = h.store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
+    const token = h.store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
     if (!token.ok) throw new Error("lease");
     expectOk(h.service.openForWrite(threadId, token.value));
     completeTurn(h, threadId);
@@ -324,7 +324,7 @@ describe("fork", () => {
   });
 
   test("an extension refusing session.fork.before leaves no new thread", async () => {
-    const recording = recordingPoints({ cancel: { "session.fork.before": "nope" } });
+    const recording = recordingHooks({ cancel: { "thread.fork.before": "nope" } });
     const h = await openHarness({ points: recording.points });
     const { threadId } = newThread(h);
     completeTurn(h, threadId);
@@ -333,7 +333,7 @@ describe("fork", () => {
       await h.service.threads.fork(threadId, itemAt(h, threadId, 0).itemId, h.ids.next("thr")),
     ).toEqual({
       ok: false,
-      error: { kind: "cancelled_by_extension", point: "session.fork.before", reason: "nope" },
+      error: { kind: "cancelled_by_extension", point: "thread.fork.before", reason: "nope" },
     });
     expect(h.store.rowCounts()).toEqual(before);
   });
@@ -374,13 +374,13 @@ describe("fork", () => {
 
 describe("prepareSwitch", () => {
   test("session_before_switch fires without a commit and its refusal is cancelled_by_extension", async () => {
-    const allowed = recordingPoints();
+    const allowed = recordingHooks();
     const h = await openHarness({ points: allowed.points });
     const { threadId } = newThread(h);
     const before = h.store.rowCounts();
     expectOk(await h.service.threads.prepareSwitch(threadId, null));
     expect(allowed.calls.at(-1)).toMatchObject({
-      point: "session.switch.before",
+      point: "thread.switch.before",
       payload: { reason: "new" },
     });
     const target = h.ids.next("thr");
@@ -388,12 +388,12 @@ describe("prepareSwitch", () => {
     expect(allowed.calls.at(-1)?.payload).toEqual({ reason: "resume", targetThreadId: target });
     expect(h.store.rowCounts()).toEqual(before);
 
-    const refused = recordingPoints({ cancel: { "session.switch.before": "busy" } });
+    const refused = recordingHooks({ cancel: { "thread.switch.before": "busy" } });
     const g = await openHarness({ points: refused.points });
     const other = newThread(g);
     expect(await g.service.threads.prepareSwitch(other.threadId, null)).toEqual({
       ok: false,
-      error: { kind: "cancelled_by_extension", point: "session.switch.before", reason: "busy" },
+      error: { kind: "cancelled_by_extension", point: "thread.switch.before", reason: "busy" },
     });
   });
 });

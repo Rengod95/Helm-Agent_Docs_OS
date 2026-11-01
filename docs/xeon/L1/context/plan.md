@@ -72,7 +72,7 @@ xeon/packages/core-context/
 | C-6 | 임계 계산: `shouldCompactTokens`(`>` 비교), 카탈로그 `contextWindow` 연결, 기본값 한 곳(`settings.ts`) | C-0 | 소 | M2 |
 | C-7 | `thread.compacted` 생성과 조립 반영: 한 커밋에 `thread.compacted` + 새 접두 system item, `details.xeon`, 조립 때 머리 적용, `summarizeBranch` 초안 | C-1, C-5 | 중 | M2 |
 | C-8 | 오버플로우 복구: `recoverOverflow`, 같은 단계 판정, M1의 `fail(disabled)` 경로 | C-7, `L1.models.plan` M-1(`classify`) | 소 | M1(disabled 경로) → M2 |
-| C-9 | 지점 발화 6개: `context`(M1), `request.system.before`, `session.compact.before`, `session.compact.after`, `session.compact.failed`, `request.cache.before`(선언과 발화 자리만, 실제 발화는 2차 워밍) | C-1, C-7, X 디스패치 | 중 | M1 → M2 |
+| C-9 | 지점 발화 6개: `context`(M1), `request.system.before`, `thread.compact.before`, `thread.compact.after`, `thread.compact.failed`, `request.cache.before`(선언과 발화 자리만, 실제 발화는 2차 워밍) | C-1, C-7, X 디스패치 | 중 | M1 → M2 |
 | C-10 | 도구 결과 선제 제거 | C-7 | 소 | 2차 |
 | C-11 | 컴팩션 후 재주입. 스킬 색인·메모리 스냅샷 블록(`knowledge.context`, `knowledge.index-delta`)은 M2 마감에 구현(spec §4.9a). 최근 파일·스킬 본문은 2차 | C-7 | 중 | M2 마감(블록), 2차(파일) |
 
@@ -116,8 +116,8 @@ xeon/packages/core-context/
 | `overflow_second_failure_surfaces_error` | 같음 | unit | 두 번째는 `fail(second_overflow)`, 컴팩션 추가 없음. 첫 컴팩션 뒤 서비스를 새로 만들어도 같은 판정 | M2 |
 | `overflow_disabled_in_m1` | 같음 | unit | M1 설정에서는 `fail(disabled)`, 요약 호출 0건 | M1 |
 | `session_before_compact_denial_blocks` | `test/compact-points.test.ts` | unit | `{ cancel: true }` 결정이나 핸들러 예외면 `cancelled`, 커밋 0건, 요약 호출 0건 | M2 |
-| `compaction_failure_emits_session_compact_failed` | 같음 | unit | 테이프 `error`면 `session.compact.failed` 한 번, 커밋 0건 | M2 |
-| `extension_summary_skips_model_call` | 같음 | unit | `session.compact.before`가 요약을 주면 모델 호출 0건, `fromExtension`에 확장 이름 | M2 |
+| `compaction_failure_emits_session_compact_failed` | 같음 | unit | 테이프 `error`면 `thread.compact.failed` 한 번, 커밋 0건 | M2 |
+| `extension_summary_skips_model_call` | 같음 | unit | `thread.compact.before`가 요약을 주면 모델 호출 0건, `fromExtension`에 확장 이름 | M2 |
 | `model_switch_warning` | `test/assemble.test.ts` | unit | 이전 단계 바인딩과 provider가 다르면 `cache_reset_model_switch`, 레벨만 다르면 경고 없음 | M2 |
 | `settings_defs_pass_checks` | `test/settings.test.ts` | unit | `l1.context.*` 정의가 `checkSettingDef`·`buildCatalog` 통과 | M2 |
 | `context_point_chain_replaces_messages` | `test/assemble.test.ts` | unit | `context`(chain) 핸들러가 낸 `messages`가 조립 결과를 바꾸고, 시스템 메시지는 핸들러에 넘어가지 않으며, 핸들러 예외면 그 패치만 버린다(C-9) | M1 |

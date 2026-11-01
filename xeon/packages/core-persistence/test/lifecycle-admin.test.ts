@@ -4,7 +4,7 @@ import { threadSummaryOf } from "@xeon/contracts/wire";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import { branchItemsOf, completeTurn, itemAt } from "./support/branching.ts";
 import { expectOk, newThread, openHarness, reopenHarness, startTurn } from "./support/harness.ts";
-import { recordingPoints } from "./support/points.ts";
+import { recordingHooks } from "./support/points.ts";
 import { TEST_HOLDER_A } from "./support/sqlite-store.ts";
 
 function titles(page: { threads: readonly { title: string | null }[] }): (string | null)[] {
@@ -47,7 +47,7 @@ describe("threads.list", () => {
     expect(h.service.threads.list({ cursor: "garbage" }).threads).toEqual([]);
 
     // 닫힌 thread는 기본에서 빠진다
-    const token = h.store.leases.acquire(`session:${b}`, TEST_HOLDER_A);
+    const token = h.store.leases.acquire(`thread:${b}`, TEST_HOLDER_A);
     if (!token.ok) throw new Error("lease");
     expectOk(h.service.openForWrite(b, token.value));
     expectOk(h.service.threads.close(b, "done"));
@@ -157,18 +157,18 @@ describe("threads.remove", () => {
 describe("threads.setTitle", () => {
   // spec plan set_title_writes_thread_updated_and_fires_info_changed
   test("set_title_writes_thread_updated_and_fires_info_changed", async () => {
-    const recording = recordingPoints();
+    const recording = recordingHooks();
     const h = await openHarness({ points: recording.points });
     const { threadId } = newThread(h, "before");
     expectOk(h.service.threads.setTitle(threadId, "after", "t1"));
     expect(expectOk(h.service.query.thread(threadId))?.title).toBe("after");
     await Promise.resolve();
-    const fired = recording.calls.filter((call) => call.point === "session.info.after");
+    const fired = recording.calls.filter((call) => call.point === "thread.info.after");
     expect(fired.map((call) => call.payload)).toEqual([{ threadId, name: "after" }]);
     // 같은 키 재시도는 다시 알리지 않는다
     expectOk(h.service.threads.setTitle(threadId, "after", "t1"));
     await Promise.resolve();
-    expect(recording.calls.filter((call) => call.point === "session.info.after")).toHaveLength(1);
+    expect(recording.calls.filter((call) => call.point === "thread.info.after")).toHaveLength(1);
     expectOk(h.service.threads.setTitle(threadId, null, "t2"));
     expect(expectOk(h.service.query.thread(threadId))?.title).toBeNull();
     expect(branchItemsOf(h, threadId)).toEqual([]);

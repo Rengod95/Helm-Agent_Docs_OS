@@ -208,7 +208,7 @@ export function dispatchKey(run: TurnRun, stepId: StepId | null, suffix: string)
 }
 
 /** 같은 지점이 한 단계에서 여러 번 불려도 dispatchKey가 겹치지 않게 한다(재개 때 같은 자리는 같은 키) */
-export function nextPointSeq(run: TurnRun): number {
+export function nextHookSeq(run: TurnRun): number {
   run.state.pointSeq += 1;
   return run.state.pointSeq;
 }
@@ -217,7 +217,7 @@ export function nextPointSeq(run: TurnRun): number {
 export function messageIdentity(run: TurnRun, message: AgentMessage): string {
   if (message.role === "assistant") return "assistant";
   if (message.role === "toolResult") return message.toolCallId;
-  return `${message.role}:${nextPointSeq(run)}`;
+  return `${message.role}:${nextHookSeq(run)}`;
 }
 
 export function overrides(run: TurnRun): { readonly scopeId?: string } {

@@ -15,10 +15,10 @@ export type {
   BeforeProviderRequestInput,
   ModelSelectInput,
   ModelSelectSource,
-  PointInput,
+  HookInput,
   ProviderDispatcher,
   ProviderStreamEventInput,
-  RequestPointInput,
+  RequestHookInput,
   ThinkingLevelSelectInput,
 } from "./request-points.ts";
 export {

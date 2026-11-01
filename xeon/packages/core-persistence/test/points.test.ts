@@ -1,20 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import { completeTurn, itemAt } from "./support/branching.ts";
 import { expectOk, newThread, openHarness, reopenHarness } from "./support/harness.ts";
-import { recordingPoints } from "./support/points.ts";
+import { recordingHooks } from "./support/points.ts";
 
 describe("session points", () => {
   // spec plan session_points_fire_at_spec_times
   test("session_points_fire_at_spec_times: start, info_changed, before_switch, before_fork, before_tree, tree, shutdown", async () => {
-    const recording = recordingPoints();
+    const recording = recordingHooks();
     const h = await openHarness({ points: recording.points });
     const { threadId } = newThread(h, "t");
     const names = (): string[] => recording.calls.map((call) => call.point);
     // create가 session.start{new}, 열기가 session.start{startup}
     await Promise.resolve();
     expect(recording.calls.map((call) => [call.point, call.payload])).toEqual([
-      ["session.start", { reason: "new", threadId }],
-      ["session.start", { reason: "startup", threadId }],
+      ["thread.start", { reason: "new", threadId }],
+      ["thread.start", { reason: "startup", threadId }],
     ]);
     completeTurn(h, threadId);
     completeTurn(h, threadId);
@@ -26,32 +26,32 @@ describe("session points", () => {
     await h.service.release(threadId, "quit");
     await Promise.resolve();
     expect(names()).toEqual([
-      "session.start",
-      "session.start",
-      "session.info.after",
-      "session.switch.before",
-      "session.fork.before",
-      "session.start",
-      "session.tree.before",
-      "session.tree.after",
-      "session.shutdown",
+      "thread.start",
+      "thread.start",
+      "thread.info.after",
+      "thread.switch.before",
+      "thread.fork.before",
+      "thread.start",
+      "thread.tree.before",
+      "thread.tree.after",
+      "thread.shutdown",
     ]);
     expect(recording.calls.at(-1)?.payload).toEqual({ reason: "quit" });
   });
 
   test("opening a thread with a recovery marker says resume", async () => {
-    const first = recordingPoints();
+    const first = recordingHooks();
     const h = await openHarness({ points: first.points });
     const { threadId } = newThread(h);
-    const info = h.store.leases.inspect(`session:${threadId}`);
+    const info = h.store.leases.inspect(`thread:${threadId}`);
     if (!info.ok || info.value === null) throw new Error("no lease");
     const { startTurn } = await import("./support/harness.ts");
     startTurn(h, threadId);
-    const second = recordingPoints();
+    const second = recordingHooks();
     const restarted = await reopenHarness(h, { points: second.points });
     expectOk(
       restarted.service.openForWrite(threadId, {
-        resource: `session:${threadId}`,
+        resource: `thread:${threadId}`,
         holderId: info.value.holderId,
         epoch: info.value.epoch,
       }),
@@ -61,7 +61,7 @@ describe("session points", () => {
   });
 
   test("a read-only open fires nothing", async () => {
-    const recording = recordingPoints();
+    const recording = recordingHooks();
     const h = await openHarness({ points: recording.points });
     const { threadId } = newThread(h);
     recording.calls.length = 0;

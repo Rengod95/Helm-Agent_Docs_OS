@@ -252,7 +252,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
           input.inheritOwnerFrom === undefined
             ? null
             : {
-                resource: `session:${input.threadId}`,
+                resource: `thread:${input.threadId}`,
                 holderId: input.inheritOwnerFrom.holderId,
                 epoch: 1,
               };
@@ -374,7 +374,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
       for (let i = 0; i < times; i += 1) failures.push(error);
     },
     tokenOf(threadId) {
-      return { resource: `session:${threadId}`, holderId: "holder-a", epoch: 1 };
+      return { resource: `thread:${threadId}`, holderId: "holder-a", epoch: 1 };
     },
     setThreadClosed(threadId) {
       const thread = threads.get(threadId);

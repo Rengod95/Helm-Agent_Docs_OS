@@ -9,7 +9,7 @@ import {
   type ExtensionEntry,
   type GuardOutputPayload,
   type LoopTurnRequest,
-  type PointName,
+  type HookName,
 } from "@xeon/contracts/extensions";
 import type { ChildTurnRequest } from "@xeon/contracts/services";
 import type { ExtensionUnit } from "@xeon/ext-host";
@@ -45,7 +45,7 @@ function watcher(mode: GuardMode): { unit: ExtensionUnit; seen: Seen } {
     settles: AgentSettledPayload[];
     guards: GuardOutputPayload[];
   } = { starts: [], settles: [], guards: [] };
-  const points: PointName[] = [
+  const points: HookName[] = [
     "boundary.turn.before",
     "boundary.settle.after",
     "guard.output.before",

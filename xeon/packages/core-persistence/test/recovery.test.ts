@@ -668,10 +668,10 @@ describe("recover", () => {
 });
 
 function expectToken(h: Harness, threadId: string) {
-  const info = h.store.leases.inspect(`session:${threadId}`);
+  const info = h.store.leases.inspect(`thread:${threadId}`);
   if (!info.ok || info.value === null) throw new Bug("no lease");
   return {
-    resource: `session:${threadId}`,
+    resource: `thread:${threadId}`,
     holderId: info.value.holderId,
     epoch: info.value.epoch,
   };

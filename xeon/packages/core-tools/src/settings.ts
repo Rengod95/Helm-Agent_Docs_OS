@@ -67,7 +67,7 @@ export const UNATTENDED_DEFAULTS: ToolsUnattendedConfig = {
   timeoutSeconds: TOOLS_SETTING_DEFAULTS.unattendedTimeoutSeconds,
 };
 
-const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
+const ALL_SCOPES = ["managed", "user", "project", "local", "launch"] as const;
 const FILE_SCOPES = ["managed", "user", "project", "local"] as const;
 const MANAGED_ONLY = ["managed"] as const;
 

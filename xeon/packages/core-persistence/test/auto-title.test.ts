@@ -279,7 +279,7 @@ describe("autoTitleThread", () => {
     recordTurn(h, origin, "원본의 둘째 질문", "원본의 둘째 답");
     const forkId = h.ids.next("thr");
     expectOk(await h.service.threads.fork(origin, itemAt(h, origin, 1).itemId, forkId));
-    const token = expectOk(h.store.leases.acquire(`session:${forkId}`, TEST_HOLDER_A));
+    const token = expectOk(h.store.leases.acquire(`thread:${forkId}`, TEST_HOLDER_A));
     expectOk(h.service.openForWrite(forkId, token));
     const model = fakeModel(ok("포크 제목"));
 

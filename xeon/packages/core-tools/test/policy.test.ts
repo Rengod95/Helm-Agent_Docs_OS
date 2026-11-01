@@ -336,7 +336,7 @@ test("collectRules tags settings layers as user or managed and drops invalid rul
         },
       ],
     }),
-    layer("session", { "l1.tools.rules": "not an array" }),
+    layer("launch", { "l1.tools.rules": "not an array" }),
   ]);
   const ids = collected.rules.map((entry) => `${entry.tier}:${entry.id}`);
   expect(ids).toContain("default:default.bash-ask");

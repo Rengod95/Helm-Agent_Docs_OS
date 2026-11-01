@@ -21,7 +21,7 @@ binds: [xeon/packages/core-context/**]
 - 도구 목록 변경을 접두 밖에서 알리는 규칙(`SystemMessage.toolsAdded`·`toolsRemoved`)과 재광고 기준.
 - 캐시 표식 위치 계산(`CacheMarks`). 정책 객체 `CachePolicy`는 `L1.models.spec` §3.6이 만든다.
 - 롤링 요약 컴팩션(pi 컴팩션 포크), 임계와 예약 여유, 비파괴 컴팩션 엔트리, 오버플로우 복구.
-- 발화 지점 6개: `context`, `request.system.before`, `request.cache.before`, `session.compact.before`, `session.compact.after`, `session.compact.failed`.
+- 발화 지점 6개: `context`, `request.system.before`, `request.cache.before`, `thread.compact.before`, `thread.compact.after`, `thread.compact.failed`.
 - 이벤트 소유 제안: `thread.compacted`, `thread.branch_summarized`.
 - 설정 키 `l1.context.*`.
 - 2차: 도구 결과 선제 제거, 컴팩션 후 재주입, 추가 워크스페이스 루트, 캐시 워밍.
@@ -309,12 +309,12 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 0. 구현 메모 [구현: M2]: 후보는 "머리 뒤"를 컴팩션 이벤트 뒤가 아니라 요약 뒤에 모델에 보이는 항목, 곧 이전 머리의 `firstKeptEventId`부터 leaf까지로 읽는다(이전 컴팩션 때 남긴 원문도 새 요약 대상이다). 후보에는 진행 중 item, system item, 컴팩션 이벤트를 넣지 않고 `thread.branch_summarized`는 `custom` 후보로 넣는다. 컷 뒤에 도구 호출이 컷 앞에 있는 결과가 남으면(사용자 끼어들기) 다음 후보로 옮기고, 더 없으면 그 호출 항목으로 당긴다. 턴 시작은 `user`·`custom`이거나, `turnId`가 앞 항목과 달라지는 `assistant`다. `turnId`가 null인 항목은 `user`·`custom`만 턴 시작으로 본다(§10 미결 6의 잠정 답).
 1. 준비: 가지를 `ThreadCompactionView`로 바꾼다. 마지막 항목이 컴팩션이면 준비하지 않는다(`compaction.ts:876-878`). 이전 머리가 있으면 그 요약을 `previousSummary`로 넘기고 머리 뒤 항목만 후보로 둔다(`:891-895`).
 2. 컷 포인트: 뒤에서부터 토큰을 누적하다가 `keepRecentTokens` 이상이면 멈춘다. 컷은 그 위치 이후 첫 후보이고, 없으면 마지막 후보다. 토큰 0 항목은 건너뛴다(`:458-479`). 후보는 `user`, `assistant`, `custom` 항목이고 `toolResult`, `system`은 후보가 아니다(`:351-364`, `_research/notes/L1-3.md` §5.4).
-3. `session.compact.before`(first)를 발화한다. 결정이 `cancel`이면 멈추고 `cancelled`를 돌려준다. 결정이 `compaction`(확장 요약)이면 4번을 건너뛰고 그 요약을 쓴다(`fromExtension` = 확장 이름).
+3. `thread.compact.before`(first)를 발화한다. 결정이 `cancel`이면 멈추고 `cancelled`를 돌려준다. 결정이 `compaction`(확장 요약)이면 4번을 건너뛰고 그 요약을 쓴다(`fromExtension` = 확장 이름).
 4. 요약: 이전 요약이 없으면 `SUMMARIZATION_PROMPT`, 있으면 `UPDATE_SUMMARIZATION_PROMPT`를 쓴다(`:507-579`, `:718`). 형식은 목표(Goal), 제약(Constraints & Preferences), 진행(Done·In Progress·Blocked), 결정(Key Decisions), 다음 단계(Next Steps), 핵심 맥락(Critical Context)이다. 시스템 프롬프트는 `utils.ts:161-163`의 `SUMMARIZATION_SYSTEM_PROMPT`다. 최대 토큰은 `min(floor(0.8 × reserveTokens), model.maxTokens)`(`:712-715`). 분할 턴이면 턴 앞부분을 `TURN_PREFIX_SUMMARIZATION_PROMPT`(`:942-955`)로 따로 요약하고 `floor(0.5 × reserveTokens)`를 쓴다. 두 요약은 `요약 + "---" + 턴 맥락`으로 합친다(`:1032`). 사용자 지침(`instructions`)과 설정 `l1.context.compactionInstructions`를 프롬프트 끝에 붙인다.
 5. 커밋: `xeon.session`으로 한 커밋에 `thread.compacted{ summary, firstKeptEventId, tokensBefore, details, usage, fromExtension }`와 새 접두 system item(`item.recorded`, kind `system`, 정렬 전체 도구 목록)을 가지 끝에 덧붙인다. 원본 이벤트는 지우지 않는다. `details`에는 `{ xeon: { reason, stepId }, readFiles, modifiedFiles }`를 둔다 [제안]. `details`는 모델에 보내지 않는다(`F.records.spec` §3.3). 이 커밋은 별도 커밋 지점 C7이고 커밋 키는 `compact:<threadId>:<stepId>:<reason>`이다. 키의 `stepId`는 같은 커밋의 `details.xeon.stepId`이고 §4.7 3번 `second_overflow` 판정과 같은 값이다(`L1.persistence.spec` §4.2 C7). 단계 끝 커밋(C5)에 넣지 않는다.
 6. 시점: 임계·수동 컴팩션은 단계 사이에서만 한다. 오버플로우 복구 컴팩션(§4.7)은 같은 단계의 재요청 전에 한다. 어느 경우든 C7 커밋 하나다. 임계 검사는 core-loop가 단계 시작 전에 `shouldCompact`로 한다. 수동 `/compact`가 단계 진행 중에 오면 다음 단계 경계까지 미룬다 [제안].
-7. 성공하면 `session.compact.after`(tap)를, 실패하거나 중단되면 `session.compact.failed`(tap)를 발화한다.
-7a. 요약 모델은 `xeon.models.resolve("summary")`의 결과(역할 `summary`, 캐시 없음)이고 요약 응답 상한은 `min(0.8 × reserveTokens, 모델 maxTokens, 16,000)`이다. 상한 16,000 토큰은 `thread.compacted.summary`의 65,536자 한도 안에 들게 하려는 값이고, 그래도 넘으면 `summary_truncated`다 [구현: M2]. 확장이 준 요약(`session.compact.before`의 `compaction`)이 같은 한도를 넘거나 `firstKeptEventId`가 가지 위에 없으면 `cancelled`로 돌려준다.
+7. 성공하면 `thread.compact.after`(tap)를, 실패하거나 중단되면 `thread.compact.failed`(tap)를 발화한다.
+7a. 요약 모델은 `xeon.models.resolve("summary")`의 결과(역할 `summary`, 캐시 없음)이고 요약 응답 상한은 `min(0.8 × reserveTokens, 모델 maxTokens, 16,000)`이다. 상한 16,000 토큰은 `thread.compacted.summary`의 65,536자 한도 안에 들게 하려는 값이고, 그래도 넘으면 `summary_truncated`다 [구현: M2]. 확장이 준 요약(`thread.compact.before`의 `compaction`)이 같은 한도를 넘거나 `firstKeptEventId`가 가지 위에 없으면 `cancelled`로 돌려준다.
 7b. 새 접두의 재료: 컴팩션은 `AssembleOptions`를 받지 않으므로 서비스가 스레드마다 가장 최근 `assemble`의 `basePrompt`, `sections`, `tools`를 기억해 쓴다(재광고). 기억이 없으면(프로세스를 다시 띄운 뒤 첫 컴팩션) 가지 위 기록된 광고 상태를 그대로 옮기고, 접두가 없으면 새 접두 item 없이 `thread.compacted`만 커밋한다. 다음 `assemble`이 접두를 만들어 `readvertise(compaction)`으로 낸다 [구현: M2].
 7c. 컴팩션 커밋은 `core.context` 생산자 핸들과 `IdFactory`가 있어야 한다. 둘 중 하나가 없으면 `compact`는 `skipped(disabled)`, `recoverOverflow`는 `fail(disabled)`다. 커밋은 `expectedLeaf`를 요약한 leaf로 걸어 요약하는 동안 가지가 자랐으면 `commit_failed`로 끝낸다. 지문에는 요약 문장을 넣지 않는다(재시도가 같은 키로 처음 커밋을 돌려받는다) [구현: M2].
 8. 응답 검사: `error`와 `length` 종결은 실패다(`:585-593`). 도구 호출이 든 응답도 실패다(`:759-761`). 빈 요약 대상이면 `skipped`다(`:914`).
@@ -354,7 +354,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 6. M1에서는 2번 대신 `fail(disabled)`를 돌려준다. core-loop는 "컨텍스트 창을 넘었다"는 명확한 오류로 턴을 끝낸다. M2 마감부터 core-loop가 1~5번과 요청 전 `shouldCompact` 검사를 실제로 부른다(`L1.loop.spec` §4.2 규칙 2). 조립 루트가 `ids`와 `core.context` 생산자를 주지 않아 컴팩션이 꺼진 구성은 계속 `fail(disabled)`이고 `shouldCompact`만 참이어도 `compact`가 `skipped(disabled)`를 돌려준다.
 
 - `autoCompact`가 거짓이면 오버플로우 복구도 하지 않고 `fail(disabled)`다. 수동 `compact`는 설정과 상관없이 한다 [구현: M2].
-- `session.compact.before`는 fail-open 예외다(`F.extensions.spec` §4.1, adr.0017). 핸들러 예외는 그 핸들러를 결정 없음으로 보고 다음 핸들러로 간다. 그래서 확장 핸들러 예외가 오버플로우 복구 컴팩션을 막지 않는다. 취소는 핸들러가 `{ cancel: true }`를 돌려줄 때만 일어난다.
+- `thread.compact.before`는 fail-open 예외다(`F.extensions.spec` §4.1, adr.0017). 핸들러 예외는 그 핸들러를 결정 없음으로 보고 다음 핸들러로 간다. 그래서 확장 핸들러 예외가 오버플로우 복구 컴팩션을 막지 않는다. 취소는 핸들러가 `{ cancel: true }`를 돌려줄 때만 일어난다.
 
 ### 4.8 비파괴 규칙
 
@@ -370,11 +370,11 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 | 안 | 순서 | 장점 | 단점 |
 |---|---|---|---|
-| A [제안] | 호출자(core-loop 또는 L4 host의 `/tree` 처리)가 `session.tree.before`(persistence 지점) 결과를 본 뒤 `context.summarizeBranch`로 초안을 받고, `session.threads.moveLeaf(threadId, target, { reason: "branch", summary, requestKey })`로 leaf 이동과 `thread.branch_summarized`를 한 커밋에 넣는다(`L1.persistence.spec` §3.8 `moveLeaf`) | 의존 방향이 context-map과 맞는다. 원자성이 유지된다 | 호출자가 순서를 알아야 한다 |
-| B | context가 `summarizeBranch` 안에서 요약하고 `xeon.session`으로 leaf 이동까지 커밋한다 | 호출이 하나다 | leaf 이동 규칙이 context에 퍼진다. `session.tree.before` 발화 위치가 둘이 된다 |
+| A [제안] | 호출자(core-loop 또는 L4 host의 `/tree` 처리)가 `thread.tree.before`(persistence 지점) 결과를 본 뒤 `context.summarizeBranch`로 초안을 받고, `session.threads.moveLeaf(threadId, target, { reason: "branch", summary, requestKey })`로 leaf 이동과 `thread.branch_summarized`를 한 커밋에 넣는다(`L1.persistence.spec` §3.8 `moveLeaf`) | 의존 방향이 context-map과 맞는다. 원자성이 유지된다 | 호출자가 순서를 알아야 한다 |
+| B | context가 `summarizeBranch` 안에서 요약하고 `xeon.session`으로 leaf 이동까지 커밋한다 | 호출이 하나다 | leaf 이동 규칙이 context에 퍼진다. `thread.tree.before` 발화 위치가 둘이 된다 |
 | C | persistence가 leaf 이동 뒤 이벤트로 알리고 context가 구독해 나중에 요약을 덧붙인다 | 결합이 가장 느슨하다 | 이동과 요약이 다른 커밋이다. 크래시 사이에 요약 없는 가지가 남는다 |
 
-- 확장이 `session.tree.before`에서 요약을 직접 주면(pi `SessionBeforeTreeResult.summary`) A안의 호출자는 `summarizeBranch`를 부르지 않는다.
+- 확장이 `thread.tree.before`에서 요약을 직접 주면(pi `SessionBeforeTreeResult.summary`) A안의 호출자는 `summarizeBranch`를 부르지 않는다.
 
 ### 4.9a 컴팩션 뒤 재주입 [구현: M2 마감 G2-01]
 
@@ -405,12 +405,12 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | 가지에 `firstKeptEventId`가 없음(손상) | 머리를 무시하고 원문 전체로 조립, 경고 기록. 투영 오류로 올리지 않는다 [제안] |
 | `context` 핸들러가 시스템 메시지를 지움 | 시스템 메시지는 핸들러에 넘기지 않으므로 지울 수 없다. 결과 뒤에 되돌린다 |
 | `request.system.before` 핸들러가 접두를 바꿈 | 그대로 보낸다. 핸들러가 프롬프트와 도구 선언을 정하는 규칙은 pi와 같다. 경고 `cache_prefix_reset`을 남긴다 |
-| 요약 응답에 도구 호출 | `summary_has_tool_call`, `session.compact.failed` |
-| 요약이 `length`로 끊김 | `summary_truncated`, `session.compact.failed` |
+| 요약 응답에 도구 호출 | `summary_has_tool_call`, `thread.compact.failed` |
+| 요약이 `length`로 끊김 | `summary_truncated`, `thread.compact.failed` |
 | 요약 대상이 비어 있음 | `skipped(nothing_to_summarize)`. 지점을 발화하지 않는다 |
-| `session.compact.before` 거부 | `cancelled`. 이벤트를 쓰지 않는다 |
+| `thread.compact.before` 거부 | `cancelled`. 이벤트를 쓰지 않는다 |
 | 같은 단계 두 번째 오버플로우 | `fail(second_overflow)` |
-| 컴팩션 중 사용자 중단 | `aborted`, `session.compact.failed`. 부분 요약 사용량은 `xeon.models` 합산에만 남는다 |
+| 컴팩션 중 사용자 중단 | `aborted`, `thread.compact.failed`. 부분 요약 사용량은 `xeon.models` 합산에만 남는다 |
 | provider가 대화 중 도구 변경을 지원하지 않음 | `defer`, 다음 컴팩션에서 재광고 |
 | 모델 전환 뒤 창이 작아짐 | 조립 뒤 추정이 임계를 넘으면 경고 `near_window`. 다음 단계 시작 전 임계 검사에서 컴팩션한다 |
 
@@ -441,9 +441,9 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | `context` | request | chain | §4.1 4번 | context, models | M1 지점. `ContextPayload{ messages }`, 패치는 교체 |
 | `request.system.before` | request | chain | §4.1 5번 | 같음 | |
 | `request.cache.before` | request | chain | §4.10 캐시 워밍(2차) | 같음 | 핸들러는 원본 payload를 받는다 |
-| `session.compact.before` | session | first | §4.6 3번 | context | 거부하면 컴팩션하지 않는다 |
-| `session.compact.after` | session | tap | §4.6 7번 | context | |
-| `session.compact.failed` | session | tap | §4.6 7번 | context | |
+| `thread.compact.before` | thread | first | §4.6 3번 | context | 거부하면 컴팩션하지 않는다 |
+| `thread.compact.after` | thread | tap | §4.6 7번 | context | |
+| `thread.compact.failed` | thread | tap | §4.6 7번 | context | |
 
 - 컴팩션 지점 셋의 발화 주체: `F.extensions.spec` §7은 세 지점을 `L1.context.spec`에 배정한다. 컴팩션을 수행하는 쪽이 context이고, 준비 결과(`preparation`)를 지점 페이로드로 줄 수 있는 곳도, 거부 결정에 따라 요약 호출을 건너뛸 수 있는 곳도 context이기 때문이다.
 
@@ -489,12 +489,12 @@ export interface SessionCompactFailedPayload {
 ### 7.3 재생 계약
 
 - 모든 핸들러는 다시 실행해도 되는 질의다(`F.extensions.spec` §4.3). `context`, `request.system.before` 핸들러가 결정적이지 않으면 접두 바이트 고정(수용 기준 1)이 깨진다. 이 조건은 핸들러 계약으로 두고 검사하지 않는다.
-- `session.compact.before` 결정은 `thread.compacted.fromExtension`에 남는다. 재개 뒤 같은 컴팩션을 다시 하지 않는다.
+- `thread.compact.before` 결정은 `thread.compacted.fromExtension`에 남는다. 재개 뒤 같은 컴팩션을 다시 하지 않는다.
 
 ### 7.4 post, drive, scope와의 관계
 
-- post: core-context는 `post`를 쓰지 않는다. 컴팩션 완료는 `session.compact.after`(tap) 지점과 내구 이벤트 `thread.compacted`로 알리고 따로 post 항목을 만들지 않는다 [제안]. 확장이 `post`로 넣은 context 항목(custom item)은 조립 때 다른 custom item과 같은 규칙으로 변환한다(§4.1).
-- drive: drive 임대 중에도 임계 컴팩션과 오버플로우 복구는 같은 규칙으로 돈다. 컴팩션은 단계 사이에서만 하므로(§4.6 6번) 임대 그룹이 `boundary.settle.before`(L1.loop 소유)로 계속 지시를 내도 다음 단계 시작 전의 임계 검사가 먼저 돈다. `session.compact.before`는 임대 여부와 상관없이 발화하고 임대 그룹을 따로 대하지 않는다 [제안]. 요약 호출은 turn의 assistant item이 아니므로 drive 토큰 예산(L1.loop.spec §4.7의 turn 사용량 합)에 넣지 않는다 [제안].
+- post: core-context는 `post`를 쓰지 않는다. 컴팩션 완료는 `thread.compact.after`(tap) 지점과 내구 이벤트 `thread.compacted`로 알리고 따로 post 항목을 만들지 않는다 [제안]. 확장이 `post`로 넣은 context 항목(custom item)은 조립 때 다른 custom item과 같은 규칙으로 변환한다(§4.1).
+- drive: drive 임대 중에도 임계 컴팩션과 오버플로우 복구는 같은 규칙으로 돈다. 컴팩션은 단계 사이에서만 하므로(§4.6 6번) 임대 그룹이 `boundary.settle.before`(L1.loop 소유)로 계속 지시를 내도 다음 단계 시작 전의 임계 검사가 먼저 돈다. `thread.compact.before`는 임대 여부와 상관없이 발화하고 임대 그룹을 따로 대하지 않는다 [제안]. 요약 호출은 turn의 assistant item이 아니므로 drive 토큰 예산(L1.loop.spec §4.7의 turn 사용량 합)에 넣지 않는다 [제안].
 - scope: 확장이 꺼지면 그 확장의 `context`, `request.system.before`, `request.cache.before`, `session_*compact*` 핸들러는 X가 단계 경계에서 핸들러 스냅샷에서 뺀다(F.extensions.spec §4.5). 진행 중인 조립과 컴팩션은 시작 때의 스냅샷으로 끝까지 간다. 그래서 핸들러 제거는 다음 단계의 `assemble`부터 적용된다. 그 확장이 등록한 도구가 빠지는 일은 §4.3 도구 변경 규칙을 따른다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -516,7 +516,7 @@ export interface SessionCompactFailedPayload {
 | `ItemRecord`, `Message`, `SystemMessage`, `UserMessage`, `Usage`, `ModelThinkingLevel` | `F.conversation.spec` |
 | `CompactedPayload`, `BranchSummarizedPayload`, `StepCheckpoint`, 분기 규칙 | `F.records.spec` |
 | `orderTools`, `diffToolsets`, `toolsetFingerprint`, `OrderedTool`, `ToolsetDiff` | `F.capabilities.spec` §3.8 |
-| `POINTS`의 6개 지점, `FIRST_DENY`, `CHAIN_RULES` | `F.extensions.spec` |
+| `HOOKS`의 6개 지점, `FIRST_DENY`, `CHAIN_RULES` | `F.extensions.spec` |
 | `xeon.models`: `complete`(summary 역할), `tokens`, `classify`, `CachePolicy` | `L1.models.spec` |
 | `xeon.session`: `readBranch`(가지 읽기), `commit`(컴팩션 커밋), `loadCheckpoint`(이전 바인딩), `threads.moveLeaf`의 `summary` 옵션 | `L1.persistence.spec` §3.3, §3.8 |
 | `xeon.ext`: 지점 디스패치 | `X.primitives.spec` |
@@ -536,10 +536,10 @@ export interface SessionCompactFailedPayload {
 3. 컴팩션 뒤 thread의 기존 내구 이벤트 수와 각 이벤트의 정규화 JSON이 컴팩션 전과 같다. 새로 생긴 이벤트는 `thread.compacted`와 접두 system `item.recorded` 둘뿐이다.
 4. 컴팩션 뒤 `assemble` 결과에는 `firstKeptEventId` 앞의 사용자·어시스턴트 메시지가 없고 요약 메시지가 하나 있다. leaf를 컴팩션 앞 이벤트로 옮기면 원문이 다시 나온다.
 5. 한 단계에서 오버플로우가 두 번 나면 첫 번째는 `retry`, 두 번째는 `fail(second_overflow)`다. 첫 컴팩션 뒤 프로세스를 다시 띄워도 두 번째 판정이 같다.
-6. `session.compact.before` 핸들러가 `{ cancel: true }`를 돌려주면 `compact`는 `cancelled`이고 `thread.compacted`가 커밋되지 않는다. 핸들러가 예외를 던지면 그 핸들러만 건너뛰고 컴팩션이 이어진다(fail-open).
+6. `thread.compact.before` 핸들러가 `{ cancel: true }`를 돌려주면 `compact`는 `cancelled`이고 `thread.compacted`가 커밋되지 않는다. 핸들러가 예외를 던지면 그 핸들러만 건너뛰고 컴팩션이 이어진다(fail-open).
 7. `shouldCompact`는 `contextTokens = contextWindow - reserveTokens`에서 거짓, 1 더 크면 참이다.
 8. 요약 호출은 `summary` 역할과 `cacheRetention: "none"`으로 나간다(테이프 요청 기록으로 확인).
-9. 컴팩션 실패(테이프 `error`) 때 `session.compact.failed`가 한 번 발화하고 이벤트는 쓰이지 않는다.
+9. 컴팩션 실패(테이프 `error`) 때 `thread.compact.failed`가 한 번 발화하고 이벤트는 쓰이지 않는다.
 10. 이전 요약이 있는 두 번째 컴팩션은 `UPDATE_SUMMARIZATION_PROMPT`를 쓰고, 요약 입력에 이전 요약이 들어간다.
 
 ## 10. 미결 사항

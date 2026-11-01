@@ -34,7 +34,7 @@ import {
   createSessionService,
   type PersistenceSettings,
   type RetentionApi,
-  type SessionPoints,
+  type ThreadHooks,
   type SessionDeps,
 } from "../../src/index.ts";
 import { sha256Hex } from "../../src/hash.ts";
@@ -80,7 +80,7 @@ export interface HarnessOptions {
   readonly faults?: FaultInjector;
   readonly settings?: () => PersistenceSettings;
   readonly guardProjectors?: boolean;
-  readonly points?: SessionPoints;
+  readonly points?: ThreadHooks;
   readonly clock?: ManualClock;
   readonly ids?: IdFactory;
   readonly store?: TestStore;
@@ -172,7 +172,7 @@ export function newThread(h: Harness, title: string | null = "t"): NewThread {
   const threadId = h.ids.next("thr");
   const made = h.service.threads.create(title === null ? { threadId } : { threadId, title });
   if (!made.ok) throw new Bug("newThread: create failed", { cause: made.error });
-  const token = h.store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
+  const token = h.store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
   if (!token.ok) throw new Bug("newThread: lease failed", { cause: token.error });
   const opened = h.service.openForWrite(threadId, token.value);
   if (!opened.ok) throw new Bug("newThread: open failed", { cause: opened.error });

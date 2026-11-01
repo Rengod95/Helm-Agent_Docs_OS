@@ -1,4 +1,4 @@
-// session 범위 설정 값(L1.persistence.spec §6.2, PS-14). 값은 `settings.changed{scope:"session"}` 이벤트에 남고,
+// session 범위 설정 값(L1.persistence.spec §6.2, PS-14). 값은 `settings.changed{scope:"launch"}` 이벤트에 남고,
 // 활성 가지 위 이벤트를 seq 순으로 접어 읽는다: 분기·되감기·재개를 따라간다.
 // 이벤트 순서로 쌓는 투영(p_settings)은 두지 않는다. 버려진 가지의 값을 담을 수 있어서다(§3.10 p_scopes와 같은 이유).
 // 도구 호출마다 읽으므로 thread별 캐시를 두고 leaf가 앞으로만 나아갔을 때는 새 이벤트만 접는다.
@@ -43,7 +43,7 @@ function foldInto(
 ): Result<void, RowFault> {
   const payload = parse(SettingsChangedPayloadSchema, event.payload);
   if (!payload.ok) return err(rowInvalid("events.envelope settings.changed payload"));
-  if (payload.value.scope !== "session") return ok(undefined);
+  if (payload.value.scope !== "launch") return ok(undefined);
   if (payload.value.value === null) values.delete(payload.value.key);
   else values.set(payload.value.key, payload.value.value);
   return ok(undefined);
@@ -116,7 +116,7 @@ export function createSessionSettings(deps: SessionSettingsDeps): SessionSetting
     const committed = writer.commit({
       threadId,
       requestId: `settings:${commitKeyPart(requestKey, sha256Hex)}`,
-      fingerprintSource: { key, scope: "session", value },
+      fingerprintSource: { key, scope: "launch", value },
       build(): CommitPlan {
         return {
           kind: "append",
@@ -129,7 +129,7 @@ export function createSessionSettings(deps: SessionSettingsDeps): SessionSetting
               stepId: null,
               causationId: null,
               correlationId: null,
-              payload: { key, scope: "session", value },
+              payload: { key, scope: "launch", value },
             }),
           ],
           checkpoint: null,
@@ -160,10 +160,10 @@ export function createSessionSettings(deps: SessionSettingsDeps): SessionSetting
           threadId,
           reason: computed.error.kind,
         });
-        return { scope: "session", values: new Map() };
+        return { scope: "launch", values: new Map() };
       }
       if (computed.value === undefined) cache.delete(threadId);
-      return { scope: "session", values: computed.value?.values ?? new Map() };
+      return { scope: "launch", values: computed.value?.values ?? new Map() };
     },
     set: (threadId, key, value, requestKey) => write(threadId, key, value, requestKey),
     reset: (threadId, key, requestKey) => write(threadId, key, null, requestKey),

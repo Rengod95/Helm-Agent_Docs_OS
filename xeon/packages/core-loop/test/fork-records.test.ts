@@ -2,11 +2,11 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 
-// adr.0009 §3.6. PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 XEON-PATCH 표지 id 집합이 같고,
+// adr.0009 §3.6. PATCHES.md 표의 id, UPSTREAM.json modifications, 소스의 FRESNEL-PATCH 표지 id 집합이 같고,
 // 원본에서 옮긴 파일의 머리에 출처 주석이 있다.
 
 const PACKAGE = join(import.meta.dir, "..");
-const MARKER = /\/\/ XEON-PATCH: ([a-z-]+)\b/g;
+const MARKER = /\/\/ FRESNEL-PATCH: ([a-z-]+)\b/g;
 const DERIVED_HEADER =
   /^\/\/ Derived from pi-agent-core 1\.3\.0 agent-loop\.ts [^]*?\(MIT, Copyright \(c\) 2025 Mario Zechner\)\. See LICENSE\.pi\./;
 

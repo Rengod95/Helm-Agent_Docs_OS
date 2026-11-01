@@ -25,7 +25,7 @@ import {
 import { sha256Hex } from "./hash.ts";
 import { ownerError } from "./lifecycle-admin.ts";
 import type { OpenSessions } from "./ownership.ts";
-import type { SessionPoints } from "./points.ts";
+import type { ThreadHooks } from "./points.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import { columns, readResult, rowInvalid, type RowFault } from "./rows.ts";
 import { readThread, type ThreadRow } from "./views.ts";
@@ -37,7 +37,7 @@ export interface BranchDeps {
   readonly producers: ProducerRegistry;
   readonly sessions: OpenSessions;
   readonly ids: IdFactory;
-  readonly points: SessionPoints;
+  readonly points: ThreadHooks;
   readonly logger: Logger | undefined;
   /** fork의 새 thread를 만든다(thread.started{forkedFrom}) */
   readonly createForked: (
@@ -114,7 +114,7 @@ function eventBelongsToThread(
 }
 
 function cancelled(
-  point: "session.fork.before" | "session.tree.before" | "session.switch.before",
+  point: "thread.fork.before" | "thread.tree.before" | "thread.switch.before",
   decision: { readonly cancel: boolean; readonly reason?: string } | undefined,
 ): LifecycleError | null {
   if (decision === undefined || !decision.cancel) return null;
@@ -262,7 +262,7 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         },
         `${threadId}:session.tree.after:${String(result.lastSeq)}`,
       ),
-      failPoint("session.tree.after", threadId),
+      failPoint("thread.tree.after", threadId),
     );
   };
 
@@ -293,7 +293,7 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         },
         `${threadId}:session.tree.before:${options.requestKey}`,
       );
-      const stopped = cancelled("session.tree.before", decision);
+      const stopped = cancelled("thread.tree.before", decision);
       if (stopped !== null) return err(stopped);
       const offered = decision !== undefined && !decision.cancel ? decision.summary : undefined;
       const summary: BranchSummaryInput | undefined =
@@ -382,7 +382,7 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         },
         `${threadId}:session.tree.before:${requestKey}`,
       );
-      const stopped = cancelled("session.tree.before", decision);
+      const stopped = cancelled("thread.tree.before", decision);
       if (stopped !== null) return err(stopped);
       const moved = commitLeafMove({
         threadId,
@@ -438,7 +438,7 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         { threadId, itemId, position: "at" },
         `${threadId}:session.fork.before:${newThreadId}`,
       );
-      const stopped = cancelled("session.fork.before", decision);
+      const stopped = cancelled("thread.fork.before", decision);
       if (stopped !== null) return err(stopped);
       const created = deps.createForked(
         {
@@ -455,7 +455,7 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
             { reason: "fork", threadId: newThreadId, previousThreadId: threadId },
             `${newThreadId}:session.start:${String(created.value.headSeq)}`,
           ),
-          failPoint("session.start", newThreadId),
+          failPoint("thread.start", newThreadId),
         );
       }
       return created;
@@ -467,7 +467,7 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         { reason: to === null ? "new" : "resume", ...(to === null ? {} : { targetThreadId: to }) },
         `${from}:session.switch.before:${to ?? "new"}`,
       );
-      const stopped = cancelled("session.switch.before", decision);
+      const stopped = cancelled("thread.switch.before", decision);
       return stopped === null ? ok(undefined) : err(stopped);
     },
   };

@@ -109,7 +109,7 @@ export const DEFAULT_MODELS_SETTINGS: ModelsSettings = {
   rotationAcknowledged: false,
 };
 
-const MUPLoS = ["managed", "user", "project", "local", "session"] as const;
+const MUPLoS = ["managed", "user", "project", "local", "launch"] as const;
 const MUPLo = ["managed", "user", "project", "local"] as const;
 const MUP = ["managed", "user", "project"] as const;
 

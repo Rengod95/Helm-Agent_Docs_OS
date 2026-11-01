@@ -16,7 +16,7 @@ test("settings_defs_pass_checks", () => {
     expect(checkSettingDef(def)).toEqual([]);
     // spec §6 표: runtimeChange, 허용 범위, 화면 위치
     expect(def.runtimeChange).toBe("live");
-    expect(def.allowedScopes).toEqual(["managed", "user", "project", "local", "session"]);
+    expect(def.allowedScopes).toEqual(["managed", "user", "project", "local", "launch"]);
     expect(def.layer).toBe("L1");
     expect(def.since).toBe("0.1.0");
     expect(def.secret).toBeUndefined();
@@ -80,7 +80,7 @@ test("the layered source resolves effective values and follows later changes", (
   const session = new Map<string, unknown>();
   const stack = (): ScopeStack => [
     { scope: "user", values: user },
-    { scope: "session", values: session },
+    { scope: "launch", values: session },
   ];
   const source = createLayeredTasksSettings(stack);
   expect(source.steeringMode()).toBe("all");
@@ -104,7 +104,7 @@ test("pool limits: static defaults, overrides, and the layered source with inval
   const session = new Map<string, unknown>();
   const source = createLayeredTasksSettings((): ScopeStack => [
     { scope: "user", values: user },
-    { scope: "session", values: session },
+    { scope: "launch", values: session },
   ]);
   expect(source.limit("tools")).toBe(4);
   session.set("l1.tasks.limits.tools", 2);

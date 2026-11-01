@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { POINTS } from "@xeon/contracts/extensions";
+import { HOOKS } from "@xeon/contracts/extensions";
 import { assembleOptions, binding } from "./support/builders.ts";
 import { harness, installHandlers, type Harness } from "./support/harness.ts";
 import { present, valueOf } from "./support/result.ts";
@@ -26,11 +26,11 @@ async function ready(): Promise<Harness> {
   return h;
 }
 
-describe("session.compact.before", () => {
+describe("thread.compact.before", () => {
   test("session_compact_before_denial_blocks: a cancel decision stops before the model and the commit", async () => {
     const h = await ready();
-    await installHandlers(h.host, "guard", 3, ["session.compact.before"], (g) => {
-      g.on("session.compact.before", () => ({ cancel: true as const, reason: "not now" }));
+    await installHandlers(h.host, "guard", 3, ["thread.compact.before"], (g) => {
+      g.on("thread.compact.before", () => ({ cancel: true as const, reason: "not now" }));
     });
     const outcome = valueOf(await h.service.compact(h.log.threadId, request()));
     expect(outcome).toEqual({ status: "cancelled", by: "guard", reason: "not now" });
@@ -40,8 +40,8 @@ describe("session.compact.before", () => {
 
   test("a handler that throws does not block compaction (fail-open, adr.0017)", async () => {
     const h = await ready();
-    await installHandlers(h.host, "broken", 3, ["session.compact.before"], (g) => {
-      g.on("session.compact.before", () => {
+    await installHandlers(h.host, "broken", 3, ["thread.compact.before"], (g) => {
+      g.on("thread.compact.before", () => {
         throw new Error("handler exploded");
       });
     });
@@ -54,13 +54,13 @@ describe("session.compact.before", () => {
 
   test("a throwing handler is skipped and a later handler's cancel still stops compaction", async () => {
     const h = await ready();
-    await installHandlers(h.host, "broken", 3, ["session.compact.before"], (g) => {
-      g.on("session.compact.before", () => {
+    await installHandlers(h.host, "broken", 3, ["thread.compact.before"], (g) => {
+      g.on("thread.compact.before", () => {
         throw new Error("handler exploded");
       });
     });
-    await installHandlers(h.host, "guard", 4, ["session.compact.before"], (g) => {
-      g.on("session.compact.before", () => ({ cancel: true as const, reason: "not now" }));
+    await installHandlers(h.host, "guard", 4, ["thread.compact.before"], (g) => {
+      g.on("thread.compact.before", () => ({ cancel: true as const, reason: "not now" }));
     });
     const outcome = valueOf(await h.service.compact(h.log.threadId, request()));
     expect(outcome).toEqual({ status: "cancelled", by: "guard", reason: "not now" });
@@ -71,8 +71,8 @@ describe("session.compact.before", () => {
     const h = await ready();
     h.setSettings({ compactionInstructions: "from settings" });
     const seen: unknown[] = [];
-    await installHandlers(h.host, "spy", 3, ["session.compact.before"], (g) => {
-      g.on("session.compact.before", (payload) => {
+    await installHandlers(h.host, "spy", 3, ["thread.compact.before"], (g) => {
+      g.on("thread.compact.before", (payload) => {
         seen.push(payload);
         return undefined;
       });
@@ -96,8 +96,8 @@ describe("session.compact.before", () => {
     const chosen = present(
       h.log.events.find((event) => event.kind === "item.recorded" && event.seq > 6),
     );
-    await installHandlers(h.host, "own-summary", 3, ["session.compact.before"], (g) => {
-      g.on("session.compact.before", () => ({
+    await installHandlers(h.host, "own-summary", 3, ["thread.compact.before"], (g) => {
+      g.on("thread.compact.before", () => ({
         cancel: false as const,
         compaction: {
           summary: "EXTENSION SUMMARY",
@@ -122,8 +122,8 @@ describe("session.compact.before", () => {
   test("an extension summary pointing off the branch is refused", async () => {
     const h = await ready();
     const foreign = h.log.ids.next("evt");
-    await installHandlers(h.host, "bad-cut", 3, ["session.compact.before"], (g) => {
-      g.on("session.compact.before", () => ({
+    await installHandlers(h.host, "bad-cut", 3, ["thread.compact.before"], (g) => {
+      g.on("thread.compact.before", () => ({
         cancel: false as const,
         compaction: { summary: "x", firstKeptEventId: foreign, details: null },
       }));
@@ -143,12 +143,12 @@ describe("after the decision", () => {
       h.host,
       "watch",
       3,
-      ["session.compact.after", "session.compact.failed"],
+      ["thread.compact.after", "thread.compact.failed"],
       (g) => {
-        g.on("session.compact.after", (payload) => {
+        g.on("thread.compact.after", (payload) => {
           compacts.push(payload);
         });
-        g.on("session.compact.failed", (payload) => {
+        g.on("thread.compact.failed", (payload) => {
           fails.push(payload);
         });
       },
@@ -176,13 +176,13 @@ describe("after the decision", () => {
       h.host,
       "deny-and-watch",
       3,
-      ["session.compact.before", "session.compact.after", "session.compact.failed"],
+      ["thread.compact.before", "thread.compact.after", "thread.compact.failed"],
       (g) => {
-        g.on("session.compact.before", () => ({ cancel: true as const, reason: "no" }));
-        g.on("session.compact.after", () => {
+        g.on("thread.compact.before", () => ({ cancel: true as const, reason: "no" }));
+        g.on("thread.compact.after", () => {
           seen.push("compact");
         });
-        g.on("session.compact.failed", () => {
+        g.on("thread.compact.failed", () => {
           seen.push("failed");
         });
       },
@@ -195,7 +195,7 @@ describe("after the decision", () => {
 
 describe("request_cache_before_declared_not_fired", () => {
   test("the point is declared but nothing in M2 fires it", async () => {
-    expect(Object.keys(POINTS)).toContain("request.cache.before");
+    expect(Object.keys(HOOKS)).toContain("request.cache.before");
     const h = await ready();
     let fired = 0;
     await installHandlers(h.host, "warmer", 3, ["request.cache.before"], (g) => {

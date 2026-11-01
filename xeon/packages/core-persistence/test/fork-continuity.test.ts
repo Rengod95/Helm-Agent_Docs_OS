@@ -17,7 +17,7 @@ async function branchIds(h: Harness, threadId: ThreadId): Promise<EventId[]> {
 
 /** fork한 thread를 쓰기용으로 연다 */
 function openForked(h: Harness, threadId: ThreadId): void {
-  const token = h.store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
+  const token = h.store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
   if (!token.ok) throw new Bug("openForked: lease failed", { cause: token.error });
   const opened = h.service.openForWrite(threadId, token.value);
   if (!opened.ok) throw new Bug("openForked: open failed", { cause: opened.error });

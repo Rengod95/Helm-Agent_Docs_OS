@@ -372,7 +372,7 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
     sessionSettings: {
       layer(threadId): SessionSettingsLayer {
         const values = settings.get(threadId) ?? new Map<string, unknown>();
-        return { scope: "session", values };
+        return { scope: "launch", values };
       },
       set(threadId, key, value) {
         const failure = settingsFaults.shift();

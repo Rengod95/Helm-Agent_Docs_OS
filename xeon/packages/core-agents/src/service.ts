@@ -399,7 +399,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
 
   /** 자식 임대를 다시 얻고 쓰기로 연다(재개, 이미 만든 creationKey 재시도) */
   const reopenChild = (childThreadId: ThreadId): LeaseToken | undefined => {
-    const acquired = ownership.leases.acquire(`session:${childThreadId}`, ownership.holder);
+    const acquired = ownership.leases.acquire(`thread:${childThreadId}`, ownership.holder);
     if (!acquired.ok) return undefined;
     const opened = session.openForWrite(childThreadId, acquired.value);
     return opened.ok ? acquired.value : undefined;

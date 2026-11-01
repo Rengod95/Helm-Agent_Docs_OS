@@ -278,8 +278,8 @@ async function failing(
   await buildChat(h, 6);
   h.fake.replies.push(reply);
   const failed: string[] = [];
-  await installHandlers(h.host, "watch-failed", 5, ["session.compact.failed"], (g) => {
-    g.on("session.compact.failed", (payload) => {
+  await installHandlers(h.host, "watch-failed", 5, ["thread.compact.failed"], (g) => {
+    g.on("thread.compact.failed", (payload) => {
       failed.push(String(payload.errorMessage));
     });
   });
@@ -313,8 +313,8 @@ describe("failures", () => {
     await buildChat(h, 6);
     h.fake.replies.push({ kind: "aborted" });
     const messages: (string | null)[] = [];
-    await installHandlers(h.host, "watch-failed", 5, ["session.compact.failed"], (g) => {
-      g.on("session.compact.failed", (payload) => {
+    await installHandlers(h.host, "watch-failed", 5, ["thread.compact.failed"], (g) => {
+      g.on("thread.compact.failed", (payload) => {
         messages.push(payload.errorMessage);
       });
     });

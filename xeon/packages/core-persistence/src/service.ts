@@ -16,7 +16,7 @@ import { createExtPort } from "./ext-port.ts";
 import { createItemPages, registerItemPages } from "./item-pages.ts";
 import { createLifecycle } from "./lifecycle.ts";
 import { createGuardState, createOpenSessions } from "./ownership.ts";
-import { NO_SESSION_POINTS } from "./points.ts";
+import { NO_THREAD_HOOKS } from "./points.ts";
 import { createRetention } from "./retention.ts";
 import { createProducerRegistry } from "./producers.ts";
 import { createCoreProjector } from "./projector/core.ts";
@@ -69,7 +69,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     return names;
   };
 
-  const points = deps.points ?? NO_SESSION_POINTS;
+  const points = deps.points ?? NO_THREAD_HOOKS;
   const feedController = createFeed({ db: deps.db, catalog, guard, logger: deps.logger });
   const settings = (): PersistenceSettings => deps.settings?.() ?? DEFAULT_PERSISTENCE_SETTINGS;
   const writer = createSessionWriter({

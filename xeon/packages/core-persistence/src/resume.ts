@@ -42,7 +42,7 @@ import type { PersistenceSettings } from "./deps.ts";
 import { envelopeAtSeq, envelopeOfRow } from "./events.ts";
 import { sessionResource } from "./ids.ts";
 import { releaseOpenSession, type OpenSessions } from "./ownership.ts";
-import type { SessionPoints } from "./points.ts";
+import type { ThreadHooks } from "./points.ts";
 import type { ProjectorController } from "./projector/registry.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import {
@@ -80,7 +80,7 @@ export interface ResumeDeps {
   /** 서비스를 시작하며 다시 만든 투영기 이름. 처음 여는 thread의 OpenReport.rebuilt에 한 번 실린다 */
   readonly takeStartupRebuilt: () => readonly string[];
   readonly logger: Logger | undefined;
-  readonly points: SessionPoints;
+  readonly points: ThreadHooks;
 }
 
 export interface Resumer {
@@ -312,7 +312,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
             `${threadId}:session.start:${String(thread.value.headSeq)}`,
           ),
           (cause) => {
-            deps.logger?.warn("session.point_failed", { point: "session.start", threadId });
+            deps.logger?.warn("session.point_failed", { point: "thread.start", threadId });
             deps.logger?.debug("session.point_failure_cause", { cause: String(cause) });
           },
         );

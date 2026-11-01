@@ -19,7 +19,7 @@ import type { ExtHost } from "@xeon/ext-host";
 export type SessionDispatcher = Pick<ExtHost, "dispatch">;
 
 /** 결정이 취소면 그 이유를 돌려주고, 계속이면 undefined */
-export interface SessionPoints {
+export interface ThreadHooks {
   /** session_start (tap). 커밋과 복구 뒤 */
   start(payload: SessionStartPayload, dispatchKey: string): Promise<void>;
   /** session_info_changed (tap, detached). 제목 커밋 뒤 */
@@ -47,7 +47,7 @@ export interface SessionPoints {
 }
 
 /** 발화하지 않는다. ExtHost가 없는 조립과 시험이 쓴다 */
-export const NO_SESSION_POINTS: SessionPoints = {
+export const NO_THREAD_HOOKS: ThreadHooks = {
   start: () => Promise.resolve(),
   infoChanged: () => Promise.resolve(),
   beforeSwitch: () => Promise.resolve(undefined),
@@ -57,46 +57,46 @@ export const NO_SESSION_POINTS: SessionPoints = {
   shutdown: () => Promise.resolve(),
 };
 
-export function createSessionPoints(ext: SessionDispatcher): SessionPoints {
+export function createThreadHooks(ext: SessionDispatcher): ThreadHooks {
   return {
     async start(payload, dispatchKey): Promise<void> {
-      await ext.dispatch("session.start", payload, { threadId: payload.threadId, dispatchKey });
+      await ext.dispatch("thread.start", payload, { threadId: payload.threadId, dispatchKey });
     },
     async infoChanged(payload, dispatchKey): Promise<void> {
-      await ext.dispatch("session.info.after", payload, {
+      await ext.dispatch("thread.info.after", payload, {
         threadId: payload.threadId,
         dispatchKey,
       });
     },
     async beforeSwitch(threadId, payload, dispatchKey) {
-      const outcome = await ext.dispatch("session.switch.before", payload, {
+      const outcome = await ext.dispatch("thread.switch.before", payload, {
         threadId,
         dispatchKey,
       });
       return outcome.decision;
     },
     async beforeFork(payload, dispatchKey) {
-      const outcome = await ext.dispatch("session.fork.before", payload, {
+      const outcome = await ext.dispatch("thread.fork.before", payload, {
         threadId: payload.threadId,
         dispatchKey,
       });
       return outcome.decision;
     },
     async beforeTree(payload, dispatchKey) {
-      const outcome = await ext.dispatch("session.tree.before", payload, {
+      const outcome = await ext.dispatch("thread.tree.before", payload, {
         threadId: payload.threadId,
         dispatchKey,
       });
       return outcome.decision;
     },
     async tree(payload, dispatchKey): Promise<void> {
-      await ext.dispatch("session.tree.after", payload, {
+      await ext.dispatch("thread.tree.after", payload, {
         threadId: payload.threadId,
         dispatchKey,
       });
     },
     async shutdown(threadId, payload, dispatchKey): Promise<void> {
-      await ext.dispatch("session.shutdown", payload, { threadId, dispatchKey });
+      await ext.dispatch("thread.shutdown", payload, { threadId, dispatchKey });
     },
   };
 }

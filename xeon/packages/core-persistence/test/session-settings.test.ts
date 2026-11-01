@@ -15,7 +15,7 @@ describe("session settings", () => {
   test("set and reset commit settings.changed and the layer reads them back", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h);
-    expect(layerOf(h, threadId)).toEqual({ scope: "session", values: new Map() });
+    expect(layerOf(h, threadId)).toEqual({ scope: "launch", values: new Map() });
     expectOk(h.service.sessionSettings.set(threadId, KEY, { mode: "fast" }, "s1"));
     expect(layerOf(h, threadId).values.get(KEY)).toEqual({ mode: "fast" });
     const event = h.store.raw
@@ -25,7 +25,7 @@ describe("session settings", () => {
       .get();
     expect(JSON.parse(event?.envelope ?? "{}").payload).toEqual({
       key: KEY,
-      scope: "session",
+      scope: "launch",
       value: { mode: "fast" },
     });
     // 같은 키 재시도는 새 이벤트를 더하지 않는다

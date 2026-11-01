@@ -8,7 +8,7 @@ import {
   dispatchKey,
   emitNotifications,
   messageIdentity,
-  nextPointSeq,
+  nextHookSeq,
   tapOptions,
   type TurnRun,
 } from "./turn-run.ts";
@@ -50,7 +50,7 @@ export async function emitMessageUpdate(
     },
     tapOptions(
       run,
-      dispatchKey(run, run.mapper.snapshot().stepId, `message_update:${nextPointSeq(run)}`),
+      dispatchKey(run, run.mapper.snapshot().stepId, `message_update:${nextHookSeq(run)}`),
     ),
   );
 }

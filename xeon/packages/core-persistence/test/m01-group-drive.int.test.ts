@@ -26,7 +26,7 @@ function realRecords(h: Harness): MemoryRecordStore {
     if (known.has(threadId)) return;
     known.add(threadId);
     expectOk(h.service.threads.create({ threadId }));
-    const token = h.store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
+    const token = h.store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
     if (!token.ok) throw new Bug("m01: lease failed", { cause: token.error });
     expectOk(h.service.openForWrite(threadId, token.value));
   };

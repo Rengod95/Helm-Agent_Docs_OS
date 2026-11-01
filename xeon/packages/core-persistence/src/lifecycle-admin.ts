@@ -17,7 +17,7 @@ import {
 } from "@xeon/contracts/records";
 import { sha256Hex } from "./hash.ts";
 import { releaseOpenSession, type GuardState, type OpenSessions } from "./ownership.ts";
-import type { SessionPoints } from "./points.ts";
+import type { ThreadHooks } from "./points.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import { REPLAY_FLOOR_CONSUMER } from "./replay-floor.ts";
 import { columns, readResult, rowInvalid, type RowFault } from "./rows.ts";
@@ -33,7 +33,7 @@ export interface AdminDeps {
   readonly sessions: OpenSessions;
   readonly guard: GuardState;
   readonly ids: IdFactory;
-  readonly points: SessionPoints;
+  readonly points: ThreadHooks;
   readonly logger: Logger | undefined;
   /** 삭제 때 thread 행을 지울 투영 테이블(등록된 모든 투영기). 호출 때마다 읽는다 */
   readonly projectorTables: () => readonly string[];
@@ -285,7 +285,7 @@ export function createAdminOps(
           ),
           (cause) => {
             logger?.warn("session.point_failed", {
-              point: "session.info.after",
+              point: "thread.info.after",
               threadId,
               reason: String(cause),
             });

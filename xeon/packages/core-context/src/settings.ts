@@ -31,7 +31,7 @@ export const DEFAULT_CONTEXT_SETTINGS: ContextSettings = {
 /** 호출 시점의 유효 설정을 읽는 함수. 읽는 경로는 조립 루트가 넘긴다 */
 export type ContextSettingsSource = () => ContextSettings;
 
-const MUPLoS = ["managed", "user", "project", "local", "session"] as const;
+const MUPLoS = ["managed", "user", "project", "local", "launch"] as const;
 const MUPLo = ["managed", "user", "project", "local"] as const;
 const MUP = ["managed", "user", "project"] as const;
 

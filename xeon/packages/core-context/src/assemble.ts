@@ -129,7 +129,7 @@ function volatileText(volatile: Readonly<Record<string, string>>): string {
  * 접두와 뒤따르는 시스템 메시지를 합친 시스템 메시지를 맨 앞에 되돌린다(pi emitContext와 같다).
  * 바꾼 핸들러가 없으면 조립한 배열을 그대로 둔다
  */
-async function applyContextPoint(
+async function applyContextHook(
   deps: AssembleDeps,
   threadId: ThreadId,
   opts: AssembleOptions,
@@ -154,7 +154,7 @@ async function applyContextPoint(
 }
 
 /** request.system.before 지점(chain)을 전체 배열로 발화한다(§4.1 5번). 결과가 최종 messages다 */
-async function applyContextWithSystemPoint(
+async function applyContextWithSystemHook(
   deps: AssembleDeps,
   threadId: ThreadId,
   opts: AssembleOptions,
@@ -269,8 +269,8 @@ export async function assembleContext(
   );
   messages.push(...appended);
 
-  const afterContext = await applyContextPoint(deps, threadId, opts, messages);
-  const withSystem = await applyContextWithSystemPoint(deps, threadId, opts, afterContext);
+  const afterContext = await applyContextHook(deps, threadId, opts, messages);
+  const withSystem = await applyContextWithSystemHook(deps, threadId, opts, afterContext);
   const finalMessages: Message[] = [...withSystem.messages];
   if (withSystem.changed) {
     const first = finalMessages[0];

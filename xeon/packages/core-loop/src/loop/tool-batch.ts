@@ -16,9 +16,9 @@ import { toolRunContext, type TurnRun } from "./turn-run.ts";
 import type { LoopFailure, ToolCallResume } from "./types.ts";
 
 // L1.loop.spec §3.3 도구 배치. 원본의 순차·병렬 규칙을 옮기고, 한 호출의 준비·실행·마감은 `xeon.tools`의 단계 계약으로 넘긴다.
-// XEON-PATCH: batch-cancel — 취소되면 남은 호출을 같은 배치 안에서 `settleRejected(…, "not_executed")`로 닫는다(원본은 break로 결과가 없다).
-// XEON-PATCH: batch-length — `stopReason: "length"`면 호출을 실행하지 않고 `settleRejected(…, "truncated")`로 닫는다.
-// XEON-PATCH: batch-record — 결과 기록은 core-tools가 한다. 루프는 돌려받은 `ToolCallOutcome`을 이벤트로 낸다.
+// FRESNEL-PATCH: batch-cancel — 취소되면 남은 호출을 같은 배치 안에서 `settleRejected(…, "not_executed")`로 닫는다(원본은 break로 결과가 없다).
+// FRESNEL-PATCH: batch-length — `stopReason: "length"`면 호출을 실행하지 않고 `settleRejected(…, "truncated")`로 닫는다.
+// FRESNEL-PATCH: batch-record — 결과 기록은 core-tools가 한다. 루프는 돌려받은 `ToolCallOutcome`을 이벤트로 낸다.
 
 export interface BatchInput {
   readonly step: StepRef;

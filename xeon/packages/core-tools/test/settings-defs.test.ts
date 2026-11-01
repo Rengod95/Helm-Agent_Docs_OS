@@ -55,7 +55,7 @@ describe("l1.tools settings", () => {
 
   test("bypassAllowed is managed-only and output limits accept only file scopes", () => {
     expect(defOf("l1.tools.bypassAllowed").allowedScopes).toEqual(["managed"]);
-    expect(defOf("l1.tools.output.maxBytes").allowedScopes).not.toContain("session");
-    expect(defOf("l1.tools.permissionMode").allowedScopes).toContain("session");
+    expect(defOf("l1.tools.output.maxBytes").allowedScopes).not.toContain("launch");
+    expect(defOf("l1.tools.permissionMode").allowedScopes).toContain("launch");
   });
 });

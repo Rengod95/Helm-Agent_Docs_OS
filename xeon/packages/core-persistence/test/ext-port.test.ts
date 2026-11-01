@@ -150,7 +150,7 @@ describe("ext.commit result mapping", () => {
   test("a taken-over session maps ownership_lost to lease_lost", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h);
-    h.store.leases.takeover(`session:${threadId}`, TEST_HOLDER_B);
+    h.store.leases.takeover(`thread:${threadId}`, TEST_HOLDER_B);
     const result = await h.service.ext.commit({
       threadId,
       requestId: "after-takeover",
@@ -426,7 +426,7 @@ function freshRecords(): RecordCommitPort {
     if (!known.has(threadId)) {
       known.add(threadId);
       expectOk(h.service.threads.create({ threadId }));
-      const token = h.store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
+      const token = h.store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
       if (!token.ok) throw new Bug("contract: lease failed", { cause: token.error });
       expectOk(h.service.openForWrite(threadId, token.value));
     }

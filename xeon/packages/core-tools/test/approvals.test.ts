@@ -411,19 +411,14 @@ test("ui_prompt_start fires after the request commit and session.prompt.after af
   const h = await createHarness();
   registerWorkspace(h);
   const seen: string[] = [];
-  await installHandlers(
-    h,
-    "prompt-watch",
-    ["session.prompt.before", "session.prompt.after"],
-    (g) => {
-      g.on("session.prompt.before", () => {
-        seen.push(`start:${kinds(h).join(",")}`);
-      });
-      g.on("session.prompt.after", () => {
-        seen.push(`end:${kinds(h).join(",")}`);
-      });
-    },
-  );
+  await installHandlers(h, "prompt-watch", ["thread.prompt.before", "thread.prompt.after"], (g) => {
+    g.on("thread.prompt.before", () => {
+      seen.push(`start:${kinds(h).join(",")}`);
+    });
+    g.on("thread.prompt.after", () => {
+      seen.push(`end:${kinds(h).join(",")}`);
+    });
+  });
   const { done } = await startBash(h, "call_13");
   const [request] = h.runtime.approvals.pending(h.thread);
   await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });

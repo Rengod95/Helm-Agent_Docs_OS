@@ -59,7 +59,7 @@ const group = defineSettings("l1.agents", {
     default: 3,
     range: { min: 1, max: 20 },
     runtimeChange: "nextTurn",
-    allowedScopes: [...FILE_SCOPES, "session"],
+    allowedScopes: [...FILE_SCOPES, "launch"],
     ui: {
       tab: "models",
       widget: "number",

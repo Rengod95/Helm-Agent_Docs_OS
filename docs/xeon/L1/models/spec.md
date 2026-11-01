@@ -883,7 +883,7 @@ export interface ThinkingLevelSelectPayload {
 |---|---|
 | `Message`, `AssistantMessage`, `Usage`, `StopReason`, `ModelThinkingLevel` | `F.conversation.spec` §3.1 |
 | `StepCheckpoint.model` | `F.records.spec` §3.6 |
-| 지점 선언(`POINTS`), 페이로드 타입, `ScopeId` | `F.extensions.spec` |
+| 지점 선언(`HOOKS`), 페이로드 타입, `ScopeId` | `F.extensions.spec` |
 | `SettingDef`, `defineSettings`, `SecretRef`, `resolveSetting` | `F.wire-settings.spec` §3.8~§3.9 |
 | `xeon.secrets`(`SecretService`): 참조 해석, 마스킹 | `L0.secrets.spec` [가정: 메서드 이름] |
 | `xeon.ext`: 지점 디스패치 | `X.primitives.spec` |

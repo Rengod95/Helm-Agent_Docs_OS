@@ -19,7 +19,7 @@ import { sessionResource } from "./ids.ts";
 import { createAdminOps } from "./lifecycle-admin.ts";
 import { createBranchOps } from "./lifecycle-branch.ts";
 import type { GuardState, OpenSessions } from "./ownership.ts";
-import type { SessionPoints } from "./points.ts";
+import type { ThreadHooks } from "./points.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import { readResult } from "./rows.ts";
 import { readThread } from "./views.ts";
@@ -35,7 +35,7 @@ export interface LifecycleDeps {
   readonly holder: LeaseHolder | undefined;
   readonly onLeaseLost: ((threadId: ThreadId) => void) | undefined;
   readonly guard: GuardState;
-  readonly points: SessionPoints;
+  readonly points: ThreadHooks;
   readonly logger: Logger | undefined;
   /** thread 행을 지울 투영 테이블 이름(등록된 모든 투영기) */
   readonly projectorTables: () => readonly string[];
@@ -214,7 +214,7 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
         ),
         (cause) => {
           deps.logger?.warn("session.point_failed", {
-            point: "session.start",
+            point: "thread.start",
             threadId,
             reason: String(cause),
           });

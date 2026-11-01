@@ -71,7 +71,7 @@ const group = defineSettings("l1.persistence", {
     default: "pi-jsonl",
     range: { enum: ["pi-jsonl", "xeon-jsonl"] },
     runtimeChange: "live",
-    allowedScopes: ["managed", "user", "session"],
+    allowedScopes: ["managed", "user", "launch"],
     ui: { tab: "sessions", widget: "select", order: 140, label: "내보내기 기본 형식" },
     since: "0.1.0",
   },

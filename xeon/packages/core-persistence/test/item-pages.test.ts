@@ -50,7 +50,7 @@ async function allItems(h: Harness, threadId: ThreadId): Promise<ItemRecord[]> {
 }
 
 function openForked(h: Harness, threadId: ThreadId): void {
-  const token = h.store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
+  const token = h.store.leases.acquire(`thread:${threadId}`, TEST_HOLDER_A);
   if (!token.ok) throw new Bug("lease failed", { cause: token.error });
   const opened = h.service.openForWrite(threadId, token.value);
   if (!opened.ok) throw new Bug("open failed", { cause: opened.error });

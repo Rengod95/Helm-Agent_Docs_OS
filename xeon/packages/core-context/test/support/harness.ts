@@ -1,4 +1,4 @@
-import type { ExtensionManifest, Handler, PointName, ScopeApi } from "@xeon/contracts/extensions";
+import type { ExtensionManifest, Handler, HookName, ScopeApi } from "@xeon/contracts/extensions";
 import type { Logger, LogFields } from "@xeon/contracts";
 import type { ProducerHandle } from "@xeon/contracts/records";
 import type { ContextService } from "@xeon/contracts/services";
@@ -93,7 +93,7 @@ export async function harness(options: HarnessOptions = {}): Promise<Harness> {
 
 function manifestOf(
   name: string,
-  points: readonly PointName[] = ["request.context.before"],
+  points: readonly HookName[] = ["request.context.before"],
 ): ExtensionManifest {
   return {
     schemaVersion: 1,
@@ -112,7 +112,7 @@ export async function installHandlers(
   host: TestHost,
   name: string,
   loadIndex: number,
-  points: readonly PointName[],
+  points: readonly HookName[],
   register: (g: ScopeApi<unknown>) => void,
 ): Promise<void> {
   const unit: ExtensionUnit = {

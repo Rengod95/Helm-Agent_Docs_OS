@@ -297,7 +297,7 @@ export async function compactThread(
 
   // 확장이 거부하거나 요약을 대신할 수 있다. 이 지점은 fail-open이다(adr.0017): 핸들러 실패는 결정 없음이라 컴팩션이 계속된다
   const before = await deps.ext.dispatch(
-    "session.compact.before",
+    "thread.compact.before",
     {
       threadId,
       reason: request.reason,
@@ -460,7 +460,7 @@ export async function compactThread(
   }
   const eventId = result.eventIds[0] ?? compactedId;
   await deps.ext.dispatch(
-    "session.compact.after",
+    "thread.compact.after",
     {
       threadId,
       eventId,
@@ -483,7 +483,7 @@ async function failed(
 ): Promise<void> {
   deps.logger?.warn("context.compaction_failed", { kind: error.kind, reason: request.reason });
   await deps.ext.dispatch(
-    "session.compact.failed",
+    "thread.compact.failed",
     { threadId, reason: request.reason, errorMessage: failedMessage(error) },
     {
       threadId,

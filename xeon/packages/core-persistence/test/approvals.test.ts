@@ -171,12 +171,12 @@ describe("approvals", () => {
   test("resume_restores_pending_approval: after a restart the same approval comes back and nothing is requested again", async () => {
     const h = await openHarness();
     const requested = requestApproval(h);
-    const token = h.store.leases.inspect(`session:${requested.threadId}`);
+    const token = h.store.leases.inspect(`thread:${requested.threadId}`);
     if (!token.ok || token.value === null) throw new Error("no lease");
     const restarted = await reopenHarness(h);
     expectOk(
       restarted.service.openForWrite(requested.threadId, {
-        resource: `session:${requested.threadId}`,
+        resource: `thread:${requested.threadId}`,
         holderId: token.value.holderId,
         epoch: token.value.epoch,
       }),

@@ -477,6 +477,7 @@ export const CATEGORIES: readonly Category[] = [
         replace: '"launch"',
         skip: NO_MOCKUPS,
       },
+      { pattern: /(?<=\.\.\.[A-Z_]*SCOPES, )"session"/g, replace: '"launch"', skip: NO_MOCKUPS },
       { pattern: /\bscopes: \["session"/g, replace: 'scopes: ["launch"', skip: NO_MOCKUPS },
       { pattern: /(\blayer\()"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
       { pattern: /(\bKEY, )"session"/g, replace: '$1"launch"', skip: NO_MOCKUPS },
@@ -516,6 +517,8 @@ export const CATEGORIES: readonly Category[] = [
         replace: "`thread:${",
         skip: NO_MOCKUPS,
       },
+      { pattern: /(?<=leases\.\w+\()`session:\$\{/g, replace: "`thread:${", skip: NO_MOCKUPS },
+      { pattern: /(?<=resource: ["`])session:(?=thr|\$\{)/g, replace: "thread:", skip: NO_MOCKUPS },
       { pattern: /(?<=["'`])session:(?=thr_|not-a-thread)/g, replace: "thread:", skip: NO_MOCKUPS },
       {
         pattern:
