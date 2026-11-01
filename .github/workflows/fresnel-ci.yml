@@ -44,11 +44,15 @@ jobs:
         layer: [root, F, X, L0, L1, L2, L3, L4]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        id: checkout
         with:
           # caustic(xeon/external/caustic)은 private submodule이다. 읽기 전용 토큰이 없으면 checkout이 실패한다
           submodules: true
           token: ${{ secrets.CAUSTIC_READ_TOKEN || github.token }}
           fetch-depth: 0
+      - if: failure() && steps.checkout.outcome == 'failure'
+        run: |
+          echo "::error::caustic submodule checkout failed. Register the repo secret CAUSTIC_READ_TOKEN (fine-grained token, Contents: read-only on Rengod95/caustic) under Settings > Secrets and variables > Actions, and the same name under Dependabot secrets."
       # L0 sandbox tests and the L4 CLI tests that run a sandboxed command need bubblewrap, socat and rg;
       # Ubuntu 24.04 blocks unprivileged user namespaces by default.
       - if: matrix.layer == 'L0' || matrix.layer == 'L4'
@@ -74,6 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        id: checkout
         with:
           # caustic(xeon/external/caustic)은 private submodule이다. 읽기 전용 토큰이 없으면 checkout이 실패한다
           submodules: true
@@ -97,6 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        id: checkout
         with:
           # caustic(xeon/external/caustic)은 private submodule이다. 읽기 전용 토큰이 없으면 checkout이 실패한다
           submodules: true
@@ -114,6 +120,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        id: checkout
         with:
           # caustic(xeon/external/caustic)은 private submodule이다. 읽기 전용 토큰이 없으면 checkout이 실패한다
           submodules: true

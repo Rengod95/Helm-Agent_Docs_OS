@@ -6,6 +6,8 @@
 # The light checks (fmt-check, check-layers, check-ts-rules, docs-route, terms, knip) run side by side, each in its own scope; their output
 # is printed step by step when all of them are done. If some fail, the first failed one in the list below gives the exit code
 # and every failed one is named. The heavy steps (lint, typecheck, depcruise) and test run alone, one after the other.
+# On macOS (no systemd scopes, no machine slot, more memory than the WSL machine) lint, typecheck and depcruise join the side-by-side
+# group too. Linux keeps them one after the other. The steps and their order of reporting are the same on both.
 # The `test` step is not wrapped: test-capped.sh already runs every package under guard.sh run (1.5G each).
 # Two modes. fast (default, `just verify`): turbo caches are read (lint, typecheck, test) and lint runs without type-aware rules
 # (xeon/.oxlintrc.fast.json, one oxlint call). full (`just verify-full`): TURBO_FORCE=true, so nothing is read from the turbo cache
@@ -29,6 +31,7 @@ esac
 step_max="${FRESNEL_VERIFY_STEP_MAX:-2G}"
 steps=(setup fmt-check check-layers check-ts-rules "docs-route --check" "terms check" knip lint typecheck depcruise test)
 light=(fmt-check check-layers check-ts-rules "docs-route --check" "terms check" knip)
+if [[ "$(uname -s)" == "Darwin" ]]; then light+=(lint typecheck depcruise); fi
 
 # runs inside each step's scope: the step, then the scope's peak memory (cgroup v2 memory.peak) on stderr when readable
 step_cmd='just "$@"; status=$?; f="/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)/memory.peak"

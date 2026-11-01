@@ -82,6 +82,11 @@ terms mode *flags:
 req-ledger:
     {{bun}} scripts/req-ledger.ts
 
+# caustic 부품 간극 표 검사: spec §9의 C 항목마다 상태 칸 (scripts/caustic-gaps.ts)
+[group('local')]
+caustic-gaps:
+    {{bun}} scripts/caustic-gaps.ts
+
 # 패키지 하나만 lint, typecheck, test: 각각 scripts/guard.sh run 1.5G 아래에서 차례로. 병렬 작업 중 에이전트는 이것만 돌린다 (scripts/check-pkg.sh)
 [group('quality')]
 check pkg:
