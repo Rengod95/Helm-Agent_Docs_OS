@@ -25,6 +25,17 @@ export interface StatusOptions {
         detail?: string | undefined;
       }
     | undefined;
+  // 묶음 D(셸 수명, m4/pg-d). 모두 선택 항목이다. 주지 않으면 칸은 예전과 같다.
+  /** 대상 칸을 바꿀 때(대상 팝오버 "대상 바꾸기", §6.3·§6.12). */
+  target?: StatusCell | undefined;
+  /** 엔진 칸을 바꿀 때(다시 시작 중, 시작 실패, §6.3 그림). */
+  engine?: StatusCell | undefined;
+  /** 연결 칸 뒤에 붙는 칸(안전 모드 칩, 업데이트 점 등). compact 폭에서도 남는다. */
+  startExtra?: StatusCell[] | undefined;
+  /** "진행 중 n" 칸(host.status.liveTurns, §6.3, 계획에 없음 10). 모델 칸 앞에 둔다. compact 폭에서는 빠진다. */
+  live?: StatusCell | undefined;
+  /** 승인 칸 앞에 붙는 칸. */
+  endExtra?: StatusCell[] | undefined;
 }
 
 /** 상태 표시줄 칸(S-03). compact 폭에서는 연결과 승인만 남는다. */
@@ -47,7 +58,11 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
   };
   // DP-27: 값이 0인 개수 칸(승인, 알림, 확장 실패)은 숨긴다. 연결·엔진·모델 칸은 늘 보인다.
   const approvals = m.pendingApprovals > 0 ? [approvalsCell] : [];
-  if (m.layout === "compact") return { start: [link], end: approvals };
+  if (m.layout === "compact")
+    return {
+      start: [...(m.engine?.dot === "danger" ? [m.engine] : []), link, ...(m.startExtra ?? [])],
+      end: approvals,
+    };
   const rt = m.runtime;
   const runtimeCells: StatusCell[] =
     rt === undefined
@@ -93,13 +108,13 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
   const thread = m.thread;
   return {
     start: [
-      {
+      m.target ?? {
         id: "target",
         text: status.target,
         title: "대상",
         description: "이 창은 이 컴퓨터의 로컬 사이드카 엔진에 붙어 있어요.",
       },
-      {
+      m.engine ?? {
         id: "engine",
         text: status.engine,
         dot: "success",
@@ -107,8 +122,10 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
         description: "엔진이 실행 중이에요.",
       },
       link,
+      ...(m.startExtra ?? []),
     ],
     end: [
+      ...(m.live !== undefined ? [m.live] : []),
       {
         id: "model",
         text: status.model,
@@ -148,6 +165,7 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
           ] satisfies StatusCell[])
         : []),
       ...runtimeCells,
+      ...(m.endExtra ?? []),
       ...approvals,
       {
         id: "notices",

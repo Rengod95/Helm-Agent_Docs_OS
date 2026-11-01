@@ -27,3 +27,14 @@ body {
     opacity: 0;
   }
 }
+
+/* 묶음 D: 대화 행 메뉴 버튼(start-panel RowMenu). hover·초점·고른 행·메뉴 열림일 때만 보인다. */
+[data-row-menu] > * {
+  opacity: 0;
+}
+[data-slot="list-navigation-item"]:hover + [data-row-menu] > *,
+[data-row-menu]:hover > *,
+[data-row-menu]:focus-within > *,
+[data-row-menu][data-open] > * {
+  opacity: 1;
+}

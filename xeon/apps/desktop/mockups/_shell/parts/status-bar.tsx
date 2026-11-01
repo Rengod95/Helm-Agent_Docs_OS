@@ -28,6 +28,17 @@ export interface StatusCell {
   /** Popover 안 설명 아래에 더 그릴 내용(예: 플러그인 status 기여의 Popover 트리). */
   content?: ReactNode;
   action?: { label: string; onSelect: () => void };
+  // 묶음 D(셸 수명, m4/pg-d): 모두 선택 항목이라 다른 페이지는 그대로 그려진다.
+  /** Popover 설명 아래 본문(백그라운드 작업 목록, 대상 요약 등). */
+  body?: ReactNode;
+  /** Popover 안 둘째 동작(예: "진단 복사"). */
+  secondary?: { label: string; onSelect: () => void } | undefined;
+  /** 칸 바로 옆에 띠 위 버튼으로 보이는 동작(엔진 실패 때 "엔진 다시 시작"·"진단 복사", §6.3 그림). */
+  inline?: { label: string; onSelect: () => void }[] | undefined;
+  /** 처음부터 Popover를 연다(목업 스크린숏용). */
+  defaultOpen?: boolean | undefined;
+  /** 본문이 목록이면 넓은 Popover(lg 320). */
+  wide?: boolean | undefined;
 }
 
 function Cell({ cell }: { cell: StatusCell }) {
@@ -35,7 +46,8 @@ function Cell({ cell }: { cell: StatusCell }) {
     <Popover
       side="top"
       align="start"
-      size="sm"
+      size={cell.wide === true ? "lg" : "sm"}
+      {...(cell.defaultOpen === true ? { defaultOpen: true } : { defaultOpen: false })}
       anchor={
         <Button
           size="xs"
@@ -59,14 +71,43 @@ function Cell({ cell }: { cell: StatusCell }) {
       <PopoverTitle>{cell.title}</PopoverTitle>
       <PopoverDescription>{cell.description}</PopoverDescription>
       {cell.content}
-      {cell.action !== undefined && (
-        <div>
-          <Button size="xs" tone="secondary" onClick={cell.action.onSelect}>
-            {cell.action.label}
-          </Button>
+      {cell.body}
+      {(cell.action !== undefined || cell.secondary !== undefined) && (
+        <div className="flex flex-wrap gap-1.5">
+          {cell.action !== undefined && (
+            <Button size="xs" tone="secondary" onClick={cell.action.onSelect}>
+              {cell.action.label}
+            </Button>
+          )}
+          {cell.secondary !== undefined && (
+            <Button size="xs" tone="neutral" variant="ghost" onClick={cell.secondary.onSelect}>
+              {cell.secondary.label}
+            </Button>
+          )}
         </div>
       )}
     </Popover>
+  );
+}
+
+/** 칸 옆 띠 위 버튼(묶음 D): 엔진 실패처럼 한 번에 눌러야 하는 동작만. */
+function InlineActions({ cell }: { cell: StatusCell }) {
+  if (cell.inline === undefined || cell.inline.length === 0) return null;
+  return (
+    <span className="ms-1 flex items-center gap-1">
+      {cell.inline.map((a) => (
+        <Button
+          key={a.label}
+          size="xs"
+          tone="neutral"
+          variant="outline"
+          className="h-5 px-1.5 text-ui-xs"
+          onClick={a.onSelect}
+        >
+          {a.label}
+        </Button>
+      ))}
+    </span>
   );
 }
 
@@ -85,6 +126,7 @@ export function StatusBar({ start, end }: StatusBarProps) {
       <span key={c.id} className="flex items-center">
         {i > 0 && <Sep />}
         <Cell cell={c} />
+        <InlineActions cell={c} />
       </span>
     ));
   return (

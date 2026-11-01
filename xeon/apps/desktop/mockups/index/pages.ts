@@ -115,4 +115,23 @@ export const pages: MockPage[] = [
     folder: "c04-settings-rows",
     states: 13,
   },
+  // 묶음 D(대화 영역 빈칸과 셸 수명, m4/pg-d)
+  {
+    id: "N-42~N-46·O-06",
+    title: "대화 영역 빈칸(실패·이어서 실행·승인 카드 넷·행 메뉴·목록·내보내기)",
+    folder: "d01-chat-gaps",
+    states: 26,
+  },
+  {
+    id: "N-51~N-56·N-58·S-04",
+    title: "셸 수명(엔진 실패·안전 모드·업데이트·진행 중·토스트·OS 알림·메뉴 막대)",
+    folder: "d02-shell-life",
+    states: 29,
+  },
+  {
+    id: "P-04~P-15 빈 상태",
+    title: "기존 페이지 빠진 상태(?page=p04…p15, 데이터 지우기)",
+    folder: "d03-page-states",
+    states: 37,
+  },
 ];

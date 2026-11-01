@@ -21,6 +21,7 @@ export { ToneIcon } from "./parts/tone-icon";
 export { defaultStatusCells, type StatusOptions } from "./status";
 export { StatusBar, TokenBar, type StatusCell } from "./parts/status-bar";
 export { NoticeList } from "./parts/notice-list";
+export { ShellToaster } from "./parts/shell-toaster";
 export { QuestionCard, type QuestionCardProps } from "./parts/question-card";
 export { ToolApprovalCard, type Decision, type ToolApprovalCardProps } from "./parts/tool-approval";
 export * from "./fixtures";

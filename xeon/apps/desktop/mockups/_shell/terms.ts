@@ -196,9 +196,18 @@ export const T = {
   askAgain: "다시 묻기",
   uiLocale: "표시 언어", // l4.ui.locale
   // 묶음 B와 같은 키·값(정본은 B). 병합 때 B 구역과 겹치면 이 셋을 지운다.
-  framesSetting: "자체 코드 화면 허용", // x.views.frames
-  projectFramesSetting: "프로젝트 확장의 자체 코드 화면", // x.views.allowProjectFrames
-  frameConfirm: "동작 확인", // 프레임 call 확인 줄(셸이 띄움)
+
+  // 묶음 D(대화 영역 빈칸과 셸 수명, m4/pg-d). 병합 때 이 구역을 통째로 옮긴다.
+  resume: "이어서 실행", // turn.resume 후보(비정상 종료 표식, L4.desktop §4.7). 띠 버튼·목록 배지
+  fork: "분기", // thread.fork(대화 행 메뉴, 여기서 분기)
+  xHook: "X 훅", // X 층 훅(hooks.list). 결정 12: 안전 모드에서 싣지 않음
+  liveWork: "진행 중", // 상태 표시줄 host.status.liveTurns 칸(§6.3)
+  backgroundWork: "백그라운드 작업", // 진행 중 Popover 제목(계획에 없음 10): 대화·시험·예약·제작 대화
+  appUpdate: "앱 업데이트", // 앱 안 업데이트(L4.release §5, 계획에 없음 1)
+  exportThread: "대화 내보내기", // Markdown·JSON(계획에 없음 6)
+  wipeData: "데이터 지우기", // 모든 대화·설정·비밀 핸들을 지움(계획에 없음 6, O-06 변형)
+  osNotice: "OS 알림", // 앱 밖 알림(tauri-plugin-notification). 설정 탭 이름
+  trayIcon: "메뉴 막대 아이콘", // 트레이(macOS 메뉴 막대, Linux·Windows 알림 영역)
 } as const;
 
 export type TermKey = keyof typeof T;
@@ -208,7 +217,16 @@ export type TermKey = keyof typeof T;
 export function josa(word: string, withFinal: string, withoutFinal: string): string {
   const last = word.charCodeAt(word.length - 1);
   if (last >= 0xac00 && last <= 0xd7a3) {
-    return word + ((last - 0xac00) % 28 === 0 ? withoutFinal : withFinal);
+    const jong = (last - 0xac00) % 28;
+    // ㄹ 받침 뒤 "으로"는 "로"(묶음 D).
+    if (jong === 8 && withFinal === "으로") return word + withoutFinal;
+    return word + (jong === 0 ? withoutFinal : withFinal);
+  }
+  // 숫자로 끝나면 읽는 소리 기준(묶음 B에서 가져옴): 0 영, 1 일, 3 삼, 6 육, 7 칠, 8 팔은 받침.
+  const ch = word.charAt(word.length - 1);
+  if (ch >= "0" && ch <= "9") {
+    if (withFinal === "으로" && "178".includes(ch)) return word + withoutFinal;
+    return word + ("013678".includes(ch) ? withFinal : withoutFinal);
   }
   const ch = word.charAt(word.length - 1);
   if (ch >= "0" && ch <= "9") return word + ("013678".includes(ch) ? withFinal : withoutFinal);
