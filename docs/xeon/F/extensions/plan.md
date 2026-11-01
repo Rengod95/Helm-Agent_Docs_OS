@@ -16,7 +16,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 
 | 마일스톤 | 범위 | 소비자 |
 |---|---|---|
-| M0 | 훅 종류 7·fold 4 타입, `HookSignatures`·`HookDecl`·`HOOKS` 46행 전체(M3 개정, adr.0017), `FIRST_DENY`, `CHAIN_RULES`, M1 지점(스펙 §3.4 M1 열 ●: `input.user.before`, `request.context.before`, `request.provider.before`, `tool.call.before`, `tool.result`, `boundary.step.before`, `boundary.step.after`, `boundary.settle.before`, `boundary.settle.after`, `thread.start`, `thread.shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLease`, `ScopeDef`, `ScopeApi`, `ScopeHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `GroupRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/scope), L1 core-loop·core-tools의 훅 발화 |
+| M0 | 훅 종류 7·fold 4 타입, `HookSignatures`·`HookDecl`·`HOOKS` 46행 전체(M3 개정, adr.0017), `FIRST_DENY`, `CHAIN_RULES`, M1 지점(스펙 §3.4 M1 열 ●: `input.user.before`, `request.context.before`, `request.provider.before`, `tool.call.before`, `tool.result`, `boundary.step.before`, `boundary.step.after`, `boundary.settle.before`, `boundary.settle.after`, `thread.start`, `thread.shutdown`)의 페이로드·결정·패치 정확화, 4연산 타입(`ExtensionOps`, `Handler`, `PostItem`, `DriveFn`, `LoopHandle`, `DriveLock`, `RegistrationDef`, `RegistrationApi`, `RegistrationHandle`), `ExtensionManifest`, `validateManifest`, `validateUsage`, `validateManifestSet`, `GroupRecord`·`RecordKindDecl`과 `grp.`/`x.` 접두 검증, 문서 표 대조 검사 | X ext-host 최소형(on/post/drive/scope), L1 core-loop·core-tools의 훅 발화 |
 | M1 | 걷는 골격 스모크: 테스트용 그룹이 이 타입으로 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓴다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 이 그룹의 매니페스트는 `validateManifest`와 `validateUsage`를 통과해야 한다. 스모크에서 드러난 페이로드 누락을 반영한다 | X, L1, L3 테스트 그룹 |
 | M2 이후 | M1 밖 지점의 페이로드 중 `Type.Unknown()`으로 둔 필드 정확화(F.records의 투영 타입, 컴팩션 타입이 정해진 뒤), 열거형 확장 예약(파트·이벤트 종류 접두, 선언 병합 규칙), 격리 필드(`isolation: "process"`)의 와이어 직렬화 요구 반영, 미결 사항 결정 반영 | X.loading-trust(격리), L3 전체 |
 
@@ -31,7 +31,7 @@ xeon/packages/contracts/
     manifest.ts          # ExtensionManifestSchema, ExtensionManifest, 하위 스키마, defineManifest, EXTENSION_NAME_PATTERN
     hooks.ts            # Fold, HookKind, TapSig/FirstSig/ChainSig, HookSignatures, HookName(+Schema),
                          # HookDecl, PiSource, HOOKS(46행), FIRST_DENY, CHAIN_RULES, COLLECT_RULES, GUARD_HOOKS, LIFECYCLE_HOOKS, FirstHookName, ChainHookName, CollectHookName
-    points/
+    hooks/
       input.ts           # input, user_bash, before_agent_start 페이로드·결정·패치
       request.ts         # context, context_with_system, cache_warming_decision, before_provider_request,
                          # before_provider_headers, after_provider_response, provider_stream_event,
@@ -41,10 +41,10 @@ xeon/packages/contracts/
       session.ts         # project_trust … ui_prompt_end
     ops.ts               # HandlerContext, Handler, Unsubscribe, PostWhen, PostContent, PostItem, PostOptions,
                          # PostReceipt, ExtensionOps
-    drive.ts             # DriveLimits, DriveOptions, LeaseBudget, TurnInput, TurnOutcome, SpawnSpec,
-                         # SpawnOutcome, LoopHandle, DriveFn, LeaseId, DriveLease
-    scope.ts             # ScopeId(+PATTERN), StateDecl, ScopeDef, RecordQuery, ScopeApi, ScopeSetup,
-                         # ScopeStatus, ScopeHandle, ScopeFn, ExtensionEntry
+    drive.ts             # DriveLimits, DriveOptions, DriveLockBudget, TurnInput, TurnOutcome, SpawnSpec,
+                         # SpawnOutcome, LoopHandle, DriveFn, DriveLockId, DriveLock
+    registration.ts      # RegistrationId(+REGISTRATION_ID_PATTERN), StateDecl, RegistrationDef, RecordQuery, RegistrationApi, RegistrationSetup,
+                         # RegistrationStatus, RegistrationHandle, RegistrationFn, ExtensionEntry
     ports.ts             # PortKey, PortLookup, 호스트 포트 9종과 키, 로더 포트, RecordCommitPort 재노출(스펙 §3.2.1)
     group-record.ts      # RecordKind(+PATTERN), GroupId, RecordSubject, GroupRecord(+Schema), RecordKindDecl,
                          # RecordKindDeclJsonSchema, isRecordKindOf
@@ -57,7 +57,7 @@ xeon/packages/contracts/
 xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제안, eng.toolchain 담당과 조율]
 ```
 
-- import 방향: `group-record`·`points/*` ← `points` ← `ops`·`drive`·`scope` ← `manifest` ← `validate`. `manifest.ts`는 `hooks.ts`(`HookNameSchema`)와 `group-record.ts`를 import하고, `validate.ts`만 모든 파일을 import한다. `../capabilities`는 `manifest.ts`, `scope.ts`, `hooks/tool.ts`가 import한다. `ports.ts`는 `ops.ts`·`drive.ts`·`scope.ts`·`manifest.ts`의 타입과 `../conversation`, `../capabilities`(`ToolName`), `../records`(`RecordCommitPort`, `ProjectorRegistry`, `StoreService`)만 `import type`으로 가져온다.
+- import 방향: `group-record`·`hooks/*` ← `hooks` ← `ops`·`drive`·`registration` ← `manifest` ← `validate`. `manifest.ts`는 `hooks.ts`(`HookNameSchema`)와 `group-record.ts`를 import하고, `validate.ts`만 모든 파일을 import한다. `../capabilities`는 `manifest.ts`, `registration.ts`, `hooks/tool.ts`가 import한다. `ports.ts`는 `ops.ts`·`drive.ts`·`registration.ts`·`manifest.ts`의 타입과 `../conversation`, `../capabilities`(`ToolName`), `../records`(`RecordCommitPort`, `ProjectorRegistry`, `StoreService`)만 `import type`으로 가져온다.
 - `xeon/scripts/`는 이 문서의 binds 밖이다. 스크립트 위치와 `just verify` 연결은 eng.toolchain.guide 작업자와 조율한다. 조율이 안 되면 같은 검사를 `test/extensions/hooks.doc.test.ts`로 두고 저장소 상대 경로로 스펙 파일을 읽는다.
 
 ## 3. 작업 분해
@@ -65,14 +65,14 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
 | E1 | `hooks.ts` 기본 타입: `Fold`, `HookKind`, `TapSig`·`FirstSig`·`ChainSig`, `OnError`, `FoldOnError`, `PiSource`, `HookDecl`, `FirstHookName`, `ChainHookName` | F.capabilities.plan P1 | S |
-| E2 | `points/<kind>.ts` 페이로드 스키마: pi 이벤트 인터페이스에서 `type`을 빼고 필드 이름을 유지한다. M1 지점 11개는 스펙 §3.5 형태로 정확화하고, 나머지는 pi 고유 하위 타입을 `Type.Unknown()`으로 둔다. ID 필드는 F.conversation의 브랜드 ID를 쓴다 | E1, F.records.plan R1(`DurableEventDraft`)·R2(`EventKind`), F.conversation.plan C1(`ThreadId` 등 ID)·C2(메시지 재노출) | L |
+| E2 | `hooks/<kind>.ts` 페이로드 스키마: pi 이벤트 인터페이스에서 `type`을 빼고 필드 이름을 유지한다. M1 지점 11개는 스펙 §3.5 형태로 정확화하고, 나머지는 pi 고유 하위 타입을 `Type.Unknown()`으로 둔다. ID 필드는 F.conversation의 브랜드 ID를 쓴다 | E1, F.records.plan R1(`DurableEventDraft`)·R2(`EventKind`), F.conversation.plan C1(`ThreadId` 등 ID)·C2(메시지 재노출) | L |
 | E3 | 반환 타입: first 결정(`ToolCallDecision`의 deny 형태, `UserBashDecision`, `ProjectTrustDecision`, `SessionCancelDecision` 등), chain 값·패치(`InputPatch`, `ContextPatch`, `HeadersPatch`, `ToolResultPatch`, `BoundaryValue`·`BoundaryPatch`(entries + continue), `ResourcesPatch` 등)와 각 스키마 | E2 | M |
 | E4 | pi 이벤트 → 지점 매핑 표 코드화: `HookSignatures` 46행, `HOOKS` 46행(kind, fold, failure, dispatch, payload, result, finalize, m1, pi 출처), `FIRST_DENY` 9행, `CHAIN_RULES` 10행(merge, stop), `COLLECT_RULES` 2행(merge). `HookNameSchema` | E1, E2, E3 | M |
 | E5 | `ops.ts`: `HandlerContext`, `Handler`(fold별 조건부 타입), `PostItem`, `PostOptions`, `PostReceipt`, `ExtensionOps` | E4, F.conversation.plan C2(`TextContent`, `ImageContent`, `JsonValue`). `requestId`는 `string`이다(스펙 §2) | S |
-| E6 | `drive.ts`와 `scope.ts`: `DriveFn`, `LoopHandle`, `LeaseBudget`, `DriveLease`, `DriveLimits`, `TurnInput`·`TurnOutcome`, `SpawnSpec`·`SpawnOutcome`, `ScopeDef`, `StateDecl`, `ScopeApi`(`capability(key)`, `recordPrivate(kind, payload)` 포함. `recordPrivate`는 review.decisions-2 T-21), `ScopeHandle`, `ScopeFn`, `ExtensionEntry` | E5, F.capabilities.plan P3(`ServiceKey`) | M |
+| E6 | `drive.ts`와 `registration.ts`: `DriveFn`, `LoopHandle`, `DriveLockBudget`, `DriveLock`, `DriveLimits`, `TurnInput`·`TurnOutcome`, `SpawnSpec`·`SpawnOutcome`, `RegistrationDef`, `StateDecl`, `RegistrationApi`(`capability(key)`, `recordPrivate(kind, payload)` 포함. `recordPrivate`는 review.decisions-2 T-21), `RegistrationHandle`, `RegistrationFn`, `ExtensionEntry` | E5, F.capabilities.plan P3(`ServiceKey`) | M |
 | E7 | `manifest.ts`: `ExtensionManifestSchema`와 하위 스키마, `defineManifest`. Claude Code `plugin.json` 메타 필드 + Fresnel 필드 | E4, E8, F.capabilities.plan P1 | M |
 | E8 | `group-record.ts`: `RecordKind`(= F.records `ExtensionEventKind`)와 패턴, `GroupRecord`, `RecordSubject`, `RecordKindDecl`, `RecordKindDeclJsonSchema`, `isRecordKindOf` | E1, F.records.plan R2(`ExtensionEventKind`, `EXTENSION_KIND_PATTERN`) | S |
-| E10 | `ports.ts`: 스펙 §3.2.1 블록을 그대로 코드로 옮긴다. `PortKey`(`member` 포함), `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort`, `HookRunSpec`, `HookRawRun`), `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입·키, 로더 포트(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`와 부속 타입), `RecordCommitPort` 재노출. 스펙 §9 12~14의 값·타입 테스트를 둔다. 정본은 F다. X 문서(`X.primitives.spec` §3.6, `X.loading-trust.spec`, `X.operations.spec`)와 ext-host는 자기 정의를 두지 않고 이 이름을 `import type`으로 가져와 다시 export한다 | E5, F.records.plan R12(`RecordCommitPort`, `ProjectorRegistry`, `StoreService`) | M |
+| E10 | `ports.ts`: 스펙 §3.2.1 블록을 그대로 코드로 옮긴다. `PortKey`(`member` 포함), `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`(`IsolationProcessPort`, `HookProcessPort`, `HookRunSpec`, `HookRawRun`), `DriveLockArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 부속 타입·키, 로더 포트(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`와 부속 타입), `RecordCommitPort` 재노출. 스펙 §9 12~14의 값·타입 테스트를 둔다. 정본은 F다. X 문서(`X.primitives.spec` §3.6, `X.loading-trust.spec`, `X.operations.spec`)와 ext-host는 자기 정의를 두지 않고 이 이름을 `import type`으로 가져와 다시 export한다 | E5, F.records.plan R12(`RecordCommitPort`, `ProjectorRegistry`, `StoreService`) | M |
 | E9 | `validate.ts`: `validateManifest`(알 수 없는 키 제거 포함), `validateUsage`, `validateManifestSet`(`drive_conflict`), `validateGroupRecord`. 문서 표와 코드 `HOOKS` 일치 검사 스크립트(`check-points-doc.ts`): 스펙 §3.4 표에서 `` | <n> | `<이름>` | <kind> | <fold> | `` 행을 읽어 이름·kind·fold·M1 표시를 `HOOKS`와 비교한다 | E4, E7, E8 | M |
 
 - E2가 가장 크다. M1 지점부터 끝내고 E4로 넘긴 뒤 나머지 30개 페이로드를 채우는 순서로 나눌 수 있다.
@@ -111,7 +111,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | | `boundary replace` | `entries` 패치는 교체, `continue` 생략은 유지 |
 | | `message_end role mismatch rejected` | role이 다른 패치는 merge가 예외를 던진다(디스패처가 skip 처리) |
 | | `headers null deletes` | `HeadersPatch`의 `null` 값은 헤더를 지운다 |
-| `manifest.test.ts` | `required fields` | `schemaVersion`, `name`, `version`, `layer`, `kind`, `entry`, `points`, `usesDrive` 누락은 `schema` 오류 |
+| `manifest.test.ts` | `required fields` | `schemaVersion`, `name`, `version`, `entry`, `plugins` 누락은 `schema` 오류. 플러그인 항목의 `layer`, `hooks` 누락도 `schema` 오류 |
 | | `version and range` | `version: "1.0"`은 오류, `requires[].range: "^1.2.0"`은 통과, `"1.x"`·`"^1 || ^2"`는 `range_invalid` |
 | | `unknown keys` | 최상위 미지 키는 경고 후 제거, `userConfig` 항목 안 미지 키는 오류 |
 | | `capability schema shared` | `requires[].id` 스키마가 `CapabilityIdSchema`와 같은 참조 |
@@ -119,9 +119,9 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | | `smoke group fixture valid` | `fixtures/smoke-group.manifest.json`이 이슈 0건 |
 | `validate.test.ts` | `undeclared point` | 사용 기록의 `on`에 선언 밖 지점이 있으면 `point_undeclared` |
 | | `undeclared capability` | `capability(key)` 대상이 `requires`·`optional`에 없으면 `capability_undeclared` |
-| | `drive rules` | plugin의 `usesDrive: true`는 `drive_requires_group`, 선언 없이 `drive`를 쓰면 `drive_undeclared` |
-| | `drive conflict` | 기본 활성 drive 그룹 둘이면 `drive_conflict` 경고, 하나가 `defaultEnabled: false`면 경고 없음 |
-| | `layer kind` | `kind: "group"`·`layer: "L2"`는 `layer_kind_mismatch` |
+| | `drive rules` | `drives`가 없는 플러그인이 `drive`를 쓰면 `drive_undeclared`. 정책 거부(`drive_requires_group`)는 X 설치 시점 시험이다 |
+| | `drive conflict` | 기본 켜진 `drives: true` Registration이 둘이면 `drive_conflict` 경고, 하나가 `defaultEnabled: false`면 경고 없음 |
+| | `legacy field` | 최상위 `kind`·`points`·`usesDrive`, `schemaVersion: 1`은 `legacy_field`·`schema_version_unsupported`. `layer_kind_mismatch`는 없다 |
 | | `reserved names` | 외부 확장 이름 `web`, `core`는 `name_reserved` |
 | | `entry outside root` | `entry`가 `/abs/index.ts`이거나 `../x.ts`이면 `entry_invalid` |
 | | `provides reserved` | `provides[].id`가 `core.x`처럼 예약 접두면 `provides_reserved` |
@@ -138,7 +138,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | | `version unknown` | 선언보다 큰 `version`의 레코드는 `record_version_unknown` 경고 |
 | `ops.type-test.ts` | `handler narrows by fold` | `Handler<"tool.call.before">` 반환이 `ToolCallDecision \| undefined`(Promise 포함), `Handler<"boundary.step.after">`가 `(payload, current: BoundaryValue, ctx)`를 받고 `BoundaryPatch \| undefined`를 반환, `Handler<"thread.start">`가 `void`를 반환 |
 | | `wrong return rejected` | tap 핸들러가 값을 반환하거나 first 핸들러가 패치를 반환하면 `// @ts-expect-error` |
-| | `capability typed by key` | `ScopeApi.capability(WebSearchKey)`의 반환 타입이 `ApiOf<typeof WebSearchKey>`와 같다 |
+| | `capability typed by key` | `RegistrationApi.capability(WebSearchKey)`의 반환 타입이 `ApiOf<typeof WebSearchKey>`와 같다 |
 | | `drive fn signature` | `DriveFn<S>`가 `(loop: LoopHandle, state: Readonly<S>) => Promise<void>` |
 
 - `*.type-test.ts`는 `tsc -b`로만 검사한다. 실행 규칙은 eng.testing.guide를 따른다 [가정].
@@ -150,11 +150,11 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 3. `just verify`의 `tsc -b`, oxlint(type-aware), check-layers, oxfmt 검사가 통과한다. `@fresnel/contracts/extensions`에서 `cordis`와 `@earendil-works/pi-coding-agent` import가 0건이다.
 4. `@fresnel/contracts/extensions` 서브패스로 공개 이름 전부를 import할 수 있다.
 5. 정합성 검사 입력으로 다음 교차 확인 항목을 남긴다(P2 검토자용).
-   - X.primitives.plan이 `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `DriveFn`, `LoopHandle`, `ScopeApi`, `ScopeFn`을 `@fresnel/contracts/extensions`에서 import하고 다시 정의하지 않는지.
+   - X.primitives.plan이 `Handler`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `ExtensionOps`, `DriveFn`, `LoopHandle`, `RegistrationApi`, `RegistrationFn`을 `@fresnel/contracts/extensions`에서 import하고 다시 정의하지 않는지.
    - L1 각 plan이 지점을 발화할 때 `HOOKS`의 이름을 문자열 상수로 쓰지 않고 `HookName` 타입으로 쓰는지.
    - `CapabilityIdSchema`가 F.capabilities와 같은 객체인지.
    - `DurableEventDraft`, `EventKind`, `ExtensionEventKind`, ID 브랜드(`ThreadId` 등), `AgentMessage` 재노출을 F.records.spec, F.conversation.spec의 위치에서 import하고 다시 정의하지 않는지.
-   - L3.helm.spec과 L3.learning.spec의 매니페스트가 `usesDrive`(Helm 참, 학습 거짓)를 쓰고, `recordKinds`를 자기 접두로만 선언하며, 다른 그룹의 비공개 기록을 읽는 선언이 없는지(스펙 §4.8).
+   - L3.helm.spec과 L3.learning.spec의 매니페스트가 `plugins[].drives`(Helm 참, 학습 거짓)를 쓰고, `recordKinds`를 자기 접두로만 선언하며, 다른 그룹의 비공개 기록을 읽는 선언이 없는지(스펙 §4.8).
 
 ## 7. 위험과 대응
 
@@ -165,4 +165,4 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 HOOKS 대조 [제
 | drive 재생 규율을 타입으로 막지 못함 | 클로저 상태를 쓰는 drive 함수가 재개 뒤 다르게 동작한다 | `loop.turn`·`loop.spawn` 기본 `requestId`를 결정적으로 정해 중복 실행을 막고, 결정성 lint는 L3.group-sdk에 요청한다. 스펙 §4.6에 규율을 명시한다 |
 | 훅 이름 표기 불일치(snake_case 대 점 표기) | 문서·코드·조사 자료 사이에서 이름이 달라 검색과 대조가 실패한다 | 정본을 pi snake_case로 두고 `HookName` 타입 밖의 문자열은 컴파일 오류가 되게 한다. 별칭 허용 여부는 [미결]로 사용자 확인 |
 | first fail-closed가 `session_before_*`에서 과도함 | 결함 있는 확장 하나가 세션 전환·컴팩션을 계속 막는다 | 거부값을 `FIRST_DENY`에 지점별로 두어 결정이 바뀌면 값만 바꾸도록 한다. 반복 거부 기록은 X.operations의 안전 모드 근거로 넘긴다 |
-| F.records·F.conversation 이름(`DurableEventDraft`, `ExtensionEventKind`, ID 브랜드) 변경 | E2·E8의 import가 깨진다 | 이름은 두 spec에서 확정했다. 바뀌면 두 spec을 먼저 고치고 import만 바꾼다. 해당 필드를 `points/*.ts` 안의 타입 별칭 한 곳으로 모은다 |
+| F.records·F.conversation 이름(`DurableEventDraft`, `ExtensionEventKind`, ID 브랜드) 변경 | E2·E8의 import가 깨진다 | 이름은 두 spec에서 확정했다. 바뀌면 두 spec을 먼저 고치고 import만 바꾼다. 해당 필드를 `hooks/*.ts` 안의 타입 별칭 한 곳으로 모은다 |

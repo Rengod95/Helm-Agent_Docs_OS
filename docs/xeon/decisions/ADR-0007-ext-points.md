@@ -19,6 +19,7 @@ binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xe
 - 사용자가 확인한 범위는 연산 4개와 fold 3종까지다. 확장 지점 목록과 Helm 내부 설계는 "층 구성 계획 보완·합의 뒤 착수"로 남아 있다(`_research/decisions-log.md` 2026-10-21 결정(2차) 끝 문장). 그래서 이 ADR의 지점 종류 수(5개), 지점 이름 목록, 지점별 fold 배정은 [제안]이다.
 - 개정: 2026-10-21 `review.decisions-2` U-01(§3.1·§3.6 켜기·끄기와 임대 교대 시점을 단계 경계로 읽음), U-06(§3.3 `tool_call` 인자 변경 미지원), U-12(§3.5 drive 상한 기본값을 pi 방식의 예외로 인정, 기본값은 설정 화면에서 조정). 결정을 뒤집지 않고 해석과 미결을 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 세 항목은 사용자 확인을 거친 [결정]이다(2026-10-22).
 - 부분 대체: 2026-10-26 ADR-0017. 대체된 절은 §3.2(fold 3종), §3.3(지점 종류와 pi 이름 정본), §3.4(pi 등록 API), §3.5 실패 정책 행, §4.1 pi 호환 항목, §5.2 가드레일 보류 행이다. 연산 4개(§3.1)와 임대·켜고 끄기(§3.6)는 그대로다(`review.m3-design-inputs` D-M3-10, D-M3-11, D-M3-30).
+- 부분 대체: 2026-11-01 ADR-0022 §3.2.3. "§3.6 drive는 그룹만" 규칙을 정책 `x.primitives.driveRequiresGroup`(기본 "그룹만", 설정으로 풀면 `drives`를 선언한 모든 플러그인)으로 부분 대체한다. 한 thread에 drive lock이 하나뿐이라는 규칙은 그대로다. `scope`는 Registration으로, drive 임대는 drive lock으로 이름이 바뀌었고 저장 문자열은 그대로다(ADR-0022 §3.2.2, `adr.readme` §1.4 부분 번복).
 
 ## 2. 맥락
 

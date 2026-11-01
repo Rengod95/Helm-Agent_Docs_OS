@@ -155,7 +155,7 @@ xeon/packages/ext-host/
 
 | 파일 | 테스트 | 확인할 동작 | 스펙 |
 |---|---|---|---|
-| `pipeline.test.ts` | `undeclared point fails load` | `points: ["tool.call.before"]`인 확장이 setup에서 `boundary.step.after`에 `on`하면 `error`, `usage_invalid`, issues에 `hook_undeclared`, 남은 등록 0 | §9-1 |
+| `pipeline.test.ts` | `undeclared point fails load` | `plugins[].hooks`가 `["tool.call.before"]`인 확장이 setup에서 `boundary.step.after`에 `on`하면 `error`, `usage_invalid`, issues에 `hook_undeclared`, 남은 등록 0 | §9-1 |
 | | `one throwing extension does not block others` | 확장 셋 중 가운데가 throw해도 나머지 둘 `active`, `loadAll` 성공 | §9-2 |
 | | `essential failure aborts start` | `essential: true` 확장이 throw하면 `LoadAbortError`, 진단 `essential_failed` | §9-3 |
 | | `manifest parse error rejected` | 잘못된 JSON 매니페스트는 `rejected`(`manifest_parse`), 다른 확장 계속 | §5 |
@@ -201,8 +201,8 @@ xeon/packages/ext-host/
 | | `connection drop handled` | 디스패치 중 자식 stdout 종료 → 진행 중 요청 예외 처리(tap 계속, chain 생략), 재시작 1회 | §4.9.7 |
 | | `restart limit disables` | 창 안에서 `maxRestarts + 1`번 종료 → `isolation_restart_limit`, scope 끄기 요청 | §9-18 |
 | | `undeclared point not proxied` | `init` 결과 `usage.on`에 선언 밖 지점 → 등록 거부 | §4.9.2 |
-| | `non-isolatable point rejected` | `points`에 `request.stream` → `isolation_point_unsupported` | §4.9.4 |
-| | `drive with isolation rejected` | `usesDrive: true` + `process` → `isolation_drive_unsupported` | §4.9.5 |
+| | `non-isolatable point rejected` | `plugins[].hooks`에 `request.stream` → `isolation_point_unsupported` | §4.9.4 |
+| | `drive with isolation rejected` | `plugins[].drives: true` + `process` → `isolation_drive_unsupported` | §4.9.5 |
 | `isolation-rpc.test.ts` | `outbox agent forwards requestId` | 자식 `post`의 `requestId`가 대리인 `post`에 그대로 전달, 같은 키 재전송은 `duplicate: true` | §4.9.6 |
 | | `child env allowlist` | `IsolationSpawnSpec.env` 키가 허용 목록뿐이고 DB 경로가 없다 | §4.9.6 |
 | `docs-consistency.test.ts` | `trust table matches TRUST_MATRIX` | 스펙 §4.6.2 표(행 4, 열 8)를 파싱한 값과 `TRUST_MATRIX`가 같다 | §9-14 |
