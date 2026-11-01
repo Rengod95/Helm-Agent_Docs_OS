@@ -1,0 +1,5 @@
+/* B01 플러그인 화면 호스트: caustic 스타일 + 공용 셸 CSS. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../wb-opus/parts/";

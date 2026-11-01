@@ -25,6 +25,8 @@ export interface StatusCell {
   trailing?: ReactNode;
   title: string;
   description: string;
+  /** Popover 안 설명 아래에 더 그릴 내용(예: 플러그인 status 기여의 Popover 트리). */
+  content?: ReactNode;
   action?: { label: string; onSelect: () => void };
 }
 
@@ -56,6 +58,7 @@ function Cell({ cell }: { cell: StatusCell }) {
     >
       <PopoverTitle>{cell.title}</PopoverTitle>
       <PopoverDescription>{cell.description}</PopoverDescription>
+      {cell.content}
       {cell.action !== undefined && (
         <div>
           <Button size="xs" tone="secondary" onClick={cell.action.onSelect}>

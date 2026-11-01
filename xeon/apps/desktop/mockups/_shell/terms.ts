@@ -146,15 +146,38 @@ export const T = {
   leadRetake: "다시 받음", // 답한 뒤 진행권을 다시 쥠
   modeSteer: "끼어들기", // 실행 중 입력 전달 방식 steer(지금 턴에 끼움)
   modeFollowUp: "다음에", // 실행 중 입력 전달 방식 followUp(이번 턴 뒤에 보냄)
+  // 묶음 B(플러그인 화면과 신뢰, m4/pg-b). 병합 때 이 구역을 통째로 옮긴다.
+  viewFallback: "대체 화면", // 프레임 금지 때 그리는 fallback 트리
+  framesSetting: "자체 코드 화면 허용", // x.views.frames
+  projectFramesSetting: "프로젝트 확장의 자체 코드 화면", // x.views.allowProjectFrames
+  frameConfirm: "동작 확인", // 프레임 call 확인 줄(셸이 띄움)
+  projectTrust: "프로젝트 신뢰", // O-04 폴더 신뢰(확장 신뢰 수준과 다름)
+  trustConfirm: "확장 신뢰 확인", // O-10
+  installFolder: "폴더", // 설치 출처: 확장 폴더
+  installBundle: "묶음 파일", // 설치 출처: 패키징한 확장 파일
+  installUserDir: "사용자 확장 위치", // install source user(<userDir>/extensions)
+  extStorage: "확장 저장 데이터", // 확장 접두 테이블(상태 문서)
+  slotOverflow: "더 보기", // 오른쪽 막대 플러그인 탭이 6개를 넘을 때 메뉴
+  trustRequested: "요청한 신뢰 수준", // 매니페스트 trust.level
+  trustEffective: "실제 신뢰 수준", // 유효 등급 = min(위치 상한, 요청)
+  trustCeiling: "위치 상한", // 설치 위치가 정하는 상한(SOURCE_TRUST)
+  trustRecheck: "신뢰 다시 확인", // 업데이트·권한 변경 뒤 O-10 차이 모드
+  install: "가져오기", // 확장 설치(P-13 머리 단추)
+  uninstall: "지우기", // 확장 제거
+  installCheck: "검사", // 가져오기 전 매니페스트·파일 검사
+  nextStage: "다음 단계", // M4 밖 기능 안내 표지(URL 설치 등)
 } as const;
 
 export type TermKey = keyof typeof T;
 
-/** 받침 여부로 조사를 고른다: josa("진행권", "을", "를") → "진행권을". 영문·숫자로 끝나면 둘째를 쓴다. */
+/** 받침 여부로 조사를 고른다: josa("진행권", "을", "를") → "진행권을". 숫자는 한자어 읽기로 본다
+ *  (0 영, 1 일, 3 삼, 6 육, 7 칠, 8 팔은 받침 있음: "0.4.0이"). 영문으로 끝나면 둘째를 쓴다. */
 export function josa(word: string, withFinal: string, withoutFinal: string): string {
   const last = word.charCodeAt(word.length - 1);
   if (last >= 0xac00 && last <= 0xd7a3) {
     return word + ((last - 0xac00) % 28 === 0 ? withoutFinal : withFinal);
   }
+  const ch = word.charAt(word.length - 1);
+  if (ch >= "0" && ch <= "9") return word + ("013678".includes(ch) ? withFinal : withoutFinal);
   return word + withoutFinal;
 }

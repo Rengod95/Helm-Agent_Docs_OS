@@ -12,10 +12,23 @@ import {
   FloatingBar,
   FloatingBarItem,
   IconButton,
+  Menu,
+  MenuItem,
+  ResizeHandle,
   ScrollArea,
 } from "@caustic/react";
-import type { ReactNode } from "react";
-import { Compass, History, Inbox, Layers, ListChecks, Maximize2, MessageSquare, X } from "./icons";
+import { useState, type ReactNode } from "react";
+import {
+  Compass,
+  Ellipsis,
+  History,
+  Inbox,
+  Layers,
+  ListChecks,
+  Maximize2,
+  MessageSquare,
+  X,
+} from "./icons";
 import { RuntimeLog } from "./parts/runtime-log";
 import { ThreadTail } from "./parts/thread-tail";
 import { useShell } from "./state";
@@ -32,7 +45,14 @@ export interface RightTab {
   ext?: string | undefined;
   /** 머리 "크게" 아이콘: 같은 확장의 page 기여를 작업대에서 연다(DP-24). */
   expand?: { label: string; onSelect: () => void } | undefined;
+  /** well 폭(px). 플러그인 well은 320~480(ADR-0021 §3.2). 없으면 352. */
+  width?: number | undefined;
+  /** 참이면 넓은 폭에서 well 왼쪽 끝에 폭 손잡이(320~480)를 둔다(프레임 well의 resize 안내와 같은 범위). */
+  resizable?: boolean | undefined;
 }
+
+/** 막대에 보이는 플러그인 well 탭 상한(§4.9.4 [제안]). 넘는 것은 막대 끝 "더 보기" 메뉴로 간다. */
+export const MAX_PLUGIN_TABS = 6;
 
 /** 대화 영역 탭(§4.9.4): 받은 요청, 런타임, 작업, 그리고 열린 대화에서 켜진 확장의 well 기여(plugins). */
 export function chatRightTabs(opts: {
@@ -42,7 +62,7 @@ export function chatRightTabs(opts: {
   /** 런타임 탭 배지: 이 대화의 확장 실패 수(0이면 숨김, DP-27). */
   runtimeBadge?: number;
   work?: ReactNode;
-  /** 플러그인 well 탭. 없으면 Helm 탐구(helm/panel) 하나. 막대 칸은 6개까지 [제안] — 시안은 넘치는 경우를 그리지 않는다. */
+  /** 플러그인 well 탭. 없으면 Helm 탐구(helm/panel) 하나. 막대 칸은 MAX_PLUGIN_TABS(6)까지, 넘치면 "더 보기" 메뉴. */
   plugins?: RightTab[];
   only?: string[];
 }): RightTab[] {
@@ -120,8 +140,15 @@ export function standardRightTabs(opts: {
 
 export function RightPanel({ tabs }: { tabs: RightTab[] }) {
   const m = useShell();
+  const [widths, setWidths] = useState<Record<string, number>>({});
   const current = tabs.find((t) => t.id === m.endTab) ?? tabs[0];
   if (current === undefined) return null;
+  // 플러그인 well 탭(ext 있음)은 MAX_PLUGIN_TABS까지 막대에, 나머지는 "더 보기" 메뉴에.
+  const pluginTabs = tabs.filter((t) => t.ext !== undefined);
+  const overflow = pluginTabs.slice(MAX_PLUGIN_TABS);
+  const barTabs = tabs.filter((t) => !overflow.includes(t));
+  const wellWidth = Math.min(480, Math.max(320, widths[current.id] ?? current.width ?? 352));
+  const fixedWidth = current.width === undefined && widths[current.id] === undefined;
   const tab = current.id;
   const overlay = m.layout !== "wide";
   const open = m.endOpen;
@@ -135,10 +162,26 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
           aria-label={current.label}
           // 아이콘 쪽(위 오른쪽)에서 펼쳐지는 느낌: 그 모서리를 원점으로 커지며 나타난다.
           className={[
-            "flex w-[352px] max-w-[calc(100vw-4.5rem)] flex-col self-stretch origin-top-right animate-enter enter-scale",
+            "relative flex max-w-[calc(100vw-4.5rem)] flex-col self-stretch origin-top-right animate-enter enter-scale",
+            fixedWidth ? "w-[352px]" : "",
             overlay ? "absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 shadow-3" : "",
           ].join(" ")}
+          style={fixedWidth ? undefined : { width: wellWidth }}
         >
+          {current.resizable === true && !overlay && (
+            <ResizeHandle
+              orientation="vertical"
+              min={320}
+              max={480}
+              step={8}
+              reverse
+              value={wellWidth}
+              label={`${current.label} 폭`}
+              formatValueText={(v) => `${v}px`}
+              onValueChange={(v) => setWidths((w) => ({ ...w, [current.id]: v }))}
+              className="absolute inset-y-3 -start-1.5 z-10"
+            />
+          )}
           <div className="flex h-8 flex-none items-center gap-1.5 ps-2.5 pe-0.5">
             <h2 className="m-0 flex min-w-0 flex-1 items-baseline gap-1.5 text-ui-sm font-semibold text-text-primary">
               <span className="truncate">{current.label}</span>
@@ -184,7 +227,7 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
         </Card>
       )}
       <FloatingBar label="맥락 패널" orientation="vertical" size="sm" shadow="2">
-        {tabs.map((t) => (
+        {barTabs.map((t) => (
           <FloatingBarItem
             key={t.id}
             icon={t.icon}
@@ -195,6 +238,32 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
             onClick={() => (open && tab === t.id ? m.setEndOpen(false) : m.openEnd(t.id))}
           />
         ))}
+        {overflow.length > 0 && (
+          <Menu
+            side="bottom"
+            align="end"
+            aria-label="다른 플러그인 패널"
+            trigger={
+              <FloatingBarItem
+                icon={<Ellipsis />}
+                aria-label={`더 보기, 플러그인 패널 ${overflow.length}개`}
+                active={open && overflow.some((t) => t.id === tab)}
+              />
+            }
+          >
+            {overflow.map((t) => (
+              <MenuItem
+                key={t.id}
+                icon={t.icon}
+                selected={open && tab === t.id}
+                end={<span className="font-mono text-mono-sm text-text-tertiary">{t.ext}</span>}
+                onSelect={() => m.openEnd(t.id)}
+              >
+                {t.label}
+              </MenuItem>
+            ))}
+          </Menu>
+        )}
       </FloatingBar>
     </aside>
   );

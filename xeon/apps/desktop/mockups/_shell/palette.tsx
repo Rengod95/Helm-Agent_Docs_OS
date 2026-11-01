@@ -8,7 +8,7 @@ import {
   type ComboboxGroupData,
 } from "@caustic/react";
 import { palette, type PaletteItem } from "./fixtures";
-import { LayoutGrid, Layers, MessageSquare, Play, Settings, SlashSquare } from "./icons";
+import { LayoutGrid, Layers, MessageSquare, Package, Play, Settings, SlashSquare } from "./icons";
 import { useShell } from "./state";
 
 const GROUP_ICON: Record<string, React.ReactNode> = {
@@ -20,6 +20,8 @@ const GROUP_ICON: Record<string, React.ReactNode> = {
   설정: <Settings />,
   그룹: <Layers />,
   화면: <LayoutGrid />,
+  // 확장 command 기여 묶음(ADR-0021 §3.2). 확장 이름은 항목의 hint(연한 글자)로 준다.
+  플러그인: <Package />,
 };
 
 export interface PaletteGroup {
@@ -39,7 +41,7 @@ const toGroups = (src: PaletteGroup[]): ComboboxGroupData[] =>
         ...(it.hint !== undefined
           ? {
               description:
-                g.group === "설정" ? (
+                g.group === "설정" || g.group === "플러그인" ? (
                   <span className="font-mono text-mono-sm">{it.hint}</span>
                 ) : (
                   it.hint
