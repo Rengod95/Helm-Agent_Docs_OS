@@ -2,7 +2,14 @@
 export * from "./icons";
 export { loadCausticFonts } from "./fonts";
 export { MockRoot, type MockStateDef, type Theme } from "./dev";
-export { ShellStateProvider, useShell, type Area, type Layout, type ShellState } from "./state";
+export {
+  ShellStateProvider,
+  useShell,
+  type Area,
+  type Layout,
+  type ShellState,
+  type WorkbenchContext,
+} from "./state";
 export { Shell, STAGE_ID, type ShellProps } from "./shell";
 export type { PaletteGroup } from "./palette";
 export { chatRightTabs, standardRightTabs, workbenchRightTabs, type RightTab } from "./right-panel";

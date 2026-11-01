@@ -2,6 +2,7 @@
 import { status } from "./fixtures";
 import { TokenBar, type StatusCell } from "./parts/status-bar";
 import type { Layout } from "./state";
+import { T, josa } from "./terms";
 
 export interface StatusOptions {
   layout: Layout;
@@ -13,7 +14,17 @@ export interface StatusOptions {
   link?: StatusCell | undefined;
   /** 런타임 칸(§14.3): "drive helm", "확장 실패 1". 주면 옛 "Helm" 칸 대신 이 칸들을 보인다.
    *  누르면 대화 영역이면 런타임 탭, 작업대면 개요(onOpen이 정한다, §4.9.5). */
-  runtime?: { drive: string | null; extFailures: number; onOpen: () => void } | undefined;
+  runtime?:
+    | {
+        drive: string | null;
+        extFailures: number;
+        onOpen: () => void;
+        /** 사람 확인(loop.ask)을 기다리며 진행권을 반납한 그룹(X-17). 주면 진행 칸이 "<그룹> 확인 기다림". */
+        waiting?: string | undefined;
+        /** 진행 칸 Popover 둘째 줄(상한 사용량 등). */
+        detail?: string | undefined;
+      }
+    | undefined;
 }
 
 /** 상태 표시줄 칸(S-03). compact 폭에서는 연결과 승인만 남는다. */
@@ -44,14 +55,26 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
       : [
           {
             id: "drive",
-            text: rt.drive === null ? "drive 없음" : `drive ${rt.drive}`,
-            label: rt.drive === null ? "drive 임대 보유 그룹 없음" : `drive 임대 보유 ${rt.drive}`,
-            title: "drive 임대",
+            text:
+              rt.waiting !== undefined
+                ? `${rt.waiting} 확인 기다림`
+                : rt.drive === null
+                  ? `${T.drive} 없음`
+                  : `${T.drive} ${rt.drive}`,
+            label:
+              rt.waiting !== undefined
+                ? `${rt.waiting}이 ${T.humanGate}을 기다려요, ${T.lead} 반납`
+                : rt.drive === null
+                  ? `${josa(T.lead, "을", "를")} 쥔 ${T.group} 없음`
+                  : `${T.lead} 보유 ${rt.drive}`,
+            title: T.lead,
             description:
-              rt.drive === null
-                ? "지금 턴을 구동하는 그룹이 없어요. 코어 루프가 그대로 돌아요."
-                : `${rt.drive}가 drive 임대를 쥐고 있어요. 턴 1/4 · spawn 3/8.`,
-            action: { label: "런타임 보기", onSelect: rt.onOpen },
+              rt.waiting !== undefined
+                ? `${rt.waiting}이 답을 기다리는 동안 ${josa(T.lead, "을", "를")} 놓았어요. 답하면 다시 받아요.`
+                : rt.drive === null
+                  ? `지금 ${josa(T.turn, "을", "를")} 구동하는 ${T.group}이 없어요. ${T.baseAgent}가 그대로 돌아요.`
+                  : `${rt.drive}가 ${josa(T.lead, "을", "를")} 쥐고 있어요. ${rt.detail ?? `${T.turn} 1/4 · spawn 3/8`}.`,
+            action: { label: `${T.runtime} 보기`, onSelect: rt.onOpen },
           },
           ...(rt.extFailures > 0
             ? [

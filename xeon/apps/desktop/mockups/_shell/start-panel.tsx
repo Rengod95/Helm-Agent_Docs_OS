@@ -1,6 +1,7 @@
 // 왼쪽 패널(표면). 제목 띠가 없어서 찾기와 접기가 여기 머리에 온다. 머리: 찾기 + 영역 바꾸기(SegmentedControl, DP-18).
-//   대화 영역: 주 내비(넷) + 작업 폴더별 대화 목록.
-//   작업대 영역: 머리에 대화 맥락 칸을 더하고, 작업대 내비(일곱) + "플러그인 화면" 목록(켜진 확장의 page 기여).
+//   대화 영역: 주 내비(다섯, 연결 포함 U-3) + 작업 폴더별 대화 목록. 시험 대화는 폴더 안 "시험" 묶음으로 접힌다(§4.9.3, 계획에 없음 4).
+//   작업대 영역: 머리에 보기 기준 칸(전체·대화·프로필·시험, 대화는 따라감/고정, §4.9.3)을 더하고,
+//   작업대 내비(여섯, C-6) + "플러그인 화면" 목록(켜진 확장의 page 기여).
 // 맨 아래 설정은 두 영역 공통. 지금 화면(activeNav)과 대화 고르기는 페이지가 props로 준다.
 import {
   Button,
@@ -10,12 +11,16 @@ import {
   ListNavigation,
   ListNavigationGroup,
   ListNavigationItem,
+  ListNavigationSubItem,
   SegmentedControl,
   SegmentedControlItem,
   Select,
+  SelectGroup,
+  SelectHeading,
   SelectOption,
   SidePanel,
 } from "@caustic/react";
+import { useState } from "react";
 import {
   nav as defaultNav,
   pluginPages as defaultPluginPages,
@@ -33,6 +38,8 @@ import {
   FlaskConical,
   Inbox,
   LayoutGrid,
+  Link,
+  LockOpen,
   Lightbulb,
   ListChecks,
   Lock,
@@ -42,11 +49,12 @@ import {
   PanelLeft,
   Search,
   Settings,
-  SquarePen,
   SquareStack,
   Target,
 } from "./icons";
-import { useShell, type Area } from "./state";
+import { useShell, type Area, type WorkbenchContext } from "./state";
+import { T } from "./terms";
+import { profiles } from "./workbench-fixtures";
 
 // 지금 화면(activeNav)은 라벨 굵기와 함께 아이콘도 selected(Solar bold)로 그린다(DP-17).
 const NAV_ICONS = {
@@ -54,13 +62,13 @@ const NAV_ICONS = {
   inbox: Inbox,
   proposals: Lightbulb,
   schedules: CalendarClock,
+  connection: Link,
   // 작업대
   overview: LayoutGrid,
   extensions: Package,
   tests: FlaskConical,
   metrics: Target,
   compose: SquareStack,
-  create: SquarePen,
   engine: Plug,
   // 플러그인 화면(기여 선언의 icon, ADR-0021 §3.3)
   "helm/inquiry": Compass,
@@ -103,6 +111,10 @@ export interface ThreadListProps {
   onNew: () => void;
   /** 대화 목록을 바꿀 때(예: 첫 실행은 빈 배열). 없으면 공용 고정 데이터. 비면 "아직 대화가 없어요". */
   items?: Thread[];
+  /** "시험" 묶음을 처음부터 펼친다(지금 대화가 시험 대화면 늘 펼침). */
+  trialsOpen?: boolean;
+  /** "끝난 시험 지우기"(계획에 없음 4). 없으면 셸이 목록에서만 숨긴다. */
+  onClearTrials?: () => void;
 }
 
 export interface WorkbenchPanelProps {
@@ -142,41 +154,180 @@ function AreaSwitch() {
   );
 }
 
-/** 대화 맥락 칸(§4.9.3): 작업대 화면이 볼 대화. "전체" 또는 대화 하나. 옆 아이콘은 그 대화로 가기. */
+const TRIAL_WORD = {
+  running: "실행 중",
+  pausing: "멈추는 중",
+  paused: "멈춤",
+  done: "끝남",
+} as const;
+
+/** 보기 기준 값 <-> Select 값("all", "thread:t1", "profile:explore", "trial:t8"). */
+function encodeContext(c: WorkbenchContext): string {
+  if (c.kind === "all") return "all";
+  if (c.kind === "profile") return `profile:${c.profileId}`;
+  return `${c.kind}:${c.threadId}`;
+}
+
+/** 보기 기준의 이름(머리 "보기 기준 <이름>"에도 쓴다). */
+export function contextName(c: WorkbenchContext): string {
+  if (c.kind === "all") return T.contextAll;
+  if (c.kind === "profile") return profiles.find((p) => p.id === c.profileId)?.title ?? c.profileId;
+  const t = defaultThreads.find((x) => x.id === c.threadId);
+  return t === undefined ? c.threadId : t.title === "" ? "제목 없음" : t.title;
+}
+
+/** 보기 기준 칸(§4.9.3, 결정 C-3·11): 전체·대화·프로필·시험 네 묶음. 대화 기준은 기본으로 대화 영역의 열린 대화를 따라가고,
+ *  "작업대에서 보기"로 오면 고정된다. 옆 자물쇠 아이콘이 고정·풀기(풀면 다시 따라감). 대화·시험 기준이면 "대화로 가기". */
 function ContextPicker({ onGoToThread }: { onGoToThread?: ((id: string) => void) | undefined }) {
   const m = useShell();
-  const value = m.contextThreadId ?? "all";
+  const c = m.context;
+  const trials = defaultThreads.filter((t) => t.trial !== undefined);
+  const plain = defaultThreads.filter((t) => t.trial === undefined && t.title !== "");
+  const onValue = (v: string) => {
+    const [kind, id] = v.split(":") as [string, string | undefined];
+    if (kind === "all" || id === undefined) m.setContext({ kind: "all" });
+    else if (kind === "profile") m.setContext({ kind: "profile", profileId: id });
+    else if (kind === "trial") m.setContext({ kind: "trial", threadId: id });
+    // 칸에서 대화를 직접 고르면 고정된다(따라가기는 자물쇠를 풀어서).
+    else m.setContext({ kind: "thread", threadId: id, pinned: true });
+  };
   return (
     <div className="flex min-w-0 items-center gap-1">
       <Select
         size="xs"
         variant="soft"
-        aria-label="대화 맥락"
-        value={value}
-        onValueChange={(v) => m.setContextThreadId(v === "all" ? null : v)}
+        aria-label={T.context}
+        value={encodeContext(c)}
+        onValueChange={onValue}
         className="min-w-0 flex-1"
       >
-        <SelectOption value="all">맥락 · 전체 대화</SelectOption>
-        {defaultThreads
-          .filter((t) => t.title !== "")
-          .map((t) => (
-            <SelectOption key={t.id} value={t.id}>
-              맥락 · {t.title}
+        <SelectOption value="all">
+          {T.context} · {T.contextAll}
+        </SelectOption>
+        <SelectGroup>
+          <SelectHeading>{T.contextThread}</SelectHeading>
+          {plain.map((t) => (
+            <SelectOption key={t.id} value={`thread:${t.id}`}>
+              {c.kind === "thread" && c.threadId === t.id
+                ? `${T.contextThread} · ${t.title}`
+                : t.title}
             </SelectOption>
           ))}
+        </SelectGroup>
+        <SelectGroup>
+          <SelectHeading>{T.contextProfile}</SelectHeading>
+          {profiles.map((p) => (
+            <SelectOption key={p.id} value={`profile:${p.id}`}>
+              {c.kind === "profile" && c.profileId === p.id
+                ? `${T.contextProfile} · ${p.title}`
+                : p.title}
+            </SelectOption>
+          ))}
+        </SelectGroup>
+        <SelectGroup>
+          <SelectHeading>{T.contextTrial}</SelectHeading>
+          {trials.map((t) => (
+            <SelectOption key={t.id} value={`trial:${t.id}`}>
+              {c.kind === "trial" && c.threadId === t.id
+                ? `${T.contextTrial} · ${t.title}`
+                : t.title}
+            </SelectOption>
+          ))}
+        </SelectGroup>
       </Select>
-      {m.contextThreadId !== null && (
-        // DP-30: 입력란 옆 버튼은 입력란과 같은 높이(Select xs = control-md).
+      {c.kind === "thread" && (
+        // DP-30: 입력란 옆 버튼은 입력란과 같은 높이(Select xs = control-md). 고정이면 selected 굵기(DP-17c).
         <IconButton
           size="md"
           variant="ghost"
-          label="맥락 대화로 가기"
-          onClick={() => m.contextThreadId !== null && onGoToThread?.(m.contextThreadId)}
+          label={
+            c.pinned
+              ? `${T.pin}됨, 누르면 ${T.unpin}: 열린 대화를 다시 따라가요`
+              : `${T.contextFollow}: 열린 대화를 따라가요. 누르면 이 대화로 ${T.pin}`
+          }
+          aria-pressed={c.pinned}
+          onClick={() => m.setContext({ ...c, pinned: !c.pinned })}
+        >
+          {c.pinned ? <Lock emphasis="selected" /> : <LockOpen emphasis="muted" />}
+        </IconButton>
+      )}
+      {(c.kind === "thread" || c.kind === "trial") && (
+        <IconButton
+          size="md"
+          variant="ghost"
+          label={`${T.contextThread}로 가기`}
+          onClick={() => onGoToThread?.(c.threadId)}
         >
           <MessageSquare />
         </IconButton>
       )}
     </div>
+  );
+}
+
+/** 폴더 안 "시험" 묶음(계획에 없음 4): 시험 대화를 한 행으로 접고, 펼치면 시험 대화마다 상태(실행 중·멈춤·끝남). */
+function TrialFold({
+  items,
+  list,
+  onClear,
+}: {
+  items: Thread[];
+  list: ThreadListProps;
+  onClear: () => void;
+}) {
+  const live = items.filter((t) => t.trial?.state === "running" || t.trial?.state === "pausing");
+  const paused = items.filter((t) => t.trial?.state === "paused");
+  const done = items.filter((t) => t.trial?.state === "done");
+  const hasCurrent = items.some((t) => t.id === list.currentId);
+  const meta = [
+    live.length > 0 ? `${TRIAL_WORD.running} ${live.length}` : null,
+    paused.length > 0 ? `${TRIAL_WORD.paused} ${paused.length}` : null,
+  ]
+    .filter((x) => x !== null)
+    .join(" · ");
+  return (
+    <ListNavigationItem
+      icon={<FlaskConical emphasis="muted" />}
+      meta={meta === "" ? undefined : meta}
+      count={items.length}
+      defaultExpanded={hasCurrent || list.trialsOpen === true}
+      aria-label={`${T.trialThread} ${items.length}개${meta === "" ? "" : `, ${meta}`}`}
+      sub={
+        <>
+          {items.map((t) => (
+            <ListNavigationSubItem
+              key={t.id}
+              current={list.draft !== true && list.currentId === t.id}
+              onClick={() => list.onSelect(t.id)}
+            >
+              <span className="flex min-w-0 items-baseline gap-1.5">
+                <span className="min-w-0 truncate">{t.title}</span>
+                {t.trial !== undefined && (
+                  <span
+                    className={`ms-auto shrink-0 text-ui-xs ${
+                      t.trial.state === "paused" || t.trial.state === "pausing"
+                        ? "text-text-secondary"
+                        : "text-text-tertiary"
+                    }`}
+                  >
+                    {TRIAL_WORD[t.trial.state]}
+                  </span>
+                )}
+              </span>
+            </ListNavigationSubItem>
+          ))}
+          {done.length > 0 && (
+            <ListNavigationSubItem onClick={onClear}>
+              <span className="text-text-tertiary">
+                끝난 {T.trial} {done.length}개 지우기
+              </span>
+            </ListNavigationSubItem>
+          )}
+        </>
+      }
+    >
+      {T.trial}
+    </ListNavigationItem>
   );
 }
 
@@ -258,12 +409,26 @@ export function StartPanel({
   floating,
   activeNav,
   onNavSelect,
-  threads: list,
+  threads: rawList,
   workbench,
   nav = defaultNav,
 }: StartPanelProps) {
   const m = useShell();
-  const threads = list.items ?? defaultThreads;
+  const [cleared, setCleared] = useState(false);
+  const all = rawList.items ?? defaultThreads;
+  const threads = cleared ? all.filter((t) => t.trial?.state !== "done") : all;
+  // 대화를 고르면 작업대 보기 기준이 따라간다(고정이 아닐 때, 결정 11).
+  const list: ThreadListProps = {
+    ...rawList,
+    onSelect: (id) => {
+      m.followThread(id);
+      rawList.onSelect(id);
+    },
+  };
+  const clearTrials = () => {
+    setCleared(true);
+    rawList.onClearTrials?.();
+  };
   const folders = [...new Set(threads.map((t) => t.folder))];
   const wb = m.area === "workbench";
 
@@ -403,7 +568,7 @@ export function StartPanel({
                 onAdd={list.onNew}
               >
                 {threads
-                  .filter((t) => t.folder === folder)
+                  .filter((t) => t.folder === folder && t.trial === undefined)
                   .map((t) => (
                     <ListNavigationItem
                       key={t.id}
@@ -422,6 +587,13 @@ export function StartPanel({
                       {t.title === "" ? "제목 없음" : t.title}
                     </ListNavigationItem>
                   ))}
+                {threads.some((t) => t.folder === folder && t.trial !== undefined) && (
+                  <TrialFold
+                    items={threads.filter((t) => t.folder === folder && t.trial !== undefined)}
+                    list={list}
+                    onClear={clearTrials}
+                  />
+                )}
               </ListNavigationGroup>
             ))}
           </ListNavigation>
