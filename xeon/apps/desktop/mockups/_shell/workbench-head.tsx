@@ -1,11 +1,13 @@
 // 작업대 화면 머리(§6.21). 대화 머리(p02-opus StageHead)와 같은 한 줄 h-10: (사이드바가 닫혔을 때만) 열기, 제목 h1, 제목 옆 메타, 오른쪽 동작.
 // 둘째 줄(sub)은 요약과 "언제 기준인가"(throughSeq·시각)를 연한 글자로. 선이나 띠 없이 간격으로만 나눈다(DP-03, DP-05).
-// "맥락 <대화>"는 왼쪽 패널의 맥락 칸이 안 보일 때(패널 닫힘)만 머리 오른쪽에 둔다. 같은 값을 두 곳에 그리지 않는다(DP-23과 같은 이유).
+// "보기 기준 <이름>"은 왼쪽 패널의 기준 칸이 안 보일 때(패널 닫힘)만 머리 오른쪽에 둔다. 같은 값을 두 곳에 그리지 않는다(DP-23과 같은 이유).
+// 누르면 패널이 열리고 기준 칸에 초점이 간다(§6.21). 고정이면 자물쇠 아이콘을 앞에 둔다.
 import { IconButton } from "@caustic/react";
 import type { ReactNode } from "react";
-import { threads } from "./fixtures";
-import { PanelLeft } from "./icons";
+import { Lock, PanelLeft } from "./icons";
+import { contextName } from "./start-panel";
 import { useShell } from "./state";
+import { T } from "./terms";
 
 /** 작업대 가운데 읽기 폭. 표가 있어 대화(46rem)보다 넓다. 좌우 여백은 한 번만(DP-07). */
 export const WB_WIDTH = "mx-auto w-full max-w-[60rem] px-3";
@@ -29,7 +31,21 @@ export function WorkbenchHead({
   className = WB_WIDTH,
 }: WorkbenchHeadProps) {
   const m = useShell();
-  const ctx = threads.find((t) => t.id === m.contextThreadId)?.title;
+  const c = m.context;
+  const kindWord =
+    c.kind === "all"
+      ? ""
+      : `${c.kind === "thread" ? T.contextThread : c.kind === "profile" ? T.contextProfile : T.contextTrial} `;
+  const openPicker = () => {
+    m.setStartOpen(true);
+    window.setTimeout(
+      () =>
+        document.querySelector<HTMLElement>(`[aria-label="${T.context}"]`)?.focus({
+          preventScroll: true,
+        }),
+      50,
+    );
+  };
   return (
     <header className={`${className} grid flex-none`}>
       <div className="flex h-10 min-w-0 items-center gap-1">
@@ -51,13 +67,22 @@ export function WorkbenchHead({
             <span className="min-w-0 truncate text-ui-sm text-text-tertiary">{meta}</span>
           )}
         </div>
-        {!m.startOpen && ctx !== undefined && (
+        {!m.startOpen && (
           <button
             type="button"
-            onClick={() => m.setStartOpen(true)}
-            className="hidden shrink-0 truncate rounded-sm text-ui-sm text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring compact:inline"
+            onClick={openPicker}
+            aria-label={`${T.context} ${kindWord}${contextName(c)}${
+              c.kind === "thread" && c.pinned ? `, ${T.pin}` : ""
+            }. 누르면 ${T.context} 칸을 열어요`}
+            className="inline-flex min-w-0 max-w-[45%] shrink items-center gap-1 rounded-sm text-ui-sm text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
           >
-            맥락 {ctx}
+            {c.kind === "thread" && c.pinned && (
+              <Lock aria-hidden emphasis="muted" className="size-icon-xs shrink-0" />
+            )}
+            <span className="truncate">
+              {T.context} · {kindWord}
+              {contextName(c)}
+            </span>
           </button>
         )}
         {actions !== undefined && (

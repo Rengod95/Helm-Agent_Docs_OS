@@ -1,7 +1,11 @@
 // 공용 셸 고정 데이터: 대화 목록, 주 내비, 받은 요청(승인·제안·알림), 상태 표시줄, 팔레트.
 // 스펙 §8.2 "고정 데이터"를 그대로 옮겼다(값을 바꾸지 않는다). 타입만 덧붙였다. 페이지 고유 데이터는 각 목업 폴더에 둔다.
+// 내비 라벨은 용어 모듈(T)에서 가져온다.
+import { T } from "./terms";
 
 export type ThreadStatus = "running" | "idle" | "failed" | "locked" | "resumable";
+/** 시험 대화 상태(§6.30, W-34, W-48). pausing = 다음 단계 사이에서 멈추려고 기다리는 중. */
+export type TrialState = "running" | "pausing" | "paused" | "done";
 export interface Thread {
   id: string;
   folder: string;
@@ -9,6 +13,8 @@ export interface Thread {
   status: ThreadStatus;
   approvals: number;
   current?: boolean;
+  /** 시험 대화면 상태·적용 프로필 id·대상 확장. 목록에서는 폴더 안 "시험" 묶음으로 접힌다(§4.9.3, 계획에 없음 4). */
+  trial?: { state: TrialState; profile: string; target: string };
 }
 
 export interface ToolApproval {
@@ -69,19 +75,46 @@ export const threads: Thread[] = [
   { id: "t2", folder: "~/code/xeon", title: "테스트 정리", status: "idle", approvals: 1 },
   { id: "t3", folder: "~/code/xeon", title: "빌드 실패 분석", status: "idle", approvals: 0 },
   { id: "t4", folder: "~/code/xeon", title: "예약: 매일 정리", status: "failed", approvals: 0 },
+  // 제작 대화(batch A a03): 제작 확장으로 그룹을 만드는 대화.
+  { id: "ta", folder: "~/code/xeon", title: "아침 요약 그룹 만들기", status: "idle", approvals: 0 },
+  {
+    id: "t8",
+    folder: "~/code/xeon",
+    title: "렌즈 5개로 넓히기",
+    status: "running",
+    approvals: 0,
+    trial: { state: "running", profile: "explore", target: "helm" },
+  },
+  {
+    id: "t10",
+    folder: "~/code/xeon",
+    title: "렌즈 3개와 비교",
+    status: "idle",
+    approvals: 0,
+    trial: { state: "paused", profile: "explore", target: "helm" },
+  },
+  {
+    id: "t9",
+    folder: "~/code/xeon",
+    title: "리뷰 다시 켜기 확인",
+    status: "idle",
+    approvals: 0,
+    trial: { state: "done", profile: "review-trial", target: "review" },
+  },
   { id: "t5", folder: "~/notes", title: "주간 회고", status: "idle", approvals: 0 },
-  { id: "t6", folder: "~/notes", title: "CLI 세션", status: "locked", approvals: 0 },
+  { id: "t6", folder: "~/notes", title: "원격 세션 · build-box", status: "locked", approvals: 0 },
   { id: "t7", folder: "~/notes", title: "", status: "resumable", approvals: 0 },
 ];
 export const nav: NavEntry[] = [
-  { id: "chat", label: "대화", badge: 2 },
-  { id: "inbox", label: "받은 요청", badge: 5 },
-  { id: "proposals", label: "제안", badge: 3 },
-  { id: "schedules", label: "예약", badge: 1, tone: "danger" },
+  { id: "chat", label: T.thread, badge: 2 },
+  { id: "inbox", label: T.inbox, badge: 5 },
+  { id: "proposals", label: T.proposals, badge: 3 },
+  { id: "schedules", label: T.schedules, badge: 1, tone: "danger" },
+  { id: "connection", label: T.connection },
 ];
-// "연결"(P-08)은 작업대 "엔진"으로 옮겼다(§4.9.3). 대화 영역 주 내비는 넷이다.
+// 대화 영역 주 내비는 다섯이다: "연결"(P-08)은 대화 영역에 남는다(§4.2, §4.9.3, 결정 U-3). 연결 실패 때만 경고 점.
 
-/** 작업대 내비 일곱(§4.9.3, §14.3). badge는 글자 그대로: 확장 "!1"(자동 꺼짐·실패 확장 수), 시험 실행 "1*"(실행 중 수). */
+/** 작업대 내비 여섯(§4.9.3, 결정 C-6: "만들기"는 "구성"에 합쳐 "새 그룹" 동작이 됨). badge는 글자 그대로: 확장 "!1"(자동 꺼짐·실패 확장 수), 시험 실행 "1*"(실행 중 수). */
 export interface WorkbenchNavEntry {
   id: string;
   label: string;
@@ -91,13 +124,18 @@ export interface WorkbenchNavEntry {
   badgeLabel?: string;
 }
 export const workbenchNav: WorkbenchNavEntry[] = [
-  { id: "overview", label: "개요" },
-  { id: "extensions", label: "확장", badge: "!1", tone: "danger", badgeLabel: "주의 확장 1개" },
-  { id: "tests", label: "시험 실행", badge: "1*", badgeLabel: "실행 중 1개" },
-  { id: "metrics", label: "측정" },
-  { id: "compose", label: "구성" },
-  { id: "create", label: "만들기" },
-  { id: "engine", label: "엔진" },
+  { id: "overview", label: T.overview },
+  {
+    id: "extensions",
+    label: T.extension,
+    badge: "!1",
+    tone: "danger",
+    badgeLabel: "주의 확장 1개",
+  },
+  { id: "tests", label: T.trials, badge: "1*", badgeLabel: "실행 중 1개" },
+  { id: "metrics", label: T.metrics },
+  { id: "compose", label: T.compose },
+  { id: "engine", label: T.engine },
 ];
 
 /** "플러그인 화면" 목록: 켜진 확장의 page 기여(ADR-0021 §3.2), 확장별 묶음. id는 "<확장>/<화면>". */
@@ -110,7 +148,7 @@ export interface PluginPageEntry {
 }
 export const pluginPages: PluginPageEntry[] = [
   { id: "helm/inquiry", ext: "helm", label: "Helm 탐구" },
-  { id: "review/queue", ext: "review", label: "review 대기열", disabled: true },
+  { id: "review/queue", ext: "review", label: "리뷰 대기열", disabled: true },
 ];
 export const approvals: { a1: ToolApproval; a2: QuestionApproval } = {
   a1: {
@@ -191,3 +229,28 @@ export const palette: { group: string; items: PaletteItem[] }[] = [
   },
   { group: "설정", items: [{ label: "기본 모델", hint: "l1.models.default" }] },
 ];
+
+/** 확장 표시 이름(결정 13: 문장에는 표시 이름, id는 id 열·힌트에만 회색 mono). 매니페스트 displayName 자리. */
+export const EXT: Record<string, string> = {
+  helm: "Helm",
+  learning: "학습",
+  review: "리뷰",
+  authoring: T.authoring,
+  "web-exa": "웹 검색(Exa)",
+  work: "작업 관리",
+  "acme-notes": "Acme 노트",
+  "audit-log": "감사 기록 훅",
+};
+/** 확장 id → 표시 이름(없으면 id). */
+export function extName(id: string): string {
+  return EXT[id] ?? id;
+}
+/** 표시 이름에 조사를 붙인다. 영문 표시 이름(Helm 등)은 읽는 소리 기준 받침으로 고른다. */
+const EXT_FINAL = new Set(["helm"]);
+export function extJ(id: string, withFinal: string, withoutFinal: string): string {
+  const n = extName(id);
+  const last = n.charCodeAt(n.length - 1);
+  if (last >= 0xac00 && last <= 0xd7a3)
+    return n + ((last - 0xac00) % 28 === 0 ? withoutFinal : withFinal);
+  return n + (EXT_FINAL.has(id) ? withFinal : withoutFinal);
+}

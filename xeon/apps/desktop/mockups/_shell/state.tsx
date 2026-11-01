@@ -1,5 +1,5 @@
 // 셸 상태: 창 폭 단계, 영역(대화·작업대, §4.9), 왼쪽 패널, 오른쪽 well(열림·탭, 영역마다 따로), 팔레트,
-// 작업대 대화 맥락(workbench.contextThreadId, §4.9.5). 페이지 상태는 각 목업이 따로 갖는다.
+// 작업대 보기 기준(workbench.context, §4.9.3·§4.9.5: 전체·대화·프로필·시험, 대화는 따라감/고정). 페이지 상태는 각 목업이 따로 갖는다.
 import {
   createContext,
   useCallback,
@@ -25,6 +25,13 @@ function useWindowLayout(): Layout {
   return layout;
 }
 
+/** 작업대 보기 기준(§4.9.5 [제안] workbench.context). 대화 기준은 pinned가 거짓이면 대화 영역에서 연 대화를 따라간다(결정 11). */
+export type WorkbenchContext =
+  | { kind: "all" }
+  | { kind: "thread"; threadId: string; pinned: boolean }
+  | { kind: "profile"; profileId: string }
+  | { kind: "trial"; threadId: string };
+
 /** 두 1급 영역(§4.9.1). 왼쪽 패널 머리의 SegmentedControl로 바꾼다(DP-18). */
 export type Area = "chat" | "workbench";
 
@@ -33,8 +40,16 @@ export interface ShellState {
   /** 지금 영역. */
   area: Area;
   setArea: (area: Area) => void;
-  /** 작업대 화면이 볼 대화(thread id). null이면 "전체"(§4.9.3 대화 맥락 칸). */
+  /** 작업대 보기 기준(왼쪽 패널 칸 하나가 모든 작업대 화면을 정한다, §4.9.3). */
+  context: WorkbenchContext;
+  setContext: (c: WorkbenchContext) => void;
+  /** 대화 영역에서 대화를 열 때 부른다: 기준이 따라가는 대화면 그 대화로 바뀐다. 고정이면 그대로. */
+  followThread: (threadId: string) => void;
+  /** "작업대에서 보기": 그 대화로 고정(pin)하고 작업대로 간다. */
+  pinThread: (threadId: string) => void;
+  /** 옛 호환: 기준이 대화나 시험이면 그 대화 id, 아니면 null("전체"·프로필). */
   contextThreadId: string | null;
+  /** 옛 호환: null이면 전체, 아니면 따라가는 대화 기준. */
   setContextThreadId: (id: string | null) => void;
   startOpen: boolean;
   setStartOpen: (open: boolean) => void;
@@ -67,8 +82,10 @@ export interface ShellStateProviderProps {
   initialWorkbenchTab?: string;
   /** 처음 오른쪽 well 열림. 없으면 폭 단계 기본값(넓으면 열림). */
   initialEndOpen?: boolean;
-  /** 처음 작업대 대화 맥락(기본 t1 "캐시 무효화 조사"). */
+  /** 처음 작업대 대화 맥락(기본 t1 "캐시 무효화 조사", 따라감). null이면 전체. initialContext가 있으면 그것을 쓴다. */
   initialContextThreadId?: string | null;
+  /** 처음 보기 기준(프로필·시험·고정 대화 등). */
+  initialContext?: WorkbenchContext;
   children: ReactNode;
 }
 
@@ -79,11 +96,33 @@ export function ShellStateProvider({
   initialWorkbenchTab = "inbox",
   initialEndOpen,
   initialContextThreadId = "t1",
+  initialContext,
   children,
 }: ShellStateProviderProps) {
   const layout = useWindowLayout();
   const [area, setAreaRaw] = useState<Area>(initialArea);
-  const [contextThreadId, setContextThreadId] = useState<string | null>(initialContextThreadId);
+  const [context, setContext] = useState<WorkbenchContext>(
+    initialContext ??
+      (initialContextThreadId === null
+        ? { kind: "all" }
+        : { kind: "thread", threadId: initialContextThreadId, pinned: false }),
+  );
+  const followThread = useCallback(
+    (threadId: string) =>
+      setContext((c) => (c.kind === "thread" && !c.pinned ? { ...c, threadId } : c)),
+    [],
+  );
+  const pinThread = useCallback((threadId: string) => {
+    setContext({ kind: "thread", threadId, pinned: true });
+    setAreaRaw("workbench");
+  }, []);
+  const contextThreadId =
+    context.kind === "thread" || context.kind === "trial" ? context.threadId : null;
+  const setContextThreadId = useCallback(
+    (id: string | null) =>
+      setContext(id === null ? { kind: "all" } : { kind: "thread", threadId: id, pinned: false }),
+    [],
+  );
   const [startOpen, setStartOpen] = useState(layout !== "compact");
   const [endOpen, setEndOpen] = useState(layout === "wide" ? (initialEndOpen ?? true) : false);
   // 영역마다 마지막 오른쪽 탭을 기억한다(§4.9.2).
@@ -119,6 +158,10 @@ export function ShellStateProvider({
       layout,
       area,
       setArea,
+      context,
+      setContext,
+      followThread,
+      pinThread,
       contextThreadId,
       setContextThreadId,
       startOpen,
@@ -130,7 +173,21 @@ export function ShellStateProvider({
       paletteOpen,
       setPaletteOpen,
     }),
-    [layout, area, setArea, contextThreadId, startOpen, endOpen, endTab, openEnd, paletteOpen],
+    [
+      layout,
+      area,
+      setArea,
+      context,
+      followThread,
+      pinThread,
+      contextThreadId,
+      setContextThreadId,
+      startOpen,
+      endOpen,
+      endTab,
+      openEnd,
+      paletteOpen,
+    ],
   );
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }
