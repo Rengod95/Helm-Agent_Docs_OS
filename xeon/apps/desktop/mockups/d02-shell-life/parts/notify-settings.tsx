@@ -38,7 +38,7 @@ export function NotifySettings({ denied }: { denied: boolean }) {
           k="l4.desktop.window.closeBehavior"
           scope="user"
           apply="now"
-          hint={`메뉴 막대에 남기면 창만 닫히고 ${T.engine}과 진행 중 ${T.turn}은 계속돼요.`}
+          hint={`메뉴 막대에 남기면 창만 닫히고 ${josa(T.engine, "과", "와")} 진행 중 ${josa(T.turn, "은", "는")} 계속돼요.`}
         >
           <Select size="sm" aria-label="창을 닫으면" defaultValue="tray" className="w-56">
             <SelectOption value="quit">앱 종료</SelectOption>

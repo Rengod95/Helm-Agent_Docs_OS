@@ -14,7 +14,7 @@ import {
   RadioGroupItem,
 } from "@caustic/react";
 import { useState } from "react";
-import { CalendarClock, Download, Pencil, T, Trash2 } from "../../_shell";
+import { josa, CalendarClock, Download, Pencil, T, Trash2 } from "../../_shell";
 
 const LIST = "rounded-none [--cs-size-list-term:6.5rem] [&_[data-slot=list-description-row]]:px-0";
 
@@ -94,12 +94,12 @@ export function DeleteThreadDialog({
       icon={<Trash2 />}
       title={
         f.running
-          ? `‘${f.title}’ ${T.thread}는 지울 수 없어요`
-          : `‘${f.title}’ ${T.thread}를 지울까요?`
+          ? `‘${f.title}’ ${josa(T.thread, "은", "는")} 지울 수 없어요`
+          : `‘${f.title}’ ${josa(T.thread, "을", "를")} 지울까요?`
       }
       description={
         f.running
-          ? `${T.turn}이 실행 중이에요. 대화에서 중단한 뒤 다시 해 주세요.`
+          ? `${josa(T.turn, "이", "가")} 실행 중이에요. 대화에서 중단한 뒤 다시 해 주세요.`
           : "메시지와 첨부가 이 기기와 엔진 저장소에서 지워져요. 되돌릴 수 없어요."
       }
       footer={
@@ -131,7 +131,9 @@ export function DeleteThreadDialog({
             {f.forks === 0 ? "없음" : `${f.forks}개 · 남아요`}
           </ListDescriptionRow>
           <ListDescriptionRow term={`${T.schedules}`}>
-            {f.schedules === 0 ? "없음" : `${f.schedules}개 · 남아요, 다음 실행은 새 ${T.thread}로`}
+            {f.schedules === 0
+              ? "없음"
+              : `${f.schedules}개 · 남아요, 다음 실행은 새 ${josa(T.thread, "으로", "로")}`}
           </ListDescriptionRow>
         </ListDescription>
       )}

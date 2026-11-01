@@ -1,7 +1,7 @@
 // 셸 수명 상태 기계(목업 전용). 엔진 실패·재기동(N-54), 안전 모드 제안·표시(N-55, N-56, 계획에 없음 5), 앱 업데이트(계획에 없음 1),
 // 진행 중·백그라운드 작업(N-58, 계획에 없음 10), 토스트 자리(S-04, 결정 14), OS 알림(N-53), 메뉴 막대·앱 메뉴(N-51, N-52).
 // ?state=, ?scenario=, &step=을 한 기계로 돌린다(_chat-rt useMachine).
-import { T } from "../_shell";
+import { josa, T } from "../_shell";
 import type { After, ChatItem } from "../_chat-rt";
 import type { OsKind } from "./parts/os-chrome";
 import type { Upd } from "./parts/life";
@@ -132,7 +132,7 @@ export function reduce(s: S, a: A): S {
         items: [
           ...s.items,
           row(
-            `${T.engine}이 멈췄어요 · 종료 코드 137(메모리) · 다시 시작해요`,
+            `${josa(T.engine, "이", "가")} 멈췄어요 · 종료 코드 137(메모리) · 다시 시작해요`,
             "warn",
             "core",
             "warning",
@@ -147,10 +147,10 @@ export function reduce(s: S, a: A): S {
         busy: null,
         items: [
           ...s.items,
-          row(`${T.engine}이 다시 시작됐어요 · 멈춘 ${T.turn} 1`, "ok"),
+          row(`${josa(T.engine, "이", "가")} 다시 시작됐어요 · 멈춘 ${T.turn} 1`, "ok"),
           {
             k: "row",
-            text: `멈춘 ${T.turn}이 있어요 · 14:02 시작`,
+            text: `멈춘 ${josa(T.turn, "이", "가")} 있어요 · 14:02 시작`,
             source: "core",
             icon: "clock",
             action: { label: T.resume, onClick: () => {} },
@@ -177,21 +177,21 @@ export function reduce(s: S, a: A): S {
         items: [
           ...s.items,
           row(
-            `${T.safeMode}로 시작했어요 · ${T.group} 3, ${T.extension} 2, ${T.xHook} 2를 싣지 않았어요`,
+            `${josa(T.safeMode, "으로", "로")} 시작했어요 · ${T.group} 3, ${T.extension} 2, ${T.xHook} 2를 싣지 않았어요`,
             "warn",
             "core",
             "warning",
           ),
           {
             k: "row",
-            text: `멈춘 ${T.turn}이 있어요 · ${T.safeMode}라 Helm 없이 이어가요`,
+            text: `멈춘 ${josa(T.turn, "이", "가")} 있어요 · ${josa(T.safeMode, "이라", "라")} Helm 없이 이어가요`,
             source: "core",
             icon: "clock",
             action: { label: T.resume, onClick: () => {} },
           },
         ],
         toast: mk({
-          title: `${T.safeMode}로 시작했어요`,
+          title: `${josa(T.safeMode, "으로", "로")} 시작했어요`,
           description: "Acme 노트를 끄거나 고친 뒤 다시 시작하세요",
         }),
       };
@@ -208,10 +208,13 @@ export function reduce(s: S, a: A): S {
       return {
         ...s,
         reattach: "none",
-        items: [...s.items, row(`화면을 다시 붙였어요 · 진행 중 ${T.turn}은 계속됐어요`, "ok")],
+        items: [
+          ...s.items,
+          row(`화면을 다시 붙였어요 · 진행 중 ${josa(T.turn, "은", "는")} 계속됐어요`, "ok"),
+        ],
         toast: mk({
           title: "화면을 다시 불러왔어요",
-          description: `진행 중 ${T.turn}은 끊기지 않았어요`,
+          description: `진행 중 ${josa(T.turn, "은", "는")} 끊기지 않았어요`,
         }),
       };
     case "updAvail":
@@ -252,7 +255,7 @@ export function reduce(s: S, a: A): S {
         ...s,
         confirm: false,
         toast: mk({
-          title: `${T.turn}이 끝나면 다시 시작해요`,
+          title: `${josa(T.turn, "이", "가")} 끝나면 다시 시작해요`,
           description: "0.4.2 · 받아 둔 파일로",
         }),
       };
@@ -267,7 +270,7 @@ export function reduce(s: S, a: A): S {
           row(`0.4.2로 다시 시작했어요 · 멈춘 ${T.turn} 1`, "ok"),
           {
             k: "row",
-            text: `멈춘 ${T.turn}이 있어요 · 14:02 시작`,
+            text: `멈춘 ${josa(T.turn, "이", "가")} 있어요 · 14:02 시작`,
             source: "core",
             icon: "clock",
             action: { label: T.resume, onClick: () => {} },
@@ -291,7 +294,7 @@ export function reduce(s: S, a: A): S {
       return {
         ...s,
         toast: mk({
-          title: `${T.osNotice}이 꺼져 있어요`,
+          title: `${josa(T.osNotice, "이", "가")} 꺼져 있어요`,
           description: "시스템 설정에서 Xeon 알림을 허용하면 창 밖에서도 알려 드려요",
           action: "설정 보기",
         }),

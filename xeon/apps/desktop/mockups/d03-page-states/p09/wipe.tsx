@@ -13,7 +13,7 @@ import {
   Progress,
 } from "@caustic/react";
 import { useState } from "react";
-import { T, Trash2 } from "../../_shell";
+import { josa, T, Trash2 } from "../../_shell";
 
 const LIST = "rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0";
 const WORD = "지우기";
@@ -68,7 +68,7 @@ export function WipeDialog({
       title={blocked ? "지금은 데이터를 지울 수 없어요" : "이 기기의 데이터를 모두 지울까요?"}
       description={
         blocked
-          ? `진행 중인 ${T.turn}과 실행 중인 ${T.schedules}이 있어요. 멈춘 뒤 다시 해 주세요.`
+          ? `진행 중인 ${josa(T.turn, "과", "와")} 실행 중인 ${josa(T.schedules, "이", "가")} 있어요. 멈춘 뒤 다시 해 주세요.`
           : "지운 뒤 앱이 다시 시작하고 첫 실행 화면으로 가요. 되돌릴 수 없어요."
       }
       footer={

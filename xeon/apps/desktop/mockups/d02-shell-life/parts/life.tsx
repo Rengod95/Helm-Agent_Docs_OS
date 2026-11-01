@@ -47,7 +47,8 @@ export function EngineBand({
     <Alert tone="warning" emphasis="lead" icon={<RotateCw />} size="sm">
       {phase === "starting-safe" ? (
         <>
-          <b>{T.safeMode}로 시작하는 중이에요.</b> {SAFE_OFF}를 싣지 않아요.
+          <b>{josa(T.safeMode, "으로", "로")} 시작하는 중이에요.</b> {josa(SAFE_OFF, "을", "를")}{" "}
+          싣지 않아요.
         </>
       ) : web ? (
         <>
@@ -97,8 +98,8 @@ export function SafeSuggestCard({
             {josa(T.engine, "이", "가")} 3번 연속 시작하지 못했어요
           </h2>
           <p className="m-0 text-ui-sm text-text-secondary">
-            {T.safeMode}로 시작하면 {SAFE_OFF}를 싣지 않고 기본 에이전트만 띄워요. 원인을 끄거나
-            고친 뒤 다시 켤 수 있어요.
+            {josa(T.safeMode, "으로", "로")} 시작하면 {josa(SAFE_OFF, "을", "를")} 싣지 않고 기본
+            에이전트만 띄워요. 원인을 끄거나 고친 뒤 다시 켤 수 있어요.
           </p>
         </div>
       </div>
@@ -112,7 +113,7 @@ export function SafeSuggestCard({
           {extName("acme-notes")}{" "}
           <span className="font-mono text-text-tertiary">ext:acme-notes</span> · 시작 중 오류
         </ListDescriptionRow>
-        <ListDescriptionRow term="safeModeCause" mono>
+        <ListDescriptionRow term="원인 코드" mono>
           ext.load_failed
         </ListDescriptionRow>
         <ListDescriptionRow term="연속 실패">3 / 3 · 10분 안</ListDescriptionRow>
@@ -153,7 +154,7 @@ TypeError: Cannot read properties of undefined (reading 'vault')
           disabled={busy !== null}
           onClick={onSafe}
         >
-          {T.safeMode}로 시작
+          {josa(T.safeMode, "으로", "로")} 시작
         </Button>
       </div>
     </Card>
@@ -277,7 +278,7 @@ export function UpdateBody({ u, pct }: { u: Upd; pct: number }) {
             {T.trialThread} 멈춤이 다음 {T.stepBoundary}에서 바로 멈춰요
           </li>
           <li>
-            {T.safeMode}에서 {T.xHook}을 싣지 않아요
+            {T.safeMode}에서 {josa(T.xHook, "을", "를")} 싣지 않아요
           </li>
           <li>승인 카드 키 Y·N이 받은 요청에서도 돼요</li>
         </ul>
@@ -332,7 +333,7 @@ export function RestartDialog({
             </Button>
           </DialogClose>
           <Button size="sm" tone="neutral" variant="outline" onClick={onAfterTurn}>
-            {T.turn}이 끝나면
+            {josa(T.turn, "이", "가")} 끝나면
           </Button>
           <Button size="sm" tone="neutral" onClick={onNow}>
             지금 다시 시작

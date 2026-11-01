@@ -4,8 +4,10 @@
 import { toast } from "@caustic/react";
 import { useEffect, useState } from "react";
 import {
+  josa,
   chatRightTabs,
   defaultStatusCells,
+  extName,
   inbox,
   NoticeList,
   ScenarioDock,
@@ -257,15 +259,15 @@ export function App({ state }: { state: StateId }) {
           text: `다시 시작 중 ${s.attempt}/3`,
           dot: "warning",
           title: T.engine,
-          description: `${T.engine}이 멈춰 다시 시작하고 있어요. 10분 안에 3번까지 자동으로 해요.`,
+          description: `${josa(T.engine, "이", "가")} 멈춰 다시 시작하고 있어요. 10분 안에 3번까지 자동으로 해요.`,
         }
       : s.engine === "starting-safe"
         ? {
             id: "engine",
-            text: `${T.safeMode}로 시작 중`,
+            text: `${josa(T.safeMode, "으로", "로")} 시작 중`,
             dot: "warning",
             title: T.engine,
-            description: `${SAFE_OFF}를 싣지 않고 시작해요.`,
+            description: `${josa(SAFE_OFF, "을", "를")} 싣지 않고 시작해요.`,
           }
         : failed
           ? {
@@ -273,7 +275,7 @@ export function App({ state }: { state: StateId }) {
               text: `${T.engine} 시작 실패`,
               dot: "danger",
               title: `${T.engine} 시작 실패`,
-              description: "3번 연속 시작하지 못했어요. 원인은 ext:acme-notes 시작 오류예요.",
+              description: `3번 연속 시작하지 못했어요. 원인은 ${extName("acme-notes")} 시작 오류예요(ext:acme-notes).`,
               action: {
                 label: `${T.engine} 다시 시작`,
                 onSelect: () => dispatch({ t: "retryEngine" }),
@@ -281,7 +283,6 @@ export function App({ state }: { state: StateId }) {
               secondary: { label: "진단 복사", onSelect: () => dispatch({ t: "copyDiag" }) },
               inline: [
                 { label: `${T.engine} 다시 시작`, onSelect: () => dispatch({ t: "retryEngine" }) },
-                { label: "진단 복사", onSelect: () => dispatch({ t: "copyDiag" }) },
               ],
               defaultOpen: pop === "engine",
             }
@@ -294,8 +295,8 @@ export function App({ state }: { state: StateId }) {
         dot: failed ? "danger" : "warning",
         title: "연결",
         description: failed
-          ? `${T.engine}이 없어 연결이 끊겼어요. 대화는 읽기만 돼요.`
-          : `${T.engine}이 돌아오면 다시 맞춰요. 끊긴 동안의 스트리밍 조각은 버리고 완성된 항목만 다시 받아요.`,
+          ? `${josa(T.engine, "이", "가")} 없어 연결이 끊겼어요. 대화는 읽기만 돼요.`
+          : `${josa(T.engine, "이", "가")} 돌아오면 다시 맞춰요. 끊긴 동안의 스트리밍 조각은 버리고 완성된 항목만 다시 받아요.`,
       }
     : undefined;
 
@@ -306,7 +307,7 @@ export function App({ state }: { state: StateId }) {
           text: T.safeMode,
           dot: "warning",
           title: T.safeMode,
-          description: `${SAFE_OFF}를 싣지 않았어요. 그래서 이 대화에 Helm이 없어요.`,
+          description: `${josa(SAFE_OFF, "을", "를")} 싣지 않았어요. 그래서 이 대화에 Helm이 없어요.`,
           body: <SafeBody />,
           wide: true,
           action: { label: `${T.engine} 화면 열기`, onSelect: () => {} },
@@ -418,7 +419,7 @@ export function App({ state }: { state: StateId }) {
   ) : undefined;
 
   const runtimeLine = down
-    ? `${T.engine} 멈춤 · ${T.thread}는 읽기만 돼요`
+    ? `${T.engine} 멈춤 · ${josa(T.thread, "은", "는")} 읽기만 돼요`
     : s.safe
       ? `${T.safeMode} · ${T.group}·외부 ${T.extension}·${T.xHook} 꺼짐 · ${T.lead} 없음`
       : t1RuntimeLine;
@@ -429,7 +430,7 @@ export function App({ state }: { state: StateId }) {
     switch (pre.script) {
       case "engine-crash-safe":
         return s.suggest
-          ? `카드의 "${T.safeMode}로 시작"`
+          ? `카드의 "${josa(T.safeMode, "으로", "로")} 시작"`
           : s.safe
             ? "상태 표시줄 안전 모드 칩"
             : undefined;
@@ -514,7 +515,7 @@ export function App({ state }: { state: StateId }) {
                 ? {
                     note: s.web
                       ? "서비스에 연결되면 보낼 수 있어요. 쓰던 글은 남아요."
-                      : `${T.engine}이 돌아오면 보낼 수 있어요. 쓰던 글은 남아요.`,
+                      : `${josa(T.engine, "이", "가")} 돌아오면 보낼 수 있어요. 쓰던 글은 남아요.`,
                   }
                 : {})}
               onSubmit={() => setDraft("")}

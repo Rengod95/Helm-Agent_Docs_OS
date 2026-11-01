@@ -156,13 +156,34 @@ export function ModelsTab({ state }: { state: State }) {
             aria-label="모델 역할"
             className="max-w-[28rem] rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
           >
-            <ListDescriptionRow term="main" mono>
+            <ListDescriptionRow
+              term={
+                <>
+                  기본 <span className="font-mono text-mono-sm text-text-tertiary">main</span>
+                </>
+              }
+              mono
+            >
               claude-sonnet-5-5
             </ListDescriptionRow>
-            <ListDescriptionRow term="judge" mono>
+            <ListDescriptionRow
+              term={
+                <>
+                  판정 <span className="font-mono text-mono-sm text-text-tertiary">judge</span>
+                </>
+              }
+              mono
+            >
               claude-haiku-5-5
             </ListDescriptionRow>
-            <ListDescriptionRow term="summarize" mono>
+            <ListDescriptionRow
+              term={
+                <>
+                  요약 <span className="font-mono text-mono-sm text-text-tertiary">summarize</span>
+                </>
+              }
+              mono
+            >
               claude-haiku-5-5
             </ListDescriptionRow>
           </ListDescription>

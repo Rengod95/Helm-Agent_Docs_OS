@@ -166,7 +166,16 @@ export type TermKey = keyof typeof T;
 export function josa(word: string, withFinal: string, withoutFinal: string): string {
   const last = word.charCodeAt(word.length - 1);
   if (last >= 0xac00 && last <= 0xd7a3) {
-    return word + ((last - 0xac00) % 28 === 0 ? withoutFinal : withFinal);
+    const jong = (last - 0xac00) % 28;
+    // ㄹ 받침 뒤 "으로"는 "로"(묶음 D).
+    if (jong === 8 && withFinal === "으로") return word + withoutFinal;
+    return word + (jong === 0 ? withoutFinal : withFinal);
+  }
+  // 숫자로 끝나면 읽는 소리 기준(묶음 B에서 가져옴): 0 영, 1 일, 3 삼, 6 육, 7 칠, 8 팔은 받침.
+  const ch = word.charAt(word.length - 1);
+  if (ch >= "0" && ch <= "9") {
+    if (withFinal === "으로" && "178".includes(ch)) return word + withoutFinal;
+    return word + ("013678".includes(ch) ? withFinal : withoutFinal);
   }
   return word + withoutFinal;
 }

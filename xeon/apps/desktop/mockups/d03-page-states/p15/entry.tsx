@@ -17,6 +17,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SAFE_OFF } from "../../d02-shell-life/parts/life";
 import {
+  josa,
   ArrowRight,
   Download,
   T,
@@ -321,7 +322,8 @@ function Stage({ state }: { state: StateId }) {
                 </Button>
               }
             >
-              <b>{T.safeMode}예요.</b> {SAFE_OFF}를 싣지 않았어요.
+              <b>{josa(T.safeMode, "이에요", "예요")}.</b> {josa(SAFE_OFF, "을", "를")} 싣지
+              않았어요.
             </Alert>
           )}
 
@@ -556,7 +558,7 @@ function EngineSection({ state }: { state: StateId }) {
           </span>
         </ListDescriptionRow>
         <ListDescriptionRow term={T.safeMode}>
-          꺼짐 · 켜면 {SAFE_OFF}를 싣지 않아요
+          꺼짐 · 켜면 {josa(SAFE_OFF, "을", "를")} 싣지 않아요
         </ListDescriptionRow>
         <ListDescriptionRow term={T.appUpdate}>
           <span className="flex flex-wrap items-center gap-2">

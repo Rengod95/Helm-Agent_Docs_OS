@@ -2,7 +2,7 @@
 // 모두 caustic 부품(Alert, Button, EmptyState, Skeleton, Progress, ToolCall)으로 짜고 색은 토큰만 쓴다.
 import { Alert, Button, EmptyState, Progress, Skeleton, ToolCall } from "@caustic/react";
 import { useId, useState } from "react";
-import { ArrowDown, ChevronRight, CircleAlert, RotateCcw, T } from "../../_shell";
+import { josa, ArrowDown, ChevronRight, CircleAlert, RotateCcw, T } from "../../_shell";
 
 /** 대화 여는 중: 머리 아래 얇은 진행 막대 + Skeleton 3행(§6.6 G). */
 export function TranscriptLoading() {
@@ -60,7 +60,7 @@ export function TurnFail({
       dismissLabel="실패 알림 닫기"
       onDismiss={onDismiss}
     >
-      <b>{T.turn}이 실패했어요.</b> {reason}
+      <b>{josa(T.turn, "이", "가")} 실패했어요.</b> {reason}
     </Alert>
   );
 }
@@ -183,7 +183,7 @@ export function ResumeBand({
         </span>
       }
     >
-      <b>중단된 {T.turn}이 있어요.</b> {at}에 시작했고 앱이 다시 시작되며 멈췄어요.
+      <b>중단된 {josa(T.turn, "이", "가")} 있어요.</b> {at}에 시작했고 앱이 다시 시작되며 멈췄어요.
     </Alert>
   );
 }

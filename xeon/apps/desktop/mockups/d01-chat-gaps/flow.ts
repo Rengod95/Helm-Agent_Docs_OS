@@ -1,7 +1,7 @@
 // 대화 영역 빈칸 상태 기계(목업 전용). ?state=, ?scenario=, &step=을 한 기계로 돌린다(_chat-rt useMachine).
 // N-42 읽기·turn 실패·새 메시지, N-43 승인 카드 네 종류 동기화, N-44 이어서 실행 결과 셋, N-45 행 메뉴, N-46 목록 상태,
 // O-06 대화·예약 삭제, 계획에 없음 6 내보내기.
-import { threads as baseThreads, T, type Thread } from "../_shell";
+import { josa, threads as baseThreads, T, type Thread } from "../_shell";
 import type { After, ChatItem } from "../_chat-rt";
 import type { CardKind, CardStatus } from "./parts/approval-card";
 import type { ExportFormat, ExportPhase } from "./parts/dialogs";
@@ -264,7 +264,10 @@ export function reduce(s: S, a: A): S {
           list: listBack,
           items: [
             ...s.items,
-            row(`이어갈 수 없어서 ${T.turn}을 닫았어요 · 재개 횟수 3/3 다 씀`, "warn"),
+            row(
+              `이어갈 수 없어서 ${josa(T.turn, "을", "를")} 닫았어요 · 재개 횟수 3/3 다 씀`,
+              "warn",
+            ),
           ],
         };
       return {
@@ -281,7 +284,10 @@ export function reduce(s: S, a: A): S {
         list: s.list.map((t) => (t.id === "t1" ? { ...t, status: "idle" } : t)),
         items: [
           ...s.items,
-          row(`멈춘 ${T.turn}을 그대로 뒀어요 · 목록에서 다시 이어갈 수 있어요`, "clock"),
+          row(
+            `멈춘 ${josa(T.turn, "을", "를")} 그대로 뒀어요 · 목록에서 다시 이어갈 수 있어요`,
+            "clock",
+          ),
         ],
       };
     case "menu":
@@ -330,7 +336,7 @@ export function reduce(s: S, a: A): S {
         menu: null,
         list: s.list.filter((t) => t.id !== a.id),
         toast: toast({
-          title: `‘${title(s, a.id)}’ ${T.thread}를 닫았어요`,
+          title: `‘${title(s, a.id)}’ ${josa(T.thread, "을", "를")} 닫았어요`,
           description: "닫힌 대화는 찾기에서 열 수 있어요",
           action: "되돌리기",
         }),
@@ -343,7 +349,7 @@ export function reduce(s: S, a: A): S {
         dialog: null,
         list: s.list.filter((t) => t.id !== a.id),
         open: s.open === a.id ? "t1" : s.open,
-        toast: toast({ title: `‘${title(s, a.id)}’ ${T.thread}를 지웠어요` }),
+        toast: toast({ title: `‘${title(s, a.id)}’ ${josa(T.thread, "을", "를")} 지웠어요` }),
       };
     case "deleteSchedule":
       return { ...s, menu: null, dialog: { k: "deleteSchedule" } };

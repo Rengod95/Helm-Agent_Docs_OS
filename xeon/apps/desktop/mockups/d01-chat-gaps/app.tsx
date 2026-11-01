@@ -11,6 +11,7 @@ import {
 } from "@caustic/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+  josa,
   CalendarClock,
   chatRightTabs,
   defaultStatusCells,
@@ -326,15 +327,15 @@ export function App({ state }: { state: StateId }) {
       />
     ) : s.resume === "restarting" ? (
       <Alert tone="neutral" size="sm" icon={<RotateCw />}>
-        앱을 다시 열었어요. {T.thread}를 다시 맞추는 중이에요…
+        앱을 다시 열었어요. {josa(T.thread, "을", "를")} 다시 맞추는 중이에요…
       </Alert>
     ) : undefined;
 
   const composerNote =
     s.resume === "restarting"
-      ? `${T.engine}이 다시 붙는 중이에요. 쓰던 글은 남아요.`
+      ? `${josa(T.engine, "이", "가")} 다시 붙는 중이에요. 쓰던 글은 남아요.`
       : s.resume === "offered"
-        ? `새로 보내면 멈춘 ${T.turn}은 그대로 두고 새 ${T.turn}을 시작해요.`
+        ? `새로 보내면 멈춘 ${josa(T.turn, "은", "는")} 그대로 두고 새 ${josa(T.turn, "을", "를")} 시작해요.`
         : undefined;
 
   const headMenu = (
