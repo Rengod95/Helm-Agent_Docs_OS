@@ -1424,7 +1424,7 @@ settings:
 - S2. `range.min > range.max`인 정의, `default`가 range 밖인 정의는 거부한다(D4, D5).
 - S3. `allowedScopes`에 `session`이 없는 키를 `session` 범위로 쓰면 `checkSettingWrite`가 `settings.scopeNotAllowed`를 돌려준다.
 - S4. `managed` 범위가 정한 키는 유효 값이 managed 값이고 `locked: true`다. 다른 범위의 쓰기는 `settings.locked`다.
-- S5. managed가 없을 때 같은 키를 user, project, local, session이 모두 정하면 유효 값은 session 값이고 `shadowed`는 local, project, user 순이다.
+- S5. managed가 없을 때 같은 키를 user, project, local, launch이 모두 정하면 유효 값은 session 값이고 `shadowed`는 local, project, user 순이다.
 - S6. 같은 `SettingDef`에 대해, 임의 값 v의 `validateSettingValue(def, v).ok`와 `settingsJsonSchema`가 낸 `properties[key]`로 v를 검사한 결과가 같다(속성 기반 테스트 포함). CLI 파서도 같은 결과를 낸다.
 - S7. `settingsJsonSchema({scope: "project"})`에는 `allowedScopes`에 `project`가 없는 키가 없다.
 - S8. 비밀 키의 `EffectiveSetting.value`는 `secret://` 문자열이거나 `null`이다. 참조가 아닌 값 쓰기는 `settings.secretValue`이고 오류 `details`에 그 값이 없다.

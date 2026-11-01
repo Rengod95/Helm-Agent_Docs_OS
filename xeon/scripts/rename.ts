@@ -503,6 +503,23 @@ export const CATEGORIES: readonly Category[] = [
     ],
   },
   {
+    id: "T6",
+    title: "프로세스 락 키 session:<threadId> → thread:<threadId>",
+    rules: [
+      {
+        pattern: /`session:\$\{(?=[A-Za-z0-9_.]*(?:[tT]hreadId|childId|ghost))/g,
+        replace: "`thread:${",
+        skip: NO_MOCKUPS,
+      },
+      {
+        pattern:
+          /(?<![A-Za-z0-9_])session:<(threadId|childId|child|id|childThreadId|parentThreadId)>/g,
+        replace: "thread:<$1>",
+        only: ["docs/xeon/", "xeon/packages/"],
+      },
+    ],
+  },
+  {
     id: "X",
     title: "측정 bench → benchmark (단어 경계, workbench·Workbench는 건드리지 않는다)",
     rules: [

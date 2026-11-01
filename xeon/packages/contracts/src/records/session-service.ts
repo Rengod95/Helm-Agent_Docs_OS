@@ -141,7 +141,7 @@ export interface ProjectionQuery {
 }
 
 // ── 쓰기 소유와 열기 (L1.persistence.spec §3.6) ───────────────────────────
-// 쓰기 소유 증표는 LeaseToken(resource = "session:<threadId>")이다(review.decisions-2 U-09).
+// 쓰기 소유 증표는 LeaseToken(resource = "thread:<threadId>")이다(review.decisions-2 U-09).
 // F.records.spec §3.9 표의 OwnershipGuard·OwnerInfo는 U-09로 대체되어 두지 않는다.
 
 export interface RecoveryMarker {
@@ -172,7 +172,7 @@ export type OpenError =
   | { readonly kind: "io"; readonly code: string }
   /** 읽은 행이 스키마와 다르다 */
   | { readonly kind: "row_invalid"; readonly where: string }
-  /** token.resource가 session:<threadId>가 아니거나 leases.holds가 거짓 */
+  /** token.resource가 thread:<threadId>가 아니거나 leases.holds가 거짓 */
   | { readonly kind: "guard_mismatch"; readonly threadId: ThreadId };
 
 // ── 재개 타입 (L1.persistence.spec §3.7) ──────────────────────────────────
@@ -255,7 +255,7 @@ export interface ThreadCreateInput {
   readonly workspace?: string;
   /** 전역 생성 멱등 키 1~200자. 같은 키의 두 번째 호출은 새 thread를 만들지 않는다 */
   readonly creationKey?: string;
-  /** 자식 thread 생성. 부모 thread의 토큰. 같은 holder로 session:<threadId> 임대를 얻는다 */
+  /** 자식 thread 생성. 부모 thread의 토큰. 같은 holder로 thread:<threadId> 임대를 얻는다 */
   readonly inheritOwnerFrom?: LeaseToken;
   /**
    * 부모 thread에 같은 커밋으로 넣는 초안(부모의 `agent.spawned` 등). `inheritOwnerFrom`이 있을 때만 쓴다.

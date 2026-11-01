@@ -1,10 +1,10 @@
 import type { Result } from "../base/index.ts";
 import type { SqlTx } from "./sql.ts";
 
-/** "session:<threadId>" | "scheduler" | "service" */
+/** "thread:<threadId>" | "scheduler" | "service" */
 export type LeaseResource = string;
 export const LEASE_RESOURCE_PATTERN: string =
-  "^(session:thr_[0-7][0-9A-HJKMNP-TV-Z]{25}|scheduler|service)$";
+  "^(thread:thr_[0-7][0-9A-HJKMNP-TV-Z]{25}|scheduler|service)$";
 
 export type LeaseKind = "cli" | "app" | "service";
 
