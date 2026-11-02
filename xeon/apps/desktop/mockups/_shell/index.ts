@@ -44,6 +44,7 @@ export {
   type LineGridRow,
   type LineGridSelection,
 } from "./line-grid";
+export { currentFolder, navigateToPage, pageHref, postRoute } from "./routes";
 export * from "./fixtures";
 export * from "./workbench-fixtures";
 export { T, josa, type TermKey } from "./terms";
