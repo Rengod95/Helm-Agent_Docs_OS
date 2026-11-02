@@ -3,26 +3,28 @@
 @import "../_shell/shell.css";
 @source "./";
 
-/* WebGL을 못 쓸 때의 배경: 점 종이와 코어의 옅은 빛. 이동에 0.3배로 따라온다. */
+/* WebGL을 못 쓸 때의 배경: 큰 원 두 개의 가장자리 빛만 CSS로 */
 .wb5-paper {
   background-color: var(--cs-color-surface-base);
   background-image:
     radial-gradient(
-      circle at calc(var(--tx, 0px) + var(--k, 1) * 500px)
-        calc(var(--ty, 0px) + var(--k, 1) * 500px),
-      color-mix(in oklab, var(--cs-color-info-graphic) 9%, transparent),
-      transparent 46%
+      circle at 18% 6%,
+      transparent 52%,
+      color-mix(in oklab, var(--cs-color-info-graphic) 14%, transparent) 61%,
+      transparent 62%
     ),
-    radial-gradient(var(--cs-color-border-default) 0.8px, transparent 0.9px);
-  background-size:
-    auto,
-    22px 22px;
-  background-position:
-    0 0,
-    calc(var(--tx, 0px) * 0.3) calc(var(--ty, 0px) * 0.3);
+    radial-gradient(
+      circle at 96% 78%,
+      transparent 58%,
+      color-mix(in oklab, var(--cs-color-agent-graphic) 14%, transparent) 70%,
+      transparent 71%
+    );
 }
-.wb5-stage {
-  background-color: var(--cs-color-surface-base);
+
+/* 용수철: --wb5-spring은 spring.ts가 linear()로 채운다. 없으면 살짝 넘치는 곡선 */
+:root {
+  --wb5-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
+  --wb5-spring-t: 560ms;
 }
 
 /* 세계 좌표 → 화면: 이동·배율은 CSS 변수 하나(--tx --ty --k)가 쥔다 */
@@ -31,34 +33,250 @@
   transform-origin: 0 0;
 }
 
-/* 코어: 겹친 원반(안쪽 하이라이트, 아래 그늘, 바깥 빛) */
-.wb5-core {
-  background:
-    radial-gradient(
-      circle at 32% 22%,
-      color-mix(in oklab, var(--cs-color-text-primary) 55%, white) 0%,
-      transparent 55%
-    ),
-    linear-gradient(
-      160deg,
-      var(--cs-color-text-primary),
-      color-mix(in oklab, var(--cs-color-text-primary) 80%, var(--cs-color-info-graphic))
-    );
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.28),
-    inset 0 -12px 20px rgb(0 0 0 / 0.22),
-    0 0 0 1px color-mix(in oklab, var(--cs-color-text-primary) 70%, transparent),
-    0 0 26px color-mix(in oklab, var(--cs-color-info-graphic) 38%, transparent),
-    0 8px 22px rgb(0 0 0 / 0.16);
-  transition: box-shadow 0.25s;
+@property --wb5-a {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 135deg;
 }
-.wb5-core-on {
+@property --wb5-l {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 20deg;
+}
+@property --spot {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --edge {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0.5;
+}
+
+/* 행성(코어): 검정에서 하양으로 번지는 면, 빛이 닿는 가장자리(림 라이트)가 천천히 돈다 */
+.wb5-planet {
+  position: absolute;
+  background:
+    radial-gradient(circle at 34% 28%, rgb(255 255 255 / 0.42), transparent 46%),
+    linear-gradient(var(--wb5-a), #fff 0%, #d9dde4 28%, #6b717c 60%, #0a0b0e 100%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.28),
-    inset 0 -12px 20px rgb(0 0 0 / 0.22),
+    inset -9px -12px 24px rgb(0 0 0 / 0.38),
+    inset 0 0 0 1px rgb(255 255 255 / 0.22),
+    0 0 0 1px color-mix(in oklab, var(--cs-color-text-primary) 14%, transparent),
+    0 10px 30px -8px rgb(0 0 0 / 0.35),
+    0 0 38px color-mix(in oklab, var(--cs-color-info-graphic) 34%, transparent);
+  animation: wb5-planet-sway 34s ease-in-out infinite alternate;
+  transition:
+    box-shadow 0.3s,
+    transform var(--wb5-spring-t) var(--wb5-spring);
+}
+.wb5-planet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--wb5-l),
+    rgb(255 255 255 / 0) 0deg,
+    rgb(255 255 255 / 0.95) 46deg,
+    rgb(255 255 255 / 0) 128deg 360deg
+  );
+  -webkit-mask: radial-gradient(circle, transparent 60%, #000 97%, transparent 100%);
+  mask: radial-gradient(circle, transparent 60%, #000 97%, transparent 100%);
+  opacity: 0.8;
+  filter: blur(0.4px);
+  animation: wb5-limb 52s linear infinite;
+}
+.wb5-planet:hover {
+  transform: scale(1.04);
+}
+.wb5-planet-on {
+  box-shadow:
+    inset -9px -12px 24px rgb(0 0 0 / 0.38),
+    inset 0 0 0 1px rgb(255 255 255 / 0.22),
     0 0 0 4px var(--cs-color-surface-base),
     0 0 0 5.5px var(--cs-color-text-primary),
-    0 0 30px color-mix(in oklab, var(--cs-color-info-graphic) 45%, transparent);
+    0 0 44px color-mix(in oklab, var(--cs-color-info-graphic) 42%, transparent);
+}
+/* 행성 바깥의 부드러운 빛: 아주 천천히 숨 쉰다 */
+.wb5-planet-glow {
+  inset: -34px;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--cs-color-info-graphic) 30%, transparent) 30%,
+    color-mix(in oklab, var(--cs-color-agent-graphic) 12%, transparent) 52%,
+    transparent 70%
+  );
+  filter: blur(14px);
+  animation: wb5-breathe 11s ease-in-out infinite;
+}
+@keyframes wb5-planet-sway {
+  from {
+    --wb5-a: 118deg;
+  }
+  to {
+    --wb5-a: 162deg;
+  }
+}
+@keyframes wb5-limb {
+  to {
+    --wb5-l: 380deg;
+  }
+}
+@keyframes wb5-breathe {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+/* 이름표: 불투명한 면 + 가장자리에서 번지는 빛. 점이 비쳐 글자를 가리지 않는다. */
+.wb5-label {
+  --tint: var(--cs-color-text-primary);
+  --fill: var(--cs-color-surface-raised);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--cs-color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  background:
+    radial-gradient(
+        72px circle at var(--mx, 50%) var(--my, 0%),
+        color-mix(in oklab, var(--tint) calc(var(--spot) * 16%), transparent),
+        transparent 72%
+      )
+      padding-box,
+    linear-gradient(var(--fill), var(--fill)) padding-box,
+    linear-gradient(
+        158deg,
+        color-mix(in oklab, var(--tint) calc(var(--edge) * 100%), transparent),
+        color-mix(in oklab, var(--tint) calc(var(--edge) * 26%), transparent) 58%
+      )
+      border-box;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 5px 12px -7px color-mix(in oklab, var(--tint) 55%, transparent);
+  transition:
+    --spot 0.14s,
+    --edge 0.14s,
+    box-shadow 0.2s,
+    transform var(--wb5-spring-t) var(--wb5-spring),
+    background-color 0.15s;
+}
+.wb5-label-sm {
+  height: 24px;
+  padding: 0 10px;
+  font-size: 12px;
+  --edge: 0.3;
+}
+.wb5-label:hover {
+  --spot: 1;
+  --edge: 0.72;
+  transform: translateY(-1px) scale(1.035);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.55),
+    0 9px 18px -8px color-mix(in oklab, var(--tint) 62%, transparent);
+}
+.wb5-label:focus-visible {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    var(--cs-focus);
+}
+.wb5-label[data-group] {
+  --tint: var(--cs-color-info-graphic);
+  --fill: color-mix(in oklab, var(--cs-color-surface-raised) 90%, var(--cs-color-info-graphic));
+}
+.wb5-label-group {
+  font-weight: 600;
+  --edge: 0.62;
+}
+.wb5-label[data-lit] {
+  --edge: 0.7;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    0 0 0 3px color-mix(in oklab, var(--tint) 16%, transparent),
+    0 8px 16px -8px color-mix(in oklab, var(--tint) 60%, transparent);
+}
+.wb5-label[data-off] {
+  --edge: 0.18;
+  color: var(--cs-color-text-tertiary);
+  box-shadow: none;
+}
+.wb5-label[data-fail] {
+  --tint: var(--cs-color-danger-graphic);
+  --fill: color-mix(in oklab, var(--cs-color-surface-raised) 93%, var(--cs-color-danger-graphic));
+  --edge: 0.62;
+  animation:
+    wb5-nudge var(--wb5-spring-t) var(--wb5-spring) 900ms both,
+    wb5-warm 5.5s ease-in-out 1.6s infinite alternate;
+}
+/* 고른 것: 면이 잉크색으로 앉고 윗변에 가는 빛이 남는다 */
+.wb5-label[data-picked] {
+  color: var(--cs-color-surface-base);
+  --fill: color-mix(in oklab, var(--cs-color-text-primary) 92%, white);
+  --edge: 1;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.3),
+    0 10px 22px -10px color-mix(in oklab, var(--cs-color-text-primary) 70%, transparent);
+}
+.wb5-label[data-picked][data-group] {
+  --fill: color-mix(in oklab, var(--cs-color-info-graphic) 82%, black);
+  color: #fff;
+}
+.wb5-label[data-picked][data-fail] {
+  --fill: color-mix(in oklab, var(--cs-color-danger-graphic) 82%, black);
+  color: #fff;
+}
+.wb5-label-tag {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.6;
+}
+@keyframes wb5-nudge {
+  from {
+    transform: translateX(-5px) scale(0.96);
+  }
+}
+@keyframes wb5-warm {
+  to {
+    --edge: 0.88;
+  }
+}
+/* 점 위에 올리면 표식이 위로 조금 뜬다 */
+.wb5-dot > svg {
+  transition: transform var(--wb5-spring-t) var(--wb5-spring);
+}
+.wb5-dot[data-hot] > svg {
+  transform: translateY(-1px) scale(1.12);
+}
+.wb5-pop {
+  transform-origin: 0 0;
+  animation: wb5-pop var(--wb5-spring-t) var(--wb5-spring) both;
+}
+@keyframes wb5-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
 }
 
 @keyframes wb5-settle {
@@ -91,20 +309,8 @@
     transform: rotate(360deg);
   }
 }
-@keyframes wb5-ping {
-  0% {
-    opacity: 0.55;
-    transform: translate(-50%, -50%) scale(0.8);
-  }
-  80%,
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(2);
-  }
-}
-
 .wb5-settle {
-  animation: wb5-settle 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: wb5-settle 900ms var(--wb5-spring) both;
 }
 .wb5-ring {
   transform-origin: 500px 500px;
@@ -129,15 +335,6 @@
   animation-duration: 520s;
   animation-direction: reverse;
 }
-/* 한 턴이 코어를 도는 빛 */
-.wb5-comet {
-  animation: wb5-spin 9s linear infinite;
-}
-/* 실패한 점의 조용한 맥박 */
-.wb5-alert {
-  border: 1.5px solid var(--cs-color-danger-graphic);
-  animation: wb5-ping 2.6s ease-out infinite;
-}
 
 /* 층 패널 이음선: 앞에서 뒤로 천천히 흐른다 */
 @keyframes wb5-flow {
@@ -157,15 +354,23 @@
   .wb5-draw,
   .wb5-fade,
   .wb5-drift,
-  .wb5-comet {
+  .wb5-planet,
+  .wb5-planet::after,
+  .wb5-planet-glow,
+  .wb5-label[data-fail] {
     animation: none;
+  }
+  .wb5-label,
+  .wb5-dot > svg,
+  .wb5-planet {
+    transition-duration: 0.01ms;
+  }
+  .wb5-label:hover,
+  .wb5-dot[data-hot] > svg,
+  .wb5-planet:hover {
+    transform: none;
   }
   .wb5-sweep {
     stroke-dashoffset: 0;
-  }
-  .wb5-alert {
-    animation: none;
-    opacity: 0.4;
-    transform: translate(-50%, -50%) scale(1.3);
   }
 }

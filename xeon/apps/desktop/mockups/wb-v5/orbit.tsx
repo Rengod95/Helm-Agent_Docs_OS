@@ -6,18 +6,17 @@ import {
   FloatingBarItem,
   FloatingBarSeparator,
   Tooltip,
-  Chip,
   ZoomControl,
 } from "@caustic/react";
 import {
-  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { Maximize } from "../_shell";
@@ -34,10 +33,18 @@ import {
   type LayerKey,
   type Plugin,
 } from "./data";
-import { Field, type LitPoint } from "./field";
 import { GRP, Mark, SHAPE_OF } from "./marks";
 import { litOf, shadowedBy, useMock } from "./store";
-import { CENTER, OUTER, panGuard, setVars, useViewport, vtName, type Insets } from "./viewport";
+import {
+  CENTER,
+  OUTER,
+  panGuard,
+  setVars,
+  useViewport,
+  vtName,
+  type Insets,
+  type View,
+} from "./viewport";
 
 export type { Insets };
 
@@ -45,8 +52,8 @@ const FRAC = [0.28, 0.5, 0.71, 0.89] as const;
 const RING_LAYER: readonly LayerKey[] = ["L1", "L2", "L3", "plugin"];
 /** 그룹 이름표가 앉는 호의 끝. 구성원 이름표와 겹치지 않는 쪽으로 골랐다. */
 const GROUP_END: Record<string, "from" | "to"> = { helm: "from", learning: "to", review: "from" };
-/** 코어 지름(화면 px, 배율 1) */
-const CORE = 88;
+/** 행성(코어) 지름(화면 px, 배율 1) */
+const CORE = 92;
 
 const rad = (deg: number): number => (deg * Math.PI) / 180;
 const pt = (deg: number, f: number): { x: number; y: number } => ({
@@ -108,20 +115,29 @@ function Pin({
   );
 }
 
+/** 이름표 안쪽의 빛이 포인터를 따라온다(CSS 변수 둘). 렌더를 거치지 않는다. */
+function spot(e: ReactPointerEvent<HTMLElement>): void {
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+  el.style.setProperty("--my", `${e.clientY - r.top}px`);
+}
+
 export function Orbit({
   insets,
   zoomSlot,
+  view,
 }: {
   insets: Insets;
   /** 확대·축소 막대가 앉을 자리(캔버스가 둔다) */
   zoomSlot: HTMLElement | null;
+  /** 지도의 이동·배율. 배경이 같이 읽는다(캔버스가 쥔다) */
+  view: RefObject<View>;
 }) {
   const m = useMock();
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [hover, setHover] = useState<LayerKey | null>(null);
-  const [glOk, setGlOk] = useState(true);
-  const noGl = useCallback(() => setGlOk(false), []);
   useEffect(() => {
     const el = box.current;
     if (el === null) return undefined;
@@ -131,7 +147,7 @@ export function Orbit({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const vp = useViewport(box, size, insets);
+  const vp = useViewport(box, size, insets, view);
   const lit = litOf(m.sel, m.plugins, m.order);
   const at = (id: string): { x: number; y: number } | undefined => {
     const p = m.plugins.find((q) => q.id === id);
@@ -227,19 +243,6 @@ export function Orbit({
       });
   }
 
-  // 배경 셰이더가 밝힐 점: 고른 것에 들어 있는 플러그인
-  const litPoints = useMemo<LitPoint[]>(() => {
-    const out: LitPoint[] = [];
-    for (const id of lit.plugins) {
-      const p = m.plugins.find((q) => q.id === id);
-      if (p === undefined) continue;
-      const pos = pt(ANGLE[p.id] ?? 0, FRAC[RING[p.layer]] ?? FRAC[3]);
-      out.push({ x: pos.x, y: pos.y, s: lit.primary === id ? 1.2 : 0.7 });
-    }
-    return out;
-  }, [lit.plugins, lit.primary, m.plugins]);
-  const coreInfo = useMemo(() => ({ x: CENTER, y: CENTER, r: OUTER * 0.9 }), []);
-
   const onBackground = (e: { target: EventTarget; currentTarget: EventTarget }): void => {
     if (panGuard.current) return;
     if (
@@ -257,11 +260,10 @@ export function Orbit({
       ref={box}
       role="presentation"
       onClick={onBackground}
-      className={`wb5-stage absolute inset-0 touch-none overflow-hidden ${vp.panning ? "cursor-grabbing" : "cursor-grab"} ${glOk ? "" : "wb5-paper"}`}
+      className={`absolute inset-0 touch-none overflow-hidden ${vp.panning ? "cursor-grabbing" : "cursor-grab"}`}
       style={{ opacity: size.w === 0 ? 0 : 1 }}
       data-stage
     >
-      {glOk && <Field view={vp.view} core={coreInfo} lit={litPoints} onUnavailable={noGl} />}
       <svg className="absolute inset-0 size-full text-text-primary" onClick={onBackground}>
         <defs>
           <linearGradient
@@ -275,10 +277,6 @@ export function Orbit({
             <stop offset="0" stopColor="currentColor" stopOpacity="0.46" />
             <stop offset="1" stopColor="currentColor" stopOpacity="0.1" />
           </linearGradient>
-          <radialGradient id="wb5-halo" gradientUnits="userSpaceOnUse" cx="500" cy="500" r="190">
-            <stop offset="0" style={{ stopColor: GRP.graphic }} stopOpacity="0.2" />
-            <stop offset="1" style={{ stopColor: GRP.graphic }} stopOpacity="0" />
-          </radialGradient>
           {GROUPS.map((gr) => {
             const span = groupSpan(gr.id);
             if (span === null) return null;
@@ -319,7 +317,6 @@ export function Orbit({
           )}
         </defs>
         <g className="wb5-world">
-          <circle cx={CENTER} cy={CENTER} r={190} fill="url(#wb5-halo)" />
           {FRAC.map((f, i) => {
             const layer = RING_LAYER[i] ?? "plugin";
             const open = m.ring === layer;
@@ -469,17 +466,19 @@ export function Orbit({
           return (
             <Pin key={layer} x={p.x} y={p.y}>
               <div className="pointer-events-auto -translate-x-1/2 -translate-y-1/2">
-                <Chip
-                  size="sm"
-                  variant={open ? "solid" : "surface"}
+                <button
+                  type="button"
+                  className="wb5-label wb5-label-sm"
+                  data-picked={open ? "" : undefined}
                   data-box={`ring-${layer}`}
                   aria-label={`${ringName(layer)} 층 보기`}
                   onClick={() => m.openRing(layer)}
                   onPointerEnter={() => setHover(layer)}
                   onPointerLeave={() => setHover((h) => (h === layer ? null : h))}
+                  onPointerMove={spot}
                 >
                   {ringName(layer)}
-                </Chip>
+                </button>
               </div>
             </Pin>
           );
@@ -488,64 +487,31 @@ export function Orbit({
         <Pin x={CENTER} y={CENTER}>
           <div
             className="pointer-events-none relative -translate-x-1/2 -translate-y-1/2"
-            style={{ width: 140, height: 140 }}
+            style={{ width: CORE, height: CORE }}
           >
-            <svg
-              viewBox="-70 -70 140 140"
-              className="absolute inset-0 overflow-visible"
-              aria-hidden
-            >
-              <circle
-                r={60}
-                fill="none"
-                stroke="currentColor"
-                strokeOpacity={0.14}
-                strokeWidth={1}
-                className="text-text-primary"
-              />
-              <circle
-                r={66}
-                fill="none"
-                stroke="currentColor"
-                strokeOpacity={0.08}
-                strokeWidth={1}
-                className="text-text-primary"
-              />
-              <g className="wb5-comet">
-                {[0, 1, 2, 3, 4, 5].map((j) => {
-                  const a0 = -j * 11;
-                  const a1 = a0 - 11;
-                  const p0 = { x: 60 * Math.sin(rad(a0)), y: -60 * Math.cos(rad(a0)) };
-                  const p1 = { x: 60 * Math.sin(rad(a1)), y: -60 * Math.cos(rad(a1)) };
-                  return (
-                    <path
-                      key={j}
-                      d={`M ${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A 60 60 0 0 0 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`}
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeWidth={1.6}
-                      strokeOpacity={0.7 - j * 0.12}
-                      style={{ stroke: GRP.graphic }}
-                    />
-                  );
-                })}
-                <circle cx={0} cy={-60} r={2.6} style={{ fill: GRP.graphic }} />
-              </g>
-            </svg>
+            <span aria-hidden className="wb5-planet-glow absolute rounded-full" />
             <button
               type="button"
               data-box="core"
               onClick={() => m.select({ k: "agent" })}
               aria-label={`${T.baseAgent} 보기`}
               aria-pressed={coreSel}
-              className={`wb5-core pointer-events-auto absolute grid cursor-pointer place-items-center rounded-full border-0 text-center text-surface-base outline-none focus-visible:shadow-focus ${coreSel ? "wb5-core-on" : ""}`}
-              style={{ width: CORE, height: CORE, left: (140 - CORE) / 2, top: (140 - CORE) / 2 }}
-            >
-              <span className="grid gap-px leading-tight">
-                <span className="whitespace-nowrap text-ui-sm font-medium">{T.baseAgent}</span>
+              className={`wb5-planet pointer-events-auto absolute inset-0 cursor-pointer rounded-full border-0 p-0 outline-none focus-visible:shadow-focus ${coreSel ? "wb5-planet-on" : ""}`}
+            />
+            <div className="pointer-events-auto absolute left-1/2 top-full -mt-3 -translate-x-1/2">
+              <button
+                type="button"
+                className="wb5-label wb5-label-sm"
+                data-picked={coreSel ? "" : undefined}
+                onClick={() => m.select({ k: "agent" })}
+                onPointerMove={spot}
+                tabIndex={-1}
+                aria-hidden
+              >
+                {T.baseAgent}
                 <span className="font-mono text-[10px] opacity-60">core.loop</span>
-              </span>
-            </button>
+              </button>
+            </div>
           </div>
         </Pin>
 
@@ -565,18 +531,20 @@ export function Orbit({
                 className="pointer-events-auto -translate-x-1/2 -translate-y-1/2"
                 style={{ opacity: dim || faded ? 0.4 : 1, transition: "opacity .25s" }}
               >
-                <Chip
-                  size="md"
-                  tone={pickedG ? "neutral" : "info"}
-                  variant="solid"
-                  shadow={inGroup ? "2" : undefined}
+                <button
+                  type="button"
+                  className="wb5-label wb5-label-group"
+                  data-group=""
+                  data-picked={pickedG ? "" : undefined}
+                  data-lit={inGroup ? "" : undefined}
                   data-box={`group-${gr.name}`}
                   aria-pressed={pickedG}
                   aria-label={`${gr.name} ${T.group}`}
                   onClick={() => m.select({ k: "group", id: gr.id })}
+                  onPointerMove={spot}
                 >
                   {gr.name}
-                </Chip>
+                </button>
               </div>
             </Pin>
           );
@@ -603,7 +571,7 @@ export function Orbit({
 
       {zoomSlot !== null &&
         createPortal(
-          <FloatingBar label="확대와 이동" size="sm" radius="lg" className="pointer-events-auto">
+          <FloatingBar label="확대와 이동" size="sm" className="pointer-events-auto">
             <ZoomControl
               variant="ghost"
               size="sm"
@@ -644,6 +612,7 @@ function Node({
   dim: boolean;
 }) {
   const m = useMock();
+  const [hot, setHot] = useState(false);
   const on = m.isOn(p.id);
   const h = m.health(p.id);
   const failing = h !== undefined;
@@ -659,26 +628,12 @@ function Node({
     }
   };
   const strong = picked || primary;
-  const variant = strong
-    ? "solid"
-    : failing
-      ? "outline"
-      : !on
-        ? "dashed"
-        : isGroup
-          ? "soft"
-          : "surface";
-  const chipTone = strong ? "neutral" : failing ? "danger" : isGroup ? "info" : "neutral";
   const gname = p.group === undefined ? undefined : groupById(p.group)?.name;
   const tip = `${p.layer === "plugin" ? LAYER_NAME[p.layer] : `${p.layer} ${LAYER_NAME[p.layer]}`}${gname === undefined ? "" : ` · ${gname} ${T.group}`} · ${p.role}`;
   const dx = (CENTER - x) * 0.34;
   const dy = (CENTER - y) * 0.34;
   return (
-    <Pin
-      x={x}
-      y={y}
-      style={{ opacity: dim ? 0.32 : shadow ? 0.55 : 1, transition: "opacity .25s" }}
-    >
+    <Pin x={x} y={y} style={{ opacity: dim ? 0.32 : shadow ? 0.6 : 1, transition: "opacity .25s" }}>
       <div
         className="wb5-settle"
         ref={setVars({
@@ -686,20 +641,17 @@ function Node({
           "--dy": `calc(var(--k) * ${dy.toFixed(1)}px)`,
         })}
         style={{ animationDelay: `${160 + index * 34}ms` }}
+        onPointerEnter={() => setHot(true)}
+        onPointerLeave={() => setHot(false)}
       >
-        {failing && (
-          <span
-            aria-hidden
-            className="wb5-alert absolute left-0 top-0 size-7 -translate-x-1/2 -translate-y-1/2 rounded-full"
-          />
-        )}
         <button
           type="button"
           data-dot={p.id}
           aria-label={`${p.name} 점`}
           tabIndex={-1}
           onClick={pick}
-          className="pointer-events-auto absolute grid size-8 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0"
+          className="wb5-dot pointer-events-auto absolute grid size-8 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0"
+          data-hot={hot ? "" : undefined}
         >
           <Mark
             shape={SHAPE_OF[p.layer]}
@@ -709,6 +661,7 @@ function Node({
             failing={failing}
             autoOff={h?.autoOff === true}
             picked={strong}
+            hot={hot}
             shadowed={shadow}
           />
         </button>
@@ -717,20 +670,23 @@ function Node({
           style={{ ...(right ? { left: 19 } : { right: 19 }), viewTransitionName: vtName(p.id) }}
         >
           <Tooltip content={tip} side={right ? "right" : "left"} delayDuration={500}>
-            <Chip
-              size="md"
-              variant={variant}
-              tone={chipTone}
-              shadow={lit && !strong ? "2" : undefined}
-              count={lead ? T.lead : undefined}
+            <button
+              type="button"
+              className={`wb5-label ${shadow ? "line-through" : ""}`}
               data-box={`node-${p.id}`}
+              data-group={isGroup ? "" : undefined}
+              data-picked={strong ? "" : undefined}
+              data-lit={lit && !strong ? "" : undefined}
+              data-off={!on && !failing ? "" : undefined}
+              data-fail={failing ? "" : undefined}
               aria-pressed={picked}
               onClick={pick}
               onKeyDown={onKey}
-              className={shadow ? "line-through" : undefined}
+              onPointerMove={spot}
             >
               {p.name}
-            </Chip>
+              {lead && <span className="wb5-label-tag">{T.lead}</span>}
+            </button>
           </Tooltip>
         </div>
       </div>

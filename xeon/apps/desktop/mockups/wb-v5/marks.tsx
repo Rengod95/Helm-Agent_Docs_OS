@@ -1,5 +1,7 @@
 // 점의 모양과 색. 층은 모양으로(L1 네모, L2 동그라미, L3 마름모, 외부 세모), 그룹은 색 하나(남보라)로 가른다.
-// 상태는 모양과 무관하게 읽히도록 같은 방식으로 얹는다: 꺼짐 = 속이 빔, 실패 = 붉은 채움 + 붉은 테두리 고리, 고름 = 바깥 검은 고리.
+// 깊이는 면 하나에서 나온다: 위에서 아래로 번지는 색, 위쪽 가장자리의 가는 빛, 아래로 깔리는 그림자.
+// 상태는 모양과 무관하게 같은 방식이다: 꺼짐 = 속이 빔, 실패 = 붉은 색(고리 없음), 고름 = 바깥 검은 선이 용수철로 앉는다.
+import { useId } from "react";
 import type { LayerKey } from "./data";
 
 export type Shape = "square" | "circle" | "diamond" | "triangle";
@@ -32,32 +34,37 @@ export interface MarkProps {
   failing?: boolean;
   autoOff?: boolean;
   picked?: boolean;
+  /** 마우스를 올렸나: 면이 조금 밝아진다 */
+  hot?: boolean;
   /** 대체돼 가려진 것: 점선 */
   shadowed?: boolean;
-  /** 어두운 바탕(고른 칩) 위에 놓을 때 */
-  inverse?: boolean;
   className?: string;
 }
+
+const lighten = (c: string, pct: number): string =>
+  `color-mix(in oklab, ${c} ${100 - pct}%, white)`;
 
 function Body({
   shape,
   fill,
   stroke,
   dash,
+  sw = 1.2,
 }: {
   shape: Shape;
   fill: string;
   stroke: string;
   dash?: string | undefined;
+  sw?: number;
 }) {
   const common = {
     fill,
     stroke,
-    strokeWidth: 1.7,
+    strokeWidth: sw,
     strokeLinejoin: "round" as const,
     strokeDasharray: dash,
   };
-  if (shape === "square") return <rect x={-6} y={-6} width={12} height={12} rx={2} {...common} />;
+  if (shape === "square") return <rect x={-6} y={-6} width={12} height={12} rx={2.6} {...common} />;
   if (shape === "circle") return <circle r={6.8} {...common} />;
   if (shape === "diamond") return <path d="M0 -8.6 L8.6 0 L0 8.6 L-8.6 0 Z" {...common} />;
   return <path d="M0 -8.8 L8.6 5.6 L-8.6 5.6 Z" transform="translate(0 0.9)" {...common} />;
@@ -71,27 +78,80 @@ export function Mark({
   failing = false,
   autoOff = false,
   picked = false,
+  hot = false,
   shadowed = false,
-  inverse = false,
   className,
 }: MarkProps) {
-  const hue = failing ? DANGER : inverse ? BASE : group ? GRP.mark : INK;
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const hue = failing ? DANGER : group ? GRP.graphic : INK;
   const hollow = !on || autoOff;
-  const fill = hollow ? (inverse ? "transparent" : BASE) : hue;
-  const stroke = failing ? DANGER : hollow ? (inverse ? BASE : group ? GRP.mark : MUTE) : hue;
+  const rim = failing ? DANGER : hollow ? (group ? GRP.mark : MUTE) : hue;
+  const gid = `mk${uid}`;
+  const lit = hot ? 14 : 0;
   return (
-    <svg width={size} height={size} viewBox="-14 -14 28 28" aria-hidden className={className}>
-      {picked && <circle r={12.6} fill="none" stroke={INK} strokeWidth={1.6} />}
-      {failing && !picked && (
-        <circle
-          r={11.4}
-          fill="none"
-          stroke={DANGER}
-          strokeWidth={1.3}
-          strokeDasharray={autoOff ? "2.6 2.2" : undefined}
-        />
+    <svg
+      width={size}
+      height={size}
+      viewBox="-14 -14 28 28"
+      aria-hidden
+      className={className}
+      style={{
+        overflow: "visible",
+        filter: hollow
+          ? "drop-shadow(0 1px 1.5px color-mix(in oklab, var(--cs-color-text-primary) 16%, transparent))"
+          : `drop-shadow(0 1.6px 2.2px color-mix(in oklab, ${hue} 38%, transparent))`,
+      }}
+    >
+      <defs>
+        <linearGradient id={`${gid}f`} x1="0" y1="-1" x2="0" y2="1">
+          <stop offset="0" style={{ stopColor: lighten(hue, 38 + lit) }} />
+          <stop offset="1" style={{ stopColor: hue }} />
+        </linearGradient>
+        <linearGradient id={`${gid}h`} x1="0" y1="-1" x2="0" y2="0.55">
+          <stop offset="0" stopColor="#fff" stopOpacity={failing || group ? 0.5 : 0.36} />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={`${gid}e`} x1="0" y1="-1" x2="0" y2="1">
+          <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {picked && (
+        <g className="wb5-pop">
+          <circle r={12.8} fill="none" stroke={INK} strokeOpacity={0.9} strokeWidth={1.4} />
+          <circle
+            r={12.8}
+            fill="none"
+            stroke={failing ? DANGER : group ? GRP.graphic : INK}
+            strokeOpacity={0.18}
+            strokeWidth={5}
+          />
+        </g>
       )}
-      <Body shape={shape} fill={fill} stroke={stroke} dash={shadowed ? "2.4 2" : undefined} />
+      {hollow ? (
+        <>
+          <Body
+            shape={shape}
+            fill={BASE}
+            stroke={rim}
+            sw={1.5}
+            dash={shadowed || autoOff ? "2.4 2" : undefined}
+          />
+          <Body shape={shape} fill={`url(#${gid}h)`} stroke="none" sw={0} />
+        </>
+      ) : (
+        <>
+          <Body
+            shape={shape}
+            fill={`url(#${gid}f)`}
+            stroke={rim}
+            sw={0.9}
+            dash={shadowed ? "2.4 2" : undefined}
+          />
+          <Body shape={shape} fill={`url(#${gid}h)`} stroke="none" sw={0} />
+          <Body shape={shape} fill="none" stroke={`url(#${gid}e)`} sw={0.9} />
+        </>
+      )}
     </svg>
   );
 }

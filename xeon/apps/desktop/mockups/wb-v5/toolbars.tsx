@@ -1,4 +1,4 @@
-// 캔버스 위에 뜨는 한 줄: 왼쪽에 보기 전환과 거르기, 오른쪽에 하는 일. 찾기는 이 줄이 아니라 캔버스 왼쪽 아래(확대 막대 옆)에 따로 앉는다.
+// 캔버스 위에 뜨는 한 줄: 왼쪽에 보기 전환과 필터, 오른쪽에 하는 일. 찾기는 이 줄이 아니라 캔버스 왼쪽 아래(확대 막대 옆)에 따로 앉는다.
 import {
   Badge,
   Button,
@@ -56,7 +56,6 @@ function AddMenu() {
   return (
     <Menu
       size="sm"
-      radius="lg"
       trigger={
         <Button size="sm" variant="ghost" iconStart={<Plus />}>
           {T.plugin} 추가
@@ -91,15 +90,10 @@ export function CanvasBar() {
   const pool = m.plugins.filter((p) => matchesKind(p, f.kind));
   return (
     <div className="pointer-events-none absolute left-3 right-14 top-3 z-20 flex items-start justify-between gap-3">
-      <FloatingBar
-        label="보기와 거르기"
-        size="md"
-        radius="lg"
-        className="pointer-events-auto min-w-0"
-      >
+      <FloatingBar label="보기와 필터" size="md" className="pointer-events-auto min-w-0">
         <SegmentedControl
           size="sm"
-          radius="md"
+          radius="lg"
           aria-label="보기 방식"
           value={m.view === "strata" ? "strata" : "orbit"}
           onValueChange={(v) => {
@@ -116,7 +110,7 @@ export function CanvasBar() {
         <FloatingBarSeparator />
         <SegmentedControl
           size="sm"
-          radius="md"
+          radius="lg"
           variant="soft"
           aria-label="종류"
           value={f.kind}
@@ -133,7 +127,7 @@ export function CanvasBar() {
         <FloatingBarSeparator />
         <Popover
           size="sm"
-          radius="lg"
+          radius="2xl"
           arrow={false}
           side="bottom"
           align="start"
@@ -143,11 +137,11 @@ export function CanvasBar() {
               variant={f.contrib.length > 0 ? "soft" : "ghost"}
               iconStart={<Filter />}
             >
-              넣어 주는 것{f.contrib.length > 0 && <Badge size="xs">{f.contrib.length}</Badge>}
+              구성 요소{f.contrib.length > 0 && <Badge size="xs">{f.contrib.length}</Badge>}
             </Button>
           }
         >
-          <div role="group" aria-label="넣어 주는 것" className="flex max-w-72 flex-wrap gap-1.5">
+          <div role="group" aria-label="구성 요소" className="flex max-w-72 flex-wrap gap-1.5">
             {CONTRIB_ORDER.map((c) => {
               const on = f.contrib.includes(c);
               const empty = !pool.some((p) => hasContrib(p, c));
@@ -173,7 +167,7 @@ export function CanvasBar() {
           </Button>
         )}
       </FloatingBar>
-      <FloatingBar label="플러그인" size="md" radius="lg" className="pointer-events-auto flex-none">
+      <FloatingBar label="플러그인" size="md" className="pointer-events-auto flex-none">
         <AddMenu />
         <Button
           size="sm"

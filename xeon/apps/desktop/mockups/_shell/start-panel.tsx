@@ -541,7 +541,7 @@ export function StartPanel({
           <div className="flex min-w-0 items-center gap-1">
             <Input
               size="xs"
-              variant="soft"
+              variant="outline"
               readOnly
               prefix={<Search />}
               placeholder={L("찾기")}
@@ -554,7 +554,7 @@ export function StartPanel({
                   m.setPaletteOpen(true);
                 }
               }}
-              containerClassName="min-w-0 flex-1"
+              containerClassName="min-w-0 flex-1 bg-transparent! data-[readonly]:bg-transparent! focus-within:bg-transparent!"
               className="cursor-pointer"
             />
             <IconButton

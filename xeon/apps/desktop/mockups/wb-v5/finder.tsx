@@ -79,8 +79,8 @@ export function Finder() {
       <Input
         type="search"
         size="sm"
-        variant="soft"
-        radius="lg"
+        variant="solid"
+        radius="2xl"
         prefix={<Search />}
         value={q}
         onValueChange={(v) => {
@@ -94,9 +94,9 @@ export function Finder() {
       />
       {open && needle !== "" && (
         <Card
-          variant="glass"
+          variant="surface"
           size="xs"
-          radius="lg"
+          shadow="4"
           role="listbox"
           aria-label="찾은 것"
           className="absolute bottom-11 left-0 z-30 w-80"

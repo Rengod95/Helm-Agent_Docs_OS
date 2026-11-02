@@ -35,7 +35,7 @@ export interface ViewportApi {
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 /** 이름표 글자 배율: 확대하면 조금 커지고 축소하면 조금 작아지되 읽을 수 있는 범위에 둔다 */
-export const labelScale = (k: number): number => clamp(k ** 0.5, 0.9, 1.3);
+export const labelScale = (k: number): number => clamp(k ** 0.5, 1, 1.3);
 export const reducedMotion = (): boolean =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -43,8 +43,11 @@ export function useViewport(
   box: RefObject<HTMLElement | null>,
   size: { w: number; h: number },
   insets: Insets,
+  shared?: RefObject<View>,
 ): ViewportApi {
-  const view = useRef<View>({ k: 1, x: 0, y: 0 });
+  const own = useRef<View>({ k: 1, x: 0, y: 0 });
+  // 캔버스가 쥔 값이 있으면 그것을 쓴다: 배경이 같은 값을 읽는다.
+  const view = shared ?? own;
   const manual = useRef(false);
   const raf = useRef(0);
   const placed = useRef(false);

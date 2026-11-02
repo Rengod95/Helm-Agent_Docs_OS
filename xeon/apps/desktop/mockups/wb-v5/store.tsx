@@ -17,18 +17,15 @@ import {
   GROUPS,
   INITIAL_ORDER,
   PLUGINS,
-  REACH_LABEL,
   capSlot,
   groupById,
   hasContrib,
   matchesKind,
-  reachRank,
   type Contrib,
   type Health,
   type KindFilter,
   type LayerKey,
   type Plugin,
-  type Reach,
   type Sel,
 } from "./data";
 
@@ -36,6 +33,8 @@ export interface BuilderState {
   /** 열린 곳의 훅(줄의 더하기, 빈 줄). 없으면 처음부터 */
   hook: string | null;
   template: string | null;
+  /** "대화에서 만들기"로 시작한 지난 대화 */
+  thread: string | null;
 }
 export interface DragState {
   id: string;
@@ -50,7 +49,6 @@ export interface Created {
   name: string;
   hook: string | null;
   template: string | null;
-  reach: Reach;
   command?: string;
 }
 
@@ -95,13 +93,12 @@ export interface Mock {
   setKind: (k: KindFilter) => void;
   toggleContrib: (c: Contrib) => void;
   clearFilter: () => void;
-  /** 거르기에 맞나(거르지 않으면 모두 맞다) */
+  /** 필터에 맞나(필터가 없으면 모두 맞다) */
   matches: (p: Plugin) => boolean;
   filtering: boolean;
-  reach: (id: string) => Reach;
-  setReach: (id: string, r: Reach) => void;
-  setGroupReach: (gid: string, r: Reach) => void;
-  /** 점 하나로 켜고 끄기: 끄면 마지막 범위를 기억하고, 켜면 그 범위로 돌아온다 */
+  /** 켜고 끄기: 전역 하나뿐이다 */
+  setOn: (id: string, on: boolean) => void;
+  setGroupOn: (gid: string, on: boolean) => void;
   toggle: (id: string) => void;
   isOn: (id: string) => boolean;
   health: (id: string) => Health | undefined;
@@ -113,7 +110,8 @@ export interface Mock {
   replaced: Record<string, string>;
   replace: (slot: string, id: string | null) => void;
   builder: BuilderState | null;
-  openBuilder: (hook: string | null, template?: string | null) => void;
+  openBuilder: (hook: string | null, template?: string | null, thread?: string | null) => void;
+  setThread: (id: string | null) => void;
   setTemplate: (id: string) => void;
   closeBuilder: () => void;
   create: (c: Created) => void;
@@ -133,8 +131,8 @@ export function useMock(): Mock {
   return m;
 }
 
-const initialReach = (): Record<string, Reach> =>
-  Object.fromEntries(PLUGINS.map((p) => [p.id, p.reach]));
+const initialOn = (): Record<string, boolean> =>
+  Object.fromEntries(PLUGINS.map((p) => [p.id, p.on]));
 const initialHealth = (): Record<string, Health | undefined> =>
   Object.fromEntries(PLUGINS.map((p) => [p.id, p.health]));
 /** 새로 만든 플러그인이 앉을 지도 자리(바깥 고리, 빈 각도) */
@@ -152,8 +150,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
   const [ring, setRing] = useState<LayerKey | null>(null);
   const [layerOrder, setLayerOrder] = useState<Record<string, string[]>>({});
   const [filter, setFilter] = useState<Filter>({ kind: "all", contrib: [] });
-  const [reachMap, setReachMap] = useState<Record<string, Reach>>(initialReach);
-  const lastReach = useRef<Record<string, Reach>>({});
+  const [onMap, setOnMap] = useState<Record<string, boolean>>(initialOn);
   const [healthMap, setHealthMap] = useState<Record<string, Health | undefined>>(initialHealth);
   const [order, setOrder] = useState<Record<string, string[]>>(() =>
     structuredClone(INITIAL_ORDER),
@@ -175,52 +172,40 @@ export function MockProvider({ children }: { children: ReactNode }) {
     timer.current = window.setTimeout(() => setNotice(null), 2600);
   }, []);
 
-  const reach = useCallback((id: string): Reach => reachMap[id] ?? "off", [reachMap]);
   const health = useCallback((id: string) => healthMap[id], [healthMap]);
   const isOn = useCallback(
-    (id: string): boolean => reach(id) !== "off" && healthMap[id]?.autoOff !== true,
-    [reach, healthMap],
+    (id: string): boolean => onMap[id] === true && healthMap[id]?.autoOff !== true,
+    [onMap, healthMap],
   );
 
-  const setReach = useCallback(
-    (id: string, r: Reach) => {
-      const cur = reachMap[id] ?? "off";
-      if (cur !== "off") lastReach.current[id] = cur;
-      setReachMap((prev) => ({ ...prev, [id]: r }));
-      if (r !== "off")
-        setHealthMap((prev) => (prev[id]?.autoOff === true ? { ...prev, [id]: undefined } : prev));
-    },
-    [reachMap],
-  );
-  const setGroupReach = useCallback(
-    (gid: string, r: Reach) => {
+  const setOn = useCallback((id: string, on: boolean) => {
+    setOnMap((prev) => ({ ...prev, [id]: on }));
+    if (on)
+      setHealthMap((prev) => (prev[id]?.autoOff === true ? { ...prev, [id]: undefined } : prev));
+  }, []);
+  const setGroupOn = useCallback(
+    (gid: string, on: boolean) => {
       const g = groupById(gid);
       if (g === undefined) return;
-      for (const id of g.members) setReach(id, r);
+      for (const id of g.members) setOn(id, on);
     },
-    [setReach],
+    [setOn],
   );
   const toggle = useCallback(
     (id: string) => {
-      const on = (reachMap[id] ?? "off") !== "off" && healthMap[id]?.autoOff !== true;
-      if (on) {
-        setReach(id, "off");
-        notify("껐어요");
-      } else {
-        setReach(id, lastReach.current[id] ?? "project");
-        notify("켰어요");
-      }
+      const on = onMap[id] === true && healthMap[id]?.autoOff !== true;
+      setOn(id, !on);
+      notify(on ? "껐어요" : "켰어요");
     },
-    [reachMap, healthMap, setReach, notify],
+    [onMap, healthMap, setOn, notify],
   );
   const resetHealth = useCallback(
     (id: string) => {
       setHealthMap((prev) => ({ ...prev, [id]: undefined }));
-      if ((reachMap[id] ?? "off") === "off")
-        setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
+      setOnMap((prev) => ({ ...prev, [id]: true }));
       notify("다시 켰어요");
     },
-    [reachMap, notify],
+    [notify],
   );
 
   const move = useCallback((hook: string, id: string, to: number) => {
@@ -245,11 +230,10 @@ export function MockProvider({ children }: { children: ReactNode }) {
           p.id === id && !p.hooks.includes(hook) ? { ...p, hooks: [...p.hooks, hook] } : p,
         ),
       );
-      if ((reachMap[id] ?? "off") === "off")
-        setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
+      setOnMap((prev) => (prev[id] === true ? prev : { ...prev, [id]: true }));
       notify(`${hook}에 더했어요`);
     },
-    [order, reachMap, notify],
+    [order, notify],
   );
 
   const replace = useCallback(
@@ -261,12 +245,11 @@ export function MockProvider({ children }: { children: ReactNode }) {
         return next;
       });
       if (id !== null) {
-        if ((reachMap[id] ?? "off") === "off")
-          setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
+        setOnMap((prev) => (prev[id] === true ? prev : { ...prev, [id]: true }));
         notify("대체했어요");
       } else notify("내장으로 되돌렸어요");
     },
-    [reachMap, notify],
+    [notify],
   );
 
   const select = useCallback((s: Sel, open = true) => {
@@ -341,7 +324,12 @@ export function MockProvider({ children }: { children: ReactNode }) {
     [filter],
   );
   const openBuilder = useCallback(
-    (hook: string | null, template: string | null = null) => setBuilder({ hook, template }),
+    (hook: string | null, template: string | null = null, thread: string | null = null) =>
+      setBuilder({ hook, template, thread }),
+    [],
+  );
+  const setThread = useCallback(
+    (id: string | null) => setBuilder((b) => (b === null ? b : { ...b, thread: id })),
     [],
   );
   const setTemplate = useCallback(
@@ -362,7 +350,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
         layer: "plugin",
         origin: "user",
         version: "0.0.1",
-        reach: c.reach,
+        on: true,
         hooks: c.hook === null ? [] : [c.hook],
         provides: [],
         pieces:
@@ -373,14 +361,14 @@ export function MockProvider({ children }: { children: ReactNode }) {
               : [],
       };
       setPlugins((prev) => [...prev, plugin]);
-      setReachMap((prev) => ({ ...prev, [id]: c.reach }));
+      setOnMap((prev) => ({ ...prev, [id]: true }));
       if (c.hook !== null)
         setOrder((prev) => ({ ...prev, [c.hook ?? ""]: [...(prev[c.hook ?? ""] ?? []), id] }));
       ANGLE[id] = FREE_ANGLES[n % FREE_ANGLES.length] ?? 271;
       setSel({ k: "plugin", id });
       setPanel(true);
       setBuilder(null);
-      notify(`${REACH_LABEL[c.reach]}에 저장했어요`);
+      notify("만들었어요");
     },
     [notify],
   );
@@ -418,9 +406,8 @@ export function MockProvider({ children }: { children: ReactNode }) {
       clearFilter,
       matches,
       filtering,
-      reach,
-      setReach,
-      setGroupReach,
+      setOn,
+      setGroupOn,
       toggle,
       isOn,
       health,
@@ -432,6 +419,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
       replace,
       builder,
       openBuilder,
+      setThread,
       setTemplate,
       closeBuilder,
       create,
@@ -468,9 +456,8 @@ export function MockProvider({ children }: { children: ReactNode }) {
       clearFilter,
       matches,
       filtering,
-      reach,
-      setReach,
-      setGroupReach,
+      setOn,
+      setGroupOn,
       toggle,
       isOn,
       health,
@@ -482,6 +469,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
       replace,
       builder,
       openBuilder,
+      setThread,
       setTemplate,
       closeBuilder,
       create,
@@ -547,14 +535,11 @@ export function litOf(sel: Sel, plugins: readonly Plugin[], order: Record<string
 /** 몇 개가 켜져 있나(그룹 카드용) */
 export function groupState(
   gid: string,
-  reach: (id: string) => Reach,
   isOn: (id: string) => boolean,
-): { on: number; total: number; widest: Reach } {
+): { on: number; total: number } {
   const g = groupById(gid);
   const ids = g?.members ?? [];
-  let widest: Reach = "off";
-  for (const id of ids) if (reachRank(reach(id)) > reachRank(widest)) widest = reach(id);
-  return { on: ids.filter(isOn).length, total: ids.length, widest };
+  return { on: ids.filter(isOn).length, total: ids.length };
 }
 
 /** 바깥 대체 상태에서 이 플러그인이 가려졌나(내장 제공자가 대체됐다) */

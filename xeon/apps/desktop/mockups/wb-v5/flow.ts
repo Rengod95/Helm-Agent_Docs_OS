@@ -23,6 +23,7 @@ const AT: Record<string, number> = {
   "thread.start": 0,
   "input.user.before": 0.02,
   "input.agent.before": 0.05,
+  "thread.compact.before": 0.28,
   "request.provider.before": 0.31,
   "guard.model.before": 0.33,
   "request.model.after": 4.8,
@@ -32,7 +33,6 @@ const AT: Record<string, number> = {
   "tool.execution.after": 7.5,
   "boundary.step.after": 7.7,
   "boundary.settle.after": 13.1,
-  "thread.compact.before": 13.9,
   "thread.shutdown": 14.2,
 };
 
@@ -86,7 +86,7 @@ export const STEPS: Record<string, Step[]> = {
     s(
       "thread.start",
       "tap",
-      "이 대화에 남은 지난 탐구 기록",
+      "대화에 남은 지난 탐구 기록",
       "저장된 탐구 상태를 불러와요. 바꾸는 건 없어요",
       "복원한 상태 → 이후 순간들이 읽어요",
     ),
@@ -102,7 +102,7 @@ export const STEPS: Record<string, Step[]> = {
       "first",
       "쓰려는 도구와 위험 등급",
       "확산·탐색 단계에서 쓰기 도구면 막아요. 읽기 도구는 지나가요",
-      "통과, 또는 이유를 단 막기",
+      "통과, 또는 이유를 단 차단",
       "helm/explore",
     ),
     s(
@@ -276,7 +276,7 @@ export const STEPS: Record<string, Step[]> = {
       "first",
       "도구에 넣는 값",
       "키처럼 보이는 값이 섞였으면 막아요",
-      "통과, 또는 이유를 단 막기",
+      "통과, 또는 이유를 단 차단",
     ),
   ],
   "lint-on-edit": [
@@ -398,7 +398,7 @@ export const SETTINGS: Record<string, readonly (readonly [string, string])[]> = 
   helm: [
     ["주도 한도", "턴 4 · 보조 8 · 토큰 40만"],
     ["렌즈 수 상한", "3"],
-    ["확산 단계에서 쓰기 막기", "켜짐"],
+    ["확산 단계에서 쓰기 차단", "켜짐"],
     ["자동 시작", "제안"],
   ],
   review: [["실패 한도", "연속 5번"]],

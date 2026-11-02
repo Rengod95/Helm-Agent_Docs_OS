@@ -1,5 +1,5 @@
 // 크래프트 v5: 에이전트가 무엇으로 이뤄졌나(지도), 무엇이 언제 어떤 순서로 도나(순서), 고른 것이 무엇인가(카드).
-// 범위 막대·표는 없다. 어디에 적용되나는 플러그인 카드에서 "꺼짐 · 이 대화 · 이 프로젝트 · 모든 대화"로 바로 정한다.
+// 범위 막대·표는 없다. 크래프트는 전역 켜짐·꺼짐만 다룬다. 대화마다 끄는 일은 대화 화면의 몫이다.
 import { useEffect } from "react";
 import {
   Shell,
@@ -91,11 +91,11 @@ function Page() {
             <Builder
               hook={b.hook}
               templateId={b.template}
+              threadId={b.thread}
               onTemplate={m.setTemplate}
+              onThread={m.setThread}
               onClose={m.closeBuilder}
-              onCreate={({ name, template, reach }) =>
-                m.create({ name, hook: b.hook, template, reach })
-              }
+              onCreate={({ name, template }) => m.create({ name, hook: b.hook, template })}
             />
           </div>
         )}

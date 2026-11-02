@@ -4,10 +4,13 @@ import "./mockup.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app";
+import { installSpring } from "./spring";
 
 loadCausticFonts();
+installSpring();
 // 글자는 변형 d(type-variants). 다른 값이 ?type=으로 오지 않았으면 d를 건다.
-if (document.documentElement.dataset["type"] === undefined) document.documentElement.dataset["type"] = "d";
+if (document.documentElement.dataset["type"] === undefined)
+  document.documentElement.dataset["type"] = "d";
 
 const STATES = [{ id: "main", label: "크래프트" }] as const;
 

@@ -17,8 +17,6 @@ import {
   MenuItem,
   ScrollArea,
   SectionHeader,
-  SegmentedControl,
-  SegmentedControlItem,
   Switch,
 } from "@caustic/react";
 import { useState, type ReactNode } from "react";
@@ -26,7 +24,6 @@ import { Ellipsis, X } from "../_shell";
 import { T } from "../_shell/terms";
 import {
   CAPS,
-  CONTEXT,
   FOLD_LABEL,
   GROUPS,
   LAYER_CODE,
@@ -34,26 +31,20 @@ import {
   ORIGIN_LABEL,
   PIECE_LABEL,
   PIECE_ORDER,
-  REACHES,
-  REACH_LABEL,
   capSlot,
   groupById,
   hookDef,
   manifestText,
   pluginById,
   providersOf,
-  reachRank,
   type Group,
-  type Origin,
   type PieceKind,
   type Plugin,
-  type Reach,
 } from "./data";
 import { Mark, SHAPE_OF } from "./marks";
 import { groupState, useMock, type Mock } from "./store";
 
 const LABEL = "text-footnote text-text-tertiary";
-const isReach = (v: string): v is Reach => REACHES.some((r) => r === v);
 
 /** 패널의 머리: 표식, 이름, 한 줄 설명, 닫기. 아래에 작은 표식들(층, 그룹, 버전, 출처). */
 function Head({
@@ -120,49 +111,28 @@ function Actions({ children, more }: { children: ReactNode; more?: ReactNode }) 
   );
 }
 
-/** 누구에게 켜져 있나. 꺼짐, 이 대화, 이 프로젝트, 모든 대화 중 하나. 값 밑에는 새로 알려 줄 출처가 있을 때만 적는다. */
-export function ReachControl({
-  value,
+/** 켜짐·꺼짐: 전역 하나뿐이다. 대화마다 끄는 일은 대화 화면의 몫이다. 값 밑에는 새로 알려 줄 상태가 있을 때만 적는다. */
+export function OnControl({
+  on,
   onChange,
-  maxRank,
-  hint,
+  label,
+  state,
 }: {
-  value: Reach;
-  onChange: (r: Reach) => void;
-  maxRank: number;
-  hint: string;
+  on: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+  /** 켜짐·꺼짐 말고 알려 줄 상태(자동 꺼짐, 일부만 켜짐) */
+  state: string;
 }) {
   return (
-    <div className="grid gap-1.5">
-      <SegmentedControl
-        size="sm"
-        radius="md"
-        aria-label="켜진 곳"
-        value={value}
-        onValueChange={(v) => {
-          if (isReach(v)) onChange(v);
-        }}
-      >
-        {REACHES.map((r) => (
-          <SegmentedControlItem
-            key={r}
-            value={r}
-            disabled={reachRank(r) > maxRank}
-            className="flex-1"
-          >
-            {REACH_LABEL[r]}
-          </SegmentedControlItem>
-        ))}
-      </SegmentedControl>
-      {hint !== "" && <span className={LABEL}>{hint}</span>}
+    <div className="grid gap-1">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-body text-text-primary">{on ? "켜짐" : "꺼짐"}</span>
+        <Switch size="sm" aria-label={label} checked={on} onCheckedChange={onChange} />
+      </div>
+      {state !== "" && <span className={LABEL}>{state}</span>}
     </div>
   );
-}
-
-export function reachHint(origin: Origin, r: Reach, autoOff: boolean): string {
-  if (autoOff) return T.autoDisabled;
-  if (r === "project" && origin === "project") return "프로젝트가 가져왔어요";
-  return "";
 }
 
 export function Provides({ p, m }: { p: Plugin; m: Mock }) {
@@ -213,7 +183,7 @@ export function Provides({ p, m }: { p: Plugin; m: Mock }) {
     });
   if (optional.length > 0)
     rows.push({
-      label: "쓰면 좋은 것",
+      label: "함께 쓰면 좋은 기능",
       body: optional.map((c) => {
         const by = m.replaced[capSlot(c)] ?? CAPS.find((x) => x.id === c)?.builtin;
         const name = by === undefined ? undefined : pluginById(by)?.name;
@@ -250,7 +220,6 @@ function PluginCard({ p }: { p: Plugin }) {
   const m = useMock();
   const g = p.group === undefined ? undefined : groupById(p.group);
   const h = m.health(p.id);
-  const maxRank = p.origin === "project" ? reachRank("project") : 3;
   const [code, setCode] = useState(false);
   return (
     <>
@@ -283,11 +252,11 @@ function PluginCard({ p }: { p: Plugin }) {
         }
       />
       <Body>
-        <ReachControl
-          value={m.reach(p.id)}
-          onChange={(r) => m.setReach(p.id, r)}
-          maxRank={maxRank}
-          hint={reachHint(p.origin, m.reach(p.id), h?.autoOff === true)}
+        <OnControl
+          on={m.isOn(p.id)}
+          onChange={(next) => m.setOn(p.id, next)}
+          label={p.name}
+          state={h?.autoOff === true ? T.autoDisabled : ""}
         />
         {h !== undefined && (
           <Alert
@@ -299,22 +268,16 @@ function PluginCard({ p }: { p: Plugin }) {
             {h.text}
           </Alert>
         )}
-        <SectionHeader
-          size="xs"
-          headingLevel={3}
-          title={code ? "확장 정보 파일" : "넣어 주는 것"}
-        />
-        {code ? <Code text={manifestText({ plugin: p }, m.reach)} /> : <Provides p={p} m={m} />}
+        <SectionHeader size="xs" headingLevel={3} title={code ? "플러그인 정보" : "구성"} />
+        {code ? <Code text={manifestText({ plugin: p }, m.isOn)} /> : <Provides p={p} m={m} />}
       </Body>
       <Actions
         more={
           <>
-            <MenuItem onSelect={() => setCode((v) => !v)}>
-              {code ? "넣어 주는 것" : "코드"}
-            </MenuItem>
+            <MenuItem onSelect={() => setCode((v) => !v)}>{code ? "구성" : "코드"}</MenuItem>
             {g !== undefined && (
-              <MenuItem onSelect={() => m.notify("그룹에서 빼기는 아직 모형이에요")}>
-                그룹에서 빼기
+              <MenuItem onSelect={() => m.notify("그룹에서 제거는 아직 모형이에요")}>
+                그룹에서 제거
               </MenuItem>
             )}
             {p.origin !== "builtin" && (
@@ -329,7 +292,7 @@ function PluginCard({ p }: { p: Plugin }) {
           자세히 보기
         </Button>
         <Button size="sm" variant="outline" onClick={() => m.openBuilder(p.hooks[0] ?? null)}>
-          구성 고치기
+          구성 편집
         </Button>
       </Actions>
     </>
@@ -339,11 +302,10 @@ function PluginCard({ p }: { p: Plugin }) {
 // ── 그룹 ──────────────────────────────────────────────────────────
 function GroupCard({ g }: { g: Group }) {
   const m = useMock();
-  const st = groupState(g.id, m.reach, m.isOn);
+  const st = groupState(g.id, m.isOn);
   const members = g.members
     .map((id) => m.plugins.find((p) => p.id === id))
     .filter((p): p is Plugin => p !== undefined);
-  const maxRank = g.origin === "project" ? reachRank("project") : 3;
   const [code, setCode] = useState(false);
   return (
     <>
@@ -366,16 +328,14 @@ function GroupCard({ g }: { g: Group }) {
         }
       />
       <Body>
-        <ReachControl
-          value={st.widest}
-          onChange={(r) => m.setGroupReach(g.id, r)}
-          maxRank={maxRank}
-          hint={
-            st.on === st.total ? reachHint(g.origin, st.widest, false) : `${st.on}/${st.total} 켜짐`
-          }
+        <OnControl
+          on={st.on === st.total}
+          onChange={(next) => m.setGroupOn(g.id, next)}
+          label={g.name}
+          state={st.on === st.total || st.on === 0 ? "" : `${st.on}/${st.total} 켜짐`}
         />
         {code ? (
-          <Code text={manifestText({ group: g }, m.reach)} />
+          <Code text={manifestText({ group: g }, m.isOn)} />
         ) : (
           <List size="xs" variant="ghost" dividers={false} aria-label="구성원">
             {members.map((p) => (
@@ -402,11 +362,9 @@ function GroupCard({ g }: { g: Group }) {
         more={
           <>
             <MenuItem onSelect={() => setCode((v) => !v)}>{code ? "구성" : "코드"}</MenuItem>
-            <MenuItem onSelect={() => m.notify("풀기는 아직 모형이에요")}>
-              {st.total}개로 풀기
-            </MenuItem>
-            <MenuItem onSelect={() => m.notify("하나씩 꺼 보기는 아직 모형이에요")}>
-              하나씩 꺼 보기
+            <MenuItem onSelect={() => m.notify("그룹 해제는 아직 모형이에요")}>그룹 해제</MenuItem>
+            <MenuItem onSelect={() => m.notify("하나씩 끄고 테스트는 아직 모형이에요")}>
+              하나씩 끄고 테스트
             </MenuItem>
           </>
         }
@@ -415,7 +373,7 @@ function GroupCard({ g }: { g: Group }) {
           자세히 보기
         </Button>
         <Button size="sm" variant="outline" onClick={() => m.openBuilder(null)}>
-          구성 고치기
+          구성 편집
         </Button>
       </Actions>
     </>
@@ -579,12 +537,6 @@ function AgentCard() {
       <Head
         title={`내 ${T.baseAgent}`}
         sub={<span className="font-mono text-mono-sm text-text-tertiary">core.loop</span>}
-        meta={
-          <>
-            <CardMeta>{CONTEXT.project}</CardMeta>
-            <CardMeta>{CONTEXT.thread}</CardMeta>
-          </>
-        }
       />
       <Body>
         <dl className="m-0 grid grid-cols-3 gap-3">

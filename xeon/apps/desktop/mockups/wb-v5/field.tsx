@@ -1,24 +1,18 @@
-// 지도 뒤의 배경: 점 밭과 가운데 코어의 옅은 빛. 고른 점 둘레는 조금 밝아지고, 밭은 아주 천천히 흐른다.
-// 날 WebGL 조각 셰이더 하나(의존 없음). WebGL이 없으면 CSS 점 종이로 돌아가고(.wb5-paper), 탭이 숨겨지면 멈춘다.
+// 캔버스 전체 배경: 아주 큰 원 네 개가 겹치고, 가장자리마다 안쪽으로 번지는 빛이 있다(테두리만 밝고 속은 깊다).
+// 원은 느린 파도처럼 흔들린다. 날 WebGL 조각 셰이더 하나(의존 없음). 밝은 판은 따로 짠 연한 색, 어두운 판은 깊은 색이다.
+// WebGL이 없으면 CSS 그라디언트(.wb5-paper)로 돌아가고, 탭이 숨겨지면 멈추며, 움직임 줄이기를 켜면 한 장만 그린다.
 import { useEffect, useRef, type RefObject } from "react";
 import { reducedMotion, type View } from "./viewport";
 
-export interface LitPoint {
-  /** 세계 좌표 */
-  x: number;
-  y: number;
-  s: number;
-}
 interface Props {
   view: RefObject<View>;
-  /** 코어(세계 좌표)와 바깥 고리 반지름 */
-  core: { x: number; y: number; r: number };
-  lit: readonly LitPoint[];
   onUnavailable: () => void;
 }
 
-const MAX_LIT = 8;
-const DPR_CAP = 1.5;
+/** 해상도 상한: 부드러운 면이라 1.25배면 충분하다 */
+const DPR_CAP = 1.25;
+/** 가만히 있을 때 초당 그리는 횟수 상한 */
+const IDLE_FPS = 30;
 
 const VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
 const FRAG = `
@@ -27,42 +21,66 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform vec2 uRes; uniform float uDpr; uniform float uTime; uniform vec2 uPan;
-uniform vec2 uCore; uniform float uRadius; uniform float uMotion;
-uniform vec3 uBg; uniform vec3 uDot; uniform vec3 uGlow;
-uniform vec3 uNodes[${MAX_LIT}]; uniform float uCount;
+uniform vec2 uRes; uniform float uDpr; uniform float uTime; uniform vec2 uPan; uniform float uMotion;
+uniform float uDark;
+uniform vec3 uBase; uniform vec3 uA; uniform vec3 uB; uniform vec3 uC;
+
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-float vnoise(vec2 p){
-  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+
+// 원 하나: 안쪽으로 번지는 가장자리 빛(rim)과 속 채움(fill)
+void disc(vec2 q, vec2 c, float r, float aa, float w, out float rim, out float fill){
+  float d = length(q - c) - r;
+  float inside = 1.0 - smoothstep(-aa, aa, d);
+  rim = exp(d / w) * inside;
+  // 바깥쪽으로 아주 얇게 새는 빛
+  rim += exp(-d / (aa * 6.0)) * (1.0 - inside) * 0.22;
+  fill = inside;
 }
+
 void main(){
   vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y) / uDpr;
-  float sp = 22.0;
-  // 끌면 점 밭은 지도의 0.3배만 따라온다: 한 층 뒤에 있는 듯한 깊이
-  vec2 q = p - uPan * 0.3;
-  vec2 id = floor(q / sp);
-  float d = length(fract(q / sp) - 0.5) * sp;
-  float r = 0.8 + 0.35 * hash(id);
-  float dotv = smoothstep(r + 0.6, r - 0.1, d);
+  float S = max(uRes.x, uRes.y) / uDpr;
   float t = uTime * uMotion;
-  float n = vnoise(q * 0.006 + vec2(t * 0.02, -t * 0.013));
-  float dc = length(p - uCore);
-  float cr = dc / (uRadius * 0.85);
-  float core = exp(-cr * cr);
-  float lit = 0.0;
-  for (int i = 0; i < ${MAX_LIT}; i++) {
-    if (float(i) >= uCount) break;
-    vec3 nd = uNodes[i];
-    vec2 dn = (p - nd.xy) / 84.0;
-    lit += nd.z * exp(-dot(dn, dn));
+  // 끌면 배경은 지도의 0.1배만 따라온다: 한 층 뒤에 있는 듯한 깊이
+  vec2 q = (p - uPan * 0.1) / S;
+  // 가장자리를 천천히 흔드는 파도
+  q += 0.016 * vec2(sin(q.y * 5.2 + t * 0.21), cos(q.x * 4.4 + t * 0.17));
+  q += 0.008 * vec2(sin(q.y * 11.0 - t * 0.13 + 1.3), cos(q.x * 9.0 + t * 0.11));
+
+  float aa = 1.6 / S;
+  float w = 0.085;
+  vec3 col = uBase;
+  float fillSum = 0.0;
+  vec3 glowDark = vec3(0.0);
+  vec3 glowLight = vec3(0.0);
+  float glowMax = 0.0;
+  for (int i = 0; i < 4; i++) {
+    float fi = float(i);
+    vec2 c0 = vec2(0.08, 0.02);
+    float r0 = 0.58;
+    vec3 hue = uA;
+    if (i == 1) { c0 = vec2(0.98, 0.84); r0 = 0.74; hue = uB; }
+    if (i == 2) { c0 = vec2(0.0, 0.98); r0 = 0.44; hue = uC; }
+    if (i == 3) { c0 = vec2(1.04, 0.0); r0 = 0.36; hue = uB; }
+    vec2 c = c0 + 0.045 * vec2(sin(t * 0.063 * (1.0 + 0.27 * fi) + fi * 1.7), cos(t * 0.052 * (1.0 + 0.19 * fi) + fi * 2.3));
+    float r = r0 * (1.0 + 0.035 * sin(t * 0.083 + fi * 1.1));
+    float rim; float fill;
+    disc(q, c, r, aa, w * (0.8 + 0.12 * fi), rim, fill);
+    fillSum += fill;
+    glowDark += hue * rim;
+    glowLight = mix(glowLight, mix(vec3(1.0), hue, 0.6), clamp(rim * 0.6, 0.0, 1.0));
+    glowMax = max(glowMax, rim);
   }
-  lit = min(lit, 1.4);
-  float vr = dc / (uRadius * 1.6);
-  float vign = 0.4 + 0.6 * exp(-vr * vr);
-  float a = dotv * (0.26 + 0.2 * n) * vign + dotv * lit * 0.45;
-  vec3 col = mix(uBg, uGlow, core * 0.11 + lit * 0.045);
-  col = mix(col, uDot, clamp(a, 0.0, 1.0));
+  if (uDark > 0.5) {
+    // 깊은 바탕 위에 빛이 쌓인다: 겹친 곳은 더 밝다
+    col = mix(col, col * 0.6 + uA * 0.05, clamp(fillSum, 0.0, 1.0) * 0.8);
+    col += glowDark * 0.4;
+  } else {
+    // 밝은 바탕에서는 연한 색이 가장자리에 스며든다
+    col = mix(col, mix(vec3(1.0), uA, 0.35), clamp(fillSum, 0.0, 1.0) * 0.02);
+    col = mix(col, glowLight, clamp(glowMax, 0.0, 1.0) * 0.34);
+  }
+  col += (hash(gl_FragCoord.xy + fract(t)) - 0.5) / 255.0;
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -87,6 +105,12 @@ function readColor(host: HTMLElement, name: string, fallback: Rgb): Rgb {
   return [(px[0] ?? 0) / 255, (px[1] ?? 0) / 255, (px[2] ?? 0) / 255];
 }
 
+const mixRgb = (x: Rgb, y: Rgb, t: number): Rgb => [
+  x[0] + (y[0] - x[0]) * t,
+  x[1] + (y[1] - x[1]) * t,
+  x[2] + (y[2] - x[2]) * t,
+];
+
 function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader | null {
   const sh = gl.createShader(type);
   if (sh === null) return null;
@@ -99,11 +123,11 @@ function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLSha
   return sh;
 }
 
-export function Field({ view, core, lit, onUnavailable }: Props) {
+/** 측정용: 마지막 1초 동안 그린 횟수. 화면에는 쓰지 않는다. */
+export const fieldStats = { draws: 0, since: 0, perSec: 0 };
+
+export function Field({ view, onUnavailable }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
-  // 그릴 때마다 읽는 값은 ref로 둔다: 렌더가 다시 돌아도 루프를 새로 시작하지 않는다.
-  const live = useRef({ core, lit });
-  live.current = { core, lit };
 
   useEffect(() => {
     const canvas = ref.current;
@@ -140,27 +164,34 @@ export function Field({ view, core, lit, onUnavailable }: Props) {
       dpr: u("uDpr"),
       time: u("uTime"),
       pan: u("uPan"),
-      core: u("uCore"),
-      radius: u("uRadius"),
       motion: u("uMotion"),
-      bg: u("uBg"),
-      dot: u("uDot"),
-      glow: u("uGlow"),
-      nodes: u("uNodes[0]"),
-      count: u("uCount"),
+      dark: u("uDark"),
+      base: u("uBase"),
+      a: u("uA"),
+      b: u("uB"),
+      c: u("uC"),
     };
 
-    let colors: { bg: Rgb; dot: Rgb; glow: Rgb } = {
-      bg: [1, 1, 1],
-      dot: [0.6, 0.6, 0.6],
-      glow: [0.3, 0.4, 0.9],
+    let colors: { base: Rgb; a: Rgb; b: Rgb; c: Rgb; dark: boolean } = {
+      base: [1, 1, 1],
+      a: [0.4, 0.5, 0.95],
+      b: [0.6, 0.45, 0.95],
+      c: [0.2, 0.75, 0.7],
+      dark: false,
     };
     const host = canvas.parentElement ?? document.body;
     const refreshColors = (): void => {
+      const base = readColor(host, "--cs-color-surface-base", colors.base);
+      const dark = (base[0] + base[1] + base[2]) / 3 < 0.5;
+      const a = readColor(host, "--cs-color-info-graphic", colors.a);
       colors = {
-        bg: readColor(host, "--cs-color-surface-base", colors.bg),
-        dot: readColor(host, "--cs-color-text-tertiary", colors.dot),
-        glow: readColor(host, "--cs-color-info-graphic", colors.glow),
+        base,
+        dark,
+        // 어두운 판은 info 색에서 갈라진 이웃 색 둘(보랏빛, 청록빛): 서로 멀지 않아 한 가족으로 읽힌다.
+        // 밝은 판은 따로 짠 연한 색이다: 흰 바탕에 스며드는 파랑, 보라, 하늘.
+        a: dark ? a : [0.5, 0.62, 1.0],
+        b: dark ? mixRgb(a, [0.62, 0.4, 0.96], 0.5) : [0.74, 0.56, 1.0],
+        c: dark ? mixRgb(a, [0.2, 0.78, 0.9], 0.5) : [0.42, 0.84, 0.97],
       };
       dirty = true;
     };
@@ -191,51 +222,41 @@ export function Field({ view, core, lit, onUnavailable }: Props) {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     mq.addEventListener("change", refreshColors);
 
-    const nodes = new Float32Array(MAX_LIT * 3);
     let last = "";
     let raf = 0;
     let lastDraw = 0;
-    let lastMove = 0;
     const t0 = performance.now();
 
     const frame = (now: number): void => {
       raf = requestAnimationFrame(frame);
       const v = view.current;
-      const { core: c, lit: points } = live.current;
       const motion = reducedMotion() ? 0 : 1;
-      const sig = `${v.k.toFixed(4)}|${v.x.toFixed(1)}|${v.y.toFixed(1)}|${points.map((p) => `${p.x},${p.y},${p.s}`).join(";")}`;
+      const sig = `${v.x.toFixed(1)}|${v.y.toFixed(1)}`;
       if (sig !== last) {
         last = sig;
         dirty = true;
-        lastMove = now;
       }
-      // 만지는 중에는 매 프레임, 가만히 있을 때는 아주 천천히 흐르므로 초당 10번이면 충분하다. 움직임을 줄이면 바뀔 때만 그린다.
-      const idle = now - lastMove > 1500;
-      if (!dirty && (motion === 0 || (idle && now - lastDraw < 100))) return;
+      // 만지는 중에는 매 프레임, 가만히 있을 때는 아주 천천히 흐르므로 초당 30번이면 충분하다. 움직임을 줄이면 바뀔 때만 그린다.
+      if (!dirty && (motion === 0 || now - lastDraw < 1000 / IDLE_FPS - 2)) return;
       dirty = false;
       lastDraw = now;
       gl.uniform2f(U.res, canvas.width, canvas.height);
       gl.uniform1f(U.dpr, dpr);
       gl.uniform1f(U.time, (now - t0) / 1000);
       gl.uniform2f(U.pan, v.x, v.y);
-      gl.uniform2f(U.core, v.x + c.x * v.k, v.y + c.y * v.k);
-      gl.uniform1f(U.radius, c.r * v.k);
       gl.uniform1f(U.motion, motion);
-      gl.uniform3f(U.bg, ...colors.bg);
-      gl.uniform3f(U.dot, ...colors.dot);
-      gl.uniform3f(U.glow, ...colors.glow);
-      const n = Math.min(points.length, MAX_LIT);
-      nodes.fill(0);
-      for (let i = 0; i < n; i++) {
-        const p = points[i];
-        if (p === undefined) continue;
-        nodes[i * 3] = v.x + p.x * v.k;
-        nodes[i * 3 + 1] = v.y + p.y * v.k;
-        nodes[i * 3 + 2] = p.s;
-      }
-      gl.uniform3fv(U.nodes, nodes);
-      gl.uniform1f(U.count, n);
+      gl.uniform1f(U.dark, colors.dark ? 1 : 0);
+      gl.uniform3f(U.base, ...colors.base);
+      gl.uniform3f(U.a, ...colors.a);
+      gl.uniform3f(U.b, ...colors.b);
+      gl.uniform3f(U.c, ...colors.c);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      fieldStats.draws += 1;
+      if (now - fieldStats.since >= 1000) {
+        fieldStats.perSec = (fieldStats.draws * 1000) / (now - fieldStats.since);
+        fieldStats.draws = 0;
+        fieldStats.since = now;
+      }
     };
     const start = (): void => {
       if (raf === 0 && !document.hidden) raf = requestAnimationFrame(frame);

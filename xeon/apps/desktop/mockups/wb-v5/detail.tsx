@@ -1,6 +1,6 @@
 // 플러그인 자세히 보기: 캔버스 전체에 플러그인 하나(또는 그룹 하나)를 편다.
 // 가운데는 한 턴의 흐름(위에서 아래 생명선). 이 플러그인이 끼어드는 순간만 펼치고 나머지는 얇은 눈금으로 접어 한 턴이 다 보이게 한다.
-// 그룹은 구성원마다 열 하나, 같은 생명선 위에 놓아 구성원 사이 손 넘김이 보인다. 옆에는 넣어 주는 것·켜진 곳·설정·버전·코드.
+// 그룹은 구성원마다 열 하나, 같은 생명선 위에 놓아 구성원 사이 손 넘김이 보인다. 옆에는 상태·구성·설정·버전·코드.
 import { useState, type ReactNode } from "react";
 import {
   Accordion,
@@ -23,6 +23,7 @@ import { ChevronLeft } from "../_shell";
 import { T } from "../_shell/terms";
 import {
   FOLD_LABEL,
+  FOLD_TIP,
   ORIGIN_LABEL,
   PHASES,
   groupById,
@@ -31,7 +32,7 @@ import {
   type Group,
   type Plugin,
 } from "./data";
-import { Code, Provides, ReachControl, reachHint } from "./card";
+import { Code, OnControl, Provides } from "./card";
 import {
   DEFAULT_SETTINGS,
   MOMENTS,
@@ -88,12 +89,18 @@ const OUTCOME_CHIP = {
   skipped: { variant: "dashed", tone: "neutral" },
 } satisfies Record<Outcome, Pick<ChipProps, "variant" | "tone">>;
 
-// 모으기는 점선, 나머지는 테두리 칩.
+// 합치기는 점선, 나머지는 테두리 칩. 관찰·수정·차단·합치기는 올리면 한 줄 설명이 나온다.
 function VerbChip({ verb }: { verb: Step["verb"] }) {
-  return (
+  const chip = (
     <Chip size="sm" variant={verb === "collect" ? "dashed" : "outline"}>
       {VERB_LABEL[verb]}
     </Chip>
+  );
+  if (verb === "call" || verb === "draw") return chip;
+  return (
+    <Tooltip content={FOLD_TIP[verb]} side="top" delayDuration={300}>
+      {chip}
+    </Tooltip>
   );
 }
 
@@ -137,19 +144,17 @@ function StepCard({
       {wide ? (
         <dl className="m-0 grid grid-cols-3 gap-x-4">
           <div className="grid content-start gap-0.5">
-            <dt className={LABEL}>받는 것</dt>
+            <dt className={LABEL}>받는 값</dt>
             <dd className="m-0 text-body text-text-secondary">{st.gets}</dd>
           </div>
           <div className="grid content-start gap-0.5">
             <dt className={LABEL}>
-              {st.verb === "tap" || st.verb === "draw" || st.verb === "call"
-                ? "하는 일"
-                : "정하는 것"}
+              {st.verb === "tap" || st.verb === "draw" || st.verb === "call" ? "하는 일" : "결정"}
             </dt>
             <dd className="m-0 text-body text-text-primary">{st.does}</dd>
           </div>
           <div className="grid content-start gap-0.5">
-            <dt className={LABEL}>넘기는 것</dt>
+            <dt className={LABEL}>넘기는 값</dt>
             <dd className="m-0 text-body text-text-secondary">{st.hands}</dd>
           </div>
         </dl>
@@ -424,35 +429,38 @@ function Aside({
   m: Mock;
 }) {
   const [code, setCode] = useState(m.detailCode);
-  const st = group === undefined ? undefined : groupState(group.id, m.reach, m.isOn);
+  const st = group === undefined ? undefined : groupState(group.id, m.isOn);
   const settings =
     group === undefined
       ? (SETTINGS[plugin.id] ?? DEFAULT_SETTINGS)
       : [...(SETTINGS[group.id] ?? DEFAULT_SETTINGS)];
   const origin = group === undefined ? plugin.origin : group.origin;
   const version = group === undefined ? (plugin.version ?? "0.1.0") : group.version;
-  const maxRank = origin === "project" ? 2 : 3;
-  const reachNow = st === undefined ? m.reach(plugin.id) : st.widest;
+  const on = st === undefined ? m.isOn(plugin.id) : st.on === st.total;
   return (
     <aside
       aria-label="이 플러그인에 대해"
       className="grid min-h-0 content-start gap-3 overflow-y-auto pb-6"
     >
-      <Section title="켜진 곳">
-        <ReachControl
-          value={reachNow}
-          onChange={(r) =>
-            group === undefined ? m.setReach(plugin.id, r) : m.setGroupReach(group.id, r)
+      <Section title="상태">
+        <OnControl
+          on={on}
+          onChange={(next) =>
+            group === undefined ? m.setOn(plugin.id, next) : m.setGroupOn(group.id, next)
           }
-          maxRank={maxRank}
-          hint={reachHint(
-            origin,
-            reachNow,
-            group === undefined && m.health(plugin.id)?.autoOff === true,
-          )}
+          label={group === undefined ? plugin.name : group.name}
+          state={
+            group === undefined
+              ? m.health(plugin.id)?.autoOff === true
+                ? T.autoDisabled
+                : ""
+              : st !== undefined && st.on > 0 && st.on < st.total
+                ? `${st.on}/${st.total} 켜짐`
+                : ""
+          }
         />
       </Section>
-      <Section title="넣어 주는 것">
+      <Section title="구성">
         {members.map((p) => (
           <div key={p.id} className="grid gap-2">
             {group !== undefined && (
@@ -474,12 +482,8 @@ function Aside({
             </div>
           ))}
         </dl>
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={() => m.notify("설정 고치기는 아직 모형이에요")}
-        >
-          설정 고치기
+        <Button size="xs" variant="outline" onClick={() => m.notify("설정 편집은 아직 모형이에요")}>
+          설정 편집
         </Button>
       </Section>
       <Section title="버전">
@@ -500,8 +504,8 @@ function Aside({
             <Code
               text={
                 group === undefined
-                  ? manifestText({ plugin }, m.reach)
-                  : manifestText({ group }, m.reach)
+                  ? manifestText({ plugin }, m.isOn)
+                  : manifestText({ group }, m.isOn)
               }
             />
           </AccordionContent>

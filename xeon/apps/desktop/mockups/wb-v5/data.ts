@@ -1,15 +1,22 @@
 // 크래프트 v5 고정 데이터. 지도, 순서(훅 줄), 카드가 모두 이 한 곳을 읽는다.
 // 값은 F.extensions.spec의 매니페스트 모양(plugins[], group, components)과 훅 표를 따른 가짜 값이다.
-import { T } from "../_shell/terms";
+import { T, josa } from "../_shell/terms";
 
 // ── 훅 ────────────────────────────────────────────────────────────
 export type Fold = "tap" | "first" | "chain" | "collect";
-/** 화면 라벨(용어집 §3 fold): 보기·막기·고치기·모으기 */
+/** 화면 라벨(용어집 §3 fold): 관찰·차단·수정·합치기. 훅 선언이 정하는 규칙(F.extensions §4.1)과 같은 뜻이다. */
 export const FOLD_LABEL: Record<Fold, string> = {
-  tap: "보기",
-  first: "막기",
-  chain: "고치기",
-  collect: "모으기",
+  tap: "관찰",
+  first: "차단",
+  chain: "수정",
+  collect: "합치기",
+};
+/** 한 줄 툴팁: 이 줄의 핸들러가 결과에 하는 일 */
+export const FOLD_TIP: Record<Fold, string> = {
+  tap: "보기만 하고 바꾸지 않아요",
+  first: "처음 막은 결정이 이겨요",
+  chain: "고친 값이 다음 핸들러로 넘어가요",
+  collect: "각자 낸 조각을 하나로 합쳐요",
 };
 export type Failure = "closed" | "open" | "skip";
 export type PhaseId = "start" | "think" | "act" | "wrap";
@@ -36,7 +43,7 @@ export interface HookDef {
   builtin?: string;
 }
 
-/** 순서 화면에 늘 보이는 순간 13개. 위에서 아래가 한 턴이 흐르는 순서다. */
+/** 순서 화면에 늘 보이는 순간 13개. 위에서 아래가 에이전트 루프가 실제로 도는 순서다(컨텍스트 조립 앞에서 압축을 검사한다: L1.loop §4.2). */
 export const HOOKS: HookDef[] = [
   {
     id: "thread.start",
@@ -58,6 +65,14 @@ export const HOOKS: HookDef[] = [
     fold: "collect",
     phase: "start",
     failure: "open",
+  },
+  {
+    id: "thread.compact.before",
+    label: "대화 압축",
+    fold: "first",
+    phase: "think",
+    failure: "open",
+    builtin: "내장 압축",
   },
   {
     id: "request.provider.before",
@@ -97,7 +112,7 @@ export const HOOKS: HookDef[] = [
   },
   {
     id: "boundary.step.after",
-    label: `${T.step}이 끝날 때`,
+    label: `${josa(T.step, "이", "가")} 끝날 때`,
     fold: "chain",
     phase: "wrap",
     failure: "skip",
@@ -110,19 +125,48 @@ export const HOOKS: HookDef[] = [
     failure: "open",
   },
   {
-    id: "thread.compact.before",
-    label: `${T.thread}를 요약하기 전`,
-    fold: "first",
-    phase: "wrap",
-    failure: "open",
-    builtin: "내장 요약",
-  },
-  {
     id: "thread.shutdown",
     label: `${T.thread}를 닫을 때`,
     fold: "tap",
     phase: "wrap",
     failure: "open",
+  },
+];
+/**
+ * 코어 루프의 내장 단계. 훅 줄 사이에 같은 흐름의 한 줄로 끼어든다(after = 이 훅 줄 바로 뒤).
+ * 플러그인은 앞뒤 훅 줄에서 감쌀 수 있다. 통째로 바꾸는 것은 대체할 수 있는 단계(압축)뿐이고, 나머지는 엔진 작업이 필요하다.
+ */
+export interface CoreStep {
+  id: string;
+  label: string;
+  /** 이 훅 줄 바로 뒤에 놓는다 */
+  after: string;
+  /** 앞에서 감싸는 훅, 뒤에서 감싸는 훅 */
+  wrap: readonly [string, string];
+  /** 툴팁 한 줄 */
+  tip: string;
+}
+export const CORE_STEPS: readonly CoreStep[] = [
+  {
+    id: "core.context.assemble",
+    label: "컨텍스트 조립",
+    after: "thread.compact.before",
+    wrap: ["input.agent.before", "request.provider.before"],
+    tip: "앞뒤 줄에서 감쌀 수 있어요",
+  },
+  {
+    id: "core.model.call",
+    label: "모델 호출",
+    after: "guard.model.before",
+    wrap: ["request.provider.before", "request.model.after"],
+    tip: "앞뒤 줄에서 감쌀 수 있어요",
+  },
+  {
+    id: "core.tools.run",
+    label: "도구 실행",
+    after: "tool.call.before",
+    wrap: ["tool.call.before", "tool.result"],
+    tip: "앞뒤 줄에서 감쌀 수 있어요",
   },
 ];
 export const hookDef = (id: string): HookDef | undefined => HOOKS.find((h) => h.id === id);
@@ -186,21 +230,8 @@ export type Origin = "builtin" | "user" | "project";
 export const ORIGIN_LABEL: Record<Origin, string> = {
   builtin: T.trustBuiltin,
   user: T.trustUser,
-  project: T.trustProject,
+  project: "프로젝트 제공",
 };
-
-/** 누구에게 켜져 있나: 꺼짐 ⊂ 이 대화 ⊂ 이 프로젝트 ⊂ 모든 대화(넓을수록 큰 값) */
-export type Reach = "off" | "thread" | "project" | "global";
-export const REACHES: readonly Reach[] = ["off", "thread", "project", "global"];
-export const REACH_LABEL: Record<Reach, string> = {
-  off: "꺼짐",
-  thread: "이 대화",
-  project: "이 프로젝트",
-  global: "모든 대화",
-};
-export const reachRank = (r: Reach): number => REACHES.indexOf(r);
-
-export const CONTEXT = { project: "fresnel", thread: "캐시 무효화 조사" } as const;
 
 export type PieceKind = "skill" | "command" | "tool" | "mcp" | "agent" | "view";
 /** 플러그인이 넣어 주는 것의 종류(훅과 기능은 따로 있다) */
@@ -254,8 +285,8 @@ export interface Plugin {
   optional?: string[];
   pieces: Piece[];
   drives?: boolean;
-  /** 이 플러그인이 지금 도는 곳(시작 값) */
-  reach: Reach;
+  /** 켜져 있나(전역 하나. 대화마다 끄는 일은 대화 화면의 몫이다) */
+  on: boolean;
   health?: Health;
 }
 
@@ -312,7 +343,7 @@ export const PLUGINS: Plugin[] = [
     origin: "builtin",
     version: "0.4.0",
     drives: true,
-    reach: "global",
+    on: true,
     provides: [],
     optional: ["web.search", "knowledge.search", "work.tasks"],
     hooks: [
@@ -340,7 +371,7 @@ export const PLUGINS: Plugin[] = [
     group: "helm",
     origin: "builtin",
     version: "0.4.0",
-    reach: "global",
+    on: true,
     hooks: [],
     provides: ["helm.inquiry"],
     pieces: [
@@ -357,7 +388,7 @@ export const PLUGINS: Plugin[] = [
     group: "helm",
     origin: "builtin",
     version: "0.4.0",
-    reach: "global",
+    on: true,
     hooks: [],
     provides: [],
     pieces: [piece("view", "Helm 탐구")],
@@ -370,7 +401,7 @@ export const PLUGINS: Plugin[] = [
     group: "learning",
     origin: "builtin",
     version: "0.4.0",
-    reach: "global",
+    on: true,
     hooks: ["boundary.settle.after", "thread.shutdown"],
     provides: [],
     pieces: [piece("skill", "write-lesson"), piece("command", "/learn")],
@@ -383,7 +414,7 @@ export const PLUGINS: Plugin[] = [
     group: "learning",
     origin: "builtin",
     version: "0.4.0",
-    reach: "global",
+    on: true,
     hooks: [],
     provides: ["knowledge.memory"],
     pieces: [piece("tool", "memory_write")],
@@ -396,7 +427,7 @@ export const PLUGINS: Plugin[] = [
     group: "review",
     origin: "user",
     version: "0.2.1",
-    reach: "project",
+    on: true,
     hooks: ["boundary.settle.after"],
     provides: [],
     pieces: [piece("command", "/review")],
@@ -417,7 +448,7 @@ export const PLUGINS: Plugin[] = [
     group: "review",
     origin: "user",
     version: "0.2.1",
-    reach: "project",
+    on: true,
     hooks: ["input.agent.before"],
     provides: [],
     pieces: [piece("agent", "reviewer")],
@@ -429,7 +460,7 @@ export const PLUGINS: Plugin[] = [
     layer: "L2",
     origin: "builtin",
     version: "0.4.0",
-    reach: "global",
+    on: true,
     hooks: [],
     provides: ["web.search", "web.fetch"],
     pieces: [piece("tool", "web_search"), piece("tool", "web_fetch")],
@@ -441,7 +472,7 @@ export const PLUGINS: Plugin[] = [
     layer: "plugin",
     origin: "user",
     version: "1.0.3",
-    reach: "off",
+    on: false,
     hooks: [],
     provides: ["web.search"],
     pieces: [piece("tool", "exa_search")],
@@ -453,7 +484,7 @@ export const PLUGINS: Plugin[] = [
     layer: "L2",
     origin: "builtin",
     version: "0.4.0",
-    reach: "global",
+    on: true,
     hooks: [],
     provides: ["knowledge.search", "knowledge.skills"],
     pieces: [piece("tool", "skill_load"), piece("tool", "knowledge_search")],
@@ -465,7 +496,7 @@ export const PLUGINS: Plugin[] = [
     layer: "L2",
     origin: "builtin",
     version: "0.4.0",
-    reach: "global",
+    on: true,
     hooks: [],
     provides: ["work.tasks"],
     pieces: [piece("tool", "task_create"), piece("command", "/todo")],
@@ -477,7 +508,7 @@ export const PLUGINS: Plugin[] = [
     layer: "L1",
     origin: "user",
     version: "0.1.0",
-    reach: "project",
+    on: true,
     hooks: ["request.provider.before", "request.model.after"],
     provides: [],
     pieces: [],
@@ -489,7 +520,7 @@ export const PLUGINS: Plugin[] = [
     layer: "L1",
     origin: "user",
     version: "0.1.0",
-    reach: "off",
+    on: false,
     hooks: ["thread.compact.before"],
     provides: [],
     pieces: [piece("skill", "keep-decisions")],
@@ -501,7 +532,7 @@ export const PLUGINS: Plugin[] = [
     layer: "plugin",
     origin: "user",
     version: "0.2.0",
-    reach: "global",
+    on: true,
     hooks: ["tool.call.before"],
     provides: [],
     pieces: [],
@@ -513,7 +544,7 @@ export const PLUGINS: Plugin[] = [
     layer: "plugin",
     origin: "user",
     version: "0.1.2",
-    reach: "thread",
+    on: true,
     hooks: ["tool.execution.after"],
     provides: [],
     pieces: [piece("command", "/lint")],
@@ -525,7 +556,7 @@ export const PLUGINS: Plugin[] = [
     layer: "plugin",
     origin: "user",
     version: "0.1.0",
-    reach: "global",
+    on: true,
     hooks: ["boundary.settle.after"],
     provides: [],
     pieces: [],
@@ -537,7 +568,7 @@ export const PLUGINS: Plugin[] = [
     layer: "plugin",
     origin: "project",
     version: "0.0.9",
-    reach: "project",
+    on: true,
     hooks: ["tool.result"],
     provides: ["notes.search"],
     pieces: [piece("mcp", "acme-wiki"), piece("skill", "acme-style")],
@@ -556,7 +587,7 @@ export const PLUGINS: Plugin[] = [
     layer: "plugin",
     origin: "user",
     version: "0.3.0",
-    reach: "global",
+    on: true,
     hooks: ["input.user.before"],
     provides: [],
     pieces: [
@@ -659,7 +690,7 @@ export const LEAD = {
   ],
 };
 
-// ── 만들기 틀 ─────────────────────────────────────────────────────
+// ── 만들기 템플릿 ─────────────────────────────────────────────────
 export interface BuildTemplate {
   id: string;
   label: string;
@@ -668,19 +699,54 @@ export interface BuildTemplate {
   fold?: Fold;
 }
 export const BUILD_TEMPLATES: BuildTemplate[] = [
-  { id: "guard", label: "막는 플러그인", hint: "조건이 맞으면 멈춰요", fold: "first" },
-  { id: "watch", label: "지켜보는 플러그인", hint: "기록하고 알려요", fold: "tap" },
-  { id: "shape", label: "고치는 플러그인", hint: "값을 바꿔서 넘겨요", fold: "chain" },
-  { id: "gather", label: "모으는 플러그인", hint: "덧붙일 조각을 내요", fold: "collect" },
-  { id: "skill", label: "스킬 하나", hint: "SKILL.md로 에이전트가 배워요" },
-  { id: "command", label: "명령 하나", hint: "/이름으로 불러요" },
-  { id: "mcp", label: "MCP 서버 연결", hint: "바깥 도구를 붙여요" },
+  { id: "guard", label: "차단", hint: "조건이 맞으면 멈춰요", fold: "first" },
+  { id: "watch", label: "관찰", hint: "기록하고 알려요", fold: "tap" },
+  { id: "shape", label: "수정", hint: "값을 바꿔서 넘겨요", fold: "chain" },
+  { id: "gather", label: "합치기", hint: "덧붙일 내용을 내요", fold: "collect" },
+  { id: "skill", label: "스킬", hint: "SKILL.md로 에이전트가 배워요" },
+  { id: "command", label: "명령", hint: "/이름으로 불러요" },
+  { id: "mcp", label: "MCP 서버", hint: "바깥 도구를 연결해요" },
+];
+
+/** "대화에서 만들기"가 고를 수 있는 지난 대화(셸 시안의 대화 목록과 같은 이름) */
+export interface PastThread {
+  id: string;
+  title: string;
+  when: string;
+  /** 에이전트 대화에 채워지는 요약 */
+  gist: string;
+}
+export const PAST_THREADS: readonly PastThread[] = [
+  {
+    id: "t1",
+    title: "캐시 무효화 조사",
+    when: "방금",
+    gist: "캐시가 안 지워져 같은 답이 나오던 일을 찾았고, 도구를 쓰기 전에 키를 확인하는 단계가 빠져 있었어요",
+  },
+  {
+    id: "t3",
+    title: "빌드 실패 분석",
+    when: "어제",
+    gist: "린트 오류가 편집 직후에는 안 보이다가 빌드에서 터졌어요. 파일을 고친 뒤 바로 린트를 돌리면 막을 수 있어요",
+  },
+  {
+    id: "t2",
+    title: "테스트 정리",
+    when: "어제",
+    gist: "느린 테스트를 따로 모으고, 끝날 때마다 결과를 알려 주길 원했어요",
+  },
+  {
+    id: "t5",
+    title: "주간 회고",
+    when: "3일 전",
+    gist: "한 주가 끝나면 한 일을 요약해서 노트에 남기는 일을 반복했어요",
+  },
 ];
 
 /** 매니페스트 조각(카드의 코드 블록). 값은 모양만 맞춘 가짜다. */
 export function manifestText(
   sel: { group: Group } | { plugin: Plugin },
-  getReach: (id: string) => Reach,
+  isOn: (id: string) => boolean,
 ): string {
   const plugins =
     "group" in sel
@@ -705,7 +771,7 @@ export function manifestText(
       fields.push(
         `provides: [${p.provides.map((c) => `{ id: "${c}", version: "1.0.0" }`).join(", ")}]`,
       );
-    if (getReach(p.id) !== "off") fields.push("defaultEnabled: true");
+    if (isOn(p.id)) fields.push("defaultEnabled: true");
     lines.push(`    { ${fields.join(", ")} },`);
   }
   lines.push("  ],");

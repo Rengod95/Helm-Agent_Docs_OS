@@ -1,67 +1,101 @@
-// 플러그인 빌더: 에이전트 대화 + 틀 + 스킬. "더하기"나 빈 줄에서 열면 걸 훅을 이미 알고 시작한다.
+// 플러그인 빌더: 에이전트 대화, 템플릿 고르기, 지난 대화에서 만들기. hook이 있으면 그 훅을 알고 시작한다.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Badge,
   Button,
-  ChoiceGroup,
-  ChoiceGroupItem,
+  Chip,
   IconButton,
+  Menu,
+  MenuItem,
   Message,
-  SectionHeader,
-  SegmentedControl,
-  SegmentedControlItem,
   Textarea,
+  Tooltip,
 } from "@caustic/react";
 import { X } from "../_shell";
 import { T, josa } from "../_shell/terms";
-import { BUILD_TEMPLATES, FOLD_LABEL, REACH_LABEL, hookDef, type Fold, type Reach } from "./data";
+import {
+  BUILD_TEMPLATES,
+  FOLD_LABEL,
+  FOLD_TIP,
+  PAST_THREADS,
+  hookDef,
+  type BuildTemplate,
+  type Fold,
+  type PastThread,
+} from "./data";
 
 export interface BuilderProps {
+  /** 열 때 고른 훅 id. 없으면 null */
   hook: string | null;
   templateId: string | null;
+  /** 고른 지난 대화(PAST_THREADS id). 없으면 null */
+  threadId: string | null;
   onTemplate: (id: string) => void;
+  onThread: (id: string | null) => void;
   onClose: () => void;
-  onCreate: (c: { name: string; template: string | null; reach: Reach }) => void;
+  onCreate: (c: { name: string; template: string | null }) => void;
 }
 
-type SkillId = "web" | "work" | "code" | "latency";
-const SKILLS: readonly { id: SkillId; label: string; cap: string }[] = [
-  { id: "web", label: "웹 검색 읽기", cap: "web.search" },
-  { id: "work", label: "작업 기록 쓰기", cap: "work.tasks" },
-  { id: "code", label: "코드 읽기", cap: "code.read" },
-  { id: "latency", label: `${T.hook} 지연 측정`, cap: "hooks.latency" },
-];
-const isSkill = (x: string): x is SkillId => SKILLS.some((s) => s.id === x);
-const BUILD_REACHES: readonly Reach[] = ["thread", "project", "global"];
 const pluginObj = josa(T.plugin, "을", "를");
+const PROMPT = "무엇을 만들까요?";
 
 interface Msg {
   id: number;
   who: "user" | "agent";
   text: string;
+  /** 에이전트 말의 둘째 문단 */
+  next?: string;
+}
+type Turn = Omit<Msg, "id">;
+
+function append(prev: readonly Msg[], turns: readonly Turn[]): Msg[] {
+  return [...prev, ...turns.map((m, i) => ({ ...m, id: prev.length + i }))];
 }
 
 const ASK: Record<Fold, string> = {
-  first: "어떤 경우에 막을까요?",
-  chain: "무엇을 어떻게 고칠까요?",
+  first: "어떤 경우에 차단할까요?",
+  chain: "무엇을 어떻게 수정할까요?",
   tap: "무엇을 기록하거나 알릴까요?",
-  collect: "어떤 조각을 덧붙일까요?",
+  collect: "어떤 내용을 합칠까요?",
 };
-const REPLIES = [`이름과 ${T.hook}를 정리했어요.`, "스킬을 더했어요.", "고쳤어요."] as const;
+const REPLIES = [
+  `이름과 ${josa(T.hook, "을", "를")} 정리했어요.`,
+  "조건을 더했어요.",
+  "고쳤어요.",
+] as const;
 
-function seed(hook: string | null): Msg[] {
-  const def = hook === null ? undefined : hookDef(hook);
-  if (hook === null) return [{ id: 0, who: "user", text: `새 ${pluginObj} 만들어 줘` }];
+function hookTurns(hook: string | null): Turn[] {
+  if (hook === null)
+    return [
+      { who: "user", text: `새 ${pluginObj} 만들어 줘` },
+      { who: "agent", text: "지난 대화에서 시작하거나 템플릿을 골라 보세요." },
+    ];
+  const def = hookDef(hook);
   const label = def?.label ?? hook;
-  const fold = def?.fold ?? "tap";
+  const fold: Fold = def?.fold ?? "tap";
   return [
-    { id: 0, who: "user", text: `${label} 끼어들 ${pluginObj} 만들어 줘` },
+    { who: "user", text: `${label}에 끼어들 ${pluginObj} 만들어 줘` },
     {
-      id: 1,
       who: "agent",
-      text: `${hook}는 ${FOLD_LABEL[fold]} ${T.hook}예요. ${ASK[fold]}`,
+      text: `${hook}는 ${FOLD_LABEL[fold]} ${josa(T.hook, "이에요", "예요")}. ${ASK[fold]}`,
     },
   ];
+}
+
+function threadTurns(t: PastThread): Turn[] {
+  return [
+    { who: "user", text: `「${t.title}」 대화에서 만들어 줘` },
+    { who: "agent", text: t.gist, next: "이 내용으로 시작할까요?" },
+  ];
+}
+
+function startTurns(hook: string | null, threadId: string | null): Turn[] {
+  const past = PAST_THREADS.find((t) => t.id === threadId);
+  return past === undefined ? hookTurns(hook) : threadTurns(past);
 }
 
 function Line({ m, first }: { m: Msg; first: boolean }) {
@@ -74,6 +108,7 @@ function Line({ m, first }: { m: Msg; first: boolean }) {
   return (
     <Message author="agent" meta={first ? "에이전트" : undefined}>
       <p>{m.text}</p>
+      {m.next !== undefined && <p>{m.next}</p>}
     </Message>
   );
 }
@@ -81,38 +116,33 @@ function Line({ m, first }: { m: Msg; first: boolean }) {
 export function Builder({
   hook,
   templateId,
+  threadId,
   onTemplate,
+  onThread,
   onClose,
   onCreate,
 }: BuilderProps): ReactNode {
   const def = hook === null ? undefined : hookDef(hook);
-  const [log, setLog] = useState<Msg[]>(() => seed(hook));
+  const tpl = BUILD_TEMPLATES.find((t) => t.id === templateId);
+  const past = PAST_THREADS.find((t) => t.id === threadId);
+  const [log, setLog] = useState<Msg[]>(() => append([], startTurns(hook, threadId)));
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(0);
-  const [reach, setReach] = useState<Reach>("project");
-  const [skills, setSkills] = useState<ReadonlySet<SkillId>>(() => new Set<SkillId>(["web"]));
-  const [run, setRun] = useState<"idle" | "running" | "passed">("idle");
   const listRef = useRef<HTMLDivElement>(null);
   const firstAgent = log.find((x) => x.who === "agent")?.id;
+  // 훅의 fold와 같은 템플릿을 앞에 둔다.
+  const matchesHook = (t: BuildTemplate): boolean => def !== undefined && t.fold === def.fold;
   const sorted = [...BUILD_TEMPLATES].sort(
-    (a, b) =>
-      Number(b.fold === def?.fold && def !== undefined) -
-      Number(a.fold === def?.fold && def !== undefined),
+    (a, b) => Number(matchesHook(b)) - Number(matchesHook(a)),
   );
-  const tpl = BUILD_TEMPLATES.find((t) => t.id === templateId);
 
   useEffect(() => {
     if (pending === 0) return undefined;
     const t = window.setTimeout(() => {
-      setLog((prev) => [
-        ...prev,
-        {
-          id: prev.length,
-          who: "agent",
-          text:
-            REPLIES[prev.filter((x) => x.who === "agent").length % REPLIES.length] ?? REPLIES[0],
-        },
-      ]);
+      setLog((prev) => {
+        const n = prev.filter((x) => x.who === "agent").length;
+        return append(prev, [{ who: "agent", text: REPLIES[n % REPLIES.length] ?? REPLIES[0] }]);
+      });
       setPending((k) => k - 1);
     }, 600);
     return () => window.clearTimeout(t);
@@ -121,16 +151,11 @@ export function Builder({
     const el = listRef.current;
     if (el !== null) el.scrollTop = el.scrollHeight;
   }, [log]);
-  useEffect(() => {
-    if (run !== "running") return undefined;
-    const t = window.setTimeout(() => setRun("passed"), 1200);
-    return () => window.clearTimeout(t);
-  }, [run]);
 
   const send = (): void => {
     const text = draft.trim();
     if (text === "") return;
-    setLog((prev) => [...prev, { id: prev.length, who: "user", text }]);
+    setLog((prev) => append(prev, [{ who: "user", text }]));
     setDraft("");
     setPending((k) => k + 1);
   };
@@ -140,80 +165,143 @@ export function Builder({
       send();
     }
   };
-  const pick = (id: string): void => {
-    if (id !== templateId) {
-      const t = BUILD_TEMPLATES.find((x) => x.id === id);
-      setLog((prev) => [
-        ...prev,
-        { id: prev.length, who: "agent", text: `${t?.label ?? id}로 시작할게요.` },
-      ]);
+  const pick = (t: BuildTemplate): void => {
+    if (t.id !== templateId) {
+      setLog((prev) => append(prev, [{ who: "agent", text: `${t.label} 템플릿으로 시작할게요.` }]));
     }
-    onTemplate(id);
+    onTemplate(t.id);
   };
-  const pickReach = (v: string): void => {
-    const r = BUILD_REACHES.find((x) => x === v);
-    if (r !== undefined) setReach(r);
+  const pickThread = (t: PastThread): void => {
+    if (t.id === threadId) return;
+    setLog((prev) => append(prev, threadTurns(t)));
+    onThread(t.id);
   };
 
   const manifest = JSON.stringify(
     {
       name: tpl?.id ?? "new-plugin",
-      plugins: [
-        {
-          layer: "plugin",
-          hooks: hook === null ? [] : [hook],
-          optional: SKILLS.filter((s) => skills.has(s.id)).map((s) => ({
-            id: s.cap,
-            range: "^1.0.0",
-          })),
-        },
-      ],
+      plugins: [{ layer: "plugin", hooks: hook === null ? [] : [hook] }],
     },
     null,
     2,
   );
-  const dest =
-    reach === "global"
-      ? "~/.fresnel/extensions"
-      : reach === "project"
-        ? ".fresnel-plugin/plugin.json"
-        : "이 대화 안";
-  const PROMPT = "무엇을 만들까요?";
 
   return (
     <div className="@container flex h-full min-h-0 flex-col bg-surface-base">
-      <header className="flex h-12 flex-none items-center justify-between border-b border-border-subtle px-4">
-        <h2 className="m-0 text-title-3 text-text-primary">{T.plugin} 만들기</h2>
+      <header className="flex h-12 flex-none items-center justify-between gap-3 border-b border-border-subtle ps-4 pe-16">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="m-0 flex-none text-title-3 text-text-primary">{T.plugin} 만들기</h2>
+          {hook !== null && (
+            <>
+              {def !== undefined && (
+                <span className="min-w-0 truncate text-footnote text-text-tertiary">
+                  {def.label}
+                </span>
+              )}
+              <Badge mono>{hook}</Badge>
+              {def !== undefined && (
+                <Tooltip content={FOLD_TIP[def.fold]} side="bottom" delayDuration={300}>
+                  <Badge size="sm" variant="outline">
+                    {FOLD_LABEL[def.fold]}
+                  </Badge>
+                </Tooltip>
+              )}
+            </>
+          )}
+        </div>
         <IconButton size="sm" variant="ghost" label="닫기" onClick={onClose}>
           <X />
         </IconButton>
       </header>
 
-      <div className="flex flex-none flex-wrap items-center gap-x-5 gap-y-2 border-b border-border-subtle px-4 py-2.5 text-footnote text-text-tertiary">
-        <span className="flex items-center gap-2">
-          걸 곳
-          <span className="text-text-primary">
-            {def === undefined ? (hook ?? "정하지 않음") : def.label}
-          </span>
-          {hook !== null && <Badge mono>{hook}</Badge>}
-        </span>
-        <span className="flex items-center gap-2">
-          켤 곳
-          <SegmentedControl size="sm" aria-label="켤 곳" value={reach} onValueChange={pickReach}>
-            {BUILD_REACHES.map((r) => (
-              <SegmentedControlItem key={r} value={r}>
-                {REACH_LABEL[r]}
-              </SegmentedControlItem>
-            ))}
-          </SegmentedControl>
-        </span>
-        <span>
-          저장 <span className="font-mono text-mono-sm text-text-primary">{dest}</span>
-        </span>
+      <div className="flex-none border-b border-border-subtle ps-4 pe-16">
+        <Accordion type="multiple" size="sm">
+          <AccordionItem value="template" className="min-w-0">
+            <AccordionTrigger
+              accessory={
+                tpl === undefined ? undefined : (
+                  <span className="text-footnote text-text-tertiary">{tpl.label}</span>
+                )
+              }
+            >
+              템플릿
+            </AccordionTrigger>
+            <AccordionContent className="max-w-none">
+              <div
+                role="group"
+                aria-label="템플릿"
+                className="flex snap-x gap-2 overflow-x-auto pb-2"
+              >
+                {sorted.map((t) => {
+                  const on = t.id === templateId;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => pick(t)}
+                      className={`flex w-44 flex-none snap-start flex-col gap-0.5 rounded-xl border px-3 py-2.5 text-left ${on ? "border-text-primary bg-neutral-soft" : "border-border-default"}`}
+                    >
+                      <span className="text-ui-strong text-text-primary">{t.label}</span>
+                      <span className="text-footnote text-text-tertiary">{t.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+          <AccordionItem value="manifest" className="min-w-0 border-b-0">
+            <AccordionTrigger
+              accessory={
+                <span className="font-mono text-mono-sm text-text-tertiary">plugin.json</span>
+              }
+            >
+              {T.plugin} 정보
+            </AccordionTrigger>
+            <AccordionContent>
+              <pre className="overflow-x-auto rounded-md bg-bg-inset px-3 py-2.5 font-mono text-footnote text-text-secondary">
+                {manifest}
+              </pre>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] @min-[760px]:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] @min-[760px]:grid-rows-[minmax(0,1fr)]">
-        <div className="flex min-h-0 min-w-0 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="mx-auto flex min-h-0 w-full max-w-[760px] flex-1 flex-col">
+          <div className="flex flex-none flex-wrap items-center gap-2 px-4 pt-3">
+            <Menu
+              size="sm"
+              radius="lg"
+              trigger={
+                <Button size="sm" variant="outline">
+                  대화에서 만들기
+                </Button>
+              }
+            >
+              {PAST_THREADS.map((t) => (
+                <MenuItem
+                  key={t.id}
+                  selected={t.id === threadId}
+                  end={t.when}
+                  onSelect={() => pickThread(t)}
+                >
+                  {t.title}
+                </MenuItem>
+              ))}
+            </Menu>
+            {past !== undefined && (
+              <Chip
+                size="sm"
+                variant="soft"
+                removeLabel="선택 해제"
+                onRemove={() => onThread(null)}
+              >
+                {past.title}
+              </Chip>
+            )}
+          </div>
+
           <div
             ref={listRef}
             role="log"
@@ -227,6 +315,7 @@ export function Builder({
               ))}
             </div>
           </div>
+
           <div className="flex flex-none items-end gap-2 border-t border-border-subtle px-4 py-3">
             <Textarea
               rows={2}
@@ -241,96 +330,6 @@ export function Builder({
             </Button>
           </div>
         </div>
-
-        <div className="flex min-h-0 min-w-0 flex-col overflow-y-auto border-t border-border-subtle @min-[760px]:border-l @min-[760px]:border-t-0">
-          <section aria-label="틀" className="flex-none">
-            <SectionHeader size="xs" headingLevel={3} title="틀" className="px-4 pb-1 pt-3" />
-            <ChoiceGroup
-              appearance="answer"
-              aria-label="틀"
-              value={templateId ?? ""}
-              onValueChange={(v) => {
-                if (typeof v === "string") pick(v);
-              }}
-              className="px-4 pb-3"
-            >
-              {sorted.map((t) => (
-                <ChoiceGroupItem
-                  key={t.id}
-                  value={t.id}
-                  title={t.label}
-                  description={
-                    def !== undefined && t.fold === def.fold ? `${hook} · ${t.hint}` : t.hint
-                  }
-                />
-              ))}
-            </ChoiceGroup>
-          </section>
-          <section aria-label="스킬" className="flex-none border-t border-border-subtle">
-            <SectionHeader size="xs" headingLevel={3} title="스킬" className="px-4 pb-1 pt-3" />
-            <ChoiceGroup
-              appearance="answer"
-              type="multiple"
-              aria-label="스킬"
-              value={[...skills]}
-              onValueChange={(v) => {
-                if (Array.isArray(v)) setSkills(new Set(v.filter(isSkill)));
-              }}
-              className="px-4 pb-3"
-            >
-              {SKILLS.map((s) => (
-                <ChoiceGroupItem key={s.id} value={s.id} title={s.label} />
-              ))}
-            </ChoiceGroup>
-          </section>
-          <section aria-label={T.manifest} className="flex-none border-t border-border-subtle">
-            <SectionHeader
-              size="xs"
-              headingLevel={3}
-              title={T.manifest}
-              className="px-4 pb-1 pt-3"
-            />
-            <pre className="mx-4 mb-3 overflow-x-auto rounded-md bg-bg-inset px-3 py-2.5 font-mono text-footnote text-text-secondary">
-              {manifest}
-            </pre>
-          </section>
-          <section aria-label="실행 테스트" className="flex-none border-t border-border-subtle">
-            <SectionHeader
-              size="xs"
-              headingLevel={3}
-              title="실행 테스트"
-              className="px-4 pb-1 pt-3"
-            />
-            <div className="px-4 py-2.5">
-              <Button
-                size="sm"
-                variant="outline"
-                loading={run === "running"}
-                onClick={() => setRun("running")}
-              >
-                {run === "running"
-                  ? "돌리는 중"
-                  : run === "passed"
-                    ? "다시 돌리기"
-                    : `${T.trialThread}에서 돌려 보기`}
-              </Button>
-            </div>
-            {run === "passed" && (
-              <ul className="m-0 list-none p-0">
-                {[`${T.hook} 등록 검사 통과`, `${REACH_LABEL[reach]}에 켜짐`, "지연 한도 안"].map(
-                  (c) => (
-                    <li
-                      key={c}
-                      className="border-t border-border-subtle px-4 py-2 text-footnote text-text-primary"
-                    >
-                      {c}
-                    </li>
-                  ),
-                )}
-              </ul>
-            )}
-          </section>
-        </div>
       </div>
 
       <footer className="flex h-14 flex-none items-center justify-end gap-3 border-t border-border-subtle px-4">
@@ -342,7 +341,7 @@ export function Builder({
             size="sm"
             variant="solid"
             disabled={templateId === null}
-            onClick={() => onCreate({ name: "새 플러그인", template: templateId, reach })}
+            onClick={() => onCreate({ name: "새 플러그인", template: templateId })}
           >
             만들기
           </Button>
