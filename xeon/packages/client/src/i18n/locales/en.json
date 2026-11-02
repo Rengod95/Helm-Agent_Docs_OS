@@ -469,8 +469,6 @@
   "cli.secret.none": "none",
   "cli.secret.prompt.again": "Once more: ",
   "cli.secret.prompt.value": "Value (not shown on screen): ",
-  "cli.secret.provider.unsupported.fix": "Use --provider sops, or remove the flag",
-  "cli.secret.provider.unsupported.message": "Provider {provider} cannot be used in M2",
   "cli.secret.references.line": "{name}: setting keys {keys} / active leases {leases} / recent sessions {sessions}\n",
   "cli.secret.references.threadsMore": "{shown} and {more} more",
   "cli.secret.reveal.noOutOfBand.fix": "Reveal it in the OS window on the service side (service mode arrives in M3)",

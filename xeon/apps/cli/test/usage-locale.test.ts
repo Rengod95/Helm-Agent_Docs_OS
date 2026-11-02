@@ -100,6 +100,16 @@ test("a secret command without a name asks for one", () => {
   });
 });
 
+test("--provider accepts only sops and the fix names it", () => {
+  for (const provider of ["op", "bws", "keychain"]) {
+    expect(usageOf(["secret", "add", "api-key", "--provider", provider])).toEqual({
+      code: "unexpectedArgument",
+      message: "The --provider value is not valid",
+      fix: "Use one of sops",
+    });
+  }
+});
+
 test("a positional argument to version is refused in English", () => {
   expect(usageOf(["version", "extra"])).toEqual({
     code: "unexpectedArgument",

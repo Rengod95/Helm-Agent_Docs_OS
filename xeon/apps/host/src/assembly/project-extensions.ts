@@ -9,7 +9,10 @@ import type { ProjectTrust } from "./trust.ts";
 // 신뢰 포트가 이 모듈을 다시 부른다. in-process·stdio 호스트는 시작 때 `loadAll`이 cwd의 프로젝트를 이미 처리했으므로 아무것도 하지 않는다.
 
 export interface ProjectExtensions {
-  /** 작업 폴더의 프로젝트 확장을 싣는다. 불신·미결정이면 싣지 않는다. 같은 폴더의 동시 호출은 한 번만 싣는다 */
+  /**
+   * 작업 폴더의 프로젝트 확장을 싣는다. 불신·미결정이면 싣지 않는다. 같은 폴더의 동시 호출은 한 번만 싣고,
+   * 각 호출자는 자기 신호로만 기다린다: 한 호출자가 떠나도 적재와 다른 호출자의 결과는 그대로다
+   */
   ensure(workspace: string | undefined, signal: AbortSignal): Promise<void>;
 }
 
@@ -19,9 +22,12 @@ export interface ProjectExtensionsDeps {
   readonly loader: () => ExtensionLoader | undefined;
   readonly trust: ProjectTrust;
   readonly logger: Logger;
+  /** 엔진 수명 신호. 공유 적재는 이 신호로 돈다: 닫히면 적재를 중단하고, 먼저 부른 호출자가 떠나도 멈추지 않는다 */
+  readonly signal: AbortSignal;
 }
 
 export function createProjectExtensions(deps: ProjectExtensionsDeps): ProjectExtensions {
+  /** 작업 폴더마다 진행 중인 적재 하나. 실패하면 지워서 다음 호출이 다시 싣게 한다 */
   const inFlight = new Map<string, Promise<void>>();
 
   async function load(
@@ -55,13 +61,33 @@ export function createProjectExtensions(deps: ProjectExtensionsDeps): ProjectExt
       if (deps.mode !== "service" || workspace === undefined) return Promise.resolve();
       const loader = deps.loader();
       if (loader === undefined) return Promise.resolve();
-      const pending = inFlight.get(workspace);
-      if (pending !== undefined) return pending;
-      const started = load(loader, workspace, signal).finally(() => {
-        inFlight.delete(workspace);
-      });
-      inFlight.set(workspace, started);
-      return started;
+      let shared = inFlight.get(workspace);
+      if (shared === undefined) {
+        // 적재는 호출자의 신호가 아니라 엔진 수명 신호로 돈다(이 호출자의 신호는 아래에서 이 호출자만 본다)
+        shared = load(loader, workspace, deps.signal).finally(() => {
+          inFlight.delete(workspace);
+        });
+        inFlight.set(workspace, shared);
+      }
+      return untilCallerAborts(shared, signal);
     },
   };
+}
+
+/**
+ * 공유 적재를 호출자 자기 신호로만 기다린다. 이 신호가 닫히면 이 호출자만 그 사유로 거절되고, 공유 적재는 계속 돈다.
+ * 공유 적재는 항상 구독되어 있어서, 아무도 기다리지 않게 된 실패도 처리되지 않은 거절로 새지 않는다.
+ */
+function untilCallerAborts(shared: Promise<void>, signal: AbortSignal): Promise<void> {
+  const cancelled = Promise.withResolvers<never>();
+  const onAbort = (): void => {
+    const reason: unknown = signal.reason;
+    cancelled.reject(reason);
+  };
+  // 이미 닫힌 신호에는 abort 사건이 다시 오지 않는다
+  if (signal.aborted) onAbort();
+  else signal.addEventListener("abort", onAbort, { once: true });
+  return Promise.race([shared, cancelled.promise]).finally(() => {
+    signal.removeEventListener("abort", onAbort);
+  });
 }

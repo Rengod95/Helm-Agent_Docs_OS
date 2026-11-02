@@ -14,9 +14,11 @@ import type {
 // 해석은 cap-workspace의 buildFileChange가 쓰는 모양(`--- a/…`, `+++ b/…`, `@@ -a,b +c,d @@`)과 git 출력의 확장 헤더
 // (`diff --git`, `index`, 모드, `rename from/to`, `Binary files … differ`)를 받는다.
 // 본문은 헤더의 줄 수로 끝을 정한다. 그래서 지운 줄 `-- x`가 `--- x`로 보여도 파일 헤더로 오인하지 않는다.
+// 본문 없는 git 블록(빈 파일 추가·삭제, 모드만 바뀜)은 hunk가 없는 파일로 받는다. 경로는 `diff --git` 줄의 두 쪽이 같을 때만 읽는다.
 
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 const BINARY_LINE = /^Binary files (.+) and (.+) differ$/;
+const GIT_HEADER = "diff --git ";
 const RENAME_FROM = "rename from ";
 const RENAME_TO = "rename to ";
 const EXTENDED_PREFIXES: readonly string[] = [
@@ -86,6 +88,35 @@ function shapeOf(
   return { path: newSide, oldPath: oldSide, change };
 }
 
+/**
+ * `diff --git a/<p> b/<p>` 줄의 경로 `<p>`. 두 쪽이 같을 때만 읽는다. 따옴표가 있거나 두 쪽이 다르면 undefined다
+ * (이름이 바뀐 블록은 본문 없이도 `rename from/to` 줄로 경로를 얻는다)
+ */
+function gitPathOf(header: string | undefined): string | undefined {
+  if (header === undefined || !header.startsWith(GIT_HEADER)) return undefined;
+  const rest = header.slice(GIT_HEADER.length);
+  // 두 쪽이 같으면 `a/<p> b/<p>`의 길이는 2·|p|+5라서 |p|가 하나로 정해진다. 경로 안의 ` b/`에 속지 않는다
+  const length = (rest.length - 5) / 2;
+  if (!Number.isInteger(length) || length < 1) return undefined;
+  const path = rest.slice(2, 2 + length);
+  return rest === `a/${path} b/${path}` ? path : undefined;
+}
+
+/**
+ * 본문 없는 git 블록의 모양. 헤더가 빈 파일 추가(`new file mode`), 빈 파일 삭제(`deleted file mode`), 모드만 바뀜(`old mode`와
+ * `new mode`) 가운데 하나를 말할 때만 정한다. 둘 이상이면 모양을 정할 수 없다
+ */
+function bodylessShape(path: string, extended: readonly string[]): FileShape | undefined {
+  const has = (prefix: string): boolean => extended.some((line) => line.startsWith(prefix));
+  const added = has("new file mode ");
+  const deleted = has("deleted file mode ");
+  const modeOnly = has("old mode ") && has("new mode ");
+  if ([added, deleted, modeOnly].filter((flag) => flag).length !== 1) return undefined;
+  if (added) return { path, oldPath: null, change: "added" };
+  if (deleted) return { path, oldPath: path, change: "deleted" };
+  return { path, oldPath: path, change: "modified" };
+}
+
 /** `\ No newline at end of file` 줄을 본문에 넣고, 그 다음 줄 번호를 돌려준다 */
 function takeMarkers(lines: readonly string[], index: number, body: string[]): number {
   let i = index;
@@ -153,12 +184,14 @@ function readHunk(lines: readonly string[], start: number): Result<HunkRead, Dif
 function readBlock(lines: readonly string[], start: number): Result<BlockRead, DiffParseError> {
   const startLine = start + 1;
   let i = start;
-  if (lines[i]?.startsWith("diff --git ") === true) i++;
+  if (lines[i]?.startsWith(GIT_HEADER) === true) i++;
 
+  const extended: string[] = [];
   let renameFrom: string | undefined;
   let renameTo: string | undefined;
   let line = lines[i];
   while (line !== undefined && isExtendedHeader(line)) {
+    extended.push(line);
     if (line.startsWith(RENAME_FROM)) {
       renameFrom = line.slice(RENAME_FROM.length);
     } else if (line.startsWith(RENAME_TO)) {
@@ -222,7 +255,14 @@ function readBlock(lines: readonly string[], start: number): Result<BlockRead, D
     return ok({ file: { ...shape, binary: false, hunks: [] }, next: i });
   }
 
-  return fail(startLine);
+  // 본문 없는 git 블록(빈 파일 추가·삭제, 모드만 바뀜)은 hunk 없이 받는다. 뒤는 다음 `diff --git` 블록이나 끝이어야 한다.
+  // 그 밖의 줄이 이으면 블록 시작 줄의 실패를 그대로 둔다
+  const gitPath = gitPathOf(lines[start]);
+  const atBlockEnd = line === undefined || line.startsWith(GIT_HEADER);
+  const bodyless =
+    gitPath !== undefined && atBlockEnd ? bodylessShape(gitPath, extended) : undefined;
+  if (bodyless === undefined) return fail(startLine);
+  return ok({ file: { ...bodyless, binary: false, hunks: [] }, next: i });
 }
 
 /** 통합 diff 텍스트를 파일 블록 목록으로 해석한다. 파일 블록이 하나도 없으면 실패다 */

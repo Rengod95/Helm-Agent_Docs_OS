@@ -9,6 +9,7 @@ import {
   type VolatileEventEnvelope,
 } from "@fresnel/contracts/records";
 import type { OsTime } from "@fresnel/contracts/services";
+import { createChunkNumbering, type ChunkNumbering } from "./chunk-numbering.ts";
 import { sha256Hex } from "./hash.ts";
 import type { NoticePort } from "./ports/notices.ts";
 import type { DialogFeed, StatusPublisher } from "./ports/session.ts";
@@ -56,14 +57,18 @@ export function sessionFeed(
   };
 }
 
-/** `dialog.status` 휘발 이벤트를 `fresnel.session`으로 내보낸다. 읽기에 실패하면 이 이벤트는 건너뛴다(최선 노력) */
+/**
+ * `dialog.status` 휘발 이벤트를 `fresnel.session`으로 내보낸다. 읽기에 실패하면 이 이벤트는 건너뛴다(최선 노력).
+ * `n`은 `numbering`에서 받는다. 생략하면 이 발신자만 세는 발급기를 쓴다. 같은 (thread, turn) 키를 쓰는 다른 발신자와
+ * 번호를 나눠야 하면 조립 루트가 한 발급기를 넘긴다.
+ */
 export function sessionStatusPublisher(
   session: Pick<SessionService, "feed" | "emitVolatile">,
   ids: IdFactory,
   time: Pick<OsTime, "clock">,
   logger: Logger,
+  numbering: ChunkNumbering = createChunkNumbering(),
 ): StatusPublisher {
-  const counters = new Map<ThreadId, number>();
   return {
     publish(threadId: ThreadId, items: readonly StatusItem[]) {
       const head = session.feed.headSeq();
@@ -71,8 +76,7 @@ export function sessionStatusPublisher(
         logger.warn("dialog.status_dropped", { threadId, reason: head.error.kind });
         return;
       }
-      const n = counters.get(threadId) ?? 0;
-      counters.set(threadId, n + 1);
+      const n = numbering.next(threadId, null);
       const envelope: VolatileEventEnvelope = {
         id: ids.next("evt"),
         kind: "dialog.status",

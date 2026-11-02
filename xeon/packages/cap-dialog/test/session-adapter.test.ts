@@ -11,6 +11,7 @@ import {
   type VolatileEventEnvelope,
 } from "@fresnel/contracts/records";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { createChunkNumbering, type ChunkNumbering } from "../src/chunk-numbering.ts";
 import { sessionFeed, sessionNoticePort, sessionStatusPublisher } from "../src/session-adapter.ts";
 import { newThread, recordingLogger, type LogLine } from "./support/harness.ts";
 
@@ -82,6 +83,73 @@ describe("상태 이벤트 휘발성", () => {
     publisher.publish(newThread(), []);
     expect(emitted).toHaveLength(0);
     expect(lines.map((line) => line.event)).toEqual(["dialog.status_dropped"]);
+  });
+});
+
+describe("dialog.status 번호", () => {
+  test("주입한 발급기가 준 번호를 그대로 쓰고 (thread, null) 키로 묻는다", () => {
+    const { session, emitted } = fakeSession(41);
+    const calls: { threadId: string; turnId: string | null }[] = [];
+    const numbering: ChunkNumbering = {
+      next: (threadId, turnId) => {
+        calls.push({ threadId, turnId });
+        return 10 * calls.length;
+      },
+    };
+    const publisher = sessionStatusPublisher(
+      session,
+      fixedIdFactory(),
+      { clock: { now: () => 1 } },
+      recordingLogger([]),
+      numbering,
+    );
+    const thread = newThread();
+    publisher.publish(thread, []);
+    publisher.publish(thread, []);
+    expect(emitted.map((event) => event.n)).toEqual([10, 20]);
+    expect(calls).toEqual([
+      { threadId: thread, turnId: null },
+      { threadId: thread, turnId: null },
+    ]);
+  });
+
+  test("같은 발급기를 나누면 다른 발신자가 쓴 번호 뒤부터 이어진다", () => {
+    const { session, emitted } = fakeSession(41);
+    const numbering = createChunkNumbering();
+    const publisher = sessionStatusPublisher(
+      session,
+      fixedIdFactory(),
+      { clock: { now: () => 1 } },
+      recordingLogger([]),
+      numbering,
+    );
+    const thread = newThread();
+    numbering.next(thread, null);
+    publisher.publish(thread, []);
+    numbering.next(thread, null);
+    publisher.publish(thread, []);
+    expect(emitted.map((event) => event.n)).toEqual([1, 3]);
+  });
+
+  test("발급기를 주지 않으면 발신자마다 따로 0부터 센다(기존 동작)", () => {
+    const { session, emitted } = fakeSession(41);
+    const thread = newThread();
+    const first = sessionStatusPublisher(
+      session,
+      fixedIdFactory(),
+      { clock: { now: () => 1 } },
+      recordingLogger([]),
+    );
+    const second = sessionStatusPublisher(
+      session,
+      fixedIdFactory(),
+      { clock: { now: () => 1 } },
+      recordingLogger([]),
+    );
+    first.publish(thread, []);
+    first.publish(thread, []);
+    second.publish(thread, []);
+    expect(emitted.map((event) => event.n)).toEqual([0, 1, 0]);
   });
 });
 

@@ -675,6 +675,8 @@ export const DIALOG_EVENT_CATALOG: readonly CatalogEntry[] = [
 ```
 
 - `dialog.status`는 휘발 이름 규칙 `<대상>.status`를 따른다(eng.events.design §4.5 규칙 2). 재생 대상이 아니다.
+- `dialog.status`의 휘발 번호 `n`은 조립 루트가 만든 발급기(`ChunkNumbering`)에서 받는다. 조립 루트는 발급기를 하나만 만들어 `scope.handler_failed`와 나눈다. 둘 다 `turnId`가 null이라 `(threadId, turn)` 키 하나의 번호 열을 같이 쓰므로 `n`이 겹치지 않는다(F.records.spec §4.3).
+- 발급기를 넘기지 않으면 이 어댑터가 발신자마다 따로 세서 같은 thread에서 `n`이 겹칠 수 있다(기본값이다. 조립 루트는 넘긴다).
 - `dialog.notified`는 M3다. `eng.context-map.design` §5.1의 `dialog.` 행은 내구 type을 "L2.dialog.spec 카탈로그"로 두었으므로 이 표가 그 카탈로그다.
 - `notification.` 접두사는 금지 접두사다(eng.events.design §4.5 규칙 4). 그래서 내구 이벤트 이름을 `dialog.notified`로 둔다.
 

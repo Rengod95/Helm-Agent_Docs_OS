@@ -230,12 +230,12 @@ test("the repository ledger has a valid status on all 112 rows, and every carry-
   });
   expect(scanned.requirements.length).toBe(112);
   expect(scanned.problems).toEqual([]);
-  // §9 holds the 37 M3a carry-over items on M3b tracks; §11 holds the 131 review.m3-plan §9.3 items.
-  expect(scanned.carryover.length).toBe(168);
-  expect(scanned.carryover.filter((row) => row.track.startsWith("M5:")).length).toBe(13);
+  // §9 holds the 37 M3a carry-over items on M3b tracks; §11 holds the 132 review.m3-plan §9.3 items.
+  expect(scanned.carryover.length).toBe(169);
+  expect(scanned.carryover.filter((row) => row.track.startsWith("M5:")).length).toBe(41);
   expect(scanned.carryover.filter((row) => row.track.startsWith("삭제:")).length).toBe(1);
   const byId = new Map(scanned.requirements.map((row) => [row.id, row.status]));
   expect(byId.get("M3-REQ-112")).toBe("M4:T-I18N");
   expect(byId.get("M3-REQ-33")).toBe("M3a");
-  expect(scanned.requirements.filter((row) => row.status.startsWith("M4:")).length).toBe(16);
+  expect(scanned.requirements.filter((row) => row.status.startsWith("M4:")).length).toBe(14);
 });

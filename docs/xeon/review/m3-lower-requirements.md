@@ -90,7 +90,7 @@ binds: []
 | M3-REQ-14 | F | `F.records.spec` 레코드 카탈로그 | artifact·schedule 레코드 카탈로그를 더한다 | B-07, M3-new-11, M3-new-12 | 0 | M3b |
 | M3-REQ-15 | F | `F.wire-settings.spec` 설정 wire | `settings.readFile`·`writeFile`, `settings.list`의 range 병합(또는 F 공통 병합 함수), `SettingsTab`(`sandbox` 포함)과 `SettingUi` 편집기 힌트, `EffectiveSetting`의 관리 잠금 사유, 사용량 wire를 더한다 | M3-19, B-01, U-50, U-88, U-89, U-91, U-92, A-70, M3-new-06 | 0 | M3b |
 | M3-REQ-16 | F | `F.wire-settings.spec` 명령·알림 wire | `status.list`, `attachments.add`, `notify.list`와 알림 전달 메서드를 더한다. 알림은 연결된 클라이언트 모두에 보내고, 클라이언트 창이 앞에 있어도 기본으로 보내며, 설정으로 조정한다 [결정: review.m3-design-inputs D-M3-17]. 웹·모바일 푸시 알림은 후순위다 | M3-20, M3-11, B-02, DG-04, D-M3-17 | 0 | M3b |
-| M3-REQ-17 | F | `F.wire-settings.spec` 비밀 wire | `SecretEntryOffer`의 add용 메타, `secret.test` 결과 확장(길이, 해시 앞 8자), 값 열람 경로를 정한다 | B-03, B-19, U-51, U-52, M-17, M3-new-06 | 0 | M4:T-RT1 |
+| M3-REQ-17 | F | `F.wire-settings.spec` 비밀 wire | `SecretEntryOffer`의 add용 메타, `secret.test` 결과 확장(길이, 해시 앞 8자), 값 열람 경로를 정한다 | B-03, B-19, U-51, U-52, M-17, M3-new-06 | 0 | M4 |
 | M3-REQ-18 | F | `F.wire-settings.spec` 지식 wire | 지식 제안 대기열의 목록·결정 wire를 더한다. 대기열은 둘(학습 그룹 `x_learning_proposals`, L2.knowledge 쓰기 승인 대기열)이고, 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이다 [결정: review.m3-design-inputs D-M3-32 a](학습 §8.1 REQ-LN-10) | M3-18, KN-05, REQ-L2-02, REQ-LN-10 | 0 | M3a |
 | M3-REQ-19 | F | `F.wire-settings.spec` §3.3.1, §3.5.2, §10 4 | 서비스 인증: 로컬 Unix 소켓은 파일 권한, TCP로 열 때만 `host.hello` `auth` 필수와 `host.authFailed` [결정: review.m3-design-inputs D-M3-16 c]. 재접속용 `approval.list`, `thread.open` 결과의 item 목록과 `asOfSeq`, 안전 모드 표시 필드를 더한다 | D-M3-16, A-16, U-45, U-75, U-76, A-34, M3-new-04, M3-new-05 | 0 | M4:T-WC |
 | M3-REQ-20 | F | `F.conversation.spec` | pi 메시지 스키마를 TypeBox로 다시 정의해 깊은 검증을 한다 | A-12, M3-new-15, `product.scope.spec` §4.3 | 0 | M4:T-F |
@@ -140,7 +140,7 @@ binds: []
 | M3-REQ-49 | L0 | `L0.os.spec` | 설정 파일 외부 변경을 `OsService.watch`로 감시해 통지한다 | M3-new-08, M-16 | 1 ← M3-REQ-48 | M3b |
 | M3-REQ-50 | L0 | `L0.os.spec` `Notifier` | `NotifierProvider` 1차(macOS, Linux)를 구현 범위로 확정한다. 클라이언트 창이 앞에 있어도 기본으로 보내고, 설정으로 끌 수 있게 한다 [결정: review.m3-design-inputs D-M3-17]. WSL 토스트는 쓰지 않는다 | M3-11, B-12, D-M3-17 행 2·3, §3.8 A-74 | 1 | M3b |
 | M3-REQ-51 | L0 | `L0.os.spec` | `OsService.fileLock`을 더한다. 대상은 `settings.json`과 지식 파일이다 | M3-23, A-82, KN-16 | 1 | M4:T-RT2 |
-| M3-REQ-52 | L0 | `L0.os.spec` | `l0.os.log.level` 적용 잔여, 로그 회전, `traceparent`·telemetry 설정, 확장 진단 배열 상한을 정한다 | M3-22, M3-24, M3-32, A-80 | 1 | M4:T-RT1 |
+| M3-REQ-52 | L0 | `L0.os.spec` | `l0.os.log.level` 적용 잔여, 로그 회전, `traceparent`·telemetry 설정, 확장 진단 배열 상한을 정한다 | M3-22, M3-24, M3-32, A-80 | 1 | M4 |
 | M3-REQ-53 | L0 | `L0.os.spec` | 번들 외부 바이너리(macOS의 sops, age, rg) 경로를 앱 자원 디렉터리에서 찾는다. Linux의 bwrap, socat은 시스템 패키지로 요구하고 doctor가 안내한다 [결정: review.m3-design-inputs D-M3-25 행 5]. 대상은 macOS 14 이상 arm64, Linux x86_64·arm64이고 Intel macOS는 빌드하지 않는다(D-M3-25 행 2·3). 읽기 전용 자원 디렉터리 위치를 정한다 | M3-26, D-M3-25 행 5, U-96, WS-04 | 1 | M4:T-SHELL |
 | M3-REQ-54 | L0 | `L0.os.spec`, `F.wire-settings.spec` | 제품 이름에 묶인 값(앱 디렉터리 이름, 설정 파일 이름, 사용자 대행 UA)을 상수 한 곳에서 읽게 한다. M3 값은 `xeon`이고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b] | D-M3-24, C-001, C-011, WB-16, ADR-0014 §3.3 | 1 | M4:T-CLN |
 | M3-REQ-55 | L0 | `L0.sandbox.spec` | 네트워크는 기본 허용하고 차단 도메인 목록(`l0.sandbox.network.blockedDomains` [제안])을 관리한다. 자격 파일(`~/.npmrc`, `~/.config/gh` 등) 읽기는 기본 허용하고 설정(`l0.sandbox.credentialFiles` [제안])으로 거부할 수 있다. `escapeRetry`는 기본 끔이고 켜도 매번 승인한다 [결정: review.m3-design-inputs D-M3-18]. `tool.sandbox_bypassed` 감사 이벤트 소유를 적는다 | M3-14, D-M3-18, A-63, A-64, A-66, A-69 | 1 · CI bwrap 시험과 macOS Seatbelt 결과(`review.m3-plan` §6) | M3b |
@@ -429,7 +429,7 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 
 ## 11. M4 이월 항목의 트랙 배정
 
-- `review.m3-plan` §9.3(M4로 넘기는 것)의 항목을 한 행씩 옮겼습니다. 한 문장의 쉼표 목록이 트랙마다 다르면 항목 단위로 나눴고, 나눈 행은 원문 일부이거나 `B5-DOC 미결:`처럼 원문의 머리말을 붙였습니다. 행은 131개입니다.
+- `review.m3-plan` §9.3(M4로 넘기는 것)의 항목을 한 행씩 옮겼습니다. 한 문장의 쉼표 목록이 트랙마다 다르면 항목 단위로 나눴고, 나눈 행은 원문 일부이거나 `B5-DOC 미결:`처럼 원문의 머리말을 붙였습니다. 행은 132개입니다(M4에서 `M3-REQ-52`의 남은 부분을 한 행 더했습니다).
 - 트랙 id 칸은 네 가지 가운데 하나입니다. `review.m4-plan` §2의 트랙 id(예: `T-RT1`)는 그 트랙이 맡는 항목입니다. `M4`는 M4에서 끝난 항목입니다. `M5: <사유>`는 M5로 넘긴 항목이고, `삭제: <사유>`는 지운 항목입니다. 사유가 없으면 검사가 실패합니다.
 - 트랙 리드는 맡은 항목마다 `M4` 또는 `M5: <사유>`로 바꿉니다(`review.m4-plan` §2.5). 이 배정은 T-LED의 기본값이며 오케스트레이터가 확인합니다 [결정: 오케스트레이터 기본값].
 - §3 표의 M4 행 16개는 이 표에 옮기지 않았습니다. 같은 행을 두 곳에 적으면 어긋나므로, 트랙 id는 §3 상태 칸의 `M4:<트랙 id>`에만 적었습니다.
@@ -437,35 +437,36 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 
 | 이월 항목 | 영역 | 트랙 id |
 |---|---|---|
-| 끊긴 터널 뒤 재생(`createReplayResolver`, `modelRequestResendOf`의 host 연결, `thread.open replayFrom` F 필드) | 서비스·원격 | T-RT1 |
-| `resolveLaunchMode` managed 파일 위치 | 서비스·원격 | T-RT1 |
-| 프로젝트 확장의 공유 promise·AbortSignal | 서비스·원격 | T-RT1 |
-| 서비스에 붙은 상태의 `secret add/set/rotate/reveal`(서비스 쪽 입력 창이 필요: OS 대화상자·pinentry) | 서비스·원격 | T-RT1 |
-| TCP 토큰은 `FRESNEL_REMOTE_TOKEN`만 | 서비스·원격 | T-RT1 |
-| IPv6 리터럴 거부 | 서비스·원격 | T-RT1 |
-| 터널 SIGKILL 2000ms 시험 없음 | 서비스·원격 | T-RT1 |
-| 서비스 TCP 토큰 회전 명령 없음 | 서비스·원격 | T-RT1 |
-| cron 식·시간대 | 예약·알림 | T-RT1 |
-| `schedule.create`의 `requestId` 멱등 | 예약·알림 | T-RT1 |
-| `schedule_list`·`schedule_cancel` 모델 도구 | 예약·알림 | T-RT1 |
-| `schedule.*` 이벤트 발신자와 다중 프로세스 틱 임대(HS-39/40) | 예약·알림 | T-RT1 |
-| `awaiting_approval` 결과 신호 | 예약·알림 | T-RT1 |
-| 발화 claim 저장 실패가 `store_failed`가 아니라 `failed`로 나옴 | 예약·알림 | T-RT1 |
-| commit이 저장보다 메모리를 먼저 적용 | 예약·알림 | T-RT1 |
-| `handler_failed`와 `dialog.status`의 n 카운터 분리 | 예약·알림 | T-RT1 |
-| CLI "[완료]" 소음 | 예약·알림 | T-RT1 |
-| 종료 때 늦은 `notify.delivered` 유실 | 예약·알림 | T-RT1 |
-| 창이 앞에 있을 때 알림 억제(D-6) | 예약·알림 | T-RT1 |
-| 검토 승인 요청 알림 없음 | 예약·알림 | T-RT1 |
+| 끊긴 터널 뒤 재생(`createReplayResolver`, `modelRequestResendOf`의 host 연결, `thread.open replayFrom` F 필드) | 서비스·원격 | M5: `thread.open replayFrom` F 필드 결정이 먼저(L1.persistence §미결, T-F 계약 몫) |
+| `resolveLaunchMode` managed 파일 위치 | 서비스·원격 | M5: 관리 정책 파일 경로는 사용자 결정(HS-37 문구와 §3.6이 어긋남) |
+| 프로젝트 확장의 공유 promise·AbortSignal | 서비스·원격 | M4 |
+| 서비스에 붙은 상태의 `secret add/set/rotate/reveal`(서비스 쪽 입력 창이 필요: OS 대화상자·pinentry) | 서비스·원격 | M5: 서비스 쪽 OS 입력 창(대화상자·pinentry)이 필요해 Mac·GUI 확인이 따름 |
+| TCP 토큰은 `FRESNEL_REMOTE_TOKEN`만 | 서비스·원격 | M4 |
+| IPv6 리터럴 거부 | 서비스·원격 | M4 |
+| 터널 SIGKILL 2000ms 시험 없음 | 서비스·원격 | M4 |
+| 서비스 TCP 토큰 회전 명령 없음 | 서비스·원격 | M5: 새 wire 메서드(F 계약 변경)가 필요 |
+| M3-REQ-52 잔여: `traceparent`·telemetry 설정(익스포터) | 서비스·원격 | M5: 익스포터 선택과 새 외부 의존 승인이 필요하고 telemetry 키는 선언만 있음 |
+| cron 식·시간대 | 예약·알림 | M5: F `ScheduleTriggerSchema`에 cron 종류 추가와 5필드 파서·IANA 시간대 구현이 필요(L2.schedule §4.4 범위 밖 결정) |
+| `schedule.create`의 `requestId` 멱등 | 예약·알림 | M5: F 입력 필드와 멱등 선언(F 계약 변경)과 requestId 기억이 필요 |
+| `schedule_list`·`schedule_cancel` 모델 도구 | 예약·알림 | M5: F `ScheduleEntries` 도구 목록 변경이고 L2.schedule §4.4가 도구를 `schedule_create` 하나로 고정함(cancel 위험 등급 결정 필요) |
+| `schedule.*` 이벤트 발신자와 다중 프로세스 틱 임대(HS-39/40) | 예약·알림 | M5: 임대 설계가 미결(L4.host-service §10 36번)이고 이벤트 payload 정합 결정이 먼저 |
+| `awaiting_approval` 결과 신호 | 예약·알림 | M5: 승인 대기를 정착으로 볼지 결정 대기(L4.host-service §10 37번) |
+| 발화 claim 저장 실패가 `store_failed`가 아니라 `failed`로 나옴 | 예약·알림 | M5: F `RunReasonSchema`에 `store_failed` 값 추가가 필요 |
+| commit이 저장보다 메모리를 먼저 적용 | 예약·알림 | M4 |
+| `handler_failed`와 `dialog.status`의 n 카운터 분리 | 예약·알림 | M4 |
+| CLI "[완료]" 소음 | 예약·알림 | M5: 자기 대화의 완료 알림을 숨길지는 표시 규칙 결정(CLI는 제품 화면이 아님) |
+| 종료 때 늦은 `notify.delivered` 유실 | 예약·알림 | M5: 최선 노력으로 명시할지 재연결 따라잡기를 넣을지 결정 대기(클라이언트 워터마크는 새 기능) |
+| 창이 앞에 있을 때 알림 억제(D-6) | 예약·알림 | M5: 창 포커스 판정은 데스크톱 셸(OS GUI)이 하고 데스크톱이 notify.delivered를 아직 소비하지 않음 |
+| 검토 승인 요청 알림 없음 | 예약·알림 | M5: 알림 종류 분류 결정 대기(L2.dialog §4.7.1 미결, NoticeKind는 F 고정) |
 | `handler_failed` 데스크톱 표시 | 예약·알림 | T-BENCH |
-| 원자적 이름 바꾸기가 실행 비트·하드링크를 잃음(L0.exec 미결 14) | 작업 공간·산출물 | T-RT1 |
-| 남은 임시 파일 정리 | 작업 공간·산출물 | T-RT1 |
+| 원자적 이름 바꾸기가 실행 비트·하드링크를 잃음(L0.exec 미결 14) | 작업 공간·산출물 | M5: F `FileInfo` mode·`chmod` 추가가 필요하고 하드링크 보존은 원자성과 양립하지 않아 사용자 결정 |
+| 남은 임시 파일 정리 | 작업 공간·산출물 | M5: spec이 '지우지 않는다'로 정했고 뒤집으려면 나이 기준·숨김 정책 결정이 필요 |
 | 산출물 wire 메서드(F) | 작업 공간·산출물 | T-WC |
-| `titleSource`, `retentionDays`, `reviews.autoRequest`, `fuzzLines`, export·handoff, `ArtifactService` §3.9 | 작업 공간·산출물 | T-RT1 |
-| `artifact_update`가 `mediaType`을 지움 | 작업 공간·산출물 | T-RT1 |
-| 리뷰 재시작 복구 | 작업 공간·산출물 | T-RT1 |
-| 병렬 배치 순서 | 작업 공간·산출물 | T-RT1 |
-| 삭제·바이너리·이름 바꾸기·새 파일 hunk | 작업 공간·산출물 | T-RT1 |
+| `titleSource`, `retentionDays`, `reviews.autoRequest`, `fuzzLines`, export·handoff, `ArtifactService` §3.9 | 작업 공간·산출물 | M5: 대부분 F 계약 변경이거나 사용자 결정, `autoTitle`은 core-persistence에 이미 있음, export·handoff는 2차 큰 설계 |
+| `artifact_update`가 `mediaType`을 지움 | 작업 공간·산출물 | M5: 변환 함수 `toInput`이 F 정의라 F 계약 변경이 필요 |
+| 리뷰 재시작 복구 | 작업 공간·산출물 | M5: 승인 해결 재생 범위와 재시작 뒤 재요청 정책 결정 대기(L2.artifacts 미결) |
+| 병렬 배치 순서 | 작업 공간·산출물 | M4 |
+| 삭제·바이너리·이름 바꾸기·새 파일 hunk | 작업 공간·산출물 | M4 |
 | 회전 상태가 메모리 전용(`core_models_*` 표) | 모델·웹 | T-RT2 |
 | `reservePct` 미공급 | 모델·웹 | T-RT2 |
 | 위장 provider 와이어 동등성 래퍼(M-8) | 모델·웹 | T-RT2 |
@@ -479,17 +480,17 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | `browse-close` int 시험 | 모델·웹 | T-RT2 |
 | 인증 종류 `query` 등록 거부와 F 스키마 불일치 | 모델·웹 | T-F |
 | 사용량 게이지가 메모리 전용이고 창·한도·계정 게이지는 비어 있음(HS §10-46) | 모델·웹 | T-WC |
-| 시작 승인 증거가 메모리 전용(재시작·다른 thread에서 다시 물음) | 보안·샌드박스 | T-RT1 |
-| 새 MCP 도구가 한 단계 늦게 보임 | 보안·샌드박스 | T-RT1 |
-| 비밀 메타가 `mcp.start:*`를 허용해야 함 | 보안·샌드박스 | T-RT1 |
-| 샌드박스 설정만 바꿔서는 막힌 서버가 풀리지 않음(L2 mcp §10-15) | 보안·샌드박스 | T-RT1 |
-| `wrapArgv`가 위반을 모으지 않음 | 보안·샌드박스 | T-RT1 |
-| srt `cleanupAfterCommand`가 프로세스 전역 | 보안·샌드박스 | T-RT1 |
+| 시작 승인 증거가 메모리 전용(재시작·다른 thread에서 다시 물음) | 보안·샌드박스 | M5: 다른 대화의 같은 해시 승인 조회가 F `ApprovalService`에 없음(F 계약 변경 또는 cap_mcp 복사 결정) |
+| 새 MCP 도구가 한 단계 늦게 보임 | 보안·샌드박스 | M5: L2.mcp §4.1·§4.9가 의도로 정한 동작이고 바꾸려면 대화 시작을 막지 않는 규칙과의 절충 결정 필요 |
+| 비밀 메타가 `mcp.start:*`를 허용해야 함 | 보안·샌드박스 | M5: 기본 정책을 넓히는 보안 결정이고 CLI 플래그는 새 기능 |
+| 샌드박스 설정만 바꿔서는 막힌 서버가 풀리지 않음(L2 mcp §10-15) | 보안·샌드박스 | M5: L2.mcp §4.3·§10-15 미결이고 §4.9와 문구가 충돌해 결정이 먼저 |
+| `wrapArgv`가 위반을 모으지 않음 | 보안·샌드박스 | M5: F `SandboxedArgv`에 위반 필드가 필요하고 수집 시점 결정 대기(L0.sandbox §10-10) |
+| srt `cleanupAfterCommand`가 프로세스 전역 | 보안·샌드박스 | M5: srt 참조 수 완화는 코드 읽기로만 확인했고 Linux·macOS 실기가 따름 |
 | macOS Seatbelt 실기 | 보안·샌드박스 | M5: Mac 실기(사용자 묶음, m4-plan §4 7번) |
 | ADR-0011에 M3 재결정 주석 | 보안·샌드박스 | T-CLN |
-| `lastError`가 성공 뒤 지워지지 않음 | 보안·샌드박스 | T-RT1 |
-| ext-host `restoreAs` 넓힌 캐스트(TY-06) | 보안·샌드박스 | T-RT1 |
-| `load-generated.ts`의 `as GroupModule`(TY-06 승인) | 보안·샌드박스 | T-RT1 |
+| `lastError`가 성공 뒤 지워지지 않음 | 보안·샌드박스 | M4 |
+| ext-host `restoreAs` 넓힌 캐스트(TY-06) | 보안·샌드박스 | M5: 허용 목록 A3으로 승인된 자리이고 제거하려면 F `RegistrationApi` 타입 변경이 필요 |
+| `load-generated.ts`의 `as GroupModule`(TY-06 승인) | 보안·샌드박스 | M4 |
 | 설정 탭 13개와 spec 12개 불일치 | 설정 | T-CHAT2 |
 | managed `readFile`이 빈 읽기 전용을 돌려줌 | 설정 | T-CHAT2 |
 | `writeFile`이 provider 비밀을 다시 잇지 않음(HS-45) | 설정 | T-CHAT2 |
@@ -553,14 +554,14 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | `Reflect.get` src 약 50곳(22 파일, L4 4곳)은 타입 있는 도우미 설계 필요 | 정리·문서 | T-CLN |
 | B5-DOC 미결: 설치 위치·PATH | 정리·문서 | T-CLN |
 | B5-DOC 미결: `l0.os.dirs.override` | 정리·문서 | T-CLN |
-| B5-DOC 미결: 로그 회전과 `OsDirs log` | 정리·문서 | T-RT1 |
+| B5-DOC 미결: 로그 회전과 `OsDirs log` | 정리·문서 | M4 |
 | B5-DOC 미결: `FRESNEL_SAFE_MODE`·`/safe-mode`·`--disable-ext` | 정리·문서 | T-CLN |
 | B5-DOC 미결: `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음 | 정리·문서 | T-RT2 |
 | B5-DOC 미결: 읽기 전용 열기 명령 | 정리·문서 | T-RT2 |
 | B5-DOC 미결: 복원·`store.corrupt` 절차 | 정리·문서 | T-CLN |
-| B5-DOC 미결: `schedule/state.json` 복구 도구 | 정리·문서 | T-RT1 |
+| B5-DOC 미결: `schedule/state.json` 복구 도구 | 정리·문서 | M5: 새 CLI 기능이고 삭제 대 격리 백업 정책 결정이 필요 |
 | B5-DOC 미결: 자동 비활성 확장 재활성 CLI | 정리·문서 | T-WA |
-| B5-DOC 미결: `secret add --provider` 허용값 | 정리·문서 | T-RT1 |
+| B5-DOC 미결: `secret add --provider` 허용값 | 정리·문서 | M4 |
 | B5-DOC 미결: `l2.web.cache.maxMegabytes` 미구현 | 정리·문서 | T-RT2 |
 | B5-DOC 미결: `trust.json` 위치 불일치 | 정리·문서 | T-CLN |
 | B5-DOC 미결: 시험 메모리 상한 문서 | 정리·문서 | T-CLN |

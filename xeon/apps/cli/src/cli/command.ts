@@ -144,7 +144,8 @@ export type ScheduleCommand =
   | { readonly kind: "schedule.run"; readonly scheduleId: string };
 
 export interface SecretMetaFlags {
-  readonly provider?: "sops" | "op" | "bws" | "keychain";
+  /** 제공자 선택은 wire에 없어 `sops`만 받는다 */
+  readonly provider?: "sops";
   readonly desc?: string;
   readonly scope?: string;
   readonly hosts?: readonly string[];
@@ -1341,12 +1342,8 @@ function parseSessions(
   }
 }
 
-const SECRET_PROVIDERS: readonly NonNullable<SecretMetaFlags["provider"]>[] = [
-  "sops",
-  "op",
-  "bws",
-  "keychain",
-];
+/** `--provider`가 받는 값. 제공자 선택은 wire에 없어 `sops`만 받는다(L4 cli spec §4.7) */
+const SECRET_PROVIDERS: readonly NonNullable<SecretMetaFlags["provider"]>[] = ["sops"];
 
 const SECRET_META_FLAGS: FlagTable = {
   "--provider": { value: "required" },
@@ -1377,7 +1374,7 @@ function metaFlagsOf(scanned: Scanned): Result<SecretMetaFlags, UsageError> {
         usage(
           "unexpectedArgument",
           t("cli.usage.flagValue.invalid.message", { flag: "--provider" }),
-          t("cli.usage.oneOf.fix", { list: "sops, op, bws, keychain" }),
+          t("cli.usage.oneOf.fix", { list: SECRET_PROVIDERS.join(", ") }),
         ),
       );
     }

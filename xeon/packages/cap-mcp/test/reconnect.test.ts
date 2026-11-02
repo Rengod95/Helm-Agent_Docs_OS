@@ -81,6 +81,9 @@ describe("reconnect", () => {
     world.factory.failNext(0);
     const revived = await world.runtime.service.client.reconnect({ server: "stub" });
     expect(revived.state).toBe("connected");
+    expect(revived.lastError).toBeUndefined();
+    const after = await world.runtime.service.client.status({ server: "stub" });
+    expect(after.lastError).toBeUndefined();
     await world.runtime.shutdown();
   });
 

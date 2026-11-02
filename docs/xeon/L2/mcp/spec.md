@@ -628,6 +628,7 @@ sequenceDiagram
 - 복구되면 도구 목록을 다시 읽고 다음 단계 경계에 `toolsAdded`로 넣는다. 정의가 같은 도구는 같은 기계 이름을 다시 쓰므로 `diffToolsets`의 `added`에 들어간다.
 - stdio 서버 프로세스가 죽은 경우도 같은 규칙이다. 재기동은 `fresnel.process`로 한다.
 - 재연결 중 들어온 호출은 §4.5 2번대로 바로 `server_disconnected`다.
+- 연결에 성공하면 `lastError`를 지운다. 지난 실패 기록이 연결된 서버에 남아 보이지 않게 하기 위해서다. 저장 상태(`cap_mcp_servers`)의 오류 칸도 같이 비워진다. `blocked` 때의 오류는 그 서버가 다시 시도할 때까지 남는다.
 
 ### 4.9 목록 변경과 진행 중 호출
 

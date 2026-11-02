@@ -196,6 +196,14 @@ export function validateGroupDef(def: GroupDefShape): readonly (GroupDefIssue | 
   return found;
 }
 
+/** defineGroup이 돌려준 객체. isGroupModule이 이 집합으로 판별한다 */
+const builtGroups = new WeakSet<object>();
+
+/** value가 이 모듈 인스턴스의 defineGroup이 만든 GroupModule이면 참이다. 같은 모양의 손으로 쓴 객체는 거짓이다 */
+export function isGroupModule(value: unknown): value is GroupModule {
+  return typeof value === "object" && value !== null && builtGroups.has(value);
+}
+
 /** 정의를 검증하고 GroupModule을 만든다. 오류가 있으면 Bug를 던진다(§3.3). setup은 실행하지 않는다 */
 export function defineGroup<S = never, const D extends GroupSettingDefs = NoSettings>(
   def: GroupDef<S, D>,
@@ -213,13 +221,15 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = NoSett
     );
   };
   const version = def.state?.version ?? 0;
-  return {
+  const group: GroupModule = {
     manifest: def.manifest,
     entry,
     ...(def.settings === undefined ? {} : { settings: settingsOf(def.settings) }),
     stateUpcasters: stateUpcasters(version, def.migrations),
     stateVersion: version,
   };
+  builtGroups.add(group);
+  return group;
 }
 
 function settingsOf<D extends GroupSettingDefs>(

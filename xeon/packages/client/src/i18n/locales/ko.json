@@ -469,8 +469,6 @@
   "cli.secret.none": "없음",
   "cli.secret.prompt.again": "한 번 더: ",
   "cli.secret.prompt.value": "값 (화면에 보이지 않는다): ",
-  "cli.secret.provider.unsupported.fix": "--provider sops를 쓰거나 플래그를 뺀다",
-  "cli.secret.provider.unsupported.message": "제공자 {provider}은(는) M2에서 쓸 수 없다",
   "cli.secret.references.line": "{name}: 참조하는 설정 키 {keys} / 활성 lease {leases}개 / 최근 사용한 세션 {sessions}\n",
   "cli.secret.references.threadsMore": "{shown} 외 {more}개",
   "cli.secret.reveal.noOutOfBand.fix": "서비스 쪽 OS 창에서 열람한다 (서비스 모드는 M3에서 제공한다)",

@@ -8,6 +8,7 @@ import {
   RESERVED_GROUP_NAMES,
   defineGroup,
   groupManifest,
+  isGroupModule,
   validateGroupDef,
   type GroupDefShape,
   type GroupManifest,
@@ -276,4 +277,19 @@ test("define-group.module-carries-settings-and-manifest", () => {
   expect(module.manifest.name).toBe("with-settings");
   expect(module.settings?.namespace).toBe("l3.with-settings");
   expect(module.settings?.defs.map((def) => def.key)).toEqual(["l3.with-settings.mode"]);
+});
+
+test("define-group.is-group-module-only-for-define-group-results", () => {
+  const module = defineGroup({
+    manifest: groupManifestOf({ name: "brand-check" }),
+    setup() {},
+  });
+  // 같은 필드를 가진 손으로 쓴 객체는 defineGroup을 거치지 않았으므로 GroupModule이 아니다
+  const handWritten = { ...module };
+  expect(isGroupModule(module)).toBe(true);
+  expect(isGroupModule(handWritten)).toBe(false);
+  expect(isGroupModule(null)).toBe(false);
+  expect(isGroupModule(undefined)).toBe(false);
+  expect(isGroupModule("brand-check")).toBe(false);
+  expect(isGroupModule([module.manifest])).toBe(false);
 });

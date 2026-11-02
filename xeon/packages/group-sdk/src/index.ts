@@ -4,6 +4,7 @@ export {
   checkGroupName,
   defineGroup,
   groupManifest,
+  isGroupModule,
   validateGroupDef,
   type GroupApi,
   type GroupDef,

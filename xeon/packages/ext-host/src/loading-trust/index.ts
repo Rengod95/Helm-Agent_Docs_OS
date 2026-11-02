@@ -300,9 +300,52 @@ function currentState(record: ExtRecord): ExtRecord["state"] {
   return record.state;
 }
 
+/**
+ * 로더가 메모리에 두는 진단 수. 서비스 모드처럼 오래 도는 호스트에서 `loadProject`가 진단을 끝없이 쌓지 않도록
+ * 가장 최근 것만 남긴다(X.loading-trust.spec §4.3.3)
+ */
+const MAX_RETAINED_DIAGNOSTICS = 256;
+
+/** 최근 `MAX_RETAINED_DIAGNOSTICS`개 진단만 보관하는 추가 전용 목록. 넘치면 가장 오래된 것부터 버린다 */
+interface DiagnosticLog {
+  push(entry: LoadDiagnostic): void;
+  pushAll(entries: readonly LoadDiagnostic[]): void;
+  /** 보관 중인 진단을 오래된 것부터 새 배열로 돌려준다 */
+  snapshot(): LoadDiagnostic[];
+  /** 지금까지 추가한 총 개수(버린 것 포함). `since`에 넘기는 기준점이다 */
+  mark(): number;
+  /** `mark()` 뒤에 추가된 진단 가운데 아직 보관 중인 것을 추가된 순서대로 돌려준다 */
+  since(mark: number): LoadDiagnostic[];
+  /** 보관 중인 진단만 비운다. 총 개수는 이어서 세므로 그 전에 받은 `mark()`는 그대로 유효하다 */
+  clear(): void;
+}
+
+function createDiagnosticLog(): DiagnosticLog {
+  const retained: LoadDiagnostic[] = [];
+  let appended = 0;
+  function push(entry: LoadDiagnostic): void {
+    appended += 1;
+    retained.push(entry);
+    if (retained.length > MAX_RETAINED_DIAGNOSTICS) retained.shift();
+  }
+  return {
+    push,
+    pushAll(entries) {
+      for (const entry of entries) push(entry);
+    },
+    snapshot: () => [...retained],
+    mark: () => appended,
+    // 보관 중인 첫 진단의 추가 순번은 appended - retained.length다. 그 앞은 이미 버려졌다
+    since: (mark) => retained.slice(Math.max(0, mark - (appended - retained.length))),
+    clear() {
+      retained.length = 0;
+    },
+  };
+}
+
 export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   const records = new Map<ExtensionName, ExtRecord>();
-  const allDiagnostics: LoadDiagnostic[] = [];
+  const diagnosticLog = createDiagnosticLog();
   let order: ExtRecord[] = [];
   /** 이름이 같거나 알 수 없는 후보에 붙이는 일련번호. 묶음이 달라도 겹치지 않게 loadAll마다 0부터 센다 */
   let anonymous = 0;
@@ -343,7 +386,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       generation: record.generation,
     };
     record.diagnostics.push(entry);
-    allDiagnostics.push(entry);
+    diagnosticLog.push(entry);
   }
 
   function infoOf(record: ExtRecord): LoadedExtensionInfo {
@@ -842,9 +885,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
    */
   function throwIfCancelled(signal: AbortSignal, before: string): void {
     if (!signal.aborted) return;
-    throw new LoadAbortError(`extension loading was cancelled before ${before}`, [
-      ...allDiagnostics,
-    ]);
+    throw new LoadAbortError(
+      `extension loading was cancelled before ${before}`,
+      diagnosticLog.snapshot(),
+    );
   }
 
   function assertNotEssentialFailure(record: ExtRecord): void {
@@ -857,9 +901,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         "essential_failed",
         `essential extension ${record.name} is ${record.state}`,
       );
-      throw new LoadAbortError(`essential extension ${record.name} failed to load`, [
-        ...allDiagnostics,
-      ]);
+      throw new LoadAbortError(
+        `essential extension ${record.name} failed to load`,
+        diagnosticLog.snapshot(),
+      );
     }
   }
 
@@ -972,14 +1017,14 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       }),
     );
     if (!decided.ok) {
-      allDiagnostics.push(
+      diagnosticLog.push(
         projectDiagnostic("trust_undecided", "error", "project trust could not be decided"),
       );
       return null;
     }
     const result = decided.value;
     if (result.storeError !== undefined) {
-      allDiagnostics.push(
+      diagnosticLog.push(
         projectDiagnostic(
           "trust_store_corrupt",
           "error",
@@ -988,7 +1033,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       );
     }
     if (!result.trusted && result.resources.length > 0) {
-      allDiagnostics.push(
+      diagnosticLog.push(
         projectDiagnostic(
           result.verdict === "deny" ? "trust_denied" : "trust_undecided",
           "warning",
@@ -1010,13 +1055,13 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         sources: ["project"],
       }),
     );
-    allDiagnostics.push(...project.diagnostics);
+    diagnosticLog.pushAll(project.diagnostics);
     await processBatch(project.candidates, signal);
   }
 
   async function loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport> {
     throwIfCancelled(options.signal, "project trust");
-    const diagnosticsBefore = allDiagnostics.length;
+    const diagnosticsMark = diagnosticLog.mark();
     const recordsBefore = new Set(records.values());
     const finish = (
       projectTrust: ProjectTrustResult | null,
@@ -1029,10 +1074,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         .filter((record) => !recordsBefore.has(record))
         .toSorted((a, b) => a.name.localeCompare(b.name))
         .map(infoOf),
-      diagnostics: allDiagnostics.slice(diagnosticsBefore),
+      diagnostics: diagnosticLog.since(diagnosticsMark),
     });
     if (startup.safeMode.active) {
-      allDiagnostics.push(
+      diagnosticLog.push(
         projectDiagnostic(
           "safe_mode",
           "info",
@@ -1064,7 +1109,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       if (missing !== undefined) throw new Bug(`loader.missing_dependency: ${missing}`);
       throwIfCancelled(options.signal, "validation");
       records.clear();
-      allDiagnostics.length = 0;
+      diagnosticLog.clear();
       order = [];
       anonymous = 0;
       startup = options.startup ?? NO_STARTUP_OPTIONS;
@@ -1081,7 +1126,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           sources: ["managed", "user"],
         }),
       );
-      allDiagnostics.push(...external.diagnostics);
+      diagnosticLog.pushAll(external.diagnostics);
       await processBatch(
         [...candidatesFromBuiltins(options.builtins), ...external.candidates],
         options.signal,
@@ -1092,7 +1137,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       let projectTrust: ProjectTrustResult | null = null;
       loadedProjects.clear();
       if (safeMode) {
-        allDiagnostics.push(
+        diagnosticLog.push(
           projectDiagnostic(
             "safe_mode",
             "info",
@@ -1110,7 +1155,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       for (const record of order) assertNotEssentialFailure(record);
       return {
         extensions: listAll(),
-        diagnostics: [...allDiagnostics],
+        diagnostics: diagnosticLog.snapshot(),
         projectTrust,
         settingGroups: settingGroupsOf(),
       };
@@ -1135,7 +1180,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       return infoOf(record);
     },
     list: listAll,
-    diagnostics: () => [...allDiagnostics],
+    diagnostics: () => diagnosticLog.snapshot(),
     async dispose() {
       await eachInOrder([...order].toReversed(), async (record) => {
         if (record.state !== "active") return "continue";

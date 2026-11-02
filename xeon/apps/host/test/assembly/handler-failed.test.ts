@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
-import { err, ok, type Clock } from "@fresnel/contracts";
+import { createChunkNumbering, sessionStatusPublisher } from "@fresnel/cap-dialog";
+import { err, ok, type Clock, type Logger } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { ScopeHandlerFailedPayload, VolatileEventEnvelope } from "@fresnel/contracts/records";
+import type {
+  ScopeHandlerFailedPayload,
+  SessionService,
+  VolatileEventEnvelope,
+} from "@fresnel/contracts/records";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createHandlerFailedEmitter } from "../../src/assembly/handler-failed.ts";
 
@@ -18,6 +23,14 @@ const PAYLOAD: ScopeHandlerFailedPayload = {
   result: "threw",
   message: "boom",
   consecutive: 1,
+};
+
+const silentLogger: Logger = {
+  debug: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  child: () => silentLogger,
 };
 
 function harness(options: {
@@ -43,6 +56,7 @@ function harness(options: {
     openThreads: () => options.open ?? [],
     ids: fixedIdFactory(100),
     clock,
+    numbering: createChunkNumbering(),
     log: (line) => {
       lines.push(line);
     },
@@ -132,6 +146,50 @@ test("an emit that throws does not reach the caller, is logged, and the other th
   ]);
 });
 
+test("scope.handler_failed와 dialog.status가 한 발급기를 나누면 같은 thread의 n이 겹치지 않고 한 열로 이어진다", () => {
+  const sent: VolatileEventEnvelope[] = [];
+  const numbering = createChunkNumbering();
+  const opened: { current: readonly ThreadId[] } = { current: [A] };
+  const emitFailure = createHandlerFailedEmitter({
+    emitVolatile: (event) => {
+      sent.push(event);
+    },
+    headSeq: () => ok(17),
+    openThreads: () => opened.current,
+    ids: fixedIdFactory(900),
+    clock: { now: () => 1 },
+    numbering,
+    log: () => undefined,
+  });
+  const status = sessionStatusPublisher(
+    volatileSession(sent),
+    fixedIdFactory(950),
+    { clock: { now: () => 2 } },
+    silentLogger,
+    numbering,
+  );
+  emitFailure(PAYLOAD);
+  status.publish(A, []);
+  emitFailure(PAYLOAD);
+  status.publish(A, []);
+  status.publish(B, []);
+  opened.current = [A, B];
+  emitFailure(PAYLOAD);
+
+  expect(sent.filter((event) => event.threadId === A).map((event) => event.n)).toEqual([
+    0, 1, 2, 3, 4,
+  ]);
+  expect(sent.map((event) => [event.kind, event.threadId, event.n])).toEqual([
+    ["scope.handler_failed", A, 0],
+    ["dialog.status", A, 1],
+    ["scope.handler_failed", A, 2],
+    ["dialog.status", A, 3],
+    ["dialog.status", B, 0],
+    ["scope.handler_failed", A, 4],
+    ["scope.handler_failed", B, 1],
+  ]);
+});
+
 test("when the head cannot be read nothing is sent and the reason is logged", () => {
   const lines: string[] = [];
   const sent: VolatileEventEnvelope[] = [];
@@ -143,6 +201,7 @@ test("when the head cannot be read nothing is sent and the reason is logged", ()
     openThreads: () => [A],
     ids: fixedIdFactory(100),
     clock: { now: () => 1 },
+    numbering: createChunkNumbering(),
     log: (line) => {
       lines.push(line);
     },
@@ -151,6 +210,24 @@ test("when the head cannot be read nothing is sent and the reason is logged", ()
   expect(sent).toEqual([]);
   expect(lines).toEqual(["scope.handler_failed not emitted: head read failed (busy)"]);
 });
+
+/** dialog.status 발신자가 읽는 세션 대역. 머리는 17로 고정하고 휘발 발신만 모은다 */
+function volatileSession(
+  sent: VolatileEventEnvelope[],
+): Pick<SessionService, "feed" | "emitVolatile"> {
+  return {
+    feed: {
+      headSeq: () => ok(17),
+      oldestReplayableSeq: () => 0,
+      read: () => ok({ events: [], scannedTo: 0 }),
+      onCommit: () => () => undefined,
+      onVolatile: () => () => undefined,
+    },
+    emitVolatile: (event) => {
+      sent.push(event);
+    },
+  };
+}
 
 function createScenario(open: readonly ThreadId[]): {
   readonly emit: (payload: ScopeHandlerFailedPayload) => void;
@@ -165,6 +242,7 @@ function createScenario(open: readonly ThreadId[]): {
     openThreads: () => open,
     ids: fixedIdFactory(300),
     clock: { now: () => 0 },
+    numbering: createChunkNumbering(),
     log: () => undefined,
   });
   return { emit, sent };

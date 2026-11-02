@@ -1,5 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { createChunkNumbering } from "@fresnel/cap-dialog";
 import { assertNever, attemptAsync, Bug, err, parse, type Logger } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtensionManifest, PortKey } from "@fresnel/contracts/extensions";
@@ -379,6 +380,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const logOperations = (line: string): void => {
     late.logger?.warn("ext.operations", { line });
   };
+  // 휘발 조각 번호 발급기. `scope.handler_failed`와 `dialog.status`가 같은 (thread, turn) 키의 번호를 한 열로 나눈다(F.records.spec §4.3)
+  const chunkNumbering = createChunkNumbering();
   // 확장 핸들러 실패를 `scope.handler_failed` 휘발 이벤트로 보낸다(M3-REQ-35, L4.host-service HS-92). 열린 thread는 허브가 있어야 읽을 수 있어 옵션으로 받는다
   const handlerFailed = createHandlerFailedEmitter({
     emitVolatile: (event) => {
@@ -388,6 +391,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     openThreads: () => options.openThreads?.() ?? [],
     ids,
     clock,
+    numbering: chunkNumbering,
     log: logOperations,
   });
   const operations = createOperationsPolicy({
@@ -694,6 +698,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         mode: options.mode,
         clock,
         ids,
+        chunkNumbering,
         localIds,
         logger,
         trust: projectTrust,
@@ -897,6 +902,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         loader: () => external.loader,
         trust: projectTrust,
         logger: os.logger("project-ext"),
+        signal: lifetime.signal,
       }),
       workspaceOf,
       schedule,

@@ -1,4 +1,5 @@
 import { assertNever, type Result } from "@fresnel/contracts";
+import type { SecretEntryMeta, SecretMeta } from "@fresnel/contracts/capabilities";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { SecretError, SecretMetaPatch } from "@fresnel/contracts/services";
 import {
@@ -121,6 +122,24 @@ function createReferencesHandler(engine: Engine): WireHandler<"secret.references
   };
 }
 
+/**
+ * `secret.beginEntry`가 보낸 메타(`SecretEntryMeta`, M3-REQ-17)의 필드만 기본 메타 위에 덮는다. 보내지 않은 필드는 기본값이다.
+ * 메타에는 값이 없다. 값은 맡긴 입력 수단으로 따로 들어온다
+ */
+function withEntryMeta(defaults: SecretMeta, supplied: SecretEntryMeta | undefined): SecretMeta {
+  if (supplied === undefined) return defaults;
+  return {
+    ...defaults,
+    ...(supplied.desc === undefined ? {} : { desc: supplied.desc }),
+    ...(supplied.scope === undefined ? {} : { scope: supplied.scope }),
+    ...(supplied.expiresAt === undefined ? {} : { expiresAt: supplied.expiresAt }),
+    ...(supplied.use === undefined ? {} : { use: supplied.use }),
+    ...(supplied.approval === undefined ? {} : { approval: supplied.approval }),
+    ...(supplied.ttlSeconds === undefined ? {} : { ttlSeconds: supplied.ttlSeconds }),
+    ...(supplied.maxUses === undefined ? {} : { maxUses: supplied.maxUses }),
+  };
+}
+
 function createBeginEntryHandler(engine: Engine): WireHandler<"secret.beginEntry"> {
   const { secrets, log } = engine.ports;
   const { admin, offers } = secrets;
@@ -132,8 +151,8 @@ function createBeginEntryHandler(engine: Engine): WireHandler<"secret.beginEntry
     let outcome: Result<unknown, SecretError>;
     switch (params.action) {
       case "add": {
-        const meta = secrets.newMeta(params.name);
-        if (meta === undefined) {
+        const defaults = secrets.newMeta(params.name);
+        if (defaults === undefined) {
           // 기본 제공자가 sops가 아니라 값을 놓을 곳을 정할 수 없다(l0.secrets.defaultProvider). SOPS 파일이 없는 경우는
           // 기본 파일이 채워지고 첫 쓰기가 만든다(L0.secrets.spec §4.8)
           throw wireErrorOfSecret(
@@ -141,7 +160,8 @@ function createBeginEntryHandler(engine: Engine): WireHandler<"secret.beginEntry
             "secret.beginEntry",
           );
         }
-        outcome = await admin.add(meta, offer.source);
+        // set·rotate는 메타를 새로 만들지 않으므로 보낸 메타를 쓰지 않는다
+        outcome = await admin.add(withEntryMeta(defaults, params.meta), offer.source);
         break;
       }
       case "set":

@@ -133,6 +133,36 @@ describe("open", () => {
     expect(await h.events("artifact.review_")).toEqual([]);
   });
 
+  test("a git patch whose only block is an empty new file opens a review with that file and no hunks, and submits", async () => {
+    const h = await harness();
+    const patch = [
+      "diff --git a/src/empty.ts b/src/empty.ts",
+      "new file mode 100644",
+      "index 0000000..e69de29",
+      "",
+    ].join("\n");
+
+    const view = await h.api.open({ changes: { type: "patch", patch } }, h.opts("open-empty"));
+
+    expect(view.title).toBe("Review src/empty.ts");
+    expect(view.files).toEqual([
+      {
+        fileIndex: 0,
+        path: "src/empty.ts",
+        oldPath: null,
+        change: "added",
+        binary: false,
+        hunks: [],
+      },
+    ]);
+    expect(hunkStates(view)).toEqual([]);
+
+    const out = await h.api.submit({ reviewId: view.reviewId }, h.opts());
+    expect(out.review.status).toBe("submitted");
+    expect(out.applied).toEqual([]);
+    expect(out.delivery).toBeNull();
+  });
+
   test("a turn source collects only that turn's successful tool results in order, and the guard later runs under that turn", async () => {
     const h = await harness({ "src/a.ts": "const v = 'c';\n" });
     const turn = h.ids.next("trn");
