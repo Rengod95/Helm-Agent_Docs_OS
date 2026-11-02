@@ -72,7 +72,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 ### 3.1 진입점과 import
 
 ```text
-@fresnel/group-sdk           defineGroup, validateGroupDef, groupManifest, GroupDef, GroupApi, GroupModule,
+@fresnel/group-sdk           defineGroup, validateGroupDef, groupManifest, isGroupModule, GroupDef, GroupApi, GroupModule,
                           DelegateSpec, DelegateToolPolicy, DelegateLimits, DelegateFork, DelegateReceipt,
                           DelegateResult, DriveArbiter, driveLockArbiterPort, GroupService, GroupServiceName,
                           GroupStatus, 명령·상태줄 함수, GroupMetrics, PromotionReport, 설정 정의
@@ -275,6 +275,7 @@ export function checkGroup(module: GroupModule): Promise<readonly (GroupDefIssue
 | 주도 정책 | X 설치 시점(`PrimitiveError`) | 없음. 그룹의 루트 플러그인은 구성원이라 `checkGroup`이 거부하지 않는다 | X 설치 | `drive_requires_group`은 정책 `x.primitives.driveRequiresGroup`이 참일 때 구성원이 아닌 플러그인이 drive를 등록하면 난다(F.extensions.spec §4.6) |
 
 - `defineGroup`은 순수 검사만 한다. setup을 실행하지 않는다. 그래서 `validateUsage`는 로드 시점에 X가, 테스트 시점에 `checkGroup`이 부른다.
+- `isGroupModule(value: unknown): value is GroupModule` [제안]: 이 모듈 인스턴스의 `defineGroup`이 돌려준 객체만 참이다(모듈 안의 `WeakSet`으로 판별). 동적 import로 읽은 default export를 단언 없이 `GroupModule`로 좁힌다. 같은 모양의 손으로 쓴 객체는 거짓이다.
 - X는 선언하지 않은 `on`·`post`·`drive`·`capability`를 그 자리에서 `PrimitiveError`로 던진다. `checkGroup`은 이 오류의 code가 `validateUsage` 코드(`hook_undeclared`, `post_undeclared`, `drive_undeclared`, `capability_undeclared`)와 같으면 같은 이슈로 돌려주고, 그 밖의 setup 예외는 `setup_threw`로 돌려준다. setup은 첫 예외에서 멈추므로 그 뒤의 등록은 보지 못한다.
 - `defineGroup`이 던지는 값은 `Bug`(`@fresnel/contracts`)다. 정의 오류는 프로그래머 오류이기 때문이다(`eng.typescript.guide` TY-11 `fresnel/throw-only-bug`). 메시지에는 모든 이슈의 `code`와 `path`를 싣는다.
 - 그룹 패키지는 `checkGroup(module)`이 오류 0개인 테스트를 하나 둔다(L3.group-sdk.plan 단위 테스트 `define-group.*`).
