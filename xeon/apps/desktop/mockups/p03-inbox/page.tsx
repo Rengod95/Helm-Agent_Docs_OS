@@ -1,10 +1,8 @@
 // P-03 받은 요청(무대 전체 보기). 모든 대화의 승인·제안·알림을 한 읽기 열에 묶음별로 둔다.
-// 행을 누르면 그 자리에서 승인 카드로 펼친다(트랜스크립트·오른쪽 well과 같은 카드 부품). 행마다 원인 대화와
-// 그 항목을 낸 그룹·확장·계층(기본 에이전트, Helm 그룹, learning 그룹, ext:lint-bot …)을 둘째 줄에 보인다.
+// 행을 누르면 그 자리에서 승인 카드로 펼친다(트랜스크립트·오른쪽 well과 같은 카드 부품). 행마다 원인 대화만 둘째 줄에 보인다.
 import {
   AgentRequest,
   Alert,
-  Badge,
   Button,
   EmptyState,
   IconButton,
@@ -21,20 +19,15 @@ import {
 import { useLayoutEffect, useState, type ReactNode } from "react";
 import {
   approvals as shared,
-  CircleAlert,
-  CircleCheck,
+  BAR_INSET,
   defaultStatusCells,
   FileCode,
   Inbox,
   ListChecks,
-  MessageCircleQuestion,
   PanelLeft,
   QuestionCard,
   Shell,
-  ShieldCheck,
-  Sparkles,
   standardRightTabs,
-  Terminal,
   ToolApprovalCard,
   useShell,
   type Decision,
@@ -59,12 +52,10 @@ const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
 
 function Section({
   title,
-  count,
   end,
   children,
 }: {
   title: string;
-  count?: number | undefined;
   end?: ReactNode;
   children: ReactNode;
 }) {
@@ -72,20 +63,12 @@ function Section({
     <section aria-label={title} className="grid gap-1">
       <h2 className="m-0 flex h-7 items-center gap-1.5 text-ui-sm font-semibold text-text-primary">
         {title}
-        {count !== undefined && <span className="tabular-nums text-text-tertiary">{count}</span>}
         {end !== undefined && <span className="ms-auto">{end}</span>}
       </h2>
       {children}
     </section>
   );
 }
-
-const KIND_ICON: Record<ApprovalRow["kind"], ReactNode> = {
-  도구: <Terminal />,
-  질문: <MessageCircleQuestion />,
-  계획: <ListChecks />,
-  "변경 검토": <FileCode />,
-};
 
 function SkeletonRows() {
   return (
@@ -142,9 +125,8 @@ export function InboxPage({ state }: { state: InboxState }) {
   const unread = read ? 0 : notices.filter((n) => n.unread).length;
   const total = pending + proposals.length + unread;
 
-  const remote = sending ? "build-box에서 온 요청 · 12:40에 자동 거부 · " : "";
-  const sub = (r: ApprovalRow) =>
-    `${remote}${r.thread} · ${r.source.name}${r.caller !== undefined ? ` ${r.caller}` : ""} · ${r.at}`;
+  // 원격에서 온 요청은 자동 거부 시각이 실제 기한이라 남긴다.
+  const sub = (r: ApprovalRow) => `${r.thread} · ${r.at}${sending ? " · 12:40에 자동 거부" : ""}`;
 
   const record = (r: ApprovalRow, d: Decision) => (
     <AgentRequest
@@ -197,7 +179,7 @@ export function InboxPage({ state }: { state: InboxState }) {
           <RequestCard
             icon={<ListChecks />}
             tileTone="bg-agent-soft text-agent-text"
-            title={`계획 · v${plan.version}`}
+            title="계획"
             subtitle={sub(r)}
             locked={locked}
             onAction={(id) => decide("a3", id === "deny" ? "denied" : "allowed")}
@@ -215,7 +197,7 @@ export function InboxPage({ state }: { state: InboxState }) {
                 ))}
               </ol>
               <Button size="xs" tone="neutral" variant="ghost" className="-ms-2 justify-self-start">
-                전체 보기 (나머지 {plan.more}줄)
+                전체 보기
               </Button>
             </div>
             <ListDescription
@@ -240,12 +222,7 @@ export function InboxPage({ state }: { state: InboxState }) {
                 </Select>
               </ListDescriptionRow>
             </ListDescription>
-            <Textarea
-              size="sm"
-              rows={2}
-              aria-label="피드백"
-              placeholder="수정 요청에 붙일 피드백"
-            />
+            <Textarea size="sm" rows={2} aria-label="피드백" placeholder="피드백" />
           </RequestCard>
         );
       case "a4":
@@ -254,7 +231,7 @@ export function InboxPage({ state }: { state: InboxState }) {
           <RequestCard
             icon={<FileCode />}
             tileTone="bg-accent-soft text-accent-text"
-            title={`변경 검토 · 라운드 ${review.round}`}
+            title="변경 검토"
             subtitle={sub(r)}
             locked={locked}
             onAction={(id) => decide("a4", id === "deny" ? "denied" : "allowed")}
@@ -266,10 +243,6 @@ export function InboxPage({ state }: { state: InboxState }) {
           >
             <div className="flex items-baseline gap-2.5">
               <span className="text-ui-sm font-medium text-text-primary">{review.title}</span>
-              <span className="font-mono text-mono-sm text-diff-add-text">+{review.added}</span>
-              <span className="font-mono text-mono-sm text-diff-remove-text">
-                −{review.removed}
-              </span>
             </div>
             <ListDescription
               variant="ghost"
@@ -279,7 +252,7 @@ export function InboxPage({ state }: { state: InboxState }) {
             >
               {review.files.map((f) => (
                 <ListDescriptionRow key={f.path} term={<span className="font-mono">{f.path}</span>}>
-                  {f.change} · hunk {f.hunks}
+                  {f.change}
                 </ListDescriptionRow>
               ))}
             </ListDescription>
@@ -298,7 +271,7 @@ export function InboxPage({ state }: { state: InboxState }) {
         text: "끊김",
         dot: "danger",
         title: "연결 끊김",
-        description: "엔진과 연결이 끊겼어요. 읽은 목록은 그대로 보여요.",
+        description: "엔진과 연결이 끊겼어요.",
       }
     : undefined;
   const status = defaultStatusCells({
@@ -312,7 +285,7 @@ export function InboxPage({ state }: { state: InboxState }) {
     status.start[0] = {
       ...status.start[0],
       text: "build-box",
-      description: "원격 서비스 build-box에 붙어 있어요. 이 연결은 승인에 답할 수 없어요.",
+      description: "이 연결에서는 승인에 답할 수 없어요.",
     };
 
   return (
@@ -324,7 +297,7 @@ export function InboxPage({ state }: { state: InboxState }) {
       status={status}
     >
       <header
-        className={`${READ_WIDTH} flex min-h-10 flex-none flex-wrap items-center gap-x-2 gap-y-1 py-1`}
+        className={`${READ_WIDTH} flex min-h-10 flex-none flex-wrap items-center gap-x-2 gap-y-1 py-1 ${BAR_INSET}`}
       >
         {!shell.startOpen && (
           <IconButton
@@ -341,15 +314,9 @@ export function InboxPage({ state }: { state: InboxState }) {
         <h1 className="m-0 me-1 font-ui text-ui-strong text-text-primary">받은 요청</h1>
         <SegmentedControl size="xs" aria-label="종류" value={filter} onValueChange={setFilter}>
           <SegmentedControlItem value="all">모두</SegmentedControlItem>
-          <SegmentedControlItem value="approvals" count={empty ? undefined : pending}>
-            승인
-          </SegmentedControlItem>
-          <SegmentedControlItem value="proposals" count={empty ? undefined : proposals.length}>
-            제안
-          </SegmentedControlItem>
-          <SegmentedControlItem value="notices" count={empty || unread === 0 ? undefined : unread}>
-            알림
-          </SegmentedControlItem>
+          <SegmentedControlItem value="approvals">승인</SegmentedControlItem>
+          <SegmentedControlItem value="proposals">제안</SegmentedControlItem>
+          <SegmentedControlItem value="notices">알림</SegmentedControlItem>
         </SegmentedControl>
         <span aria-hidden className="flex-1" />
         <Select
@@ -374,9 +341,7 @@ export function InboxPage({ state }: { state: InboxState }) {
         <div className={`${READ_WIDTH} grid gap-5 pt-1 pb-4`}>
           {(offline || noRespond) && (
             <Alert tone="warning">
-              {offline
-                ? "엔진에 연결되면 답할 수 있어요"
-                : "이 연결(build-box)에서는 답할 수 없어요. 원격 응답 허용이 꺼져 있어요."}
+              {offline ? "엔진에 연결되면 답할 수 있어요" : "이 연결에서는 답할 수 없어요"}
             </Alert>
           )}
 
@@ -386,12 +351,11 @@ export function InboxPage({ state }: { state: InboxState }) {
               surface="none"
               className="mt-16"
               title="기다리는 요청이 없어요"
-              description="승인, 제안, 알림이 오면 여기에 모여요."
             />
           )}
 
           {!empty && showApprovals && (
-            <Section title="승인" count={loading ? undefined : pending}>
+            <Section title="승인">
               {loading ? (
                 <SkeletonRows />
               ) : (
@@ -408,12 +372,10 @@ export function InboxPage({ state }: { state: InboxState }) {
                     ) : (
                       <InboxRow
                         key={r.id}
-                        icon={KIND_ICON[r.kind]}
-                        iconTone="text-warning-graphic"
                         kind={r.kind}
                         summary={r.summary}
                         mono={r.mono}
-                        meta={[r.thread, r.source.name, r.caller]}
+                        meta={[r.thread]}
                         at={r.at}
                         error={sending && r.id === "a2" ? "이미 처리된 요청이에요" : undefined}
                         onClick={() => setOpen(r.id)}
@@ -428,7 +390,6 @@ export function InboxPage({ state }: { state: InboxState }) {
           {!empty && showProposals && (
             <Section
               title="제안"
-              count={loading ? undefined : failed ? 2 : proposals.length}
               end={
                 <Button size="xs" tone="neutral" variant="ghost">
                   제안 화면에서 보기
@@ -441,23 +402,19 @@ export function InboxPage({ state }: { state: InboxState }) {
                 <>
                   {failed && (
                     <Alert tone="warning" className="mb-1">
-                      knowledge 기능의 제안을 읽지 못했어요. learning 그룹 제안만 보여요.
+                      일부 제안을 읽지 못했어요.
                     </Alert>
                   )}
                   <ul aria-label="제안 대기" className="m-0 -mx-2.5 grid list-none gap-1 p-0">
                     {proposals
-                      .filter((p) => !failed || p.source.id === "grp:learning")
+                      .filter((p) => !failed || p.source === "learning")
                       .map((p) => (
                         <InboxRow
                           key={p.target}
-                          icon={<Sparkles emphasis="muted" />}
-                          iconTone={
-                            p.conflict === true ? "text-warning-graphic" : "text-text-tertiary"
-                          }
                           kind={p.kind}
                           summary={p.target}
                           mono
-                          meta={[p.source.name, p.meta]}
+                          meta={[p.conflict === true ? "충돌" : undefined]}
                           at={p.at}
                         />
                       ))}
@@ -470,7 +427,6 @@ export function InboxPage({ state }: { state: InboxState }) {
           {!empty && showNotices && (
             <Section
               title="알림"
-              count={loading || failed ? undefined : notices.length}
               end={
                 !loading && !failed && unread > 0 ? (
                   <Button size="xs" tone="neutral" variant="ghost" onClick={() => setRead(true)}>
@@ -497,27 +453,8 @@ export function InboxPage({ state }: { state: InboxState }) {
                   {notices.map((n) => (
                     <InboxRow
                       key={n.title}
-                      icon={
-                        n.kind === "error" ? (
-                          <CircleAlert />
-                        ) : n.kind === "completed" ? (
-                          <CircleCheck />
-                        ) : (
-                          <Sparkles emphasis="muted" />
-                        )
-                      }
-                      iconTone={
-                        n.kind === "error"
-                          ? "text-danger-graphic"
-                          : n.kind === "completed"
-                            ? "text-success-graphic"
-                            : "text-text-tertiary"
-                      }
-                      kind={
-                        n.kind === "error" ? "오류" : n.kind === "completed" ? "완료" : "백그라운드"
-                      }
                       summary={n.title}
-                      meta={[n.body, n.thread, n.source.name]}
+                      meta={[n.thread]}
                       at={n.at}
                       unread={n.unread && !read}
                     />
@@ -525,15 +462,6 @@ export function InboxPage({ state }: { state: InboxState }) {
                 </ul>
               )}
             </Section>
-          )}
-          {noRespond && (
-            <p className="m-0 flex items-center gap-1.5 text-ui-xs text-text-tertiary">
-              <ShieldCheck aria-hidden emphasis="muted" className="size-icon-sm" />
-              설정 › 연결에서 원격 응답을 허용하면 여기서 답할 수 있어요.
-              <Badge size="xs" mono>
-                l2.schedule.remote.allowRespond
-              </Badge>
-            </p>
           )}
         </div>
       </ScrollArea>
