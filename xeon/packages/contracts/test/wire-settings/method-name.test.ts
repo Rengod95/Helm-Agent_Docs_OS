@@ -18,7 +18,7 @@ describe("classifyMethodName", () => {
     const bad = [
       "Turn.start",
       "turn",
-      "turn.start.now",
+      "turn.start.Now",
       "turn_start",
       "$/",
       "$/Cancel",

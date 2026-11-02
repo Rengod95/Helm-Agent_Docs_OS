@@ -15,3 +15,5 @@ export * from "./conformance.ts";
 export * from "./thread-summary.ts";
 export * from "./framing.ts";
 export * from "./stdio.ts";
+export * from "./schema-kit.ts";
+export * from "./ext-read.ts";

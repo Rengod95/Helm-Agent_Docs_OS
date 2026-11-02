@@ -61,6 +61,7 @@ import {
   type StreamPosition,
 } from "./cursor.ts";
 import { WireMetaSchema } from "./jsonrpc.ts";
+import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
 import {
   ProposalApproveParamsSchema,
   ProposalDecideResultSchema,
@@ -304,6 +305,9 @@ export const HostStatusResultSchema: TObject<{
   idleShutdownAt: TUnion<[typeof IsoTimeSchema, TNull]>;
   binaries: TOptional<typeof HostBinaryReportSchema>;
   safeMode: TOptional<TBoolean>;
+  safeModeCause: TOptional<
+    TUnion<[TLiteral<"user">, TLiteral<"startupFailures">, TLiteral<"flag">]>
+  >;
   startupFailures: TOptional<TInteger>;
   suggestSafeMode: TOptional<TBoolean>;
 }> = Type.Object(
@@ -318,6 +322,10 @@ export const HostStatusResultSchema: TObject<{
     binaries: Type.Optional(HostBinaryReportSchema),
     /** 안전 모드로 떠 있으면 참(L3 내장 그룹과 외부 확장을 싣지 않는다, D-M3-07). 생략하면 거짓. 화면이 표시한다(M3-REQ-19) */
     safeMode: Type.Optional(Type.Boolean()),
+    /** 안전 모드 원인(W-35). 안전 모드가 아니면 없다. user: 사용자가 요청, startupFailures: 연속 시작 실패, flag: 실행 인자 */
+    safeModeCause: Type.Optional(
+      Type.Union([Type.Literal("user"), Type.Literal("startupFailures"), Type.Literal("flag")]),
+    ),
     /** 직전까지의 연속 시작 실패 수(W-39). 0이면 생략한다 */
     startupFailures: Type.Optional(Type.Integer({ minimum: 1 })),
     /** 연속 시작 실패 수가 `x.operations.safeMode.suggestAfter` 이상이면 참. 거짓이면 생략한다(W-39) */
@@ -1318,7 +1326,7 @@ const ProposalDecideRequestSchema: TUnion<
 // ── 레지스트리 타입 ──────────────────────────────────────────────────────
 
 /** 메서드별 params·result 스키마. 타입 쪽(WireMethodMap)과 값 쪽(WIRE_METHODS)의 같은 원천이다 */
-interface WireSchemas {
+interface WireSchemas extends ExtReadSchemas {
   "host.hello": {
     params: WithMeta<typeof HostHelloParamsSchema>;
     result: typeof HostHelloResultSchema;
@@ -1560,13 +1568,13 @@ export interface WireMethodSpec {
   readonly since: SemVer;
   readonly status: FeatureStatus;
   /** 처음 구현하는 마일스톤 */
-  readonly stage: "M1" | "M2" | "M3";
+  readonly stage: "M1" | "M2" | "M3" | "M4";
 }
 
 function spec<P extends TSchema, R extends TSchema>(
   params: P,
   result: R,
-  stage: "M1" | "M2" | "M3",
+  stage: "M1" | "M2" | "M3" | "M4",
 ): WireMethodSpec & { readonly params: P; readonly result: R } {
   return { params, result, since: "0.1.0", status: "active", stage };
 }
@@ -1644,6 +1652,7 @@ export const WIRE_METHODS: {
   "schedule.create": spec(withMeta(ScheduleCreateInputSchema), ScheduleCreateResultSchema, "M3"),
   "schedule.list": spec(withMeta(ScheduleListInputSchema), ScheduleListResultSchema, "M3"),
   "schedule.cancel": spec(withMeta(ScheduleCancelInputSchema), ScheduleCancelResultSchema, "M3"),
+  ...EXT_READ_METHODS,
   "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 
@@ -1651,7 +1660,7 @@ export const WIRE_NOTIFICATIONS: {
   readonly [N in ServerNotificationName]: {
     readonly params: ServerNotificationSchemas[N];
     readonly since: SemVer;
-    readonly stage: "M1" | "M2" | "M3";
+    readonly stage: "M1" | "M2" | "M3" | "M4";
   };
 } = {
   "events.batch": { params: EventsBatchParamsSchema, since: "0.1.0", stage: "M1" },

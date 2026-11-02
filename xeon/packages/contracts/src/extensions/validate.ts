@@ -129,6 +129,9 @@ export const RESERVED_EXTENSION_NAMES: readonly string[] = [
   "artifact",
   "artifacts",
   "schedule",
+  // wire 코어 메서드 `ext.ui.*`, `ext.test.*`의 영역(F.wire-settings.spec §3.2)
+  "ui",
+  "test",
 ];
 
 /** 스키마 1의 최상위 이름. 스키마 2에서는 `plugins[]` 안으로 옮겼거나 없어졌다 */

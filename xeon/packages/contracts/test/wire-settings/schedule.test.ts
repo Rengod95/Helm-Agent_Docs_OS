@@ -66,7 +66,9 @@ const fire = WIRE_METHODS["schedule.fire"];
 
 describe("schedule.* registration", () => {
   test("the four methods are registered at stage M3 in the spec's order", () => {
-    const names = Object.keys(WIRE_METHODS).filter((n) => n.startsWith("schedule."));
+    const names = Object.entries(WIRE_METHODS)
+      .filter(([n, spec]) => n.startsWith("schedule.") && spec.stage === "M3")
+      .map(([n]) => n);
     expect(names).toEqual(["schedule.create", "schedule.list", "schedule.cancel", "schedule.fire"]);
     for (const spec of [create, list, cancel, fire]) {
       expect(spec.stage).toBe("M3");

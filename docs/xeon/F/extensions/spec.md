@@ -1468,7 +1468,7 @@ chain의 보충 규칙 [제안]:
 | `unknown_key` | warning | 알 수 없는 최상위 키(제거됨) |
 | `schema_version_unsupported` | error | `schemaVersion`이 2가 아님. "플러그인 형식(`plugins[]`)으로 옮기세요"를 알린다. 옛 형식을 읽지 않는다 [결정: 2026-11-01 옛 이름 읽기 없음] |
 | `legacy_field` | error | 최상위에 `kind`, `points`, `usesDrive`, `views`(이름이 `ui`로 바뀜), `composition`·`phases`(`group.composition`으로 옮김), 또는 `plugins[]` 항목으로 옮긴 필드(`layer`, `hooks`, `usesPost`, `requires`, `optional`, `provides`, `recordKinds`, `readsRecordKinds`)가 있음. 스키마 2에서 뜻이 바뀌었거나 위치가 바뀐 이름이라 조용히 지우지 않고 거부한다 [제안] |
-| `name_invalid` / `name_reserved` | error | 이름 형식 위반 / `core`, `ext`, `grp`, `x`, `fresnel` 또는 L2 도메인 이름을 외부 확장(`trust.level`이 `builtin`이 아님)이 씀. 입력 출처 키 `user`, `deleg`, `timer`(F `RESERVED_SOURCE_KEYS`)는 신뢰 등급과 무관하게 모든 확장에 금지한다(review.decisions-2 U-13, `eng.transactions.design` §4.7) |
+| `name_invalid` / `name_reserved` | error | 이름 형식 위반 / `core`, `ext`, `grp`, `x`, `fresnel`, `ui`, `test`(wire 코어 메서드 `ext.ui.*`, `ext.test.*`의 영역) 또는 L2 도메인 이름을 외부 확장(`trust.level`이 `builtin`이 아님)이 씀. 입력 출처 키 `user`, `deleg`, `timer`(F `RESERVED_SOURCE_KEYS`)는 신뢰 등급과 무관하게 모든 확장에 금지한다(review.decisions-2 U-13, `eng.transactions.design` §4.7) |
 | `plugin_id_invalid` / `plugin_id_duplicate` | error | 플러그인 id 형식 위반(`group.members` 항목 포함) / 한 확장 안 중복 |
 | `plugin_root_ambiguous` | error | `id`가 없는 플러그인이 둘 이상 |
 | `layer_mixed_external` | error | 한 확장 안에 `layer: "plugin"`과 `L1`~`L3`가 함께 있음 |

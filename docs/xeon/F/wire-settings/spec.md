@@ -206,7 +206,7 @@ export function createLineFramer(options?: { readonly maxFrameBytes?: number }):
 | 진행 중 `id` 재사용 | `-32600` | 같음 | [제안] |
 | `params` | 항상 객체. 배열은 `-32602`. 없으면 `{}` | 같음 | [제안] |
 | `result` | 항상 객체 | 같음. 결과가 없으면 `{}` | [제안] |
-| 메서드 이름 | `<영역>.<동사>` 소문자 낙타, `$/` 제어 예약 | 같음. 확장 메서드는 `ext.<확장id>.<동사>`(M2 이후, §4.2) | [제안] |
+| 메서드 이름 | `<영역>.<동사>` 소문자 낙타(M4부터 `<영역>.<하위>.<동사>`도 있다. 예 `work.tasks.list`), `$/` 제어 예약 | 같음. 확장 메서드는 `ext.<확장id>.<동사>`(M2 이후, §4.2) | [제안] |
 | 알림 이름 | 메서드와 같은 규칙. 예외로 `events` | 예외 없이 같은 규칙. 내구 이벤트 알림은 `events.batch` | [제안] |
 | 서버 → 클라이언트 요청 | 보내지 않음 | 보내지 않는다. 승인은 내구 이벤트 + 응답 메서드(§4.6) | [결정: review.decisions-2 U-02] |
 | 클라이언트 → 서버 알림 | `$/cancelRequest`, `presence.report` | `$/cancelRequest` 하나 | [제안] |
@@ -296,7 +296,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 영역 | 메서드 | params | result | 단계 |
 |---|---|---|---|---|
 | host | `host.hello` | `{ protocolVersion: SemVer, client: {name, version, kind: "cli"\|"desktop"\|"other"}, experimental?: FeatureName[], auth?: { token: string } }`(`auth`는 M2) | `{ protocolVersion: SemVer, server: {name, version}, storeId: StoreId, transport: TransportKind, features: FeatureInfo[], experimental: FeatureName[] }` | M1 |
-| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean, startupFailures?: integer, suggestSafeMode?: boolean }` | M2 |
+| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean, safeModeCause?: "user"\|"startupFailures"\|"flag", startupFailures?: integer, suggestSafeMode?: boolean }` | M2 |
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string }` | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
@@ -343,6 +343,24 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | schedule | `schedule.list` | `{ enabled?: boolean }` | `{ ok: true, items: ScheduleListItem[](최대 200) }`, `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.cancel` | `{ scheduleId: ScheduleId }` | `{ ok: true, entry: ScheduleEntryView }`, `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.fire` | `{ scheduleId: ScheduleId }` | `{ ok: true, run: RunView }`, `{ ok: false, error: ScheduleError }` | M3 |
+| ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount` | M4 (W-15, W-41) |
+| ext | `ext.get` | `{ name: string }` | `{ entry: ExtListEntry, manifest, hooks: ExtHookInfo[], bindings: ExtBindingEdge[] }` | M4 (W-20) |
+| ext | `ext.reenable` | `{ name: string }` | `{ appliesAt: "nextStepBoundary"\|"now", diagnostics: ExtDiagnostic[] }` | M4 (W-21) |
+| ext | `ext.reload` | `{ name: string }` | `ext.reenable`과 같음 | M4 (W-38) |
+| ext | `ext.health` | `{ name?: string, threadId?: string }` | `{ health: ExtHealthEntry[] }`(Registration 단위) | M4 (W-22) |
+| ext | `ext.timings` | `{ name: string, threadId?: string }` | `{ traceEnabled: boolean, timings: ExtHookTiming[] }` | M4 (W-23) |
+| ext | `ext.versions` | `{ name: string }` | `{ versions: ExtVersionEntry[] }` | M4 (W-31) |
+| ext | `ext.rollback` | `{ name: string, version: string, clearState?: boolean }` | `{ appliesAt: "nextStepBoundary"\|"restart", stateCleared: boolean }` | M4 (W-31) |
+| ext | `ext.bindings` | `{ threadId?: string }` | `{ capabilities: CapabilityBinding[] }`(Registration 단위 엣지) | M4 (W-40) |
+| ext | `ext.validateComposition` | `{ composition: CompositionDecl, plugins?: PluginDecl[], threadId?: string }` | `{ issues: ManifestIssue[] }` | M4 (W-47) |
+| ext | `ext.ui.list` | `{ threadId?: string }` | `{ items: ExtUiEntry[] }` | M4 (W-33) |
+| ext | `ext.ui.post` | `{ extension, ui, name: string, payload?: unknown }` | `{ accepted: boolean }` | M4 (W-33) |
+| ext | `ext.ui.requestApproval` | `{ extension, ui, method: string, params?: unknown }` | `{ approvalId: string }` | M4 (W-33) |
+| group | `group.list` | `{ threadId?: string }` | `{ groups: GroupStatusWire[] }` | M4 (W-24) |
+| group | `group.metrics` | `{ id: string, threadId?: string, since?: IsoTime }` | `{ id, metrics: GroupMetricsFull \| null, since: IsoTime \| null }` | M4 (W-25) |
+| group | `group.promotion` | `{ threadIds?: string[] }` | `{ throughSeq, threads, candidates: PromotionCandidate[] }` | M4 (W-26) |
+| group | `group.driveLock` | `{ threadId: string }` | `{ holder, leaseEpoch, activeDriver, limits, used, candidates: DriveLockWait[], lastRejected }` | M4 (W-42) |
+| hooks | `hooks.list` | `{}` | `{ hooks: HookEntry[] }` | M4 (W-36) |
 
 - [결정: review.m3-design-inputs D-M3-32 a, M3-REQ-18] 지식 제안 대기열 wire(`proposal.*`, `wire/proposals.ts`). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(`source: "learning"`)와 L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(`source: "knowledge"`). 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이고, 대기열을 하나로 합치지 않는다.
   - `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 `(source, id)` 오름차순)으로 합친다. `ProposalRow`는 두 출처가 같은 모양이다: `source`, `id`, `kind`(`skill`, `memory`, `feedback`, `script`), `op`, `target`, `status`(두 대기열 상태의 합집합: `pending`, `approved`, `applied`, `rejected`, `stale`, `expired`, `reverted`), `destructive`, `diff`, `rationale`, `evidence`, `conflictsWith`, `reason`, `revision`, `scope`, `afterUntrusted`, `createdAt`. 출처에 없는 필드는 빈 값(null, false, 빈 배열, `revision` 1)이다. 한 출처를 읽지 못하면(지식 저장소 없음 등) 그 출처만 `unavailable`에 올리고 나머지 행은 돌려준다. `source`와 `status` 필터는 서버가 건다.
@@ -1223,7 +1241,10 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 ### 4.2 메서드 이름과 확장 메서드
 
 - 코어 메서드는 이 문서의 표에 있는 것만 있다. 새 메서드는 이 문서를 고쳐서 더한다.
-- [제안] 확장이 wire 메서드를 더하는 것은 M2 이후에 연다. 이름은 `ext.<확장id>.<동사>`이고 params·result 스키마를 매니페스트에 선언한다. 그 전까지 확장은 내구 이벤트(F.records의 확장 접두 이벤트)로만 클라이언트에 정보를 보낸다.
+- [결정: 2026-10-31 사용자, M4 T-F] 확장이 더하는 wire 메서드의 이름은 `ext.<확장이름>.<동사>`로 확정한다(`extMethodName`). 동사는 `EXT_VERB_PATTERN`, params·result는 매니페스트 확장 수준 `methods`의 `ExtMethodDecl`(JSON Schema)이 선언하고 `validateManifest`가 검사한다(F.extensions.spec §3.1.1). 오류 코드는 확장 구간 10000~19999와 `ext.<확장이름>.` kind다(§3.5.3).
+- 세 마디 이름 중 `ext.ui.*`, `ext.test.*`는 코어 메서드다(옛 `ext.view.*`는 없다). 그래서 `ui`, `test`는 확장 이름으로 쓸 수 없다(`RESERVED_EXTENSION_NAMES`, `CORE_EXT_NAMESPACES`, `classifyMethodName`). 이름 `ui`, `ext.ui.*`, 설정 `x.ui.apps`, `x.ui.allowProjectApps`(옛 `x.views.frames`, `x.views.allowProjectFrames`)는 ADR-0022 §3.6이 정하지 않은 [제안]이다. 설정 키의 정의와 소유 문서는 X 트랙이 정한다.
+- [결정: 2026-10-31 사용자, M4 T-F] 확장 읽기(W-15, W-20~W-26, W-31, W-33, W-35~W-42, W-47)의 스키마는 `wire/ext-read.ts`다. 행의 단위는 확장이고 Registration(플러그인 하나)은 `plugins`와 `registrationId`로 나온다(ADR-0022 §3.2). `ext.list`의 `enabledSource`는 켜짐 요청이 온 층(`managed`, `thread`, `project`, `user`, `default`)이다(T-REG §7 5번). `group.driveLock`(옛 `group.lease`, 저장 이름 `lease.*`는 그대로)은 drive lock을 가진 Registration과 후보·대기 수, 설정 `x.primitives.activeDriver` 값, 최근 `lease.rejected`를 돌려준다. `host.status`는 `safeModeCause`(`user`, `startupFailures`, `flag`)를 더한다(W-35, W-39).
+- M4 메서드(단계 M4)는 §3.3.1 표에 있다.
 
 ### 4.3 요청 처리 순서
 
@@ -1437,7 +1458,7 @@ settings:
 2. [미결] 설정 우선순위 표(§4.7). 관리 범위를 잠금 전용으로 둘지, 관리 기본값을 따로 둘지.
 3. [미결] 폐기 기간(§3.7). 제안은 12개월 또는 다음 주 버전 중 늦은 쪽.
 4. [결정: review.m3-design-inputs D-M3-16 c, M3-REQ-19] 서비스 모드 인증. 로컬 Unix 소켓은 파일 권한(0600)만으로 막고 `auth`를 받지 않는다. TCP로 열 때만 `host.hello`의 `auth.token`이 필수이고, 없거나 맞지 않으면 `host.authFailed`(`details.reason`: `missing`·`invalid`, 토큰 값은 싣지 않는다)로 응답한 뒤 연결을 닫는다. 어느 전송이 토큰을 요구하는지는 호스트가 정한다(계약은 `auth?`와 오류만 둔다). 토큰 열기 옵션과 회전은 `L0.process.spec`이 정한다(M3-REQ-43). 원격은 [결정: review.decisions-2 U-11]로 M3에 넣되, 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식이다. 그래서 원격도 소켓 인증 규칙을 그대로 쓴다. 내장 TLS + 토큰 WebSocket 전송은 2차다.
-5. [미결] 확장이 wire 메서드를 더하는 것을 허용할지(§4.2).
+5. [결정: 2026-10-31 사용자, M4 T-F] 확장이 wire 메서드를 더하는 것은 허용한다. 이름은 `ext.<확장이름>.<동사>`다(§4.2).
 6. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 1.3.27을 정확 고정하므로 같은 판으로 맞춰 한 사본만 설치한다. 1.4로 올리는 시점은 pi가 올릴 때다.
 7. [미결] `Seq`·`StoreId`를 F.records로 옮길지. `sto` 접두는 `IdPrefix`에 넣지 않고 저장소 정체성 ID 부류로 둔다(`F.conversation.spec` §3.2.1 ①) [제안].
 8. [미결] `UserConfigEntry`에 값 스키마 필드(`type`, `default`, `range`, `runtimeChange`, `allowedScopes`)를 둘지(§3.8.3). 확장 설정 키 접두는 `ext.<name>.`로 맞췄다(`F.extensions.spec` §3.1, §6).

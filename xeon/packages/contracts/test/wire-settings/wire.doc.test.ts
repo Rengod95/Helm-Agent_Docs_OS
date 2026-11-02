@@ -31,13 +31,13 @@ describe("wire doc tables", () => {
     const rows = table
       .split("\n")
       .map(cells)
-      .filter((c) => /^`[a-z]+\.[A-Za-z]+`$/.test(c[2] ?? ""))
+      .filter((c) => /^`[a-z]+(\.[a-z]+)?\.[A-Za-z]+`$/.test(c[2] ?? ""))
       .map((c) => ({
         name: (c[2] ?? "").slice(1, -1),
         // params 칸에 이스케이프한 "\|"가 있을 수 있어 단계는 마지막 칸에서 읽는다
-        stage: c.findLast((cell) => cell !== "") ?? "",
+        stage: (c.findLast((cell) => cell !== "") ?? "").split(" ")[0] ?? "",
       }));
-    expect(rows).toHaveLength(48);
+    expect(rows).toHaveLength(Object.keys(WIRE_METHODS).length);
     expect(rows.map((r) => r.name).toSorted()).toEqual(Object.keys(WIRE_METHODS).toSorted());
     for (const row of rows) {
       const spec = Object.entries(WIRE_METHODS).find(([name]) => name === row.name)?.[1];
