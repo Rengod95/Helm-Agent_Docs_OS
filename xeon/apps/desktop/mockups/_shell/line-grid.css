@@ -15,3 +15,7 @@
 @utility text-grid-mark {
   color: var(--cs-color-text-tertiary);
 }
+/* 띠(LineGridFrame) 안에서는 가장자리에 걸치는 십자 표식을 감춘다: 띠가 영역 끝까지 닿아 표식 절반이 잘리기 때문. */
+[data-slot="line-grid-frame"] [data-slot="line-grid-mark"] {
+  display: none;
+}

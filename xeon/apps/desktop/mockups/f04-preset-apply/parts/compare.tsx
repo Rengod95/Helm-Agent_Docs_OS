@@ -76,9 +76,9 @@ export function ApplyBand({ phase }: { phase: Phase }) {
   return (
     <LineGridFrame>
       <LineGridBlock columns="minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr)">
-        <LineGridMetric value={PROFILE_NAME} metricLabel={T.profile} />
-        <LineGridMetric value={THREAD_NAME} metricLabel={T.contextThread} />
-        <LineGridMetric value={STATE_WORD[phase]} metricLabel="상태" />
+        <LineGridMetric density="compact" value={PROFILE_NAME} metricLabel={T.profile} />
+        <LineGridMetric density="compact" value={THREAD_NAME} metricLabel={T.contextThread} />
+        <LineGridMetric density="compact" value={STATE_WORD[phase]} metricLabel="상태" />
       </LineGridBlock>
     </LineGridFrame>
   );
@@ -133,7 +133,7 @@ export function ApplyCompare({ phase }: { phase: Phase }) {
     return text(key, r.after, phase === "pending" ? { muted: true } : {});
   };
   return (
-    <div aria-busy={phase === "preview-loading"}>
+    <div data-bleed="" aria-busy={phase === "preview-loading"}>
       <LineGridFrame>
         <LineGrid
           label={`${T.profile} 적용 앞뒤`}

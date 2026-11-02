@@ -1,7 +1,7 @@
 // 캔버스 v3 작은 부품: 카드·칸 겉모양, 고른 것의 고리, 가운데 칸의 여백, 상세 그림의 곡선.
 // 선 격자 배치(레이아웃)만 옮겼다. 색·반지름·그림자는 옛 언어 토큰만 쓴다(ring 그림자 토큰, 레일은 쓰지 않는다).
 
-import { PAGE_PAD } from "../../_shell";
+import { PAGE_PAD, PAGE_PAD_GRID } from "../../_shell";
 
 /** 카드(판): 표면 채움 + 1px 안쪽 테두리(옛 caustic surface 카드와 같은 모양), 반지름 16. */
 export const CARD =
@@ -16,6 +16,9 @@ export const RING = "shadow-[inset_0_0_0_1px_var(--cs-color-accent-border-strong
 
 /** 가운데 칸: 레일 없이 바깥 여백 24(PAGE_PAD)만 두고 세로로 흐른다. 넘치면 칸 전체가 스크롤한다. */
 export const STAGE = `flex min-h-0 min-w-0 flex-1 flex-col overflow-auto ${PAGE_PAD}`;
+
+/** 선 격자 띠가 있는 가운데 칸(구조·차이): 가로 여백 0이라 띠가 영역 양 끝까지 닿는다. 머리·구역은 칸 글자와 같은 px-3(GRID_INSET_COMPACT)을 가진다. */
+export const STAGE_GRID = `flex min-h-0 min-w-0 flex-1 flex-col overflow-auto ${PAGE_PAD_GRID}`;
 
 /** 수평으로 들어가 수평으로 나오는 부드러운 곡선 */
 export function hCurve(ax: number, ay: number, bx: number, by: number) {

@@ -8,6 +8,7 @@ import {
   extName,
   L2,
   LineGrid,
+  LineGridFrame,
   T,
   type Extension,
   type Layer,
@@ -108,47 +109,51 @@ export function ExtList({
   const cols = columns(layout === "compact");
   if (loading)
     return (
-      <LineGrid
-        label={T.extension}
-        corner={<HeadText>{L2("이름", "Name")}</HeadText>}
-        aria-busy
-        columns={cols}
-        rowHeadWidth="minmax(0, 1fr)"
-        rows={SKELETON_W.map((w): LineGridRow => ({
-          id: `sk-${w}`,
-          label: <Skeleton className="h-4" style={{ width: `${w * 2.5}px` }} />,
-        }))}
-        cell={(_r, c) => ({
-          items: [
-            {
-              id: "v",
-              label:
-                c === "on" ? (
-                  <Skeleton className="h-4 w-7 rounded-full" />
-                ) : (
-                  <Skeleton className="h-4 w-16" />
-                ),
-            },
-          ],
-        })}
-      />
+      <LineGridFrame>
+        <LineGrid
+          label={T.extension}
+          corner={<HeadText>{L2("이름", "Name")}</HeadText>}
+          aria-busy
+          columns={cols}
+          rowHeadWidth="minmax(0, 1fr)"
+          rows={SKELETON_W.map((w): LineGridRow => ({
+            id: `sk-${w}`,
+            label: <Skeleton className="h-4" style={{ width: `${w * 2.5}px` }} />,
+          }))}
+          cell={(_r, c) => ({
+            items: [
+              {
+                id: "v",
+                label:
+                  c === "on" ? (
+                    <Skeleton className="h-4 w-7 rounded-full" />
+                  ) : (
+                    <Skeleton className="h-4 w-16" />
+                  ),
+              },
+            ],
+          })}
+        />
+      </LineGridFrame>
     );
   const sorted = LAYER_ORDER.flatMap((l) => rows.filter((e) => e.layer === l));
   return (
-    <LineGrid
-      label={T.extension}
-      corner={<HeadText>{L2("이름", "Name")}</HeadText>}
-      columns={cols}
-      rowHeadWidth="minmax(0, 1fr)"
-      rows={sorted.map((e): LineGridRow => ({
-        id: e.name,
-        label: extName(e.name),
-        group: e.layer,
-      }))}
-      cell={(r, c) => {
-        const e = sorted.find((x) => x.name === r);
-        return e === undefined ? null : dataCell(e, c);
-      }}
-    />
+    <LineGridFrame>
+      <LineGrid
+        label={T.extension}
+        corner={<HeadText>{L2("이름", "Name")}</HeadText>}
+        columns={cols}
+        rowHeadWidth="minmax(0, 1fr)"
+        rows={sorted.map((e): LineGridRow => ({
+          id: e.name,
+          label: extName(e.name),
+          group: e.layer,
+        }))}
+        cell={(r, c) => {
+          const e = sorted.find((x) => x.name === r);
+          return e === undefined ? null : dataCell(e, c);
+        }}
+      />
+    </LineGridFrame>
   );
 }

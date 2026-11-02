@@ -1,5 +1,5 @@
 // N-41 프로필 적용 결과. 미리 보기 실패, 적용 기다림, 적용함, 모두 되돌림을 앞뒤 선 격자로 보인다.
-// 구성기 입구는 고르던 값을 잃지 않고 그 자리에서 고친다(parts/compose.tsx). 레일 대신 크래프트 폭(WB_WIDTH) 열을 쓴다(옛 언어 이식).
+// 구성기 입구는 고르던 값을 잃지 않고 그 자리에서 고친다(parts/compose.tsx). 레일 대신 가장자리까지 닿는 선 격자 띠(LineGridFrame)와 칸 글자에 맞춘 px-3 열을 쓴다(옛 언어 이식).
 import { Alert, Button, toast } from "@caustic/react";
 import { useEffect, useState } from "react";
 import {
@@ -8,7 +8,7 @@ import {
   Shell,
   ShellToaster,
   T,
-  WB_WIDTH,
+  GRID_BODY_COMPACT,
   WorkbenchHead,
   defaultStatusCells,
   inbox,
@@ -169,7 +169,7 @@ export function App({ state }: { state: StateId }) {
         })}
       >
         {compose ? (
-          <div className="relative mx-2 flex min-h-0 flex-1 flex-col">
+          <div className="relative flex min-h-0 flex-1 flex-col">
             <ComposeHead />
             <ComposeBody
               phase={s.phase}
@@ -184,11 +184,11 @@ export function App({ state }: { state: StateId }) {
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
             <WorkbenchHead
-              className={`${WB_WIDTH} pt-6`}
+              className="w-full px-3 pt-6"
               title={`${T.profile} 적용`}
               actions={headActions()}
             />
-            <div className={`${WB_WIDTH} grid min-w-0 content-start gap-8 pb-8`}>
+            <div className={`${GRID_BODY_COMPACT} gap-8 pb-8`}>
               <ApplyBand phase={s.phase} />
               {s.phase === "preview-fail" && (
                 <Alert

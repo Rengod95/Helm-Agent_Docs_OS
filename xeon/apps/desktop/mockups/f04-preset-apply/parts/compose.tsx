@@ -149,7 +149,7 @@ function ItemCells({
 export function ComposeHead() {
   return (
     <WorkbenchHead
-      className="w-full px-4"
+      className="w-full px-3"
       title={T.compose}
       actions={
         <span className="flex items-center gap-2">
@@ -198,14 +198,17 @@ export function ComposeBody({
           ? `${ctx}는 전과 같아요`
           : `${ctx}에 적용하면`;
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+    <div className="min-h-0 flex-1 overflow-y-auto pb-6">
       <PageBody>
         {phase === "reverted" && (
-          <Alert tone="danger" variant="soft" size="sm">
-            {`${josa(shown(FAIL_ID), "을", "를")} 켜지 못해 ${T.profile} 값을 모두 되돌렸어요. 고른 값은 그대로 있어요.`}
-          </Alert>
+          <div className="px-3">
+            <Alert tone="danger" variant="soft" size="sm">
+              {`${josa(shown(FAIL_ID), "을", "를")} 켜지 못해 ${T.profile} 값을 모두 되돌렸어요. 고른 값은 그대로 있어요.`}
+            </Alert>
+          </div>
         )}
         <PageSection
+          headInset="px-3"
           title={`${T.profile} 쌓기`}
           action={
             <span className={`flex flex-wrap items-center ${ITEM_GAP}`}>
@@ -269,23 +272,27 @@ export function ComposeBody({
             </LineGridBlock>
           </LineGridFrame>
         </PageSection>
-        <PageSection title={T.effectiveStack} description={description}>
-          <LineGridBlock columns={3}>
-            <LineGridMetric
-              value={changed.length}
-              metricLabel={phase === "done" ? `바뀐 ${T.extension}` : `바뀌는 ${T.extension}`}
-            />
-            <LineGridMetric value="Helm" metricLabel={T.lead} />
-            <LineGridMetric
-              value={
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="text-text-tertiary">3</span>
-                  <ArrowRight aria-hidden className="size-icon-sm text-text-tertiary" />4
-                </span>
-              }
-              metricLabel={`${T.lens} 수`}
-            />
-          </LineGridBlock>
+        <PageSection headInset="px-3" title={T.effectiveStack} description={description}>
+          <LineGridFrame>
+            <LineGridBlock columns={3}>
+              <LineGridMetric
+                density="compact"
+                value={changed.length}
+                metricLabel={phase === "done" ? `바뀐 ${T.extension}` : `바뀌는 ${T.extension}`}
+              />
+              <LineGridMetric density="compact" value="Helm" metricLabel={T.lead} />
+              <LineGridMetric
+                density="compact"
+                value={
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-text-tertiary">3</span>
+                    <ArrowRight aria-hidden className="size-icon-sm text-text-tertiary" />4
+                  </span>
+                }
+                metricLabel={`${T.lens} 수`}
+              />
+            </LineGridBlock>
+          </LineGridFrame>
         </PageSection>
       </PageBody>
     </div>

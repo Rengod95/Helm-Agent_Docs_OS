@@ -5,7 +5,7 @@ import { Button } from "@caustic/react";
 import { LineGrid, LineGridFrame, WorkbenchHead } from "../../_shell";
 import { T } from "../../_shell/terms";
 import { PRESET_DIFF, THREAD_ON, layerName, pluginById, viewOf, type LayerId } from "../data";
-import { STAGE } from "../parts/kit";
+import { STAGE_GRID } from "../parts/kit";
 import { useMock } from "../store";
 
 const ORDER: readonly LayerId[] = ["L3", "L2", "L1", "L0", "X"];
@@ -26,7 +26,7 @@ export function DiffScreen() {
     return on ? "켜짐" : "꺼짐";
   };
   return (
-    <div className={STAGE}>
+    <div className={STAGE_GRID}>
       <WorkbenchHead
         className="w-full px-3 pb-4"
         title="차이"

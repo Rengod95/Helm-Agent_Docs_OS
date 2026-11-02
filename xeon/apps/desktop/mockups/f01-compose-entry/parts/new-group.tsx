@@ -2,7 +2,16 @@
 // 시작점은 Helm 복제와 플러그인 빌더 종류 목록(고정 목록이 아니다, authoring §3.4). 선 격자 한 장에 같은 무게로 놓는다.
 // 오른쪽은 이 보기 기준에서 쓸 수 있는 기능을 흐리게 미리 보인다(§6.28.1).
 import { Field, Input } from "@caustic/react";
-import { LineGridBlock, LineGridCell, LineGridEmpty, PageBody, PageSection, T } from "../../_shell";
+import {
+  GRID_INSET,
+  LineGridBlock,
+  LineGridCell,
+  LineGridEmpty,
+  LineGridFrame,
+  PageBody,
+  PageSection,
+  T,
+} from "../../_shell";
 import { providers } from "../../wb-compose/fixtures";
 import { nameError, targetFolder, type Action, type Model } from "../flow";
 
@@ -38,9 +47,10 @@ const STARTS: Start[] = [
 export function NewGroup({ s, dispatch }: { s: Model; dispatch: (a: Action) => void }) {
   const err = nameError(s.name);
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_15rem] gap-8 overflow-y-auto px-4 pb-6">
+    // 한 기둥: 가로 여백 없이 시작점 격자 띠가 영역 양 끝까지 닿고, 이름 칸·구역 머리·기능 목록은 칸 글자와 같은 px-4를 가진다.
+    <div className="min-h-0 flex-1 overflow-y-auto pb-6">
       <PageBody>
-        <div className="grid grid-cols-2 items-start gap-4">
+        <div className="grid grid-cols-2 items-start gap-4 px-4">
           <Field label={`${T.group} 이름`} {...(err !== null ? { error: err } : {})}>
             <Input
               size="sm"
@@ -64,62 +74,66 @@ export function NewGroup({ s, dispatch }: { s: Model; dispatch: (a: Action) => v
           </Field>
         </div>
 
-        <PageSection title={T.startPoint}>
-          <LineGridBlock columns={3} role="radiogroup" aria-label={T.startPoint}>
-            {STARTS.map((c) => (
-              <LineGridCell
-                key={c.id}
-                role="radio"
-                aria-checked={s.start === c.id}
-                aria-disabled={c.blocked === true}
-                tabIndex={c.blocked === true ? -1 : 0}
-                selected={s.start === c.id}
-                onClick={() => {
-                  if (c.blocked !== true) dispatch({ t: "start", id: c.id });
-                }}
-                onKeyDown={(e) => {
-                  if ((e.key === "Enter" || e.key === " ") && c.blocked !== true) {
-                    e.preventDefault();
-                    dispatch({ t: "start", id: c.id });
-                  }
-                }}
-                className={`grid min-h-24 content-start gap-1 outline-none focus-visible:focus-ring ${c.blocked === true ? "cursor-not-allowed" : "cursor-pointer hover:bg-neutral-soft"}`}
-              >
-                <span
-                  className={`text-title-3 ${c.blocked === true ? "text-text-tertiary" : "text-text-primary"}`}
+        <PageSection headInset={GRID_INSET} title={T.startPoint}>
+          <LineGridFrame>
+            <LineGridBlock columns={3} role="radiogroup" aria-label={T.startPoint}>
+              {STARTS.map((c) => (
+                <LineGridCell
+                  key={c.id}
+                  role="radio"
+                  aria-checked={s.start === c.id}
+                  aria-disabled={c.blocked === true}
+                  tabIndex={c.blocked === true ? -1 : 0}
+                  selected={s.start === c.id}
+                  onClick={() => {
+                    if (c.blocked !== true) dispatch({ t: "start", id: c.id });
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Enter" || e.key === " ") && c.blocked !== true) {
+                      e.preventDefault();
+                      dispatch({ t: "start", id: c.id });
+                    }
+                  }}
+                  className={`grid min-h-24 content-start gap-1 outline-none focus-visible:focus-ring ${c.blocked === true ? "cursor-not-allowed" : "cursor-pointer hover:bg-neutral-soft"}`}
                 >
-                  {c.title}
-                </span>
-                <span className="text-body text-text-tertiary">{c.line}</span>
-                {c.status !== undefined && (
-                  <span className="text-footnote text-text-tertiary">{c.status}</span>
-                )}
-              </LineGridCell>
-            ))}
-            <LineGridEmpty span={2} />
-          </LineGridBlock>
+                  <span
+                    className={`text-title-3 ${c.blocked === true ? "text-text-tertiary" : "text-text-primary"}`}
+                  >
+                    {c.title}
+                  </span>
+                  <span className="text-body text-text-tertiary">{c.line}</span>
+                  {c.status !== undefined && (
+                    <span className="text-footnote text-text-tertiary">{c.status}</span>
+                  )}
+                </LineGridCell>
+              ))}
+              <LineGridEmpty span={2} />
+            </LineGridBlock>
+          </LineGridFrame>
+        </PageSection>
+
+        <PageSection
+          level="group"
+          title={`이 ${T.context}의 ${T.capability}`}
+          className="content-start px-4"
+        >
+          <ul className="m-0 grid max-w-80 list-none p-0">
+            {providers.flatMap((p) =>
+              p.caps.map((c) => (
+                <li
+                  key={c.cap}
+                  className="flex items-baseline justify-between gap-2 border-b border-border-subtle py-2 last:border-b-0"
+                >
+                  <span className="truncate font-mono text-mono-sm text-text-tertiary">
+                    {c.cap}
+                  </span>
+                  <span className="flex-none text-footnote text-text-tertiary">{p.name}</span>
+                </li>
+              )),
+            )}
+          </ul>
         </PageSection>
       </PageBody>
-
-      <PageSection
-        level="group"
-        title={`이 ${T.context}의 ${T.capability}`}
-        className="content-start"
-      >
-        <ul className="m-0 grid list-none p-0">
-          {providers.flatMap((p) =>
-            p.caps.map((c) => (
-              <li
-                key={c.cap}
-                className="flex items-baseline justify-between gap-2 border-b border-border-subtle py-2 last:border-b-0"
-              >
-                <span className="truncate font-mono text-mono-sm text-text-tertiary">{c.cap}</span>
-                <span className="flex-none text-footnote text-text-tertiary">{p.name}</span>
-              </li>
-            )),
-          )}
-        </ul>
-      </PageSection>
     </div>
   );
 }

@@ -159,13 +159,14 @@ function Body() {
   return <GroupCanvas />;
 }
 
-/** 가운데: 바깥 여백 8 + 안쪽 16 = 페이지 여백 24. 보기를 바꿔도 머리 자리가 같아 흔들리지 않는다. 캔버스 보기는 머리 아래에 가로 경계선을 긋는다. */
+/** 가운데: 바깥 여백 없이 영역 양 끝까지 쓰고, 안쪽 여백 16(머리·보기 본문 px-4)만 둔다. 보기를 바꿔도 머리 자리가 같아 흔들리지 않는다.
+ *  캔버스 보기는 머리 아래에 가로 경계선을 긋고, 프로필 보기의 선 격자 띠는 가장자리까지 닿는다. */
 function Stage() {
   const m = useMock();
   const shell = useShell();
   const canvas = shell.layout !== "compact" && (m.view === "group" || m.view === "flow");
   return (
-    <div className="relative mx-2 flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <Head />
       {canvas && <RailRule />}
       <Body />

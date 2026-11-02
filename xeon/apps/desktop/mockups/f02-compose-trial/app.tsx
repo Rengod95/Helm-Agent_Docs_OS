@@ -306,7 +306,7 @@ export function App({ state }: { state: StateId }) {
           runtime: { drive: "helm", extFailures: 0, onOpen: () => {} },
         })}
       >
-        <div className="relative mx-2 flex min-h-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 flex-1 flex-col">
           <WorkbenchHead
             className="w-full px-4"
             title={T.compose}

@@ -14,6 +14,8 @@ import { useShell } from "./state";
 
 /** 페이지 바깥 여백 24. */
 export const PAGE_PAD = "p-6";
+/** 선 격자 띠가 있는 페이지의 바깥 여백: 세로만 24, 가로 0. 띠(LineGridFrame)가 내용 영역 양 끝까지 닿고, 머리·표 밖 구역은 GRID_INSET으로 칸 글자와 줄을 맞춘다. */
+export const PAGE_PAD_GRID = "py-6";
 /** 페이지 머리와 첫 구역 사이 24. PageHead 아래(머리를 감싼 부모의 gap 또는 pb-6)에 쓴다. */
 export const PAGE_HEAD_GAP = "gap-6";
 /** 가운데 구역과 구역 사이 32. PageBody 기본값. */
@@ -69,6 +71,8 @@ export interface PageSectionProps {
   level?: "section" | "group" | undefined;
   /** 긴 목록에서 머리를 위에 붙인다(바탕 bg-app). */
   stickyHead?: boolean | undefined;
+  /** 내용이 선 격자 띠(LineGridFrame)라 구역에 가로 여백이 없을 때: 머리만 이 안쪽 여백(칸 글자와 같은 GRID_INSET 값)을 받는다. */
+  headInset?: string | undefined;
   className?: string | undefined;
   children?: ReactNode;
 }
@@ -80,6 +84,7 @@ export function PageSection({
   action,
   level = "section",
   stickyHead = false,
+  headInset,
   className,
   children,
 }: PageSectionProps) {
@@ -93,7 +98,7 @@ export function PageSection({
         title={<span id={id}>{title}</span>}
         description={description}
         action={action}
-        className={cn("items-center", stickyHead && "sticky top-0 z-[5] bg-bg-app py-1")}
+        className={cn("items-center", headInset, stickyHead && "sticky top-0 z-[5] bg-bg-app py-1")}
       />
       {children}
     </section>

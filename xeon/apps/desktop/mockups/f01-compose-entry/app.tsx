@@ -575,7 +575,7 @@ export function App({ state }: { state: StateId }) {
                 },
         })}
       >
-        <div className="relative mx-2 flex min-h-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 flex-1 flex-col">
           <Head s={s} dispatch={dispatch} />
           {canvas && <RailRule />}
           <Body s={s} dispatch={dispatch} onAnswer={() => shell.openEnd("inbox")} />

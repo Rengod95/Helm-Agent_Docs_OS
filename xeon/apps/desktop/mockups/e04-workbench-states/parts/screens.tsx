@@ -29,14 +29,16 @@ import {
   extensions,
   josa,
   L2,
+  GRID_BODY,
+  GRID_INSET,
   LineGrid,
   LineGridBlock,
+  LineGridFrame,
   LineGridMetric,
   Search,
   SearchX,
   StageHead,
   T,
-  WB_WIDTH,
   WorkbenchHead,
   type Layout,
   type LineGridCellData,
@@ -46,7 +48,9 @@ import type { ListMode, MetricsMode, S, TabMode } from "../flow";
 import { ExtList, layerName } from "./ext-list";
 
 /** 머리 아래 본문: 폭 하나. 간격은 화면마다(거르기와 표 12, 구역 32). */
-const BODY = `${WB_WIDTH} grid content-start pb-8`;
+const BODY = `${GRID_BODY} pb-8`;
+/** 띠가 있는 화면의 머리: 칸 글자와 같은 안쪽 여백(px-4)으로 첫 열 글자와 줄을 맞춘다. */
+const HEAD = `w-full ${GRID_INSET}`;
 const LAYERS = ["L0", "L1", "L2", "L3", "plugin", "X"] as const;
 
 /** 결과 없음(N-48): 찾은 말 + 거르기 지우기 하나. 안내 문장을 늘이지 않는다(DP-03). */
@@ -119,6 +123,7 @@ export function ExtListScreen({
   return (
     <>
       <WorkbenchHead
+        className={HEAD}
         title={T.extension}
         actions={
           <>
@@ -249,25 +254,30 @@ const valueCell = (value: string, loading: boolean, warn = false): LineGridCellD
 
 function PointsTable({ loading }: { loading: boolean }) {
   return (
-    <LineGrid
-      label={T.extensionPoint}
-      aria-busy={loading}
-      columns={POINT_COLS}
-      rowHeadWidth="minmax(0, 1fr)"
-      corner={<HeadText>{T.extensionPoint}</HeadText>}
-      rows={POINTS.map((p, i) => ({
-        id: p[0],
-        label: loading ? (
-          <Skeleton className="h-4" style={{ width: `${[176, 136, 200, 152, 120][i] ?? 150}px` }} />
-        ) : (
-          p[0]
-        ),
-      }))}
-      cell={(r, c) => {
-        const p = POINTS.find((x) => x[0] === r) ?? POINTS[0];
-        return c === "budget" ? valueCell(p[1], loading) : valueCell(p[2], loading, p[2] !== "0");
-      }}
-    />
+    <LineGridFrame>
+      <LineGrid
+        label={T.extensionPoint}
+        aria-busy={loading}
+        columns={POINT_COLS}
+        rowHeadWidth="minmax(0, 1fr)"
+        corner={<HeadText>{T.extensionPoint}</HeadText>}
+        rows={POINTS.map((p, i) => ({
+          id: p[0],
+          label: loading ? (
+            <Skeleton
+              className="h-4"
+              style={{ width: `${[176, 136, 200, 152, 120][i] ?? 150}px` }}
+            />
+          ) : (
+            p[0]
+          ),
+        }))}
+        cell={(r, c) => {
+          const p = POINTS.find((x) => x[0] === r) ?? POINTS[0];
+          return c === "budget" ? valueCell(p[1], loading) : valueCell(p[2], loading, p[2] !== "0");
+        }}
+      />
+    </LineGridFrame>
   );
 }
 
@@ -285,11 +295,13 @@ function MetricBlock({
 }) {
   const v = (x: string) => (loading ? <Skeleton className="h-7 w-16" /> : x);
   return (
-    <LineGridBlock columns={3} aria-busy={loading}>
-      <LineGridMetric value={v(tokens)} metricLabel={L2("토큰", "Tokens")} />
-      <LineGridMetric value={v(cost)} metricLabel={L2("비용", "Cost")} />
-      <LineGridMetric value={v(fails)} metricLabel={L2("실패", "Fails")} />
-    </LineGridBlock>
+    <LineGridFrame>
+      <LineGridBlock columns={3} aria-busy={loading}>
+        <LineGridMetric value={v(tokens)} metricLabel={L2("토큰", "Tokens")} />
+        <LineGridMetric value={v(cost)} metricLabel={L2("비용", "Cost")} />
+        <LineGridMetric value={v(fails)} metricLabel={L2("실패", "Fails")} />
+      </LineGridBlock>
+    </LineGridFrame>
   );
 }
 
@@ -408,6 +420,7 @@ export function DetailScreen({
   return (
     <>
       <WorkbenchHead
+        className={HEAD}
         title={extName("helm")}
         meta={T.group}
         actions={
@@ -489,6 +502,7 @@ export function MetricsScreen({ mode }: { mode: MetricsMode }) {
   return (
     <>
       <WorkbenchHead
+        className={HEAD}
         title={L2("성능 측정과 평가", "Benchmark and evaluation")}
         actions={
           <SegmentedControl aria-label={L2("기간", "Period")} size="sm" defaultValue="7">
@@ -530,44 +544,48 @@ export function MetricsScreen({ mode }: { mode: MetricsMode }) {
                 fails={String(sum((r) => r[3]))}
                 loading={loading}
               />
-              <div className="grid min-w-0 gap-3">
+              <div data-bleed="" className={`${GRID_BODY} gap-3`}>
                 {many && (
-                  <Input
-                    size="sm"
-                    variant="soft"
-                    prefix={<Search />}
-                    placeholder={L2("확장 찾기", "Find an extension")}
-                    aria-label={L2("확장 찾기", "Find an extension")}
-                    containerClassName="w-60"
-                  />
+                  <div>
+                    <Input
+                      size="sm"
+                      variant="soft"
+                      prefix={<Search />}
+                      placeholder={L2("확장 찾기", "Find an extension")}
+                      aria-label={L2("확장 찾기", "Find an extension")}
+                      containerClassName="w-60"
+                    />
+                  </div>
                 )}
-                <LineGrid
-                  label={T.metrics}
-                  aria-busy={loading}
-                  columns={METRIC_COLS}
-                  rowHeadWidth="minmax(0, 1fr)"
-                  corner={<HeadText>{T.extension}</HeadText>}
-                  rows={rows.map((r, i) => ({
-                    id: r[0],
-                    label: loading ? (
-                      <Skeleton
-                        className="h-4"
-                        style={{ width: `${[150, 112, 176, 124, 100][i] ?? 124}px` }}
-                      />
-                    ) : (
-                      extName(r[0])
-                    ),
-                  }))}
-                  cell={(rowId, c) => {
-                    const r = rows.find((x) => x[0] === rowId) ?? METRIC_ROWS[0];
-                    if (r === undefined) return null;
-                    return c === "tokens"
-                      ? valueCell(fmtTokens(r[1]), loading)
-                      : c === "cost"
-                        ? valueCell(fmtCost(r[2]), loading)
-                        : valueCell(String(r[3]), loading, r[3] > 0);
-                  }}
-                />
+                <LineGridFrame>
+                  <LineGrid
+                    label={T.metrics}
+                    aria-busy={loading}
+                    columns={METRIC_COLS}
+                    rowHeadWidth="minmax(0, 1fr)"
+                    corner={<HeadText>{T.extension}</HeadText>}
+                    rows={rows.map((r, i) => ({
+                      id: r[0],
+                      label: loading ? (
+                        <Skeleton
+                          className="h-4"
+                          style={{ width: `${[150, 112, 176, 124, 100][i] ?? 124}px` }}
+                        />
+                      ) : (
+                        extName(r[0])
+                      ),
+                    }))}
+                    cell={(rowId, c) => {
+                      const r = rows.find((x) => x[0] === rowId) ?? METRIC_ROWS[0];
+                      if (r === undefined) return null;
+                      return c === "tokens"
+                        ? valueCell(fmtTokens(r[1]), loading)
+                        : c === "cost"
+                          ? valueCell(fmtCost(r[2]), loading)
+                          : valueCell(String(r[3]), loading, r[3] > 0);
+                    }}
+                  />
+                </LineGridFrame>
               </div>
             </>
           )}

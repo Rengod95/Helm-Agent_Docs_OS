@@ -565,6 +565,8 @@ export interface LineGridMetricProps extends Omit<ComponentProps<"div">, "childr
   /** What the value is, muted. */
   metricLabel: ReactNode;
   selected?: boolean | undefined;
+  /** 칸 안쪽 여백: regular 16(기본), compact 12. 같은 기둥의 표 밀도와 맞춘다. */
+  density?: "regular" | "compact" | undefined;
 }
 
 /** A metric cell: the value above a muted label. */
@@ -572,6 +574,7 @@ export function LineGridMetric({
   value,
   metricLabel,
   selected = false,
+  density = "regular",
   className,
   ...props
 }: LineGridMetricProps) {
@@ -579,7 +582,7 @@ export function LineGridMetric({
     <div
       data-slot="line-grid-metric"
       data-selected={selected ? "" : undefined}
-      className={cn(lineGridCell({ selected }), "grid content-start gap-0.5", className)}
+      className={cn(lineGridCell({ selected, density }), "grid content-start gap-0.5", className)}
       {...props}
     >
       <span
@@ -617,17 +620,32 @@ export function LineGridEmpty({ span, className, style, ...props }: LineGridEmpt
 }
 
 /**
- * 선 격자 바깥 틀: 격자는 바깥 선을 그리지 않으므로(첫 행 위·첫 열 왼쪽은 clip으로 잘림) 이 감싸개가 1px 바깥 선을 긋는다.
- * 레일 없이도 표가 열려 보이지 않게 한다. 십자 표식은 격자(LineGrid, LineGridBlock)가 바깥 네 모서리에 그린다. 좁으면 가로로 스크롤한다.
+ * 선 격자 띠(가장자리까지 닿는 틀): 격자는 바깥 선을 그리지 않으므로(첫 행 위·첫 열 왼쪽은 clip으로 잘림) 이 감싸개가 위·아래 1px 선만 긋는다.
+ * 왼쪽·오른쪽 바깥 선은 긋지 않는다: 띠는 내용 영역 양 끝까지 닿고(가로 여백 0) 가로선이 그 끝에서 곧게 끊기므로 모서리에 겹선도 빈틈도 없다.
+ * 가장자리에 걸치는 십자 표식은 띠 안에서 감춘다(line-grid.css). 좁으면 가로로 스크롤한다.
+ * 띠를 두는 쪽은 가로 여백을 두지 않고, 머리·표 밖 구역은 칸 글자와 같은 안쪽 여백(GRID_INSET)을 준다.
  */
 export function LineGridFrame({ className, children, ...props }: ComponentProps<"div">) {
   return (
-    <div data-slot="line-grid-frame" className={cn("relative min-w-0", className)} {...props}>
-      <div className="-m-2 overflow-x-auto p-2">{children}</div>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 border border-border-subtle"
-      />
+    <div
+      data-slot="line-grid-frame"
+      className={cn("relative min-w-0 border-y border-border-subtle", className)}
+      {...props}
+    >
+      <div className="overflow-x-auto">{children}</div>
     </div>
   );
 }
+
+/** 띠(LineGridFrame)와 맞는 가로 안쪽 여백: 칸 안 글자의 시작 위치(regular 16, compact 12). 머리·표 밖 구역이 첫 열 글자와 줄을 맞춘다. */
+export const GRID_INSET = "px-4";
+export const GRID_INSET_COMPACT = "px-3";
+/**
+ * 띠가 있는 세로 기둥: 가로 여백 0, 안의 자식은 띠(LineGridFrame)와 data-bleed 묶음만 가장자리까지 닿고
+ * 나머지 직계 자식은 가로 바깥 여백(mx-4, GRID_INSET과 같은 값)을 받아 칸 글자와 줄을 맞춘다. 띠는 직계 자식이어야 한다.
+ */
+export const GRID_BODY =
+  "grid w-full min-w-0 content-start [&>:not([data-slot=line-grid-frame],[data-bleed])]:mx-4";
+/** GRID_BODY의 compact 밀도 짝(칸 안쪽 여백 12). */
+export const GRID_BODY_COMPACT =
+  "grid w-full min-w-0 content-start [&>:not([data-slot=line-grid-frame],[data-bleed])]:mx-3";

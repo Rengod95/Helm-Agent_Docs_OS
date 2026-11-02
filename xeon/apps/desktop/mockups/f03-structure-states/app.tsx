@@ -7,6 +7,7 @@ import {
   defaultStatusCells,
   inbox,
   josa,
+  GRID_BODY_COMPACT,
   LineGridFrame,
   NoticeList,
   ScenarioDock,
@@ -16,7 +17,6 @@ import {
   useScenarioParam,
   useShell,
   useTimeline,
-  WB_WIDTH,
   workbenchNav,
   workbenchRightTabs,
   WorkbenchHead,
@@ -76,8 +76,9 @@ export function App({ state }: { state: StateId }) {
   const narrow = s.look === "narrow";
   const transposed = narrow || shell.layout === "compact";
   const web = s.look === "web";
-  // 좁은 폭은 머리·표·구역을 한 줄 기둥에 모은다. 아니면 크래프트 폭(WB_WIDTH)을 쓴다.
-  const column = narrow ? "mx-auto w-full max-w-[43.75rem] px-3" : WB_WIDTH;
+  // 좁은 폭은 머리·표·구역을 한 줄 기둥에 모은다. 아니면 영역 전체 폭. 어느 쪽이든 가로 여백은 기둥에 두지 않는다:
+  // 표 띠(LineGridFrame)가 기둥 양 끝까지 닿고, 머리·구역·알림은 칸 글자와 같은 px-3(compact 칸)을 가진다.
+  const column = narrow ? "mx-auto w-full max-w-[43.75rem]" : "w-full";
 
   const statusOf = (look: Look) => {
     const link: StatusCell | undefined =
@@ -147,7 +148,7 @@ export function App({ state }: { state: StateId }) {
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <WorkbenchHead
-          className={`${column} pt-6`}
+          className={`${column} px-3 pt-6`}
           title={T.structure}
           {...(narrow ? { meta: T.readOnly } : {})}
           {...(busyLine !== undefined
@@ -156,7 +157,7 @@ export function App({ state }: { state: StateId }) {
               ? { sub: "14:03 기준" }
               : {})}
         />
-        <div className={`${column} grid min-w-0 content-start gap-6 pb-8`}>
+        <div className={`${column} ${GRID_BODY_COMPACT} gap-6 pb-8`}>
           {s.look === "offline" && (
             <Alert
               tone="warning"
@@ -228,7 +229,7 @@ export function App({ state }: { state: StateId }) {
               리뷰가 연속 5번 실패해 자동으로 꺼졌어요.
             </Alert>
           )}
-          <div aria-busy={s.look === "loading"}>
+          <div data-bleed="" aria-busy={s.look === "loading"}>
             <LineGridFrame>
               <StructureGrid
                 look={s.look}

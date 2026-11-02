@@ -5,7 +5,7 @@ import { Alert, Button } from "@caustic/react";
 import { LineGridFrame, WorkbenchHead } from "../../_shell";
 import { T } from "../../_shell/terms";
 import { PRESET_DIFF, viewOf } from "../data";
-import { CARD, STAGE } from "../parts/kit";
+import { CARD, STAGE_GRID } from "../parts/kit";
 import { useMock } from "../store";
 import { LayerTable } from "./layer-table";
 import { AddL1Sheet, ExplainOverlay } from "./overlays";
@@ -47,7 +47,7 @@ export function StructureScreen() {
   const m = useMock();
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className={STAGE}>
+      <div className={STAGE_GRID}>
         <WorkbenchHead className="w-full px-3 pb-4" title={T.structure} />
         {(m.preview !== null || m.failure) && (
           <div className="grid min-w-0 gap-3 px-3 pb-3">
