@@ -2,6 +2,7 @@
 export { artifactsPlugin, type ArtifactsPluginOptions } from "./plugin.ts";
 export { artifactsManifest, ARTIFACTS_EXTENSION_NAME } from "./manifest.ts";
 export { REVIEWS_PRODUCER } from "./reviews/kernel.ts";
+export type { ReviewText, ReviewTextFailure, ReviewTextReader } from "./reviews/text.ts";
 export {
   ARTIFACTS_SETTING_DEFS,
   readArtifactsSettings,

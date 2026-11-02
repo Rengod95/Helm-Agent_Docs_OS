@@ -75,6 +75,7 @@ import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
 import { createThreadGate } from "./thread-gate.ts";
 import { readThread } from "./thread-read.ts";
+import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createM4Ports } from "./m4/index.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
 import type { ProjectTrust, TrustInspection } from "./trust.ts";
@@ -126,6 +127,8 @@ export interface PortsDeps {
   readonly schedule: ScheduleService;
   /** 대기 예약 수의 시험 주입. 있으면 예약 서비스의 대기 수 대신 이 값을 쓴다 */
   readonly pendingSchedules?: PendingSchedulesPort;
+  /** 대화 영역 wire가 읽는 목표·작업 기능 API 자리. 조립 확장(`dialogAreaBridgePlugin`)이 채운다(T-WC) */
+  readonly dialogArea: DialogAreaHolder;
 }
 
 export interface PortsHandle {
@@ -192,6 +195,20 @@ function modelIdsOf(models: Pick<ModelService, "list">, provider: string): reado
     .flatMap((info) => (info.ref.startsWith(prefix) ? [info.ref.slice(prefix.length)] : []));
 }
 
+/**
+ * 예약이 만든 thread와 그 예약(W-16 `ThreadSummary.origin`). 예약 서비스의 실행 기록(`RunRecord.threadId`)이 원천이고, 보관하는 기록 수
+ * (`maxRunRecords`)만큼만 거슬러 알 수 있다 [제안]. 사용자와 원격이 만든 thread는 호스트가 구별하지 못하므로 `origin`을 싣지 않는다
+ */
+function scheduleOriginsOf(schedule: ScheduleService): ReadonlyMap<string, string> {
+  const origins = new Map<string, string>();
+  for (const entry of schedule.list()) {
+    for (const run of schedule.runs(entry.id, Number.MAX_SAFE_INTEGER)) {
+      if (run.threadId !== null) origins.set(run.threadId, entry.id);
+    }
+  }
+  return origins;
+}
+
 export function createEnginePorts(deps: PortsDeps): PortsHandle {
   const { session, store, loop, tasks, ext, logger } = deps;
   const storeId = storeIdOf(store.storeId);
@@ -248,6 +265,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         ...(params.limit === undefined ? {} : { limit: params.limit }),
       });
       const summaries: ThreadSummary[] = [];
+      // 기록은 읽은 뒤에만 보인다. 읽지 못하면(저장소 실패) 출처를 모르는 것이라 싣지 않는다
+      const scheduleLoaded = await deps.schedule.open();
+      const origins = scheduleLoaded.ok
+        ? scheduleOriginsOf(deps.schedule)
+        : new Map<string, string>();
       for (const row of page.threads) {
         const summary = threadSummaryOf(row);
         if (!summary.ok) {
@@ -255,7 +277,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
             message: `thread.list: ${summary.error.field} of ${row.threadId} is not a valid time`,
           });
         }
-        summaries.push(summary.value);
+        const scheduleId = origins.get(row.threadId);
+        summaries.push(
+          scheduleId === undefined
+            ? summary.value
+            : { ...summary.value, origin: { kind: "schedule", scheduleId } },
+        );
       }
       return { threads: summaries, nextCursor: page.nextCursor };
     },
@@ -653,7 +680,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     ids: deps.ids,
     clock: deps.clock,
     scheduler: deps.scheduler,
-    m4: createM4Ports(deps.ext),
+    m4: createM4Ports(deps.ext, {
+      schedule: deps.schedule,
+      threads,
+      dialogArea: deps.dialogArea,
+    }),
   };
 
   return {

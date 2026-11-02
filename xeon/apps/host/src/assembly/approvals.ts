@@ -23,6 +23,15 @@ export interface ApprovalPortDeps {
 /** 한 번에 훑는 thread 목록 쪽 크기(`ThreadListQuery.limit` 상한) */
 const LIST_PAGE = 200;
 
+/** `approval.list`가 돌려줄 대기 승인 수 상한. `ApprovalListResultSchema`의 `maxItems`와 같다(계약 쪽 상수는 내보내지 않는다) */
+const APPROVAL_LIST_MAX = 1000;
+
+/** 열려 있는 thread 하나의 아직 해결되지 않은 승인 요청 id. `listAll`이 목록을 넘기며 모은다 */
+interface OpenWanted {
+  readonly threadId: ThreadId;
+  readonly wanted: ReadonlySet<EventId>;
+}
+
 /** 승인 요청 이벤트(approval.requested)의 payload를 스키마로 검사한다. 저장된 payload가 다르면 읽기 실패다 */
 function requestOf(
   payload: unknown,
@@ -86,6 +95,7 @@ export function createApprovalPort(deps: ApprovalPortDeps): ApprovalPort {
     },
 
     list: listPending,
+    listAll,
   };
 
   /**
@@ -101,15 +111,83 @@ export function createApprovalPort(deps: ApprovalPortDeps): ApprovalPort {
     const headRead = session.feed.headSeq();
     if (!headRead.ok) return headRead;
     const head = headRead.value;
-    const pendingRead = session.query.pendingApprovals(threadId);
-    if (!pendingRead.ok) return pendingRead;
-    const wanted = new Set<EventId>(
-      pendingRead.value.filter((view) => !view.resolved).map((view) => view.approvalId),
-    );
-    const position = { storeId, seq: head };
-    if (wanted.size === 0) return ok({ approvals: [], position });
+    const wanted = unresolvedOf(threadId);
+    if (!wanted.ok) return wanted;
+    const requests = await requestsOf(threadId, wanted.value, head);
+    if (!requests.ok) return requests;
+    return ok({ approvals: requests.value, position: { storeId, seq: head } });
+  }
 
+  /**
+   * 닫히지 않은 모든 thread의 미해결 요청(W-01). 위치는 한 번만 잰다. 목록 쪽을 넘기며 각 thread의 미해결 id를 모으는 일은
+   * 동기로 끝내서 위치와 같은 저장소 상태를 본다. 그 뒤 이벤트를 읽는 일은 `seq <= head`인 이벤트만 쓰므로 비동기로 해도 된다.
+   */
+  async function listAll(): Promise<Result<WireResult<"approval.list">, ApprovalListFailure>> {
+    const headRead = session.feed.headSeq();
+    if (!headRead.ok) return headRead;
+    const head = headRead.value;
+    const open = unresolvedInOpenThreads();
+    if (!open.ok) return open;
+    const perThread = await Promise.all(
+      open.value.map((group) => requestsOf(group.threadId, group.wanted, head)),
+    );
+    const collected: PendingApproval[] = [];
+    for (const requests of perThread) {
+      if (!requests.ok) return requests;
+      for (const approval of requests.value) collected.push(approval);
+    }
+    // 전역 seq라 순서가 한 가지로 정해진다. 상한을 넘으면 가장 오래된 것부터 남긴다
+    const sorted = collected.toSorted((a, b) => a.seq - b.seq);
+    return ok({
+      approvals: sorted.slice(0, APPROVAL_LIST_MAX),
+      position: { storeId, seq: head },
+    });
+  }
+
+  /** 열려 있는 thread 가운데 아직 해결되지 않은 승인 요청이 있는 것만 모은다. `pendingApprovals`가 0인 thread는 읽지 않는다 */
+  function unresolvedInOpenThreads(): Result<readonly OpenWanted[], ReadFailure> {
+    const groups: OpenWanted[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = session.threads.list({
+        includeClosed: false,
+        limit: LIST_PAGE,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      for (const row of page.threads) {
+        if (row.pendingApprovals === 0) continue;
+        const found = session.query.thread(row.threadId);
+        if (!found.ok) return found;
+        // 목록을 읽은 뒤 지워진 thread(thread_not_found)는 건너뛴다
+        if (found.value === undefined) continue;
+        const wanted = unresolvedOf(row.threadId);
+        if (!wanted.ok) return wanted;
+        if (wanted.value.size > 0) groups.push({ threadId: row.threadId, wanted: wanted.value });
+      }
+      if (page.nextCursor === null) return ok(groups);
+      cursor = page.nextCursor;
+    }
+  }
+
+  /** thread의 아직 해결되지 않은 승인 요청 id. 투영을 한 번 읽는다 */
+  function unresolvedOf(threadId: ThreadId): Result<ReadonlySet<EventId>, ReadFailure> {
+    const pending = session.query.pendingApprovals(threadId);
+    if (!pending.ok) return pending;
+    return ok(
+      new Set(pending.value.filter((view) => !view.resolved).map((view) => view.approvalId)),
+    );
+  }
+
+  /**
+   * `wanted`인 승인 요청 이벤트를 thread의 이벤트에서 찾는다. `head` 뒤의 이벤트는 위치 밖이라 무시한다(이 함수는 `head`를 받을 뿐 다시 읽지 않는다).
+   */
+  async function requestsOf(
+    threadId: ThreadId,
+    wanted: ReadonlySet<EventId>,
+    head: number,
+  ): Promise<Result<PendingApproval[], ReadFailure>> {
     const pending: PendingApproval[] = [];
+    if (wanted.size === 0) return ok(pending);
     for await (const read of session.readFrom(0, { threadId })) {
       if (!read.ok) return read;
       const event = read.value;
@@ -120,6 +198,6 @@ export function createApprovalPort(deps: ApprovalPortDeps): ApprovalPort {
       pending.push({ approvalId: event.id, seq: event.seq, request: request.value });
       if (pending.length === wanted.size) break;
     }
-    return ok({ approvals: pending, position });
+    return ok(pending);
   }
 }

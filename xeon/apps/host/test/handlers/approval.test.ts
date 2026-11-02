@@ -122,3 +122,20 @@ test("approval.list returns what the port read and maps its failures", async () 
   expect(error.code).toBe(3001);
   await other.close();
 });
+
+test("approval.list without a threadId asks the port for every open thread and maps its failures", async () => {
+  const position = { storeId: FAKE_STORE_ID, seq: 9 };
+  const host = createFakeHost({
+    overrides: { approvals: { listAll: () => Promise.resolve(ok({ approvals: [], position })) } },
+  });
+  const connection = await open(host);
+  expect(await connection.request("approval.list", {})).toEqual({ approvals: [], position });
+  await connection.close();
+
+  const failing = createFakeHost({
+    overrides: { approvals: { listAll: () => Promise.resolve(err({ kind: "busy" })) } },
+  });
+  const other = await open(failing);
+  expect((await wireErrorOf(other.request("approval.list", {}))).code).toBe(5003);
+  await other.close();
+});

@@ -629,6 +629,31 @@ export const ArtifactsReviewsKey = serviceKey(ArtifactsReviews);
 - [제안] 변경 메서드(`open`, `approve`, `reject`, `comment`, `submit`, `close`)는 `idempotent: true`로 선언한다. 같은 `requestId`로 다시 부르면 처음 결과를 돌려준다. 입력에 `requestId` 필드는 두지 않는다. `get`은 `readOnly: true`다. 선언이 없으면 `validateCapability`가 `effect_class_missing` 경고를 낸다(§9 6).
 - [제안] `HunkDecisionSchema`와 `CommentTargetSchema`는 `records/catalog/approval.ts`의 `HunkDecision`, `ReviewCommentTarget`과 같은 모양을 정의 파일에 다시 적는다. `defs/`는 `records/`를 import하지 않는다(`F.readme` §3). 두 모양이 같은지는 `test/capabilities/artifacts-defs.test.ts`가 JSON Schema로 비교해 확인한다.
 
+#### 3.3.1 리뷰 본문 읽기 (조립 루트 전용) [결정: L4 W-02]
+
+승인 페이로드는 파일 요약만 싣고 `HunkView`에는 줄 글이 없다. 줄 글은 조립 루트(L4 `review.get`)가 읽는 좁은 면으로 준다. 기능 메서드가 아니므로 `ArtifactsReviews`에 메서드를 더하지 않고 F 계약을 늘리지 않는다. 이 면은 `reviews/text.ts`가 만들고, 플러그인 옵션 `onReviews`가 확장이 올라올 때 넘긴다. 확장이 내려갈 때는 `undefined`를 넘긴다.
+
+```ts
+// reviews/text.ts. 조립 루트 전용 읽기 면(F 계약이 아니다)
+export interface ReviewTextLine { readonly kind: "context" | "add" | "del"; readonly text: string } // 접두 " ", "+", "-"에서 온다. 접두를 뗀 글
+export interface ReviewTextHunk { readonly hunkId: string; readonly header: string; readonly oldStart: number; readonly newStart: number; readonly lines: readonly ReviewTextLine[] }
+export interface ReviewTextFile { readonly path: string; readonly binary: boolean; readonly hunks: readonly ReviewTextHunk[] } // 이진 파일은 hunks가 빈 목록
+export interface ReviewText { readonly reviewId: string; readonly files: readonly ReviewTextFile[] }
+export interface ReviewTextReader {
+  /** 이 프로세스가 승인을 요청한 리뷰의 대화(kernel.approvalTargets). 재시작 전 요청이거나 승인을 요청하지 않은 리뷰면 undefined */
+  requestedThreadOf(reviewId: string): ThreadId | undefined;
+  /** 대기 승인이 있는 열린 대화, 최근 갱신 순. 상한은 §4.2.9 */
+  pendingThreads(): readonly ThreadId[];
+  /** 한 대화의 리뷰 본문. 그 대화에 리뷰가 없으면 undefined */
+  read(threadId: ThreadId, reviewId: string): Result<ReviewText | undefined, ReviewTextFailure>;
+}
+// ArtifactsPluginOptions
+readonly onReviews?: (reader: ReviewTextReader | undefined) => void;
+```
+
+- 파일과 hunk의 순서, `hunkId`, `header`, `oldStart`, `newStart`는 상태(§4.2.2)의 값을 그대로 쓴다. 줄 글만 blob에서 온다(§4.2.9).
+- 이 면은 와이어 상한을 적용하지 않는다. 상한은 L4가 와이어 값으로 옮길 때 적용한다(`L4.host-service.spec`의 W-02 항목).
+
 ### 3.4 `artifacts.sessions`
 
 ```ts
@@ -1303,6 +1328,16 @@ export const ReviewAnswerSchema = Type.Object({
 - 재시작 때 해결됐으나 반영하지 못한 승인은 다시 처리하지 않는다 [미결].
 - 검토 승인에 `allow`로 답하면 L1.tools의 응답 검사(`validateResponse`, 허용 결정은 `answer`·`deny`뿐)가 `decision_not_allowed`로 거부한다. 응답이 해결로 기록되지 않으므로 이 기능은 `allow`를 받지 않는다 [결정: L1.tools.spec §3.6].
 
+#### 4.2.9 본문 읽기와 대화 찾기 [결정: L4 W-02]
+
+- 줄 글은 상태에 없다(hunk마다 `patchSha256`만 있다). 본문은 리뷰의 `diff` blob을 다시 읽어 얻는다. 되읽은 글은 `parseUnifiedDiff`와 `normalizeReview`로 정규화하고, 상태의 파일은 `fileIndex`와 경로로, hunk는 `hunkId`와 `patchSha256`으로 맞춘다. 맞지 않으면 `diff_damaged`(`mismatch`)다. 거절 적용(§4.2.5)의 blob 되읽기와 같은 방식(정규화 후 `hunkId`와 `patchSha256`)이고, 여기서는 파일 경로와 이진 여부도 맞춘다.
+- 줄 종류는 접두로 정한다. ` `는 `context`, `+`는 `add`, `-`는 `del`이다. 줄 끝 없음 표시(`\`)는 줄이 아니므로 뺀다. 이진 파일은 hunk 없이 `binary: true`와 빈 `hunks`다.
+- 대화 찾기는 `review.get`이 `reviewId`만 받으므로 L4가 다음 순서로 한다 [제안].
+  1. `requestedThreadOf`: 이 프로세스가 승인을 요청한 리뷰면 그 대화다. 재시작 전의 요청은 모른다.
+  2. `pendingThreads`: `session.threads.list`로 열린 대화를 최근 갱신 순으로 훑어 `pendingApprovals > 0`인 대화를 고른다. 대화 행은 200행 쪽으로 최대 1000행까지 보고, 고른 대화는 최대 50개까지 돌려준다. 1에서 찾지 못했을 때만 이 목록을 읽고, 목록의 대화를 차례로 읽어 리뷰가 있는 첫 대화에서 멈춘다.
+  3. 어디에도 없으면 `unknown`이다.
+- 상한이 뜻하는 것. 대기 승인이 있는 리뷰는 재시작 뒤에도 찾는다(승인 요청은 이벤트이므로 남는다). 이 프로세스가 요청하지 않았고 승인이 이미 끝난 리뷰는 찾지 못한다. 대기 승인이 있는 열린 대화라도 행 1000개 밖에 있거나 50개를 넘으면 찾지 못한다. 대화 하나를 읽는 비용은 `kernel.load`와 같다(리뷰 이벤트를 접고 blob 하나를 읽는다).
+
 ### 4.3 대화 제목과 메타
 
 #### 4.3.1 제목
@@ -1511,3 +1546,4 @@ export const ReviewAnswerSchema = Type.Object({
 9. [미결] 핸드오프 입력의 형식. 지금은 `PostItem kind: "user"` 텍스트다. `context` kind로 바꾸면 `customType`은 `x.cap-artifacts.handoff`다(`F.records.spec` §3.2 규칙 3). 어느 쪽을 쓸지만 남았다.
 10. [미결] `ArtifactKind` 확장 형식(`x.<ext>.<영역>.<이름>`의 앞 세 마디)을 F에 공용 패턴으로 둘지. 지금은 이 정의 파일 안의 정규식이다.
 11. [미결] checkpoint 변경 수집은 M3b에서 지원하지 않는다(source_unsupported).
+12. [미결] 승인이 끝난 리뷰를 재시작 뒤에 `review.get`으로 읽는 길. §4.2.9의 찾기는 이 프로세스가 요청한 리뷰와 대기 승인이 있는 대화만 본다. `reviewId`에서 대화를 바로 찾는 색인은 투영 테이블이라 §4.2.8의 "투영 테이블 없음" 결정과 부딪친다. 필요해지면 그 결정을 다시 연다.

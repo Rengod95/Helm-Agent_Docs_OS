@@ -109,3 +109,111 @@ test("the query's refusals reach the handler as they are", async () => {
   expect(notFound.ok).toBe(false);
   if (!notFound.ok) expect(notFound.error).toEqual({ kind: "thread_not_found", threadId: THREAD });
 });
+
+// ── around(W-16). 가짜 가지: 오래된 것부터 `branch`, 쪽 질의는 가장 새 item에서 거슬러 올라간다 ──
+
+function branchPages(branch: readonly ItemRecord[], headSeq = 77): ReturnType<typeof fakePages> {
+  return fakePages((request) => {
+    const end =
+      request.before === undefined
+        ? branch.length
+        : branch.findIndex((item) => item.itemId === request.before);
+    if (end < 0) return { kind: "invalid_target", reason: "item_not_found" };
+    const start = Math.max(0, end - request.limit);
+    return { items: branch.slice(start, end), headSeq, hasMore: start > 0 };
+  });
+}
+
+function idsOf(items: readonly ItemRecord[]): readonly ItemId[] {
+  return items.map((item) => item.itemId);
+}
+
+const BRANCH = Array.from({ length: 20 }, (_, index) => customItem(index));
+
+test("around a middle item returns half the limit before it, the item, and the rest after it", async () => {
+  const anchor = BRANCH[10];
+  if (anchor === undefined) throw new Error("fixture");
+  const { pages } = branchPages(BRANCH);
+  const read = await readThread(pages, STORE_ID, {
+    threadId: THREAD,
+    limit: 5,
+    around: anchor.itemId,
+  });
+  if (!read.ok) throw new Error("expected a window");
+  expect(idsOf(read.value.items)).toEqual(idsOf(BRANCH.slice(8, 13)));
+  expect(read.value.hasMore).toBe(true);
+  expect(read.value.position).toEqual({ storeId: STORE_ID, seq: 77 });
+});
+
+test("around an item near the start has nothing older, and hasMore is false", async () => {
+  const anchor = BRANCH[1];
+  if (anchor === undefined) throw new Error("fixture");
+  const { pages } = branchPages(BRANCH);
+  const read = await readThread(pages, STORE_ID, {
+    threadId: THREAD,
+    limit: 6,
+    around: anchor.itemId,
+  });
+  if (!read.ok) throw new Error("expected a window");
+  expect(idsOf(read.value.items)).toEqual(idsOf(BRANCH.slice(0, 6)));
+  expect(read.value.hasMore).toBe(false);
+});
+
+test("around an item near the end fills the window from the older side", async () => {
+  const anchor = BRANCH[18];
+  if (anchor === undefined) throw new Error("fixture");
+  const { pages } = branchPages(BRANCH);
+  const read = await readThread(pages, STORE_ID, {
+    threadId: THREAD,
+    limit: 6,
+    around: anchor.itemId,
+  });
+  if (!read.ok) throw new Error("expected a window");
+  expect(idsOf(read.value.items)).toEqual(idsOf(BRANCH.slice(14, 20)));
+  expect(read.value.hasMore).toBe(true);
+});
+
+test("around finds an item that is far from the newest end by reading several pages", async () => {
+  const long = Array.from({ length: 1300 }, (_, index) => customItem(index));
+  const anchor = long[100];
+  if (anchor === undefined) throw new Error("fixture");
+  const { pages, requests } = branchPages(long);
+  const read = await readThread(pages, STORE_ID, {
+    threadId: THREAD,
+    limit: 4,
+    around: anchor.itemId,
+  });
+  if (!read.ok) throw new Error("expected a window");
+  expect(idsOf(read.value.items)).toEqual(idsOf(long.slice(98, 102)));
+  // 가지 확인 1번, 가장 새 쪽부터 500개씩 3쪽, 앞쪽 채우기 1번
+  expect(requests.length).toBe(5);
+});
+
+test("around an unknown item returns an empty window with the head position", async () => {
+  const { pages } = branchPages(BRANCH);
+  const read = await readThread(pages, STORE_ID, {
+    threadId: THREAD,
+    around: ids.next("itm"),
+  });
+  if (!read.ok) throw new Error("expected an empty window");
+  expect(read.value.items).toEqual([]);
+  expect(read.value.hasMore).toBe(false);
+  expect(read.value.position).toEqual({ storeId: STORE_ID, seq: 77 });
+});
+
+test("around over the frame budget drops items from the side farther from the anchor", async () => {
+  const big = "x".repeat(Math.floor(WIRE_LIMITS.maxFrameBytes / 3));
+  const branch = [0, 1, 2, 3, 4].map((index) => customItem(index, big));
+  const anchor = branch[1];
+  if (anchor === undefined) throw new Error("fixture");
+  const { pages } = branchPages(branch);
+  const read = await readThread(pages, STORE_ID, {
+    threadId: THREAD,
+    limit: 5,
+    around: anchor.itemId,
+  });
+  if (!read.ok) throw new Error("expected a window");
+  // 큰 item은 둘만 들어간다. 앵커(1) 앞쪽이 뒤쪽보다 적으므로 가장 새 쪽부터 덜어 낸다
+  expect(idsOf(read.value.items)).toEqual(idsOf(branch.slice(0, 2)));
+  expect(read.value.hasMore).toBe(false);
+});

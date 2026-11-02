@@ -68,6 +68,7 @@ import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
+import { dialogAreaBridgePlugin, type DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { GroupCatalogEntry } from "@fresnel/group-sdk";
@@ -106,6 +107,8 @@ export interface ExtensionDeps {
   readonly settings: SettingsEngine;
   /** 명령 등록부 자리. 조립 루트가 만들고 엔진 포트(`command.*`)도 같은 자리를 읽는다 */
   readonly commands: CommandRegistryHolder;
+  /** 대화 영역 wire가 읽는 목표·작업 기능 API 자리(T-WC) */
+  readonly dialogArea: DialogAreaHolder;
   /** 웹 런타임 자리(`web.providers`). cap-web 확장이 채운다 */
   readonly web: WebStatusHolder;
   /** thread의 작업 디렉터리(없으면 undefined). `input.bash.before` 지점 페이로드의 cwd가 된다 */
@@ -358,6 +361,10 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           localIds: deps.localIds,
           approvals: (service) => createBareL2ApprovalsPort(service),
           settings: layersSource(settings),
+          // 리뷰 본문 읽기(`review.get`, W-02)의 자리. 확장이 내려가면 undefined가 와서 포트는 unavailable을 낸다
+          onReviews: (reader) => {
+            deps.dialogArea.reviews = reader;
+          },
           loadIndex,
         }),
     ],
@@ -372,6 +379,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           loadIndex,
         }),
     ],
+    ["host-dialog-area-bridge", (loadIndex) => dialogAreaBridgePlugin(deps.dialogArea, loadIndex)],
     [
       "cap-mcp",
       (loadIndex) =>

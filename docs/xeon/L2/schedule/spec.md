@@ -1393,11 +1393,23 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 놓친 기한은 `once`로 1회만 따라잡는다. 가장 늦은 기한이 제때(120초 안)면 그것만 실행하고, 놓쳤으면 24시간 안일 때만 `missed`로 하나를 실행한다. 나머지는 요약 한 건(`skippedCount`)으로 `skipped` 기록한다. 최소 간격 300초와 시간당 실행 상한(20)은 `file_watch`·`remote` 포함 모든 트리거에 적용하고 반복 예약의 회차 사이에는 최소 간격을 따로 두지 않는다.
 - 같은 항목의 이전 실행이 `claimed`·`started`이면 새 기한은 `overlap`으로 건너뛴다.
 - 상태(항목, 실행 기록)는 `ScheduleStore` 포트로 저장한다. claim을 저장하지 못하면 실행을 시작하지 않는다. 재시작하면 `claimed`는 같은 키(`<scheduleId>:<dueAt>`)로 다시 시작하고 `started`는 `host_exit`로 닫으며, 실행 중이던 반복 예약은 `host_exit`로 멈추고 다시 시작하지 않는다. 재시작 뒤 thread가 둘 생기던 문제는 대화 생성 키로 닫혔다 [결정: 오케스트레이터 기본값, M3b B1-SCH2]. 다시 시작한 `claimed` 실행은 `timer:<scheduleId>:<dueAt>:create`(§4.4.4 둘째 장치)로 처음 만든 thread를 되찾으므로 같은 기한의 thread는 하나다.
-- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 기능 정의와 와이어가 들어왔다. 기능 ID는 `schedule.entries`(F `capabilities/defs/schedule.ts`)이고, §3.5의 cron 기반 `schedule.timers`와 다른 기능이다. 메서드는 `create`, `list`, `cancel`, `fire`이고 모델 도구는 `schedule_create` 하나다. wire는 `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`(F `wire/schedule.ts`)다. 분류는 `list`만 읽기 전용이다. `create`, `cancel`, `fire`는 효과가 있는 쓰기로 분류하지 않는다(`requestId` 기억 전까지 멱등이 아니다, ADR-0015 §3.3).
+- [결정: 오케스트레이터 기본값, M3b B1-SCH2] 기능 정의와 와이어가 들어왔다. 기능 ID는 `schedule.entries`(F `capabilities/defs/schedule.ts`)이고, §3.5의 cron 기반 `schedule.timers`와 다른 기능이다. 메서드는 `create`, `list`, `cancel`, `fire`, `update`이고(`update`는 M4 W-07에서 더한다, 아래 항목) 모델 도구는 `schedule_create` 하나다. wire는 `schedule.create`, `schedule.list`, `schedule.cancel`, `schedule.fire`(F `wire/schedule.ts`)이고, `schedule.update`(M4 W-07)의 입력과 출력은 F `wire-settings/wire/dialog-area.ts`에 있다. 분류는 `list`만 읽기 전용이다. `create`, `cancel`, `fire`는 효과가 있는 쓰기로 분류하지 않는다(`requestId` 기억 전까지 멱등이 아니다, ADR-0015 §3.3). `update`도 같은 이유로 분류를 달지 않는다 [제안].
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 저장소는 처음 쓰일 때 한 번 읽는다(`open()`, 지연 읽기). 읽기가 실패하면(상태 파일이 손상되어 해석하지 못하는 경우를 포함한다) `create`·`cancel`·`fire`·`start`는 `store_failed`를 돌려주고 아무것도 쓰지 않으며, `start`는 틱과 감시를 켜지 않는다. 엔진은 읽지 못한 파일을 빈 상태로 덮어쓰지 않는다. 사용자가 파일을 고치거나 지워야 한다. 실패는 기억하지 않으므로 다음 호출이 다시 읽는다.
 - [결정: 오케스트레이터 기본값, M4 T-RT1] 사용자가 부른 `create`와 `cancel`은 저장에 실패하면 메모리 상태를 호출 전으로 되돌리고 `store_failed`를 돌려준다. 되돌리지 않으면 `list`가 저장되지 않은 항목을 보이고 다음 저장이 그 항목을 몰래 쓴다. `cancel`은 저장에 성공한 뒤에 파일 감시를 해제한다. 저장 사이에 다른 커밋이 끼어 상태가 바뀌었으면 그 커밋이 이 변경을 이어받았으므로 되돌리지 않는다. 틱이 만드는 claim과 실행 기록의 저장 실패는 §4.4.5가 따로 정한다.
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 모델 도구 `schedule_create`는 실행 등급 `exec`로 등록한다(`tools.register`의 정책 `{ schedule_create: { risk: "exec" } }`). 예약은 사용자 없이 나중의 실행을 만들므로 기본 모드에서 승인을 묻는다.
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 플러그인 `cap-schedule`(`schedulePlugin`)은 기능 `schedule.entries`(1.0.0)를 제공하고, 서비스는 호스트가 만들어 `schedulePlugin({ service })`로 넘긴다. 틱과 상태 저장소는 호스트가 맡고 플러그인은 서비스를 시작하지 않는다. 도구 서비스가 없으면 기능만 올리고 도구는 올리지 않으며 예외를 던지지 않는다. 기능 API(`createScheduleApi`)는 엔진의 `Result` 실패를 `CapabilityError`의 `code`로 바꾼다.
+- [결정: 오케스트레이터 기본값, M4 W-07] `update(scheduleId, patch)`는 항목의 켜짐(`enabled`), 제목(`title`), 프롬프트(`prompt`)를 고친다. 트리거와 `workspace`는 고치지 않는다. 생략한 필드는 그대로 둔다. 실패 값은 `not_found`(모르는 id), `limit_reached { max }`(켜기가 `maxActive`를 넘을 때), `store_failed`다. 다른 메서드와 같이 `open()`을 먼저 거치므로, 저장소를 읽지 못하면 `store_failed`를 돌려주고 아무것도 쓰지 않는다. 와이어 `schedule.update`의 `nextRunAt`은 항목의 `nextDueAt`을 옮긴 값이다 [제안].
+  - 바뀌는 것이 없으면 저장하지 않는다. 빈 패치와 이미 그 상태인 값만 담은 패치가 여기에 든다. 항목을 그대로 돌려주고 변경 알림도 부르지 않는다.
+  - 제목과 프롬프트는 값을 그대로 바꾼다. 엔진은 프롬프트를 검사하지 않는다. 와이어 스키마(`minLength: 1`)가 빈 문자열을 거른다. 공백만 있는 프롬프트는 `update`가 그대로 받는다. `create`는 같은 입력을 `prompt_empty`로 거른다.
+  - 끄기(켜진 항목에 `enabled: false`): `enabled`는 false, `nextDueAt`은 null이다. `stoppedReason`은 그대로 둔다. 켜진 항목의 사유는 null이므로 `cancelled`가 남지 않고, `create`에서 `enabled: false`로 만든 항목과 같은 상태가 된다. 감시 항목은 감시를 내린다. 진행 중인 실행은 멈추지 않는다(`cancel`과 같다). 꺼진 반복 예약은 진행 중 실행이 정착해도 다음 기한을 잡지 않는다.
+  - 켜기(꺼진 항목에 `enabled: true`): `stoppedReason`을 null로 지운다(`cancelled` 포함). 다음 기한은 트리거 종류마다 다음과 같다.
+    - `interval`: 켜는 시각 + `everySeconds`다(`create`와 같다). [결정: 오케스트레이터 기본값, M4 W-07]
+    - `at`: `atMs`가 켜는 시각보다 뒤이면 `atMs`를 쓴다. 지났으면 켜지 않는다 [제안]. 지난 시각의 한 번짜리 예약에 바로 실행하는 기한을 만들지 않고, `create`가 `at_in_past`로 거부하는 상태를 켜진 채 만들지 않으려는 것이다.
+    - `repeat`: 켜는 시각 + `intervalSeconds`를 쓴다. `create`는 첫 회차를 바로 잡지만 켜기는 한 간격 뒤에 잡는다 [결정: 오케스트레이터 기본값, M4 W-07]. 반복 횟수가 `maxIterations`에 이르렀거나 다음 회차 시각이 `expiresAtMs` 이상이면 켜지 않는다 [제안: 정착 뒤 만료 판정과 같은 식].
+    - `file_watch`, `remote`: 기한이 없다. 감시 항목은 서비스가 떠 있으면 `create`처럼 감시를 다시 건다 [결정: 오케스트레이터 기본값, M4 W-07].
+  - 지난 `at`이나 상한에 이른 반복처럼 다시 켤 수 없는 항목은 오류가 아니라 꺼진 항목으로 돌려준다. `enabled`는 false, `nextDueAt`은 null로 남고, 같은 요청의 제목과 프롬프트는 적용한다. 이때 한도는 보지 않는다 [제안]. 오류로 알릴지는 §10 미결 14다.
+  - 켜기는 켜진 항목 수를 센다. 켜진 항목 수가 `maxActive` 이상이면 `limit_reached`로 거부하고 아무것도 쓰지 않는다. `create`의 규칙과 같다 [결정: 오케스트레이터 기본값, M4 W-07].
+  - 이미 그 상태인 필드는 바꾸지 않는다. 켜진 항목에 `enabled: true`를 보내도 다음 기한을 다시 잡지 않는다 [결정: 오케스트레이터 기본값, M4 W-07].
 - 이 단계에 없는 것: cron 식과 시간대, `schedule.*` 기록(이벤트)의 생산자, Scheduler leader 기반 다중 프로세스 틱, CLI 예약 명령. 호스트가 파일 저장소와 단일 프로세스 틱으로 조립하고 나머지는 [미결]로 둔다.
 
 ### 4.5 원격 제어
@@ -1568,3 +1580,4 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 11. [결정: 오케스트레이터 기본값, M3b B1-SCH] 넣는다(M3-10, `liveSchedulerTasks`). 원래 항목: 반복 예약을 `ActivitySnapshot.liveTasks`에 넣을지(§3.9, §4.1.5). 넣으면 서비스 모드에서 반복 예약이 도는 동안 유휴 종료하지 않는다. `L4.host-service.spec` `ActivitySnapshot` 정의와 맞춘다.
 12. [미결] 기존 대화를 대상으로 하는 예약(§4.4.1). 1차에서 제외를 제안한다.
 13. [미결] 워크트리 연산의 위치(§3.10, §4.3). `L0.os.spec`의 `OsService`에는 워크트리 연산이 없다. L0.os에 `worktree.create/list/remove` 추가를 요청하거나, `fresnel.exec`로 `git worktree` 명령을 실행하는 안 중에서 정한다. `watch`의 `root`가 앱 디렉터리 하위로 제한되는 것(`L0.os.spec` §3.8)도 작업 디렉터리의 파일 감시(`source.type: "file"`)와 맞지 않으므로 함께 요청한다.
+14. [미결] `update`에서 다시 켤 수 없는 항목(지난 `at`, 상한이나 만료에 이른 반복)을 꺼진 항목으로 돌려줄지, 오류 종류로 알릴지 정한다(§4.4.9). 오류 종류를 더하면 `UpdateError`와 와이어 오류 코드가 함께 바뀌므로 F와 함께 정한다.

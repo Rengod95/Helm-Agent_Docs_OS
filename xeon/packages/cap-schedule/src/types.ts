@@ -212,6 +212,19 @@ export type FireError =
 
 export type CancelError = { readonly kind: "not_found" } | StoreFailure;
 
+/** 생략한 필드는 그대로 둔다. `enabled`만 주면 켜고 끈다 */
+export interface UpdateInput {
+  readonly enabled?: boolean;
+  readonly title?: string;
+  /** 비었는지는 엔진이 검사하지 않는다. 비어 있지 않음은 와이어 스키마가 보장한다 */
+  readonly prompt?: string;
+}
+
+export type UpdateError =
+  | { readonly kind: "not_found" }
+  | { readonly kind: "limit_reached"; readonly max: number }
+  | StoreFailure;
+
 export interface ScheduleService {
   /**
    * 저장소를 읽어 상태를 올린다(한 번만 읽는다). `list`·`runs`는 읽은 뒤의 상태를 낸다.
@@ -221,6 +234,11 @@ export interface ScheduleService {
   create(input: CreateInput): Promise<Result<ScheduleEntry, CreateError>>;
   list(): readonly ScheduleEntry[];
   cancel(scheduleId: string): Promise<Result<ScheduleEntry, CancelError>>;
+  /**
+   * 항목을 고친다(spec 4.4.9). 꺼진 항목을 켜면 다음 기한을 새로 잡고 멈춘 사유를 지운다.
+   * 다시 켤 수 없는 항목(지난 `at`, 상한이나 만료에 이른 반복)은 꺼진 채 남는다. 바뀌는 것이 없으면 저장하지 않는다
+   */
+  update(scheduleId: string, patch: UpdateInput): Promise<Result<ScheduleEntry, UpdateError>>;
   runs(scheduleId: string, limit?: number): readonly RunRecord[];
   /** 원격 트리거. 원격 클라이언트의 호출이 부른다 */
   fire(scheduleId: string): Promise<Result<RunRecord, FireError>>;

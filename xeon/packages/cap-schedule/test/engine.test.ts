@@ -508,6 +508,297 @@ test("the store is read once, lazily: create before start keeps the stored entri
   await h.service.close();
 });
 
+test("update reports an unknown id as not_found and writes nothing", async () => {
+  const h = await started(createHarness());
+  const saves = h.store.saves;
+  expect(await h.service.update("sch_missing", { title: "x" })).toEqual({
+    ok: false,
+    error: { kind: "not_found" },
+  });
+  expect(h.store.saves).toBe(saves);
+});
+
+test("update replaces title and prompt, keeps the other fields, and a fresh service on the same store sees the edit", async () => {
+  const store = new MemoryStore();
+  const first = await started(createHarness({ store }));
+  const entry = await created(first.service, {
+    trigger: { kind: "interval", everySeconds: 600 },
+    prompt: "check mail",
+    title: "mail",
+  });
+  const edited = { ...entry, title: "inbox", prompt: "check inbox" };
+  expect(await first.service.update(entry.id, { title: "inbox", prompt: "check inbox" })).toEqual({
+    ok: true,
+    value: edited,
+  });
+  first.service.stop();
+
+  const second = createHarness({ store });
+  expect(await second.service.open()).toEqual({ ok: true, value: undefined });
+  expect(second.service.list()).toEqual([edited]);
+});
+
+test("disabling an interval entry clears its due time, and enabling it again sets the due time one interval from now", async () => {
+  const h = await started(createHarness());
+  const entry = await created(h.service, {
+    trigger: { kind: "interval", everySeconds: 600 },
+    prompt: "p",
+  });
+  h.clock.now += 100 * SECOND;
+  expect(await h.service.update(entry.id, { enabled: false })).toEqual({
+    ok: true,
+    value: { ...entry, enabled: false, nextDueAt: null },
+  });
+  expect(h.service.pendingSchedules()).toBe(0);
+  h.clock.now += 1000 * SECOND;
+  await h.service.tick();
+  expect(h.runner.started).toHaveLength(0);
+
+  h.clock.now += 50 * SECOND;
+  expect(await h.service.update(entry.id, { enabled: true })).toEqual({
+    ok: true,
+    value: { ...entry, enabled: true, nextDueAt: h.clock.now + 600 * SECOND },
+  });
+  expect(h.service.pendingSchedules()).toBe(1);
+  h.clock.now += 600 * SECOND;
+  await h.service.tick();
+  expect(h.runner.started).toHaveLength(1);
+});
+
+test("enabling a cancelled entry clears its cancelled stop reason and sets its due time", async () => {
+  const h = await started(createHarness());
+  const entry = await created(h.service, {
+    trigger: { kind: "interval", everySeconds: 600 },
+    prompt: "p",
+  });
+  expect(await h.service.cancel(entry.id)).toEqual({
+    ok: true,
+    value: { ...entry, enabled: false, nextDueAt: null, stoppedReason: "cancelled" },
+  });
+  expect(await h.service.update(entry.id, { enabled: true })).toEqual({
+    ok: true,
+    value: { ...entry, enabled: true, nextDueAt: h.clock.now + 600 * SECOND, stoppedReason: null },
+  });
+});
+
+test("enabling a disabled entry over maxActive is refused with limit_reached and writes nothing", async () => {
+  const store = new MemoryStore();
+  const h = await started(createHarness({ store, policy: { maxActive: 1 } }));
+  const active = await created(h.service, { trigger: { kind: "remote" }, prompt: "a" });
+  const parked = await created(h.service, {
+    trigger: { kind: "remote" },
+    prompt: "b",
+    enabled: false,
+  });
+  const saves = store.saves;
+  expect(await h.service.update(parked.id, { enabled: true })).toEqual({
+    ok: false,
+    error: { kind: "limit_reached", max: 1 },
+  });
+  expect(store.saves).toBe(saves);
+
+  expect(await h.service.update(active.id, { enabled: false })).toEqual({
+    ok: true,
+    value: { ...active, enabled: false },
+  });
+  expect(await h.service.update(parked.id, { enabled: true })).toEqual({
+    ok: true,
+    value: { ...parked, enabled: true },
+  });
+});
+
+test("a loop that expired stays off when it is enabled again, and no run starts", async () => {
+  const h = await started(createHarness());
+  const loop = await created(h.service, {
+    trigger: {
+      kind: "repeat",
+      intervalSeconds: 600,
+      maxIterations: 10,
+      expiresAtMs: h.clock.now + 5 * MINUTE,
+    },
+    prompt: "poll",
+  });
+  await h.service.tick();
+  h.runner.started[0]?.settle("completed");
+  await settleAll(h);
+  expect(h.service.list()[0]).toMatchObject({ enabled: false, stoppedReason: "expired" });
+  const saves = h.store.saves;
+
+  expect(await h.service.update(loop.id, { enabled: true })).toEqual({
+    ok: true,
+    value: {
+      ...loop,
+      enabled: false,
+      nextDueAt: null,
+      stoppedReason: "expired",
+      lastStartedAt: h.clock.now,
+      iterations: 1,
+    },
+  });
+  expect(h.store.saves).toBe(saves);
+  expect(h.service.liveSchedulerTasks()).toBe(0);
+  h.clock.now += HOUR;
+  await h.service.tick();
+  expect(h.runner.started).toHaveLength(1);
+});
+
+test("a disabled loop is enabled one interval from now only while that next round still falls before its expiry", async () => {
+  const h = await started(createHarness());
+  const loop = await created(h.service, {
+    trigger: {
+      kind: "repeat",
+      intervalSeconds: 600,
+      maxIterations: 10,
+      expiresAtMs: h.clock.now + HOUR,
+    },
+    prompt: "poll",
+  });
+  expect(await h.service.update(loop.id, { enabled: false })).toEqual({
+    ok: true,
+    value: { ...loop, enabled: false, nextDueAt: null },
+  });
+  h.clock.now += 20 * MINUTE;
+  expect(await h.service.update(loop.id, { enabled: true })).toEqual({
+    ok: true,
+    value: { ...loop, enabled: true, nextDueAt: h.clock.now + 600 * SECOND },
+  });
+
+  expect(await h.service.update(loop.id, { enabled: false })).toEqual({
+    ok: true,
+    value: { ...loop, enabled: false, nextDueAt: null },
+  });
+  h.clock.now += 50 * MINUTE;
+  expect(await h.service.update(loop.id, { enabled: true })).toEqual({
+    ok: true,
+    value: { ...loop, enabled: false, nextDueAt: null },
+  });
+});
+
+test("a one-shot at is re-armed at its time while that time is ahead, and stays off once it has passed", async () => {
+  const h = await started(createHarness());
+  const at = h.clock.now + 10 * MINUTE;
+  const once = await created(h.service, { trigger: { kind: "at", atMs: at }, prompt: "once" });
+  await h.service.update(once.id, { enabled: false });
+  expect(await h.service.update(once.id, { enabled: true })).toEqual({
+    ok: true,
+    value: { ...once, enabled: true, nextDueAt: at },
+  });
+
+  await h.service.update(once.id, { enabled: false });
+  h.clock.now += 11 * MINUTE;
+  expect(await h.service.update(once.id, { enabled: true })).toEqual({
+    ok: true,
+    value: { ...once, enabled: false, nextDueAt: null },
+  });
+  await h.service.tick();
+  expect(h.runner.started).toHaveLength(0);
+});
+
+test("disabling a file watch releases its watcher, and enabling it again arms a new watcher that starts a run", async () => {
+  const h = await started(createHarness());
+  const entry = await created(h.service, {
+    trigger: { kind: "file_watch", paths: ["/work/notes"], debounceMs: 0 },
+    prompt: "summarize",
+  });
+  expect(await h.service.update(entry.id, { enabled: false })).toEqual({
+    ok: true,
+    value: { ...entry, enabled: false },
+  });
+  expect(h.watches[0]?.closed).toBe(true);
+
+  expect(await h.service.update(entry.id, { enabled: true })).toEqual({ ok: true, value: entry });
+  expect(h.watches).toHaveLength(2);
+  expect(h.watches[1]).toMatchObject({ paths: ["/work/notes"], closed: false });
+  h.watches[1]?.fire();
+  await h.service.tick();
+  expect(h.runner.started).toHaveLength(1);
+  expect(h.runner.started[0]?.request.firedBy).toBe("file_watch");
+});
+
+test("disabling a loop while its run is in flight does not stop that run, and the settled run does not schedule the next round", async () => {
+  const h = await started(createHarness());
+  const loop = await created(h.service, {
+    trigger: {
+      kind: "repeat",
+      intervalSeconds: 60,
+      maxIterations: 5,
+      expiresAtMs: h.clock.now + HOUR,
+    },
+    prompt: "poll",
+  });
+  await h.service.tick();
+  expect(h.runner.started).toHaveLength(1);
+  expect(await h.service.update(loop.id, { enabled: false })).toEqual({
+    ok: true,
+    value: { ...loop, enabled: false, nextDueAt: null, lastStartedAt: h.clock.now, iterations: 1 },
+  });
+  expect(h.service.runs(loop.id)[0]).toMatchObject({ status: "started" });
+
+  h.runner.started[0]?.settle("completed");
+  await settleAll(h);
+  expect(h.service.runs(loop.id)[0]).toMatchObject({ status: "finished", outcome: "completed" });
+  expect(h.service.list()[0]).toEqual({
+    ...loop,
+    enabled: false,
+    nextDueAt: null,
+    lastStartedAt: h.clock.now,
+    iterations: 1,
+  });
+  expect(h.service.liveSchedulerTasks()).toBe(0);
+});
+
+test("an empty patch, or one that changes nothing, returns the entry without saving or notifying, and a real change saves and notifies", async () => {
+  const store = new MemoryStore();
+  const h = await started(createHarness({ store }));
+  const entry = await created(h.service, {
+    trigger: { kind: "interval", everySeconds: 600 },
+    prompt: "p",
+    title: "t",
+  });
+  let changes = 0;
+  h.service.onChange(() => {
+    changes += 1;
+  });
+  const saves = store.saves;
+
+  expect(await h.service.update(entry.id, {})).toEqual({ ok: true, value: entry });
+  expect(await h.service.update(entry.id, { enabled: true, title: "t", prompt: "p" })).toEqual({
+    ok: true,
+    value: entry,
+  });
+  expect(store.saves).toBe(saves);
+  expect(changes).toBe(0);
+
+  expect(await h.service.update(entry.id, { title: "u" })).toEqual({
+    ok: true,
+    value: { ...entry, title: "u" },
+  });
+  expect(store.saves).toBe(saves + 1);
+  expect(changes).toBe(1);
+});
+
+test("update is blocked by store_failed while the state cannot be read, and writes nothing until the store reads again", async () => {
+  const store = await storeWithRemoteEntry();
+  store.loadFailure = CORRUPT;
+  const h = createHarness({ store, idStart: 100 });
+
+  expect(await h.service.update("sch_1", { enabled: false })).toEqual({
+    ok: false,
+    error: CORRUPT,
+  });
+  expect(await h.service.update("sch_1", { title: "x" })).toEqual({ ok: false, error: CORRUPT });
+  expect(store.saves).toBe(0);
+  expect(store.saved.entries.map((entry) => entry.title)).toEqual([null]);
+
+  store.loadFailure = null;
+  expect(await h.service.update("sch_1", { title: "x" })).toMatchObject({
+    ok: true,
+    value: { id: "sch_1", title: "x", enabled: true },
+  });
+  expect(store.saves).toBe(1);
+  expect(store.saved.entries[0]).toMatchObject({ id: "sch_1", title: "x", prompt: "go" });
+});
+
 async function settleAll(h: Harness): Promise<void> {
   // settled 약속에 걸린 finish가 끝나도록 마이크로태스크를 비운다
   await new Promise((resolve) => setTimeout(resolve, 0));

@@ -13,6 +13,7 @@ import type { StoreId, StreamPosition } from "@fresnel/contracts/wire";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
+import type { DialogAreaPort } from "../../src/handlers/m4/dialog-area.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
@@ -92,6 +93,8 @@ export interface FakeEngineOptions {
     readonly proposals?: Partial<ProposalPort>;
     readonly usage?: Partial<UsagePort>;
     readonly schedule?: Partial<ScheduleService>;
+    /** 대화 영역 포트(`goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)를 바꾼다. 쓰지 않는 멤버는 부르면 바로 실패한다 */
+    readonly dialogArea?: Partial<DialogAreaPort>;
   };
 }
 
@@ -327,6 +330,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       locate: () => Promise.resolve(ok(undefined)),
       respond: () => Promise.resolve({ applied: false }),
       list: () => Promise.reject(new Error("list is not part of the fake")),
+      listAll: () => Promise.reject(new Error("listAll is not part of the fake")),
       ...options.overrides?.approvals,
     },
     commands: {
@@ -385,7 +389,13 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     clock: { now: () => RECORDED_AT },
     scheduler,
     // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다
-    m4: { extRead: {}, extUi: {}, profileTestRun: {}, dialogArea: {}, devkit: {} },
+    m4: {
+      extRead: {},
+      extUi: {},
+      profileTestRun: {},
+      dialogArea: partial<DialogAreaPort>({ ...options.overrides?.dialogArea }),
+      devkit: {},
+    },
   };
 
   function position(): StreamPosition {

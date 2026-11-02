@@ -39,6 +39,7 @@ import { WireError } from "@fresnel/contracts/wire";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import type { ExtHost } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { createDialogAreaHolder } from "../../src/assembly/m4/dialog-area-bridge.ts";
 import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
@@ -293,7 +294,11 @@ function harness(): Harness {
       session,
       store,
       loop,
+      dialogArea: createDialogAreaHolder(),
       schedule: partial<ScheduleService>({
+        open: () => Promise.resolve(ok(undefined)),
+        list: () => [],
+        runs: () => [],
         pendingSchedules: () => result.schedule.pending,
         liveSchedulerTasks: () => result.schedule.loops,
         onChange: (listener) => {

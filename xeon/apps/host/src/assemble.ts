@@ -88,6 +88,7 @@ import { startDataOps, type DataOps } from "./assembly/data-ops.ts";
 import { createExtDiagnosticSink } from "./assembly/diagnostics.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
+import { createDialogAreaHolder } from "./assembly/m4/dialog-area-bridge.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
@@ -659,6 +660,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       notify: undefined,
       notifyListeners: new Set(),
     };
+    // 대화 영역 wire(`goal.status`, `work.tasks.list`)가 읽는 목표·작업 기능 API 자리. 조립 확장이 채운다
+    const dialogArea = createDialogAreaHolder();
     // 웹 런타임 자리(`web.providers`). cap-web 확장이 올라올 때 채운다
     const web: WebStatusHolder = { current: undefined };
     // 학습 그룹의 읽기 면(세션 DB의 x_learning_* 투영)과 명령 실행기, 그룹·L2 대기열을 잇는 자리. 읽기 면은 세션 서비스가 올라온 뒤(아래 4단계)에 채운다
@@ -694,6 +697,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,
+        dialogArea,
         web,
         mode: options.mode,
         clock,
@@ -885,6 +889,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         }),
       ),
       commands,
+      dialogArea,
       web,
       proposals: createProposalPort({
         learning: () => learning.bridge.api(),

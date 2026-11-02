@@ -8,7 +8,11 @@ import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { useEngineHome } from "../fixtures/engine-home.ts";
-import { approvalModels, APPROVAL_COMMAND } from "../fixtures/approval-tape.ts";
+import {
+  approvalModels,
+  approvalModelsForTwoThreads,
+  APPROVAL_COMMAND,
+} from "../fixtures/approval-tape.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
@@ -196,4 +200,86 @@ describe("approval.respond", () => {
     await fx.connection.request("approval.respond", { approvalId: asked.id, decision: "deny" });
     await fx.close();
   });
+});
+
+/** 대화는 시험이 직접 만든다(두 대화가 각각 승인을 요청하는 테이프) */
+async function startWithoutThread(): Promise<{
+  readonly connection: HostConnection;
+  readonly collector: EventCollector;
+  readonly workspace: string;
+  close(): Promise<void>;
+}> {
+  const home = useEngineHome();
+  writeUserSettings(home, { ...TAPE_SETTINGS, "l0.sandbox.enabled": false });
+  const workspace = mkdtempSync(join(tmpdir(), "xh-appr-two-"));
+  const previousCwd = process.cwd();
+  process.chdir(workspace);
+  const host = await startInProcessHost({
+    devChecks: true,
+    defaultGroups: false,
+    buildModels: approvalModelsForTwoThreads("approval-two"),
+  });
+  const connection = createHostConnection(host.client);
+  await connection.request("host.hello", HELLO_PARAMS);
+  const collector = collectEvents(connection);
+  await connection.request("events.subscribe", { from: "head" });
+  return {
+    connection,
+    collector,
+    workspace,
+    async close() {
+      await connection.close();
+      await host.close();
+      process.chdir(previousCwd);
+      rmSync(workspace, { recursive: true, force: true });
+      home.dispose();
+    },
+  };
+}
+
+describe("approval.list without a threadId (W-01)", () => {
+  realTest(
+    "lists every open thread's approvals by seq; a thread whose approval is answered drops out",
+    async () => {
+      const fx = await startWithoutThread();
+      const first = await fx.connection.request("thread.create", { workspace: fx.workspace });
+      await fx.connection.request("turn.start", { threadId: first.threadId, input: "run it" });
+      const askedFirst = await fx.collector.waitFor(requested);
+      const second = await fx.connection.request("thread.create", { workspace: fx.workspace });
+      await fx.connection.request("turn.start", { threadId: second.threadId, input: "run it too" });
+      const askedSecond = await fx.collector.waitFor(
+        (event) => requested(event) && event.id !== askedFirst.id,
+      );
+
+      const all = await fx.connection.request("approval.list", {});
+      expect(all.approvals.map((approval) => approval.approvalId)).toEqual([
+        askedFirst.id,
+        askedSecond.id,
+      ]);
+      expect(all.approvals.map((approval) => approval.seq)).toEqual([
+        askedFirst.seq,
+        askedSecond.seq,
+      ]);
+      expect(all.position.seq).toBeGreaterThanOrEqual(askedSecond.seq);
+      // 대화 하나로 읽으면 그 대화의 승인만 나온다
+      const onlyFirst = await fx.connection.request("approval.list", {
+        threadId: first.threadId,
+      });
+      expect(onlyFirst.approvals.map((approval) => approval.approvalId)).toEqual([askedFirst.id]);
+
+      // 첫 대화의 승인을 허용하면 그 대화는 대기 승인이 없어 목록에서 빠진다
+      await fx.connection.request("approval.respond", {
+        approvalId: askedFirst.id,
+        decision: "allow",
+      });
+      await fx.collector.waitFor((event) => event.kind === "approval.resolved");
+      const after = await fx.connection.request("approval.list", {});
+      expect(after.approvals.map((approval) => approval.approvalId)).toEqual([askedSecond.id]);
+      await fx.connection.request("approval.respond", {
+        approvalId: askedSecond.id,
+        decision: "deny",
+      });
+      await fx.close();
+    },
+  );
 });

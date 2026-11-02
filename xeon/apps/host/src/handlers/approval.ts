@@ -2,7 +2,6 @@ import { assertNever } from "@fresnel/contracts";
 import type { WireError, WireHandler } from "@fresnel/contracts/wire";
 import { wireErrorOfStore } from "../store-error.ts";
 import type { ApprovalListFailure, Engine } from "../types.ts";
-import { paramNotYetImplemented } from "./not-implemented.ts";
 import { threadLocked } from "./owner.ts";
 
 // L4.host-service.spec §3.4 M2 표, F wire §4.6 A안과 §3.4.6 5항. approval.respond와 approval.list (HOST.4).
@@ -37,13 +36,17 @@ export function createApprovalRespondHandler(engine: Engine): WireHandler<"appro
   };
 }
 
-/** 소유 없이도 읽는다. 승인이 대기 중인 thread(`ThreadSummary.pendingApprovals > 0`)에만 요청하는 것이 보통이다 */
+/**
+ * 소유 없이도 읽는다. 승인이 대기 중인 thread(`ThreadSummary.pendingApprovals > 0`)에만 요청하는 것이 보통이다.
+ * `threadId`를 생략하면 닫히지 않은 모든 대화의 대기 승인이다(W-01)
+ */
 export function createApprovalListHandler(engine: Engine): WireHandler<"approval.list"> {
   const { approvals } = engine.ports;
   return async (params) => {
-    // W-01(threadId 생략 = 열려 있는 모든 대화)은 T-WC가 구현한다. 그 전까지는 계약이 넓어지기 전처럼 threadId를 요구한다
-    if (params.threadId === undefined) throw paramNotYetImplemented("threadId", "W-01, T-WC");
-    const listed = await approvals.list(params.threadId);
+    const listed =
+      params.threadId === undefined
+        ? await approvals.listAll()
+        : await approvals.list(params.threadId);
     if (!listed.ok) throw listFailure(listed.error);
     return listed.value;
   };
