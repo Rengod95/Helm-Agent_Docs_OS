@@ -177,9 +177,12 @@ test("secret add with metadata flags applies them through secret.meta after the 
   expectNoValue(s);
 });
 
-test("a provider other than sops is refused before connecting", async () => {
+test("a provider other than sops is a parse error, refused before connecting", async () => {
   const s = setup({ stdin: VALUE });
   expect(await s.h.run(["secret", "add", "api-key", "--provider", "op"])).toBe(EXIT.usage);
+  expect(s.h.stderrText()).toBe(
+    "fresnel: --provider 값이 맞지 않다\n  해결: sops 중 하나를 쓴다\n",
+  );
   expect(s.h.closed()).toBe(false);
 });
 

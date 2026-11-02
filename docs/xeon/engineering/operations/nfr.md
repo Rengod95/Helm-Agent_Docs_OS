@@ -139,7 +139,7 @@ binds: []
 
 - 엔진 로그는 한 줄이 JSON 객체 하나입니다. 파일은 `0600`이고 로그 줄은 마스킹을 거칩니다(`L0.os.spec` §3.5, `eng.operations.runbook` §3).
 - 로그 수준은 `l0.os.log.level`입니다. 기본은 `info`이고 바꾸면 다음 줄부터 반영합니다(`eng.operations.runbook` §3.1).
-- 로그 회전 sink는 스펙에 있지만 호스트 조립에 연결되지 않았습니다. 로그는 한 파일에 계속 덧붙습니다(`eng.operations.runbook` §3.1 미결 3).
+- 호스트 로그 파일(`<state>/logs/<모드>.log`)은 5 MiB를 넘으면 회전하고, 현재 파일과 회전본 `.1`, `.2`를 보관합니다. 두 값은 상수이고 설정 키가 없습니다(`eng.operations.runbook` §3.1).
 - 텔레메트리(OpenTelemetry)는 기본으로 꺼져 있습니다. `l0.os.telemetry.enabled`로 켭니다(`L0.os.spec` §3.9, §6).
 - 진단은 `fresnel doctor`가 봅니다. 종료 코드와 `--json` 형식은 `eng.operations.runbook` §4가 정합니다.
 

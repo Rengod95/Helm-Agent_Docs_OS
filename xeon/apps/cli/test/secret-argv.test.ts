@@ -57,6 +57,14 @@ test("add, set and rotate with only a name parse", () => {
   });
 });
 
+test("--provider takes only sops; op, bws and keychain are unexpectedArgument", () => {
+  for (const provider of ["op", "bws", "keychain"]) {
+    expect(errorOf(["secret", "add", "api-key", "--provider", provider])).toBe(
+      "unexpectedArgument",
+    );
+  }
+});
+
 test("a malformed expiry date is rejected", () => {
   expect(errorOf(["secret", "add", "api-key", "--expires", "next-week"])).toBe(
     "unexpectedArgument",

@@ -250,6 +250,65 @@ test("secret.beginEntry add makes the secret with the default metadata and takes
   await connection.close();
 });
 
+test("secret.beginEntry add with meta stores the sent fields over the default metadata, the rest stays default", async () => {
+  const host = createFakeHost();
+  const connection = await open(host);
+  const input = sourceOf(VALUE);
+  host.fake.secrets.port.offers.offerEntry({ name: EXA, action: "add", source: input.source });
+  const started = await connection.request("secret.beginEntry", {
+    name: EXA,
+    action: "add",
+    meta: {
+      desc: "Exa search key",
+      scope: "project:fresnel",
+      expiresAt: "2027-06-30",
+      use: { modes: ["env"], tools: ["web.search"], hosts: ["api.exa.ai"] },
+      approval: "per-use",
+      ttlSeconds: 600,
+      maxUses: 5,
+    },
+  });
+  expect(started).toEqual({ started: true });
+  expect(input.state.reads).toBe(1);
+  expect(host.fake.secrets.received).toEqual([VALUE]);
+  expect(host.fake.secrets.records.get(EXA)?.meta).toEqual({
+    name: EXA,
+    desc: "Exa search key",
+    provider: "sops",
+    ref: "dev/EXA_KEY",
+    scope: "project:fresnel",
+    expiresAt: "2027-06-30",
+    use: { modes: ["env"], tools: ["web.search"], hosts: ["api.exa.ai"] },
+    approval: "per-use",
+    ttlSeconds: 600,
+    maxUses: 5,
+  });
+
+  // 한 필드만 보내면 나머지는 기본 메타 그대로다
+  const partial = sourceOf("ghp-fixture-value");
+  host.fake.secrets.port.offers.offerEntry({ name: GITHUB, action: "add", source: partial.source });
+  expect(
+    await connection.request("secret.beginEntry", {
+      name: GITHUB,
+      action: "add",
+      meta: { desc: "CI token" },
+    }),
+  ).toEqual({ started: true });
+  expect(host.fake.secrets.records.get(GITHUB)?.meta).toEqual({
+    name: GITHUB,
+    desc: "CI token",
+    provider: "sops",
+    ref: "dev/GITHUB_TOKEN",
+    scope: "user",
+    expiresAt: null,
+    use: { modes: [], tools: [], hosts: [] },
+    approval: "per-session",
+    ttlSeconds: 900,
+    maxUses: 200,
+  });
+  await connection.close();
+});
+
 test("secret.beginEntry takes the offer by name and action, set and rotate replace the value", async () => {
   const host = seeded();
   const connection = await open(host);

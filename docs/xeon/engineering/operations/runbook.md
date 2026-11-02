@@ -158,7 +158,7 @@ resource와 tmp는 바뀌지 않습니다.
   ```
 
 - 로그 줄은 마스킹 함수를 거쳐 씁니다. 시크릿 값은 로그와 이벤트에 싣지 않습니다(`L4.cli.spec` §4.7, `L0.os.spec` §3.5).
-- 회전: `L0.os.spec` §3.5는 10 MiB마다 파일을 넘기는 싱크를 정합니다. 그러나 호스트 조립은 회전 없이 한 파일에 덧붙입니다(`apps/host/src/assembly/log-sink.ts`) [미결 3].
+- 회전: 호스트 로그 파일은 `L0.os.spec` §3.5의 회전 싱크(`@fresnel/platform-os`의 `createRotatingFileSink`)로 씁니다. 파일이 5 MiB를 넘으면 `<모드>.log.1`로 옮기고, 보관은 3개(`<모드>.log`, `.1`, `.2`)입니다. 두 값은 상수이고 설정 키가 없습니다. `L0.os.spec` §3.5의 10 MiB, `@fresnel/platform-os` 기본 5개와 다릅니다(`apps/host/src/assembly/log-sink.ts`).
 
 ### 3.2 찾는 방법
 
@@ -450,8 +450,8 @@ fresnel: <무엇이 잘못됐다>
 
 1. `PATH`에 넣는 방법과 설치 위치 절차가 없습니다(`L4.release.spec` 미정).
 2. `l0.os.dirs.override`는 설정 카탈로그에 있지만 호스트 조립(`apps/host/src/assemble.ts`의 `osPlatform` 호출)이 `dirsOverride`를 넘기지 않습니다. 지금은 `FRESNEL_HOME`만 적용됩니다.
-3. 로그 회전: `L0.os.spec` §3.5의 회전 싱크가 호스트 조립에 연결되어 있지 않습니다. 호스트는 `appendFileSync`로 한 파일에 덧붙입니다.
-4. `OsDirs`에 `log` 항목이 없습니다. 로그 위치는 `state/logs/`라는 관례로 정해져 있습니다. 문서와 코드가 같은지 확인이 필요합니다.
+3. (닫힘) 로그 회전: 호스트 로그 파일은 5 MiB를 넘으면 회전하고 3개를 보관합니다(`apps/host/src/assembly/log-sink.ts`). 두 값은 상수이고 설정 키가 없습니다.
+4. (닫힘) `OsDirs`에 `log` 항목이 없습니다. 로그 위치는 `state/logs/`라는 관례로 정해져 있고, 호스트 조립(`apps/host/src/assemble.ts`)이 이 관례를 따릅니다. 문서와 코드가 같습니다.
 5. `fresnel doctor`의 서비스 모드 문구("chat은 아직 서비스에 접속하지 않고 in-process로 동작한다")는 `apps/cli/src/engine.ts`의 서비스 접속 경로와 다릅니다. 설정이 켜져 있으면 CLI는 서비스에 붙습니다.
 6. `FRESNEL_SAFE_MODE` 환경 변수, `/safe-mode` 슬래시 명령, `--disable-ext` 옵션은 `X.operations.spec` §4.6.1에 있지만 CLI 소스에서 찾지 못했습니다.
 7. TCP 토큰을 클라이언트로 옮기는 절차와 토큰을 바꾸는 명령이 없습니다. 호스트의 `rotateToken`은 호출하는 곳을 찾지 못했습니다.

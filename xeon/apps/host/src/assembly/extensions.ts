@@ -34,7 +34,7 @@ import {
 } from "@fresnel/contracts/capabilities";
 import { artifactsPlugin } from "@fresnel/cap-artifacts";
 import { schedulePlugin, type ScheduleService } from "@fresnel/cap-schedule";
-import { dialogPlugin } from "@fresnel/cap-dialog";
+import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
 import { knowledgePlugin } from "@fresnel/cap-knowledge";
 import { APPROVAL_SOURCE } from "@fresnel/group-learning";
 import { workPlugin } from "@fresnel/cap-work";
@@ -92,6 +92,8 @@ export interface ExtensionDeps {
   readonly mode: HostMode;
   readonly clock: Clock;
   readonly ids: IdFactory;
+  /** `dialog.status`와 `scope.handler_failed`가 나누는 조각 번호 발급기(한 (thread, turn) 안에서 번호가 겹치지 않는다) */
+  readonly chunkNumbering: ChunkNumbering;
   /** 로컬 id(원장, 캐시 행). L0.os의 createLocalIdFactory */
   readonly localIds: LocalIdFactory;
   readonly logger: Logger;
@@ -344,6 +346,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           // 프로젝트 명령(.fresnel/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           workspaceOf: workspaceOfId,
+          chunkNumbering: deps.chunkNumbering,
           loadIndex,
         }),
     ],

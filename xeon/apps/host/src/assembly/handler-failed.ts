@@ -1,3 +1,4 @@
+import type { ChunkNumbering } from "@fresnel/cap-dialog";
 import { attempt, type Clock, type Result } from "@fresnel/contracts";
 import type { IdFactory, ThreadId } from "@fresnel/contracts/conversation";
 import type { ScopeHandlerFailedPayload, VolatileEventEnvelope } from "@fresnel/contracts/records";
@@ -5,7 +6,7 @@ import { messageOf } from "../util.ts";
 
 // M3-REQ-35, X.operations.spec §4.3.4, L4.host-service.spec HS-80. 확장 핸들러 실패(`ScopeHandlerFailedPayload`)를
 // 휘발 이벤트 `scope.handler_failed`로 보낸다. 페이로드에는 thread가 없으므로 지금 어떤 연결이든 연 thread마다 한 번씩 보낸다.
-// 발신(`session.emitVolatile`)은 `cap-dialog`의 `sessionStatusPublisher`와 같은 모양으로 채운다.
+// 발신(`session.emitVolatile`)은 `cap-dialog`의 `sessionStatusPublisher`와 같은 모양으로 채운다. `n`도 같은 발급기에서 받는다.
 
 /** 발신이 쓰는 좁은 포트. 세션과 연결 허브는 엔진을 만든 뒤에 생기므로 조립 루트가 늦게 잇는다 */
 export interface HandlerFailedPorts {
@@ -17,6 +18,10 @@ export interface HandlerFailedPorts {
   readonly openThreads: () => Iterable<ThreadId>;
   readonly ids: IdFactory;
   readonly clock: Clock;
+  /**
+   * 휘발 조각 번호 발급기. `dialog.status`도 turnId가 null이라 같은 (thread, null) 키를 쓴다. 조립 루트가 한 개를 두 발신자에게 나눠 준다
+   */
+  readonly numbering: ChunkNumbering;
   /** 운영 로그 한 줄 */
   readonly log: (line: string) => void;
 }
@@ -29,8 +34,7 @@ export interface HandlerFailedPorts {
 export function createHandlerFailedEmitter(
   ports: HandlerFailedPorts,
 ): (payload: ScopeHandlerFailedPayload) => void {
-  // n은 (threadId, turnId)마다 0부터 1씩 세므로 thread마다 따로 센다(F.records.spec §4.3)
-  const counters = new Map<ThreadId, number>();
+  // n은 (threadId, turnId)마다 0부터 1씩 센다(F.records.spec §4.3). 세는 일은 발급기가 맡아 dialog.status와 번호가 겹치지 않는다
   return (payload) => {
     const threads = [...new Set(ports.openThreads())];
     if (threads.length === 0) {
@@ -45,8 +49,7 @@ export function createHandlerFailedEmitter(
       return;
     }
     for (const threadId of threads) {
-      const n = counters.get(threadId) ?? 0;
-      counters.set(threadId, n + 1);
+      const n = ports.numbering.next(threadId, null);
       const envelope: VolatileEventEnvelope = {
         id: ports.ids.next("evt"),
         kind: "scope.handler_failed",

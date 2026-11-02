@@ -103,4 +103,57 @@ describe("parseServiceEndpoint", () => {
       error: { kind: "invalid", part: "port" },
     });
   });
+
+  test("tcp rejects an IPv6 address without brackets, brackets without a port, zone ids and empty brackets", () => {
+    expect(parseServiceEndpoint("tcp://fd7a::1:7421")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "host" },
+    });
+    expect(parseServiceEndpoint("tcp://[::1]")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "host" },
+    });
+    expect(parseServiceEndpoint("tcp://[fe80::1%eth0]:7421")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "host" },
+    });
+    expect(parseServiceEndpoint("tcp://[]:7421")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "host" },
+    });
+  });
+
+  test("bracketed IPv6 ports outside 1..65535 are rejected as ports", () => {
+    expect(parseServiceEndpoint("tcp://[::1]:0")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "port" },
+    });
+    expect(parseServiceEndpoint("tcp://[::1]:65536")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "port" },
+    });
+  });
+
+  test("tcp takes only host and port: a path after the port and userinfo are rejected", () => {
+    expect(parseServiceEndpoint("tcp://[::1]:7421/extra")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "host" },
+    });
+    // 오류 값에는 입력 문자열이 들어가지 않으므로 비밀번호 `pw`도 나오지 않는다
+    expect(parseServiceEndpoint("tcp://user:pw@host:7421")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "host" },
+    });
+  });
+
+  test("ssh does not take a bare IPv6 address as its host", () => {
+    expect(parseServiceEndpoint("ssh://[::1]/run/f.sock")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "target" },
+    });
+    expect(parseServiceEndpoint("ssh://fd7a::1/run/f.sock")).toEqual({
+      ok: false,
+      error: { kind: "invalid", part: "target" },
+    });
+  });
 });

@@ -319,17 +319,6 @@ async function runEntry(
     );
     return EXIT.usage;
   }
-  if (flags.provider !== undefined && flags.provider !== "sops") {
-    await ctx.io.stderr(
-      renderFailure(
-        usageFailure(
-          t("cli.secret.provider.unsupported.message", { provider: flags.provider }),
-          t("cli.secret.provider.unsupported.fix"),
-        ),
-      ),
-    );
-    return EXIT.usage;
-  }
   return withEngine(ctx, async (handle) => {
     const outcome = await enterValue(ctx, handle, name, action);
     if (!outcome.started) {
