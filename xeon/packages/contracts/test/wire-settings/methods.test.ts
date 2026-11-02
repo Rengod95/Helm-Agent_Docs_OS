@@ -73,6 +73,7 @@ describe("WIRE_METHODS", () => {
       "stream.chunk",
       "settings.invalidated",
       "notify.delivered",
+      "profile.changed",
     ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
       "$/cancelRequest",

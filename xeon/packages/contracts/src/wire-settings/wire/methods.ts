@@ -64,6 +64,12 @@ import { WireMetaSchema } from "./jsonrpc.ts";
 import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import {
+  PROFILE_TEST_RUN_METHODS,
+  ProfileChangedParamsSchema,
+  TestRunMarkerSchema,
+  type ProfileTestRunSchemas,
+} from "./profile-test-run.ts";
+import {
   ProposalApproveParamsSchema,
   ProposalDecideResultSchema,
   ProposalEditParamsSchema,
@@ -427,6 +433,7 @@ export const ThreadSummarySchema: TObject<{
   queuedInputs: TInteger;
   pendingApprovals: TInteger;
   origin: TOptional<typeof ThreadOriginSchema>;
+  testRun: TOptional<typeof TestRunMarkerSchema>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -451,6 +458,8 @@ export const ThreadSummarySchema: TObject<{
     pendingApprovals: Type.Integer({ minimum: 0 }),
     /** 대화를 만든 쪽(W-16). 호스트가 알 수 없으면 생략한다 */
     origin: Type.Optional(ThreadOriginSchema),
+    /** Test run 표지(W-34, X-14). Test run이 아니면 생략한다 */
+    testRun: Type.Optional(TestRunMarkerSchema),
   },
   { additionalProperties: false },
 );
@@ -471,10 +480,16 @@ export type ThreadListResult = Static<typeof ThreadListResultSchema>;
 export const ThreadCreateParamsSchema: TObject<{
   workspace: TOptional<TString>;
   title: TOptional<TString>;
+  testRun: TOptional<TBoolean>;
+  profileId: TOptional<TString>;
 }> = Type.Object(
   {
     workspace: Type.Optional(Type.String({ minLength: 1, maxLength: 4096 })),
     title: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+    /** Test run 대화로 만든다(W-34). Test run만 멈춤(`testRun.*`)이 있다 */
+    testRun: Type.Optional(Type.Boolean()),
+    /** 만들면서 `thread` 층에 적용할 프로필(`profile.apply`와 같은 쓰기). `testRun`이 참일 때만 */
+    profileId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   },
   { additionalProperties: false },
 );
@@ -1352,7 +1367,7 @@ const ProposalDecideRequestSchema: TUnion<
 // ── 레지스트리 타입 ──────────────────────────────────────────────────────
 
 /** 메서드별 params·result 스키마. 타입 쪽(WireMethodMap)과 값 쪽(WIRE_METHODS)의 같은 원천이다 */
-interface WireSchemas extends ExtReadSchemas, DialogAreaSchemas {
+interface WireSchemas extends ExtReadSchemas, DialogAreaSchemas, ProfileTestRunSchemas {
   "host.hello": {
     params: WithMeta<typeof HostHelloParamsSchema>;
     result: typeof HostHelloResultSchema;
@@ -1566,6 +1581,8 @@ interface ServerNotificationSchemas {
   "settings.invalidated": typeof SettingsInvalidatedParamsSchema;
   /** M3 */
   "notify.delivered": typeof NotifyDeliveredParamsSchema;
+  /** M4 */
+  "profile.changed": typeof ProfileChangedParamsSchema;
 }
 export type ServerNotificationMap = {
   readonly [N in keyof ServerNotificationSchemas]: Static<ServerNotificationSchemas[N]>;
@@ -1680,6 +1697,7 @@ export const WIRE_METHODS: {
   "schedule.cancel": spec(withMeta(ScheduleCancelInputSchema), ScheduleCancelResultSchema, "M3"),
   ...EXT_READ_METHODS,
   ...DIALOG_AREA_METHODS,
+  ...PROFILE_TEST_RUN_METHODS,
   "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 
@@ -1699,6 +1717,7 @@ export const WIRE_NOTIFICATIONS: {
     stage: "M2",
   },
   "notify.delivered": { params: NotifyDeliveredParamsSchema, since: "0.1.0", stage: "M3" },
+  "profile.changed": { params: ProfileChangedParamsSchema, since: "0.1.0", stage: "M4" },
 };
 
 export const WIRE_CLIENT_NOTIFICATIONS: {

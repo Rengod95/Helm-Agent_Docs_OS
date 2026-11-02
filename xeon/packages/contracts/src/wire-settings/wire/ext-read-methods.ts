@@ -1,5 +1,6 @@
 import type { TUnsafe } from "typebox";
 import * as r from "./ext-read.ts";
+import { ExtTimingsResultSchema, type ExtTimingsResult } from "../../extensions/index.ts";
 import { m4, NoParamsSchema, type Io, type M4Spec, type NoParams, type Req } from "./schema-kit.ts";
 
 // M4 확장 읽기 메서드의 레지스트리 조각. methods.ts의 WireSchemas·WIRE_METHODS가 펼쳐 쓴다.
@@ -11,7 +12,7 @@ export interface ExtReadSchemas {
   "ext.reenable": Io<U<Req<r.ExtNameParams>>, U<r.ExtAppliedResult>>;
   "ext.reload": Io<U<Req<r.ExtNameParams>>, U<r.ExtAppliedResult>>;
   "ext.health": Io<U<Req<r.ExtHealthParams>>, U<r.ExtHealthResult>>;
-  "ext.timings": Io<U<Req<r.ExtTimingsParams>>, U<r.ExtTimingsResult>>;
+  "ext.timings": Io<U<Req<r.ExtTimingsParams>>, U<ExtTimingsResult>>;
   "ext.versions": Io<U<Req<r.ExtNameParams>>, U<r.ExtVersionsResult>>;
   "ext.rollback": Io<U<Req<r.ExtRollbackParams>>, U<r.ExtRollbackResult>>;
   "ext.bindings": Io<U<Req<r.ExtBindingsParams>>, U<r.ExtBindingsResult>>;
@@ -39,7 +40,7 @@ export const EXT_READ_METHODS: Table = {
   "ext.reenable": m4(r.ExtNameParamsSchema, r.ExtAppliedResultSchema),
   "ext.reload": m4(r.ExtNameParamsSchema, r.ExtAppliedResultSchema),
   "ext.health": m4(r.ExtHealthParamsSchema, r.ExtHealthResultSchema),
-  "ext.timings": m4(r.ExtTimingsParamsSchema, r.ExtTimingsResultSchema),
+  "ext.timings": m4(r.ExtTimingsParamsSchema, ExtTimingsResultSchema),
   "ext.versions": m4(r.ExtNameParamsSchema, r.ExtVersionsResultSchema),
   "ext.rollback": m4(r.ExtRollbackParamsSchema, r.ExtRollbackResultSchema),
   "ext.bindings": m4(r.ExtBindingsParamsSchema, r.ExtBindingsResultSchema),

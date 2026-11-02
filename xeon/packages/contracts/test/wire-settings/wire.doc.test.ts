@@ -31,7 +31,7 @@ describe("wire doc tables", () => {
     const rows = table
       .split("\n")
       .map(cells)
-      .filter((c) => /^`[a-z]+(\.[a-z]+)?\.[A-Za-z]+`$/.test(c[2] ?? ""))
+      .filter((c) => /^`[a-z][A-Za-z]*(\.[a-z]+)?\.[A-Za-z]+`$/.test(c[2] ?? ""))
       .map((c) => ({
         name: (c[2] ?? "").slice(1, -1),
         // params 칸에 이스케이프한 "\|"가 있을 수 있어 단계는 마지막 칸에서 읽는다

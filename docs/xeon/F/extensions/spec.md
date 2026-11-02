@@ -858,6 +858,7 @@ export interface TrustPrompter {
 | `McpPort` | `fresnel.mcp` | cap-mcp | `McpService extends McpPort`(`F.capabilities.spec` §3.12 `services/mcp.ts`) | `X.primitives.spec` §3.9 |
 | `LoaderFs`, `LoaderPaths`, `TrustStoreBackend` | 없음(조립 루트 주입) | platform-os | 없음 | `X.loading-trust.spec` §3.2, §3.7 |
 | `TrustPrompter` | 없음(조립 루트 주입) | L4 클라이언트 | 없음 | `X.loading-trust.spec` §3.7 |
+| `TraceReadPort`, `TestRunControlPort` | 없음(조립 루트 주입) | ext-host(X-15, X-19, T-XD) | 없음 | `F.wire-settings.spec` §4.2 |
 
 - 서비스 인터페이스가 같은 이름의 포트를 확장하므로 서비스 이름 하나에는 인터페이스 하나만 등록된다(`F.capabilities.spec` §3.12 규칙 2). 서비스 메서드 이름이 포트와 겹치는 `fresnel.session`만 `PortKey.member`로 하위 속성을 가리킨다(`L1.persistence.spec` §3.3 `ext` 하위 객체).
 - `ExtHostPortKey`(`fresnel.ext`)는 X 타입 `ExtHost`를 실으므로 F에 두지 않고 ext-host가 둔다(`eng.context-map.design` §5.3 DR-14 예외 4).
@@ -866,6 +867,23 @@ export interface TrustPrompter {
 
 - 매니페스트의 플러그인마다 Registration 하나를 만든다 [제안]. 엔트리는 `host.register(id, def, setup)`을 플러그인 수만큼 부르고 id는 `registrationIdOf`와 같아야 한다. 루트 플러그인의 id는 매니페스트 `name`이다. 상태가 없는 플러그인은 `state`를 생략한다. 이렇게 하면 모든 플러그인이 같은 등록·토글·정리 경로를 쓴다. 다른 확장 이름이면 `registration_foreign_id`, 이 확장이 선언하지 않은 플러그인 id면 `registration_unknown_plugin` 오류다.
 - Helm 의사코드(`_research/layer-plan-v2-notes.md` 훅 절)의 `g.on("request", …)`, `g.on("tool.before", …)`, `g.on("turn.end", …)`는 예시 표기다. 이 계약에서는 `g.on("request.provider.before", …)`, `g.on("tool.call.before", …)`, `g.on("boundary.step.after", …)`처럼 §3.4 표의 이름을 쓴다(§4.10).
+
+- 계측 읽기와 Test run 제어 포트 [제안: 2026-11-02 M4 T-F, `trace.turn`·`ext.timings`·`testRun.*` 처리기가 ext-host 구현을 기다리지 않게 하려는 것]. 값 검증이 없는 순수 인터페이스이고 결과 타입은 wire 결과와 같고 `extensions/trace-types.ts`에 둔다(extensions가 wire-settings보다 앞 디렉터리라서).
+
+  ```ts
+  export interface TraceReadPort {
+    enabled(): boolean;                                           // `x.operations.trace.enabled`
+    turn(threadId: ThreadId, turnId: TurnId): TraceTurnResult | undefined;   // 버퍼 밖이면 undefined
+    timings(filter: { hook?: HookName; registrationId?: RegistrationId }): ExtTimingsResult;
+  }
+  export interface TestRunControlPort {
+    pause(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;   // 다음 단계 경계에서 멈춤, drive lock 유지
+    resume(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;
+    step(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;    // 경계 하나씩
+    phase(threadId: ThreadId): Result<TestRunPhaseResult, TestRunControlError>;
+  }
+  // TestRunControlError.kind: "not_a_test_run" | "not_paused" | "not_available"
+  ```
 
 ### 3.3 훅 선언 타입 (`hooks.ts`, `points/<kind>.ts`)
 

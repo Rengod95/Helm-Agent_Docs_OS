@@ -274,38 +274,6 @@ export const ExtTimingsParamsSchema: TUnsafe<Req<ExtTimingsParams>> = Type.Unsaf
     typeof ExtTimingsParamsShape2
   >,
 );
-/** Hook × Registration 한 칸의 시간 분포 */
-export interface ExtHookTiming {
-  readonly hook: string;
-  readonly registrationId: string;
-  readonly count: number;
-  readonly p50Ms: number;
-  readonly p95Ms: number;
-  readonly maxMs: number;
-  readonly failures: number;
-}
-const HookTimingShape = closed({
-  hook: Name,
-  registrationId: Name,
-  count: Count,
-  p50Ms: Ms,
-  p95Ms: Ms,
-  maxMs: Ms,
-  failures: Count,
-});
-export interface ExtTimingsResult {
-  /** 계측(`x.operations.trace.enabled`)이 켜져 있는가. 꺼져 있으면 `timings`는 비어 있다 */
-  readonly traceEnabled: boolean;
-  readonly timings: readonly ExtHookTiming[];
-}
-const ExtTimingsResultShape2 = closed({
-  traceEnabled: Type.Boolean(),
-  timings: Type.Array(HookTimingShape, { maxItems: 1024 }),
-});
-export const ExtTimingsResultSchema: TUnsafe<ExtTimingsResult> = Type.Unsafe<ExtTimingsResult>(
-  ExtTimingsResultShape2 satisfies SchemaProof<ExtTimingsResult, typeof ExtTimingsResultShape2>,
-);
-
 /** `group.list`(W-24) */
 export interface GroupListParams {
   readonly threadId?: string;

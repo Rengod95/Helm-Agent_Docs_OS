@@ -1,6 +1,6 @@
 import type { TSchema } from "typebox";
 import type { CallerInfo, ToolHints, ToolName, ToolRisk } from "../capabilities/index.ts";
-import type { JsonValue, ThreadId, Usage } from "../conversation/index.ts";
+import type { JsonValue, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type { Result } from "../base/index.ts";
 import type {
   ProjectorRegistry,
@@ -9,7 +9,15 @@ import type {
   StoreService,
   Unsubscribe,
 } from "../records/index.ts";
+import type {
+  ExtTimingsResult,
+  TestRunControlError,
+  TestRunControlResult,
+  TestRunPhaseResult,
+  TraceTurnResult,
+} from "./trace-types.ts";
 import type { SpawnOutcome, SpawnSpec, TurnOutcome } from "./drive.ts";
+import type { HookName } from "./hooks.ts";
 import type { ExtensionName } from "./name.ts";
 import type { PostItem, PostWhen } from "./post.ts";
 import type { DriveLockId, RegistrationId } from "./registration-id.ts";
@@ -340,4 +348,31 @@ export interface TrustPromptRequest {
 /** 대화형 클라이언트(L4)가 구현한다. 취소나 닫힘은 undefined */
 export interface TrustPrompter {
   ask(request: TrustPromptRequest, signal: AbortSignal): Promise<TrustChoice | undefined>;
+}
+
+// ── 계측 읽기와 Test run 제어(F.wire-settings.spec §3.3.6, X-15·X-19) ─────────────
+// wire 처리기(`trace.turn`, `ext.timings`, `testRun.*`)가 이 포트에 대해 쓰이고, ext-host가 구현해 L4 조립이 연결한다.
+// 값 검증이 없는 순수 인터페이스다. 결과 타입은 wire 결과 타입과 같다.
+
+/** 핸들러 계측 읽기. 원천은 X-15 링 버퍼이고 `ext.timings`의 분포와 `trace.turn`이 같은 값을 쓴다 */
+export interface TraceReadPort {
+  /** X-15 계측이 켜져 있는가(`x.operations.trace.enabled`) */
+  enabled(): boolean;
+  /** 버퍼에 남은 Turn의 Trace. 버퍼 밖이면 undefined */
+  turn(threadId: ThreadId, turnId: TurnId): TraceTurnResult | undefined;
+  /** Hook별 핸들러 시간 분포(X-6). 같은 원천 */
+  timings(filter: {
+    readonly hook?: HookName;
+    readonly registrationId?: RegistrationId;
+  }): ExtTimingsResult;
+}
+
+/** Test run 대화의 단계 경계 멈춤 제어(X-19). 멈춘 동안 drive lock을 쥐고 있다 */
+export interface TestRunControlPort {
+  /** 다음 단계 경계에서 멈춘다 */
+  pause(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;
+  resume(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;
+  /** 경계 하나만 진행하고 다시 멈춘다 */
+  step(threadId: ThreadId): Result<TestRunControlResult, TestRunControlError>;
+  phase(threadId: ThreadId): Result<TestRunPhaseResult, TestRunControlError>;
 }

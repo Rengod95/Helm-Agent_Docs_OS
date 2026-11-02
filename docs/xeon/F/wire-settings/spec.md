@@ -299,7 +299,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean, safeModeCause?: "user"\|"startupFailures"\|"flag", startupFailures?: integer, suggestSafeMode?: boolean }` | M2 |
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
-| thread | `thread.create` | `{ workspace?: string, title?: string }` | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
+| thread | `thread.create` | `{ workspace?: string, title?: string, testRun?: boolean, profileId?: string }`(`testRun`, `profileId`는 M4, W-34) | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
 | thread | `thread.open` | `{ threadId: ThreadId, mode: "write"\|"observe", includeItems?: boolean, limit?: integer(1..500) }` | `{ threadId: ThreadId, role: "owner"\|"observer", position: StreamPosition, items?: ItemRecord[], hasMore?: boolean, asOfSeq?: integer }` | M2 |
 | thread | `thread.read` | `{ threadId: ThreadId, limit?: integer(1..500), before?: ItemId, around?: ItemId }`(`around`는 M4, W-16) | `{ threadId: ThreadId, items: ItemRecord[], position: StreamPosition, hasMore: boolean }` | M2 |
 | thread | `thread.close` | `{ threadId: ThreadId }` | `{}` | M2 |
@@ -366,6 +366,18 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | work | `work.tasks.list` | `{ threadId: string }` | `{ tasks: TaskView[] }` | M4 (W-06) |
 | schedule | `schedule.update` | `{ scheduleId: string, enabled?: boolean, title?: string, prompt?: string }` | `{ scheduleId, enabled, nextRunAt: IsoTime \| null }` | M4 (W-07) |
 | schedule | `schedule.runs` | `{ scheduleId: string, limit?: integer(1..200) }` | `{ runs: ScheduleRunRecord[] }` | M4 (W-07) |
+| profile | `profile.list` | `{}` | `{ profiles: Profile[], rev: integer }` | M4 (W-46) |
+| profile | `profile.get` | `{ id: string }` | `{ profile: Profile }` | M4 (W-46) |
+| profile | `profile.put` | `{ profile: ProfileInput, baseRev: integer \| null }` | `{ profile: Profile }` | M4 (W-46) |
+| profile | `profile.delete` | `{ id: string }` | `{ rev: integer }` | M4 (W-46) |
+| profile | `profile.apply` | `{ id: string, threadId?: string, layer?: "user"\|"project"\|"thread" }` | `{ written: string[], layer: "user"\|"project"\|"thread", appliesAt: "nextStepBoundary"\|"now" }` | M4 (W-46) |
+| profile | `profile.preview` | `{ id: string, threadId?: string, layer?: "user"\|"project"\|"thread" }` | `{ enabled, disabled, candidates: string[], expectedHolder: string \| null, overrides, hookCount, layer }` | M4 (W-44) |
+| settings | `settings.explain` | `{ key: string, threadId: string }` | `{ key, value, winningScope: string \| null, writer: "default"\|"user"\|"profile"\|"testRun"\|"session", profileId? }` | M4 (W-45) |
+| trace | `trace.turn` | `{ threadId: string, turnId: string }` | `{ traceEnabled: boolean, retained: boolean, entries: { seq, hook, step, handlers: { registrationId, ms, result }[] }[] }` | M4 (W-43) |
+| testRun | `testRun.pause` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
+| testRun | `testRun.resume` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
+| testRun | `testRun.step` | `{ threadId: string }` | `{ paused: boolean }` | M4 (W-48) |
+| testRun | `testRun.phase` | `{ threadId: string }` | `{ phase: string \| null, group: string \| null, seq: integer \| null }` | M4 (W-50) |
 
 - [결정: review.m3-design-inputs D-M3-32 a, M3-REQ-18] 지식 제안 대기열 wire(`proposal.*`, `wire/proposals.ts`). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(`source: "learning"`)와 L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(`source: "knowledge"`). 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이고, 대기열을 하나로 합치지 않는다.
   - `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 `(source, id)` 오름차순)으로 합친다. `ProposalRow`는 두 출처가 같은 모양이다: `source`, `id`, `kind`(`skill`, `memory`, `feedback`, `script`), `op`, `target`, `status`(두 대기열 상태의 합집합: `pending`, `approved`, `applied`, `rejected`, `stale`, `expired`, `reverted`), `destructive`, `diff`, `rationale`, `evidence`, `conflictsWith`, `reason`, `revision`, `scope`, `afterUntrusted`, `createdAt`. 출처에 없는 필드는 빈 값(null, false, 빈 배열, `revision` 1)이다. 한 출처를 읽지 못하면(지식 저장소 없음 등) 그 출처만 `unavailable`에 올리고 나머지 행은 돌려준다. `source`와 `status` 필터는 서버가 건다.
@@ -463,6 +475,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     queuedInputs: Type.Integer({ minimum: 0 }),
     pendingApprovals: Type.Integer({ minimum: 0 }),
     origin: Type.Optional(ThreadOriginSchema),   // M4, W-16. { kind: "user" } | { kind: "schedule", scheduleId } | { kind: "remote" }
+    testRun: Type.Optional(TestRunMarkerSchema), // M4, W-34. { profileId, target, paused }. Test run이 아니면 생략
   }, { additionalProperties: false });
   ```
 
@@ -511,6 +524,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 서버 → 클라이언트 | `stream.chunk` | `{ event: VolatileEventWire }` (`n`, `afterSeq`를 담은 휘발 이벤트) | M1 |
 | 서버 → 클라이언트 | `settings.invalidated` | `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId, 없으면 null }`. 값이 없다. 받으면 `settings.get`으로 다시 읽는다(§3.3.4) | M2 |
 | 서버 → 클라이언트 | `notify.delivered` | `{ threadId: ThreadId(없으면 null), notice: Notice, deliveredAt: IsoTime }`. 알림 한 건을 연결된 클라이언트 모두에 보낸다(M3-REQ-16, 아래 설명) | M3 |
+| 서버 → 클라이언트 | `profile.changed` | `{ rev: integer, ids: string[] }`. 프로필 목록이 바뀌었다. `profile.list`를 다시 읽는다(W-46) | M4 |
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
 | 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 같은 연결 위에서 다시 시작되어 이전 화면의 상태를 버린다(WebView 새로고침, `L4.desktop.spec` §4.5). 동작은 §4.1 5~7번 | M2 |
 
@@ -1251,6 +1265,9 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 - 세 마디 이름 중 `ext.ui.*`, `ext.test.*`는 코어 메서드다(옛 `ext.view.*`는 없다). 그래서 `ui`, `test`는 확장 이름으로 쓸 수 없다(`RESERVED_EXTENSION_NAMES`, `CORE_EXT_NAMESPACES`, `classifyMethodName`). 이름 `ui`, `ext.ui.*`, 설정 `x.ui.apps`, `x.ui.allowProjectApps`(옛 `x.views.frames`, `x.views.allowProjectFrames`)는 ADR-0022 §3.6이 정하지 않은 [제안]이다. 설정 키의 정의와 소유 문서는 X 트랙이 정한다.
 - [결정: 2026-10-31 사용자, M4 T-F] 확장 읽기(W-15, W-20~W-26, W-31, W-33, W-35~W-42, W-47)의 스키마는 `wire/ext-read.ts`다. 행의 단위는 확장이고 Registration(플러그인 하나)은 `plugins`와 `registrationId`로 나온다(ADR-0022 §3.2). `ext.list`의 `enabledSource`는 켜짐 요청이 온 층(`managed`, `thread`, `project`, `user`, `default`)이다(T-REG §7 5번). `group.driveLock`(옛 `group.lease`, 저장 이름 `lease.*`는 그대로)은 drive lock을 가진 Registration과 후보·대기 수, 설정 `x.primitives.activeDriver` 값, 최근 `lease.rejected`를 돌려준다. `host.status`는 `safeModeCause`(`user`, `startupFailures`, `flag`)를 더한다(W-35, W-39).
 - [결정: 2026-10-31 사용자, M4 T-F] 대화 영역 변경(W-01, W-16, W-37): `approval.list`의 `threadId`는 선택이고 생략하면 모든 대화의 대기 승인이다. `thread.read`는 `around: ItemId`(가운데 창, `before`와 함께 쓰지 않음)를 받고, `ThreadSummary.origin`(`user`, `schedule`+`scheduleId`, `remote`)은 선택 필드다. W-37(런타임 이벤트만 거르는 구독)은 이미 있는 `events.subscribe`의 `filter.kindPrefixes`와 `threadIds` 생략으로 닫는다. 새 인자가 없다. 새 메서드(`review.get`, `goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)의 스키마는 `wire/dialog-area.ts`다.
+- [결정: 2026-10-31 사용자, M4 T-F] 프로필·Test run·계측(W-34, W-43~W-46, W-48, W-50): 프로필 `{ id, title, enable, disable, settings: {key, value}[], driver, updatedAt, rev }`는 런타임 호스트의 `profiles.json`(`ProfilesFile`)에 저장하고 `profile.put`은 `baseRev` 비교로 충돌을 막는다. `enable`·`disable`은 확장 이름이고 Registration id가 아니다 [제안: 플러그인 단위 켜기는 아직 프로필이 다루지 않는다]. `driver`(옛 `driveGroup`)는 설정 `x.primitives.activeDriver`에 쓴다. `thread.create`는 `testRun`, `profileId`를 받고 `ThreadSummary.testRun`은 `{ profileId, target, paused }`다(선택). Test run 대화만 `testRun.pause|resume|step`이 있고 drive lock을 쥔 채 멈춘다. 스키마는 `wire/profile-test-run.ts`이고 계측·Test run 결과 타입은 `extensions/trace-types.ts`다.
+  - `profile.apply`·`profile.preview`의 `layer`(`user`, `project`, `thread`)는 [제안, T-REG §7 4번 사용자 확인 대기]이다. 생략하면 호스트는 `user`로 읽고, 결과가 쓴 층을 돌려준다. `thread` 층이면 `threadId`가 필요하다. `SETTING_WRITERS`에는 `thread`를 더하지 않는다. 대화 층에 쓴 설정 값은 `session` 범위의 값이므로 `writer: "profile"`, `winningScope: "session"`으로 나온다 [제안: 미결 4번의 기본 선택].
+  - `trace.turn`은 계측이 꺼져 있으면 `traceEnabled: false`, 켜져 있는데 링 버퍼에서 밀려난 Turn이면 `traceEnabled: true`, `retained: false`이고 어느 쪽이든 `entries`는 비어 있다. `ext.timings`의 `traceEnabled`도 같은 뜻이다. 두 결과는 호스트 포트 `TraceReadPort`(`extensions/ports.ts`)가 같은 원천에서 주고, `testRun.*`는 `TestRunControlPort`가 준다. 제어가 실패하면 `TestRunControlError.kind`(`not_a_test_run`, `not_paused`, `not_available`)가 있는 값이다.
 - M4 메서드(단계 M4)는 §3.3.1 표에 있다.
 
 ### 4.3 요청 처리 순서
