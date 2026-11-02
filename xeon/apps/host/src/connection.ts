@@ -1,6 +1,7 @@
 import { detach, parse } from "@fresnel/contracts";
 import {
   checkEnvelope,
+  classifyMethodName,
   internalJsonRpcError,
   RpcIdSchema,
   toJsonRpcError,
@@ -25,6 +26,7 @@ import {
 } from "@fresnel/contracts/wire";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { startEventFanout } from "./handlers/events.ts";
+import { parseExtMethodName, runExtMethod } from "./handlers/m4/ext-method.ts";
 import { isNotImplemented } from "./handlers/not-implemented.ts";
 import type {
   ConnectionHub,
@@ -381,6 +383,36 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       };
     }
 
+    /**
+     * 확장 메서드 `ext.<확장>.<동사>`(닫힌 표 밖의 이름). 호출과 검사는 X(`ExtHost.methods`)가 하고 실패는 WireError로 올라온다.
+     * 결과 모양은 확장 선언을 X가 이미 검사했으므로 `devChecks`의 코어 스키마 검사 대상이 아니다
+     */
+    async function invokeExtension(
+      method: string,
+      rawParams: Record<string, unknown>,
+      rpcId: RpcId,
+      controller: AbortController,
+    ): Promise<void> {
+      const name = parseExtMethodName(method);
+      if (name === undefined) {
+        notFound(rpcId, method);
+        return;
+      }
+      try {
+        const result = await runExtMethod(
+          engine.ports.m4.extMethod,
+          name,
+          rawParams,
+          controller.signal,
+        );
+        if (droppedByReset.has(controller)) return;
+        sender.push({ jsonrpc: "2.0", id: rpcId, result });
+        runAfterResponse(rpcId);
+      } catch (caught) {
+        respondFailure(method, rpcId, controller, caught);
+      }
+    }
+
     async function invoke(
       method: WireMethodName,
       rawParams: Record<string, unknown>,
@@ -415,31 +447,41 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
         sender.push({ jsonrpc: "2.0", id: rpcId, result: toRecord(outcome.result) });
         runAfterResponse(rpcId);
       } catch (caught) {
-        if (droppedByReset.has(controller)) return;
-        afterResponse.delete(rpcId);
-        if (caught instanceof WireError) {
-          respondError(rpcId, toJsonRpcError(caught));
-          // 인증 실패는 응답이 나간 뒤 연결을 닫는다(F wire host.authFailed)
-          if (caught.data.kind === "host.authFailed") {
-            detach(
-              sender.drained().then(() => transport.close("authFailed")),
-              (failure) => {
-                log.error("connection.close_failed", { connectionId, message: messageOf(failure) });
-              },
-            );
-          }
-        } else if (controller.signal.aborted) {
-          respondError(rpcId, toJsonRpcError(wireError("request.cancelled")));
-        } else {
-          const traceId = ids.next("evt");
-          log.error("handler.threw", {
-            traceId,
-            method,
-            message: messageOf(caught),
-            stack: stackOf(caught),
-          });
-          respondError(rpcId, internalJsonRpcError(traceId));
+        respondFailure(method, rpcId, controller, caught);
+      }
+    }
+
+    /** 처리기가 던진 값을 JSON-RPC 오류로 응답한다. WireError는 그대로, 취소는 5001, 그 밖은 -32603과 traceId */
+    function respondFailure(
+      method: string,
+      rpcId: RpcId,
+      controller: AbortController,
+      caught: unknown,
+    ): void {
+      if (droppedByReset.has(controller)) return;
+      afterResponse.delete(rpcId);
+      if (caught instanceof WireError) {
+        respondError(rpcId, toJsonRpcError(caught));
+        // 인증 실패는 응답이 나간 뒤 연결을 닫는다(F wire host.authFailed)
+        if (caught.data.kind === "host.authFailed") {
+          detach(
+            sender.drained().then(() => transport.close("authFailed")),
+            (failure) => {
+              log.error("connection.close_failed", { connectionId, message: messageOf(failure) });
+            },
+          );
         }
+      } else if (controller.signal.aborted) {
+        respondError(rpcId, toJsonRpcError(wireError("request.cancelled")));
+      } else {
+        const traceId = ids.next("evt");
+        log.error("handler.threw", {
+          traceId,
+          method,
+          message: messageOf(caught),
+          stack: stackOf(caught),
+        });
+        respondError(rpcId, internalJsonRpcError(traceId));
       }
     }
 
@@ -478,14 +520,16 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
         respondError(id, toJsonRpcError(wireError("host.helloRequired")));
         return;
       }
-      if (!isWireMethod(method) || isNotImplemented(handlers[method])) {
+      const isExtension = !isWireMethod(method) && classifyMethodName(method) === "extension";
+      if (!isExtension && (!isWireMethod(method) || isNotImplemented(handlers[method]))) {
         notFound(id, method);
         return;
       }
       const controller = new AbortController();
       inflight.set(id, controller);
       try {
-        await invoke(method, request.params, id, controller);
+        if (isWireMethod(method)) await invoke(method, request.params, id, controller);
+        else await invokeExtension(method, request.params, id, controller);
       } finally {
         // 재설정 뒤 새 화면이 같은 id로 다시 보냈다면 그 항목을 지우지 않는다
         if (inflight.get(id) === controller) inflight.delete(id);

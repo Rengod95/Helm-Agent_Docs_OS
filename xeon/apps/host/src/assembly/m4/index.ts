@@ -1,6 +1,7 @@
 import { testRunControlOf, traceReadOf, type ExtHost } from "@fresnel/ext-host";
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
 import type { DialogAreaPort } from "../../handlers/m4/dialog-area.ts";
+import type { ExtMethodPort } from "../../handlers/m4/ext-method.ts";
 import type { ExtReadPort } from "../../handlers/m4/ext-read.ts";
 import type { ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
@@ -18,6 +19,8 @@ import { createProfileTestRunPort } from "./profile-test-run-port.ts";
 export interface M4Ports {
   readonly extRead: ExtReadPort;
   readonly extUi: ExtUiVersionPort;
+  /** 확장 메서드 `ext.<확장>.<동사>`의 호출(X-2, X-3). 닫힌 처리기 표 밖이라 연결 층이 바로 쓴다 */
+  readonly extMethod: ExtMethodPort;
   readonly profileTestRun: ProfileTestRunPort;
   readonly dialogArea: DialogAreaPort;
   readonly devkit: DevkitPort;
@@ -44,6 +47,18 @@ export function createM4Ports(
   return {
     extRead: createExtReadPort(deps, extReadSources),
     extUi: createExtUiVersionPort(deps),
+    extMethod: {
+      async call(request) {
+        return await host.methods.call({
+          extension: request.extension,
+          verb: request.verb,
+          params: request.params,
+          threadId: request.threadId,
+          signal: request.signal,
+          caller: "wire",
+        });
+      },
+    },
     profileTestRun: createProfileTestRunPort(deps),
     dialogArea: createDialogAreaPort(deps),
     devkit: createDevkitPort(deps),
