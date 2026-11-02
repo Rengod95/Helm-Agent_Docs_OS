@@ -56,11 +56,11 @@ export function ShadowedScopes({
 }
 
 /** 관리 정책 잠금 문장(lockInfo). 정책 파일 경로는 툴팁(title)으로만. */
-export function LockNote({ path }: { path: string }) {
+export function LockNote({ path = "/etc/fresnel/managed.json" }: { path?: string }) {
   return (
     <p title={path} className="m-0 flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary">
       <Lock aria-hidden className="size-icon-xs flex-none" />
-      <span className="flex-none">관리 정책으로 잠겨 있어요</span>
+      <span className="flex-none">관리 정책으로 잠김</span>
     </p>
   );
 }

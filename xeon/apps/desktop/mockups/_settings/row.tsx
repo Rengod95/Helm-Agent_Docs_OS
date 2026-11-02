@@ -6,6 +6,7 @@
 import { Badge, Field } from "@caustic/react";
 import { useId, type ReactNode } from "react";
 import { Check, L } from "../_shell";
+import { LockNote } from "./parts";
 
 export type Scope = "default" | "user" | "project" | "thread" | "managed";
 export type Apply = "now" | "nextTurn" | "restart" | "boundary";
@@ -61,7 +62,7 @@ export interface SettingRowProps {
   error?: ReactNode | undefined;
   warning?: ReactNode | undefined;
   disabled?: boolean | undefined;
-  /** 컨트롤 아래 덧붙임(가려진 범위 값, 잠금 문장). */
+  /** 컨트롤 아래 덧붙임(가려진 범위 값, 잠금 문장). 범위가 관리면 비워 두어도 "관리 정책으로 잠김" 줄이 붙는다. */
   extra?: ReactNode | undefined;
   children?: ReactNode | undefined;
 }
@@ -107,7 +108,7 @@ export function SettingRow({
           {children}
         </Field>
       )}
-      {extra}
+      {extra ?? (scope === "managed" ? <LockNote /> : null)}
     </div>
   );
 }

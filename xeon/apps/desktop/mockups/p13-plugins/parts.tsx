@@ -2,7 +2,7 @@
 // 런타임 행을 토큰으로 만든다(빈틈: List에 행 아래 펼침 내용과 두 줄 메타 슬롯이 없음).
 import { Badge, Button, Switch } from "@caustic/react";
 import { useState, type ReactNode } from "react";
-import { ChevronRight, Clock } from "../_shell";
+import { ChevronRight, Clock, Lock } from "../_shell";
 import type { Ext, Source } from "./fixtures";
 
 const SOURCE: Record<Source, string> = {
@@ -137,6 +137,11 @@ export function PluginRow({ e, safe = false }: { e: Ext; safe?: boolean }) {
       <span className="flex-none text-ui-sm text-text-tertiary">{SOURCE[e.source]}</span>
       {safeOff ? (
         <span className="text-ui-sm text-text-tertiary">안전 모드라 꺼짐</span>
+      ) : e.source === "managed" ? (
+        <span className="inline-flex items-center gap-1 text-ui-sm text-text-tertiary">
+          <Lock aria-hidden className="size-icon-xs flex-none" />
+          관리 정책으로 잠김
+        </span>
       ) : (
         <StateMark e={e} safe={false} />
       )}

@@ -122,7 +122,7 @@ function StatusCell({ r, safe, changed = false }: { r: Row; safe: boolean; chang
     case "capwait":
       return <DotText tone="warning">{T.capabilityWait}</DotText>;
     case "managed":
-      return <DotText tone="neutral">꺼짐 · 관리 정책</DotText>;
+      return <DotText tone="neutral">꺼짐 · 관리 정책으로 잠김</DotText>;
     case "auto":
       return <DotText tone="danger">{`${T.autoDisabled} · 연속 ${r.failures ?? 0}`}</DotText>;
     case "exempt":
