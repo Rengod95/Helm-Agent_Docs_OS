@@ -131,18 +131,9 @@ export interface WorkbenchNavEntry {
   badgeLabel?: string;
 }
 export const workbenchNav: WorkbenchNavEntry[] = [
-  { id: "overview", label: T.overview },
-  {
-    id: "extensions",
-    label: T.extension,
-    badge: "!1",
-    tone: "danger",
-    badgeLabel: "주의 확장 1개",
-  },
+  { id: "overview", label: T.workbench },
   { id: "tests", label: T.trials, badge: "1*", badgeLabel: "실행 중 1개" },
   { id: "metrics", label: T.metrics },
-  { id: "compose", label: T.compose },
-  { id: "engine", label: T.engine },
 ];
 
 /** "플러그인 화면" 목록: 켜진 확장의 page 기여(ADR-0021 §3.2), 확장별 묶음. id는 "<확장>/<화면>". */
