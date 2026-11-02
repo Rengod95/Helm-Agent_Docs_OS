@@ -3005,7 +3005,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
 | X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 drive 락을 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 Registration을 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
 | X-18 | 프로필 타입(`Profile`)과 호스트 저장소, `profile.*` 메서드 | `F.wire-settings.spec` §3.3·§3.9, `L4.host-service.spec` | 없음 [결정: 2026-10-31 사용자] |
-| X-19 | Test run 단계 경계 멈춤: 멈춤 표지가 있으면 다음 `step_end` 경계 뒤 새 turn과 drive 재호출을 열지 않음. drive 락 유지, 사용자 입력은 큐에만 | `X.primitives.spec` §4.4.3, `L1.loop.spec` | 없음 [결정: 2026-10-31 사용자] |
+| X-19 | Test run 단계 경계 멈춤: 멈춤 표지가 있으면 다음 `step_end` 경계 뒤 새 turn과 drive 재호출을 열지 않음. drive 락 유지, 사용자 입력은 큐에만 | `X.primitives.spec` §4.4.8, `L1.loop.spec` | 없음 [결정: 2026-10-31 사용자] |
 | X-20 | 안전 모드에서 X 훅을 싣지 않음 | `X.operations.spec` §4.7 | 외부 훅 M4 [결정: 2026-10-31 사용자] |
 | X-21 | `shouldSuggestSafeMode`를 실제 시작 경로에서 부르고 `host.status`에 싣기(W-39) | `X.operations.spec`, `L4.host-service.spec` | 호출처 없음(코드 결함) |
 | X-22 | 서비스 `fresnel.devkit` 계약(Plugin Builder와 W-27·W-28·W-47·W-49의 공통 구현) | `F.extensions.spec`, `L3.authoring.spec` §3.3 | 없음 |
