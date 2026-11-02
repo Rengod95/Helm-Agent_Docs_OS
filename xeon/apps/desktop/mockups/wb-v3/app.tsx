@@ -1,4 +1,4 @@
-// 캔버스 v3 앱: 공용 셸(크래프트) 위에 "구조"(그림 · 층 · 표), 플러그인 상세, 프로필 차이.
+// 캔버스 v3 앱: 공용 셸(크래프트) 위에 "개요"(층 × 단계 표 하나), 플러그인 상세, 프로필 차이.
 // 왼쪽 패널 "보기 기준" 칸 하나가 모든 화면을 움직인다(결정 3). 오른쪽 well = 받은 요청 · 기록 · 대화.
 import {
   NoticeList,
@@ -9,6 +9,7 @@ import {
   workbenchNav,
   workbenchRightTabs,
 } from "../_shell";
+import { T } from "../_shell/terms";
 import { viewOf } from "./data";
 import { ViewField } from "./parts/view-field";
 import { DetailScreen } from "./screens/detail";
@@ -25,7 +26,7 @@ function Notice() {
       className="pointer-events-none absolute inset-x-0 bottom-14 z-30 flex justify-center"
     >
       {m.notice !== null && (
-        <span className="animate-enter rounded-lg bg-surface-raised px-3 py-1.5 text-ui-dense text-text-primary shadow-3">
+        <span className="animate-enter rounded-full bg-surface-raised px-4 py-2 text-body text-text-primary shadow-3">
           {m.notice}
         </span>
       )}
@@ -36,7 +37,7 @@ function Notice() {
 // 결정 6: 만들기는 구성에 합침. "개요"는 "구조"로(SPEC §1).
 const NAV = workbenchNav
   .filter((n) => n.id !== "create")
-  .map((n) => (n.id === "overview" ? { ...n, label: "구조" } : n));
+  .map((n) => (n.id === "overview" ? { ...n, label: T.structure } : n));
 
 function Page() {
   const m = useMock();
@@ -55,7 +56,7 @@ function Page() {
     <Shell
       activeNav="overview"
       onNavSelect={(id) => {
-        if (id === "overview") m.set({ screen: "overview", focus: null, overlay: null });
+        if (id === "overview") m.set({ screen: "structure", focus: null, overlay: null });
         else m.notify("이 화면은 크래프트 1·2차 시안에 있어요");
       }}
       workbench={{
@@ -70,7 +71,6 @@ function Page() {
                 k === "preset"
                   ? {
                       preview: val,
-                      screen: m.screen === "overview" ? "layers" : m.screen,
                       view: m.view === "all" ? "t1" : m.view,
                     }
                   : { view: val },
@@ -80,13 +80,13 @@ function Page() {
             onExplain={() =>
               m.set({
                 overlay: "explain",
-                screen: m.screen === "detail" || m.screen === "diff" ? "layers" : m.screen,
+                screen: "structure",
               })
             }
             onGoToThread={goThread}
             preview={m.preview}
             onClearPreview={() =>
-              m.set({ preview: null, screen: m.screen === "diff" ? "layers" : m.screen })
+              m.set({ preview: null, screen: m.screen === "diff" ? "structure" : m.screen })
             }
           />
         ),
@@ -106,11 +106,12 @@ function Page() {
         runtime: {
           drive: "helm",
           extFailures: m.failure ? 3 : 1,
-          onOpen: () => m.set({ screen: "layers", failure: true }),
+          onOpen: () =>
+            m.set({ screen: "structure", failure: true, pick: { row: "L3", col: "boundary" } }),
         },
       })}
     >
-      <div className="v3 relative flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
         {screen}
         <Notice />
       </div>

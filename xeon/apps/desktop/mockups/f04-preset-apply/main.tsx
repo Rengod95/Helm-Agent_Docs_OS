@@ -1,0 +1,29 @@
+// N-41 프로필 적용 목업 진입점. ?state=<id>(기본 apply-reverted), ?scenario=<id>[&step=n&hold=1], ?theme=dark, ?dev=1(시나리오 막대).
+import { loadCausticFonts, MockRoot, ShellStateProvider } from "../_shell";
+import "./mockup.css";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { App } from "./app";
+import { STATES } from "./flow";
+
+loadCausticFonts();
+
+const root = document.getElementById("root");
+if (root !== null)
+  createRoot(root).render(
+    <StrictMode>
+      <MockRoot states={STATES}>
+        {(state) => (
+          <ShellStateProvider
+            key={state}
+            initialArea="workbench"
+            initialWorkbenchTab="inbox"
+            initialEndOpen={false}
+            initialContextThreadId="t1"
+          >
+            <App state={state} />
+          </ShellStateProvider>
+        )}
+      </MockRoot>
+    </StrictMode>,
+  );

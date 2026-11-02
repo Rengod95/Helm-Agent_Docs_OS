@@ -1,12 +1,12 @@
 // 블록 구성기 고정 데이터. Helm 값은 L3.helm.spec(§3.1 매니페스트, §3.5 신호, §3.6 렌즈, §4.2 전이표, §4.6 쓰기 거부,
 // §3.8 지식 소비, §3.4 레코드, §6 설정)을 그대로 옮겼다. lens-review는 사용자가 Helm을 복제해 고치는 새 그룹(wb2 시안과 같은 이름).
-// 블록 = 그룹 안 코드 한 덩어리(훅 핸들러, drive, 레코드 쓰기)를 훅과 연산(on·post·drive·scope)으로 묶은 설계 단위다.
+// 블록 = 그룹 안 코드 한 덩어리(훅 핸들러, drive, 레코드 쓰기)를 훅과 연산(on·post·drive·register)으로 묶은 설계 단위다.
 // 런타임에는 블록이 없다: 매니페스트(points, optional, recordKinds)와 setup 코드로 풀린다(SPEC.md "런타임 표현 간극").
 import sampleImports from "./sample-imports.txt?raw";
 
-export type Op = "on" | "post" | "drive" | "scope" | "record";
+export type Op = "on" | "post" | "drive" | "register" | "record";
 export type SlotKind =
-  | "scope"
+  | "register"
   | "signal"
   | "lens"
   | "drive"
@@ -57,10 +57,10 @@ export interface Block {
 }
 
 export const SLOT_LABEL: Record<SlotKind, string> = {
-  scope: "그룹(scope)",
+  register: "그룹",
   signal: "신호 감지",
-  lens: "주입·렌즈",
-  drive: "단계 머신(drive)",
+  lens: "렌즈 주입",
+  drive: "단계 머신",
   guard: "가드",
   consume: "기능 소비",
   record: "기록",
@@ -68,14 +68,6 @@ export const SLOT_LABEL: Record<SlotKind, string> = {
 };
 
 // ── Helm: 참고 구성(설치된 그룹에서 읽음, 읽기 전용) ─────────────────────────────
-
-export const helmScope = {
-  name: "helm",
-  meta: "L3 · group · user · 0.1.0",
-  state: "HelmState v1 · 60 KiB 예산",
-  settings: "ext.helm.autoStart suggest · maxLenses 3 · writeGuard 켬",
-  limits: { maxTurns: 4, maxSpawns: 8, maxTokens: 400000 },
-};
 
 export const helmBlocks: Block[] = [
   {
@@ -89,8 +81,8 @@ export const helmBlocks: Block[] = [
     ],
     consumes: [],
     produces: [
-      { id: "signal-rec", label: "signal.detected", to: "rec-signal" },
-      { id: "signal-post", label: "제안 post", to: "q-post" },
+      { id: "signal-rec", label: "신호 기록", to: "rec-signal" },
+      { id: "signal-post", label: "제안", to: "q-post" },
     ],
     lines: ["stuck 오류 3번 · repeat 같은 호출 3번 · newDomain 빈 검색 2번 → pending"],
     code: { file: "src/index.ts", from: 9, to: 11 },
@@ -113,7 +105,7 @@ export const helmBlocks: Block[] = [
     op: "drive",
     points: [],
     consumes: [{ cap: "loop.spawn explorer", mode: "requires", provider: "agents" }],
-    produces: [{ id: "drive-state", label: "commit", to: "st-doc" }],
+    produces: [{ id: "drive-state", label: "상태 커밋", to: "st-doc" }],
     lines: [
       "diverge → explore → converge → apply",
       "턴 4 · spawn 8 · 토큰 400k · 경계마다 다시 호출",
@@ -155,8 +147,8 @@ export const helmBlocks: Block[] = [
     points: [],
     consumes: [{ cap: "work.tasks", mode: "optional", provider: "work", note: "멱등 쓰기" }],
     produces: [
-      { id: "rec-disc-out", label: "discovery.recorded", to: "rec-disc" },
-      { id: "rec-fin-out", label: "inquiry.finished", to: "rec-fin" },
+      { id: "rec-disc-out", label: "발견 기록", to: "rec-disc" },
+      { id: "rec-fin-out", label: "탐구 끝 기록", to: "rec-fin" },
     ],
     lines: ["apply 끝에 발견 1건씩 · findingId로 중복 제거"],
     code: { file: "src/index.ts", from: 21, to: 23 },
@@ -166,7 +158,7 @@ export const helmBlocks: Block[] = [
     slot: "restore",
     title: "상태 복원",
     op: "on",
-    points: [{ point: "session.start", fold: "tap", failure: "open" }],
+    points: [{ point: "thread.start", fold: "tap", failure: "open" }],
     consumes: [],
     produces: [],
     lines: [],
@@ -207,44 +199,22 @@ export const providers: Provider[] = [
   { id: "work", name: "work", layer: "L2", meta: "builtin · 0.4.0", caps: [{ cap: "work.tasks" }] },
 ];
 
-/** 오른쪽 열: 블록이 내는 것(F 기록, 입력 큐, 상태 문서) */
-export const outputsFor = (g: string) => [
+/** 오른쪽 열: 블록이 내는 것(F 기록, 입력 큐, 상태 문서). 포트 이름은 사람이 읽는 말, 기록 종류 id는 코드 보기에만. */
+export const outputsFor = (_g: string) => [
   {
     id: "records",
     title: "공개 기록",
-    meta: "F records",
     ports: [
-      { id: "rec-signal", label: `grp.${g}.signal.detected` },
-      { id: "rec-disc", label: `grp.${g}.discovery.recorded` },
-      { id: "rec-fin", label: `grp.${g}.inquiry.finished` },
+      { id: "rec-signal", label: "신호" },
+      { id: "rec-disc", label: "발견" },
+      { id: "rec-fin", label: "탐구 끝" },
     ],
-    foot: "읽는 쪽 L4 상태 표시 · 다른 그룹은 readsRecordKinds로",
   },
-  {
-    id: "queue",
-    title: "입력 큐",
-    meta: "post",
-    ports: [{ id: "q-post", label: "제안 · 종료 알림" }],
-    foot: "requestId 멱등",
-  },
-  {
-    id: "state",
-    title: "상태 문서",
-    meta: "비공개",
-    ports: [{ id: "st-doc", label: `x_${g.replace(/-/g, "_")}_state` }],
-    foot: "다른 그룹은 읽지 않아요",
-  },
+  { id: "queue", title: "입력 큐", ports: [{ id: "q-post", label: "제안 · 끝 알림" }] },
+  { id: "state", title: "상태 문서", ports: [{ id: "st-doc", label: "그룹 상태" }] },
 ];
 
 // ── lens-review: 작성 중(검사 실패 상태) ─────────────────────────────────────────
-
-export const draftScope = {
-  name: "lens-review",
-  meta: "L3 · group · user · 0.1.0 · 작성 중",
-  state: "State v1",
-  settings: "ext.lens-review.maxLenses 6",
-  limits: { maxTurns: 4, maxSpawns: 4, maxTokens: 200000 },
-};
 
 export const invalidBlocks: Block[] = [
   helmBlocks[0]!,
@@ -255,7 +225,7 @@ export const invalidBlocks: Block[] = [
     issue: {
       level: "warning",
       code: "maxLenses > maxSpawns",
-      text: "렌즈 6개인데 spawn 상한이 4라 렌즈 2개는 skipped가 돼요",
+      text: "렌즈 6개인데 보조 에이전트 한도가 4라 렌즈 2개는 건너뛰어요",
     },
   },
   {
@@ -270,7 +240,7 @@ export const invalidBlocks: Block[] = [
     issue: {
       level: "error",
       code: "drive_duplicate",
-      text: "drive는 그룹마다 하나예요. 단계 머신에 상태로 합쳐요",
+      text: "단계 머신은 그룹마다 하나예요. 하나로 합쳐요",
     },
     code: { file: "src/index.ts", from: 0, to: 0 },
   },
@@ -280,7 +250,7 @@ export const invalidBlocks: Block[] = [
     issue: {
       level: "error",
       code: "on_capability_call",
-      text: "on 핸들러에서는 기능을 부르지 않아요. first 훅이라 예외는 거부가 돼요",
+      text: "이 블록에서는 기능을 부를 수 없어요",
     },
   },
   {
@@ -292,7 +262,7 @@ export const invalidBlocks: Block[] = [
     issue: {
       level: "error",
       code: "capability_missing",
-      text: "web.search가 requires인데 이 맥락에 provider가 없어 그룹이 켜지지 않아요",
+      text: "web.search를 주는 확장이 없어 그룹이 켜지지 않아요",
     },
   },
   helmBlocks[5]!,
@@ -315,38 +285,23 @@ export const draftProviders: Provider[] = [
 
 export const palette = {
   group: [
-    {
-      slot: "signal" as SlotKind,
-      title: "신호 감지",
-      hint: "tap 훅에서 세고 경계에서 커밋",
-      op: "on",
-    },
-    { slot: "lens" as SlotKind, title: "주입·렌즈", hint: "input.agent.before collect", op: "on" },
-    {
-      slot: "drive" as SlotKind,
-      title: "단계 머신",
-      hint: "주도를 받아 턴·자식을 구동",
-      op: "drive",
-    },
-    { slot: "guard" as SlotKind, title: "가드", hint: "first 훅에서 막기", op: "on" },
-    {
-      slot: "consume" as SlotKind,
-      title: "기능 소비",
-      hint: "drive 안에서 L2 기능 읽기",
-      op: "drive",
-    },
-    { slot: "record" as SlotKind, title: "기록", hint: "grp.<그룹>.* 공개 기록", op: "record" },
-    { slot: "restore" as SlotKind, title: "상태 복원", hint: "session.start tap", op: "on" },
+    { slot: "signal" as SlotKind, title: "신호 감지" },
+    { slot: "lens" as SlotKind, title: "렌즈 주입" },
+    { slot: "drive" as SlotKind, title: "단계 머신" },
+    { slot: "guard" as SlotKind, title: "가드" },
+    { slot: "consume" as SlotKind, title: "기능 소비" },
+    { slot: "record" as SlotKind, title: "기록" },
+    { slot: "restore" as SlotKind, title: "상태 복원" },
   ],
   flow: [
-    { id: "phase", title: "단계", hint: "상태 하나 · 커밋 뒤 반환" },
-    { id: "turn", title: "모델 턴", hint: "loop.turn · 턴 상한 1 소모" },
-    { id: "spawn", title: "자식 펼치기", hint: "loop.spawn 여러 개 병렬" },
-    { id: "join", title: "모으기", hint: "모두 끝나면 다음으로" },
-    { id: "read", title: "기능 읽기", hint: "모델 턴 없이 L2 읽기" },
-    { id: "gate", title: "사람 확인", hint: "받은 요청으로 묻고 기다림" },
-    { id: "record", title: "기록·post", hint: "record · post" },
-    { id: "end", title: "끝", hint: "idle로 · 주도 반납" },
+    { id: "phase", title: "단계" },
+    { id: "turn", title: "모델 턴" },
+    { id: "spawn", title: "자식 펼치기" },
+    { id: "join", title: "모으기" },
+    { id: "read", title: "기능 읽기" },
+    { id: "gate", title: "사람 확인" },
+    { id: "record", title: "기록" },
+    { id: "end", title: "끝" },
   ],
 };
 
@@ -376,21 +331,14 @@ export const lenses: Lens[] = [
   { id: "analogy", title: "다른 분야 유사", status: "failed", tool: "web_fetch 시간 초과" },
 ];
 
-/** 테스트 실행 타임라인: 단계 경계마다 커밋(§4.5) */
-export const trialSteps = [
-  { at: "14:02:01", label: "lease.acquired", note: "턴 4 · spawn 8 · 토큰 400k", done: true },
-  { at: "14:02:01", label: "commit diverge", note: "렌즈 3 고름", done: true },
-  { at: "14:02:19", label: "loop.turn diverge", note: "턴 1/4", done: true },
-  { at: "14:02:20", label: "commit explore", note: "lensesStarted", done: true },
-  {
-    at: "14:02:31",
-    label: "tool.call.before 거부",
-    note: "bash · exec · main",
-    done: true,
-    guard: true,
-  },
-  { at: "14:02:44", label: "spawn 3/8", note: "explorer × 3", done: true },
-  { at: "지금", label: "explored 대기", note: "1 done · 1 failed · 1 running", done: false },
+/** 테스트 실행 기록: 단계 경계마다 커밋(§4.5). 화면에는 사람이 읽는 말만 둔다. */
+export const trialSteps: { at: string; label: string; done: boolean; guard?: boolean }[] = [
+  { at: "14:02", label: "주도를 받았어요", done: true },
+  { at: "14:02", label: "확산 단계로", done: true },
+  { at: "14:02", label: "탐색 단계로", done: true },
+  { at: "14:02", label: "쓰기 한 번을 막았어요", done: true, guard: true },
+  { at: "14:02", label: "렌즈 셋을 펼쳤어요", done: true },
+  { at: "지금", label: "렌즈 답을 기다려요", done: false },
 ];
 
 // ── 프로필 쌓기 ───────────────────────────────────────────────────────────────────
@@ -508,7 +456,7 @@ export const stackBands: { layer: string; title: string; items: StackItem[] }[] 
         tier: "core",
         now: "enabled",
         pick: "keep",
-        locked: "끌 수 없어요 · core tier",
+        locked: "끌 수 없어요",
       },
     ],
   },
@@ -527,7 +475,7 @@ export const chainOrder = [
 export const scaffoldFiles = [
   {
     path: ".fresnel-plugin/plugin.json",
-    from: ["scope", "signal", "lens", "guard", "consume", "record", "restore"],
+    from: ["register", "signal", "lens", "guard", "consume", "record", "restore"],
     state: "changed",
   },
   {
@@ -536,13 +484,13 @@ export const scaffoldFiles = [
     state: "changed",
   },
   { path: "src/state.ts", from: ["drive"], state: "changed" },
-  { path: "src/settings.ts", from: ["scope", "drive"], state: "changed" },
+  { path: "src/settings.ts", from: ["register", "drive"], state: "changed" },
   { path: "test/unit.test.ts", from: [], state: "template" },
   { path: "test/replay.test.ts", from: ["drive"], state: "template" },
   { path: "test/manifest.test.ts", from: [], state: "template" },
   { path: "package.json", from: [], state: "template" },
   { path: "tsconfig.json", from: [], state: "template" },
-  { path: "README.md", from: ["scope"], state: "template" },
+  { path: "README.md", from: ["register"], state: "template" },
 ] as const;
 
 /** 코드 줄과 블록. 줄 번호는 1부터. 블록 id가 있으면 그 블록에서 나온 줄 */
@@ -553,13 +501,13 @@ export const codeIndex: { text: string; block?: string }[] = [
     .split("\n")
     .map((text) => ({ text })),
   { text: "" },
-  { text: "const group: GroupModule = defineGroup<State>({", block: "scope" },
-  { text: "  manifest: groupManifest(manifestJson),", block: "scope" },
+  { text: "const group: GroupModule = defineGroup<State>({", block: "register" },
+  { text: "  manifest: groupManifest(manifestJson),", block: "register" },
   {
     text: "  state: { schema: lensReviewState, initial: initialState, version: 1 },",
-    block: "scope",
+    block: "register",
   },
-  { text: "  setup(g) {", block: "scope" },
+  { text: "  setup(g) {", block: "register" },
   {
     text: '    g.on("tool.execution.after", tally);          // 신호 감지: 메모리 집계',
     block: "signal",
@@ -603,29 +551,29 @@ export const codeIndex: { text: string; block?: string }[] = [
   },
   { text: "      }", block: "drive" },
   { text: "    }, { limits: { maxTurns: 4, maxSpawns: 6, maxTokens: 200000 } });", block: "drive" },
-  { text: '    g.on("session.start", checkRestore);          // 상태 복원', block: "restore" },
-  { text: "  },", block: "scope" },
-  { text: "});", block: "scope" },
+  { text: '    g.on("thread.start", checkRestore);          // 상태 복원', block: "restore" },
+  { text: "  },", block: "register" },
+  { text: "});", block: "register" },
   { text: "export default group;" },
 ];
 
 export const manifestIndex: { text: string; block?: string }[] = [
   { text: "{" },
-  { text: '  "schemaVersion": 1,', block: "scope" },
-  { text: '  "name": "lens-review",', block: "scope" },
-  { text: '  "version": "0.1.0",', block: "scope" },
-  { text: '  "layer": "L3",', block: "scope" },
-  { text: '  "kind": "group",', block: "scope" },
-  { text: '  "entry": "./dist/index.js",', block: "scope" },
+  { text: '  "schemaVersion": 1,', block: "register" },
+  { text: '  "name": "lens-review",', block: "register" },
+  { text: '  "version": "0.1.0",', block: "register" },
+  { text: '  "layer": "L3",', block: "register" },
+  { text: '  "kind": "group",', block: "register" },
+  { text: '  "entry": "./dist/index.js",', block: "register" },
   { text: '  "usesDrive": true,', block: "drive" },
   { text: '  "usesPost": true,', block: "signal" },
-  { text: '  "points": [', block: "scope" },
+  { text: '  "points": [', block: "register" },
   { text: '    "input.agent.before",', block: "lens" },
   { text: '    "tool.call.before",', block: "guard" },
   { text: '    "tool.execution.after",', block: "signal" },
   { text: '    "boundary.settle.after",', block: "signal" },
-  { text: '    "session.start"', block: "restore" },
-  { text: "  ],", block: "scope" },
+  { text: '    "thread.start"', block: "restore" },
+  { text: "  ],", block: "register" },
   { text: '  "requires": [],', block: "consume" },
   { text: '  "optional": [', block: "consume" },
   { text: '    { "id": "web.search", "range": "^1.0.0" },', block: "consume" },
@@ -639,6 +587,6 @@ export const manifestIndex: { text: string; block?: string }[] = [
     block: "record",
   },
   { text: "  ],", block: "record" },
-  { text: '  "trust": { "level": "user" }', block: "scope" },
+  { text: '  "trust": { "level": "user" }', block: "register" },
   { text: "}" },
 ];

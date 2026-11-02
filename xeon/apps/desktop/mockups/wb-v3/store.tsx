@@ -1,17 +1,24 @@
 // 시안 상태: ?state= 마다 처음 화면을 정하고, 이후는 로컬 상태로 고른다.
+// 구조 화면은 층 × 단계 표 하나다(지도·그림 보기는 쓰지 않음). 옛 상태 id는 그대로 두고 모두 표로 연다.
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import type { StageId } from "./data";
+import type { LayerId, StageId } from "./data";
 
-export type Screen = "overview" | "layers" | "detail" | "matrix" | "diff";
+export type Screen = "structure" | "detail" | "diff";
 export type Overlay = null | "add-l1" | "explain";
+
+/** 표에서 고른 것: 칸(row+col), 층 행(row만), 단계 열(col만), 없음. */
+export interface Pick {
+  row?: LayerId | undefined;
+  col?: StageId | undefined;
+}
 
 export interface MockState {
   screen: Screen;
   /** 보기 기준(맥락) 값 */
   view: string;
-  /** 포커스(관계 렌즈)할 플러그인 */
+  /** 포커스 렌즈할 플러그인 */
   focus: string | null;
-  stage: StageId | null;
+  pick: Pick;
   detail: string;
   overlay: Overlay;
   /** 프로필 적용 미리보기(보는 것 ≠ 바꾸는 것) */
@@ -20,26 +27,26 @@ export interface MockState {
 }
 
 export const STATES = [
-  { id: "overview", label: "개요 · 턴 흐름 그림" },
-  { id: "layers", label: "층 · 내장과 내 것, 더하기" },
-  { id: "add-l1", label: "에이전트 핵심(L1)에 더하기 · 시작" },
-  { id: "focus", label: "포커스 · Helm 관계 렌즈" },
+  { id: "overview", label: "개요 · 도구 단계 고름" },
+  { id: "layers", label: "개요 · 기능 층 고름" },
+  { id: "add-l1", label: "에이전트 코어(L1)에 더하기 · 시작" },
+  { id: "focus", label: "포커스 · Helm 관계" },
   { id: "detail", label: "상세 · Helm 구성과 흐름" },
   { id: "detail-router", label: "상세 · 비용 라우터(내 L1)" },
   { id: "explain", label: "보기 기준 설명(처음)" },
-  { id: "thread", label: "대화 · 실시간" },
+  { id: "thread", label: "개요 · 대화 실시간" },
   { id: "preset-preview", label: "프로필 적용 미리보기" },
   { id: "preset-diff", label: "프로필 ↔ 대화 차이" },
-  { id: "matrix", label: "층 × 훅 표" },
+  { id: "matrix", label: "개요 · 고른 것 없음" },
   { id: "failure", label: "실패" },
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];
 
 const base: MockState = {
-  screen: "overview",
+  screen: "structure",
   view: "all",
   focus: null,
-  stage: "tool",
+  pick: { col: "tool" },
   detail: "helm",
   overlay: null,
   preview: null,
@@ -51,27 +58,27 @@ export function initialFor(id: StateId): MockState {
     case "overview":
       return base;
     case "layers":
-      return { ...base, screen: "layers", stage: null };
+      return { ...base, pick: { row: "L2" } };
     case "add-l1":
-      return { ...base, screen: "layers", stage: null, overlay: "add-l1" };
+      return { ...base, pick: { row: "L1" }, overlay: "add-l1" };
     case "focus":
-      return { ...base, screen: "layers", stage: null, focus: "helm" };
+      return { ...base, pick: {}, focus: "helm" };
     case "detail":
       return { ...base, screen: "detail", detail: "helm" };
     case "detail-router":
       return { ...base, screen: "detail", detail: "cost-router" };
     case "explain":
-      return { ...base, screen: "layers", stage: null, overlay: "explain" };
+      return { ...base, pick: {}, overlay: "explain" };
     case "thread":
-      return { ...base, screen: "layers", stage: null, view: "t1" };
+      return { ...base, view: "t1" };
     case "preset-preview":
-      return { ...base, screen: "layers", stage: null, view: "t1", preview: "p-explore" };
+      return { ...base, pick: {}, view: "t1", preview: "p-explore" };
     case "preset-diff":
       return { ...base, screen: "diff", view: "t1", preview: "p-explore" };
     case "matrix":
-      return { ...base, screen: "matrix" };
+      return { ...base, pick: {} };
     case "failure":
-      return { ...base, screen: "layers", stage: null, failure: true };
+      return { ...base, pick: { row: "L3", col: "boundary" }, failure: true };
   }
 }
 

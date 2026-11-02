@@ -31,7 +31,6 @@ interface Init {
   trial: boolean;
   draft: boolean;
   gateAdded: boolean;
-  nav: "compose" | "create";
   well: "palette" | "inspect" | null;
   closeStart: boolean;
 }
@@ -44,7 +43,6 @@ function initOf(s: StateId): Init {
     trial: false,
     draft: false,
     gateAdded: false,
-    nav: "compose",
     well: null,
     closeStart: false,
   };
@@ -52,9 +50,9 @@ function initOf(s: StateId): Init {
     case "S1":
       return base;
     case "S2":
-      return { ...base, group: "new", selected: null, nav: "create", well: "palette" };
+      return { ...base, group: "new", selected: null, well: "palette" };
     case "S3":
-      return { ...base, group: "lens-review", selected: "drive2", nav: "create" };
+      return { ...base, group: "lens-review", selected: "drive2" };
     case "S4":
       return { ...base, view: "flow", selected: "explore" };
     case "S5":
@@ -65,7 +63,6 @@ function initOf(s: StateId): Init {
         selected: "gate",
         draft: true,
         gateAdded: true,
-        nav: "create",
         well: "palette",
         closeStart: true,
       };
@@ -74,7 +71,7 @@ function initOf(s: StateId): Init {
     case "S7":
       return { ...base, view: "profile", selected: null };
     case "S8":
-      return { ...base, view: "code", group: "lens-review", selected: "drive", nav: "create" };
+      return { ...base, view: "code", group: "lens-review", selected: "drive" };
   }
 }
 

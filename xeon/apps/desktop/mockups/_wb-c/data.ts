@@ -31,6 +31,9 @@ export interface Run {
   title?: string;
   profile?: string;
   steps?: [number, number];
+  /** 테스트 대화 비교: 이 테스트의 렌즈 최대 수, 지금까지 나온 발견 */
+  lenses?: number;
+  findings?: number;
   commits?: number;
   diffCuts?: number[];
   protectedFiles?: number;
@@ -48,6 +51,8 @@ export const runs: Run[] = [
     title: "렌즈 5개로 넓히기",
     profile: "explore",
     steps: [2, 6],
+    lenses: 5,
+    findings: 4,
   },
   {
     id: "r2",
@@ -60,6 +65,8 @@ export const runs: Run[] = [
     title: "렌즈 3개와 비교",
     profile: "explore",
     steps: [6, 6],
+    lenses: 3,
+    findings: 3,
   },
   {
     id: "r3",

@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import {
   defaultStatusCells,
   inbox,
+  josa,
+  navigateToPage,
   NoticeList,
   Shell,
   T,
@@ -13,7 +15,6 @@ import {
   workbenchNav,
   workbenchRightTabs,
   type StatusCell,
-  josa,
 } from "../_shell";
 
 /** 크래프트 내비 id → 묶음 C 시안 폴더(목업 전용 이동). */
@@ -22,12 +23,9 @@ const NAV_FOLDER: Record<string, string> = {
   extensions: "c03-ext-list",
 };
 
+/** 옆 시안 폴더로 옮긴다. theme·lang·type·chrome·dev 쿼리는 _shell의 navigateToPage(라우팅 한 곳)가 이어 준다. */
 export function goFolder(folder: string, query = ""): void {
-  const q = new URLSearchParams(window.location.search);
-  const theme = q.get("theme") === "dark" ? "theme=dark" : "";
-  const dev = q.get("dev") === "1" ? "dev=1" : "";
-  const all = [query, theme, dev].filter((x) => x !== "").join("&");
-  window.location.href = `../${folder}/index.html${all === "" ? "" : `?${all}`}`;
+  navigateToPage(folder, query);
 }
 
 export interface DevModeInfo {
