@@ -593,11 +593,21 @@ export interface StartupOptions {
   readonly disabled: readonly ExtensionName[];
 }
 
-export interface LoadCandidate {
+export interface ExtensionLoadCandidate {
+  readonly kind?: "extension";
   readonly name: ExtensionName;
   readonly tier: Tier;
   readonly layer: ExtensionLayer;
 }
+
+/** 외부 훅(X 훅) 로드 후보. `name`은 훅 id다. 안전 모드에서는 tier와 상관없이 싣지 않는다(§4.6.2) */
+export interface HookLoadCandidate {
+  readonly kind: "hook";
+  readonly name: HookId;
+  readonly tier: Tier;
+}
+
+export type LoadCandidate = ExtensionLoadCandidate | HookLoadCandidate;
 
 export type SkipReason = "safe_mode" | "disabled_flag";
 
@@ -1189,10 +1199,11 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `builtin` tier 중 L0~L2 내장 패키지(`platform-*`, `cap-*`) | 켜짐 |
 | `builtin` tier 중 L3 내장 그룹(학습 그룹) | 꺼짐 [결정: review.m3-design-inputs D-M3-07 a] |
 | `user`, `project` tier 확장(외부 plugin, 외부 group). 기본 플러그인 Helm은 사용자 확장 위치에 설치되므로 여기에 든다([결정: review.m3-design-inputs D-M3-01 c]) | 꺼짐 |
-| 외부 훅 전체 | 꺼짐 |
+| 외부 훅 전체(X 훅) | 꺼짐 [결정: 사용자 2026-11-01, 안전 모드에서 X 훅도 싣지 않는다] |
 | 관리(managed) 범위 확장(2차) | 꺼짐(`user` tier) [결정: 오케스트레이터 기본값, M4 X-13] |
 
-- 기준: `allowedInSafeMode`는 tier가 `guard`·`core`이거나, tier가 `builtin`이고 `layer`가 `L1`·`L2`이면 참이다. 내장 L0 패키지는 on을 쓰지 않으므로 이 판정과 별개로 항상 실린다.
+- 훅 판정(X-20): 외부 훅 로더는 훅을 싣기 전에 확장과 같은 `startupFilter`에 `HookLoadCandidate`를 넘긴다. 훅 후보는 tier와 상관없이 안전 모드에서 `allowedInSafeMode`가 거짓이고 사유는 `safe_mode`다. `--disable-ext`는 확장 이름만 가리키므로 훅 id가 같은 이름이어도 훅에는 적용하지 않는다. 같은 호출에서 확장은 `--disable-ext`가 안전 모드보다 먼저 사유가 된다. 외부 훅 로더(§3.7, M4)는 아직 코드에 없어 이 판정 함수와 시험(`safe-mode-x-hooks.test.ts`)만 있다.
+- 기준: `allowedInSafeMode`는 확장 후보에서 tier가 `guard`·`core`이거나, tier가 `builtin`이고 `layer`가 `L1`·`L2`이면 참이다. 내장 L0 패키지는 on을 쓰지 않으므로 이 판정과 별개로 항상 실린다.
 - [결정: review.m3-design-inputs D-M3-07 a] L3 내장 그룹을 끈다. 이유: drive를 쓰는 그룹은 루프 진행을 바꾸므로, 복구 목적의 시작에서는 기본 루프만 남긴다. 안전 모드는 계획 v2의 "모든 확장을 끈 채 시작"(`_research/layer-plan-v2.json` X-c 안전 모드 행)을 내장 L0~L2와 보안 가드를 남기는 범위로 읽는다. Helm은 L3 기본 그룹([결정] `_research/decisions-log.md` 2026-10-21 계획 v2)이므로 안전 모드에서 기본 그룹이 빠지는 제품 동작이 된다. 사용자 확인 전이다(§10 미결 19). 확인 결과 L3 내장 그룹을 남기기로 하면 이 행과 `allowedInSafeMode`, §9 수용 기준 21을 함께 고친다.
 
 #### 4.6.3 동작
@@ -1501,6 +1512,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 35. 실제 디스패치의 처리기 결과가 `ok`, `error`, `over_budget`으로 기록되고 `traceReadOf(host)`로 읽힌다(`trace-buffer.test.ts` "trace: real dispatches through the host land in traceReadOf(host)").
 36. Turn당 항목 5,000개, 항목당 핸들러 기록 256개, 버퍼의 thread 32개를 넘으면 넘는 것이 버려지거나 가장 오래된 thread가 빠진다(`trace-buffer.test.ts` "a turn keeps at most 5000 entries and an entry at most 256 handlers", "the least recently written thread is dropped past 32 threads").
 37. 계측 켜짐과 꺼짐의 핸들러당 디스패치 차이는 `dispatch-lease.benchmark.ts`의 `dispatch_overhead_trace_on_vs_off` 한 줄로 기록된다. 기준은 없고 값만 낸다(§4.8.5).
+38. 안전 모드에서 훅 후보는 tier와 상관없이 모두 빠지고 `safe_mode`가 사유이며, 일반 모드에서는 모두 실린다. `--disable-ext`는 훅에 적용되지 않고, 확장은 `--disable-ext`가 안전 모드보다 먼저 사유가 된다(`test/operations/safe-mode-x-hooks.test.ts`).
 
 ## 10. 미결 사항
 
@@ -1534,7 +1546,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 19. [결정: review.m3-design-inputs D-M3-07 a] 안전 모드에서 L3 내장 그룹을 끈다(§4.6.2). Helm은 기본 플러그인(D-M3-01 c)이라 `user` tier로 실리고 같이 꺼진다.
 20. (해소, M3-REQ-32) 샌드박스 강제는 L0 실행 경로에서 하고 on 핸들러는 두지 않는다(§4.1.4). on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다.
 21. [결정: 2026-10-28 사용자] 외부 훅(§3.7, §4.7)은 M3 밖이고 M4로 옮긴다. D-M3-11 c안 원문("로더·안전 모드만")과 같은 판단이다. 이 항목은 닫았다.
-22. [미결] `traceReadOf`와 `TraceSettings`를 루트(`src/index.ts`)에서 내보내려면 `X.primitives.spec` §3.1 표에 행을 더해야 한다. `test/primitives/surface.test.ts`가 루트 이름을 그 표와 대조하므로 표가 먼저다. 이 변경에서는 `primitives/index.ts`까지만 내보낸다. L4 조립(`assembly/m4/index.ts`)이 루트 이름을 쓰기 전에 필요하다.
+22. (해소) `traceReadOf`와 `TraceSettings`는 `X.primitives.spec` §3.1 표에 행이 있고 루트(`src/index.ts`)에서 내보낸다.
 23. [미결] `x.operations.trace.turnsPerThread`의 기본값 20과 thread 상한 32는 [제안]이다. 계측 기본 켬은 사용자 결정이다. 비용(`dispatch_overhead_trace_on_vs_off`)이 기준을 넘으면 기본값을 다시 정하도록 사용자에게 묻는다(`review/m4-plan.md` §5).
 24. [미결] `trace.turn`의 `traceEnabled`·`retained` 조립은 wire 처리기의 몫이다. `turn()`이 `undefined`를 돌려주므로 처리기가 `enabled()`로 `traceEnabled`를 채우고 `retained: false`를 만든다(§3.9). 현재 `apps/host/src/handlers/m4/profile-test-run.ts`는 `trace.turn`을 아직 구현하지 않았다.
 25. [미결] `denied` 실행 결과를 만드는 경로가 없다(§4.8.2). 실패 집계에는 들어가 있다.
