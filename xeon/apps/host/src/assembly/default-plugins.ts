@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { attemptAsync, parse, parseJson, type Logger } from "@fresnel/contracts";
 import type { AgentDefinition } from "@fresnel/contracts/services";
 import { parseDefinitionFile } from "@fresnel/core-agents";
-import { installDefaultPlugin, type PluginInstallFs } from "@fresnel/ext-host";
+import { installDefaultPlugin, type PluginInstallFs, type VersionHistory } from "@fresnel/ext-host";
 import { Type } from "typebox";
 
 // X.loading-trust.spec §4.4.7. 릴리즈에 든 기본 플러그인(Helm, 계정 회전)을 첫 실행에 사용자 확장 위치로 복사한다. 조립 루트 코드(DR-14 예외 2).
@@ -50,6 +50,8 @@ export interface DefaultPluginDeps {
   readonly stateDir: string;
   /** 임시 복사 디렉터리 뿌리(탐색 밖). 생략하면 extensionsDir의 부모 아래 `.staging` */
   readonly stagingRoot?: string;
+  /** 있으면 교체할 때 버전 기록을 남긴다(§4.4.7). 없으면 기록하지 않는다 */
+  readonly history?: VersionHistory;
   readonly logger: Logger;
 }
 
@@ -147,6 +149,8 @@ async function installOne(
     source,
     destination,
     ...(deps.stagingRoot === undefined ? {} : { stagingRoot: deps.stagingRoot }),
+    // 교체 때 이전 설치본과 새 번들 버전을 버전 기록에 남긴다(§4.4.7, HS-108)
+    ...(deps.history === undefined ? {} : { history: deps.history }),
   });
   if (!installed.ok) {
     return {
