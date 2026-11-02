@@ -11,11 +11,6 @@ export const FOLD_LABEL: Record<Fold, string> = {
   chain: "고치기",
   collect: "모으기",
 };
-/** 한 줄 뜻. 순서가 뜻을 바꾸는 fold에만 있다. */
-export const FOLD_ORDER: Partial<Record<Fold, string>> = {
-  first: "앞쪽이 먼저 정해요",
-  chain: "앞쪽부터 차례로 고쳐요",
-};
 export type Failure = "closed" | "open" | "skip";
 export type PhaseId = "start" | "think" | "act" | "wrap";
 
@@ -45,7 +40,7 @@ export interface HookDef {
 export const HOOKS: HookDef[] = [
   {
     id: "thread.start",
-    label: `${T.thread}을 열 때`,
+    label: `${T.thread}를 열 때`,
     fold: "tap",
     phase: "start",
     failure: "open",
@@ -116,7 +111,7 @@ export const HOOKS: HookDef[] = [
   },
   {
     id: "thread.compact.before",
-    label: `${T.thread}을 요약하기 전`,
+    label: `${T.thread}를 요약하기 전`,
     fold: "first",
     phase: "wrap",
     failure: "open",
@@ -124,7 +119,7 @@ export const HOOKS: HookDef[] = [
   },
   {
     id: "thread.shutdown",
-    label: `${T.thread}을 닫을 때`,
+    label: `${T.thread}를 닫을 때`,
     fold: "tap",
     phase: "wrap",
     failure: "open",

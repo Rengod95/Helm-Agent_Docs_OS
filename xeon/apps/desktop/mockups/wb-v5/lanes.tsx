@@ -1,15 +1,25 @@
 // 순서: 한 턴이 흐르는 순간(훅)을 위에서 아래로, 줄마다 그 순간에 걸린 핸들러를 칩으로. 켜기·끄기, 끌어서 순서 바꾸기,
 // 더하기, 내장을 플러그인으로 대체하기를 칩에서 바로 한다. 실패는 칩 자리에서 보이고 작은 서랍이 자세히 말한다.
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Button, IconButton } from "@caustic/react";
-import { X } from "../_shell";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  Badge,
+  Button,
+  Chip,
+  IconButton,
+  Input,
+  Popover,
+  SectionHeader,
+  Separator,
+  Switch,
+} from "@caustic/react";
+import { GripVertical, Plus, Terminal, X } from "../_shell";
 import { T } from "../_shell/terms";
 import {
   CAPS,
   FOLD_LABEL,
   HOOKS,
-  LEAD,
   LAYER_CODE,
+  LEAD,
   OTHER_HOOKS,
   PHASES,
   capSlot,
@@ -20,47 +30,16 @@ import {
   type Plugin,
 } from "./data";
 import { useDragSource } from "./drag";
-import { GRP, Mark, SHAPE_OF } from "./marks";
+import { Mark, SHAPE_OF } from "./marks";
 import { litOf, useMock } from "./store";
+import { vtName } from "./viewport";
 
 const ROW =
   "grid grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)] gap-x-3 border-t border-border-subtle px-4 py-2.5";
 
-function useDismiss(open: boolean, close: () => void) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return undefined;
-    const down = (e: PointerEvent): void => {
-      if (ref.current !== null && e.target instanceof Node && !ref.current.contains(e.target))
-        close();
-    };
-    const key = (e: globalThis.KeyboardEvent): void => {
-      if (e.key === "Escape") close();
-    };
-    window.addEventListener("pointerdown", down);
-    window.addEventListener("keydown", key);
-    return () => {
-      window.removeEventListener("pointerdown", down);
-      window.removeEventListener("keydown", key);
-    };
-  }, [open, close]);
-  return ref;
-}
-
 // ── 칩 ────────────────────────────────────────────────────────────
-function Chip({
-  p,
-  hook,
-  index,
-  ordered,
-  replacer,
-}: {
-  p: Plugin;
-  hook: string | null;
-  index: number;
-  ordered: boolean;
-  replacer?: boolean;
-}) {
+// 칩 전체가 끌기 대상이다(data-chip). 켜기·실패·대체는 칩 안의 caustic 조각이다.
+function PluginChip({ p, hook, replacer }: { p: Plugin; hook: string | null; replacer?: boolean }) {
   const m = useMock();
   const picked = m.sel.k === "plugin" && m.sel.id === p.id;
   const lit = litOf(m.sel, m.plugins, m.order).plugins.has(p.id);
@@ -83,94 +62,56 @@ function Chip({
     }
   };
   const isGroup = p.group !== undefined;
+  // 같은 플러그인이 여러 줄에 걸려도 보기 전환에서는 맨 위 줄의 칩 하나만 이름을 갖는다
+  const firstHook = HOOKS.find((d) => (m.order[d.id] ?? []).includes(p.id))?.id;
   const sub = reach === "thread" ? "이 대화" : reach === "project" ? "프로젝트" : null;
   return (
-    <div
+    <Chip
       data-chip={p.id}
+      size="lg"
+      tone={isGroup ? "info" : "neutral"}
+      variant={picked ? "solid" : lit ? "soft" : "outline"}
       onPointerDown={hook === null ? undefined : drag}
-      className={`group/chip inline-flex h-8 max-w-full select-none items-center gap-1.5 rounded-full border pe-3 ps-1.5 text-ui-sm ${
-        picked
-          ? "border-text-primary bg-text-primary text-surface-base shadow-[0_0_0_3px_var(--cs-color-surface-base),0_0_0_4.5px_var(--cs-color-border-default)]"
-          : `${isGroup ? "" : "bg-surface-base"} ${isGroup ? "" : lit ? "border-text-primary" : "border-border-default"} ${on ? "text-text-primary" : "text-text-tertiary"}`
-      } ${dragging ? "opacity-35" : ""} ${!m.matches(p) ? "opacity-35" : ""}`}
       style={{
         touchAction: "none",
         cursor: hook === null ? "default" : "grab",
-        ...(isGroup && !picked
-          ? { background: GRP.soft, borderColor: lit ? GRP.graphic : GRP.border }
-          : {}),
+        viewTransitionName: firstHook === hook ? vtName(p.id) : undefined,
       }}
+      className={`max-w-full select-none ${on || picked ? "" : "text-text-tertiary"} ${dragging || !m.matches(p) ? "opacity-35" : ""}`}
     >
-      {hook !== null ? (
-        <span
-          aria-hidden
-          className={`grid w-3 flex-none grid-cols-2 gap-[2px] px-[1px] ${picked ? "opacity-70" : "opacity-40"}`}
-        >
-          {Array.from({ length: 6 }, (_, i) => (
-            <span key={i} className="size-[3px] rounded-full bg-current" />
-          ))}
-        </span>
-      ) : (
-        <span aria-hidden className="w-1" />
-      )}
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        aria-label={`${p.name} ${on ? "끄기" : "켜기"}`}
-        onClick={() => m.toggle(p.id)}
-        className="grid size-4 flex-none cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
-      >
-        <Mark
-          shape={SHAPE_OF[p.layer]}
-          size={18}
-          on={on}
-          group={isGroup}
-          failing={h !== undefined}
-          autoOff={h?.autoOff === true}
-          inverse={picked}
-        />
-      </button>
-      <button
-        type="button"
-        onClick={() => m.select({ k: "plugin", id: p.id })}
-        onKeyDown={onKey}
-        aria-pressed={picked}
-        className="flex min-w-0 cursor-pointer items-center gap-1.5 whitespace-nowrap border-0 bg-transparent p-0 text-start text-inherit outline-none focus-visible:underline"
-      >
-        <span className="truncate">{p.name}</span>
-        {ordered && (
-          <span
-            className={`font-mono text-mono-sm ${picked ? "opacity-70" : "text-text-tertiary"}`}
-          >
-            {index + 1}
-          </span>
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        {hook !== null && (
+          <GripVertical
+            aria-hidden
+            className={`size-icon-xs flex-none ${picked ? "" : "opacity-40"}`}
+          />
         )}
-      </button>
-      {h !== undefined && (
+        <Switch size="xs" checked={on} onCheckedChange={() => m.toggle(p.id)} aria-label={p.name} />
+        <Mark shape={SHAPE_OF[p.layer]} size={14} group={isGroup} inverse={picked} />
         <button
           type="button"
-          onClick={() => m.openDrawer(p.id)}
-          className={`cursor-pointer whitespace-nowrap border-0 bg-transparent p-0 text-footnote outline-none focus-visible:underline ${picked ? "text-surface-base" : "text-danger-text"}`}
+          onClick={() => m.select({ k: "plugin", id: p.id })}
+          onKeyDown={onKey}
+          aria-pressed={picked}
+          className="flex min-w-0 cursor-pointer items-center gap-1.5 whitespace-nowrap border-0 bg-transparent p-0 text-start text-inherit outline-none focus-visible:underline"
         >
-          · {h.autoOff === true ? T.autoDisabled : `실패 ${h.fails}`}
+          <span className="truncate">{p.name}</span>
         </button>
-      )}
-      {h === undefined && sub !== null && (
-        <span
-          className={`whitespace-nowrap text-footnote ${picked ? "opacity-70" : "text-text-tertiary"}`}
-        >
-          · {sub}
-        </span>
-      )}
-      {replacer === true && (
-        <span
-          className={`whitespace-nowrap rounded-full px-1.5 text-footnote ${picked ? "bg-surface-base text-text-primary" : "bg-text-primary text-surface-base"}`}
-        >
-          대체
-        </span>
-      )}
-    </div>
+        {h !== undefined && (
+          <Chip size="xs" tone="danger" onClick={() => m.openDrawer(p.id)}>
+            {h.autoOff === true ? T.autoDisabled : `실패 ${h.fails}`}
+          </Chip>
+        )}
+        {h === undefined && sub !== null && (
+          <span
+            className={`whitespace-nowrap text-footnote ${picked ? "opacity-70" : "text-text-tertiary"}`}
+          >
+            {sub}
+          </span>
+        )}
+        {replacer === true && <Badge size="xs">대체</Badge>}
+      </span>
+    </Chip>
   );
 }
 
@@ -178,58 +119,44 @@ function BuiltinChip({ name, struck, slot }: { name: string; struck: boolean; sl
   const m = useMock();
   const picked = m.sel.k === "builtin" && m.sel.slot === slot;
   return (
-    <button
-      type="button"
-      aria-pressed={picked}
+    <Chip
+      variant="dashed"
+      size="lg"
+      pressed={picked}
       onClick={() => m.select({ k: "builtin", slot })}
-      className={`inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed bg-transparent px-3 text-ui-sm outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)] ${
-        picked
-          ? "border-text-primary text-text-primary"
-          : "border-border-strong text-text-secondary"
-      }`}
     >
       <span className={struck ? "line-through opacity-70" : ""}>{name}</span>
       <span className="text-footnote text-text-tertiary">내장</span>
-    </button>
+    </Chip>
   );
 }
 
 // ── 더하기·대체 팝오버 ────────────────────────────────────────────
 function Pop({
-  children,
+  anchor,
   label,
-  className = "",
+  children,
 }: {
-  children: (close: () => void) => ReactNode;
+  anchor: ReactNode;
   label: string;
-  className?: string;
+  children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useDismiss(open, () => setOpen(false));
   return (
-    <div ref={ref} className="relative inline-flex">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={`inline-flex h-8 cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-border-strong bg-transparent px-3 text-ui-sm text-text-secondary outline-none hover:bg-neutral-hover focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)] ${className}`}
-      >
-        {label}
-      </button>
-      {open && (
-        <div
-          role="dialog"
-          aria-label={label}
-          className="animate-enter absolute left-0 top-9 z-30 grid w-64 gap-0.5 rounded-2xl border border-border-default bg-surface-raised p-1.5 shadow-3"
-        >
-          {children(() => setOpen(false))}
-        </div>
-      )}
-    </div>
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      anchor={anchor}
+      aria-label={label}
+      size="md"
+      radius="lg"
+      align="start"
+      arrow={false}
+    >
+      {children(() => setOpen(false))}
+    </Popover>
   );
 }
-const ITEM =
-  "flex min-h-8 w-full cursor-pointer items-center justify-between gap-3 rounded-xl border-0 bg-transparent px-3 text-start text-body text-text-primary outline-none hover:bg-neutral-hover focus-visible:shadow-[inset_0_0_0_2px_var(--cs-color-focus-ring)]";
 
 function AddPop({ hook }: { hook: string }) {
   const m = useMock();
@@ -237,31 +164,43 @@ function AddPop({ hook }: { hook: string }) {
   const lane = m.order[hook] ?? [];
   const rest = m.plugins.filter((p) => !lane.includes(p.id) && p.layer !== "L2");
   return (
-    <Pop label="+ 더하기">
+    <Pop
+      anchor={
+        <Chip variant="dashed" size="lg" icon={<Plus />}>
+          더하기
+        </Chip>
+      }
+      label="더하기"
+    >
       {(close) => (
         <>
-          <span className="px-3 pt-1 text-footnote text-text-tertiary">설치한 것</span>
-          <div className="grid max-h-40 gap-0.5 overflow-y-auto">
-            {rest.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className={ITEM}
-                onClick={() => {
-                  m.addToLane(hook, p.id);
-                  close();
-                }}
-              >
-                <span className="truncate">{p.name}</span>
-                <span className="flex-none text-footnote text-text-tertiary">
-                  {m.isOn(p.id) ? LAYER_CODE[p.layer] : "꺼짐"}
-                </span>
-              </button>
-            ))}
-          </div>
-          <span className="px-3 pt-1.5 text-footnote text-text-tertiary">{T.hook} 명령 하나</span>
+          {rest.length > 0 && (
+            <>
+              <div className="grid max-h-40 gap-0.5 overflow-y-auto">
+                {rest.map((p) => (
+                  <Button
+                    key={p.id}
+                    variant="ghost"
+                    size="sm"
+                    radius="md"
+                    className="w-full justify-between"
+                    onClick={() => {
+                      m.addToLane(hook, p.id);
+                      close();
+                    }}
+                  >
+                    <span className="truncate">{p.name}</span>
+                    <span className="flex-none text-footnote text-text-tertiary">
+                      {m.isOn(p.id) ? LAYER_CODE[p.layer] : "꺼짐"}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+              <Separator variant="soft" />
+            </>
+          )}
           <form
-            className="flex items-center gap-1.5 px-1.5 pb-1"
+            className="flex items-center gap-1.5"
             onSubmit={(e) => {
               e.preventDefault();
               const text = cmd.trim();
@@ -271,28 +210,39 @@ function AddPop({ hook }: { hook: string }) {
               close();
             }}
           >
-            <input
+            <Input
+              size="xs"
+              prefix={<Terminal />}
+              aria-label="명령"
+              containerClassName="min-w-0 flex-1"
+              className="font-mono text-mono-sm"
               value={cmd}
-              onChange={(e) => setCmd(e.target.value)}
-              placeholder="./check.sh"
-              aria-label={`${hook}에 걸 명령`}
-              className="h-8 min-w-0 flex-1 rounded-lg border border-border-default bg-surface-base px-2.5 font-mono text-mono-sm text-text-primary outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
+              onValueChange={setCmd}
             />
-            <Button size="xs" variant="outline" type="submit" disabled={cmd.trim() === ""}>
+            <Button
+              size="xs"
+              fieldHeight
+              variant="outline"
+              type="submit"
+              disabled={cmd.trim() === ""}
+            >
               걸기
             </Button>
           </form>
-          <button
-            type="button"
-            className={`${ITEM} border-t border-border-subtle`}
+          <Separator variant="soft" />
+          <Button
+            variant="ghost"
+            size="sm"
+            radius="md"
+            iconStart={<Plus />}
+            className="w-full justify-start"
             onClick={() => {
               m.openBuilder(hook);
               close();
             }}
           >
-            <span>새로 만들기</span>
-            <span className="text-footnote text-text-tertiary">{T.authoringExt}</span>
-          </button>
+            새로 만들기
+          </Button>
         </>
       )}
     </Pop>
@@ -303,26 +253,32 @@ function ReplacePop({ slot, candidates }: { slot: string; candidates: Plugin[] }
   const m = useMock();
   if (candidates.length === 0) return null;
   return (
-    <Pop label="대체">
-      {(close) => (
-        <>
-          <span className="px-3 pt-1 text-footnote text-text-tertiary">이것으로 대체</span>
-          {candidates.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className={ITEM}
-              onClick={() => {
-                m.replace(slot, p.id);
-                close();
-              }}
-            >
-              <span className="truncate">{p.name}</span>
-              <span className="flex-none text-footnote text-text-tertiary">{p.version}</span>
-            </button>
-          ))}
-        </>
-      )}
+    <Pop
+      anchor={
+        <Chip variant="dashed" size="lg">
+          대체
+        </Chip>
+      }
+      label="대체"
+    >
+      {(close) =>
+        candidates.map((p) => (
+          <Button
+            key={p.id}
+            variant="ghost"
+            size="sm"
+            radius="md"
+            className="w-full justify-between"
+            onClick={() => {
+              m.replace(slot, p.id);
+              close();
+            }}
+          >
+            <span className="truncate">{p.name}</span>
+            <span className="flex-none text-footnote text-text-tertiary">{p.version}</span>
+          </Button>
+        ))
+      }
     </Pop>
   );
 }
@@ -339,7 +295,7 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
   const ids = m.order[def.id] ?? [];
   const slot = hookSlot(def.id);
   const by = m.replaced[slot];
-  const ordered = def.fold === "first" || def.fold === "chain";
+  // 순서가 결과를 정하는 줄(막기·고치기)만 번호를 단다.
   const over = m.drag?.over?.hook === def.id ? m.drag.over.index : null;
   const draggedId = m.drag?.over?.hook === def.id || m.drag?.from === def.id ? m.drag.id : null;
   const shown = ids.filter((id) => id !== by);
@@ -355,7 +311,7 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
     if (p === undefined) return;
     if (draggedId !== p.id) n += 1;
     if (over !== null && draggedId !== p.id && n === over) body.push(<Marker key={`m${i}`} />);
-    body.push(<Chip key={p.id} p={p} hook={def.id} index={i} ordered={ordered} />);
+    body.push(<PluginChip key={p.id} p={p} hook={def.id} />);
   });
   if (over !== null && over >= players.filter((x) => x.p?.id !== draggedId).length)
     body.push(<Marker key="m-end" />);
@@ -371,9 +327,7 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
         className="grid min-w-0 cursor-pointer content-start gap-0.5 border-0 bg-transparent p-0 text-start outline-none focus-visible:underline"
       >
         {!mono && (
-          <span
-            className={`text-ui-strong ${picked || lit ? "text-text-primary" : "text-text-primary"}`}
-          >
+          <span className="text-ui-strong text-text-primary">
             {def.label}{" "}
             <span className="font-normal text-text-tertiary">· {FOLD_LABEL[def.fold]}</span>
           </span>
@@ -387,7 +341,7 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
       </button>
       <div
         data-lane={def.id}
-        className={`flex min-h-8 min-w-0 flex-wrap content-start items-center gap-2 rounded-2xl ${empty && m.drag?.over?.hook === def.id ? "outline-dashed outline-1 outline-text-primary" : ""}`}
+        className={`flex min-h-8 min-w-0 flex-wrap content-start items-center gap-2 rounded-lg ${empty && m.drag?.over?.hook === def.id ? "outline-dashed outline-1 outline-text-primary" : ""}`}
       >
         {def.builtin !== undefined && (
           <>
@@ -397,7 +351,7 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
                 <span aria-hidden className="text-text-tertiary">
                   →
                 </span>
-                <Chip p={replacer} hook={def.id} index={0} ordered={false} replacer />
+                <PluginChip p={replacer} hook={def.id} replacer />
               </>
             ) : (
               <ReplacePop slot={slot} candidates={candidates} />
@@ -405,22 +359,12 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
           </>
         )}
         {body}
-        {empty ? (
-          <div className="flex h-8 min-w-0 flex-1 items-center justify-between gap-2 rounded-full border border-dashed border-border-strong ps-4 pe-1 text-ui-sm text-text-tertiary">
-            비어 있음
-            <span className="flex items-center gap-1.5">
-              <AddPop hook={def.id} />
-              <button
-                type="button"
-                onClick={() => m.openBuilder(def.id)}
-                className="inline-flex h-8 cursor-pointer items-center whitespace-nowrap rounded-full border border-dashed border-border-strong bg-transparent px-3 text-ui-sm text-text-secondary outline-none hover:bg-neutral-hover focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
-              >
-                + 만들기
-              </button>
-            </span>
-          </div>
-        ) : (
-          <AddPop hook={def.id} />
+        {empty && <span className="text-ui-sm text-text-tertiary">비어 있음</span>}
+        <AddPop hook={def.id} />
+        {empty && (
+          <Chip variant="dashed" size="lg" icon={<Plus />} onClick={() => m.openBuilder(def.id)}>
+            만들기
+          </Chip>
         )}
       </div>
     </div>
@@ -452,14 +396,14 @@ function CapLane({ cap }: { cap: (typeof CAPS)[number] }) {
           (by !== undefined ? (
             <BuiltinChip name={builtin.name} struck slot={slot} />
           ) : (
-            <Chip p={builtin} hook={null} index={0} ordered={false} />
+            <PluginChip p={builtin} hook={null} />
           ))}
         {replacer !== undefined ? (
           <>
             <span aria-hidden className="text-text-tertiary">
               →
             </span>
-            <Chip p={replacer} hook={null} index={0} ordered={false} replacer />
+            <PluginChip p={replacer} hook={null} replacer />
           </>
         ) : (
           <ReplacePop slot={slot} candidates={candidates} />
@@ -478,7 +422,7 @@ export function Drawer() {
   return (
     <section
       aria-label={T.engine}
-      className="animate-enter absolute inset-x-0 bottom-0 z-20 max-h-[62%] overflow-y-auto rounded-t-[24px] border-t border-border-default bg-surface-raised shadow-3"
+      className="animate-enter absolute inset-x-0 bottom-0 z-20 max-h-[62%] overflow-y-auto rounded-t-lg border-t border-border-default bg-surface-raised shadow-3"
     >
       <header className="sticky top-0 flex h-11 items-center justify-between border-b border-border-subtle bg-surface-raised px-4">
         <h3 className="m-0 text-title-3 text-text-primary">{T.engine}</h3>
@@ -487,9 +431,6 @@ export function Drawer() {
         </IconButton>
       </header>
       <div className="grid gap-px">
-        <div className="px-4 pb-1 pt-3 text-footnote text-text-tertiary">
-          {T.extFailed} {failing.length}
-        </div>
         {failing.map((p) => {
           const h = m.health(p.id);
           if (h === undefined) return null;
@@ -499,14 +440,15 @@ export function Drawer() {
               key={p.id}
               className={`border-t border-border-subtle ${open ? "bg-neutral-soft" : ""}`}
             >
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                radius="none"
                 aria-expanded={open}
                 onClick={() => {
                   m.openDrawer(open ? null : p.id);
                   m.select({ k: "plugin", id: p.id });
                 }}
-                className="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 text-start outline-none hover:bg-neutral-hover focus-visible:shadow-[inset_0_0_0_2px_var(--cs-color-focus-ring)]"
+                className="h-auto min-h-11 w-full justify-start gap-3 px-4 text-start"
               >
                 <span
                   aria-hidden
@@ -519,12 +461,12 @@ export function Drawer() {
                   {h.hook}
                 </span>
                 <span className="flex-none text-footnote text-text-tertiary">{h.at}</span>
-              </button>
+              </Button>
               {open && (
                 <div className="grid gap-3 px-4 pb-3 ps-9">
                   <p className="m-0 text-body text-text-primary">{h.text}</p>
                   <div className="font-mono text-mono-sm text-text-tertiary">
-                    연속 {h.fails}/{h.limit} · {T.autoDisabled} 기준
+                    연속 {h.fails}/{h.limit}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button size="xs" variant="outline" onClick={() => m.resetHealth(p.id)}>
@@ -535,11 +477,7 @@ export function Drawer() {
                         끄기
                       </Button>
                     )}
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => m.notify("실행 기록은 아직 모형이에요")}
-                    >
+                    <Button size="xs" variant="ghost" disabled>
                       실행 기록
                     </Button>
                   </div>
@@ -587,32 +525,27 @@ export function Lanes({ rightInset }: { rightInset: number }) {
       style={{ paddingRight: rightInset }}
     >
       <div className="mx-auto max-w-[1040px] pb-8 pt-[108px]">
-        <header className="flex h-12 flex-none items-center justify-between gap-3 px-4">
-          <h2 className="m-0 text-title-3 text-text-primary">순서</h2>
-          <div className="flex items-center gap-4 text-body text-text-secondary">
-            <button
-              type="button"
-              onClick={() => m.openDrawer(null)}
-              className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-body text-text-primary outline-none focus-visible:underline"
-            >
-              <span aria-hidden className="size-1.5 rounded-full bg-danger-graphic" />
-              실패 {failing}
-            </button>
-            <button
-              type="button"
-              onClick={() => m.openDrawer(null)}
-              className="cursor-pointer border-0 bg-transparent p-0 text-body text-text-primary outline-none focus-visible:underline"
-            >
-              {T.lead} {holder?.name ?? "없음"} · {LEAD.turns[0]}/{LEAD.turns[1]}
-            </button>
-          </div>
-        </header>
+        <SectionHeader
+          size="sm"
+          title="순서"
+          className="h-12 items-center px-4"
+          action={
+            <div className="flex items-center gap-4">
+              <Chip size="lg" tone="danger" dot onClick={() => m.openDrawer(null)}>
+                실패 {failing}
+              </Chip>
+              <Button variant="ghost" size="sm" onClick={() => m.openDrawer(null)}>
+                {T.lead} {holder?.name ?? "없음"} · {LEAD.turns[0]}/{LEAD.turns[1]}
+              </Button>
+            </div>
+          }
+        />
         <div>
           {PHASES.map((ph) => (
             <div key={ph.id}>
               <div className="flex items-center gap-3 px-4 pb-1.5 pt-3 text-footnote text-text-tertiary">
                 {ph.label}
-                <span aria-hidden className="h-px flex-1 bg-border-subtle" />
+                <Separator variant="soft" className="flex-1" />
               </div>
               {HOOKS.filter((h) => h.phase === ph.id).map((h) => (
                 <Lane key={h.id} def={h} />
@@ -621,20 +554,21 @@ export function Lanes({ rightInset }: { rightInset: number }) {
           ))}
           <div className="flex items-center gap-3 px-4 pb-1.5 pt-3 text-footnote text-text-tertiary">
             {T.capability} 제공자
-            <span aria-hidden className="h-px flex-1 bg-border-subtle" />
+            <Separator variant="soft" className="flex-1" />
           </div>
           {CAPS.map((c) => (
             <CapLane key={c.id} cap={c} />
           ))}
           <div className="border-t border-border-subtle px-4 py-3">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               aria-expanded={more}
+              className="-ms-2.5"
               onClick={() => setMore((v) => !v)}
-              className="cursor-pointer border-0 bg-transparent p-0 text-body text-text-secondary outline-none hover:text-text-primary focus-visible:underline"
             >
               다른 {T.hook} {OTHER_HOOKS.length} {more ? "접기" : "보기"}
-            </button>
+            </Button>
           </div>
           {more &&
             OTHER_HOOKS.map((o) => (

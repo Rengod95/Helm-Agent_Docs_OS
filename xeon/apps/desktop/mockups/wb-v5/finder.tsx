@@ -1,5 +1,7 @@
-// 찾기: 플러그인, 스킬, 명령, 도구, MCP 서버, 훅, 기능을 한 칸에서 찾는다. 누르면 그것을 넣어 주는 플러그인이 카드로 열린다.
-import { useId, useRef, useState } from "react";
+// 찾기: 플러그인, 스킬, 명령, 도구, MCP 서버, 훅, 기능을 한 칸에서 찾는다. 결과는 위로 열린다(캔버스 왼쪽 아래에 앉는다).
+import { Card, Input, List, ListRow } from "@caustic/react";
+import { useRef, useState } from "react";
+import { Search } from "../_shell";
 import { HOOKS, PIECE_LABEL } from "./data";
 import { useMock } from "./store";
 
@@ -14,7 +16,6 @@ interface Hit {
 
 export function Finder() {
   const m = useMock();
-  const id = useId();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -67,58 +68,61 @@ export function Finder() {
   }
   const shown = hits.slice(0, 8);
   return (
-    <div ref={box} className="relative">
-      <input
-        id={id}
+    <div
+      ref={box}
+      className="pointer-events-auto relative"
+      onBlur={(e) => {
+        if (!(e.relatedTarget instanceof Node && box.current?.contains(e.relatedTarget) === true))
+          setOpen(false);
+      }}
+    >
+      <Input
         type="search"
+        size="sm"
+        variant="soft"
+        radius="lg"
+        prefix={<Search />}
         value={q}
-        onChange={(e) => {
-          setQ(e.target.value);
+        onValueChange={(v) => {
+          setQ(v);
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={(e) => {
-          if (!(e.relatedTarget instanceof Node && box.current?.contains(e.relatedTarget) === true))
-            setOpen(false);
-        }}
         placeholder="찾기"
         aria-label="찾기"
-        className="h-8 w-40 rounded-full border border-transparent bg-bg-inset px-3.5 text-body text-text-primary outline-none placeholder:text-text-tertiary focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
+        containerClassName="w-48"
       />
       {open && needle !== "" && (
-        <div
+        <Card
+          variant="glass"
+          size="xs"
+          radius="lg"
           role="listbox"
           aria-label="찾은 것"
-          className="animate-enter absolute left-0 top-10 z-30 grid w-80 gap-0.5 rounded-2xl border border-border-default bg-surface-raised p-1.5 shadow-3"
+          className="absolute bottom-11 left-0 z-30 w-80"
         >
-          {shown.length === 0 && (
-            <span className="px-3 py-2 text-body text-text-tertiary">없어요</span>
+          {shown.length === 0 ? (
+            <span className="px-2 py-1.5 text-body text-text-tertiary">없어요</span>
+          ) : (
+            <List size="xs" variant="ghost" dividers={false} aria-label="찾은 것">
+              {shown.map((h) => (
+                <ListRow
+                  key={h.key}
+                  title={
+                    <span className={h.mono ? "font-mono text-mono-sm" : undefined}>{h.name}</span>
+                  }
+                  value={h.kind}
+                  description={h.owner === "" ? undefined : h.owner}
+                  onClick={() => {
+                    h.pick();
+                    setOpen(false);
+                    setQ("");
+                  }}
+                />
+              ))}
+            </List>
           )}
-          {shown.map((h) => (
-            <button
-              key={h.key}
-              type="button"
-              role="option"
-              aria-selected={false}
-              onClick={() => {
-                h.pick();
-                setOpen(false);
-                setQ("");
-              }}
-              className="flex min-h-9 w-full cursor-pointer items-center gap-3 rounded-xl border-0 bg-transparent px-3 text-start outline-none hover:bg-neutral-hover focus-visible:shadow-[inset_0_0_0_2px_var(--cs-color-focus-ring)]"
-            >
-              <span className="w-14 flex-none text-footnote text-text-tertiary">{h.kind}</span>
-              <span
-                className={`min-w-0 flex-1 truncate ${h.mono ? "font-mono text-mono-sm" : "text-body"} text-text-primary`}
-              >
-                {h.name}
-              </span>
-              <span className="max-w-24 flex-none truncate text-footnote text-text-tertiary">
-                {h.owner}
-              </span>
-            </button>
-          ))}
-        </div>
+        </Card>
       )}
     </div>
   );

@@ -1,10 +1,171 @@
-/* 크래프트 v5: caustic 스타일 + 공용 셸 CSS. 점 종이 바탕과 끌기 표시만 이 화면의 몫. */
+/* 크래프트 v5: caustic 스타일 + 공용 셸 CSS. 지도의 움직임·코어·점 종이(WebGL이 없을 때)만 이 화면의 몫. */
 @import "@caustic/react/styles.css";
 @import "../_shell/shell.css";
 @source "./";
 
+/* WebGL을 못 쓸 때의 배경: 점 종이와 코어의 옅은 빛. 이동에 0.3배로 따라온다. */
 .wb5-paper {
   background-color: var(--cs-color-surface-base);
-  background-image: radial-gradient(var(--cs-color-border-default) 0.8px, transparent 0.9px);
-  background-size: 14px 14px;
+  background-image:
+    radial-gradient(
+      circle at calc(var(--tx, 0px) + var(--k, 1) * 500px)
+        calc(var(--ty, 0px) + var(--k, 1) * 500px),
+      color-mix(in oklab, var(--cs-color-info-graphic) 9%, transparent),
+      transparent 46%
+    ),
+    radial-gradient(var(--cs-color-border-default) 0.8px, transparent 0.9px);
+  background-size:
+    auto,
+    22px 22px;
+  background-position:
+    0 0,
+    calc(var(--tx, 0px) * 0.3) calc(var(--ty, 0px) * 0.3);
+}
+.wb5-stage {
+  background-color: var(--cs-color-surface-base);
+}
+
+/* 세계 좌표 → 화면: 이동·배율은 CSS 변수 하나(--tx --ty --k)가 쥔다 */
+.wb5-world {
+  transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--k, 1));
+  transform-origin: 0 0;
+}
+
+/* 코어: 겹친 원반(안쪽 하이라이트, 아래 그늘, 바깥 빛) */
+.wb5-core {
+  background:
+    radial-gradient(
+      circle at 32% 22%,
+      color-mix(in oklab, var(--cs-color-text-primary) 55%, white) 0%,
+      transparent 55%
+    ),
+    linear-gradient(
+      160deg,
+      var(--cs-color-text-primary),
+      color-mix(in oklab, var(--cs-color-text-primary) 80%, var(--cs-color-info-graphic))
+    );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -12px 20px rgb(0 0 0 / 0.22),
+    0 0 0 1px color-mix(in oklab, var(--cs-color-text-primary) 70%, transparent),
+    0 0 26px color-mix(in oklab, var(--cs-color-info-graphic) 38%, transparent),
+    0 8px 22px rgb(0 0 0 / 0.16);
+  transition: box-shadow 0.25s;
+}
+.wb5-core-on {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -12px 20px rgb(0 0 0 / 0.22),
+    0 0 0 4px var(--cs-color-surface-base),
+    0 0 0 5.5px var(--cs-color-text-primary),
+    0 0 30px color-mix(in oklab, var(--cs-color-info-graphic) 45%, transparent);
+}
+
+@keyframes wb5-settle {
+  from {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(0.6);
+  }
+}
+@keyframes wb5-ring-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+@keyframes wb5-sweep {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes wb5-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes wb5-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes wb5-ping {
+  0% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  80%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2);
+  }
+}
+
+.wb5-settle {
+  animation: wb5-settle 640ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.wb5-ring {
+  transform-origin: 500px 500px;
+  animation: wb5-ring-in 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.wb5-sweep {
+  stroke-dasharray: 1;
+  animation: wb5-sweep 1100ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.wb5-draw {
+  animation: wb5-sweep 520ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.wb5-fade {
+  animation: wb5-fade-in 420ms ease-out both;
+}
+/* 눈금은 아주 천천히 돈다: 점과 이름표는 그대로다 */
+.wb5-drift {
+  transform-origin: 500px 500px;
+  animation: wb5-spin 360s linear infinite;
+}
+.wb5-drift-rev {
+  animation-duration: 520s;
+  animation-direction: reverse;
+}
+/* 한 턴이 코어를 도는 빛 */
+.wb5-comet {
+  animation: wb5-spin 9s linear infinite;
+}
+/* 실패한 점의 조용한 맥박 */
+.wb5-alert {
+  border: 1.5px solid var(--cs-color-danger-graphic);
+  animation: wb5-ping 2.6s ease-out infinite;
+}
+
+/* 층 패널 이음선: 앞에서 뒤로 천천히 흐른다 */
+@keyframes wb5-flow {
+  to {
+    stroke-dashoffset: -14;
+  }
+}
+.wb5-flow {
+  animation: wb5-flow 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb5-flow,
+  .wb5-settle,
+  .wb5-ring,
+  .wb5-sweep,
+  .wb5-draw,
+  .wb5-fade,
+  .wb5-drift,
+  .wb5-comet {
+    animation: none;
+  }
+  .wb5-sweep {
+    stroke-dashoffset: 0;
+  }
+  .wb5-alert {
+    animation: none;
+    opacity: 0.4;
+    transform: translate(-50%, -50%) scale(1.3);
+  }
 }

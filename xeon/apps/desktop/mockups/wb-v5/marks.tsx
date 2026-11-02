@@ -1,6 +1,6 @@
 // 점의 모양과 색. 층은 모양으로(L1 네모, L2 동그라미, L3 마름모, 외부 세모), 그룹은 색 하나(남보라)로 가른다.
 // 상태는 모양과 무관하게 읽히도록 같은 방식으로 얹는다: 꺼짐 = 속이 빔, 실패 = 붉은 채움 + 붉은 테두리 고리, 고름 = 바깥 검은 고리.
-import { LAYER_NAME, type LayerKey } from "./data";
+import type { LayerKey } from "./data";
 
 export type Shape = "square" | "circle" | "diamond" | "triangle";
 export const SHAPE_OF: Record<LayerKey, Shape> = {
@@ -107,43 +107,4 @@ export function LayerMark({
   group?: boolean;
 }) {
   return <Mark shape={SHAPE_OF[layer]} size={size} group={group} />;
-}
-
-/** 캔버스 한쪽의 범례: 층 = 모양, 그룹/단일 = 색, 꺼짐·실패 = 상태 */
-export function Legend() {
-  const layers: LayerKey[] = ["L1", "L2", "L3", "plugin"];
-  return (
-    <div
-      role="group"
-      aria-label="범례"
-      className="flex flex-col gap-1.5 rounded-2xl border border-border-subtle bg-surface-raised px-3 py-2 text-footnote text-text-secondary shadow-2"
-    >
-      <div className="flex items-center gap-3">
-        {layers.map((l) => (
-          <span key={l} className="inline-flex items-center gap-1">
-            <Mark shape={SHAPE_OF[l]} size={18} />
-            {LAYER_NAME[l]}
-          </span>
-        ))}
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="inline-flex items-center gap-1">
-          <Mark shape="diamond" size={18} group />
-          그룹 구성원
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Mark shape="diamond" size={18} />
-          단일
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Mark shape="diamond" size={18} on={false} />
-          꺼짐
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <Mark shape="diamond" size={18} failing />
-          실패
-        </span>
-      </div>
-    </div>
-  );
 }

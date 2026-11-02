@@ -8,6 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { flushSync } from "react-dom";
+import { reducedMotion } from "./viewport";
 import {
   ANGLE,
   CAPS,
@@ -203,10 +205,10 @@ export function MockProvider({ children }: { children: ReactNode }) {
       const on = (reachMap[id] ?? "off") !== "off" && healthMap[id]?.autoOff !== true;
       if (on) {
         setReach(id, "off");
-        notify("꺼요 · 이번 단계가 끝나면 적용돼요");
+        notify("껐어요");
       } else {
         setReach(id, lastReach.current[id] ?? "project");
-        notify("켜요 · 이번 단계가 끝나면 적용돼요");
+        notify("켰어요");
       }
     },
     [reachMap, healthMap, setReach, notify],
@@ -216,7 +218,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
       setHealthMap((prev) => ({ ...prev, [id]: undefined }));
       if ((reachMap[id] ?? "off") === "off")
         setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
-      notify("다시 켰어요 · 실패 기록은 남아요");
+      notify("다시 켰어요");
     },
     [reachMap, notify],
   );
@@ -245,7 +247,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
       );
       if ((reachMap[id] ?? "off") === "off")
         setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
-      notify(`${hook}에 더했어요 · ${T_PLUGIN_FILE}에 훅이 적혀요`);
+      notify(`${hook}에 더했어요`);
     },
     [order, reachMap, notify],
   );
@@ -261,7 +263,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
       if (id !== null) {
         if ((reachMap[id] ?? "off") === "off")
           setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
-        notify("대체했어요 · 내장은 가려져요");
+        notify("대체했어요");
       } else notify("내장으로 되돌렸어요");
     },
     [reachMap, notify],
@@ -273,8 +275,14 @@ export function MockProvider({ children }: { children: ReactNode }) {
   }, []);
   const closePanel = useCallback(() => setPanel(false), []);
   const setView = useCallback((v: "orbit" | "strata") => {
-    setViewState(v);
-    setBack(v);
+    const apply = (): void => {
+      setViewState(v);
+      setBack(v);
+    };
+    // 보기를 바꿀 때 같은 플러그인의 이름표가 자기 자리로 옮겨 가도록 View Transition을 쓴다(움직임을 줄이면 바로 바꾼다).
+    if (typeof document.startViewTransition === "function" && !reducedMotion())
+      document.startViewTransition(() => flushSync(apply));
+    else apply();
   }, []);
   const openDetail = useCallback((t: DetailTarget, code = false) => {
     setDetail(t);
@@ -372,7 +380,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
       setSel({ k: "plugin", id });
       setPanel(true);
       setBuilder(null);
-      notify(`${REACH_LABEL[c.reach]}에 저장 · 이번 단계가 끝나면 적용돼요`);
+      notify(`${REACH_LABEL[c.reach]}에 저장했어요`);
     },
     [notify],
   );
@@ -487,8 +495,6 @@ export function MockProvider({ children }: { children: ReactNode }) {
   );
   return <MockContext.Provider value={value}>{children}</MockContext.Provider>;
 }
-
-const T_PLUGIN_FILE = "확장 정보 파일";
 
 // ── 파생값 ────────────────────────────────────────────────────────
 export interface Lit {
