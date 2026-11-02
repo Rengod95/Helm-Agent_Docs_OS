@@ -162,6 +162,7 @@ function isEmptyValues<D extends GroupSettingDefs>(
 function wrapLoop(loop: LoopHandle, counter: MetricsCounter): LoopHandle {
   return {
     turn: (input) => loop.turn(input),
+    ask: (request) => loop.ask(request),
     spawn: (spec: SpawnSpec) => {
       counter.bump("spawns");
       return loop.spawn(spec);

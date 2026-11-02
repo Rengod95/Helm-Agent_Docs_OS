@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { defineSettings } from "@fresnel/contracts/settings";
+import { PrimitiveError } from "@fresnel/ext-host";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
 import { defineGroup, GroupSettingsSourceKey, type GroupApi } from "../src/index.ts";
@@ -164,6 +165,49 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
     denies: 0,
     delegates: 0,
   });
+});
+
+test("wrap.loop-forwards-ask-to-the-host-loop", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const outcomes: { readonly code: unknown; readonly message: unknown }[] = [];
+  await install(
+    t,
+    defineGroup({
+      manifest: groupManifestOf({ name: "asks", drives: true }),
+      setup(g) {
+        g.drive(async (loop) => {
+          try {
+            await loop.ask({
+              requestId: "asks:gate:1",
+              card: {
+                questions: [
+                  {
+                    id: "go",
+                    header: "Go",
+                    text: "Go?",
+                    options: [],
+                    multiSelect: false,
+                    allowFreeText: true,
+                  },
+                ],
+              },
+            });
+          } catch (error) {
+            if (error instanceof PrimitiveError) {
+              outcomes.push({ code: error.code, message: error.message });
+            }
+          }
+        });
+      },
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  // ask는 wrapLoop을 지나 호스트의 loop.ask(지금은 T-XD 전의 거부 stub)까지 닿는다
+  expect(outcomes).toEqual([
+    { code: "port_unavailable", message: "loop.ask is not wired yet (X-17, T-XD)" },
+  ]);
 });
 
 test("wrap.settings-of-a-user-trust-group-read-only-its-own-ext-namespace", async () => {
