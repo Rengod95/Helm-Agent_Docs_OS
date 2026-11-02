@@ -1,10 +1,12 @@
 import { defineGroup, type GroupApi, type GroupModule } from "@fresnel/group-sdk";
+import { helmComposition } from "./composition.ts";
 import { helmDrive } from "./drive.ts";
 import { guardWrite } from "./guard.ts";
 import { injectLens } from "./inject.ts";
 import { checkRestore, onLeaseRejected } from "./lifecycle.ts";
 import { helmCommand } from "./command-def.ts";
 import { helmManifest } from "./manifest.ts";
+import { registerHelmMethods } from "./methods.ts";
 import { helmSettings, helmSettingsOf, type HelmSettings } from "./settings.ts";
 import { observeTool, settle, type TallyStore, type ToolExecutionEndView } from "./signals.ts";
 import { helmStateDecl, type HelmState } from "./state.ts";
@@ -22,6 +24,7 @@ function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
   const rejected = onLeaseRejected(g);
 
   g.registerCommand("helm", helmCommand(g, tallies, missingMeta));
+  registerHelmMethods(g);
   g.on("input.agent.before", (payload, ctx) =>
     inject(payload, { threadId: ctx.threadId, state: ctx.state }),
   );
@@ -55,6 +58,7 @@ function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
  */
 export const helmGroup: GroupModule = defineGroup<HelmState, typeof helmSettings.defs>({
   manifest: helmManifest,
+  composition: helmComposition,
   state: helmStateDecl,
   settings: helmSettings,
   setup: setupHelm,
@@ -64,6 +68,9 @@ export const helmGroup: GroupModule = defineGroup<HelmState, typeof helmSettings
 export const extension: GroupModule["entry"] = helmGroup.entry;
 
 export { helmManifest } from "./manifest.ts";
+export { helmComposition } from "./composition.ts";
+export { helmMethodDecls } from "./methods.ts";
+export { helmUi } from "./ui-decl.ts";
 export {
   DEFAULT_HELM_DRIVE_LIMITS,
   DEFAULT_HELM_SETTINGS,

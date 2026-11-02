@@ -44,6 +44,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 - 지식 소비 경로와 저하 동작, 외부 텍스트 방어 규칙
 - 설정 키 5개(`ext.helm.*` 4개와 `ext.helm.enabled`)와 명령 `/helm start|stop|status`
 - M3 내장 렌즈 6개와 선택 규칙(§3.6), 신호 임계와 용어 추출 규칙(§3.5)
+- M4 확장 메서드 세 개(`status`, `inquiries`, `findings`), Plugin UI 기여 일곱, 구성 선언과 단계 머신 선언(§3.9a)
 - 쓰기 판정 입력(도구 메타 `risk`, `hints`, `caller`, §4.6)
 - Helm이 내는 효과마다 ADR-0015 효과 등급과 멱등 키(§4.11)
 - 실패 값(`HelmFailure`)의 kind와 처리 규칙(§3.12, §4.12)
@@ -176,7 +177,9 @@ export const helmManifest = defineManifest({
     recordKinds: HELM_RECORD_KINDS,            // §3.4
     readsRecordKinds: [],                      // 다른 그룹의 레코드를 읽지 않는다 [결정: review.decisions-2 D-10]
   }],
-  group: {},                                   // 플러그인 그룹 선언. 구성원은 루트 플러그인 하나다
+  group: { composition: helmComposition },     // 플러그인 그룹 선언. 구성원은 루트 플러그인 하나다. 구성 선언은 §3.9a
+  methods: helmMethodDecls,                    // 확장 메서드 세 개(§3.9a)
+  ui: helmUi,                                  // Plugin UI 기여 일곱(§3.9a)
 }) satisfies ExtensionManifest;
 ```
 
@@ -744,6 +747,119 @@ export function helmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit" | "p
 - `/helm stop`: §5 4번.
 - `/helm status`: `HelmStatusView`를 돌려준다. 상태를 바꾸지 않는다.
 - 오류 표시: `helmCommand`는 `HelmCommandError`를 kind별 한 줄 문장으로 바꿔 명령 결과로 돌려준다. `switch`가 모든 kind를 다루는지 `assertNever`로 확인한다(TY-13).
+
+### 3.9a 확장 메서드, Plugin UI 기여, 구성 선언 (`src/methods.ts`, `src/ui-decl.ts`, `src/composition.ts`, `ui/`)
+
+[제안] M4 T-GK에서 Helm이 여는 면이다(ADR-0021 §3.10, `L4.desktop-ux.spec` X-9, X-16). 확장 메서드 셋은 `ext.helm.status`, `ext.helm.inquiries`, `ext.helm.findings`이고 모두 읽기 전용이다. Plugin UI 기여는 일곱이고 모두 선언형(`native`)이다. 구성 선언은 `group.composition`에 두는 읽기용 설계 모델이다(F.extensions.spec §3.1.2). 셋 다 매니페스트 상수 `helmManifest`에 실린다. `defineGroup`은 같은 객체를 `composition`으로 받으므로 구성 충돌이 없다.
+
+#### 메서드 세 개
+
+| 동사(wire) | 입력 `params` | 결과 `result` | 스레드 없는 호출 | 원천 |
+|---|---|---|---|---|
+| `status` (`ext.helm.status`) | `{}`, 추가 속성 없음 | `HelmStatusView`(§3.9) | 대기 상태 보기 | 커밋된 상태(`viewOf`) |
+| `inquiries` (`ext.helm.inquiries`) | `{}`, 추가 속성 없음 | `{ inquiries: InquirySummary[] }`, 최대 50개 | `{ inquiries: [] }` | 커밋된 상태와 `grp.helm.inquiry.finished` 기록 |
+| `findings` (`ext.helm.findings`) | `{ inquiryId }`, `INQUIRY_ID_PATTERN` | `{ inquiryId, findings: HelmFinding[] }` | `{ inquiryId, findings: [] }` | 현재 탐구는 상태, 끝난 탐구는 `grp.helm.discovery.recorded` 기록 |
+
+```ts
+// src/methods.ts
+export interface InquirySummary {
+  readonly inquiryId: string;                                  // INQUIRY_ID_PATTERN
+  readonly topic: string;                                      // 상한 500자. 종료 기록의 topic은 빈 문자열일 수 있다
+  readonly status: "pending" | "running" | "finished";
+  readonly outcome: InquiryOutcome | null;                     // 끝난 탐구만 값이 있다
+  readonly findingCount: number;                               // 끝난 탐구는 종료 기록의 값, 진행 중이면 상태의 발견 수, 대기는 0
+}
+export interface InquiriesView { readonly inquiries: readonly InquirySummary[]; }
+export interface FindingsParams { readonly inquiryId: string; }
+export interface FindingsView { readonly inquiryId: string; readonly findings: readonly HelmFinding[]; }
+
+/** setup 안에서 부른다. 처리기 세 개를 등록한다 */
+export function registerHelmMethods(g: Pick<GroupApi<HelmState>, "state" | "readRecords" | "registerMethod">): void;
+```
+
+- 스레드 문맥: 처리기는 `ctx.threadId`를 받는다. 값이 있으면 `g.state()`와 `g.readRecords`를 쓴다(명령 처리기와 같은 문맥). `null`이면 상태에 닿지 않고 위 빈 값을 준다. 메서드는 상태를 만들거나 바꾸지 않는다.
+- 입력 검사: 호스트가 `params` 스키마로 먼저 검사해 어긋나면 `params_invalid`다. 처리기는 그 값을 다시 파싱하고, 어긋나면 호스트 결함이므로 `Bug`를 던진다. 예상 가능한 실패가 아니다.
+- 결과 검사: 호스트가 `result` 스키마로 검사해 어긋나면 `result_invalid`다. 스키마는 `SchemaProof`로 결과 타입과 맞는지 컴파일 때 본다.
+- `status`: `viewOf`를 그대로 쓴다. `lease`는 `/helm status`와 같다(탐구 중이면 `held`, 시작을 기다리면 `waiting`, 그 밖은 `none`). drive lock의 수치 상한은 이 결과에 없다(§10 미결 15).
+- `inquiries`: 현재 탐구가 맨 앞이다. 진행 중이면 `running`, 시작을 기다리면 `pending`이다. 끝난 탐구는 `grp.helm.inquiry.finished` 기록에서 읽는다. 기록에는 시각이 없어 `finishedAt`은 두지 않는다. 기록은 쓴 순서(오래된 것부터)로 읽히므로 `dedupeInquiryFinished`로 중복을 지운 뒤 뒤집어 최신 순으로 낸다. 50개에서 자른다.
+- `findings`: 탐구 id가 상태의 `inquiryId`와 같으면 상태의 발견을 그대로 준다(`followUp` 포함). 그 밖이면 `grp.helm.discovery.recorded` 기록에서 그 탐구의 발견을 모은다. 종료 기록은 발견 수(`findingCount`)만 싣고 발견 내용은 싣지 않으므로 발견 목록의 원천으로 쓰지 않는다. 발견 기록에는 `followUp`이 없다. 같은 claim은 한 번만 내고(`dedupeFindings`), 24개에서 자른다. 모르는 탐구 id는 빈 목록이다(오류가 아니다).
+- 발견 기록은 apply 단계가 끝날 때 쓴다(완료, 실패, 예산 소진 모두). 적용 turn까지 가지 못하고 끝난 탐구(탐색 중 멈춤, 수렴 실패, 발견 없음으로 끝남)는 발견 기록이 없어 `findings`가 빈 목록이다. 그 발견은 종료 기록에 남지 않는다(§10 미결 18).
+
+#### Plugin UI 기여 일곱
+
+| id | placement | 제목 | 화면 파일 | 데이터 | when |
+|---|---|---|---|---|---|
+| `helm-inquiry` | `page` | 탐구 | `./ui/helm-inquiry.view.json` | `status`, `inquiries`, `findings` | 없음 |
+| `helm-panel` | `panel` | 탐구 | `./ui/helm-panel.view.json` | `status` | `thread: required` |
+| `helm-finished` | `card`, `forKind` `grp.helm.inquiry.finished` | 탐구 결과 | `./ui/helm-finished.view.json` | 종료 기록 payload | 없음 |
+| `helm-suggested` | `card`, `forKind` `grp.helm.signal.detected` | 탐구 제안 | `./ui/helm-suggested.view.json` | 신호 기록 payload. `action`이 `suggested`일 때만 그린다 | 없음 |
+| `helm-phase` | `status` | 탐구 단계 | `./ui/helm-phase.view.json` | `status` | `thread: required` |
+| `helm-start` | `command` | 탐구 시작… | 없음 | `/helm start`와 같은 명령 | `thread: required` |
+| `helm-stop` | `command` | 탐구 멈춤 | 없음 | `/helm stop`과 같은 명령 | `thread: required` |
+
+- 자리: 확장당 상한은 `page` 4, `panel` 1, `status` 1, `command` 16이고 `card`는 kind마다 하나다(ADR-0021 §3.2). Helm은 `page` 하나, `panel` 하나, `status` 하나, `command` 둘, `card` 둘을 쓴다.
+- 데이터 문서: 페이지, 패널, 단계 칩은 메서드 결과를 메서드 이름 아래 둔 문서 `{ status, inquiries, findings }`를 읽는다. 카드는 payload 자체를 문서로 읽는다.
+- 경로: JSON Pointer다. `each`가 도는 가지 안에서 경로의 첫 마디가 그 `as`와 같으면 항목 안을, 그 밖이면 문서를 본다. 이 규칙은 렌더러가 정하고 이 트리는 그 규칙에 맞춰 쓴다 [제안].
+- 조건: `eq`와 `ne`는 값을 비교한다. `null`도 값이라서 대기 중인 탐구 없음은 `inquiryId`가 `null`인지로 본다. `exists`와 `missing`은 경로만 본다. 조건이 거짓인 가지는 그리지 않는다.
+- 속성: `props.text`(글자), `props.label`(단추 글자), `props.step`(단계 노드 식별자), `props.title`, `props.max`, `props.command`만 쓴다. 색, 크기 숫자, CSS, HTML은 없다(DP-08).
+- 단추: `props.command`에 같은 확장의 명령 기여 id를 적는다. 누른 뒤의 연결은 렌더러 규칙이다(§10 미결 16).
+- 단계 칩: 단계 이름만 낸다. "탐색 2/3 렌즈"처럼 렌즈 수를 세는 표시는 바인딩에 세는 식이 없어 쓰지 않는다(§10 미결 17).
+- 상한 Meter: 발견 수를 24에 대어 보인다. 24는 상태 발견 상한(`HelmState.findings`의 `maxItems`)이다. drive lock와 턴 상한은 상태 보기에 수치가 없어 Meter로 보이지 않는다(§10 미결 15).
+- 단계 노드: 패널과 페이지의 단계 표시는 `Stepper`이고, 자식 `Text`의 `props.step`이 단계 이름, `props.text`가 한글 이름이다.
+
+#### 구성 선언
+
+`helmComposition`(`src/composition.ts`)은 `setupHelm`이 등록하는 블록을 적는다. 런타임은 setup 코드가 정하고, 이 선언은 구성기(X-16)가 보는 읽기용 모델이다.
+
+| id | stage | op | 훅 | 내는 것(`produces`) | 읽는 기능(`consumes`) |
+|---|---|---|---|---|---|
+| `input-lens` | `inject` | `on` | `input.agent.before` | | |
+| `write-guard` | `guard` | `on` | `tool.call.before` | | |
+| `tool-observe` | `observe` | `on` | `tool.execution.after` | | |
+| `signal-settle` | `signal` | `on` | `boundary.settle.after` | 기록 `grp.helm.signal.detected`, post, state | |
+| `restore` | `restore` | `on` | `thread.start` | 기록 `grp.helm.inquiry.finished`, state | |
+| `lease-rejected` | `lease` | `on` | `lifecycle.lease.rejected` | post, state | |
+| `command` | `command` | `register` | | post, state | |
+| `methods` | `method` | `register` | | | |
+| `drive` | `drive` | `drive` | | 기록 `grp.helm.discovery.recorded`, 기록 `grp.helm.inquiry.finished`, post, state | `knowledge.search`, `knowledge.memory`, `web.search`, `work.tasks` |
+
+- 단계 머신(`phases`): 시작 노드는 `idle`이고 노드는 다섯이다(`idle`, `diverge`, `explore`, `converge`, `apply`, 모두 `phase`). 전이는 `TRANSITIONS`(§3.3)에서 만들므로 표와 선언이 어긋나지 않는다. 행 하나가 전이 하나이고 `event`는 표의 `on`이다. 스무 행이다. 턴, 렌즈 호출, 지식 수집은 전이 사이의 작업이므로 노드로 두지 않고 drive 블록이 맡는다 [제안].
+- 검사: `validateManifest(helmManifest)`와 `validateComposition(helmComposition, { manifest: helmManifest })`에 오류가 없다. `defineGroup`은 `composition`을 매니페스트 사본에 채우는데 이것이 매니페스트의 `group.composition`과 같은 객체이므로 `composition_conflict`가 없다. 매니페스트에도 두는 까닭은 `plugin.json`에 실리게 하려는 것이다.
+
+#### 산출물
+
+- `scripts/build-plugin.ts`는 `ui/`를 `<outDir>/ui/`로 복사한다. `plugin.json`은 `methods`, `ui`, `group.composition`을 싣는다. 로더는 화면 파일이 없으면 `ui_file_missing`을 낸다. 시험(`test/int/plugin.int.test.ts`)은 화면 파일이 산출물에 있는지 본다.
+
+#### 시험 행
+
+| 시험 | 파일 | 확인 |
+|---|---|---|
+| methods.decl | `test/unit/methods.test.ts` | 선언 세 개가 매니페스트와 같고 모두 `readOnly`이며 검사를 통과한다 |
+| methods.status.waiting | 같은 파일 | 시작을 기다리는 탐구의 보기: 탐구 id, 주제, drive lock `waiting` |
+| methods.status.lens-run | 같은 파일 | 렌즈 실행 중(`onSpawn`에서 부름): 렌즈 세 개 `running`, drive lock `held`, 발견 0 |
+| methods.status.idle | 같은 파일 | 끝난 뒤 대기 기본 보기 |
+| methods.inquiries.finished | 같은 파일 | 끝난 탐구 한 줄: 주제, `applied`, 발견 3 |
+| methods.inquiries.order | 같은 파일 | 대기 탐구가 맨 앞, 끝난 탐구는 최신 순 |
+| methods.findings.discovery | 같은 파일 | 끝난 탐구의 발견 기록 3건, 기록 순서, `followUp` 없음 |
+| methods.findings.committed | 같은 파일 | 적용 turn의 상태 발견, `followUp` 포함 |
+| methods.findings.unknown | 같은 파일 | 모르는 탐구 id는 빈 목록 |
+| methods.params | 같은 파일 | 스키마 위반은 `params_invalid`이고 turn과 spawn이 늘지 않는다 |
+| methods.threadless | 같은 파일 | 스레드 없는 호출은 대기 기본 보기와 빈 목록 |
+| methods.result | 같은 파일 | 세 메서드 모두 대기, 진행, 끝난 뒤에 `ok`다(결과 검사 통과) |
+| composition.defined | `test/unit/composition.test.ts` | `helmGroup.manifest.group.composition`이 정의되고 두 매니페스트와 `validateGroupDef`에 오류가 없다 |
+| composition.phases | 같은 파일 | 선언된 전이 스무 행이 `TRANSITIONS` 표와 행마다 같다 |
+| composition.blocks | 같은 파일 | 블록 훅은 루트 플러그인 훅의 부분집합이고, 내는 기록 kind는 `HELM_RECORD_KINDS`다 |
+| composition.negative | 같은 파일 | 플러그인에 없는 훅과 없는 시작 노드는 거부된다 |
+| ui.contributions | `test/unit/ui.test.ts` | 일곱 기여의 id, 배치, `forKind`, 화면 파일이 위 표와 같다 |
+| ui.trees | 같은 파일 | 다섯 화면 파일이 JSON으로 읽히고 `validateUiTree`를 통과하며 카탈로그 v1 이름만 쓴다 |
+| ui.props | 같은 파일 | 속성 이름은 허용 목록(`text`, `label`, `step`, `title`, `max`, `command`) 안이다 |
+| ui.bind | 같은 파일 | 페이지, 패널, 단계 칩의 모든 경로가 실제 메서드 결과에서 풀린다 |
+| ui.text | 같은 파일 | 실제 결과로 그린 글자가 화면 순서대로 같다(패널 9개, 페이지 21개) |
+| ui.bind.card | 같은 파일 | 끝난 탐구 기록과 제안 payload로 카드가 풀리고, `recorded`면 제안 카드는 그리지 않는다 |
+| ui.bind.negative | 같은 파일 | 결과에 없는 경로는 보고된다(검사가 비어 있지 않다는 확인) |
+| plugin.int | `test/int/plugin.int.test.ts` | `plugin.json`에 `methods`, `ui`, `group.composition`이 실리고 화면 파일이 산출물에 있다 |
+| host.manifest | `test/unit/host.test.ts` | `helmManifest.group`이 구성 선언을 가진다 |
+| docs.methods, docs.ui | `test/unit/docs-contrast.test.ts` | 이 절의 메서드 표와 Plugin UI 표가 코드의 동사와 기여 id와 같다 |
 
 ### 3.10 그룹 모듈 (`src/index.ts`)
 
@@ -1355,6 +1471,10 @@ export interface HelmSettings {
 
 ## 10. 미결 사항
 
+M4 판에서 닫은 항목:
+
+- (닫힘) ADR-0021 §6 미결 5: Helm의 `ext.helm.status`, `ext.helm.inquiries`, `ext.helm.findings`와 화면 기여는 §3.9a로 정한다. ADR 쪽 표시는 ADR 소유자가 옮긴다.
+
 M3 판에서 닫은 항목:
 
 - (닫힘) 이전 미결 3 부분 결과: 허용(§4.2) [제안].
@@ -1388,5 +1508,9 @@ M3 판에서 닫은 항목:
 12. [가정] 지식 검색 도구 결과의 빈 결과 판정 형식(§3.5). L2.knowledge.spec과 맞춘다.
 13. (닫힘) 플러그인이 된 Helm의 설정 네임스페이스는 `ext.helm.*`다(C5). 호스트 카탈로그가 `helmSettings`를 싣고 `ext.helm.enabled`는 `reservedExtensionSettings`가 만든다.
 14. [미결] 플러그인 엔트리의 가상 모듈 의존(§3.1 의존 해석). X 로더가 자체 패키지를 가상 모듈로 등록하는 방식이 같은 모듈 인스턴스를 주는지는 X.loading-trust 스파이크에서 확인한다 [가정].
+15. [미결] drive lock 수치 상한(턴, 렌즈 호출)을 `HelmStatusView`에 더할지. 더하면 페이지의 상한 Meter가 drive lock 상한을 보인다. M4는 발견 수를 상한 24에 대어 보인다(§3.9a).
+16. [미결] 단추 동작 연결. ADR-0021 §3.4.1 트리에는 동작 필드가 없다. 지금은 `props.command`에 명령 기여 id를 적고 렌더러가 연결한다(§3.9a).
+17. [미결] 단계 칩의 렌즈 셈("탐색 2/3 렌즈")은 바인딩에 세는 식이 없어 쓰지 않는다. 카탈로그나 바인딩에 셈이 생기면 넣는다(§3.9a).
+18. [미결] 끝난 탐구의 발견은 발견 기록으로 읽는다(§3.9a). 종료 기록에 발견 목록을 싣는 안은 기록 payload 버전을 올려야 해서 보류한다.
 
 하위 층 반영 대기(§8 요구 표): REQ-F-01, REQ-F-02, REQ-F-04, REQ-F-05, REQ-X-01, REQ-X-02, REQ-X-03, REQ-X-08, REQ-X-09, REQ-X-11, REQ-L1-01, REQ-L1-04, REQ-L2-01, G-IN-02, `lease.rejected` 이벤트, `GroupStatus.drive`의 `"rejected"`.

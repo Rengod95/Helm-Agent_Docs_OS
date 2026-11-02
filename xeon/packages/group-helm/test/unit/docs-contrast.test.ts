@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { helmMethodDecls, helmUi } from "../../src/index.ts";
 import { TRANSITIONS } from "../../src/phase.ts";
 import { HELM_RECORD_KINDS } from "../../src/records.ts";
 import { helmSettings } from "../../src/settings.ts";
@@ -62,5 +63,23 @@ test("spec 6 settings table matches the setting definitions", () => {
   expect(byKey.get("ext.helm.writeGuard")?.[2]).toContain("true");
   expect(byKey.get("ext.helm.driveLimits")?.[2]).toContain(
     "maxTurns: 4, maxSpawns: 8, maxTokens: 400000",
+  );
+});
+
+test("spec 3.9a method table: each verb row names the wire method the manifest declares", () => {
+  const rows = tableRowsAfter(SPEC, "#### 메서드 세 개");
+  expect(rows.map((row) => backticks(row[0] ?? "")[1])).toEqual(
+    helmMethodDecls.map((decl) => `ext.helm.${decl.verb}`),
+  );
+});
+
+test("spec 3.9a Plugin UI table: the seven contribution ids, placements and files match helmUi", () => {
+  const rows = tableRowsAfter(SPEC, "#### Plugin UI 기여 일곱");
+  expect(rows.map((row) => [backticks(row[0] ?? "")[0], backticks(row[1] ?? "")[0]])).toEqual(
+    helmUi.items.map((item) => [item.id, item.placement]),
+  );
+  // 화면 파일이 없는 명령 기여는 표에 "없음"이라고 적는다
+  expect(rows.map((row) => (row[3] === "없음" ? "없음" : backticks(row[3] ?? "")[0]))).toEqual(
+    helmUi.items.map((item) => item.file ?? "없음"),
   );
 });

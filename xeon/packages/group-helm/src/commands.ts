@@ -45,7 +45,8 @@ export function parseHelmCommand(
   return err({ kind: "usage", message: HELM_USAGE });
 }
 
-function viewOf(state: Readonly<HelmState>): HelmStatusView {
+/** 순수 함수. 커밋된 상태를 상태 보기로 바꾼다. `/helm status`와 확장 메서드 `status`가 같이 쓴다 */
+export function viewOf(state: Readonly<HelmState>): HelmStatusView {
   const lease = state.phase !== "idle" ? "held" : state.pending !== null ? "waiting" : "none";
   return {
     enabled: true,

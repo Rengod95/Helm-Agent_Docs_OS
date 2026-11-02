@@ -1,13 +1,10 @@
-import type { TSchema } from "typebox";
 import { defineManifest } from "@fresnel/contracts/extensions";
 import type { GroupManifest } from "@fresnel/group-sdk";
+import { helmComposition } from "./composition.ts";
+import { jsonSchemaOf } from "./json-schema.ts";
+import { helmMethodDecls } from "./methods.ts";
 import { HELM_RECORD_KINDS } from "./records.ts";
-
-function jsonSchemaOf(schema: TSchema): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(schema)) out[key] = value;
-  return out;
-}
+import { helmUi } from "./ui-decl.ts";
 
 /** 플러그인 산출물(`.fresnel-plugin/plugin.json`)이 옮겨 쓰는 매니페스트 상수. 엔트리 경로는 번들(dist)을 가리킨다 */
 export const helmManifest: GroupManifest = defineManifest({
@@ -50,5 +47,8 @@ export const helmManifest: GroupManifest = defineManifest({
       readsRecordKinds: [],
     },
   ],
-  group: {},
+  // 구성 선언은 defineGroup이 채우는 사본과 같은 객체다(index.ts). plugin.json에도 실리도록 여기에도 둔다
+  group: { composition: helmComposition },
+  ui: helmUi,
+  methods: helmMethodDecls,
 });

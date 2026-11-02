@@ -6,7 +6,7 @@ import { parseJson } from "@fresnel/contracts";
 import { validateManifest } from "@fresnel/contracts/extensions";
 import { SDK_MODULE_SPECIFIERS } from "@fresnel/ext-host";
 import { createTestHost, fixedIdFactory } from "@fresnel/ext-host/testing";
-import { helmManifest } from "../../src/index.ts";
+import { helmComposition, helmManifest, helmUi } from "../../src/index.ts";
 import { buildHelmPlugin, type PluginBuild } from "../../scripts/build-plugin.ts";
 import { loaderFor } from "../support/loader.ts";
 import {
@@ -54,6 +54,20 @@ test("plugin.json is the manifest as JSON and the bundle keeps the host SDK modu
   const bundle = await Bun.file(join(built.outDir, "dist", "index.js")).text();
   expect(bundle).not.toContain("@fresnel/ext-host");
   expect(await Bun.file(join(built.outDir, "agents", "explorer.md")).exists()).toBe(true);
+  // 확장 메서드와 Plugin UI 화면, 구성 선언은 plugin.json에 실리고 화면 파일은 ui/ 아래에 있다
+  expect(checked.manifest?.methods?.map((decl) => decl.verb)).toEqual([
+    "status",
+    "inquiries",
+    "findings",
+  ]);
+  expect(checked.manifest?.ui).toEqual(helmUi);
+  expect(checked.manifest?.group?.composition).toEqual(helmComposition);
+  const screens = helmUi.items.flatMap((item) =>
+    item.file === undefined ? [] : [join(built.outDir, item.file)],
+  );
+  expect(await Promise.all(screens.map((file) => Bun.file(file).exists()))).toEqual(
+    screens.map(() => true),
+  );
 });
 
 test("the external loader loads Helm from the user extension dir at user trust and an inquiry runs", async () => {

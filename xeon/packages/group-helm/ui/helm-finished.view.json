@@ -1,0 +1,19 @@
+{
+  "type": "Stack",
+  "children": [
+    { "type": "Heading", "bind": { "text": { "path": "/topic" } } },
+    {
+      "type": "Row",
+      "children": [
+        { "type": "Badge", "bind": { "text": { "path": "/outcome" } } },
+        { "type": "Text", "props": { "text": "발견" } },
+        { "type": "Text", "bind": { "text": { "path": "/findingCount", "format": "number" } } }
+      ]
+    },
+    {
+      "type": "Text",
+      "bind": { "text": { "path": "/reason" } },
+      "when": { "path": "/reason", "op": "exists" }
+    }
+  ]
+}

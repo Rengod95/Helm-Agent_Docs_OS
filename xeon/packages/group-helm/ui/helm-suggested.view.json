@@ -1,0 +1,20 @@
+{
+  "type": "Stack",
+  "when": { "path": "/action", "op": "eq", "value": "suggested" },
+  "children": [
+    { "type": "Text", "props": { "text": "탐구 신호가 감지되었습니다" } },
+    {
+      "type": "Row",
+      "children": [
+        { "type": "Text", "props": { "text": "신호" } },
+        { "type": "Badge", "bind": { "text": { "path": "/signal" } } },
+        {
+          "type": "Text",
+          "bind": { "text": { "path": "/evidence/toolName" } },
+          "when": { "path": "/evidence/toolName", "op": "exists" }
+        }
+      ]
+    },
+    { "type": "Button", "props": { "label": "탐구 시작", "command": "helm-start" } }
+  ]
+}

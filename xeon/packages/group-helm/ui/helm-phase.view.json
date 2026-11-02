@@ -1,0 +1,30 @@
+{
+  "type": "Stack",
+  "children": [
+    {
+      "type": "Chip",
+      "props": { "text": "대기" },
+      "when": { "path": "/status/phase", "op": "eq", "value": "idle" }
+    },
+    {
+      "type": "Chip",
+      "props": { "text": "발산" },
+      "when": { "path": "/status/phase", "op": "eq", "value": "diverge" }
+    },
+    {
+      "type": "Chip",
+      "props": { "text": "다른 분야 탐색" },
+      "when": { "path": "/status/phase", "op": "eq", "value": "explore" }
+    },
+    {
+      "type": "Chip",
+      "props": { "text": "수렴" },
+      "when": { "path": "/status/phase", "op": "eq", "value": "converge" }
+    },
+    {
+      "type": "Chip",
+      "props": { "text": "적용" },
+      "when": { "path": "/status/phase", "op": "eq", "value": "apply" }
+    }
+  ]
+}

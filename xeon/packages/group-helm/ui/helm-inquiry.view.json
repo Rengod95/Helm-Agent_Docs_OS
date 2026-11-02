@@ -1,0 +1,105 @@
+{
+  "type": "Stack",
+  "children": [
+    {
+      "type": "Section",
+      "props": { "title": "현재 탐구" },
+      "children": [
+        {
+          "type": "Stepper",
+          "bind": { "current": { "path": "/status/phase" } },
+          "children": [
+            { "type": "Text", "props": { "step": "idle", "text": "대기" } },
+            { "type": "Text", "props": { "step": "diverge", "text": "발산" } },
+            { "type": "Text", "props": { "step": "explore", "text": "다른 분야 탐색" } },
+            { "type": "Text", "props": { "step": "converge", "text": "수렴" } },
+            { "type": "Text", "props": { "step": "apply", "text": "적용" } }
+          ]
+        },
+        {
+          "type": "Row",
+          "children": [
+            { "type": "Badge", "bind": { "text": { "path": "/status/lease" } } },
+            {
+              "type": "Meter",
+              "props": { "label": "발견 수", "max": 24 },
+              "bind": { "value": { "path": "/status/findings" } }
+            }
+          ]
+        },
+        {
+          "type": "ActivityTree",
+          "children": [
+            {
+              "type": "Row",
+              "each": { "path": "/status/lenses", "as": "lens" },
+              "children": [
+                { "type": "Text", "bind": { "text": { "path": "/lens/title" } } },
+                { "type": "Badge", "bind": { "text": { "path": "/lens/status" } } }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "EmptyState",
+          "props": { "text": "진행 중인 탐구가 없습니다" },
+          "when": { "path": "/status/inquiryId", "op": "eq", "value": null }
+        }
+      ]
+    },
+    {
+      "type": "Section",
+      "props": { "title": "발견" },
+      "children": [
+        {
+          "type": "List",
+          "children": [
+            {
+              "type": "Row",
+              "each": { "path": "/findings/findings", "as": "finding" },
+              "children": [
+                { "type": "Text", "bind": { "text": { "path": "/finding/claim" } } },
+                { "type": "Badge", "bind": { "text": { "path": "/finding/confidence" } } }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Section",
+      "props": { "title": "지난 탐구" },
+      "children": [
+        {
+          "type": "List",
+          "children": [
+            {
+              "type": "Row",
+              "each": { "path": "/inquiries/inquiries", "as": "inquiry" },
+              "children": [
+                { "type": "Text", "bind": { "text": { "path": "/inquiry/topic" } } },
+                { "type": "Badge", "bind": { "text": { "path": "/inquiry/status" } } },
+                { "type": "Badge", "bind": { "text": { "path": "/inquiry/outcome" } } }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Row",
+      "children": [
+        {
+          "type": "Button",
+          "props": { "label": "탐구 시작", "command": "helm-start" },
+          "when": { "path": "/status/lease", "op": "eq", "value": "none" }
+        },
+        {
+          "type": "Button",
+          "props": { "label": "탐구 멈춤", "command": "helm-stop" },
+          "when": { "path": "/status/lease", "op": "ne", "value": "none" }
+        }
+      ]
+    }
+  ]
+}

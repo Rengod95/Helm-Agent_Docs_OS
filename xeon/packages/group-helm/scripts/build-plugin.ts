@@ -2,6 +2,7 @@
 //   <outDir>/.fresnel-plugin/plugin.json   helmManifest를 JSON으로 옮긴 것(엔트리는 ./dist/index.js)
 //   <outDir>/dist/index.js              엔트리 번들. 호스트가 같은 인스턴스를 주는 모듈(@fresnel/contracts, @fresnel/group-sdk, typebox)은 외부 import로 둔다
 //   <outDir>/agents/explorer.md         explorer 서브에이전트 정의
+//   <outDir>/ui/*.view.json             Plugin UI 화면 트리(매니페스트 ui가 가리킨다)
 // 사용: bun scripts/build-plugin.ts [outDir]   (기본 dist-plugin)
 import { cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -72,6 +73,8 @@ export async function buildHelmPlugin(
     );
     await mkdir(join(outDir, "agents"), { recursive: true });
     await cp(join(PACKAGE_DIR, "agents", "explorer.md"), join(outDir, "agents", "explorer.md"));
+    // 화면 트리 파일(ui/<id>.view.json). 매니페스트 `ui.items[].file`이 이 경로를 가리킨다
+    await cp(join(PACKAGE_DIR, "ui"), join(outDir, "ui"), { recursive: true });
     return externalsOf(text);
   });
   if (!written.ok) return err({ kind: "io", cause: written.error.cause });

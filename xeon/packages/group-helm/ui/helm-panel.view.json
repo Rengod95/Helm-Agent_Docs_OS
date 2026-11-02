@@ -1,0 +1,29 @@
+{
+  "type": "Stack",
+  "children": [
+    {
+      "type": "Stepper",
+      "bind": { "current": { "path": "/status/phase" } },
+      "children": [
+        { "type": "Text", "props": { "step": "idle", "text": "대기" } },
+        { "type": "Text", "props": { "step": "diverge", "text": "발산" } },
+        { "type": "Text", "props": { "step": "explore", "text": "다른 분야 탐색" } },
+        { "type": "Text", "props": { "step": "converge", "text": "수렴" } },
+        { "type": "Text", "props": { "step": "apply", "text": "적용" } }
+      ]
+    },
+    {
+      "type": "Text",
+      "bind": { "text": { "path": "/status/topic" } },
+      "when": { "path": "/status/inquiryId", "op": "ne", "value": null }
+    },
+    {
+      "type": "Row",
+      "children": [
+        { "type": "Text", "props": { "text": "발견" } },
+        { "type": "Text", "bind": { "text": { "path": "/status/findings", "format": "number" } } },
+        { "type": "Badge", "bind": { "text": { "path": "/status/lease" } } }
+      ]
+    }
+  ]
+}

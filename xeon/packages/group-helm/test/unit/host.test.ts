@@ -8,7 +8,7 @@ import {
   validateUsage,
 } from "@fresnel/contracts/extensions";
 import { capabilityDefTable } from "@fresnel/ext-host";
-import { helmManifest } from "../../src/index.ts";
+import { helmComposition, helmManifest } from "../../src/index.ts";
 import { HelmStateSchema, INITIAL_HELM_STATE, type HelmState } from "../../src/state.ts";
 import { createRig, DEFS, type Rig } from "../support/rig.ts";
 
@@ -33,7 +33,7 @@ function noticeTexts(rig: Rig): readonly string[] {
 
 test("manifest.plugin-format: one root L3 plugin that drives, with the six hooks and no legacy fields", () => {
   expect(helmManifest.schemaVersion).toBe(2);
-  expect(helmManifest.group).toEqual({});
+  expect(helmManifest.group).toEqual({ composition: helmComposition });
   expect(helmManifest.plugins).toHaveLength(1);
   expect(helmManifest.plugins.map((plugin) => plugin.id)).toEqual([undefined]);
   expect(helmManifest.plugins.map((plugin) => plugin.layer)).toEqual(["L3"]);

@@ -23,7 +23,8 @@ const phaseShape = Type.Union([
   Type.Literal("converge"),
   Type.Literal("apply"),
 ]);
-const HelmPhaseSchema: TUnsafe<HelmPhase> = Type.Unsafe<HelmPhase>(
+/** 단계 이름. 상태 스키마와 메서드 결과 스키마가 같이 쓴다 */
+export const HelmPhaseSchema: TUnsafe<HelmPhase> = Type.Unsafe<HelmPhase>(
   phaseShape satisfies SchemaSound<HelmPhase, typeof phaseShape>,
 );
 
