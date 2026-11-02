@@ -1,62 +1,20 @@
-/* 글자 변형 a~d(type-variants). <html data-type="a|b|c|d">일 때만 켜진다(?type= 값을 _shell/fonts.ts가 건다).
+/* 글자 기준(전 페이지 기본). 옛 변형 d를 기본값으로 삼았고 a·b·c와 ?type= 스위치는 걷었다.
    건드리는 것은 한글 글자 간격, 굵기, 크기, 글 색 변수뿐이다. 배치·부품 규칙은 없다.
 
-   왜 html[data-type]인가: caustic의 한글 간격 블록 :where([lang|="ko"])는 특이도 0이라, html 자신이 lang="ko"일 때
+   왜 html:root인가: caustic의 한글 간격 블록 :where([lang|="ko"])는 특이도 0이라, html 자신이 lang="ko"일 때
    :root의 같은 변수(특이도 0,1,0)에 진다. 측정상 html의 --cs-text-body-tracking은 -.003em이고 블록 값 -.01em은
-   적용되지 않는다. 그래서 여기서는 특이도 0,2,1로 간격을 다시 쓴다. 한글 굵기 블록(제목 700)은 :where라도
-   테마 층의 :root 값을 이겨 실제로 적용된다(측정: 제목 2 = 700). 간격은 한글 전용([lang|="ko"])이라
+   적용되지 않는다. 그래서 여기서는 특이도 0,2,1로 간격을 다시 쓴다. 간격은 한글 전용([lang|="ko"])이라
    ?lang=en 화면은 영문 간격을 그대로 둔다.
 
-   a 기준: 기준값 그대로, 14px 이하 한글 간격만 0em(캡션의 +0.06em도 0). 제목은 기준값 그대로.
-   b 좁은 자간: 같은 크기·굵기. 본문·UI·작은 글 -0.01em, 제목 3·4 -0.02em, 제목 1·2와 큰 숫자 -0.025em.
-   c 명도 위계: a의 크기, b의 간격. 제목은 잉크(primary) 600. 설명 L .46, 메타·자리표시 L .54, 본문 L .30(잉크보다 연함).
-   d 크기 위계: b의 간격. 제목 2 16/22 600, 제목 1 24/32 600(손으로 쓴 h1은 한 단계 낮춰 20/28 700), 설명 13/19 400, 본문 14/22.4(1.6). 설명 색은 c와 같다.
-   다크는 같은 단계를 거울처럼: 잉크 .96, 본문 .84, 설명 .72, 메타 .64.
-   손대는 색은 caustic 글 색 변수 셋(--cs-color-text-secondary·tertiary·placeholder)의 값과 본문·제목 요소의 color뿐이다.
+   간격: 본문·UI·작은 글 -0.01em, 제목 3·4 -0.02em, 제목 1·2와 큰 숫자 -0.025em.
+   크기: 제목 2 16/22 600, 제목 1 24/32 600(손으로 쓴 머리 h1은 16/22 700, 설정 화면 제목 h1은 20/28 700), 설명 13/19 400, 본문 14/22.4(1.6).
+   색: 제목은 잉크(primary) 600. 설명 L .46, 메타·자리표시 L .54. 다크는 거울처럼 설명 .72, 메타 .64.
+   손대는 색은 caustic 글 색 변수 셋(--cs-color-text-secondary·tertiary·placeholder)의 값과 제목 요소의 color뿐이다.
    잉크(--cs-color-text-primary)는 그대로다. */
 
-/* ── a: 14px 이하 한글 글자 간격 0em ───────────────────────────────────────── */
-html[data-type="a"][lang|="ko"],
-html[data-type="a"] [lang|="ko"] {
-  --cs-text-body-tracking: 0em;
-  --text-body--letter-spacing: var(--cs-text-body-tracking);
-  --cs-text-ui-tracking: 0em;
-  --text-ui--letter-spacing: var(--cs-text-ui-tracking);
-  --cs-text-ui-strong-tracking: 0em;
-  --text-ui-strong--letter-spacing: var(--cs-text-ui-strong-tracking);
-  --cs-text-ui-sm-tracking: 0em;
-  --text-ui-sm--letter-spacing: var(--cs-text-ui-sm-tracking);
-  --cs-text-ui-lg-tracking: 0em;
-  --text-ui-lg--letter-spacing: var(--cs-text-ui-lg-tracking);
-  --cs-text-ui-md-tracking: 0em;
-  --text-ui-md--letter-spacing: var(--cs-text-ui-md-tracking);
-  --cs-text-ui-relaxed-tracking: 0em;
-  --text-ui-relaxed--letter-spacing: var(--cs-text-ui-relaxed-tracking);
-  --cs-text-ui-md-relaxed-tracking: 0em;
-  --text-ui-md-relaxed--letter-spacing: var(--cs-text-ui-md-relaxed-tracking);
-  --cs-text-ui-dense-tracking: 0em;
-  --text-ui-dense--letter-spacing: var(--cs-text-ui-dense-tracking);
-  --cs-text-ui-dense-relaxed-tracking: 0em;
-  --text-ui-dense-relaxed--letter-spacing: var(--cs-text-ui-dense-relaxed-tracking);
-  --cs-text-ui-xs-tracking: 0em;
-  --text-ui-xs--letter-spacing: var(--cs-text-ui-xs-tracking);
-  --cs-text-footnote-tracking: 0em;
-  --text-footnote--letter-spacing: var(--cs-text-footnote-tracking);
-  --cs-text-caption-tracking: 0em;
-  --text-caption--letter-spacing: var(--cs-text-caption-tracking);
-  --cs-text-label-tracking: 0em;
-  --text-label--letter-spacing: var(--cs-text-label-tracking);
-  --cs-text-hint-tracking: 0em;
-  --text-hint--letter-spacing: var(--cs-text-hint-tracking);
-  --cs-text-micro-tracking: 0em;
-  --text-micro--letter-spacing: var(--cs-text-micro-tracking);
-  --cs-text-thought-tracking: 0em;
-  --text-thought--letter-spacing: var(--cs-text-thought-tracking);
-}
-
-/* ── b·c·d: 좁은 한글 글자 간격 ─────────────────────────────────────────────── */
-:is(html[data-type="b"], html[data-type="c"], html[data-type="d"])[lang|="ko"],
-:is(html[data-type="b"], html[data-type="c"], html[data-type="d"]) [lang|="ko"] {
+/* ── 좁은 한글 글자 간격 ──────────────────────────────────────────────────────── */
+html:root[lang|="ko"],
+html:root [lang|="ko"] {
   --cs-text-display-tracking: -0.025em;
   --text-display--letter-spacing: var(--cs-text-display-tracking);
   --cs-text-title-1-tracking: -0.025em;
@@ -123,8 +81,8 @@ html[data-type="a"] [lang|="ko"] {
   --text-voice-xl--letter-spacing: var(--cs-text-voice-xl-tracking);
 }
 
-/* ── c·d: 제목 잉크 600 ─────────────────────────────────────────────────────── */
-:is(html[data-type="c"], html[data-type="d"]) {
+/* ── 제목 잉크 600 ─────────────────────────────────────────────────────── */
+html:root {
   --text-display--font-weight: 600;
   --text-title-1--font-weight: 600;
   --text-title-2--font-weight: 600;
@@ -132,45 +90,32 @@ html[data-type="a"] [lang|="ko"] {
   --text-title-overlay--font-weight: 600;
 }
 /* 제목 요소는 잉크. data-slot이 있는 caustic 부품 제목은 뺀다(FormLayout의 톤 제목 danger·accent 등이 그대로 남게). */
-:is(html[data-type="c"], html[data-type="d"]) :is(h1, h2, h3, h4, h5, h6):not([data-slot]) {
+html:root :is(h1, h2, h3, h4, h5, h6):not([data-slot]) {
   color: var(--cs-color-text-primary);
 }
 
-/* ── c·d: 밝기 위계(글 색 변수). 설명은 secondary, 메타와 자리표시는 tertiary·placeholder.
+/* ── 밝기 위계(글 색 변수). 설명은 secondary, 메타와 자리표시는 tertiary·placeholder.
    light L .46 / .54 / .54 (bg-app 6.6:1 / 4.7:1), dark L .72 / .64 / .64 (bg-app 8.1:1 / 6.0:1). */
-:is(html[data-type="c"], html[data-type="d"]) {
+html:root {
   --cs-color-text-secondary: oklch(0.46 0 0);
   --cs-color-text-tertiary: oklch(0.54 0 0);
   --cs-color-text-placeholder: oklch(0.54 0 0);
 }
-:is(html[data-type="c"], html[data-type="d"])[data-theme="dark"] {
+html:root[data-theme="dark"] {
   --cs-color-text-secondary: oklch(0.72 0 0);
   --cs-color-text-tertiary: oklch(0.64 0 0);
   --cs-color-text-placeholder: oklch(0.64 0 0);
 }
 @media (prefers-color-scheme: dark) {
-  :is(html[data-type="c"], html[data-type="d"]):not([data-theme="light"]) {
+  html:root:not([data-theme="light"]) {
     --cs-color-text-secondary: oklch(0.72 0 0);
     --cs-color-text-tertiary: oklch(0.64 0 0);
     --cs-color-text-placeholder: oklch(0.64 0 0);
   }
 }
 
-/* ── c: 본문 글 기본색을 잉크보다 연하게(L .30, 다크 .84). 색이 있는 글(text-text-primary 등)은 그대로다. */
-html[data-type="c"] body {
-  color: oklch(0.3 0 0);
-}
-html[data-type="c"][data-theme="dark"] body {
-  color: oklch(0.84 0 0);
-}
-@media (prefers-color-scheme: dark) {
-  html[data-type="c"]:not([data-theme="light"]) body {
-    color: oklch(0.84 0 0);
-  }
-}
-
-/* ── d: 크기 위계. 제목 2 16/600, 제목 1 24/600(손으로 쓴 h1은 20/700), 설명(작은 밀도 단계) 13, 본문 14/1.6 */
-html[data-type="d"] {
+/* ── 크기 위계. 제목 2 16/600, 제목 1 24/600(손으로 쓴 머리 h1은 16/700, 설정 제목은 20/700), 설명(작은 밀도 단계) 13, 본문 14/1.6 */
+html:root {
   --text-title-1: 24px;
   --text-title-1--line-height: 32px;
   --text-title-2: 16px;
@@ -179,13 +124,18 @@ html[data-type="d"] {
   --text-ui-dense-relaxed--line-height: 19px;
   --text-body--line-height: 22.4px;
 }
-/* d: caustic 부품이 아닌 페이지 제목 요소(p09 설정 구역 제목 같은 손으로 쓴 h1·h2)에도 같은 크기 위계를 준다. 글자 크기·굵기만. */
-html[data-type="d"] h1:not([data-slot]) {
-  font-size: 20px;
-  line-height: 28px;
+/* caustic 부품이 아닌 머리 제목 h1(대화 머리·페이지 머리)은 16/22 700. 제목 2(16/600)보다 굵기로 한 단계 위다.
+   설정 화면 제목(data-title="page", _settings/frame)만 한 단계 큰 20/28 700. 글자 크기·굵기만. */
+html:root h1:not([data-slot]) {
+  font-size: 16px;
+  line-height: 22px;
   font-weight: 700;
 }
-html[data-type="d"] h2:not([data-slot]) {
+html:root h1[data-title="page"]:not([data-slot]) {
+  font-size: 20px;
+  line-height: 28px;
+}
+html:root h2:not([data-slot]) {
   font-size: 16px;
   line-height: 22px;
   font-weight: 600;

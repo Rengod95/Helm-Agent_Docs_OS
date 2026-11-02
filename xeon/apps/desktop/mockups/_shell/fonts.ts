@@ -8,17 +8,7 @@ import fontsCss from "@caustic/tokens/fonts.css?inline";
 
 const IMPORT = /@import\s+url\(\s*["']?([^"')]+)["']?\s*\)\s*;?|@import\s+["']([^"']+)["']\s*;?/g;
 
-// 글자 변형(type-variants.css): ?type=a|b|c|d이면 <html data-type>을 건다. 다른 값이나 없으면 속성을 두지 않는다(기준 글자).
-const TYPE_VARIANTS = new Set(["a", "b", "c", "d"]);
-
-/** URL ?type= 값이 a|b|c|d면 <html data-type>에 건다. loadCausticFonts가 맨 먼저 부른다(모든 페이지). */
-export function applyTypeVariant(): void {
-  const t = new URLSearchParams(window.location.search).get("type");
-  if (t !== null && TYPE_VARIANTS.has(t)) document.documentElement.dataset["type"] = t;
-}
-
 export function loadCausticFonts(): void {
-  applyTypeVariant();
   const remote: string[] = [];
   const local = fontsCss.replace(IMPORT, (_m: string, a?: string, b?: string) => {
     const href = a ?? b;

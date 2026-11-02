@@ -212,6 +212,7 @@ export function SettingsFrame({
             )}
             <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
               <h1
+                data-title="page"
                 className={`m-0 truncate font-ui text-ui-strong font-bold text-text-primary ${compact && title === undefined ? "sr-only" : ""}`}
               >
                 {title ?? tabLabel(tab)}
