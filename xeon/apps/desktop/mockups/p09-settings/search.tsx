@@ -33,6 +33,7 @@ export function SearchResults() {
         <SettingRow
           label="요청 제한 시간"
           k="l1.models.requestTimeoutMs"
+          showKey
           scope="default"
           apply="nextTurn"
         >
@@ -43,6 +44,7 @@ export function SearchResults() {
         <SettingRow
           label="도구 실행 제한 시간"
           k="l1.tools.bash.timeoutMs"
+          showKey
           scope="project"
           apply="nextTurn"
         >
@@ -51,6 +53,7 @@ export function SearchResults() {
         <SettingRow
           label="웹 가져오기 제한 시간"
           k="l2.web.fetch.timeoutMs"
+          showKey
           scope="default"
           apply="nextTurn"
         >
@@ -61,6 +64,7 @@ export function SearchResults() {
         <SettingRow
           label="연결 시간 초과"
           k="l4.desktop.connect.timeoutMs"
+          showKey
           scope="user"
           apply="now"
         >
@@ -71,6 +75,7 @@ export function SearchResults() {
         <SettingRow
           label="핸들러 시간 예산"
           k="x.operations.handlerTimeoutMs"
+          showKey
           scope="default"
           apply="restart"
         >

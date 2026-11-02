@@ -227,7 +227,7 @@ export function SettingsFrame({
                 <div className="grid gap-2 pb-3">
                   {offline && (
                     <Alert tone="warning" layout="inline">
-                      엔진에 연결되면 바꿀 수 있어요. 지금은 읽은 값만 보여요.
+                      엔진에 연결되면 바꿀 수 있어요.
                     </Alert>
                   )}
                   {banner}

@@ -15,7 +15,6 @@ import {
   SelectOption,
   Switch,
 } from "@caustic/react";
-import { Plus } from "../_shell";
 import { SettingRow, SettingSection } from "../_settings/row";
 import { LockNote, reorderLabels, ShadowedScopes } from "../_settings/parts";
 import type { State } from "./app";
@@ -48,13 +47,6 @@ export function ModelsTab({ state }: { state: State }) {
           scope="user"
           apply="now"
           disabled={off}
-          flag={
-            draft ? (
-              <Badge size="sm" tone="info">
-                다른 곳에서 바뀜
-              </Badge>
-            ) : undefined
-          }
           warning={draft ? "다른 창이 claude-opus-5-5로 바꿨어요." : undefined}
           error={err ? "저장하지 못했어요. 엔진이 잠시 바빠요." : undefined}
           extra={
@@ -126,7 +118,6 @@ export function ModelsTab({ state }: { state: State }) {
           scope="default"
           apply="nextTurn"
           disabled={off}
-          hint={err ? undefined : "목표를 판정하는 턴의 상한이에요. 1~20"}
           error={err ? "1에서 20 사이여야 해요." : undefined}
         >
           <NumberField
@@ -178,7 +169,7 @@ export function ModelsTab({ state }: { state: State }) {
           extra={
             <label className="flex w-fit items-center gap-2 text-ui-sm text-text-secondary">
               <Checkbox aria-label="이번 대화에만 적용" defaultChecked={err} disabled={off} />
-              이번 대화(캐시 무효화 조사)에만 적용
+              이번 대화에만 적용
             </label>
           }
         >
@@ -207,7 +198,7 @@ export function ModelsTab({ state }: { state: State }) {
             ))}
           </List>
           <div>
-            <Button size="xs" tone="neutral" variant="ghost" iconStart={<Plus />} disabled={off}>
+            <Button size="xs" tone="neutral" variant="ghost" disabled={off}>
               모델 더하기
             </Button>
           </div>
@@ -264,7 +255,6 @@ export function ModelsTab({ state }: { state: State }) {
               폐기 예정
             </Badge>
           }
-          hint="다음 버전에서 없어져요. l1.models.stream을 쓰세요."
         >
           <Switch size="sm" aria-label="스트리밍 예전 방식" defaultChecked={false} disabled={off} />
         </SettingRow>

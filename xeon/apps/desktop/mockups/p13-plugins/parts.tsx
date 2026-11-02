@@ -12,15 +12,6 @@ const SOURCE: Record<Source, string> = {
   project: "프로젝트",
 };
 
-export function points(p: Ext["points"]): string {
-  const out: string[] = [];
-  if (p.on) out.push(`on ${p.on}`);
-  if (p.post) out.push(`post ${p.post}`);
-  if (p.drive) out.push("drive");
-  if (p.scope) out.push(`scope ${p.scope}`);
-  return out.join(" · ");
-}
-
 function StateMark({ e, safe }: { e: Ext; safe: boolean }) {
   if (safe && e.source !== "managed" && (e.source !== "builtin" || e.layer === "L3"))
     return <span className="text-ui-sm text-text-tertiary">안전 모드라 꺼짐</span>;
@@ -64,27 +55,23 @@ function DriveMark({ d }: { d: Ext["drive"] }) {
 
 export interface ExtRowProps {
   e: Ext;
-  icon?: ReactNode;
   safe?: boolean;
   disabled?: boolean;
   /** 이름 줄 끝, 스위치 앞 동작(자세히, 다시 켜기, 신뢰). */
   actions?: ReactNode;
   /** 그룹 설정(펼침). */
   settings?: ReactNode;
-  settingsCount?: number;
   defaultOpen?: boolean;
   error?: ReactNode;
 }
 
-/** 그룹 행(두 줄). */
+/** 그룹 행. 경로와 훅 목록은 화면에 두지 않는다. */
 export function GroupRow({
   e,
-  icon,
   safe = false,
   disabled,
   actions,
   settings,
-  settingsCount,
   defaultOpen = false,
   error,
 }: ExtRowProps) {
@@ -94,24 +81,12 @@ export function GroupRow({
   return (
     <div role="group" aria-label={e.label ?? e.name} className="grid gap-1 py-2">
       <div className="flex min-w-0 items-start gap-2.5">
-        <span
-          aria-hidden
-          className="mt-0.5 flex size-5 flex-none items-center justify-center text-text-secondary [&_svg]:size-icon-md"
-        >
-          {icon}
-        </span>
         <div className="grid min-w-0 flex-1 gap-0.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-ui font-medium text-text-primary">{e.label ?? e.name}</span>
             <span className="text-ui-sm text-text-tertiary">{SOURCE[e.source]}</span>
             <DriveMark d={safe ? "none" : e.drive} />
             <StateMark e={e} safe={safe} />
-          </div>
-          <div className="flex min-w-0 items-baseline gap-2 font-mono text-mono-sm text-text-tertiary">
-            <span className="min-w-0 truncate">{e.path ?? e.name}</span>
-            <span aria-label={`훅 ${points(e.points)}`} className="flex-none">
-              {points(e.points)}
-            </span>
           </div>
           {e.desc !== undefined && <p className="m-0 text-ui-sm text-text-secondary">{e.desc}</p>}
         </div>
@@ -126,12 +101,12 @@ export function GroupRow({
         </div>
       </div>
       {error !== undefined && (
-        <p role="alert" className="m-0 ps-7.5 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui-sm text-danger-text">
           {error}
         </p>
       )}
       {settings !== undefined && (
-        <div className="grid gap-1 ps-7.5">
+        <div className="grid gap-1">
           <button
             type="button"
             aria-expanded={open}
@@ -142,7 +117,7 @@ export function GroupRow({
               aria-hidden
               className={`size-icon-xs transition-transform duration-quick ${open ? "rotate-90" : ""}`}
             />
-            그룹 설정 {settingsCount}
+            그룹 설정
           </button>
           {open && <div className="grid">{settings}</div>}
         </div>
@@ -156,11 +131,10 @@ export function PluginRow({ e, safe = false }: { e: Ext; safe?: boolean }) {
   const safeOff = safe && (e.source === "user" || e.source === "project");
   return (
     <div className="flex min-h-8 min-w-0 items-center gap-3">
-      <span className="min-w-0 truncate font-mono text-mono text-text-primary">{e.name}</span>
-      <span className="flex-none text-ui-sm text-text-tertiary">{SOURCE[e.source]}</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-mono-sm text-text-tertiary @max-[30rem]:hidden">
-        {points(e.points)}
+      <span className="min-w-0 flex-1 truncate font-mono text-mono text-text-primary">
+        {e.name}
       </span>
+      <span className="flex-none text-ui-sm text-text-tertiary">{SOURCE[e.source]}</span>
       {safeOff ? (
         <span className="text-ui-sm text-text-tertiary">안전 모드라 꺼짐</span>
       ) : (

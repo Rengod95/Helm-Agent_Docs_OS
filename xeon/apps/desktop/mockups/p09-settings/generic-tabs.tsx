@@ -11,7 +11,6 @@ import {
   Switch,
   TagInput,
 } from "@caustic/react";
-import { FileText } from "../_shell";
 import { SettingRow, SettingSection } from "../_settings/row";
 import type { TabId } from "../_settings/tabs";
 
@@ -103,7 +102,6 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
             k="l1.context.compactAt"
             scope="default"
             apply="nextTurn"
-            hint="문맥 창에 대한 비율이에요."
           >
             <div className="flex items-center gap-2">
               <NumberField
@@ -209,11 +207,9 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
         <EmptyState
           size="sm"
           surface="none"
-          icon={<FileText />}
           title="이 탭 항목은 파일에서만 바꿔요"
-          description="x.loading-trust.*, x.operations.* 6개"
           actions={
-            <Button size="sm" tone="neutral" variant="outline" iconStart={<FileText />}>
+            <Button size="sm" tone="neutral" variant="outline">
               파일로 보기
             </Button>
           }

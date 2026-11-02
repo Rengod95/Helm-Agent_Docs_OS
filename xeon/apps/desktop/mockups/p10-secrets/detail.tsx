@@ -10,7 +10,7 @@ import {
   Progress,
 } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
-import { CircleCheck, Copy, Eye, EyeOff } from "../_shell";
+import { CircleCheck } from "../_shell";
 import type { Secret } from "./fixtures";
 
 export type Reveal = "hidden" | "reauth" | "revealed" | "not_started" | "reauth_denied";
@@ -47,12 +47,10 @@ function Countdown({ onDone }: { onDone: () => void }) {
 }
 
 function ValueCell({
-  name,
   reveal,
   onReveal,
   onHide,
 }: {
-  name: string;
   reveal: Reveal;
   onReveal: () => void;
   onHide: () => void;
@@ -62,10 +60,10 @@ function ValueCell({
       <span className="grid gap-1.5 py-1">
         <span className="break-all font-mono text-mono text-text-primary">{FAKE}</span>
         <span className="flex flex-wrap items-center gap-1">
-          <Button size="xs" tone="neutral" variant="outline" iconStart={<Copy />}>
+          <Button size="xs" tone="neutral" variant="outline">
             복사
           </Button>
-          <Button size="xs" tone="neutral" variant="ghost" iconStart={<EyeOff />} onClick={onHide}>
+          <Button size="xs" tone="neutral" variant="ghost" onClick={onHide}>
             지금 가리기
           </Button>
           <span className="ms-2">
@@ -78,7 +76,7 @@ function ValueCell({
     return (
       <span className="grid gap-1.5 py-1">
         <span className="text-ui-sm text-text-secondary">
-          이 연결(앱 안 엔진)에서는 값 보기를 아직 쓸 수 없어요. 이름과 메타, 사용 기록만 보여요.
+          이 연결(앱 안 엔진)에서는 값 보기를 아직 쓸 수 없어요.
         </span>
       </span>
     );
@@ -94,7 +92,6 @@ function ValueCell({
         size="xs"
         tone="neutral"
         variant="outline"
-        iconStart={<Eye />}
         onClick={onReveal}
         disabled={reveal === "reauth"}
       >
@@ -134,21 +131,11 @@ export function SecretDetail({
         className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
       >
         <ListDescriptionRow term="값">
-          <ValueCell name={secret.name} reveal={reveal} onReveal={onReveal} onHide={onHide} />
+          <ValueCell reveal={reveal} onReveal={onReveal} onHide={onHide} />
         </ListDescriptionRow>
         <ListDescriptionRow term="설명">{secret.desc}</ListDescriptionRow>
         <ListDescriptionRow term="허용 호스트" mono>
           {secret.hosts.join(", ")}
-        </ListDescriptionRow>
-        <ListDescriptionRow term="참조">
-          {secret.refs.length === 0 ? (
-            <span className="text-text-tertiary">없음</span>
-          ) : (
-            <span className="font-mono text-mono-sm">{secret.refs.join(", ")}</span>
-          )}
-        </ListDescriptionRow>
-        <ListDescriptionRow term="사용 중">
-          활성 lease {secret.leases} · 최근 대화 {secret.sessions}
         </ListDescriptionRow>
         <ListDescriptionRow term="승인">{secret.approval}</ListDescriptionRow>
         <ListDescriptionRow term="만료">
@@ -163,9 +150,6 @@ export function SecretDetail({
           ) : (
             secret.expires
           )}
-        </ListDescriptionRow>
-        <ListDescriptionRow term="보관" mono>
-          sops · ~/.fresnel/secrets.enc.yaml
         </ListDescriptionRow>
       </ListDescription>
       {reveal === "reauth_denied" && (
@@ -187,9 +171,7 @@ export function SecretDetail({
           className="m-0 flex items-center gap-1.5 pt-1 text-ui-sm text-text-secondary"
         >
           <CircleCheck aria-hidden className="size-icon-sm text-success-text" />
-          테스트: 복호화됨 · 길이 108 · sha256{" "}
-          <span className="font-mono text-mono-sm">1f3a9c0e</span>
-          <span className="text-text-tertiary">· 방금</span>
+          테스트: 복호화됨 <span className="text-text-tertiary">· 방금</span>
         </p>
       )}
     </section>

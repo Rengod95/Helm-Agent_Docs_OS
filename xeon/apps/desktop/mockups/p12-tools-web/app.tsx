@@ -15,7 +15,6 @@ import {
   Tooltip,
 } from "@caustic/react";
 import type { ReactNode } from "react";
-import { Globe, Plug, RotateCw } from "../_shell";
 import { SettingsFrame } from "../_settings/frame";
 import { reorderLabels } from "../_settings/parts";
 import { SavedMark, SettingRow, SettingSection } from "../_settings/row";
@@ -36,13 +35,14 @@ interface Row {
   name: string;
   source: string;
   status: Status;
-  price: ReactNode;
+  price?: ReactNode;
   current?: boolean;
   notice?: boolean;
 }
 
-const STATUS: Record<Status, { text: string; cls: string }> = {
-  ready: { text: "쓸 수 있음", cls: "text-text-secondary" },
+// 정상(ready)은 아무 글도 두지 않는다. 할 일이 있는 상태만 글로 적는다.
+const STATUS: Record<Status, { text: string; cls: string } | null> = {
+  ready: null,
   "needs-key": { text: "키 없음", cls: "text-warning-text" },
   unreachable: { text: "연결 안 됨", cls: "text-danger-text" },
 };
@@ -51,7 +51,7 @@ const SEARCH: Row[] = [
   {
     id: "searxng",
     name: "SearXNG",
-    source: "로컬 · localhost:8888",
+    source: "로컬",
     status: "ready",
     price: "무료",
     current: true,
@@ -59,21 +59,20 @@ const SEARCH: Row[] = [
   {
     id: "builtin",
     name: "내장 검색",
-    source: "anthropic web_search",
+    source: "anthropic",
     status: "ready",
     price: "$10 / 1천 회",
   },
   {
     id: "exa",
     name: "Exa",
-    source: "플러그인 web-exa",
+    source: "플러그인",
     status: "needs-key",
-    price: "가격 2026-08 기준",
   },
   {
     id: "brave",
     name: "Brave",
-    source: "플러그인 web-brave",
+    source: "플러그인",
     status: "unreachable",
     price: (
       <Tooltip content="가격표가 90일 넘게 갱신되지 않았어요 (2026-07-12)">
@@ -97,7 +96,7 @@ function End({ r }: { r: Row }) {
           첫 사용 안내 남음
         </Badge>
       )}
-      <span className={st.cls}>{st.text}</span>
+      {st !== null && <span className={st.cls}>{st.text}</span>}
       <span className="w-28 truncate text-end text-text-tertiary @max-[32rem]:hidden">
         {r.price}
       </span>
@@ -169,29 +168,19 @@ export function App({ state }: { state: State }) {
 
   return (
     <SettingsFrame tab="tools" onTabSelect={onTabSelect}>
-      <SettingSection
-        title="검색"
-        end={
-          moved ? (
-            <span className="flex items-center gap-2">
-              <span className="text-ui-sm text-text-tertiary">Exa를 2번째로 옮겼어요</span>
-              <SavedMark />
-            </span>
-          ) : undefined
-        }
-      >
+      <SettingSection title="검색" end={moved ? <SavedMark /> : undefined}>
         {failed && (
           <div className="pb-2">
             <Alert
               tone="danger"
               layout="inline"
               action={
-                <Button size="xs" tone="neutral" variant="outline" iconStart={<RotateCw />}>
+                <Button size="xs" tone="neutral" variant="outline">
                   다시 읽기
                 </Button>
               }
             >
-              provider 목록을 읽지 못했어요. 마지막으로 읽은 순서를 보여요.
+              provider 목록을 읽지 못했어요.
             </Alert>
           </div>
         )}
@@ -249,9 +238,7 @@ export function App({ state }: { state: State }) {
         {loading ? (
           <SkeletonRows />
         ) : state === "S4" ? (
-          <p className="m-0 py-1 text-ui text-text-secondary">
-            브라우저 도구가 없어요. 아래 권장에서 playwright-mcp를 설치할 수 있어요.
-          </p>
+          <p className="m-0 py-1 text-ui text-text-secondary">브라우저 도구가 없어요.</p>
         ) : (
           <ProviderList
             label="브라우저 순서"
@@ -259,7 +246,7 @@ export function App({ state }: { state: State }) {
               {
                 id: "playwright",
                 name: "playwright-mcp",
-                source: "MCP · npx @playwright/mcp",
+                source: "MCP",
                 status: "ready",
                 price: "무료",
                 current: true,
@@ -267,7 +254,7 @@ export function App({ state }: { state: State }) {
               {
                 id: "cdp",
                 name: "chrome-devtools-mcp",
-                source: "MCP · 프로젝트 .mcp.json",
+                source: "MCP · 프로젝트",
                 status: "ready",
                 price: "무료",
               },
@@ -286,7 +273,7 @@ export function App({ state }: { state: State }) {
               {
                 id: "local",
                 name: "local",
-                source: "내장 · readability",
+                source: "내장",
                 status: "ready",
                 price: "무료",
                 current: true,
@@ -294,9 +281,8 @@ export function App({ state }: { state: State }) {
               {
                 id: "jina",
                 name: "Jina Reader",
-                source: "플러그인 web-jina",
+                source: "플러그인",
                 status: "needs-key",
-                price: "가격 2026-09 기준",
                 notice: state === "S4",
               },
             ]}
@@ -307,18 +293,13 @@ export function App({ state }: { state: State }) {
       <SettingSection title="권장">
         <ul className="m-0 grid list-none gap-0.5 p-0">
           {[
-            { n: "Exa", d: "의미 검색 · 키 필요", a: "키 등록", s: "설치됨" },
-            { n: "Brave", d: "일반 웹 검색 · 키 필요", a: "설치", s: "설치 안 됨" },
-            ...(state === "S4"
-              ? [{ n: "playwright-mcp", d: "브라우저 조작", a: "설치", s: "설치 안 됨" }]
-              : []),
+            { n: "Exa", d: "의미 검색", a: "키 등록" },
+            { n: "Brave", d: "일반 웹 검색 · 키 필요", a: "설치" },
+            ...(state === "S4" ? [{ n: "playwright-mcp", d: "브라우저 조작", a: "설치" }] : []),
           ].map((r) => (
             <li key={r.n} className="flex min-h-8 items-center gap-3">
-              <Globe aria-hidden className="size-icon-sm text-text-tertiary" />
               <span className="text-ui font-medium text-text-primary">{r.n}</span>
-              <span className="min-w-0 flex-1 truncate text-ui-sm text-text-tertiary">
-                {r.d} · {r.s}
-              </span>
+              <span className="min-w-0 flex-1 truncate text-ui-sm text-text-tertiary">{r.d}</span>
               <Button size="xs" tone="neutral" variant="outline">
                 {r.a}
               </Button>
@@ -328,9 +309,9 @@ export function App({ state }: { state: State }) {
       </SettingSection>
 
       <SettingSection
-        title="MCP 서버 3"
+        title="MCP 서버"
         end={
-          <Button size="xs" tone="neutral" variant="ghost" iconStart={<Plug />}>
+          <Button size="xs" tone="neutral" variant="ghost">
             관리
           </Button>
         }
@@ -346,7 +327,6 @@ export function App({ state }: { state: State }) {
           k="l2.web.policy.allowDomains"
           scope="project"
           apply="nextTurn"
-          hint="비우면 모두 허용해요."
         >
           <TagInput
             size="sm"
