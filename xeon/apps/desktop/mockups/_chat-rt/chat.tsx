@@ -1,26 +1,24 @@
 // batch A 공용 대화 무대 부품(목업 전용). p02-opus의 머리·트랜스크립트·입력창을 런타임 표시와 함께 다시 짠 것이다.
-// - ChatHead: 한 줄 머리(제목, 작업 폴더, 표지) + 둘째 줄 런타임 줄(DP-19, §6.30). 런타임 줄을 누르면 런타임 탭.
-// - RuntimeRow: 트랜스크립트 한 줄 런타임 행(muted 아이콘, secondary 글자, 동작 0~1개, 출처 tertiary, DP-19·DP-33).
-// - PluginCard: card slot 셸 틀(테두리 하나 + 확장 이름 연한 mono + "더 보기", ADR-0021 §3.2, §6.25).
+// - ChatHead: 한 줄 머리(제목, 표지) + 둘째 줄 런타임 줄(DP-19, §6.30). 런타임 줄을 누르면 런타임 탭.
+// - RuntimeRow: 트랜스크립트 한 줄 런타임 행(secondary 글자, 동작 0~1개, 출처 tertiary, DP-19·DP-33). 아이콘은 거부·실패만.
+// - PluginCard: card slot 셸 틀(테두리 하나 + 확장 이름 + "더 보기", ADR-0021 §3.2, §6.25).
 // - Streamed: useTypewriter로 글을 흘리는 에이전트 메시지(작성 중 커서는 p02-opus StreamingText).
 // - ChatStage: 머리 + 스크롤 트랜스크립트(바닥 따라감) + 띠 + 입력창. 가운데는 투명(DP-01), 읽기 폭 46rem.
 import { Button, Card, Composer, IconButton, Message, ScrollArea } from "@caustic/react";
 import { useEffect, useRef, type ReactNode } from "react";
-import { L, Layers, PanelLeft, T, ToneIcon, useShell, useTypewriter } from "../_shell";
+import { extName, L, Layers, PanelLeft, T, ToneIcon, useShell, useTypewriter } from "../_shell";
 import { StreamingText } from "../p02-opus/parts/streaming-text";
 
 export const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
 
 export function ChatHead({
   title,
-  folder = "~/code/fresnel",
   marks,
   runtime,
   runtimeLabel,
   end,
 }: {
   title: ReactNode;
-  folder?: string;
   /** 제목 옆 표지(테스트 Badge, 프로필, 대상 등). 좁은 폭에서는 첫 표지만 남긴다(페이지가 정한다). */
   marks?: ReactNode;
   /** 런타임 줄 글(요약). 없으면 줄을 그리지 않는다. */
@@ -48,9 +46,6 @@ export function ChatHead({
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <h1 className="m-0 min-w-0 truncate font-ui text-ui-strong text-text-primary">{title}</h1>
           {marks}
-          <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary max-compact:hidden">
-            {folder}
-          </span>
         </div>
         {end}
       </div>
@@ -62,16 +57,17 @@ export function ChatHead({
           aria-label={runtimeLabel ?? L("런타임 탭 열기")}
           className="-mt-1.5 flex min-w-0 max-w-full items-center gap-1.5 justify-self-start rounded-sm text-ui-dense text-text-secondary outline-none hover:text-text-primary focus-visible:focus-ring"
         >
-          <Layers
-            emphasis="muted"
-            aria-hidden
-            className="size-icon-xs flex-none text-text-tertiary"
-          />
           <span className="min-w-0 truncate">{runtime}</span>
         </button>
       )}
     </header>
   );
+}
+
+/** "grp:helm"·"ext:acme-notes" → 확장 이름. "core"(앱 자신)는 출처를 적지 않는다(출처 표기는 확장이 낸 행에만, DP-33). */
+function sourceName(source: string): string | null {
+  if (source === "core") return null;
+  return extName(source.replace(/^(grp|ext):/, ""));
 }
 
 export function RuntimeRow({
@@ -94,23 +90,17 @@ export function RuntimeRow({
   /** 지금 일어나는 행(aria-live 대상). */
   live?: boolean;
 }) {
-  const mark =
-    tone !== undefined ? (
-      <ToneIcon tone={tone}>{icon ?? <Layers />}</ToneIcon>
-    ) : (
-      <span
-        aria-hidden
-        className="inline-grid size-4 flex-none place-items-center text-text-tertiary [&_svg]:size-icon-xs"
-      >
-        {icon ?? <Layers emphasis="muted" />}
-      </span>
-    );
+  // 정상 행은 앞 아이콘 없이 글만(디자인 언어 §6). 거부·실패 같은 주의 행만 tone 면 아이콘을 둔다.
+  const mark = tone !== undefined ? <ToneIcon tone={tone}>{icon ?? <Layers />}</ToneIcon> : null;
+  const src = source === undefined ? null : sourceName(source);
+  // 글이 이미 확장 이름으로 시작하면 출처를 또 적지 않는다.
+  const showSrc = src !== null && !(typeof children === "string" && children.startsWith(src));
   const body = (
     <>
       {mark}
       <span className="min-w-0 truncate">{children}</span>
-      {source !== undefined && (
-        <span className="flex-none font-mono text-mono-sm text-text-tertiary">{source}</span>
+      {showSrc && (
+        <span className="flex-none font-mono text-mono-sm text-text-tertiary">{src}</span>
       )}
     </>
   );
@@ -165,7 +155,7 @@ export function PluginCard({
         <span aria-hidden className="inline-grid place-items-center [&_svg]:size-icon-xs">
           {icon}
         </span>
-        <span className="font-mono text-mono-sm">{ext}</span>
+        <span className="font-mono text-mono-sm">{extName(ext)}</span>
         {onMore !== undefined && (
           <Button
             size="xs"

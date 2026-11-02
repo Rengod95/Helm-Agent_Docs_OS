@@ -1,4 +1,4 @@
-// 무대: 머리(제목, 작업 폴더, 목표 칩, 탐구·작업, 더보기 메뉴) + 트랜스크립트(스크롤) + 입력창(아래 고정).
+// 무대: 머리(제목, 더보기 메뉴) + 트랜스크립트(스크롤) + 입력창(아래 고정).
 import {
   Alert,
   Button,
@@ -16,19 +16,7 @@ import {
 } from "@caustic/react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { approvals, transcript, type TranscriptItem } from "./fixtures";
-import {
-  Archive,
-  Ellipsis,
-  FlaskConical,
-  FolderTree,
-  GitBranch,
-  History,
-  Minimize2,
-  Pencil,
-  PanelLeft,
-  SquarePen,
-  Trash2,
-} from "../_shell";
+import { Ellipsis, PanelLeft, T } from "../_shell";
 import { ObserveBand } from "./parts/observe-band";
 import { RichText } from "./parts/rich-text";
 import { StreamingText } from "./parts/streaming-text";
@@ -42,8 +30,8 @@ const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
 function StageHead() {
   const m = useMock();
   return (
-    // 한 줄 머리: (사이드바가 닫혔을 때만) 열기, 제목, 작업 폴더, 목표. 선이나 띠 없이 간격으로만 나눈다.
-    // 탐구·작업은 오른쪽 막대가 맡고, 찾기는 왼쪽 패널 머리가 맡는다(DP-05).
+    // 한 줄 머리: (사이드바가 닫혔을 때만) 열기, 제목. 선이나 띠 없이 간격으로만 나눈다.
+    // 탐구·작업은 오른쪽 막대가 맡고, 찾기는 왼쪽 패널 머리가 맡는다(DP-05). 작업 폴더와 목표는 머리에 없다.
     <header className={`${READ_WIDTH} flex h-10 flex-none items-center gap-1`}>
       {!m.startOpen && (
         <IconButton
@@ -59,17 +47,6 @@ function StageHead() {
       )}
       <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
         <h1 className="m-0 truncate font-ui text-ui-strong text-text-primary">{m.currentTitle}</h1>
-        <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/fresnel</span>
-        {m.view === "thread" && (
-          <button
-            type="button"
-            onClick={() => m.openEnd("work")}
-            aria-label="목표 3개 중 2개 이룸, 작업 열기"
-            className="shrink-0 rounded-sm text-ui-sm tabular-nums text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
-          >
-            목표 2/3
-          </button>
-        )}
       </div>
       <Menu
         align="end"
@@ -80,17 +57,13 @@ function StageHead() {
           </IconButton>
         }
       >
-        <MenuItem icon={<Pencil />}>이름 바꾸기</MenuItem>
-        <MenuItem icon={<GitBranch />}>분기</MenuItem>
-        <MenuItem icon={<Minimize2 />} end="/compact">
-          대화 컴팩션
-        </MenuItem>
-        <MenuItem icon={<History />}>체크포인트로 되돌리기</MenuItem>
+        <MenuItem>이름 바꾸기</MenuItem>
+        <MenuItem>분기</MenuItem>
+        <MenuItem>대화 컴팩션</MenuItem>
+        <MenuItem>체크포인트로 되돌리기</MenuItem>
         <MenuSeparator />
-        <MenuItem icon={<Archive />}>닫기</MenuItem>
-        <MenuItem icon={<Trash2 />} tone="danger">
-          삭제
-        </MenuItem>
+        <MenuItem>닫기</MenuItem>
+        <MenuItem tone="danger">삭제</MenuItem>
       </Menu>
     </header>
   );
@@ -111,13 +84,7 @@ function Item({ item }: { item: TranscriptItem }) {
       );
     case "tool":
       return (
-        <ToolRow
-          name={item.name}
-          detail={item.detail}
-          status={item.status}
-          duration={item.duration}
-          output={item.output}
-        />
+        <ToolRow name={item.name} detail={item.detail} status={item.status} output={item.output} />
       );
     case "thinking":
       return (
@@ -201,9 +168,7 @@ function Transcript() {
           <div key={`sent-${i}`} className="grid justify-items-end gap-1">
             <Message author="user">{text}</Message>
             {m.running && (
-              <span className="text-ui-xs text-text-tertiary">
-                다음 도구 라운드 뒤 들어가요 (steer)
-              </span>
+              <span className="text-ui-xs text-text-tertiary">다음 도구 라운드 뒤 들어가요</span>
             )}
           </div>
         ))}
@@ -219,27 +184,13 @@ function EmptyThread() {
       <div className={`${READ_WIDTH} grid gap-4 pb-3`}>
         <EmptyState variant="agent" surface="none" size="sm" title="무엇부터 할까요?" />
         <Suggestions aria-label="추천 시작 문장" variant="outline">
-          <SuggestionsItem
-            icon={<FolderTree />}
-            hint="폴더와 패키지 구성"
-            onClick={() => m.send("이 저장소 구조 설명")}
-          >
+          <SuggestionsItem onClick={() => m.send("이 저장소 구조 설명")}>
             이 저장소 구조 설명
           </SuggestionsItem>
-          <SuggestionsItem
-            icon={<FlaskConical />}
-            hint="bun test로 확인"
-            onClick={() => m.send("실패하는 테스트 찾기")}
-          >
+          <SuggestionsItem onClick={() => m.send("실패하는 테스트 찾기")}>
             실패하는 테스트 찾기
           </SuggestionsItem>
-          <SuggestionsItem
-            icon={<History />}
-            hint="최근 커밋 기준"
-            onClick={() => m.send("최근 변경 요약")}
-          >
-            최근 변경 요약
-          </SuggestionsItem>
+          <SuggestionsItem onClick={() => m.send("최근 변경 요약")}>최근 변경 요약</SuggestionsItem>
         </Suggestions>
       </div>
     </div>
@@ -292,11 +243,11 @@ function ComposerArea() {
         stopLabel="중단"
         attachLabel="맥락 더하기"
         modeLabel="실행 중 보낸 입력"
-        modes={["steer", "followUp"]}
-        defaultMode="steer"
+        modes={[T.modeSteer, T.modeFollowUp]}
+        defaultMode={T.modeSteer}
         modelLabel="sonnet-5-5"
         usage={m.currentId === null ? 0 : 41}
-        usageLabel={(p) => `문맥 ${p}% 사용`}
+        usageLabel={(p) => `문맥 ${p}%`}
         placeholder={locked ? "연결이 돌아오면 보낼 수 있어요" : "메시지를 입력하세요"}
         running={m.running && !locked}
         disabled={locked}
@@ -329,7 +280,6 @@ export function StageContent() {
           </IconButton>
         )}
         <EmptyState
-          icon={<SquarePen />}
           surface="none"
           title="왼쪽에서 대화를 고르거나 새로 만드세요"
           actions={
@@ -360,7 +310,7 @@ export function StageContent() {
               </Button>
             }
           >
-            연결을 다시 맞추는 중이에요 (2/3)
+            연결을 다시 맞추는 중이에요
           </Alert>
         </div>
       )}

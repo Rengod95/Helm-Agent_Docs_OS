@@ -9,7 +9,6 @@ export type TranscriptItem =
       name: string;
       detail: string;
       status: "failed" | "done";
-      duration: string;
       output?: string;
     }
   | { kind: "thinking"; text: string }
@@ -24,10 +23,9 @@ export const transcript: TranscriptItem[] = [
     name: "bash",
     detail: "bun test cache",
     status: "failed",
-    duration: "1.2s",
     output: "FAIL test/cache.test.ts > expires after ttl\n  expected true, received false",
   },
-  { kind: "tool", name: "read", detail: "src/cache.ts", status: "done", duration: "40ms" },
+  { kind: "tool", name: "read", detail: "src/cache.ts", status: "done" },
   {
     kind: "thinking",
     text: "만료 시각 비교에 초와 밀리초가 섞여 있어요. set은 초, isExpired는 밀리초로 비교해요.",

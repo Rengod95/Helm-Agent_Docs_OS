@@ -4,7 +4,16 @@ import { loadCausticFonts, MockRoot, ShellStateProvider } from "../_shell";
 import "./mockup.css";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { defaultStatusCells, Shell, standardRightTabs, useShell, type StatusCell } from "../_shell";
+import {
+  defaultStatusCells,
+  EXT,
+  josa,
+  Shell,
+  standardRightTabs,
+  T,
+  useShell,
+  type StatusCell,
+} from "../_shell";
 import { InboxLite } from "../p07-schedules/parts/inbox-lite";
 import { ChatContext, type ContextItem } from "./parts/chat-context";
 import { HelmPage, HelmPanel, type HelmState } from "./helm";
@@ -49,7 +58,6 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
         kind: "event",
         icon: "helm",
         text: "같은 오류가 세 번 났어요. 여러 관점으로 탐구해 볼까요?",
-        detail: "helm · 신호 stuck",
         action: { label: "탐구 시작", onClick: openHelm },
       },
     ];
@@ -58,8 +66,7 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
     {
       kind: "event",
       icon: "helm",
-      text: "helm이 drive를 받았어요 · 캐시 무효화",
-      detail: "턴 경계에서 그룹이 바뀌었어요 · 렌즈 3개",
+      text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요 · 캐시 무효화`,
       action: { label: "탐구 보기", onClick: openHelm },
     },
     {
@@ -69,7 +76,7 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
       status: "failed",
       duration: "0ms",
       failedLabel: "거부됨",
-      output: "탐색 단계에서는 쓰기 도구를 쓰지 않아요 (helm scope).",
+      output: "탐색 단계에서는 쓰기 도구를 쓰지 않아요.",
     },
   ];
   if (state === "S3")
@@ -85,8 +92,8 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
       {
         kind: "event",
         icon: "helm",
-        text: "탐구 끝 · 적용함. drive가 review로 넘어갔어요",
-        detail: "작업 #12, #13이 생겼어요",
+        text: "탐구 끝 · 적용함",
+        detail: "작업이 생겼어요",
       },
     ];
   if (state === "S2" || state === "S6")
@@ -97,7 +104,7 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
         icon: "helm",
         text:
           state === "S6"
-            ? "자식 에이전트 상한(8)에 걸려 멈췄어요"
+            ? "자식 에이전트 상한에 걸려 멈췄어요"
             : "탐색 끝 · 수렴 단계로 넘어갔어요",
       },
     ];
@@ -108,7 +115,6 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
         kind: "event",
         icon: "helm",
         text: "탐구를 대기열에 넣었어요",
-        detail: "주도를 review가 쥐고 있어요",
       },
     ];
   return started;
@@ -137,7 +143,8 @@ function Page({ state }: { state: HelmState }) {
               ? "Helm 탐색"
               : "Helm",
     title: "Helm",
-    description: "이 대화의 Helm 탐구 단계예요. 누르면 탐구 탭을 열어요.",
+    // 설명 글은 뺀다. StatusCell.description은 필수라 빈 글로 둔다(_shell 타입을 바꾸지 않으려고).
+    description: "",
     action: { label: "탐구 탭 열기", onSelect: () => shell.openEnd("helm") },
   };
   const status = defaultStatusCells({
@@ -179,7 +186,7 @@ function Page({ state }: { state: HelmState }) {
           }}
         />
       ) : (
-        <ChatContext items={transcript(state, openHelm)} goal="목표 2/3" running={running} />
+        <ChatContext items={transcript(state, openHelm)} running={running} />
       )}
     </Shell>
   );

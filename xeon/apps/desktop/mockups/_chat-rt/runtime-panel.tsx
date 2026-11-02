@@ -1,37 +1,29 @@
 // batch A 공용: 대화 영역 오른쪽 "런타임" 탭 내용(§4.9.8, DP-23). wb-opus W5 런타임 탭을 데이터 주도로 다시 짰다.
-// 구역: 주도(보유·단계·상한 사용량, 사람 확인 대기, 차례 기다림·거부 + "이 그룹 먼저") · 켜진 그룹과 확장(펼치면 훅)
+// 구역: 주도(보유·단계·상한 사용량, 사람 확인 대기, 차례 기다림·거부 + "이 그룹 먼저") · 켜진 그룹과 확장(이름과 상태만)
 //       · 전환 기록(단계 사이마다) · 실패 · "크래프트에서 보기". well 안이라 카드·테두리 없이 간격으로만 묶는다(DP-10, DP-20).
 import { Badge, Button, Progress } from "@caustic/react";
-import { useState, type ReactNode } from "react";
-import {
-  L,
-  L2,
-  ChevronRight,
-  CircleAlert,
-  extName,
-  T,
-  ToneIcon,
-  TriangleAlert,
-  josa,
-  useShell,
-} from "../_shell";
+import type { ReactNode } from "react";
+import { L, L2, CircleAlert, extName, T, ToneIcon, TriangleAlert, josa, useShell } from "../_shell";
 
 export interface QueueRow {
   group: string;
   state: "waiting" | "rejected";
+  /** 행 뒤 짧은 글. 빈 글이면 적지 않는다. */
   note: string;
   /** "이 그룹 먼저"를 이미 눌렀다(다음 단계 사이에서 먼저 받음). */
   first?: boolean;
 }
 export interface GroupRow {
+  /** 층 코드. 화면에 내지 않는다. */
   layer: string;
   name: string;
   state: string;
   tone?: "warning" | "danger" | "info";
+  /** 훅 목록. 화면에 내지 않는다(훅 이름은 내부 키라 사람 말로 바꾸지 않고 뺀다). */
   points: string[];
 }
 export interface RuntimeData {
-  /** 본문 첫 줄(대화 이름 · 턴). */
+  /** 대화 이름 · 턴. 화면에 내지 않는다(대화 제목이 무대 머리에 있다). */
   caption: string;
   holder: string | null;
   /** 보유 그룹의 지금 단계 글(플러그인 status 기여). */
@@ -44,12 +36,14 @@ export interface RuntimeData {
   gauges?: {
     turns: [number, number];
     spawns: [number, number];
-    tokens: string;
-    tokenRatio: number;
+    /** 토큰 사용량 글. 없으면 토큰 막대를 그리지 않는다. */
+    tokens?: string | undefined;
+    tokenRatio?: number | undefined;
   };
   queue: QueueRow[];
   groups: GroupRow[];
-  switches: { at: string; turn: number; text: string }[];
+  /** 전환 기록. 턴과 글만 보인다(at은 받기만 한다). */
+  switches: { at?: string | undefined; turn: number; text: string }[];
   failures?: { name: string; text: string; tone: "warning" | "danger" }[];
 }
 
@@ -74,47 +68,19 @@ function Gauge({ label, ratio, text }: { label: string; ratio: number; text: str
   );
 }
 
+/** 그룹 한 줄: 이름과 상태. 층 코드·내부 이름·훅 개수와 목록은 내지 않는다. 구역 제목이 이미 "켜진"이라 평범한 "켜짐"도 적지 않는다. */
 function GroupLine({ g }: { g: GroupRow }) {
-  const [open, setOpen] = useState(false);
   return (
-    <li className="grid">
-      <div className="grid grid-cols-[1.25rem_3rem_minmax(0,1fr)_auto] items-center gap-1 text-ui-dense">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-label={`${extName(g.name)} ${T.extensionPoint} ${g.points.length}개 ${open ? "접기" : "펼치기"}`}
-          onClick={() => setOpen(!open)}
-          className="inline-grid size-5 place-items-center rounded-sm text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
-        >
-          <ChevronRight
-            aria-hidden
-            className={`size-icon-xs transition-transform duration-quick ${open ? "rotate-90" : ""}`}
-          />
-        </button>
-        <span className="font-mono text-mono-sm text-text-tertiary">{g.layer}</span>
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-text-primary">{extName(g.name)}</span>
-          <span className="truncate font-mono text-mono-sm text-text-tertiary">{g.name}</span>
-          <span className="truncate text-ui-xs text-text-tertiary">
-            {T.extensionPoint} {g.points.length}
-          </span>
-        </span>
-        <span className="flex items-center gap-1 text-ui-xs text-text-secondary">
-          {g.tone !== undefined && (
-            <ToneIcon tone={g.tone}>
-              {g.tone === "danger" ? <CircleAlert /> : <TriangleAlert />}
-            </ToneIcon>
-          )}
-          {L(g.state)}
-        </span>
-      </div>
-      {open && (
-        <ul className="m-0 grid list-none gap-0.5 py-1 ps-[4.5rem] text-ui-xs text-text-secondary">
-          {g.points.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
-      )}
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 py-1 text-ui-dense">
+      <span className="truncate text-text-primary">{extName(g.name)}</span>
+      <span className="flex items-center gap-1 text-ui-xs text-text-secondary">
+        {g.tone !== undefined && (
+          <ToneIcon tone={g.tone}>
+            {g.tone === "danger" ? <CircleAlert /> : <TriangleAlert />}
+          </ToneIcon>
+        )}
+        {g.state !== "켜짐" && L(g.state)}
+      </span>
     </li>
   );
 }
@@ -139,7 +105,6 @@ export function RuntimePanel({
     });
   return (
     <div className="grid gap-5">
-      <p className="-mb-2 m-0 truncate text-ui-xs text-text-tertiary">{data.caption}</p>
       <section aria-label={T.lead} className="grid gap-2">
         <H end={data.since}>{T.lead}</H>
         {data.trial}
@@ -183,11 +148,13 @@ export function RuntimePanel({
               ratio={data.gauges.spawns[0] / data.gauges.spawns[1]}
               text={data.gauges.spawns.join(" / ")}
             />
-            <Gauge
-              label={L2("토큰", "Tokens")}
-              ratio={data.gauges.tokenRatio}
-              text={data.gauges.tokens}
-            />
+            {data.gauges.tokens !== undefined && data.gauges.tokenRatio !== undefined && (
+              <Gauge
+                label={L2("토큰", "Tokens")}
+                ratio={data.gauges.tokenRatio}
+                text={data.gauges.tokens}
+              />
+            )}
           </div>
         )}
         {data.queue.length > 0 && (
@@ -201,8 +168,8 @@ export function RuntimePanel({
                   {q.state === "waiting" ? L2(`${i + 1}번째`, `#${i + 1}`) : L2("거부", "rejected")}
                 </span>
                 <span className="min-w-0 truncate">
-                  <span className="text-text-primary">{extName(q.group)}</span>{" "}
-                  <span className="text-text-secondary">· {q.note}</span>
+                  <span className="text-text-primary">{extName(q.group)}</span>
+                  {q.note !== "" && <span className="text-text-secondary"> · {q.note}</span>}
                 </span>
                 {q.state === "waiting" && onFirst !== undefined && (
                   <Button
@@ -224,7 +191,7 @@ export function RuntimePanel({
         )}
       </section>
       <section aria-label={`켜진 ${T.group}과 ${T.extension}`} className="grid gap-0.5">
-        <H end={L2(`${data.groups.length}개`, `${data.groups.length}`)}>
+        <H>
           {L2(
             `켜진 ${T.group}과 ${T.extension}`,
             `${T.group}s and ${T.extension.toLowerCase()} on`,
@@ -237,16 +204,13 @@ export function RuntimePanel({
         </ul>
       </section>
       <section aria-label="전환 기록" className="grid gap-0.5">
-        <H end={L2(`${T.stepBoundary}마다`, `${T.stepBoundary}`)}>
-          {L2("전환 기록", "Switch log")}
-        </H>
+        <H>{L2("전환 기록", "Switch log")}</H>
         <ol className="m-0 grid list-none gap-1 p-0">
           {data.switches.map((s, i) => (
             <li
-              key={`${s.at}-${i}`}
-              className="grid grid-cols-[2.75rem_2.5rem_minmax(0,1fr)] items-baseline gap-1.5 text-ui-xs"
+              key={`${s.at ?? ""}-${i}`}
+              className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-baseline gap-1.5 text-ui-xs"
             >
-              <span className="font-mono text-mono-sm tabular-nums text-text-tertiary">{s.at}</span>
               <span className="tabular-nums text-text-tertiary">
                 {T.turn} {s.turn}
               </span>

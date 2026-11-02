@@ -1,6 +1,5 @@
 // O-01 잠긴 대화: Dialog kind="alert". "관찰만 하기"를 고르면 입력창 자리에 관찰 띠가 선다.
 import { Button, Dialog } from "@caustic/react";
-import { Lock } from "../_shell";
 import { useMock } from "./store";
 
 export function LockedDialog() {
@@ -12,7 +11,6 @@ export function LockedDialog() {
       size="sm"
       open={m.lockedOpen}
       onOpenChange={m.setLockedOpen}
-      icon={<Lock />}
       title="이 대화는 다른 창에서 쓰고 있어요"
       footer={
         <>
