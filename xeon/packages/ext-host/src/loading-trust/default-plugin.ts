@@ -3,6 +3,7 @@ import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contract
 import { validateManifest } from "@fresnel/contracts/extensions";
 import { MANIFEST_RELATIVE_PATH } from "./discover.ts";
 import { compareVersions } from "./semver.ts";
+import type { VersionHistory } from "./version-history.ts";
 
 /**
  * 기본 플러그인 설치가 쓰는 파일 접근. 복사에는 쓰기가 필요한데 `LoaderFs`는 읽기 전용이고 X는 L0를 import하지 않으므로
@@ -38,6 +39,11 @@ export interface DefaultPluginInstallInput {
    * 생략하면 `<userDir>/.staging`(대상의 두 단계 위)이다
    */
   readonly stagingRoot?: string;
+  /**
+   * 있으면 교체할 때 버전 기록을 남긴다(X.loading-trust.spec §4.4.7). 이전 설치본은 교체 전에 기록하고, 이전 설치본을
+   * 기록하지 못하면 교체하지 않는다. 새 번들 버전은 교체 뒤에 기록한다. 없으면 기록하지 않는다
+   */
+  readonly history?: VersionHistory;
 }
 
 export type DefaultPluginInstallOutcome =
@@ -86,6 +92,80 @@ async function copyTree(fs: PluginInstallFs, from: string, to: string): Promise<
       }
     }),
   );
+}
+
+/**
+ * 교체 전에 이전 설치본을 기록한다. 출처는 기록에 이미 있으면 그것을 따르고 없으면 번들이다(X.loading-trust.spec §4.4.7).
+ * 기록하지 못하면 호출자는 교체하지 않는다
+ */
+async function recordPrevious(
+  history: VersionHistory,
+  fs: PluginInstallFs,
+  name: string,
+  destination: string,
+  version: string,
+): Promise<Result<void, DefaultPluginInstallError>> {
+  const listing = await history.list(name, version);
+  if (!listing.ok) {
+    return err({
+      kind: "io",
+      message: `cannot read the version history of ${name}`,
+      cause: listing.error,
+    });
+  }
+  const source =
+    listing.value.versions.find((entry) => entry.version === version)?.source ?? "bundled";
+  const manifest = await attemptAsync(() => fs.readText(join(destination, MANIFEST_RELATIVE_PATH)));
+  if (!manifest.ok) {
+    return err({ kind: "io", message: `cannot read ${destination}`, cause: manifest.error.cause });
+  }
+  const recorded = await history.record({
+    name,
+    version,
+    source,
+    extensionDir: destination,
+    manifestText: manifest.value ?? "",
+    stateSchemaVersion: null,
+  });
+  if (!recorded.ok) {
+    return err({
+      kind: "io",
+      message: `cannot record ${version} in the version history`,
+      cause: recorded.error,
+    });
+  }
+  return ok(undefined);
+}
+
+/** 교체 뒤에 새 번들 버전을 기록한다. 교체는 이미 끝났으므로 실패는 기록만의 실패다 */
+async function recordBundled(
+  history: VersionHistory,
+  fs: PluginInstallFs,
+  name: string,
+  bundle: string,
+  destination: string,
+  version: string,
+): Promise<Result<void, DefaultPluginInstallError>> {
+  const manifest = await attemptAsync(() => fs.readText(join(bundle, MANIFEST_RELATIVE_PATH)));
+  if (!manifest.ok) {
+    return err({ kind: "io", message: `cannot read ${bundle}`, cause: manifest.error.cause });
+  }
+  const recorded = await history.record({
+    name,
+    version,
+    source: "bundled",
+    extensionDir: destination,
+    manifestText: manifest.value ?? "",
+    stateSchemaVersion: null,
+  });
+  if (!recorded.ok) {
+    return err({
+      kind: "io",
+      message: `installed ${version}, but cannot record it in the version history`,
+      cause: recorded.error,
+    });
+  }
+  return ok(undefined);
 }
 
 /**
@@ -148,6 +228,10 @@ export async function installDefaultPlugin(
     });
   }
   const existing = existingListing.value;
+  if (input.history !== undefined && existing !== null && installedVersion !== undefined) {
+    const previous = await recordPrevious(input.history, fs, name, destination, installedVersion);
+    if (!previous.ok) return err(previous.error);
+  }
   const swapped = await attemptAsync(async () => {
     await fs.removeDir(fresh);
     await fs.makeDir(stagingRoot);
@@ -175,6 +259,17 @@ export async function installDefaultPlugin(
     });
   }
   if (existing === null) return ok({ action: "installed", version });
+  if (input.history !== undefined) {
+    const recordedBundle = await recordBundled(
+      input.history,
+      fs,
+      name,
+      source,
+      destination,
+      version,
+    );
+    if (!recordedBundle.ok) return err(recordedBundle.error);
+  }
   return ok({
     action: "replaced",
     version,

@@ -647,6 +647,8 @@ export interface DefaultPluginInstallInput {
   readonly destination: string;
   /** 임시 디렉터리 뿌리. 탐색 밖, 대상과 같은 파일 시스템. 생략하면 `<userDir>/.staging` */
   readonly stagingRoot?: string;
+  /** 있으면 교체할 때 버전 기록을 남긴다(§3.11, §4.4.8). 없으면 기록하지 않는다 */
+  readonly history?: VersionHistory;
 }
 export type DefaultPluginInstallOutcome =
   | { readonly action: "installed"; readonly version: string }
@@ -740,6 +742,103 @@ export declare const uiSettings: SettingGroup<"x.ui", {
 - `UiDiagnosticCode`는 §3.4에 있다. `UiDecl`, `UiContribution`, `AppDecl`, `UiNode`, `validateUi`, `validateUiTree`, `isEntryInsideRoot`, `UI_LIMITS`, `BRIDGE_VERSION`은 F.extensions.spec §3.1.1(`ui.ts`, `validate.ts`)이 정본이고 이 문서는 이름으로 인용한다.
 - `checkUiDecl`과 `resolveAppFile`은 `LoaderFs` 포트만 쓴다. 경로 포함 검사(`within`)와 종류 판정(`kindOf`, 부모 폴더 나열로 구한다)은 패키지 안 내부 함수다.
 - 앱 정책은 `LoadOptions.uiPolicy`로 로더에 들어온다. `uiSettings`의 값을 읽어 넘기는 일은 조립 루트(L4 host)가 한다(§8).
+
+### 3.11 버전 기록 (`version-history.ts`) [제안: X-8, M4 T-XV]
+
+```ts
+// version-history.ts
+import type { ExtRollbackResult, ExtVersionEntry } from "@fresnel/contracts/wire";
+
+/** 보관 항목의 출처. `ExtVersionEntry.source`와 같다 */
+export type VersionSource = ExtVersionEntry["source"]; // "bundled" | "user" | "authored"
+
+/** 버전 기록의 파일 접근. 없으면 null이나 false, 입출력 실패는 거부다. 구현은 조립 루트(L4 host)가 node:fs로 만든다 */
+export interface VersionHistoryFs {
+  readText(path: string): Promise<string | null>;
+  /** 임시 파일에 쓰고 옮겨 원자적으로 쓴다. 부모 디렉터리를 만든다 */
+  writeText(path: string, text: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+  listDir(path: string): Promise<readonly { readonly name: string; readonly kind: "file" | "dir" | "symlink" }[] | null>;
+  /** 재귀 복사. `to`는 없어야 한다 */
+  copyDir(from: string, to: string): Promise<void>;
+  /** 디렉터리와 그 아래를 지운다. 없어도 오류가 아니다 */
+  removeDir(path: string): Promise<void>;
+  /** `to`는 없어야 한다 */
+  renameDir(from: string, to: string): Promise<void>;
+}
+export interface VersionHistoryDeps {
+  readonly fs: VersionHistoryFs;
+  /** `<사용자 데이터>/extensions/.history`. 확장 탐색 밖이다 */
+  readonly historyRoot: string;
+  /** 설치 시각(ms). 주입한다 */
+  now(): number;
+  /** 매니페스트 텍스트의 해시. 빈 문자열이면 안 된다. 호스트는 sha256 16진수를 준다 */
+  hash(text: string): string;
+  /** 보관 개수. 생략하면 5. 1 이상의 정수가 아니면 `Bug`다 */
+  readonly keep?: number;
+}
+export interface RecordVersionInput {
+  readonly name: string;
+  readonly version: string;
+  readonly source: VersionSource;
+  /** 복사할 설치본 디렉터리 */
+  readonly extensionDir: string;
+  readonly manifestText: string;
+  readonly stateSchemaVersion: number | null;
+}
+export interface VersionRecordOutcome {
+  /** 보관 개수를 넘어 지운 버전(새 것부터) */
+  readonly pruned: readonly string[];
+  /** 정리가 첫 실패에서 멈췄으면 그 원인. 기록은 이미 끝났다 */
+  readonly pruneFailure: { readonly cause: unknown } | null;
+}
+export type VersionSkipReason = "dir_missing" | "meta_missing" | "meta_not_json" | "meta_invalid" | "version_mismatch";
+export interface VersionListing {
+  /** 설치 시각이 늦은 것부터. 같으면 버전 번호가 높은 것이 앞이다 */
+  readonly versions: readonly ExtVersionEntry[];
+  readonly skipped: readonly { readonly version: string; readonly reason: VersionSkipReason }[];
+}
+/** 되돌리기가 부르는 호스트 훅. 끄기와 켜기는 확장 등록 상태를, 상태 비우기는 확장 상태 저장소를 바꾼다 */
+export interface RollbackHooks {
+  disable(name: string): Promise<void>;
+  enable(name: string): Promise<void>;
+  clearState(name: string): Promise<void>;
+}
+export interface RollbackVersionInput {
+  readonly name: string;
+  /** 되돌릴 보관 버전 */
+  readonly version: string;
+  /** 참이면 상태를 비우고 되돌린다. 내려가는 마이그레이션이 없을 때 쓴다 */
+  readonly clearState?: boolean;
+  /** 지금 설치본 디렉터리, 그 버전, 그 상태 스키마 버전(모르면 null) */
+  readonly extensionDir: string;
+  readonly currentVersion: string;
+  readonly currentStateSchemaVersion: number | null;
+  /** 생략하면 참. 거짓이면 `appliesAt`이 `restart`다 */
+  readonly hotReload?: boolean;
+  readonly hooks: RollbackHooks;
+}
+export type VersionHistoryError =
+  | { readonly kind: "invalid_name"; readonly name: string }
+  | { readonly kind: "invalid_version"; readonly version: string }
+  | { readonly kind: "io"; readonly cause: unknown }
+  | { readonly kind: "not_found"; readonly version: string }
+  | { readonly kind: "state_schema_mismatch"; readonly targetSchemaVersion: number; readonly currentSchemaVersion: number }
+  | { readonly kind: "disable_failed"; readonly cause: unknown }
+  | { readonly kind: "swap_failed"; readonly step: "record" | "stage" | "move_current" | "place"; readonly cause: unknown; readonly restored: boolean; readonly reenabled: boolean; readonly followUps: readonly { readonly step: "restore" | "enable"; readonly cause: unknown }[] }
+  | { readonly kind: "clear_state_failed"; readonly cause: unknown }
+  | { readonly kind: "enable_failed"; readonly cause: unknown };
+export interface VersionHistory {
+  record(input: RecordVersionInput): Promise<Result<VersionRecordOutcome, VersionHistoryError>>;
+  list(name: string, currentVersion: string): Promise<Result<VersionListing, VersionHistoryError>>;
+  rollback(input: RollbackVersionInput): Promise<Result<ExtRollbackResult, VersionHistoryError>>;
+}
+export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
+```
+
+- 파일 접근, 시계, 해시를 주입받으므로 X는 L0를 import하지 않는다. 예상 가능한 실패(없는 버전, 상태 스키마 불일치, 입출력 실패, 훅 실패)는 모두 `Result`의 오류 값이다.
+- 공개 이름은 X.primitives.spec §3.1 표에 있다. `ExtVersionEntry`와 `ExtRollbackResult`는 F.wire-settings.spec(`wire/ext-read.ts`)의 타입이다.
+- [미결] `VersionHistoryFs`의 정본은 `PluginInstallFs`와 같이 F.extensions.spec §3.2.1 로더 포트여야 한다(§10 23번).
 
 ## 4. 동작 규칙
 
@@ -963,8 +1062,25 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | 번들보다 낮은 버전 | 교체한다(`replaced`, `previousVersion`) |
 | 번들과 같거나 높은 버전 | 건드리지 않는다(`kept`). 사용자가 올린 개발 판을 내리지 않는다 |
 
+- [제안: X-8] 교체할 때 `history`가 있으면 이전 설치본을 교체 전에, 새 번들 버전을 교체 뒤에 버전 기록에 남긴다(§4.4.8). 첫 설치(`installed`)는 기록하지 않는다. `history`가 없으면 동작은 이전과 같다.
 - 임시 디렉터리는 확장 탐색 디렉터리 밖인 `<userDir>/.staging/<이름>.new`·`.old`다(대상과 같은 파일 시스템, `stagingRoot`로 바꿀 수 있다). 탐색은 점으로 시작하는 디렉터리를 건너뛰므로 남은 흔적이 `name_conflict`를 일으키지 않는다. 교체는 이전 설치본을 `.old`로 옮기고, 새 복사본을 대상으로 옮기고, `.old`를 지운다. 새 복사본을 옮기다 실패하면 `.old`를 되돌린다. 시작할 때 `.new`를 지우고, 대상이 없는데 `.old`가 있으면(교체 도중 끊김) 이전 설치본을 되돌린 뒤 버전을 비교한다. 번들 매니페스트가 없거나 잘못되면 `source_invalid`다(릴리즈 결함).
 - [결정: A5 T-H] 사용자가 설치본을 직접 지우면 다시 설치하지 않는다. "이미 설치한 적 있음" 표지는 조립 루트(L4 host)가 호스트 상태 디렉터리의 `default-plugins.json`(`{ schemaVersion: 1, installed: { <이름>: <버전> } }`)에 둔다. X의 `installDefaultPlugin`은 표지를 모르고 번들·설치본 버전만 비교한다. 조립 루트는 표지에 이름이 있고 대상 디렉터리가 없으면 `installDefaultPlugin`을 부르지 않는다(`removed_by_user`). 표지 파일까지 지우면 새로 설치한다. 표지는 설치나 갱신에 성공했을 때만 쓴다(`kept`는 설치본 버전을 적는다). 손상된 표지는 비운 것으로 보고 경고한다.
+
+#### 4.4.8 버전 기록과 되돌리기 [제안: X-8, M4 T-XV, 제품 결정 수락]
+
+- 위치는 `<사용자 데이터>/extensions/.history/<이름>/<버전>/`이다. `dir/`에 설치본 복사본을, `meta.json`에 `{ version, installedAt, source, manifestHash, stateSchemaVersion }`을 둔다. 이름이 점으로 시작하므로 확장 탐색이 건너뛴다(§4.2.1).
+- 보관 개수는 확장마다 5개다. 기록할 때마다 설치 시각이 늦은 것부터 5개를 남기고 나머지를 지운다. 방금 기록한 버전(기록 시점의 설치본)은 빼지 않는다. 그래서 설치 시각이 오래된 설치본을 기록하면 보관이 6개가 될 수 있다.
+- 출처(`source`)는 `bundled`(릴리즈의 기본 플러그인 번들), `user`(사용자가 둔 설치본), `authored`(Plugin Builder 묶음)다. 기록이 이미 있는 버전은 그 출처를 유지한다. 기록이 없을 때 기본 플러그인 교체가 남기는 이전 설치본은 `bundled`, 되돌리기가 남기는 지금 설치본은 `user`다.
+- 같은 버전을 다시 기록하면 옛 기록을 바꿔 쓴다. 복사본과 메타는 임시 디렉터리 `.<버전>.new`에 다 만든 뒤 옮긴다. 옮기지 못하면 옛 기록이 남는다.
+- 정리 실패는 기록의 성공을 바꾸지 않는다. 정리는 첫 실패에서 멈추고 `pruneFailure`로 알린다. 남은 버전은 다음 기록이 다시 본다. 지우지 못한 임시 디렉터리도 다음 기록이나 되돌리기가 먼저 지운다.
+- 목록은 `<이름>` 디렉터리 가운데 버전 형식 이름만 본다. 메타가 없으면 `meta_missing`, JSON이 아니면 `meta_not_json`, 형식이 맞지 않거나 설치 시각이 날짜가 아니면 `meta_invalid`, `dir/`가 없으면 `dir_missing`, 메타의 버전이 디렉터리 이름과 다르면 `version_mismatch`다. 이 항목은 `skipped`로 알리고 목록에 넣지 않는다. 목록은 설치 시각이 늦은 것부터, 같으면 버전 번호가 높은 것부터다.
+- 되돌리기 순서: (1) 대상이 보관되어 있는지 본다. 없거나 건너뛴 버전이면 `not_found`다. (2) 상태 스키마를 본다. 대상 값과 지금 값이 모두 숫자이고 지금 값이 더 크며 `clearState`가 참이 아니면 `state_schema_mismatch`로 멈춘다. 파일은 바뀌지 않는다. UI는 "상태를 비우고 되돌리기"를 제안한다(O-11). (3) 끊긴 되돌리기의 흔적을 치운다. (4) 끄기 훅을 부른다. 실패하면 `disable_failed`로 멈춘다. 파일은 바뀌지 않았다. (5) 지금 설치본을 기록한다. (6) 교체한다. (7) `clearState`가 참이면 상태를 비운다. (8) 켜기 훅을 부른다. (9) 백업을 지운다. 끄기 → 기록 → 교체 → 상태 비우기 → 켜기 순서이고 적용은 다음 단계 경계다(`hotReload`가 거짓이면 재시작 뒤다).
+- 교체(6)는 대상 복사본을 `.swap.new`에 먼저 만든다. 옮기기보다 실패하기 쉬운 복사를 먼저 끝내므로 복사가 실패해도 설치본은 그대로다 [제안]. 그다음 설치본을 `.swap.old`로 옮기고 `.swap.new`를 설치 위치로 옮긴다. 마지막 옮기기가 실패하면 `.swap.old`를 설치 위치로 되돌린다.
+- 교체 단계(5, 6)가 실패하면 파일을 처음 상태로 되돌리고(`restored`) 확장을 다시 켠다(`reenabled`). 되돌리기나 켜기도 실패하면 그 원인을 `followUps`에 담는다. 실패한 단계는 `step`(`record`, `stage`, `move_current`, `place`)이다.
+- 상태 비우기(7)나 켜기(8)가 실패하면 교체는 끝난 채 남고 확장은 꺼진 채 남는다(`clear_state_failed`, `enable_failed`). 백업 삭제(9)가 실패해도 결과는 같고 남은 백업은 다음 되돌리기가 지운다.
+- 상태 스키마 규칙: 내려가는 마이그레이션은 없다. 대상의 상태 스키마가 지금보다 낮으면 상태를 비우는 되돌리기만 된다. 값을 모르면(null) 검사하지 않는다. 기본 플러그인 기록은 상태 스키마 버전을 알 수 없어 `null`이다(§10 24번).
+- 되돌리기는 보관을 지우지 않는다. 되돌리기 전 설치본이 새로 기록되므로 다시 앞으로 돌아갈 수 있다(왕복).
+- 기본 플러그인 설치(§4.4.7)는 `history`가 있을 때만 기록한다. 교체 전 이전 설치본 기록이 실패하면 교체하지 않는다. 교체 뒤 새 번들 버전 기록이 실패하면 `io` 오류를 돌려준다. 설치는 끝난 상태이고, 다음 실행은 같은 버전이라 `kept`가 되어 기록하지 않는다.
 
 ### 4.5 설정 연결
 
@@ -1308,6 +1424,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `TrustStoreBackend`, `LoaderFs`, `LoaderPaths`(F 이름 재export) | L0.os.spec(구현) |
 | `IsolationProcessPort`, `IsolatedChild`(F 이름 재export) | L0.process.spec(구현) |
 | `registerSdkModules`, `SDK_MODULE_SPECIFIERS`, `SdkModules`, `installDefaultPlugin`, `PluginInstallFs` | L4.host-service.spec(조립 루트가 `LoaderDeps.sdkModules`와 첫 실행 설치에 사용) |
+| `createVersionHistory`, `VersionHistory`, `VersionHistoryDeps`, `VersionHistoryFs`, `VersionHistoryError`, `VersionListing`, `VersionRecordOutcome`, `VersionSkipReason`, `VersionSource`, `RecordVersionInput`, `RollbackHooks`, `RollbackVersionInput` | L4.host-service.spec(조립 루트가 `VersionHistoryFs`를 node:fs로 구현해 `installDefaultPlugin`의 `history`와 `ext.versions`·`ext.rollback` 처리기에 넘긴다), L4.desktop-ux.spec(W-31, O-11, §6.24.1) |
 | 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, 키 `x.loading-trust.*` | F.wire-settings.spec, L4.settings-ui.spec, L3.readme |
 | 키 `x.ui.apps`, `x.ui.allowProjectApps`(`uiSettings`) | L4.settings-ui.spec(설정 화면 "플러그인" 탭), L4.host-service.spec(조립 루트가 카탈로그에 더하고 `LoadOptions.uiPolicy`에 넘긴다) |
 | `uiSettings`, `resolveAppFile`, `AppFileResult`, `UiItemReport`, `UiEntryReport`, `UiIssue`, `ExtensionLoader.uiEntries`, `LoadOptions.uiPolicy` | L4.desktop-ux.spec(`ext.ui.list` 화면 기여 목록, 전용 URL 스킴 `fresnel-view://`의 파일 풀이), L4.host-service.spec |
@@ -1366,6 +1483,9 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 31. 꺼진 확장의 깨진 화면도 검사되어 `uiEntries()`에 `invalid`로 나온다. 내장 확장의 화면은 검사하지 않는다. 확장이 목록에서 빠지면 `uiEntries()`에서도 빠진다.
 32. `resolveAppFile`의 적대적 요청 표 25개(`../secret.txt`, `%2e%2e/`, `..%5c`, NUL, 드라이브 문자, 심볼릭 링크 탈출 등)가 정확한 `outside_root`, `not_found`, `not_a_file`, `forbidden_type` 또는 성공 값을 낸다. 퍼센트 디코딩은 한 번만 한다(`%252e%252e`는 문자 그대로의 이름이다). 파일 본문은 읽지 않는다(`app-files.test.ts`).
 33. `uiSettings`의 두 키는 카탈로그 규칙을 통과하고, 허용 범위는 `managed`, `user`뿐이다(`project`, `local`, `launch` 없음). `ui-settings.test.ts`.
+34. 보관은 확장마다 설치 시각이 늦은 5개를 남기고, 방금 기록한 버전은 지우지 않는다. 같은 버전을 다시 기록하면 바뀐다. 잘못된 이름과 버전(`../x`, `1.0`)은 파일을 쓰기 전에 `invalid_name`, `invalid_version`으로 거부된다. 깨진 메타 항목은 목록에서 빠지고 `skipped`에 사유와 함께 나온다(`version-history.test.ts`).
+35. 되돌리기 왕복: 두 버전을 기록하고 앞 버전으로 되돌리면 설치 위치의 파일이 기록과 같고, 되돌리기 전 설치본이 보관에 남으며, 훅은 `disable`→`enable` 순서로만 불린다. 대상보다 상태 스키마가 높으면 `state_schema_mismatch`로 멈추고 파일이 그대로다. `clearState`로 다시 하면 `clearState`가 `enable`보다 먼저 불린다. 교체가 실패하면 원래 파일이 돌아오고 확장이 다시 켜진다(`version-history.test.ts`). L4.desktop-ux.spec Y11의 왕복 시험이 이 파일이다.
+36. 기본 플러그인이 `history`와 함께 교체하면 이전 설치본과 새 번들 버전이 기록된다. 이전 설치본을 기록하지 못하면 교체하지 않는다. 첫 설치는 기록하지 않는다(`default-plugin-history.test.ts`).
 
 ## 10. 미결 사항
 
@@ -1391,3 +1511,5 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 20. [미결] `LoaderFs`에 파일 크기와 종류를 묻는 함수가 없다. 1 MiB 검사는 읽은 뒤에 하고 종류는 부모 폴더 나열로 구한다. 포트에 `stat`이 생기면 읽기 전에 자르도록 F.extensions.spec §3.2.1을 고친다(F 수정 요청).
 21. [미결] 조립 루트가 `uiSettings`를 `apps/host` 카탈로그에 더하고 `x.ui.*` 값을 `LoadOptions.uiPolicy`로 넘기는 연결은 `apps/host` 작업이다. 이 문서는 입력만 정했다.
 22. [미결] 이름 정리. L4.desktop-ux.spec §10.3 W-33과 X-7의 옛 이름(`ext.view.list`, `view_*`)은 이 문서의 `ext.ui.list`와 `ui_*`와 다르다. 화면 쪽 문서를 고치는 일은 L4 담당이다.
+23. [미결] `VersionHistoryFs`의 정본 위치. `PluginInstallFs`와 같은 사정이다. 쓰기 포트는 F.extensions.spec §3.2.1 로더 포트에 있어야 한다. F 수정 요청과 함께 정한다.
+24. [미결] 기본 플러그인 기록과 되돌리기 전 기록의 `stateSchemaVersion`은 파일에서 알 수 없어 `null`이다. 상태 스키마 검사(§4.4.8)가 번들 버전에 걸리려면, 로더가 확장을 등록할 때 `StateDecl.version`(F.extensions.spec)을 알려 보관 항목의 값을 채우는 경로를 정해야 한다.

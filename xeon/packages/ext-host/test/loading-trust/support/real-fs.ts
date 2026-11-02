@@ -1,4 +1,5 @@
 import {
+  cp,
   mkdir,
   mkdtemp,
   readdir,
@@ -12,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { LoaderFs } from "@fresnel/contracts/extensions";
-import type { PluginInstallFs } from "../../../src/loading-trust/index.ts";
+import type { PluginInstallFs, VersionHistoryFs } from "../../../src/loading-trust/index.ts";
 
 function isMissing(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
@@ -66,6 +67,23 @@ export const realInstallFs: PluginInstallFs = {
   },
   removeDir: (path) => rm(path, { recursive: true, force: true }),
   rename: (from, to) => rename(from, to),
+};
+
+/** 실제 파일 시스템을 쓰는 VersionHistoryFs. 시험에서는 원자 쓰기가 필요 없어 그냥 쓴다 */
+export const realVersionHistoryFs: VersionHistoryFs = {
+  readText: (path) => realLoaderFs.readText(path),
+  writeText: async (path, text) => {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, text);
+  },
+  exists: (path) => realLoaderFs.exists(path),
+  listDir: (path) => realLoaderFs.listDir(path),
+  copyDir: async (from, to) => {
+    await mkdir(dirname(to), { recursive: true });
+    await cp(from, to, { recursive: true, errorOnExist: true, force: false });
+  },
+  removeDir: (path) => rm(path, { recursive: true, force: true }),
+  renameDir: (from, to) => rename(from, to),
 };
 
 /** 시험마다 새 임시 디렉터리(`realpath`로 푼 경로)를 만든다. 호출자가 `cleanup`을 부른다 */

@@ -2242,6 +2242,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 되돌리기는 확장을 끄고, 파일을 바꾸고, 다시 켜는 순서이며 적용은 다음 단계 경계입니다. 실패하면 이전 파일로 돌립니다.
 - 보관 개수는 확장마다 5개 [제안]이고 그 밖은 지웁니다. 보관 위치는 사용자 데이터 폴더 `extensions/.history/<이름>/<버전>/` [제안]입니다.
+- [결정: 사용자 수락, M4 T-XV] M4는 "전체" 단계를 냈습니다. 로더가 버전 기록을 보관하고(X-8, `X.loading-trust.spec` §3.11, §4.4.8) 되돌리기 왕복 시험이 있습니다(`ext-host/test/loading-trust/version-history.test.ts`, Y11의 근거). 대상 버전의 상태 스키마가 지금보다 높으면 되돌리기는 `state_schema_mismatch`로 멈추고, O-11이 "상태를 비우고 되돌리기"만 제안합니다. 되돌리기 순서는 끄기, 지금 설치본 기록, 파일 교체, 상태 비우기(요청 시), 켜기이고 교체가 실패하면 이전 파일로 돌린 뒤 다시 켭니다. `ext.versions`·`ext.rollback` 처리기(W-31)가 연결되기 전에는 "전체" 조건이 맞지 않아 "대체" 단계로 보입니다.
 
 ### 6.25 P-18 플러그인 화면 호스트
 
@@ -2994,7 +2995,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-5 | 예산 등급 `view`와 확장 메서드 실패의 장부 반영 | `X.operations.spec` §3.2, §4.3 | 없음 |
 | X-6 | 핸들러 시간 기록(훅별 분포) | `X.operations.spec` §4.2.6 | 1초 넘는 훅 진단만 [제안]. 지금 핸들러 시간은 어디에도 기록되지 않음(코드 결함, X-15가 원천) |
 | X-7 | 화면 트리 파일과 프레임 선언 검사와 진단(`view_invalid`, `view_limit`, `view_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported`), 프레임 파일 제공 경로 | `X.loading-trust.spec` §4.3 | M4 T-XV에서 닫음(`X.loading-trust.spec` §4.3.4, §3.10): 화면 검사 `checkUiDecl`, 앱 파일 풀이 `resolveAppFile`, 정책 `uiSettings`. 진단 코드는 F 이름 `ui_file_missing`, `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported`이고, 이 행의 `view_*`는 옛 이름이다. 목록 wire(`ext.ui.list`)와 조립 루트 연결은 남는다 [미결] |
-| X-8 | 확장 버전 기록 보관(확장마다 5개, 설치 출처, 매니페스트 해시) | `X.loading-trust.spec` §4.4.7 | 기록 없음. M4에 되는 만큼, 대체 경로 §6.24.1 |
+| X-8 | 확장 버전 기록 보관(확장마다 5개, 설치 출처, 매니페스트 해시) | `X.loading-trust.spec` §3.11, §4.4.8 | M4 T-XV에서 닫음(`X.loading-trust.spec` §3.11, §4.4.8): 보관 `createVersionHistory`(`extensions/.history`, 확장마다 5개), 기본 플러그인 교체의 기록(§4.4.7), 되돌리기 왕복(§6.24.1 "전체" 단계). 호스트의 `VersionHistoryFs` 구현과 `ext.versions`·`ext.rollback` 처리기(W-31)는 조립 루트에 남는다 [미결] |
 | X-9 | Helm 화면 메서드 `ext.helm.status`·`inquiries`·`findings`와 기여 선언 | `L3.helm.spec` §3.9 | `/helm status` 명령만 |
 | X-10 | `replayDrive`의 런타임 하니스(테스트 대역 없이 설치된 그룹을 테이프로) | `L3.group-sdk.spec` §3.10 | 시험 파일 전용 |
 | X-11 | 플러그인 화면의 승인 kind | ADR-0018 | 넷(tool, plan, question, review) |

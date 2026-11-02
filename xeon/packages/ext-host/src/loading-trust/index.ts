@@ -90,6 +90,20 @@ export {
   type DefaultPluginInstallOutcome,
   type PluginInstallFs,
 } from "./default-plugin.ts";
+export {
+  createVersionHistory,
+  type RecordVersionInput,
+  type RollbackHooks,
+  type RollbackVersionInput,
+  type VersionHistory,
+  type VersionHistoryDeps,
+  type VersionHistoryError,
+  type VersionHistoryFs,
+  type VersionListing,
+  type VersionRecordOutcome,
+  type VersionSkipReason,
+  type VersionSource,
+} from "./version-history.ts";
 export { registerSdkModules, SDK_MODULE_SPECIFIERS, type SdkModules } from "./virtual-modules.ts";
 export { compareVersions } from "./semver.ts";
 export {
