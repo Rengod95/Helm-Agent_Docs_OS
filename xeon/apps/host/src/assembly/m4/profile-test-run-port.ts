@@ -80,7 +80,9 @@ function previousOf(layers: ScopeStack, scope: SettingScope, key: string): Previ
     : { had: false };
 }
 
-export function createProfileTestRunPort(deps: M4PortDeps): ProfileTestRunPort {
+export function createProfileTestRunPort(
+  deps: Pick<M4PortDeps, "traceRead" | "testRunControl" | "env">,
+): ProfileTestRunPort {
   const { env } = deps;
   const store = createProfileStore({
     path: join(env.configDir, "profiles.json"),
