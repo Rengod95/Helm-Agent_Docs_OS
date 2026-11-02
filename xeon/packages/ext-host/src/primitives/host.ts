@@ -525,7 +525,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     scopes: new Map(),
     threads: new Map(),
     units: new Map(),
-    track(task) {
+    track(task, options) {
       const guarded = task.catch((cause: unknown) => {
         report({
           level: "error",
@@ -534,6 +534,8 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
           cause,
         });
       });
+      // 버려진 작업은 거부만 보고하고 whenSettled가 기다리지 않는다(끝나지 않을 수 있다)
+      if (options?.abandoned === true) return;
       pending.add(guarded);
       const forget = (): undefined => {
         pending.delete(guarded);

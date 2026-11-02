@@ -6,7 +6,12 @@ import {
   RecordCommitPortKey,
   ScopedStorePortKey,
 } from "@fresnel/contracts/extensions";
-import { ExtHostPortKey, hostOf, PrimitiveError } from "../../src/primitives/index.ts";
+import {
+  ExtHostPortKey,
+  hostInternalsOf,
+  hostOf,
+  PrimitiveError,
+} from "../../src/primitives/index.ts";
 import {
   createTestHost,
   flushMicrotasks,
@@ -256,4 +261,34 @@ test("install stops waiting for an entry when its signal aborts", async () => {
   // 중단된 설치의 이름은 다시 쓸 수 있다
   const again = await t.host.install(makeUnit({ name: "host-cancel" }, () => {}));
   expect(again.entryError).toBeUndefined();
+});
+
+test("track: an abandoned task is not awaited by whenSettled but its rejection is still reported", async () => {
+  const t = await createTestHost();
+  const core = hostInternalsOf(t.host).core;
+  core.track(new Promise<never>(() => {}), { abandoned: true });
+  core.track(Promise.reject(new Error("late failure")), { abandoned: true });
+  const outcome = await Promise.race([
+    core.whenSettled().then(() => "settled"),
+    new Promise<string>((resolve) => setTimeout(() => resolve("waiting"), 200)),
+  ]);
+  expect(outcome).toBe("settled");
+  await flushMicrotasks();
+  expect(t.diagnostics.map((diagnostic) => diagnostic.message)).toContain("background task failed");
+});
+
+test("track: a task that is not abandoned is awaited by whenSettled", async () => {
+  const t = await createTestHost();
+  const core = hostInternalsOf(t.host).core;
+  const done: string[] = [];
+  core.track(
+    new Promise<void>((resolve) =>
+      setTimeout(() => {
+        done.push("finished");
+        resolve();
+      }, 20),
+    ),
+  );
+  await core.whenSettled();
+  expect(done).toEqual(["finished"]);
 });
