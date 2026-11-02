@@ -13,6 +13,7 @@ export type ReplayEffect =
   | "post"
   | "loop.turn"
   | "loop.spawn"
+  | "loop.ask"
   | "g.delegate"
   | "g.delegateStatus"
   | "g.cancelDelegates"
@@ -60,6 +61,7 @@ export const REPLAY_EFFECT_TABLE: Readonly<Record<ReplayEffect, ReplayEffectRow>
     guarantor: "L1.agents",
     requestId: "default_or_explicit",
   },
+  "loop.ask": { on: "n/a", drive: "allowed", guarantor: "X", requestId: "required" },
   "g.delegate": { on: "allowed", drive: "allowed", guarantor: "L1.agents", requestId: "required" },
   "g.delegateStatus": { on: "denied", drive: "allowed", guarantor: "none", requestId: "none" },
   "g.cancelDelegates": { on: "denied", drive: "denied", guarantor: "none", requestId: "none" },

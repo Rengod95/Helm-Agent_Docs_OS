@@ -49,6 +49,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 | `post` | 허용 | 허용 | L1 입력 큐(`(scope, requestId)`) | `requestId` 필수(기존) |
 | `loop.turn` | 해당 없음 | 허용 | 코어(L1.loop, `(scopeId, requestId)`) | 기본 `requestId` 또는 결정적 명시 키 |
 | `loop.spawn` | 해당 없음 | 허용 | 코어(L1.agents, `creationKey`) | 기본 `requestId` 또는 결정적 명시 키 |
+| `loop.ask` | 해당 없음 | 허용 | X(승인 요청 키) | `requestId` 필수, 결정적 키. drive lock을 `waiting`으로 반납하고 같은 키의 재호출은 기록된 답을 돌려준다(X-17, 2026-10-31) |
 | `g.delegate` | 허용 | 허용 | 코어(L1.agents, 부모 대화 + `requestId`) | `requestId` 필수, 결정적 키 |
 | `g.delegateStatus` | 허용하지 않음 | 허용 | 필요 없음(효과 없음) | 읽기. 결과를 고정하려면 상태에 커밋 |
 | `g.cancelDelegates` | 허용하지 않음 | 허용하지 않음 | 해당 없음 | `onDispose`와 명령 처리기에서만 부른다 |

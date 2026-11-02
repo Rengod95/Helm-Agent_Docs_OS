@@ -360,8 +360,9 @@ export interface LeaseReleasedPayload {
   leaseId: string;
   scopeId: string;
   /** disabled: 그룹 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
-   *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리. 번호는 F.extensions.spec 절 */
-  reason: "disabled" | "budget" | "error" | "idle" | "revoked" | "restart";
+   *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리,
+   *  waiting: drive가 loop.ask로 사람 확인을 기다리며 반납(X-17, F.extensions.spec §3.2). 번호는 F.extensions.spec 절 */
+  reason: "disabled" | "budget" | "error" | "idle" | "revoked" | "restart" | "waiting";
 }
 /** drive 임대 요청이 대기 상한 뒤 거부됐다 [결정: adr.0017, M3-REQ-99]. X가 커밋하고 group-sdk이 `GroupStatus.drive: "rejected"`를 채운다 */
 export interface LeaseRejectedPayload {

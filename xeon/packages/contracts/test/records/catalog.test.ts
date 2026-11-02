@@ -151,6 +151,12 @@ describe("new payload rejections", () => {
     rejects(catalogEntry("lease.released"), { ...fixture("lease.released"), reason: "expired" });
     rejects(catalogEntry("lease.acquired"), { leaseId: "l", scopeId: "helm" });
     expect(parse(LeaseReleasedPayloadSchema, fixture("lease.released")).ok).toBe(true);
+    for (const reason of ["disabled", "budget", "error", "idle", "revoked", "restart", "waiting"]) {
+      expect({
+        reason,
+        ok: parse(LeaseReleasedPayloadSchema, { ...fixture("lease.released"), reason }).ok,
+      }).toEqual({ reason, ok: true });
+    }
   });
 
   test("post.accepted is retired and is the only retired core kind", () => {

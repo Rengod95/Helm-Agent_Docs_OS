@@ -139,10 +139,12 @@ const Question: TObject<{
   { additionalProperties: false },
 );
 
-const QuestionApprovalDetail: TObject<{ questions: TArray<typeof Question> }> = Type.Object(
-  { questions: Type.Array(Question, { minItems: 1, maxItems: 4 }) },
-  { additionalProperties: false },
-);
+export const QuestionApprovalDetailSchema: TObject<{ questions: TArray<typeof Question> }> =
+  Type.Object(
+    { questions: Type.Array(Question, { minItems: 1, maxItems: 4 }) },
+    { additionalProperties: false },
+  );
+export type QuestionApprovalDetail = Static<typeof QuestionApprovalDetailSchema>;
 
 /** 검토 승인 본문의 파일 요약. 필드 뜻은 L2.artifacts.spec §3.3 `ReviewFileView`의 부분 집합이다 */
 const ReviewFileSummary: TObject<{
@@ -202,9 +204,9 @@ const PlanBody: TObject<{ kind: TLiteral<"plan">; plan: typeof PlanApprovalDetai
 );
 const QuestionBody: TObject<{
   kind: TLiteral<"question">;
-  question: typeof QuestionApprovalDetail;
+  question: typeof QuestionApprovalDetailSchema;
 }> = Type.Object(
-  { kind: Type.Literal("question"), question: QuestionApprovalDetail },
+  { kind: Type.Literal("question"), question: QuestionApprovalDetailSchema },
   { additionalProperties: false },
 );
 

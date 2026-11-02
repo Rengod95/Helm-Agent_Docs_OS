@@ -118,7 +118,8 @@ export type LeaseAcquiredPayload = Static<typeof LeaseAcquiredPayloadSchema>;
 
 /**
  * disabled: 그룹 끄기, budget: 상한 도달, error: drive 함수 예외, idle: 효과 없는 반환 반복,
- * revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리.
+ * revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리,
+ * waiting: drive가 `loop.ask`로 사람 확인을 기다리며 반납(X-17). 답이 오면 그 Registration이 다시 후보가 된다.
  */
 export const LeaseReleasedPayloadSchema: TObject<{
   leaseId: TString;
@@ -131,6 +132,7 @@ export const LeaseReleasedPayloadSchema: TObject<{
       TLiteral<"idle">,
       TLiteral<"revoked">,
       TLiteral<"restart">,
+      TLiteral<"waiting">,
     ]
   >;
 }> = Type.Object(
@@ -144,6 +146,7 @@ export const LeaseReleasedPayloadSchema: TObject<{
       Type.Literal("idle"),
       Type.Literal("revoked"),
       Type.Literal("restart"),
+      Type.Literal("waiting"),
     ]),
   },
   { additionalProperties: false },
