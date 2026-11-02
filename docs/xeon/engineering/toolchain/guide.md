@@ -444,6 +444,8 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 
 ### 3.4 CI (`.github/workflows/fresnel-ci.yml`)
 
+- CI는 수동 실행이다(`workflow_dispatch`). 병합 직전에만 돌린다 [결정: 2026-11-02 사용자].
+
 [결정] `_research/foundation-plan.md §5` P3: 층별 job matrix, 각 job은 turbo `--affected`의 lint·typecheck·test, 통합 테스트는 모델 테이프 기반 스모크 1개.
 
 | job | 내용 | 로컬 재현 |

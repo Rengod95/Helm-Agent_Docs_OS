@@ -1,20 +1,7 @@
 name: Fresnel CI
 
 on:
-  push:
-    paths:
-      - "xeon/**"
-      - "docs/xeon/**"
-      - "justfile"
-      - "scripts/**"
-      - ".github/workflows/fresnel-ci.yml"
-  pull_request:
-    paths:
-      - "xeon/**"
-      - "docs/xeon/**"
-      - "justfile"
-      - "scripts/**"
-      - ".github/workflows/fresnel-ci.yml"
+  workflow_dispatch:
 
 concurrency:
   group: fresnel-ci-${{ github.ref }}
