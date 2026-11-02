@@ -36,4 +36,6 @@ export {
   type StoreFailure,
   type TriggerKind,
   type TriggerSpec,
+  type UpdateError,
+  type UpdateInput,
 } from "./types.ts";

@@ -19,6 +19,7 @@ import {
   type StopReason,
   type StoreFailure,
   type TriggerKind,
+  type UpdateError,
 } from "./types.ts";
 
 // L2.schedule.spec 4.4. 예약 상태 기계: claim(저장) → 실행 시작 → 정착 → 결과 기록.
@@ -55,6 +56,46 @@ function firstDueOf(input: CreateInput, now: number): number | null {
     default:
       return assertNever(input.trigger, "firstDueOf");
   }
+}
+
+/**
+ * 꺼진 항목을 다시 켜는 변경. 기한은 `create`의 규칙을 따른다. 반복만 켜는 시각 뒤 한 간격에 첫 회차를 잡는다.
+ * 다시 켤 수 없으면 null이다. 지난 `at`은 바로 실행하는 기한을 만들지 않으려고 켜지 않는다.
+ * 반복은 횟수 상한에 이르렀거나 다음 회차가 만료 시각 이상이면 켜지 않는다(정착 뒤 만료 판정과 같다).
+ */
+function reenableOf(entry: ScheduleEntry, now: number): Partial<ScheduleEntry> | null {
+  const trigger = entry.trigger;
+  switch (trigger.kind) {
+    case "interval":
+      return { enabled: true, nextDueAt: now + trigger.everySeconds * 1000, stoppedReason: null };
+    case "at":
+      return trigger.atMs > now
+        ? { enabled: true, nextDueAt: trigger.atMs, stoppedReason: null }
+        : null;
+    case "repeat": {
+      const nextDueAt = now + trigger.intervalSeconds * 1000;
+      if (entry.iterations >= trigger.maxIterations || nextDueAt >= trigger.expiresAtMs) {
+        return null;
+      }
+      return { enabled: true, nextDueAt, stoppedReason: null };
+    }
+    case "file_watch":
+    case "remote":
+      return { enabled: true, stoppedReason: null };
+    default:
+      return assertNever(trigger, "reenableOf");
+  }
+}
+
+/** 켜짐 요청이 항목에 주는 변경. 요청한 값이 이미 그렇거나 다시 켤 수 없으면 `{}`다 */
+function toggleOf(
+  entry: ScheduleEntry,
+  enabled: boolean | undefined,
+  now: number,
+): Partial<ScheduleEntry> {
+  if (enabled === false && entry.enabled) return { enabled: false, nextDueAt: null };
+  if (enabled === true && !entry.enabled) return reenableOf(entry, now) ?? {};
+  return {};
 }
 
 /**
@@ -519,6 +560,31 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       if (!saved.ok) return saved;
       const after = entryOf(scheduleId);
       return after === undefined ? err({ kind: "not_found" }) : ok(after);
+    },
+
+    async update(scheduleId, patch) {
+      const opened = await ensureLoaded();
+      if (!opened.ok) return opened;
+      const entry = entryOf(scheduleId);
+      if (entry === undefined) return err<UpdateError>({ kind: "not_found" });
+      const change: Partial<ScheduleEntry> = {
+        ...toggleOf(entry, patch.enabled, deps.clock.now()),
+        ...(patch.title === undefined || patch.title === entry.title ? {} : { title: patch.title }),
+        ...(patch.prompt === undefined || patch.prompt === entry.prompt
+          ? {}
+          : { prompt: patch.prompt }),
+      };
+      if (Object.keys(change).length === 0) return ok(entry);
+      const active = state.entries.filter((candidate) => candidate.enabled).length;
+      if (change.enabled === true && active >= policy.maxActive) {
+        return err<UpdateError>({ kind: "limit_reached", max: policy.maxActive });
+      }
+      if (change.enabled === false) dropWatcher(scheduleId);
+      const saved = await commit(withEntry(scheduleId, change));
+      if (!saved.ok) return saved;
+      const updated: ScheduleEntry = { ...entry, ...change };
+      if (started && change.enabled === true) installWatcher(updated);
+      return ok(updated);
     },
 
     runs(scheduleId, limit = 20) {
