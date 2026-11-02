@@ -1,0 +1,94 @@
+import { expect, test } from "bun:test";
+import { WIRE_METHODS, type WireHandlers, type WireMethodName } from "@fresnel/contracts/wire";
+import { isNotImplemented } from "../../src/handlers/not-implemented.ts";
+import { createFakeHost } from "../fixtures/fake-host.ts";
+import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
+
+// spec-deltas/t-f.md §5 5번. M4 wire 메서드 43개는 처리기가 있고, 소유 트랙이 채우기 전에는 notImplemented이며
+// host.hello의 features에 없다. 이 시험은 어느 메서드가 기본인지 목록을 갖지 않는다: 소유 트랙이 처리기를 채우면
+// features에 오르므로 두 쪽이 계속 일치하고, 시험은 고치지 않는다.
+
+function isMethodName(name: string): name is WireMethodName {
+  return Object.hasOwn(WIRE_METHODS, name);
+}
+
+function m4Methods(): WireMethodName[] {
+  return Object.entries(WIRE_METHODS)
+    .filter(([, spec]) => spec.stage === "M4")
+    .map(([name]) => name)
+    .filter(isMethodName);
+}
+
+test("m4-defaults: the 43 M4 methods all have a handler and notImplemented matches their absence from hello features", async () => {
+  const slot: { table: WireHandlers | undefined } = { table: undefined };
+  const host = createFakeHost({
+    override: (table) => {
+      slot.table = table;
+      return table;
+    },
+  });
+  const { connection } = host.connect();
+  const hello = await connection.request("host.hello", HELLO_PARAMS);
+  const featured = new Set(hello.features.map((feature) => feature.name));
+  const table = slot.table;
+  if (table === undefined) throw new Error("the handler table was not captured");
+
+  const names = m4Methods();
+  expect(names).toHaveLength(43);
+  const actual = names.map((name) => ({
+    name,
+    hasHandler: typeof table[name] === "function",
+    defaulted: isNotImplemented(table[name]),
+    featured: featured.has(name),
+  }));
+  expect(actual).toEqual(
+    names.map((name) => ({
+      name,
+      hasHandler: true,
+      defaulted: !featured.has(name),
+      featured: featured.has(name),
+    })),
+  );
+  await connection.close();
+});
+
+test("m4-defaults: a defaulted M4 method answers -32601 with its name", async () => {
+  const host = createFakeHost();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const failure = await connection.request("hooks.list", {}).then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+  expect(failure).toMatchObject({ code: -32601, data: { details: { method: "hooks.list" } } });
+  await connection.close();
+});
+
+// 계약이 넓어졌지만 소유 트랙(T-WB, T-WC)이 아직 채우지 않은 새 인자는 조용히 무시하지 않고 -32602로 거부한다.
+async function failureOf(call: Promise<unknown>): Promise<unknown> {
+  return call.then(
+    () => undefined,
+    (error: unknown) => error,
+  );
+}
+
+test("m4-defaults: new params on existing methods are rejected as invalid until their owner implements them", async () => {
+  const host = createFakeHost();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const threadId = host.fake.ids.next("thr");
+  const itemId = host.fake.ids.next("itm");
+  const failures = await Promise.all([
+    failureOf(connection.request("approval.list", {})),
+    failureOf(connection.request("thread.create", { testRun: true })),
+    failureOf(connection.request("thread.create", { testRun: true, profileId: "p" })),
+    failureOf(connection.request("thread.read", { threadId, around: itemId })),
+  ]);
+  expect(failures).toMatchObject([
+    { code: -32602, data: { details: { issues: [{ path: "threadId" }] } } },
+    { code: -32602, data: { details: { issues: [{ path: "testRun" }] } } },
+    { code: -32602, data: { details: { issues: [{ path: "testRun" }] } } },
+    { code: -32602, data: { details: { issues: [{ path: "around" }] } } },
+  ]);
+  await connection.close();
+});

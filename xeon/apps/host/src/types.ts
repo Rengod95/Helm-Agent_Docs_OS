@@ -61,6 +61,7 @@ import type { SecretsRuntime, SecretsRuntimeDeps } from "@fresnel/platform-secre
 import type { BuiltinExtensionModule } from "@fresnel/ext-host";
 import type { BinaryCheckReport, NotifierProvider } from "@fresnel/platform-os";
 import type { SecretOfferStore } from "./secrets/offers.ts";
+import type { M4Ports } from "./assembly/m4/index.ts";
 
 // L4.host-service.spec §3.3.1~§3.3.2. 처리기와 연결 허브는 이 파일의 타입(EnginePorts)만 쓰고 아래 층 패키지를 import하지 않는다
 // (L4.host-service.plan §2). 포트 구현(어댑터)은 assemble.ts와 src/assembly/ 에 있다.
@@ -266,6 +267,8 @@ export interface EnginePorts {
   readonly clock: Clock;
   /** 호스트 자신의 타이머(관찰 폴링, HS-16). L0.os의 스케줄러이고 시험은 수동 스케줄러를 넣는다 */
   readonly scheduler: Scheduler;
+  /** M4 wire 처리기 43개의 포트 묶음. 소유 트랙이 채울 때까지 빈 구현이다(`spec-deltas/t-f.md` §5) */
+  readonly m4: M4Ports;
 }
 
 /** `thread.read`가 결과를 만들지 못한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.4.6 3항) */

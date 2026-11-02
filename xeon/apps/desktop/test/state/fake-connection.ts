@@ -24,6 +24,7 @@ export function fakeConnection(table: Table): {
     "stream.chunk": new Set(),
     "settings.invalidated": new Set(),
     "notify.delivered": new Set(),
+    "profile.changed": new Set(),
   };
   const calls: { method: string; params: unknown }[] = [];
   const connection: HostConnection = {

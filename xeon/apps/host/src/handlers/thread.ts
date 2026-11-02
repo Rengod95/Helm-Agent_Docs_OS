@@ -5,6 +5,7 @@ import { wireError, type WireError, type WireHandler } from "@fresnel/contracts/
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
+import { paramNotYetImplemented } from "./not-implemented.ts";
 import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 
 // L4.host-service.spec §3.4 M1 표. thread.create: thread를 만들고 쓰기 소유를 함께 얻는다(M1에서는 create가 소유를 얻는다).
@@ -16,6 +17,9 @@ export function createThreadCreateHandler(
 ): WireHandler<"thread.create"> {
   const { ports } = engine;
   return async (params, context) => {
+    // W-34(Test run 대화와 프로필)는 T-WB가 구현한다. 그 전까지는 일반 대화로 조용히 만들지 않고 거부한다
+    if (params.testRun !== undefined) throw paramNotYetImplemented("testRun", "W-34, T-WB");
+    if (params.profileId !== undefined) throw paramNotYetImplemented("profileId", "W-34, T-WB");
     const created = await ports.threads.create({
       ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
       ...(params.title === undefined ? {} : { title: params.title }),
@@ -97,6 +101,8 @@ export function createThreadListHandler(engine: Engine): WireHandler<"thread.lis
 /** F wire §3.4.6. 소유를 얻지 않는 읽기다 */
 export function createThreadReadHandler(engine: Engine): WireHandler<"thread.read"> {
   return async (params) => {
+    // W-16(`around`)은 T-WC가 구현한다. 그 전까지는 무시하지 않고 거부한다
+    if (params.around !== undefined) throw paramNotYetImplemented("around", "W-16, T-WC");
     const read = await engine.ports.threads.read(params);
     if (!read.ok) throw readFailure(read.error, "thread.read");
     return read.value;

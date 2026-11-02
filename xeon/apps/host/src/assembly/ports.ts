@@ -75,6 +75,7 @@ import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
 import { createThreadGate } from "./thread-gate.ts";
 import { readThread } from "./thread-read.ts";
+import { createM4Ports } from "./m4/index.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
 import type { ProjectTrust, TrustInspection } from "./trust.ts";
 
@@ -652,6 +653,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     ids: deps.ids,
     clock: deps.clock,
     scheduler: deps.scheduler,
+    m4: createM4Ports(deps.ext),
   };
 
   return {

@@ -384,6 +384,8 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     ids,
     clock: { now: () => RECORDED_AT },
     scheduler,
+    // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다
+    m4: { extRead: {}, extUi: {}, profileTestRun: {}, dialogArea: {}, devkit: {} },
   };
 
   function position(): StreamPosition {

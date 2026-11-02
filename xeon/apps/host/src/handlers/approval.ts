@@ -2,6 +2,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { WireError, WireHandler } from "@fresnel/contracts/wire";
 import { wireErrorOfStore } from "../store-error.ts";
 import type { ApprovalListFailure, Engine } from "../types.ts";
+import { paramNotYetImplemented } from "./not-implemented.ts";
 import { threadLocked } from "./owner.ts";
 
 // L4.host-service.spec §3.4 M2 표, F wire §4.6 A안과 §3.4.6 5항. approval.respond와 approval.list (HOST.4).
@@ -40,6 +41,8 @@ export function createApprovalRespondHandler(engine: Engine): WireHandler<"appro
 export function createApprovalListHandler(engine: Engine): WireHandler<"approval.list"> {
   const { approvals } = engine.ports;
   return async (params) => {
+    // W-01(threadId 생략 = 열려 있는 모든 대화)은 T-WC가 구현한다. 그 전까지는 계약이 넓어지기 전처럼 threadId를 요구한다
+    if (params.threadId === undefined) throw paramNotYetImplemented("threadId", "W-01, T-WC");
     const listed = await approvals.list(params.threadId);
     if (!listed.ok) throw listFailure(listed.error);
     return listed.value;
