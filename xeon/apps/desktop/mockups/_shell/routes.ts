@@ -64,7 +64,7 @@ export const PAGE_ROUTES: Readonly<Record<string, PageRoute>> = {
   // 왼쪽 패널 아래 설정 버튼(두 영역 공통). 일반 설정은 P-09, 전용 탭은 _settings/tabs.ts가 맡는다.
   settings: { folder: "p09-settings" },
   // 크래프트 내비(fixtures.workbenchNav). 측정 = P-20(wb2-opus의 W7 화면), 엔진 = P-15 엔진(크래프트) 상태(d03 페이지 상태 묶음).
-  overview: { folder: "wb-v4" },
+  overview: { folder: "wb-v5" },
   extensions: { folder: "c03-ext-list" },
   tests: { folder: "c01-trials" },
   metrics: { folder: "wb2-opus", query: "state=S5" },
