@@ -31,7 +31,7 @@ import {
 // ── 입력과 결과의 타입 ──────────────────────────────────────────────────────
 
 /** 탐구 목록의 한 줄. 현재 탐구는 상태에서, 끝난 탐구는 종료 기록에서 온다. 기록에는 시각이 없어 finishedAt은 없다 */
-export interface InquirySummary {
+interface InquirySummary {
   readonly inquiryId: string;
   readonly topic: string;
   readonly status: "pending" | "running" | "finished";
@@ -41,16 +41,16 @@ export interface InquirySummary {
   readonly findingCount: number;
 }
 
-export interface InquiriesView {
+interface InquiriesView {
   readonly inquiries: readonly InquirySummary[];
 }
 
 /** findings 입력. 탐구 id 하나 */
-export interface FindingsParams {
+interface FindingsParams {
   readonly inquiryId: string;
 }
 
-export interface FindingsView {
+interface FindingsView {
   readonly inquiryId: string;
   readonly findings: readonly HelmFinding[];
 }

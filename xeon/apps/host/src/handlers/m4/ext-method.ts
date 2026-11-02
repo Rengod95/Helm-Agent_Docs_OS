@@ -36,7 +36,7 @@ export interface ExtMethodPort {
 }
 
 /** 확장 구간(10000~19999, F.wire-settings.spec §3.5.3)의 호스트 정의 코드. `kind`는 `ext.<확장>.<이름>`이다 */
-export const EXT_METHOD_ERROR_CODES = {
+const EXT_METHOD_ERROR_CODES = {
   /** 처리기가 던졌거나, 결과가 선언과 다르거나, 시간 예산을 넘었다. `details.outcome`이 구분한다 */
   failed: 10001,
   /** 확장이 꺼져 있거나 그 대화에서 꺼져 있다 */
@@ -44,7 +44,7 @@ export const EXT_METHOD_ERROR_CODES = {
 } as const;
 
 /** wire 요청 params에서 대화를 가리키는 예약 키. 처리기에는 `ctx.threadId`로 가고 `decl.params` 검사에서는 빠진다 */
-export const EXT_METHOD_THREAD_KEY = "threadId";
+const EXT_METHOD_THREAD_KEY = "threadId";
 
 interface ParsedName {
   readonly extension: string;
