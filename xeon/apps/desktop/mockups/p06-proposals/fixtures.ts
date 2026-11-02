@@ -1,5 +1,5 @@
-// P-06 제안 고정 데이터(ProposalRowVM 모양). 제안은 L3 learning 그룹과 L2 knowledge 능력이 낸다.
-// 행마다 낸 쪽(그룹·능력 이름과 id)과, knowledge 제안이면 그 근거가 된 Helm 발견을 함께 둔다.
+// P-06 제안 고정 데이터(ProposalRowVM 모양). 제안은 L3 learning 그룹과 L2 knowledge 기능이 낸다.
+// 행마다 낸 쪽(그룹·기능 이름과 id)과, knowledge 제안이면 그 근거가 된 Helm 발견을 함께 둔다.
 import type { CodeDiffKind } from "@caustic/react";
 
 export type ProposalStatus = "pending" | "applied" | "rejected";
@@ -42,8 +42,8 @@ export const proposals: Proposal[] = [
       { kind: "add", n: 4, text: "---" },
       { kind: "add", n: 5, text: "" },
       { kind: "add", n: 6, text: "1. ttl과 저장 시각의 단위를 먼저 확인한다 (초/ms)." },
-      { kind: "add", n: 7, text: "2. 경계 시각(at + ttl)에서 만료되는지 시험을 쓴다." },
-      { kind: "add", n: 8, text: "3. 캐시를 비우고 시험을 다시 돌린다." },
+      { kind: "add", n: 7, text: "2. 경계 시각(at + ttl)에서 만료되는지 테스트를 쓴다." },
+      { kind: "add", n: 8, text: "3. 캐시를 비우고 테스트를 다시 돌린다." },
       { kind: "add", n: 9, text: "4. 고친 뒤 docs의 단위 표기를 맞춘다." },
     ],
   },
@@ -67,7 +67,7 @@ export const proposals: Proposal[] = [
     id: "p3",
     kind: "스킬 수정",
     target: "bun-test",
-    source: { name: "knowledge 능력", id: "L2 knowledge", via: "Helm 발견 #2" },
+    source: { name: "knowledge 기능", id: "L2 knowledge", via: "Helm 발견 #2" },
     status: "pending",
     evidence: 3,
     at: "2일 전",

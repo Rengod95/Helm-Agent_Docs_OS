@@ -1,6 +1,6 @@
 // batch A 공용: 대화 영역 오른쪽 "런타임" 탭 내용(§4.9.8, DP-23). wb-opus W5 런타임 탭을 데이터 주도로 다시 짰다.
-// 구역: 진행권(보유·단계·상한 사용량, 사람 확인 대기, 차례 기다림·거부 + "이 그룹 먼저") · 켜진 그룹과 확장(펼치면 지점)
-//       · 전환 기록(단계 사이마다) · 실패 · "작업대에서 보기". well 안이라 카드·테두리 없이 간격으로만 묶는다(DP-10, DP-20).
+// 구역: 주도(보유·단계·상한 사용량, 사람 확인 대기, 차례 기다림·거부 + "이 그룹 먼저") · 켜진 그룹과 확장(펼치면 훅)
+//       · 전환 기록(단계 사이마다) · 실패 · "크래프트에서 보기". well 안이라 카드·테두리 없이 간격으로만 묶는다(DP-10, DP-20).
 import { Badge, Button, Progress } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import {
@@ -37,9 +37,9 @@ export interface RuntimeData {
   /** 보유 그룹의 지금 단계 글(플러그인 status 기여). */
   phase?: string;
   since?: string;
-  /** 사람 확인을 기다리느라 진행권을 반납한 그룹(X-17). */
+  /** 사람 확인을 기다리느라 주도를 반납한 그룹(X-17). */
   gate?: { group: string; text: string } | null;
-  /** 시험 대화 표지(멈춤 등). */
+  /** 테스트 대화 표지(멈춤 등). */
   trial?: ReactNode;
   gauges?: {
     turns: [number, number];
@@ -127,7 +127,7 @@ export function RuntimePanel({
   data: RuntimeData;
   /** 차례 기다림 행의 "이 그룹 먼저"(계획에 없음 3: 이 대화의 activeDriveGroup). */
   onFirst?: (group: string) => void;
-  /** "작업대에서 보기": 보기 기준을 이 대화로 고정하고 작업대로 간다. */
+  /** "크래프트에서 보기": 보기 기준을 이 대화로 고정하고 크래프트로 간다. */
   onWorkbench?: () => void;
 }) {
   const m = useShell();

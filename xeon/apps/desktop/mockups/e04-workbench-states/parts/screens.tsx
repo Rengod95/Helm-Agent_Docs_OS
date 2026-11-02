@@ -202,7 +202,7 @@ export function ExtListScreen({
 const TABS = [
   ["overview", L2("개요", "Overview")],
   ["points", T.extensionPoint],
-  ["lease", L2(`임대와 상한`, "Lease and limits")],
+  ["lease", L2(`주도와 상한`, "Lease and limits")],
   ["settings", L2("설정", "Settings")],
   ["metrics", T.metrics],
   ["log", L2("기록", "Log")],
@@ -283,7 +283,7 @@ function TabBody({ tab, mode }: { tab: string; mode: TabMode }) {
       ),
       versions: L2("보관한 이전 버전이 없어요", "No earlier versions kept"),
       lease: L2(
-        `${T.lead}을 쓰지 않는 ${T.extension}이에요`,
+        `${T.lead}를 쓰지 않는 ${T.extension}이에요`,
         "This extension doesn't use the drive lease",
       ),
       points: L2(`연결한 ${T.extensionPoint}이 없어요`, "No extension points connected"),
@@ -443,8 +443,8 @@ export function MetricsScreen({ mode, layout }: { mode: MetricsMode; layout: Lay
               actions={[{ label: L2("계측 켜기", "Turn on instrumentation"), primary: true }]}
             >
               {L2(
-                `${T.instrumentation}이 꺼져 있어 기록이 없어요 · l3.group-kit.instrumentation`,
-                "Instrumentation is off, so there's nothing recorded · l3.group-kit.instrumentation",
+                `${T.instrumentation}이 꺼져 있어 기록이 없어요 · l3.group-sdk.instrumentation`,
+                "Instrumentation is off, so there's nothing recorded · l3.group-sdk.instrumentation",
               )}
             </Alert>
           ) : mode === "empty" ? (
@@ -483,7 +483,7 @@ export function MetricsScreen({ mode, layout }: { mode: MetricsMode; layout: Lay
                   <span>{T.extension}</span>
                   <span className="text-end">{L2("토큰", "Tokens")}</span>
                   <span className="text-end">{L2("비용", "Cost")}</span>
-                  {!compact && <span className="text-end">{L2("임대 시간", "Lease time")}</span>}
+                  {!compact && <span className="text-end">{L2("주도 시간", "Lease time")}</span>}
                   {!compact && <span className="text-end">{L2("실패", "Fails")}</span>}
                   <span className="text-end">{L2("거부", "Denies")}</span>
                 </div>

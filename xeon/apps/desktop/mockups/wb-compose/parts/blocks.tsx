@@ -1,5 +1,5 @@
 // 블록(그룹 안 코드 한 덩어리)과 provider·출력 노드. 모두 caustic GraphNode·GraphPort(node-graph, 이 시안이 caustic에 더함) 위에 그린다.
-// 지점 이름은 꾸밈 없는 글자, fold·실패 규칙은 연한 글자(DP-31). tone 색은 아이콘 면과 검사 줄 아이콘에만(DP-29).
+// 훅 이름은 꾸밈 없는 글자, fold·실패 규칙은 연한 글자(DP-31). tone 색은 아이콘 면과 검사 줄 아이콘에만(DP-29).
 import { GraphNode, GraphPort, type GraphPortState } from "@caustic/react";
 import type { ReactNode } from "react";
 import {

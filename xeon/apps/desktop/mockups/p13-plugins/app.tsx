@@ -1,9 +1,9 @@
-// P-13 플러그인과 그룹: 런타임 표면. Xeon은 층별 플러그인(F/X/L0~L3)과 L3 의도 그룹으로 조립되므로, 이 화면은
-//   1) 이 대화에서 켜진 그룹, drive 임대를 가진 그룹, 다음 단계 경계에 걸린 전환
-//   2) L3 의도 그룹(내장·사용자·프로젝트): 확장 지점(on·post·drive·scope), drive 상태, 자동 끄기·신뢰·안전 모드, 그룹 설정
+// P-13 플러그인과 그룹: 런타임 표면. Fresnel은 층별 플러그인(F/X/L0~L3)과 L3 플러그인 그룹으로 조립되므로, 이 화면은
+//   1) 이 대화에서 켜진 그룹, 주도를 가진 그룹, 다음 단계 경계에 걸린 전환
+//   2) L3 플러그인 그룹(내장·사용자·프로젝트): 훅(on·post·drive·scope), drive 상태, 자동 끄기·신뢰·안전 모드, 그룹 설정
 //   3) 층별 플러그인(L2·L1·L0)
 //   4) 핸들러 실패 기록(scope.handler_failed)
-// 과 그룹 만들기(xeon group new) · 다시 불러오기를 한곳에 둔다.
+// 과 그룹 만들기 · 다시 불러오기를 한곳에 둔다.
 import {
   Alert,
   Badge,
@@ -32,7 +32,6 @@ import {
   Package,
   Plus,
   RotateCw,
-  Terminal,
   useShell,
 } from "../_shell";
 import { SettingsFrame } from "../_settings/frame";
@@ -79,14 +78,14 @@ function ThisThread({ safe }: { safe: boolean }) {
             "Helm · 학습은 다음 단계 경계에 켜져요"
           )}
         </ListDescriptionRow>
-        <ListDescriptionRow term="drive 임대">
+        <ListDescriptionRow term="주도">
           {safe ? (
             <span className="text-text-tertiary">없음</span>
           ) : (
             <span className="flex flex-wrap items-center gap-x-2">
               <span className="font-medium">Helm</span>
               <span className="text-text-tertiary">
-                임대 차수 3 · 턴 1/4 · spawn 2/8 · 렌즈 3 실행 중
+                주도 차수 3 · 턴 1/4 · spawn 2/8 · 렌즈 3 실행 중
               </span>
             </span>
           )}
@@ -150,14 +149,14 @@ function HelmSettings({ error }: { error: boolean }) {
       >
         <Switch size="sm" aria-label="자식 쓰기 거부" defaultChecked />
       </SettingRow>
-      <SettingRow label="임대 상한" k="x.primitives.driveLimits" scope="default" apply="boundary">
+      <SettingRow label="주도 상한" k="x.primitives.driveLimits" scope="default" apply="boundary">
         <div className="flex items-center gap-3 text-ui-sm text-text-tertiary">
           턴
           <NumberField
             appearance="stepper"
             containerClassName="w-28"
             size="xs"
-            aria-label="임대 턴 상한"
+            aria-label="주도 턴 상한"
             defaultValue={4}
           />
           spawn
@@ -165,7 +164,7 @@ function HelmSettings({ error }: { error: boolean }) {
             appearance="stepper"
             containerClassName="w-28"
             size="xs"
-            aria-label="임대 spawn 상한"
+            aria-label="주도 spawn 상한"
             defaultValue={8}
           />
         </div>
@@ -195,7 +194,7 @@ function FailureDetail({ open }: { open: boolean }) {
         aria-label="실패 자세히"
         className={`${ld} [--cs-size-list-term:5.5rem]`}
       >
-        <ListDescriptionRow term="지점" mono>
+        <ListDescriptionRow term="훅" mono>
           tool.call.before
         </ListDescriptionRow>
         <ListDescriptionRow term="오류" mono>
@@ -233,7 +232,7 @@ function NewGroupDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="그룹 만들기"
-      description="그룹은 루프에 on·post·drive·scope로 붙는 L3 확장이에요. 터미널에서 뼈대를 만들고 고친 뒤 다시 불러와요."
+      description="그룹은 루프에 on·post·drive·scope로 붙는 L3 확장이에요. 이름과 위치를 고르면 뼈대를 만들고, 고친 뒤 다시 불러와요."
       closeLabel="닫기"
       footer={
         <>
@@ -242,8 +241,8 @@ function NewGroupDialog({
               닫기
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" variant="solid" iconStart={<Copy />}>
-            명령 복사
+          <Button size="sm" tone="neutral" variant="solid" iconStart={<Plus />}>
+            만들기
           </Button>
         </>
       }
@@ -260,11 +259,9 @@ function NewGroupDialog({
         </Field>
         <ol className="m-0 grid list-none gap-2 p-0 text-ui text-text-secondary">
           <li className="grid gap-1">
-            <span>1. 터미널에서 뼈대를 만들어요</span>
-            <code className="flex items-center gap-1.5 rounded-md bg-neutral-soft px-2 py-1.5 font-mono text-mono-sm text-text-primary">
-              <Terminal aria-hidden className="size-icon-xs text-text-tertiary" />
-              xeon group new {name} --project --drive
-            </code>
+            <span>
+              1. 이름과 위치를 고르고 만들면 <b className="font-mono">{name}</b> 뼈대가 생겨요
+            </span>
           </li>
           <li>2. manifest.json의 usesDrive와 src/index.ts의 scope setup을 고쳐요</li>
           <li>
@@ -349,7 +346,7 @@ export function App({ state }: { state: State }) {
       >
         <ThisThread safe={safe} />
 
-        <SettingSection title={`의도 그룹 · L3 ${list.length}`}>
+        <SettingSection title={`플러그인 그룹 · L3 ${list.length}`}>
           {list.map((g) => (
             <GroupRow
               key={g.name}
@@ -393,11 +390,7 @@ export function App({ state }: { state: State }) {
           ))}
           {state === "S5" && (
             <div className="flex items-center gap-2 py-2 ps-7.5 text-ui text-text-secondary">
-              사용자 그룹이 없어요.
-              <code className="rounded-sm bg-neutral-soft px-1.5 py-0.5 font-mono text-mono-sm text-text-primary">
-                xeon group new
-              </code>
-              로 만들어요.
+              사용자 그룹이 없어요. 위의 “그룹 만들기”로 만들어요.
             </div>
           )}
         </SettingSection>

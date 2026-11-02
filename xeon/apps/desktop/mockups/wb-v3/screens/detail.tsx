@@ -1,4 +1,4 @@
-// 플러그인 상세(가장 힘준 화면): 위 "무엇으로 되어 있나"(가져다 쓰는 것 → 블록 → 끼어드는 지점·내놓는 것),
+// 플러그인 상세(가장 힘준 화면): 위 "무엇으로 되어 있나"(가져다 쓰는 것 → 블록 → 끼어드는 훅·내놓는 것),
 // 아래 "어떻게 움직이나"(단계 흐름). 흐름의 단계를 고르면 그 단계에서 움직이는 블록와 선이 위에서 밝아진다.
 // B의 그룹 하위 캔버스를 이어받고, 층 색(입력·출력 줄)과 흐름 띠를 한 화면에 묶었다(SPEC §4.4).
 import { Button, IconButton } from "@caustic/react";
@@ -472,7 +472,7 @@ function Flow({
                 style={{ border: "1.25px dashed var(--edge-strong)" }}
               />
               <span className="mt-[76px] w-[150px] text-center text-ui-xs text-text-tertiary">
-                사람 확인 자리 · 기다리는 동안 진행권을 놓고 답이 오면 다시 받아요
+                사람 확인 자리 · 기다리는 동안 주도를 놓고 답이 오면 다시 받아요
               </span>
             </div>
           );

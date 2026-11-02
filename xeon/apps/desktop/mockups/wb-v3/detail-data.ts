@@ -1,5 +1,5 @@
 // 플러그인 상세(무엇으로 되어 있나 + 어떻게 움직이나) 고정 데이터. 좌표는 상세 세계(1000 × 360) 기준이다.
-// Helm은 L3.helm.spec의 단계 머신과 group-kit 구성 선언(결정 7), 비용 라우터는 사용자 L1 플러그인 예시([제안]: 가상 모델
+// Helm은 L3.helm.spec의 단계 머신과 group-sdk 구성 선언(결정 7), 비용 라우터는 사용자 L1 플러그인 예시([제안]: 가상 모델
 // 라우터는 L1.models.spec §3 미결 "registerVirtualModel" 2차라, 여기서는 registerProvider + request.provider.before chain으로 그렸다).
 import type { LayerId } from "./data";
 
@@ -171,7 +171,7 @@ export const HELM_DETAIL: DetailSpec = {
   outputs: [
     {
       layer: "X",
-      title: "연결 지점",
+      title: "훅",
       rows: [
         { id: "session.start", from: ["restore"], stage: "session" },
         { id: "boundary.settle.after", from: ["signal"], stage: "boundary" },
@@ -179,7 +179,7 @@ export const HELM_DETAIL: DetailSpec = {
         { id: "tool.call.before", from: ["guard"], stage: "tool" },
         { id: "tool.execution.after", from: ["signal"], stage: "tool" },
         { id: "lifecycle.lease.rejected", from: ["drive"], stage: "lifecycle" },
-        { id: "진행권 · 입력 넣기", from: ["drive"] },
+        { id: "주도 · 입력 넣기", from: ["drive"] },
       ],
     },
     {
@@ -198,7 +198,7 @@ export const HELM_DETAIL: DetailSpec = {
       label: "확산",
       budget: "턴 1",
       comps: ["drive", "lens"],
-      cond: "막힘 신호 · 진행권",
+      cond: "막힘 신호 · 주도",
     },
     {
       id: "explore",
@@ -317,7 +317,7 @@ export const ROUTER_DETAIL: DetailSpec = {
   outputs: [
     {
       layer: "X",
-      title: "연결 지점",
+      title: "훅",
       rows: [
         {
           id: "request.provider.before",
@@ -352,6 +352,6 @@ export const ROUTER_DETAIL: DetailSpec = {
   ],
   cyclic: false,
   flowTitle: "어떻게 움직이나",
-  flowMeta: "요청마다 한 번 · 진행권을 쓰지 않아요 · 실패하면 고치지 않고 통과(skip)",
+  flowMeta: "요청마다 한 번 · 주도를 쓰지 않아요 · 실패하면 고치지 않고 통과(skip)",
   activePhase: "choose",
 };

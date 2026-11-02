@@ -1,4 +1,4 @@
-// P-13 부품. caustic List 행은 48px 고정 높이 상자라, 두 줄(이름·출처·상태 / 패키지·확장 지점·drive) + 스위치 + 펼친 그룹 설정을 담는
+// P-13 부품. caustic List 행은 48px 고정 높이 상자라, 두 줄(이름·출처·상태 / 패키지·훅·drive) + 스위치 + 펼친 그룹 설정을 담는
 // 런타임 행을 토큰으로 만든다(빈틈: List에 행 아래 펼침 내용과 두 줄 메타 슬롯이 없음).
 import { Badge, Button, Switch } from "@caustic/react";
 import { useState, type ReactNode } from "react";
@@ -109,7 +109,7 @@ export function GroupRow({
           </div>
           <div className="flex min-w-0 items-baseline gap-2 font-mono text-mono-sm text-text-tertiary">
             <span className="min-w-0 truncate">{e.path ?? e.name}</span>
-            <span aria-label={`확장 지점 ${points(e.points)}`} className="flex-none">
+            <span aria-label={`훅 ${points(e.points)}`} className="flex-none">
               {points(e.points)}
             </span>
           </div>

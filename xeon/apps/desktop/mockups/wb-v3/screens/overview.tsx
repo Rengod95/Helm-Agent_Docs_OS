@@ -24,7 +24,7 @@ const AY = 64;
 const AW = 640;
 const AH = 400;
 /** 단계 핀 자리: 그림의 기준점(anchors, viewBox 비율). 그림에는 다섯 단계만 있어 검문은 요청과 도구 사이 고리 위,
- *  수명은 "세션·수명" 블록 옆에 둔다(SPEC §4.1). */
+ *  수명은 "대화·수명" 블록 옆에 둔다(SPEC §4.1). */
 const A = anchors["hero-lifecycle"];
 const POS: Record<StageId, { x: number; y: number }> = {
   input: A.input,
@@ -96,7 +96,7 @@ export function StageCard({ id }: { id: StageId }) {
       <div className="flex items-baseline gap-2">
         <span className="text-ui-strong text-text-primary">{s.label} 단계</span>
         <span className="text-ui-xs text-text-tertiary">
-          훅 {hooks.length} · 지점 {s.total}곳
+          훅 {hooks.length} · 훅 {s.total}곳
         </span>
       </div>
       <p className="m-0 text-ui-xs text-text-secondary">{s.when}</p>
@@ -143,7 +143,7 @@ export function StageCard({ id }: { id: StageId }) {
       </div>
       {id === "tool" && (
         <p className="m-0 mt-2.5 text-ui-xs text-text-tertiary">
-          막기 지점은 앞에서 막으면 뒤 훅이 불리지 않아요. 외부 훅은 늘 맨 뒤예요.
+          막기 훅은 앞에서 막으면 뒤 훅이 불리지 않아요. 외부 훅은 늘 맨 뒤예요.
         </p>
       )}
     </div>
@@ -157,7 +157,7 @@ export function LifecycleHero() {
       <div className="absolute" style={{ left: AX, top: AY, width: AW, height: AH }}>
         <Art
           name={m.stage === "tool" ? "hero-lifecycle-active" : "hero-lifecycle"}
-          label="턴 흐름: 한 턴이 입력 · 모델 요청 · 도구 · 단계 · 세션 연결 지점을 차례로 지나는 그림"
+          label="턴 흐름: 한 턴이 입력 · 모델 요청 · 도구 · 단계 · 대화 훅을 차례로 지나는 그림"
           className="h-full w-full"
         />
       </div>
@@ -174,11 +174,9 @@ export function LifecycleHero() {
         <StagePin key={s.id} id={s.id} />
       ))}
       <div className="absolute grid gap-0.5" style={{ left: 8, top: 0 }}>
-        <span className="text-ui-strong text-text-primary">
-          한 턴은 연결 지점 46곳을 차례로 지나요
-        </span>
+        <span className="text-ui-strong text-text-primary">한 턴은 훅 46곳을 차례로 지나요</span>
         <span className="text-ui-xs text-text-secondary">
-          플러그인은 이 지점에 끼어들어 턴을 바꿔요. 켜고 끈 것은 이번 단계가 끝나면 적용돼요.
+          플러그인은 이 훅에 끼어들어 턴을 바꿔요. 켜고 끈 것은 이번 단계가 끝나면 적용돼요.
         </span>
       </div>
       <div
@@ -275,7 +273,7 @@ export function LayerStackCard({ compact }: { compact?: boolean }) {
           <ArrowRight />
         </Button>
         <span className="text-ui-xs text-text-tertiary">
-          훅 {HOOKS.length} · 지점 {new Set(HOOKS.map((h) => stageOf(h.point))).size}종
+          훅 {HOOKS.length} · 훅 {new Set(HOOKS.map((h) => stageOf(h.point))).size}종
         </span>
       </div>
     </section>

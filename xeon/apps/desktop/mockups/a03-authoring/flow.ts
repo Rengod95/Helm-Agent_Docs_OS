@@ -1,6 +1,6 @@
 // 대화에서 제작(authoring) 상태 기계(목업 전용). L3.authoring.spec §4.1(단계 intent→compose→scaffold→validate⇄fix→trial→(replay)→package),
 // §4.2(쓰기 범위 가드), §5(실패), 결정 1(화면 방식은 에이전트가 고름), 결정 4·10(replay는 개발 모드만, 자동 replay 없음),
-// 결정 캔버스 8(사람 확인 = drive 원시 loop.ask, 기다리는 동안 진행권 반납). 확인 카드 다섯: 종류·이름, 고치기 한도, 시험 비용, 묶기 전, 연결 전.
+// 결정 캔버스 8(사람 확인 = drive 원시 loop.ask, 기다리는 동안 주도 반납). 확인 카드 다섯: 종류·이름, 고치기 한도, 테스트 비용, 묶기 전, 연결 전.
 import { EXT, T, josa } from "../_shell";
 import type { After, ChatItem } from "../_chat-rt";
 
@@ -67,7 +67,7 @@ export type A =
 
 export const NAME = "daily-digest";
 export const DISPLAY = "아침 요약";
-export const DIR = `~/code/xeon-ext/${NAME}`;
+export const DIR = `~/code/fresnel-ext/${NAME}`;
 export const PROMPT = "매일 아침 열린 PR과 실패한 예약을 모아 요약해 주는 그룹 만들어줘";
 export const PROMPT_HOOK = "도구 호출마다 감사 기록을 남기는 X 훅 만들어줘";
 export const SRC = "grp:authoring";
@@ -130,7 +130,7 @@ export function reduce(s: S, a: A): S {
           s,
           {
             k: "agent",
-            text: `지금은 ${T.safeMode}라 ${T.authoringExt}이 빠져 있어요. 그룹, 외부 확장, X 훅이 모두 꺼진 상태예요.`,
+            text: `지금은 ${T.safeMode}라 ${T.authoringExt}가 빠져 있어요. 그룹, 외부 확장, X 훅이 모두 꺼진 상태예요.`,
           },
           { k: "node", key: "safe-row", node: null },
         );
@@ -203,7 +203,7 @@ export function reduce(s: S, a: A): S {
       return add({ ...s, stage: "scaffold" }, row(`${T.stageScaffold} · 파일 9개 · ${DIR}`), {
         k: "tool",
         name: "write",
-        detail: `${DIR}/xeon.extension.json 외 8`,
+        detail: `${DIR}/fresnel.extension.json 외 8`,
         status: "done",
         duration: "210ms",
       });
@@ -213,13 +213,13 @@ export function reduce(s: S, a: A): S {
         {
           k: "tool",
           name: "edit",
-          detail: "~/code/xeon/packages/group-kit/src/define.ts",
+          detail: "~/code/fresnel/packages/group-sdk/src/define.ts",
           status: "failed",
           duration: "0ms",
           output: `denied: write_scope\n  ${T.targetFolder} ${DIR} 밖이에요`,
         },
         row(
-          `${T.writeScope} 밖이라 막았어요 · group-kit/src/define.ts · ${T.targetFolder} 밖`,
+          `${T.writeScope} 밖이라 막았어요 · group-sdk/src/define.ts · ${T.targetFolder} 밖`,
           "danger",
           "danger",
         ),
@@ -286,7 +286,7 @@ export function reduce(s: S, a: A): S {
     case "trialSkip":
       return add(
         { ...s, stage: "trial", asks: { ...s.asks, trial: "declined" } },
-        retakeRow(`${T.trial}을 건너뛰었어요`),
+        retakeRow(`${T.trial}를 건너뛰었어요`),
       );
     case "trialDone":
       return add(

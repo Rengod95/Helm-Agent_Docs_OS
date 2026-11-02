@@ -1,4 +1,4 @@
-/* 작업대 시안(W1–W5): caustic 스타일 + 공용 셸 CSS. 색은 caustic 토큰만 쓴다. */
+/* 크래프트 시안(W1–W5): caustic 스타일 + 공용 셸 CSS. 색은 caustic 토큰만 쓴다. */
 @import "@caustic/react/styles.css";
 @import "../_shell/shell.css";
 @source "./";

@@ -7,14 +7,14 @@ export type Overlay = null | "add-l1" | "explain";
 
 export interface MockState {
   screen: Screen;
-  /** 보는 대상(맥락) 값 */
+  /** 보기 기준(맥락) 값 */
   view: string;
   /** 포커스(관계 렌즈)할 플러그인 */
   focus: string | null;
   stage: StageId | null;
   detail: string;
   overlay: Overlay;
-  /** 프리셋 적용 미리보기(보는 것 ≠ 바꾸는 것) */
+  /** 프로필 적용 미리보기(보는 것 ≠ 바꾸는 것) */
   preview: string | null;
   failure: boolean;
 }
@@ -26,11 +26,11 @@ export const STATES = [
   { id: "focus", label: "포커스 · Helm 관계 렌즈" },
   { id: "detail", label: "상세 · Helm 구성과 흐름" },
   { id: "detail-router", label: "상세 · 비용 라우터(내 L1)" },
-  { id: "explain", label: "보는 대상 설명(처음)" },
+  { id: "explain", label: "보기 기준 설명(처음)" },
   { id: "thread", label: "대화 · 실시간" },
-  { id: "preset-preview", label: "프리셋 적용 미리보기" },
-  { id: "preset-diff", label: "프리셋 ↔ 대화 차이" },
-  { id: "matrix", label: "층 × 지점 표" },
+  { id: "preset-preview", label: "프로필 적용 미리보기" },
+  { id: "preset-diff", label: "프로필 ↔ 대화 차이" },
+  { id: "matrix", label: "층 × 훅 표" },
   { id: "failure", label: "실패" },
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];

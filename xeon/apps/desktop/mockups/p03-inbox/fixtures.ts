@@ -1,6 +1,6 @@
 // P-03 받은 요청 고정 데이터. 공용 데이터(a1 도구, a2 질문)는 ../_shell/fixtures.ts 그대로 쓰고,
 // 이 화면에서 더 보이는 승인(Helm 렌즈의 도구 승인, 계획, 변경 검토), 제안, 알림만 여기 둔다.
-// 모든 항목에 "어느 그룹·확장·계층이 냈는지"(source)를 붙인다: Xeon은 계층별 플러그인과 L3 의도 그룹으로 조립되는 런타임이다.
+// 모든 항목에 "어느 그룹·확장·계층이 냈는지"(source)를 붙인다: Fresnel은 계층별 플러그인과 L3 플러그인 그룹으로 조립되는 런타임이다.
 import { approvals as shared, type ToolApproval } from "../_shell";
 
 export type ApprovalId = "a1" | "a5" | "a2" | "a3" | "a4";
@@ -12,17 +12,17 @@ export interface Source {
 }
 
 export const SRC = {
-  core: { name: "코어 루프", id: "L1" },
+  core: { name: "기본 에이전트", id: "L1" },
   plan: { name: "plan 모드", id: "L1 tools" },
   review: { name: "review 도구", id: "L2 artifacts" },
   helm: { name: "Helm 그룹", id: "grp:helm" },
   learning: { name: "learning 그룹", id: "grp:learning" },
-  knowledge: { name: "knowledge 능력", id: "L2 knowledge" },
+  knowledge: { name: "knowledge 기능", id: "L2 knowledge" },
   schedule: { name: "예약", id: "L2 schedule" },
   lint: { name: "lint-bot 확장", id: "ext:lint-bot" },
 } satisfies Record<string, Source>;
 
-/** Helm 탐구의 렌즈 하나(자식 에이전트)가 쓰기 없는 시험 실행을 물어본다. */
+/** Helm 탐구의 렌즈 하나(자식 에이전트)가 쓰기 없는 테스트 실행을 물어본다. */
 export const helmTool: ToolApproval = {
   kind: "tool",
   thread: "캐시 무효화 조사",
@@ -31,7 +31,7 @@ export const helmTool: ToolApproval = {
   at: "1분 전",
   command: "bun test test/expiry.test.ts",
   secrets: [],
-  args: { command: "bun test test/expiry.test.ts", cwd: "~/code/xeon", timeoutSeconds: 60 },
+  args: { command: "bun test test/expiry.test.ts", cwd: "~/code/fresnel", timeoutSeconds: 60 },
   remember: ["once", "thread"],
 };
 
@@ -42,7 +42,7 @@ export const plan = {
   title: "캐시 만료 수정",
   steps: [
     "만료 단위를 ms로 통일",
-    "isExpired 경계 시험 3개 추가",
+    "isExpired 경계 테스트 3개 추가",
     "docs/cache.md 단위 표기 고치기",
   ],
   more: 9,

@@ -1,4 +1,4 @@
-// P-19 시험 실행 상태 기계(목업 전용). spec §6.26, §6.31 O-12, 결정 4(replay·bench·diff는 개발 모드에서만),
+// P-19 테스트 실행 상태 기계(목업 전용). spec §6.26, §6.31 O-12, 결정 4(replay·bench·diff는 개발 모드에서만),
 // 결정 9(ReplayDriveReport 그대로 + JSON 복사), 결정 캔버스 5(계측 끄면 턴 다시 보기 잠김), 캔버스 9(단계 사이 멈춤).
 // ?state=<id>는 대본의 앞 n개 동작을 바로 적용한 모습이고, ?scenario=<id>&step=<n>도 같다(_chat-rt useMachine).
 import { runs as baseRuns, type Run } from "../_wb-c/data";
@@ -60,8 +60,8 @@ export type A =
   | { t: "resume" };
 
 export const NEW_ID = "r0";
-export const REPO_OK = "~/code/xeon";
-export const REPO_BAD = "~/Downloads/xeon-app";
+export const REPO_OK = "~/code/fresnel";
+export const REPO_BAD = "~/Downloads/fresnel-app";
 
 export const init = (script: string): S => ({
   script,
@@ -178,7 +178,7 @@ export function reduce(s: S, a: A): S {
         runs: [row, ...s.runs],
         note: note(
           s,
-          "시험 대화를 만들었어요",
+          "테스트 대화를 만들었어요",
           "프로필 탐구 중심 · 이 대화에만 적용했어요",
           "success",
         ),
@@ -228,7 +228,7 @@ export function effect(a: A, n: S, after: After<A>) {
 
 const sel = (id: string): A => ({ t: "select", id });
 export const SCRIPTS: Record<string, readonly A[]> = {
-  // 새 시험: O-12 → 비용 확인 → 프로필 적용 → 시험 대화 시작
+  // 새 테스트: O-12 → 비용 확인 → 프로필 적용 → 테스트 대화 시작
   "trial-new": [
     { t: "openNew" },
     { t: "start" },
@@ -254,7 +254,7 @@ export const SCRIPTS: Record<string, readonly A[]> = {
     { t: "rerunTick" },
     { t: "copyJson" },
   ],
-  // 실패: 저장소 경로에 시험 하니스가 없음 → 잠김 유지
+  // 실패: 저장소 경로에 테스트 하니스가 없음 → 잠김 유지
   "trial-dev-locked-norepo": [
     sel("r5"),
     { t: "tip", on: true },
@@ -262,7 +262,7 @@ export const SCRIPTS: Record<string, readonly A[]> = {
     { t: "checkDev" },
     { t: "devFail" },
   ],
-  // 시험 대화 상세: 멈춤 상태에서 한 단계씩 → 다시 멈춤 → 이어서
+  // 테스트 대화 상세: 멈춤 상태에서 한 단계씩 → 다시 멈춤 → 이어서
   "trial-step": [sel("r1"), { t: "stepOnce" }, { t: "boundary" }, { t: "resume" }],
   // 정적 상태 전용 대본
   base: [sel("r1")],

@@ -1,6 +1,6 @@
-// e04 작업대 여섯 상태 빈칸(N-47)과 찾기·거르기 결과 없음(N-48). 묶음 E.
+// e04 크래프트 여섯 상태 빈칸(N-47)과 찾기·거르기 결과 없음(N-48). 묶음 E.
 // P-13 확장 목록(읽는 중·빈·거르기 결과 없음·읽기 실패), P-17 확장 상세(탭별 읽는 중·오프라인·빈·오류), P-20 측정(읽는 중·50개 넘음·빈·계측 꺼짐),
-// 팔레트 결과 없음(대화·작업대), P-06 제안 거르기 결과 없음, P-09 키 찾기 결과 없음.
+// 팔레트 결과 없음(대화·크래프트), P-06 제안 거르기 결과 없음, P-09 키 찾기 결과 없음.
 import { Button, toast } from "@caustic/react";
 import { useEffect } from "react";
 import {
@@ -56,7 +56,7 @@ export const STATES = [
   { id: "metrics-empty", label: "P-20 빈(기간)" },
   { id: "metrics-off", label: "P-20 계측 꺼짐" },
   { id: "palette-empty", label: "팔레트 결과 없음(대화)" },
-  { id: "palette-empty-wb", label: "팔레트 결과 없음(작업대)" },
+  { id: "palette-empty-wb", label: "팔레트 결과 없음(크래프트)" },
   { id: "proposals-empty", label: "P-06 거르기 결과 없음" },
   { id: "settings-empty", label: "P-09 키 찾기 결과 없음" },
 ] as const;

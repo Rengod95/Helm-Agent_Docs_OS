@@ -3,7 +3,7 @@
 // 넓은 폭에서는 대화 영역을 밀고(헤어라인), 1100px 이하에서는 대화 위에 떠서 그림자 하나만 가진다.
 // 탭(아이콘, 이름, 배지, 내용)은 페이지가 준다. 탭 묶음은 영역마다(§4.9.4):
 //   대화: chatRightTabs(받은 요청, 런타임, 작업, 플러그인 well 탭들). 옛 standardRightTabs(받은 요청, 탐구, 작업)도 남긴다.
-//   작업대: workbenchRightTabs(받은 요청, 기록, 대화).
+//   크래프트: workbenchRightTabs(받은 요청, 기록, 대화).
 // well 머리는 짧은 이름 + 아이콘 둘까지("크게", 접기, DP-21). 플러그인 well이면 이름 옆에 확장 이름을 연하게(ADR-0021 슬롯 규칙).
 import {
   Card,
@@ -45,7 +45,7 @@ export interface RightTab {
   content?: ReactNode;
   /** 플러그인 well이면 기여한 확장 이름(머리에 연한 mono 글자). */
   ext?: string | undefined;
-  /** 머리 "크게" 아이콘: 같은 확장의 page 기여를 작업대에서 연다(DP-24). */
+  /** 머리 "크게" 아이콘: 같은 확장의 page 기여를 크래프트에서 연다(DP-24). */
   expand?: { label: string; onSelect: () => void } | undefined;
   /** well 폭(px). 플러그인 well은 320~480(ADR-0021 §3.2). 없으면 352. */
   width?: number | undefined;
@@ -90,7 +90,7 @@ export function chatRightTabs(opts: {
   return opts.only === undefined ? tabs : tabs.filter((t) => opts.only?.includes(t.id));
 }
 
-/** 작업대 영역 탭(§4.9.4): 받은 요청, 기록(맥락 대화의 런타임 이벤트), 대화(맥락 대화의 끝 부분, 읽기 전용). */
+/** 크래프트 영역 탭(§4.9.4): 받은 요청, 기록(맥락 대화의 런타임 이벤트), 대화(맥락 대화의 끝 부분, 읽기 전용). */
 export function workbenchRightTabs(opts: {
   inbox?: ReactNode;
   inboxBadge?: number;

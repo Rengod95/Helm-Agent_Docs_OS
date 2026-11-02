@@ -3,7 +3,7 @@
 @import "../_shell/shell.css";
 @source "./";
 
-/* 보유 임대 엣지의 흐름(점선이 임대 쪽에서 그룹 쪽으로 흐른다). */
+/* 보유 주도 엣지의 흐름(점선이 주도 쪽에서 그룹 쪽으로 흐른다). */
 @keyframes edge-flow {
   to {
     stroke-dashoffset: -11;

@@ -2,7 +2,7 @@
 // drive 함수는 단계 하나를 처리하고 커밋한 뒤 반환하고, X가 마지막 커밋 상태로 다시 부른다(L3.helm §4.5). 그래서 모든 선은
 // 단계 경계(◇)를 지난다. explore는 렌즈마다 loop.spawn(explorer)을 펼치고 모으기에서 합친다. 쓰기 거부 구간은 tool.call.before
 // 가드가 켜지는 단계(diverge·explore)를 덮는 면이다. 오른쪽 "끝" 노드는 idle로 돌아가는 결과(applied, stopped, limit, failed, empty).
-// 상태: Helm 보기, lens-review 편집(사람 확인 노드에 포트를 잇는 중), Helm 시험 실행(현재 단계, 렌즈, 가드 발화).
+// 상태: Helm 보기, lens-review 편집(사람 확인 노드에 포트를 잇는 중), Helm 테스트 실행(현재 단계, 렌즈, 가드 발화).
 import {
   Badge,
   Button,
@@ -68,7 +68,7 @@ export function FlowCanvas() {
   const H = applyY + 84;
   const W = trial ? 1040 : 820;
 
-  // 시험 실행: 지금 explore. diverge까지 지났고 렌즈 셋이 돌고 있다.
+  // 테스트 실행: 지금 explore. diverge까지 지났고 렌즈 셋이 돌고 있다.
   const st = (id: string): GraphNodeState => {
     if (!trial) return m.selected === id ? "idle" : "idle";
     if (id === "idle" || id === "diverge") return "done";
@@ -144,7 +144,7 @@ export function FlowCanvas() {
       >
         <div className="absolute" style={{ left: 0, top: 0 }}>
           <BandLabel layer="L3">
-            {edit ? "lens-review" : "helm"} drive · 임대 상한 턴 4 · spawn {edit ? 6 : 8} · 토큰{" "}
+            {edit ? "lens-review" : "helm"} drive · 주도 상한 턴 4 · spawn {edit ? 6 : 8} · 토큰{" "}
             {edit ? "200k" : "400k"}
           </BandLabel>
         </div>
@@ -190,7 +190,7 @@ export function FlowCanvas() {
           state={st("idle")}
         >
           <p className="m-0 text-ui-xs text-text-tertiary">
-            pending이 없으면 효과 없이 반환 · 임대 반납
+            pending이 없으면 효과 없이 반환 · 주도 반납
           </p>
           <GraphPort portId="idle:out" side="bottom" state="connected">
             <span className="sr-only">다음</span>
@@ -425,7 +425,7 @@ function TrialTimeline({ x }: { x: number }) {
   );
 }
 
-/** 시험 실행 띠: 캔버스 위 한 줄. 임대 사용량(턴·spawn·토큰), 멈춤, 경계마다 한 걸음, replay와 시험 결과로. */
+/** 테스트 실행 띠: 캔버스 위 한 줄. 주도 사용량(턴·spawn·토큰), 멈춤, 경계마다 한 걸음, replay와 테스트 결과로. */
 export function TrialBar() {
   const m = useMock();
   const [t, setT] = useState(0);
@@ -440,7 +440,7 @@ export function TrialBar() {
     <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 px-3 pb-2 text-ui-xs">
       <span className="inline-flex items-center gap-1.5 text-text-primary">
         <FlaskConical aria-hidden className="size-icon-xs text-text-tertiary" />
-        시험: 렌즈 5개
+        테스트: 렌즈 5개
         <span className="text-text-tertiary">
           helm · 1:{String(12 + (t % 48)).padStart(2, "0")}
         </span>
@@ -463,16 +463,16 @@ export function TrialBar() {
         <Button
           size="xs"
           variant="soft"
-          onClick={() => m.notify("이 시험 대화의 테이프로 replay를 열어요")}
+          onClick={() => m.notify("이 테스트 대화의 테이프로 replay를 열어요")}
         >
           replay로
         </Button>
         <Button
           size="xs"
           variant="ghost"
-          onClick={() => m.notify("시험 실행 화면에서 결과를 보여요")}
+          onClick={() => m.notify("테스트 실행 화면에서 결과를 보여요")}
         >
-          시험 결과
+          테스트 결과
         </Button>
       </span>
     </div>

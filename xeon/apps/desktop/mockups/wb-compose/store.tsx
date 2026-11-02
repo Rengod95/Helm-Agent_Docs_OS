@@ -1,4 +1,4 @@
-// 목업 로컬 상태: 보기(그룹·흐름·프로필·코드), 고른 그룹, 고른 블록, 시험 실행, 포트 연결 중. 엔진·wire를 부르지 않는다.
+// 목업 로컬 상태: 보기(그룹·흐름·프로필·코드), 고른 그룹, 고른 블록, 테스트 실행, 포트 연결 중. 엔진·wire를 부르지 않는다.
 import {
   createContext,
   useCallback,
@@ -15,7 +15,7 @@ export const STATES = [
   { id: "S3", label: "S3 검사 실패" },
   { id: "S4", label: "S4 흐름(Helm)" },
   { id: "S5", label: "S5 흐름 편집 · 포트 연결" },
-  { id: "S6", label: "S6 시험 실행" },
+  { id: "S6", label: "S6 테스트 실행" },
   { id: "S7", label: "S7 프로필 쌓기" },
   { id: "S8", label: "S8 코드 보기" },
 ] as const;

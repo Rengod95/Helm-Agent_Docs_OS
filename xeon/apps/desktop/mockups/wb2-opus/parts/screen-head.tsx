@@ -1,4 +1,4 @@
-// 작업대 화면 머리는 공용 셸의 WorkbenchHead(§6.21: 한 줄 + "언제 기준인가" 둘째 줄, 맥락은 왼쪽 패널이 닫혔을 때만 머리에).
+// 크래프트 화면 머리는 공용 셸의 WorkbenchHead(§6.21: 한 줄 + "언제 기준인가" 둘째 줄, 맥락은 왼쪽 패널이 닫혔을 때만 머리에).
 // 여기서는 구역 이름(SectionTitle)만 더한다.
 import type { ReactNode } from "react";
 import { WB_WIDTH, WorkbenchHead } from "../../_shell";

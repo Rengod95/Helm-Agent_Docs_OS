@@ -1,5 +1,5 @@
-// W6 시험 실행(P-19): 시험 표 + 고른 결과 상세(같은 화면 아래, 나눔 창 대신 위아래 흐름 [gap:C-14]).
-// replay 실패 상세는 ReplayDriveReport 모양을 따른다: 커밋 지점마다 절단 재실행(cuts), 처음 다른 seq, 효과 수(EffectCounts).
+// W6 테스트 실행(P-19): 테스트 표 + 고른 결과 상세(같은 화면 아래, 나눔 창 대신 위아래 흐름 [gap:C-14]).
+// replay 실패 상세는 ReplayDriveReport 모양을 따른다: 커밋 시점마다 절단 재실행(cuts), 처음 다른 seq, 효과 수(EffectCounts).
 import {
   Alert,
   Badge,
@@ -43,7 +43,7 @@ import {
 import { useMock } from "../store";
 
 const KIND: Record<TestRun["kind"], { label: string; icon: ReactNode }> = {
-  trial: { label: "시험 대화", icon: <MessageSquare /> },
+  trial: { label: "테스트 대화", icon: <MessageSquare /> },
   replay: { label: "replay", icon: <RotateCcw /> },
   bench: { label: "bench", icon: <Clock /> },
   diff: { label: "코어 변경 검사", icon: <GitBranch /> },
@@ -81,7 +81,7 @@ function RunningCell({ t }: { t: TestRun }) {
       <Progress
         size="xs"
         value={t.progress ?? 0}
-        label="시험 대화 진행"
+        label="테스트 대화 진행"
         className="w-14 shrink-0"
       />
       <span className="truncate text-text-secondary">턴 4/10</span>
@@ -91,7 +91,7 @@ function RunningCell({ t }: { t: TestRun }) {
           e.stopPropagation();
           m.notify("다음 단계 경계에서 멈춰요");
         }}
-        aria-label="시험 대화 멈춤"
+        aria-label="테스트 대화 멈춤"
         className="inline-flex size-6 shrink-0 items-center justify-center rounded-sm text-text-tertiary outline-none hover:bg-neutral-hover hover:text-text-primary focus-visible:focus-ring [&_svg]:size-icon-sm"
       >
         <Pause />
@@ -145,14 +145,14 @@ const columns: GridColumn<TestRun>[] = [
 
 // ── 상세 ─────────────────────────────────────────────────────────
 
-/** 커밋 지점 띠: 절단마다 한 칸. 같으면 연한 칸, 다르면 danger 칸(tone은 칸 면에만). */
+/** 커밋 시점 띠: 절단마다 한 칸. 같으면 연한 칸, 다르면 danger 칸(tone은 칸 면에만). */
 function CutStrip() {
   const diff = replayCuts.filter((c) => !c.equal).map((c) => c.n);
   return (
     <div className="grid gap-1">
       <div
         role="img"
-        aria-label={`커밋 지점 ${replayCuts.length}개를 모두 끊어 다시 돌렸어요. ${diff.join(", ")}번이 달랐어요.`}
+        aria-label={`커밋 시점 ${replayCuts.length}개를 모두 끊어 다시 돌렸어요. ${diff.join(", ")}번이 달랐어요.`}
         className="flex flex-wrap gap-0.5"
       >
         {replayCuts.map((c) => (
@@ -308,10 +308,10 @@ function TrialDetail({ t }: { t: TestRun }) {
   const m = useMock();
   return (
     <div className="grid gap-2">
-      <ListDescription variant="ghost" size="xs" aria-label="시험 대화">
-        <ListDescriptionRow term="대화">시험: 렌즈 5개</ListDescriptionRow>
+      <ListDescription variant="ghost" size="xs" aria-label="테스트 대화">
+        <ListDescriptionRow term="대화">테스트: 렌즈 5개</ListDescriptionRow>
         <ListDescriptionRow term="프로필">{t.profile}</ListDescriptionRow>
-        <ListDescriptionRow term="drive">helm · 임대 턴 1/4</ListDescriptionRow>
+        <ListDescriptionRow term="drive">helm · 주도 턴 1/4</ListDescriptionRow>
         <ListDescriptionRow term="진행">
           <span className="inline-flex items-center gap-2">
             <Progress size="xs" value={t.progress ?? 0} label="턴 진행" className="w-24" />
@@ -324,7 +324,7 @@ function TrialDetail({ t }: { t: TestRun }) {
           size="sm"
           variant="soft"
           iconStart={<MessageSquare />}
-          onClick={() => m.notify("대화 영역의 시험 대화로 가요")}
+          onClick={() => m.notify("대화 영역의 테스트 대화로 가요")}
         >
           대화로 가기
         </Button>
@@ -357,7 +357,7 @@ export function TrialsScreen() {
   return (
     <>
       <ScreenHead
-        title="시험 실행"
+        title="테스트 실행"
         asOf={m.emptyTests ? undefined : "14:05 기준 · 실행 중 1"}
         actions={
           <Button
@@ -366,7 +366,7 @@ export function TrialsScreen() {
             iconStart={<Plus />}
             onClick={() => m.set({ newTrialOpen: true })}
           >
-            새 시험
+            새 테스트
           </Button>
         }
       />
@@ -377,8 +377,8 @@ export function TrialsScreen() {
               size="md"
               surface="none"
               icon={<FlaskConical />}
-              title="아직 돌린 시험이 없어요"
-              description="replay로 재생 규율을, 시험 대화로 실제 동작을 봐요."
+              title="아직 돌린 테스트가 없어요"
+              description="replay로 재생 규율을, 테스트 대화로 실제 동작을 봐요."
               className="mt-10"
             />
           ) : (
@@ -389,7 +389,7 @@ export function TrialsScreen() {
                   <SelectOption value="replay">replay</SelectOption>
                   <SelectOption value="bench">bench</SelectOption>
                   <SelectOption value="diff">코어 변경 검사</SelectOption>
-                  <SelectOption value="trial">시험 대화</SelectOption>
+                  <SelectOption value="trial">테스트 대화</SelectOption>
                 </Select>
                 <Select size="xs" aria-label="결과 거르기" defaultValue="all" className="w-32">
                   <SelectOption value="all">결과 전체</SelectOption>
@@ -411,7 +411,7 @@ export function TrialsScreen() {
                 </Alert>
               )}
               <GridTable
-                label="시험 목록"
+                label="테스트 목록"
                 columns={columns}
                 rows={tests}
                 selectedId={m.selectedTest}

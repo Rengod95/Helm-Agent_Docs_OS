@@ -43,7 +43,7 @@ export function CreateScreen() {
   const folder = `~/code/groups/${m.name}`;
   const step = m.createStep;
   const go = (s: CreateStep) => m.set({ createStep: s });
-  const cli = `xeon group new ${m.name}${flag ? ` ${flag}` : ""}`;
+  const cli = `fresnel group new ${m.name}${flag ? ` ${flag}` : ""}`;
 
   return (
     <>
@@ -252,9 +252,9 @@ export function CreateScreen() {
                     size="sm"
                     variant="soft"
                     iconStart={<FlaskConical />}
-                    onClick={() => m.notify("시험 대화를 만들고 그 대화에서만 켰어요")}
+                    onClick={() => m.notify("테스트 대화를 만들고 그 대화에서만 켰어요")}
                   >
-                    시험 대화에서 켜기
+                    테스트 대화에서 켜기
                   </Button>
                   <Button
                     size="sm"
@@ -262,7 +262,7 @@ export function CreateScreen() {
                     iconStart={<RotateCcw />}
                     onClick={() => m.set({ screen: "tests", newTrialOpen: true })}
                   >
-                    replay 시험
+                    replay 테스트
                   </Button>
                 </div>
                 <p className="m-0 pt-1 text-ui-xs text-text-tertiary">

@@ -295,7 +295,7 @@ export function App({ state }: { state: State }) {
         onOpenChange={setRiskOpen}
         icon={<TriangleAlert />}
         title="구독 계정 회전은 약관 위험이 있어요"
-        description="여러 구독 계정을 번갈아 쓰면 provider 약관에 어긋날 수 있어요. 계정이 정지되면 Xeon이 되돌릴 수 없어요."
+        description="여러 구독 계정을 번갈아 쓰면 provider 약관에 어긋날 수 있어요. 계정이 정지되면 Fresnel이 되돌릴 수 없어요."
         footer={
           <>
             <DialogClose asChild>

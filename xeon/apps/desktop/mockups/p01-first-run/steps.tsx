@@ -155,8 +155,7 @@ function KeyStep() {
       {m.keyError && (
         <Alert tone="danger" layout="inline" size="sm">
           <b>키를 저장하지 못했어요.</b> sops: failed to get the data key. Keychain을 연 뒤 다시
-          저장하거나 터미널에서{" "}
-          <code className="font-mono text-mono-sm">xeon secret add {secret}</code>로 넣어 주세요.
+          저장해 주세요.
         </Alert>
       )}
       <ListDescription
@@ -181,7 +180,7 @@ function KeyStep() {
             ))}
           </Select>
         </ListDescriptionRow>
-        <ListDescriptionRow term="비밀 이름">
+        <ListDescriptionRow term="시크릿 이름">
           <span className="flex items-center gap-2">
             <code className="font-mono text-mono-sm">secret://{secret}</code>
             <Badge size="xs" tone="neutral">
@@ -304,7 +303,7 @@ function GroupsStep() {
         className={`${LIST} [--cs-size-list-term:6rem]`}
       >
         <ListDescriptionRow term="내 그룹">
-          <Cmd text="xeon group new my-group" />
+          <Button size="xs" tone="neutral" variant="outline">{`새 ${T.group}`}</Button>
         </ListDescriptionRow>
         <ListDescriptionRow term="안전 모드">
           <span className="text-text-secondary">

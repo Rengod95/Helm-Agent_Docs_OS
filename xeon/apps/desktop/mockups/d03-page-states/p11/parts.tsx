@@ -75,7 +75,7 @@ export function AccountGrid({
           <span className="sr-only">순서</span>
         </span>
         <span role="columnheader">계정</span>
-        <span role="columnheader">자격(비밀)</span>
+        <span role="columnheader">자격(시크릿)</span>
         <span role="columnheader">우선</span>
         <span role="columnheader">예비 %</span>
         <span role="columnheader">

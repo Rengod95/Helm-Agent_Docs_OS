@@ -1,4 +1,4 @@
-// 그룹 쌓기(구성기 1): 가운데 열에 슬롯 블록을 쌓아 L3 의도 그룹 하나를 만든다. 왼쪽 열은 이 맥락에서 능력을 주는
+// 그룹 쌓기(구성기 1): 가운데 열에 슬롯 블록을 쌓아 L3 플러그인 그룹 하나를 만든다. 왼쪽 열은 이 맥락에서 기능을 주는
 // L1·L2 확장, 오른쪽 열은 블록이 내는 것(F 공개 기록, 입력 큐, 비공개 상태 문서). 층이 열로 나뉘고 선은 포트끼리만 잇는다.
 // 상태: Helm 참고 구성(읽기 전용, 설치본 매니페스트·소스에서 읽음), 빈 구성기, 검사 실패(lens-review 작성 중).
 import {
@@ -68,7 +68,7 @@ function ScopeNode({ scope, readOnly }: { scope: typeof helmScope; readOnly: boo
         {scope.meta} · {scope.state}
       </p>
       <div className="flex min-w-0 items-baseline gap-1.5 text-ui-xs">
-        <span className="text-text-tertiary">임대 상한</span>
+        <span className="text-text-tertiary">주도 상한</span>
         <span className="tabular-nums text-text-primary">
           턴 {scope.limits.maxTurns} · spawn {scope.limits.maxSpawns} · 토큰{" "}
           {Math.round(scope.limits.maxTokens / 1000)}k
@@ -95,7 +95,7 @@ function Columns({
   return (
     <NodeGraph aria-label={`${scope.name} 그룹 블록`} width={W} height={H} edges={edges}>
       <div className="absolute grid gap-2" style={{ left: COL.left, top: 0, width: 180 }}>
-        <BandLabel layer="L1·L2">이 맥락의 능력</BandLabel>
+        <BandLabel layer="L1·L2">이 맥락의 기능</BandLabel>
         <div className="grid gap-3 pt-14">
           {provs.map((p) => (
             <ProviderNode key={p.id} p={p} />
@@ -103,7 +103,7 @@ function Columns({
         </div>
       </div>
       <div className="absolute grid gap-2" style={{ left: COL.mid, top: 0, width: 330 }}>
-        <BandLabel layer="L3">의도 그룹 · 블록 {blocks.length}</BandLabel>
+        <BandLabel layer="L3">플러그인 그룹 · 블록 {blocks.length}</BandLabel>
         <ScopeNode scope={scope} readOnly={readOnly} />
         <div className="grid gap-1.5 pt-1.5">
           {blocks.map((b) => (
@@ -134,7 +134,7 @@ function EmptyComposer() {
   return (
     <NodeGraph aria-label="새 그룹" width={590} height={460} edges={[]}>
       <div className="absolute grid gap-2" style={{ left: COL.left, top: 0, width: 180 }}>
-        <BandLabel layer="L1·L2">이 맥락의 능력</BandLabel>
+        <BandLabel layer="L1·L2">이 맥락의 기능</BandLabel>
         <div className="grid gap-3 pt-14">
           {providers.map((p) => (
             <ProviderNode key={p.id} p={p} dim />
@@ -142,7 +142,7 @@ function EmptyComposer() {
         </div>
       </div>
       <div className="absolute grid gap-2" style={{ left: COL.mid, top: 0, width: 330 }}>
-        <BandLabel layer="L3">의도 그룹 · 블록 0</BandLabel>
+        <BandLabel layer="L3">플러그인 그룹 · 블록 0</BandLabel>
         <GraphNode
           x={0}
           y={0}
@@ -222,8 +222,8 @@ export function GroupCanvas() {
       {invalid && (
         <div className="px-3 pb-2">
           <Alert tone="danger" variant="soft" size="sm" emphasis="lead">
-            <b>검사 3개 실패, 경고 1개.</b> drive 블록 둘 · on 핸들러의 능력 호출 · provider 없는
-            requires. 고치기 전에는 코드 만들기와 시험 실행을 할 수 없어요.
+            <b>검사 3개 실패, 경고 1개.</b> drive 블록 둘 · on 핸들러의 기능 호출 · provider 없는
+            requires. 고치기 전에는 코드 만들기와 테스트 실행을 할 수 없어요.
           </Alert>
         </div>
       )}

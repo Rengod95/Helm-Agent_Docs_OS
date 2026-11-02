@@ -31,7 +31,7 @@ export interface NodeSpec {
   rows: Row[];
   body?: ReactNode;
   bodyH?: number;
-  /** 머리 오른쪽 작은 배지(임대 예산 등). */
+  /** 머리 오른쪽 작은 배지(주도 예산 등). */
   badge?: ReactNode;
 }
 
@@ -157,7 +157,7 @@ export function Node({
   );
 }
 
-/** 임대 예산 배지: 단계가 쓰는 턴·spawn. */
+/** 주도 예산 배지: 단계가 쓰는 턴·spawn. */
 export function Budget({
   children,
   tone = "neutral",

@@ -1,6 +1,6 @@
 // P-03 받은 요청(무대 전체 보기). 모든 대화의 승인·제안·알림을 한 읽기 열에 묶음별로 둔다.
 // 행을 누르면 그 자리에서 승인 카드로 펼친다(트랜스크립트·오른쪽 well과 같은 카드 부품). 행마다 원인 대화와
-// 그 항목을 낸 그룹·확장·계층(코어 루프, Helm 그룹, learning 그룹, ext:lint-bot …)을 둘째 줄에 보인다.
+// 그 항목을 낸 그룹·확장·계층(기본 에이전트, Helm 그룹, learning 그룹, ext:lint-bot …)을 둘째 줄에 보인다.
 import {
   AgentRequest,
   Alert,
@@ -441,7 +441,7 @@ export function InboxPage({ state }: { state: InboxState }) {
                 <>
                   {failed && (
                     <Alert tone="warning" className="mb-1">
-                      knowledge 능력의 제안을 읽지 못했어요. learning 그룹 제안만 보여요.
+                      knowledge 기능의 제안을 읽지 못했어요. learning 그룹 제안만 보여요.
                     </Alert>
                   )}
                   <ul aria-label="제안 대기" className="m-0 -mx-2.5 grid list-none gap-1 p-0">

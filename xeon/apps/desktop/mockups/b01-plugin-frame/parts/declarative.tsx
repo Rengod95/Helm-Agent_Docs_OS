@@ -155,8 +155,8 @@ export function HelmTree({
         </section>
       </div>
       {/* widget: Section + Meter ×2 (Meter 빈틈 C-05 → Progress) */}
-      <section aria-label={`${T.lead}과 토큰`} className="grid gap-1.5">
-        <SectionTitle>{`${T.lead}과 토큰`}</SectionTitle>
+      <section aria-label={`${T.lead}와 토큰`} className="grid gap-1.5">
+        <SectionTitle>{`${T.lead}와 토큰`}</SectionTitle>
         <div className="grid max-w-[32rem] grid-cols-[4rem_minmax(0,1fr)_6rem] items-center gap-x-3 gap-y-1.5 text-ui-dense">
           <span className="text-text-tertiary">{T.turn}</span>
           <Progress value={25} size="xs" label={`${T.turn} 1/4`} />

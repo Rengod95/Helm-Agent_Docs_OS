@@ -1,4 +1,4 @@
-// 작업대 오른쪽 "대화" 탭(§4.9.4): 맥락 대화의 트랜스크립트 끝 부분(읽기 전용)과 "대화로 가기".
+// 크래프트 오른쪽 "대화" 탭(§4.9.4): 맥락 대화의 트랜스크립트 끝 부분(읽기 전용)과 "대화로 가기".
 // 런타임 행은 대화 안과 같은 한 줄 모양(DP-19: muted 아이콘, secondary 글자).
 import { Button, EmptyState } from "@caustic/react";
 import { Layers, MessageSquare } from "../icons";

@@ -1,4 +1,4 @@
-// 묶음 E · 작업대 상태와 결과 없음 목업 진입점. ?state=<id>(기본 ext-list), ?scenario=<id>[&step=n][&hold=1], ?lang=en, ?theme=dark, ?dev=1.
+// 묶음 E · 크래프트 상태와 결과 없음 목업 진입점. ?state=<id>(기본 ext-list), ?scenario=<id>[&step=n][&hold=1], ?lang=en, ?theme=dark, ?dev=1.
 import { loadCausticFonts, MockRoot, ShellStateProvider } from "../_shell";
 import "./mockup.css";
 import { StrictMode } from "react";
@@ -16,7 +16,7 @@ if (root !== null)
     <StrictMode>
       <MockRoot states={STATES}>
         {(state) => (
-          // 작업대 표 화면은 well을 닫고 연다(DP-43).
+          // 크래프트 표 화면은 well을 닫고 연다(DP-43).
           <ShellStateProvider
             key={state}
             initialArea={CHAT.has(state) ? "chat" : "workbench"}

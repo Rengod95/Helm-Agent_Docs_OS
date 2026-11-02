@@ -58,7 +58,7 @@ const history: Record<"active" | "met" | "limit" | "failed", Judgement[]> = {
     {
       n: 2,
       met: false,
-      reason: "단위 시험은 통과, e2e 2개 실패",
+      reason: "단위 테스트는 통과, e2e 2개 실패",
       missing: "e2e cache-expiry, e2e warm-start",
       at: "3분 전",
     },
@@ -72,7 +72,7 @@ const history: Record<"active" | "met" | "limit" | "failed", Judgement[]> = {
   ],
   met: [
     { n: 3, met: true, reason: "bun test 312개 모두 통과", at: "방금" },
-    { n: 2, met: false, reason: "단위 시험은 통과, e2e 2개 실패", at: "9분 전" },
+    { n: 2, met: false, reason: "단위 테스트는 통과, e2e 2개 실패", at: "9분 전" },
     { n: 1, met: false, reason: "cache.test.ts 1개 실패", at: "18분 전" },
   ],
   limit: [
@@ -145,7 +145,7 @@ function Goal({ kind }: { kind: keyof typeof STATUS }) {
       }
     >
       <div className="grid gap-1">
-        <p className="m-0 text-ui-strong text-text-primary">시험이 모두 통과한다</p>
+        <p className="m-0 text-ui-strong text-text-primary">테스트가 모두 통과한다</p>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-xs text-text-tertiary">
           <Badge size="xs" tone={s.tone}>
             {s.word}
@@ -180,8 +180,8 @@ function PlanRef({ approved = true }: { approved?: boolean }) {
 
 const tasksActive: PlanStep[] = [
   { id: "t1", label: "만료 비교 단위 통일", status: "done" },
-  { id: "t2", label: "TTL 경계 시각 시험 추가", status: "now", detail: "#12 · 탐구에서" },
-  { id: "t3", label: "시험 시계를 가짜 시계로 바꾸기", status: "todo", detail: "#13 · 탐구에서" },
+  { id: "t2", label: "TTL 경계 시각 테스트 추가", status: "now", detail: "#12 · 탐구에서" },
+  { id: "t3", label: "테스트 시계를 가짜 시계로 바꾸기", status: "todo", detail: "#13 · 탐구에서" },
   { id: "t4", label: "캐시 문서 고치기", status: "todo", detail: "막힘 · #12 뒤" },
   { id: "t5", label: "회귀 확인", status: "done" },
 ];
@@ -211,7 +211,7 @@ function LongTasks() {
     { id: "r3", label: "벤치마크 다시 재기", status: "todo" },
     ...Array.from({ length: 5 }, (_, i) => ({
       id: `r${i + 4}`,
-      label: `패키지 ${i + 1} 시험 이전`,
+      label: `패키지 ${i + 1} 테스트 이전`,
       status: "todo" as const,
     })),
   ];
@@ -274,7 +274,7 @@ export function WorkPanel({ state }: { state: WorkState }) {
             </p>
             <div className="grid gap-2.5">
               <Field label="조건" size="sm">
-                <Input size="sm" placeholder="예: 시험이 모두 통과한다" />
+                <Input size="sm" placeholder="예: 테스트가 모두 통과한다" />
               </Field>
               <div className="flex gap-2">
                 <Field label="판정 모델" size="sm" className="min-w-0 flex-1">

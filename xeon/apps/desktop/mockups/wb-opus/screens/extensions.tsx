@@ -1,4 +1,4 @@
-// W2 확장 목록(P-13, 작업대 "확장"). 찾기·거르기, 표(이름, 층, 종류, 등급, 지점, 상태, 버전, 켜짐), 아래 안전 모드와 drive 그룹.
+// W2 확장 목록(P-13, 크래프트 "확장"). 찾기·거르기, 표(이름, 층, 종류, 등급, 훅, 상태, 버전, 켜짐), 아래 안전 모드와 drive 그룹.
 // 자동 꺼짐이 있으면 표 바로 위 Alert danger 하나(DP-28). 면제 tier는 Switch 잠금 + Tooltip. 오프라인이면 모든 Switch 잠금(S4).
 import {
   Alert,
@@ -107,7 +107,7 @@ export function ExtensionList() {
     { key: "layer", header: "층", width: 64 },
     ...(wide ? [{ key: "kind", header: "종류", width: 72 }] : []),
     { key: "trust", header: "등급", width: 72 },
-    ...(wide ? [{ key: "points", header: "지점", align: "end" as const, width: 48 }] : []),
+    ...(wide ? [{ key: "points", header: "훅", align: "end" as const, width: 48 }] : []),
     { key: "status", header: "상태", width: wide ? 176 : 140 },
     { key: "version", header: "버전", align: "end", width: 64 },
     { key: "enabled", header: "켜짐", align: "end", width: 52 },

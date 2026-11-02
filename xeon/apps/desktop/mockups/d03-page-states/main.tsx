@@ -27,11 +27,11 @@ const PAGES: Record<string, { label: string; mod: PageMod }> = {
   p07: { label: "P-07 예약", mod: p07 },
   p08: { label: "P-08 연결", mod: p08 },
   p09: { label: "P-09 설정(데이터 지우기)", mod: p09 },
-  p10: { label: "P-10 비밀", mod: p10 },
+  p10: { label: "P-10 시크릿", mod: p10 },
   p11: { label: "P-11 계정", mod: p11 },
   p12: { label: "P-12 도구와 웹", mod: p12 },
   p14: { label: "P-14 목표와 작업", mod: p14 },
-  p15: { label: "P-15 엔진(작업대)", mod: p15 },
+  p15: { label: "P-15 엔진(크래프트)", mod: p15 },
 };
 
 /** 시나리오는 페이지와 시작 상태를 고르고, 그 뒤는 화면 안 버튼이 진행한다(상태 기계 없이 화면 로컬 상태). */

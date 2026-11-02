@@ -54,10 +54,10 @@ const SCOPE_WORD: Record<SourceScope, string> = {
 const SCOPE_PATH: Record<SourceScope, string> = {
   default: "매니페스트 settings",
   user: "~/.fresnel/settings.json",
-  project: "~/code/xeon/.fresnel/settings.json",
+  project: "~/code/fresnel/.fresnel/settings.json",
   profile: "profiles.json · explore",
   trial: "session · t8",
-  managed: "/etc/xeon/managed.json",
+  managed: "/etc/fresnel/managed.json",
 };
 
 // ── 설정 ──────────────────────────────────────────────────────
@@ -69,7 +69,7 @@ export function SettingsTab({ offline = false }: { offline?: boolean }) {
       ? (profiles.find((p) => p.id === c.profileId)?.title ?? c.profileId)
       : null;
   const trial = c.kind === "trial" ? (threads.find((t) => t.id === c.threadId)?.title ?? "") : null;
-  // 맥락이 프로필·시험이면 그 값이 이기는 행이 생긴다(maxLenses).
+  // 맥락이 프로필·테스트이면 그 값이 이기는 행이 생긴다(maxLenses).
   const rows = helmSettings.map((r) => {
     if (r.key !== "ext.helm.maxLenses") return r;
     if (prof !== null)
@@ -387,7 +387,7 @@ export function HooksTab({ safe }: { safe: boolean }) {
           <Mono dim={false}>{h.command}</Mono>
         </ListDescriptionRow>
         <ListDescriptionRow term="범위">
-          프로젝트 · ~/code/xeon/.fresnel/hooks.json
+          프로젝트 · ~/code/fresnel/.fresnel/hooks.json
         </ListDescriptionRow>
         <ListDescriptionRow term="시간">
           {safe ? (
@@ -430,7 +430,7 @@ export function OverviewTab({ ext }: { ext: string }) {
           ? "막혔을 때 렌즈 여럿으로 넓게 보고 결과를 모아요"
           : ext === "acme-notes"
             ? "도구 호출 전에 메모를 붙여요"
-            : "세션이 끝나면 감사 기록을 남겨요"}
+            : "대화가 끝나면 감사 기록을 남겨요"}
       </ListDescriptionRow>
       <ListDescriptionRow term="설치 위치">
         <Mono dim={false}>
@@ -438,12 +438,12 @@ export function OverviewTab({ ext }: { ext: string }) {
             ? ACME_DIR
             : ext === "helm"
               ? "~/.fresnel/extensions/helm"
-              : "~/code/xeon/.fresnel/hooks.json"}
+              : "~/code/fresnel/.fresnel/hooks.json"}
         </Mono>
       </ListDescriptionRow>
       <ListDescriptionRow term="이 시안 밖">
         <span className="inline-flex items-center gap-1 text-text-tertiary">
-          연결 지점·임대·측정 탭은 wb-opus 시안을 따라요
+          훅·주도·측정 탭은 wb-opus 시안을 따라요
           <Button size="xs" tone="neutral" variant="ghost" onClick={() => goFolder("wb-opus")}>
             열기
           </Button>

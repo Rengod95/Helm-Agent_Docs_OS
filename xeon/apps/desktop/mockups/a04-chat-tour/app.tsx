@@ -1,5 +1,5 @@
 // N-14 대화 영역 둘러보기 목업. 대화 t1 "캐시 무효화 조사" 위에서 세 곳을 차례로 짚는다:
-// 1 런타임 줄(대화 머리 둘째 줄) → 2 런타임 탭(오른쪽 well) → 3 "작업대에서 보기". 끝나면 토스트 한 줄.
+// 1 런타임 줄(대화 머리 둘째 줄) → 2 런타임 탭(오른쪽 well) → 3 "크래프트에서 보기". 끝나면 토스트 한 줄.
 // 시작점은 트랜스크립트의 흐린 런타임 행 하나("둘러보기", DP-19 동작 하나). 좁은 폭에서는 말풍선이 아래 시트로 내려온다.
 // 실패 갈래: 사용자가 런타임 탭을 닫아 대상이 없으면 말풍선이 "다시 열기"를 보인다.
 import { Button, Toaster, toast } from "@caustic/react";
@@ -34,7 +34,7 @@ export const STATES = [
   { id: "tour-1", label: "1 런타임 줄" },
   { id: "entry", label: "시작점(런타임 행)" },
   { id: "tour-2", label: "2 런타임 탭" },
-  { id: "tour-3", label: "3 작업대에서 보기" },
+  { id: "tour-3", label: "3 크래프트에서 보기" },
   { id: "done", label: "끝" },
   { id: "missing", label: "실패: 런타임 탭이 닫힘" },
   { id: "narrow-1", label: "좁은 폭(390) · 1" },
@@ -44,7 +44,7 @@ export const STATES = [
 export type StateId = (typeof STATES)[number]["id"];
 
 export const SCENARIOS = [
-  { id: "tour", label: "둘러보기: 런타임 줄 → 탭 → 작업대" },
+  { id: "tour", label: "둘러보기: 런타임 줄 → 탭 → 크래프트" },
   { id: "tour-closed", label: "실패: 둘러보는 중 탭을 닫음" },
 ];
 
@@ -59,7 +59,7 @@ const STEPS: TourStep[] = [
     target: "runtime-tab",
     title: `${T.runtime} 탭`,
     side: "left",
-    body: `이 ${T.thread}의 ${T.group}과 ${T.extension}, ${T.lead}, ${T.stepBoundary}마다의 전환 기록이 모여 있어요. ${T.group}이 바뀌는 건 늘 ${T.step}이 끝난 뒤예요.`,
+    body: `이 ${T.thread}의 ${T.group}과 ${T.extension}, ${T.lead}, ${T.stepBoundary}마다의 전환 기록이 모여 있어요. ${T.group}이 바뀌는 건 늘 ${T.step}가 끝난 뒤예요.`,
   },
   {
     target: "to-workbench",
@@ -132,7 +132,7 @@ export function App({ state }: { state: StateId }) {
         at === -1 ? (
           <div className="flex min-h-6 items-center gap-1.5 text-ui-dense text-text-secondary">
             <span className="min-w-0 truncate">
-              {`처음 보는 ${T.runtime} 표시예요 · ${T.group}과 ${T.lead}이 어디 보이는지 짚어 볼까요`}
+              {`처음 보는 ${T.runtime} 표시예요 · ${T.group}과 ${T.lead}가 어디 보이는지 짚어 볼까요`}
             </span>
             <Button
               size="xs"

@@ -1,4 +1,4 @@
-// 작업대 시안(W1–W5) 진입점. ?state=S1..S11, ?theme=dark. 글꼴이 맨 먼저(DP-15).
+// 크래프트 시안(W1–W5) 진입점. ?state=S1..S11, ?theme=dark. 글꼴이 맨 먼저(DP-15).
 import { loadCausticFonts, MockRoot, ShellStateProvider } from "../_shell";
 import "./mockup.css";
 import { StrictMode } from "react";
@@ -14,7 +14,7 @@ if (root !== null)
     <StrictMode>
       <MockRoot states={STATES}>
         {(state) => (
-          // 작업대 화면은 표가 넓어 오른쪽 well을 닫은 채 시작한다(막대만). W5는 런타임 탭을 연 채로.
+          // 크래프트 화면은 표가 넓어 오른쪽 well을 닫은 채 시작한다(막대만). W5는 런타임 탭을 연 채로.
           <ShellStateProvider
             initialArea={isChatState(state) ? "chat" : "workbench"}
             initialTab="runtime"

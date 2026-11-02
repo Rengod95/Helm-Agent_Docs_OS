@@ -1,5 +1,5 @@
-// 런타임 캔버스 고정 데이터. 공용 작업대 데이터(_shell/workbench-fixtures, 스펙 §14.5)를 캔버스 좌표로 옮기고,
-// 매니페스트(F.extensions §3.1), 지점 표(§3.4), 임대(X.primitives §4.4), 그룹 상태(L3.group-kit §3.8)에 맞춰 덧붙였다.
+// 런타임 캔버스 고정 데이터. 공용 크래프트 데이터(_shell/workbench-fixtures, 스펙 §14.5)를 캔버스 좌표로 옮기고,
+// 매니페스트(F.extensions §3.1), 훅 표(§3.4), 주도(X.primitives §4.4), 그룹 상태(L3.group-sdk §3.8)에 맞춰 덧붙였다.
 // 덧붙인 값은 `// [덧붙임]`. §14.5와 다르게 둔 곳은 SPEC.md "고정 데이터 정정"에 적었다.
 
 export type BandId = "L3" | "L2" | "L1" | "L0" | "X" | "F";
@@ -14,8 +14,8 @@ export interface Band {
 /** 세계 좌표(줌 1 = px). 위가 L3, 아래가 F: 위층이 아래층에 기대어 쌓인다. */
 export const WORLD = { w: 1130, h: 640 };
 export const BANDS: Band[] = [
-  { id: "L3", title: "의도 그룹", y: 0, h: 146 },
-  { id: "L2", title: "능력", y: 154, h: 112 },
+  { id: "L3", title: "플러그인 그룹", y: 0, h: 146 },
+  { id: "L2", title: "기능", y: 154, h: 112 },
   { id: "L1", title: "코어", y: 274, h: 64 },
   { id: "L0", title: "플랫폼", y: 346, h: 50 },
   { id: "X", title: "확장 호스트", y: 404, h: 178 },
@@ -47,7 +47,7 @@ export interface CNode {
   version?: string;
   health: Health;
   failures?: number;
-  /** 매니페스트 points(on을 거는 지점). */
+  /** 매니페스트 points(on을 거는 훅). */
   points?: string[];
   usesPost?: boolean;
   usesDrive?: boolean;
@@ -60,7 +60,7 @@ export interface CNode {
 }
 
 export const NODES: CNode[] = [
-  // ── L3 의도 그룹(group-kit 레일 위에 놓인 블록)
+  // ── L3 플러그인 그룹(group-sdk 레일 위에 놓인 블록)
   {
     id: "helm",
     band: "L3",
@@ -149,7 +149,7 @@ export const NODES: CNode[] = [
     usesDrive: true,
     consumes: [{ id: "work.tasks", need: "optional" }],
   },
-  // ── L2 능력 provider
+  // ── L2 기능 provider
   {
     id: "web",
     band: "L2",
@@ -261,7 +261,7 @@ export const NODES: CNode[] = [
     kind: "core",
     health: "ok",
     exempt: true,
-    sub: "지점 발화",
+    sub: "훅 발화",
   },
   {
     id: "tools",
@@ -357,7 +357,7 @@ export const NODES: CNode[] = [
     kind: "platform",
     health: "ok",
   },
-  // ── X 확장 호스트(지점 레일은 따로 그린다: POINT_RAIL)
+  // ── X 확장 호스트(훅 레일은 따로 그린다: POINT_RAIL)
   {
     id: "x-post",
     band: "X",
@@ -377,7 +377,7 @@ export const NODES: CNode[] = [
     y: 496,
     w: 260,
     h: 64,
-    label: "drive 임대",
+    label: "주도",
     kind: "host",
     health: "ok",
     sub: "대화마다 하나",
@@ -438,7 +438,7 @@ export const NODES: CNode[] = [
     y: 601,
     w: 116,
     h: 28,
-    label: "지점 표 46",
+    label: "훅 표 46",
     kind: "contract",
     health: "ok",
   },
@@ -471,7 +471,7 @@ export const NODES: CNode[] = [
     y: 601,
     w: 116,
     h: 28,
-    label: "능력 계약",
+    label: "기능 계약",
     kind: "contract",
     health: "ok",
   },
@@ -490,12 +490,12 @@ export const NODES: CNode[] = [
 
 export const nodeById = (id: string) => NODES.find((n) => n.id === id);
 
-/** L3 띠 아래쪽 group-kit 레일. 그룹 블록이 그 위에 쌓인다(group-kit은 확장이 아니라 라이브러리라 노드가 아니다). */
+/** L3 띠 아래쪽 group-sdk 레일. 그룹 블록이 그 위에 쌓인다(group-sdk은 확장이 아니라 라이브러리라 노드가 아니다). */
 export const GROUP_KIT = { x: 96, y: 98, w: 798, h: 28 };
 /** 그룹 블록을 하나 더 쌓을 빈 칸(만들기 P-22로). */
 export const ADD_SLOT = { x: 744, y: 22, w: 150, h: 58 };
 
-// ── 지점 레일(X): 지점 종류 일곱, 쓰이는 지점만 이름을 보이고 나머지는 수로 접는다(F.extensions §3.4 집계).
+// ── 훅 레일(X): 훅 종류 일곱, 쓰이는 훅만 이름을 보이고 나머지는 수로 접는다(F.extensions §3.4 집계).
 export type Fold = "tap" | "first" | "chain" | "collect";
 export interface RailSeg {
   kind: string;
@@ -528,7 +528,7 @@ export const POINT_PORTS: PointPort[] = [
   { name: "session.start", fold: "tap", failure: "open", x: 846 },
   { name: "lifecycle.lease.rejected", fold: "tap", failure: "open", x: 946 },
 ];
-/** 재생에서만 잠깐 켜지는 지점(아무 핸들러도 걸지 않은 지점은 레일 수 안에 접혀 있다). */
+/** 재생에서만 잠깐 켜지는 훅(아무 핸들러도 걸지 않은 훅은 레일 수 안에 접혀 있다). */
 export const QUIET_PORTS: { name: string; x: number }[] = [
   { name: "input.user.before", x: 206 },
   { name: "request.provider.before", x: 250 },
@@ -551,7 +551,7 @@ export const CONTEXTS: CtxOption[] = [
   { value: "t2", kind: "thread", label: "테스트 정리" },
   { value: "p:explore", kind: "profile", label: "탐구 중심" },
   { value: "p:quiet", kind: "profile", label: "조용히" },
-  { value: "p:review-trial", kind: "profile", label: "review 시험" },
+  { value: "p:review-trial", kind: "profile", label: "review 테스트" },
   { value: "x:lens5", kind: "trial", label: "helm 렌즈 5개" },
 ];
 export const ctxOf = (v: string) => CONTEXTS.find((c) => c.value === v) ?? CONTEXTS[0]!;
@@ -559,7 +559,7 @@ export const ctxOf = (v: string) => CONTEXTS.find((c) => c.value === v) ?? CONTE
 /** 맥락에서 본 노드 상태. 없으면 캔버스 기본 상태. */
 export interface CtxNodeState {
   on: boolean;
-  /** 이 맥락에서 바뀐 것(프로필·시험이 켜거나 끔): + 켬, − 끔, ~ 설정 덮어씀. */
+  /** 이 맥락에서 바뀐 것(프로필·테스트가 켜거나 끔): + 켬, − 끔, ~ 설정 덮어씀. */
   mark?: "+" | "−" | "~";
   /** drive 역할(GroupStatus.drive). */
   drive?: "holder" | "waiting" | "none";
@@ -592,7 +592,7 @@ const ALL_ON: Record<string, CtxNodeState> = Object.fromEntries(
 
 export const VIEWS: Record<string, ContextView> = {
   all: {
-    line: "설치된 확장 전부 · 대화마다 임대는 따로예요",
+    line: "설치된 확장 전부 · 대화마다 주도는 따로예요",
     live: false,
     nodes: ALL_ON,
     lease: null,
@@ -681,11 +681,11 @@ export const VIEWS: Record<string, ContextView> = {
       ],
     },
     overrides: [
-      { key: "x.primitives.activeDriveGroup", value: "review", from: "프로필 review 시험" },
+      { key: "x.primitives.activeDriveGroup", value: "review", from: "프로필 review 테스트" },
     ],
   },
   "x:lens5": {
-    line: "시험 대화 · 실행 중 1:12 · 원래 대화와 떨어져 있어요",
+    line: "테스트 대화 · 실행 중 1:12 · 원래 대화와 떨어져 있어요",
     live: true,
     nodes: {
       ...ALL_ON,
@@ -703,13 +703,13 @@ export const VIEWS: Record<string, ContextView> = {
       queue: [],
     },
     overrides: [
-      { key: "ext.helm.maxLenses", value: "5", from: "시험" },
-      { key: "ext.plan-first.enabled", value: "false", from: "시험" },
+      { key: "ext.helm.maxLenses", value: "5", from: "테스트" },
+      { key: "ext.plan-first.enabled", value: "false", from: "테스트" },
     ],
   },
 };
 
-// ── 엣지: 능력(provides → consumes), 연산(on → 지점, post → 큐, drive → 임대), 등록(provider → 도메인), 위임
+// ── 엣지: 기능(provides → consumes), 연산(on → 훅, post → 큐, drive → 주도), 등록(provider → 도메인), 위임
 export type EdgeKind = "cap" | "cap-missing" | "on" | "post" | "drive" | "register" | "fire";
 export interface Edge {
   id: string;
@@ -721,7 +721,7 @@ export interface Edge {
   b: [number, number];
   label?: string;
   optional?: boolean;
-  /** on 엣지의 지점. */
+  /** on 엣지의 훅. */
   point?: string;
 }
 
@@ -828,7 +828,7 @@ export const EDGES: Edge[] = buildEdges();
 /** 노드 하나에 닿는 엣지. */
 export const edgesOf = (id: string) => EDGES.filter((e) => e.from === id || e.to === id);
 
-// ── 재생(턴 7, 대화 "캐시 무효화 조사"). 이벤트는 지점 하나가 발화한 때, handlers는 그때 돈 확장 핸들러.
+// ── 재생(턴 7, 대화 "캐시 무효화 조사"). 이벤트는 훅 하나가 발화한 때, handlers는 그때 돈 확장 핸들러.
 export interface Handler {
   ext: string;
   ms: number;
@@ -842,7 +842,7 @@ export interface ReplayEvent {
   point: string;
   step: number;
   handlers: Handler[];
-  /** 단계 경계(켜기·끄기, 임대 교대가 적용되는 곳). */
+  /** 단계 경계(켜기·끄기, 주도 교대가 적용되는 곳). */
   boundary?: { text: string; switchTo?: string };
 }
 export const REPLAY: ReplayEvent[] = [
@@ -885,7 +885,7 @@ export const REPLAY: ReplayEvent[] = [
       { ext: "learning", ms: 22, budgetMs: 5000, result: "record", note: "skill.proposed 초안" },
       { ext: "plan-first", ms: 4, budgetMs: 5000, result: "patch" },
     ],
-    boundary: { text: "단계 경계 · helm 임대 받음 (차수 3)", switchTo: "helm" },
+    boundary: { text: "단계 경계 · helm 주도 받음 (차수 3)", switchTo: "helm" },
   },
   { seq: 211, at: "14:02:41", point: "boundary.step.before", step: 2, handlers: [] },
   {
@@ -980,7 +980,7 @@ export const FAILURES: Record<string, { at: string; point: string; text: string 
   helm: [{ at: "어제 16:20", point: "boundary.settle.after", text: "timeout 5s · 최근 50번 중 1" }],
 };
 
-/** group-kit 슬롯(L3.slots §3.3 템플릿, wb2 구성 탭과 같은 이름). */
+/** group-sdk 슬롯(L3.slots §3.3 템플릿, wb2 구성 탭과 같은 이름). */
 export const SLOTS: Record<string, { slot: string; piece: string }[]> = {
   helm: [
     { slot: "트리거", piece: "신호로 시작 · stuck" },

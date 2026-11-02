@@ -32,7 +32,7 @@ export function regionOf(n: number): HTMLElement | null {
     case 1:
       return panel?.querySelector<HTMLElement>('[data-slot="segmented-control"]') ?? null;
     case 2: {
-      // 작업대는 패널 머리의 보기 기준 칸 줄, 대화는 패널 본문(내비·대화 목록).
+      // 크래프트는 패널 머리의 보기 기준 칸 줄, 대화는 패널 본문(내비·대화 목록).
       const ctx = panel?.querySelector<HTMLElement>(
         `[data-slot="side-panel-header"] [aria-label="${T.context}"]`,
       );

@@ -1,4 +1,4 @@
-// P-05 정리: Helm well(helm/panel)은 그룹 자기 내용(주제, 단계, 렌즈, 발견)만 담는다. 진행권·대기열·전환 기록·"이 대화의 그룹"은
+// P-05 정리: Helm well(helm/panel)은 그룹 자기 내용(주제, 단계, 렌즈, 발견)만 담는다. 주도·대기열·전환 기록·"이 대화의 그룹"은
 // 런타임 탭으로 옮겼다(§4.9.8, DP-23). 렌즈 나무와 발견 목록은 p05-helm 부품을 그대로 쓴다.
 import { Button, Stepper } from "@caustic/react";
 import { T } from "../../_shell";

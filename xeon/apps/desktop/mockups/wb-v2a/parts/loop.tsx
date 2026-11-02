@@ -1,15 +1,15 @@
-// 에이전트 루프(층 보기): 경기장 모양 궤도 하나. 위쪽 곧은 길에 소켓(확장 지점)과 역(post 큐, drive 임대 자리)이 놓이고,
-// 아래쪽 길은 "다음 턴"으로 돌아가는 화살표다. 소켓 안 모양 = fold, 소켓 아래 점 = 꽂힌 블록(층 색), 안쪽 아래 = 지점 종류와 수.
+// 에이전트 루프(층 보기): 경기장 모양 궤도 하나. 위쪽 곧은 길에 소켓(훅)과 역(post 큐, 주도 자리)이 놓이고,
+// 아래쪽 길은 "다음 턴"으로 돌아가는 화살표다. 소켓 안 모양 = fold, 소켓 아래 점 = 꽂힌 블록(층 색), 안쪽 아래 = 훅 종류와 수.
 import { Lock, Play } from "../../_shell";
 import { KINDS, LOOP, SOCKETS, STATIONS, type Hue } from "../data";
 import { FoldGlyph, hueVar } from "./kit";
 
 export interface LoopProps {
-  /** 지점 → 꽂힌 블록들의 층 색 */
+  /** 훅 → 꽂힌 블록들의 층 색 */
   plugged: Record<string, Hue[]>;
-  /** 강조할 지점(고른 블록이 꽂힌 곳). 비면 모두 보통. */
+  /** 강조할 훅(고른 블록이 꽂힌 곳). 비면 모두 보통. */
   lit?: Set<string>;
-  /** 지점 → 경고 tone */
+  /** 훅 → 경고 tone */
   alarm?: Record<string, "danger" | "warning">;
   drive?: { holder: string | null; line: string; live?: boolean };
   postCount?: number;
@@ -165,7 +165,7 @@ export function LoopTrack({ plugged, lit, alarm = {}, drive, postCount, dimAll }
       >
         다음 턴 입력
       </span>
-      {/* 역: drive 임대 자리 */}
+      {/* 역: 주도 자리 */}
       <div
         className={`absolute flex items-center gap-1.5 rounded-lg px-2 text-ui-xs shadow-2 [&_svg]:size-3 ${
           drive?.holder

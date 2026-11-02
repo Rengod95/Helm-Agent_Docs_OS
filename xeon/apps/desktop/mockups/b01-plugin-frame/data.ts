@@ -123,18 +123,18 @@ export interface Task {
 }
 
 export const boardTasks: Task[] = [
-  { id: "t12", title: "TTL 경계 시각 재현 시험", col: "doing", who: "렌즈 실패 사례" },
+  { id: "t12", title: "TTL 경계 시각 재현 테스트", col: "doing", who: "렌즈 실패 사례" },
   { id: "t13", title: "만료 비교 단위 통일", col: "todo", after: "t12" },
   { id: "t14", title: "무효화 이벤트 순서 확인", col: "todo", after: "t12" },
   { id: "t15", title: "캐시 키 해시 고정", col: "todo" },
-  { id: "t10", title: "실패 시험 모으기", col: "done" },
+  { id: "t10", title: "실패 테스트 모으기", col: "done" },
   { id: "t11", title: "로그에서 같은 오류 찾기", col: "done" },
 ];
 
 export const colLabel: Record<TaskCol, string> = { todo: "대기", doing: "진행", done: "끝남" };
 
 /** 외부 링크(navigate external) 예: 프레임 안 이슈 링크. */
-export const externalLink = "https://github.com/acme/xeon/issues/412";
+export const externalLink = "https://github.com/acme/fresnel/issues/412";
 
 export const helmExt: PluginExt = {
   name: "helm",

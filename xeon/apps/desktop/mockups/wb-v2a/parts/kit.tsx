@@ -273,7 +273,7 @@ export function Hull({
   );
 }
 
-/** 사용량 막대(임대 턴·spawn·토큰). */
+/** 사용량 막대(주도 턴·spawn·토큰). */
 export function Meter({
   label,
   used,

@@ -120,7 +120,7 @@ export function ChatContext({
           <h1 className="m-0 truncate font-ui text-ui-strong text-text-primary">
             캐시 무효화 조사
           </h1>
-          <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
+          <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/fresnel</span>
           {goal !== undefined && (
             <button
               type="button"

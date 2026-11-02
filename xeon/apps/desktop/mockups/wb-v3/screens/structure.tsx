@@ -1,4 +1,4 @@
-// 내비 "구조"(옛 개요·런타임 지도): 보기 셋 [그림 | 층 | 표]. 머리 아래에 보는 대상 한 줄, 바꾸기 미리보기 띠, 실패 Alert.
+// 내비 "구조"(옛 개요·런타임 지도): 보기 셋 [그림 | 층 | 표]. 머리 아래에 보기 기준 한 줄, 바꾸기 미리보기 띠, 실패 Alert.
 import { Alert, Button, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { Eye, RotateCcw, SlidersHorizontal } from "../../_shell";
 import { WorkbenchHead, useShell } from "../../_shell";
@@ -10,7 +10,7 @@ import { MatrixView } from "./matrix";
 import { LayerStackCard, LifecycleHero, StageCard } from "./overview";
 import { AddL1Sheet, ExplainOverlay } from "./overlays";
 
-/** 보는 대상 한 줄(보기)과 바꾸기 미리보기 띠(바꾸기)를 다른 모양으로: 보기 = 눈 + 회색 글, 바꾸기 = accent 면 + 동작. */
+/** 보기 기준 한 줄(보기)과 바꾸기 미리보기 띠(바꾸기)를 다른 모양으로: 보기 = 눈 + 회색 글, 바꾸기 = accent 면 + 동작. */
 function ViewLine() {
   const m = useMock();
   const v = viewOf(m.view);
@@ -28,7 +28,7 @@ function ViewLine() {
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-accent-soft px-3 py-2 [&_svg]:size-4">
           <span className="flex items-center gap-1.5 text-ui-sm text-accent-text">
             <SlidersHorizontal />
-            프리셋 "{p.label}"을 이 대화에 적용하면
+            프로필 "{p.label}"을 이 대화에 적용하면
           </span>
           <span className="flex flex-wrap items-center gap-2 text-ui-xs text-text-primary">
             <span>
@@ -43,7 +43,7 @@ function ViewLine() {
               <b className="font-mono text-agent-text">~</b> 설정{" "}
               {n.filter((x) => x.mark === "override").length}
             </span>
-            <span className="text-text-secondary">진행권 그대로 · 이번 단계가 끝나면 적용</span>
+            <span className="text-text-secondary">주도 그대로 · 이번 단계가 끝나면 적용</span>
           </span>
           <span className="flex-1" />
           <span className="flex gap-1">
@@ -181,7 +181,7 @@ export function StructureScreen() {
               { label: "훅 기록 보기", onClick: () => m.notify("기록 탭을 열어요") },
             ]}
           >
-            실패 3 · 리뷰가 연속 5번 실패해 자동으로 꺼졌어요. 내 훅 비밀 검사는 출력 위반
+            실패 3 · 리뷰가 연속 5번 실패해 자동으로 꺼졌어요. 내 훅 시크릿 검사는 출력 위반
             3번이에요(열린 채 통과).
           </Alert>
         )}

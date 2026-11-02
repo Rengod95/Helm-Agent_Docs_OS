@@ -1,4 +1,4 @@
-// 캔버스 위 덮개 둘: (1) "보는 대상" 처음 설명, (2) 엔진(L1)에 플러그인 더하기 시작 시트.
+// 캔버스 위 덮개 둘: (1) "보기 기준" 처음 설명, (2) 엔진(L1)에 플러그인 더하기 시작 시트.
 import { Button, IconButton } from "@caustic/react";
 import type { ReactNode } from "react";
 import {
@@ -49,10 +49,10 @@ export function ExplainOverlay() {
   return (
     <div className="absolute inset-0 z-20 flex items-start bg-bg-app/70 p-3 backdrop-blur-[2px]">
       <section
-        aria-label="보는 대상과 프리셋"
+        aria-label="보기 기준과 프로필"
         className="relative w-full max-w-[720px] rounded-2xl bg-surface-raised p-5 shadow-4"
       >
-        {/* 왼쪽 패널 "보는 대상" 칸을 가리키는 꼬리 */}
+        {/* 왼쪽 패널 "보기 기준" 칸을 가리키는 꼬리 */}
         <span
           aria-hidden
           className="absolute -left-1.5 top-[54px] size-3 rotate-45 bg-surface-raised"
@@ -60,11 +60,11 @@ export function ExplainOverlay() {
         <div className="flex items-start gap-3">
           <div className="grid flex-1 gap-1">
             <h2 className="m-0 text-ui-lg text-text-primary">
-              보는 대상은 "어느 런타임을 보고 있나"예요
+              보기 기준은 "어느 런타임을 보고 있나"예요
             </h2>
             <p className="m-0 text-ui-dense text-text-secondary">
-              왼쪽 위 칸에서 고르면 작업대 모든 화면이 그 대상을 보여 줘요. 고르기만 해서는 아무것도
-              바뀌지 않아요.
+              왼쪽 위 칸에서 고르면 크래프트 모든 화면이 그 대상을 보여 줘요. 고르기만 해서는
+              아무것도 바뀌지 않아요.
             </p>
           </div>
           <IconButton
@@ -87,17 +87,17 @@ export function ExplainOverlay() {
             k="thread"
             title="대화"
             line="그 대화에서 지금 도는 것"
-            eg="실시간 · 진행권 · 다음 단계"
+            eg="실시간 · 주도 · 다음 단계"
           />
           <Concept
             k="trial"
-            title="시험 대화"
+            title="테스트 대화"
             line="떼어 내서 돌려 보는 대화"
             eg="단계마다 멈추고 한 칸씩"
           />
           <Concept
             k="preset"
-            title="프리셋"
+            title="프로필"
             line="저장해 둔 켜기·끄기 묶음"
             eg="보기만 하면 설계도예요"
           />
@@ -115,7 +115,7 @@ export function ExplainOverlay() {
                 <Eye /> 보기
               </span>
               <span className="text-ui-xs text-text-secondary">
-                보는 대상을 바꿔도 런타임은 그대로예요.
+                보기 기준을 바꿔도 런타임은 그대로예요.
               </span>
               <span className="text-ui-xs text-text-tertiary">눈 아이콘 · 회색 · 왼쪽 위 칸</span>
             </div>
@@ -129,7 +129,7 @@ export function ExplainOverlay() {
                 <SlidersHorizontal /> 바꾸기
               </span>
               <span className="text-ui-xs text-text-secondary">
-                켜기·끄기와 프리셋 적용만 런타임을 바꿔요.
+                켜기·끄기와 프로필 적용만 런타임을 바꿔요.
               </span>
               <span className="text-ui-xs text-text-tertiary">
                 늘 "이 대화에 · 이번 단계가 끝나면"이라고 말해요.
@@ -139,7 +139,7 @@ export function ExplainOverlay() {
         </div>
         <div className="mt-4 flex items-center gap-2">
           <span className="flex-1 text-ui-xs text-text-tertiary">
-            프리셋은 런타임 설정에 저장돼 CLI·서비스와 같이 써요.
+            프로필은 런타임 설정에 저장돼 CLI·서비스와 같이 써요.
           </span>
           <Button size="sm" variant="ghost" onClick={() => m.set({ overlay: null, view: "t1" })}>
             대화로 보기
@@ -255,13 +255,13 @@ export function AddL1Sheet() {
           모델 provider 등록
         </Can>
         <Can ok code="request.* · tool.*">
-          요청·도구 지점에 훅
+          요청·도구 훅에 훅
         </Can>
         <Can ok code="registerTool">
           도구 등록
         </Can>
         <Can ok={false} code="drive_requires_group">
-          진행권은 그룹(L3)만
+          주도는 그룹(L3)만
         </Can>
       </ul>
       <h3 className="m-0 mt-4 text-ui-sm text-text-primary">어디서 가져올까요</h3>
@@ -271,7 +271,7 @@ export function AddL1Sheet() {
           icon={<WandSparkles />}
           title="만들기 도우미로"
           tag="플러그인을 만드는 플러그인"
-          line="원하는 걸 말하면 뼈대 · 검사 · 시험까지 해요"
+          line="원하는 걸 말하면 뼈대 · 검사 · 테스트까지 해요"
         />
         <Source
           icon={<FolderOpen />}

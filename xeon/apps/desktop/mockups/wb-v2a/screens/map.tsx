@@ -1,5 +1,5 @@
-// 런타임 지도(작업대 "개요"): 머리 한 줄 + (실패 Alert | 차이 띠) + 나눔 보기(목록 | 캔버스). 캔버스는 세 줌 단계(개요·층·상세)를
-// 줌 사다리로 오가고, "구조 살펴보기"가 다섯 단계 둘러보기를 연다. 표 보기는 층 × 지점 행렬. 좁은 폭(compact)은 목록만.
+// 런타임 지도(크래프트 "개요"): 머리 한 줄 + (실패 Alert | 차이 띠) + 나눔 보기(목록 | 캔버스). 캔버스는 세 줌 단계(개요·층·상세)를
+// 줌 사다리로 오가고, "구조 살펴보기"가 다섯 단계 둘러보기를 연다. 표 보기는 층 × 훅 행렬. 좁은 폭(compact)은 목록만.
 import { Alert, Button, IconButton, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { Compass, Diamond, RotateCcw, ZoomIn, ZoomOut } from "../../_shell";
 import { WorkbenchHead, useShell } from "../../_shell";
@@ -108,7 +108,7 @@ export function MapScreen() {
               <span className="size-1.5 rounded-full bg-success-solid" /> 실시간 · 턴 7 · 14:03 기준
             </span>
           ) : (
-            "설치된 확장 전부 · 임대는 대화마다 따로예요 · 14:03 기준"
+            "설치된 확장 전부 · 주도는 대화마다 따로예요 · 14:03 기준"
           )
         }
         actions={

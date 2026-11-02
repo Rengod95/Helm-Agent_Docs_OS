@@ -48,7 +48,7 @@ export function MetricsScreen() {
     },
     {
       key: "lease",
-      header: "임대",
+      header: "주도",
       width: "4.5rem",
       align: "end",
       cell: (r) => dash(r.leaseMin === 0 ? "-" : `${r.leaseMin}분`),
@@ -98,7 +98,7 @@ export function MetricsScreen() {
   const hCols: GridColumn<H>[] = [
     {
       key: "where",
-      header: "확장 · 지점",
+      header: "확장 · 훅",
       cell: (h) => (
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="shrink-0 text-text-primary">{h.ext}</span>
@@ -190,7 +190,7 @@ export function MetricsScreen() {
             {[
               ["비용", off ? "–" : `$${total.cost.toFixed(2)}`],
               ["토큰", off ? "–" : fmtTokens(total.tokens)],
-              ["임대 시간", off ? "–" : `${total.lease}분`],
+              ["주도 시간", off ? "–" : `${total.lease}분`],
               ["핸들러 실패", off ? "–" : String(total.fail)],
             ].map(([l, v]) => (
               <div key={l} className="grid gap-0.5">
@@ -214,13 +214,13 @@ export function MetricsScreen() {
                 actions={[
                   {
                     label: "계측 켜기",
-                    onClick: () => m.notify("l3.group-kit.instrumentation을 켰어요"),
+                    onClick: () => m.notify("l3.group-sdk.instrumentation을 켰어요"),
                   },
                 ]}
               >
                 <b>계측이 꺼져 있어요.</b> 그룹 지표를 기록하지 않아 값이 없어요.{" "}
                 <span className="font-mono text-mono-sm text-text-tertiary">
-                  l3.group-kit.instrumentation
+                  l3.group-sdk.instrumentation
                 </span>
               </Alert>
             )}
@@ -278,7 +278,7 @@ export function MetricsScreen() {
                 onClick={() => m.set({ screen: "tests", selectedTest: "t1" })}
                 className="ms-auto"
               >
-                시험 실행에서 보기
+                테스트 실행에서 보기
               </Button>
             </div>
           </section>

@@ -1,4 +1,4 @@
-// 빈 상태 "첫 플러그인": 내장(코어, L2 능력, 학습)만 있는 지도. L3 lane 맨 위에 점선 자리와 세 단계 안내,
+// 빈 상태 "첫 플러그인": 내장(코어, L2 기능, 학습)만 있는 지도. L3 lane 맨 위에 점선 자리와 세 단계 안내,
 // 그 자리에서 소켓으로 가는 유령 선이 "그룹을 꽂으면 어디에 이어지는지"를 미리 보인다. 새 그룹은 구성기에서(결정 6).
 import { Button } from "@caustic/react";
 import { Compass, Download, Plus } from "../../_shell";
@@ -16,7 +16,7 @@ export function EmptyScreen() {
   const from = (dy: number) => ({ x: SLOT.x + SLOT.w + 27, y: SLOT.y + dy });
   const steps: [string, string, "cap" | "on" | "drive"][] = [
     ["설치", "새 그룹을 만들거나 가져와요", "cap"],
-    ["꽂기", "포트가 지점 소켓에 이어져요", "on"],
+    ["꽂기", "포트가 훅 소켓에 이어져요", "on"],
     ["켜기", "대화에서 켜면 경계부터 돌아요", "drive"],
   ];
   return (

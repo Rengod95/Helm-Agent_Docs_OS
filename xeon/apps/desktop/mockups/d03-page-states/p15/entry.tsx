@@ -55,7 +55,7 @@ export const STATES = [
   { id: "S4", label: "S4 안전 모드" },
   { id: "S5", label: "S5 진단 복사됨" },
   { id: "S6", label: "S6 팔레트" },
-  { id: "D-engine", label: "D 작업대 엔진 위치(연결 줄)" },
+  { id: "D-engine", label: "D 크래프트 엔진 위치(연결 줄)" },
   { id: "D-update", label: "D 업데이트 있음" },
   { id: "D-uptodate", label: "D 최신(확인함)" },
   { id: "D-update-fail", label: "D 업데이트 확인 실패" },
@@ -160,14 +160,14 @@ function PluginTable({ safe, compact }: { safe: boolean; compact: boolean }) {
       radius="none"
       aria-label="층별 플러그인과 그룹"
       className={TABLE}
-      // 좁은 폭에서는 확장 지점과 출처를 뺀다(이름은 줄바꿈하지 않는다).
+      // 좁은 폭에서는 훅과 출처를 뺀다(이름은 줄바꿈하지 않는다).
       columns={[
         { key: "layer", header: "층", width: 40 },
         { key: "id", header: "이름" },
         ...(compact
           ? []
           : [
-              { key: "hooks", header: "확장 지점" },
+              { key: "hooks", header: "훅" },
               { key: "version", header: "버전", width: 64 },
               { key: "source", header: "출처 · 신뢰" },
             ]),
@@ -500,7 +500,7 @@ function Stage({ state }: { state: StateId }) {
             }
           >
             <ListDescription variant="ghost" size="xs" aria-label="라이선스" className={LIST}>
-              <ListDescriptionRow term="Xeon">MIT</ListDescriptionRow>
+              <ListDescriptionRow term="Fresnel">MIT</ListDescriptionRow>
               <ListDescriptionRow term="아이콘">
                 <span lang="en" className="font-normal text-text-secondary">
                   {LICENSE_SOLAR}
@@ -524,7 +524,7 @@ function Stage({ state }: { state: StateId }) {
   );
 }
 
-/** d03(묶음 D): 작업대 "엔진" 위치의 맨 위(§6.19 결정): 엔진 상태·대상·안전 모드, "연결 화면 열기" 한 줄, 앱 업데이트 줄(계획에 없음 1). */
+/** d03(묶음 D): 크래프트 "엔진" 위치의 맨 위(§6.19 결정): 엔진 상태·대상·안전 모드, "연결 화면 열기" 한 줄, 앱 업데이트 줄(계획에 없음 1). */
 function EngineSection({ state }: { state: StateId }) {
   const upd =
     state === "D-update"

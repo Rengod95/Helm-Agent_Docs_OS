@@ -1,6 +1,6 @@
 // 프로필 쌓기(구성기 3): 층마다 띠 하나, 띠 안에 확장 블록. 블록마다 켜기·끄기·그대로(프로필 enable·disable·둘 다 아님, §6.28).
-// 순서가 뜻을 가지는 곳만 끌어 옮긴다: drive 임대 칸(x.primitives.activeDriveGroup, 한 그룹 또는 자동)과
-// first·chain 지점의 핸들러 순서(같은 tier 안에서만, loadIndex [제안: 런타임에 순서 입력이 없음]).
+// 순서가 뜻을 가지는 곳만 끌어 옮긴다: 주도 칸(x.primitives.activeDriveGroup, 한 그룹 또는 자동)과
+// first·chain 훅의 핸들러 순서(같은 tier 안에서만, loadIndex [제안: 런타임에 순서 입력이 없음]).
 // 오른쪽 "실효 스택"은 맥락 대화의 지금 값과 프로필을 합친 결과다. 적용은 settings.set(session) 여러 번, 다음 단계 경계.
 import {
   Badge,
@@ -144,7 +144,7 @@ export function ProfileStack() {
             <Select size="xs" defaultValue="explore" aria-label="프로필" className="w-44">
               <SelectOption value="explore">탐구 중심</SelectOption>
               <SelectOption value="quiet">조용히</SelectOption>
-              <SelectOption value="review-trial">review 시험</SelectOption>
+              <SelectOption value="review-trial">review 테스트</SelectOption>
             </Select>
             <span className="text-ui-xs text-text-tertiary">
               층마다 쌓아요 · 위가 바깥 tier예요
@@ -153,8 +153,8 @@ export function ProfileStack() {
 
           <Band
             layer="drive"
-            title="임대"
-            note="activeDriveGroup은 한 그룹이에요. 비우면 먼저 요청한 그룹이 받아요. 바꾸면 다음 경계에 지금 임대를 회수해요."
+            title="주도"
+            note="activeDriveGroup은 한 그룹이에요. 비우면 먼저 요청한 그룹이 받아요. 바꾸면 다음 경계에 지금 주도를 회수해요."
           >
             <span className="inline-flex items-center gap-2 rounded-lg bg-neutral-well/70 p-1 pe-2">
               <Chip drag>
@@ -248,7 +248,7 @@ export function ProfileStack() {
                 <ArrowRight aria-hidden className="size-icon-xs text-text-tertiary" />4
               </span>
             </ListDescriptionRow>
-            <ListDescriptionRow term="켜지는 지점">on 9 · drive 1</ListDescriptionRow>
+            <ListDescriptionRow term="켜지는 훅">on 9 · drive 1</ListDescriptionRow>
           </ListDescription>
           <p className="m-0 text-ui-xs text-text-tertiary">
             그대로인 {all.length - changed.length}개는 대화 값을 건드리지 않아요. 켜기·끄기는 다음
@@ -268,9 +268,9 @@ export function ProfileStack() {
               size="sm"
               variant="soft"
               iconStart={<FlaskConical />}
-              onClick={() => m.notify("시험 대화를 만들고 적용했어요")}
+              onClick={() => m.notify("테스트 대화를 만들고 적용했어요")}
             >
-              시험 대화로
+              테스트 대화로
             </Button>
             <Button size="sm" variant="ghost" onClick={() => m.notify("저장했어요")}>
               저장

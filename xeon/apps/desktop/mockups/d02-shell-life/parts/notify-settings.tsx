@@ -20,7 +20,7 @@ export function NotifySettings({ denied }: { denied: boolean }) {
       <SettingSection title={T.osNotice}>
         {denied && (
           <Alert tone="warning" size="sm" actions={[{ label: "시스템 설정 열기", primary: true }]}>
-            시스템에서 Xeon 알림을 막았어요. 앱 안 토스트와 받은 요청에는 그대로 보여요.
+            시스템에서 Fresnel 알림을 막았어요. 앱 안 토스트와 받은 요청에는 그대로 보여요.
           </Alert>
         )}
         <SettingRow label={`${T.osNotice} 보내기`} k="l2.dialog.notify.os" scope="user" apply="now">

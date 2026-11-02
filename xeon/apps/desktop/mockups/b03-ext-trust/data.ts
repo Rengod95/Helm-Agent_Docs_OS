@@ -114,8 +114,8 @@ export const acmeManifest: Manifest = {
   points: ["tool.call.before"],
   frames: [],
   views: 1,
-  source: "~/code/xeon/.fresnel/extensions/acme-notes/",
-  dest: "~/code/xeon/.fresnel/extensions/acme-notes/",
+  source: "~/code/fresnel/.fresnel/extensions/acme-notes/",
+  dest: "~/code/fresnel/.fresnel/extensions/acme-notes/",
 };
 
 export type CheckState = "wait" | "run" | "ok" | "warn" | "fail";
@@ -144,7 +144,7 @@ export const CHECKS: Check[] = [
     fail: `${T.trustBuiltin} 수준을 요청했어요 · ${T.installUserDir} 상한은 ${T.trustUser}예요`,
     code: "trust_exceeds_source",
   },
-  { id: "points", label: T.extensionPoint, ok: "3개 · 모두 있는 지점" },
+  { id: "points", label: T.extensionPoint, ok: "3개 · 모두 있는 훅" },
   {
     id: "views",
     label: "화면 기여",

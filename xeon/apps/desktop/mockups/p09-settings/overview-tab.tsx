@@ -10,7 +10,7 @@ const DIAG = [
     tone: "warning",
     text: "프로젝트 파일에 모르는 키가 있어요",
     key: "l2.web.legacyProxy",
-    where: "~/code/xeon/.fresnel/settings.json",
+    where: "~/code/fresnel/.fresnel/settings.json",
   },
   {
     tone: "info",
@@ -34,11 +34,15 @@ export function OverviewTab() {
           <ListDescriptionRow term="사용자" mono copyValue="~/.fresnel/settings.json">
             ~/.fresnel/settings.json
           </ListDescriptionRow>
-          <ListDescriptionRow term="프로젝트" mono copyValue="~/code/xeon/.fresnel/settings.json">
-            ~/code/xeon/.fresnel/settings.json
+          <ListDescriptionRow
+            term="프로젝트"
+            mono
+            copyValue="~/code/fresnel/.fresnel/settings.json"
+          >
+            ~/code/fresnel/.fresnel/settings.json
           </ListDescriptionRow>
           <ListDescriptionRow term="관리 정책" mono>
-            /etc/xeon/managed.json
+            /etc/fresnel/managed.json
           </ListDescriptionRow>
         </ListDescription>
       </SettingSection>

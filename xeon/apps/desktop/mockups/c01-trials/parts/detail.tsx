@@ -1,6 +1,6 @@
 // P-19 고른 행 상세(같은 화면 아래, 나눔 창 대신 위아래 흐름 [gap:C-14]).
-// - 시험 대화: 실행 제어 띠(멈춤·한 단계씩·이어서), 턴 다시 보기 막대(§6.22.5, 계측이 꺼지면 잠김), 단계 사이 기록,
-//   대상 자동 꺼짐으로 멈춘 시험은 실패 기록(authoring §5).
+// - 테스트 대화: 실행 제어 띠(멈춤·한 단계씩·이어서), 턴 다시 보기 막대(§6.22.5, 계측이 꺼지면 잠김), 단계 사이 기록,
+//   대상 자동 꺼짐으로 멈춘 테스트는 실패 기록(authoring §5).
 // - replay: 배포 앱은 지난 결과 요약만 읽기 전용, "다시 실행"은 잠금 이유 툴팁. 개발 모드면 ReplayDriveReport 그대로
 //   (절단 띠, 첫 차이, 효과 수 EffectCounts) + "JSON 복사"(결정 9).
 import {
@@ -41,7 +41,7 @@ const LD = "rounded-none [--cs-size-list-term:7.5rem] [&_[data-slot=list-descrip
 
 export const profileTitle = (id: string) => profiles.find((p) => p.id === id)?.title ?? id;
 
-/** 입력창 위 시험 띠와 같은 면(a01-trial-chat parts/trial-band). 상태 아이콘 하나 + 글 + 동작 둘까지. */
+/** 입력창 위 테스트 띠와 같은 면(a01-trial-chat parts/trial-band). 상태 아이콘 하나 + 글 + 동작 둘까지. */
 function Band({
   icon,
   tone,
@@ -279,14 +279,14 @@ export function TrialDetail({
   );
 }
 
-/** 절단 띠: 커밋 지점마다 한 칸. 같으면 연한 칸, 다르면 danger 칸(tone은 칸 면에만, DP-29). done까지만 채움(다시 실행 중). */
+/** 절단 띠: 커밋 시점마다 한 칸. 같으면 연한 칸, 다르면 danger 칸(tone은 칸 면에만, DP-29). done까지만 채움(다시 실행 중). */
 function CutStrip({ done }: { done: number }) {
   const diff = replayReport.cuts.filter((c) => !c.equal).map((c) => c.n);
   return (
     <div className="grid gap-1">
       <div
         role="img"
-        aria-label={`커밋 지점 ${replayReport.commits}개를 모두 끊어 다시 돌렸어요. ${diff.join(", ")}번이 달랐어요.`}
+        aria-label={`커밋 시점 ${replayReport.commits}개를 모두 끊어 다시 돌렸어요. ${diff.join(", ")}번이 달랐어요.`}
         className="flex flex-wrap gap-0.5"
       >
         {replayReport.cuts.map((c) => (
@@ -341,7 +341,7 @@ export function ReplayDetail({
   );
   const lockReason = web
     ? `원격 컴퓨터 build-box가 배포 형태라 잠겨 있어요. 그 컴퓨터에서 ${josa(T.devMode, "을", "를")} 켜야 해요.`
-    : `배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 ${T.repoPath}의 시험 도구로 돌려요.`;
+    : `배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 ${T.repoPath}의 테스트 도구로 돌려요.`;
 
   if (!dev)
     return (
@@ -518,7 +518,7 @@ export function OtherDetail({ run, dev }: { run: Run; dev: boolean }) {
     <div className="grid gap-3">
       <div className="flex min-w-0 items-baseline gap-2">
         <h2 className="m-0 truncate text-ui-strong text-text-primary">
-          {isBench ? T.bench : T.coreDiff}
+          {isBench ? T.benchmark : T.coreDiff}
         </h2>
         <Mono>{run.target}</Mono>
         <span className="text-ui-sm text-text-tertiary">
@@ -530,7 +530,7 @@ export function OtherDetail({ run, dev }: { run: Run; dev: boolean }) {
           <>
             <ListDescriptionRow term="판정">예산 미정 · 값만 기록</ListDescriptionRow>
             <ListDescriptionRow term="확장 디스패치">p50 0.8ms · p95 2.1ms</ListDescriptionRow>
-            <ListDescriptionRow term="진행권 교대">p50 4ms · p95 11ms</ListDescriptionRow>
+            <ListDescriptionRow term="주도 교대">p50 4ms · p95 11ms</ListDescriptionRow>
           </>
         ) : (
           <>

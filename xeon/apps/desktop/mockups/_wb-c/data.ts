@@ -1,9 +1,9 @@
-// 묶음 C(작업대 시험·버전·설정) 공용 고정 데이터. 목업 전용이고 값은 spec §6.24~§6.26, §14.5, 결정 4·6·9를 따른다.
-// 확장 id는 _shell EXT의 표시 이름과 짝이다(결정 13). 기계 값(seq, 지점, 해시)은 mono로 그린다(DP-39).
+// 묶음 C(크래프트 테스트·버전·설정) 공용 고정 데이터. 목업 전용이고 값은 spec §6.24~§6.26, §14.5, 결정 4·6·9를 따른다.
+// 확장 id는 _shell EXT의 표시 이름과 짝이다(결정 13). 기계 값(seq, 훅, 해시)은 mono로 그린다(DP-39).
 
 import { extJ, josa, T } from "../_shell";
 
-// ── P-19 시험 실행 ─────────────────────────────────────────────
+// ── P-19 테스트 실행 ─────────────────────────────────────────────
 
 export type RunKind = "trial" | "replay" | "bench" | "diff";
 export type RunResult =
@@ -26,7 +26,7 @@ export interface Run {
   result: RunResult;
   at: string;
   took: string;
-  /** 시험 대화: 대화 id, 프로필 id, 단계 */
+  /** 테스트 대화: 대화 id, 프로필 id, 단계 */
   thread?: string;
   title?: string;
   profile?: string;
@@ -141,7 +141,7 @@ export function replayJson(): string {
   );
 }
 
-/** 시험 대화 상세의 단계 사이 기록(W-48, W-50 trial.phase). */
+/** 테스트 대화 상세의 단계 사이 기록(W-48, W-50 trial.phase). */
 export interface Boundary {
   n: number;
   at: string;
@@ -162,7 +162,7 @@ export const boundaries: Boundary[] = [
   { n: 2, at: "14:19:40", seq: 1231, turn: 2, text: `${T.lens} 5개 띄움 · spawn 5/8`, stop: true },
 ];
 
-/** 턴 다시 보기 눈금(X-15 계측 링 버퍼, trace.turn W-43). 눈금 하나 = 지점 하나의 발화. */
+/** 턴 다시 보기 눈금(X-15 계측 링 버퍼, trace.turn W-43). 눈금 하나 = 훅 하나의 발화. */
 export interface Tick {
   seq: number;
   point: string;
@@ -355,13 +355,13 @@ export const acmeLog: LogRow[] = [
   {
     at: "13:58:40",
     kind: "loader.diagnostic",
-    text: "manifest.points[2] 알 수 없는 지점 tool.result.after",
+    text: "manifest.points[2] 알 수 없는 훅 tool.result.after",
     tone: "danger",
     loc: "fresnel.extension.json:18",
   },
-  { at: "13:58:40", kind: "x.reload", text: "다시 읽음 · 0.0.9 · 지점 3" },
+  { at: "13:58:40", kind: "x.reload", text: "다시 읽음 · 0.0.9 · 훅 3" },
 ];
-export const ACME_DIR = "~/code/xeon/.fresnel/extensions/acme-notes";
+export const ACME_DIR = "~/code/fresnel/.fresnel/extensions/acme-notes";
 
 // ── X 훅(hooks.list, W-36) ─────────────────────────────────────
 

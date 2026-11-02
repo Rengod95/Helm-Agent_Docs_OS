@@ -42,7 +42,7 @@ function HelmTree() {
           variant="outline"
           className="ms-auto"
           onClick={() =>
-            toast({ title: "탐구를 멈췄어요", description: "다음 단계 경계에서 임대를 놓아요." })
+            toast({ title: "탐구를 멈췄어요", description: "다음 단계 경계에서 주도를 놓아요." })
           }
         >
           멈춤
@@ -110,11 +110,11 @@ function HelmTree() {
       </div>
 
       {/* widget: Section + Meter ×2 (caustic Meter 빈틈 C-05 → Progress). S9: 새 위젯 Sparkline은 자리표시. */}
-      <section aria-label="임대와 토큰" className="grid gap-1.5">
-        <SectionTitle>임대와 토큰</SectionTitle>
+      <section aria-label="주도와 토큰" className="grid gap-1.5">
+        <SectionTitle>주도와 토큰</SectionTitle>
         <div className="grid max-w-[32rem] grid-cols-[4rem_minmax(0,1fr)_6rem] items-center gap-x-3 gap-y-1.5 text-ui-dense">
           <span className="text-text-tertiary">턴</span>
-          <Progress value={25} size="xs" label="임대 턴 1/4" />
+          <Progress value={25} size="xs" label="주도 턴 1/4" />
           <span className="tabular-nums text-text-secondary">{lease.turns.join(" / ")}</span>
           <span className="text-text-tertiary">spawn</span>
           <Progress value={38} size="xs" label="spawn 3/8" />

@@ -1,4 +1,4 @@
-// O-05 재인증, 비밀 추가, O-06 삭제 확인. 모두 caustic Dialog. 파괴·열람 확인은 기본 초점이 "취소"(§6.20).
+// O-05 재인증, 시크릿 추가, O-06 삭제 확인. 모두 caustic Dialog. 파괴·열람 확인은 기본 초점이 "취소"(§6.20).
 import {
   Button,
   Dialog,
@@ -69,7 +69,7 @@ export function AddDialog({
       size="md"
       open={open}
       onOpenChange={onOpenChange}
-      title="비밀 추가"
+      title="시크릿 추가"
       closeLabel="닫기"
       footer={
         <>
@@ -184,7 +184,7 @@ export function DeleteDialog({
           {secret.refs.join(", ") || "없음"}
         </ListDescriptionRow>
         <ListDescriptionRow term="활성 lease">{secret.leases}</ListDescriptionRow>
-        <ListDescriptionRow term="최근 세션">{secret.sessions}</ListDescriptionRow>
+        <ListDescriptionRow term="최근 대화">{secret.sessions}</ListDescriptionRow>
       </ListDescription>
     </Dialog>
   );

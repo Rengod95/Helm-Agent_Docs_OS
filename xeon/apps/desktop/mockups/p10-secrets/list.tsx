@@ -1,4 +1,4 @@
-// 비밀 목록. caustic Table은 고른 행을 뒤집어(검은 바탕) 그리고 행이 32px부터라, 지금 행을 올린 바탕 하나로 보이는
+// 시크릿 목록. caustic Table은 고른 행을 뒤집어(검은 바탕) 그리고 행이 32px부터라, 지금 행을 올린 바탕 하나로 보이는
 // 밀도 높은 목록을 caustic 토큰으로 만든다(빈틈: Table에 "현재 행" 상태와 행 단위 링크가 없음). 값 열은 없다.
 import type { Secret } from "./fixtures";
 
@@ -22,7 +22,7 @@ export function SecretList({
   onSelect: (name: string) => void;
 }) {
   return (
-    <div role="listbox" aria-label="비밀 목록" className="grid">
+    <div role="listbox" aria-label="시크릿 목록" className="grid">
       <div aria-hidden className={`grid ${COLS} gap-3 px-2 pb-1 text-ui-sm text-text-tertiary`}>
         <span>이름</span>
         <span className="@max-[34rem]:hidden">설명</span>

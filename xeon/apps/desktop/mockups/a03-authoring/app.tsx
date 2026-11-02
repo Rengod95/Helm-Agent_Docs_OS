@@ -1,7 +1,7 @@
-// 대화에서 제작(N-08~N-13) 목업. 대화 "아침 요약 그룹 만들기"에서 제작 확장(L3 authoring)이 진행권을 쥐고
-// 요구 정리 → 구성 초안 → 뼈대 → 검사(⇄ 고치기) → 시험 → 묶기를 돌린다. 사람 확인 다섯은 loop.ask 표준 카드로 오고,
-// 기다리는 동안 진행권을 반납한다(런타임 줄 "authoring 사람 확인 기다림 · 진행권 반납").
-// 런타임 줄은 단계 사슬(지금 단계 굵게), 오른쪽에 "제작" well(authoring/panel), 작업대 "제작" 화면(authoring/session).
+// 대화에서 제작(N-08~N-13) 목업. 대화 "아침 요약 그룹 만들기"에서 플러그인 빌더(L3 authoring)이 주도를 쥐고
+// 요구 정리 → 구성 초안 → 뼈대 → 검사(⇄ 고치기) → 테스트 → 묶기를 돌린다. 사람 확인 다섯은 loop.ask 표준 카드로 오고,
+// 기다리는 동안 주도를 반납한다(런타임 줄 "authoring 사람 확인 기다림 · 주도 반납").
+// 런타임 줄은 단계 사슬(지금 단계 굵게), 오른쪽에 "제작" well(authoring/panel), 크래프트 "제작" 화면(authoring/session).
 import { Badge, Toaster, toast } from "@caustic/react";
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import {
@@ -42,8 +42,8 @@ export const STATES = [
   { id: "ask-kind", label: "확인 1 · 종류와 이름" },
   { id: "ask-fix", label: "확인 2 · 고치기 한도" },
   { id: "fix-stopped", label: "멈춤 · 파일 남김" },
-  { id: "ask-trial", label: "확인 3 · 시험 비용" },
-  { id: "trial-running", label: "시험 중" },
+  { id: "ask-trial", label: "확인 3 · 테스트 비용" },
+  { id: "trial-running", label: "테스트 중" },
   { id: "ask-package", label: "확인 4 · 묶기 전 경고" },
   { id: "ask-link", label: "확인 5 · 연결 전" },
   { id: "linked", label: "연결함 · 제작 끝" },
@@ -51,12 +51,12 @@ export const STATES = [
   { id: "result-web", label: "결과 카드(웹·원격: 경로 복사)" },
   { id: "scope-denied", label: "쓰기 범위 거부" },
   { id: "stopped", label: "사용자가 멈춤" },
-  { id: "off", label: "제작 확장 꺼짐" },
+  { id: "off", label: "플러그인 빌더 꺼짐" },
   { id: "blocked", label: "종류 준비 중(x.hook)" },
   { id: "safe-mode", label: "안전 모드라 빠짐" },
   { id: "dev-required", label: "다시 돌려 검사: 개발 모드 필요" },
   { id: "well", label: "제작 well" },
-  { id: "page", label: "작업대 제작 화면" },
+  { id: "page", label: "크래프트 제작 화면" },
   { id: "narrow", label: "좁은 폭(390) · 확인 카드" },
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];
@@ -89,7 +89,7 @@ export const SCENARIOS = [
   { id: "authoring-happy", label: "그룹 만들기: 확인 다섯 → 결과 → 연결" },
   { id: "authoring-fix-limit", label: "실패: 고치기 3번 → 멈춤, 파일 남김" },
   { id: "authoring-scope-denied", label: "실패: 쓰기 범위 밖 거부" },
-  { id: "authoring-off", label: "제작 확장 꺼짐 → 켜기" },
+  { id: "authoring-off", label: "플러그인 빌더 꺼짐 → 켜기" },
   { id: "authoring-blocked", label: "실패: x.hook 준비 중 → 관찰 그룹" },
   { id: "authoring-frame", label: "에이전트가 프레임 화면을 고름" },
   { id: "authoring-dev-required", label: "실패: 다시 돌려 검사 → 개발 모드 필요" },
@@ -243,7 +243,7 @@ export function App({ state }: { state: StateId }) {
         tone="warning"
         action={{ label: `${T.safeMode} 끄기…`, onClick: () => {} }}
       >
-        {`${T.safeMode} · ${T.authoringExt}이 빠졌어요 · ${T.group}·외부 ${T.extension}·X 훅 꺼짐`}
+        {`${T.safeMode} · ${T.authoringExt}가 빠졌어요 · ${T.group}·외부 ${T.extension}·X 훅 꺼짐`}
       </RuntimeRow>
     ),
     "dev-row": (
@@ -312,7 +312,7 @@ export function App({ state }: { state: StateId }) {
                 {
                   at: "14:13",
                   turn: 1,
-                  text: `${T.writeScope} 거부 · edit group-kit/src/define.ts`,
+                  text: `${T.writeScope} 거부 · edit group-sdk/src/define.ts`,
                 },
               ]
             : []),

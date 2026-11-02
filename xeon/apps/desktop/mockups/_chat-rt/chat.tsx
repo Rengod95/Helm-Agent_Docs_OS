@@ -13,7 +13,7 @@ export const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
 
 export function ChatHead({
   title,
-  folder = "~/code/xeon",
+  folder = "~/code/fresnel",
   marks,
   runtime,
   runtimeLabel,
@@ -21,7 +21,7 @@ export function ChatHead({
 }: {
   title: ReactNode;
   folder?: string;
-  /** 제목 옆 표지(시험 Badge, 프로필, 대상 등). 좁은 폭에서는 첫 표지만 남긴다(페이지가 정한다). */
+  /** 제목 옆 표지(테스트 Badge, 프로필, 대상 등). 좁은 폭에서는 첫 표지만 남긴다(페이지가 정한다). */
   marks?: ReactNode;
   /** 런타임 줄 글(요약). 없으면 줄을 그리지 않는다. */
   runtime?: ReactNode;

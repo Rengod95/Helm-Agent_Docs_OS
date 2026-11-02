@@ -1,14 +1,14 @@
-// "보는 대상"(옛 맥락) 칸과 개념 그림. 결정 3(왼쪽 패널 칸 하나가 작업대 모든 화면을 움직임)은 그대로 두고,
-// 이름과 묶음을 "무엇을 보고 있나"로 바꿨다: 설치 전체 · 대화(실시간) · 시험 대화 · 프리셋(설계도로 보기).
-// 보는 대상을 바꾸는 것은 아무것도 바꾸지 않는다. 바꾸는 동작(켜기·끄기, 프리셋 적용)은 따로, 늘 "이 대화에 · 다음 단계 경계부터".
+// "보기 기준"(옛 맥락) 칸과 개념 그림. 결정 3(왼쪽 패널 칸 하나가 크래프트 모든 화면을 움직임)은 그대로 두고,
+// 이름과 묶음을 "무엇을 보고 있나"로 바꿨다: 설치 전체 · 대화(실시간) · 테스트 대화 · 프로필(설계도로 보기).
+// 보기 기준을 바꾸는 것은 아무것도 바꾸지 않는다. 바꾸는 동작(켜기·끄기, 프로필 적용)은 따로, 늘 "이 대화에 · 다음 단계 경계부터".
 import { IconButton, Select, SelectGroup, SelectHeading, SelectOption } from "@caustic/react";
 import { CircleHelp, Eye, MessageSquare, SlidersHorizontal, X as XIcon } from "../../_shell";
 import { VIEWS, viewOf, type ViewKind } from "../data";
 
 const HEAD: Record<Exclude<ViewKind, "all">, string> = {
   thread: "대화 · 지금 도는 것",
-  trial: "시험 대화",
-  preset: "프리셋 · 설계도로 보기",
+  trial: "테스트 대화",
+  preset: "프로필 · 설계도로 보기",
 };
 
 export function ViewField({
@@ -31,8 +31,8 @@ export function ViewField({
     <div className="grid gap-1">
       <div className="flex h-5 items-center gap-1 ps-0.5 text-ui-xs text-text-tertiary [&_svg]:size-3.5">
         <Eye />
-        <span className="flex-1">보는 대상</span>
-        <IconButton size="xs" variant="ghost" label="보는 대상이 뭐예요?" onClick={onExplain}>
+        <span className="flex-1">보기 기준</span>
+        <IconButton size="xs" variant="ghost" label="보기 기준이 뭐예요?" onClick={onExplain}>
           <CircleHelp />
         </IconButton>
       </div>
@@ -40,7 +40,7 @@ export function ViewField({
         <Select
           size="xs"
           variant="soft"
-          aria-label="보는 대상"
+          aria-label="보기 기준"
           value={value}
           onValueChange={onChange}
           className="min-w-0 flex-1"

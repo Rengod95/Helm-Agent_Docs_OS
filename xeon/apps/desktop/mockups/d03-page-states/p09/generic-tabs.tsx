@@ -1,4 +1,4 @@
-// 일반 폼 탭(권한, 샌드박스, 세션과 컨텍스트, 실행과 서비스, 외관, 고급). 고급은 모든 항목이 파일 전용이라 빈 탭(TabVM.emptyText).
+// 일반 폼 탭(권한, 샌드박스, 대화와 컨텍스트, 실행과 서비스, 외관, 고급). 고급은 모든 항목이 파일 전용이라 빈 탭(TabVM.emptyText).
 import {
   Button,
   EmptyState,
@@ -85,7 +85,7 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
           >
             <TagInput
               aria-label="쓰기 허용 경로"
-              defaultValue={["~/code/xeon", "/tmp"]}
+              defaultValue={["~/code/fresnel", "/tmp"]}
               disabled={disabled}
               containerClassName="max-w-[28rem] font-mono"
             />
@@ -147,7 +147,7 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
               disabled={disabled}
               className="min-h-7 gap-5"
             >
-              <RadioGroupItem value="sidecar">사이드카</RadioGroupItem>
+              <RadioGroupItem value="sidecar">앱 안 엔진</RadioGroupItem>
               <RadioGroupItem value="service">서비스</RadioGroupItem>
             </RadioGroup>
           </SettingRow>

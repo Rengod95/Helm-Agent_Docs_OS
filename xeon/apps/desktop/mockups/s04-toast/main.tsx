@@ -25,7 +25,7 @@ const notice = (
     tone="success"
     duration={0}
     title="완료: 빌드 실패 분석"
-    description="~/code/xeon · 원인 2개를 정리했어요"
+    description="~/code/fresnel · 원인 2개를 정리했어요"
     actionLabel="열기"
   />
 );

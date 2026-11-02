@@ -43,9 +43,9 @@ export const meta = {
   title: "캐시 만료 수정",
   round: 1,
   thread: "캐시 무효화 조사",
-  /** 이 리뷰를 낸 쪽: review 도구(L2 artifacts)를 코어 루프의 모델이 불렀다 */
+  /** 이 리뷰를 낸 쪽: review 도구(L2 artifacts)를 기본 에이전트의 모델이 불렀다 */
   source: "review 도구 · L2 artifacts",
-  caller: "코어 루프",
+  caller: "기본 에이전트",
 };
 
 export const files: ReviewFile[] = [

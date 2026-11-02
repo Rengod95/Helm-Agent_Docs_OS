@@ -200,7 +200,7 @@ export function reduce(s: S, a: A): S {
     case "copyDiag":
       return {
         ...s,
-        toast: mk({ title: "진단을 복사했어요", description: "비밀 값은 빼고 복사했어요" }),
+        toast: mk({ title: "진단을 복사했어요", description: "시크릿 값은 빼고 복사했어요" }),
       };
     case "blank":
       return { ...s, reattach: "blank" };
@@ -295,7 +295,7 @@ export function reduce(s: S, a: A): S {
         ...s,
         toast: mk({
           title: `${josa(T.osNotice, "이", "가")} 꺼져 있어요`,
-          description: "시스템 설정에서 Xeon 알림을 허용하면 창 밖에서도 알려 드려요",
+          description: "시스템 설정에서 Fresnel 알림을 허용하면 창 밖에서도 알려 드려요",
           action: "설정 보기",
         }),
       };

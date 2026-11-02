@@ -17,7 +17,7 @@ const PARTS: {
     label: "신호 감지",
     id: "signal",
     ports: ["on", "post"],
-    note: "tap 지점 · 제안",
+    note: "tap 훅 · 제안",
   },
   { icon: <Search />, label: "렌즈 주입", id: "lens", ports: ["on"], note: "collect" },
   { icon: <GitBranch />, label: "단계 머신", id: "drive", ports: ["drive"], note: "그룹마다 하나" },
@@ -26,7 +26,7 @@ const PARTS: {
     label: "사람 확인",
     id: "gate",
     ports: ["drive"],
-    note: "임대 반납 · 승인 요청",
+    note: "주도 반납 · 승인 요청",
   },
   { icon: <ShieldCheck />, label: "쓰기 거부", id: "guard", ports: ["on"], note: "first · 거부" },
   { icon: <FileText />, label: "발견 기록", id: "record", ports: ["cap"], note: "grp.* 기록" },
@@ -74,7 +74,7 @@ export function Library({ compact = false }: { compact?: boolean }) {
       </section>
       <section className="flex flex-col">
         <h3 className="flex h-6 items-center text-ui-xs text-text-tertiary">
-          설치할 수 있는 확장 · 능력
+          설치할 수 있는 확장 · 기능
         </h3>
         {INSTALL.map((p) => (
           <div

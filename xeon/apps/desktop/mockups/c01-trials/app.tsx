@@ -1,5 +1,5 @@
-// P-19 시험 실행 다시 그리기 + O-12 새 시험 + N-30 개발 모드(spec §6.26, §6.31, 결정 4·9, 캔버스 5·9).
-// - 시험 대화가 기본 행이다(위 구역). replay·bench·코어 변경 검사는 아래 구역이고, 배포 앱에서는 "개발 모드에서만" 잠금과
+// P-19 테스트 실행 다시 그리기 + O-12 새 테스트 + N-30 개발 모드(spec §6.26, §6.31, 결정 4·9, 캔버스 5·9).
+// - 테스트 대화가 기본 행이다(위 구역). replay·bench·코어 변경 검사는 아래 구역이고, 배포 앱에서는 "개발 모드에서만" 잠금과
 //   지난 결과 읽기 전용. 개발 모드면 ReplayDriveReport 그대로 + JSON 복사.
 // - 고른 행 상세는 같은 화면 아래(나눔 창 대신 위아래 흐름). 좁은 폭(720 아래)은 표가 두 줄 목록이 되고 상세는 아래로 쌓인다.
 // - 개발 모드 배지 자리: 상태 표시줄 왼쪽 묶음 끝 "개발 모드" 칸(켜졌을 때만, DP-27).
@@ -34,19 +34,19 @@ import { OtherDetail, profileTitle, ReplayDetail, TrialDetail } from "./parts/de
 import { DevModeDialog, NewTrialSheet } from "./parts/sheets";
 
 export const STATES = [
-  { id: "list", label: "기본: 배포 앱, 시험 대화(멈춤) 상세" },
-  { id: "running", label: "새 시험 대화 실행 중" },
-  { id: "stopped", label: "시험 중 대상 자동 꺼짐(실패 기록)" },
+  { id: "list", label: "기본: 배포 앱, 테스트 대화(멈춤) 상세" },
+  { id: "running", label: "새 테스트 대화 실행 중" },
+  { id: "stopped", label: "테스트 중 대상 자동 꺼짐(실패 기록)" },
   { id: "past-locked", label: "지난 replay 결과(읽기 전용, 잠김)" },
   { id: "lock-tooltip", label: "다시 실행 잠금 이유" },
   { id: "devmode-dialog", label: "개발 모드 켜기" },
   { id: "devmode-checking", label: "개발 모드: 저장소 확인 중" },
-  { id: "devmode-norepo", label: "실패: 저장소에 시험 도구 없음" },
+  { id: "devmode-norepo", label: "실패: 저장소에 테스트 도구 없음" },
   { id: "dev", label: "개발 모드: 검사 보고 전체" },
   { id: "dev-rerun", label: "개발 모드: 다시 실행 중" },
-  { id: "new", label: "새 시험(O-12)" },
-  { id: "new-confirm", label: "새 시험: 비용 확인 문장" },
-  { id: "new-starting", label: "새 시험: 프로필 적용 중" },
+  { id: "new", label: "새 테스트(O-12)" },
+  { id: "new-confirm", label: "새 테스트: 비용 확인 문장" },
+  { id: "new-starting", label: "새 테스트: 프로필 적용 중" },
   { id: "new-preview-fail", label: "실패: 프로필 미리 보기 실패" },
   { id: "trace-off", label: "계측 꺼짐: 턴 다시 보기 잠김" },
   { id: "empty", label: "빈 목록" },
@@ -77,11 +77,11 @@ const AT: Record<StateId, { script: string; n: number }> = {
 };
 
 export const SCENARIOS = [
-  { id: "trial-new", label: "새 시험 → 비용 확인 → 시험 대화" },
+  { id: "trial-new", label: "새 테스트 → 비용 확인 → 테스트 대화" },
   { id: "trial-new-fail", label: "실패: 프로필 미리 보기 실패" },
   { id: "trial-dev-locked", label: "잠긴 replay → 개발 모드 → 보고" },
-  { id: "trial-dev-locked-norepo", label: "실패: 저장소에 시험 도구 없음" },
-  { id: "trial-step", label: "시험 대화: 한 단계씩 → 이어서" },
+  { id: "trial-dev-locked-norepo", label: "실패: 저장소에 테스트 도구 없음" },
+  { id: "trial-step", label: "테스트 대화: 한 단계씩 → 이어서" },
 ];
 
 /** 상세가 주인공인 상태: 처음에 상세로 스크롤한다(1280×800에서 상세가 표 아래로 밀리므로). */
@@ -97,7 +97,13 @@ const KIND_ICON: Record<Run["kind"], ReactNode> = {
   diff: <GitBranch />,
 };
 const kindLabel = (k: Run["kind"]) =>
-  k === "trial" ? T.trialThread : k === "replay" ? T.replay : k === "bench" ? T.bench : T.coreDiff;
+  k === "trial"
+    ? T.trialThread
+    : k === "replay"
+      ? T.replay
+      : k === "bench"
+        ? T.benchmark
+        : T.coreDiff;
 
 function trialStatus(r: Run): ReactNode {
   const [a, b] = r.steps ?? [0, 6];
@@ -313,12 +319,12 @@ export function App({ state }: { state: StateId }) {
     const sc = pre.live ? pre.script : null;
     if (sc === "trial-new" || sc === "trial-new-fail") {
       if (s.sheet === "closed")
-        return s.sel === "r0" ? "새 시험 대화가 맨 위에 생겼어요" : `"새 시험"을 누르세요`;
+        return s.sel === "r0" ? "새 테스트 대화가 맨 위에 생겼어요" : `"새 테스트"을 누르세요`;
       if (s.sheet === "open")
         return s.previewFail
           ? `미리 보기가 실패해 시작이 잠겼어요`
           : sc === "trial-new-fail"
-            ? `${josa(T.profile, "을", "를")} "review 시험"으로 바꿔 보세요`
+            ? `${josa(T.profile, "을", "를")} "review 테스트"으로 바꿔 보세요`
             : `"시작"을 누르세요`;
       if (s.sheet === "confirm") return `"토큰 쓰고 시작"을 누르세요`;
       return "기다리세요";
@@ -349,7 +355,7 @@ export function App({ state }: { state: StateId }) {
           iconStart={<Plus />}
           onClick={() => dispatch({ t: "openNew" })}
         >
-          새 시험
+          새 테스트
         </Button>
       }
       sub={<span>14:24 기준 · 보기 기준 전체</span>}
@@ -364,15 +370,19 @@ export function App({ state }: { state: StateId }) {
     <>
       <span className="max-compact:hidden">{`${T.pastResult} · 읽기 전용`}</span>
       <DevLock
-        reason={`배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 ${T.repoPath}의 시험 도구로 돌려요.`}
+        reason={`배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 ${T.repoPath}의 테스트 도구로 돌려요.`}
       />
     </>
   );
 
-  // 고른 행 상세는 그 행이 속한 구역 바로 아래에 둔다(시험 대화면 위 구역 아래, 지난 결과면 아래 구역 아래).
+  // 고른 행 상세는 그 행이 속한 구역 바로 아래에 둔다(테스트 대화면 위 구역 아래, 지난 결과면 아래 구역 아래).
   const detailBlock =
     run === undefined ? null : (
-      <section ref={detailRef} aria-label="고른 시험 상세" className="grid scroll-mt-2 gap-2 pt-1">
+      <section
+        ref={detailRef}
+        aria-label="고른 테스트 상세"
+        className="grid scroll-mt-2 gap-2 pt-1"
+      >
         {run.kind === "trial" ? (
           <TrialDetail
             run={run}
@@ -423,8 +433,8 @@ export function App({ state }: { state: StateId }) {
               <EmptyState
                 size="sm"
                 icon={<FlaskConical />}
-                title="아직 돌린 시험이 없어요"
-                description={`${josa(T.profile, "을", "를")} 적용한 ${T.trialThread}에서 확장을 시험해요.`}
+                title="아직 돌린 테스트가 없어요"
+                description={`${josa(T.profile, "을", "를")} 적용한 ${T.trialThread}에서 확장을 테스트해요.`}
                 actions={
                   <Button
                     size="sm"
@@ -433,7 +443,7 @@ export function App({ state }: { state: StateId }) {
                     iconStart={<Plus />}
                     onClick={() => dispatch({ t: "openNew" })}
                   >
-                    새 시험
+                    새 테스트
                   </Button>
                 }
               />
@@ -467,7 +477,7 @@ export function App({ state }: { state: StateId }) {
               <section className="grid gap-1">
                 <SectionTitle
                   end={devHeadEnd}
-                >{`${T.replay} · ${T.bench} · ${T.coreDiff}`}</SectionTitle>
+                >{`${T.replay} · ${T.benchmark} · ${T.coreDiff}`}</SectionTitle>
                 {compact ? (
                   <RunList
                     rows={devRuns}
@@ -476,7 +486,7 @@ export function App({ state }: { state: StateId }) {
                   />
                 ) : (
                   <GridTable
-                    label={`${T.replay}, ${T.bench}, ${T.coreDiff}`}
+                    label={`${T.replay}, ${T.benchmark}, ${T.coreDiff}`}
                     columns={devCols}
                     rows={devRuns}
                     selectedId={s.sel}

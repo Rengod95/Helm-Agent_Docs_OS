@@ -1,7 +1,7 @@
 // 왼쪽 패널(표면). 제목 띠가 없어서 찾기와 접기가 여기 머리에 온다. 머리: 찾기 + 영역 바꾸기(SegmentedControl, DP-18).
-//   대화 영역: 주 내비(다섯, 연결 포함 U-3) + 작업 폴더별 대화 목록. 시험 대화는 폴더 안 "시험" 묶음으로 접힌다(§4.9.3, 계획에 없음 4).
-//   작업대 영역: 머리에 보기 기준 칸(전체·대화·프로필·시험, 대화는 따라감/고정, §4.9.3)을 더하고,
-//   작업대 내비(여섯, C-6) + "플러그인 화면" 목록(켜진 확장의 page 기여).
+//   대화 영역: 주 내비(다섯, 연결 포함 U-3) + 작업 폴더별 대화 목록. 테스트 대화는 폴더 안 "테스트" 묶음으로 접힌다(§4.9.3, 계획에 없음 4).
+//   크래프트 영역: 머리에 보기 기준 칸(전체·대화·프로필·테스트, 대화는 따라감/고정, §4.9.3)을 더하고,
+//   크래프트 내비(여섯, C-6) + "플러그인 화면" 목록(켜진 확장의 page 기여).
 // 묶음 D: caustic ListNavigationItem has no actions slot(caustic 빈틈) — 대화 행 메뉴 ⋯는 행 뒤 높이 0인 li에 겹친다(RowMenu).
 // 맨 아래 설정은 두 영역 공통. 지금 화면(activeNav)과 대화 고르기는 페이지가 props로 준다.
 import {
@@ -70,7 +70,7 @@ const NAV_ICONS = {
   proposals: Lightbulb,
   schedules: CalendarClock,
   connection: Link,
-  // 작업대
+  // 크래프트
   overview: LayoutGrid,
   extensions: Package,
   tests: FlaskConical,
@@ -121,9 +121,9 @@ export interface ThreadListProps {
   onNew: () => void;
   /** 대화 목록을 바꿀 때(예: 첫 실행은 빈 배열). 없으면 공용 고정 데이터. 비면 "아직 대화가 없어요". */
   items?: Thread[];
-  /** "시험" 묶음을 처음부터 펼친다(지금 대화가 시험 대화면 늘 펼침). */
+  /** "테스트" 묶음을 처음부터 펼친다(지금 대화가 테스트 대화면 늘 펼침). */
   trialsOpen?: boolean;
-  /** "끝난 시험 지우기"(계획에 없음 4). 주면 페이지가 확인 대화 상자와 지우기를 맡는다. 없으면 셸이 목록에서만 숨긴다. */
+  /** "끝난 테스트 지우기"(계획에 없음 4). 주면 페이지가 확인 대화 상자와 지우기를 맡는다. 없으면 셸이 목록에서만 숨긴다. */
   onClearTrials?: () => void;
   // 묶음 D(대화 영역 빈칸, m4/pg-d). 모두 선택 항목이다. 주지 않으면 목록은 예전과 같다.
   /** 대화 행 메뉴(§6.1: 이름 바꾸기, 분기, 요약, 닫기, 삭제, 내보내기). MenuItem들을 돌려준다. 주면 행에 "더 보기" 버튼이 생긴다. */
@@ -140,19 +140,19 @@ export interface ThreadListProps {
 }
 
 export interface WorkbenchPanelProps {
-  /** 작업대 내비(배지를 바꿀 때). 기본 fixtures.workbenchNav. */
+  /** 크래프트 내비(배지를 바꿀 때). 기본 fixtures.workbenchNav. */
   nav?: WorkbenchNavEntry[] | undefined;
   /** "플러그인 화면" 목록. 기본 fixtures.pluginPages. */
   pages?: PluginPageEntry[] | undefined;
   /** 대화 맥락 칸의 "대화로 가기"(맥락 대화의 대화 화면으로). */
   onGoToThread?: ((threadId: string) => void) | undefined;
-  /** 맥락 칸을 페이지 것으로 바꿀 때(캔버스 시안: 전체·대화·프로필·시험 네 종류). 없으면 대화 맥락 칸. */
+  /** 맥락 칸을 페이지 것으로 바꿀 때(캔버스 시안: 전체·대화·프로필·테스트 네 종류). 없으면 대화 맥락 칸. */
   contextField?: ReactNode | undefined;
 }
 
 export interface StartPanelProps {
   floating: boolean;
-  /** 지금 화면인 내비 항목 id. 대화: nav[].id, 작업대: workbenchNav[].id 또는 플러그인 화면 id("helm/inquiry"), 설정 화면: "settings". */
+  /** 지금 화면인 내비 항목 id. 대화: nav[].id, 크래프트: workbenchNav[].id 또는 플러그인 화면 id("helm/inquiry"), 설정 화면: "settings". */
   activeNav: string;
   onNavSelect?: ((id: string) => void) | undefined;
   threads: ThreadListProps;
@@ -201,8 +201,8 @@ export function contextName(c: WorkbenchContext): string {
   return t === undefined ? c.threadId : t.title === "" ? L("제목 없음") : L(t.title);
 }
 
-/** 보기 기준 칸(§4.9.3, 결정 C-3·11): 전체·대화·프로필·시험 네 묶음. 대화 기준은 기본으로 대화 영역의 열린 대화를 따라가고,
- *  "작업대에서 보기"로 오면 고정된다. 옆 자물쇠 아이콘이 고정·풀기(풀면 다시 따라감). 대화·시험 기준이면 "대화로 가기". */
+/** 보기 기준 칸(§4.9.3, 결정 C-3·11): 전체·대화·프로필·테스트 네 묶음. 대화 기준은 기본으로 대화 영역의 열린 대화를 따라가고,
+ *  "크래프트에서 보기"로 오면 고정된다. 옆 자물쇠 아이콘이 고정·풀기(풀면 다시 따라감). 대화·테스트 기준이면 "대화로 가기". */
 function ContextPicker({ onGoToThread }: { onGoToThread?: ((id: string) => void) | undefined }) {
   const m = useShell();
   const c = m.context;
@@ -293,7 +293,7 @@ function ContextPicker({ onGoToThread }: { onGoToThread?: ((id: string) => void)
   );
 }
 
-/** 폴더 안 "시험" 묶음(계획에 없음 4): 시험 대화를 한 행으로 접고, 펼치면 시험 대화마다 상태(실행 중·멈춤·끝남). */
+/** 폴더 안 "테스트" 묶음(계획에 없음 4): 테스트 대화를 한 행으로 접고, 펼치면 테스트 대화마다 상태(실행 중·멈춤·끝남). */
 function TrialFold({
   items,
   list,
@@ -347,7 +347,7 @@ function TrialFold({
           {done.length > 0 && (
             <ListNavigationSubItem onClick={onClear}>
               <span className="text-text-tertiary">
-                {L("끝난 시험 지우기…").replace("시험", T.trial)} {done.length}
+                {L("끝난 테스트 지우기…").replace("테스트", T.trial)} {done.length}
               </span>
             </ListNavigationSubItem>
           )}
@@ -373,7 +373,7 @@ function WorkbenchNavList({
   const exts = [...new Set(pages.map((p) => p.ext))];
   return (
     <div className="grid gap-2 px-1.5 pb-2">
-      <ListNavigation aria-label={L("작업대 내비게이션")} kind="navigation" size="sm">
+      <ListNavigation aria-label={L("크래프트 내비게이션")} kind="navigation" size="sm">
         <ListNavigationGroup>
           {items.map((n) => (
             <ListNavigationItem
@@ -492,7 +492,7 @@ export function StartPanel({
   const [cleared, setCleared] = useState(false);
   const all = rawList.items ?? defaultThreads;
   const threads = cleared ? all.filter((t) => t.trial?.state !== "done") : all;
-  // 대화를 고르면 작업대 보기 기준이 따라간다(고정이 아닐 때, 결정 11).
+  // 대화를 고르면 크래프트 보기 기준이 따라간다(고정이 아닐 때, 결정 11).
   const list: ThreadListProps = {
     ...rawList,
     onSelect: (id) => {
@@ -512,8 +512,8 @@ export function StartPanel({
     <SidePanel
       side="start"
       preset="inspector"
-      label={wb ? L("작업대 이동") : L("대화와 이동")}
-      scrollLabel={wb ? "작업대 내비게이션과 플러그인 화면" : "주 내비게이션과 대화 목록"}
+      label={wb ? L("크래프트 이동") : L("대화와 이동")}
+      scrollLabel={wb ? "크래프트 내비게이션과 플러그인 화면" : "주 내비게이션과 대화 목록"}
       resizable
       resizeLabel="대화 목록 폭"
       formatWidthText={(w) => `${w}픽셀`}

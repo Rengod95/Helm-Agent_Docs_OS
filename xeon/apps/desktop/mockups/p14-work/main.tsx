@@ -30,23 +30,23 @@ function transcript(state: WorkState, openWork: () => void): ContextItem[] {
     action: { label: "작업 보기", onClick: openWork },
   });
   const base: ContextItem[] = [
-    { kind: "user", text: "/goal 시험이 모두 통과한다" },
+    { kind: "user", text: "/goal 테스트가 모두 통과한다" },
     {
       kind: "event",
       icon: "goal",
-      text: "목표를 걸었어요 · 시험이 모두 통과한다",
+      text: "목표를 걸었어요 · 테스트가 모두 통과한다",
       detail: "work 그룹 · 턴마다 판정 · 최대 3번",
     },
     { kind: "tool", name: "edit", detail: "src/cache.ts", status: "done", duration: "12ms" },
     { kind: "tool", name: "bash", detail: "bun test", status: "failed", duration: "4.1s" },
     judge(1, "미충족", "빠진 것: expires after ttl"),
-    { kind: "agent", text: "단위를 맞추고 경계 시각 시험을 더했어요. e2e까지 다시 돌릴게요." },
+    { kind: "agent", text: "단위를 맞추고 경계 시각 테스트를 더했어요. e2e까지 다시 돌릴게요." },
     { kind: "tool", name: "bash", detail: "bun test", status: "failed", duration: "6.8s" },
     judge(2, "미충족", "빠진 것: e2e cache-expiry, e2e warm-start · 다음 턴을 이어 가요"),
   ];
   if (state === "S5")
     return [
-      { kind: "user", text: "무효화 시험이 계속 실패해. 원인 찾아줘" },
+      { kind: "user", text: "무효화 테스트가 계속 실패해. 원인 찾아줘" },
       { kind: "tool", name: "bash", detail: "bun test cache", status: "failed", duration: "1.2s" },
       { kind: "agent", text: "만료 비교에 초와 밀리초가 섞여 있어요. 고쳐 볼게요." },
     ];

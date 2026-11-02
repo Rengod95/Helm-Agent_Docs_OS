@@ -1,4 +1,4 @@
-// 층 × 지점 표(보기 "표"): 행 = 훅을 건 플러그인(층별 묶음, 묶음마다 "더하기"), 열 = 쓰인 지점(턴 흐름 순서, 단계 머리).
+// 층 × 훅 표(보기 "표"): 행 = 훅을 건 플러그인(층별 묶음, 묶음마다 "더하기"), 열 = 쓰인 훅(턴 흐름 순서, 단계 머리).
 // 칸 = fold 글리프(층 ink) + p95, 예산 대비로 면 단계(옅음 → warning → danger). 아무도 안 건 단계는 빗금 좁은 열.
 import { SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { useState } from "react";
@@ -57,7 +57,7 @@ export function MatrixView() {
       </div>
       <div
         role="table"
-        aria-label="층 × 지점"
+        aria-label="층 × 훅"
         className="grid min-w-[880px]"
         style={{ gridTemplateColumns: grid }}
       >
@@ -81,8 +81,8 @@ export function MatrixView() {
             )}
           </div>
         ))}
-        {/* 지점 머리 */}
-        <div className="pb-2 text-ui-xs text-text-tertiary">플러그인 · 지점</div>
+        {/* 훅 머리 */}
+        <div className="pb-2 text-ui-xs text-text-tertiary">플러그인 · 훅</div>
         {stagesUsed.map(({ s, cols }) =>
           cols.length === 0 ? (
             <Hatch key={s.id} />
@@ -199,8 +199,7 @@ export function MatrixView() {
         })}
       </div>
       <p className="m-0 text-ui-xs text-text-tertiary">
-        p95는 ms, 외부 훅 예산은 30초예요. L0 어댑터와 공통 규약은 지점에 훅을 걸지 않아 표에
-        없어요.
+        p95는 ms, 외부 훅 예산은 30초예요. L0 어댑터와 공통 규약은 훅에 훅을 걸지 않아 표에 없어요.
       </p>
     </div>
   );

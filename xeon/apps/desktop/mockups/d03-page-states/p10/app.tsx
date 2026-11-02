@@ -1,4 +1,4 @@
-// P-10 비밀: 값 없는 목록 + 고른 비밀의 상세(ListDescription) + 값 보기 흐름(O-05 재인증 → 30초 표시 → 자동 가림) + 추가 + 삭제(O-06).
+// P-10 시크릿: 값 없는 목록 + 고른 시크릿의 상세(ListDescription) + 값 보기 흐름(O-05 재인증 → 30초 표시 → 자동 가림) + 추가 + 삭제(O-06).
 import { Alert, Button, EmptyState, Menu, MenuItem, MenuSeparator, Skeleton } from "@caustic/react";
 import { UsageLog } from "./usage";
 import { useState } from "react";
@@ -67,7 +67,7 @@ export function App({ state }: { state: State }) {
         banner={
           state === "D-web" ? (
             <Alert tone="neutral" size="sm">
-              웹 · build-box의 비밀이에요. 값 보기와 추가는 데스크톱 앱에서 해요.
+              웹 · build-box의 시크릿이에요. 값 보기와 추가는 데스크톱 앱에서 해요.
             </Alert>
           ) : undefined
         }
@@ -87,7 +87,7 @@ export function App({ state }: { state: State }) {
         }
       >
         {loading ? (
-          <div className="grid gap-3 pt-1" role="status" aria-label="비밀 목록 읽는 중">
+          <div className="grid gap-3 pt-1" role="status" aria-label="시크릿 목록 읽는 중">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="flex gap-6">
                 <Skeleton width="28%" height={12} />
@@ -101,7 +101,7 @@ export function App({ state }: { state: State }) {
             size="sm"
             surface="none"
             icon={<KeyRound />}
-            title="등록된 비밀이 없어요"
+            title="등록된 시크릿이 없어요"
             description="API 키와 토큰을 값 없이 이름으로 써요."
             actions={
               <Button
@@ -151,7 +151,7 @@ export function App({ state }: { state: State }) {
                     iconStart={<FlaskConical />}
                     disabled={offline}
                   >
-                    시험
+                    테스트
                   </Button>
                   <Menu
                     align="end"

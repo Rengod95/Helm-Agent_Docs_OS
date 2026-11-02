@@ -1,6 +1,6 @@
-// 런타임 지도(세계 좌표 장면). 세 열이 층 lane: 능력 공급(L1·L2) → 의도 그룹(L3)·외부 plugin → X 확장 지점.
+// 런타임 지도(세계 좌표 장면). 세 열이 층 lane: 기능 공급(L1·L2) → 플러그인 그룹(L3)·외부 plugin → X 훅.
 // 선 규칙: 기본은 숨김(포트 알약의 짧은 꼬리만). 고르거나 올린 블록의 경로만 그린다. on 선은 블록에서 한 줄기로 나와
-// 지점 열 앞 경유점에서 갈라지고(묶음), 능력 선은 받는 블록 앞 경유점에서 모여 한 줄기로 들어간다.
+// 훅 열 앞 경유점에서 갈라지고(묶음), 기능 선은 받는 블록 앞 경유점에서 모여 한 줄기로 들어간다.
 import type { ReactNode } from "react";
 import { ArrowRight, ChevronRight, Play, RotateCcw } from "../../_shell";
 import {
@@ -71,7 +71,7 @@ function posOf(e: Ext, mode: MapProps["mode"]): Ext {
 
 interface Conn {
   ext: string;
-  other: string; // 제공 확장 또는 지점 id 또는 "post"·"lease"
+  other: string; // 제공 확장 또는 훅 id 또는 "post"·"lease"
   type: PortType;
   d: string;
   dashed?: boolean;
@@ -88,7 +88,7 @@ function connsFor(eRaw: Ext, mode: MapProps["mode"]) {
     wires: [],
     missing: [],
   };
-  // 능력: 제공자 → 경유점 → 받는 알약
+  // 기능: 제공자 → 경유점 → 받는 알약
   const caps = e.consumes ?? [];
   if (caps.length > 0 && e.col === "B") {
     const pin = inAnchor(e);
@@ -117,7 +117,7 @@ function connsFor(eRaw: Ext, mode: MapProps["mode"]) {
         n: n > 1 ? n : 0,
       });
   }
-  // on: 블록 → 묶음 경유점 → 지점
+  // on: 블록 → 묶음 경유점 → 훅
   const pts = e.points ?? [];
   if (pts.length > 0) {
     const a = outAnchor(e, "on");
@@ -167,7 +167,7 @@ export function relatedOf(id: string | null): Set<string> {
   e.points?.forEach((p) => s.add(p));
   if (e.usesPost) s.add("post");
   if (e.usesDrive) s.add("lease");
-  // 제공자를 고르면 그 능력을 쓰는 블록
+  // 제공자를 고르면 그 기능을 쓰는 블록
   EXTS.forEach((o) => {
     if (o.consumes?.some((c) => e.provides?.includes(c.id))) s.add(o.id);
   });
@@ -229,7 +229,7 @@ export function RuntimeMap({
   if (focus !== null && extById(focus).col === "B")
     drawFor(focus, selected !== null ? "lit" : "hover");
   if (focus !== null && extById(focus).col === "A") {
-    // 제공자: 그 능력을 받는 블록의 능력 선만
+    // 제공자: 그 기능을 받는 블록의 기능 선만
     const e = extById(focus);
     EXTS.filter((o) => o.consumes?.some((c) => e.provides?.includes(c.id))).forEach((o) => {
       const oo = posOf(o, mode);
@@ -253,7 +253,7 @@ export function RuntimeMap({
     if (focus !== "acme-notes") drawFor("acme-notes", "fail");
   }
   if (thread) {
-    // 실시간 임대: 보유 drive 선(흐름) + 대기 그룹의 drive 선(점선)
+    // 실시간 주도: 보유 drive 선(흐름) + 대기 그룹의 drive 선(점선)
     if (focus !== lease.holder) {
       const h = posOf(extById(lease.holder), mode);
       layers.push(
@@ -622,7 +622,7 @@ function Block({
           side="r"
           dy={portDy(e, "cap")}
           type="cap"
-          label={`능력 ${e.provides.length}`}
+          label={`기능 ${e.provides.length}`}
           state={pill("cap")}
           stub
         />
@@ -632,7 +632,7 @@ function Block({
           side="l"
           dy={portDy(e, "cap")}
           type="cap"
-          label={`능력 ${e.consumes.length}`}
+          label={`기능 ${e.consumes.length}`}
           hollow={e.consumes.every((c) => c.need === "optional")}
           state={pill("cap")}
           stub
@@ -786,7 +786,7 @@ function SocketColumn({
         className="absolute flex items-center gap-1.5 rounded-lg px-3 text-[11px] text-text-tertiary outline-1 -outline-offset-1 outline-dashed outline-border-default"
         style={{ left: x, top: 366, width: w, height: 26 }}
       >
-        비어 있는 지점 39
+        비어 있는 훅 39
         <span className="ms-auto font-mono text-[10px]">46</span>
       </div>
 
@@ -817,7 +817,7 @@ function SocketColumn({
         </span>
       </div>
 
-      {/* drive 임대 */}
+      {/* 주도 */}
       <div
         className="absolute flex flex-col gap-1 rounded-[10px] ps-3.5 pe-2.5 pt-2"
         style={{
@@ -837,7 +837,7 @@ function SocketColumn({
         </span>
         <span className="flex items-center gap-1.5 text-[12.5px] font-semibold text-text-primary">
           <Play className="size-3.5 text-text-tertiary" emphasis="muted" />
-          drive 임대
+          주도
           <span className="ms-auto font-mono text-[10px] font-normal text-text-tertiary">
             {thread ? `차수 ${lease.epoch}` : "대화마다 1"}
           </span>

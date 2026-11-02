@@ -14,7 +14,7 @@ export const STATES = [
   { id: "S9", label: "S9 빈 · 내장만" },
   { id: "S10", label: "S10 오프라인" },
   { id: "S11", label: "S11 밀집 · 축소" },
-  { id: "S12", label: "S12 시험 맥락" },
+  { id: "S12", label: "S12 테스트 맥락" },
   { id: "S13", label: "S13 목록 보기" },
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];

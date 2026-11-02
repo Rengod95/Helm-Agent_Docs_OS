@@ -1,5 +1,5 @@
-// 캔버스 v3 앱: 공용 셸(작업대) 위에 "구조"(그림 · 층 · 표), 플러그인 상세, 프리셋 차이.
-// 왼쪽 패널 "보는 대상" 칸 하나가 모든 화면을 움직인다(결정 3). 오른쪽 well = 받은 요청 · 기록 · 대화.
+// 캔버스 v3 앱: 공용 셸(크래프트) 위에 "구조"(그림 · 층 · 표), 플러그인 상세, 프로필 차이.
+// 왼쪽 패널 "보기 기준" 칸 하나가 모든 화면을 움직인다(결정 3). 오른쪽 well = 받은 요청 · 기록 · 대화.
 import {
   NoticeList,
   Shell,
@@ -56,7 +56,7 @@ function Page() {
       activeNav="overview"
       onNavSelect={(id) => {
         if (id === "overview") m.set({ screen: "overview", focus: null, overlay: null });
-        else m.notify("이 화면은 작업대 1·2차 시안에 있어요");
+        else m.notify("이 화면은 크래프트 1·2차 시안에 있어요");
       }}
       workbench={{
         onGoToThread: goThread,
@@ -91,7 +91,7 @@ function Page() {
           />
         ),
       }}
-      stageLabel="작업대"
+      stageLabel="크래프트"
       threads={{ currentId: "t1", onSelect: () => {}, onNew: () => {} }}
       rightTabs={workbenchRightTabs({
         inbox: <NoticeList notices={inbox.notices} />,

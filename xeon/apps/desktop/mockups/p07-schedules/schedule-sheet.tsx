@@ -153,8 +153,8 @@ export function ScheduleSheet({
           <Textarea size="sm" rows={3} defaultValue="오래된 브랜치를 정리하고 결과를 요약해 줘" />
         </Field>
         <Field label="작업 폴더" size="sm">
-          <Select size="sm" defaultValue="~/code/xeon" aria-label="작업 폴더">
-            <SelectOption value="~/code/xeon">~/code/xeon</SelectOption>
+          <Select size="sm" defaultValue="~/code/fresnel" aria-label="작업 폴더">
+            <SelectOption value="~/code/fresnel">~/code/fresnel</SelectOption>
             <SelectOption value="~/notes">~/notes</SelectOption>
           </Select>
         </Field>

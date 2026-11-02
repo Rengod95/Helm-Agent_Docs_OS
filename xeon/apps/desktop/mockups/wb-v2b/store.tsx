@@ -14,7 +14,7 @@ export interface MockState {
   /** 그룹 하위 캔버스: 런타임에서 열면 읽기 전용, 구성(결정 2·6)에서는 편집. */
   composer: boolean;
   edit: ComposeEdit;
-  /** 흐름: 시험 실행 겹침. */
+  /** 흐름: 테스트 실행 겹침. */
   trial: boolean;
   wellTab: "inspect" | "library" | "inbox";
   wellOpen: boolean;
@@ -27,11 +27,11 @@ export const STATES = [
   { id: "S4", label: "S4 Helm 열기" },
   { id: "S5", label: "S5 구성 · 놓기 미리보기" },
   { id: "S6", label: "S6 구성 · 잘못된 연결" },
-  { id: "S7", label: "S7 대화 프레임 · 임대" },
+  { id: "S7", label: "S7 대화 프레임 · 주도" },
   { id: "S8", label: "S8 프로필 차이" },
-  { id: "S9", label: "S9 층 × 지점 열지도" },
+  { id: "S9", label: "S9 층 × 훅 열지도" },
   { id: "S10", label: "S10 Helm 흐름" },
-  { id: "S11", label: "S11 시험 실행" },
+  { id: "S11", label: "S11 테스트 실행" },
   { id: "S12", label: "S12 실패" },
   { id: "S13", label: "S13 빈 · 첫 플러그인" },
   { id: "S14", label: "S14 구성 · 포트 잇기" },

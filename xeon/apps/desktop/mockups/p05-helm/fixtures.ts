@@ -1,5 +1,5 @@
 // P-05 탐구 고정 데이터. 공용(대화 목록, 상태 표시줄 등)은 ../_shell/fixtures.ts.
-// 런타임 관점(브리프 "Framing correction"): 이 대화에 걸린 L3 그룹, drive 임대 보유자, 단계 경계의 그룹 전환, Helm의 자식 에이전트(렌즈) 나무.
+// 런타임 관점(브리프 "Framing correction"): 이 대화에 걸린 L3 그룹, 주도 보유자, 단계 경계의 그룹 전환, Helm의 자식 에이전트(렌즈) 나무.
 export * from "../_shell/fixtures";
 
 export type Hook = "on" | "post" | "drive" | "scope";
@@ -9,7 +9,7 @@ export interface ActiveGroup {
   name: string;
   layer: "L3";
   hooks: Hook[];
-  /** drive 임대: held 보유, waiting 대기, none 안 씀 */
+  /** 주도: held 보유, waiting 대기, none 안 씀 */
   lease: "held" | "waiting" | "none";
   state: string;
 }
@@ -29,7 +29,7 @@ export const groups: ActiveGroup[] = [
     layer: "L3",
     hooks: ["post"],
     lease: "none",
-    state: "세션 관찰 중",
+    state: "대화 관찰 중",
   },
   {
     id: "review",
@@ -144,7 +144,7 @@ export const findings: Finding[] = [
   {
     id: "f4",
     lens: "실패 사례",
-    claim: "시험이 실제 시계를 써서 경계 시각 버그가 가끔만 재현돼요.",
+    claim: "테스트가 실제 시계를 써서 경계 시각 버그가 가끔만 재현돼요.",
     confidence: "low",
     sources: ["test/cache.test.ts"],
     task: 13,
@@ -162,7 +162,7 @@ export const switches = [
   {
     at: "14:02",
     step: "턴 6",
-    text: "helm이 drive 임대를 받았어요",
+    text: "helm이 주도를 받았어요",
     detail: "신호 stuck · 같은 오류 3번",
   },
   { at: "14:02", step: "확산", text: "렌즈 3개를 정했어요" },

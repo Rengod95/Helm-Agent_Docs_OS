@@ -1,6 +1,6 @@
 // 블록에서 코드로(구성기 5, 읽기 전용): 왼쪽 블록 쌓기 축약, 가운데 만들 파일 10개(drive 템플릿), 오른쪽 고른 파일의 생성 결과.
 // 블록을 고르면 그 블록에서 나온 줄이 올린 면으로 보인다(현재 항목과 같은 raised, 색 없음). 만들기는 ext.scaffold가 없어
-// (gap W-27) "xeon group new lens-review --drive" 명령을 복사하고, 블록 내용은 생성 뒤 채울 패치로 보인다.
+// (gap W-27) "fresnel group new lens-review --drive" 명령을 복사하고, 블록 내용은 생성 뒤 채울 패치로 보인다.
 import {
   CodeRealization,
   CodeRealizationFile,
@@ -64,7 +64,7 @@ export function CodeView() {
           targetReadOnly
           targetLabel={(t) => `템플릿 ${t}`}
           downloadLabel="명령 복사"
-          onDownload={() => m.notify("xeon group new lens-review --drive 를 복사했어요")}
+          onDownload={() => m.notify("fresnel group new lens-review --drive 를 복사했어요")}
           size="sm"
         >
           {scaffoldFiles.map((f) => (

@@ -1,5 +1,5 @@
-// 작업대 오른쪽 well의 구성기 탭 둘: "블록"(끌어 놓을 블록 종류, 보기마다 다름)과 "속성"(고른 블록·노드의 상세).
-// 팔레트를 왼쪽 패널이 아니라 well에 두는 까닭: 왼쪽 패널은 작업대 내비와 맥락 칸이 정본이다(§4.9.3).
+// 크래프트 오른쪽 well의 구성기 탭 둘: "블록"(끌어 놓을 블록 종류, 보기마다 다름)과 "속성"(고른 블록·노드의 상세).
+// 팔레트를 왼쪽 패널이 아니라 well에 두는 까닭: 왼쪽 패널은 크래프트 내비와 맥락 칸이 정본이다(§4.9.3).
 import { ListDescription, ListDescriptionRow } from "@caustic/react";
 import { GripVertical } from "../../_shell";
 import { helmBlocks, invalidBlocks, palette, SLOT_LABEL } from "../fixtures";
@@ -85,12 +85,12 @@ export function InspectTab() {
         <ListDescriptionRow term="슬롯">{SLOT_LABEL[b.slot]}</ListDescriptionRow>
         <ListDescriptionRow term="연산">{b.op}</ListDescriptionRow>
         {b.points.map((p) => (
-          <ListDescriptionRow key={p.point} term="지점">
+          <ListDescriptionRow key={p.point} term="훅">
             {p.point} · {p.fold} · 실패 {p.failure}
           </ListDescriptionRow>
         ))}
         {b.consumes.map((c) => (
-          <ListDescriptionRow key={c.cap} term="능력" mono>
+          <ListDescriptionRow key={c.cap} term="기능" mono>
             {c.cap} {c.mode} ← {c.provider ?? "없음"}
           </ListDescriptionRow>
         ))}

@@ -1,4 +1,4 @@
-// 런타임 지도 시안 A 앱: 공용 셸(작업대 영역) 위에 지도(내비 "개요")와 구성기(내비 "구성", 만들기를 합침).
+// 런타임 지도 시안 A 앱: 공용 셸(크래프트 영역) 위에 지도(내비 "개요")와 구성기(내비 "구성", 만들기를 합침).
 // 오른쪽 well: 검사(고른 블록) · 받은 요청 · 기록 · 대화. 맥락은 왼쪽 패널 맥락 칸 하나(결정 3).
 import {
   NoticeList,
@@ -51,7 +51,7 @@ function Page() {
       onNavSelect={(id) => {
         if (id === "overview") m.set({ screen: "map" });
         else if (id === "compose") m.set({ screen: "compose" });
-        else m.notify("이 화면은 작업대 1·2차 시안에 있어요");
+        else m.notify("이 화면은 크래프트 1·2차 시안에 있어요");
       }}
       workbench={{
         onGoToThread: goThread,

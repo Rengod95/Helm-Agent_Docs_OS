@@ -1,6 +1,6 @@
 // P-06 제안. 무대 안 두 열: 왼쪽 목록(listbox) · 오른쪽 상세(region). 둘 다 투명 면 위에 있고 간격으로만 나눈다(DP-01·03).
 // 상세: 제목(종류·대상·rev) → 경고(untrusted·충돌) → ListDescription 한 목록(낸 쪽, 이유, 근거, 범위) → 읽기 전용 CodeDiff → 결정 줄.
-// 낸 쪽은 L3 그룹(learning)이나 L2 능력(knowledge)이고, knowledge 제안이면 근거가 된 Helm 발견도 보인다.
+// 낸 쪽은 L3 그룹(learning)이나 L2 기능(knowledge)이고, knowledge 제안이면 근거가 된 Helm 발견도 보인다.
 import {
   Alert,
   Badge,
@@ -249,7 +249,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
         >
           <SelectOption value="all">모든 출처</SelectOption>
           <SelectOption value="grp:learning">learning 그룹</SelectOption>
-          <SelectOption value="L2 knowledge">knowledge 능력</SelectOption>
+          <SelectOption value="L2 knowledge">knowledge 기능</SelectOption>
         </Select>
       </header>
 
@@ -268,7 +268,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
             <div
               className={`flex min-h-0 flex-col gap-1.5 ${compact ? "flex-1" : "w-80 flex-none"}`}
             >
-              {failed && <Alert tone="warning">knowledge 능력의 제안을 읽지 못했어요</Alert>}
+              {failed && <Alert tone="warning">knowledge 기능의 제안을 읽지 못했어요</Alert>}
               <ScrollArea label="제안 목록" className="min-h-0 flex-1">
                 {loading ? (
                   <div className="grid gap-4 px-2.5 py-2">
@@ -401,7 +401,9 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                               disabled={offline}
                             >
                               <RadioGroupItem value="user">사용자</RadioGroupItem>
-                              <RadioGroupItem value="project">프로젝트(~/code/xeon)</RadioGroupItem>
+                              <RadioGroupItem value="project">
+                                프로젝트(~/code/fresnel)
+                              </RadioGroupItem>
                             </RadioGroup>
                           </ListDescriptionRow>
                         )}

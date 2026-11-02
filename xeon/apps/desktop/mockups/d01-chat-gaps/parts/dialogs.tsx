@@ -186,7 +186,7 @@ export function DeleteScheduleDialog({
 export type ExportFormat = "md" | "json";
 export type ExportPhase = "idle" | "saving" | "fail";
 
-/** 대화 내보내기(계획에 없음 6). Markdown은 읽기용, JSON은 다시 가져오기·분석용(item 원형). 비밀 값은 어떤 형식에도 없고 핸들만 남는다. */
+/** 대화 내보내기(계획에 없음 6). Markdown은 읽기용, JSON은 다시 가져오기·분석용(item 원형). 시크릿 값은 어떤 형식에도 없고 핸들만 남는다. */
 export function ExportDialog({
   title,
   format,
@@ -263,7 +263,7 @@ export function ExportDialog({
             {file}
           </ListDescriptionRow>
           <ListDescriptionRow term="항목">메시지 18 · 도구 7 · 승인 2</ListDescriptionRow>
-          <ListDescriptionRow term="비밀">값은 넣지 않아요 · 핸들만</ListDescriptionRow>
+          <ListDescriptionRow term="시크릿">값은 넣지 않아요 · 핸들만</ListDescriptionRow>
         </ListDescription>
         {phase === "fail" && (
           <Alert tone="danger" size="sm">

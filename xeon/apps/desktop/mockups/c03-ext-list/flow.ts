@@ -1,6 +1,6 @@
 // P-13 확장 목록의 켜는 범위와 대기(N-35), X 훅 행(N-36) 상태 기계(목업 전용).
 // spec §6.23(켜기·끄기는 settings.set { key: "ext.<이름>.enabled", scope }, 이 대화만은 scope "session"),
-// §6.21(맥락이 프로필이면 프로필 고치기, 시험이면 그 시험 대화의 session 범위에만), X.loading-trust §4.8(requires 미충족 = 기능 대기),
+// §6.21(맥락이 프로필이면 프로필 고치기, 테스트이면 그 테스트 대화의 session 범위에만), X.loading-trust §4.8(requires 미충족 = 기능 대기),
 // 결정 12(안전 모드에서는 X 훅도 싣지 않음).
 import type { After } from "../_chat-rt";
 import { extJ, extName, josa, T } from "../_shell";

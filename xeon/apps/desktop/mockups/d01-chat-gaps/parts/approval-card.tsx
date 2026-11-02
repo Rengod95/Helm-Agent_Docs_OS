@@ -38,7 +38,7 @@ export const KIND_LABEL: Record<CardKind, string> = {
 /** 카드마다 낸 쪽(DP-33)과 시각. 대화는 모두 t1 "캐시 무효화 조사". */
 export const CARD_META: Record<CardKind, { source: string; at: string; summary: string }> = {
   tool: { source: "core", at: "14:05", summary: "bash · rm -rf .cache && bun test" },
-  question: { source: "grp:helm", at: "14:06", summary: "어느 시험 묶음부터 볼까요?" },
+  question: { source: "grp:helm", at: "14:06", summary: "어느 테스트 묶음부터 볼까요?" },
   plan: { source: "l1:plan", at: "14:07", summary: "캐시 만료 수정 · 3단계" },
   review: { source: "l2:artifacts", at: "14:09", summary: "src/cache.ts 외 2 · +42 −18" },
 };
@@ -196,7 +196,7 @@ export function ApprovalCard({
             <p className="m-0 font-semibold">캐시 만료 수정</p>
             <ol className="m-0 grid gap-0.5 ps-5">
               <li>만료 단위를 ms로 통일</li>
-              <li>isExpired 경계 시험 3개 추가</li>
+              <li>isExpired 경계 테스트 3개 추가</li>
               <li>docs/cache.md 단위 표기 고치기</li>
             </ol>
           </div>

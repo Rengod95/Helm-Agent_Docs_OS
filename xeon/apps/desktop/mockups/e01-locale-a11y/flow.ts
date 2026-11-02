@@ -1,5 +1,5 @@
 // e01 상태 기계(목업 전용): 영어 스모크(N-49)와 접근성(N-50). ?state=, ?scenario=, &step=을 한 기계로 돌린다(_chat-rt useMachine).
-// 초점 정류장(stop) 1~5 = 찾기·영역 바꾸기 → 보기 기준 칸(작업대)·내비 → 가운데 → well → 상태 표시줄(§4.8, Y14).
+// 초점 정류장(stop) 1~5 = 찾기·영역 바꾸기 → 보기 기준 칸(크래프트)·내비 → 가운데 → well → 상태 표시줄(§4.8, Y14).
 import { L2, LANG, type Decision } from "../_shell";
 import type { After } from "../_chat-rt";
 
@@ -146,7 +146,7 @@ export function reduce(s: S, a: A): S {
         caps: cap(
           s,
           L2(
-            "답이 왔어요: 캐시를 지우고 시험 12개가 모두 통과해요",
+            "답이 왔어요: 캐시를 지우고 테스트 12개가 모두 통과해요",
             "Reply: cleared the cache and all 12 tests pass",
           ),
         ),

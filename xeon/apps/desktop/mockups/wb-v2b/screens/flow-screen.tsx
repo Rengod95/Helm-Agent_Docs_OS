@@ -1,7 +1,7 @@
 // drive 부품의 단계 머신(Helm §3.3)을 상태 그래프로. 위 줄은 오른쪽으로(확산 → 탐색 → 렌즈 펼침 → 모으기),
 // 아래 줄은 왼쪽으로 돌아온다(수렴 → 적용 → 끝 → idle). 고리 모양이 "단계마다 커밋하고 다시 불린다"를 보인다.
-// 쓰기 거부 구간, 단계별 임대 예산, ◇ 단계 경계 전이. 시험 실행(S11)은 같은 그래프 위에서 움직이고,
-// 구성(S14)은 사람 확인(gate, 결정 8)을 잇는 중이다. 시험 "멈춤"은 다음 단계 경계에서 실제로 멈춘다(결정 9).
+// 쓰기 거부 구간, 단계별 주도 예산, ◇ 단계 경계 전이. 테스트 실행(S11)은 같은 그래프 위에서 움직이고,
+// 구성(S14)은 사람 확인(gate, 결정 8)을 잇는 중이다. 테스트 "멈춤"은 다음 단계 경계에서 실제로 멈춘다(결정 9).
 import { Button, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import type { ReactNode } from "react";
 import {
@@ -123,7 +123,7 @@ function phases(gate: boolean): Phase[] {
         icon: <Search />,
         rows: [],
         badge: <Budget>턴 0</Budget>,
-        body: <span>능력 읽기만 · 발견 정리</span>,
+        body: <span>기능 읽기만 · 발견 정리</span>,
         bodyH: 30,
       },
     },
@@ -139,7 +139,7 @@ function phases(gate: boolean): Phase[] {
               title: "사람 확인",
               icon: <User />,
               rows: [],
-              badge: <Budget>임대 반납</Budget>,
+              badge: <Budget>주도 반납</Budget>,
               body: <span>승인 요청 · 답하면 다시 받음</span>,
               bodyH: 30,
             },
@@ -239,7 +239,7 @@ export function FlowScreen() {
     const d = back ? lPath(a, b) : hPath(a, b);
     T.push({ d, type: "drive", label, at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, ...opts });
   };
-  push(idleR, left(N("diverge")), diamond("임대 · pending"), {
+  push(idleR, left(N("diverge")), diamond("주도 · pending"), {
     look: trial ? "dim" : "base",
     at: { x: 40, y: 196 },
   });
@@ -332,7 +332,7 @@ export function FlowScreen() {
               ]
             : [
                 {
-                  label: trial ? "시험 실행" : "런타임 지도",
+                  label: trial ? "테스트 실행" : "런타임 지도",
                   icon: <Compass className="size-3.5 text-text-tertiary" emphasis="muted" />,
                   onClick: () => m.set({ screen: "map", trial: false }),
                 },
@@ -344,7 +344,11 @@ export function FlowScreen() {
               ]
         }
         crumbMeta={
-          trial ? "시험 대화 · helm 시험 1" : editing ? "편집 중" : "drive 부품 · 단계 4 · 렌즈 3"
+          trial
+            ? "테스트 대화 · helm 테스트 1"
+            : editing
+              ? "편집 중"
+              : "drive 부품 · 단계 4 · 렌즈 3"
         }
         topRight={
           <SegmentedControl
@@ -360,12 +364,12 @@ export function FlowScreen() {
         }
         overlay={
           <>
-            {/* 임대 상한 줄 */}
+            {/* 주도 상한 줄 */}
             {!trial && (
               <div className="absolute top-14 left-3 z-10 flex h-7 items-center gap-3 rounded-lg px-2.5 text-ui-xs text-text-secondary glass glass-shadow-2">
                 <span className="flex items-center gap-1.5">
                   <PortGlyph type="drive" size={8} />
-                  임대 상한
+                  주도 상한
                 </span>
                 <span className="font-mono text-text-primary tabular-nums">
                   턴 4 · spawn 8 · 토큰 400k
@@ -566,7 +570,7 @@ export function FlowScreen() {
             >
               <span className="text-ui-sm text-text-primary">수렴 → 사람 확인</span>
               <span className="text-[11.5px] text-text-secondary">
-                기다리는 동안 drive 임대를 내려놓고, 답이 오면 다음 단계 경계에서 다시 받아요.
+                기다리는 동안 주도를 내려놓고, 답이 오면 다음 단계 경계에서 다시 받아요.
               </span>
               <span className="font-mono text-[10px] text-text-tertiary">
                 loop.ask · ADR-0018 승인 요청
@@ -619,7 +623,7 @@ function RunStrip() {
         tone="neutral"
         variant="solid"
         iconStart={<Pause />}
-        onClick={() => m.notify("다음 단계 경계에서 멈춰요 · 임대는 쥔 채")}
+        onClick={() => m.notify("다음 단계 경계에서 멈춰요 · 주도는 쥔 채")}
       >
         경계에서 멈춤
       </Button>

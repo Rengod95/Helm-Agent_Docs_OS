@@ -1,5 +1,5 @@
 // 구성기 "부품": Helm을 부품으로 펼친다(매니페스트 composition / defineGroup({ slots }) 선언, 사용자 결정 7). 지도 상세와 같은 세 열:
-// 왼쪽 루프 소켓 · 가운데 부품 판을 group-kit 등뼈에 쌓은 탑 · 오른쪽 능력을 내주는 서비스와 부품이 내는 것(기록·post·상태).
+// 왼쪽 루프 소켓 · 가운데 부품 판을 group-sdk 등뼈에 쌓은 탑 · 오른쪽 기능을 내주는 서비스와 부품이 내는 것(기록·post·상태).
 import {
   FileText,
   History,
@@ -168,7 +168,7 @@ export function ComposeParts() {
         ))}
       </svg>
 
-      {/* group-kit 등뼈 */}
+      {/* group-sdk 등뼈 */}
       <div
         className="absolute rounded-full"
         style={{
@@ -183,7 +183,7 @@ export function ComposeParts() {
         className="absolute font-mono text-mono-micro text-text-tertiary [writing-mode:vertical-rl]"
         style={{ left: PX - 30, top: 300 }}
       >
-        group-kit
+        group-sdk
       </span>
 
       {/* 머리 판 */}
@@ -201,7 +201,7 @@ export function ComposeParts() {
               <span className="font-mono text-mono-sm font-normal text-text-tertiary">helm</span>
             </span>
             <span className="text-ui-xs text-text-tertiary">
-              L3 의도 그룹 · user 0.1.0 · 상태 HelmState v1
+              L3 플러그인 그룹 · user 0.1.0 · 상태 HelmState v1
             </span>
           </span>
           <span className="text-ui-xs text-text-tertiary">읽기 전용</span>
@@ -293,7 +293,7 @@ export function ComposeParts() {
         <span className="me-1.5 font-mono text-mono-micro" style={{ color: "var(--ink-l2)" }}>
           L1·L2
         </span>
-        쓰는 능력
+        쓰는 기능
       </span>
       {SVCS.map((s) => (
         <div

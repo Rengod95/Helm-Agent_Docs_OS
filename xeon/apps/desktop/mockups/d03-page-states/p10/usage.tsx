@@ -1,4 +1,4 @@
-// d03(묶음 D): 비밀 사용 기록(W-13 secret.usage). 언제, 어느 대화·도구가, 어떤 모습(ENV·헤더)으로 썼는지. 값은 없다.
+// d03(묶음 D): 시크릿 사용 기록(W-13 secret.usage). 언제, 어느 대화·도구가, 어떤 모습(ENV·헤더)으로 썼는지. 값은 없다.
 // 행 사이 선 없이 간격으로(DP-26), 숫자·시각은 tabular, 기계 이름은 mono tertiary(DP-39).
 import { Badge } from "@caustic/react";
 

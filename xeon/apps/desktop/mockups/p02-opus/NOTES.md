@@ -58,7 +58,7 @@
 ## 3차(DP-12~16)
 
 - 검은 화면: `fonts.css` 첫 줄의 원격 Google Fonts `@import`가 번들 CSS 맨 앞에 남아, 호스트가 막히면 스타일시트와 모듈 스크립트가 함께 멈춰 React가 마운트되지 않았습니다(호스트를 막은 헤드리스 Chrome에서 재현: `styleSheets 0`, `#root` 비어 있음). `fonts.ts`로 고쳐 막힌 상태에서도 그려지고 SUIT가 실립니다.
-- 승인 상세는 `ListDescription` 한 목록(명령, 위험도, 비밀, 인자).
+- 승인 상세는 `ListDescription` 한 목록(명령, 위험도, 시크릿, 인자).
 - 왼쪽 패널은 위아래 끝까지 붙는 docked 면, 머리는 `Input` 찾기 + 늘 보이는 접기 버튼.
 - 상태 칩은 caustic `ToolCall` 쪽에서 앞 아이콘 여백을 2px로 맞춤.
 

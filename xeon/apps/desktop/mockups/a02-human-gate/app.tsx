@@ -1,5 +1,5 @@
-// N-05 사람 확인 관문(loop.ask) · N-06 자식 에이전트 승인 출처 · N-07 만료 뒤 모습 · 계획에 없음 3(진행권 충돌 "이 그룹 먼저")
-// · P-05(Helm well에서 진행권·그룹 구역을 빼 런타임 탭으로) 목업. 대화는 t1 "캐시 무효화 조사", helm이 진행권을 쥐고 수렴 중.
+// N-05 사람 확인 관문(loop.ask) · N-06 자식 에이전트 승인 출처 · N-07 만료 뒤 모습 · 계획에 없음 3(주도 충돌 "이 그룹 먼저")
+// · P-05(Helm well에서 주도·그룹 구역을 빼 런타임 탭으로) 목업. 대화는 t1 "캐시 무효화 조사", helm이 주도를 쥐고 수렴 중.
 // 한 상태 기계(flow.ts)가 ?state=, ?scenario=, &step=을 함께 돌린다.
 import { AgentRequest, Toaster, toast } from "@caustic/react";
 import { useEffect, useState } from "react";
@@ -42,8 +42,8 @@ import { HelmWell } from "./parts/helm-well";
 import { OsNotice } from "./parts/os-notice";
 
 export const STATES = [
-  { id: "asking", label: "사람 확인 기다림(진행권 반납)" },
-  { id: "answered", label: "답함 → 진행권 다시 받음" },
+  { id: "asking", label: "사람 확인 기다림(주도 반납)" },
+  { id: "answered", label: "답함 → 주도 다시 받음" },
   { id: "ask-expired", label: "만료: 자동 답, 진행 재개" },
   { id: "other-thread", label: "다른 대화에 있을 때(받은 요청·OS 알림)" },
   { id: "other-inbox", label: "다른 대화 · 받은 요청 탭" },
@@ -51,11 +51,11 @@ export const STATES = [
   { id: "child-approval", label: "자식 에이전트 승인 출처" },
   { id: "child-allowed", label: "자식 승인 허용 뒤" },
   { id: "approval-expired", label: "만료: 자동 거부" },
-  { id: "conflict", label: "진행권 충돌(차례 기다림)" },
+  { id: "conflict", label: "주도 충돌(차례 기다림)" },
   { id: "conflict-first", label: "이 그룹 먼저 누름" },
   { id: "conflict-switched", label: "다음 단계 사이에서 교대" },
   { id: "conflict-withdrawn", label: "실패: 기다리던 그룹이 거둠" },
-  { id: "helm-well", label: "Helm well(진행권 구역 뺌, P-05)" },
+  { id: "helm-well", label: "Helm well(주도 구역 뺌, P-05)" },
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];
 
@@ -82,7 +82,7 @@ export const SCENARIOS = [
   { id: "ask-other-thread", label: "다른 대화에 있을 때 질문 옴" },
   { id: "child-approval", label: "렌즈(자식) 승인 출처" },
   { id: "approval-expired", label: "실패: 렌즈 승인 만료 → 자동 거부" },
-  { id: "drive-conflict-first", label: "진행권 충돌: 이 그룹 먼저" },
+  { id: "drive-conflict-first", label: "주도 충돌: 이 그룹 먼저" },
   { id: "drive-conflict-withdrawn", label: "실패: 기다리던 그룹이 거둠" },
 ];
 
@@ -105,7 +105,7 @@ const ASK: QuestionApproval = {
           recommended: true,
         },
         { id: "f2", label: PICKS.f2 ?? "", description: "비교 쪽은 그대로 둬요" },
-        { id: "f3", label: PICKS.f3 ?? "", description: "시험만 더해요" },
+        { id: "f3", label: PICKS.f3 ?? "", description: "테스트만 더해요" },
       ],
     },
   ],
@@ -114,7 +114,7 @@ const ASK: QuestionApproval = {
 const CHILD: ToolApproval = {
   ...approvals.a1,
   command: "bun test cache --reporter=verbose",
-  args: { command: "bun test cache --reporter=verbose", cwd: "~/code/xeon", timeoutSeconds: 60 },
+  args: { command: "bun test cache --reporter=verbose", cwd: "~/code/fresnel", timeoutSeconds: 60 },
   secrets: [],
 };
 
@@ -122,7 +122,7 @@ const SOURCE_HELM = "grp:helm";
 const SOURCE_LENS = `${T.lens} 실패 사례 · grp:helm`;
 
 const t2Items: ChatItem[] = [
-  { k: "user", text: "느린 시험 다섯 개만 골라줘" },
+  { k: "user", text: "느린 테스트 다섯 개만 골라줘" },
   { k: "agent", text: "시간 순으로 정렬했어요. cache, sync, migrate, index, render 순이에요." },
 ];
 
@@ -153,7 +153,7 @@ export function App({ state }: { state: StateId }) {
     if (s.inboxAsk && s.open === "t2")
       toast({
         title: `질문 필요: ${EXT.helm}, ${T1_TITLE}`,
-        description: `${T.humanGate}을 기다리는 동안 ${T.lead}을 놓았어요.`,
+        description: `${T.humanGate}을 기다리는 동안 ${T.lead}를 놓았어요.`,
         tone: "neutral",
         actionLabel: "열기",
         onAction: () => dispatch({ t: "jump" }),
@@ -164,7 +164,7 @@ export function App({ state }: { state: StateId }) {
 
   const waiting = s.gate === "asking";
   const conflictScript = pre.script.startsWith("drive-conflict");
-  // 사람 확인·승인 대본에서는 기다리는 그룹이 없다(반납한 진행권을 다른 그룹이 가져가는 경우는 그리지 않음).
+  // 사람 확인·승인 대본에서는 기다리는 그룹이 없다(반납한 주도를 다른 그룹이 가져가는 경우는 그리지 않음).
   const queue: QueueRow[] = !conflictScript
     ? []
     : s.first === "switched"
@@ -380,7 +380,7 @@ export function App({ state }: { state: StateId }) {
       </Shell>
       {s.osNotice && state !== "other-inbox" && (
         <OsNotice
-          title={`Xeon · ${T1_TITLE}`}
+          title={`Fresnel · ${T1_TITLE}`}
           body={`${EXT.helm}이 ${josa(T.humanGate, "을", "를")} 기다려요: ${ASK.questions[0]?.text ?? ""}`}
           onOpen={() => dispatch({ t: "jump" })}
           onClose={() => dispatch({ t: "dismissOs" })}

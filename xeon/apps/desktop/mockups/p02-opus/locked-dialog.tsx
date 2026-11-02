@@ -13,7 +13,7 @@ export function LockedDialog() {
       open={m.lockedOpen}
       onOpenChange={m.setLockedOpen}
       icon={<Lock />}
-      title="이 대화는 터미널(xeon CLI)이 쓰고 있어요"
+      title="이 대화는 다른 창에서 쓰고 있어요"
       footer={
         <>
           <Button size="sm" tone="neutral" variant="ghost" onClick={close}>

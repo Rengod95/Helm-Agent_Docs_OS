@@ -29,7 +29,7 @@ export function AppGlyph({ size = "md" }: { size?: "sm" | "md" }) {
   );
 }
 
-const MAC_MENUS = ["Xeon", "파일", "편집", "보기", "대화", "창", "도움말"];
+const MAC_MENUS = ["Fresnel", "파일", "편집", "보기", "대화", "창", "도움말"];
 
 /** macOS 메뉴 막대(창 위, 화면 맨 위). open: 펼친 메뉴. tray: 오른쪽 아이콘 메뉴. */
 export function MacMenuBar({
@@ -66,7 +66,7 @@ export function MacMenuBar({
       <button
         type="button"
         onClick={onTray}
-        aria-label={`Xeon 메뉴 막대 아이콘, 승인 ${trayBadge}개`}
+        aria-label={`Fresnel 메뉴 막대 아이콘, 승인 ${trayBadge}개`}
         className={`relative grid h-5 place-items-center rounded-sm px-1 outline-none focus-visible:focus-ring ${
           trayOpen ? "bg-fill-hover" : ""
         }`}
@@ -79,15 +79,15 @@ export function MacMenuBar({
       <span className="tabular-nums">11월 1일 (일) 14:06</span>
       {open === "app" && (
         <OsMenu className="left-7">
-          <MenuItem>Xeon에 관하여</MenuItem>
+          <MenuItem>Fresnel에 관하여</MenuItem>
           <MenuItem end="">업데이트 확인…</MenuItem>
           <MenuSeparator />
           <MenuItem end="⌘,">설정…</MenuItem>
           <MenuSeparator />
-          <MenuItem end="⌘H">Xeon 가리기</MenuItem>
+          <MenuItem end="⌘H">Fresnel 가리기</MenuItem>
           <MenuItem end="⌥⌘H">기타 가리기</MenuItem>
           <MenuSeparator />
-          <MenuItem end="⌘Q">Xeon 종료</MenuItem>
+          <MenuItem end="⌘Q">Fresnel 종료</MenuItem>
         </OsMenu>
       )}
       {open === "thread" && (
@@ -100,7 +100,7 @@ export function MacMenuBar({
           <MenuItem>분기</MenuItem>
           <MenuItem>내보내기…</MenuItem>
           <MenuSeparator />
-          <MenuItem end="⌘E">작업대로</MenuItem>
+          <MenuItem end="⌘E">크래프트로</MenuItem>
           <MenuItem end="⇧⌘A">다음 승인</MenuItem>
         </OsMenu>
       )}
@@ -123,8 +123,8 @@ function OsMenu({ className, children }: { className: string; children: ReactNod
 export function TrayMenu({ badge }: { badge: number }) {
   return (
     <div className="absolute top-6 right-28 w-64">
-      <Menu inline open size="sm" aria-label="Xeon 메뉴 막대 메뉴">
-        <MenuItem>Xeon 열기</MenuItem>
+      <Menu inline open size="sm" aria-label="Fresnel 메뉴 막대 메뉴">
+        <MenuItem>Fresnel 열기</MenuItem>
         <MenuItem icon={<Hand />} end={String(badge)}>
           승인 기다림
         </MenuItem>
@@ -134,7 +134,7 @@ export function TrayMenu({ badge }: { badge: number }) {
         <MenuItem icon={<Bell />}>알림 1시간 끄기</MenuItem>
         <MenuSeparator />
         <MenuItem>업데이트 확인…</MenuItem>
-        <MenuItem>Xeon 종료</MenuItem>
+        <MenuItem>Fresnel 종료</MenuItem>
       </Menu>
     </div>
   );
@@ -142,7 +142,7 @@ export function TrayMenu({ badge }: { badge: number }) {
 
 export type OsKind = "approval_waiting" | "question_waiting" | "background_completed" | "error";
 
-/** OS 알림 문구(N-53, flow §7.2). 제목 = 무엇이 · 대화, 본문 = 짧은 이유. 명령 전문·비밀은 넣지 않는다. */
+/** OS 알림 문구(N-53, flow §7.2). 제목 = 무엇이 · 대화, 본문 = 짧은 이유. 명령 전문·시크릿은 넣지 않는다. */
 export const OS_COPY: Record<OsKind, { title: string; body: string; icon: ReactNode }> = {
   approval_waiting: {
     title: "승인 필요 · 캐시 무효화 조사",
@@ -151,7 +151,7 @@ export const OS_COPY: Record<OsKind, { title: string; body: string; icon: ReactN
   },
   question_waiting: {
     title: "질문 · 테스트 정리",
-    body: "어느 시험 묶음부터 볼까요?",
+    body: "어느 테스트 묶음부터 볼까요?",
     icon: <MessageCircleQuestion />,
   },
   background_completed: {
@@ -193,7 +193,7 @@ export function OsBanners({
           >
             <div className="flex items-center gap-2 text-ui-xs text-text-tertiary">
               <AppGlyph />
-              <span>Xeon · 지금</span>
+              <span>Fresnel · 지금</span>
               <span className="ms-auto font-mono text-mono-sm">{k}</span>
               <button
                 type="button"

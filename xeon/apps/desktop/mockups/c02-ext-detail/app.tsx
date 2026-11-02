@@ -49,7 +49,7 @@ export const STATES = [
   { id: "revert-failed", label: "실패: 형식 변환 실패 → 원복" },
   { id: "settings", label: "설정: 값 출처 + 플러그인 부분" },
   { id: "settings-profile", label: "설정: 보기 기준 프로필(저장 위치)" },
-  { id: "settings-trial", label: "설정: 보기 기준 시험(저장 위치)" },
+  { id: "settings-trial", label: "설정: 보기 기준 테스트(저장 위치)" },
   { id: "views", label: "화면: 방식·실패 기록·진단" },
   { id: "log", label: "기록: 진단 위치(파일 열기)" },
   { id: "log-web", label: "기록: 웹(경로 복사)" },
@@ -270,7 +270,7 @@ export function App({ state }: { state: StateId }) {
                     icon={<FlaskConical />}
                     onSelect={() => goFolder("c01-trials", "state=new")}
                   >
-                    시험 시작
+                    테스트 시작
                   </MenuItem>
                   <MenuItem icon={<RotateCw />}>다시 읽기</MenuItem>
                   {web ? (

@@ -1,7 +1,7 @@
 // P-13 확장 목록: 켜는 범위와 대기(N-35), X 훅 행(N-36). spec §6.23, §6.21, 결정 12.
 // - 꺼진 확장의 스위치를 누르면 "켜는 범위" 팝오버(이 대화만·이 프로젝트·사용자 전체). 이 대화만은 session 범위라
 //   "이번 단계가 끝나면 적용" 대기 뒤 켜진다. requires 미충족이면 "필요한 기능 기다림", 관리 정책이면 잠김 + 이유 툴팁.
-// - 보기 기준이 프로필이면 스위치는 프로필 고치기, 시험이면 그 시험에만(session). 범위 팝오버를 띄우지 않는다.
+// - 보기 기준이 프로필이면 스위치는 프로필 고치기, 테스트이면 그 테스트에만(session). 범위 팝오버를 띄우지 않는다.
 // - X 훅은 층 묶음의 맨 아래 한 묶음(hooks.list): 훅 이벤트, p50, 실패. 안전 모드면 싣지 않음.
 // 표는 투명한 가운데 위 ghost 격자(DP-26), 층은 mono 열(DP-31), 확장 이름은 표시 이름 + 회색 mono id(결정 13).
 import {
@@ -62,7 +62,7 @@ export const STATES = [
   { id: "managed", label: "실패: 관리 정책 잠김(이유)" },
   { id: "all", label: "보기 기준 전체(이 대화 범위 없음)" },
   { id: "profile", label: "보기 기준 프로필: 프로필 고치기" },
-  { id: "trial", label: "보기 기준 시험: 이 시험에만" },
+  { id: "trial", label: "보기 기준 테스트: 이 테스트에만" },
   { id: "hooks", label: "X 훅 행(hooks.list)" },
   { id: "safe", label: "안전 모드: 바깥 확장·X 훅 빠짐" },
   { id: "narrow", label: "좁은 폭(390)" },
@@ -174,7 +174,7 @@ function ScopePicker({
           },
         ]
       : []),
-    { v: "project", title: SCOPE_WORD.project, hint: "~/code/xeon/.fresnel/settings.json" },
+    { v: "project", title: SCOPE_WORD.project, hint: "~/code/fresnel/.fresnel/settings.json" },
     { v: "user", title: SCOPE_WORD.user, hint: "모든 프로젝트 · ~/.fresnel/settings.json" },
   ];
   return (
@@ -297,7 +297,7 @@ export function App({ state }: { state: StateId }) {
         <Tooltip
           content={
             <span className="block max-w-60 whitespace-normal">
-              관리 정책으로 꺼져 있어요. 바꾸려면 관리자에게 물어요 · /etc/xeon/managed.json
+              관리 정책으로 꺼져 있어요. 바꾸려면 관리자에게 물어요 · /etc/fresnel/managed.json
             </span>
           }
           side="left"

@@ -1,8 +1,8 @@
-// S-01 셸 내비 정합 + N-01 보기 기준 칸 + N-04 대화 목록 시험 표지 + 계획에 없음 4(시험 대화 정리) 목업.
-// - 대화 영역: 주 내비 다섯(연결 포함, U-3), 작업 폴더별 대화 목록, 폴더 안 "시험" 묶음(실행 중·멈춤·끝남 표지).
-// - 작업대 영역: 왼쪽 보기 기준 칸(전체·대화·프로필·시험, 대화는 따라감/고정), 내비 여섯(만들기 없음, C-6).
-// - "작업대에서 보기"(런타임 탭)는 그 대화로 고정하고 작업대로 간다(결정 11). 패널을 닫으면 작업대 머리에 "보기 기준 <이름>".
-// - 시험 정리: 묶음의 "끝난 시험 n개 지우기…" → 확인 대화 상자 → 지움(실패 갈래: 다른 창에서 연 시험은 남김).
+// S-01 셸 내비 정합 + N-01 보기 기준 칸 + N-04 대화 목록 테스트 표지 + 계획에 없음 4(테스트 대화 정리) 목업.
+// - 대화 영역: 주 내비 다섯(연결 포함, U-3), 작업 폴더별 대화 목록, 폴더 안 "테스트" 묶음(실행 중·멈춤·끝남 표지).
+// - 크래프트 영역: 왼쪽 보기 기준 칸(전체·대화·프로필·테스트, 대화는 따라감/고정), 내비 여섯(만들기 없음, C-6).
+// - "크래프트에서 보기"(런타임 탭)는 그 대화로 고정하고 크래프트로 간다(결정 11). 패널을 닫으면 크래프트 머리에 "보기 기준 <이름>".
+// - 테스트 정리: 묶음의 "끝난 테스트 n개 지우기…" → 확인 대화 상자 → 지움(실패 갈래: 다른 창에서 연 테스트는 남김).
 import {
   Badge,
   Button,
@@ -46,28 +46,28 @@ import {
 import { ContextView } from "./parts/context-view";
 
 export const STATES = [
-  { id: "chat", label: "대화 영역(내비 다섯 · 시험 묶음)" },
-  { id: "wb-follow", label: "작업대 · 대화 기준(따라감)" },
-  { id: "wb-pinned", label: "작업대 · 대화 기준(고정)" },
-  { id: "wb-all", label: "작업대 · 전체" },
-  { id: "wb-profile", label: "작업대 · 프로필 기준" },
-  { id: "wb-trial", label: "작업대 · 시험 기준" },
-  { id: "wb-picker", label: "작업대 · 기준 칸 펼침" },
-  { id: "wb-closed", label: "작업대 · 패널 닫힘(머리에 기준)" },
-  { id: "cleanup-confirm", label: "끝난 시험 지우기 확인" },
-  { id: "cleanup-context", label: "지우기 확인 · 기준이 그 시험" },
-  { id: "cleanup-done", label: "끝난 시험 지움" },
-  { id: "cleanup-partial", label: "실패: 한 시험은 남김" },
+  { id: "chat", label: "대화 영역(내비 다섯 · 테스트 묶음)" },
+  { id: "wb-follow", label: "크래프트 · 대화 기준(따라감)" },
+  { id: "wb-pinned", label: "크래프트 · 대화 기준(고정)" },
+  { id: "wb-all", label: "크래프트 · 전체" },
+  { id: "wb-profile", label: "크래프트 · 프로필 기준" },
+  { id: "wb-trial", label: "크래프트 · 테스트 기준" },
+  { id: "wb-picker", label: "크래프트 · 기준 칸 펼침" },
+  { id: "wb-closed", label: "크래프트 · 패널 닫힘(머리에 기준)" },
+  { id: "cleanup-confirm", label: "끝난 테스트 지우기 확인" },
+  { id: "cleanup-context", label: "지우기 확인 · 기준이 그 테스트" },
+  { id: "cleanup-done", label: "끝난 테스트 지움" },
+  { id: "cleanup-partial", label: "실패: 한 테스트는 남김" },
   { id: "narrow", label: "좁은 폭(390) · 왼쪽 시트" },
-  { id: "narrow-wb", label: "좁은 폭(390) · 작업대 머리 기준" },
+  { id: "narrow-wb", label: "좁은 폭(390) · 크래프트 머리 기준" },
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];
 
 export const SCENARIOS = [
   { id: "context-pin", label: "보기 기준: 따라감 → 고정 → 풀기" },
   { id: "context-pin-lost", label: "실패: 고정한 대화가 닫힘" },
-  { id: "trial-cleanup", label: "끝난 시험 지우기" },
-  { id: "trial-cleanup-busy", label: "실패: 다른 창에서 연 시험" },
+  { id: "trial-cleanup", label: "끝난 테스트 지우기" },
+  { id: "trial-cleanup-busy", label: "실패: 다른 창에서 연 테스트" },
 ];
 
 const WB_TITLE: Record<string, string> = Object.fromEntries(
@@ -178,7 +178,7 @@ export function App({ state }: { state: StateId }) {
       return confirm
         ? `"지우기"를 누르세요`
         : done.length > 0
-          ? `"시험" 묶음의 "끝난 ${T.trial} ${done.length}개 지우기…"`
+          ? `"테스트" 묶음의 "끝난 ${T.trial} ${done.length}개 지우기…"`
           : "끝났어요";
     return undefined;
   })();
@@ -287,7 +287,7 @@ export function App({ state }: { state: StateId }) {
         onOpenChange={setConfirm}
         icon={<Trash2 />}
         title={`끝난 ${T.trialThread} ${done.length}개를 지울까요?`}
-        description={`결과는 ${T.workbench} ${T.trials}에 읽기 전용으로 남아요. 실행 중이거나 멈춘 ${T.trial}은 그대로 둬요.`}
+        description={`결과는 ${T.workbench} ${T.trials}에 읽기 전용으로 남아요. 실행 중이거나 멈춘 ${T.trial}는 그대로 둬요.`}
         footer={
           <>
             <DialogClose asChild>

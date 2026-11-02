@@ -16,7 +16,7 @@ const STATES = [
   { id: "S2", label: "S2 수렴 중(발견)" },
   { id: "S3", label: "S3 끝: 적용함" },
   { id: "S4", label: "S4 대기" },
-  { id: "S5", label: "S5 대기열(임대)" },
+  { id: "S5", label: "S5 대기열(주도)" },
   { id: "S6", label: "S6 상한 도달" },
   { id: "S7", label: "S7 멈추는 중" },
   { id: "S8", label: "S8 Helm 꺼짐" },
@@ -36,7 +36,7 @@ const failRun = (n: number): ContextItem => ({
 
 function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
   const base: ContextItem[] = [
-    { kind: "user", text: "무효화 시험이 계속 실패해. 원인 찾아줘" },
+    { kind: "user", text: "무효화 테스트가 계속 실패해. 원인 찾아줘" },
     failRun(1),
     { kind: "agent", text: "만료 비교를 고쳐 다시 돌려 볼게요." },
     failRun(2),
@@ -78,7 +78,7 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
       { kind: "event", icon: "helm", text: "수렴 · 발견 4개를 남겼어요" },
       {
         kind: "agent",
-        text: "탐구 결과를 적용할게요. ttl을 저장할 때 밀리초로 바꾸고, 경계 시각 시험을 더했어요.",
+        text: "탐구 결과를 적용할게요. ttl을 저장할 때 밀리초로 바꾸고, 경계 시각 테스트를 더했어요.",
       },
       { kind: "tool", name: "edit", detail: "src/cache.ts", status: "done", duration: "12ms" },
       { kind: "tool", name: "bash", detail: "bun test cache", status: "done", duration: "1.3s" },
@@ -108,7 +108,7 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
         kind: "event",
         icon: "helm",
         text: "탐구를 대기열에 넣었어요",
-        detail: "drive 임대를 review가 쥐고 있어요",
+        detail: "주도를 review가 쥐고 있어요",
       },
     ];
   return started;

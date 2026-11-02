@@ -1,5 +1,5 @@
-// 턴 다시 보기 막대(§6.22.5): 재생·멈춤, 앞·다음 발화, 눈금 줄(눈금 하나 = 지점 하나의 발화, 높이 = 돈 핸들러 수,
-// 실패 표지, 단계 사이 표지), seq·지점, 아래 줄은 핸들러마다 확장 이름 + 시간/예산 + 결과.
+// 턴 다시 보기 막대(§6.22.5): 재생·멈춤, 앞·다음 발화, 눈금 줄(눈금 하나 = 훅 하나의 발화, 높이 = 돈 핸들러 수,
+// 실패 표지, 단계 사이 표지), seq·훅, 아래 줄은 핸들러마다 확장 이름 + 시간/예산 + 결과.
 // caustic 빈틈: 눈금 줄 슬라이더(Slider는 값 하나, 눈금마다 높이·표지가 없다) [gap:C-17 Timeline·Sparkline 계열].
 // 눈금 줄은 role="slider"이고 화살표로 옮긴다. 재생은 1.1초마다 다음 발화(제안).
 // 잠김: 계측(x.operations.trace.enabled)이 꺼져 있으면 막대 대신 한 줄 + "설정에서 켜기"(결정 캔버스 5).
@@ -163,9 +163,7 @@ export function TurnReplayBar({
             </Badge>
           )}
           {t.failed === true && t.fold === "first" && (
-            <span className="text-ui-xs text-text-tertiary">
-              닫힌 지점의 예외는 거부로 처리해요
-            </span>
+            <span className="text-ui-xs text-text-tertiary">닫힌 훅의 예외는 거부로 처리해요</span>
           )}
         </div>
         {t.handlers.map((h) => (

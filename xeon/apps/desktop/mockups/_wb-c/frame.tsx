@@ -1,4 +1,4 @@
-// 묶음 C 작업대 화면 틀: 공용 셸(작업대 영역) + 오른쪽 탭 + 상태 표시줄. 페이지는 가운데 내용만 준다.
+// 묶음 C 크래프트 화면 틀: 공용 셸(크래프트 영역) + 오른쪽 탭 + 상태 표시줄. 페이지는 가운데 내용만 준다.
 // - 내비를 누르면 같은 빌드 루트의 옆 시안 폴더로 옮긴다(목업 전용, ../<폴더>/index.html). 없는 화면은 그대로 둔다.
 // - 개발 모드 칸(N-30 "배지 자리"): 개발 모드가 켜져 있으면 상태 표시줄 왼쪽 묶음 끝에 "개발 모드" 칸 하나. 꺼져 있으면 칸이 없다(DP-27).
 import type { ReactNode } from "react";
@@ -16,7 +16,7 @@ import {
   josa,
 } from "../_shell";
 
-/** 작업대 내비 id → 묶음 C 시안 폴더(목업 전용 이동). */
+/** 크래프트 내비 id → 묶음 C 시안 폴더(목업 전용 이동). */
 const NAV_FOLDER: Record<string, string> = {
   tests: "c01-trials",
   extensions: "c03-ext-list",
@@ -49,8 +49,8 @@ export function devModeCell(d: DevModeInfo): StatusCell[] {
       title: d.remote !== undefined ? `${d.remote}의 ${T.devMode}` : T.devMode,
       description:
         d.remote !== undefined
-          ? `원격 컴퓨터 ${josa(d.remote, "이", "가")} ${josa(T.devMode, "이라", "라")} ${T.replay}·${T.bench}·${josa(T.coreDiff, "을", "를")} 돌릴 수 있어요. 바꾸려면 그 컴퓨터의 설정에서 바꿔요.`
-          : `${T.repoPath} ${d.repo ?? "~/code/xeon"} · ${T.replay}·${T.bench}·${josa(T.coreDiff, "을", "를")} 돌릴 수 있어요.`,
+          ? `원격 컴퓨터 ${josa(d.remote, "이", "가")} ${josa(T.devMode, "이라", "라")} ${T.replay}·${T.benchmark}·${josa(T.coreDiff, "을", "를")} 돌릴 수 있어요. 바꾸려면 그 컴퓨터의 설정에서 바꿔요.`
+          : `${T.repoPath} ${d.repo ?? "~/code/fresnel"} · ${T.replay}·${T.benchmark}·${josa(T.coreDiff, "을", "를")} 돌릴 수 있어요.`,
       ...(d.onOff !== undefined && d.remote === undefined
         ? { action: { label: `${T.devMode} 끄기`, onSelect: d.onOff } }
         : {}),

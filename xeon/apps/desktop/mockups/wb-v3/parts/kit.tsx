@@ -343,7 +343,7 @@ export function hCurve(ax: number, ay: number, bx: number, by: number) {
   return `M${ax},${ay} C${ax + dx},${ay} ${bx - dx},${by} ${bx},${by}`;
 }
 
-/** fold 글리프(지점이 핸들러 결과를 모으는 방식): tap 점 · first 관문 · chain 사슬 · collect 고리 */
+/** fold 글리프(훅이 핸들러 결과를 모으는 방식): tap 점 · first 관문 · chain 사슬 · collect 고리 */
 export function FoldGlyph({ fold, color = "currentColor" }: { fold: string; color?: string }) {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden className="flex-none">

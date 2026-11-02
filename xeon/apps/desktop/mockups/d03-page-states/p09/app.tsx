@@ -1,4 +1,4 @@
-// P-09 설정: 13탭 일반 폼. 모델 탭(기본), 개요, 고급(파일 전용), 그 밖의 일반 탭. 전용 탭(비밀, 계정, 도구, 플러그인)은 옆 시안으로 옮긴다.
+// P-09 설정: 13탭 일반 폼. 모델 탭(기본), 개요, 고급(파일 전용), 그 밖의 일반 탭. 전용 탭(시크릿, 계정, 도구, 플러그인)은 옆 시안으로 옮긴다.
 import { Alert, Button, Skeleton } from "@caustic/react";
 import { useState } from "react";
 import { FileText, RotateCcw } from "../../_shell";

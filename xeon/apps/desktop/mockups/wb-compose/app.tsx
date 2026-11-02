@@ -1,4 +1,4 @@
-// 블록 구성기 시안 앱: 공용 셸(작업대 영역) 위에 구성기 한 화면. 작업대 내비 "구성"(Helm 참고, 흐름, 시험, 프로필)과
+// 블록 구성기 시안 앱: 공용 셸(크래프트 영역) 위에 구성기 한 화면. 크래프트 내비 "구성"(Helm 참고, 흐름, 테스트, 프로필)과
 // "만들기"(빈 구성기, 작성 중 그룹, 코드)가 같은 구성기를 연다. 보기는 화면 머리의 SegmentedControl(그룹·흐름·프로필·코드).
 // 가운데는 투명한 캔버스(점 격자만), 왼쪽 패널은 내비, 블록 팔레트와 속성은 오른쪽 well 탭(§4.9.3, DP-01·DP-13).
 import { Button, SegmentedControl, SegmentedControlItem } from "@caustic/react";
@@ -77,13 +77,13 @@ function Head() {
       sub = "블록 7 · 오류 3 · 경고 1 · 맥락 캐시 무효화 조사 · 프로필 조용히";
       action = (
         <Button size="xs" variant="soft" iconStart={<FlaskConical />} disabled>
-          시험 대화로
+          테스트 대화로
         </Button>
       );
     } else {
       meta = "helm · 참고 구성";
       sub =
-        "설치본 매니페스트와 소스에서 읽었어요 · 블록 7 · 지점 6 · 능력 5(모두 optional) · 공개 기록 3";
+        "설치본 매니페스트와 소스에서 읽었어요 · 블록 7 · 훅 6 · 기능 5(모두 optional) · 공개 기록 3";
       action = (
         <Button
           size="xs"
@@ -99,7 +99,7 @@ function Head() {
     meta = draft
       ? "lens-review · 단계 머신 편집"
       : m.trial
-        ? "helm · 시험 실행"
+        ? "helm · 테스트 실행"
         : "helm · 단계 머신";
     sub = m.trial
       ? undefined
@@ -114,7 +114,7 @@ function Head() {
           iconStart={<FlaskConical />}
           onClick={() => m.set({ trial: true, selected: null })}
         >
-          시험 대화에서 돌려 보기
+          테스트 대화에서 돌려 보기
         </Button>
       );
   } else if (m.view === "profile") {
@@ -124,7 +124,7 @@ function Head() {
     meta = "lens-review · 코드";
     sub = (
       <>
-        <span className="font-mono text-mono-sm">xeon group new lens-review --drive</span>
+        <span className="font-mono text-mono-sm">fresnel group new lens-review --drive</span>
         <span>· 파일 10개 · 블록 내용은 생성 뒤 패치로 들어가요</span>
       </>
     );
@@ -207,7 +207,7 @@ export function App() {
             draft: false,
             selected: null,
           });
-        else m.notify("이 화면은 다른 작업대 시안에 있어요");
+        else m.notify("이 화면은 다른 크래프트 시안에 있어요");
       }}
       workbench={{ onGoToThread: () => shell.setArea("chat") }}
       stageLabel="구성기"
@@ -218,7 +218,7 @@ export function App() {
         thread: false,
         pendingApprovals: 2,
         openEnd: shell.openEnd,
-        runtime: { drive: "helm", extFailures: 1, onOpen: () => m.notify("작업대 개요로 가요") },
+        runtime: { drive: "helm", extFailures: 1, onOpen: () => m.notify("크래프트 개요로 가요") },
       })}
     >
       <div className="relative flex min-h-0 flex-1 flex-col">

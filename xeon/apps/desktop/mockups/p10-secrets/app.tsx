@@ -1,4 +1,4 @@
-// P-10 비밀: 값 없는 목록 + 고른 비밀의 상세(ListDescription) + 값 보기 흐름(O-05 재인증 → 30초 표시 → 자동 가림) + 추가 + 삭제(O-06).
+// P-10 시크릿: 값 없는 목록 + 고른 시크릿의 상세(ListDescription) + 값 보기 흐름(O-05 재인증 → 30초 표시 → 자동 가림) + 추가 + 삭제(O-06).
 import { Button, EmptyState, Menu, MenuItem, MenuSeparator } from "@caustic/react";
 import { useState } from "react";
 import { Ellipsis, FlaskConical, KeyRound, Pencil, Plus, Trash2 } from "../_shell";
@@ -75,7 +75,7 @@ export function App({ state }: { state: State }) {
             size="sm"
             surface="none"
             icon={<KeyRound />}
-            title="등록된 비밀이 없어요"
+            title="등록된 시크릿이 없어요"
             description="API 키와 토큰을 값 없이 이름으로 써요."
             actions={
               <Button
@@ -107,7 +107,7 @@ export function App({ state }: { state: State }) {
                     값 바꾸기
                   </Button>
                   <Button size="xs" tone="neutral" variant="ghost" iconStart={<FlaskConical />}>
-                    시험
+                    테스트
                   </Button>
                   <Menu
                     align="end"

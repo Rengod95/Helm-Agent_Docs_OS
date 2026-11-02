@@ -1,7 +1,7 @@
-// O-12 새 시험(Sheet side="right", §6.31)과 N-30 개발 모드 켜기(Dialog).
-// - 새 시험: 종류(시험 대화가 기본, replay·bench·코어 변경 검사는 배포 앱에서 "개발 모드에서만" 잠금), 대상, 프로필과 미리 보기
+// O-12 새 테스트(Sheet side="right", §6.31)과 N-30 개발 모드 켜기(Dialog).
+// - 새 테스트: 종류(테스트 대화가 기본, replay·bench·코어 변경 검사는 배포 앱에서 "개발 모드에서만" 잠금), 대상, 프로필과 미리 보기
 //   (profile.preview W-44, 실패하면 시작 잠금), 작업 폴더, 첫 메시지. 바닥: 비용 문장 → 누르면 확인 문장으로 바뀜(종료 코드 3과 같은 뜻).
-// - 개발 모드: l3.authoring.devMode(범위 managed·user) + 저장소 경로. 켜기 전에 저장소의 시험 도구를 확인한다(authoring §6, §10 6번).
+// - 개발 모드: l3.authoring.devMode(범위 managed·user) + 저장소 경로. 켜기 전에 저장소의 테스트 도구를 확인한다(authoring §6, §10 6번).
 import {
   Alert,
   Button,
@@ -157,7 +157,7 @@ export function NewTrialSheet({
       size="sm"
       open={step !== "closed"}
       onOpenChange={(o: boolean) => (!o && !busy ? onClose() : undefined)}
-      title="새 시험"
+      title="새 테스트"
       closeLabel="닫기"
       footer={footer}
     >
@@ -170,7 +170,7 @@ export function NewTrialSheet({
             size="sm"
             value={kind}
             onValueChange={(v) => onKind(v as NewKind)}
-            aria-label="시험 종류"
+            aria-label="테스트 종류"
             className="gap-0"
           >
             <KindRow
@@ -183,14 +183,14 @@ export function NewTrialSheet({
             <KindRow
               value="replay"
               title={T.replay}
-              hint="기록한 대화를 커밋 지점마다 끊어 다시 돌려요"
+              hint="기록한 대화를 커밋 시점마다 끊어 다시 돌려요"
               locked={!dev}
               selected={kind === "replay"}
             />
             <KindRow
               value="bench"
-              title={T.bench}
-              hint="확장 디스패치와 진행권 교대 시간을 재요"
+              title={T.benchmark}
+              hint="확장 디스패치와 주도 교대 시간을 재요"
               locked={!dev}
               selected={kind === "bench"}
             />
@@ -275,7 +275,7 @@ export function NewTrialSheet({
             <Field label="작업 폴더">
               <Input
                 size="xs"
-                defaultValue="~/code/xeon"
+                defaultValue="~/code/fresnel"
                 className="font-mono"
                 containerClassName={W}
               />
@@ -284,7 +284,7 @@ export function NewTrialSheet({
               <Textarea
                 size="sm"
                 rows={3}
-                defaultValue="무효화 시험이 계속 실패해. 원인 후보를 렌즈 5개로 넓게 봐줘."
+                defaultValue="무효화 테스트가 계속 실패해. 원인 후보를 렌즈 5개로 넓게 봐줘."
               />
             </Field>
           </>
@@ -329,7 +329,7 @@ export function NewTrialSheet({
 const CHECKS = [
   "scripts/bench-server.ts",
   "scripts/core-diff-check.ts",
-  "packages/group-kit/src/testing/replay",
+  "packages/group-sdk/src/testing/replay",
 ];
 
 export function DevModeDialog({
@@ -354,7 +354,7 @@ export function DevModeDialog({
       onOpenChange={(o: boolean) => (!o && !checking ? onClose() : undefined)}
       icon={<Terminal />}
       title={`${T.devMode} 켜기`}
-      description={`저장소의 시험 도구로 ${T.replay}, ${T.bench}, ${josa(T.coreDiff, "을", "를")} 돌려요. 모델 토큰은 쓰지 않아요.`}
+      description={`저장소의 테스트 도구로 ${T.replay}, ${T.benchmark}, ${josa(T.coreDiff, "을", "를")} 돌려요. 모델 토큰은 쓰지 않아요.`}
       footer={
         <>
           <DialogClose asChild>
@@ -378,8 +378,8 @@ export function DevModeDialog({
         <Field
           label={T.repoPath}
           {...(bad
-            ? { error: "이 폴더에 시험 도구가 없어요 · scripts/core-diff-check.ts 없음" }
-            : { hint: "xeon 저장소를 내려받은 폴더예요" })}
+            ? { error: "이 폴더에 테스트 도구가 없어요 · scripts/core-diff-check.ts 없음" }
+            : { hint: "fresnel 저장소를 내려받은 폴더예요" })}
         >
           <div className="flex items-center gap-1.5">
             <Input

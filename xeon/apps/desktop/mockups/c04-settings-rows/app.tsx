@@ -187,7 +187,7 @@ export function App({ state }: { state: StateId }) {
           saved={s.saved === "projectFrames"}
           disabled={!s.frames}
           {...(s.projectFramesError
-            ? { error: "관리 정책이 이 값을 막았어요 · 3102 · /etc/xeon/managed.json" }
+            ? { error: "관리 정책이 이 값을 막았어요 · 3102 · /etc/fresnel/managed.json" }
             : { hint: `저장소에 든 확장은 기본으로 막아요. 사용자·관리 범위에서만 켤 수 있어요.` })}
         >
           <span className="inline-flex items-center gap-2">
@@ -325,7 +325,7 @@ export function App({ state }: { state: StateId }) {
             hint={
               web
                 ? `원격 컴퓨터 build-box의 ${josa(T.devMode, "을", "를")} 따라요. 바꾸려면 그 컴퓨터의 설정에서 바꿔요.`
-                : `${T.replay}, ${T.bench}, ${josa(T.coreDiff, "을", "를")} ${T.repoPath}의 시험 도구로 돌려요.`
+                : `${T.replay}, ${T.benchmark}, ${josa(T.coreDiff, "을", "를")} ${T.repoPath}의 테스트 도구로 돌려요.`
             }
           >
             <Switch
@@ -345,7 +345,7 @@ export function App({ state }: { state: StateId }) {
             <div className="flex max-w-[28rem] items-center gap-1.5">
               <Input
                 size="xs"
-                defaultValue="~/code/xeon"
+                defaultValue="~/code/fresnel"
                 disabled={!devOn || web}
                 className="font-mono"
                 containerClassName="min-w-0 flex-1"
@@ -370,7 +370,7 @@ export function App({ state }: { state: StateId }) {
                 emphasis="muted"
                 className="size-icon-sm text-text-tertiary"
               />
-              시험 도구 3개를 찾았어요 · 상태 표시줄에 "{T.devMode}" 칸이 보여요
+              테스트 도구 3개를 찾았어요 · 상태 표시줄에 "{T.devMode}" 칸이 보여요
             </p>
           )}
         </SettingSection>

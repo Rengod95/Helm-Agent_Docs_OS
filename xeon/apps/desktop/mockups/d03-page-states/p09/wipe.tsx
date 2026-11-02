@@ -1,4 +1,4 @@
-// d03(묶음 D): O-06 데이터 지우기 변형(계획에 없음 6). 지우는 것과 남는 것을 ListDescription 한 목록으로, 고를 것 둘(비밀 값,
+// d03(묶음 D): O-06 데이터 지우기 변형(계획에 없음 6). 지우는 것과 남는 것을 ListDescription 한 목록으로, 고를 것 둘(시크릿 값,
 // 사용자 확장), 확인 글 입력. 진행 중 턴·예약이 있으면 지우지 않고 이유만 보인다. 기본 초점은 "취소"(§6.20).
 // 지운 뒤 앱은 다시 시작해 첫 실행(P-01)으로 간다.
 import {
@@ -126,7 +126,7 @@ export function WipeDialog({
                 checked={secrets}
                 onCheckedChange={(c) => setSecrets(c === true)}
               />
-              비밀 값도 지우기(OS 키체인 6개)
+              시크릿 값도 지우기(OS 키체인 6개)
             </label>
             <label className="flex items-center gap-2 text-ui-sm text-text-primary">
               <Checkbox size="sm" checked={exts} onCheckedChange={(c) => setExts(c === true)} />
@@ -139,7 +139,7 @@ export function WipeDialog({
           </label>
           {secrets && (
             <Alert tone="warning" size="sm">
-              비밀 값을 지우면 다시 넣기 전까지 모델과 도구가 키를 못 써요.
+              시크릿 값을 지우면 다시 넣기 전까지 모델과 도구가 키를 못 써요.
             </Alert>
           )}
         </div>

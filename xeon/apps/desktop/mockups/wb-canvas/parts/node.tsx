@@ -1,5 +1,5 @@
 // 캔버스 블록(확장 노드). 면은 늘 neutral이고 tone은 오른쪽 위 작은 아이콘 면에만 준다(DP-29, DP-46).
-// 아래 가장자리에 연결 포트: 왼쪽 무리 = 받는 능력(requires 꽉 찬 점, optional 빈 점), 오른쪽 셋 = on · post · drive.
+// 아래 가장자리에 연결 포트: 왼쪽 무리 = 받는 기능(requires 꽉 찬 점, optional 빈 점), 오른쪽 셋 = on · post · drive.
 // caustic 빈틈 [gap:C-35 제안]: 노드 그래프 노드(`GraphNode`: 제목, 메타, 상태 면, 타입 포트)가 없다. TokenGraphNode는
 // 좌우 포트 하나씩에 토큰 경로 전용이라 타입 포트 여럿과 세로 흐름을 그리지 못한다.
 import type { ReactNode } from "react";
@@ -50,7 +50,7 @@ export interface NodeProps {
   /** 안전 모드·빈 상태에서 빠진 블록(윤곽만). */
   absent?: boolean;
   live?: boolean;
-  /** 보유 중일 때 둘째 줄(임대 사용량). */
+  /** 보유 중일 때 둘째 줄(주도 사용량). */
   holderLine?: string;
 }
 

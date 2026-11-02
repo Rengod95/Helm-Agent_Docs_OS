@@ -1,5 +1,5 @@
-// 런타임 지도 시안 A 고정 데이터. wb-canvas/data.ts(매니페스트 F.extensions §3.1, 지점 표 §3.4, 임대 X.primitives §4.4,
-// 그룹 상태 L3.group-kit §3.8)와 wb-compose/fixtures.ts(L3.helm §3.x, §4.2 전이표)에서 옮겨 세계 좌표로 다시 놓았다.
+// 런타임 지도 시안 A 고정 데이터. wb-canvas/data.ts(매니페스트 F.extensions §3.1, 훅 표 §3.4, 주도 X.primitives §4.4,
+// 그룹 상태 L3.group-sdk §3.8)와 wb-compose/fixtures.ts(L3.helm §3.x, §4.2 전이표)에서 옮겨 세계 좌표로 다시 놓았다.
 // 세계 좌표: 줌 1 = px. 지도 세 단계(개요·층·상세)와 구성기 화면이 각자 세계 크기를 가진다.
 
 export type Layer = "L3" | "plugin" | "L2" | "X" | "L1" | "L0" | "F";
@@ -159,7 +159,7 @@ export const EXTS: Ext[] = [
     w: 112,
     h: 80,
   },
-  // L2 서비스(능력)
+  // L2 서비스(기능)
   {
     id: "web",
     label: "웹",
@@ -240,7 +240,7 @@ export const BASE_CHIPS: { id: string; label: string; layer: "L1" | "L0" }[] = [
   { id: "secrets", label: "secrets", layer: "L0" },
 ];
 
-// ── 루프와 소켓(확장 지점). 지점 46개 = 7종. 핸들러가 걸린 지점만 소켓을 그리고, 나머지는 종류 칸 안 수로 접는다.
+// ── 루프와 소켓(훅). 훅 46개 = 7종. 핸들러가 걸린 훅만 소켓을 그리고, 나머지는 종류 칸 안 수로 접는다.
 export interface Kind {
   kind: string;
   count: number;
@@ -317,13 +317,13 @@ export const SOCKETS: Socket[] = [
   },
 ];
 export const socketOf = (p: string) => SOCKETS.find((s) => s.point === p);
-/** 루프 위 역(station): post 큐와 drive 임대 자리. */
+/** 루프 위 역(station): post 큐와 주도 자리. */
 export const STATIONS = {
   post: { x: 680, w: 56 },
   drive: { x: 778, w: 92 },
 };
 
-// ── 맥락(왼쪽 패널 맥락 칸 하나가 모든 작업대 화면을 정한다, 사용자 결정 3)
+// ── 맥락(왼쪽 패널 맥락 칸 하나가 모든 크래프트 화면을 정한다, 사용자 결정 3)
 export type CtxKind = "all" | "thread" | "profile" | "trial";
 export const CONTEXTS: { value: string; kind: CtxKind; label: string }[] = [
   { value: "all", kind: "all", label: "전체" },
@@ -421,7 +421,7 @@ export const BINDINGS: Record<
   ],
 };
 
-/** 행렬 열: 지점(종류별). quiet = 이 맥락에서 아무도 걸지 않은 지점(접힌 열). */
+/** 행렬 열: 훅(종류별). quiet = 이 맥락에서 아무도 걸지 않은 훅(접힌 열). */
 export const MATRIX_COLS: {
   kind: string;
   points: { point: string; short: string; fold: Fold; failure: string }[];
@@ -517,7 +517,7 @@ export const HELM_PARTS: Part[] = [
     title: "상태 복원",
     op: "on",
     slot: "복원",
-    line: "세션 시작에 HelmState 읽기",
+    line: "대화 시작에 HelmState 읽기",
     points: ["session.start"],
   },
   {
@@ -588,7 +588,7 @@ export const LENSES = [
   },
 ];
 export const TRIAL_LOG = [
-  { at: "14:02:01", label: "임대 받음", note: "턴 4 · spawn 8", done: true },
+  { at: "14:02:01", label: "주도 받음", note: "턴 4 · spawn 8", done: true },
   { at: "14:02:01", label: "commit diverge", note: "렌즈 3 고름", done: true },
   { at: "14:02:19", label: "모델 턴", note: "턴 1/4", done: true },
   { at: "14:02:20", label: "commit explore", note: "렌즈 시작", done: true },
@@ -607,7 +607,7 @@ export const PROFILE_FLOORS: {
 }[] = [
   {
     layer: "L3",
-    title: "의도 그룹",
+    title: "플러그인 그룹",
     hue: "l3",
     items: [
       { id: "helm", label: "Helm", now: "켜짐", pick: "on", note: "maxLenses 4" },

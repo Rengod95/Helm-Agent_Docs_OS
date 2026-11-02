@@ -5,7 +5,7 @@ import { L } from "./i18n";
 import { T } from "./terms";
 
 export type ThreadStatus = "running" | "idle" | "failed" | "locked" | "resumable";
-/** 시험 대화 상태(§6.30, W-34, W-48). pausing = 다음 단계 사이에서 멈추려고 기다리는 중. */
+/** 테스트 대화 상태(§6.30, W-34, W-48). pausing = 다음 단계 사이에서 멈추려고 기다리는 중. */
 export type TrialState = "running" | "pausing" | "paused" | "done";
 export interface Thread {
   id: string;
@@ -14,7 +14,7 @@ export interface Thread {
   status: ThreadStatus;
   approvals: number;
   current?: boolean;
-  /** 시험 대화면 상태·적용 프로필 id·대상 확장. 목록에서는 폴더 안 "시험" 묶음으로 접힌다(§4.9.3, 계획에 없음 4). */
+  /** 테스트 대화면 상태·적용 프로필 id·대상 확장. 목록에서는 폴더 안 "테스트" 묶음으로 접힌다(§4.9.3, 계획에 없음 4). */
   trial?: { state: TrialState; profile: string; target: string };
 }
 
@@ -67,20 +67,26 @@ export type PaletteItem = string | { label: string; kbd?: string; hint?: string 
 export const threads: Thread[] = [
   {
     id: "t1",
-    folder: "~/code/xeon",
+    folder: "~/code/fresnel",
     title: "캐시 무효화 조사",
     status: "running",
     approvals: 1,
     current: true,
   },
-  { id: "t2", folder: "~/code/xeon", title: "테스트 정리", status: "idle", approvals: 1 },
-  { id: "t3", folder: "~/code/xeon", title: "빌드 실패 분석", status: "idle", approvals: 0 },
-  { id: "t4", folder: "~/code/xeon", title: "예약: 매일 정리", status: "failed", approvals: 0 },
-  // 제작 대화(batch A a03): 제작 확장으로 그룹을 만드는 대화.
-  { id: "ta", folder: "~/code/xeon", title: "아침 요약 그룹 만들기", status: "idle", approvals: 0 },
+  { id: "t2", folder: "~/code/fresnel", title: "테스트 정리", status: "idle", approvals: 1 },
+  { id: "t3", folder: "~/code/fresnel", title: "빌드 실패 분석", status: "idle", approvals: 0 },
+  { id: "t4", folder: "~/code/fresnel", title: "예약: 매일 정리", status: "failed", approvals: 0 },
+  // 제작 대화(batch A a03): 플러그인 빌더로 그룹을 만드는 대화.
+  {
+    id: "ta",
+    folder: "~/code/fresnel",
+    title: "아침 요약 그룹 만들기",
+    status: "idle",
+    approvals: 0,
+  },
   {
     id: "t8",
-    folder: "~/code/xeon",
+    folder: "~/code/fresnel",
     title: "렌즈 5개로 넓히기",
     status: "running",
     approvals: 0,
@@ -88,7 +94,7 @@ export const threads: Thread[] = [
   },
   {
     id: "t10",
-    folder: "~/code/xeon",
+    folder: "~/code/fresnel",
     title: "렌즈 3개와 비교",
     status: "idle",
     approvals: 0,
@@ -96,14 +102,14 @@ export const threads: Thread[] = [
   },
   {
     id: "t9",
-    folder: "~/code/xeon",
+    folder: "~/code/fresnel",
     title: "리뷰 다시 켜기 확인",
     status: "idle",
     approvals: 0,
     trial: { state: "done", profile: "review-trial", target: "review" },
   },
   { id: "t5", folder: "~/notes", title: "주간 회고", status: "idle", approvals: 0 },
-  { id: "t6", folder: "~/notes", title: "원격 세션 · build-box", status: "locked", approvals: 0 },
+  { id: "t6", folder: "~/notes", title: "원격 대화 · build-box", status: "locked", approvals: 0 },
   { id: "t7", folder: "~/notes", title: "", status: "resumable", approvals: 0 },
 ];
 export const nav: NavEntry[] = [
@@ -115,7 +121,7 @@ export const nav: NavEntry[] = [
 ];
 // 대화 영역 주 내비는 다섯이다: "연결"(P-08)은 대화 영역에 남는다(§4.2, §4.9.3, 결정 U-3). 연결 실패 때만 경고 점.
 
-/** 작업대 내비 여섯(§4.9.3, 결정 C-6: "만들기"는 "구성"에 합쳐 "새 그룹" 동작이 됨). badge는 글자 그대로: 확장 "!1"(자동 꺼짐·실패 확장 수), 시험 실행 "1*"(실행 중 수). */
+/** 크래프트 내비 여섯(§4.9.3, 결정 C-6: "만들기"는 "구성"에 합쳐 "새 그룹" 동작이 됨). badge는 글자 그대로: 확장 "!1"(자동 꺼짐·실패 확장 수), 테스트 실행 "1*"(실행 중 수). */
 export interface WorkbenchNavEntry {
   id: string;
   label: string;
@@ -160,7 +166,7 @@ export const approvals: { a1: ToolApproval; a2: QuestionApproval } = {
     at: "지금",
     command: "rm -rf .cache && bun test",
     secrets: [{ env: "GH_TOKEN", ref: "secret://github-token" }],
-    args: { command: "rm -rf .cache && bun test", cwd: "~/code/xeon", timeoutSeconds: 120 },
+    args: { command: "rm -rf .cache && bun test", cwd: "~/code/fresnel", timeoutSeconds: 120 },
     remember: ["once", "thread"],
   },
   a2: {
@@ -171,7 +177,7 @@ export const approvals: { a1: ToolApproval; a2: QuestionApproval } = {
       {
         id: "q1",
         header: "범위",
-        text: "어느 시험 묶음부터 볼까요?",
+        text: "어느 테스트 묶음부터 볼까요?",
         multiSelect: false,
         allowFreeText: true,
         options: [
@@ -193,7 +199,7 @@ export const inbox = {
   ] satisfies Notice[] as Notice[],
 };
 export const status = {
-  target: "사이드카",
+  target: "앱 안 엔진",
   engine: "실행 중",
   link: "연결됨",
   model: "sonnet-5-5",
@@ -221,9 +227,9 @@ export const palette: { group: string; items: PaletteItem[] }[] = [
     ],
   },
   {
-    group: "작업대",
+    group: "크래프트",
     items: [
-      { label: "작업대 개요" },
+      { label: "크래프트 개요" },
       { label: "확장", hint: "켜기·끄기, 자동 꺼짐" },
       { label: "Helm 탐구", hint: "helm/inquiry" },
     ],

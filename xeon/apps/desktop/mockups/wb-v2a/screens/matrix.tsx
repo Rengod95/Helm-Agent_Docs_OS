@@ -1,5 +1,5 @@
-// "표" 보기: 층 × 지점 행렬(누가 어느 소켓에 꽂혔나)과 그룹 구성 부품 목록. 행 = 훅을 거는 확장(층 색 등줄),
-// 열 = 지점(종류별 묶음, 아무도 안 건 종류는 좁은 빈 열로 접음). 칸 = 꽂힘. 보기 바꾸기: 연결 · 지연(p95/예산 열지도) · 실패.
+// "표" 보기: 층 × 훅 행렬(누가 어느 소켓에 꽂혔나)과 그룹 구성 부품 목록. 행 = 훅을 거는 확장(층 색 등줄),
+// 열 = 훅(종류별 묶음, 아무도 안 건 종류는 좁은 빈 열로 접음). 칸 = 꽂힘. 보기 바꾸기: 연결 · 지연(p95/예산 열지도) · 실패.
 import { SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { useState } from "react";
 import { Lock } from "../../_shell";
@@ -44,7 +44,7 @@ export function Matrix() {
         <section className="grid gap-2">
           <div className="flex items-center gap-3">
             <h2 className="m-0 text-ui-strong text-text-primary">누가 어느 소켓에 꽂혔나</h2>
-            <span className="text-ui-sm text-text-tertiary">훅 6 · 쓰는 지점 7/46</span>
+            <span className="text-ui-sm text-text-tertiary">훅 6 · 쓰는 훅 7/46</span>
             <SegmentedControl
               size="xs"
               aria-label="칸 보기"
@@ -59,7 +59,7 @@ export function Matrix() {
           </div>
           <div
             role="table"
-            aria-label="층 × 지점"
+            aria-label="층 × 훅"
             className="grid items-center gap-x-1 gap-y-1"
             style={{ gridTemplateColumns: grid }}
           >
@@ -78,7 +78,7 @@ export function Matrix() {
               </span>
             ))}
             <span />
-            {/* 지점 머리 + 꽂힌 수 막대 */}
+            {/* 훅 머리 + 꽂힌 수 막대 */}
             <span className="text-ui-xs text-text-tertiary"></span>
             {MATRIX_COLS.map((g) =>
               g.points.length === 0 ? (

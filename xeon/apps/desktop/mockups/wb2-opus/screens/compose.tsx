@@ -184,9 +184,9 @@ function ProfileEditor({ profile }: { profile: Profile }) {
             size="sm"
             variant="soft"
             iconStart={<FlaskConical />}
-            onClick={() => m.notify("시험 대화를 만들고 적용했어요")}
+            onClick={() => m.notify("테스트 대화를 만들고 적용했어요")}
           >
-            새 시험 대화로
+            새 테스트 대화로
           </Button>
           <Button size="sm" variant="ghost" onClick={() => m.notify("저장했어요")}>
             저장
@@ -271,11 +271,11 @@ function GroupTab() {
           <div className="grid gap-0.5">
             <dt className="text-ui-xs text-text-tertiary">템플릿</dt>
             <dd className="m-0 text-text-primary">
-              {drives ? "의도 그룹 · drive" : "의도 그룹 · 관찰"}
+              {drives ? "플러그인 그룹 · drive" : "플러그인 그룹 · 관찰"}
             </dd>
           </div>
           <div className="grid gap-0.5">
-            <dt className="text-ui-xs text-text-tertiary">필요한 능력</dt>
+            <dt className="text-ui-xs text-text-tertiary">필요한 기능</dt>
             <dd className="m-0 grid gap-0.5">
               {needs.length === 0 && <span className="text-text-tertiary">없음</span>}
               {needs.map((n) => (
@@ -296,7 +296,7 @@ function GroupTab() {
             </dd>
           </div>
           <div className="grid gap-0.5">
-            <dt className="text-ui-xs text-text-tertiary">연결 지점</dt>
+            <dt className="text-ui-xs text-text-tertiary">훅</dt>
             <dd className="m-0 text-text-secondary">
               input.agent.before · boundary.settle.after · tool.execution.after
             </dd>

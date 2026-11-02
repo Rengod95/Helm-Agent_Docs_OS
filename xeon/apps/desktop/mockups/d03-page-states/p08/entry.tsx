@@ -1,5 +1,5 @@
-// P-08 연결 목업 진입점(무대 전체 화면). 대상(이 컴퓨터 사이드카, 이 컴퓨터 서비스, 원격 SSH) 고르기와 지금 대상의 엔진 상태.
-// ?state=S1..S7(기본 S1 사이드카에 붙음), ?theme=dark.
+// P-08 연결 목업 진입점(무대 전체 화면). 대상(이 컴퓨터 앱 안 엔진, 이 컴퓨터 서비스, 원격 SSH) 고르기와 지금 대상의 엔진 상태.
+// ?state=S1..S7(기본 S1 앱 안 엔진에 붙음), ?theme=dark.
 import { ShellStateProvider } from "../../_shell";
 import {
   Alert,
@@ -46,7 +46,7 @@ const BASE: Record<string, Base> = {
 };
 const toBase = (s: S): Base => (BASE[s] ?? s) as Base;
 export const STATES = [
-  { id: "S1", label: "S1 사이드카에 붙음" },
+  { id: "S1", label: "S1 앱 안 엔진에 붙음" },
   { id: "S2", label: "S2 로컬 서비스" },
   { id: "S3", label: "S3 원격에 붙는 중" },
   { id: "S4", label: "S4 원격에 붙음" },
@@ -70,7 +70,7 @@ interface Target {
 const targets: Target[] = [
   {
     id: "sidecar",
-    name: "이 컴퓨터 · 사이드카",
+    name: "이 컴퓨터 · 앱 안 엔진",
     kind: "sidecar",
     address: "앱과 함께 켜지고 꺼져요",
   },
@@ -310,7 +310,7 @@ function Detail({ state: full }: { state: S }) {
             actions={[{ label: "다시 시도", primary: true }, { label: "진단 복사" }]}
           >
             SSH 터널을 열지 못했어요. build-box:22가 연결을 거부했어요 (tunnel_failed). 지금은 이
-            컴퓨터 사이드카에 그대로 붙어 있어요.
+            컴퓨터 앱 안 엔진에 그대로 붙어 있어요.
           </Alert>
         </Section>
       )}
@@ -337,7 +337,7 @@ function Detail({ state: full }: { state: S }) {
             {t.kind === "sidecar" ? "25분 전" : "3시간 전"}
           </ListDescriptionRow>
           <ListDescriptionRow term="연결된 클라이언트">
-            {service ? "2 (이 앱, xeon CLI)" : "1 (이 앱)"}
+            {service ? "2 (이 앱, 웹)" : "1 (이 앱)"}
           </ListDescriptionRow>
           <ListDescriptionRow term="진행 중 턴">{full === "D-idle" ? "0" : "1"}</ListDescriptionRow>
           <ListDescriptionRow term="유휴 종료">
@@ -468,7 +468,7 @@ function TargetSummary({ web }: { web: boolean }) {
   return (
     <ListDescription variant="ghost" size="xs" aria-label="대상 요약" className={rowsClass}>
       <ListDescriptionRow term="대상">
-        {web ? "build-box · 서비스" : "이 컴퓨터 · 사이드카"}
+        {web ? "build-box · 서비스" : "이 컴퓨터 · 앱 안 엔진"}
       </ListDescriptionRow>
       <ListDescriptionRow term="엔진">실행 중 · 25분</ListDescriptionRow>
       <ListDescriptionRow term="클라이언트">
@@ -506,8 +506,8 @@ function Page({ state: full }: { state: S }) {
       : {}),
   });
   const targetText =
-    { sidecar: "사이드카", service: "서비스", "build-box": "원격 · build-box" }[CURRENT[state]] ??
-    "사이드카";
+    { sidecar: "앱 안 엔진", service: "서비스", "build-box": "원격 · build-box" }[CURRENT[state]] ??
+    "앱 안 엔진";
   const web = full === "D-web";
   status.start = status.start.map((c): StatusCell =>
     c.id === "target"

@@ -58,7 +58,7 @@ export function LayerCell({ children }: { children: ReactNode }) {
   return <span className="font-mono text-mono-sm text-text-tertiary">{children}</span>;
 }
 
-/** 작업대 화면 안 구역 제목(h2). 굵기·글자색 단계로만 묶는다(DP-03). */
+/** 크래프트 화면 안 구역 제목(h2). 굵기·글자색 단계로만 묶는다(DP-03). */
 export function SectionTitle({ children, end }: { children: ReactNode; end?: ReactNode }) {
   return (
     <div className="flex min-h-7 min-w-0 items-center gap-2">

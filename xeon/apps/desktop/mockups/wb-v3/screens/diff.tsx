@@ -1,5 +1,5 @@
-// 프리셋 ↔ 대화 차이: 층마다 같은 줄에 "이 대화 지금"과 "프리셋"의 스위치를 맞춰 두고, 가운데에 + − ~ 표지와 이유.
-// 다른 줄만 진하게, 같은 줄은 접어서 수만 보인다. L1(비용 라우터)·X(끝나면 알림)도 프리셋이 켜고 끈다는 점이 보이게 했다.
+// 프로필 ↔ 대화 차이: 층마다 같은 줄에 "이 대화 지금"과 "프로필"의 스위치를 맞춰 두고, 가운데에 + − ~ 표지와 이유.
+// 다른 줄만 진하게, 같은 줄은 접어서 수만 보인다. L1(비용 라우터)·X(끝나면 알림)도 프로필이 켜고 끈다는 점이 보이게 했다.
 import { Button } from "@caustic/react";
 import { Eye, SlidersHorizontal } from "../../_shell";
 import { WorkbenchHead } from "../../_shell";
@@ -38,7 +38,7 @@ export function DiffScreen() {
       <WorkbenchHead
         className="w-full px-3"
         title="차이"
-        meta={`대화 ${t.label} ↔ 프리셋 ${p.label}`}
+        meta={`대화 ${t.label} ↔ 프로필 ${p.label}`}
         sub={
           <>
             <span className="flex items-center gap-1 [&_svg]:size-3.5">
@@ -78,7 +78,7 @@ export function DiffScreen() {
           <div className="pb-1 text-center text-ui-xs text-text-tertiary">바뀌는 것</div>
           <div className="flex items-center gap-1.5 rounded-md bg-accent-soft px-2 pb-1 pt-1 text-ui-xs text-accent-text [&_svg]:size-3.5">
             <SlidersHorizontal />
-            프리셋 · {p.label} · 적용하면
+            프로필 · {p.label} · 적용하면
           </div>
           {layers.map((l) => {
             const rows = toggleable.filter((x) => x.layer === l);
@@ -91,7 +91,7 @@ export function DiffScreen() {
                 <span className="text-ui-sm text-text-primary">{L.name}</span>
                 <span className="text-ui-xs text-text-tertiary">
                   {changed.length > 0 ? `바뀜 ${changed.length}` : "바뀜 없음"} · 같음 {same}
-                  {l === "L0" ? " · 어댑터는 시작할 때 정해져 프리셋 밖이에요" : ""}
+                  {l === "L0" ? " · 어댑터는 시작할 때 정해져 프로필 밖이에요" : ""}
                 </span>
               </div>,
               ...(l === "L0"
@@ -157,10 +157,10 @@ export function DiffScreen() {
           >
             <span className="text-ui-sm text-text-primary">적용하면</span>
             <span>켜짐 3 · 꺼짐 1 · 설정 1</span>
-            <span>진행권은 Helm 그대로</span>
+            <span>주도는 Helm 그대로</span>
             <span>계획 먼저는 진행 차례에서 빠져요</span>
             <span className="text-text-tertiary">
-              이번 단계가 끝나면 적용 · 되돌리려면 "이 대화 지금"을 프리셋으로 저장
+              이번 단계가 끝나면 적용 · 되돌리려면 "이 대화 지금"을 프로필로 저장
             </span>
           </div>
         </div>

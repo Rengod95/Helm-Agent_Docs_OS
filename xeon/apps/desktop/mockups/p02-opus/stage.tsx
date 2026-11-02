@@ -59,7 +59,7 @@ function StageHead() {
       )}
       <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
         <h1 className="m-0 truncate font-ui text-ui-strong text-text-primary">{m.currentTitle}</h1>
-        <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
+        <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/fresnel</span>
         {m.view === "thread" && (
           <button
             type="button"
@@ -229,9 +229,9 @@ function EmptyThread() {
           <SuggestionsItem
             icon={<FlaskConical />}
             hint="bun test로 확인"
-            onClick={() => m.send("실패하는 시험 찾기")}
+            onClick={() => m.send("실패하는 테스트 찾기")}
           >
-            실패하는 시험 찾기
+            실패하는 테스트 찾기
           </SuggestionsItem>
           <SuggestionsItem
             icon={<History />}

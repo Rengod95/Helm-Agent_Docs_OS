@@ -2,7 +2,7 @@
 
 - 빌드: `MOCKUP=p08-connection MOCKUP_OUT=<dir> mise exec -- bun run mockup:build`
 - 상태: `?state=S1`~`S7`(기본 S1), `?theme=dark`.
-  S1 사이드카에 붙음 · S2 로컬 서비스 · S3 원격에 붙는 중 · S4 원격(build-box)에 붙음 · S5 붙기 실패 · S6 원격 대상 추가(검사 오류) · S7 원격 대상 없음
+  S1 앱 안 엔진에 붙음 · S2 로컬 서비스 · S3 원격에 붙는 중 · S4 원격(build-box)에 붙음 · S5 붙기 실패 · S6 원격 대상 추가(검사 오류) · S7 원격 대상 없음
 
 ## 구성
 

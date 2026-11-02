@@ -1,6 +1,6 @@
 // 블록 구성기 고정 데이터. Helm 값은 L3.helm.spec(§3.1 매니페스트, §3.5 신호, §3.6 렌즈, §4.2 전이표, §4.6 쓰기 거부,
 // §3.8 지식 소비, §3.4 레코드, §6 설정)을 그대로 옮겼다. lens-review는 사용자가 Helm을 복제해 고치는 새 그룹(wb2 시안과 같은 이름).
-// 블록 = 그룹 안 코드 한 덩어리(지점 핸들러, drive, 레코드 쓰기)를 확장 지점과 연산(on·post·drive·scope)으로 묶은 설계 단위다.
+// 블록 = 그룹 안 코드 한 덩어리(훅 핸들러, drive, 레코드 쓰기)를 훅과 연산(on·post·drive·scope)으로 묶은 설계 단위다.
 // 런타임에는 블록이 없다: 매니페스트(points, optional, recordKinds)와 setup 코드로 풀린다(SPEC.md "런타임 표현 간극").
 import sampleImports from "./sample-imports.txt?raw";
 
@@ -24,7 +24,7 @@ export interface PointUse {
 }
 
 export interface CapPort {
-  /** 능력 id(L2 spec 이름) */
+  /** 기능 id(L2 spec 이름) */
   cap: string;
   mode: "optional" | "requires";
   /** 이 맥락에서 provider. null이면 없음 */
@@ -62,7 +62,7 @@ export const SLOT_LABEL: Record<SlotKind, string> = {
   lens: "주입·렌즈",
   drive: "단계 머신(drive)",
   guard: "가드",
-  consume: "능력 소비",
+  consume: "기능 소비",
   record: "기록",
   restore: "상태 복원",
 };
@@ -174,7 +174,7 @@ export const helmBlocks: Block[] = [
   },
 ];
 
-/** 왼쪽 열: 이 맥락(캐시 무효화 조사)에서 능력을 주는 확장 */
+/** 왼쪽 열: 이 맥락(캐시 무효화 조사)에서 기능을 주는 확장 */
 export interface Provider {
   id: string;
   name: string;
@@ -280,7 +280,7 @@ export const invalidBlocks: Block[] = [
     issue: {
       level: "error",
       code: "on_capability_call",
-      text: "on 핸들러에서는 능력을 부르지 않아요. first 지점이라 예외는 거부가 돼요",
+      text: "on 핸들러에서는 기능을 부르지 않아요. first 훅이라 예외는 거부가 돼요",
     },
   },
   {
@@ -318,21 +318,21 @@ export const palette = {
     {
       slot: "signal" as SlotKind,
       title: "신호 감지",
-      hint: "tap 지점에서 세고 경계에서 커밋",
+      hint: "tap 훅에서 세고 경계에서 커밋",
       op: "on",
     },
     { slot: "lens" as SlotKind, title: "주입·렌즈", hint: "input.agent.before collect", op: "on" },
     {
       slot: "drive" as SlotKind,
       title: "단계 머신",
-      hint: "임대를 받아 턴·자식을 구동",
+      hint: "주도를 받아 턴·자식을 구동",
       op: "drive",
     },
-    { slot: "guard" as SlotKind, title: "가드", hint: "first 지점에서 막기", op: "on" },
+    { slot: "guard" as SlotKind, title: "가드", hint: "first 훅에서 막기", op: "on" },
     {
       slot: "consume" as SlotKind,
-      title: "능력 소비",
-      hint: "drive 안에서 L2 능력 읽기",
+      title: "기능 소비",
+      hint: "drive 안에서 L2 기능 읽기",
       op: "drive",
     },
     { slot: "record" as SlotKind, title: "기록", hint: "grp.<그룹>.* 공개 기록", op: "record" },
@@ -343,10 +343,10 @@ export const palette = {
     { id: "turn", title: "모델 턴", hint: "loop.turn · 턴 상한 1 소모" },
     { id: "spawn", title: "자식 펼치기", hint: "loop.spawn 여러 개 병렬" },
     { id: "join", title: "모으기", hint: "모두 끝나면 다음으로" },
-    { id: "read", title: "능력 읽기", hint: "모델 턴 없이 L2 읽기" },
+    { id: "read", title: "기능 읽기", hint: "모델 턴 없이 L2 읽기" },
     { id: "gate", title: "사람 확인", hint: "받은 요청으로 묻고 기다림" },
     { id: "record", title: "기록·post", hint: "record · post" },
-    { id: "end", title: "끝", hint: "idle로 · 임대 반납" },
+    { id: "end", title: "끝", hint: "idle로 · 주도 반납" },
   ],
 };
 
@@ -376,7 +376,7 @@ export const lenses: Lens[] = [
   { id: "analogy", title: "다른 분야 유사", status: "failed", tool: "web_fetch 시간 초과" },
 ];
 
-/** 시험 실행 타임라인: 단계 경계마다 커밋(§4.5) */
+/** 테스트 실행 타임라인: 단계 경계마다 커밋(§4.5) */
 export const trialSteps = [
   { at: "14:02:01", label: "lease.acquired", note: "턴 4 · spawn 8 · 토큰 400k", done: true },
   { at: "14:02:01", label: "commit diverge", note: "렌즈 3 고름", done: true },
@@ -423,7 +423,7 @@ export const stackBands: { layer: string; title: string; items: StackItem[] }[] 
   },
   {
     layer: "L3",
-    title: "의도 그룹",
+    title: "플러그인 그룹",
     items: [
       {
         name: "helm",
@@ -470,7 +470,7 @@ export const stackBands: { layer: string; title: string; items: StackItem[] }[] 
   },
   {
     layer: "L2",
-    title: "능력",
+    title: "기능",
     items: [
       {
         name: "web-exa",
@@ -522,7 +522,7 @@ export const chainOrder = [
   { tier: "builtin", items: [] as string[] },
 ];
 
-// ── 코드 보기: drive 템플릿 10개 파일(group-kit/templates/index.json) ────────────
+// ── 코드 보기: drive 템플릿 10개 파일(group-sdk/templates/index.json) ────────────
 
 export const scaffoldFiles = [
   {

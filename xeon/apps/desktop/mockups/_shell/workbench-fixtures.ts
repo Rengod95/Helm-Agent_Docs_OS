@@ -1,5 +1,5 @@
-// 작업대 공용 고정 데이터. 스펙 §14.5를 값 그대로 옮기고 타입만 덧붙였다(두 작업대 시안이 같이 쓴다).
-// 셸 부품(작업대 오른쪽 "기록"·"대화" 탭, 상태 표시줄 runtime 칸)도 여기서 읽는다.
+// 크래프트 공용 고정 데이터. 스펙 §14.5를 값 그대로 옮기고 타입만 덧붙였다(두 크래프트 시안이 같이 쓴다).
+// 셸 부품(크래프트 오른쪽 "기록"·"대화" 탭, 상태 표시줄 runtime 칸)도 여기서 읽는다.
 
 export type Layer = "L0" | "L1" | "L2" | "L3" | "plugin" | "X";
 export type ExtKind = "group" | "plugin" | "core" | "hook";
@@ -184,7 +184,7 @@ export interface SwitchEntry {
   reason: "request" | "handler_failed" | "auto_disable" | "release" | "toggle";
 }
 export const switches: SwitchEntry[] = [
-  { at: "14:02", turn: 7, text: "helm이 drive 임대를 받았어요", reason: "request" },
+  { at: "14:02", turn: 7, text: "helm이 주도를 받았어요", reason: "request" },
   {
     at: "14:03",
     turn: 7,
@@ -318,7 +318,7 @@ export const profiles = [
   },
   {
     id: "review-trial",
-    title: "review 시험",
+    title: "review 테스트",
     enable: ["review", "web-exa"],
     settings: [] as { key: string; value: number }[],
     driveGroup: "review" as string | null,
@@ -326,14 +326,14 @@ export const profiles = [
 ];
 
 export const templates = [
-  { id: "drive", label: "의도 그룹 · drive", hint: "턴을 구동하는 그룹", files: 10 },
-  { id: "policy", label: "의도 그룹 · 정책", hint: "first 지점으로 막는 그룹", files: 8 },
-  { id: "observe", label: "의도 그룹 · 관찰", hint: "기록만 남기는 그룹", files: 9 },
-  { id: "provider", label: "플러그인 · L2 능력", hint: "준비 중", disabled: true },
+  { id: "drive", label: "플러그인 그룹 · drive", hint: "턴을 구동하는 그룹", files: 10 },
+  { id: "policy", label: "플러그인 그룹 · 정책", hint: "first 훅으로 막는 그룹", files: 8 },
+  { id: "observe", label: "플러그인 그룹 · 관찰", hint: "기록만 남기는 그룹", files: 9 },
+  { id: "provider", label: "플러그인 · L2 기능", hint: "준비 중", disabled: true },
   { id: "hook", label: "X 훅", hint: "준비 중", disabled: true },
 ];
 
-/** 작업대 오른쪽 "기록" 탭: 맥락 대화의 런타임 이벤트(§4.9.4). 시안이 덧붙인 값이다(§14.5에 없음). */
+/** 크래프트 오른쪽 "기록" 탭: 맥락 대화의 런타임 이벤트(§4.9.4). 시안이 덧붙인 값이다(§14.5에 없음). */
 export interface RuntimeEvent {
   at: string;
   kind: string;
@@ -373,10 +373,10 @@ export const runtimeEvents: RuntimeEvent[] = [
   },
 ];
 
-/** 작업대 오른쪽 "대화" 탭: 맥락 대화의 트랜스크립트 끝 부분(읽기 전용). */
+/** 크래프트 오른쪽 "대화" 탭: 맥락 대화의 트랜스크립트 끝 부분(읽기 전용). */
 export const threadTail: { who: "user" | "agent" | "runtime"; text: string }[] = [
-  { who: "user", text: "무효화 시험이 계속 실패해. 원인 찾아줘" },
-  { who: "agent", text: "먼저 실패하는 시험을 돌려 볼게요." },
-  { who: "runtime", text: "helm이 drive 임대를 받았어요 · 턴 7" },
+  { who: "user", text: "무효화 테스트가 계속 실패해. 원인 찾아줘" },
+  { who: "agent", text: "먼저 실패하는 테스트를 돌려 볼게요." },
+  { who: "runtime", text: "helm이 주도를 받았어요 · 턴 7" },
   { who: "agent", text: "Helm 탐구를 시작했어요. 렌즈 3개로 원인을 넓게 볼게요." },
 ];

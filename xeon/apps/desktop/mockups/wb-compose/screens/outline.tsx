@@ -1,4 +1,4 @@
-// 좁은 폭(720px 이하): 캔버스 대신 개요 편집기. 그룹은 caustic LayerTree(블록 → 지점·능력·출력), 끌어 옮기면 쌓는 순서가
+// 좁은 폭(720px 이하): 캔버스 대신 개요 편집기. 그룹은 caustic LayerTree(블록 → 훅·기능·출력), 끌어 옮기면 쌓는 순서가
 // 바뀐다. 흐름은 단계 목록(전이 조건을 들여 씀). 같은 데이터, 같은 검사 결과를 글줄로 보인다.
 import { LayerTree, LayerTreeItem, type LayerTreeAnnouncement } from "@caustic/react";
 import { ArrowRight, CircleAlert, CircleDot, FileText, Plug } from "../../_shell";
@@ -101,7 +101,7 @@ const STEPS: { id: string; title: string; meta: string; next: string[] }[] = [
   {
     id: "converge",
     title: "converge",
-    meta: "턴 0 · 읽기 능력",
+    meta: "턴 0 · 읽기 기능",
     next: ["converged(발견 ≥ 1) → apply", "발견 0 → 끝"],
   },
   { id: "apply", title: "apply", meta: "턴 1", next: ["applied → 끝"] },

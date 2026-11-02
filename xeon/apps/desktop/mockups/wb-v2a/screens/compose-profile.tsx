@@ -143,7 +143,7 @@ export function ComposeProfile() {
                 </div>
               ))}
               <div className="mt-1 grid gap-0.5 text-ui-xs text-text-secondary">
-                <span>drive 그대로 helm · 설정 1 · 쓰는 지점 7 → 6</span>
+                <span>drive 그대로 helm · 설정 1 · 쓰는 훅 7 → 6</span>
                 <span className="flex items-center gap-1 text-text-tertiary [&_svg]:size-3">
                   <Diamond /> 다음 단계 경계에 적용돼요
                 </span>
@@ -153,7 +153,7 @@ export function ComposeProfile() {
                   이 대화에 적용
                 </Button>
                 <Button size="xs" variant="soft">
-                  시험 대화로
+                  테스트 대화로
                 </Button>
                 <Button size="xs" variant="ghost">
                   저장

@@ -1,15 +1,15 @@
-// 시험 대화 상태 기계(목업 전용). spec §6.30, §6.26, 결정 캔버스 9(멈춤은 다음 단계 사이에서 실제로 멈추고 진행권을 쥔 채 둠),
-// W-48(멈춤·이어서·한 단계씩), X-19, 계획에 없음 4(시험 대화 정리).
+// 테스트 대화 상태 기계(목업 전용). spec §6.30, §6.26, 결정 캔버스 9(멈춤은 다음 단계 사이에서 실제로 멈추고 주도를 쥔 채 둠),
+// W-48(멈춤·이어서·한 단계씩), X-19, 계획에 없음 4(테스트 대화 정리).
 import { EXT, T, josa } from "../_shell";
 import type { After } from "../_chat-rt";
 
 export type TrialPhase =
-  | "draft" // 시험 대화를 만들었고 아직 보내지 않음
+  | "draft" // 테스트 대화를 만들었고 아직 보내지 않음
   | "running"
   | "pausing" // 멈춤을 눌렀고 이번 단계가 끝나길 기다림
-  | "paused" // 단계 사이에서 멈춤, 진행권 유지
+  | "paused" // 단계 사이에서 멈춤, 주도 유지
   | "stepping" // 한 단계만 진행 중
-  | "disabled" // 대상이 자동 꺼져 시험이 멈춤
+  | "disabled" // 대상이 자동 꺼져 테스트가 멈춤
   | "finished"
   | "cleared";
 
@@ -51,7 +51,7 @@ export type A =
 export const TOTAL = 6;
 export const PROMPT = "렌즈 5개로 캐시 무효화 원인을 넓게 봐줘";
 
-/** 단계마다 트랜스크립트에 붙는 것(시험 대상 helm, 프로필 "탐구 중심"). */
+/** 단계마다 트랜스크립트에 붙는 것(테스트 대상 helm, 프로필 "탐구 중심"). */
 const STEP_ITEMS: Item[][] = [
   [
     {
@@ -295,7 +295,7 @@ export const SCRIPTS: Record<string, readonly A[]> = {
     { t: "queue", text: "기본 원리 렌즈는 빼도 돼" },
     { t: "resume" },
   ],
-  // 실패 갈래: 시험 중 대상이 자동 꺼짐 → 시험 멈춤, 실패 기록 → 다시 켜고 이어서
+  // 실패 갈래: 테스트 중 대상이 자동 꺼짐 → 테스트 멈춤, 실패 기록 → 다시 켜고 이어서
   "trial-autodisable": [
     { t: "send", text: PROMPT },
     tick,

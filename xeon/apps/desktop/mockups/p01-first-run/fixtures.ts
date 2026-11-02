@@ -1,5 +1,5 @@
 // P-01 고정 데이터. 외부 도구는 platform-os binaryRequirements("darwin")의 행을 binaryViewOf 모양으로 옮겼다(문구는 해요체로).
-// 그룹은 L3 의도 그룹(내장 Helm, 학습). 웹 권장은 WebRecommendation 모양.
+// 그룹은 L3 플러그인 그룹(내장 Helm, 학습). 웹 권장은 WebRecommendation 모양.
 import type { NavEntry, PaletteGroup } from "../_shell";
 
 export interface ToolRow {
@@ -13,8 +13,8 @@ export interface ToolRow {
 
 export const toolsReady: ToolRow[] = [
   { name: "rg", need: "필수", ok: true, note: "14.1.1", usedBy: "샌드박스, 파일 검색" },
-  { name: "sops", need: "필수", ok: true, note: "3.10.2", usedBy: "비밀 저장" },
-  { name: "age", need: "필수", ok: true, note: "1.2.1", usedBy: "비밀 키 생성" },
+  { name: "sops", need: "필수", ok: true, note: "3.10.2", usedBy: "시크릿 저장" },
+  { name: "age", need: "필수", ok: true, note: "1.2.1", usedBy: "시크릿 키 생성" },
   { name: "security", need: "필수", ok: true, note: "사용 가능", usedBy: "Keychain 키 보관" },
   {
     name: "git",
@@ -33,8 +33,14 @@ export const toolsMissing: ToolRow[] = [
     note: "brew install ripgrep",
     usedBy: "샌드박스, 파일 검색",
   },
-  { name: "sops", need: "필수", ok: false, note: "3.9.1 (3.10.0 이상 필요)", usedBy: "비밀 저장" },
-  { name: "age", need: "필수", ok: true, note: "1.2.1", usedBy: "비밀 키 생성" },
+  {
+    name: "sops",
+    need: "필수",
+    ok: false,
+    note: "3.9.1 (3.10.0 이상 필요)",
+    usedBy: "시크릿 저장",
+  },
+  { name: "age", need: "필수", ok: true, note: "1.2.1", usedBy: "시크릿 키 생성" },
   { name: "security", need: "필수", ok: true, note: "사용 가능", usedBy: "Keychain 키 보관" },
   { name: "git", need: "선택", ok: true, note: "2.47.1", usedBy: "작업 공간 git 기능" },
 ];
@@ -64,7 +70,7 @@ export const groups: Group[] = [
   {
     id: "grp.helm",
     name: "Helm",
-    what: "운전 임대를 받아 하위 에이전트와 렌즈를 나란히 돌리고 결과를 적용해요",
+    what: "운전 주도를 받아 하위 에이전트와 렌즈를 나란히 돌리고 결과를 적용해요",
     hooks: "drive · scope · post",
   },
   {
@@ -88,7 +94,7 @@ export const recommendations: Recommendation[] = [
     label: "Brave",
     plugin: "plugin:web-brave",
     state: "not-installed",
-    hint: "xeon plugin add web-brave",
+    hint: "fresnel plugin add web-brave",
   },
 ];
 
@@ -134,5 +140,5 @@ export const firstRunPalette: PaletteGroup[] = [
       { label: "SearXNG 주소", hint: "l2.web.search.searxng.url" },
     ],
   },
-  { group: "화면", items: [{ label: "진단과 정보" }, { label: "도구와 웹" }, { label: "비밀" }] },
+  { group: "화면", items: [{ label: "진단과 정보" }, { label: "도구와 웹" }, { label: "시크릿" }] },
 ];

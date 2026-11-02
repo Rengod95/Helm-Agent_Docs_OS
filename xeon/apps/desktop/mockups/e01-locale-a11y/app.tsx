@@ -1,6 +1,6 @@
 // e01 화면 언어와 접근성(N-49 영어 UI 스모크, N-50 접근성 상태). 묶음 E.
 // - ?lang=en이면 셸 전체(T, 셸 문구)가 영어로 바뀐다(_shell/i18n.ts). 이 페이지의 문장은 L2(ko, en)로 둘 다 준다.
-// - 대화(P-02), 작업대 확장 목록(P-13), 상태 표시줄 Popover, 설정 외관 탭을 같은 상태 기계로 그린다.
+// - 대화(P-02), 크래프트 확장 목록(P-13), 상태 표시줄 Popover, 설정 외관 탭을 같은 상태 기계로 그린다.
 // - 접근성: 초점 정류장 덧그림, 승인 카드 Y·N, aria-live 자막, 움직임 줄이기, 강제 색(고대비) 흉내, 200% 확대.
 import { Button, toast } from "@caustic/react";
 import { useEffect, useMemo, useState } from "react";
@@ -60,10 +60,10 @@ interface Look {
 
 export const STATES = [
   { id: "chat", label: "대화(영어는 ?lang=en)" },
-  { id: "wb-ext", label: "작업대 확장 목록" },
+  { id: "wb-ext", label: "크래프트 확장 목록" },
   { id: "status-pop", label: "상태 표시줄 Popover" },
   { id: "settings", label: "설정 외관(언어·접근성)" },
-  { id: "focus-order", label: "초점 순서 덧그림(작업대)" },
+  { id: "focus-order", label: "초점 순서 덧그림(크래프트)" },
   { id: "focus-order-chat", label: "초점 순서 덧그림(대화)" },
   { id: "focus-approval", label: "승인 카드 초점(Y·N)" },
   { id: "live-captions", label: "aria-live 문장 자막" },
@@ -249,7 +249,7 @@ export function App({ state }: { state: StateId }) {
         after.push({
           k: "agent",
           text: L2(
-            "캐시를 지우고 시험을 다시 돌렸어요. 12개 모두 통과해요.",
+            "캐시를 지우고 테스트를 다시 돌렸어요. 12개 모두 통과해요.",
             "Cleared the cache and ran the tests again. All 12 pass.",
           ),
           live: !s.answered && !s.reduced,

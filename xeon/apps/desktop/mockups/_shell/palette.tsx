@@ -17,7 +17,7 @@ const GROUP_ICON: Record<string, React.ReactNode> = {
   // DP-32: 명령 묶음은 키 글리프(⌘) 대신 실행 아이콘.
   명령: <Play />,
   "슬래시 명령": <SlashSquare />,
-  작업대: <LayoutGrid />,
+  크래프트: <LayoutGrid />,
   설정: <Settings />,
   그룹: <Layers />,
   화면: <LayoutGrid />,

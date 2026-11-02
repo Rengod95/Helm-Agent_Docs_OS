@@ -206,7 +206,7 @@ export function FramesSettingDialog({
               {projectTrust === "allow" ? (
                 <span>
                   허용함{" "}
-                  <span className="font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
+                  <span className="font-mono text-mono-sm text-text-tertiary">~/code/fresnel</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-2">

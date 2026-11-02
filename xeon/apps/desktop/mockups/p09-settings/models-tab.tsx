@@ -55,7 +55,7 @@ export function ModelsTab({ state }: { state: State }) {
               </Badge>
             ) : undefined
           }
-          warning={draft ? "터미널(xeon CLI)이 claude-opus-5-5로 바꿨어요." : undefined}
+          warning={draft ? "다른 창이 claude-opus-5-5로 바꿨어요." : undefined}
           error={err ? "저장하지 못했어요. 엔진이 잠시 바빠요." : undefined}
           extra={
             draft ? (
@@ -148,7 +148,7 @@ export function ModelsTab({ state }: { state: State }) {
           label="모델 역할"
           k="l1.models.roles"
           scope="managed"
-          extra={<LockNote path="/etc/xeon/managed.json" />}
+          extra={<LockNote path="/etc/fresnel/managed.json" />}
         >
           <ListDescription
             variant="ghost"

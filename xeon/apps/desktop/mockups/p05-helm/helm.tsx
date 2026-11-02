@@ -1,5 +1,5 @@
 // P-05 탐구(Helm). 오른쪽 well 탭 내용(HelmPanel)과 전체 화면 보기(HelmPage, S12).
-// 런타임 관점(브리프 "Framing correction"): 맨 위에 이 대화의 L3 그룹과 drive 임대 보유자를 늘 보이고,
+// 런타임 관점(브리프 "Framing correction"): 맨 위에 이 대화의 L3 그룹과 주도 보유자를 늘 보이고,
 // Helm의 자식 에이전트(렌즈)는 caustic ActivityTree 나무(렌즈 = step, 자식의 도구 호출 = call)로 그린다.
 import {
   ActivityTree,
@@ -72,7 +72,7 @@ export function Section({
   );
 }
 
-// ── 그룹과 drive 임대 ─────────────────────────────────────────────
+// ── 그룹과 주도 ─────────────────────────────────────────────
 
 function LeaseBadge({ lease }: { lease: ActiveGroup["lease"] }) {
   if (lease === "held")
@@ -90,7 +90,7 @@ function LeaseBadge({ lease }: { lease: ActiveGroup["lease"] }) {
   return null;
 }
 
-/** 이 대화에 걸린 L3 그룹. 줄마다 이름, 거는 훅, 지금 상태, drive 임대. */
+/** 이 대화에 걸린 L3 그룹. 줄마다 이름, 거는 훅, 지금 상태, 주도. */
 export function GroupsSection({
   helmLease = "held",
   helmState,
@@ -157,10 +157,10 @@ function Budget({ turn, spawn, tokens }: { turn: string; spawn: string; tokens: 
     <ListDescription
       variant="ghost"
       size="xs"
-      aria-label="임대와 상한"
+      aria-label="주도와 상한"
       className="rounded-none [--cs-size-list-term:6rem] [&_[data-slot=list-description-row]]:px-0"
     >
-      <ListDescriptionRow term="drive 임대">helm 보유 · 턴 경계에서 돌려줘요</ListDescriptionRow>
+      <ListDescriptionRow term="주도">helm 보유 · 턴 경계에서 돌려줘요</ListDescriptionRow>
       <ListDescriptionRow term="턴">
         <span className="tabular-nums">{turn}</span>
       </ListDescriptionRow>
@@ -384,7 +384,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
             />
             <PhaseStepper at={5} />
             <p className="m-0 text-ui-sm font-normal text-text-secondary">
-              ttl을 저장할 때 밀리초로 바꾸고 경계 시각 시험을 더했어요. drive는 review로
+              ttl을 저장할 때 밀리초로 바꾸고 경계 시각 테스트를 더했어요. drive는 review로
               넘어갔어요.
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -397,11 +397,11 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
             <ul className="m-0 grid list-none gap-1 p-0 text-ui-sm">
               <li className="flex gap-2">
                 <span className="tabular-nums text-text-tertiary">#12</span>
-                <span className="text-text-primary">TTL 경계 시각 시험 추가</span>
+                <span className="text-text-primary">TTL 경계 시각 테스트 추가</span>
               </li>
               <li className="flex gap-2">
                 <span className="tabular-nums text-text-tertiary">#13</span>
-                <span className="text-text-primary">시험 시계를 가짜 시계로 바꾸기</span>
+                <span className="text-text-primary">테스트 시계를 가짜 시계로 바꾸기</span>
               </li>
             </ul>
           </Section>
@@ -459,11 +459,11 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
     case "S5":
       return (
         <div className="grid gap-5">
-          <GroupsSection helmLease="waiting" helmState="임대 대기" reviewLease="held" />
+          <GroupsSection helmLease="waiting" helmState="주도 대기" reviewLease="held" />
           <div className="grid gap-3">
             <InquiryHead meta="대기열 1번째" onFull={onFull} />
             <p className="m-0 text-ui-sm font-normal text-text-secondary">
-              drive 임대를 review가 쥐고 있어요. review가 단계 경계에서 놓으면 바로 시작해요.
+              주도를 review가 쥐고 있어요. review가 단계 경계에서 놓으면 바로 시작해요.
             </p>
             <div>
               <Button size="xs" tone="neutral" variant="soft">
@@ -531,7 +531,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
                 learning
               </span>
               <span className="flex-1 text-text-tertiary">
-                세션 관찰 중<span className="font-mono text-mono-sm"> · post</span>
+                대화 관찰 중<span className="font-mono text-mono-sm"> · post</span>
               </span>
             </div>
           </Section>

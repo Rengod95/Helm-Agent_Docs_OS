@@ -109,7 +109,7 @@ export function Inspector() {
       )}
       {e.consumes !== undefined && (
         <section className="grid gap-1">
-          <h3 className="m-0 text-ui-xs text-text-tertiary">쓰는 능력 {e.consumes.length}</h3>
+          <h3 className="m-0 text-ui-xs text-text-tertiary">쓰는 기능 {e.consumes.length}</h3>
           <ListDescription variant="ghost" size="xs">
             {e.consumes.map((c) => (
               <ListDescriptionRow key={c.cap} term={c.cap} mono>

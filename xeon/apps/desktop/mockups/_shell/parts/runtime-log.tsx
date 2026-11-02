@@ -1,4 +1,4 @@
-// 작업대 오른쪽 "기록" 탭(§4.9.4): 맥락 대화의 런타임 이벤트(scope.changed, scope.handler_failed, lease.*) 실시간 목록.
+// 크래프트 오른쪽 "기록" 탭(§4.9.4): 맥락 대화의 런타임 이벤트(scope.changed, scope.handler_failed, lease.*) 실시간 목록.
 // 행: 시각(mono, tabular) · kind · 출처(DP-33 tertiary) / 요약. 실패·꺼짐만 tone 아이콘 면(DP-29), 나머지는 muted 아이콘.
 // 선 없이 간격으로 묶는다(DP-03). well 안이라 카드를 더하지 않는다(DP-20).
 import { CircleAlert, CircleDot, TriangleAlert } from "../icons";

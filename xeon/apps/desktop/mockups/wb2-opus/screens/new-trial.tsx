@@ -1,4 +1,4 @@
-// O-12 새 시험(Sheet side="right", §6.31). 종류 → 대상 → 종류별 옵션. 비용이 드는 시험(bench --first-token, 시험 대화)은
+// O-12 새 테스트(Sheet side="right", §6.31). 종류 → 대상 → 종류별 옵션. 비용이 드는 테스트(bench --first-token, 테스트 대화)은
 // 시작 버튼 위에 확인 문장을 둔다(CLI 종료 코드 3과 같은 뜻). wire는 ext.test.run [gap:W-29] — 목업은 알림만.
 import {
   Button,
@@ -32,7 +32,7 @@ export function NewTrialSheet() {
       size="sm"
       open={m.newTrialOpen}
       onOpenChange={(o: boolean) => m.set({ newTrialOpen: o })}
-      title="새 시험"
+      title="새 테스트"
       closeLabel="닫기"
       footer={
         <>
@@ -48,7 +48,7 @@ export function NewTrialSheet() {
             variant="solid"
             onClick={() => {
               close();
-              m.notify(kind === "trial" ? "시험 대화를 만들었어요" : "시험을 시작했어요");
+              m.notify(kind === "trial" ? "테스트 대화를 만들었어요" : "테스트를 시작했어요");
             }}
           >
             {costly ? "토큰 쓰고 시작" : "시작"}
@@ -62,10 +62,10 @@ export function NewTrialSheet() {
             size="sm"
             value={kind}
             onValueChange={(v) => setKind(v as Kind)}
-            aria-label="시험 종류"
+            aria-label="테스트 종류"
           >
             <SegmentedControlItem value="replay">replay</SegmentedControlItem>
-            <SegmentedControlItem value="trial">시험 대화</SegmentedControlItem>
+            <SegmentedControlItem value="trial">테스트 대화</SegmentedControlItem>
             <SegmentedControlItem value="bench">bench</SegmentedControlItem>
             <SegmentedControlItem value="diff">코어 변경</SegmentedControlItem>
           </SegmentedControl>
@@ -113,7 +113,7 @@ export function NewTrialSheet() {
             <Field label="작업 폴더">
               <Input
                 size="xs"
-                defaultValue="~/code/xeon"
+                defaultValue="~/code/fresnel"
                 className="font-mono"
                 containerClassName="w-[min(20rem,100%)]"
               />
@@ -122,7 +122,7 @@ export function NewTrialSheet() {
               <Textarea
                 size="sm"
                 rows={3}
-                defaultValue="무효화 시험이 계속 실패해. 원인 후보를 렌즈 5개로 찾아줘."
+                defaultValue="무효화 테스트가 계속 실패해. 원인 후보를 렌즈 5개로 찾아줘."
               />
             </Field>
           </>
@@ -132,7 +132,7 @@ export function NewTrialSheet() {
           <>
             <Field label="묶음">
               <Select size="xs" defaultValue="server" className="w-[min(20rem,100%)]">
-                <SelectOption value="server">서버(확장 디스패치, 임대 비용)</SelectOption>
+                <SelectOption value="server">서버(확장 디스패치, 주도 비용)</SelectOption>
               </Select>
             </Field>
             <NumberField

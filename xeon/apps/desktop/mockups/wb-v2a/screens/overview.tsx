@@ -1,4 +1,4 @@
-// 지도 1단계 "개요": 큰 개념 다섯과 수. 가운데 에이전트 루프(고리) 위에 소켓 7종, 맨 위에 drive 자리. 위에서 꽂는 묶음(의도 그룹,
+// 지도 1단계 "개요": 큰 개념 다섯과 수. 가운데 에이전트 루프(고리) 위에 소켓 7종, 맨 위에 drive 자리. 위에서 꽂는 묶음(플러그인 그룹,
 // 외부 plugin), 옆에서 대 주는 서비스, 무엇을 켤지 정하는 맥락, 아래 기반. 굵고 연한 띠(리본)가 관계 하나와 그 수를 말한다.
 import type { ReactNode } from "react";
 import { Diamond, Layers, LayoutGrid, Package, Play, Plug } from "../../_shell";
@@ -170,7 +170,7 @@ export function Overview({ spot }: { spot?: "loop" | null }) {
           lx={668}
           ly={170}
         />
-        <Ribbon d="M142 282 L142 134" hue="l2" label="능력 9" lx={142} ly={212} />
+        <Ribbon d="M142 282 L142 134" hue="l2" label="기능 9" lx={142} ly={212} />
         <Ribbon d="M634 356 C 610 356, 590 342, 566 340" hue="accent" dashed />
         <Ribbon d={`M450 ${RING.cy + RING.r + 12} L450 492`} hue="base" />
         {/* 고리 */}
@@ -268,7 +268,7 @@ export function Overview({ spot }: { spot?: "loop" | null }) {
           에이전트 루프
         </span>
         <span className="max-w-[9.5rem] text-ui-xs text-text-secondary">
-          한 턴이 지점 46개를 차례로 지나요
+          한 턴이 훅 46개를 차례로 지나요
         </span>
         <span className="mt-1 inline-flex items-center gap-1 text-micro text-text-tertiary [&_svg]:size-2.5">
           <Diamond /> 단계 경계에서 바뀐 게 적용돼요
@@ -283,7 +283,7 @@ export function Overview({ spot }: { spot?: "loop" | null }) {
         hue="l3"
         icon={<Layers />}
         layer="L3"
-        title="의도 그룹"
+        title="플러그인 그룹"
         count={4}
         desc="루프에 꽂혀 대화의 방향을 정하는 부품 묶음"
         onOpen={open}
@@ -327,7 +327,7 @@ export function Overview({ spot }: { spot?: "loop" | null }) {
         layer="L2"
         title="서비스"
         count={5}
-        desc="그룹이 불러 쓰는 능력을 내줘요"
+        desc="그룹이 불러 쓰는 기능을 내줘요"
         onOpen={open}
         dim={dimOthers}
       >
@@ -345,7 +345,7 @@ export function Overview({ spot }: { spot?: "loop" | null }) {
         layer="맥락"
         title="맥락"
         count={5}
-        desc="어느 블록을 켤지는 대화·프로필·시험마다 달라요"
+        desc="어느 블록을 켤지는 대화·프로필·테스트마다 달라요"
         onOpen={open}
         dim={dimOthers}
       >
@@ -356,7 +356,7 @@ export function Overview({ spot }: { spot?: "loop" | null }) {
           프로필 2
         </span>
         <span className="inline-flex h-6 items-center gap-1 rounded-md border-[1.5px] border-dashed border-[var(--hull-trial)] px-2 text-ui-xs text-text-secondary">
-          시험 1
+          테스트 1
         </span>
       </Tile>
       <Tile
@@ -379,7 +379,7 @@ export function Overview({ spot }: { spot?: "loop" | null }) {
       >
         <span className="font-mono text-mono-micro">F</span>
         <span className="text-text-secondary">계약</span>
-        모든 층이 지키는 약속 · 매니페스트 · 지점 표 · 연산 4
+        모든 층이 지키는 약속 · 매니페스트 · 훅 표 · 연산 4
       </div>
     </div>
   );

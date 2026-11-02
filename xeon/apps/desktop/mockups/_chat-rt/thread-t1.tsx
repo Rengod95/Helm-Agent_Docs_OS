@@ -7,8 +7,8 @@ import { baseGroups, type RuntimeData } from "./runtime-panel";
 export const T1_TITLE = "캐시 무효화 조사";
 
 export const t1Base: ChatItem[] = [
-  { k: "user", text: "무효화 시험이 계속 실패해. 원인 찾아줘" },
-  { k: "agent", text: "먼저 실패하는 시험을 돌려 볼게요." },
+  { k: "user", text: "무효화 테스트가 계속 실패해. 원인 찾아줘" },
+  { k: "agent", text: "먼저 실패하는 테스트를 돌려 볼게요." },
   {
     k: "tool",
     name: "bash",

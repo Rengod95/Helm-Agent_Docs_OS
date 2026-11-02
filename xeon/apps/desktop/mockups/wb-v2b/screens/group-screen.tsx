@@ -1,5 +1,5 @@
 // 그룹 하위 캔버스: 그룹 블록을 열면 그 부품(composition, 결정 7)이 자기 캔버스에 펼쳐진다.
-// 왼쪽 "그룹 입력"(능력) → 부품(signal·lens·guard·restore | drive·knowledge·record) → 오른쪽 "그룹 출력"(지점·post·drive·기록).
+// 왼쪽 "그룹 입력"(기능) → 부품(signal·lens·guard·restore | drive·knowledge·record) → 오른쪽 "그룹 출력"(훅·post·drive·기록).
 // 런타임에서 열면 읽기 전용, 구성(결정 2·6)에서 열면 편집: 놓기 미리보기(S5), 잘못된 연결(S6).
 import { Button, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import type { ReactNode } from "react";
@@ -38,7 +38,7 @@ export function groupNodes(composer: boolean, edit: string | null): NodeSpec[] {
       y: 40,
       w: 156,
       title: "그룹 입력",
-      tag: "능력",
+      tag: "기능",
       icon: <Layers />,
       rows: [
         {
@@ -196,7 +196,7 @@ export function groupNodes(composer: boolean, edit: string | null): NodeSpec[] {
         { id: "tea", side: "in", type: "on", label: "tool.execution.after", fold: "tap" },
         { id: "bsa", side: "in", type: "on", label: "boundary.settle.after", fold: "tap" },
         { id: "post", side: "in", type: "post", label: "post 큐" },
-        { id: "drv", side: "in", type: "drive", label: "drive 임대" },
+        { id: "drv", side: "in", type: "drive", label: "주도" },
         { id: "llr", side: "in", type: "on", label: "lifecycle.lease.rejected", fold: "tap" },
         { id: "iab", side: "in", type: "on", label: "input.agent.before", fold: "collect" },
         { id: "tcb", side: "in", type: "on", label: "tool.call.before", fold: "first" },
@@ -362,7 +362,7 @@ export function GroupScreen() {
       >
         <span className="text-ui-sm text-danger-text">이을 수 없어요</span>
         <span className="text-[11.5px] text-text-primary">
-          신호 감지는 on 핸들러라 능력을 부르지 않아요.
+          신호 감지는 on 핸들러라 기능을 부르지 않아요.
         </span>
         <span className="font-mono text-[10px] text-text-tertiary">
           on_capability_call · ADR-0015
@@ -437,7 +437,7 @@ export function GroupScreen() {
                   m.set({ screen: "flow", trial: true, composer: false, ctx: "x-helm5" })
                 }
               >
-                시험
+                테스트
               </Button>
               <Button
                 size="sm"

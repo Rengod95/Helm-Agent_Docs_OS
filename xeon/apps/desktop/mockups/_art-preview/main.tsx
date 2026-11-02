@@ -12,7 +12,7 @@ const HERO_LABELS: Record<string, string> = {
   request: "요청",
   tool: "도구",
   boundary: "단계 경계",
-  session: "세션·수명",
+  session: "대화·수명",
 };
 
 function Labeled({ name, width }: { name: ArtName; width: number }) {
@@ -53,13 +53,13 @@ function Card({ name, width, caption }: { name: ArtName; width: number; caption:
 
 const SPOTS: [ArtName, string][] = [
   ["spot-plugin", "플러그인"],
-  ["spot-intent-group", "의도 그룹"],
+  ["spot-intent-group", "플러그인 그룹"],
   ["spot-context", "맥락"],
   ["spot-profile", "프로필"],
-  ["spot-trial", "시험 실행"],
+  ["spot-trial", "테스트 실행"],
   ["spot-replay", "살펴보기·재생"],
-  ["spot-hook", "확장 지점"],
-  ["spot-capability", "능력"],
+  ["spot-hook", "훅"],
+  ["spot-capability", "기능"],
 ];
 const EMPTIES: [ArtName, string][] = [
   ["empty-no-plugins", "플러그인 없음"],
