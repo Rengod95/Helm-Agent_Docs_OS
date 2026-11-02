@@ -75,7 +75,7 @@ if [[ ${#filters[@]} -gt 0 ]]; then
   if [[ -n "$ran" ]]; then
     echo "test-capped: ran packages, slowest first:" >&2
     sed -nE 's/^([^ ]+):test: test-pkg: ran ([0-9]+)s, .*/\2 \1/p' "$log" | sort -rn |
-      awk -v ran="$ran" 'BEGIN { n = split(ran, names, "\n"); for (i = 1; i <= n; i++) seen[names[i]] = 1 } seen[$2] && ++shown <= 12 { print "  " $1 "s " $2 }' >&2
+      RAN="$ran" awk 'BEGIN { n = split(ENVIRON["RAN"], names, "\n"); for (i = 1; i <= n; i++) seen[names[i]] = 1 } seen[$2] && ++shown <= 12 { print "  " $1 "s " $2 }' >&2
   fi
   while read -r count; do skipped=$((skipped + count)); done < <(sed -nE 's/^[^ ]+:test: test-pkg: ran [0-9]+s, ([0-9]+) skipped$/\1/p' "$log")
   if [[ "$status" -ne 0 ]]; then
