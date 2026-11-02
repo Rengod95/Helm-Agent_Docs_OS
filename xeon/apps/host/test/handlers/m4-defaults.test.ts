@@ -53,14 +53,23 @@ test("m4-defaults: the 43 M4 methods all have a handler and notImplemented match
 });
 
 test("m4-defaults: a defaulted M4 method answers -32601 with its name", async () => {
-  const host = createFakeHost();
+  const slot: { table: WireHandlers | undefined } = { table: undefined };
+  const host = createFakeHost({
+    override: (table) => {
+      slot.table = table;
+      return table;
+    },
+  });
   const { connection } = host.connect();
   await connection.request("host.hello", HELLO_PARAMS);
-  const failure = await connection.request("hooks.list", {}).then(
-    () => undefined,
-    (error: unknown) => error,
-  );
-  expect(failure).toMatchObject({ code: -32601, data: { details: { method: "hooks.list" } } });
+  const table = slot.table;
+  if (table === undefined) throw new Error("the handler table was not captured");
+  // 소유 트랙이 처리기를 채우는 대로 기본 처리기는 줄어든다. 남은 것 하나로 본다(모두 채워졌으면 볼 것이 없다)
+  const method = m4Methods().find((name) => isNotImplemented(table[name]));
+  if (method !== undefined) {
+    const failure = await failureOf(connection.request(method, {}));
+    expect(failure).toMatchObject({ code: -32601, data: { details: { method } } });
+  }
   await connection.close();
 });
 
