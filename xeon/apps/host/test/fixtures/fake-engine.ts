@@ -15,6 +15,8 @@ import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
+import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
+import { createExtReadPort } from "../../src/assembly/m4/ext-read-port.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
 import { createProcessShutdown } from "@fresnel/platform-process";
 import { createManualScheduler, type ManualScheduler } from "./manual-scheduler.ts";
@@ -55,6 +57,18 @@ interface FakeLog {
     readonly fields: Readonly<Record<string, unknown>>;
   }[];
 }
+
+const emptyTraceRead: TraceReadPort = {
+  enabled: () => false,
+  turn: () => undefined,
+  timings: () => ({ traceEnabled: false, timings: [] }),
+};
+const emptyTestRunControl: TestRunControlPort = {
+  pause: () => err({ kind: "not_available" }),
+  resume: () => err({ kind: "not_available" }),
+  step: () => err({ kind: "not_available" }),
+  phase: () => err({ kind: "not_available" }),
+};
 
 export interface FakeEngineOptions {
   readonly mode?: HostMode;
@@ -385,7 +399,16 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     clock: { now: () => RECORDED_AT },
     scheduler,
     // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다
-    m4: { extRead: {}, extUi: {}, profileTestRun: {}, dialogArea: {}, devkit: {} },
+    m4: {
+      extRead: createExtReadPort({
+        traceRead: emptyTraceRead,
+        testRunControl: emptyTestRunControl,
+      }),
+      extUi: {},
+      profileTestRun: {},
+      dialogArea: {},
+      devkit: {},
+    },
   };
 
   function position(): StreamPosition {
