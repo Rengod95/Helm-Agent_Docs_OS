@@ -226,6 +226,9 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
   };
 
+  /** Test run 대화(X-19). 만들 때 표지하고 다시 열 때도 확장 호스트에 넘긴다. 지우면 비운다 */
+  const testRunThreads = new Set<ThreadId>();
+
   const threads: ThreadPort = {
     async create(input) {
       // 작업 폴더는 정규 경로로 저장한다(HS-76). 상대 경로와 없는 폴더는 thread를 만들기 전에 거절한다
@@ -244,6 +247,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         ...(input.creationKey === undefined ? {} : { creationKey: input.creationKey }),
       });
       if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
+      if (input.testRun === true) testRunThreads.add(created.value.threadId);
       const head = session.feed.headSeq();
       if (!head.ok) throw wireErrorOfStore(head.error, "threads.create position");
       return { threadId: created.value.threadId, position: { storeId, seq: head.value } };
@@ -317,6 +321,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     async remove(threadId) {
       const removed = session.threads.remove(threadId);
       if (!removed.ok) return removed;
+      testRunThreads.delete(threadId);
       await dropHeldThread(threadId);
       return removed;
     },
@@ -539,7 +544,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       onLeaseLost(threadId);
     });
     try {
-      await ext.openThread(threadId);
+      await ext.openThread(threadId, testRunThreads.has(threadId) ? { testRun: true } : undefined);
     } catch (caught) {
       await abandonOpened(threadId, token, alive);
       // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다

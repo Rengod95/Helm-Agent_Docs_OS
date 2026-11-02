@@ -18,6 +18,7 @@ import { createLayeredTasksSettings, type TasksSettingsSource } from "@fresnel/c
 import type { ToolsSettingsSource } from "@fresnel/core-tools";
 import type { WorkspaceSettingsSource } from "@fresnel/cap-workspace";
 import {
+  DEFAULT_TRACE_SETTINGS,
   withDriveDefaults,
   type ExtHostDeps,
   type OperationsSettingsSource,
@@ -132,6 +133,11 @@ export function operationsSource(settings: SettingsEngine): OperationsSettingsSo
         failureRate: typeof rate === "number" ? rate : 0.5,
       };
     },
+    // 새 Turn이 처음 보일 때 읽는다(X.operations §4.8.3): 호출 때마다 현재 유효 값을 읽는다
+    trace: () => ({
+      enabled: boolOr(settings.value("x.operations.trace.enabled"), DEFAULT_TRACE_SETTINGS.enabled),
+      turnsPerThread: int("trace.turnsPerThread", DEFAULT_TRACE_SETTINGS.turnsPerThread),
+    }),
   };
 }
 

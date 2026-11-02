@@ -414,6 +414,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     setTimer,
     policy: operations,
     setupBudgetMs: () => operations.setupBudgetMs(),
+    // x.operations.trace.* 유효 값. 새 Turn이 처음 보일 때 읽는다(X.operations §4.8.3)
+    trace: () => operations.trace(),
     settings: primitivesSource(settings),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     report: (diagnostic) => {

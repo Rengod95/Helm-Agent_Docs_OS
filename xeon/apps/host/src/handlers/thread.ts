@@ -37,6 +37,7 @@ export function createThreadCreateHandler(
     const created = await ports.threads.create({
       ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
       ...(params.title === undefined ? {} : { title: params.title }),
+      ...(params.testRun === true ? { testRun: true } : {}),
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
     if (params.testRun === true) {
