@@ -21,3 +21,8 @@ html:root {
   --cs-studio-toolbar-item-radius: calc(10px * var(--cs-corner-scale, 1) + 2px);
   --cs-studio-toast-radius: calc(22px * var(--cs-corner-scale, 1) + 2px);
 }
+
+/* 시안 전용: 세그먼트 컨트롤의 바깥 틀과 안쪽 버튼 사이 여백을 2px로 줄인다. 나중에 caustic 값을 바꾼다. */
+html:root [data-slot="segmented-control"] {
+  padding: 2px;
+}
