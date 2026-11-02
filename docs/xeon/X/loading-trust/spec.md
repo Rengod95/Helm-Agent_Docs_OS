@@ -4,7 +4,7 @@ layer: X
 domain: loading-trust
 kind: spec
 status: draft
-depends_on: [F.extensions.spec, F.wire-settings.spec, F.capabilities.spec, X.primitives.spec, X.operations.spec, adr.0002, adr.0006, adr.0007, architecture.layers.spec, eng.transactions.design, eng.dependency-rules.guide, eng.context-map.design]
+depends_on: [F.extensions.spec, F.wire-settings.spec, F.capabilities.spec, X.primitives.spec, X.operations.spec, adr.0002, adr.0006, adr.0007, adr.0021, architecture.layers.spec, eng.transactions.design, eng.dependency-rules.guide, eng.context-map.design]
 binds: [xeon/packages/ext-host/src/loading-trust/**]
 ---
 
@@ -34,6 +34,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
 - SDK 가상 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
 - `thread.trust.before`, `thread.resources` 훅의 발화 시점(F.extensions.spec §7)
+- Plugin UI 기여(매니페스트 `ui`)의 파일과 정책 검사, Plugin App 파일 풀이, `x.ui.*` 키(§4.3.4, §3.10)
 
 다루지 않는 것:
 
@@ -190,8 +191,13 @@ export type LoadState =
   | "rejected" | "disabled" | "error";
 
 export type LoadStage =
-  | "discover" | "manifest" | "set" | "trust" | "settings" | "capabilities" | "admit"
+  | "discover" | "manifest" | "set" | "trust" | "settings" | "ui" | "capabilities" | "admit"
   | "entry" | "usage" | "activate" | "isolation";
+
+/** Plugin UI 검사가 내는 코드(§4.3.4). 매니페스트 모양 오류는 `manifest_invalid`(F의 `ui_*` 코드)로 남는다 */
+export type UiDiagnosticCode =
+  | "ui_file_missing" | "ui_invalid" | "ui_limit" | "ui_path_invalid" | "ui_mode_not_allowed"
+  | "widgets_unsupported" | "bridge_unsupported";
 
 export type LoadDiagnosticCode =
   | "manifest_missing" | "manifest_parse" | "manifest_invalid"
@@ -204,7 +210,8 @@ export type LoadDiagnosticCode =
   | "usage_invalid" | "usage_warning" | "plugin_not_registered"
   | "essential_failed" | "disabled_by_setting" | "safe_mode" | "disabled_flag"
   | "isolation_unavailable" | "isolation_point_unsupported" | "isolation_drive_unsupported"
-  | "isolation_exited" | "isolation_restart_limit" | "isolation_protocol";
+  | "isolation_exited" | "isolation_restart_limit" | "isolation_protocol"
+  | UiDiagnosticCode;
 
 export const LoadDiagnosticSchema = Type.Object({
   extension: Type.Union([Type.String(), Type.Null()]),
@@ -272,6 +279,8 @@ export interface LoadOptions {
    * "on_demand"는 판정도 적재도 하지 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 loadProject를 부른다(§4.7.8)
    */
   readonly projects?: "cwd" | "on_demand";
+  /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 켬, 프로젝트 앱 끔이다. `loadProject`도 이 값을 쓴다 */
+  readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   readonly signal: AbortSignal;
 }
 
@@ -340,6 +349,10 @@ export interface ExtensionLoader {
   ensureLoaded(name: ExtensionName, signal: AbortSignal): Promise<LoadedExtensionInfo>;
   list(): readonly LoadedExtensionInfo[];
   diagnostics(): readonly LoadDiagnostic[];
+  /**
+   * 화면 기여 항목의 검사 결과(§4.3.4). 로드 순서, 선언 순서다. `ext.ui.list`가 쓴다. 확장이 목록에서 빠지면 그 확장의 항목도 빠진다
+   */
+  uiEntries(): readonly UiEntryReport[];
   /** 개발용. M2 이후(§4.4.4) */
   reload(name: ExtensionName, signal: AbortSignal): Promise<LoadedExtensionInfo>;
   /** 제거 1단계. 아무것도 바꾸지 않고 지울 테이블 목록만 돌려준다(§4.4.5). M2 */
@@ -647,6 +660,87 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 
 - [미결] `PluginInstallFs`의 정본 위치. 쓰기 포트는 F.extensions.spec §3.2.1 로더 포트에 있어야 한다. F 수정 요청.
 
+### 3.10 Plugin UI 검사 (`ui-check.ts`, `app-files.ts`, `ui-settings.ts`) [결정: 2026-10-31 사용자, ADR-0021]
+
+```ts
+import type { AppDecl, LoaderFs, Placement, UiDecl, UiMode, UiNode } from "@fresnel/contracts/extensions";
+import type { SettingDefInput, SettingGroup } from "@fresnel/contracts/settings";
+
+/** 호스트가 싣는 위젯 카탈로그 버전(ADR-0021 §3.4.1 초안). `ui.widgets` 범위가 이 값을 포함해야 native 화면을 그린다 */
+export const HOST_WIDGETS_VERSION: string;   // "1.0.0"
+/** 다리 API 버전. contracts의 `BRIDGE_VERSION`(정수 1)을 SemVer로 쓴다 */
+export const HOST_BRIDGE_VERSION: string;    // "1.0.0"
+/** 화면 JSON 파일 하나의 크기 상한 */
+export const UI_FILE_MAX_BYTES: number;      // 1048576
+
+export interface UiPolicy {
+  readonly apps: boolean;
+  readonly allowProjectApps: boolean;
+}
+export const DEFAULT_UI_POLICY: UiPolicy;    // { apps: true, allowProjectApps: false }
+
+export interface UiIssue {
+  readonly severity: "error" | "warning" | "info";
+  readonly code: UiDiagnosticCode;
+  /** `/ui/items/<i>/...`. 화면 트리 안의 위치는 `#` 뒤에 JSON Pointer로 붙인다 */
+  readonly path: string;
+  readonly message: string;
+}
+type UiItemState = "ok" | "invalid" | "disabled";
+export interface UiItemReport {
+  readonly id: string;
+  readonly placement: Placement;
+  /** 실제로 그릴 모드. 앱이 금지되어 `fallback`을 쓰면 `native` */
+  readonly mode: UiMode;
+  readonly title: string;
+  readonly state: UiItemState;
+  readonly tree?: UiNode;
+  readonly app?: AppDecl;
+  readonly issues: readonly UiIssue[];
+}
+/** `ExtensionLoader.uiEntries()`의 원소. 확장 이름을 덧붙인다 */
+export interface UiEntryReport extends UiItemReport {
+  readonly extension: ExtensionName;
+}
+
+export interface UiCheckInput {
+  readonly ui: UiDecl;
+  /** 확장 루트 절대 경로. 후보의 `root`와 같다 */
+  readonly root: string;
+  readonly fs: LoaderFs;
+  readonly source: InstallSource;
+  readonly policy: UiPolicy;
+  readonly hostWidgetsVersion: string;
+  readonly hostBridgeVersion: string;
+}
+export function checkUiDecl(input: UiCheckInput): Promise<readonly UiItemReport[]>;
+
+/** 거부 이유. 패키지 안에서만 쓴다(결과 타입에 들어간다) */
+type AppFileRejection = "outside_root" | "not_found" | "not_a_file" | "forbidden_type";
+export type AppFileResult =
+  | { readonly ok: true; readonly path: string; readonly contentType: string }
+  | { readonly ok: false; readonly reason: AppFileRejection };
+export interface ResolveAppFileInput {
+  /** 확장 루트 절대 경로 */
+  readonly extensionRoot: string;
+  readonly app: AppDecl;
+  /** app root 안의 URL 경로. 빈 문자열이면 `app.entry` */
+  readonly requestPath: string;
+  readonly fs: LoaderFs;
+}
+export function resolveAppFile(input: ResolveAppFileInput): Promise<AppFileResult>;
+
+/** `x.ui.apps`, `x.ui.allowProjectApps`(§6). `defineSettings("x.ui", …)` */
+export declare const uiSettings: SettingGroup<"x.ui", {
+  readonly apps: SettingDefInput;
+  readonly allowProjectApps: SettingDefInput;
+}>;
+```
+
+- `UiDiagnosticCode`는 §3.4에 있다. `UiDecl`, `UiContribution`, `AppDecl`, `UiNode`, `validateUi`, `validateUiTree`, `isEntryInsideRoot`, `UI_LIMITS`, `BRIDGE_VERSION`은 F.extensions.spec §3.1.1(`ui.ts`, `validate.ts`)이 정본이고 이 문서는 이름으로 인용한다.
+- `checkUiDecl`과 `resolveAppFile`은 `LoaderFs` 포트만 쓴다. 경로 포함 검사(`within`)와 종류 판정(`kindOf`, 부모 폴더 나열로 구한다)은 패키지 안 내부 함수다.
+- 앱 정책은 `LoadOptions.uiPolicy`로 로더에 들어온다. `uiSettings`의 값을 읽어 넘기는 일은 조립 루트(L4 host)가 한다(§8).
+
 ## 4. 동작 규칙
 
 ### 4.1 기본 로딩 방식
@@ -698,6 +792,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | 4 | 신뢰 판정 | 설치 위치, `trust.level`, 프로젝트 신뢰 → `TrustLevel` | `rejected` | `trust_exceeds_source`, `trust_denied`, `trust_undecided`, `trust_store_corrupt` |
 | 5 | 설정 연결 | `settingsFromManifest` + 예약 키 → 설정 그룹 | `rejected` | `settings_rejected`, `settings_reserved_key` |
 | 5a | 켜짐 확인 | `ext.<name>.enabled`, 필수 userConfig, `LoadOptions.startup`(`policy.startupFilter`, 2차) | `disabled` | `disabled_by_setting`, `config_required`, `safe_mode`, `disabled_flag` |
+| 5b | 화면 검사 | `checkUiDecl`(§4.3.4): 거부되지 않은 확장의 `ui`를 파일과 정책으로 본다 | 확장 상태는 그대로다. 항목만 `invalid`나 `disabled`가 된다 | `ui_file_missing`, `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported` |
 | 6 | 기능 요구 충족 | `requires` × 집합의 `provides`·코어 기능 | `error` | `capability_missing` |
 | 6a | tier 등록 | `policy.admit`(X.operations.spec §3.8) | `error` | `tier_rejected` |
 | 7 | 설치 | 엔트리 import(외부) → `ExtensionUnit` → `ExtHost.install` → `InstallResult` | `error` | `entry_not_found`, `entry_import_failed`, `entry_not_function`, `entry_threw`, `setup_threw`, `setup_timeout`, `setup_action` |
@@ -705,6 +800,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | 9 | 활성화 | 시작 적용 결과 확정, provider 연쇄 확인 | `error` | `capability_provider_failed` |
 
 - 2단계의 `unknown_key` 경고는 진단에 남기고 계속한다(F.extensions.spec §4.7).
+- `ui`의 모양 오류(`validateUi`의 `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `ui_duplicate`, `ui_reason_empty`, `widgets_required`)는 2단계에서 매니페스트 거부(`manifest_invalid`)가 된다. 5b단계의 `ui_*` 진단은 파일과 정책을 본 결과이고 확장을 거부하지 않는다(§4.3.4).
 - 5a단계의 안전 모드 판정은 `assignTier`로 tier를 구한 뒤 `startupFilter`(X.operations.spec §3.6)를 부른다. 안전 모드에서는 `user`·`project` tier(기본 플러그인 Helm 포함)와 L3 내장 그룹이 `disabled`(`safe_mode`)이고, `--disable-ext`로 지정한 이름은 `disabled`(`disabled_flag`)다. 빠진 외부 확장은 매니페스트만 읽고 엔트리는 import하지 않는다. 안전 모드에서는 프로젝트 위치를 탐색하지도, 프로젝트 신뢰를 묻지도 않는다(`LoadReport.projectTrust`는 null이고 진단 `safe_mode` 하나가 남는다).
 - 같은 이름이 여러 위치에 있을 때 위치가 다르면 낮은 순위의 것만 `rejected`이고, 같은 위치 안이면 둘 다 `rejected`다(§4.2.2).
 - 3단계는 두 번 실행한다. 첫 번째는 프로젝트 신뢰 전 집합(내장, 관리, 사용자), 두 번째는 프로젝트 후보를 더한 집합이다. 두 번째에서 새로 생긴 오류는 프로젝트 확장만 `rejected`로 만든다.
@@ -728,6 +824,58 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 - 진단은 메모리에 두고 `ExtensionLoader.diagnostics()`로 읽는다. L4는 설정 화면 "플러그인과 그룹" 탭과 `host.status`에서 보인다(L4.settings-ui.spec, L4.host-service.spec).
 - 진단을 내구 이벤트로 남길지는 [미결]이다(§10 미결 6). 현재 ext-host가 발행하는 코어 kind 영역은 `scope.`, `lease.`, `post.`이다(F.records.spec §3.3, X.primitives.spec §7). 확장 kind는 `x.`/`grp.` 접두다([결정: review.decisions-2 T-21]).
 - `message`에는 시크릿 값, 설정 값, 파일 내용을 넣지 않는다. 경로와 코드만 넣는다.
+- 5b단계 진단은 `stage`가 `ui`이고 `path`는 매니페스트 위치(`/ui/items/<i>/...`)다. 화면 트리 안의 위치는 `#` 뒤에 JSON Pointer로 붙인다. `message`는 `ui item "<id>": …` 꼴이다.
+
+#### 4.3.4 Plugin UI 검사 (5b단계) [결정: 2026-10-31 사용자, ADR-0021 §3.2~§3.6]
+
+- 대상은 거부되지 않은 확장 전부다. 꺼진 확장도 검사한다. 설정 화면이 깨진 화면을 보일 수 있게 하려는 것이다. 내장 확장은 확장 루트가 없어 건너뛴다([미결] §10 18번). 프로젝트 확장은 신뢰된 뒤에만 여기 온다(§4.7).
+- 시점은 5a단계 뒤, 7단계 설치 앞이다. 확장의 상태는 바꾸지 않고, 엔트리를 import하지 않는다.
+- 입력은 매니페스트 `ui`, 확장 루트, `LoaderFs`, 설치 위치, 앱 정책(`LoadOptions.uiPolicy`), 호스트 위젯 버전 `1.0.0`, 다리 버전 `1.0.0`이다.
+
+항목마다 아래 순서로 본다(`checkUiDecl`).
+
+1. `placement`가 `command`면 화면이 없으므로 파일과 앱을 보지 않는다. 상태는 `ok`다.
+2. `native`(`mode` 생략 포함)는 `file`을 확장 루트 안에서 찾는다. 없거나 종류가 다르면 `ui_file_missing`, 밖을 가리키면 `ui_path_invalid`다. 본문이 1 MiB(`UI_FILE_MAX_BYTES`)를 넘으면 `ui_limit`이다. LoaderFs에 크기를 묻는 함수가 없어 다 읽은 뒤에 잰다. JSON이 아니면 `ui_invalid`다(파서 원문은 싣지 않는다). 앞의 BOM은 건너뛴다. `validateUiTree`가 실패하면 그 이슈를 옮긴다(`ui_invalid`, `ui_limit`, 위치는 `#` 뒤 JSON Pointer). 통과하면 `tree`를 붙인다.
+3. `app`은 정책을 먼저 본다. `x.ui.apps`가 거짓이면 전체가 막힌다. 설치 위치가 `project`이고 `x.ui.allowProjectApps`가 거짓이면 프로젝트 확장이 막힌다. 막히면 앱 파일은 보지 않는다. `fallback`이 있으면 그 파일을 2번처럼 native 화면으로 읽고 검사한다. 모드는 `native`가 되고 정보 진단 `ui_mode_not_allowed`(severity `info`)가 붙는다. `fallback`이 없으면 상태는 `disabled`이고 경고 진단 `ui_mode_not_allowed`(severity `warning`)가 붙는다.
+4. 정책이 허용하면 `app.root`가 확장 안의 폴더인지 보고(없으면 `ui_file_missing`, 밖이면 `ui_path_invalid`), `app.entry`가 `app.root` 안의 파일인지 본다. 그다음 `app.bridge`가 다리 버전 `1.0.0`을 포함하는지 본다(아니면 `bridge_unsupported`, 위치 `/ui/items/<i>/app/bridge`).
+5. `ui.widgets` 범위가 `1.0.0`을 포함하지 않으면 native로 그리는 항목 모두(fallback으로 바뀐 항목 포함)에 `widgets_unsupported`(위치 `/ui/widgets`)를 붙이고 `invalid`로 둔다.
+
+상태 규칙: `error` 진단이 하나라도 있으면 `invalid`, 없으면 `ok`다. 정책이 막고 대체 화면도 없으면 `disabled`다. `disabled`는 정책이 낸 상태이고, 확장이 꺼진 것은 확장의 `LoadState`가 나타낸다.
+
+- 실패 격리: 화면 진단은 확장의 진단 목록에 항목마다 하나씩 남는다(`LoadDiagnostic`, `stage: "ui"`, `path`는 매니페스트 위치). 확장의 `LoadState`는 바뀌지 않는다. 항목의 `error`는 그 항목만 `invalid`로 만들고, 훅과 엔트리는 그대로 로드된다. 다만 `ui`의 모양 오류는 2단계에서 매니페스트 거부(`manifest_invalid`)이므로 그 확장은 `rejected`다.
+- fs 포트가 던지면 그 경로를 찾지 못한 것으로 본다(`ui_file_missing`, 문장에는 던진 내용을 넣지 않는다). `checkUiDecl`은 던지지 않는다.
+- 결과는 확장 기록마다 든다. `ExtensionLoader.uiEntries()`가 로드 순서와 선언 순서로 돌려준다. 확장이 목록에서 빠지면(다시 읽기, 제거) 그 확장의 항목도 빠진다.
+
+앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §6)이 앱 항목을 정하는 방식은 다음과 같다.
+
+| 설치 위치 | `x.ui.apps` | `x.ui.allowProjectApps` | 앱 항목 |
+|---|---|---|---|
+| 무관 | 거짓 | 무관 | `fallback`이 있으면 native, 없으면 `disabled` |
+| `managed`, `user` | 참 | 무관 | 앱 파일을 검사한다 |
+| `project` | 참 | 거짓 | `fallback`이 있으면 native, 없으면 `disabled` |
+| `project` | 참 | 참 | 앱 파일을 검사한다 |
+
+Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 쓴다(ADR-0021 §3.6.2). 파일 본문은 읽지 않는다.
+
+1. 요청 경로를 한 번만 퍼센트 디코딩한다. 디코딩이 깨지면 `outside_root`다. `%252e%252e`는 `%2e%2e`가 되고, 그 뒤에 `..`으로 보지 않는다.
+2. 빈 요청은 `app.entry`다. 그 밖에 빈 마디, `.`과 `..` 마디, 백슬래시, NUL, 앞 `/`, 드라이브 문자(`C:`)가 있으면 `outside_root`다.
+3. app root의 실제 경로가 확장 루트의 실제 경로 안이어야 한다(심볼릭 링크 포함). 밖이면 `outside_root`, 없으면 `not_found`다.
+4. 요청 파일이 없으면 `not_found`다. 실제 경로가 app root의 실제 경로 밖이면(심볼릭 링크 포함) `outside_root`다.
+5. 폴더면 `not_a_file`다.
+6. 확장자가 허용 목록에 없으면 `forbidden_type`이다. 확장자는 대소문자를 가리지 않는다. wasm은 목록에 없다.
+
+| 확장자 | Content-Type |
+|---|---|
+| `html` | `text/html; charset=utf-8` |
+| `js`, `mjs` | `text/javascript; charset=utf-8` |
+| `css` | `text/css; charset=utf-8` |
+| `json`, `map` | `application/json; charset=utf-8` |
+| `txt` | `text/plain; charset=utf-8` |
+| `svg` | `image/svg+xml` |
+| `png`, `jpg`, `jpeg`, `gif`, `webp` | `image/png`, `image/jpeg`, `image/jpeg`, `image/gif`, `image/webp` |
+| `woff`, `woff2`, `ttf` | `font/woff`, `font/woff2`, `font/ttf` |
+
+성공하면 `{ ok: true, path, contentType }`이다. `path`는 실제 경로다. 적대적 요청 표(`test/loading-trust/app-files.test.ts`)가 결과 값을 고정한다.
 
 ### 4.4 엔트리 로딩과 호출 규약
 
@@ -1111,6 +1259,11 @@ flowchart LR
 | 격리 설정인데 `fresnel.process` 서비스 없음 | `error`(`isolation_unavailable`) |
 | 격리 확장의 first 핸들러가 예산 초과 | `FIRST_DENY` 적용, 취소 전송, 유예 뒤 강제 종료 |
 | 격리 프로세스 연결 끊김 | 진행 중 요청 예외 처리, 재시작 정책(§4.9.7) |
+| 화면 파일이 없거나 JSON이 아니거나 트리 검사에 실패함 | 그 항목만 `invalid`(`ui_file_missing`, `ui_invalid`, `ui_limit`). 확장은 `active`이고 훅이 실행된다(§4.3.4) |
+| 화면 파일이나 app root가 확장 밖을 가리키는 심볼릭 링크 | `ui_path_invalid`. 링크 대상은 읽지 않는다 |
+| 프로젝트 확장의 앱 화면, 또는 `x.ui.apps` 거짓 | 앱 파일을 보지 않는다. `fallback`이 있으면 native로 그리고 정보 진단 `ui_mode_not_allowed`, 없으면 `disabled` |
+| `ui.widgets` 또는 `app.bridge` 범위가 호스트 버전 `1.0.0`을 포함하지 않음 | `widgets_unsupported`(native 항목 모두) 또는 `bridge_unsupported`. 그 항목은 `invalid` |
+| 매니페스트 `ui`의 모양 오류(`validateUi`) | 매니페스트 거부(`manifest_invalid`). 화면 파일은 읽지 않는다 |
 
 ## 6. 설정 노출
 
@@ -1124,8 +1277,11 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `x.loading-trust.paths` | `string[]` | `[]` | - | `restart` | `managed`, `user` | `list` |
 | `x.loading-trust.isolation.maxRestarts` | `integer` | `3` | 0~20 | `live` | `managed`, `user` | `number` |
 | `x.loading-trust.isolation.restartWindowSec` | `integer` | `600` | 10~86400 | `live` | `managed`, `user` | `number` |
+| `x.ui.apps` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
+| `x.ui.allowProjectApps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 
 - `x.loading-trust.*` 키는 프로젝트 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
+- `x.ui.*` 키도 같은 이유로 `project` 범위를 허용하지 않는다. F.wire-settings.spec 범위 표 3번의 `local`(프로젝트의 개인 파일)도 프로젝트가 쓴 값이라 빼며, `launch`는 `restart` 키에 D7 규칙으로 막힌다. 앱 정책은 시작 때 읽으므로 바뀐 값은 다음 시작에 적용된다. `x.ui.apps`를 끄면 프로젝트가 `local`로 다시 켤 수 없다.
 - 안전 모드 키(`x.operations.safeMode.default`, `x.operations.safeMode.suggestAfter`)는 X.operations.spec 소유다. L4.settings-ui.spec §표가 `x.loading-trust.*`에 안전 모드를 넣은 표기는 정합성 단계에서 `x.operations.*`로 고친다 [제안].
 - L4 노출: 설정 화면 "플러그인과 그룹" 탭에 확장 목록(상태, 등급, 위치, 진단 수), 토글(`enabled`), 격리 선택(`isolation`), 신뢰 결정 목록(저장 파일 내용)을 둔다. CLI는 `fresnel config`로 같은 키를 다룬다.
 
@@ -1153,6 +1309,8 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `IsolationProcessPort`, `IsolatedChild`(F 이름 재export) | L0.process.spec(구현) |
 | `registerSdkModules`, `SDK_MODULE_SPECIFIERS`, `SdkModules`, `installDefaultPlugin`, `PluginInstallFs` | L4.host-service.spec(조립 루트가 `LoaderDeps.sdkModules`와 첫 실행 설치에 사용) |
 | 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, 키 `x.loading-trust.*` | F.wire-settings.spec, L4.settings-ui.spec, L3.readme |
+| 키 `x.ui.apps`, `x.ui.allowProjectApps`(`uiSettings`) | L4.settings-ui.spec(설정 화면 "플러그인" 탭), L4.host-service.spec(조립 루트가 카탈로그에 더하고 `LoadOptions.uiPolicy`에 넘긴다) |
+| `uiSettings`, `resolveAppFile`, `AppFileResult`, `UiItemReport`, `UiEntryReport`, `UiIssue`, `ExtensionLoader.uiEntries`, `LoadOptions.uiPolicy` | L4.desktop-ux.spec(`ext.ui.list` 화면 기여 목록, 전용 URL 스킴 `fresnel-view://`의 파일 풀이), L4.host-service.spec |
 | 신뢰 전 적용 제외 규칙(§4.7.4) | L1.persistence.spec, L2.mcp.spec, L2.knowledge.spec, X.operations.spec |
 
 요구:
@@ -1163,6 +1321,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | 로더 포트 `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`와 부속 타입(`TrustPromptRequest`, `TrustOption`, `TrustUpdate`, `TrustChoice`, `TrustChoiceKind`), `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild` | F.extensions.spec §3.2.1 `ports.ts` |
 | `settingsFromManifest`, `buildCatalog`, `defineSettings`, `SettingDef`, `CatalogIssue` | F.wire-settings.spec |
 | `CapabilityId`, `SemVer`, 범위 비교 [가정: `satisfies` 함수] | F.capabilities.spec |
+| `UiDecl`, `UiContribution`, `AppDecl`, `UiNode`, `UI_LIMITS`, `BRIDGE_VERSION`, `validateUi`, `validateUiTree`, `isEntryInsideRoot` | F.extensions.spec §3.1.1 |
 | `ExtHost.install`·`uninstall`·`registerPlatform`·`ports`, `ExtensionUnit`, `InstallResult`, `RegistrationSetupOutcome`, `PrimitiveError`, `ProcessPortKey`, `RegistrationFn` 구현, 디스패처, 리소스 등록, 코어 기능 레지스트리, scope 켜기·끄기 | X.primitives.spec |
 | `OperationsPolicy.admit`·`forget`, `startupFilter`·`StartupOptions`(순수 함수와 타입), `ExtStorageAdmin`, 시간 예산(`x.operations.budget.setupMs`), 실패 격리·자동 끄기, 안전 모드, 접두 테이블 API, 외부 훅 | X.operations.spec |
 | 의존 규칙(DR-07, DR-11, DR-14) | eng.dependency-rules.guide |
@@ -1199,6 +1358,14 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 23. 안전 모드에서는 사용자 위치 외부 확장이 `disabled`(`safe_mode`)이고 엔트리가 import되지 않으며, L3 내장 그룹이 `disabled`이고 L1·L2 내장은 `active`다. 프로젝트 위치는 탐색하지 않고 `LoadReport.projectTrust`는 null이다.
 24. 깨진 `plugin.json`(JSON 아님, 스키마 위반, 파일 없음)은 진단(`manifest_parse`, `manifest_invalid`, `manifest_missing`)만 남기고 다른 확장은 로드된다.
 25. `installDefaultPlugin`은 없는 대상에 복사하고(`installed`), 같은 버전은 그대로 두며(`kept`), 번들이 더 높은 버전이거나 설치본 매니페스트가 손상이면 교체한다(`replaced`). 번들 매니페스트가 잘못되면 `source_invalid`이고 대상은 바뀌지 않는다.
+26. 화면 파일이 없거나 JSON이 아니거나 트리 검사에 실패한 항목은 그 항목만 `invalid`(`ui_file_missing`, `ui_invalid`)이고, 확장은 `active`이며 훅이 실행된다. 진단의 `stage`는 `ui`, `path`는 `/ui/items/0/file`이다(`ui-loader.int.test.ts`).
+27. 1 MiB를 넘는 화면 파일은 `ui_limit`이고, 정확히 1 MiB인 파일은 읽힌다(`ui-check.test.ts`).
+28. 확장 밖을 가리키는 심볼릭 링크인 화면 파일과 app root는 `ui_path_invalid`이고, 링크 대상은 읽히지 않는다.
+29. `app.bridge` 범위가 `1.0.0`을 포함하지 않으면 `bridge_unsupported`다. `ui.widgets`가 `1.0.0`을 포함하지 않으면 native 항목 모두 `widgets_unsupported`이고 `invalid`다.
+30. `x.ui.apps`가 거짓이거나 프로젝트 확장에서 `allowProjectApps`가 거짓이면 앱 파일을 보지 않고 `fallback`을 native로 그린다(정보 진단 `ui_mode_not_allowed`). `fallback`이 없으면 `disabled`다. 프로젝트 확장에서 `allowProjectApps`를 켜면 같은 항목이 앱으로 검사된다(`ui-loader.int.test.ts`).
+31. 꺼진 확장의 깨진 화면도 검사되어 `uiEntries()`에 `invalid`로 나온다. 내장 확장의 화면은 검사하지 않는다. 확장이 목록에서 빠지면 `uiEntries()`에서도 빠진다.
+32. `resolveAppFile`의 적대적 요청 표 25개(`../secret.txt`, `%2e%2e/`, `..%5c`, NUL, 드라이브 문자, 심볼릭 링크 탈출 등)가 정확한 `outside_root`, `not_found`, `not_a_file`, `forbidden_type` 또는 성공 값을 낸다. 퍼센트 디코딩은 한 번만 한다(`%252e%252e`는 문자 그대로의 이름이다). 파일 본문은 읽지 않는다(`app-files.test.ts`).
+33. `uiSettings`의 두 키는 카탈로그 규칙을 통과하고, 허용 범위는 `managed`, `user`뿐이다(`project`, `local`, `launch` 없음). `ui-settings.test.ts`.
 
 ## 10. 미결 사항
 
@@ -1219,3 +1386,8 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 15. (해소, 일부) Bun 직접 `import()`와 `Bun.plugin` 모듈 등록은 스파이크로 확인했다(§4.4.1). `bun build --compile` 바이너리에서 외부 `.ts`를 불러오는지, 질의 접미로 캐시를 피할 수 있는지는 확인 전이다 [가정].
 16. (닫힘) pi 가상 모듈은 제공하지 않는다 [결정: review.m3-design-inputs D-M3-11 c].
 17. (해소, 일부) 기본 플러그인(Helm) 설치 경로는 §4.4.7이 정한다. 설치 위치가 `user`라 신뢰 상한은 `user`이고, `user` 등급은 `on`·`post`·`drive`를 쓸 수 있다(§4.6.2). 교체 규칙은 매니페스트 `version` 비교다. 재설치 방지 표지는 위 규칙으로 정했다. 남은 것은 `PluginInstallFs`의 F 정본화다.
+18. [미결] 내장 확장의 화면 기여. 내장 패키지는 확장 루트가 없어 파일을 읽지 못한다. 화면 트리를 JS 값으로 내는지 파일 경로로 내는지 L3·L4와 정한다. 지금은 건너뛴다(§4.3.4).
+19. [미결] `ui.messages`(메시지 카탈로그 폴더)의 존재는 아직 보지 않는다. 메시지 카탈로그 검사는 L4 화면 작업과 함께 한다.
+20. [미결] `LoaderFs`에 파일 크기와 종류를 묻는 함수가 없다. 1 MiB 검사는 읽은 뒤에 하고 종류는 부모 폴더 나열로 구한다. 포트에 `stat`이 생기면 읽기 전에 자르도록 F.extensions.spec §3.2.1을 고친다(F 수정 요청).
+21. [미결] 조립 루트가 `uiSettings`를 `apps/host` 카탈로그에 더하고 `x.ui.*` 값을 `LoadOptions.uiPolicy`로 넘기는 연결은 `apps/host` 작업이다. 이 문서는 입력만 정했다.
+22. [미결] 이름 정리. L4.desktop-ux.spec §10.3 W-33과 X-7의 옛 이름(`ext.view.list`, `view_*`)은 이 문서의 `ext.ui.list`와 `ui_*`와 다르다. 화면 쪽 문서를 고치는 일은 L4 담당이다.

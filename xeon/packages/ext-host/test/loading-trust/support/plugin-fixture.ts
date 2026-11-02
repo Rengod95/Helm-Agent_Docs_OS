@@ -47,6 +47,8 @@ export interface PluginFiles {
   readonly group?: boolean;
   /** 엔트리 파일 본문. 생략하면 `on` 핸들러 하나를 등록하는 기본 엔트리다 */
   readonly entry?: string;
+  /** 매니페스트 `ui`(JSON 값). 생략하면 없다. 화면 파일은 호출자가 따로 쓴다 */
+  readonly ui?: unknown;
 }
 
 /** `boundary.settle.after`에 `on` 핸들러를 걸고 호출 때 `<이름>:fired`를 기록하는 엔트리 */
@@ -87,6 +89,7 @@ export async function writePlugin(
     ],
     ...(files.group === true ? { group: {} } : {}),
     ...(files.trustLevel === undefined ? {} : { trust: { level: files.trustLevel } }),
+    ...(files.ui === undefined ? {} : { ui: files.ui }),
   };
   await putFile(join(root, ".fresnel-plugin", "plugin.json"), JSON.stringify(manifest, null, 2));
   await putFile(join(root, "src", "index.ts"), files.entry ?? defaultEntry(files.name));

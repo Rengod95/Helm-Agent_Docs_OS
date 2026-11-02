@@ -47,6 +47,15 @@ import type {
 import { satisfiesRange } from "./semver.ts";
 import { RESERVED_EXT_KEYS, reservedExtensionSettings } from "./settings-keys.ts";
 import {
+  checkUiDecl,
+  DEFAULT_UI_POLICY,
+  HOST_BRIDGE_VERSION,
+  HOST_WIDGETS_VERSION,
+  type UiEntryReport,
+  type UiItemReport,
+  type UiPolicy,
+} from "./ui-check.ts";
+import {
   effectiveTrust,
   type InstallSource,
   type LoaderMode,
@@ -96,6 +105,19 @@ export {
   RESERVED_EXT_KEYS,
   reservedExtensionSettings,
 } from "./settings-keys.ts";
+export { uiSettings } from "./ui-settings.ts";
+export { resolveAppFile, type AppFileResult } from "./app-files.ts";
+export {
+  checkUiDecl,
+  HOST_BRIDGE_VERSION,
+  HOST_WIDGETS_VERSION,
+  UI_FILE_MAX_BYTES,
+  type UiCheckInput,
+  type UiEntryReport,
+  type UiIssue,
+  type UiItemReport,
+  type UiPolicy,
+} from "./ui-check.ts";
 export { satisfiesRange } from "./semver.ts";
 export {
   findTrustRequiringResources,
@@ -134,6 +156,11 @@ export interface LoadOptions {
    * `"on_demand"`는 프로젝트를 판정하지도 싣지도 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 `loadProject`로 싣는다(spec §4.7.8)
    */
   readonly projects?: "cwd" | "on_demand";
+  /**
+   * 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, X.loading-trust.spec §4.3.4). 없는 값은 기본을 쓴다(앱 켬, 프로젝트 앱 끔).
+   * 이 호출의 값을 `loadProject`도 그대로 쓴다. 바뀌면 다음 시작에 적용한다
+   */
+  readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   readonly signal: AbortSignal;
 }
 
@@ -248,6 +275,11 @@ export interface ExtensionLoader {
   ): Promise<LoadedExtensionInfo | undefined>;
   list(): readonly LoadedExtensionInfo[];
   diagnostics(): readonly LoadDiagnostic[];
+  /**
+   * 화면 기여 항목의 검사 결과(X.loading-trust.spec §4.3.4). 로드 순서, 항목 선언 순서로 돌려준다. `ext.ui.list`가 이것을 쓴다.
+   * 확장이 목록에서 빠지면(다시 읽기, 제거) 그 확장의 항목도 같이 빠진다
+   */
+  uiEntries(): readonly UiEntryReport[];
   /** 역순으로 scope를 정리하고 정책 표에서 뺀다 */
   dispose(): Promise<void>;
 }
@@ -263,6 +295,8 @@ interface ExtRecord {
   readonly generation: number;
   readonly essential: boolean;
   readonly diagnostics: LoadDiagnostic[];
+  /** Plugin UI 검사 결과(§4.3.4). 매니페스트에 `ui`가 없거나 내장 확장이면 빈 배열이다 */
+  ui: readonly UiItemReport[];
 }
 
 function versionOf(manifest: ExtensionManifest | undefined): SemVer {
@@ -307,6 +341,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   /** 이름이 같거나 알 수 없는 후보에 붙이는 일련번호. 묶음이 달라도 겹치지 않게 loadAll마다 0부터 센다 */
   let anonymous = 0;
   let startup: StartupOptions = NO_STARTUP_OPTIONS;
+  /** 화면 앱 정책. `loadAll`이 정하고 `loadProject`도 같은 값을 쓴다(§4.3.4) */
+  let uiPolicy: UiPolicy = DEFAULT_UI_POLICY;
   /** "이번 세션만" 결정은 호스트 프로세스 수명 동안 유지한다(§4.7.3) */
   const sessionTrust = new Map<string, "allow" | "deny">();
   /** `loadProject`가 이미 실은 프로젝트 루트(정규화한 경로) */
@@ -330,7 +366,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     severity: LoadDiagnostic["severity"],
     code: LoadDiagnosticCode,
     message: string,
-    extra: { readonly issues?: readonly ManifestIssue[] } = {},
+    extra: { readonly issues?: readonly ManifestIssue[]; readonly path?: string } = {},
   ): void {
     const entry: LoadDiagnostic = {
       extension: record.name,
@@ -339,6 +375,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       severity,
       code,
       message,
+      ...(extra.path === undefined ? {} : { path: extra.path }),
       ...(extra.issues === undefined ? {} : { issues: extra.issues }),
       generation: record.generation,
     };
@@ -442,6 +479,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         generation: 0,
         essential: candidate.builtin?.essential === true,
         diagnostics: [],
+        ui: [],
       };
       const first = records.get(name);
       if (first !== undefined) {
@@ -873,6 +911,32 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       });
   }
 
+  /**
+   * Plugin UI 검사(X.loading-trust.spec §4.3.4). 거부되지 않은 확장은 꺼져 있어도 검사한다(설정 화면이 깨진 화면을 보일 수 있게).
+   * 내장 확장은 확장 루트가 없어 파일을 읽지 못하므로 건너뛴다. 진단은 확장의 진단에 남기고 확장의 상태는 바꾸지 않는다(실패 격리)
+   */
+  async function checkUiOf(record: ExtRecord): Promise<void> {
+    const manifest = record.manifest;
+    const root = record.candidate.root;
+    if (manifest === undefined || manifest.ui === undefined || root === null) return;
+    record.ui = await checkUiDecl({
+      ui: manifest.ui,
+      root,
+      fs: deps.fs,
+      source: record.source,
+      policy: uiPolicy,
+      hostWidgetsVersion: HOST_WIDGETS_VERSION,
+      hostBridgeVersion: HOST_BRIDGE_VERSION,
+    });
+    for (const item of record.ui) {
+      for (const found of item.issues) {
+        diag(record, "ui", found.severity, found.code, `ui item "${item.id}": ${found.message}`, {
+          path: found.path,
+        });
+      }
+    }
+  }
+
   async function ensureLoaded(
     name: ExtensionName,
     signal: AbortSignal,
@@ -892,14 +956,17 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return infoOf(record);
   }
 
+  /** 로드 순서 index가 있는 것부터, 같거나 없으면 이름 순. 목록과 화면 기여 목록이 같은 순서를 쓴다 */
+  function inLoadOrder(): ExtRecord[] {
+    return [...records.values()].toSorted(
+      (a, b) =>
+        (a.loadIndex ?? Number.MAX_SAFE_INTEGER) - (b.loadIndex ?? Number.MAX_SAFE_INTEGER) ||
+        a.name.localeCompare(b.name),
+    );
+  }
+
   function listAll(): readonly LoadedExtensionInfo[] {
-    return [...records.values()]
-      .toSorted(
-        (a, b) =>
-          (a.loadIndex ?? Number.MAX_SAFE_INTEGER) - (b.loadIndex ?? Number.MAX_SAFE_INTEGER) ||
-          a.name.localeCompare(b.name),
-      )
-      .map(infoOf);
+    return inLoadOrder().map(infoOf);
   }
 
   /** 한 묶음의 1~9단계. 묶음 안에서 순서대로 설치하고 마지막에 기능 연쇄 실패를 정리한다 */
@@ -926,6 +993,16 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       order.filter((record) => record.state === "resolved" || record.state === "active"),
     );
     for (const record of alive) assertNotEssentialFailure(record);
+
+    // 5b단계 화면 검사: 설치 전에 한다. 항목의 진단은 확장의 진단에 남고 확장의 상태는 바꾸지 않는다(§4.3.4)
+    throwIfCancelled(signal, "screen check");
+    await eachInOrder(
+      batch.filter((record) => record.state !== "rejected"),
+      async (record) => {
+        await checkUiOf(record);
+        return "continue";
+      },
+    );
 
     await eachInOrder(
       order.filter((record) => alive.includes(record)),
@@ -1068,6 +1145,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       order = [];
       anonymous = 0;
       startup = options.startup ?? NO_STARTUP_OPTIONS;
+      uiPolicy = {
+        apps: options.uiPolicy?.apps ?? DEFAULT_UI_POLICY.apps,
+        allowProjectApps: options.uiPolicy?.allowProjectApps ?? DEFAULT_UI_POLICY.allowProjectApps,
+      };
       const safeMode = startup.safeMode.active;
       const extraPaths = options.extraPaths ?? [];
 
@@ -1136,6 +1217,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     },
     list: listAll,
     diagnostics: () => [...allDiagnostics],
+    uiEntries: () =>
+      inLoadOrder().flatMap((record) =>
+        record.ui.map((item) => ({ extension: record.name, ...item })),
+      ),
     async dispose() {
       await eachInOrder([...order].toReversed(), async (record) => {
         if (record.state !== "active") return "continue";

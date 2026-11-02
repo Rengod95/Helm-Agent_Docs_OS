@@ -110,6 +110,7 @@ xeon/packages/ext-host/
 | L-27 | 문서 대조 검사: 스펙 §4.6.2 표 ↔ `TRUST_MATRIX`, (pi 표는 삭제) | L-02 | S | M0(신뢰 표) |
 | L-28 | `remove.ts` 제거 흐름(스펙 §4.4.5): `previewRemoval`(`dropExtension(name, false)`), `remove`(`ExtHost.uninstall` → `policy.forget` → `dropTables`면 `dropExtension(name, true)`), 내장 확장 제거 거부. `storageAdmin`은 가짜로 먼저 테스트하고 O-25에서 실제 구현과 연결 | L-08, P-13(`uninstall`), O-03(`forget`) | S | M3 (결정 D9) |
 | L-29 | 5a단계 시작 옵션: `LoadOptions.startup`을 `policy.startupFilter`에 넘겨 빠진 확장을 `disabled`(`safe_mode`, `disabled_flag`)로 두기. 외부 확장은 import 생략, 내장 확장은 install 생략 | L-10, O-20(`startupFilter`, `OperationsPolicy.startupFilter`) | S | M3 (결정 D9) |
+| L-32 | Plugin UI 검사(§4.3.4, X-7): `ui-check.ts`(`checkUiDecl`, 항목 상태와 `ui_*` 진단, 정책 분기, 위젯·다리 범위), `app-files.ts`(`resolveAppFile`, 적대적 요청 표), `ui-settings.ts`(`x.ui.apps`, `x.ui.allowProjectApps`, 범위는 `managed`·`user`), 5b단계 연결과 `ExtensionLoader.uiEntries()`, `LoadOptions.uiPolicy` | L-09, L-08, F.extensions.spec §3.1.1(`ui.ts`) | M | M4 (T-XV) |
 
 - 가장 큰 작업은 L-19, L-22, L-23이다. L-19는 훅별 결과 변환표를 훅 종류(input, request, tool, boundary, session) 단위로 나눠 PR을 쪼갤 수 있다.
 - M0에 필요한 X.primitives 산출물은 `ExtHost.install`·`uninstall`과 `InstallResult`(P-13)다. 늦으면 L-06은 같은 인터페이스의 가짜 `ExtHost`로 먼저 끝내고 연결만 나중에 한다. `policy.admit`(O-03)도 같다.
