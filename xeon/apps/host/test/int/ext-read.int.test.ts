@@ -224,8 +224,8 @@ test("ext.get: hooks with budgets, manifest and Registration-level binding edges
   });
   const missing = await failureOf(connection.request("ext.get", { name: "nope" }));
   expect(missing).toMatchObject({
-    code: -32602,
-    data: { details: { issues: [{ path: "name", message: "unknown_extension" }] } },
+    code: 3401,
+    data: { kind: "extension.notFound", details: { name: "nope" } },
   });
   await connection.close();
 });
@@ -252,8 +252,8 @@ test("ext.reenable: clears the auto-disable through the source; managed lock and
   await safeConnection.request("host.hello", HELLO_PARAMS);
   const refused = await failureOf(safeConnection.request("ext.reenable", { name: "alpha" }));
   expect(refused).toMatchObject({
-    code: -32602,
-    data: { details: { issues: [{ path: "", message: "safe_mode_active" }] } },
+    code: 3403,
+    data: { kind: "extension.safeModeActive" },
   });
   expect(safe.reenabled).toEqual([]);
   await safeConnection.close();
@@ -282,7 +282,7 @@ test("ext.reload: returns the diagnostic position; refused in safe mode", async 
   const safeConnection = connect(safe.sources);
   await safeConnection.request("host.hello", HELLO_PARAMS);
   const refused = await failureOf(safeConnection.request("ext.reload", { name: "alpha" }));
-  expect(refused).toMatchObject({ code: -32602 });
+  expect(refused).toMatchObject({ code: 3403, data: { kind: "extension.safeModeActive" } });
   expect(safe.reloaded).toEqual([]);
   await safeConnection.close();
 });
@@ -471,8 +471,8 @@ test("group.list, group.metrics, group.promotion pass the group service values t
   });
   const unknown = await failureOf(connection.request("group.metrics", { id: "nope" }));
   expect(unknown).toMatchObject({
-    code: -32602,
-    data: { details: { issues: [{ path: "id", message: "unknown_group" }] } },
+    code: 3402,
+    data: { kind: "group.notFound", details: { id: "nope" } },
   });
   expect(await connection.request("group.promotion", { threadIds: ["thr_a", "thr_b"] })).toEqual({
     throughSeq: 40,

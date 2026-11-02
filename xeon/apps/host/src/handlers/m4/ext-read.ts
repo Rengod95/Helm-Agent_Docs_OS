@@ -61,26 +61,18 @@ export type ExtReadMethods =
   | "hooks.list"
   | "settings.explain";
 
-/**
- * 계약에 안전 모드 거부와 확장·그룹 없음 오류 kind가 아직 없다(T-F 계약 간극). 그 전까지는 `jsonrpc.invalidParams`의
- * `issues`에 코드를 싣는다. 화면은 `message`의 코드로 문장을 만든다(§2 3번).
- */
-function invalid(path: string, code: string): WireError {
-  return wireError("jsonrpc.invalidParams", { details: { issues: [{ path, message: code }] } });
-}
-
 function wireErrorOf(error: ExtReadError): WireError {
   switch (error.kind) {
     case "unknown_extension":
-      return invalid("name", "unknown_extension");
+      return wireError("extension.notFound", { details: { name: error.name } });
     case "unknown_group":
-      return invalid("id", "unknown_group");
+      return wireError("group.notFound", { details: { id: error.id } });
     case "unknown_thread":
       return wireError("thread.notFound", { details: { threadId: error.threadId } });
     case "unknown_setting":
       return wireError("settings.unknownKey", { details: { key: error.key } });
     case "safe_mode_active":
-      return invalid("", "safe_mode_active");
+      return wireError("extension.safeModeActive");
     case "managed_locked":
       return wireError("settings.locked", {
         details: { key: `ext.${error.name}.enabled`, lockedBy: "managed" },
