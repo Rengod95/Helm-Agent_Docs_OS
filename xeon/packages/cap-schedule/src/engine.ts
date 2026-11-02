@@ -142,6 +142,21 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     return result;
   }
 
+  /**
+   * `commit`하되 저장에 실패하면 메모리를 커밋 전 상태로 되돌린다. 사용자가 부른 `create`·`cancel`이 쓰는 길이다:
+   * 호출자는 실패를 받았는데 메모리에는 저장되지 않은 변경이 남아 `list`가 거짓을 말하고 다음 저장이 몰래 그 변경을 쓰는 일을 막는다.
+   * 그 사이 다른 커밋이 상태를 바꿨다면 그 상태가 이 변경을 이어받았으므로 되돌리지 않는다.
+   */
+  async function commitOrRevert(next: ScheduleState): Promise<Result<void, StoreFailure>> {
+    const before = state;
+    const pending = commit(next);
+    // commit은 저장을 기다리기 전에 메모리를 먼저 바꾼다. 바로 지금의 state가 이 커밋이 올린 값이다
+    const applied = state;
+    const result = await pending;
+    if (!result.ok && state === applied) state = before;
+    return result;
+  }
+
   function withEntry(id: string, patch: Partial<ScheduleEntry>, base = state): ScheduleState {
     return {
       ...base,
@@ -500,7 +515,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
         iterations: 0,
         stoppedReason: null,
       };
-      const saved = await commit({ ...state, entries: [...state.entries, entry] });
+      const saved = await commitOrRevert({ ...state, entries: [...state.entries, entry] });
       if (!saved.ok) return saved;
       if (started) installWatcher(entry);
       return ok(entry);
@@ -514,9 +529,9 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       const entry = entryOf(scheduleId);
       if (entry === undefined) return err<CancelError>({ kind: "not_found" });
       if (!entry.enabled) return ok(entry);
-      dropWatcher(scheduleId);
-      const saved = await commit(withEntry(scheduleId, stopPatch("cancelled")));
+      const saved = await commitOrRevert(withEntry(scheduleId, stopPatch("cancelled")));
       if (!saved.ok) return saved;
+      dropWatcher(scheduleId);
       const after = entryOf(scheduleId);
       return after === undefined ? err({ kind: "not_found" }) : ok(after);
     },

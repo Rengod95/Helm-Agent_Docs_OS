@@ -248,6 +248,162 @@ describe("parseUnifiedDiff", () => {
     });
   });
 
+  test("a bodyless new file block is an added file with no hunks", () => {
+    const text = diff(
+      "diff --git a/src/empty.ts b/src/empty.ts",
+      "new file mode 100644",
+      "index 0000000..e69de29",
+    );
+
+    expect(parseUnifiedDiff(text)).toEqual({
+      ok: true,
+      value: [{ path: "src/empty.ts", oldPath: null, change: "added", binary: false, hunks: [] }],
+    });
+  });
+
+  test("an empty new file between two normal blocks keeps their hunks and takes a file index in path order", () => {
+    const text = diff(
+      "diff --git a/src/a.ts b/src/a.ts",
+      "index 1111111..2222222 100644",
+      "--- a/src/a.ts",
+      "+++ b/src/a.ts",
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+      "@@ -2,1 +2,1 @@",
+      "-a",
+      "+b",
+      "diff --git a/src/empty.ts b/src/empty.ts",
+      "new file mode 100644",
+      "index 0000000..e69de29",
+      "diff --git a/src/z.ts b/src/z.ts",
+      "index 3333333..4444444 100644",
+      "--- a/src/z.ts",
+      "+++ b/src/z.ts",
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+    );
+
+    // 파일 번호는 경로 순서의 위치이고 빈 파일도 자리를 차지한다(z.ts는 f2). hunk 번호는 파일 안의 입력 순서다
+    expect(normalizeReview(valueOf(parseUnifiedDiff(text)))).toEqual({
+      ok: true,
+      value: [
+        {
+          fileIndex: 0,
+          path: "src/a.ts",
+          oldPath: "src/a.ts",
+          change: "modified",
+          binary: false,
+          hunks: [
+            {
+              ...hunk("@@ -1 +1 @@", 1, 1, 1, 1, ["-a", "+b"]),
+              hunkId: "f0h0",
+              patchSha256: "f66a89464b010b341f1aff020e1ce988a94fabf234c1cdf681f812918d8b132d",
+            },
+            {
+              ...hunk("@@ -2,1 +2,1 @@", 2, 1, 2, 1, ["-a", "+b"]),
+              hunkId: "f0h1",
+              patchSha256: "1de5ee4b747fe8134ac7c6884ccf55965b063b5684d135e457e68acb56e6a07e",
+            },
+          ],
+        },
+        {
+          fileIndex: 1,
+          path: "src/empty.ts",
+          oldPath: null,
+          change: "added",
+          binary: false,
+          hunks: [],
+        },
+        {
+          fileIndex: 2,
+          path: "src/z.ts",
+          oldPath: "src/z.ts",
+          change: "modified",
+          binary: false,
+          hunks: [
+            {
+              ...hunk("@@ -1 +1 @@", 1, 1, 1, 1, ["-a", "+b"]),
+              hunkId: "f2h0",
+              patchSha256: "f66a89464b010b341f1aff020e1ce988a94fabf234c1cdf681f812918d8b132d",
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  test("a deleted empty file and a mode-only change are files with no hunks", () => {
+    const text = diff(
+      "diff --git a/old.txt b/old.txt",
+      "deleted file mode 100644",
+      "index e69de29..0000000",
+      "diff --git a/run.sh b/run.sh",
+      "old mode 100644",
+      "new mode 100755",
+    );
+
+    expect(parseUnifiedDiff(text)).toEqual({
+      ok: true,
+      value: [
+        { path: "old.txt", oldPath: "old.txt", change: "deleted", binary: false, hunks: [] },
+        { path: "run.sh", oldPath: "run.sh", change: "modified", binary: false, hunks: [] },
+      ],
+    });
+  });
+
+  test("a bodyless block takes its path from diff --git when both halves match, even if the path has spaces or ' b/'", () => {
+    const text = diff(
+      "diff --git a/x b/y.txt b/x b/y.txt",
+      "new file mode 100644",
+      "diff --git a/my notes.txt b/my notes.txt",
+      "new file mode 100644",
+    );
+
+    expect(parseUnifiedDiff(text)).toEqual({
+      ok: true,
+      value: [
+        { path: "x b/y.txt", oldPath: null, change: "added", binary: false, hunks: [] },
+        { path: "my notes.txt", oldPath: null, change: "added", binary: false, hunks: [] },
+      ],
+    });
+  });
+
+  test("a bodyless block fails at its own line when its header is garbage, its paths differ, or a line follows it", () => {
+    const normal = [
+      "diff --git a/src/a.ts b/src/a.ts",
+      "--- a/src/a.ts",
+      "+++ b/src/a.ts",
+      "@@ -1 +1 @@",
+      "-a",
+      "+b",
+    ];
+
+    expect(
+      parseUnifiedDiff(
+        diff(
+          ...normal,
+          "diff --git a/src/empty.ts b/src/empty.ts",
+          "new file mode 100644",
+          "garbage",
+        ),
+      ),
+    ).toEqual({ ok: false, error: { kind: "diff_unparsable", line: 7 } });
+    expect(parseUnifiedDiff(diff("diff --git a/src/empty.ts", "new file mode 100644"))).toEqual({
+      ok: false,
+      error: { kind: "diff_unparsable", line: 1 },
+    });
+    expect(parseUnifiedDiff(diff("diff --git a/x b/y", "new file mode 100644"))).toEqual({
+      ok: false,
+      error: { kind: "diff_unparsable", line: 1 },
+    });
+    expect(parseUnifiedDiff(diff("diff --git a/x b/x", "old mode 100644"))).toEqual({
+      ok: false,
+      error: { kind: "diff_unparsable", line: 1 },
+    });
+  });
+
   test("a hunk whose counts are short is unparsable at the header line", () => {
     const text = diff("--- a/x", "+++ b/x", "@@ -1,2 +1,2 @@", "-a", "+b");
 
@@ -634,6 +790,28 @@ describe("renderReviewDiff", () => {
     const parsed = valueOf(parseUnifiedDiff(renderReviewDiff(review)));
 
     expect(normalizeReview(parsed)).toEqual({ ok: true, value: review });
+  });
+
+  test("zero-hunk files render as bare file headers and parse back to the same review", () => {
+    const files: DiffFile[] = [
+      { path: "src/empty.ts", oldPath: null, change: "added", binary: false, hunks: [] },
+      { path: "src/old.txt", oldPath: "src/old.txt", change: "deleted", binary: false, hunks: [] },
+      { path: "src/run.sh", oldPath: "src/run.sh", change: "modified", binary: false, hunks: [] },
+    ];
+    const review = reviewOf(files);
+    const text = renderReviewDiff(review);
+
+    expect(text).toBe(
+      diff(
+        "--- /dev/null",
+        "+++ b/src/empty.ts",
+        "--- a/src/old.txt",
+        "+++ /dev/null",
+        "--- a/src/run.sh",
+        "+++ b/src/run.sh",
+      ),
+    );
+    expect(normalizeReview(valueOf(parseUnifiedDiff(text)))).toEqual({ ok: true, value: review });
   });
 });
 

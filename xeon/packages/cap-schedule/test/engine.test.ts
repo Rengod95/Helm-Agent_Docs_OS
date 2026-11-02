@@ -447,6 +447,48 @@ test("a save that throws is reported as store_failed, and the saves after it sti
   expect(store.saved.entries.at(-1)).toMatchObject({ prompt: "second" });
 });
 
+test("a failed save of create leaves no unsaved entry in memory, and the next save does not write it", async () => {
+  const store = new MemoryStore();
+  const h = createHarness({ store });
+  store.failSaves = true;
+  expect(await h.service.create({ trigger: { kind: "remote" }, prompt: "lost" })).toEqual({
+    ok: false,
+    error: { kind: "store_failed", message: "disk full" },
+  });
+  expect(h.service.list()).toEqual([]);
+
+  store.failSaves = false;
+  const kept = await h.service.create({ trigger: { kind: "remote" }, prompt: "kept" });
+  expect(kept.ok).toBe(true);
+  expect(h.service.list().map((entry) => entry.prompt)).toEqual(["kept"]);
+  expect(store.saved.entries.map((entry) => entry.prompt)).toEqual(["kept"]);
+});
+
+test("a failed save of cancel keeps the entry enabled in memory and keeps its file watcher", async () => {
+  const store = new MemoryStore();
+  const h = await started(createHarness({ store }));
+  const entry = await created(h.service, {
+    trigger: { kind: "file_watch", paths: ["/x"], debounceMs: 0 },
+    prompt: "watch",
+  });
+  store.failSaves = true;
+  expect(await h.service.cancel(entry.id)).toEqual({
+    ok: false,
+    error: { kind: "store_failed", message: "disk full" },
+  });
+  expect(h.service.list()[0]).toMatchObject({ id: entry.id, enabled: true, stoppedReason: null });
+  expect(h.watches[0]?.closed).toBe(false);
+
+  store.failSaves = false;
+  const cancelled = await h.service.cancel(entry.id);
+  expect(cancelled.ok && cancelled.value).toMatchObject({
+    enabled: false,
+    stoppedReason: "cancelled",
+  });
+  expect(h.watches[0]?.closed).toBe(true);
+  expect(store.saved.entries[0]).toMatchObject({ enabled: false, stoppedReason: "cancelled" });
+});
+
 test("the store is read once, lazily: create before start keeps the stored entries, and open() does not reload", async () => {
   const store = await storeWithRemoteEntry();
   const h = createHarness({ store, idStart: 100 });

@@ -25,6 +25,7 @@ import {
   type ExtensionUnit,
   type RegistrationHostApi,
 } from "@fresnel/ext-host";
+import type { ChunkNumbering } from "./chunk-numbering.ts";
 import type { DialogDeps } from "./deps.ts";
 import { dialogManifest } from "./manifest.ts";
 import { createOsDelivery } from "./notify/os-delivery.ts";
@@ -63,6 +64,11 @@ export interface DialogPluginOptions {
    * `workspace`를 읽는다. 어느 쪽이든 작업 폴더가 없는 대화에는 프로젝트 명령이 없다(`L2.readme` §5.10)
    */
   readonly workspaceOf?: (threadId: string) => string | undefined;
+  /**
+   * `dialog.status` 휘발 조각 번호 발급기. 조립 루트가 `scope.handler_failed`와 한 개를 나눠 넘긴다(같은 (thread, turn) 키).
+   * 생략하면 이 확장이 따로 센다
+   */
+  readonly chunkNumbering?: ChunkNumbering;
   readonly loadIndex?: number;
 }
 
@@ -140,7 +146,7 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
         status:
           session === undefined
             ? undefined
-            : sessionStatusPublisher(session, options.ids, os.time, logger),
+            : sessionStatusPublisher(session, options.ids, os.time, logger, options.chunkNumbering),
         feed: session === undefined ? undefined : sessionFeed(session, logger),
         // 생산자 핸들은 setup에서 한 번만 받는다(같은 생산자를 두 번 받으면 저장소가 버그로 거부한다)
         notices:

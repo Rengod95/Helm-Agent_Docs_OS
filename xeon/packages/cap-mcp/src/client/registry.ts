@@ -308,6 +308,8 @@ export function createRegistry(deps: RegistryDeps): ServerRegistry {
     entry.protocolVersion = connection.protocolVersion;
     entry.lastConnectedAt = deps.clock.now();
     entry.failures = 0;
+    // 연결에 성공하면 지난 실패 기록은 낡은 정보다. 남겨 두면 연결된 서버가 오류를 단 채 보인다
+    entry.lastError = undefined;
     connection.onClose(() => handleClosed(entry, generation));
     setState(entry, "connected");
     deps.onChanged(entry.definition.id);

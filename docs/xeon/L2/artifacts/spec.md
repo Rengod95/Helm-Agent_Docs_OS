@@ -1196,6 +1196,8 @@ await registry.register(
 3. hunk마다 `patchSha256 = sha256(hunk 본문 바이트)`를 계산한다. 거절 적용 때 hunk가 바뀌지 않았는지 확인하는 데 쓴다.
 4. 같은 파일에 여러 diff가 있으면(한 턴에 같은 파일을 두 번 편집) 기준(첫 diff의 old)과 최종(마지막 diff의 new)으로 다시 diff를 계산해 하나로 합친다. 중간 상태의 hunk는 보이지 않는다 [제안]. 다시 계산하려면 기준 내용이 필요하므로, 첫 diff를 현재 파일에 역적용해 기준을 복원한다. 복원이 실패하면 diff를 이어 붙이지 않고 `diff_unparsable`로 거부한다.
 5. 이진 파일(`Binary files … differ`)은 hunk 없이 `binary: true`로 둔다. 이진 파일은 파일 단위 결정만 가능하고 거절 적용은 `skipped`다.
+   본문 없는 git 블록(빈 새 파일, 빈 파일 삭제, 모드만 변경)도 받는다. 종류는 헤더(`new file mode`, `deleted file mode`, `old mode`·`new mode`)로 정하고, 경로는 `diff --git a/<p> b/<p>`의 두 쪽이 같을 때만 읽는다.
+   이 블록에는 hunk가 없다(`hunks: []`). 헤더가 셋 가운데 하나가 아니거나 경로를 읽지 못하면 `diff_unparsable`이다.
 6. 상한: 파일 256개, hunk 4,096개, diff 4 MiB. 넘으면 `review_too_large`다.
 7. 정규화한 diff를 blob으로 쓰고 `changeset` 산출물로 등록한다. 산출물 등록과 `artifact.review_opened`는 한 커밋(`requestId = review:<reviewId>:open`)에 넣는다.
 
