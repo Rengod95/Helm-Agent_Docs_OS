@@ -204,9 +204,9 @@ test("wrap.loop-forwards-ask-to-the-host-loop", async () => {
   );
   await t.host.openThread(thread);
   await t.settled();
-  // ask는 wrapLoop을 지나 호스트의 loop.ask(지금은 T-XD 전의 거부 stub)까지 닿는다
+  // ask는 wrapLoop을 지나 호스트의 loop.ask까지 닿는다. 시험 호스트에는 승인 서비스가 없어 승인 포트 부재로 거부된다
   expect(outcomes).toEqual([
-    { code: "port_unavailable", message: "loop.ask is not wired yet (X-17, T-XD)" },
+    { code: "port_unavailable", message: "fresnel.approvals (ApprovalService) is not provided" },
   ]);
 });
 
