@@ -40,7 +40,7 @@ export interface SocketTunnel {
   readonly localSocket: string;
   /** 터널 프로세스가 끝나면 이행한다(`close()`로 끝난 것도 포함) */
   readonly exited: Promise<TunnelExit>;
-  /** SIGTERM을 보내고 `killAfterMs`(기본 2000) 안에 끝나지 않으면 SIGKILL을 보낸다. 로컬 소켓 파일을 지운다. 여러 번 불러도 된다 */
+  /** SIGTERM을 보내고 `KILL_AFTER_MS`(2000ms, 고정 상수) 안에 끝나지 않으면 SIGKILL을 보낸다. 로컬 소켓 파일을 지운다. 여러 번 불러도 된다 */
   close(): Promise<void>;
 }
 
