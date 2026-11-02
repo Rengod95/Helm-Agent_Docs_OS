@@ -18,3 +18,4 @@ export * from "./secrets.ts";
 export * from "./secret-admin.ts";
 export * from "./mcp.ts";
 export * from "./groups.ts";
+export * from "./devkit.ts";

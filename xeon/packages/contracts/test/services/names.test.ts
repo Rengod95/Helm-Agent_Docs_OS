@@ -11,6 +11,7 @@ import {
   ExecPortKey,
   ExecServiceName,
   GroupServiceName,
+  DevkitServiceName,
   LoopServiceName,
   LoopServicePortKey,
   McpServiceName,
@@ -62,11 +63,12 @@ const CONSTANTS: typeof SERVICE_NAMES = {
   secretAdmin: SecretAdminServiceName,
   mcp: McpServiceName,
   groups: GroupServiceName,
+  devkit: DevkitServiceName,
 };
 
 describe("SERVICE_NAMES", () => {
   test("service names match", () => {
-    expect(Object.keys(SERVICE_NAMES)).toHaveLength(15);
+    expect(Object.keys(SERVICE_NAMES)).toHaveLength(16);
     expect({ ...SERVICE_NAMES }).toEqual(CONSTANTS);
   });
 
@@ -120,7 +122,7 @@ describe("SERVICE_NAMES", () => {
     }
   });
 
-  test.skipIf(!existsSync(SPEC))("the spec table lists the same fifteen names", () => {
+  test.skipIf(!existsSync(SPEC))("the spec table lists the same sixteen names", () => {
     const text = readFileSync(SPEC, "utf8");
     const start = text.indexOf("| 인터페이스 | 서비스 이름 상수 |");
     const end = text.indexOf("파일별 이름.", start);
@@ -130,7 +132,7 @@ describe("SERVICE_NAMES", () => {
       .map((line) => line.split("|").map((cell) => cell.trim()))
       .map((cells) => /^`(fresnel\.[A-Za-z]+)`$/.exec(cells[3] ?? "")?.[1])
       .filter((name) => name !== undefined);
-    expect(names).toHaveLength(15);
+    expect(names).toHaveLength(16);
     expect(names.toSorted()).toEqual(Object.values(SERVICE_NAMES).toSorted());
   });
 });

@@ -15,6 +15,7 @@ export const SERVICE_NAMES: {
   readonly secretAdmin: "fresnel.secretAdmin";
   readonly mcp: "fresnel.mcp";
   readonly groups: "fresnel.groups";
+  readonly devkit: "fresnel.devkit";
 } = {
   tasks: "fresnel.tasks",
   loop: "fresnel.loop",
@@ -31,6 +32,7 @@ export const SERVICE_NAMES: {
   secretAdmin: "fresnel.secretAdmin",
   mcp: "fresnel.mcp",
   groups: "fresnel.groups",
+  devkit: "fresnel.devkit",
 };
 
 export type ServiceName = (typeof SERVICE_NAMES)[keyof typeof SERVICE_NAMES];

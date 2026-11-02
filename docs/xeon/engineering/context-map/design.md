@@ -349,6 +349,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `fresnel.artifacts` | `ArtifactService`(capabilities) | `cap-artifacts` | 아니오(묶음 이름) | 그룹, host |
 | `fresnel.schedule` | `ScheduleService`(capabilities) | `cap-schedule` | 아니오(묶음 이름) | 그룹, host |
 | `fresnel.groups` | `GroupService`(services. `LeaseArbiterPort`를 확장한다, `F.capabilities.spec` §3.12 `services/groups.ts`) | `group-sdk` | 예 | helm, learning, host |
+| `fresnel.devkit` | `DevkitService`(services, `F.capabilities.spec` §3.12 `services/devkit.ts`, 구현은 L4가 DI로 줌) | `apps/host` | 예 | 플러그인 빌더 그룹, host wire |
 
 - `helm`, `learning`, 사용자 확장은 서비스를 제공하지 않는다(3절 협력 규칙 7).
 - L4(`clients`, `host`)는 Cordis 서비스를 제공하지 않는다. `host`는 F5 wire 서버를 열고, `clients`는 그 wire로 접속한다.

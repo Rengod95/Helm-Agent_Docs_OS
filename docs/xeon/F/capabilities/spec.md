@@ -828,6 +828,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `SecretAdminService` | `SecretAdminServiceName` | `fresnel.secretAdmin` | `services/secret-admin.ts` | `platform-secrets` | 없음 | `L0.secrets.spec` §3.8 |
 | `McpService` | `McpServiceName` | `fresnel.mcp` | `services/mcp.ts` | `cap-mcp` | `McpPort` | `L2.mcp.spec` §3.2 |
 | `GroupService` | `GroupServiceName` | `fresnel.groups` | `services/groups.ts` | `group-sdk` | `DriveLockArbiterPort` | `L3.group-sdk.spec` §3.8 |
+| `DevkitService` | `DevkitServiceName` | `fresnel.devkit` | `services/devkit.ts` | `apps/host`(L4) | 없음 | `L3.authoring.spec` §3.3 [결정: M4 T-F, X-22] |
 
 파일별 이름. 위 표의 인터페이스와 이름 상수 외에 각 파일에 두는 이름이다. 필드는 오른쪽 열 블록을 옮겨 확정한다(규칙 1).
 
@@ -858,6 +859,7 @@ export const SERVICE_NAMES: {
   readonly context: "fresnel.context"; readonly exec: "fresnel.exec"; readonly sandbox: "fresnel.sandbox";
   readonly process: "fresnel.process"; readonly os: "fresnel.os"; readonly secrets: "fresnel.secrets";
   readonly secretAdmin: "fresnel.secretAdmin"; readonly mcp: "fresnel.mcp"; readonly groups: "fresnel.groups";
+  readonly devkit: "fresnel.devkit";
 };
 export type ServiceName = (typeof SERVICE_NAMES)[keyof typeof SERVICE_NAMES];
 
@@ -920,7 +922,7 @@ export type NotifyError =
 5. 문서 라우팅: `_routing/routes.yaml`의 F layout은 도메인 경로 `src/<도메인>/**`와 services 경로 `src/services/**`를 둔다. 이 문서와 `F.capabilities.plan`의 binds에 `xeon/packages/contracts/src/services/**`가 있으므로 `src/services/**`는 이 두 문서로 라우팅된다.
 6. 런타임 값은 서비스 이름 상수, 서비스 전체 모양의 포트 키(규칙 9), F 런타임 로직 예외에 드는 순수 함수(`describeSandboxStatus`, `matchProtectedPath`)뿐이다. 구현, 기본 구현, 테스트 대역은 두지 않는다(`F.readme` §1, review.decisions-2 U-03).
 7. [결정: review.decisions-2 D-04] `ApprovalService`, `AgentService`, `SecretService`(`L0.secrets.spec` §8.3 R1-a), `SecretAdminService`(같은 문서 R2), `McpService`, `GroupService`도 이 서브패스에 둔다. `McpService`는 L2 서비스지만 `McpPort`(extensions)를 확장해야 하고 capabilities는 extensions보다 낮아(`F.readme` §3) `capabilities/defs/mcp.ts`에 둘 수 없다. 그래서 `services/mcp.ts`에 두고 기능 정의 `McpClient`만 capabilities에 둔다. `GroupService`는 L3 `group-sdk`이 구현하는 서비스지만 `DriveLockArbiterPort`(extensions)를 확장하고 X가 그 포트로 주입받으므로 같은 이유로 `services/groups.ts`에 둔다. `L3.group-sdk.spec` §3.8의 블록은 F로 옮기기 전의 초안이다(규칙 1). 다른 L2 서비스(`WorkspaceService` 등)는 포트를 확장하지 않으므로 지금처럼 capabilities에 둔다.
-8. `SERVICE_NAMES`는 위 표의 서비스 이름 15개와 같다(§9).
+8. `SERVICE_NAMES`는 위 표의 서비스 이름 16개와 같다(§9).
 9. 서비스 전체 모양의 포트 키(`PortKey<XService>`, 값은 `{ name: <X>ServiceName }`)는 서비스 이름 상수 옆에 둔다: `TaskServicePortKey`(`services/tasks.ts`), `ModelServicePortKey`(`models.ts`), `ToolServicePortKey`(`tools.ts`), `ApprovalServicePortKey`(`approvals.ts`), `AgentServicePortKey`(`agents.ts`), `LoopServicePortKey`(`loop.ts`), `ContextPortKey`(`context.ts`), `ExecPortKey`(`exec.ts`), `OsPortKey`(`os.ts`), `SecretServicePortKey`(`secrets.ts`), `SessionPortKey`(`services/session.ts`), `StoreServicePortKey`(`services/store.ts`). `ModelService`, `TaskService`, `ToolService`는 각각 `ModelsPort`, `InputQueuePort`, `ToolsPort`를 확장하지만 키는 둘이다: 훅이 등록 부분형만 볼 때는 extensions의 `ModelsPortKey`, `InputQueuePortKey`, `ToolsPortKey`를, 서비스 전체를 쓸 때는 위 키를 쓴다(이름은 같다). `SessionService`와 `StoreService`는 records가 소유하는데 records(순서 2)는 `PortKey`(extensions, 순서 3)를 import할 수 없어 키만 `services/session.ts`, `services/store.ts`에 두고, 이름은 `SessionServiceName`, `StoreServiceName`과 같아야 한다(`names.test.ts`가 지킨다). 소비 패키지는 키를 자기 쪽에 다시 만들지 않고 `@fresnel/contracts/services`에서 가져온다. 남은 지역 키는 `platform-exec`의 `SecretsPortKey`(`SecretEnvSource` 부분형)뿐이며 F 서비스의 전체 모양이 아니다.
 10. [결정: open-issues D-03] 자식 프로세스 env 거부 목록 `SENSITIVE_ENV_PATTERNS`의 위치는 `@fresnel/contracts/services`의 `services/exec.ts` 하나다. `capabilities` 서브패스에 두지 않는다. `L0.exec.spec`, `L0.sandbox.spec`(자가 시험), `L0.secrets.spec`(sops 호출 env)과 각 plan은 이 위치를 인용한다.
 11. [결정: m2-plan F.4] 정책 상한 계산(`childDecision`)처럼 두 L1 패키지가 함께 써야 하는 순수 함수는 F `services/`에 두되, 구현 패키지만 아는 평가기는 인자로 받는다. F는 구현 패키지를 import하지 않는다.
@@ -1099,7 +1101,7 @@ export type NotifyError =
 9. `CapabilityError`의 `data`는 `CapabilityErrorDataSchema`를 통과하고, `rate_limited`의 기본 `retryable`은 참이다.
 10. §3.9 `web.search` 정의는 `validateCapability` 이슈 0건이다.
 11. `@fresnel/contracts/capabilities`의 어떤 파일도 `cordis`를 import하지 않는다(check-layers 또는 lint 규칙으로 확인).
-14. `@fresnel/contracts/services`의 `SERVICE_NAMES` 값(15개)과 각 파일의 `<X>ServiceName` 값이 같고, `eng.context-map.design` §5.3 표의 서비스 이름과 집합이 같다. `src/services/`의 파일은 값 import 없이 `import type`만 쓰고 `cordis`와 구현 패키지를 import하지 않는다.
+14. `@fresnel/contracts/services`의 `SERVICE_NAMES` 값(16개)과 각 파일의 `<X>ServiceName` 값이 같고, `eng.context-map.design` §5.3 표의 서비스 이름과 집합이 같다. `src/services/`의 파일은 값 import 없이 `import type`만 쓰고 `cordis`와 구현 패키지를 import하지 않는다.
 15. `LoopService`, `TaskService`, `ToolService`, `ModelService`, `ProcessService`, `McpService`, `GroupService`는 각각 `LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `DriveLockArbiterPort`에 대입 가능하고 `ExecService`는 `ExecutionEnv`에 대입 가능하다(타입 테스트).
 16. `SecretMetaSchema`·`SecretUsePolicySchema`의 `Static` 타입과 `SecretMeta`·`SecretUsePolicy` 인터페이스는 서로 대입 가능하다. `SecretAuditRecord`의 `secret.used`·`secret.denied`·`secret.approved`·`secret.masked` 변형은 `F.records.spec` §3.3.1 `secret.*` payload와 필드 이름이 같다(타입 테스트).
 17. `parseSecretRef("secret://github-token")`은 `ok`이고 `name`이 `github-token`이다. `parseSecretRef("$GITHUB_TOKEN")`은 `unsupported_ref_syntax`(`env_var`), `parseSecretRef("secret://A")`는 `invalid_ref`(`name_pattern`)다. 같은 입력에 같은 결과를 내고, `SecretName`에 검사 없는 `string`을 대입하면 타입 오류다.

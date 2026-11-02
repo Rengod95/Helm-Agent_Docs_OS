@@ -19,3 +19,4 @@ export * from "./schema-kit.ts";
 export * from "./ext-read.ts";
 export * from "./dialog-area.ts";
 export * from "./profile-test-run.ts";
+export * from "./devkit.ts";
