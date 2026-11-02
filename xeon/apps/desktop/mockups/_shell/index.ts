@@ -29,6 +29,7 @@ export {
   LineGridBlock,
   LineGridCell,
   LineGridEmpty,
+  LineGridFrame,
   LineGridMark,
   LineGridMetric,
   type LineGridBlockProps,
@@ -44,6 +45,22 @@ export {
   type LineGridRow,
   type LineGridSelection,
 } from "./line-grid";
+export {
+  HEAD_GAP,
+  ITEM_GAP,
+  PAGE_HEAD_GAP,
+  PAGE_PAD,
+  PageBody,
+  PageHead,
+  PageSection,
+  SECTION_GAP,
+  SoftAlert,
+  StageHead,
+  WELL_SECTION_GAP,
+  type PageHeadProps,
+  type PageSectionProps,
+  type StageHeadProps,
+} from "./page";
 export { currentFolder, navigateToPage, pageHref, postRoute } from "./routes";
 export * from "./fixtures";
 export * from "./workbench-fixtures";

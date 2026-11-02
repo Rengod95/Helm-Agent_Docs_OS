@@ -615,3 +615,19 @@ export function LineGridEmpty({ span, className, style, ...props }: LineGridEmpt
     />
   );
 }
+
+/**
+ * 선 격자 바깥 틀: 격자는 바깥 선을 그리지 않으므로(첫 행 위·첫 열 왼쪽은 clip으로 잘림) 이 감싸개가 1px 바깥 선을 긋는다.
+ * 레일 없이도 표가 열려 보이지 않게 한다. 십자 표식은 격자(LineGrid, LineGridBlock)가 바깥 네 모서리에 그린다. 좁으면 가로로 스크롤한다.
+ */
+export function LineGridFrame({ className, children, ...props }: ComponentProps<"div">) {
+  return (
+    <div data-slot="line-grid-frame" className={cn("relative min-w-0", className)} {...props}>
+      <div className="-m-2 overflow-x-auto p-2">{children}</div>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 border border-border-subtle"
+      />
+    </div>
+  );
+}
