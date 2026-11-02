@@ -1,0 +1,577 @@
+import { basename, dirname, join } from "node:path";
+import { describe, expect, test } from "bun:test";
+import { err, ok, parse } from "@fresnel/contracts";
+import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
+import {
+  createVersionHistory,
+  type ExtensionLoader,
+  type LoadedExtensionInfo,
+  type RegistrationInfo,
+  type UiEntryReport,
+  type VersionHistory,
+  type VersionHistoryFs,
+  type VersionSource,
+} from "@fresnel/ext-host";
+import { createExtUiVersionPort } from "../../src/assembly/m4/ext-ui-version-port.ts";
+import type { ExtUiVersionSource } from "../../src/assembly/m4/ext-ui-version-source.ts";
+import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
+
+// T-XV 포트(HS-108). 로더와 등록은 가짜, 버전 기록은 메모리 파일 시스템 위의 실제 보관 모듈이다. 되돌리기 순서는 끄기, 기록, 교체,
+// 상태 비우기, 켜기다(X.loading-trust §4.4.8). 시험 본문에 단언이 없고 값을 그대로 비교한다.
+
+const EXT_DIR = "/cfg/extensions";
+const BUNDLE_DIR = "/bundle";
+const BASE_MS = Date.UTC(2026, 10, 1);
+const THREAD = parseThread("thr_01ARZ3NDEKTSV4RRFFQ69G5FAV");
+const OTHER_THREAD = parseThread("thr_01ARZ3NDEKTSV4RRFFQ69G5FAW");
+
+function parseThread(raw: string): ThreadId {
+  const parsed = parse(ThreadIdSchema, raw);
+  if (!parsed.ok) throw new Error(`not a thread id: ${raw}`);
+  return parsed.value;
+}
+
+type Node = { readonly kind: "dir" } | { readonly kind: "file"; readonly text: string };
+
+interface Faults {
+  /** 참이면 메타 파일 읽기가 EACCES로 실패한다 */
+  metaReadFails: boolean;
+}
+
+/** 메모리 위의 버전 기록 파일 접근. 디렉터리는 키로 표시하고, 옮기기와 복사는 아래 항목을 통째로 옮긴다 */
+function memoryFs(faults: Faults): {
+  readonly fs: VersionHistoryFs;
+  readonly nodes: Map<string, Node>;
+} {
+  const nodes = new Map<string, Node>();
+  const makeDirs = (path: string): void => {
+    let current = "";
+    for (const part of path.split("/").filter((item) => item !== "")) {
+      current = `${current}/${part}`;
+      if (!nodes.has(current)) nodes.set(current, { kind: "dir" });
+    }
+  };
+  const within = (path: string): string[] =>
+    [...nodes.keys()].filter((key) => key === path || key.startsWith(`${path}/`));
+  const moveTree = (from: string, to: string): void => {
+    for (const key of within(from)) {
+      const node = nodes.get(key);
+      nodes.delete(key);
+      if (node !== undefined) nodes.set(`${to}${key.slice(from.length)}`, node);
+    }
+  };
+  const fs: VersionHistoryFs = {
+    readText: (path) => {
+      if (faults.metaReadFails && path.endsWith("meta.json")) {
+        return Promise.reject(Object.assign(new Error("permission denied"), { code: "EACCES" }));
+      }
+      const node = nodes.get(path);
+      return Promise.resolve(node?.kind === "file" ? node.text : null);
+    },
+    writeText: (path, text) => {
+      makeDirs(dirname(path));
+      nodes.set(path, { kind: "file", text });
+      return Promise.resolve();
+    },
+    exists: (path) => Promise.resolve(nodes.has(path)),
+    listDir: (path) => {
+      if (nodes.get(path)?.kind !== "dir") return Promise.resolve(null);
+      const children = [...nodes]
+        .filter(([key]) => dirname(key) === path)
+        .map(([key, node]): { readonly name: string; readonly kind: "dir" | "file" } => ({
+          name: basename(key),
+          kind: node.kind,
+        }));
+      return Promise.resolve(children);
+    },
+    copyDir: (from, to) => {
+      if (nodes.get(from)?.kind !== "dir") return Promise.reject(new Error(`no folder ${from}`));
+      if (nodes.has(to)) return Promise.reject(new Error(`${to} exists`));
+      makeDirs(dirname(to));
+      for (const key of within(from)) {
+        const node = nodes.get(key);
+        if (node !== undefined) nodes.set(`${to}${key.slice(from.length)}`, node);
+      }
+      return Promise.resolve();
+    },
+    removeDir: (path) => {
+      for (const key of within(path)) nodes.delete(key);
+      return Promise.resolve();
+    },
+    renameDir: (from, to) => {
+      if (!nodes.has(from)) return Promise.reject(new Error(`no ${from}`));
+      if (nodes.has(to)) return Promise.reject(new Error(`${to} exists`));
+      makeDirs(dirname(to));
+      moveTree(from, to);
+      return Promise.resolve();
+    },
+  };
+  return { fs, nodes };
+}
+
+function manifestOf(name: string, version: string): string {
+  return JSON.stringify({ name, version });
+}
+
+/** 확장 설치본 하나: 매니페스트와 엔트리 파일 */
+async function writeInstall(
+  fs: VersionHistoryFs,
+  dir: string,
+  name: string,
+  version: string,
+): Promise<void> {
+  await fs.writeText(join(dir, ".fresnel-plugin", "plugin.json"), manifestOf(name, version));
+  await fs.writeText(join(dir, "dist", "index.js"), `export const version = "${version}";\n`);
+}
+
+function loaded(
+  name: string,
+  state: LoadedExtensionInfo["state"],
+  source: LoadedExtensionInfo["source"],
+  version: LoadedExtensionInfo["version"],
+): LoadedExtensionInfo {
+  return {
+    name,
+    version,
+    source,
+    trust: "user",
+    state,
+    isolation: "none",
+    essential: false,
+    loadIndex: 0,
+    generation: 1,
+    diagnostics: [],
+  };
+}
+
+function scope(
+  id: string,
+  extension: string,
+  status: RegistrationInfo["status"],
+): RegistrationInfo {
+  return { id, extension, status, generation: 1, waiting: [], drive: "none" };
+}
+
+type HostView = ExtUiVersionSource["host"];
+
+interface RigOptions {
+  readonly infos?: readonly LoadedExtensionInfo[];
+  readonly entries?: readonly UiEntryReport[];
+  readonly scopes?: readonly RegistrationInfo[];
+  readonly threads?: readonly ThreadId[];
+  /** 지금 설치본의 상태 스키마 버전. 생략하면 모른다(null) */
+  readonly schema?: number;
+  /** 상태 재설정의 응답. 생략하면 거부된 상태가 없다 */
+  readonly reset?: HostView["resetRegistrationState"];
+  /** 참이면 끄기 요청이 던진다 */
+  readonly disableFails?: boolean;
+}
+
+interface Rig {
+  readonly port: ExtUiVersionPort;
+  readonly history: VersionHistory;
+  readonly nodes: Map<string, Node>;
+  readonly fs: VersionHistoryFs;
+  readonly faults: Faults;
+  /** 호스트에 건 호출의 기록(순서대로) */
+  readonly calls: string[];
+}
+
+function rigOf(options: RigOptions): Rig {
+  const faults: Faults = { metaReadFails: false };
+  const { fs, nodes } = memoryFs(faults);
+  let tick = 0;
+  const history = createVersionHistory({
+    fs,
+    historyRoot: join(EXT_DIR, ".history"),
+    now: () => {
+      tick += 1;
+      return BASE_MS + tick * 1000;
+    },
+    hash: () => "hash",
+  });
+  const calls: string[] = [];
+  const scopes = options.scopes ?? [];
+  const host: HostView = {
+    registrations: () => scopes,
+    registration: (id) => ({
+      id,
+      status: "enabled",
+      enable: () => {
+        calls.push(`enable ${id}`);
+      },
+      disable: () => {
+        calls.push(`disable ${id}`);
+        if (options.disableFails === true) throw new Error("the registration refused to stop");
+      },
+    }),
+    resetRegistrationState: (threadId, scopeId) => {
+      calls.push(`reset ${threadId} ${scopeId}`);
+      return (options.reset ?? (() => Promise.resolve(err({ kind: "not_refused" }))))(
+        threadId,
+        scopeId,
+      );
+    },
+  };
+  const loader: Pick<ExtensionLoader, "list" | "uiEntries"> = {
+    list: () => options.infos ?? [],
+    uiEntries: () => options.entries ?? [],
+  };
+  const source: ExtUiVersionSource = {
+    host,
+    loader: () => loader,
+    history,
+    extensionsDir: EXT_DIR,
+    heldThreads: () => options.threads ?? [],
+    stateSchemaVersion: () => options.schema ?? null,
+  };
+  return { port: createExtUiVersionPort({ extUi: source }), history, nodes, fs, faults, calls };
+}
+
+/** 보관 항목 하나를 기록한다. 내용은 `bundle/<이름>`에서 복사한다 */
+async function record(
+  rig: Rig,
+  name: string,
+  version: string,
+  source: VersionSource,
+  stateSchemaVersion: number | null,
+): Promise<void> {
+  const bundle = join(BUNDLE_DIR, `${name}-${version}`);
+  await writeInstall(rig.fs, bundle, name, version);
+  const recorded = await rig.history.record({
+    name,
+    version,
+    source,
+    extensionDir: bundle,
+    manifestText: manifestOf(name, version),
+    stateSchemaVersion,
+  });
+  expect(recorded.ok).toBe(true);
+}
+
+function entryOfUi(
+  extension: string,
+  id: string,
+  state: UiEntryReport["state"],
+  issues: UiEntryReport["issues"],
+  title: string,
+  placement: UiEntryReport["placement"] = "panel",
+): UiEntryReport {
+  return { extension, id, placement, mode: "native", title, state, issues };
+}
+
+describe("ext-ui-version port: versions", () => {
+  test("lists the recorded versions newest first and marks the installed one as current", async () => {
+    const rig = rigOf({ infos: [loaded("helm", "active", "user", "0.2.0")] });
+    await record(rig, "helm", "0.1.0", "bundled", null);
+    await record(rig, "helm", "0.2.0", "user", null);
+    expect(await rig.port.versions("helm")).toEqual(
+      ok({
+        versions: [
+          {
+            version: "0.2.0",
+            installedAt: new Date(BASE_MS + 2000).toISOString(),
+            source: "user",
+            manifestHash: "hash",
+            stateSchemaVersion: null,
+            current: true,
+          },
+          {
+            version: "0.1.0",
+            installedAt: new Date(BASE_MS + 1000).toISOString(),
+            source: "bundled",
+            manifestHash: "hash",
+            stateSchemaVersion: null,
+            current: false,
+          },
+        ],
+      }),
+    );
+  });
+
+  test("an extension from the bundled or project location has no history and an empty list", async () => {
+    const rig = rigOf({ infos: [loaded("core-tools", "active", "builtin", "1.0.0")] });
+    expect(await rig.port.versions("core-tools")).toEqual(ok({ versions: [] }));
+  });
+
+  test("a name that no extension has is unknown_extension", async () => {
+    const rig = rigOf({});
+    expect(await rig.port.versions("ghost")).toEqual(
+      err({ kind: "unknown_extension", name: "ghost" }),
+    );
+  });
+
+  test("a metadata read that fails is reported as io with the OS code", async () => {
+    const rig = rigOf({ infos: [loaded("helm", "active", "user", "0.2.0")] });
+    await record(rig, "helm", "0.1.0", "bundled", null);
+    rig.faults.metaReadFails = true;
+    expect(await rig.port.versions("helm")).toEqual(err({ kind: "io", code: "EACCES" }));
+  });
+});
+
+describe("ext-ui-version port: rollback", () => {
+  test("a round trip swaps the files, records the installed version and reports restart", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await record(rig, "helm", "0.1.0", "bundled", null);
+
+    const rolled = await rig.port.rollback({ name: "helm", version: "0.1.0" });
+
+    expect(rolled).toEqual(ok({ appliesAt: "restart", stateCleared: false }));
+    expect(rig.calls).toEqual(["disable helm/main", "enable helm/main"]);
+    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
+      kind: "file",
+      text: 'export const version = "0.1.0";\n',
+    });
+    // 되돌리기 전 설치본이 `user` 출처로 기록되어 다시 앞으로 갈 수 있다
+    const listing = await rig.history.list("helm", "0.1.0");
+    expect(listing.ok).toBe(true);
+    if (listing.ok) {
+      expect(listing.value.versions.map((entry) => [entry.version, entry.source])).toEqual([
+        ["0.2.0", "user"],
+        ["0.1.0", "bundled"],
+      ]);
+    }
+  });
+
+  test("a schema mismatch stops before any file changes, then clearState resets the refused state", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      threads: [THREAD],
+      schema: 2,
+      reset: () => Promise.resolve(err({ kind: "not_refused" })),
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await record(rig, "helm", "0.1.0", "bundled", 1);
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      err({ kind: "state_schema_mismatch", targetSchemaVersion: 1, currentSchemaVersion: 2 }),
+    );
+    expect(rig.calls).toEqual([]);
+    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
+      kind: "file",
+      text: 'export const version = "0.2.0";\n',
+    });
+  });
+
+  test("clearState reports stateCleared when a refused state was reset, between disable and enable", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      threads: [THREAD],
+      schema: 2,
+      reset: () => Promise.resolve(ok({ rev: 1 })),
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await record(rig, "helm", "0.1.0", "bundled", 1);
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0", clearState: true })).toEqual(
+      ok({ appliesAt: "restart", stateCleared: true }),
+    );
+    expect(rig.calls).toEqual([
+      "disable helm/main",
+      `reset ${THREAD} helm/main`,
+      "enable helm/main",
+    ]);
+  });
+
+  test("clearState with nothing refused reports stateCleared false", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      threads: [THREAD, OTHER_THREAD],
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await record(rig, "helm", "0.1.0", "bundled", null);
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0", clearState: true })).toEqual(
+      ok({ appliesAt: "restart", stateCleared: false }),
+    );
+    expect(rig.calls).toEqual([
+      "disable helm/main",
+      `reset ${THREAD} helm/main`,
+      `reset ${OTHER_THREAD} helm/main`,
+      "enable helm/main",
+    ]);
+  });
+
+  test("a failed state reset stops the rollback as rollback_failed after the swap, with the extension left off", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      threads: [THREAD],
+      reset: () => Promise.resolve(err({ kind: "port_unavailable" })),
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await record(rig, "helm", "0.1.0", "bundled", null);
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0", clearState: true })).toEqual(
+      err({ kind: "rollback_failed", reason: "clear_state_failed" }),
+    );
+    expect(rig.calls).toEqual(["disable helm/main", `reset ${THREAD} helm/main`]);
+  });
+
+  test("a disable that throws changes nothing and reports disable_failed", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      disableFails: true,
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await record(rig, "helm", "0.1.0", "bundled", null);
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      err({ kind: "rollback_failed", reason: "disable_failed" }),
+    );
+    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
+      kind: "file",
+      text: 'export const version = "0.2.0";\n',
+    });
+  });
+
+  test("a version that is not recorded is unknown_version", async () => {
+    const rig = rigOf({ infos: [loaded("helm", "active", "user", "0.2.0")] });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    expect(await rig.port.rollback({ name: "helm", version: "0.9.0" })).toEqual(
+      err({ kind: "unknown_version", version: "0.9.0" }),
+    );
+  });
+
+  test("an extension that no one installed is unknown_extension, and a builtin one has no history", async () => {
+    const rig = rigOf({ infos: [loaded("core-tools", "active", "builtin", "1.0.0")] });
+    expect(await rig.port.rollback({ name: "ghost", version: "0.1.0" })).toEqual(
+      err({ kind: "unknown_extension", name: "ghost" }),
+    );
+    expect(await rig.port.rollback({ name: "core-tools", version: "0.1.0" })).toEqual(
+      err({ kind: "history_unavailable", reason: "builtin extension has no version history" }),
+    );
+  });
+});
+
+describe("ext-ui-version port: ui list", () => {
+  test("maps the loader's entries to wire items: sorted, disabled by loader state or by registration, issues as diagnostics", async () => {
+    const rig = rigOf({
+      infos: [
+        loaded("helm", "active", "user", "0.2.0"),
+        loaded("account-rotation", "disabled", "user", "0.2.0"),
+        loaded("tools-kit", "active", "user", "0.2.0"),
+        loaded("core-tools", "active", "builtin", "1.0.0"),
+      ],
+      scopes: [
+        scope("helm/main", "helm", "enabled"),
+        scope("account-rotation/main", "account-rotation", "enabled"),
+        scope("tools-kit/main", "tools-kit", "disabled"),
+      ],
+      entries: [
+        entryOfUi("helm", "panel", "ok", [], "Helm"),
+        {
+          extension: "helm",
+          id: "broken",
+          placement: "card",
+          mode: "native",
+          title: "Broken",
+          state: "invalid",
+          issues: [
+            {
+              severity: "error",
+              code: "ui_file_missing",
+              path: "/ui/items/1",
+              message: "view/broken.json does not exist",
+            },
+          ],
+        },
+        {
+          extension: "account-rotation",
+          id: "status",
+          placement: "status",
+          mode: "native",
+          title: "Rotation",
+          state: "ok",
+          issues: [
+            {
+              severity: "info",
+              code: "ui_mode_not_allowed",
+              path: "/ui/items/0",
+              message: "apps are off",
+            },
+          ],
+        },
+        entryOfUi("tools-kit", "home", "ok", [], "Tools", "page"),
+      ],
+    });
+
+    expect(rig.port.uiList({})).toEqual({
+      items: [
+        {
+          extension: "account-rotation",
+          id: "status",
+          placement: "status",
+          mode: "native",
+          title: "Rotation",
+          state: "disabled",
+          issues: [{ severity: "warning", code: "ui_mode_not_allowed", message: "apps are off" }],
+        },
+        {
+          extension: "helm",
+          id: "broken",
+          placement: "card",
+          mode: "native",
+          title: "Broken",
+          state: "invalid",
+          issues: [
+            {
+              severity: "error",
+              code: "ui_file_missing",
+              message: "view/broken.json does not exist",
+            },
+          ],
+        },
+        {
+          extension: "helm",
+          id: "panel",
+          placement: "panel",
+          mode: "native",
+          title: "Helm",
+          state: "ok",
+          issues: [],
+        },
+        {
+          extension: "tools-kit",
+          id: "home",
+          placement: "page",
+          mode: "native",
+          title: "Tools",
+          state: "disabled",
+          issues: [],
+        },
+      ],
+    });
+  });
+
+  test("the list is capped at 500 after sorting, so the same entries give the same first 500 in any input order", async () => {
+    const entries = Array.from({ length: 501 }, (_, index) =>
+      entryOfUi("bulk", `i${String(index).padStart(3, "0")}`, "ok", [], "Bulk"),
+    );
+    const rig = rigOf({
+      infos: [loaded("bulk", "active", "user", "0.1.0")],
+      entries: entries.toReversed(),
+    });
+    const items = rig.port.uiList({}).items;
+    expect(items).toHaveLength(500);
+    expect(items[0]?.id).toBe("i000");
+    expect(items[499]?.id).toBe("i499");
+  });
+
+  test("without a loader the port lists nothing and names no extension", async () => {
+    const port = createExtUiVersionPort({});
+    expect(port.uiList({})).toEqual({ items: [] });
+    expect(await port.versions("helm")).toEqual(err({ kind: "unknown_extension", name: "helm" }));
+    expect(await port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      err({ kind: "unknown_extension", name: "helm" }),
+    );
+  });
+});

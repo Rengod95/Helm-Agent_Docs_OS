@@ -15,7 +15,7 @@ test("settings: x.operations keys pass catalog", () => {
   const defs = Object.values(operationsSettings.defs);
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.operations", defs }]);
   expect(catalog.ok).toBe(true);
-  expect(defs).toHaveLength(15);
+  expect(defs).toHaveLength(16);
   for (const def of defs) {
     expect(def.layer).toBe("X");
     // 저장소에 든 설정이 예산·자동 끄기를 바꾸지 못한다
@@ -24,6 +24,13 @@ test("settings: x.operations keys pass catalog", () => {
   }
   expect(operationsSettings.defs["budget.setupMs"].runtimeChange).toBe("restart");
   expect(operationsSettings.defs["budget.setupMs"].allowedScopes).not.toContain("session");
+  // 확장 메서드 예산 키는 훅 예산 키와 같은 범위·갱신 규칙이다(X.operations.spec §6)
+  expect(operationsSettings.defs["budget.uiMs"]).toMatchObject({
+    runtimeChange: "live",
+    range: { min: 100, max: 600_000 },
+    default: 10_000,
+    allowedScopes: ["managed", "user", "local", "launch"],
+  });
 });
 
 test("settings: the static source follows the documented defaults and accepts overrides", () => {

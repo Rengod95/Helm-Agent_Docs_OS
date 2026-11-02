@@ -75,6 +75,12 @@ import {
   type RegistrationInfo,
   type RegistrationSetupOutcome,
 } from "./registration.ts";
+import {
+  createExtMethods,
+  type ExtMethods,
+  type ExtMethodSettled,
+  type MethodRun,
+} from "./ext-method.ts";
 import { createStateService, type StateService } from "./state.ts";
 import { createStepPause, type StepPause } from "./step-pause.ts";
 
@@ -116,6 +122,13 @@ export interface ExtHostDeps {
    * 값은 Turn이 처음 보일 때 읽는다
    */
   readonly trace?: () => TraceSettings;
+  /** 확장 메서드 호출이 처리기에 닿았을 때 한 번 부른다(X.primitives.spec §4.12). 없으면 보고하지 않는다 */
+  readonly onMethodSettled?: (info: ExtMethodSettled) => void;
+  /**
+   * 확장 메서드 처리기를 시간 예산 안에서 실행한다(X.primitives.spec §4.12, X.operations.spec §4.2). X.operations가
+   * `OperationsPolicy.runMethod`를 넘긴다. 없으면 예산 없이 실행한다 [제안, M4 T-XV]
+   */
+  readonly methodRun?: MethodRun;
 }
 
 /** loading-trust가 검증을 끝낸 확장 하나. 순서는 loadIndex가 정한다 */
@@ -228,6 +241,8 @@ export interface ExtHost {
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
   /** L4가 읽는 명령·키 조합·플래그·렌더러 표(X.primitives.spec §3.9) */
   readonly resources: ResourceRegistry;
+  /** 확장 메서드 표와 호출(X.primitives.spec §3.9.2, §4.12). 조립 루트가 wire `ext.<확장>.<동사>`를 이 함수로 넘긴다 */
+  readonly methods: ExtMethods;
   /**
    * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). `fresnel.session`의 `readBranch` 포트가 없으면
    * `port_unavailable`이다. 확장 scope에는 열지 않는 호스트용 조회다
@@ -576,6 +591,12 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   }
 
   const resources = createResourceStore({ ports, policy: deps.resourcePolicy, report });
+  const methods = createExtMethods({
+    core,
+    resources,
+    onMethodSettled: deps.onMethodSettled,
+    methodRun: deps.methodRun,
+  });
   const kick: { directCommitted: (thread: ThreadRuntime, record: RegistrationRecord) => void } = {
     directCommitted: () => {},
   };
@@ -803,6 +824,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     ports,
     resources,
+    methods,
     queryEvents: createEventQuery(ports),
     async resetRegistrationState(threadId, scopeId) {
       const record = core.scopes.get(scopeId);

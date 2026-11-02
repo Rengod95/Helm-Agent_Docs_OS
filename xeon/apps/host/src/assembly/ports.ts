@@ -79,6 +79,7 @@ import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
+import type { ExtUiVersionSource } from "./m4/ext-ui-version-source.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
 import type { ProjectTrust, TrustInspection } from "./trust.ts";
 
@@ -123,6 +124,8 @@ export interface PortsDeps {
   readonly trust: ProjectTrust;
   /** 서비스 모드의 프로젝트 확장 적재(M3-REQ-38). 쓰기 소유를 얻은 thread의 작업 폴더와 신뢰 결정 뒤에 부른다 */
   readonly projectExtensions: ProjectExtensions;
+  /** 확장 버전과 화면 목록의 원천(T-XV, HS-108). 없으면 확장이 없는 것으로 본다 */
+  readonly extUi?: ExtUiVersionSource | undefined;
   /** thread의 작업 디렉터리(없으면 undefined) */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
   /** 예약 서비스(L4.host-service.spec §4.17). 대기 예약·루프 수를 활동 집계에 낸다 */
@@ -723,6 +726,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         heldThreads: () => Array.from(held.keys()),
         activeThread: () => Array.from(held.keys()).at(-1) ?? null,
       }),
+      deps.extUi,
     ),
   };
 

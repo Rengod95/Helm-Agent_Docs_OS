@@ -5,6 +5,7 @@ import type { ExtReadPort } from "../../handlers/m4/ext-read.ts";
 import type { ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import type { M4EngineDeps, M4HostEnv, M4PortDeps } from "./deps.ts";
+import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 import { createDevkitPort } from "./devkit-port.ts";
 import { createDialogAreaPort } from "./dialog-area-port.ts";
 import { createExtReadPort, type ExtReadSources } from "./ext-read-port.ts";
@@ -31,12 +32,14 @@ export function createM4Ports(
   engine: M4EngineDeps,
   env: M4HostEnv,
   extReadSources: ExtReadSources,
+  extUi?: ExtUiVersionSource,
 ): M4Ports {
   const deps: M4PortDeps = {
     ...engine,
     traceRead: traceReadOf(host),
     testRunControl: testRunControlOf(host),
     env,
+    extUi,
   };
   return {
     extRead: createExtReadPort(deps, extReadSources),

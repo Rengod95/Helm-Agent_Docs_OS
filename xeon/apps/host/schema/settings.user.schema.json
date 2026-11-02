@@ -6495,6 +6495,31 @@
         }
       }
     },
+    "x.operations.budget.uiMs": {
+      "default": 10000,
+      "maximum": 600000,
+      "minimum": 100,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "local",
+          "launch"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "확장 메서드 호출 시간 예산",
+          "order": 260,
+          "tab": "plugins",
+          "unit": "ms",
+          "widget": "number"
+        }
+      }
+    },
     "x.operations.safeMode.default": {
       "default": false,
       "type": "boolean",

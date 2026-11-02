@@ -183,19 +183,20 @@ export function assignTier(input: TierInput, guards?: ReadonlySet<ExtensionName>
 ### 3.2 핸들러 시간 예산 (`budget.ts`)
 
 ```ts
-export type BudgetClass = "first" | "chain" | "tap" | "streamTap" | "shutdown" | "setup" | "hook";
+// `ui`는 확장 메서드 호출(wire `ext.<id>.<verb>`, Plugin UI 호출)의 등급이다. 훅 지점이 아니라서 budgetClassOf가 내지 않는다 [제안, M4 T-XV]
+export type BudgetClass = "first" | "chain" | "tap" | "streamTap" | "shutdown" | "setup" | "hook" | "ui";
 
 export type BudgetTable = { readonly [C in BudgetClass]: number };   // ms
 
 /** §4.2.2 표의 기본값. 설정 키 x.operations.budget.*의 default와 같다(§6) */
 export const DEFAULT_BUDGETS_MS: BudgetTable;
-// = { first: 30_000, chain: 10_000, tap: 5_000, streamTap: 1_000, shutdown: 2_000, setup: 10_000, hook: 30_000 }
+// = { first: 30_000, chain: 10_000, tap: 5_000, streamTap: 1_000, shutdown: 2_000, setup: 10_000, hook: 30_000, ui: 10_000 }
 
 /** 고빈도 관찰 지점. streamTap 예산을 쓴다 */
 export const STREAM_TAP_HOOKS: readonly HookName[];
 // = ["boundary.message.update", "request.stream", "tool.execution.update"]
 
-/** 순수 함수. setup(X.primitives.spec §4.5.3, 값은 OperationsPolicy.setupBudgetMs)과 외부 훅은 이 함수를 쓰지 않는다 */
+/** 순수 함수. setup(X.primitives.spec §4.5.3, 값은 OperationsPolicy.setupBudgetMs)과 외부 훅, 확장 메서드(`ui`)는 이 함수를 쓰지 않는다 */
 export function budgetClassOf(point: HookDecl): Exclude<BudgetClass, "setup" | "hook">;
 
 /** DispatchPolicy.budgetMs 구현. 지점 등급과 유효 설정 값으로 정한다 */
@@ -247,13 +248,23 @@ export type HandlerResultKind = "ok" | "aborted" | "value_from_tap" | FailureKin
 /** primitives HandlerFailure → 장부 기록. value_from_tap은 기록만 하고 실패로 세지 않는다 */
 export function fromHandlerFailure(failure: HandlerFailure, tier: Tier, at: number): HandlerOutcomeRecord;
 
+/**
+ * 확장 메서드 호출의 보고(X.primitives.spec §4.12) → 장부 기록 [제안, M4 T-XV]. params_invalid와 aborted는 세지 않아 undefined다.
+ * ok는 성공, threw·timeout·result_invalid는 실패다. owner는 확장이라 훅 실패와 같은 키 `ext:<이름>`을 쓴다
+ */
+export function fromMethodSettled(info: ExtMethodSettled, tier: Tier, at: number): HandlerOutcomeRecord | undefined;
+
 export interface HandlerOutcomeRecord {
   readonly owner: HandlerOwner;
   readonly tier: Tier;
-  readonly point: HookName;
-  readonly fold: Fold;
-  /** 그 훅 선언의 실패 정책. `HOOKS[point].failure`를 읽는다(F.extensions.spec §3.3, adr.0017) */
-  readonly failure: FailurePolicy;
+  /** 훅 지점. 확장 메서드 호출의 기록이면 `"ext.method"`다 [제안, M4 T-XV] */
+  readonly point: HookName | "ext.method";
+  /** 훅의 fold. 메서드 기록에는 없다 */
+  readonly fold?: Fold;
+  /** 그 훅 선언의 실패 정책. `HOOKS[point].failure`를 읽는다(F.extensions.spec §3.3, adr.0017). 메서드 기록에는 없다 */
+  readonly failure?: FailurePolicy;
+  /** 확장 메서드의 동사. 메서드 기록에만 있다 [제안, M4 T-XV] */
+  readonly verb?: string;
   readonly result: HandlerResultKind;
   /** 멈춘 시간을 뺀 실행 시간 */
   readonly activeMs: number;
@@ -775,6 +786,16 @@ export interface OperationsPolicy extends DispatchPolicy {
     work: (signal: AbortSignal, gate: BudgetGate) => T | Promise<T>,
     outer: AbortSignal | undefined,
   ): Promise<BudgetOutcome<T>>;
+  /**
+   * 확장 메서드 처리기를 `x.operations.budget.uiMs`(등급 `ui`) 예산 안에서 실행한다. `ExtHostDeps.methodRun`에 넘긴다.
+   * gate는 `hostOf(g).awaitUser`가 쓴다(§4.2.3, X.primitives.spec §4.12) [제안, M4 T-XV]
+   */
+  readonly runMethod: MethodRun;
+  /**
+   * 확장 메서드 호출의 보고를 장부에 넣는다. `ExtHostDeps.onMethodSettled`에 넘긴다. params_invalid와 aborted는 세지 않는다(§4.3.1).
+   * 나머지는 훅 실패와 같은 경로(`AutoDisabler.onOutcome`)를 탄다(§4.3) [제안, M4 T-XV]
+   */
+  readonly onMethodSettled: (info: ExtMethodSettled) => void;
   readonly tiers: TierTable;
   readonly ledger: FailureLedger;
   readonly autoDisabler: AutoDisabler;
@@ -802,7 +823,7 @@ export interface OperationsPolicy extends DispatchPolicy {
 export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy;
 ```
 
-- 조립 순서 [제안]: L4 host가 `createOperationsPolicy`를 먼저 만들고, 그 결과를 `ExtHostDeps.policy`, `ExtHostDeps.setupBudgetMs`(`() => policy.setupBudgetMs()`), `ExtHostDeps.resourcePolicy`(`policy.resources`), `ExtHostDeps.trace`(`() => policy.trace()`)에 넣어 `createExtHost`를 부른다. 이어 `OperationsDeps.ports`와 `RegistrationControl`의 늦은 연결을 그 `ExtHost`에 잇고, `createExtensionLoader({ host, policy, … })`로 로더를 만들어 `loadAll`을 부른다(`X.loading-trust.spec` §3.5). 로더는 확장마다 6a단계(설치 전)에서 `admit`을 부른다.
+- 조립 순서 [제안]: L4 host가 `createOperationsPolicy`를 먼저 만들고, 그 결과를 `ExtHostDeps.policy`, `ExtHostDeps.setupBudgetMs`(`() => policy.setupBudgetMs()`), `ExtHostDeps.resourcePolicy`(`policy.resources`), `ExtHostDeps.trace`(`() => policy.trace()`), `ExtHostDeps.methodRun`(`policy.runMethod`), `ExtHostDeps.onMethodSettled`(`policy.onMethodSettled`)에 넣어 `createExtHost`를 부른다. 뒤의 두 자리는 확장 메서드 호출에만 쓰이며, 없으면 메서드는 예산 없이 돈다(X.primitives.spec §3.2) [제안, M4 T-XV]. 이어 `OperationsDeps.ports`와 `RegistrationControl`의 늦은 연결을 그 `ExtHost`에 잇고, `createExtensionLoader({ host, policy, … })`로 로더를 만들어 `loadAll`을 부른다(`X.loading-trust.spec` §3.5). 로더는 확장마다 6a단계(설치 전)에서 `admit`을 부른다.
 - `admit`이 `TierError`를 내면 로더는 그 확장을 설치하지 않는다(`tier_rejected`). 로더의 신뢰 판정(4단계)이 이미 같은 경우를 걸러내므로 이 오류는 방어 검사다.
 
 ### 3.9 계측 링 버퍼와 시간 분포 (`trace-buffer.ts`, `handler-timings.ts`)
@@ -979,6 +1000,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `shutdown` | `thread.shutdown` | 2,000 | 종료를 붙잡지 않는다(omp issue #2600 주석) |
 | `setup` | 엔트리 본문과 scope setup 실행(`ExtHost.install`, X.primitives.spec §4.5.3, §4.5.6) | 10,000 | 시작 시간을 붙잡지 않는다. 넘으면 primitives가 그 scope의 fiber를 해제해 등록을 되돌리고, 로더가 `setup_timeout` 진단을 남긴다(X.loading-trust.spec §4.4.3) |
 | `hook` | 외부 훅(§4.7) | 30,000 | 프로세스 시작 비용을 포함한다. 훅 정의의 `timeoutMs`가 우선한다(최대 600,000) |
+| `ui` | 확장 메서드 호출(wire `ext.<id>.<verb>`, Plugin UI 호출)의 처리기(X.primitives.spec §4.12). 훅이 아니라 `budgetClassOf`가 내지 않는다 | 10,000 | [제안] 확장이 직접 받는 호출이라 chain과 같은 값을 쓴다. 사용자 응답 대기는 §4.2.3이 뺀다. 설정 키 `x.operations.budget.uiMs` |
 
 - `dispatch: "detached"` tap(5개)도 예산을 받는다. 디스패처는 그 핸들러의 완료를 대기하지 않고 진행하지만, 예산을 넘으면 signal을 abort하고 실패로 센다.
 - 예산은 핸들러 호출 한 번 단위다. 한 훅 전체의 합계 상한은 두지 않는다 [제안]. 합계는 §4.2.6의 지연 계산과 느린 훅 진단으로 다룬다.
@@ -992,6 +1014,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 비대화 실행(CLI print 모드)에서는 대화상자가 바로 기본값으로 끝나므로 멈춤 시간이 0이다.
 - 계측 기록(§4.8.2)의 시간도 이 활성 시간이다. 멈춘 시간은 여기서 한 번 빠지고, 기록은 그 값을 다시 빼지 않는다.
 - [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않는다. 핸들러용 UI 포트는 X 공개 API의 별도 함수로 연결한다(F 타입에는 넣지 않는다)(M2, O-07). 핸들러(와 그 핸들러가 부르는 UI·승인 포트 래퍼)는 `hostOf(g).awaitUser(wait, { signal? })`로 사용자 응답 대기를 감싼다. 이 함수는 호출한 핸들러의 `gate`와 취소 신호를 비동기 맥락에서 찾아(X.primitives.spec §4.2 `withAmbient`) `gate.pause()`·`resume()`으로 예산 시계를 멈추고, `wait`에는 핸들러 신호와 호출자의 신호를 `AbortSignal.any`로 합쳐 넘긴다. 핸들러 밖(drive 함수, setup)에서는 예산이 없으므로 그대로 실행한다. 승인 대기(`fresnel.approvals`)를 부르는 L2 포트 래퍼도 같은 함수를 쓴다. 게이트 쪽 함수 `awaitUser(gate, wait)`는 패키지 안에서 `hostOf(g).awaitUser`가 쓴다.
+- 확장 메서드 처리기(`hostOf(g).registerMethod`, X.primitives.spec §4.12)도 `ui` 예산 안에서 돈다. `OperationsPolicy.runMethod`가 `runWithBudget`으로 실행하고, 처리기 ambient의 `handler`에 신호와 gate를 싣는다. 그래서 메서드 안의 `hostOf(g).awaitUser` 대기도 같은 방식으로 시계를 멈춘다 [제안, M4 T-XV]. threadId가 없는 호출은 ambient를 열지 않으므로 대기 제외가 적용되지 않는다 [미결, §10 22번].
 
 #### 4.2.4 예산 초과 처리
 
@@ -1002,6 +1025,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
    - `first`: `FIRST_DENY[point]`를 결정으로 쓴다. 예: `tool.call.before`은 `{ block: true, reason: "extension handler failed", terminate: false }`. `thread.trust.before`는 불신, `session_before_*`는 취소다.
    - `chain`: 그 핸들러의 패치를 버리고 `current`를 다음 핸들러에 넘긴다.
 4. 실패 장부에 `timeout`으로 기록한다(§4.3).
+5. 확장 메서드 호출은 fold가 없으므로 호출한 쪽에 `{ kind: "timeout", budgetMs }` 값을 돌려준다(X.primitives.spec §4.12). `budgetMs`는 예산의 유효 값이다 [제안, M4 T-XV].
 
 #### 4.2.5 시간 예산 밖
 
@@ -1025,12 +1049,13 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | 정상 반환(`undefined` 포함) | `ok` | 연속 수 0으로 |
 | 예외 | `threw` | 실패 |
 | 예산 초과 | `timeout` | 실패 |
-| first 결정·chain 패치의 스키마 위반 | `result_invalid` | 실패 |
+| first 결정·chain 패치·확장 메서드 결과의 스키마 위반 | `result_invalid` | 실패 |
 | chain 병합 함수 예외(예: `boundary.message.after` role 불일치) | `merge_rejected` | 실패 |
 | tap 핸들러가 값을 반환 | `value_from_tap` | 기록만, 실패 아님 |
 | 격리 확장 프로세스의 비정상 종료로 끝난 호출 | `isolation_exited` | 실패 |
 | 외부 훅의 비정상 종료·출력 위반·시작 실패 | `hook_exit`, `hook_output`, `hook_spawn` | 실패 |
 | `outer` 중단(사용자 중단, 대화 종료, drive 락 회수)으로 끝남 | `aborted` | 넣지 않음 |
+| 확장 메서드 매개변수가 `params` 스키마를 어김(호출한 쪽의 잘못, `params_invalid`) [제안] | 처리기를 부르지 않으므로 넣지 않음 | 연속 수와 창을 바꾸지 않는다 |
 
 - 외부 훅의 exit 2는 의도한 거부이므로 실패가 아니다(§4.7.3).
 - 확장의 로드 실패(setup 예외, 매니페스트 오류)는 `X.loading-trust.spec`이 다루고 이 장부에 넣지 않는다. 프로세스가 시작 중에 죽는 경우는 §4.6.4가 센다.
@@ -1039,6 +1064,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 - 장부 키는 확장 이름(`ext:<name>`)이다. 한 확장의 모든 scope와 훅을 합쳐 센다. 외부 훅은 훅 id(`hook:<id>`)로 따로 센다.
 - 연속 실패 수: 실패마다 1을 더하고 `ok`가 오면 0으로 돌린다. `ok`는 `DispatchPolicy.onHandlerSettled` 보고로 안다(X.primitives.spec §3.4).
+- 확장 메서드 호출도 같은 키(`ext:<name>`)로 센다. 한 확장의 훅 실패와 메서드 실패가 같은 연속 수와 같은 창을 쓴다. `ok`는 `OperationsPolicy.onMethodSettled`가 알린다 [제안, M4 T-XV].
 - 최근 호출 창: 최근 `windowSize`번의 호출(`aborted` 제외)에서 실패 수를 센다.
 - 장부는 프로세스 메모리에만 있다. 재시작하면 비어 있다 [제안]. 영속 기록이 필요한 정보(자동 끄기 사실)는 이벤트로 남긴다(§4.3.4).
 
@@ -1048,6 +1074,8 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 1. 연속 실패 수 ≥ `consecutive`(기본 5)
 2. 창 실패 수 ≥ `minFailures`(기본 10)이고 창 실패율 ≥ `failureRate`(기본 0.5). 창 크기 기본 50
+
+확장 메서드의 실패(`threw`, `timeout`, `result_invalid`)는 훅 실패와 같은 두 기준에 든다. 그래서 메서드만 계속 죽는 확장도 같은 알림과 함께 자동으로 꺼진다. 같은 확장의 tap 실패와 같은 취급이다 [제안, M4 T-XV]. 면제(`guard`·`core` tier, `essential`)는 메서드에도 그대로 적용한다.
 
 적용 규칙:
 
@@ -1062,6 +1090,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 #### 4.3.4 알림과 기록
 
 - 실패마다 휘발 이벤트를 보낸다. kind `scope.handler_failed`(코어 영역 `scope`, 휘발)이며 F.records 코어 카탈로그(`ScopeHandlerFailedPayloadSchema`)에 있다(§10 미결 4). payload는 `{ owner: HandlerOwnerKey, point, result, message, consecutive }`다. `message`는 `outcome.message ?? ""`를 4000자로 자른 값이고, `consecutive`는 1 이상이다. L4는 같은 확장의 알림을 묶어 보인다.
+- 확장 메서드 기록의 `point`는 `"ext.method"`다. `message`는 동사를 앞에 붙인다(`sum: boom`, 메시지가 없으면 `sum`). 운영 로그 줄은 `handler failed: ext:<이름> ext.method <동사> <result> (consecutive N)`다 [제안, M4 T-XV]. 페이로드 `point`는 훅 이름이 아니므로 L4가 그리는 방식은 따로 정한다 [미결, §10 23번].
 - 구현은 `createVolatileNotifier`(`operations/auto-disable.ts`)다. `handlerFailed`는 `createLogNotifier`와 같은 운영 로그 줄을 남기고 `emit`으로 페이로드를 보낸다. `autoDisabled`는 운영 로그 줄만 남긴다. 자동 끄기 사실은 아래 `scope.changed`가 이미 적는다.
 - `emit`이 던지면 호출자에게 던지지 않고 `scope.handler_failed not emitted: <owner> <point> (<원인 메시지>)` 줄을 운영 로그에 남긴다.
 - 조립 루트(`apps/host`)가 이 구현을 `createOperationsPolicy`의 `notifier`로 넘긴다. `emit`은 열린 thread마다 휘발 이벤트를 보내고(`L4.host-service` HS-80), `log`는 운영 로그다. `notifier`를 생략한 조립(시험 등)은 `createLogNotifier`를 쓴다.
@@ -1405,6 +1434,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.budget.streamTapMs` | integer | 1000 | 50~60000 | live | managed, user, local, launch | plugins | 1차 |
 | `x.operations.budget.shutdownMs` | integer | 2000 | 100~30000 | live | managed, user, local | plugins | 1차 |
 | `x.operations.budget.setupMs` | integer | 10000 | 100~600000 | restart | managed, user, local | plugins | 1차 |
+| `x.operations.budget.uiMs` | integer | 10000 | 100~600000 | live | managed, user, local, launch | plugins | 1차 |
 | `x.operations.autoDisable.enabled` | boolean | true | | live | managed, user, local | plugins | 1차 |
 | `x.operations.autoDisable.consecutive` | integer | 5 | 1~1000 | live | managed, user, local | plugins | 1차 |
 | `x.operations.autoDisable.windowSize` | integer | 50 | 5~10000 | live | managed, user, local | plugins | 1차 |
@@ -1443,9 +1473,9 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | 이름 | 쓰는 문서 |
 |---|---|
 | `Tier`, `TIERS`, `HandlerOrigin`, `HandlerOrderKey`, `orderKeyOf`, `compareOrderKey`, `assignTier`, `TierTable`, `tierOfFrom` | X.primitives.spec(`DispatchPolicy.tierOf`), X.loading-trust.spec(tier 부여 시점) |
-| `createOperationsPolicy`, `OperationsPolicy`(`admit`, `forget`, `setupBudgetMs`, `startupFilter`, `onHandlerSettled`, `run`), `createResourcePolicy` | L4.host-service.spec(조립), X.primitives.spec(`ExtHostDeps.policy`·`setupBudgetMs`), X.loading-trust.spec(`LoaderDeps.policy`) |
+| `createOperationsPolicy`, `OperationsPolicy`(`admit`, `forget`, `setupBudgetMs`, `startupFilter`, `onHandlerSettled`, `run`, `runMethod`, `onMethodSettled`), `createResourcePolicy` | L4.host-service.spec(조립), X.primitives.spec(`ExtHostDeps.policy`·`setupBudgetMs`·`methodRun`·`onMethodSettled`), X.loading-trust.spec(`LoaderDeps.policy`) |
 | `BudgetGate`, `BudgetOutcome`, `runWithBudget`, `awaitUser`, `DEFAULT_BUDGETS_MS` | X.primitives.spec(디스패처, UI 포트 래핑) |
-| `HandlerOutcomeRecord`, `FailureLedger`, `AutoDisabler`, `ScopeChangeReason` | X.primitives.spec, L4.settings-ui.spec(상태 표시) |
+| `HandlerOutcomeRecord`, `fromMethodSettled`, `FailureLedger`, `AutoDisabler`, `ScopeChangeReason` | X.primitives.spec, L4.settings-ui.spec(상태 표시) |
 | `ExtStorage`, `ExtTables`, `ExtProjection`, `ExtTableDef`, `storageOf`, `extTablePrefix`, `parseExtTableName` | L3.group-sdk.spec, L3.helm.spec, L3.learning.spec, 외부 확장 |
 | `ExtStorageAdmin` | X.loading-trust.spec §4.4.5(제거 흐름, `LoaderDeps.storageAdmin`), L4(확인 화면) |
 | `resolveNames`, `qualifiedName`, `ResourceClaim`, `createResourcePolicy` | X.primitives.spec(리소스 등록), X.loading-trust.spec(외부 확장 로더) |
@@ -1464,7 +1494,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `DurableEventEnvelope`, `EventKind`, `parseEventKind`, `ScopeChangedPayload` | F.records.spec |
 | `SettingDef`, `defineSettings`, 키 문법, 범위 | F.wire-settings.spec |
 | 도구 이름 허용 문자, 도구 순서 키 | F.capabilities.spec |
-| `DispatchPolicy`(`onHandlerSettled`·`run` 포함, §3.4), `HandlerGate`, `HandlerRunOutcome`, `ExtHost.scope`·`scopes`·`install`·`ports`(RegistrationControl과 포트의 바탕), `ExtHostDeps.now`·`setTimer`·`setupBudgetMs`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord`, `hostOf`, `ExtHost.ports`로 꺼내는 포트 키(F 이름 재export), UI 포트 | X.primitives.spec §3.2~§3.9 |
+| `DispatchPolicy`(`onHandlerSettled`·`run` 포함, §3.4), `HandlerGate`, `HandlerRunOutcome`, `ExtHost.scope`·`scopes`·`install`·`ports`(RegistrationControl과 포트의 바탕), `ExtHostDeps.now`·`setTimer`·`setupBudgetMs`·`methodRun`·`onMethodSettled`, `ExtMethodSettled`, `MethodRun`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord`, `hostOf`, `ExtHost.ports`로 꺼내는 포트 키(F 이름 재export), UI 포트 | X.primitives.spec §3.2~§3.9, §4.12 |
 | `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 프로젝트 신뢰, 제거 흐름, 격리 확장의 outbox | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9 |
 | `Projector`, `ProjectionTx`, 투영 규칙 | eng.events.design §5.1 |
 | 커밋 순서, `SessionWriter`, `StoreService.scoped`, outbox 표 | eng.transactions.design §4, §7 |
@@ -1513,6 +1543,11 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 36. Turn당 항목 5,000개, 항목당 핸들러 기록 256개, 버퍼의 thread 32개를 넘으면 넘는 것이 버려지거나 가장 오래된 thread가 빠진다(`trace-buffer.test.ts` "a turn keeps at most 5000 entries and an entry at most 256 handlers", "the least recently written thread is dropped past 32 threads").
 37. 계측 켜짐과 꺼짐의 핸들러당 디스패치 차이는 `dispatch-lease.benchmark.ts`의 `dispatch_overhead_trace_on_vs_off` 한 줄로 기록된다. 기준은 없고 값만 낸다(§4.8.5).
 38. 안전 모드에서 훅 후보는 tier와 상관없이 모두 빠지고 `safe_mode`가 사유이며, 일반 모드에서는 모두 실린다. `--disable-ext`는 훅에 적용되지 않고, 확장은 `--disable-ext`가 안전 모드보다 먼저 사유가 된다(`test/operations/safe-mode-x-hooks.test.ts`).
+39. 확장 메서드 처리기가 `ExtHost.methods.call`로 불려 끝나지 않으면 가짜 시계에서 `uiMs`(기본 10,000ms)에 `{ kind: "timeout", budgetMs: 10000 }`이 돌아오고, 장부에 `timeout`으로 남는다. 설정 `x.operations.budget.uiMs`를 바꾸면 그 값이 쓰인다 [제안, M4 T-XV].
+40. 메서드 처리기가 `hostOf(g).awaitUser`로 60,000ms 동안 대화상자를 기다려도 예산 초과가 아니다(`uiMs` 10,000ms). 같은 대기를 감싸지 않고 실행하면 예산 초과다 [제안, M4 T-XV].
+41. 처리기가 `decl.result`를 어긴 값을 돌려준 메서드 호출은 `result_invalid`이고, 장부에서 연속 수와 창 실패 수가 각각 1 오른다(`ext:<이름>` 키) [제안, M4 T-XV].
+42. 매개변수가 스키마를 어긴 호출(`params_invalid`)과 `aborted`로 끝난 호출은 장부의 `totalCalls`, 연속 수, 창을 바꾸지 않는다 [제안, M4 T-XV].
+43. 메서드 실패 `threw` 두 번이 `consecutive: 2`에서 그 확장의 모든 scope에 `requestDisable(…, "auto_disable")`을 부른다. 사이에 `ok`가 끼면 연속 수는 0으로 돌아가 끄지 않는다 [제안, M4 T-XV].
 
 ## 10. 미결 사항
 
@@ -1550,3 +1585,5 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 23. [미결] `x.operations.trace.turnsPerThread`의 기본값 20과 thread 상한 32는 [제안]이다. 계측 기본 켬은 사용자 결정이다. 비용(`dispatch_overhead_trace_on_vs_off`)이 기준을 넘으면 기본값을 다시 정하도록 사용자에게 묻는다(`review/m4-plan.md` §5).
 24. [미결] `trace.turn`의 `traceEnabled`·`retained` 조립은 wire 처리기의 몫이다. `turn()`이 `undefined`를 돌려주므로 처리기가 `enabled()`로 `traceEnabled`를 채우고 `retained: false`를 만든다(§3.9). 현재 `apps/host/src/handlers/m4/profile-test-run.ts`는 `trace.turn`을 아직 구현하지 않았다.
 25. [미결] `denied` 실행 결과를 만드는 경로가 없다(§4.8.2). 실패 집계에는 들어가 있다.
+26. [미결] threadId가 없는 확장 메서드 호출은 ambient를 열지 않는다(명령과 같다). 그래서 그 호출 안의 `hostOf(g).awaitUser` 대기는 예산 시계를 멈추지 못하고 예산에 든다. 해결하려면 gate를 ambient와 분리한 문맥이 필요하다. M4 T-XV 뒤의 과제다.
+27. [미결] 확장 메서드 실패 알림의 페이로드 `point`는 `"ext.method"`다. 훅 이름이 아닌 이 값을 L4가 어떻게 그릴지(`L4.host-service` HS-92, desktop-ux)는 정하지 않았다.

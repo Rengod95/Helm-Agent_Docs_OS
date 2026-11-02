@@ -71,6 +71,7 @@ export const operationsSettings: SettingGroup<
     readonly "budget.streamTapMs": SettingDefInput;
     readonly "budget.shutdownMs": SettingDefInput;
     readonly "budget.setupMs": SettingDefInput;
+    readonly "budget.uiMs": SettingDefInput;
     readonly "autoDisable.enabled": SettingDefInput;
     readonly "autoDisable.consecutive": SettingDefInput;
     readonly "autoDisable.windowSize": SettingDefInput;
@@ -135,6 +136,15 @@ export const operationsSettings: SettingGroup<
     250,
     false,
     STARTUP_BUDGET_SCOPES,
+  ),
+  "budget.uiMs": budgetKey(
+    "확장 메서드 호출 시간 예산",
+    DEFAULT_BUDGETS_MS.ui,
+    100,
+    600_000,
+    260,
+    true,
+    BUDGET_SCOPES,
   ),
   "autoDisable.enabled": autoKey(Type.Boolean(), "자동 끄기", DEFAULT_AUTO_DISABLE.enabled, 300),
   "autoDisable.consecutive": autoKey(

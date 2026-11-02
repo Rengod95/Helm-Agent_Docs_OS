@@ -307,6 +307,60 @@ test("autoDisable: applied at step boundary", async () => {
   expect(calls).toHaveLength(3);
 });
 
+/** 확장 메서드 호출의 기록(동사 sum). 장부가 받는 모양을 그대로 적는다 */
+function methodFailed(
+  name: string,
+  tier: Tier,
+  result: HandlerOutcomeRecord["result"] = "threw",
+): HandlerOutcomeRecord {
+  return {
+    owner: { type: "extension", name, scopeId: name },
+    tier,
+    point: "ext.method",
+    verb: "sum",
+    result,
+    activeMs: 1,
+    at: 1,
+  };
+}
+
+test("autoDisable: method failures count with the hook failures of the same extension", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec, { policy: { ...DEFAULT_AUTO_DISABLE, consecutive: 2 } });
+  disabler.onOutcome(failed("mixed-ext", "user"));
+  expect(rec.requests).toEqual([]);
+  disabler.onOutcome(methodFailed("mixed-ext", "user", "threw"));
+  expect(rec.requests).toEqual([
+    "disable:mixed-ext:auto_disable",
+    "disable:mixed-ext/sub:auto_disable",
+  ]);
+  expect(rec.notices).toContain("disabled:ext:mixed-ext:consecutive");
+});
+
+test("autoDisable: each method failure kind counts once, and an ok resets the consecutive count", () => {
+  const rec = recorder();
+  const { disabler, ledger } = disablerOf(rec, {
+    policy: { ...DEFAULT_AUTO_DISABLE, consecutive: 3 },
+  });
+  disabler.onOutcome(methodFailed("calm-ext", "user", "timeout"));
+  disabler.onOutcome(methodFailed("calm-ext", "user", "result_invalid"));
+  disabler.onOutcome(methodFailed("calm-ext", "user", "ok"));
+  expect(ledger.stats("ext:calm-ext")).toMatchObject({
+    consecutive: 0,
+    totalCalls: 3,
+    totalFailures: 2,
+  });
+  expect(rec.requests).toEqual([]);
+  disabler.onOutcome(methodFailed("calm-ext", "user", "threw"));
+  disabler.onOutcome(methodFailed("calm-ext", "user", "timeout"));
+  expect(rec.requests).toEqual([]);
+  disabler.onOutcome(methodFailed("calm-ext", "user", "result_invalid"));
+  expect(rec.requests).toEqual([
+    "disable:calm-ext:auto_disable",
+    "disable:calm-ext/sub:auto_disable",
+  ]);
+});
+
 function volatileOf(emitFails = false) {
   const lines: string[] = [];
   const emitted: ScopeHandlerFailedPayload[] = [];
@@ -367,6 +421,32 @@ test("volatile notifier: missing message is empty, consecutive is at least 1, me
       message: "x".repeat(4000),
       consecutive: 2,
     },
+  ]);
+});
+
+test("volatile notifier: a method failure carries ext.method, and the verb comes in front of the message", () => {
+  const { lines, emitted, notifier } = volatileOf();
+  notifier.handlerFailed({ ...methodFailed("calc-ext", "user"), message: "boom" }, TWO_FAILURES);
+  notifier.handlerFailed(methodFailed("calc-ext", "user", "timeout"), TWO_FAILURES);
+  expect(emitted).toEqual([
+    {
+      owner: "ext:calc-ext",
+      point: "ext.method",
+      result: "threw",
+      message: "sum: boom",
+      consecutive: 2,
+    },
+    {
+      owner: "ext:calc-ext",
+      point: "ext.method",
+      result: "timeout",
+      message: "sum",
+      consecutive: 2,
+    },
+  ]);
+  expect(lines).toEqual([
+    "handler failed: ext:calc-ext ext.method sum threw (consecutive 2)",
+    "handler failed: ext:calc-ext ext.method sum timeout (consecutive 2)",
   ]);
 });
 

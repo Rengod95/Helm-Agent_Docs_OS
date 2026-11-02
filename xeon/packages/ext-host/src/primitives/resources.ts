@@ -5,6 +5,7 @@ import {
 } from "@fresnel/contracts/capabilities";
 import type { JsonValue, ThreadId } from "@fresnel/contracts/conversation";
 import {
+  EXT_VERB_PATTERN,
   McpPortKey,
   ModelsPortKey,
   ToolsPortKey,
@@ -40,7 +41,8 @@ export type ResourceKind =
   | "provider"
   | "mcp_server"
   | "message_renderer"
-  | "web_provider";
+  | "web_provider"
+  | "ext_method";
 
 export interface ResourceRecord {
   readonly kind: ResourceKind;
@@ -127,7 +129,7 @@ export type FlagValueError =
       readonly expected: "boolean" | "string";
     };
 
-/** L4가 읽는다. command, shortcut, flag, message_renderer, web_provider는 X가 보관하고 나머지는 포트로 넘긴 기록만 보관한다 */
+/** L4가 읽는다. command, shortcut, flag, message_renderer, web_provider, ext_method는 X가 보관하고 나머지는 포트로 넘긴 기록만 보관한다 */
 export interface ResourceRegistry {
   list(kind?: ResourceKind): readonly ResourceRecord[];
   subscribe(
@@ -147,12 +149,14 @@ export interface ResourceRegistry {
 const GOVERNED: ReadonlySet<ResourceKind> = new Set(["tool", "command", "shortcut", "flag"]);
 
 /**
- * 이름이 기능 ID(`web.search` 등)라서 여러 확장이 같은 이름을 낸다. 이 종류는 같은 scope 안의 중복만 거부하고,
- * 다른 확장의 같은 이름은 모두 남긴다. 고르는 일은 소비자(cap-web)가 한다 [결정: 오케스트레이터 기본값]
+ * 이름이 기능 ID(`web.search` 등)이거나 확장 메서드 동사(확장 안에서만 유일하다, X.primitives.spec §4.12)라서 여러 확장이 같은 이름을 낸다.
+ * 이 종류는 같은 scope 안의 중복만 거부하고 다른 확장의 같은 이름은 모두 남긴다. ext_method는 같은 확장 안의 중복도 따로 거부한다.
+ * 고르는 일은 소비자(cap-web)가 한다 [결정: 오케스트레이터 기본값]
  */
-const MULTI_OWNER_KINDS: ReadonlySet<ResourceKind> = new Set(["web_provider"]);
+const MULTI_OWNER_KINDS: ReadonlySet<ResourceKind> = new Set(["web_provider", "ext_method"]);
 
 const TOOL_NAME_REGEX = new RegExp(TOOL_NAME_WIRE_PATTERN);
+const EXT_VERB_REGEX = new RegExp(EXT_VERB_PATTERN);
 const MAX_NAME_LENGTH = 64;
 
 /** 공백이나 제어 문자가 하나라도 있는가 */
@@ -204,6 +208,9 @@ function nameProblem(kind: ResourceKind, name: string): string | undefined {
     return `a ${kind} name cannot contain whitespace or control characters`;
   if (kind === "tool" && !TOOL_NAME_REGEX.test(name)) {
     return `a tool name must match ${TOOL_NAME_WIRE_PATTERN}`;
+  }
+  if (kind === "ext_method" && !EXT_VERB_REGEX.test(name)) {
+    return `a method verb must match ${EXT_VERB_PATTERN}`;
   }
   return undefined;
 }
@@ -288,6 +295,7 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
       case "flag":
       case "message_renderer":
       case "web_provider":
+      case "ext_method":
         return ok(NOOP);
       default:
         return assertNever(record.kind, "ResourceKind");
@@ -402,6 +410,19 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
       }
       let record: ResourceRecord = { ...spec, exposed: spec.name };
       const sameKind = recordsOf(spec.kind);
+      // 확장 메서드 동사는 확장 안에서 유일하다. 다른 Registration의 같은 동사도 거부하고 이름 정책은 거치지 않는다
+      if (
+        spec.kind === "ext_method" &&
+        sameKind.some((other) => other.extension === spec.extension && other.name === spec.name)
+      ) {
+        return err(
+          new PrimitiveError(
+            "resource_conflict",
+            `method ${spec.name} of ${spec.extension} is already registered`,
+            { scopeId: spec.scopeId },
+          ),
+        );
+      }
       const policy = deps.policy;
       let setLevel = false;
       if (policy?.exposeAll !== undefined && GOVERNED.has(spec.kind)) {

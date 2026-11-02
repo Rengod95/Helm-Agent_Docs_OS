@@ -57,12 +57,13 @@ xeon/packages/ext-host/
       outbox-agent.ts              # OutboxAgent: 격리 확장의 post/commit/record 대리
       child-main.ts                # 자식 프로세스 진입점(엔트리 실행, scope 스텁)
     virtual-modules.ts             # SDK_MODULE_SPECIFIERS, SdkModules, registerSdkModules(Bun.plugin 등록)
-    default-plugin.ts              # PluginInstallFs, installDefaultPlugin(기본 플러그인 복사·교체)
+    default-plugin.ts              # PluginInstallFs, installDefaultPlugin(기본 플러그인 복사·교체, 교체 때 버전 기록)
+    version-history.ts             # VersionHistoryFs, createVersionHistory(record, list, rollback), 보관 개수 정리(X-8, M4)
   test/loading-trust/
     levels.test.ts  load-order.test.ts  pipeline.test.ts  entry-loader.test.ts  settings-keys.test.ts
     discover.test.ts  remove.test.ts  trust-store.test.ts  trust-resolve.test.ts  trust-resources.test.ts
     external-loader.int.test.ts  default-plugin.test.ts  virtual-modules.test.ts  isolation-proxy.test.ts  isolation-rpc.test.ts
-    docs-consistency.test.ts
+    docs-consistency.test.ts  version-history.test.ts  default-plugin-history.test.ts
     integration/project-trust.int.test.ts
     fixtures/
       builtin/                     # 내장 모듈 가짜(정상, throw, 선언 밖 on, 필수)
@@ -110,6 +111,8 @@ xeon/packages/ext-host/
 | L-27 | 문서 대조 검사: 스펙 §4.6.2 표 ↔ `TRUST_MATRIX`, (pi 표는 삭제) | L-02 | S | M0(신뢰 표) |
 | L-28 | `remove.ts` 제거 흐름(스펙 §4.4.5): `previewRemoval`(`dropExtension(name, false)`), `remove`(`ExtHost.uninstall` → `policy.forget` → `dropTables`면 `dropExtension(name, true)`), 내장 확장 제거 거부. `storageAdmin`은 가짜로 먼저 테스트하고 O-25에서 실제 구현과 연결 | L-08, P-13(`uninstall`), O-03(`forget`) | S | M3 (결정 D9) |
 | L-29 | 5a단계 시작 옵션: `LoadOptions.startup`을 `policy.startupFilter`에 넘겨 빠진 확장을 `disabled`(`safe_mode`, `disabled_flag`)로 두기. 외부 확장은 import 생략, 내장 확장은 install 생략 | L-10, O-20(`startupFilter`, `OperationsPolicy.startupFilter`) | S | M3 (결정 D9) |
+| L-32 | Plugin UI 검사(§4.3.4, X-7): `ui-check.ts`(`checkUiDecl`, 항목 상태와 `ui_*` 진단, 정책 분기, 위젯·다리 범위), `app-files.ts`(`resolveAppFile`, 적대적 요청 표), `ui-settings.ts`(`x.ui.apps`, `x.ui.allowProjectApps`, 범위는 `managed`·`user`), 5b단계 연결과 `ExtensionLoader.uiEntries()`, `LoadOptions.uiPolicy` | L-09, L-08, F.extensions.spec §3.1.1(`ui.ts`) | M | M4 (T-XV) |
+| L-33 | 버전 기록 보관과 되돌리기(§3.11, §4.4.8, X-8): `version-history.ts`(`VersionHistoryFs` 포트, `createVersionHistory`의 `record`·`list`·`rollback`, 보관 개수 5와 정리, 되돌리기 순서 끄기 → 기록 → 교체 → 상태 비우기 → 켜기, 교체 실패 복구, 상태 스키마 검사), `default-plugin.ts`의 `history` 입력(교체 때 기록). 호스트 쪽 `VersionHistoryFs` 구현과 `ext.versions`·`ext.rollback` 처리기는 조립 루트 작업이다 | L-31, F.wire-settings.spec(`ExtVersionEntry`, `ExtRollbackResult`), L-02 | M | M4 (T-XV) |
 
 - 가장 큰 작업은 L-19, L-22, L-23이다. L-19는 훅별 결과 변환표를 훅 종류(input, request, tool, boundary, session) 단위로 나눠 PR을 쪼갤 수 있다.
 - M0에 필요한 X.primitives 산출물은 `ExtHost.install`·`uninstall`과 `InstallResult`(P-13)다. 늦으면 L-06은 같은 인터페이스의 가짜 `ExtHost`로 먼저 끝내고 연결만 나중에 한다. `policy.admit`(O-03)도 같다.
@@ -196,6 +199,15 @@ xeon/packages/ext-host/
 | | `entry failures reject only that extension` | 없는 엔트리, 함수 없음, import 중 예외, 루트 밖 심볼릭 링크 | §9-16 |
 | | `project extensions need project trust` | override 거부, headless 미결정, 허용 | §9-4, §9-5 |
 | `default-plugin.test.ts` | `copies once and replaces on a higher version` | 없음 → `installed`, 같은 버전 → `kept`, 높은 번들 → `replaced`, 손상 설치본 → `replaced`, 번들 매니페스트 오류 → `source_invalid` | §9-25 |
+| `version-history.test.ts` | `record and list show the newest first` | 설치 시각 순 목록, `current`는 설치본 버전, 같은 버전 재기록은 파일과 시각을 바꾼다. 없는 이름 목록은 빈 값 | §4.4.8, §9-34 |
+| | `prune keeps newest five and never the current` | 여섯 번째 기록에서 가장 오래된 것을 지운다. 방금 기록한 오래된 버전은 지우지 않는다 | §4.4.8, §9-34 |
+| | `unsafe names and versions rejected` | `../evil`, `1.0`, `a/b`, `h` 등은 쓰기 전에 `invalid_name`·`invalid_version`이고 보관 디렉터리는 비어 있다 | §4.4.8, §9-34 |
+| | `corrupt entries skipped and reported` | JSON 아님, 메타 없음, 복사본 없음, 버전 불일치, 형식 위반이 `skipped`에 사유와 함께 나오고 임시 디렉터리는 버전이 아니다 | §4.4.8, §9-34 |
+| | `rollback restores exact files` | 앞 버전으로 되돌리면 설치 위치가 기록과 같고, 되돌리기 전 설치본이 보관에 남고, 훅은 `disable`→`enable`이다. 다시 앞으로 간다 | §4.4.8, §9-35 |
+| | `state schema mismatch then clear` | 대상보다 상태 스키마가 높으면 `state_schema_mismatch`, 훅 0회, 파일 그대로. `clearState`면 `clearState`가 `enable`보다 먼저다 | §4.4.8, §9-35 |
+| | `hot reload off means restart` | `hotReload: false`면 `appliesAt`이 `restart` | §4.4.8 |
+| | `swap, copy, record, disable, enable, clear failures` | 교체 실패는 원래 파일을 되돌리고 다시 켠다(`restored`, `reenabled`). 복사, 기록, 끄기 실패는 파일을 바꾸지 않는다. 켜기·상태 비우기 실패는 꺼진 채 남는다 | §4.4.8, §9-35 |
+| `default-plugin-history.test.ts` | `replacement records previous and new` | 교체 전 이전 설치본과 교체 뒤 새 번들 버전이 기록되고 출처가 맞다. 이전 설치본을 기록하지 못하면 교체하지 않는다. `history`가 없으면 기록 경로가 없다 | §4.4.7, §9-36 |
 | `virtual-modules.test.ts` | `registration is idempotent and refuses conflicts` | 같은 객체 재등록은 무동작, 다른 객체는 `conflict` | §4.4.6 |
 | `isolation-proxy.test.ts` | `first timeout applies FIRST_DENY` | 가짜 자식이 응답하지 않으면 `tool.call.before` 결정이 `FIRST_DENY.tool_call`, 취소 메시지 전송, 유예 뒤 `SIGKILL` | §9-7 |
 | | `connection drop handled` | 디스패치 중 자식 stdout 종료 → 진행 중 요청 예외 처리(tap 계속, chain 생략), 재시작 1회 | §4.9.7 |
@@ -209,6 +221,7 @@ xeon/packages/ext-host/
 | | `pi table matches PI_COMPAT_TABLE` | 스펙 §4.10.4 표의 항목·등급과 상수가 같다 | §4.10.4 |
 
 - 표의 테스트는 53개다. M0·M1 몫은 22개이고 나머지는 M2 이후 신뢰·제거·시작 옵션·pi·격리 몫이다. 수용 기준 §9-1~22가 모두 하나 이상의 테스트에 대응한다. 필수로 정한 항목(신뢰 저장 파일 손상, 로드 순서 결정성, pi 지원 표 각 행, 프록시 연결 끊김)은 `trust-store`, `load-order`, `pi-compat-table`, `isolation-proxy` 파일에 있다.
+- M4 T-XV 몫(L-33, X-8)의 테스트는 `version-history.test.ts`(되돌리기 왕복 시험이 Y11의 근거다)와 `default-plugin-history.test.ts`다. 수용 기준 §9-34~36이 대응한다.
 - 마일스톤별 필수: M0는 `pipeline`(기능 제외), `load-order`, `levels`, `docs-consistency`의 신뢰 표. M1은 `settings-keys`, 기능 테스트. 나머지는 M2 이후.
 
 통합 테스트 1개:

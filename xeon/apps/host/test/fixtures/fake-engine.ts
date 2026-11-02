@@ -24,6 +24,7 @@ import { wireErrorOfStore } from "../../src/store-error.ts";
 import type { M4HostEnv } from "../../src/assembly/m4/deps.ts";
 import { createProfileTestRunPort } from "../../src/assembly/m4/profile-test-run-port.ts";
 import { createExtReadPort, EMPTY_EXT_READ_SOURCES } from "../../src/assembly/m4/ext-read-port.ts";
+import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
 import { createProcessShutdown } from "@fresnel/platform-process";
 import { createManualScheduler, type ManualScheduler } from "./manual-scheduler.ts";
@@ -65,6 +66,13 @@ interface FakeLog {
   }[];
 }
 
+/** 확장이 없는 확장 버전 포트. 조립 루트가 기본 그룹을 끈 것과 같다 */
+const noExtensionsPort: ExtUiVersionPort = {
+  versions: (name) => Promise.resolve(err({ kind: "unknown_extension", name })),
+  rollback: (params) => Promise.resolve(err({ kind: "unknown_extension", name: params.name })),
+  uiList: () => ({ items: [] }),
+};
+
 export interface FakeEngineOptions {
   readonly mode?: HostMode;
   /** 연속 시작 실패 수와 안전 모드 제안(`host.status`). 생략하면 0과 거짓 */
@@ -95,6 +103,8 @@ export interface FakeEngineOptions {
     readonly testRunControl?: TestRunControlPort;
     readonly env?: Partial<M4HostEnv>;
   };
+  /** 확장 버전과 화면 목록 포트를 바꿔 끼운다(`ext.versions`·`ext.rollback`·`ext.ui.list`). 생략하면 확장이 없는 포트다 */
+  readonly extUi?: ExtUiVersionPort;
   /** 포트 일부를 바꿔 끼운다. 처리기가 오류를 어떻게 옮기는지, 어떤 순서로 부르는지 볼 때 쓴다 */
   readonly overrides?: {
     readonly threads?: Partial<ThreadPort>;
@@ -436,13 +446,14 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     ids,
     clock: { now: () => RECORDED_AT },
     scheduler,
+    // 확장 버전·화면 목록 처리기는 T-XV가 채웠으므로 확장이 없는 포트를 넘긴다(시험은 `extUi`로 바꿔 끼운다)
     // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다. 프로필·Test run은 T-WB가 채웠다
     m4: {
       extRead: createExtReadPort(
         { traceRead: options.profiles?.traceRead ?? OFF_TRACE },
         EMPTY_EXT_READ_SOURCES,
       ),
-      extUi: {},
+      extUi: options.extUi ?? noExtensionsPort,
       profileTestRun: createProfileTestRunPort({
         traceRead: options.profiles?.traceRead ?? OFF_TRACE,
         testRunControl: options.profiles?.testRunControl ?? UNAVAILABLE_TEST_RUN,

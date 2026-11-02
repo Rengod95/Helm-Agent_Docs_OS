@@ -31,12 +31,27 @@ export type LoadStage =
   | "set"
   | "trust"
   | "settings"
+  | "ui"
   | "capabilities"
   | "admit"
   | "entry"
   | "usage"
   | "activate"
   | "isolation";
+
+/**
+ * Plugin UI 항목 검사(X.loading-trust.spec §4.3.4)가 남기는 진단 코드. 같은 이름이 `validateUi`(매니페스트 검사)에도 있지만
+ * 거기서는 매니페스트를 거부하는 이슈(`manifest_invalid`의 `issues`)로 나간다. 이 타입은 파일과 정책을 본 결과만 담고,
+ * 항목 하나만 `invalid`나 `disabled`로 만든다
+ */
+export type UiDiagnosticCode =
+  | "ui_file_missing"
+  | "ui_invalid"
+  | "ui_limit"
+  | "ui_path_invalid"
+  | "ui_mode_not_allowed"
+  | "widgets_unsupported"
+  | "bridge_unsupported";
 
 export type LoadDiagnosticCode =
   | "manifest_missing"
@@ -72,7 +87,8 @@ export type LoadDiagnosticCode =
   | "isolation_drive_unsupported"
   | "isolation_exited"
   | "isolation_restart_limit"
-  | "isolation_protocol";
+  | "isolation_protocol"
+  | UiDiagnosticCode;
 
 const IssueSchema: TObject<{
   severity: TString;

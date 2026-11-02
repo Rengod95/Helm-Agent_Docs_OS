@@ -108,6 +108,7 @@ import {
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
+import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
@@ -418,6 +419,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     setupBudgetMs: () => operations.setupBudgetMs(),
     // x.operations.trace.* 유효 값. 새 Turn이 처음 보일 때 읽는다(X.operations §4.8.3)
     trace: () => operations.trace(),
+    methodRun: operations.runMethod,
+    onMethodSettled: operations.onMethodSettled,
     settings: primitivesSource(settings),
     capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     report: (diagnostic) => {
@@ -684,6 +687,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 기본 플러그인(Helm)을 사용자 확장 위치에 설치한다. 설치본이 낸 서브에이전트 정의는 엔진 조립에 필요해 단위 목록보다 먼저 읽는다
     const defaultsEnabled = options.defaultGroups !== false;
     const userExtensionsDir = join(os.dirs.config, "extensions");
+    // 확장 버전 기록과 화면 목록의 원천(T-XV, HS-108). 기본 플러그인 교체가 같은 보관을 쓴다. 로더는 아래에서 채워지므로 지연으로 읽는다
+    const extUi = createExtUiVersionSource({
+      host: ext,
+      extensionsDir: userExtensionsDir,
+      clock,
+      loader: () => external.loader,
+      heldThreads: () => portsHandle?.heldThreads() ?? [],
+    });
     if (defaultsEnabled) {
       await installDefaultPlugins({
         bundleDir: options.defaultPluginsDir ?? defaultPluginsDir(),
@@ -691,6 +702,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         stateDir: os.dirs.state,
         stagingRoot: join(os.dirs.config, ".staging"),
         logger: os.logger("default-plugins"),
+        history: extUi.history,
       });
     }
     const pluginAgents = defaultsEnabled
@@ -943,6 +955,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }),
       workspaceOf,
       schedule,
+      extUi,
       ...(options.pendingSchedules === undefined
         ? {}
         : { pendingSchedules: options.pendingSchedules }),

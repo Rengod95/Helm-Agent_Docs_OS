@@ -2242,6 +2242,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 되돌리기는 확장을 끄고, 파일을 바꾸고, 다시 켜는 순서이며 적용은 다음 단계 경계입니다. 실패하면 이전 파일로 돌립니다.
 - 보관 개수는 확장마다 5개 [제안]이고 그 밖은 지웁니다. 보관 위치는 사용자 데이터 폴더 `extensions/.history/<이름>/<버전>/` [제안]입니다.
+- [결정: 사용자 수락, M4 T-XV] M4는 "전체" 단계를 냈습니다. 로더가 버전 기록을 보관하고(X-8, `X.loading-trust.spec` §3.11, §4.4.8) 되돌리기 왕복 시험이 있습니다(`ext-host/test/loading-trust/version-history.test.ts`, Y11의 근거). 대상 버전의 상태 스키마가 지금보다 높으면 되돌리기는 `state_schema_mismatch`로 멈추고, O-11이 "상태를 비우고 되돌리기"만 제안합니다. 되돌리기 순서는 끄기, 지금 설치본 기록, 파일 교체, 상태 비우기(요청 시), 켜기이고 교체가 실패하면 이전 파일로 돌린 뒤 다시 켭니다. `ext.versions`·`ext.rollback` 처리기(W-31)는 호스트에 연결됐습니다. 되돌린 판은 로더에 다시 읽기 길이 없어 다음 시작에 적용되므로 `ext.rollback`은 `appliesAt: "restart"`를 돌려줍니다(HS-108).
 
 ### 6.25 P-18 플러그인 화면 호스트
 
@@ -2926,9 +2927,9 @@ export const palette = [
 | W-28 | 폴더의 매니페스트와 drive 소스 검사 | P-21, P-17, Plugin Builder | `validateManifest`, `scanDriveSource`는 라이브러리 | `ext.validate { dir }`(F 검사 + AU 규칙) |
 | W-29 | 시험 실행과 결과(replay, Test run 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10 |
 | W-30 | benchmark와 코어 변경 검사 실행 | P-19, P-20 | `just benchmark --server`, `bun scripts/core-diff-check.ts <base>`는 저장소 스크립트(배포 앱에 없음) | 개발 모드 전용 셸 명령 [결정: 2026-10-31 사용자]. 배포 앱은 결과 읽기만 |
-| W-31 | 확장 버전 기록과 되돌리기 | P-17, O-11 | 기본 플러그인은 번들 버전이 높을 때 디렉터리째 교체, 기록 없음 | `ext.versions { name }`, `ext.rollback { name, version }`. M4에 되는 만큼, 대체 경로는 §6.24.1 [결정: 2026-10-31 사용자] |
+| W-31 | 확장 버전 기록과 되돌리기 | P-17, O-11 | 기본 플러그인은 번들 버전이 높을 때 디렉터리째 교체하고 이전 설치본을 기록한다(X-8). `ext.versions`·`ext.rollback` 처리기가 연결됐다(host-service HS-108). 되돌린 코드는 재시작 뒤에 돈다 [미결 host-service §10 54] | `ext.versions { name }`, `ext.rollback { name, version }`. M4에 되는 만큼, 대체 경로는 §6.24.1 [결정: 2026-10-31 사용자] |
 | W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, Plugin Builder | 디렉터리 복사 | `ext.install { source }`, `ext.remove { name }` [미결] |
-| W-33 | 화면 기여 목록, 확장 메서드, 화면용 post·승인 | P-18, 슬롯 전부 | `ext.<id>.<verb>`는 이름만 예약 | `ext.view.list`, `ext.<id>.<verb>`, `ext.view.post`, `ext.view.requestApproval`(ADR-0021 §6) |
+| W-33 | 화면 기여 목록, 확장 메서드, 화면용 post·승인 | P-18, 슬롯 전부 | `ext.ui.list` 처리기가 연결됐다(host-service HS-108). `ext.ui.post`·`ext.ui.requestApproval`은 대화를 정할 필드가 없어 아직 없다(host-service §10 52). `ext.<id>.<verb>`는 이름만 예약 | `ext.ui.list`, `ext.<id>.<verb>`, `ext.ui.post`, `ext.ui.requestApproval`(ADR-0021 §6) |
 | W-34 | Test run 표지와 프로필 적용 생성 | P-19, P-21, P-02 | 없음 | `thread.create { trial: true, profileId? }`, `ThreadSummary.trial`(`{ profileId, target, paused }`) |
 | W-35 | 안전 모드 원인과 안전 모드 재시작 | P-16, P-13, P-08 | `host.status.safeMode` 불리언만, 데스크톱 재시작 명령 없음 | `host.status.safeModeCause`, 셸 명령 `engine_restart { safeMode }` |
 | W-36 | 외부 훅 목록(M4 N14) | P-16, P-13 | 없음 | `hooks.list` |
@@ -2989,12 +2990,12 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 |---|---|---|---|
 | X-1 | 매니페스트 `views` 필드(화면마다 `mode`: `declarative`·`frame`), `ViewContribution`, `FrameDecl`, 화면 트리 `ViewNode`, `ExtMethodDecl`, 다리 메시지 스키마 | `F.extensions.spec`(ADR-0021 §3.3, §3.4.2) | 없음 |
 | X-2 | 확장 wire 메서드 열기(`ext.<id>.<verb>` 확정, params·result 스키마 검사) | `F.wire-settings.spec` §4.2 | [제안] 상태 |
-| X-3 | 확장 메서드 등록 API `hostOf(g).registerMethod`, `g.registerMethod` | `X.primitives.spec`, `L3.group-sdk.spec` | 없음 |
+| X-3 | 확장 메서드 등록 API `hostOf(g).registerMethod`, `g.registerMethod` | `X.primitives.spec`, `L3.group-sdk.spec` | M4 T-XV에서 닫음(`X.primitives.spec` §3.8, §3.9.2, §4.12): `hostOf(g).registerMethod`와 `ExtHost.methods`(목록, 호출, 결과 검사, `onMethodSettled`). `g.registerMethod`(L3 group-sdk)와 wire 디스패치 `ext.<id>.<verb>`는 조립 루트에 남는다 [미결] |
 | X-4 | 손으로 다시 켤 때 장부 비우기(`/group on`과 설정 토글이 `reenable`을 부름) | `X.operations.spec` §4.3.5, `L3.group-sdk.spec` §3.9 | `/group on`은 scope만 켬. 다시 꺼지지 않는 상태가 남음(코드 결함, `operations/auto-disable.ts`의 `reenable`은 시험만 부름) |
-| X-5 | 예산 등급 `view`와 확장 메서드 실패의 장부 반영 | `X.operations.spec` §3.2, §4.3 | 없음 |
+| X-5 | 예산 등급 `ui`(옛 이름 `view`)와 확장 메서드 실패의 장부 반영 | `X.operations.spec` §3.2, §4.3 | M4 T-XV에서 닫음(`X.operations.spec` §3.2, §4.2.2, §4.3, §6): 예산 등급 `ui`(기본 10,000ms, 설정 `x.operations.budget.uiMs`), 메서드 실행 `OperationsPolicy.runMethod`, 장부 반영 `OperationsPolicy.onMethodSettled`(실패로 셈 `threw`·`timeout`·`result_invalid`, 세지 않음 `params_invalid`·`aborted`). 조립 루트의 `ExtHostDeps.methodRun`·`onMethodSettled` 연결과 `settings-sources.ts`의 `ui` 값은 남는다 [미결] |
 | X-6 | 핸들러 시간 기록(훅별 분포) | `X.operations.spec` §4.2.6 | 1초 넘는 훅 진단만 [제안]. 지금 핸들러 시간은 어디에도 기록되지 않음(코드 결함, X-15가 원천) |
-| X-7 | 화면 트리 파일과 프레임 선언 검사와 진단(`view_invalid`, `view_limit`, `view_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported`), 프레임 파일 제공 경로 | `X.loading-trust.spec` §4.3 | 없음 |
-| X-8 | 확장 버전 기록 보관(확장마다 5개, 설치 출처, 매니페스트 해시) | `X.loading-trust.spec` §4.4.7 | 기록 없음. M4에 되는 만큼, 대체 경로 §6.24.1 |
+| X-7 | 화면 트리 파일과 프레임 선언 검사와 진단(`view_invalid`, `view_limit`, `view_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported`), 프레임 파일 제공 경로 | `X.loading-trust.spec` §4.3 | M4 T-XV에서 닫음(`X.loading-trust.spec` §4.3.4, §3.10): 화면 검사 `checkUiDecl`, 앱 파일 풀이 `resolveAppFile`, 정책 `uiSettings`. 진단 코드는 F 이름 `ui_file_missing`, `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported`이고, 이 행의 `view_*`는 옛 이름이다. 목록 wire `ext.ui.list`는 호스트에 연결됐다(HS-108) |
+| X-8 | 확장 버전 기록 보관(확장마다 5개, 설치 출처, 매니페스트 해시) | `X.loading-trust.spec` §3.11, §4.4.8 | M4 T-XV에서 닫음(`X.loading-trust.spec` §3.11, §4.4.8): 보관 `createVersionHistory`(`extensions/.history`, 확장마다 5개), 기본 플러그인 교체의 기록(§4.4.7), 되돌리기 왕복(§6.24.1 "전체" 단계). 호스트의 `VersionHistoryFs` 구현과 `ext.versions`·`ext.rollback` 처리기(W-31)는 HS-108에서 연결했다 |
 | X-9 | Helm 화면 메서드 `ext.helm.status`·`inquiries`·`findings`와 기여 선언 | `L3.helm.spec` §3.9 | `/helm status` 명령만 |
 | X-10 | `replayDrive`의 런타임 하니스(테스트 대역 없이 설치된 그룹을 테이프로) | `L3.group-sdk.spec` §3.10 | 시험 파일 전용 |
 | X-11 | 플러그인 화면의 승인 kind | ADR-0018 | 넷(tool, plan, question, review) |

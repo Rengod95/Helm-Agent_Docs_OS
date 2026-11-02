@@ -97,6 +97,9 @@ export async function createOperationsHarness(
     policy,
     resourcePolicy: policy.resources,
     setupBudget: () => policy.setupBudgetMs(),
+    // 조립 루트가 넘기는 두 자리(X.operations.spec §3.8): 확장 메서드 예산과 장부 보고
+    methodRun: policy.runMethod,
+    onMethodSettled: policy.onMethodSettled,
   });
   late.host = t.host;
   late.scopes = createRegistrationControl(registrationToggleSourceOf(t.host));

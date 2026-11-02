@@ -209,3 +209,9 @@ xeon/packages/ext-host/
 | 작업 | 상태 | 비고 |
 |---|---|---|
 | O-09 | 완료(ext-host) | `createVolatileNotifier`(`auto-disable.ts`)를 만들고 루트에서 재export한다. 실패마다 `scope.handler_failed`를 발신하고 같은 운영 로그를 남긴다. 발신이 던지면 운영 로그에 남기고 호출자에게 던지지 않는다(M3-REQ-35). 시험은 `auto-disable.test.ts`다. 조립 기본 알림기 교체와 host 연결은 B1-NTF H1에서 끝났다(`apps/host/src/assembly/handler-failed.ts`, `L4.host-service` HS-92, 시험 `apps/host/test/assembly/handler-failed.test.ts`와 `test/int/handler-failed.int.test.ts`) |
+
+## 10. M4 구현 현황 (X 레인, T-XV)
+
+| 작업 | 상태 | 비고 |
+|---|---|---|
+| X-5 | 완료(ext-host) | 예산 등급 `ui`(`BudgetClass`, `DEFAULT_BUDGETS_MS.ui` 10,000ms, 설정 `x.operations.budget.uiMs`)와 확장 메서드 실행 `OperationsPolicy.runMethod`(`ExtHostDeps.methodRun`), 장부 반영 `OperationsPolicy.onMethodSettled`(`ExtHostDeps.onMethodSettled`). `threw`·`timeout`·`result_invalid`는 실패로, `ok`는 성공으로 세고 `params_invalid`·`aborted`는 세지 않는다. 자동 끄기는 훅 실패와 같은 기준이다(X.operations.spec §4.3 [제안]). 시험은 `test/operations/method-ledger.test.ts`, `budget.test.ts`, `failure.test.ts`, `auto-disable.test.ts`, `policy.test.ts`다. 조립 루트가 `methodRun: policy.runMethod`, `onMethodSettled: policy.onMethodSettled`를 넘기고 `settings-sources.ts`에 `ui` 값을 더하는 일은 HOST 트랙 몫이다 |

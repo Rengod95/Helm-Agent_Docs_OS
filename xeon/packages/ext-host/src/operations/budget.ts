@@ -6,7 +6,16 @@ import type {
   HandlerRunOutcome,
 } from "../primitives/dispatch-types.ts";
 
-export type BudgetClass = "first" | "chain" | "tap" | "streamTap" | "shutdown" | "setup" | "hook";
+/** `ui`는 확장 메서드 호출(wire `ext.<id>.<verb>`, Plugin UI 호출)의 예산이다. hook 지점이 아니라 `budgetClassOf`가 내지 않는다 [제안] */
+export type BudgetClass =
+  | "first"
+  | "chain"
+  | "tap"
+  | "streamTap"
+  | "shutdown"
+  | "setup"
+  | "hook"
+  | "ui";
 
 export type BudgetTable = { readonly [C in BudgetClass]: number };
 
@@ -19,6 +28,7 @@ export const DEFAULT_BUDGETS_MS: BudgetTable = {
   shutdown: 2_000,
   setup: 10_000,
   hook: 30_000,
+  ui: 10_000,
 };
 
 /** 고빈도 관찰 지점. streamTap 예산을 쓴다 */

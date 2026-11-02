@@ -1,6 +1,7 @@
 import { attempt } from "@fresnel/contracts";
 import { HOOKS, type FailurePolicy, type Fold } from "@fresnel/contracts/extensions";
 import type { HandlerFailure, HandlerFailureReason } from "../primitives/dispatch-types.ts";
+import type { ExtMethodSettled } from "../primitives/ext-method.ts";
 import type { HandlerOwner, HandlerOwnerKey, Tier } from "./tier.ts";
 import { ownerKey } from "./tier.ts";
 
@@ -14,13 +15,20 @@ type FailureKind =
 
 type HandlerResultKind = "ok" | "aborted" | "value_from_tap" | FailureKind;
 
+/** 확장 메서드 호출 기록의 점. 훅 지점이 아니므로 HOOKS에 없고, 동사는 `verb`로 구분한다 [제안] */
+const EXT_METHOD_POINT = "ext.method" as const;
+
 export interface HandlerOutcomeRecord {
   readonly owner: HandlerOwner;
   readonly tier: Tier;
-  readonly point: HandlerFailure["point"];
-  readonly fold: Fold;
-  /** 그 훅 선언의 실패 정책(`HOOKS[point].failure`). 장부는 이 값으로 기록한 실패의 결과를 구분한다 */
-  readonly failure: FailurePolicy;
+  /** 훅 지점. 확장 메서드 호출의 기록이면 `"ext.method"`다 */
+  readonly point: HandlerFailure["point"] | "ext.method";
+  /** 훅의 fold. 메서드 기록에는 없다 */
+  readonly fold?: Fold;
+  /** 그 훅 선언의 실패 정책(`HOOKS[point].failure`). 장부는 이 값으로 기록한 실패의 결과를 구분한다. 메서드 기록에는 없다 */
+  readonly failure?: FailurePolicy;
+  /** 확장 메서드의 동사. 메서드 기록에만 있다 */
+  readonly verb?: string;
   readonly result: HandlerResultKind;
   /** 멈춘 시간을 뺀 실행 시간 */
   readonly activeMs: number;
@@ -79,6 +87,28 @@ export function fromHandlerFailure(
     activeMs: failure.elapsedMs,
     at,
     ...(message === undefined ? {} : { message }),
+  };
+}
+
+/**
+ * 확장 메서드 호출의 보고 → 장부 기록. 호출한 쪽의 잘못(params_invalid)과 취소(aborted)는 세지 않으므로 기록이 없다(undefined).
+ * ok는 성공으로, threw·timeout·result_invalid는 실패로 기록한다. 소유는 확장이라 훅 실패와 같은 키(`ext:<이름>`)를 쓴다
+ */
+export function fromMethodSettled(
+  info: ExtMethodSettled,
+  tier: Tier,
+  at: number,
+): HandlerOutcomeRecord | undefined {
+  if (info.outcome === "params_invalid" || info.outcome === "aborted") return undefined;
+  return {
+    owner: { type: "extension", name: info.extension, scopeId: info.scopeId },
+    tier,
+    point: EXT_METHOD_POINT,
+    verb: info.verb,
+    result: info.outcome,
+    activeMs: info.activeMs,
+    at,
+    ...(info.message === undefined ? {} : { message: info.message }),
   };
 }
 

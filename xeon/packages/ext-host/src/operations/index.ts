@@ -13,6 +13,7 @@ import type {
   HandlerEntryInfo,
   HandlerFailure,
 } from "../primitives/dispatch-types.ts";
+import type { ExtMethodSettled, MethodRun } from "../primitives/ext-method.ts";
 import type { InstallSource, TrustLevel } from "../loading-trust/trust/levels.ts";
 import {
   createAutoDisabler,
@@ -28,7 +29,12 @@ import {
   type BudgetGate,
   type BudgetOutcome,
 } from "./budget.ts";
-import { createFailureLedger, fromHandlerFailure, type FailureLedger } from "./failure.ts";
+import {
+  createFailureLedger,
+  fromHandlerFailure,
+  fromMethodSettled,
+  type FailureLedger,
+} from "./failure.ts";
 import { createResourcePolicy, NO_RESERVED_NAMES, type ReservedNames } from "./naming.ts";
 import type { OperationsSettingsSource } from "./settings-keys.ts";
 import { createExtStorageManager, type ExtStorageManager } from "./storage/ext-storage.ts";
@@ -83,6 +89,7 @@ export {
 export {
   createFailureLedger,
   fromHandlerFailure,
+  fromMethodSettled,
   type FailureStats,
   type HandlerOutcomeRecord,
 } from "./failure.ts";
@@ -173,6 +180,16 @@ export interface OperationsPolicy extends DispatchPolicy {
     work: (signal: AbortSignal, gate: BudgetGate) => T | Promise<T>,
     outer: AbortSignal | undefined,
   ): Promise<BudgetOutcome<T>>;
+  /**
+   * 확장 메서드 처리기를 `x.operations.budget.uiMs` 예산 안에서 실행한다. `ExtHostDeps.methodRun`에 넘긴다.
+   * gate는 `hostOf(g).awaitUser`가 쓰고 대기 동안 예산 시계를 멈춘다(X.primitives.spec §4.12) [제안, M4 T-XV]
+   */
+  readonly runMethod: MethodRun;
+  /**
+   * 확장 메서드 호출의 보고를 장부에 넣는다. `ExtHostDeps.onMethodSettled`에 넘긴다. params_invalid(호출한 쪽의 잘못)와
+   * aborted(취소)는 세지 않는다. ok는 성공, threw·timeout·result_invalid는 실패로 훅 실패와 같은 경로를 탄다(X.operations.spec §4.3) [제안]
+   */
+  readonly onMethodSettled: (info: ExtMethodSettled) => void;
   readonly tiers: TierTable;
   readonly ledger: FailureLedger;
   readonly autoDisabler: AutoDisabler;
@@ -247,6 +264,13 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
     },
     run(entry, work, outer) {
       return runWithBudget(work, budgetOf(entry), budgetDeps, outer);
+    },
+    runMethod(work, outer) {
+      return runWithBudget(work, deps.settings.budgets().ui, budgetDeps, outer);
+    },
+    onMethodSettled(info) {
+      const record = fromMethodSettled(info, tierFor(info.extension), deps.now());
+      if (record !== undefined) autoDisabler.onOutcome(record);
     },
     tiers,
     ledger,
