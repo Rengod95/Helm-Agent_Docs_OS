@@ -10,6 +10,7 @@
 | `tabs.ts` | 탭 13개, 전용 탭 → 시안 폴더. 탭을 누르면 `_shell/routes.ts`의 `navigateToPage`로 옆 시안에 간다(`?tab=<id>`, 같은 시안이면 그 자리에서 바꾼다) |
 | `mount.tsx` | 진입 도우미(글꼴 → `MockRoot` → `ShellStateProvider`) |
 
+- 폼 열 규칙: 머리 h-16(제목 가운데, 아래 전폭 선), 내용 위아래 여백 48(떠 있는 막대가 머리 아래로 36px 더 내려오므로 첫 줄이 그 아래에서 시작), 가로 24 대칭, 최대 폭 64rem. `SettingSection`은 제목(글)과 그 아래 줄 전부를 담은 카드 하나(bg-surface-base + border-subtle 헤어라인, 줄 사이 divide-border-subtle). 카드 안의 목록은 `variant="ghost"`로 표면 없이.
 - 설정 화면은 왼쪽 패널 바닥 "설정"이 지금 화면입니다(`activeNav="settings"`, `_shell/start-panel.tsx`에 굵기·selected 아이콘을 더함).
 - 대화 목록에는 고른 행을 두지 않습니다(올린 바탕은 탭 열의 지금 탭 하나).
 - 배지 강조는 하나: 범위는 neutral soft 배지, 적용 시점은 연한 글, "재시작 필요"만 warning 배지.

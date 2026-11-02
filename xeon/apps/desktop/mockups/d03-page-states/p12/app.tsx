@@ -130,6 +130,8 @@ function ProviderList({
       size="xs"
       aria-label={label}
       disabled={disabled === true}
+      variant="ghost"
+      className="rounded-none"
     >
       {rows.map((r) => (
         <ListRow

@@ -145,7 +145,7 @@ export function ModelsTab({ state }: { state: State }) {
             variant="ghost"
             size="xs"
             aria-label="모델 역할"
-            className="max-w-[28rem] rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
+            className="rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
           >
             <ListDescriptionRow term="main" mono>
               claude-sonnet-5-5
@@ -180,7 +180,8 @@ export function ModelsTab({ state }: { state: State }) {
             size="xs"
             aria-label="폴백 체인"
             disabled={off}
-            className="max-w-[28rem]"
+            variant="ghost"
+            className="rounded-none"
           >
             {chain.map((m) => (
               <ListRow

@@ -86,7 +86,7 @@ export function SettingRow({
     .filter(Boolean)
     .join(", ");
   return (
-    <div role="group" aria-labelledby={`${id}-l`} className="grid gap-1.5 py-2">
+    <div role="group" aria-labelledby={`${id}-l`} className="grid gap-1.5 py-3">
       <div className="flex min-h-6 min-w-0 items-center gap-2">
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
           <span id={`${id}-l`} className="shrink-0 text-ui font-medium text-text-primary">
@@ -112,7 +112,7 @@ export function SettingRow({
   );
 }
 
-/** 탭 안 묶음 머리. 긴 탭에서는 스크롤해도 위에 붙는다(FormLayoutSection 머리 고정 대신, 표면 없는 가운데라 bg-app 바탕). */
+/** 탭 안 묶음: 머리는 표면 없는 글(제목 + 끝 동작), 그 아래 모든 줄을 표면 카드 하나에 담는다(bg-surface-base + 1px border-subtle 헤어라인, 줄 사이는 border-subtle 구분선). 긴 탭에서는 스크롤해도 머리가 위에 붙는다(bg-app 바탕). 카드 안에 카드를 두지 않는다: 줄 안의 목록·표는 표면 없이 카드 안쪽을 쓴다. */
 export function SettingSection({
   title,
   end,
@@ -124,14 +124,16 @@ export function SettingSection({
 }) {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="pt-3 first:pt-0">
+    <section aria-labelledby={id} className="pt-6 first:pt-0">
       <div className="sticky top-0 z-[5] flex h-8 items-center gap-2 bg-bg-app">
         <h2 id={id} className="m-0 flex-1 text-ui-sm font-semibold text-text-secondary">
           {title}
         </h2>
         {end}
       </div>
-      {children}
+      <div className="mt-1 grid divide-y divide-border-subtle rounded-2xl bg-surface-base px-4 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
+        {children}
+      </div>
     </section>
   );
 }

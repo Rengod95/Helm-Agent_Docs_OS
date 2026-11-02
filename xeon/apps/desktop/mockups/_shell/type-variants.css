@@ -10,7 +10,7 @@
    a 기준: 기준값 그대로, 14px 이하 한글 간격만 0em(캡션의 +0.06em도 0). 제목은 기준값 그대로.
    b 좁은 자간: 같은 크기·굵기. 본문·UI·작은 글 -0.01em, 제목 3·4 -0.02em, 제목 1·2와 큰 숫자 -0.025em.
    c 명도 위계: a의 크기, b의 간격. 제목은 잉크(primary) 600. 설명 L .46, 메타·자리표시 L .54, 본문 L .30(잉크보다 연함).
-   d 크기 위계: b의 간격. 제목 2 16/22 600, 제목 1 24/32 600, 설명 13/19 400, 본문 14/22.4(1.6). 설명 색은 c와 같다.
+   d 크기 위계: b의 간격. 제목 2 16/22 600, 제목 1 24/32 600(손으로 쓴 h1은 한 단계 낮춰 20/28 700), 설명 13/19 400, 본문 14/22.4(1.6). 설명 색은 c와 같다.
    다크는 같은 단계를 거울처럼: 잉크 .96, 본문 .84, 설명 .72, 메타 .64.
    손대는 색은 caustic 글 색 변수 셋(--cs-color-text-secondary·tertiary·placeholder)의 값과 본문·제목 요소의 color뿐이다.
    잉크(--cs-color-text-primary)는 그대로다. */
@@ -169,7 +169,7 @@ html[data-type="c"][data-theme="dark"] body {
   }
 }
 
-/* ── d: 크기 위계. 제목 2 16/600, 제목 1 24/600, 설명(작은 밀도 단계) 13, 본문 14/1.6 */
+/* ── d: 크기 위계. 제목 2 16/600, 제목 1 24/600(손으로 쓴 h1은 20/700), 설명(작은 밀도 단계) 13, 본문 14/1.6 */
 html[data-type="d"] {
   --text-title-1: 24px;
   --text-title-1--line-height: 32px;
@@ -181,9 +181,9 @@ html[data-type="d"] {
 }
 /* d: caustic 부품이 아닌 페이지 제목 요소(p09 설정 구역 제목 같은 손으로 쓴 h1·h2)에도 같은 크기 위계를 준다. 글자 크기·굵기만. */
 html[data-type="d"] h1:not([data-slot]) {
-  font-size: 24px;
-  line-height: 32px;
-  font-weight: 600;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
 }
 html[data-type="d"] h2:not([data-slot]) {
   font-size: 16px;
