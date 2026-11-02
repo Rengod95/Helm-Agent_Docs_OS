@@ -1,16 +1,30 @@
 // 크래프트 v5 화면 상태. 상태 전환기는 없고 눌러서 움직이는 값만 둔다: 선택, 켜진 곳, 훅 줄 순서, 대체, 만들기, 실패 서랍.
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ANGLE,
   CAPS,
+  CONTRIB_ORDER,
   GROUPS,
   INITIAL_ORDER,
   PLUGINS,
   REACH_LABEL,
   capSlot,
   groupById,
+  hasContrib,
+  matchesKind,
   reachRank,
+  type Contrib,
   type Health,
+  type KindFilter,
+  type LayerKey,
   type Plugin,
   type Reach,
   type Sel,
@@ -38,10 +52,50 @@ export interface Created {
   command?: string;
 }
 
+export type View = "orbit" | "strata" | "detail";
+export interface Filter {
+  kind: KindFilter;
+  contrib: readonly Contrib[];
+}
+export type RunMode = "sample" | "recent";
+export interface DetailTarget {
+  k: "plugin" | "group";
+  id: string;
+}
+
 export interface Mock {
   plugins: Plugin[];
   sel: Sel;
-  select: (s: Sel) => void;
+  /** 고르면 오른쪽 패널이 열린다. open=false면 고르기만 한다(Esc) */
+  select: (s: Sel, open?: boolean) => void;
+  /** 오른쪽 선택 패널이 열려 있나 */
+  panel: boolean;
+  closePanel: () => void;
+  /** 지도(orbit)·순서(strata)·플러그인 자세히(detail) */
+  view: View;
+  setView: (v: "orbit" | "strata") => void;
+  detail: DetailTarget | null;
+  /** 자세히 보기에서 돌아갈 곳 */
+  back: "orbit" | "strata";
+  /** 자세히 보기를 연다. code=true면 코드가 펼쳐진 채로 */
+  openDetail: (t: DetailTarget, code?: boolean) => void;
+  detailCode: boolean;
+  closeDetail: () => void;
+  run: RunMode;
+  setRun: (r: RunMode) => void;
+  /** 고리를 눌러 연 층(아래 패널). 고르기(sel)와 따로 산다 */
+  ring: LayerKey | null;
+  openRing: (l: LayerKey) => void;
+  closeRing: () => void;
+  layerList: (l: LayerKey) => Plugin[];
+  moveInLayer: (l: LayerKey, id: string, to: number) => void;
+  filter: Filter;
+  setKind: (k: KindFilter) => void;
+  toggleContrib: (c: Contrib) => void;
+  clearFilter: () => void;
+  /** 거르기에 맞나(거르지 않으면 모두 맞다) */
+  matches: (p: Plugin) => boolean;
+  filtering: boolean;
   reach: (id: string) => Reach;
   setReach: (id: string, r: Reach) => void;
   setGroupReach: (gid: string, r: Reach) => void;
@@ -77,21 +131,37 @@ export function useMock(): Mock {
   return m;
 }
 
-const initialReach = (): Record<string, Reach> => Object.fromEntries(PLUGINS.map((p) => [p.id, p.reach]));
-const initialHealth = (): Record<string, Health | undefined> => Object.fromEntries(PLUGINS.map((p) => [p.id, p.health]));
+const initialReach = (): Record<string, Reach> =>
+  Object.fromEntries(PLUGINS.map((p) => [p.id, p.reach]));
+const initialHealth = (): Record<string, Health | undefined> =>
+  Object.fromEntries(PLUGINS.map((p) => [p.id, p.health]));
 /** 새로 만든 플러그인이 앉을 지도 자리(바깥 고리, 빈 각도) */
-const FREE_ANGLES = [271, 94];
+const FREE_ANGLES = [176, 214];
 
 export function MockProvider({ children }: { children: ReactNode }) {
   const [plugins, setPlugins] = useState<Plugin[]>(PLUGINS);
   const [sel, setSel] = useState<Sel>({ k: "agent" });
+  const [panel, setPanel] = useState(false);
+  const [view, setViewState] = useState<View>("orbit");
+  const [back, setBack] = useState<"orbit" | "strata">("orbit");
+  const [detail, setDetail] = useState<DetailTarget | null>(null);
+  const [detailCode, setDetailCode] = useState(false);
+  const [run, setRun] = useState<RunMode>("sample");
+  const [ring, setRing] = useState<LayerKey | null>(null);
+  const [layerOrder, setLayerOrder] = useState<Record<string, string[]>>({});
+  const [filter, setFilter] = useState<Filter>({ kind: "all", contrib: [] });
   const [reachMap, setReachMap] = useState<Record<string, Reach>>(initialReach);
   const lastReach = useRef<Record<string, Reach>>({});
   const [healthMap, setHealthMap] = useState<Record<string, Health | undefined>>(initialHealth);
-  const [order, setOrder] = useState<Record<string, string[]>>(() => structuredClone(INITIAL_ORDER));
+  const [order, setOrder] = useState<Record<string, string[]>>(() =>
+    structuredClone(INITIAL_ORDER),
+  );
   const [replaced, setReplaced] = useState<Record<string, string>>({});
   const [builder, setBuilder] = useState<BuilderState | null>(null);
-  const [drawer, setDrawerState] = useState<{ open: boolean; focus: string | null }>({ open: false, focus: null });
+  const [drawer, setDrawerState] = useState<{ open: boolean; focus: string | null }>({
+    open: false,
+    focus: null,
+  });
   const [drag, setDrag] = useState<DragState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -115,7 +185,8 @@ export function MockProvider({ children }: { children: ReactNode }) {
       const cur = reachMap[id] ?? "off";
       if (cur !== "off") lastReach.current[id] = cur;
       setReachMap((prev) => ({ ...prev, [id]: r }));
-      if (r !== "off") setHealthMap((prev) => (prev[id]?.autoOff === true ? { ...prev, [id]: undefined } : prev));
+      if (r !== "off")
+        setHealthMap((prev) => (prev[id]?.autoOff === true ? { ...prev, [id]: undefined } : prev));
     },
     [reachMap],
   );
@@ -143,7 +214,8 @@ export function MockProvider({ children }: { children: ReactNode }) {
   const resetHealth = useCallback(
     (id: string) => {
       setHealthMap((prev) => ({ ...prev, [id]: undefined }));
-      if ((reachMap[id] ?? "off") === "off") setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
+      if ((reachMap[id] ?? "off") === "off")
+        setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
       notify("다시 켰어요 · 실패 기록은 남아요");
     },
     [reachMap, notify],
@@ -166,8 +238,13 @@ export function MockProvider({ children }: { children: ReactNode }) {
         return;
       }
       setOrder((prev) => ({ ...prev, [hook]: [...(prev[hook] ?? []), id] }));
-      setPlugins((prev) => prev.map((p) => (p.id === id && !p.hooks.includes(hook) ? { ...p, hooks: [...p.hooks, hook] } : p)));
-      if ((reachMap[id] ?? "off") === "off") setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
+      setPlugins((prev) =>
+        prev.map((p) =>
+          p.id === id && !p.hooks.includes(hook) ? { ...p, hooks: [...p.hooks, hook] } : p,
+        ),
+      );
+      if ((reachMap[id] ?? "off") === "off")
+        setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
       notify(`${hook}에 더했어요 · ${T_PLUGIN_FILE}에 훅이 적혀요`);
     },
     [order, reachMap, notify],
@@ -182,16 +259,87 @@ export function MockProvider({ children }: { children: ReactNode }) {
         return next;
       });
       if (id !== null) {
-        if ((reachMap[id] ?? "off") === "off") setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
+        if ((reachMap[id] ?? "off") === "off")
+          setReachMap((prev) => ({ ...prev, [id]: lastReach.current[id] ?? "project" }));
         notify("대체했어요 · 내장은 가려져요");
       } else notify("내장으로 되돌렸어요");
     },
     [reachMap, notify],
   );
 
-  const select = useCallback((s: Sel) => setSel(s), []);
-  const openBuilder = useCallback((hook: string | null, template: string | null = null) => setBuilder({ hook, template }), []);
-  const setTemplate = useCallback((id: string) => setBuilder((b) => (b === null ? b : { ...b, template: id })), []);
+  const select = useCallback((s: Sel, open = true) => {
+    setSel(s);
+    setPanel(open && s.k !== "layer");
+  }, []);
+  const closePanel = useCallback(() => setPanel(false), []);
+  const setView = useCallback((v: "orbit" | "strata") => {
+    setViewState(v);
+    setBack(v);
+  }, []);
+  const openDetail = useCallback((t: DetailTarget, code = false) => {
+    setDetail(t);
+    setDetailCode(code);
+    setViewState("detail");
+  }, []);
+  const closeDetail = useCallback(() => setViewState(back), [back]);
+  const openRing = useCallback((l: LayerKey) => {
+    setRing(l);
+    setSel({ k: "layer", id: l });
+    setPanel(false);
+  }, []);
+  const closeRing = useCallback(() => {
+    setRing(null);
+    setSel((cur) => (cur.k === "layer" ? { k: "agent" } : cur));
+  }, []);
+  const layerList = useCallback(
+    (l: LayerKey): Plugin[] => {
+      const all = plugins.filter((p) => p.layer === l);
+      const saved = layerOrder[l] ?? [];
+      const first = saved
+        .map((id) => all.find((p) => p.id === id))
+        .filter((p): p is Plugin => p !== undefined);
+      return [...first, ...all.filter((p) => !saved.includes(p.id))];
+    },
+    [plugins, layerOrder],
+  );
+  const moveInLayer = useCallback(
+    (l: LayerKey, id: string, to: number) => {
+      const ids = layerList(l).map((p) => p.id);
+      const from = ids.indexOf(id);
+      if (from < 0) return;
+      const next = ids.filter((x) => x !== id);
+      next.splice(Math.max(0, Math.min(to, next.length)), 0, id);
+      setLayerOrder((prev) => ({ ...prev, [l]: next }));
+    },
+    [layerList],
+  );
+  const setKind = useCallback((kind: KindFilter) => setFilter((f) => ({ ...f, kind })), []);
+  const toggleContrib = useCallback(
+    (c: Contrib) =>
+      setFilter((f) => ({
+        ...f,
+        contrib: f.contrib.includes(c)
+          ? f.contrib.filter((x) => x !== c)
+          : CONTRIB_ORDER.filter((x) => x === c || f.contrib.includes(x)),
+      })),
+    [],
+  );
+  const clearFilter = useCallback(() => setFilter({ kind: "all", contrib: [] }), []);
+  const filtering = filter.kind !== "all" || filter.contrib.length > 0;
+  const matches = useCallback(
+    (p: Plugin): boolean =>
+      matchesKind(p, filter.kind) &&
+      (filter.contrib.length === 0 || filter.contrib.some((c) => hasContrib(p, c))),
+    [filter],
+  );
+  const openBuilder = useCallback(
+    (hook: string | null, template: string | null = null) => setBuilder({ hook, template }),
+    [],
+  );
+  const setTemplate = useCallback(
+    (id: string) => setBuilder((b) => (b === null ? b : { ...b, template: id })),
+    [],
+  );
   const closeBuilder = useCallback(() => setBuilder(null), []);
 
   const create = useCallback(
@@ -209,30 +357,133 @@ export function MockProvider({ children }: { children: ReactNode }) {
         reach: c.reach,
         hooks: c.hook === null ? [] : [c.hook],
         provides: [],
-        pieces: c.template === "skill" ? [{ kind: "skill", name: "new-skill" }] : c.template === "command" ? [{ kind: "command", name: "/new" }] : [],
+        pieces:
+          c.template === "skill"
+            ? [{ kind: "skill", name: "new-skill" }]
+            : c.template === "command"
+              ? [{ kind: "command", name: "/new" }]
+              : [],
       };
       setPlugins((prev) => [...prev, plugin]);
       setReachMap((prev) => ({ ...prev, [id]: c.reach }));
-      if (c.hook !== null) setOrder((prev) => ({ ...prev, [c.hook ?? ""]: [...(prev[c.hook ?? ""] ?? []), id] }));
+      if (c.hook !== null)
+        setOrder((prev) => ({ ...prev, [c.hook ?? ""]: [...(prev[c.hook ?? ""] ?? []), id] }));
       ANGLE[id] = FREE_ANGLES[n % FREE_ANGLES.length] ?? 271;
       setSel({ k: "plugin", id });
+      setPanel(true);
       setBuilder(null);
       notify(`${REACH_LABEL[c.reach]}에 저장 · 이번 단계가 끝나면 적용돼요`);
     },
     [notify],
   );
 
-  const openDrawer = useCallback((focus: string | null) => setDrawerState({ open: true, focus }), []);
+  const openDrawer = useCallback(
+    (focus: string | null) => setDrawerState({ open: true, focus }),
+    [],
+  );
   const closeDrawer = useCallback(() => setDrawerState({ open: false, focus: null }), []);
 
   const value = useMemo<Mock>(
     () => ({
-      plugins, sel, select, reach, setReach, setGroupReach, toggle, isOn, health, resetHealth, order, move, addToLane,
-      replaced, replace, builder, openBuilder, setTemplate, closeBuilder, create, drawer, openDrawer, closeDrawer,
-      drag, setDrag, notice, notify,
+      plugins,
+      sel,
+      select,
+      panel,
+      closePanel,
+      view,
+      setView,
+      detail,
+      back,
+      openDetail,
+      detailCode,
+      closeDetail,
+      run,
+      setRun,
+      ring,
+      openRing,
+      closeRing,
+      layerList,
+      moveInLayer,
+      filter,
+      setKind,
+      toggleContrib,
+      clearFilter,
+      matches,
+      filtering,
+      reach,
+      setReach,
+      setGroupReach,
+      toggle,
+      isOn,
+      health,
+      resetHealth,
+      order,
+      move,
+      addToLane,
+      replaced,
+      replace,
+      builder,
+      openBuilder,
+      setTemplate,
+      closeBuilder,
+      create,
+      drawer,
+      openDrawer,
+      closeDrawer,
+      drag,
+      setDrag,
+      notice,
+      notify,
     }),
-    [plugins, sel, select, reach, setReach, setGroupReach, toggle, isOn, health, resetHealth, order, move, addToLane,
-      replaced, replace, builder, openBuilder, setTemplate, closeBuilder, create, drawer, openDrawer, closeDrawer, drag, notice, notify],
+    [
+      plugins,
+      sel,
+      select,
+      panel,
+      closePanel,
+      view,
+      setView,
+      detail,
+      back,
+      openDetail,
+      detailCode,
+      closeDetail,
+      run,
+      ring,
+      openRing,
+      closeRing,
+      layerList,
+      moveInLayer,
+      filter,
+      setKind,
+      toggleContrib,
+      clearFilter,
+      matches,
+      filtering,
+      reach,
+      setReach,
+      setGroupReach,
+      toggle,
+      isOn,
+      health,
+      resetHealth,
+      order,
+      move,
+      addToLane,
+      replaced,
+      replace,
+      builder,
+      openBuilder,
+      setTemplate,
+      closeBuilder,
+      create,
+      drawer,
+      openDrawer,
+      closeDrawer,
+      drag,
+      notice,
+      notify,
+    ],
   );
   return <MockContext.Provider value={value}>{children}</MockContext.Provider>;
 }
@@ -241,6 +492,8 @@ const T_PLUGIN_FILE = "확장 정보 파일";
 
 // ── 파생값 ────────────────────────────────────────────────────────
 export interface Lit {
+  /** 지금 고른 플러그인(밝은 점 하나). 그룹이나 층을 골랐으면 없다 */
+  primary: string | null;
   plugins: ReadonlySet<string>;
   hooks: ReadonlySet<string>;
   caps: ReadonlySet<string>;
@@ -259,20 +512,38 @@ export function litOf(sel: Sel, plugins: readonly Plugin[], order: Record<string
     for (const h of p.hooks) hs.add(h);
     for (const c of p.provides) cs.add(c);
   };
-  if (sel.k === "plugin") take(byId(sel.id));
-  else if (sel.k === "group") for (const id of groupById(sel.id)?.members ?? []) take(byId(id));
-  else if (sel.k === "hook") {
+  if (sel.k === "plugin") {
+    // 그룹의 구성원을 고르면 그룹 전체가 켜진다: 여러 층에 걸친 것은 한 덩어리로 읽는다
+    const p = byId(sel.id);
+    const g = p?.group === undefined ? undefined : groupById(p.group);
+    if (g === undefined) take(p);
+    else for (const id of g.members) take(byId(id));
+  } else if (sel.k === "layer") {
+    for (const p of plugins) if (p.layer === sel.id) take(p);
+  } else if (sel.k === "group") {
+    for (const id of groupById(sel.id)?.members ?? []) take(byId(id));
+  } else if (sel.k === "hook") {
     hs.add(sel.id);
     for (const id of order[sel.id] ?? []) ps.add(id);
   } else if (sel.k === "builtin") {
     if (sel.slot.startsWith("hook:")) hs.add(sel.slot.slice(5));
     else cs.add(sel.slot.slice(4));
   }
-  return { plugins: ps, hooks: hs, caps: cs, active: sel.k !== "agent" };
+  return {
+    primary: sel.k === "plugin" ? sel.id : null,
+    plugins: ps,
+    hooks: hs,
+    caps: cs,
+    active: sel.k !== "agent",
+  };
 }
 
 /** 몇 개가 켜져 있나(그룹 카드용) */
-export function groupState(gid: string, reach: (id: string) => Reach, isOn: (id: string) => boolean): { on: number; total: number; widest: Reach } {
+export function groupState(
+  gid: string,
+  reach: (id: string) => Reach,
+  isOn: (id: string) => boolean,
+): { on: number; total: number; widest: Reach } {
   const g = groupById(gid);
   const ids = g?.members ?? [];
   let widest: Reach = "off";

@@ -20,16 +20,19 @@ import {
   type Plugin,
 } from "./data";
 import { useDragSource } from "./drag";
+import { GRP, Mark, SHAPE_OF } from "./marks";
 import { litOf, useMock } from "./store";
 
-const ROW = "grid grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)] gap-x-3 border-t border-border-subtle px-4 py-2.5";
+const ROW =
+  "grid grid-cols-[minmax(0,9.5rem)_minmax(0,1fr)] gap-x-3 border-t border-border-subtle px-4 py-2.5";
 
 function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return undefined;
     const down = (e: PointerEvent): void => {
-      if (ref.current !== null && e.target instanceof Node && !ref.current.contains(e.target)) close();
+      if (ref.current !== null && e.target instanceof Node && !ref.current.contains(e.target))
+        close();
     };
     const key = (e: globalThis.KeyboardEvent): void => {
       if (e.key === "Escape") close();
@@ -45,7 +48,19 @@ function useDismiss(open: boolean, close: () => void) {
 }
 
 // ── 칩 ────────────────────────────────────────────────────────────
-function Chip({ p, hook, index, ordered, replacer }: { p: Plugin; hook: string | null; index: number; ordered: boolean; replacer?: boolean }) {
+function Chip({
+  p,
+  hook,
+  index,
+  ordered,
+  replacer,
+}: {
+  p: Plugin;
+  hook: string | null;
+  index: number;
+  ordered: boolean;
+  replacer?: boolean;
+}) {
   const m = useMock();
   const picked = m.sel.k === "plugin" && m.sel.id === p.id;
   const lit = litOf(m.sel, m.plugins, m.order).plugins.has(p.id);
@@ -67,7 +82,7 @@ function Chip({ p, hook, index, ordered, replacer }: { p: Plugin; hook: string |
       m.move(hook, p.id, i + 1);
     }
   };
-  const dot = picked ? "bg-surface-base" : on ? (h !== undefined ? "bg-danger-graphic" : "bg-text-primary") : h !== undefined ? "border border-danger-graphic" : "border border-text-tertiary";
+  const isGroup = p.group !== undefined;
   const sub = reach === "thread" ? "이 대화" : reach === "project" ? "프로젝트" : null;
   return (
     <div
@@ -76,12 +91,21 @@ function Chip({ p, hook, index, ordered, replacer }: { p: Plugin; hook: string |
       className={`group/chip inline-flex h-8 max-w-full select-none items-center gap-1.5 rounded-full border pe-3 ps-1.5 text-ui-sm ${
         picked
           ? "border-text-primary bg-text-primary text-surface-base shadow-[0_0_0_3px_var(--cs-color-surface-base),0_0_0_4.5px_var(--cs-color-border-default)]"
-          : `bg-surface-base ${lit ? "border-text-primary" : "border-border-default"} ${on ? "text-text-primary" : "text-text-tertiary"}`
-      } ${dragging ? "opacity-35" : ""}`}
-      style={{ touchAction: "none", cursor: hook === null ? "default" : "grab" }}
+          : `${isGroup ? "" : "bg-surface-base"} ${isGroup ? "" : lit ? "border-text-primary" : "border-border-default"} ${on ? "text-text-primary" : "text-text-tertiary"}`
+      } ${dragging ? "opacity-35" : ""} ${!m.matches(p) ? "opacity-35" : ""}`}
+      style={{
+        touchAction: "none",
+        cursor: hook === null ? "default" : "grab",
+        ...(isGroup && !picked
+          ? { background: GRP.soft, borderColor: lit ? GRP.graphic : GRP.border }
+          : {}),
+      }}
     >
       {hook !== null ? (
-        <span aria-hidden className={`grid w-3 flex-none grid-cols-2 gap-[2px] px-[1px] ${picked ? "opacity-70" : "opacity-40"}`}>
+        <span
+          aria-hidden
+          className={`grid w-3 flex-none grid-cols-2 gap-[2px] px-[1px] ${picked ? "opacity-70" : "opacity-40"}`}
+        >
           {Array.from({ length: 6 }, (_, i) => (
             <span key={i} className="size-[3px] rounded-full bg-current" />
           ))}
@@ -97,7 +121,15 @@ function Chip({ p, hook, index, ordered, replacer }: { p: Plugin; hook: string |
         onClick={() => m.toggle(p.id)}
         className="grid size-4 flex-none cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
       >
-        <span className={`size-2.5 rounded-full ${dot}`} />
+        <Mark
+          shape={SHAPE_OF[p.layer]}
+          size={18}
+          on={on}
+          group={isGroup}
+          failing={h !== undefined}
+          autoOff={h?.autoOff === true}
+          inverse={picked}
+        />
       </button>
       <button
         type="button"
@@ -107,7 +139,13 @@ function Chip({ p, hook, index, ordered, replacer }: { p: Plugin; hook: string |
         className="flex min-w-0 cursor-pointer items-center gap-1.5 whitespace-nowrap border-0 bg-transparent p-0 text-start text-inherit outline-none focus-visible:underline"
       >
         <span className="truncate">{p.name}</span>
-        {ordered && <span className={`font-mono text-mono-sm ${picked ? "opacity-70" : "text-text-tertiary"}`}>{index + 1}</span>}
+        {ordered && (
+          <span
+            className={`font-mono text-mono-sm ${picked ? "opacity-70" : "text-text-tertiary"}`}
+          >
+            {index + 1}
+          </span>
+        )}
       </button>
       {h !== undefined && (
         <button
@@ -118,9 +156,19 @@ function Chip({ p, hook, index, ordered, replacer }: { p: Plugin; hook: string |
           · {h.autoOff === true ? T.autoDisabled : `실패 ${h.fails}`}
         </button>
       )}
-      {h === undefined && sub !== null && <span className={`whitespace-nowrap text-footnote ${picked ? "opacity-70" : "text-text-tertiary"}`}>· {sub}</span>}
+      {h === undefined && sub !== null && (
+        <span
+          className={`whitespace-nowrap text-footnote ${picked ? "opacity-70" : "text-text-tertiary"}`}
+        >
+          · {sub}
+        </span>
+      )}
       {replacer === true && (
-        <span className={`whitespace-nowrap rounded-full px-1.5 text-footnote ${picked ? "bg-surface-base text-text-primary" : "bg-text-primary text-surface-base"}`}>대체</span>
+        <span
+          className={`whitespace-nowrap rounded-full px-1.5 text-footnote ${picked ? "bg-surface-base text-text-primary" : "bg-text-primary text-surface-base"}`}
+        >
+          대체
+        </span>
       )}
     </div>
   );
@@ -135,7 +183,9 @@ function BuiltinChip({ name, struck, slot }: { name: string; struck: boolean; sl
       aria-pressed={picked}
       onClick={() => m.select({ k: "builtin", slot })}
       className={`inline-flex h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed bg-transparent px-3 text-ui-sm outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)] ${
-        picked ? "border-text-primary text-text-primary" : "border-border-strong text-text-secondary"
+        picked
+          ? "border-text-primary text-text-primary"
+          : "border-border-strong text-text-secondary"
       }`}
     >
       <span className={struck ? "line-through opacity-70" : ""}>{name}</span>
@@ -145,7 +195,15 @@ function BuiltinChip({ name, struck, slot }: { name: string; struck: boolean; sl
 }
 
 // ── 더하기·대체 팝오버 ────────────────────────────────────────────
-function Pop({ children, label, className = "" }: { children: (close: () => void) => ReactNode; label: string; className?: string }) {
+function Pop({
+  children,
+  label,
+  className = "",
+}: {
+  children: (close: () => void) => ReactNode;
+  label: string;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
   return (
@@ -159,14 +217,19 @@ function Pop({ children, label, className = "" }: { children: (close: () => void
         {label}
       </button>
       {open && (
-        <div role="dialog" aria-label={label} className="animate-enter absolute left-0 top-9 z-30 grid w-64 gap-0.5 rounded-2xl border border-border-default bg-surface-raised p-1.5 shadow-3">
+        <div
+          role="dialog"
+          aria-label={label}
+          className="animate-enter absolute left-0 top-9 z-30 grid w-64 gap-0.5 rounded-2xl border border-border-default bg-surface-raised p-1.5 shadow-3"
+        >
           {children(() => setOpen(false))}
         </div>
       )}
     </div>
   );
 }
-const ITEM = "flex min-h-8 w-full cursor-pointer items-center justify-between gap-3 rounded-xl border-0 bg-transparent px-3 text-start text-body text-text-primary outline-none hover:bg-neutral-hover focus-visible:shadow-[inset_0_0_0_2px_var(--cs-color-focus-ring)]";
+const ITEM =
+  "flex min-h-8 w-full cursor-pointer items-center justify-between gap-3 rounded-xl border-0 bg-transparent px-3 text-start text-body text-text-primary outline-none hover:bg-neutral-hover focus-visible:shadow-[inset_0_0_0_2px_var(--cs-color-focus-ring)]";
 
 function AddPop({ hook }: { hook: string }) {
   const m = useMock();
@@ -180,9 +243,19 @@ function AddPop({ hook }: { hook: string }) {
           <span className="px-3 pt-1 text-footnote text-text-tertiary">설치한 것</span>
           <div className="grid max-h-40 gap-0.5 overflow-y-auto">
             {rest.map((p) => (
-              <button key={p.id} type="button" className={ITEM} onClick={() => { m.addToLane(hook, p.id); close(); }}>
+              <button
+                key={p.id}
+                type="button"
+                className={ITEM}
+                onClick={() => {
+                  m.addToLane(hook, p.id);
+                  close();
+                }}
+              >
                 <span className="truncate">{p.name}</span>
-                <span className="flex-none text-footnote text-text-tertiary">{m.isOn(p.id) ? LAYER_CODE[p.layer] : "꺼짐"}</span>
+                <span className="flex-none text-footnote text-text-tertiary">
+                  {m.isOn(p.id) ? LAYER_CODE[p.layer] : "꺼짐"}
+                </span>
               </button>
             ))}
           </div>
@@ -205,9 +278,18 @@ function AddPop({ hook }: { hook: string }) {
               aria-label={`${hook}에 걸 명령`}
               className="h-8 min-w-0 flex-1 rounded-lg border border-border-default bg-surface-base px-2.5 font-mono text-mono-sm text-text-primary outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
             />
-            <Button size="xs" variant="outline" type="submit" disabled={cmd.trim() === ""}>걸기</Button>
+            <Button size="xs" variant="outline" type="submit" disabled={cmd.trim() === ""}>
+              걸기
+            </Button>
           </form>
-          <button type="button" className={`${ITEM} border-t border-border-subtle`} onClick={() => { m.openBuilder(hook); close(); }}>
+          <button
+            type="button"
+            className={`${ITEM} border-t border-border-subtle`}
+            onClick={() => {
+              m.openBuilder(hook);
+              close();
+            }}
+          >
             <span>새로 만들기</span>
             <span className="text-footnote text-text-tertiary">{T.authoringExt}</span>
           </button>
@@ -226,7 +308,15 @@ function ReplacePop({ slot, candidates }: { slot: string; candidates: Plugin[] }
         <>
           <span className="px-3 pt-1 text-footnote text-text-tertiary">이것으로 대체</span>
           {candidates.map((p) => (
-            <button key={p.id} type="button" className={ITEM} onClick={() => { m.replace(slot, p.id); close(); }}>
+            <button
+              key={p.id}
+              type="button"
+              className={ITEM}
+              onClick={() => {
+                m.replace(slot, p.id);
+                close();
+              }}
+            >
               <span className="truncate">{p.name}</span>
               <span className="flex-none text-footnote text-text-tertiary">{p.version}</span>
             </button>
@@ -254,7 +344,10 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
   const draggedId = m.drag?.over?.hook === def.id || m.drag?.from === def.id ? m.drag.id : null;
   const shown = ids.filter((id) => id !== by);
   const candidates = m.plugins.filter((p) => p.hooks.includes(def.id) && p.id !== by);
-  const players = shown.map((id, i) => ({ p: pluginById(id) ?? m.plugins.find((q) => q.id === id), i }));
+  const players = shown.map((id, i) => ({
+    p: pluginById(id) ?? m.plugins.find((q) => q.id === id),
+    i,
+  }));
   const empty = def.builtin === undefined && ids.length === 0;
   let n = -1;
   const body: ReactNode[] = [];
@@ -264,8 +357,10 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
     if (over !== null && draggedId !== p.id && n === over) body.push(<Marker key={`m${i}`} />);
     body.push(<Chip key={p.id} p={p} hook={def.id} index={i} ordered={ordered} />);
   });
-  if (over !== null && over >= players.filter((x) => x.p?.id !== draggedId).length) body.push(<Marker key="m-end" />);
-  const replacer = by === undefined ? undefined : (pluginById(by) ?? m.plugins.find((q) => q.id === by));
+  if (over !== null && over >= players.filter((x) => x.p?.id !== draggedId).length)
+    body.push(<Marker key="m-end" />);
+  const replacer =
+    by === undefined ? undefined : (pluginById(by) ?? m.plugins.find((q) => q.id === by));
 
   return (
     <div className={`${ROW} ${lit ? "bg-neutral-soft" : ""}`}>
@@ -276,11 +371,16 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
         className="grid min-w-0 cursor-pointer content-start gap-0.5 border-0 bg-transparent p-0 text-start outline-none focus-visible:underline"
       >
         {!mono && (
-          <span className={`text-ui-strong ${picked || lit ? "text-text-primary" : "text-text-primary"}`}>
-            {def.label} <span className="font-normal text-text-tertiary">· {FOLD_LABEL[def.fold]}</span>
+          <span
+            className={`text-ui-strong ${picked || lit ? "text-text-primary" : "text-text-primary"}`}
+          >
+            {def.label}{" "}
+            <span className="font-normal text-text-tertiary">· {FOLD_LABEL[def.fold]}</span>
           </span>
         )}
-        <span className={`truncate font-mono text-mono-sm ${mono ? "text-text-primary" : "text-text-tertiary"}`}>
+        <span
+          className={`truncate font-mono text-mono-sm ${mono ? "text-text-primary" : "text-text-tertiary"}`}
+        >
           {def.id}
           {mono && <span className="font-sans text-text-tertiary"> · {FOLD_LABEL[def.fold]}</span>}
         </span>
@@ -294,7 +394,9 @@ function Lane({ def, mono }: { def: HookDef; mono?: boolean }) {
             <BuiltinChip name={def.builtin} struck={by !== undefined} slot={slot} />
             {replacer !== undefined ? (
               <>
-                <span aria-hidden className="text-text-tertiary">→</span>
+                <span aria-hidden className="text-text-tertiary">
+                  →
+                </span>
                 <Chip p={replacer} hook={def.id} index={0} ordered={false} replacer />
               </>
             ) : (
@@ -346,12 +448,17 @@ function CapLane({ cap }: { cap: (typeof CAPS)[number] }) {
         <span className="truncate font-mono text-mono-sm text-text-tertiary">{cap.id}</span>
       </button>
       <div className="flex min-h-8 min-w-0 flex-wrap items-center gap-2">
-        {builtin !== undefined && (
-          by !== undefined ? <BuiltinChip name={builtin.name} struck slot={slot} /> : <Chip p={builtin} hook={null} index={0} ordered={false} />
-        )}
+        {builtin !== undefined &&
+          (by !== undefined ? (
+            <BuiltinChip name={builtin.name} struck slot={slot} />
+          ) : (
+            <Chip p={builtin} hook={null} index={0} ordered={false} />
+          ))}
         {replacer !== undefined ? (
           <>
-            <span aria-hidden className="text-text-tertiary">→</span>
+            <span aria-hidden className="text-text-tertiary">
+              →
+            </span>
             <Chip p={replacer} hook={null} index={0} ordered={false} replacer />
           </>
         ) : (
@@ -363,13 +470,16 @@ function CapLane({ cap }: { cap: (typeof CAPS)[number] }) {
 }
 
 // ── 실패 서랍 ─────────────────────────────────────────────────────
-function Drawer() {
+export function Drawer() {
   const m = useMock();
   const failing = m.plugins.filter((p) => m.health(p.id) !== undefined);
   const holder = pluginById(LEAD.holder);
   const k = (n: number): string => `${Math.round(n / 1000)}k`;
   return (
-    <section aria-label={T.engine} className="animate-enter absolute inset-x-0 bottom-0 z-20 max-h-[62%] overflow-y-auto rounded-t-[24px] border-t border-border-default bg-surface-raised shadow-3">
+    <section
+      aria-label={T.engine}
+      className="animate-enter absolute inset-x-0 bottom-0 z-20 max-h-[62%] overflow-y-auto rounded-t-[24px] border-t border-border-default bg-surface-raised shadow-3"
+    >
       <header className="sticky top-0 flex h-11 items-center justify-between border-b border-border-subtle bg-surface-raised px-4">
         <h3 className="m-0 text-title-3 text-text-primary">{T.engine}</h3>
         <IconButton size="sm" variant="ghost" label="닫기" onClick={m.closeDrawer}>
@@ -377,13 +487,18 @@ function Drawer() {
         </IconButton>
       </header>
       <div className="grid gap-px">
-        <div className="px-4 pb-1 pt-3 text-footnote text-text-tertiary">{T.extFailed} {failing.length}</div>
+        <div className="px-4 pb-1 pt-3 text-footnote text-text-tertiary">
+          {T.extFailed} {failing.length}
+        </div>
         {failing.map((p) => {
           const h = m.health(p.id);
           if (h === undefined) return null;
           const open = m.drawer.focus === p.id;
           return (
-            <div key={p.id} className={`border-t border-border-subtle ${open ? "bg-neutral-soft" : ""}`}>
+            <div
+              key={p.id}
+              className={`border-t border-border-subtle ${open ? "bg-neutral-soft" : ""}`}
+            >
               <button
                 type="button"
                 aria-expanded={open}
@@ -393,9 +508,16 @@ function Drawer() {
                 }}
                 className="flex min-h-11 w-full cursor-pointer items-center gap-3 border-0 bg-transparent px-4 text-start outline-none hover:bg-neutral-hover focus-visible:shadow-[inset_0_0_0_2px_var(--cs-color-focus-ring)]"
               >
-                <span aria-hidden className={`size-2 flex-none rounded-full ${h.autoOff === true ? "border border-danger-graphic" : "bg-danger-graphic"}`} />
-                <span className="w-28 flex-none truncate text-ui-strong text-text-primary">{p.name}</span>
-                <span className="min-w-0 flex-1 truncate font-mono text-mono-sm text-text-tertiary">{h.hook}</span>
+                <span
+                  aria-hidden
+                  className={`size-2 flex-none rounded-full ${h.autoOff === true ? "border border-danger-graphic" : "bg-danger-graphic"}`}
+                />
+                <span className="w-28 flex-none truncate text-ui-strong text-text-primary">
+                  {p.name}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-mono text-mono-sm text-text-tertiary">
+                  {h.hook}
+                </span>
                 <span className="flex-none text-footnote text-text-tertiary">{h.at}</span>
               </button>
               {open && (
@@ -405,9 +527,21 @@ function Drawer() {
                     연속 {h.fails}/{h.limit} · {T.autoDisabled} 기준
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="xs" variant="outline" onClick={() => m.resetHealth(p.id)}>다시 켜기</Button>
-                    {m.isOn(p.id) && <Button size="xs" variant="outline" onClick={() => m.toggle(p.id)}>끄기</Button>}
-                    <Button size="xs" variant="ghost" onClick={() => m.notify("실행 기록은 아직 모형이에요")}>실행 기록</Button>
+                    <Button size="xs" variant="outline" onClick={() => m.resetHealth(p.id)}>
+                      다시 켜기
+                    </Button>
+                    {m.isOn(p.id) && (
+                      <Button size="xs" variant="outline" onClick={() => m.toggle(p.id)}>
+                        끄기
+                      </Button>
+                    )}
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => m.notify("실행 기록은 아직 모형이에요")}
+                    >
+                      실행 기록
+                    </Button>
                   </div>
                 </div>
               )}
@@ -417,7 +551,10 @@ function Drawer() {
         <div className="px-4 pb-1 pt-3 text-footnote text-text-tertiary">{T.lead}</div>
         <div className="grid grid-cols-3 gap-x-4 border-t border-border-subtle px-4 py-3">
           <Fact label="쥔 곳" value={holder?.name ?? "없음"} />
-          <Fact label={`${T.turn} · ${T.childAgent}`} value={`${LEAD.turns[0]}/${LEAD.turns[1]} · ${LEAD.spawns[0]}/${LEAD.spawns[1]}`} />
+          <Fact
+            label={`${T.turn} · ${T.childAgent}`}
+            value={`${LEAD.turns[0]}/${LEAD.turns[1]} · ${LEAD.spawns[0]}/${LEAD.spawns[1]}`}
+          />
           <Fact label="토큰" value={`${k(LEAD.tokens[0])} / ${k(LEAD.tokens[1])}`} />
         </div>
         <div className="border-t border-border-subtle px-4 py-3 text-body text-text-primary">
@@ -438,68 +575,77 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 // ── 전체 ──────────────────────────────────────────────────────────
-export function Lanes() {
+export function Lanes({ rightInset }: { rightInset: number }) {
   const m = useMock();
   const [more, setMore] = useState(false);
   const failing = m.plugins.filter((p) => m.health(p.id) !== undefined).length;
   const holder = pluginById(LEAD.holder);
   return (
-    <section aria-label="순서" className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-border-subtle bg-surface-base">
-      <header className="flex h-12 flex-none items-center justify-between gap-3 ps-4 pe-12">
-        <h2 className="m-0 text-title-3 text-text-primary">순서</h2>
-        <div className="flex items-center gap-4 text-body text-text-secondary">
-          <button
-            type="button"
-            onClick={() => m.openDrawer(null)}
-            className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-body text-text-primary outline-none focus-visible:underline"
-          >
-            <span aria-hidden className="size-1.5 rounded-full bg-danger-graphic" />
-            실패 {failing}
-          </button>
-          <button
-            type="button"
-            onClick={() => m.openDrawer(null)}
-            className="cursor-pointer border-0 bg-transparent p-0 text-body text-text-primary outline-none focus-visible:underline"
-          >
-            {T.lead} {holder?.name ?? "없음"} · {LEAD.turns[0]}/{LEAD.turns[1]}
-          </button>
-        </div>
-      </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {PHASES.map((ph) => (
-          <div key={ph.id}>
-            <div className="flex items-center gap-3 px-4 pb-1.5 pt-3 text-footnote text-text-tertiary">
-              {ph.label}
-              <span aria-hidden className="h-px flex-1 bg-border-subtle" />
-            </div>
-            {HOOKS.filter((h) => h.phase === ph.id).map((h) => (
-              <Lane key={h.id} def={h} />
-            ))}
+    <section
+      aria-label="순서"
+      className="absolute inset-0 overflow-y-auto bg-surface-base"
+      style={{ paddingRight: rightInset }}
+    >
+      <div className="mx-auto max-w-[1040px] pb-8 pt-[108px]">
+        <header className="flex h-12 flex-none items-center justify-between gap-3 px-4">
+          <h2 className="m-0 text-title-3 text-text-primary">순서</h2>
+          <div className="flex items-center gap-4 text-body text-text-secondary">
+            <button
+              type="button"
+              onClick={() => m.openDrawer(null)}
+              className="flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-body text-text-primary outline-none focus-visible:underline"
+            >
+              <span aria-hidden className="size-1.5 rounded-full bg-danger-graphic" />
+              실패 {failing}
+            </button>
+            <button
+              type="button"
+              onClick={() => m.openDrawer(null)}
+              className="cursor-pointer border-0 bg-transparent p-0 text-body text-text-primary outline-none focus-visible:underline"
+            >
+              {T.lead} {holder?.name ?? "없음"} · {LEAD.turns[0]}/{LEAD.turns[1]}
+            </button>
           </div>
-        ))}
-        <div className="flex items-center gap-3 px-4 pb-1.5 pt-3 text-footnote text-text-tertiary">
-          {T.capability} 제공자
-          <span aria-hidden className="h-px flex-1 bg-border-subtle" />
-        </div>
-        {CAPS.map((c) => (
-          <CapLane key={c.id} cap={c} />
-        ))}
-        <div className="border-t border-border-subtle px-4 py-3">
-          <button
-            type="button"
-            aria-expanded={more}
-            onClick={() => setMore((v) => !v)}
-            className="cursor-pointer border-0 bg-transparent p-0 text-body text-text-secondary outline-none hover:text-text-primary focus-visible:underline"
-          >
-            다른 {T.hook} {OTHER_HOOKS.length} {more ? "접기" : "보기"}
-          </button>
-        </div>
-        {more &&
-          OTHER_HOOKS.map((o) => (
-            <Lane key={o.id} def={{ id: o.id, label: "", fold: o.fold, phase: "wrap", failure: "open" }} mono />
+        </header>
+        <div>
+          {PHASES.map((ph) => (
+            <div key={ph.id}>
+              <div className="flex items-center gap-3 px-4 pb-1.5 pt-3 text-footnote text-text-tertiary">
+                {ph.label}
+                <span aria-hidden className="h-px flex-1 bg-border-subtle" />
+              </div>
+              {HOOKS.filter((h) => h.phase === ph.id).map((h) => (
+                <Lane key={h.id} def={h} />
+              ))}
+            </div>
           ))}
+          <div className="flex items-center gap-3 px-4 pb-1.5 pt-3 text-footnote text-text-tertiary">
+            {T.capability} 제공자
+            <span aria-hidden className="h-px flex-1 bg-border-subtle" />
+          </div>
+          {CAPS.map((c) => (
+            <CapLane key={c.id} cap={c} />
+          ))}
+          <div className="border-t border-border-subtle px-4 py-3">
+            <button
+              type="button"
+              aria-expanded={more}
+              onClick={() => setMore((v) => !v)}
+              className="cursor-pointer border-0 bg-transparent p-0 text-body text-text-secondary outline-none hover:text-text-primary focus-visible:underline"
+            >
+              다른 {T.hook} {OTHER_HOOKS.length} {more ? "접기" : "보기"}
+            </button>
+          </div>
+          {more &&
+            OTHER_HOOKS.map((o) => (
+              <Lane
+                key={o.id}
+                def={{ id: o.id, label: "", fold: o.fold, phase: "wrap", failure: "open" }}
+                mono
+              />
+            ))}
+        </div>
       </div>
-      {m.drawer.open && <Drawer />}
     </section>
   );
 }

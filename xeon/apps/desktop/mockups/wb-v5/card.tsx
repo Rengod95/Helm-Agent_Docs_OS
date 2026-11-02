@@ -29,28 +29,57 @@ import {
   type Plugin,
   type Reach,
 } from "./data";
+import { GRP, Mark, SHAPE_OF } from "./marks";
 import { groupState, useMock, type Mock } from "./store";
 
-const SHELL = "min-h-0 min-w-0 flex-1 overflow-y-auto rounded-[28px] border border-text-primary bg-surface-base shadow-[inset_0_0_0_4px_var(--cs-color-surface-base),inset_0_0_0_5px_var(--cs-color-text-primary)]";
 const LABEL = "text-footnote text-text-tertiary";
 
-function Head({ title, sub, aside }: { title: ReactNode; sub: ReactNode; aside?: ReactNode }) {
+function Head({
+  title,
+  sub,
+  aside,
+  mark,
+}: {
+  title: ReactNode;
+  sub: ReactNode;
+  aside?: ReactNode;
+  mark?: ReactNode;
+}) {
   return (
-    <header className="flex items-start justify-between gap-3">
-      <div className="grid min-w-0 gap-0.5">
+    <header className="grid gap-1 pe-8">
+      <div className="flex min-w-0 items-center gap-2">
+        {mark}
         <h2 className="m-0 truncate text-title-2 text-text-primary">{title}</h2>
-        <div className="truncate text-body text-text-secondary">{sub}</div>
       </div>
-      {aside !== undefined && <div className="grid flex-none justify-items-end gap-0.5 pt-1 text-footnote text-text-tertiary">{aside}</div>}
+      <div className="truncate text-body text-text-secondary">{sub}</div>
+      {aside !== undefined && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-footnote text-text-tertiary">
+          {aside}
+        </div>
+      )}
     </header>
   );
 }
 
 /** 누구에게 켜져 있나. 꺼짐, 이 대화, 이 프로젝트, 모든 대화 중 하나. 값 아래에 출처를 조용히 적는다. */
-function ReachControl({ value, onChange, maxRank, hint }: { value: Reach; onChange: (r: Reach) => void; maxRank: number; hint: string }) {
+export function ReachControl({
+  value,
+  onChange,
+  maxRank,
+  hint,
+}: {
+  value: Reach;
+  onChange: (r: Reach) => void;
+  maxRank: number;
+  hint: string;
+}) {
   return (
     <div className="grid gap-1.5">
-      <div role="radiogroup" aria-label="켜진 곳" className="inline-flex w-full rounded-full border border-border-default bg-bg-inset p-0.5">
+      <div
+        role="radiogroup"
+        aria-label="켜진 곳"
+        className="inline-flex w-full rounded-full border border-border-default bg-bg-inset p-0.5"
+      >
         {REACHES.map((r) => {
           const on = value === r;
           const off = reachRank(r) > maxRank;
@@ -63,7 +92,9 @@ function ReachControl({ value, onChange, maxRank, hint }: { value: Reach; onChan
               disabled={off}
               onClick={() => onChange(r)}
               className={`h-7 min-w-0 flex-1 cursor-pointer whitespace-nowrap rounded-full border-0 px-2 text-ui-sm outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)] disabled:cursor-not-allowed disabled:opacity-40 ${
-                on ? "bg-text-primary text-surface-base" : "bg-transparent text-text-secondary hover:bg-neutral-hover"
+                on
+                  ? "bg-text-primary text-surface-base"
+                  : "bg-transparent text-text-secondary hover:bg-neutral-hover"
               }`}
             >
               {REACH_LABEL[r]}
@@ -76,15 +107,17 @@ function ReachControl({ value, onChange, maxRank, hint }: { value: Reach; onChan
   );
 }
 
-function reachHint(origin: Origin, r: Reach, autoOff: boolean): string {
-  if (autoOff) return `${T.autoDisabled} · 다시 켜면 ${REACH_LABEL[r === "off" ? "project" : r]}에 돌아가요`;
+export function reachHint(origin: Origin, r: Reach, autoOff: boolean): string {
+  if (autoOff)
+    return `${T.autoDisabled} · 다시 켜면 ${REACH_LABEL[r === "off" ? "project" : r]}에 돌아가요`;
   if (r === "off") return "꺼져 있어요";
   if (r === "thread") return `이 ${T.thread}에서만 · ${CONTEXT.thread}`;
-  if (r === "project") return `${origin === "project" ? "프로젝트가 가져왔어요" : "프로젝트 설정에서 켜짐"} · ${CONTEXT.project}`;
+  if (r === "project")
+    return `${origin === "project" ? "프로젝트가 가져왔어요" : "프로젝트 설정에서 켜짐"} · ${CONTEXT.project}`;
   return "모든 대화에서 켜짐";
 }
 
-function Provides({ p, m }: { p: Plugin; m: Mock }) {
+export function Provides({ p, m }: { p: Plugin; m: Mock }) {
   const hooks = p.hooks;
   const kinds = PIECE_ORDER.filter((k) => p.pieces.some((x) => x.kind === k));
   const optional = p.optional ?? [];
@@ -105,13 +138,31 @@ function Provides({ p, m }: { p: Plugin; m: Mock }) {
       )),
     });
   if (p.provides.length > 0)
-    rows.push({ label: T.capability, body: p.provides.map((c) => <span key={c} className="font-mono text-mono-sm text-text-primary">{c}</span>) });
+    rows.push({
+      label: T.capability,
+      body: p.provides.map((c) => (
+        <span key={c} className="font-mono text-mono-sm text-text-primary">
+          {c}
+        </span>
+      )),
+    });
   for (const k of kinds)
     rows.push({
       label: PIECE_LABEL[k],
-      body: p.pieces.filter((x) => x.kind === k).map((x) => (
-        <span key={x.name} className={k === "view" ? "text-body text-text-primary" : "font-mono text-mono-sm text-text-primary"}>{x.name}</span>
-      )),
+      body: p.pieces
+        .filter((x) => x.kind === k)
+        .map((x) => (
+          <span
+            key={x.name}
+            className={
+              k === "view"
+                ? "text-body text-text-primary"
+                : "font-mono text-mono-sm text-text-primary"
+            }
+          >
+            {x.name}
+          </span>
+        )),
     });
   if (optional.length > 0)
     rows.push({
@@ -131,7 +182,10 @@ function Provides({ p, m }: { p: Plugin; m: Mock }) {
   return (
     <dl className="m-0 grid gap-2.5">
       {rows.map((r) => (
-        <div key={r.label} className="grid grid-cols-[4.75rem_minmax(0,1fr)] items-baseline gap-x-3">
+        <div
+          key={r.label}
+          className="grid grid-cols-[4.75rem_minmax(0,1fr)] items-baseline gap-x-3"
+        >
           <dt className={LABEL}>{r.label}</dt>
           <dd className="m-0 flex flex-wrap gap-x-4 gap-y-1.5">{r.body}</dd>
         </div>
@@ -140,9 +194,11 @@ function Provides({ p, m }: { p: Plugin; m: Mock }) {
   );
 }
 
-function Code({ text }: { text: string }) {
+export function Code({ text }: { text: string }) {
   return (
-    <pre className="m-0 max-h-44 overflow-auto rounded-2xl bg-text-primary px-4 py-3 font-mono text-mono-sm text-surface-base">{text}</pre>
+    <pre className="m-0 max-h-44 overflow-auto rounded-2xl bg-text-primary px-4 py-3 font-mono text-mono-sm text-surface-base">
+      {text}
+    </pre>
   );
 }
 
@@ -157,28 +213,41 @@ function PluginCard({ p }: { p: Plugin }) {
   return (
     <div className="grid gap-3 p-4">
       <Head
+        mark={
+          <Mark shape={SHAPE_OF[p.layer]} size={22} group={g !== undefined} on={m.isOn(p.id)} />
+        }
         title={p.name}
         sub={p.role}
         aside={
           <>
             <span>
-              {T.plugin} · {p.layer === "plugin" ? LAYER_NAME.plugin : `${LAYER_NAME[p.layer]} ${LAYER_CODE[p.layer]}`} · v{p.version ?? "0.1.0"}
+              {g === undefined ? `단일 ${T.plugin}` : T.plugin} ·{" "}
+              {p.layer === "plugin"
+                ? LAYER_NAME.plugin
+                : `${LAYER_NAME[p.layer]} ${LAYER_CODE[p.layer]}`}{" "}
+              · v{p.version ?? "0.1.0"}
             </span>
             {g === undefined ? (
-              <span>{ORIGIN_LABEL[p.origin]}</span>
+              <span>· {ORIGIN_LABEL[p.origin]}</span>
             ) : (
               <button
                 type="button"
                 onClick={() => m.select({ k: "group", id: g.id })}
-                className="cursor-pointer border-0 bg-transparent p-0 text-footnote text-text-secondary underline outline-none"
+                className="cursor-pointer rounded-full border px-2 text-footnote text-text-primary outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
+                style={{ background: GRP.soft, borderColor: GRP.border }}
               >
-                {g.name} 구성 {idx + 1}/{g.members.length}
+                {g.name} {T.group} {idx + 1}/{g.members.length}
               </button>
             )}
           </>
         }
       />
-      <ReachControl value={m.reach(p.id)} onChange={(r) => m.setReach(p.id, r)} maxRank={maxRank} hint={reachHint(p.origin, m.reach(p.id), h?.autoOff === true)} />
+      <ReachControl
+        value={m.reach(p.id)}
+        onChange={(r) => m.setReach(p.id, r)}
+        maxRank={maxRank}
+        hint={reachHint(p.origin, m.reach(p.id), h?.autoOff === true)}
+      />
       {h !== undefined && (
         <button
           type="button"
@@ -199,10 +268,33 @@ function PluginCard({ p }: { p: Plugin }) {
         </section>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="solid" onClick={() => m.openBuilder(p.hooks[0] ?? null)}>구성 고치기</Button>
-        <Button size="sm" variant="outline" aria-pressed={code} onClick={() => setCode((v) => !v)}>{code ? "넣어 주는 것" : "코드"}</Button>
-        {g !== undefined && <Button size="sm" variant="outline" onClick={() => m.notify(`${g.name}에서 빼면 따로 설치된 플러그인이 돼요`)}>그룹에서 빼기</Button>}
-        {p.origin !== "builtin" && <Button size="sm" variant="outline" onClick={() => m.notify(`${p.name}을 지우는 건 아직 모형이에요`)}>{T.uninstall}</Button>}
+        <Button size="sm" variant="solid" onClick={() => m.openDetail({ k: "plugin", id: p.id })}>
+          자세히 보기
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => m.openBuilder(p.hooks[0] ?? null)}>
+          구성 고치기
+        </Button>
+        <Button size="sm" variant="outline" aria-pressed={code} onClick={() => setCode((v) => !v)}>
+          {code ? "넣어 주는 것" : "코드"}
+        </Button>
+        {g !== undefined && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => m.notify(`${g.name}에서 빼면 따로 설치된 플러그인이 돼요`)}
+          >
+            그룹에서 빼기
+          </Button>
+        )}
+        {p.origin !== "builtin" && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => m.notify(`${p.name}을 지우는 건 아직 모형이에요`)}
+          >
+            {T.uninstall}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -212,7 +304,9 @@ function PluginCard({ p }: { p: Plugin }) {
 function GroupCard({ g }: { g: Group }) {
   const m = useMock();
   const st = groupState(g.id, m.reach, m.isOn);
-  const members = g.members.map((id) => m.plugins.find((p) => p.id === id)).filter((p): p is Plugin => p !== undefined);
+  const members = g.members
+    .map((id) => m.plugins.find((p) => p.id === id))
+    .filter((p): p is Plugin => p !== undefined);
   const all = members.flatMap((p) => p.pieces);
   const count = (k: PieceKind): number => all.filter((x) => x.kind === k).length;
   const sum: [string, number][] = [
@@ -225,12 +319,26 @@ function GroupCard({ g }: { g: Group }) {
   return (
     <div className="grid gap-3 p-4">
       <Head
+        mark={
+          <span
+            aria-hidden
+            className="size-3 flex-none rounded-full"
+            style={{ background: GRP.mark }}
+          />
+        }
         title={g.name}
         sub={g.role}
         aside={
           <>
-            <span>{T.group} · v{g.version} · {st.total}개 구성</span>
-            <span>{ORIGIN_LABEL[g.origin]}</span>
+            <span
+              className="rounded-full border px-2 text-text-primary"
+              style={{ background: GRP.soft, borderColor: GRP.border }}
+            >
+              {T.group}
+            </span>
+            <span>
+              v{g.version} · {st.total}개 구성 · {ORIGIN_LABEL[g.origin]}
+            </span>
           </>
         }
       />
@@ -238,21 +346,34 @@ function GroupCard({ g }: { g: Group }) {
         value={st.widest}
         onChange={(r) => m.setGroupReach(g.id, r)}
         maxRank={maxRank}
-        hint={st.on === st.total ? reachHint(g.origin, st.widest, false) : `${st.on}/${st.total} 켜짐 · ${REACH_LABEL[st.widest]}`}
+        hint={
+          st.on === st.total
+            ? reachHint(g.origin, st.widest, false)
+            : `${st.on}/${st.total} 켜짐 · ${REACH_LABEL[st.widest]}`
+        }
       />
-      <section aria-label="구성원" className={`grid gap-2 rounded-2xl bg-bg-inset p-2.5 ${members.length >= 3 ? "grid-cols-3" : "grid-cols-2"}`}>
-        {members.map((p, i) => {
+      <section aria-label="구성원" className="grid gap-2 rounded-2xl bg-bg-inset p-2.5">
+        {members.map((p) => {
           const on = m.isOn(p.id);
           return (
-            <div key={p.id} className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-border-default bg-surface-base ps-2.5 pe-2">
+            <div
+              key={p.id}
+              className="flex min-h-11 items-center gap-1.5 rounded-2xl border border-border-default bg-surface-base ps-2.5 pe-2"
+            >
               <button
                 type="button"
                 onClick={() => m.select({ k: "plugin", id: p.id })}
                 className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-start outline-none focus-visible:underline"
               >
-                <span className="font-mono text-mono-sm text-text-tertiary">{i + 1}</span>
-                <span className={`min-w-0 flex-1 truncate text-body ${on ? "text-text-primary" : "text-text-tertiary"}`}>{p.name}</span>
-                <span className="flex-none font-mono text-mono-sm text-text-tertiary">{LAYER_CODE[p.layer]}</span>
+                <Mark shape={SHAPE_OF[p.layer]} size={18} group on={on} />
+                <span
+                  className={`min-w-0 flex-1 truncate text-body ${on ? "text-text-primary" : "text-text-tertiary"}`}
+                >
+                  {p.name}
+                </span>
+                <span className="flex-none text-footnote text-text-tertiary">
+                  {LAYER_NAME[p.layer]}
+                </span>
               </button>
               <button
                 type="button"
@@ -262,7 +383,9 @@ function GroupCard({ g }: { g: Group }) {
                 onClick={() => m.toggle(p.id)}
                 className="grid size-6 flex-none cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 outline-none focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
               >
-                <span className={`size-2.5 rounded-full ${on ? "bg-text-primary" : "border border-text-tertiary"}`} />
+                <span
+                  className={`size-2.5 rounded-full ${on ? "bg-text-primary" : "border border-text-tertiary"}`}
+                />
               </button>
             </div>
           );
@@ -278,27 +401,54 @@ function GroupCard({ g }: { g: Group }) {
               {n}
             </span>
           ))}
-          {g.config !== undefined && <span className="font-mono text-mono-sm text-text-tertiary">{g.config}</span>}
+          {g.config !== undefined && (
+            <span className="font-mono text-mono-sm text-text-tertiary">{g.config}</span>
+          )}
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="solid" onClick={() => m.openBuilder(null)}>구성 고치기</Button>
-        <Button size="sm" variant="outline" aria-pressed={code} onClick={() => setCode((v) => !v)}>{code ? "구성" : "코드"}</Button>
-        <Button size="sm" variant="outline" onClick={() => m.notify(`${g.name}을 풀면 ${st.total}개가 따로 설치돼요`)}>{st.total}개로 풀기</Button>
-        <Button size="sm" variant="outline" onClick={() => m.notify("하나씩 꺼 보며 테스트를 돌리는 건 아직 모형이에요")}>하나씩 꺼 보기</Button>
+        <Button size="sm" variant="solid" onClick={() => m.openDetail({ k: "group", id: g.id })}>
+          자세히 보기
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => m.openBuilder(null)}>
+          구성 고치기
+        </Button>
+        <Button size="sm" variant="outline" aria-pressed={code} onClick={() => setCode((v) => !v)}>
+          {code ? "구성" : "코드"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => m.notify(`${g.name}을 풀면 ${st.total}개가 따로 설치돼요`)}
+        >
+          {st.total}개로 풀기
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => m.notify("하나씩 꺼 보며 테스트를 돌리는 건 아직 모형이에요")}
+        >
+          하나씩 꺼 보기
+        </Button>
       </div>
     </div>
   );
 }
 
 // ── 훅(순간) ──────────────────────────────────────────────────────
-const FAIL_TEXT = { closed: "실패하면 막아요", open: "실패해도 계속해요", skip: "실패한 핸들러만 건너뛰어요" } as const;
+const FAIL_TEXT = {
+  closed: "실패하면 막아요",
+  open: "실패해도 계속해요",
+  skip: "실패한 핸들러만 건너뛰어요",
+} as const;
 
 function HookCard({ id }: { id: string }) {
   const m = useMock();
   const def = hookDef(id);
   const ids = m.order[id] ?? [];
-  const members = ids.map((x) => m.plugins.find((p) => p.id === x)).filter((p): p is Plugin => p !== undefined);
+  const members = ids
+    .map((x) => m.plugins.find((p) => p.id === x))
+    .filter((p): p is Plugin => p !== undefined);
   const fold = def?.fold ?? "tap";
   return (
     <div className="grid gap-3 p-4">
@@ -314,7 +464,10 @@ function HookCard({ id }: { id: string }) {
       <section aria-label={T.handler} className="grid gap-2 rounded-2xl bg-bg-inset p-3">
         {members.length === 0 && <span className={`px-1 ${LABEL}`}>걸린 핸들러가 없어요</span>}
         {members.map((p, i) => (
-          <div key={p.id} className="flex min-h-12 items-center gap-2 rounded-2xl border border-border-default bg-surface-base ps-3 pe-2">
+          <div
+            key={p.id}
+            className="flex min-h-12 items-center gap-2 rounded-2xl border border-border-default bg-surface-base ps-3 pe-2"
+          >
             <span className="font-mono text-mono-sm text-text-tertiary">{i + 1}</span>
             <button
               type="button"
@@ -323,13 +476,31 @@ function HookCard({ id }: { id: string }) {
             >
               {p.name}
             </button>
-            <button type="button" aria-label={`${p.name} 앞으로`} disabled={i === 0} onClick={() => m.move(id, p.id, i - 1)} className="size-7 cursor-pointer rounded-full border-0 bg-transparent text-text-secondary outline-none hover:bg-neutral-hover disabled:opacity-30">‹</button>
-            <button type="button" aria-label={`${p.name} 뒤로`} disabled={i === members.length - 1} onClick={() => m.move(id, p.id, i + 1)} className="size-7 cursor-pointer rounded-full border-0 bg-transparent text-text-secondary outline-none hover:bg-neutral-hover disabled:opacity-30">›</button>
+            <button
+              type="button"
+              aria-label={`${p.name} 앞으로`}
+              disabled={i === 0}
+              onClick={() => m.move(id, p.id, i - 1)}
+              className="size-7 cursor-pointer rounded-full border-0 bg-transparent text-text-secondary outline-none hover:bg-neutral-hover disabled:opacity-30"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              aria-label={`${p.name} 뒤로`}
+              disabled={i === members.length - 1}
+              onClick={() => m.move(id, p.id, i + 1)}
+              className="size-7 cursor-pointer rounded-full border-0 bg-transparent text-text-secondary outline-none hover:bg-neutral-hover disabled:opacity-30"
+            >
+              ›
+            </button>
           </div>
         ))}
       </section>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="solid" onClick={() => m.openBuilder(id)}>여기에 플러그인 만들기</Button>
+        <Button size="sm" variant="solid" onClick={() => m.openBuilder(id)}>
+          여기에 플러그인 만들기
+        </Button>
       </div>
     </div>
   );
@@ -344,34 +515,54 @@ function BuiltinCard({ slot }: { slot: string }) {
   const cap = isHook ? undefined : CAPS.find((c) => c.id === key);
   const by = m.replaced[slot];
   const name = isHook ? (def?.builtin ?? key) : (pluginById(cap?.builtin ?? "")?.name ?? key);
-  const candidates = isHook ? m.plugins.filter((p) => p.hooks.includes(key)) : providersOf(key).filter((p) => p.id !== cap?.builtin);
+  const candidates = isHook
+    ? m.plugins.filter((p) => p.hooks.includes(key))
+    : providersOf(key).filter((p) => p.id !== cap?.builtin);
   const replacer = by === undefined ? undefined : pluginById(by);
   return (
     <div className="grid gap-3 p-4">
       <Head
         title={name}
         sub={<span className="font-mono text-mono-sm text-text-tertiary">{key}</span>}
-        aside={<><span>{isHook ? `${LAYER_NAME.L1} L1` : T.capability}</span><span>{replacer === undefined ? ORIGIN_LABEL.builtin : "대체됨"}</span></>}
+        aside={
+          <>
+            <span>{isHook ? `${LAYER_NAME.L1} L1` : T.capability}</span>
+            <span>{replacer === undefined ? ORIGIN_LABEL.builtin : "대체됨"}</span>
+          </>
+        }
       />
       <section className="grid gap-2 rounded-2xl bg-bg-inset p-3">
         <h3 className="m-0 px-1 text-footnote text-text-tertiary">대체할 수 있는 것</h3>
         {candidates.length === 0 && <span className={`px-1 ${LABEL}`}>대체할 것이 없어요</span>}
         {candidates.map((p) => (
-          <div key={p.id} className="flex min-h-12 items-center gap-2 rounded-2xl border border-border-default bg-surface-base ps-3 pe-2">
-            <button type="button" onClick={() => m.select({ k: "plugin", id: p.id })} className="min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent p-0 text-start text-body text-text-primary outline-none focus-visible:underline">
+          <div
+            key={p.id}
+            className="flex min-h-12 items-center gap-2 rounded-2xl border border-border-default bg-surface-base ps-3 pe-2"
+          >
+            <button
+              type="button"
+              onClick={() => m.select({ k: "plugin", id: p.id })}
+              className="min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent p-0 text-start text-body text-text-primary outline-none focus-visible:underline"
+            >
               {p.name}
             </button>
             <span className="font-mono text-mono-sm text-text-tertiary">v{p.version}</span>
             {by === p.id ? (
-              <Button size="xs" variant="outline" onClick={() => m.replace(slot, null)}>내장으로 되돌리기</Button>
+              <Button size="xs" variant="outline" onClick={() => m.replace(slot, null)}>
+                내장으로 되돌리기
+              </Button>
             ) : (
-              <Button size="xs" variant="outline" onClick={() => m.replace(slot, p.id)}>대체</Button>
+              <Button size="xs" variant="outline" onClick={() => m.replace(slot, p.id)}>
+                대체
+              </Button>
             )}
           </div>
         ))}
       </section>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="solid" onClick={() => m.openBuilder(isHook ? key : null)}>대체할 플러그인 만들기</Button>
+        <Button size="sm" variant="solid" onClick={() => m.openBuilder(isHook ? key : null)}>
+          대체할 플러그인 만들기
+        </Button>
       </div>
     </div>
   );
@@ -387,14 +578,29 @@ function AgentCard() {
   const hooks = new Set(on.flatMap((p) => p.hooks)).size;
   const facts: [string, string][] = [
     [T.plugin, `${on.length}/${m.plugins.length}`],
-    [T.group, `${GROUPS.filter((g) => g.members.some((id) => m.isOn(id))).length}/${GROUPS.length}`],
+    [
+      T.group,
+      `${GROUPS.filter((g) => g.members.some((id) => m.isOn(id))).length}/${GROUPS.length}`,
+    ],
     [T.hook, `${hooks}`],
-    ...PIECE_ORDER.filter((k) => k !== "view").map((k): [string, string] => [PIECE_LABEL[k], `${count(k)}`]),
+    ...PIECE_ORDER.filter((k) => k !== "view").map((k): [string, string] => [
+      PIECE_LABEL[k],
+      `${count(k)}`,
+    ]),
   ];
   return (
     <div className="grid gap-3 p-4">
-      <Head title={`내 ${T.baseAgent}`} sub={<span className="font-mono text-mono-sm text-text-tertiary">core.loop</span>} aside={<><span>{CONTEXT.project}</span><span>{CONTEXT.thread}</span></>} />
-      <dl className="m-0 grid grid-cols-4 gap-x-3 gap-y-3">
+      <Head
+        title={`내 ${T.baseAgent}`}
+        sub={<span className="font-mono text-mono-sm text-text-tertiary">core.loop</span>}
+        aside={
+          <>
+            <span>{CONTEXT.project}</span>
+            <span>{CONTEXT.thread}</span>
+          </>
+        }
+      />
+      <dl className="m-0 grid grid-cols-3 gap-x-3 gap-y-3">
         {facts.map(([label, v]) => (
           <div key={label} className="grid gap-0.5">
             <dt className={LABEL}>{label}</dt>
@@ -405,7 +611,9 @@ function AgentCard() {
       <div className="grid gap-2 rounded-2xl bg-bg-inset p-4 text-body text-text-primary">
         <div className="flex items-center justify-between gap-3">
           <span className={LABEL}>{T.lead}</span>
-          <span>{pluginById("helm")?.name} · {T.turn} 1/4</span>
+          <span>
+            {pluginById("helm")?.name} · {T.turn} 1/4
+          </span>
         </div>
         <button
           type="button"
@@ -413,33 +621,36 @@ function AgentCard() {
           className="flex cursor-pointer items-center justify-between gap-3 border-0 bg-transparent p-0 text-start text-body text-text-primary outline-none focus-visible:underline"
         >
           <span className={LABEL}>{T.extFailed}</span>
-          <span className="flex items-center gap-1.5"><span aria-hidden className="size-1.5 rounded-full bg-danger-graphic" />{failing}</span>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden className="size-1.5 rounded-full bg-danger-graphic" />
+            {failing}
+          </span>
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="solid" onClick={() => m.openBuilder(null)}>{T.plugin} 만들기</Button>
-        <Button size="sm" variant="outline" onClick={() => m.notify("가져오기는 아직 모형이에요")}>{T.install}</Button>
+        <Button size="sm" variant="solid" onClick={() => m.openBuilder(null)}>
+          {T.plugin} 만들기
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => m.notify("가져오기는 아직 모형이에요")}>
+          {T.install}
+        </Button>
       </div>
     </div>
   );
 }
 
-export function Card() {
+export function CardBody() {
   const m = useMock();
   const s = m.sel;
-  let body: ReactNode;
   if (s.k === "plugin") {
     const p = m.plugins.find((x) => x.id === s.id);
-    body = p === undefined ? <AgentCard /> : <PluginCard p={p} />;
-  } else if (s.k === "group") {
+    return p === undefined ? <AgentCard /> : <PluginCard p={p} />;
+  }
+  if (s.k === "group") {
     const g = groupById(s.id);
-    body = g === undefined ? <AgentCard /> : <GroupCard g={g} />;
-  } else if (s.k === "hook") body = <HookCard id={s.id} />;
-  else if (s.k === "builtin") body = <BuiltinCard slot={s.slot} />;
-  else body = <AgentCard />;
-  return (
-    <section aria-label="카드" className={SHELL}>
-      {body}
-    </section>
-  );
+    return g === undefined ? <AgentCard /> : <GroupCard g={g} />;
+  }
+  if (s.k === "hook") return <HookCard id={s.id} />;
+  if (s.k === "builtin") return <BuiltinCard slot={s.slot} />;
+  return <AgentCard />;
 }

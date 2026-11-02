@@ -24,11 +24,46 @@ export function Finder() {
   if (needle !== "") {
     for (const p of m.plugins) {
       const go = (): void => m.select({ k: "plugin", id: p.id });
-      if (has(p.name) || has(p.role)) hits.push({ key: `p-${p.id}`, kind: p.group === undefined ? "플러그인" : "구성원", name: p.name, mono: false, owner: p.group ?? "", pick: go });
-      for (const x of p.pieces) if (has(x.name)) hits.push({ key: `x-${p.id}-${x.name}`, kind: PIECE_LABEL[x.kind], name: x.name, mono: x.kind !== "view", owner: p.name, pick: go });
-      for (const c of p.provides) if (has(c)) hits.push({ key: `c-${p.id}-${c}`, kind: "기능", name: c, mono: true, owner: p.name, pick: go });
+      if (has(p.name) || has(p.role))
+        hits.push({
+          key: `p-${p.id}`,
+          kind: p.group === undefined ? "플러그인" : "구성원",
+          name: p.name,
+          mono: false,
+          owner: p.group ?? "",
+          pick: go,
+        });
+      for (const x of p.pieces)
+        if (has(x.name))
+          hits.push({
+            key: `x-${p.id}-${x.name}`,
+            kind: PIECE_LABEL[x.kind],
+            name: x.name,
+            mono: x.kind !== "view",
+            owner: p.name,
+            pick: go,
+          });
+      for (const c of p.provides)
+        if (has(c))
+          hits.push({
+            key: `c-${p.id}-${c}`,
+            kind: "기능",
+            name: c,
+            mono: true,
+            owner: p.name,
+            pick: go,
+          });
     }
-    for (const h of HOOKS) if (has(h.id) || has(h.label)) hits.push({ key: `h-${h.id}`, kind: "훅", name: h.id, mono: true, owner: h.label, pick: () => m.select({ k: "hook", id: h.id }) });
+    for (const h of HOOKS)
+      if (has(h.id) || has(h.label))
+        hits.push({
+          key: `h-${h.id}`,
+          kind: "훅",
+          name: h.id,
+          mono: true,
+          owner: h.label,
+          pick: () => m.select({ k: "hook", id: h.id }),
+        });
   }
   const shown = hits.slice(0, 8);
   return (
@@ -43,15 +78,22 @@ export function Finder() {
         }}
         onFocus={() => setOpen(true)}
         onBlur={(e) => {
-          if (!(e.relatedTarget instanceof Node && box.current?.contains(e.relatedTarget) === true)) setOpen(false);
+          if (!(e.relatedTarget instanceof Node && box.current?.contains(e.relatedTarget) === true))
+            setOpen(false);
         }}
-        placeholder="스킬·명령·도구·훅 찾기"
+        placeholder="찾기"
         aria-label="찾기"
-        className="h-8 w-56 rounded-full border border-border-default bg-surface-base px-3.5 text-body text-text-primary outline-none placeholder:text-text-tertiary focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
+        className="h-8 w-40 rounded-full border border-transparent bg-bg-inset px-3.5 text-body text-text-primary outline-none placeholder:text-text-tertiary focus-visible:shadow-[0_0_0_2px_var(--cs-color-focus-ring)]"
       />
       {open && needle !== "" && (
-        <div role="listbox" aria-label="찾은 것" className="animate-enter absolute right-0 top-9 z-30 grid w-80 gap-0.5 rounded-2xl border border-border-default bg-surface-raised p-1.5 shadow-3">
-          {shown.length === 0 && <span className="px-3 py-2 text-body text-text-tertiary">없어요</span>}
+        <div
+          role="listbox"
+          aria-label="찾은 것"
+          className="animate-enter absolute left-0 top-10 z-30 grid w-80 gap-0.5 rounded-2xl border border-border-default bg-surface-raised p-1.5 shadow-3"
+        >
+          {shown.length === 0 && (
+            <span className="px-3 py-2 text-body text-text-tertiary">없어요</span>
+          )}
           {shown.map((h) => (
             <button
               key={h.key}
@@ -66,8 +108,14 @@ export function Finder() {
               className="flex min-h-9 w-full cursor-pointer items-center gap-3 rounded-xl border-0 bg-transparent px-3 text-start outline-none hover:bg-neutral-hover focus-visible:shadow-[inset_0_0_0_2px_var(--cs-color-focus-ring)]"
             >
               <span className="w-14 flex-none text-footnote text-text-tertiary">{h.kind}</span>
-              <span className={`min-w-0 flex-1 truncate ${h.mono ? "font-mono text-mono-sm" : "text-body"} text-text-primary`}>{h.name}</span>
-              <span className="max-w-24 flex-none truncate text-footnote text-text-tertiary">{h.owner}</span>
+              <span
+                className={`min-w-0 flex-1 truncate ${h.mono ? "font-mono text-mono-sm" : "text-body"} text-text-primary`}
+              >
+                {h.name}
+              </span>
+              <span className="max-w-24 flex-none truncate text-footnote text-text-tertiary">
+                {h.owner}
+              </span>
             </button>
           ))}
         </div>

@@ -1,217 +1,478 @@
-// 지도: 기본 에이전트를 가운데 두고 층을 고리로, 플러그인을 고리 위 점으로, 플러그인 그룹을 바깥 두꺼운 호로 묶는다.
-// 점과 이름표는 HTML 단추(눌러 고르고, 끌어서 순서 줄에 놓는다). 고리·호·선은 SVG. 640×520 틀을 통째로 맞춰 줄인다.
+// 지도(orbit): 캔버스 가득, 기본 에이전트를 가운데 두고 층을 타원 고리로, 플러그인을 고리 위 점으로, 플러그인 그룹을 바깥 두꺼운 호로 묶는다.
+// 고리는 얇은 선이지만 누를 자리는 넓다(보이지 않는 굵은 선). 점과 이름표는 HTML 단추. 크기는 놓인 영역에 맞춰 다시 계산한다.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { T } from "../_shell/terms";
-import { ANGLE, CAPS, GROUPS, LAYER_CODE, LAYER_NAME, RING, capSlot, groupById, pluginById, type LayerKey, type Plugin } from "./data";
+import {
+  ANGLE,
+  CAPS,
+  GROUPS,
+  LAYER_NAME,
+  RING,
+  capSlot,
+  groupById,
+  pluginById,
+  type LayerKey,
+  type Plugin,
+} from "./data";
+import { GRP, Mark, SHAPE_OF } from "./marks";
 import { litOf, shadowedBy, useMock } from "./store";
-import { useDragSource } from "./drag";
 
-const W = 640;
-const H = 520;
-const CX = 320;
-const CY = 262;
-const RADII = [70, 116, 162, 208];
-const ARC_R = 238;
-const ARC_PAD = 12;
+const FRAC = [0.28, 0.5, 0.71, 0.89] as const;
 const RING_LAYER: readonly LayerKey[] = ["L1", "L2", "L3", "plugin"];
+/** 그룹 이름표가 앉는 호의 끝. 구성원 이름표와 겹치지 않는 쪽으로 골랐다. */
+const GROUP_END: Record<string, "from" | "to"> = { helm: "from", learning: "to", review: "from" };
+const CORE = 36;
+const ARC_FRAC = 1;
 
-const ringLabel = (k: LayerKey): string => (k === "plugin" ? LAYER_NAME[k] : `${LAYER_CODE[k]} ${LAYER_NAME[k]}`);
-const rad = (deg: number): number => ((deg - 90) * Math.PI) / 180;
-const pt = (deg: number, r: number): { x: number; y: number } => ({ x: CX + r * Math.cos(rad(deg)), y: CY + r * Math.sin(rad(deg)) });
-const textW = (s: string): number => [...s].reduce((w, c) => w + (c.charCodeAt(0) > 127 ? 13.6 : 7.6), 0);
+const rad = (deg: number): number => (deg * Math.PI) / 180;
 
-function arcPath(from: number, to: number, r: number): string {
-  const a = pt(from, r);
-  const b = pt(to, r);
-  const large = to - from > 180 ? 1 : 0;
-  return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} A ${r} ${r} 0 ${large} 1 ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+interface Geo {
+  w: number;
+  h: number;
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
+function geoOf(w: number, h: number): Geo {
+  const ryMax = Math.max(140, h / 2 - 22);
+  const rx = Math.max(170, Math.min(ryMax * 1.6, (w / 2 - 120) / FRAC[3], w / 2 - 56));
+  const ry = Math.min(ryMax, rx * 1.2);
+  return { w, h, cx: w / 2, cy: h / 2, rx, ry };
+}
+const pt = (g: Geo, deg: number, f: number): { x: number; y: number } => ({
+  x: g.cx + f * g.rx * Math.sin(rad(deg)),
+  y: g.cy - f * g.ry * Math.cos(rad(deg)),
+});
+
+function arcPath(g: Geo, from: number, to: number): string {
+  const a = pt(g, from, ARC_FRAC);
+  const b = pt(g, to, ARC_FRAC);
+  const rx = ARC_FRAC * g.rx;
+  const ry = ARC_FRAC * g.ry;
+  return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} A ${rx.toFixed(1)} ${ry.toFixed(1)} 0 ${to - from > 180 ? 1 : 0} 1 ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
 }
 
-interface NodeView {
-  p: Plugin;
-  x: number;
-  y: number;
-  right: boolean;
-}
-function place(p: Plugin): NodeView {
-  const a = ANGLE[p.id] ?? 0;
-  const r = RADII[RING[p.layer]] ?? RADII[3] ?? 208;
-  const { x, y } = pt(a, r);
-  return { p, x, y, right: x >= CX - 1 };
+const ringName = (k: LayerKey): string =>
+  k === "plugin" ? LAYER_NAME[k] : `${k} ${LAYER_NAME[k]}`;
+const groupSpan = (id: string): { from: number; to: number } | null => {
+  const g = groupById(id);
+  const angles = (g?.members ?? [])
+    .map((m) => ANGLE[m])
+    .filter((a): a is number => a !== undefined);
+  if (angles.length === 0) return null;
+  return { from: Math.min(...angles) - 9, to: Math.max(...angles) + 9 };
+};
+
+export interface Insets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
 }
 
-export function Orbit({ children }: { children?: ReactNode }) {
+export function Orbit({ insets }: { insets: Insets }) {
   const m = useMock();
   const box = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(1);
+  const [size, setSize] = useState({ w: 900, h: 600 });
+  const [hover, setHover] = useState<LayerKey | null>(null);
   useEffect(() => {
     const el = box.current;
     if (el === null) return undefined;
-    const fit = (): void => setScale(Math.min(el.clientWidth / W, el.clientHeight / H, 1.25));
+    const fit = (): void => setSize({ w: el.clientWidth, h: el.clientHeight });
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-
+  const g = geoOf(size.w, size.h);
   const lit = litOf(m.sel, m.plugins, m.order);
-  const nodes = m.plugins.map(place);
-  const at = (id: string): NodeView | undefined => nodes.find((n) => n.p.id === id);
-
-  // 선: 선택한 것이 기본 에이전트에 닿는 곳(실선), 기능을 주고받는 곳(점선)
-  const solid: { x: number; y: number; key: string }[] = [];
-  const dashed: { a: { x: number; y: number }; b: { x: number; y: number }; key: string }[] = [];
-  const centerTo = (id: string): void => {
-    const n = at(id);
-    if (n !== undefined) solid.push({ x: n.x, y: n.y, key: `c-${id}` });
+  const at = (id: string): { x: number; y: number } | undefined => {
+    const p = m.plugins.find((q) => q.id === id);
+    if (p === undefined) return undefined;
+    return pt(g, ANGLE[p.id] ?? 0, FRAC[RING[p.layer]] ?? FRAC[3]);
   };
-  if (m.sel.k === "plugin" || m.sel.k === "group" || m.sel.k === "hook") for (const id of lit.plugins) centerTo(id);
-  const partners = (p: Plugin): Plugin[] => [
-    ...m.plugins.filter((q) => q.id !== p.id && (q.optional ?? []).some((c) => p.provides.includes(c))),
-    ...m.plugins.filter((q) => q.id !== p.id && q.provides.some((c) => (p.optional ?? []).includes(c))),
-  ];
-  if (m.sel.k === "plugin") {
-    const p = pluginById(m.sel.id) ?? m.plugins.find((q) => q.id === (m.sel.k === "plugin" ? m.sel.id : ""));
-    const from = p === undefined ? undefined : at(p.id);
-    if (p !== undefined && from !== undefined)
-      for (const q of partners(p)) {
-        const to = at(q.id);
-        if (to !== undefined) dashed.push({ a: from, b: to, key: `d-${p.id}-${q.id}` });
+  const tone = (p: Plugin | undefined): string =>
+    p?.group !== undefined ? GRP.graphic : "currentColor";
+
+  // 선: 고른 것이 기본 에이전트에 닿는 곳(실선), 같은 그룹의 구성원끼리(그룹색 실선), 기능을 주고받는 곳(점선)
+  const links: {
+    a: { x: number; y: number };
+    b: { x: number; y: number };
+    key: string;
+    color: string;
+    dash?: string;
+    w: number;
+    o: number;
+  }[] = [];
+  const center = { x: g.cx, y: g.cy };
+  const linking =
+    m.sel.k === "plugin" || m.sel.k === "group" || m.sel.k === "hook" || m.sel.k === "layer";
+  if (linking)
+    for (const id of lit.plugins) {
+      const p = m.plugins.find((q) => q.id === id);
+      const to = at(id);
+      if (to !== undefined)
+        links.push({ a: center, b: to, key: `c-${id}`, color: tone(p), w: 1.4, o: 0.6 });
+    }
+  const gid =
+    m.sel.k === "group" ? m.sel.id : m.sel.k === "plugin" ? pluginById(m.sel.id)?.group : undefined;
+  const grp = gid === undefined ? undefined : groupById(gid);
+  if (grp !== undefined) {
+    const root = at(grp.id) ?? at(grp.members[0] ?? "");
+    if (root !== undefined)
+      for (const id of grp.members) {
+        const to = at(id);
+        if (to !== undefined && id !== grp.id)
+          links.push({ a: root, b: to, key: `g-${id}`, color: GRP.graphic, w: 1.6, o: 0.85 });
       }
   }
-  // 대체: 가려진 내장과 대체한 플러그인을 점선으로 잇는다
+  const partners = (p: Plugin): Plugin[] => [
+    ...m.plugins.filter(
+      (q) => q.id !== p.id && (q.optional ?? []).some((c) => p.provides.includes(c)),
+    ),
+    ...m.plugins.filter(
+      (q) => q.id !== p.id && q.provides.some((c) => (p.optional ?? []).includes(c)),
+    ),
+  ];
+  const picked =
+    m.sel.k === "plugin"
+      ? m.plugins.find((q) => q.id === (m.sel.k === "plugin" ? m.sel.id : ""))
+      : undefined;
+  if (picked !== undefined) {
+    const from = at(picked.id);
+    if (from !== undefined)
+      for (const q of partners(picked)) {
+        const to = at(q.id);
+        if (to !== undefined)
+          links.push({
+            a: from,
+            b: to,
+            key: `d-${picked.id}-${q.id}`,
+            color: "currentColor",
+            dash: "4 4",
+            w: 1.2,
+            o: 0.6,
+          });
+      }
+  }
   for (const c of CAPS) {
     const by = m.replaced[capSlot(c.id)];
     const a = at(c.builtin);
     const b = by === undefined ? undefined : at(by);
-    if (a !== undefined && b !== undefined) dashed.push({ a, b, key: `r-${c.id}` });
+    if (a !== undefined && b !== undefined)
+      links.push({ a, b, key: `r-${c.id}`, color: "currentColor", dash: "4 4", w: 1.2, o: 0.6 });
   }
 
+  const onBackground = (e: { target: EventTarget; currentTarget: EventTarget }): void => {
+    if (e.target === e.currentTarget || e.target instanceof SVGSVGElement)
+      m.select({ k: "agent" }, false);
+  };
+
   return (
-    <div ref={box} className="wb5-paper relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-[28px] border border-border-subtle">
-      <div className="absolute left-1/2 top-1/2" style={{ width: W, height: H, transform: `translate(-50%, -50%) scale(${scale})` }}>
-        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 text-text-primary" aria-hidden>
-          {RADII.map((r, i) => (
-            <circle key={r} cx={CX} cy={CY} r={r} fill="none" stroke="currentColor" strokeOpacity={0.14 + i * 0.05} strokeWidth={1} />
-          ))}
-          {RADII.map((r, i) => (
-            <text key={`l${r}`} x={CX - r * Math.sin((8 * Math.PI) / 180)} y={CY - r * Math.cos((8 * Math.PI) / 180) - 4} textAnchor="end" fontSize={11} fill="currentColor" fillOpacity={0.62}
-              style={{ paintOrder: "stroke", stroke: "var(--cs-color-surface-base)", strokeWidth: 4 }}>
-              {ringLabel(RING_LAYER[i] ?? "plugin")}
-            </text>
-          ))}
-          {GROUPS.map((g) => {
-            const angles = g.members.map((id) => ANGLE[id]).filter((a): a is number => a !== undefined);
-            const from = Math.min(...angles) - ARC_PAD;
-            const to = Math.max(...angles) + ARC_PAD;
-            const on = (m.sel.k === "group" && m.sel.id === g.id) || (m.sel.k === "plugin" && groupById(g.id)?.members.includes(m.sel.id) === true);
-            const dim = lit.active && !lit.plugins.has(g.members[0] ?? "") && !g.members.some((id) => lit.plugins.has(id));
-            return (
-              <path key={g.id} d={arcPath(from, to, ARC_R)} fill="none" stroke="currentColor" strokeWidth={9} strokeLinecap="round"
-                strokeOpacity={on ? 0.9 : dim ? 0.12 : 0.28} />
-            );
-          })}
-          {solid.map((l) => (
-            <line key={l.key} x1={CX} y1={CY} x2={l.x} y2={l.y} stroke="currentColor" strokeOpacity={0.55} strokeWidth={1.4} />
-          ))}
-          {dashed.map((l) => (
-            <line key={l.key} x1={l.a.x} y1={l.a.y} x2={l.b.x} y2={l.b.y} stroke="currentColor" strokeOpacity={0.6} strokeWidth={1.2} strokeDasharray="4 4" />
-          ))}
-        </svg>
-
-        <button
-          type="button"
-          onClick={() => m.select({ k: "agent" })}
-          aria-label={`${T.baseAgent} 보기`}
-          aria-pressed={m.sel.k === "agent"}
-          className={`absolute grid cursor-pointer place-items-center rounded-full border-0 bg-text-primary text-center text-surface-base outline-none focus-visible:shadow-[0_0_0_3px_var(--cs-color-focus-ring)] ${m.sel.k === "agent" ? "shadow-[0_0_0_5px_var(--cs-color-surface-base),0_0_0_6.5px_var(--cs-color-text-primary)]" : ""}`}
-          style={{ left: CX - 38, top: CY - 38, width: 76, height: 76 }}
-        >
-          <span className="grid gap-0.5">
-            <span className="text-ui-sm">{T.baseAgent}</span>
-            <span className="font-mono text-[10px] opacity-60">core.loop</span>
-          </span>
-        </button>
-
-        {GROUPS.map((g) => {
-          const angles = g.members.map((id) => ANGLE[id]).filter((a): a is number => a !== undefined);
-          const mid = (Math.min(...angles) + Math.max(...angles)) / 2;
-          const { x, y } = pt(mid, ARC_R);
-          const label = `${g.name}`;
-          const w = textW(label) + 26;
-          const picked = m.sel.k === "group" && m.sel.id === g.id;
-          const inGroup = m.sel.k === "plugin" && g.members.includes(m.sel.id);
-          const dim = lit.active && !g.members.some((id) => lit.plugins.has(id));
+    <div
+      ref={box}
+      className="absolute"
+      style={{ top: insets.top, right: insets.right, bottom: insets.bottom, left: insets.left }}
+      onClick={onBackground}
+      role="presentation"
+    >
+      <svg
+        width={g.w}
+        height={g.h}
+        className="absolute inset-0 text-text-primary"
+        onClick={onBackground}
+      >
+        {FRAC.map((f, i) => {
+          const layer = RING_LAYER[i] ?? "plugin";
+          const open = m.ring === layer;
+          const hot = hover === layer;
           return (
-            <button
-              key={g.id}
-              type="button"
-              aria-pressed={picked}
-              onClick={() => m.select({ k: "group", id: g.id })}
-              className={`absolute flex h-7 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center whitespace-nowrap rounded-full border text-[13px] leading-none outline-none focus-visible:shadow-[0_0_0_3px_var(--cs-color-focus-ring)] ${picked ? "border-text-primary bg-text-primary text-surface-base shadow-[0_0_0_3px_var(--cs-color-surface-base),0_0_0_4.5px_var(--cs-color-text-primary)]" : `bg-surface-base text-text-primary ${inGroup ? "border-text-primary" : "border-border-default"}`}`}
-              style={{ left: x, top: y, width: w, opacity: dim ? 0.45 : 1 }}
-            >
-              {label}
-            </button>
+            <g key={layer}>
+              <ellipse
+                cx={g.cx}
+                cy={g.cy}
+                rx={f * g.rx}
+                ry={f * g.ry}
+                fill="none"
+                stroke="currentColor"
+                strokeOpacity={open ? 0.8 : hot ? 0.55 : 0.16 + i * 0.04}
+                strokeWidth={open ? 2.2 : hot ? 1.8 : 1}
+              />
+              <ellipse
+                cx={g.cx}
+                cy={g.cy}
+                rx={f * g.rx}
+                ry={f * g.ry}
+                fill="none"
+                stroke="transparent"
+                strokeWidth={26}
+                style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                onPointerEnter={() => setHover(layer)}
+                onPointerLeave={() => setHover((h) => (h === layer ? null : h))}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  m.openRing(layer);
+                }}
+              />
+            </g>
           );
         })}
-
-        {nodes.map((n) => (
-          <Node key={n.p.id} n={n} lit={lit.plugins.has(n.p.id)} dim={lit.active && !lit.plugins.has(n.p.id)} />
+        {GROUPS.map((gr) => {
+          const span = groupSpan(gr.id);
+          if (span === null) return null;
+          const on = gid === gr.id;
+          const dim = lit.active && !gr.members.some((id) => lit.plugins.has(id));
+          const allOff = gr.members.every((id) => !m.isOn(id));
+          const faded = !gr.members.some((id) =>
+            m.plugins.some((p) => p.id === id && m.matches(p)),
+          );
+          return (
+            <path
+              key={gr.id}
+              d={arcPath(g, span.from, span.to)}
+              fill="none"
+              stroke={GRP.graphic}
+              strokeWidth={on ? 10 : 8}
+              strokeLinecap="round"
+              strokeDasharray={allOff ? "2 11" : undefined}
+              strokeOpacity={on ? 1 : dim || faded ? 0.14 : 0.42}
+            />
+          );
+        })}
+        {links.map((l) => (
+          <line
+            key={l.key}
+            x1={l.a.x}
+            y1={l.a.y}
+            x2={l.b.x}
+            y2={l.b.y}
+            stroke={l.color}
+            strokeOpacity={l.o}
+            strokeWidth={l.w}
+            strokeDasharray={l.dash}
+            style={{ pointerEvents: "none" }}
+          />
         ))}
-      </div>
-      {children !== undefined && <div className="absolute left-3 top-3 z-10">{children}</div>}
+      </svg>
+
+      {RING_LAYER.map((layer, i) => {
+        const p = pt(g, 0, FRAC[i] ?? 1);
+        const open = m.ring === layer;
+        const count = m.plugins.filter((q) => q.layer === layer).length;
+        return (
+          <button
+            key={layer}
+            type="button"
+            data-box={`ring-${layer}`}
+            aria-pressed={open}
+            aria-label={`${ringName(layer)} 층 ${count}개 보기`}
+            onClick={() => m.openRing(layer)}
+            onPointerEnter={() => setHover(layer)}
+            onPointerLeave={() => setHover((h) => (h === layer ? null : h))}
+            className={`absolute flex h-6 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center whitespace-nowrap rounded-full border px-2.5 text-[12px] leading-none outline-none focus-visible:shadow-[0_0_0_3px_var(--cs-color-focus-ring)] ${
+              open
+                ? "border-text-primary bg-text-primary text-surface-base"
+                : hover === layer
+                  ? "border-text-secondary bg-surface-base text-text-primary"
+                  : "border-transparent bg-surface-base text-text-tertiary"
+            }`}
+            style={{ left: p.x, top: p.y }}
+          >
+            {ringName(layer)}
+          </button>
+        );
+      })}
+
+      <button
+        type="button"
+        data-box="core"
+        onClick={() => m.select({ k: "agent" })}
+        aria-label={`${T.baseAgent} 보기`}
+        aria-pressed={m.sel.k === "agent" && m.panel}
+        className={`absolute grid -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-text-primary text-center text-surface-base outline-none focus-visible:shadow-[0_0_0_3px_var(--cs-color-focus-ring)] ${m.sel.k === "agent" && m.panel ? "shadow-[0_0_0_5px_var(--cs-color-surface-base),0_0_0_6.5px_var(--cs-color-text-primary)]" : ""}`}
+        style={{ left: g.cx, top: g.cy, width: CORE * 2, height: CORE * 2 }}
+      >
+        <span className="grid gap-0.5 leading-tight">
+          <span className="text-[12px]">{T.baseAgent}</span>
+          <span className="font-mono text-[10px] opacity-60">core.loop</span>
+        </span>
+      </button>
+
+      {GROUPS.map((gr) => {
+        const span = groupSpan(gr.id);
+        if (span === null) return null;
+        const mid = pt(g, GROUP_END[gr.id] === "to" ? span.to : span.from, ARC_FRAC);
+        const pickedG = m.sel.k === "group" && m.sel.id === gr.id;
+        const inGroup = gid === gr.id;
+        const dim = lit.active && !gr.members.some((id) => lit.plugins.has(id));
+        const faded = !gr.members.some((id) => m.plugins.some((p) => p.id === id && m.matches(p)));
+        return (
+          <GroupChip
+            key={gr.id}
+            kind="group"
+            label={gr.name}
+            x={mid.x}
+            y={mid.y}
+            picked={pickedG}
+            lit={inGroup}
+            dim={dim || faded}
+            onPick={() => m.select({ k: "group", id: gr.id })}
+          />
+        );
+      })}
+
+      {m.plugins.map((p) => {
+        const pos = at(p.id);
+        if (pos === undefined) return null;
+        return (
+          <Node
+            key={p.id}
+            p={p}
+            x={pos.x}
+            y={pos.y}
+            right={pos.x >= g.cx - 1}
+            lit={lit.plugins.has(p.id)}
+            primary={lit.primary === p.id}
+            dim={(lit.active && !lit.plugins.has(p.id)) || !m.matches(p)}
+          />
+        );
+      })}
     </div>
   );
 }
 
-function Node({ n, lit, dim }: { n: NodeView; lit: boolean; dim: boolean }) {
+/** 그룹 이름표(호 위). 그룹색 테두리와 작은 묶음 표시로 단일 플러그인 이름표와 가른다. */
+function GroupChip({
+  kind,
+  label,
+  x,
+  y,
+  picked,
+  lit,
+  dim,
+  onPick,
+}: {
+  kind: "group";
+  label: string;
+  x: number;
+  y: number;
+  picked: boolean;
+  lit: boolean;
+  dim: boolean;
+  onPick: () => void;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      data-box={`${kind}-${label}`}
+      aria-pressed={picked}
+      aria-label={`${label} ${T.group}`}
+      onClick={onPick}
+      className={`absolute flex h-7 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] font-medium leading-none outline-none focus-visible:shadow-[0_0_0_3px_var(--cs-color-focus-ring)] ${
+        picked ? "border-text-primary bg-text-primary text-surface-base" : "text-text-primary"
+      }`}
+      style={{
+        left: x,
+        top: y,
+        opacity: dim ? 0.4 : 1,
+        ...(picked
+          ? {}
+          : {
+              background: GRP.soft,
+              borderColor: lit ? GRP.graphic : GRP.border,
+              borderWidth: lit ? 1.5 : 1,
+            }),
+      }}
+    >
+      <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden>
+        <circle cx={3} cy={6} r={2} fill={picked ? "currentColor" : GRP.graphic} />
+        <circle cx={9} cy={3} r={2} fill={picked ? "currentColor" : GRP.graphic} />
+        <circle cx={9} cy={9} r={2} fill={picked ? "currentColor" : GRP.graphic} />
+      </svg>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function Node({
+  p,
+  x,
+  y,
+  right,
+  lit,
+  primary,
+  dim,
+}: {
+  p: Plugin;
+  x: number;
+  y: number;
+  right: boolean;
+  lit: boolean;
+  primary: boolean;
+  dim: boolean;
+}) {
   const m = useMock();
-  const { p } = n;
   const on = m.isOn(p.id);
   const h = m.health(p.id);
   const failing = h !== undefined;
-  const shadow = shadowedBy(p.id, m.replaced);
-  const picked = m.sel.k === "plugin" && m.sel.id === p.id;
-  const label = `${p.name}${p.drives === true && m.isOn(p.id) ? ` · ${T.lead}` : ""}`;
-  const w = textW(label) + 24;
-  const drag = useDragSource({ id: p.id, from: null, label: p.name });
+  const shadow = shadowedBy(p.id, m.replaced) !== null;
+  const picked = primary && m.panel;
+  const isGroup = p.group !== undefined;
+  const lead = p.drives === true && on;
+  const pick = (): void => m.select({ k: "plugin", id: p.id });
   const onKey = (e: KeyboardEvent<HTMLElement>): void => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      m.select({ k: "plugin", id: p.id });
+      pick();
     }
   };
-  const faded = shadow !== null;
+  const strong = picked || primary;
   return (
-    <>
-      <span
-        aria-hidden
-        className={`absolute rounded-full ${on ? "bg-text-primary" : "border border-text-primary bg-surface-base"} ${failing ? "!border-danger-graphic !bg-danger-graphic" : ""} ${faded ? "border-dashed !bg-surface-base opacity-60" : ""}`}
-        style={{ left: n.x - 6, top: n.y - 6, width: 12, height: 12, opacity: dim ? 0.4 : undefined }}
-      />
-      {picked && (
-        <span aria-hidden className="absolute rounded-full border border-text-primary" style={{ left: n.x - 12, top: n.y - 12, width: 24, height: 24 }} />
-      )}
-      {failing && !picked && (
-        <span aria-hidden className="absolute rounded-full border border-danger-graphic" style={{ left: n.x - 10, top: n.y - 10, width: 20, height: 20, opacity: dim ? 0.4 : 1 }} />
-      )}
+    <div className="absolute" style={{ left: x, top: y, opacity: dim ? 0.32 : shadow ? 0.55 : 1 }}>
       <button
         type="button"
-        aria-pressed={picked}
-        aria-label={p.name}
-        onClick={() => m.select({ k: "plugin", id: p.id })}
-        onKeyDown={onKey}
-        onPointerDown={drag}
-        className={`absolute flex h-7 cursor-pointer select-none items-center whitespace-nowrap rounded-full border px-3 text-[13px] leading-none outline-none focus-visible:shadow-[0_0_0_3px_var(--cs-color-focus-ring)] ${
-          picked
-            ? "border-text-primary bg-text-primary text-surface-base"
-            : `bg-surface-base ${lit ? "border-text-primary text-text-primary" : "border-border-default"} ${on ? "text-text-primary" : "text-text-tertiary"}`
-        } ${failing && !picked ? "!border-danger-border" : ""}`}
-        style={{ left: n.right ? n.x + 12 : n.x - 12 - w, top: n.y - 14, width: w, opacity: dim ? 0.45 : faded ? 0.55 : 1, touchAction: "none" }}
+        data-dot={p.id}
+        aria-label={`${p.name} 점`}
+        tabIndex={-1}
+        onClick={pick}
+        className="absolute grid size-8 -translate-x-1/2 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0"
       >
-        <span className={faded ? "line-through" : ""}>{label}</span>
+        <Mark
+          shape={SHAPE_OF[p.layer]}
+          size={28}
+          on={on}
+          group={isGroup}
+          failing={failing}
+          autoOff={h?.autoOff === true}
+          picked={strong}
+          shadowed={shadow}
+        />
       </button>
-    </>
+      <button
+        type="button"
+        data-box={`node-${p.id}`}
+        aria-pressed={picked}
+        onClick={pick}
+        onKeyDown={onKey}
+        className={`absolute top-0 flex h-7 -translate-y-1/2 cursor-pointer select-none items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[13px] leading-none outline-none focus-visible:shadow-[0_0_0_3px_var(--cs-color-focus-ring)] ${right ? "left-[17px]" : "right-[17px]"} ${
+          strong
+            ? "border-text-primary bg-text-primary text-surface-base"
+            : `${on ? "text-text-primary" : "text-text-tertiary"} ${isGroup ? "" : "bg-surface-base"} ${failing ? "border-danger-border" : isGroup ? "" : lit ? "border-text-primary" : "border-border-default"}`
+        }`}
+        style={
+          strong || isGroup === false
+            ? undefined
+            : {
+                background: GRP.soft,
+                borderColor: failing ? undefined : lit ? GRP.graphic : GRP.border,
+                borderWidth: lit && !failing ? 1.5 : 1,
+              }
+        }
+      >
+        <span className={shadow ? "line-through" : ""}>{p.name}</span>
+        {lead && <span className="text-[11px] opacity-65">{T.lead}</span>}
+      </button>
+    </div>
   );
 }

@@ -43,36 +43,134 @@ export interface HookDef {
 
 /** 순서 화면에 늘 보이는 순간 13개. 위에서 아래가 한 턴이 흐르는 순서다. */
 export const HOOKS: HookDef[] = [
-  { id: "thread.start", label: `${T.thread}을 열 때`, fold: "tap", phase: "start", failure: "open" },
-  { id: "input.user.before", label: "내 말이 들어올 때", fold: "chain", phase: "start", failure: "skip" },
-  { id: "input.agent.before", label: "일을 시작하기 전", fold: "collect", phase: "start", failure: "open" },
-  { id: "request.provider.before", label: "모델에 보내기 직전", fold: "chain", phase: "think", failure: "skip" },
-  { id: "guard.model.before", label: "모델에 보내도 되는지", fold: "first", phase: "think", failure: "closed" },
-  { id: "request.model.after", label: "모델이 답한 뒤", fold: "tap", phase: "think", failure: "open" },
-  { id: "tool.call.before", label: "도구를 쓰기 전", fold: "first", phase: "act", failure: "closed" },
+  {
+    id: "thread.start",
+    label: `${T.thread}을 열 때`,
+    fold: "tap",
+    phase: "start",
+    failure: "open",
+  },
+  {
+    id: "input.user.before",
+    label: "내 말이 들어올 때",
+    fold: "chain",
+    phase: "start",
+    failure: "skip",
+  },
+  {
+    id: "input.agent.before",
+    label: "일을 시작하기 전",
+    fold: "collect",
+    phase: "start",
+    failure: "open",
+  },
+  {
+    id: "request.provider.before",
+    label: "모델에 보내기 직전",
+    fold: "chain",
+    phase: "think",
+    failure: "skip",
+  },
+  {
+    id: "guard.model.before",
+    label: "모델에 보내도 되는지",
+    fold: "first",
+    phase: "think",
+    failure: "closed",
+  },
+  {
+    id: "request.model.after",
+    label: "모델이 답한 뒤",
+    fold: "tap",
+    phase: "think",
+    failure: "open",
+  },
+  {
+    id: "tool.call.before",
+    label: "도구를 쓰기 전",
+    fold: "first",
+    phase: "act",
+    failure: "closed",
+  },
   { id: "tool.result", label: "도구 결과를 받을 때", fold: "chain", phase: "act", failure: "skip" },
-  { id: "tool.execution.after", label: "도구가 끝난 뒤", fold: "tap", phase: "act", failure: "open" },
-  { id: "boundary.step.after", label: `${T.step}이 끝날 때`, fold: "chain", phase: "wrap", failure: "skip" },
-  { id: "boundary.settle.after", label: `${T.turn}이 끝난 뒤`, fold: "tap", phase: "wrap", failure: "open" },
-  { id: "thread.compact.before", label: `${T.thread}을 요약하기 전`, fold: "first", phase: "wrap", failure: "open", builtin: "내장 요약" },
-  { id: "thread.shutdown", label: `${T.thread}을 닫을 때`, fold: "tap", phase: "wrap", failure: "open" },
+  {
+    id: "tool.execution.after",
+    label: "도구가 끝난 뒤",
+    fold: "tap",
+    phase: "act",
+    failure: "open",
+  },
+  {
+    id: "boundary.step.after",
+    label: `${T.step}이 끝날 때`,
+    fold: "chain",
+    phase: "wrap",
+    failure: "skip",
+  },
+  {
+    id: "boundary.settle.after",
+    label: `${T.turn}이 끝난 뒤`,
+    fold: "tap",
+    phase: "wrap",
+    failure: "open",
+  },
+  {
+    id: "thread.compact.before",
+    label: `${T.thread}을 요약하기 전`,
+    fold: "first",
+    phase: "wrap",
+    failure: "open",
+    builtin: "내장 요약",
+  },
+  {
+    id: "thread.shutdown",
+    label: `${T.thread}을 닫을 때`,
+    fold: "tap",
+    phase: "wrap",
+    failure: "open",
+  },
 ];
 export const hookDef = (id: string): HookDef | undefined => HOOKS.find((h) => h.id === id);
 
 /** 나머지 훅 33개(HOOKS 46개 중). 펼치면 이름만 보인다. */
 export const OTHER_HOOKS: readonly { id: string; fold: Fold }[] = [
-  ["input.bash.before", "first"], ["request.context.before", "chain"], ["request.system.before", "chain"],
-  ["request.cache.before", "chain"], ["request.headers.before", "chain"], ["request.provider.after", "tap"],
-  ["request.stream", "tap"], ["request.thinking.after", "tap"], ["tool.execution.before", "tap"],
-  ["tool.execution.update", "tap"], ["boundary.turn.before", "tap"], ["boundary.step.before", "tap"],
-  ["boundary.message.before", "tap"], ["boundary.message.update", "tap"], ["boundary.message.after", "chain"],
-  ["boundary.settle.before", "chain"], ["boundary.turn.after", "tap"], ["thread.trust.before", "first"],
-  ["thread.resources", "collect"], ["thread.mcp.after", "tap"], ["thread.info.after", "tap"],
-  ["thread.switch.before", "first"], ["thread.fork.before", "first"], ["thread.compact.after", "tap"],
-  ["thread.compact.failed", "tap"], ["thread.tree.before", "first"], ["thread.tree.after", "tap"],
-  ["thread.prompt.before", "tap"], ["thread.prompt.after", "tap"], ["guard.tool.before", "first"],
-  ["guard.output.before", "first"], ["lifecycle.agent.settled", "tap"], ["lifecycle.lease.rejected", "tap"],
-].map(([id, fold]) => ({ id: id ?? "", fold: fold === "first" || fold === "chain" || fold === "collect" ? fold : "tap" }));
+  ["input.bash.before", "first"],
+  ["request.context.before", "chain"],
+  ["request.system.before", "chain"],
+  ["request.cache.before", "chain"],
+  ["request.headers.before", "chain"],
+  ["request.provider.after", "tap"],
+  ["request.stream", "tap"],
+  ["request.thinking.after", "tap"],
+  ["tool.execution.before", "tap"],
+  ["tool.execution.update", "tap"],
+  ["boundary.turn.before", "tap"],
+  ["boundary.step.before", "tap"],
+  ["boundary.message.before", "tap"],
+  ["boundary.message.update", "tap"],
+  ["boundary.message.after", "chain"],
+  ["boundary.settle.before", "chain"],
+  ["boundary.turn.after", "tap"],
+  ["thread.trust.before", "first"],
+  ["thread.resources", "collect"],
+  ["thread.mcp.after", "tap"],
+  ["thread.info.after", "tap"],
+  ["thread.switch.before", "first"],
+  ["thread.fork.before", "first"],
+  ["thread.compact.after", "tap"],
+  ["thread.compact.failed", "tap"],
+  ["thread.tree.before", "first"],
+  ["thread.tree.after", "tap"],
+  ["thread.prompt.before", "tap"],
+  ["thread.prompt.after", "tap"],
+  ["guard.tool.before", "first"],
+  ["guard.output.before", "first"],
+  ["lifecycle.agent.settled", "tap"],
+  ["lifecycle.lease.rejected", "tap"],
+].map(([id, fold]) => ({
+  id: id ?? "",
+  fold: fold === "first" || fold === "chain" || fold === "collect" ? fold : "tap",
+}));
 
 // ── 플러그인 ──────────────────────────────────────────────────────
 /** 매니페스트 plugins[].layer: 외부 플러그인은 "plugin"이다. */
@@ -83,7 +181,12 @@ export const LAYER_NAME: Record<LayerKey, string> = {
   L3: T.layerL3,
   plugin: "외부",
 };
-export const LAYER_CODE: Record<LayerKey, string> = { L1: "L1", L2: "L2", L3: "L3", plugin: "외부" };
+export const LAYER_CODE: Record<LayerKey, string> = {
+  L1: "L1",
+  L2: "L2",
+  L3: "L3",
+  plugin: "외부",
+};
 export type Origin = "builtin" | "user" | "project";
 export const ORIGIN_LABEL: Record<Origin, string> = {
   builtin: T.trustBuiltin,
@@ -114,7 +217,14 @@ export const PIECE_LABEL: Record<PieceKind, string> = {
   agent: T.childAgent,
   view: T.pluginView,
 };
-export const PIECE_ORDER: readonly PieceKind[] = ["skill", "command", "tool", "mcp", "agent", "view"];
+export const PIECE_ORDER: readonly PieceKind[] = [
+  "skill",
+  "command",
+  "tool",
+  "mcp",
+  "agent",
+  "view",
+];
 export interface Piece {
   kind: PieceKind;
   name: string;
@@ -166,9 +276,32 @@ export interface Group {
 }
 
 export const GROUPS: Group[] = [
-  { id: "helm", name: "Helm", version: "0.4.0", origin: "builtin", role: "렌즈로 하는 탐구", members: ["helm", "helm/explore", "helm/panel"], config: "maxLenses: 3" },
-  { id: "learning", name: "학습", version: "0.4.0", origin: "builtin", role: "끝난 일에서 배운 것 남기기", members: ["learning", "learning/ledger"] },
-  { id: "review", name: "리뷰", version: "0.2.1", origin: "user", role: "끝날 때마다 하는 변경 검토", members: ["review", "review/lens"], config: "maxFailures: 5" },
+  {
+    id: "helm",
+    name: "Helm",
+    version: "0.4.0",
+    origin: "builtin",
+    role: "렌즈로 하는 탐구",
+    members: ["helm", "helm/explore", "helm/panel"],
+    config: "maxLenses: 3",
+  },
+  {
+    id: "learning",
+    name: "학습",
+    version: "0.4.0",
+    origin: "builtin",
+    role: "끝난 일에서 배운 것 남기기",
+    members: ["learning", "learning/ledger"],
+  },
+  {
+    id: "review",
+    name: "리뷰",
+    version: "0.2.1",
+    origin: "user",
+    role: "끝날 때마다 하는 변경 검토",
+    members: ["review", "review/lens"],
+    config: "maxFailures: 5",
+  },
 ];
 export const groupById = (id: string): Group | undefined => GROUPS.find((g) => g.id === id);
 
@@ -176,86 +309,268 @@ const piece = (kind: PieceKind, name: string): Piece => ({ kind, name });
 
 export const PLUGINS: Plugin[] = [
   {
-    id: "helm", name: "Helm", role: "탐구를 이끄는 오케스트레이터", layer: "L3", group: "helm", origin: "builtin", version: "0.4.0",
-    drives: true, reach: "global", provides: [], optional: ["web.search", "knowledge.search", "work.tasks"],
-    hooks: ["thread.start", "input.agent.before", "tool.call.before", "tool.execution.after", "boundary.settle.after", "lifecycle.lease.rejected"],
+    id: "helm",
+    name: "Helm",
+    role: "탐구를 이끄는 오케스트레이터",
+    layer: "L3",
+    group: "helm",
+    origin: "builtin",
+    version: "0.4.0",
+    drives: true,
+    reach: "global",
+    provides: [],
+    optional: ["web.search", "knowledge.search", "work.tasks"],
+    hooks: [
+      "thread.start",
+      "input.agent.before",
+      "tool.call.before",
+      "tool.execution.after",
+      "boundary.settle.after",
+      "lifecycle.lease.rejected",
+    ],
     pieces: [piece("command", "/explore")],
-    health: { fails: 1, hook: "boundary.settle.after", text: "한도 1.2초를 넘겼어요", at: "14:01", limit: 5 },
+    health: {
+      fails: 1,
+      hook: "boundary.settle.after",
+      text: "한도 1.2초를 넘겼어요",
+      at: "14:01",
+      limit: 5,
+    },
   },
   {
-    id: "helm/explore", name: "탐구 기능", role: "렌즈로 찾아오는 기능", layer: "L2", group: "helm", origin: "builtin", version: "0.4.0",
-    reach: "global", hooks: [], provides: ["helm.inquiry"],
-    pieces: [piece("tool", "lens_search"), piece("agent", "explorer"), piece("skill", "explore-method")],
+    id: "helm/explore",
+    name: "탐구 기능",
+    role: "렌즈로 찾아오는 기능",
+    layer: "L2",
+    group: "helm",
+    origin: "builtin",
+    version: "0.4.0",
+    reach: "global",
+    hooks: [],
+    provides: ["helm.inquiry"],
+    pieces: [
+      piece("tool", "lens_search"),
+      piece("agent", "explorer"),
+      piece("skill", "explore-method"),
+    ],
   },
   {
-    id: "helm/panel", name: "Helm 화면", role: "탐구 상황을 보여 주는 옆 패널", layer: "L3", group: "helm", origin: "builtin", version: "0.4.0",
-    reach: "global", hooks: [], provides: [], pieces: [piece("view", "Helm 탐구")],
+    id: "helm/panel",
+    name: "Helm 화면",
+    role: "탐구 상황을 보여 주는 옆 패널",
+    layer: "L3",
+    group: "helm",
+    origin: "builtin",
+    version: "0.4.0",
+    reach: "global",
+    hooks: [],
+    provides: [],
+    pieces: [piece("view", "Helm 탐구")],
   },
   {
-    id: "learning", name: "학습", role: "끝난 일을 정리하는 오케스트레이터", layer: "L3", group: "learning", origin: "builtin", version: "0.4.0",
-    reach: "global", hooks: ["boundary.settle.after", "thread.shutdown"], provides: [],
+    id: "learning",
+    name: "학습",
+    role: "끝난 일을 정리하는 오케스트레이터",
+    layer: "L3",
+    group: "learning",
+    origin: "builtin",
+    version: "0.4.0",
+    reach: "global",
+    hooks: ["boundary.settle.after", "thread.shutdown"],
+    provides: [],
     pieces: [piece("skill", "write-lesson"), piece("command", "/learn")],
   },
   {
-    id: "learning/ledger", name: "기억 원장", role: "배운 것을 적는 기능", layer: "L2", group: "learning", origin: "builtin", version: "0.4.0",
-    reach: "global", hooks: [], provides: ["knowledge.memory"], pieces: [piece("tool", "memory_write")],
+    id: "learning/ledger",
+    name: "기억 원장",
+    role: "배운 것을 적는 기능",
+    layer: "L2",
+    group: "learning",
+    origin: "builtin",
+    version: "0.4.0",
+    reach: "global",
+    hooks: [],
+    provides: ["knowledge.memory"],
+    pieces: [piece("tool", "memory_write")],
   },
   {
-    id: "review", name: "리뷰", role: "변경을 검토하는 오케스트레이터", layer: "L3", group: "review", origin: "user", version: "0.2.1",
-    reach: "project", hooks: ["boundary.settle.after"], provides: [], pieces: [piece("command", "/review")],
-    health: { fails: 5, hook: "boundary.settle.after", text: "연속 5번 실패해 자동 꺼짐", at: "13:40", limit: 5, autoOff: true },
+    id: "review",
+    name: "리뷰",
+    role: "변경을 검토하는 오케스트레이터",
+    layer: "L3",
+    group: "review",
+    origin: "user",
+    version: "0.2.1",
+    reach: "project",
+    hooks: ["boundary.settle.after"],
+    provides: [],
+    pieces: [piece("command", "/review")],
+    health: {
+      fails: 5,
+      hook: "boundary.settle.after",
+      text: "연속 5번 실패해 자동 꺼짐",
+      at: "13:40",
+      limit: 5,
+      autoOff: true,
+    },
   },
   {
-    id: "review/lens", name: "리뷰 렌즈", role: "리뷰 관점을 맡는 보조 에이전트", layer: "L3", group: "review", origin: "user", version: "0.2.1",
-    reach: "project", hooks: ["input.agent.before"], provides: [], pieces: [piece("agent", "reviewer")],
+    id: "review/lens",
+    name: "리뷰 렌즈",
+    role: "리뷰 관점을 맡는 보조 에이전트",
+    layer: "L3",
+    group: "review",
+    origin: "user",
+    version: "0.2.1",
+    reach: "project",
+    hooks: ["input.agent.before"],
+    provides: [],
+    pieces: [piece("agent", "reviewer")],
   },
   {
-    id: "web", name: "웹", role: "검색과 페이지 읽기", layer: "L2", origin: "builtin", version: "0.4.0",
-    reach: "global", hooks: [], provides: ["web.search", "web.fetch"], pieces: [piece("tool", "web_search"), piece("tool", "web_fetch")],
+    id: "web",
+    name: "웹",
+    role: "검색과 페이지 읽기",
+    layer: "L2",
+    origin: "builtin",
+    version: "0.4.0",
+    reach: "global",
+    hooks: [],
+    provides: ["web.search", "web.fetch"],
+    pieces: [piece("tool", "web_search"), piece("tool", "web_fetch")],
   },
   {
-    id: "exa", name: "Exa 검색", role: "Exa로 하는 웹 검색", layer: "plugin", origin: "user", version: "1.0.3",
-    reach: "off", hooks: [], provides: ["web.search"], pieces: [piece("tool", "exa_search")],
+    id: "exa",
+    name: "Exa 검색",
+    role: "Exa로 하는 웹 검색",
+    layer: "plugin",
+    origin: "user",
+    version: "1.0.3",
+    reach: "off",
+    hooks: [],
+    provides: ["web.search"],
+    pieces: [piece("tool", "exa_search")],
   },
   {
-    id: "knowledge", name: "지식", role: "기억과 스킬 찾기", layer: "L2", origin: "builtin", version: "0.4.0",
-    reach: "global", hooks: [], provides: ["knowledge.search", "knowledge.skills"],
+    id: "knowledge",
+    name: "지식",
+    role: "기억과 스킬 찾기",
+    layer: "L2",
+    origin: "builtin",
+    version: "0.4.0",
+    reach: "global",
+    hooks: [],
+    provides: ["knowledge.search", "knowledge.skills"],
     pieces: [piece("tool", "skill_load"), piece("tool", "knowledge_search")],
   },
   {
-    id: "work", name: "작업", role: "할 일 기록과 이어 가기", layer: "L2", origin: "builtin", version: "0.4.0",
-    reach: "global", hooks: [], provides: ["work.tasks"], pieces: [piece("tool", "task_create"), piece("command", "/todo")],
+    id: "work",
+    name: "작업",
+    role: "할 일 기록과 이어 가기",
+    layer: "L2",
+    origin: "builtin",
+    version: "0.4.0",
+    reach: "global",
+    hooks: [],
+    provides: ["work.tasks"],
+    pieces: [piece("tool", "task_create"), piece("command", "/todo")],
   },
   {
-    id: "cost-router", name: "비용 라우터", role: "쉬운 요청은 싼 모델로", layer: "L1", origin: "user", version: "0.1.0",
-    reach: "project", hooks: ["request.provider.before", "request.model.after"], provides: [], pieces: [],
+    id: "cost-router",
+    name: "비용 라우터",
+    role: "쉬운 요청은 싼 모델로",
+    layer: "L1",
+    origin: "user",
+    version: "0.1.0",
+    reach: "project",
+    hooks: ["request.provider.before", "request.model.after"],
+    provides: [],
+    pieces: [],
   },
   {
-    id: "compact-keep", name: "요약 직접", role: "직접 하는 대화 요약", layer: "L1", origin: "user", version: "0.1.0",
-    reach: "off", hooks: ["thread.compact.before"], provides: [], pieces: [piece("skill", "keep-decisions")],
+    id: "compact-keep",
+    name: "요약 직접",
+    role: "직접 하는 대화 요약",
+    layer: "L1",
+    origin: "user",
+    version: "0.1.0",
+    reach: "off",
+    hooks: ["thread.compact.before"],
+    provides: [],
+    pieces: [piece("skill", "keep-decisions")],
   },
   {
-    id: "secret-scan", name: "시크릿 검사", role: "도구 입력에 섞인 키 검사", layer: "plugin", origin: "user", version: "0.2.0",
-    reach: "global", hooks: ["tool.call.before"], provides: [], pieces: [],
+    id: "secret-scan",
+    name: "시크릿 검사",
+    role: "도구 입력에 섞인 키 검사",
+    layer: "plugin",
+    origin: "user",
+    version: "0.2.0",
+    reach: "global",
+    hooks: ["tool.call.before"],
+    provides: [],
+    pieces: [],
   },
   {
-    id: "lint-on-edit", name: "편집 뒤 린트", role: "파일을 고친 뒤 린트", layer: "plugin", origin: "user", version: "0.1.2",
-    reach: "thread", hooks: ["tool.execution.after"], provides: [], pieces: [piece("command", "/lint")],
+    id: "lint-on-edit",
+    name: "편집 뒤 린트",
+    role: "파일을 고친 뒤 린트",
+    layer: "plugin",
+    origin: "user",
+    version: "0.1.2",
+    reach: "thread",
+    hooks: ["tool.execution.after"],
+    provides: [],
+    pieces: [piece("command", "/lint")],
   },
   {
-    id: "notify-done", name: "끝나면 알림", role: `${T.turn}이 끝나면 알림`, layer: "plugin", origin: "user", version: "0.1.0",
-    reach: "global", hooks: ["boundary.settle.after"], provides: [], pieces: [],
+    id: "notify-done",
+    name: "끝나면 알림",
+    role: `${T.turn}이 끝나면 알림`,
+    layer: "plugin",
+    origin: "user",
+    version: "0.1.0",
+    reach: "global",
+    hooks: ["boundary.settle.after"],
+    provides: [],
+    pieces: [],
   },
   {
-    id: "acme-notes", name: "acme 노트", role: "사내 노트를 검색 결과에 섞기", layer: "plugin", origin: "project", version: "0.0.9",
-    reach: "project", hooks: ["tool.result"], provides: ["notes.search"],
+    id: "acme-notes",
+    name: "acme 노트",
+    role: "사내 노트를 검색 결과에 섞기",
+    layer: "plugin",
+    origin: "project",
+    version: "0.0.9",
+    reach: "project",
+    hooks: ["tool.result"],
+    provides: ["notes.search"],
     pieces: [piece("mcp", "acme-wiki"), piece("skill", "acme-style")],
-    health: { fails: 2, hook: "tool.result", text: "notes.search 응답 시간 초과", at: "14:03", limit: 5 },
+    health: {
+      fails: 2,
+      hook: "tool.result",
+      text: "notes.search 응답 시간 초과",
+      at: "14:03",
+      limit: 5,
+    },
   },
   {
-    id: "pr-kit", name: "PR 도구", role: "PR 읽기와 변경 기록 거들기", layer: "plugin", origin: "user", version: "0.3.0",
-    reach: "global", hooks: ["input.user.before"], provides: [],
-    pieces: [piece("skill", "pr-review"), piece("skill", "release-notes"), piece("command", "/pr"), piece("command", "/changelog"), piece("mcp", "github")],
+    id: "pr-kit",
+    name: "PR 도구",
+    role: "PR 읽기와 변경 기록 거들기",
+    layer: "plugin",
+    origin: "user",
+    version: "0.3.0",
+    reach: "global",
+    hooks: ["input.user.before"],
+    provides: [],
+    pieces: [
+      piece("skill", "pr-review"),
+      piece("skill", "release-notes"),
+      piece("command", "/pr"),
+      piece("command", "/changelog"),
+      piece("mcp", "github"),
+    ],
   },
 ];
 export const pluginById = (id: string): Plugin | undefined => PLUGINS.find((p) => p.id === id);
@@ -290,24 +605,37 @@ export const CAPS: CapRow[] = [
   { id: "work.tasks", label: "작업 기록", builtin: "work" },
   { id: "notes.search", label: "사내 노트 찾기", builtin: "acme-notes" },
 ];
-export const providersOf = (cap: string): Plugin[] => PLUGINS.filter((p) => p.provides.includes(cap));
+export const providersOf = (cap: string): Plugin[] =>
+  PLUGINS.filter((p) => p.provides.includes(cap));
 
 // ── 지도 자리 ─────────────────────────────────────────────────────
 /** 둘레 각도(위가 0, 시계 방향). 같은 그룹은 붙은 부채꼴에 놓는다. */
 export const ANGLE: Record<string, number> = {
-  helm: 0, "helm/explore": 56, "helm/panel": 80,
-  "cost-router": 100, "pr-kit": 110,
-  learning: 126, "learning/ledger": 170,
-  "compact-keep": 190,
-  review: 208, "review/lens": 232,
-  exa: 252, "secret-scan": 262, web: 278, "lint-on-edit": 288,
-  "acme-notes": 298, knowledge: 304, work: 326, "notify-done": 338,
+  helm: 38,
+  "helm/explore": 55,
+  "helm/panel": 76,
+  "cost-router": 100,
+  "pr-kit": 101,
+  learning: 118,
+  "learning/ledger": 150,
+  "compact-keep": 185,
+  review: 205,
+  "review/lens": 232,
+  exa: 250,
+  "secret-scan": 268,
+  web: 250,
+  "lint-on-edit": 288,
+  "acme-notes": 308,
+  knowledge: 290,
+  work: 322,
+  "notify-done": 328,
 };
 export const RING: Record<LayerKey, number> = { L1: 0, L2: 1, L3: 2, plugin: 3 };
 
 // ── 선택 ──────────────────────────────────────────────────────────
 export type Sel =
   | { k: "agent" }
+  | { k: "layer"; id: LayerKey }
   | { k: "plugin"; id: string }
   | { k: "group"; id: string }
   | { k: "hook"; id: string }
@@ -315,6 +643,7 @@ export type Sel =
 export const sameSel = (a: Sel, b: Sel): boolean => {
   if (a.k !== b.k) return false;
   if (a.k === "plugin" && b.k === "plugin") return a.id === b.id;
+  if (a.k === "layer" && b.k === "layer") return a.id === b.id;
   if (a.k === "group" && b.k === "group") return a.id === b.id;
   if (a.k === "hook" && b.k === "hook") return a.id === b.id;
   if (a.k === "builtin" && b.k === "builtin") return a.slot === b.slot;
@@ -354,8 +683,14 @@ export const BUILD_TEMPLATES: BuildTemplate[] = [
 ];
 
 /** 매니페스트 조각(카드의 코드 블록). 값은 모양만 맞춘 가짜다. */
-export function manifestText(sel: { group: Group } | { plugin: Plugin }, getReach: (id: string) => Reach): string {
-  const plugins = "group" in sel ? sel.group.members.map(pluginById).filter((p): p is Plugin => p !== undefined) : [sel.plugin];
+export function manifestText(
+  sel: { group: Group } | { plugin: Plugin },
+  getReach: (id: string) => Reach,
+): string {
+  const plugins =
+    "group" in sel
+      ? sel.group.members.map(pluginById).filter((p): p is Plugin => p !== undefined)
+      : [sel.plugin];
   const root = "group" in sel ? sel.group.id : (sel.plugin.id.split("/")[0] ?? sel.plugin.id);
   const version = "group" in sel ? sel.group.version : (sel.plugin.version ?? "0.1.0");
   const lines: string[] = [];
@@ -371,13 +706,20 @@ export function manifestText(sel: { group: Group } | { plugin: Plugin }, getReac
     fields.push(`layer: "${p.layer === "plugin" ? "plugin" : p.layer}"`);
     if (p.drives === true) fields.push("drives: true");
     if (p.hooks.length > 0) fields.push(`hooks: [${p.hooks.map((h) => `"${h}"`).join(", ")}]`);
-    if (p.provides.length > 0) fields.push(`provides: [${p.provides.map((c) => `{ id: "${c}", version: "1.0.0" }`).join(", ")}]`);
+    if (p.provides.length > 0)
+      fields.push(
+        `provides: [${p.provides.map((c) => `{ id: "${c}", version: "1.0.0" }`).join(", ")}]`,
+      );
     if (getReach(p.id) !== "off") fields.push("defaultEnabled: true");
     lines.push(`    { ${fields.join(", ")} },`);
   }
   lines.push("  ],");
   const all = plugins.flatMap((p) => p.pieces);
-  const named = (k: PieceKind): string => all.filter((x) => x.kind === k).map((x) => `"${x.name}"`).join(", ");
+  const named = (k: PieceKind): string =>
+    all
+      .filter((x) => x.kind === k)
+      .map((x) => `"${x.name}"`)
+      .join(", ");
   const comps: string[] = [];
   if (all.some((x) => x.kind === "skill")) comps.push(`skills: [${named("skill")}]`);
   if (all.some((x) => x.kind === "command")) comps.push(`commands: [${named("command")}]`);
@@ -387,3 +729,45 @@ export function manifestText(sel: { group: Group } | { plugin: Plugin }, getReac
   lines.push("})");
   return lines.join("\n");
 }
+
+// ── 보기 거르기 ───────────────────────────────────────────────────
+/** 어떤 플러그인인가: 그룹에 속한 것, 혼자 설치된 것, 바깥(외부) 층 */
+export type KindFilter = "all" | "group" | "single" | "external";
+export const KIND_ORDER: readonly KindFilter[] = ["all", "group", "single", "external"];
+export const KIND_LABEL: Record<KindFilter, string> = {
+  all: "전체",
+  group: T.group,
+  single: `단일 ${T.plugin}`,
+  external: "외부",
+};
+/** 무엇을 넣어 주나(훅은 따로 센다) */
+export type Contrib = "hook" | PieceKind;
+export const CONTRIB_ORDER: readonly Contrib[] = [
+  "hook",
+  "skill",
+  "command",
+  "tool",
+  "mcp",
+  "agent",
+  "view",
+];
+export const CONTRIB_LABEL: Record<Contrib, string> = {
+  hook: T.hook,
+  skill: "스킬",
+  command: "명령",
+  tool: "도구",
+  mcp: "MCP",
+  agent: T.childAgent,
+  view: "UI",
+};
+export const kindOf = (p: Plugin): Exclude<KindFilter, "all"> =>
+  p.group !== undefined ? "group" : p.layer === "plugin" ? "external" : "single";
+export const matchesKind = (p: Plugin, k: KindFilter): boolean =>
+  k === "all" ||
+  (k === "group"
+    ? p.group !== undefined
+    : k === "single"
+      ? p.group === undefined
+      : p.layer === "plugin");
+export const hasContrib = (p: Plugin, c: Contrib): boolean =>
+  c === "hook" ? p.hooks.length > 0 : p.pieces.some((x) => x.kind === c);

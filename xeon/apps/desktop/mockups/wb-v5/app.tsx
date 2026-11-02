@@ -1,14 +1,20 @@
 // 크래프트 v5: 에이전트가 무엇으로 이뤄졌나(지도), 무엇이 언제 어떤 순서로 도나(순서), 고른 것이 무엇인가(카드).
 // 범위 막대·표는 없다. 어디에 적용되나는 플러그인 카드에서 "꺼짐 · 이 대화 · 이 프로젝트 · 모든 대화"로 바로 정한다.
 import { useEffect } from "react";
-import { Shell, defaultStatusCells, inbox, NoticeList, useShell, workbenchRightTabs } from "../_shell";
+import {
+  Shell,
+  defaultStatusCells,
+  inbox,
+  NoticeList,
+  useShell,
+  workbenchRightTabs,
+} from "../_shell";
 import { T } from "../_shell/terms";
 import { Builder } from "./builder";
-import { Card } from "./card";
+import { Canvas } from "./canvas";
+import { PluginDetail } from "./detail";
 import { DragGhost } from "./drag";
-import { Finder } from "./finder";
-import { Lanes } from "./lanes";
-import { Orbit } from "./orbit";
+import { Drawer } from "./lanes";
 import { MockProvider, useMock } from "./store";
 
 const NAV = [
@@ -20,9 +26,15 @@ const NAV = [
 function Notice() {
   const m = useMock();
   return (
-    <div role="status" aria-live="polite" className="pointer-events-none absolute inset-x-0 bottom-14 z-40 flex justify-center">
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none absolute inset-x-0 bottom-14 z-40 flex justify-center"
+    >
       {m.notice !== null && (
-        <span className="animate-enter rounded-full bg-surface-raised px-4 py-2 text-body text-text-primary shadow-3">{m.notice}</span>
+        <span className="animate-enter rounded-full bg-surface-raised px-4 py-2 text-body text-text-primary shadow-3">
+          {m.notice}
+        </span>
       )}
     </div>
   );
@@ -34,15 +46,21 @@ function Page() {
   const b = m.builder;
   const { select } = m;
   const idle = !m.drawer.open && b === null;
-  // Esc는 선택을 풀어 카드를 에이전트 전체로 되돌린다(열린 서랍·빌더가 없을 때).
+  const { view, closeDetail, closeRing } = m;
+  // Esc: 자세히 보기에서는 돌아가고, 아니면 선택과 패널을 푼다(열린 서랍·빌더가 없을 때).
   useEffect(() => {
     if (!idle) return undefined;
     const key = (e: KeyboardEvent): void => {
-      if (e.key === "Escape") select({ k: "agent" });
+      if (e.key !== "Escape") return;
+      if (view === "detail") closeDetail();
+      else {
+        closeRing();
+        select({ k: "agent" }, false);
+      }
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [idle, select]);
+  }, [idle, select, view, closeDetail, closeRing]);
   return (
     <Shell
       activeNav="craft"
@@ -64,19 +82,10 @@ function Page() {
       })}
     >
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-3 overflow-hidden p-3 max-[980px]:grid-cols-1 max-[980px]:overflow-y-auto">
-          <div className="flex min-h-0 min-w-0 flex-col gap-3">
-            <div className="flex min-h-[19rem] flex-[1.25] flex-col">
-              <Orbit>
-                <Finder />
-              </Orbit>
-            </div>
-            <div className="flex min-h-[16rem] flex-1 flex-col">
-              <Card />
-            </div>
-          </div>
-          <Lanes />
+        <div className="relative min-h-0 flex-1">
+          {m.view === "detail" ? <PluginDetail /> : <Canvas />}
         </div>
+        {m.drawer.open && <Drawer />}
         {b !== null && (
           <div className="absolute inset-0 z-20 border-t border-border-subtle bg-bg-app shadow-3">
             <Builder
@@ -84,7 +93,9 @@ function Page() {
               templateId={b.template}
               onTemplate={m.setTemplate}
               onClose={m.closeBuilder}
-              onCreate={({ name, template, reach }) => m.create({ name, hook: b.hook, template, reach })}
+              onCreate={({ name, template, reach }) =>
+                m.create({ name, hook: b.hook, template, reach })
+              }
             />
           </div>
         )}
