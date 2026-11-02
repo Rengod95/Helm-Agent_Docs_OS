@@ -119,9 +119,9 @@ realTest(
     await connection.request("events.subscribe", { from: "head" });
     try {
       const plain = await connection.request("thread.create", {});
-      expect(await failureOf(connection.request("testRun.pause", { threadId: plain.threadId }))).toMatchObject(
-        { data: { kind: "testRun.notATestRun" } },
-      );
+      expect(
+        await failureOf(connection.request("testRun.pause", { threadId: plain.threadId })),
+      ).toMatchObject({ data: { kind: "testRun.notATestRun" } });
 
       const created = await connection.request("thread.create", { testRun: true });
       expect(await connection.request("testRun.phase", { threadId: created.threadId })).toEqual({
@@ -130,9 +130,9 @@ realTest(
         seq: null,
       });
       // 멈춘 적 없는 Test run에 resume은 notPaused
-      expect(await failureOf(connection.request("testRun.resume", { threadId: created.threadId }))).toMatchObject(
-        { data: { kind: "testRun.notPaused" } },
-      );
+      expect(
+        await failureOf(connection.request("testRun.resume", { threadId: created.threadId })),
+      ).toMatchObject({ data: { kind: "testRun.notPaused" } });
       expect(await connection.request("testRun.pause", { threadId: created.threadId })).toEqual({
         paused: true,
       });
@@ -150,9 +150,9 @@ realTest(
       expect(await connection.request("testRun.resume", { threadId: created.threadId })).toEqual({
         paused: false,
       });
-      expect(await failureOf(connection.request("testRun.step", { threadId: created.threadId }))).toMatchObject(
-        { data: { kind: "testRun.notPaused" } },
-      );
+      expect(
+        await failureOf(connection.request("testRun.step", { threadId: created.threadId })),
+      ).toMatchObject({ data: { kind: "testRun.notPaused" } });
     } finally {
       await connection.close();
       await host.close();
