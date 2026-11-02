@@ -156,6 +156,7 @@ export type {
 // operations (X.operations.spec §3.1~§3.8, §6 중 M0·M1 몫)
 export {
   createOperationsPolicy,
+  DEFAULT_TRACE_SETTINGS,
   createResourcePolicy,
   createVolatileNotifier,
   NO_STARTUP_OPTIONS,
