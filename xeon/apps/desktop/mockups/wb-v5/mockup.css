@@ -1,0 +1,10 @@
+/* 크래프트 v5: caustic 스타일 + 공용 셸 CSS. 점 종이 바탕과 끌기 표시만 이 화면의 몫. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+
+.wb5-paper {
+  background-color: var(--cs-color-surface-base);
+  background-image: radial-gradient(var(--cs-color-border-default) 0.8px, transparent 0.9px);
+  background-size: 14px 14px;
+}
