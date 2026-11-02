@@ -64,7 +64,7 @@ export const EXTS: Ext[] = [
       "tool.call.before",
       "tool.execution.after",
       "boundary.settle.after",
-      "session.start",
+      "thread.start",
       "lifecycle.lease.rejected",
     ],
     usesPost: true,
@@ -306,7 +306,7 @@ export const SOCKETS: Socket[] = [
     failure: "open",
     x: 484,
   },
-  { point: "session.start", short: "start", kind: "session", fold: "tap", failure: "open", x: 546 },
+  { point: "thread.start", short: "start", kind: "session", fold: "tap", failure: "open", x: 546 },
   {
     point: "lifecycle.lease.rejected",
     short: "lease.rejected",
@@ -376,7 +376,7 @@ export const POINT_STATS: Record<string, PointStat[]> = {
     { point: "tool.call.before", fold: "first", budgetMs: 30000, p95: 9, failures: 0 },
     { point: "tool.execution.after", fold: "tap", budgetMs: 5000, p95: 4, failures: 0 },
     { point: "boundary.settle.after", fold: "tap", budgetMs: 5000, p95: 1200, failures: 1 },
-    { point: "session.start", fold: "tap", budgetMs: 5000, p95: 8, failures: 0 },
+    { point: "thread.start", fold: "tap", budgetMs: 5000, p95: 8, failures: 0 },
     { point: "lifecycle.lease.rejected", fold: "tap", budgetMs: 5000, p95: null, failures: 0 },
   ],
   "plan-first": [
@@ -454,7 +454,7 @@ export const MATRIX_COLS: {
   },
   {
     kind: "session",
-    points: [{ point: "session.start", short: "start", fold: "tap", failure: "open" }],
+    points: [{ point: "thread.start", short: "start", fold: "tap", failure: "open" }],
     quiet: 14,
   },
   {
@@ -518,7 +518,7 @@ export const HELM_PARTS: Part[] = [
     op: "on",
     slot: "복원",
     line: "대화 시작에 HelmState 읽기",
-    points: ["session.start"],
+    points: ["thread.start"],
   },
   {
     id: "drive",

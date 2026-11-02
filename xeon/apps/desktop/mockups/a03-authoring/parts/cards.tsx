@@ -309,7 +309,7 @@ export function LinkCard({
         </ListDescriptionRow>
         <ListDescriptionRow term="켜짐">꺼진 채로 들어가요</ListDescriptionRow>
         <ListDescriptionRow term={T.extensionPoint}>
-          drive · session.start · turn.end
+          drive · thread.start · turn.end
         </ListDescriptionRow>
       </ListDescription>
     </AgentRequest>

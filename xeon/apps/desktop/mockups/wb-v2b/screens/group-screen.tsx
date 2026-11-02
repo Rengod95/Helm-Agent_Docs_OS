@@ -114,7 +114,7 @@ export function groupNodes(composer: boolean, edit: string | null): NodeSpec[] {
       title: "상태 복원",
       tag: "restore",
       icon: <RotateCcw />,
-      rows: [{ id: "ss", side: "out", type: "on", label: "session.start", fold: "tap" }],
+      rows: [{ id: "ss", side: "out", type: "on", label: "thread.start", fold: "tap" }],
     },
     {
       id: "drive",
@@ -200,7 +200,7 @@ export function groupNodes(composer: boolean, edit: string | null): NodeSpec[] {
         { id: "llr", side: "in", type: "on", label: "lifecycle.lease.rejected", fold: "tap" },
         { id: "iab", side: "in", type: "on", label: "input.agent.before", fold: "collect" },
         { id: "tcb", side: "in", type: "on", label: "tool.call.before", fold: "first" },
-        { id: "ss", side: "in", type: "on", label: "session.start", fold: "tap" },
+        { id: "ss", side: "in", type: "on", label: "thread.start", fold: "tap" },
         { id: "rec", side: "in", type: "record", label: "grp.helm.* 기록 3" },
       ],
       body: <span>매니페스트 points 6</span>,

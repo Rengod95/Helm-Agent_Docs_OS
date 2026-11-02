@@ -517,7 +517,7 @@ export function CanvasScreen() {
             "tool.execution.after",
             "boundary.step.after",
             "boundary.settle.after",
-            "session.start",
+            "thread.start",
             "lifecycle.lease.rejected",
           ].map((p) => [
             p,

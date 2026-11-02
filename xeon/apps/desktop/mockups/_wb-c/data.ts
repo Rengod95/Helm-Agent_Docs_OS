@@ -395,7 +395,7 @@ export const hooks: HookRow[] = [
   },
   {
     id: "audit-log",
-    event: "session.end",
+    event: "thread.end",
     command: "~/bin/audit-append.sh",
     scope: "project",
     p50: "35ms",

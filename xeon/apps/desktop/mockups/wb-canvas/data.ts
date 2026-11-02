@@ -79,7 +79,7 @@ export const NODES: CNode[] = [
       "tool.call.before",
       "tool.execution.after",
       "boundary.settle.after",
-      "session.start",
+      "thread.start",
       "lifecycle.lease.rejected",
     ],
     usesPost: true,
@@ -525,7 +525,7 @@ export const POINT_PORTS: PointPort[] = [
   { name: "tool.execution.after", fold: "tap", failure: "open", x: 458 },
   { name: "boundary.step.after", fold: "chain", failure: "skip", x: 596 },
   { name: "boundary.settle.after", fold: "tap", failure: "open", x: 712 },
-  { name: "session.start", fold: "tap", failure: "open", x: 846 },
+  { name: "thread.start", fold: "tap", failure: "open", x: 846 },
   { name: "lifecycle.lease.rejected", fold: "tap", failure: "open", x: 946 },
 ];
 /** 재생에서만 잠깐 켜지는 훅(아무 핸들러도 걸지 않은 훅은 레일 수 안에 접혀 있다). */
@@ -947,7 +947,7 @@ export const POINT_STATS: Record<string, PointStat[]> = {
     { point: "tool.call.before", fold: "first", budgetMs: 30000, p95: 9, failures: 0 },
     { point: "tool.execution.after", fold: "tap", budgetMs: 5000, p95: 4, failures: 0 },
     { point: "boundary.settle.after", fold: "tap", budgetMs: 5000, p95: 1200, failures: 1 },
-    { point: "session.start", fold: "tap", budgetMs: 5000, p95: 8, failures: 0 },
+    { point: "thread.start", fold: "tap", budgetMs: 5000, p95: 8, failures: 0 },
     { point: "lifecycle.lease.rejected", fold: "tap", budgetMs: 5000, p95: null, failures: 0 },
   ],
   review: [

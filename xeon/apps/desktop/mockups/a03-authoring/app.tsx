@@ -293,7 +293,7 @@ export function App({ state }: { state: StateId }) {
                 : s.ext === "safe"
                   ? `빠짐 · ${T.safeMode}`
                   : "꺼짐",
-            points: ["drive", "tool.call.before (쓰기 범위)", "session.start"],
+            points: ["drive", "tool.call.before (쓰기 범위)", "thread.start"],
           },
           ...baseGroups.filter((g) => g.name !== "helm" && g.name !== "review"),
         ],

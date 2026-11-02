@@ -17,6 +17,6 @@ c01~c04가 함께 쓰는 부품과 고정 데이터입니다. 각 폴더 `mockup
 | `settings-slot.tsx` | settings slot 읽기 전용 부분(N-25). `summary="list"`(기본, 옛 ListDescription)·`"grid"`(선 격자 지표 칸) |
 
 옛 언어로 바꾸며 일부러 남기거나 뺀 것:
-- `RunKind`·`bench` 종류 id, `hooks`의 `session.end` 이벤트 이름은 그대로 둡니다(저장 값·코드 id). c01·c03이 그 값에 기댑니다.
+- `RunKind`·`bench` 종류 id, `hooks`의 `thread.end` 이벤트 이름은 그대로 둡니다(저장 값·코드 id). c01·c03이 그 값에 기댑니다.
 - `ExtName`의 기본 `showId`는 `true`(옛 화면이 기본값에 기댑니다). 개발 모드 밖에서 id를 숨기려면 `showId={false}`.
 - `grid-table.tsx`의 선택 표시와 글자 크기는 옛 것이 맞아 바꾸지 않았습니다.

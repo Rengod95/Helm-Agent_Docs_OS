@@ -148,7 +148,7 @@ export const helmPoints: PointRow[] = [
   { point: "tool.call.before", fold: "first", budgetMs: 30000, p50: 3, p95: 9, failures: 0 },
   { point: "tool.execution.after", fold: "tap", budgetMs: 5000, p50: 1, p95: 4, failures: 0 },
   { point: "boundary.settle.after", fold: "tap", budgetMs: 5000, p50: 20, p95: 1200, failures: 1 },
-  { point: "session.start", fold: "tap", budgetMs: 5000, p50: 8, p95: 8, failures: 0 },
+  { point: "thread.start", fold: "tap", budgetMs: 5000, p50: 8, p95: 8, failures: 0 },
   {
     point: "lifecycle.lease.rejected",
     fold: "tap",

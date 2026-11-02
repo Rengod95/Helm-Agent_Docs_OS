@@ -189,7 +189,7 @@ function runtimeData(s: S): RuntimeData {
         layer: "L3",
         name: "learning",
         state: `빠짐 · ${T.trialThread}`,
-        points: ["session.end", "turn.end"],
+        points: ["thread.end", "turn.end"],
       },
       { layer: "L2", name: "web-exa", state: "켜짐", points: ["capability web.search"] },
     ],

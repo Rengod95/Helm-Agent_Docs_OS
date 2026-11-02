@@ -163,7 +163,7 @@ export const EXTS: Ext[] = [
     health: "ok",
     failures: 1,
     points: [
-      "session.start",
+      "thread.start",
       "input.agent.before",
       "tool.call.before",
       "tool.execution.after",
@@ -295,7 +295,7 @@ export const FAMILIES = [
   { id: "lifecycle", label: "lifecycle", y: 312 },
 ];
 export const SOCKETS: Socket[] = [
-  { point: "session.start", family: "session", short: "start", fold: "tap", y: 58, budgetMs: 5000 },
+  { point: "thread.start", family: "session", short: "start", fold: "tap", y: 58, budgetMs: 5000 },
   {
     point: "input.agent.before",
     family: "input",
@@ -469,7 +469,7 @@ export const HEAT: Record<
   Record<string, { p95: number | null; fail: number; calls: number }>
 > = {
   helm: {
-    "session.start": { p95: 8, fail: 0, calls: 3 },
+    "thread.start": { p95: 8, fail: 0, calls: 3 },
     "input.agent.before": { p95: 40, fail: 0, calls: 41 },
     "tool.call.before": { p95: 9, fail: 0, calls: 212 },
     "tool.execution.after": { p95: 4, fail: 0, calls: 209 },

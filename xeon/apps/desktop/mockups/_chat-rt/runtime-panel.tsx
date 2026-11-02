@@ -294,7 +294,7 @@ export const baseGroups: GroupRow[] = [
     state: "켜짐",
     points: ["drive", "turn.end", "tool.call.before", "boundary.settle.after"],
   },
-  { layer: "L3", name: "learning", state: "켜짐", points: ["session.end", "turn.end"] },
+  { layer: "L3", name: "learning", state: "켜짐", points: ["thread.end", "turn.end"] },
   { layer: "L3", name: "review", state: "켜짐", points: ["drive", "tool.call.after"] },
   { layer: "L2", name: "web-exa", state: "켜짐", points: ["capability web.search"] },
 ];

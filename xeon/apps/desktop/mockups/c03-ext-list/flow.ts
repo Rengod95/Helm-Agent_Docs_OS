@@ -114,7 +114,7 @@ export const ROWS: Row[] = [
     ops: "",
     state: "on",
     scope: "project",
-    hook: { event: "session.end", p50: "35ms", failures: 3 },
+    hook: { event: "thread.end", p50: "35ms", failures: 3 },
     external: true,
   },
 ];
