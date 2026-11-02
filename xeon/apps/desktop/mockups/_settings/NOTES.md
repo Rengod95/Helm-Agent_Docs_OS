@@ -7,7 +7,7 @@
 | `frame.tsx` | `SettingsFrame`: 셸 가운데에 탭 열(키 찾기 + 탭 13개, `ListNavigation kind="pages"`)과 폼 열(머리, 띠, 내용, 초안 바닥). well은 닫힌 채로 시작, compact 폭은 탭 열 대신 머리 `Select` |
 | `row.tsx` | `SettingRow`(라벨 · 키 · 범위 배지 · 적용 시점, 아래 컨트롤과 `Field` 오류), `SettingSection`(고정 머리) |
 | `parts.tsx` | 가려진 범위 값, 관리 잠금 문장, `List reorderable` 한국어 문구 |
-| `tabs.ts` | 탭 13개, 전용 탭 → 시안 폴더(같은 빌드 루트에서 탭을 누르면 옆 시안으로) |
+| `tabs.ts` | 탭 13개, 전용 탭 → 시안 폴더. 탭을 누르면 `_shell/routes.ts`의 `navigateToPage`로 옆 시안에 간다(`?tab=<id>`, 같은 시안이면 그 자리에서 바꾼다) |
 | `mount.tsx` | 진입 도우미(글꼴 → `MockRoot` → `ShellStateProvider`) |
 
 - 설정 화면은 왼쪽 패널 바닥 "설정"이 지금 화면입니다(`activeNav="settings"`, `_shell/start-panel.tsx`에 굵기·selected 아이콘을 더함).

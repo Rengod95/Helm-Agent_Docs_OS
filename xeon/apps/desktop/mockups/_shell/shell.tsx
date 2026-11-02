@@ -9,7 +9,8 @@ import { Palette, type PaletteGroup } from "./palette";
 import { StatusBar, type StatusCell } from "./parts/status-bar";
 import { RightPanel, type RightTab } from "./right-panel";
 import { StartPanel, type ThreadListProps, type WorkbenchPanelProps } from "./start-panel";
-import { useShell } from "./state";
+import { useShell, type Area } from "./state";
+import { navigateToArea } from "./routes";
 
 export const STAGE_ID = "stage";
 
@@ -47,6 +48,10 @@ export interface ShellProps {
 function useShellShortcuts(onNew: () => void, modalOpen: boolean) {
   const m = useShell();
   useEffect(() => {
+    // 영역 바꾸기는 왼쪽 패널의 영역 칸과 같다: 옆 시안이 있으면 그리로 옮긴다.
+    const switchArea = (a: Area) => {
+      if (!navigateToArea(a)) m.setArea(a);
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !m.paletteOpen && !modalOpen) {
         if (m.layout !== "wide" && m.endOpen) return m.setEndOpen(false);
@@ -57,7 +62,7 @@ function useShellShortcuts(onNew: () => void, modalOpen: boolean) {
       if (e.altKey) {
         if (e.code === "Digit1" || e.code === "Digit2") {
           e.preventDefault();
-          m.setArea(e.code === "Digit1" ? "chat" : "workbench");
+          switchArea(e.code === "Digit1" ? "chat" : "workbench");
         }
         return;
       }
@@ -67,7 +72,7 @@ function useShellShortcuts(onNew: () => void, modalOpen: boolean) {
         "\\": () => m.setStartOpen(!m.startOpen),
         j: () => m.setEndOpen(!m.endOpen),
         n: onNew,
-        e: () => m.setArea(m.area === "chat" ? "workbench" : "chat"),
+        e: () => switchArea(m.area === "chat" ? "workbench" : "chat"),
       };
       const f = act[k];
       if (f !== undefined) {

@@ -193,6 +193,11 @@ export const pages: MockPage[] = [
     folder: "wb-v3",
     states: 12,
   },
+  // 묶음 F(구성기 진입·테스트, 개요 상태, 프로필 적용). 상태 수는 redesign 사본의 STATES 개수.
+  { id: "F1", title: "구성기 진입", folder: "f01-compose-entry", states: 13 },
+  { id: "F2", title: "구성기 흐름 테스트", folder: "f02-compose-trial", states: 6 },
+  { id: "F3", title: "개요 화면 상태", folder: "f03-structure-states", states: 6 },
+  { id: "F4", title: "프로필 적용", folder: "f04-preset-apply", states: 5 },
   {
     id: "일러스트",
     title: "런타임 일러스트 세트: X 수명 고리, 층 쌓기, 개념 그림 8, 빈 상태 3 (밝음·어두움)",

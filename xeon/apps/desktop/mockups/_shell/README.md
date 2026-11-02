@@ -14,7 +14,8 @@
 | `workbench-fixtures.ts` | 스펙 §14.5 크래프트 고정 데이터(확장, 층 지도, helm 훅, 주도, 전환, Helm 탐구, 지표, 테스트, 프로필, 템플릿) + 기록·대화 탭 데이터                                                                               |
 | `status.tsx`            | `defaultStatusCells()`(S-03 칸, compact 폭 축약)                                                                                                                                                               |
 | `palette.tsx`           | 명령 팔레트(S-02)                                                                                                                                                                                              |
-| `dev.tsx`               | `MockRoot`: `?state=`·`?theme=`와 개발용 띠(목업 전용)                                                                                                                                                         |
+| `dev.tsx`               | `MockRoot`: `?state=`·`?theme=`와 개발용 띠(목업 전용). `?chrome=0`이면 띠를 그리지 않고, 뜰 때 부모 창에 시안 이름을 알림(아래 "라우팅")                                                                      |
+| `routes.ts`             | 시안 사이 이동의 한 곳: `PAGE_ROUTES`(내비 id → 옆 폴더 표), `navigateToNav`·`navigateToPage`·`navigateToArea`·`navigateToPaletteItem`, `pageHref`, `postRoute`                                                    |
 | `fonts.ts`              | `loadCausticFonts()`: caustic 글꼴을 렌더를 막지 않게(DP-15)                                                                                                                                                   |
 | `icons.ts`              | caustic 아이콘 어댑터(Solar, DP-17) 다시 내보내기                                                                                                                                                              |
 | `fixtures.ts`           | 공용 고정 데이터(대화 목록, 내비, 승인·제안·알림, 상태, 팔레트)                                                                                                                                                |
@@ -110,3 +111,45 @@
 - 처음부터 팔레트를 연 상태: `<ShellStateProvider initialPaletteOpen>`. 처음 탭: `initialTab`.
 - 페이지 대화 상자가 열려 있으면 `modalOpen`을 줘서 셸이 Esc를 쓰지 않게 합니다.
 - 받은 요청 탭 내용은 승인 결정 상태를 가진 페이지가 만듭니다(P-02는 `p02-opus/inbox.tsx`). 카드 부품은 `ToolApprovalCard`, `QuestionCard`, `NoticeList`를 씁니다.
+
+## 라우팅 (옆 시안으로 오가기)
+
+정적 빌드를 한 루트에 형제 폴더로 두면(`<루트>/p02-opus/index.html`, `<루트>/p03-inbox/index.html` …) 셸 내비, 설정 버튼, 영역 칸, 팔레트, 설정 탭, 크래프트 내비가 상대 URL로 옆 시안에 갑니다. 개발 서버(폴더가 곧 루트)에서는 옮기지 않습니다. 이동 표는 `routes.ts`의 `PAGE_ROUTES` 한 곳입니다.
+
+| 내비 id | 옆 시안 | 쿼리 | 화면 |
+|---|---|---|---|
+| `chat` | `p02-opus` | | 대화(시작 화면), 영역 칸 "대화" |
+| `inbox` | `p03-inbox` | | 받은 요청 |
+| `proposals` | `p06-proposals` | | 제안 |
+| `schedules` | `p07-schedules` | | 예약 |
+| `connection` | `p08-connection` | | 연결 |
+| `settings` | `p09-settings` | | 설정 버튼(일반 설정, 기본 탭 모델) |
+| `overview` | `wb-v3` | | 크래프트 개요, 영역 칸 "크래프트" |
+| `extensions` | `c03-ext-list` | | 확장 |
+| `tests` | `c01-trials` | | 테스트 |
+| `metrics` | `wb2-opus` | `state=S5` | 성능 측정(P-20 측정과 평가) |
+| `compose` | `wb-compose` | | 구성 |
+| `engine` | `d03-page-states` | `page=p15&state=D-engine` | 엔진(P-15 엔진 상태, 크래프트 영역) |
+| `helm/inquiry` | `p05-helm` | | 플러그인 화면 "Helm 탐구" |
+| `review/queue` | 없음(inert) | | 꺼진 확장 화면 |
+
+- 설정 탭: `_settings/tabs.ts`의 `TAB_PAGES`. 예산과 한도·계정과 제공자 → `p11-accounts`, 시크릿 → `p10-secrets`, 도구와 웹 → `p12-tools-web`, 플러그인과 그룹 → `p13-plugins`, 나머지(개요 포함) → `p09-settings`. 옆 시안은 `?tab=<id>`로 열립니다. 같은 시안의 탭은 옮기지 않고 그 자리에서 바꿉니다.
+- 팔레트: "크래프트 개요"·"확장"·"Helm 탐구"·"기본 모델"은 위 표로 옮깁니다(`PALETTE_NAV`). 대화 묶음(대화 행)과 명령은 페이지의 `onPaletteRun`이 맡습니다.
+- 영역 바꾸기: 왼쪽 패널 칸, ⌘E, ⌥⌘1(대화), ⌥⌘2(크래프트)는 같습니다. 대화는 `chat`, 크래프트는 `overview`로 갑니다.
+- 대화 목록 행은 옮기지 않습니다. `p02-opus`는 대화 하나를 URL로 열지 못해서 행은 페이지가 맡습니다.
+- 표에 없는 id(꺼진 플러그인 화면 등)는 누르면 아무 일도 없습니다(inert). 같은 시안 안의 내비는 옮기지 않고 페이지의 `onNavSelect`가 맡습니다(예: `wb-v3`의 개요, `wb2-opus`의 성능 측정은 그 자리에서 화면을 바꿉니다). 같은 시안이라도 표의 쿼리 값이 다르면 옮깁니다.
+
+**쿼리 규칙**
+
+- 옮길 때 `theme`·`lang`·`type`·`chrome`·`dev`는 지금 URL에서 가져갑니다. `state`는 가져가지 않습니다. 옮긴 시안은 처음 상태로 엽니다(`MockRoot`가 URL에 `state`를 다시 적습니다).
+- 표의 쿼리(`state=S5`, `page=p15&state=D-engine`, `tab=…`)는 그 옮김에만 붙습니다.
+- 색 테마는 `?theme=dark`, 화면 언어는 `?lang=en`입니다. 둘 다 옮겨 가도 그대로 적용됩니다.
+
+**`?chrome=0`**
+
+- 맨 위 "목업 전용" 띠(화면 상태, 테마, 언어 고르기)를 그리지 않습니다. 가운데가 창 높이 전부를 씁니다. 실제 앱처럼 보고 싶을 때 씁니다. `theme`과 `lang`은 그대로 읽습니다. `chrome=0`도 옮길 때 따라갑니다.
+
+**부모 창 알림(postMessage)**
+
+- `MockRoot`가 뜰 때 `window.parent.postMessage({ type: "fresnel-route", page: "<폴더>" }, "*")`를 보냅니다. 최상위 창이면 아무것도 하지 않습니다. 비교 페이지가 iframe으로 시안을 넣고 `message` 이벤트로 폴더 이름을 받습니다. 옆 시안으로 옮겨 새로 뜨면 다시 알립니다.
+- `MockRoot`를 쓰지 않는 `index/`는 `postRoute()`를 직접 부릅니다. `_base`, `_type-ko`, `_art-preview`는 알리지 않습니다.

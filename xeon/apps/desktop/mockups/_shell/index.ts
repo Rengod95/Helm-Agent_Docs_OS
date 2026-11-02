@@ -61,7 +61,19 @@ export {
   type PageSectionProps,
   type StageHeadProps,
 } from "./page";
-export { currentFolder, navigateToPage, pageHref, postRoute } from "./routes";
+export {
+  currentFolder,
+  navigateToArea,
+  navigateToNav,
+  navigateToPage,
+  navigateToPaletteItem,
+  PAGE_ROUTES,
+  PALETTE_NAV,
+  pageHref,
+  postRoute,
+  routeForNav,
+  type PageRoute,
+} from "./routes";
 export * from "./fixtures";
 export * from "./workbench-fixtures";
 export { T, josa, type TermKey } from "./terms";

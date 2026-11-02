@@ -3,7 +3,7 @@
 import { Badge, ListDescription, ListDescriptionRow } from "@caustic/react";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import { loadCausticFonts } from "../_shell";
+import { loadCausticFonts, pageHref, postRoute } from "../_shell";
 import "./mockup.css";
 import { pages } from "./pages";
 
@@ -13,6 +13,7 @@ function Index() {
   useEffect(() => {
     const dark = new URLSearchParams(window.location.search).get("theme") === "dark";
     document.documentElement.dataset["theme"] = dark ? "dark" : "light";
+    postRoute();
   }, []);
   return (
     <main className="mx-auto grid h-full max-w-[44rem] content-start gap-4 overflow-auto px-4 py-8">
@@ -35,7 +36,7 @@ function Index() {
           >
             <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
               <a
-                href={`../${p.folder}/index.html`}
+                href={pageHref(p.folder)}
                 className="rounded-sm text-accent-text underline underline-offset-2 outline-none focus-visible:focus-ring"
               >
                 열기

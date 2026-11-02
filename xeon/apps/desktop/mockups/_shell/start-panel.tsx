@@ -59,9 +59,15 @@ import {
 } from "./icons";
 import { useShell, type Area, type WorkbenchContext } from "./state";
 import { L, LANG } from "./i18n";
+import { navigateToArea, navigateToNav } from "./routes";
 import { T } from "./terms";
 import { profiles } from "./workbench-fixtures";
 import type { ReactNode } from "react";
+
+/** 내비 항목을 눌렀을 때: 옆 시안이 있으면 그리로 옮기고, 없거나 지금 시안이면 페이지의 onNavSelect에 맡긴다(크래프트 안 화면 등). */
+function pickNav(id: string, onNavSelect: ((id: string) => void) | undefined): void {
+  if (!navigateToNav(id)) onNavSelect?.(id);
+}
 
 // 지금 화면(activeNav)은 라벨 굵기와 함께 아이콘도 selected(Solar bold)로 그린다(DP-17).
 const NAV_ICONS = {
@@ -169,7 +175,11 @@ function AreaSwitch() {
       aria-label={L("영역")}
       size="sm"
       value={m.area}
-      onValueChange={(v) => m.setArea(v as Area)}
+      onValueChange={(v) => {
+        // 영역 바꾸기도 옆 시안으로 간다(대화 → 대화 시안, 크래프트 → 개요 시안). 옮길 곳이 없으면 이 셸에서 바꾼다.
+        const a: Area = v === "workbench" ? "workbench" : "chat";
+        if (!navigateToArea(a)) m.setArea(a);
+      }}
       className="w-full [&>[data-slot=segmented-control-item]]:flex-1 [&_[data-state=checked]]:font-semibold"
     >
       <SegmentedControlItem value="chat">{T.thread}</SegmentedControlItem>
@@ -390,7 +400,7 @@ function WorkbenchNavList({
                   </span>
                 )
               }
-              onSelect={() => onNavSelect?.(n.id)}
+              onSelect={() => pickNav(n.id, onNavSelect)}
             >
               {n.label}
             </ListNavigationItem>
@@ -421,7 +431,7 @@ function WorkbenchNavList({
                       {p.disabled === true ? L("꺼짐") : p.ext}
                     </span>
                   }
-                  onSelect={() => onNavSelect?.(p.id)}
+                  onSelect={() => pickNav(p.id, onNavSelect)}
                 >
                   {L(p.label)}
                 </ListNavigationItem>
@@ -573,7 +583,7 @@ export function StartPanel({
                   ? "[&_[data-slot=list-navigation-label]]:font-semibold [&_[data-slot=list-navigation-label]]:text-text-primary"
                   : undefined
               }
-              onSelect={() => onNavSelect?.("settings")}
+              onSelect={() => pickNav("settings", onNavSelect)}
             >
               {L("설정")}
             </ListNavigationItem>
@@ -605,7 +615,12 @@ export function StartPanel({
                       n.badge
                     )
                   }
-                  onSelect={() => (n.id === "inbox" ? m.openEnd("inbox") : onNavSelect?.(n.id))}
+                  onSelect={() => {
+                    // 받은 요청은 옆 시안(P-03)으로 간다. 그 시안 안에서는 오른쪽 well의 받은 요청 탭을 연다(예전과 같다).
+                    if (navigateToNav(n.id)) return;
+                    if (n.id === "inbox") m.openEnd("inbox");
+                    else onNavSelect?.(n.id);
+                  }}
                 >
                   {n.label}
                 </ListNavigationItem>
@@ -656,11 +671,7 @@ export function StartPanel({
               {folders.map((folder) => (
                 <ListNavigationGroup
                   key={folder}
-                  heading={
-                    <span className="font-mono text-mono-sm normal-case tracking-normal">
-                      {folder}
-                    </span>
-                  }
+                  heading={<span className="font-mono text-mono-sm normal-case">{folder}</span>}
                   addLabel={`${L("새 대화")} · ${folder}`}
                   onAdd={list.onNew}
                 >

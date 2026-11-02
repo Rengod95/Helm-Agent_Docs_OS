@@ -10,6 +10,7 @@ import {
 import { palette, type PaletteItem } from "./fixtures";
 import { LayoutGrid, Layers, MessageSquare, Package, Play, Settings, SlashSquare } from "./icons";
 import { L } from "./i18n";
+import { navigateToPaletteItem } from "./routes";
 import { useShell } from "./state";
 
 const GROUP_ICON: Record<string, React.ReactNode> = {
@@ -74,6 +75,8 @@ export function Palette({
   const run = (value: string) => {
     const [group, label] = value.split(":") as [string, string];
     m.setPaletteOpen(false);
+    // 시안으로 가는 항목(크래프트 개요·확장·Helm 탐구, 기본 모델)은 옆 시안으로 옮긴다. 나머지는 페이지의 onRun이 맡는다.
+    if (navigateToPaletteItem(group, label)) return;
     onRun?.(group, label);
   };
   return (
