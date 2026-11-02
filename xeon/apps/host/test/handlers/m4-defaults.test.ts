@@ -76,19 +76,37 @@ test("m4-defaults: new params on existing methods are rejected as invalid until 
   const host = createFakeHost();
   const { connection } = host.connect();
   await connection.request("host.hello", HELLO_PARAMS);
-  const threadId = host.fake.ids.next("thr");
-  const itemId = host.fake.ids.next("itm");
   const failures = await Promise.all([
-    failureOf(connection.request("approval.list", {})),
     failureOf(connection.request("thread.create", { testRun: true })),
     failureOf(connection.request("thread.create", { testRun: true, profileId: "p" })),
-    failureOf(connection.request("thread.read", { threadId, around: itemId })),
   ]);
   expect(failures).toMatchObject([
-    { code: -32602, data: { details: { issues: [{ path: "threadId" }] } } },
     { code: -32602, data: { details: { issues: [{ path: "testRun" }] } } },
     { code: -32602, data: { details: { issues: [{ path: "testRun" }] } } },
-    { code: -32602, data: { details: { issues: [{ path: "around" }] } } },
   ]);
+  await connection.close();
+});
+
+// W-16: `around`과 `before`는 함께 쓰지 않는다. 계약 스키마가 막지 않으므로 처리기가 port를 부르기 전에 거부한다.
+test("m4-defaults: thread.read rejects around together with before as invalid params", async () => {
+  const host = createFakeHost();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const threadId = host.fake.ids.next("thr");
+  const failure = await failureOf(
+    connection.request("thread.read", {
+      threadId,
+      around: host.fake.ids.next("itm"),
+      before: host.fake.ids.next("itm"),
+    }),
+  );
+  expect(failure).toMatchObject({
+    code: -32602,
+    data: {
+      details: {
+        issues: [{ path: "around", message: "around cannot be combined with before" }],
+      },
+    },
+  });
   await connection.close();
 });

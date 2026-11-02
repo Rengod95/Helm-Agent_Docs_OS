@@ -98,11 +98,17 @@ export function createThreadListHandler(engine: Engine): WireHandler<"thread.lis
   return (params) => engine.ports.threads.list(params);
 }
 
+/** W-16: `around`은 `before`와 함께 쓰지 않는다. 계약 스키마가 이 조합을 막지 않으므로 처리기가 -32602로 거부한다 */
+function aroundWithBefore(): WireError {
+  return wireError("jsonrpc.invalidParams", {
+    details: { issues: [{ path: "around", message: "around cannot be combined with before" }] },
+  });
+}
+
 /** F wire §3.4.6. 소유를 얻지 않는 읽기다 */
 export function createThreadReadHandler(engine: Engine): WireHandler<"thread.read"> {
   return async (params) => {
-    // W-16(`around`)은 T-WC가 구현한다. 그 전까지는 무시하지 않고 거부한다
-    if (params.around !== undefined) throw paramNotYetImplemented("around", "W-16, T-WC");
+    if (params.around !== undefined && params.before !== undefined) throw aroundWithBefore();
     const read = await engine.ports.threads.read(params);
     if (!read.ok) throw readFailure(read.error, "thread.read");
     return read.value;

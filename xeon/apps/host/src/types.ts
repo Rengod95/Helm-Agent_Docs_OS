@@ -616,6 +616,11 @@ export interface ApprovalPort {
   respond(params: WireParams<"approval.respond">): Promise<WireResult<"approval.respond">>;
   /** thread의 미해결 요청과 그 시점의 위치(F wire §3.4.6 5항). 이 프로세스가 쥐지 않은 thread도 읽는다 */
   list(threadId: ThreadId): Promise<Result<WireResult<"approval.list">, ApprovalListFailure>>;
+  /**
+   * 닫히지 않은 모든 thread의 미해결 요청(`threadId` 생략, W-01). seq 오름차순이고 위치는 한 번만 잰다.
+   * 목록을 읽은 뒤 지워진 thread는 건너뛰고, 결과는 `ApprovalListResultSchema`의 상한(1000개)까지 가장 오래된 것부터 남긴다
+   */
+  listAll(): Promise<Result<WireResult<"approval.list">, ApprovalListFailure>>;
 }
 
 export interface ActivitySnapshot {

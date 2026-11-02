@@ -6,7 +6,7 @@ import type { DialogAreaPort } from "../../handlers/m4/dialog-area.ts";
 import type { ExtReadPort } from "../../handlers/m4/ext-read.ts";
 import type { ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
 import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
-import type { M4PortDeps } from "./deps.ts";
+import type { M4EngineDeps, M4PortDeps } from "./deps.ts";
 import { createDevkitPort } from "./devkit-port.ts";
 import { createDialogAreaPort } from "./dialog-area-port.ts";
 import { createExtReadPort } from "./ext-read-port.ts";
@@ -43,8 +43,12 @@ const emptyTestRunControl: TestRunControlPort = {
  * `host`는 T-XD가 계측 읽기와 Test run 제어를 ext-host 구현으로 바꿀 때 쓴다. T-F 시점에는 쓰지 않는다.
  * 소유 트랙은 이 함수를 고치지 않는다(T-XD의 두 줄 제외).
  */
-export function createM4Ports(_host: ExtHost): M4Ports {
-  const deps: M4PortDeps = { traceRead: emptyTraceRead, testRunControl: emptyTestRunControl };
+export function createM4Ports(_host: ExtHost, engine: M4EngineDeps): M4Ports {
+  const deps: M4PortDeps = {
+    ...engine,
+    traceRead: emptyTraceRead,
+    testRunControl: emptyTestRunControl,
+  };
   return {
     extRead: createExtReadPort(deps),
     extUi: createExtUiVersionPort(deps),
