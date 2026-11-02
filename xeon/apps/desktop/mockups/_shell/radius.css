@@ -1,0 +1,23 @@
+/* 시안 전용 모서리: caustic 모서리 토큰(--cs-radius-*)에 +2px를 더한다. 버튼·입력·카드·칩·메뉴가 모두 이 토큰을 쓴다.
+   none(0)과 full(pill 999px)은 그대로다. 토큰 값 자체는 caustic이 가진다(나중에 caustic 쪽 값을 바꾼다).
+
+   왜 html:root인가: caustic 기본 블록과 @supports (corner-shape: squircle) 블록이 둘 다 :root(특이도 0,1,0)라서
+   여기서 html:root(0,1,1)로 다시 쓰면 두 블록 모두 이긴다. squircle을 쓰는 브라우저는 --cs-corner-scale(1.2)이
+   정의되어 있어 N×1.2+2px, 아닌 브라우저는 기본값 1로 N+2px가 된다. */
+html:root {
+  --cs-radius-2xs: calc(2px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-xs: calc(4px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-sm: calc(6px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-md: calc(8px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-lg: calc(10px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-xl: calc(12px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-2xl: calc(16px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-3xl: calc(22px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-4xl: calc(28px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-5xl: calc(32px * var(--cs-corner-scale, 1) + 2px);
+  --cs-radius-well-inner: calc(18px * var(--cs-corner-scale, 1) + 2px);
+  /* 떠 있는 도구줄(floating-bar, zoom-control)과 알림은 --cs-studio-* 토큰을 쓴다. 창·패널 틀(window, panel)은 그대로 둔다. */
+  --cs-studio-toolbar-radius: calc(14px * var(--cs-corner-scale, 1) + 2px);
+  --cs-studio-toolbar-item-radius: calc(10px * var(--cs-corner-scale, 1) + 2px);
+  --cs-studio-toast-radius: calc(22px * var(--cs-corner-scale, 1) + 2px);
+}
