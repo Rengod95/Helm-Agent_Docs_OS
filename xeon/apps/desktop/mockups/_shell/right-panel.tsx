@@ -1,6 +1,6 @@
 // 오른쪽 맥락 패널(DP-10). 접으면 아이콘만 있는 세로 떠 있는 막대(caustic FloatingBar vertical).
 // 펼치면 누른 아이콘 옆에서 두 단계로 펼친다: 바깥 well(Card variant="well") 안에 내용 카드(CardPanel).
-// 어느 폭에서도 내용 위에 뜨는 면(popover)이다: 내용 배치(stage 폭)에 영향이 없고 그림자 하나만 가진다.
+// 어느 폭에서도 내용 위에 뜨는 면(popover)이다: 막대도 well도 stage 위에 absolute로 떠서 내용 폭을 차지하지 않는다(그림자 하나만).
 // 바깥을 누르거나 Esc를 누르면 닫히고, 열면 well로 초점이 가고 닫으면 눌렀던 아이콘으로 돌아온다.
 // 탭(아이콘, 이름, 배지, 내용)은 페이지가 준다. 탭 묶음은 영역마다(§4.9.4):
 //   대화: chatRightTabs(받은 요청, 런타임, 작업, 플러그인 well 탭들). 옛 standardRightTabs(받은 요청, 탐구, 작업)도 남긴다.
@@ -183,7 +183,7 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
     <aside
       ref={asideRef}
       aria-label={L("맥락 패널")}
-      className="relative flex flex-none items-start gap-1.5"
+      className="pointer-events-none absolute end-1.5 top-1.5 bottom-0 z-20 flex items-start gap-1.5"
     >
       {open && (
         <Card
@@ -195,7 +195,7 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
           aria-label={current.label}
           // 아이콘 쪽(위 오른쪽)에서 펼쳐지는 느낌: 그 모서리를 원점으로 커지며 나타난다.
           className={[
-            "absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex max-w-[calc(100vw-4.5rem)] flex-col outline-none shadow-3 origin-top-right animate-enter enter-scale",
+            "pointer-events-auto absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex max-w-[calc(100vw-4.5rem)] flex-col outline-none shadow-3 origin-top-right animate-enter enter-scale",
             fixedWidth ? "w-[352px]" : "",
           ].join(" ")}
           style={fixedWidth ? undefined : { width: wellWidth }}
@@ -258,7 +258,13 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
           </CardPanel>
         </Card>
       )}
-      <FloatingBar label={L("맥락 패널")} orientation="vertical" size="sm" shadow="2">
+      <FloatingBar
+        label={L("맥락 패널")}
+        orientation="vertical"
+        size="sm"
+        shadow="2"
+        className="pointer-events-auto"
+      >
         {barTabs.map((t) => (
           <FloatingBarItem
             key={t.id}

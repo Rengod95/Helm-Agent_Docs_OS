@@ -18,6 +18,8 @@ export const PAGE_PAD = "p-6";
 export const PAGE_PAD_GRID = "py-6";
 /** 페이지 머리와 첫 구역 사이 24. PageHead 아래(머리를 감싼 부모의 gap 또는 pb-6)에 쓴다. */
 export const PAGE_HEAD_GAP = "gap-6";
+/** 오른쪽 떠 있는 막대(RightPanel)는 stage 위에 absolute로 떠서 자리를 차지하지 않는다. 막대 아래에 오는 페이지 머리 줄의 오른쪽 동작이 가려지지 않도록 머리 줄만 이만큼(44px) 오른쪽 여백을 둔다. */
+export const BAR_INSET = "pe-11";
 /** 가운데 구역과 구역 사이 32. PageBody 기본값. */
 export const SECTION_GAP = "gap-8";
 /** 오른쪽 well 안 구역 사이 24. PageBody well. */
@@ -56,7 +58,7 @@ export function PageHead({ title, description, action, meta, className }: PageHe
       }
       description={description}
       action={action}
-      className={cn("items-center", className)}
+      className={cn("items-center", BAR_INSET, className)}
     />
   );
 }

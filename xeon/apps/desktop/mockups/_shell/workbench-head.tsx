@@ -8,6 +8,7 @@ import { Lock, PanelLeft } from "./icons";
 import { contextName } from "./start-panel";
 import { useShell } from "./state";
 import { L } from "./i18n";
+import { BAR_INSET } from "./page";
 import { T } from "./terms";
 
 /** 크래프트 가운데 읽기 폭. 표가 있어 대화(46rem)보다 넓다. 좌우 여백은 한 번만(DP-07). */
@@ -49,7 +50,7 @@ export function WorkbenchHead({
   };
   return (
     <header className={`${className} grid flex-none`}>
-      <div className="flex h-10 min-w-0 items-center gap-1">
+      <div className={`flex h-10 min-w-0 items-center gap-1 ${BAR_INSET}`}>
         {!m.startOpen && (
           <IconButton
             size="sm"

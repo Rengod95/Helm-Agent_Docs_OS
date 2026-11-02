@@ -138,7 +138,7 @@ export function Shell({
           />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="relative flex min-h-0 flex-1 gap-1.5 p-1.5 pb-0">
+          <div className="relative flex min-h-0 flex-1 p-1.5 pb-0">
             <main
               id={STAGE_ID}
               tabIndex={-1}

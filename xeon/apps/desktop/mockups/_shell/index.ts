@@ -50,6 +50,7 @@ export {
   type LineGridSelection,
 } from "./line-grid";
 export {
+  BAR_INSET,
   HEAD_GAP,
   ITEM_GAP,
   PAGE_HEAD_GAP,

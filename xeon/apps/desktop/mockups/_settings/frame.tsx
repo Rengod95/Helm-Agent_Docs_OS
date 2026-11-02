@@ -16,6 +16,7 @@ import {
 } from "@caustic/react";
 import { useEffect, useRef, type ReactNode } from "react";
 import {
+  BAR_INSET,
   defaultStatusCells,
   PanelLeft,
   Search,
@@ -175,7 +176,7 @@ export function SettingsFrame({
           <TabColumn tab={tab} onTabSelect={onTabSelect} query={query} tabCounts={tabCounts} />
         )}
         <div className="flex min-w-0 flex-1 flex-col @container">
-          <header className="flex h-10 flex-none items-center gap-2">
+          <header className={`flex h-10 flex-none items-center gap-2 ${BAR_INSET}`}>
             {compact && (
               <>
                 {!m.startOpen && (
