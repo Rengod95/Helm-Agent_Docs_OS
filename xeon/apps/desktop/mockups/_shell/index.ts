@@ -24,6 +24,26 @@ export { NoticeList } from "./parts/notice-list";
 export { ShellToaster } from "./parts/shell-toaster";
 export { QuestionCard, type QuestionCardProps } from "./parts/question-card";
 export { ToolApprovalCard, type Decision, type ToolApprovalCardProps } from "./parts/tool-approval";
+export {
+  LineGrid,
+  LineGridBlock,
+  LineGridCell,
+  LineGridEmpty,
+  LineGridMark,
+  LineGridMetric,
+  type LineGridBlockProps,
+  type LineGridCellData,
+  type LineGridCellProps,
+  type LineGridColumn,
+  type LineGridDot,
+  type LineGridEmptyProps,
+  type LineGridItem,
+  type LineGridMarkProps,
+  type LineGridMetricProps,
+  type LineGridProps,
+  type LineGridRow,
+  type LineGridSelection,
+} from "./line-grid";
 export * from "./fixtures";
 export * from "./workbench-fixtures";
 export { T, josa, type TermKey } from "./terms";

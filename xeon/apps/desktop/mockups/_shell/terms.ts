@@ -272,7 +272,5 @@ export function josa(word: string, withFinal: string, withoutFinal: string): str
     if (withFinal === "으로" && "178".includes(ch)) return word + withoutFinal;
     return word + ("013678".includes(ch) ? withFinal : withoutFinal);
   }
-  const ch = word.charAt(word.length - 1);
-  if (ch >= "0" && ch <= "9") return word + ("013678".includes(ch) ? withFinal : withoutFinal);
   return word + withoutFinal;
 }
