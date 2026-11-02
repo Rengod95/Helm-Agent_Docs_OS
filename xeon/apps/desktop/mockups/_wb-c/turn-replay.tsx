@@ -35,9 +35,9 @@ export function TurnReplayLocked({
           ? `이 ${T.turn}의 기록은 남아 있지 않아요`
           : `${josa(T.instrumentation, "이", "가")} 꺼져 있어 ${josa(T.turnReplay, "을", "를")} 쓸 수 없어요`}
       </span>
-      <span className="text-ui-xs text-text-tertiary">
-        {evicted ? "대화마다 최근 8턴만 남겨요" : "x.operations.trace.enabled"}
-      </span>
+      {!evicted && (
+        <span className="text-ui-xs text-text-tertiary">x.operations.trace.enabled</span>
+      )}
       {!evicted && onSettings !== undefined && (
         <Button size="xs" tone="neutral" variant="ghost" className="ms-auto" onClick={onSettings}>
           설정에서 켜기

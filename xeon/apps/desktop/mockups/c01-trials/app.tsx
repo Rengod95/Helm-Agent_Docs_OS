@@ -49,6 +49,7 @@ export const STATES = [
   { id: "new-starting", label: "새 테스트: 프로필 적용 중" },
   { id: "new-preview-fail", label: "실패: 프로필 미리 보기 실패" },
   { id: "trace-off", label: "계측 꺼짐: 턴 다시 보기 잠김" },
+  { id: "turn-evicted", label: "기록 없음: 버퍼 밖으로 밀려난 턴" },
   { id: "empty", label: "빈 목록" },
   { id: "web", label: "웹: 원격 호스트의 개발 모드" },
   { id: "narrow", label: "좁은 폭(390)" },
@@ -71,6 +72,7 @@ const AT: Record<StateId, { script: string; n: number }> = {
   "new-starting": { script: "trial-new", n: 3 },
   "new-preview-fail": { script: "trial-new-fail", n: 2 },
   "trace-off": { script: "trace-off", n: 1 },
+  "turn-evicted": { script: "turn-evicted", n: 1 },
   empty: { script: "base", n: 0 },
   web: { script: "web", n: 1 },
   narrow: { script: "base", n: 1 },
@@ -387,6 +389,7 @@ export function App({ state }: { state: StateId }) {
           <TrialDetail
             run={run}
             traceOff={s.traceOff}
+            evicted={s.evictedRun === run.id}
             onPause={() => dispatch({ t: "pause" })}
             onStep={() => dispatch({ t: "stepOnce" })}
             onResume={() => dispatch({ t: "resume" })}

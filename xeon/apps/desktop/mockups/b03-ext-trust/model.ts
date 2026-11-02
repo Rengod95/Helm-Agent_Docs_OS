@@ -12,7 +12,7 @@ export interface PS {
   checked: number;
   web: boolean;
   /** 신뢰 확인(O-10) 대상 */
-  trust: null | "graph-lens" | "acme-notes";
+  trust: null | "graph-lens" | "acme-notes" | "web-clip";
   projectTrust: "allow" | "undecided";
   /** 업데이트 뒤 다시 묻기(O-10 차이 모드) */
   recheck: boolean;
@@ -67,6 +67,7 @@ export const STATES = [
   { id: "T1", label: "T1 신뢰 확인: 사용자 설치" },
   { id: "T2", label: "T2 신뢰 확인: 프로젝트 확장" },
   { id: "T3", label: "T3 신뢰 확인 취소 뒤" },
+  { id: "T4", label: "T4 신뢰 확인: 상한보다 낮은 요청" },
   { id: "U1", label: "U1 업데이트 뒤 다시 확인" },
   { id: "U2", label: "U2 다시 확인 거절 → 이전 버전" },
   { id: "R1", label: "R1 지우기 확인" },
@@ -84,6 +85,7 @@ export const PRESET: Record<StateId, Partial<PS>> = {
   T1: { trust: "graph-lens" },
   T2: { trust: "acme-notes", projectTrust: "undecided" },
   T3: { exts: withGraph("trust_undecided"), focus: "graph-lens" },
+  T4: { trust: "web-clip" },
   U1: { recheck: true },
   U2: { exts: setExt("taskflow", { update: undefined }), focus: "taskflow" },
   R1: { remove: "taskflow" },

@@ -25,6 +25,8 @@ export interface S {
   /** replay 다시 실행 진행(절단 수). null이면 돌지 않음 */
   rerun: number | null;
   traceOff: boolean;
+  /** 턴 기록이 버퍼 밖으로 밀려난 테스트 행 id(N-39, spec §6.22.5). 다른 행을 고르면 막대가 돌아온다 */
+  evictedRun: string | null;
   /** 토스트 한 번(id가 바뀌면 띄움) */
   note: {
     id: number;
@@ -78,6 +80,7 @@ export const init = (script: string): S => ({
   previewFail: false,
   rerun: null,
   traceOff: script === "trace-off",
+  evictedRun: script === "turn-evicted" ? "r2" : null,
   note: null,
 });
 
@@ -270,5 +273,7 @@ export const SCRIPTS: Record<string, readonly A[]> = {
   past: [sel("r5")],
   dev: [sel("r5"), { t: "openDev" }, { t: "checkDev" }, { t: "devOk" }],
   "trace-off": [sel("r1")],
+  // 끝난 지 오래된 테스트: 대화마다 남기는 턴 수를 넘어 이 턴의 기록이 밀려남(N-39)
+  "turn-evicted": [sel("r2")],
   web: [sel("r5")],
 };

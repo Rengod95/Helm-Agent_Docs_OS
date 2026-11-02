@@ -79,6 +79,7 @@ function Band({
 export function TrialDetail({
   run,
   traceOff,
+  evicted,
   onPause,
   onStep,
   onResume,
@@ -86,6 +87,8 @@ export function TrialDetail({
 }: {
   run: Run;
   traceOff: boolean;
+  /** 이 테스트의 턴 기록이 버퍼 밖으로 밀려났다(N-39). */
+  evicted: boolean;
   onPause: () => void;
   onStep: () => void;
   onResume: () => void;
@@ -220,6 +223,8 @@ export function TrialDetail({
           <SectionTitle end={`${T.turn} 2 · 대화마다 최근 8${T.turn}`}>{T.turnReplay}</SectionTitle>
           {traceOff ? (
             <TurnReplayLocked onSettings={onTraceSettings} />
+          ) : evicted ? (
+            <TurnReplayLocked evicted />
           ) : (
             <TurnReplayBar ticks={ticks} turn={2} />
           )}

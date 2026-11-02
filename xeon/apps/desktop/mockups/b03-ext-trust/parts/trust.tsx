@@ -22,8 +22,15 @@ import {
   Trash2,
   TriangleAlert,
 } from "../../_shell";
-import { removal, taskflowDiff, type Manifest } from "../data";
+import { removal, taskflowDiff, type Manifest, type Trust } from "../data";
 import { ExtLabel, LD, opName, trustName } from "./bits";
+
+const RANK: Record<Trust, number> = { project: 0, user: 1, builtin: 2 };
+
+/** 실제 신뢰 수준 = min(위치 상한, 요청). X.loading-trust §4.6.1. */
+function effectiveTrust(m: Manifest): Trust {
+  return RANK[m.requested] < RANK[m.ceiling] ? m.requested : m.ceiling;
+}
 
 function Foot({
   cancel,
@@ -114,7 +121,7 @@ export function TrustDialog({
           <span className="font-mono text-mono-sm text-text-tertiary">{m.dest}</span>
         </ListDescriptionRow>
         <ListDescriptionRow term={T.trustEffective}>
-          <span className="font-medium">{trustName[m.ceiling]}</span>
+          <span className="font-medium">{trustName[effectiveTrust(m)]}</span>
         </ListDescriptionRow>
         <ListDescriptionRow term="쓰는 연산">
           <span className="inline-flex flex-wrap gap-x-3 gap-y-0.5">

@@ -19,7 +19,7 @@ import {
   workbenchRightTabs,
 } from "../_shell";
 import { useFlow } from "../b01-plugin-frame/flow";
-import { acmeManifest, CHECKS, EXTS, graphLens } from "./data";
+import { acmeManifest, CHECKS, EXTS, graphLens, webClipManifest } from "./data";
 import {
   BASE,
   FLOWS,
@@ -111,6 +111,8 @@ export function App({ state }: { state: StateId }) {
   };
   const ext = (name: string) => s.exts.find((e) => e.name === name) ?? EXTS[0];
   const removing = s.remove === null ? undefined : ext(s.remove);
+  const trustTarget =
+    s.trust === "web-clip" ? webClipManifest : s.trust === "acme-notes" ? acmeManifest : graphLens;
 
   const total = s.exts.length;
   const on = s.exts.filter((e) => e.state === "on").length;
@@ -208,7 +210,7 @@ export function App({ state }: { state: StateId }) {
       )}
       {s.trust !== null && (
         <TrustDialog
-          m={s.trust === "graph-lens" ? graphLens : acmeManifest}
+          m={trustTarget}
           projectTrust={s.projectTrust}
           onTrustFolder={() => {
             set({ projectTrust: "allow" });
@@ -221,7 +223,7 @@ export function App({ state }: { state: StateId }) {
             if (s.trust === "graph-lens") enableGraph();
             else {
               set({ trust: null });
-              toast({ title: "Acme 노트를 켰어요" });
+              toast({ title: `${josa(trustTarget.display, "을", "를")} 켰어요` });
             }
           }}
           onCancel={cancelTrust}
