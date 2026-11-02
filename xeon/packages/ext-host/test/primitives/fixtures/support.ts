@@ -3,6 +3,7 @@ import { Type } from "typebox";
 import type {
   ExtensionLayer,
   ExtensionManifest,
+  ExtMethodDecl,
   GroupDecl,
   HookName,
   PluginDecl,
@@ -79,6 +80,8 @@ export interface ManifestInput {
   readonly readsRecordKinds?: PluginDecl["readsRecordKinds"];
   /** 루트 뒤에 붙는 플러그인 선언. 각각 `id`가 있어야 한다 */
   readonly extraPlugins?: readonly PluginDecl[];
+  /** 확장 수준 메서드 선언(F.extensions.spec §3.1.1). 처리기 등록(`registerMethod`)은 이 목록의 동사만 받는다 */
+  readonly methods?: ExtMethodDecl[];
 }
 
 /** validateManifest를 통과하는 최소 매니페스트(스키마 2). 루트 플러그인 하나와 `extraPlugins` */
@@ -102,6 +105,7 @@ export function makeManifest(input: ManifestInput): ExtensionManifest {
     plugins: [root, ...(input.extraPlugins ?? [])],
     ...(input.defaultEnabled === undefined ? {} : { defaultEnabled: input.defaultEnabled }),
     ...(input.group === undefined ? {} : { group: input.group }),
+    ...(input.methods === undefined ? {} : { methods: input.methods }),
   };
 }
 

@@ -2990,7 +2990,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 |---|---|---|---|
 | X-1 | 매니페스트 `views` 필드(화면마다 `mode`: `declarative`·`frame`), `ViewContribution`, `FrameDecl`, 화면 트리 `ViewNode`, `ExtMethodDecl`, 다리 메시지 스키마 | `F.extensions.spec`(ADR-0021 §3.3, §3.4.2) | 없음 |
 | X-2 | 확장 wire 메서드 열기(`ext.<id>.<verb>` 확정, params·result 스키마 검사) | `F.wire-settings.spec` §4.2 | [제안] 상태 |
-| X-3 | 확장 메서드 등록 API `hostOf(g).registerMethod`, `g.registerMethod` | `X.primitives.spec`, `L3.group-sdk.spec` | 없음 |
+| X-3 | 확장 메서드 등록 API `hostOf(g).registerMethod`, `g.registerMethod` | `X.primitives.spec`, `L3.group-sdk.spec` | M4 T-XV에서 닫음(`X.primitives.spec` §3.8, §3.9.2, §4.12): `hostOf(g).registerMethod`와 `ExtHost.methods`(목록, 호출, 결과 검사, `onMethodSettled`). `g.registerMethod`(L3 group-sdk)와 wire 디스패치 `ext.<id>.<verb>`는 조립 루트에 남는다 [미결] |
 | X-4 | 손으로 다시 켤 때 장부 비우기(`/group on`과 설정 토글이 `reenable`을 부름) | `X.operations.spec` §4.3.5, `L3.group-sdk.spec` §3.9 | `/group on`은 scope만 켬. 다시 꺼지지 않는 상태가 남음(코드 결함, `operations/auto-disable.ts`의 `reenable`은 시험만 부름) |
 | X-5 | 예산 등급 `view`와 확장 메서드 실패의 장부 반영 | `X.operations.spec` §3.2, §4.3 | 없음 |
 | X-6 | 핸들러 시간 기록(훅별 분포) | `X.operations.spec` §4.2.6 | 1초 넘는 훅 진단만 [제안]. 지금 핸들러 시간은 어디에도 기록되지 않음(코드 결함, X-15가 원천) |

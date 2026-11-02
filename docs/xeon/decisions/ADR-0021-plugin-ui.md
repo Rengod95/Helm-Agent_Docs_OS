@@ -304,7 +304,7 @@ interface ExtMethodDecl {
 
 1. [미결] Tauri iframe의 IPC 노출과 전용 URI 스킴 등록을 macOS·Linux에서 e2e로 확인하는 일. 확인 전에는 `x.views.frames`를 끈 빌드로 냅니다. 확인 시험은 `review.m4-plan` 트랙 T-VIEW의 끝 시험입니다.
 2. [결정: 2026-11-02 M4 T-F] 매니페스트 `ui`(옛 `views`), `UiContribution`, `AppDecl`(옛 `FrameDecl`), `UiNode`(옛 `ViewNode`), `ExtMethodDecl`(확장 수준 `methods`), 다리 메시지 스키마의 정본은 `F.extensions.spec` §3.1.1(`extensions/ui.ts`, `extensions/ext-method.ts`)입니다. 위젯 카탈로그 이름 목록은 F에 두지 않고 렌더러(`packages/client`)가 정합니다. F는 `type`의 문법만 봅니다. 이 문서 본문의 `views`, `frame`, `slot` 같은 옛 이름은 ADR-0022 §3.6 표가 새 이름을 정합니다.
-3. [미결] 확장 wire 메서드 열기(`F.wire-settings.spec` §4.2 [제안] 확정), `ext.view.post`·`ext.view.requestApproval`, 확장 메서드 등록 API(`hostOf(g).registerMethod`, `g.registerMethod`).
+3. [미결] 확장 wire 메서드 열기(`F.wire-settings.spec` §4.2 [제안] 확정), `ext.view.post`·`ext.view.requestApproval`, `g.registerMethod`(L3). 확장 메서드 등록 API `hostOf(g).registerMethod`는 [결정: 2026-11-02 M4 T-XV] 정했고 구현했다(X.primitives.spec §3.8, §3.9.2, §4.12). wire 디스패치 `ext.<확장>.<동사>`의 연결은 조립 루트에 남는다.
 4. [미결] `X.operations.spec` 예산 등급 `view`(기본 5,000ms)와 확장 메서드 실패의 장부 반영.
 5. [미결] Helm의 `ext.helm.status`, `ext.helm.inquiries`, `ext.helm.findings`와 화면 기여(`L3.helm.spec`).
 6. [미결] `architecture.security.spec` §4 T-16~T-18 행과 확장 메서드 결과의 마스킹 위치.

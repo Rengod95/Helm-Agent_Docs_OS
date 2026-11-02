@@ -9,6 +9,7 @@ import {
 import type { CapabilityDefLookup } from "../capability-guard.ts";
 import type { DispatchPolicy } from "../dispatch-types.ts";
 import { SessionBranchPortKey } from "../event-query.ts";
+import type { ExtMethodSettled } from "../ext-method.ts";
 import type { ResourcePolicy } from "../resources.ts";
 import type { ExtDiagnostic } from "../errors.ts";
 import { createExtHost, hostInternalsOf, type ExtHost } from "../host.ts";
@@ -42,6 +43,8 @@ export interface TestHostOptions {
   readonly loop?: MemoryLoopOptions;
   /** 기능 정의 조회(`ExtHostDeps.capabilityDefs`) */
   readonly capabilityDefs?: CapabilityDefLookup;
+  /** 확장 메서드 처리기 호출의 보고(`ExtHostDeps.onMethodSettled`) */
+  readonly onMethodSettled?: (info: ExtMethodSettled) => void;
   /** 다른 호스트와 나눠 쓸 대역. 프로세스 재시작을 흉내 낼 때 같은 저장소를 새 호스트에 넘긴다 */
   readonly shared?: {
     readonly loop?: MemoryLoopPort;
@@ -118,6 +121,7 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     },
     strict: options.strict ?? true,
     ...(options.capabilityDefs === undefined ? {} : { capabilityDefs: options.capabilityDefs }),
+    ...(options.onMethodSettled === undefined ? {} : { onMethodSettled: options.onMethodSettled }),
   });
   const without = new Set(options.without ?? []);
   await host.registerPlatform({

@@ -98,3 +98,13 @@ export {
 export {} from "./state.ts";
 export {} from "./lease.ts";
 export type {} from "./core.ts";
+export {
+  type ExtMethodCallContext,
+  type ExtMethodCallInput,
+  type ExtMethodInfo,
+  type ExtMethodIssue,
+  type ExtMethodOutcome,
+  type ExtMethodResourceDef,
+  type ExtMethodSettled,
+  type ExtMethods,
+} from "./ext-method.ts";

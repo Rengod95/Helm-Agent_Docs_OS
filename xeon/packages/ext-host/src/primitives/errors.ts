@@ -40,7 +40,8 @@ export type PrimitiveErrorCode =
   | "service_reserved"
   | "tool_risk_reserved"
   | "resource_conflict"
-  | "resource_name_invalid";
+  | "resource_name_invalid"
+  | "method_schema_invalid";
 
 export interface PrimitiveErrorOptions {
   readonly scopeId?: RegistrationId;

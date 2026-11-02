@@ -120,6 +120,7 @@ xeon/packages/ext-host/
 | P-36 | 수명주기 훅 디스패치(`lifecycle.ts`, `fresnel.session` 피드, 소유 Registration 거르기), 이벤트 버스 제거 (M3-REQ-26·102·108) | P-06 | M | M3a |
 | P-37 | 도구 `execute`·명령 처리기의 ambient(디스패치 키는 도구 호출 id·명령 호출 id), 기능 래퍼의 재실행 검사 제외 (M3-REQ-102) | P-13, P-24 | S | M3a |
 | P-31 | 포트 재export 확인: `primitives/ports.ts`·`resources.ts`, loading-trust의 로더 포트, operations의 훅 포트에 자기 정의가 없고 모두 F `ports.ts` 이름을 다시 export하는지(spec §3.6, §3.9, [결정: review.decisions-2 U-14, D-04]), `src/index.ts` 공개 이름이 spec §3.1 표와 같은지 타입 테스트로 확인 | P-02, P-30, F.extensions.plan E10 | S | M1 |
+| P-38 | `primitives/ext-method.ts`(확장 메서드 표 `ExtMethods`: 목록, 호출의 기록 찾기·꺼짐 판정·매개변수와 결과 검사(`typebox/schema`)·처리기 신호 합치기·결과 분류·`onMethodSettled`), `hostOf(g).registerMethod`(매니페스트 `methods` 대조, 검사기 컴파일), `resources.ts`의 `ext_method` 종류, `ExtHost.methods`. 시간 예산은 뺀다 (X.primitives.spec §4.12, M4 T-XV) | P-24, P-37, F.extensions.spec §3.1.1 | M | M4 |
 
 순서 요약: P-01 → P-02 → (P-03, P-04, P-05, P-07 병렬) → P-06 → P-08 → P-09 → P-12 → P-10 → P-11 → P-13 → P-29 → P-14 → P-20 (M0 끝) → P-15~P-19, P-21, P-30 (M1) → P-22~P-28 (M2 이후).
 
@@ -259,3 +260,9 @@ xeon/packages/ext-host/
 | P-35 | 완료 | `lease.ts` 대기 계수·`lease.rejected`, 시험 `lifecycle.test.ts`. 설정 `x.primitives.leaseWaitLimit` |
 | P-36 | 완료 | `lifecycle.ts`, `event-bus.ts` 삭제, 시험 `lifecycle.test.ts`·`event-isolation.test.ts` |
 | P-37 | 완료 | `host-api.ts`의 `registerTool`·`registerCommand`가 호출 ambient를 열고(`ambient.ts`의 `invocation`), `capability-guard.ts`가 그 문맥을 재실행으로 보지 않는다. `ToolResourceDef.execute`의 `ctx.toolCallId`, `CommandResourceDef.handler`의 `ctx.invocationId`. 시험 `direct-invocation.test.ts`. `onDispose`·단축키 처리기는 제외 |
+
+### M4 구현 현황 (T-XV)
+
+| 작업 | 상태 | 내용 |
+|---|---|---|
+| P-38 | 완료 | `ext-method.ts`, `resources.ts`의 `ext_method`, `host-api.ts`의 `registerMethod`, `host.ts`의 `ExtHost.methods`·`onMethodSettled`. 시험 `ext-method.test.ts`. 시간 예산(`budgetMsOf`)과 wire 디스패치·L4 처리는 다음 작업 [미결] |

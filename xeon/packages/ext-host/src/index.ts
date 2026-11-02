@@ -86,6 +86,15 @@ export {
   type ToolResourceDef,
   type ToolsPort,
   webProviderRegistrationOf,
+  // primitives §3.8, §3.9.2, §4.12 (확장 메서드)
+  type ExtMethodCallContext,
+  type ExtMethodCallInput,
+  type ExtMethodInfo,
+  type ExtMethodIssue,
+  type ExtMethodOutcome,
+  type ExtMethodResourceDef,
+  type ExtMethodSettled,
+  type ExtMethods,
   // primitives §3.9, §3.10, §6
   type RegistrationInfo,
   PrimitiveError,

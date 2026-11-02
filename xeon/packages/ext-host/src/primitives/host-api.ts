@@ -44,6 +44,11 @@ import type { PostQueue } from "./post.ts";
 import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
 import { ambient, withAmbient, type Ambient } from "./ambient.ts";
+import {
+  methodEntryOf,
+  type ExtMethodCallContext,
+  type ExtMethodResourceDef,
+} from "./ext-method.ts";
 import type {
   CommandResourceDef,
   FlagResourceDef,
@@ -133,6 +138,11 @@ export interface RegistrationHostApi<S = unknown> {
    */
   registerWebProvider(registration: WebProviderRegistration): void;
   /**
+   * 확장 메서드 등록(M4 T-XV, X.primitives.spec §4.12). 동사는 매니페스트 `methods`에 선언되어 있어야 하고 `EXT_VERB_PATTERN`을 따른다.
+   * 같은 확장 안의 같은 동사는 resource_conflict다. 처리기는 호출 id를 디스패치 키로 하는 ambient 안에서 돈다
+   */
+  registerMethod(verb: string, def: ExtMethodResourceDef): void;
+  /**
    * 사용자 응답(대화상자, 승인) 대기를 감싼다. 핸들러 안에서 부르면 wait 동안 핸들러 시간 예산 시계를 멈추고,
    * wait에는 핸들러의 취소 신호(예산 초과, 세션 종료로 abort)를 `options.signal`과 합쳐 넘긴다.
    * 핸들러 밖(drive 함수, setup)에서는 예산이 없으므로 그대로 실행한다(O-07, X.operations.spec §4.2.3)
@@ -154,11 +164,11 @@ const hostApis = new WeakMap<object, RegistrationHostApi<AnyState>>();
 const internals = new WeakMap<object, RegistrationInternals>();
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
-/** 도구 `execute`와 명령 처리기가 여는 ambient. 디스패치 키는 호출 id이고, 재실행 검사와 시간 예산은 받지 않는다 */
+/** 도구 `execute`, 명령 처리기, 확장 메서드 처리기가 여는 ambient. 디스패치 키는 호출 id이고, 재실행 검사와 시간 예산은 받지 않는다 */
 function directAmbient(
   scopeId: RegistrationId,
   threadId: ThreadId,
-  invocation: "tool" | "command",
+  invocation: "tool" | "command" | "method",
   id: string,
 ): Ambient {
   return {
@@ -543,6 +553,33 @@ export function createRegistrationApi(
     },
     registerWebProvider(registration: WebProviderRegistration): void {
       register("web_provider", registration.capability, registration);
+    },
+    registerMethod(verb: string, def: ExtMethodResourceDef): void {
+      // 동사는 매니페스트 methods에 선언되어 있어야 한다(F.extensions.spec §3.1.1). 선언이 없으면 등록이 거부된다
+      const declared = record.manifest.methods?.find((decl) => decl.verb === verb);
+      if (declared === undefined) {
+        throw new PrimitiveError(
+          "resource_name_invalid",
+          `method ${verb} is not declared in the methods of ${record.extension}`,
+          { scopeId: record.id },
+        );
+      }
+      // threadId가 없는 호출은 쓸 thread가 없으므로 ambient를 열지 않는다(명령과 같다)
+      const handler = (params: unknown, ctx: ExtMethodCallContext): Promise<unknown> =>
+        ctx.threadId === null
+          ? def.handler(params, ctx)
+          : withAmbient(directAmbient(record.id, ctx.threadId, "method", ctx.callId), () =>
+              def.handler(params, ctx),
+            );
+      const entry = methodEntryOf(declared, handler);
+      if (!entry.ok) {
+        throw new PrimitiveError(
+          "method_schema_invalid",
+          `method ${verb} of ${record.extension} has a ${entry.error.which} schema that cannot be compiled: ${entry.error.message}`,
+          { scopeId: record.id, cause: entry.error.cause },
+        );
+      }
+      register("ext_method", verb, entry.value);
     },
     awaitUser<T>(
       wait: (signal: AbortSignal) => Promise<T>,

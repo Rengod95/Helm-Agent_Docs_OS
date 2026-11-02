@@ -101,6 +101,7 @@ import type {
 | `hostOf`, `RegistrationHostApi`, `RegistrationCallContext`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
 | `RegistrationInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `CommandOutput`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스, 타입 | 이 문서 §3.9 |
 | `webProviderRegistrationOf` | 함수 | 이 문서 §3.9, §3.9.1 |
+| `ExtMethods`, `ExtMethodInfo`, `ExtMethodCallInput`, `ExtMethodOutcome`, `ExtMethodIssue`, `ExtMethodSettled`, `ExtMethodResourceDef`, `ExtMethodCallContext` | 인터페이스, 타입 | 이 문서 §3.9.2, §4.12 (`ExtMethods`는 `ExtHost.methods`) |
 | `ToolsPort`, `ModelsPort`, `McpPort`, `ToolsPortKey`, `ModelsPortKey`, `McpPortKey`, `ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef` | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.9) |
 | `PrimitiveError`, `PrimitiveErrorCode` | 클래스, 타입 | 이 문서 §3.10 |
 | `primitivesSettings`, `withDriveDefaults` | `defineSettings` 결과, 함수 | 이 문서 §6, §4.4.2 |
@@ -160,6 +161,8 @@ export interface ExtHostDeps {
   readonly capabilityDefs?: CapabilityDefLookup;
   /** 선언 없는 쓰기 요청 워커(§4.10). 없으면 X의 기본 워커 [제안] */
   readonly effectWorker?: EffectWorkerPort;
+  /** 확장 메서드 호출이 처리기에 닿았을 때 한 번 부른다(§4.12). 없으면 보고하지 않는다 [제안, M4 T-XV] */
+  readonly onMethodSettled?: (info: ExtMethodSettled) => void;
 }
 
 export interface PrimitivesSettingsSource {
@@ -275,6 +278,8 @@ export interface ExtHost {
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
   /** L4가 읽는 명령·키 조합·플래그·렌더러 표 */
   readonly resources: ResourceRegistry;
+  /** 확장 메서드 표와 호출(§3.9.2, §4.12). wire `ext.<확장>.<동사>`의 처리는 조립 루트(L4)가 이 함수로 넘긴다 [제안, M4 T-XV] */
+  readonly methods: ExtMethods;
   /**
    * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). 호스트용이고 확장 scope에는 열지 않는다.
    * 서비스 `fresnel.session`의 `readBranch`(`SessionBranchPortKey`)가 없으면 `port_unavailable`, 접두가 비면 `invalid_prefix`다
@@ -654,6 +659,8 @@ export interface RegistrationHostApi<S = unknown> {
   registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void;
   // 웹 provider 등록(M3-REQ-37). WebProviderRegistration은 @fresnel/contracts/capabilities가 정한다. 이름은 기능 ID다(§3.9.1)
   registerWebProvider(registration: WebProviderRegistration): void;
+  // 확장 메서드 등록(M4 T-XV, §4.12). 동사는 매니페스트 확장 수준 methods에 선언되어 있어야 한다. fiber effect로 추적된다
+  registerMethod(verb: string, def: ExtMethodResourceDef): void;
 }
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
@@ -681,7 +688,7 @@ export interface RegistrationInfo {
 }
 
 // primitives/resources.ts
-export type ResourceKind = "tool" | "command" | "shortcut" | "flag" | "provider" | "mcp_server" | "message_renderer" | "web_provider";
+export type ResourceKind = "tool" | "command" | "shortcut" | "flag" | "provider" | "mcp_server" | "message_renderer" | "web_provider" | "ext_method";
 
 export interface ResourceRecord {
   readonly kind: ResourceKind;
@@ -696,7 +703,7 @@ export interface ResourceRecord {
   readonly def: unknown;              // kind별 *ResourceDef
 }
 
-/** L4가 읽는다. command, shortcut, flag, message_renderer, web_provider는 X가 보관하고, 나머지는 포트로 넘긴 기록만 보관한다 */
+/** L4가 읽는다. command, shortcut, flag, message_renderer, web_provider, ext_method는 X가 보관하고, 나머지는 포트로 넘긴 기록만 보관한다 */
 export interface ResourceRegistry {
   list(kind?: ResourceKind): readonly ResourceRecord[];
   subscribe(listener: (change: { readonly type: "added" | "removed"; readonly record: ResourceRecord }) => void): Unsubscribe;
@@ -776,6 +783,68 @@ export function webProviderRegistrationOf(record: ResourceRecord): WebProviderRe
 - 헤더 시크릿(`manifest.auth.secrets`)은 X가 다루지 않습니다. 값을 헤더에 넣는 치환은 `GuardedHttp`가 전송 직전에 하며, 이 일은 cap-web과 L0 `fresnel.secrets`가 맡습니다. 등록 값은 기능 ID와 `create`뿐이고 시크릿 값을 담지 않습니다.
 - `create`가 돌려주는 객체(`WebSearchProvider`, `WebFetchProvider`, `WebBrowseProvider`)의 모양은 X가 실행 때 검사하지 않습니다. 이 타입은 `@fresnel/contracts/capabilities`가 정하고, 소비자가 그 타입으로 씁니다.
 
+#### 3.9.2 확장 메서드 (`ext-method.ts`) [제안, M4 T-XV]
+
+```ts
+// primitives/ext-method.ts
+/** 처리기가 받는 호출 맥락. threadId는 호출이 thread에 묶였을 때만 있다 */
+export interface ExtMethodCallContext {
+  readonly threadId: ThreadId | null;
+  /** 호출 하나의 id. threadId가 있으면 디스패치 키 `method:<callId>`가 된다. 생략된 호출은 X가 만든다 */
+  readonly callId: string;
+  /** 호출한 쪽이 취소하거나 scope 세대가 닫히면 abort된다 */
+  readonly signal: AbortSignal;
+  readonly caller: "wire" | "ui";
+}
+/** `hostOf(g).registerMethod(verb, def)`의 정의. 동사는 인자로 준다 */
+export interface ExtMethodResourceDef {
+  handler(params: unknown, ctx: ExtMethodCallContext): Promise<unknown>;
+}
+/** 검사 문제 하나. `path`는 JSON Pointer이고 루트는 `""`다 */
+export interface ExtMethodIssue { readonly path: string; readonly message: string }
+export interface ExtMethodInfo {
+  readonly extension: ExtensionName;
+  readonly verb: string;
+  readonly decl: ExtMethodDecl;       // 매니페스트 methods의 항목(F.extensions.spec §3.1.1)
+  readonly scopeId: RegistrationId;
+}
+export interface ExtMethodCallInput {
+  readonly extension: ExtensionName;
+  readonly verb: string;
+  readonly params: unknown;
+  readonly threadId: ThreadId | null;
+  readonly signal: AbortSignal;
+  readonly caller: "wire" | "ui";
+  readonly callId?: string;           // 생략하면 X가 새 id를 만든다
+}
+/** 호출 결과. 예상할 수 있는 실패는 값이다(던지지 않는다) */
+export type ExtMethodOutcome =
+  | { readonly kind: "ok"; readonly value: unknown }
+  | { readonly kind: "not_found" }
+  | { readonly kind: "extension_off" }
+  | { readonly kind: "params_invalid"; readonly issues: readonly ExtMethodIssue[] }
+  | { readonly kind: "result_invalid"; readonly issues: readonly ExtMethodIssue[] }
+  | { readonly kind: "threw"; readonly message: string }   // Error의 메시지나 문자열 앞 500자. 스택은 싣지 않는다
+  | { readonly kind: "aborted" };
+/** `ExtHostDeps.onMethodSettled`의 인자. 처리기에 닿은 호출마다 한 번 */
+export interface ExtMethodSettled {
+  readonly extension: ExtensionName;
+  readonly scopeId: RegistrationId;
+  readonly verb: string;
+  readonly outcome: "ok" | "params_invalid" | "result_invalid" | "threw" | "aborted";
+  /** 처리기가 활성인 시간(ms). params_invalid는 0이다 */
+  readonly activeMs: number;
+}
+export interface ExtMethods {
+  /** 지금 등록된 확장 메서드(꺼진 scope의 것은 없다) */
+  list(): readonly ExtMethodInfo[];
+  call(input: ExtMethodCallInput): Promise<ExtMethodOutcome>;
+}
+```
+
+- 확장 메서드의 등록과 호출 규칙은 §4.12다. 등록 값(`ExtMethodResourceDef`)은 리소스 기록의 `def`가 되고, 검사기 캐시는 그 기록과 함께 해제된다.
+- 시간 예산(`budgetMsOf`)과 `wire`·`ui` 호출자의 승인 처리는 이 문서 밖이다. 다음 작업(X.operations, L4)이 붙인다 [미결].
+
 ### 3.10 오류
 
 ```ts
@@ -793,7 +862,7 @@ export type PrimitiveErrorCode =
   | "storage_unavailable"
   | "record_kind_undeclared" | "record_invalid" | "read_kind_undeclared" | "record_private_invalid"
   | "capability_undeclared" | "capability_unavailable" | "capability_ambiguous"
-  | "service_reserved" | "tool_risk_reserved" | "resource_conflict" | "resource_name_invalid";
+  | "service_reserved" | "tool_risk_reserved" | "resource_conflict" | "resource_name_invalid" | "method_schema_invalid";
 
 export class PrimitiveError extends Error {
   readonly code: PrimitiveErrorCode;
@@ -1344,9 +1413,9 @@ recordPrivate(kind, payload):
 [제안: M3-REQ-78] `registerTool`은 정의의 `risk`와 `hints`를 `ToolsPort`로 그대로 넘긴다. 승인 요구를 낮추는 선언(`risk`가 `read`·`write`이거나 `hints.readOnly`가 참)은 builtin 확장만 낼 수 있다. 그 밖의 확장이 내면 `registerTool`이 `tool_risk_reserved`로 던지고 등록은 일어나지 않는다. 사용자·프로젝트 확장 도구는 선언 없이(`exec`) 등록되어 승인 정책을 그대로 받는다.
 
 - thread: 도구는 `ctx.threadId`(도구가 실행된 대화)이고 명령은 `ctx.threadId`다. 위임 자식 대화에서 실행된 도구는 그 자식 대화에 쓴다(REQ-LN-04). 부모 대화에는 쓰지 않는다. thread가 열려 있지 않으면 `no_thread`다. 명령의 `ctx.threadId`가 `null`이면 ambient를 열지 않고 `no_thread`다.
-- 디스패치 키: 도구는 `tool:<toolCallId>`, 명령은 `command:<invocationId>`다. `toolCallId`는 `ToolResourceDef.execute`의 `ctx.toolCallId`(F.extensions.spec §3.2.1), `invocationId`는 `CommandResourceDef.handler`의 `ctx.invocationId`이고 L4가 명령 호출마다 정한다. 카운터는 호출마다 0에서 시작하므로 멱등 키는 §4.6.1, §4.6.4, §4.6.5와 같은 모양(`rec:<scope 해시>:<디스패치 키>:<n>`, 상태는 `st:`)이다. 같은 호출 id로 다시 실행하면 같은 키를 받아 저장소 결과가 `replayed`이고 효과는 한 번만 남는다. 호출 id가 다르면 새 효과다. 도구와 명령의 키 접두가 달라 같은 문자열의 id끼리 겹치지 않는다.
+- 디스패치 키: 도구는 `tool:<toolCallId>`, 명령은 `command:<invocationId>`, 확장 메서드는 `method:<callId>`다(§4.12). `toolCallId`는 `ToolResourceDef.execute`의 `ctx.toolCallId`(F.extensions.spec §3.2.1), `invocationId`는 `CommandResourceDef.handler`의 `ctx.invocationId`이고 L4가 명령 호출마다 정한다. 카운터는 호출마다 0에서 시작하므로 멱등 키는 §4.6.1, §4.6.4, §4.6.5와 같은 모양(`rec:<scope 해시>:<디스패치 키>:<n>`, 상태는 `st:`)이다. 같은 호출 id로 다시 실행하면 같은 키를 받아 저장소 결과가 `replayed`이고 효과는 한 번만 남는다. 호출 id가 다르면 새 효과다. 도구와 명령의 키 접두가 달라 같은 문자열의 id끼리 겹치지 않는다.
 - drive 재호출: 두 호출이 상태 판을 올리면(`commit`, `updateState`) X는 호출이 반환한 뒤 그 scope의 drive를 한 번 예약한다. drive 락이 있고 thread가 유휴일 때다. turn이 도는 중이면 다음 `turn_settled` 경계가 부른다(§4.4.3). 그래서 사용자가 입력을 더 보내지 않아도 명령이 바꾼 상태로 drive가 이어진다.
-- 재실행 검사 제외: 두 호출은 재실행되는 코드가 아니다(ADR-0015 §3.1 1번). ambient에 `invocation`(`"tool"` 또는 `"command"`)을 두어 기능 래퍼(§4.4.7)가 on 핸들러로 보지 않게 한다. `callContext()`는 계속 `undefined`다.
+- 재실행 검사 제외: 두 호출은 재실행되는 코드가 아니다(ADR-0015 §3.1 1번). ambient에 `invocation`(`"tool"`, `"command"`, `"method"`)을 두어 기능 래퍼(§4.4.7)가 on 핸들러로 보지 않게 한다. `callContext()`는 계속 `undefined`다.
 - 시간 예산과 취소: 두 호출은 핸들러 시간 예산(`handler`)이 없다. 도구와 명령 처리기의 취소는 `ctx.signal`이 알린다. 명령의 `ctx.signal`은 호출한 쪽이 넘긴 신호 객체 그대로이고, 호출한 쪽이 취소하면 abort된다. `g.awaitUser`는 scope 세대 신호를 쓴다.
 - 출력: 명령 처리기가 돌려준 값(`CommandOutput`, 또는 `void`)은 `registerCommand`가 감싼 정의를 거쳐 호출한 쪽에 그대로 간다. X는 메시지를 만들거나 바꾸지 않는다. 화면에 낼지는 호출한 쪽(L4)이 정한다.
 - 도구 `execute`의 `ctx.caller`(`CallerInfo`)는 L1.tools가 채운다. `caller.afterUntrusted`는 이번 turn이 웹·MCP 도구 결과를 읽었는지다(M3-REQ-100, L1.tools.spec §4.3). X는 값을 건드리지 않고 정의에 그대로 넘긴다.
@@ -1411,6 +1480,7 @@ recordPrivate(kind, payload):
 6. 이름 형식: 1~64자, 공백·제어 문자 없음. 도구는 `TOOL_NAME_WIRE_PATTERN`(`^[a-zA-Z0-9_-]{1,64}$`)을 따른다. 어기면 `resource_name_invalid`다. 정식 이름이 64자를 넘는 외부 도구는 `exposeAll`의 `too_long`으로 `resource_name_invalid`이다.
 7. 플래그 값: `ResourceRegistry.setFlag(exposed, value)`로 L4가 넘긴 값을 `hostOf(g).getFlag(name)`이 돌려준다. 값이 없으면 선언의 `default`, 선언도 없으면 `undefined`다. 값의 타입이 선언한 `type`과 다르면 `type_mismatch`, 등록되지 않은 노출 이름이면 `unknown_flag`다. 플래그가 해제되면 값도 지운다.
 8. 세대가 닫히면(scope를 끄거나 공급자 재시작으로 세대를 다시 만들 때) 그 세대가 등록한 리소스는 모두 해제된다. 새 세대의 setup이 다시 등록한다.
+9. [제안, M4 T-XV] 확장 메서드(`ext_method`)는 포트 없이 X가 보관하고, 이름 정책을 거치지 않는다. 같은 확장 안에서 동사가 유일하다. 규칙과 호출 절차는 §4.12다.
 
 ### 4.9 그룹 간 이벤트 이름 격리
 
@@ -1453,6 +1523,27 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - 페이로드는 F 스키마로 검사한다. 어기면 진단을 남기고 건너뛴다.
 - [제안] 소유 scope 거르기: `agent.settled.owner`가 `scope` 또는 `drive`이면 그 `scopeId`의 핸들러만 받는다(`DispatchOptions.onlyScope`). F.extensions.spec 훅 45행이 "소유 scope 거르기는 X"라고만 적었다. `owner`가 `tool`이거나 없으면(옛 기록) 거르지 않고 모든 구독자가 받는다 [미결: 옛 기록의 `agent.spawned.owner` 대조는 하지 않는다].
 - 시험: `lifecycle.test.ts`가 커밋 전(prepare, 저장소 커밋 직후 settle 전)에는 발화하지 않고 settle(committed)에서 한 번 발화함, 커밋 실패에서는 발화하지 않음, 피드로 온 `agent.settled`의 소유 scope 거르기와 중복 제거를 확인한다.
+
+### 4.12 확장 메서드 등록과 호출 [제안, M4 T-XV]
+
+[결정: 2026-10-31 사용자, ADR-0021 §3.4, F.wire-settings.spec §4.2] 확장이 더하는 wire 메서드 `ext.<확장>.<동사>`의 처리기를 `hostOf(g).registerMethod(verb, def)`가 등록한다. X는 메서드 표와 호출 절차만 맡는다. wire 디스패치와 L4 처리는 조립 루트가 `ExtHost.methods`로 잇는다. 매니페스트 `methods`의 정의는 F.extensions.spec §3.1.1이다.
+
+- 등록 검사(`registerMethod`는 던진다). 아래 순서로 본다. (1) 매니페스트 확장 수준 `methods`에 `verb`가 없으면 `resource_name_invalid`다. (2) `verb`가 `EXT_VERB_PATTERN`을 어기면 `resource_name_invalid`다. (3) `params`나 `result`를 `typebox/schema`로 컴파일할 수 없으면(예: 잘못된 정규식) `method_schema_invalid`다. 원인은 `cause`에 싣는다. (4) 같은 확장 안에 같은 동사가 이미 있으면(다른 Registration이어도) `resource_conflict`다.
+- 이름 정책(`ResourcePolicy`)은 거치지 않는다. 다른 확장의 같은 동사는 wire 이름이 달라 둘 다 남는다. 포트를 쓰지 않으므로 `port_unavailable`이 없다. 기록은 `ExtHost.resources`에 kind `ext_method`, 이름 `verb`로 남는다(§3.9).
+- 처리기는 `ambient`(`invocation: "method"`, 디스패치 키 `method:<callId>`, 재실행 검사 제외, 예산 없음)에서 돈다. `threadId`가 `null`이면 ambient를 열지 않는다(명령과 같다).
+- 등록은 fiber effect다. scope 세대가 닫히면 기록과 검사기가 함께 해제된다. 다시 켜면 setup이 다시 등록하면서 검사기를 새로 만든다.
+- `list()`는 지금 등록된 메서드를 `{ extension, verb, decl, scopeId }`로 돌려준다.
+- `call(input)`는 아래 순서로 보고, 판정이 나오면 그 값을 돌려준다. 처리기에 닿지 않은 결과(`not_found`, `extension_off`, 호출 전에 이미 abort된 `aborted`)는 보고하지 않는다.
+  1. 같은 확장과 동사의 기록이 없으면 `not_found`다. 다만 매니페스트가 그 동사를 선언했고 확장의 scope가 모두 꺼졌으면 `extension_off`다.
+  2. 기록의 scope 세대가 열려 있지 않거나(꺼지는 중, 꺼짐, 멈춤) `threadId`가 있을 때 그 thread에서 꺼져 있으면 `extension_off`다. `threadId`가 `null`이면 세대만 본다.
+  3. 호출 신호(`input.signal`)가 이미 abort되었으면 `aborted`다.
+  4. `params`를 `decl.params`로 검사한다. 어긋나면 처리기를 부르지 않고 `params_invalid`다(`issues`는 검사기가 돌려준 문제이고 `path`는 JSON Pointer다. X는 20개를 넘기지 않게 자르지만 typebox 기본 상한 8개가 먼저 걸리며, X는 typebox 전역 설정을 바꾸지 않는다). 보고는 `params_invalid`, `activeMs` 0이다.
+  5. 처리기를 부른다. `ctx.signal`은 호출 신호와 세대 신호를 합친 것이다. 처리기가 끝나기 전에 신호가 abort되면 처리기의 나중 결과는 버린다. 세대 신호가 abort되었으면(호출 신호와 같이 abort되었어도) `extension_off`, 아니면 `aborted`를 돌려준다. 보고는 `aborted`다.
+  6. 처리기가 던지면 `threw`다. 메시지는 Error의 메시지(문자열이면 그 값)의 앞 500자이고 스택은 싣지 않는다. 원인은 진단 `handler_failed`(warning, `cause`)로 남긴다. 보고는 `threw`다.
+  7. 결과는 JSON으로 옮길 수 있어야 한다. 순환, `undefined`, 함수, 기호, BigInt, 유한하지 않은 수, 일반 객체·배열이 아닌 값이 있으면 `result_invalid`다(`path`는 그 위치, 루트는 `""`). 그다음 `decl.result`로 검사해 어긋나면 `result_invalid`다(`issues`는 위 4번과 같다). 통과하면 `ok`다. 보고는 결과 종류와 같다.
+- `onMethodSettled`(§3.2)는 처리기에 닿은 호출마다 한 번 불린다. 구독자가 던지면 `report`로 남기고 호출 결과는 바꾸지 않는다. `callId`를 생략하면 X가 `crypto.randomUUID()`로 만든다. 재실행 기록의 멱등 키로 쓰려면 호출자가 준다.
+- 시간 예산은 이 절에 없다. 다음 작업이 붙인다 [미결](X.operations §4.2와 §3.9.2 끝).
+- 시험: `test/primitives/ext-method.test.ts`(§9 58~64).
 
 ## 5. 실패와 경계 사례
 
@@ -1637,6 +1728,13 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 55. (M3b) `ExtHost.queryEvents`는 활성 가지의 내구 이벤트를 kind 접두로 커밋 순서대로 돌려주고 `limit`을 지키며, 되감아 버린 가지의 이벤트와 접두 밖 이벤트는 돌려주지 않는다. 접두가 비면 `invalid_prefix`, 읽기 포트가 없으면 `port_unavailable`이다(§4.6.4).
 56. (M3b) `ExtHost.toolOwner(name)`이 도구를 등록한 scope의 `ResourceRecord`를 돌려주고 없는 이름은 undefined다(§4.6.4).
 57. (M3b) 저장 상태가 스키마를 어겨 켜지지 못한 scope에 `resetRegistrationState`를 부르면 상태가 `initial`의 새 판(rev+1)이 되고 `lastError`가 지워져 핸들러가 다시 돈다. 오류가 없으면 `not_refused`, 없는 scope·닫힌 thread는 `unknown_scope`·`thread_not_open`이다(§4.6.1).
+58. (M4, X-3) `hostOf(g).registerMethod`는 매니페스트 `methods`에 없는 동사와 `EXT_VERB_PATTERN`을 어긴 동사를 `resource_name_invalid`로, 같은 확장 안의 같은 동사를 `resource_conflict`로 거부한다. 다른 확장의 같은 동사는 둘 다 `list()`에 남는다. `params`나 `result` 스키마를 컴파일할 수 없으면 `method_schema_invalid`다(§4.12).
+59. (M4, X-3) 등록한 메서드를 `call`하면 처리기가 돌려준 값이 `{ kind: "ok", value }`로 나온다. `params`가 `decl.params`를 어기면 처리기를 부르지 않고 `params_invalid`이며, `issues`는 `path`와 `message`를 담고 typebox 기본 상한 8개를 넘지 않는다(§4.12).
+60. (M4, X-3) 처리기가 `decl.result`를 어긴 값이나 `undefined`를 돌려주면 `result_invalid`이고, 던지면 `threw`이며 메시지는 앞 500자다. `onMethodSettled`는 두 경우에 각각 `result_invalid`·`threw`로 한 번씩 불리고, 던진 원인은 `handler_failed` 진단으로 남는다.
+61. (M4, X-3) 같은 확장에 없는 동사는 `not_found`다. scope를 끄면 `list()`가 비고 `call`은 `extension_off`다. `not_found`와 `extension_off`는 `onMethodSettled`를 부르지 않는다.
+62. (M4, X-3) 호출 신호가 이미 abort되었으면 `aborted`이고 처리기를 부르지 않는다. 처리기가 도는 중에 호출 신호가 abort되면 처리기 결과를 기다리지 않고 `aborted`를 돌려주며, 그때 처리기의 `ctx.signal`은 abort된 상태다.
+63. (M4, X-3) scope를 끄고 다시 켜면 메서드가 `list()`에 다시 나타나고 검사기가 새로 만들어져 `params` 검사가 그대로 된다.
+64. (M4, X-3) thread가 열려 있으면 처리기는 `invocation: "method"`인 ambient 안에서 돌아 `hostOf(g).commit`이 `no_thread` 없이 동작한다. `threadId`가 `null`이면 처리기는 ambient 없이 돈다.
 - [미결] 기능 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 기능 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
 - [미결] drive 락 대기 상한의 단위와 기본값 8(§4.4.1 8번, §6). 경계 수 대신 시간으로 둘지.
