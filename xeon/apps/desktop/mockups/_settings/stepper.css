@@ -1,0 +1,6 @@
+/* − 값 + 숫자 칸(NumberField appearance="stepper")이 containerClassName 폭(w-28·w-32·w-36)을 채우게 한다.
+   caustic은 값 칸을 고정 폭(xs w-12, sm·md w-16, lg w-18)으로 두고 바깥 칸만 inline-flex라, 바깥 폭이 세 칸 합보다 크면 오른쪽 + 단추 뒤에 빈 자리가 남는다(sm: 32+64+32=128인데 w-36=144 → 16px).
+   caustic이 바꿀 것: 값 칸에 flex-grow:1을 주기(고정 폭은 기본 폭으로 남는다). 그때 이 파일을 지운다. */
+[data-slot="number-field"][data-appearance="stepper"] > [data-slot="number-field-control"] {
+  flex-grow: 1;
+}

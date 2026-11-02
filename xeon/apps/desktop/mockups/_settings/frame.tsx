@@ -27,6 +27,7 @@ import {
   type StatusCell,
   L,
 } from "../_shell";
+import "./stepper.css";
 import { TABS, tabLabel, type TabId } from "./tabs";
 
 export interface SettingsFrameProps {
