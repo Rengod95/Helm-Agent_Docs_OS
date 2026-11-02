@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -34,7 +42,7 @@ interface Fixture {
 async function start(userSettings: Readonly<Record<string, unknown>> = {}): Promise<Fixture> {
   const home = useEngineHome();
   writeUserSettings(home, userSettings);
-  const workspace = mkdtempSync(join(tmpdir(), "xh-ws-"));
+  const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-ws-")));
   const host = await startInProcessHost({ devChecks: true, defaultGroups: false });
   const connection = createHostConnection(host.client);
   await connection.request("host.hello", HELLO_PARAMS);

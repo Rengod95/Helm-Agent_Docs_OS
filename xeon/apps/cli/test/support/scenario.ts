@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Clock, Scheduler } from "@fresnel/contracts";
@@ -27,7 +27,7 @@ export interface ScenarioHome {
 }
 
 export function createScenarioHome(): ScenarioHome {
-  const root = mkdtempSync(join(tmpdir(), "xcli-scn-"));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "xcli-scn-")));
   chmodSync(root, 0o700);
   const config = join(root, "config");
   mkdirSync(config, { mode: 0o700 });

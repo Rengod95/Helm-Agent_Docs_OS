@@ -85,6 +85,7 @@ describe("selectProviders", () => {
         errnoSymbol: "__errno_location",
         wouldBlockErrno: 11,
       },
+      watchStartMs: 0,
     });
     expect(selectProviders({ ...base, platform: "darwin" })).toEqual({
       fsKind: "mount",
@@ -96,12 +97,14 @@ describe("selectProviders", () => {
         errnoSymbol: "__error",
         wouldBlockErrno: 35,
       },
+      watchStartMs: 50,
     });
     expect(selectProviders({ ...base, platform: "win32" })).toEqual({
       fsKind: "none",
       machineId: "hostname",
       fingerprint: "unsupported",
       fileLock: { kind: "process" },
+      watchStartMs: 0,
     });
   });
 

@@ -114,6 +114,11 @@ export interface OsProviders {
   readonly machineId: MachineIdSource;
   readonly fingerprint: FingerprintSource;
   readonly fileLock: FileLockSource;
+  /**
+   * `fs.watch`가 돌아온 뒤 변경 통지가 시작되기까지 기다릴 시간(ms). macOS의 FSEvents 스트림은 `fs.watch`가 돌아온 직후에
+   * 시작되지 않아 그 사이의 변경을 놓친다(L0.os.spec §3.8). 동기로 시작하는 inotify는 0이다
+   */
+  readonly watchStartMs: number;
 }
 
 /** 배포 환경이 provider를 덮어쓸 때 쓴다(조립 루트가 넘긴다). 비어 있으면 OS 기준으로 고른다 */
@@ -140,6 +145,7 @@ function baseProviders(platform: OsPlatform): OsProviders {
           errnoSymbol: "__error",
           wouldBlockErrno: 35,
         },
+        watchStartMs: 50,
       };
     case "linux":
       return {
@@ -152,6 +158,7 @@ function baseProviders(platform: OsPlatform): OsProviders {
           errnoSymbol: "__errno_location",
           wouldBlockErrno: 11,
         },
+        watchStartMs: 0,
       };
     case "win32":
       return {
@@ -159,6 +166,7 @@ function baseProviders(platform: OsPlatform): OsProviders {
         machineId: "hostname",
         fingerprint: "unsupported",
         fileLock: { kind: "process" },
+        watchStartMs: 0,
       };
     default:
       return assertNever(platform, "OsPlatform");

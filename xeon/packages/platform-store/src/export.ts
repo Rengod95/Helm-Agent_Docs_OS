@@ -231,11 +231,17 @@ function writeExport(
   }
 
   const sqlitePath = join(options.destDir, EXPORT_SQLITE_FILE);
-  const sqlite = createFile(sqlitePath, created);
-  if (!sqlite.ok) return fail(sqlite.error);
+  // VACUUM INTO는 없는 파일에만 쓴다. 0바이트 파일을 미리 만들어 두면 Apple의 시스템 SQLite(macOS)는 "output file already
+  // exists"로 거절한다(Linux의 번들 SQLite는 받아 준다). 그래서 미리 만들지 않고, 없음만 확인한 뒤 복사본이 생기면 0600으로 줄인다
+  const present = attemptIo(() => existsSync(sqlitePath));
+  if (!present.ok) return fail(present.error);
+  if (present.value) return fail({ kind: "io", code: "EEXIST" });
+  // 실패해도 만들다 만 복사본을 지우도록 정리 목록에 먼저 올린다. 파일이 없으면 지울 것이 없다(force)
+  created.files.push(sqlitePath);
   // VACUUM INTO는 WAL 안의 내용까지 담은 일관된 복사본을 만든다. 쓰기 트랜잭션 밖에서 돈다
   const vacuumed = attemptIo(() => {
     db.run("VACUUM INTO ?", [sqlitePath]);
+    chmodSync(sqlitePath, 0o600);
   }, sourceFailureOf);
   if (!vacuumed.ok) return fail(vacuumed.error);
 

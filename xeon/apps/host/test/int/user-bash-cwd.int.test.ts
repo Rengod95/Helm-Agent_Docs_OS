@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
@@ -20,8 +20,8 @@ import { realEngineGate } from "../fixtures/real-engine.ts";
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 const home = useEngineHome();
-const alpha = mkdtempSync(join(tmpdir(), "fresnel-user-bash-alpha-"));
-const beta = mkdtempSync(join(tmpdir(), "fresnel-user-bash-beta-"));
+const alpha = realpathSync(mkdtempSync(join(tmpdir(), "fresnel-user-bash-alpha-")));
+const beta = realpathSync(mkdtempSync(join(tmpdir(), "fresnel-user-bash-beta-")));
 afterAll(() => {
   home.dispose();
   rmSync(alpha, { recursive: true, force: true });

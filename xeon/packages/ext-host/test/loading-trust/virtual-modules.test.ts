@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import * as realContracts from "@fresnel/contracts";
+import type * as RealContractsModule from "@fresnel/contracts";
 import {
   compareVersions,
   registerSdkModules,
@@ -59,6 +59,12 @@ test("compareVersions orders core versions and puts pre-releases below releases"
   expect(compareVersions("2.0.0", "2.0.0-beta.1")).toBeGreaterThan(0);
   expect(compareVersions("x", "1.0.0")).toBeUndefined();
 });
+
+// 지정자가 아니라 파일 경로로 불러온다. 같은 프로세스에서 다른 시험 파일이 먼저 SDK를 등록했으면(파일 순서는 기기마다 다르다.
+// macOS는 이름순, Linux는 디렉터리 순) 지정자 `@fresnel/contracts`는 이 파일에서 가상 모듈 껍데기를 돌려주기 때문이다
+const realContracts: typeof RealContractsModule = await import(
+  Bun.resolveSync("@fresnel/contracts", import.meta.dir)
+);
 
 test("registering the fixture leaves the real @fresnel/contracts module identity untouched", async () => {
   // 시험 설비가 등록하는 `@fresnel/contracts`는 이 프로세스의 실제 모듈 네임스페이스 자체다

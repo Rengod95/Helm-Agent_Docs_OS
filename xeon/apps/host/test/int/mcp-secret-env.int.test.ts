@@ -185,12 +185,15 @@ realTest(
     expect(await until(() => !isAlive(firstPid), 8000)).toBe(true);
     expect(Number(readFileSync(pidFile, "utf8"))).toBe(firstPid);
 
+    // 첫 서버가 남긴 표식은 지운다. 새 서버가 도구 목록을 내줘야(연결이 끝나야) 다시 생긴다
+    rmSync(listedFile, { force: true });
     expect(
       await connection.request("approval.respond", { approvalId: second.id, decision: "allow" }),
     ).toEqual({ applied: true });
     expect(await until(() => Number(readFileSync(pidFile, "utf8")) !== firstPid, 10_000)).toBe(
       true,
     );
+    expect(await until(() => existsSync(listedFile), 10_000)).toBe(true);
     // 연결이 끝난 서버의 도구는 다음 단계 경계에 도구 표에 오른다
     await runTurn("settle");
     await runTurn("call it again");

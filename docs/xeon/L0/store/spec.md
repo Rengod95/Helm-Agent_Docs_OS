@@ -769,6 +769,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | `<destDir>/blobs/<ab>/<rest>` | `sys_blobs`의 행마다 원본 `<db 디렉터리>/blobs/<ab>/<rest>`를 복사한 것 | 디렉터리 0700, 파일 0600 |
 | `<destDir>/manifest.json` | 아래 manifest | 0600 |
 
+- `fresnel.sqlite`는 미리 만들어 두지 않습니다. `VACUUM INTO`가 직접 만들고, 끝난 뒤 0600으로 줄입니다. 0바이트 파일을 미리 만들어 두면 macOS의 Apple 시스템 SQLite가 `output file already exists`로 거절합니다(macOS arm64 실측 2026-11-02, Linux의 번들 SQLite는 받아 줍니다). 파일이 이미 있으면 `io`(`EEXIST`)입니다.
 - 블롭 목록은 복사본의 `sys_blobs`에서 읽습니다. 그래서 복사된 행과 목록이 같은 내용을 가리킵니다.
 - 블롭 복사: 원본 경로는 `lstat`으로 보고 일반 파일만 복사합니다. 심볼릭 링크는 따라가지 않습니다. 없거나 일반 파일이 아니면 `missingBlobs`에 넣고 건너뜁니다. sha256이 `/^[0-9a-f]{64}$/`와 맞지 않으면 경로를 만들지 않고 `missingBlobs`에 넣습니다. 확인 뒤 복사 사이에 파일이 사라지면 `io`(`ENOENT`)로 실패합니다.
 - manifest:

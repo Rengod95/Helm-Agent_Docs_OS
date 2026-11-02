@@ -81,18 +81,18 @@ describe.skipIf(RG === null)("grep and find on a real ripgrep", () => {
 
   test("results are in bytewise path order", async () => {
     const root = tempRoot();
-    // 바이트 순: "B.txt"(0x42) < "a/..."(0x61) < "b.txt"(0x62) < "é.txt"(0xC3) < "～"(EF BD 9E)
-    for (const name of ["b.txt", "é.txt", "B.txt", "a/x.txt", "～.txt"]) write(root, name, "foo\n");
+    // 바이트 순. 대소문자를 구분하지 않는 파일 시스템(macOS)에서 b.txt와 겹치지 않도록 대문자 이름은 Z로 한다: "Z.txt"(0x5A) < "a/..."(0x61) < "b.txt"(0x62) < "é.txt"(0xC3) < "～"(EF BD 9E)
+    for (const name of ["b.txt", "é.txt", "Z.txt", "a/x.txt", "～.txt"]) write(root, name, "foo\n");
     const files = filesAt(root);
     expect((await files.find({ pattern: "*.txt" })).paths).toEqual([
-      "B.txt",
+      "Z.txt",
       "a/x.txt",
       "b.txt",
       "é.txt",
       "～.txt",
     ]);
     expect((await files.grep({ pattern: "foo" })).matches.map((m) => m.path)).toEqual([
-      "B.txt",
+      "Z.txt",
       "a/x.txt",
       "b.txt",
       "é.txt",

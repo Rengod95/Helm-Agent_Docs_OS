@@ -1,6 +1,7 @@
 import { watch, type FSWatcher } from "node:fs";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { attemptAsync, detach, err, ok, type Logger } from "@fresnel/contracts";
 import type { FileChange, WatchError } from "@fresnel/contracts/services";
 import type { WatchBackend } from "./watcher.ts";
@@ -25,7 +26,15 @@ function toWatchError(root: string, caught: unknown): WatchError {
   return { kind: "backend_unavailable", reason: code };
 }
 
-export function createFsWatchBackend(deps: { readonly logger: Logger }): WatchBackend {
+export function createFsWatchBackend(deps: {
+  readonly logger: Logger;
+  /**
+   * `fs.watch`가 돌아온 뒤 통지가 시작되기까지 기다릴 시간(ms). 시작 신호가 없어서 기다린 뒤에 구독을 돌려준다. 그래서
+   * 호출자가 감시가 시작됐다는 반환을 받은 뒤의 변경은 놓치지 않는다. 기본 0(select.ts의 `watchStartMs`가 OS별로 정한다)
+   */
+  readonly startMs?: number;
+}): WatchBackend {
+  const startMs = deps.startMs ?? 0;
   return {
     id: "fs-watch",
     async subscribe(root, _ignore, onRaw) {
@@ -64,6 +73,7 @@ export function createFsWatchBackend(deps: { readonly logger: Logger }): WatchBa
       watcher.on("error", (caught) => {
         deps.logger.warn("os.watch.fs_watch_error", { root, code: errnoOf(caught) });
       });
+      if (startMs > 0) await sleep(startMs);
       return ok({
         close() {
           watcher.close();

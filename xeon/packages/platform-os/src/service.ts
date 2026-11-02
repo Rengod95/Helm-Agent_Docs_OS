@@ -221,7 +221,9 @@ export async function createOsService(
     allowedRoots: [dirs.config, dirs.data, dirs.state, ...(config.extraWatchRoots ?? [])],
     scheduler: runtime.scheduler,
     logger,
-    backends: config.watchBackends ?? [createFsWatchBackend({ logger })],
+    backends: config.watchBackends ?? [
+      createFsWatchBackend({ logger, startMs: providers.watchStartMs }),
+    ],
   });
 
   const service: OsService = {
