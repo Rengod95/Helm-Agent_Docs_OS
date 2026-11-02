@@ -69,6 +69,7 @@ export {
   runWithBudget,
   STREAM_TAP_HOOKS,
 } from "./budget.ts";
+export type { BudgetClass, BudgetTable } from "./budget.ts";
 export {
   createResourcePolicy,
   NO_RESERVED_NAMES,

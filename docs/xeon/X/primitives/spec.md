@@ -128,6 +128,8 @@ import type {
 | `operationsSettings` | `defineSettings` 결과 | X.operations.spec §6 |
 | `traceReadOf`, `TraceSettings`, `DEFAULT_TRACE_SETTINGS` | 함수, 타입, 상수 | X.operations.spec §3.9 |
 | `testRunControlOf` | 함수 | 이 문서 §4.4.8 |
+| `extReadViewOf`, `ExtReadView`, `DriveLockView`, `DriveLockCandidate` | 함수, 인터페이스 | 이 문서 §4.4.9 |
+| `budgetClassOf`, `DEFAULT_BUDGETS_MS`, `BudgetClass`, `BudgetTable` | 함수, 상수, 타입 | X.operations.spec §4.2.2 |
 
 패키지 안에서만 쓰는 이름(`RegistrationRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`, `hostInternalsOf`)은 `src/primitives/index.ts`에서만 export하고 루트에서 재export하지 않는다. loading-trust와 operations 코드는 같은 패키지 안이라 이 경로로 import한다. loading-trust·operations의 다른 이름(예: `assignTier`, `runWithBudget`, `PI_COMPAT_TABLE`)도 같은 방식으로 패키지 안에서만 쓴다. 공개가 필요해지면 이 표에 행을 더한다.
 
@@ -1162,6 +1164,14 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
    - 보유자 그룹의 매니페스트 `group.composition.phases`가 없으면 같은 값이다. 그룹 이름만 알리는 안은 [미결]로 남긴다 [제안].
    - 있으면 `group`은 보유자의 확장 이름이고, `seq`는 그 scope의 커밋된 상태 판 `rev`다 [제안: 캐시에 이벤트 seq가 없으므로 판 `rev`를 쓴다]. `phase`는 상태 문서의 `phase` 문자열이 `phases.nodes[].id` 가운데 하나일 때만 그 값이고, 아니면 null이다. 상태 문서의 나머지는 내보내지 않는다(F.extensions.spec §3.6).
 10. `not_available`은 이 구현에 없다. 포트를 제공하지 않는 조립이 쓰는 값이다.
+
+#### 4.4.9 확장 읽기 조회 (wire `ext.*`, `group.driveLock`)
+
+[결정: 2026-11-02 M4 wire] 조립 루트가 wire 확장 읽기에 쓰는 읽기 전용 조회 `extReadViewOf(host)`를 루트로 내보낸다. 내부(`ThreadRuntime`)는 부를 때 얻고(`traceReadOf`와 같다) 아무것도 바꾸지 않는다.
+
+1. `threadStatus(threadId, scopeId)`: thread가 열려 있지 않거나 모르는 Registration이면 `undefined`다. 열려 있으면 그 thread에서 켜져 있는가(`ThreadRuntime.active`)와 그 thread의 요청(`ThreadRuntime.want`, 없으면 `RegistrationRecord.desired`)을 견준다. 켜져 있고 요청도 켜짐이면 `enabled`, 켜져 있는데 요청이 꺼짐이면 `disabling`, 꺼져 있는데 요청이 켜짐이면 `enabling`, 둘 다 꺼짐이면 `disabled`다.
+2. `driveLock(threadId)`: thread가 열려 있지 않으면 `undefined`다. `holder`는 커밋되었고 반납이 커밋되지 않은 임대의 Registration id이고 아니면 `null`(`leaseEpoch` 0)이다. `limits`는 그 임대가 정한 상한(없는 필드는 상한 없음), `used`는 지금까지 쓴 turn·spawn·토큰이다. `candidates`는 임대를 받지 못해 기다리는 후보마다 넘긴 경계 수(`waits`)와 상한(`waitLimit`, `x.primitives.leaseWaitLimit`)이다. 거부 기록(`lease.rejected`)과 `x.primitives.activeDriver` 설정 값은 이 조회에 없고 호출자가 이벤트와 설정에서 읽는다.
+3. `budgetClassOf`, `DEFAULT_BUDGETS_MS`(`BudgetClass`, `BudgetTable`)는 X.operations §4.2.2의 순수 함수와 기본값이다. 조립 루트가 `hooks.list`·`ext.get`의 훅 예산을 설정 값과 함께 계산할 때 쓴다.
 
 ### 4.5 scope
 

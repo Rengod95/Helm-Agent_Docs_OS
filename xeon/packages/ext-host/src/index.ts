@@ -15,6 +15,10 @@ export {
   type ExtChange,
   type LeaseInfo,
   type ResetRegistrationStateHostError,
+  extReadViewOf,
+  type DriveLockCandidate,
+  type DriveLockView,
+  type ExtReadView,
   // primitives §3.3~§3.5
   type PayloadOf,
   type DispatchOptions,
@@ -155,7 +159,9 @@ export type {
 
 // operations (X.operations.spec §3.1~§3.8, §6 중 M0·M1 몫)
 export {
+  budgetClassOf,
   createOperationsPolicy,
+  DEFAULT_BUDGETS_MS,
   DEFAULT_TRACE_SETTINGS,
   createResourcePolicy,
   createVolatileNotifier,
@@ -168,6 +174,8 @@ export {
   parseExtTableName,
   storageOf,
   TIERS,
+  type BudgetClass,
+  type BudgetTable,
   type ExtProjection,
   type ExtQuery,
   type ExtRowError,

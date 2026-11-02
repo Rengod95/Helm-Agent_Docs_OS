@@ -54,6 +54,12 @@ export {
   type PlatformSetupError,
   type RegistrationToggleSourceOf,
 } from "./host.ts";
+export {
+  extReadViewOf,
+  type DriveLockCandidate,
+  type DriveLockView,
+  type ExtReadView,
+} from "./read-view.ts";
 export { SessionFeedPortKey } from "./lifecycle.ts";
 export {
   SessionBranchPortKey,
