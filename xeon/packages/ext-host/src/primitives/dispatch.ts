@@ -7,8 +7,10 @@ import {
   type FirstHookName,
   type HookName,
   type RegistrationId,
+  type TraceHandlerResult,
 } from "@fresnel/contracts/extensions";
 import { eraseDispatchOptions, restoreOutcome } from "../erase.ts";
+import type { TraceBuffer, TraceDispatch } from "../operations/trace-buffer.ts";
 import { withAmbient } from "./ambient.ts";
 import type {
   AnyDispatchOptions,
@@ -63,6 +65,8 @@ export interface DispatcherDeps {
   readonly track: (task: Promise<unknown>) => void;
   /** thread가 닫히면 중단되는 신호. 없으면(열지 않은 thread) undefined. detached tap은 세션 종료 뒤 실행하지 않고 결과를 버린다 */
   readonly threadSignal: (threadId: ThreadId) => AbortSignal | undefined;
+  /** 계측 기록기(X-15). 디스패치마다 시작하고 핸들러 실행마다 기록한다. 없으면 계측하지 않는다 */
+  readonly trace?: Pick<TraceBuffer, "start">;
 }
 
 export interface Dispatcher {
@@ -117,6 +121,28 @@ function infoOf(entry: HandlerEntry): HandlerEntryInfo {
 
 function refOf(entry: HandlerEntry): HandlerRef {
   return { scopeId: entry.scopeId, extension: entry.extension, seq: entry.seq };
+}
+
+/**
+ * 실행 결과를 계측 기록의 시간과 결과로 옮긴다(X.operations.spec §4.8.2). 시간은 정책이 잰 활성 시간을 그대로 쓴다
+ * (사용자 응답 대기는 이미 빠져 있다). 예산 초과는 예산 값이고, 중단은 시작부터 흐른 시간이다
+ */
+function traceOf(
+  outcome: HandlerRunOutcome<unknown>,
+  elapsedMs: number,
+): { readonly durationMs: number; readonly result: TraceHandlerResult } {
+  switch (outcome.kind) {
+    case "settled":
+      return { durationMs: outcome.activeMs, result: "ok" };
+    case "threw":
+      return { durationMs: outcome.activeMs, result: "error" };
+    case "timeout":
+      return { durationMs: outcome.budgetMs, result: "over_budget" };
+    case "aborted":
+      return { durationMs: elapsedMs, result: "skipped" };
+    default:
+      return assertNever(outcome, "RunOutcome");
+  }
 }
 
 function combineSignals(...signals: readonly (AbortSignal | undefined)[]): AbortSignal | undefined {
@@ -222,7 +248,11 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
     });
   }
 
-  function makeEnv(point: HookName, options: AnyDispatchOptions): FoldEnv {
+  function makeEnv(
+    point: HookName,
+    options: AnyDispatchOptions,
+    trace: TraceDispatch | undefined,
+  ): FoldEnv {
     async function runOne(entry: HandlerEntry, args: readonly unknown[]): Promise<RunResult> {
       const info = infoOf(entry);
       const outer = combineSignals(options.signal, entry.signal);
@@ -248,10 +278,17 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
               }),
           ),
         );
+      const startedAt = deps.now();
       const outcome =
         policy.run === undefined
           ? await ownRun(work, policy.budgetMs(info), outer, deps, `${point}@${entry.scopeId}`)
           : await policy.run(info, work, outer);
+      if (trace !== undefined) {
+        trace.record({
+          registrationId: entry.scopeId,
+          ...traceOf(outcome, deps.now() - startedAt),
+        });
+      }
       switch (outcome.kind) {
         case "settled":
           return { kind: "ok", value: outcome.value, activeMs: outcome.activeMs };
@@ -309,6 +346,12 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       if (decl.finalize === "boundary" && options.finalize === undefined) {
         throw new Bug(`dispatch.finalize_missing: ${point} requires options.finalize`);
       }
+      // 계측 기록기는 디스패치마다 한 번 시작한다. 계측이 꺼졌거나 Turn을 정할 수 없으면 undefined다(X.operations §4.8.1)
+      const trace = deps.trace?.start({
+        threadId: options.threadId,
+        dispatchKey: options.dispatchKey,
+        hook: point,
+      });
       const entries = sortEntries(
         deps.registry
           .snapshot(point, options.threadId)
@@ -327,7 +370,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
           dispatchKey: options.dispatchKey,
           ...(threadSignal === undefined ? {} : { signal: threadSignal }),
         };
-        const env = makeEnv(point, detachedOptions);
+        const env = makeEnv(point, detachedOptions, trace);
         deps.track(
           Promise.resolve().then(async () => {
             await foldTap(env, entries, payload);
@@ -336,7 +379,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         );
         return { fold: "tap", detached: true, failures: [] };
       }
-      const env = makeEnv(point, options);
+      const env = makeEnv(point, options, trace);
       switch (fold) {
         case "tap":
           return foldTap(env, entries, payload);

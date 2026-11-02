@@ -24,6 +24,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 4 | 이름 충돌 규칙 | 2차 | §3.5, §4.5 |
 | 5 | 안전 모드 | 2차. M3에 넣는다 [결정: review.m3-design-inputs D-M3-11 c] | §3.6, §4.6 |
 | 6 | 외부 훅 프로토콜 | M4로 옮김. M3 밖이다 [결정: 2026-10-28 사용자]. 근거는 D-M3-11 c안 원문("로더·안전 모드만")과 §10 21 | §3.7, §4.7 |
+| 7 | 계측 링 버퍼와 훅별 시간 분포(X-15, X-6). 키 정의는 1차 표에 두고 소비(wire, 화면)는 M4 트랙이 맡는다(`review/m4-plan.md` §2.2) | 1차 키, M4 소비 | §3.9, §4.8 |
 
 정하는 것:
 
@@ -35,6 +36,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 - 안전 모드와 시작 시 개별 확장 끄기
 - 외부 훅의 설정 형식, 입출력 JSON, 종료 코드, 출력 상한, 환경 정리
 - 설정 키 `x.operations.*`
+- 계측 링 버퍼(thread별 최근 Turn의 핸들러 기록)와 훅별 시간 분포, 설정 키 `x.operations.trace.*`
 
 다루지 않는 것:
 
@@ -751,6 +753,7 @@ export interface OperationsDeps {
 export interface OperationsSettingsSource {
   budgets(): BudgetTable;                 // x.operations.budget.*
   autoDisable(): AutoDisablePolicy;       // x.operations.autoDisable.*
+  trace?(): TraceSettings;                // x.operations.trace.* (§3.9). 없는 구현은 DEFAULT_TRACE_SETTINGS를 쓴다
 }
 
 export interface OperationsPolicy extends DispatchPolicy {
@@ -773,6 +776,8 @@ export interface OperationsPolicy extends DispatchPolicy {
   forget(name: ExtensionName): void;
   /** x.operations.budget.setupMs 유효 값. 조립 루트가 ExtHostDeps.setupBudgetMs에 넘긴다 */
   setupBudgetMs(): number;
+  /** x.operations.trace.* 유효 값(§3.9). 조립 루트가 ExtHostDeps.trace에 넘긴다 */
+  trace(): TraceSettings;
   /**
    * 로더 5a단계가 부른다(2차). 후보마다 assignTier로 tier를 구한 뒤 §3.6 startupFilter를 적용한다.
    * 로더는 tier 계산 함수를 import하지 않고 이 메서드로 받는다
@@ -787,8 +792,84 @@ export interface OperationsPolicy extends DispatchPolicy {
 export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy;
 ```
 
-- 조립 순서 [제안]: L4 host가 `createOperationsPolicy`를 먼저 만들고, 그 결과를 `ExtHostDeps.policy`, `ExtHostDeps.setupBudgetMs`(`() => policy.setupBudgetMs()`), `ExtHostDeps.resourcePolicy`(`policy.resources`)에 넣어 `createExtHost`를 부른다. 이어 `OperationsDeps.ports`와 `RegistrationControl`의 늦은 연결을 그 `ExtHost`에 잇고, `createExtensionLoader({ host, policy, … })`로 로더를 만들어 `loadAll`을 부른다(`X.loading-trust.spec` §3.5). 로더는 확장마다 6a단계(설치 전)에서 `admit`을 부른다.
+- 조립 순서 [제안]: L4 host가 `createOperationsPolicy`를 먼저 만들고, 그 결과를 `ExtHostDeps.policy`, `ExtHostDeps.setupBudgetMs`(`() => policy.setupBudgetMs()`), `ExtHostDeps.resourcePolicy`(`policy.resources`), `ExtHostDeps.trace`(`() => policy.trace()`)에 넣어 `createExtHost`를 부른다. 이어 `OperationsDeps.ports`와 `RegistrationControl`의 늦은 연결을 그 `ExtHost`에 잇고, `createExtensionLoader({ host, policy, … })`로 로더를 만들어 `loadAll`을 부른다(`X.loading-trust.spec` §3.5). 로더는 확장마다 6a단계(설치 전)에서 `admit`을 부른다.
 - `admit`이 `TierError`를 내면 로더는 그 확장을 설치하지 않는다(`tier_rejected`). 로더의 신뢰 판정(4단계)이 이미 같은 경우를 걸러내므로 이 오류는 방어 검사다.
+
+### 3.9 계측 링 버퍼와 시간 분포 (`trace-buffer.ts`, `handler-timings.ts`)
+
+X-15 링 버퍼(thread별 최근 Turn의 핸들러 기록)와 X-6 훅별 시간 분포의 원천이다. 읽기 포트 `TraceReadPort`(F `ports.ts`)를 `traceReadOf(host)`가 구현한다. 결과 타입 `TraceTurnEntry`, `TraceTurnResult`, `ExtTimingsResult`, `ExtHookTiming`은 F `trace-types.ts`가 정본이고 이 문서는 정의하지 않는다.
+
+```ts
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type {
+  ExtHookTiming, ExtTimingsResult, HookName, TraceHandlerResult, TraceTurnResult,
+} from "@fresnel/contracts/extensions";
+
+/** x.operations.trace.* 유효 값(§6) */
+export interface TraceSettings {
+  readonly enabled: boolean;
+  readonly turnsPerThread: number;
+}
+/** §6 기본값: 켬, thread마다 Turn 20개 [제안: turnsPerThread] */
+export const DEFAULT_TRACE_SETTINGS: TraceSettings;
+
+/** 상한(§4.8.5). Turn당 항목 5,000개, 항목당 핸들러 기록 256개, 버퍼의 thread 32개 [제안] */
+export const MAX_ENTRIES_PER_TURN: number;
+export const MAX_HANDLERS_PER_ENTRY: number;
+export const MAX_THREADS: number;
+
+/** 시각은 받지 않는다. 경과 시간은 디스패처가 재고 기록에 값으로 넘긴다 [제안] */
+export interface TraceBufferDeps {
+  settings(): TraceSettings;
+}
+export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer;
+
+interface TraceStart {
+  readonly threadId: ThreadId;
+  /** 디스패치 키. 접두 규칙은 §4.8.1 */
+  readonly dispatchKey: string;
+  readonly hook: HookName;
+}
+interface TraceRecord {
+  readonly registrationId: string;
+  readonly durationMs: number;
+  readonly result: TraceHandlerResult;
+}
+export interface TraceDispatch {
+  record(run: TraceRecord): void;
+}
+
+export interface TraceBuffer {
+  /** 계측이 꺼져 있거나 Turn을 정할 수 없으면 undefined */
+  start(input: TraceStart): TraceDispatch | undefined;
+  /** 버퍼에 남은 Turn. 꺼져 있거나 버퍼 밖이면 undefined */
+  turn(threadId: ThreadId, turnId: TurnId): TraceTurnResult | undefined;
+  /** 현재 설정 값 */
+  enabled(): boolean;
+  /** 꺼져 있으면 `{ traceEnabled: false, timings: [] }` */
+  timings(filter: TimingFilter): ExtTimingsResult;
+  /** 기록을 지운다. 닫기 경로는 부르지 않는다(§4.8.3) */
+  forgetThread(threadId: ThreadId): void;
+}
+
+/** 버퍼 항목 하나를 펼친 실행 기록과 거르기 조건. 분포 계산의 입력이다 */
+export interface HandlerRun {
+  readonly hook: string;
+  readonly registrationId: string;
+  readonly ms: number;
+  readonly result: TraceHandlerResult;
+}
+export interface TimingFilter {
+  readonly hook?: string;
+  readonly registrationId?: string;
+}
+export function timingsOf(runs: Iterable<HandlerRun>, filter: TimingFilter): readonly ExtHookTiming[];
+```
+
+- 연결: `createExtHost`가 호스트마다 버퍼를 하나 만들어 디스패처(`DispatcherDeps.trace`)와 `ExtHostInternals.trace`에 넣는다. `ExtHostDeps.trace`가 없으면 `DEFAULT_TRACE_SETTINGS`다.
+- `traceReadOf(host)`(`primitives/host.ts`)는 `enabled`, `turn`, `timings`를 버퍼에 그대로 넘긴다. `turn()`은 꺼져 있을 때도 `undefined`다. wire `trace.turn`(W-43)은 `enabled()`로 `traceEnabled`를 채우고, 결과가 없으면 `{traceEnabled, retained: false, entries: []}`를 만든다(`packages/contracts/test/wire-settings/profile-test-run.test.ts`).
+- 공개: `traceReadOf`와 `TraceSettings`는 `primitives/index.ts`와 `operations/index.ts`까지 나간다. 루트(`src/index.ts`)는 `X.primitives.spec` §3.1 표에 행이 생긴 뒤에 내보낸다(§10 22).
+- `OperationsSettingsSource.trace?()`는 선택이다(§3.8). 없으면 기본값을 쓴다. `OperationsPolicy.trace()`는 그 값을 돌려주고, 없으면 `DEFAULT_TRACE_SETTINGS`다.
 
 ## 4. 동작 규칙
 
@@ -899,6 +980,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 디스패처는 `DispatchPolicy.run`이 있으면 자기 타이머 대신 그 함수로 핸들러를 실행한다(X.primitives.spec §3.4, §4.2). `OperationsPolicy.run`은 `runWithBudget`으로 실행하고, 그 `gate`를 핸들러의 UI 포트 래퍼에 넘긴다.
 - 멈춘 동안에도 `outer` 중단 신호와 대화상자 자체의 signal은 살아 있다. 예산 signal은 대화상자 signal과 `AbortSignal.any`로 합친다(omp `attachHandlerSignal`과 같은 방식).
 - 비대화 실행(CLI print 모드)에서는 대화상자가 바로 기본값으로 끝나므로 멈춤 시간이 0이다.
+- 계측 기록(§4.8.2)의 시간도 이 활성 시간이다. 멈춘 시간은 여기서 한 번 빠지고, 기록은 그 값을 다시 빼지 않는다.
 - [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않는다. 핸들러용 UI 포트는 X 공개 API의 별도 함수로 연결한다(F 타입에는 넣지 않는다)(M2, O-07). 핸들러(와 그 핸들러가 부르는 UI·승인 포트 래퍼)는 `hostOf(g).awaitUser(wait, { signal? })`로 사용자 응답 대기를 감싼다. 이 함수는 호출한 핸들러의 `gate`와 취소 신호를 비동기 맥락에서 찾아(X.primitives.spec §4.2 `withAmbient`) `gate.pause()`·`resume()`으로 예산 시계를 멈추고, `wait`에는 핸들러 신호와 호출자의 신호를 `AbortSignal.any`로 합쳐 넘긴다. 핸들러 밖(drive 함수, setup)에서는 예산이 없으므로 그대로 실행한다. 승인 대기(`fresnel.approvals`)를 부르는 L2 포트 래퍼도 같은 함수를 쓴다. 게이트 쪽 함수 `awaitUser(gate, wait)`는 패키지 안에서 `hostOf(g).awaitUser`가 쓴다.
 
 #### 4.2.4 예산 초과 처리
@@ -1230,6 +1312,58 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | 이벤트 kind·저장 영역 | 없음 | 자기 접두 kind. 확장 전용 테이블은 쓰지 않고(`defineTables`는 `isolated`), 읽기는 대리인이 `readsRecordKinds`로 거른 이벤트를 `seq` 순서로 받는다 |
 | 실패 단위 | 훅 id | 확장 이름 |
 
+### 4.8 계측 링 버퍼와 훅별 시간 분포 (X-15, X-6)
+
+#### 4.8.1 귀속: 디스패치 키로 Turn과 단계 정하기
+
+- 디스패처는 디스패치마다 `start`를 한 번 부른다(detached tap 포함). 계측이 꺼져 있거나 Turn을 정할 수 없으면 `undefined`를 받고 아무것도 기록하지 않는다.
+- 키는 `<stepId 또는 turnId>:<접미>` 형식이다(`core-loop/src/loop/turn-run.ts`의 `dispatchKey`). 접두는 첫 `:` 앞 부분이고, `:`가 없으면 키 전체다. 접두에 따라 다음과 같이 귀속한다.
+
+| 접두 | 귀속 Turn | 단계 번호 | 현재 Turn이 없을 때 |
+|---|---|---|---|
+| `trn_…` | 그 Turn. thread의 현재 Turn이 된다 | 0 | 그 Turn을 세우고 기록한다 |
+| `stp_…` | thread의 현재 Turn | 처음 보인 순서의 1, 2, … | 기록하지 않는다 |
+| 그 밖(`evt_…`, `input:…`, 시험 키) | thread의 현재 Turn | 0 | 기록하지 않는다 |
+
+- 단계 번호는 Turn 안에서 `stp_` 식별자를 처음 본 순서로 1부터 붙인다. 같은 단계의 디스패치는 같은 번호를 받는다.
+- 항목(entry)은 디스패치가 첫 핸들러 기록을 낼 때 만들어진다. 핸들러가 없는 디스패치(예: 스트림 조각마다의 탭)는 항목을 만들지 않는다.
+
+#### 4.8.2 핸들러 실행 결과와 기록의 대응
+
+| 실행 결과 (`HandlerRunOutcome`) | `result` | `durationMs` |
+|---|---|---|
+| `settled` | `ok` | 활성 시간 `activeMs` |
+| `threw` | `error` | 활성 시간 `activeMs` |
+| `timeout` | `over_budget` | 예산 값 `budgetMs` |
+| `aborted` | `skipped` | 시작부터 중단까지 흐른 시간 |
+
+- 값을 냈지만 뒤의 검사에서 걸러진 경우(`result_invalid`, `merge_rejected`, `value_from_tap`)는 실행이 끝났으므로 `ok`다. 기록은 실행 결과만 본다.
+- 사용자 응답 대기는 §4.2.3이 활성 시간에서 뺀다. 기록은 그 값을 그대로 쓴다.
+- `denied`는 이 대응표에 나오지 않는다. 지금은 어떤 실행 결과도 `denied`를 만들지 않는다(§10 25).
+
+#### 4.8.3 보관 범위와 켜짐 시점
+
+- 버퍼는 thread마다 가장 최근의 `turnsPerThread`개 Turn을 가진다. 넘치면 삽입 순서상 가장 오래된 Turn부터 뺀다.
+- `enabled`와 `turnsPerThread`는 Turn이 처음 보일 때 한 번 읽는다(`runtimeChange: "nextTurn"`, 다음 Turn부터 적용). 같은 Turn의 뒤 디스패치는 그 값을 따른다. 처음 보일 때 꺼져 있던 Turn은 나중에 켜도 기록하지 않는다.
+- 읽기(`timings`, `turn`, `enabled`)는 현재 `enabled` 값을 따른다. 꺼져 있으면 `timings`는 `{traceEnabled: false, timings: []}`, `turn`은 `undefined`다. 기록은 남아 있어서 다시 켜면 보인다.
+- thread는 `MAX_THREADS`(32)개까지 가진다 [제안]. 넘으면 가장 오래 쓰이지 않은 thread를 뺀다.
+- 닫기(`closeThread`)는 기록을 지우지 않는다. 끝난 대화의 Trace는 보관 범위에 밀려날 때까지 읽힌다. `forgetThread`는 버퍼 API에 있으나 호스트가 부르지 않는다 [제안].
+- 메모리에만 둔다. 저장하지 않으므로 프로세스를 다시 시작하면 비어 있다.
+
+#### 4.8.4 시간 분포 (`ExtHookTiming`)
+
+- 기록을 (`hook`, `registrationId`)별로 모은다. 결과는 `hook`의 문자 순서, 같으면 `registrationId`의 문자 순서다.
+- `count`는 기록 수다(`skipped` 포함). `failures`는 `error`, `over_budget`, `denied`의 수다. `skipped`는 실패가 아니다.
+- `p50Ms`, `p95Ms`는 최근접 순위다. 정렬한 `n`개 값에서 p%는 `ceil(p·n/100)`번째 값이다. 예: `n=1`이면 모두 그 값이고, `n=20`이면 p50은 10번째, p95는 19번째 값이다.
+- `maxMs`는 최댓값이다. 단위는 모두 ms다.
+- 분포는 요청할 때 버퍼를 훑어 계산한다. 누적 집계는 두지 않는다. 필터 `hook`, `registrationId`는 그 조건에 맞는 기록만 센다.
+
+#### 4.8.5 상한과 비용
+
+- Turn당 항목 5,000개, 항목당 핸들러 기록 256개를 넘으면 넘는 기록을 버린다(§5 13). 와이어 `TraceTurnResult`의 상한과 같다.
+- 디스패치마다 `start` 한 번, 핸들러 실행마다 `record` 한 번이 든다. 계측이 꺼져 있으면 `start`가 `undefined`를 돌려주므로 기록 비용이 없다.
+- 비용은 `test/benchmark/dispatch-lease.benchmark.ts`의 `dispatch_overhead_trace_on_vs_off`가 잰다(§9 37). 기준값은 아직 없다. 기준을 넘으면 사용자에게 기본값(켬)을 다시 정하도록 묻는다(`review/m4-plan.md` §5).
+
 ## 5. 실패와 경계 사례
 
 1. 핸들러가 signal을 무시하고 계속 실행됨: 디스패처는 예산이 끝난 시점에 진행한다. 그 핸들러의 프로미스와 부수 효과(타이머, 네트워크)는 프로세스에 남는다. 같은 프로세스 안에서는 강제로 멈출 수 없다(adr.0007 §6 미결 "비협조적인 확장 코드의 강제 종료"). 반복되면 자동 끄기로 다음 경계부터 호출을 멈추고, 강제 종료가 필요한 확장은 프로세스 격리로 옮긴다.
@@ -1244,6 +1378,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 10. 외부 훅이 stdout에 JSON 앞뒤로 다른 글을 씀: JSON 하나로 파싱되지 않으면 `hook_output` 실패다.
 11. 외부 훅 실행 파일이 프로젝트 폴더 안에 있고 프로젝트 신뢰가 철회됨: 다음 디스패치부터 실행하지 않는다.
 12. 이름 충돌로 짧은 이름을 잃은 도구를 모델이 짧은 이름으로 부름: 도구 목록에 없는 이름이므로 L1 도구 디스패치의 "알 수 없는 도구" 처리가 적용된다(`L1.tools.spec`).
+13. 계측 한도 초과: Turn의 항목이 5,000개를 넘거나 한 항목의 핸들러 기록이 256개를 넘으면 넘는 기록을 버린다. 진단은 남기지 않는다. 분포는 남은 기록만 센다(§4.8.5).
 
 ## 6. 설정 노출
 
@@ -1266,12 +1401,15 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.autoDisable.failureRate` | number | 0.5 | 0.05~1 | live | managed, user, local | plugins | 1차 |
 | `x.operations.safeMode.default` | boolean | false | | restart | managed, user | plugins | 1차 |
 | `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 1차 |
+| `x.operations.trace.enabled` | boolean | true | | nextTurn | managed, user | plugins | 1차 |
+| `x.operations.trace.turnsPerThread` | integer | 20 | 1~200 | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 2차 |
 | `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
 | `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins(widget `list`) | 2차 |
 
 - 예산과 자동 끄기 키는 `project` 범위를 받지 않는다 [제안]. 저장소에 든 설정이 예산을 늘려 루프를 오래 붙잡거나 자동 끄기를 꺼서 실패 확장을 남기지 못하게 한다.
 - `ui` 항목의 `label`과 `order`는 `L4.settings-ui.spec`이 정한다. 위젯은 boolean → `toggle`, integer·number → `number`다. 예산 키 단위는 `ms`다.
+- 계측 키 둘(`trace.*`, §3.9, §4.8.3)은 `runtimeChange: nextTurn`이다. 값은 Turn이 처음 보일 때 읽는다. 기본값 20은 [제안]이다. 계측 기본 켬은 사용자 결정이다(`review/m4-plan.md` §4 7번). 두 키는 "계측" 묶음 [제안]에 든다.
 - L4 노출:
   - 화면: 설정 화면 "플러그인과 그룹" 탭. 묶음은 "핸들러 시간 예산", "실패와 자동 끄기", "안전 모드", "외부 훅" 네 개 [제안]. 확장 목록에 실패 수, 자동 끄기 상태, 다시 켜기 버튼을 보인다.
   - 명령: `fresnel config get|set x.operations.…`(`L4.cli.spec`), `fresnel ext list`, `fresnel ext enable <name>`, `fresnel ext disable <name>`(X.primitives.spec §6과 같은 이름), `/safe-mode`, `fresnel --safe-mode`, `fresnel --disable-ext <name>`, `fresnel doctor`의 훅·확장 점검 [제안: 명령 이름은 `L4.cli.spec`이 확정].
@@ -1303,6 +1441,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `startupFilter`, `StartupOptions`, `allowedInSafeMode`, `StartupHealthStore`, `shouldSuggestSafeMode` | X.loading-trust.spec(`LoadOptions.startup`, 5a단계), L4.host-service.spec, L4.cli.spec |
 | `HookDef`, `HookInput`, `HookOutput`, `HOOK_SCHEMA_VERSION`, `interpretHookRun` | 외부 훅 작성자 문서, L4.settings-ui.spec |
 | 설정 키 `x.operations.*`, `operationsSettings` | L4.settings-ui.spec, L4.cli.spec, L4.host-service.spec(카탈로그 조립) |
+| `TraceBuffer`, `createTraceBuffer`, `TraceSettings`, `DEFAULT_TRACE_SETTINGS`, `timingsOf`, `traceReadOf`(`TraceReadPort` 구현) | L4.host-service.spec(`ExtHostDeps.trace`와 조립), X.primitives.spec(루트 표 행), L4(wire `trace.turn`·`ext.timings`) |
 
 요구:
 
@@ -1355,6 +1494,13 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 28. `hookEnv`는 허용 목록 밖 변수와 `SECRET_ENV_PATTERN`에 맞는 변수를 넘기지 않는다. 프로젝트 범위 `x.operations.hookEnvAllow` 값은 무시된다.
 29. 프로젝트 범위 외부 훅은 프로젝트 신뢰 승인 전에 실행되지 않는다.
 30. §6 표의 키는 `defineSettings("x.operations", …)`와 `buildCatalog`를 통과하고, 기본값은 `DEFAULT_BUDGETS_MS`, `DEFAULT_AUTO_DISABLE`와 같다.
+31. 디스패치 키 `trn_…`은 그 Turn을 현재 Turn으로 세우고 단계 0으로 기록된다. `stp_…`은 현재 Turn에 붙고 처음 본 순서대로 단계 번호를 받는다. 현재 Turn이 없으면 기록하지 않는다(`test/operations/trace-buffer.test.ts` "step ordinals follow the first sight of each stepId", "keys without a current turn are not recorded", "a turn key makes its turn current again").
+32. thread마다 `turnsPerThread`개 Turn만 남고 가장 오래된 Turn부터 빠진다. 값은 새 Turn이 처음 보일 때 읽는다(`trace-buffer.test.ts` "a thread keeps only its newest turnsPerThread turns", "turnsPerThread is read when a new turn appears").
+33. 계측이 꺼져 있으면 `start`와 `turn`은 `undefined`, `timings`는 `{traceEnabled: false, timings: []}`다. 꺼진 동안 처음 보인 Turn은 다시 켜도 기록하지 않는다(`trace-buffer.test.ts` "disabled records nothing and reads are empty", "the enabled value is read when a turn first appears").
+34. 시간 분포는 최근접 순위로 p50·p95를 정한다. `error`, `over_budget`, `denied`만 실패로 세고 `skipped`는 세지 않는다(`test/operations/handler-timings.test.ts`의 다섯 시험).
+35. 실제 디스패치의 처리기 결과가 `ok`, `error`, `over_budget`으로 기록되고 `traceReadOf(host)`로 읽힌다(`trace-buffer.test.ts` "trace: real dispatches through the host land in traceReadOf(host)").
+36. Turn당 항목 5,000개, 항목당 핸들러 기록 256개, 버퍼의 thread 32개를 넘으면 넘는 것이 버려지거나 가장 오래된 thread가 빠진다(`trace-buffer.test.ts` "a turn keeps at most 5000 entries and an entry at most 256 handlers", "the least recently written thread is dropped past 32 threads").
+37. 계측 켜짐과 꺼짐의 핸들러당 디스패치 차이는 `dispatch-lease.benchmark.ts`의 `dispatch_overhead_trace_on_vs_off` 한 줄로 기록된다. 기준은 없고 값만 낸다(§4.8.5).
 
 ## 10. 미결 사항
 
@@ -1388,3 +1534,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 19. [결정: review.m3-design-inputs D-M3-07 a] 안전 모드에서 L3 내장 그룹을 끈다(§4.6.2). Helm은 기본 플러그인(D-M3-01 c)이라 `user` tier로 실리고 같이 꺼진다.
 20. (해소, M3-REQ-32) 샌드박스 강제는 L0 실행 경로에서 하고 on 핸들러는 두지 않는다(§4.1.4). on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다.
 21. [결정: 2026-10-28 사용자] 외부 훅(§3.7, §4.7)은 M3 밖이고 M4로 옮긴다. D-M3-11 c안 원문("로더·안전 모드만")과 같은 판단이다. 이 항목은 닫았다.
+22. [미결] `traceReadOf`와 `TraceSettings`를 루트(`src/index.ts`)에서 내보내려면 `X.primitives.spec` §3.1 표에 행을 더해야 한다. `test/primitives/surface.test.ts`가 루트 이름을 그 표와 대조하므로 표가 먼저다. 이 변경에서는 `primitives/index.ts`까지만 내보낸다. L4 조립(`assembly/m4/index.ts`)이 루트 이름을 쓰기 전에 필요하다.
+23. [미결] `x.operations.trace.turnsPerThread`의 기본값 20과 thread 상한 32는 [제안]이다. 계측 기본 켬은 사용자 결정이다. 비용(`dispatch_overhead_trace_on_vs_off`)이 기준을 넘으면 기본값을 다시 정하도록 사용자에게 묻는다(`review/m4-plan.md` §5).
+24. [미결] `trace.turn`의 `traceEnabled`·`retained` 조립은 wire 처리기의 몫이다. `turn()`이 `undefined`를 돌려주므로 처리기가 `enabled()`로 `traceEnabled`를 채우고 `retained: false`를 만든다(§3.9). 현재 `apps/host/src/handlers/m4/profile-test-run.ts`는 `trace.turn`을 아직 구현하지 않았다.
+25. [미결] `denied` 실행 결과를 만드는 경로가 없다(§4.8.2). 실패 집계에는 들어가 있다.

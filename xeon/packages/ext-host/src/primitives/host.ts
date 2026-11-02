@@ -14,8 +14,15 @@ import type {
   PortLookup,
   RegistrationHandle,
   RegistrationId,
+  TraceReadPort,
   Unsubscribe,
 } from "@fresnel/contracts/extensions";
+import {
+  createTraceBuffer,
+  DEFAULT_TRACE_SETTINGS,
+  type TraceBuffer,
+  type TraceSettings,
+} from "../operations/trace-buffer.ts";
 import { createCapabilityBindings } from "./bindings.ts";
 import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
 import {
@@ -102,6 +109,11 @@ export interface ExtHostDeps {
   readonly capabilityDefs?: CapabilityDefLookup;
   /** 선언 없는 쓰기 요청 워커(ADR-0015 §3.5). 없으면 X의 기본 워커 */
   readonly effectWorker?: EffectWorkerPort;
+  /**
+   * 계측 설정 읽기(x.operations.trace.*, X.operations §3.9). 없으면 기본값(켬, Turn 20개). 조립 루트가 OperationsPolicy.trace를 넘긴다.
+   * 값은 Turn이 처음 보일 때 읽는다
+   */
+  readonly trace?: () => TraceSettings;
 }
 
 /** loading-trust가 검증을 끝낸 확장 하나. 순서는 loadIndex가 정한다 */
@@ -245,6 +257,8 @@ export interface LeaseInfo {
 /** 패키지 안(testing, loading-trust, operations)에서만 쓰는 호스트 내부 */
 export interface ExtHostInternals {
   readonly core: HostCore;
+  /** 계측 링 버퍼(X-15). traceReadOf가 읽는다 */
+  readonly trace: TraceBuffer;
   /** 추적 중인 작업(drive 호출, 유휴 적용, 기능 바인딩)이 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
   /** 토글 요청을 사유와 함께 기록한다(X.operations RegistrationControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
@@ -291,6 +305,19 @@ export function registrationToggleSourceOf(host: ExtHost): RegistrationToggleSou
     request: (scopeId, enabled, reason, threadId) => {
       internals.requestScope(scopeId, enabled, reason, threadId);
     },
+  };
+}
+
+/**
+ * 계측 읽기 포트(X-15·X-6). 원천은 이 호스트의 링 버퍼다. `ext.timings`와 `trace.turn`(wire)이 쓴다.
+ * turn()은 버퍼 밖이거나 계측이 꺼져 있으면 undefined다. wire 쪽이 enabled()로 traceEnabled를 채운다(X.operations §3.9)
+ */
+export function traceReadOf(host: ExtHost): TraceReadPort {
+  const { trace } = hostInternalsOf(host);
+  return {
+    enabled: () => trace.enabled(),
+    turn: (threadId, turnId) => trace.turn(threadId, turnId),
+    timings: (filter) => trace.timings(filter),
   };
 }
 
@@ -385,6 +412,10 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   const bindings = createCapabilityBindings(bridge, report, () =>
     deps.settings.capabilityProviders(),
   );
+  // 계측 링 버퍼는 호스트마다 하나다. 설정이 없으면 기본값(켬)을 쓴다
+  const traceBuffer = createTraceBuffer({
+    settings: deps.trace ?? (() => DEFAULT_TRACE_SETTINGS),
+  });
 
   const ports: PortLookup = {
     get<Api>(key: PortKey<Api>): Api | undefined {
@@ -418,6 +449,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         core.track(task);
       },
       threadSignal: (threadId) => core.threads.get(threadId)?.abort.signal,
+      trace: traceBuffer,
     }),
     ports,
     scopes: new Map(),
@@ -780,6 +812,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
 
   internalsByHost.set(host, {
     core,
+    trace: traceBuffer,
     whenSettled: () => core.whenSettled(),
     requestScope(scopeId, enabled, reason, threadId) {
       const record = core.scopes.get(scopeId);

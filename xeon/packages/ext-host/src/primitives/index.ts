@@ -41,6 +41,7 @@ export {
   createExtHost,
   hostInternalsOf,
   registrationToggleSourceOf,
+  traceReadOf,
   type ExtHost,
   type ExtHostDeps,
   type ExtensionUnit,
