@@ -193,9 +193,9 @@ export const inbox = {
   approvals: ["a1", "a2"] as const,
   proposals: [{ kind: "스킬 생성", target: "cache-debug", source: "학습", extra: "외 2" }],
   notices: [
-    { kind: "error", title: "예약 실패: 매일 정리", body: "rate_limited", at: "1시간 전" },
+    { kind: "error", title: "예약 실패: 매일 정리", at: "1시간 전" },
     { kind: "completed", title: "완료: 빌드 실패 분석", at: "어제" },
-    { kind: "background_completed", title: "학습 검토 끝: 후보 3", at: "어제" },
+    { kind: "background_completed", title: "학습 검토 끝", at: "어제" },
   ] satisfies Notice[] as Notice[],
 };
 export const status = {
