@@ -21,6 +21,8 @@ import {
   type PluginEntry,
 } from "./manifest.ts";
 import type { HookName } from "./hooks.ts";
+import type { ExtMethodDecl } from "./ext-method.ts";
+import { PLACEMENT_LIMITS, PLACEMENT_MODES, type Placement, type UiDecl } from "./ui.ts";
 
 export interface ManifestIssue {
   readonly severity: "error" | "warning";
@@ -59,6 +61,15 @@ export type ManifestIssueCode =
   | "user_config_invalid"
   | "isolation_invalid"
   | "trust_invalid"
+  | "ui_invalid"
+  | "ui_duplicate"
+  | "ui_mode_not_allowed"
+  | "ui_limit"
+  | "ui_path_invalid"
+  | "ui_reason_empty"
+  | "widgets_required"
+  | "method_invalid"
+  | "method_duplicate"
   // validateUsage
   | "hook_undeclared"
   | "hook_unused"
@@ -124,6 +135,11 @@ const LEGACY_FIELDS: readonly string[] = [
   "readsRecordKinds",
 ];
 
+/** 옮겨 간 곳이 하나로 정해진 이름의 안내 문장 */
+const LEGACY_HINTS: Readonly<Record<string, string>> = {
+  views: 'top-level "views" was renamed; declare Plugin UI under "ui" and methods under "methods"',
+};
+
 function isReservedSourceKey(name: string): boolean {
   return RESERVED_SOURCE_KEYS.some((key) => key === name);
 }
@@ -184,6 +200,10 @@ function codeForSchemaPath(path: string): ManifestIssueCode {
       return codeForPluginPath(segments);
     case "group":
       return segments[2] === "members" && segments.length > 3 ? "plugin_id_invalid" : "schema";
+    case "ui":
+      return "ui_invalid";
+    case "methods":
+      return "method_invalid";
     case "userConfig":
       return "user_config_invalid";
     case "isolation":
@@ -229,6 +249,185 @@ function duplicatesIn(
   return duplicated;
 }
 
+/** Plugin UI 기여의 의미 검사(F.extensions.spec §3.1.1, ADR-0021 §3.2~§3.3). 경로는 모양만 보고 파일 존재는 X 로더가 본다 */
+export function validateUi(ui: UiDecl): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  const seenIds = new Set<string>();
+  const placementCounts = new Map<Placement, number>();
+  const cardKinds = new Set<string>();
+
+  ui.items.forEach((item, index) => {
+    const at = `/ui/items/${index}`;
+    if (seenIds.has(item.id)) {
+      issues.push(
+        issue("error", "ui_duplicate", `${at}/id`, `ui id "${item.id}" is declared twice`),
+      );
+    }
+    seenIds.add(item.id);
+
+    const count = (placementCounts.get(item.placement) ?? 0) + 1;
+    placementCounts.set(item.placement, count);
+    if (count > PLACEMENT_LIMITS[item.placement]) {
+      issues.push(
+        issue(
+          "error",
+          "ui_limit",
+          at,
+          `placement "${item.placement}" allows ${PLACEMENT_LIMITS[item.placement]} per extension`,
+        ),
+      );
+    }
+
+    const mode = item.mode ?? "native";
+    if (item.placement !== "command" && !PLACEMENT_MODES[item.placement].includes(mode)) {
+      issues.push(
+        issue(
+          "error",
+          "ui_mode_not_allowed",
+          `${at}/mode`,
+          `placement "${item.placement}" does not accept mode "${mode}"`,
+        ),
+      );
+    }
+
+    if (item.placement === "card") {
+      if (item.forKind === undefined) {
+        issues.push(
+          issue("error", "ui_invalid", `${at}/forKind`, 'placement "card" requires forKind'),
+        );
+      } else if (cardKinds.has(item.forKind)) {
+        issues.push(
+          issue("error", "ui_limit", `${at}/forKind`, `kind "${item.forKind}" already has a card`),
+        );
+      } else {
+        cardKinds.add(item.forKind);
+      }
+    } else if (item.forKind !== undefined) {
+      issues.push(
+        issue("error", "ui_invalid", `${at}/forKind`, 'forKind is only for placement "card"'),
+      );
+    }
+
+    if (item.placement === "command") return;
+
+    if (mode === "native") {
+      if (item.file === undefined) {
+        issues.push(issue("error", "ui_invalid", `${at}/file`, "a native view requires file"));
+      }
+      if (item.app !== undefined) {
+        issues.push(issue("error", "ui_invalid", `${at}/app`, "a native view must not set app"));
+      }
+      if (item.fallback !== undefined) {
+        issues.push(
+          issue("error", "ui_invalid", `${at}/fallback`, "fallback is only for app views"),
+        );
+      }
+    } else {
+      if (item.app === undefined) {
+        issues.push(issue("error", "ui_invalid", `${at}/app`, "an app view requires app"));
+      }
+      if (item.file !== undefined) {
+        issues.push(issue("error", "ui_invalid", `${at}/file`, "an app view must not set file"));
+      }
+    }
+    if (item.app !== undefined) {
+      if (item.app.reason.trim().length === 0) {
+        issues.push(
+          issue(
+            "error",
+            "ui_reason_empty",
+            `${at}/app/reason`,
+            "app.reason must say why a native view is not enough",
+          ),
+        );
+      }
+      if (!isEntryInsideRoot(item.app.root)) {
+        issues.push(
+          issue(
+            "error",
+            "ui_path_invalid",
+            `${at}/app/root`,
+            "app.root must be inside the extension",
+          ),
+        );
+      }
+      if (!isEntryInsideRoot(item.app.entry)) {
+        issues.push(
+          issue("error", "ui_path_invalid", `${at}/app/entry`, "app.entry must be inside app.root"),
+        );
+      }
+    }
+    for (const [field, value] of [
+      ["file", item.file],
+      ["fallback", item.fallback],
+    ] as const) {
+      if (value !== undefined && !isEntryInsideRoot(value)) {
+        issues.push(
+          issue(
+            "error",
+            "ui_path_invalid",
+            `${at}/${field}`,
+            `${field} must be inside the extension`,
+          ),
+        );
+      }
+    }
+  });
+
+  if (ui.messages !== undefined && !isEntryInsideRoot(ui.messages)) {
+    issues.push(
+      issue("error", "ui_path_invalid", "/ui/messages", "messages must be inside the extension"),
+    );
+  }
+  const needsWidgets = ui.items.some(
+    (item) => item.placement !== "command" && (item.mode ?? "native") === "native",
+  );
+  if (needsWidgets && ui.widgets === undefined) {
+    issues.push(
+      issue(
+        "error",
+        "widgets_required",
+        "/ui/widgets",
+        "native views require the widgets catalog range",
+      ),
+    );
+  }
+
+  return issues;
+}
+
+/** 확장 메서드 선언의 의미 검사(F.extensions.spec §3.1.1) */
+export function validateMethods(methods: readonly ExtMethodDecl[]): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  const verbs = new Set<string>();
+  methods.forEach((method, index) => {
+    const at = `/methods/${index}`;
+    if (verbs.has(method.verb)) {
+      issues.push(
+        issue(
+          "error",
+          "method_duplicate",
+          `${at}/verb`,
+          `method "${method.verb}" is declared twice`,
+        ),
+      );
+    }
+    verbs.add(method.verb);
+    if (method.readOnly && method.approval === true) {
+      issues.push(
+        issue(
+          "error",
+          "method_invalid",
+          `${at}/approval`,
+          "a readOnly method cannot require approval",
+        ),
+      );
+    }
+  });
+
+  return issues;
+}
+
 /** 정규화된(스키마를 통과한) 매니페스트의 의미 검사 */
 function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
@@ -256,6 +455,8 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   }
 
   issues.push(...checkPluginList(manifest));
+  if (manifest.ui !== undefined) issues.push(...validateUi(manifest.ui));
+  issues.push(...validateMethods(manifest.methods ?? []));
 
   const prefix = ownPrefix(manifest);
   manifest.plugins.forEach((plugin, pluginIndex) => {
@@ -474,7 +675,8 @@ export function validateManifest(input: unknown): ManifestResult {
           "error",
           "legacy_field",
           `/${key}`,
-          `top-level "${key}" is not part of the plugin format (schemaVersion ${MANIFEST_SCHEMA_VERSION}); move the manifest to plugins[]`,
+          LEGACY_HINTS[key] ??
+            `top-level "${key}" is not part of the plugin format (schemaVersion ${MANIFEST_SCHEMA_VERSION}); move the manifest to plugins[]`,
         ),
       );
     }

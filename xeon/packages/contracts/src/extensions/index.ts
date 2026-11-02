@@ -6,6 +6,8 @@ export * from "./hooks.ts";
 export * from "./drive.ts";
 export * from "./ops.ts";
 export * from "./registration.ts";
+export * from "./ui.ts";
+export * from "./ext-method.ts";
 export * from "./manifest.ts";
 export * from "./ports.ts";
 export * from "./validate.ts";

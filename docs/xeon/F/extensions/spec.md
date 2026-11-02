@@ -191,6 +191,10 @@ export const ExtensionManifestSchema = Type.Object({
   /** 확장이 담는 플러그인. 1~16개 */
   plugins: Type.Array(PluginDeclSchema, { minItems: 1, maxItems: 16 }),
   group: Type.Optional(GroupDeclSchema),
+  /** Plugin UI 기여(ADR-0021, §3.1.1). 확장 수준. 화면마다 mode가 native 또는 app이다 */
+  ui: Type.Optional(UiDeclSchema),
+  /** 확장 메서드 `ext.<name>.<verb>`(§3.1.1). Plugin UI와 따로 선언할 수 있다. 최대 64 */
+  methods: Type.Optional(Type.Array(ExtMethodDeclSchema, { maxItems: 64 })),
   isolation: Type.Optional(Type.Union([Type.Literal("none"), Type.Literal("process")])),
   trust: Type.Optional(TrustRequestSchema),
 }, { additionalProperties: false });
@@ -227,6 +231,62 @@ export function effectiveLayer(manifest: Pick<ExtensionManifest, "plugins">): Ex
 - Claude Code의 `dependencies`(확장 사이 직접 의존)는 채택하지 않는다 [제안]. 그룹끼리 직접 참조하지 않는다는 층 사이 규칙 3 때문이다. 확장 사이 의존은 기능 요구(`requires`, `optional`)와 레코드 종류(`readsRecordKinds`)로만 표현한다.
 - `plugins[].layer`의 `plugin`은 층 패키지가 아닌 외부 플러그인을 뜻한다. 외부 플러그인은 L2 기능 provider, 관찰·형성 핸들러, 도구 등록을 할 수 있다.
 - `CapabilityIdSchema`, `SemVerSchema`, `SemVerRangeSchema`는 F.capabilities.spec §3.1을 그대로 import한다. 두 문서의 기능 ID 형식은 같다.
+
+#### 3.1.1 Plugin UI와 확장 메서드 (`ui.ts`, `ext-method.ts`) [결정: 2026-10-31 사용자, ADR-0021, ADR-0022 §3.6]
+
+정본은 `extensions/ui.ts`와 `extensions/ext-method.ts`입니다. 매니페스트 `ui`와 `methods`는 확장 수준의 선택 필드입니다(플러그인 하나에 묶이지 않고, 한 확장의 모든 Registration이 같이 씁니다). `ui`의 모양은 ADR-0021 §3.3과 같고, 이름은 ADR-0022 §3.6을 따릅니다. `methods`는 화면이 없어도 선언할 수 있습니다. 이름 `UiNode`, `validateUi`, `validateUiTree`, `UI_*` 상수, 오류 코드 `ui_*`는 [제안]입니다(ADR-0022가 새 이름을 적지 않은 것).
+
+```ts
+export type UiMode = "native" | "app";
+export type Placement = "page" | "panel" | "card" | "status" | "command" | "settings";
+
+export interface UiContribution {
+  readonly id: string;                 // UI_ID_PATTERN. 확장 안에서 유일. 전체 id는 "<확장이름>/<id>"
+  readonly placement: Placement;
+  readonly mode?: UiMode;              // 생략하면 "native". command는 화면이 없어 무시
+  readonly title: string;              // 메시지 키 또는 문자열
+  readonly icon?: string;
+  readonly file?: string;              // native: 화면 트리 JSON 경로
+  readonly app?: AppDecl;              // app: Plugin App 선언
+  readonly fallback?: string;          // app: Plugin App 금지 때 쓰는 화면 트리 JSON 경로
+  readonly forKind?: string;           // card 전용
+  readonly when?: { readonly thread?: "required" | "optional" };
+}
+export interface AppDecl { root: string; entry: string; bridge: string; reason: string }
+export interface UiDecl {
+  readonly schemaVersion: 1;
+  readonly widgets?: string;           // native 화면이 있으면 필수. 위젯 카탈로그 SemVer 범위
+  readonly items: readonly UiContribution[];   // 최대 64
+  readonly messages?: string;          // 메시지 카탈로그 폴더
+}
+export interface ExtMethodDecl {
+  readonly verb: string;               // EXT_VERB_PATTERN. wire 이름은 ext.<확장이름>.<verb>
+  readonly params: Readonly<Record<string, unknown>>;   // JSON Schema
+  readonly result: Readonly<Record<string, unknown>>;   // JSON Schema
+  readonly readOnly: boolean;
+  readonly approval?: boolean;
+}
+export function validateUi(ui: UiDecl): readonly ManifestIssue[];
+export function validateMethods(methods: readonly ExtMethodDecl[]): readonly ManifestIssue[];
+```
+
+- 옛 이름은 읽지 않습니다. 매니페스트 최상위 `views`는 `legacy_field`이고, `mode: "declarative"`, `"frame"`, 필드 `slot`, `frame`, `cli`, Placement `well`은 스키마가 거부합니다. CLI 표면이 없어 `cli` 필드는 없습니다 [결정: 2026-11-01 CLI 표면 없음].
+- `validateManifest`의 검사는 다음과 같습니다. 경로는 `/ui/items/<i>/...`와 `/methods/<i>/...`입니다. 파일이 실제로 있는지와 화면 트리 내용은 X 로더가 봅니다(`X.loading-trust.spec` §4.3).
+
+  | 코드 | 조건 |
+  |---|---|
+  | `ui_invalid` | `ui`의 스키마 위반. `native`인데 `file`이 없거나 `app`이 있음. `app`인데 `app`이 없거나 `file`이 있음. `fallback`이 `app` 화면이 아닌 곳에 있음. `card`에 `forKind`가 없거나 `card`가 아닌 곳에 `forKind`가 있음 |
+  | `ui_duplicate` | 화면 `id`가 겹침 |
+  | `ui_mode_not_allowed` | Placement가 받지 않는 모드. `PLACEMENT_MODES`: `page`·`panel`은 둘 다, `card`·`status`·`settings`는 `native`만 |
+  | `ui_limit` | Placement 개수 상한 초과(`PLACEMENT_LIMITS`: `page` 4, `panel` 1, `status` 1, `command` 16, `settings` 1) 또는 같은 `forKind`의 `card`가 둘 |
+  | `ui_path_invalid` | `file`, `fallback`, `app.root`, `app.entry`, `messages`가 절대 경로이거나 루트 밖을 가리킴 |
+  | `ui_reason_empty` | `app.reason`이 공백뿐 |
+  | `widgets_required` | `native` 화면이 있는데 `ui.widgets`가 없음 |
+  | `method_invalid` | `methods` 항목의 스키마 위반(동사 문법 포함), `readOnly: true`와 `approval: true`를 함께 선언 |
+  | `method_duplicate` | 같은 `verb`가 둘 |
+
+- 화면 트리는 `UiNode`(`{ type, props?, bind?, each?, when?, children? }`)입니다. `props`는 글자·숫자·불리언·null 값만 받고(색, CSS, HTML 키는 렌더러가 버립니다), `bind`는 속성 이름에서 JSON Pointer 경로(`format?`은 `UI_FORMATS`)로, `each`는 `{ path, as }`, `when`은 `{ path, op: "eq"|"ne"|"exists"|"missing", value? }`입니다. `validateUiTree(input)`이 스키마와 크기 상한(`UI_LIMITS`: 노드 2000개, 깊이 24)을 검사해 `{ ok: true, tree }` 또는 `{ ok: false, issues }`(`ui_invalid`, `ui_limit`)를 돌려줍니다. 순수 함수입니다.
+- Plugin App 다리 메시지 스키마는 `BridgeRequestSchema`(`{ v: 1, id, op, args }`), `BridgeResponseSchema`(`{ v: 1, id, ok: true, value }` 또는 `{ v: 1, id, ok: false, error: { kind, detail? } }`), `BridgePushSchema`(`{ v: 1, push, value }`), `BridgeReadySchema`(`{ v: 1, ready: true, bridge }`)입니다. `op`는 `BRIDGE_OPS`(호스트 API 아홉과 `resize`, `log`, `pong`), 오류 `kind`는 `BRIDGE_ERROR_KINDS`입니다. 메시지 크기 상한 1 MiB는 `bridgeMessageWithinLimit`이 보고, 초당 50개 제한은 호스트가 셉니다. `args`와 `value`의 내용 검사는 `op`별로 셸이 합니다.
 
 ### 3.2 4연산 타입 (`ops.ts`, `drive.ts`, `registration.ts`)
 
@@ -1191,6 +1251,8 @@ export type ManifestIssueCode =
   | "capability_invalid" | "range_invalid" | "capability_duplicate" | "capability_both"
   | "provides_reserved" | "record_kind_prefix" | "record_kind_duplicate" | "read_kind_invalid"
   | "user_config_invalid" | "isolation_invalid" | "trust_invalid"
+  | "ui_invalid" | "ui_duplicate" | "ui_mode_not_allowed" | "ui_limit" | "ui_path_invalid"
+  | "ui_reason_empty" | "widgets_required" | "method_invalid" | "method_duplicate"   // ui, methods, §3.1.1
   // validateUsage
   | "hook_undeclared" | "hook_unused" | "post_undeclared" | "drive_undeclared"
   | "capability_undeclared" | "record_kind_undeclared" | "read_kind_undeclared"
@@ -1328,7 +1390,7 @@ chain의 보충 규칙 [제안]:
 | `schema` | error | `ExtensionManifestSchema` 위반 |
 | `unknown_key` | warning | 알 수 없는 최상위 키(제거됨) |
 | `schema_version_unsupported` | error | `schemaVersion`이 2가 아님. "플러그인 형식(`plugins[]`)으로 옮기세요"를 알린다. 옛 형식을 읽지 않는다 [결정: 2026-11-01 옛 이름 읽기 없음] |
-| `legacy_field` | error | 최상위에 `kind`, `points`, `usesDrive`, `views`, 또는 `plugins[]` 항목으로 옮긴 필드(`layer`, `hooks`, `usesPost`, `requires`, `optional`, `provides`, `recordKinds`, `readsRecordKinds`)가 있음. 스키마 2에서 뜻이 바뀌었거나 위치가 바뀐 이름이라 조용히 지우지 않고 거부한다 [제안] |
+| `legacy_field` | error | 최상위에 `kind`, `points`, `usesDrive`, `views`(이름이 `ui`로 바뀜), 또는 `plugins[]` 항목으로 옮긴 필드(`layer`, `hooks`, `usesPost`, `requires`, `optional`, `provides`, `recordKinds`, `readsRecordKinds`)가 있음. 스키마 2에서 뜻이 바뀌었거나 위치가 바뀐 이름이라 조용히 지우지 않고 거부한다 [제안] |
 | `name_invalid` / `name_reserved` | error | 이름 형식 위반 / `core`, `ext`, `grp`, `x`, `fresnel` 또는 L2 도메인 이름을 외부 확장(`trust.level`이 `builtin`이 아님)이 씀. 입력 출처 키 `user`, `deleg`, `timer`(F `RESERVED_SOURCE_KEYS`)는 신뢰 등급과 무관하게 모든 확장에 금지한다(review.decisions-2 U-13, `eng.transactions.design` §4.7) |
 | `plugin_id_invalid` / `plugin_id_duplicate` | error | 플러그인 id 형식 위반(`group.members` 항목 포함) / 한 확장 안 중복 |
 | `plugin_root_ambiguous` | error | `id`가 없는 플러그인이 둘 이상 |
@@ -1344,6 +1406,7 @@ chain의 보충 규칙 [제안]:
 | `read_kind_invalid` | error | `readsRecordKinds`가 자기 접두를 가리킴(자기 레코드는 선언 없이 읽음) 또는 형식 위반 |
 | `user_config_invalid` | error | `userConfig` 항목 안의 알 수 없는 키, 빈 `setting` |
 | `isolation_invalid` / `trust_invalid` | error | 허용 값 밖 |
+| `ui_*`, `widgets_required`, `method_*` | error | `ui`와 `methods` 검사. 코드와 조건은 §3.1.1 |
 
 `validateUsage(manifest, plugin, usage)`(경로는 `/plugins/<i>/...`):
 

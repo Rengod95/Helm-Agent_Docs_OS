@@ -9,11 +9,15 @@ import {
   type TRecord,
   type TString,
   type TUnion,
+  type TUnsafe,
 } from "typebox";
 import { CapabilityIdSchema, SemVerRangeSchema, SemVerSchema } from "../capabilities/index.ts";
 import { RECORD_KIND_READ_PATTERN, RecordKindDeclJsonSchema } from "./group-record.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { HookNameSchema } from "./hooks.ts";
+import { PluginIdSchema } from "./registration-id.ts";
+import { ExtMethodDeclSchema, type ExtMethodDecl } from "./ext-method.ts";
+import { UiDeclSchema, type UiDecl } from "./ui.ts";
 
 export { EXTENSION_NAME_PATTERN, ExtensionNameSchema, type ExtensionName } from "./name.ts";
 
@@ -27,10 +31,6 @@ export const ExtensionLayerSchema: TUnion<
 ]);
 
 export type ExtensionLayer = Static<typeof ExtensionLayerSchema>;
-
-/** 확장 안에서 유일한 플러그인 id. 루트가 아닌 플러그인의 Registration id 뒷부분이 된다 */
-export const PLUGIN_ID_PATTERN: string = "^[a-z][a-z0-9-]{1,31}$";
-export const PluginIdSchema: TString = Type.String({ pattern: PLUGIN_ID_PATTERN, maxLength: 32 });
 
 /** 매니페스트 형식 버전. 2는 `plugins[]`와 선택적 `group`을 쓰는 형식이다. 옛 형식(1)은 읽지 않는다 */
 export const MANIFEST_SCHEMA_VERSION = 2 as const;
@@ -203,6 +203,8 @@ export const ExtensionManifestSchema: TObject<{
   entry: TString;
   plugins: TArray<typeof PluginDeclSchema>;
   group: TOptional<typeof GroupDeclSchema>;
+  ui: TOptional<TUnsafe<UiDecl>>;
+  methods: TOptional<TArray<TUnsafe<ExtMethodDecl>>>;
   isolation: TOptional<TUnion<[TLiteral<"none">, TLiteral<"process">]>>;
   trust: TOptional<typeof TrustRequestSchema>;
 }> = Type.Object(
@@ -228,6 +230,10 @@ export const ExtensionManifestSchema: TObject<{
     entry: Type.String({ minLength: 1, maxLength: 512 }),
     plugins: Type.Array(PluginDeclSchema, { minItems: 1, maxItems: 16 }),
     group: Type.Optional(GroupDeclSchema),
+    /** Plugin UI 기여(ADR-0021). 확장 수준이고 화면마다 mode가 native 또는 app이다 */
+    ui: Type.Optional(UiDeclSchema),
+    /** 확장 메서드 `ext.<확장 이름>.<verb>`. Plugin UI와 따로 선언할 수 있다 */
+    methods: Type.Optional(Type.Array(ExtMethodDeclSchema, { maxItems: 64 })),
     isolation: Type.Optional(Type.Union([Type.Literal("none"), Type.Literal("process")])),
     trust: Type.Optional(TrustRequestSchema),
   },
