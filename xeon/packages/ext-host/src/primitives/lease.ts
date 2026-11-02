@@ -170,6 +170,14 @@ export function createLeaseBroker(
       return loop;
     };
     return {
+      // X-17 loop.ask: 계약은 T-F에 있고 승인 연결과 drive lock 반납·재부여는 T-XD가 구현한다(review.m4-plan Y7). 그 전까지는 부르면 거부한다
+      ask(): Promise<never> {
+        return Promise.reject(
+          new PrimitiveError("port_unavailable", "loop.ask is not wired yet (X-17, T-XD)", {
+            scopeId: lease.scopeId,
+          }),
+        );
+      },
       async turn(input: TurnInput): Promise<TurnOutcome> {
         if (lease.status !== "active") throw leaseError(lease);
         assertBudget(lease, "turns");

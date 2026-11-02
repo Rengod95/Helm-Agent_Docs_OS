@@ -370,3 +370,42 @@ test("a drive that commits state on every call is called again at most the chain
   await t.settled();
   expect(seen.length).toBe(2 * MAX_CHAINED_REINVOKES + 2);
 });
+
+test("loop.ask is rejected with port_unavailable until X-17 is wired", async () => {
+  const { t, thread } = await setup();
+  const outcomes: { readonly code: unknown; readonly message: unknown }[] = [];
+  await t.host.install(
+    makeGroupUnit({ name: "drv-ask" }, (g) => {
+      g.drive(async (loop) => {
+        try {
+          await loop.ask({
+            requestId: "drv-ask:gate:1",
+            card: {
+              questions: [
+                {
+                  id: "go",
+                  header: "Go",
+                  text: "Go?",
+                  options: [],
+                  multiSelect: false,
+                  allowFreeText: true,
+                },
+              ],
+            },
+          });
+        } catch (error) {
+          if (error instanceof PrimitiveError) {
+            outcomes.push({ code: error.code, message: error.message });
+          }
+        }
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(outcomes).toEqual([
+    { code: "port_unavailable", message: "loop.ask is not wired yet (X-17, T-XD)" },
+  ]);
+  // 거부는 drive lock을 반납하거나 기록을 남기지 않는다
+  expect(kindsOf(t, thread)).toEqual(["scope.changed", "lease.acquired"]);
+});
