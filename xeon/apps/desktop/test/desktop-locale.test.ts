@@ -139,15 +139,15 @@ describe("desktop setting labels in the catalog", () => {
   const SETTING_KO: Readonly<Record<string, readonly [string, string]>> = {
     "l4.desktop.window.closeBehavior": [
       "창 닫기 동작",
-      "tray이면 창을 닫아도 엔진과 진행 중 turn이 남는다. 창은 다시 실행하거나 Dock을 눌러 다시 연다",
+      "tray이면 창을 닫아도 엔진과 진행 중인 턴이 남아요. 창은 다시 실행하거나 Dock을 눌러 다시 열어요.",
     ],
     "l4.desktop.engine.restartLimit": [
       "엔진 자동 재기동 횟수",
-      "10분 안에서 엔진이 비정상 종료하면 자동으로 다시 띄우는 횟수다. 0이면 자동 재기동을 끈다",
+      "10분 안에서 엔진이 비정상 종료하면 자동으로 다시 띄우는 횟수예요. 0이면 자동 재기동을 꺼요.",
     ],
     "l4.desktop.engine.shutdownGraceMs": [
       "엔진 종료 대기 시간",
-      "종료를 요청한 뒤 엔진이 끝나기를 기다리는 시간이다. 엔진의 종료 시한보다 2000 ms 이상 길어야 한다",
+      "종료를 요청한 뒤 엔진이 끝나기를 기다리는 시간이에요. 엔진의 종료 시한보다 2000 ms 이상 길어야 해요.",
     ],
   };
 

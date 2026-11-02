@@ -16,7 +16,7 @@ binds: [xeon/packages/platform-os/**]
 
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
-| M0 | `OsInfo`, `OsDirs`(3플랫폼 표, `home` 포함), `fsKind`, `Clock`·`Scheduler`·`RandomSource` 운영 구현, `Logger` 기본 구현과 마스킹 훅, ID 발급기 구현 `createIdFactory`·`createLocalIdFactory`, `testing` 서브패스(`tempDir`, `withIsolatedEnv`), 프로세스 지문·기계 식별자·uid(store 세션 잠금이 M0) | OS-01~OS-09, OS-18, OS-19 |
+| M0 | `OsInfo`, `OsDirs`(3플랫폼 표, `home` 포함), `fsKind`, `Clock`·`Scheduler`·`RandomSource` 운영 구현, `Logger` 기본 구현과 마스킹 훅, ID 발급기 구현 `createIdFactory`·`createLocalIdFactory`, `testing` 서브패스(`tempDir`, `withIsolatedEnv`), 프로세스 지문·기계 식별자·uid(store 대화 잠금이 M0) | OS-01~OS-09, OS-18, OS-19 |
 | M1 | 바이너리 해석(`rg`, secrets 키 명령용 `security`·`secret-tool` 포함), 서비스 등록(`fresnel.os`) | OS-10~OS-11 |
 | M3(1차) | 알림 전달 수단 `Notifier`(macOS·Linux 먼저) [결정: review.decisions-2 S-04] | OS-13 |
 | M2 | 프로세스 사이 파일 잠금 `fileLock`(`trust.json` 쓰기), 외부 바이너리 필수/선택 표와 점검 | OS-20, OS-21 |

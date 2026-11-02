@@ -103,15 +103,15 @@ xeon/packages/ext-host/
 | L-30 | `virtual-modules.ts`: `registerSdkModules`(`Bun.plugin`, 멱등, 충돌 거부), `LoaderDeps.sdkModules` 연결 | L-14 | S | M3a |
 | L-31 | `default-plugin.ts`: `installDefaultPlugin`(첫 실행 복사, 버전 비교 교체, 임시 디렉터리 후 이동) | L-14 | S | M3a |
 | L-22 | `isolation/rpc.ts`·`child-main.ts`: vscode-jsonrpc 연결(`StreamMessageReader`/`Writer`), `IsoMethods`, 스키마 검사, `init` 왕복, 자식 쪽 scope 스텁과 취소 전달 | L-14, P-30(`ProcessPortKey`), L0.process 포트 구현 [가정] | L | M2(2차) |
-| L-23 | `isolation/proxy.ts`: 선언 지점에만 프록시 핸들러 등록, 디스패치 직렬화, 결과 스키마 검사, 시간 예산 초과 → 예외(fold 규칙), 취소 → `killGraceMs` 뒤 `SIGKILL`, `isolatableHooks`, 격리 불가 지점·drive 거부, 도구 프록시 | L-22, P-06(디스패처), O-05(시간 예산) | L | M2(2차) |
-| L-24 | `isolation/outbox-agent.ts`: 자식의 `post`·`commit`·`record`를 확장 scope로 실행, 자식 `requestId` 그대로 사용 | L-22, P-09(RegistrationRuntime), P-12(상태 커밋) | M | M2(2차) |
+| L-23 | `isolation/proxy.ts`: 선언된 훅에만 프록시 핸들러 등록, 디스패치 직렬화, 결과 스키마 검사, 시간 예산 초과 → 예외(fold 규칙), 취소 → `killGraceMs` 뒤 `SIGKILL`, `isolatableHooks`, 격리 불가 훅·drive 거부, 도구 프록시 | L-22, P-06(디스패처), O-05(시간 예산) | L | M2(2차) |
+| L-24 | `isolation/outbox-agent.ts`: 자식의 `post`·`commit`·`record`를 확장 Registration으로 실행, 자식 `requestId` 그대로 사용 | L-22, P-09(RegistrationRuntime), P-12(상태 커밋) | M | M2(2차) |
 | L-25 | 격리 수명: 비정상 종료 감지, 재시작 정책(`maxRestarts`, `restartWindowSec`, 지수 대기), 한도 초과 → `error` + scope 끄기 요청, `dispose`와 서비스 모드 유휴 종료 경로 | L-23 | M | M2(2차) |
 | L-26 | 핫 리로드(개발용): `reload(name)`, 세대 증가, 질의 접미 재import, 격리 확장은 재시작 | L-14, L-25 | M | M2 이후 |
 | L-27 | 문서 대조 검사: 스펙 §4.6.2 표 ↔ `TRUST_MATRIX`, (pi 표는 삭제) | L-02 | S | M0(신뢰 표) |
 | L-28 | `remove.ts` 제거 흐름(스펙 §4.4.5): `previewRemoval`(`dropExtension(name, false)`), `remove`(`ExtHost.uninstall` → `policy.forget` → `dropTables`면 `dropExtension(name, true)`), 내장 확장 제거 거부. `storageAdmin`은 가짜로 먼저 테스트하고 O-25에서 실제 구현과 연결 | L-08, P-13(`uninstall`), O-03(`forget`) | S | M3 (결정 D9) |
 | L-29 | 5a단계 시작 옵션: `LoadOptions.startup`을 `policy.startupFilter`에 넘겨 빠진 확장을 `disabled`(`safe_mode`, `disabled_flag`)로 두기. 외부 확장은 import 생략, 내장 확장은 install 생략 | L-10, O-20(`startupFilter`, `OperationsPolicy.startupFilter`) | S | M3 (결정 D9) |
 
-- 가장 큰 작업은 L-19, L-22, L-23이다. L-19는 지점별 결과 변환표를 훅 종류(input, request, tool, boundary, session) 단위로 나눠 PR을 쪼갤 수 있다.
+- 가장 큰 작업은 L-19, L-22, L-23이다. L-19는 훅별 결과 변환표를 훅 종류(input, request, tool, boundary, session) 단위로 나눠 PR을 쪼갤 수 있다.
 - M0에 필요한 X.primitives 산출물은 `ExtHost.install`·`uninstall`과 `InstallResult`(P-13)다. 늦으면 L-06은 같은 인터페이스의 가짜 `ExtHost`로 먼저 끝내고 연결만 나중에 한다. `policy.admit`(O-03)도 같다.
 
 ## 4. 채택 코드
@@ -170,7 +170,7 @@ xeon/packages/ext-host/
 | `levels.test.ts` | `trust exceeds source rejected` | 사용자 위치 매니페스트의 `trust.level: "builtin"`은 `trust_exceeds_source` | §9-15 |
 | | `effective level is min` | `project` 위치 + 요청 `user` → `project`, `user` 위치 + 요청 `project` → `project` | §4.6.1 |
 | `settings-keys.test.ts` | `enabled false skips setup` | `ext.x.enabled=false`면 엔트리 호출 0회, `disabled` | §9-6 |
-| | `enable at runtime loads once` | 세션 범위에서 `true`로 바꾸면 `ensureLoaded`가 엔트리를 한 번 부른다 | §9-6 |
+| | `enable at runtime loads once` | 대화 범위에서 `true`로 바꾸면 `ensureLoaded`가 엔트리를 한 번 부른다 | §9-6 |
 | | `foreign namespace rejects load` | userConfig `setting: "l1.loop.maxSteps"` → `rejected`(`settings_rejected`), `settingGroups`에 없음 | §9-12 |
 | | `reserved key in userConfig` | userConfig 키 `enabled` → `settings_reserved_key` | §4.5.1 |
 | | `reserved defs shape` | `ext.<name>.enabled`·`isolation`의 타입, 기본값, `allowedScopes`, `runtimeChange`가 스펙 §6 표와 같고 `checkSettingDef`를 통과한다. 내장 확장에는 `isolation` 정의가 없다 | §4.5.2 |
@@ -200,7 +200,7 @@ xeon/packages/ext-host/
 | `isolation-proxy.test.ts` | `first timeout applies FIRST_DENY` | 가짜 자식이 응답하지 않으면 `tool.call.before` 결정이 `FIRST_DENY.tool_call`, 취소 메시지 전송, 유예 뒤 `SIGKILL` | §9-7 |
 | | `connection drop handled` | 디스패치 중 자식 stdout 종료 → 진행 중 요청 예외 처리(tap 계속, chain 생략), 재시작 1회 | §4.9.7 |
 | | `restart limit disables` | 창 안에서 `maxRestarts + 1`번 종료 → `isolation_restart_limit`, scope 끄기 요청 | §9-18 |
-| | `undeclared point not proxied` | `init` 결과 `usage.on`에 선언 밖 지점 → 등록 거부 | §4.9.2 |
+| | `undeclared point not proxied` | `init` 결과 `usage.on`에 선언 밖 훅 → 등록 거부 | §4.9.2 |
 | | `non-isolatable point rejected` | `plugins[].hooks`에 `request.stream` → `isolation_point_unsupported` | §4.9.4 |
 | | `drive with isolation rejected` | `plugins[].drives: true` + `process` → `isolation_drive_unsupported` | §4.9.5 |
 | `isolation-rpc.test.ts` | `outbox agent forwards requestId` | 자식 `post`의 `requestId`가 대리인 `post`에 그대로 전달, 같은 키 재전송은 `duplicate: true` | §4.9.6 |
@@ -235,9 +235,9 @@ xeon/packages/ext-host/
 
 | 위험 | 영향 | 대응 |
 |---|---|---|
-| pi `trust-manager.ts`의 설정·잠금 결합이 예상보다 깊다 | 포크가 커지고 pi 갱신을 따라가기 어렵다 | 결합 지점은 import 8줄(proper-lockfile, config, utils 2개, runner, types, settings 2개)로 확인했다(스펙 §4.7.1). 포크는 공개 함수 단위로 옮기고, 동작 비교 테스트(`trust-store`, `trust-resolve`)를 pi 동작 기준으로 먼저 쓴다. 결합이 더 나오면 해당 함수는 포크하지 않고 새로 쓴다 |
+| pi `trust-manager.ts`의 설정·잠금 결합이 예상보다 깊다 | 포크가 커지고 pi 갱신을 따라가기 어렵다 | 결합 위치는 import 8줄(proper-lockfile, config, utils 2개, runner, types, settings 2개)로 확인했다(스펙 §4.7.1). 포크는 공개 함수 단위로 옮기고, 동작 비교 테스트(`trust-store`, `trust-resolve`)를 pi 동작 기준으로 먼저 쓴다. 결합이 더 나오면 해당 함수는 포크하지 않고 새로 쓴다 |
 | Bun에서 TS 엔트리 동적 import와 캐시 무효화(핫 리로드) | 컴파일 바이너리에서 외부 확장을 못 불러오거나 리로드가 이전 모듈을 쓴다 | L-01 스파이크를 M0 첫 작업으로 둔다. A안 불가면 B안(jiti)으로 바꾼다. 핫 리로드는 개발용(M2 이후)으로 한정하고, 실패하면 "호스트 재시작" 안내로 대체한다. 격리 확장은 프로세스 재시작이라 영향이 없다 |
-| JSON 직렬화가 안 되는 페이로드가 지점에 있다 | 격리 확장이 일부 지점을 쓸 수 없거나 직렬화 오류가 실행 중에 난다 | `isolatableHooks()`를 `HOOKS` 스키마에서 계산해 로드 시점(격리 확장 검사)에 거부한다. 고빈도 휘발 지점 3개는 고정 제외. F.extensions.plan M2의 페이로드 정확화 때 목록을 다시 계산하는 테스트를 둔다 |
+| JSON 직렬화가 안 되는 페이로드가 훅에 있다 | 격리 확장이 일부 훅을 쓸 수 없거나 직렬화 오류가 실행 중에 난다 | `isolatableHooks()`를 `HOOKS` 스키마에서 계산해 로드 시점(격리 확장 검사)에 거부한다. 고빈도 휘발 훅 3개는 고정 제외. F.extensions.plan M2의 페이로드 정확화 때 목록을 다시 계산하는 테스트를 둔다 |
 | 격리 프로세스 수명이 서비스 모드와 충돌 | 유휴 종료가 자식 프로세스를 남기거나, 자식이 남아 있어 유휴 판정이 계속 거짓이 된다 | 자식 기동·종료는 platform-process 서비스로만 한다. `dispose`는 `fresnel/iso.dispose` → 유예 → `SIGKILL` 순서를 지킨다. 격리 자식은 유휴 판정의 live 작업으로 세지 않는다 [제안]. adr.0006 §3.7 체크리스트 작업자와 판정 규칙을 맞춘다 |
 | `Bun.plugin` 가상 모듈이 프로세스 전역이다 | 같은 지정자에 다른 객체를 등록하면 먼저 import한 모듈과 어긋난다 | `registerSdkModules`가 같은 객체의 재등록만 허용하고 다른 객체는 `conflict`로 거부한다. 호스트가 넘긴 객체가 호스트가 쓰는 모듈이므로 인스턴스가 같다. Bun 1.4.3에서 확인했다(스펙 §4.4.1) |
 | X.primitives의 `ExtHost.install`(P-13)이나 X.operations의 `admit`(O-03)이 늦는다 | M0의 L-06, L-07이 막힌다 | 스펙 §4.4.3 표를 기준으로 가짜 `ExtHost`·가짜 정책으로 구현을 끝낸다. 연결은 두 산출물이 나온 뒤 한다 |

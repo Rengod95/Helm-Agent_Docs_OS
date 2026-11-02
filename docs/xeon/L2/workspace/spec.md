@@ -43,7 +43,7 @@ AST·LSP [결정: 보류]: 구문 트리 검색·편집(omp `crates/pi-ast`)과 
 
 | 용어 | 뜻 |
 |---|---|
-| 작업 디렉터리 (cwd) | 세션의 현재 디렉터리. 상대 경로의 기준이다. `ExecutionEnv`가 들고 있다(`L0.exec.spec`) |
+| 작업 디렉터리 (cwd) | 대화의 현재 디렉터리. 상대 경로의 기준이다. `ExecutionEnv`가 들고 있다(`L0.exec.spec`) |
 | 허용 root | 파일 도구가 접근할 수 있는 디렉터리 목록. 읽기용과 쓰기용이 따로 있다. 값은 L1.tools 권한 정책에서 온다(§4.3) |
 | 정규 경로 | 심볼릭 링크와 `.`, `..`를 모두 푼 절대 경로. `ExecutionEnv.canonicalPath`의 결과 |
 | 경로 탈출 | 요청 경로의 정규 경로가 허용 root 밖에 있는 경우. `..` 조합과 심볼릭 링크 둘 다 해당한다 |
@@ -738,7 +738,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 ## 7. 훅
 
-- 이 문서는 지점을 새로 정의하지 않는다.
+- 이 문서는 훅을 새로 정의하지 않는다.
 - 7개 도구 호출은 `tool.call.before`(fold first), `tool.result`(fold chain), `tool.execution.before`·`update`·`end`(tap)를 지난다(`F.extensions.spec` §3.4 13~17번). 페이로드의 `capability: { id, method }`로 대상을 고를 수 있다(`F.capabilities.spec` §7).
 - 사용 예: L3 그룹은 쓰기를 막는 단계에서 `tool.call.before`의 `first` 핸들러로 `workspace.files`의 `write`·`edit`과 `workspace.shell`의 `run`을 거부한다(`product.scope.spec` §4.4 M2 종료 조건). 판정 근거는 도구 이름 대신 `capability.id`와 `hints.readOnly`를 쓰는 쪽을 [제안]한다.
 - 그룹 코드가 `WorkspaceFilesKey`로 서비스를 직접 부르면 tool 훅을 지나지 않는다(`F.capabilities.spec` §3.9 그룹 경로). 이때도 §4.3 경로 검사와 §4.2 샌드박스는 그대로 적용된다. 승인 파이프라인(L1.tools)은 거치지 않는다.
@@ -793,7 +793,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 8. [미결] `bash` `executionMode: "sequential"`의 비용. 같은 라운드의 읽기 도구까지 순차가 된다. 실측 뒤 `parallel`로 바꿀지 정한다.
 9. [미결] 0 아닌 종료 코드를 `exit_nonzero` 오류로 내는 방식(§3.3). F `ToolContent`에 `isError` 필드를 더해 정상 출력으로 `isError`를 표시하는 대안이 있다. F 문서의 판단이 필요하다.
 10. [미결] 모델용 도구 설명 문구의 언어. pi 원문은 영어다. 이 문서는 F 예시를 따라 한국어로 썼다. 모델 품질 비교 뒤 정한다.
-11. [미결] `l2.workspace.images.*`를 세션 범위에서 바꿀 수 있게 할지. 지금은 세션 범위를 뺐다.
+11. [미결] `l2.workspace.images.*`를 대화 범위에서 바꿀 수 있게 할지. 지금은 대화 범위를 뺐다.
 12. [미결] 패치 적용 메서드. `L2.artifacts.spec`의 거절 hunk 되돌림 안 A는 `workspace.files`에 패치 적용 서비스 메서드(`applyPatch` 후보, 도구 없음, `unsafe`)를 요구한다. 그 안이 채택되면 `workspace.files` minor 버전으로 더하고 §4.3 경로 검사와 §4.4 줄 세우기를 그대로 적용한다. 채택 전에는 `edit`로 같은 일을 할 수 있다.
 13. [미결] 내용 주소(sha256) blob 쓰기(`images.register`)의 분류. 같은 바이트는 같은 blob이라 재실행해도 결과와 효과가 같지만, ADR-0015 §3.3은 `requestId` 기억이 있는 쓰기만 `idempotent`로 둔다. 지금은 선언 없음이다. 내용 주소 쓰기를 `idempotent`로 인정하려면 ADR의 정의를 넓혀야 한다.
 14. [미결] 원자적 쓰기가 기존 파일의 모드 비트(실행 권한)를 잃는다. `FileInfo`에 모드가 없고 `ExecutionEnv`에 chmod가 없어 L0.exec 확장이 필요하다. 그 전까지 실행 파일을 `edit`하면 권한을 다시 줘야 한다.

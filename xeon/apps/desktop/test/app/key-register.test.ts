@@ -92,7 +92,7 @@ describe("registering a model key from the settings screen", () => {
     const outcome = await submitKey(app.commands.setup, name, "add", inputOf(FAKE).field);
     expect(outcome).toEqual({
       kind: "failed",
-      text: "키를 저장하지 못했습니다. 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
+      text: "키를 저장하지 못했어요. 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
     });
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
     await app.stop();
@@ -113,27 +113,30 @@ describe("shell errors on the page side", () => {
     {
       label: "a second registration at once",
       reject: { kind: "busy" },
-      outcome: { kind: "failed", text: "다른 키 등록이 진행 중입니다. 끝난 뒤 다시 시도하세요." },
+      outcome: {
+        kind: "failed",
+        text: "다른 키 등록이 진행 중이에요. 끝난 뒤 다시 시도해 주세요.",
+      },
     },
     {
       label: "a child that never ends",
       reject: { kind: "timeout" },
-      outcome: { kind: "failed", text: "키 등록이 시간 안에 끝나지 않았습니다. 다시 시도하세요." },
+      outcome: { kind: "failed", text: "키 등록이 시간 안에 끝나지 않았어요. 다시 시도해 주세요." },
     },
     {
       label: "a request the shell rejected as malformed",
       reject: { kind: "bad-request" },
-      outcome: { kind: "failed", text: "키 등록 요청에 실패했습니다." },
+      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요." },
     },
     {
       label: "a string rejection",
       reject: "some-code",
-      outcome: { kind: "failed", text: "키 등록 요청에 실패했습니다." },
+      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요." },
     },
     {
       label: "an object of an unknown shape",
       reject: { kind: "exploded", value: FAKE },
-      outcome: { kind: "failed", text: "키 등록 요청에 실패했습니다." },
+      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요." },
     },
   ];
   for (const item of cases) {

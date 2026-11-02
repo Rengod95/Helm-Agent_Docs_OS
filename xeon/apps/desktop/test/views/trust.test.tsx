@@ -101,6 +101,6 @@ describe("TrustCardBody", () => {
     const failed = renderToString(
       <TrustCardBody card={card} sending="failed" onDecide={() => {}} />,
     );
-    expect(failed).toContain("보내지 못했습니다");
+    expect(failed).toContain("보내지 못했어요");
   });
 });

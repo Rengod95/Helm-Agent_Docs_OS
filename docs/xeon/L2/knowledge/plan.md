@@ -22,13 +22,13 @@ binds: [xeon/packages/cap-knowledge/**]
 | M1 | 없음. 지식 기능은 걸어 다니는 골격 범위 밖이다 | `product.scope.spec` §4.3 M1 |
 | M2 | K1~K11 전부 | 아래 |
 
-[제안] 다섯 구성요소(스킬, 메모리 파일, 세션 검색, 변경 원장과 롤백, 쓰기 승인과 스캔)는 모두 `_research/layer-plan-v2.json` L2-d 단계 1차다. `product.scope.spec` §4.3은 M2에 "`cap-knowledge`의 1차 구성요소"를 둔다. 그래서 웹(`L2.web.plan`)과 같은 M2에 넣는다.
+[제안] 다섯 구성요소(스킬, 메모리 파일, 대화 검색, 변경 원장과 롤백, 쓰기 승인과 스캔)는 모두 `_research/layer-plan-v2.json` L2-d 단계 1차다. `product.scope.spec` §4.3은 M2에 "`cap-knowledge`의 1차 구성요소"를 둔다. 그래서 웹(`L2.web.plan`)과 같은 M2에 넣는다.
 
 M2 안의 순서와 근거:
 
 1. 읽기 경로 먼저(K1, K2, K4, K9의 스킬·메모리 부분): Helm(M2)이 `knowledge.skills.view`, `knowledge.memory.read`, `knowledge.search.query`를 `optional`로 쓴다(`L3.helm.spec` §3.8). Helm의 M2 종료 조건은 이 기능 없이도 `degraded`로 끝나지만, 실제 탐구 품질에는 읽기 경로가 필요하다.
 2. 원장(K5)과 승인 게이트(K6)와 검사(K7)를 쓰기 도구 광고보다 먼저 만든다. 쓰기 도구(`skill_manage`, `memory_manage`)는 K5~K7이 끝난 뒤에 광고를 켠다. 승인 없는 쓰기 경로가 한 번도 배포되지 않게 하기 위해서다(`_research/refs/hermes.md` §4.3 "기본 무승인 자기 수정"을 피함).
-3. 학습 그룹(M3, `product.scope.spec` §4.1 I8)이 이 기능에 의존하는 것은 원장(`ledger.list`·`rollback`), 승인 증거를 받는 쓰기 경로(K6), 세션 검색(K8, K9), 검사(`ledger.scan`)다(`L3.learning.spec` §3.1 requires, §4.5, §4.6). 그래서 이 넷은 M2 안에서 끝내고 M3 시작 전에 학습 그룹의 테스트 그룹 호출로 확인한다(§6 완료 기준 4).
+3. 학습 그룹(M3, `product.scope.spec` §4.1 I8)이 이 기능에 의존하는 것은 원장(`ledger.list`·`rollback`), 승인 증거를 받는 쓰기 경로(K6), 대화 검색(K8, K9), 검사(`ledger.scan`)다(`L3.learning.spec` §3.1 requires, §4.5, §4.6). 그래서 이 넷은 M2 안에서 끝내고 M3 시작 전에 학습 그룹의 테스트 그룹 호출로 확인한다(§6 완료 기준 4).
 4. 인덱스 델타 알림(K11)은 마지막이다. 첫 turn 블록(K2, K4)이 먼저 있어야 델타의 기준이 생긴다.
 
 ### 1.2 M3 이후
@@ -39,7 +39,7 @@ M2 안의 순서와 근거:
 | L4 화면 연계 | M3 | 메모리 열람·편집, 제안 대기열 결정, 원장 열람·되돌리기, 드리프트 "현재 파일 받아들이기" | `product.scope.spec` §4.1 I14(설정 화면 M3), `L4.settings-ui.spec` |
 | `created_by` 바꾸기(Hermes `curator adopt`) | 2차 | 큐레이터(학습 그룹 2차)와 함께 | `L3.learning.spec` §4.8.1 |
 | 반복 작업 스크립트 저장(`kind: "script"`) | 2차 | 저장 위치 [미결] | `L3.learning.spec` §4.8.3 |
-| 세션 FTS 외부 콘텐츠 테이블 | 2차 | 인덱스 크기 실측 뒤 판단 | `L2.knowledge.spec` §10 미결 9 |
+| 대화 FTS 외부 콘텐츠 테이블 | 2차 | 인덱스 크기 실측 뒤 판단 | `L2.knowledge.spec` §10 미결 9 |
 | 스킬 루트 `.gitignore` 규칙 | 2차 | `ignore` 의존 재도입 여부 | `L2.knowledge.spec` §10 미결 10 |
 | 공유 메모리 저장소 | 보류 | — | `_research/layer-plan-v2.json` L2-d, `_research/packages.md` §4.4 L2-d |
 
@@ -106,8 +106,8 @@ xeon/packages/cap-knowledge/
     fixtures/skills/**    # 포크 회귀용 스킬 디렉터리 예시
 ```
 
-- 세션 투영·색인 테이블 셋(`cap_knowledge_sessions`, `cap_knowledge_session_docs`, `cap_knowledge_session_fts`)의 DDL은 마이그레이션 파일에 두지 않고 투영기 `cap.knowledge`의 `ddl`에 둔다. 투영 재생성 규칙(`eng.events.design` §5.1 규칙 4)을 따르기 위해서다.
-- 세션 밖 상태 테이블의 마이그레이션 위치와 적용 방식은 `L0.store.plan`을 따른다 [가정: `cap-*` 패키지의 `migrations/`를 접두사별로 적용한다].
+- 대화 투영·색인 테이블 셋(`cap_knowledge_sessions`, `cap_knowledge_session_docs`, `cap_knowledge_session_fts`)의 DDL은 마이그레이션 파일에 두지 않고 투영기 `cap.knowledge`의 `ddl`에 둔다. 투영 재생성 규칙(`eng.events.design` §5.1 규칙 4)을 따르기 위해서다.
+- 대화 밖 상태 테이블의 마이그레이션 위치와 적용 방식은 `L0.store.plan`을 따른다 [가정: `cap-*` 패키지의 `migrations/`를 접두사별로 적용한다].
 - 정본 파일 경로(사용자 데이터 디렉터리, 프로젝트 `.fresnel/skills`)는 코드에 상수로 두지 않고 `fresnel.os`의 경로 API에서 받는다(`L0.os.spec`, `eng.dependency-rules.guide` DR-13).
 - `cap-knowledge`는 `bun:sqlite`를 import하지 않는다. SQL은 `fresnel.store.scoped("cap_knowledge_")` 핸들로만 실행한다(DR-07).
 
@@ -124,10 +124,10 @@ xeon/packages/cap-knowledge/
 | K5 | 변경 원장과 롤백: 안전 캡처(manifest blob), `prepared`→`applied`/`aborted`, `request_id` 멱등 재응답, 시작 시 복구, `list`·`show`(diff)·`rollback`(`rollback_conflict`, `rollback_unsafe`) | K1, L0.store.plan의 `putBlob`·`scoped` | L |
 | K6 | 쓰기 승인 게이트(행위자 × 연산 × 설정 표), `fresnel.approvals` 요청과 결과 처리, `ApprovalEvidence` 유효성(`trustedEvidenceSources`, 소유 확장), 제안 대기열(`cap_knowledge_proposals`, `proposals`, `decide`, 만료, `stale`) | K1, K5, L1.tools.plan의 `ApprovalService` | M |
 | K7 | 위협 패턴 검사: 규칙 표(지시 주입, 경계 표지, 유출, 시크릿 형태, 숨은 문자, 숨은 지시, 우회 권유), `rulesetVersion`, 걸린 문자열 비노출, 마스킹 등록부 연결, `ledger.scan` | K1 | M |
-| K8 | FTS5 trigram 프로브, 투영기 `cap.knowledge`(세션 목록, 세 테이블 DDL), 소비자 `cap.knowledge.fts`(pos 커서, 배치 500, `event_id` 멱등, 커서와 행 같은 트랜잭션, blob 자리표시 해석, NFC), 프로브 실패 시 비활성 | K1, L1.persistence.plan의 투영기 등록·전역 피드·`consumer_cursors` | L |
+| K8 | FTS5 trigram 프로브, 투영기 `cap.knowledge`(대화 목록, 세 테이블 DDL), 소비자 `cap.knowledge.fts`(pos 커서, 배치 500, `event_id` 멱등, 커서와 행 같은 트랜잭션, blob 자리표시 해석, NFC), 프로브 실패 시 비활성 | K1, L1.persistence.plan의 투영기 등록·전역 피드·`consumer_cursors` | L |
 | K9 | 검색 질의 `query`(토큰화, MATCH/LIKE 분기, bm25·최신순, 종류 순 결합, 스니펫, scope, includeHidden), `scroll`, `read`, `list`, 스킬·메모리 docs FTS 재구성 | K2, K4, K8 | M |
 | K10 | 설정 키 `l2.knowledge.*`(`L2.knowledge.spec` §6), 범위 제한(승인·스캔·경로는 managed, user), `checkSettingDef` 통과 테스트 | K1 | S |
-| K11 | 인덱스 델타 알림: 세션별 마지막 `indexVersion`, `input.agent.before` 핸들러의 델타 메모, `thread.start`·`thread.shutdown` 정리 | K2, K3 | S |
+| K11 | 인덱스 델타 알림: 대화별 마지막 `indexVersion`, `input.agent.before` 핸들러의 델타 메모, `thread.start`·`thread.shutdown` 정리 | K2, K3 | S |
 
 순서: K1 → (K2, K5, K7, K10) → K6 → (K3, K4) → K8 → K9 → K11. 쓰기 도구 광고는 K3·K4 완료 시점에 켠다(그 전 커밋에서는 `tools` 배열에 정의가 있어도 `cap-knowledge` 매니페스트가 그 기능의 도구 노출을 끈 상태로 둔다 [가정: 기능 단위 도구 노출 끄기는 `L1.tools.spec`]).
 
@@ -151,7 +151,7 @@ xeon/packages/cap-knowledge/
 - `skills/index.ts`와 `skills/validate.ts`는 만들지 않았다. 색인 읽기·쓰기는 `store.ts`와 `reindex.ts`, 구조 검증은 쓰기 연산(K3)과 함께 `validate.ts`로 온다.
 - 원장 실행기는 새 내용(`next`)을 호출자가 미리 계산해 넘기는 모양이다(spec §4.4.1 4단계가 순수 계산이므로). K3, K4, K6의 쓰기 메서드는 이 실행기를 부른다.
 - 테이블 DDL에 열을 더했다: `cap_knowledge_ledger.target_path`, `index_changed`, `cap_knowledge_skills.layout`(spec §3.8 반영).
-- 프로세스 사이 파일 락은 `OsService`에 없어 임대와 락 안 해시 재확인으로 대신한다(spec §4.3.3 [결정: KN.1]). 그래서 `node-fs.int.test.ts`의 락 시험은 두 프로세스가 아니라 같은 프로세스 안의 직렬화를 확인한다.
+- 프로세스 사이 파일 락은 `OsService`에 없어 프로세스 락과 해시 재확인으로 대신한다(spec §4.3.3 [결정: KN.1]). 그래서 `node-fs.int.test.ts`의 락 시험은 두 프로세스가 아니라 같은 프로세스 안의 직렬화를 확인한다.
 - 프로젝트 스킬은 신뢰 판정 뒤에만 싣는다(M2 검토 4). `knowledgePlugin`의 `projectTrust(projectDir)` 옵션을 조립 루트가 `resolveProjectTrust`로 채운다. 아직 채우는 쪽이 없으므로 기본은 싣지 않음이다 [미결: 조립 루트(L4 host)가 옵션을 채울 때까지 프로젝트 스킬은 로드되지 않는다].
 - 인덱스 블록 끝 안내문은 `knowledge_search`가 광고될 때만 그 도구를 안내한다(`SkillsDeps.searchToolAdvertised`, KN.2에서 켠다). 광고하지 않으면 예산 때문에 싣지 못했다는 문장만 남는다.
 - `skill_view`의 에이전트 작성 스킬 경계(`<untrusted_session_content kind="skill" createdBy="agent">`)는 서비스의 `view`가 아니라 도구 렌더(`renderSkillView`, `toContent`)가 감싼다. `view`는 원문을 돌려준다.
@@ -181,7 +181,7 @@ xeon/packages/cap-knowledge/
 
 | 파일 | 내용 |
 |---|---|
-| `gate.test.ts` | 게이트 표(행위자 × 파괴적 여부 × 설정), 세션 없음, `afterUntrusted`, 증거 유효성 |
+| `gate.test.ts` | 게이트 표(행위자 × 파괴적 여부 × 설정), 대화 없음, `afterUntrusted`, 증거 유효성 |
 | `approval.test.ts` | `files unchanged before approval`, 거부와 피드백, 승인 대기 중 바깥 편집은 `base_stale`, 같은 `requestId`는 한 번만 묻고 첫 결과를 돌려줌, `background destructive always queued`, 설정 끔, `after untrusted forces approval`, 비대화형·포트 없음은 대기열, 증거 유효성, 제안 생애(승인, 거절, `stale`, 만료, 닫힌 제안, 호스트만 결정) |
 | `approval-service.int.test.ts` | 실제 `ApprovalService`(core-tools `fakeApprovals`) 위에서 요청 본문 모양, 허용·거부(피드백), 같은 `requestId`는 승인 요청 이벤트 하나, 기다림 취소는 요청을 남김 |
 
@@ -214,12 +214,12 @@ xeon/packages/cap-knowledge/
 
 ### 3.4 구현 기록: KN.4 (K8, K9)
 
-`m2/webkn` 브랜치의 구현이다. 실제 측정(개발자 세션 DB 사본의 trigram 인덱스 크기, 완료 기준 8)은 하지 않았다. 사용자 승인 뒤에 한다(m2-plan 결정 D11). 측정 전까지 인덱스 크기 값은 [가정]이다.
+`m2/webkn` 브랜치의 구현이다. 실제 측정(개발자 대화 DB 사본의 trigram 인덱스 크기, 완료 기준 8)은 하지 않았다. 사용자 승인 뒤에 한다(m2-plan 결정 D11). 측정 전까지 인덱스 크기 값은 [가정]이다.
 
 | 작업 | 상태 | 구현 위치와 범위 |
 |---|---|---|
 | K8 프로브 | 완료(방식 변경) | `search/probe.ts`(기능 판정: FTS5 + SQLite 3.34.0 이상), `search/setup.ts`(투영기 등록과 표 접근 확인으로 가용성 결정). 범위 핸들이 DDL을 허용하지 않아 `temp` 표 프로브는 하지 않는다(spec §4.8.5) |
-| K8 투영기 | 완료 | `search/ddl.ts`(표 선언, FTS 가능 여부에 따라 버전 1 또는 1001), `search/projector.ts`(`thread.started`, `thread.updated`, `agent.spawned`, `item.recorded` → 세션 목록). 실제 `session.projectors.register`로 등록한다 |
+| K8 투영기 | 완료 | `search/ddl.ts`(표 선언, FTS 가능 여부에 따라 버전 1 또는 1001), `search/projector.ts`(`thread.started`, `thread.updated`, `agent.spawned`, `item.recorded` → 대화 목록). 실제 `session.projectors.register`로 등록한다 |
 | K8 소비자 | 완료 | `search/indexer.ts`(`session.subscribe` 구독, 배치 500, `hydrate`, 이벤트 `seq` 커서와 행을 한 트랜잭션, 실패하면 멈춤) |
 | K9 질의 | 완료 | `search/query-model.ts`(정규화, 토큰, MATCH·LIKE 식, 스니펫; 순수), `search/service.ts`(`query`, `scroll`, `read`, `list`), `search/docs-index.ts`(스킬·메모리 문서 FTS: 쓰기와 같은 트랜잭션에서 갱신, 시작 때 재구성, FTS가 없으면 문서 목록을 LIKE로) |
 | 도구 광고 | 완료 | `plugin.ts`가 `knowledge_search`, `session_scroll`, `session_read`를 `risk: read`로 올린다(검색을 끄고 시작하면 올리지 않는다). 올리면 스킬 인덱스 블록 끝 안내문이 `knowledge_search`를 가리킨다 |
@@ -228,19 +228,19 @@ xeon/packages/cap-knowledge/
 
 - `search/indexer.ts`가 `projector.ts`와 소비자를 나눈다. 계획의 `search/probe.ts`(trigram 프로브)는 기능 판정으로, `search/query.ts`는 `query-model.ts`(순수)와 `service.ts`로 나눴다. `docs-index.ts`는 계획 위치 그대로다.
 - 표 이름과 열은 spec §3.8 구현 메모를 따른다(`sessiondocs`, `sessionfts`, `docsfts`, `sessioncursor`, `thread_id`, `event_seq`).
-- 마이그레이션(`CAP_KNOWLEDGE` 세션 밖 상태)은 바꾸지 않았다. 검색 표는 모두 투영기가 선언한다.
-- 세션 포트는 `SessionService` 전체다 [결정: 통합 검토 L3]. 부분 구현을 걸러내는 덕 타이핑 검사(`isKnowledgeSessionPort`)와 `ports/session.ts`를 지웠다. `fresnel.session`이 없으면(포트 미제공) 세션 검색 없이 시작하고, 있는데 완전한 `SessionService`가 아니면 플러그인 setup이 실패한다. 시험 호스트의 부분 구현(`RecordCommitPort` 대역)은 `without: ["records"]`로 빼고 완전한 세션(`createSessionKit`)이나 아무것도 주지 않는다.
-- 투영기 이벤트 kind와 세션 종류 추론은 spec §4.8.1·§4.8.2에 적었다.
+- 마이그레이션(`CAP_KNOWLEDGE` 대화 밖 상태)은 바꾸지 않았다. 검색 표는 모두 투영기가 선언한다.
+- 대화 포트는 `SessionService` 전체다 [결정: 통합 검토 L3]. 부분 구현을 걸러내는 덕 타이핑 검사(`isKnowledgeSessionPort`)와 `ports/session.ts`를 지웠다. `fresnel.session`이 없으면(포트 미제공) 대화 검색 없이 시작하고, 있는데 완전한 `SessionService`가 아니면 플러그인 setup이 실패한다. 시험 호스트의 부분 구현(`RecordCommitPort` 대역)은 `without: ["records"]`로 빼고 완전한 대화(`createSessionKit`)이나 아무것도 주지 않는다.
+- 투영기 이벤트 kind와 대화 종류 추론은 spec §4.8.1·§4.8.2에 적었다.
 
-시험(모두 실제 SQLite와 실제 `core-persistence` 세션 서비스 위에서 돈다):
+시험(모두 실제 SQLite와 실제 `core-persistence` 대화 서비스 위에서 돈다):
 
 | 파일 | 내용 |
 |---|---|
-| `fts-indexer.test.ts` | 세션 행(제목, 프로젝트 해시, 메시지 수), 숨김 종류(`agent.spawned` 순서 두 가지), 텍스트만 색인, 색인하지 않는 이벤트에도 커서가 감, `idempotent on redelivery`, `cursor and rows in one transaction`(쓰기 도중 예외 주입), 세션 삭제, blob으로 옮겨진 긴 메시지 |
+| `fts-indexer.test.ts` | 대화 행(제목, 프로젝트 해시, 메시지 수), 숨김 종류(`agent.spawned` 순서 두 가지), 텍스트만 색인, 색인하지 않는 이벤트에도 커서가 감, `idempotent on redelivery`, `cursor and rows in one transaction`(쓰기 도중 예외 주입), 대화 삭제, blob으로 옮겨진 긴 메시지 |
 | `query.test.ts` | 질의 모델(토큰, 경로, MATCH·LIKE 식, 스니펫), `korean short query uses like`, `three char query uses fts`, `nfc normalization`, `bm25 then recency`, `fts special chars quoted`, LIKE 와일드카드 리터럴, 숨김·ID·시각·한도·프로젝트 범위, scroll·read·list, `kind order concatenation`, 쓰기와 같은 트랜잭션의 색인 갱신, 가려진 스킬 |
-| `probe.test.ts` | 기능 판정 표, `probe failure disables session search`(FTS5 없음), `degraded: ["session"]`와 스킬·메모리 LIKE 대체, 세션 서비스 없이 시작 |
+| `probe.test.ts` | 기능 판정 표, `probe failure disables session search`(FTS5 없음), `degraded: ["session"]`와 스킬·메모리 LIKE 대체, 대화 서비스 없이 시작 |
 | `fts-trigram.int.test.ts` | 실제 `bun:sqlite`에서 3글자 MATCH, 2글자 0건, 대소문자 무시, 조사 앞뒤 일치, bm25 순서 |
-| `plugin.test.ts` | 세션 서비스가 있을 때 투영기 등록·색인·검색·목록이 플러그인 경로로 동작, 없을 때 `unavailable`, 부분 `fresnel.session`이면 setup 실패 |
+| `plugin.test.ts` | 대화 서비스가 있을 때 투영기 등록·색인·검색·목록이 플러그인 경로로 동작, 없을 때 `unavailable`, 부분 `fresnel.session`이면 setup 실패 |
 
 완료 기준 9(macOS FTS5·trigram 확인)는 이 기기에서 할 수 없다. `desktop-macos` CI job이나 실기에서 `fts-trigram.int.test.ts`를 한 번 돌려 기록한다.
 
@@ -250,22 +250,22 @@ xeon/packages/cap-knowledge/
 
 | 작업 | 상태 | 구현 위치와 범위 |
 |---|---|---|
-| K11 델타 | 완료 | `skills/delta.ts`(`diffIndex`, `formatIndexDelta`; 순수), `SkillsRuntime.indexSnapshot`(모델에게 보이는 스킬의 이름 → 잘린 설명과 `indexVersion`), `turn-context.ts`(세션별 상태, 첫 turn 메시지, 델타 메모) |
+| K11 델타 | 완료 | `skills/delta.ts`(`diffIndex`, `formatIndexDelta`; 순수), `SkillsRuntime.indexSnapshot`(모델에게 보이는 스킬의 이름 → 잘린 설명과 `indexVersion`), `turn-context.ts`(대화별 상태, 첫 turn 메시지, 델타 메모) |
 | 첫 turn 연결 | 완료 | 인덱스 블록(K2)과 메모리 스냅샷(K4)을 `customType: "knowledge.context"` 기록 메시지 하나로 더한다. 시스템 프롬프트는 바꾸지 않는다 |
-| 후크 | 완료 | `plugin.ts`가 세 지점에 거는 핸들러가 `turn-context.ts`를 부른다. `startup` 말고 시작하는 세션은 `thread.start`에서 스킬 루트를 다시 훑는다 |
+| 후크 | 완료 | `plugin.ts`가 세 훅에 거는 핸들러가 `turn-context.ts`를 부른다. `startup` 말고 시작하는 대화는 `thread.start`에서 스킬 루트를 다시 훑는다 |
 
 계획 §2 배치와 다른 점:
 
-- 델타 계산은 `skills/delta.ts`에, 후크 연결과 세션 상태는 `turn-context.ts`에 두었다. 순수 계산과 상태를 나누려는 배치다.
+- 델타 계산은 `skills/delta.ts`에, 후크 연결과 대화 상태는 `turn-context.ts`에 두었다. 순수 계산과 상태를 나누려는 배치다.
 - `thread.start`의 mtime 검사는 하지 않고 전체 재색인을 한다. 재색인 비용(스킬 수에 비례)은 측정 전이라 [가정]이다.
-- 상태는 프로세스 메모리에만 있다. 재시작 뒤 이어받은 세션은 현재 인덱스를 기준으로 시작한다(spec §4.2.6).
+- 상태는 프로세스 메모리에만 있다. 재시작 뒤 이어받은 대화는 현재 인덱스를 기준으로 시작한다(spec §4.2.6).
 - `L1.context`가 같은 블록을 시스템 프롬프트 쪽에 넣기로 정하면 이 메시지는 `HOST.6` 조립에서 끈다. 두 곳에 들어가지 않게 하는 일은 `L1.context.spec`과 조립이 맡는다.
 
 시험:
 
 | 파일 | 내용 |
 |---|---|
-| `delta.test.ts` | 비교와 문장(정렬, 10개 상한, 60자 설명), 첫 turn 메시지, `index delta next turn`(추가·변경·삭제가 다음 turn 메모 하나, 같은 변경은 한 번만), 본문만 바꾼 변경은 메모 없음, 모델 호출 여부 전환, 세션 독립과 `shutdown`, 재개한 세션, `startup` 말고는 재색인, 스킬·메모리를 끄면 메시지 없음 |
+| `delta.test.ts` | 비교와 문장(정렬, 10개 상한, 60자 설명), 첫 turn 메시지, `index delta next turn`(추가·변경·삭제가 다음 turn 메모 하나, 같은 변경은 한 번만), 본문만 바꾼 변경은 메모 없음, 모델 호출 여부 전환, 대화 독립과 `shutdown`, 재개한 대화, `startup` 말고는 재색인, 스킬·메모리를 끄면 메시지 없음 |
 | `plugin.test.ts` | 후크 경로: `thread.start` → 첫 turn 블록 → 변경 뒤 델타 → `thread.shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `plugins[].hooks`. `thread.compact.after`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
 
 ## 4. 채택 코드
@@ -302,7 +302,7 @@ xeon/packages/cap-knowledge/
 | `bun:sqlite` FTS5 | 간접 사용 | `platform-store`가 소유한다(DR-07). macOS에서 FTS5가 든 SQLite를 `Database.setCustomSQLite`로 지정하는 일도 `platform-store`의 시작 검사다(ADR-0004 §3.5). 이 패키지는 자기 trigram 프로브만 한다(`L2.knowledge.spec` §4.8.5) |
 | 외부 npm 패키지 | 없음 | 새 의존을 들이지 않는다. 포크 원본의 `yaml` 2.9.0과 `ignore` 7.0.8은 KN-02, KN-04로 없앤다 |
 | Hermes 원장(`tools/skill_ledger.py`)과 메모리 스토어(`tools/memory_tool_store.py`) | 설계 이식, 재작성 | Python 코드라 그대로 가져올 수 없다. JSONL + 내용 주소 blob 원장을 `cap_knowledge_ledger` + `sys_blobs`로, § 항목·파일 락·드리프트 `.bak`·한도 거절을 TypeScript로 새로 쓴다(`_research/refs/hermes.md` §4.1, §4.2). MIT 고지 대상 코드는 없다 |
-| Hermes 세션 검색(`hermes_state_fts.py`) | 설계 참고 | 네 형태(발견, 스크롤, 읽기, 목록)와 숨김 규칙만 가져온다(`_research/refs/hermes.md` §3.10.2) |
+| Hermes 대화 검색(`hermes_state_fts.py`) | 설계 참고 | 네 형태(발견, 스크롤, 읽기, 목록)와 숨김 규칙만 가져온다(`_research/refs/hermes.md` §3.10.2) |
 | omp `manage_skill`, mnemopi | 참고하지 않음 | `_research/packages.md` §4.4 L2-d 후보지만 이 계획은 Hermes 설계로 충분하다 |
 
 ## 5. 단위 테스트 목록
@@ -337,7 +337,7 @@ xeon/packages/cap-knowledge/
 | 같음 | `lock serializes writers` | 동시에 두 `add` → 둘 다 반영, 파일 손상 없음 |
 | 같음 | `snapshot block deterministic` | 같은 파일 내용 → 같은 스냅샷 블록, 항목 ID·`fileHash`·한도 포함 |
 | `test/approval.test.ts` | `files unchanged before approval` | 기본 설정에서 agent(main) 쓰기: 가짜 승인 대기 중 파일 불변, 거부 → `approval_denied`·불변, 승인 → 적용 |
-| 같음 | `gate table` | 행위자(user, extension+증거, extension 무증거 세션 유무, agent main/subagent/background) × 연산(비파괴/파괴) × 설정(on/off) 표 전체가 §4.5.1과 같음 |
+| 같음 | `gate table` | 행위자(user, extension+증거, extension 무증거 대화 유무, agent main/subagent/background) × 연산(비파괴/파괴) × 설정(on/off) 표 전체가 §4.5.1과 같음 |
 | 같음 | `background destructive always queued` | 설정 off에서도 background의 `replace`·`remove`는 `queued` |
 | 같음 | `after untrusted forces approval` | 설정 off, `afterUntrusted = true` main 쓰기 → 승인 요청 |
 | 같음 | `evidence validity` | 설정에 `"test-group.queue"`를 넣으면 `test-group` 확장의 증거는 유효, 다른 확장이 같은 source를 쓰면 무효, 기본값 `[]`에서는 모두 무효 |
@@ -354,8 +354,8 @@ xeon/packages/cap-knowledge/
 | 같음 | `warn does not block` | warn 규칙만 걸리면 적용되고 원장 `scan`에 규칙 이름 |
 | `test/fts-indexer.test.ts` | `idempotent on redelivery` | 같은 이벤트 배치 두 번 → docs·FTS 행 수 같음 |
 | 같음 | `cursor and rows in one transaction` | `@fresnel/platform-store/testing` 고장 주입(`before_commit`) → 커서·행 모두 반영 안 됨, 재시작 뒤 같은 배치 처리 |
-| 같음 | `session delete removes index` | 투영기 DDL 선언 테이블의 세션 행 삭제를 흉내 냄 → 그 세션의 sessions·docs·FTS 행 0 |
-| 같음 | `hidden kinds` | cron·subagent·background 세션 메시지는 기본 `query`에 없고 `includeHidden`에서 보임 |
+| 같음 | `session delete removes index` | 투영기 DDL 선언 테이블의 대화 행 삭제를 흉내 냄 → 그 대화의 sessions·docs·FTS 행 0 |
+| 같음 | `hidden kinds` | cron·subagent·background 대화 메시지는 기본 `query`에 없고 `includeHidden`에서 보임 |
 | 같음 | `tool results not indexed` | 도구 결과·thinking 파트는 색인 0 |
 | `test/query.test.ts` | `korean short query uses like` | `검색` → `path: "like"`로 `검색을` 메시지를 찾음 |
 | 같음 | `three char query uses fts` | `검색을` → `path: "fts"` |
@@ -363,7 +363,7 @@ xeon/packages/cap-knowledge/
 | 같음 | `bm25 then recency` | 같은 점수면 최신 메시지가 앞 |
 | 같음 | `kind order concatenation` | skill → memory → session 순 |
 | 같음 | `fts special chars quoted` | `"`, `*`, `:` 든 질의가 문법 오류 없이 동작 |
-| `test/probe.test.ts` | `probe failure disables session search` | trigram 생성이 실패하도록 한 가짜 store → 시작 성공, 세션만 요청 `unavailable`, 기본 질의 `degraded: ["session"]` |
+| `test/probe.test.ts` | `probe failure disables session search` | trigram 생성이 실패하도록 한 가짜 store → 시작 성공, 대화만 요청 `unavailable`, 기본 질의 `degraded: ["session"]` |
 | `test/delta.test.ts` | `index delta next turn` | 스킬 추가·설명 변경·삭제 뒤 다음 turn 델타 메모 1개, 본문만 바꾼 변경은 메모 없음 |
 | `test/settings.test.ts` | `knowledge settings pass checkSettingDef` | 키 집합이 spec §6 표와 같고 승인·스캔·경로 키의 `allowedScopes`가 `managed`, `user`뿐 |
 
@@ -404,22 +404,22 @@ spec §9 수용 기준과 테스트의 대응:
 5. 네 정의 `validateCapability` 이슈 0건(수용 기준 5).
 6. 위 표의 나머지 수용 기준 4, 8, 9, 11, 12가 표의 테스트로 통과한다.
 7. `cd xeon && just verify` 종료코드 0.
-8. 실제 대화 코퍼스(개발자 세션 DB 사본, 사람 확인 뒤 레시피 `just knowledge-fts-measure --yes`)로 trigram 인덱스 크기를 재고 결과를 이 계획 §7 위험 표에 기록한다(`_research/notes/L2-3.md` §6 완료 기준 초안).
+8. 실제 대화 코퍼스(개발자 대화 DB 사본, 사람 확인 뒤 레시피 `just knowledge-fts-measure --yes`)로 trigram 인덱스 크기를 재고 결과를 이 계획 §7 위험 표에 기록한다(`_research/notes/L2-3.md` §6 완료 기준 초안).
 9. macOS에서 `fts-trigram.int.test.ts`를 한 번 돌려 FTS5·trigram 포함 여부를 기록한다(`L2.knowledge.spec` §10 미결 15).
 
 ## 7. 위험과 대응
 
 | 위험 | 영향 | 대응 | 근거 |
 |---|---|---|---|
-| FTS5 또는 trigram이 없는 SQLite 빌드(macOS 시스템 SQLite 미확인) | 세션 검색 불가 | 자기 trigram 프로브로 판정하고 세션 검색만 끈다. 스킬·메모리는 LIKE. `platform-store`의 `setCustomSQLite` 경로 안내를 진단에 남긴다 | `_research/notes/L2-3.md` §2.2, ADR-0004 §3.5·§6 |
+| FTS5 또는 trigram이 없는 SQLite 빌드(macOS 시스템 SQLite 미확인) | 대화 검색 불가 | 자기 trigram 프로브로 판정하고 대화 검색만 끈다. 스킬·메모리는 LIKE. `platform-store`의 `setCustomSQLite` 경로 안내를 진단에 남긴다 | `_research/notes/L2-3.md` §2.2, ADR-0004 §3.5·§6 |
 | 한국어 토큰화 품질 | trigram은 2글자 질의를 MATCH로 못 찾고 형태소 분석이 없다 | 3글자 미만 LIKE 경로, NFC 정규화, 구절 따옴표. 실제 질의 로그로 재현율을 본다 | `_research/notes/L2-3.md` §3 |
 | trigram 인덱스 크기(합성 데이터 약 3배) | DB 크기 증가 | 실제 코퍼스 측정(완료 기준 8), 필요하면 외부 콘텐츠 테이블(2차) | `_research/notes/L2-3.md` §3.2 |
 | 원장 blob 증가 | 스킬 본문 변경마다 전후 blob이 쌓임 | 내용 주소로 같은 내용은 한 번만 저장. 보존 기간과 정리 정책은 [미결](`L2.knowledge.spec` §10 미결 6). 원장 blob 총량을 L4 진단에 보인다 | `_research/refs/hermes.md` §3.10.1 (라) |
 | 정본 파일과 DB 색인 불일치(바깥 편집, 크래시) | 오래된 인덱스, 잘못된 `base_stale` | 시작 시 복구와 재색인, `view`의 해시 재확인, 재색인 명령(`skills.reindex`, L4 명령) | `L2.knowledge.spec` §4.3.5, §4.4.3 |
-| 스킬 인덱스 비대화 | 매 세션 컨텍스트 비용 증가 | 인덱스 예산과 설명 자르기, 초과분은 검색 안내. 큐레이터(학습 그룹 2차)가 정리 | `_research/refs/hermes.md` §3.10.1 (바) |
+| 스킬 인덱스 비대화 | 매 대화 컨텍스트 비용 증가 | 인덱스 예산과 설명 자르기, 초과분은 검색 안내. 큐레이터(학습 그룹 2차)가 정리 | `_research/refs/hermes.md` §3.10.1 (바) |
 | pi `skills.ts` 포크와 upstream 차이 | 규격 변경을 놓침 | `UPSTREAM.json` 커밋 고정, pi 업그레이드 때 diff 검토, 탐색 규칙 회귀 테스트 | ADR-0003 §4 |
 | `Bun.YAML.parse` 결과의 순환 객체 | frontmatter 처리 중 무한 순회 | 일반 객체 검사와 순환 검출 뒤 오류 진단 | `bun-types` 1.4.3 `bun.d.ts:1494` 주석 |
 | 승인 창 이중화(L1.tools 일반 승인 + 이 기능 게이트) | 사용자 피로 | 쓰기 도구의 일반 승인 기본 `allow` 요청(`L2.knowledge.spec` §10 미결 5) | `L2.knowledge.spec` §3.6 |
 | 위협 패턴 규칙의 오탐 | 정상 스킬 쓰기 거부 | 사용자 행위자는 `overrideScan`으로 경고로 낮출 수 있음. 규칙 집합 버전 관리와 회귀 예시 테스트 | `L2.knowledge.spec` §4.6 |
 | 두 제안 대기열(knowledge, learning) | 사용자 혼란 | 학습 그룹 제안은 증거로 바로 적용하고 이 대기열에는 에이전트 직접 쓰기만 둔다. 통합 여부는 [미결] | `L2.knowledge.spec` §10 미결 3 |
-| `consumer_cursors`·투영기 선언 테이블에 대한 저장소 권한 가정 | K8 구현 막힘 | K8 착수 전 `L0.store.plan`, `L1.persistence.plan`과 확인. 막히면 FTS 테이블을 세션 밖 상태로 두고 세션 삭제 이벤트 구독으로 지운다 | `L2.knowledge.spec` §3.8, §8 |
+| `consumer_cursors`·투영기 선언 테이블에 대한 저장소 권한 가정 | K8 구현 막힘 | K8 착수 전 `L0.store.plan`, `L1.persistence.plan`과 확인. 막히면 FTS 테이블을 대화 밖 상태로 두고 대화 삭제 이벤트 구독으로 지운다 | `L2.knowledge.spec` §3.8, §8 |

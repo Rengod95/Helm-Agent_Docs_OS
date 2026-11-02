@@ -42,7 +42,7 @@ binds: []
 | 목표 (goal) | 완료 조건 문장과 판정 방식입니다. thread마다 활성 목표는 하나입니다 | L2.work.spec §2 |
 | 미결 (`[미결]`) | 사용자 확인이 필요한 항목입니다. 문서 끝 "미결 사항"에도 모읍니다 | fresnel.templates §문체 규칙 |
 | 번들 바이너리 | 앱과 함께 배포되는 실행 파일입니다(예: 번들 `rg`). 시스템 바이너리는 사용자가 OS에 설치해 `PATH`에서 찾습니다 | L0.os.spec §2 |
-| 범위 (설정 scope) | 설정 값이 저장되는 계층입니다. 순위는 `managed`(관리 정책, 잠금), `session`(이번 시작만), `local`(프로젝트 개인 파일), `project`(프로젝트 공유 파일), `user`(사용자 홈 파일), `default`(코드 기본값) 순입니다 | F.wire-settings.spec §2 |
+| 범위 (설정 scope) | 설정 값이 저장되는 계층입니다. 순위는 `managed`(관리 정책, 잠금), `launch`(이번 실행만), `local`(프로젝트 개인 파일), `project`(프로젝트 공유 파일), `user`(사용자 홈 파일), `default`(코드 기본값) 순입니다 | F.wire-settings.spec §2 |
 | 보호 경로 | 샌드박스 쓰기 루트 안에 있어도 쓰기를 거부하는 경로입니다. 설정으로 더할 수만 있습니다 | L0.sandbox.spec §2 |
 | 블롭 (blob) | 내용 주소(SHA-256) 파일입니다. 이벤트에는 `BlobRef`만 남습니다. 참조가 없고 유예 시간이 지난 블롭은 GC 대상입니다 | L0.store.spec §2, §4.9 |
 | 시크릿 (secret) | 모델 키, API 키처럼 값이 노출되면 안 되는 자격 증명입니다. 값은 제공자(기본 SOPS)에 있고, 이벤트·설정·로그에는 참조만 남습니다 | L0.secrets.spec §1, adr.0019 |
@@ -51,26 +51,26 @@ binds: []
 | 샌드박스 | 셸 명령을 쓰기 루트와 네트워크 정책 안에서 실행하는 격리 계층입니다. Linux는 bubblewrap과 socat, macOS는 Seatbelt를 쓰고, 공통 래퍼는 srt(`@anthropic-ai/sandbox-runtime`)입니다 | L0.sandbox.spec §2, architecture.security.spec §3.2 |
 | 서비스 모드 | `fresnel service`로 뜬 공유 엔진 프로세스가 socket 전송으로 여러 클라이언트를 받는 모드입니다. 자동으로 뜨고 유휴 상태에서 끝납니다. OS 서비스 등록은 2차입니다 | adr.0006, L4.host-service.spec §2 |
 | 서브에이전트 | 정의(이름, 프롬프트, 도구, 모델, 권한)를 따라 자식 대화에서 도는 에이전트입니다 | L1.agents.spec §2 |
-| 세션 | 옛 이름입니다. 이제 코드·문서는 Thread, 화면은 "대화"입니다(`thread` 하나). 남은 "세션"은 pi 원문 인용과 아직 정리하지 않은 문장입니다 | L4.cli.spec §2, F.wire-settings.spec §2 |
+| `세션` | 옛 이름입니다. 이제 코드·문서는 Thread, 화면은 "대화"입니다(`thread` 하나). 남은 "세션"은 pi 원문 인용과 아직 정리하지 않은 문장입니다 | L4.cli.spec §2, F.wire-settings.spec §2 |
 | 스킬 | `SKILL.md` 하나와 지원 파일(`references/`, `templates/`, `scripts/`, `assets/`)을 담은 디렉터리입니다. Agent Skills 규격입니다 | L2.knowledge.spec §2 |
 | 스텝 (step) | 모델 응답 한 번과 그 응답이 부른 도구 결과 묶음입니다. 체크포인트 단위입니다 | F.conversation.spec §2 |
 | 승인 (approval) | 사람의 응답을 기다리는 단일 대기 레코드입니다. 종류는 도구(`tool`), 계획(`plan`), 질문(`question`), 검토(`review`)입니다. 한 프로토콜로 처리합니다 | adr.0018, L1.tools.spec §2 |
 | 신뢰 (trust) | 프로젝트 폴더의 확장과 프로젝트 자원을 쓸지 정하는 판정입니다. 신뢰 등급은 `builtin`, `user`, `project`, `untrusted` 넷이고 확장이 할 수 있는 일을 정합니다 | X.loading-trust.spec §4.6, §4.7 |
-| 실행권 (Scheduler leader) | 옛 이름입니다. `sys_leases`의 `scheduler` 자원을 쥔 프로세스 하나, 곧 Scheduler leader가 예약 틱을 돌립니다. 아직 아무도 잡지 않습니다 | L2.schedule.spec §2, L4.host-service.spec HS-102 |
+| `실행권` (Scheduler leader) | 옛 이름입니다. `sys_leases`의 `scheduler` 자원을 쥔 프로세스 하나, 곧 Scheduler leader가 예약 틱을 돌립니다. 아직 아무도 잡지 않습니다 | L2.schedule.spec §2, L4.host-service.spec HS-102 |
 | 아이템 (item) | 입출력 단위입니다. 사용자 메시지, 어시스턴트 메시지, 시스템 메시지, 도구 호출, 도구 결과, 확장 커스텀 메시지가 있습니다 | F.conversation.spec §2 |
 | 안전 모드 | 외부 확장(`user`·`project` 등급), 외부 훅, L3 내장 플러그인 그룹을 싣지 않고 시작하는 모드입니다 | X.operations.spec §2, §4.6.2 |
 | 알림 (notice) | 사용자 주의가 필요한 상태를 분류한 신호입니다 | L2.dialog.spec §2 |
 | 엔진 | Cordis 호스트, 루프, SQLite를 묶은 라이브러리입니다. 데몬 여부, 전송, 유휴 종료 같은 프로세스 정책은 갖지 않습니다 | architecture.overview.spec §2, L0.process.spec §2 |
-| 예약 (timer) | cron 또는 at으로 정한 예약입니다. 기한마다 새 세션을 만들어 실행합니다 | L2.schedule.spec §2 |
+| 예약 (`timer`) | cron 또는 at으로 정한 예약입니다. 기한마다 새 대화를 만들어 실행합니다 | L2.schedule.spec §2 |
 | 원장 | 스킬과 메모리의 모든 변경 기록입니다. 전후 내용을 blob으로 가집니다 | L2.knowledge.spec §2 |
 | 웹 provider | 웹 기능(검색, 가져오기, 브라우즈)을 실제로 수행하는 구현입니다. 내장(`builtin-wrapper`, `searxng`, `local`, `playwright-local`, `native`)과 플러그인(`plugin:<확장 이름>`)이 있습니다 | L2.web.spec §2 |
 | 입력 큐 | thread별 내구 대기열입니다. 이벤트 `input.*`와 투영 `p_inputs`로 이루어집니다 | L1.tasks.spec §2 |
 | 자동 끄기 | 실패 기준을 넘은 확장의 Registration을 다음 단계 경계에서 끄는 동작입니다 | X.operations.spec §2 |
 | 자식 대화 | 서브에이전트 실행마다 새로 여는 thread입니다. 부모 대화와 소유자를 기록합니다 | L1.agents.spec §2 |
-| 자원 임대 (Process lock, `sys_leases`) | `sys_leases`의 행 하나, 곧 Process lock입니다. 저장 이름 `sys_leases`는 그대로입니다. 자원 이름은 `thread:<threadId>`, `scheduler`, `service` 셋입니다. 소유자 정보와 `epoch`를 담습니다. `epoch`는 자원의 소유자가 바뀔 때마다 1 오르는 펜싱 토큰입니다 | L0.store.spec §2 |
+| 프로세스 락 (Process lock, 옛 이름 `자원 임대`, `sys_leases`) | `sys_leases`의 행 하나, 곧 Process lock입니다. 저장 이름 `sys_leases`는 그대로입니다. 자원 이름은 `thread:<threadId>`, `scheduler`, `service` 셋입니다. 소유자 정보와 `epoch`를 담습니다. `epoch`는 자원의 소유자가 바뀔 때마다 1 오르는 펜싱 토큰입니다 | L0.store.spec §2 |
 | 플러그인 그룹 | 여러 층의 플러그인을 묶어 한 번에 켜고 끄는 확장입니다. 매니페스트에 `group` 선언이 있으면 플러그인 그룹이고, 없으면 일반 확장입니다. Helm과 학습은 L3 기본 플러그인 그룹입니다 | F.extensions.spec §2, §3.1, L3.group-sdk.spec §2 |
 | 플러그인 | 매니페스트 `plugins[]`의 항목 하나입니다. 한 층에 속하는 단일 기능 단위이고, 엔진에 등록하면 Registration 하나가 됩니다. `drive`는 정책이 허용할 때만 씁니다 | F.extensions.spec §2, §3.1 |
-| 훅 (hook, 옛 이름 지점) | 확장이 `on`으로 핸들러를 거는 이름 붙은 런타임 생애주기 위치입니다. 훅마다 fold가 정해져 있습니다. 코드 이름은 `HookName` 등입니다 | F.extensions.spec §2 |
+| 훅 (hook, 옛 이름 `지점`) | 확장이 `on`으로 핸들러를 거는 이름 붙은 런타임 생애주기 위치입니다. 훅마다 fold가 정해져 있습니다. 코드 이름은 `HookName` 등입니다 | F.extensions.spec §2 |
 | 층 | 의존 순위가 같은 패키지 묶음입니다. F, X, L0, L1, L2, L3, L4 순서입니다 | architecture.layers.spec §2 |
 | 제안 대기열 | 사람의 결정을 기다리는 에이전트 쓰기 요청 목록입니다. 학습 그룹 대기열과 지식 쓰기 대기열 둘이 있습니다 | L2.knowledge.spec §2 |
 | 컴팩션 머리 | 가지 위의 마지막 `thread.compacted`입니다. 조립할 때 `firstKeptEventId` 앞 내용을 요약으로 바꿉니다 | L1.context.spec §2 |
@@ -79,17 +79,17 @@ binds: []
 | 턴 (turn) | 사용자 입력 하나(예약·원격 입력 하나 포함)에 대한 한 번의 작업입니다. 첫 모델 호출부터 루프 종료까지입니다 | F.conversation.spec §2 |
 | 투영 (projection) | 이벤트에서 만든 조회용 테이블(메시지, 파트 등)입니다. 같은 트랜잭션에서 갱신합니다 | architecture.overview.spec §2, F.records.spec §2 |
 | 투영기 (projector) | 내구 이벤트를 받아 자기 소유 테이블을 갱신하는 순수 함수 묶음입니다 | L1.persistence.spec §2 |
-| 전송 | 호스트 계약을 실어 나르는 수단입니다. in-process, stdio, service 셋이 있습니다 | architecture.overview.spec §2, L4.host-service.spec §2 |
+| 전송 | Runtime API를 실어 나르는 수단입니다. in-process, stdio, service 셋이 있습니다 | architecture.overview.spec §2, L4.host-service.spec §2 |
 | 호스트 | 엔진을 소유하고 전송을 열어 계약의 서버 쪽을 맡는 L4 실행 단위(`apps/host`)입니다 | architecture.overview.spec §2 |
-| 호스트 계약 (wire) | UI와 엔진 사이의 JSON-RPC 계약입니다. 스키마는 F에 하나만 둡니다 | architecture.overview.spec §2, F.wire-settings.spec §1 |
+| Runtime API (wire) | UI와 엔진 사이의 JSON-RPC 계약입니다. 스키마는 F에 하나만 둡니다 | architecture.overview.spec §2, F.wire-settings.spec §1 |
 | 기능 (cap) | 서비스 API와 모델 도구를 한 쌍으로 묶은 L2 단위입니다. 정의는 F에 있고 구현은 `cap-*` 패키지에 있습니다 | architecture.overview.spec §2, F.capabilities.spec §2 |
 | 효과 (effect) | 부작용이 있을 수 있는 도구 실행 하나입니다. `effect.intent`는 있는데 `effect.result`가 없으면 열린 효과입니다 | F.records.spec §2, L1.persistence.spec §2 |
-| 이벤트 소싱 | 변경을 불변 이벤트로 쌓고, 조회용 투영을 같은 트랜잭션에서 그 이벤트로 갱신하는 저장 방식입니다. 세션 저장은 SQLite 한 파일입니다 | adr.0004 |
+| 이벤트 소싱 | 변경을 불변 이벤트로 쌓고, 조회용 투영을 같은 트랜잭션에서 그 이벤트로 갱신하는 저장 방식입니다. 대화 저장은 SQLite 한 파일입니다 | adr.0004 |
 | 휘발 이벤트 | 저장하지 않고 연결된 구독자에게만 보내는 이벤트입니다. 토큰 델타가 대표 예입니다 | F.records.spec §2 |
 | 활성 가지 | thread의 현재 leaf에서 `parentId`를 따라 처음 이벤트까지 올라간 사슬입니다 | L1.persistence.spec §2 |
 | 핸들러 시간 예산 | 핸들러 호출 한 번이 쓸 수 있는 실행 시간(ms)입니다. 사용자 응답을 기다린 시간은 뺍니다 | X.operations.spec §2 |
 | `drive` | 루프를 구동할 drive lock을 받는 연산입니다. 한 thread에 drive lock은 하나뿐이고, `drives: true`를 선언한 플러그인만 씁니다. 상한 `{maxTurns, maxSpawns, maxTokens}`가 붙습니다 | adr.0007, F.extensions.spec §4.6, X.primitives.spec §2 |
-| `drive lock` / `Driver` | 한 thread에서 진행을 맡을 배타 권한입니다. 한 번에 Registration 하나만 가집니다. 가진 쪽을 `Driver`라고 부르며 화면 라벨은 "주도"입니다(§3). 이전 이름은 drive 임대(lease)입니다. 저장 문자열 `lease.acquired`·`lease.released`·`lease.rejected`·`leaseId`·`leaseEpoch`는 그대로입니다 | F.extensions.spec §2, §4.6 |
+| `drive lock` / `Driver` | 한 thread에서 진행을 맡을 배타 권한입니다. 한 번에 Registration 하나만 가집니다. 가진 쪽을 `Driver`라고 부르며 화면 라벨은 "주도"입니다(§3). 옛 이름은 `drive 임대`(`lease`)입니다. 저장 문자열 `lease.acquired`·`lease.released`·`lease.rejected`·`leaseId`·`leaseEpoch`는 그대로입니다 | F.extensions.spec §2, §4.6 |
 | `fold` | 한 훅에 걸린 핸들러 결과를 합치는 규칙입니다. `tap`(관찰), `first`(차단), `chain`(형성)이 있고 훅 선언이 정합니다. ADR-0017이 `collect`를 더합니다 | F.extensions.spec §2, adr.0017 |
 | `on` | 훅에 핸들러를 거는 연산입니다. 훅의 fold에 따라 관찰, 차단, 형성이 됩니다 | adr.0007 |
 | `OsDirs` | OS별 디렉터리 값 묶음입니다. data, config, cache, state, runtime, resource를 담습니다 | L0.os.spec §3.2 |
@@ -165,20 +165,20 @@ binds: []
 
 | 옛 이름 | 새 이름 | 비고 |
 |---|---|---|
-| 지점 (`Point*`, `PointName`, `POINTS`) | 훅 (`Hook*`, `HookName`, `HOOKS`) | 훅 이름 `session.*`는 `thread.*`입니다 |
-| 세션 (`SettingScope` `session`, 락 키 `session:<threadId>`) | `launch`, `thread:<threadId>` | 화면 용어는 "대화"입니다. 저장 문자열 `turn.*`·`scope.changed`·`lease.*`·`trn_`·`sys_leases`는 그대로입니다 |
-| 비밀, 비밀 핸들 | 시크릿, 시크릿 참조 | `SecretUseMode`는 `InjectionMode`입니다 |
-| 능력 | 기능 (Capability) | 코드 이름 `CapabilityId`는 그대로입니다 |
-| 의도 그룹 | 플러그인 그룹 | 매니페스트 모양 변경은 ADR-0022 §3.2 트랙입니다 |
-| scope (확장 등록 묶음) | `Registration`(`host.register`, `RegistrationId`) | 설정 범위 `scope`는 그대로입니다. 저장 문자열 `scope.changed`·`scopeId`는 그대로입니다 |
-| drive 임대 (`DriveLease`, lease) | `drive lock`(`DriveLock`), 가진 쪽은 `Driver` | 저장 문자열 `lease.*` 이벤트와 `leaseId`·`leaseEpoch`는 그대로입니다 |
+| `지점` (`Point*`, `PointName`, `POINTS`) | 훅 (`Hook*`, `HookName`, `HOOKS`) | 훅 이름 `session.*`는 `thread.*`입니다 |
+| `세션` (`SettingScope` `session`, 락 키 `session:<threadId>`) | `launch`, `thread:<threadId>` | 화면 용어는 "대화"입니다. 저장 문자열 `turn.*`·`scope.changed`·`lease.*`·`trn_`·`sys_leases`는 그대로입니다 |
+| `비밀`, `비밀 핸들` | 시크릿, 시크릿 참조 | `SecretUseMode`는 `InjectionMode`입니다 |
+| `능력` | 기능 (Capability) | 코드 이름 `CapabilityId`는 그대로입니다 |
+| `의도 그룹` | 플러그인 그룹 | 매니페스트 모양 변경은 ADR-0022 §3.2 트랙입니다 |
+| `scope` (확장 등록 묶음) | `Registration`(`host.register`, `RegistrationId`) | 설정 범위 `scope`는 그대로입니다. 저장 문자열 `scope.changed`·`scopeId`는 그대로입니다 |
+| `drive 임대` (`DriveLease`, lease) | `drive lock`(`DriveLock`), 가진 쪽은 `Driver` | 저장 문자열 `lease.*` 이벤트와 `leaseId`·`leaseEpoch`는 그대로입니다 |
 | 구동 그룹 설정 `x.primitives.activeDriveGroup` | `x.primitives.activeDriver`(화면: 주도 플러그인) | 옛 키는 읽지 않습니다. 새 키 `x.primitives.driveRequiresGroup`(기본 켜짐)이 더해집니다 |
 | 매니페스트 `kind`, `usesDrive`, `points` | `plugins[]`(`layer`, `hooks`, `drives`)와 `group` 선언 유무 | 스키마 2입니다. 옛 형식은 읽지 않습니다 |
 | group-kit | group-sdk | 패키지 이름 |
 | 예약 종류 `loop` | `repeat` | 예약 상태 파일은 version 2입니다 |
 | bench (측정) | benchmark | `just benchmark`, `just benchmark-gate` |
 | 작업대 표시 이름 | LightCraft (화면 ko 크래프트) | 코드 id `workbench`는 그대로입니다 |
-| Xeon / xeon | Fresnel / fresnel | 패키지 범위 `@fresnel/*`, 서비스 이름 `fresnel.*`, 환경 변수 `FRESNEL_*`, 프로젝트 폴더 `.fresnel/` |
+| `Xeon` / `xeon` | Fresnel / fresnel | 패키지 범위 `@fresnel/*`, 서비스 이름 `fresnel.*`, 환경 변수 `FRESNEL_*`, 프로젝트 폴더 `.fresnel/` |
 
 ## 5. 미결 사항
 

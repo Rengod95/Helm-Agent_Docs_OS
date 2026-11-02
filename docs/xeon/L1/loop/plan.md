@@ -19,9 +19,9 @@ binds: [xeon/packages/core-loop/**]
 | 마일스톤 | 범위 | L1-b 구성요소(계획 단계) |
 |---|---|---|
 | M0(선행, 다른 패키지) | `contracts`의 F 타입(`AgentEventMapper` 시그니처, `StepCheckpoint`, `HOOKS`, `BoundaryValue`), `platform-store`, `core-persistence` 커밋 API, `ext-host` 디스패치 최소형 | — |
-| M1 걸어 다니는 골격 | 자체 루프(진입점 `runTurn(entry)`, 단계 함수, 도구 배치), 이벤트 매퍼, 커밋 지점 T1~T4·T6, 단계 체크포인트, 재개 진입(`next` 판별자 전부), 입력 admit(`input` 지점), 모델 테이프 한 턴과 강제 종료 뒤 재개(`_research/foundation-plan.md` §6 M1 스모크), `l1.loop.maxSteps` | 턴 사이클(1차), 예산 pi 방식의 단계 상한·중단(1차), 단계 전 준비 훅(1차) |
+| M1 걸어 다니는 골격 | 자체 루프(진입점 `runTurn(entry)`, 단계 함수, 도구 배치), 이벤트 매퍼, 커밋 시점 T1~T4·T6, 단계 체크포인트, 재개 진입(`next` 판별자 전부), 입력 admit(`input` 훅), 모델 테이프 한 턴과 강제 종료 뒤 재개(`_research/foundation-plan.md` §6 M1 스모크), `l1.loop.maxSteps` | 턴 사이클(1차), 예산 pi 방식의 단계 상한·중단(1차), 단계 전 준비 훅(1차) |
 | M2 L2 기능과 Helm(`product.scope.spec` §4.3) | 완료 게이트 횟수 상한(`l1.loop.gate.maxContinues`), drive 연동(`loop.turn` 멱등)의 정식 테스트, 추론 예산 설정 연결(`thinkingBudgets`), `input.bash.before` 진입점, `await_input` 재진입의 승인 응답 연결, 자식 thread turn 진입점 `runChildTurn`(L1.agents M2) | 완료 게이트(2차 구성요소의 앞당김), 예산의 추론 레벨별 토큰 예산(1차) |
-| M3 | 목표 판정 소비 지점(`boundary.settle.before` 핸들러 계약, `L2.work.spec`·`L1.agents.spec`과 함께) | (L2-e 목표 지속과 연결) |
+| M3 | 목표 판정 소비 훅(`boundary.settle.before` 핸들러 계약, `L2.work.spec`·`L1.agents.spec`과 함께) | (L2-e 목표 지속과 연결) |
 | 2차(M3 이후) | 반복 감지(`l1.loop.repeat.*`) | 반복 감지(2차) |
 | 제외 | 입출력 가드레일. 이름만 예약한다(`L1.loop.spec` §4.11) | 입출력 가드레일(보류) |
 
@@ -112,7 +112,7 @@ xeon/packages/core-loop/
 | LP10 | drive 연동: `runTurn`의 T1 build 안 `turnByRequestId` 조회와 `leaseEpoch` 펜싱, 열린 turn 이어 끝내기, thread 취소 신호 처리, `LoopTurnResult.usage` (M2 완료 2026-10-24: 시험 `drive-budget.test.ts`. 횟수 상한은 X가 거부하고 토큰은 `loop.budget`으로 보고한다) | LP5, LP6, M0: ext-host drive 최소형 | M | M1(최소), M2(정식 테스트) |
 | LP11 | `stopAtSafeBoundary`: T4 뒤 결정 `end`, T6 생략, 시한 처리 | LP4 | S | M1 |
 | LP12 | `input.bash.before` 진입점과 `await_input` 재진입의 승인 응답 연결 (`await_input` 재진입 완료 2026-10-24: 시험 `await_input_resumes_after_approval_response`, 열린 turn을 닫을 때 그 turn의 미해결 승인 취소. `input.bash.before`는 L1F에서 완료: `user-bash.ts`, 시험 `user-bash.test.ts`) | LP5, L1.tools 승인 프로토콜 | M | M2 |
-| LP13 | 목표 판정 소비 지점 계약 시험(가짜 판정 핸들러) | LP7, L1.agents 판정 API | S | M3 |
+| LP13 | 목표 판정 소비 훅 계약 시험(가짜 판정 핸들러) | LP7, L1.agents 판정 API | S | M3 |
 | LP14 | 반복 감지 | LP7, FR-L5 | M | 2차 |
 | LP15 | 자식 thread turn `runChildTurn`(spec §4.13): requestId 멱등 조회, 자식 turn 노드(`openScope` 부모 subagent), `systemPrompt`·`model`·`ToolRunContext` 값 전달, 자식 한도(`child_limit`) (M2 완료 2026-10-24: `runChildTurn`, 시험 `child-turn.int.test.ts`) | LP5, LP10, L1.agents.plan AG-2 | M | M2 |
 | LP16 | (완료 2026-10-23) F 타입 이행: `contracts/src/conversation/agent.ts`에 `AgentMessage`(닫힌 유니온), `AgentEvent`, `AgentTool`, `AgentToolResult`, `AgentToolCall`, `AgentToolUpdateCallback`, `ToolExecutionMode`, `AgentContext` 정의(`F.conversation.spec` §3.1.1). `pi.ts`에서 agent-core 재노출 제거, `hierarchy.ts` 선언 병합 제거, `AgentToolHooks` 제거. `pi-types.test.ts`의 agent-core 항등 검사를 F 정의 검사로 바꾼다 | — | M | 이행 1 |
@@ -160,7 +160,7 @@ xeon/packages/core-loop/
 | `resume_abort_requested_closes_turn` | `resume.test.ts` | `turn.abort_requested`가 있는 열린 turn은 재개하지 않고 `turn.completed{interrupted}`로 닫힌다 | M1 |
 | `default_has_no_step_cap` | `budget.test.ts` | 기본 설정에서 60단계 테이프가 끝까지 실행된다(spec §9-3) | M1 |
 | `max_steps_ends_turn_as_interrupted` | `budget.test.ts` | `maxSteps = 3`이면 3단계 뒤 결정 `end`, `turn.completed{interrupted, error:"step_limit"}` | M1 |
-| `drive_budget_stops_at_turns_cap` | `drive.int.test.ts` | 임대 turn 상한 2인 가짜 drive 함수가 세 번째 `loop.turn`에서 거부되고 임대가 `releasing`이 된다. 토큰 예산은 X가 `loop.turn` 호출 사이에서 검사하므로 실행 중인 turn은 끝까지 간다 | M2 |
+| `drive_budget_stops_at_turns_cap` | `drive.int.test.ts` | drive 락 turn 상한 2인 가짜 drive 함수가 세 번째 `loop.turn`에서 거부되고 drive 락이 `releasing`이 된다. 토큰 예산은 X가 `loop.turn` 호출 사이에서 검사하므로 실행 중인 turn은 끝까지 간다 | M2 |
 | `drive_turn_same_request_id_replays` | `drive.test.ts` | 같은 `requestId`로 두 번 부르면 두 번째 `replayed: true`, `turn.started` 하나(spec §9-8) | M1 |
 | `gate_stops_after_max_continues` | `completion-gate.test.ts` | `boundary.settle.before`이 계속 `continue: true`여도 게이트 계속이 `maxContinues` 회를 넘지 않고 정착한다(spec §9-4) | M2 |
 | `gate_ignores_continue_on_non_final_step` | `completion-gate.test.ts` | 도구 호출이 있는 단계의 `continue`는 세지 않는다 | M2 |
@@ -190,7 +190,7 @@ xeon/packages/core-loop/
 | `length_stop_settles_all_calls_as_truncated` | `loop/tool-batch.test.ts` | `stopReason: "length"` 응답의 도구 호출은 `execute`가 0회이고 모두 `truncated`로 닫힌다 | 이행 |
 | `terminate_only_when_every_result_terminates` | `loop/tool-batch.test.ts` | 결과 둘 중 하나만 `terminate`면 다음 요청, 둘 다면 정착 후보 | 이행 |
 | `step_end_returns_placed_steer_without_callback` | `loop/step-end.test.ts` | C5의 `drain`이 고른 steer가 `StepNext.placed`로 돌아오고 다음 요청 컨텍스트에 들어간다. 정착 후보 판정은 steer가 있으면 거짓 | 이행 |
-| `a_failed_step_commit_ends_the_turn_as_failed_without_throwing` | `loop/run-turn.test.ts` | 가짜 세션이 T3에서 `err`를 내면 `runTurn`이 거부(reject)되지 않고 T6 `failed{loop_rejected}`를 시도하며 도구 `execute`는 0회다 | 이행 |
+| `a_failed_step_commit_ends_the_turn_as_failed_without_throwing` | `loop/run-turn.test.ts` | 가짜 `SessionService`가 T3에서 `err`를 내면 `runTurn`이 거부(reject)되지 않고 T6 `failed{loop_rejected}`를 시도하며 도구 `execute`는 0회다 | 이행 |
 | `resume_entries_use_main_path_step_functions` | `loop/run-turn.test.ts` | `tools`·`request`·`turn_end` 진입에서 같은 테이프의 끊기지 않은 실행과 내구 이벤트 열이 같다(spec §9-16) | 이행 |
 | `each_step_commits_three_plus_three_per_tool_call` | `turn.test.ts` | 진짜 core-loop를 대역 저장소 위에서 돌려 한 단계가 커밋 3개(S1, C3, C5)와 도구 호출마다 3개(E1, E2, E3)를 쓰는지 커밋 키로 센다. 도구 호출 0~3개(spec §4.2) | 이행 |
 | `upstream_event_order_cases` | `loop/upstream-parity.test.ts` | 원본 `packages/agent/test/agent-loop.test.ts`에서 고른 사례(도구 없는 응답, 도구 1개, 병렬 2개, steer 주입, 오류 응답, 중단)의 `AgentEvent` 순서가 같다. 사례는 옮겨 적고 원본 코드는 실행하지 않는다 | 이행 |
@@ -225,4 +225,4 @@ xeon/packages/core-loop/
 | typebox 검증이 pi-ai `validateToolArguments`의 정규화(선택 null, `Value.Convert`)와 다르다 | LP18 첫 테스트로 대조하고, 다르면 `fresnel.models`가 pi-ai 함수를 감싼 `Result` 메서드를 쓴다(adr.0009 §3.5) |
 | 재개 때 컨텍스트 재구성이 결정적이지 않으면 요청이 달라진다 | 녹화 테이프 `context-hash` 모드(TS-04)로 재개 테스트를 돌린다. 불일치는 L1.context의 버그로 다룬다 |
 | T3 체크포인트(FR-L3)를 F가 받지 않는다 | `tools` 재진입을 "T3의 assistant item과 효과 이벤트에서 도출"하는 방식으로 바꾼다. 체크포인트 없이도 같은 정보가 이벤트에 있다 |
-| 유휴 입력의 두 커밋(`input.queued`, T1) 사이 끊김 | 입력이 queued로 남아 다음 시작에서 배치된다. `resume.int.test.ts`에 그 지점 끊김을 넣는다 |
+| 유휴 입력의 두 커밋(`input.queued`, T1) 사이 끊김 | 입력이 queued로 남아 다음 시작에서 배치된다. `resume.int.test.ts`에 그 시점 끊김을 넣는다 |

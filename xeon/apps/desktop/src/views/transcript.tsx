@@ -1,3 +1,4 @@
+import { t } from "@fresnel/client/i18n";
 import type { ItemId } from "@fresnel/contracts/conversation";
 import { useMemo, type ReactNode } from "react";
 import {
@@ -34,19 +35,19 @@ export function Transcript(): ReactNode {
     ],
     [ids, live, status],
   );
-  if (threadId === null) return <Notice>왼쪽에서 대화를 고르거나 새로 만드세요.</Notice>;
-  if (status === "loading") return <Notice>대화를 읽는 중…</Notice>;
+  if (threadId === null) return <Notice>{t("desktop.transcript.pickThread")}</Notice>;
+  if (status === "loading") return <Notice>{t("desktop.transcript.loading")}</Notice>;
   if (status === "error") {
     return (
       <Notice>
-        대화를 읽지 못했습니다.{" "}
+        {t("desktop.transcript.loadFailed")}{" "}
         <button
           type="button"
           onClick={() => {
             commands.retryTranscript();
           }}
         >
-          다시 읽기
+          {t("desktop.transcript.reloadButton")}
         </button>
       </Notice>
     );
@@ -54,13 +55,13 @@ export function Transcript(): ReactNode {
   const failureNotice =
     failure === null ? null : (
       <div className="error" role="alert">
-        응답을 만들지 못했습니다: {failure}
+        {t("desktop.transcript.turnFailed", { failure })}
       </div>
     );
   if (rows.length === 0) {
     return (
       <>
-        <Notice>아직 메시지가 없습니다.</Notice>
+        <Notice>{t("desktop.transcript.empty")}</Notice>
         {failureNotice}
       </>
     );

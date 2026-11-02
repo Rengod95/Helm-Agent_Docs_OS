@@ -8,7 +8,7 @@ depends_on: [L2.artifacts.spec, F.capabilities.plan, F.records.plan, L0.store.pl
 binds: [xeon/packages/cap-artifacts/**]
 ---
 
-# L2 산출물과 세션 구현 계획 (artifacts)
+# L2 산출물과 대화 구현 계획 (artifacts)
 
 `L2.artifacts.spec`을 `xeon/packages/cap-artifacts`(`@fresnel/cap-artifacts`)와 F 정의 파일로 옮기는 계획이다. 절 번호(§)는 따로 적지 않으면 그 스펙의 것이다.
 
@@ -16,7 +16,7 @@ binds: [xeon/packages/cap-artifacts/**]
 
 마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M0·M1은 [결정: `_research/foundation-plan.md` §5 P4], M2·M3 배치는 [제안]이다.
 
-계획 v2의 단계 표기(`_research/layer-plan-v2.json` L2-g)는 다음과 같다. 산출물 등록과 미리보기, 리뷰와 diff 승인, 세션 제목과 메타는 1차다. 세션 핸드오프와 내보내기는 2차, 공유 링크는 보류다. `product.scope.spec` §4.3 M3 행이 "나머지 1차 구성요소(`cap-artifacts` 등)"를 M3에 두므로 1차 항목은 M3에 만든다.
+계획 v2의 단계 표기(`_research/layer-plan-v2.json` L2-g)는 다음과 같다. 산출물 등록과 미리보기, 리뷰와 diff 승인, 대화 제목과 메타는 1차다. 대화 핸드오프와 내보내기는 2차, 공유 링크는 보류다. `product.scope.spec` §4.3 M3 행이 "나머지 1차 구성요소(`cap-artifacts` 등)"를 M3에 두므로 1차 항목은 M3에 만든다.
 
 ### 1.1 M0·M1
 
@@ -33,7 +33,7 @@ binds: [xeon/packages/cap-artifacts/**]
 | 안 | M2에 넣는 것 | 장점 | 단점 |
 |---|---|---|---|
 | 1. 당기지 않음 | A1(F 정의·카탈로그)만 | M2 범위가 늘지 않는다. `cap-work`는 정의(`ArtifactsRegistryKey`)로 컴파일되고, 실행 때 provider가 없으면 등록을 건너뛴다 | M2의 Helm 탐구에서 계획이 산출물 목록에 보이지 않는다. M3에 기존 계획을 소급 등록하는 경로가 없다 |
-| 2. 최소 registry | A1 + A2 + A3(`register`, `update`, `get`, `list`. 도구·리뷰·세션 메타 없음) | M2부터 계획·탐구 노트가 산출물로 남는다. M3에서 투영 재생성 없이 이어진다 | M2 작업 3개가 늘어난다. 산출물 화면(L4)이 M3라 M2에서는 등록만 되고 볼 곳이 서비스 API뿐이다 |
+| 2. 최소 registry | A1 + A2 + A3(`register`, `update`, `get`, `list`. 도구·리뷰·대화 메타 없음) | M2부터 계획·탐구 노트가 산출물로 남는다. M3에서 투영 재생성 없이 이어진다 | M2 작업 3개가 늘어난다. 산출물 화면(L4)이 M3라 M2에서는 등록만 되고 볼 곳이 서비스 API뿐이다 |
 
 - [제안] 안 1을 기본으로 한다. 다만 `L2.work.plan`이 M2 완료 기준에 "계획이 산출물로 등록된다"를 넣으면 안 2로 바꾼다. 어느 쪽이든 A1은 M2에 둔다. `cap-work`와 Helm이 정의를 참조해 컴파일되어야 하기 때문이다.
 - 안 2를 택해도 이벤트 모양과 투영 버전은 M3와 같다. M2에 쓴 `artifact.registered`는 M3 코드가 그대로 읽는다.
@@ -112,14 +112,14 @@ xeon/packages/cap-artifacts/
 | A1 | F `defs/artifacts.ts`에 정의 3개와 공통 스키마, `ReviewAnswerSchema`, 서비스 묶음 `ArtifactService`·`ArtifactServiceName`·`ARTIFACTS_CAPABILITIES`(spec §3.9)를 둔다. F `records/catalog/artifact.ts`에 `artifact.*` 12종 카탈로그(`CatalogEntry`, `F.records.spec` §3.3.2)와 payload 스키마를 둔다. ID 접두 `art`·`rvw`·`cmt`·`hof`는 F.conversation §3.2.1 `LocalIdPrefix`를 쓴다. `artifact` 영역, `TYPE_PREFIX_OWNERS` 행, `CallOptions.context`는 F에 이미 있으므로 확인만 한다. `validateCapability` 0건 테스트 | `F.capabilities.plan` M0, `F.records.plan` M0 | M | M2 |
 | A2 | 산출물 모델: kind 판정, 메타 검사, 버전 규칙(`baseVersion`), 보관 기한 판정, 미리보기 메타 계산 | A1 | S | M3(안 2면 M2) |
 | A3 | blob 등록(`fresnel.store` blob API, `sys_blobs`)과 커밋 순서, 투영기 `cap.artifacts`와 DDL, 목록 커서. `register`·`update`·`list`·`get`·`archive` 서비스 | A2, `L0.store.plan` blob API, `L1.persistence.plan` 투영기 등록 | M | M3(안 2면 M2) |
-| A4 | `artifact_create`, `artifact_update` 도구 등록과 도구 경로 메타 병합 규칙(spec §3.2 둘째 항목), `CallContext` 해석과 다른 세션 거부 | A3, A1의 `CallContext` 확정 | S | M3 |
+| A4 | `artifact_create`, `artifact_update` 도구 등록과 도구 경로 메타 병합 규칙(spec §3.2 둘째 항목), `CallContext` 해석과 다른 대화 거부 | A3, A1의 `CallContext` 확정 | S | M3 |
 | A5 | diff 수집: `tool.settled`에서 workspace 결과 `details.diff` 추출(파서), 체크포인트 기준 diff 계산, 통합 diff 정규화와 hunk ID, 같은 파일 다중 diff 병합, 상한 | A1, `L2.workspace.spec` 결과 `details` 계약 | M | M3 |
 | A6 | hunk 단위 승인 모델과 상태 머신(open/submitted/closed, 라운드), `ReviewAnswer` 반영, `open`의 changeset 등록·승인 요청 | A3, A5, L1.tools `review` kind 결정(spec §10 미결 4) | M | M3 |
 | A7 | 코멘트 → 입력 큐 전달: 본문 렌더, `fresnel.tasks.post`(`when` 선택), `requestId = review:<reviewId>:r<round>`, 제출 절차 6단계 | A6, `L1.tasks` post | S | M3 |
 | A8 | 거절 적용: 역패치 계산(순수), 적용 전 확인(fuzz), 파일 단위 원자성, 결과 기록. 적용 포트 구현은 [미결] 해소 후 하나만 만든다(후보 A `workspace.files` 또는 B L1 복원) | A6, spec §10 미결 6 해소 | M | M3(미해소 시 M3 이후) |
 | A9 | 자동 제목: `boundary.settle.after` 핸들러(detached), 프롬프트·후처리, `fresnel.models` 용도 호출, `fresnel.session.retitle(onlyIfUntitled)` 호출과 requestId. `setMeta.title`의 제목 변경 호출 | A3, `L1.persistence` 제목 API, `L1.models` 용도 라우팅 | S | M3 |
-| A10 | 라벨: 정규화, `artifact.session_labeled`, 세션 메타 투영(L1 세션 이벤트 복사), `list`·`search` | A3 | S | M3 |
-| A11 | (2차) 핸드오프: 컴팩션 요약 재사용 판정, 요약 생성, `HandoffPackage`, 새 세션 생성과 양쪽 기록, 입력 post, 도구 `handoff` | A3, A10 | M | M3 이후 |
+| A10 | 라벨: 정규화, `artifact.session_labeled`, 대화 메타 투영(L1 대화 이벤트 복사), `list`·`search` | A3 | S | M3 |
+| A11 | (2차) 핸드오프: 컴팩션 요약 재사용 판정, 요약 생성, `HandoffPackage`, 새 대화 생성과 양쪽 기록, 입력 post, 도구 `handoff` | A3, A10 | M | M3 이후 |
 | A12 | (2차) Markdown·HTML 내보내기: 이벤트 렌더러, 도구 출력 옵션, 산출물 부록, `Source.usage.cache` 필터, 결과 위치 | A3, `L2.web.spec` Source 모양 | M | M3 이후 |
 | A13 | 설정 그룹 `l2.artifacts`(spec §6)와 도구 노출 키 연결 | A1 | S | M3 |
 
@@ -143,9 +143,9 @@ xeon/packages/cap-artifacts/
 | 원본 | 경로 | 가져오는 것 | 바꿀 점 |
 |---|---|---|---|
 | oh-my-pi `artifact://` 저장소 | omp `packages/coding-agent` 내부 URL 프로토콜(`_research/refs/oh-my-pi.md` 231행) | 산출물을 ID로 참조하는 방식 | 파일 저장소 대신 이벤트 + blob + 투영. URL 스킴은 두지 않는다 |
-| oh-my-pi `/handoff` | `_research/l2e.md` §3.3 C3 참고 구현 | 요약 후 새 세션 시작 흐름 | 컴팩션 요약 재사용 판정을 더함(spec §4.4) |
+| oh-my-pi `/handoff` | `_research/l2e.md` §3.3 C3 참고 구현 | 요약 후 새 대화 시작 흐름 | 컴팩션 요약 재사용 판정을 더함(spec §4.4) |
 | oh-my-pi hunk stage·discard | `_research/l2e.md` §3.2 B6 참고 구현 | hunk 단위 결정 | git 인덱스 대신 리뷰 이벤트 |
-| opencode 세션 제목 | oc `session/title.ts`(`_research/packages.md` §4.4 L2-e "세션 제목과 메타" 행) | 첫 턴 뒤 소형 모델로 제목 생성, 요청 종류 `title` | 이벤트는 L1 소유. 이 패키지는 호출만 한다 |
+| opencode `session` 제목 | oc `session/title.ts`(`_research/packages.md` §4.4 L2-e "세션 제목과 메타" 행) | 첫 턴 뒤 소형 모델로 제목 생성, 요청 종류 `title` | 이벤트는 L1 소유. 이 패키지는 호출만 한다 |
 | Zed 체크포인트와 개별·전체 수락·거부 | `_research/l2e.md` §3.2 B6, §3.3 C1(Zed 변경 파일 목록), 부록 Zed URL | 변경 파일 목록, 개별 수락 UI 흐름 | 화면은 L4. 이 층은 상태만 |
 
 ## 5. 단위 테스트 목록
@@ -176,9 +176,9 @@ xeon/packages/cap-artifacts/
 | › 상한 | `maxPerSession` 2에서 세 번째 `register`가 `artifact_limit_reached` |
 | › 본문 크기 상한 | `maxContentBytes` 초과가 `content_too_large`이고 blob을 쓰지 않는다 |
 | › 메타 16 KiB 초과 | `invalid_input` |
-| › 보관 기한 | `manualClock`으로 기한을 넘기고 세션을 열면 `artifact.archived { reason: "retention" }` |
+| › 보관 기한 | `manualClock`으로 기한을 넘기고 대화를 열면 `artifact.archived { reason: "retention" }` |
 | `registry.tools.test.ts` › 도구 경로 메타 병합 | `artifact_update`의 `summary`만 바뀌고 기존 `sources`가 남는다 |
-| › 도구 경로 다른 세션 거부 | `context.toolCallId`가 있고 입력 `threadId`가 다르면 `denied` |
+| › 도구 경로 다른 대화 거부 | `context.toolCallId`가 있고 입력 `threadId`가 다르면 `denied` |
 | › CallContext 없음 | 입력 `threadId`도 없으면 `invalid_input` |
 
 ### 5.3 투영 재생성 동일성 (A3, A10)
@@ -186,9 +186,9 @@ xeon/packages/cap-artifacts/
 | 테스트 | 확인할 동작 |
 |---|---|
 | `projection.rebuild.test.ts` › 재생성 뒤 목록 동일 | 등록 3, 갱신 2, 보관 1 뒤 테이블을 지우고 재생 → `list({status:"all"})` 결과와 커서가 같다(수용 기준 1) |
-| › `expectProjectionsRebuildable` | 리뷰·라벨 이벤트를 섞은 세션에서 통과 |
+| › `expectProjectionsRebuildable` | 리뷰·라벨 이벤트를 섞은 대화에서 통과 |
 | › 투영기 버전 변경 | `version`을 올리면 이 투영기 테이블만 다시 만든다 |
-| › 세션 메타 복사 | L1 세션 생성·제목 이벤트에서 `cap_artifacts_sessions.title`, `title_source`가 채워진다 |
+| › 대화 메타 복사 | L1 대화 생성·제목 이벤트에서 `cap_artifacts_sessions.title`, `title_source`가 채워진다 |
 | › 커서 안정성 | 같은 `updated_at`의 항목들이 `artifact_id` 순으로 끊김 없이 이어진다 |
 
 ### 5.4 hunk 분할·승인·거절 경계 사례 (A5, A6, A8)
@@ -261,8 +261,8 @@ xeon/packages/cap-artifacts/
 | `handoff.package.test.ts` › 스키마 왕복 | 만든 패키지를 JSON 직렬화·역직렬화하면 `HandoffPackageSchema`를 통과하고 값이 같다 |
 | › 컴팩션 재사용 | 컴팩션 뒤 2턴이면 `compaction+tail`, 0턴이면 `compaction`, 4턴이면 `generated` |
 | › 산출물 고정 | 최신 버전 번호가 패키지에 고정되고 이후 갱신이 패키지를 바꾸지 않는다 |
-| › 양쪽 기록 | 새 세션에 `handoff_received`(원본 leaf 포함), 원본에 `handoff_sent` |
-| › 재시도 멱등 | 같은 requestId 재호출이 새 세션을 하나만 만든다 |
+| › 양쪽 기록 | 새 대화에 `handoff_received`(원본 leaf 포함), 원본에 `handoff_sent` |
+| › 재시도 멱등 | 같은 requestId 재호출이 새 대화를 하나만 만든다 |
 
 ## 6. 완료 기준
 
@@ -270,7 +270,7 @@ xeon/packages/cap-artifacts/
 - spec §9 수용 기준 1~6이 위 테스트로 확인된다. 대응: 1 → §5.3, 2 → §5.6, 3 → §5.4 `revert.test.ts`, 4 → §5.5, 5 → §5.7(2차 작업이지만 필터 함수 `filter.ts`와 그 테스트는 M3에 먼저 만든다 [제안]), 6 → §5.1.
 - `bunfig.toml` 커버리지 기준(줄 0.8, 함수 0.8)을 넘는다 [제안]. 순수 함수 비중이 커서 높게 둔다.
 - `check-layers`와 dependency-cruiser가 `cap-artifacts`의 같은 층 import 0건을 확인한다.
-- spec §10 미결 1·4·6이 M3 착수 전에 정해지지 않으면, 해당 작업(A4의 다른 세션 거부, A6의 승인 경로, A8)을 대안으로 구현하고 완료 기준에서 그 항목을 "대안 구현"으로 표시한다.
+- spec §10 미결 1·4·6이 M3 착수 전에 정해지지 않으면, 해당 작업(A4의 다른 대화 거부, A6의 승인 경로, A8)을 대안으로 구현하고 완료 기준에서 그 항목을 "대안 구현"으로 표시한다.
 
 ## 7. 위험과 대응
 
@@ -278,9 +278,9 @@ xeon/packages/cap-artifacts/
 |---|---|---|---|
 | 1 | 거절 적용 경로와 L1 복원의 책임 중복 | 후보 B를 고르면 되감기와 리뷰가 같은 파일 상태를 두 경로로 바꾼다. 대화 leaf가 리뷰 때문에 움직일 수 있다 | spec §4.2.5에서 A를 제안. B를 고르면 L1.persistence에 "leaf를 움직이지 않는 파일 복원" API를 요구한다. A8을 [미결] 해소 뒤로 미루는 배치(§1.3) |
 | 2 | diff 포맷 의존(workspace 결과 `details` 계약 변경) | workspace가 `details.diff` 모양을 바꾸면 리뷰 수집이 깨진다 | F에 `WorkspaceDiffDetailsSchema`를 두자는 요청(spec §10 미결 6). 그 전에는 수집기가 모르는 모양을 건너뛰고 경고하며, `collect.test.ts`에 workspace 샘플 결과를 고정 데이터로 둔다 |
-| 3 | 산출물 blob 증가 | 버전마다 blob이 남고 보관으로 공간이 줄지 않는다 | 크기·개수 상한 설정, 내용 주소 blob이라 같은 내용은 한 번만 저장. 공간 회수는 세션 삭제와 L0.store 정리에 맡기고, 필요하면 L1.persistence에 이벤트 압밀(snapshot) 2차 항목을 요청 |
+| 3 | 산출물 blob 증가 | 버전마다 blob이 남고 보관으로 공간이 줄지 않는다 | 크기·개수 상한 설정, 내용 주소 blob이라 같은 내용은 한 번만 저장. 공간 회수는 대화 삭제와 L0.store 정리에 맡기고, 필요하면 L1.persistence에 이벤트 압밀(snapshot) 2차 항목을 요청 |
 | 4 | 미리보기 종류 확장 시 L4 결합 | 새 kind마다 L4 렌더러가 필요해지면 L2 변경이 L4 배포를 끌고 간다 | 확장 kind는 `mediaType` 기본 미리보기로 떨어지는 규칙(spec §3.1). 내장 kind 추가는 minor 버전과 L4 렌더러를 같은 릴리즈에 넣는다 |
 | 5 | 승인 프로토콜의 `review` kind 미수용 | 사용자 결정이 들어올 경로가 없다 | 대안 (b) `question` + `answerSchema`, (c) F wire 메서드. A6의 답 반영 함수는 경로와 무관한 순수 함수로 만들어 두 경로 모두에 쓴다 |
-| 6 | `CallContext` 미수용 | 도구 경로에서 대상 세션을 알 수 없다 | L1.tools 어댑터가 입력에 `threadId`를 끼우는 대안(spec §3.5 마지막 항목). `context.ts` 한 곳에서 해석해 바꾸기 쉽게 둔다 |
-| 7 | 자동 제목 비용 | 세션마다 소형 모델 호출 1회 | 첫 턴만, 입력 3,000자 상한, 끌 수 있는 설정 |
+| 6 | `CallContext` 미수용 | 도구 경로에서 대상 대화를 알 수 없다 | L1.tools 어댑터가 입력에 `threadId`를 끼우는 대안(spec §3.5 마지막 항목). `context.ts` 한 곳에서 해석해 바꾸기 쉽게 둔다 |
+| 7 | 자동 제목 비용 | 대화마다 소형 모델 호출 1회 | 첫 턴만, 입력 3,000자 상한, 끌 수 있는 설정 |
 | 8 | 같은 파일 다중 diff 병합의 기준 복원 실패 | 한 턴에 같은 파일을 여러 번 고친 경우 리뷰를 못 연다 | 실패 시 `diff_unparsable` 대신 `checkpoint` 근거로 다시 여는 안내를 detail에 싣는다 [제안] |

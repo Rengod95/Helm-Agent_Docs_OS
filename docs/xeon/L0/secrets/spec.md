@@ -29,7 +29,7 @@ binds: [xeon/packages/platform-secrets/**]
 | 도구 자식 프로세스 생성과 env 구성 | `L0.exec.spec`(`fresnel.exec`) |
 | 네트워크 프록시, TLS 종단, 샌드박스 정책 | `L0.sandbox.spec`(`fresnel.sandbox`). sentinel 모드(M2)와의 접점은 후속이며 이 문서의 M2 요구로만 둔다 |
 | 승인 요청과 기억 범위 | `L1.tools.spec`(`fresnel.approvals`) |
-| 감사 이벤트를 세션 이벤트로 기록하는 일 | `core-tools`(tool-runtime). kind와 payload는 `F.records.spec` §3.3.1 `secret.*`(§3.9) |
+| 감사 이벤트를 대화 이벤트로 기록하는 일 | `core-tools`(tool-runtime). kind와 payload는 `F.records.spec` §3.3.1 `secret.*`(§3.9) |
 | 런타임 HTTP 요청 전송(`GuardedHttp`) | `L2.web.spec`. 이 문서는 치환 함수만 제공한다 |
 | 브라우저 드라이버 | `L2.web.spec`(`web.browse`) |
 | `fresnel secret` 명령줄 파싱, 프롬프트, 출력 형식 | `L4.cli.spec` |
@@ -249,12 +249,12 @@ export interface Redactor {
 - 8바이트 미만 값: `registerKnown`이 `value_too_short`를 돌려준다. 이런 시크릿은 `env` 모드 lease를 거부하고(`mode_not_allowed`), `runtime-http`·`browser-input`만 허용한다 [제안]. `env`는 출력에 값이 나올 수 있는데 가릴 수 없기 때문이다. `add`는 8바이트 미만 값을 받지 않는다.
 - 한계: 마스킹은 보조 수단이다. 값을 비인접 조각으로 나눈 출력, 등록하지 않은 인코딩(rot13, gzip 변환, 역순, 모델의 재인코딩)은 잡지 못한다(`_research/secrets.md` §2.3, [S28][S30]). 보장은 값이 모델과 셸에 들어오는 경로를 없애는 M3·M4 모드 설계에서 나온다. 문서와 화면은 마스킹을 "보조"로 표기한다.
 
-### 3.5.1 사후 가림 적용 지점 (`post-redact.ts`) [결정: review.m3-design-inputs D-M3-20 b, M3-REQ-59]
+### 3.5.1 사후 가림 적용 위치 (`post-redact.ts`) [결정: review.m3-design-inputs D-M3-20 b, M3-REQ-59]
 
 - 이미 기록된 이벤트 행은 바꾸지 않는다. 표시(`display`), 내보내기(`export`), 모델 입력(`model-input`) 세 단계가 행을 읽는 시점에 `createPostHocRedaction(redactor).apply(stage, value)`를 부른다. 결과 `PostHocResult`는 가려진 새 값(`value`), `hits`, 키 회전 안내(`advice`)를 가진다. 입력 객체는 바뀌지 않는다(`Redactor.maskDeep`은 새 값을 돌려준다).
 - 값이 기록된 뒤에 등록된 시크릿(예: 기록 뒤 처음 lease가 풀린 값)도 이후 표시와 내보내기에서 가려진다. 반대로 등록 전에는 알 수 없어 가릴 수 없다. 프로세스가 다시 시작되면 등록부가 비므로, 단계 호출자는 필요할 때 목록(`list`)의 시크릿을 먼저 lease해 등록한다 [가정].
 - 키 회전 안내는 문장이 아니라 값이다. `advice`는 `{ kind: "rotate_key", names, patternHits }`이고 가려진 것이 없으면 null이다. `names`는 `known:<이름>`으로 가려진 시크릿 이름(중복 없음, 정렬), `patternHits`는 이름 없이 패턴으로 가려진 개수다. 문구는 L4가 이 값으로 만든다(i18n, `eng.context-map.design` 하위 층 문장 금지). 이미 모델이나 외부에 나간 값은 가려도 되돌릴 수 없으므로 안내는 "원본 키를 회전한다"(`fresnel secret rotate`)가 기본이다.
-- 호출 지점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. 이 문서는 호출 지점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
+- 호출 시점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. 이 문서는 호출 시점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
 
 ### 3.6 서비스 (`service.ts`)
 
@@ -450,9 +450,9 @@ import type {
 
 - 어느 레코드에도 값, 값의 일부, 값의 해시를 싣지 않는다 [제안, `_research/secrets.md` §6.5 "값의 해시도 남기지 않는다"]. `commandHash`는 명령줄(값이 아닌 문자열)의 SHA-256 hex 앞 16자다.
 - `secret.denied`의 사유 중 `host_mismatch`, `approval_missing`, `expired`는 `_research/secrets.md` §6.5의 세 코드다. 나머지는 이 문서가 더한 것이다 [제안].
-- 이벤트 kind 소유자: (a)안으로 정해졌다(`F.records.spec` §3.3.1, 같은 문서 `secret.*` 절). `platform-secrets`는 `onAudit`로 `SecretAuditRecord`만 내고, `core-tools`(tool-runtime)가 받아 세션 이벤트 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`로 기록한다. 생산자 id는 `core.tools`다. L0는 세션 저장에 의존하지 않으므로 순위 규칙과 `eng.context-map.design` §4.1 (b)열 규칙(`platform-*`는 이벤트 kind를 소유하지 않는다)을 그대로 지킨다. 감사 레코드의 `threadId`와 `type`은 세션 이벤트로 옮길 때 envelope의 `threadId`와 `kind`가 된다.
+- 이벤트 kind 소유자: (a)안으로 정해졌다(`F.records.spec` §3.3.1, 같은 문서 `secret.*` 절). `platform-secrets`는 `onAudit`로 `SecretAuditRecord`만 내고, `core-tools`(tool-runtime)가 받아 대화 이벤트 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`로 기록한다. 생산자 id는 `core.tools`다. L0는 대화 저장에 의존하지 않으므로 순위 규칙과 `eng.context-map.design` §4.1 (b)열 규칙(`platform-*`는 이벤트 kind를 소유하지 않는다)을 그대로 지킨다. 감사 레코드의 `threadId`와 `type`은 대화 이벤트로 옮길 때 envelope의 `threadId`와 `kind`가 된다.
 - 도구 호출 밖의 사용(모델 키, 웹 provider 키)도 기록하려면 `model-gateway`와 `web`이 tool-runtime과 같은 방식으로 `onAudit` 레코드를 받아 자기 생산자로 기록할지 정해야 한다. 이 문서는 정하지 않는다(`L1.models.spec`, `L2.web.spec`).
-- 관리 레코드(`created`, `updated`, `deleted`, `rotated`, `revealed`)는 세션 이벤트로 넣지 않는다(`F.records.spec` §3.3.1). envelope의 `threadId`를 채울 수 없기 때문이다. [제안] 관리 레코드는 `platform-secrets`가 메타 디렉터리 옆 추가 전용 파일 `<OsDirs.config>/secrets/audit.log`(줄마다 JSON 하나, 기록마다 fsync, 0600)에 쓴다. context-map 4.1절이 `platform-secrets`의 소유 데이터를 "DB 밖 SOPS 파일, OS 키체인"으로 둔 범위 안이다. 세션 레코드(`used`, `denied`, `approved`, `masked`)도 같은 파일에 함께 쓰면 `secret ls --usage`가 세션 DB 없이 동작한다 [제안]. 이 파일 방식은 단일 DB 결정(ADR-0004)과 별개의 운영 로그로 본다 [미결 §10 1번].
+- 관리 레코드(`created`, `updated`, `deleted`, `rotated`, `revealed`)는 대화 이벤트로 넣지 않는다(`F.records.spec` §3.3.1). envelope의 `threadId`를 채울 수 없기 때문이다. [제안] 관리 레코드는 `platform-secrets`가 메타 디렉터리 옆 추가 전용 파일 `<OsDirs.config>/secrets/audit.log`(줄마다 JSON 하나, 기록마다 fsync, 0600)에 쓴다. context-map 4.1절이 `platform-secrets`의 소유 데이터를 "DB 밖 SOPS 파일, OS 키체인"으로 둔 범위 안이다. 대화 레코드(`used`, `denied`, `approved`, `masked`)도 같은 파일에 함께 쓰면 `secret ls --usage`가 대화 DB 없이 동작한다 [제안]. 이 파일 방식은 단일 DB 결정(ADR-0004)과 별개의 운영 로그로 본다 [미결 §10 1번].
 
 ### 3.10 오류 (`errors.ts`)
 
@@ -597,7 +597,7 @@ M2 설계(후속 구현):
 2. macOS: Keychain 항목 `fresnel.age`/`default`. 첫 조회 때 접근 승인 대화상자가 뜰 수 있고, 키 명령이 복호화마다 실행되므로 대화상자가 반복될 수 있다 [가정, `_research/notes/L0-3.md` §2.2]. 대응은 §5와 plan 위험 표다.
 3. Linux: Secret Service가 있으면 `secret-tool`. `probe()`는 D-Bus 이름 `org.freedesktop.secrets` 유무로 판정한다 [제안]. WSL과 헤드리스는 대부분 없다고 보고 파일 폴백으로 간다 [가정].
 4. 파일 폴백: identity 파일을 0600으로 두고 `SOPS_AGE_KEY_FILE`로 넘긴다. 생성은 `age-encryption` 0.3.1로 한다. 매번 시작할 때 소유자와 권한(0600, 소유 uid 일치)을 검사하고 틀리면 `key_unavailable`(`file_mode`)이다.
-5. 파일 폴백의 위협 수준 차이 [제안]: 키체인은 사용자 로그인 세션과 OS 접근 통제 뒤에 키를 둔다. 파일 폴백은 같은 uid로 도는 모든 프로세스(도구 자식 포함)가 파일을 읽을 수 있다. 그래서 파일 폴백을 쓸 때는 다음을 지킨다.
+5. 파일 폴백의 위협 수준 차이 [제안]: 키체인은 사용자 로그인 상태와 OS 접근 통제 뒤에 키를 둔다. 파일 폴백은 같은 uid로 도는 모든 프로세스(도구 자식 포함)가 파일을 읽을 수 있다. 그래서 파일 폴백을 쓸 때는 다음을 지킨다.
    - 키 파일 경로를 `SecretService.protectedPaths()`에 넣어 알린다. `fresnel.sandbox`가 이 목록을 보호 경로(`read_write`)에 합친다(`L0.sandbox.spec` §3.3). 기본 경로 `<OsDirs.config>/secrets/age/keys.txt`는 sandbox의 `<fresnelConfig>/secrets/` 보호 행으로도 덮인다 [제안].
    - 첫 사용과 `diagnose()` 결과에 "키가 디스크 파일에 있다. 같은 사용자 권한의 프로그램은 읽을 수 있다"는 고지를 낸다.
    - `auto` 선택으로 파일 폴백에 간 경우 사람이 한 번 확인해야 사용한다(`l0.secrets.ageKey.source`를 `file`로 저장) [제안].
@@ -639,7 +639,7 @@ M2 설계(후속 구현):
 | `set <name>` | 값 교체. 기존 lease를 폐기하고 `Redactor.forget` 뒤 새 값은 다음 lease 때 등록한다. `secret.updated`(fields `["value"]`) |
 | `meta <name>` | 메타만 고친다. 값과 무관하다. `secret.updated`(바뀐 필드 이름) |
 | `rotate <name>` | 사람이 새 값을 입력한다(`L4.cli.spec`은 TTY 프롬프트만 받는다). 기존 lease를 모두 폐기하고 개수를 돌려준다. `secret.rotated` |
-| `rm <name>` | `references()`로 참조하는 설정 키, 활성 lease, 최근 세션을 보인 뒤 확인을 받는다. 활성 lease가 있으면 `in_use`로 거부한다. `secret.deleted` |
+| `rm <name>` | `references()`로 참조하는 설정 키, 활성 lease, 최근 대화를 보인 뒤 확인을 받는다. 활성 lease가 있으면 `in_use`로 거부한다. `secret.deleted` |
 | `test <name>` | 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 돌려준다. 값은 돌려주지 않는다. 결과는 사람 출력에만 쓰고 감사 레코드에는 싣지 않는다 |
 | `run -- <cmd>` | 사람이 터미널에서 직접 실행할 때 쓰는 env 주입이다. 자식 stdio는 터미널을 그대로 쓰고 런타임이 출력을 저장하지 않는다. 에이전트 도구 경로에서 부를 수 없다(관리 서비스는 에이전트에 주지 않는다) |
 | 값 보기 | `reveal`. 재인증 증거가 60초 안이어야 한다. OS 인증 재확인을 쓸 수 있는 환경에서는 `os-auth`만 받고, 쓸 수 없는 터미널에서만 `tty-confirm`을 받는다 [결정: review.decisions-2 U-20]. `show` 콜백에 한 번 주고 끝나면 값을 덮는다. 자동 숨김 시간은 L4가 정한다. 에이전트 경로에는 열람이 없다(관리 서비스는 에이전트에 주지 않는다). `secret.revealed` |
@@ -677,7 +677,7 @@ M2 설계(후속 구현):
 |---|---|---|---|
 | 지원 단계 | 1차 | 1차 | 이후. 1차에서 `select.ts`는 `win32`에서 파일 폴백만 쓰거나 `unsupported_platform`을 낸다 [미결 §10] |
 | age 키 저장 | Keychain(`security find-generic-password -w`) | 데스크톱: Secret Service(`secret-tool lookup`). WSL·헤드리스: 파일 폴백 | 자격 증명 관리자. `cmdkey`는 암호를 읽지 못하고 PowerShell 내장 cmdlet에도 읽기가 없다. `CredReadW`를 부르는 헬퍼가 필요하다 [가정] |
-| 접근 승인 | Keychain 접근 대화상자가 뜰 수 있고 복호화마다 반복될 수 있다 [가정] | Secret Service 잠금 해제 프롬프트가 뜰 수 있다 [가정] | [가정] 로그온 세션 안에서는 묻지 않는다 |
+| 접근 승인 | Keychain 접근 대화상자가 뜰 수 있고 복호화마다 반복될 수 있다 [가정] | Secret Service 잠금 해제 프롬프트가 뜰 수 있다 [가정] | [가정] 로그온 상태 안에서는 묻지 않는다 |
 | Secret Service | 해당 없음 | WSL 기본 배포판과 헤드리스 서버에는 대부분 없다 [가정, `_research/notes/L0-3.md` §3] | 해당 없음 |
 | sops 바이너리 | darwin amd64·arm64 릴리스 | linux amd64·arm64 릴리스 | v3.10.0, v3.13.3 릴리스에 amd64·arm64 `.exe`가 있다(`_research/notes/L0-3.md` §4). 실행 확인은 [가정] |
 | 키 명령 인자 | 셸 없이 shlex 분리 | 같음 | 백슬래시가 이스케이프로 읽혀 경로가 깨진다. 작은따옴표나 `/`로 적는다 [가정] |
@@ -737,9 +737,9 @@ M2 설계(후속 구현):
 
 ## 7. 훅
 
-- `platform-secrets`는 on 지점, post, drive를 선언하지 않는다. 훅 선언은 L1과 X가 F4에 둔다(`_research/foundation-plan.md` §3).
+- `platform-secrets`는 on 훅, post, drive를 선언하지 않는다. 훅 선언은 L1과 X가 F4에 둔다(`_research/foundation-plan.md` §3).
 - 제공자 추가는 훅 대신 서비스 메서드 `registerProvider`로 한다. 등록할 수 있는 확장의 신뢰 등급은 `X.loading-trust.spec`이 정한다 [가정]. 같은 `id`의 제공자는 하나만 등록되고, `sops`는 내장이라 교체할 수 없다 [제안].
-- 감사 수신은 `onAudit` 콜백이다. 확장이 시크릿 사용을 관찰하려면 tool-runtime이 기록한 세션 이벤트(§3.9)를 읽는다. 감사 수신자를 확장에 직접 열지 않는다 [제안].
+- 감사 수신은 `onAudit` 콜백이다. 확장이 시크릿 사용을 관찰하려면 tool-runtime이 기록한 대화 이벤트(§3.9)를 읽는다. 감사 수신자를 확장에 직접 열지 않는다 [제안].
 - drive와의 관계: 없음. Helm과 학습 그룹(L3 기본 그룹)은 시크릿을 직접 lease하지 않고 L2 기능(`fresnel.web` 등)을 거쳐 쓴다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -748,7 +748,7 @@ M2 설계(후속 구현):
 
 | 대상 문서 | 제공하는 것 |
 |---|---|
-| `L1.tools.spec` | `check`, `lease`, bash 도구 env 주입의 승인 판정(`check`가 돌려주는 `needs_approval`, 마일스톤 M1), `withHttp`, 2계층 `Redactor.maskDeep`, `onAudit`(감사 레코드 → 세션 이벤트 `secret.*`, §3.9), 도구 인자 검사 `findForeignSecretSyntax` |
+| `L1.tools.spec` | `check`, `lease`, bash 도구 env 주입의 승인 판정(`check`가 돌려주는 `needs_approval`, 마일스톤 M1), `withHttp`, 2계층 `Redactor.maskDeep`, `onAudit`(감사 레코드 → 대화 이벤트 `secret.*`, §3.9), 도구 인자 검사 `findForeignSecretSyntax` |
 | `L1.loop.spec` | 1계층 `Redactor.mask`(사람 입력) |
 | `L1.context.spec` | 4계층 `Redactor.maskDeep`(모델 투영), 사후 가림 `createPostHocRedaction`(§3.5.1) |
 | `L1.models.spec` | `lease`(`runtime-http`, purpose `model.provider:<id>`)와 `use`, 오류 문자열 `Redactor.mask`, 3계층 `containsKnown` |
@@ -777,7 +777,7 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 | R1 | `@fresnel/contracts/capabilities` `secrets.ts` | 반영되었다. `F.capabilities.spec` §3.10에 참조 형식(`SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRef`, `SecretNameSchema`, `SecretName`, `SecretHandle`, `SecretRefError`), 순수 함수(`parseSecretRef`, `secretRef`, `findForeignSecretSyntax`), 값 타입(`SecretMeta`, `SecretUsePolicy`, `InjectionMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretAuditRecord`, `SecretDenyReason`, `RedactionLayer`, `RedactionHit`, `ReauthMethod`)이 있다 [결정: review.decisions-2 U-08]. 이 문서 §3.1, §3.2, §3.5, §3.9는 그 이름을 인용한다 |
 | R1-a | `@fresnel/contracts/services` `services/secrets.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretService` 행(`fresnel.secrets`)이 있고, 파일별 이름 표의 `services/secrets.ts` 행에 `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`, `SecretValueView`, `SecretLease`, `SecretProvider`, `ProviderEntry`, `Redactor`, `SecretError` 등이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.3~§3.6, §3.10 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9) |
 | R2 | `@fresnel/contracts/services` `services/secret-admin.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretAdminService` 행(`fresnel.secretAdmin`)이 있고 `SERVICE_NAMES`에 들었다. `eng.context-map.design` §5.3 표에도 행이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.8 블록을 옮겨 확정한다 |
-| R3 | `F.records.spec` §3.3.1 | 반영되었다. `CoreArea`에 `secret`, `CoreEventKind`에 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`가 있고 생산자는 `core.tools`다. 관리 레코드는 세션 이벤트로 넣지 않는다 |
+| R3 | `F.records.spec` §3.3.1 | 반영되었다. `CoreArea`에 `secret`, `CoreEventKind`에 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`가 있고 생산자는 `core.tools`다. 관리 레코드는 대화 이벤트로 넣지 않는다 |
 | R4 | `F.wire-settings.spec` 메서드 표 | 값 없는 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(값 입력은 호스트 쪽 OS 창, `L4.settings-ui.spec` §4.6.4 C안). 값을 싣는 메서드는 요청하지 않는다 |
 | R5 | `eng.dependency-rules.guide` DR-07 | 플러그인 제공자가 `op`, `bws` 바이너리를 부를 때의 소유 행(2차) |
 | R6 | `F.capabilities.spec` §3.10 `InjectionModeSchema` | 반영되었다. 값 옆 주석이 사용 모드 번호(M1~M4)와 마일스톤을 함께 적는다. 이전 주석 `// M3`은 사용 모드 번호였는데 마일스톤으로 읽혀 `runtime-http`가 마일스톤 M3 기능처럼 보였다. `runtime-http`는 마일스톤 M1부터 모델 provider 키에 쓴다(§4.3 표) |
@@ -801,7 +801,7 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 
 ## 10. 미결 사항
 
-1. [결정: M3-REQ-61] 세션 밖 관리 레코드의 저장 위치는 `platform-secrets` 소유 추가 전용 파일 `<OsDirs.config>/secrets/audit.log`다(§3.9). 보관 기간 정리와 추가는 `OsServiceHandle.fileLock`의 `withLock(<audit.log>)`을 쥔 채 한다(`createSecretsRuntime`의 `fileLock`). 정리가 파일을 다시 쓰는 동안 다른 프로세스가 붙인 줄이 사라지지 않는다. 잠금을 받지 못하면(`timeout`, `io`) 해당 쓰기는 `audit_io`(`lock_timeout` 등)로 실패한다. 단일 DB 결정(ADR-0004)과는 별개의 운영 로그다(§3.9). 감사 이벤트 kind 소유자는 `F.records.spec` §3.3.1의 (a)안(tool-runtime 발행)으로 정해졌다.
+1. [결정: M3-REQ-61] 대화 밖 관리 레코드의 저장 위치는 `platform-secrets` 소유 추가 전용 파일 `<OsDirs.config>/secrets/audit.log`다(§3.9). 보관 기간 정리와 추가는 `OsServiceHandle.fileLock`의 `withLock(<audit.log>)`을 쥔 채 한다(`createSecretsRuntime`의 `fileLock`). 정리가 파일을 다시 쓰는 동안 다른 프로세스가 붙인 줄이 사라지지 않는다. 잠금을 받지 못하면(`timeout`, `io`) 해당 쓰기는 `audit_io`(`lock_timeout` 등)로 실패한다. 단일 DB 결정(ADR-0004)과는 별개의 운영 로그다(§3.9). 감사 이벤트 kind 소유자는 `F.records.spec` §3.3.1의 (a)안(tool-runtime 발행)으로 정해졌다.
 2. [결정: review.decisions-2 U-19] 마일스톤 M1의 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다. `withEnv`(§3.6)와 exec `secretEnv`(`L0.exec.spec` §3.6)를 M1에 둔다. `product.scope.spec` §4.4 M1 행, `L2.workspace.spec` §3.3과 같은 배치다. 모델 provider API 키는 마일스톤 M1부터 `runtime-http` 모드로 lease한다(§4.3 표, 수용 기준 14). env 경로는 아직 끝까지 이어지지 않았다. M1 코드는 승인 증거를 `null`로 넘기고 호스트 `approval.respond`가 `notImplemented`다. 마일스톤 M2 승인 프로토콜 작업(`L4.host-service.plan` H18)에서 증거 전달까지 완성한다.
 3. [미결] sops 최소 버전. 이 문서는 3.10.0을 하한으로 두었다. 조사는 3.12.0 하한, 3.13.3 실사용을 제안한다(`_research/notes/L0-3.md` §2.1).
 4. [결정: m2r sec, adr.0019] 기본 SOPS 파일은 `<OsDirs.config>/secrets/sops/user.yaml`(env `user`)이고 `l0.secrets.sops.files`가 비었을 때만 쓴다(§4.8). 사용자 `secrets` 도구(`just secret-add`)의 파일 위치와 env 이름 매핑 규약은 이 기본값과 별개이며 아직 확인하지 못했다. 그 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다 [미결].

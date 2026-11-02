@@ -1,3 +1,4 @@
+import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
 import {
@@ -11,27 +12,33 @@ import {
 import { useConnectError } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 
-const LINK_TEXT: Readonly<Record<Link["phase"], string>> = {
-  offline: "연결 없음",
-  connecting: "연결 중",
-  syncing: "따라잡는 중",
-  live: "연결됨",
-  resync: "다시 맞추는 중",
-  reset: "다시 읽는 중",
-  failed: "연결 복구 실패",
+const LINK_TEXT: Readonly<Record<Link["phase"], MessageId>> = {
+  offline: "desktop.status.link.offline",
+  connecting: "desktop.status.link.connecting",
+  syncing: "desktop.status.link.syncing",
+  live: "desktop.status.link.live",
+  resync: "desktop.status.link.resync",
+  reset: "desktop.status.link.reset",
+  failed: "desktop.status.link.failed",
 };
 
-const ENGINE_TEXT: Readonly<Record<EngineState["kind"], string>> = {
-  starting: "엔진 시작 중",
-  running: "엔진 실행 중",
-  restarting: "엔진 다시 시작 중",
-  stopping: "엔진 끄는 중",
-  failed: "엔진 시작 실패",
-  stopped: "엔진 꺼짐",
+const ENGINE_TEXT: Readonly<Record<EngineState["kind"], MessageId>> = {
+  starting: "desktop.status.engine.starting",
+  running: "desktop.status.engine.running",
+  restarting: "desktop.status.engine.restarting",
+  stopping: "desktop.status.engine.stopping",
+  failed: "desktop.status.engine.failed",
+  stopped: "desktop.status.engine.stopped",
 };
 
-const engineText = (kind: EngineState["kind"] | undefined): string =>
-  kind === undefined ? "엔진 상태 확인 중" : ENGINE_TEXT[kind];
+/** 실행 중인 엔진이 어디서 도는지. sidecar는 앱이 띄운 자식이고 service는 `fresnel service`다 */
+const SOURCE_TEXT: Readonly<Record<"sidecar" | "service", MessageId>> = {
+  sidecar: "desktop.status.engine.sourceEmbedded",
+  service: "desktop.status.engine.sourceService",
+};
+
+const engineText = (kind: EngineState["kind"] | undefined): MessageId =>
+  kind === undefined ? "desktop.status.engine.checking" : ENGINE_TEXT[kind];
 
 export function StatusBar(): ReactNode {
   const commands = useCommands();
@@ -47,18 +54,22 @@ export function StatusBar(): ReactNode {
   return (
     <footer className="statusbar" role="status">
       <span>
-        {engineText(engine?.kind)}
-        {engine?.kind === "running"
-          ? ` (${engine.source === "sidecar" ? "사이드카" : "서비스"})`
-          : ""}
+        {t(engineText(engine?.kind))}
+        {engine?.kind === "running" ? ` (${t(SOURCE_TEXT[engine.source])})` : ""}
       </span>
       <span>
-        {LINK_TEXT[banner.phase]}
-        {banner.attempt > 0 ? ` (${banner.attempt}/3)` : ""}
+        {t(LINK_TEXT[banner.phase])}
+        {banner.attempt > 0
+          ? ` ${t("desktop.status.link.attempt", { attempt: banner.attempt })}`
+          : ""}
       </span>
-      <span>진행 중 {running}</span>
-      {approvals > 0 ? <span className="warn">승인 {approvals}</span> : null}
-      {connectError === null ? null : <span className="error">연결 실패: {connectError}</span>}
+      <span>{t("desktop.status.running", { count: running })}</span>
+      {approvals > 0 ? (
+        <span className="warn">{t("desktop.status.approvals", { count: approvals })}</span>
+      ) : null}
+      {connectError === null ? null : (
+        <span className="error">{t("desktop.status.connectFailed", { error: connectError })}</span>
+      )}
       <span className="grow" />
       <button
         type="button"
@@ -66,7 +77,7 @@ export function StatusBar(): ReactNode {
           commands.showScreen("settings");
         }}
       >
-        설정
+        {t("desktop.status.settingsButton")}
       </button>
       {engine?.kind === "failed" ? (
         <button
@@ -75,7 +86,7 @@ export function StatusBar(): ReactNode {
             detach(commands.restartEngine(), rethrow);
           }}
         >
-          엔진 다시 시작
+          {t("desktop.status.restartEngineButton")}
         </button>
       ) : null}
       {banner.phase === "failed" || connectError !== null ? (
@@ -86,7 +97,7 @@ export function StatusBar(): ReactNode {
               commands.reconnect();
             }}
           >
-            다시 연결
+            {t("desktop.status.reconnectButton")}
           </button>
           <button
             type="button"
@@ -94,10 +105,14 @@ export function StatusBar(): ReactNode {
               detach(copy(), rethrow);
             }}
           >
-            진단 복사
+            {t("desktop.status.copyDiagnosticsButton")}
           </button>
           {copied === null ? null : (
-            <span className="dim">{copied ? "복사했습니다" : "복사하지 못했습니다"}</span>
+            <span className="dim">
+              {copied
+                ? t("desktop.status.diagnosticsCopied")
+                : t("desktop.status.diagnosticsCopyFailed")}
+            </span>
           )}
         </>
       ) : null}

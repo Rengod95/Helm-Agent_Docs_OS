@@ -29,11 +29,11 @@ binds: [xeon/packages/core-tasks/**]
 
 ### 1.2 다루지 않는 것
 
-- 턴 실행, 단계 체크포인트, 훅 발화: `L1.loop.spec`. `input` 지점도 loop가 발화한다(§7).
+- 턴 실행, 단계 체크포인트, 훅 발화: `L1.loop.spec`. `input` 훅도 loop가 발화한다(§7).
 - 도구 파이프라인, 효과 3단 기록, 키(realpath) 산출: `L1.tools.spec`.
-- 자식 세션 생성, 정의 파일, 깊이 상한, 권한 상한: `L1.agents.spec`.
+- 자식 대화 생성, 정의 파일, 깊이 상한, 권한 상한: `L1.agents.spec`.
 - 커밋 구현, 투영 테이블 DDL, 재개 절차 전체: `L1.persistence.spec`.
-- `post`·`drive`·`scope` 연산의 디스패치와 임대 중재: `X.primitives.spec`.
+- `post`·`drive`·`scope` 연산의 디스패치와 drive 락 중재: `X.primitives.spec`.
 
 ### 1.3 근거
 
@@ -58,7 +58,7 @@ binds: [xeon/packages/core-tasks/**]
 | 키 큐 (keyed queue) | 문자열 키별 읽기·쓰기 잠금 대기열. 같은 키의 exclusive 작업을 직렬로 돌린다 |
 | 입력 큐 | thread별 내구 대기열. 이벤트 `input.*`와 투영 `p_inputs`로 이루어진다 |
 | 배치 (placement) | 큐의 입력을 대화에 item으로 넣는 일. 이벤트 `input.placed` |
-| 배치 지점 | `turnStart`(turn 시작 커밋)와 `stepEnd`(단계 끝 커밋) 둘 |
+| 배치 훅 | `turnStart`(turn 시작 커밋)와 `stepEnd`(단계 끝 커밋) 둘 |
 
 turn과 step은 `F.conversation.spec` §2, §2.1을 따른다. pi의 turn은 Fresnel의 step이고, pi의 run(`boundary.turn.before`~`boundary.turn.after`)이 Fresnel의 turn이다.
 
@@ -442,7 +442,7 @@ abort(target, reason, { background }):
 
 ### 4.4 병렬 도구와 키 큐
 
-[결정] 도구 배치는 기본 병렬이고 도구별 `executionMode`(`ToolMeta.executionMode`)를 따른다. pi-agent-core 1.3.0의 배치 규칙을 core-loop `loop/tool-batch.ts`로 옮겼다(adr.0009 §3.3, `_research/packages.md` §4.3 "병렬 도구 실행: 그대로"). 루프는 한 배치의 준비(`tools.prepare`: 검증, `tool.call.before` 지점, 정책·승인)를 순서대로 끝낸 뒤 실행만 동시에 한다. 도구 하나라도 `executionMode: "sequential"`이면 배치 전체가 순차다(원본 `~/projects/_ref/pi-src/packages/agent/src/agent-loop.ts:508-523`, 586-660).
+[결정] 도구 배치는 기본 병렬이고 도구별 `executionMode`(`ToolMeta.executionMode`)를 따른다. pi-agent-core 1.3.0의 배치 규칙을 core-loop `loop/tool-batch.ts`로 옮겼다(adr.0009 §3.3, `_research/packages.md` §4.3 "병렬 도구 실행: 그대로"). 루프는 한 배치의 준비(`tools.prepare`: 검증, `tool.call.before` 훅, 정책·승인)를 순서대로 끝낸 뒤 실행만 동시에 한다. 도구 하나라도 `executionMode: "sequential"`이면 배치 전체가 순차다(원본 `~/projects/_ref/pi-src/packages/agent/src/agent-loop.ts:508-523`, 586-660).
 
 같은 파일을 쓰는 호출은 키 큐로 직렬화한다. 경계 [제안]:
 
@@ -499,16 +499,16 @@ abort(target, reason, { background }):
 | `next` | 붙기만 한다(§4.9 B안). 다음 모델 요청이 나갈 `stepEnd`에서 함께 배치한다 | turn을 열지 않는다. 다음 turn의 `turnStart`에서 배치한다 | pi `deliverAs: "nextTurn"` |
 | `aside` | 다음 모델 요청이 어차피 나갈 때만 `stepEnd`에서 함께 배치한다. 요청을 새로 만들지 않는다. 사용자·CLI 출처만 | turn을 열지 않는다. 다음 turn의 `turnStart`에서 배치한다 | 없음. omp의 aside(조용한 삽입, `_research/item-catalog.md` L1-a "전달 모드 구분")를 따른다 |
 
-배치 지점별 선택 규칙(`drain`):
+배치 훅별 선택 규칙(`drain`):
 
-| 지점 | steer | followUp | next·aside |
+| 훅 | steer | followUp | next·aside |
 |---|---|---|---|
 | `turnStart` | 가장 오래된 시작 가능 입력 하나(steer 또는 followUp, seq 순)를 turn 입력으로 고른다. 시작 가능 입력이 없으면 아무것도 고르지 않는다 | 같음 | 고른 입력 중 가장 큰 seq보다 seq가 작은 queued 항목 전부를 함께 배치한다 |
 | `stepEnd`, `continuing: false` | `steeringMode`가 `one-at-a-time`이면 첫 항목, `all`이면 전부 | 고르지 않는다 | 고르지 않는다 |
 | `stepEnd`, `continuing: true` | 같음 | 고르지 않는다 | 전부 |
 
 - `stepEnd`에서 steer가 하나라도 선택되면 호출자는 `continuing`을 다시 true로 보고 next·aside도 함께 고른다. `drain`은 이 재계산을 안에서 한 번 한다.
-- 선택은 seq 순이고 결정적이다(durable spec 2318-2321 "Boundary selection is deterministic by item ID"). drain 모드는 지점마다 그때 설정을 읽는다.
+- 선택은 seq 순이고 결정적이다(durable spec 2318-2321 "Boundary selection is deterministic by item ID"). drain 모드는 훅마다 그때 설정을 읽는다.
 - `followUpMode`는 정착 뒤 새 turn을 열 때 쓴다. `one-at-a-time`이면 queued followUp 하나가 turn 하나를 연다. `all`이면 queued followUp 전부를 한 turn의 입력으로 묶는다(`TurnStartedPayload.inputItemIds`가 배열이다).
 - 배치 기록: 호출자 커밋에 `input.placed`(이 문서), `item.recorded`(user 또는 custom item, `L1.loop.spec`), 단계 체크포인트를 함께 넣는다. `StepCheckpoint.inputCursor.consumedSeq`는 `PlacementSelection.consumedSeq`다(`F.records.spec` §3.6).
 - thread 취소: turn 취소는 queued 입력을 거두지 않는다 [제안]. 사용자가 Esc 뒤에 큐에 남긴 입력을 잃지 않게 하기 위해서다. thread를 닫거나 사용자가 "큐 비우기"를 하면 `withdraw(threadId, "all", "aborted")`다. durable은 대화 abort 때 queued 입력을 거둔다(spec 2034-2037). 이 차이는 §10에 [미결]로 둔다.
@@ -583,7 +583,7 @@ M1은 두 모드 모두 구현하지 않는다(`mode_not_supported`). M2에서 B
 | M1에서 `next`·`aside` | `mode_not_supported` |
 | 같은 `requestId`, 다른 내용 | 커밋 안 조회가 먼저 막으므로 `duplicate: true`이고 기존 입력 상태를 돌려준다. 내용 차이는 진단 로그로만 남긴다 [제안] |
 | 크래시: `input.queued` 커밋 뒤 | 재시작 뒤 queued로 복원된다 |
-| 크래시: 배치 커밋 전 | 입력은 queued로 남고 다음 배치 지점에서 다시 선택된다 |
+| 크래시: 배치 커밋 전 | 입력은 queued로 남고 다음 배치 훅에서 다시 선택된다 |
 | 백그라운드 subagent가 남은 채 thread 닫기 | thread `settle()`은 기다리지 않는다. 엔진 종료 때 `close()`가 신호만 보낸다 |
 
 ## 6. 설정 노출
@@ -627,18 +627,18 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 ## 7. 훅
 
-- 이 도메인이 발화하는 지점은 없다. 발화 소유표(46개)에서 tasks 몫은 0이다.
+- 이 도메인이 발화하는 훅은 없다. 발화 소유표(46개)에서 tasks 몫은 0이다.
 - `post`: `fresnel.tasks`가 `InputQueuePort`(`X.primitives.spec` §3.6)를 구현한다. `enqueue(EnqueueRequest)`를 `TaskService` 최상위에 두고, 안에서 `inputs.enqueue`를 부른다. X의 `ExtensionOps.post`(`F.extensions.spec` §3.2) 구현은 이 포트를 부른다. 대응은 `when` → `mode`, `requestId` → `requestId`, `item` → `item`, `source: { type: "extension", scopeId }`다. 결과 `EnqueueResult.duplicate`는 `EnqueueReceipt.duplicate`다.
 - [결정: review.decisions-2 U-05] 확장 post의 커밋에는 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나만 넣는다. `post.accepted`는 retire했다(`F.records.spec` §3.3 `retired: true`). 같은 post의 두 번째 호출은 커밋 키 `in:<scopeId>:<requestId>`와 `TxView.inputByRequestId`로 걸러 `duplicate: true` 영수증을 돌려준다. 배치된 item은 `input.placed`가 적는다.
-- `drive`: `LoopHandle.turn`은 `fresnel.loop`가 처리한다(`L1.loop.spec`). tasks는 drive turn에 turn 노드를 주고, 임대 회수 신호를 받지 않는다. 임대 신호 처리는 loop 몫이다.
+- `drive`: `LoopHandle.turn`은 `fresnel.loop`가 처리한다(`L1.loop.spec`). tasks는 drive turn에 turn 노드를 주고, drive 락 회수 신호를 받지 않는다. drive 락 신호 처리는 loop 몫이다.
 - `scope` 토글의 정리(`onDispose`)에서 진행 중 작업을 멈추려는 확장은 자기가 연 노드만 `abort`한다. 확장은 `fresnel.tasks`를 직접 받지 않고 X가 노출하는 API를 쓴다(X.primitives.spec).
 
 `input` 훅 발화 위치의 어긋남 [제안, 보고]:
 
-- 어긋남: `F.extensions.spec` §7 표는 `input` 종류 지점의 발화 문서를 `L1.loop.spec`으로 적었다. `architecture.runtime-flow.design` §4.1 그림은 `TASKS->>EXT: on input (chain)`으로 core-tasks가 발화하는 것처럼 그렸다.
+- 어긋남: `F.extensions.spec` §7 표는 `input` 종류 훅의 발화 문서를 `L1.loop.spec`으로 적었다. `architecture.runtime-flow.design` §4.1 그림은 `TASKS->>EXT: on input (chain)`으로 core-tasks가 발화하는 것처럼 그렸다.
 - 정한 것: `input`은 `L1.loop.spec`의 `LoopService.admit`이 발화한다. 순서는 runtime-flow 그림과 같게 "제출 → `input` chain → 큐 기록"이다. 그래서 F.extensions §7은 그대로 두고, runtime-flow §4.1 그림의 화살표를 `HOST->>LP: admit`, `LP->>EXT: on input (chain)`, `LP->>TASKS: enqueue`로 고치도록 요청한다. 두 문서(L1.tasks, L1.loop)가 같은 결정을 쓴다.
 - 이유: 훅 발화는 loop의 소유표 12개(input 포함)에 이미 들어가 있고, core-tasks는 확장 호스트(`fresnel.ext`)를 부르지 않는 하위 기계로 둔다. 그래야 core-tasks의 의존이 `fresnel.session` 하나로 줄어든다.
-- 확장 `post`는 `input` 지점을 지나지 않는다 [제안]. 확장이 넣은 입력이 다시 확장 핸들러를 부르는 순환을 막기 위해서다. `InputPayload.source`의 `"extension"` 값은 지금 쓰지 않는다. pi가 확장 메시지에 `input`을 발화하는지는 [가정]으로 남긴다(§10).
+- 확장 `post`는 `input` 훅을 지나지 않는다 [제안]. 확장이 넣은 입력이 다시 확장 핸들러를 부르는 순환을 막기 위해서다. `InputPayload.source`의 `"extension"` 값은 지금 쓰지 않는다. pi가 확장 메시지에 `input`을 발화하는지는 [가정]으로 남긴다(§10).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -701,7 +701,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 - (닫음: D7) `post.when = next`는 붙기만 한다(B안, §4.9). `aside`는 L1·CLI 사용자 입력 전용이다(1안). FR-T4는 철회한다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다(FR-T3). 멱등은 커밋 키, 기록은 `input.queued`다.
 - [미결] turn 취소 때 queued 입력을 거둘지. [제안] 거두지 않는다. durable은 대화 abort 때 거둔다(§4.6 끝).
-- [미결] 확장 `post`가 `input` 지점을 지나지 않는 규칙(§7). pi가 확장 메시지에 `input`을 발화하는지 [가정]으로 남아 있다.
+- [미결] 확장 `post`가 `input` 훅을 지나지 않는 규칙(§7). pi가 확장 메시지에 `input`을 발화하는지 [가정]으로 남아 있다.
 - [미결] 동시 상한 기본값 `subagents` 16, `modelCalls` 16. 근거가 약하다(§6). M2에서 Helm 렌즈 탐구 테이프로 조정한다.
 - [미결] `turn.abort_requested`의 생산자. [제안] `turn.` 접두 소유(core.loop)를 그대로 두고 turn 노드의 `abortIntent`를 core-loop가 넘긴다. context-map §5.1 표에서 `input.` 생산자는 `core.tasks`로 맞다.
 - [미결] `runtime-flow` §4.1 그림 수정 요청(§7)을 architecture 트랙이 받을지.

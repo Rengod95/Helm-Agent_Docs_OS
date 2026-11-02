@@ -134,7 +134,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   | 차단 | `on(point)`, fold `first` | `{ deny: reason }`을 돌려준다. 핸들러 오류는 거부로 환산된다(fail-closed) | ADR-0007 §3.2 |
   | 변형 | `on(point)`, fold `chain` | 앞 핸들러 결과를 받아 교체 값을 돌려준다. 오류는 그 핸들러만 건너뛴다 | ADR-0007 §3.2 |
   | 입력 주입 | `post(item, { when, requestId })` | `when`은 `steer`(다음 도구 라운드 뒤), `followUp`(정착 뒤), `next`(경계 뒤 정확히 한 요청). `requestId`는 필수이고 같은 값은 한 번만 들어간다 | ADR-0007 §3.1 |
-  | 루프 구동 | `drive(fn, limits)` | 배타 임대, 그룹당 한 슬롯. `fn`은 마지막 커밋 상태로 다시 호출되어도 같은 진행을 낸다. 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다. 상한은 `{turns, tokens, spawns}` | ADR-0007 §3.1, §3.6, `_research/ext-points.md §5` 안 1 |
+  | 루프 구동 | `drive(fn, limits)` | 배타 drive 락, 그룹당 한 슬롯. `fn`은 마지막 커밋 상태로 다시 호출되어도 같은 진행을 낸다. 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다. 상한은 `{turns, tokens, spawns}` | ADR-0007 §3.1, §3.6, `_research/ext-points.md §5` 안 1 |
   | 묶음과 토글 | `scope(id, { state })` | 위 등록을 한 단위로 묶는다. `enable`·`disable`은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용된다([결정: review.decisions-2 U-01]). 정리는 Cordis dispose | ADR-0007 §3.6 |
 
 - 그룹별 기본:
@@ -187,9 +187,9 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   - 호출자가 정상 흐름에서 처리해야 하는 실패(찾지 못함, 검증 실패, 중복 제출, 잠금 경합(busy), 권한 거부, I/O 오류, 디스크 가득 참, 읽기 전용, 취소, 시간 초과, 소유권 상실)는 `Result<T, E>`로 돌려준다. 목록과 판정 질문은 `eng.typescript.guide` TY-24가 정한다.
   - `E`는 판별 필드 `kind`를 가진 오류 유니온이다(`eng.typescript.guide` TY-11, TY-12). 사용자에게 보일 수 있는 오류도 같다. `code`, `messageKey` 같은 별도 필드를 두지 않는다.
   - 표시 문구와 메시지 키는 L4가 `kind`와 필드로 만든다. 메시지 문장을 코드에 하드코딩하지 않는다. 유도 규칙은 `eng.typescript.guide` 6절 [미결]이다.
-  - `throw`는 버그(`Bug`, `assertNever`)에만 쓴다. 복구할 수 없는 상태도 `kind`가 있는 오류 값으로 L4까지 돌려주고, L4가 세션 정지나 종료 코드를 고른다. 예상 가능한 실패를 `Bug`로 던지지 않는다(TY-24, [AP-C-11](../anti-patterns/guide.md#ap-c-11)).
+  - `throw`는 버그(`Bug`, `assertNever`)에만 쓴다. 복구할 수 없는 상태도 `kind`가 있는 오류 값으로 L4까지 돌려주고, L4가 대화 정지나 종료 코드를 고른다. 예상 가능한 실패를 `Bug`로 던지지 않는다(TY-24, [AP-C-11](../anti-patterns/guide.md#ap-c-11)).
   - 외부 라이브러리가 던지는 예외는 경계 어댑터에서 실패할 수 있는 호출 하나만 감싸 잡고, 받은 값을 `cause`로 담아 `Result`로 바꾼다. `catch`는 오류를 조용히 삼키지 않는다(TY-25).
-  - 저장소 오류는 그 세션만 멈추고 다른 세션과 서비스는 계속 돈다.
+  - 저장소 오류는 그 대화만 멈추고 다른 대화와 서비스는 계속 돈다.
 - 이유:
   - 던진 예외는 시그니처에 보이지 않아 처리를 빠뜨리기 쉽고, `first` fold에서는 거부로 환산되어 의도와 다른 결과를 낸다(ADR-0007 §3.2).
   - 판별자가 `kind` 하나면 호출자가 `switch`와 `assertNever`로 모든 실패를 처리하고, L4는 같은 판별자로 문구를 고른다(TY-12, TY-13).
@@ -277,7 +277,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
 - 이유:
   - 추론 예산·라우팅·레이트 리밋·계정 회전 같은 값은 L4 설정 화면에서 조작할 수 있어야 한다(`_research/decisions-log.md` 2차). 화면은 스키마에서 키와 기본값을 읽는다.
   - 기본값이 여러 곳에 있으면 화면과 실제 동작이 어긋난다.
-  - 설정 키 이름 규칙과 범위(사용자, 프로젝트, 세션)는 `F.wire-settings.spec`이 정한다 [가정].
+  - 설정 키 이름 규칙과 범위(사용자, 프로젝트, launch)는 `F.wire-settings.spec`이 정한다 [가정].
 - 좋은 예:
 
   ```ts
@@ -347,11 +347,11 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
   - 명령(하려는 일)은 이벤트로 저장하지 않는다. 명령을 처리한 결과로 생긴 사실만 저장한다.
   - 이벤트 `payload`는 kind별 TypeBox 스키마와 `version`을 갖는다. 종류 필드는 `kind`, 내구·휘발 판별자는 `durable`이다(`F.records.spec` §3.1, ADR-0004 §3.2 이벤트 레코드 초안).
   - 큰 값(도구 출력, 이미지, 파일 내용)은 blob으로 빼고 이벤트에는 `BlobRef`만 둔다. blob 파일은 커밋 전에 쓴다(`eng.events.design` EV-04, `eng.transactions.design` TX-04).
-  - 세션 쓰기는 `SessionService.commit` 한 경로로만 한다(`eng.transactions.design` TX-07). 투영(`p_*`, `cap_*`, `x_*`)은 그 커밋 안에서 투영기가 같은 트랜잭션으로 갱신한다. 코드가 투영 테이블에 직접 쓰지 않는다. 투영은 이벤트에서 다시 만들 수 있어야 한다.
+  - 대화 쓰기는 `SessionService.commit` 한 경로로만 한다(`eng.transactions.design` TX-07). 투영(`p_*`, `cap_*`, `x_*`)은 그 커밋 안에서 투영기가 같은 트랜잭션으로 갱신한다. 코드가 투영 테이블에 직접 쓰지 않는다. 투영은 이벤트에서 다시 만들 수 있어야 한다.
   - 스트리밍 델타는 휘발 이벤트(`session.emitVolatile`, kind `item.updated`)로만 흘린다.
   - 확장 기록은 `x.<extId>.*`(플러그인)·`grp.<groupId>.*`(플러그인 그룹) 이벤트로 남기고, 같은 DB의 `x_<확장 id의 '-'를 '_'로>_*` 테이블은 그 확장의 투영기만 쓴다(`eng.context-map.design` 5.1·5.2절).
 - 이유:
-  - [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블이다. 큰 출력은 blob + 해시, 토큰 델타는 저장하지 않는다(ADR-0004 §3.1~§3.3).
+  - [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블이다. 큰 출력은 blob + 해시, 토큰 델타는 저장하지 않는다(ADR-0004 §3.1~§3.3).
   - 이벤트는 이미 일어난 일의 기록이라 재생 때 다시 실행하지 않는다. 재생 규칙과 내구·휘발 구분은 `eng.events.design`이 정한다.
 - 좋은 예:
 
@@ -491,7 +491,7 @@ Fresnel 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속
 - 규칙:
   - L0·L1 패키지는 주입받은 `Logger` 인터페이스만 쓴다. `console`과 로거 라이브러리를 import하지 않는다. L2·L3도 같은 방식을 기본으로 한다 [제안].
   - 로그 메시지는 고정된 이벤트 이름(`turn.finished`)이고, 값은 구조화 필드로 넘긴다. 문자열 보간으로 메시지를 만들지 않는다.
-  - 필드에는 세션 ID, 턴 번호, 도구 호출 ID처럼 상관관계를 찾을 수 있는 값을 넣는다. 시크릿 값은 넣지 않는다(BP-07).
+  - 필드에는 대화 ID, 턴 번호, 도구 호출 ID처럼 상관관계를 찾을 수 있는 값을 넣는다. 시크릿 값은 넣지 않는다(BP-07).
   - 로거 구현과 출력 위치(파일, stderr, 데스크톱 UI)는 L4 진입점이 정한다.
 - 이유:
   - CLI in-process, 데스크톱 사이드카(stdio JSON-RPC), 서비스 모드는 출력 위치가 다르다(`_research/foundation-plan.md §1` 3번, ADR-0006). stdout에 쓰는 `console.log`는 사이드카 프로토콜과 섞인다.

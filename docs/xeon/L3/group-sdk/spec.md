@@ -399,9 +399,9 @@ export type DelegateResult =
 - L1 대응: 래퍼는 `DelegateSpec`을 L1.agents.spec §3.2 `DelegateRequest`로 옮겨 `AgentService.delegate(request, origin)`을 부른다. 필드는 `agent`, `task`, `requestId`, `report`, `model`이 같은 이름이고, `toolPolicy` → `tools`, `limits` → `limits`, `fork` → `fork`다. `origin.owner`는 `{ kind: "scope", scopeId }`다. L1.agents.spec §3.2 끝 문단은 옛 필드(`toolPolicy.deny`만, `forkFrom`)를 적었으므로 이 절에 맞춰 고칠 대상이다.
 - 도구 정책 [제안]: 허용 목록과 차단 목록을 둘 다 받는다. 판정은 L1.agents.spec §4.3 권한 상한을 따른다. `allow`는 정의 `tools`와 교집합을 내므로 그룹이 정의보다 넓힐 수 없고, 부모가 거부한 도구도 자식에서 거부된다. 학습 그룹은 허용 목록, 다른 그룹은 차단 목록을 쓸 수 있다. 이것으로 L3.learning.spec §10 미결 10(차단·허용 방식)을 닫는다.
 - 완료 보고 [가정]: `report`가 있으면 L1-g가 자식 정착 뒤 부모 대화에 `PostItem{ kind: "context", customType: report.customType, display: report.display }`를 `when: report.when`, `requestId: "<requestId>:report"`로 넣는다. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(`_research/notes/L3-1.md` §3.3). `report`가 없으면 보고 입력을 만들지 않는다 [결정: review.m3-design-inputs D-M3-03]. 학습 그룹은 `report`를 넣지 않는다. 그룹은 부모 대화의 코어 이벤트 `agent.settled` 구독(L3.learning.spec §8.1 REQ-LN-02)이나 `delegateStatus`로 완료를 안다.
-- 포크 지점: `fork: { at: "event" }`는 L1-g가 `agents.invalid_request`로 거부한다(L1.agents.spec §4.1 3번, 세션에 이벤트 기준 fork가 없다). 그룹은 `{ at: "item" }`을 쓴다. `DelegateFork`의 `event` 갈래는 L1 지원이 생길 때까지 남겨 두되 `delegate` 입력 검사에서 `group.delegateInvalid`(`field: "fork"`)로 막는 안을 [제안]한다.
+- 포크 위치: `fork: { at: "event" }`는 L1-g가 `agents.invalid_request`로 거부한다(L1.agents.spec §4.1 3번, 대화에 이벤트 기준 fork가 없다). 그룹은 `{ at: "item" }`을 쓴다. `DelegateFork`의 `event` 갈래는 L1 지원이 생길 때까지 남겨 두되 `delegate` 입력 검사에서 `group.delegateInvalid`(`field: "fork"`)로 막는 안을 [제안]한다.
 - 재실행 문맥 [결정: adr.0015]: `delegate`는 on 핸들러와 drive 함수에서 부를 수 있다. `requestId`는 커밋된 값에서 만든 결정적 키여야 한다(ADR-0015 §3.4). `delegateStatus`는 효과 없는 읽기다. ADR-0015 §3.2 표의 `g.delegateStatus` 행에 따라 drive 함수에서는 부를 수 있고 on 핸들러에서는 부르지 않는다. 결과를 고정하려면 상태에 커밋한다. `cancelDelegates`는 효과가 있는 호출이라 재실행되는 코드에서 부르지 않고 `onDispose`와 명령 처리기에서 부른다. `onDispose`는 scope의 generation이 닫힌 뒤에 실행되어 포트 조회가 거부되므로, `wrap`은 `fresnel.agents` 서비스를 setup에서 한 번 잡아 두고 `delegate`, `delegateStatus`, `cancelDelegates`가 같은 값을 쓴다 [제안]. 서비스가 setup 때 없었으면 부를 때마다 다시 조회한다.
-- 결과 수신 [M3a]: 위임 결과는 L1이 커밋하는 `agent.settled`가 지점 `lifecycle.agent.settled`로 흘러온다. X가 `owner`가 이 scope인 이벤트만 이 그룹의 핸들러에 보내므로 그룹은 `g.on("lifecycle.agent.settled", …)`로 자기 위임의 결과만 받는다. group-sdk은 이 경로에 래퍼를 더하지 않는다.
+- 결과 수신 [M3a]: 위임 결과는 L1이 커밋하는 `agent.settled`가 훅 `lifecycle.agent.settled`로 흘러온다. X가 `owner`가 이 scope인 이벤트만 이 그룹의 핸들러에 보내므로 그룹은 `g.on("lifecycle.agent.settled", …)`로 자기 위임의 결과만 받는다. group-sdk은 이 경로에 래퍼를 더하지 않는다.
 - 멱등: 같은 thread에서 같은 `requestId`의 두 번째 호출은 자식을 만들지 않고 `status: "duplicate"`와 처음 자식의 `childThreadId`를 돌려준다. 중복 생성 방지 방법(소유 간선 검색 또는 `requests` 테이블)은 L1.agents.spec이 정한다.
 - 상한: 위임은 drive lock 상한(`DriveLimits`)에 들어가지 않는다. 위임 상한의 귀속은 [미결](§10).
 - (닫힘) [결정: adr.0015] F.extensions.spec §4.3의 on 핸들러 효과 목록(`post`, `commit`, `record`)에 `requestId` 멱등 `g.delegate`가 더해진다(C안, 2026-10-25). `delegate`의 `requestId`는 커밋된 id(`turnId`, `stepId`)나 상태 값에서 결정적으로 만든다(ADR-0015 §3.4). 옛 우회(`record`로 요청만 남기고 다음 단계 경계 뒤에 `delegate`를 부르는 방식)는 쓰지 않는다. F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
@@ -587,8 +587,8 @@ export function checkStateCommit<S>(decl: StateDecl<S>, current: Readonly<S>, ne
 
 이벤트 격리 정책 [제안]:
 
-- 그룹에 열리는 이벤트 통로는 F의 지점(`on`)과 `readRecords` 둘이다. 그룹 코드는 Cordis 이벤트 버스를 보지 않는다.
-- 기본은 kind 접두 필터다. X가 그룹에게 이벤트·레코드를 넘길 때 다음만 통과시킨다: 코어 kind(F.records.spec `CoreEventKind`) 가운데 지점 페이로드로 넘어가는 것, 자기 `grp.<이름>.*`, 매니페스트 `readsRecordKinds`가 가리키는 kind. 나머지 `grp.*`, `x.*`(다른 확장의 상태 이벤트와 `recordPrivate` 기록 포함)는 통과시키지 않는다.
+- 그룹에 열리는 이벤트 통로는 F의 훅(`on`)과 `readRecords` 둘이다. 그룹 코드는 Cordis 이벤트 버스를 보지 않는다.
+- 기본은 kind 접두 필터다. X가 그룹에게 이벤트·레코드를 넘길 때 다음만 통과시킨다: 코어 kind(F.records.spec `CoreEventKind`) 가운데 훅 페이로드로 넘어가는 것, 자기 `grp.<이름>.*`, 매니페스트 `readsRecordKinds`가 가리키는 kind. 나머지 `grp.*`, `x.*`(다른 확장의 상태 이벤트와 `recordPrivate` 기록 포함)는 통과시키지 않는다.
 - 근거: ADR-0007 §6 [미결] "그룹 사이 이벤트 격리 정책", `_research/notes/arch-1.md` §3(일반 `emit`은 격리되지 않는다), §8. 확정은 X.primitives.spec과 함께 한다.
 
 ### 3.8 GroupService (`fresnel.groups`)
@@ -812,7 +812,7 @@ export function formatGroupStatusLine(groups: readonly GroupStatus[], options?: 
 
 ### 3.10 replayDrive (재생 규율 검사 하니스)
 
-M2 최소형은 Helm 테스트가 쓴다. 2차에 옵션을 넓힌다. M2 최소형의 옵션은 `group`, `harness`, `maxCommits`뿐이고 절단 지점은 항상 모든 커밋이다.
+M2 최소형은 Helm 테스트가 쓴다. 2차에 옵션을 넓힌다. M2 최소형의 옵션은 `group`, `harness`, `maxCommits`뿐이고 절단 시점은 항상 모든 커밋이다.
 
 - 파일 위치: `replayDrive`(§3.10)와 `scanDriveSource`(§3.11)는 `src/testing/` 아래에 둔다. 테스트 전용 도구이기 때문이다.
 - 다른 패키지 import [제안]: DR-08·DR-14의 testing 정의는 "테스트 파일만 다른 패키지의 테스트 대역을 import한다"로 통일되었다 [결정: review.decisions-2 U-17]. 그래서 `replayDrive`는 테스트 호스트와 모델 테이프를 import하지 않고 `ReplayHarness`로 받는다. 하니스는 그룹 패키지의 테스트 파일이 `@fresnel/ext-host`·`@fresnel/core-models`의 테스트 대역으로 만든다.
@@ -868,11 +868,11 @@ export function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveRep
 
 동작:
 
-0. 하니스를 만드는 쪽의 규약 [M2]: 커밋 지점은 그룹 상태 커밋(`grp.<이름>.state.committed`) 바로 뒤로 잡고, 비교하는 이벤트열은 마지막 커밋까지로 자른다. 마지막 커밋 뒤의 drive lock 반납·재부여는 경계를 몇 번 돌렸는지에 따라 길이가 달라지는 X의 꼬리라서 그룹이 정하는 부분이 아니다. 복원은 앞 k개 커밋까지의 이벤트를 새 저장소에 넣고 `TestHost.restart()`로 호스트를 다시 만든 뒤 thread를 여는 것이다. 이벤트의 ID는 호스트마다 범위가 달라 처음 나온 순서의 자리표시자로 바꿔 비교한다. 예는 `test/support/replay-harness.ts`다.
-1. 기준 실행: `harness.run(group, null)`으로 그룹 하나를 holder로 올려 테이프로 끝까지 실행한다. 내구 이벤트열과 커밋 지점 목록을 얻는다. 커밋 지점은 `g.commit`, `loop.turn` 결과, `loop.spawn` 결과, `post` 수락, `record` 쓰기가 커밋된 위치다.
-2. 지점 k마다: `harness.run(group, { events, commits: k })`로 새 호스트에 앞 k개 커밋만 복원하고 프로세스 재시작과 같은 재개 절차로 drive 함수를 마지막 커밋 상태로 다시 부른다. 같은 테이프로 끝까지 실행한다.
-3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정: review.decisions-2 U-03]. 모든 지점에서 같으면 `ok`다. 커밋이 하나도 없는 실행은 확인할 것이 없으므로 `ok: false`, `failure: "no-commits"`다(그룹이 drive lock을 받지 못한 시험 오류가 조용히 통과하지 않게 한다).
-4. 효과 계수 [제안, G-20, ADR-0015 §3.6, M3a 구현]: 기준 실행의 모든 커밋 지점에서 끊고 재개할 때, 끊기 직전의 drive 호출과 on 핸들러를 같은 입력으로 두 번 실행한다. 가짜 포트(`LoopPort`, 입력 큐, 위임 서비스, 기능 공급자)가 효과 계수기를 가지고, 하니스는 `harness.run`의 결과에 `effects`(아래 `EffectCounts`)를 싣는다. 기준 실행의 `effects`는 그 실행이 낸 효과 전부이고, 절단 실행의 `effects`는 복원한 뒤 새로 낸 효과다. 절단 실행은 기준 실행과 같은 가짜 포트의 멱등 기억(요청 키 표)을 이어 써야 하고, 그러면 같은 상태·입력의 재실행은 새 효과가 0이다(옛 안의 "같은 지점까지의 계수 비교"는 이 규칙으로 바꿨다). 계수는 코어가 중복으로 돌려준 호출(`duplicate`, 재생된 `loop.turn`·`loop.spawn`, 처음 결과를 돌려준 멱등 기능 호출)과 읽기 호출을 세지 않는다. 이벤트열이 모두 같아도 절단 실행이 새 효과를 냈으면 `ok: false`, `failure: "effects-doubled"`다. `expectEffects`를 주면 기준 실행의 효과 수가 그 값과 같은지도 보고(`effects-mismatch`), 효과가 한 번 났다는 확인은 이 값으로 한다. `diffEffects`, `effectKindsOf`, `NO_EFFECTS`는 하니스를 만드는 쪽이 계수를 다룰 때 쓴다. 가짜 위임 서비스는 `fakeAgents`(`@fresnel/group-sdk/testing`)다.
+0. 하니스를 만드는 쪽의 규약 [M2]: 커밋 시점은 그룹 상태 커밋(`grp.<이름>.state.committed`) 바로 뒤로 잡고, 비교하는 이벤트열은 마지막 커밋까지로 자른다. 마지막 커밋 뒤의 drive lock 반납·재부여는 경계를 몇 번 돌렸는지에 따라 길이가 달라지는 X의 꼬리라서 그룹이 정하는 부분이 아니다. 복원은 앞 k개 커밋까지의 이벤트를 새 저장소에 넣고 `TestHost.restart()`로 호스트를 다시 만든 뒤 thread를 여는 것이다. 이벤트의 ID는 호스트마다 범위가 달라 처음 나온 순서의 자리표시자로 바꿔 비교한다. 예는 `test/support/replay-harness.ts`다.
+1. 기준 실행: `harness.run(group, null)`으로 그룹 하나를 holder로 올려 테이프로 끝까지 실행한다. 내구 이벤트열과 커밋 시점 목록을 얻는다. 커밋 시점은 `g.commit`, `loop.turn` 결과, `loop.spawn` 결과, `post` 수락, `record` 쓰기가 커밋된 위치다.
+2. 시점 k마다: `harness.run(group, { events, commits: k })`로 새 호스트에 앞 k개 커밋만 복원하고 프로세스 재시작과 같은 재개 절차로 drive 함수를 마지막 커밋 상태로 다시 부른다. 같은 테이프로 끝까지 실행한다.
+3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정: review.decisions-2 U-03]. 모든 시점에서 같으면 `ok`다. 커밋이 하나도 없는 실행은 확인할 것이 없으므로 `ok: false`, `failure: "no-commits"`다(그룹이 drive lock을 받지 못한 시험 오류가 조용히 통과하지 않게 한다).
+4. 효과 계수 [제안, G-20, ADR-0015 §3.6, M3a 구현]: 기준 실행의 모든 커밋 시점에서 끊고 재개할 때, 끊기 직전의 drive 호출과 on 핸들러를 같은 입력으로 두 번 실행한다. 가짜 포트(`LoopPort`, 입력 큐, 위임 서비스, 기능 공급자)가 효과 계수기를 가지고, 하니스는 `harness.run`의 결과에 `effects`(아래 `EffectCounts`)를 싣는다. 기준 실행의 `effects`는 그 실행이 낸 효과 전부이고, 절단 실행의 `effects`는 복원한 뒤 새로 낸 효과다. 절단 실행은 기준 실행과 같은 가짜 포트의 멱등 기억(요청 키 표)을 이어 써야 하고, 그러면 같은 상태·입력의 재실행은 새 효과가 0이다(옛 안의 "같은 지점까지의 계수 비교"는 이 규칙으로 바꿨다). 계수는 코어가 중복으로 돌려준 호출(`duplicate`, 재생된 `loop.turn`·`loop.spawn`, 처음 결과를 돌려준 멱등 기능 호출)과 읽기 호출을 세지 않는다. 이벤트열이 모두 같아도 절단 실행이 새 효과를 냈으면 `ok: false`, `failure: "effects-doubled"`다. `expectEffects`를 주면 기준 실행의 효과 수가 그 값과 같은지도 보고(`effects-mismatch`), 효과가 한 번 났다는 확인은 이 값으로 한다. `diffEffects`, `effectKindsOf`, `NO_EFFECTS`는 하니스를 만드는 쪽이 계수를 다룰 때 쓴다. 가짜 위임 서비스는 `fakeAgents`(`@fresnel/group-sdk/testing`)다.
 
 ```ts
 /** 가짜 포트가 센 외부 효과 수. 중복 응답과 읽기는 세지 않는다 */
@@ -1077,7 +1077,7 @@ X.primitives.spec에 있는 것:
 | 상태 커밋과 크기 상한 | `commit`의 `expectStateRev`, `state_too_large` | §4.6.1 |
 | 유휴 토글 적용 | 유휴면 다음 매크로태스크에 적용 | §4.5.5 |
 
-X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(요청 4 일부)이 xeon/foundation에 병합됐고, 요청 6·7은 M3a X-3이 닫았다]:
+X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(요청 4 일부)이 `xeon/foundation`에 병합됐고, 요청 6·7은 M3a X-3이 닫았다]:
 
 1. `DriveLockCandidate.enabledAtSeq: number | null`(마지막 `scope.changed{status:"enabled"}`의 seq). [반영] F `DriveLockCandidate`에 있다.
 2. 현재 drive lock의 `leaseId` 조회. [반영] `ExtHost.leaseOf(threadId)`가 `LeaseInfo{leaseId, scopeId, leaseEpoch, status}`를 돌려준다. `GroupStatus.leaseId`에 쓴다.
@@ -1160,7 +1160,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - 기준은 thread의 leaf다(F.records.spec §4.6).
 - [결정: review.decisions-2 §3 T-20] 그룹 상태 = leaf의 조상 경로(활성 가지)에서 가장 가까운 `grp.<그룹>.state.committed` 이벤트의 `doc`(업캐스트 뒤). 없으면 `StateDecl.initial`이다. 활성 가지 규칙은 X.primitives.spec §4.6.1이 정한다.
 - 투영 `x_<그룹>_state`의 `prev_event_id` 연결로 조상 경로의 상태를 찾는다. 투영은 X가 소유하고 재생으로 다시 만들 수 있다(X.primitives.spec §4.6.1).
-- drive lock 복원: 마지막 `checkpoint.step`의 `leaseRefs`(F.records.spec §3.6)가 가리키는 `lease.acquired`가 있으면 X가 그 그룹의 drive 함수를 복원한 상태로 다시 부른다. 분기로 leaf가 drive lock 전 지점으로 가면 `leaseRefs`가 비고, `decide`가 처음부터 다시 정한다.
+- drive lock 복원: 마지막 `checkpoint.step`의 `leaseRefs`(F.records.spec §3.6)가 가리키는 `lease.acquired`가 있으면 X가 그 그룹의 drive 함수를 복원한 상태로 다시 부른다. 분기로 leaf가 drive lock 전 시점으로 가면 `leaseRefs`가 비고, `decide`가 처음부터 다시 정한다.
 - 분기 뒤의 drive 재호출은 재개와 같은 규율을 따른다. `loop.turn`의 기본 `requestId`(`${leaseId}:${순번}`)는 가지가 다르면 `leaseId`가 달라 충돌하지 않는다 [가정: X.primitives.spec].
 
 ### 4.7 상태 스키마 버전과 마이그레이션 훅
@@ -1181,7 +1181,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 ### 4.9 계측 기록 (2차)
 
-- **지점 카운터(M3b).** `on` 래퍼는 핸들러를 감싸 반환과 예외를 센다. first 훅에서 정의된(`undefined`가 아닌) 반환은 `denies`, chain 훅의 정의된 반환은 `chainPatches`, 던진 오류(동기 던지기와 거부된 Promise 모두)는 `handlerErrors`를 올리고 같은 값으로 다시 던진다. tap과 collect 훅은 `handlerErrors`만 센다. 반환값은 바꾸지 않는다.
+- **훅 카운터(M3b).** `on` 래퍼는 핸들러를 감싸 반환과 예외를 센다. first 훅에서 정의된(`undefined`가 아닌) 반환은 `denies`, chain 훅의 정의된 반환은 `chainPatches`, 던진 오류(동기 던지기와 거부된 Promise 모두)는 `handlerErrors`를 올리고 같은 값으로 다시 던진다. tap과 collect 훅은 `handlerErrors`만 센다. 반환값은 바꾸지 않는다.
 - **사용량 쓰기(M3b, LR-17).** `metrics.addUsage(delta)`가 `tokens`와 `costUsd`를 더한다. 인자 검사는 §3.12 대로다.
 - **이벤트 집계(M3b, G-17).** `summarizeUsage(events)`는 순수 함수다. 한 thread의 이벤트열을 scope별로 접는다. `lease.acquired`는 drive lock 수를 올리고, 같은 `leaseId`의 `lease.released`는 `recordedAt` 차이를 drive lock 시간에 더한다. 풀리지 않은 drive lock은 수에만 든다. `turn.started`의 scopeId가 null이 아니면 그 turnId의 `turn.completed` 사용량을 그 scope에 더한다. 검사에 실패한 payload는 건너뛴다. 시계는 읽지 않는다(TY-21).
 - **서비스 캐시와 상태(M3b).** `refreshUsage(threadId)`는 `queryEvents(threadId, { kindPrefix: "lease." })`와 `{ kindPrefix: "turn." }`을 읽어 `seq` 순으로 합치고 `summarizeUsage`로 접는다. 결과는 그 thread의 캐시가 된다. 조회가 하나라도 실패하면 캐시를 그대로 두고 던지지 않는다. `/group status`는 상태를 보이기 전에 현재 thread를 한 번 갱신한다. `GroupStatus.metrics`는 등록부의 카운터(denies, posts, spawns, delegates)와 캐시를 합친다. `costUsd`는 카운터 `addUsage` 비용과 `turn.completed` 비용의 합이고, `leaseMs`는 `lease.*` 구간의 합이다. 캐시는 마지막으로 갱신한 thread의 값만 보인다. 다른 thread를 보면 이벤트 값은 0이다.
@@ -1228,7 +1228,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 `defineSettings("l3.group-sdk", …)`로 선언한다(F.wire-settings.spec §3.8.3). 탭은 모두 `plugins`("플러그인과 그룹", `_research/layer-plan-v2-notes.md` L4 설정 화면 구성안)다.
 
-| 키 | 타입 | 기본값 | 범위(`allowedScopes`) | 세션 중 변경 | `runtimeChange` | 위젯 | 뜻 |
+| 키 | 타입 | 기본값 | 범위(`allowedScopes`) | 대화 중 변경 | `runtimeChange` | 위젯 | 뜻 |
 |---|---|---|---|---|---|---|---|
 | `l3.group-sdk.instrumentation` | boolean | `true` | managed, user, project, local, launch | 가능 | `live` | `toggle` | 그룹 계측 기록(§4.9, 2차) |
 | `l3.group-sdk.statusLine` | boolean | `true` | user, project, local, launch | 가능 | `live` | `toggle` | 상태줄 그룹 표시(§3.9) |
@@ -1240,7 +1240,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 ## 7. 훅
 
-- group-sdk 자체는 지점을 선언하지 않고 `on` 핸들러도 걸지 않는다. 훅 선언은 F.extensions.spec §3.4다.
+- group-sdk 자체는 훅을 선언하지 않고 `on` 핸들러도 걸지 않는다. 훅 선언은 F.extensions.spec §3.4다.
 - `GroupApi.on`은 F `RegistrationApi.on`을 감싼다. 핸들러 시그니처와 fold는 그대로다. 래퍼는 계측 집계만 더한다(§4.9).
 - `post`, `commit`, `record`, `readRecords`, `capability`, `onDispose`는 그대로 전달한다. `registerTool`, `registerCommand`, `registerProvider`는 X `hostOf(g)`로 전달한다(§3.2).
 - `drive` 등록은 그대로 전달하고, drive lock 결정은 `DriveArbiter`가 X `DriveLockArbiterPort`를 통해 정한다(§3.5).
@@ -1292,7 +1292,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 7. 실행 중 `/group off helm`은 `pending: true`를 돌려주고, 다음 단계 경계 전까지 상태줄 끝에 `다음 단계 경계에 적용`이 있으며, 경계 뒤 `scope.changed{status:"disabled"}`가 정확히 한 번 커밋된다.
 8. `group-sdk` 소스에서 `@fresnel/group-helm`, `@fresnel/group-learning` import가 0이다(check-layers). `group-helm`에 `@fresnel/group-learning` import 샘플을 넣으면 check-layers가 DR-02로 실패한다.
 9. M1 테스트 그룹(`smokeGroup`)이 한 턴에서 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 모두 쓰고, `checkGroup(smokeGroup)`의 오류가 0이다.
-10. setup에서 매니페스트 `plugins[].hooks`에 없는 지점에 `on`을 건 그룹은 `checkGroup`이 `hook_undeclared`를 돌려준다. `name: "auto"`, `name: "web"`(L2 도메인 이름)인 정의는 `defineGroup`이 `group_name`으로 `Bug`를 던진다. `state` 없이 `on`만 쓰는 정의는 오류 없이 `GroupModule`(`stateVersion: 0`)을 만든다.
+10. setup에서 매니페스트 `plugins[].hooks`에 없는 훅에 `on`을 건 그룹은 `checkGroup`이 `hook_undeclared`를 돌려준다. `name: "auto"`, `name: "web"`(L2 도메인 이름)인 정의는 `defineGroup`이 `group_name`으로 `Bug`를 던진다. `state` 없이 `on`만 쓰는 정의는 오류 없이 `GroupModule`(`stateVersion: 0`)을 만든다.
 10a. `registerTool`, `registerCommand`로 등록한 도구와 명령은 그룹을 끄면 해제된다(가짜 `ExtHost.resources` 등록 수로 확인).
 10b. `groupManifest`는 `group` 선언이 없는 매니페스트 값에 `Bug`(`group_missing_orchestration`)를 던지고, 템플릿 `plugin.json`과 같은 값에는 `GroupManifest`를 돌려준다.
 10c. `registerProvider`로 등록한 provider는 그룹을 끄면 해제된다(가짜 `ExtHost.resources`와 가짜 `fresnel.models` 포트의 등록 수로 확인).
@@ -1307,7 +1307,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 19. `formatGroupStatusLine`은 §3.9 예 표의 다섯 입력에 표의 문자열을 그대로 돌려준다.
 20. `group-sdk` 운영 소스에서 `DriveLockArbiterPort`, `DriveLockCandidate`, `GroupService`, `GroupStatus`, `DriveHolderSetting`, `GroupMetricsSummary`를 정의하는 선언이 0개이고, 이 이름은 `@fresnel/contracts/extensions` 또는 `@fresnel/contracts/services`에서 온다. `services/groups.ts`의 `HolderReceipt["scope"]`는 F.wire-settings `SettingScope`에 대입 가능하고 그 반대도 된다(타입 테스트).
 21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `boundary.step.after` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
-22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 지점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
+22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 시점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
 23. (M3, ADR-0015) `delegateStatus`는 drive 문맥에서 상태를 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행되는 코드에서 거부되고 `onDispose`와 명령 처리기에서는 동작한다.
 24. (M3) drive lock 대기 상한을 넘어 거부된 그룹의 `GroupStatus.drive`는 `"rejected"`다.
 25. (M3b, G-17) `on` 래퍼는 first 훅의 정의된 반환을 `denies`, chain 훅의 정의된 반환을 `chainPatches`, 던진 오류를 `handlerErrors`로 올리고 오류를 같은 값으로 다시 던진다. `undefined` 반환은 세지 않는다.
@@ -1339,7 +1339,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [미결] [M3a] `delegate_capability` 검사(§3.3): 위임 기능 ID가 F에 없고 L1 서비스는 포트(`fresnel.agents`)라 매니페스트로 선언할 수 없다. 포트는 내장 확장만 읽으므로 외부 그룹의 위임 허용 여부는 신뢰 등급 정책이 정한다.
 - [미결] [M3a] 옛 스펙의 `cancelDelegates(reason): Promise<{ cancelled: number }>`와 `delegateStatus(requestId): DelegateStatus | undefined`를 값 반환(`CancelDelegatesResult`, `DelegateStatusResult`)으로 바꿨다. L1 `cancel`은 `{ cancelled: boolean }`을 돌려주어 개수를 알 수 없고, 서비스 없음과 문맥 거부는 값으로 알려야 하기 때문이다(TY-11). 학습 스펙 §3·§4.3의 호출 예(`g.cancelDelegates("group_disabled")`)는 그대로 쓸 수 있고 반환값을 쓰는 곳만 맞춘다.
 - [미결] [M3a] G-30의 "실패 값": `GroupStatus.drive`의 `"rejected"`만 채웠다. 거부 사유(`reason`, `requestSeq`)를 `GroupStatus`나 `GroupError`에 싣는 안은 F `services/groups.ts` 변경이 필요해 하지 않았다.
-- [미결] [M3a] `replayDrive`의 지점 목록 지정(`cutAt`)과 사용자 입력 시작(`input`), 실패 보고의 첫 차이 이벤트 표시는 G-20 남은 몫이다.
+- [미결] [M3a] `replayDrive`의 시점 목록 지정(`cutAt`)과 사용자 입력 시작(`input`), 실패 보고의 첫 차이 이벤트 표시는 G-20 남은 몫이다.
 - (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 group-sdk의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
 - [결정: 오케스트레이터 기본값, M3b] 계측 등록부는 프로세스 전역 `defaultMetricsRegistry`다(§4.9). 조립 루트의 배선은 두지 않는다.
 - [미결] [B4-GRP] 위임·spawn 자식 thread의 turn 출처(§3.12). `turn.started`의 `origin`이 `delegation`이면 자식을 만든 scope를 이벤트에서 알 수 없다. 자식과 부모를 잇는 이벤트(예: `agent.spawned`, 위임 수명주기)를 함께 읽어야 한다. 그 전까지 이 호출은 집계에서 빠진다.

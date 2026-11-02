@@ -43,7 +43,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 - `_meta`(`WireMeta`)와 `traceparent` 직렬화 함수, `@opentelemetry/api` 1.10.0 타입 의존.
 - 확장 wire 메서드(`ext.<id>.<동사>`) 등록 형식(스펙 미결 5가 풀린 뒤).
 - 승인 메서드 `approval.respond` 구현. 방향은 A안이다(스펙 §4.6, review.decisions-2 U-02).
-- 판정하지 않은 호스트 계약 요청(스펙 §10 10번)을 하나씩 받을지 반려할지 정한다. M1에는 넣지 않는다(review.decisions-2 U-04).
+- 판정하지 않은 Runtime API 요청(스펙 §10 10번)을 하나씩 받을지 반려할지 정한다. M1에는 넣지 않는다(review.decisions-2 U-04).
 
 ### 1.4 소비자
 
@@ -135,7 +135,7 @@ xeon/packages/contracts/
 
 - 규칙 함수(`resolveSetting`, `checkSettingWrite`, `validateSettingValue`, `settingsJsonSchema`)는 F의 순수 함수로 둔다. 입력은 이미 읽은 값(`ScopeStack`)이고 파일·OS 접근이 없다.
 - 이유: 화면(L4), CLI(L4), 엔진(L1), 문서 검사가 같은 규칙을 써야 하는데, 이들이 함께 import할 수 있는 가장 낮은 층이 F다. 규칙을 L1에 두면 L4 설정 화면이 L1을 끌어와야 한다.
-- 설정 파일 위치 결정, 읽기, 감시, 쓰기, 세션 범위 값의 저장은 L1(`L1.persistence.plan`)과 L4(`L4.host-service.plan`)가 한다. F 순수 함수의 범위는 `F.readme`의 "런타임 로직 예외" 규칙을 따른다.
+- 설정 파일 위치 결정, 읽기, 감시, 쓰기, 대화 범위 값의 저장은 L1(`L1.persistence.plan`)과 L4(`L4.host-service.plan`)가 한다. F 순수 함수의 범위는 `F.readme`의 "런타임 로직 예외" 규칙을 따른다.
 
 ## 4. 채택 코드
 

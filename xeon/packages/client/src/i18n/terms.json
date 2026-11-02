@@ -355,7 +355,10 @@
     "surfaces": ["workbench"],
     "ids": ["trace.turn"],
     "sources": ["adr.0022"],
-    "status": "proposed"
+    "status": "proposed",
+    "forbid": {
+      "docs": ["턴 재생"]
+    }
   },
   "replayTest": {
     "kind": "operation",
@@ -527,7 +530,13 @@
     "ids": ["once", "repeat", "TriggerSpec"],
     "forbid": {
       "ui": ["루프", "타이머"],
-      "docs": ["루프", "timer"]
+      "docs": ["timer"],
+      "docsIn": [
+        {
+          "word": "루프",
+          "under": ["L2/schedule/"]
+        }
+      ]
     },
     "sources": ["adr.0022", "L2.schedule.spec"],
     "status": "proposed"
@@ -563,7 +572,10 @@
     "surfaces": ["settings"],
     "ids": ["secret://"],
     "sources": ["adr.0022", "L0.secrets.spec"],
-    "status": "proposed"
+    "status": "proposed",
+    "forbid": {
+      "docs": ["비밀 핸들"]
+    }
   },
   "secretRegistry": {
     "kind": "concept",
@@ -646,7 +658,10 @@
     "ui": null,
     "surfaces": ["none"],
     "sources": ["adr.0022"],
-    "status": "proposed"
+    "status": "proposed",
+    "forbid": {
+      "docs": ["호스트 계약"]
+    }
   },
   "backgroundService": {
     "kind": "concept",
@@ -674,7 +689,10 @@
     },
     "surfaces": ["settings"],
     "sources": ["adr.0022"],
-    "status": "proposed"
+    "status": "proposed",
+    "forbid": {
+      "ui": ["사이드카"]
+    }
   },
   "layerSystem": {
     "kind": "layer",

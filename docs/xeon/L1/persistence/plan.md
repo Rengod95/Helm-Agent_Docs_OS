@@ -22,17 +22,17 @@ binds: [xeon/packages/core-persistence/**]
 | DDL 실행 순서, `sys_migrations`, `user_version`, `ChunkMigration` 실행기 | 소유 | DDL 문자열과 마이그레이션 목록을 넘긴다 |
 | blob 파일(임시 파일, fsync, rename), `putBlob`, `readBlob`, GC 실행, `sys_blobs` | 소유 | 분리·되돌리기(`detachLarge`, `hydrate`), 참조 목록(`p_blob_refs`) |
 | `StoreId`, `sys_meta` | 소유 | 쓰지 않음 |
-| 임대 API(`acquire`, `renew`, `release`, `holds`, `keepAlive`, `inspect`, `sys_leases`) | 소유 | 커밋 소유 확인에 `holds(tx, token)`, 자식 thread 임대에 `acquire`·`keepAlive`, 소유 표시에 `inspect`(spec §3.6, §4.10.1) |
-| 세션 OS 잠금 | 없음(`L0.process.spec`) | 없음. 호스트가 임대와 함께 얻어 `LeaseToken`으로 넘긴다 |
+| 프로세스 락 API(`acquire`, `renew`, `release`, `holds`, `keepAlive`, `inspect`, `sys_leases`) | 소유 | 커밋 소유 확인에 `holds(tx, token)`, 자식 thread 프로세스 락에 `acquire`·`keepAlive`, 소유 표시에 `inspect`(spec §3.6, §4.10.1) |
+| 대화 OS 잠금 | 없음(`L0.process.spec`) | 없음. 호스트가 프로세스 락과 함께 얻어 `LeaseToken`으로 넘긴다 |
 | 테이블의 의미(`events`, `requests`, `step_checkpoints`, `projector_state`, `consumer_cursors`, `thread_creation_keys`, `p_*`) | 없음 | 소유 |
 | 커밋 규칙(소유 확인, 멱등, 지문, seq 발급, envelope 완성, 투영, 체크포인트, 방출) | 없음 | 소유 |
 | 투영기 등록, 재생성, 불일치 검출 | `ProjectionTx` 소유 검사의 SQL 추출 함수(공용 [제안]) | 소유 |
 | 재개(열 때 복구, 결과 불명 판정, 합성 커밋, 재개 계획) | 없음 | 소유 |
-| 수명주기·분기·제목·세션 범위 설정 | 없음 | 소유 |
+| 수명주기·분기·제목·대화 범위 설정 | 없음 | 소유 |
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] M0 범위는 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금)이고, M1은 `fresnel chat` 걸어 다니는 골격(이벤트 저장과 재개 포함)이다(`_research/foundation-plan.md` §5 P4). 마일스톤 정의는 `product.scope.spec` §4.3을 따른다(M2·M3 정의는 그 문서의 [제안]). `_research/layer-plan-v2.json` L1-f의 "2차"는 M3 이후에 둔다 [제안]. 예외로 리플레이 커서는 M3로 당긴다(아래 표 아래 항목).
+[결정] M0 범위는 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·대화 잠금)이고, M1은 `fresnel chat` 걸어 다니는 골격(이벤트 저장과 재개 포함)이다(`_research/foundation-plan.md` §5 P4). 마일스톤 정의는 `product.scope.spec` §4.3을 따른다(M2·M3 정의는 그 문서의 [제안]). `_research/layer-plan-v2.json` L1-f의 "2차"는 M3 이후에 둔다 [제안]. 예외로 리플레이 커서는 M3로 당긴다(아래 표 아래 항목).
 
 | 마일스톤 | core-persistence 범위 | 스펙 절 | 소비자 |
 |---|---|---|---|
@@ -49,7 +49,7 @@ M0 종료 조건과 L0 몫:
 | M0 종료 조건(`_research/foundation-plan.md` §6) | 확인하는 패키지 | core-persistence 몫 |
 |---|---|---|
 | SIGKILL 뒤 마지막 커밋이 보존된다 | `platform-store`의 `StoreDb.write` + FULL 연결 fault 테스트(원시 테이블) | 없음. M1에서 같은 조건을 `SessionService.commit`으로 다시 확인한다(`commit_atomic_under_fault_at_every_point`, K1~K6) |
-| 두 번째 프로세스는 세션 잠금을 얻지 못한다 | `platform-process`의 세션 잠금 테스트(`L0.process.plan`) | 없음. M1의 `lock_conflict_offers_delegate_observe_fork`는 호스트와 함께 L1 쪽 동작(관찰 열기, fork)을 확인한다 |
+| 두 번째 프로세스는 대화 잠금을 얻지 못한다 | `platform-process`의 대화 잠금 테스트(`L0.process.plan`) | 없음. M1의 `lock_conflict_offers_delegate_observe_fork`는 호스트와 함께 L1 쪽 동작(관찰 열기, fork)을 확인한다 |
 
 - [제안] `eng.transactions.design` §8 표는 `SessionWriter.commit`과 장애 주입 테스트를 M0(core-persistence)에 두었다. 이 계획은 `_research/foundation-plan.md` §5 P4의 M0 범위(platform-store만)를 따라 M1에 둔다. eng 표 수정을 요청한다.
 
@@ -131,7 +131,7 @@ xeon/packages/core-persistence/
 |---|---|---|---|---|
 | PS-0 | 커밋 API 대응 표(스펙 §3.1) 확정. F 변경 요청 FR-P1~P5, FR-P9를 F 트랙에 올리고, 받아들여진 이름으로 이 계획의 타입 경로를 맞춘다. eng 문서 수정 요청(스펙 §8.4) 전달 | 없음 | S | M0 |
 | PS-1 | DDL과 마이그레이션 연결: `schema/ddl.ts`(§3.10 전부, 트리거, 인덱스), `migrations.ts`, `ddl.test.ts`(스펙 표와 열 대조) | PS-0, L0.store.plan(마이그레이션 실행기, `StoreDb`) | M | M1 |
-| PS-2 | writer와 requests 멱등: `writer.ts`, `commit-plan.ts`, `producers.ts`, `requests.ts`, `tx-view.ts`. 소유 확인(`leases.holds(tx, token)`), seq 발급(`event_seq`), envelope 완성, 스키마·kind·크기 검사, FaultInjector 지점 10개 | PS-1, contracts(F.records: envelope, 카탈로그, `checkEnvelopeSize`, FR-P1 타입) | L | M1 |
+| PS-2 | writer와 requests 멱등: `writer.ts`, `commit-plan.ts`, `producers.ts`, `requests.ts`, `tx-view.ts`. 소유 확인(`leases.holds(tx, token)`), seq 발급(`event_seq`), envelope 완성, 스키마·kind·크기 검사, FaultInjector 위치 10개 | PS-1, contracts(F.records: envelope, 카탈로그, `checkEnvelopeSize`, FR-P1 타입) | L | M1 |
 | PS-3 | 투영기 인터페이스와 코어 투영: `projector/core.ts`, `projector/tx.ts`(코어용), M1 테이블(`p_threads`, `p_items`, `p_parts`, `p_effects`, `p_turns`, `p_inputs`, `step_checkpoints`, `p_blob_refs`) | PS-2 | L | M1 |
 | PS-4 | 확장 투영 등록과 소유 검사: `projector/registry.ts`, `ProjectionTx` 문장 검사(디버그 빌드), 금지 문장, `onFailure`, 등록 때 재생성 | PS-3, X.operations.plan(O-14 `ExtProjection` → `Projector`) | M | M2 |
 | PS-5 | 체크포인트 쓰기·읽기: `checkpoint.ts`(`StepCheckpointInput` → `checkpoint.step`, 승인 대기 예외, `schemaVersion` 검사), `loadCheckpoint` | PS-3 | S | M1 |
@@ -146,7 +146,7 @@ xeon/packages/core-persistence/
 | PS-14 | 설정 노출: `settings.ts`(`l1.persistence.*` 5키, 단계별 since), `session-settings.ts`(`settings.changed`, `p_settings`) | PS-2, contracts(`defineSettings`) | S | M1/M2 |
 | PS-15 | blob 분리: `blob.ts`(`detachLarge`, `hydrate`), `p_blob_refs`, `query.liveBlobRefs` | PS-3, L0.store.plan(`putBlob`, `readBlob`) | M | M1 |
 | PS-16 | 플러그인과 서비스 조립: `plugin.ts`(`fresnel.store` 주입, `fresnel.session` 제공, `producer` 한 번 받기 규칙), `index.ts`, `ext-port.ts`(M2) | PS-2, PS-12, X.primitives(플러그인 등록 API) | M | M1(ext-port M2) |
-| PS-17 | 훅 7개 발화: `points.ts`. M1은 `thread.start`, `thread.shutdown`(F 표 M1 ● 지점), M2는 나머지 5개 | PS-16, X.primitives(`ExtHost.dispatch`) | M | M1/M2 |
+| PS-17 | 훅 7개 발화: `points.ts`. M1은 `thread.start`, `thread.shutdown`(F 표 M1 ● 훅), M2는 나머지 5개 | PS-16, X.primitives(`ExtHost.dispatch`) | M | M1/M2 |
 | PS-18 | 보관 정리: `retention.ts`, 제외 규칙, `retention.*` 키 연결. M3b B1-SVC: 지울 때 재전송 하한(`replay.floor`) 상승, `replay.ts`(`replayFrom`), `resend.ts`(재개 때 모델 요청 재전송 정책) | PS-9 | S | M2 |
 | PS-19 | 리플레이 커서: `replay-cursor.ts`(`replayFrom` 해석, `oldestReplayableSeq`) | PS-12, FR-P7 | S | M3 |
 | PS-20 | 되감기: `rewind.ts`(스냅샷 기록 `checkpoint.files`, `RewindPlan`, 복원 효과 3단) | PS-10, FR-P8, L1.tools(쓰기 분류) | L | 2차 |
@@ -175,7 +175,7 @@ xeon/packages/core-persistence/
 
 ### 3.2 M3-REQ-36 구현 상태 (2026-10-29, 레인 B3-DATA)
 
-[결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영기 예외는 세션을 멈추지 않는다(§4.5.2).
+[결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영기 예외는 대화를 멈추지 않는다(§4.5.2).
 
 | 항목 | 상태 | 위치 |
 |---|---|---|
@@ -220,7 +220,7 @@ xeon/packages/core-persistence/
 | opencode 이벤트 표 | `event/sql.ts`(`event_sequence`, `event(id, aggregate_id, seq, created, type, data)`, `unique(aggregate_id, seq)`) | 표 모양. Fresnel은 seq가 DB 전역이라 `UNIQUE(thread_id, seq)` 대신 `seq` 기본 키 |
 | opencode 리듀서 | `session/message-updater.ts`(485줄) `update` | 이벤트별 투영 갱신 논리 |
 | opencode 되감기 | `packages/core/src/snapshot.ts`(244줄), `packages/core/src/session/revert.ts`(114줄) | 2차 PS-20 스냅샷 범위와 stage·commit 단계 |
-| pi 세션 JSONL | `coding-agent/src/core/session-manager.ts:41-195`(`CURRENT_SESSION_VERSION = 3`, 엔트리 11종) | 2차 PS-21 내보내기 형식 |
+| pi "세션" JSONL | `coding-agent/src/core/session-manager.ts:41-195`(`CURRENT_SESSION_VERSION = 3`, 엔트리 11종) | 2차 PS-21 내보내기 형식 |
 
 - [결정] pi durable의 `synchronous = NORMAL`(`durable/src/storage/sqlite/node.ts:191`)은 채택하지 않는다. FULL이다(adr.0004 §3.2 5번).
 
@@ -230,7 +230,7 @@ xeon/packages/core-persistence/
 
 | 테스트 | 파일 | 확인할 동작 | 작업 |
 |---|---|---|---|
-| `commit_atomic_under_fault_at_every_point` | `commit.fault.test.ts` | `FaultPoint` 10종 모두에서 예외 주입. 커밋 전 지점은 대상 테이블 행 수·행 해시 불변, `after_commit`은 행이 남고 방출 0회. 지점 목록과 테스트 목록 대조(TS-08) | PS-2 |
+| `commit_atomic_under_fault_at_every_point` | `commit.fault.test.ts` | `FaultPoint` 10종 모두에서 예외 주입. 커밋 전 위치는 대상 테이블 행 수·행 해시 불변, `after_commit`은 행이 남고 방출 0회. 위치 목록과 테스트 목록 대조(TS-08) | PS-2 |
 | `commit_retry_after_fault_matches_clean_commit` | `commit.fault.test.ts` | 장애 뒤 같은 `CommitRequest` 재시도 결과가 장애 없는 커밋과 같은 envelope 해시 | PS-2 |
 | `commit_idempotent_same_request_id` | `requests.test.ts` | 같은 키·지문 두 번 → `replayed: true`, 같은 `eventIds`, 행 수 불변 | PS-2 |
 | `commit_key_reused_with_different_fingerprint_rejected` | `requests.test.ts` | `key_reused`, 행 변화 없음 | PS-2 |
@@ -273,7 +273,7 @@ xeon/packages/core-persistence/
 | `resume_marker_comes_from_events` | `resume.int.test.ts` | `turn.started` 뒤 표식 생김, `turn.completed` 뒤 사라짐, `thread.resumed`로 시도 수 증가 | PS-6 |
 | `resume_attempts_capped` | `resume.int.test.ts` | `maxResumeAttempts` 도달 뒤 `beginResume` → `attempts_exhausted` | PS-6 |
 | `fork_creates_new_thread_with_forked_from` | `lifecycle.test.ts` | 새 thread 첫 이벤트 `thread.started{forkedFrom}`, 원본 이벤트 수 불변, `thread.fork.before` 거부 시 커밋 없음 | PS-9 |
-| `fork_continuity` | `fork-continuity.test.ts` | fork thread의 활성 가지가 출처의 fork 지점까지의 item을 같은 `itemId`로 잇고, 출처의 이후 쓰기는 들어오지 않으며, fork의 fork도 이어지고, 상속한 item으로는 되감기가 안 된다 (M2 마감 G2-11) | PS-9 |
+| `fork_continuity` | `fork-continuity.test.ts` | fork thread의 활성 가지가 출처의 fork 시점까지의 item을 같은 `itemId`로 잇고, 출처의 이후 쓰기는 들어오지 않으며, fork의 fork도 이어지고, 상속한 item으로는 되감기가 안 된다 (M2 마감 G2-11) | PS-9 |
 | `branch_item_records_pages` | `item-pages.test.ts` | `before`·`limit` 쪽을 이어 붙이면 활성 가지 전체와 같고(fork 경계 포함), `hasMore` 정확, 오류 사유 구분, 쪽에 든 item의 blob만 읽는다 (M2 마감 G2-11) | PS-9 |
 | `leaf_move_keeps_old_branch` | `branch.test.ts` | `moveLeaf` 뒤 옛 가지가 `readFrom`에 남고 `readBranch`에는 새 가지만 | PS-10 |
 | `branch_summary_committed_with_leaf_move` | `branch.test.ts` | summary가 있으면 `thread.branch_summarized`가 같은 커밋 | PS-10 |
@@ -286,7 +286,7 @@ xeon/packages/core-persistence/
 | `ddl_matches_spec_table` | `ddl.test.ts` | DDL 열 목록과 스펙 §3.10 표 대조 | PS-1 |
 | `restart_invariants_k1_to_k6` | `restart.fault.test.ts` | 자식 프로세스를 K1~K6에서 SIGKILL, 다시 열어 `recover`, 스펙 §4.14 불변식 | PS-6, PS-7 |
 | `events_update_and_stray_delete_blocked_by_trigger` | `ddl.test.ts` | `events` UPDATE는 트리거가 막고, `threads.remove` 경로 밖의 DELETE도 막는다(스펙 §9-21) | PS-1 |
-| `session_points_fire_at_spec_times` | `hooks.test.ts` | 지점 7개가 스펙 §7.1 시점에 발화한다. first 훅(`thread.switch.before`, `thread.fork.before`, `thread.tree.before`)의 거부·예외면 커밋이 없고, tap 훅은 커밋 뒤에만 발화한다. M1은 `thread.start`, `thread.shutdown`, M2는 나머지 5개 | PS-17 |
+| `session_points_fire_at_spec_times` | `hooks.test.ts` | 훅 7개가 스펙 §7.1 시점에 발화한다. first 훅(`thread.switch.before`, `thread.fork.before`, `thread.tree.before`)의 거부·예외면 커밋이 없고, tap 훅은 커밋 뒤에만 발화한다. M1은 `thread.start`, `thread.shutdown`, M2는 나머지 5개 | PS-17 |
 | `retention_prunes_only_eligible_threads` | `retention.test.ts` | `maxAgeDays`·`maxCount` 대상 중 표식이 남은 thread, 열린 turn이 있는 thread, 포크 출처, 쓰기 소유 중인 thread는 남고 나머지만 `threads.remove` 경로로 지워진다 | PS-18 |
 | `agent_by_request_id_finds_spawned_child` | `projector.test.ts` | `agent.spawned` 커밋 뒤 `TxView.agentByRequestId(부모, requestId)`가 그 자식을 돌려주고, `agent.settled` 뒤 `settled`가 채워진다. 재생성 뒤에도 같다(스펙 §9-22) | PS-23 |
 | `resume_lists_unsettled_children` | `resume.int.test.ts` | 자식 생성 커밋 뒤 SIGKILL, 다시 열면 `ResumePlan.openChildren`에 그 자식이 있고, 부모 turn에 취소 의도가 있으면 재개 대상에서 빠진다 | PS-23 |
@@ -319,6 +319,6 @@ xeon/packages/core-persistence/
 | bun:sqlite 저장점 의미(eng 미결 T-2) | 중첩 write가 저장점이 되어 부분 커밋처럼 보일 수 있다 | 중첩 write 금지 테스트(`commit_nested_inside_listener_is_bug`, L0의 중첩 write 테스트)로 고정한다. 결과는 L0.store.plan과 공유 |
 | `p_inputs`, `p_approvals`의 kind가 F에 없다(FR-P9) | 투영 코드를 쓸 수 없다 | M1은 `input.*`만 필요하다. F 결론 전에는 L1.tasks.spec §3.8 payload로 투영을 쓰고 kind 이름이 바뀌면 같은 PR에서 고친다 |
 | X `RecordCommitPort` 이름 충돌(`commit`) | X가 `fresnel.session`을 그대로 포트로 쓰지 못한다 | `SessionService.ext` 하위 객체(스펙 §3.3)를 X.primitives 트랙과 M1 전에 합의한다. X의 포트 계약 스위트(`X.primitives.plan` P-19)를 이 패키지 테스트에서 돌린다 |
-| 확장 투영기 예외가 세션 진행을 막는다 | 확장 하나 때문에 커밋이 반복 실패 | 정지한 뒤 같은 계획으로 다시 커밋한다(§4.5.2, M3-REQ-36). `projector-isolation.test.ts`가 확인한다. 자동 끄기는 X가 `onFailure`로 판정한다(X.operations 미결 6 해소) |
+| 확장 투영기 예외가 대화 진행을 막는다 | 확장 하나 때문에 커밋이 반복 실패 | 정지한 뒤 같은 계획으로 다시 커밋한다(§4.5.2, M3-REQ-36). `projector-isolation.test.ts`가 확인한다. 자동 끄기는 X가 `onFailure`로 판정한다(X.operations 미결 6 해소) |
 | adr.0004·adr.0006 개정(OS 잠금 + `sys_leases.epoch` 펜싱, review.decisions-2 U-09)이 늦음 | 문서 정본이 잠시 둘로 보인다 | 소유 확인을 `leases.holds(tx, token)` 호출 하나로 모은다. 가짜 `LeaseService`를 테스트에 둔다 |
 | 설정 파일 소유 이전 제안(스펙 §6.2)이 거절된다 | L1이 파일 I/O를 맡아야 하고 `fresnel.os` 의존이 생긴다 | 거절되면 `settings-files.ts`를 더하고 context-map (d)열에 `fresnel.os`를 더하는 요청을 낸다. M1 범위에는 영향 없음(M1 `settings.get`은 호스트가 파일을 읽는다) |

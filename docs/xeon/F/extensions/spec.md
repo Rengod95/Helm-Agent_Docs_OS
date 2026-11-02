@@ -40,7 +40,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 - 확장 로딩, 신뢰 판정, 프로세스 격리, 매니페스트 파일 탐색: `X.loading-trust.spec`
 - on/post/drive/Registration의 동작 구현(디스패치, drive lock 중재, 토글 적용): `X.primitives.spec`
 - 운영 규칙(안전 모드, 시작 시 끄기, 핸들러 시간 예산, 실행 순서 tier): `X.operations.spec`(`X.readme` §2 소유 경계)
-- 각 지점을 실제로 발화하는 코드: `L1.loop.spec`, `L1.tools.spec`, `L1.context.spec`, `L1.models.spec`, `L1.persistence.spec`
+- 각 훅을 실제로 발화하는 코드: `L1.loop.spec`, `L1.tools.spec`, `L1.context.spec`, `L1.models.spec`, `L1.persistence.spec`
 - 도구·명령·provider 등록(리소스 등록). pi API 형태를 따르며 X가 정한다(`_research/layer-plan-v2-notes.md` 훅 절)
 
 ## 2. 용어
@@ -50,21 +50,21 @@ binds: [xeon/packages/contracts/src/extensions/**]
 | 확장 (extension) | 매니페스트 하나와 엔트리 모듈 하나로 이루어진 설치 단위. 플러그인 하나 이상을 담는다 |
 | 플러그인 (plugin) | 한 층에 속하는 단일 기능 단위. 매니페스트 `plugins[]`의 항목 하나가 Registration 하나가 된다. `drive`는 정책이 허용할 때만 쓴다(§4.6) |
 | 플러그인 그룹 (group) | 여러 층의 플러그인을 묶어 한 번에 켜고 끄는 단위. 매니페스트 `group` 선언이 있는 확장이다. Helm과 학습은 L3 기본 플러그인 그룹이다 |
-| 지점 (point) | 확장이 `on`으로 핸들러를 거는 이름 붙은 위치. 이름은 pi 이벤트명을 그대로 쓴다 |
+| 훅 (point) | 확장이 `on`으로 핸들러를 거는 이름 붙은 위치. 이름은 pi 이벤트명을 그대로 쓴다 |
 | 훅 종류 (kind) | `input`, `request`, `tool`, `boundary`, `thread`, `lifecycle`, `guard` 일곱 가지 |
-| fold | 한 지점에 걸린 여러 핸들러의 결과를 합치는 규칙. `tap`, `first`, `chain` 세 가지. 훅 선언이 정하고 확장은 고르지 않는다 |
-| 페이로드 (payload) | 지점이 핸들러에 넘기는 읽기 전용 값 |
-| 결정 (decision) | `first` 지점에서 핸들러가 돌려주는 값 |
-| 현재값 (value), 패치 (patch) | `chain` 지점에서 핸들러가 받는 누적 값과 돌려주는 변경 |
-| Registration | 플러그인 하나가 엔진에 등록한 것 전체. 상태 문서, 정리 동작, 켜기·끄기 상태를 가진다. 엔진 내부 개념이며 화면에 쓰지 않는다. 이전 이름은 scope이고 저장 문자열(`scope.changed`, `scopeId`)은 그대로다 |
-| drive lock | 한 thread에서 진행을 맡을 배타 권한. 한 번에 Registration 하나만 가진다. 가진 쪽은 Driver. 이전 이름은 drive 임대(lease)이고 저장 문자열(`lease.*` 이벤트, `leaseId`, `leaseEpoch`)은 그대로다 |
+| fold | 한 훅에 걸린 여러 핸들러의 결과를 합치는 규칙. `tap`, `first`, `chain` 세 가지. 훅 선언이 정하고 확장은 고르지 않는다 |
+| 페이로드 (payload) | 훅이 핸들러에 넘기는 읽기 전용 값 |
+| 결정 (decision) | `first` 훅에서 핸들러가 돌려주는 값 |
+| 현재값 (value), 패치 (patch) | `chain` 훅에서 핸들러가 받는 누적 값과 돌려주는 변경 |
+| Registration | 플러그인 하나가 엔진에 등록한 것 전체. 상태 문서, 정리 동작, 켜기·끄기 상태를 가진다. 엔진 내부 개념이며 화면에 쓰지 않는다. 옛 이름은 `scope`이고 저장 문자열(`scope.changed`, `scopeId`)은 그대로다 |
+| drive lock | 한 thread에서 진행을 맡을 배타 권한. 한 번에 Registration 하나만 가진다. 가진 쪽은 Driver. 옛 이름은 `drive 임대`(`lease`)이고 저장 문자열(`lease.*` 이벤트, `leaseId`, `leaseEpoch`)은 그대로다 |
 | 그룹 레코드 | 플러그인 그룹이 다른 확장에게 공개하는 내구 레코드. F에 스키마가 있는 형식으로만 쓴다 |
 
 턴과 step [제안]:
 
-- pi의 `turn_start`, `turn_end`는 모델 요청 한 번과 그 도구 라운드 단위로 발화한다. Fresnel 용어로 이 단위는 step이다. 그래서 pi `turn_*` 지점은 Fresnel의 step 경계에서 발화한다.
+- pi의 `turn_start`, `turn_end`는 모델 요청 한 번과 그 도구 라운드 단위로 발화한다. Fresnel 용어로 이 단위는 step이다. 그래서 pi `turn_*` 훅은 Fresnel의 step 경계에서 발화한다.
 - Fresnel의 turn은 입력 하나가 들어와 정착(settle)할 때까지다. pi의 `agent_start`, `agent_end`, `agent_before_settle`, `agent_settled`가 Fresnel turn 경계에서 발화한다. Fresnel 이름은 `boundary.turn.before`, `boundary.turn.after`, `boundary.settle.before`, `boundary.settle.after`다.
-- 이 대응은 F.conversation.spec §2 용어표(thread, turn, step, item)와 §2.1을 따른다. pi의 세션(session)은 Fresnel의 thread다.
+- 이 대응은 F.conversation.spec §2 용어표(thread, turn, step, item)와 §2.1을 따른다. pi의 `session`은 Fresnel의 thread다.
 
 다른 F 도메인에서 가져오는 이름:
 
@@ -822,21 +822,21 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 ```
 
 - 페이로드 스키마는 훅 종류별 파일 `hooks/input.ts`, `hooks/request.ts`, `hooks/tool.ts`, `hooks/boundary.ts`, `hooks/thread.ts`, `hooks/guard.ts`에 둔다. lifecycle 훅의 페이로드는 내구 이벤트 payload 스키마(`records/catalog`의 `AgentSettledEventPayloadSchema`, `LeaseRejectedPayloadSchema`)를 그대로 쓴다.
-- 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 JSON 값 스키마로 정한다 [결정: M3-REQ-05]. 인자·시스템 프롬프트 옵션은 정적 타입도 `JsonObject`(`DeepJsonObjectSchema`)이고, 제공자 요청 본문·스트림 데이터·도구 결과는 호출자 호환을 위해 정적 타입을 `unknown`으로 두고 런타임만 JSON을 끝까지 검사한다(`CheckedJsonObjectSchema`·`CheckedJsonValueSchema`). 호출자가 좁힌 뒤 정적 타입도 좁힌다 [제안]. 지점 페이로드에 `Type.Unknown()` 필드는 남기지 않는다. pi coding-agent 패키지에는 의존하지 않는다.
+- 페이로드 형태 규칙: pi 이벤트 인터페이스에서 `type` 필드를 빼고 필드 이름을 그대로 쓴다. pi coding-agent 고유 타입(`BashOperations`, `CompactionPreparation`, `SessionEntry` 등)은 F 타입으로 바꾼다. 바꿀 F 타입이 아직 없으면 JSON 값 스키마로 정한다 [결정: M3-REQ-05]. 인자·시스템 프롬프트 옵션은 정적 타입도 `JsonObject`(`DeepJsonObjectSchema`)이고, 제공자 요청 본문·스트림 데이터·도구 결과는 호출자 호환을 위해 정적 타입을 `unknown`으로 두고 런타임만 JSON을 끝까지 검사한다(`CheckedJsonObjectSchema`·`CheckedJsonValueSchema`). 호출자가 좁힌 뒤 정적 타입도 좁힌다 [제안]. 훅 페이로드에 `Type.Unknown()` 필드는 남기지 않는다. pi coding-agent 패키지에는 의존하지 않는다.
 
 ### 3.4 훅 선언 표
 
 - 이름 규칙 [결정: adr.0017, 2026-10-28 오케스트레이터]: 소문자 점 표기 `<종류>.<대상>[.<시점>]`이다. 첫 마디는 `kind`와 같다. 시점은 `before`, `after` 둘이다. 시점이 없는 명사형 대상은 마지막 마디로 `update`, `failed`, `start`, `shutdown`, `stream`만 쓴다(예: `tool.result`, `tool.execution.update`, `thread.start`, `request.stream`). 별칭은 두지 않는다. Fresnel 용어가 pi와 다르면 Fresnel 용어를 쓴다: pi의 agent는 turn, pi의 turn은 step이다(`boundary.turn.*`, `boundary.step.*`).
-- `lifecycle` 지점은 이름이 `lifecycle.<내구 kind>`다. 내구 레코드 kind(`agent.settled`, `lease.rejected`)는 따로 있는 이름 공간이고, 레코드 kind에서 훅 이름으로 가는 대응은 `LIFECYCLE_HOOKS` 표 하나가 정한다. 디스패치는 이 표를 쓴다.
+- `lifecycle` 훅은 이름이 `lifecycle.<내구 kind>`다. 내구 레코드 kind(`agent.settled`, `lease.rejected`)는 따로 있는 이름 공간이고, 레코드 kind에서 훅 이름으로 가는 대응은 `LIFECYCLE_HOOKS` 표 하나가 정한다. 디스패치는 이 표를 쓴다.
 - 이름 대응(옛 pi 이름)은 표의 `pi 이름` 열이다. 코드의 `PiSource.event`와 같다. 문서 대조 시험이 이 열을 코드와 맞춘다.
 - pi 위치 약어: 정의는 `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/types.ts`의 줄(이벤트/결과), 합성은 같은 디렉터리 `runner.ts`의 줄이다. `cache-warmer.ts`는 `core/cache-warmer.ts`다. 줄 번호는 pi 1.1.0 소스 기준이다(`_research/notes/F-1.md` §2).
-- 실패 열은 훅 선언의 `failure` 필드다 [결정: adr.0017 §3.4]. `closed` = 핸들러 예외를 거부값(`FIRST_DENY`)으로 처리, `open` = 기록하고 그 핸들러의 몫만 버린 채 계속, `skip` = 그 핸들러의 패치만 버림. fold 기본값은 tap·collect `open`, first `closed`, chain `skip`이고, 기본값과 다른 지점은 `thread.compact.before`(first, `open`) 하나다. 사유는 `HOOKS` 선언의 주석에 적는다.
-- M1 열의 ●는 M1 스모크에서 페이로드를 정확화하는 지점이다(F.extensions.plan).
+- 실패 열은 훅 선언의 `failure` 필드다 [결정: adr.0017 §3.4]. `closed` = 핸들러 예외를 거부값(`FIRST_DENY`)으로 처리, `open` = 기록하고 그 핸들러의 몫만 버린 채 계속, `skip` = 그 핸들러의 패치만 버림. fold 기본값은 tap·collect `open`, first `closed`, chain `skip`이고, 기본값과 다른 훅은 `thread.compact.before`(first, `open`) 하나다. 사유는 `HOOKS` 선언의 주석에 적는다.
+- M1 열의 ●는 M1 스모크에서 페이로드를 정확화하는 훅이다(F.extensions.plan).
 - pi 차이 열은 Fresnel fold가 pi 합성과 다른 점이다. 41종의 pi fold 분포는 tap 22, 제자리 변경 tap 1, first 7, chain 9, collect 2다(`_research/notes/F-1.md` §2.6). Fresnel 표의 pi 41행은 tap 22, first 7, chain 10, collect 2다. `request.cache.before`은 pi collect지만 핸들러가 원본을 받으므로 chain으로 둔다 [결정: 2026-10-28 오케스트레이터].
 - `collect` 배정은 `input.agent.before`와 `thread.resources` 둘이다. boundary 엔트리 추가(`boundary.step.after`, `boundary.settle.before`)는 chain + `finalize`로 둔다. `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 [결정: 2026-10-28 오케스트레이터].
 - guard 훅(42~44)은 `GuardDecision`(`{ block: true, reason }`, 값이 없으면 통과)으로 결정한다. 허용을 값으로 내면 `first`가 뒤 가드를 멈추므로 두지 않는다. 출력 대상 `display`, `execution`은 [가정]이다(L1·L4 출력 경로 목록이 정해진 뒤 확정, adr.0017 §6). 내장 검사는 없다(M3-REQ-107).
 
-| # | 지점 | kind | fold | 페이로드 | 반환 | 실패 | M1 | pi 이름 | pi 정의 | pi 합성 | pi와 차이 |
+| # | 훅 | kind | fold | 페이로드 | 반환 | 실패 | M1 | pi 이름 | pi 정의 | pi 합성 | pi와 차이 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 1 | `input.user.before` | input | chain | InputPayload | InputPatch | skip | ● | `input` | types.ts:1143/1156 | runner.ts:1520 emitInput | `handled`는 `stop` 규칙으로 표현 |
 | 2 | `input.bash.before` | input | first | UserBashPayload | UserBashDecision | closed |  | `user_bash` | types.ts:1125/1438 | runner.ts:1262 emitUserBash | 결정에 `deny` 변형 추가. pi는 예외를 다시 던짐 |
@@ -882,14 +882,14 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 42 | `guard.model.before` | guard | first | BeforeProviderRequestPayload | GuardDecision | closed |  | — | — | — | 제공자 요청 본문이 확정된 뒤, 전송 전. `request.provider.before`의 모든 핸들러 뒤 최종 값으로 발화한다 |
 | 43 | `guard.tool.before` | guard | first | ToolCallPayload | GuardDecision | closed |  | — | — | — | 도구 호출 허가 판정이 끝난 뒤, 실행 전. `tool.call.before` 뒤에 발화한다 |
 | 44 | `guard.output.before` | guard | first | GuardOutputPayload | GuardDecision | closed |  | — | — | — | 모델 출력이 표시나 실행 경로로 넘어가기 전. 출력 대상(`display`, `execution`)은 [가정] |
-| 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 지점이고 다른 지점이다. 페이로드의 `owner`(위임 주체)와 `limitHit`(상한 종료 표지)로 그룹이 자기 위임의 정착만 읽는다(M3-REQ-103, REQ-LN-02. 소유 Registration 거르기는 X) |
-| 46 | `lifecycle.lease.rejected` | lifecycle | tap | LeaseRejectedPayload | void | open |  | — | — | — | 내구 이벤트 `lease.rejected`(임대 요청 거부)의 커밋 뒤 |
+| 45 | `lifecycle.agent.settled` | lifecycle | tap | AgentSettledEventPayload | void | open |  | — | — | — | 내구 이벤트 `agent.settled`(위임 정착)의 커밋 뒤. 이름이 같은 `boundary.settle.after`는 turn 끝 시점이고 다른 훅이다. 페이로드의 `owner`(위임 주체)와 `limitHit`(상한 종료 표지)로 그룹이 자기 위임의 정착만 읽는다(M3-REQ-103, REQ-LN-02. 소유 Registration 거르기는 X) |
+| 46 | `lifecycle.lease.rejected` | lifecycle | tap | LeaseRejectedPayload | void | open |  | — | — | — | 내구 이벤트 `lease.rejected`(drive lock 요청 거부)의 커밋 뒤 |
 
-집계: kind는 input 3, request 9, tool 5, boundary 9, thread 15, lifecycle 2, guard 3이다(46행). fold는 tap 24, first 10, chain 10, collect 2다. 실패는 closed 9, open 27, skip 10이다. pi에서 결과를 돌려받는 지점은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행은 pi에 없다.
+집계: kind는 input 3, request 9, tool 5, boundary 9, thread 15, lifecycle 2, guard 3이다(46행). fold는 tap 24, first 10, chain 10, collect 2다. 실패는 closed 9, open 27, skip 10이다. pi에서 결과를 돌려받는 훅은 18개(반환 기반)와 제자리 변경 1개(`request.headers.before`)이고 pi의 나머지 22개는 관찰 전용이다(`_research/notes/F-1.md` §4 정정 2). guard와 lifecycle 5행은 pi에 없다.
 
-### 3.5 M1 지점의 페이로드와 반환 타입
+### 3.5 M1 훅의 페이로드와 반환 타입
 
-M1 열 ● 지점은 아래 형태로 확정한다. M1 밖 지점 중 소유 문서가 제안한 것은 §3.5.1에 둔다. 나머지 지점은 §3.3의 페이로드 형태 규칙으로 같은 PR에서 표를 채운다.
+M1 열 ● 훅은 아래 형태로 확정한다. M1 밖 훅 중 소유 문서가 제안한 것은 §3.5.1에 둔다. 나머지 훅은 §3.3의 페이로드 형태 규칙으로 같은 PR에서 표를 채운다.
 
 ```ts
 // hooks/input.ts
@@ -1048,9 +1048,9 @@ export interface SessionShutdownPayload {
 - pi 필드 이름 중 파일 경로나 엔트리 id를 담는 것은 Fresnel ID로 바꾼다(`messageEntryId` → `messageItemId`, `previousSessionFile` → `previousThreadId`, `targetSessionFile` → `targetThreadId`). `SessionStartPayload.threadId`는 pi에 없는 필드이고 시작한 thread를 가리킨다. 그 밖의 이름은 pi와 같다.
 - `BoundaryContextPreview`에서 pi의 `contextEntries: ProjectedSessionEntry[]`는 F.records.spec의 투영 타입이 정해진 뒤 추가한다.
 
-#### 3.5.1 M1 밖 지점 중 소유 문서가 제안한 페이로드 [제안]
+#### 3.5.1 M1 밖 훅 중 소유 문서가 제안한 페이로드 [제안]
 
-소유 문서(`L1.context.spec` §7.2, `L1.models.spec` §7.2, `X.loading-trust.spec` §3.7, `L2.mcp.spec` §7)의 제안을 받아 확정한다. 확장은 L1 타입을 import할 수 없으므로 모델 역할과 바인딩은 JSON 수준 모양으로 적는다. 여기 없는 M1 밖 지점은 §3.3 규칙으로 해당 소유 문서와 함께 채운다.
+소유 문서(`L1.context.spec` §7.2, `L1.models.spec` §7.2, `X.loading-trust.spec` §3.7, `L2.mcp.spec` §7)의 제안을 받아 확정한다. 확장은 L1 타입을 import할 수 없으므로 모델 역할과 바인딩은 JSON 수준 모양으로 적는다. 여기 없는 M1 밖 훅은 §3.3 규칙으로 해당 소유 문서와 함께 채운다.
 
 ```ts
 // hooks/request.ts (계속)
@@ -1166,9 +1166,9 @@ export function isRecordKindOf(kind: string, owner: { name: string; group?: obje
 
 `validateGroupRecord`는 import 순환을 피하려고 `validate.ts`에 둔다(§3.7).
 
-- 그룹 레코드는 세션 이벤트 로그에 이벤트로 저장된다. 이벤트 종류(`EventKind`)는 레코드의 `kind` 문자열을 그대로 쓰고, `EventEnvelope`가 감싼다. `RecordKind`는 F.records.spec §3.2의 `ExtensionEventKind`와 같은 타입이므로 `parseEventKind`를 통과한다. 코어 커밋과 같은 트랜잭션으로 쓴다.
+- 그룹 레코드는 대화 이벤트 로그에 이벤트로 저장된다. 이벤트 종류(`EventKind`)는 레코드의 `kind` 문자열을 그대로 쓰고, `EventEnvelope`가 감싼다. `RecordKind`는 F.records.spec §3.2의 `ExtensionEventKind`와 같은 타입이므로 `parseEventKind`를 통과한다. 코어 커밋과 같은 트랜잭션으로 쓴다.
 - 접두 규칙 [제안]: 이벤트 kind, 레코드 kind, `FresnelCustomMessage.customType`(`PostItem.customType`)은 모두 이 형식 하나를 쓴다. `group` 선언이 없는 확장은 `x.<확장 이름>.`, 플러그인 그룹은 `grp.<그룹 이름>.`이다. 접두는 확장 단위라서 확장 안의 모든 플러그인이 같은 접두를 쓴다. 설정 키와 wire 메서드의 `ext.` 접두는 다른 규칙이다(F.wire-settings.spec §3.8.1).
-- 그룹의 비공개 상태는 확장 접두 테이블(세션 저장 C안)에 둔다. 비공개 상태는 다른 그룹이 읽지 않는다. 공개할 정보는 그룹 레코드로만 낸다.
+- 그룹의 비공개 상태는 확장 접두 테이블(대화 저장 C안)에 둔다. 비공개 상태는 다른 그룹이 읽지 않는다. 공개할 정보는 그룹 레코드로만 낸다.
 
 ### 3.7 검증 함수 (`validate.ts`)
 
@@ -1237,24 +1237,24 @@ export function validateGroupRecord(record: GroupRecord, decl: RecordKindDecl | 
 [결정: adr.0017] fold는 네 가지이고 실패 정책은 훅 선언의 `failure` 필드가 정한다. 아래는 fold별 합성 방식과 기본 실패 정책이다.
 
 1. `tap`: 모든 핸들러를 실행한다. 반환값은 쓰지 않는다. 기본 실패 정책은 `open`이다. 핸들러 예외는 기록하고 다음 핸들러로 간다.
-2. `first`: 등록 순서대로 실행하고 `undefined`가 아닌 첫 반환값을 결정으로 쓴다. 뒤 핸들러는 실행하지 않는다. 기본 실패 정책은 `closed`다. 핸들러 예외는 그 지점의 거부값(`FIRST_DENY`)을 결정으로 쓴다(fail-closed). `open`인 지점(`thread.compact.before`)은 예외를 낸 핸들러를 결정 없음으로 보고 다음 핸들러로 가며 거부값이 없다.
-3. `chain`: 지점이 초기값을 만들고, 핸들러마다 `(payload, current)`를 넘긴다. 반환 패치가 있으면 `CHAIN_RULES[point].merge(current, patch)`로 다음 값을 만든다. 정책은 `skip`이다. 핸들러 예외나 병합 거부(예: `boundary.message.after`의 role 불일치)는 그 핸들러의 패치만 버리고 계속한다. `stop(value)`가 참이면 뒤 핸들러를 실행하지 않는다.
-4. `collect`: 모든 핸들러가 원본 `payload`만 받는다(`current`는 없다). 지점이 초기값을 만들고, `undefined`가 아닌 반환값(기여)을 등록 순서대로 목록에 모은 뒤 `COLLECT_RULES[point].merge(initial, contributions)`가 한 번 합친다. 정책은 `open`이다. 예외를 낸 핸들러는 그 기여만 빼고 계속한다.
+2. `first`: 등록 순서대로 실행하고 `undefined`가 아닌 첫 반환값을 결정으로 쓴다. 뒤 핸들러는 실행하지 않는다. 기본 실패 정책은 `closed`다. 핸들러 예외는 그 훅의 거부값(`FIRST_DENY`)을 결정으로 쓴다(fail-closed). `open`인 훅(`thread.compact.before`)은 예외를 낸 핸들러를 결정 없음으로 보고 다음 핸들러로 가며 거부값이 없다.
+3. `chain`: 훅이 초기값을 만들고, 핸들러마다 `(payload, current)`를 넘긴다. 반환 패치가 있으면 `CHAIN_RULES[point].merge(current, patch)`로 다음 값을 만든다. 정책은 `skip`이다. 핸들러 예외나 병합 거부(예: `boundary.message.after`의 role 불일치)는 그 핸들러의 패치만 버리고 계속한다. `stop(value)`가 참이면 뒤 핸들러를 실행하지 않는다.
+4. `collect`: 모든 핸들러가 원본 `payload`만 받는다(`current`는 없다). 훅이 초기값을 만들고, `undefined`가 아닌 반환값(기여)을 등록 순서대로 목록에 모은 뒤 `COLLECT_RULES[point].merge(initial, contributions)`가 한 번 합친다. 정책은 `open`이다. 예외를 낸 핸들러는 그 기여만 빼고 계속한다.
 
-권한·차단 지점(`input.bash.before`, `tool.call.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`, guard 훅 셋)은 `closed`다. `thread.compact.before`는 `open` 예외다. 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4].
+권한·차단 훅(`input.bash.before`, `tool.call.before`, `thread.trust.before`, `thread.switch.before`, `thread.fork.before`, `thread.tree.before`, guard 훅 셋)은 `closed`다. `thread.compact.before`는 `open` 예외다. 컨텍스트가 넘친 상태에서 핸들러 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4].
 
 chain의 보충 규칙 [제안]:
 
 - 핸들러가 받는 `payload`는 디스패치 내내 원본 그대로다. 누적은 `current`에만 쌓인다. 핸들러가 원본을 받으므로 pi `cache_warming_decision`의 반례(`_research/notes/F-1.md` §3.3)가 생기지 않는다. 그래서 pi collect인 `request.cache.before`는 chain으로 둔다.
-- 병합 규칙은 지점별 순수 함수(`CHAIN_RULES`, `COLLECT_RULES`)로 F에 둔다. chain의 기본은 교체이고, `tool.result`는 필드별 병합이다. collect인 `thread.resources`와 `input.agent.before`는 추가다(`input.agent.before`의 `systemPrompt`는 원본으로 시작하는 값을 덧붙임으로 보고 순서대로 쌓는다). [결정: M3b B3-L1M, 오케스트레이터 기본값] collect에서 핸들러는 원본 payload만 본다. 원본으로 시작하는 `systemPrompt`는 덧붙인 부분만 모아 이어 붙이므로 기여자가 둘 이상이어도 서로 덮지 않는다. 원본으로 시작하지 않는 값은 전체 교체이고 마지막 값이 이기며, 이 교체 뒤에 덧붙임이 이어진다.
+- 병합 규칙은 훅별 순수 함수(`CHAIN_RULES`, `COLLECT_RULES`)로 F에 둔다. chain의 기본은 교체이고, `tool.result`는 필드별 병합이다. collect인 `thread.resources`와 `input.agent.before`는 추가다(`input.agent.before`의 `systemPrompt`는 원본으로 시작하는 값을 덧붙임으로 보고 순서대로 쌓는다). [결정: M3b B3-L1M, 오케스트레이터 기본값] collect에서 핸들러는 원본 payload만 본다. 원본으로 시작하는 `systemPrompt`는 덧붙인 부분만 모아 이어 붙이므로 기여자가 둘 이상이어도 서로 덮지 않는다. 원본으로 시작하지 않는 값은 전체 교체이고 마지막 값이 이기며, 이 교체 뒤에 덧붙임이 이어진다.
 - boundary의 최종 검증(`finalize: "boundary"`): `boundary.step.after`와 `boundary.settle.before`는 모든 핸들러 뒤에 L1이 최종 값을 검증한다. 엔트리로 컨텍스트를 재구성할 수 없으면 `{ entries: [], continue: false }`로 바꾼다(`runner.ts:1075-1077`과 같다). 중간 단계의 무효 상태는 허용하고 기록만 한다. `continue`는 L1이 `canContinue`로 다시 승인한다. 검증 로직은 L1.loop.spec이 정하고 F는 표지만 둔다.
 - [결정: 2026-10-28 오케스트레이터] boundary의 "엔트리 추가 + 계속"은 chain 교체 + `finalize`로 둔다. `collect`로 옮기면 `entries`가 교체에서 추가로 바뀌므로 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다. `collect` 배정은 `input.agent.before`와 `thread.resources`다(`review.m3-lower-requirements` M3-REQ-105).
-- guard 훅은 같은 대상의 일반 지점(`request.provider.before`, `tool.call.before`)의 모든 핸들러가 끝난 뒤 최종 값으로 발화한다. 가드 핸들러는 값을 바꾸지 못하고 `{ block: true, reason }` 또는 결정 없음(통과)만 낸다. 핸들러가 없으면 발화 비용이 없다.
+- guard 훅은 같은 대상의 일반 훅(`request.provider.before`, `tool.call.before`)의 모든 핸들러가 끝난 뒤 최종 값으로 발화한다. 가드 핸들러는 값을 바꾸지 못하고 `{ block: true, reason }` 또는 결정 없음(통과)만 낸다. 핸들러가 없으면 발화 비용이 없다.
 - lifecycle 훅은 해당 내구 이벤트가 커밋된 뒤 발화한다. 디스패치 키는 이벤트 id이고, 레코드 kind에서 훅 이름은 `LIFECYCLE_HOOKS` 표 하나로 찾는다.
 
 ### 4.2 디스패치 순서
 
-- [제안] 한 지점의 핸들러 순서는 tier, 확장 로드 순서, 등록 순서의 사전식 순서다. tier 정의와 핸들러 시간 예산은 X.operations.spec이 정한다(`_research/item-catalog.md` X절 실행 순서와 tier 행).
+- [제안] 한 훅의 핸들러 순서는 tier, 확장 로드 순서, 등록 순서의 사전식 순서다. tier 정의와 핸들러 시간 예산은 X.operations.spec이 정한다(`_research/item-catalog.md` X절 실행 순서와 tier 행).
 - 디스패치 시작 시 핸들러 목록을 스냅샷한다. 디스패치 도중의 등록·해제·토글은 그 디스패치에 반영되지 않는다(pi `runner.ts:269-271`과 같다).
 - `dispatch: "detached"` tap 훅은 디스패처가 완료를 기다리지 않는다. 나머지는 순차 await다.
 
@@ -1262,7 +1262,7 @@ chain의 보충 규칙 [제안]:
 
 [결정] on 핸들러는 다시 실행해도 되는 질의다(`_research/layer-plan-v2-notes.md` 훅 절).
 
-- 소비 커밋 전에 프로세스가 끝나면 같은 지점이 같은 페이로드로 다시 발화하고 핸들러가 다시 실행될 수 있다(pi durable 훅 규칙, `_research/ext-points.md` §3).
+- 소비 커밋 전에 프로세스가 끝나면 같은 훅이 같은 페이로드로 다시 발화하고 핸들러가 다시 실행될 수 있다(pi durable 훅 규칙, `_research/ext-points.md` §3).
 - 재실행된 핸들러의 `ctx.state` [제안]: 페이로드는 처음 실행과 같지만 `ctx.state`와 `g.state()`는 같지 않을 수 있다. 처음 실행에서 상태 커밋이 끝났으면 재시작 뒤의 `ctx.state`는 X가 `RecordCommitPort.loadThread`로 읽은 판, 곧 이미 커밋된 판이다. 핸들러는 `ctx.state`가 자기 갱신이 반영되기 전의 판이라고 가정하지 않는다. 이 판으로 계산한 부수 결과(post 본문, record payload)는 처음 실행과 다를 수 있다. 세부 규칙은 `X.primitives.spec` §4.6.1 재실행 규칙이다.
 - [결정: adr.0015] 핸들러가 낼 수 있는 효과는 아래 허용 효과 표(`REPLAY_EFFECT_TABLE`, `extensions/effects.ts`)가 정한다. 핸들러는 직접 파일·네트워크 I/O, 시각, 난수를 쓰지 않는다. 표 밖의 효과는 요청 레코드와 워커를 거친다(ADR-0015 §3.5).
 - 허용 효과 표(ADR-0015 §3.2가 정본, `n/a`는 그 문맥에 없는 연산):
@@ -1301,10 +1301,10 @@ chain의 보충 규칙 [제안]:
 ### 4.5 켜기·끄기
 
 - [결정] 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 5).
-- [결정: review.decisions-2 U-01] 적용 시점은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤, `boundary.step.after` 처리 뒤)다(F.conversation.spec §2, §2.1). drive 임대 교대도 같은 시점이다. turn의 마지막 step이 끝나는 시점도 단계 경계이므로 turn 정착 시점을 따로 두지 않는다. 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다. drive 임대의 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다.
+- [결정: review.decisions-2 U-01] 적용 시점은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤, `boundary.step.after` 처리 뒤)다(F.conversation.spec §2, §2.1). drive lock 교대도 같은 시점이다. turn의 마지막 step이 끝나는 시점도 단계 경계이므로 turn 정착 시점을 따로 두지 않는다. 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다. drive lock의 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다.
 - 켜기·끄기의 단위는 Registration이다. 플러그인 그룹의 구성원(`group.members` 전체)은 한 번에 켜지고 꺼진다. 구성원 하나가 setup에 실패하면 그룹 전체 켜기가 실패하고 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: 기본값, 미결 5번].
-- `enable()`, `disable()`은 요청만 기록한다. 상태는 `enabling`, `disabling`을 거쳐 적용 지점에서 바뀐다.
-- 비활성화 적용 순서 [제안]: on 핸들러 제외 → drive 임대 반납 → `onDispose` 정리 동작 실행. 큐에 이미 들어간 post 항목은 그대로 둔다.
+- `enable()`, `disable()`은 요청만 기록한다. 상태는 `enabling`, `disabling`을 거쳐 적용 시점에서 바뀐다.
+- 비활성화 적용 순서 [제안]: on 핸들러 제외 → drive lock 반납 → `onDispose` 정리 동작 실행. 큐에 이미 들어간 post 항목은 그대로 둔다.
 
 ### 4.6 drive lock
 
@@ -1313,10 +1313,10 @@ chain의 보충 규칙 [제안]:
 - `drive`는 매니페스트 `plugins[].drives: true`로 선언한 플러그인만 쓴다(없으면 `drive_undeclared`). 등록만으로 drive lock이 생기지 않는다. 중재(누가 언제 받는지)는 X.primitives.spec이 정한다.
 - drive 정책 [결정: 2026-11-01 사용자, 설정 키 이름과 범위는 [제안]]: 설정 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`)이 참이면 플러그인 그룹의 구성원이 아닌 플러그인(`inGroup`이 거짓)의 `drive` 등록은 X 설치 시점에 `drive_requires_group`으로 거부한다. 거짓이면 `drives: true`를 선언한 모든 플러그인이 drive를 등록할 수 있다. 기본값은 "그룹만 허용"이다. 키는 `user`와 `managed` 범위만 받고(project 범위로 정책을 풀면 신뢰 관문을 건너뛰므로 막음), Registration을 다시 켜거나 `ext.reload`할 때 적용한다. 정책이 거짓이어도 한 thread에 drive lock은 하나뿐이다. 외부 플러그인의 신뢰 등급 규칙(`untrusted`는 `drive` 불가)은 그대로다.
 - 재생 규율 [결정]: drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 §4.3 허용 효과 표의 drive 열로만 낸다(루프 효과는 `loop.turn`, `loop.spawn`, `post`. ADR-0015가 위임과 기능 호출을 더했다). 상태 변경은 `commit`으로만 한다.
-  - 다시 호출되는 시점: 임대를 받을 때, 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 그룹이 아직 활성일 때.
+  - 다시 호출되는 시점: drive 락을 받을 때, 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 그룹이 아직 활성일 때.
   - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${leaseId}:${순번}`이다. 기능 호출의 `idempotent` 쓰기는 기본 키를 받지 않고 명시 키를 요구한다(ADR-0015 §3.4 3번). 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
   - 클로저 지역 변수에 진행 상태를 두는 drive 함수는 재개 뒤 다르게 동작한다. 이 위반은 타입으로 막을 수 없다. 결정성 검사(`Date.now`, `Math.random` 금지 등)는 L3.group-sdk.spec의 lint 규칙으로 보완한다(`_research/packages.md` §4.6 L3-a).
-- 예산: [결정] 일반 대화 turn에는 기본 상한을 두지 않고 상한은 drive 임대에만 건다(`_research/decisions-log.md` 20행 "예산은 pi 방식"). `DriveLockBudget`은 남은 양이고 `null`은 상한 없음이다. 상한에 이르면 `loop.turn`과 `loop.spawn`은 거부되고 임대는 `releasing`이 된다.
+- 예산: [결정] 일반 대화 turn에는 기본 상한을 두지 않고 상한은 drive lock에만 건다(`_research/decisions-log.md` 20행 "예산은 pi 방식"). `DriveLockBudget`은 남은 양이고 `null`은 상한 없음이다. 상한에 이르면 `loop.turn`과 `loop.spawn`은 거부되고 drive lock은 `releasing`이 된다.
   - [결정: review.decisions-2 U-12] drive는 사용자 입력 없이 turn을 만들므로 pi 방식의 예외로 기본 상한을 둔다. 상한을 명시하지 않은 drive lock은 X 설정 `x.primitives.driveDefaultLimits`(기본 4/8/400000)를 쓰고, 그룹은 자기 설정(Helm은 `l3.helm.driveLimits`, 기본 4/8/400000)으로 덮어쓴다. 천장 `x.primitives.driveLimits`(기본 없음)를 넘지 못한다. 세 키 모두 설정 화면에서 조정한다(`X.primitives.spec` §4.4.2, §6).
 
 ### 4.7 정적 검사 규칙
@@ -1349,12 +1349,12 @@ chain의 보충 규칙 [제안]:
 
 | 코드 | 심각도 | 조건 |
 |---|---|---|
-| `hook_undeclared` | error | `on`을 건 Hook이 `hooks`에 없음 |
+| `hook_undeclared` | error | `on`을 건 훅이 `hooks`에 없음 |
 | `post_undeclared` | error | `post`를 썼는데 `usesPost`가 참이 아님 |
 | `drive_undeclared` | error | `drive`를 썼는데 `drives`가 참이 아님 |
 | `capability_undeclared` | error | `capability(key)`의 기능이 `requires`, `optional`에 없음 |
 | `record_kind_undeclared` / `read_kind_undeclared` | error | `record`, `readRecords`의 종류가 선언에 없음 |
-| `hook_unused` | warning | `hooks`에 선언했지만 `on`을 걸지 않은 Hook |
+| `hook_unused` | warning | `hooks`에 선언했지만 `on`을 걸지 않은 훅 |
 
 X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_group`(정책 `x.primitives.driveRequiresGroup`이 참인데 `inGroup`이 아닌 플러그인이 `drive`를 등록), `registration_unknown_plugin`(매니페스트에 없는 플러그인 id로 `register`), `plugin_not_registered`(warning, 선언한 플러그인을 엔트리가 `register`하지 않음) [제안].
 
@@ -1391,14 +1391,14 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 
 ## 5. 실패와 경계 사례
 
-1. 매니페스트에 없는 지점에 `on`을 호출함: `validateUsage`가 `hook_undeclared` 오류를 낸다. X는 그 등록을 거부하고 확장 로드를 실패로 처리한다(처리 방식은 X.loading-trust.spec).
+1. 매니페스트에 없는 훅에 `on`을 호출함: `validateUsage`가 `hook_undeclared` 오류를 낸다. X는 그 등록을 거부하고 확장 로드를 실패로 처리한다(처리 방식은 X.loading-trust.spec).
 2. first 핸들러가 `undefined`도 결정 타입도 아닌 값을 돌려줌: 결정 스키마(`HookDecl.result`) 위반은 예외와 같게 거부값으로 처리한다.
 3. chain 핸들러가 패치 스키마를 위반함: 그 핸들러의 패치를 버린다(skip).
-4. detached tap 핸들러가 끝나기 전에 세션이 종료됨: 결과를 기다리지 않는다. 핸들러 예외는 기록만 한다.
+4. detached tap 핸들러가 끝나기 전에 대화가 종료됨: 결과를 기다리지 않는다. 핸들러 예외는 기록만 한다.
 5. 두 Registration이 동시에 drive lock을 요청함: X가 하나에만 준다. 다른 쪽의 drive 함수는 호출되지 않는다. 사용자는 L4 설정에서 어느 Registration이 주도할지 고른다. 설정 키는 `x.primitives.activeDriver` 하나다(소유 X.primitives.spec). 그룹이 아닌 플러그인이 drive를 등록하려 하면 정책 `x.primitives.driveRequiresGroup`(기본 참)이 `drive_requires_group`으로 거부한다.
 5-1. 매니페스트에 선언한 플러그인을 엔트리가 `register`하지 않음: 로더 진단 `plugin_not_registered`(warning)를 낸다 [제안].
-6. drive 함수가 예외를 던짐: 임대를 반납하고 그룹의 drive 등록을 오류 상태로 표시한다. on 핸들러는 계속 동작한다 [제안]. 재시도 여부는 X.primitives.spec.
-7. drive 함수가 `loop.turn` 없이 반환함: 다음 경계에서 다시 호출된다. 같은 상태로 연속 두 번 아무 효과 없이 반환하면 X가 임대를 반납한다 [제안].
+6. drive 함수가 예외를 던짐: drive lock을 반납하고 그룹의 drive 등록을 오류 상태로 표시한다. on 핸들러는 계속 동작한다 [제안]. 재시도 여부는 X.primitives.spec.
+7. drive 함수가 `loop.turn` 없이 반환함: 다음 경계에서 다시 호출된다. 같은 상태로 연속 두 번 아무 효과 없이 반환하면 X가 drive lock을 반납한다 [제안].
 8. `readRecords`의 대상 그룹이 제거됨: 이미 기록된 레코드는 이벤트 로그에 남으므로 계속 읽힌다. 새 레코드만 없다.
 9. 레코드 `version`이 읽는 쪽이 아는 버전보다 큼: `record_version_unknown` 경고와 함께 payload를 원형 그대로 돌려준다. 해석 실패 처리는 읽는 그룹 몫이다.
 10. pi 확장을 그대로 올릴 때 `tool.call.before`의 `event.input` 제자리 수정에 의존하는 경우: 페이로드가 읽기 전용이라 동작하지 않는다. `tool.call.before`는 인자 변경을 지원하지 않는다(허용·거부·결과 대체만) [결정: review.decisions-2 U-06]. 인자 변경이 필요하면 2차에 chain 훅을 따로 더한다.
@@ -1412,13 +1412,13 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | 매니페스트 `userConfig` | 항목마다 F.wire-settings 설정 키 하나(`ext.<name>.<userConfig 키>`)를 가리킨다. `sensitive`면 시크릿 참조로 저장한다 | 설정 화면 "플러그인과 그룹" 탭의 확장별 설정 |
 | 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 플러그인 그룹이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `session`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
 | drive lock 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
-| 주도 플러그인 | 키 `x.primitives.activeDriver` 하나(소유 X.primitives.spec, 이전 이름 `activeDriver`, 옛 키는 읽지 않는다) [결정: review.decisions-2 S-15] | 같은 탭 "주도 플러그인" 선택 |
+| 주도 플러그인 | 키 `x.primitives.activeDriver` 하나(소유 X.primitives.spec, 옛 키 `x.primitives.activeDriveGroup`은 읽지 않는다) [결정: review.decisions-2 S-15] | 같은 탭 "주도 플러그인" 선택 |
 | drive 정책 | 키 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름과 범위는 제안]. 참이면 플러그인 그룹의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |
 | 격리 | [제안] 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec). 매니페스트 `isolation`은 요청이고 실제 값은 사용자 설정이 정한다(2차) | 같은 탭 |
 
 ## 7. 훅
 
-이 문서가 지점을 정의한다(§3.4). 지점을 발화하는 쪽과 대응은 다음과 같다.
+이 문서가 훅을 정의한다(§3.4). 훅을 발화하는 쪽과 대응은 다음과 같다.
 
 | kind | 발화하는 문서 |
 |---|---|
@@ -1430,11 +1430,11 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | guard | L1.loop.spec, L1.tools.spec(발화 위치는 M3-REQ-109) |
 | thread | L1.persistence.spec(아래 나머지), L1.context.spec(`thread.compact.before`, `thread.compact.after`, `thread.compact.failed`), L1.tools.spec(`thread.prompt.before`, `thread.prompt.after`. 승인 프로토콜), X.loading-trust.spec(`thread.trust.before`, `thread.resources`), L2.mcp.spec(`thread.mcp.after`) |
 
-- [제안] 지점별 발화 문서는 `L1.readme` §6 소유표와 같다. 컴팩션은 core-context가 수행하므로 `session.compact.*`는 L1.context, 승인 화면 알림은 승인 프로토콜 소유라 `session.prompt.*`는 L1.tools가 발화한다. `input.*` 지점은 L1.loop가 발화한다(`architecture.runtime-flow` 그림의 tasks 표기는 그쪽 문서가 고친다).
+- [제안] 훅별 발화 문서는 `L1.readme` §6 소유표와 같다. 컴팩션은 core-context가 수행하므로 `session.compact.*`는 L1.context, 승인 화면 알림은 승인 프로토콜 소유라 `session.prompt.*`는 L1.tools가 발화한다. `input.*` 훅은 L1.loop가 발화한다(`architecture.runtime-flow` 그림의 tasks 표기는 그쪽 문서가 고친다).
 
-- [결정: m2c G1-03] `thread.trust.before`는 kind가 `thread`이지만 thread 없이 호스트 수준에서 발화한다. 폴더 신뢰는 thread를 만들거나 열기 전에 판정해야 하기 때문이다(`X.loading-trust.spec` §4.7.4). `HookDecl.threadless: true`가 이 지점을 표시하고, 페이로드(`{ cwd }`)와 발화 문맥에 `threadId`가 없다. 그래서 핸들러는 thread 상태(`stateOf`)나 thread 신호를 쓰지 못하고, 예산·진단은 호스트 수준 한도를 따른다. 그 밖의 `session` 지점은 모두 thread에 묶여 발화한다. 발화 규칙의 구현(디스패처의 thread 없는 경로, 예산, 진단)은 X.primitives가 정한다. M2의 호스트는 이 지점에 핸들러를 거는 확장이 없어 발화하지 않는다.
+- [결정: m2c G1-03] `thread.trust.before`는 kind가 `thread`이지만 thread 없이 호스트 수준에서 발화한다. 폴더 신뢰는 thread를 만들거나 열기 전에 판정해야 하기 때문이다(`X.loading-trust.spec` §4.7.4). `HookDecl.threadless: true`가 이 훅을 표시하고, 페이로드(`{ cwd }`)와 발화 문맥에 `threadId`가 없다. 그래서 핸들러는 thread 상태(`stateOf`)나 thread 신호를 쓰지 못하고, 예산·진단은 호스트 수준 한도를 따른다. 그 밖의 `session` 훅은 모두 thread에 묶여 발화한다. 발화 규칙의 구현(디스패처의 thread 없는 경로, 예산, 진단)은 X.primitives가 정한다. M2의 호스트는 이 훅에 핸들러를 거는 확장이 없어 발화하지 않는다.
 - 기능 도구 호출은 tool 훅을 지난다. 페이로드의 `capability` 필드로 기능을 식별한다(F.capabilities.spec §7).
-- [결정: adr.0017] 지점 5종 밖 Fresnel 고유 이벤트는 수명주기 지점으로 연다. 첫 목록은 L3 요구분(위임 정착 `agent.settled`, 임대 거부 `lease.rejected`)이고 나머지(승인 요청·응답, 그룹 레코드 쓰기, Registration 토글 등)는 요구가 생길 때 더한다(`review.m3-lower-requirements` M3-REQ-101).
+- [결정: adr.0017] 훅 5종 밖 Fresnel 고유 이벤트는 수명주기 훅으로 연다. 첫 목록은 L3 요구분(위임 정착 `agent.settled`, drive lock 거부 `lease.rejected`)이고 나머지(승인 요청·응답, 그룹 레코드 쓰기, Registration 토글 등)는 요구가 생길 때 더한다(`review.m3-lower-requirements` M3-REQ-101).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1461,7 +1461,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 
 ## 9. 수용 기준
 
-1. 플러그인의 `hooks`에 없는 Hook에 `on`을 건 사용 기록은 `validateUsage`가 `hook_undeclared` 오류를 낸다.
+1. 플러그인의 `hooks`에 없는 훅에 `on`을 건 사용 기록은 `validateUsage`가 `hook_undeclared` 오류를 낸다.
 2. `HOOKS`의 46행 모두 `fold`, `kind`, `payload` 스키마, `failure`를 가진다. pi에서 온 41행은 `pi` 출처도 가진다. `first` 행은 `FIRST_DENY`에, `chain` 행은 `CHAIN_RULES`에 항목이 있다.
 3. `HOOKS`의 훅 이름은 중복이 없고, pi `ExtensionEvent` 합집합(`types.ts:1377-1409`)을 펼친 41개 이름의 새 이름과 guard 3개, lifecycle 2개를 더한 집합과 같다(46개).
 4. `drives: true`이고 기본 켜짐인 플러그인을 가진 매니페스트 두 개를 `validateManifestSet`에 넣으면 `drive_conflict` 경고가 나온다.
@@ -1478,15 +1478,15 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 
 ## 10. 미결 사항
 
-- [결정: adr.0017] 4번째 fold `collect`를 더하고 지점별 실패 정책 표를 둔다(§4.1). 계획 v2의 fold 3종 결정을 ADR-0017이 부분 대체한다. boundary 엔트리 추가는 chain + `finalize`로 두고 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 [결정: 2026-10-28 오케스트레이터].
+- [결정: adr.0017] 4번째 fold `collect`를 더하고 훅별 실패 정책 표를 둔다(§4.1). 계획 v2의 fold 3종 결정을 ADR-0017이 부분 대체한다. boundary 엔트리 추가는 chain + `finalize`로 두고 `collect` 전환은 Helm·학습 설계(A5)가 필요를 보인 뒤 다시 본다 [결정: 2026-10-28 오케스트레이터].
 - [결정: adr.0017] `thread.switch.before`, `thread.fork.before`, `thread.tree.before`, `thread.trust.before`는 fail-closed다. `thread.compact.before`만 fail-open 예외다 [제안](§4.1).
 - [결정: review.decisions-2 U-06] `tool.call.before`의 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 인자 변경이 필요하면 2차에 pi 밖 이름의 chain 훅을 따로 더한다.
-- [결정: adr.0017] 지점 5종 밖 이벤트는 수명주기 지점으로 연다(§7).
+- [결정: adr.0017] 훅 5종 밖 이벤트는 수명주기 훅으로 연다(§7).
 - [결정: adr.0017] 훅 이름은 자체 규칙으로 정리하고 별칭은 두지 않는다 [제안](§4.10). 규칙과 이름표는 §3.4가 정했다(M3 F 첫 작업).
-- [결정: adr.0017] 가드레일 지점 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 fold `first`, fail-closed로 선언한다. 내장 검사는 두지 않는다(`review.m3-design-inputs` D-M3-30 행 1). 선언은 M3-REQ-107이다.
+- [결정: adr.0017] 가드레일 훅 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 fold `first`, fail-closed로 선언한다. 내장 검사는 두지 않는다(`review.m3-design-inputs` D-M3-30 행 1). 선언은 M3-REQ-107이다.
 - [미결] 기능·확장 이름 네임스페이스(예약 이름 목록, 외부 확장의 L2 도메인 이름 사용 금지). F.capabilities.spec §10과 함께 정한다.
 - [미결] 매니페스트 신뢰 필드 범위: `trust.level` 값 집합과 매니페스트가 요청할 수 있는 범위. X.loading-trust.spec과 함께 정한다.
 - 닫음: thread 훅 15종의 발화 문서 배정(§7 표, `L1.readme` §6).
 - [결정: review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-sdk.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 그룹은 on, post, drive, Registration만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
-- [결정: review.decisions-2 U-01] 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§4.5). F.conversation.spec §10 1번, F.readme §8 1번과 같은 항목이다.
+- [결정: review.decisions-2 U-01] 켜기·끄기와 drive lock 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§4.5). F.conversation.spec §10 1번, F.readme §8 1번과 같은 항목이다.
 - [미결] Cordis dispose와 `onDispose`의 관계. 정리 동작을 Cordis effect로만 둘지 F 타입에 남길지(X.primitives.spec과 함께).

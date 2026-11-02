@@ -38,7 +38,7 @@ describe("LockedDialogView", () => {
     expect(out).not.toContain("관찰만 하기");
     expect(out).not.toContain("분기해서");
     expect(out).toContain("다른 프로세스");
-    expect(out).toContain("실행하지 못했습니다");
+    expect(out).toContain("실행하지 못했어요");
     expect(ownerText("desktop")).toBe("다른 데스크톱 창");
   });
 });

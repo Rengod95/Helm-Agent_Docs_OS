@@ -28,7 +28,7 @@ Fresnel의 모든 TypeScript 코드에 적용하는 언어 차원 규칙이다. 
 
 | 용어 | 뜻 |
 |---|---|
-| 경계 | 프로세스 밖이나 신뢰하지 않는 코드에서 값이 들어오는 지점. 파일·DB 읽기, 와이어 수신, 모델 도구 인자, 확장 페이로드, 환경 변수, 설정 파일 |
+| 경계 | 프로세스 밖이나 신뢰하지 않는 코드에서 값이 들어오는 곳. 파일·DB 읽기, 와이어 수신, 모델 도구 인자, 확장 페이로드, 환경 변수, 설정 파일 |
 | 도메인 타입 | 경계 검증을 통과한 뒤의 타입. `Static<typeof XSchema>`나 브랜드 타입 |
 | 예상 가능한 실패 | 코드와 설정이 올바라도 입력·환경 때문에 정상 운영 중에 일어나는 실패. I/O 오류, 잠금 경합(busy), 디스크 가득 참(disk_full), 읽기 전용(read_only), 취소, 찾지 못함, 검증 실패, 소유권 상실(lease·잠금을 잃음), 시간 초과, 외부 프로세스·네트워크 실패, 저장 데이터 손상. 목록은 TY-24가 정한다 |
 | 버그 | 코드가 스스로 세운 불변 조건을 어긴 상태. 도달 불가 분기, 깨진 내부 상태, 호출 계약 위반(닫힌 저장소에 쓰기, 트랜잭션 중첩). 코드를 고쳐야만 사라진다 |
@@ -185,7 +185,7 @@ export function eachAsync<I, T>(items: Iterable<I>, step: (item: I) => Promise<{
 
 ### TY-02 `any`를 쓰지 않는다. `unknown`으로 받고 좁힌다
 
-이유: `any`는 타입 검사를 그 지점부터 끊고, 오염이 호출 사슬을 따라 퍼진다. `unknown`은 좁히기 전에는 아무 연산도 허용하지 않으므로 검증 위치가 코드에 드러난다.
+이유: `any`는 타입 검사를 그 자리부터 끊고, 오염이 호출 사슬을 따라 퍼진다. `unknown`은 좁히기 전에는 아무 연산도 허용하지 않으므로 검증 위치가 코드에 드러난다.
 
 좋은 예:
 
@@ -520,7 +520,7 @@ export function acceptPost(item: Record<string, unknown>): PostItem {
 1. 버그: 불변 조건 위반, 도달 불가 분기, 호출 계약 위반. `throw new Bug(...)` 또는 `assertNever(...)`. 판정은 TY-24가 한다.
 2. 외부 API 계약: 라이브러리가 콜백에서 throw를 요구할 때. 받은 오류를 그대로 다시 던지거나(`throw caught`), 4절 예외 주석을 단다.
 
-복구할 수 없는 상태(예: DB 파일 손상으로 시작 불가, 디스크 가득 참으로 세션 진행 불가)도 예상 가능한 실패다. `throw`하지 않고 `kind`가 있는 오류 값으로 돌려준다. 진입점(L4 `apps/*`)이 그 `kind`를 보고 세션을 멈추거나 종료 코드로 바꾼다. 어느 세션을 멈출지는 호출 사슬의 각 층이 값으로 보고 정한다(`eng.anti-patterns.guide` AP-S-06).
+복구할 수 없는 상태(예: DB 파일 손상으로 시작 불가, 디스크 가득 참으로 대화 진행 불가)도 예상 가능한 실패다. `throw`하지 않고 `kind`가 있는 오류 값으로 돌려준다. 진입점(L4 `apps/*`)이 그 `kind`를 보고 대화를 멈추거나 종료 코드로 바꾼다. 어느 대화를 멈출지는 호출 사슬의 각 층이 값으로 보고 정한다(`eng.anti-patterns.guide` AP-S-06).
 
 좋은 예:
 
@@ -548,7 +548,7 @@ export function resolveTool(registry: ToolRegistry, name: string): ToolDef {
 }
 ```
 
-- `catch`로 받은 값은 `unknown`이다. 외부 라이브러리 오류는 `catch` 지점에서 오류 유니온 변형으로 바꾼다. 다시 던질 때는 받은 값을 그대로 던진다(`throw caught`). 스캔은 `throw <식별자>`를 허용하고 `throw new X(...)`에서 `X`가 `Bug`가 아니면 실패시킨다.
+- `catch`로 받은 값은 `unknown`이다. 외부 라이브러리 오류는 `catch` 블록에서 오류 유니온 변형으로 바꾼다. 다시 던질 때는 받은 값을 그대로 던진다(`throw caught`). 스캔은 `throw <식별자>`를 허용하고 `throw new X(...)`에서 `X`가 `Bug`가 아니면 실패시킨다.
 - `typescript/only-throw-error`, `no-throw-literal`, `unicorn/throw-new-error`가 문자열·객체 throw를 막는다(`xeon/.oxlintrc.json`).
 
 ### TY-12 오류 유니온의 판별 필드는 `kind`다
@@ -915,8 +915,8 @@ const now = new Date();
 
 이유:
 
-- 버린 Promise의 거부는 `unhandledrejection`으로 프로세스 수준에서만 보이고, 어떤 세션·요청의 실패인지 기록되지 않는다.
-- drive 임대 반납, 단계 경계 비활성화, 사용자 중단은 모두 진행 중 작업의 취소를 요구한다(`_research/ext-points.md §5` 안 1 토글 보장). 신호가 한 곳에서 끊기면 그 아래 작업이 계속 돌며 비용과 부작용을 만든다.
+- 버린 Promise의 거부는 `unhandledrejection`으로 프로세스 수준에서만 보이고, 어떤 대화·요청의 실패인지 기록되지 않는다.
+- drive 락 반납, 단계 경계 비활성화, 사용자 중단은 모두 진행 중 작업의 취소를 요구한다(`_research/ext-points.md §5` 안 1 토글 보장). 신호가 한 곳에서 끊기면 그 아래 작업이 계속 돌며 비용과 부작용을 만든다.
 - `ignoreVoid` 기본값이 `true`라서 `void`는 린트로 잡히지 않는다(`_research/notes/eng-1.md §2`). 그래서 규칙 1의 `void` 금지는 스캔으로 검사한다.
 
 좋은 예:
@@ -974,7 +974,7 @@ export async function fetchPage(url: string, signal: AbortSignal): Promise<strin
 | 객체 리터럴이 타입에 맞는지 확인하면서 리터럴 타입 유지 | `satisfies` | `{ ... } as T` |
 | 빈 컨테이너 초기화 | 변수 타입 주석(`const out: Item[] = []`, `new Map<K, V>()`) | `[] as Item[]`, `{} as Record<K, V>` |
 | 새 브랜드 값 | `IdFactory.next(prefix)`, `parse(XxxIdSchema, s)` (TY-09) | `` `thr_${x}` as ThreadId `` |
-| 이종 레지스트리 조회 | TY-06 허용 목록 A3 조회 함수 | 호출 지점마다 `as Api` |
+| 이종 레지스트리 조회 | TY-06 허용 목록 A3 조회 함수 | 호출 곳마다 `as Api` |
 | 객체 키 순회 | 키 목록을 `as const` 튜플로 두고 순회, 또는 `Object.entries` 결과를 타입 가드로 거른다 | `Object.keys(o) as (keyof T)[]` |
 
 타입 가드 규칙:
@@ -1052,7 +1052,7 @@ export function isToolCall(v: unknown): v is ToolCall {
 - 하위 함수가 `Result`로 돌려준 실패를 상위 함수가 `Bug`로 바꾸지 않는다. 처리할 수 없으면 자기 오류 유니온에 변형을 더해 위로 돌려준다.
 - 테스트는 예상 가능한 실패를 `expect(...).toThrow()`로 확인하지 않는다. 돌려받은 `Result`의 `error.kind`를 확인한다. `toThrow(Bug)`는 버그 경로 테스트에만 쓴다.
 
-이유: `Bug`는 "코드를 고쳐야 사라지는 상태"라는 신호다. 예상 가능한 실패를 `Bug`로 던지면 호출자는 재시도·세션 정지·사용자 안내를 고를 수 없고, 훅 fold는 실패를 거부로 환산하며, 로그와 경보가 실제 버그와 운영 실패를 구분하지 못한다. 디스크 가득 참 하나로 런타임 전체가 버그 경로를 탄다(`eng.anti-patterns.guide` AP-S-06).
+이유: `Bug`는 "코드를 고쳐야 사라지는 상태"라는 신호다. 예상 가능한 실패를 `Bug`로 던지면 호출자는 재시도·대화 정지·사용자 안내를 고를 수 없고, 훅 fold는 실패를 거부로 환산하며, 로그와 경보가 실제 버그와 운영 실패를 구분하지 못한다. 디스크 가득 참 하나로 런타임 전체가 버그 경로를 탄다(`eng.anti-patterns.guide` AP-S-06).
 
 좋은 예:
 

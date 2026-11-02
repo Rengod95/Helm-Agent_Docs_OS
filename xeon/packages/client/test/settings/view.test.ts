@@ -509,7 +509,7 @@ describe("labels, help and the restart banner come from the catalog", () => {
     setActiveLocale("ko");
     expect(replayField()?.label).toBe("구독 재전송 최대 이벤트 수");
     expect(replayField()?.help).toBe(
-      "구독 한 번에 다시 보낼 수 있는 이벤트 수. 넘으면 새 위치에서 다시 구독해야 한다",
+      "구독 한 번에 다시 보낼 수 있는 이벤트 수예요. 넘으면 새 위치에서 다시 구독해야 해요.",
     );
   });
 

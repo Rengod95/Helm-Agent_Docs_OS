@@ -247,6 +247,6 @@ describe("react surface (server render, no DOM)", () => {
     );
     expect(html).toContain("엔진 상태 확인 중");
     expect(html).toContain("연결 없음");
-    expect(html).toContain("진행 중 <!-- -->0");
+    expect(html).toContain("진행 중 0");
   });
 });

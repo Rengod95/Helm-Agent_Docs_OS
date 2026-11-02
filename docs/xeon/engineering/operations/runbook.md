@@ -126,12 +126,12 @@ resource와 tmp는 바뀌지 않습니다.
 
 | 위치 | 파일 | 뜻 |
 |---|---|---|
-| data | `fresnel.db` | 세션 저장소(SQLite). 이벤트와 투영 |
+| data | `fresnel.db` | 대화 저장소(SQLite). 이벤트와 투영 |
 | data | `blobs/<ab>/<나머지>` | 큰 값(블롭) 파일 |
 | data | `backups/fresnel.db.pre-<시각>-<owner>-v<from>-to-v<to>.sqlite` | 마이그레이션 전 스냅샷. `eng.operations.recovery` §8 |
 | state | `logs/<모드>.log` | 엔진 로그. §3 |
 | state | `schedule/state.json` | 예약 상태. `eng.operations.recovery` §4 |
-| state | `cli/state.json` | CLI가 세션 위치를 기억하는 캐시. 깨지면 버려집니다 |
+| state | `cli/state.json` | CLI가 대화 위치를 기억하는 캐시. 깨지면 버려집니다 |
 | state | `spill/` | 명령 출력이 넘친 임시 파일 |
 | config | `settings.json` | 사용자 설정 파일 |
 | config | `trust.json` | 프로젝트 신뢰 결정 |
@@ -200,7 +200,7 @@ fresnel doctor (fresnel 0.0.0)
 진단
   [ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다
   [ok]   상태 디렉터리: <경로>
-  [ok]   시크릿 저장소: 사용할 수 있다 (등록 0개)
+  [ok]   시크릿 저장소: 사용할 수 있어요 (등록 0개)
   [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 시크릿 저장소
   [경고] 외부 바이너리 bwrap: 없다 (선택) — 명령을 샌드박스 없이 실행하지 못한다
          해결: bubblewrap 패키지를 설치한다
@@ -209,7 +209,7 @@ fresnel doctor (fresnel 0.0.0)
 검색 provider
   검색 provider: auto → Built-in search (model provider) (builtin-wrapper)
   SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>
-  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)
+  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)
 웹 provider
   ...
 ```
@@ -254,7 +254,7 @@ fresnel service stop               # 협조 종료를 먼저 요청하고, 기�
 
 - 서비스 명령은 종료 코드 0, 1, 2만 냅니다(`apps/cli/src/commands/service.ts`).
 - 이미 떠 있는 다른 버전의 서비스가 일하는 중이면 `the running service is version <V> and is busy; run "fresnel service stop" to replace it`를 stderr에 씁니다. 종료 코드는 0입니다.
-- 유휴 종료: 연결이 없고, 실행 중인 작업과 대기 예약이 없으며, 기동 뒤 10초가 지나면 `l0.process.service.idleGraceMs`(기본 60000 ms) 뒤에 스스로 내려갑니다(SV-04). 승인 대기 세션은 실행 중으로 셉니다 [제안].
+- 유휴 종료: 연결이 없고, 실행 중인 작업과 대기 예약이 없으며, 기동 뒤 10초가 지나면 `l0.process.service.idleGraceMs`(기본 60000 ms) 뒤에 스스로 내려갑니다(SV-04). 승인 대기 대화는 실행 중으로 셉니다 [제안].
 - 시작 실패: stderr에 `the service is not available: <사유>`를 쓰고 종료 코드 1로 끝납니다(`apps/host/src/service/commands.ts`). 사유는 다음과 같습니다.
 
 | 사유 | 뜻 | 조치 |
@@ -336,7 +336,7 @@ fresnel config set x.operations.safeMode.default true
 | 외부 훅 전체 | 꺼짐 |
 | `guard`, `core` 계층과 L0~L2 내장 패키지 | 켜짐 |
 
-- 안전 모드에서 시작한 세션은 drive 임대를 갖지 않습니다(`X.operations.spec` §4.6.3).
+- 안전 모드에서 시작한 대화는 drive 락을 갖지 않습니다(`X.operations.spec` §4.6.3).
 - 확인: `fresnel service status` 출력의 `idle shutdown` 줄 끝에 `, safe mode`가 붙습니다. `host.status`에는 안전 모드일 때만 `safeMode: true`가 들어갑니다(`apps/host/src/handlers/host.ts`).
 
 ### 6.3 끄기
@@ -366,11 +366,11 @@ fresnel: <무엇이 잘못됐다>
 
 | kind | 뜻 | 해결 | 종료 코드 |
 |---|---|---|---|
-| `thread.notFound` | 세션 `<id>`가 없다 | `fresnel sessions ls`로 id를 확인한다 | 1 |
-| `thread.locked` | 다른 프로세스(`ownerKind`)가 이 세션을 쓰고 있다 | M1: 끝날 때까지 두거나 새 세션을 연다. M2: 프롬프트(§4.11) | 4 |
-| `thread.closed` | 닫힌 세션이라 쓸 수 없다 | `fresnel sessions fork`로 분기하거나 새 세션을 연다 | 1 |
+| `thread.notFound` | 대화 `<id>`가 없다 | `fresnel sessions ls`로 id를 확인한다 | 1 |
+| `thread.locked` | 다른 프로세스(`ownerKind`)가 이 대화를 쓰고 있다 | M1: 끝날 때까지 두거나 새 대화를 연다. M2: 프롬프트(§4.11) | 4 |
+| `thread.closed` | 닫힌 대화라 쓸 수 없다 | `fresnel sessions fork`로 분기하거나 새 대화를 연다 | 1 |
 | `turn.busy` | 진행 중인 turn이 있다 | 끝난 뒤 다시 보낸다 | 1 |
-| `thread.cancelledByExtension` | 확장이 `point`의 작업(컴팩션, 분기, 되감기, 세션 전환)을 막았다. `reason`이 있으면 붙인다 | 확장의 설정을 확인한다 | 1 |
+| `thread.cancelledByExtension` | 확장이 `point`의 작업(컴팩션, 분기, 되감기, 대화 전환)을 막았다. `reason`이 있으면 붙인다 | 확장의 설정을 확인한다 | 1 |
 | `thread.compactFailed` | 대화를 요약하지 못했다(`reason`) | 잠시 뒤 다시 `/compact`를 실행한다. 반복되면 `fresnel doctor`를 실행하고 보고한다 | 1 |
 | `request.cancelled` | 요청이 취소되었다 | 필요하면 다시 실행한다 | 1 |
 | `settings.unknownKey` | 등록되지 않은 키 | `fresnel config list`로 키를 확인한다 | 2 |
@@ -427,10 +427,10 @@ fresnel: <무엇이 잘못됐다>
 | 코드 | 뜻 | 예 |
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
-| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 세션, `catalogConflict`·`missingService`, 예약의 기대한 실패 |
+| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 대화, `catalogConflict`·`missingService`, 예약의 기대한 실패 |
 | 2 | 사용법 오류 | 모르는 플래그, 인자 누락, 명령 인자에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류, `db export`의 대상 폴더가 비어 있지 않음 |
 | 3 | 환경 문제 | FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치, `db export`의 저장소·디스크 오류 |
-| 4 | 세션 잠금 실패 후 사용자가 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않음. print 모드는 바로 4 |
+| 4 | 대화 잠금 실패 후 사용자가 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않음. print 모드는 바로 4 |
 | 129 | SIGHUP | 터미널이 닫혔다 |
 | 130 | 중단 | Ctrl+C로 끝냈다 |
 | 143 | SIGTERM | 체크포인트 뒤 끝냈다 |

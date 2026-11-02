@@ -19,7 +19,7 @@ binds: [xeon/packages/platform-process/**]
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
 | M1 | in-process 전송 쌍과 envelope 검사 연결, 백그라운드 프로세스 레지스트리, 종료 협조 골격(`ProcessShutdown`), `fresnel chat` 단계 0(자식 엔진 없음, adr.0006 §3.5) | PR-01, PR-06, PR-07, PR-08 |
-| M2 | 줄 단위 프레이밍과 stdio JSONL 전송, 전송 적합성 스위트(`F.wire-settings.spec` §9 A10), 자식 엔진 수명 임대(stdin EOF + `host.shutdown`), 잠금 실패 정책, 복구 표식 제시, X 포트 `ProcessPort.run`(외부 훅), MCP stdio 서버 포트 | PR-02~PR-05, PR-15, PR-16, PR-21, PR-23 |
+| M2 | 줄 단위 프레이밍과 stdio JSONL 전송, 전송 적합성 스위트(`F.wire-settings.spec` §9 A10), 자식 엔진 수명 프로세스 락(stdin EOF + `host.shutdown`), 잠금 실패 정책, 복구 표식 제시, X 포트 `ProcessPort.run`(외부 훅), MCP stdio 서버 포트 | PR-02~PR-05, PR-15, PR-16, PR-21, PR-23 |
 | M2 이후(제품 1차 범위) | 공유 서비스 모드: 등록 파일, `ensure`, 이중 기동 방지, 버전 불일치, 유휴 종료, 토큰 인증, 소켓 전송, 감독 | PR-09~PR-14 |
 | M3(제품 1차 범위) | 원격 사용: 로컬 서비스 소켓을 SSH 터널(Unix 소켓 전달)이나 사설망으로 연결해 같은 socket 전송·인증 규칙으로 접속 | PR-20 |
 | 2차 | launchd·systemd 등록, 내장 원격 전송(TLS + 토큰 WebSocket), Windows 전송 대안, `ProcessPort.spawn`(격리 확장 자식) | PR-17~PR-19, PR-22 |
@@ -104,7 +104,7 @@ xeon/packages/platform-process/
 | PR-02 | `transport/framing.ts`: 줄 단위 분할·결합(`TextDecoder` stream), `\r` 제거, 빈 줄 무시, `maxFrameBytes` 초과 프레임 버림과 `-32600` 생성, `-32700` 생성 | - | S | M2 |
 | PR-03 | `transport/stdio.ts`: `createStdioTransport`, 백프레셔, EOF → `onClose("eof")`, 송신 직렬화 | PR-02 | M | M2 |
 | PR-04 | 전송 적합성 스위트 연결: `F.wire-settings.plan`의 적합성 케이스를 in-process와 stdio(자식 프로세스) 양쪽에 돌리는 `transport-conformance.int.test.ts` | PR-01, PR-03 | M | M2 |
-| PR-05 | 자식 엔진 임대와 shutdown 협조: `watchChildLease`, `host.shutdown` 처리 연결(L4 처리기에서 부를 함수), 시한 뒤 강제 종료, `testing/fake-engine.ts` 사이드카 시뮬레이터 | PR-03, PR-07, FR-P1 | M | M2 |
+| PR-05 | 자식 엔진 프로세스 락과 shutdown 협조: `watchChildLease`, `host.shutdown` 처리 연결(L4 처리기에서 부를 함수), 시한 뒤 강제 종료, `testing/fake-engine.ts` 사이드카 시뮬레이터 | PR-03, PR-07, FR-P1 | M | M2 |
 | PR-06 | `registry.ts`: `register`·`list`·`get`·`stop`·`stopOwnedBy`·`onChange`, graceful → force, 끝난 항목 보관 시간, 종료 참여자 등록. 프로세스 트리 정리 통합 테스트(등록자 쪽 `BackgroundStopper`를 프로세스 그룹 kill로 구현한 테스트 도우미. L0 패키지끼리 import하지 않으므로(DR-02) 실제 `startBackground` 핸들과의 결합은 L1 tools 통합 시험이 확인한다) | FR-P7, PR-07 | M | M1 |
 | PR-07 | `lease/shutdown.ts`: `createProcessShutdown`(신호, 참여자 역순 호출, 시한, `exit` 주입, 중복 요청 합치기) | FR-P7 | S | M1 |
 | PR-08 | `service.ts`, `settings.ts`: `ProcessService` 조립과 `fresnel.process` 등록, `l0.process.*` 선언 | PR-06, PR-07 | S | M1 |
@@ -138,7 +138,7 @@ xeon/packages/platform-process/
 
 | 출처 | 위치 | 참고하는 것 |
 |---|---|---|
-| opencode | `packages/cli/src/services/standalone.ts:23-27` | stdin EOF를 소유 임대의 끝으로 보는 규칙 |
+| opencode | `packages/cli/src/services/standalone.ts:23-27` | stdin EOF를 소유 프로세스 락의 끝으로 보는 규칙 |
 | opencode | `packages/desktop/src/main/service/background-service.ts:49-52` | 고정 주소 contender 방식 이중 기동 방지 |
 | opencode | `packages/cli/src/server-process.ts:60-64`, `:90-95` | 서비스 cwd를 홈으로, 무작위 비밀번호 |
 | pi(실험 서버) | `PX/server.ts:154`(`ServerLifetime`), `:200`(`acquireServerActivation`), `PX/process.ts:40-70` | 연결 0 + 작업 0 유휴 종료와 유예, 기동 경합, detached 분리 |
@@ -167,7 +167,7 @@ xeon/packages/platform-process/
 | `version mismatch restarts an idle service` | `ensure.int.test.ts` | 한가한 구버전은 종료되고 새 버전 기동 |
 | `version mismatch warns on a busy service` | `ensure.int.test.ts` | live task 1인 구버전에는 `version_mismatch_busy`, 구버전 유지 |
 | `idle shutdown requires all conditions` | `idle.test.ts` | 연결·live task·예약·유예 조합 다섯 행(spec §4.4.4 표), 시작 유예 동안 판정 없음 |
-| `approval wait counts as live` | `idle.test.ts` | 승인 대기 세션 1개면 유휴 아님 |
+| `approval wait counts as live` | `idle.test.ts` | 승인 대기 대화 1개면 유휴 아님 |
 | `token mismatch is rejected before hello` | `auth.test.ts`, `socket.int.test.ts` | 틀린 토큰의 `host.hello` 거부와 연결 종료, 상수 시간 비교 함수가 길이 다른 입력에도 거짓 |
 | `socket path length is checked` | `socket.int.test.ts` | 한도 초과 경로는 `path_too_long`. 소켓 상대 경로(`fresnel.sock`, `d<8 hex>/fresnel.sock`)가 `SOCKET_RELATIVE_PATH_MAX_BYTES`(24) 이하. 폴백 경로 계산은 이 패키지에 없다 |
 | `client stops when the service is lost` | `service-loss.int.test.ts` | 서비스 SIGKILL 뒤 클라이언트 정지 상태, 쓰기 미전송, 다음 `ensure`가 재개 후보 반환 |
@@ -186,7 +186,7 @@ xeon/packages/platform-process/
 
 - `cd xeon && just verify`가 종료코드 0이다.
 - M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 강제 종료 뒤 재개)가 이 패키지의 in-process 전송을 쓰고 통과한다.
-- M2: stdio 사이드카 시뮬레이터(`testing/fake-engine.ts`)로 임대 시나리오(stdin EOF 종료, `host.shutdown` 응답 뒤 종료, 시한 초과 강제 종료, 부모 kill -9 뒤 자식 종료)가 통과한다. 전송 적합성 스위트가 in-process와 stdio에서 통과한다. `hook-run.int.test.ts`가 통과한다(spec §9 14·15).
+- M2: stdio 사이드카 시뮬레이터(`testing/fake-engine.ts`)로 프로세스 락 시나리오(stdin EOF 종료, `host.shutdown` 응답 뒤 종료, 시한 초과 강제 종료, 부모 kill -9 뒤 자식 종료)가 통과한다. 전송 적합성 스위트가 in-process와 stdio에서 통과한다. `hook-run.int.test.ts`가 통과한다(spec §9 14·15).
 - 서비스 모드: adr.0006 §3.7 체크리스트 8항이 `L0.process.spec` §4.4.7 표의 문장마다 §5의 테스트 하나 이상에 대응하고 모두 통과한다.
 - M3: PR-20 원격 중계 시험이 통과한다(review.decisions-2 U-11).
 - `platform-process`의 import 목록에 다른 `@fresnel/platform-*`가 없다(check-layers, DR-02).
@@ -196,10 +196,10 @@ xeon/packages/platform-process/
 | 위험 | 영향 | 대응 |
 |---|---|---|
 | Windows에 Unix 소켓·SIGTERM 협조가 없다 | 서비스 전송과 종료 협조가 다르게 동작 | 협조 종료는 `host.shutdown` 메시지 하나로 통일한다. 전송은 대안(named pipe, loopback TCP + 토큰)으로 후퇴하며, 그러면 F `TransportKind` 추가가 필요하다(PR-19, 미결 P-6) |
-| Tauri가 자식에 SIGKILL만 보낸다 | 체크포인트 없이 엔진 종료 | `host.shutdown` 메시지를 신호보다 먼저 보낸다(adr.0008 §3.3). 놓쳐도 stdin EOF 임대와 복구 표식이 다음 실행에서 재개 후보를 만든다 |
+| Tauri가 자식에 SIGKILL만 보낸다 | 체크포인트 없이 엔진 종료 | `host.shutdown` 메시지를 신호보다 먼저 보낸다(adr.0008 §3.3). 놓쳐도 stdin EOF 프로세스 락과 복구 표식이 다음 실행에서 재개 후보를 만든다 |
 | 서비스 단일 장애점 | 서비스 크래시 때 모든 클라이언트 정지 | DB와 복구 표식이 남으므로 다음 `ensure`가 재개 후보를 보인다(체크리스트 8번). 클라이언트는 쓰기를 보내지 않고 정지한다 |
 | 버전 불일치 재기동 중 진행 작업 손실 | 사용자 작업 중단 | 한가할 때만 재기동한다. 바쁘면 경고 후 구버전에 접속한다 |
-| 이중 기동 경합의 비결정 재현 | 경합 버그가 CI에서 드물게만 보임 | 수동 시계, 소켓 경로·runtimeDir 주입, 기동 함수 주입으로 두 경합자의 순서를 테스트가 고정한다. stale 소켓 처리는 `service` 임대로 직렬화한다 |
+| 이중 기동 경합의 비결정 재현 | 경합 버그가 CI에서 드물게만 보임 | 수동 시계, 소켓 경로·runtimeDir 주입, 기동 함수 주입으로 두 경합자의 순서를 테스트가 고정한다. stale 소켓 처리는 `service` 프로세스 락으로 직렬화한다 |
 | 비협조 확장 코드가 종료를 막음 | 이벤트 루프 정지로 시한 타이머도 돌지 않음 | 프로세스 안에서는 막을 수 없다. 부모(데스크톱, `fresnel service stop`)의 시한 뒤 SIGKILL만 정리한다(adr.0006 §4.2) |
 | Bun의 `detached`·`unref`, `Bun.listen` unix 동작 차이(macOS 미실측) | 서비스가 부모와 함께 종료되거나 바인드 실패 | PR-10·PR-13에서 macOS CI job으로 확인한다. 실패하면 `node:net`·다른 spawn 옵션으로 바꾼다 |
 | 장수명 stdio 파이프의 버퍼링 | 대용량 이벤트 배치에서 지연 | 송신 백프레셔를 따른다. 문제가 확인되면 adr.0008 §6 미결대로 로컬 소켓 전환을 검토한다 |

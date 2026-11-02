@@ -19,8 +19,8 @@ binds: [xeon/packages/platform-exec/**]
 - F에 둘 실행 계약 초안: `CancelScope`, `ExecutionEnv`, `FileSystem`, `Shell`, 오류 코드, 서비스 이름 `ExecServiceName`(3.1절)
 - 출력 절단: pi durable `truncate.ts` 포크와 `ExecService.truncateHead`·`formatSize`(3.1절 끝, 3.3.1절) [결정: review.decisions-2 D-08]
 - 포크 범위, 포크 기록, 바꿀 점(패치 표, 3.3절)
-- OS 분기 인터페이스 `ExecPlatformProvider`와 선택 지점 `select.ts`(3.4절)
-- 포크 위에 얹는 Fresnel 연결 코드: 자식 프로세스 환경 변수 허용 목록 빌더, 시크릿 주입 지점 `ShellExecOptions.secretEnv`(M1), 데코레이션 가능한 `Shell` 요구(3.5절~3.7절), 백그라운드 실행 `startBackground`(3.9절)
+- OS 분기 인터페이스 `ExecPlatformProvider`와 선택 위치 `select.ts`(3.4절)
+- 포크 위에 얹는 Fresnel 연결 코드: 자식 프로세스 환경 변수 허용 목록 빌더, 시크릿 주입 위치 `ShellExecOptions.secretEnv`(M1), 데코레이션 가능한 `Shell` 요구(3.5절~3.7절), 백그라운드 실행 `startBackground`(3.9절)
 - 동작 보장 표(포크 원본 주석의 보장과 변경 여부, 4절), 플랫폼별 제약(5.2절), 설정 키(6절), 수용 기준(9절)
 
 다루지 않는 것:
@@ -40,7 +40,7 @@ binds: [xeon/packages/platform-exec/**]
 | 구성요소 | 단계 | 표지 |
 |---|---|---|
 | 로컬 `NodeExecutionEnv`(포크) + Fresnel 연결 코드 | 1차, M0(포크·적합성), M1(env 빌더·서비스 등록) | [결정: `_research/foundation-plan.md` §5 P4 M0 `platform-exec`] |
-| 시크릿 주입 지점 `secretEnv`(에이전트 env 모드) | 1차, M1. M1 시크릿 검증 경로다(3.6절) | [결정: review.decisions-2 U-19] |
+| 시크릿 주입 위치 `secretEnv`(에이전트 env 모드) | 1차, M1. M1 시크릿 검증 경로다(3.6절) | [결정: review.decisions-2 U-19] |
 | 백그라운드 실행 `startBackground` | 1차, 구현은 M2(소비자 L1 tools 백그라운드 셸, L2 mcp) | [제안] |
 | Docker 어댑터(`ExecutionEnv`의 컨테이너 구현) | 1차 목표, 구현은 M2 이후 | [제안, `_research/layer-plan-v2.json` L0-a "Docker만 어댑터"] |
 | SSH 원격 워크스페이스 | 보류. `@earendil-works/pi-env` 1.3.0을 채택 후보로 둔다 | [결정: 계획 v2 L0-a "보류"], `_research/packages.md` §4.2 158행 |
@@ -253,7 +253,7 @@ export const ExecServiceName = "fresnel.exec" as const;
 - import 방향 [제안]: `sandbox.ts`는 `exec.ts`(`CancelScope`, `Shell`)를 import한다. 그래서 `exec.ts`가 `sandbox.ts`를 import하면 `import/no-cycle`(타입 import 포함)에 걸린다. `SandboxRunReport`와 `SandboxViolation`은 아무것도 import하지 않는 `services/sandbox-report.ts`에 두고, `exec.ts`와 `sandbox.ts`가 둘 다 이 파일을 import한다. 방향은 `sandbox-report.ts` ← `exec.ts` ← `sandbox.ts` 한 방향이다(`L0.store.spec` §3.1의 `sql.ts` 분리와 같은 방식).
 - `SecretRef`는 F `capabilities/secrets.ts`가 정본이고(`F.capabilities.spec` §3.10) settings가 다시 export한다. services(순서 4)는 capabilities를 `import type`으로 쓸 수 있다(`F.readme` §3). `UseCtx`는 같은 서브패스의 `services/secrets.ts`에 있고, 그 파일은 같은 서브패스의 다른 파일을 import하지 않으므로 순환이 없다(`F.capabilities.spec` §3.12 규칙 4).
 - 출력 절단 [결정: review.decisions-2 D-08]: 절단 함수의 유일한 구현은 이 패키지의 포크(`src/upstream/truncate.ts`)다. L1(core-tools 결과 경계화)과 L2(cap-workspace `read`·`bash`)는 `fresnel.exec`의 `truncateHead`·`truncateHeadOf`·`formatSize`로 부르고 사본을 두지 않는다. M1 코드에 있던 사본 두 곳(`cap-workspace/src/truncate/upstream`, `apps/host/src/assembly/truncator.ts`)과 core-tools의 `truncator` 주입 옵션은 이 메서드로 바꾸고 지웠다 [결정: review.decisions-2 B-04]. 파생 env(`withCwd`)는 `ExecutionEnv`라 절단 메서드를 갖지 않는다. 절단은 cwd와 무관한 순수 계산이어서 서비스 값에서만 부른다. 포크 패치는 `platform-exec/PATCHES.md` P10~P13이다. `TruncationResult` 필드는 포크 원본을 옮길 때 원문과 대조해 확정한다.
-- [결정: review.decisions-2 D-04] `fresnel.exec`의 F 인터페이스는 `ExecService`(`ExecService extends ExecutionEnv`)다. 세션마다 cwd가 다른 공유 서비스 모드(`L0.process.spec`, ADR-0006)에서 파생 env가 필요해 `withCwd`와 `startBackground`를 더했다. `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표가 이 이름을 쓴다.
+- [결정: review.decisions-2 D-04] `fresnel.exec`의 F 인터페이스는 `ExecService`(`ExecService extends ExecutionEnv`)다. 대화마다 cwd가 다른 공유 서비스 모드(`L0.process.spec`, ADR-0006)에서 파생 env가 필요해 `withCwd`와 `startBackground`를 더했다. `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표가 이 이름을 쓴다.
 - [제안] 원본 `Result`, `ok`, `err`는 F 루트(`eng.typescript.guide` §1.2)의 것으로 바꾼다(3.3절 P2). F 계약의 `Result`는 F 루트 타입이다.
 - [제안] `CancelScope`는 원본 모양대로 `AbortSignal | undefined`를 받는다. `eng.typescript.guide` §1.2·TY-22 예시는 `AbortSignal`(undefined 없음)이다. 원본 테스트와 적합성 스위트가 취소 없는 호출을 `{ abortSignal: undefined }`로 표현하므로(`D/src/testing/env-conformance.ts`, `BACKGROUND_CONTEXT`) undefined를 허용한다. 10절 [미결] 1과 함께 정한다.
 
@@ -442,11 +442,11 @@ export function buildChildEnv(input: {
 5. `inheritEnv: false`이면 `pass`·`extraPass`를 옮기지 않고 `fixed`와 `requested`만 쓴다. 어떤 경우에도 부모 `process.env` 전체를 넘기지 않는다.
 6. 원본 생성 옵션 `shellEnv`(`node.ts:612`)는 쓰지 않는다(`undefined`).
 
-### 3.6 시크릿 주입 지점 `ShellExecOptions.secretEnv` (M1)
+### 3.6 시크릿 주입 위치 `ShellExecOptions.secretEnv` (M1)
 
-[제안] 계획 v2 L0-c "값은 도구를 실행하기 직전에만 풀리고 … 도구 자식 프로세스의 기본 env에는 들어가지 않는다"(`_research/layer-plan-v2.json` L0-c note)와 `_research/secrets.md` §6.2 M1 env 모드(M1은 사용 모드 번호다)를 구현하는 지점이다.
+[제안] 계획 v2 L0-c "값은 도구를 실행하기 직전에만 풀리고 … 도구 자식 프로세스의 기본 env에는 들어가지 않는다"(`_research/layer-plan-v2.json` L0-c note)와 `_research/secrets.md` §6.2 M1 env 모드(M1은 사용 모드 번호다)를 구현하는 훅이다.
 
-단계 [결정: review.decisions-2 U-19]: 마일스톤 M1의 시크릿 검증 경로는 bash 도구의 env 주입(실행마다 승인)이다. 그래서 이 주입 지점과 `SecretEnvRequest`, `secret_unavailable` 코드를 M1에 둔다. `L0.secrets.spec` §3.6 `withEnv`, `L2.workspace.spec` §3.3과 같은 배치다.
+단계 [결정: review.decisions-2 U-19]: 마일스톤 M1의 시크릿 검증 경로는 bash 도구의 env 주입(실행마다 승인)이다. 그래서 이 주입 훅과 `SecretEnvRequest`, `secret_unavailable` 코드를 M1에 둔다. `L0.secrets.spec` §3.6 `withEnv`, `L2.workspace.spec` §3.3과 같은 배치다.
 
 구현의 전제 [제안]:
 
@@ -520,7 +520,7 @@ export function createExecService(
 
 ### 3.8.2 spill 보관 정리와 디스크 상한 [결정: M3-REQ-47]
 
-- 삭제 시점: 명령이 끝나도 spill 파일을 지우지 않는다. 세션이 끝나도 지우지 않는다. 기본은 보존이다. 기록은 기본으로 지우지 않고 설정에서 기간을 정한다(review.m3-design-inputs D-M3-21 a) [결정: 오케스트레이터 기본값].
+- 삭제 시점: 명령이 끝나도 spill 파일을 지우지 않는다. 대화가 끝나도 지우지 않는다. 기본은 보존이다. 기록은 기본으로 지우지 않고 설정에서 기간을 정한다(review.m3-design-inputs D-M3-21 a) [결정: 오케스트레이터 기본값].
 - 보관 정리는 `l0.exec.spillRetentionDays`(기본 0, 지우지 않음)가 정한다. `exec` 안에서는 정리하지 않는다. 조립 루트가 `pruneSpill({ dir, maxAgeDays, now })`(`src/spill-store.ts`)를 부른다. 호출 시점은 조립 루트 작업이 정한다(10절 4).
 - `pruneSpill`은 `dir`의 일반 파일과 `tmp-*` 디렉터리 안의 일반 파일 가운데 mtime이 `now - maxAgeDays`일보다 오래된 것을 지운다. `maxAgeDays`가 0이면 디스크를 읽지 않고 `removed`, `bytesFreed`, `failed`가 모두 0인 보고를 돌려준다.
 - 비운 `tmp-*` 디렉터리 가운데 오래된 것도 지운다. 디렉터리 시각은 안의 파일을 지우기 전에 잰 값을 쓴다.
@@ -676,9 +676,9 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 ## 7. 훅
 
-- `fresnel.exec`는 `on` 지점을 선언하지 않는다. 도구 실행 전후 지점(`tool.call.before`, `tool.result`)은 L1이 선언한다(`F.extensions.spec`).
-- `post`, `drive`와 관계가 없다. drive 임대 반납·단계 경계 비활성화가 진행 중 명령을 끝낼 때는 L1이 `CancelScope.abortSignal`을 취소한다(B-17).
-- 확장은 `scope`로 `ExecServiceName`을 주입받아 쓸 수 있다. 확장이 자기 셸 데코레이터를 끼우는 것은 이 문서가 열지 않는다. `Shell` 데코레이터 조립 지점은 L1 tools와 apps/host 하나다(3.7절) [제안].
+- `fresnel.exec`는 `on` 훅을 선언하지 않는다. 도구 실행 전후 훅(`tool.call.before`, `tool.result`)은 L1이 선언한다(`F.extensions.spec`).
+- `post`, `drive`와 관계가 없다. drive 락 반납·단계 경계 비활성화가 진행 중 명령을 끝낼 때는 L1이 `CancelScope.abortSignal`을 취소한다(B-17).
+- 확장은 `scope`로 `ExecServiceName`을 주입받아 쓸 수 있다. 확장이 자기 셸 데코레이터를 끼우는 것은 이 문서가 열지 않는다. `Shell` 데코레이터 조립 위치는 L1 tools와 apps/host 하나다(3.7절) [제안].
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -735,10 +735,10 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 ## 10. 미결 사항
 
 1. [미결] `abortSignal`의 `undefined` 허용 여부와 `eng.typescript.guide` §1.2·TY-22 문구 정정. 위치는 F `services/exec.ts`로 정해졌다([결정: review.decisions-2 D-04], 3.2절).
-2. [미결] `ExecService.withCwd` 추가와 `eng.context-map.design` §5.3 표 정정(3.1절). 공유 서비스 모드에서 세션별 cwd를 어떻게 줄지 `L0.process.spec`과 함께 정한다.
+2. [미결] `ExecService.withCwd` 추가와 `eng.context-map.design` §5.3 표 정정(3.1절). 공유 서비스 모드에서 대화별 cwd를 어떻게 줄지 `L0.process.spec`과 함께 정한다.
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
 4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 시크릿이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다.
-   [결정: review.m3-design-inputs D-M3-21 a, 오케스트레이터 기본값, M3-REQ-47] 삭제 시점은 기본으로 세션 종료 때도 지우지 않는다. 보관 기간은 `l0.exec.spillRetentionDays`(기본 0, 지우지 않음)로 정하고 `pruneSpill`이 지운다. 디스크 상한은 `l0.exec.spillMaxBytes`(기본 1 GiB, 0이면 없음)로 정하고, 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 세부는 3.8.2절이다.
+   [결정: review.m3-design-inputs D-M3-21 a, 오케스트레이터 기본값, M3-REQ-47] 삭제 시점은 기본으로 대화 종료 때도 지우지 않는다. 보관 기간은 `l0.exec.spillRetentionDays`(기본 0, 지우지 않음)로 정하고 `pruneSpill`이 지운다. 디스크 상한은 `l0.exec.spillMaxBytes`(기본 1 GiB, 0이면 없음)로 정하고, 사용량이 상한 이상이면 새 spill을 시작하지 않는다. 세부는 3.8.2절이다.
    [해소 M3-REQ-47] 조립 루트(apps/host)가 `tempDir`, `spillMaxBytes`를 넘기고 `pruneSpill`을 부른다(L4.host-service §4.18, HS-101). 두 키의 `stage: reserved`는 1b 커밋에서 해제했다. 정리 호출 시점은 열 때 한 번과 하루마다다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
 6. [결정: review.m3-lower-requirements M3-REQ-46] `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지하고 무인 경로 상한은 3.8.1절의 `withUnattendedTimeout`이 건다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.

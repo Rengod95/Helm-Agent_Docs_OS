@@ -12,12 +12,12 @@ binds: [xeon/packages/platform-exec/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: pi durable env를 포크해 `fresnel.exec`(`ExecService`)를 세우고, 그 위에 env 허용 목록, 데코레이션 가능한 `Shell`, 백그라운드 실행을 얹는다. 시크릿 주입 지점은 M1이다(`L0.exec.spec` §3.6, review.decisions-2 U-19).
+목표: pi durable env를 포크해 `fresnel.exec`(`ExecService`)를 세우고, 그 위에 env 허용 목록, 데코레이션 가능한 `Shell`, 백그라운드 실행을 얹는다. 시크릿 주입 위치는 M1이다(`L0.exec.spec` §3.6, review.decisions-2 U-19).
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
 | M0 | 포크 5파일과 적합성 자산 복사, 포크 기록 3종, CancelScope 치환(P1), Result 정리(P2), 오류 클래스 F 이동(P6), 테스트 포팅(P4, P5), 플랫폼 provider 추출(P3, darwin·linux), 적합성 스위트 Linux 통과, Bun 동작 스파이크 | [결정: `_research/foundation-plan.md` §5 P4 M0 "`platform-exec`(durable env 포크)"] |
-| M1 | env 허용 목록 빌더, sandbox 데코레이터 접점(조립 시험), `secretEnv` 시크릿 주입 지점(EX-13), `fresnel.exec` 서비스 등록, 설정 정의, `fakeExec`·`memoryFs`, 적합성 macOS 통과 | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"]. M1의 "SOPS 시크릿 참조 1종"은 bash 도구의 env 주입(실행마다 승인)으로 검증한다 [결정: review.decisions-2 U-19] |
+| M1 | env 허용 목록 빌더, sandbox 데코레이터 접점(조립 시험), `secretEnv` 시크릿 주입 위치(EX-13), `fresnel.exec` 서비스 등록, 설정 정의, `fakeExec`·`memoryFs`, 적합성 macOS 통과 | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"]. M1의 "SOPS 시크릿 참조 1종"은 bash 도구의 env 주입(실행마다 승인)으로 검증한다 [결정: review.decisions-2 U-19] |
 | M2 | 백그라운드 실행 `startBackground`(EX-20), 포크 정리 단계 Logger(P16, open-issues N-10), spill 위치를 상태 디렉터리로(EX-22, P19) | [제안: `L0.exec.spec` §1 범위 표], [제안: m2-plan PLT.3] |
 | M2 이후 | Windows provider 보강과 Windows CI, Docker 어댑터, git worktree 격리(2차), SSH(보류) | [제안: `L0.exec.spec` §1 범위 표] |
 
@@ -117,7 +117,7 @@ export function fakeExec(
 | EX-10 | Bun 동작 스파이크(시험 1개): `process-group.int.test.ts`가 Bun 1.4.3에서 `spawn(detached: true)` + `process.kill(-pid, "SIGKILL")`로 손자 프로세스까지 끝나는지 확인. 실패하면 위험 표 R-1 대응으로 전환 | EX-06 | S |
 | EX-11 | 포크 기록 검사: `fork-records.test.ts`가 `PATCHES.md` 표의 id, `UPSTREAM.json` `modifications`, 소스의 `FRESNEL-PATCH:` 표지 id 집합이 같은지 확인 | EX-03~EX-08 | S |
 | EX-12 | env 빌더: `env-builder.ts`(`BASE_ENV_POLICY`, `buildChildEnv`), provider의 `envAllowlistExtra` 연결, 연결 코드가 포크 `exec`에 항상 `inheritEnv: false`를 넘기도록 | EX-06 | M |
-| EX-13 | secrets 주입 지점: `secret-env.ts`. `fresnel.secrets` 주입(없으면 `secret_unavailable`), `withEnv`로 lease 획득·`finally` 폐기, `SecretEnvRequest.ctx`에 `mode`·`target` 채우기, 오류 메시지에 참조 이름만 | EX-12, `L0.secrets.plan` SC-22(`withEnv`) | M |
+| EX-13 | secrets 주입 위치: `secret-env.ts`. `fresnel.secrets` 주입(없으면 `secret_unavailable`), `withEnv`로 lease 획득·`finally` 폐기, `SecretEnvRequest.ctx`에 `mode`·`target` 채우기, 오류 메시지에 참조 이름만 | EX-12, `L0.secrets.plan` SC-22(`withEnv`) | M |
 | EX-14 | 서비스 조립: `service.ts`(`createExecService`, `withCwd`, 기본 timeout·spill 적용, dispose 시 `cleanup`). ext-host API로 `ExecServiceName` 등록. `settings.ts`의 `defineSettings("l0.exec", …)` 4키 | EX-12, `X.primitives.plan` 등록 API | M |
 | EX-15 | sandbox 데코레이터 접점 시험: 가짜 데코레이터가 문자열 명령을 argv로 바꾸고 `env`를 더해 감싼 `Shell`로 `exec`해도 `secretEnv`·`window`·`spill`·`onOutput`이 전달되고 `ShellExecResult.sandbox`가 보존되는지(`service.int.test.ts`). 실제 `platform-sandbox`는 import하지 않는다 | EX-14 | S |
 | EX-16 | `fakeExec`·`memoryFs`와 `testing` 서브패스: `src/testing/index.ts`, `package.json` exports `"./testing"`. `fakeExec`를 같은 적합성 스위트의 exec 무관 사례로 시험하지 않고 자체 단위 시험만 둔다 | EX-14 | M |

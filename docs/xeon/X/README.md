@@ -14,7 +14,7 @@ binds: [xeon/packages/ext-host/**]
 
 X는 F 다음 순위(1)의 확장 체계 층이다. L1~L3의 플러그인과 플러그인 그룹이 루프에 붙는 장치를 맡는다(`architecture.layers.spec` §4.1, §4.4 X 항목).
 
-- 네 연산의 실행: on(fold `tap`/`first`/`chain`), post, drive(배타 임대), scope. [결정] 훅은 이 네 연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007).
+- 네 연산의 실행: on(fold `tap`/`first`/`chain`), post, drive(배타 drive 락), scope. [결정] 훅은 이 네 연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007).
 - 확장의 탐색·검증·로딩과 신뢰 판정, 선택적 프로세스 격리(2차), SDK 가상 모듈과 기본 플러그인 설치.
 - 운영 규칙: 실행 순서 tier, 핸들러 시간 예산, 실패 격리와 자동 끄기, 확장 전용 저장 영역, 이름 충돌, 안전 모드, 외부 훅.
 - [결정] DI는 Cordis 하나이고 `ext-host` 뒤에 숨긴다. Cordis를 import하는 패키지는 `ext-host` 하나다(adr.0002, `eng.dependency-rules.guide` DR-11). 다른 층은 `@fresnel/ext-host`의 공개 API와 F 타입만 본다.
@@ -24,9 +24,9 @@ X가 정하지 않는 것:
 | 대상 | 정하는 곳 |
 |---|---|
 | 훅 이름 46개, fold 배정, 페이로드·결정·패치 타입, `FIRST_DENY`, `CHAIN_RULES`, 매니페스트 스키마 | `F.extensions.spec` |
-| 지점을 실제로 발화하는 코드, boundary 최종 검증 | `L1.loop.spec`, `L1.tools.spec`, `L1.context.spec`, `L1.models.spec`, `L1.persistence.spec` |
-| 그룹 내부 설계(Helm의 탐구 흐름, 학습 그룹의 제안 대기열), 임대 정책의 그룹 측 판단 | `L3.group-sdk.spec`, `L3.helm.spec`, `L3.learning.spec` |
-| 세션 커밋 경로와 투영기 실행, 테이블 DDL 실행 | `L1.persistence.spec`, `L0.store.spec` |
+| 훅을 실제로 발화하는 코드, boundary 최종 검증 | `L1.loop.spec`, `L1.tools.spec`, `L1.context.spec`, `L1.models.spec`, `L1.persistence.spec` |
+| 그룹 내부 설계(Helm의 탐구 흐름, 학습 그룹의 제안 대기열), drive 락 정책의 그룹 측 판단 | `L3.group-sdk.spec`, `L3.helm.spec`, `L3.learning.spec` |
+| 대화 커밋 경로와 투영기 실행, 테이블 DDL 실행 | `L1.persistence.spec`, `L0.store.spec` |
 
 ## 2. 도메인
 
@@ -35,7 +35,7 @@ X가 정하지 않는 것:
 | 도메인 | 계획 v2 | 한 줄 책임 | 소유 설정 키 | 문서 | 1차 / 2차 |
 |---|---|---|---|---|---|
 | loading-trust | X-a 로딩과 신뢰 | 탐색, 로드 순서, 매니페스트 검증 흐름(로드 파이프라인), 신뢰 등급과 프로젝트 신뢰, 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치 | `ext.<name>.enabled`, `ext.<name>.isolation`, `x.loading-trust.*` | `X.loading-trust.spec`, `X.loading-trust.plan` | 1차: 로딩, 정적 검증, 프로젝트 신뢰. 2차: 프로세스 격리. M3a: 외부 확장 로더, 안전 모드, SDK 가상 모듈, 기본 플러그인 설치 |
-| primitives | X-b 원시 연산 네 개 | 4연산 실행, 디스패처, post 큐, drive 임대 중재, scope 토글·상태, 리소스 등록, `@fresnel/ext-host` 공개 API, `DispatchPolicy`·`ResourcePolicy` 인터페이스 | `x.primitives.*`(`driveLimits`, `activeDriver`, `capabilityProviders`) | `X.primitives.spec`, `X.primitives.plan` | 1차 전부 |
+| primitives | X-b 원시 연산 네 개 | 4연산 실행, 디스패처, post 큐, drive 락 중재, Registration 토글·상태, 리소스 등록, `@fresnel/ext-host` 공개 API, `DispatchPolicy`·`ResourcePolicy` 인터페이스 | `x.primitives.*`(`driveLimits`, `activeDriver`, `capabilityProviders`) | `X.primitives.spec`, `X.primitives.plan` | 1차 전부 |
 | operations | X-c 운영 규칙 | tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(`ExtStorage`), 이름 충돌, 안전 모드, 외부 훅 프로토콜. `DispatchPolicy`·`ResourcePolicy` 구현 | `x.operations.*` | `X.operations.spec`, `X.operations.plan` | 1차: tier, 예산·실패 격리, 저장 영역. 2차: 이름 충돌, 안전 모드, 외부 훅 |
 
 - [제안] 소유 경계 조정: `F.extensions.spec` §1·§4.2는 tier와 핸들러 시간 예산을 primitives 몫으로 적었다. X 세 문서는 계획 v2 X-c와 `eng.transactions.design` §8을 근거로 operations 소유로 둔다. primitives는 `DispatchPolicy` 주입 구멍만 정의한다. F 문구 수정 요청은 §8 미결 1이다.
@@ -75,7 +75,7 @@ X가 정하지 않는 것:
 - extId 형식: [결정: review.decisions-2 U-18] `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두 `x_<하이픈을 밑줄로>_`. F.extensions.spec `EXTENSION_NAME_PATTERN`, `eng.domain-types.guide` DT-08, `eng.context-map.design` §5.2·CM-07, `eng.events.design` §4.5, `L0.store.spec`, adr.0004 §3.3이 모두 이 정규식과 `x_` 접두로 고쳐졌다(해소).
 - 확장 kind 접두: F 접두 규칙(`x.`/`grp.`)이다. eng 문서의 옛 밑줄 접두와 옛 코어 kind(`scope.toggled`, `drive.leased`/`drive.released`)는 F 이름(`scope.changed`, `lease.*`)으로 고쳐졌다([결정: review.decisions-2 T-21]).
 - 서비스 이름: `architecture.layers.spec` §4.4는 X 서비스를 `ext`로, L0 프로세스를 `os.process`로 적었다. `eng.context-map.design` §5.3의 `fresnel.ext`, `fresnel.process`를 따른다.
-- 세션 열 이름: eng 문서는 `session_id`, X는 F 용어를 따라 `thread_id`를 쓴다.
+- 대화 열 이름: eng 문서는 `session_id`, X는 F 용어를 따라 `thread_id`를 쓴다.
 
 ## 5. 소비 지도
 
@@ -86,13 +86,13 @@ X가 정하지 않는 것:
 | L2 `cap-*` | 기능 공급자 등록(`hostOf(g).provide`), 리소스 등록(도구, MCP 서버), on 핸들러 | `X.primitives.spec` §3.7~§3.9 |
 | L3 `group-sdk`, `group-helm`, `group-learning` | scope(상태 문서, `commit`, `record`/`readRecords`), on, post, drive(Helm만, 학습 그룹은 쓰지 않음), `storageOf(g)`의 확장 전용 테이블 | `X.primitives.spec` §4.4~§4.7, `X.operations.spec` §3.4 |
 | L4 `apps/host` | 조립: `createOperationsPolicy` → `createExtHost`(`policy`, `setupBudgetMs`, `resourcePolicy`) → `registerPlatform`(L0) → `createExtensionLoader({ host, policy, … })` → `loadAll`. 로더는 Cordis 서비스가 아니고 조립 루트가 직접 쥔다. `OperationsDeps.ports`·`RegistrationControl` 늦은 연결, `x.*` 설정 그룹과 `LoadReport.settingGroups`의 `buildCatalog`, `StartupHealthStore`, 설정 소스 연결 | `X.primitives.spec` §3.2, `X.loading-trust.spec` §3.5, `X.operations.spec` §3.8 |
-| L4 `apps/cli`, `apps/desktop`, 설정 화면 | 활성화 토글(`ext.<name>.enabled`), 신뢰 대화상자(`TrustPrompter`), 안전 모드(`--safe-mode`, `--disable-ext`, 설정 항목), drive 임대 상한·구동 그룹 화면(`x.primitives.*`), 확장 목록·진단·자동 끄기 상태 | `X.loading-trust.spec` §6, `X.primitives.spec` §6, `X.operations.spec` §4.6.5, §6 |
+| L4 `apps/cli`, `apps/desktop`, 설정 화면 | 활성화 토글(`ext.<name>.enabled`), 신뢰 대화상자(`TrustPrompter`), 안전 모드(`--safe-mode`, `--disable-ext`, 설정 항목), drive 락 상한·주도 플러그인 화면(`x.primitives.*`), 확장 목록·진단·자동 끄기 상태 | `X.loading-trust.spec` §6, `X.primitives.spec` §6, `X.operations.spec` §4.6.5, §6 |
 
 ## 6. 층 경계
 
 - [결정] 순위는 F(0) → X(1) → L0(2) → L1(3) → L2(4) → L3(5) → L4(6)이다(`_research/foundation-plan.md` §3). X는 F만 import한다.
 - [결정: review.decisions-2 U-14] X는 순위 1(L0 아래)을 유지한다. 조건은 `architecture.layers.spec` §4.3.3 결론의 세 가지다. (1) X 소스와 테스트에서 L0·L1 import가 0건이다. (2) X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다(F.extensions.spec §3.2.1 `ports.ts`, F.records.spec §3.9, `@fresnel/contracts/services`, [결정: review.decisions-2 D-04]). (3) L0는 `ExtHost.registerPlatform`으로 등록한다.
-- L0·L1 기능은 Cordis 서비스 주입으로 받는다(`architecture.layers.spec` §4.3.3). 대상은 세션 커밋과 투영기 등록(`fresnel.session`), 접두 테이블 읽기(`fresnel.store`의 `scoped`), 프로세스 실행(`fresnel.process`: 격리 확장, 외부 훅), 루프 구동(`fresnel.loop`)이다. 포트와 키의 정의는 `F.extensions.spec` §3.2.1 `ports.ts`에 있고, X가 다시 export하는 목록과 사용 규칙은 `X.primitives.spec` §3.6에 있다. 탐색과 신뢰 판정용 파일 접근은 F 로더 포트(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`)로 받는다. 구현은 L0.os가 하고 조립 루트가 `LoaderDeps`로 주입하며, 없으면 시작 실패다(`X.loading-trust.spec` §3.2, §3.5, §4.3.2).
+- L0·L1 기능은 Cordis 서비스 주입으로 받는다(`architecture.layers.spec` §4.3.3). 대상은 대화 커밋과 투영기 등록(`fresnel.session`), 접두 테이블 읽기(`fresnel.store`의 `scoped`), 프로세스 실행(`fresnel.process`: 격리 확장, 외부 훅), 루프 구동(`fresnel.loop`)이다. 포트와 키의 정의는 `F.extensions.spec` §3.2.1 `ports.ts`에 있고, X가 다시 export하는 목록과 사용 규칙은 `X.primitives.spec` §3.6에 있다. 탐색과 신뢰 판정용 파일 접근은 F 로더 포트(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`)로 받는다. 구현은 L0.os가 하고 조립 루트가 `LoaderDeps`로 주입하며, 없으면 시작 실패다(`X.loading-trust.spec` §3.2, §3.5, §4.3.2).
 - 시작 순서 요약:
   1. 조립 루트가 operations 정책과 `ExtHost`를 만들고 L0 플랫폼 패키지를 `ExtHost.registerPlatform`으로 등록한다.
   2. 로더가 쓰는 주입 서비스(파일, 경로, 신뢰 저장소)가 있는지 확인한다. 없으면 시작 실패다.
@@ -109,13 +109,13 @@ X가 정하지 않는 것:
 
 | 결정 | 근거 |
 |---|---|
-| [결정] 훅은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다. fold별 실패 규칙은 세 줄이다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3 |
-| [결정] drive 임대는 한 번에 그룹 하나다. Helm과 학습 그룹은 L3 기본 그룹이고 학습 그룹은 drive를 쓰지 않는다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3.6 |
-| [결정] 예산은 pi 방식이다. 기본 단계·비용 상한은 두지 않고 상한은 drive 임대에만 건다. 핸들러 시간 예산은 이것과 다른 대상이다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3.5 |
+| [결정] 훅은 on(fold tap/first/chain), post, drive(배타 drive 락), scope 4연산이다. fold별 실패 규칙은 세 줄이다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3 |
+| [결정] drive 락은 한 번에 그룹 하나다. Helm과 학습 그룹은 L3 기본 그룹이고 학습 그룹은 drive를 쓰지 않는다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3.6 |
+| [결정] 예산은 pi 방식이다. 기본 단계·비용 상한은 두지 않고 상한은 drive 락에만 건다. 핸들러 시간 예산은 이것과 다른 대상이다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3.5 |
 | [결정] 확장 프로세스 격리는 기본값이 꺼짐인 2차 선택 기능이다 | `_research/decisions-log.md` 2026-10-21 결정(2차) |
-| [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블이다. outbox는 격리 확장에만 쓴다 | `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0004 §3.1·§3.3 |
+| [결정] 대화 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블이다. outbox는 격리 확장에만 쓴다 | `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0004 §3.1·§3.3 |
 | [결정] DI는 Cordis 하나이고 vendored로 고정해 ext-host 뒤에 숨긴다 | `_research/decisions-log.md` 2026-10-21 결정(3차), adr.0002, `_research/foundation-plan.md` §2·§7 |
-| [결정] 엔진은 라이브러리이고 호스트 계약 하나에 전송만 바꾼다. 서비스 모드는 1차 | adr.0006, `_research/foundation-plan.md` §1 2번 |
+| [결정] 엔진은 라이브러리이고 Runtime API 하나에 전송만 바꾼다. 서비스 모드는 1차 | adr.0006, `_research/foundation-plan.md` §1 2번 |
 | [결정] M0 범위에 `ext-host`(on/post/drive/scope 최소형)가 들어가고, M1에서 테스트용 그룹이 on/post/drive를 쓴다 | `_research/foundation-plan.md` §5 P4 |
 
 ## 8. 미결 사항
@@ -126,9 +126,9 @@ X가 정하지 않는 것:
 2. [미결] `post.when = next`의 의미. 조사(`_research/notes/X-1.md`)는 pi `nextTurn`이 요청을 시작하지 않음을 확인했다. [제안] 시작하지 않는다. 유휴 시작 값 `start` 추가 여부도 함께 정한다(`X.primitives.spec` §4.7, adr.0007 §6).
 3. [미결] fold 3종의 충분성. boundary의 "엔트리 추가 + 계속"을 chain 교체 + `finalize`로 표현할지, 4번째 fold를 둘지(`F.extensions.spec` §4.1, adr.0007 §6).
 4. [미결] first fail-closed의 예외. pi는 `session_before_*`와 `thread.trust.before`에서 fail-open이다. 이 결정은 operations의 예산 초과 처리와 외부 훅 종료 코드 표의 first 열에도 걸린다(`F.extensions.spec` §10, `X.operations.spec` §10 미결 15).
-5. [미결] 비협조적 확장 코드의 한계. 같은 프로세스에서는 시간 예산과 임대 회수가 코드 실행을 멈추지 못한다. 자동 끄기와 격리(2차)로 보완하는 범위를 받아들일지, 그룹별 격리를 1차로 올릴지(adr.0007 §6, `X.operations.spec` §5 1번).
+5. [미결] 비협조적 확장 코드의 한계. 같은 프로세스에서는 시간 예산과 drive 락 회수가 코드 실행을 멈추지 못한다. 자동 끄기와 격리(2차)로 보완하는 범위를 받아들일지, 그룹별 격리를 1차로 올릴지(adr.0007 §6, `X.operations.spec` §5 1번).
 6. [미결] 그룹 간 이벤트 격리. Cordis 일반 `emit`의 전역 전달을 그룹 접두 필터로 막을지(`X.primitives.spec` §4.9, adr.0007 §6).
-7. [결정: review.decisions-2 U-06] `tool.call.before` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 chain 훅을 따로 더한다. pi 호환은 두지 않는다(adr.0017 §3.7).
+7. [결정: review.decisions-2 U-06] `tool.call.before` 훅에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 chain 훅을 따로 더한다. pi 호환은 두지 않는다(adr.0017 §3.7).
 8. [미결] 훅 이름 표기. pi snake_case 정본과 조사 자료의 점 표기 별칭 허용 여부(`F.extensions.spec` §4.10).
 9. [미결] `ResourcePolicy`의 리소스 집합 판정 메서드(`X.operations.spec` §10 미결 17). `DispatchPolicy`의 성공 보고(`onHandlerSettled`)와 예산 실행 위임(`run`, 사용자 응답 대기 제외)은 `X.primitives.spec` §3.4에 선택 메서드로 넣어 해소했다 [제안]. 마일스톤은 두 plan 모두 M0다(P-06, P-20, O-03, O-06).
 10. (해소) [결정: review.decisions-2 U-14, D-04] 포트 타입의 정본은 F다(§6 조건 2). 호스트 포트, 리소스 등록 포트, 로더 포트와 키는 `F.extensions.spec` §3.2.1 `ports.ts`에, `RecordCommitPort`는 `F.records.spec` §3.9에 있다. X 세 도메인은 F 이름을 다시 export만 하고(`X.primitives.spec` §3.6·§3.9, `X.loading-trust.spec` §3.2·§3.7·§3.8, `X.operations.spec` §3.7), ext-host 고유 키는 `ExtHostPortKey`뿐이다.

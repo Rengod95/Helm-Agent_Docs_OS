@@ -10,7 +10,7 @@ binds: [xeon/packages/client/src/settings/**]
 
 # L4 설정 화면 (settings-ui)
 
-이 문서는 데스크톱 앱의 설정 화면을 정한다. 설정 화면은 F5 설정 스키마(`SettingDefWire`, `EffectiveSetting`)를 호스트 계약으로 받아 탭과 항목을 만들고, 값 쓰기를 `settings.set`·`settings.reset`으로 보낸다.
+이 문서는 데스크톱 앱의 설정 화면을 정한다. 설정 화면은 F5 설정 스키마(`SettingDefWire`, `EffectiveSetting`)를 Runtime API로 받아 탭과 항목을 만들고, 값 쓰기를 `settings.set`·`settings.reset`으로 보낸다.
 
 - [결정] 모든 설정은 F5 설정 스키마 하나에서 L4 화면, 설정 파일, 명령을 함께 만든다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6, `F.wire-settings.spec` §4.9).
 - [결정] 추론 예산, 라우팅, 레이트 리밋, 계정 회전은 L4 클라이언트 설정 화면에서 조작할 수 있어야 한다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 마일스톤은 M3다(`product.scope.spec` I14). 레이트 리밋·계정 회전 설정을 2차로 미루지 않고 M3 화면에 넣는다 [결정: review.decisions-2 U-21].
@@ -183,7 +183,7 @@ export type BadgeScope = SettingScope | "default";
 
 export interface ScopeBadge {
   readonly scope: BadgeScope;
-  readonly text: string;            // "관리", "사용자", "프로젝트", "로컬", "세션", "기본값"
+  readonly text: string;            // "관리", "사용자", "프로젝트", "로컬", "대화", "기본값"
   readonly tone: BadgeScope;        // 렌더러가 색 토큰으로 바꾼다(§4.3.1)
 }
 
@@ -554,7 +554,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `providers` | 계정과 제공자 | L1-c `l1.models.*` 중 제공자 연결, `l1.models.accounts`(계정 풀, 우선순위, 예약 %, 계정 회전, M3), 확장 제공자 `ext.<id>.*` 중 키 참조 | 목록·표 편집기, 키는 `secret` 위젯(참조만) | 있음(자리만, §4.7) |
 | `secrets` | 시크릿 | L0-c `l0.secrets.*` 중 `ui.tab: "secrets"`인 키(제공자 기본값 등) + 시크릿 관리 패널(§4.6) | 폼 + `SecretsTab` 전용 패널 | 없음 |
 | `permissions` | 권한과 샌드박스 | L1-d 승인·권한 규칙(소유 문서 `L1.tools.spec`, `l1.tools.*`), L0-c `l0.secrets.approval.*`(시크릿 승인 기본 정책, 쓰기 허용 호스트), L0-b `l0.sandbox.*`(켜기·끄기, 쓰기 경로, 허용 도메인, 프록시) | 규칙 편집기, 목록 편집기(M3) | 없음 |
-| `sessions` | 세션과 컨텍스트 | L1-e `l1.context.*`(자동 컴팩션, 임계), L1-f `l1.persistence.*`(보관 기간, 내보내기, 자동 재개), L2-d `l2.knowledge.*`(메모리) | 토글과 폼. 삭제성 동작은 확인 단계 | 없음 |
+| `sessions` | 대화와 컨텍스트 | L1-e `l1.context.*`(자동 컴팩션, 임계), L1-f `l1.persistence.*`(보관 기간, 내보내기, 자동 재개), L2-d `l2.knowledge.*`(메모리) | 토글과 폼. 삭제성 동작은 확인 단계 | 없음 |
 | `tools` | 도구와 웹 | L2 `l2.mcp.*`, `l2.web.*`, `l2.workspace.*`, `l2.knowledge.*`(스킬), `l2.dialog.*` 중 질문·명령·첨부 키, 그 밖의 `l2.*` | 목록 토글, 선택 | 없음 |
 | `plugins` | 플러그인과 그룹 | X `x.loading-trust.*`(신뢰, 격리), `x.operations.*`(핸들러 시한, 자동 끄기, 안전 모드), `x.primitives.driveDefaultLimits`(drive 기본 상한, review.decisions-2 U-12), `x.primitives.driveLimits`(천장), `x.primitives.activeDriver`(주도 플러그인 선택, review.decisions-2 S-15), `x.primitives.driveRequiresGroup`(drive는 플러그인 그룹만, 기본 켜짐), `x.primitives.capabilityProviders`, 그룹 켜기 키 `ext.<id>.enabled`, L3 `l3.group-sdk.*`, `l3.helm.*`, `l3.learning.*`, 확장 `ext.<id>.*`(userConfig에서 온 키는 `plugins` 고정, `F.wire-settings.spec` §3.8.3) | 목록 토글과 그룹별 묶음 | 없음 |
 | `execution` | 실행과 서비스 | L1-a `l1.tasks.*`(동시 상한, 큐 기본 모드), L0-d `l0.process.*`, L2 `l2.dialog.notify.*`(알림 켜기와 종류. L0.os는 전달 수단만 소유한다, review.decisions-2 S-04), `l0.exec.*`(셸), `l2.schedule.*`, `l4.host-service.*`(재전송·구독 한도). 공유 서비스 모드 토글은 `l0.process.service.enabled`이고 L0-d 행에 포함된다, `l4.desktop.engine.restartLimit`(desktop 원천) | 토글과 폼 | 없음 |
@@ -578,7 +578,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `providers` | 3. 계정과 제공자 | 계정과 provider | 사용량 게이지 자리 |
 | `secrets` | 없음(3번 안의 "키는 등록 전용") | 시크릿 | 8탭안에서 가져옴 |
 | `permissions` | 4. 권한 + 5. 샌드박스와 네트워크 | 권한과 샌드박스 | 8탭안 묶음을 따름 |
-| `sessions` | 6. 세션과 컨텍스트 | 세션과 컨텍스트 | |
+| `sessions` | 6. 대화와 컨텍스트 | 대화와 컨텍스트 | |
 | `tools` | 7. 도구와 확장 | 도구와 웹 | 라벨은 8탭안의 것 |
 | `plugins` | 8. 플러그인과 신뢰 + 11. 그룹 | 플러그인과 그룹 | 8탭안 묶음을 따름 |
 | `execution` | 10. 실행과 알림 | 실행과 서비스 | 라벨은 8탭안의 것 |
@@ -670,7 +670,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 표시 | F 필드 | 규칙 |
 |---|---|---|
 | 범위 배지 | `EffectiveSetting.source.scope` | §4.3.1 |
-| 세션 중 변경 | `EffectiveSetting.runtimeChange`, `pendingUntil` | §4.3.2 |
+| 대화 중 변경 | `EffectiveSetting.runtimeChange`, `pendingUntil` | §4.3.2 |
 | 관리 잠금 | `EffectiveSetting.locked`, `source.path` | §4.3.3 |
 | 가려진 값 | `EffectiveSetting.shadowed` | §4.3.4 |
 | 저장 파일 경로 | `EffectiveSetting.source.path` | §4.3.5 |
@@ -688,7 +688,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `user` | 사용자 | `--badge-user`(파랑 계열) | 없음 |
 | `project` | 프로젝트 | `--badge-project`(초록 계열) | 없음 |
 | `local` | 로컬 | `--badge-local`(보라 계열) | 없음 |
-| `session` | 세션 | `--badge-session`(주황 계열) | 없음 |
+| `session` | 대화 | `--badge-session`(주황 계열) | 없음 |
 | `default` | 기본값 | `--badge-default`(회색) | 없음 |
 
 - 색 값은 desktop 테마가 정한다. 배지 글자와 배경의 대비는 4.5:1 이상이다.
@@ -701,7 +701,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `nextTurn` | 다음 턴부터 | "다음 턴부터 적용돼요" |
 | `restart` | 재시작 필요 | "재시작해야 적용돼요". 화면 위 재시작 띠에 개수를 더한다(§4.4.5) |
 
-- 세션 중 변경 가능 여부는 `runtimeChange`와 `allowedScopes`에 `session`이 있는지로 보인다(`F.wire-settings.spec` §4.9 둘째 항목).
+- 대화 중 변경 가능 여부는 `runtimeChange`와 `allowedScopes`에 `session`이 있는지로 보인다(`F.wire-settings.spec` §4.9 둘째 항목).
 
 #### 4.3.3 잠금
 
@@ -827,7 +827,7 @@ sequenceDiagram
 
 #### 4.5.2 범위의 빈틈
 
-- `settings.changed`는 세션 동작에 영향을 주는 변경만 기록하는 thread 내구 이벤트다(`F.records.spec` §3.3 표 "세션 범위 설정 변경", 같은 절 [제안]). `EventWire.threadId`는 null이 될 수 없다. 그래서 CLI가 `fresnel config set`으로 user·project 파일을 바꾸거나 사용자가 파일을 직접 고친 변경은 이 이벤트로 오지 않을 수 있다.
+- `settings.changed`는 대화 동작에 영향을 주는 변경만 기록하는 thread 내구 이벤트다(`F.records.spec` §3.3 표 "대화 범위 설정 변경", 같은 절 [제안]). `EventWire.threadId`는 null이 될 수 없다. 그래서 CLI가 `fresnel config set`으로 user·project 파일을 바꾸거나 사용자가 파일을 직접 고친 변경은 이 이벤트로 오지 않을 수 있다.
 - [제안] F 변경 요청: 서버 알림 `settings.invalidated`(params `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId | null }`, 값 없음)를 `ServerNotificationMap`에 더한다. 호스트는 모든 범위의 쓰기와 파일 감시 결과에 이 알림을 보낸다. 값이 없으므로 시크릿이 실릴 수 없다(§10 미결 1).
 - 알림이 생기기 전 [제안]: 설정 화면이 다시 보일 때(창 포커스, 탭 전환) 전체 `settings.get`을 한 번 부른다. 이 동작은 알림이 생긴 뒤에도 남겨 둔다.
 - 어긋남이 있으면 `L4.host-service.spec`의 정의를 따른다(`L4.readme` §8 어긋남 표 머리말).
@@ -873,10 +873,10 @@ sequenceDiagram
 | 메타 편집 | 설명, 범위, 만료, 호스트. 값 교체는 별도 "회전" 동작 | 없음 |
 | 사용 이력 | 감사 로그(`secret.used`, `secret.denied`, `secret.approved`) 목록, 도구·호스트·결정 필터 | 없음 |
 | 정책 편집 | 허용 도구, 호스트, 모드, 승인. 기본은 거부 | 없음 |
-| 삭제 | 참조하는 정책과 세션, 그리고 이 화면이 아는 설정 키 참조(§4.6.1 3번 목록)를 보인 뒤 확인. 사용 중이면 거부 | 없음 |
+| 삭제 | 참조하는 정책과 대화, 그리고 이 화면이 아는 설정 키 참조(§4.6.1 3번 목록)를 보인 뒤 확인. 사용 중이면 거부 | 없음 |
 
 - 값 보기 view-model [결정: M3-REQ-17, M3b B3-SET]: `@fresnel/client/settings`의 `createSecretReveal({ port, scheduler, visibleMs? })`가 상태를 `hidden` → `reauth` → `revealed` | `failed`로 옮긴다. `reveal(name)`은 셸 포트 `SecretRevealPort.reveal(name)`을 부르고(재인증은 포트가 한다), 성공이면 `revealed`, 실패면 `failed`에 이유(`reauth_denied`, `reauth_expired`, `unavailable`, `not_started`, `not_found`, `failed`)만 싣는다. 값은 `revealed` 상태의 `RevealedValue` 안에만 있고(`read()`는 사본, `toJSON()`은 가려진 표시) 숨기기·시한(`REVEAL_VISIBLE_MS`, 기본 30초)·다른 이름 열기·실패 때 0으로 덮어 지운다. 재인증이 진행 중이면 두 번째 `reveal`은 무시한다. 포트가 던지면 값 없이 `failed`다. wire만 쓰는 연결의 어댑터 `revealViaWire`는 `secret.beginReveal`을 불러 호스트가 값을 자기 창에 보이게 하고(`started: true`), 이 view-model은 `revealed`에 값 없음(`value: null`)을 둔다. `started: false`는 `not_started`다(재인증 미완료와 열람 수단 없음을 wire가 가르지 않는다). 시험은 X8이다(`test/settings/x8.test.ts`).
-- 설정 키 참조 목록은 화면이 이미 가진 `EffectiveSetting`에서 계산한다(값이 `secret://<이름>`인 키). 정책·세션 참조는 L0.secrets가 돌려줘야 한다.
+- 설정 키 참조 목록은 화면이 이미 가진 `EffectiveSetting`에서 계산한다(값이 `secret://<이름>`인 키). 정책·대화 참조는 L0.secrets가 돌려줘야 한다.
 
 #### 4.6.4 값 입력과 열람 경로 비교
 
@@ -970,19 +970,19 @@ sequenceDiagram
 
 | 상태 | note |
 |---|---|
-| 쓸 수 있음 | 사용할 수 있다 |
-| `no-key`, `plugin:web-exa` | 키가 없다 — 해결: fresnel secret add exa-api-key |
-| `no-key`, `plugin:web-brave` | 키가 없다 — 해결: fresnel secret add brave-api-key |
-| `no-key`, 그 밖의 provider | 키가 없다 — 해결: 키 플러그인 설정에서 키를 등록한다 |
-| `unreachable` | 응답이 없다 |
-| `json-disabled` | JSON 응답이 꺼져 있다 |
-| `org-disabled` | 조직 설정에서 막혀 있다 |
-| `unsupported-model` | 현재 모델에서 쓸 수 없다 |
+| 쓸 수 있음 | 사용할 수 있어요 |
+| `no-key`, `plugin:web-exa` | 키가 없어요 — 해결: fresnel secret add exa-api-key |
+| `no-key`, `plugin:web-brave` | 키가 없어요 — 해결: fresnel secret add brave-api-key |
+| `no-key`, 그 밖의 provider | 키가 없어요 — 해결: 키 플러그인 설정에서 키를 등록해 주세요 |
+| `unreachable` | 응답이 없어요 |
+| `json-disabled` | JSON 응답이 꺼져 있어요 |
+| `org-disabled` | 조직 설정에서 막혀 있어요 |
+| `unsupported-model` | 현재 모델에서는 쓸 수 없어요 |
 | 그 밖의 사유 | 사유 코드 그대로 |
 
 - [제안] 세 사유(`json-disabled`, `org-disabled`, `unsupported-model`)의 한국어 문구는 이 문서가 정한다. wire에는 문구가 없다. 소스에서는 `client.web.note.*` 메시지 id로 두고, 같은 id의 영어 문구를 `packages/client`의 en 카탈로그에 함께 둔다(ADR-0016).
 - 추천 키 플러그인(`recommendations`): [결정: ADR-0005 §3.1 ④, review.m3-design-inputs D-M3-23] Exa(`plugin:web-exa`, 시크릿 이름 `exa-api-key`)와 Brave(`plugin:web-brave`, `brave-api-key`) 둘이다. Parallel과 Jina는 넣지 않는다. 상태는 다음과 같다.
-  - 행이 없으면 `not-installed`이고 hint는 "플러그인을 설치한다"다.
+  - 행이 없으면 `not-installed`이고 hint는 "플러그인을 설치해 주세요"다.
   - `no-key`면 `needs-key`이고 hint는 `fresnel secret add <시크릿 이름>`이다.
   - 쓸 수 있으면 `ready`이고 hint는 빈 문자열이다.
   - 그 밖의 사유면 `unavailable`이고 hint는 사유 코드다 [미결: §10 20].
@@ -1023,7 +1023,7 @@ sequenceDiagram
 
 ## 7. 훅
 
-- 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
+- 이 도메인은 on·post·drive·scope 훅을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
 - 확장(외부 플러그인 그룹 포함)의 설정은 `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그 → `settings.list` 경로로 들어오고, `ui.tab`이 `plugins`로 고정된다(`F.wire-settings.spec` §3.8.3 규칙 1). 설정 화면은 이 정의를 다른 정의와 같은 규칙으로 그린다.
 - L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정: review.decisions-2 K-04]. 범위는 X 정의(managed~session), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
 - 주도 플러그인 선택은 X 키 `x.primitives.activeDriver`(`select`, 후보는 drive를 등록한 Registration, 빈 값은 "자동") 하나다 [결정: review.decisions-2 S-15]. 같은 탭의 `x.primitives.driveRequiresGroup`(boolean, 기본 켜짐)은 "drive는 플러그인 그룹만" 토글이다. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. group-sdk은 별도 키를 두지 않는다(`L3.group-sdk.spec` §6).

@@ -232,7 +232,7 @@ M3 완료: spec §9 수용 기준 1~10 전부. 퍼지 규칙 표와 테스트 �
 - 설정 키는 `images.maxWidth`, `maxHeight`, `maxBytes`, `maxInputBytes` 넷을 선언했다(§6 표). 나머지(`grep.*`, `find.*`, `edit.fuzzy`)는 M3다.
 - 파일 배치: `src/ports/blobs.ts`(`BlobSink`), `src/ports/threads.ts`(`ThreadWorkspaces`), `src/scope.ts`(`scopedDeps`), `src/images/{service,prepare,decode}.ts`. 계획의 `images/blob.ts`는 포트 파일로 대신했다.
 - 대화별 작업 폴더: `createFilesApi`, `createShellApi`, `createImagesApi`가 호출마다 `scopedDeps(deps, context.threadId)`로 의존을 맞춘다. 플러그인은 `fresnel.session`의 `query.thread(threadId).workspace`와 `fresnel.exec`의 `withCwd`로 `ThreadWorkspaces`를 만든다. `fresnel.session`, `fresnel.store` 포트가 없으면 경고 로그를 남기고 각각 엔진 cwd와 `unavailable`로 동작한다.
-- 확인한 것: `images.test.ts`(최소형 규칙 전부와 `read` 이미지 분기), `thread-workspace.test.ts`(root, 상대 경로, 셸 cwd, 보호 경로, 작업 폴더 없음), `plugin.test.ts`(세션·저장소 포트 연결).
+- 확인한 것: `images.test.ts`(최소형 규칙 전부와 `read` 이미지 분기), `thread-workspace.test.ts`(root, 상대 경로, 셸 cwd, 보호 경로, 작업 폴더 없음), `plugin.test.ts`(대화·저장소 포트 연결).
 - 통합 단계에서 확인할 것: (1) HOST 조립이 `fresnel.session`과 `fresnel.store`를 이 플러그인보다 먼저 제공하는지(포트는 설치 때 한 번 읽는다), (2) `thread.create`가 `workspace`를 `thread.started` payload에 싣는지(L1B, open-issues M-06의 남은 부분), (3) 샌드박스 쓰기 root가 대화의 작업 폴더와 같은 값을 쓰는지(L1.tools의 허용 root API가 정해지기 전까지 이 패키지가 정한다).
 - `grep`·`find`는 M3이고, `rg` 경로는 `fresnel.os`의 `resolveBinary("rg")`가 준다. 이 패키지는 `@vscode/ripgrep`을 import하지 않는다.
 

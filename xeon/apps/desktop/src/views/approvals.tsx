@@ -1,3 +1,4 @@
+import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { EventId } from "@fresnel/contracts/conversation";
 import { memo, useState, type ReactNode } from "react";
@@ -21,12 +22,11 @@ import { useCommands } from "./commands.ts";
 // 도구 승인은 실행될 명령, 인자, 쓸 시크릿 참조을 보이고(M2 검토 M2: 승인이 시크릿 사용의 증거가 되므로 사용자가 내용을 알고 허용해야 한다),
 // 질문은 선택지를 그리고 `allowFreeText`를 따르며 서비스가 받는 모양의 답만 보낸다.
 
-const FAILURE_TEXT: Readonly<Record<Exclude<ApprovalSend, "sending">, string>> = {
-  failed: "보내지 못했습니다. 다시 눌러 보세요.",
-  invalid: "답이 올바르지 않아 적용되지 않았습니다. 선택을 확인한 뒤 다시 보내세요.",
-  closed: "다른 곳에서 이미 처리된 요청입니다. 곧 목록에서 사라집니다.",
-  unapplied:
-    "적용되지 않았습니다. 이미 처리됐다면 곧 사라집니다. 아니면 내용을 확인한 뒤 다시 보내세요.",
+const FAILURE_ID: Readonly<Record<Exclude<ApprovalSend, "sending">, MessageId>> = {
+  failed: "desktop.approvals.failure.failed",
+  invalid: "desktop.approvals.failure.invalid",
+  closed: "desktop.approvals.failure.closed",
+  unapplied: "desktop.approvals.failure.unapplied",
 };
 
 function ToolDetails(props: { readonly view: ToolApprovalView }): ReactNode {
@@ -34,22 +34,22 @@ function ToolDetails(props: { readonly view: ToolApprovalView }): ReactNode {
   return (
     <>
       <div className="dim">
-        도구 {view.toolName} · 위험도 {view.risk}
+        {t("desktop.approvals.tool.summary", { toolName: view.toolName, risk: view.risk })}
       </div>
       {view.command === null ? null : (
-        <pre className="code" aria-label="실행할 명령">
+        <pre className="code" aria-label={t("desktop.approvals.command.label")}>
           {view.command}
         </pre>
       )}
       {view.secrets.length === 0 ? null : (
         <div className="approval-secrets" role="note">
-          <div>이 호출이 사용할 시크릿</div>
+          <div>{t("desktop.approvals.secrets.title")}</div>
           <ul>
             {view.secrets.map((secret) => (
               <li key={secret.name}>
                 <code>{secret.name}</code>
                 {secret.handle === null ? (
-                  " (참조 형식이 올바르지 않음)"
+                  <> {t("desktop.approvals.secret.invalidHandle")}</>
                 ) : (
                   <>
                     {" "}
@@ -62,13 +62,13 @@ function ToolDetails(props: { readonly view: ToolApprovalView }): ReactNode {
         </div>
       )}
       {view.argsStored ? (
-        <div className="dim">인자가 커서 별도 저장소에 있습니다.</div>
+        <div className="dim">{t("desktop.approvals.args.storedElsewhere")}</div>
       ) : (
         <details>
-          <summary>인자</summary>
+          <summary>{t("desktop.approvals.args.label")}</summary>
           <pre className="code">
             {view.argsText}
-            {view.argsTruncated ? "\n…(이하 생략)" : ""}
+            {view.argsTruncated ? `\n${t("desktop.approvals.args.truncationNotice")}` : ""}
           </pre>
         </details>
       )}
@@ -105,7 +105,9 @@ function QuestionField(props: {
           />
           <span>
             {option.label}
-            {option.recommended === true ? <span className="dim"> (추천)</span> : null}
+            {option.recommended === true ? (
+              <span className="dim"> {t("desktop.approvals.option.recommended")}</span>
+            ) : null}
             {option.description === undefined ? null : (
               <span className="dim"> - {option.description}</span>
             )}
@@ -115,8 +117,10 @@ function QuestionField(props: {
       {question.allowFreeText ? (
         <input
           type="text"
-          aria-label={question.options.length === 0 ? question.text : "직접 입력"}
-          placeholder={question.options.length === 0 ? "" : "직접 입력"}
+          aria-label={
+            question.options.length === 0 ? question.text : t("cli.render.approval.how.freeText")
+          }
+          placeholder={question.options.length === 0 ? "" : t("cli.render.approval.how.freeText")}
           maxLength={QUESTION_TEXT_MAX}
           value={pick?.text ?? ""}
           onChange={(event) => {
@@ -148,7 +152,7 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
         detach(commands.respondApproval(props.id, { decision: "deny" }), rethrow);
       }}
     >
-      거부
+      {t("desktop.approvals.deny.button")}
     </button>
   );
   return (
@@ -157,7 +161,9 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
       {body.kind === "tool" ? <ToolDetails view={toolApprovalView(body.tool)} /> : null}
       {body.kind === "plan" ? (
         <pre className="code">
-          {typeof body.plan.plan === "string" ? body.plan.plan : "(계획 본문은 별도 저장)"}
+          {typeof body.plan.plan === "string"
+            ? body.plan.plan
+            : t("desktop.approvals.plan.storageNote")}
         </pre>
       ) : null}
       {body.kind === "question"
@@ -184,7 +190,7 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
                 detach(commands.respondApproval(props.id, { decision: "answer", answer }), rethrow);
               }}
             >
-              답하기
+              {t("desktop.approvals.answer.button")}
             </button>
             {deny}
           </>
@@ -201,15 +207,15 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
                 );
               }}
             >
-              허용
+              {t("desktop.approvals.allow.button")}
             </button>
             {deny}
           </>
         )}
-        {busy ? <span className="dim">보내는 중…</span> : null}
+        {busy ? <span className="dim">{t("desktop.approvals.sendingStatus")}</span> : null}
         {send === undefined || send === "sending" ? null : (
           <span className="error" role="alert" data-failure={send}>
-            {FAILURE_TEXT[send]}
+            {t(FAILURE_ID[send])}
             {detail === undefined ? null : ` (${detail})`}
           </span>
         )}
@@ -222,8 +228,8 @@ export function ApprovalQueue(): ReactNode {
   const ids = useApprovalIds();
   if (ids.length === 0) return null;
   return (
-    <section className="approvals" aria-label="승인 대기열">
-      <h2>승인 대기 {ids.length}</h2>
+    <section className="approvals" aria-label={t("desktop.approvals.queue.label")}>
+      <h2>{t("desktop.approvals.queue.title", { count: ids.length })}</h2>
       <ul>
         {ids.map((id) => (
           <ApprovalCard key={id} id={id} />

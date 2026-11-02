@@ -21,8 +21,8 @@ binds: [xeon/packages/core-context/**]
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | 코드 없음. 선행: contracts에 `L1.context.spec` §3.1 F 요청 타입(`ContextServiceName`, `ContextService`, `AssembleOptions`, `AssembledContext`)과 `L1.models.spec`의 `CachePolicy`, `ModelBinding`, `ContextUsageEstimate`가 있어야 한다 | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | 최소 조립: 고정 접두(기본 프롬프트 + 대화 메시지 + `orderTools` 정렬 도구 목록), 접두 system item 기록, `convertToLlm`, 지점 `context`. 오버플로우는 `recoverOverflow`가 `fail(disabled)`를 돌려주고 core-loop가 명확한 오류로 턴을 끝낸다 | `_research/foundation-plan.md` §5 P4 M1, `L1.context.spec` §4.7 6번 |
-| M2 | 컴팩션 포크(컷 포인트, 요약, 임계, 비파괴 엔트리), 오버플로우 복구, 캐시 표식, 도구 변경 `SystemMessage`, 절 갱신, 모델 전환 경고, 지점 나머지 5개(`request.cache.before`은 선언만), 떠난 가지 요약 초안, 설정 `l1.context.*` | 계획 v2 L1-e 1차 행 |
+| M1 | 최소 조립: 고정 접두(기본 프롬프트 + 대화 메시지 + `orderTools` 정렬 도구 목록), 접두 system item 기록, `convertToLlm`, 훅 `context`. 오버플로우는 `recoverOverflow`가 `fail(disabled)`를 돌려주고 core-loop가 명확한 오류로 턴을 끝낸다 | `_research/foundation-plan.md` §5 P4 M1, `L1.context.spec` §4.7 6번 |
+| M2 | 컴팩션 포크(컷 포인트, 요약, 임계, 비파괴 엔트리), 오버플로우 복구, 캐시 표식, 도구 변경 `SystemMessage`, 절 갱신, 모델 전환 경고, 훅 나머지 5개(`request.cache.before`은 선언만), 떠난 가지 요약 초안, 설정 `l1.context.*` | 계획 v2 L1-e 1차 행 |
 | M3 | 없음(M2 결과를 Helm·학습 그룹 테이프로 다듬기만 한다) | — |
 | 2차(M3 이후) | 도구 결과 선제 제거, 컴팩션 후 재주입, 추가 워크스페이스 루트, 캐시 워밍 | 계획 v2 L1-e 2차 행 |
 
@@ -122,7 +122,7 @@ xeon/packages/core-context/
 | `settings_defs_pass_checks` | `test/settings.test.ts` | unit | `l1.context.*` 정의가 `checkSettingDef`·`buildCatalog` 통과 | M2 |
 | `context_point_chain_replaces_messages` | `test/assemble.test.ts` | unit | `context`(chain) 핸들러가 낸 `messages`가 조립 결과를 바꾸고, 시스템 메시지는 핸들러에 넘어가지 않으며, 핸들러 예외면 그 패치만 버린다(C-9) | M1 |
 | `branch_summary_draft_not_committed` | `test/branch-summary.test.ts` | unit | `summarizeBranch`가 `BRANCH_SUMMARY_PROMPT`로 요약 초안(`BranchSummaryDraft`)을 돌려주고 커밋 0건이다. 요약 역할은 `summary`(C-7) | M2 |
-| `cache_warming_decision_declared_not_fired` | `test/compact-points.test.ts` | unit | 지점 `request.cache.before`이 선언 목록에 있고 M2 빌드에서는 발화 0회다. 실제 발화는 2차 캐시 워밍에서 시험한다(C-9) | M2 |
+| `cache_warming_decision_declared_not_fired` | `test/compact-points.test.ts` | unit | 훅 `request.cache.before`이 선언 목록에 있고 M2 빌드에서는 발화 0회다. 실제 발화는 2차 캐시 워밍에서 시험한다(C-9) | M2 |
 | `reinjection_after_compaction` | `test/reinject.test.ts` | unit | 접힌 범위의 `knowledge.context`와 `knowledge.index-delta`가 요약 바로 뒤에 가지 순서로 한 번 나오고, 허용 목록 밖의 custom은 나오지 않으며, 남은 범위의 메모는 중복되지 않는다. 허용 목록이 비면 재주입하지 않고, 컴팩션이 없으면 기록된 자리에 그대로다 (M2 마감 G2-01) |
 
 - [구현: M2] core-context는 core-models를 import하지 못하므로(같은 층, DR-14) 요약 모델은 `test/support/fake-models.ts`의 대역이다. 요약 응답을 차례로 준비하고 호출 기록(역할 `summary`, `cacheRetention: "none"`, 시스템·사용자 프롬프트)을 확인한다. 저장소는 `test/support/log.ts`의 메모리 가지(`commit`, `producer` 포함)다. 이 대역의 `producer(id).draft`는 실제 저장소(`core-persistence/src/producers.ts`)와 같은 소유 규칙을 건다: kind 접두 소유자만 초안을 낼 수 있고, `item.recorded`는 접두 소유자(`core.loop`)와 컴팩션 접두 item의 `core.context`만 낸다. 규칙을 느슨하게 두면 `core.context`의 소유권 오류가 가려진다(`9b0300b`, M2 마감 재검토 병합 2). `test/memory-log.test.ts`가 허용과 거절을 값으로 견준다.

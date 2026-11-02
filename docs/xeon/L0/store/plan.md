@@ -14,18 +14,18 @@ binds: [xeon/packages/platform-store/**]
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] M0 범위에 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금)가 들어간다(`_research/foundation-plan.md §5` P4 M0). 이 계획은 그 가운데 L0 몫(연결, sys 스키마, 트랜잭션 래퍼, 잠금, 블롭)을 나눈다. `events`·`p_*`·seq 발급은 `L1.persistence.plan` 몫이다.
+[결정] M0 범위에 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·프로세스 락)가 들어간다(`_research/foundation-plan.md §5` P4 M0). 이 계획은 그 가운데 L0 몫(연결, sys 스키마, 트랜잭션 래퍼, 잠금, 블롭)을 나눈다. `events`·`p_*`·seq 발급은 `L1.persistence.plan` 몫이다.
 
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
-| M0 | 연결 설정, FTS5 프로브(Linux 구현 + macOS CI job), 접두사 검사, `write`/`read` 트랜잭션, sys 스키마 v1(`sys_meta`·`sys_migrations`·`sys_migration_cursors`·`sys_prefixes`), 마이그레이션 실행기, `openTestStore`, FaultInjector 연결, `StoreService` 등록과 `l0.store.*` 선언, 세션 잠금(sys v2 `sys_leases` + posix OS 잠금 + epoch 펜싱)과 두 프로세스 단일 소유 통합 테스트 | ST-01~ST-07, ST-09~ST-12, ST-15 |
+| M0 | 연결 설정, FTS5 프로브(Linux 구현 + macOS CI job), 접두사 검사, `write`/`read` 트랜잭션, sys 스키마 v1(`sys_meta`·`sys_migrations`·`sys_migration_cursors`·`sys_prefixes`), 마이그레이션 실행기, `openTestStore`, FaultInjector 연결, `StoreService` 등록과 `l0.store.*` 선언, 프로세스 락(sys v2 `sys_leases` + posix OS 잠금 + epoch 펜싱)과 두 프로세스 단일 소유 통합 테스트 | ST-01~ST-07, ST-09~ST-12, ST-15 |
 | M1 | 블롭 쓰기·읽기(sys v3), 확장 접두사 테이블 등록·삭제, 장애 주입 테스트, macOS fullfsync 측정, X 확장 저장 영역 계약 스위트 | ST-08, ST-14, ST-16, ST-17, ST-23 |
 | M2 | 마이그레이션 전 스냅샷 | ST-24 |
 | M2 이후 | 블롭 GC, 청크 마이그레이션, Windows `LockProvider`, macOS 동봉 SQLite 배포 경로, 운영 빌드 접두사 검사 확대 판단 | ST-18~ST-22 |
 
-- M1 스모크(`fresnel chat` 강제 종료 뒤 재개, `_research/foundation-plan.md §6`)는 ST-12(임대)와 ST-13(복구 표식)이 끝나야 돈다.
+- M1 스모크(`fresnel chat` 강제 종료 뒤 재개, `_research/foundation-plan.md §6`)는 ST-12(프로세스 락)와 ST-13(복구 표식)이 끝나야 돈다.
 - `L1.persistence.plan`의 `SessionWriter.commit`은 ST-04·ST-09에 기댄다. 두 작업을 M0 앞쪽에 둔다.
-- 세션 잠금을 M0에 두는 근거: `_research/foundation-plan.md` §5 P4 M0 범위가 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·세션 잠금)다. 블롭과 복구 표식은 그 목록에 없고 M1 스모크(강제 종료 뒤 재개)가 쓰므로 M1에 둔다 [제안].
+- 프로세스 락을 M0에 두는 근거: `_research/foundation-plan.md` §5 P4 M0 범위가 `platform-store`(bun:sqlite, 이벤트·투영·체크포인트·프로세스 락)다. 블롭과 복구 표식은 그 목록에 없고 M1 스모크(강제 종료 뒤 재개)가 쓰므로 M1에 둔다 [제안].
 - F 선행 조건: `L0.store.spec` §8.1 FR-S1(`sql.ts`, `store-db.ts`), FR-S2(`lease.ts`), FR-S4(`migrations.ts`)는 M0 착수 조건이다. FR-S3은 철회되었다(복구 표식은 `L1.persistence.spec` §4.8.1의 `p_threads` 열, `L0.store.spec` §4.8). 반영 전에는 같은 타입을 이 패키지에 임시로 두지 않는다. 이 타입은 L1 persistence·L0 process가 import하는 공유 타입이라 `L0.readme` §3의 임시 타입 규칙(패키지 안에서만 쓰는 shim)이 적용되지 않는다.
 
 ## 2. 패키지와 파일 배치
@@ -98,16 +98,16 @@ xeon/packages/platform-store/
 | ST-06 | `migrations.ts` `apply`: 체크섬, 순서·빈칸 검사, 단계별 트랜잭션, 실패 롤백, 오류 종류 | ST-05 | M | M0 |
 | ST-07 | `prefix.ts`: 소유자 표(`TABLE_PREFIX_OWNERS` + `sys_prefixes`), 디버그 빌드 `EXPLAIN` 루트 페이지 대조와 캐시, 운영 빌드 DDL 어휘 검사, `scoped(owner)`. 비용 측정 스크립트(문장 1만 개) 결과를 미결 S-8에 남긴다 | ST-04, ST-05 | M | M0 |
 | ST-08 | `ext-tables.ts`: `register`(`ExtensionName` 패턴·예약어, 하이픈 → 밑줄 접두 변환), 지역 이름 규칙으로 하는 확장 테이블 소유 판정, `drop(name, tables)`(정확한 이름 목록만, 소유 아닌 이름이 있으면 전부 거부, FTS5 가상 테이블 포함) | ST-06, ST-07 | S | M1 |
-| ST-09 | `testing/index.ts` `openTestStore`(`:memory:` 또는 `tempDir()` 파일), `rowCounts()`, `leases`(keepAlive 콜백을 붙잡는 임대 핸들), `takeover`·`loseLease`와 `TEST_HOLDER_A`·`TEST_HOLDER_B`(소비자 시험이 다른 엔진 인스턴스의 임대 인수와 하트비트 상실을 흉내 낸다. M2 PLT.4, open-issues M-04), `testing/fault.ts`: F `FaultInjector`를 받아 저장소 경로에 연결, `StoreFaultPoint` 지점 호출, 참조 커밋 픽스처(`commit.fault.test.ts`) | ST-04, ST-05 | M | M0 |
+| ST-09 | `testing/index.ts` `openTestStore`(`:memory:` 또는 `tempDir()` 파일), `rowCounts()`, `leases`(keepAlive 콜백을 붙잡는 프로세스 락 핸들), `takeover`·`loseLease`와 `TEST_HOLDER_A`·`TEST_HOLDER_B`(소비자 시험이 다른 엔진 인스턴스의 프로세스 락 인수와 하트비트 상실을 흉내 낸다. M2 PLT.4, open-issues M-04), `testing/fault.ts`: F `FaultInjector`를 받아 저장소 경로에 연결, `StoreFaultPoint` 호출 위치, 참조 커밋 픽스처(`commit.fault.test.ts`) | ST-04, ST-05 | M | M0 |
 | ST-10 | `service.ts`, `settings.ts`: `StoreService` 조립, Cordis 플러그인으로 `fresnel.store` 등록, `l0.store.*` 선언(`checkSettingDef` 통과) | ST-06, ST-07 | S | M0 |
 | ST-11 | `lock/provider.ts`, `lock/posix.ts`, `lock/none.ts`, `select.ts`: bun:ffi `flock(LOCK_EX\|LOCK_NB)`, 키 파일(삭제 금지), 디렉터리 0700·소유자 검사, 프로세스 안 보유 표, FD_CLOEXEC 확인 | FR-S2 | M | M0 |
 | ST-12 | `lease.ts`: `sys_leases` DDL(owner `sys` v2), `acquire`·`renew`·`release`·`holds`·`inspect`·`keepAlive`(주입 `Scheduler`), 후퇴안(`none`)의 pid·지문 판정(`StoreEnvironment.processStartedAt`) | ST-11, ST-05, L0.os.plan OS-18 | M | M0 |
 | ST-13 | (철회) 복구 표식은 `L1.persistence.spec` §4.8.1의 `p_threads` 열로 정해 이 패키지에서 구현하지 않는다(`L0.store.spec` §4.8) | - | - | - |
 | ST-14 | `blob.ts`: `putBlob` 쓰기 순서(임시 파일 → fsync → rename → 디렉터리 fsync → 행), 같은 해시 생략, `readBlob` 크기 검사, `sys_blobs`·`sys_blob_refs` DDL(sys v3), `BlobPins` | ST-04, ST-12(sys v2 다음 단계) | M | M1 |
 | ST-15 | 두 프로세스 통합 테스트(`lease-two-process.int.test.ts`): 자식 둘이 같은 자원 경합, SIGKILL 뒤 즉시 인수, 늦게 깬 이전 소유자의 쓰기 거부 | ST-12 | M | M0 |
-| ST-16 | 블롭·임대 장애 주입 테스트(`blob.fault.test.ts`) | ST-09, ST-14 | S | M1 |
+| ST-16 | 블롭·프로세스 락 장애 주입 테스트(`blob.fault.test.ts`) | ST-09, ST-14 | S | M1 |
 | ST-17 | macOS `fullfsync` 성능 측정: 커밋 1000회의 p50·p99를 `fullfsync` 켬·끔으로 비교해 미결 S-9에 남긴다 | ST-02, ST-03 | S | M1 |
-| ST-18 | `gc.ts`: 고아 행·행 없는 파일·임시 파일 정리, `scheduler` 임대 확인, 수동 시계 테스트 | ST-14, ST-12 | M | M2 이후 |
+| ST-18 | `gc.ts`: 고아 행·행 없는 파일·임시 파일 정리, Scheduler leader 확인, 수동 시계 테스트 | ST-14, ST-12 | M | M2 이후 |
 | ST-19 | `migrations.ts` `runChunked`: `sys_migration_cursors`, 청크별 트랜잭션, `signal`, 중단 뒤 이어하기 | ST-06, FR-S5 | M | M2 이후 |
 | ST-20 | `lock/win32.ts`: named mutex 또는 `LockFileEx` bun:ffi 실측과 구현(미결 S-5) | ST-11 | M | M2 이후 |
 | ST-21 | [macOS 26 실측으로 FTS5가 시스템 SQLite에 있어 필요성이 낮아짐(ST-02, 2026-10-25). 구버전 macOS·FTS5 부재 시의 대비책으로 남긴다] macOS 동봉 SQLite 배포 경로: FTS5 포함 dylib 빌드 스크립트, `L0.os` `resourceDir()` 연동, `L4.desktop.plan`·`L4.cli.plan`과 패키징 합의 | ST-02 | L | M2 이후 |
@@ -125,13 +125,13 @@ xeon/packages/platform-store/
 | `better-sqlite3`, `node:sqlite`, `sqlite3` | - | 금지 | `.oxlintrc.json` `no-restricted-imports` 패턴에 있다. 계획 v2 L0-e 표의 better-sqlite3 서술은 `_research/foundation-plan.md §2`의 bun:sqlite 결정이 우선한다 |
 | `proper-lockfile` | - | 쓰지 않는다 | 크래시 뒤 약 5~10초 대기(`_research/notes/L0-2.md §2.6`). flock이 즉시 인수한다 |
 | oh-my-pi `coding-agent/src/session/blob-store.ts`(437줄, 커밋 `d1bffdf`) | - | 규칙만 차용, 포크하지 않는다 | GC 쓰기 유예(재쓰기 요청 시 갱신)와 임시 파일 규칙만 가져온다. `Bun.SHA256`·pi-tui·pi-utils 결합 때문에 포크 비용이 새로 쓰기보다 크다(`_research/packages.md §2.3`, `§4.2` L0-e) |
-| oh-my-pi `session-storage.ts:610-631`, `crates/pi-natives/src/file_lock/*` | - | 규칙만 차용 | 세션 id 키, 사이드카 삭제 금지, 디렉터리 0700·소유자 검사(`_research/notes/L0-2.md §2.5`). Rust 코드는 가져오지 않는다 |
+| oh-my-pi `session-storage.ts:610-631`, `crates/pi-natives/src/file_lock/*` | - | 규칙만 차용 | `session` id 키, 사이드카 삭제 금지, 디렉터리 0700·소유자 검사(`_research/notes/L0-2.md §2.5`). Rust 코드는 가져오지 않는다 |
 
 락 구현 수단(research 질문 2 결과, `_research/notes/L0-2.md`):
 
 - macOS·Linux: bun:ffi `flock` 사이드카. Linux는 `dlopen("libc.so.6", { flock: { args: ["i32", "i32"], returns: "i32" } })`. `bun build --compile` 바이너리에서도 같은 결과를 실측했다(§2.2). macOS 라이브러리 이름 `libSystem.B.dylib`는 실측으로 확인했다(macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25, `lock-posix.int.test.ts` 통과: 파일은 디스크에 없어도 dlopen이 된다).
 - Linux 추상 소켓(`Bun.listen({ unix: "\0…" })`)은 Linux 전용이라 채택하지 않는다. 파일 소켓 + connect 프로브는 판정과 unlink 사이 경쟁이 있어 채택하지 않는다(§2.4).
-- Windows: 미결 S-5. ST-20 전까지 `none` provider(DB 임대만, 크래시 뒤 최대 30초 대기)다.
+- Windows: 미결 S-5. ST-20 전까지 `none` provider(DB 프로세스 락만, 크래시 뒤 최대 30초 대기)다.
 
 ## 5. 단위 테스트 목록
 
@@ -159,7 +159,7 @@ xeon/packages/platform-store/
 | `future version is reported` | `migrations.int.test.ts` | DB 버전 > 코드 버전이면 `migration_future_version` |
 | `extension ids follow pattern and reserved words` | `ext-tables.int.test.ts` | `Helm`, `ext`, `a_b`, `x`가 `ext_id_invalid`. `acme-notes`는 접두 `x_acme_notes_`로 등록 |
 | `drop removes only the extension tables` | `ext-tables.int.test.ts` | 확장 `ab`(`x_ab_cd`)와 `ab-cd`(`x_ab_cd_ef`)를 등록한 뒤 `drop("ab", ["x_ab_cd"])`는 `x_ab_cd`(FTS5 가상 테이블 포함)만 지우고 `x_ab_cd_ef`, `events` 그대로. `drop("ab", ["x_ab_cd_ef"])`는 `table_not_owned`이고 행 변화 없음 |
-| `fault points keep the store consistent` | `commit.fault.test.ts` | 참조 커밋 픽스처(`events` 모양 테스트 테이블, `p_` 테스트 투영, `requests` 모양 테이블)에 F `FaultPoint` 10지점을 연결하고 지점마다 예외: 커밋 전 9지점은 `rowCounts()`와 행 해시가 같음, `after_commit`은 모두 남음. 모든 경우 `integrity_check`=ok |
+| `fault points keep the store consistent` | `commit.fault.test.ts` | 참조 커밋 픽스처(`events` 모양 테스트 테이블, `p_` 테스트 투영, `requests` 모양 테이블)에 F `FaultPoint` 10곳을 연결하고 곳마다 예외: 커밋 전 9곳은 `rowCounts()`와 행 해시가 같음, `after_commit`은 모두 남음. 모든 경우 `integrity_check`=ok |
 | `exactly one acquire wins under contention` | `lease.int.test.ts` | 같은 프로세스 두 홀더가 같은 자원을 획득하면 하나만 `ok`, 다른 하나는 `LockBusy{reason:"os_lock_held"}` |
 | `late writer is fenced by epoch` | `lease.int.test.ts` | A 획득 → B가 인수(epoch+1) → A의 토큰으로 `holds`가 거짓, `renew`가 `lease_lost` |
 | `release keeps epoch monotonic` | `lease.int.test.ts` | 반납 뒤 재획득 epoch가 증가 |
@@ -194,11 +194,11 @@ xeon/packages/platform-store/
 
 | 위험 | 영향 | 대응 |
 |---|---|---|
-| macOS 시스템 SQLite에 FTS5가 없을 가능성 | 세션 검색 불가 | ST-02에서 실측: macOS 26.5.2 시스템 SQLite 3.51.0에는 FTS5(trigram 포함)가 있다(macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25). 더 낮은 macOS는 미실측. 없으면 동봉 dylib 경로(ST-21)를 확정할 때까지 `capabilities.fts5=false`로 검색만 끈다(spec §4.1) |
-| bun:ffi로 OS 잠금이 불가능하거나 불안정(macOS, 실험 경고) | 크래시 뒤 즉시 인수 불가 | `none` provider(DB 임대만)로 후퇴한다. 정합성은 epoch로 같고, 크래시 뒤 최대 30초(`leaseTtlMs`) 대기와 PID·지문 검사 코드를 감수한다(`_research/notes/L0-2.md §4.3`) |
+| macOS 시스템 SQLite에 FTS5가 없을 가능성 | 대화 검색 불가 | ST-02에서 실측: macOS 26.5.2 시스템 SQLite 3.51.0에는 FTS5(trigram 포함)가 있다(macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25). 더 낮은 macOS는 미실측. 없으면 동봉 dylib 경로(ST-21)를 확정할 때까지 `capabilities.fts5=false`로 검색만 끈다(spec §4.1) |
+| bun:ffi로 OS 잠금이 불가능하거나 불안정(macOS, 실험 경고) | 크래시 뒤 즉시 인수 불가 | `none` provider(DB 프로세스 락만)로 후퇴한다. 정합성은 epoch로 같고, 크래시 뒤 최대 30초(`leaseTtlMs`) 대기와 PID·지문 검사 코드를 감수한다(`_research/notes/L0-2.md §4.3`) |
 | WAL 파일 증가와 체크포인트 정체 | 디스크 사용, 읽기 성능 저하 | `journal_size_limit` 64 MiB, `read` 콜백 동기, 종료 때 `TRUNCATE` 체크포인트, `checkpoint_incomplete` 경고를 진단에 남긴다. 다른 프로세스의 장시간 읽기 연결은 `host.status`(L4)로 보이게 한다 |
 | macOS `fullfsync` 성능 | 커밋 지연 | ST-17 측정. 지연이 크면 `macFullFsync` 기본값을 끄고 `checkpoint_fullfsync`만 둔다(미결 S-9) |
-| 확장의 접두사 우회(동적 SQL, 가상 테이블) | 세션 테이블 오염 | 디버그 빌드 `EXPLAIN` 대조, 운영 빌드 DDL 검사, 범위 핸들의 `ATTACH`·`PRAGMA` 금지. 가상 테이블 그림자 테이블 접근은 ST-07에서 실측해 보완한다 |
+| 확장의 접두사 우회(동적 SQL, 가상 테이블) | 대화 테이블 오염 | 디버그 빌드 `EXPLAIN` 대조, 운영 빌드 DDL 검사, 범위 핸들의 `ATTACH`·`PRAGMA` 금지. 가상 테이블 그림자 테이블 접근은 ST-07에서 실측해 보완한다 |
 | 블롭 선쓰기 뒤 커밋 실패로 쌓이는 고아 파일 | 디스크 사용 | GC 유예(`blobGraceMs`) 뒤 회수(ST-18). M2 전에는 GC가 없으므로 M1 기간의 고아 파일은 남는다. M1 스모크 범위에서는 양이 작다 [가정] |
 | `setCustomSQLite` 호출 순서 위반 | macOS에서 "SQLite already loaded" | `newDatabase()` 단일 경로, `sqlite-order.int.test.ts` |
 | `transaction().immediate()`의 중첩 저장점 의미 미확인(T-2) | 의도하지 않은 저장점 | 중첩 금지 Bug로 경로를 막는다. SQL 추적으로 확인한 뒤 T-2를 닫는다 |

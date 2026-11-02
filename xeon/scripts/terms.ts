@@ -4,15 +4,32 @@
 //   T-04 chat 노출 라벨에 내부 전용 말 없음  T-05 sources의 문서 id가 실제로 있음
 //   C-01 ko·en 키 집합이 같음  C-02 ICU 문법이 맞고 ko·en 인자 이름·종류가 같음
 //   C-03 `term.*` 키가 원본에서 생성한 값과 같음  C-06 en 문자열에 한글 없음
+//   [1단계] C-04 chat 문장의 내부 전용 말·금지 별칭  C-05 그 밖 문장의 금지 별칭  C-08 문체(라벨 명사구, 문장 해요체)
+//           S-02 화면 소스의 영어 문자열  S-03 화면 소스에 쓴 원본 라벨  D-01 spec §2 용어표 첫 칸  D-02 문서의 금지 별칭
+//   [2단계] 1단계 규칙은 모두 오류다. C-12 표식의 개념 id  C-13 조사 표식 위치  C-14 표식이 든 문장(locales/*.src.json)과 카탈로그가 같음
+//           S-01(check-ts-rules의 hardcoded-korean)은 `.tsx`까지 본다
 //   M-01 목업 용어 파생물(mockups/_shell/terms.generated.ts)이 있으면 원본과 같음
 //   D-03 용어집의 생성 구역(<!-- terms:begin --> … <!-- terms:end -->)이 있으면 원본과 같음
 // 사용:
-//   bun scripts/terms.ts gen [--mockups]      카탈로그 term.* 키를 갱신한다. --mockups는 목업 파생물도 쓴다(목업 트랙이 켠다)
+//   bun scripts/terms.ts gen [--mockups]      카탈로그 term.* 키와 표식이 든 문장(locales/*.src.json)을 갱신한다. --mockups는 목업 파생물도 쓴다(목업 트랙이 켠다)
 //   bun scripts/terms.ts check [--json]       전부 검사한다
-// 종료코드: 0 통과, 1 고칠 것이 있음, 2 환경 문제(원본·카탈로그를 읽지 못함). 단계 도입 전이라 경고 수준 규칙은 없다.
+// 종료코드: 0 통과, 1 고칠 것이 있음, 2 환경 문제(원본·카탈로그를 읽지 못함).
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
-import { loadShippedTerms, type TermDecl } from "../packages/client/src/i18n/terms.ts";
+import { join, relative, sep } from "node:path";
+import {
+  loadShippedDocOnly,
+  loadShippedTerms,
+  type TermDecl,
+} from "../packages/client/src/i18n/terms.ts";
+import { applyOverlay, checkOverlay, expandOverlay } from "./terms-markers.ts";
+import {
+  CHAT_INTERNAL_WORDS,
+  checkCatalogStyle,
+  checkDocs,
+  checkScreenSource,
+  type DocText,
+  type SourceText,
+} from "./terms-rules.ts";
 
 const ROOT = join(import.meta.dir, "..");
 const LOCALES_DIR = join(ROOT, "packages/client/src/i18n/locales");
@@ -32,21 +49,6 @@ export interface Violation {
 
 export type Catalog = Readonly<Record<string, string>>;
 const HANGUL = /[ㄱ-ㆎ가-힣]/;
-/** 화면(chat) 문자열에 나오면 안 되는 내부 전용 말(설계 §5 C-04 목록) */
-export const CHAT_INTERNAL_WORDS: readonly string[] = [
-  "루프",
-  "코어",
-  "소켓",
-  "tier",
-  "scope",
-  "well",
-  "fold",
-  "spawn",
-  "사이드카",
-  "컴팩션",
-  "단계 경계",
-];
-
 export function termKey(id: string): string {
   return `term.${id}`;
 }
@@ -133,7 +135,11 @@ export function checkTermSource(
   for (const id of ids) {
     const term = terms[id];
     if (term === undefined) continue;
-    for (const alias of [...(term.forbid?.ui ?? []), ...(term.forbid?.docs ?? [])]) {
+    for (const alias of [
+      ...(term.forbid?.ui ?? []),
+      ...(term.forbid?.docs ?? []),
+      ...(term.forbid?.docsIn ?? []).map((scoped) => scoped.word),
+    ]) {
       if (canonical.has(alias)) {
         out.push({
           rule: "T-02",
@@ -505,8 +511,71 @@ export function collectDocIds(dir: string): Set<string> {
   return ids;
 }
 
+/** 문서 본문을 읽는다(프런트매터 id와 본문 시작 줄 포함). 경로는 docs/xeon 기준이다 */
+export function collectDocs(dir: string): DocText[] {
+  const out: DocText[] = [];
+  const walk = (current: string): void => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const path = join(current, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.name.endsWith(".md")) {
+        const text = readFileSync(path, "utf8");
+        const match = /^---\n([\s\S]*?)\n---\n/.exec(text);
+        const head = match?.[0] ?? "";
+        const id = /^id: (\S+)$/m.exec(match?.[1] ?? "")?.[1];
+        out.push({
+          path: relative(dir, path).split(sep).join("/"),
+          id,
+          body: text.slice(head.length),
+          bodyOffset: head.split("\n").length - 1,
+        });
+      }
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+const SOURCE_SKIP = new Set(["node_modules", "dist", ".turbo", "coverage", "vendor", "mockups"]);
+
+/** 화면 소스(apps/desktop·packages/client의 src)를 읽는다. 경로는 xeon 루트 기준이다 */
+export function collectScreenSources(root: string): SourceText[] {
+  const out: SourceText[] = [];
+  const walk = (dir: string): void => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!SOURCE_SKIP.has(entry.name)) walk(path);
+      } else if (/\.tsx?$/.test(entry.name)) {
+        out.push({
+          path: relative(root, path).split(sep).join("/"),
+          text: readFileSync(path, "utf8"),
+        });
+      }
+    }
+  };
+  walk(join(root, "apps/desktop/src"));
+  walk(join(root, "packages/client/src"));
+  return out;
+}
+
 export function readCatalog(locale: "ko" | "en"): Catalog | undefined {
   const parsed: unknown = JSON.parse(readFileSync(join(LOCALES_DIR, `${locale}.json`), "utf8"));
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value !== "string") return undefined;
+    out[key] = value;
+  }
+  return out;
+}
+
+/** 표식이 든 문장의 덧씌움 원본(`locales/<로케일>.src.json`). 없으면 비어 있다 */
+function readOverlay(locale: "ko" | "en"): Catalog | undefined {
+  const path = join(LOCALES_DIR, `${locale}.src.json`);
+  if (!existsSync(path)) return {};
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return undefined;
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(parsed)) {
@@ -536,10 +605,30 @@ function main(argv: readonly string[]): number {
     return 2;
   }
   const TERMS = loaded.value;
+  const docOnly = loadShippedDocOnly();
+  if (!docOnly.ok) {
+    console.error(
+      `terms: terms.doc-only.json is not a list of strings: ${JSON.stringify(docOnly.error.issues)}`,
+    );
+    return 2;
+  }
+  const overlayKo = readOverlay("ko");
+  const overlayEn = readOverlay("en");
+  if (overlayKo === undefined || overlayEn === undefined) {
+    console.error("terms: locales/ko.src.json and en.src.json must be flat string maps");
+    return 2;
+  }
   if (command === "gen") {
     const generated = generateTermKeys(TERMS);
-    writeCatalog("ko", mergeTermKeys(ko, generated.ko));
-    writeCatalog("en", mergeTermKeys(en, generated.en));
+    const expandedKo = expandOverlay(overlayKo, TERMS, "ko");
+    const expandedEn = expandOverlay(overlayEn, TERMS, "en");
+    const broken = [...expandedKo.violations, ...expandedEn.violations];
+    if (broken.length > 0) {
+      for (const v of broken) console.log(`FAIL ${v.rule} ${v.where}: ${v.message} → ${v.fix}`);
+      return 1;
+    }
+    writeCatalog("ko", applyOverlay(mergeTermKeys(ko, generated.ko), expandedKo.expanded));
+    writeCatalog("en", applyOverlay(mergeTermKeys(en, generated.en), expandedEn.expanded));
     if (flags.includes("--mockups")) writeFileSync(MOCKUP_FILE, generateMockupTerms(TERMS));
     if (existsSync(GLOSSARY_FILE)) {
       const glossary = readFileSync(GLOSSARY_FILE, "utf8");
@@ -559,6 +648,10 @@ function main(argv: readonly string[]): number {
       ...checkTermSource(TERMS, collectDocIds(DOCS_DIR)),
       ...checkCatalogs(ko, en, TERMS),
       ...checkMockupTerms(TERMS, mockup),
+      ...checkOverlay(overlayKo, overlayEn, ko, en, TERMS),
+      ...checkCatalogStyle(ko, en, TERMS),
+      ...checkScreenSource(collectScreenSources(ROOT), TERMS),
+      ...checkDocs(collectDocs(DOCS_DIR), TERMS, docOnly.value),
       ...checkGlossary(
         TERMS,
         existsSync(GLOSSARY_FILE) ? readFileSync(GLOSSARY_FILE, "utf8") : undefined,

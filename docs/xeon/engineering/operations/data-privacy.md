@@ -37,7 +37,7 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 
 | 파일 | 위치 | 담는 것 | 근거 |
 |---|---|---|---|
-| `fresnel.db` | data | 세션 이벤트, 투영 테이블, 확장 접두 테이블, 블롭 참조. 대화 내용, 도구 호출과 결과, 승인 기록, 예약 실행 기록이 들어갑니다 | adr.0004, L1.persistence.spec |
+| `fresnel.db` | data | 대화 이벤트, 투영 테이블, 확장 접두 테이블, 블롭 참조. 대화 내용, 도구 호출과 결과, 승인 기록, 예약 실행 기록이 들어갑니다 | adr.0004, L1.persistence.spec |
 | `blobs/<ab>/<나머지>` | data | 내용 주소(SHA-256) 파일. 이벤트 envelope 256 KiB를 넘는 값, 도구 결과 원문, 웹 원문, 지식 원장의 전후 내용이 들어갑니다 | L0.store.spec §4.9, L2.knowledge.spec §2 |
 | `backups/*.sqlite` | data | 마이그레이션 전 스냅샷입니다. 같은 DB의 스냅샷은 최근 3개만 남깁니다 | L0.store.spec §4.6.1 |
 | `settings.json` | config | 사용자 설정 값 | apps/host/src/assemble.ts |
@@ -48,7 +48,7 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 | `secrets/audit.log` | config | 시크릿 감사 기록. 값, 값의 일부, 값의 해시를 싣지 않습니다 | L0.secrets.spec §3.9 |
 | `logs/<모드>.log` | state | 엔진 로그. 한 줄이 JSON 객체 하나이고 마스킹을 거칩니다 | L0.os.spec §3.5, eng.operations.runbook §3 |
 | `schedule/state.json` | state | 예약 상태 | L2.schedule.spec, apps/host/src/assembly/schedule-store.ts |
-| `cli/state.json` | state | CLI가 마지막 세션과 스트림 위치를 적어 두는 파일입니다. 깨지면 버립니다 | L4.cli.spec §3.7 |
+| `cli/state.json` | state | CLI가 마지막 대화와 스트림 위치를 적어 두는 파일입니다. 깨지면 버립니다 | L4.cli.spec §3.7 |
 | `spill/` | state | 명령 출력이 임계를 넘을 때 쓰는 전체 출력 임시 파일 | L0.exec.spec §3.8, apps/host/src/assembly/data-ops.ts |
 | `telemetry/spans-<날짜>.jsonl` | state | 텔레메트리 exporter가 `file`일 때만 씁니다. 기본은 꺼져 있습니다 | L0.os.spec §3.9 |
 | `service.json` | runtime | 서비스 등록 파일(`0600`). 토큰 필드가 있습니다 | L4.host-service.spec §3.5, platform-process/src/service/registration.ts |
@@ -57,7 +57,7 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 
 ### 1.3 대화와 실행 기록
 
-- 세션 이벤트는 내구 이벤트로 DB에 커밋됩니다. 토큰 델타처럼 조각난 출력은 저장하지 않는 휘발 이벤트입니다(F.records.spec, adr.0004).
+- 대화 이벤트는 내구 이벤트로 DB에 커밋됩니다. 토큰 델타처럼 조각난 출력은 저장하지 않는 휘발 이벤트입니다(F.records.spec, adr.0004).
 - 도구 결과는 저장 전에 마스킹 계층 2를 거칩니다(L0.secrets.spec §4.4).
 - 사람이 입력한 내용은 계층 1에서 접두 패턴과 키-값 문맥만 가립니다. 알려진 시크릿 값이 아니면 가리지 못할 수 있습니다. 내구 이벤트에 들어간 뒤에는 지울 수 없습니다(L0.secrets.spec §4.4).
 - 이미 기록된 이벤트의 시크릿 사후 가림은 M3-REQ-59 행입니다. 구현 상태는 `eng.operations.status-map`을 봅니다. 저장된 이벤트에서 시크릿을 지우는 경로는 `[미결]`입니다(architecture.security.spec §10).
@@ -73,7 +73,7 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 | 대화 이벤트(thread) | 지우지 않음 | `l1.persistence.retention.maxAgeDays` 0, `maxCount` 0 | L1.persistence.spec §6.1 |
 | spill 파일 | 지우지 않음 | `l0.exec.spillRetentionDays` 0 (0이면 아무것도 지우지 않음), `l0.exec.spillMaxBytes` | L0.exec.spec §3.8.2, §6 |
 | 블롭 | 참조 없는 블롭을 지우지 않음(GC 꺼짐) | `l0.store.blobGcEnabled` false, `l0.store.blobGraceMs` 86400000 `[제안]` | L0.store.spec §6, §4.9, HS-102 |
-| 웹 원문 캐시 | 세션 종료 뒤 `session` 행을 다음 시작 때 지움. 전체 상한을 넘으면 `expires_at` 오름차순으로 지움 | `l2.web.cache.maxMegabytes` 256 | L2.web.spec §4.3.1, §3.8 |
+| 웹 원문 캐시 | 대화 종료 뒤 `session` 행을 다음 시작 때 지움. 전체 상한을 넘으면 `expires_at` 오름차순으로 지움 | `l2.web.cache.maxMegabytes` 256 | L2.web.spec §4.3.1, §3.8 |
 | 시크릿 감사 기록 | 90일 `[제안]` | `l0.secrets.audit.retentionDays` 90 | L0.secrets.spec §6.1 |
 | 마이그레이션 스냅샷 | 최근 3개 | `MIGRATION_SNAPSHOT_KEEP`(상수) | L0.store.spec §4.6.1 |
 | 로그 | 회전 규칙이 스펙에 있지만 호스트에 연결되지 않아 한 파일에 덧붙임 | `l0.os.log.level`(기본 `info`) | L0.os.spec §3.5, eng.operations.runbook §3.1 |
@@ -134,7 +134,7 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 - 프로젝트 폴더는 판정 전에 신뢰 판정을 받습니다. 판정 전에는 프로젝트 확장을 불러오지 않고, `.mcp.json`, 스킬, 설정을 읽지 않습니다(architecture.security.spec T-03).
 - 신뢰가 필요한 자원은 `.fresnel/extensions/`, `.fresnel/settings.json`, `.fresnel/settings.local.json`, `.fresnel/mcp.json`, `.mcp.json`, `.fresnel/hooks/`, `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/`, `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md`, `.agents/skills/`입니다(X.loading-trust.spec §4.7.2).
 - `AGENTS.md`와 `CLAUDE.md`는 신뢰와 관계없이 읽힙니다. 이 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않습니다. 그래도 신뢰되지 않은 입력으로 취급합니다(X.loading-trust.spec §4.7.2, architecture.security.spec §5).
-- 판정 순서는 다음과 같습니다. 재정의 값, 자원 없음, 이번 세션 기억, 세션 신뢰 지점, 저장된 결정, 기본 설정 `x.loading-trust.defaultProjectTrust`(기본 `ask`), 헤드리스 불신, 프롬프트입니다(X.loading-trust.spec §4.7.3).
+- 판정 순서는 다음과 같습니다. 재정의 값, 자원 없음, 이번 실행 기억, 대화 신뢰 훅, 저장된 결정, 기본 설정 `x.loading-trust.defaultProjectTrust`(기본 `ask`), 헤드리스 불신, 프롬프트입니다(X.loading-trust.spec §4.7.3).
 - 헤드리스 실행(print, JSON)에서는 프롬프트를 띄우지 않고 불신으로 처리합니다. 이때 결정을 저장하지 않습니다(X.loading-trust.spec §4.7.3 7번).
 - 신뢰 결정은 `trust.json`에 폴더마다 저장합니다. 파일이 깨졌으면 불신으로 처리하고, 덮어쓰지 않습니다(X.loading-trust.spec §4.7.5).
 - 신뢰 상태는 `fresnel trust [status] [--json]`으로 봅니다(L4.cli.spec).
@@ -154,13 +154,13 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 
 | 무엇 | 명령 | 지워지는 것 | 남는 것 |
 |---|---|---|---|
-| 세션 | `fresnel sessions rm <id> [--yes]`. TTY에서는 확인을 받고, 비TTY에서는 `--yes`가 없으면 종료 코드 2입니다 | thread의 이벤트, 요청 기록, 투영 행(한 트랜잭션). 다른 thread가 이 thread에서 분기했으면 거부합니다 | 블롭 파일. 블롭을 정리한다는 문장이 `threads.remove` 설명에 없습니다 `[가정]`. GC가 꺼져 있으면 파일이 그대로 남습니다. 웹 캐시의 `session` 행은 다음 시작 때 정리합니다 |
-| 시크릿 | `fresnel secret rm <이름> [--yes]`. 참조하는 설정 키, 활성 lease, 최근 세션을 보인 뒤 확인합니다. 활성 lease가 있으면 거부합니다 | 시크릿 항목(세부 범위는 `[미결]`) | 감사 기록(값 없음) |
+| 대화 | `fresnel sessions rm <id> [--yes]`. TTY에서는 확인을 받고, 비TTY에서는 `--yes`가 없으면 종료 코드 2입니다 | thread의 이벤트, 요청 기록, 투영 행(한 트랜잭션). 다른 thread가 이 thread에서 분기했으면 거부합니다 | 블롭 파일. 블롭을 정리한다는 문장이 `threads.remove` 설명에 없습니다 `[가정]`. GC가 꺼져 있으면 파일이 그대로 남습니다. 웹 캐시의 `session` 행은 다음 시작 때 정리합니다 |
+| 시크릿 | `fresnel secret rm <이름> [--yes]`. 참조하는 설정 키, 활성 lease, 최근 대화를 보인 뒤 확인합니다. 활성 lease가 있으면 거부합니다 | 시크릿 항목(세부 범위는 `[미결]`) | 감사 기록(값 없음) |
 | 설정 값 | `fresnel config reset <키> [--scope …]` | 해당 범위의 값 | 다른 범위의 값 |
 | 신뢰 결정 | 보기만 있습니다(`fresnel trust [status]`). 결정을 지우거나 바꾸는 명령은 스펙에 없습니다 `[미결]` | 없음 | `trust.json` |
 | 데이터 디렉터리 전체 | 제품 명령이 없습니다. 직접 지우는 절차도 스펙에 없습니다 `[미결]` | 없음 | 전부 |
 
-- 세션 삭제 절은 `L1.persistence.spec`의 `threads.remove` 설명을 따릅니다. 블롭을 지운다는 문장은 없습니다.
+- 대화 삭제 절은 `L1.persistence.spec`의 `threads.remove` 설명을 따릅니다. 블롭을 지운다는 문장은 없습니다.
 
 ### 7.2 백업
 

@@ -1,3 +1,4 @@
+import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { TrustChoice } from "@fresnel/contracts/wire";
@@ -51,9 +52,9 @@ function TrustCardFor(props: { readonly threadId: ThreadId }): ReactNode {
   if (workspace === null || loaded === null || loaded.workspace !== workspace) return null;
   if ("failed" in loaded) {
     return (
-      <section className="approvals" aria-label="프로젝트 신뢰">
+      <section className="approvals" aria-label={t("desktop.trust.card.title")}>
         <div className="error" role="alert">
-          프로젝트 신뢰 상태를 읽지 못했습니다.
+          {t("desktop.trust.card.loadFailed")}
         </div>
       </section>
     );
@@ -88,18 +89,18 @@ export function TrustCardBody(props: {
 }): ReactNode {
   const { card, sending } = props;
   return (
-    <section className="approvals" aria-label="프로젝트 신뢰">
-      <h2>프로젝트 신뢰</h2>
+    <section className="approvals" aria-label={t("desktop.trust.card.title")}>
+      <h2>{t("desktop.trust.card.title")}</h2>
       <div className="approval">
         <div className="approval-title">
           {card.state === "denied"
-            ? "이 프로젝트를 신뢰하지 않도록 정해 두었습니다."
-            : "이 프로젝트의 설정을 신뢰할까요?"}
+            ? t("desktop.trust.card.denied")
+            : t("desktop.trust.card.undecided")}
         </div>
         <div className="dim">{card.projectRoot}</div>
         {card.resources.length === 0 ? null : (
           <>
-            <div>이 프로젝트가 불러오려는 자원</div>
+            <div>{t("desktop.trust.card.resources.label")}</div>
             <ul className="trust-resources">
               {card.resources.map((resource) => (
                 <li key={resource}>
@@ -109,10 +110,7 @@ export function TrustCardBody(props: {
             </ul>
           </>
         )}
-        <div className="dim">
-          신뢰하면 이 자원의 지시문, 명령, MCP 서버가 사용자 권한으로 쓰입니다. 신뢰하지 않으면 읽지
-          않습니다.
-        </div>
+        <div className="dim">{t("desktop.trust.card.warning")}</div>
         <div className="approval-actions">
           {card.buttons.map((button) => (
             <button
@@ -128,10 +126,12 @@ export function TrustCardBody(props: {
               {button.text}
             </button>
           ))}
-          {sending === "sending" ? <span className="dim">보내는 중…</span> : null}
+          {sending === "sending" ? (
+            <span className="dim">{t("desktop.trust.card.sendingStatus")}</span>
+          ) : null}
           {sending === "failed" ? (
             <span className="error" role="alert">
-              보내지 못했습니다. 다시 눌러 보세요.
+              {t("desktop.trust.card.sendFailed")}
             </span>
           ) : null}
         </div>

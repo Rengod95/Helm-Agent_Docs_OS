@@ -3,6 +3,7 @@ import type { SecretName } from "@fresnel/contracts/capabilities";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { keepTools } from "../app/setup.ts";
 import { useLinkPhase } from "../state/engine/index.ts";
+import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   checkModelRef,
   checkProviderId,
@@ -22,10 +23,11 @@ import { useCommands, type CommandError } from "./commands.ts";
 // 키 값은 호스트가 받을 수 없는 연결(사이드카)에서만 이 화면의 등록 창에서 받는다(§4.14.1). 그 입력란은 제어 컴포넌트가 아니다:
 // 값은 React 상태에 들어가지 않고, 저장을 누르면 `submitKey`가 입력란을 읽는 즉시 비운다.
 
-const STEP_TEXT: Readonly<Record<SetupStep["id"], string>> = {
-  tools: "외부 도구 점검",
-  key: "모델 키 등록",
-  model: "기본 모델 선택",
+// 문장은 id로 들고 있다가 그릴 때 현재 로케일로 만든다(모듈을 읽을 때의 로케일에 묶이지 않도록)
+const STEP_TEXT_ID: Readonly<Record<SetupStep["id"], MessageId>> = {
+  tools: "desktop.settings.step.tools",
+  key: "desktop.settings.step.key",
+  model: "desktop.settings.step.model",
 };
 
 export type KeyEntry =
@@ -38,25 +40,25 @@ export type KeyEntry =
   | { readonly state: "failed"; readonly text: string };
 
 export function errorText(error: CommandError): string {
-  if (error.kind === "offline") return "엔진에 연결되어 있지 않습니다.";
-  if (error.kind === "unsupported") return "이 엔진은 이 기능을 지원하지 않습니다.";
+  if (error.kind === "offline") return t("desktop.settings.error.offline");
+  if (error.kind === "unsupported") return t("desktop.settings.error.unsupported");
   if (error.kind === "rejected" && error.detail !== undefined) {
     // 값이 틀렸다는 host의 문장은 사용자가 고칠 수 있는 내용이라 그대로 보인다(예: 알 수 없는 모델 ...)
-    return `저장하지 못했습니다: ${error.detail}`;
+    return t("desktop.settings.error.rejectedDetail", { detail: error.detail });
   }
   if (error.kind === "rejected" && error.code !== null) {
-    return `엔진이 거절했습니다 (${error.code}).`;
+    return t("desktop.settings.error.rejectedCode", { code: error.code });
   }
-  return "요청에 실패했습니다.";
+  return t("desktop.settings.error.failed");
 }
 
 export function Steps(props: { readonly steps: readonly SetupStep[] }): ReactNode {
   return (
-    <ol className="setup-steps" aria-label="첫 실행 안내">
+    <ol className="setup-steps" aria-label={t("desktop.settings.steps.label")}>
       {props.steps.map((step) => (
         <li key={step.id} data-done={step.done ? "yes" : "no"}>
-          <span aria-hidden="true">{step.done ? "[x]" : "[ ]"}</span> {STEP_TEXT[step.id]}
-          {step.unknown ? <span className="dim"> (확인할 수 없음)</span> : null}
+          <span aria-hidden="true">{step.done ? "[x]" : "[ ]"}</span> {t(STEP_TEXT_ID[step.id])}
+          {step.unknown ? <span className="dim"> {t("desktop.settings.step.unknown")}</span> : null}
         </li>
       ))}
     </ol>
@@ -68,8 +70,9 @@ export function Tools(props: { readonly binaries: BinaryView | null }): ReactNod
   if (binaries === null) {
     return (
       <p className="dim">
-        이 연결에서는 점검 결과를 받을 수 없습니다. 터미널에서 <code>fresnel doctor</code>로 확인할
-        수 있습니다.
+        {t("desktop.settings.tools.unavailable")} {t("desktop.settings.tools.doctorBefore")}{" "}
+        <code>fresnel doctor</code>
+        {t("desktop.settings.tools.doctorAfter")}
       </p>
     );
   }
@@ -77,10 +80,10 @@ export function Tools(props: { readonly binaries: BinaryView | null }): ReactNod
     <table className="setup-tools">
       <thead>
         <tr>
-          <th>도구</th>
-          <th>구분</th>
-          <th>상태</th>
-          <th>쓰는 곳</th>
+          <th>{t("desktop.settings.tools.column.tool")}</th>
+          <th>{t("desktop.settings.tools.column.need")}</th>
+          <th>{t("desktop.settings.tools.column.status")}</th>
+          <th>{t("desktop.settings.tools.column.usedBy")}</th>
         </tr>
       </thead>
       <tbody>
@@ -89,9 +92,16 @@ export function Tools(props: { readonly binaries: BinaryView | null }): ReactNod
             <td>
               <code>{row.name}</code>
             </td>
-            <td>{row.need === "required" ? "필수" : "선택"}</td>
             <td>
-              {row.ok ? "사용 가능" : "사용 불가"} <span className="dim">{row.note}</span>
+              {row.need === "required"
+                ? t("desktop.settings.tools.need.required")
+                : t("desktop.settings.tools.need.optional")}
+            </td>
+            <td>
+              {row.ok
+                ? t("desktop.settings.tools.status.available")
+                : t("desktop.settings.tools.status.unavailable")}{" "}
+              <span className="dim">{row.note}</span>
               {row.ok ? null : <div className="dim">{row.impact}</div>}
             </td>
             <td className="dim">{row.usedBy}</td>
@@ -130,7 +140,7 @@ function KeyForm(props: {
       }}
     >
       <label className="field">
-        <span>키 값</span>
+        <span>{t("desktop.settings.keyValue.label")}</span>
         <input
           ref={input}
           type="password"
@@ -143,7 +153,7 @@ function KeyForm(props: {
       </label>
       <div className="approval-actions">
         <button type="submit" className="primary" disabled={props.busy}>
-          저장
+          {t("desktop.settings.save.button")}
         </button>
         <button
           type="button"
@@ -153,7 +163,7 @@ function KeyForm(props: {
             props.onCancel();
           }}
         >
-          취소
+          {t("desktop.settings.cancel.button")}
         </button>
       </div>
     </form>
@@ -198,22 +208,24 @@ export function SettingsBody(props: {
   return (
     <div className="settings">
       <section>
-        <h2>시작 안내</h2>
+        <h2>{t("desktop.settings.start.title")}</h2>
         <Steps steps={setupSteps(snapshot)} />
       </section>
       <section>
-        <h2>외부 도구</h2>
+        <h2>{t("desktop.settings.tools.title")}</h2>
         <Tools binaries={snapshot.binaries} />
       </section>
       <section>
-        <h2>모델 키</h2>
+        <h2>{t("desktop.settings.modelKey.title")}</h2>
         <p className="dim">
-          키 값은 등록 창에 한 번 입력하면 바로 지워지고 엔진 연결을 지나지 않습니다. 앱이 번들된
-          <code>fresnel</code>으로 시크릿 저장소에 두고, 설정에는 <code>secret://이름</code> 참조만
-          남습니다.
+          {t("desktop.settings.keyNote.value")} {t("desktop.settings.keyNote.bundled")}{" "}
+          <code>fresnel</code>
+          {t("desktop.settings.keyNote.storage")}{" "}
+          <code>{t("desktop.settings.keyNote.refExample")}</code>{" "}
+          {t("desktop.settings.keyNote.refOnly")}
         </p>
         <label className="field">
-          <span>provider</span>
+          <span>{t("desktop.settings.provider.label")}</span>
           <input
             type="text"
             list="provider-presets"
@@ -229,14 +241,16 @@ export function SettingsBody(props: {
           </datalist>
         </label>
         {secretName === null ? (
-          <p className="dim">provider 이름은 소문자, 숫자, 점, 밑줄, 하이픈만 쓸 수 있습니다.</p>
+          <p className="dim">{t("desktop.settings.provider.nameRule")}</p>
         ) : (
           <p>
-            시크릿 이름 <code>{secretName}</code> ·{" "}
+            {t("desktop.settings.secretName.label")} <code>{secretName}</code> ·{" "}
             <span data-registered={registered ? "yes" : "no"}>
-              {registered ? "등록됨" : "등록되지 않음"}
+              {registered
+                ? t("desktop.settings.secret.registered")
+                : t("desktop.settings.secret.notRegistered")}
             </span>
-            {linked ? " · provider에 연결됨" : ""}
+            {linked ? ` · ${t("desktop.settings.provider.linked")}` : ""}
           </p>
         )}
         <div className="approval-actions">
@@ -246,17 +260,19 @@ export function SettingsBody(props: {
             disabled={props.busy || secretName === null}
             onClick={props.onRegister}
           >
-            {registered ? "키 바꾸기" : "키 등록"}
+            {registered
+              ? t("desktop.settings.key.change.button")
+              : t("desktop.settings.key.register.button")}
           </button>
           <button
             type="button"
             disabled={props.busy || secretName === null || !registered || linked}
             onClick={props.onConnect}
           >
-            provider에 연결
+            {t("desktop.settings.provider.connect.button")}
           </button>
           <button type="button" disabled={props.busy} onClick={props.onRecheck}>
-            다시 확인
+            {t("desktop.settings.recheck.button")}
           </button>
         </div>
         {props.keyEntry.state === "form" ? (
@@ -265,7 +281,9 @@ export function SettingsBody(props: {
         {props.keyEntry.state === "terminal" ? (
           <div role="note">
             <p>
-              이 연결은 키 입력 창을 열 수 없습니다. 터미널에서 등록한 뒤 "다시 확인"을 누르세요.
+              {t("desktop.settings.key.terminalHint", {
+                button: t("desktop.settings.recheck.button"),
+              })}
             </p>
             <pre className="code">{props.keyEntry.command}</pre>
           </div>
@@ -277,9 +295,9 @@ export function SettingsBody(props: {
         ) : null}
       </section>
       <section>
-        <h2>기본 모델</h2>
+        <h2>{t("desktop.settings.defaultModel.title")}</h2>
         <label className="field">
-          <span>provider/모델[:추론 레벨]</span>
+          <span>{t("desktop.settings.modelRef.label")}</span>
           <input
             type="text"
             placeholder="anthropic/claude-sonnet-5-5"
@@ -296,16 +314,18 @@ export function SettingsBody(props: {
             disabled={props.busy || !model.ok}
             onClick={props.onSaveModel}
           >
-            저장
+            {t("desktop.settings.save.button")}
           </button>
           {snapshot.defaultModel === null ? (
-            <span className="dim">아직 정하지 않았습니다.</span>
+            <span className="dim">{t("desktop.settings.defaultModel.unset")}</span>
           ) : (
-            <span className="dim">지금 값: {snapshot.defaultModel}</span>
+            <span className="dim">
+              {t("desktop.settings.defaultModel.current", { model: snapshot.defaultModel })}
+            </span>
           )}
         </div>
         {!model.ok && props.modelInput.trim() !== "" ? (
-          <p className="error">형식은 provider/모델 입니다. 예: anthropic/claude-sonnet-5-5</p>
+          <p className="error">{t("desktop.settings.modelRef.invalid")}</p>
         ) : null}
       </section>
       {props.message === null ? null : (
@@ -425,7 +445,7 @@ export function SettingsScreen(): ReactNode {
         return;
       }
       if (outcome.kind === "empty") {
-        setKeyEntry({ state: "failed", text: "키 값을 입력하세요." });
+        setKeyEntry({ state: "failed", text: t("desktop.settings.keyValue.empty") });
         return;
       }
       setKeyEntry({ state: "idle" });
@@ -458,7 +478,7 @@ export function SettingsScreen(): ReactNode {
     if (!model.ok) return;
     work(async () => {
       const saved = await commands.setup.setDefaultModel(model.value);
-      setMessage(saved.ok ? "기본 모델을 저장했습니다." : errorText(saved.error));
+      setMessage(saved.ok ? t("desktop.settings.defaultModel.saved") : errorText(saved.error));
       await reload(false);
     });
   };
@@ -466,20 +486,22 @@ export function SettingsScreen(): ReactNode {
   return (
     <main className="main settings-screen">
       <header className="settings-header">
-        <h1>설정</h1>
+        <h1>{t("desktop.settings.title")}</h1>
         <button
           type="button"
           onClick={() => {
             commands.showScreen("chat");
           }}
         >
-          대화로 돌아가기
+          {t("desktop.settings.backToChat.button")}
         </button>
       </header>
-      {loaded.kind === "loading" ? <p className="dim">불러오는 중…</p> : null}
+      {loaded.kind === "loading" ? (
+        <p className="dim">{t("desktop.settings.loading.status")}</p>
+      ) : null}
       {loaded.kind === "error" ? (
         <div className="error" role="alert">
-          설정을 읽지 못했습니다. {errorText(loaded.error)}
+          {t("desktop.settings.loadFailed", { reason: errorText(loaded.error) })}
         </div>
       ) : null}
       {loaded.kind === "ready" ? (

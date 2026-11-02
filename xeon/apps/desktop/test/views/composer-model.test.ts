@@ -81,14 +81,14 @@ describe("composerDisabledReason", () => {
 
   test("incomplete setup locks the composer with the banner's sentence", () => {
     expect(composerDisabledReason({ ...ready, setupNeeded: true })).toBe(
-      "모델 키와 기본 모델을 먼저 정해야 대화를 시작할 수 있습니다.",
+      "모델 키와 기본 모델을 먼저 정해야 대화를 시작할 수 있어요.",
     );
   });
 
   test("engine and link problems come first", () => {
     expect(composerDisabledReason({ ...ready, engineRunning: false, setupNeeded: true })).toBe(
-      "엔진이 꺼져 있어 보낼 수 없습니다.",
+      "엔진이 꺼져 있어 보낼 수 없어요.",
     );
-    expect(composerDisabledReason({ ...ready, phase: "resync" })).toBe("연결을 맞추는 중입니다.");
+    expect(composerDisabledReason({ ...ready, phase: "resync" })).toBe("연결을 맞추는 중이에요.");
   });
 });

@@ -8,11 +8,11 @@ depends_on: [L3.group-sdk.spec, L3.slots.spec, F.extensions.spec, F.wire-setting
 binds: [xeon/packages/plugin-builder/**]
 ---
 
-# L3 플러그인 제작 확장 (authoring)
+# L3 플러그인 Plugin Builder (authoring)
 
-에이전트가 층별 플러그인과 플러그인 그룹을 만들 때 쓰는 제작 확장입니다. 뼈대 만들기, 구성 검사, 시험, 재생, 패키징을 한 흐름으로 묶습니다. 고정된 템플릿 묶음 대신, 구현과 보안 항목이 바뀔 때마다 갱신되는 "종류 카탈로그"를 둡니다.
+에이전트가 층별 플러그인과 플러그인 그룹을 만들 때 쓰는 Plugin Builder입니다. 뼈대 만들기, 구성 검사, 시험, 재생, 패키징을 한 흐름으로 묶습니다. 고정된 템플릿 묶음 대신, 구현과 보안 항목이 바뀔 때마다 갱신되는 "종류 카탈로그"를 둡니다.
 
-- [결정: 2026-10-31 사용자] 템플릿 묶음을 고정하지 않습니다. 구현과 보안 항목이 들어올 때마다 계속 갱신합니다. 정적 템플릿보다 "플러그인을 만드는 플러그인"(에이전트가 뼈대, 검사, 시험에 쓰는 제작 확장이나 그룹)을 우선합니다(`L4.desktop-ux.spec` §12.3 U-8).
+- [결정: 2026-10-31 사용자] 템플릿 묶음을 고정하지 않습니다. 구현과 보안 항목이 들어올 때마다 계속 갱신합니다. 정적 템플릿보다 "플러그인을 만드는 플러그인"(에이전트가 뼈대, 검사, 시험에 쓰는 Plugin Builder나 그룹)을 우선합니다(`L4.desktop-ux.spec` §12.3 U-8).
 - [결정: 2026-10-31 사용자] 플러그인 화면 모드(선언형, 격리 프레임)는 플러그인을 만드는 에이전트가 고릅니다(ADR-0021 §3.5).
 - 이 문서는 M4 착수용 초안입니다. 이름과 경계는 대부분 [제안]이고 정본 이름은 F와 X가 정합니다.
 
@@ -20,8 +20,8 @@ binds: [xeon/packages/plugin-builder/**]
 
 ### 1.1 정하는 것
 
-- 제작 확장의 역할과 형태(L3 플러그인 그룹 하나, 이름 `authoring`)
-- 제작 확장이 쓰는 기능: 뼈대 만들기, 구성 검사, 시험 대화, 개발 모드 재생, 패키징, 설치 연결
+- Plugin Builder의 역할과 형태(L3 플러그인 그룹 하나, 이름 `authoring`)
+- Plugin Builder가 쓰는 기능: 뼈대 만들기, 구성 검사, Test run, 개발 모드 재생, 패키징, 설치 연결
 - 종류 카탈로그(kind catalog)의 모양, 갱신 규칙, 열린 확장 방식
 - 데스크톱 구성기(`L4.desktop-ux.spec` P-21)와 플러그인 화면 모드(ADR-0021)와의 관계
 - 제작 중 안전 규칙(쓰기 범위, 사람 확인, 등급)
@@ -32,12 +32,12 @@ binds: [xeon/packages/plugin-builder/**]
 - `defineGroup`, `replayDrive`, `scanDriveSource`: `L3.group-sdk.spec`
 - 기존 그룹 템플릿 세 종류의 파일 내용: `L3.slots.spec` §3.3. 이 문서는 그 템플릿을 카탈로그의 첫 항목으로 씁니다.
 - 화면(구성기, 시험 실행)의 모양: `L4.desktop-ux.spec` §6.26, §6.28
-- `fresnel group new` 명령: `L4.cli.spec`. 제작 확장이 생기면 이 명령은 같은 서비스를 부르는 얇은 진입점이 됩니다(§4.5).
+- `fresnel group new` 명령: `L4.cli.spec`. Plugin Builder가 생기면 이 명령은 같은 서비스를 부르는 얇은 진입점이 됩니다(§4.5).
 
 ### 1.3 이 도메인을 L3에 두는 이유
 
 - 제작 흐름은 플러그인 그룹의 모양 그대로입니다. 모델 도구로 작업하고, 작업 단계를 상태로 커밋하고, 위험한 단계(설치, 패키징) 앞에서 사람 확인을 받고, 제작 중 쓰기 범위를 `on`(first) 가드로 막아야 합니다. 이 강제는 스킬 문서로는 할 수 없습니다(`L3.readme` §1 "모델의 행동을 코드로 막거나 구동해야 할 때만 그룹").
-- 데스크톱 화면 안의 기능으로만 두면 CLI와 서비스 모드에서 에이전트가 같은 흐름을 쓸 수 없습니다. 제작 확장은 런타임 부품이고 화면은 그 위의 보기입니다.
+- 데스크톱 화면 안의 기능으로만 두면 CLI와 서비스 모드에서 에이전트가 같은 흐름을 쓸 수 없습니다. Plugin Builder는 런타임 부품이고 화면은 그 위의 보기입니다.
 - 별도 도메인 문서(spec, plan)와 `routes.yaml` layout 항목이 있어야 구현 작업자가 `docs-route`로 이 문서를 받습니다. `L3.slots.spec`(코드 없음, 템플릿 규칙)과 겹치지 않게, slots는 템플릿 내용 규칙을, 이 문서는 템플릿을 고르고 채우고 검사하고 시험하는 흐름을 맡습니다.
 - `L3/README.md` 도메인 표에 이 도메인을 더하는 일은 README 수정 금지라 사용자 몫으로 남깁니다(§10 미결 1).
 
@@ -45,11 +45,11 @@ binds: [xeon/packages/plugin-builder/**]
 
 | 용어 | 뜻 |
 |---|---|
-| 제작 확장 | 이 문서의 L3 그룹 `authoring`. 사용자 화면에서는 "제작"이라 부릅니다 |
-| 제작 세션 | 플러그인 하나를 만드는 동안의 상태(대상 폴더, 종류, 구성 초안, 검사 결과, 시험 기록). 대화 하나에 묶입니다 |
+| Plugin Builder | 이 문서의 L3 그룹 `authoring`. 사용자 화면에서는 "제작"이라 부릅니다 |
+| 제작 대화 | 플러그인 하나를 만드는 동안의 상태(대상 폴더, 종류, 구성 초안, 검사 결과, 시험 기록). 대화 하나에 묶입니다 |
 | 종류(kind) | 만들 수 있는 플러그인 모양 하나. 예: 플러그인 그룹 drive, 정책 플러그인, L2 provider, 선언형 화면, 프레임 화면. 확장 수준의 구분은 `group` 선언 유무로 한다. wire `ext.kinds`는 `single-plugin`과 `plugin-group`을 돌려주며 스키마는 T-F가 정한다 [미결] |
 | 종류 카탈로그 | 종류 항목의 목록과 각 항목의 템플릿, 필수 검사, 보안 메모, 지원 범위 |
-| 구성 초안 | 매니페스트 `composition`(`L4.desktop-ux.spec` §10.3 X-16)과 같은 모양의 블록 목록. 구성기와 제작 확장이 같은 형식을 씁니다 |
+| 구성 초안 | 매니페스트 `composition`(`L4.desktop-ux.spec` §10.3 X-16)과 같은 모양의 블록 목록. 구성기와 Plugin Builder가 같은 형식을 씁니다 |
 | 제작 검사 | `AU-NNN` 번호를 가진 검사 규칙. F 검사 함수 결과에 제작 전용 규칙을 더합니다 |
 | 개발 모드 | 저장소 스크립트와 시험 하니스를 쓸 수 있는 실행 형태. replay, benchmark, 코어 변경 검사는 개발 모드에서만 돕니다(`L4.desktop-ux.spec` §12.3 U-4) |
 
@@ -57,7 +57,7 @@ binds: [xeon/packages/plugin-builder/**]
 
 ### 3.1 형태
 
-[제안] 제작 확장은 내장 L3 플러그인 그룹입니다.
+[제안] Plugin Builder는 내장 L3 플러그인 그룹입니다.
 
 | 항목 | 값 |
 |---|---|
@@ -66,9 +66,9 @@ binds: [xeon/packages/plugin-builder/**]
 | 층과 선언 | 루트 플러그인 `plugins[0].layer: "L3"`, `group: {}` 선언(플러그인 그룹) |
 | 신뢰 | `builtin`(앱에 듦). 학습 그룹과 같은 배포 방식 |
 | 기본 켜짐 | 꺼짐. LightCraft 구성의 "새 그룹", 슬래시 명령 `/author`, 모델 도구 첫 사용 안내로 켭니다 |
-| drive | 씀. 제작 세션 단계 머신(§4.1)을 drive로 돌립니다. 사람 확인은 drive 원시 `loop.ask`(X-17)를 씁니다 |
-| 지점 | `tool.call.before`(first, 쓰기 범위 가드), `thread.start`(tap, 세션 복원) |
-| 화면 기여 | 선언형 `page` "제작"(세션 단계, 검사, 시험 결과), `well` "제작"(요약), `card` `authoring/result`(검사·시험 결과), `command` 둘 |
+| drive | 씀. 제작 대화 단계 머신(§4.1)을 drive로 돌립니다. 사람 확인은 drive 원시 `loop.ask`(X-17)를 씁니다 |
+| 훅 | `tool.call.before`(first, 쓰기 범위 가드), `thread.start`(tap, 대화 복원) |
+| 화면 기여 | 선언형 `page` "제작"(대화 단계, 검사, 시험 결과), `well` "제작"(요약), `card` `authoring/result`(검사·시험 결과), `command` 둘 |
 | 구성요소 | 스킬 `authoring-guide`(종류 고르기, 모드 고르기, 보안 규칙), 명령 `/author` |
 
 ### 3.2 모델 도구
@@ -78,16 +78,16 @@ binds: [xeon/packages/plugin-builder/**]
 | 도구 | 입력 | 결과 | 위험 |
 |---|---|---|---|
 | `authoring_kinds` | `{ layer?, query? }` | 카탈로그 항목 요약(종류 id, 설명, 상태, 필요한 결정) | 읽기 |
-| `authoring_start` | `{ kind, name, dir, displayName? }` | 제작 세션 id, 이름 검사 결과 | 읽기 |
+| `authoring_start` | `{ kind, name, dir, displayName? }` | 제작 대화 id, 이름 검사 결과 | 읽기 |
 | `authoring_compose` | `{ sessionId, composition }` | 구성 초안 저장, `validateComposition` 결과 | 상태만 |
 | `authoring_scaffold` | `{ sessionId, views?: { slot, mode }[] }` | 만든 파일 목록과 패치 | 쓰기(대상 폴더 안) |
 | `authoring_validate` | `{ sessionId }` | `ManifestIssue[]`와 `AU-NNN` 결과 | 읽기 |
-| `authoring_trial` | `{ sessionId, profile?, prompt }` | 시험 대화 id, 진행 위치 | 시험 대화 생성 |
+| `authoring_trial` | `{ sessionId, profile?, prompt }` | Test run id, 진행 위치 | Test run 생성 |
 | `authoring_replay` | `{ sessionId, maxCommits? }` | `ReplayDriveReport`(개발 모드만) | 실행 |
 | `authoring_package` | `{ sessionId, out? }` | 패키지 경로, 내용 목록, 해시 | 쓰기 + 사람 확인 |
 | `authoring_install` | `{ sessionId, scope: "user" }` | 설치 위치 연결 결과 | 사람 확인 |
 
-- 모든 도구는 같은 서비스 `fresnel.devkit`(§3.3)을 부릅니다. 도구는 입력 검사, 세션 상태 커밋, 결과 요약만 합니다.
+- 모든 도구는 같은 서비스 `fresnel.devkit`(§3.3)을 부릅니다. 도구는 입력 검사, 대화 상태 커밋, 결과 요약만 합니다.
 - 화면(구성기, 시험 실행)도 wire로 같은 서비스를 부릅니다(`L4.desktop-ux.spec` W-27, W-28, W-29, W-47, W-49). 그래서 에이전트와 사용자가 같은 검사와 같은 뼈대를 얻습니다.
 
 ### 3.3 서비스 `fresnel.devkit`
@@ -109,12 +109,12 @@ interface DevkitService {
 ```
 
 - `validate`는 F `validateManifest`, `validateUsage`, `validateComposition`, group-sdk `scanDriveSource`, ADR-0021 화면 규칙, 카탈로그 항목의 필수 검사를 차례로 돌린 결과입니다.
-- `trial`은 시험 대화를 만듭니다(`thread.create { trial: true }`, W-34). 시험 대화는 대상 확장을 `session` 범위로 켜고, 학습 그룹 리뷰에서 빠지며(X-14), 단계 경계 멈춤(W-48)을 쓸 수 있습니다.
+- `trial`은 Test run을 만듭니다(`thread.create { trial: true }`, W-34). Test run은 대상 확장을 `session` 범위로 켜고, 학습 그룹 리뷰에서 빠지며(X-14), 단계 경계 멈춤(W-48)을 쓸 수 있습니다.
 - `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 시크릿처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
 
 ### 3.4 종류 카탈로그
 
-[제안] 카탈로그는 데이터입니다. 제작 확장 패키지의 `catalog/kinds/<종류 id>.json` 파일 하나가 항목 하나입니다.
+[제안] 카탈로그는 데이터입니다. Plugin Builder 패키지의 `catalog/kinds/<종류 id>.json` 파일 하나가 항목 하나입니다.
 
 ```ts
 // 개념 모양
@@ -147,11 +147,11 @@ M4 첫 카탈로그 [제안]:
 | `x.hook` | X | blocked | 없음 | 외부 훅 프로토콜(M4 N14) 확정 뒤 |
 
 - 상태가 `blocked`인 항목은 `authoring_kinds`에 보이되 `authoring_start`가 거부하고 사유를 돌려줍니다. 화면에서는 "준비 중"으로 보입니다.
-- 카탈로그에 없는 모양이 필요하면 에이전트는 가장 가까운 종류로 시작하고 차이를 세션 메모에 남깁니다. 사용자 로컬 카탈로그(§4.4)에 초안 항목을 더할 수도 있습니다.
+- 카탈로그에 없는 모양이 필요하면 에이전트는 가장 가까운 종류로 시작하고 차이를 대화 메모에 남깁니다. 사용자 로컬 카탈로그(§4.4)에 초안 항목을 더할 수도 있습니다.
 
 ### 3.5 제작 검사(`AU-NNN`)
 
-[제안] F 검사 결과(`ManifestIssueCode`)는 그대로 보이고, 아래는 제작 확장이 더하는 검사입니다. 번호는 지우지 않고 `deprecated`로만 바꿉니다.
+[제안] F 검사 결과(`ManifestIssueCode`)는 그대로 보이고, 아래는 Plugin Builder가 더하는 검사입니다. 번호는 지우지 않고 `deprecated`로만 바꿉니다.
 
 | id | 검사 | 수준 |
 |---|---|---|
@@ -170,7 +170,7 @@ M4 첫 카탈로그 [제안]:
 
 ## 4. 동작 규칙
 
-### 4.1 제작 세션 단계
+### 4.1 제작 대화 단계
 
 [제안] drive 단계 머신입니다. 모든 전이는 단계 경계에서 커밋됩니다.
 
@@ -185,22 +185,22 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | compose | 구성 초안을 만들거나 구성기에서 받은 초안을 읽음 | 없음 |
 | scaffold | 템플릿 복사, 치환, 구성 초안에서 매니페스트 필드와 `setup` 등록 줄 패치 | 없음(대상 폴더 안) |
 | validate, fix | 검사, 고치기 반복. 같은 오류가 3번 남으면 멈추고 사용자에게 물음 | 반복 한도 도달 때 |
-| trial | 시험 대화에서 대상을 켜고 프롬프트를 보냄. 결과를 세션에 요약 | 시험 시작 전(비용) |
+| trial | Test run에서 대상을 켜고 프롬프트를 보냄. 결과를 대화에 요약 | 시험 시작 전(비용) |
 | replay | 개발 모드면 `replayDrive`. 배포 앱은 건너뛰고 "개발 모드에서 확인 필요" 표시 | 없음 |
 | package | 묶음 만들기, 사용자 위치 연결 | 묶기 전, 연결 전(`loop.ask`) |
 
-- 사람 확인을 기다리는 동안 drive lock을 반납합니다(X-17, `L4.desktop-ux.spec` §12.4 C-8). 답이 오면 다시 후보가 되어 같은 단계에서 이어 갑니다.
-- 단계와 상관없이 사용자는 `/author stop`으로 세션을 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
+- 사람 확인을 기다리는 동안 drive 락을 반납합니다(X-17, `L4.desktop-ux.spec` §12.4 C-8). 답이 오면 다시 후보가 되어 같은 단계에서 이어 갑니다.
+- 단계와 상관없이 사용자는 `/author stop`으로 대화를 멈출 수 있습니다. 만든 파일은 지우지 않습니다.
 
 ### 4.2 쓰기 범위 가드
 
-- [제안] 제작 세션이 열린 대화에서 `tool.call.before`(first)는 쓰기 도구(`write`, `edit`, 셸 실행의 쓰기)를 세션 대상 폴더 안으로 제한합니다. 밖이면 거부하고 이유를 돌려줍니다.
+- [제안] 제작 대화가 열려 있는 동안 `tool.call.before`(first)는 쓰기 도구(`write`, `edit`, 셸 실행의 쓰기)를 대상 폴더 안으로 제한합니다. 밖이면 거부하고 이유를 돌려줍니다.
 - 사용자 확장 위치, 관리 위치, 앱 자원 폴더에 직접 쓰지 않습니다. 설치는 `fresnel.devkit.link`(사람 확인 뒤)만 합니다.
-- 가드는 세션이 끝나면 풀립니다. 제작 확장이 꺼져도 풀립니다.
+- 가드는 대화가 끝나면 풀립니다. Plugin Builder가 꺼져도 풀립니다.
 
 ### 4.3 구성기와 화면 모드와의 관계
 
-- 구성기(`L4.desktop-ux.spec` §6.28)는 구성 초안을 편집하고 `ext.validateComposition`(W-47)으로 검사합니다. "새 그룹"은 구성기에서 초안을 만든 뒤 "제작 확장으로 만들기"를 누르면 제작 세션을 열어 그 초안을 넘깁니다(`authoring_compose`). 반대로 에이전트가 만든 초안은 구성기에서 읽기 전용으로 열 수 있습니다.
+- 구성기(`L4.desktop-ux.spec` §6.28)는 구성 초안을 편집하고 `ext.validateComposition`(W-47)으로 검사합니다. "새 그룹"은 구성기에서 초안을 만든 뒤 "제작 확장으로 만들기"를 누르면 제작 대화를 열어 그 초안을 넘깁니다(`authoring_compose`). 반대로 에이전트가 만든 초안은 구성기에서 읽기 전용으로 열 수 있습니다.
 - 구성기는 구조를 편집하는 유일한 화면입니다. 런타임 캔버스는 운영(켜기, 끄기, 덮어쓰기)만 합니다(`L4.desktop-ux.spec` §12.4 C-2).
 - 화면 기여가 있는 플러그인은 `authoring_scaffold`의 `views` 인자로 slot과 모드를 받습니다. 에이전트는 ADR-0021 §3.5 표로 모드를 고르고, 프레임이면 `frame.reason`을 씁니다. AU-005~AU-008이 그 선택을 검사합니다.
 
@@ -208,7 +208,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 [결정: 2026-10-31 사용자] 템플릿 묶음은 고정하지 않고 구현·보안 변경에 맞춰 갱신합니다. 갱신 규칙 [제안]:
 
-1. 카탈로그는 제작 확장 패키지와 같은 버전으로 배포합니다. `catalogVersion`이 화면 머리와 `authoring_kinds` 결과에 보입니다.
+1. 카탈로그는 Plugin Builder 패키지와 같은 버전으로 배포합니다. `catalogVersion`이 화면 머리와 `authoring_kinds` 결과에 보입니다.
 2. 적합성 시험: 카탈로그 시험은 모든 항목을 실제로 뼈대로 만들고 `validate`를 통과하는지 봅니다. F 훅 표(`HOOKS`), 매니페스트 스키마, 위젯 카탈로그, 다리 버전이 바뀌어 항목이 깨지면 시험이 실패합니다. F·X·L4 트랙은 이 시험을 끝 시험에 넣습니다.
 3. 보안 항목이 들어오면(`architecture.security.spec` §4의 새 T 행, X 등급 규칙 변경) 같은 커밋에서 `AU-NNN` 규칙이나 항목의 `security` 메모를 더합니다. 검토 담당은 T 행마다 대응 AU 규칙이 있는지 확인합니다.
 4. 지원 범위가 바뀐 항목은 상태를 `preview` → `stable`, `stable` → `deprecated`로 옮기고 `since`를 갱신합니다. 지우지 않습니다.
@@ -218,43 +218,43 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 ### 4.5 CLI와의 관계
 
 - `fresnel group new`는 `fresnel.devkit.scaffold`를 부르는 진입점이 됩니다(엔진이 떠 있으면 wire, 아니면 같은 F 함수와 템플릿 파일로 로컬 실행). 결과 파일은 지금과 같아야 합니다(`L3.slots.spec` §3.3.6 R1~R6).
-- `fresnel author <명령>` [제안]은 제작 세션을 CLI에서 엽니다. 모델 없이 `scaffold`, `validate`, `pack`만 쓰는 모드도 둡니다.
+- `fresnel author <명령>` [제안]은 제작 대화를 CLI에서 엽니다. 모델 없이 `scaffold`, `validate`, `pack`만 쓰는 모드도 둡니다.
 
 ## 5. 실패와 경계 사례
 
 | 경우 | 동작 |
 |---|---|
-| 대상 폴더가 비어 있지 않음 | `scaffold` 거부(`dir_not_empty`). 기존 제작물을 고치려면 `authoring_start { dir }`가 매니페스트를 읽어 세션을 이어 감 |
+| 대상 폴더가 비어 있지 않음 | `scaffold` 거부(`dir_not_empty`). 기존 제작물을 고치려면 `authoring_start { dir }`가 매니페스트를 읽어 대화를 이어 감 |
 | 검사 실패 상태로 패키징 요청 | 거부. 경고만 있으면 사람 확인에 경고 목록을 보임 |
-| 배포 앱에서 replay 요청 | `dev_mode_required`. 세션에 "개발 모드 확인 필요" 표시 |
-| 시험 대화에서 대상이 자동 꺼짐 | 시험을 멈추고 실패 장부를 세션에 붙임. 고친 뒤 `ext.reenable`(W-21)로 다시 시험 |
+| 배포 앱에서 replay 요청 | `dev_mode_required`. 대화에 "개발 모드 확인 필요" 표시 |
+| Test run에서 대상이 자동 꺼짐 | 시험을 멈추고 실패 장부를 대화에 붙임. 고친 뒤 `ext.reenable`(W-21)로 다시 시험 |
 | 카탈로그 항목이 `blocked` | `authoring_start` 거부와 `blockedReason` |
-| 엔진 재시작 | 세션 상태는 그룹 상태 문서에 있어 `thread.start`에서 복원. 진행 중 시험 대화는 그대로 남음 |
-| 안전 모드 | 제작 확장은 내장 L3 플러그인 그룹이라 빠짐. `fresnel group new`와 `fresnel author scaffold`(모델 없음)는 동작 |
+| 엔진 재시작 | 대화 상태는 그룹 상태 문서에 있어 `thread.start`에서 복원. 진행 중 Test run은 그대로 남음 |
+| 안전 모드 | Plugin Builder는 내장 L3 플러그인 그룹이라 빠짐. `fresnel group new`와 `fresnel author scaffold`(모델 없음)는 동작 |
 
 ## 6. 설정 노출
 
 | 키 | 기본 | 범위 | 뜻 |
 |---|---|---|---|
-| `l3.authoring.enabled` | `false` | user, project, launch | 제작 확장 켜기(일반 `ext.<id>.enabled` 규칙과 같음) [제안] |
+| `l3.authoring.enabled` | `false` | user, project, launch | Plugin Builder 켜기(일반 `ext.<id>.enabled` 규칙과 같음) [제안] |
 | `l3.authoring.devMode` | 앱 형태에 따름 | managed, user | 개발 모드 동작(replay, benchmark) 허용. 배포 앱에서는 저장소 경로가 있어야 켜짐 |
 | `l3.authoring.fixLoopLimit` | `3` | user, launch | 같은 검사 오류가 남는 고치기 반복 한도 |
 | `l3.authoring.localCatalog` | `true` | user | 사용자 로컬 카탈로그 읽기 |
 
 ## 7. 훅
 
-| 지점 | fold | 쓰임 |
+| 훅 | fold | 쓰임 |
 |---|---|---|
 | `tool.call.before` | first | 쓰기 범위 가드(§4.2) |
-| `thread.start` | tap | 세션 복원 |
-| drive | | 제작 세션 단계 머신. 사람 확인은 `loop.ask`(X-17) |
+| `thread.start` | tap | 대화 복원 |
+| drive | | 제작 대화 단계 머신. 사람 확인은 `loop.ask`(X-17) |
 
 ## 8. 다른 문서와의 인터페이스
 
 | 문서 | 관계 |
 |---|---|
 | `F.extensions.spec` | 요구: `composition` 필드와 `validateComposition`(X-16), `views` 두 모드(ADR-0021), 서비스 `fresnel.devkit` 계약 |
-| `X.primitives.spec` | 요구: `loop.ask`와 반납 사유 `waiting`(X-17), 시험 대화 단계 경계 멈춤(X-19) |
+| `X.primitives.spec` | 요구: `loop.ask`와 반납 사유 `waiting`(X-17), Test run 단계 경계 멈춤(X-19) |
 | `L3.group-sdk.spec` | 받음: `defineGroup`, `replayDrive`, `scanDriveSource`, 템플릿 폴더. 요구: `defineGroup({ composition })` 채움 |
 | `L3.slots.spec` | 받음: 템플릿 세 종류와 이름 규칙. 카탈로그 첫 항목 |
 | `L4.desktop-ux.spec` | 제공: 구성기 "새 그룹"의 실행 흐름, 시험 실행의 제작 시험. 요구: W-27~W-29, W-34, W-47~W-49 |
@@ -266,17 +266,17 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 - A-1. 카탈로그의 `stable`·`preview` 항목마다 뼈대를 만들면 `validate`가 오류 0으로 통과합니다(카탈로그 적합성 시험).
 - A-2. `group.drive`·`group.policy`·`group.observe`로 만든 파일이 `fresnel group new`의 결과와 같고 `core-diff-check`에서 보호 경로 변경 0줄입니다.
-- A-3. 제작 세션 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
-- A-4. `authoring_package`와 `authoring_install`은 사람 확인 없이는 파일을 쓰지 않고, 확인을 기다리는 동안 그 대화의 drive lock이 반납된 상태입니다.
+- A-3. 제작 대화에서 대상 폴더 밖 쓰기 도구 호출이 거부됩니다.
+- A-4. `authoring_package`와 `authoring_install`은 사람 확인 없이는 파일을 쓰지 않고, 확인을 기다리는 동안 그 대화의 drive 락이 반납된 상태입니다.
 - A-5. 배포 앱 형태에서 `authoring_replay`가 `dev_mode_required`를 돌려줍니다.
 - A-6. 화면 기여가 있는 시험 플러그인 하나(선언형 `well` + 프레임 `page`)를 만들면 AU-005가 통과하고, 프레임 금지 설정에서 `fallback`이 그려집니다.
-- A-7. F 지점 하나의 이름을 바꾸는 가짜 변경에서 카탈로그 적합성 시험이 실패합니다.
+- A-7. F 훅 하나의 이름을 바꾸는 가짜 변경에서 카탈로그 적합성 시험이 실패합니다.
 
 ## 10. 미결 사항
 
 1. [미결] `L3/README.md` 도메인 표에 `authoring`을 더하는 일(README 수정 금지라 사용자 몫).
 2. [미결] 서비스 `fresnel.devkit`의 정본 위치(F `services/devkit.ts` [제안])와 L4 구현 위치(`apps/host`).
-3. [미결] 제작 확장을 기본 켬으로 둘지. 이 문서는 꺼짐을 기본값으로 둡니다.
+3. [미결] Plugin Builder를 기본 켬으로 둘지. 이 문서는 꺼짐을 기본값으로 둡니다.
 4. [미결] 묶음 형식(폴더 사본, tar, 서명). 서명은 릴리즈 서명(`L4.release.spec`)과 함께 정합니다.
 5. [미결] 사용자 로컬 카탈로그 경로와, 로컬 항목을 다른 기기와 나눌지.
 6. [미결] 배포 앱에서 개발 모드를 켜는 조건(저장소 경로 설정, 시험 하니스 번들 여부). `L4.desktop-ux.spec` §12.3 U-4는 "개발 모드에서만"입니다.

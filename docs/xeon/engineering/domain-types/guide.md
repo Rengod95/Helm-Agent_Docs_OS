@@ -313,7 +313,7 @@ ID 접두, 브랜드 타입, ID 스키마, `IdFactory` 인터페이스의 정본
 - ID 문자열의 시각 부분으로 순서를 판단하지 않는다. 순서는 이벤트 `seq`다(`eng.events.design` 4.6절).
 - 외부 시스템이 발급한 ID(모델 provider의 도구 호출 id, MCP 요청 id)는 접두 규약 대상이 아니다. F는 이 값을 브랜드 없는 `string`으로 둔다(예: `EffectIntent.toolCallId`, `F.records.spec` §3.5).
 - 멱등 키에는 브랜드가 없다. payload의 `requestId`는 1~64자 문자열이고(`F.conversation.spec` §3.5, `F.readme` §4), 저장소의 커밋 키는 `CommitKey` 문자열이다(`eng.transactions.design` 4.7절, `COMMIT_KEY_PATTERN`). 이 문서의 이전 판에 있던 `RequestId` 브랜드, `RequestIdSchema`, `REQUEST_ID_PATTERN`, `deriveRequestId`는 두지 않는다.
-- 브랜드 대상: 세션 기록, F 서비스 인터페이스, 와이어에 들어가는 F 접두 ID. 운영 테이블의 값(`sys_leases.holder_id`)과 이름 문자열(생산자 id, 소비자 이름, 확장 이름, scope id)은 브랜드 없이 각자의 패턴만 검사한다.
+- 브랜드 대상: 대화 기록, F 서비스 인터페이스, 와이어에 들어가는 F 접두 ID. 운영 테이블의 값(`sys_leases.holder_id`)과 이름 문자열(생산자 id, 소비자 이름, 확장 이름, scope id)은 브랜드 없이 각자의 패턴만 검사한다.
 
 브랜드 ID 표(`F.conversation.spec` §3.2):
 
@@ -449,7 +449,7 @@ export const NoticeSchema: TUnion<[typeof InfoNoticeSchema, typeof WarnNoticeSch
 
 - Helm과 학습 그룹은 L3 기본 그룹이고, 사용자는 그룹과 플러그인을 추가·교체한다(`_research/decisions-log.md` 2026-10-21 배포 단위 정정). F 유니온이 닫혀 있으면 새 그룹마다 F 수정이 필요하다.
 - 접두 문자열 규약은 런타임에 확장 변형을 한 번의 문자열 검사로 구분한다. pi agent-core는 선언 병합으로 타입을 확장하지만(`_research/packages.md §4.1` F4 열거형 확장 예약) 선언 병합은 런타임 검증 스키마를 바꾸지 못한다. 접두 규약은 정적 타입과 런타임 검사를 같은 방식으로 다룬다.
-- 소비자가 모르는 확장 변형에서 실패하면 그 확장을 끈 세션이나 그 확장이 없는 클라이언트가 열리지 않는다. 통과 규칙은 확장을 켜고 끄는 일(`scope` 토글)이 저장된 데이터의 읽기 가능성에 영향을 주지 않게 한다.
+- 소비자가 모르는 확장 변형에서 실패하면 그 확장을 끈 대화나 그 확장이 없는 클라이언트가 열리지 않는다. 통과 규칙은 확장을 켜고 끄는 일(`scope` 토글)이 저장된 데이터의 읽기 가능성에 영향을 주지 않게 한다.
 
 정의와 완결 예:
 
@@ -828,7 +828,7 @@ import { DurableEventEnvelopeSchema } from "../records/envelope.ts";
 
 ### DT-13 설정 스키마 키는 점 구분 이름 공간을 쓴다
 
-[제안] 최종 키 목록과 범위(전역, 프로젝트, 세션)는 `F.wire-settings.spec`이 정한다. 이 규칙은 키 이름 형식만 정한다.
+[제안] 최종 키 목록과 범위(전역, 프로젝트, `launch`)는 `F.wire-settings.spec`이 정한다. 이 규칙은 키 이름 형식만 정한다.
 
 - 형식: `<영역>.<이름>` 또는 `<영역>.<하위>.<이름>`. 각 세그먼트는 `lowerCamelCase`, 영문 소문자로 시작한다. 패턴: `^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*){1,3}$`.
 - 코어 영역 이름은 층 도메인 이름을 쓴다. 예: `models.defaultModel`, `models.thinkingBudget`, `tools.bash.timeoutMs`, `web.search.provider`.

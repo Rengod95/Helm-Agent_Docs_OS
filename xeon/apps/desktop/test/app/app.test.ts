@@ -82,7 +82,7 @@ describe("app session over a fake shell and fake engine", () => {
     let first = true;
     const fake = fakeIpc({
       onWrite: (message, f) => {
-        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
+        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없어요
         if (first) {
           first = false;
           f.emitLine({

@@ -207,13 +207,13 @@ M2 DESK.1(`m2/desk` 브랜치)이 S1~S4를 실행한 결과다. 위 3.1의 "spik
 | 빌드 | S1은 debug, S3 수치는 release(`cargo build --release`) |
 | 하지 않은 것 | macOS, Windows, 네이티브 Linux는 러너가 없어 실행하지 못했다. S1의 Windows 크래시 행도 그렇다. 창 닫기는 창 관리자의 X 단추 대신 같은 `CloseRequested` 경로를 타는 `Window::close()`를 Rust에서 불러 재현했다(`xdotool` 등이 없다) |
 
-실행 방법은 `apps/desktop/package.json`의 `spike:*` 스크립트와 `spike/s1-matrix.sh`, `spike/s2-size.sh`, `spike/tests/s4.ts`다. 엔진은 `spike/tests/engine.ts`를 `bun build --compile`한 가짜 엔진이고(손자 `sleep 600`을 같은 그룹 또는 새 세션으로 띄우고, EOF 정책을 `exit-clean`·`exit-noclean`·`ignore`로 고른다), 실제 호스트(`apps/host/src/main.ts host --stdio`를 컴파일한 것)는 S2와 S4에서만 썼다.
+실행 방법은 `apps/desktop/package.json`의 `spike:*` 스크립트와 `spike/s1-matrix.sh`, `spike/s2-size.sh`, `spike/tests/s4.ts`다. 엔진은 `spike/tests/engine.ts`를 `bun build --compile`한 가짜 엔진이고(손자 `sleep 600`을 같은 그룹 또는 새 "세션"으로 띄우고, EOF 정책을 `exit-clean`·`exit-noclean`·`ignore`로 고른다), 실제 호스트(`apps/host/src/main.ts host --stdio`를 컴파일한 것)는 S2와 S4에서만 썼다.
 
 #### S1 종료 원인별 잔존 프로세스 (종료 10초 뒤)
 
 가짜 엔진 4종(손자 위치 x EOF 처리)에 대해 셸 → 엔진 → 손자 트리를 남은 프로세스로 확인했다. 표는 "남은 것"이다. 엔진은 Rust API(`app.shell().command(..).set_process_group(true).spawn()`)로 띄웠고, 셸 capabilities에는 `core:default`만 있다.
 
-| 종료 원인 | 셸의 `Exit` 때 하는 일 | 손자 같은 그룹, EOF 종료 | 손자 같은 그룹, EOF 무시 | 손자 새 세션, EOF 종료 | 손자 새 세션, EOF 무시 |
+| 종료 원인 | 셸의 `Exit` 때 하는 일 | 손자 같은 그룹, EOF 종료 | 손자 같은 그룹, EOF 무시 | 손자 새 "세션", EOF 종료 | 손자 새 "세션", EOF 무시 |
 |---|---|---|---|---|---|
 | 창 닫기(`CloseRequested`, `ExitRequested`, `Exit` 발생) | 없음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
 | 창 닫기 | 그룹 SIGKILL | 없음 | 없음 | 손자 | 손자 |
@@ -231,8 +231,8 @@ M2 DESK.1(`m2/desk` 브랜치)이 S1~S4를 실행한 결과다. 위 3.1의 "spik
 S1에서 spec에 반영할 내용:
 
 1. SIGTERM에서 `RunEvent::Exit`는 처리기를 두지 않으면 오지 않는다(spec §4.3 [미확인] 해소). 처리기를 두면 `ExitRequested`(code `Some(0)`)와 `Exit`가 온다.
-2. 앱 SIGKILL과 처리기 없는 SIGTERM은 셸 코드가 돌지 않으므로 E5(stdin EOF 임대)만이 방어다. EOF를 무시하는 엔진은 어떤 종료 원인에서도 그대로 남는다.
-3. `Exit`에서 곧바로 그룹 SIGKILL을 하면 EOF 처리 기회를 빼앗아, 엔진이 새 세션으로 띄운 손자(E9가 금지하는 구성)를 정리하지 못한 채 남긴다. spec §4.3의 순서(EOF와 `host.shutdown` 먼저, 시한 뒤 그룹 SIGKILL)가 맞다.
+2. 앱 SIGKILL과 처리기 없는 SIGTERM은 셸 코드가 돌지 않으므로 E5(stdin EOF 프로세스 락)만이 방어다. EOF를 무시하는 엔진은 어떤 종료 원인에서도 그대로 남는다.
+3. `Exit`에서 곧바로 그룹 SIGKILL을 하면 EOF 처리 기회를 빼앗아, 엔진이 새 "세션"으로 띄운 손자(E9가 금지하는 구성)를 정리하지 못한 채 남긴다. spec §4.3의 순서(EOF와 `host.shutdown` 먼저, 시한 뒤 그룹 SIGKILL)가 맞다.
 4. E3(프로세스 그룹)은 필수다. 끄면 그룹 SIGKILL이 손자에 미치지 않는다.
 
 #### S2 `bun build --compile` 크기
@@ -293,9 +293,9 @@ S1에서 spec에 반영할 내용:
 |---|---|---|---|---|
 | 가짜, 손자 없음, EOF 종료 | 4.2 | 40.1 | 0/20 | - |
 | 가짜, 손자 같은 그룹, EOF 때 손자 정리 | 4.1 | 4.5 | 0/20 | 0/20 |
-| 가짜, 손자 새 세션, EOF 때 손자 정리 | 4.2 | 4.7 | 0/20 | 0/20 |
+| 가짜, 손자 새 "세션", EOF 때 손자 정리 | 4.2 | 4.7 | 0/20 | 0/20 |
 | 가짜, 손자 같은 그룹, EOF 종료만 하고 손자 정리 안 함 | 4.0 | 5.3 | 0/20 | 20/20 |
-| 가짜, 손자 새 세션, EOF 종료만 하고 손자 정리 안 함 | 4.5 | 19.0 | 0/20 | 20/20 |
+| 가짜, 손자 새 "세션", EOF 종료만 하고 손자 정리 안 함 | 4.5 | 19.0 | 0/20 | 20/20 |
 | 가짜, EOF 무시 | - | - | 20/20 | 20/20 |
 | 실제 호스트 `host --stdio`, 기본 | 28.8 | 61.2 | 0/20 | 손자 없음 |
 | 실제 호스트, `--minify` | 27.9 | 34.7 | 0/20 | 손자 없음 |
@@ -487,7 +487,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 - 포크 원본: 없다.
 - 구조 참고(코드 복사 없음):
   - Tauri 사이드카 공식 문서 https://v2.tauri.app/develop/sidecar/ (externalBin, triple 규칙, capabilities).
-  - opencode `standalone.ts`의 stdin EOF 임대(`_research/process.md §6.4`, adr.0006 §3.7 6번 근거 `standalone.ts:23-27`). 엔진 쪽 구현은 `L4.host-service.plan` 몫이고, 데스크톱은 그 동작을 전제로 테스트한다.
+  - opencode `standalone.ts`의 stdin EOF 프로세스 락(`_research/process.md §6.4`, adr.0006 §3.7 6번 근거 `standalone.ts:23-27`). 엔진 쪽 구현은 `L4.host-service.plan` 몫이고, 데스크톱은 그 동작을 전제로 테스트한다.
 - D2 착수 때 확정할 버전 목록(확정 전까지 [미확인]): `@tauri-apps/api`, `tauri-plugin-shell`, `tauri-plugin-notification`, Rust 툴체인(`rust-toolchain.toml`). `react`, `react-dom`, `zustand`는 D6 착수 때 같은 방식으로 기록한다. D2 완료 조건에 이 목록의 정확 버전 기록을 넣는다.
 - 모든 TS 의존은 `xeon/package.json` catalog에 정확 버전으로 둔다(TC-01, TC-02). Rust crate는 `Cargo.toml`에 `=` 버전으로 두고 `Cargo.lock`을 커밋한다 [제안].
 
@@ -555,7 +555,7 @@ M2 첫 실행 반영(M-12, 키 등록): 깨끗한 Mac에는 `fresnel` 명령이 
 
 | # | 위험 | 영향 | 대응 |
 |---|---|---|---|
-| R1 | 사이드카 종료 정리의 공식 문서가 없다. 플러그인은 정상 종료 때 JS API 사이드카만 SIGKILL로 정리하고, Rust API 사이드카·크래시·신호 종료·그룹 끈 손자·Windows job은 정리하지 않는다(`_research/notes/arch-2.md §5` 1~9행) | 고아 엔진과 손자 프로세스 | spec E1~E9, S1·S4로 실측. stdin EOF 임대를 1차 방어로 둔다 |
+| R1 | 사이드카 종료 정리의 공식 문서가 없다. 플러그인은 정상 종료 때 JS API 사이드카만 SIGKILL로 정리하고, Rust API 사이드카·크래시·신호 종료·그룹 끈 손자·Windows job은 정리하지 않는다(`_research/notes/arch-2.md §5` 1~9행) | 고아 엔진과 손자 프로세스 | spec E1~E9, S1·S4로 실측. stdin EOF 프로세스 락을 1차 방어로 둔다 |
 | R2 | Bun 엔진을 사이드카로 묶는 방식이 Tauri·Bun 어디에도 공식 사례로 없다(adr.0008 §4.2, arch-2 §4.1) | 업그레이드 때 예고 없는 동작 변화 | Bun과 Tauri 버전을 정확히 고정하고, 올릴 때 S1·S3 시나리오를 다시 돈다 |
 | R3 | Bun 단일 바이너리가 크다. 공식 문서가 "still way too big"이라고 적고 수치는 없다(`_research/stack-status.md §7-C`) | 설치 크기, 내려받기 시간 | S2로 재고 상한을 정한다. `--minify`, 소스맵 외부화, 배포판 제외 플러그인(`provider-anthropic-oauth`)을 진입점 그래프에서 빼는지 검사한다(DR-09). CI에서 상한 초과를 실패로 둔다 |
 | R4 | Windows 서명 비용과 SmartScreen 평판. EV도 즉시 평판을 주지 않는다(`§7-G`) | 첫 사용자 경고, 비용 | Windows는 나중 지원이므로 M2는 빌드와 서명 준비까지만 한다. 인증서 종류와 비용은 사용자 확인 [미결] |

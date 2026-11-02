@@ -10,7 +10,7 @@ binds: [xeon/apps/cli/**]
 
 # L4 CLI (`fresnel`)
 
-이 문서는 L4 배포 런타임 중 CLI 앱(`xeon/apps/cli`)의 스펙이다. 사용자가 터미널에서 Fresnel과 대화하고, 세션·설정·시크릿·서비스를 다루는 명령 체계를 정한다.
+이 문서는 L4 배포 런타임 중 CLI 앱(`xeon/apps/cli`)의 스펙이다. 사용자가 터미널에서 Fresnel과 대화하고, 대화·설정·시크릿·서비스를 다루는 명령 체계를 정한다.
 
 ## 1. 목적과 범위
 
@@ -45,7 +45,7 @@ binds: [xeon/apps/cli/**]
 | 트랜스크립트 | `events.batch`(내구 이벤트)로 그린 대화 기록 |
 | 진행 줄 | `stream.chunk`(휘발 이벤트)로 그린 임시 줄. 같은 item의 내구 기록이 오면 지운다 |
 | CLI 상태 파일 | CLI가 마지막 thread와 위치(`StreamPosition`)를 적어 두는 파일(§3.7) |
-| 세션 | 사용자에게 보이는 이름. wire의 thread 하나다(`F.wire-settings.spec` §2 [가정] 1:1) |
+| 대화 | 사용자에게 보이는 이름. wire의 thread 하나다(`F.wire-settings.spec` §2 [가정] 1:1) |
 
 ## 3. 인터페이스
 
@@ -72,15 +72,15 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel chat -p <입력>`, `--print <입력>` | print 모드. 입력 하나로 turn 하나를 돌리고 응답 텍스트를 stdout에 쓴다. `-p -` 또는 `-p`만 쓰면 stdin 전체가 입력이다 | 위와 같음 | M1 |
 | `fresnel chat -p … --json` | JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다(§4.4) | 위와 같음 | M1 |
 | `fresnel chat -p … --auto-approve` | print 모드에서 도구 승인 요청을 `{ decision: "allow" }`로 한 번 허용한다(`remember`를 보내지 않는다). 질문·계획·검토 승인은 거부한다. 승인마다 stderr에 한 줄을 쓴다(§4.11 4번). 대화형과 함께 쓰면 사용법 오류 2(`autoApproveRequiresPrint`) | `approval.respond`(`decision: "allow"`) | M3(구현됨, M3b B1-SCH) |
-| `fresnel chat --continue` | 현재 작업 폴더의 마지막 세션을 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list`. 대화형이고 그 세션에 끊긴 turn이 있으면 묻고 `turn.resume`을 부른다(§4.4) | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
-| `fresnel chat --resume <id>` | 지정 세션을 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
-| `fresnel chat --set <key>=<value>` | 이 세션에만 설정을 덮어쓴다(session 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `session`, `threadId`) | M2 |
+| `fresnel chat --continue` | 현재 작업 폴더의 마지막 대화를 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list`. 대화형이고 그 대화에 끊긴 turn이 있으면 묻고 `turn.resume`을 부른다(§4.4) | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
+| `fresnel chat --resume <id>` | 지정 대화를 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
+| `fresnel chat --set <key>=<value>` | 이 대화에만 설정을 덮어쓴다(session 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `session`, `threadId`) | M2 |
 | `fresnel chat --safe-mode`, `fresnel --safe-mode` | 이번 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다(`X.operations.spec` §4.6). `AssembleOptions.safeMode`로 넘긴다. 설정 `x.operations.safeMode.default`가 켜져 있어도 같고, 호스트가 `host.status.safeMode`로 알린다. 서비스 모드의 안전 모드는 서비스를 새로 띄울 때 `service start --safe-mode`로 정한다 | 없음(조립 옵션). `host.status`가 `safeMode: true`를 돌려준다 | M3(구현됨, M3b B1-SVC) |
-| `fresnel sessions ls [--all] [--limit n] [--json]` | 세션 목록. 기본은 현재 작업 폴더 | `thread.list` | M2 |
-| `fresnel sessions show <id> [--json]` | 세션의 내구 이벤트를 트랜스크립트로 출력한다 | `events.subscribe`(filter `threadIds`), `events.unsubscribe` | M2 |
+| `fresnel sessions ls [--all] [--limit n] [--json]` | 대화 목록. 기본은 현재 작업 폴더 | `thread.list` | M2 |
+| `fresnel sessions show <id> [--json]` | 대화의 내구 이벤트를 트랜스크립트로 출력한다 | `events.subscribe`(filter `threadIds`), `events.unsubscribe` | M2 |
 | `fresnel sessions fork <id> [--at <itemId>]` | 분기를 만들고 새 id를 출력한다 | `thread.fork` | M2 |
-| `fresnel sessions rm <id> [--yes]` | 세션 삭제. TTY에서는 확인을 받는다 | `thread.delete` | M2 |
-| `fresnel sessions rename <id> <제목>` | 세션 제목을 바꾼다. 제목은 낱말 여러 개를 따옴표 없이 써도 되고 1~200자다. 목록(`sessions ls`, `/resume`)은 제목이 없으면 `(제목 없음)`을 보인다 | `thread.rename` | M2 |
+| `fresnel sessions rm <id> [--yes]` | 대화 삭제. TTY에서는 확인을 받는다 | `thread.delete` | M2 |
+| `fresnel sessions rename <id> <제목>` | 대화 제목을 바꾼다. 제목은 낱말 여러 개를 따옴표 없이 써도 되고 1~200자다. 목록(`sessions ls`, `/resume`)은 제목이 없으면 `(제목 없음)`을 보인다 | `thread.rename` | M2 |
 | `fresnel config get [<key>…] [--json]` | 유효 값과 출처(`source`), 잠금, 가려진 범위, 적용 대기를 출력한다 | `settings.get` | M1 |
 | `fresnel config set <key> <value> [--scope user\|project\|local]` | 값을 쓴다. 기본 범위는 `user` [제안] | `settings.set` | M2 |
 | `fresnel config reset <key> [--scope …]` | 그 범위의 값을 지운다 | `settings.reset` | M2 |
@@ -91,7 +91,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel secret set <name>` | 값 교체. 값은 stdin이나 프롬프트로만 받는다(§4.7) | `secret.beginEntry { name, action: "set" }`. 값 필드 없음 | M2 |
 | `fresnel secret meta <name> [--desc …] [--scope …] [--expires …] [--hosts …]` | 메타 수정. 값과 무관하다 | `secret.meta` | M2 |
 | `fresnel secret rotate <name>` | 새 값으로 교체하고 기존 lease를 폐기한다. TTY 프롬프트로만 받는다 | `secret.beginEntry { name, action: "rotate" }`. 값 필드 없음 | M2 |
-| `fresnel secret rm <name> [--yes]` | 삭제. 참조하는 정책과 참조(설정 키, 활성 lease, 최근 사용한 세션)를 보인 뒤 확인한다. 활성 lease가 있으면 묻지 않고 거부한다 | `secret.references`, `secret.list { meta: true }`, `secret.remove` | M2 |
+| `fresnel secret rm <name> [--yes]` | 삭제. 참조하는 정책과 참조(설정 키, 활성 lease, 최근 사용한 대화)를 보인 뒤 확인한다. 활성 lease가 있으면 묻지 않고 거부한다 | `secret.references`, `secret.list { meta: true }`, `secret.remove` | M2 |
 | `fresnel secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다. 복호화할 수 없거나 없으면 1이다 | `secret.test` | M2 |
 | `fresnel secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
 | `fresnel trust [status] [--json]` | 이 작업 폴더의 프로젝트 신뢰 상태(폴더, 불러오려는 자원, 판정과 출처, 선택지)를 보인다. 신뢰할 자원이 없으면 stderr에 한 줄이다 | `trust.get { workspace }` | M2 |
@@ -253,7 +253,7 @@ export declare function parseArgv(
 
 ### 3.3 엔진 연결: `@fresnel/host` API 조합
 
-[결정] UI는 엔진 객체를 직접 다루지 않고 호스트 계약만 쓴다(adr.0006 §3.2). [제안] CLI는 `@fresnel/host`의 공개 진입점(`.`)과 L4 공유 패키지 `@fresnel/client`(연결 코드 `createHostConnection`, [결정: adr.0020])가 내는 함수를 조합해 연결을 만든다. M2의 `@fresnel/host/client` 서브패스는 M3에 `@fresnel/client`로 옮긴다. `EngineConnector`, `StdioHostRunner`, `ServiceControl` 같은 이름은 `@fresnel/host`에 없다. 연결 타입과 오류 문구는 CLI 안의 이름이다(`L4.host-service.spec` §3.3.5). `apps/cli` → `@fresnel/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1, 사용자 승인 전 [미결 §10 1번]).
+[결정] UI는 엔진 객체를 직접 다루지 않고 Runtime API만 쓴다(adr.0006 §3.2). [제안] CLI는 `@fresnel/host`의 공개 진입점(`.`)과 L4 공유 패키지 `@fresnel/client`(연결 코드 `createHostConnection`, [결정: adr.0020])가 내는 함수를 조합해 연결을 만든다. M2의 `@fresnel/host/client` 서브패스는 M3에 `@fresnel/client`로 옮긴다. `EngineConnector`, `StdioHostRunner`, `ServiceControl` 같은 이름은 `@fresnel/host`에 없다. 연결 타입과 오류 문구는 CLI 안의 이름이다(`L4.host-service.spec` §3.3.5). `apps/cli` → `@fresnel/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1, 사용자 승인 전 [미결 §10 1번]).
 
 | CLI 경로 | 쓰는 `@fresnel/host` API | `L4.host-service.plan` 작업 |
 |---|---|---|
@@ -446,10 +446,10 @@ export const EXIT: {
 | 코드 | 뜻 | 예 |
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
-| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 세션, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각) |
+| 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 대화, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각) |
 | 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`) |
 | 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`)와 데이터 디렉터리 위치를 정하지 못함. `schedule`의 `store_failed`(예약 상태 파일) |
-| 4 | 세션 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
+| 4 | 대화 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
 | 129 | SIGHUP | 터미널이 닫혔다(pi print 모드와 같은 값, `~/projects/_ref/pi-src/packages/coding-agent/src/modes/print-mode.ts:60`) |
 | 130 | 중단 | Ctrl+C(SIGINT)로 끝냈다. print 모드 turn이 `interrupted`로 끝났다 |
 | 143 | SIGTERM | 체크포인트 뒤 끝냈다(pi print 모드와 같은 값) |
@@ -547,16 +547,16 @@ export interface GroupTemplatesPort {
 - [제안] 개발 빌드(`process.env.FRESNEL_DEV === "1"` 또는 `bun run`으로 소스 실행)는 `devWireRoundTrip: true`를 넘긴다. in-process에서 비직렬화 값이 섞이지 않게 하는 검사다(F wire §3.1 마지막 항목). 컴파일 바이너리는 끈다.
 - 연결 뒤 순서:
   1. `host.hello`(`connectEngine`이 보낸다, `L4.host-service.spec` §3.3.5). `storeId`를 기억한다.
-  2. 대상 세션 결정(§4.4).
+  2. 대상 대화 결정(§4.4).
   3. `events.subscribe { from, filter: { threadIds: [threadId] } }`.
   4. 응답 뒤 `turn.start { threadId, input, requestId }`. `requestId`는 CLI 실행마다 새 ULID [제안]. 같은 실행 안의 재시도는 같은 값을 쓴다(F conversation `requestId` 멱등).
-- 세션 쓰기 소유(adr.0006 §3.6 규칙 1)는 새 세션이면 `thread.create`가 얻고(F wire §3.3.1 둘째 항목), 기존 세션은 `turn.start`가 암묵 획득한다(`L4.host-service.spec` HS-28). 얻지 못하면 `turn.start`가 `thread.locked`(3002)와 대안 `options`를 돌려준다. 그래서 M1의 `--continue`·`--resume`은 `thread.open` 없이 동작한다.
+- 대화 쓰기 소유(adr.0006 §3.6 규칙 1)는 새 대화이면 `thread.create`가 얻고(F wire §3.3.1 둘째 항목), 기존 대화는 `turn.start`가 암묵 획득한다(`L4.host-service.spec` HS-28). 얻지 못하면 `turn.start`가 `thread.locked`(3002)와 대안 `options`를 돌려준다. 그래서 M1의 `--continue`·`--resume`은 `thread.open` 없이 동작한다.
 
-### 4.4 세션 대상과 재개
+### 4.4 대화 대상과 재개
 
 | 대상 | M1 | M2 이후 |
 |---|---|---|
-| 새 세션 | `thread.create { workspace }` → `position`부터 구독 | 같음 |
+| 새 대화 | `thread.create { workspace }` → `position`부터 구독 | 같음 |
 | `--continue` | CLI 상태 파일에서 작업 폴더의 항목을 찾는다. 없으면 "이어 열 세션이 없다" + 해결 한 줄, 1로 끝낸다 | `thread.list { workspace, limit: 1 }`의 첫 항목 → `thread.open { mode: "write" }`. 호스트가 `thread.list`를 -32601로 거절하면(아직 구현하지 않은 호스트) 상태 파일로 대신하고, `thread.open`은 `features`에 없으면 건너뛰어 M1처럼 `turn.start`가 소유를 얻게 한다 |
 | `--resume <id>` | 상태 파일에 그 id의 위치가 있으면 그 위치부터, 없으면 `{ storeId, seq: 0 }`부터 구독 | `thread.open { threadId, mode: "write" }`의 `position` 사용 |
 
@@ -570,11 +570,11 @@ export interface GroupTemplatesPort {
 - 상태 파일 갱신: `events.batch`를 반영할 때마다 메모리의 위치를 바꾸고, 파일 쓰기는 turn 경계(`turn.completed`)와 종료 때 한다 [제안]. 강제 종료로 파일이 덜 갱신돼도 더 이른 위치부터 구독하므로 이벤트를 놓치지 않는다. 다시 받은 이벤트는 `applyBatch`가 seq로 걸러 중복 출력하지 않는다.
 
 - 끊긴 turn 이어 실행 [결정: m2c G1-02]:
-  - 대화형이 기존 세션(`--continue`, `--resume <id>`, `/resume`)을 열면 이전 기록을 다 그린 뒤, 입력을 받기 전에 `thread.list`에서 그 세션의 요약을 찾는다. 작업 폴더 범위에서 먼저 찾고 없으면 전체에서 찾는다. 쪽은 각 범위 최대 3쪽까지 넘겨 본다.
+  - 대화형이 기존 대화(`--continue`, `--resume <id>`, `/resume`)을 열면 이전 기록을 다 그린 뒤, 입력을 받기 전에 `thread.list`에서 그 대화의 요약을 찾는다. 작업 폴더 범위에서 먼저 찾고 없으면 전체에서 찾는다. 쪽은 각 범위 최대 3쪽까지 넘겨 본다.
   - 요약의 `resumable`이 `null`이 아니면 "이 세션에 끊긴 turn이 있다 (시작 <시각>, 이어 실행을 <n>번 시도했다)"를 보이고 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`를 보낸다. 호스트는 자동 재개를 하지 않으므로 CLI도 묻지 않고 부르지 않는다. 호스트가 쓰기 소유를 얻으면서 되살린 미해결 승인(HS-52)이 있으면 그 승인 카드가 이 질문보다 먼저 서고, 카드에 답한 뒤에 이 질문을 한다 [미결 §10 15번].
   - 결과는 `resumed`(이어서 실행한다, 단계 `from`을 보이고 그 turn이 끝날 때까지 기다린다. 진행은 이벤트로 그려진다), `closed`(중단 요청 또는 소유자 취소라 이어 실행하지 않고 닫았다), `nothing`(이어서 실행할 turn이 없다)이다. 실패는 두 줄 오류로 알리고 입력을 이어 받는다.
-  - 새 세션, 관찰 전용으로 연 세션, print 모드, `host.hello`의 `features`에 `turn.resume`이 없는 호스트에서는 묻지 않는다. 목록을 읽지 못해도 대화를 막지 않는다.
-  - `fresnel sessions ls`는 `resumable`이 있는 세션에 `[이어서 실행 가능]`을 붙인다(구현됨).
+  - 새 대화, 관찰 전용으로 연 대화, print 모드, `host.hello`의 `features`에 `turn.resume`이 없는 호스트에서는 묻지 않는다. 목록을 읽지 못해도 대화를 막지 않는다.
+  - `fresnel sessions ls`는 `resumable`이 있는 대화에 `[이어서 실행 가능]`을 붙인다(구현됨).
 
 ### 4.5 이벤트 렌더링
 
@@ -615,16 +615,16 @@ export interface GroupTemplatesPort {
 
 - 확장 핸들러 실패(`stream.chunk`의 `scope.handler_failed`, `L4.host-service.spec` HS-92, `X.operations.spec` §4.3.4):
   - 문구: 카탈로그 id `cli.render.notices.handlerFailed`에서 현재 로케일로 만듭니다. 한국어 값은 `확장 <이름>의 <point> 핸들러가 실패했다 (연속 <n>회): <message>`입니다. `owner`의 `ext:` 접두어는 `cli.render.notices.owner.extension`(확장), `hook:`은 `cli.render.notices.owner.hook`(훅)으로 바꾸고 이름만 보입니다. `message`는 줄바꿈과 제어 문자를 칸으로 바꾸고 앞 120자(코드 포인트)만 보인다. 잘리면 `…`를 붙인다. 비어 있으면 `: <message>`를 붙이지 않는다.
-  - 묶음: `consecutive`가 1이거나 5의 배수인 실패만 그리고 나머지는 버린다. 세는 일은 호스트가 한 `consecutive`를 그대로 쓰므로 CLI 세션은 상태를 두지 않는다. 5는 `X.operations.spec` §4.3.3의 자동 끄기 기본 기준(연속 5회)과 맞춘 값이다.
-  - thread: 이 세션의 thread(`event.threadId`)가 보낸 것만 그린다. 호스트는 thread를 연 연결마다 한 번씩 보내므로, 다른 thread의 것은 같은 실패의 중복이거나 이 화면 밖의 일이다.
+  - 묶음: `consecutive`가 1이거나 5의 배수인 실패만 그리고 나머지는 버린다. 세는 일은 호스트가 한 `consecutive`를 그대로 쓰므로 CLI 대화는 상태를 두지 않는다. 5는 `X.operations.spec` §4.3.3의 자동 끄기 기본 기준(연속 5회)과 맞춘 값이다.
+  - thread: 이 대화의 thread(`event.threadId`)가 보낸 것만 그린다. 호스트는 thread를 연 연결마다 한 번씩 보내므로, 다른 thread의 것은 같은 실패의 중복이거나 이 화면 밖의 일이다.
   - 순서: 진행 줄 조각과 달리 `afterSeq`가 앞서도 기다리지 않고 도착 순서대로 그린다 [제안].
 - 알림 전달(`notify.delivered`, `L4.host-service.spec` HS-94):
   - 대화형에서만 그린다. print 모드는 turn 하나를 끝내고 끝나므로 완료 알림을 stderr에 쓰지 않는다. 성공한 실행의 stderr를 비운다(§4.2). JSON 모드는 `RenderSink`가 없어 그리지 않는다. 그 메시지는 JSON 줄로 그대로 나간다.
   - 문구: 첫 줄은 `[<종류>] <제목>`입니다. 종류 이름은 카탈로그 id `cli.render.notices.kind.<이름>`에서 읽습니다. `completed`는 `kind.completed`, `approval_waiting`은 `kind.approvalWaiting`, `question_waiting`은 `kind.questionWaiting`, `error`는 `kind.error`, `background_completed`는 `kind.backgroundCompleted`입니다. 한국어 값은 완료, 승인 대기, 질문 대기, 오류, 백그라운드 완료입니다. `body`가 있으면 둘째 줄입니다. 제어 문자는 칸으로 바꿉니다.
-  - thread: `threadId`가 null이거나 이 세션의 thread면 그대로 쓴다. 다른 thread의 알림이면 첫 줄 끝에 ` (다른 대화)`를 붙인다.
+  - thread: `threadId`가 null이거나 이 대화의 thread면 그대로 쓴다. 다른 thread의 알림이면 첫 줄 끝에 ` (다른 대화)`를 붙인다.
   - 등록은 `host.hello`의 `features`에 `notify.delivered`가 없어도 한다. 오지 않으면 그릴 것이 없다.
   - 문구는 카탈로그 id(`cli.render.notices.*`)에서 현재 로케일로 만듭니다. ` (다른 대화)`는 `cli.render.notices.otherThread`에서 읽습니다(ADR-0016).
-- 알림은 turn이 끝난 뒤 비동기로 온다. 세션이 먼저 끝나면 그 알림은 보이지 않을 수 있다(§10 24번).
+- 알림은 turn이 끝난 뒤 비동기로 온다. 대화가 먼저 끝나면 그 알림은 보이지 않을 수 있다(§10 24번).
 
 ### 4.6 입력, 중단, 신호
 
@@ -659,7 +659,7 @@ export interface GroupTemplatesPort {
   - 값을 읽는 때는 호스트가 맡긴 수단의 `read()`를 부르는 순간이다. 읽은 바이트 배열은 `secret.beginEntry`가 끝나면 성공·실패와 관계없이 0으로 덮는다.
   - `add`의 `--desc`, `--scope`, `--expires`, `--hosts`는 값을 저장한 뒤 `secret.meta`로 적용한다. `--hosts`는 기존 사용 정책을 `secret.list { meta: true }`로 읽어 `hosts`만 바꾼다. 메타 적용이 실패하면 값은 저장된 상태라고 알린다. `--provider`는 `sops`만 받는다(wire에 제공자 선택이 없다). `secret meta`는 플래그가 하나도 없으면 2다.
   - `rm`은 먼저 `secret.references { name }`로 이 시크릿을 가리키는 곳을 읽는다 [결정: m2c G1-07]. `--yes` 없이 비TTY면 2다.
-    - `--yes`가 없으면 `secret.list { meta: true }`의 사용 정책(허용 도구·호스트)과 `<이름>: 참조하는 설정 키 <키…> / 활성 lease <n>개 / 최근 사용한 세션 <id…>` 한 줄(없으면 `없음`, 세션은 5개까지, 나머지는 `외 <n>개`)을 보인 뒤 `[y/N]`로 묻는다.
+    - `--yes`가 없으면 `secret.list { meta: true }`의 사용 정책(허용 도구·호스트)과 `<이름>: 참조하는 설정 키 <키…> / 활성 lease <n>개 / 최근 사용한 세션 <id…>` 한 줄(없으면 `없음`, 대화는 5개까지, 나머지는 `외 <n>개`)을 보인 뒤 `[y/N]`로 묻는다.
     - 활성 lease가 하나라도 있으면 묻지 않고 "사용 중인 시크릿이라 지울 수 없다 (활성 lease <n>개)"로 1로 끝낸다. `secret.remove`는 보내지 않는다.
     - `--yes`는 묻지 않고 지우되, 참조가 하나라도 있으면 같은 한 줄을 stderr에 남긴다. 활성 lease는 호스트가 거부하고(`secret.inUse`) CLI는 활성 lease 수를 보인다.
     - `host.hello`의 `features`에 `secret.references`가 없는 호스트에서는 사용 정책만 보인다.
@@ -683,7 +683,7 @@ export interface GroupTemplatesPort {
 - 줄 2: 설정한 SearXNG 주소의 상태. 자동 감지는 없다 [결정: m2c H1, `L2.web.spec` §4.8.3]. 주소(`l2.web.search.searxng.url`)가 비어 있으면 어디에도 요청하지 않고 "주소를 설정하지 않았다"와 `fresnel config set l2.web.search.searxng.url <주소>`를 보인다. 주소가 있으면 그 주소 하나만 탐침해 응답함, JSON 형식 꺼짐, 응답 없음 중 하나를 보인다. 응답이 없으면 검색이 내장 래퍼로 내려간다는 말을 덧붙인다.
 - 줄 3: 키 플러그인 권장. Exa와 Brave(`plugin:web-exa`, `plugin:web-brave`, `L2.web.spec` §4.8)의 상태에서 만든다. 둘 다 쓸 수 있으면 `키 플러그인: Exa, Brave 모두 쓸 수 있다`다. 아니면 `권장 키 플러그인: ` 뒤에 쓸 수 없는 항목을 쉼표로 잇는다. 항목은 `<표시>(<상태> — <해결>)`이다 [결정: 오케스트레이터 기본값: 해결 문구를 항목 괄호 안에 둔다].
   - `needs-key`: `Exa(키 필요 — fresnel secret add exa-api-key)`처럼 등록 명령 `fresnel secret add <시크릿 이름>`을 보인다.
-  - `not-installed`(행이 없다): `Brave(설치 필요 — 플러그인을 설치한다)`.
+  - `not-installed`(행이 없다): `Brave(설치 필요 — 플러그인을 설치해 주세요)`.
   - `unavailable`: `Brave(사용 불가 — <사유 코드>)`.
   - 웹 provider 목록을 읽지 못했으면 `키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)`다.
 - 값은 키 이름과 참조 문자열만 보인다. 시크릿 값은 없다.
@@ -705,7 +705,7 @@ export interface GroupTemplatesPort {
   진단
     [ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다
     [ok]   상태 디렉터리: <경로>
-    [ok]   시크릿 저장소: 사용할 수 있다 (등록 0개)
+    [ok]   시크릿 저장소: 사용할 수 있어요 (등록 0개)
     [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 시크릿 저장소
     [경고] 외부 바이너리 bwrap: 없다 (선택) — 명령을 샌드박스 없이 실행하지 못한다
            해결: bubblewrap 패키지를 설치한다
@@ -714,12 +714,12 @@ export interface GroupTemplatesPort {
   검색 provider
     검색 provider: auto → Built-in search (model provider) (builtin-wrapper)
     SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>
-    권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치한다)
+    권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)
   웹 provider
-    [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있다
-    [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없다 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기
-    [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있다
-    [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있다
+    [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있어요
+    [경고] plugin:web-exa  플러그인 · 검색 · 순위 2 · 키가 없어요 — 해결: fresnel secret add exa-api-key · 첫 사용 고지 대기
+    [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있어요
+    [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있어요
   ```
 
   엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 세 줄은 엔진 없이도 낸다. 이때 줄 1과 줄 3은 `알 수 없다`다. `--json`은 같은 내용을 `{ version, checks, binaries, search, web }` 문서 하나로 쓴다. `binaries`는 호스트가 준 `HostBinaryReport` 그대로이고 점검 결과가 없으면 `null`이다. `web`은 view-model `ToolsWebView`(검색, 브라우즈, 가져오기 섹션, 키 플러그인 권장, 첫 사용 고지가 남은 id)이고 웹 provider 목록을 읽지 못했으면 `null`이다. `web`의 행에는 view-model이 200자에서 자른 `detail`이 들어 있지만 텍스트 출력에는 없다.
@@ -731,7 +731,7 @@ export interface GroupTemplatesPort {
   - `host.hello`의 `features`에 `host.status`가 없거나 응답에 `binaries`가 없으면 "점검 결과를 알리지 않는다"를 `[참고]`로 한 줄 낸다. 점검 요청이 실패하면(`request.cancelled` 등) `[경고]` 한 줄로 알리고 doctor는 이어 간다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고, 등록 여부는 `web.providers` 행의 상태가 준다(줄 3).
 - 설정의 시크릿 키(`secret: true`)는 `config get`이 참조 문자열(`secret://<name>`)이나 `null`만 보인다(F wire §4.9).
 
-### 4.8 설정 명령과 세션 덮어쓰기
+### 4.8 설정 명령과 대화 덮어쓰기
 
 - 값 해석(`config set`, `--set`, `/set`): `raw`를 먼저 JSON으로 해석하고, 실패하면 문자열로 본다(F wire §4.11).
 - 최종 판정은 host의 `settings.set`이다. host는 `checkSettingWrite`로 범위·잠금·값을 검사한다(F wire §3.9). CLI는 오류 `kind`를 §4.10 표의 문구로 바꾼다.
@@ -747,8 +747,8 @@ export interface GroupTemplatesPort {
   ```
 
   `--json`이면 `EffectiveSetting[]`를 그대로 한 JSON 문서로 쓴다. 텍스트와 JSON 모두 `settings.get` 결과의 `source`를 그대로 옮긴다(F wire §4.7 5번).
-- `config set`의 `--scope session`은 받지 않는다. 세션 범위는 `--set`과 `/set`만 쓴다.
-- `--set key=value`(M2): 대상 세션이 정해진 뒤 첫 `turn.start` 전에 `settings.set { key, value, scope: "launch", threadId }`를 순서대로 부른다. 하나라도 실패하면 turn을 시작하지 않고 2로 끝낸다.
+- `config set`의 `--scope session`은 받지 않는다. 대화 범위는 `--set`과 `/set`만 쓴다.
+- `--set key=value`(M2): 대상 대화가 정해진 뒤 첫 `turn.start` 전에 `settings.set { key, value, scope: "launch", threadId }`를 순서대로 부른다. 하나라도 실패하면 turn을 시작하지 않고 2로 끝낸다.
 
 ### 4.9 화면(TUI)
 
@@ -788,15 +788,15 @@ export interface GroupTemplatesPort {
 
 ### 4.10 오류 문구
 
-모든 오류 출력은 두 줄이다: `fresnel: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 예약(`schedule`)·세션(`sessions`)·그룹 만들기(`group new`)·대화(`chat`)의 문장, 슬래시 명령의 도움말과 문구도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다(`cli.schedule.*`, `cli.threads.*`, `cli.group.*`, `cli.chat.*`, `cli.slash.*`, `cli.usage.slash.*`). 렌더링 문장(`cli.render.approval.*`, `cli.render.lock.*`, `cli.render.notices.*`, `cli.render.textSink.*`, `cli.render.tools.*`, `cli.render.transcript.*`, `cli.render.trust.*`)과 최소 TUI 문장(`cli.tui.minimal.*`)도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 그 밖의 명령과 상태 문장(`cli.doctor.*`, `cli.secret.*`, `cli.trust.*`, `cli.db.*`, `cli.state.*`, `cli.host.*`, `cli.threads.*`, `cli.overrides.*`)도 카탈로그 id입니다.
+모든 오류 출력은 두 줄이다: `fresnel: <무엇이 잘못됐다>`와 `  해결: <한 줄>`. wire `message`(영어 개발자용)를 그대로 쓰지 않고 `kind`와 `details`로 만든다(F wire §3.5.1). 문구는 `packages/client`의 카탈로그 id(`cli.errors.*`)에서 현재 로케일로 만듭니다. `해결:` 머리말도 카탈로그(`cli.errors.fixLabel`)에서 읽습니다(ADR-0016). 인자 오류 문구(`cli.usage.*`, `parseArgv`가 돌려주는 `UsageError`), 도움말 본문(`cli.help.*`), `config list`의 정의 줄(`cli.config.*`), `version`과 `--set`의 문장도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 예약(`schedule`)·대화 목록(`sessions`)·그룹 만들기(`group new`)·대화(`chat`)의 문장, 슬래시 명령의 도움말과 문구도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다(`cli.schedule.*`, `cli.threads.*`, `cli.group.*`, `cli.chat.*`, `cli.slash.*`, `cli.usage.slash.*`). 렌더링 문장(`cli.render.approval.*`, `cli.render.lock.*`, `cli.render.notices.*`, `cli.render.textSink.*`, `cli.render.tools.*`, `cli.render.transcript.*`, `cli.render.trust.*`)과 최소 TUI 문장(`cli.tui.minimal.*`)도 같은 방식으로 호출할 때 현재 로케일에서 만듭니다. 그 밖의 명령과 상태 문장(`cli.doctor.*`, `cli.secret.*`, `cli.trust.*`, `cli.db.*`, `cli.state.*`, `cli.host.*`, `cli.threads.*`, `cli.overrides.*`)도 카탈로그 id입니다.
 
 | kind | 문구 요지 | 해결 한 줄 | 종료 코드 |
 |---|---|---|---|
-| `thread.notFound` | 세션 `<id>`가 없다 | `fresnel sessions ls`로 id를 확인한다 | 1 |
-| `thread.locked` | 다른 프로세스(`ownerKind`)가 이 세션을 쓰고 있다 | M1: 끝날 때까지 두거나 새 세션을 연다. M2: 프롬프트(§4.11) | 4 |
-| `thread.closed` | 닫힌 세션이라 쓸 수 없다 | `fresnel sessions fork`로 분기하거나 새 세션을 연다 | 1 |
+| `thread.notFound` | 대화 `<id>`가 없다 | `fresnel sessions ls`로 id를 확인한다 | 1 |
+| `thread.locked` | 다른 프로세스(`ownerKind`)가 이 대화를 쓰고 있다 | M1: 끝날 때까지 두거나 새 대화를 연다. M2: 프롬프트(§4.11) | 4 |
+| `thread.closed` | 닫힌 대화라 쓸 수 없다 | `fresnel sessions fork`로 분기하거나 새 대화를 연다 | 1 |
 | `turn.busy` | 진행 중인 turn이 있다 | 끝난 뒤 다시 보낸다 | 1 |
-| `thread.cancelledByExtension` | 확장이 `point`의 작업(컴팩션, 분기, 되감기, 세션 전환)을 막았다. `reason`이 있으면 붙인다 | 확장의 설정을 확인한다 | 1 |
+| `thread.cancelledByExtension` | 확장이 `point`의 작업(컴팩션, 분기, 되감기, 대화 전환)을 막았다. `reason`이 있으면 붙인다 | 확장의 설정을 확인한다 | 1 |
 | `thread.compactFailed` | 대화를 요약하지 못했다(`reason`) | 잠시 뒤 다시 `/compact`를 실행한다. 반복되면 `fresnel doctor`를 실행하고 보고한다 | 1 |
 | `request.cancelled` | 요청이 취소되었다 | 필요하면 다시 실행한다 | 1 |
 | `settings.unknownKey` | 등록되지 않은 키 | `fresnel config list`로 키를 확인한다 | 2 |
@@ -826,7 +826,7 @@ export interface GroupTemplatesPort {
 ### 4.11 승인 요청과 잠금 프롬프트
 
 - 승인(M2) [가정: F wire §4.6 A안]
-  1. `approval.requested` 내구 이벤트가 오면 `ApprovalView`를 만들고 프롬프트를 연다. 선택지는 허용, 거부, 답(질문형일 때)이고 기억 범위는 이번만(`once`), 이 세션(`thread`), 항상(`always`)이다.
+  1. `approval.requested` 내구 이벤트가 오면 `ApprovalView`를 만들고 프롬프트를 연다. 선택지는 허용, 거부, 답(질문형일 때)이고 기억 범위는 이번만(`once`), 이 대화(`thread`), 항상(`always`)이다.
   2. 사용자의 선택을 `approval.respond { approvalId, decision, answer?, remember? }`로 보낸다.
   3. `approval.resolved` 이벤트가 오면 프롬프트를 닫는다. 다른 클라이언트가 먼저 답한 경우도 같다.
   4. print 모드는 프롬프트를 열 수 없으므로 답을 자동으로 보내고 승인마다 stderr에 한 줄 알린다. 기본(플래그 없음)은 모든 승인에 `decision: "deny"`로 답한다(`createAutoDeny`). 엔진은 사전 허용 규칙(`l1.tools.rules`, L1.tools 정책)을 승인 요청 전에 적용하므로, CLI가 받는 `approval.requested`는 사전 허용되지 않은 요청이다. 그래서 기본 모드는 사전 허용 규칙만 적용하고 나머지는 거부한다 [결정: review.m3-design-inputs D-M3-14 c](§10 8번).
@@ -835,7 +835,7 @@ export interface GroupTemplatesPort {
      - 알림에는 승인 제목만 쓴다. 본문(명령, 인자, `secret://` 핸들)은 쓰지 않는다.
   5. payload 모양은 `L1.tools.spec` 소관이다. CLI는 제목·본문·질문 여부만 읽는다.
   6. 구현 (대화형 줄 입력): 요청 payload의 `remember`가 허용하는 범위만 보인다.
-     - 도구: `[y]` 이번만 허용, `[t]` 이 세션 동안 허용(`thread`가 있을 때), `[a]` 항상 허용(`always`가 있을 때), `[n]` 거부. `n` 뒤에 이유를 받아 있으면 `answer: { feedback }`으로 보낸다.
+     - 도구: `[y]` 이번만 허용, `[t]` 이 대화 동안 허용(`thread`가 있을 때), `[a]` 항상 허용(`always`가 있을 때), `[n]` 거부. `n` 뒤에 이유를 받아 있으면 `answer: { feedback }`으로 보낸다.
      - 계획: `[y]` 승인이면 `nextModes` 중 하나(엔터는 지금 모드)와 메모를 받아 `answer: { mode?, note? }`로 보낸다. `[n]`은 도구와 같다.
      - 검토(`review`, ADR-0018): 카드는 제목, 라운드, 파일별 변경 종류와 hunk 수 요약만 보인다(hunk 본문은 요청에 없다). 프롬프트는 `[y] 모두 승인  [r] 일부 거절  [c] 수정 요청  [n] 모두 거절`이다. 그 밖의 입력은 `y, r, c, n 중 하나를 입력한다`를 보이고 다시 묻는다.
        - `[y]` 모두 승인은 `decision: "answer"`와 `ReviewAnswer { decisions: [], comments: [], submit: true, approveRemaining: true }`로 보낸다.
@@ -844,7 +844,7 @@ export interface GroupTemplatesPort {
        - `[n]` 모두 거절은 도구의 `[n]`과 같다. 이유를 받아 `decision: "deny"`로 보낸다. 호스트는 되돌릴 수 있는 hunk를 모두 거절하고 제출하며, 이유는 리뷰 단위 코멘트가 된다.
      - 질문: 질문마다 번호(여러 선택이면 쉼표)나 직접 입력(`allowFreeText`)을 받아 `decision: "answer"`와 `QuestionAnswer`(`{ [질문 id]: { selected, text? } }`)로 보낸다. `/deny`는 요청 전체를 거부한다.
      - 프롬프트는 한 번에 하나다. 입력 줄이 읽는 중에 승인이 오면 입력 줄을 닫고 승인을 먼저 묻는다.
-     - 세션을 열 때 이전 기록을 다 그린 뒤 `approval.list { threadId }`로 아직 답하지 않은 승인을 되살려 묻는다(재시작 뒤 복원). 이벤트로 이미 받은 승인은 `approvalId`로 중복을 거른다.
+     - 대화를 열 때 이전 기록을 다 그린 뒤 `approval.list { threadId }`로 아직 답하지 않은 승인을 되살려 묻는다(재시작 뒤 복원). 이벤트로 이미 받은 승인은 `approvalId`로 중복을 거른다.
      - `approval.resolved`가 먼저 오면 "다른 곳에서 이미 답한 승인이다"를 보이고 프롬프트를 닫는다.
      - `approval.respond`가 `applied: false`이면 `reason`에 따라 처리를 나눈다 [결정: m2c G2-10]. `answer_invalid`는 `detail`을 보이고 같은 질문을 다시 묻는다(요청이 아직 대기 중이다). `commit_failed`는 "승인 응답을 기록하지 못했다"를 알리고 다시 묻는다. 두 이유로 3번 적용되지 않으면 이 승인을 대기로 남기고 포기한다(재시작 뒤 `approval.list`가 다시 묻는다). `already_resolved`와 이유를 알리지 않는 호스트는 "다른 곳에서 이미 답한 승인이다", `unknown_approval`은 "host가 모르는 승인이다. 재시작으로 사라졌을 수 있다"를 보이고 프롬프트를 닫는다. print 모드의 자동 거부가 적용되지 않으면 이유를 stderr에 남긴다.
   7. 동의 표시 [결정: m2c G2-10. 요건의 정본은 `L1.tools.spec`이고 CLI는 아래를 보인다]: 사용자가 허용하는 것이 무엇인지 카드에서 알 수 있어야 한다.
@@ -853,7 +853,7 @@ export interface GroupTemplatesPort {
      - `expiresAt`이 있으면 "만료: <ISO 시각> (그때까지 답하지 않으면 거부로 처리한다)"를 보인다. `onExpire`가 `answer`면 "정해 둔 답으로 처리한다"다.
      - `approval.resolved`의 `requestedRemember`와 적용한 `remember`가 다르면(2차 전에는 `always`가 `thread`로 낮춰진다) "항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다"를 보인다. `resolvedBy`가 `user`가 아니면(`expired`, `noninteractive`, `cancelled`, `superseded`) 이유를 한 줄로 보인다. 사용자가 직접 답했고 요청한 범위 그대로면 아무것도 보이지 않는다.
 - 프로젝트 신뢰(M2) [결정: m2c G1-03. wire 이름은 F wire §3.3.1 trust를 따른다]
-  1. 대화형 `chat`은 세션을 만들거나 열기 전에 `trust.get { workspace }`를 부른다. `required`가 참이고 `verdict`가 `undecided`일 때만 카드를 보인다. 이미 정한 폴더나 신뢰할 자원이 없는 폴더(`notRequired`)는 묻지 않는다.
+  1. 대화형 `chat`은 대화를 만들거나 열기 전에 `trust.get { workspace }`를 부른다. `required`가 참이고 `verdict`가 `undecided`일 때만 카드를 보인다. 이미 정한 폴더나 신뢰할 자원이 없는 폴더(`notRequired`)는 묻지 않는다.
   2. 카드는 프로젝트 폴더, 불러오려는 자원(`resources`), 판정과 출처(`via`), 신뢰하면 자원의 지시문·명령·MCP 서버가 사용자 권한으로 쓰인다는 경고, 번호가 붙은 선택지다. 선택지 글은 CLI가 `choice`(`kind` × `verdict`)로 만든다. `label`은 현지화 식별자라 글로 쓰지 않는다. 저장되는 폴더(`savedPath`)가 있으면 함께 보인다.
   3. 번호를 입력하면 `trust.decide { workspace, choice }`를 보낸다. 엔터나 EOF는 "나중에"라서 아무것도 보내지 않고, 이 프로젝트의 자원은 읽지 않는다는 한 줄을 stderr에 남긴다(fail-closed). 잘못된 번호는 다시 묻는다.
   4. `trust.get`이나 `trust.decide`가 실패하면 한 줄로 알리고 대화는 계속한다. 프로젝트는 신뢰하지 않은 채로 열린다. 저장 실패(`store.io`, `details.code: "trust_store"`)는 전용 문구와 종료 코드 3 문구를 쓴다. `trust.json` 쓰기의 프로세스 간 잠금은 host가 맡는다(`fileLock`).
@@ -861,7 +861,7 @@ export interface GroupTemplatesPort {
   6. `host.hello`의 `features`에 `trust.get`과 `trust.decide`가 없는 호스트에서 `chat`은 조용히 지나가고, `fresnel trust`는 환경 문제(3)로 알린다.
 - 잠금(M2): `thread.locked` 오류의 `details.options`(`observe`, `fork`, `delegate`) 중 가능한 것만 보인다.
   - 관찰: `thread.open { mode: "observe" }` 뒤 구독만 한다. 입력란을 잠근다.
-  - 분기: `thread.fork { threadId }`로 새 세션을 만들어 연다.
+  - 분기: `thread.fork { threadId }`로 새 대화를 만들어 연다.
   - 위임: 서비스 전송일 때만 보인다. 소유자에게 입력을 보내는 클라이언트가 된다(adr.0006 §3.6 규칙 3).
   - 아무것도 고르지 않으면 4로 끝낸다. M1은 프롬프트 없이 4다.
   - 구현: 열기(`thread.open { mode: "write" }`)에서 3002를 받으면 묻는다. 글자는 `[o]` 관찰, `[f]` 분기, `[d]` 위임, 엔터는 취소다. 위임은 전송이 `socket`일 때만 보이고 M2에는 서비스 접속이 없어 나오지 않는다. 관찰로 열면 입력 줄은 남아 있되 보낸 줄에는 "관찰 전용이라 입력을 보낼 수 없다"를 알린다. 분기하면 새 id를 `thread.open { mode: "write" }`로 열어 이어 간다. print 모드는 묻지 않고 4다.
@@ -871,9 +871,9 @@ export interface GroupTemplatesPort {
 - 슬래시 명령은 설정 정의에서 만든다 [제안].
   - `/set <key> <value>`: `settings.list` 결과 중 `allowedScopes`에 `session`이 있는 키만 자동 완성에 넣는다. 실행은 `settings.set { scope: "launch", threadId }`.
   - `/model [<값>]`: 모델 선택 키의 별칭이다. 값이 없으면 그 키의 `range.enum`으로 목록을 보인다. 키 이름은 `L1.models.spec`이 정한다 [가정: 아직 이름이 정해지지 않았다].
-  - `/resume [<번호|id>]`: `thread.list`로 이 작업 폴더의 목록을 보이고 고른 세션으로 바꾼다(M2). 바꿀 때 이전 세션의 구독을 해제하고(`events.unsubscribe`) 새 세션을 같은 연결에서 연다. 잠금이면 §4.11의 프롬프트가 뜬다. 바꾸지 못하면 이전 세션을 다시 연다.
-  - `/rename <제목>`: 지금 세션의 제목을 `thread.rename { threadId, title }`로 바꾼다 [결정: m2c G2-12]. 제목이 비었거나 200자를 넘으면 보내지 않고 사용법을 알린다.
-  - `/compact [<지침>]`: 지금 세션의 대화를 요약해 줄인다 [결정: m2c G2-01]. `thread.compact { threadId, instructions? }`를 한 번 보낸다. `<지침>`은 `/compact` 뒤의 나머지 줄이고 없으면 `instructions`를 싣지 않는다. 쓰기 소유는 호스트가 암묵으로 얻는다(`L4.host-service.spec` HS-77).
+  - `/resume [<번호|id>]`: `thread.list`로 이 작업 폴더의 목록을 보이고 고른 대화로 바꾼다(M2). 바꿀 때 이전 대화의 구독을 해제하고(`events.unsubscribe`) 새 대화를 같은 연결에서 연다. 잠금이면 §4.11의 프롬프트가 뜬다. 바꾸지 못하면 이전 대화를 다시 연다.
+  - `/rename <제목>`: 지금 대화의 제목을 `thread.rename { threadId, title }`로 바꾼다 [결정: m2c G2-12]. 제목이 비었거나 200자를 넘으면 보내지 않고 사용법을 알린다.
+  - `/compact [<지침>]`: 지금 대화의 대화를 요약해 줄인다 [결정: m2c G2-01]. `thread.compact { threadId, instructions? }`를 한 번 보낸다. `<지침>`은 `/compact` 뒤의 나머지 줄이고 없으면 `instructions`를 싣지 않는다. 쓰기 소유는 호스트가 암묵으로 얻는다(`L4.host-service.spec` HS-77).
     - `compacted`면 `대화를 요약했다 (요약 전 약 <tokensBefore> 토큰)`을 쓴다. 요약 내용을 확장이 냈으면(`fromExtension`) `, 요약 확장 <이름>`을 덧붙인다.
     - `skipped`는 오류가 아니다. `why`별로 한 줄을 stdout에 쓴다: `nothing_to_summarize`는 "요약할 내용이 아직 없다", `last_entry_is_compaction`은 "방금 요약했다. 새 대화가 쌓인 뒤에 다시 요약한다", `disabled`는 "이 엔진은 컴팩션을 쓸 수 없게 조립되어 있다".
     - 실패는 `thread.cancelledByExtension`(확장이 막음, 3006), `thread.compactFailed`(요약 또는 커밋 실패, 3008), `turn.busy`(진행 중인 turn, 3003), `thread.closed`(3007), `request.cancelled`로 온다. 문구는 §4.10 표다. 입력은 이어 받는다.
@@ -886,7 +886,7 @@ export interface GroupTemplatesPort {
     - 결과 `needs_confirmation`은 셸 주입이 있는 템플릿이다. 실행할 셸 명령을 보이고 `[y/N]`로 묻는다. `y`면 `confirmShell: true`로 한 번 더 부르고, 그 밖의 입력은 "실행하지 않았다"를 알리고 끝낸다.
     - 결과 `not_command`는 모르는 슬래시 명령으로 처리한다.
     - 실패는 기능 오류(`cap.dialog.commands.*`)와 `thread.notFound`로 온다. 문구는 §4.10 표다.
-    - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.fresnel/commands`)을 그 세션의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 세션을 바꾸면 새 세션의 id로 다시 읽는다.
+    - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.fresnel/commands`)을 그 대화의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 대화를 바꾸면 새 대화의 id로 다시 읽는다.
     - `host.hello`의 `features`에 `command.run`이 없는 호스트에서는 부르지 않고 모르는 명령으로 처리한다.
 - 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
 - Tab 완성: `/set ` 뒤는 session 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
@@ -998,7 +998,7 @@ $ echo $?
 
 ## 7. 훅
 
-- CLI는 on·post·drive·scope 지점을 선언하지 않는다. 훅은 엔진 안에 있고 CLI는 호스트 계약만 쓴다(adr.0006 §3.2).
+- CLI는 on·post·drive·scope 훅을 선언하지 않는다. 훅은 엔진 안에 있고 CLI는 Runtime API만 쓴다(adr.0006 §3.2).
 - 확장과의 관계:
   - 확장이 사용자에게 보일 내용은 `custom` item(`display: true`)으로 오고, CLI는 텍스트로 그린다(§4.5).
   - drive lock(`lease.acquired`/`lease.released`)과 Registration 변경(`scope.changed`)은 상태 줄에 주도 플러그인 이름으로 보일 수 있다 [제안]. 트랜스크립트에는 그리지 않는다.
@@ -1043,10 +1043,10 @@ $ echo $?
 - AC24. `fresnel doctor`는 `host.status { includeBinaries: true }`를 한 번 보내 바이너리마다 한 줄을 낸다. 필수 바이너리를 쓸 수 없으면 종료 코드 3이고 선택 바이너리만 빠졌으면 0이다. `--json`의 `binaries`는 호스트가 준 보고서와 같다.
 - AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`, 검토는 `ReviewAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
-- AC17. 대화형이 시작할 때 `command.list { threadId }`로 연 세션의 id를 보내고, `/resume`으로 세션을 바꾸면 새 id로 다시 읽는다. 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
-- AC18. 대화형으로 `thread.list`가 `resumable`을 알린 세션을 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 세션과 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
+- AC17. 대화형이 시작할 때 `command.list { threadId }`로 연 대화의 id를 보내고, `/resume`으로 대화를 바꾸면 새 id로 다시 읽는다. 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
+- AC18. 대화형으로 `thread.list`가 `resumable`을 알린 대화를 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 대화와 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
 - AC19. 결정이 없고 신뢰할 자원이 있는 폴더에서 대화형 `chat`을 시작하면 `thread.create`보다 앞서 카드를 묻고, 번호를 입력하면 그 선택지의 `choice`로 `trust.decide { workspace, choice }`가 한 번 간다. 엔터는 `trust.decide`를 보내지 않는다. `fresnel trust allow --scope parent`는 host가 낸 선택지의 `{ kind: "parent", verdict: "allow" }`를 보낸다.
-- AC20. `fresnel secret rm <name>`은 `secret.references`로 읽은 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 `secret.remove`를 보내지 않는다. `fresnel secret test <name>`의 출력에는 길이와 SHA-256 앞 8자가 있고 값, 값의 base64·hex는 stdout·stderr·요청 어디에도 없다.
+- AC20. `fresnel secret rm <name>`은 `secret.references`로 읽은 설정 키·활성 lease·최근 대화를 보인 뒤 묻고, 활성 lease가 있으면 `secret.remove`를 보내지 않는다. `fresnel secret test <name>`의 출력에는 길이와 SHA-256 앞 8자가 있고 값, 값의 base64·hex는 stdout·stderr·요청 어디에도 없다.
 - AC21. 도구 승인 카드에 `command` 전체와 `secretEnv` 핸들이 보이고, 값이 아닌 `secret://` 참조만 있다. `approval.resolved`가 `always`를 `thread`로 낮췄다고 알리면 그 사실이 카드 다음에 보인다. `approval.respond`가 `answer_invalid`를 돌려주면 `detail`을 보이고 다시 묻는다.
 - AC22. `fresnel sessions rename <id> <제목>`과 `/rename <제목>`은 `thread.rename { threadId, title }`를 한 번 보내고, 바뀐 제목이 `sessions ls`와 `/resume` 목록에 보인다. 제목이 비었거나 200자를 넘으면 호스트에 보내지 않는다. 첫 입력에서 제목을 정하는 일(80자)은 호스트가 하며 CLI는 하지 않는다.
 - AC23. `/compact`는 `thread.compact { threadId }`를 한 번 보내고(`/compact <지침>`이면 `instructions`를 함께), `compacted`이면 요약 전 토큰 수를, `skipped`이면 이유를 stdout에 쓰며 `turn.start`를 보내지 않는다. 확장이 막거나 요약이 실패하거나 turn이 진행 중이면 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다. 같은 이름의 엔진 명령이 있어도 `command.run`을 부르지 않는다.
@@ -1058,7 +1058,7 @@ $ echo $?
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-15] `apps/cli` → `@fresnel/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1). 남은 [미결]: 엔진 바이너리 이름 `fresnel`([제안], 같은 문서 §10 미결 2). `EngineHandle.paths.cliStateFile`의 원천은 정했다 [결정: review.decisions-2 B-07]: `@fresnel/host`의 `resolveHostStatePaths()`가 L0.os `OsDirs.state` 아래 `cli/state.json`을 돌려준다(`L4.host-service.spec` §3.3.6). CLI는 경로를 계산하지 않는다(DR-13). 환경 변수 `FRESNEL_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남는다.
-2. [미결] M1 중단의 wire 지원. `turn.interrupt`가 M2라서 M1의 Ctrl+C 1회가 종료 요청이다(§4.6). M1에 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기는 F 변경 요청이 필요하다. 기존 세션의 쓰기 소유를 `turn.start`가 얻는 동작은 `L4.host-service.spec` HS-28로 확정되어 이 항목에서 닫았다(§4.3).
+2. [미결] M1 중단의 wire 지원. `turn.interrupt`가 M2라서 M1의 Ctrl+C 1회가 종료 요청이다(§4.6). M1에 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기는 F 변경 요청이 필요하다. 기존 대화의 쓰기 소유를 `turn.start`가 얻는 동작은 `L4.host-service.spec` HS-28로 확정되어 이 항목에서 닫았다(§4.3).
 3. [미결] 시크릿 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `fresnel secret reveal`로 정했다 [결정: review.decisions-2 U-20]. F의 `secret.beginReveal`과 in-process 값 전달 통로(`InProcessHost.secretOutOfBand`)는 구현되어 CLI가 쓴다(§4.7). 남은 것: `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
 5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 시크릿 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정]. M3b(B2-WEB)에서 검색 provider 줄과 웹 provider 블록은 `web.providers`(view-model)로 판정하도록 바꿨다. 설정 키는 SearXNG 주소 하나만 `settings.get`으로 읽는다(§4.7.1).
@@ -1070,8 +1070,8 @@ $ echo $?
 11. [미결] stdout EPIPE의 종료 코드(0 제안)와 129·143 추가.
 12. [결정: m2c G1-07] `secret test`의 출력. F 결과에 `decryptable`, `length`, `sha256Prefix`가 더해져서 §4.7대로 출력한다.
 13. [미결] 설정 값 사전 검사(§4.8). `settings.list`의 `SettingDefWire`는 `type`이 JSON Schema 객체라 `validateSettingValue`(TSchema 입력)를 바로 부를 수 없고, CLI에서 `Type.Unsafe(json)`을 쓰면 TY-26을 어긴다. F가 `SettingDefWire`를 받는 검사 함수를 내면 `config set`이 왕복 전에 범위 오류를 알릴 수 있다. 그 전까지 값 판정은 호스트의 `settings.set`이 한다(오류 문구는 §4.10 표).
-14. [결정: m2c G1-07] 시크릿 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 세션을 보인다(§4.7 `rm`).
-15. [미결] 끊긴 turn을 연 세션의 질문 순서. 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(`L4.host-service.spec` HS-52) 승인 카드가 `이어서 실행할까요? [y/N]`보다 먼저 선다. 이어 실행을 먼저 묻고 승인 카드를 그 뒤로 미루려면 승인 프롬프트를 이어 실행 질문이 끝날 때까지 붙잡는 장치가 CLI에 필요하다. 지금은 두 질문이 같은 입력 줄을 순서대로 쓰고 어느 쪽으로도 잘못 응답되지 않는다(`turn-resume-host.int.test.ts`). 작성자 결정.
+14. [결정: m2c G1-07] 시크릿 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 대화를 보인다(§4.7 `rm`).
+15. [미결] 끊긴 turn을 연 대화의 질문 순서. 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(`L4.host-service.spec` HS-52) 승인 카드가 `이어서 실행할까요? [y/N]`보다 먼저 선다. 이어 실행을 먼저 묻고 승인 카드를 그 뒤로 미루려면 승인 프롬프트를 이어 실행 질문이 끝날 때까지 붙잡는 장치가 CLI에 필요하다. 지금은 두 질문이 같은 입력 줄을 순서대로 쓰고 어느 쪽으로도 잘못 응답되지 않는다(`turn-resume-host.int.test.ts`). 작성자 결정.
 16. [미결] `settings.invalidated` 구독(M2 마감 재검토 T6 메모). 이 문서가 M2에 요구하는 동작은 "시작할 때 `settings.list`와 `command.list`를 한 번 읽는다"(§4.12)이고 CLI는 알림을 구독하지 않는다. 대화 중에 다른 연결이 설정이나 신뢰를 바꾸면 Tab 완성의 키 목록과 엔진 명령 목록이 낡는다. 알림을 받아 두 목록을 다시 읽는 일은 M3에 한다(`L4.cli.plan` §4.6 끝 항목).
 17. [결정: adr.0016] CLI 출력 문장은 `packages/client`의 ko·en 카탈로그 id로 만들고 현재 로케일로 풉니다. 포맷은 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`, ICU MessageFormat 부분집합)입니다. ADR-0016 §3.1의 FormatJS(`@formatjs/intl`)는 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `ui.locale`(기본 auto, OS 로케일, 영어 폴백)을 따릅니다. 표시 언어 설정 키는 `l4.ui.locale`이고(`packages/client`의 `uiSettings`, `cliSettingGroups`로 엔진 조립에 넘깁니다), `runCli`는 시작할 때 OS 단서(`LC_ALL`, `LC_MESSAGES`, `LANG`)로, `chat`의 `--set l4.ui.locale=<값>`이 있으면 그 값으로 현재 로케일을 정합니다. 단서가 없으면 처음 값 `en`을 씁니다. CLI 문장의 한국어 이전은 M3b B4-I18N에서 끝났습니다. L4 `src`(apps/host, apps/cli, apps/desktop, packages/client)의 한국어 문자열 리터럴은 `fresnel/hardcoded-korean` 규칙(`xeon/scripts/check-ts-rules.ts`)이 막습니다(시험과 `.tsx` 뷰는 제외). 테이프 스모크 `apps/cli/test/chat.scenario.test.ts`의 scenario-4는 `--set l4.ui.locale=en`이면 print 모드 턴의 거부 문장이 영어이고, 설정이 없으면 같은 테이프가 한국어로 나오는지 실제 자식 프로세스로 확인합니다.
 18. [결정: 오케스트레이터 기본값] `invalidRemote`의 종료 코드는 2다. HS-87이 주소 문법 오류를 "사용 오류"라고 하고 §3.6의 2는 인자 값의 오류를 포함한다. 설정 파일의 같은 값 오류(`settings.invalidValue`)도 2라서 맞췄다.
@@ -1080,7 +1080,7 @@ $ echo $?
 21. [미결] 서비스 접속의 `clock`과 `newRequestId`를 CLI의 운영 값으로 낸다([제안]). `L4.host-service.spec` §3.3.5의 `EngineHandle` 정의와 맞출지 확인한다.
 22. [미결] 서비스 쪽 값 입력 창(§4.7, `L4.settings-ui.spec` §4.6.4 C안)은 아직 없다. `secret.ts`의 두 줄 오류 문구는 "서비스 모드는 M3에서 제공한다"라고 쓰는데, M3b에서도 그 창이 없으면 이 문구가 틀린다. 창을 만드는 단위와 문구를 정한다.
 23. [미결] 대화형 완료 알림의 노이즈. §4.5.1 규칙대로면 turn이 끝날 때마다 `[완료] 작업이 끝났다`가 한 줄 붙는다. 같은 thread의 답은 화면에 이미 보이므로 이 줄은 잉여다. 같은 thread의 `completed`를 접을지, 다른 thread의 알림에만 쓸지 사용자가 정한다. 그 전까지 규칙은 §4.5.1 그대로다.
-24. [미결] 알림 도착과 세션 종료의 경합. 시험(`slash-commands-host.int.test.ts`, `/compact`)에서 turn 세 개 가운데 한 건의 완료 알림만 세션 종료 전에 도착했다. 종료 직전에 알림 대기열을 짧게 비우는 방법(시간 상한 포함)을 정한다.
+24. [미결] 알림 도착과 대화 종료의 경합. 시험(`slash-commands-host.int.test.ts`, `/compact`)에서 turn 세 개 가운데 한 건의 완료 알림만 대화 종료 전에 도착했다. 종료 직전에 알림 대기열을 짧게 비우는 방법(시간 상한 포함)을 정한다.
 25. [미결] `db export`의 저장소 파일 이름(`fresnel.db`)과 데이터 디렉터리 위치. 이름은 `apps/host/src/assemble.ts`의 `DB_FILE_NAME`과 같고 호스트가 내보내지 않아 `apps/cli/src/commands/db.ts`에 한 번 더 있다. 위치는 `runtime.ts`가 `@fresnel/platform-os`의 `resolveOsDirs`로 정한다. 호스트가 데이터 디렉터리를 공개 API로 내보내면 두 곳을 그 값으로 바꾼다(§4.13).
 26. [미결] `apps/cli` → `@fresnel/platform-store` 간선. `L0.store.spec` §3.2는 `openStore`와 `exportDatabase`를 조립 루트 `apps/host`만 import한다고 적는다. 이 간선은 DR-14 예외 목록에 없다. 의존 검사(`just depcruise`)는 통과하지만, 문서와 맞추려면 허용 목록 항목을 더하거나 호스트 공개 API로 옮기는 결정이 필요하다.
 27. [결정: 오케스트레이터 기본값, M3b B1-SCH2] `schedule add`의 기본값과 상한: `--workspace`를 빼면 host의 기본 작업 폴더를 쓴다(`L2.schedule.spec` §4.4.1). `--every`와 `--expires-in`은 1년(31536000초) 이하, `--loop`는 0 이상 1년 이하, `--max-iterations`는 1~10000, `--debounce`는 기본 1000 ms이고 0~3600000 ms, `--watch` 경로는 16개 이하다. 사용자 확인은 남아 있다.

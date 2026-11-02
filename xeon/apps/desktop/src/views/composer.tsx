@@ -1,3 +1,4 @@
+import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
@@ -20,13 +21,13 @@ function newRequestId(): string {
 }
 
 function sendErrorText(error: CommandError): string {
-  if (error.kind === "offline") return "엔진에 연결되어 있지 않습니다.";
-  if (error.kind === "locked") return "다른 곳이 이 대화를 쓰고 있어 보내지 못했습니다.";
-  if (error.kind === "unsupported") return "이 엔진은 이 요청을 지원하지 않습니다.";
+  if (error.kind === "offline") return t("desktop.composer.error.offline");
+  if (error.kind === "locked") return t("desktop.composer.error.locked");
+  if (error.kind === "unsupported") return t("desktop.composer.error.unsupported");
   if (error.kind === "rejected" && error.code !== null) {
-    return `엔진이 거절했습니다 (${error.code}).`;
+    return t("desktop.composer.error.rejected", { code: error.code });
   }
-  return "보내지 못했습니다.";
+  return t("desktop.composer.error.failed");
 }
 
 function ComposerFor(props: {
@@ -97,12 +98,10 @@ function ComposerFor(props: {
       }}
     >
       <textarea
-        aria-label="메시지"
+        aria-label={t("desktop.composer.input.label")}
         rows={3}
         value={draft}
-        placeholder={
-          props.disabledReason ?? "메시지를 입력하세요. Enter로 보내고 Shift+Enter로 줄을 바꿉니다."
-        }
+        placeholder={props.disabledReason ?? t("desktop.composer.placeholder")}
         disabled={props.disabledReason !== null}
         onChange={(event) => {
           draftRef.current = event.currentTarget.value;
@@ -129,14 +128,14 @@ function ComposerFor(props: {
               detach(commands.interrupt(props.threadId), rethrow);
             }}
           >
-            중단
+            {t("desktop.composer.interrupt.button")}
           </button>
         ) : null}
         <button
           type="submit"
           disabled={props.disabledReason !== null || sending || draft.trim() === ""}
         >
-          보내기
+          {t("desktop.composer.send.button")}
         </button>
       </div>
     </form>
@@ -162,14 +161,14 @@ export function Composer(): ReactNode {
     <>
       {observing ? (
         <div className="observing" role="status">
-          <span className="dim">관찰 중입니다.</span>{" "}
+          <span className="dim">{t("desktop.composer.observing.notice")}</span>{" "}
           <button
             type="button"
             onClick={() => {
               commands.retryWrite(threadId);
             }}
           >
-            쓰기 다시 시도
+            {t("desktop.composer.retryWrite.button")}
           </button>
         </div>
       ) : null}

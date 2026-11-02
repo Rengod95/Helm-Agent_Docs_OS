@@ -18,10 +18,10 @@ binds: [xeon/packages/core-agents/**]
 
 근거:
 
-- 층 구성 계획 v2 L1-g 구성요소 6개(`_research/layer-plan-v2.json` L1-g): 인프로세스 자식 세션, 권한 상한, 깊이와 동시 상한, 결과 반환, 백그라운드 위임, 서브에이전트 정의 파일(2차).
-- 패키지 판정(`_research/packages.md` §4.3 L1-g 행): 자식 세션은 agent-core `Agent` 클래스 그대로, 정의 파일은 pi `utils/frontmatter.ts` 포크, 나머지는 설계.
+- 층 구성 계획 v2 L1-g 구성요소 6개(`_research/layer-plan-v2.json` L1-g): 인프로세스 자식 대화, 권한 상한, 깊이와 동시 상한, 결과 반환, 백그라운드 위임, 서브에이전트 정의 파일(2차).
+- 패키지 판정(`_research/packages.md` §4.3 L1-g 행): 자식 대화는 agent-core `Agent` 클래스 그대로, 정의 파일은 pi `utils/frontmatter.ts` 포크, 나머지는 설계.
 - [결정] 목표 판정은 별도 판정 모델이 하고 실행 횟수에 상한을 건다(`_research/foundation-plan.md` §1 결정 4).
-- [결정] 학습 그룹은 drive를 쓰지 않는다. 그래서 Helm이 drive 임대 중이어도 함께 켤 수 있다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)"). 검토 포크를 L1-g 백그라운드 위임으로 실행하는 방식은 계획 v2 메모를 따른다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", F.extensions.spec §4.6).
+- [결정] 학습 그룹은 drive를 쓰지 않는다. 그래서 Helm이 drive 락 중이어도 함께 켤 수 있다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)"). 검토 포크를 L1-g 백그라운드 위임으로 실행하는 방식은 계획 v2 메모를 따른다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", F.extensions.spec §4.6).
 
 정하는 것:
 
@@ -51,7 +51,7 @@ binds: [xeon/packages/core-agents/**]
 | 자식 대화 | 서브에이전트 실행마다 새로 여는 thread. 부모 대화 연결과 소유자를 기록한다 |
 | 포그라운드 자식 | 부모의 도구 호출이나 drive `loop.spawn`이 결과를 기다리는 자식. 부모 turn이 소유한다 |
 | 백그라운드 자식 | 핸들을 즉시 돌려주고 완료 보고를 부모 inbox에 넣는 자식. 소유 경계라서 부모 취소가 넘지 않는다 |
-| 소유자 | 자식을 만든 쪽. (부모 turn, 도구 호출) 또는 (drive 임대) 또는 (그룹 scope) |
+| 소유자 | 자식을 만든 쪽. (부모 turn, 도구 호출) 또는 (drive 락) 또는 (그룹 scope) |
 | 깊이 | 주 대화 0, 그 자식 1, 손자 2 |
 | 최종 보고 | 자식 turn의 마지막 어시스턴트 메시지 텍스트. 부모에 돌아가는 유일한 내용 |
 | 격리 블록 | 최종 보고를 감싸 부모 모델이 데이터로 읽게 하는 표지 |
@@ -323,17 +323,17 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ### 4.1 자식 대화 생성
 
-[제안] 자식 세션은 같은 프로세스에서 연다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "인프로세스 자식 세션", `_research/item-catalog.md` L1-g "실행 위치").
+[제안] 자식 대화는 같은 프로세스에서 연다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "인프로세스 자식 세션", `_research/item-catalog.md` L1-g "실행 위치").
 
 1. 검사: 정의 존재, 깊이(§4.4), 부모 turn의 취소 의도(`agents.parent_aborting`, eng.transactions.design §6.2 규칙 3), 정책(부모 관점에서 `agent` 도구 호출은 이미 파이프라인을 지났다. drive·scope 경로는 §4.3의 생성 검사).
 2. 멱등 확인(§4.5): 같은 부모·같은 자식 requestId의 `agent.spawned`가 있으면 새로 만들지 않는다. 조회는 커밋 안의 `TxView.agentByRequestId`다(L1.persistence.spec §3.2).
-3. 커밋 [결정: L1B.4]: F `ThreadCreateInput`에는 다른 대화의 초안을 같은 커밋에 싣는 자리가 없어 두 커밋으로 나눈다. (1) `threads.create({ creationKey: "spawn:" + sha256(부모 threadId, 자식 requestId) 앞 40자, inheritOwnerFrom })`로 자식을 만든다. (2) 부모 대화에 `agent.spawned`를 커밋한다(`build` 안에서 `TxView.agentByRequestId`로 같은 requestId를 먼저 보고, 있으면 `exists`로 그 연결을 따른다). 두 커밋 사이에 죽으면 같은 `creationKey`가 같은 자식을 돌려주므로(`replayed: true`) 중복 자식이 생기지 않는다. 이어서 자식 임대를 다시 얻고 쓰기로 연다. `L1.persistence.spec` §4.10.1이 같은 결정을 적는다. 한 커밋으로 합치려면 F에 부모 초안을 받는 자리가 필요하다 [미결: F 요청]. fork 지점이 `item`이면 `threads.fork`로 만들고 임대는 `ownership.leases`로 얻는다. `event` 지점은 세션에 이벤트 기준 fork가 없어 `agents.invalid_request`다.
+3. 커밋 [결정: L1B.4]: F `ThreadCreateInput`에는 다른 대화의 초안을 같은 커밋에 싣는 자리가 없어 두 커밋으로 나눈다. (1) `threads.create({ creationKey: "spawn:" + sha256(부모 threadId, 자식 requestId) 앞 40자, inheritOwnerFrom })`로 자식을 만든다. (2) 부모 대화에 `agent.spawned`를 커밋한다(`build` 안에서 `TxView.agentByRequestId`로 같은 requestId를 먼저 보고, 있으면 `exists`로 그 연결을 따른다). 두 커밋 사이에 죽으면 같은 `creationKey`가 같은 자식을 돌려주므로(`replayed: true`) 중복 자식이 생기지 않는다. 이어서 자식 프로세스 락을 다시 얻고 쓰기로 연다. `L1.persistence.spec` §4.10.1이 같은 결정을 적는다. 한 커밋으로 합치려면 F에 부모 초안을 받는 자리가 필요하다 [미결: F 요청]. fork 위치가 `item`이면 `threads.fork`로 만들고 프로세스 락은 `ownership.leases`로 얻는다. `event` 위치는 대화에 이벤트 기준 fork가 없어 `agents.invalid_request`다.
    - 부모 토큰 [미결]: `SpawnOrigin`에도 `SessionService`에도 부모의 `LeaseToken`이 없다. `AgentsOwnership.parentToken(threadId)`를 조립 루트가 넘긴다(F 요청: `SessionService`의 소유 토큰 조회 또는 `SpawnOrigin.parentToken`).
-   - 자식 쓰기 소유 [제안]: 자식 thread의 쓰기 소유자는 부모 thread의 소유자(같은 엔진 인스턴스)다. 이 커밋 직전에 core-persistence가 부모 토큰의 holder로 `thread:<childThreadId>` 임대를 `fresnel.store.leases.acquire`로 얻는다(`L1.persistence.spec` §3.8 `ThreadCreateInput.inheritOwnerFrom`, §4.10.1). 새 id라 경합이 없고, 커밋이 실패하면 반납한다. 소유 확인 면제는 자식의 첫 이벤트 `thread.started` 하나뿐이다. 같은 커밋의 부모 `agent.spawned`와 이후 자식의 `turn.started`, 도구 효과, 부모의 `agent.settled`는 각 thread의 토큰으로 확인한다(`L1.persistence.spec` §4.1 2단계).
-   - 하트비트는 core-persistence가 자식 토큰에 건다. 자식 임대는 자식 정착(6번) 뒤 `release`로 반납한다.
-   - 부모 임대 상실(`lease_lost`, `ownership_lost`)은 소유 트리 취소로 자식 전체에 전파한다. 부모 thread 노드에 `abort(…, { code: "lease_lost" }, { background: true })`를 걸어 백그라운드 자식도 멈춘다(`eng.transactions.design` §3.3 규칙 2 "임대를 잃으면 메모리 작업을 모두 취소", `L1.tasks.spec` `AbortCode`). 자식 임대 상실도 그 자식 노드를 같은 사유로 취소한다.
-   - 다른 프로세스(CLI와 데스크톱)가 자식 thread를 쓰기로 열려 하면 임대가 이미 있으므로 잠금 실패 경로(위임·관찰·분기)로 간다(`L1.persistence.spec` §4.9).
-4. 소유 간선: `fresnel.tasks.openScope(parent, { kind: "subagent", background })`로 자식 노드를 만든다. 포그라운드는 부모 `tool` 노드(모델 도구) 또는 `turn` 노드(drive) 아래 `background: false`, 백그라운드는 부모 `thread` 노드 아래 `background: true`다. 실행 중인 turn이 없는 drive(`owner.turnId`가 `null`)의 `loop.spawn`은 호출자가 결과를 기다리는 포그라운드이지만 노드는 부모 `thread` 노드 아래 `background: true`로 연다(thread 아래에는 그 값만 허용된다). 이 노드의 취소는 소유 트리가 잇지 못하므로 `origin.signal`(임대 신호)이 `abortChild`로 잇는다. thread 노드가 없으면 `agents.unavailable`이다(L1.tasks.spec §3 노드 표 374행, eng.transactions.design §6.1). 자식을 기다리는 도구 호출은 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 규칙 C2).
+   - 자식 쓰기 소유 [제안]: 자식 thread의 쓰기 소유자는 부모 thread의 소유자(같은 엔진 인스턴스)다. 이 커밋 직전에 core-persistence가 부모 토큰의 holder로 `thread:<childThreadId>` 프로세스 락을 `fresnel.store.leases.acquire`로 얻는다(`L1.persistence.spec` §3.8 `ThreadCreateInput.inheritOwnerFrom`, §4.10.1). 새 id라 경합이 없고, 커밋이 실패하면 반납한다. 소유 확인 면제는 자식의 첫 이벤트 `thread.started` 하나뿐이다. 같은 커밋의 부모 `agent.spawned`와 이후 자식의 `turn.started`, 도구 효과, 부모의 `agent.settled`는 각 thread의 토큰으로 확인한다(`L1.persistence.spec` §4.1 2단계).
+   - 하트비트는 core-persistence가 자식 토큰에 건다. 자식 프로세스 락은 자식 정착(6번) 뒤 `release`로 반납한다.
+   - 부모 프로세스 락 상실(`lease_lost`, `ownership_lost`)은 소유 트리 취소로 자식 전체에 전파한다. 부모 thread 노드에 `abort(…, { code: "lease_lost" }, { background: true })`를 걸어 백그라운드 자식도 멈춘다(`eng.transactions.design` §3.3 규칙 2 "임대를 잃으면 메모리 작업을 모두 취소", `L1.tasks.spec` `AbortCode`). 자식 프로세스 락 상실도 그 자식 노드를 같은 사유로 취소한다.
+   - 다른 프로세스(CLI와 데스크톱)가 자식 thread를 쓰기로 열려 하면 프로세스 락이 이미 있으므로 잠금 실패 경로(위임·관찰·분기)로 간다(`L1.persistence.spec` §4.9).
+4. 소유 간선: `fresnel.tasks.openScope(parent, { kind: "subagent", background })`로 자식 노드를 만든다. 포그라운드는 부모 `tool` 노드(모델 도구) 또는 `turn` 노드(drive) 아래 `background: false`, 백그라운드는 부모 `thread` 노드 아래 `background: true`다. 실행 중인 turn이 없는 drive(`owner.turnId`가 `null`)의 `loop.spawn`은 호출자가 결과를 기다리는 포그라운드이지만 노드는 부모 `thread` 노드 아래 `background: true`로 연다(thread 아래에는 그 값만 허용된다). 이 노드의 취소는 소유 트리가 잇지 못하므로 `origin.signal`(drive 락 신호)이 `abortChild`로 잇는다. thread 노드가 없으면 `agents.unavailable`이다(L1.tasks.spec §3 노드 표 374행, eng.transactions.design §6.1). 자식을 기다리는 도구 호출은 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 규칙 C2).
 5. 실행: `fresnel.loop`에 자식 대화를 열고 첫 turn을 시작한다. 입력은 `task` 텍스트 하나(사용자 item, `requestId` = 자식 requestId)다. 시스템 프롬프트는 정의 `prompt`, 모델은 정의 `model` 역할이다.
    - 패키지 판정은 "agent-core `Agent` 클래스(agent.ts:188)를 자식마다 생성"이다(`_research/packages.md` §4.3 L1-g). 이 판정은 pi-agent-core 의존을 전제로 했다. adr.0009로 그 의존이 없어졌고, L1.loop.spec §3.2는 turn마다 core-loop 자체 루프 `runTurn(entry)`를 부른다. [제안] 자식 대화도 주 대화와 같은 자체 루프로 돈다. 자식마다 thread 구동기 하나를 두어 "자식마다 독립 실행 단위 하나"라는 판정의 뜻은 지킨다. 판정 문구의 정정은 [미결](§10)이다.
    - core-agents는 루프를 직접 만들지 않고 `fresnel.loop`의 `runChildTurn(request: ChildTurnRequest)`로 자식 turn 실행을 요청한다(L1.loop.spec §3.1, §4.13). 요청 필드: `threadId`(자식), `input`(task), `requestId`(자식 requestId), `systemPrompt`, `model`(역할 또는 ref), `tools: { caller, depth, ceiling, surfaceThreadId, interactive, allow?, keepParentList? }`, `scope`(자식 `TaskScope`), `limits?`, `signal`. 결과는 `LoopTurnResult`(`X.primitives.spec` §3.6, F `ports.ts` 이전 요청)와 같은 모양(`outcome: TurnOutcome` + `usage` + `replayed`)이다.
@@ -346,7 +346,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 구현 메모 [결정: L1B.4]:
   - 모델 도구 `agent`는 `execute(toolCallId, …)`에 실행 맥락이 없어 `TaskService.find("tool", toolCallId)`에서 부모 노드를 따라 올라가 부모 turn과 대화를 찾는다(tool > turn > thread|subagent). 부모의 호출 주체와 깊이는 core-agents가 기억하는 자식 문맥(`contextOf`)에서 읽고, 없으면 `main`, 깊이 0이다. 요청 id는 항상 `tool:<toolCallId>:spawn:0`이다(도구 호출 하나가 자식 하나).
   - `interactive`는 `SpawnOrigin`에 없어 주 대화는 참, 중첩 자식은 부모와 같게 둔다.
-  - 자식 모드는 `ToolService.mode`로 부모 모드를 읽고 `childMode`(엄격한 쪽)를 구해 `ToolService.setMode(자식, 모드, "user")`로 자식 thread의 세션 설정에 남긴다. 자식 turn 요청의 `ceiling`은 부모 관점(`caller`, `depth`, 부모 모드)과 정의 `tools`·호출자 `allow`의 글롭 교집합이다. 부분만 겹치는 글롭은 교집합이 비어 막는 쪽으로만 틀린다.
+  - 자식 모드는 `ToolService.mode`로 부모 모드를 읽고 `childMode`(엄격한 쪽)를 구해 `ToolService.setMode(자식, 모드, "user")`로 자식 thread의 대화 설정에 남긴다. 자식 turn 요청의 `ceiling`은 부모 관점(`caller`, `depth`, 부모 모드)과 정의 `tools`·호출자 `allow`의 글롭 교집합이다. 부분만 겹치는 글롭은 교집합이 비어 막는 쪽으로만 틀린다.
   - `tools.deny`와 `denyHint`는 `ChildTurnRequest.tools.deny`·`denyHint`로 싣는다. 광고 목록에서 빼지 않고 실행 시점에 거부하는 쪽은 core-loop와 core-tools다. 거부는 `ceilingOf`가 `PolicyCeiling.deny`·`denyHint`로 실어 core-tools의 `childDecision`이 한다. 거부 문장은 `denyHint`로 끝나고, 정의·호출자 `allow` 밖 호출의 거부에도 같은 안내가 붙는다 [제안: M3-REQ-78]. `tools.keepParentList`는 부모 광고 목록을 `ToolService.advertise`로 얻어 싣는다. 부모 토큰은 `SpawnOrigin.parentToken`이 있으면 그것을, 없으면 조립 루트의 `AgentsOwnership.parentToken`을 쓴다.
   - 정의 `permissions.rules`는 호출 주체를 `subagent:<이름>`으로 좁히고 id에 `agent.<이름>.`을 붙여 `core:agents` 출처(default 티어)로 등록한다. 명세의 extension 티어로 등록하는 길이 core-tools에 없다 [미결]. 정의나 `maxDepth`가 바뀌면 같은 출처로 다시 등록한다. `maxDepth: 0`이면 주 대화도 막는 `subagent.disabled`를 더한다.
   - 풀 `subagents` 슬롯은 자식 노드를 owner로 얻는다. 호출 도구가 쥔 `tools` 슬롯은 `ToolService.suspendWhile(threadId, toolCallId, wait)`로 내려놓는다(C2) [결정: M2 검토 3, F 승격 완료]. `agent` 도구는 `service.spawn`을 그 안에서 기다린다. `tools` 풀 상한이 1이고 `agent` 호출이 하나여도 자식의 도구 호출이 슬롯을 얻는다.
@@ -383,7 +383,7 @@ export type AgentJudgedPayload = JudgeRecord;
 검토 포크 [결정: M3-REQ-70, 오케스트레이터 기본값]: 학습 검토 포크(`fork`가 있고 `tools.keepParentList`가 참인 위임)는 아래 규칙을 따른다.
 
 - 사용량 귀속: 포크의 사용량은 `SpawnResult.usage`와 `agent.settled.usage`로 부모 대화에 귀속한다. 부모 합계에 더하는 화면 규칙은 L4가 정한다. 호출자(L3.learning)는 검토 한 번의 사용량을 자기 원장에 따로 적는다.
-- 캐시 접두 공유 조건 네 가지: (1) 모델이 부모와 같다, (2) 도구 배열이 부모와 같다(`keepParentList`), (3) 시스템 프롬프트가 부모와 같다, (4) 메시지 접두가 부모 가지의 `fork` 지점까지 그대로다. 하나라도 다르면 접두 캐시는 공유되지 않고 일반 요청 비용이 든다. 현재 구현은 (2)와 (4)를 지킨다. (1)은 호출자가 요청 `model`을 부모 모델로 주어야 하고, (3)은 자식이 정의의 `prompt`를 쓰므로 공유되지 않는다. (3)을 지키려면 `SpawnRequest`에 부모 프롬프트를 쓰는 선택을 더해야 하며 이는 [미결]이다.
+- 캐시 접두 공유 조건 네 가지: (1) 모델이 부모와 같다, (2) 도구 배열이 부모와 같다(`keepParentList`), (3) 시스템 프롬프트가 부모와 같다, (4) 메시지 접두가 부모 가지의 `fork` 시점까지 그대로다. 하나라도 다르면 접두 캐시는 공유되지 않고 일반 요청 비용이 든다. 현재 구현은 (2)와 (4)를 지킨다. (1)은 호출자가 요청 `model`을 부모 모델로 주어야 하고, (3)은 자식이 정의의 `prompt`를 쓰므로 공유되지 않는다. (3)을 지키려면 `SpawnRequest`에 부모 프롬프트를 쓰는 선택을 더해야 하며 이는 [미결]이다.
 - `keepParentList`는 광고 목록만 부모와 같게 두고, 허용 목록(`tools.allow`)과 정책은 실행 시점에 거른다(§4.3 3번, `L1.tools.spec` §4.1 7번). 허용 목록 밖 도구 호출은 `denyHint`와 함께 거부된다.
 
 자식 도구 차단 목록 [제안: `_research/item-catalog.md` L1-g "자식 도구 차단 목록"]: 재귀 생성, 사용자 상호작용, 공유 상태 쓰기, 외부 발신 도구를 주지 않는다. 규칙은 L1.tools.spec 어휘의 default 티어 deny로 core-agents가 `ToolService.registerRules("core:agents", rules)`(L1.tools.spec §3.3)로 등록한다. `l1.agents.maxDepth`가 바뀌면 같은 출처로 다시 등록한다.
@@ -405,7 +405,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 깊이 규칙: 자식 깊이 = 부모 깊이 + 1. 자식 깊이가 `l1.agents.maxDepth`를 넘으면 생성하지 않는다(`agents.depth_exceeded`). 기본 1이면 주 대화만 자식을 만든다. 이중 방어: 한도에 이른 자식은 `subagent.no-spawn` 규칙으로 `agent` 도구가 광고 목록에서 빠지고, 서비스도 생성 때 다시 검사한다.
 - 동시 수: 전체 상한은 L1.tasks.spec의 풀 `subagents`(크기 `l1.tasks.limits.subagents`, 기본 16)다. 자식 turn은 모델 요청·도구를 실행하는 동안 이 풀의 슬롯을 쥔다(L1.tasks.spec §4.5 표). [제안] core-agents는 여기에 소유 트리 루트 하나가 동시에 돌리는 자식 수 상한 `l1.agents.maxConcurrent`(기본 8)를 더한다. 한 대화의 병렬 spawn이 전체 풀을 차지하지 않게 하기 위해서다. 두 상한 중 하나라도 차면 FIFO로 기다리고 상태는 `queued`다. 대기 중인 자식도 취소할 수 있다.
 - 포그라운드와 백그라운드는 같은 풀을 쓴다 [결정: M3-REQ-67, 오케스트레이터 기본값]. 백그라운드 전용 몫은 두지 않는다. 한 소유 트리 루트가 풀을 독점하지 못하게 하는 장치는 `l1.agents.maxConcurrent`(루트별 상한) 하나다. 백그라운드 자식이 전체 풀을 채워 포그라운드가 오래 기다리는 문제는 실사용 시험에서 확인한 뒤 몫을 나눈다.
-- 상한 귀속 [결정: M3-REQ-67, 오케스트레이터 기본값]: 임대 안의 위임(`owner.kind: "drive"`)은 `loop.spawn` 호출이 임대의 `maxSpawns`에 센다. 임대 밖의 위임(`owner.kind: "scope"`, 그룹 `delegate`)은 임대 상한에 세지 않고, `maxDepth`, `maxConcurrent`, 전체 풀 상한만 받는다. 임대가 없는 호출이므로 임대 예산의 대상이 아니다. 그룹이 자기 호출 수를 제한하려면 자기 설정으로 한다.
+- 상한 귀속 [결정: M3-REQ-67, 오케스트레이터 기본값]: drive 락 안의 위임(`owner.kind: "drive"`)은 `loop.spawn` 호출이 drive 락의 `maxSpawns`에 센다. drive 락 밖의 위임(`owner.kind: "scope"`, 그룹 `delegate`)은 drive 락 상한에 세지 않고, `maxDepth`, `maxConcurrent`, 전체 풀 상한만 받는다. drive 락이 없는 호출이므로 drive 락 예산의 대상이 아니다. 그룹이 자기 호출 수를 제한하려면 자기 설정으로 한다.
 
 ### 4.5 requestId 파생과 재개
 
@@ -415,7 +415,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 멱등: `spawn`·`delegate`는 부모 대화의 `agent.spawned`에서 같은 requestId를 찾는다(커밋 안의 조회 `TxView.agentByRequestId`, 투영 `p_agents`, L1.persistence.spec §3.2·§3.10, eng.transactions.design §4.7). 있으면:
   - 정착했으면(`agent.settled` 있음) 기록된 결과를 돌려준다(`reused: true`). 자식을 다시 돌리지 않는다.
   - 진행 중이고 이 프로세스에서 살아 있으면 그 실행을 기다린다.
-  - 진행 중인데 재시작으로 끊겼으면 자식 대화를 재개한다. 재개 전에 부모 소유자가 자식 임대를 다시 얻고(`thread:<childThreadId>`) `openForWrite(child, token)`으로 쓰기 소유를 연다 [제안]. `ResumePlan.openChildren`의 자식도 같은 순서다. 자식 대화의 재개 규칙(결과 불명 효과 처리 포함)은 L1.persistence.spec을 따른다.
+  - 진행 중인데 재시작으로 끊겼으면 자식 대화를 재개한다. 재개 전에 부모 소유자가 자식 프로세스 락을 다시 얻고(`thread:<childThreadId>`) `openForWrite(child, token)`으로 쓰기 소유를 연다 [제안]. `ResumePlan.openChildren`의 자식도 같은 순서다. 자식 대화의 재개 규칙(결과 불명 효과 처리 포함)은 L1.persistence.spec을 따른다.
 - 그래서 재개 뒤 같은 spawn requestId로 다시 불러도 자식이 중복 생성되지 않는다(§9).
 - [가정] F.extensions.spec §4.6 "이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다"를 이 규칙이 구현한다.
 
@@ -449,15 +449,15 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ### 4.7 백그라운드 위임
 
-[제안] 핸들을 즉시 돌려주고 완료 결과는 합성 입력으로 부모 inbox에 넣는다. drive 임대 없이 그룹도 쓴다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "백그라운드 위임", F.extensions.spec §4.6).
+[제안] 핸들을 즉시 돌려주고 완료 결과는 합성 입력으로 부모 inbox에 넣는다. drive 락 없이 그룹도 쓴다. 계획 v2 구성요소 표기를 따른다(`_research/layer-plan-v2.json` L1-g "백그라운드 위임", F.extensions.spec §4.6).
 
 1. 접수: `delegate`는 §4.1 1~4를 하고 자식 turn을 풀에 넣은 뒤 `DelegateReceipt{ status: "accepted" }`를 돌려준다. 같은 requestId면 `"duplicate"`와 기존 `childThreadId`다.
 2. 완료 보고: 자식이 정착하면 `agent.settled`와 보고 입력 `input.queued`를 부모 대화의 한 커밋에 쓴다 [제안]. 단일 DB이고 부모 thread도 같은 엔진 인스턴스가 쓰기 소유하므로 한 트랜잭션에 넣을 수 있다(spawn 커밋과 같은 방식). 두 커밋으로 나누면 그 사이 크래시 뒤 `agent.settled`만 남고, §4.5 재개 규칙상 자식을 다시 돌리지 않으므로 보고가 영영 들어가지 않는다. 보고 초안은 `agent.settled` 커밋의 `build` 안에서 `fresnel.tasks.inputs.draftQueued(view, draft)`로 만든다(`L1.tasks.spec` §3.6). `InputDraft{ mode: report.when, item: { kind: "context", customType: report.customType, content: report.text, display: report.display, details: { childThreadId, requestId, status, flags } }, requestId: "<requestId>:report", source: { type: "delegation", childThreadId } }`. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(L3.group-sdk.spec §3.4).
    - 모델 도구 `agent`의 `background: true` 경로는 `customType: AGENT_REPORT_TYPE`(`"agent.report"`), `display: true`, `when: "followUp"`다. 코어 customType은 F 형식(`x.`·`grp.` 접두)에 없으므로 코어 예약 값 허용을 요청한다(§8.3 F 요청 6).
    - eng.transactions.design §4.8 표의 `deleg:<childSessionId>:done` 키는 이 문서의 `<requestId>:report`로 바꾸도록 요청한다(§8.4). 그룹이 정한 requestId와 연결되어야 재개 중복을 막을 수 있기 때문이다.
 3. 소유 경계: 백그라운드 자식은 소유 경계다. 부모 turn 취소와 부모 대화의 보통 취소는 경계를 넘지 않는다(durable spec 1972-2030 "a background task is a boundary", eng.transactions.design §6.1). 부모 turn은 백그라운드 자식을 기다리지 않고 정착한다.
-4. 직접 취소: `AgentService.cancel({ childThreadId })` 또는 `{ parentThreadId, requestId }`. 세션 전체 취소에 `{ background: true }`를 주면 경계를 넘는다(L1.tasks.spec). 취소된 백그라운드 자식도 `agent.settled{ status: "aborted" }`와 보고 post를 남긴다. 그룹 비활성화 때의 정리는 그룹이 `onDispose`에서 `cancel`을 부른다(L3.learning.spec §5 사례 5).
-5. 학습 그룹: 검토 포크는 이 경로로 돈다. drive 임대를 쓰지 않으므로 Helm이 임대를 가진 동안에도 위임이 동작한다(`_research/layer-plan-v2-notes.md` L3-c, F.extensions.spec §4.6). 부모 이력 복제는 `fork`, 광고 목록 유지는 `tools.keepParentList`로 표현한다. 캐시 접두가 실제로 공유되려면 모델, 도구 배열 순서, 시스템 프롬프트, 메시지 접두가 같아야 한다 [가정: L3.learning.spec §4.3]. 정의 `prompt`가 부모와 다르면 공유되지 않으므로, 검토 포크용 정의는 부모 시스템 프롬프트를 쓰고 검토 지시를 `task`에 넣는 방식을 쓴다 [제안].
+4. 직접 취소: `AgentService.cancel({ childThreadId })` 또는 `{ parentThreadId, requestId }`. 대화 전체 취소에 `{ background: true }`를 주면 경계를 넘는다(L1.tasks.spec). 취소된 백그라운드 자식도 `agent.settled{ status: "aborted" }`와 보고 post를 남긴다. 그룹 비활성화 때의 정리는 그룹이 `onDispose`에서 `cancel`을 부른다(L3.learning.spec §5 사례 5).
+5. 학습 그룹: 검토 포크는 이 경로로 돈다. drive 락을 쓰지 않으므로 Helm이 drive 락을 가진 동안에도 위임이 동작한다(`_research/layer-plan-v2-notes.md` L3-c, F.extensions.spec §4.6). 부모 이력 복제는 `fork`, 광고 목록 유지는 `tools.keepParentList`로 표현한다. 캐시 접두가 실제로 공유되려면 모델, 도구 배열 순서, 시스템 프롬프트, 메시지 접두가 같아야 한다 [가정: L3.learning.spec §4.3]. 정의 `prompt`가 부모와 다르면 공유되지 않으므로, 검토 포크용 정의는 부모 시스템 프롬프트를 쓰고 검토 지시를 `task`에 넣는 방식을 쓴다 [제안].
 6. 재개: 보고 입력은 `agent.settled`와 같은 커밋이라 `agent.settled`가 있으면 보고도 있다. 재전송 규칙이 필요 없다. 보고 입력의 `requestId`는 `<requestId>:report`이고 같은 키가 이미 있으면 `draftQueued`가 초안을 만들지 않는다(durable spec 3206-3266 reporter의 requestId 파생). 정착 전에 끊긴 백그라운드 자식은 재개 때 다시 실행된다(§4.5). `eng.transactions.design` §7 표에 이 경로를 "outbox 불필요(같은 커밋)" 행으로 더하도록 요청한다(§8.4).
 
 ### 4.8 목표 판정
@@ -469,7 +469,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | 안 | 내용 | 장점 | 단점 |
 |---|---|---|---|
 | A. 무도구 단발 호출(채택) | `fresnel.models`에 역할 `judge`로 요청 하나. 입력은 목표·기준·증거, 출력은 구조화 판정(JSON 스키마) | 비용이 한 요청으로 정해진다. 재생 규칙이 단순하다(효과 하나). 권한·깊이·풀과 얽히지 않는다. 판정 모델이 루프 모델의 도구 결과를 다시 만들 수 없어 증거가 고정된다 | 증거가 부족하면 `undecidable`이 나온다. 증거 수집을 호출자(완료 게이트)가 해야 한다 |
-| B. 제한된 자식 세션 | 읽기 도구만 가진 자식 대화가 직접 확인한다 | 파일·상태를 스스로 확인한다 | 비용과 시간이 정해지지 않는다. 자식 도구 결과가 다시 증거가 되어 판정 근거를 추적하기 어렵다. 깊이 한도와 동시 풀을 차지한다 |
+| B. 제한된 자식 대화 | 읽기 도구만 가진 자식 대화가 직접 확인한다 | 파일·상태를 스스로 확인한다 | 비용과 시간이 정해지지 않는다. 자식 도구 결과가 다시 증거가 되어 판정 근거를 추적하기 어렵다. 깊이 한도와 동시 풀을 차지한다 |
 
 - B안은 2차 선택지로 둔다. 증거가 파일 내용이어야 하는 목표가 많으면 다시 본다.
 - 모델 역할: L1.models.spec 역할 표의 `judge`(설정 `l1.models.routing.judge`, 대체 순서 `review` → `main`)를 쓴다. 대체 순서 끝에서 루프 모델과 같은 모델이 될 수 있다. 같은 모델로 해석되면 판정은 하되 설정 화면과 `agent.judged`에 표시한다 [제안]. 결정 4의 "별도 판정 모델"을 지키려면 사용자가 `judge` 라우팅을 정해야 하므로, 첫 실행 설정에서 권장한다 [제안].
@@ -522,9 +522,9 @@ export type AgentJudgedPayload = JudgeRecord;
 
 ## 7. 훅
 
-- core-agents는 지점을 소유하지 않는다(`L1.readme` §6 소유표).
-- 자식 대화 안의 지점(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
-- drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 임대 상한에 들어가지 않는다(L3.group-sdk.spec §3.4).
+- core-agents는 훅을 소유하지 않는다(`L1.readme` §6 소유표).
+- 자식 대화 안의 훅(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
+- drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 락 상한에 들어가지 않는다(L3.group-sdk.spec §3.4).
 - post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `fresnel.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`, `origin: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
 - scope와의 관계: 확장이 비활성화되면 그 확장이 등록한 정의는 빠진다. 이미 실행 중인 자식은 끝까지 실행된다.
 
@@ -551,7 +551,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | 자식 turn 실행 진입점(`runChildTurn`, `ChildTurnRequest`, L1.loop.spec §3.1·§4.13), 완료 게이트(`boundary.settle.before`) | L1.loop.spec |
 | `evaluatePolicy`, `stricter`, `PolicyRule`, 도구 등록, 코어 규칙 등록 `registerRules`, `ToolRunContext.ceiling`(ceiling 단계 §4.5) | L1.tools.spec |
 | 모델 역할 `judge`, `subagent` 라우팅과 구조화 출력 [가정] | L1.models.spec |
-| 재개 절차, 멱등 조회 `TxView.agentByRequestId`, 투영 `p_agents`, `ResumePlan.openChildren`, 자식 임대 상속(`ThreadCreateInput.inheritOwnerFrom`, `ThreadCreated.token`), `openForWrite(child, token)` | L1.persistence.spec |
+| 재개 절차, 멱등 조회 `TxView.agentByRequestId`, 투영 `p_agents`, `ResumePlan.openChildren`, 자식 프로세스 락 상속(`ThreadCreateInput.inheritOwnerFrom`, `ThreadCreated.token`), `openForWrite(child, token)` | L1.persistence.spec |
 | 커밋 규칙, requestId 규칙, 소유 트리 규칙 | eng.transactions.design |
 
 ### 8.3 F 요청 사항
@@ -583,12 +583,12 @@ export type AgentJudgedPayload = JudgeRecord;
 7. `l1.agents.judge.maxRuns = 3`에서 같은 목표의 네 번째 `judge` 호출은 모델 테이프를 소비하지 않고 `{ kind: "capped" }`를 돌려준다.
 8. `agent.judged`가 커밋된 뒤 재개하면 같은 `(goalRef, run)`의 `judge`가 `{ kind: "recorded" }`를 돌려주고 모델을 부르지 않는다.
 9. 동시 상한 2에서 자식 3개를 생성하면 세 번째는 `queued`이고, 앞의 하나가 정착한 뒤 실행된다.
-10. 백그라운드 위임의 완료 보고는 부모 대화에 `custom` item 하나로 들어간다. `agent.settled` 커밋 전 장애 주입 지점에서 끊으면 `agent.settled`와 보고 `input.queued`가 둘 다 없고, 커밋 뒤에 끊으면 둘 다 있다.
-11. 자식 생성 뒤 자식 thread의 `thread:<childThreadId>` 임대 holder는 부모와 같다. 부모 임대를 다른 프로세스가 인수하면 포그라운드·백그라운드 자식 모두의 신호가 켜지고 자식의 다음 커밋은 `ownership_lost`다.
+10. 백그라운드 위임의 완료 보고는 부모 대화에 `custom` item 하나로 들어간다. `agent.settled` 커밋 전 장애 주입 위치에서 끊으면 `agent.settled`와 보고 `input.queued`가 둘 다 없고, 커밋 뒤에 끊으면 둘 다 있다.
+11. 자식 생성 뒤 자식 thread의 `thread:<childThreadId>` 프로세스 락 holder는 부모와 같다. 부모 프로세스 락을 다른 프로세스가 인수하면 포그라운드·백그라운드 자식 모두의 신호가 켜지고 자식의 다음 커밋은 `ownership_lost`다.
 
 ## 10. 미결 사항
 
-- [미결] 판정 호출 형태(무도구 단발 대 제한된 자식 세션)의 확정(§4.8). 이 문서는 A안을 [제안]한다.
+- [미결] 판정 호출 형태(무도구 단발 대 제한된 자식 대화)의 확정(§4.8). 이 문서는 A안을 [제안]한다.
 - [미결] 판정 상한에 이른 뒤의 처리(turn 종료, 사용자 알림, 사용자 연장). L1.loop.spec과 함께 정한다.
 - [미결] 정의 위치 우선순위에 확장 정의를 넣는 자리(§4.9)와 M2 조기 도입 범위.
 - [미결] 지시문 모방 검사의 표지 목록과 한국어 문구 목록(§4.6). Claude Code 원문 표지를 확인한 뒤 고친다.
@@ -601,6 +601,6 @@ export type AgentJudgedPayload = JudgeRecord;
 - [결정: M3b B3-L1M] `JudgeInput.stepId`(선택)를 더했다. 있으면 같은 `goalRef`의 마지막 `agent.judged`가 그 단계에서 남긴 것일 때 `{ kind: "recorded" }`를 돌려주고 다시 판정하지 않는다. `agent.judged`의 `stepId` 칸에 그 단계를 적는다. `run`은 호출자가 넘기지 않고 `agent.judged` 수에서 구한다. `boundary.settle.before` 페이로드에 `stepId`(선택)를 실어 완료 게이트가 넘긴다.
 - [결정: M3b B3-L1M, 오케스트레이터 기본값] `completeStructured`는 core-agents의 `structured.ts`에 둔다. F `ModelService`와 core-models에는 더하지 않는다. 쓰는 곳이 판정 하나이고, 계정 풀·폴백과 함께 쓰는 형태가 필요해지면 그때 F 요청으로 올린다(`L1.models.spec` §3.10, §4.10과 맞춤).
 - [결정: M3b B3-L1M] 자식 turn의 `turn.started.origin`은 core-loop `runChildTurn`이 `delegation`으로 정한다(`L1.loop.spec` §4.4b). `ChildTurnRequest`에 필드를 더하지 않는다.
-- [미결] `lifecycle.agent.settled` 지점을 `agent.settled` 커밋에서 발화하는 쪽(ext-host 또는 core-persistence)이 아직 없다.
+- [미결] `lifecycle.agent.settled` 훅을 `agent.settled` 커밋에서 발화하는 쪽(ext-host 또는 core-persistence)이 아직 없다.
 - [미결] `undecidable` 판정을 게이트가 계속으로 다룰지(지금 [제안])와 `agent_before_settle` 핸들러를 L2.work가 거는 시점.
 - [결정: 오케스트레이터 기본값] 재시작 뒤 `cancel({ ownerScopeId })`는 `session.threads.list`로 대화를 훑어 정착하지 않은 자식의 `agent.spawned.owner`를 대조한다. `AgentView`에 소유자를 더하지 않는다(F 변경 없음). 대화가 많으면 느리므로 그룹 비활성화처럼 드문 경로에서만 부른다.

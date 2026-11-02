@@ -50,8 +50,8 @@ binds: [xeon/apps/desktop/src/views/**]
 | UX-16 | F·X 선행: 매니페스트 `views` 두 모드, 확장 메서드와 등록 API, 예산 등급 `view`, 화면 진단, `composition`, `loop.ask`, 계측 링 버퍼, 시험 멈춤, 버전 기록(T-F, T-XV, T-XD, T-GK) | ADR-0021 accepted(2026-10-31) | L |
 | UX-17 | P-18 플러그인 화면 호스트, 여섯 슬롯, 선언형 렌더러와 위젯 카탈로그 v1, 프레임 호스트와 다리, 화면 장부(V-19, V-29). Helm 기여로 P-05 대체(X-9)(T-VIEW) | UX-14, UX-16 | L |
 | UX-18 | P-19 시험 실행, P-20 측정과 평가, O-11, O-12(V-20, V-21)(T-TRIAL) | UX-15, T-WB | M |
-| UX-19 | P-16 런타임 캔버스, 검사기, 턴 재생, 자동 배치(V-26, V-27)(T-CANVAS) | UX-15, T-CAU2, T-WA, T-WB | L |
-| UX-20 | P-21 구성기(그룹·흐름·프로필·코드, "새 그룹", 제작 확장 연결)(V-22, V-28)(T-COMPOSE) | UX-15, T-WB, T-AUTH | L |
+| UX-19 | P-16 런타임 캔버스, 검사기, 트레이스, 자동 배치(V-26, V-27)(T-CANVAS) | UX-15, T-CAU2, T-WA, T-WB | L |
+| UX-20 | P-21 구성기(그룹·흐름·프로필·코드, "새 그룹", Plugin Builder 연결)(V-22, V-28)(T-COMPOSE) | UX-15, T-WB, T-AUTH | L |
 | UX-10 | 접근성 점검과 수정(axe, 키보드 경로), 다크 테마 점검 | UX-3~UX-9, UX-12~UX-18 | M |
 
 - UX-3과 UX-5, UX-7은 UX-2 뒤 병렬로 갑니다.
@@ -105,4 +105,4 @@ binds: [xeon/apps/desktop/src/views/**]
 | LightCraft가 wire 간극(W-15, W-20~W-24) 때문에 빈 화면이 됨 | UX-13을 M4 착수 즉시 시작. 그 전에는 설정 키와 이벤트(`scope.*`, `lease.*`)로 채우고 간극을 화면에 문장으로 보임 |
 | 프레임 모드의 IPC 격리를 플랫폼에서 확인하지 못함 | `x.views.frames = false`로 내고 선언형과 `fallback`만 씀(ADR-0021 §6 1번) |
 | 캔버스 시각 언어가 2차 시안을 기다림 | 동작과 데이터를 먼저 만들고 시각 값은 토큰 교체로 나중에 |
-| replay·benchmark는 개발 모드에서만 돎(spec §12.3 U-4) | 배포 앱 P-19는 시험 대화와 지난 결과 읽기, 실행 항목은 잠금 |
+| replay·benchmark는 개발 모드에서만 돎(spec §12.3 U-4) | 배포 앱 P-19는 Test run과 지난 결과 읽기, 실행 항목은 잠금 |

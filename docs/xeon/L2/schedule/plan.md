@@ -17,9 +17,9 @@ binds: [xeon/packages/cap-schedule/**]
 마일스톤 정의는 `product.scope.spec` §4.3을 따른다. M0·M1은 [결정: `_research/foundation-plan.md` §5 P4], M2·M3 배치는 [제안]이다.
 
 - `product.scope.spec` §4.1 I13에 따라 예약, 원격, 알림은 M3다. 이 패키지의 전체 범위가 M3다.
-- 계획 v2(`_research/layer-plan-v2.json` L2-h)의 단계 표기는 루프와 웨이크업, 백그라운드 작업 모니터, 다중 세션 관리가 2차이고, 예약 실행과 원격 제어가 보류다.[^v2] 3차 결정이 예약·원격·알림을 범위에 넣었으므로(`_research/decisions-log.md` 2026-10-21 결정(3차)) 이 계획은 다섯 기능 모두를 M3에 둔다. 루프는 서비스 모드가 필요 없지만 `cap-schedule` 묶음으로 함께 만든다(`product.scope.spec` §4.1 아래 해설).
+- 계획 v2(`_research/layer-plan-v2.json` L2-h)의 단계 표기는 반복 예약과 웨이크업, 백그라운드 작업 모니터, 다중 대화 관리가 2차이고, 예약 실행과 원격 제어가 보류다.[^v2] 3차 결정이 예약·원격·알림을 범위에 넣었으므로(`_research/decisions-log.md` 2026-10-21 결정(3차)) 이 계획은 다섯 기능 모두를 M3에 둔다. 반복 예약은 서비스 모드가 필요 없지만 `cap-schedule` 묶음으로 함께 만든다(`product.scope.spec` §4.1 아래 해설).
 
-[^v2]: `product.scope.spec` §4.1 I4 해설: "3차 결정이 범위에 넣은 항목(공유 서비스 모드, 예약 실행, 원격 제어, 사용자 알림)은 JSON 표기가 '2차' 또는 '보류'여도 1차로 본다." layer-plan-v2.json과 3차 결정이 다르면 3차 결정을 따른다. 루프·모니터·다중 세션의 '2차' 표기는 3차 결정이 직접 다루지 않았지만, 같은 패키지로 묶기 위해 M3로 당긴다 [제안].
+[^v2]: `product.scope.spec` §4.1 I4 해설: "3차 결정이 범위에 넣은 항목(공유 서비스 모드, 예약 실행, 원격 제어, 사용자 알림)은 JSON 표기가 '2차' 또는 '보류'여도 1차로 본다." layer-plan-v2.json과 3차 결정이 다르면 3차 결정을 따른다. 반복 예약·모니터·다중 대화의 '2차' 표기는 3차 결정이 직접 다루지 않았지만, 같은 패키지로 묶기 위해 M3로 당긴다 [제안].
 
 ### 1.1 M0·M1·M2
 
@@ -30,19 +30,19 @@ binds: [xeon/packages/cap-schedule/**]
 
 | 순서 | 묶음 | 작업 | 서비스 모드 | 선행 |
 |---|---|---|---|---|
-| S1 | 앱 프로세스 안에서 도는 루프·웨이크업·세션 목록 | H2, H3, H5 | 필요 없음 | `L1.tasks` post, `L0.os` 타이머, `L1.persistence` 커밋 |
+| S1 | 앱 프로세스 안에서 도는 반복 예약·웨이크업·대화 목록 | H2, H3, H5 | 필요 없음 | `L1.tasks` post, `L0.os` 타이머, `L1.persistence` 커밋 |
 | S2 | 작업 상태 분류와 감시 | H4 | 필요 없음(분리 실행만 필요) | `L0.process` 레지스트리, `L1.agents` 백그라운드 위임 |
-| S3 | 서비스 모드 위의 예약 실행 | H6, H7, H8, H9 | 필요 | `L4.host-service` 서비스 모드(SV-01~SV-08), `L0.store` 임대 |
+| S3 | 서비스 모드 위의 예약 실행 | H6, H7, H8, H9 | 필요 | `L4.host-service` 서비스 모드(SV-01~SV-08), `L0.store` 프로세스 락 |
 | S4 | 원격 승인 중계 | H10 | 필요 | `L4.host-service` 원격 연결 인증(로컬 소켓 + SSH 터널·사설망) |
 
 - H11(설정 키)은 S1부터 묶음마다 그 묶음의 키를 더한다.
-- S1·S2는 서비스 모드와 무관하게 끝낼 수 있다. S3는 `L4.host-service.plan` §1.4(M3 서비스 모드)와 같은 시기에 진행한다. 서비스 모드가 늦어지면 S3의 틱 루프(H7)는 앱 호스트 모드(`startTick({ mode: "app" })`)로 먼저 검증한다.
+- S1·S2는 서비스 모드와 무관하게 끝낼 수 있다. S3는 `L4.host-service.plan` §1.4(M3 서비스 모드)와 같은 시기에 진행한다. 서비스 모드가 늦어지면 S3의 틱 반복 실행(H7)은 앱 호스트 모드(`startTick({ mode: "app" })`)로 먼저 검증한다.
 - S4는 M3에 둔다 [결정: review.decisions-2 U-11]. 원격 연결은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 잇는 방식이고, 내장 TLS + 토큰 WebSocket 전송은 2차다.
 
 ### 1.3 M3 이후(2차)
 
 - OS 서비스 등록 뒤 재부팅 자동 시작(`product.scope.spec` §4.2 N3). 이 패키지의 변경은 없다. 재부팅 직후 놓친 실행 처리(§4.4.4)가 이미 들어 있다.
-- 기존 세션을 대상으로 하는 예약(spec §10 미결 12), 모바일 푸시(spec §10 미결 3).
+- 기존 대화를 대상으로 하는 예약(spec §10 미결 12), 모바일 푸시(spec §10 미결 3).
 
 ## 2. 패키지와 파일 배치
 
@@ -98,7 +98,7 @@ xeon/packages/cap-schedule/
     *.test.ts              # §5 목록
 ```
 
-- 세션 밖 테이블은 마이그레이션 파일 하나로 둔다. 적용 방식(scoped 핸들의 마이그레이션 API)은 `L0.store.spec`을 따른다 [가정].
+- 대화 밖 테이블은 마이그레이션 파일 하나로 둔다. 적용 방식(scoped 핸들의 마이그레이션 API)은 `L0.store.spec`을 따른다 [가정].
 - `./host` 서브패스는 `SchedulerHost`만 연다. `apps/host`(조립 루트)만 import한다.
 - 같은 층 패키지(`cap-work`, `cap-dialog`)를 import하지 않는다(DR-02). `work.goals`는 `ServiceKey`로만 쓴다.
 
@@ -112,12 +112,12 @@ xeon/packages/cap-schedule/
 | H2 | loops 모델: 종료 조건 4종 판정과 순서, 상한·만료, 반복 상태 기계, 셸 조건 실행 포트, `schedule.loop_*` 커밋, 투영(`cap_schedule_loops`), 재시작 정리 | H1, `L1.persistence.plan` 투영기 등록 | M | S1 |
 | H3 | `schedule_wakeup`·`loop_done` 도구와 post 연결: 웨이크업 대체 규칙, 정착 대기 뒤 투입, `wake:`·`loop:` 키, `interval.self` | H2, `L1.tasks` post | S | S1 |
 | H4 | jobs: 출처별 4상태 분류, 승인 대기 보조 투영, L0.process·L1.agents 어댑터, `spawn`·`stop`, 감시와 regex 부분 집합 검사, `schedule.watch_*` | H1, `L0.process.plan` 레지스트리·출력 구독, `L1.agents.plan` 백그라운드 위임 | M | S2 |
-| H5 | sessions: 실행 상태 목록(소유자 표시, 상태, 작업 수), `create`(워크트리 포함), 워크트리 연산 3개와 도구(기본 꺼짐) | H1, `L0.os.plan` 워크트리 연산, `L1.persistence` 세션 생성·소유 표시 조회 | S | S1 |
+| H5 | sessions: 실행 상태 목록(소유자 표시, 상태, 작업 수), `create`(워크트리 포함), 워크트리 연산 3개와 도구(기본 꺼짐) | H1, `L0.os.plan` 워크트리 연산, `L1.persistence` 대화 생성·소유 표시 조회 | S | S1 |
 | H6 | timers 저장(`cap_schedule_timers`, `request_id` 멱등)과 cron 파서 선택: 후보 비교 뒤 정확 버전 고정(§4.1), cron·at 다음 기한 계산, 시간대·일광 절약 규칙, `create`·`list`·`cancel`·`runs`와 도구 3개 | H1, `L0.store` scoped 핸들 | M | S3 |
-| H7 | 틱 루프와 `sys_leases` `scheduler` 임대: `SchedulerHost`, 획득·하트비트·펜싱, 틱 절차, `pendingSchedules`·`liveSchedulerTasks`, `startTick` 모드(service, app) | H6, `L0.store.plan` 임대 API, `L4.host-service.plan` HS-39·HS-40 | M | S3 |
+| H7 | 틱 반복 실행과 Scheduler leader(`sys_leases` `scheduler` 자원): `SchedulerHost`, 획득·하트비트·펜싱, 틱 절차, `pendingSchedules`·`liveSchedulerTasks`, `startTick` 모드(service, app) | H6, `L0.store.plan` 프로세스 락 API, `L4.host-service.plan` HS-39·HS-40 | M | S3 |
 | H8 | 놓친 실행·중복 방지: 정책 표(`skip`·`once`·`all`), 따라잡기 상한, 최소 간격, 시간당 상한, claim 기본 키와 펜싱 | H6, H7 | S | S3 |
-| H9 | 예약 세션 생성과 결과 전달: 세션 생성 키, `run_started`(origin 표식), 프롬프트 post(`timer:` 키), 재시작 복구, `run_finished`, 워치독(600초) | H7, H8, `L1.persistence` 세션 생성 `creationKey`(§4.10.1) | M | S3 |
-| H10 | remote 승인 중계: 정책 검사, 대기 요청 요약(마스킹), `respond` → `fresnel.approvals`, `schedule.remote_responded`, host 연결 지점 | H1, `L4.host-service` 원격 연결 인증(U-11) | S | S4 |
+| H9 | 예약 대화 생성과 결과 전달: 대화 생성 키, `run_started`(origin 표식), 프롬프트 post(`timer:` 키), 재시작 복구, `run_finished`, 워치독(600초) | H7, H8, `L1.persistence` 대화 생성 `creationKey`(§4.10.1) | M | S3 |
+| H10 | remote 승인 중계: 정책 검사, 대기 요청 요약(마스킹), `respond` → `fresnel.approvals`, `schedule.remote_responded`, host 연결 위치 | H1, `L4.host-service` 원격 연결 인증(U-11) | S | S4 |
 | H11 | 설정 키 `l2.schedule.*`(spec §6)와 도구 노출 키 연결, `whenServiceOff`·`ensureOnCreate` 동작 | H1 | S | S1~S4 |
 
 선행 관계 요약: H1 → (H2 → H3), H4, H5, H6 → H7 → H8 → H9, H10. 다른 층 선행은 `L0.process`(H4), `L1.agents`(H4), `L4.host-service` 서비스 모드(H7, H9)와 원격 연결 인증(H10)이다.
@@ -150,8 +150,8 @@ xeon/packages/cap-schedule/
 
 | 원본 | 경로·근거 | 가져오는 것 | 바꿀 점 |
 |---|---|---|---|
-| Hermes `cron/` | `cron/jobs.py`(저장, 원자 쓰기, 프로세스 간 잠금), `cron-internals.md`(60초 틱, 잡마다 새 에이전트), `cron/AGENTS.md`(유휴 600초 워치독), `cron/scheduler_provider.py`(놓친 잡 되살리기)(`_research/refs/hermes.md` §3.10.4) | 잡마다 새 세션, 워치독 규칙, 놓친 잡 처리 | JSON 파일 대신 SQLite 테이블, 파일 잠금 대신 `sys_leases` 임대·펜싱, 틱 15초 |
-| Claude Code `CronCreate`·`ScheduleWakeup`·`/loop` | `_research/refs/claude-code.md` 148~149행(세션 범위 크론, 7일 만료, Stop 훅의 `session_crons`), `_research/l2e.md` §3.4 D1·D2 | 웨이크업 도구 모양, 세션 범위 루프, 만료 기본값 | 세션 범위 크론은 루프·웨이크업으로, 세션 독립 예약은 `timers`로 나눈다 |
+| Hermes `cron/` | `cron/jobs.py`(저장, 원자 쓰기, 프로세스 간 잠금), `cron-internals.md`(60초 틱, 잡마다 새 에이전트), `cron/AGENTS.md`(유휴 600초 워치독), `cron/scheduler_provider.py`(놓친 잡 되살리기)(`_research/refs/hermes.md` §3.10.4) | 잡마다 새 대화, 워치독 규칙, 놓친 잡 처리 | JSON 파일 대신 SQLite 테이블, 파일 잠금 대신 `sys_leases` 프로세스 락·펜싱, 틱 15초 |
+| Claude Code `CronCreate`·`ScheduleWakeup`·`/loop` | `_research/refs/claude-code.md` 148~149행(대화 범위 크론, 7일 만료, Stop 훅의 `session_crons`), `_research/l2e.md` §3.4 D1·D2 | 웨이크업 도구 모양, 대화 범위 반복 예약, 만료 기본값 | 대화 범위 크론은 반복 예약·웨이크업으로, 대화 독립 예약은 `timers`로 나눈다 |
 | omp `/loop` | `_research/l2e.md` §3.4 D2("/loop, --until 셸 조건, 한도") | 셸 종료 코드 조건과 반복 한도 | 4종 조건과 판정 순서를 계약으로 고정 |
 | Warp Request 이벤트 | `_research/l2e.md` §7 | "입력 필요" 한 상태로 묶기 | 승인 이벤트에서 파생 |
 
@@ -198,18 +198,18 @@ xeon/packages/cap-schedule/
 | › 시간당 상한 | 21번째 실행이 `skipped(rate_limited)` |
 | › 다음 기한 | 처리한 마지막 기한 뒤 `now` 이후 첫 기한 |
 
-### 5.4 임대 경합 (H7, H8)
+### 5.4 Scheduler leader 경합 (H7, H8)
 
 | 테스트 | 확인할 동작 |
 |---|---|
 | `lease.test.ts` › 두 틱 프로세스 | 같은 `openTestStore` 파일을 연 두 `SchedulerHost` 중 하나만 `holding: true` |
-| › 한 기한 한 실행 | 두 호스트가 같은 시각에 claim을 시도해도 `cap_schedule_runs` 행 하나, 세션 생성 호출 하나, post 하나(수용 기준 3) |
-| › 임대 만료 인수 | 소유자 하트비트를 멈추고 가짜 시계 30초 → 다른 쪽이 epoch를 올려 인수 |
+| › 한 기한 한 실행 | 두 호스트가 같은 시각에 claim을 시도해도 `cap_schedule_runs` 행 하나, 대화 생성 호출 하나, post 하나(수용 기준 3) |
+| › Scheduler leader 만료 인수 | 소유자 하트비트를 멈추고 가짜 시계 30초 → 다른 쪽이 epoch를 올려 인수 |
 | › 좀비 틱 펜싱 | 인수 뒤 이전 소유자의 claim 트랜잭션이 `lease_lost`로 롤백되고 쓴 행이 없다 |
 | › renew 실패 | 틱이 멈추고 그 틱의 claim이 없다 |
-| › stopTick | 임대 행이 지워지고 진행 중 실행은 그대로 |
+| › stopTick | 프로세스 락 행이 지워지고 진행 중 실행은 그대로 |
 
-### 5.5 루프 종료 4종과 만료 (H2, H3)
+### 5.5 반복 예약 종료 4종과 만료 (H2, H3)
 
 | 테스트 | 확인할 동작 |
 |---|---|
@@ -223,18 +223,18 @@ xeon/packages/cap-schedule/
 | › 만료 | 168시간 경과에 `expired` |
 | › goal | 가짜 `work.goals`가 완료를 돌려주면 `goal`. provider가 없으면 `start`가 `goal_unavailable` |
 | › goal 이중 투입 없음 | 가짜 목표 `continuation: "external"`에서 반복 경계마다 post 키가 `loop:` 하나다. `continuation: "self"` 목표로 `start`하면 `invalid_input`(spec §9-7) |
-| › 한 세션 하나 | 두 번째 `start`가 `loop_already_running` |
+| › 한 대화 하나 | 두 번째 `start`가 `loop_already_running` |
 | › post 키 멱등 | 반복 n의 `loop_iterated` 커밋 뒤 실패를 주입하고 재시도해도 post가 한 번 |
 | `wakeup.test.ts` › 대체 | 세 번 호출하면 마지막 하나만 `pending`, 앞의 둘 `replaced` |
 | › 정착 대기 | 기한에 turn이 진행 중이면 정착 뒤 투입 |
 | › self 간격 | 반복 중 웨이크업이 없으면 `model` 사유로 멈춤 |
-| `restart.test.ts` › host_exit 정리 | 투영에 `running` 루프가 있고 메모리 타이머가 없으면 `thread.start`에서 `host_exit` 기록, 자동 재시작 없음 |
+| `restart.test.ts` › host_exit 정리 | 투영에 `running` 반복 예약이 있고 메모리 타이머가 없으면 `thread.start`에서 `host_exit` 기록, 자동 재시작 없음 |
 
 ### 5.6 jobs 상태 전이 (H4)
 
 | 테스트 | 확인할 동작 |
 |---|---|
-| `classify.test.ts` › agent 전이 | `agent.spawned` → working, 자식 세션 `approval.requested` → needs_input, `approval.resolved` → working, `agent.settled` → done |
+| `classify.test.ts` › agent 전이 | `agent.spawned` → working, 자식 대화 `approval.requested` → needs_input, `approval.resolved` → working, `agent.settled` → done |
 | › 승인 대기를 입력 필요로 | kind `tool`, `question`, `plan` 모두 needs_input |
 | › process 전이 | running → working, exited 0 → done(succeeded), exited 1 → done(failed), killed → stopped |
 | › loop 전이 | 사유별 done/stopped 대응(spec §4.2.1 표) |
@@ -252,18 +252,18 @@ xeon/packages/cap-schedule/
 | `host.idle.test.ts` › 대기 예약 계산 | 켜진 cron 1 + 진행 중 실행 1이면 `pendingSchedules() = 2`, 꺼진 타이머·끝난 at은 세지 않는다 |
 | › decideIdle 결합 | `L4.host-service`의 `decideIdle`에 이 값을 넣어 연결 0·live 0·대기 예약 0일 때만 `idle: true`, 대기 예약만 있으면 `reason: "schedules"`(수용 기준 2) |
 | › 다른 프로세스 변경 반영 | 다른 연결이 타이머를 만든 뒤 다음 틱에서 값이 갱신된다 |
-| › 루프의 live 계산 | 도는 루프 1이면 `liveSchedulerTasks() = 1` |
+| › 반복 예약의 live 계산 | 도는 반복 예약 1이면 `liveSchedulerTasks() = 1` |
 
 ### 5.8 예약 실행과 결과 (H9)
 
 | 테스트 | 확인할 동작 |
 |---|---|
-| `run.test.ts` › 클라이언트 없이 실행 | 서비스 모드 가짜 호스트에서 연결 0인 채 가짜 시계를 기한까지 진행 → 새 세션에 `run_started`, 턴 정착 뒤 `run_finished`(수용 기준 1의 단위 판) |
-| › origin 표식 | `run_started.origin`이 `"timer"`이고 세션 생성에 `origin: "timer"` |
-| › claim 뒤 재시작 | `claimed` 행만 있는 상태에서 다시 시작하면 같은 키로 세션 하나 |
+| `run.test.ts` › 클라이언트 없이 실행 | 서비스 모드 가짜 호스트에서 연결 0인 채 가짜 시계를 기한까지 진행 → 새 대화에 `run_started`, 턴 정착 뒤 `run_finished`(수용 기준 1의 단위 판) |
+| › origin 표식 | `run_started.origin`이 `"timer"`이고 대화 생성에 `origin: "timer"` |
+| › claim 뒤 재시작 | `claimed` 행만 있는 상태에서 다시 시작하면 같은 키로 대화 하나 |
 | › started 뒤 재시작 | 투입 전이면 post를 다시 하고, 결과 불명 턴이면 `failed(host_exit)` |
 | › 워치독 | 진행 중 턴의 마지막 이벤트 뒤 600초 → interrupt 1회와 `run_stalled` |
-| › 승인 대기는 멈춤 아님 | 승인 대기 세션은 600초가 지나도 중단하지 않는다 |
+| › 승인 대기는 멈춤 아님 | 승인 대기 대화는 600초가 지나도 중단하지 않는다 |
 | › whenServiceOff autoStart | 서비스 꺼짐에서 `create`가 자동 기동을 요청하고, 기동하면 저장한다. 가짜 호스트가 기동에 실패하면 `unavailable` + `service_mode_off`와 조치 안내, 저장 없음 [결정: review.decisions-2 U-23] |
 | › whenServiceOff reject | 서비스 꺼짐에서 `create`가 `unavailable` + `service_mode_off`, 저장 없음 |
 | › whenServiceOff keepWithWarning | 저장하고 `runs_only_while_app_open` 경고 |
@@ -277,7 +277,7 @@ xeon/packages/cap-schedule/
 | › 응답 전달과 감사 | 가짜 `fresnel.approvals`가 1회 호출되고 `remote_responded` 커밋 |
 | › 요약 마스킹 | `pending.summary`에 도구 인자 원문과 가짜 시크릿 값이 없다 |
 | `remote.auth.test.ts` › 토큰 없는 접속 | 가짜 원격 전송에서 토큰 없는 연결이 `host.hello` 처리 전에 닫힌다(L4 호스트 테스트 도우미 사용, 수용 기준 5) |
-| › 비루프백 무인증 기동 거부 | 비루프백 주소 + 인증 꺼짐 설정으로 서비스 시작이 실패한다 |
+| › loopback 아닌 주소 무인증 기동 거부 | loopback 아닌 주소 + 인증 꺼짐 설정으로 서비스 시작이 실패한다 |
 | › 토큰 참조 | `tokenRef`가 `secret://` 형식이 아니면 설정 검사(D3)가 거부 |
 
 ## 6. 완료 기준
@@ -294,11 +294,11 @@ xeon/packages/cap-schedule/
 
 | # | 위험 | 영향 | 대응 |
 |---|---|---|---|
-| 1 | 서비스 모드 선행 의존으로 일정 지연 | S3·S4가 `L4.host-service` 서비스 모드(M3)에 묶인다 | S1·S2를 먼저 끝낸다. 틱 루프는 앱 호스트 모드로 먼저 검증한다(§1.2). 서비스 모드 통합은 마지막 주에 둔다 |
+| 1 | 서비스 모드 선행 의존으로 일정 지연 | S3·S4가 `L4.host-service` 서비스 모드(M3)에 묶인다 | S1·S2를 먼저 끝낸다. 틱 반복 실행은 앱 호스트 모드로 먼저 검증한다(§1.2). 서비스 모드 통합은 마지막 주에 둔다 |
 | 2 | 재부팅 뒤 예약 지연(OS 등록 2차) | 사용자가 앱을 열 때까지 예약이 돌지 않는다 | 놓친 실행 정책 기본 `once`, 따라잡기 24시간 상한. L4가 "놓친 예약 n건 실행/건너뜀"을 보여 주도록 `runs`의 `skipped` 기록을 남긴다 |
-| 3 | 임대 만료·좀비 틱 | 멈췄다 깨어난 프로세스가 같은 기한을 다시 실행 | epoch 펜싱(쓰기 트랜잭션 안 `holds(tx, token)`, `L0.store.spec` §3.1), claim 기본 키, 세션 생성·post 키의 세 겹(spec §4.4.4). 경합 테스트 §5.4 |
-| 4 | 원격 보안(무인증 금지 검증) | 비루프백 무인증 리스너가 생기면 기기 전체가 노출된다 | 금지 규칙은 L4가 기동 시 강제하고, 이 패키지는 정책·감사와 `allowedScopes: managed, user` 제한을 둔다. §5.9에 거부 테스트 |
+| 3 | 프로세스 락 만료·좀비 틱 | 멈췄다 깨어난 프로세스가 같은 기한을 다시 실행 | epoch 펜싱(쓰기 트랜잭션 안 `holds(tx, token)`, `L0.store.spec` §3.1), claim 기본 키, 대화 생성·post 키의 세 겹(spec §4.4.4). 경합 테스트 §5.4 |
+| 4 | 원격 보안(무인증 금지 검증) | loopback 아닌 무인증 리스너가 생기면 기기 전체가 노출된다 | 금지 규칙은 L4가 기동 시 강제하고, 이 패키지는 정책·감사와 `allowedScopes: managed, user` 제한을 둔다. §5.9에 거부 테스트 |
 | 5 | 예약 폭주 비용 상한 | 1분 cron이나 많은 타이머가 모델 비용을 키운다 | 최소 간격 300초, 시간당 실행 상한 20, 켜진 타이머 상한 50, `schedule_create` 도구는 L1.tools 승인 정책 대상 [제안: 기본 ask] |
 | 6 | cron 파서 채택 지연 | H6이 막힌다 | 후보 비교 기준을 미리 정했다(§4.1). 둘 다 실패하면 자체 구현(약 400줄)으로 간다 |
-| 7 | 세션 생성 requestId 멱등 미지원 | 재시작 복구에서 빈 실행 세션이 하나 더 생길 수 있다 | spec §10 미결 5의 대안(계획한 `threadId` 선기록 + 지정 ID 생성)을 L1.persistence에 요청. 받기 전에는 빈 고아 세션을 실행 기록과 대조해 표시 |
-| 8 | 루프가 서비스 유휴 종료를 막음 | 서비스 모드에서 끝나지 않는 루프가 서비스를 계속 살려 둔다 | 루프는 반드시 상한과 만료가 있다(spec §4.1.2). `liveSchedulerTasks` 포함 여부는 spec §10 미결 11 |
+| 7 | 대화 생성 requestId 멱등 미지원 | 재시작 복구에서 빈 실행 대화가 하나 더 생길 수 있다 | spec §10 미결 5의 대안(계획한 `threadId` 선기록 + 지정 ID 생성)을 L1.persistence에 요청. 받기 전에는 빈 고아 대화를 실행 기록과 대조해 표시 |
+| 8 | 반복 예약이 서비스 유휴 종료를 막음 | 서비스 모드에서 끝나지 않는 반복 예약이 서비스를 계속 살려 둔다 | 반복 예약은 반드시 상한과 만료가 있다(spec §4.1.2). `liveSchedulerTasks` 포함 여부는 spec §10 미결 11 |

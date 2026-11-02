@@ -218,7 +218,7 @@ xeon/packages/platform-secrets/
 | M2 sentinel의 TLS 종단 복잡도 | 후속으로 미룬다. sandbox 프록시 훅이 생긴 뒤 SC-20에서 정한다 | `L0.sandbox.plan`에 프록시 훅 작업이 생겼는지 계획 검토 때 확인한다 |
 | 마스킹을 보장으로 오해하는 사용자 문구 | 문서·화면·`diagnose()` 문구에 "보조"를 쓴다. 설정 키는 읽기 전용 표시 | `L4.settings-ui` 문구 검토와 이 패키지 문자열에 "보장"이 없는지 정적 검사로 본다 |
 | JS 문자열로 바뀐 값이 힙에 남음(`text()`) | `text()` 호출을 M1 env 주입, M3 헤더 치환, M4 입력으로 제한하고 나머지는 `bytes`만 쓴다 | `static-checks.test.ts`에서 `text()` 호출 위치를 허용 목록과 대조한다 |
-| 세션 이벤트 기록이 L1 작업에 묶여 늦어짐 | 이 패키지는 M1에 `onAudit` 훅과 레코드 타입까지만 만든다. 세션 이벤트 `secret.*` 기록은 (a)안(`F.records.spec` §3.3.1, 생산자 `core.tools`)대로 `L1.tools.plan`이 붙인다 | M1 스모크가 `onAudit` 수신 레코드로 `secret.used`·`secret.denied`를 확인하는지 본다 |
+| 대화 이벤트 기록이 L1 작업에 묶여 늦어짐 | 이 패키지는 M1에 `onAudit` 훅과 레코드 타입까지만 만든다. 대화 이벤트 `secret.*` 기록은 (a)안(`F.records.spec` §3.3.1, 생산자 `core.tools`)대로 `L1.tools.plan`이 붙인다 | M1 스모크가 `onAudit` 수신 레코드로 `secret.used`·`secret.denied`를 확인하는지 본다 |
 
 ## 8. M2 구현 기록 (m2-plan SEC.1~SEC.5)
 

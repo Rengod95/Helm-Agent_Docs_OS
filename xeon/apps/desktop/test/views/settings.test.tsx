@@ -187,8 +187,8 @@ describe("save errors", () => {
         detail: "알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5)",
       }),
     ).toBe(
-      "저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5)",
+      "저장하지 못했어요: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5)",
     );
-    expect(errorText({ kind: "rejected", code: 3103 })).toBe("엔진이 거절했습니다 (3103).");
+    expect(errorText({ kind: "rejected", code: 3103 })).toBe("엔진이 거절했어요 (3103).");
   });
 });

@@ -81,9 +81,9 @@ xeon/packages/core-tools/
 |---|---|---|---|---|
 | TL-0 | 선행 확인: contracts의 F.capabilities 타입(`ToolSpec`, `orderTools`, 요청 1·6·8), F.conversation 에이전트 타입 `AgentTool`·`AgentToolCall`(F 정의, adr.0009), F.records `approval.*` kind(요청 3), core-persistence 커밋 API(`fresnel.session` `commit`), platform-store `putBlob`, platform-sandbox 인터페이스(bash 실행용, L2.workspace 경유) | — | S | M1 |
 | TL-1 | 어댑터: `ToolSpec` → 도구 항목(`ToolEntry`) 5단계 환원과 `CapabilityError` → `isError` 변환(F.capabilities.spec §4.2), `replay` 대응, `outputSchema` 검증, `DirectToolRegistration` 감싸기, 의도 표 확인과 `effect.exec` 커밋 | TL-0 | M | M1 |
-| TL-2 | 파이프라인과 단계 계약(adr.0009 §3.4, 이전 판의 훅 연결을 L1.loop.plan LP18이 대체): `prepare`(`tool.execution.before` → 이름 해석 → 인자 검증 → `tool.call.before` 지점 → 정책 → 승인 → `effect.intent`), `execute`(`effect.exec` → 실행 → `tool.result` chain → 경계화 → `effect.result`+item 한 커밋 → `tool.execution.after`), 차단 결과의 toolResult item 기록, requestId 규칙(`tool:<id>:intent|exec|result`) | TL-1, TL-3, TL-9 | L | M1 |
+| TL-2 | 파이프라인과 단계 계약(adr.0009 §3.4, 이전 판의 훅 연결을 L1.loop.plan LP18이 대체): `prepare`(`tool.execution.before` → 이름 해석 → 인자 검증 → `tool.call.before` 훅 → 정책 → 승인 → `effect.intent`), `execute`(`effect.exec` → 실행 → `tool.result` chain → 경계화 → `effect.result`+item 한 커밋 → `tool.execution.after`), 차단 결과의 toolResult item 기록, requestId 규칙(`tool:<id>:intent|exec|result`) | TL-1, TL-3, TL-9 | L | M1 |
 | TL-3 | 정책 평가기(순수): `evaluatePolicy` 7단계, `ruleMatches`(glob, JSON Pointer, 정규식), `stricter`, `validateRules`, 내장 기본 규칙. 코어 규칙 등록 `registerRules`(같은 출처 교체, `issues`, `dispose`)는 M2. M1은 티어 default·user와 `tool`·`args`만 (완료 2026-10-24: 티어 4종 순위 시험, `registerRules`는 `policy/core-rules.ts`, 확장 티어 규칙을 넣는 경로는 2차) | TL-0 | M | M1(부분), M2(전체) |
-| TL-4 | 권한 모드: 모드 표, 위험 등급 유도(`risk` → `hints.readOnly` → `exec`), `setMode`(세션 범위 설정 쓰기), managed `bypassAllowed`. M1은 `default`만 (완료 2026-10-24: 모드 4종, managed 금지 때 `tools.mode_forbidden`) | TL-3 | S | M1(default), M2 |
+| TL-4 | 권한 모드: 모드 표, 위험 등급 유도(`risk` → `hints.readOnly` → `exec`), `setMode`(`launch` 범위 설정 쓰기), managed `bypassAllowed`. M1은 `default`만 (완료 2026-10-24: 모드 4종, managed 금지 때 `tools.mode_forbidden`) | TL-3 | S | M1(default), M2 |
 | TL-5 | 승인 대기와 재개 복원: `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`), `approval.requested`+`checkpoint.step`(`next: "await_input"`) 한 커밋, `approval.resolved`, 기억 범위(`thread`, `always` → `thread`), 비대화형 처리. 재개 때 대기 호출은 core-loop가 `runTurn({ kind: "tools", awaitInput: true })`로 `prepare`를 다시 거쳐 같은 승인 요청을 이어 기다린다(L1.loop.spec §4.5) (M2 완료 2026-10-24: kind 셋의 요청·응답 검사, 비대화형 감사 기록, 비차단 `open`·`wait`·`get`, 요청 키 변환은 F `requestKeyFor`, 커밋 키 함수는 `approvals/keys.ts`) | TL-2 | L | M1(tool), M2(plan, question) |
 | TL-6 | 경계화와 blob 연결: `bound.ts`(한도 설정, `fresnel.exec` 절단 호출, 원문 putBlob, 50 MiB 상한, 안내 문장, `"self"` 도구 처리). 절단 함수 포크는 L0.exec.plan 몫 | TL-0, L0.exec.plan의 절단 메서드 | S | M1 |
 | TL-7 | 노출 목록: `advertise`(orderTools 부분 수열, 전역 deny 제거, 지연 분리, 128 상한, `tools.too_many`, fingerprint), 활성화 집합 재계산 (M2 완료 2026-10-24: 임계 지연, 활성화, `planExposure`) | TL-3 | M | M1(정렬·deny·상한), M2(지연) |
@@ -137,7 +137,7 @@ xeon/packages/core-tools/
 
 모델은 테이프(`@fresnel/core-models/testing`, eng.testing.guide TS-04), 커밋은 `testing/fakeSession` 또는 core-persistence 테스트 대역, 시계·ID는 주입한다(TS-03).
 
-[결정: review.m2-plan WK·DG 통합] 다른 패키지의 통합 시험은 `testing/real-runtime.ts`의 `realTools({ session, ... })`로 실제 `ToolService`·`ApprovalService`를 caller가 준 세션(`fakeSession` 또는 core-persistence의 실제 세션) 위에 세운다. 같은 세션 위에서 서비스를 다시 세워 재시작을 흉내 낼 때는 처음 조립이 돌려준 `producer`를 넘긴다(세션 서비스 하나에서 `core.tools` 생산자는 한 번만 받을 수 있다).
+[결정: review.m2-plan WK·DG 통합] 다른 패키지의 통합 시험은 `testing/real-runtime.ts`의 `realTools({ session, ... })`로 실제 `ToolService`·`ApprovalService`를 caller가 준 대화(`fakeSession` 또는 core-persistence의 실제 대화) 위에 세운다. 같은 대화 위에서 서비스를 다시 세워 재시작을 흉내 낼 때는 처음 조립이 돌려준 `producer`를 넘긴다(대화 서비스 하나에서 `core.tools` 생산자는 한 번만 받을 수 있다).
 
 | 테스트 | 확인할 동작 | 작업 |
 |---|---|---|
@@ -214,8 +214,8 @@ xeon/packages/core-tools/
 | 위험 | 대응 |
 |---|---|
 | 정책 규칙 언어 과설계 | M1은 allow·ask·deny, 도구명 glob, 인자 패턴만 둔다(§1). 티어 4종과 나머지 resource 필드는 M2. 셸 접두 규칙은 2차 |
-| 승인 대기 중 서비스 유휴 종료 정책 미정(architecture.runtime-flow.design §7) | M2까지 [미결]로 두고 테스트에서 대기 세션을 live로 취급한다. M3 서비스 모드 작업 전에 사용자 결정을 받는다 |
-| 인자 재작성 지점 없음(pi-agent-core 1.3.0 `BeforeToolCallResult`에도 없었다) | `tool.call.before`에서는 인자 변경을 지원하지 않는다 [결정: review.decisions-2 U-06]. 2차에 별도 chain 훅을 더할 때 다룬다. 도입 방법은 아래 |
+| 승인 대기 중 서비스 유휴 종료 정책 미정(architecture.runtime-flow.design §7) | M2까지 [미결]로 두고 테스트에서 대기 대화를 live로 취급한다. M3 서비스 모드 작업 전에 사용자 결정을 받는다 |
+| 인자 재작성 훅 없음(pi-agent-core 1.3.0 `BeforeToolCallResult`에도 없었다) | `tool.call.before`에서는 인자 변경을 지원하지 않는다 [결정: review.decisions-2 U-06]. 2차에 별도 chain 훅을 더할 때 다룬다. 도입 방법은 아래 |
 | 병렬 배치에서 승인 대기가 다른 호출 준비를 막음 | 한 배치의 승인은 차례로 낸다(L1.tools.spec §4.2). 체감 문제가 확인되면 L4 화면이 `pending()`으로 묶어 보인다 |
 | `tool.result` 처리 예외가 결과를 오류로 덮음(원본 `afterToolCall` 래퍼, agent-loop.ts:897-900) | `execute`의 마감에서 핸들러 하나의 실패는 그 패치만 버리고, 디스패처 자체가 실패하면 경고를 남기고 원래 결과를 쓴다. 테스트 `tool_result_handler_throw_skipped` |
 | 질문 도구가 실행 중 대기하므로 재개 때 `unsafe`면 결과 불명으로 닫힘 | 질문·계획 도구에 `replay: "safe"` 선언을 L2에 요청한다(L1.tools.spec §8.4). 선언이 없으면 등록 때 경고 진단 |

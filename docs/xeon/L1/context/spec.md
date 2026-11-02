@@ -21,7 +21,7 @@ binds: [xeon/packages/core-context/**]
 - 도구 목록 변경을 접두 밖에서 알리는 규칙(`SystemMessage.toolsAdded`·`toolsRemoved`)과 재광고 기준.
 - 캐시 표식 위치 계산(`CacheMarks`). 정책 객체 `CachePolicy`는 `L1.models.spec` §3.6이 만든다.
 - 롤링 요약 컴팩션(pi 컴팩션 포크), 임계와 예약 여유, 비파괴 컴팩션 엔트리, 오버플로우 복구.
-- 발화 지점 6개: `context`, `request.system.before`, `request.cache.before`, `thread.compact.before`, `thread.compact.after`, `thread.compact.failed`.
+- 발화 훅 6개: `context`, `request.system.before`, `request.cache.before`, `thread.compact.before`, `thread.compact.after`, `thread.compact.failed`.
 - 이벤트 소유 제안: `thread.compacted`, `thread.branch_summarized`.
 - 설정 키 `l1.context.*`.
 - 2차: 도구 결과 선제 제거, 컴팩션 후 재주입, 추가 워크스페이스 루트, 캐시 워밍.
@@ -44,7 +44,7 @@ binds: [xeon/packages/core-context/**]
 | 용어 | 뜻 |
 |---|---|
 | 조립(assemble) | 가지 하나의 이벤트에서 모델 요청 컨텍스트(`Context.messages`)를 만드는 것 |
-| 고정 접두 | 대화 첫머리의 시스템 메시지 하나. 기본 프롬프트, 이름 붙은 절(sections), 정렬된 도구 전체 목록을 담는다. 세션 중 바꾸지 않고 컴팩션 때만 다시 만든다 |
+| 고정 접두 | 대화 첫머리의 시스템 메시지 하나. 기본 프롬프트, 이름 붙은 절(sections), 정렬된 도구 전체 목록을 담는다. 대화 중 바꾸지 않고 컴팩션 때만 다시 만든다 |
 | stable 계층 | 기본 시스템 프롬프트와 도구 목록. 접두의 `content`와 `toolsAdded` |
 | context 계층 | 프로젝트 지침, 스킬 인덱스, 메모리. 접두의 `sections` |
 | volatile 계층 | 날짜, 작업 디렉터리 상태처럼 단계마다 바뀌는 정보. 대화 말미에 붙인다 |
@@ -259,8 +259,8 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 1. 가지 읽기: `fresnel.session`으로 leaf에서 루트까지 거슬러 읽는다(`F.records.spec` §4.6 1). 마지막 `thread.compacted`가 머리다.
 2. 머리가 있으면 `firstKeptEventId` 앞의 `item.recorded`는 넣지 않는다(비파괴, `F.records.spec` §4.6 4). 요약은 `UserMessage`로 넣는다. 본문 형식은 pi `compactionSummary` 역할의 사용자 메시지 변환(`coding-agent/src/core/messages.ts`)을 따른다.
 3. 메시지 변환: `ItemRecord`를 `Message`로 바꾼다. `kind: "custom"`은 `display`와 상관없이 `content`를 `UserMessage`로 바꾸고 `details`는 넣지 않는다(`F.conversation.spec` §3.5.2). `thread.branch_summarized`는 그 위치에 요약 `UserMessage`로 넣는다.
-4. `context` 지점(chain)을 시스템 메시지를 뺀 배열로 발화한다. 결과 배열 뒤에 시스템 메시지를 원래 위치로 되돌린다. pi `ContextEvent` 주석과 같다.
-5. `request.system.before` 지점(chain)을 전체 배열로 발화한다. 결과가 최종 `messages`다.
+4. `context` 훅(chain)을 시스템 메시지를 뺀 배열로 발화한다. 결과 배열 뒤에 시스템 메시지를 원래 위치로 되돌린다. pi `ContextEvent` 주석과 같다.
+5. `request.system.before` 훅(chain)을 전체 배열로 발화한다. 결과가 최종 `messages`다.
 6. 캐시 표식 위치를 계산한다(§4.5).
 7. 토큰 추정을 계산한다(`fresnel.models.tokens.estimateContext`).
 
@@ -275,7 +275,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 - 접두의 `basePrompt`는 루프가 정한 기본 프롬프트이고, `input.agent.before`가 시스템 프롬프트에 더한 부분은 접두에 넣지 않는다. 루프가 단계마다 `volatile`의 `instructions` 항목으로 넘긴다(`L1.loop.spec` §4.2 규칙 1). 접두를 만들 때의 `sections`는 접두 system item 또는 `purpose: "sections"` item에 남아 재개 뒤에도 같은 접두를 얻는다.
 - 호출 순서: core-loop는 요청마다 요청 준비 단계(`loop/prepare-request.ts`)에서 `assemble`을 부르고, 스트림을 열 때 결과 `messages`를 `convertToLlm`으로 바꿔 streamFn에 넘긴다(`L1.loop.spec` §3.2 표).
 - 접두는 컴팩션 때만 다시 만든다. `compact`가 `thread.compacted`와 같은 커밋에 새 접두 system item을 넣는다(§4.6 5번). pi `CompactionEntry.systemMessage`("compaction 경계의 프롬프트와 도구 상태")에 해당하는 값을 F 필드 추가 없이 별도 item으로 남기는 방식이다 [제안](`_research/notes/L1-3.md` §12 미결 (c)).
-- 근거: 접두 3계층(her, cc), 세션당 한 번 조립하고 컴팩션 때만 다시 만든다(`_research/item-catalog.md` L1-e 프롬프트 계층 행).
+- 근거: 접두 3계층(her, cc), 대화당 한 번 조립하고 컴팩션 때만 다시 만든다(`_research/item-catalog.md` L1-e 프롬프트 계층 행).
 
 ### 4.3 도구 변경과 재광고 기준
 
@@ -292,7 +292,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 ### 4.4 모델 전환 경고
 
 - 이전 단계 바인딩(가지 위 마지막 `checkpoint.step.model`)과 이번 바인딩의 provider 또는 modelId가 다르면 경고 `cache_reset_model_switch`를 낸다. core-loop가 휘발 알림으로 클라이언트에 전달한다 [제안].
-- 레벨만 다를 때는 경고하지 않는다. provider별로 레벨 변경이 캐시에 주는 영향이 다르고(`supportsMidConvoEffort`), `request.thinking.after` 지점이 따로 있기 때문이다.
+- 레벨만 다를 때는 경고하지 않는다. provider별로 레벨 변경이 캐시에 주는 영향이 다르고(`supportsMidConvoEffort`), `request.thinking.after` 훅이 따로 있기 때문이다.
 
 ### 4.5 캐시 표식
 
@@ -311,7 +311,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 2. 컷 포인트: 뒤에서부터 토큰을 누적하다가 `keepRecentTokens` 이상이면 멈춘다. 컷은 그 위치 이후 첫 후보이고, 없으면 마지막 후보다. 토큰 0 항목은 건너뛴다(`:458-479`). 후보는 `user`, `assistant`, `custom` 항목이고 `toolResult`, `system`은 후보가 아니다(`:351-364`, `_research/notes/L1-3.md` §5.4).
 3. `thread.compact.before`(first)를 발화한다. 결정이 `cancel`이면 멈추고 `cancelled`를 돌려준다. 결정이 `compaction`(확장 요약)이면 4번을 건너뛰고 그 요약을 쓴다(`fromExtension` = 확장 이름).
 4. 요약: 이전 요약이 없으면 `SUMMARIZATION_PROMPT`, 있으면 `UPDATE_SUMMARIZATION_PROMPT`를 쓴다(`:507-579`, `:718`). 형식은 목표(Goal), 제약(Constraints & Preferences), 진행(Done·In Progress·Blocked), 결정(Key Decisions), 다음 단계(Next Steps), 핵심 맥락(Critical Context)이다. 시스템 프롬프트는 `utils.ts:161-163`의 `SUMMARIZATION_SYSTEM_PROMPT`다. 최대 토큰은 `min(floor(0.8 × reserveTokens), model.maxTokens)`(`:712-715`). 분할 턴이면 턴 앞부분을 `TURN_PREFIX_SUMMARIZATION_PROMPT`(`:942-955`)로 따로 요약하고 `floor(0.5 × reserveTokens)`를 쓴다. 두 요약은 `요약 + "---" + 턴 맥락`으로 합친다(`:1032`). 사용자 지침(`instructions`)과 설정 `l1.context.compactionInstructions`를 프롬프트 끝에 붙인다.
-5. 커밋: `fresnel.session`으로 한 커밋에 `thread.compacted{ summary, firstKeptEventId, tokensBefore, details, usage, fromExtension }`와 새 접두 system item(`item.recorded`, kind `system`, 정렬 전체 도구 목록)을 가지 끝에 덧붙인다. 원본 이벤트는 지우지 않는다. `details`에는 `{ fresnel: { reason, stepId }, readFiles, modifiedFiles }`를 둔다 [제안]. `details`는 모델에 보내지 않는다(`F.records.spec` §3.3). 이 커밋은 별도 커밋 지점 C7이고 커밋 키는 `compact:<threadId>:<stepId>:<reason>`이다. 키의 `stepId`는 같은 커밋의 `details.fresnel.stepId`이고 §4.7 3번 `second_overflow` 판정과 같은 값이다(`L1.persistence.spec` §4.2 C7). 단계 끝 커밋(C5)에 넣지 않는다.
+5. 커밋: `fresnel.session`으로 한 커밋에 `thread.compacted{ summary, firstKeptEventId, tokensBefore, details, usage, fromExtension }`와 새 접두 system item(`item.recorded`, kind `system`, 정렬 전체 도구 목록)을 가지 끝에 덧붙인다. 원본 이벤트는 지우지 않는다. `details`에는 `{ fresnel: { reason, stepId }, readFiles, modifiedFiles }`를 둔다 [제안]. `details`는 모델에 보내지 않는다(`F.records.spec` §3.3). 이 커밋은 별도 커밋 시점 C7이고 커밋 키는 `compact:<threadId>:<stepId>:<reason>`이다. 키의 `stepId`는 같은 커밋의 `details.fresnel.stepId`이고 §4.7 3번 `second_overflow` 판정과 같은 값이다(`L1.persistence.spec` §4.2 C7). 단계 끝 커밋(C5)에 넣지 않는다.
 6. 시점: 임계·수동 컴팩션은 단계 사이에서만 한다. 오버플로우 복구 컴팩션(§4.7)은 같은 단계의 재요청 전에 한다. 어느 경우든 C7 커밋 하나다. 임계 검사는 core-loop가 단계 시작 전에 `shouldCompact`로 한다. 수동 `/compact`가 단계 진행 중에 오면 다음 단계 경계까지 미룬다 [제안].
 7. 성공하면 `thread.compact.after`(tap)를, 실패하거나 중단되면 `thread.compact.failed`(tap)를 발화한다.
 7a. 요약 모델은 `fresnel.models.resolve("summary")`의 결과(역할 `summary`, 캐시 없음)이고 요약 응답 상한은 `min(0.8 × reserveTokens, 모델 maxTokens, 16,000)`이다. 상한 16,000 토큰은 `thread.compacted.summary`의 65,536자 한도 안에 들게 하려는 값이고, 그래도 넘으면 `summary_truncated`다 [구현: M2]. 확장이 준 요약(`thread.compact.before`의 `compaction`)이 같은 한도를 넘거나 `firstKeptEventId`가 가지 위에 없으면 `cancelled`로 돌려준다.
@@ -370,7 +370,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 | 안 | 순서 | 장점 | 단점 |
 |---|---|---|---|
-| A [제안] | 호출자(core-loop 또는 L4 host의 `/tree` 처리)가 `thread.tree.before`(persistence 지점) 결과를 본 뒤 `context.summarizeBranch`로 초안을 받고, `session.threads.moveLeaf(threadId, target, { reason: "branch", summary, requestKey })`로 leaf 이동과 `thread.branch_summarized`를 한 커밋에 넣는다(`L1.persistence.spec` §3.8 `moveLeaf`) | 의존 방향이 context-map과 맞는다. 원자성이 유지된다 | 호출자가 순서를 알아야 한다 |
+| A [제안] | 호출자(core-loop 또는 L4 host의 `/tree` 처리)가 `thread.tree.before`(persistence 훅) 결과를 본 뒤 `context.summarizeBranch`로 초안을 받고, `session.threads.moveLeaf(threadId, target, { reason: "branch", summary, requestKey })`로 leaf 이동과 `thread.branch_summarized`를 한 커밋에 넣는다(`L1.persistence.spec` §3.8 `moveLeaf`) | 의존 방향이 context-map과 맞는다. 원자성이 유지된다 | 호출자가 순서를 알아야 한다 |
 | B | context가 `summarizeBranch` 안에서 요약하고 `fresnel.session`으로 leaf 이동까지 커밋한다 | 호출이 하나다 | leaf 이동 규칙이 context에 퍼진다. `thread.tree.before` 발화 위치가 둘이 된다 |
 | C | persistence가 leaf 이동 뒤 이벤트로 알리고 context가 구독해 나중에 요약을 덧붙인다 | 결합이 가장 느슨하다 | 이동과 요약이 다른 커밋이다. 크래시 사이에 요약 없는 가지가 남는다 |
 
@@ -382,7 +382,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 - 조립(`effectiveMessages`)이 가지 위 `firstKeptEventId` 앞 범위에서 허용 목록에 든 `customType`의 custom item을 찾아, 컴팩션 요약 메시지 바로 뒤에 가지 순서대로 다시 놓는다. 새 이벤트를 커밋하지 않고 매번 가지에서 같은 값으로 만들므로 재개 뒤에도 같은 바이트다. 남은 범위(`firstKeptEventId` 이후)에 있는 같은 종류의 item은 그 자리에 한 번만 나온다.
 - 허용 목록은 `createContextService`의 `reinjectCustomTypes` 옵션이고 기본값은 `["knowledge.context", "knowledge.index-delta"]`다. L1은 L2를 import하지 않으므로 두 층이 이 문자열을 약속한다(`L2.knowledge.spec` §4.2.5). 빈 배열이면 재주입하지 않는다. 호스트가 다른 customType을 더하려면 옵션에 넘긴다.
-- 이 재주입이 블록을 다시 모델 입력에 올리는 유일한 경로다. L2.knowledge는 컴팩션에서 세션 상태를 비워 전체 블록을 새로 넣지 않는다(`L2.knowledge.spec` §4.2.8). 그렇게 하면 다시 놓은 옛 블록과 새 블록이 한 요청에 둘 다 들어간다(M2 마감 재검토 결함 2, 실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`). 그래서 컴팩션 뒤에 보이는 블록은 첫 turn 스냅샷 그대로이고, 그 뒤 변경은 `knowledge.index-delta`로 온다.
+- 이 재주입이 블록을 다시 모델 입력에 올리는 유일한 경로다. L2.knowledge는 컴팩션에서 대화 상태를 비워 전체 블록을 새로 넣지 않는다(`L2.knowledge.spec` §4.2.8). 그렇게 하면 다시 놓은 옛 블록과 새 블록이 한 요청에 둘 다 들어간다(M2 마감 재검토 결함 2, 실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`). 그래서 컴팩션 뒤에 보이는 블록은 첫 turn 스냅샷 그대로이고, 그 뒤 변경은 `knowledge.index-delta`로 온다.
 - 컴팩션을 하지 않은 가지는 영향이 없다. 임계 검사(`shouldCompact`)의 토큰 추정에도 재주입 메시지가 들어간다.
 - 컴팩션 요약 입력에서 이 메시지들을 빼지는 않는다. 요약이 색인 내용을 한 번 더 담을 수 있으나 짧다 [제안].
 - 최근 읽은 파일 재주입 [구현: M3b B3-L1M, M3-REQ-86]: `l1.context.reinjectRecentFiles`(기본 5, 0이면 끔)개까지, 요약에 접힌 범위의 성공한 `read` 도구 결과 가운데 마지막에 읽은 파일을 읽은 순서대로 요약과 위 custom 재주입 뒤에 사용자 메시지로 다시 놓는다(`recent-files.ts`). 본문은 기록된 도구 결과 원문이고 도구를 다시 실행하지 않는다. 본문은 파일마다 16000자로 자르고 표지를 붙인다 [제안]. 접힌 범위에서 읽은 뒤 `write`·`edit`로 고친 파일, 그리고 남은 범위에서 다시 읽거나 고친 파일은 뺀다(낡았거나 모델이 이미 본다). 가지에서 매번 같은 값으로 만들고 커밋하지 않는다.
@@ -394,7 +394,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 |---|---|---|
 | 도구 결과 선제 제거 | 모델 호출 없이 보호 구간(최근 `keepRecentTokens`) 밖의 `toolResult` 중 `pruneThresholdChars`(기본 200자)를 넘는 결과를 짧은 표지 `[tool result pruned: <toolName>, <n> chars]`로 바꾼다. 조립 때만 바꾸고 원본은 둔다. 컴팩션 전 1단계로 실행한다 | her(200자 초과 오래된 결과), oc prune(`_research/item-catalog.md` L1-e) |
 | 컴팩션 후 재주입(파일, 스킬 본문) | 최근 읽은 파일은 §4.9a에서 구현했다(M3b). 호출된 스킬 본문은 아직 다시 넣지 않는다 [미결]. 스킬 색인과 메모리 스냅샷 블록은 §4.9a로 M2에 구현했다 | cc 최근 파일 5개, 스킬 본문 상한 |
-| 추가 워크스페이스 루트 | 세션 생성 때 받은 루트 목록을 context 계층 절 `workspaceRoots`로 둔다. 쓰기 범위는 샌드박스 설정(`L0.sandbox.spec`)과 함께 정한다 | ACP 추가 루트 |
+| 추가 워크스페이스 루트 | 대화 생성 때 받은 루트 목록을 context 계층 절 `workspaceRoots`로 둔다. 쓰기 범위는 샌드박스 설정(`L0.sandbox.spec`)과 함께 정한다 | ACP 추가 루트 |
 | 캐시 워밍 | 유휴 중 캐시 만료 전에 짧은 요청을 보낼지 정한다. 결정 전에 `request.cache.before`(chain)을 발화한다. 비용 계산은 카탈로그 단가와 `ModelPromptCache` 수명으로 한다 | pi `core/cache-warmer.ts` |
 
 ## 5. 실패와 경계 사례
@@ -407,7 +407,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | `request.system.before` 핸들러가 접두를 바꿈 | 그대로 보낸다. 핸들러가 프롬프트와 도구 선언을 정하는 규칙은 pi와 같다. 경고 `cache_prefix_reset`을 남긴다 |
 | 요약 응답에 도구 호출 | `summary_has_tool_call`, `thread.compact.failed` |
 | 요약이 `length`로 끊김 | `summary_truncated`, `thread.compact.failed` |
-| 요약 대상이 비어 있음 | `skipped(nothing_to_summarize)`. 지점을 발화하지 않는다 |
+| 요약 대상이 비어 있음 | `skipped(nothing_to_summarize)`. 훅을 발화하지 않는다 |
 | `thread.compact.before` 거부 | `cancelled`. 이벤트를 쓰지 않는다 |
 | 같은 단계 두 번째 오버플로우 | `fail(second_overflow)` |
 | 컴팩션 중 사용자 중단 | `aborted`, `thread.compact.failed`. 부분 요약 사용량은 `fresnel.models` 합산에만 남는다 |
@@ -434,18 +434,18 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 ## 7. 훅
 
-### 7.1 발화하는 지점
+### 7.1 발화하는 훅
 
-| 지점 | kind | fold | 발화 위치 | F §7 배정 | 비고 |
+| 훅 | kind | fold | 발화 위치 | F §7 배정 | 비고 |
 |---|---|---|---|---|---|
-| `context` | request | chain | §4.1 4번 | context, models | M1 지점. `ContextPayload{ messages }`, 패치는 교체 |
+| `context` | request | chain | §4.1 4번 | context, models | M1 훅. `ContextPayload{ messages }`, 패치는 교체 |
 | `request.system.before` | request | chain | §4.1 5번 | 같음 | |
 | `request.cache.before` | request | chain | §4.10 캐시 워밍(2차) | 같음 | 핸들러는 원본 payload를 받는다 |
 | `thread.compact.before` | thread | first | §4.6 3번 | context | 거부하면 컴팩션하지 않는다 |
 | `thread.compact.after` | thread | tap | §4.6 7번 | context | |
 | `thread.compact.failed` | thread | tap | §4.6 7번 | context | |
 
-- 컴팩션 지점 셋의 발화 주체: `F.extensions.spec` §7은 세 지점을 `L1.context.spec`에 배정한다. 컴팩션을 수행하는 쪽이 context이고, 준비 결과(`preparation`)를 지점 페이로드로 줄 수 있는 곳도, 거부 결정에 따라 요약 호출을 건너뛸 수 있는 곳도 context이기 때문이다.
+- 컴팩션 훅 셋의 발화 주체: `F.extensions.spec` §7은 세 훅을 `L1.context.spec`에 배정한다. 컴팩션을 수행하는 쪽이 context이고, 준비 결과(`preparation`)를 훅 페이로드로 줄 수 있는 곳도, 거부 결정에 따라 요약 호출을 건너뛸 수 있는 곳도 context이기 때문이다.
 
 ### 7.2 페이로드 제안 (F 요청)
 
@@ -493,8 +493,8 @@ export interface SessionCompactFailedPayload {
 
 ### 7.4 post, drive, scope와의 관계
 
-- post: core-context는 `post`를 쓰지 않는다. 컴팩션 완료는 `thread.compact.after`(tap) 지점과 내구 이벤트 `thread.compacted`로 알리고 따로 post 항목을 만들지 않는다 [제안]. 확장이 `post`로 넣은 context 항목(custom item)은 조립 때 다른 custom item과 같은 규칙으로 변환한다(§4.1).
-- drive: drive 임대 중에도 임계 컴팩션과 오버플로우 복구는 같은 규칙으로 돈다. 컴팩션은 단계 사이에서만 하므로(§4.6 6번) 임대 그룹이 `boundary.settle.before`(L1.loop 소유)로 계속 지시를 내도 다음 단계 시작 전의 임계 검사가 먼저 돈다. `thread.compact.before`는 임대 여부와 상관없이 발화하고 임대 그룹을 따로 대하지 않는다 [제안]. 요약 호출은 turn의 assistant item이 아니므로 drive 토큰 예산(L1.loop.spec §4.7의 turn 사용량 합)에 넣지 않는다 [제안].
+- post: core-context는 `post`를 쓰지 않는다. 컴팩션 완료는 `thread.compact.after`(tap) 훅과 내구 이벤트 `thread.compacted`로 알리고 따로 post 항목을 만들지 않는다 [제안]. 확장이 `post`로 넣은 context 항목(custom item)은 조립 때 다른 custom item과 같은 규칙으로 변환한다(§4.1).
+- drive: drive 락 중에도 임계 컴팩션과 오버플로우 복구는 같은 규칙으로 돈다. 컴팩션은 단계 사이에서만 하므로(§4.6 6번) drive 락 그룹이 `boundary.settle.before`(L1.loop 소유)로 계속 지시를 내도 다음 단계 시작 전의 임계 검사가 먼저 돈다. `thread.compact.before`는 drive 락 여부와 상관없이 발화하고 drive 락 그룹을 따로 대하지 않는다 [제안]. 요약 호출은 turn의 assistant item이 아니므로 drive 토큰 예산(L1.loop.spec §4.7의 turn 사용량 합)에 넣지 않는다 [제안].
 - scope: 확장이 꺼지면 그 확장의 `context`, `request.system.before`, `request.cache.before`, `session_*compact*` 핸들러는 X가 단계 경계에서 핸들러 스냅샷에서 뺀다(F.extensions.spec §4.5). 진행 중인 조립과 컴팩션은 시작 때의 스냅샷으로 끝까지 간다. 그래서 핸들러 제거는 다음 단계의 `assemble`부터 적용된다. 그 확장이 등록한 도구가 빠지는 일은 §4.3 도구 변경 규칙을 따른다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -516,16 +516,16 @@ export interface SessionCompactFailedPayload {
 | `ItemRecord`, `Message`, `SystemMessage`, `UserMessage`, `Usage`, `ModelThinkingLevel` | `F.conversation.spec` |
 | `CompactedPayload`, `BranchSummarizedPayload`, `StepCheckpoint`, 분기 규칙 | `F.records.spec` |
 | `orderTools`, `diffToolsets`, `toolsetFingerprint`, `OrderedTool`, `ToolsetDiff` | `F.capabilities.spec` §3.8 |
-| `HOOKS`의 6개 지점, `FIRST_DENY`, `CHAIN_RULES` | `F.extensions.spec` |
+| `HOOKS`의 6개 훅, `FIRST_DENY`, `CHAIN_RULES` | `F.extensions.spec` |
 | `fresnel.models`: `complete`(summary 역할), `tokens`, `classify`, `CachePolicy` | `L1.models.spec` |
 | `fresnel.session`: `readBranch`(가지 읽기), `commit`(컴팩션 커밋), `loadCheckpoint`(이전 바인딩), `threads.moveLeaf`의 `summary` 옵션 | `L1.persistence.spec` §3.3, §3.8 |
-| `fresnel.ext`: 지점 디스패치 | `X.primitives.spec` |
+| `fresnel.ext`: 훅 디스패치 | `X.primitives.spec` |
 | 단계 시작 바인딩, `input.agent.before` 결과 절, 단계 커밋에 `pendingItems` 넣기 | `L1.loop.spec` |
 
 ### 8.3 F 요청 사항
 
 1. F `@fresnel/contracts/services`: §3.1 `context.ts`(서비스 인터페이스, review.decisions-2 D-04). `eng.context-map.design` §5.3의 `ContextService`(conversation) 표기를 services로 고친다.
-2. `F.extensions.spec` §7.2: 페이로드를 §3.5 형식으로 확정한다. 컴팩션 지점 셋의 발화 주체는 §7에 반영됐다.
+2. `F.extensions.spec` §7.2: 페이로드를 §3.5 형식으로 확정한다. 컴팩션 훅 셋의 발화 주체는 §7에 반영됐다.
 3. `F.records.spec` §3.3: `CompactedPayload.details`에 코어 예약 키 `fresnel`(`{ reason, stepId }`)을 허용한다고 적는다. 또는 `reason`, `stepId`를 별도 필드로 둔다.
 4. 이벤트 소유: `thread.compacted`, `thread.branch_summarized`의 생산자를 `core.context`로 둔다. `thread.` 영역의 나머지(`started`, `updated`, `closed`, `leaf_moved`)는 `core.persistence`다. `eng.context-map.design` §5.1의 `compaction.recorded`는 F 이름 `thread.compacted`로 고친다.
 
@@ -545,7 +545,7 @@ export interface SessionCompactFailedPayload {
 ## 10. 미결 사항
 
 1. [미결] 떠난 가지 요약의 생성 주체(§4.9). 제안은 A안.
-2. (닫음) 컴팩션 지점 셋의 발화 주체는 `F.extensions.spec` §7이 context로 배정했다(§7.1).
+2. (닫음) 컴팩션 훅 셋의 발화 주체는 `F.extensions.spec` §7이 context로 배정했다(§7.1).
 3. [미결] 턴 분할 요약 경로 유지 여부. pi 방식(턴 앞부분 별도 요약, 약 139줄)과 durable 방식(턴 중간 assistant 컷 허용, 분할 없음) 중 하나(`_research/notes/L1-3.md` §12 (a)). 이 문서는 pi 방식을 쓴다.
 4. [미결] pi 역할 `bashExecution`, `branchSummary`, `compactionSummary`의 F 대응. 이 문서는 `branchSummary`를 `thread.branch_summarized`, `compactionSummary`를 `thread.compacted`로 두고 `bashExecution`은 F에 대응이 없어 다루지 않는다(`_research/notes/L1-3.md` §12 (b)).
 5. [미결] `CompactedPayload.details.fresnel` 예약 키와 별도 필드 중 무엇으로 오버플로우 단계를 기록할지(§8.3 3).

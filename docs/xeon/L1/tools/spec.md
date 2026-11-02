@@ -306,7 +306,7 @@ export interface RuleRegistration {
 - `ToolMeta.executionMode`는 배치 스케줄에 쓴다. 호출 중 하나라도 `"sequential"`이면 루프는 그 배치를 순차로 돈다(L1.loop.spec §3.3 규칙 1).
 - 재개 때 승인 대기 중이던 호출과 의도 없는 호출은 core-loop가 `runTurn({ kind: "tools" })`에서 주 경로와 같은 `prepare`·`execute`로 실행한다(L1.loop.spec §4.5 `tools`·`await_input` 행). 결과 불명 효과의 재실행만 `rerun`이다. 그래서 재실행도 같은 기록 경로를 지난다.
 - `registerRules`의 첫 사용처는 core-agents의 자식 차단 규칙(`source: "core:agents"`, L1.agents.spec §4.3)이다. 확장 티어 규칙 등록은 2차다(§4.11).
-- `runUserShell` [결정: L1A.5, L1F]: 사용자가 `!명령`으로 직접 친 셸 명령을 `bash` 도구로 같은 파이프라인에 넣는다. 정책은 caller `main`, `depth` 0, `interactive: true`로 평가하고 `ceiling`은 쓰지 않는다. deny 규칙과 `tool.call.before` 지점의 거부는 막는다. ask는 사용자 본인이 낸 명령이라 승인 요청 없이 허용으로 본다. 효과는 3단(`effect.intent`, `effect.exec`, `effect.result`)으로 남기고 `effect.result.resultItemId`는 null이다. toolResult item은 기록하지 않는다. 결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽(L1.loop의 `runUserBash`)이 `includeInContext`로 정한다. `bash` 도구가 없거나 막히면 던지지 않고 `isError` 결과 레코드를 돌려준다. 실행 전에 닫힌 호출(정책 deny, `tool.call.before` 거부, 인자 오류, 도구 미등록)의 레코드는 `details.code`가 `not_executed`(미등록은 `tool_unavailable`)이고, L1.loop의 `runUserBash`가 이 값으로 "명령이 돌지 않았다"를 알아보고 `denied`로 돌려준다.
+- `runUserShell` [결정: L1A.5, L1F]: 사용자가 `!명령`으로 직접 친 셸 명령을 `bash` 도구로 같은 파이프라인에 넣는다. 정책은 caller `main`, `depth` 0, `interactive: true`로 평가하고 `ceiling`은 쓰지 않는다. deny 규칙과 `tool.call.before` 훅의 거부는 막는다. ask는 사용자 본인이 낸 명령이라 승인 요청 없이 허용으로 본다. 효과는 3단(`effect.intent`, `effect.exec`, `effect.result`)으로 남기고 `effect.result.resultItemId`는 null이다. toolResult item은 기록하지 않는다. 결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽(L1.loop의 `runUserBash`)이 `includeInContext`로 정한다. `bash` 도구가 없거나 막히면 던지지 않고 `isError` 결과 레코드를 돌려준다. 실행 전에 닫힌 호출(정책 deny, `tool.call.before` 거부, 인자 오류, 도구 미등록)의 레코드는 `details.code`가 `not_executed`(미등록은 `tool_unavailable`)이고, L1.loop의 `runUserBash`가 이 값으로 "명령이 돌지 않았다"를 알아보고 `denied`로 돌려준다.
 - `suspendWhile(threadId, toolCallId, wait)` [결정: M2 검토 3]: F `ToolService`의 메서드다(승격 완료, §8.3 F 요청 14). `tools` 풀 슬롯을 쥔 호출이 자식 대화를 기다리는 동안 슬롯을 내려놓고(`Slot.suspendWhile`), 기다림이 끝나면 같은 풀에서 다시 얻는다. 슬롯을 쥔 호출이 아니면 그냥 기다린다. core-agents의 `agent` 도구는 자식을 기다리는 `service.spawn`을 이 안에서 기다린다. 슬롯을 쥔 채 기다리면 `tools` 상한만큼의 `agent` 호출이 자식의 도구 호출 슬롯을 막아 교착한다.
 
 ### 3.4 노출 (`tools.ts`)
@@ -672,7 +672,7 @@ core-tools가 쓰는 코어 kind(F.records.spec §3.3 카탈로그):
 | `effect.intent` | 정책·승인 통과 뒤, 실행 전(§4.2 6단계) | `tool:<toolCallId>:intent`. 이 표의 `<toolCallId>`는 F `commitKeyPart`의 값이다(review.decisions-2 U-13) |
 | `effect.exec` | 키 잠금·슬롯을 얻은 뒤 실행 직전(§4.2 7d단계) | `tool:<toolCallId>:exec` |
 | `effect.result` + toolResult `item.recorded` | 결과 경계화 뒤 한 커밋(§4.2 10단계) | `tool:<toolCallId>:result` |
-| `settings.changed` | 권한 모드 변경(세션 범위) | `mode:<threadId>:<clientUlid>` |
+| `settings.changed` | 권한 모드 변경(대화 범위) | `mode:<threadId>:<clientUlid>` |
 
 `approval` 코어 영역과 두 kind는 F.records.spec §3.2·§3.3 카탈로그에 있다(§8.3 F 요청 3 반영, 승인 요청 A안: review.decisions-2 U-02). payload 정본은 이 절이다.
 
@@ -729,10 +729,10 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | 2 | 도구 이름 해석 | `prepare`. 원본 agent-loop.ts:716-722 | 없으면 `[fresnel:tool_unavailable]` 오류 결과(`settled`) |
 | 3 | 인자 준비 | 없다. 도구별 `prepareArguments`는 F `AgentTool`에서 뺐다(F.conversation.spec §3.1.1) | — |
 | 4 | 스키마 검증 `validateToolArguments` | `prepare`. core-tools `validate.ts`가 pi-ai 1.3.0 `validateToolArguments`의 TypeBox 경로(argumentsError 확인, 사본, 선택 null 제거, `Value.Convert`, 스키마 검사)를 옮겼다. TypeBox 표지가 없는 순수 JSON Schema(MCP)의 `coerceWithJsonSchema` 경로는 옮기지 않았다(M2 cap-mcp에서 더한다) | 예외 대신 `settled` 오류 결과로 모델에 돌아간다 |
-| 5a | `tool.call.before` 지점(first) | `prepare` | 핸들러 예외는 `FIRST_DENY.tool_call`로 거부(fail-closed). 디스패처 자체 예외도 거부 |
+| 5a | `tool.call.before` 훅(first) | `prepare` | 핸들러 예외는 `FIRST_DENY.tool_call`로 거부(fail-closed). 디스패처 자체 예외도 거부 |
 | 5b | 정책 평가 `evaluatePolicy`. 자식 대화(`ceiling` 있음)는 §4.5 ceiling 단계 적용 | `prepare` | deny는 `settled` |
 | 5c | 승인 대기(ask일 때) | `prepare`. `ApprovalService.request` | deny·cancelled는 `settled` |
-| 5c2 | `guard.tool.before` 지점(first) [M3-REQ-109] | `prepare`. 정책·승인(시크릿 사용 승인 포함)을 모두 통과한 호출만 온다. 의도를 쓰기 전이다 | 핸들러 `{ block: true, reason }`는 `settled`(`[fresnel:denied_by_guard] <reason>`)이고 효과 이벤트가 없다. 핸들러·디스패처 예외도 거부(fail-closed, `FIRST_DENY["guard.tool.before"]`). 내장 검사는 없다. 페이로드는 5a와 같은 `ToolCallPayload`다 |
+| 5c2 | `guard.tool.before` 훅(first) [M3-REQ-109] | `prepare`. 정책·승인(시크릿 사용 승인 포함)을 모두 통과한 호출만 온다. 의도를 쓰기 전이다 | 핸들러 `{ block: true, reason }`는 `settled`(`[fresnel:denied_by_guard] <reason>`)이고 효과 이벤트가 없다. 핸들러·디스패처 예외도 거부(fail-closed, `FIRST_DENY["guard.tool.before"]`). 내장 검사는 없다. 페이로드는 5a와 같은 `ToolCallPayload`다 |
 | 5d | 중단 확인 | `prepare`. 의도를 쓰기 전에 turn 신호를 본다 | 중단이면 `settled`(`[fresnel:aborted]`) |
 | 6 | `effect.intent` 커밋 | `prepare`의 끝 | 커밋 실패는 `settled`(`[fresnel:tools.commit_failed] …`) |
 | 7a | tool 범위 노드 열기: `fresnel.tasks.find("turn", run.turnId)`로 turn 노드를 찾고 `openScope(turn, { kind: "tool", id: toolCallId })`(L1.tasks.spec §4.1) | `execute` 진입 | 의도가 없으면 `tools.intent_missing`(호출 순서 위반, Bug). turn 노드가 `aborting`이면 신호가 켜진 노드를 받고 중단 결과로 끝난다 |
@@ -740,7 +740,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | 7c | 키 잠금 뒤 `tools` 풀 슬롯 획득: `fresnel.tasks.locks.run(keys, toolNode, () => limiter("tools").acquire(toolNode) …)`. 순서는 L1.tasks.spec §4.5 C3(키 먼저, 슬롯 나중)이다. 잠금 선언이 없는 호출도 슬롯은 얻는다. 실행이 끝나면 슬롯을 놓는다(M2 구현 완료) | 같은 자리 | 대기 중 취소는 `[aborted]` 중단 결과이고 `effect.exec` 전이므로 재개 판정은 `not_started`다 |
 | 7d | `effect.exec` 커밋 | 같은 자리 | 커밋 실패는 실행하지 않고 `tools.commit_failed` 결과 |
 | 8 | 도구 실행 | 어댑터가 provider 메서드 또는 `DirectToolRegistration.tool.execute`를 부른다. `signal`은 tool 노드 신호다. 진행은 `onUpdate` 콜백과 `tool.execution.update`(tap)이고 발화 전에 시크릿 마스킹을 거친다(§4.12) | 예외는 오류 결과, `CapabilityError`는 §4.3. 실행이 끝나면 슬롯을 반납한다(C1) |
-| 9 | `tool.result` 지점(chain) | `execute`의 마감. 페이로드는 마스킹한 결과다(§4.12) | 실패한 핸들러의 패치만 버린다(skip) |
+| 9 | `tool.result` 훅(chain) | `execute`의 마감. 페이로드는 마스킹한 결과다(§4.12) | 실패한 핸들러의 패치만 버린다(skip) |
 | 10 | 결과 경계화 + `effect.result`·toolResult `item.recorded` 한 커밋. 커밋 뒤 tool 노드가 정착한다 | `execute`의 마감 | 커밋 실패는 §5 사례 7(`itemId: null`) |
 | 11 | `tool.execution.after` 발화(tap) | 마감 뒤 | 기록 후 계속 |
 
@@ -794,7 +794,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 3. `effect.exec`는 의도와 별도 커밋이다 [제안]. 두 커밋을 나누면 재개 때 "실행 시작 전 중단"(`not_started`)과 "실행 중 중단"(`outcome_unknown`)이 구분된다(F.records.spec §3.5 결정표).
 4. `effect.result`와 toolResult `item.recorded`는 한 커밋이다. `effect.result.resultItemId`는 같은 커밋의 item id, `output`은 `{ structuredContent, terminate, status, inputRequired }`, `blobRef`는 경계화로 옮긴 원문(§4.8), `durationMs`는 어댑터가 잰 실행 시간이다.
 5. 도구별 커밋: 의도·실행·결과는 도구 호출마다 따로 커밋한다(E1 의도, E2 실행 시작, E3 결과). ADR-0004 §3.2 3번의 보충으로 올리고 단계당 커밋 수는 `3 + 3n`이다 [결정: review.decisions-2 U-10]. eng.transactions.design §4.1 C3은 모델 응답 확정 커밋에 호출마다 의도를 넣는다고 적었지만, 승인 대기(§4.7)가 의도 앞에 오므로 응답 확정 때는 의도를 쓸 수 없다. architecture.runtime-flow.design §4.1 그림도 도구마다 의도를 커밋한다. eng.transactions.design은 이 모양으로 고쳤다(§4.1·TX-08).
-6. 커밋은 모두 `fresnel.session`의 커밋 경로(eng.transactions.design TX-07 `SessionWriter.commit`)로 한다. core-tools는 세션 테이블에 직접 쓰지 않는다.
+6. 커밋은 모두 `fresnel.session`의 커밋 경로(eng.transactions.design TX-07 `SessionWriter.commit`)로 한다. core-tools는 대화 테이블에 직접 쓰지 않는다.
 
 ### 4.5 정책 평가
 
@@ -851,7 +851,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 위험 등급 [제안]: 도구가 등급을 선언하고 선언이 없으면 가장 위험한 쪽을 쓴다(`_research/item-catalog.md` L1-d "위험 등급과 승인 필요 선언", omp 미선언 시 exec). 등급과 재생 선언은 도구 등록 필드로 받는다. 미선언 등급은 `exec`, 미선언 재생은 `unsafe`다.
 - 등급 유도 [제안]: `ToolPolicyMeta.risk`가 있으면 그 값이다. 없으면 `hints.readOnly === true`면 `read`, 그 밖은 `exec`다. MCP annotation(`readOnlyHint` 등)은 `hints`로 들어오는 입력일 뿐이다. annotation이 `destructiveHint: false`라도 등급을 `write`로 낮추지 않는다. 신뢰할 수 없는 서버의 선언이기 때문이다.
 - 위험 등급은 F `ToolSpec`에 필드가 없다. F.capabilities.spec에 `risk?: ToolRisk`, `classes?: ToolClass[]` 추가를 요청한다(§8.3 F 요청 1). 추가 전에는 `CapabilityToolsRegistration.policy`로 받는다.
-- 권한 모드는 세션 범위 설정 `l1.tools.permissionMode`의 유효 값이다. 모드 변경은 다음 도구 호출부터 적용한다(`runtimeChange: "live"`). 이미 승인 대기 중인 요청은 모드가 바뀌어도 그대로 둔다.
+- 권한 모드는 대화 범위 설정 `l1.tools.permissionMode`의 유효 값이다. 모드 변경은 다음 도구 호출부터 적용한다(`runtimeChange: "live"`). 이미 승인 대기 중인 요청은 모드가 바뀌어도 그대로 둔다.
 - 비대화형 실행: [제안] 비대화형 실행에서 ask는 deny로 해석한다(`_research/item-catalog.md` L1-d "권한 모드"). `ToolRunContext.interactive`는 turn을 시작한 쪽이 정한다 [제안]. 사용자 입력 turn(`turn.start`)은 대화형, 예약 실행(L2.schedule)과 헤드리스 CLI 실행은 비대화형이다. drive와 위임 turn은 부모 대화를 따른다.
 - 보류 [제안: 카탈로그 "보류" 표기를 따른다]: 자동 분류 모드(별도 모델이 ask를 판정)와 자동 승인 리뷰어·연속 거부 서킷브레이커(`_research/item-catalog.md` L1-d, 진보된 설계 3·4번)는 이 문서 범위 밖이다. 도입하면 리뷰어 장애 시 거부하는 쪽으로 설계한다. 모델 자가 위험도(OpenHands `security_risk`)는 정책 입력의 하나로만 검토한다.
 
@@ -872,7 +872,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
    - question: `QuestionAnswer`를 질문 도구에 돌려준다. 결과 문장은 L2.dialog.spec이 정한다.
 6. 기억 범위:
    - `once`: 이번 호출만.
-   - `thread`: 같은 소유 트리 루트 대화가 끝날 때까지 같은 도구·같은 `ruleId`(규칙이 낸 ask) 또는 같은 도구(모드가 낸 ask)의 ask를 allow로 본다. 저장은 `approval.resolved` 이벤트 자체다. core-tools는 재개 때 이 이벤트에서 세션 허용 목록을 다시 만든다.
+   - `thread`: 같은 소유 트리 루트 대화가 끝날 때까지 같은 도구·같은 `ruleId`(규칙이 낸 ask) 또는 같은 도구(모드가 낸 ask)의 ask를 allow로 본다. 저장은 `approval.resolved` 이벤트 자체다. core-tools는 재개 때 이 이벤트에서 대화 허용 목록을 다시 만든다.
    - `always`: 파이프라인의 도구 승인은 제안하지 않는다(`remember`는 `["once", "thread"]`). 고르면 새 대화마다 같은 명령을 다시 묻는데 사용자는 항상 허용된 줄 알았기 때문이다(감사 L1-04) [결정: M2 마감 G2-10]. 영구 허용은 사용자 범위 규칙 `l1.tools.rules`의 allow 규칙을 쓴다. 2차 항상 허용 캐시(§4.11)가 들어오면 제안을 되살린다. 제안하지 않은 `always`를 클라이언트가 보내면 `answer_invalid`다. 기능 어댑터가 `always`를 제안하는 요청을 올리면(L2 `remember` 목록은 어댑터가 정한다) 2차 전까지 `thread`로 낮춰 적용하고 `approval.resolved`에 `remember: "thread"`와 `requestedRemember: "always"`를 함께 남긴다. 클라이언트는 이 둘이 다르면 낮춘 사실을 표시한다(아래 동의 표시 요건 6번).
 6b. 만료 [결정: M3-REQ-72, M3-06]: 요청의 `expiresAt`(epoch ms)과 `onExpire`는 `approval.requested`에 기록한다. 주입한 `Scheduler`(없으면 `setTimeout` 기반 대체 `systemScheduler`. 타이머가 없어 무인 turn이 영원히 기다리는 일을 막는다)가 `expiresAt`에 깨어 `expiresAt <= clock.now()`이면 `onExpire`대로 `approval.resolved`를 커밋한다: `deny`(기본) 또는 요청 kind가 받아들이는 `answer`(맞지 않으면 deny). 해결에는 `resolvedBy: "expired"`가 붙고 거부 사유 문장은 `[fresnel:approval_expired] …`다. 타이머가 시계보다 일찍 깨면 다시 걸 뿐이다. 응답이 `expiresAt` 뒤에 오면 만료가 먼저라 `already_resolved`다. 재시작 때 `restore`와 같은 `requestKey`의 `open`은 기록된 `expiresAt`을 쓴다: 지난 요청은 바로 해결하고 남은 요청은 처음부터 다시 재지 않는다. 만료 커밋이 실패하거나 던지면 대기로 되돌리고 5초 뒤 다시 시도한다. 만료 시각이 지난 요청은 만료 커밋이 실패해 아직 대기여도 응답을 받지 않는다(`already_resolved`, 만료를 다시 시도한다).
 6c. 무인 정책 [결정: D-M3-12, M3-REQ-73. 키 이름과 기본 제한 시간은 제안]: 사람이 답할 수 없는(`interactive: false`) **주 대화**(`caller: "main"`, `depth: 0`, 표면 대화가 자기 자신) turn의 승인은 설정 `l1.tools.unattended.approval`을 따른다. `expire`(기본)는 기다리다 `l1.tools.unattended.timeoutSeconds`(기본 3600 [제안])가 지나면 6b로 거부한다(요청에 `expiresAt`이 이미 있으면 그 값이 먼저다). `wait`는 만료 없이 기다린다. `deny`는 7번처럼 바로 거부한다. 정책 평가는 `wait`·`expire`일 때 ask를 거부로 바꾸지 않고 승인 요청으로 보낸다(`interactive` 입력 = `run.interactive || 기다리는 정책`). 서브에이전트 등 주 대화가 아닌 호출은 정책과 관계없이 7번대로 바로 거부한다. print 모드는 사용자 입력이라 대화형이므로 이 정책 밖이다(사전 허용 규칙 적용과 전체 자동 승인 플래그는 L4 몫, D-M3-14).
@@ -880,7 +880,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
    - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
 9. 계획 승인의 모드 변경 [결정: L1A.4]: `allow`의 `answer.mode`가 현재 모드와 다르면 `setMode(origin.threadId, mode, "plan_approval")`을 부른다. `approval.resolved` 커밋 뒤, 대기를 풀기 전에 한다. 그래서 계획 도구가 이어갈 때 모드가 이미 바뀌어 있다. 모드를 바꾸지 못해도(`tools.mode_forbidden`, 저장소 실패) 해결은 그대로이고 경고를 남긴다. 해결 커밋 뒤 모드 쓰기 전에 끊기면, 재시작 뒤 계획 도구가 같은 `requestKey`로 다시 요청할 때 저장된 해결을 읽는 자리에서 같은 규칙으로 이어서 적용한다(이미 같은 모드면 쓰지 않는다).
-10. 메모리 표의 크기 [결정: 통합 검토 L7]: 해결된 요청은 `RESOLVED_KEPT`(256)개까지만 `byId`·`byKey`에 남기고, 넘으면 가장 먼저 해결된 요청부터 뺀다(FIFO). 대기 중인 요청은 해결되기 전이라 표에 오르지 않으므로 빼지 않는다(해결된 요청의 대기자는 해결 때 모두 깨워 비우고 새 대기자는 즉시 해결을 받으므로, 해결된 요청에 대기자가 남아 빼기를 막는 경우는 없다) [결정: 통합 검토 L7 후속 N-6]. 빠진 요청도 이벤트는 남아 있다. 같은 `requestKey`의 `open`은 커밋 키로 기록된 요청을 되찾고 저장된 해결을 이어 받는다(`replayed`, 같은 `approvalId`, 새 이벤트 없음). 빠진 `approvalId`로 `get`은 `undefined`, `wait`은 `unknown`이고 `respond`는 적용하지 않는다. 세션 허용 목록(`remember: "thread"`)은 이 표와 따로 둔다.
+10. 메모리 표의 크기 [결정: 통합 검토 L7]: 해결된 요청은 `RESOLVED_KEPT`(256)개까지만 `byId`·`byKey`에 남기고, 넘으면 가장 먼저 해결된 요청부터 뺀다(FIFO). 대기 중인 요청은 해결되기 전이라 표에 오르지 않으므로 빼지 않는다(해결된 요청의 대기자는 해결 때 모두 깨워 비우고 새 대기자는 즉시 해결을 받으므로, 해결된 요청에 대기자가 남아 빼기를 막는 경우는 없다) [결정: 통합 검토 L7 후속 N-6]. 빠진 요청도 이벤트는 남아 있다. 같은 `requestKey`의 `open`은 커밋 키로 기록된 요청을 되찾고 저장된 해결을 이어 받는다(`replayed`, 같은 `approvalId`, 새 이벤트 없음). 빠진 `approvalId`로 `get`은 `undefined`, `wait`은 `unknown`이고 `respond`는 적용하지 않는다. 대화 허용 목록(`remember: "thread"`)은 이 표와 따로 둔다.
 
 내구화와 재개:
 
@@ -888,7 +888,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 재개 절차 [제안]: L1.persistence.spec의 재개가 마지막 체크포인트에서 `waiting: "approval"`인 호출을 찾으면 `ApprovalService.restore(threadId)`를 부른다. `restore`는 `approval.resolved`가 없는 `approval.requested`를 다시 읽어 메모리 대기 목록에 넣는다. core-loop는 `runTurn({ kind: "tools", awaitInput: true })`에서 그 호출들에 `prepare`를 다시 부른다(§3.3, L1.loop.spec §4.5 `await_input` 행).
 - 이 재실행은 같은 파이프라인을 지난다. `tool.call.before` 핸들러와 정책은 다시 실행된다. 의도 전이므로 다시 실행해도 된다(F.extensions.spec §4.3 재생 계약). 승인 단계에서 같은 `requestKey`(toolCallId)로 `request`를 부르면 커밋이 `replayed`로 끝나고 같은 `approvalId`의 기존 요청을 기다린다. 그 사이 응답이 커밋되었으면 바로 그 결과를 쓴다. 그래서 강제 종료 뒤 재개하면 같은 승인 요청이 복원된다(§9).
 - 질문 도구는 실행(8단계) 안에서 대기하므로 대기 전에 의도와 실행 표시가 이미 커밋되어 있다. 그래서 질문 도구는 `replay: "safe"`를 선언해야 한다 [제안]. 재개 때 `decideEffectRecovery`가 `rerun`을 내고, 다시 실행된 도구가 같은 `requestKey`로 같은 요청을 이어 기다린다. L2.dialog.spec·L2.work.spec에 이 선언을 요청한다(§8.4).
-- 서비스 모드 유휴 종료에서 승인 대기 세션을 live로 셀지는 architecture.runtime-flow.design §7 [미결]을 따른다. 이 문서는 정하지 않는다(§10).
+- 서비스 모드 유휴 종료에서 승인 대기 대화를 live로 셀지는 architecture.runtime-flow.design §7 [미결]을 따른다. 이 문서는 정하지 않는다(§10).
 
 #### 동의 표시 요건
 
@@ -924,7 +924,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 ### 4.9 재생
 
 - 재개 때 결과 없는 효과의 판정은 F.records.spec §3.5 `decideEffectRecovery`가 한다. 호출은 L1.persistence.spec 몫이다.
-- 결정이 `rerun`이면 L1.persistence가 `ToolService.rerun(intent, run)`을 부른다. `rerun`은 `tool.call.before` 지점, 정책, 승인을 다시 거치지 않고 저장된 `intent.args`로 단계 7a~11을 실행한다(durable spec 3136-3170 "Recovery does not rerun beforeTool", architecture.runtime-flow.design §4.2 "재생 시 도구 지점" 행). `effect.result`의 requestId는 처음과 같은 `tool:<toolCallId>:result`다.
+- 결정이 `rerun`이면 L1.persistence가 `ToolService.rerun(intent, run)`을 부른다. `rerun`은 `tool.call.before` 훅, 정책, 승인을 다시 거치지 않고 저장된 `intent.args`로 단계 7a~11을 실행한다(durable spec 3136-3170 "Recovery does not rerun beforeTool", architecture.runtime-flow.design §4.2 "재생 시 도구 지점" 행). `effect.result`의 requestId는 처음과 같은 `tool:<toolCallId>:result`다.
 - 재실행 횟수 상한(eng.transactions.design §5.2 `MAX_REPLAY_ATTEMPTS = 2`)과 시도 기록 이벤트는 F.records.spec에 kind가 없다. 시도 표시를 `effect.exec`의 반복으로 셀지 L1.persistence.spec과 함께 정한다 [미결](§10).
 - 결정이 `synthesize`이면 합성 결과(`OUTCOME_UNKNOWN_TEXT` 또는 `NOT_STARTED_TEXT`)를 L1.persistence가 커밋한다. core-tools는 관여하지 않는다.
 
@@ -932,7 +932,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 - pi-agent-core 1.3.0 원본의 `BeforeToolCallResult`에는 `args` 필드가 없었다(agent `types.ts:66-74`, `_research/notes/L1-1.md` §3(e)). 자체 루프(adr.0009)에서는 포크 조건이 없다. `prepare`가 검증한 인자를 `PreparedCall.args`로 돌려주므로 교체 인자를 같은 자리에 넣으면 된다.
 - 그래서 인자 재작성은 2차로 둔다. 도입할 때는 `prepare` 안에서 재검증하고 `PreparedCall.args`와 `effect.intent.args`에 같은 값을 넣는다(`_research/packages.md` §4.3 L1-d "인자 재작성").
-- `tool.call.before` 지점에서는 인자를 바꿀 수 없다. 이 지점의 결정은 허용·거부·결과 대체뿐이다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해지기 때문이다. 확장의 인자 변경이 필요하면 2차에 별도 chain 훅을 더한다 [결정: review.decisions-2 U-06].
+- `tool.call.before` 훅에서는 인자를 바꿀 수 없다. 이 훅의 결정은 허용·거부·결과 대체뿐이다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해지기 때문이다. 확장의 인자 변경이 필요하면 2차에 별도 chain 훅을 더한다 [결정: review.decisions-2 U-06].
 - 도입 뒤 규칙 [제안]: 재작성된 인자는 스키마 검증을 다시 거치고, 승인 요청에는 재작성된 인자를 싣는다. `effect.intent.args`는 재작성 뒤 값이다. 승인자가 본 인자와 실행되는 인자가 같아야 하기 때문이다(`_research/item-catalog.md` L1-d "인자 재작성과 재검증").
 
 ### 4.11 2차 항목
@@ -988,7 +988,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 8. `effect.intent` 커밋 실패: 실행하지 않는다. 호출은 `tools.commit_failed` 거부 결과다.
 9. 승인 요청 이후 도구 등록이 사라짐(확장 비활성화): 응답이 allow여도 실행 단계 진입 전에 도구 해석을 다시 확인하고 `tool_unavailable` 오류 결과로 닫는다. 요청은 `resolvedBy: "superseded"`로 닫는다.
 10. blob 쓰기 실패: 경계화 미리보기만 모델에 보내고 `blobRef: null`, `details.truncation.blobError`를 남긴다. 원문은 잃는다. 이 경우를 경고 이벤트로 남길지는 L0.store.spec의 blob 실패 정책을 따른다.
-11. `bypass` 모드인데 managed가 금지함: `setMode`는 `tools.mode_forbidden`을 돌려준다. 이미 세션 값이 `bypass`인 채 managed 금지가 생기면 평가기가 `default`로 본다(§4.5 4단계).
+11. `bypass` 모드인데 managed가 금지함: `setMode`는 `tools.mode_forbidden`을 돌려준다. 이미 `launch` 값이 `bypass`인 채 managed 금지가 생기면 평가기가 `default`로 본다(§4.5 4단계).
 12. 같은 이름의 도구를 두 출처가 등록함: `register`가 `err({ kind: "name_conflict", toolName })`을 돌려주고 도구 표는 바뀌지 않는다. 확장 조합이 낼 수 있는 정상 운영 중의 실패라 던지지 않는다(eng.typescript.guide TY-24). 해소 규칙은 F.capabilities.spec §10 [미결](도구 이름 네임스페이스)을 따른다.
 
 ## 6. 설정 노출
@@ -1008,14 +1008,14 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 - `l1.tools.rules`는 범위별로 모아 티어를 붙인다(§4.5). 화면은 각 규칙의 출처 범위와 파일을 보인다(`_research/settings.md` §2.6 "규칙 편집기, 우선순위 표시, 각 규칙이 나온 파일 표시").
 - `l1.tools.exposure.deferThreshold`가 0이면 auto 도구는 모두 지연 도구다. 64는 [제안] 값이다. 근거가 되는 provider 측정값은 없다 [가정].
-- 모드는 CLI 플래그(`--permission-mode`)와 세션 명령으로도 바꾼다. 둘 다 `session` 범위 쓰기다(F.wire-settings.spec §4.9 생성 규칙).
+- 모드는 CLI 플래그(`--permission-mode`)와 대화 명령으로도 바꾼다. 둘 다 `session` 범위 쓰기다(F.wire-settings.spec §4.9 생성 규칙).
 - 2차: 항상 허용 캐시의 목록·철회는 permissions 탭의 목록 편집기와 명령으로 둔다. 키는 캐시가 들어올 때 정한다.
 
 ## 7. 훅
 
-발화 소유: core-tools는 7개 지점을 발화한다(`L1.readme` §6 소유표). fold, 페이로드, 실패 규칙은 F.extensions.spec §3.4·§3.5를 인용만 한다.
+발화 소유: core-tools는 7개 훅을 발화한다(`L1.readme` §6 소유표). fold, 페이로드, 실패 규칙은 F.extensions.spec §3.4·§3.5를 인용만 한다.
 
-| 지점 | fold | 발화 위치 | 비고 |
+| 훅 | fold | 발화 위치 | 비고 |
 |---|---|---|---|
 | `tool.call.before` | first | §4.2 5a | 결정은 `ToolCallDecision`. 예외는 거부(fail-closed) |
 | `tool.result` | chain | §4.2 9 | 패치는 `ToolResultPatch`, 병합은 `CHAIN_RULES.tool_result` |
@@ -1027,7 +1027,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 - `ToolCallPayload.capability`는 기능 도구일 때 채운다(F.capabilities.spec §7).
 - [결정: M3-REQ-71, M3-02] `tool.call.before`, `guard.tool.before`, `tool.result`의 페이로드는 `risk`(도구 등급), `hints`(도구 작성자의 힌트, 없으면 `{}`), `caller`(`ToolRunContext.caller`)를 항상 채운다. Helm의 쓰기 판정과 그룹 핸들러의 자식 대화 구분에 쓴다. `tool.execution.after`는 시크릿을 가린 호출 인자 `input`과 `stepId`를 싣는다(실행 전에 닫힌 호출도 같다). F 스키마에서는 이 필드들이 아직 선택이다: 채우는 쪽이 갖춰졌으므로 필수로 올릴 수 있다(F 변경 요청, 이 문서는 고치지 않는다).
-- 서브에이전트 대화의 도구 호출에도 같은 지점이 같은 규칙으로 발화한다. `HandlerContext.threadId`는 자식 대화다 [제안].
+- 서브에이전트 대화의 도구 호출에도 같은 훅이 같은 규칙으로 발화한다. `HandlerContext.threadId`는 자식 대화다 [제안].
 - `post`, `drive`, `scope`와의 관계: core-tools는 post·drive를 쓰지 않는다. 확장 비활성화(scope)로 도구 등록이 빠지면 다음 단계 경계의 `advertise`에서 사라진다(F.capabilities.spec §5 사례 5).
 - 확장 규칙 등록(extension 티어)은 2차다. 그 전에는 확장이 `tool.call.before` 핸들러로 거부한다. L1 코어 규칙 등록(`registerRules`, default 티어)은 M2다.
 
@@ -1113,7 +1113,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 19. `registerRules("core:agents", …)`를 두 번 부르면 두 번째 규칙 집합만 평가에 쓰이고, 잘못된 규칙은 `issues`로 돌아오며 적재되지 않는다.
 20. 도구 결과에 알려진 시크릿 값이 있으면 `effect.result`, toolResult `item.recorded`, blob 원문, `tool.result`·`tool.execution.update` 페이로드에 값 문자열이 없다.
 21. core-tools와 F capabilities 소스의 import 목록에 `@earendil-works/pi-agent-core`가 없다(check-layers, DR-07).
-22. 계획 승인 `allow { mode }`는 계획 도구가 이어가기 전에 세션 모드를 바꾼다. 해결이 커밋된 뒤 모드 쓰기 전에 끊겨도, 재시작 뒤 같은 `requestKey` 요청이 모드를 이어서 적용하고 모드 변경을 두 번 쓰지 않는다. 모드 밖의 `mode`, 질문용 decision은 `applied: false`다.
+22. 계획 승인 `allow { mode }`는 계획 도구가 이어가기 전에 대화 모드를 바꾼다. 해결이 커밋된 뒤 모드 쓰기 전에 끊겨도, 재시작 뒤 같은 `requestKey` 요청이 모드를 이어서 적용하고 모드 변경을 두 번 쓰지 않는다. 모드 밖의 `mode`, 질문용 decision은 `applied: false`다.
 23. 질문 응답은 질문 묶음에 맞지 않으면(모르는 id, 없는 선택지, 단일 선택에 둘, 자유 입력 불허에 text, 빈 답) `applied: false`이고 이벤트가 없다.
 24. 비대화형 실행의 질문·계획 요청은 `approval.requested`와 `approval.resolved{ deny, noninteractive }`가 한 커밋이고 대기 체크포인트가 없다.
 25. `input_required { approvalId }`를 낸 도구 호출은 승인 해결까지 `effect.result` 없이 기다리고, 해결 뒤 같은 `requestId`로 다시 불려 완료 결과를 한 번 기록한다. 대기 중 turn 취소는 그 승인을 `cancelled`로 닫는다.
@@ -1134,8 +1134,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 ## 10. 미결 사항
 
-- [미결] 서비스 모드 유휴 종료에서 승인 대기 세션을 live로 셀지(architecture.runtime-flow.design §7). 이 문서와 L1.tools.plan은 M2까지 live로 취급한다.
-- [결정: review.decisions-2 U-06] `tool.call.before` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 별도 chain 훅을 더한다(§4.10).
+- [미결] 서비스 모드 유휴 종료에서 승인 대기 대화를 live로 셀지(architecture.runtime-flow.design §7). 이 문서와 L1.tools.plan은 M2까지 live로 취급한다.
+- [결정: review.decisions-2 U-06] `tool.call.before` 훅에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 별도 chain 훅을 더한다(§4.10).
 - [미결] 꼬리 보존 미리보기의 공통 모드(§4.8 7번).
 - [미결] 재실행 시도 횟수 기록 방식과 상한(§4.9). eng.transactions.design `MAX_REPLAY_ATTEMPTS`와 F.records.spec 결정표의 연결.
 - [결정: L1A.4, L1F] `input_required` 출력 변형의 판별 필드는 `status: "input_required"`이다(§4.3). `approvalId`가 없는 MCP 변형의 재호출은 어댑터가 질문 승인을 올려 `CallOptions.continuation`으로 닫는다.

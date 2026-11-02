@@ -739,7 +739,7 @@ export interface WorktreeOps {
 
 ## 7. 훅
 
-- 이 패키지는 on 지점을 구독하지 않고, post·drive·scope를 쓰지 않는다(`L0.readme` §1).
+- 이 패키지는 on 훅을 구독하지 않고, post·drive·scope를 쓰지 않는다(`L0.readme` §1).
 - X에서 쓰는 것은 `PlatformModule`(`setup`), `PlatformContext.providePort`, `onDispose`(4절 6번)다. 등록은 조립 루트가 `ExtHost.registerPlatform`으로 한다(`X.primitives.spec` §3.2). `@fresnel/ext-host` import는 이 등록 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17].
 - 확장(플러그인)이 알림을 보내려면 `dialog.notify`의 `emit`을 쓴다(`L2.dialog.spec` §3.6). `fresnel.os`의 `notify`는 `cap-dialog`가 부르는 전달 수단이다. 확장이 OS 명령을 직접 실행하는 경로는 없다.
 
@@ -749,7 +749,7 @@ export interface WorktreeOps {
 
 | 대상 | 제공하는 것 |
 |---|---|
-| `L0.store.spec` | `dirs.data`(DB, 블롭 위치), `dirs.state`, `dirs.resource`(macOS 동봉 SQLite), `fsKind`(WAL 가능 여부 판단. 조립 루트가 미리 풀어 넘긴다), `processStartFingerprint`, `machineId`(임대 `LeaseHolder.startedAt`·`host`, 후퇴안 생존 판정), `info`, `time`(FR-S8) |
+| `L0.store.spec` | `dirs.data`(DB, 블롭 위치), `dirs.state`, `dirs.resource`(macOS 동봉 SQLite), `fsKind`(WAL 가능 여부 판단. 조립 루트가 미리 풀어 넘긴다), `processStartFingerprint`, `machineId`(프로세스 락 `LeaseHolder.startedAt`·`host`, 후퇴안 생존 판정), `info`, `time`(FR-S8) |
 | `L0.process.spec` | `dirs.runtime`(소켓·등록 파일. 경로 폴백 포함), `dirs.home`(서비스 cwd), `processStartFingerprint`(`ServiceRegistration.startedAt`), `userId`, `time`(FR-P4) |
 | `L0.sandbox.spec` | `resolveBinary("rg" \| "bwrap" \| "socat")`, `dirs.home`·`dirs.config`·`dirs.data`(보호 경로), `dirs.tmp` |
 | `L0.secrets.spec` | `resolveBinary("sops" \| "age" \| "security" \| "secret-tool")`, `dirs.config`(`<config>/secrets/` 아래 메타·감사·폴백 키 파일), `time`, `logger` |

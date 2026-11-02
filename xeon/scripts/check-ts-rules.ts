@@ -21,7 +21,8 @@
 //   fresnel/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
 //                         ts-expect-error comments outside tests (TY-08, guide 4.1)
 //   fresnel/hardcoded-korean a string literal with Hangul in L4 `src` (apps/host, apps/cli, apps/desktop, packages/client), excluding
-//                         tests, `testing/`, `.tsx` view components (M4 rewrites them) and the catalogs (JSON, not scanned).
+//                         tests, `testing/` and the catalogs (JSON, not scanned). `.tsx` view components are scanned too: besides
+//                         literals, Hangul text between JSX tags counts (term lint phase 2, S-01).
 //                         User sentences come from the message catalog (ADR-0016); code holds ids and arguments
 // A line is exempt from a scan rule by `// fresnel-disable-next-line fresnel/<rule> -- <reason> (<issue url or doc id>)` above it.
 import { readdirSync, readFileSync } from "node:fs";
@@ -102,13 +103,39 @@ function isTestFile(path: string): boolean {
 
 const HANGUL = /[\u3131-\u318E\uAC00-\uD7A3]/;
 
-/** ADR-0016: L4 `src`의 문자열 리터럴은 한국어 문장을 담지 않는다. 화면 컴포넌트(`.tsx`)는 M4가 다시 쓰므로 뺀다 */
+/** ADR-0016: L4 `src`의 문자열 리터럴은 한국어 문장을 담지 않는다. 화면 컴포넌트(`.tsx`)도 같다(용어 검사 2단계, S-01) */
 function isCatalogScoped(path: string): boolean {
-  return (
-    /^(apps\/(host|cli|desktop)|packages\/client)\/src\//.test(path) &&
-    !path.endsWith(".tsx") &&
-    !isTestSupport(path)
-  );
+  return /^(apps\/(host|cli|desktop)|packages\/client)\/src\//.test(path) && !isTestSupport(path);
+}
+
+/**
+ * `.tsx`의 태그 사이 글자(JSX 텍스트)에 한글이 있는 줄. 줄마다 블록 주석, 줄 주석(`://`의 `//`는 주소라 뺀다)과 한 줄 안에서
+ * 닫히는 문자열을 지우고 한글이 남으면 JSX 텍스트로 본다. JSX 텍스트의 `'`와 `"`가 다음 줄의 문자열을 열어 버리는 일이 없도록
+ * 코드 전체를 한 번에 가리지 않고 줄 단위로 읽는다(`maskCode`는 이 경우 한글 줄을 놓쳤다)
+ */
+function hangulJsxTextLines(text: string): number[] {
+  const lines: number[] = [];
+  let inBlock = false;
+  text.split("\n").forEach((raw, index) => {
+    let line = raw;
+    if (inBlock) {
+      const end = line.indexOf("*/");
+      if (end < 0) return;
+      line = line.slice(end + 2);
+      inBlock = false;
+    }
+    line = line.replace(/\/\*.*?\*\//g, " ");
+    const open = line.indexOf("/*");
+    if (open >= 0) {
+      inBlock = true;
+      line = line.slice(0, open);
+    }
+    line = line
+      .replace(/(?<![:\w])\/\/.*$/, " ")
+      .replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`/g, " ");
+    if (HANGUL.test(line)) lines.push(index + 1);
+  });
+  return lines;
 }
 
 /** 읽는 위치. `line`은 지금 위치의 줄 번호(1부터)다 */
@@ -630,6 +657,15 @@ export function scanSource(file: SourceFile): {
         line,
         "hard-coded Korean string; add a message id to the ko and en catalogs and use t() (ADR-0016)",
       );
+    }
+    if (file.path.endsWith(".tsx")) {
+      for (const line of hangulJsxTextLines(file.text)) {
+        add(
+          "fresnel/hardcoded-korean",
+          line,
+          "hard-coded Korean text between JSX tags; add a message id to the ko and en catalogs and use t() (ADR-0016)",
+        );
+      }
     }
   }
   scanTypeUnsafe(file.text, file.path, add);

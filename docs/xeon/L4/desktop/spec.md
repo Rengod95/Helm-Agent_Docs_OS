@@ -29,7 +29,7 @@ binds: [xeon/apps/desktop/**]
 
 - 설정 화면의 생성·검증·표시: `L4.settings-ui.spec`. 이 문서는 설정 화면 진입점과 데스크톱 설정 저장소만 정한다.
 - 엔진 쪽 메서드 처리기, 엔진 바이너리 이름과 서브커맨드의 확정, 서비스 등록 파일과 `ensure`: `L4.host-service.spec`.
-- 호스트 계약(envelope, 메서드, 알림, 커서, 오류): `F.wire-settings.spec`.
+- Runtime API(envelope, 메서드, 알림, 커서, 오류): `F.wire-settings.spec`.
 - 사용자 데이터 디렉터리와 소켓 경로의 OS별 위치: `L0.os.spec`.
 - 엔진이 띄우는 자식 프로세스(셸, MCP 서버)의 실행: `L0.process.spec`, L0 `platform-exec`.
 - 서명, 공증, CI 매트릭스, 사이드카 크기 상한, 작업 순서: `L4.desktop.plan`.
@@ -53,7 +53,7 @@ binds: [xeon/apps/desktop/**]
 | 엔진 공급원 | WebView가 접속하는 엔진의 출처. `"sidecar"`(앱이 띄운 자식) 또는 `"service"`(`fresnel service`, M3) |
 | 릴레이 세대(epoch) | 셸이 WebView 페이지 하나에 릴레이를 붙일 때마다 1씩 올리는 번호. 새로고침과 창 재생성을 구별한다 |
 | 손자 프로세스 | 엔진이 띄운 자식(도구 셸 명령, MCP 서버 등) |
-| 이어서 실행 후보 | 비정상 종료 표식(`running_since`)이 남은 세션(adr.0006 §3.6 5번) |
+| 이어서 실행 후보 | 비정상 종료 표식(`running_since`)이 남은 대화(adr.0006 §3.6 5번) |
 
 thread, turn, item은 `F.conversation.spec`의 용어다. 화면 문구의 "대화"는 thread다.
 
@@ -307,11 +307,11 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | E2 | 엔진 감독자(`State<Arc<Supervisor>>`)가 pid와 쓰기 손잡이를 앱 상태에 보관하고, `CommandChild`는 stdin 쓰기 전용 스레드가 쥔다. 종료는 pid로 프로세스 그룹에 신호를 보낸다(Unix `killpg`, Windows `taskkill /T`). 그래서 막힌 쓰기가 종료 경로를 막지 않는다. `RunEvent::Exit`에서도 남은 그룹을 종료한다. Rust API로 띄운 사이드카는 플러그인이 추적하지 않는다 | arch-2 §3.2 맵 등록 경로 행, `L4.desktop.plan` §3.1.1 S3 조건 2 | [제안] |
 | E3 | 프로세스 그룹을 켠다(`set_process_group`). 강제 종료는 그룹 전체에 보낸다 | arch-2 §3.2 그룹 범위 행, §5 3행 | [제안] |
 | E4 | 종료할 때는 신호 전에 stdin으로 `host.shutdown` 요청을 쓰고 stdin을 닫는다. `RunEvent::ExitRequested`에서 `prevent_exit()`로 종료를 미루고, 엔진 프로세스가 끝나거나 `l4.desktop.engine.shutdownGraceMs`가 지나면 다음 단계로 넘어간다(§4.3) | adr.0008 §3.3 제안 3, arch-2 §3.3, §5 1행 | [제안]. `host.shutdown`은 F 변경 요청(§10 미결 2) |
-| E5 | 엔진은 stdin EOF를 읽으면 안전 경계에서 체크포인트하고 종료한다(stdin EOF 임대). 앱이 어떻게 끝나든 OS가 파이프 쓰기 끝을 닫으므로 앱 SIGKILL에서도 엔진이 스스로 끝난다 | adr.0008 §3.3 [결정], adr.0006 §3.7 6번 | 엔진 쪽 구현은 `L4.host-service.spec` |
+| E5 | 엔진은 stdin EOF를 읽으면 안전 경계에서 체크포인트하고 종료한다(stdin EOF 프로세스 락). 앱이 어떻게 끝나든 OS가 파이프 쓰기 끝을 닫으므로 앱 SIGKILL에서도 엔진이 스스로 끝난다 | adr.0008 §3.3 [결정], adr.0006 §3.7 6번 | 엔진 쪽 구현은 `L4.host-service.spec` |
 | E6 | 엔진의 cwd와 엔진에 넘기는 모든 경로를 절대 경로로 둔다. cwd는 사용자 홈 디렉터리의 절대 경로다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
 | E7 | 엔진 환경에서 `BUN_OPTIONS`를 지운다. PATH에는 없는 도구 디렉터리만 뒤에 붙인다(아래 항목). 그 밖의 환경은 상속한다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
-| E8 | 세션 DB는 바이너리에 임베드하지 않는다. DB 위치는 엔진이 `L0.os.spec`의 사용자 데이터 디렉터리에서 정하고, 셸은 DB 경로를 넘기지 않는다. 그래야 CLI와 데스크톱이 같은 DB를 연다 | adr.0008 §3.3 제안 5, `_research/stack-status.md §7-C` 임베디드 SQLite 행 | [제안] |
-| E9 | 엔진의 손자 프로세스는 엔진과 같은 프로세스 그룹에 남아야 한다. 엔진 쪽 실행 코드가 손자를 새 그룹이나 새 세션으로 떼어 내면 E3의 그룹 종료가 그 손자에 미치지 않는다. 떼어 낸 손자는 엔진이 EOF·shutdown 처리 때 직접 정리한다 | arch-2 §3.2 그룹 범위 행 | [제안]. `L0.process.spec`에 요구 |
+| E8 | 대화 DB는 바이너리에 임베드하지 않는다. DB 위치는 엔진이 `L0.os.spec`의 사용자 데이터 디렉터리에서 정하고, 셸은 DB 경로를 넘기지 않는다. 그래야 CLI와 데스크톱이 같은 DB를 연다 | adr.0008 §3.3 제안 5, `_research/stack-status.md §7-C` 임베디드 SQLite 행 | [제안] |
+| E9 | 엔진의 손자 프로세스는 엔진과 같은 프로세스 그룹에 남아야 한다. 엔진 쪽 실행 코드가 손자를 새 그룹이나 새 "세션"으로 떼어 내면 E3의 그룹 종료가 그 손자에 미치지 않는다. 떼어 낸 손자는 엔진이 EOF·shutdown 처리 때 직접 정리한다 | arch-2 §3.2 그룹 범위 행 | [제안]. `L0.process.spec`에 요구 |
 | E10 | stdout은 JSON Lines 전용이다. 엔진 로그는 stderr로 쓰고, 셸은 stderr를 줄 단위로 앱 로그 파일에 남긴다. stderr 줄 길이는 8 KiB에서 자른다 | `F.wire-settings.spec` §3.1 프레이밍 | [제안] |
 | E11 | 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다. 바이트 수, 프레임 수, 세대 번호만 남긴다. 시크릿 값은 프레임에 실리지 않지만(`L4.readme` §4 시크릿 행) 다른 결함으로 실리더라도 셸 로그에 남지 않는다. 키 등록 명령(`secret_register`, §4.14.1)의 본문은 값을 싣지만 로그에는 이름과 결과 종류만 쓰고, 자식 출력은 값이 들어 있으면 버린다 | `F.wire-settings.spec` §4.9 시크릿 값 비표시 규칙 2, §3.8.1 SecretRef, `L0.secrets.spec` §8.3 R4(값 없는 `secret.*`) | [제안] |
 
@@ -341,17 +341,17 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 1. `RunEvent::ExitRequested`에서 엔진이 살아 있으면 `api.prevent_exit()`를 부르고 상태를 `stopping`으로 바꾼다.
 2. 셸이 프레임 경계에서 stdin에 `host.shutdown` 요청 한 줄을 쓴다. 요청 id는 `shell:shutdown:<n>` 꼴이다. WebView의 `HostConnection`은 자기가 발급하지 않은 id의 응답을 무시한다.
-3. 셸이 stdin을 닫는다(E5 EOF 임대와 같은 경로). `host.shutdown`이 F에 없어 엔진이 `-32601`로 거부해도 EOF로 같은 체크포인트 종료가 일어난다.
+3. 셸이 stdin을 닫는다(E5 EOF 프로세스 락과 같은 경로). `host.shutdown`이 F에 없어 엔진이 `-32601`로 거부해도 EOF로 같은 체크포인트 종료가 일어난다.
 4. 엔진 프로세스 종료를 `l4.desktop.engine.shutdownGraceMs` 동안 확인한다. 셸은 JSON을 해석하지 않으므로 "응답 대기"는 프로세스 종료 확인으로 대신한다 [제안].
 5. 시한 안에 끝나면 그룹에 남은 손자가 있는지 보고 있으면 그룹 SIGKILL을 보낸다(E3). 시한이 지나면 그룹 SIGKILL을 보낸다. Windows는 §4.4의 job 처리를 따른다.
 6. `CommandChild`를 앱 상태에서 비우고 `app.exit(0)`을 다시 부른다. 두 번째 `ExitRequested`는 막지 않는다.
 
 - 불변식 [제안]: 셸 대기 `l4.desktop.engine.shutdownGraceMs`는 엔진 시한 `l0.process.shutdown.timeoutMs` + 2000 이상이어야 한다. 두 값의 단위는 모두 ms다. 셸 대기가 엔진 시한과 같거나 짧으면 엔진의 체크포인트 커밋과 그룹 SIGKILL이 경합한다. 셸은 엔진 카탈로그를 읽지 않으므로 이 관계는 기본값(7000 ≥ 3000 + 2000)으로 지킨다. 사용자가 `l0.process.shutdown.timeoutMs`를 5000 넘게 올리면 `shutdownGraceMs`도 함께 올려야 한다 [가정: 두 값을 자동으로 맞추는 수단은 없다].
 
-- [확인: `L4.desktop.plan` §3.1.1 S1, WSL2 WebKitGTK] 앱이 SIGTERM을 받을 때 처리기를 두지 않으면 `RunEvent::ExitRequested`도 `Exit`도 오지 않고 프로세스가 바로 사라진다. `signal-hook` 처리기에서 `app.exit(0)`을 부르면 `ExitRequested`(code `Some(0)`)와 `Exit`가 와서 같은 순서를 탄다. 그러므로 Unix에서는 셸이 SIGTERM·SIGINT 처리기를 둔다 [제안 유지]. 처리기가 없는 경우와 앱 SIGKILL은 E5(EOF 임대)만이 방어다. macOS는 미측정이다.
+- [확인: `L4.desktop.plan` §3.1.1 S1, WSL2 WebKitGTK] 앱이 SIGTERM을 받을 때 처리기를 두지 않으면 `RunEvent::ExitRequested`도 `Exit`도 오지 않고 프로세스가 바로 사라진다. `signal-hook` 처리기에서 `app.exit(0)`을 부르면 `ExitRequested`(code `Some(0)`)와 `Exit`가 와서 같은 순서를 탄다. 그러므로 Unix에서는 셸이 SIGTERM·SIGINT 처리기를 둔다 [제안 유지]. 처리기가 없는 경우와 앱 SIGKILL은 E5(EOF 프로세스 락)만이 방어다. macOS는 미측정이다.
 - 닫기 동작이 `"tray"`이고 창이 모두 닫혀 생긴 종료(`ExitRequested`의 `code`가 없음)는 이 순서를 타지 않는다. `should_prevent_exit`가 참이면 `prevent_exit()`로 막고 셸과 엔진을 남긴다(§6). 명시 종료(코드가 있는 `app.exit`, 신호)는 닫기 동작과 관계없이 이 순서를 탄다.
 - [미확인: macOS, 소스 읽기] `tauri-runtime-wry` 2.12.3과 `tao` 0.37.2에는 `applicationShouldTerminate` 처리가 보이지 않는다. 그래서 메뉴의 종료(Cmd+Q)가 `ExitRequested` 없이 `RunEvent::Exit`만 낼 수 있다. 그러면 이 순서 대신 `Exit`의 그룹 종료만 돈다. Mac에서 확인해야 한다.
-- [확인: S1] 5단계의 그룹 SIGKILL은 EOF 처리 시한 뒤에 한다. `Exit`에서 곧바로 그룹 SIGKILL을 하면 엔진이 새 세션으로 띄운 손자(E9 위반 구성)를 정리할 기회를 잃어 그 손자가 남았다. 프로세스 그룹을 끄면(E3 위반) 그룹 SIGKILL이 손자에 미치지 않았다.
+- [확인: S1] 5단계의 그룹 SIGKILL은 EOF 처리 시한 뒤에 한다. `Exit`에서 곧바로 그룹 SIGKILL을 하면 엔진이 새 "세션"으로 띄운 손자(E9 위반 구성)를 정리할 기회를 잃어 그 손자가 남았다. 프로세스 그룹을 끄면(E3 위반) 그룹 SIGKILL이 손자에 미치지 않았다.
 
 ### 4.4 비정상 종료와 재기동
 
@@ -438,7 +438,7 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 |---|---|---|---|
 | macOS | WKWebView는 `com.apple.WebKit.WebContent`, `com.apple.WebKit.Networking`, `com.apple.WebKit.GPU` XPC 프로세스를 따로 띄운다 [가정] | `ps -o rss=`로 RSS, `footprint <pid>`로 phys_footprint | XPC 프로세스의 부모는 앱이 아닌 launchd다 [가정]. 앱 pid로 찾을 수 없으므로 실행 직후 생긴 WebKit 프로세스를 이름과 시각으로 묶는다 |
 | Linux | WebKitGTK는 `WebKitWebProcess`, `WebKitNetworkProcess`를 자식으로 띄운다 [가정] | `/proc/<pid>/smaps_rollup`의 `Rss`와 `Pss` | 공유 라이브러리 중복을 빼려면 `Pss` 합을 함께 본다 |
-| Windows | WebView2는 `msedgewebview2.exe` 여러 개(브라우저, 렌더러, GPU, 유틸리티)를 띄운다 [가정] | 프로세스 트리의 Working Set과 Private Bytes(`Get-Process`, 성능 카운터) | 같은 사용자 세션의 다른 앱과 WebView2 브라우저 프로세스를 공유할 수 있다 [가정] |
+| Windows | WebView2는 `msedgewebview2.exe` 여러 개(브라우저, 렌더러, GPU, 유틸리티)를 띄운다 [가정] | 프로세스 트리의 Working Set과 Private Bytes(`Get-Process`, 성능 카운터) | 같은 사용자 로그온의 다른 앱과 WebView2 브라우저 프로세스를 공유할 수 있다 [가정] |
 
 예산 항목 [가정, 측정 뒤 확정(§10 미결 8)]:
 
@@ -603,7 +603,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
   1. `cargo build --release`(`just desktop-build`)가 경고 없이 끝난다. WSL에서는 `cargo check --release`로 확인했다.
   2. 실행 중인 릴리스 앱의 `lsof -U -p <pid>`에 `inspect.sock`이 없고, 로그 폴더에 `inspect.sock`이 만들어지지 않는다.
   3. 릴리스 바이너리에서 `strings <앱 바이너리> | grep -c 'viewport.snapshot'`이 0이다.
-- 소스 수준 보장은 `test/inspect-guard.test.ts`가 시험한다(`mod inspect;`와 호출 지점의 cfg 줄, 소켓 생성이 `inspect` 밖에 없음, 로그 플러그인 cfg). 위 1~3은 컴파일 산출물 확인이라 자동화하지 않았다.
+- 소스 수준 보장은 `test/inspect-guard.test.ts`가 시험한다(`mod inspect;`와 호출 시점의 cfg 줄, 소켓 생성이 `inspect` 밖에 없음, 로그 플러그인 cfg). 위 1~3은 컴파일 산출물 확인이라 자동화하지 않았다.
 - `tauri-plugin-log`는 crate 의존성이라 릴리스 빌드에도 링크 대상이다. 등록하지 않으므로 파일도 소켓도 생기지 않는다. 의존성을 디버그 전용으로 줄이는 일은 하지 않았다(`cfg(debug_assertions)`로 의존성을 나눌 수 없다).
 - 로그 파일이 0바이트였던 것은 플러그인이 받을 `log` 호출이 앱에 없었기 때문으로 봅니다 [가정: Mac 실기 확인 전]. `AppLog::line`은 같은 줄을 대상 `fresnel_desktop`의 `log` info 기록으로도 냅니다. 릴리스 빌드에는 기록기가 없어 이 호출은 아무 일도 하지 않습니다. 시작 줄은 앱 이름과 버전만 싣습니다(E11).
 - 스냅샷 구현은 macOS에서만 컴파일된다. WSL에서는 컴파일도 시험도 못 했고 Mac 확인이 필요하다 [가정](`review.macos-checklist`에 더할 항목).
@@ -628,7 +628,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `engine_write`의 세대가 현재와 다름 | 거부한다. 이전 페이지의 늦은 쓰기가 새 연결에 섞이지 않게 한다 |
 | 종료 중(`stopping`)에 사용자 입력 | 입력창을 잠그고 "종료 중"을 보인다. 엔진은 `host.shuttingDown`(5002)을 돌려줄 수 있다 |
 | 종료 시한 초과 | 그룹 SIGKILL. 진행 중 turn은 다음 실행 때 이어서 실행 후보가 된다 |
-| 앱 두 개를 동시에 실행 | [결정: M2 마감 G2-09] `tauri-plugin-single-instance`를 가장 먼저 등록한다. 두 번째 인스턴스는 다른 초기화(엔진 기동, DB)를 하기 전에 첫 인스턴스에 알리고 끝나며, 첫 인스턴스는 메인 창이 없으면 `tauri.conf.json`의 `main` 항목으로 다시 만들고, 메인 창을 보이고 최소화를 풀고 포커스를 준다(`src-tauri/src/window.rs` `ensure_main`, `focus_main`). 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 세션 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
+| 앱 두 개를 동시에 실행 | [결정: M2 마감 G2-09] `tauri-plugin-single-instance`를 가장 먼저 등록한다. 두 번째 인스턴스는 다른 초기화(엔진 기동, DB)를 하기 전에 첫 인스턴스에 알리고 끝나며, 첫 인스턴스는 메인 창이 없으면 `tauri.conf.json`의 `main` 항목으로 다시 만들고, 메인 창을 보이고 최소화를 풀고 포커스를 준다(`src-tauri/src/window.rs` `ensure_main`, `focus_main`). 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 대화 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
 | `thread.locked` | 관찰·분기 선택 대화 상자를 보인다. 위임은 서비스 공급원에서만 보인다 |
 | WebKitGTK가 설치되지 않은 Linux | 앱이 뜨지 않는다. 패키지 의존(`L4.desktop.plan` §3 D10)으로 막는다 |
 | WSL에서 WSLg가 없음 | [미결] 지원 범위(§10 미결 9). 지원하지 않으면 시작 시 안내 문구를 띄운다 |
@@ -665,10 +665,10 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ## 7. 훅
 
-- 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다. 데스크톱은 엔진 밖 프로세스이고 Cordis 서비스를 쓰지 않는다(`eng.context-map.design` `clients` 컨텍스트 행).
+- 이 도메인은 on·post·drive·scope 훅을 선언하지 않는다. 데스크톱은 엔진 밖 프로세스이고 Cordis 서비스를 쓰지 않는다(`eng.context-map.design` `clients` 컨텍스트 행).
 - 확장의 영향은 wire로만 들어온다.
   - 확장 이벤트(`x.<확장id>.*`)는 `events.batch`로 오고 §4.13 규칙으로 보인다.
-  - drive 임대 보유자(현재 루프를 몰고 있는 그룹)를 상태 표시줄에 보일지는 그 정보를 담는 이벤트가 정해진 뒤 정한다. `X.primitives.spec`이 drive 임대 이벤트를 내구 이벤트로 정하면 상태 표시줄에 그룹 이름을 보인다 [제안].
+  - drive 락 보유자(현재 루프를 몰고 있는 그룹)를 상태 표시줄에 보일지는 그 정보를 담는 이벤트가 정해진 뒤 정한다. `X.primitives.spec`이 drive 락 이벤트를 내구 이벤트로 정하면 상태 표시줄에 그룹 이름을 보인다 [제안].
   - 확장 wire 메서드(`ext.<확장id>.<동사>`)는 M2 이후 F가 열면 다시 정한다(`F.wire-settings.spec` §4.2).
 
 ## 8. 다른 문서와의 인터페이스
@@ -676,7 +676,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | 방향 | 문서 | 내용 |
 |---|---|---|
 | 요구 | `F.wire-settings.spec` | `Transport`, `StdioTransportFactory`, `HostConnection`, `WIRE_METHODS`, `WIRE_CONFORMANCE_CASES`, `StreamPosition`, `SettingDefWire`, `EffectiveSetting`, `validateSettingValue`. 변경 요청: `host.shutdown` 메서드, `$/connectionReset` 알림, `HostConnection`이 모르는 id의 응답을 무시하는 규칙, `createHostConnection`과 `StdioTransportFactory` 구현의 제공 위치 |
-| 요구 | `L4.host-service.spec` | 엔진 바이너리 이름과 서브커맨드(`fresnel host --stdio` [제안]), stdin EOF 임대(E5) 구현과 시한 `l0.process.shutdown.timeoutMs`(HS-31, HS-32), `host.shutdown` 처리기, `fresnel service ensure --json`(HS-38), `fresnel service launch-mode --json`(§3.2), 서비스 사용 설정 키 `l0.process.service.enabled`의 엔진 없는 해석(HS-37) |
+| 요구 | `L4.host-service.spec` | 엔진 바이너리 이름과 서브커맨드(`fresnel host --stdio` [제안]), stdin EOF 프로세스 락(E5) 구현과 시한 `l0.process.shutdown.timeoutMs`(HS-31, HS-32), `host.shutdown` 처리기, `fresnel service ensure --json`(HS-38), `fresnel service launch-mode --json`(§3.2), 서비스 사용 설정 키 `l0.process.service.enabled`의 엔진 없는 해석(HS-37) |
 | 요구 | `L0.os.spec` | CLI와 엔진 사이드카가 같은 사용자 데이터 디렉터리를 쓰는 것(E8), 서비스 소켓 경로 |
 | 요구 | `L0.process.spec` | 엔진이 띄운 손자 프로세스의 그룹 규칙(E9) |
 | 요구 | `F.records.spec`, `L1.tools.spec` | 승인 요청·해결 이벤트 kind와 payload(A안 [가정]) |
