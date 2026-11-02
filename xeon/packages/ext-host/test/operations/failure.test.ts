@@ -2,9 +2,10 @@ import { expect, test } from "bun:test";
 import {
   createFailureLedger,
   fromHandlerFailure,
+  fromMethodSettled,
   type HandlerOutcomeRecord,
 } from "../../src/operations/index.ts";
-import type { HandlerFailure } from "../../src/primitives/index.ts";
+import type { ExtMethodSettled, HandlerFailure } from "../../src/primitives/index.ts";
 
 const owner = { type: "extension", name: "fail-ext", scopeId: "fail-ext" } as const;
 
@@ -104,4 +105,90 @@ test("failure: records read the failure policy of the point declaration", () => 
   expect(policyOf("thread.resources")).toBe("open");
   expect(policyOf("lifecycle.agent.settled")).toBe("open");
   expect(policyOf("tool.result")).toBe("skip");
+});
+
+function settledOf(outcome: ExtMethodSettled["outcome"], message?: string): ExtMethodSettled {
+  return {
+    extension: "fail-ext",
+    scopeId: "fail-ext",
+    verb: "sum",
+    outcome,
+    activeMs: 1,
+    ...(message === undefined ? {} : { message }),
+  };
+}
+
+test("failure: a method record keeps the thrown message and has no fold or failure policy", () => {
+  expect(fromMethodSettled(settledOf("threw", "boom"), "user", 5)).toEqual({
+    owner: { type: "extension", name: "fail-ext", scopeId: "fail-ext" },
+    tier: "user",
+    point: "ext.method",
+    verb: "sum",
+    result: "threw",
+    activeMs: 1,
+    at: 5,
+    message: "boom",
+  });
+  const timedOut = fromMethodSettled(settledOf("timeout"), "user", 5);
+  expect(timedOut?.fold).toBeUndefined();
+  expect(timedOut?.failure).toBeUndefined();
+  expect(timedOut?.message).toBeUndefined();
+  // 호출한 쪽의 잘못과 취소는 장부 기록이 없다
+  expect(fromMethodSettled(settledOf("params_invalid"), "user", 5)).toBeUndefined();
+  expect(fromMethodSettled(settledOf("aborted"), "user", 5)).toBeUndefined();
+});
+
+test("failure: method outcomes are the extension's calls; params_invalid and aborted are not counted", () => {
+  const ledger = createFailureLedger({ windowSize: 10 });
+  const key = "ext:fail-ext";
+  const record = (outcome: ExtMethodSettled["outcome"], message?: string) => {
+    const found = fromMethodSettled(settledOf(outcome, message), "user", 5);
+    if (found !== undefined) ledger.record(found);
+    return ledger.stats(key);
+  };
+  expect(record("ok")).toMatchObject({ consecutive: 0, totalCalls: 1, totalFailures: 0 });
+  expect(record("threw", "boom")).toMatchObject({
+    consecutive: 1,
+    totalCalls: 2,
+    totalFailures: 1,
+  });
+  expect(record("timeout")).toMatchObject({ consecutive: 2, totalCalls: 3, totalFailures: 2 });
+  expect(record("result_invalid")).toMatchObject({
+    consecutive: 3,
+    totalCalls: 4,
+    totalFailures: 3,
+    windowCalls: 4,
+    windowFailures: 3,
+  });
+  expect(record("params_invalid")).toMatchObject({
+    consecutive: 3,
+    totalCalls: 4,
+    totalFailures: 3,
+    windowCalls: 4,
+    windowFailures: 3,
+  });
+  expect(record("aborted")).toMatchObject({
+    consecutive: 3,
+    totalCalls: 4,
+    totalFailures: 3,
+    windowCalls: 4,
+    windowFailures: 3,
+  });
+  expect(record("ok")).toMatchObject({
+    consecutive: 0,
+    totalCalls: 5,
+    totalFailures: 3,
+    windowCalls: 5,
+    windowFailures: 3,
+  });
+  // 마지막 실패는 result_invalid 기록이다. 훅 실패와 같은 키 ext:<이름>에 든다
+  expect(ledger.stats(key).lastFailure).toEqual({
+    owner: { type: "extension", name: "fail-ext", scopeId: "fail-ext" },
+    tier: "user",
+    point: "ext.method",
+    verb: "sum",
+    result: "result_invalid",
+    activeMs: 1,
+    at: 5,
+  });
 });

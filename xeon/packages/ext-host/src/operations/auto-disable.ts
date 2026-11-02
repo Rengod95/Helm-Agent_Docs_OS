@@ -109,8 +109,9 @@ export interface OperationsNotifier {
 export function createLogNotifier(log: (line: string) => void): OperationsNotifier {
   return {
     handlerFailed(outcome, stats) {
+      const point = outcome.verb === undefined ? outcome.point : `${outcome.point} ${outcome.verb}`;
       log(
-        `handler failed: ${ownerKey(outcome.owner)} ${outcome.point} ${outcome.result} (consecutive ${stats.consecutive})`,
+        `handler failed: ${ownerKey(outcome.owner)} ${point} ${outcome.result} (consecutive ${stats.consecutive})`,
       );
     },
     autoDisabled(key, verdict) {
@@ -135,6 +136,13 @@ function reasonOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : "unknown error";
 }
 
+/** 휘발 페이로드의 message. 메서드 기록이면 동사를 앞에 붙인다("sum: boom") */
+function payloadMessageOf(outcome: HandlerOutcomeRecord): string {
+  const detail = outcome.message ?? "";
+  if (outcome.verb === undefined) return detail;
+  return detail === "" ? outcome.verb : `${outcome.verb}: ${detail}`;
+}
+
 /**
  * 실패마다 휘발 이벤트 `scope.handler_failed`를 보내고, 같은 운영 로그 줄을 남긴다(`createLogNotifier`와 같은 줄).
  * autoDisabled는 로그만 남긴다. 자동 끄기 사실은 내구 `scope.changed`(reason auto_disable)가 이미 적는다
@@ -149,7 +157,7 @@ export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNo
         owner: ownerKey(outcome.owner),
         point: outcome.point,
         result: outcome.result,
-        message: (outcome.message ?? "").slice(0, HANDLER_FAILED_MESSAGE_MAX),
+        message: payloadMessageOf(outcome).slice(0, HANDLER_FAILED_MESSAGE_MAX),
         consecutive: Math.max(1, stats.consecutive),
       };
       const sent = attempt(() => {

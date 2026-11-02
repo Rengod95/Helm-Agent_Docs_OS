@@ -67,7 +67,12 @@ import {
   type RegistrationInfo,
   type RegistrationSetupOutcome,
 } from "./registration.ts";
-import { createExtMethods, type ExtMethods, type ExtMethodSettled } from "./ext-method.ts";
+import {
+  createExtMethods,
+  type ExtMethods,
+  type ExtMethodSettled,
+  type MethodRun,
+} from "./ext-method.ts";
 import { createStateService } from "./state.ts";
 
 export type {} from "./errors.ts";
@@ -105,6 +110,11 @@ export interface ExtHostDeps {
   readonly effectWorker?: EffectWorkerPort;
   /** 확장 메서드 호출이 처리기에 닿았을 때 한 번 부른다(X.primitives.spec §4.12). 없으면 보고하지 않는다 */
   readonly onMethodSettled?: (info: ExtMethodSettled) => void;
+  /**
+   * 확장 메서드 처리기를 시간 예산 안에서 실행한다(X.primitives.spec §4.12, X.operations.spec §4.2). X.operations가
+   * `OperationsPolicy.runMethod`를 넘긴다. 없으면 예산 없이 실행한다 [제안, M4 T-XV]
+   */
+  readonly methodRun?: MethodRun;
 }
 
 /** loading-trust가 검증을 끝낸 확장 하나. 순서는 loadIndex가 정한다 */
@@ -477,7 +487,12 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   }
 
   const resources = createResourceStore({ ports, policy: deps.resourcePolicy, report });
-  const methods = createExtMethods({ core, resources, onMethodSettled: deps.onMethodSettled });
+  const methods = createExtMethods({
+    core,
+    resources,
+    onMethodSettled: deps.onMethodSettled,
+    methodRun: deps.methodRun,
+  });
   const kick: { directCommitted: (thread: ThreadRuntime, record: RegistrationRecord) => void } = {
     directCommitted: () => {},
   };

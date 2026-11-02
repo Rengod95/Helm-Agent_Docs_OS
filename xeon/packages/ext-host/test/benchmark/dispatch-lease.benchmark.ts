@@ -235,6 +235,7 @@ const BUDGET_CLASSES: readonly BudgetClass[] = [
   "shutdown",
   "setup",
   "hook",
+  "ui",
 ];
 
 // budgetClassOf(budget.ts)의 분류를 따른다. setup과 hook은 그 함수를 거치지 않는다
@@ -246,6 +247,7 @@ const BUDGET_NOTES: Readonly<Record<BudgetClass, string>> = {
   shutdown: "session.shutdown 지점",
   setup: "확장 scope setup 시간(OperationsPolicy.setupBudgetMs)",
   hook: "외부 훅",
+  ui: "확장 메서드 호출(wire ext.<id>.<verb>, Plugin UI 호출)",
 };
 
 function emitBudgetDefaults(): void {

@@ -211,6 +211,7 @@ test("budget: shutdown and stream classes", () => {
     shutdown: 2_000,
     setup: 10_000,
     hook: 30_000,
+    ui: 10_000,
   });
   expect(budgetClassOf(HOOKS["thread.shutdown"])).toBe("shutdown");
   expect(budgetClassOf(HOOKS["boundary.message.update"])).toBe("streamTap");

@@ -145,6 +145,7 @@ test("x.operations.* fill the budget table and the auto-disable policy", async (
     streamTap: 1_000,
     shutdown: 2_000,
     setup: 10_000,
+    ui: 10_000,
     hook: 30_000,
   });
   expect(defaults.autoDisable()).toEqual({

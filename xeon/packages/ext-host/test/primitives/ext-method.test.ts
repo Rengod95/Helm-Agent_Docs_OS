@@ -9,7 +9,10 @@ import {
   PrimitiveError,
   type ExtensionUnit,
   type ExtMethodSettled,
+  type HandlerGate,
+  type HandlerRunOutcome,
 } from "../../src/primitives/index.ts";
+import type { MethodRun } from "../../src/primitives/ext-method.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { makeManifest, makeUnit } from "./fixtures/support.ts";
 
@@ -287,8 +290,22 @@ test("a throwing handler is threw with a 500 character message and is reported o
     message: "x".repeat(500),
   });
   expect(settled).toEqual([
-    { extension: "calc", scopeId: "calc", verb: "boom", outcome: "threw", activeMs: 0 },
-    { extension: "calc", scopeId: "calc", verb: "long", outcome: "threw", activeMs: 0 },
+    {
+      extension: "calc",
+      scopeId: "calc",
+      verb: "boom",
+      outcome: "threw",
+      activeMs: 0,
+      message: "boom",
+    },
+    {
+      extension: "calc",
+      scopeId: "calc",
+      verb: "long",
+      outcome: "threw",
+      activeMs: 0,
+      message: "x".repeat(500),
+    },
   ]);
   expect(
     t.diagnostics
@@ -567,4 +584,68 @@ test("the reported activeMs is the handler's own time, and a throwing observer d
   expect(
     t.diagnostics.filter((d) => d.message === "onMethodSettled threw").map((d) => d.level),
   ).toEqual(["error"]);
+});
+
+/** 예산을 넘긴 것처럼 돌려주는 실행기. 처리기는 기다리지 않는다 */
+async function timeoutRun<T>(): Promise<HandlerRunOutcome<T>> {
+  return { kind: "timeout", budgetMs: 5 };
+}
+
+test("a method run the host injects decides the outcome: a timeout is a value with its budget and is reported once", async () => {
+  const settled: ExtMethodSettled[] = [];
+  const t = await createTestHost({
+    onMethodSettled: (info) => settled.push(info),
+    methodRun: timeoutRun,
+  });
+  await t.host.install(
+    makeUnit({ name: "calc", methods: [declOf("slow", {}, { type: "string" })] }, (g) => {
+      hostOf(g).registerMethod("slow", { handler: () => new Promise<unknown>(() => {}) });
+    }),
+  );
+  expect(await t.host.methods.call(callOf("calc", "slow", {}))).toEqual({
+    kind: "timeout",
+    budgetMs: 5,
+  });
+  expect(settled).toEqual([
+    { extension: "calc", scopeId: "calc", verb: "slow", outcome: "timeout", activeMs: 5 },
+  ]);
+  expect(t.diagnostics.filter((d) => d.code === "handler_failed").map((d) => d.message)).toEqual([
+    "method slow timeout",
+  ]);
+});
+
+/** 주어진 게이트를 처리기에 넘기는 실행기. 예산은 없다 */
+function gatedRun(gate: HandlerGate): MethodRun {
+  return async (work, outer) => {
+    const value = await work(outer ?? new AbortController().signal, gate);
+    return { kind: "settled", value, activeMs: 0 };
+  };
+}
+
+test("the gate a method run gives the handler is the one hostOf(g).awaitUser pauses", async () => {
+  const events: string[] = [];
+  const gate: HandlerGate = {
+    pause: () => {
+      events.push("pause");
+    },
+    resume: () => {
+      events.push("resume");
+    },
+  };
+  const t = await createTestHost({ methodRun: gatedRun(gate) });
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+  await t.host.install(
+    makeUnit({ name: "calc", methods: [declOf("ask", {}, { type: "string" })] }, (g) => {
+      hostOf(g).registerMethod("ask", {
+        handler: () => hostOf(g).awaitUser(() => Promise.resolve("yes")),
+      });
+    }),
+  );
+  expect(await t.host.methods.call(callOf("calc", "ask", {}, thread))).toEqual({
+    kind: "ok",
+    value: "yes",
+  });
+  expect(events).toEqual(["pause", "resume"]);
 });

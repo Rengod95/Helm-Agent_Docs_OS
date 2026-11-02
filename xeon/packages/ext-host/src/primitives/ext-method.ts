@@ -1,9 +1,18 @@
 // 확장 메서드 표와 호출(X.primitives.spec §3.9.2, §4.12). 등록은 host-api.ts의 registerMethod가 하고,
 // 이 파일은 컴파일된 검사기, 기록 찾기, 호출 절차, 보고를 맡는다. 예상할 수 있는 실패는 ExtMethodOutcome 값이다.
-import { attempt, attemptAsync, err, ok, type Result, type Thrown } from "@fresnel/contracts";
+import {
+  assertNever,
+  attempt,
+  attemptAsync,
+  err,
+  ok,
+  type Result,
+  type Thrown,
+} from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtMethodDecl, ExtensionName, RegistrationId } from "@fresnel/contracts/extensions";
 import { Compile, type Validator } from "typebox/schema";
+import type { HandlerGate, HandlerRunOutcome } from "./dispatch-types.ts";
 import type { Generation, HostCore } from "./core.ts";
 import type { ResourceRecord, ResourceRegistry } from "./resources.ts";
 
@@ -12,7 +21,7 @@ export interface ExtMethodCallContext {
   readonly threadId: ThreadId | null;
   /** 호출 하나의 id. threadId가 있으면 디스패치 키 `method:<callId>`가 된다 */
   readonly callId: string;
-  /** 호출한 쪽이 취소하거나 scope 세대가 닫히면 abort된다 */
+  /** 호출한 쪽이 취소하거나 scope 세대가 닫히면 abort된다. 예산을 넘겨도 abort된다(ExtHostDeps.methodRun이 있을 때) */
   readonly signal: AbortSignal;
   readonly caller: "wire" | "ui";
 }
@@ -55,6 +64,8 @@ export type ExtMethodOutcome =
   | { readonly kind: "params_invalid"; readonly issues: readonly ExtMethodIssue[] }
   | { readonly kind: "result_invalid"; readonly issues: readonly ExtMethodIssue[] }
   | { readonly kind: "threw"; readonly message: string }
+  /** 확장 메서드 시간 예산(`x.operations.budget.uiMs`)을 넘었다. `budgetMs`는 그 유효 값이다. `ExtHostDeps.methodRun`이 있을 때만 난다 */
+  | { readonly kind: "timeout"; readonly budgetMs: number }
   | { readonly kind: "aborted" };
 
 /** `ExtHostDeps.onMethodSettled`의 인자. 처리기에 닿은 호출마다 한 번 불린다 */
@@ -62,10 +73,21 @@ export interface ExtMethodSettled {
   readonly extension: ExtensionName;
   readonly scopeId: RegistrationId;
   readonly verb: string;
-  readonly outcome: "ok" | "params_invalid" | "result_invalid" | "threw" | "aborted";
-  /** 처리기가 활성인 시간(ms). params_invalid는 0이다 */
+  readonly outcome: "ok" | "params_invalid" | "result_invalid" | "threw" | "timeout" | "aborted";
+  /** 처리기가 활성인 시간(ms). params_invalid는 0이고 timeout은 예산과 같다 */
   readonly activeMs: number;
+  /** threw일 때 처리기 오류 메시지 앞 500자(ExtMethodOutcome.threw.message와 같다). 다른 결과에는 없다 */
+  readonly message?: string;
 }
+
+/**
+ * 처리기를 예산 안에서 실행하는 함수. `ExtHostDeps.methodRun`의 모양이고 DispatchPolicy.run과 같은 재료를 받는다.
+ * X.operations가 `runWithBudget`으로 구현한다(primitives는 operations를 import하지 않는다)
+ */
+export type MethodRun = <T>(
+  work: (signal: AbortSignal, gate: HandlerGate) => Promise<T>,
+  outer: AbortSignal | undefined,
+) => Promise<HandlerRunOutcome<T>>;
 
 export interface ExtMethods {
   /** 지금 등록된 메서드. 꺼진 scope의 것은 없다 */
@@ -74,7 +96,11 @@ export interface ExtMethods {
   call(input: ExtMethodCallInput): Promise<ExtMethodOutcome>;
 }
 
-type Handler = (params: unknown, ctx: ExtMethodCallContext) => Promise<unknown>;
+/**
+ * 등록된 처리기의 내부 모양. 셋째 인자는 예산 시계 장치다. host-api.ts가 이것을 ambient의 `handler`에 싣고,
+ * `hostOf(g).awaitUser`가 사용자 응답 대기 동안 시계를 멈춘다(X.operations.spec §4.2.3)
+ */
+type Handler = (params: unknown, ctx: ExtMethodCallContext, gate: HandlerGate) => Promise<unknown>;
 
 /**
  * 등록 하나의 정의와 검사기. 리소스 기록의 def다. scope 세대가 닫혀 기록이 해제되면 검사기도 함께 버려지므로
@@ -254,14 +280,42 @@ export interface ExtMethodsDeps {
   readonly resources: ResourceRegistry;
   /** 처리기에 닿은 호출의 보고(ExtHostDeps.onMethodSettled). 없으면 보고하지 않는다 */
   readonly onMethodSettled: ((info: ExtMethodSettled) => void) | undefined;
+  /** 처리기 실행기(ExtHostDeps.methodRun). 없으면 예산 없이 실행한다 */
+  readonly methodRun: MethodRun | undefined;
 }
 
-type Raced =
-  | { readonly kind: "settled"; readonly result: Result<unknown, Thrown> }
-  | { readonly kind: "aborted" };
+const NOOP = (): void => {};
+/** 예산이 없을 때 처리기가 받는 게이트. 멈출 시계가 없으므로 아무것도 하지 않는다 */
+const NO_GATE: HandlerGate = { pause: NOOP, resume: NOOP };
+
+/**
+ * 예산 없이 실행한다(ExtHostDeps.methodRun이 없을 때). 신호가 abort되면 처리기를 기다리지 않고 aborted를 돌려주고,
+ * 나중에 끝난 값과 예외는 버린다. 결과 모양은 runWithBudget과 같다
+ */
+function runUnbudgeted<T>(
+  work: (signal: AbortSignal, gate: HandlerGate) => Promise<T>,
+  outer: AbortSignal | undefined,
+  now: () => number,
+): Promise<HandlerRunOutcome<T>> {
+  const startedAt = now();
+  const signal = outer ?? new AbortController().signal;
+  const run = attemptAsync(() => work(signal, NO_GATE));
+  const watch = untilAborted(signal);
+  return Promise.race([
+    run.then((result): HandlerRunOutcome<T> => {
+      const activeMs = now() - startedAt;
+      return result.ok
+        ? { kind: "settled", value: result.value, activeMs }
+        : { kind: "threw", error: result.error.cause, activeMs };
+    }),
+    watch.done.then((): HandlerRunOutcome<T> => ({ kind: "aborted", reason: signal.reason })),
+  ]).finally(watch.release);
+}
 
 export function createExtMethods(deps: ExtMethodsDeps): ExtMethods {
   const { core, resources } = deps;
+  const run: MethodRun =
+    deps.methodRun ?? ((work, outer) => runUnbudgeted(work, outer, core.deps.now));
 
   function registered(): { readonly record: ResourceRecord; readonly entry: ExtMethodEntry }[] {
     return resources.list("ext_method").flatMap((record) => {
@@ -308,13 +362,18 @@ export function createExtMethods(deps: ExtMethodsDeps): ExtMethods {
       const generation = openGenerationOf(core, record.scopeId, input.threadId);
       if (generation === undefined) return { kind: "extension_off" };
       if (input.signal.aborted) return { kind: "aborted" };
-      const report = (outcome: ExtMethodSettled["outcome"], activeMs: number): void => {
+      const report = (
+        outcome: ExtMethodSettled["outcome"],
+        activeMs: number,
+        message?: string,
+      ): void => {
         settle({
           extension: record.extension,
           scopeId: record.scopeId,
           verb: record.name,
           outcome,
           activeMs,
+          ...(message === undefined ? {} : { message }),
         });
       };
       const paramIssues = schemaIssuesOf(entry.params, input.params);
@@ -323,50 +382,61 @@ export function createExtMethods(deps: ExtMethodsDeps): ExtMethods {
         return { kind: "params_invalid", issues: paramIssues };
       }
       const callId = input.callId ?? crypto.randomUUID();
-      // 처리기 신호는 호출한 쪽의 취소와 scope 세대의 닫힘을 합친 것이다
+      // 처리기 신호는 호출한 쪽의 취소와 scope 세대의 닫힘을 합친 것이다. 예산 실행기는 여기에 예산 신호를 더해 준다
       const signal = AbortSignal.any([input.signal, generation.abort.signal]);
       const startedAt = core.deps.now();
-      const run = attemptAsync(() =>
-        entry.handler(input.params, {
-          threadId: input.threadId,
-          callId,
-          signal,
-          caller: input.caller,
-        }),
+      const outcome = await run(
+        (handlerSignal, gate) =>
+          entry.handler(
+            input.params,
+            { threadId: input.threadId, callId, signal: handlerSignal, caller: input.caller },
+            gate,
+          ),
+        signal,
       );
-      const watch = untilAborted(signal);
-      const raced: Raced = await Promise.race([
-        run.then((result): Raced => ({ kind: "settled", result })),
-        watch.done.then((): Raced => ({ kind: "aborted" })),
-      ]);
-      watch.release();
-      const activeMs = core.deps.now() - startedAt;
-      if (raced.kind === "aborted") {
-        // 나중에 끝난 처리기의 결과는 버린다. scope 세대가 닫혔으면 extension_off, 아니면 호출한 쪽이 취소한 것이다
-        report("aborted", activeMs);
-        return generation.abort.signal.aborted ? { kind: "extension_off" } : { kind: "aborted" };
+      switch (outcome.kind) {
+        case "settled": {
+          const issues = resultIssuesOf(entry, outcome.value);
+          if (issues.length > 0) {
+            report("result_invalid", outcome.activeMs);
+            return { kind: "result_invalid", issues };
+          }
+          report("ok", outcome.activeMs);
+          return { kind: "ok", value: outcome.value };
+        }
+        case "threw": {
+          core.deps.report({
+            level: "warning",
+            code: "handler_failed",
+            scopeId: record.scopeId,
+            extension: record.extension,
+            message: `method ${record.name} threw`,
+            cause: outcome.error,
+          });
+          const message = messageOf(outcome.error).slice(0, MAX_MESSAGE);
+          report("threw", outcome.activeMs, message);
+          return { kind: "threw", message };
+        }
+        case "timeout": {
+          core.deps.report({
+            level: "warning",
+            code: "handler_failed",
+            scopeId: record.scopeId,
+            extension: record.extension,
+            message: `method ${record.name} timeout`,
+          });
+          // 예산 시계는 멈춘 시간을 뺀 값이라 시간 초과 때의 활성 시간은 예산과 같다
+          report("timeout", outcome.budgetMs);
+          return { kind: "timeout", budgetMs: outcome.budgetMs };
+        }
+        case "aborted": {
+          // 나중에 끝난 처리기의 결과는 버린다. scope 세대가 닫혔으면 extension_off, 아니면 호출한 쪽이 취소한 것이다
+          report("aborted", core.deps.now() - startedAt);
+          return generation.abort.signal.aborted ? { kind: "extension_off" } : { kind: "aborted" };
+        }
+        default:
+          return assertNever(outcome, "HandlerRunOutcome");
       }
-      if (!raced.result.ok) {
-        const { cause } = raced.result.error;
-        core.deps.report({
-          level: "warning",
-          code: "handler_failed",
-          scopeId: record.scopeId,
-          extension: record.extension,
-          message: `method ${record.name} threw`,
-          cause,
-        });
-        report("threw", activeMs);
-        return { kind: "threw", message: messageOf(cause).slice(0, MAX_MESSAGE) };
-      }
-      const value = raced.result.value;
-      const issues = resultIssuesOf(entry, value);
-      if (issues.length > 0) {
-        report("result_invalid", activeMs);
-        return { kind: "result_invalid", issues };
-      }
-      report("ok", activeMs);
-      return { kind: "ok", value };
     },
   };
 }

@@ -120,6 +120,7 @@ export function operationsSource(settings: SettingsEngine): OperationsSettingsSo
       streamTap: int("budget.streamTapMs", 1_000),
       shutdown: int("budget.shutdownMs", 2_000),
       setup: int("budget.setupMs", 10_000),
+      ui: int("budget.uiMs", 10_000),
       hook: HOOK_BUDGET_MS,
     }),
     autoDisable: () => {

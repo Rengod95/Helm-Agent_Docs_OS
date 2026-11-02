@@ -44,6 +44,7 @@ import type { PostQueue } from "./post.ts";
 import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
 import { ambient, withAmbient, type Ambient } from "./ambient.ts";
+import type { HandlerGate } from "./dispatch-types.ts";
 import {
   methodEntryOf,
   type ExtMethodCallContext,
@@ -564,12 +565,21 @@ export function createRegistrationApi(
           { scopeId: record.id },
         );
       }
-      // threadId가 없는 호출은 쓸 thread가 없으므로 ambient를 열지 않는다(명령과 같다)
-      const handler = (params: unknown, ctx: ExtMethodCallContext): Promise<unknown> =>
+      // threadId가 없는 호출은 쓸 thread가 없으므로 ambient를 열지 않는다(명령과 같다). 있으면 처리기 신호와 예산 장치를
+      // ambient의 handler에 싣는다. hostOf(g).awaitUser가 그 gate로 예산 시계를 멈춘다(X.operations.spec §4.2.3)
+      const handler = (
+        params: unknown,
+        ctx: ExtMethodCallContext,
+        gate: HandlerGate,
+      ): Promise<unknown> =>
         ctx.threadId === null
           ? def.handler(params, ctx)
-          : withAmbient(directAmbient(record.id, ctx.threadId, "method", ctx.callId), () =>
-              def.handler(params, ctx),
+          : withAmbient(
+              {
+                ...directAmbient(record.id, ctx.threadId, "method", ctx.callId),
+                handler: { signal: ctx.signal, gate },
+              },
+              () => def.handler(params, ctx),
             );
       const entry = methodEntryOf(declared, handler);
       if (!entry.ok) {

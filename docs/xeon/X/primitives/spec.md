@@ -163,6 +163,14 @@ export interface ExtHostDeps {
   readonly effectWorker?: EffectWorkerPort;
   /** 확장 메서드 호출이 처리기에 닿았을 때 한 번 부른다(§4.12). 없으면 보고하지 않는다 [제안, M4 T-XV] */
   readonly onMethodSettled?: (info: ExtMethodSettled) => void;
+  /**
+   * 확장 메서드 처리기를 시간 예산 안에서 실행한다(§4.12). X.operations가 `OperationsPolicy.runMethod`를 넘긴다(등급 `ui`,
+   * 설정 `x.operations.budget.uiMs`). 모양은 DispatchPolicy.run과 같다(§3.4). 이 자리의 타입 이름은 `MethodRun`이다. 없으면 예산 없이 실행한다 [제안, M4 T-XV]
+   */
+  readonly methodRun?: <T>(
+    work: (signal: AbortSignal, gate: HandlerGate) => Promise<T>,
+    outer: AbortSignal | undefined,
+  ) => Promise<HandlerRunOutcome<T>>;
 }
 
 export interface PrimitivesSettingsSource {
@@ -825,13 +833,16 @@ export type ExtMethodOutcome =
   | { readonly kind: "params_invalid"; readonly issues: readonly ExtMethodIssue[] }
   | { readonly kind: "result_invalid"; readonly issues: readonly ExtMethodIssue[] }
   | { readonly kind: "threw"; readonly message: string }   // Error의 메시지나 문자열 앞 500자. 스택은 싣지 않는다
+  | { readonly kind: "timeout"; readonly budgetMs: number }   // 예산 등급 ui(X.operations.spec §4.2.2)를 넘음
   | { readonly kind: "aborted" };
 /** `ExtHostDeps.onMethodSettled`의 인자. 처리기에 닿은 호출마다 한 번 */
 export interface ExtMethodSettled {
   readonly extension: ExtensionName;
   readonly scopeId: RegistrationId;
   readonly verb: string;
-  readonly outcome: "ok" | "params_invalid" | "result_invalid" | "threw" | "aborted";
+  readonly outcome: "ok" | "params_invalid" | "result_invalid" | "threw" | "timeout" | "aborted";
+  /** threw일 때 오류 메시지 앞 500자 */
+  readonly message?: string;
   /** 처리기가 활성인 시간(ms). params_invalid는 0이다 */
   readonly activeMs: number;
 }
