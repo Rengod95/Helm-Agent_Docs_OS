@@ -922,6 +922,9 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3210 | `secret.cancelled` | false | 사람이 입력이나 확인을 취소했다. 아무것도 저장되지 않았다 | - |
 | 3211 | `secret.auditUnwritable` | false | 감사 기록을 쓸 수 없어 동작을 멈췄다 | `code` |
 | 3212 | `secret.writeFailed` | false | 키 파일, OS 키 저장소, 기본 SOPS 시크릿 파일 쓰기에 실패했다. 값과 경로는 싣지 않는다 | `target`(`key_file`, `key_store`, `sops_file`), `code` |
+| 3401 | `extension.notFound` | false | 그 이름의 확장이 설치되어 있지 않다(`ext.get`, `ext.reenable`, `ext.reload`, `ext.health`, `ext.timings`) | `name` |
+| 3402 | `group.notFound` | false | 그 id의 그룹이 설치되어 있지 않다(`group.metrics`) | `id` |
+| 3403 | `extension.safeModeActive` | false | 안전 모드라 `ext.reenable`·`ext.reload`를 받지 않는다. 안전 모드를 끄고 다시 시작해야 한다 | - |
 | 5001 | `request.cancelled` | false | `$/cancelRequest`로 취소했다 | - |
 | 5002 | `host.shuttingDown` | true | 호스트가 종료 중이다 | `retryAfterMs` |
 | 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |
@@ -937,7 +940,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | -32768 ~ -32000 | JSON-RPC 예약 | 표준 다섯 개만 쓴다 |
 | 1000 ~ 1999 | F wire | 연결, 핸드셰이크, 버전 |
 | 2000 ~ 2999 | F wire | 이벤트, 구독, 재전송 |
-| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 나머지 L1 예비 |
+| 3000 ~ 3999 | 코어(L1) 메서드 | thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 확장 읽기(3400~3499), 나머지 L1 예비 |
 | 4000 ~ 4999 | 기능(L2) | 기능 오류는 code 4000 하나로 싣는다. `kind`는 `cap.<CapabilityId>.<code>`, `details`는 `CapabilityErrorData`(`F.capabilities.spec` §3.6)다. 기능의 오류 코드는 문자열이라 숫자 블록을 배정하지 않는다. 4001~4999는 예비 |
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |

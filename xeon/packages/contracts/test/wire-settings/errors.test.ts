@@ -72,6 +72,9 @@ describe("WIRE_ERRORS", () => {
       "secret.cancelled": 3210,
       "secret.auditUnwritable": 3211,
       "secret.writeFailed": 3212,
+      "extension.notFound": 3401,
+      "group.notFound": 3402,
+      "extension.safeModeActive": 3403,
       "request.cancelled": 5001,
       "host.shuttingDown": 5002,
       "store.busy": 5003,
@@ -136,6 +139,28 @@ describe("WIRE_ERRORS", () => {
     expect(parse(details, { target: "meta_file", code: "EACCES" }).ok).toBe(false);
     // 경로는 싣지 않는다
     expect(parse(details, { target: "sops_file", code: "EACCES", path: "/p" }).ok).toBe(false);
+  });
+
+  test("extension and group errors name what was not found, and safe mode carries no details", () => {
+    const extension = WIRE_ERRORS["extension.notFound"].details;
+    const group = WIRE_ERRORS["group.notFound"].details;
+    if (extension === undefined || group === undefined) throw new Error("details expected");
+    expect([
+      parse(extension, { name: "alpha" }).ok,
+      parse(extension, { id: "alpha" }).ok,
+      parse(group, { id: "team" }).ok,
+      parse(group, { id: "x".repeat(129) }).ok,
+    ]).toEqual([true, false, true, false]);
+    expect(WIRE_ERRORS["extension.safeModeActive"].details).toBeUndefined();
+    expect(wireError("extension.notFound", { details: { name: "alpha" } }).code).toBe(3401);
+    for (const kind of [
+      "extension.notFound",
+      "group.notFound",
+      "extension.safeModeActive",
+    ] as const) {
+      const code = WIRE_ERRORS[kind].code;
+      expect({ kind, core: code >= 3400 && code <= 3499 }).toEqual({ kind, core: true });
+    }
   });
 
   test("store.corrupt names where the stored row is wrong and is not a media error", () => {

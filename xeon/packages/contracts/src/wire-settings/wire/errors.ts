@@ -129,6 +129,9 @@ export type WireErrorKind =
   | "secret.cancelled"
   | "secret.auditUnwritable"
   | "secret.writeFailed"
+  | "extension.notFound"
+  | "group.notFound"
+  | "extension.safeModeActive"
   | "request.cancelled"
   | "host.shuttingDown"
   | "store.busy"
@@ -517,6 +520,30 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
+  // 3400~3499: 확장 읽기·운영(`ext.*`, `group.*` 메서드)
+  /** 그 이름의 확장이 설치되어 있지 않다(`ext.get`·`ext.reenable`·`ext.reload`·`ext.health`·`ext.timings`) */
+  "extension.notFound": {
+    code: 3401,
+    kind: "extension.notFound",
+    retryable: false,
+    details: Type.Object(
+      { name: Type.String({ maxLength: 128 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** 그 id의 그룹이 설치되어 있지 않다(`group.metrics`) */
+  "group.notFound": {
+    code: 3402,
+    kind: "group.notFound",
+    retryable: false,
+    details: Type.Object({ id: Type.String({ maxLength: 128 }) }, { additionalProperties: false }),
+  },
+  /** 안전 모드라 확장을 다시 켜거나 다시 읽을 수 없다(`ext.reenable`·`ext.reload`). 안전 모드를 끄고 다시 시작해야 한다 */
+  "extension.safeModeActive": {
+    code: 3403,
+    kind: "extension.safeModeActive",
+    retryable: false,
+  },
   "request.cancelled": { code: 5001, kind: "request.cancelled", retryable: false },
   "host.shuttingDown": {
     code: 5002,
@@ -659,7 +686,8 @@ export const WIRE_CODE_RANGES: readonly WireCodeRange[] = [
     from: 3000,
     to: 3999,
     owner: "L1",
-    purpose: "thread, turn, approval(3000~3099), settings(3100~3199), 나머지 L1 예비",
+    purpose:
+      "thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 확장 읽기(3400~3499), 나머지 L1 예비",
   },
   {
     name: "capability",
