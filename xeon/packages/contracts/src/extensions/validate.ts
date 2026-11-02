@@ -18,9 +18,11 @@ import {
   pluginDefaultEnabled,
   pluginsOf,
   type ExtensionManifest,
+  type PluginDecl,
   type PluginEntry,
 } from "./manifest.ts";
 import type { HookName } from "./hooks.ts";
+import type { CompositionDecl } from "./composition.ts";
 import type { ExtMethodDecl } from "./ext-method.ts";
 import { PLACEMENT_LIMITS, PLACEMENT_MODES, type Placement, type UiDecl } from "./ui.ts";
 
@@ -70,6 +72,17 @@ export type ManifestIssueCode =
   | "widgets_required"
   | "method_invalid"
   | "method_duplicate"
+  | "composition_invalid"
+  // validateComposition
+  | "composition_duplicate"
+  | "composition_hooks"
+  | "composition_plugin_unknown"
+  | "drive_duplicate"
+  | "on_capability_call"
+  | "capability_missing"
+  | "phase_invalid"
+  | "phase_unreachable"
+  | "phases_without_drive"
   // validateUsage
   | "hook_undeclared"
   | "hook_unused"
@@ -124,6 +137,8 @@ const LEGACY_FIELDS: readonly string[] = [
   "points",
   "usesDrive",
   "views",
+  "composition",
+  "phases",
   // `plugins[]` 항목으로 옮긴 필드. 최상위에 두면 조용히 지워져 선언이 사라지므로 거부한다
   "layer",
   "hooks",
@@ -138,6 +153,8 @@ const LEGACY_FIELDS: readonly string[] = [
 /** 옮겨 간 곳이 하나로 정해진 이름의 안내 문장 */
 const LEGACY_HINTS: Readonly<Record<string, string>> = {
   views: 'top-level "views" was renamed; declare Plugin UI under "ui" and methods under "methods"',
+  composition: 'top-level "composition" moved to "group.composition" (plugin groups only)',
+  phases: 'top-level "phases" moved to "group.composition.phases" (plugin groups only)',
 };
 
 function isReservedSourceKey(name: string): boolean {
@@ -199,6 +216,7 @@ function codeForSchemaPath(path: string): ManifestIssueCode {
     case "plugins":
       return codeForPluginPath(segments);
     case "group":
+      if (segments[2] === "composition") return "composition_invalid";
       return segments[2] === "members" && segments.length > 3 ? "plugin_id_invalid" : "schema";
     case "ui":
       return "ui_invalid";
@@ -428,6 +446,259 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
   return issues;
 }
 
+/** 구성 검사가 대조하는 매니페스트 부분과 이 맥락에서 쓸 수 있는 기능(provider가 켜진 것) */
+export interface CompositionContext {
+  /** 있으면 블록이 속한 플러그인의 `hooks`, `requires`, `optional`, `drives`, `usesPost`와 대조한다 */
+  readonly manifest?: { readonly plugins: readonly PluginDecl[] };
+  /** 있으면 `requires` 기능의 제공자를 대조한다. 없으면 `capability_missing`은 검사하지 않는다 */
+  readonly providers?: readonly CapabilityId[];
+}
+
+function checkComposition(
+  composition: CompositionDecl,
+  base: string,
+  context: CompositionContext,
+): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  const { manifest, providers } = context;
+  const provided = new Set<string>(providers ?? []);
+
+  const seen = new Set<string>();
+  let drives = 0;
+  composition.blocks.forEach((block, index) => {
+    const at = `${base}/blocks/${index}`;
+    if (seen.has(block.id)) {
+      issues.push(
+        issue(
+          "error",
+          "composition_duplicate",
+          `${at}/id`,
+          `block id "${block.id}" is declared twice`,
+        ),
+      );
+    }
+    seen.add(block.id);
+
+    const hooks = block.hooks ?? [];
+    if (block.op === "on" && hooks.length === 0) {
+      issues.push(
+        issue("error", "composition_hooks", `${at}/hooks`, 'an "on" block needs at least one hook'),
+      );
+    }
+    if (block.op !== "on" && hooks.length > 0) {
+      issues.push(
+        issue("error", "composition_hooks", `${at}/hooks`, 'only an "on" block lists hooks'),
+      );
+    }
+
+    // 블록이 속한 플러그인: plugin이 없으면 루트(id 없음)
+    const owner = manifest?.plugins.find((decl) => decl.id === block.plugin);
+    if (manifest !== undefined && owner === undefined) {
+      issues.push(
+        issue(
+          "error",
+          "composition_plugin_unknown",
+          `${at}/plugin`,
+          block.plugin === undefined
+            ? "block has no plugin and the manifest has no root plugin"
+            : `plugin "${block.plugin}" is not a declared plugin id`,
+        ),
+      );
+    }
+    const required = new Set<string>((owner?.requires ?? []).map((entry) => entry.id));
+    const declaredCapabilities = new Set<string>([
+      ...required,
+      ...(owner?.optional ?? []).map((entry) => entry.id),
+    ]);
+    if (owner !== undefined) {
+      const declaredHooks = new Set<string>(owner.hooks);
+      hooks.forEach((hook, hookIndex) => {
+        if (!declaredHooks.has(hook)) {
+          issues.push(
+            issue(
+              "error",
+              "hook_undeclared",
+              `${at}/hooks/${hookIndex}`,
+              `hook "${hook}" is not listed in the hooks of the block's plugin`,
+            ),
+          );
+        }
+      });
+    }
+
+    const consumes = block.consumes ?? [];
+    if (block.op === "on" && consumes.length > 0) {
+      issues.push(
+        issue(
+          "error",
+          "on_capability_call",
+          `${at}/consumes`,
+          "an on handler must not call a capability; a first hook turns the exception into a denial (ADR-0015)",
+        ),
+      );
+    }
+    consumes.forEach((id, capabilityIndex) => {
+      if (owner !== undefined && !declaredCapabilities.has(id)) {
+        issues.push(
+          issue(
+            "error",
+            "capability_undeclared",
+            `${at}/consumes/${capabilityIndex}`,
+            `capability "${id}" is not in requires or optional of the block's plugin`,
+          ),
+        );
+      }
+      if (providers !== undefined && required.has(id) && !provided.has(id)) {
+        issues.push(
+          issue(
+            "warning",
+            "capability_missing",
+            `${at}/consumes/${capabilityIndex}`,
+            `no provider for required capability "${id}" in this context`,
+          ),
+        );
+      }
+    });
+
+    if (block.op === "drive") {
+      drives += 1;
+      if (drives === 2) {
+        issues.push(
+          issue(
+            "error",
+            "drive_duplicate",
+            at,
+            "a group has one drive block; merge states into its phase machine",
+          ),
+        );
+      }
+      if (owner !== undefined && owner.drives !== true) {
+        issues.push(
+          issue("error", "drive_undeclared", at, "a drive block needs drives: true on its plugin"),
+        );
+      }
+    }
+    const posts =
+      block.op === "post" || (block.produces ?? []).some((product) => product.kind === "post");
+    if (posts && owner !== undefined && owner.usesPost !== true) {
+      issues.push(
+        issue(
+          "error",
+          "post_undeclared",
+          at,
+          "a block that posts needs usesPost: true on its plugin",
+        ),
+      );
+    }
+  });
+
+  if (composition.phases !== undefined) {
+    issues.push(...checkPhases(composition.phases, `${base}/phases`, drives > 0));
+  }
+  return issues;
+}
+
+function checkPhases(
+  phases: NonNullable<CompositionDecl["phases"]>,
+  base: string,
+  hasDrive: boolean,
+): readonly ManifestIssue[] {
+  const issues: ManifestIssue[] = [];
+  if (!hasDrive) {
+    issues.push(
+      issue(
+        "error",
+        "phases_without_drive",
+        base,
+        "phases describe the drive block, but there is none",
+      ),
+    );
+  }
+  const ids = new Set<string>();
+  const kinds = new Map<string, string>();
+  phases.nodes.forEach((node, index) => {
+    if (ids.has(node.id)) {
+      issues.push(
+        issue(
+          "error",
+          "phase_invalid",
+          `${base}/nodes/${index}/id`,
+          `phase "${node.id}" is declared twice`,
+        ),
+      );
+    }
+    ids.add(node.id);
+    kinds.set(node.id, node.kind);
+  });
+  if (!ids.has(phases.initial)) {
+    issues.push(
+      issue(
+        "error",
+        "phase_invalid",
+        `${base}/initial`,
+        `initial phase "${phases.initial}" is not a node`,
+      ),
+    );
+  }
+  const next = new Map<string, string[]>();
+  phases.transitions.forEach((transition, index) => {
+    for (const end of ["from", "to"] as const) {
+      if (!ids.has(transition[end])) {
+        issues.push(
+          issue(
+            "error",
+            "phase_invalid",
+            `${base}/transitions/${index}/${end}`,
+            `"${transition[end]}" is not a node`,
+          ),
+        );
+      }
+    }
+    if (kinds.get(transition.from) === "end") {
+      issues.push(
+        issue(
+          "error",
+          "phase_invalid",
+          `${base}/transitions/${index}/from`,
+          `end node "${transition.from}" has an outgoing transition`,
+        ),
+      );
+    }
+    next.set(transition.from, [...(next.get(transition.from) ?? []), transition.to]);
+  });
+  const reached = new Set<string>();
+  const pending = [phases.initial];
+  for (let id = pending.pop(); id !== undefined; id = pending.pop()) {
+    if (reached.has(id)) continue;
+    reached.add(id);
+    pending.push(...(next.get(id) ?? []));
+  }
+  phases.nodes.forEach((node, index) => {
+    if (ids.has(phases.initial) && !reached.has(node.id)) {
+      issues.push(
+        issue(
+          "warning",
+          "phase_unreachable",
+          `${base}/nodes/${index}`,
+          `phase "${node.id}" cannot be reached from "${phases.initial}"`,
+        ),
+      );
+    }
+  });
+  return issues;
+}
+
+/**
+ * 구성 선언 검사(X-16, W-47). 입력은 스키마를 통과한 값이다. 경로는 composition 루트 기준 JSON Pointer다.
+ * `context.manifest`가 있으면 블록이 속한 플러그인의 hooks, requires, drives, usesPost와 대조한다(AU-003). 순수 함수
+ */
+export function validateComposition(
+  composition: CompositionDecl,
+  context: CompositionContext = {},
+): readonly ManifestIssue[] {
+  return checkComposition(composition, "", context);
+}
+
 /** 정규화된(스키마를 통과한) 매니페스트의 의미 검사 */
 function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
@@ -457,6 +728,11 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   issues.push(...checkPluginList(manifest));
   if (manifest.ui !== undefined) issues.push(...validateUi(manifest.ui));
   issues.push(...validateMethods(manifest.methods ?? []));
+  if (manifest.group?.composition !== undefined) {
+    issues.push(
+      ...checkComposition(manifest.group.composition, "/group/composition", { manifest }),
+    );
+  }
 
   const prefix = ownPrefix(manifest);
   manifest.plugins.forEach((plugin, pluginIndex) => {

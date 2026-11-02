@@ -16,6 +16,7 @@ import { RECORD_KIND_READ_PATTERN, RecordKindDeclJsonSchema } from "./group-reco
 import { ExtensionNameSchema } from "./name.ts";
 import { HookNameSchema } from "./hooks.ts";
 import { PluginIdSchema } from "./registration-id.ts";
+import { CompositionDeclSchema, type CompositionDecl } from "./composition.ts";
 import { ExtMethodDeclSchema, type ExtMethodDecl } from "./ext-method.ts";
 import { UiDeclSchema, type UiDecl } from "./ui.ts";
 
@@ -173,6 +174,7 @@ export type PluginDecl = Static<typeof PluginDeclSchema>;
 /** 플러그인 그룹 선언. 있으면 그 확장은 플러그인 그룹이다 */
 export const GroupDeclSchema: TObject<{
   members: TOptional<TArray<typeof PluginIdSchema>>;
+  composition: TOptional<TUnsafe<CompositionDecl>>;
 }> = Type.Object(
   {
     /**
@@ -180,6 +182,8 @@ export const GroupDeclSchema: TObject<{
      * 루트 플러그인(id 없음)은 적지 않으며 `members`가 있어도 항상 구성원이다
      */
     members: Type.Optional(Type.Array(PluginIdSchema, { minItems: 1, maxItems: 16 })),
+    /** 구성 선언(X-16). 작성자가 선언하고 없으면 구성기는 블록 하나로 보인다. 플러그인 그룹만 둘 수 있다 */
+    composition: Type.Optional(CompositionDeclSchema),
   },
   { additionalProperties: false },
 );

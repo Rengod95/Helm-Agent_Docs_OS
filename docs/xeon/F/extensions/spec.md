@@ -159,6 +159,8 @@ export const GroupDeclSchema = Type.Object({
   /** 한 번에 켜고 끄는 플러그인 id. 생략하면 모든 플러그인이 구성원이다.
    *  루트 플러그인(id 없음)은 적지 않으며 `members`가 있어도 항상 구성원이다 */
   members: Type.Optional(Type.Array(PluginIdSchema, { minItems: 1, maxItems: 16 })),
+  /** 구성 선언(X-16, §3.1.2). 플러그인 그룹에만 둘 수 있다. 작성자가 선언한다 */
+  composition: Type.Optional(CompositionDeclSchema),
 }, { additionalProperties: false });
 export type GroupDecl = Static<typeof GroupDeclSchema>;
 
@@ -287,6 +289,60 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
 
 - 화면 트리는 `UiNode`(`{ type, props?, bind?, each?, when?, children? }`)입니다. `props`는 글자·숫자·불리언·null 값만 받고(색, CSS, HTML 키는 렌더러가 버립니다), `bind`는 속성 이름에서 JSON Pointer 경로(`format?`은 `UI_FORMATS`)로, `each`는 `{ path, as }`, `when`은 `{ path, op: "eq"|"ne"|"exists"|"missing", value? }`입니다. `validateUiTree(input)`이 스키마와 크기 상한(`UI_LIMITS`: 노드 2000개, 깊이 24)을 검사해 `{ ok: true, tree }` 또는 `{ ok: false, issues }`(`ui_invalid`, `ui_limit`)를 돌려줍니다. 순수 함수입니다.
 - Plugin App 다리 메시지 스키마는 `BridgeRequestSchema`(`{ v: 1, id, op, args }`), `BridgeResponseSchema`(`{ v: 1, id, ok: true, value }` 또는 `{ v: 1, id, ok: false, error: { kind, detail? } }`), `BridgePushSchema`(`{ v: 1, push, value }`), `BridgeReadySchema`(`{ v: 1, ready: true, bridge }`)입니다. `op`는 `BRIDGE_OPS`(호스트 API 아홉과 `resize`, `log`, `pong`), 오류 `kind`는 `BRIDGE_ERROR_KINDS`입니다. 메시지 크기 상한 1 MiB는 `bridgeMessageWithinLimit`이 보고, 초당 50개 제한은 호스트가 셉니다. `args`와 `value`의 내용 검사는 `op`별로 셸이 합니다.
+
+#### 3.1.2 구성 선언 (`composition.ts`) [결정: 2026-10-31 사용자, X-16]
+
+정본은 `extensions/composition.ts`입니다. `group.composition`은 플러그인 그룹의 선택 필드이고, 작성자가 직접 씁니다. 플러그인 그룹이 아닌 확장은 `group`이 없어 둘 곳이 없고, 최상위 `composition`·`phases`는 `legacy_field`로 거부합니다(안내 문장이 `group.composition`을 가리킵니다). 런타임 동작을 바꾸지 않는 설계 모델이라 구성기와 작업대가 읽습니다. 선언이 없으면 구성기는 "구성 정보 없음" 블록 하나를 보이고 Hook 이름으로 구성을 추정하지 않습니다. Stage 이름 목록은 플러그인 빌더 카탈로그가 정합니다 [제안]. F는 이름 문법(`COMPOSITION_ID_PATTERN`)만 봅니다. `slot` → `stage`, `points` → `hooks`, op `"scope"` → `"register"`는 ADR-0022 §3.6을 따른 [제안]입니다.
+
+```ts
+export type CompositionOp = "on" | "post" | "drive" | "record" | "register";
+export type CompositionProduct =
+  | { kind: "record"; recordKind: RecordKind }   // 공개 기록 grp.<그룹>.*
+  | { kind: "post" }                             // 입력 큐 post
+  | { kind: "state" };                           // 비공개 상태 문서
+
+export interface CompositionBlock {
+  readonly id: string;                           // 플러그인 그룹 안에서 유일
+  readonly stage: string;                        // Stage 이름(역할)
+  readonly op: CompositionOp;
+  readonly plugin?: string;                      // 소속 플러그인 id. 생략하면 루트 플러그인 [제안]
+  readonly title?: string;
+  readonly summary?: string;                     // 한 줄 요약
+  readonly hooks?: readonly HookName[];          // op가 "on"일 때만, 필수. 소속 플러그인의 hooks의 부분집합
+  readonly consumes?: readonly CapabilityId[];   // 읽는 기능. 소속 플러그인의 requires·optional에 있어야 함
+  readonly produces?: readonly CompositionProduct[];
+}
+
+export type PhaseNodeKind = "phase" | "turn" | "spawn" | "gather" | "capability" | "human" | "record" | "end";
+export interface PhaseNodeDecl { id: string; kind: PhaseNodeKind; title?: string; askTitle?: string }
+export interface PhaseTransitionDecl { from: string; to: string; event?: string; when?: string }
+export interface PhasesDecl { initial: string; nodes: readonly PhaseNodeDecl[]; transitions: readonly PhaseTransitionDecl[] }
+
+export interface CompositionDecl { readonly blocks: readonly CompositionBlock[]; readonly phases?: PhasesDecl }
+
+export interface CompositionContext {
+  readonly manifest?: { readonly plugins: readonly PluginDecl[] };   // 블록이 속한 플러그인과 대조
+  readonly providers?: readonly CapabilityId[];                       // 이 맥락에서 켜진 provider의 기능
+}
+export function validateComposition(composition: CompositionDecl, context?: CompositionContext): readonly ManifestIssue[];
+```
+
+- `phases`는 drive 블록의 단계 머신입니다. `human` 노드는 drive 원시 `loop.ask`(§3.2 `LoopHandle`)로 풀리고, `when`과 `event`는 설명용이라 평가하지 않습니다.
+- `validateComposition`은 순수 함수입니다. 경로는 `composition` 루트 기준 JSON Pointer이고, 매니페스트 안에서 검사하면(`validateManifest`) `/group/composition` 접두가 붙습니다. W-47 `ext.validateComposition`과 플러그인 빌더 AU-003·AU-004가 같은 함수를 씁니다. 블록은 `plugin`이 가리키는 플러그인(없으면 루트 플러그인)의 선언과 대조합니다.
+
+  | 코드 | 수준 | 조건 |
+  |---|---|---|
+  | `composition_invalid` | 오류 | `group.composition`의 스키마 위반(`validateManifest`에서만) |
+  | `composition_duplicate` | 오류 | 블록 `id`가 겹침 |
+  | `composition_hooks` | 오류 | `on` 블록에 `hooks`가 없거나, `on`이 아닌 블록에 `hooks`가 있음 |
+  | `composition_plugin_unknown` | 오류 | `context.manifest`가 있을 때 `plugin`이 선언하지 않은 id이거나, `plugin`이 없는데 루트 플러그인이 없음 |
+  | `drive_duplicate` | 오류 | drive 블록이 둘 이상(두 번째 블록에 붙음) |
+  | `on_capability_call` | 오류 | `on` 블록이 `consumes`를 가짐(ADR-0015) |
+  | `hook_undeclared`, `capability_undeclared`, `drive_undeclared`, `post_undeclared` | 오류 | `context.manifest`가 있을 때 블록이 소속 플러그인의 `hooks`, `requires`·`optional`, `drives`, `usesPost`에 없는 것을 씀. 코드는 §3.7 `validateUsage`와 같음 |
+  | `capability_missing` | 경고 | `context.providers`가 있을 때 `requires` 기능의 제공자가 없음 |
+  | `phase_invalid` | 오류 | 단계 id 중복, `initial`이나 전이 끝이 노드가 아님, `end` 노드에서 나가는 전이 |
+  | `phases_without_drive` | 오류 | `phases`가 있는데 drive 블록이 없음 |
+  | `phase_unreachable` | 경고 | `initial`에서 닿지 않는 노드 |
 
 ### 3.2 4연산 타입 (`ops.ts`, `drive.ts`, `registration.ts`)
 
@@ -1253,6 +1309,10 @@ export type ManifestIssueCode =
   | "user_config_invalid" | "isolation_invalid" | "trust_invalid"
   | "ui_invalid" | "ui_duplicate" | "ui_mode_not_allowed" | "ui_limit" | "ui_path_invalid"
   | "ui_reason_empty" | "widgets_required" | "method_invalid" | "method_duplicate"   // ui, methods, §3.1.1
+  | "composition_invalid"                                                              // group.composition, §3.1.2
+  // validateComposition(§3.1.2)
+  | "composition_duplicate" | "composition_hooks" | "composition_plugin_unknown" | "drive_duplicate"
+  | "on_capability_call" | "capability_missing" | "phase_invalid" | "phase_unreachable" | "phases_without_drive"
   // validateUsage
   | "hook_undeclared" | "hook_unused" | "post_undeclared" | "drive_undeclared"
   | "capability_undeclared" | "record_kind_undeclared" | "read_kind_undeclared"
@@ -1390,7 +1450,7 @@ chain의 보충 규칙 [제안]:
 | `schema` | error | `ExtensionManifestSchema` 위반 |
 | `unknown_key` | warning | 알 수 없는 최상위 키(제거됨) |
 | `schema_version_unsupported` | error | `schemaVersion`이 2가 아님. "플러그인 형식(`plugins[]`)으로 옮기세요"를 알린다. 옛 형식을 읽지 않는다 [결정: 2026-11-01 옛 이름 읽기 없음] |
-| `legacy_field` | error | 최상위에 `kind`, `points`, `usesDrive`, `views`(이름이 `ui`로 바뀜), 또는 `plugins[]` 항목으로 옮긴 필드(`layer`, `hooks`, `usesPost`, `requires`, `optional`, `provides`, `recordKinds`, `readsRecordKinds`)가 있음. 스키마 2에서 뜻이 바뀌었거나 위치가 바뀐 이름이라 조용히 지우지 않고 거부한다 [제안] |
+| `legacy_field` | error | 최상위에 `kind`, `points`, `usesDrive`, `views`(이름이 `ui`로 바뀜), `composition`·`phases`(`group.composition`으로 옮김), 또는 `plugins[]` 항목으로 옮긴 필드(`layer`, `hooks`, `usesPost`, `requires`, `optional`, `provides`, `recordKinds`, `readsRecordKinds`)가 있음. 스키마 2에서 뜻이 바뀌었거나 위치가 바뀐 이름이라 조용히 지우지 않고 거부한다 [제안] |
 | `name_invalid` / `name_reserved` | error | 이름 형식 위반 / `core`, `ext`, `grp`, `x`, `fresnel` 또는 L2 도메인 이름을 외부 확장(`trust.level`이 `builtin`이 아님)이 씀. 입력 출처 키 `user`, `deleg`, `timer`(F `RESERVED_SOURCE_KEYS`)는 신뢰 등급과 무관하게 모든 확장에 금지한다(review.decisions-2 U-13, `eng.transactions.design` §4.7) |
 | `plugin_id_invalid` / `plugin_id_duplicate` | error | 플러그인 id 형식 위반(`group.members` 항목 포함) / 한 확장 안 중복 |
 | `plugin_root_ambiguous` | error | `id`가 없는 플러그인이 둘 이상 |
@@ -1407,6 +1467,7 @@ chain의 보충 규칙 [제안]:
 | `user_config_invalid` | error | `userConfig` 항목 안의 알 수 없는 키, 빈 `setting` |
 | `isolation_invalid` / `trust_invalid` | error | 허용 값 밖 |
 | `ui_*`, `widgets_required`, `method_*` | error | `ui`와 `methods` 검사. 코드와 조건은 §3.1.1 |
+| `composition_invalid` 외 | | `group.composition` 검사(`validateComposition`을 `/group/composition` 접두로 부름). 코드와 조건은 §3.1.2 |
 
 `validateUsage(manifest, plugin, usage)`(경로는 `/plugins/<i>/...`):
 
