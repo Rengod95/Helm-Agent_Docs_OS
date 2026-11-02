@@ -124,7 +124,7 @@ export function ShellStateProvider({
     [],
   );
   const [startOpen, setStartOpen] = useState(layout !== "compact");
-  const [endOpen, setEndOpen] = useState(layout === "wide" ? (initialEndOpen ?? true) : false);
+  const [endOpen, setEndOpen] = useState(layout === "wide" ? (initialEndOpen ?? false) : false);
   // 영역마다 마지막 오른쪽 탭을 기억한다(§4.9.2).
   const [endTabs, setEndTabs] = useState<Record<Area, string>>({
     chat: initialTab,
@@ -134,7 +134,7 @@ export function ShellStateProvider({
   const [paletteOpen, setPaletteOpen] = useState(initialPaletteOpen);
   const setArea = useCallback((a: Area) => setAreaRaw(a), []);
 
-  // 폭 단계가 바뀌면 그 단계의 기본값으로: 넓으면 둘 다 붙박이, 중간이면 well은 닫힘(뜨는 면), 좁으면 둘 다 뜨는 면.
+  // 폭 단계가 바뀌면 그 단계의 기본값으로: 왼쪽은 넓으면 붙박이, 좁으면 뜨는 면. 오른쪽 well은 항상 뜨는 면이라 폭이 바뀌면 닫는다.
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -142,7 +142,7 @@ export function ShellStateProvider({
       return;
     }
     setStartOpen(layout !== "compact");
-    setEndOpen(layout === "wide");
+    setEndOpen(false);
   }, [layout]);
 
   const openEnd = useCallback(

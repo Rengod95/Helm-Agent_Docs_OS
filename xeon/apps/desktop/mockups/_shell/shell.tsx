@@ -54,7 +54,7 @@ function useShellShortcuts(onNew: () => void, modalOpen: boolean) {
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !m.paletteOpen && !modalOpen) {
-        if (m.layout !== "wide" && m.endOpen) return m.setEndOpen(false);
+        if (m.endOpen) return m.setEndOpen(false);
         if (m.layout === "compact" && m.startOpen) return m.setStartOpen(false);
       }
       if (!(e.metaKey || e.ctrlKey)) return;

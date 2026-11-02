@@ -1,6 +1,7 @@
 // 오른쪽 맥락 패널(DP-10). 접으면 아이콘만 있는 세로 떠 있는 막대(caustic FloatingBar vertical).
 // 펼치면 누른 아이콘 옆에서 두 단계로 펼친다: 바깥 well(Card variant="well") 안에 내용 카드(CardPanel).
-// 넓은 폭에서는 대화 영역을 밀고(헤어라인), 1100px 이하에서는 대화 위에 떠서 그림자 하나만 가진다.
+// 어느 폭에서도 내용 위에 뜨는 면(popover)이다: 내용 배치(stage 폭)에 영향이 없고 그림자 하나만 가진다.
+// 바깥을 누르거나 Esc를 누르면 닫히고, 열면 well로 초점이 가고 닫으면 눌렀던 아이콘으로 돌아온다.
 // 탭(아이콘, 이름, 배지, 내용)은 페이지가 준다. 탭 묶음은 영역마다(§4.9.4):
 //   대화: chatRightTabs(받은 요청, 런타임, 작업, 플러그인 well 탭들). 옛 standardRightTabs(받은 요청, 탐구, 작업)도 남긴다.
 //   크래프트: workbenchRightTabs(받은 요청, 기록, 대화).
@@ -17,7 +18,7 @@ import {
   ResizeHandle,
   ScrollArea,
 } from "@caustic/react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Compass,
   Ellipsis,
@@ -152,25 +153,54 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
   const wellWidth = Math.min(480, Math.max(320, widths[current.id] ?? current.width ?? 352));
   const fixedWidth = current.width === undefined && widths[current.id] === undefined;
   const tab = current.id;
-  const overlay = m.layout !== "wide";
   const open = m.endOpen;
+  const asideRef = useRef<HTMLElement>(null);
+  const wellRef = useRef<HTMLDivElement>(null);
+  const { setEndOpen } = m;
+  // 열리면 well로 초점을 옮기고, 닫히면 (초점이 well 안이었거나 갈 곳이 없으면) 눌렀던 막대 아이콘으로 돌려준다.
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) wellRef.current?.focus({ preventScroll: true });
+    if (!open && wasOpen.current) {
+      const active = document.activeElement;
+      if (active === null || active === document.body || wellRef.current?.contains(active) === true)
+        triggerRef.current?.focus({ preventScroll: true });
+    }
+    wasOpen.current = open;
+  }, [open]);
+  // 바깥 누름과 Esc로 닫는다(Esc는 팔레트·대화 상자가 열려 있으면 그쪽이 먼저).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target;
+      if (t instanceof Node && asideRef.current?.contains(t) !== true) setEndOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open, setEndOpen]);
   return (
-    <aside aria-label={L("맥락 패널")} className="relative flex flex-none items-start gap-1.5">
+    <aside
+      ref={asideRef}
+      aria-label={L("맥락 패널")}
+      className="relative flex flex-none items-start gap-1.5"
+    >
       {open && (
         <Card
           variant="well"
           size="sm"
+          ref={wellRef}
           role="region"
+          tabIndex={-1}
           aria-label={current.label}
           // 아이콘 쪽(위 오른쪽)에서 펼쳐지는 느낌: 그 모서리를 원점으로 커지며 나타난다.
           className={[
-            "relative flex max-w-[calc(100vw-4.5rem)] flex-col self-stretch origin-top-right animate-enter enter-scale",
+            "absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex max-w-[calc(100vw-4.5rem)] flex-col outline-none shadow-3 origin-top-right animate-enter enter-scale",
             fixedWidth ? "w-[352px]" : "",
-            overlay ? "absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 shadow-3" : "",
           ].join(" ")}
           style={fixedWidth ? undefined : { width: wellWidth }}
         >
-          {current.resizable === true && !overlay && (
+          {current.resizable === true && (
             <ResizeHandle
               orientation="vertical"
               min={320}
@@ -237,7 +267,11 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
             aria-expanded={open && tab === t.id}
             active={open && tab === t.id}
             {...(t.badge !== undefined && !(open && tab === t.id) ? { badge: t.badge } : {})}
-            onClick={() => (open && tab === t.id ? m.setEndOpen(false) : m.openEnd(t.id))}
+            onClick={(e) => {
+              triggerRef.current = e.currentTarget;
+              if (open && tab === t.id) m.setEndOpen(false);
+              else m.openEnd(t.id);
+            }}
           />
         ))}
         {overflow.length > 0 && (
