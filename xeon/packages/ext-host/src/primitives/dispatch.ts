@@ -34,6 +34,7 @@ import { foldFirst } from "./fold/first.ts";
 import { foldTap } from "./fold/tap.ts";
 import { deepFreeze } from "./freeze.ts";
 import type { HandlerEntry, HandlerRegistry } from "./registry.ts";
+import type { StepPause } from "./step-pause.ts";
 
 export {
   DEFAULT_DISPATCH_POLICY,
@@ -67,6 +68,10 @@ export interface DispatcherDeps {
   readonly threadSignal: (threadId: ThreadId) => AbortSignal | undefined;
   /** 계측 기록기(X-15). 디스패치마다 시작하고 핸들러 실행마다 기록한다. 없으면 계측하지 않는다 */
   readonly trace?: Pick<TraceBuffer, "start">;
+  /**
+   * Test run 단계 경계 멈춤(X-19). `boundary.step.after`의 처리가 끝난 뒤 멈춘 thread를 기다린다. 없으면 멈추지 않는다
+   */
+  readonly stepPause?: Pick<StepPause, "hold">;
 }
 
 export interface Dispatcher {
@@ -386,12 +391,19 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         case "first":
           if (!isFirstHook(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
           return foldFirst(env, point, entries, payload);
-        case "chain":
+        case "chain": {
           if (!isChainHook(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
-          return foldChain(env, point, entries, payload, {
+          const outcome = await foldChain(env, point, entries, payload, {
             initial: options.initial,
             finalize: options.finalize,
           });
+          // X-19: 단계 경계 처리가 끝난 뒤에 멈춘다. 그래서 단계 끝 커밋과 다음 단계(새 turn, drive 재호출)가 멈춘 동안 시작되지 않는다.
+          // 이 훅 이름만 검사하므로 다른 디스패치는 Map 조회도 하지 않는다
+          if (point === "boundary.step.after" && deps.stepPause !== undefined) {
+            await deps.stepPause.hold(options.threadId, options.signal);
+          }
+          return outcome;
+        }
         case "collect":
           if (!isCollectHook(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
           return foldCollect(env, point, entries, payload, { initial: options.initial });

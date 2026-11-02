@@ -127,6 +127,7 @@ import type {
 | `createOperationsPolicy`, `OperationsPolicy`, `OperationsDeps`, `OperationsSettingsSource` | 함수, 인터페이스 | X.operations.spec §3.8 |
 | `operationsSettings` | `defineSettings` 결과 | X.operations.spec §6 |
 | `traceReadOf`, `TraceSettings` | 함수, 타입 | X.operations.spec §3.9 |
+| `testRunControlOf` | 함수 | 이 문서 §4.4.8 |
 
 패키지 안에서만 쓰는 이름(`RegistrationRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`, `hostInternalsOf`)은 `src/primitives/index.ts`에서만 export하고 루트에서 재export하지 않는다. loading-trust와 operations 코드는 같은 패키지 안이라 이 경로로 import한다. loading-trust·operations의 다른 이름(예: `assignTier`, `runWithBudget`, `PI_COMPAT_TABLE`)도 같은 방식으로 패키지 안에서만 쓴다. 공개가 필요해지면 이 표에 행을 더한다.
 
@@ -260,8 +261,8 @@ export interface ExtHost {
   /** 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_HOOKS`에 있으면 수명주기 지점을 디스패치한다(§4.11). 끝나기를 기다린다 */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
   /** thread를 열 때(새로 만들거나 재개할 때) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
-  /** `options.child`가 참이면 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(§4.4.1 3a) */
-  openThread(threadId: ThreadId, options?: { readonly child?: boolean }): Promise<void>;
+  /** `options.child`가 참이면 서브에이전트 자식 대화다. 확장은 켜지만 drive 임대는 받지 않는다(§4.4.1 3a). `options.testRun`이 참이면 Test run 대화다(§4.4.8) */
+  openThread(threadId: ThreadId, options?: { readonly child?: boolean; readonly testRun?: boolean }): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
   /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null. L3.group-sdk.spec §3.13 요청 2의 답이다 */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
@@ -1144,6 +1145,24 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 - `effects` 계수에는 기능 호출을 넣지 않는다. 공급자의 반환만으로는 처음 결과인지 재생된 결과인지 알 수 없다 [미결].
 - 시험: `replay-effects.test.ts`가 "재생 2회, 효과 1회"(같은 상태 판으로 drive를 두 번 호출해도 공급자 효과 1회), on의 읽기·선언 없는 쓰기·키 없는 멱등 쓰기 거부와 공급자 미호출을 확인한다.
 
+#### 4.4.8 Test run 단계 경계 멈춤 (X-19)
+
+[결정: 2026-10-31 사용자, X-19] Test run 대화는 다음 단계 경계에서 멈출 수 있다. 멈춘 동안 drive 락은 쥔 채로 두고, "이어서"(`resume`)나 "한 경계씩"(`step`)으로 다시 간다. 일반 대화에는 이 동작이 없다. 구현은 `primitives/step-pause.ts`(멈춤 상태), `primitives/dispatch.ts`(기다리기), `primitives/host.ts`(`testRunControlOf`)다.
+
+1. Test run 표지. `openThread(threadId, { testRun: true })`로 연 thread가 Test run이다(`ThreadOpenOptions.testRun`, 와이어의 `ThreadSummary.testRun`과 같은 뜻). 표지는 열린 뒤에만 단다. thread를 다시 열거나 닫거나 호스트를 dispose하면 표지와 멈춤 상태를 함께 지운다. 멈춘 경계는 풀려서 기다리던 디스패치가 끝난다. `boundary.ts`는 이 값을 읽지 않고 `child`만 본다. [미결: L4 caller] 조립 루트가 `openThread`에 `testRun`을 넘기는 자리는 대화 열기 경로(T-WB)다. `ThreadSummary.testRun`이 참인 대화를 열 때 넘긴다.
+2. `pause(threadId)`: Test run이 아니면 `{ kind: "not_a_test_run" }`이다. 그 밖에는 멈춤 요청만 남기고 `{ paused: true }`를 돌려준다. 요청은 다음 단계 경계에서 적용한다. 요청이 이미 있으면 그대로 둔다.
+3. 적용 자리는 단계 경계(`step_end`)의 `boundary.step.after` 처리가 끝난 뒤다. 디스패처는 이 훅의 체인을 모두 접은 뒤, 같은 thread에 요청이 있으면 그 디스패치의 반환을 기다리게 한다. L1 루프는 이 디스패치를 기다린 뒤에 단계 끝 커밋과 다음 단계를 시작하므로, 멈춘 동안에는 새 turn, `loop.turn`·`loop.spawn`, 도구 실행, 단계 끝 커밋이 시작되지 않는다. 분리(detached) 훅은 기다리지 않으므로 이 자리에 닿지 않는다. 이 훅이 아닌 디스패치는 멈춤 상태를 조회하지 않는다. 이 게이트는 L1 루프와 경계 커밋 코드를 바꾸지 않는다.
+4. drive 락은 건드리지 않는다. 멈춘 동안 turn이 끝나지 않으므로 drive 함수는 다시 불리지 않고, `lease.released`는 기록되지 않으며, `lease.signal`은 올라가지 않는다. 사용자 입력은 입력 큐에만 쌓인다(L1의 몫).
+5. 풀림. 멈춘 디스패치는 `resume`이나 `step`이 풀거나, 그 디스패치의 `options.signal`(turn의 취소 신호)이 중단되거나, thread를 닫거나 다시 열 때 끝난다. 중단으로 풀린 뒤에도 요청은 남으므로 다음 경계는 다시 멈춘다.
+6. `resume(threadId)`: Test run이 아니면 `not_a_test_run`, 요청이 없으면 `{ kind: "not_paused" }`다. 그 밖에는 요청을 거두고 멈춘 경계를 풀어 `{ paused: false }`를 돌려준다.
+7. `step(threadId)`: Test run이 아니면 `not_a_test_run`, 요청이 없으면 `not_paused`다. 멈춘 중이면 그 경계를 풀고 요청은 남긴다(다음 경계에서 다시 멈춘다). 아직 멈추지 않았으면 다음 경계 하나를 지나가게 표하고, 그 뒤 경계부터 멈춘다. 두 경우 모두 `{ paused: true }`를 돌려준다.
+8. 설정과 안전 모드에서 독립이다. 멈춤 게이트는 `x.operations.*` 설정과 안전 모드를 읽지 않는다. 안전 모드는 로더가 L3 그룹과 사용자·프로젝트 tier를 싣지 않는 것(`startupFilter`)이고, 호스트는 그 값을 보지 않는다. 게이트의 판단 재료는 thread의 멈춤 요청과 디스패치의 훅 이름뿐이다. 그래서 설정을 끄거나 안전 모드를 켜도 Test run의 멈춤은 같다.
+9. `phase(threadId)`는 읽기만 한다. 아무것도 커밋하지 않는다(와이어 `testRun.phase`, W-50).
+   - drive 락 보유자가 없으면(drive 락이 없거나, 커밋되지 않았거나, 반납이 커밋되었으면) `{ phase: null, group: null, seq: null }`이다.
+   - 보유자 그룹의 매니페스트 `group.composition.phases`가 없으면 같은 값이다. 그룹 이름만 알리는 안은 [미결]로 남긴다 [제안].
+   - 있으면 `group`은 보유자의 확장 이름이고, `seq`는 그 scope의 커밋된 상태 판 `rev`다 [제안: 캐시에 이벤트 seq가 없으므로 판 `rev`를 쓴다]. `phase`는 상태 문서의 `phase` 문자열이 `phases.nodes[].id` 가운데 하나일 때만 그 값이고, 아니면 null이다. 상태 문서의 나머지는 내보내지 않는다(F.extensions.spec §3.6).
+10. `not_available`은 이 구현에 없다. 포트를 제공하지 않는 조립이 쓰는 값이다.
+
 ### 4.5 scope
 
 #### 4.5.1 정의
@@ -1626,6 +1645,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 45. (M2, X.3, M3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 그룹 사이 격리는 kind 접두 필터(자기 접두, `readsRecordKinds`)다. 이벤트 버스는 없다(§4.9).
 54. (M3b, B2-WEB, M3-REQ-37) `hostOf(g).registerWebProvider({ capability: "web.search", create })`는 `ExtHost.resources`에 kind `web_provider`, 이름 `web.search`로 기록되고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다. 한 scope가 같은 기능을 두 번 등록하면 `resource_conflict`이고, `web.search`와 `web.fetch`는 한 scope에 함께 등록된다. 다른 확장이 같은 기능을 등록하면 둘 다 남는다(§3.9.1). scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다. 다른 종류의 기록이나 `create`가 없는 등록 값은 `webProviderRegistrationOf`가 `undefined`를 돌려준다.
 58. (M4, X-17) drive 함수가 `loop.ask`를 부르면 question 승인이 하나 열리고(`origin.caller`는 `ext:<확장 이름>`), drive 락이 사유 `waiting`으로 반납되며, 호출은 `lease_revoked`로 거부된다. 답이 오면 그 Registration이 차수가 오른 새 drive 락을 받고, 같은 `requestId`의 재호출이 `answered`를 돌려주며, 승인은 한 번만 열린다. 거부와 만료는 `denied`와 `resolvedBy`로 돌려준다. 답을 기다리는 Registration은 `x.primitives.leaseWaitLimit`의 대기 계수에 들지 않는다. 끈 Registration의 승인은 닫히지 않고 남는다. 승인 포트가 없으면 `port_unavailable`이다. 확인: `packages/ext-host/test/primitives/drive-ask.test.ts`.
+59. (M4, X-19) Test run 대화에서 `pause`를 부르면 다음 `boundary.step.after` 디스패치가 처리 뒤에 멈추고, `resume`이 풀면 같은 결과로 끝난다. 멈춘 동안 drive 함수는 한 번만 불렸고 drive 락은 같으며 `lease.released`가 없고 `loop.turn`은 하나뿐이다. `step`은 경계 하나만 지나가게 하고 요청이 없으면 `not_paused`, Test run이 아니면 `not_a_test_run`이다. 중단과 thread 닫기도 멈춘 디스패치를 푼다. `phase`는 drive 락 보유자의 `composition.phases`와 커밋된 `phase`를 읽고 쓰지 않는다. 확인: `packages/ext-host/test/primitives/test-run-pause.test.ts`.
 
 ## 10. 미결 사항
 

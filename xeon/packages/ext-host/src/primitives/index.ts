@@ -41,6 +41,7 @@ export {
   createExtHost,
   hostInternalsOf,
   registrationToggleSourceOf,
+  testRunControlOf,
   traceReadOf,
   type ExtHost,
   type ExtHostDeps,

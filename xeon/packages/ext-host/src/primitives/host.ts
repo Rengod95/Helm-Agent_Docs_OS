@@ -14,6 +14,7 @@ import type {
   PortLookup,
   RegistrationHandle,
   RegistrationId,
+  TestRunControlPort,
   TraceReadPort,
   Unsubscribe,
 } from "@fresnel/contracts/extensions";
@@ -74,7 +75,8 @@ import {
   type RegistrationInfo,
   type RegistrationSetupOutcome,
 } from "./registration.ts";
-import { createStateService } from "./state.ts";
+import { createStateService, type StateService } from "./state.ts";
+import { createStepPause, type StepPause } from "./step-pause.ts";
 
 export type {} from "./errors.ts";
 
@@ -210,8 +212,12 @@ export interface ExtHost {
    * L1이 자기 커밋(위임 정착 `agent.settled`)을 알릴 때 쓴다. 끝나기를 기다린다
    */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
-  /** thread를 열 때(새로 만들거나 재개할 때, 되감기 뒤) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
+  /**
+   * thread를 열 때(새로 만들거나 재개할 때, 되감기 뒤) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다.
+   * `testRun`이 참이면 Test run 대화로 표지한다(X-19). 다시 열거나 닫으면 멈춤 상태는 지워진다
+   */
   openThread(threadId: ThreadId, options?: ThreadOpenOptions): Promise<void>;
+  /** thread를 닫는다. Test run 표지와 멈춘 단계 경계를 풀어 기다리던 dispatch가 끝나게 한다 */
   closeThread(threadId: ThreadId): Promise<void>;
   /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null(L3.group-sdk.spec §3.13 요청 2) */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
@@ -268,6 +274,12 @@ export interface ExtHostInternals {
     reason?: RegistrationToggleRequestReason,
     threadId?: ThreadId,
   ): void;
+  /** thread가 Test run 대화인가(`openThread`에 `testRun` 참으로 열었다). testRunControlOf가 읽는다 */
+  readonly isTestRun: (threadId: ThreadId) => boolean;
+  /** Test run 단계 경계 멈춤 상태(X-19). dispatch가 `boundary.step.after` 뒤에 기다리고 testRunControlOf가 요청을 바꾼다 */
+  readonly stepPause: StepPause;
+  /** 상태 판 읽기(커밋된 판). testRunControlOf의 phase가 쓴다 */
+  readonly state: Pick<StateService, "docOf" | "revOf">;
 }
 
 type RegistrationToggleRequestReason = "request" | "auto_disable" | "safe_mode" | "startup_disable";
@@ -318,6 +330,51 @@ export function traceReadOf(host: ExtHost): TraceReadPort {
     enabled: () => trace.enabled(),
     turn: (threadId, turnId) => trace.turn(threadId, turnId),
     timings: (filter) => trace.timings(filter),
+  };
+}
+
+/** 상태 문서의 `phase` 문자열. 문서가 객체가 아니거나 `phase`가 문자열이 아니면 null */
+function phaseValueOf(doc: unknown): string | null {
+  if (typeof doc !== "object" || doc === null || !("phase" in doc)) return null;
+  return typeof doc.phase === "string" ? doc.phase : null;
+}
+
+/**
+ * Test run 단계 경계 멈춤 제어 포트(X-19, X.primitives.spec §4.4.8). wire `testRun.*`이 쓴다.
+ * pause는 요청만 남기고 다음 `boundary.step.after` 처리 뒤에 적용한다. 멈춘 동안 drive 락은 그대로 있다.
+ * phase는 읽기만 한다. drive 락 보유자의 그룹 선언(`composition.phases`)과 커밋된 상태 판의 `phase`를 본다
+ */
+export function testRunControlOf(host: ExtHost): TestRunControlPort {
+  const { core, isTestRun, stepPause, state } = hostInternalsOf(host);
+  return {
+    pause(threadId) {
+      if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
+      stepPause.pause(threadId);
+      return ok({ paused: true });
+    },
+    resume(threadId) {
+      if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
+      if (!stepPause.resume(threadId)) return err({ kind: "not_paused" });
+      return ok({ paused: false });
+    },
+    step(threadId) {
+      if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
+      if (!stepPause.step(threadId)) return err({ kind: "not_paused" });
+      return ok({ paused: true });
+    },
+    phase(threadId) {
+      if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
+      // 보유자는 `leaseOf`가 보는 자료와 같다. 커밋되지 않았거나 반납이 커밋된 임대는 보유자가 아니다
+      const lease = host.leaseOf(threadId);
+      const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
+      const phases = record?.manifest.group?.composition?.phases;
+      if (record === undefined || phases === undefined) {
+        return ok({ phase: null, group: null, seq: null });
+      }
+      const value = phaseValueOf(state.docOf(threadId, record.id));
+      const phase = value !== null && phases.nodes.some((node) => node.id === value) ? value : null;
+      return ok({ phase, group: record.extension, seq: state.revOf(threadId, record.id) });
+    },
   };
 }
 
@@ -416,6 +473,14 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   const traceBuffer = createTraceBuffer({
     settings: deps.trace ?? (() => DEFAULT_TRACE_SETTINGS),
   });
+  // Test run 단계 경계 멈춤(X-19). 멈춤 상태와 Test run 표지는 호스트마다 하나다
+  const stepPause = createStepPause();
+  const testRunThreads = new Set<ThreadId>();
+  /** Test run 표지와 멈춤 상태를 함께 지운다. 멈춘 경계가 있으면 풀려서 기다리던 dispatch가 끝난다 */
+  const forgetTestRun = (threadId: ThreadId): void => {
+    testRunThreads.delete(threadId);
+    stepPause.release(threadId);
+  };
 
   const ports: PortLookup = {
     get<Api>(key: PortKey<Api>): Api | undefined {
@@ -450,6 +515,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       },
       threadSignal: (threadId) => core.threads.get(threadId)?.abort.signal,
       trace: traceBuffer,
+      stepPause,
     }),
     ports,
     scopes: new Map(),
@@ -757,10 +823,16 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     afterCommit: (threadId, events) => lifecycle.afterCommit(threadId, events),
     openThread: async (threadId, options) => {
       lifecycle.attach();
+      // 열기는 멈춤을 새로 시작한다. 표지는 열린 뒤에만 단다(열지 못한 thread를 Test run으로 남기지 않는다)
+      forgetTestRun(threadId);
       await boundary.openThread(threadId, options);
+      if (options?.testRun === true) testRunThreads.add(threadId);
       core.track(lifecycle.flush(threadId));
     },
-    closeThread: (threadId) => boundary.closeThread(threadId),
+    closeThread: async (threadId) => {
+      forgetTestRun(threadId);
+      await boundary.closeThread(threadId);
+    },
     leaseOf(threadId) {
       const held = core.threads.get(threadId)?.lease;
       if (held === null || held === undefined || held.status === "released") return null;
@@ -780,6 +852,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     async dispose() {
       await eachInOrder([...core.threads.keys()], async (threadId) => {
+        forgetTestRun(threadId);
         await boundary.closeThread(threadId);
         return "continue";
       });
@@ -819,6 +892,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       if (record === undefined) return;
       scope.request(record, enabled, reason === "request" ? undefined : reason, threadId);
     },
+    isTestRun: (threadId) => testRunThreads.has(threadId),
+    stepPause,
+    state,
   });
   return host;
 }
