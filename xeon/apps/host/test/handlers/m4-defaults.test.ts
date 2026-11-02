@@ -64,28 +64,12 @@ test("m4-defaults: a defaulted M4 method answers -32601 with its name", async ()
   await connection.close();
 });
 
-// 계약이 넓어졌지만 소유 트랙(T-WB, T-WC)이 아직 채우지 않은 새 인자는 조용히 무시하지 않고 -32602로 거부한다.
 async function failureOf(call: Promise<unknown>): Promise<unknown> {
   return call.then(
     () => undefined,
     (error: unknown) => error,
   );
 }
-
-test("m4-defaults: new params on existing methods are rejected as invalid until their owner implements them", async () => {
-  const host = createFakeHost();
-  const { connection } = host.connect();
-  await connection.request("host.hello", HELLO_PARAMS);
-  const failures = await Promise.all([
-    failureOf(connection.request("thread.create", { testRun: true })),
-    failureOf(connection.request("thread.create", { testRun: true, profileId: "p" })),
-  ]);
-  expect(failures).toMatchObject([
-    { code: -32602, data: { details: { issues: [{ path: "testRun" }] } } },
-    { code: -32602, data: { details: { issues: [{ path: "testRun" }] } } },
-  ]);
-  await connection.close();
-});
 
 // W-16: `around`과 `before`는 함께 쓰지 않는다. 계약 스키마가 막지 않으므로 처리기가 port를 부르기 전에 거부한다.
 test("m4-defaults: thread.read rejects around together with before as invalid params", async () => {

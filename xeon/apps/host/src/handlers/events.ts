@@ -371,6 +371,17 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       });
     }
   });
+  // 프로필 파일을 바꾸면 연결 전체에 `profile.changed`를 보낸다(W-46). 놓치면 다른 창이 옛 목록을 보이므로 송신 큐가 차 있어도 건너뛰지 않는다
+  const offProfiles = engine.ports.m4.profileTestRun.onProfilesChanged((change) => {
+    for (const conn of hub.connections()) {
+      if (conn.phase !== "ready") continue;
+      conn.sender.push({
+        jsonrpc: "2.0",
+        method: "profile.changed",
+        params: toRecord({ rev: change.rev, ids: [...change.ids] }),
+      });
+    }
+  });
   // 알림이 생기면 연결 전체에 `notify.delivered`를 보낸다(HS-94). 값과 설정 판정은 notice-delivery.ts가 한다
   const offNotices = startNoticeDelivery(engine, hub);
   return {
@@ -381,6 +392,7 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       offCommit();
       offVolatile();
       offSettings();
+      offProfiles();
       offNotices();
       poller.dispose();
     },
