@@ -6,6 +6,7 @@
 |---|---|
 | `frame.tsx` | `SettingsFrame`: 셸 가운데에 탭 열(키 찾기 + 탭 13개, `ListNavigation kind="pages"`)과 폼 열(머리, 띠, 내용, 초안 바닥). well은 닫힌 채로 시작, compact 폭은 탭 열 대신 머리 `Select` |
 | `row.tsx` | `SettingRow`(라벨 · 키 · 범위 배지 · 적용 시점, 아래 컨트롤과 `Field` 오류), `SettingSection`(고정 머리) |
+| `stepper.css` | `appearance="stepper"` 숫자 칸의 값 칸이 `containerClassName` 폭을 채운다(caustic은 값 칸이 고정 폭이라 바깥이 더 넓으면 + 단추 뒤에 빈 자리가 남음). caustic이 고치면 지운다 |
 | `parts.tsx` | 가려진 범위 값, 관리 잠금 문장, `List reorderable` 한국어 문구 |
 | `tabs.ts` | 탭 13개, 전용 탭 → 시안 폴더. 탭을 누르면 `_shell/routes.ts`의 `navigateToPage`로 옆 시안에 간다(`?tab=<id>`, 같은 시안이면 그 자리에서 바꾼다) |
 | `mount.tsx` | 진입 도우미(글꼴 → `MockRoot` → `ShellStateProvider`) |
@@ -17,3 +18,4 @@
 - O-05 재인증과 O-06 삭제 확인은 P-10의 상태(S2, S7, S8)입니다. P-11 회전 위험 확인(S2)도 같은 `Dialog kind="alert"`입니다.
 
 빌드: `MOCKUP=<폴더> MOCKUP_OUT=<dir>/<폴더> mise exec -- bun run mockup:build`.
+- 카드 여백: 카드가 위아래 12를 한 번만 준다(`py-3`). 카드 직속 `SettingRow`(`data-slot=setting-row`)는 첫 줄 위·끝 줄 아래 자기 여백을 걷어 줄 사이 12+12만 남기고, 자기 여백을 그리는 `List`(8)·`ListDescription`(4)·`ul`(줄 min-h-8)은 첫·끝 자식일 때 음수 마진으로 그만큼 걷는다(`row.tsx` `OWN_PAD`). 새 종류의 목록을 카드에 넣으면 여기에 한 줄 더한다.

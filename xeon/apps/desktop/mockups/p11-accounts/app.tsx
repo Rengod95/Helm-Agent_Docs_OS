@@ -74,7 +74,7 @@ function ProvidersTab({ state }: { state: State }) {
         <AccountGrid provider="anthropic" accounts={accountsFor(state)} disabled={off} />
       </SettingSection>
       <SettingSection title="openai" end={<AddAccountButton disabled={off} />}>
-        <p className="m-0 py-1 text-ui text-text-secondary">계정이 없어요. 기본 키를 써요.</p>
+        <p className="m-0 py-0.5 text-ui text-text-secondary">계정이 없어요. 기본 키를 써요.</p>
       </SettingSection>
       <SettingSection title="계정 회전">
         <SettingRow
@@ -182,7 +182,11 @@ function BudgetsTab() {
           </Button>
         }
       >
-        <div role="table" aria-label="provider별 레이트 리밋" className="grid overflow-x-auto">
+        <div
+          role="table"
+          aria-label="provider별 레이트 리밋"
+          className="grid overflow-x-auto py-0.5"
+        >
           <div
             role="row"
             className="grid grid-cols-[6rem_8rem_7rem_9rem_1.75rem] gap-2 pb-1 text-ui-sm text-text-tertiary"

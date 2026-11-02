@@ -28,7 +28,7 @@ export function Gauge({
     <div
       role="group"
       aria-label={`${label} ${value}, ${limit}`}
-      className="grid grid-cols-[9rem_minmax(0,14rem)_auto] items-center gap-3 py-1 text-ui @max-[30rem]:grid-cols-[7rem_minmax(0,1fr)]"
+      className="grid grid-cols-[9rem_minmax(0,14rem)_auto] items-center gap-3 py-1 text-ui first:pt-0.5 last:pb-0.5 @max-[30rem]:grid-cols-[7rem_minmax(0,1fr)]"
     >
       <span className="text-text-secondary">{label}</span>
       {ratio === null ? (
@@ -66,7 +66,7 @@ export function AccountGrid({
   disabled?: boolean | undefined;
 }) {
   return (
-    <div role="table" aria-label={`${provider} 계정`} className="grid">
+    <div role="table" aria-label={`${provider} 계정`} className="grid py-0.5">
       <div
         role="row"
         className={`grid ${COLS} items-center gap-2 pb-1 text-ui-sm text-text-tertiary`}

@@ -311,7 +311,7 @@ export function App({ state }: { state: State }) {
             />
           ))}
           {state === "S5" && (
-            <div className="flex items-center gap-2 py-2 text-ui text-text-secondary">
+            <div className="flex items-center gap-2 py-2 text-ui text-text-secondary first:pt-1 last:pb-1">
               사용자 그룹이 없어요.
             </div>
           )}

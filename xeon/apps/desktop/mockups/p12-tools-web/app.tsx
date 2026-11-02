@@ -240,7 +240,7 @@ export function App({ state }: { state: State }) {
         {loading ? (
           <SkeletonRows />
         ) : state === "S4" ? (
-          <p className="m-0 py-1 text-ui text-text-secondary">브라우저 도구가 없어요.</p>
+          <p className="m-0 py-0.5 text-ui text-text-secondary">브라우저 도구가 없어요.</p>
         ) : (
           <ProviderList
             label="브라우저 순서"
@@ -318,7 +318,7 @@ export function App({ state }: { state: State }) {
           </Button>
         }
       >
-        <p className="m-0 py-1 font-mono text-mono-sm text-text-secondary">
+        <p className="m-0 py-0.5 font-mono text-mono-sm text-text-secondary">
           playwright · chrome-devtools · github
         </p>
       </SettingSection>

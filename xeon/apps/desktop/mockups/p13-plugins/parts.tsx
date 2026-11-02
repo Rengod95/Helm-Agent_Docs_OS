@@ -79,7 +79,11 @@ export function GroupRow({
   const on = !safe && (e.state.kind === "on" || e.state.kind === "pending");
   const locked = safe || e.state.kind === "untrusted" || disabled === true;
   return (
-    <div role="group" aria-label={e.label ?? e.name} className="grid gap-1 py-2">
+    <div
+      role="group"
+      aria-label={e.label ?? e.name}
+      className="grid gap-1 py-2 first:pt-1 last:pb-1"
+    >
       <div className="flex min-w-0 items-start gap-2.5">
         <div className="grid min-w-0 flex-1 gap-0.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -130,7 +134,7 @@ export function GroupRow({
 export function PluginRow({ e, safe = false }: { e: Ext; safe?: boolean }) {
   const safeOff = safe && (e.source === "user" || e.source === "project");
   return (
-    <div className="flex min-h-8 min-w-0 items-center gap-3">
+    <div className="flex min-h-8 min-w-0 items-center gap-3 first:-mt-1 last:-mb-1">
       <span className="min-w-0 flex-1 truncate font-mono text-mono text-text-primary">
         {e.name}
       </span>
