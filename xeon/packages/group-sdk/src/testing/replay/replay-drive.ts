@@ -55,6 +55,11 @@ export interface ReplayHarness {
     readonly events: readonly JsonValue[];
     readonly commitPoints: readonly number[];
     readonly effects?: EffectCounts;
+    /**
+     * 이 실행이 쓴 thread id. 모든 실행이 기준 실행과 같은 thread를 써야 한다(정규화가 ID를 자리표시자로 바꾸므로 이벤트열
+     * 비교로는 다른 thread가 보이지 않는다). 채우면 `replayDrive`가 다른 값을 `thread-mismatch`로 센다
+     */
+    readonly threadId?: string;
   }>;
   /** 정규화한 이벤트열의 digest. 같은 의미면 같은 문자열 */
   digest(events: readonly JsonValue[]): string;
@@ -84,6 +89,8 @@ export interface ReplayCut {
   readonly digest: string;
   /** 이 절단 실행이 새로 낸 효과 수. 하니스가 계수기를 가진 경우만 */
   readonly effects?: EffectCounts;
+  /** 이 절단 실행이 쓴 thread id. 하니스가 알려 준 경우만 */
+  readonly threadId?: string;
 }
 
 export interface ReplayDriveReport {
@@ -95,12 +102,29 @@ export interface ReplayDriveReport {
   readonly effects?: EffectCounts;
   /**
    * ok가 false인데 절단 비교가 아닌 이유가 있으면 채운다: 커밋 수 초과, 커밋 0개,
-   * 이벤트열은 같은데 절단 실행이 새 효과를 냈다(`effects-doubled`), 기준 효과 수가 `expectEffects`와 다르다(`effects-mismatch`)
+   * 이벤트열은 같은데 절단 실행이 다른 thread에서 돌았다(`thread-mismatch`), 절단 실행이 새 효과를 냈다(`effects-doubled`),
+   * 기준 효과 수가 `expectEffects`와 다르다(`effects-mismatch`)
    */
-  readonly failure?: "max-commits-exceeded" | "no-commits" | "effects-doubled" | "effects-mismatch";
+  readonly failure?:
+    | "max-commits-exceeded"
+    | "no-commits"
+    | "thread-mismatch"
+    | "effects-doubled"
+    | "effects-mismatch";
+  /** `thread-mismatch`일 때 기준 실행과 다른 thread를 쓴 절단의 `commitIndex` */
+  readonly threadMismatchCuts?: readonly number[];
 }
 
 const DEFAULT_MAX_COMMITS = 200;
+
+/**
+ * 실행마다 쓴 thread id가 첫 실행(기준 실행)과 같은지 본다. 다른 실행의 번호(0부터)를 돌려준다. 모두 같으면 빈 배열.
+ * 순수 함수다. 하니스 시험이 실행 기록에 쓴다
+ */
+export function threadMismatches(threads: readonly string[]): readonly number[] {
+  const [baseline] = threads;
+  return threads.flatMap((thread, index) => (thread === baseline ? [] : [index]));
+}
 
 /**
  * drive 재생 규율 검사(L3.group-sdk.spec §3.10, eng.events.design EV-09).
@@ -128,12 +152,16 @@ export async function replayDrive(options: ReplayDriveOptions): Promise<ReplayDr
       firstDiff: equal ? null : harness.firstDiff(baseline.events, rerun.events),
       digest,
       ...(rerun.effects === undefined ? {} : { effects: rerun.effects }),
+      ...(rerun.threadId === undefined ? {} : { threadId: rerun.threadId }),
     };
   };
   const cuts = await cutsFrom(1, commits, cutAt, []);
   const eventsOk = cuts.every((cut) => cut.equal);
+  const wrongThread = threadMismatchCuts(baseline.threadId, cuts);
   const failure = eventsOk
-    ? effectFailureOf(baseline.effects, cuts, options.expectEffects)
+    ? wrongThread.length > 0
+      ? "thread-mismatch"
+      : effectFailureOf(baseline.effects, cuts, options.expectEffects)
     : undefined;
   return {
     commits,
@@ -142,7 +170,16 @@ export async function replayDrive(options: ReplayDriveOptions): Promise<ReplayDr
     ok: eventsOk && failure === undefined,
     ...withEffects,
     ...(failure === undefined ? {} : { failure }),
+    ...(failure === "thread-mismatch" ? { threadMismatchCuts: wrongThread } : {}),
   };
+}
+
+/** 기준 실행과 다른 thread를 쓴 절단의 번호. 기준이나 절단이 thread id를 알리지 않았으면 비교하지 않는다 */
+function threadMismatchCuts(baseline: string | undefined, cuts: readonly ReplayCut[]): number[] {
+  if (baseline === undefined) return [];
+  return cuts.flatMap((cut) =>
+    cut.threadId !== undefined && cut.threadId !== baseline ? [cut.commitIndex] : [],
+  );
 }
 
 /**

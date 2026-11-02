@@ -1,7 +1,8 @@
-import { Bug, err, ok, parse, type Result } from "@fresnel/contracts";
+import { Bug, canonicalJson, err, ok, parse, type Result } from "@fresnel/contracts";
 import { orchestrationOf } from "./util.ts";
 import {
   isGroupExtension,
+  type CompositionDecl,
   validateManifest,
   type ExtensionEntry,
   type ExtensionManifest,
@@ -127,8 +128,22 @@ function issue(code: GroupDefIssueCode, path: string, message: string): GroupDef
 
 /** 순수 함수. validateManifest(F) 결과와 그룹 규칙을 함께 돌려준다 */
 export function validateGroupDef(def: GroupDefShape): readonly (GroupDefIssue | ManifestIssue)[] {
-  const found: (GroupDefIssue | ManifestIssue)[] = [...validateManifest(def.manifest).issues];
-  const { manifest } = def;
+  const manifest = withComposition(def.manifest, def.composition);
+  const found: (GroupDefIssue | ManifestIssue)[] = [...validateManifest(manifest).issues];
+  const declared = def.manifest.group?.composition;
+  if (
+    def.composition !== undefined &&
+    declared !== undefined &&
+    canonicalJson(declared) !== canonicalJson(def.composition)
+  ) {
+    found.push(
+      issue(
+        "composition_conflict",
+        "/composition",
+        "def.composition differs from manifest.group.composition: declare it in one place",
+      ),
+    );
+  }
 
   if (!isGroupManifest(manifest)) {
     found.push(
@@ -196,6 +211,15 @@ export function validateGroupDef(def: GroupDefShape): readonly (GroupDefIssue | 
   return found;
 }
 
+/** `def.composition`을 매니페스트 `group.composition`에 채운 사본. 선언이 없거나 `group`이 없으면 그대로다 */
+function withComposition(
+  manifest: ExtensionManifest,
+  composition: CompositionDecl | undefined,
+): ExtensionManifest {
+  if (composition === undefined || manifest.group === undefined) return manifest;
+  return { ...manifest, group: { ...manifest.group, composition } };
+}
+
 /** defineGroup이 돌려준 객체. isGroupModule이 이 집합으로 판별한다 */
 const builtGroups = new WeakSet<object>();
 
@@ -214,6 +238,11 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = NoSett
       `defineGroup(${def.manifest.name}): ${errors.map((found) => `${found.code} ${found.path}`).join("; ")}`,
     );
   }
+  // 구성 선언은 매니페스트 사본에 채운다(X-16). 매니페스트 상수 자체는 바꾸지 않는다
+  const filled = withComposition(def.manifest, def.composition);
+  if (!isGroupManifest(filled)) {
+    throw new Bug(`defineGroup(${def.manifest.name}): manifest is not a group manifest`);
+  }
   const entry: ExtensionEntry = ({ register }) => {
     const registrationDef: RegistrationDef<S> = def.state === undefined ? {} : { state: def.state };
     register(def.manifest.name, registrationDef, (api) =>
@@ -222,7 +251,7 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = NoSett
   };
   const version = def.state?.version ?? 0;
   const group: GroupModule = {
-    manifest: def.manifest,
+    manifest: filled,
     entry,
     ...(def.settings === undefined ? {} : { settings: settingsOf(def.settings) }),
     stateUpcasters: stateUpcasters(version, def.migrations),

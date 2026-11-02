@@ -8,7 +8,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
-import { defineGroup } from "../src/index.ts";
+import { defineGroup, type GroupManifest } from "../src/index.ts";
 import { install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -111,4 +111,65 @@ test("resources.provider-released-on-disable", async () => {
   t.host.registration("provided")?.enable();
   await t.settled();
   expect([...providers.keys()]).toEqual(["provided-model"]);
+});
+
+test("resources.group-registerMethod-is-callable-and-released-with-the-group", async () => {
+  const t = await createTestHost();
+  const manifest: GroupManifest = {
+    ...groupManifestOf({ name: "methoded" }),
+    methods: [
+      {
+        verb: "echo",
+        params: {
+          type: "object",
+          properties: { word: { type: "string" } },
+          required: ["word"],
+          additionalProperties: false,
+        },
+        result: {
+          type: "object",
+          properties: { echoed: { type: "string" } },
+          required: ["echoed"],
+          additionalProperties: false,
+        },
+        readOnly: true,
+      },
+    ],
+  };
+  await install(
+    t,
+    defineGroup({
+      manifest,
+      setup(g) {
+        g.registerMethod("echo", {
+          handler: (params) => {
+            const word =
+              typeof params === "object" && params !== null && "word" in params ? params.word : "";
+            return Promise.resolve({ echoed: `${String(word)}!` });
+          },
+        });
+      },
+    }),
+  );
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+  const call = (params: unknown) =>
+    t.host.methods.call({
+      extension: "methoded",
+      verb: "echo",
+      params,
+      threadId: thread,
+      signal: new AbortController().signal,
+      caller: "wire",
+    });
+  expect(await call({ word: "hi" })).toEqual({ kind: "ok", value: { echoed: "hi!" } });
+  const bad = await call({ word: 1 });
+  expect(bad.kind).toBe("params_invalid");
+  expect(t.host.methods.list().map((info) => `${info.extension}.${info.verb}`)).toEqual([
+    "methoded.echo",
+  ]);
+  t.host.registration("methoded")?.disable();
+  await t.settled();
+  expect(t.host.methods.list()).toEqual([]);
 });

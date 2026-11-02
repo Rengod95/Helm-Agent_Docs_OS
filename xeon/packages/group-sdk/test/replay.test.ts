@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { NO_EFFECTS, replayDrive } from "../src/testing/index.ts";
+import { NO_EFFECTS, replayDrive, threadMismatches } from "../src/testing/index.ts";
 import {
   badDriveGroup,
   doubledEffectGroup,
@@ -9,11 +9,7 @@ import {
   onceEffectGroup,
   silentDriveGroup,
 } from "./fixtures/drive-groups.ts";
-import {
-  createReplayHarness,
-  threadMismatches,
-  type CountingReplayHarness,
-} from "./support/replay-harness.ts";
+import { createReplayHarness, type CountingReplayHarness } from "./support/replay-harness.ts";
 
 /**
  * 실행마다 `harness.thread()`를 기록하는 하니스. `threadOf(실행 번호, 실제 thread)`가 기록할 값을 정한다.
@@ -54,6 +50,27 @@ test("replay.thread-check-reports-a-run-on-another-thread", async () => {
   // 이벤트열 비교는 ID를 자리표시자로 바꾸므로 이 실행도 통과한다. thread 검사만 세 번째 실행(번호 2)을 잡는다
   expect(report.ok).toBe(true);
   expect(threadMismatches(threads)).toEqual([2]);
+});
+
+test("replay.thread-mismatch-fails-with-the-cut-index", async () => {
+  const other = fixedIdFactory(1000).next("thr");
+  const base = createReplayHarness();
+  const runs = { count: 0 };
+  const harness: CountingReplayHarness = {
+    ...base,
+    async run(group, restore) {
+      const result = await base.run(group, restore);
+      const run = runs.count;
+      runs.count += 1;
+      return run === 2 ? { ...result, threadId: other } : result;
+    },
+  };
+  const report = await replayDrive({ group: goodDriveGroup(), harness });
+  // 이벤트열은 같고(ID는 자리표시자로 바뀐다) 둘째 절단만 다른 thread에서 돌았다
+  expect(report.cuts.every((cut) => cut.equal)).toBe(true);
+  expect(report.ok).toBe(false);
+  expect(report.failure).toBe("thread-mismatch");
+  expect(report.threadMismatchCuts).toEqual([2]);
 });
 
 test("replay.thread-check-lists-every-run-that-differs-from-the-first", () => {

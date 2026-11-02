@@ -94,11 +94,11 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 import type { Static } from "typebox";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
-  ExtensionEntry, ExtensionManifest, GroupDecl, GroupId, ProviderResourceDef, RegistrationApi, StateDecl,
+  CompositionDecl, ExtensionEntry, ExtensionManifest, GroupDecl, GroupId, ProviderResourceDef, RegistrationApi, StateDecl,
 } from "@fresnel/contracts/extensions";
 import type { Upcaster } from "@fresnel/contracts/records";
 import type { SettingDefInput, SettingGroup } from "@fresnel/contracts/settings";
-import type { CommandResourceDef, ToolResourceDef } from "@fresnel/ext-host";   // X.primitives.spec §3.8, §3.9
+import type { CommandResourceDef, ExtMethodResourceDef, ToolResourceDef } from "@fresnel/ext-host";   // X.primitives.spec §3.8, §3.9
 import type {
   CancelDelegatesResult, DelegateCallOptions, DelegateResult, DelegateSpec, DelegateStatusResult,
 } from "./delegate.ts";
@@ -142,6 +142,12 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = Record<never, 
   /** 저장소 안 그룹은 defineManifest 상수, 외부 그룹은 groupManifest(plugin.json 값) */
   readonly manifest: GroupManifest;
   /**
+   * 구성 선언(M4 T-GK, X-16, F.extensions.spec §3.1.2). `defineGroup`이 만드는 `GroupModule.manifest`의 `group.composition`에 채운다.
+   * 매니페스트 상수는 바꾸지 않고 사본에 채운다. 매니페스트 `group.composition`에도 선언이 있고 두 값이 다르면 `composition_conflict`이고
+   * `defineGroup`이 Bug를 던진다(같은 값이면 허용). 채운 매니페스트는 `validateManifest`의 `composition_*` 검사를 받는다. 생략하면 구성기는 "구성 정보 없음" 블록 하나로 본다
+   */
+  readonly composition?: CompositionDecl;
+  /**
    * 비공개 상태 문서. F StateDecl(schema, initial, version).
    * 생략하면 상태 없는 그룹이다(정책 그룹 등). 이때 g.state()·g.commit()은 X가 state_undeclared로 거부한다(X.primitives.spec §4.6.1 1번)
    */
@@ -169,6 +175,12 @@ export interface GroupApi<S, D extends GroupSettingDefs = Record<never, never>> 
   registerTool(def: ToolResourceDef): void;
   /** 명령 등록. X hostOf(g).registerCommand를 그대로 부른다. setup 안에서만. 이름은 그룹 이름과 같게 둔다 [제안] */
   registerCommand(name: string, def: CommandResourceDef): void;
+  /**
+   * 확장 메서드 처리기 등록(M4 T-GK, X-3). X hostOf(g).registerMethod를 그대로 부른다. setup 안에서만.
+   * 동사는 매니페스트 `methods`에 선언되어 있어야 하고 아니면 X가 `resource_name_invalid`로 던진다. scope가 꺼지면 해제된다.
+   * thread 안의 호출이면 처리기 안에서 `g.state()`를 명령 처리기처럼 읽는다(X.primitives.spec §4.12)
+   */
+  registerMethod(verb: string, def: ExtMethodResourceDef): void;
   /** 모델 provider 등록. X hostOf(g).registerProvider를 그대로 부른다(config는 JSON 표현). setup 안에서만. Registration이 꺼지면 해제된다 */
   registerProvider(name: string, config: ProviderResourceDef): void;
 }
@@ -194,7 +206,7 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = Record
 - `entry`가 하는 일 [제안]: `pluginsOf(manifest)`에서 id 없는 L3 루트 플러그인(`root`)을 찾아, 그 Registration을 `host.register(manifest.name, { state: def.state, defaultEnabled: pluginDefaultEnabled(manifest, root) }, (api) => def.setup(wrap(api)))`로 한 번 만든다. `def.state`가 없으면 `state` 키를 넘기지 않는다. `wrap`은 F `RegistrationApi`를 `GroupApi`로 감싼다. 감싼 `on`, `post`, `drive`, `commit`, `record`는 원래 연산을 그대로 부르고 계측 집계(§4.9)만 더한다. 루트 플러그인의 Registration id는 매니페스트 `name`이다(F.extensions.spec §3.1 Registration id 규칙). 그룹 이름은 매니페스트에서만 온다. `GroupDef`에 별도 `id` 필드는 없다.
 - 상태 없는 그룹 [제안]: `state`를 생략할 수 있다. 상태 없이 `on`, `post`, `record`만 쓰는 정책 그룹(L3.slots.spec §3.2, policy 템플릿)을 위해서다. 생략하면 `migrations`를 둘 수 없고(`state_migration_missing`이 아닌 `state_version` 오류), `g.state()`·`g.commit()`은 X가 `state_undeclared`로 거부한다.
 - 매니페스트 전달 [제안]: 저장소 안 그룹은 `defineManifest` 상수를 `manifest`에 넘긴다. `.fresnel-plugin/plugin.json`만 가진 외부 그룹은 JSON import(`import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" }`)로 읽고 `groupManifest(manifestJson)`을 넘긴다. X 로더도 같은 파일을 읽으므로 두 값은 같다. 같은지는 X 로더가 `validateManifestSet` 전에 비교한다 [가정: X.loading-trust.spec].
-- 리소스 등록 [제안]: `registerTool`, `registerCommand`, `registerProvider`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않으므로(§3.1, DR-14) group-sdk이 이 세 연산을 `GroupApi`로 옮긴다. `registerProvider`의 `config`는 `ProviderResourceDef`(JSON)다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
+- 리소스 등록 [제안]: `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8, §4.12)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@fresnel/ext-host`를 import하지 않으므로(§3.1, DR-14) group-sdk이 이 네 연산을 `GroupApi`로 옮긴다. `registerProvider`의 `config`는 `ProviderResourceDef`(JSON)다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
 - `settings()` [M2]: 값은 X의 `hostOf(g).settingValue(key)`로 호출 때마다 읽는다. 이 메서드는 포트 `GroupSettingsSourceKey`(서비스 이름 `fresnel.settings`, 조립 루트가 설정 서비스에 연결하는 자리)를 거친다. 내장 그룹은 모든 키를, 신뢰 `user`인 외부 그룹은 자기 `ext.<id>.*` 키만 읽는다(X.primitives.spec §3.8). 값이 없거나 스키마를 통과하지 못하면 정의의 `default`다. 포트가 없으면 기본값만 돌려준다. "마지막 단계 경계의 스냅샷"은 설정 서비스가 맡는다(thread별 값은 X.primitives.spec §3.2의 `PrimitivesSettingsSource`처럼 thread를 받는 읽기가 필요하며 [미결]). 기본값도 없고 값도 없는 시크릿 설정은 `Bug`다.
 - `commit` 래퍼 [M2]: `checkStateCommit`이 스키마·64 KiB·동일 값을 먼저 검사한다. 위반이면 X와 같은 `PrimitiveError`(`state_schema`, `state_too_large`)를 던지고, 같은 값이면 X를 부르지 않고 현재 값을 돌려준다. `record`·`post`는 `checkRecordKind`·`checkPostItem`으로 자기 `grp.<이름>.` 접두를 먼저 검사한다(다른 접두는 `record_invalid`, 선언 없는 자기 접두 kind는 `record_kind_undeclared`).
 - 비공개 기록 [결정: review.decisions-2 T-21]: 비공개 기록 연산은 X `RegistrationApi.recordPrivate(kind, payload)`다. kind는 자기 `grp.<name>.*`이고, `readsRecordKinds`와 다른 그룹의 `readRecords`로 조회되지 않으며, 큰 값은 blob으로 분리한다(조건은 L3.learning.spec §3.7.1). `GroupApi`는 `RegistrationApi`를 상속하므로 이 연산을 그대로 전달한다. 작은 비공개 상태는 상태 문서(`commit`, §4.5 상한 안)를 쓴다.
@@ -237,6 +249,7 @@ export type GroupDefIssueCode =
   | "group_name"               // GROUP_NAME_PATTERN 위반 또는 RESERVED_GROUP_NAMES
   | "settings_namespace"       // 설정 namespace가 l3.<이름>(trust.level builtin) 또는 ext.<이름>이 아님
   | "state_version"            // version이 1 이상의 정수가 아니거나, state가 없는데 migrations가 있음
+  | "composition_conflict"     // def.composition이 매니페스트 group.composition과 다름(M4, X-16)
   | "state_initial_invalid"    // initial이 schema를 통과하지 못함
   | "state_migration_missing"  // version ≥ 2인데 migrations에 빠진 출발 버전이 있음
   | "delegate_capability"     // delegate를 쓰는데 매니페스트 requires/optional에 위임 기능이 없음(검사는 checkGroup, M3)
@@ -816,7 +829,7 @@ export function formatGroupStatusLine(groups: readonly GroupStatus[], options?: 
 M2 최소형은 Helm 테스트가 쓴다. 2차에 옵션을 넓힌다. M2 최소형의 옵션은 `group`, `harness`, `maxCommits`뿐이고 절단 시점은 항상 모든 커밋이다.
 
 - 파일 위치: `replayDrive`(§3.10)와 `scanDriveSource`(§3.11)는 `src/testing/` 아래에 둔다. 테스트 전용 도구이기 때문이다.
-- 다른 패키지 import [제안]: DR-08·DR-14의 testing 정의는 "테스트 파일만 다른 패키지의 테스트 대역을 import한다"로 통일되었다 [결정: review.decisions-2 U-17]. 그래서 `replayDrive`는 테스트 호스트와 모델 테이프를 import하지 않고 `ReplayHarness`로 받는다. 하니스는 그룹 패키지의 테스트 파일이 `@fresnel/ext-host`·`@fresnel/core-models`의 테스트 대역으로 만든다.
+- 다른 패키지 import [제안, M4: 기본 런타임 하니스는 아래 5번 뒤의 6번]: DR-08·DR-14의 testing 정의는 "테스트 파일만 다른 패키지의 테스트 대역을 import한다"로 통일되었다 [결정: review.decisions-2 U-17]. 그래서 `replayDrive`는 테스트 호스트와 모델 테이프를 import하지 않고 `ReplayHarness`로 받는다. 하니스는 그룹 패키지의 테스트 파일이 `@fresnel/ext-host`·`@fresnel/core-models`의 테스트 대역으로 만든다.
 
 ```ts
 // xeon/packages/group-sdk/src/testing/replay/replay-drive.ts  (공개 진입점: @fresnel/group-sdk/testing)
@@ -826,7 +839,7 @@ import type { JsonValue } from "@fresnel/contracts/conversation";
 export interface ReplayHarness {
   /** 새 테스트 호스트에 그룹 하나를 holder로 올린다. restore가 null이면 처음부터, 값이 있으면 그 이벤트열의 앞 commits개 커밋만 복원하고 재개 절차로 시작한다. 같은 테이프로 끝까지 실행한다 */
   run(group: GroupModule, restore: { readonly events: readonly JsonValue[]; readonly commits: number } | null):
-    Promise<{ readonly events: readonly JsonValue[]; readonly commitPoints: readonly number[]; /* M3a(G-20): 효과 계수기를 가진 하니스만 채운다. 이 실행이 새로 낸 효과 수 */ readonly effects?: EffectCounts }>;
+    Promise<{ readonly events: readonly JsonValue[]; readonly commitPoints: readonly number[]; /* M3a(G-20): 효과 계수기를 가진 하니스만 채운다. 이 실행이 새로 낸 효과 수 */ readonly effects?: EffectCounts; /* M4: 이 실행이 쓴 thread id. 기준 실행과 다르면 thread-mismatch */ readonly threadId?: string }>;
   /** 정규화한 이벤트열의 digest. 같은 의미면 같은 문자열 */
   digest(events: readonly JsonValue[]): string;
   /** 두 정규화 이벤트열에서 처음 달라진 위치. 같으면 null */
@@ -859,7 +872,9 @@ export interface ReplayDriveReport {
   readonly cuts: readonly ReplayCut[];
   readonly ok: boolean;
   /** ok가 false인데 절단 비교 때문이 아니면 채운다: 커밋 수가 maxCommits 초과, 커밋이 하나도 없음, 효과 계수가 기준보다 큼(M3, 아래 4번) */
-  readonly failure?: "max-commits-exceeded" | "no-commits" | "effects-doubled" | "effects-mismatch";
+  readonly failure?: "max-commits-exceeded" | "no-commits" | "thread-mismatch" | "effects-doubled" | "effects-mismatch";
+  /** [M4] failure가 thread-mismatch일 때 기준과 다른 thread를 쓴 절단의 commitIndex 목록 */
+  readonly threadMismatchCuts?: readonly number[];
   /** [M3a] 기준 실행의 효과 수. 하니스가 계수기를 가진 경우만 */
   readonly effects?: EffectCounts;
 }
@@ -874,6 +889,9 @@ export function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveRep
 2. 시점 k마다: `harness.run(group, { events, commits: k })`로 새 호스트에 앞 k개 커밋만 복원하고 프로세스 재시작과 같은 재개 절차로 drive 함수를 마지막 커밋 상태로 다시 부른다. 같은 테이프로 끝까지 실행한다.
 3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정: review.decisions-2 U-03]. 모든 시점에서 같으면 `ok`다. 커밋이 하나도 없는 실행은 확인할 것이 없으므로 `ok: false`, `failure: "no-commits"`다(그룹이 drive lock을 받지 못한 시험 오류가 조용히 통과하지 않게 한다).
 4. 효과 계수 [제안, G-20, ADR-0015 §3.6, M3a 구현]: 기준 실행의 모든 커밋 시점에서 끊고 재개할 때, 끊기 직전의 drive 호출과 on 핸들러를 같은 입력으로 두 번 실행한다. 가짜 포트(`LoopPort`, 입력 큐, 위임 서비스, 기능 공급자)가 효과 계수기를 가지고, 하니스는 `harness.run`의 결과에 `effects`(아래 `EffectCounts`)를 싣는다. 기준 실행의 `effects`는 그 실행이 낸 효과 전부이고, 절단 실행의 `effects`는 복원한 뒤 새로 낸 효과다. 절단 실행은 기준 실행과 같은 가짜 포트의 멱등 기억(요청 키 표)을 이어 써야 하고, 그러면 같은 상태·입력의 재실행은 새 효과가 0이다(옛 안의 "같은 지점까지의 계수 비교"는 이 규칙으로 바꿨다). 계수는 코어가 중복으로 돌려준 호출(`duplicate`, 재생된 `loop.turn`·`loop.spawn`, 처음 결과를 돌려준 멱등 기능 호출)과 읽기 호출을 세지 않는다. 이벤트열이 모두 같아도 절단 실행이 새 효과를 냈으면 `ok: false`, `failure: "effects-doubled"`다. `expectEffects`를 주면 기준 실행의 효과 수가 그 값과 같은지도 보고(`effects-mismatch`), 효과가 한 번 났다는 확인은 이 값으로 한다. `diffEffects`, `effectKindsOf`, `NO_EFFECTS`는 하니스를 만드는 쪽이 계수를 다룰 때 쓴다. 가짜 위임 서비스는 `fakeAgents`(`@fresnel/group-sdk/testing`)다.
+
+5. thread id 불일치 [M4, 이월 닫음]: 하니스가 `run`의 결과에 `threadId`를 싣고, 기준 실행과 다른 thread를 쓴 절단이 있으면 이벤트열이 같아도 `ok: false`, `failure: "thread-mismatch"`, `threadMismatchCuts`(그 절단의 `commitIndex`)다. 정규화가 ID를 자리표시자로 바꾸므로 이벤트열 비교로는 다른 thread가 보이지 않아서 따로 센다. 순서는 이벤트열 비교, thread 검사, 효과 계수다. `threadMismatches(threads)`는 같은 검사를 실행 기록 배열에 하는 순수 함수다.
+6. 런타임 하니스 [M4 T-GK, X-10]: `createRuntimeReplayHarness()`(`@fresnel/group-sdk/testing`, `src/testing/replay/runtime-harness.ts`)가 시험 파일에서 쓰던 하니스(§3.10 0번의 규약 전부)를 `testing` 서브패스로 옮긴 것이다. 설치된 `GroupModule` 하나를 실제 `ExtHost`(X)에 올리고 위임 서비스는 `fakeAgents` 테이프, 루프·입력 큐는 메모리 포트로 두며 효과 계수, thread id, ID 정규화, 커밋 위치 계산을 모두 가진다. 다른 패키지의 `testing` 서브패스를 import하므로 `src/testing/` 아래에 있다(DR-08). 개발 모드 Test run의 replay(W-29, `ext.test.run`)가 같은 하니스를 쓴다. `ReplayHarness` 인터페이스는 그대로라 그룹 패키지의 시험 하니스(Helm, learning)도 계속 쓸 수 있다. 하니스가 모델 테이프로 turn을 흉내 내는 확장은 하지 않았다: drive의 `loop.turn`은 메모리 `LoopPort`가 받는다.
 
 ```ts
 /** 가짜 포트가 센 외부 효과 수. 중복 응답과 읽기는 세지 않는다 */
@@ -1243,7 +1261,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 - group-sdk 자체는 훅을 선언하지 않고 `on` 핸들러도 걸지 않는다. 훅 선언은 F.extensions.spec §3.4다.
 - `GroupApi.on`은 F `RegistrationApi.on`을 감싼다. 핸들러 시그니처와 fold는 그대로다. 래퍼는 계측 집계만 더한다(§4.9).
-- `post`, `commit`, `record`, `readRecords`, `capability`, `onDispose`는 그대로 전달한다. `registerTool`, `registerCommand`, `registerProvider`는 X `hostOf(g)`로 전달한다(§3.2).
+- `post`, `commit`, `record`, `readRecords`, `capability`, `onDispose`는 그대로 전달한다. `registerTool`, `registerCommand`, `registerMethod`, `registerProvider`는 X `hostOf(g)`로 전달한다(§3.2).
 - `drive` 등록은 그대로 전달하고, drive lock 결정은 `DriveArbiter`가 X `DriveLockArbiterPort`를 통해 정한다(§3.5).
 - `delegate`는 L1-g 서비스 래퍼다. 훅 목록에 들어가지 않는다. 위임 자식 thread의 훅 발화와 그룹 핸들러 적용 범위는 [미결]이다(`_research/notes/L3-1.md` §6 마지막 항목).
 
@@ -1253,7 +1271,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `defineGroup`, `GroupDef`, `GroupApi`(`registerTool`, `registerCommand`, `registerProvider` 포함), `GroupModule`, `validateGroupDef`, `groupManifest`, `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`(예약 이름 정본) | L3.helm.spec, L3.learning.spec, L3.slots.spec 템플릿, L3.readme §4 |
+| `defineGroup`, `GroupDef`, `GroupApi`(`registerTool`, `registerCommand`, `registerMethod`, `registerProvider` 포함), `GroupModule`, `validateGroupDef`, `groupManifest`, `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`(예약 이름 정본) | L3.helm.spec, L3.learning.spec, L3.slots.spec 템플릿, L3.readme §4 |
 | `checkGroupName`, `GroupNameError`(R2 이름 검사, 순수 함수) | L3.slots.spec §3.3.4, `L4.cli.spec`(DR-14로 같은 규칙을 따로 구현) |
 | `TemplateKindSchema`, `TemplateIndexSchema`, `TEMPLATE_PLACEHOLDERS`, `TemplateKind`, `TemplateIndex` | L3.slots.spec §3.3.3(`templates/index.json`), `L4.cli.spec` |
 | `DelegateSpec`, `DelegateReceipt`, `DelegateResult`, `DelegateError`, `DelegateReport`, `DelegateToolPolicy`, `DelegateLimits`, `DelegateFork` | L3.learning.spec, L3.helm.spec, L1.agents.spec(`DelegateRequest` 대응) |
@@ -1310,6 +1328,9 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `boundary.step.after` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
 22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 시점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
 23. (M3, ADR-0015) `delegateStatus`는 drive 문맥에서 상태를 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행되는 코드에서 거부되고 `onDispose`와 명령 처리기에서는 동작한다.
+22a. (M4, T-GK) `replayDrive`는 기준과 다른 thread에서 돈 절단을 `failure: "thread-mismatch"`와 `threadMismatchCuts`로 보고한다(이벤트열이 같아도). `createRuntimeReplayHarness`가 만든 하니스는 모든 실행에서 같은 thread를 쓴다.
+22b. (M4, T-GK) `defineGroup({ composition })`은 `module.manifest.group.composition`을 채우고 매니페스트 상수를 바꾸지 않는다. 다른 값이 매니페스트에 이미 있으면 `composition_conflict`다. 알 수 없는 `plugin`을 가진 블록은 `composition_plugin_unknown`이다.
+22c. (M4, T-GK, X-3) `g.registerMethod`로 등록한 메서드는 `ExtHost.methods.call`로 불리고 모양이 틀린 params는 `params_invalid`이며, 그룹을 끄면 `methods.list()`에서 사라진다.
 24. (M3) drive lock 대기 상한을 넘어 거부된 그룹의 `GroupStatus.drive`는 `"rejected"`다.
 25. (M3b, G-17) `on` 래퍼는 first 훅의 정의된 반환을 `denies`, chain 훅의 정의된 반환을 `chainPatches`, 던진 오류를 `handlerErrors`로 올리고 오류를 같은 값으로 다시 던진다. `undefined` 반환은 세지 않는다.
 26. (M3b, LR-17) `metrics.addUsage`는 `tokens`와 `costUsd`를 더한다. 음수나 유한하지 않은 값이면 `Bug`를 던지고 그 호출은 아무 값도 바꾸지 않는다.

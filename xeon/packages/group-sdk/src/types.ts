@@ -1,4 +1,5 @@
 import type {
+  CompositionDecl,
   ExtensionEntry,
   ExtensionManifest,
   ProviderResourceDef,
@@ -9,7 +10,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { Upcaster } from "@fresnel/contracts/records";
 import type { SettingDef, SettingDefInput, SettingGroup } from "@fresnel/contracts/settings";
-import type { CommandResourceDef } from "@fresnel/ext-host";
+import type { CommandResourceDef, ExtMethodResourceDef } from "@fresnel/ext-host";
 import type { Static } from "typebox";
 import type {
   CancelDelegatesResult,
@@ -46,6 +47,11 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = NoSettings> {
   /** 저장소 안 그룹은 defineManifest 상수, 외부 그룹은 groupManifest(plugin.json 값) */
   readonly manifest: GroupManifest;
   /**
+   * 구성 선언(X-16, F.extensions.spec §3.1.2). `defineGroup`이 만든 모듈의 매니페스트 `group.composition`을 채운다.
+   * 매니페스트에도 `group.composition`이 있고 둘이 다르면 `composition_conflict`다. 없으면 구성기는 "구성 정보 없음" 블록 하나로 본다
+   */
+  readonly composition?: CompositionDecl;
+  /**
    * 비공개 상태 문서. F StateDecl(schema, initial, version).
    * 생략하면 상태 없는 그룹이다(정책 그룹 등). 이때 g.state()·g.commit()은 X가 state_undeclared로 거부한다(X.primitives.spec §4.6.1 1번)
    */
@@ -79,6 +85,11 @@ export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends Re
   registerTool(def: ToolResourceDef): void;
   /** 명령 등록. X hostOf(g).registerCommand를 그대로 부른다. setup 안에서만. 이름은 그룹 이름과 같게 둔다 [제안] */
   registerCommand(name: string, def: CommandResourceDef): void;
+  /**
+   * 확장 메서드 처리기 등록(X-3). X `hostOf(g).registerMethod`를 그대로 부른다. setup 안에서만. 동사는 매니페스트 `methods`에 선언되어 있어야 한다.
+   * scope가 꺼지면 해제된다. thread 안의 호출이면 `g.state()`를 명령 처리기처럼 읽을 수 있다
+   */
+  registerMethod(verb: string, def: ExtMethodResourceDef): void;
   /** 모델 provider 등록. X hostOf(g).registerProvider를 그대로 부른다(config는 JSON 표현). setup 안에서만. scope가 꺼지면 해제된다 */
   registerProvider(name: string, config: ProviderResourceDef): void;
 }
@@ -106,6 +117,7 @@ export type GroupDefIssueCode =
   | "group_name" // GROUP_NAME_PATTERN 위반 또는 RESERVED_GROUP_NAMES
   | "settings_namespace" // 설정 namespace가 l3.<이름>(trust.level builtin) 또는 ext.<이름>이 아님
   | "state_version" // version이 1 이상의 정수가 아니거나, state가 없는데 migrations가 있음
+  | "composition_conflict" // def.composition이 매니페스트 group.composition과 다름
   | "state_initial_invalid" // initial이 schema를 통과하지 못함
   | "state_migration_missing" // version ≥ 2인데 migrations에 빠진 출발 버전이 있음
   | "delegate_capability" // delegate를 쓰는데 매니페스트 requires/optional에 위임 기능이 없음(M3, checkGroup)
@@ -125,6 +137,7 @@ export interface GroupDefIssue {
  */
 export interface GroupDefShape {
   readonly manifest: ExtensionManifest;
+  readonly composition?: CompositionDecl;
   readonly state?: StateDecl<unknown>;
   readonly migrations?: StateMigrations;
   readonly settings?: { readonly namespace: string };

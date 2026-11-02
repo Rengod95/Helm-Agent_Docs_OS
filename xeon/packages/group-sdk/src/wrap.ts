@@ -18,6 +18,7 @@ import {
   hostOf,
   PrimitiveError,
   type CommandResourceDef,
+  type ExtMethodResourceDef,
   type RegistrationCallContext,
   type StateMigration,
 } from "@fresnel/ext-host";
@@ -54,6 +55,7 @@ export type GroupCallContext = RegistrationCallContext;
 export interface GroupHostAccess {
   registerTool(def: ToolResourceDef): void;
   registerCommand(name: string, def: CommandResourceDef): void;
+  registerMethod(verb: string, def: ExtMethodResourceDef): void;
   registerProvider(name: string, config: ProviderResourceDef): void;
   migrateState(fn: StateMigration): void;
   /** 설정 읽기. 내장 그룹은 모든 키, 그 밖의 그룹은 자기 `ext.<id>.*` 키만 값이 나온다 */
@@ -76,6 +78,9 @@ export function realHostAccess<S>(api: RegistrationApi<S>): GroupHostAccess {
     },
     registerCommand: (name, def) => {
       hostOf(api).registerCommand(name, def);
+    },
+    registerMethod: (verb, def) => {
+      hostOf(api).registerMethod(verb, def);
     },
     registerProvider: (name, config) => {
       hostOf(api).registerProvider(name, config);
@@ -362,6 +367,9 @@ export function wrap<S, D extends GroupSettingDefs>(
     },
     registerCommand: (name, commandDef) => {
       access.registerCommand(name, commandDef);
+    },
+    registerMethod: (verb, methodDef) => {
+      access.registerMethod(verb, methodDef);
     },
     registerProvider: (name, config) => {
       access.registerProvider(name, config);

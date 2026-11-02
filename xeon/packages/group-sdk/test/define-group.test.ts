@@ -293,3 +293,36 @@ test("define-group.is-group-module-only-for-define-group-results", () => {
   expect(isGroupModule("brand-check")).toBe(false);
   expect(isGroupModule([module.manifest])).toBe(false);
 });
+
+const COMPOSITION = {
+  blocks: [{ id: "main", stage: "work", op: "drive" as const }],
+};
+
+test("define-group.composition-fills-manifest-group-without-touching-the-constant", () => {
+  const manifest = groupManifestOf({ name: "composed", drives: true });
+  const module = defineGroup({ manifest, composition: COMPOSITION, setup() {} });
+  expect(module.manifest.group.composition).toEqual(COMPOSITION);
+  expect(manifest.group.composition).toBeUndefined();
+  expect(validateManifest(module.manifest).issues.filter((i) => i.severity === "error")).toEqual(
+    [],
+  );
+});
+
+test("define-group.composition-conflict-with-manifest-is-rejected", () => {
+  const manifest: GroupManifest = {
+    ...groupManifestOf({ name: "twice", drives: true }),
+    group: { composition: { blocks: [{ id: "other", stage: "work", op: "drive" }] } },
+  };
+  expect(codes({ manifest, composition: COMPOSITION })).toContain("composition_conflict");
+  expect(() => defineGroup({ manifest, composition: COMPOSITION, setup() {} })).toThrow(Bug);
+  // 같은 값이면 충돌이 아니다
+  expect(
+    codes({ manifest, composition: { blocks: [{ id: "other", stage: "work", op: "drive" }] } }),
+  ).toEqual([]);
+});
+
+test("define-group.composition-block-with-unknown-plugin-surfaces-manifest-issue", () => {
+  const manifest = groupManifestOf({ name: "badblock", drives: true });
+  const bad = { blocks: [{ id: "x", stage: "work", op: "drive" as const, plugin: "ghost" }] };
+  expect(codes({ manifest, composition: bad })).toContain("composition_plugin_unknown");
+});

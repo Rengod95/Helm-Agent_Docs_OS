@@ -18,12 +18,17 @@ export {
   effectKindsOf,
   NO_EFFECTS,
   replayDrive,
+  threadMismatches,
   type EffectCounts,
   type ReplayCut,
   type ReplayDriveOptions,
   type ReplayDriveReport,
   type ReplayHarness,
 } from "./replay/replay-drive.ts";
+export {
+  createRuntimeReplayHarness,
+  type CountingReplayHarness,
+} from "./replay/runtime-harness.ts";
 export {
   scanDriveSource,
   type DriveScanCode,
