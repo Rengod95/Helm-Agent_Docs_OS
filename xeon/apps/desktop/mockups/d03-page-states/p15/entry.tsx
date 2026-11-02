@@ -17,16 +17,13 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SAFE_OFF } from "../../d02-shell-life/parts/life";
 import {
+  BAR_INSET,
   josa,
-  ArrowRight,
-  Download,
   T,
   Copy,
   defaultStatusCells,
-  Inbox,
   ShellToaster,
   PanelLeft,
-  RotateCcw,
   Shell,
   ShellStateProvider,
   standardRightTabs,
@@ -75,9 +72,9 @@ const palette: PaletteGroup[] = [
   {
     group: "그룹",
     items: [
-      { label: "Helm 끄기", hint: "grp.helm · 다음 단계 경계부터" },
-      { label: "학습 끄기", hint: "grp.learning" },
-      { label: "cache-debug 다시 켜기", hint: "grp.cache-debug · 자동으로 꺼짐" },
+      { label: "Helm 끄기", hint: "다음 단계 경계부터" },
+      { label: "학습 끄기" },
+      { label: "cache-debug 다시 켜기", hint: "자동으로 꺼짐" },
       { label: "그룹 다시 읽기", hint: "확장 다시 읽기" },
       { label: "안전 모드로 다시 시작", hint: "플러그인과 그룹 없이" },
     ],
@@ -160,14 +157,12 @@ function PluginTable({ safe, compact }: { safe: boolean; compact: boolean }) {
       radius="none"
       aria-label="층별 플러그인과 그룹"
       className={TABLE}
-      // 좁은 폭에서는 훅과 출처를 뺀다(이름은 줄바꿈하지 않는다).
+      // 좁은 폭에서는 버전과 출처를 뺀다(이름은 줄바꿈하지 않는다).
       columns={[
-        { key: "layer", header: "층", width: 40 },
         { key: "id", header: "이름" },
         ...(compact
           ? []
           : [
-              { key: "hooks", header: "훅" },
               { key: "version", header: "버전", width: 64 },
               { key: "source", header: "출처 · 신뢰" },
             ]),
@@ -178,12 +173,8 @@ function PluginTable({ safe, compact }: { safe: boolean; compact: boolean }) {
       renderCell={(row, col) => {
         const p = row as unknown as PluginRow;
         switch (col.key) {
-          case "layer":
-            return <span className="font-mono text-mono-sm text-text-tertiary">{p.layer}</span>;
           case "id":
             return <span className="whitespace-nowrap font-mono text-mono-sm">{p.id}</span>;
-          case "hooks":
-            return <span className="text-text-secondary">{p.hooks}</span>;
           case "version":
             return <span className="font-mono text-mono-sm text-text-secondary">{p.version}</span>;
           case "source":
@@ -270,7 +261,9 @@ function Stage({ state }: { state: StateId }) {
 
   return (
     <>
-      <header className={`${COLUMN} flex h-10 flex-none items-center gap-1`}>
+      <header
+        className={`mx-auto flex h-10 w-full max-w-[58rem] flex-none items-center gap-1 ps-3 ${BAR_INSET}`}
+      >
         {!shell.startOpen && (
           <IconButton
             size="sm"
@@ -293,14 +286,13 @@ function Stage({ state }: { state: StateId }) {
           size="sm"
           tone="neutral"
           variant="ghost"
-          iconStart={<RotateCcw />}
           loading={loading}
           disabled={offline}
           onClick={recheck}
         >
           다시 확인
         </Button>
-        <Button size="sm" tone="neutral" variant="outline" iconStart={<Copy />} onClick={copy}>
+        <Button size="sm" tone="neutral" variant="outline" onClick={copy}>
           진단 복사
         </Button>
       </header>
@@ -333,7 +325,6 @@ function Stage({ state }: { state: StateId }) {
             title="플러그인과 그룹"
             trailing={
               <>
-                <span className="tabular-nums">층 6 · {plugins.length}개</span>
                 <span className="flex-1" />
                 <Button size="xs" tone="neutral" variant="ghost">
                   그룹 다시 읽기
@@ -361,14 +352,8 @@ function Stage({ state }: { state: StateId }) {
                       </>
                     }
                   >
-                    <b className="font-mono text-mono-sm">{handlerFailure.group}</b>의{" "}
-                    {handlerFailure.hook} 핸들러가 {handlerFailure.count}번 실패해 자동으로 껐어요 ·{" "}
-                    {handlerFailure.at}
-                    <code className="mt-0.5 block font-mono text-mono-sm text-text-secondary">
-                      {handlerFailure.error}
-                      <br />
-                      at {handlerFailure.where}
-                    </code>
+                    <b className="font-mono text-mono-sm">{handlerFailure.group}</b>의 핸들러가{" "}
+                    {handlerFailure.count}번 실패해 자동으로 껐어요 · {handlerFailure.at}
                   </Alert>
                 )}
                 <PluginTable safe={safe} compact={shell.layout === "compact"} />
@@ -385,16 +370,12 @@ function Stage({ state }: { state: StateId }) {
                   <span className="font-mono text-mono-sm">
                     {versions.app} · {versions.engine}
                   </span>
-                  <span className="text-text-tertiary"> · 계약 {versions.contract}</span>
                 </ListDescriptionRow>
                 <ListDescriptionRow term="런타임">
                   {versions.runtime}
                   <span className="text-text-tertiary"> · {versions.os}</span>
                 </ListDescriptionRow>
                 <ListDescriptionRow term="연결">{versions.link}</ListDescriptionRow>
-                <ListDescriptionRow term="저장소 id" mono copyValue={versions.storeId}>
-                  {versions.storeId}
-                </ListDescriptionRow>
                 <ListDescriptionRow term="안전 모드">
                   <span className="flex items-center gap-2">
                     {safe ? (
@@ -438,7 +419,7 @@ function Stage({ state }: { state: StateId }) {
             )}
           </Section>
 
-          <Section title="외부 도구" trailing={<span>darwin · arm64 · 필수 모두 준비됨</span>}>
+          <Section title="외부 도구" trailing={<span>필수 모두 준비됨</span>}>
             {loading ? <Rows n={5} /> : <BinaryTable />}
           </Section>
 
@@ -472,16 +453,10 @@ function Stage({ state }: { state: StateId }) {
             )}
           </Section>
 
-          <Section
-            title="화면 진단"
-            trailing={<span className="tabular-nums">{viewDiagnostics.length}</span>}
-          >
+          <Section title="화면 진단">
             <ul className="m-0 grid list-none gap-1 p-0 text-ui-sm">
               {viewDiagnostics.map((d) => (
                 <li key={d.key} className="flex min-w-0 items-baseline gap-2">
-                  <code className="shrink-0 font-mono text-mono-sm text-text-secondary">
-                    {d.key}
-                  </code>
                   <span className="truncate text-text-primary">{d.text}</span>
                 </li>
               ))}
@@ -540,19 +515,13 @@ function EngineSection({ state }: { state: StateId }) {
         <ListDescriptionRow term="상태">
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden className="size-1.5 rounded-full bg-success-graphic" />
-            실행 중 · 25분 · 최근 10분 다시 시작 0/3
+            실행 중
           </span>
         </ListDescriptionRow>
         <ListDescriptionRow term="대상">
           <span className="flex flex-wrap items-baseline gap-x-2">
             {T.localEngine}
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="ghost"
-              className="-my-1"
-              iconEnd={<ArrowRight />}
-            >
+            <Button size="xs" tone="neutral" variant="ghost" className="-my-1">
               {T.connection} 화면 열기
             </Button>
           </span>
@@ -568,13 +537,7 @@ function EngineSection({ state }: { state: StateId }) {
                 <Badge size="xs" tone="success">
                   0.4.2 있음
                 </Badge>
-                <Button
-                  size="xs"
-                  tone="neutral"
-                  variant="outline"
-                  iconStart={<Download />}
-                  className="-my-1"
-                >
+                <Button size="xs" tone="neutral" variant="outline" className="-my-1">
                   내려받기
                 </Button>
               </>
@@ -624,9 +587,7 @@ function Page({ state }: { state: StateId }) {
       rightTabs={standardRightTabs({
         only: ["inbox"],
         inboxBadge: 5,
-        inbox: (
-          <EmptyState size="sm" surface="none" icon={<Inbox />} title="셸 목업에서는 비어 있어요" />
-        ),
+        inbox: <EmptyState size="sm" surface="none" title="비어 있어요" />,
       })}
       // 대화를 연 화면이 아니라 문맥 사용량 칸은 뺀다.
       status={{ start: cells.start, end: cells.end.filter((c) => c.id !== "tokens") }}

@@ -15,7 +15,6 @@ import {
   SelectOption,
   Switch,
 } from "@caustic/react";
-import { Plus } from "../../_shell";
 import { SettingRow, SettingSection } from "../../_settings/row";
 import { LockNote, reorderLabels, ShadowedScopes } from "../../_settings/parts";
 import type { State } from "./app";
@@ -126,7 +125,6 @@ export function ModelsTab({ state }: { state: State }) {
           scope="default"
           apply="nextTurn"
           disabled={off}
-          hint={err ? undefined : "목표를 판정하는 턴의 상한이에요. 1~20"}
           error={err ? "1에서 20 사이여야 해요." : undefined}
         >
           <NumberField
@@ -156,34 +154,13 @@ export function ModelsTab({ state }: { state: State }) {
             aria-label="모델 역할"
             className="max-w-[28rem] rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0"
           >
-            <ListDescriptionRow
-              term={
-                <>
-                  기본 <span className="font-mono text-mono-sm text-text-tertiary">main</span>
-                </>
-              }
-              mono
-            >
+            <ListDescriptionRow term="기본" mono>
               claude-sonnet-5-5
             </ListDescriptionRow>
-            <ListDescriptionRow
-              term={
-                <>
-                  판정 <span className="font-mono text-mono-sm text-text-tertiary">judge</span>
-                </>
-              }
-              mono
-            >
+            <ListDescriptionRow term="판정" mono>
               claude-haiku-5-5
             </ListDescriptionRow>
-            <ListDescriptionRow
-              term={
-                <>
-                  요약 <span className="font-mono text-mono-sm text-text-tertiary">summarize</span>
-                </>
-              }
-              mono
-            >
+            <ListDescriptionRow term="요약" mono>
               claude-haiku-5-5
             </ListDescriptionRow>
           </ListDescription>
@@ -228,7 +205,7 @@ export function ModelsTab({ state }: { state: State }) {
             ))}
           </List>
           <div>
-            <Button size="xs" tone="neutral" variant="ghost" iconStart={<Plus />} disabled={off}>
+            <Button size="xs" tone="neutral" variant="ghost" disabled={off}>
               모델 더하기
             </Button>
           </div>
@@ -285,7 +262,6 @@ export function ModelsTab({ state }: { state: State }) {
               폐기 예정
             </Badge>
           }
-          hint="다음 버전에서 없어져요. l1.models.stream을 쓰세요."
         >
           <Switch size="sm" aria-label="스트리밍 예전 방식" defaultChecked={false} disabled={off} />
         </SettingRow>

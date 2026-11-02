@@ -15,18 +15,16 @@ import {
   type PlanStep,
 } from "@caustic/react";
 import { useState, type ReactNode } from "react";
-import { ArrowRight, ChevronRight } from "../../_shell";
+import { ChevronRight } from "../../_shell";
 
 export type WorkState = "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "S7" | "D-offline" | "D-error";
 
 function Section({
   title,
-  count,
   end,
   children,
 }: {
   title: string;
-  count?: ReactNode;
   end?: ReactNode;
   children: ReactNode;
 }) {
@@ -35,9 +33,6 @@ function Section({
       <div className="flex min-h-6 items-center gap-1.5">
         <h3 className="m-0 flex flex-1 items-baseline gap-1.5 text-ui-sm font-semibold text-text-primary">
           {title}
-          {count !== undefined && (
-            <span className="font-normal tabular-nums text-text-tertiary">{count}</span>
-          )}
         </h3>
         {end}
       </div>
@@ -82,7 +77,7 @@ const history: Record<"active" | "met" | "limit" | "failed", Judgement[]> = {
     { n: 1, met: false, reason: "cache.test.ts 1개 실패", at: "18분 전" },
   ],
   failed: [
-    { n: 3, met: "failed", reason: "판정 모델이 응답하지 않았어요 (rate_limited)", at: "방금" },
+    { n: 3, met: "failed", reason: "판정 모델이 응답하지 않았어요", at: "방금" },
     { n: 2, met: false, reason: "e2e 2개 실패", at: "9분 전" },
     { n: 1, met: false, reason: "cache.test.ts 1개 실패", at: "18분 전" },
   ],
@@ -95,7 +90,7 @@ function JudgeHistory({ items, running = false }: { items: Judgement[]; running?
         <TimelineItem
           author="agent"
           running
-          title="턴 9 진행 중 · 끝나면 판정 3"
+          title="진행 중 · 끝나면 판정 3"
           detail="sonnet-5-5"
           time="지금"
         />
@@ -125,9 +120,9 @@ function Goal({ kind }: { kind: keyof typeof STATUS }) {
   const settled = kind !== "active";
   const n = kind === "active" ? 2 : 3;
   const line = {
-    active: "미충족이면 work 그룹이 다음 턴을 이어 가요.",
+    active: undefined,
     met: "판정 3번 만에 충족했어요.",
-    limit: "3번 판정 뒤 멈췄어요. 빠진 것을 보고 다시 걸 수 있어요.",
+    limit: "3번 판정 뒤 멈췄어요.",
     failed: "판정 모델을 부르지 못해 멈췄어요.",
   }[kind];
   return (
@@ -156,7 +151,9 @@ function Goal({ kind }: { kind: keyof typeof STATUS }) {
             판정 모델 <span className="font-mono">sonnet-5-5</span>
           </span>
         </div>
-        <p className="m-0 text-ui-sm font-normal text-text-secondary">{line}</p>
+        {line !== undefined && (
+          <p className="m-0 text-ui-sm font-normal text-text-secondary">{line}</p>
+        )}
       </div>
       <JudgeHistory items={history[kind]} running={kind === "active"} />
     </Section>
@@ -165,13 +162,13 @@ function Goal({ kind }: { kind: keyof typeof STATUS }) {
 
 function PlanRef({ approved = true }: { approved?: boolean }) {
   return (
-    <Section title="계획" count="v2">
+    <Section title="계획">
       <div className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 text-ui-sm hover:bg-fill-hover">
         <span className="min-w-0 flex-1 truncate text-text-primary">캐시 만료 단위 통일</span>
         <Badge size="xs" tone={approved ? "success" : "neutral"}>
           {approved ? "승인됨" : "초안"}
         </Badge>
-        <Button size="xs" tone="neutral" variant="ghost" iconEnd={<ArrowRight />}>
+        <Button size="xs" tone="neutral" variant="ghost">
           보기
         </Button>
       </div>
@@ -181,9 +178,9 @@ function PlanRef({ approved = true }: { approved?: boolean }) {
 
 const tasksActive: PlanStep[] = [
   { id: "t1", label: "만료 비교 단위 통일", status: "done" },
-  { id: "t2", label: "TTL 경계 시각 테스트 추가", status: "now", detail: "#12 · 탐구에서" },
-  { id: "t3", label: "테스트 시계를 가짜 시계로 바꾸기", status: "todo", detail: "#13 · 탐구에서" },
-  { id: "t4", label: "캐시 문서 고치기", status: "todo", detail: "막힘 · #12 뒤" },
+  { id: "t2", label: "TTL 경계 시각 테스트 추가", status: "now" },
+  { id: "t3", label: "테스트 시계를 가짜 시계로 바꾸기", status: "todo" },
+  { id: "t4", label: "캐시 문서 고치기", status: "todo", detail: "막힘" },
   { id: "t5", label: "회귀 확인", status: "done" },
 ];
 const tasksDone: PlanStep[] = tasksActive.map((t) => ({ ...t, status: "done" }));
@@ -194,14 +191,7 @@ const tasksLimit: PlanStep[] = tasksActive.map((t) =>
 const statusLabels = { done: "끝남", now: "진행 중", todo: "남음", failed: "실패" };
 
 function Tasks({ steps, title = "작업" }: { steps: PlanStep[]; title?: string }) {
-  return (
-    <Plan
-      title={title}
-      steps={steps}
-      countLabel={(d, t) => `${t}개 중 ${d}개`}
-      statusLabels={statusLabels}
-    />
-  );
+  return <Plan title={title} steps={steps} countLabel={() => ""} statusLabels={statusLabels} />;
 }
 
 function LongTasks() {
@@ -226,7 +216,7 @@ function LongTasks() {
         className="-mx-1.5 flex items-center gap-1.5 rounded-lg px-1.5 py-1.5 text-left text-ui-sm text-text-secondary outline-none hover:bg-fill-hover focus-visible:focus-ring"
       >
         <ChevronRight aria-hidden className={`size-icon-sm ${open ? "rotate-90" : ""}`} />
-        끝난 작업 <span className="tabular-nums text-text-tertiary">112</span>
+        끝난 작업
       </button>
     </div>
   );
@@ -239,7 +229,7 @@ export function WorkPanel({ state }: { state: WorkState }) {
       return (
         <div className="grid gap-5">
           <Alert tone="neutral" size="sm">
-            엔진에 연결되지 않았어요. 14:02에 읽은 목표와 작업이에요. 다시 연결되면 새로 읽어요.
+            엔진에 연결되지 않았어요. 14:02에 읽은 목표와 작업이에요.
           </Alert>
           <div className="pointer-events-none grid gap-5 opacity-60">
             <Goal kind="active" />
@@ -254,7 +244,7 @@ export function WorkPanel({ state }: { state: WorkState }) {
           <Goal kind="active" />
           <PlanRef />
           <Alert tone="danger" size="sm" actions={[{ label: "다시 읽기", primary: true }]}>
-            작업 목록을 읽지 못했어요 · work.list 실패(store_failed)
+            작업 목록을 읽지 못했어요.
           </Alert>
           <Tasks steps={tasksActive} />
         </div>
@@ -295,9 +285,6 @@ export function WorkPanel({ state }: { state: WorkState }) {
       return (
         <div className="grid gap-5">
           <Section title="목표">
-            <p className="m-0 text-ui-sm font-normal text-text-secondary">
-              조건을 걸면 턴마다 판정하고, 미충족이면 다음 턴을 이어 가요.
-            </p>
             <div className="grid gap-2.5">
               <Field label="조건" size="sm">
                 <Input size="sm" placeholder="예: 테스트가 모두 통과한다" />

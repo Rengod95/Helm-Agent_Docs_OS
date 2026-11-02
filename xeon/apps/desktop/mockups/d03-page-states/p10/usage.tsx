@@ -8,7 +8,6 @@ const ROWS = [
     thread: "캐시 무효화 조사",
     tool: "bash",
     how: "ENV GH_TOKEN",
-    source: "core",
     ok: true,
   },
   {
@@ -16,7 +15,6 @@ const ROWS = [
     thread: "빌드 실패 분석",
     tool: "web.fetch",
     how: "헤더 Authorization",
-    source: "l2:web",
     ok: true,
   },
   {
@@ -24,7 +22,6 @@ const ROWS = [
     thread: "예약: 매일 정리",
     tool: "bash",
     how: "ENV GH_TOKEN",
-    source: "l2:schedule",
     ok: false,
   },
   {
@@ -32,7 +29,6 @@ const ROWS = [
     thread: "렌즈 5개로 넓히기",
     tool: "bash",
     how: "ENV GH_TOKEN",
-    source: "렌즈 실패 사례 · grp:helm",
     ok: true,
   },
 ];
@@ -42,7 +38,7 @@ export function UsageLog({ name }: { name: string }) {
     <section aria-label={`${name} 사용 기록`} className="grid gap-1">
       <h3 className="m-0 flex h-7 items-center gap-2 text-ui-sm font-semibold text-text-secondary">
         사용 기록
-        <span className="font-normal text-text-tertiary">최근 7일 · 23번</span>
+        <span className="font-normal text-text-tertiary">최근 7일</span>
       </h3>
       <div role="table" aria-label="사용 기록" className="grid gap-0.5 text-ui-sm">
         {ROWS.map((r) => (
@@ -58,14 +54,14 @@ export function UsageLog({ name }: { name: string }) {
               {r.thread} <span className="font-mono text-mono-sm text-text-tertiary">{r.tool}</span>
             </span>
             <span role="cell" className="min-w-0 truncate text-text-secondary">
-              {r.how} <span className="font-mono text-mono-sm text-text-tertiary">{r.source}</span>
+              {r.how}
             </span>
             <span role="cell">
               {r.ok ? (
                 <span className="text-ui-xs text-text-tertiary">썼어요</span>
               ) : (
                 <Badge size="xs" tone="danger">
-                  거절(만료된 lease)
+                  거절
                 </Badge>
               )}
             </span>

@@ -13,7 +13,7 @@ import {
   Progress,
 } from "@caustic/react";
 import { useState } from "react";
-import { josa, T, Trash2 } from "../../_shell";
+import { josa, T } from "../../_shell";
 
 const LIST = "rounded-none [--cs-size-list-term:7rem] [&_[data-slot=list-description-row]]:px-0";
 const WORD = "지우기";
@@ -44,7 +44,7 @@ export function WipeDialog({
         <div className="grid justify-items-center gap-3">
           <p className="m-0 text-ui-sm text-text-secondary">
             {phase === "wiping"
-              ? "데이터를 지우는 중이에요 · 대화 42개"
+              ? "데이터를 지우는 중이에요"
               : "다 지웠어요. 첫 실행 화면으로 다시 시작해요."}
           </p>
           {phase === "wiping" ? (
@@ -64,12 +64,11 @@ export function WipeDialog({
       size="md"
       tone="danger"
       onOpenChange={(o) => !o && onClose()}
-      icon={<Trash2 />}
       title={blocked ? "지금은 데이터를 지울 수 없어요" : "이 기기의 데이터를 모두 지울까요?"}
       description={
         blocked
           ? `진행 중인 ${josa(T.turn, "과", "와")} 실행 중인 ${josa(T.schedules, "이", "가")} 있어요. 멈춘 뒤 다시 해 주세요.`
-          : "지운 뒤 앱이 다시 시작하고 첫 실행 화면으로 가요. 되돌릴 수 없어요."
+          : "되돌릴 수 없어요."
       }
       footer={
         blocked ? (
@@ -97,9 +96,7 @@ export function WipeDialog({
     >
       {blocked ? (
         <ListDescription variant="ghost" size="xs" aria-label="먼저 멈출 것" className={LIST}>
-          <ListDescriptionRow term={`진행 중 ${T.turn}`}>
-            캐시 무효화 조사 · {T.turn} 3
-          </ListDescriptionRow>
+          <ListDescriptionRow term={`진행 중 ${T.turn}`}>캐시 무효화 조사</ListDescriptionRow>
           <ListDescriptionRow term={T.schedules}>매일 정리 · 09:00 실행 중</ListDescriptionRow>
         </ListDescription>
       ) : (
@@ -130,7 +127,7 @@ export function WipeDialog({
             </label>
             <label className="flex items-center gap-2 text-ui-sm text-text-primary">
               <Checkbox size="sm" checked={exts} onCheckedChange={(c) => setExts(c === true)} />
-              사용자 {T.extension}도 지우기(3개 · 사용자 확장 위치)
+              사용자 {T.extension}도 지우기(3개)
             </label>
           </div>
           <label className="grid gap-1 text-ui-sm text-text-secondary">

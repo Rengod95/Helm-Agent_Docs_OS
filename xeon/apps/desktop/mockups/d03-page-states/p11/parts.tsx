@@ -11,7 +11,7 @@ import {
   Select,
   SelectOption,
 } from "@caustic/react";
-import { Ellipsis, GripVertical, Trash2 } from "../../_shell";
+import { Ellipsis, GripVertical } from "../../_shell";
 
 export function Gauge({
   label,
@@ -107,7 +107,7 @@ export function AccountGrid({
               >
                 {SECRETS.map((s) => (
                   <SelectOption key={s} value={s}>
-                    <span className="font-mono text-mono-sm">secret://{s}</span>
+                    <span className="font-mono text-mono-sm">{s}</span>
                   </SelectOption>
                 ))}
               </Select>
@@ -151,9 +151,7 @@ export function AccountGrid({
               }
             >
               <MenuItem>이름 바꾸기</MenuItem>
-              <MenuItem icon={<Trash2 />} tone="danger">
-                지우기
-              </MenuItem>
+              <MenuItem tone="danger">지우기</MenuItem>
             </Menu>
           </div>
           {a.error !== undefined && (

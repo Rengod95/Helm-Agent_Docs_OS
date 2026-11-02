@@ -32,11 +32,7 @@ function TriggerFields({ kind, error }: { kind: TriggerKind; error?: string | un
   switch (kind) {
     case "interval":
       return (
-        <Field
-          label="간격"
-          size="sm"
-          {...(error !== undefined ? { error } : { hint: "24시간이에요. 최소 300초예요." })}
-        >
+        <Field label="간격" size="sm" error={error}>
           <NumberField
             size="sm"
             aria-label="간격(초)"
@@ -62,10 +58,10 @@ function TriggerFields({ kind, error }: { kind: TriggerKind; error?: string | un
     case "fileWatch":
       return (
         <>
-          <Field label="감시 경로" size="sm" hint="1~16개, glob을 써요." count="2 / 16">
+          <Field label="감시 경로" size="sm">
             <TagInput size="sm" defaultValue={["src/**", "test/**"]} placeholder="경로 더하기" />
           </Field>
-          <Field label="debounce" size="sm" hint="바뀐 뒤 이만큼 조용하면 실행해요.">
+          <Field label="debounce" size="sm">
             <NumberField size="sm" aria-label="debounce(밀리초)" unit="ms" defaultValue={2000} />
           </Field>
         </>
@@ -73,7 +69,7 @@ function TriggerFields({ kind, error }: { kind: TriggerKind; error?: string | un
     case "remote":
       return (
         <p className="m-0 text-ui-sm font-normal text-text-secondary">
-          다른 기기가 이 예약을 부를 때만 실행해요. 연결 화면에서 원격 예약을 켜야 해요.
+          연결 화면에서 원격 예약을 켜야 해요.
         </p>
       );
     case "loop":

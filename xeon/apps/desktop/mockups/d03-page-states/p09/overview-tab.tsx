@@ -57,16 +57,13 @@ export function OverviewTab({ onWipe, data = false }: { onWipe?: () => void; dat
               <Badge size="sm" tone="warning">
                 1개
               </Badge>
-              <span className="font-mono text-mono-sm text-text-secondary">
-                l1.engine.maxConcurrentTurns
-              </span>
             </span>
           </ListDescriptionRow>
           <ListDescriptionRow term="안전 모드">꺼짐</ListDescriptionRow>
         </ListDescription>
       </SettingSection>
       <SettingSection
-        title="화면 진단 3"
+        title="화면 진단"
         end={
           <Button size="xs" tone="neutral" variant="ghost">
             진단 복사
@@ -89,7 +86,7 @@ export function OverviewTab({ onWipe, data = false }: { onWipe?: () => void; dat
                 <div className="grid min-w-0 gap-0.5">
                   <span className="text-ui text-text-primary">{d.text}</span>
                   <span className="truncate font-mono text-mono-sm text-text-tertiary">
-                    {d.key} · {d.where}
+                    {d.where}
                   </span>
                 </div>
               </li>

@@ -9,7 +9,7 @@ import {
   useShell,
   type StatusCell,
 } from "../../_shell";
-import { InboxLite } from "../../p07-schedules/parts/inbox-lite";
+import { InboxLite } from "../p07/parts/inbox-lite";
 import { ChatContext, type ContextItem } from "../../p05-helm/parts/chat-context";
 import { WorkPanel, type WorkState } from "./work";
 
@@ -39,14 +39,13 @@ function transcript(state: WorkState, openWork: () => void): ContextItem[] {
       kind: "event",
       icon: "goal",
       text: "목표를 걸었어요 · 테스트가 모두 통과한다",
-      detail: "work 그룹 · 턴마다 판정 · 최대 3번",
     },
     { kind: "tool", name: "edit", detail: "src/cache.ts", status: "done", duration: "12ms" },
     { kind: "tool", name: "bash", detail: "bun test", status: "failed", duration: "4.1s" },
     judge(1, "미충족", "빠진 것: expires after ttl"),
     { kind: "agent", text: "단위를 맞추고 경계 시각 테스트를 더했어요. e2e까지 다시 돌릴게요." },
     { kind: "tool", name: "bash", detail: "bun test", status: "failed", duration: "6.8s" },
-    judge(2, "미충족", "빠진 것: e2e cache-expiry, e2e warm-start · 다음 턴을 이어 가요"),
+    judge(2, "미충족", "빠진 것: e2e cache-expiry, e2e warm-start"),
   ];
   if (state === "S5")
     return [
@@ -64,7 +63,7 @@ function transcript(state: WorkState, openWork: () => void): ContextItem[] {
     return [
       ...base,
       { kind: "tool", name: "bash", detail: "bun test", status: "failed", duration: "7.0s" },
-      judge(3, "미충족", "상한에 걸려 멈췄어요 (limit_reached)"),
+      judge(3, "미충족", "상한에 걸려 멈췄어요"),
     ];
   if (state === "S4")
     return [
@@ -74,7 +73,7 @@ function transcript(state: WorkState, openWork: () => void): ContextItem[] {
         kind: "event",
         icon: "goal",
         text: "판정 3/3 · 판정 실패",
-        detail: "판정 모델이 응답하지 않았어요 (rate_limited)",
+        detail: "판정 모델이 응답하지 않았어요",
         action: { label: "작업 보기", onClick: openWork },
       },
     ];
@@ -123,7 +122,7 @@ function Page({ state }: { state: WorkState }) {
           id: "goal",
           text: goalText,
           title: "목표",
-          description: "판정 횟수 / 최대 판정이에요. 누르면 작업 탭을 열어요.",
+          description: "누르면 작업 탭을 열어요.",
           action: { label: "작업 탭 열기", onSelect: () => shell.openEnd("work") },
         };
   status.end = status.end.flatMap((c) => (c.id === "goal" ? (goalCell ? [goalCell] : []) : [c]));

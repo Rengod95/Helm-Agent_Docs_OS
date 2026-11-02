@@ -1,4 +1,4 @@
-// P-04 변경 검토. 무대를 채우는 화면: 머리(돌아가기, 리뷰 제목, 라운드, 원인 대화, 낸 도구) · 파일 열 + diff 열 · 제출 줄.
+// P-04 변경 검토. 무대를 채우는 화면: 머리(돌아가기, 리뷰 제목, 라운드, 원인 대화) · 파일 열 + diff 열 · 제출 줄.
 // 경로(breadcrumb)는 두지 않고 돌아가기 IconButton 하나로 받은 요청에 돌아간다(DP-05). 파일 열은 caustic ListNavigation(sessions)이고
 // 가운데는 투명 면 그대로다(DP-01). hunk 카드는 parts/hunk-review.tsx(C-08 빈틈).
 import {
@@ -21,10 +21,7 @@ import {
 import { useLayoutEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
-  CircleCheck,
   defaultStatusCells,
-  FileImage,
-  FileWarning,
   PanelLeft,
   Shell,
   standardRightTabs,
@@ -121,7 +118,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
         text: "끊김",
         dot: "danger",
         title: "연결 끊김",
-        description: "엔진과 연결이 끊겼어요. 초안은 이 화면에 남아요.",
+        description: "엔진과 연결이 끊겼어요.",
       }
     : undefined;
 
@@ -141,7 +138,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
         link,
       })}
     >
-      {/* 머리 한 줄: 돌아가기 · 제목 · 라운드 · 원인 대화 · 낸 도구. 끝에 전체 +/− */}
+      {/* 머리 한 줄: 돌아가기 · 제목 · 라운드 · 원인 대화 */}
       <header className="flex h-10 flex-none items-center gap-1 px-1.5">
         {!shell.startOpen && (
           <IconButton
@@ -162,25 +159,15 @@ export function ReviewPage({ state }: { state: ReviewState }) {
           <span className="shrink-0 text-ui-sm tabular-nums text-text-secondary">
             라운드 {round2 ? 2 : meta.round}
           </span>
-          <span className="truncate text-ui-sm text-text-tertiary">
-            {meta.thread} · {meta.source}
-          </span>
+          <span className="truncate text-ui-sm text-text-tertiary">{meta.thread}</span>
         </div>
-        {!loading && !empty && (
-          <span className="flex shrink-0 gap-2 pe-1.5 font-mono text-mono-sm">
-            <span className="text-diff-add-text">+42</span>
-            <span className="text-diff-remove-text">−18</span>
-          </span>
-        )}
       </header>
 
       {empty ? (
         <div className="grid min-h-0 flex-1 place-items-center">
           <EmptyState
-            icon={<CircleCheck />}
             surface="none"
             title="바뀐 내용이 없어요"
-            description="모델이 낸 changeset이 작업 폴더와 같아요."
             actions={
               <Button size="sm" tone="neutral" variant="outline">
                 검토 닫기
@@ -199,7 +186,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                 as="div"
                 className="w-60 pb-2 [&_[data-slot=list-navigation-group]]:grid-cols-1 [&_[data-slot=list-navigation-label]]:min-w-0 [&_[data-slot=list-navigation-label]]:truncate"
               >
-                <ListNavigationGroup heading={`파일 ${files.length}`}>
+                <ListNavigationGroup heading="파일">
                   {files.map((f) =>
                     loading ? (
                       <li key={f.path} className="px-2 py-2">
@@ -227,13 +214,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                   )}
                 </ListNavigationGroup>
                 {!loading && (comments.length > 0 || round2) && (
-                  <ListNavigationGroup
-                    heading={
-                      round2
-                        ? `지난 라운드 의견 ${deliveredComments.length}`
-                        : `의견 ${comments.length}`
-                    }
-                  >
+                  <ListNavigationGroup heading={round2 ? "지난 라운드 의견" : "의견"}>
                     {(round2 ? deliveredComments : comments).map((c) => (
                       <ListNavigationItem
                         key={c.id}
@@ -245,7 +226,7 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                             : undefined
                         }
                       >
-                        {round2 ? c.text : `${c.afterLine ?? c.hunk}줄 · ${c.text}`}
+                        {c.text}
                       </ListNavigationItem>
                     ))}
                   </ListNavigationGroup>
@@ -256,29 +237,16 @@ export function ReviewPage({ state }: { state: ReviewState }) {
 
           <ScrollArea label="diff" className="min-h-0 min-w-0 flex-1">
             <div className="grid gap-3 pe-1.5 pb-3">
-              {offline && (
-                <Alert tone="warning">
-                  엔진에 연결되면 제출할 수 있어요. 결정과 의견 초안은 이 화면에 남아요.
-                </Alert>
-              )}
+              {offline && <Alert tone="warning">엔진에 연결되면 제출할 수 있어요.</Alert>}
               {state === "D-observe" && (
                 <Alert tone="neutral" actions={[{ label: "쓰기 다시 시도" }]}>
-                  관찰 중이에요. build-box의 다른 창이 이 대화를 쓰고 있어 여기서는 제출할 수
-                  없어요.
+                  관찰 중이에요. 다른 창이 이 대화를 쓰고 있어 제출할 수 없어요.
                 </Alert>
               )}
               {state === "D-resolved" && (
-                <Alert tone="neutral">
-                  다른 곳에서 이미 답했어요 · 모두 승인 · 14:12 · 웹(build-box). 이 화면은 읽기만
-                  돼요.
-                </Alert>
+                <Alert tone="neutral">다른 곳에서 이미 답했어요 · 모두 승인</Alert>
               )}
-              {round2 && (
-                <Alert tone="info">
-                  라운드 1 의견 2개를 모델에 전달했고, 모델이 고친 changeset이 왔어요. 지난 결정은
-                  비웠어요.
-                </Alert>
-              )}
+              {round2 && <Alert tone="info">고친 changeset이 왔어요.</Alert>}
               {submitted && (
                 <section aria-label="제출 결과" className="grid gap-1.5">
                   <Alert tone="danger">제출했어요. 충돌 1개는 직접 고쳐야 해요.</Alert>
@@ -291,25 +259,15 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                     {submitResult.rows.map((r) => (
                       <ListDescriptionRow
                         key={r.hunk}
-                        term={
-                          <span className="font-mono">
-                            {r.path} · {r.hunk}
-                          </span>
-                        }
+                        term={<span className="font-mono">{r.path}</span>}
                       >
                         <span className="flex min-w-0 flex-wrap items-center gap-2">
                           <Badge size="xs" tone={r.tone}>
                             {r.outcome}
                           </Badge>
-                          <span
-                            className={
-                              r.tone === "danger"
-                                ? "text-text-primary"
-                                : "font-mono text-mono-sm text-text-secondary"
-                            }
-                          >
-                            {r.detail}
-                          </span>
+                          {r.tone === "danger" && (
+                            <span className="text-text-primary">{r.detail}</span>
+                          )}
                           {r.tone === "danger" && (
                             <Button size="xs" tone="neutral" variant="outline">
                               파일 열기
@@ -318,11 +276,6 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                         </span>
                       </ListDescriptionRow>
                     ))}
-                    <ListDescriptionRow term="모델에 전달">
-                      <span className="font-mono text-mono-sm">
-                        {submitResult.deliverAs} · {submitResult.requestId}
-                      </span>
-                    </ListDescriptionRow>
                   </ListDescription>
                 </section>
               )}
@@ -357,19 +310,6 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                       <h2 className="m-0 min-w-0 truncate font-mono text-mono-md font-medium text-text-primary">
                         {file.path}
                       </h2>
-                      <span className={`text-ui-sm ${CHANGE_TONE[file.change]}`}>
-                        {CHANGE_WORD[file.change]}
-                      </span>
-                      {file.added > 0 && (
-                        <span className="font-mono text-mono-sm text-diff-add-text">
-                          +{file.added}
-                        </span>
-                      )}
-                      {file.removed > 0 && (
-                        <span className="font-mono text-mono-sm text-diff-remove-text">
-                          −{file.removed}
-                        </span>
-                      )}
                       <span aria-hidden className="flex-1" />
                       <Button
                         size="xs"
@@ -393,16 +333,8 @@ export function ReviewPage({ state }: { state: ReviewState }) {
 
                     {file.binary === true || file.unreadable === true ? (
                       <div className="flex items-center gap-2.5 rounded-xl px-3 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
-                        <span
-                          aria-hidden
-                          className="inline-flex text-text-tertiary [&_svg]:size-icon-sm"
-                        >
-                          {file.binary === true ? <FileImage /> : <FileWarning />}
-                        </span>
                         <span className="flex-1 text-ui-sm text-text-secondary">
-                          {file.binary === true
-                            ? "바이너리 파일이에요. 파일 단위로만 정해요."
-                            : "본문을 읽지 못했어요. 파일 단위로만 정할 수 있어요."}
+                          {file.binary === true ? "바이너리 파일이에요." : "본문을 읽지 못했어요."}
                         </span>
                         {file.unreadable === true && (
                           <Button size="xs" tone="neutral" variant="ghost">
@@ -441,7 +373,6 @@ export function ReviewPage({ state }: { state: ReviewState }) {
                           delivered={
                             round2 && deliveredComments.some((c) => c.hunk === h.id) ? (
                               <p className="m-0 border-b border-border-subtle px-3 py-1.5 font-ui text-ui-xs text-text-tertiary">
-                                지난 라운드 의견 전달됨 ·{" "}
                                 {deliveredComments.find((c) => c.hunk === h.id)?.text}
                               </p>
                             ) : undefined
@@ -475,11 +406,6 @@ export function ReviewPage({ state }: { state: ReviewState }) {
               <span className="text-ui-sm tabular-nums text-text-primary">
                 대기 {count.pending} · 승인 {count.approved} · 거절 {count.rejected}
               </span>
-              {!canSubmit && !offline && count.pending > 0 && (
-                <span className="text-ui-sm text-text-tertiary">
-                  대기 hunk {count.pending}개를 먼저 정해요
-                </span>
-              )}
               <span aria-hidden className="flex-1" />
               <label className="flex items-center gap-2 text-ui-sm text-text-primary">
                 <Checkbox

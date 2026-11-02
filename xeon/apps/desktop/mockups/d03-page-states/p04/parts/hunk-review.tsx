@@ -3,14 +3,14 @@
 // (헤더 줄, 결정 배지, 승인·거절·의견)와 줄 사이 의견 칸만 이 폴더에서 짠다.
 // caustic에 넣을 때의 모양 제안: <CodeDiff> 안 <CodeDiffHunk header decision onDecide> 와 줄 다음 <CodeDiffComment>.
 // 줄 몸통은 <pre>라 블록 요소(의견 칸)를 끼울 수 없어, 의견 자리에서 <pre>를 나눈다.
-import { Badge, Button, CodeDiffLine, codeDiffVariants, Textarea } from "@caustic/react";
+import { Button, CodeDiffLine, codeDiffVariants, Textarea } from "@caustic/react";
 import { Fragment, type ReactNode } from "react";
 import type { Comment, Hunk, HunkDecision, Line } from "../fixtures";
 
-const DECISION: Record<HunkDecision, { word: string; tone: "neutral" | "success" | "danger" }> = {
-  pending: { word: "대기", tone: "neutral" },
-  approved: { word: "승인함", tone: "success" },
-  rejected: { word: "거절함", tone: "danger" },
+const DECISION_WORD: Record<HunkDecision, string> = {
+  pending: "대기",
+  approved: "승인함",
+  rejected: "거절함",
 };
 
 function Lines({ lines, dim }: { lines: Line[]; dim: boolean }) {
@@ -106,7 +106,6 @@ export function HunkReview({
   locked = false,
   delivered,
 }: HunkReviewProps) {
-  const d = DECISION[decision];
   // 의견이 붙는 줄 번호에서 줄 목록을 나눈다.
   const anchors = new Set<number>(
     comments.flatMap((c) => (c.afterLine !== undefined ? [c.afterLine] : [])),
@@ -125,16 +124,13 @@ export function HunkReview({
 
   return (
     <article
-      aria-label={`${hunk.header}, ${d.word}`}
+      aria-label={`${hunk.header}, ${DECISION_WORD[decision]}`}
       className={codeDiffVariants({ variant: "outline", size: "md", className: "rounded-xl" })}
     >
       <div className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border-subtle bg-surface-raised py-1 ps-3 pe-1.5 font-ui">
         <h3 className="m-0 min-w-0 flex-1 truncate font-mono text-mono-sm font-normal text-text-secondary">
           {hunk.header}
         </h3>
-        <Badge size="xs" tone={d.tone}>
-          {d.word}
-        </Badge>
         <span className="flex items-center gap-0.5">
           <Button
             size="xs"
