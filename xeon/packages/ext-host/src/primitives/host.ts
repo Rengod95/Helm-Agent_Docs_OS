@@ -325,11 +325,11 @@ export function registrationToggleSourceOf(host: ExtHost): RegistrationToggleSou
  * turn()은 버퍼 밖이거나 계측이 꺼져 있으면 undefined다. wire 쪽이 enabled()로 traceEnabled를 채운다(X.operations §3.9)
  */
 export function traceReadOf(host: ExtHost): TraceReadPort {
-  const { trace } = hostInternalsOf(host);
+  // 내부는 부를 때 얻는다. createExtHost가 만들지 않은 대역 ExtHost로도 포트를 만들 수 있게 한다(조립 시험)
   return {
-    enabled: () => trace.enabled(),
-    turn: (threadId, turnId) => trace.turn(threadId, turnId),
-    timings: (filter) => trace.timings(filter),
+    enabled: () => hostInternalsOf(host).trace.enabled(),
+    turn: (threadId, turnId) => hostInternalsOf(host).trace.turn(threadId, turnId),
+    timings: (filter) => hostInternalsOf(host).trace.timings(filter),
   };
 }
 
@@ -345,24 +345,28 @@ function phaseValueOf(doc: unknown): string | null {
  * phase는 읽기만 한다. drive 락 보유자의 그룹 선언(`composition.phases`)과 커밋된 상태 판의 `phase`를 본다
  */
 export function testRunControlOf(host: ExtHost): TestRunControlPort {
-  const { core, isTestRun, stepPause, state } = hostInternalsOf(host);
+  // 내부는 부를 때 얻는다. createExtHost가 만들지 않은 대역 ExtHost로도 포트를 만들 수 있게 한다(조립 시험)
   return {
     pause(threadId) {
+      const { isTestRun, stepPause } = hostInternalsOf(host);
       if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
       stepPause.pause(threadId);
       return ok({ paused: true });
     },
     resume(threadId) {
+      const { isTestRun, stepPause } = hostInternalsOf(host);
       if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
       if (!stepPause.resume(threadId)) return err({ kind: "not_paused" });
       return ok({ paused: false });
     },
     step(threadId) {
+      const { isTestRun, stepPause } = hostInternalsOf(host);
       if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
       if (!stepPause.step(threadId)) return err({ kind: "not_paused" });
       return ok({ paused: true });
     },
     phase(threadId) {
+      const { core, isTestRun, state } = hostInternalsOf(host);
       if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
       // 보유자는 `leaseOf`가 보는 자료와 같다. 커밋되지 않았거나 반납이 커밋된 임대는 보유자가 아니다
       const lease = host.leaseOf(threadId);
