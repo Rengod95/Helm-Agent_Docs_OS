@@ -4,6 +4,7 @@
 import { Alert, Button, toast } from "@caustic/react";
 import { useEffect, useState } from "react";
 import {
+  BAR_INSET,
   defaultStatusCells,
   inbox,
   josa,
@@ -88,7 +89,7 @@ export function App({ state }: { state: StateId }) {
             text: "끊김",
             dot: "danger",
             title: T.connection,
-            description: "엔진에 연결되지 않았어요. 마지막 값만 보여요.",
+            description: "엔진에 연결되지 않았어요.",
           }
         : undefined;
     const safe: StatusCell = {
@@ -146,88 +147,90 @@ export function App({ state }: { state: StateId }) {
       })}
       status={statusOf(s.look)}
     >
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <div className="-ms-1.5 flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
         <WorkbenchHead
           className={`${column} px-3 pt-6`}
           title={T.structure}
           {...(narrow ? { meta: T.readOnly } : {})}
-          {...(busyLine !== undefined
-            ? { sub: busyLine }
-            : s.look === "offline"
-              ? { sub: "14:03 기준" }
-              : {})}
+          {...(busyLine !== undefined ? { sub: busyLine } : {})}
         />
         <div className={`${column} ${GRID_BODY_COMPACT} gap-6 pb-8`}>
           {s.look === "offline" && (
-            <Alert
-              tone="warning"
-              variant="soft"
-              size="sm"
-              action={
-                <Button
-                  size="xs"
-                  tone="neutral"
-                  variant="outline"
-                  onClick={() => set({ look: "loading", then: "ready", reconnected: true })}
-                >
-                  다시 연결
-                </Button>
-              }
-            >
-              오프라인이라 바꿀 수 없어요
-            </Alert>
+            <div className={BAR_INSET}>
+              <Alert
+                tone="warning"
+                variant="soft"
+                size="sm"
+                action={
+                  <Button
+                    size="xs"
+                    tone="neutral"
+                    variant="outline"
+                    onClick={() => set({ look: "loading", then: "ready", reconnected: true })}
+                  >
+                    다시 연결
+                  </Button>
+                }
+              >
+                오프라인이라 바꿀 수 없어요
+              </Alert>
+            </div>
           )}
           {s.look === "safe-mode" && (
-            <Alert
-              tone="warning"
-              variant="soft"
-              size="sm"
-              action={
-                <Button
-                  size="xs"
-                  tone="neutral"
-                  variant="outline"
-                  onClick={() =>
-                    set({ look: "loading", then: "failure", busy: "safe-off", pick: {} })
-                  }
-                >
-                  {T.safeMode} 끄고 다시 시작
-                </Button>
-              }
-            >
-              {`${T.safeMode}라 ${josa(SAFE_OFF, "이", "가")} 빠졌어요`}
-            </Alert>
-          )}
-          {s.look === "failure" && (
-            <Alert
-              tone="danger"
-              variant="soft"
-              size="sm"
-              action={
-                <span className="flex items-center gap-2">
+            <div className={BAR_INSET}>
+              <Alert
+                tone="warning"
+                variant="soft"
+                size="sm"
+                action={
                   <Button
                     size="xs"
                     tone="neutral"
                     variant="outline"
                     onClick={() =>
-                      set({ look: "loading", then: "safe-mode", busy: "safe-on", pick: {} })
+                      set({ look: "loading", then: "failure", busy: "safe-off", pick: {} })
                     }
                   >
-                    {josa(T.safeMode, "으로", "로")} 다시 시작
+                    {T.safeMode} 끄고 다시 시작
                   </Button>
-                  <Button
-                    size="xs"
-                    tone="neutral"
-                    variant="outline"
-                    onClick={() => done("이번 단계가 끝나면 다시 켜요")}
-                  >
-                    다시 켜기
-                  </Button>
-                </span>
-              }
-            >
-              리뷰가 연속 5번 실패해 자동으로 꺼졌어요.
-            </Alert>
+                }
+              >
+                {`${T.safeMode}라 ${josa(SAFE_OFF, "이", "가")} 빠졌어요`}
+              </Alert>
+            </div>
+          )}
+          {s.look === "failure" && (
+            <div className={BAR_INSET}>
+              <Alert
+                tone="danger"
+                variant="soft"
+                size="sm"
+                action={
+                  <span className="flex items-center gap-2">
+                    <Button
+                      size="xs"
+                      tone="neutral"
+                      variant="outline"
+                      onClick={() =>
+                        set({ look: "loading", then: "safe-mode", busy: "safe-on", pick: {} })
+                      }
+                    >
+                      {josa(T.safeMode, "으로", "로")} 다시 시작
+                    </Button>
+                    <Button
+                      size="xs"
+                      tone="neutral"
+                      variant="outline"
+                      onClick={() => done("이번 단계가 끝나면 다시 켜요")}
+                    >
+                      다시 켜기
+                    </Button>
+                  </span>
+                }
+              >
+                리뷰가 연속 5번 실패해 자동으로 꺼졌어요.
+              </Alert>
+            </div>
           )}
           <div data-bleed="" aria-busy={s.look === "loading"}>
             <LineGridFrame>

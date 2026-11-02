@@ -17,8 +17,8 @@ export const RING = "shadow-[inset_0_0_0_1px_var(--cs-color-accent-border-strong
 /** 가운데 칸: 레일 없이 바깥 여백 24(PAGE_PAD)만 두고 세로로 흐른다. 넘치면 칸 전체가 스크롤한다. */
 export const STAGE = `flex min-h-0 min-w-0 flex-1 flex-col overflow-auto ${PAGE_PAD}`;
 
-/** 선 격자 띠가 있는 가운데 칸(구조·차이): 가로 여백 0이라 띠가 영역 양 끝까지 닿는다. 머리·구역은 칸 글자와 같은 px-3(GRID_INSET_COMPACT)을 가진다. */
-export const STAGE_GRID = `flex min-h-0 min-w-0 flex-1 flex-col overflow-auto ${PAGE_PAD_GRID}`;
+/** 선 격자 띠가 있는 가운데 칸(구조·차이): 가로 여백 0이라 띠가 영역 양 끝까지 닿고, -ms-1.5가 창 바깥 여백(6px)을 걷어 왼쪽 패널 가장자리에 맞닿는다. 머리·구역은 칸 글자와 같은 px-3(GRID_INSET_COMPACT)을 가진다. */
+export const STAGE_GRID = `-ms-1.5 flex min-h-0 min-w-0 flex-1 flex-col overflow-auto ${PAGE_PAD_GRID}`;
 
 /** 수평으로 들어가 수평으로 나오는 부드러운 곡선 */
 export function hCurve(ax: number, ay: number, bx: number, by: number) {
