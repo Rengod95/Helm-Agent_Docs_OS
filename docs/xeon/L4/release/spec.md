@@ -41,7 +41,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 | M3-30 | `.github/workflows/fresnel-*.yml`의 액션을 40자리 SHA로 고정하고 `# v<버전>` 주석을 붙입니다 | `.github/workflows/fresnel-ci.yml`, `fresnel-macos.yml`, `fresnel-release.yml` | `xeon/scripts/workflow-pins.test.ts`(실제 파일과 판정 함수) |
 | DR-07 `@swc/core` | 릴리즈 바이너리에 `@swc/core`가 들어가지 않습니다 | `xeon/scripts/release-smoke.ts`의 `swc.absent` 검사 | X11. 바이너리 안의 문자열을 확인합니다 |
 | 템플릿 패키징(`L4.cli.spec` §10 29번) | 컴파일 바이너리가 `fresnel group new`의 템플릿을 찾습니다 | `xeon/apps/cli/src/group/fs-port.ts`(`locateGroupTemplates`의 `resourceDir`), `xeon/apps/cli/src/runtime.ts` | `xeon/apps/cli/test/group-templates-locate.test.ts`, X11의 `run.group-new` |
-| rg 확인(M3b) | 번들 rg 15.0.0이 `--no-require-git`을 지원하고, 작업 공간 검색(`cap-workspace`)이 쓰는 값과 맞습니다 | `xeon/scripts/release-bundle.json`의 rg 15.0.0 | `xeon/packages/cap-workspace/test/rg.int.test.ts`(작성 시점 실측 12/12) |
+| rg 확인(M3b) | 번들 rg 15.2.0이 `--no-require-git`을 지원하고, 작업 공간 검색(`cap-workspace`)이 쓰는 값과 맞습니다 | `xeon/scripts/release-bundle.json`의 rg 15.2.0 | `xeon/packages/cap-workspace/test/rg.int.test.ts`(작성 시점 실측 12/12) |
 
 ## 3. 릴리즈 구성
 
@@ -88,7 +88,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 |---|---|---|---|---|
 | sops | 3.13.3 | MPL-2.0 | https://github.com/getsops/sops | macOS arm64 번들 |
 | age | 1.3.2 | BSD-3-Clause | https://github.com/FiloSottile/age | macOS arm64 번들 |
-| rg | 15.0.0 | Unlicense OR MIT | https://github.com/BurntSushi/ripgrep | macOS arm64 번들 |
+| rg | 15.2.0 | Unlicense OR MIT | https://github.com/BurntSushi/ripgrep | macOS arm64 번들 |
 
 - 버전의 원천은 `xeon/scripts/release-bundle.json`입니다. `.github/workflows/fresnel-macos.yml`과 `fresnel-release.yml`의 `mise use --global sops@… age@… ripgrep@…` 줄이 같은 값을 씁니다. `xeon/scripts/release.test.ts`가 세 곳의 값이 같은지 확인합니다.
 - `release.ts`는 파일을 복사하기 전에 `<이름> --version`의 출력에 고정 버전이 있는지 확인합니다. 없으면 `binary.version` 오류로 끝납니다.

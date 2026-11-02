@@ -20,7 +20,7 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   trap 'rm -rf "$bins"' EXIT
   for name in sops age rg; do
     if ! path="$(mise which "$name" 2>/dev/null)"; then
-      echo "release-smoke: mise has no $name (run: mise use --global sops@3.13.3 age@1.3.2 ripgrep@15.0.0)" >&2
+      echo "release-smoke: mise has no $name (run: mise use --global sops@3.13.3 age@1.3.2 ripgrep@15.2.0)" >&2
       exit 2
     fi
     cp "$path" "$bins/$name"

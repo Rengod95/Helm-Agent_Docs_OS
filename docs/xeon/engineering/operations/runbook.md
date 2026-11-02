@@ -40,7 +40,7 @@ binds: []
 
 | triple | 상태 | 외부 바이너리 |
 |---|---|---|
-| `aarch64-apple-darwin` | macOS 14 이상 arm64 | 아카이브에 번들합니다(sops 3.13.3, age 1.3.2, rg 15.0.0) |
+| `aarch64-apple-darwin` | macOS 14 이상 arm64 | 아카이브에 번들합니다(sops 3.13.3, age 1.3.2, rg 15.2.0) |
 | `x86_64-unknown-linux-gnu` | Linux x86_64 | 시스템 패키지 rg, bwrap, socat을 설치합니다 |
 | `aarch64-unknown-linux-gnu` | 빌드 대상입니다. 검증하지 않았습니다 [미결 11] | 시스템 패키지 rg, bwrap, socat |
 

@@ -48,7 +48,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 
 ## 4. 채택 도구
 
-- 번들 바이너리: sops 3.13.3, age 1.3.2, ripgrep 15.0.0(macOS arm64만, mise로 설치). 버전의 원천은 `release-bundle.json`입니다.
+- 번들 바이너리: sops 3.13.3, age 1.3.2, ripgrep 15.2.0(macOS arm64만, mise로 설치). 버전의 원천은 `release-bundle.json`입니다.
 - macOS 도구: `codesign`, `ditto`, `xcrun notarytool`, `security`(키체인).
 - 새 npm 의존은 없습니다. `release.ts`는 이미 있는 `typebox`만 씁니다.
 

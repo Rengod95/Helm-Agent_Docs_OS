@@ -69,7 +69,7 @@ test("the committed release-bundle.json parses into the bundle the release build
           },
           {
             name: "rg",
-            version: "15.0.0",
+            version: "15.2.0",
             license: "Unlicense OR MIT",
             source: "https://github.com/BurntSushi/ripgrep",
           },
@@ -358,9 +358,9 @@ test("the sops, age and rg versions in release-bundle.json match the mise pins o
     macos: miseVersions("fresnel-macos.yml"),
     release: miseVersions("fresnel-release.yml"),
   }).toEqual({
-    bundle: ["3.13.3", "1.3.2", "15.0.0"],
-    macos: ["3.13.3", "1.3.2", "15.0.0"],
-    release: ["3.13.3", "1.3.2", "15.0.0"],
+    bundle: ["3.13.3", "1.3.2", "15.2.0"],
+    macos: ["3.13.3", "1.3.2", "15.2.0"],
+    release: ["3.13.3", "1.3.2", "15.2.0"],
   });
 });
 
