@@ -24,7 +24,6 @@ export interface Comp {
   name: string;
   role: string;
   roleLabel: string;
-  line: string;
   x: number;
   y: number;
   h?: number;
@@ -48,18 +47,14 @@ export interface OutGroup {
 export interface Phase {
   id: string;
   label: string;
-  budget?: string;
   comps: string[];
-  /** 이 단계로 들어오는 경계 조건 */
-  cond?: string;
   fan?: string[];
-  note?: string;
 }
 export interface DetailSpec {
   id: string;
   inputs: InGroup[];
   comps: Comp[];
-  internal: [string, string, string][];
+  internal: [string, string][];
   outputs: OutGroup[];
   phases: Phase[];
   /** 흐름이 고리인가(단계 머신) */
@@ -108,7 +103,6 @@ export const HELM_DETAIL: DetailSpec = {
       name: "단계 머신",
       role: "drive",
       roleLabel: "주도",
-      line: "확산 → 탐색 → 수렴 → 적용",
       x: 240,
       y: 26,
       h: 84,
@@ -119,7 +113,6 @@ export const HELM_DETAIL: DetailSpec = {
       name: "지식 소비",
       role: "knowledge",
       roleLabel: "지식",
-      line: "수렴에서 읽기만 · 출처별 저하",
       x: 240,
       y: 124,
     },
@@ -128,7 +121,6 @@ export const HELM_DETAIL: DetailSpec = {
       name: "발견 기록",
       role: "record",
       roleLabel: "기록",
-      line: "발견을 그룹 기록으로 남겨요",
       x: 240,
       y: 198,
     },
@@ -137,7 +129,6 @@ export const HELM_DETAIL: DetailSpec = {
       name: "상태 복원",
       role: "restore",
       roleLabel: "복원",
-      line: "다시 열면 단계를 이어요",
       x: 468,
       y: 26,
     },
@@ -146,7 +137,6 @@ export const HELM_DETAIL: DetailSpec = {
       name: "신호 감지",
       role: "signal",
       roleLabel: "신호",
-      line: "막힘 3 · 반복 3 · 새 분야",
       x: 468,
       y: 94,
     },
@@ -155,7 +145,6 @@ export const HELM_DETAIL: DetailSpec = {
       name: "렌즈 주입",
       role: "lens",
       roleLabel: "렌즈",
-      line: "신호 순서로 렌즈 3개",
       x: 468,
       y: 162,
     },
@@ -164,18 +153,17 @@ export const HELM_DETAIL: DetailSpec = {
       name: "쓰기 막기",
       role: "guard",
       roleLabel: "막기",
-      line: "탐색 중에는 쓰기를 막아요",
       x: 468,
       y: 230,
     },
   ],
   internal: [
-    ["signal", "drive", "막힘"],
-    ["drive", "lens", "렌즈 지시"],
-    ["drive", "guard", "단계"],
-    ["knowledge-use", "drive", "발견"],
-    ["drive", "record", "적용"],
-    ["restore", "drive", "단계 복원"],
+    ["signal", "drive"],
+    ["drive", "lens"],
+    ["drive", "guard"],
+    ["knowledge-use", "drive"],
+    ["drive", "record"],
+    ["restore", "drive"],
   ],
   outputs: [
     {
@@ -207,31 +195,17 @@ export const HELM_DETAIL: DetailSpec = {
   ],
   phases: [
     { id: "idle", label: "쉼", comps: ["signal", "restore"] },
-    {
-      id: "diverge",
-      label: "확산",
-      budget: "턴 1",
-      comps: ["drive", "lens"],
-      cond: "막힘 신호 · 주도",
-    },
+    { id: "diverge", label: "확산", comps: ["drive", "lens"] },
     {
       id: "explore",
       label: "탐색",
-      budget: "보조 3",
       comps: ["drive", "lens", "guard"],
-      cond: "갈라짐",
       fan: ["실패 사례", "기본 원리", "다른 분야"],
     },
-    { id: "gather", label: "모으기", comps: ["drive"], cond: "렌즈 끝", note: "부분 결과 허용" },
-    {
-      id: "converge",
-      label: "수렴",
-      budget: "턴 0",
-      comps: ["drive", "knowledge-use"],
-      cond: "렌즈 끝남",
-    },
-    { id: "apply", label: "적용", budget: "턴 1", comps: ["drive", "record"], cond: "발견 있음" },
-    { id: "end", label: "끝", comps: ["record"], cond: "적용됨" },
+    { id: "gather", label: "모으기", comps: ["drive"] },
+    { id: "converge", label: "수렴", comps: ["drive", "knowledge-use"] },
+    { id: "apply", label: "적용", comps: ["drive", "record"] },
+    { id: "end", label: "끝", comps: ["record"] },
   ],
   cyclic: true,
   activePhase: "explore",
@@ -267,7 +241,6 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "provider 등록",
       role: "provider",
       roleLabel: "등록",
-      line: "route/auto 를 모델로 내놔요",
       x: 240,
       y: 14,
     },
@@ -276,7 +249,6 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "규칙 읽기",
       role: "rules",
       roleLabel: "설정",
-      line: "짧은 질문 · 긴 컨텍스트 · 계획",
       x: 240,
       y: 92,
     },
@@ -285,7 +257,6 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "모델 고르기",
       role: "choose",
       roleLabel: "고르기",
-      line: "haiku · sonnet · opus 중 하나",
       x: 240,
       y: 170,
       h: 84,
@@ -296,7 +267,6 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "요청 재기",
       role: "measure",
       roleLabel: "재기",
-      line: "입력 토큰 · 도구 수 · 첨부",
       x: 468,
       y: 50,
     },
@@ -305,7 +275,6 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "요청 고치기",
       role: "patch",
       roleLabel: "고치기",
-      line: "요청의 모델 이름만 바꿔요",
       x: 468,
       y: 140,
     },
@@ -314,16 +283,15 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "비용 기록",
       role: "record",
       roleLabel: "기록",
-      line: "고른 모델과 아낀 비용",
       x: 468,
       y: 222,
     },
   ],
   internal: [
-    ["rules", "choose", "규칙"],
-    ["measure", "choose", "크기"],
-    ["choose", "patch", "모델"],
-    ["patch", "record", "결과"],
+    ["rules", "choose"],
+    ["measure", "choose"],
+    ["choose", "patch"],
+    ["patch", "record"],
   ],
   outputs: [
     {
@@ -349,7 +317,7 @@ export const ROUTER_DETAIL: DetailSpec = {
     },
   ],
   phases: [
-    { id: "arrive", label: "요청 도착", comps: ["measure"], cond: "요청 직전" },
+    { id: "arrive", label: "요청 도착", comps: ["measure"] },
     { id: "measure", label: "재기", comps: ["measure"] },
     { id: "match", label: "규칙 대조", comps: ["rules", "choose"] },
     {
@@ -358,8 +326,8 @@ export const ROUTER_DETAIL: DetailSpec = {
       comps: ["choose"],
       fan: ["haiku-5-5", "sonnet-5-5", "opus-5-5"],
     },
-    { id: "patch", label: "요청 고치기", comps: ["patch"], note: "모델 이름만" },
-    { id: "after", label: "응답 뒤 기록", comps: ["record"], cond: "응답 뒤" },
+    { id: "patch", label: "요청 고치기", comps: ["patch"] },
+    { id: "after", label: "응답 뒤 기록", comps: ["record"] },
   ],
   cyclic: false,
   activePhase: "choose",

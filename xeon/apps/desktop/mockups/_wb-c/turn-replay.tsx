@@ -35,9 +35,6 @@ export function TurnReplayLocked({
           ? `이 ${T.turn}의 기록은 남아 있지 않아요`
           : `${josa(T.instrumentation, "이", "가")} 꺼져 있어 ${josa(T.turnReplay, "을", "를")} 쓸 수 없어요`}
       </span>
-      {!evicted && (
-        <span className="text-ui-xs text-text-tertiary">x.operations.trace.enabled</span>
-      )}
       {!evicted && onSettings !== undefined && (
         <Button size="xs" tone="neutral" variant="ghost" className="ms-auto" onClick={onSettings}>
           설정에서 켜기
@@ -150,20 +147,16 @@ export function TurnReplayBar({
           ))}
         </div>
         <span className="flex-none font-mono text-mono-sm tabular-nums text-text-tertiary">
-          {T.turn} {turn} · seq {t.seq}
+          {T.turn} {turn}
         </span>
       </div>
       <div className="grid gap-0.5 ps-1">
         <div className="flex min-w-0 items-baseline gap-2 text-ui-dense">
           <span className="text-text-primary">{t.point}</span>
-          <span className="font-mono text-mono-sm text-text-tertiary">{t.fold}</span>
           {t.boundary === true && (
             <Badge size="xs" tone="neutral" variant="soft">
               {T.stepBoundary}
             </Badge>
-          )}
-          {t.failed === true && t.fold === "first" && (
-            <span className="text-ui-xs text-text-tertiary">닫힌 훅의 예외는 거부로 처리해요</span>
           )}
         </div>
         {t.handlers.map((h) => (
@@ -172,10 +165,7 @@ export function TurnReplayBar({
               {h.result === "ok" ? <CircleCheck /> : <CircleX />}
             </ToneIcon>
             <ExtName id={h.ext} />
-            <span className="ms-auto font-mono text-mono-sm tabular-nums text-text-secondary">
-              {h.ms} / {h.budget}
-            </span>
-            <span className="w-10 text-end text-ui-xs text-text-tertiary">
+            <span className="w-10 ms-auto text-end text-ui-xs text-text-tertiary">
               {h.result === "ok" ? "허용" : h.result === "deny" ? "거부" : "예외"}
             </span>
           </div>

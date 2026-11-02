@@ -12,11 +12,10 @@ import {
 } from "@caustic/react";
 import { useCallback, useEffect, useReducer, useState } from "react";
 import {
+  BAR_INSET,
   LoaderCircle,
   Lock,
   NoticeList,
-  Pause,
-  Play,
   ScenarioDock,
   Shell,
   T,
@@ -57,23 +56,15 @@ function statusText(s: Model): string {
     case "running":
       return "실행 중";
     case "pausing":
-      return `${T.trialPausing} · 이번 ${T.step}가 끝나면 멈춰요`;
+      return T.trialPausing;
     case "paused":
-      return `${T.stepBoundary}에서 ${T.trialPause} · ${T.lead} helm 유지`;
+      return `${T.stepBoundary}에서 ${T.trialPause}`;
     case "stepping":
-      return `${PHASE_LABEL[s.now]} ${T.step}만 돌고 다시 멈춰요`;
+      return `${PHASE_LABEL[s.now]} ${T.step}`;
     case "done":
       return `${T.trial} ${T.stageDone} · 적용함`;
   }
 }
-
-const ELAPSED: Record<Model["run"], string> = {
-  running: "1:12",
-  pausing: "1:18",
-  paused: "1:24",
-  stepping: "1:24",
-  done: "3:06",
-};
 
 function TrialBar({
   s,
@@ -89,7 +80,9 @@ function TrialBar({
   const paused = s.run === "paused";
   const reason = `배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 ${T.repoPath}의 테스트 도구로 돌려요.`;
   return (
-    <div className="flex min-w-0 flex-none flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+    <div
+      className={`flex min-w-0 flex-none flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 ${BAR_INSET}`}
+    >
       <span className="flex min-w-0 flex-1 basis-72 items-center gap-2 text-body text-text-primary">
         {busy ? (
           <LoaderCircle
@@ -102,16 +95,13 @@ function TrialBar({
         <span role="status" className="min-w-0">
           {statusText(s)}
         </span>
-        <span className="flex-none text-footnote text-text-tertiary tabular-nums">
-          {`${T.trialThread} ${ELAPSED[s.run]}${s.dev ? ` · ${T.devMode}` : ""}`}
-        </span>
+        {s.dev && <span className="flex-none text-footnote text-text-tertiary">{T.devMode}</span>}
       </span>
       <span className="flex flex-none items-center gap-2">
         {!done && !paused && (
           <Button
             size="xs"
             variant="outline"
-            iconStart={<Pause />}
             disabled={s.run !== "running"}
             onClick={() => dispatch({ t: "pause" })}
           >
@@ -119,12 +109,7 @@ function TrialBar({
           </Button>
         )}
         {paused && (
-          <Button
-            size="xs"
-            variant="solid"
-            iconStart={<Play />}
-            onClick={() => dispatch({ t: "resume" })}
-          >
+          <Button size="xs" variant="solid" onClick={() => dispatch({ t: "resume" })}>
             {T.trialResume}
           </Button>
         )}
@@ -211,7 +196,6 @@ function DevDialog({ s, dispatch }: { s: Model; dispatch: (a: Action) => void })
         if (!o && !checking) dispatch({ t: "closeDev" });
       }}
       title={`${T.devMode} 켜기`}
-      description={`저장소의 테스트 도구로 ${josa(T.replay, "을", "를")} 돌려요.`}
       footer={
         <>
           <DialogClose asChild>

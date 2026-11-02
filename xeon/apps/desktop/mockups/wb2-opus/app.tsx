@@ -2,8 +2,6 @@
 // 이 시안에 없는 크래프트 화면(개요, 확장, 엔진, 플러그인 화면)과 대화 영역은 1차 시안(wb1)·P-02가 맡는다: 알림 한 줄만.
 import { EmptyState } from "@caustic/react";
 import {
-  Layers,
-  MessageSquare,
   NoticeList,
   Shell,
   defaultStatusCells,
@@ -72,7 +70,7 @@ export function App() {
           <EmptyState
             size="md"
             surface="none"
-            icon={<MessageSquare />}
+            mark={null}
             title="대화 영역은 P-02 시안에 있어요"
             className="mt-16"
             actions={[{ label: "크래프트로", onClick: () => shell.setArea("workbench") }]}
@@ -87,7 +85,7 @@ export function App() {
               <EmptyState
                 size="md"
                 surface="none"
-                icon={<Layers />}
+                mark={null}
                 title="크래프트 1차 시안에 있는 화면이에요"
                 className="mt-16"
               />

@@ -6,28 +6,19 @@
 import { Button, EmptyState, Toaster, toast } from "@caustic/react";
 import { useEffect, useRef, type ReactNode } from "react";
 import {
-  CircleCheck,
-  Clock,
-  FlaskConical,
-  GitBranch,
   josa,
-  LoaderCircle,
-  Plus,
-  RotateCcw,
   ScenarioDock,
   T,
   useScenarioParam,
-  ToneIcon,
   useShell,
   WB_WIDTH,
   WorkbenchHead,
-  CircleX,
   workbenchNav,
 } from "../_shell";
 import { useMachine, usePrefill } from "../_chat-rt";
 import { goFolder, WbFrame } from "../_wb-c/frame";
 import { GridTable, type GridColumn } from "../_wb-c/grid-table";
-import { DevLock, DotText, ExtName, Mono, SectionTitle } from "../_wb-c/parts";
+import { DevLock, DotText, ExtName, SectionTitle } from "../_wb-c/parts";
 import type { Run } from "../_wb-c/data";
 import { effect, init, reduce, SCRIPTS, type A, type S } from "./flow";
 import { OtherDetail, profileTitle, ReplayDetail, TrialDetail } from "./parts/detail";
@@ -92,12 +83,6 @@ const DETAIL_STATES: StateId[] = ["dev", "dev-rerun", "past-locked", "lock-toolt
 /** 정적 상태에서도 토스트를 보일 상태(나머지는 시나리오가 살아 있을 때만). */
 const TOAST_STATES: StateId[] = ["running"];
 
-const KIND_ICON: Record<Run["kind"], ReactNode> = {
-  trial: <FlaskConical />,
-  replay: <RotateCcw />,
-  bench: <Clock />,
-  diff: <GitBranch />,
-};
 const kindLabel = (k: Run["kind"]) =>
   k === "trial"
     ? T.trialThread
@@ -108,39 +93,36 @@ const kindLabel = (k: Run["kind"]) =>
         : T.coreDiff;
 
 function trialStatus(r: Run): ReactNode {
-  const [a, b] = r.steps ?? [0, 6];
   switch (r.result) {
     case "running":
-      return <DotText tone="info">{`실행 중 · ${a}/${b}`}</DotText>;
+      return <DotText tone="info">실행 중</DotText>;
     case "pausing":
       return <DotText tone="info">멈추는 중</DotText>;
     case "paused":
-      return <DotText tone="neutral">{`${T.stepBoundary}에서 멈춤 · ${a}/${b}`}</DotText>;
+      return <DotText tone="neutral">{`${T.stepBoundary}에서 멈춤`}</DotText>;
     case "stopped":
       return <DotText tone="danger">{`멈춤 · 대상 ${T.autoDisabled}`}</DotText>;
     default:
-      return <DotText tone="success">{`끝 · ${b}/${b}`}</DotText>;
+      return <DotText tone="success">끝</DotText>;
   }
 }
 
 function devResult(r: Run): ReactNode {
-  const face = (tone: "success" | "danger" | "neutral" | "info", icon: ReactNode, text: string) => (
-    <span className="inline-flex min-w-0 items-center gap-1.5">
-      <ToneIcon tone={tone}>{icon}</ToneIcon>
-      <span className="truncate">{text}</span>
-    </span>
-  );
   switch (r.result) {
     case "running":
-      return face("info", <LoaderCircle className="animate-spin" />, "다시 돌리는 중");
+      return <DotText tone="info">다시 돌리는 중</DotText>;
     case "passed":
-      return face("success", <CircleCheck />, `통과 ${r.commits}/${r.commits}`);
+      return <DotText tone="success">통과</DotText>;
     case "failed":
-      return face("danger", <CircleX />, `digest 다름 ${r.diffCuts?.length ?? 0}/${r.commits}`);
+      return <DotText tone="danger">digest 다름</DotText>;
     case "budget_pending":
-      return face("neutral", <Clock />, "예산 미정");
+      return <DotText tone="neutral">예산 미정</DotText>;
     default:
-      return face("success", <CircleCheck />, `보호 경로 변경 ${r.protectedFiles ?? 0}`);
+      return (
+        <DotText tone="success">
+          {r.protectedFiles ? `보호 경로 변경 ${r.protectedFiles}` : "보호 경로 변경 없음"}
+        </DotText>
+      );
   }
 }
 
@@ -168,13 +150,6 @@ const trialCols: GridColumn<Run>[] = [
     hideCompact: true,
     cell: (r) => <span className="text-text-secondary">{r.at}</span>,
   },
-  {
-    key: "took",
-    header: "소요",
-    width: "3.5rem",
-    align: "end",
-    cell: (r) => <span className="text-text-secondary">{r.took}</span>,
-  },
 ];
 
 const devCols: GridColumn<Run>[] = [
@@ -182,19 +157,13 @@ const devCols: GridColumn<Run>[] = [
     key: "kind",
     header: "종류",
     width: "10rem",
-    cell: (r) => (
-      <span className="inline-flex items-center gap-1.5 text-text-primary [&_svg]:size-icon-sm [&_svg]:text-text-tertiary">
-        {KIND_ICON[r.kind]}
-        {kindLabel(r.kind)}
-      </span>
-    ),
+    cell: (r) => <span className="text-text-primary">{kindLabel(r.kind)}</span>,
   },
   {
     key: "target",
     header: "대상",
     width: "9rem",
-    cell: (r) =>
-      r.kind === "replay" ? <ExtName id={r.target} /> : <Mono dim={false}>{r.target}</Mono>,
+    cell: (r) => (r.kind === "replay" ? <ExtName id={r.target} /> : null),
   },
   { key: "result", header: "결과", cell: devResult },
   {
@@ -203,13 +172,6 @@ const devCols: GridColumn<Run>[] = [
     width: "4.5rem",
     hideCompact: true,
     cell: (r) => <span className="text-text-secondary">{r.at}</span>,
-  },
-  {
-    key: "took",
-    header: "소요",
-    width: "3.5rem",
-    align: "end",
-    cell: (r) => <span className="text-text-secondary">{r.took}</span>,
   },
 ];
 
@@ -348,33 +310,24 @@ export function App({ state }: { state: StateId }) {
   const head = (
     <WorkbenchHead
       title={T.trials}
-      meta={`${s.runs.length}개`}
       actions={
         <Button
           size="xs"
           tone="neutral"
           variant="outline"
-          iconStart={<Plus />}
           onClick={() => dispatch({ t: "openNew" })}
         >
           새 테스트
         </Button>
       }
-      sub={<span>14:24 기준 · 보기 기준 전체</span>}
     />
   );
 
-  const devHeadEnd = s.dev ? (
-    <span className="max-compact:hidden">
-      {s.web ? `원격 컴퓨터 build-box의 ${T.devMode}` : `${T.devMode} · ${T.repoPath} ${s.repo}`}
-    </span>
-  ) : (
-    <>
-      <span className="max-compact:hidden">{`${T.pastResult} · 읽기 전용`}</span>
-      <DevLock
-        reason={`배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 ${T.repoPath}의 테스트 도구로 돌려요.`}
-      />
-    </>
+  // 개발 모드가 꺼져 있으면 구역 머리 자리에 잠금 배지 하나만.
+  const devHeadEnd = s.dev ? undefined : (
+    <DevLock
+      reason={`배포 앱이라 잠겨 있어요. ${josa(T.devMode, "을", "를")} 켜면 ${T.repoPath}의 테스트 도구로 돌려요.`}
+    />
   );
 
   // 고른 행 상세는 그 행이 속한 구역 바로 아래에 둔다(테스트 대화면 위 구역 아래, 지난 결과면 아래 구역 아래).
@@ -435,15 +388,12 @@ export function App({ state }: { state: StateId }) {
             <div className={`${WB_WIDTH} pt-8`}>
               <EmptyState
                 size="sm"
-                icon={<FlaskConical />}
                 title="아직 돌린 테스트가 없어요"
-                description={`${josa(T.profile, "을", "를")} 적용한 ${T.trialThread}에서 확장을 테스트해요.`}
                 actions={
                   <Button
                     size="sm"
                     tone="neutral"
                     variant="outline"
-                    iconStart={<Plus />}
                     onClick={() => dispatch({ t: "openNew" })}
                   >
                     새 테스트
@@ -454,11 +404,7 @@ export function App({ state }: { state: StateId }) {
           ) : (
             <div className={`${WB_WIDTH} grid gap-5 pb-8`}>
               <section className="grid gap-1">
-                <SectionTitle
-                  end={`실행 중 ${trials.filter((r) => r.result === "running").length} · 멈춤 ${trials.filter((r) => r.result === "paused").length}`}
-                >
-                  {T.trialThread}
-                </SectionTitle>
+                <SectionTitle>{T.trialThread}</SectionTitle>
                 {compact ? (
                   <RunList
                     rows={trials}
@@ -478,9 +424,9 @@ export function App({ state }: { state: StateId }) {
               </section>
               {run?.kind === "trial" && detailBlock}
               <section className="grid gap-1">
-                <SectionTitle
-                  end={devHeadEnd}
-                >{`${T.replay} · ${T.benchmark} · ${T.coreDiff}`}</SectionTitle>
+                <SectionTitle end={devHeadEnd}>
+                  {`${T.replay} · ${T.benchmark} · ${T.coreDiff}`}
+                </SectionTitle>
                 {compact ? (
                   <RunList
                     rows={devRuns}

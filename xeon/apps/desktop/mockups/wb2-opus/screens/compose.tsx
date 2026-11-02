@@ -24,8 +24,7 @@ import {
   TabsTrigger,
 } from "@caustic/react";
 import { useState } from "react";
-import { Check, CircleX, FlaskConical, Plus, Trash2, threads, useShell } from "../../_shell";
-import { LayerTag } from "../parts/ext-cell";
+import { Check, CircleX, Trash2, threads, useShell } from "../../_shell";
 import { RadioList } from "../parts/radio-list";
 import { ScreenHead, SectionTitle, WB_WIDTH } from "../parts/screen-head";
 import { extensions, settingKeys, slotPieces, type Profile } from "../fixtures";
@@ -59,13 +58,10 @@ function ProfileEditor({ profile }: { profile: Profile }) {
       </Field>
 
       <section aria-labelledby="pf-ext" className="min-w-0">
-        <SectionTitle id="pf-ext" meta="적용은 다음 단계 경계에서">
-          확장
-        </SectionTitle>
+        <SectionTitle id="pf-ext">확장</SectionTitle>
         <ul className="m-0 grid list-none gap-0.5 p-0">
           {extensions.map((e) => (
             <li key={e.name} className="flex h-8 min-w-0 items-center gap-2 px-2">
-              <LayerTag layer={e.layer} />
               <span className="min-w-0 flex-1 truncate text-ui-dense text-text-primary">
                 {e.name}
                 {STATUS_NOTE[e.status] !== undefined && (
@@ -90,9 +86,7 @@ function ProfileEditor({ profile }: { profile: Profile }) {
       </section>
 
       <section aria-labelledby="pf-set">
-        <SectionTitle id="pf-set" meta="대화 범위(session)로 써요">
-          설정 덮어쓰기
-        </SectionTitle>
+        <SectionTitle id="pf-set">설정 덮어쓰기</SectionTitle>
         <ul className="m-0 grid list-none gap-0.5 p-0">
           {settingKeys
             .filter(
@@ -109,7 +103,6 @@ function ProfileEditor({ profile }: { profile: Profile }) {
                 >
                   <span className="min-w-0 flex-1 truncate text-ui-dense text-text-primary">
                     {k.label}
-                    <span className="ms-2 font-mono text-mono-sm text-text-tertiary">{k.key}</span>
                   </span>
                   {k.type === "number" ? (
                     <NumberField
@@ -130,12 +123,12 @@ function ProfileEditor({ profile }: { profile: Profile }) {
               );
             })}
         </ul>
-        <Button size="xs" variant="ghost" iconStart={<Plus />} className="ms-1 mt-1">
+        <Button size="xs" variant="ghost" className="ms-1 mt-1">
           설정 더하기
         </Button>
       </section>
 
-      <Field label="drive 그룹" hint="켜는 확장 중 drive를 쓰는 것만 고를 수 있어요">
+      <Field label="drive 그룹">
         <Select
           size="xs"
           defaultValue={profile.driveGroup ?? "auto"}
@@ -155,18 +148,8 @@ function ProfileEditor({ profile }: { profile: Profile }) {
           <Alert tone="danger" variant="soft" size="sm" emphasis="lead">
             <b>적용하지 못했어요.</b> 키 2개를 쓰지 못해 이미 쓴 3개를 되돌렸어요.
             <ul className="m-0 mt-1 grid list-none gap-0.5 p-0 text-ui-dense">
-              <li className="flex flex-wrap gap-x-2">
-                <span className="font-mono text-mono-sm">ext.review.enabled</span>
-                <span className="text-text-secondary">
-                  정책 파일이 잠갔어요 · ~/.fresnel/policy.json
-                </span>
-              </li>
-              <li className="flex flex-wrap gap-x-2">
-                <span className="font-mono text-mono-sm">x.primitives.activeDriveGroup</span>
-                <span className="text-text-secondary">
-                  review가 꺼져 있어 drive 그룹이 될 수 없어요
-                </span>
-              </li>
+              <li className="text-text-secondary">정책 파일이 잠갔어요 · ~/.fresnel/policy.json</li>
+              <li className="text-text-secondary">review가 꺼져 있어 drive 그룹이 될 수 없어요</li>
             </ul>
           </Alert>
         )}
@@ -183,7 +166,6 @@ function ProfileEditor({ profile }: { profile: Profile }) {
           <Button
             size="sm"
             variant="soft"
-            iconStart={<FlaskConical />}
             onClick={() => m.notify("테스트 대화를 만들고 적용했어요")}
           >
             새 테스트 대화로
@@ -260,7 +242,7 @@ function GroupTab() {
               onValueChange={(v) => setPick((p) => ({ ...p, [slot]: v }))}
               rows={slotPieces
                 .filter((p) => p.slot === slot)
-                .map((p) => ({ value: p.id, title: p.label, hint: p.hint }))}
+                .map((p) => ({ value: p.id, title: p.label }))}
             />
           </section>
         ))}
@@ -285,20 +267,12 @@ function GroupTab() {
                   ) : (
                     <CircleX aria-hidden className="size-icon-xs text-text-tertiary" />
                   )}
-                  <span className="font-mono text-mono-sm">
-                    {n === "agents" ? "L1 agents" : "L2 work"}
-                  </span>
+                  <span className="font-mono text-mono-sm">{n}</span>
                   <span className="text-ui-xs text-text-tertiary">
                     {n === "agents" ? "있음" : "requires에 넣어요"}
                   </span>
                 </span>
               ))}
-            </dd>
-          </div>
-          <div className="grid gap-0.5">
-            <dt className="text-ui-xs text-text-tertiary">훅</dt>
-            <dd className="m-0 text-text-secondary">
-              input.agent.before · boundary.settle.after · tool.execution.after
             </dd>
           </div>
         </dl>
@@ -331,9 +305,7 @@ export function ComposeScreen() {
         title="구성"
         actions={
           <TabsList aria-label="구성 탭">
-            <TabsTrigger value="profiles" count={m.profiles.length}>
-              프로필
-            </TabsTrigger>
+            <TabsTrigger value="profiles">프로필</TabsTrigger>
             <TabsTrigger value="group">그룹 구성</TabsTrigger>
           </TabsList>
         }

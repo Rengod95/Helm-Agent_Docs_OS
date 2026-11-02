@@ -1,11 +1,12 @@
 // 프로필 쌓기(구성기 3): 지금 값과 프로필 값을 줄 맞춰 견주는 선 격자. 층 칸이 그 층의 확장 행을 묶고, 행마다 켜기·끄기·그대로
 // (프로필 enable·disable·둘 다 아님, §6.28)를 고르면 "적용 뒤" 칸이 바뀐다. 위 "실효 스택"은 맥락 대화에 적용한 결과 요약이다.
-// 순서가 뜻을 가지는 곳은 아래에 따로 둔다: 주도 칸(한 그룹 또는 자동)과 막기 훅의 핸들러 순서(런타임에 순서 입력이 없어
-// "런타임에 없음" 표지). 적용은 다음 단계 경계.
-import { Badge, Button, Chip, SegmentedControl, SegmentedControlItem } from "@caustic/react";
+// 순서가 뜻을 가지는 곳은 아래에 따로 둔다: 주도 칸(한 그룹 또는 자동)과 막기 훅의 핸들러 순서(런타임에 순서 입력이 없다).
+// 적용은 다음 단계 경계.
+import { Button, Chip, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { useState } from "react";
 import {
   ArrowRight,
+  BAR_INSET,
   ITEM_GAP,
   GRID_INSET,
   LineGridBlock,
@@ -158,7 +159,7 @@ export function ProfileStack() {
     <div className="min-h-0 flex-1 overflow-y-auto pb-6">
       <PageBody>
         <PageSection
-          headInset={GRID_INSET}
+          headInset={`${GRID_INSET} ${BAR_INSET}`}
           title="실효 스택"
           description={ctx === null ? "대화를 고르면 계산해요" : `${ctx}에 적용하면`}
           action={
@@ -211,15 +212,7 @@ export function ProfileStack() {
               </div>
             </PageSection>
 
-            <PageSection
-              level="group"
-              title="막기 순서"
-              action={
-                <Badge size="sm" variant="outline">
-                  런타임에 없음
-                </Badge>
-              }
-            >
+            <PageSection level="group" title="막기 순서">
               <div className={`flex flex-wrap items-center ${ITEM_GAP}`}>
                 {chainOrder
                   .filter((t) => t.items.length > 0)

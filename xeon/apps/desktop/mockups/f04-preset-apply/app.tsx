@@ -3,6 +3,7 @@
 import { Alert, Button, toast } from "@caustic/react";
 import { useEffect, useState } from "react";
 import {
+  BAR_INSET,
   NoticeList,
   ScenarioDock,
   Shell,
@@ -184,7 +185,7 @@ export function App({ state }: { state: StateId }) {
         ) : (
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
             <WorkbenchHead
-              className="w-full px-3 pt-6"
+              className={`w-full px-3 pt-6 ${BAR_INSET}`}
               title={`${T.profile} 적용`}
               actions={headActions()}
             />
@@ -211,7 +212,7 @@ export function App({ state }: { state: StateId }) {
               )}
               {s.phase === "reverted" && (
                 <Alert tone="danger" variant="soft" size="sm">
-                  {`${josa(FAIL_NAME, "을", "를")} 켜지 못해 모두 되돌렸어요. 이 대화는 전과 같아요.`}
+                  {`${josa(FAIL_NAME, "을", "를")} 켜지 못해 모두 되돌렸어요.`}
                 </Alert>
               )}
               <ApplyCompare phase={s.phase} />

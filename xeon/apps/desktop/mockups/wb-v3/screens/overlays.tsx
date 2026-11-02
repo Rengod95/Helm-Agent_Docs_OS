@@ -34,7 +34,6 @@ export function ExplainOverlay() {
           size="md"
           headingLevel={2}
           title={`${T.context}은 "어느 런타임을 보고 있나"예요`}
-          description="왼쪽 위 칸에서 고르면 크래프트 모든 화면이 그 대상을 보여 줘요."
           action={
             <IconButton
               size="md"
@@ -142,17 +141,9 @@ export function AddL1Sheet() {
         </PageSection>
         <PageSection title="어디서 가져올까요" level="group">
           <ChoiceGroup appearance="answer" defaultValue="helper" aria-label="가져올 곳">
-            <ChoiceGroupItem
-              value="helper"
-              title="만들기 도우미로"
-              description="원하는 걸 말하면 뼈대 · 검사 · 테스트까지 해요"
-            />
-            <ChoiceGroupItem
-              value="folder"
-              title="폴더에서"
-              description={`${T.manifest}이 있는 폴더`}
-            />
-            <ChoiceGroupItem value="clone" title="설치된 것 복제" description="내장을 고쳐 쓰기" />
+            <ChoiceGroupItem value="helper" title="만들기 도우미로" />
+            <ChoiceGroupItem value="folder" title="폴더에서" />
+            <ChoiceGroupItem value="clone" title="설치된 것 복제" />
           </ChoiceGroup>
         </PageSection>
       </div>

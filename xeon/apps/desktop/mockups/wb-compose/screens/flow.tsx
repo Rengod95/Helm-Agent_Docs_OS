@@ -14,7 +14,7 @@ import {
   type GraphWireState,
 } from "@caustic/react";
 import { useEffect, useState } from "react";
-import { Pause, Play, T } from "../../_shell";
+import { BAR_INSET, T } from "../../_shell";
 import { lenses, trialSteps } from "../fixtures";
 import { CanvasHost, ColumnHead, blockClass } from "../parts/canvas";
 import { useMock } from "../store";
@@ -293,7 +293,9 @@ export function FlowCanvas() {
 function TrialLog({ x }: { x: number }) {
   return (
     <div className="absolute grid gap-4" style={{ left: x, top: 0, width: 230 }}>
-      <ColumnHead title="기록" />
+      <div className={BAR_INSET}>
+        <ColumnHead title="기록" />
+      </div>
       <Timeline aria-label={`${T.trial} 기록`} size="sm">
         {[...trialSteps].reverse().map((s) => (
           <TimelineItem
@@ -320,7 +322,9 @@ export function TrialBar() {
     return () => window.clearInterval(id);
   }, [paused]);
   return (
-    <div className="flex min-w-0 flex-none flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+    <div
+      className={`flex min-w-0 flex-none flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 ${BAR_INSET}`}
+    >
       <span className="text-body text-text-primary">
         {T.trialThread}
         <span className="ms-2 text-footnote text-text-tertiary tabular-nums">
@@ -328,12 +332,7 @@ export function TrialBar() {
         </span>
       </span>
       <span className="ms-auto flex items-center gap-2">
-        <Button
-          size="xs"
-          variant="outline"
-          iconStart={paused ? <Play /> : <Pause />}
-          onClick={() => setPaused((p) => !p)}
-        >
+        <Button size="xs" variant="outline" onClick={() => setPaused((p) => !p)}>
           {paused ? "이어서" : "멈춤"}
         </Button>
         <Button size="xs" variant="outline" onClick={() => m.notify("다음 단계 경계까지 돌려요")}>

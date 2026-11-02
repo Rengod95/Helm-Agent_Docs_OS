@@ -310,17 +310,11 @@ export function FlowBoard({
             gate === "waiting" ? (
               <span className="flex items-center gap-1.5 text-footnote text-warning-text">
                 <StatusDot tone="warning" />
-                {`답을 기다려요 · ${T.lead} ${T.leadReturn}`}
+                {"답을 기다려요"}
               </span>
             ) : gate === "answered" ? (
-              <span className="text-footnote text-text-tertiary">
-                {`답했어요 · ${T.lead} ${T.leadRetake}`}
-              </span>
-            ) : (
-              <span className="text-footnote text-text-tertiary">
-                {`기다리는 동안 ${T.lead} ${T.leadReturn}`}
-              </span>
-            ),
+              <span className="text-footnote text-text-tertiary">{"답했어요"}</span>
+            ) : undefined,
           )}
         {phase("apply")}
 

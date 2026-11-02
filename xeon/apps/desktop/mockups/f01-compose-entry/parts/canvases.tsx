@@ -128,9 +128,6 @@ export function NoPhases({ name }: { name: string }) {
       <NodeGraph aria-label={`${name} ${T.phaseMachine}`} width={420} height={190} edges={[]}>
         <div className="absolute inset-x-0 top-0 grid gap-1">
           <h2 className="m-0 text-title-2 text-text-primary">{`${T.step} 선언이 없어요`}</h2>
-          <p className="m-0 text-body text-text-tertiary">
-            {`${T.manifest}에 ${T.step}가 없어 흐름을 그리지 않아요`}
-          </p>
         </div>
         <GraphNode
           x={0}

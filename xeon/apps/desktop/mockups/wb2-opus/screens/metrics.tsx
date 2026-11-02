@@ -11,7 +11,6 @@ import { useMock, type Period } from "../store";
 
 const fmtTokens = (n: number) =>
   n >= 1_000_000 ? `${(n / 1_000_000).toFixed(2)}M` : `${Math.round(n / 1000)}k`;
-const fmtMs = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`);
 
 type Row = (typeof metrics)[number] & { id: string };
 
@@ -107,17 +106,6 @@ export function MetricsScreen() {
       ),
     },
     {
-      key: "p95",
-      header: "p95 / 예산",
-      width: "8rem",
-      align: "end",
-      cell: (h) => (
-        <span>
-          {fmtMs(h.p95Ms)} <span className="text-text-tertiary">/ {fmtMs(h.budgetMs)}</span>
-        </span>
-      ),
-    },
-    {
       key: "bar",
       header: <span className="sr-only">예산 대비</span>,
       width: "30%",
@@ -169,7 +157,7 @@ export function MetricsScreen() {
     <>
       <ScreenHead
         title="측정과 평가"
-        asOf={`${periodLabel} · ${ctxOn ? "대화 1개" : `대화 ${promotion.threads}개`} · throughSeq ${promotion.throughSeq} · 14:05 기준`}
+        asOf={`${periodLabel} · 14:05 기준`}
         actions={
           <SegmentedControl
             size="xs"
@@ -201,9 +189,7 @@ export function MetricsScreen() {
           </dl>
 
           <section aria-labelledby="m-ext">
-            <SectionTitle id="m-ext" meta="행을 누르면 확장 상세 측정 탭">
-              확장별
-            </SectionTitle>
+            <SectionTitle id="m-ext">확장별</SectionTitle>
             {off && (
               <Alert
                 tone="warning"
@@ -214,14 +200,11 @@ export function MetricsScreen() {
                 actions={[
                   {
                     label: "계측 켜기",
-                    onClick: () => m.notify("l3.group-sdk.instrumentation을 켰어요"),
+                    onClick: () => m.notify("계측을 켰어요"),
                   },
                 ]}
               >
-                <b>계측이 꺼져 있어요.</b> 그룹 지표를 기록하지 않아 값이 없어요.{" "}
-                <span className="font-mono text-mono-sm text-text-tertiary">
-                  l3.group-sdk.instrumentation
-                </span>
+                <b>계측이 꺼져 있어요.</b> 그룹 지표를 기록하지 않아 값이 없어요.
               </Alert>
             )}
             <GridTable
@@ -237,9 +220,7 @@ export function MetricsScreen() {
           </section>
 
           <section aria-labelledby="m-handler">
-            <SectionTitle id="m-handler" meta="예산의 50%를 넘으면 경고 색">
-              핸들러 시간
-            </SectionTitle>
+            <SectionTitle id="m-handler">핸들러 시간</SectionTitle>
             {off ? (
               <p className="m-0 px-2 text-ui-dense text-text-tertiary">
                 계측이 꺼져 있어 기록이 없어요
@@ -250,12 +231,7 @@ export function MetricsScreen() {
           </section>
 
           <section aria-labelledby="m-promo">
-            <SectionTitle
-              id="m-promo"
-              meta={`throughSeq ${promotion.throughSeq} · 대화 ${promotion.threads}개`}
-            >
-              승격 보고
-            </SectionTitle>
+            <SectionTitle id="m-promo">승격 보고</SectionTitle>
             <GridTable label="승격 후보" columns={cCols} rows={cands} />
           </section>
 
@@ -269,9 +245,6 @@ export function MetricsScreen() {
               </ToneIcon>
               <span className="font-mono text-mono-sm text-text-secondary">{diffCheck.range}</span>
               <span className="text-text-primary">보호 경로 0줄</span>
-              <span className="text-text-tertiary">
-                · 보호 밖 파일 {diffCheck.changedOutside}개
-              </span>
               <Button
                 size="xs"
                 variant="ghost"

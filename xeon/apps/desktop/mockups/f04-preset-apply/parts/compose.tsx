@@ -203,7 +203,7 @@ export function ComposeBody({
         {phase === "reverted" && (
           <div className="px-3">
             <Alert tone="danger" variant="soft" size="sm">
-              {`${josa(shown(FAIL_ID), "을", "를")} 켜지 못해 ${T.profile} 값을 모두 되돌렸어요. 고른 값은 그대로 있어요.`}
+              {`${josa(shown(FAIL_ID), "을", "를")} 켜지 못해 ${T.profile} 값을 모두 되돌렸어요.`}
             </Alert>
           </div>
         )}

@@ -43,10 +43,6 @@ export function InspectWell({ s }: { s: Model }) {
           <Field label={T.approvalQuestion}>
             <Input size="sm" variant="soft" defaultValue={GATE_QUESTION} />
           </Field>
-          <ListDescription variant="ghost" size="xs">
-            <ListDescriptionRow term="기다리는 동안">{`${T.lead} ${T.leadReturn}`}</ListDescriptionRow>
-            <ListDescriptionRow term="답한 뒤">{`${T.lead} ${T.leadRetake}`}</ListDescriptionRow>
-          </ListDescription>
         </PageSection>
       </PageBody>
     );

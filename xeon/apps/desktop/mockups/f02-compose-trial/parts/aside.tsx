@@ -1,32 +1,18 @@
 // 오른쪽 계기 열: 지금 단계(trial.phase)와 주도, 진행 한도 막대 셋, 단계 사이 기록. 다시 돌려 검사가 있으면 그 결과가 한도 자리에 온다.
 // 멈춘 동안 막대는 움직이지 않는다(주도를 쥔 채 돌지 않음, C-9).
 import { Button, Progress, Timeline, TimelineItem } from "@caustic/react";
-import { Copy, LineGridBlock, LineGridCell, LineGridMetric, PageSection, T } from "../../_shell";
-import { Mono } from "../../_wb-c/parts";
+import { LineGridBlock, LineGridCell, LineGridMetric, PageSection, T } from "../../_shell";
 import { replayReport } from "../../_wb-c/data";
 import { PHASE_LABEL } from "../../f01-compose-entry/parts/flow-board";
 import { CUTS, FIRST_DIFF, type Model } from "../flow";
 
 const LIMIT = { turn: 4, spawn: 8, tokens: 400 };
 
-function Bar({
-  label,
-  used,
-  max,
-  unit = "",
-}: {
-  label: string;
-  used: number;
-  max: number;
-  unit?: string;
-}) {
+function Bar({ label, used, max }: { label: string; used: number; max: number }) {
   return (
     <div className="grid gap-1">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-body text-text-secondary">{label}</span>
-        <span className="text-footnote text-text-tertiary tabular-nums">
-          {`${used}${unit} / ${max}${unit}`}
-        </span>
       </div>
       <Progress size="xs" tone="neutral" value={Math.round((used / max) * 100)} label={label} />
     </div>
@@ -69,14 +55,8 @@ function Report({ s, onCopy }: { s: Model; onCopy: () => void }) {
       </LineGridBlock>
       <CutStrip done={done} />
       {!running && (
-        <div className="grid gap-0.5">
-          <Mono>phase converge</Mono>
-          <Mono>grp.helm.state.committed</Mono>
-        </div>
-      )}
-      {!running && (
         <div>
-          <Button size="xs" tone="neutral" variant="outline" iconStart={<Copy />} onClick={onCopy}>
+          <Button size="xs" tone="neutral" variant="outline" onClick={onCopy}>
             JSON 복사
           </Button>
         </div>
@@ -124,7 +104,7 @@ export function TrialAside({ s, onCopy }: { s: Model; onCopy: () => void }) {
           <div className="grid gap-3">
             <Bar label={T.turn} used={s.use[0]} max={LIMIT.turn} />
             <Bar label={T.childAgent} used={s.use[1]} max={LIMIT.spawn} />
-            <Bar label="토큰" used={s.use[2]} max={LIMIT.tokens} unit="k" />
+            <Bar label="토큰" used={s.use[2]} max={LIMIT.tokens} />
           </div>
         </PageSection>
       )}

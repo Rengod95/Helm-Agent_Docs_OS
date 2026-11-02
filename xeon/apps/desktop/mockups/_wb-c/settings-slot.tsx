@@ -28,7 +28,6 @@ export function SettingsSlot({
       <div className="flex min-w-0 items-baseline gap-2 text-ui-xs text-text-tertiary">
         <span>{extJ(ext, "이", "가")} 그린 부분</span>
         <span>· 읽기 전용</span>
-        <span className="font-mono text-mono-sm">{ext}/settings-summary</span>
       </div>
       {state === "loading" ? (
         <div aria-busy="true" className="grid gap-1.5 py-1">
@@ -36,10 +35,7 @@ export function SettingsSlot({
           <Skeleton height={12} width="28%" />
         </div>
       ) : state === "invalid" ? (
-        <p className="m-0 text-ui-sm text-text-secondary">
-          이 부분을 그리지 못했어요 ·{" "}
-          <span className="font-mono text-mono-sm text-text-tertiary">unknown_widget "Gauge"</span>
-        </p>
+        <p className="m-0 text-ui-sm text-text-secondary">이 부분을 그리지 못했어요</p>
       ) : (
         <>
           {summary === "grid" ? (

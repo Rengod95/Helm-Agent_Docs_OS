@@ -35,8 +35,6 @@ import {
   LineGridBlock,
   LineGridFrame,
   LineGridMetric,
-  Search,
-  SearchX,
   StageHead,
   T,
   WorkbenchHead,
@@ -69,7 +67,6 @@ export function NoMatch({
     <EmptyState
       size="sm"
       surface="none"
-      icon={<SearchX />}
       title={L2(`${josa(what, "과", "와")} 맞는 것이 없어요`, `Nothing matches ${what}`)}
       actions={
         <>
@@ -147,7 +144,6 @@ export function ExtListScreen({
               <Input
                 size="sm"
                 variant="soft"
-                prefix={<Search />}
                 placeholder={L2("이름으로 찾기", "Find by name")}
                 aria-label={L2("확장 이름으로 찾기", "Find extensions by name")}
                 value={s.q}
@@ -218,19 +214,16 @@ const TABS = [
   ["views", L2("화면", "Views")],
 ] as const;
 
-// 훅 표: 훅 · 시간 예산 · 실패. 합치는 방식(fold)과 p50·p95는 개발 모드 상세로 보낸다(디자인 언어 §6).
+// 훅 표: 훅 이름(행 머리)과 실패 수. 시간 예산·합치는 방식(fold)과 p50·p95는 내지 않는다(디자인 언어 §6).
 const POINTS = [
-  ["input.agent.before", "10s", "0"],
-  ["tool.call.before", "30s", "0"],
-  ["tool.execution.after", "5s", "0"],
-  ["boundary.settle.after", "5s", "1"],
-  ["thread.start", "5s", "0"],
+  ["input.agent.before", "0"],
+  ["tool.call.before", "0"],
+  ["tool.execution.after", "0"],
+  ["boundary.settle.after", "1"],
+  ["thread.start", "0"],
 ] as const;
 
-const POINT_COLS: LineGridColumn[] = [
-  { id: "budget", label: L2("시간 예산", "Time budget"), width: "9rem" },
-  { id: "fails", label: L2("실패", "Fails"), width: "7rem" },
-];
+const POINT_COLS: LineGridColumn[] = [{ id: "fails", label: L2("실패", "Fails"), width: "7rem" }];
 
 /** 왼쪽 위 칸 제목. caustic corner는 footnote라 옆 머리 칸(title-3)과 맞춘다. */
 const HeadText = ({ children }: { children: ReactNode }) => (
@@ -272,9 +265,9 @@ function PointsTable({ loading }: { loading: boolean }) {
             p[0]
           ),
         }))}
-        cell={(r, c) => {
+        cell={(r) => {
           const p = POINTS.find((x) => x[0] === r) ?? POINTS[0];
-          return c === "budget" ? valueCell(p[1], loading) : valueCell(p[2], loading, p[2] !== "0");
+          return valueCell(p[1], loading, p[1] !== "0");
         }}
       />
     </LineGridFrame>
@@ -422,7 +415,6 @@ export function DetailScreen({
       <WorkbenchHead
         className={HEAD}
         title={extName("helm")}
-        meta={T.group}
         actions={
           <>
             <Button
@@ -550,7 +542,6 @@ export function MetricsScreen({ mode }: { mode: MetricsMode }) {
                     <Input
                       size="sm"
                       variant="soft"
-                      prefix={<Search />}
                       placeholder={L2("확장 찾기", "Find an extension")}
                       aria-label={L2("확장 찾기", "Find an extension")}
                       containerClassName="w-60"
@@ -605,7 +596,6 @@ export function ProposalsFilterEmpty({ onClear }: { onClear: () => void }) {
           <Input
             size="sm"
             variant="soft"
-            prefix={<Search />}
             aria-label={L2("제안 찾기", "Find proposals")}
             value="rollback"
             readOnly

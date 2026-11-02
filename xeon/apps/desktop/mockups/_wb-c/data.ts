@@ -25,17 +25,14 @@ export interface Run {
   target: string;
   result: RunResult;
   at: string;
-  took: string;
   /** 테스트 대화: 대화 id, 프로필 id, 단계 */
   thread?: string;
   title?: string;
   profile?: string;
   steps?: [number, number];
-  /** 테스트 대화 비교: 이 테스트의 렌즈 최대 수, 지금까지 나온 발견 */
   lenses?: number;
   findings?: number;
   commits?: number;
-  diffCuts?: number[];
   protectedFiles?: number;
 }
 
@@ -46,7 +43,6 @@ export const runs: Run[] = [
     target: "helm",
     result: "paused",
     at: "14:21",
-    took: "3:10",
     thread: "t8",
     title: "렌즈 5개로 넓히기",
     profile: "explore",
@@ -60,7 +56,6 @@ export const runs: Run[] = [
     target: "helm",
     result: "done",
     at: "13:02",
-    took: "4:40",
     thread: "t10",
     title: "렌즈 3개와 비교",
     profile: "explore",
@@ -74,7 +69,6 @@ export const runs: Run[] = [
     target: "review",
     result: "stopped",
     at: "어제",
-    took: "1:55",
     thread: "t9",
     title: "리뷰 다시 켜기 확인",
     profile: "review-trial",
@@ -87,7 +81,6 @@ export const runs: Run[] = [
     result: "passed",
     commits: 41,
     at: "3분 전",
-    took: "18s",
   },
   {
     id: "r5",
@@ -95,11 +88,9 @@ export const runs: Run[] = [
     target: "review",
     result: "failed",
     commits: 41,
-    diffCuts: [17, 18],
     at: "어제",
-    took: "9s",
   },
-  { id: "r6", kind: "bench", target: "server", result: "budget_pending", at: "어제", took: "2m" },
+  { id: "r6", kind: "bench", target: "server", result: "budget_pending", at: "어제" },
   {
     id: "r7",
     kind: "diff",
@@ -107,7 +98,6 @@ export const runs: Run[] = [
     result: "clean",
     protectedFiles: 0,
     at: "어제",
-    took: "1s",
   },
 ];
 
@@ -152,7 +142,6 @@ export function replayJson(): string {
 export interface Boundary {
   n: number;
   at: string;
-  seq: number;
   turn: number;
   text: string;
   /** 이 경계에서 멈췄는가 */
@@ -162,19 +151,17 @@ export const boundaries: Boundary[] = [
   {
     n: 1,
     at: "14:18:02",
-    seq: 1204,
     turn: 1,
     text: `${extJ("helm", "이", "가")} ${josa(T.lead, "을", "를")} 받음 · ${T.inquiry} 시작`,
   },
-  { n: 2, at: "14:19:40", seq: 1231, turn: 2, text: `${T.lens} 5개 띄움 · spawn 5/8`, stop: true },
+  { n: 2, at: "14:19:40", turn: 2, text: `${T.lens} 5개 띄움`, stop: true },
 ];
 
 /** 턴 다시 보기 눈금(X-15 계측 링 버퍼, trace.turn W-43). 눈금 하나 = 훅 하나의 발화. */
 export interface Tick {
   seq: number;
   point: string;
-  fold: "collect" | "first" | "tap";
-  handlers: { ext: string; ms: string; budget: string; result: "ok" | "deny" | "threw" }[];
+  handlers: { ext: string; result: "ok" | "deny" | "threw" }[];
   boundary?: boolean;
   failed?: boolean;
 }
@@ -182,45 +169,39 @@ export const ticks: Tick[] = [
   {
     seq: 1205,
     point: "input.agent.before",
-    fold: "collect",
-    handlers: [{ ext: "helm", ms: "12ms", budget: "10s", result: "ok" }],
+    handlers: [{ ext: "helm", result: "ok" }],
   },
   {
     seq: 1208,
     point: "tool.call.before",
-    fold: "first",
     handlers: [
-      { ext: "helm", ms: "3ms", budget: "30s", result: "ok" },
-      { ext: "acme-notes", ms: "8.1s", budget: "30s", result: "threw" },
+      { ext: "helm", result: "ok" },
+      { ext: "acme-notes", result: "threw" },
     ],
     failed: true,
   },
   {
     seq: 1212,
     point: "tool.execution.after",
-    fold: "tap",
-    handlers: [{ ext: "helm", ms: "1ms", budget: "5s", result: "ok" }],
+    handlers: [{ ext: "helm", result: "ok" }],
   },
   {
     seq: 1219,
     point: "tool.call.before",
-    fold: "first",
-    handlers: [{ ext: "helm", ms: "2ms", budget: "30s", result: "ok" }],
+    handlers: [{ ext: "helm", result: "ok" }],
   },
   {
     seq: 1224,
     point: "tool.execution.after",
-    fold: "tap",
     handlers: [
-      { ext: "helm", ms: "1ms", budget: "5s", result: "ok" },
-      { ext: "learning", ms: "4ms", budget: "5s", result: "ok" },
+      { ext: "helm", result: "ok" },
+      { ext: "learning", result: "ok" },
     ],
   },
   {
     seq: 1231,
     point: "boundary.settle.after",
-    fold: "tap",
-    handlers: [{ ext: "helm", ms: "20ms", budget: "5s", result: "ok" }],
+    handlers: [{ ext: "helm", result: "ok" }],
     boundary: true,
   },
 ];

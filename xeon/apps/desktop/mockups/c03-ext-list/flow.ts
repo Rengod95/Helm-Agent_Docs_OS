@@ -3,7 +3,7 @@
 // §6.21(맥락이 프로필이면 프로필 고치기, 테스트이면 그 테스트 대화의 session 범위에만), X.loading-trust §4.8(requires 미충족 = 기능 대기),
 // 결정 12(안전 모드에서는 X 훅도 싣지 않음).
 import type { After } from "../_chat-rt";
-import { extJ, extName, josa, T } from "../_shell";
+import { extJ, josa, T } from "../_shell";
 
 export type Scope = "session" | "project" | "user";
 export type RowState = "on" | "off" | "pending" | "capwait" | "managed" | "auto" | "exempt";
@@ -11,15 +11,13 @@ export type RowState = "on" | "off" | "pending" | "capwait" | "managed" | "auto"
 export interface Row {
   id: string;
   layer: "L0" | "L1" | "L2" | "L3" | "plugin" | "X";
-  kind: string;
-  ops: string;
   state: RowState;
   scope?: Scope;
   failures?: number;
   /** 기능 대기: 없는 기능 */
   needs?: string;
-  /** X 훅: 이벤트·p50 */
-  hook?: { event: string; p50: string; failures: number };
+  /** X 훅 */
+  hook?: { failures: number };
   /** 바깥(user·project) 확장인가: 안전 모드에서 빠짐 */
   external: boolean;
 }
@@ -28,8 +26,6 @@ export const ROWS: Row[] = [
   {
     id: "helm",
     layer: "L3",
-    kind: T.group,
-    ops: "on 6 · post · drive",
     state: "on",
     scope: "user",
     external: true,
@@ -37,8 +33,6 @@ export const ROWS: Row[] = [
   {
     id: "learning",
     layer: "L3",
-    kind: T.group,
-    ops: "on 3 · post",
     state: "on",
     scope: "user",
     external: false,
@@ -46,8 +40,6 @@ export const ROWS: Row[] = [
   {
     id: "review",
     layer: "L3",
-    kind: T.group,
-    ops: "on 2 · drive",
     state: "auto",
     failures: 5,
     external: true,
@@ -55,16 +47,12 @@ export const ROWS: Row[] = [
   {
     id: "authoring",
     layer: "L3",
-    kind: T.group,
-    ops: "on 2 · drive",
     state: "managed",
     external: false,
   },
   {
     id: "web-exa",
     layer: "L2",
-    kind: T.plugin,
-    ops: "on 1",
     state: "on",
     scope: "user",
     external: true,
@@ -72,8 +60,6 @@ export const ROWS: Row[] = [
   {
     id: "work",
     layer: "L2",
-    kind: T.plugin,
-    ops: "on 2 · post",
     state: "on",
     scope: "user",
     external: false,
@@ -81,8 +67,6 @@ export const ROWS: Row[] = [
   {
     id: "acme-notes",
     layer: "plugin",
-    kind: T.plugin,
-    ops: "on 1",
     state: "off",
     failures: 2,
     external: true,
@@ -90,31 +74,25 @@ export const ROWS: Row[] = [
   {
     id: "provider-oauth",
     layer: "plugin",
-    kind: T.plugin,
-    ops: "on 1",
     state: "off",
     needs: "secrets.oauth",
     external: true,
   },
-  { id: "core-loop", layer: "L1", kind: "core", ops: "", state: "exempt", external: false },
+  { id: "core-loop", layer: "L1", state: "exempt", external: false },
   {
     id: "pre-commit-lint",
     layer: "X",
-    kind: `X ${T.hook}`,
-    ops: "",
     state: "on",
     scope: "user",
-    hook: { event: "tool.call.before", p50: "240ms", failures: 0 },
+    hook: { failures: 0 },
     external: true,
   },
   {
     id: "audit-log",
     layer: "X",
-    kind: `X ${T.hook}`,
-    ops: "",
     state: "on",
     scope: "project",
-    hook: { event: "thread.end", p50: "35ms", failures: 3 },
+    hook: { failures: 3 },
     external: true,
   },
 ];
@@ -207,12 +185,7 @@ export function reduce(s: S, a: A): S {
       return {
         ...s,
         rows: set(s, a.id, { state: "on" }),
-        note: note(
-          s,
-          `${extJ(a.id, "을", "를")} 켰어요`,
-          `${SCOPE_WORD[row.scope ?? "session"]} · 단계 사이에서 적용했어요`,
-          "success",
-        ),
+        note: note(s, `${extJ(a.id, "을", "를")} 켰어요`, undefined, "success"),
       };
     }
     case "lockTip":
@@ -229,12 +202,7 @@ export function reduce(s: S, a: A): S {
       return {
         ...s,
         rows: set(s, a.id, { state: on ? "off" : "on" }),
-        note: note(
-          s,
-          `${josa(T.profile, "을", "를")} 고쳤어요`,
-          `탐구 중심 · ${extName(a.id)} ${on ? "끔" : "켬"}`,
-          "neutral",
-        ),
+        note: note(s, `${josa(T.profile, "을", "를")} 고쳤어요`, undefined, "neutral"),
       };
     }
   }

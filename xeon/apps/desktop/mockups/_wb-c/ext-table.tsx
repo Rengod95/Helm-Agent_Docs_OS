@@ -4,9 +4,18 @@
 // 옛 언어: 글은 text-ui-dense·text-ui-xs, 정상(켜짐) 점은 옛 팔레트 success. e04-workbench-states/parts/ext-table.tsx에서 옮겼다(e01·e04·e05가 같이 쓴다).
 import { Skeleton, Switch, Tooltip } from "@caustic/react";
 import type { ReactNode } from "react";
-import { extName, L2, T, type Extension, type Layout } from "../_shell";
+import { extName, L2, T, type Extension, type Layer, type Layout } from "../_shell";
 
 type Dot = "success" | "warning" | "danger" | "neutral";
+/** 층 코드 대신 사람 말(표의 층 열). */
+const LAYER_WORD: Record<Layer, string> = {
+  L0: T.layerL0,
+  L1: T.layerL1,
+  L2: T.layerL2,
+  L3: T.layerL3,
+  plugin: T.plugin,
+  X: T.layerX,
+};
 const DOT: Record<Dot, string> = {
   success: "bg-success-graphic",
   warning: "bg-warning-graphic",
@@ -117,14 +126,9 @@ export function ExtTable({
                   <span className="truncate font-medium text-text-primary" title={name}>
                     {name}
                   </span>
-                  {name !== e.name && (
-                    <span className="truncate font-mono text-mono-sm text-text-tertiary">
-                      {e.name}
-                    </span>
-                  )}
                 </span>
-                <span role="cell" className="font-mono text-mono-sm text-text-tertiary">
-                  {e.layer}
+                <span role="cell" className="truncate font-mono text-mono-sm text-text-tertiary">
+                  {LAYER_WORD[e.layer]}
                 </span>
                 {!compact && (
                   <span role="cell" className="min-w-0 text-text-secondary">

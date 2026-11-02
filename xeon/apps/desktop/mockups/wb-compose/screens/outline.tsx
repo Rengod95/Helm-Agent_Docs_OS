@@ -8,7 +8,7 @@ import {
   type LayerTreeAnnouncement,
 } from "@caustic/react";
 import { CircleAlert, T } from "../../_shell";
-import { helmBlocks, invalidBlocks, lenses } from "../fixtures";
+import { helmBlocks, invalidBlocks } from "../fixtures";
 import { useMock } from "../store";
 
 const announce = (e: LayerTreeAnnouncement) =>
@@ -68,7 +68,7 @@ export function GroupOutline() {
 const STEPS: { id: string; title: string; next: string }[] = [
   { id: "idle", title: "대기", next: "→ 확산" },
   { id: "diverge", title: "확산", next: "→ 탐색 · 쓰기 거부" },
-  { id: "explore", title: "탐색", next: `→ 수렴 · ${T.lens} ${lenses.length}개를 펼쳐요` },
+  { id: "explore", title: "탐색", next: "→ 수렴" },
   { id: "converge", title: "수렴", next: "→ 적용" },
   { id: "apply", title: "적용", next: "→ 끝" },
 ];

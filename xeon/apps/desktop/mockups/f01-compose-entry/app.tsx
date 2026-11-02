@@ -14,7 +14,6 @@ import {
   LoaderCircle,
   Lock,
   NoticeList,
-  Plus,
   QuestionCard,
   ScenarioDock,
   Shell,
@@ -56,7 +55,6 @@ import { GATE_QUESTION, InspectWell, PaletteWell } from "./parts/well";
 
 const MAKE = `${josa(T.authoringExt, "으로", "로")} 만들기`;
 const ENABLE = `${T.authoringExt} 켜기`;
-const SOURCE = "grp:lens-review";
 
 const q = new URLSearchParams(window.location.search);
 const HOLD = q.get("hold") === "1";
@@ -195,8 +193,8 @@ function Head({ s, dispatch }: { s: Model; dispatch: (a: Action) => void }) {
   const sub =
     s.group === "lens-review" && s.view === "group" && s.handoff === "none"
       ? s.ext === "off" || s.ext === "turning"
-        ? `${josa(T.authoringExt, "이", "가")} 꺼져 있어요. 작성한 ${josa(T.block, "은", "는")} 그대로 남아요`
-        : `${T.stageCompose}이에요`
+        ? `${josa(T.authoringExt, "이", "가")} 꺼져 있어요`
+        : undefined
       : s.group === "helm" || s.group === "review" || s.group === "audit-trail"
         ? `설치된 ${T.group}이라 읽기 전용이에요`
         : undefined;
@@ -206,12 +204,7 @@ function Head({ s, dispatch }: { s: Model; dispatch: (a: Action) => void }) {
       {sub !== undefined && <span>{sub}</span>}
       <GroupPick s={s} dispatch={dispatch} />
       {s.group !== "new" && (
-        <Button
-          size="xs"
-          variant="outline"
-          iconStart={<Plus />}
-          onClick={() => dispatch({ t: "newGroup" })}
-        >
+        <Button size="xs" variant="outline" onClick={() => dispatch({ t: "newGroup" })}>
           {`새 ${T.group}`}
         </Button>
       )}
@@ -221,7 +214,6 @@ function Head({ s, dispatch }: { s: Model; dispatch: (a: Action) => void }) {
     <WorkbenchHead
       className="w-full px-4"
       title={T.compose}
-      {...(s.group === "new" ? { meta: `새 ${T.group}` } : {})}
       sub={row}
       actions={
         <span className="flex items-center gap-2">
@@ -321,10 +313,10 @@ function ForwardBar({ s, dispatch }: { s: Model; dispatch: (a: Action) => void }
   if (s.handoff !== "none") return <Handoff s={s} dispatch={dispatch} />;
   const text =
     s.ext === "no-engine"
-      ? `${T.engine}에 연결되어 있지 않아요. 연결되면 여기서 만들 수 있어요`
+      ? `${T.engine}에 연결되어 있지 않아요`
       : s.ext === "on"
         ? `아직 파일이 없어요. ${josa(T.authoringExt, "이", "가")} ${T.targetFolder}에 만들고 ${T.stageValidate}해요`
-        : `${josa(T.authoringExt, "이", "가")} 꺼져 있어요. 켜면 여기서 바로 만들 수 있어요`;
+        : `${josa(T.authoringExt, "이", "가")} 꺼져 있어요`;
   return <Band text={text} action={<MakeButton s={s} dispatch={dispatch} />} />;
 }
 
@@ -339,7 +331,7 @@ function GateBand({ s, onAnswer }: { s: Model; onAnswer: () => void }) {
       >
         <span className="flex min-w-0 flex-1 basis-64 items-center gap-2 text-body text-warning-text">
           <StatusDot tone="warning" />
-          {`${T.trialThread}가 ${josa(T.humanGate, "을", "를")} 기다려요 · ${T.lead} ${T.leadReturn}`}
+          {`${T.trialThread}가 ${josa(T.humanGate, "을", "를")} 기다려요`}
         </span>
         <Button size="xs" variant="solid" onClick={onAnswer}>
           답하기
@@ -348,11 +340,7 @@ function GateBand({ s, onAnswer }: { s: Model; onAnswer: () => void }) {
     );
   return (
     <Band
-      text={
-        s.trial === "done"
-          ? `${T.trialThread} ${T.stageDone}`
-          : `${T.lead} ${T.leadRetake} · ${T.trialThread} 돌리는 중`
-      }
+      text={s.trial === "done" ? `${T.trialThread} ${T.stageDone}` : `${T.lead} ${T.leadRetake}`}
     />
   );
 }
@@ -522,7 +510,7 @@ export function App({ state }: { state: StateId }) {
               ],
             }}
             status={s.gate === "answered" ? "answered" : "pending"}
-            subtitle={`${T.trialThread} · ${SOURCE}`}
+            subtitle={T.trialThread}
             answer={answer}
             onAnswerChange={setAnswer}
             onAnswer={() => dispatch({ t: "answer" })}

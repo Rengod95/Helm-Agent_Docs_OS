@@ -2,7 +2,7 @@
 // 표는 바깥 틀(LineGridFrame)로 감싸고, 위아래 선이 곧 구역 경계다. 레일은 없다. 보기 전환·지도·그림은 없다.
 // 덮개 둘(보기 기준 설명, 에이전트 코어에 더하기)은 이 화면 위에 뜬다.
 import { Alert, Button } from "@caustic/react";
-import { LineGridFrame, WorkbenchHead } from "../../_shell";
+import { BAR_INSET, LineGridFrame, WorkbenchHead } from "../../_shell";
 import { T } from "../../_shell/terms";
 import { PRESET_DIFF, viewOf } from "../data";
 import { CARD, STAGE_GRID } from "../parts/kit";
@@ -50,7 +50,7 @@ export function StructureScreen() {
       <div className={STAGE_GRID}>
         <WorkbenchHead className="w-full px-3 pb-4" title={T.structure} />
         {(m.preview !== null || m.failure) && (
-          <div className="grid min-w-0 gap-3 px-3 pb-3">
+          <div className={`grid min-w-0 gap-3 px-3 pb-3 ${BAR_INSET}`}>
             <PreviewBand />
             {m.failure && (
               <Alert

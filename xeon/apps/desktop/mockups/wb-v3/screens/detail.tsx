@@ -3,7 +3,7 @@
 // 색은 중립, 고른 것만 accent 고리. 그림은 고정 폭(900)이고 좁으면 가로로 스크롤한다. 두 구역 사이에는 1px 얇은 선을 긋는다.
 import { Button, IconButton } from "@caustic/react";
 import { useState } from "react";
-import { ArrowUpRight, ChevronLeft, WorkbenchHead } from "../../_shell";
+import { ChevronLeft, WorkbenchHead } from "../../_shell";
 import { PageSection } from "../../_shell/page";
 import { T } from "../../_shell/terms";
 import { layerName, pluginById, type LayerId } from "../data";
@@ -66,7 +66,6 @@ function CompCard({ c, lit }: { c: Comp; lit: boolean }) {
       }}
     >
       <span className="truncate text-title-3 text-text-primary">{c.name}</span>
-      <span className="truncate text-footnote text-text-tertiary">{c.line}</span>
     </div>
   );
 }
@@ -192,23 +191,6 @@ function Parts({ spec, phase }: { spec: DetailSpec; phase: string }) {
       {outs.rows.map((r, i) => (
         <SideRow key={`o${i}`} r={r} x={OUT_X} w={W - OUT_X} />
       ))}
-      {spec.internal.map(([a, b, label]) => {
-        const A = comp(a);
-        const B = comp(b);
-        if (A === undefined || B === undefined || A.x === B.x || !(lit.has(a) && lit.has(b)))
-          return null;
-        const mx = (A.x < B.x ? A.x + CW + B.x : A.x + B.x + CW) / 2;
-        const my = TOP + (A.y + ch(A) / 2 + B.y + ch(B) / 2) / 2;
-        return (
-          <span
-            key={`l-${a}-${b}`}
-            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-soft px-1.5 text-footnote text-text-tertiary"
-            style={{ left: mx, top: my }}
-          >
-            {label}
-          </span>
-        );
-      })}
     </div>
   );
 }
@@ -263,17 +245,6 @@ function Flow({
           />
         )}
       </svg>
-      {spec.phases.map((p, i) =>
-        p.cond === undefined ? null : (
-          <span
-            key={`c-${p.id}`}
-            className="absolute -translate-x-1/2 whitespace-nowrap text-footnote text-text-tertiary"
-            style={{ left: i === 0 ? cx(0) : (cx(i - 1) + cx(i)) / 2, top: 0 }}
-          >
-            {p.cond}
-          </span>
-        ),
-      )}
       {spec.phases.map((p, i) => {
         const sel = p.id === phase;
         return (
@@ -285,17 +256,7 @@ function Flow({
               className={`grid w-full content-center gap-0.5 rounded-xl px-3 text-start outline-none focus-visible:focus-ring ${sel ? `bg-neutral-soft ${RING}` : TILE}`}
               style={{ height: NH }}
             >
-              <span className="flex min-w-0 items-baseline gap-2">
-                <span className="min-w-0 flex-1 truncate text-title-3 text-text-primary">
-                  {p.label}
-                </span>
-                {p.budget !== undefined && (
-                  <span className="flex-none text-footnote text-text-tertiary">{p.budget}</span>
-                )}
-              </span>
-              {p.note !== undefined && (
-                <span className="truncate text-footnote text-text-tertiary">{p.note}</span>
-              )}
+              <span className="min-w-0 truncate text-title-3 text-text-primary">{p.label}</span>
             </button>
             {p.fan !== undefined && (
               <ul className="m-0 mt-2 grid list-none gap-0.5 p-0">
@@ -360,7 +321,6 @@ export function DetailScreen() {
         actions={
           <Button size="sm" variant="outline" onClick={() => m.notify("구성기에서 열어요")}>
             구성기에서 열기
-            <ArrowUpRight />
           </Button>
         }
       />

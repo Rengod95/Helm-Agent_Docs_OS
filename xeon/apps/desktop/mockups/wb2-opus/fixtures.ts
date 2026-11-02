@@ -1,12 +1,9 @@
 // 크래프트 2차(W6–W9) 고정 데이터. 스펙 §14.5의 값을 그대로 옮기고(tests, metrics, promotion, profiles, templates),
 // 그 표에 없는데 화면에 필요한 것만 덧붙였다. 덧붙인 것은 `// [덧붙임]`으로 표시하고 NOTES에 적는다.
 
-export type Layer = "L0" | "L1" | "L2" | "L3" | "plugin" | "X";
-
 /** §14.5 extensions에서 이 화면들이 쓰는 열만. */
 export interface Ext {
   name: string;
-  layer: Layer;
   kind: "group" | "plugin" | "core" | "hook";
   trust: "builtin" | "user" | "project";
   version: string;
@@ -16,7 +13,6 @@ export interface Ext {
 export const extensions: Ext[] = [
   {
     name: "helm",
-    layer: "L3",
     kind: "group",
     trust: "user",
     version: "0.1.0",
@@ -25,7 +21,6 @@ export const extensions: Ext[] = [
   },
   {
     name: "learning",
-    layer: "L3",
     kind: "group",
     trust: "builtin",
     version: "0.4.0",
@@ -33,7 +28,6 @@ export const extensions: Ext[] = [
   },
   {
     name: "review",
-    layer: "L3",
     kind: "group",
     trust: "user",
     version: "0.2.1",
@@ -42,7 +36,6 @@ export const extensions: Ext[] = [
   },
   {
     name: "work",
-    layer: "L2",
     kind: "plugin",
     trust: "builtin",
     version: "0.4.0",
@@ -51,7 +44,6 @@ export const extensions: Ext[] = [
   },
   {
     name: "web-exa",
-    layer: "L2",
     kind: "plugin",
     trust: "user",
     version: "1.0.3",
@@ -59,7 +51,6 @@ export const extensions: Ext[] = [
   },
   {
     name: "acme-notes",
-    layer: "plugin",
     kind: "plugin",
     trust: "project",
     version: "0.0.9",
@@ -67,7 +58,6 @@ export const extensions: Ext[] = [
   },
   {
     name: "provider-oauth",
-    layer: "plugin",
     kind: "plugin",
     trust: "user",
     version: "0.1.0",
@@ -75,7 +65,6 @@ export const extensions: Ext[] = [
   },
   {
     name: "pre-commit-lint",
-    layer: "X",
     kind: "hook",
     trust: "user",
     version: "-",
@@ -94,10 +83,8 @@ export interface TestRun {
   result: TestResult;
   at: string;
   took: string;
-  commits?: number;
   failedAt?: number;
   firstDiffSeq?: number;
-  firstDiffKind?: string;
   effects?: string;
   protectedLines?: number;
   /** [덧붙임] 테스트 대화의 진행률(턴/최대)과 프로필 */
@@ -121,7 +108,6 @@ export const tests: TestRun[] = [
     kind: "replay",
     target: "helm",
     result: "passed",
-    commits: 41,
     at: "3분 전",
     took: "18s",
   },
@@ -130,10 +116,8 @@ export const tests: TestRun[] = [
     kind: "replay",
     target: "review",
     result: "failed",
-    commits: 41,
     failedAt: 17,
     firstDiffSeq: 212,
-    firstDiffKind: "grp.review.state.committed",
     effects: "work.task.create 2/1",
     at: "어제",
     took: "9s",
@@ -187,7 +171,7 @@ export const benchRows = [
   { metric: "확장 디스패치 p95", value: "0.42ms", budget: null },
   { metric: "주도 교대 p95", value: "3.1ms", budget: null },
   { metric: "이벤트 기록 처리량", value: "18.2k/s", budget: null },
-  { metric: "첫 토큰까지", value: "건너뜀", budget: null, note: "--first-token 없음" },
+  { metric: "첫 토큰까지", value: "건너뜀", budget: null },
 ];
 
 // ── W7 측정과 평가 ─────────────────────────────────────────────
@@ -234,8 +218,6 @@ export const handlerTimes = [
 
 /** §14.5 promotion */
 export const promotion = {
-  throughSeq: 9120,
-  threads: 14,
   candidates: [
     {
       tool: "lens_search",
@@ -257,7 +239,6 @@ export const diffCheck = {
     { path: "packages/platform-*", lines: 0 },
     { path: "packages/core-*", lines: 0 },
   ],
-  changedOutside: 14,
 };
 
 // ── W8 구성 ────────────────────────────────────────────────────
@@ -317,86 +298,63 @@ export const slotPieces = [
     id: "trigger.signal",
     slot: "트리거",
     label: "신호로 시작",
-    hint: "stuck·repeat 신호",
     requires: [] as string[],
   },
   {
     id: "trigger.command",
     slot: "트리거",
     label: "명령으로 시작",
-    hint: "/<그룹> 명령",
     requires: [],
   },
   {
     id: "fanout.lenses",
     slot: "펼치기",
     label: "자식 렌즈 병렬",
-    hint: "spawn n개",
     requires: ["agents"],
   },
   {
     id: "fanout.single",
     slot: "펼치기",
     label: "자식 하나",
-    hint: "delegate 1개",
     requires: ["agents"],
   },
   {
     id: "converge.vote",
     slot: "모으기",
     label: "신뢰도 투표",
-    hint: "발견을 합쳐 정렬",
     requires: [],
   },
   {
     id: "apply.task",
     slot: "적용",
     label: "작업으로 남기기",
-    hint: "work.task.create",
     requires: ["work"],
   },
-  { id: "apply.post", slot: "적용", label: "대화에 post", hint: "입력 큐에 넣기", requires: [] },
+  { id: "apply.post", slot: "적용", label: "대화에 post", requires: [] },
 ];
 
 // ── W9 만들기 ──────────────────────────────────────────────────
-/** §14.5 templates. disabled 둘은 "준비 중". hint 원문은 유지하고 준비 중은 배지로 따로 보인다(NOTES). */
+/** §14.5 templates. disabled 둘은 "준비 중" 배지로 보인다. */
 export const templates = [
-  {
-    id: "drive",
-    label: "플러그인 그룹 · drive",
-    hint: "턴을 구동하는 그룹",
-    files: 10,
-    flag: "--drive",
-  },
-  {
-    id: "policy",
-    label: "플러그인 그룹 · 정책",
-    hint: "first 훅으로 막는 그룹",
-    files: 8,
-    flag: "--policy",
-  },
-  { id: "observe", label: "플러그인 그룹 · 관찰", hint: "기록만 남기는 그룹", files: 9, flag: "" },
-  {
-    id: "provider",
-    label: "플러그인 · L2 기능",
-    hint: "provider 하나를 더하는 플러그인",
-    disabled: true,
-  },
-  { id: "hook", label: "X 훅", hint: "셸 명령 훅", disabled: true },
+  { id: "drive", label: "플러그인 그룹 · drive" },
+  { id: "policy", label: "플러그인 그룹 · 정책" },
+  { id: "observe", label: "플러그인 그룹 · 관찰" },
+  { id: "provider", label: "플러그인 · 기능", disabled: true },
+  { id: "hook", label: "훅", disabled: true },
 ] as const;
 
 /** drive 템플릿이 만드는 파일 10개. `packages/group-sdk/templates/index.json`의 drive 목록 그대로(경로의 common/·drive/ 접두는 뗌). */
 export const driveFiles = [
-  { path: ".fresnel-plugin/plugin.json", note: "매니페스트" },
-  { path: "src/index.ts", note: "defineGroup, drive 함수" },
-  { path: "src/state.ts", note: "상태 스키마" },
-  { path: "src/settings.ts", note: "defineSettings" },
-  { path: "test/unit.test.ts", note: "" },
-  { path: "test/replay.test.ts", note: "replayDrive 재생 테스트" },
-  { path: "test/manifest.test.ts", note: "" },
-  { path: "package.json", note: "" },
-  { path: "tsconfig.json", note: "" },
-  { path: "README.md", note: "" },
+  { path: ".fresnel-plugin/plugin.json" },
+  { path: "src/index.ts" },
+  { path: "src/state.ts" },
+  { path: "src/settings.ts" },
+  { path: "test/unit.test.ts" },
+  { path: "test/replay.test.ts" },
+  { path: "test/manifest.test.ts" },
+  { path: "package.json" },
+  { path: "tsconfig.json" },
+  { path: "README.md" },
 ];
 
 /** `apps/cli/src/group/rules.ts` RESERVED_GROUP_NAMES 그대로(23개. 스펙 SC-16은 24개라고 적음). */

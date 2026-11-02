@@ -169,11 +169,8 @@ export function App({ state }: { state: StateId }) {
         text: L2("끊김", "Offline"),
         dot: "danger",
         title: T.connection,
-        // _shell 상태 칸의 description은 필수(칸 설명을 항상 그린다). 연결 끊김 칸은 마지막 값이 어디서 왔는지 한 줄 남긴다.
-        description: L2(
-          "엔진에 연결되지 않았어요. 마지막 값만 보여요.",
-          "Not connected. Showing last values.",
-        ),
+        // _shell 상태 칸의 description은 필수(칸 설명을 항상 그린다). 한 줄만 남긴다.
+        description: L2("엔진에 연결되지 않았어요.", "Not connected."),
       }
     : undefined;
   const area = look.area ?? "workbench";

@@ -116,7 +116,7 @@ export function reduce(s: S, a: A): S {
         ...s,
         dev: true,
         devDialog: "closed",
-        note: note(s, "개발 모드를 켰어요", `저장소 ${s.repo} · 이 컴퓨터 사용자 설정`, "success"),
+        note: note(s, "개발 모드를 켰어요", undefined, "success"),
       };
     case "devFail":
       return { ...s, devDialog: "norepo" };
@@ -124,29 +124,23 @@ export function reduce(s: S, a: A): S {
       return { ...s, devDialog: "closed" };
     case "rerun":
       return s.dev
-        ? { ...s, rerun: 0, runs: setRun(s, "r5", { result: "running", at: "지금", took: "0s" }) }
+        ? { ...s, rerun: 0, runs: setRun(s, "r5", { result: "running", at: "지금" }) }
         : s;
     case "rerunTick": {
       if (s.rerun === null) return s;
       const n = Math.min(41, s.rerun + 8);
-      if (n < 41)
-        return { ...s, rerun: n, runs: setRun(s, "r5", { took: `${Math.round(n / 4.5)}s` }) };
+      if (n < 41) return { ...s, rerun: n };
       return {
         ...s,
         rerun: null,
-        runs: setRun(s, "r5", { result: "failed", at: "방금", took: "9s" }),
-        note: note(
-          s,
-          "다시 돌려 검사가 끝났어요",
-          "절단 41개 중 2개가 달라요 · 첫 차이 seq 212",
-          "neutral",
-        ),
+        runs: setRun(s, "r5", { result: "failed", at: "방금" }),
+        note: note(s, "다시 돌려 검사가 끝났어요", "절단 41개 중 2개가 달라요", "neutral"),
       };
     }
     case "copyJson":
       return {
         ...s,
-        note: note(s, "검사 보고 JSON을 복사했어요", "ReplayDriveReport · 41개 절단", "neutral"),
+        note: note(s, "검사 보고 JSON을 복사했어요", undefined, "neutral"),
       };
     case "openNew":
       return { ...s, sheet: "open", kind: "trial", previewFail: false };
@@ -168,7 +162,6 @@ export function reduce(s: S, a: A): S {
         target: "helm",
         result: "running",
         at: "지금",
-        took: "0:04",
         thread: "t11",
         title: "캐시 무효화 원인 넓게 보기",
         profile: s.profile,
@@ -179,12 +172,7 @@ export function reduce(s: S, a: A): S {
         sheet: "closed",
         sel: NEW_ID,
         runs: [row, ...s.runs],
-        note: note(
-          s,
-          "테스트 대화를 만들었어요",
-          "프로필 탐구 중심 · 이 대화에만 적용했어요",
-          "success",
-        ),
+        note: note(s, "테스트 대화를 만들었어요", undefined, "success"),
       };
     }
     case "closeSheet":

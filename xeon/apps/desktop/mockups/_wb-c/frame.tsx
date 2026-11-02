@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import {
   defaultStatusCells,
   inbox,
-  josa,
   navigateToPage,
   NoticeList,
   Shell,
@@ -44,11 +43,12 @@ export function devModeCell(d: DevModeInfo): StatusCell[] {
       id: "devmode",
       text: T.devMode,
       icon: <Terminal />,
-      title: d.remote !== undefined ? `${d.remote}의 ${T.devMode}` : T.devMode,
+      title: T.devMode,
+      // 정상 상태 설명은 줄인다: 이 컴퓨터면 저장소 경로 한 줄, 원격이면 컴퓨터 이름 한 줄.
       description:
         d.remote !== undefined
-          ? `원격 컴퓨터 ${josa(d.remote, "이", "가")} ${josa(T.devMode, "이라", "라")} ${T.replay}·${T.benchmark}·${josa(T.coreDiff, "을", "를")} 돌릴 수 있어요. 바꾸려면 그 컴퓨터의 설정에서 바꿔요.`
-          : `${T.repoPath} ${d.repo ?? "~/code/fresnel"} · ${T.replay}·${T.benchmark}·${josa(T.coreDiff, "을", "를")} 돌릴 수 있어요.`,
+          ? `원격 컴퓨터 ${d.remote}`
+          : `${T.repoPath} ${d.repo ?? "~/code/fresnel"}`,
       ...(d.onOff !== undefined && d.remote === undefined
         ? { action: { label: `${T.devMode} 끄기`, onSelect: d.onOff } }
         : {}),

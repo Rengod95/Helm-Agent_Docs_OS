@@ -1,6 +1,6 @@
 // 묶음 C 공용 작은 부품(caustic 토큰과 Tailwind만). 머리 주석마다 메운 빈틈을 적는다.
 // 옛 언어 이식(m4/redesign의 같은 이름 부품을 옛 토큰으로 옮김): 상태 점 tone은 옛 다섯 가지(success·info 포함)를 그대로 둔다.
-// ExtName은 기본으로 id를 보인다(옛 c01~c04가 기본값에 기댄다). SectionTitle은 옛 h2 그대로(새 구역 제목은 PageSection).
+// ExtName은 기본으로 id를 숨긴다(내용 정리: id가 목적인 자리에서만 showId). SectionTitle은 옛 h2 그대로(새 구역 제목은 PageSection).
 // DottedRows·DottedRow는 점선 대신 얇은 실선(border-subtle)으로 행을 나눈다(점선 구분선은 가져오지 않는다).
 import { Badge, Tooltip } from "@caustic/react";
 import type { ReactNode } from "react";
@@ -67,11 +67,11 @@ export function DottedRow({
   );
 }
 
-/** 확장 이름: 표시 이름 + 회색 mono id(결정 13, DP-39). 표시 이름이 없으면 id만. */
+/** 확장 이름: 표시 이름. showId면 회색 mono id를 덧붙인다. 표시 이름이 없으면 id만. */
 export function ExtName({
   id,
   strong = false,
-  showId = true,
+  showId = false,
 }: {
   id: string;
   strong?: boolean;
@@ -147,15 +147,5 @@ export function DevLock({
         </Badge>
       </span>
     </Tooltip>
-  );
-}
-
-/** 읽기 전용 표지(배포 앱의 지난 replay·bench·diff 결과). */
-export function ReadOnlyNote({ children }: { children: ReactNode }) {
-  return (
-    <p className="m-0 inline-flex items-center gap-1.5 text-ui-xs text-text-tertiary">
-      <Lock aria-hidden emphasis="muted" className="size-icon-xs" />
-      {children}
-    </p>
   );
 }

@@ -73,7 +73,7 @@ export function NewTrialSheet() {
 
         {kind === "replay" && (
           <>
-            <Field label="대상 그룹" hint="drive를 쓰는 확장만 재생할 수 있어요">
+            <Field label="대상 그룹">
               <Select size="xs" defaultValue="review" className="w-[min(20rem,100%)]">
                 {drives.map((e) => (
                   <SelectOption key={e.name} value={e.name}>
@@ -82,10 +82,10 @@ export function NewTrialSheet() {
                 ))}
               </Select>
             </Field>
-            <Field label="테이프" hint="기록한 대화의 이벤트열을 기준 실행으로 써요">
+            <Field label="테이프">
               <Select size="xs" defaultValue="t1" className="w-[min(20rem,100%)]">
-                <SelectOption value="t1">캐시 무효화 조사 · 턴 1–9</SelectOption>
-                <SelectOption value="t2">테스트 정리 · 턴 1–4</SelectOption>
+                <SelectOption value="t1">캐시 무효화 조사</SelectOption>
+                <SelectOption value="t2">테스트 정리</SelectOption>
               </Select>
             </Field>
             <NumberField
@@ -155,10 +155,7 @@ export function NewTrialSheet() {
         )}
 
         {kind === "diff" && (
-          <Field
-            label="기준"
-            hint="보호 경로(contracts, ext-host, platform-*, core-*) 변경 줄을 세요"
-          >
+          <Field label="기준">
             <Input
               size="xs"
               defaultValue="main"

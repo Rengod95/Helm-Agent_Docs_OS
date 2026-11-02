@@ -3,6 +3,7 @@
 // 오른쪽은 이 보기 기준에서 쓸 수 있는 기능을 흐리게 미리 보인다(§6.28.1).
 import { Field, Input } from "@caustic/react";
 import {
+  BAR_INSET,
   GRID_INSET,
   LineGridBlock,
   LineGridCell,
@@ -18,30 +19,18 @@ import { nameError, targetFolder, type Action, type Model } from "../flow";
 interface Start {
   id: string;
   title: string;
-  line: string;
   status?: string;
   blocked?: boolean;
 }
 
 const STARTS: Start[] = [
-  { id: "helm", title: "Helm 복제", line: `${T.block} 일곱을 그대로 가져와요` },
-  { id: "group.drive", title: `주도 ${T.group}`, line: `${T.step}를 스스로 진행해요` },
-  { id: "group.policy", title: `정책 ${T.group}`, line: "도구 호출을 막거나 바꿔요" },
-  { id: "group.observe", title: `관찰 ${T.group}`, line: "기록만 남겨요" },
-  {
-    id: "plugin.l2-provider",
-    title: `${T.capability} ${T.plugin}`,
-    line: `${T.capability}을 내줘요`,
-    status: "미리 보기",
-  },
-  { id: "plugin.tool", title: `도구 ${T.plugin}`, line: "도구를 더해요", status: "미리 보기" },
-  {
-    id: "x.hook",
-    title: T.xHook,
-    line: "외부 프로그램을 불러요",
-    status: T.catalogBlocked,
-    blocked: true,
-  },
+  { id: "helm", title: "Helm 복제" },
+  { id: "group.drive", title: `주도 ${T.group}` },
+  { id: "group.policy", title: `정책 ${T.group}` },
+  { id: "group.observe", title: `관찰 ${T.group}` },
+  { id: "plugin.l2-provider", title: `${T.capability} ${T.plugin}`, status: "미리 보기" },
+  { id: "plugin.tool", title: `도구 ${T.plugin}`, status: "미리 보기" },
+  { id: "x.hook", title: T.xHook, status: T.catalogBlocked, blocked: true },
 ];
 
 export function NewGroup({ s, dispatch }: { s: Model; dispatch: (a: Action) => void }) {
@@ -50,7 +39,7 @@ export function NewGroup({ s, dispatch }: { s: Model; dispatch: (a: Action) => v
     // 한 기둥: 가로 여백 없이 시작점 격자 띠가 영역 양 끝까지 닿고, 이름 칸·구역 머리·기능 목록은 칸 글자와 같은 px-4를 가진다.
     <div className="min-h-0 flex-1 overflow-y-auto pb-6">
       <PageBody>
-        <div className="grid grid-cols-2 items-start gap-4 px-4">
+        <div className={`grid grid-cols-2 items-start gap-4 px-4 ${BAR_INSET}`}>
           <Field label={`${T.group} 이름`} {...(err !== null ? { error: err } : {})}>
             <Input
               size="sm"
@@ -101,7 +90,6 @@ export function NewGroup({ s, dispatch }: { s: Model; dispatch: (a: Action) => v
                   >
                     {c.title}
                   </span>
-                  <span className="text-body text-text-tertiary">{c.line}</span>
                   {c.status !== undefined && (
                     <span className="text-footnote text-text-tertiary">{c.status}</span>
                   )}
