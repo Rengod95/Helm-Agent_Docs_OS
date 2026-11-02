@@ -38,6 +38,7 @@ import type { ExecutionGuardPort, ReviewFilesPort, ReviewQueuePort } from "./por
 import { createAnswerHandler } from "./reviews/answer.ts";
 import { REVIEWS_PRODUCER } from "./reviews/kernel.ts";
 import { createReviews } from "./reviews/service.ts";
+import { createReviewTextReader, type ReviewTextReader } from "./reviews/text.ts";
 import { createRegistry } from "./registry/service.ts";
 import { createSessions } from "./sessions/service.ts";
 import {
@@ -56,6 +57,11 @@ export interface ArtifactsPluginOptions {
   readonly loadIndex?: number;
   /** 설정 층. 없으면 기본값(`DEFAULT_ARTIFACTS_SETTINGS`)으로 돈다 */
   readonly settings?: ArtifactsSettingsSource;
+  /**
+   * 리뷰 본문을 읽는 자리(L2.artifacts.spec §3.3.1). 확장이 올라오면 reader를 주고, 내려가면 undefined를 준다.
+   * 조립 루트(L4 review.get)가 받는다. 없으면 본문을 읽을 수 없다
+   */
+  readonly onReviews?: (reader: ReviewTextReader | undefined) => void;
 }
 
 function optionalPort<Api>(host: RegistrationHostApi, key: PortKey<Api>): Api | undefined {
@@ -169,6 +175,12 @@ export function artifactsPlugin(options: ArtifactsPluginOptions): ExtensionUnit 
         settings: (threadId) => ({ deliverAs: settingsAt(threadId).reviews.deliverAs }),
       });
       host.provide(ArtifactsReviewsKey, reviews.api);
+      options.onReviews?.(
+        createReviewTextReader({ kernel: reviews.kernel, threads: session.threads }),
+      );
+      g.onDispose(() => {
+        options.onReviews?.(undefined);
+      });
       if (approvals === undefined) {
         logger.warn("artifacts.approvals_missing", {
           effect: "reviews open without an approval request",
