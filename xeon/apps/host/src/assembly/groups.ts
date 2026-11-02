@@ -17,6 +17,7 @@ import {
   GroupSettingsSourceKey,
   type DriveHolderSettingsPort,
   type GroupCatalogEntry,
+  type GroupServiceWithUsage,
   type HolderUnwritableReason,
   type HolderWriteError,
 } from "@fresnel/group-sdk";
@@ -51,6 +52,8 @@ export interface HostGroupsOptions {
   readonly loadIndex: number;
   /** `/group on`이 켠 직후 부른다(`GroupServiceDeps.onEnabled`) */
   readonly onEnabled?: (id: string) => void;
+  /** 서비스가 올라올 때마다 부른다. 확장 읽기(`group.*`)가 현재 서비스를 읽는다 */
+  readonly onService?: (service: GroupServiceWithUsage) => void;
 }
 
 function locked(): HolderWriteError {
@@ -199,6 +202,7 @@ export function hostGroupsPlugin(options: HostGroupsOptions): ExtensionUnit {
         ...(options.onEnabled === undefined ? {} : { onEnabled: options.onEnabled }),
       });
       host.providePort(DriveLockArbiterPortKey, service);
+      options.onService?.(service);
       host.providePort(GroupSettingsSourceKey, {
         value: (key) => options.settings.value(key),
       });

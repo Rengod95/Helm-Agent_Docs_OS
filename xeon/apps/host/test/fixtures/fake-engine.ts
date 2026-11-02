@@ -23,7 +23,7 @@ import { threadLocked } from "../../src/handlers/owner.ts";
 import { wireErrorOfStore } from "../../src/store-error.ts";
 import type { M4HostEnv } from "../../src/assembly/m4/deps.ts";
 import { createProfileTestRunPort } from "../../src/assembly/m4/profile-test-run-port.ts";
-import { createExtReadPort } from "../../src/assembly/m4/ext-read-port.ts";
+import { createExtReadPort, EMPTY_EXT_READ_SOURCES } from "../../src/assembly/m4/ext-read-port.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
 import { createProcessShutdown } from "@fresnel/platform-process";
 import { createManualScheduler, type ManualScheduler } from "./manual-scheduler.ts";
@@ -438,9 +438,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     scheduler,
     // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다. 프로필·Test run은 T-WB가 채웠다
     m4: {
-      extRead: createExtReadPort({
-        traceRead: options.profiles?.traceRead ?? OFF_TRACE,
-      }),
+      extRead: createExtReadPort(
+        { traceRead: options.profiles?.traceRead ?? OFF_TRACE },
+        EMPTY_EXT_READ_SOURCES,
+      ),
       extUi: {},
       profileTestRun: createProfileTestRunPort({
         traceRead: options.profiles?.traceRead ?? OFF_TRACE,

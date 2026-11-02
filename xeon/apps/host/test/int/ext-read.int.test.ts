@@ -92,7 +92,9 @@ test("ext-read: the 13 handlers are listed in host.hello features instead of not
   expect(EXT_READ_METHODS.map((name) => [name, featured.has(name)])).toEqual(
     EXT_READ_METHODS.map((name) => [name, true]),
   );
-  const handlers = createExtReadHandlers(createExtReadPort({ traceRead: EMPTY_TRACE }));
+  const handlers = createExtReadHandlers(
+    createExtReadPort({ traceRead: EMPTY_TRACE }, EMPTY_EXT_READ_SOURCES),
+  );
   expect(Object.values(handlers).map((handler) => isNotImplemented(handler))).toEqual(
     EXT_READ_METHODS.map(() => false),
   );
@@ -438,12 +440,13 @@ test("group.list, group.metrics, group.promotion pass the group service values t
   };
   const { sources } = createRecordedSources({
     groups: () => [TEAM_GROUP],
-    groupMetrics: (id) => (id === "team" ? full : id === "quiet" ? null : undefined),
-    promotion: (threadIds) => ({
-      throughSeq: 40,
-      threads: threadIds?.length ?? 0,
-      candidates: [{ tool: "grep", owner: "team", consumers: ["alpha"], userCalls: 3 }],
-    }),
+    groupMetrics: (id) => Promise.resolve(id === "team" ? full : id === "quiet" ? null : undefined),
+    promotion: (threadIds) =>
+      Promise.resolve({
+        throughSeq: 40,
+        threads: threadIds?.length ?? 0,
+        candidates: [{ tool: "grep", owner: "team", consumers: ["alpha"], userCalls: 3 }],
+      }),
   });
   const connection = connect(sources);
   await connection.request("host.hello", HELLO_PARAMS);
@@ -503,7 +506,7 @@ test("group.driveLock: the drive lock holder, waiting candidates, activeDriver a
     candidates: [{ registrationId: "alpha", waits: 1, waitLimit: 3 }],
     lastRejected: { groupId: "alpha", reason: "wait_limit", requestSeq: 11 },
   };
-  const { sources } = createRecordedSources({ driveLock: () => snapshot });
+  const { sources } = createRecordedSources({ driveLock: () => Promise.resolve(snapshot) });
   const connection = connect(sources);
   await connection.request("host.hello", HELLO_PARAMS);
   expect(await connection.request("group.driveLock", { threadId: "thr_known" })).toEqual(snapshot);

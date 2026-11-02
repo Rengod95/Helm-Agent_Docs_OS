@@ -71,7 +71,7 @@ import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } f
 import { dialogAreaBridgePlugin, type DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 import type { ProjectTrust } from "./trust.ts";
-import type { GroupCatalogEntry } from "@fresnel/group-sdk";
+import type { GroupCatalogEntry, GroupServiceWithUsage } from "@fresnel/group-sdk";
 import type { SettingCatalog } from "@fresnel/contracts/settings";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
@@ -131,6 +131,8 @@ export interface ExtensionDeps {
     readonly entries: () => readonly GroupCatalogEntry[];
     /** `/group on` 뒤에 부른다. 실패 장부를 비운다(X-4) */
     readonly onEnabled: (id: string) => void;
+    /** 그룹 서비스가 올라올 때 부른다 */
+    readonly onService: (service: GroupServiceWithUsage) => void;
   };
   /** 학습 그룹과 L2 제안 대기열 어댑터를 잇는 자리(`proposal.*` 처리기가 읽는다) */
   readonly learning: LearningWiring;
@@ -305,6 +307,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           heldThreads: deps.groups.heldThreads,
           groups: deps.groups.entries,
           onEnabled: deps.groups.onEnabled,
+          onService: deps.groups.onService,
           report: (cause) => {
             deps.logger.error("groups.listener_failed", { message: messageOf(cause) });
           },

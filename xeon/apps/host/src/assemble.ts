@@ -57,6 +57,7 @@ import {
   type ProcessShutdown,
 } from "@fresnel/platform-process";
 import { createSecretsRuntime } from "@fresnel/platform-secrets";
+import type { GroupServiceWithUsage } from "@fresnel/group-sdk";
 import {
   openStore,
   storePlugin,
@@ -89,6 +90,7 @@ import { createExtDiagnosticSink } from "./assembly/diagnostics.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { createDialogAreaHolder } from "./assembly/m4/dialog-area-bridge.ts";
+import { createExtensionRecords } from "./assembly/m4/ext-read-sources.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
@@ -651,6 +653,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     };
     // 그룹 서비스가 보는 설치된 그룹(L3 매니페스트). 단위 목록이 만들어진 뒤에 채워진다
     const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
+    /** 서비스가 올라온 뒤에 올리는 단위(예약). 확장 읽기 목록이 내장 단위와 함께 읽는다 */
+    const lateUnits: ExtensionUnit[] = [];
+    /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
+    const externalFound: { name: string; manifest: ExtensionManifest }[] = [];
+    /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
+    const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
     // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
     const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
@@ -727,6 +735,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           onEnabled: (id) => {
             operations.autoDisabler.clearLedger(`ext:${id}`);
           },
+          onService: (service) => {
+            groupServiceSlot.current = service;
+          },
           currentThread: () => portsHandle?.activeThread() ?? null,
           heldThreads: () => portsHandle?.heldThreads() ?? [],
           entries: () => [
@@ -787,6 +798,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       });
       external.loader = loaded.loader;
       externalGroups.push(...loaded.manifests);
+      externalFound.push(...loaded.discovered.map(({ name, manifest }) => ({ name, manifest })));
       external.unbridge = bridgeExtensionCommands(ext, commands, os.logger("ext-commands"));
     }
 
@@ -832,7 +844,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
     scheduleSlot.service = schedule;
     // 예약 플러그인은 서비스가 생긴 뒤에 올린다(`scheduleUnit`). 도구 등록은 core-tools가 이미 올라와 있어야 한다
-    const scheduled = installFailureOf(await ext.install(scheduleUnit(schedule, units.length)));
+    const scheduleExtension = scheduleUnit(schedule, units.length);
+    lateUnits.push(scheduleExtension);
+    const scheduled = installFailureOf(await ext.install(scheduleExtension));
     if (scheduled !== undefined) {
       throw new AssembleError([
         { code: "plugin", plugin: scheduled.plugin, message: scheduled.message },
@@ -892,6 +906,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ),
       commands,
       dialogArea,
+      extRead: {
+        operations,
+        // `host.status.safeMode`와 같은 원인이다: 시작 옵션은 `flag`, 설정 `x.operations.safeMode.default`는 `user`
+        safeMode: {
+          active: safeMode,
+          cause: safeModeSource === "flag" ? "flag" : safeModeSource === "setting" ? "user" : null,
+        },
+        extensions: createExtensionRecords({
+          units: () => [...unitList.units, ...lateUnits],
+          external: () => externalFound,
+          loader: () => external.loader,
+          tierOf: (name) => operations.tiers.get(name),
+          userExtensionsDir,
+        }),
+        groupService: () => groupServiceSlot.current,
+      },
       web,
       proposals: createProposalPort({
         learning: () => learning.bridge.api(),

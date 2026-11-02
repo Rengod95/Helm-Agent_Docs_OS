@@ -37,7 +37,7 @@ import type {
 } from "@fresnel/contracts/services";
 import { WireError } from "@fresnel/contracts/wire";
 import type { ScheduleService } from "@fresnel/cap-schedule";
-import type { ExtHost } from "@fresnel/ext-host";
+import type { ExtHost, OperationsPolicy } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createDialogAreaHolder } from "../../src/assembly/m4/dialog-area-bridge.ts";
 import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
@@ -295,6 +295,13 @@ function harness(): Harness {
       store,
       loop,
       dialogArea: createDialogAreaHolder(),
+      // 포트 시험은 확장 읽기를 부르지 않는다. 자리만 채운다
+      extRead: {
+        operations: partial<OperationsPolicy>({}),
+        safeMode: { active: false, cause: null },
+        extensions: () => [],
+        groupService: () => undefined,
+      },
       schedule: partial<ScheduleService>({
         open: () => Promise.resolve(ok(undefined)),
         list: () => [],

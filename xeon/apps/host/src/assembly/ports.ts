@@ -77,6 +77,7 @@ import { createSettingsStore } from "./settings-store.ts";
 import { createThreadGate } from "./thread-gate.ts";
 import { readThread } from "./thread-read.ts";
 import type { DialogAreaHolder } from "./m4/dialog-area-bridge.ts";
+import { createExtReadSources, type ExtReadAssembly } from "./m4/ext-read-sources.ts";
 import { createM4Ports } from "./m4/index.ts";
 import type { ProjectExtensions } from "./project-extensions.ts";
 import type { ProjectTrust, TrustInspection } from "./trust.ts";
@@ -130,6 +131,8 @@ export interface PortsDeps {
   readonly pendingSchedules?: PendingSchedulesPort;
   /** 대화 영역 wire가 읽는 목표·작업 기능 API 자리. 조립 확장(`dialogAreaBridgePlugin`)이 채운다(T-WC) */
   readonly dialogArea: DialogAreaHolder;
+  /** 확장 읽기 wire(`ext.*`, `group.*`, `hooks.list`)의 원천 재료. 조립 루트가 확장 목록, 운영 정책, 그룹 서비스를 넘긴다 */
+  readonly extRead: ExtReadAssembly;
 }
 
 export interface PortsHandle {
@@ -712,6 +715,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         clock: deps.clock,
         signal: deps.signal,
       },
+      createExtReadSources(deps.extRead, {
+        ext: deps.ext,
+        settings: deps.settings,
+        threadExists: (threadId) => threads.exists(threadId),
+        errors: { ofStore: wireErrorOfStore },
+        heldThreads: () => Array.from(held.keys()),
+        activeThread: () => Array.from(held.keys()).at(-1) ?? null,
+      }),
     ),
   };
 

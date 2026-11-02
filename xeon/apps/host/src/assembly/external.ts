@@ -50,6 +50,12 @@ export interface ExternalLoading {
     readonly manifest: ExtensionManifest;
     readonly loadIndex: number;
   }[];
+  /** 찾아낸 모든 외부 확장의 매니페스트와 로드 순번(싣지 못했으면 null). 확장 읽기(`ext.list`)가 쓴다 */
+  readonly discovered: readonly {
+    readonly name: string;
+    readonly manifest: ExtensionManifest;
+    readonly loadIndex: number | null;
+  }[];
 }
 
 /** 사용자 위치의 외부 확장을 싣는다. 프로젝트 확장은 cwd의 프로젝트만 판정해 싣고, 서비스 모드는 작업 폴더를 여는 때 싣는다(project-extensions.ts) */
@@ -82,26 +88,35 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
     if (diagnostic.severity === "error") deps.logger.error("ext.load_diagnostic", fields);
     else deps.logger.warn("ext.load_diagnostic", fields);
   }
-  const found = await Promise.all(
-    report.extensions
-      .filter((info) => info.state === "active" && info.loadIndex !== null)
-      .map((info) => manifestOf(deps, info.name, info.loadIndex ?? 0)),
+  // 싣지 못한 확장(불신, 안전 모드, 실패)의 매니페스트도 읽는다: 확장 목록이 그 상태와 진단을 보인다
+  const read = await Promise.all(
+    report.extensions.map(async (info) => ({
+      name: info.name,
+      loadIndex: info.state === "active" ? info.loadIndex : null,
+      manifest: await manifestOf(deps, info.name),
+    })),
   );
-  const manifests = found.flatMap((entry) => (entry === undefined ? [] : [entry]));
-  return { loader, report, manifests };
+  const discovered = read.flatMap((entry) =>
+    entry.manifest === undefined
+      ? []
+      : [{ name: entry.name, manifest: entry.manifest, loadIndex: entry.loadIndex }],
+  );
+  const manifests = discovered.flatMap((entry) =>
+    entry.loadIndex === null ? [] : [{ manifest: entry.manifest, loadIndex: entry.loadIndex }],
+  );
+  return { loader, report, manifests, discovered };
 }
 
 async function manifestOf(
   deps: ExternalLoadingDeps,
   name: string,
-  loadIndex: number,
-): Promise<{ readonly manifest: ExtensionManifest; readonly loadIndex: number } | undefined> {
+): Promise<ExtensionManifest | undefined> {
   const text = await attemptAsync(() =>
     deps.fs.readText(join(deps.userDir, "extensions", name, ".fresnel-plugin", "plugin.json")),
   );
   if (!text.ok || text.value === null) return undefined;
   const checked = validateManifest(safeJson(text.value));
-  return checked.manifest === undefined ? undefined : { manifest: checked.manifest, loadIndex };
+  return checked.manifest;
 }
 
 function safeJson(text: string): unknown {

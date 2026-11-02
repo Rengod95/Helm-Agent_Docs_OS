@@ -7,7 +7,7 @@ import type { ProfileTestRunPort } from "../../handlers/m4/profile-test-run.ts";
 import type { M4EngineDeps, M4HostEnv, M4PortDeps } from "./deps.ts";
 import { createDevkitPort } from "./devkit-port.ts";
 import { createDialogAreaPort } from "./dialog-area-port.ts";
-import { createExtReadPort } from "./ext-read-port.ts";
+import { createExtReadPort, type ExtReadSources } from "./ext-read-port.ts";
 import { createExtUiVersionPort } from "./ext-ui-version-port.ts";
 import { createProfileTestRunPort } from "./profile-test-run-port.ts";
 
@@ -26,7 +26,12 @@ export interface M4Ports {
  * 계측 읽기와 Test run 제어는 ext-host 구현(`traceReadOf`, `testRunControlOf`)이다(T-XD).
  * 소유 트랙은 이 함수를 고치지 않는다.
  */
-export function createM4Ports(host: ExtHost, engine: M4EngineDeps, env: M4HostEnv): M4Ports {
+export function createM4Ports(
+  host: ExtHost,
+  engine: M4EngineDeps,
+  env: M4HostEnv,
+  extReadSources: ExtReadSources,
+): M4Ports {
   const deps: M4PortDeps = {
     ...engine,
     traceRead: traceReadOf(host),
@@ -34,7 +39,7 @@ export function createM4Ports(host: ExtHost, engine: M4EngineDeps, env: M4HostEn
     env,
   };
   return {
-    extRead: createExtReadPort(deps),
+    extRead: createExtReadPort(deps, extReadSources),
     extUi: createExtUiVersionPort(deps),
     profileTestRun: createProfileTestRunPort(deps),
     dialogArea: createDialogAreaPort(deps),

@@ -37,7 +37,7 @@ import type { M4PortDeps } from "./deps.ts";
 
 // ExtRead 포트 구현(`spec-deltas/t-wa.md` §1). 원천은 `ExtReadSources`가 돌려주는 읽기 값이고(조립 루트가 로더, 실패 장부,
 // `GroupService`, 설정 엔진을 얇게 감싸 넘긴다), 이 파일은 그 값을 wire 모양으로 옮긴다. 값을 새로 계산하지 않는다(§2 1번).
-// 원천이 없는 호스트(`createExtReadPort(deps)`)는 확장이 없는 것처럼 읽는다.
+// 실제 원천은 `ext-read-sources.ts`가 만든다. `EMPTY_EXT_READ_SOURCES`는 시험 대역의 바탕이고 호스트 조립은 쓰지 않는다.
 
 interface SafeModeState {
   readonly active: boolean;
@@ -98,10 +98,13 @@ export interface ExtReadSources {
   /** `GroupService.list()` */
   groups(): readonly GroupStatus[];
   /** 그룹 하나의 전체 지표. 모르는 그룹은 undefined, 계측이 꺼져 있으면 null */
-  groupMetrics(id: string, since: string | undefined): GroupMetricsFull | null | undefined;
-  /** 학습 그룹의 승격 후보 읽기. 학습 그룹이 꺼져 있으면 빈 후보 */
-  promotion(threadIds: readonly string[] | undefined): GroupPromotionResult;
-  driveLock(threadId: string): GroupDriveLockResult;
+  groupMetrics(
+    id: string,
+    query: { readonly since: string | undefined; readonly threadId: string | undefined },
+  ): Promise<GroupMetricsFull | null | undefined>;
+  /** 승격 후보 읽기. 학습 그룹이 꺼져 있으면 빈 후보 */
+  promotion(threadIds: readonly string[] | undefined): Promise<GroupPromotionResult>;
+  driveLock(threadId: string): Promise<GroupDriveLockResult>;
   settings: SettingExplainSource;
 }
 
@@ -128,17 +131,18 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   reenable: () => {},
   reload: () => Promise.resolve([]),
   groups: () => [],
-  groupMetrics: () => undefined,
-  promotion: () => ({ throughSeq: 0, threads: 0, candidates: [] }),
-  driveLock: () => ({
-    holder: null,
-    leaseEpoch: 0,
-    activeDriver: null,
-    limits: { turns: 0, spawns: 0, tokens: null },
-    used: { turns: 0, spawns: 0, tokens: 0 },
-    candidates: [],
-    lastRejected: null,
-  }),
+  groupMetrics: () => Promise.resolve(undefined),
+  promotion: () => Promise.resolve({ throughSeq: 0, threads: 0, candidates: [] }),
+  driveLock: () =>
+    Promise.resolve({
+      holder: null,
+      leaseEpoch: 0,
+      activeDriver: null,
+      limits: { turns: 0, spawns: 0, tokens: null },
+      used: { turns: 0, spawns: 0, tokens: 0 },
+      candidates: [],
+      lastRejected: null,
+    }),
   settings: NO_SETTINGS,
 };
 
@@ -181,7 +185,7 @@ function statusOf(
 
 export function createExtReadPort(
   deps: Pick<M4PortDeps, "traceRead">,
-  sources: ExtReadSources = EMPTY_EXT_READ_SOURCES,
+  sources: ExtReadSources,
 ): ExtReadPort {
   function entryOf(
     record: ExtensionRecord,
@@ -468,19 +472,22 @@ export function createExtReadPort(
     async groupMetrics(params, signal) {
       const thread = await checkThread(params.threadId, signal);
       if (!thread.ok) return thread;
-      const metrics = sources.groupMetrics(params.id, params.since);
+      const metrics = await sources.groupMetrics(params.id, {
+        since: params.since,
+        threadId: params.threadId,
+      });
       if (metrics === undefined) return err({ kind: "unknown_group", id: params.id });
       return ok({ id: params.id, metrics, since: params.since ?? null });
     },
 
-    groupPromotion(params) {
-      return Promise.resolve(ok(sources.promotion(params.threadIds)));
+    async groupPromotion(params) {
+      return ok(await sources.promotion(params.threadIds));
     },
 
     async groupDriveLock(params, signal) {
       const thread = await checkThread(params.threadId, signal);
       if (!thread.ok) return thread;
-      return ok(sources.driveLock(params.threadId));
+      return ok(await sources.driveLock(params.threadId));
     },
 
     hooks() {
