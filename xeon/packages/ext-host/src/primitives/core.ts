@@ -231,6 +231,8 @@ interface LeaseRejection {
 export interface ThreadOpenOptions {
   /** 서브에이전트 자식 대화면 참. 이 thread는 drive 임대를 받지 않는다 */
   readonly child?: boolean;
+  /** Test run 대화면 참(ThreadSummary.testRun). Test run만 단계 경계 멈춤을 받는다(X-19, X.primitives.spec §4.4.8) */
+  readonly testRun?: boolean;
 }
 
 export interface ThreadRuntime {

@@ -1,0 +1,255 @@
+// 핸들러 계측 링 버퍼(X-15, X.operations.spec §3.9·§4.8). thread마다 최근 Turn의 핸들러 기록을 메모리에만 둔다.
+// 쓰기는 디스패처가 start·record로 하고, 읽기는 traceReadOf(primitives/host.ts)가 TraceReadPort로 낸다.
+// 이 파일은 계약 타입만 가져온다. 디스패처와 호스트 쪽 타입은 여기로 들어오지 않는다.
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type {
+  ExtTimingsResult,
+  HookName,
+  TraceHandlerEntry,
+  TraceHandlerResult,
+  TraceTurnEntry,
+  TraceTurnResult,
+} from "@fresnel/contracts/extensions";
+import { timingsOf, type HandlerRun, type TimingFilter } from "./handler-timings.ts";
+
+/** x.operations.trace.* 유효 값(§6). 계측을 켜는 값과 Turn 보관 수 */
+export interface TraceSettings {
+  /** 계측을 켠다. Turn이 처음 보일 때 읽어 그 Turn의 기록 여부를 정한다(§4.8.3) */
+  readonly enabled: boolean;
+  /** thread마다 남기는 최근 Turn 수(1~200). 새 Turn이 처음 보일 때 읽는다 */
+  readonly turnsPerThread: number;
+}
+
+/** §6 기본값. 켬, thread마다 Turn 20개 [제안: turnsPerThread] */
+export const DEFAULT_TRACE_SETTINGS: TraceSettings = { enabled: true, turnsPerThread: 20 };
+
+/** Turn 하나에 쌓는 항목 수 상한(§4.8.5). 넘는 항목은 버린다 */
+export const MAX_ENTRIES_PER_TURN = 5000;
+/** 항목 하나에 쌓는 핸들러 기록 수 상한(TraceTurnEntry.handlers, 와이어 상한과 같다) */
+export const MAX_HANDLERS_PER_ENTRY = 256;
+/** 버퍼가 동시에 가지는 thread 수 상한 [제안]. 가장 오래 쓰이지 않은 thread부터 뺀다 */
+export const MAX_THREADS = 32;
+
+/** 디스패치 하나의 시작 입력 */
+interface TraceStart {
+  readonly threadId: ThreadId;
+  /** 디스패치 키. `<stepId 또는 turnId>:<접미>` 규칙을 따른다(§4.8.1) */
+  readonly dispatchKey: string;
+  readonly hook: HookName;
+}
+
+/** 핸들러 실행 한 번의 기록 */
+interface TraceRecord {
+  readonly registrationId: string;
+  /** 시간(ms). 정책이 잰 활성 시간, 예산 값, 중단까지 흐른 시간 가운데 하나다(§4.8.2) */
+  readonly durationMs: number;
+  readonly result: TraceHandlerResult;
+}
+
+/** 디스패치 하나의 기록기. 핸들러 기록은 첫 기록 때 항목 하나로 만들어진다 */
+export interface TraceDispatch {
+  record(run: TraceRecord): void;
+}
+
+export interface TraceBufferDeps {
+  /** 계측 설정 유효 값. 읽기 함수는 호출 때마다 현재 값을 돌려준다 */
+  settings(): TraceSettings;
+}
+
+export interface TraceBuffer {
+  /** 디스패치를 시작한다. 계측이 꺼져 있거나 Turn을 정할 수 없으면 undefined(기록하지 않는다) */
+  start(input: TraceStart): TraceDispatch | undefined;
+  /** 버퍼에 남은 Turn의 기록. 계측이 꺼져 있거나 Turn이 버퍼 밖이면 undefined */
+  turn(threadId: ThreadId, turnId: TurnId): TraceTurnResult | undefined;
+  /** 계측이 켜져 있는가(현재 설정 값) */
+  enabled(): boolean;
+  /** 남은 기록의 훅별 시간 분포. 계측이 꺼져 있으면 `{traceEnabled: false, timings: []}` */
+  timings(filter: TimingFilter): ExtTimingsResult;
+  /** thread의 기록을 지운다. 닫기 경로는 이 함수를 부르지 않는다(§4.8.3) */
+  forgetThread(threadId: ThreadId): void;
+}
+
+/** 쓰기 중인 항목. 생성된 뒤에는 핸들러 기록만 자란다 */
+interface MutableEntry {
+  readonly seq: number;
+  readonly hook: string;
+  readonly step: number;
+  readonly handlers: TraceHandlerEntry[];
+}
+
+/** Turn 하나의 상태 */
+interface TurnTrace {
+  /** Turn이 처음 보일 때 읽은 계측 값. 이 Turn의 기록 여부를 정한다 */
+  readonly enabled: boolean;
+  readonly entries: MutableEntry[];
+  /** 단계 식별자 → 단계 번호(첫 발견 순서, 1부터) */
+  readonly steps: Map<string, number>;
+}
+
+/** thread 하나의 상태 */
+interface ThreadTrace {
+  /** 삽입 순서가 Turn 순서다. 맨 앞이 가장 오래된 Turn */
+  readonly turns: Map<string, TurnTrace>;
+  /** 마지막으로 열린 Turn. stp_ 키와 그 밖의 키가 여기에 붙는다 */
+  current: string | undefined;
+}
+
+/** 접두는 첫 `:` 앞이다. `:`가 없으면 키 전체다 */
+function prefixOf(dispatchKey: string): string {
+  const colon = dispatchKey.indexOf(":");
+  return colon < 0 ? dispatchKey : dispatchKey.slice(0, colon);
+}
+
+/** 맵의 가장 오래된 항목(삽입 순서의 맨 앞)을 뺀다 */
+function dropOldest<V>(map: Map<string, V>): void {
+  const oldest = map.keys().next();
+  if (oldest.done === true) return;
+  map.delete(oldest.value);
+}
+
+/** 단계 식별자의 번호. 처음 보는 단계는 다음 번호를 받는다 */
+function stepOrdinal(turn: TurnTrace, stepId: string): number {
+  const known = turn.steps.get(stepId);
+  if (known !== undefined) return known;
+  const ordinal = turn.steps.size + 1;
+  turn.steps.set(stepId, ordinal);
+  return ordinal;
+}
+
+function snapshotOf(entry: MutableEntry): TraceTurnEntry {
+  return {
+    seq: entry.seq,
+    hook: entry.hook,
+    step: entry.step,
+    handlers: [...entry.handlers],
+  };
+}
+
+export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
+  const threads = new Map<string, ThreadTrace>();
+
+  /** thread를 찾는다. 없으면 만들고 thread 수 상한을 넘는 가장 오래된 thread를 뺀다 */
+  function threadOf(threadId: string): ThreadTrace {
+    const found = threads.get(threadId);
+    if (found !== undefined) return found;
+    const created: ThreadTrace = { turns: new Map(), current: undefined };
+    threads.set(threadId, created);
+    while (threads.size > MAX_THREADS) dropOldest(threads);
+    return created;
+  }
+
+  /** 쓰기가 있었던 thread를 가장 최근 자리로 옮긴다. 이미 밀려난 thread에는 다시 넣지 않는다 */
+  function touch(threadId: string, thread: ThreadTrace): void {
+    if (threads.get(threadId) !== thread) return;
+    threads.delete(threadId);
+    threads.set(threadId, thread);
+  }
+
+  /** 처음 보는 Turn을 연다. 계측 값을 여기서 한 번 읽고 보관 수를 넘는 가장 오래된 Turn을 뺀다 */
+  function openTurn(thread: ThreadTrace, turnId: string): TurnTrace {
+    const settings = deps.settings();
+    const turn: TurnTrace = { enabled: settings.enabled, entries: [], steps: new Map() };
+    thread.turns.set(turnId, turn);
+    // 설정 범위는 1~200이다. 그 밖의 값이 와도 방금 연 Turn은 남기고, 반복은 맵이 비기 전에 끝난다
+    const keep = Math.max(1, settings.turnsPerThread);
+    while (thread.turns.size > keep) dropOldest(thread.turns);
+    return turn;
+  }
+
+  function dispatchOf(
+    threadId: string,
+    thread: ThreadTrace,
+    turn: TurnTrace,
+    step: number,
+    hook: string,
+  ): TraceDispatch {
+    let entry: MutableEntry | undefined;
+    return {
+      record(run) {
+        if (entry === undefined) {
+          if (turn.entries.length >= MAX_ENTRIES_PER_TURN) return;
+          entry = { seq: turn.entries.length, hook, step, handlers: [] };
+          turn.entries.push(entry);
+          touch(threadId, thread);
+        }
+        if (entry.handlers.length >= MAX_HANDLERS_PER_ENTRY) return;
+        entry.handlers.push({
+          registrationId: run.registrationId,
+          ms: run.durationMs,
+          result: run.result,
+        });
+      },
+    };
+  }
+
+  function* runsOf(): Generator<HandlerRun> {
+    for (const thread of threads.values()) {
+      for (const turn of thread.turns.values()) {
+        for (const entry of turn.entries) {
+          for (const handler of entry.handlers) {
+            yield {
+              hook: entry.hook,
+              registrationId: handler.registrationId,
+              ms: handler.ms,
+              result: handler.result,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  /** Turn 키: 그 Turn을 현재 Turn으로 세운다. 계측이 꺼진 Turn도 세워야 뒤의 stp_ 키가 엉뚱한 Turn에 붙지 않는다 */
+  function startTurn(threadId: string, turnId: string, hook: HookName): TraceDispatch | undefined {
+    const thread = threadOf(threadId);
+    let turn = thread.turns.get(turnId);
+    if (turn === undefined) {
+      turn = openTurn(thread, turnId);
+      touch(threadId, thread);
+    }
+    thread.current = turnId;
+    return turn.enabled ? dispatchOf(threadId, thread, turn, 0, hook) : undefined;
+  }
+
+  /** stp_ 키와 그 밖의 키: 현재 Turn에 붙는다(stp_는 단계 번호를 받는다). 현재 Turn이 없으면 기록하지 않는다 */
+  function startInCurrent(
+    threadId: string,
+    prefix: string,
+    hook: HookName,
+  ): TraceDispatch | undefined {
+    const thread = threads.get(threadId);
+    if (thread === undefined || thread.current === undefined) return undefined;
+    const turn = thread.turns.get(thread.current);
+    if (turn === undefined || !turn.enabled) return undefined;
+    const step = prefix.startsWith("stp_") ? stepOrdinal(turn, prefix) : 0;
+    return dispatchOf(threadId, thread, turn, step, hook);
+  }
+
+  return {
+    start({ threadId, dispatchKey, hook }) {
+      const prefix = prefixOf(dispatchKey);
+      if (prefix.startsWith("trn_")) return startTurn(threadId, prefix, hook);
+      return startInCurrent(threadId, prefix, hook);
+    },
+
+    turn(threadId, turnId) {
+      if (!deps.settings().enabled) return undefined;
+      const turn = threads.get(threadId)?.turns.get(turnId);
+      if (turn === undefined || !turn.enabled) return undefined;
+      return { traceEnabled: true, retained: true, entries: turn.entries.map(snapshotOf) };
+    },
+
+    enabled() {
+      return deps.settings().enabled;
+    },
+
+    timings(filter) {
+      if (!deps.settings().enabled) return { traceEnabled: false, timings: [] };
+      return { traceEnabled: true, timings: timingsOf(runsOf(), filter) };
+    },
+
+    forgetThread(threadId) {
+      threads.delete(threadId);
+    },
+  };
+}

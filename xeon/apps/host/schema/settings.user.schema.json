@@ -6537,6 +6537,48 @@
         }
       }
     },
+    "x.operations.trace.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "핸들러 계측 켜기",
+          "order": 500,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "x.operations.trace.turnsPerThread": {
+      "default": 20,
+      "maximum": 200,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "계측 보관 Turn 수(thread마다)",
+          "order": 510,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
     "x.primitives.activeDriver": {
       "anyOf": [
         {

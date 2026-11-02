@@ -184,13 +184,19 @@ export {
   type OperationsPolicy,
   type OperationsSettingsSource,
   type ReservedNames,
+  type TraceSettings,
   type ScopeChangeReason,
   type RegistrationControl,
   type Tier,
 } from "./operations/index.ts";
 
 // 조립 루트(L4 host)가 ExtHost·정책·로더를 이을 때 필요한 이름 [제안: 문서 표에 없어 문서 반영을 요청한다]
-export { registrationToggleSourceOf, type RegistrationToggleSourceOf } from "./primitives/index.ts";
+export {
+  registrationToggleSourceOf,
+  testRunControlOf,
+  traceReadOf,
+  type RegistrationToggleSourceOf,
+} from "./primitives/index.ts";
 export {
   createRegistrationControl,
   type AdmitInfo,

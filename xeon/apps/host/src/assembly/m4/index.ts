@@ -1,6 +1,4 @@
-import { err } from "@fresnel/contracts";
-import type { ExtHost } from "@fresnel/ext-host";
-import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
+import { testRunControlOf, traceReadOf, type ExtHost } from "@fresnel/ext-host";
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
 import type { DialogAreaPort } from "../../handlers/m4/dialog-area.ts";
 import type { ExtReadPort } from "../../handlers/m4/ext-read.ts";
@@ -24,30 +22,15 @@ export interface M4Ports {
   readonly devkit: DevkitPort;
 }
 
-/** 계측이 없는 읽기. 계측이 꺼진 것처럼 보인다 */
-const emptyTraceRead: TraceReadPort = {
-  enabled: () => false,
-  turn: () => undefined,
-  timings: () => ({ traceEnabled: false, timings: [] }),
-};
-
-/** Test run 제어가 없는 호스트. 모든 제어가 `not_available`이다 */
-const emptyTestRunControl: TestRunControlPort = {
-  pause: () => err({ kind: "not_available" }),
-  resume: () => err({ kind: "not_available" }),
-  step: () => err({ kind: "not_available" }),
-  phase: () => err({ kind: "not_available" }),
-};
-
 /**
- * `host`는 T-XD가 계측 읽기와 Test run 제어를 ext-host 구현으로 바꿀 때 쓴다. T-F 시점에는 쓰지 않는다.
- * 소유 트랙은 이 함수를 고치지 않는다(T-XD의 두 줄 제외).
+ * 계측 읽기와 Test run 제어는 ext-host 구현(`traceReadOf`, `testRunControlOf`)이다(T-XD).
+ * 소유 트랙은 이 함수를 고치지 않는다.
  */
-export function createM4Ports(_host: ExtHost, engine: M4EngineDeps, env: M4HostEnv): M4Ports {
+export function createM4Ports(host: ExtHost, engine: M4EngineDeps, env: M4HostEnv): M4Ports {
   const deps: M4PortDeps = {
     ...engine,
-    traceRead: emptyTraceRead,
-    testRunControl: emptyTestRunControl,
+    traceRead: traceReadOf(host),
+    testRunControl: testRunControlOf(host),
     env,
   };
   return {

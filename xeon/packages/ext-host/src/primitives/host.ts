@@ -14,8 +14,16 @@ import type {
   PortLookup,
   RegistrationHandle,
   RegistrationId,
+  TestRunControlPort,
+  TraceReadPort,
   Unsubscribe,
 } from "@fresnel/contracts/extensions";
+import {
+  createTraceBuffer,
+  DEFAULT_TRACE_SETTINGS,
+  type TraceBuffer,
+  type TraceSettings,
+} from "../operations/trace-buffer.ts";
 import { createCapabilityBindings } from "./bindings.ts";
 import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
 import {
@@ -67,7 +75,8 @@ import {
   type RegistrationInfo,
   type RegistrationSetupOutcome,
 } from "./registration.ts";
-import { createStateService } from "./state.ts";
+import { createStateService, type StateService } from "./state.ts";
+import { createStepPause, type StepPause } from "./step-pause.ts";
 
 export type {} from "./errors.ts";
 
@@ -102,6 +111,11 @@ export interface ExtHostDeps {
   readonly capabilityDefs?: CapabilityDefLookup;
   /** 선언 없는 쓰기 요청 워커(ADR-0015 §3.5). 없으면 X의 기본 워커 */
   readonly effectWorker?: EffectWorkerPort;
+  /**
+   * 계측 설정 읽기(x.operations.trace.*, X.operations §3.9). 없으면 기본값(켬, Turn 20개). 조립 루트가 OperationsPolicy.trace를 넘긴다.
+   * 값은 Turn이 처음 보일 때 읽는다
+   */
+  readonly trace?: () => TraceSettings;
 }
 
 /** loading-trust가 검증을 끝낸 확장 하나. 순서는 loadIndex가 정한다 */
@@ -198,8 +212,12 @@ export interface ExtHost {
    * L1이 자기 커밋(위임 정착 `agent.settled`)을 알릴 때 쓴다. 끝나기를 기다린다
    */
   afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
-  /** thread를 열 때(새로 만들거나 재개할 때, 되감기 뒤) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
+  /**
+   * thread를 열 때(새로 만들거나 재개할 때, 되감기 뒤) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다.
+   * `testRun`이 참이면 Test run 대화로 표지한다(X-19). 다시 열거나 닫으면 멈춤 상태는 지워진다
+   */
   openThread(threadId: ThreadId, options?: ThreadOpenOptions): Promise<void>;
+  /** thread를 닫는다. Test run 표지와 멈춘 단계 경계를 풀어 기다리던 dispatch가 끝나게 한다 */
   closeThread(threadId: ThreadId): Promise<void>;
   /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null(L3.group-sdk.spec §3.13 요청 2) */
   leaseOf(threadId: ThreadId): LeaseInfo | null;
@@ -245,6 +263,8 @@ export interface LeaseInfo {
 /** 패키지 안(testing, loading-trust, operations)에서만 쓰는 호스트 내부 */
 export interface ExtHostInternals {
   readonly core: HostCore;
+  /** 계측 링 버퍼(X-15). traceReadOf가 읽는다 */
+  readonly trace: TraceBuffer;
   /** 추적 중인 작업(drive 호출, 유휴 적용, 기능 바인딩)이 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
   /** 토글 요청을 사유와 함께 기록한다(X.operations RegistrationControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
@@ -254,6 +274,12 @@ export interface ExtHostInternals {
     reason?: RegistrationToggleRequestReason,
     threadId?: ThreadId,
   ): void;
+  /** thread가 Test run 대화인가(`openThread`에 `testRun` 참으로 열었다). testRunControlOf가 읽는다 */
+  readonly isTestRun: (threadId: ThreadId) => boolean;
+  /** Test run 단계 경계 멈춤 상태(X-19). dispatch가 `boundary.step.after` 뒤에 기다리고 testRunControlOf가 요청을 바꾼다 */
+  readonly stepPause: StepPause;
+  /** 상태 판 읽기(커밋된 판). testRunControlOf의 phase가 쓴다 */
+  readonly state: Pick<StateService, "docOf" | "revOf">;
 }
 
 type RegistrationToggleRequestReason = "request" | "auto_disable" | "safe_mode" | "startup_disable";
@@ -290,6 +316,68 @@ export function registrationToggleSourceOf(host: ExtHost): RegistrationToggleSou
     scopes: () => host.registrations().map((info) => ({ id: info.id, extension: info.extension })),
     request: (scopeId, enabled, reason, threadId) => {
       internals.requestScope(scopeId, enabled, reason, threadId);
+    },
+  };
+}
+
+/**
+ * 계측 읽기 포트(X-15·X-6). 원천은 이 호스트의 링 버퍼다. `ext.timings`와 `trace.turn`(wire)이 쓴다.
+ * turn()은 버퍼 밖이거나 계측이 꺼져 있으면 undefined다. wire 쪽이 enabled()로 traceEnabled를 채운다(X.operations §3.9)
+ */
+export function traceReadOf(host: ExtHost): TraceReadPort {
+  // 내부는 부를 때 얻는다. createExtHost가 만들지 않은 대역 ExtHost로도 포트를 만들 수 있게 한다(조립 시험)
+  return {
+    enabled: () => hostInternalsOf(host).trace.enabled(),
+    turn: (threadId, turnId) => hostInternalsOf(host).trace.turn(threadId, turnId),
+    timings: (filter) => hostInternalsOf(host).trace.timings(filter),
+  };
+}
+
+/** 상태 문서의 `phase` 문자열. 문서가 객체가 아니거나 `phase`가 문자열이 아니면 null */
+function phaseValueOf(doc: unknown): string | null {
+  if (typeof doc !== "object" || doc === null || !("phase" in doc)) return null;
+  return typeof doc.phase === "string" ? doc.phase : null;
+}
+
+/**
+ * Test run 단계 경계 멈춤 제어 포트(X-19, X.primitives.spec §4.4.8). wire `testRun.*`이 쓴다.
+ * pause는 요청만 남기고 다음 `boundary.step.after` 처리 뒤에 적용한다. 멈춘 동안 drive 락은 그대로 있다.
+ * phase는 읽기만 한다. drive 락 보유자의 그룹 선언(`composition.phases`)과 커밋된 상태 판의 `phase`를 본다
+ */
+export function testRunControlOf(host: ExtHost): TestRunControlPort {
+  // 내부는 부를 때 얻는다. createExtHost가 만들지 않은 대역 ExtHost로도 포트를 만들 수 있게 한다(조립 시험)
+  return {
+    pause(threadId) {
+      const { isTestRun, stepPause } = hostInternalsOf(host);
+      if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
+      stepPause.pause(threadId);
+      return ok({ paused: true });
+    },
+    resume(threadId) {
+      const { isTestRun, stepPause } = hostInternalsOf(host);
+      if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
+      if (!stepPause.resume(threadId)) return err({ kind: "not_paused" });
+      return ok({ paused: false });
+    },
+    step(threadId) {
+      const { isTestRun, stepPause } = hostInternalsOf(host);
+      if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
+      if (!stepPause.step(threadId)) return err({ kind: "not_paused" });
+      return ok({ paused: true });
+    },
+    phase(threadId) {
+      const { core, isTestRun, state } = hostInternalsOf(host);
+      if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
+      // 보유자는 `leaseOf`가 보는 자료와 같다. 커밋되지 않았거나 반납이 커밋된 임대는 보유자가 아니다
+      const lease = host.leaseOf(threadId);
+      const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
+      const phases = record?.manifest.group?.composition?.phases;
+      if (record === undefined || phases === undefined) {
+        return ok({ phase: null, group: null, seq: null });
+      }
+      const value = phaseValueOf(state.docOf(threadId, record.id));
+      const phase = value !== null && phases.nodes.some((node) => node.id === value) ? value : null;
+      return ok({ phase, group: record.extension, seq: state.revOf(threadId, record.id) });
     },
   };
 }
@@ -385,6 +473,18 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   const bindings = createCapabilityBindings(bridge, report, () =>
     deps.settings.capabilityProviders(),
   );
+  // 계측 링 버퍼는 호스트마다 하나다. 설정이 없으면 기본값(켬)을 쓴다
+  const traceBuffer = createTraceBuffer({
+    settings: deps.trace ?? (() => DEFAULT_TRACE_SETTINGS),
+  });
+  // Test run 단계 경계 멈춤(X-19). 멈춤 상태와 Test run 표지는 호스트마다 하나다
+  const stepPause = createStepPause();
+  const testRunThreads = new Set<ThreadId>();
+  /** Test run 표지와 멈춤 상태를 함께 지운다. 멈춘 경계가 있으면 풀려서 기다리던 dispatch가 끝난다 */
+  const forgetTestRun = (threadId: ThreadId): void => {
+    testRunThreads.delete(threadId);
+    stepPause.release(threadId);
+  };
 
   const ports: PortLookup = {
     get<Api>(key: PortKey<Api>): Api | undefined {
@@ -418,6 +518,8 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         core.track(task);
       },
       threadSignal: (threadId) => core.threads.get(threadId)?.abort.signal,
+      trace: traceBuffer,
+      stepPause,
     }),
     ports,
     scopes: new Map(),
@@ -725,10 +827,16 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     afterCommit: (threadId, events) => lifecycle.afterCommit(threadId, events),
     openThread: async (threadId, options) => {
       lifecycle.attach();
+      // 열기는 멈춤을 새로 시작한다. 표지는 열린 뒤에만 단다(열지 못한 thread를 Test run으로 남기지 않는다)
+      forgetTestRun(threadId);
       await boundary.openThread(threadId, options);
+      if (options?.testRun === true) testRunThreads.add(threadId);
       core.track(lifecycle.flush(threadId));
     },
-    closeThread: (threadId) => boundary.closeThread(threadId),
+    closeThread: async (threadId) => {
+      forgetTestRun(threadId);
+      await boundary.closeThread(threadId);
+    },
     leaseOf(threadId) {
       const held = core.threads.get(threadId)?.lease;
       if (held === null || held === undefined || held.status === "released") return null;
@@ -748,6 +856,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     async dispose() {
       await eachInOrder([...core.threads.keys()], async (threadId) => {
+        forgetTestRun(threadId);
         await boundary.closeThread(threadId);
         return "continue";
       });
@@ -780,12 +889,16 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
 
   internalsByHost.set(host, {
     core,
+    trace: traceBuffer,
     whenSettled: () => core.whenSettled(),
     requestScope(scopeId, enabled, reason, threadId) {
       const record = core.scopes.get(scopeId);
       if (record === undefined) return;
       scope.request(record, enabled, reason === "request" ? undefined : reason, threadId);
     },
+    isTestRun: (threadId) => testRunThreads.has(threadId),
+    stepPause,
+    state,
   });
   return host;
 }

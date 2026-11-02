@@ -1,8 +1,13 @@
-import { Bug } from "@fresnel/contracts";
+import { createHash } from "node:crypto";
+import { Bug, detach, parse } from "@fresnel/contracts";
 import {
+  AskRequestSchema,
   DriveLockArbiterPortKey,
   LoopPortKey,
   RecordCommitPortKey,
+  type AskCard,
+  type AskOutcome,
+  type AskRequest,
   type DriveLimits,
   pluginDefaultEnabled,
   type DriveLockBudget,
@@ -15,6 +20,15 @@ import {
   type TurnOutcome,
 } from "@fresnel/contracts/extensions";
 import type { Usage } from "@fresnel/contracts/conversation";
+import { DenyAnswerSchema, QuestionAnswerSchema, requestKeyFor } from "@fresnel/contracts/records";
+import {
+  ApprovalServicePortKey,
+  type ApprovalResolution,
+  type ApprovalService,
+  type QuestionBody,
+  type QuestionItem,
+  type QuestionOption,
+} from "@fresnel/contracts/services";
 import { withAmbient, withoutAmbient, type DriveInvocation } from "./ambient.ts";
 import type {
   BoundarySignal,
@@ -130,6 +144,58 @@ function assertBudget(lease: LeaseRuntime, kind: "turns" | "spawns"): void {
   }
 }
 
+/** 승인 요청 키의 해시(F `requestKeyFor`가 받는 동기 해시). boundary.ts의 커밋 키 해시와 같은 방식이다 */
+function sha256Hex(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
+}
+
+/**
+ * 승인 카드(`AskCard`)를 승인 요청의 질문 본문으로 옮긴다. 선택 필드는 값이 있을 때만 싣는다(exactOptionalPropertyTypes).
+ * 필드 이름과 뜻이 같아 값만 옮긴다
+ */
+function questionBodyOf(card: AskCard): QuestionBody {
+  return {
+    questions: card.questions.map((question): QuestionItem => ({
+      id: question.id,
+      ...(question.header === undefined ? {} : { header: question.header }),
+      text: question.text,
+      options: question.options.map((option): QuestionOption => ({
+        id: option.id,
+        label: option.label,
+        ...(option.description === undefined ? {} : { description: option.description }),
+        ...(option.recommended === undefined ? {} : { recommended: option.recommended }),
+      })),
+      multiSelect: question.multiSelect,
+      allowFreeText: question.allowFreeText,
+    })),
+  };
+}
+
+/** 승인 카드 제목의 기본값: 그룹 표시 이름(매니페스트 `displayName`). 없거나 비었으면 확장 이름 */
+function approvalTitleOf(record: RegistrationRecord): string {
+  const displayName = record.manifest.displayName;
+  return displayName === undefined || displayName === "" ? record.extension : displayName;
+}
+
+/**
+ * 해결된 승인을 `AskOutcome`으로 옮긴다. 답(`answer`)은 질문 답의 정본 모양이어야 하고, 맞지 않으면 기록이 깨진 것이다.
+ * 답이 아닌 결정(거부, 취소, 만료, 비대화형)은 거부로 끝나며, 거부 사유(`feedback`)는 `DenyAnswer`가 있을 때만 싣는다
+ */
+function askOutcomeOf(resolution: ApprovalResolution, scopeId: RegistrationId): AskOutcome {
+  if (resolution.decision === "answer") {
+    const answer = parse(QuestionAnswerSchema, resolution.answer);
+    if (!answer.ok) {
+      throw new PrimitiveError("record_invalid", "the recorded answer is not a question answer", {
+        scopeId,
+      });
+    }
+    return { status: "answered", answer: answer.value };
+  }
+  const deny = parse(DenyAnswerSchema, resolution.answer);
+  if (!deny.ok) return { status: "denied", resolvedBy: resolution.resolvedBy };
+  return { status: "denied", resolvedBy: resolution.resolvedBy, feedback: deny.value.feedback };
+}
+
 export interface LeaseBrokerHooks {
   /** 함수 쪽 사유로 반납이 정해진 뒤(error, idle) 다음 경계를 기다리지 않고 유휴 적용을 예약한다 */
   requestApply(threadId: ThreadRuntime["threadId"]): void;
@@ -155,6 +221,62 @@ export function createLeaseBroker(
     });
   }
 
+  /**
+   * `loop.ask`로 답을 기다리는 Registration과 그 승인 id(thread별). 답이 해결되면 지운다. thread 객체를 키로 두어
+   * 같은 thread id로 다시 연 thread의 항목과 섞이지 않는다(X-17)
+   */
+  const askWaiting = new WeakMap<ThreadRuntime, Map<RegistrationId, string>>();
+
+  function markAskWaiting(
+    thread: ThreadRuntime,
+    scopeId: RegistrationId,
+    approvalId: string,
+  ): void {
+    const waiting = askWaiting.get(thread) ?? new Map<RegistrationId, string>();
+    waiting.set(scopeId, approvalId);
+    askWaiting.set(thread, waiting);
+  }
+
+  function unmarkAskWaiting(
+    thread: ThreadRuntime,
+    scopeId: RegistrationId,
+    approvalId: string,
+  ): void {
+    const waiting = askWaiting.get(thread);
+    if (waiting?.get(scopeId) === approvalId) waiting.delete(scopeId);
+  }
+
+  /**
+   * 답을 기다린다. 답은 사람이 언제 줄지 모르므로 정산이 기다리는 추적 작업(`core.track`)으로 두지 않는다.
+   * 답이 해결되면 Registration을 다시 후보로 올린다. thread가 닫혀 기다림이 끊기거나 승인을 모르면 항목만 지운다.
+   * 승인 요청은 닫지 않는다(답은 사용자의 것이다)
+   */
+  function awaitAnswer(
+    thread: ThreadRuntime,
+    scopeId: RegistrationId,
+    approvals: ApprovalService,
+    approvalId: string,
+  ): void {
+    detach(
+      (async () => {
+        const waited = await approvals.wait(approvalId, thread.abort.signal);
+        unmarkAskWaiting(thread, scopeId, approvalId);
+        if (waited.ok && core.threads.get(thread.threadId) === thread) {
+          hooks.requestApply(thread.threadId);
+        }
+      })(),
+      (cause) => {
+        core.deps.report({
+          level: "error",
+          code: "handler_failed",
+          scopeId,
+          message: "loop.ask could not wait for the answer",
+          cause,
+        });
+      },
+    );
+  }
+
   function makeLoopHandle(
     thread: ThreadRuntime,
     lease: LeaseRuntime,
@@ -170,13 +292,60 @@ export function createLeaseBroker(
       return loop;
     };
     return {
-      // X-17 loop.ask: 계약은 T-F에 있고 승인 연결과 drive lock 반납·재부여는 T-XD가 구현한다(review.m4-plan Y7). 그 전까지는 부르면 거부한다
-      ask(): Promise<never> {
-        return Promise.reject(
-          new PrimitiveError("port_unavailable", "loop.ask is not wired yet (X-17, T-XD)", {
+      // X-17 loop.ask(X.primitives.spec §4.4.4). 첫 호출은 question 승인을 열고 drive lock을 `waiting`으로 반납한다.
+      // 약속은 이행되지 않고 lease_revoked로 거부된다(drive 함수가 그 거부를 받아 unwind한다). 답이 이미 있으면 기록된 결과를 바로 돌려준다.
+      // 기다리는 동안 turn·spawn 예산과 호출 순번은 쓰지 않는다
+      async ask(request: AskRequest): Promise<AskOutcome> {
+        if (lease.status !== "active") throw leaseError(lease);
+        const approvals = core.ports.get(ApprovalServicePortKey);
+        if (approvals === undefined) {
+          throw new PrimitiveError(
+            "port_unavailable",
+            "fresnel.approvals (ApprovalService) is not provided",
+            { scopeId: lease.scopeId },
+          );
+        }
+        // 경계 입력이므로 스키마로 검사한다(TY-10). 맞지 않는 요청은 승인을 만들기 전에 거부한다
+        const checked = parse(AskRequestSchema, request);
+        if (!checked.ok) {
+          throw new PrimitiveError("record_invalid", "loop.ask request is not an AskRequest", {
             scopeId: lease.scopeId,
-          }),
-        );
+          });
+        }
+        const record = core.scopes.get(lease.scopeId);
+        // 활성 drive 락의 scope는 정의가 있어야 한다. 정의를 지우기 전에 teardown이 drive 락을 반납한다
+        if (record === undefined) throw new Bug("loop.ask_scope_missing_for_active_lease");
+        const opened = await approvals.open({
+          origin: {
+            threadId: lease.threadId,
+            turnId: null,
+            stepId: null,
+            toolCallId: null,
+            caller: `ext:${record.extension}`,
+          },
+          // Registration id를 넣어 두 Registration이 같은 requestId를 써도 승인이 겹치지 않게 한다
+          requestKey: requestKeyFor(`ask:${lease.scopeId}:${checked.value.requestId}`, sha256Hex),
+          title: checked.value.title ?? approvalTitleOf(record),
+          body: { kind: "question", question: questionBodyOf(checked.value.card) },
+          remember: ["once"],
+        });
+        if (!opened.ok) {
+          throw new PrimitiveError(
+            "storage_unavailable",
+            `the question approval could not be opened (${opened.error.kind})`,
+            { scopeId: lease.scopeId },
+          );
+        }
+        const { request: approval, resolution } = opened.value;
+        // 이미 답이 있으면(drive 락 재부여 뒤, 재시작 뒤의 재호출) drive 락을 건드리지 않고 기록된 결과를 돌려준다
+        if (resolution !== null) return askOutcomeOf(resolution, lease.scopeId);
+        // 답이 아직 없다. drive 락을 `waiting`으로 반납하고, 답이 올 때까지 이 Registration은 후보가 아니다
+        markAskWaiting(thread, lease.scopeId, approval.approvalId);
+        release(lease, "waiting");
+        // 닫히는 중인 thread에는 적용을 예약하지 않는다(requestApply는 열린 thread만 찾는다)
+        if (core.threads.get(thread.threadId) === thread) hooks.requestApply(thread.threadId);
+        awaitAnswer(thread, lease.scopeId, approvals, approval.approvalId);
+        throw leaseError(lease);
       },
       async turn(input: TurnInput): Promise<TurnOutcome> {
         if (lease.status !== "active") throw leaseError(lease);
@@ -368,6 +537,9 @@ export function createLeaseBroker(
       if (generation === null || generation.stale) continue;
       if (!generation.open && !txn.opening.includes(record)) continue;
       if (generation.drive === null) continue;
+      // loop.ask로 답을 기다리는 Registration은 답이 해결될 때까지 후보가 아니다. trackWaiting도 이 목록으로 대기를 세므로
+      // 답을 기다리는 동안에는 x.primitives.leaseWaitLimit의 대기 계수에 들지 않는다(X-17)
+      if (askWaiting.get(thread)?.has(record.id) === true) continue;
       const cooled = thread.cooldown.get(record.id);
       if (cooled !== undefined && cooled === stateService.revOf(thread.threadId, record.id)) {
         continue;
@@ -604,6 +776,7 @@ export function createLeaseBroker(
       for (const lease of txn.releasing) {
         lease.status = "released";
         if (thread.lease === lease) thread.lease = null;
+        // waiting은 쿨다운을 걸지 않는다. 답이 오면 같은 상태 판에서도 바로 다시 후보가 되어야 한다(X-17)
         if (lease.reason === "idle" || lease.reason === "budget") {
           thread.cooldown.set(lease.scopeId, stateService.revOf(thread.threadId, lease.scopeId));
         }

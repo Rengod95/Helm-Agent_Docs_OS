@@ -1,15 +1,33 @@
 // M3-REQ-41, M3-REQ-40 (M3b B5-PERF). 탐구가 없는 턴마다 생기는 임대 부여·idle 반납의 비용(lease_turn_overhead, lease_records_per_turn),
-// tap 훅 핸들러 하나를 시간 예산 아래에서 실행할 때 더해지는 시간(dispatch_overhead_per_handler), 기본 예산 값(budget_default_<class>)을 잰다.
+// tap 훅 핸들러 하나를 시간 예산 아래에서 실행할 때 더해지는 시간(dispatch_overhead_per_handler), 기본 예산 값(budget_default_<class>), 계측(X-15) 켬과 끔의 디스패치 차이(dispatch_overhead_trace_on_vs_off)를 잰다.
 // 실행(fresnel/에서): bash ../scripts/guard.sh run -- bun packages/ext-host/test/benchmark/dispatch-lease.benchmark.ts
 // 출력은 scripts/benchmark-server.ts의 줄 프로토콜이다. stdout에는 JSON 한 줄씩만 쓴다. 판정은 benchmark-server.ts와 benchmark-gate.ts가 한다.
 // 샘플 하나는 배치 평균(ms)이다. 배치는 호출을 여러 번 한 번에 부르고 나눈다. 빼는 기준은 기준 배치 평균들의 평균이고 음수도 그대로 낸다.
 // 턴은 t.boundary(thread).turnSettled()와 settled()의 한 쌍이다. 시험 호스트는 loop.turn을 실행하지 않으므로
 // 기록은 임대 부여·반납과 상태 커밋에서만 생긴다. 실제 턴의 모델 호출과 그 기록 비용은 이 값에 들지 않는다.
 import { Bug } from "@fresnel/contracts";
-import { DEFAULT_BUDGETS_MS } from "../../src/operations/index.ts";
+import { DEFAULT_BUDGETS_MS, DEFAULT_TRACE_SETTINGS } from "../../src/operations/index.ts";
 import type { BudgetClass } from "../../src/operations/budget.ts";
+import {
+  createExtHost,
+  createStaticPrimitivesSettings,
+  hostInternalsOf,
+  InputQueuePortKey,
+  LoopPortKey,
+  RecordCommitPortKey,
+  SessionBranchPortKey,
+} from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
-import { createTestHost, type TestHost } from "../../src/testing/index.ts";
+import {
+  createTestHost,
+  fakeTimers,
+  fixedIdFactory,
+  flushMicrotasks,
+  memoryInputQueue,
+  memoryLoopPort,
+  memoryRecordStore,
+  type TestHost,
+} from "../../src/testing/index.ts";
 import { makeGroupUnit, makeUnit } from "../primitives/fixtures/support.ts";
 import { createOperationsHarness } from "../operations/support/harness.ts";
 
@@ -225,6 +243,90 @@ async function measureDispatch(): Promise<void> {
   });
 }
 
+// ── 2b. 계측(X-15) 켜짐과 꺼짐의 디스패치 차이 ──────────────────────────────
+
+/**
+ * 계측 설정만 다른 호스트에서 탭 디스패치를 DISPATCHES_PER_BATCH회 돌리고 한 번당 시간(ms)을 낸다. 정책은 없다.
+ * createTestHost는 계측 설정을 받지 않으므로 createExtHost를 직접 부르고 포트는 시험 대역으로 채운다.
+ * 키는 `<turnId>:<접미>`라서 디스패치마다 계측 항목이 생긴다(끔이면 기록하지 않는다).
+ */
+async function traceBatch(traced: boolean): Promise<number> {
+  const timers = fakeTimers();
+  const ids = fixedIdFactory();
+  const records = memoryRecordStore();
+  const host = createExtHost({
+    ids,
+    now: timers.now,
+    setTimer: timers.setTimer,
+    settings: createStaticPrimitivesSettings(),
+    report: () => {},
+    trace: () => ({ ...DEFAULT_TRACE_SETTINGS, enabled: traced }),
+  });
+  await host.registerPlatform({
+    name: "benchmark-ports",
+    setup(ctx) {
+      ctx.providePort(LoopPortKey, memoryLoopPort());
+      ctx.providePort(InputQueuePortKey, memoryInputQueue());
+      ctx.providePort(RecordCommitPortKey, records);
+      ctx.providePort(SessionBranchPortKey, (threadId) => records.readBranch(threadId));
+    },
+  });
+  let handled = 0;
+  const unit = makeUnit({ name: "benchmark-tap", hooks: [TAP_HOOK] }, (g) => {
+    g.on(TAP_HOOK, () => {
+      handled += 1;
+    });
+  });
+  await host.install(unit);
+  const thread = ids.next("thr");
+  const turnId = ids.next("trn");
+  await host.openThread(thread);
+  await flushMicrotasks();
+  await hostInternalsOf(host).whenSettled();
+  await flushMicrotasks();
+  let failures = 0;
+  const started = performance.now();
+  await eachInOrder(range(DISPATCHES_PER_BATCH), async (index) => {
+    const outcome = await host.dispatch(
+      TAP_HOOK,
+      { turnId, aborted: false },
+      { threadId: thread, dispatchKey: `${turnId}:benchmark-${String(index)}` },
+    );
+    failures += outcome.failures.length;
+    return "continue";
+  });
+  const elapsedMs = performance.now() - started;
+  if (failures !== 0)
+    throw new Error(`dispatch-lease benchmark: ${String(failures)} handler failures`);
+  if (handled !== DISPATCHES_PER_BATCH) {
+    throw new Bug(
+      `dispatch-lease benchmark: ${String(handled)} handler calls for ${String(DISPATCHES_PER_BATCH)} dispatches`,
+    );
+  }
+  return elapsedMs / DISPATCHES_PER_BATCH;
+}
+
+async function measureTrace(): Promise<void> {
+  const off: number[] = [];
+  const on: number[] = [];
+  await eachInOrder(range(WARMUPS + RUNS), async (run) => {
+    const plain = await traceBatch(false);
+    const traced = await traceBatch(true);
+    if (run >= WARMUPS) {
+      off.push(plain);
+      on.push(traced);
+    }
+    return "continue";
+  });
+  const baselineMs = mean(off);
+  emit({
+    metric: "dispatch_overhead_trace_on_vs_off",
+    unit: "ms",
+    samples: on.map((perDispatch) => ms(perDispatch - baselineMs)),
+    note: `핸들러 하나짜리 탭 디스패치의 시간 차이(계측 켬 − 끔, 정책 없음, 보관 Turn ${String(DEFAULT_TRACE_SETTINGS.turnsPerThread)}개 기본값). 빼는 값 ${baselineMs.toFixed(4)} ms(계측 끔의 평균). 차이에는 시작 때 키 접두 해석, 항목 만들기, 기록 칸 쓰기가 같이 든다. 디스패치 ${String(DISPATCHES_PER_BATCH)}회씩`,
+  });
+}
+
 // ── 3. 기본 예산 값 ─────────────────────────────────────────────────────────
 
 const BUDGET_CLASSES: readonly BudgetClass[] = [
@@ -262,6 +364,7 @@ function emitBudgetDefaults(): void {
 async function main(): Promise<void> {
   await measureLease();
   await measureDispatch();
+  await measureTrace();
   emitBudgetDefaults();
 }
 

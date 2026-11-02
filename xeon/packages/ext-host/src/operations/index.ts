@@ -32,6 +32,7 @@ import { createFailureLedger, fromHandlerFailure, type FailureLedger } from "./f
 import { createResourcePolicy, NO_RESERVED_NAMES, type ReservedNames } from "./naming.ts";
 import type { OperationsSettingsSource } from "./settings-keys.ts";
 import { createExtStorageManager, type ExtStorageManager } from "./storage/ext-storage.ts";
+import { DEFAULT_TRACE_SETTINGS, type TraceSettings } from "./trace-buffer.ts";
 import {
   assignTier,
   createTierTable,
@@ -103,6 +104,12 @@ export {
   type OperationsSettingsSource,
   type StaticOperationsSettings,
 } from "./settings-keys.ts";
+export {
+  createTraceBuffer,
+  DEFAULT_TRACE_SETTINGS,
+  type TraceBuffer,
+  type TraceSettings,
+} from "./trace-buffer.ts";
 export {
   createExtStorageManager,
   storageOf,
@@ -178,6 +185,8 @@ export interface OperationsPolicy extends DispatchPolicy {
   forget(name: ExtensionName): void;
   /** x.operations.budget.setupMs 유효 값. 조립 루트가 ExtHostDeps.setupBudgetMs에 넘긴다 */
   setupBudgetMs(): number;
+  /** x.operations.trace.* 유효 값(X.operations §3.9). 조립 루트가 ExtHostDeps.trace에 넘긴다 */
+  trace(): TraceSettings;
 }
 
 const NOOP_HOOKS = { disable: () => {}, enable: () => {} };
@@ -262,5 +271,6 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
       storage.release(name);
     },
     setupBudgetMs: () => deps.settings.budgets().setup,
+    trace: () => deps.settings.trace?.() ?? DEFAULT_TRACE_SETTINGS,
   };
 }
