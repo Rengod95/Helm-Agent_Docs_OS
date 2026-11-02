@@ -301,7 +301,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string }` | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
 | thread | `thread.open` | `{ threadId: ThreadId, mode: "write"\|"observe", includeItems?: boolean, limit?: integer(1..500) }` | `{ threadId: ThreadId, role: "owner"\|"observer", position: StreamPosition, items?: ItemRecord[], hasMore?: boolean, asOfSeq?: integer }` | M2 |
-| thread | `thread.read` | `{ threadId: ThreadId, limit?: integer(1..500), before?: ItemId }` | `{ threadId: ThreadId, items: ItemRecord[], position: StreamPosition, hasMore: boolean }` | M2 |
+| thread | `thread.read` | `{ threadId: ThreadId, limit?: integer(1..500), before?: ItemId, around?: ItemId }`(`around`는 M4, W-16) | `{ threadId: ThreadId, items: ItemRecord[], position: StreamPosition, hasMore: boolean }` | M2 |
 | thread | `thread.close` | `{ threadId: ThreadId }` | `{}` | M2 |
 | thread | `thread.delete` | `{ threadId: ThreadId }` | `{}` | M2 |
 | thread | `thread.fork` | `{ threadId: ThreadId, at?: ItemId }` | `{ threadId: ThreadId, position: StreamPosition }` | M2 |
@@ -314,7 +314,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | events | `events.subscribe` | `{ from: StreamPosition \| "head", filter?: EventFilter }` | `{ sub: SubId, start: Seq, headSeq: Seq, storeId: StoreId, mode: "replaying"\|"live" }` | M1 |
 | events | `events.unsubscribe` | `{ sub: SubId }` | `{}` | M2 |
 | approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: ApprovalAnswer, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean, reason?: "answer_invalid"\|"already_resolved"\|"unknown_approval"\|"commit_failed", detail?: string }` | M2 |
-| approval | `approval.list` | `{ threadId: ThreadId }` | `{ approvals: PendingApproval[], position: StreamPosition }` | M2 |
+| approval | `approval.list` | `{ threadId?: ThreadId }`(생략하면 열려 있는 모든 대화, M4, W-01) | `{ approvals: PendingApproval[], position: StreamPosition }` | M2 |
 | command | `command.list` | `{ prefix?: string, includeHidden?: boolean, threadId?: ThreadId }` | `{ commands: CommandInfo[] }` | M2 |
 | command | `command.run` | `{ threadId: ThreadId, text: string, confirmShell?: boolean }` | `CommandRunOutput` | M2 |
 | trust | `trust.get` | `{ workspace: string }` | `TrustStatus` | M2 |
@@ -361,6 +361,11 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | group | `group.promotion` | `{ threadIds?: string[] }` | `{ throughSeq, threads, candidates: PromotionCandidate[] }` | M4 (W-26) |
 | group | `group.driveLock` | `{ threadId: string }` | `{ holder, leaseEpoch, activeDriver, limits, used, candidates: DriveLockWait[], lastRejected }` | M4 (W-42) |
 | hooks | `hooks.list` | `{}` | `{ hooks: HookEntry[] }` | M4 (W-36) |
+| review | `review.get` | `{ reviewId: string }` | `{ reviewId, files: { path, hunks: HunkView[] }[] }` | M4 (W-02) |
+| goal | `goal.status` | `{ threadId: string }` | `{ goal: GoalView \| null }` | M4 (W-05) |
+| work | `work.tasks.list` | `{ threadId: string }` | `{ tasks: TaskView[] }` | M4 (W-06) |
+| schedule | `schedule.update` | `{ scheduleId: string, enabled?: boolean, title?: string, prompt?: string }` | `{ scheduleId, enabled, nextRunAt: IsoTime \| null }` | M4 (W-07) |
+| schedule | `schedule.runs` | `{ scheduleId: string, limit?: integer(1..200) }` | `{ runs: ScheduleRunRecord[] }` | M4 (W-07) |
 
 - [결정: review.m3-design-inputs D-M3-32 a, M3-REQ-18] 지식 제안 대기열 wire(`proposal.*`, `wire/proposals.ts`). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(`source: "learning"`)와 L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(`source: "knowledge"`). 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이고, 대기열을 하나로 합치지 않는다.
   - `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 `(source, id)` 오름차순)으로 합친다. `ProposalRow`는 두 출처가 같은 모양이다: `source`, `id`, `kind`(`skill`, `memory`, `feedback`, `script`), `op`, `target`, `status`(두 대기열 상태의 합집합: `pending`, `approved`, `applied`, `rejected`, `stale`, `expired`, `reverted`), `destructive`, `diff`, `rationale`, `evidence`, `conflictsWith`, `reason`, `revision`, `scope`, `afterUntrusted`, `createdAt`. 출처에 없는 필드는 빈 값(null, false, 빈 배열, `revision` 1)이다. 한 출처를 읽지 못하면(지식 저장소 없음 등) 그 출처만 `unavailable`에 올리고 나머지 행은 돌려준다. `source`와 `status` 필터는 서버가 건다.
@@ -457,6 +462,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     resumable: Nullable(ThreadResumableSchema),   // ThreadSummaryRow.marker. 이어서 실행 후보 표식(HS-30)
     queuedInputs: Type.Integer({ minimum: 0 }),
     pendingApprovals: Type.Integer({ minimum: 0 }),
+    origin: Type.Optional(ThreadOriginSchema),   // M4, W-16. { kind: "user" } | { kind: "schedule", scheduleId } | { kind: "remote" }
   }, { additionalProperties: false });
   ```
 
@@ -1244,6 +1250,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 - [결정: 2026-10-31 사용자, M4 T-F] 확장이 더하는 wire 메서드의 이름은 `ext.<확장이름>.<동사>`로 확정한다(`extMethodName`). 동사는 `EXT_VERB_PATTERN`, params·result는 매니페스트 확장 수준 `methods`의 `ExtMethodDecl`(JSON Schema)이 선언하고 `validateManifest`가 검사한다(F.extensions.spec §3.1.1). 오류 코드는 확장 구간 10000~19999와 `ext.<확장이름>.` kind다(§3.5.3).
 - 세 마디 이름 중 `ext.ui.*`, `ext.test.*`는 코어 메서드다(옛 `ext.view.*`는 없다). 그래서 `ui`, `test`는 확장 이름으로 쓸 수 없다(`RESERVED_EXTENSION_NAMES`, `CORE_EXT_NAMESPACES`, `classifyMethodName`). 이름 `ui`, `ext.ui.*`, 설정 `x.ui.apps`, `x.ui.allowProjectApps`(옛 `x.views.frames`, `x.views.allowProjectFrames`)는 ADR-0022 §3.6이 정하지 않은 [제안]이다. 설정 키의 정의와 소유 문서는 X 트랙이 정한다.
 - [결정: 2026-10-31 사용자, M4 T-F] 확장 읽기(W-15, W-20~W-26, W-31, W-33, W-35~W-42, W-47)의 스키마는 `wire/ext-read.ts`다. 행의 단위는 확장이고 Registration(플러그인 하나)은 `plugins`와 `registrationId`로 나온다(ADR-0022 §3.2). `ext.list`의 `enabledSource`는 켜짐 요청이 온 층(`managed`, `thread`, `project`, `user`, `default`)이다(T-REG §7 5번). `group.driveLock`(옛 `group.lease`, 저장 이름 `lease.*`는 그대로)은 drive lock을 가진 Registration과 후보·대기 수, 설정 `x.primitives.activeDriver` 값, 최근 `lease.rejected`를 돌려준다. `host.status`는 `safeModeCause`(`user`, `startupFailures`, `flag`)를 더한다(W-35, W-39).
+- [결정: 2026-10-31 사용자, M4 T-F] 대화 영역 변경(W-01, W-16, W-37): `approval.list`의 `threadId`는 선택이고 생략하면 모든 대화의 대기 승인이다. `thread.read`는 `around: ItemId`(가운데 창, `before`와 함께 쓰지 않음)를 받고, `ThreadSummary.origin`(`user`, `schedule`+`scheduleId`, `remote`)은 선택 필드다. W-37(런타임 이벤트만 거르는 구독)은 이미 있는 `events.subscribe`의 `filter.kindPrefixes`와 `threadIds` 생략으로 닫는다. 새 인자가 없다. 새 메서드(`review.get`, `goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)의 스키마는 `wire/dialog-area.ts`다.
 - M4 메서드(단계 M4)는 §3.3.1 표에 있다.
 
 ### 4.3 요청 처리 순서

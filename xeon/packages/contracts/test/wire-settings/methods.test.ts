@@ -301,7 +301,8 @@ describe("M2 method schemas are written out", () => {
   test("approval.list returns approval.requested payloads with the position they reflect", () => {
     const { params, result } = WIRE_METHODS["approval.list"];
     expect(parse(params, { threadId: THREAD }).ok).toBe(true);
-    expect(parse(params, {}).ok).toBe(false);
+    // W-01: threadId를 생략하면 모든 대화의 대기 승인이다
+    expect(parse(params, {}).ok).toBe(true);
     expect(parse(params, { threadId: THREAD, extra: 1 }).ok).toBe(false);
     const request = PAYLOAD_FIXTURES["approval.requested"];
     const position = { storeId: STORE, seq: 30 };

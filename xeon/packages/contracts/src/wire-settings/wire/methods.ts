@@ -62,6 +62,7 @@ import {
 } from "./cursor.ts";
 import { WireMetaSchema } from "./jsonrpc.ts";
 import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
+import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import {
   ProposalApproveParamsSchema,
   ProposalDecideResultSchema,
@@ -394,6 +395,23 @@ export type ThreadResumable = Static<typeof ThreadResumableSchema>;
  * thread.list의 결과 원소(F.wire-settings.spec §10 미결 9). 필드는 L1.persistence의 ThreadSummaryRow를 따르고
  * 시각은 IsoTime 문자열로 바꾼다. 호스트가 행을 이 모양으로 옮긴다.
  */
+/** 대화 출처(W-16): 사용자가 만들었다, 예약이 만들었다, 원격 클라이언트가 만들었다 */
+export const ThreadOriginSchema: TUnion<
+  [
+    TObject<{ kind: TLiteral<"user"> }>,
+    TObject<{ kind: TLiteral<"schedule">; scheduleId: TString }>,
+    TObject<{ kind: TLiteral<"remote"> }>,
+  ]
+> = Type.Union([
+  Type.Object({ kind: Type.Literal("user") }, { additionalProperties: false }),
+  Type.Object(
+    { kind: Type.Literal("schedule"), scheduleId: Type.String({ minLength: 1, maxLength: 128 }) },
+    { additionalProperties: false },
+  ),
+  Type.Object({ kind: Type.Literal("remote") }, { additionalProperties: false }),
+]);
+export type ThreadOrigin = Static<typeof ThreadOriginSchema>;
+
 export const ThreadSummarySchema: TObject<{
   threadId: typeof ThreadIdSchema;
   title: TUnion<[TString, TNull]>;
@@ -408,6 +426,7 @@ export const ThreadSummarySchema: TObject<{
   resumable: TUnion<[typeof ThreadResumableSchema, TNull]>;
   queuedInputs: TInteger;
   pendingApprovals: TInteger;
+  origin: TOptional<typeof ThreadOriginSchema>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -430,6 +449,8 @@ export const ThreadSummarySchema: TObject<{
     resumable: Nullable(ThreadResumableSchema),
     queuedInputs: Type.Integer({ minimum: 0 }),
     pendingApprovals: Type.Integer({ minimum: 0 }),
+    /** 대화를 만든 쪽(W-16). 호스트가 알 수 없으면 생략한다 */
+    origin: Type.Optional(ThreadOriginSchema),
   },
   { additionalProperties: false },
 );
@@ -519,6 +540,7 @@ export const ThreadReadParamsSchema: TObject<{
   threadId: typeof ThreadIdSchema;
   limit: TOptional<TInteger>;
   before: TOptional<typeof ItemIdSchema>;
+  around: TOptional<typeof ItemIdSchema>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -526,6 +548,8 @@ export const ThreadReadParamsSchema: TObject<{
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: THREAD_READ_MAX_ITEMS })),
     /** 앞선 결과의 items[0].itemId. 이 item은 결과에 들어가지 않는다 */
     before: Type.Optional(ItemIdSchema),
+    /** 이 item을 가운데 둔 창을 읽는다(W-16). `before`와 함께 쓰지 않는다. 없는 item이면 `thread.notFound`가 아니라 `items: []` */
+    around: Type.Optional(ItemIdSchema),
   },
   { additionalProperties: false },
 );
@@ -851,10 +875,12 @@ export type ApprovalRespondResult = Static<typeof ApprovalRespondResultSchema>;
 /** approval.list가 돌려줄 대기 승인 수 상한(thread 하나) */
 const APPROVAL_LIST_MAX = 1000;
 
-export const ApprovalListParamsSchema: TObject<{ threadId: typeof ThreadIdSchema }> = Type.Object(
-  { threadId: ThreadIdSchema },
-  { additionalProperties: false },
-);
+export const ApprovalListParamsSchema: TObject<{ threadId: TOptional<typeof ThreadIdSchema> }> =
+  Type.Object(
+    /** 생략하면 열려 있는 모든 대화의 대기 승인이다(W-01) */
+    { threadId: Type.Optional(ThreadIdSchema) },
+    { additionalProperties: false },
+  );
 export type ApprovalListParams = Static<typeof ApprovalListParamsSchema>;
 
 /**
@@ -1326,7 +1352,7 @@ const ProposalDecideRequestSchema: TUnion<
 // ── 레지스트리 타입 ──────────────────────────────────────────────────────
 
 /** 메서드별 params·result 스키마. 타입 쪽(WireMethodMap)과 값 쪽(WIRE_METHODS)의 같은 원천이다 */
-interface WireSchemas extends ExtReadSchemas {
+interface WireSchemas extends ExtReadSchemas, DialogAreaSchemas {
   "host.hello": {
     params: WithMeta<typeof HostHelloParamsSchema>;
     result: typeof HostHelloResultSchema;
@@ -1653,6 +1679,7 @@ export const WIRE_METHODS: {
   "schedule.list": spec(withMeta(ScheduleListInputSchema), ScheduleListResultSchema, "M3"),
   "schedule.cancel": spec(withMeta(ScheduleCancelInputSchema), ScheduleCancelResultSchema, "M3"),
   ...EXT_READ_METHODS,
+  ...DIALOG_AREA_METHODS,
   "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 
