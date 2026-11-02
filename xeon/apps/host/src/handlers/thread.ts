@@ -1,10 +1,16 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ContextError } from "@fresnel/contracts/services";
 import { assertNever, Bug } from "@fresnel/contracts";
-import { wireError, type WireError, type WireHandler } from "@fresnel/contracts/wire";
+import {
+  wireError,
+  type ThreadSummary,
+  type WireError,
+  type WireHandler,
+} from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
+import { wireErrorOfApply } from "./m4/profile-test-run.ts";
 import { paramNotYetImplemented } from "./not-implemented.ts";
 import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 
@@ -16,15 +22,45 @@ export function createThreadCreateHandler(
   hub: () => ConnectionHub,
 ): WireHandler<"thread.create"> {
   const { ports } = engine;
+  const profiles = ports.m4.profileTestRun;
   return async (params, context) => {
-    // W-34(Test run 대화와 프로필)는 T-WB가 구현한다. 그 전까지는 일반 대화로 조용히 만들지 않고 거부한다
-    if (params.testRun !== undefined) throw paramNotYetImplemented("testRun", "W-34, T-WB");
-    if (params.profileId !== undefined) throw paramNotYetImplemented("profileId", "W-34, T-WB");
+    // W-34: 프로필은 Test run 대화에만 붙는다. 일반 대화에 조용히 무시하며 붙이지 않고 거부한다
+    if (params.profileId !== undefined && params.testRun !== true) {
+      throw wireError("jsonrpc.invalidParams", {
+        details: { issues: [{ path: "profileId", message: "profileId requires testRun: true" }] },
+      });
+    }
+    // 대화를 만들기 전에 프로필이 있는지 본다: 없는 프로필 때문에 빈 대화가 남지 않게 한다
+    if (params.profileId !== undefined) {
+      const found = await profiles.getProfile(params.profileId);
+      if (!found.ok) throw wireErrorOfApply(found.error, profiles.errors);
+    }
     const created = await ports.threads.create({
       ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
       ...(params.title === undefined ? {} : { title: params.title }),
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
+    if (params.testRun === true) {
+      if (params.profileId !== undefined) {
+        // `thread` 층에 쓴다(`profile.apply { layer: "thread" }`와 같은 쓰기). 실패하면 이미 쓴 키는 되돌려져 있고 이 대화는 지운다
+        const applied = await profiles.applyProfile({
+          id: params.profileId,
+          layer: "thread",
+          threadId: created.threadId,
+        });
+        if (!applied.ok) {
+          const removed = await ports.threads.remove(created.threadId);
+          if (!removed.ok) {
+            ports.log.error("thread.create.cleanup_failed", {
+              threadId: created.threadId,
+              kind: removed.error.kind,
+            });
+          }
+          throw wireErrorOfApply(applied.error, profiles.errors);
+        }
+      }
+      profiles.registerTestRun(created.threadId, params.profileId ?? null);
+    }
     // 위치는 소유를 얻은 뒤에 읽는다: 열기가 이벤트를 커밋했을 수 있다
     const position = ports.threads.position(created.threadId);
     if (!position.ok) throw wireErrorOfStore(position.error, "thread.create position");
@@ -95,7 +131,17 @@ function readFailure(error: ThreadReadFailure, where: string): WireError {
 }
 
 export function createThreadListHandler(engine: Engine): WireHandler<"thread.list"> {
-  return (params) => engine.ports.threads.list(params);
+  return async (params) => {
+    const page = await engine.ports.threads.list(params);
+    // Test run 표지(W-34)는 호스트가 안다. Test run이 아닌 대화에는 필드를 싣지 않는다
+    const profiles = engine.ports.m4.profileTestRun;
+    const threads: ThreadSummary[] = [];
+    for (const summary of page.threads) {
+      const testRun = profiles.testRunMarker(summary.threadId);
+      threads.push(testRun === undefined ? summary : { ...summary, testRun });
+    }
+    return { ...page, threads };
+  };
 }
 
 /** F wire §3.4.6. 소유를 얻지 않는 읽기다 */

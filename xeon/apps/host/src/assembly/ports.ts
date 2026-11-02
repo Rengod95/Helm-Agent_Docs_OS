@@ -40,7 +40,7 @@ import {
 import { isAbsolute } from "node:path";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { itemPagesOf } from "@fresnel/core-persistence";
-import { PrimitiveError, type ExtHost } from "@fresnel/ext-host";
+import { PrimitiveError, registrationToggleSourceOf, type ExtHost } from "@fresnel/ext-host";
 import type { FileLock } from "@fresnel/platform-os";
 import type {
   ActivityPort,
@@ -62,6 +62,7 @@ import type {
   SecretsPort,
   UserNotifyPort,
 } from "../types.ts";
+import { threadLocked } from "../handlers/owner.ts";
 import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-error.ts";
 import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
@@ -653,7 +654,25 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     ids: deps.ids,
     clock: deps.clock,
     scheduler: deps.scheduler,
-    m4: createM4Ports(deps.ext),
+    m4: createM4Ports(deps.ext, {
+      catalog: deps.settings.catalog,
+      settings,
+      errors: { ofStore: wireErrorOfStore, threadLocked: () => threadLocked(null) },
+      settingValue: (key, threadId) => deps.settings.value(key, threadId),
+      threadExists: (threadId) => threads.exists(threadId),
+      // 호출 때 만든다: 확장 호스트가 아닌 대역을 넘긴 시험은 이 통로를 부르지 않는다
+      toggles: {
+        scopes: () => registrationToggleSourceOf(deps.ext).scopes(),
+        request: (scopeId, enabled, reason, threadId) => {
+          registrationToggleSourceOf(deps.ext).request(scopeId, enabled, reason, threadId);
+        },
+      },
+      registrations: () => deps.ext.registrations(),
+      configDir: deps.configDir,
+      fileLock: deps.fileLock,
+      clock: deps.clock,
+      signal: deps.signal,
+    }),
   };
 
   return {

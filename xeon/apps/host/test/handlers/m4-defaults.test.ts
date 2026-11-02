@@ -64,7 +64,7 @@ test("m4-defaults: a defaulted M4 method answers -32601 with its name", async ()
   await connection.close();
 });
 
-// 계약이 넓어졌지만 소유 트랙(T-WB, T-WC)이 아직 채우지 않은 새 인자는 조용히 무시하지 않고 -32602로 거부한다.
+// 계약이 넓어졌지만 소유 트랙(T-WC)이 아직 채우지 않은 새 인자는 조용히 무시하지 않고 -32602로 거부한다.
 async function failureOf(call: Promise<unknown>): Promise<unknown> {
   return call.then(
     () => undefined,
@@ -80,14 +80,10 @@ test("m4-defaults: new params on existing methods are rejected as invalid until 
   const itemId = host.fake.ids.next("itm");
   const failures = await Promise.all([
     failureOf(connection.request("approval.list", {})),
-    failureOf(connection.request("thread.create", { testRun: true })),
-    failureOf(connection.request("thread.create", { testRun: true, profileId: "p" })),
     failureOf(connection.request("thread.read", { threadId, around: itemId })),
   ]);
   expect(failures).toMatchObject([
     { code: -32602, data: { details: { issues: [{ path: "threadId" }] } } },
-    { code: -32602, data: { details: { issues: [{ path: "testRun" }] } } },
-    { code: -32602, data: { details: { issues: [{ path: "testRun" }] } } },
     { code: -32602, data: { details: { issues: [{ path: "around" }] } } },
   ]);
   await connection.close();

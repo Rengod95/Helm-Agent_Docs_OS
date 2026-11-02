@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { err, ok } from "@fresnel/contracts";
 import type { Notice } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
@@ -7,6 +9,7 @@ import type {
   ReadFailure,
   VolatileEventEnvelope,
 } from "@fresnel/contracts/records";
+import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
 import type { LoopError } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
 import type { StoreId, StreamPosition } from "@fresnel/contracts/wire";
@@ -15,6 +18,10 @@ import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
+import { threadLocked } from "../../src/handlers/owner.ts";
+import { wireErrorOfStore } from "../../src/store-error.ts";
+import type { M4HostEnv } from "../../src/assembly/m4/deps.ts";
+import { createProfileTestRunPort } from "../../src/assembly/m4/profile-test-run-port.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
 import { createProcessShutdown } from "@fresnel/platform-process";
 import { createManualScheduler, type ManualScheduler } from "./manual-scheduler.ts";
@@ -79,6 +86,13 @@ export interface FakeEngineOptions {
   readonly settingGroups?: Parameters<typeof buildEngineCatalog>[0];
   /** 진단 함수를 바꿔 끼운다(`host.status`의 `includeBinaries`). 생략하면 필수 바이너리가 모두 있는 빈 점검이다 */
   readonly diagnose?: (signal: AbortSignal) => Promise<EngineDiagnostics>;
+  /** 프로필·Test run 포트(T-WB)의 의존을 바꿔 끼운다. 생략하면 계측이 꺼진 읽기, `not_available`인 Test run 제어, 존재하지 않는 임시 폴더다 */
+  readonly profiles?: {
+    readonly configDir?: string;
+    readonly traceRead?: TraceReadPort;
+    readonly testRunControl?: TestRunControlPort;
+    readonly env?: Partial<M4HostEnv>;
+  };
   /** 포트 일부를 바꿔 끼운다. 처리기가 오류를 어떻게 옮기는지, 어떤 순서로 부르는지 볼 때 쓴다 */
   readonly overrides?: {
     readonly threads?: Partial<ThreadPort>;
@@ -147,8 +161,25 @@ export interface FakeEngine {
 
 const RECORDED_AT = 1_767_571_200_000;
 
+let profileDirs = 0;
+
+const OFF_TRACE: TraceReadPort = {
+  enabled: () => false,
+  turn: () => undefined,
+  timings: () => ({ traceEnabled: false, timings: [] }),
+};
+
+const UNAVAILABLE_TEST_RUN: TestRunControlPort = {
+  pause: () => err({ kind: "not_available" }),
+  resume: () => err({ kind: "not_available" }),
+  step: () => err({ kind: "not_available" }),
+  phase: () => err({ kind: "not_available" }),
+};
+
 export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const ids = fixedIdFactory();
+  const built = buildEngineCatalog(options.settingGroups);
+  if (!built.ok) throw new Error("the core catalog must build");
   const events: DurableEventEnvelope[] = [];
   const commitListeners = new Set<(batch: CommitBatch) => void>();
   const volatileListeners = new Set<(event: VolatileEventEnvelope) => void>();
@@ -215,7 +246,23 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         return Promise.resolve({ threadId, position: position() });
       },
       exists: (threadId) => ok(threads.has(threadId)),
-      list: () => Promise.resolve({ threads: [], nextCursor: null }),
+      list: () =>
+        Promise.resolve({
+          threads: [...threads].map((threadId) => ({
+            threadId,
+            title: titles.get(threadId) ?? null,
+            status: "idle" as const,
+            workspace: null,
+            createdAt: new Date(RECORDED_AT).toISOString(),
+            updatedAt: new Date(RECORDED_AT).toISOString(),
+            headSeq: 0,
+            forkedFrom: null,
+            resumable: null,
+            queuedInputs: 0,
+            pendingApprovals: 0,
+          })),
+          nextCursor: null,
+        }),
       fork: () => Promise.reject(new Error("fork is not part of the fake")),
       revert: () => Promise.reject(new Error("revert is not part of the fake")),
       remove: () => Promise.reject(new Error("remove is not part of the fake")),
@@ -384,16 +431,49 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     ids,
     clock: { now: () => RECORDED_AT },
     scheduler,
-    // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다
-    m4: { extRead: {}, extUi: {}, profileTestRun: {}, dialogArea: {}, devkit: {} },
+    // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다. 프로필·Test run은 T-WB가 채웠다
+    m4: {
+      extRead: {},
+      extUi: {},
+      profileTestRun: createProfileTestRunPort({
+        traceRead: options.profiles?.traceRead ?? OFF_TRACE,
+        testRunControl: options.profiles?.testRunControl ?? UNAVAILABLE_TEST_RUN,
+        env: {
+          catalog: built.catalog,
+          // 포트가 호출할 때마다 읽는다: `ports`는 이 객체가 만들어진 뒤에 채워진다
+          get settings() {
+            return ports.settings;
+          },
+          errors: { ofStore: wireErrorOfStore, threadLocked: () => threadLocked(null) },
+          settingValue: () => undefined,
+          threadExists: (threadId) => ports.threads.exists(threadId),
+          toggles: { scopes: () => [], request: () => undefined },
+          registrations: () => [],
+          configDir:
+            options.profiles?.configDir ??
+            join(
+              tmpdir(),
+              `fresnel-fake-profiles-${String(process.pid)}-${String((profileDirs += 1))}`,
+            ),
+          fileLock: {
+            scope: "process",
+            withLock: async (_path, fn) => ok(await fn()),
+            updateText: () => Promise.reject(new Error("updateText is not part of the fake")),
+          },
+          clock: { now: () => RECORDED_AT },
+          signal: new AbortController().signal,
+          ...options.profiles?.env,
+        },
+      }),
+      dialogArea: {},
+      devkit: {},
+    },
   };
 
   function position(): StreamPosition {
     return { storeId, seq: events.length };
   }
 
-  const built = buildEngineCatalog(options.settingGroups);
-  if (!built.ok) throw new Error("the core catalog must build");
   const engine: Engine = {
     mode: options.mode ?? "in-process",
     storeId,
