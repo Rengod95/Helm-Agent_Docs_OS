@@ -37,7 +37,7 @@ interface Sent {
   readonly transfer: unknown[];
 }
 
-function setupFrame() {
+function setupFrame(readyNonce?: string) {
   const time = new ManualTime();
   const ledger = createScreenLedger();
   const attributes: Record<string, string> = {};
@@ -76,6 +76,7 @@ function setupFrame() {
     },
     url: "fresnel-view://helm/1.0.0/index.html",
     declaredBridge: "^1.0.0",
+    ...(readyNonce === undefined ? {} : { readyNonce }),
     createChannel: () => {
       const pair = portPair();
       channels.push(pair);
@@ -175,6 +176,33 @@ describe("frame host", () => {
     wrongShape.emit({ source: wrongShape.frameWindow, data: { ready: "yes" } });
     expect(wrongShape.closed).toEqual(["bridge_format"]);
     expect(wrongShape.host.state).toBe("closed");
+  });
+
+  test("with a shell nonce, only a ready that echoes it gets the port", () => {
+    const nonce = "abcDEF123_-xyz90";
+    const missing = setupFrame(nonce);
+    missing.emit({ source: missing.frameWindow, data: READY });
+    expect(missing.sent).toEqual([]);
+    expect(missing.closed).toEqual(["bridge_format"]);
+
+    const wrong = setupFrame(nonce);
+    wrong.emit({ source: wrong.frameWindow, data: { ...READY, nonce: "zzzzzzzzzzzz" } });
+    expect(wrong.sent).toEqual([]);
+    expect(wrong.closed).toEqual(["bridge_format"]);
+
+    const right = setupFrame(nonce);
+    right.emit({ source: right.frameWindow, data: { ...READY, nonce } });
+    expect(right.sent).toHaveLength(1);
+    expect(right.host.state).toBe("ready");
+    expect(right.closed).toEqual([]);
+  });
+
+  test("buildAppUrl puts the nonce in the fragment and refuses an unsafe one", () => {
+    expect(buildAppUrl("helm", "1.0.0", "index.html", "abcDEF123_-xyz90")).toBe(
+      "fresnel-view://helm/1.0.0/index.html#n=abcDEF123_-xyz90",
+    );
+    expect(buildAppUrl("helm", "1.0.0", "index.html", "short")).toBeUndefined();
+    expect(buildAppUrl("helm", "1.0.0", "index.html", "has space and ;x")).toBeUndefined();
   });
 
   test("no ready in 5 s closes the frame as ready_timeout", () => {

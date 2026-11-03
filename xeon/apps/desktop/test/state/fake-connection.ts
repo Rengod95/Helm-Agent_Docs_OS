@@ -13,7 +13,15 @@ type Handlers = {
   [N in ServerNotificationName]: Set<(params: ServerNotificationParams<N>) => void>;
 };
 
-export function fakeConnection(table: Table): {
+/** 확장 메서드 처리기. 키는 `ext.<확장>.<동사>`다 */
+export type ExtTable = Readonly<
+  Record<string, (params: Readonly<Record<string, unknown>>) => Promise<unknown>>
+>;
+
+export function fakeConnection(
+  table: Table,
+  extTable: ExtTable = {},
+): {
   readonly connection: HostConnection;
   emit<N extends ServerNotificationName>(name: N, params: ServerNotificationParams<N>): void;
   readonly calls: { readonly method: string; readonly params: unknown }[];
@@ -31,6 +39,13 @@ export function fakeConnection(table: Table): {
     request: (method, params) => {
       calls.push({ method, params });
       const handler = table[method];
+      if (handler === undefined) return Promise.reject(new Error(`unhandled ${method}`));
+      return handler(params);
+    },
+    requestExtension: (extension, verb, params) => {
+      const method = `ext.${extension}.${verb}`;
+      calls.push({ method, params });
+      const handler = extTable[method];
       if (handler === undefined) return Promise.reject(new Error(`unhandled ${method}`));
       return handler(params);
     },

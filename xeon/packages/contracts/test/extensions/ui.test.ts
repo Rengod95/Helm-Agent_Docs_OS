@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   BridgePushSchema,
   BridgeReadySchema,
+  ExtMethodDeclSchema,
   BridgeRequestSchema,
   BridgeResponseSchema,
   UI_LIMITS,
@@ -192,6 +193,17 @@ describe("bridge messages", () => {
     expect(parse(BridgePushSchema, ping)).toEqual({ ok: true, value: ping });
     const ready = { v: 1, ready: true, bridge: "^1.0.0" } as const;
     expect(parse(BridgeReadySchema, ready)).toEqual({ ok: true, value: ready });
+    const withNonce = { ...ready, nonce: "abcDEF123_-xyz90" };
+    expect(parse(BridgeReadySchema, withNonce)).toEqual({ ok: true, value: withNonce });
+    expect(parse(BridgeReadySchema, { ...ready, nonce: "short" }).ok).toBe(false);
+    expect(parse(BridgeReadySchema, { ...ready, nonce: "x".repeat(65) }).ok).toBe(false);
+  });
+
+  test("a method label is 1 to 48 characters", () => {
+    const decl = { verb: "start", params: {}, result: {}, readOnly: false };
+    expect(parse(ExtMethodDeclSchema, { ...decl, label: "Start a run" }).ok).toBe(true);
+    expect(parse(ExtMethodDeclSchema, { ...decl, label: "" }).ok).toBe(false);
+    expect(parse(ExtMethodDeclSchema, { ...decl, label: "x".repeat(49) }).ok).toBe(false);
   });
 
   test("rejects unknown op, wrong version, error without kind, extra keys", () => {

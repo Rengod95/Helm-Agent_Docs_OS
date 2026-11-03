@@ -50,6 +50,8 @@ export interface FrameHostOptions<Transfer> {
   readonly url: string;
   /** 매니페스트 `app.bridge`. `ready`가 같은 값을 말해야 한다 */
   readonly declaredBridge: string;
+  /** 주소 조각 `#n=<nonce>`로 프레임에 준 값(`buildAppUrl`의 `nonce`). 있으면 `ready.nonce`가 같아야 포트를 넘긴다. 운영은 늘 낸다 */
+  readonly readyNonce?: string;
   readonly createChannel: () => ChannelLike<Transfer>;
   readonly scheduler: Scheduler;
   readonly ledger: ScreenLedger;
@@ -112,7 +114,12 @@ export function attachFrame<Transfer>(options: FrameHostOptions<Transfer>): Fram
     // 포트를 넘긴 뒤에는 창 메시지를 받지 않는다. 이후 대화는 포트로만 한다(§3.4.2)
     if (state !== "loading") return;
     const ready = parse(BridgeReadySchema, event.data);
-    if (!ready.ok || ready.value.bridge !== options.declaredBridge) {
+    // 셸이 nonce를 냈으면 프레임이 주소 조각에서 읽어 되돌려야 한다. 틀리거나 없으면 포트를 넘기지 않는다
+    if (
+      !ready.ok ||
+      ready.value.bridge !== options.declaredBridge ||
+      (options.readyNonce !== undefined && ready.value.nonce !== options.readyNonce)
+    ) {
       fail("bridge_format");
       return;
     }

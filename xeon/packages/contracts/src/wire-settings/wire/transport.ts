@@ -66,6 +66,16 @@ export interface HostConnection {
     params: WireParams<M>,
     options?: WireRequestOptions,
   ): Promise<WireResult<M>>;
+  /**
+   * 확장 메서드 `ext.<확장>.<동사>`를 부른다(닫힌 `WireMethodName` 표 밖, F.wire-settings.spec §4.2). 결과 모양은 확장 선언을
+   * 호스트(X)가 이미 검사했으므로 `unknown`으로 돌려준다. 오류와 시한, 중단은 `request`와 같다
+   */
+  requestExtension(
+    extension: string,
+    verb: string,
+    params: Readonly<Record<string, unknown>>,
+    options?: WireRequestOptions,
+  ): Promise<unknown>;
   onNotification<N extends ServerNotificationName>(
     name: N,
     handler: (params: ServerNotificationParams<N>) => void,

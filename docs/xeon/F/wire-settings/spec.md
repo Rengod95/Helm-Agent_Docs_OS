@@ -145,6 +145,8 @@ export interface WireRequestOptions {
 
 export interface HostConnection {
   request<M extends WireMethodName>(method: M, params: WireParams<M>, options?: WireRequestOptions): Promise<WireResult<M>>;
+  /** 확장 메서드 ext.<확장>.<동사>(§4.2)를 부른다. 결과 모양은 호스트(X)가 확장 선언으로 이미 검사했으므로 unknown이다. 오류, 시한, 중단은 request와 같다 [결정: 2026-11-03 M4 T-VIEW] */
+  requestExtension(extension: string, verb: string, params: Readonly<Record<string, unknown>>, options?: WireRequestOptions): Promise<unknown>;
   onNotification<N extends ServerNotificationName>(name: N, handler: (params: ServerNotificationParams<N>) => void): Unsubscribe;
   /** 클라이언트 알림($/cancelRequest, $/connectionReset)을 보낸다. 응답은 없다. 연결이 닫혔으면 거부한다 [결정: m2 F.8] */
   notify<N extends ClientNotificationName>(name: N, params: ClientNotificationParams<N>): Promise<void>;
