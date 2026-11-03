@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { attemptAsync } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { SpawnOrigin } from "@fresnel/contracts/services";
+import type { AgentDefinition, SpawnOrigin } from "@fresnel/contracts/services";
 import { spawnRecorder } from "../src/testing/index.ts";
 import { EXPLORER, openHarness, type Harness } from "./support/harness.ts";
 
@@ -165,6 +165,55 @@ describe("spawn", () => {
       { ...nested, depth: 2, ownerRequestId: "tool:tc-deeper" },
     );
     expect(tooDeep.answer).toContain("agents.depth_exceeded");
+  });
+});
+
+describe("nested ceiling", () => {
+  // 감사 l1/A-01: 손자는 자식의 도구 상한(정의 tools, 위임 allow·deny)을 이어받는다
+  test("a grandchild's ceiling is the intersection with the child's own ceiling", async () => {
+    const reader: AgentDefinition = { ...EXPLORER, name: "reader", tools: ["read", "agent"] };
+    const holder: { harness?: Harness } = {};
+    const nested: { value?: Awaited<ReturnType<Harness["service"]["spawn"]>> } = {};
+    const h = openHarness({
+      maxDepth: 2,
+      definitions: [reader, EXPLORER],
+      run: async (request, session) => {
+        if (request.tools.caller === "subagent:reader" && holder.harness !== undefined) {
+          nested.value = await holder.harness.service.spawn(
+            { agent: "explorer", task: "t", tools: { allow: ["read", "bash"] } },
+            {
+              parentThreadId: request.threadId,
+              owner: { kind: "tool", turnId: holder.harness.ids.next("trn"), toolCallId: "tc-n" },
+              caller: request.tools.caller,
+              depth: request.tools.depth,
+              ownerRequestId: "tool:tc-n",
+              signal: new AbortController().signal,
+            },
+          );
+        }
+        return {
+          status: "completed",
+          finalItemId: session.seedAssistantItem(request.threadId, "ok"),
+        };
+      },
+    });
+    holder.harness = h;
+    const { origin } = h.openToolCall("tc-1");
+    const child = await h.service.spawn(
+      { agent: "reader", task: "t", tools: { deny: ["web.*"] } },
+      origin,
+    );
+    expect(child.status).toBe("completed");
+    expect(nested.value?.status).toBe("completed");
+    const [childCall, grandchildCall] = h.loop.calls;
+    expect(childCall?.tools.ceiling).toMatchObject({ allow: ["read", "agent"], deny: ["web.*"] });
+    // 손자 정의는 tools가 없고 위임 allow는 read, bash다. 자식 상한 read, agent와 겹치는 read만 남고 자식의 deny는 이어진다
+    expect(grandchildCall?.tools.ceiling).toMatchObject({
+      caller: "subagent:reader",
+      depth: 1,
+      allow: ["read"],
+      deny: ["web.*"],
+    });
   });
 });
 

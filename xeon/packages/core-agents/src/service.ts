@@ -26,6 +26,7 @@ import {
   type DelegateResult,
   type GuardedReport,
   type MimicryFlag,
+  type PolicyCeiling,
   type ReportDelivery,
   type RuleRegistration,
   type SpawnOrigin,
@@ -79,6 +80,8 @@ interface ChildMeta {
   readonly depth: number;
   readonly surfaceThreadId: ThreadId;
   readonly interactive: boolean;
+  /** 이 자식이 받은 도구 상한. 이 자식이 만드는 손자가 이어받는다. 자식 turn을 시작하기 전에 채운다 */
+  readonly ceiling: PolicyCeiling | undefined;
 }
 
 export interface AgentServiceImpl extends AgentService {
@@ -319,6 +322,21 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       return refuse("agents.unavailable", "the parent thread is not open in the task tree");
     }
     const parentContext = contextOf(origin.parentThreadId);
+    // 모델 도구 경로는 `agent` 호출로 이미 정책 파이프라인을 지났다. drive와 그룹 위임은 도구 호출이 아니므로 같은 규칙을 여기서 평가한다(§4.3 생성 검사)
+    if (origin.owner.kind !== "tool") {
+      const decision = tools.checkSpawn({
+        threadId: origin.parentThreadId,
+        caller: origin.caller,
+        depth: origin.depth,
+        interactive: parentContext.interactive,
+      });
+      if (decision.effect === "deny") {
+        return refuse(
+          "agents.denied",
+          decision.message ?? "spawning a subagent is denied by a permission rule",
+        );
+      }
+    }
     return {
       ok: true,
       value: {
@@ -485,6 +503,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       depth: prepared.childDepth,
       surfaceThreadId: prepared.surfaceThreadId,
       interactive: prepared.interactive,
+      ceiling: undefined,
     });
     // 드라이브 임대 신호처럼 소유 트리 밖에서 오는 취소도 이 노드로 잇는다
     const abortChild = async (): Promise<void> => {
@@ -573,7 +592,10 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       requestAllow: request.tools?.allow,
       requestDeny: request.tools?.deny,
       denyHint: request.tools?.denyHint,
+      parentCeiling: meta.get(origin.parentThreadId)?.ceiling,
     });
+    const known = meta.get(childThreadId);
+    if (known !== undefined) meta.set(childThreadId, { ...known, ceiling });
     let parentList: AdvertisedToolset | undefined;
     if (request.tools?.keepParentList === true) {
       const advertised = await tools.advertise({

@@ -22,6 +22,7 @@ import { advertiseTools } from "./expose.ts";
 import { createPipeline } from "./pipeline.ts";
 import { readToolOutputEntry } from "./builtin/read-tool-output.ts";
 import { toolSearchEntry } from "./builtin/tool-search.ts";
+import { evaluatePolicy } from "./policy/engine.ts";
 import { createCoreRules } from "./policy/core-rules.ts";
 import { createRegistry } from "./registry.ts";
 import { TOOLS_SETTING_KEYS } from "./settings.ts";
@@ -120,6 +121,24 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     registerRules: (source, rules) => coreRules.register(source, rules),
     runUserShell: (request, run) => pipeline.runUserShell(request, run),
     suspendWhile: (threadId, toolCallId, wait) => pipeline.suspendWhile(threadId, toolCallId, wait),
+    checkSpawn(input) {
+      const config = deps.config(input.threadId);
+      return evaluatePolicy(
+        {
+          action: "tool.call",
+          tool: "agent",
+          classes: ["spawn"],
+          risk: registry.get("agent")?.risk ?? "exec",
+          args: null,
+          caller: input.caller,
+          depth: input.depth,
+          mode: config.mode,
+          interactive: input.interactive,
+          bypassAllowed: config.bypassAllowed,
+        },
+        config.rules,
+      );
+    },
     mode: (threadId) => deps.config(threadId).mode,
     setMode(threadId, mode) {
       // managed가 bypass를 금지했으면 모드를 바꾸지 않는다(L1.tools.spec §5 사례 11). 이미 세션 값이 bypass인 채 금지가 생기면 평가기가 default로 본다

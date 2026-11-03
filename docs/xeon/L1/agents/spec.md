@@ -398,6 +398,8 @@ export type AgentJudgedPayload = JudgeRecord;
 - deny는 티어와 무관하게 확정되므로(L1.tools.spec §4.5 2단계) 사용자 규칙으로 풀 수 없다. 깊이 한도는 설정으로 바꾼다.
 - 도구 부류 표지는 도구 등록이 선언한다(L1.tools.spec §3.1 `ToolPolicyMeta.classes`). 표지가 없는 도구는 이 목록에 걸리지 않으므로 L2 spec이 자기 도구의 부류를 선언해야 한다(§8.4).
 - 생성 검사(drive·scope 경로): 도구 호출이 아닌 생성도 `PolicyInput{ tool: "agent", classes: ["spawn"], caller, depth }`로 평가한다. drive와 그룹 위임의 caller는 `main`, depth 0이다.
+  - [결정: 감사 l1/A-03] 구현은 `ToolService.checkSpawn`(L1.tools.spec)이 같은 규칙 평가기로 판정하고, `prepare`가 `owner.kind`가 `tool`이 아닐 때 부른다. `deny`는 `agents.denied`로 거부하고 자식 thread를 만들지 않는다. `ask`는 승인 요청을 올리지 않고 통과시킨다(호출자가 그룹 코드이고 막을 수 있는 것은 사용자의 명시적 deny뿐이다).
+- [결정: 감사 l1/A-01] 중첩 자식의 상한은 부모 자식의 상한 안에 든다. `ceilingOf`는 부모 자식이 받은 `ceiling`(실행 중인 자식의 `ChildMeta`)을 입력으로 받아 `allow`는 교집합, `deny`는 합집합으로 합치고 거부 안내는 이번 요청의 것이 없으면 부모 것을 잇는다.
 
 ### 4.4 깊이와 동시 상한
 

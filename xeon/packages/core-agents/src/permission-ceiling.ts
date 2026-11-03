@@ -54,19 +54,25 @@ export interface CeilingInput {
   /** 호출자가 준 거부 glob과 거부 문장 안내. 실행 시점에 거부한다 [제안: M3-REQ-78] */
   readonly requestDeny?: readonly string[] | undefined;
   readonly denyHint?: string | undefined;
+  /**
+   * 부모가 자식이면 부모 자신의 상한(`ChildMeta.ceiling`). 손자는 이 상한 안에서만 도구를 쓴다.
+   * allow는 교집합, deny는 합집합, 거부 안내는 이번 요청의 것이 없으면 부모 것을 이어받는다 [결정: 감사 l1/A-01]
+   */
+  readonly parentCeiling?: PolicyCeiling | undefined;
 }
 
 /** 자식 `ToolRunContext.ceiling`: 부모 관점과 정의 제한(교집합) */
 export function ceilingOf(input: CeilingInput): PolicyCeiling {
-  const allow = intersectGlobs(input.definitionTools, input.requestAllow);
+  const own = intersectGlobs(input.definitionTools, input.requestAllow);
+  const allow = intersectGlobs(input.parentCeiling?.allow, own);
+  const deny = [...new Set([...(input.parentCeiling?.deny ?? []), ...(input.requestDeny ?? [])])];
+  const denyHint = input.denyHint ?? input.parentCeiling?.denyHint;
   return {
     caller: input.parent.caller,
     depth: input.parent.depth,
     mode: input.parent.mode,
     ...(allow === undefined ? {} : { allow }),
-    ...(input.requestDeny === undefined || input.requestDeny.length === 0
-      ? {}
-      : { deny: input.requestDeny }),
-    ...(input.denyHint === undefined ? {} : { denyHint: input.denyHint }),
+    ...(deny.length === 0 ? {} : { deny }),
+    ...(denyHint === undefined ? {} : { denyHint }),
   };
 }

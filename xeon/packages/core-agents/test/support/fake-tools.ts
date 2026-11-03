@@ -24,6 +24,8 @@ export interface FakeTools extends AgentsTools {
   readonly suspensions: { readonly threadId: ThreadId; readonly toolCallId: string }[];
   /** 지금 `suspendWhile` 안에서 기다리는 호출 수(슬롯을 내려놓은 호출) */
   suspended(): number;
+  /** `checkSpawn`이 deny를 돌려주게 한다(사용자 규칙으로 `agent`를 막은 것을 흉내 낸다) */
+  denySpawn(message: string): void;
   /** 등록된 direct 도구 하나 */
   directTool(name: string): DirectToolRegistration | undefined;
 }
@@ -35,6 +37,7 @@ export function fakeTools(): FakeTools {
   const modeChanges: { readonly threadId: ThreadId; readonly mode: PermissionMode }[] = [];
   const suspensions: { readonly threadId: ThreadId; readonly toolCallId: string }[] = [];
   let suspendedNow = 0;
+  let spawnDenied: string | undefined;
   function register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
   function register(
     owner: RegistrationId,
@@ -66,6 +69,19 @@ export function fakeTools(): FakeTools {
         suspendedNow -= 1;
       }
     },
+    denySpawn(message) {
+      spawnDenied = message;
+    },
+    checkSpawn: () =>
+      spawnDenied === undefined
+        ? { effect: "allow", reason: "mode", ruleId: null, tier: null }
+        : {
+            effect: "deny",
+            reason: "rule",
+            ruleId: "user.no-agent",
+            tier: "user",
+            message: spawnDenied,
+          },
     setParentMode(threadId, mode) {
       modes.set(threadId, mode);
     },
