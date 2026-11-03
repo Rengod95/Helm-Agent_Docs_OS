@@ -14,7 +14,17 @@ const KEPT = {
       seq: 7,
       hook: "input.before",
       step: 0,
-      handlers: [{ registrationId: "helm", ms: 1.5, result: "ok" }],
+      handlers: [
+        {
+          registrationId: "helm",
+          ms: 1.5,
+          result: "passed",
+          atMs: 4,
+          size: 0,
+          skippedBy: null,
+          reason: null,
+        },
+      ],
     },
   ],
 } as const;

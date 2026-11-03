@@ -95,6 +95,7 @@ import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { createDialogAreaHolder } from "./assembly/m4/dialog-area-bridge.ts";
 import { createExtensionRecords } from "./assembly/m4/ext-read-sources.ts";
 import { startMeasurement } from "./assembly/measure/recorder.ts";
+import { DEFAULT_RETENTION_DAYS } from "./assembly/measure/store.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
@@ -193,6 +194,15 @@ function suggestAfterOf(catalog: SettingCatalog, settings: SettingsEngine): numb
   const key = "x.operations.safeMode.suggestAfter";
   const value = catalog.has(key) ? settings.value(key) : undefined;
   return typeof value === "number" && Number.isInteger(value) && value >= 1 ? value : 3;
+}
+
+/** `x.operations.trace.retentionDays`. 카탈로그에 없거나 1 미만이면 기본값(30)이다 */
+function retentionDaysOf(catalog: SettingCatalog, settings: SettingsEngine): number {
+  const key = "x.operations.trace.retentionDays";
+  const value = catalog.has(key) ? settings.value(key) : undefined;
+  return typeof value === "number" && Number.isInteger(value) && value >= 1
+    ? value
+    : DEFAULT_RETENTION_DAYS;
 }
 
 function describeIssue(issue: AssembleIssue): string {
@@ -929,6 +939,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       enabled: () => operations.trace().enabled,
       logger,
       now: () => clock.now(),
+      retentionDays: () => retentionDaysOf(built.catalog, settings),
+      storeRequestBody: () =>
+        built.catalog.has("x.operations.trace.storeRequestBody") &&
+        settings.value("x.operations.trace.storeRequestBody") === true,
+      mask: (text) => secrets.service.redactor.mask(text).text,
     });
     measureSlot.stop = measurement.stop;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
