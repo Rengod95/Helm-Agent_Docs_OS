@@ -1576,6 +1576,7 @@
   "desktop.shell.nav.connection": "Connection",
   "desktop.shell.nav.overview": "Overview",
   "desktop.shell.nav.extensions": "Extensions",
+  "desktop.shell.nav.plugins": "Plugin pages",
   "desktop.shell.nav.tests": "Test",
   "desktop.shell.nav.metrics": "Metrics",
   "desktop.shell.nav.compose": "Compose",

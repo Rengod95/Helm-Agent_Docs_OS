@@ -1576,6 +1576,7 @@
   "desktop.shell.nav.connection": "연결",
   "desktop.shell.nav.overview": "개요",
   "desktop.shell.nav.extensions": "확장",
+  "desktop.shell.nav.plugins": "플러그인 화면",
   "desktop.shell.nav.tests": "테스트",
   "desktop.shell.nav.metrics": "측정",
   "desktop.shell.nav.compose": "구성",
