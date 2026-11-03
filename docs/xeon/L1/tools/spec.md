@@ -829,12 +829,13 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 |---|---|---|
 | `default` | core-tools 내장 규칙, L1 패키지가 `registerRules("core:<도메인>", …)`로 넣은 규칙(L1.agents.spec의 자식 차단 규칙) | `default.read-allow`, `subagent.no-spawn` |
 | `extension` | 확장이 등록한 규칙(2차: 매니페스트 선언). M2까지는 내장 그룹만 | Helm이 쓰기 금지를 규칙으로 표현할 때 |
-| `user` | 설정 `l1.tools.rules`의 `user`, `project`, `local`, `session` 범위 값 | `{ tool: "bash", args: [{ pointer: "/command", pattern: "^git status" }], effect: "allow" }` |
+| `user` | 설정 `l1.tools.rules`의 `user`, `project`, `local`, `session` 범위 값 | `{ tool: "bash", args: [{ pointer: "/command", pattern: "^git status( |$)" }], effect: "allow" }`(접두 일치라 `git status && rm x`도 정규식은 통과하지만, 아래 연쇄 규칙이 ask로 낮춘다) |
 | `managed` | 설정 `l1.tools.rules`의 `managed` 범위 값 | `{ tool: "*", mcpServer: "untrusted-*", effect: "deny" }` |
 
 - 설정 범위별 규칙 수집 [제안]: F.wire-settings.spec §4.7 규칙 2는 키 하나의 값을 통째로 바꾼다. 정책 규칙은 범위마다 모아야 한다. 그래서 core-tools는 `l1.tools.rules`를 유효 값 하나로 읽지 않고 범위별 층(`ScopeStack`)에서 각각 읽어 티어를 붙인다. 이 읽기 방식을 SettingDef에 표시하는 필드(예: `merge: "collect"`)를 F.wire-settings.spec에 요청한다(§8.3 F 요청 5).
 - 코어 규칙 등록 [제안]: L1 패키지는 `ToolService.registerRules(source, rules)`로 default 티어 규칙을 넣는다. `source`는 `core:<도메인>`이고 `TieredRule.source`에 그대로 들어간다. 같은 `source`로 다시 부르면 그 출처의 규칙을 통째로 바꾼다. core-agents는 `l1.agents.maxDepth`가 바뀔 때 차단 규칙을 다시 등록한다. 등록은 `validateRules`를 거치고, 문제가 있는 규칙은 적재하지 않고 `RuleRegistration.issues`로 돌려준다. 규칙 변경은 다음 단계 경계의 `advertise`와 다음 도구 호출 평가부터 적용한다(M2).
-- 내장 기본 규칙(M1): `default.read-allow`(risk `read` → allow), `default.ls-allow`, `default.read-tool-allow`(도구 `read`, `ls` → allow), `default.bash-ask`(도구 `bash` → ask). 나머지는 모드 기본값을 따른다.
+- bash 연쇄 규칙: 도구 `bash`의 `/command`를 정규식으로 보는 allow 규칙은 명령에 `;`, `&`, `|`, `<`, `>`, `$(`, 백틱, 개행이 있으면 allow가 아니라 ask로 평가한다(규칙 id와 티어는 그대로, 평가기 `demoteCompound`). 셸 구문을 해석하지 않는 보수적 판정이라 따옴표 안의 `;`도 ask다. deny와 ask 규칙, `/command` 조건이 없는 규칙은 그대로다. 셸 명령 단위 규칙은 §4.11의 2차다.
+- 내장 기본 규칙(M1): `default.read-allow`(risk `read` → allow), `default.ls-allow`, `default.read-tool-allow`(도구 `read`, `ls` → allow. 이름만으로 허용하지 않고 능력 `workspace.files`와 risk `read`를 함께 본다. 같은 이름을 등록한 확장 도구는 능력이 없고 위험 등급이 exec라 모드 기본값을 따른다), `default.bash-ask`(도구 `bash` → ask). 나머지는 모드 기본값을 따른다.
 - 확장의 `tool.call.before` 핸들러와 정책 규칙의 관계: 둘 다 거부할 수 있다. 핸들러는 그룹 상태에 따라 바뀌는 동적 판정(예: Helm 확산 단계의 쓰기 거부, L3.helm.spec §4.6)에 쓰고, 규칙은 선언형 정적 판정에 쓴다. 순서는 핸들러(5a) 뒤 정책(5b)이다. 핸들러가 거부하면 정책과 승인을 부르지 않는다. 그래서 사용자는 이미 거부된 호출의 승인 요청을 받지 않는다.
 
 ### 4.6 권한 모드와 위험 등급

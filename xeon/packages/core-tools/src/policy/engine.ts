@@ -118,6 +118,24 @@ function denyByRule(rule: TieredRule, tool: string): PolicyDecision {
   };
 }
 
+/** 한 명령에 둘 이상의 명령이나 부수 효과를 싣는 셸 문법: ; & | < > 명령 치환 백틱 개행 */
+const SHELL_COMPOUND = /[;&|<>`\n\r]|\$\(/;
+
+function usesCommandPointer(rule: PolicyRule): boolean {
+  return rule.resource.args?.some((condition) => condition.pointer === "/command") === true;
+}
+
+/**
+ * `/command` 정규식으로 허용하는 bash 규칙은 접두 일치(`^git status`)라 `git status && rm x`도 통과한다.
+ * 셸 문법으로 명령을 이은 호출은 이 allow를 ask로 낮춘다(L1.tools.spec §4.5). deny와 ask 규칙은 그대로다.
+ */
+function demoteCompound(rule: TieredRule, input: PolicyInput): TieredRule {
+  if (rule.effect !== "allow" || input.tool !== "bash" || !usesCommandPointer(rule)) return rule;
+  const command = input.args?.["command"];
+  if (typeof command !== "string" || !SHELL_COMPOUND.test(command)) return rule;
+  return { ...rule, effect: "ask" };
+}
+
 /** 7단계. ask인데 사람이 답할 수 없으면 deny다 */
 function finish(decision: PolicyDecision, input: PolicyInput): PolicyDecision {
   if (decision.effect === "ask" && !input.interactive) {
@@ -140,7 +158,9 @@ function finish(decision: PolicyDecision, input: PolicyInput): PolicyDecision {
  * bypass가 금지되어 default로 내려온 호출이 6단계(모드 기본값)로 정해지면 reason은 "bypass_forbidden"이다.
  */
 export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[]): PolicyDecision {
-  const matched = rules.filter((rule) => ruleMatches(rule, input));
+  const matched = rules
+    .filter((rule) => ruleMatches(rule, input))
+    .map((rule) => demoteCompound(rule, input));
 
   const denies = matched.filter((rule) => rule.effect === "deny");
   const [firstDeny] = strongest(denies);

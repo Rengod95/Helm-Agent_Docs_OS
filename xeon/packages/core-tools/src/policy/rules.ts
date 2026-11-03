@@ -4,6 +4,9 @@ import { tryRegExp } from "../util.ts";
 // L1.tools.spec §4.5 내장 기본 규칙(M1)과 규칙 정적 검사.
 export const DEFAULT_RULE_PRIORITY = 500;
 
+/** read·ls를 내는 내장 능력. 이름만으로 허용하면 같은 이름을 등록한 다른 출처의 도구가 승인을 건너뛴다 */
+const WORKSPACE_FILES = "workspace.files";
+
 /** M1 내장 규칙: read·ls는 allow, bash는 ask. 나머지는 모드 기본값을 따른다 */
 export function builtinRules(): readonly PolicyRule[] {
   return [
@@ -17,14 +20,14 @@ export function builtinRules(): readonly PolicyRule[] {
     {
       id: "default.ls-allow",
       action: "tool.call",
-      resource: { tool: "ls" },
+      resource: { tool: "ls", capability: WORKSPACE_FILES, risk: ["read"] },
       effect: "allow",
       description: "Directory listing is allowed.",
     },
     {
       id: "default.read-tool-allow",
       action: "tool.call",
-      resource: { tool: "read" },
+      resource: { tool: "read", capability: WORKSPACE_FILES, risk: ["read"] },
       effect: "allow",
       description: "File reading is allowed.",
     },
