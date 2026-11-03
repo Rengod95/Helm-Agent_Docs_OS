@@ -1572,7 +1572,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 41. 처리기가 `decl.result`를 어긴 값을 돌려준 메서드 호출은 `result_invalid`이고, 장부에서 연속 수와 창 실패 수가 각각 1 오른다(`ext:<이름>` 키) [제안, M4 T-XV].
 42. 매개변수가 스키마를 어긴 호출(`params_invalid`)과 `aborted`로 끝난 호출은 장부의 `totalCalls`, 연속 수, 창을 바꾸지 않는다 [제안, M4 T-XV].
 43. 메서드 실패 `threw` 두 번이 `consecutive: 2`에서 그 확장의 모든 scope에 `requestDisable(…, "auto_disable")`을 부른다. 사이에 `ok`가 끼면 연속 수는 0으로 돌아가 끄지 않는다 [제안, M4 T-XV].
-44. 순서 덮어쓰기는 tier를 넘어 실제 디스패치 순서를 바꾸고, 이름 없는 핸들러는 자리를 지키며, 지워진 핸들러의 이름은 무시한다. `guard` tier 핸들러는 덮어쓰기에 마지막으로 적어도 항상 맨 앞이다(`test/primitives/order.test.ts`, `test/primitives/dispatch-order.test.ts`) [M4 T-ORDER].
+44. 순서 덮어쓰기는 tier를 넘어 실제 디스패치 순서를 바꾸고, 이름 없는 핸들러는 자리를 지키며, 지워진 핸들러의 이름은 무시한다. `guard` tier 핸들러는 덮어쓰기에 마지막으로 적어도 항상 맨 앞이다(`test/primitives/order.test.ts`, `test/primitives/dispatch-order.test.ts`). 실제 `OperationsPolicy`와 `ExtHost`로 guard 고정을 보이는 시험은 `test/operations/hook-order-guard.test.ts`다. 실제 호스트에는 guard tier 핸들러가 아직 없어서(내장 단위가 `admit`을 거치지 않고 `core-tools`는 훅을 걸지 않는다) 호스트 조립 시험(`apps/host/test/int/hook-order-real.int.test.ts`)은 tier를 넘는 재정렬, 재시작 유지, 없어진 핸들러 무시, 미리보기, 초기화만 보인다 [M4 T-ORDER].
 45. 순서 덮어쓰기는 저장 직후가 아니라 다음 단계 경계(`boundary.turn.before`, `boundary.step.before`)에서 적용된다. `onStepBoundary`는 다른 훅의 디스패치에서는 불리지 않는다(`dispatch-order.test.ts`, `policy.test.ts`) [M4 T-ORDER].
 46. `checkOrder`는 고정 핸들러를 옮기거나 그 위에 일반 핸들러를 두는 제안을 `guard_moved`, `above_guard`로 거부하고, 알 수 없는 id는 그대로 받는다. `previewOrder`는 `first` 답(`first_answer`), `closed` first의 실패(`first_failure_deny`), `chain`의 멈춤과 값 변경, 자동 끄기를 구분해 돌려주고 `open` first와 `tap`에는 해당 항목을 내지 않는다(`test/operations/hook-order.test.ts`) [M4 T-ORDER].
 
