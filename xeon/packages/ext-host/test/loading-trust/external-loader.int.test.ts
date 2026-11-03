@@ -353,3 +353,176 @@ test("a project extension directory that links outside .fresnel/extensions is no
   ]);
   expect(fakeGroupSdk.seen).toEqual([]);
 });
+
+// ── 다시 읽기(ExtensionLoader.reload, §4.4.4) ──────────────────────────────
+
+const reloadSignal = new AbortController().signal;
+
+/** 엔트리를 바꿔 쓴다. 매니페스트는 그대로다 */
+async function rewriteEntry(root: string, entry: string): Promise<void> {
+  await putFile(join(root, "src", "index.ts"), entry);
+}
+
+/** 호출될 때 `<tag>`를 기록하는 엔트리 */
+function taggedEntry(name: string, tag: string): string {
+  const kit = ["@fresnel", "group-sdk"].join("/");
+  return `import * as kit from "${kit}";
+export const extension = ({ register }) => {
+  register(${JSON.stringify(name)}, {}, (g) => {
+    g.on("boundary.settle.after", () => {
+      kit.record(${JSON.stringify(tag)});
+    });
+  });
+};
+`;
+}
+
+async function loadedHello(): Promise<{
+  harness: LoaderHarness;
+  root: string;
+  thread: ReturnType<LoaderHarness["t"]["newThread"]>;
+}> {
+  const root = await writePlugin(userExtensions, "hello", {
+    name: "hello",
+    entry: taggedEntry("hello", "v1"),
+  });
+  const harness = await harnessOf();
+  const report = await harness.loader.loadAll(loadOptions(harness));
+  expect(report.diagnostics).toEqual([]);
+  const thread = harness.t.newThread();
+  await harness.t.host.openThread(thread);
+  return { harness, root, thread };
+}
+
+async function fireIn(
+  harness: LoaderHarness,
+  thread: ReturnType<LoaderHarness["t"]["newThread"]>,
+  key: string,
+): Promise<void> {
+  await harness.t.host.dispatch(
+    "boundary.settle.after",
+    { turnId: harness.t.ids.next("trn"), aborted: false },
+    { threadId: thread, dispatchKey: key },
+  );
+}
+
+test("reload re-imports the edited entry and an open idle thread uses it at once", async () => {
+  const { harness, root, thread } = await loadedHello();
+  await fireIn(harness, thread, "k0");
+  await rewriteEntry(root, taggedEntry("hello", "v2"));
+  const started = await harness.loader.reload("hello", reloadSignal);
+  if (!started.ok) throw new Error(`reload refused: ${JSON.stringify(started.error)}`);
+  expect(started.value.appliesAt).toBe("now");
+  const applied = await started.value.applied;
+  expect(applied).toMatchObject({ status: "applied", statesCleared: 0 });
+  await harness.t.settled();
+  fakeGroupSdk.seen.length = 0;
+  await fireIn(harness, thread, "k1");
+  expect(fakeGroupSdk.seen).toContain("v2");
+  expect(fakeGroupSdk.seen).not.toContain("v1");
+  expect(harness.loader.list().map((info) => [info.name, info.state, info.generation])).toEqual([
+    ["hello", "active", 1],
+  ]);
+});
+
+test("reload during a running turn leaves the old version to finish the step", async () => {
+  const { harness, root, thread } = await loadedHello();
+  harness.t.loop.setRunning(thread, true);
+  await rewriteEntry(root, taggedEntry("hello", "v2"));
+  const started = await harness.loader.reload("hello", reloadSignal);
+  if (!started.ok) throw new Error("reload refused");
+  expect(started.value.appliesAt).toBe("nextStepBoundary");
+  fakeGroupSdk.seen.length = 0;
+  await fireIn(harness, thread, "k0");
+  expect(fakeGroupSdk.seen).toEqual(["v1"]);
+  await harness.t.boundary(thread).stepEnd();
+  await harness.t.settled();
+  expect(await started.value.applied).toMatchObject({ status: "applied" });
+  fakeGroupSdk.seen.length = 0;
+  await fireIn(harness, thread, "k1");
+  expect(fakeGroupSdk.seen).toEqual(["v2"]);
+});
+
+test("a reload whose entry does not import is rejected and the old version keeps running", async () => {
+  const { harness, root, thread } = await loadedHello();
+  await rewriteEntry(root, "export const extension = (;\n");
+  const started = await harness.loader.reload("hello", reloadSignal);
+  expect(started.ok).toBe(false);
+  if (started.ok) return;
+  expect(started.error.kind).toBe("rejected");
+  if (started.error.kind !== "rejected") return;
+  expect(started.error.diagnostics.map((entry) => entry.code)).toEqual(["entry_import_failed"]);
+  fakeGroupSdk.seen.length = 0;
+  await fireIn(harness, thread, "k0");
+  expect(fakeGroupSdk.seen).toEqual(["v1"]);
+  expect(harness.loader.list().map((info) => [info.state, info.generation])).toEqual([
+    ["active", 0],
+  ]);
+});
+
+test("a reload with an invalid or renamed manifest is rejected before any import", async () => {
+  const { harness, root, thread } = await loadedHello();
+  await putFile(join(root, ".fresnel-plugin", "plugin.json"), "{ not json");
+  const broken = await harness.loader.reload("hello", reloadSignal);
+  expect(broken.ok ? "ok" : broken.error).toMatchObject({ kind: "rejected" });
+  await putFile(
+    join(root, ".fresnel-plugin", "plugin.json"),
+    JSON.stringify({
+      schemaVersion: 2,
+      name: "renamed",
+      version: "1.0.0",
+      entry: "./src/index.ts",
+      plugins: [{ layer: "plugin", hooks: ["boundary.settle.after"] }],
+    }),
+  );
+  const renamed = await harness.loader.reload("hello", reloadSignal);
+  expect(renamed.ok ? "ok" : renamed.error).toMatchObject({ kind: "rejected" });
+  fakeGroupSdk.seen.length = 0;
+  await fireIn(harness, thread, "k0");
+  expect(fakeGroupSdk.seen).toEqual(["v1"]);
+});
+
+test("a setup that throws in the new version is reported through applied and the old one runs", async () => {
+  const { harness, root, thread } = await loadedHello();
+  const kit = ["@fresnel", "group-sdk"].join("/");
+  await rewriteEntry(
+    root,
+    `import * as kit from "${kit}";
+export const extension = ({ register }) => {
+  register("hello", {}, () => {
+    kit.record("v2-setup");
+    throw new Error("v2 cannot start");
+  });
+};
+`,
+  );
+  const started = await harness.loader.reload("hello", reloadSignal);
+  if (!started.ok) throw new Error("reload refused");
+  const applied = await started.value.applied;
+  expect(applied).toMatchObject({ status: "failed", restored: true });
+  if (applied.status !== "failed") return;
+  expect(applied.diagnostics.map((entry) => entry.code)).toEqual(["reload_failed"]);
+  expect(harness.loader.diagnostics().map((entry) => entry.code)).toContain("reload_failed");
+  await harness.t.settled();
+  fakeGroupSdk.seen.length = 0;
+  await fireIn(harness, thread, "k0");
+  expect(fakeGroupSdk.seen).toEqual(["v1"]);
+  expect(harness.loader.list().map((info) => [info.state, info.generation])).toEqual([
+    ["active", 0],
+  ]);
+});
+
+test("reload refuses unknown, built-in and not-active extensions", async () => {
+  await writePlugin(userExtensions, "hello", { name: "hello" });
+  const harness = await harnessOf();
+  await harness.loader.loadAll(
+    loadOptions(harness, { startup: { safeMode: { active: true, source: "flag" }, disabled: [] } }),
+  );
+  const unknown = await harness.loader.reload("nope", reloadSignal);
+  expect(unknown.ok ? "ok" : unknown.error).toEqual({ kind: "unknown_extension" });
+  const disabled = await harness.loader.reload("hello", reloadSignal);
+  expect(disabled.ok ? "ok" : disabled.error).toEqual({
+    kind: "not_reloadable",
+    reason: "not_active",
+  });
+});

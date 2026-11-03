@@ -202,6 +202,8 @@ export async function importExternalEntry(
   fs: LoaderFs,
   root: string,
   manifest: ExtensionManifest,
+  /** 다시 읽기(§4.4.4)의 로드 세대. 0보다 크면 엔트리 URL에 `?fresnel-gen=<세대>`를 붙여 새 모듈로 평가한다 */
+  generation = 0,
 ): Promise<Result<ExtensionEntry, EntryLoadError>> {
   const declared = join(root, manifest.entry);
   const present = await attemptAsync(() => fs.exists(declared));
@@ -220,7 +222,10 @@ export async function importExternalEntry(
     });
   }
   const imported = await attemptAsync(async () => {
-    const loaded: unknown = await import(pathToFileURL(real).href);
+    // Bun 1.4.3은 `file://` URL의 질의를 무시하고 처음 평가한 모듈을 돌려준다. 다시 읽기(세대 > 0)는 질의가 모듈 키에 들어가는 절대 경로 형태로 import한다
+    const loaded: unknown = await import(
+      generation > 0 ? `${real}?fresnel-gen=${generation}` : pathToFileURL(real).href
+    );
     return loaded;
   });
   if (!imported.ok) {

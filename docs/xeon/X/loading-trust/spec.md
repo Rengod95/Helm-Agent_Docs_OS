@@ -206,7 +206,7 @@ export type LoadDiagnosticCode =
   | "capability_missing" | "capability_provider_failed"
   | "tier_rejected"
   | "entry_not_found" | "entry_import_failed" | "entry_not_function" | "entry_threw"
-  | "setup_threw" | "setup_timeout" | "setup_action"
+  | "setup_threw" | "setup_timeout" | "setup_action" | "reload_failed" | "reload_rejected"
   | "usage_invalid" | "usage_warning" | "plugin_not_registered"
   | "essential_failed" | "disabled_by_setting" | "safe_mode" | "disabled_flag"
   | "isolation_unavailable" | "isolation_point_unsupported" | "isolation_drive_unsupported"
@@ -357,8 +357,8 @@ export interface ExtensionLoader {
    * 화면 기여 항목의 검사 결과(§4.3.4). 로드 순서, 선언 순서다. `ext.ui.list`가 쓴다. 확장이 목록에서 빠지면 그 확장의 항목도 빠진다
    */
   uiEntries(): readonly UiEntryReport[];
-  /** 개발용. M2 이후(§4.4.4) */
-  reload(name: ExtensionName, signal: AbortSignal): Promise<LoadedExtensionInfo>;
+  /** 설치된 외부 확장을 새 버전으로 바꾼다. 적용은 단계 경계다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */
+  reload(name: ExtensionName, signal: AbortSignal, options?: ReloadOptions): Promise<Result<ReloadStarted, ReloadFailure>>;
   /** 제거 1단계. 아무것도 바꾸지 않고 지울 테이블 목록만 돌려준다(§4.4.5). M2 */
   previewRemoval(name: ExtensionName): Promise<RemovalPreview>;
   /** 제거 2단계. 실행 중 호스트에서 내리고, dropTables가 참이면 확장 전용 테이블을 지운다(§4.4.5). M2 */
@@ -789,6 +789,8 @@ export interface RecordVersionInput {
   readonly extensionDir: string;
   readonly manifestText: string;
   readonly stateSchemaVersion: number | null;
+  /** 정리에서 지우지 않을 버전. 되돌리기가 지금 설치본을 기록하는 동안 대상 버전을 지킨다(§4.4.8) */
+  readonly protectVersion?: string;
 }
 export interface VersionRecordOutcome {
   /** 보관 개수를 넘어 지운 버전(새 것부터) */
@@ -807,6 +809,11 @@ export interface RollbackHooks {
   disable(name: string): Promise<void>;
   enable(name: string): Promise<void>;
   clearState(name: string): Promise<void>;
+  /** 있고 `hotReload`가 거짓이 아니면 끄기·켜기·상태 비우기 대신 쓴다(§4.4.4, §4.4.8). 새 버전이 열리지 못하면 던진다 */
+  reload?(name: string, options: { readonly clearState: boolean }): Promise<RollbackReloadOutcome>;
+}
+export interface RollbackReloadOutcome {
+  readonly stateCleared: boolean;
 }
 export interface RollbackVersionInput {
   readonly name: string;
@@ -831,7 +838,8 @@ export type VersionHistoryError =
   | { readonly kind: "disable_failed"; readonly cause: unknown }
   | { readonly kind: "swap_failed"; readonly step: "record" | "stage" | "move_current" | "place"; readonly cause: unknown; readonly restored: boolean; readonly reenabled: boolean; readonly followUps: readonly { readonly step: "restore" | "enable"; readonly cause: unknown }[] }
   | { readonly kind: "clear_state_failed"; readonly cause: unknown }
-  | { readonly kind: "enable_failed"; readonly cause: unknown };
+  | { readonly kind: "enable_failed"; readonly cause: unknown }
+  | { readonly kind: "reload_failed"; readonly cause: unknown; readonly restored: boolean };
 export interface VersionHistory {
   record(input: RecordVersionInput): Promise<Result<VersionRecordOutcome, VersionHistoryError>>;
   list(name: string, currentVersion: string): Promise<Result<VersionListing, VersionHistoryError>>;
@@ -1027,13 +1035,18 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - 한 확장의 scope 가운데 하나라도 `failed`이면 그 확장 전체를 `error`로 두고 `uninstall`한다 [제안]. 확장 안의 scope 일부만 살리는 규칙은 두지 않는다.
 - `ExtensionUsageError`라는 별도 클래스는 두지 않는다. 확장이 받는 오류는 `PrimitiveError`(X.primitives.spec §3.10) 하나다.
 
-#### 4.4.4 핫 리로드
+#### 4.4.4 핫 리로드 [결정: 2026-11-03 사용자 (a), M4 T-RELOAD]
 
-- [제안] M0·M1에는 핫 리로드를 두지 않는다. 확장 코드 변경은 호스트 재시작으로 반영한다.
-- M2 이후 개발용 `ExtensionLoader.reload(name)`를 둔다. 순서: `ExtHost.uninstall(name)`(scope 끄기 요청, 경계에서 정리, fiber 해제는 primitives가 한다, F.extensions.spec §4.5) → 로드 세대 증가 → 재import → 2~9단계 재실행.
-- 재import는 Bun 모듈 캐시를 피하려고 엔트리 URL에 `?fresnel-gen=<generation>` 질의를 붙인다 [가정: Bun이 질의가 다른 같은 파일을 새 모듈로 평가한다]. 이전 세대 모듈은 메모리에 남는다. 개발용이라 이 누수를 받아들인다.
+열린 대화가 있는 채로 확장 코드를 새 버전으로 바꾼다. 플러그인 만들기에서 고친 확장을 바로 써 보는 길이고 버전 되돌리기(§4.4.8)가 적용되는 길이다. `ExtHost.uninstall`은 경계 없이 즉시 해제하므로 쓰지 않는다. 대신 `ExtHost.replaceUnit`(X.primitives.spec §4.4.10)이 단계 경계에서 단위를 교체한다.
+
+- `ExtensionLoader.reload(name, signal, options?)` 순서: (1) 매니페스트를 다시 읽고 검증한다. (2) 이름이 같아야 한다(이름이 바뀌면 재시작). (3) 집합 검사를 다시 한다(다른 확장과 이름·기능 충돌). (4) 신뢰 상한을 다시 계산한다. 설치 위치가 줄 수 있는 등급이어야 하고 지금 등급과 같아야 한다(바뀌면 재시작). (5) 엔트리를 새 세대로 import한다. (6) `replaceUnit`이 새 엔트리를 호스트 상태 밖에서 실행해 검사한다. 여기까지 하나라도 실패하면 `rejected`(진단 `reload_rejected` 또는 `entry_import_failed`, `entry_not_function`, `entry_threw`, `plugin_not_registered`)이고 옛 버전이 그대로 돈다. 로더 기록(`manifest`, `generation`)도 바뀌지 않는다.
+- 통과하면 `ReloadStarted`를 돌려준다. `appliesAt`은 `now`(실행 중인 thread가 없어 이 호출이 돌아오기 전에 적용을 끝냈다)이거나 `nextStepBoundary`(실행 중인 turn의 step이 끝난 경계를 기다린다)다. `applied`는 적용이 끝나면 정해진다. `applied`(`status: "applied"`)가 되면 그때 로더 기록의 `manifest`와 `generation`이 새 것으로 바뀐다. 경계에서 새 세대가 열리지 못하면 `failed`다: 옛 정의로 되돌려 다시 열었고(`restored`), 진단 `reload_failed`가 확장의 진단과 로더 진단에 남는다. 이 실패는 `nextStepBoundary`로 돌려준 호출에서는 나중에 `applied`로만 알 수 있다.
+- `active`인 외부 확장만 다시 읽는다. 내장 확장(`builtin`), 루트가 없는 확장, `active`가 아닌 확장(`error`, `disabled`, `rejected`)은 `not_reloadable`이다. 이런 확장은 재시작하거나 `ensureLoaded`로 싣는다.
+- 재import는 Bun 모듈 캐시를 피하려고 엔트리를 `<절대 경로>?fresnel-gen=<세대>`로 import한다. [결정] `file://` URL 형태로는 안 된다: Bun 1.4.3은 `file://` URL의 질의를 무시하고 처음 평가한 모듈을 돌려준다(시험으로 확인). 절대 경로 문자열에 질의를 붙이면 새 모듈로 평가한다. 이전 세대 모듈은 메모리에 남는다. 개발용이라 이 누수를 받아들인다. 엔트리가 상대 경로로 import하는 다른 파일은 처음 평가한 것이 캐시되어 다시 평가되지 않는다. 그래서 번들된 엔트리(`dist/index.js` 하나)만 다시 읽기로 바뀐다 [미결: 하위 파일을 다시 읽으려면 번들하거나 재시작한다].
+- `options.resetRefusedState`는 새 버전이 저장된 상태를 받지 못할 때 그 상태를 비우고 이어 가게 한다(되돌리기 `clearState`, X.primitives.spec §4.4.10 8번).
+- 단계 경계, 실행 중인 turn, drive 락(임대), 실패와 재시작 때의 규칙은 X.primitives.spec §4.4.10이 정한다. 이 로더는 그 규칙을 바꾸지 않는다.
 - 격리 확장의 리로드는 자식 프로세스 재시작이다. 캐시 문제가 없다.
-- 파일 감시는 L0 파일 감시 서비스가 있을 때만 쓴다. 기본은 명령(`fresnel ext reload <name>` [가정: 명령 이름은 L4.cli.spec])이다.
+- 파일 감시는 L0 파일 감시 서비스가 있을 때만 쓴다. 기본은 명령(`fresnel ext reload <name>` [가정: 명령 이름은 L4.cli.spec])과 wire `ext.reload`다.
 
 #### 4.4.5 제거 흐름 (M2)
 
@@ -1079,6 +1092,8 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - 정리 실패는 기록의 성공을 바꾸지 않는다. 정리는 첫 실패에서 멈추고 `pruneFailure`로 알린다. 남은 버전은 다음 기록이 다시 본다. 지우지 못한 임시 디렉터리도 다음 기록이나 되돌리기가 먼저 지운다.
 - 목록은 `<이름>` 디렉터리 가운데 버전 형식 이름만 본다. 메타가 없으면 `meta_missing`, JSON이 아니면 `meta_not_json`, 형식이 맞지 않거나 설치 시각이 날짜가 아니면 `meta_invalid`, `dir/`가 없으면 `dir_missing`, 메타의 버전이 디렉터리 이름과 다르면 `version_mismatch`다. 이 항목은 `skipped`로 알리고 목록에 넣지 않는다. 목록은 설치 시각이 늦은 것부터, 같으면 버전 번호가 높은 것부터다.
 - 되돌리기 순서: (1) 대상이 보관되어 있는지 본다. 없거나 건너뛴 버전이면 `not_found`다. (2) 상태 스키마를 본다. 대상 값과 지금 값이 모두 숫자이고 지금 값이 더 크며 `clearState`가 참이 아니면 `state_schema_mismatch`로 멈춘다. 파일은 바뀌지 않는다. UI는 "상태를 비우고 되돌리기"를 제안한다(O-11). (3) 끊긴 되돌리기의 흔적을 치운다. (4) 끄기 훅을 부른다. 실패하면 `disable_failed`로 멈춘다. 파일은 바뀌지 않았다. (5) 지금 설치본을 기록한다. (6) 교체한다. (7) `clearState`가 참이면 상태를 비운다. (8) 켜기 훅을 부른다. (9) 백업을 지운다. 끄기 → 기록 → 교체 → 상태 비우기 → 켜기 순서이고 적용은 다음 단계 경계다(`hotReload`가 거짓이면 재시작 뒤다).
+- 핫 리로드 되돌리기 [결정: 2026-11-03 사용자 (a)]: `RollbackHooks.reload`가 있고 `hotReload`가 거짓이 아니면 4번(끄기)과 7·8번(상태 비우기, 켜기)을 하지 않고 7번 자리에서 `reload(name, { clearState })`를 부른다. 확장을 끄지 않으므로 열린 대화에서 확장이 사라지지 않고, 새 버전으로의 교체가 단계 경계에서 일어난다(§4.4.4). `clearState`는 reload가 새 버전이 받지 못하는 상태를 비우는 것으로 처리한다(`stateCleared`는 reload가 돌려준 값). 교체(6)가 실패하면 끈 적이 없으므로 다시 켜지 않는다(`reenabled: true`). reload가 던지면(새 버전이 열리지 못함, 옛 버전은 계속 돈다) 되돌리기 전 설치본(`.swap.old`)을 설치 위치로 되돌리고 `reload_failed`(`restored`)를 돌려준다. 되돌리지 못하면 `restored: false`이고 디스크 파일과 도는 코드가 다르다(재시작하면 디스크 파일이 돈다). 파일 교체 도중 프로세스가 끊기면 §4.4.8의 흔적 치우기(3번)가 다음 되돌리기에서, 시작할 때 로더가 디스크의 설치본을 한 번 싣는 것으로 하나의 세대로 돌아온다.
+- 정리는 보관 개수를 넘은 버전을 지우되 되돌릴 대상을 지우지 않는다 [결정: 감사 LT-04]. 지금 설치본을 기록하는 5번이 `protectVersion`으로 대상 버전을 정리에서 뺀다. 그래서 보관이 가득 차 있어도 대상의 복사가 ENOENT로 실패하지 않고 보관본이 사라지지 않는다.
 - 교체(6)는 대상 복사본을 `.swap.new`에 먼저 만든다. 옮기기보다 실패하기 쉬운 복사를 먼저 끝내므로 복사가 실패해도 설치본은 그대로다 [제안]. 그다음 설치본을 `.swap.old`로 옮기고 `.swap.new`를 설치 위치로 옮긴다. 마지막 옮기기가 실패하면 `.swap.old`를 설치 위치로 되돌린다.
 - 교체 단계(5, 6)가 실패하면 파일을 처음 상태로 되돌리고(`restored`) 확장을 다시 켠다(`reenabled`). 되돌리기나 켜기도 실패하면 그 원인을 `followUps`에 담는다. 실패한 단계는 `step`(`record`, `stage`, `move_current`, `place`)이다.
 - 상태 비우기(7)나 켜기(8)가 실패하면 교체는 끝난 채 남고 확장은 꺼진 채 남는다(`clear_state_failed`, `enable_failed`). 백업 삭제(9)가 실패해도 결과는 같고 남은 백업은 다음 되돌리기가 지운다.
@@ -1270,7 +1285,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 여러 작업 폴더를 동시에 여는 서비스 프로세스(adr.0006)에서 프로젝트 확장을 싣는 규칙이다. 시작 때는 프로젝트를 싣지 않고(`loadAll({ projects: "on_demand" })`), 작업 폴더를 여는 때 `loadProject`가 싣는다.
 
-1. 단위: 프로젝트 루트(정규화한 경로) 하나다. 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 적재가 중단되거나 실패하면 그 루트를 기억하지 않아 다음 호출이 다시 싣는다. 서비스 프로세스 안의 확장 이름은 하나뿐이라(§4.2.2) 먼저 실린 프로젝트의 확장이 이름을 쥐고, 다른 프로젝트의 같은 이름은 `name_conflict`로 거부된다. 서비스를 다시 띄우면 처음부터 다시 정한다.
+1. 단위: 프로젝트 루트(정규화한 경로) 하나다. 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 적재가 중단되거나 실패하면 그 루트를 기억하지 않아 다음 호출이 다시 싣는다. 서비스 프로세스 안의 확장 이름은 하나뿐이라(§4.2.2) 먼저 실린 프로젝트의 확장이 이름을 쥐고, 다른 프로젝트의 같은 이름은 `name_conflict`로 거부된다. 나중 것만 거부하고 먼저 실린 것은 `active`로 두어 실행과 상태 표시가 어긋나지 않는다 [결정: 감사 LT-01]. 같은 묶음 안의 같은 위치 충돌(§4.2.2)만 둘 다 거부한다. 서비스를 다시 띄우면 처음부터 다시 정한다.
 2. 시점: thread를 만들거나 여는 작업 폴더에 대해 호스트가 부른다. 신뢰가 아직 정해지지 않은 폴더는 아무것도 싣지 않고(`trust_undecided`) 결정은 기억하지 않는다. 결정이 나온 뒤 다음 호출이 싣는다.
 3. 프롬프트를 받을 클라이언트: 그 폴더를 연 연결이다. thread가 없는 시점이므로 `thread.trust.before` 훅(thread 필요)은 이 경로에서 발화하지 않는다. 호스트는 wire `trust.get`(선택지)과 `trust.decide`(결정)를 쓰고 `approval.requested`와 같은 A안 모양(F wire, review.decisions-2 U-02)이다. `trust.decide`가 `allow`를 반환하면 호스트가 그 결과를 `trustOverride`로 `loadProject`에 넘긴다. 로더에 직접 프롬프트를 연결하는 구현(`LoadProjectOptions.prompter`)도 같은 규칙을 따르되 그 호출의 `prompter`로만 간다.
 4. "이번 세션만" 결정은 서비스 프로세스 수명 동안 유지한다(§10 7번).
@@ -1421,14 +1436,14 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `createExtensionLoader`, `ExtensionLoader`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `BuiltinExtensionModule`, `RemovalPreview`, `RemoveResult` | L4.host-service.spec(조립 3·5단계, 로더를 직접 보유), L4.settings-ui.spec·L4.cli.spec(제거 확인) |
+| `createExtensionLoader`, `ExtensionLoader`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `BuiltinExtensionModule`, `RemovalPreview`, `RemoveResult`, `ReloadOptions`, `ReloadStarted`, `ReloadApplied`, `ReloadFailure` | L4.host-service.spec(조립 3·5단계, 로더를 직접 보유), L4.settings-ui.spec·L4.cli.spec(제거 확인) |
 | `LoadedExtensionInfo`, `LoadDiagnostic`, `LoadDiagnosticSchema`, `LoadState` | L4.settings-ui.spec, L4.host-service.spec(`host.status`), X.operations.spec |
 | `TrustLevel`, `TRUST_LEVELS`, `TRUST_MATRIX`, `SOURCE_TRUST` | F.extensions.spec(`TrustRequestSchema` 값 확정), X.primitives.spec(연산 허용 검사), X.operations.spec |
 | `ProjectTrustResult`, `TrustPrompter`·`TrustPromptRequest`·`TrustChoice`(F 이름 재export) | L4.cli.spec, L4.desktop.spec(프롬프트 구현) |
 | `TrustStoreBackend`, `LoaderFs`, `LoaderPaths`(F 이름 재export) | L0.os.spec(구현) |
 | `IsolationProcessPort`, `IsolatedChild`(F 이름 재export) | L0.process.spec(구현) |
 | `registerSdkModules`, `SDK_MODULE_SPECIFIERS`, `SdkModules`, `installDefaultPlugin`, `PluginInstallFs` | L4.host-service.spec(조립 루트가 `LoaderDeps.sdkModules`와 첫 실행 설치에 사용) |
-| `createVersionHistory`, `VersionHistory`, `VersionHistoryDeps`, `VersionHistoryFs`, `VersionHistoryError`, `VersionListing`, `VersionRecordOutcome`, `VersionSkipReason`, `VersionSource`, `RecordVersionInput`, `RollbackHooks`, `RollbackVersionInput` | L4.host-service.spec(조립 루트가 `VersionHistoryFs`를 node:fs로 구현해 `installDefaultPlugin`의 `history`와 `ext.versions`·`ext.rollback` 처리기에 넘긴다), L4.desktop-ux.spec(W-31, O-11, §6.24.1) |
+| `createVersionHistory`, `VersionHistory`, `VersionHistoryDeps`, `VersionHistoryFs`, `VersionHistoryError`, `VersionListing`, `VersionRecordOutcome`, `VersionSkipReason`, `VersionSource`, `RecordVersionInput`, `RollbackHooks`, `RollbackReloadOutcome`, `RollbackVersionInput` | L4.host-service.spec(조립 루트가 `VersionHistoryFs`를 node:fs로 구현해 `installDefaultPlugin`의 `history`와 `ext.versions`·`ext.rollback` 처리기에 넘긴다), L4.desktop-ux.spec(W-31, O-11, §6.24.1) |
 | 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, 키 `x.loading-trust.*` | F.wire-settings.spec, L4.settings-ui.spec, L3.readme |
 | 키 `x.ui.apps`, `x.ui.allowProjectApps`(`uiSettings`) | L4.settings-ui.spec(설정 화면 "플러그인" 탭), L4.host-service.spec(조립 루트가 카탈로그에 더하고 `LoadOptions.uiPolicy`에 넘긴다) |
 | `uiSettings`, `resolveAppFile`, `AppFileResult`, `UiItemReport`, `UiEntryReport`, `UiIssue`, `ExtensionLoader.uiEntries`, `LoadOptions.uiPolicy` | L4.desktop-ux.spec(`ext.ui.list` 화면 기여 목록, 전용 URL 스킴 `fresnel-view://`의 파일 풀이), L4.host-service.spec |

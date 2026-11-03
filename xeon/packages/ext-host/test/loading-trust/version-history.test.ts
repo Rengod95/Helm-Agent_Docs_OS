@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { Bug } from "@fresnel/contracts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
@@ -672,4 +672,128 @@ test("a keep count below one is an assembly defect", async () => {
   expect(() =>
     createVersionHistory({ fs, historyRoot: ROOT, now: () => 0, hash, keep: 0 }),
   ).toThrow(Bug);
+});
+
+test("rollback with a full archive keeps its own target when it records the installed version (LT-04)", async () => {
+  const { fs, history } = setup(5);
+  const { hooks } = hooksOf();
+  // 보관 5개(1.0.0~1.0.4)가 가득 차 있고 설치본 9.9.9는 기록되어 있지 않다
+  await eachInOrder(["1.0.0", "1.0.1", "1.0.2", "1.0.3", "1.0.4"], async (version) => {
+    await installVersion(fs, version, { "dist/index.js": `code ${version}` });
+    await history.record(input(version));
+    return "continue";
+  });
+  await installVersion(fs, "9.9.9", { "dist/index.js": "code 9.9.9" });
+  const rolled = await history.rollback({
+    name: NAME,
+    version: "1.0.0",
+    extensionDir: EXT,
+    currentVersion: "9.9.9",
+    currentStateSchemaVersion: null,
+    hooks,
+  });
+  expect(rolled).toEqual({
+    ok: true,
+    value: { appliesAt: "nextStepBoundary", stateCleared: false },
+  });
+  expect(fs.filesUnder(EXT)).toEqual({
+    "dist/index.js": "code 1.0.0",
+    ".fresnel-plugin/plugin.json": "m1.0.0",
+  });
+  // 되돌릴 대상은 지워지지 않았고 방금 기록한 9.9.9가 더해졌다
+  const names = versionNames(await history.list(NAME, "1.0.0"));
+  expect(names).toContain("1.0.0");
+  expect(names).toContain("9.9.9");
+});
+
+/** `reload` 훅을 가진 훅 묶음. 호출 순서와 받은 `clearState`를 기록한다 */
+function hotHooks(outcome: { stateCleared: boolean } | Error): {
+  hooks: RollbackHooks;
+  calls: string[];
+} {
+  const base = hooksOf();
+  return {
+    calls: base.calls,
+    hooks: {
+      ...base.hooks,
+      reload: (name, options) => {
+        base.calls.push(`reload ${name} clearState=${String(options.clearState)}`);
+        return outcome instanceof Error ? Promise.reject(outcome) : Promise.resolve(outcome);
+      },
+    },
+  };
+}
+
+describe("hot rollback", () => {
+  test("a hot rollback swaps the files and reloads without disabling or enabling", async () => {
+    const { fs, history } = setup();
+    const { hooks, calls } = hotHooks({ stateCleared: true });
+    await installVersion(fs, "1.0.0", { "dist/index.js": "v1" });
+    await history.record(input("1.0.0"));
+    await installVersion(fs, "1.1.0", { "dist/index.js": "v2" });
+    const rolled = await history.rollback({
+      name: NAME,
+      version: "1.0.0",
+      clearState: true,
+      extensionDir: EXT,
+      currentVersion: "1.1.0",
+      currentStateSchemaVersion: null,
+      hooks,
+    });
+    expect(rolled).toEqual({
+      ok: true,
+      value: { appliesAt: "nextStepBoundary", stateCleared: true },
+    });
+    expect(calls).toEqual(["reload helm clearState=true"]);
+    expect(fs.filesUnder(EXT)).toEqual({
+      "dist/index.js": "v1",
+      ".fresnel-plugin/plugin.json": "m1.0.0",
+    });
+  });
+
+  test("a hot rollback whose reload fails puts the installed files back and reports it", async () => {
+    const { fs, history } = setup();
+    const { hooks, calls } = hotHooks(new Error("new version does not start"));
+    await installVersion(fs, "1.0.0", { "dist/index.js": "v1" });
+    await history.record(input("1.0.0"));
+    await installVersion(fs, "1.1.0", { "dist/index.js": "v2", "extra.txt": "only v2" });
+    const rolled = await history.rollback({
+      name: NAME,
+      version: "1.0.0",
+      extensionDir: EXT,
+      currentVersion: "1.1.0",
+      currentStateSchemaVersion: null,
+      hooks,
+    });
+    expect(rolled.ok).toBe(false);
+    if (rolled.ok) return;
+    expect(rolled.error).toMatchObject({ kind: "reload_failed", restored: true });
+    expect(calls).toEqual(["reload helm clearState=false"]);
+    // 도는 코드는 1.1.0 그대로이고 파일도 1.1.0이다. 1.0.0 보관본은 남아 있다
+    expect(fs.filesUnder(EXT)).toEqual({
+      "dist/index.js": "v2",
+      "extra.txt": "only v2",
+      ".fresnel-plugin/plugin.json": "m1.1.0",
+    });
+    expect(versionNames(await history.list(NAME, "1.1.0"))).toContain("1.0.0");
+  });
+
+  test("hotReload false keeps the disable and enable path even when a reload hook exists", async () => {
+    const { fs, history } = setup();
+    const { hooks, calls } = hotHooks({ stateCleared: false });
+    await installVersion(fs, "1.0.0", { "dist/index.js": "v1" });
+    await history.record(input("1.0.0"));
+    await installVersion(fs, "1.1.0", { "dist/index.js": "v2" });
+    const rolled = await history.rollback({
+      name: NAME,
+      version: "1.0.0",
+      hotReload: false,
+      extensionDir: EXT,
+      currentVersion: "1.1.0",
+      currentStateSchemaVersion: null,
+      hooks,
+    });
+    expect(rolled).toEqual({ ok: true, value: { appliesAt: "restart", stateCleared: false } });
+    expect(calls).toEqual(["disable helm", "enable helm"]);
+  });
 });

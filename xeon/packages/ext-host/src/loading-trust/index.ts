@@ -1,6 +1,6 @@
 // loading-trust 도메인의 모든 export(패키지 내부용 포함). 루트(src/index.ts)는 공개 이름만 다시 내보낸다.
 import { basename } from "node:path";
-import { attemptAsync, Bug, parseJson } from "@fresnel/contracts";
+import { attemptAsync, Bug, err, ok, parseJson, type Result } from "@fresnel/contracts";
 import { isSemVer, type CapabilityId, type SemVer } from "@fresnel/contracts/capabilities";
 import {
   effectiveLayer,
@@ -94,6 +94,7 @@ export {
   createVersionHistory,
   type RecordVersionInput,
   type RollbackHooks,
+  type RollbackReloadOutcome,
   type RollbackVersionInput,
   type VersionHistory,
   type VersionHistoryDeps,
@@ -268,6 +269,37 @@ export interface LoaderDeps {
   ) => Promise<{ readonly trusted: "yes" | "no"; readonly remember?: boolean } | undefined>;
 }
 
+export interface ReloadOptions {
+  /** 참이면 새 버전이 저장된 상태를 받지 못할 때 그 상태를 `initial`로 다시 쓴다(되돌리기 `clearState`) */
+  readonly resetRefusedState?: boolean;
+}
+
+/** 다시 읽기를 시작하지 못한 이유. 이때 옛 버전이 그대로 돌고 로더 기록은 바뀌지 않는다 */
+export type ReloadFailure =
+  | { readonly kind: "unknown_extension" }
+  /** 내장 확장이거나, 활성이 아닌 확장이다(재시작이나 `ensureLoaded`로 싣는다) */
+  | { readonly kind: "not_reloadable"; readonly reason: "builtin" | "not_active" | "no_root" }
+  | { readonly kind: "rejected"; readonly diagnostics: readonly LoadDiagnostic[] };
+
+/** 단계 경계에서 적용이 끝난 다시 읽기 */
+export type ReloadApplied =
+  | {
+      readonly status: "applied";
+      readonly statesCleared: number;
+      readonly info: LoadedExtensionInfo;
+    }
+  | {
+      readonly status: "failed";
+      readonly diagnostics: readonly LoadDiagnostic[];
+      readonly restored: boolean;
+    }
+  | { readonly status: "superseded" | "cancelled" };
+
+export interface ReloadStarted {
+  readonly appliesAt: "now" | "nextStepBoundary";
+  readonly applied: Promise<ReloadApplied>;
+}
+
 export interface ExtensionLoader {
   /** 시작 때 한 번. 파이프라인 전체를 실행한다 */
   loadAll(options: LoadOptions): Promise<LoadReport>;
@@ -287,6 +319,17 @@ export interface ExtensionLoader {
     name: ExtensionName,
     signal: AbortSignal,
   ): Promise<LoadedExtensionInfo | undefined>;
+  /**
+   * 설치된 외부 확장의 코드를 다시 읽어 새 버전으로 바꾼다(§4.4.4). 매니페스트 검증, 집합 검사, 신뢰 상한, 엔트리 import와 실행(호스트
+   * 상태를 건드리지 않는다)을 먼저 하고, 하나라도 실패하면 옛 버전이 그대로 돈다(`rejected`). 적용은 `ExtHost.replaceUnit`이 단계
+   * 경계에서 한다(X.primitives.spec §4.4.10). `applied`는 적용이 끝나면 정해진다: 실행 중인 thread가 없으면 이 호출이 돌아올 때 이미
+   * 정해져 있다(`appliesAt: "now"`)
+   */
+  reload(
+    name: ExtensionName,
+    signal: AbortSignal,
+    options?: ReloadOptions,
+  ): Promise<Result<ReloadStarted, ReloadFailure>>;
   list(): readonly LoadedExtensionInfo[];
   diagnostics(): readonly LoadDiagnostic[];
   /**
@@ -306,7 +349,7 @@ interface ExtRecord {
   trust: TrustLevel;
   state: LoadState;
   loadIndex: number | null;
-  readonly generation: number;
+  generation: number;
   readonly essential: boolean;
   readonly diagnostics: LoadDiagnostic[];
   /** Plugin UI 검사 결과(§4.3.4). 매니페스트에 `ui`가 없거나 내장 확장이면 빈 배열이다 */
@@ -316,6 +359,10 @@ interface ExtRecord {
 function versionOf(manifest: ExtensionManifest | undefined): SemVer {
   const version = manifest?.version;
   return version !== undefined && isSemVer(version) ? version : "0.0.0";
+}
+
+function messageOfError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function fallbackName(candidate: ExtensionCandidate, index: number): string {
@@ -548,7 +595,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         batch.push(record);
         const message = `extension name "${name}" is installed twice`;
         fail(record, "rejected", "set", "name_conflict", message);
-        if (first.source === record.source && first.state !== "rejected") {
+        // 같은 묶음 안의 같은 위치 충돌만 둘 다 거부한다. 앞 묶음에서 이미 실린 확장(다른 프로젝트 포함)은 이름을 쥔 채 두고 나중 것만 거부한다(§4.7.8 1번)
+        if (first.source === record.source && first.state !== "rejected" && batch.includes(first)) {
           fail(first, "rejected", "set", "name_conflict", message);
         }
         continue;
@@ -998,6 +1046,165 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     }
   }
 
+  /** 상태를 바꾸지 않고 이번 다시 읽기의 진단을 남긴다 */
+  function reloadDiag(
+    record: ExtRecord,
+    out: LoadDiagnostic[],
+    stage: LoadStage,
+    code: LoadDiagnosticCode,
+    message: string,
+    issues?: readonly ManifestIssue[],
+  ): void {
+    const before = record.diagnostics.length;
+    diag(record, stage, "error", code, message, issues === undefined ? {} : { issues });
+    out.push(...record.diagnostics.slice(before));
+  }
+
+  async function reload(
+    name: ExtensionName,
+    signal: AbortSignal,
+    options?: ReloadOptions,
+  ): Promise<Result<ReloadStarted, ReloadFailure>> {
+    const record = records.get(name);
+    if (record === undefined) return err({ kind: "unknown_extension" });
+    if (record.candidate.builtin !== null) {
+      return err({ kind: "not_reloadable", reason: "builtin" });
+    }
+    const root = record.candidate.root;
+    if (root === null) return err({ kind: "not_reloadable", reason: "no_root" });
+    if (record.state !== "active" || record.manifest === undefined || record.loadIndex === null) {
+      return err({ kind: "not_reloadable", reason: "not_active" });
+    }
+    const found: LoadDiagnostic[] = [];
+    const rejected = (): Result<never, ReloadFailure> =>
+      err({ kind: "rejected", diagnostics: found });
+    // 1. 매니페스트를 다시 읽는다
+    const raw = await readManifestInput(record.candidate);
+    if (!raw.ok) {
+      reloadDiag(record, found, "manifest", "reload_rejected", `reload of ${name}: ${raw.message}`);
+      return rejected();
+    }
+    const validated = validateManifest(raw.input);
+    const manifest = validated.manifest;
+    if (manifest === undefined) {
+      reloadDiag(
+        record,
+        found,
+        "manifest",
+        "reload_rejected",
+        `reload of ${name}: the manifest is invalid`,
+        validated.issues,
+      );
+      return rejected();
+    }
+    if (manifest.name !== name) {
+      reloadDiag(
+        record,
+        found,
+        "manifest",
+        "reload_rejected",
+        `reload of ${name}: the manifest now names the extension "${manifest.name}"; a rename needs a restart`,
+      );
+      return rejected();
+    }
+    // 2. 집합 검사: 다른 확장이 있는 채로 이 매니페스트가 이름·기능 충돌을 만들지 않아야 한다
+    const setIssues = validateManifestSet([
+      ...[...records.values()]
+        .filter((other) => other !== record && other.state !== "rejected")
+        .flatMap((other) => (other.manifest === undefined ? [] : [other.manifest])),
+      manifest,
+    ]).filter((issue) => issue.severity === "error" && issue.path.startsWith(`${name}/`));
+    if (setIssues.length > 0) {
+      reloadDiag(
+        record,
+        found,
+        "set",
+        "reload_rejected",
+        `reload of ${name}: the manifest conflicts with the installed set`,
+        setIssues,
+      );
+      return rejected();
+    }
+    // 3. 신뢰 상한: 설치 위치가 줄 수 있는 등급이어야 하고 지금 등급이 달라지면 다시 판정해야 하므로 재시작이다
+    const effective = effectiveTrust(record.source, manifest.trust?.level);
+    if (!effective.ok || effective.level !== record.trust) {
+      reloadDiag(
+        record,
+        found,
+        "trust",
+        "reload_rejected",
+        `reload of ${name}: the requested trust level changed; restart the host to apply it`,
+      );
+      return rejected();
+    }
+    // 4. 엔트리를 새 세대로 import한다
+    const registered = registerSdkModules({ ...X_SDK_MODULES, ...deps.sdkModules });
+    if (!registered.ok) {
+      reloadDiag(
+        record,
+        found,
+        "entry",
+        "entry_import_failed",
+        `reload of ${name}: SDK modules are not available`,
+      );
+      return rejected();
+    }
+    const generation = record.generation + 1;
+    const loaded = await importExternalEntry(deps.fs, root, manifest, generation);
+    if (!loaded.ok) {
+      reloadDiag(
+        record,
+        found,
+        "entry",
+        loaded.error.code,
+        `reload of ${name}: ${loaded.error.message}`,
+      );
+      return rejected();
+    }
+    throwIfCancelled(signal, `reloading ${name}`);
+    // 5. 호스트가 엔트리를 따로 실행해 검사하고 경계에서 바꾼다
+    const unit = unitOfExternal(loaded.value, manifest, record.loadIndex, undefined);
+    const started = await deps.host.replaceUnit(unit, {
+      signal,
+      ...(options?.resetRefusedState === true ? { resetRefusedState: true } : {}),
+    });
+    if (!started.ok) {
+      const refusal = started.error;
+      reloadDiag(
+        record,
+        found,
+        "entry",
+        refusal.kind === "plugins_unregistered" ? "plugin_not_registered" : "entry_threw",
+        refusal.kind === "entry_failed"
+          ? `reload of ${name}: entry threw: ${messageOfError(refusal.error)}`
+          : refusal.kind === "plugins_unregistered"
+            ? `reload of ${name}: the entry did not register ${refusal.registrations.join(", ")}`
+            : `reload of ${name}: the extension is not installed in the host`,
+      );
+      return rejected();
+    }
+    const applied = started.value.applied.then(async (outcome): Promise<ReloadApplied> => {
+      if (outcome.status === "superseded" || outcome.status === "cancelled") return outcome;
+      if (outcome.status === "failed") {
+        const issued: LoadDiagnostic[] = [];
+        reloadDiag(
+          record,
+          issued,
+          "activate",
+          "reload_failed",
+          `reload of ${name} failed at ${outcome.scopeId} (${outcome.code}): ${outcome.message}; ${outcome.restored ? "the previous version keeps running" : `these scopes stayed off: ${outcome.failedToRestore.join(", ")}`}`,
+        );
+        return { status: "failed", diagnostics: issued, restored: outcome.restored };
+      }
+      record.manifest = manifest;
+      record.generation = generation;
+      record.ui = [];
+      await checkUiOf(record);
+      return { status: "applied", statesCleared: outcome.statesCleared, info: infoOf(record) };
+    });
+    return ok({ appliesAt: started.value.appliesAt, applied });
+  }
+
   async function ensureLoaded(
     name: ExtensionName,
     signal: AbortSignal,
@@ -1259,6 +1466,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     },
     loadProject,
     ensureLoaded,
+    reload,
     async settingChanged(name, signal) {
       const record = records.get(name);
       if (record === undefined) return undefined;
