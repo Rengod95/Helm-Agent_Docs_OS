@@ -6,6 +6,8 @@ import {
   type RunRequest,
   type RunnerFailure,
   type ScheduleDeps,
+  type ScheduleLeader,
+  type ScheduleLeadership,
   type ScheduleService,
   type ScheduleState,
   type StartedRun,
@@ -43,6 +45,39 @@ export class MemoryStore {
     if (this.failSaves) return Promise.resolve(err({ kind: "store_failed", message: "disk full" }));
     this.saved = state;
     return Promise.resolve(ok(undefined));
+  }
+}
+
+/**
+ * 프로세스 사이의 leader 임대 대역. 일꾼마다 `forWorker`로 자기 `ScheduleLeader`를 받는다. `owner`는 지금 쥔 일꾼이다.
+ * `expire()`는 죽은 leader의 임대가 만료된 상태이고, `steal`은 다른 일꾼이 가로챈 상태다(앞 소유자의 `holds`는 거짓이 된다)
+ */
+export class LeaseCell {
+  owner: string | null = null;
+  acquisitions = 0;
+  private lost: (() => void) | null = null;
+  forWorker(name: string): ScheduleLeader {
+    return {
+      tryAcquire: (onLost): ScheduleLeadership | null => {
+        if (this.owner !== null && this.owner !== name) return null;
+        this.owner = name;
+        this.acquisitions += 1;
+        this.lost = onLost;
+        return {
+          holds: () => this.owner === name,
+          release: () => {
+            if (this.owner === name) this.owner = null;
+          },
+        };
+      },
+    };
+  }
+  expire(): void {
+    this.owner = null;
+  }
+  steal(name: string): void {
+    this.owner = name;
+    this.lost?.();
   }
 }
 
@@ -85,6 +120,10 @@ export function createHarness(
     readonly policy?: ScheduleDeps["policy"];
     /** 새 id의 시작 번호 뒤부터 센다. 저장소에 이미 있는 항목과 id가 겹치지 않게 한다 */
     readonly idStart?: number;
+    /** 주면 이 leader를 쥔 동안에만 틱을 돌린다 */
+    readonly leader?: ScheduleLeader;
+    /** 새 id의 접두. 같은 저장소를 쓰는 두 서비스가 id를 겹치지 않게 한다 */
+    readonly idPrefix?: string;
   } = {},
 ): Harness {
   const store = options.store ?? new MemoryStore();
@@ -118,9 +157,10 @@ export function createHarness(
     ids: {
       next: (prefix) => {
         counter += 1;
-        return `${prefix}_${counter}`;
+        return `${prefix}_${options.idPrefix ?? ""}${counter}`;
       },
     },
+    ...(options.leader === undefined ? {} : { leader: options.leader }),
     ...(options.policy === undefined ? {} : { policy: options.policy }),
   });
   return { service, store, runner, clock, ticks, watches };

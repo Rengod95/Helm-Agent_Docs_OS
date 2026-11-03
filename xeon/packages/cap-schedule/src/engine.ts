@@ -14,6 +14,7 @@ import {
   type RunSkipReason,
   type ScheduleDeps,
   type ScheduleEntry,
+  type ScheduleLeadership,
   type ScheduleService,
   type ScheduleState,
   type StopReason,
@@ -126,6 +127,8 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
   let stopTicker: Unsubscribe | null = null;
   let started = false;
   let ticking = false;
+  /** leader를 쥔 상태. `deps.leader`가 없으면 쓰지 않는다 */
+  let leadership: ScheduleLeadership | null = null;
   /** 저장소를 한 번 읽어 `state`에 올렸는가. 읽기에 실패하면 거짓으로 남아 쓰기가 막힌다 */
   let loaded = false;
   let loading: Promise<Result<void, StoreFailure>> | null = null;
@@ -152,6 +155,82 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     );
     loading = pending;
     return pending;
+  }
+
+  /** 이 프로세스가 틱을 돌릴 자격이 있는가. leader 없이 만든 서비스는 늘 그렇다 */
+  function leading(): boolean {
+    return deps.leader === undefined || leadership !== null;
+  }
+
+  /** leader를 잃었다. 감시를 거두고 다음 틱에서 다시 시도한다 */
+  function loseLeadership(): void {
+    const held = leadership;
+    leadership = null;
+    held?.release();
+    for (const id of Array.from(watchers.keys())) dropWatcher(id);
+    signals.clear();
+    if (held !== null) deps.report?.("schedule.leader_lost", {});
+  }
+
+  /**
+   * 디스크의 상태를 다시 읽어 메모리에 올린다. 다른 프로세스가 만들거나 끈 항목을 leader가 보게 한다.
+   * 읽는 사이에 이 프로세스가 저장을 시작했으면(메모리가 더 새롭다) 읽은 값을 버린다
+   */
+  async function refreshFromStore(): Promise<boolean> {
+    const before = saving;
+    await before;
+    const read = await storeCall(() => deps.store.load());
+    if (!read.ok) {
+      deps.report?.("schedule.refresh_failed", { message: read.error.message });
+      return false;
+    }
+    if (saving !== before) return false;
+    state = read.value;
+    return true;
+  }
+
+  /** 재시작 복구(spec 4.4.5): claim만 된 실행의 목록을 내고, 시작한 실행은 host_exit로 닫는다. 루프는 자동으로 다시 시작하지 않는다(spec 4.1.5) */
+  async function recover(now: number): Promise<Result<readonly RunRecord[], StoreFailure>> {
+    let recovered = state;
+    const resume: RunRecord[] = [];
+    for (const run of state.runs) {
+      if (run.status === "claimed") {
+        resume.push(run);
+      } else if (run.status === "started") {
+        recovered = withRun(
+          { ...run, status: "failed", endedAt: now, reason: "host_exit" },
+          recovered,
+        );
+        const entry = recovered.entries.find((candidate) => candidate.id === run.scheduleId);
+        if (entry !== undefined && entry.trigger.kind === "repeat" && entry.enabled) {
+          recovered = withEntry(entry.id, stopPatch("host_exit"), recovered);
+        }
+      }
+    }
+    if (recovered !== state) {
+      const saved = await commit(recovered);
+      if (!saved.ok) return saved;
+    }
+    return ok(resume);
+  }
+
+  /** leader를 쥐어 본다. 쥐면 디스크 상태로 복구하고 감시를 켠 뒤 `true` */
+  async function tryLead(): Promise<boolean> {
+    if (deps.leader === undefined || leadership !== null) return false;
+    const held = deps.leader.tryAcquire(() => {
+      loseLeadership();
+    });
+    if (held === null) return false;
+    leadership = held;
+    await refreshFromStore();
+    const resume = await recover(deps.clock.now());
+    if (!resume.ok) {
+      loseLeadership();
+      return false;
+    }
+    for (const entry of state.entries) installWatcher(entry);
+    await eachSequential(resume.value, begin);
+    return true;
   }
 
   function notify(): void {
@@ -465,14 +544,37 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     if (!started || ticking) return;
     ticking = true;
     try {
+      if (deps.leader !== undefined) {
+        if (leadership === null) {
+          if (!(await tryLead())) return;
+        } else if (!leadership.holds()) {
+          loseLeadership();
+          return;
+        } else if (await refreshFromStore()) {
+          // 다른 프로세스가 만들고 끈 파일 감시 항목을 따라간다
+          for (const entry of state.entries) {
+            if (entry.enabled) installWatcher(entry);
+            else dropWatcher(entry.id);
+          }
+        }
+      }
       const now = deps.clock.now();
       const due = state.entries.filter(
         (entry) => entry.enabled && entry.nextDueAt !== null && entry.nextDueAt <= now,
       );
       await eachSequential(due, async (entry) => {
+        // 틱 도중 leader를 잃으면 남은 항목은 처리하지 않는다. 새 leader가 이어받는다
+        if (deps.leader !== undefined) {
+          if (leadership === null) return;
+          if (!leadership.holds()) {
+            loseLeadership();
+            return;
+          }
+        }
         const current = entryOf(entry.id);
         if (current !== undefined && current.enabled) await dueStep(current, now);
       });
+      if (!leading()) return;
       await eachSequential(Array.from(signals.entries()), ([id, firstAt]) =>
         signalStep(id, firstAt, now),
       );
@@ -527,6 +629,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
     stopTicker = null;
     for (const id of Array.from(watchers.keys())) dropWatcher(id);
     started = false;
+    loseLeadership();
   }
 
   return {
@@ -630,35 +733,23 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
       if (started) return ok(undefined);
       const opened = await ensureLoaded();
       if (!opened.ok) return opened;
-      const now = deps.clock.now();
-      // 재시작 복구(spec 4.4.5): claim만 된 실행은 같은 키로 다시 시작하고, 시작한 실행은 host_exit로 닫는다.
-      // 루프는 자동으로 다시 시작하지 않는다(spec 4.1.5)
-      let recovered = state;
-      const resume: RunRecord[] = [];
-      for (const run of state.runs) {
-        if (run.status === "claimed") {
-          resume.push(run);
-        } else if (run.status === "started") {
-          recovered = withRun(
-            { ...run, status: "failed", endedAt: now, reason: "host_exit" },
-            recovered,
-          );
-          const entry = recovered.entries.find((candidate) => candidate.id === run.scheduleId);
-          if (entry !== undefined && entry.trigger.kind === "repeat" && entry.enabled) {
-            recovered = withEntry(entry.id, stopPatch("host_exit"), recovered);
-          }
-        }
+      if (deps.leader !== undefined) {
+        // leader를 쥔 프로세스만 복구하고 틱을 돌린다. 못 쥐면 틱마다 다시 시도한다
+        started = true;
+        stopTicker = deps.ticker.every(policy.tickMs, () => {
+          track(tick(), "tick");
+        });
+        await tick();
+        return ok(undefined);
       }
-      if (recovered !== state) {
-        const saved = await commit(recovered);
-        if (!saved.ok) return saved;
-      }
+      const resume = await recover(deps.clock.now());
+      if (!resume.ok) return resume;
       started = true;
       for (const entry of state.entries) installWatcher(entry);
       stopTicker = deps.ticker.every(policy.tickMs, () => {
         track(tick(), "tick");
       });
-      await eachSequential(resume, begin);
+      await eachSequential(resume.value, begin);
       await tick();
       return ok(undefined);
     },

@@ -171,6 +171,23 @@ export interface ScheduleWatcher {
   watch(paths: readonly string[], onChange: () => void): Unsubscribe;
 }
 
+/** 틱을 쥔 상태. 하나의 프로세스만 쥔다(L2.schedule.spec §4.4.3) */
+export interface ScheduleLeadership {
+  /** 지금도 쥐고 있는가. 임대 행을 새로 읽어 대조한다. 거짓이면 아무것도 쓰지 않는다 */
+  holds(): boolean;
+  /** 반납한다. 이미 잃었으면 아무 일도 하지 않는다 */
+  release(): void;
+}
+
+/**
+ * 프로세스 사이의 틱 Scheduler leader. 호스트가 `sys_leases`의 `scheduler` 자원으로 구현한다.
+ * 주지 않으면 이 서비스가 곧 유일한 틱이다(시험, 단일 프로세스).
+ */
+export interface ScheduleLeader {
+  /** 쥘 수 있으면 쥐고, 다른 프로세스가 쥐고 있으면 null이다. 나중에 잃으면 `onLost`를 한 번 부른다 */
+  tryAcquire(onLost: () => void): ScheduleLeadership | null;
+}
+
 export interface ScheduleIds {
   next(prefix: "sch" | "run"): string;
 }
@@ -182,6 +199,8 @@ export interface ScheduleDeps {
   readonly ticker: ScheduleTicker;
   readonly watcher: ScheduleWatcher;
   readonly ids: ScheduleIds;
+  /** 있으면 leader를 쥔 동안에만 틱을 돌린다. 못 쥐면 틱마다 다시 시도한다(죽은 leader는 만료 뒤 대체된다) */
+  readonly leader?: ScheduleLeader;
   readonly policy?: Partial<SchedulePolicy>;
   readonly report?: (message: string, fields: Readonly<Record<string, unknown>>) => void;
 }

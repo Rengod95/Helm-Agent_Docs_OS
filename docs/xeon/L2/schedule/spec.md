@@ -1317,6 +1317,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
   4. claim한 실행을 시작한다(§4.4.5). 시작은 틱 밖의 비동기 작업이다. 다음 틱을 막지 않는다.
   5. `cap_schedule_runs`에서 `started`인 실행의 워치독을 검사한다(§4.4.5).
 
+- [결정: 2026-11-04 사용자, apps/H1-01] 파일 저장소 구현의 Scheduler leader. 서비스는 선택 포트 `ScheduleLeader`(`tryAcquire(onLost)`)를 받는다. 포트가 있으면 leader를 쥔 프로세스만 복구와 틱을 돌린다. 못 쥔 프로세스도 틱 주기마다 다시 시도하므로 죽은 leader는 Process lock 만료(30초) 뒤 다음 틱(최대 15초)에 대체된다. 쥐는 순간 디스크 상태를 다시 읽어 복구하고(시작한 실행은 `host_exit`로 닫는다), 쥔 동안에는 틱마다 Process lock을 새로 대조하고(`holds`) 디스크를 다시 읽어 다른 프로세스가 만든 항목을 본다. 잃으면 틱 도중이라도 남은 항목을 처리하지 않고 감시를 거둔다. 상태 파일은 저장 때 `fileLock` 안에서 읽기-병합-쓰기라 leader가 아닌 프로세스의 `create`·`cancel`도 안전하다. 포트가 없으면 이 서비스가 유일한 틱이다(시험, 단일 프로세스). 파일 저장소에는 claim 트랜잭션이 없으므로 펜싱은 틱 안의 `holds` 대조와 실행 멱등 키(`<scheduleId>:<dueAt>`)가 맡는다.
+
 #### 4.4.4 놓친 실행과 중복 방지
 
 놓친 기한: `now - dueAt > l2.schedule.timers.lateGraceSeconds`(기본 120초)인 기한이다. 서비스가 떠 있지 않았거나(재부팅, 수동 종료) 기기가 잠들어 있던 동안 생긴다. 2차 OS 등록 전에는 재부팅 뒤 사용자가 앱이나 CLI를 열어 `ensure`가 서비스를 띄울 때까지 놓친 기한이 쌓인다(ADR-0006 §4.2).
@@ -1362,6 +1364,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 - 기본값은 `"autoStart"`다 [결정: review.decisions-2 U-23]. 서비스 모드 자동 기동은 결정 2의 1차 범위이고, 기동에 실패하면 거부하므로 사용자가 "예약했는데 안 돌았다"를 겪지 않는다. `L2.readme` §8의 수준 2 규칙과 같다. UC-4 대안 흐름("앱을 닫으면 멈춘다는 점을 예약 생성 때 표시한다")은 `"keepWithWarning"`이 구현한다.
 - 서비스 모드가 꺼진 채 저장된 예약은 `create` 결과(기능 출력)의 `warnings`에 `service_mode_off`를 싣고, 모델 도구 `schedule_create`는 결과 한 줄에 `warning=service_mode_off`와 사용자에게 알리라는 안내를 붙인다. 모델이 "예약했다"고만 답하지 않게 하려는 것이다 [제안].
+- [결정: 2026-11-04 사용자, l2/F-03, prod/P-AUTOSTART] 실제 기본 동작. 클라이언트가 서비스를 기동하는 경로가 아직 없으므로 `whenServiceOff` 설정과 `"autoStart"`는 구현하지 않는다(M4). 실제로는 `"keepWithWarning"`이 기본이고 경고 이름은 `service_mode_off` 하나다(`runs_only_while_app_open`은 쓰지 않는다, B13). `create`는 늘 저장한다. 틱은 서비스 프로세스와, 서비스를 쓰지 않는 앱 엔진(stdio, 데스크톱)이 Scheduler leader를 쥐고 돌린다(`L4.host-service.spec` HS-40, HS-83). 앱 엔진이 떠 있는 동안 기한이 된 항목은 서비스 모드 없이 실행되고, 앱을 닫은 동안의 기한은 다음에 열 때 §4.4.4의 한 번 따라잡기(`once`)와 최소 간격 300초를 따른다(B12 확정).
+- `service_mode_off` 경고는 만든 항목이 실제로 실행되지 않을 때만 싣는다: 이 프로세스가 틱을 돌리지 않고(in-process CLI, 서비스를 쓰도록 설정한 앱) 살아 있는 Scheduler leader도 다른 프로세스에 없을 때다. 사용자가 보는 것은 CLI의 stderr 한 줄과 모델 도구 결과의 `warning=service_mode_off`다. 서비스 자동 기동(`"autoStart"`)은 클라이언트의 `ensure` 경로가 생기면 다시 본다.
 - 자동 기동 요청 경로는 `l2.schedule.service.ensureOnCreate`와 같은 클라이언트 호스트 `ensure`다. 요청 경로는 `L4.host-service.spec`이 정한다 [가정].
 - 서비스 모드가 켜져 있는데 서비스가 떠 있지 않으면 `create`는 저장한 뒤, `l2.schedule.service.ensureOnCreate`(기본 참)이면 클라이언트 호스트에 `ensure`를 요청한다. 요청 경로는 `L4.host-service.spec`이 정한다 [가정].
 

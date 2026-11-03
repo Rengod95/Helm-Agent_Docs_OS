@@ -22,6 +22,25 @@ function entryViewOf(entry: ScheduleEntry): ScheduleEntryView {
   return { ...entry, trigger: triggerViewOf(entry.trigger) };
 }
 
+/** `list` 한 쪽의 최대 항목 수. 입력 `limit`을 생략했을 때의 크기이기도 하다 */
+const LIST_PAGE_MAX = 200;
+
+/**
+ * 저장 순서의 목록에서 한 쪽을 자른다(l2/F-01). 가장 새 쪽에서 시작하고 `before`가 있으면 그 항목보다 오래된 쪽이다.
+ * 알 수 없는 `before`는 빈 쪽이다. 더 오래된 항목이 남으면 `nextBefore`가 이 쪽 가장 오래된 항목의 ID다
+ */
+export function pageEntries(
+  entries: readonly ScheduleEntry[],
+  before: string | undefined,
+  limit: number = LIST_PAGE_MAX,
+): { readonly page: readonly ScheduleEntry[]; readonly nextBefore: string | undefined } {
+  const at = before === undefined ? entries.length : entries.findIndex((e) => e.id === before);
+  const end = at < 0 ? 0 : at;
+  const start = Math.max(0, end - limit);
+  const page = entries.slice(start, end);
+  return { page, nextBefore: start > 0 ? page[0]?.id : undefined };
+}
+
 function reject(
   method: string,
   code: string,
@@ -101,15 +120,18 @@ export function createScheduleApi(
       abortIf("list", options?.signal);
       const opened = await service.open();
       if (!opened.ok) throw storeRejection("list", opened.error);
-      const items = service
-        .list()
-        .filter((entry) => input.enabled === undefined || entry.enabled === input.enabled)
-        .slice(-200)
-        .map((entry) => ({
-          entry: entryViewOf(entry),
-          lastRun: service.runs(entry.id, 1)[0] ?? null,
-        }));
-      return { items };
+      const { page, nextBefore } = pageEntries(
+        service
+          .list()
+          .filter((entry) => input.enabled === undefined || entry.enabled === input.enabled),
+        input.before,
+        input.limit,
+      );
+      const items = page.map((entry) => ({
+        entry: entryViewOf(entry),
+        lastRun: service.runs(entry.id, 1)[0] ?? null,
+      }));
+      return nextBefore === undefined ? { items } : { items, nextBefore };
     },
 
     async cancel(input, options) {
