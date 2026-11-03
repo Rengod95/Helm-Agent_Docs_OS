@@ -430,7 +430,11 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
   const loaded = useLoaded(runtime, entry, threadId);
   const key = screenKeyOf(entry);
   const frameDisabled = useDisabled(runtime, key);
-  const inactive = usePluginUiState().inactive.has(entry.extension);
+  const pluginState = usePluginUiState();
+  const inactive = pluginState.inactive.has(entry.extension);
+  const rootSkipped = pluginState.rootsSkipped.find(
+    (skipped) => skipped.extension === entry.extension && skipped.version === entry.version,
+  );
   let body: ReactNode;
   if (entry.state === "disabled") body = <Note text={t("desktop.plugin.state.disabled")} />;
   else if (entry.state === "invalid") {
@@ -441,6 +445,9 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
   // 꺼졌거나 안전 모드가 된 확장은 열린 프레임과 폴링을 거두고 알림만 보인다(본문을 그리지 않으면 거둬진다)
   else if (inactive || !loaded.context.enabled || loaded.context.safeMode) {
     body = <Note text={t("desktop.plugin.state.disabled")} />;
+  } else if (entry.mode === "app" && rootSkipped !== undefined && runtime.framesAllowed(entry)) {
+    // 셸이 이 앱의 root를 받지 않았다. 그리면 프레임 주소가 404이므로 이유만 보인다
+    body = <Note text={t("desktop.plugin.state.invalid", { reason: rootSkipped.kind })} />;
   } else if (entry.mode === "app" && runtime.framesAllowed(entry)) {
     body = frameDisabled ? (
       <DisabledNote runtime={runtime} keyName={key} />

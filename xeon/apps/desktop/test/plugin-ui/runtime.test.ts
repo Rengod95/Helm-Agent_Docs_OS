@@ -124,6 +124,20 @@ describe("plugin ui runtime", () => {
     expect(h.calls.filter((call) => call.method === "ext.ui.list").length).toBe(2);
   });
 
+  test("roots the shell skipped are kept in the state, and the rest of the list still reaches it", async () => {
+    const fake = fakeConnection(table([setting("x.ui.apps", true)]));
+    const runtime = createPluginUiRuntime({
+      withConnection: async <T>(run: (connection: HostConnection) => Promise<T>) =>
+        ok(await run(fake.connection)),
+      appRootsInvoke: () => Promise.resolve([{ index: 0, kind: "outside_install" }]),
+      framesSupported: true,
+    });
+    await runtime.refresh();
+    expect(runtime.getState().rootsSkipped).toEqual([
+      { extension: "helm", version: "0.1.0", kind: "outside_install" },
+    ]);
+  });
+
   test("an offline engine keeps the last entries and says offline", async () => {
     const h = harness(table([]), { offline: true });
     await h.runtime.refresh();

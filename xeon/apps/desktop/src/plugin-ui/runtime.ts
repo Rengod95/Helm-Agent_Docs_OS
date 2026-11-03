@@ -2,7 +2,7 @@ import { err, ok, type Result } from "@fresnel/contracts";
 import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
 import { createScreenLedger, type ScreenLedger } from "@fresnel/client/views/ledger";
 import type { BridgePolicyContext } from "@fresnel/client/views/app";
-import { syncAppRoots, type AppRootsInvoke } from "./app-roots.ts";
+import { syncAppRoots, type AppRootsInvoke, type SkippedAppRoot } from "./app-roots.ts";
 import { groupPlacements, type PlacementGroups } from "./placements.ts";
 import {
   appsAllowed,
@@ -24,6 +24,8 @@ export interface PluginUiState {
   readonly groups: PlacementGroups;
   /** 꺼졌거나 안전 모드로 실리지 않은 확장 이름. 이 확장의 화면은 프레임과 폴링을 닫고 앱 root도 셸에 알리지 않는다 */
   readonly inactive: ReadonlySet<string>;
+  /** 셸이 건너뛴 앱 root(나쁜 항목). 그 확장의 앱 화면은 그리지 못하고 이유를 보인다 */
+  readonly rootsSkipped: readonly SkippedAppRoot[];
 }
 
 export interface PluginUiRuntimeDeps {
@@ -54,14 +56,23 @@ export interface PluginUiRuntime {
 
 const EMPTY_SETTINGS: Readonly<Record<string, unknown>> = {};
 const NO_NAMES: ReadonlySet<string> = new Set();
+const NO_SKIPPED: readonly SkippedAppRoot[] = [];
 
 function stateOf(
   phase: PluginUiPhase,
   entries: readonly ExtUiEntry[],
   settings: Readonly<Record<string, unknown>>,
   inactive: ReadonlySet<string>,
+  rootsSkipped: readonly SkippedAppRoot[] = NO_SKIPPED,
 ): PluginUiState {
-  return { phase, entries, settings, groups: groupPlacements(entries, settings), inactive };
+  return {
+    phase,
+    entries,
+    settings,
+    groups: groupPlacements(entries, settings),
+    inactive,
+    rootsSkipped,
+  };
 }
 
 export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntime {
@@ -99,7 +110,7 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
       return { items: list.items, extensions: extensions.extensions, settings: got.settings };
     });
     if (!read.ok) {
-      set(stateOf("offline", state.entries, state.settings, state.inactive));
+      set(stateOf("offline", state.entries, state.settings, state.inactive, state.rootsSkipped));
       return;
     }
     const values: Record<string, unknown> = {};
@@ -114,10 +125,13 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
     set(stateOf("ready", read.value.items, settings, inactive));
     if (deps.appRootsInvoke !== undefined && deps.framesSupported) {
       // 꺼진 확장의 앱 root는 셸에 두지 않는다. 거부 이유는 화면이 앱 root 없이 그리는 것으로 드러난다(프레임 주소가 404). 여기서는 던지지 않는다
-      await syncAppRoots(
+      const synced = await syncAppRoots(
         deps.appRootsInvoke,
         read.value.items.filter((item) => !inactive.has(item.extension)),
       );
+      if (synced.ok && synced.value.length > 0) {
+        set(stateOf("ready", read.value.items, settings, inactive, synced.value));
+      }
     }
   }
 
