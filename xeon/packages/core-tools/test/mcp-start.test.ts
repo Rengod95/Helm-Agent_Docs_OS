@@ -147,3 +147,38 @@ test("the policy check uses the mcp.start purpose and the mcp:<server> command t
     approval: null,
   });
 });
+
+// 결정 2026-11-04 A3. 시크릿 없는 프로젝트 출처 명령도 정의 해시마다 한 번 묻고, 바뀐 정의만 다시 묻는다. 시크릿 서비스는 필요 없다.
+test("a secretless project command asks once per definition hash and only a changed command asks again", async () => {
+  const world = await fakeApprovals();
+  const thread = world.ids.next("thr");
+  await world.openThread(thread);
+  const gate = createMcpStartGate({
+    approvals: world.approvals,
+    secrets: undefined,
+    hash: hashOf,
+    clock: { now: () => 1_000 },
+    logger: undefined,
+  });
+  const resolved: string[] = [];
+  gate.onResolved((server) => resolved.push(server));
+  const plain: McpStartDefinition = {
+    server: "proj",
+    source: "mcpjson:project",
+    command: "node-srv",
+    args: ["a"],
+    cwd: null,
+    env: {},
+    secretEnv: {},
+  };
+  expect(await gate.check(plain, { threadId: thread })).toEqual({ kind: "pending" });
+  const [request] = world.approvals.pending(thread);
+  expect(request?.title).toBe('Run MCP server "proj" (node-srv)?');
+  await world.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
+  await until(() => resolved.length > 0);
+  expect((await gate.check(plain, { threadId: thread })).kind).toBe("approved");
+  const changed: McpStartDefinition = { ...plain, command: "evil-srv" };
+  expect(await gate.check(changed, { threadId: thread })).toEqual({ kind: "pending" });
+  expect(world.approvals.pending(thread)).toHaveLength(1);
+  expect((await gate.check(plain, { threadId: thread })).kind).toBe("approved");
+});

@@ -966,7 +966,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 #### 4.12.1 MCP 서버 기동 승인 [결정: M3-05, M3-REQ-75]
 
-시크릿 env(`secret://` 참조)를 쓰는 stdio MCP 서버는 도구 호출이 아니라 연결 때 뜬다. 기동 승인은 서버 정의 해시마다 한 번이고 정의가 바뀌면 다시 받는다(`L2.mcp.spec` §4.3, `L0.secrets.spec` §4.3.1).
+시크릿 env(`secret://` 참조)를 쓰는 stdio MCP 서버는 도구 호출이 아니라 연결 때 뜬다. 시크릿이 없어도 프로젝트 출처(`.mcp.json` 등) 명령은 같은 게이트로 묻는다 [결정: 2026-11-04 사용자 A3]. 이때는 시크릿 정책 판정(②)을 건너뛰고 제목이 `Run MCP server "<id>" (<명령>)?`다. 기동 승인은 서버 정의 해시마다 한 번이고 정의가 바뀌면 다시 받는다(`L2.mcp.spec` §4.3, `L0.secrets.spec` §4.3.1).
 
 - 승인 레코드: kind `tool`의 비차단 요청이다. 본문은 `toolName: "mcp_start"`, `risk: "exec"`, `ruleId: "mcp.start"`, `argsHash`는 정의 해시, `args`는 `{ server, source, command, args, cwd, envNames, secretEnv, definitionHash }`다. 평문 env 값은 싣지 않고 이름만 싣는다(해시가 값을 덮는다). 제목은 `Start MCP server "<id>" with <시크릿 참조>?`다. 요청 키는 `mcpstart:<서버 id>:<해시 앞 24자>`라 같은 정의는 같은 요청이다.
 - `createMcpStartGate`가 흐름을 맡는다: ① 해시와 같은 정의에 받은 증거가 있으면 `approved`. ② `fresnel.secrets.check`를 `mcp.start:<서버 id>` 맥락(대상 `mcp:<서버 id>`)으로 시크릿마다 부르고 거부가 있으면 `denied`(요청을 올리지 않는다). ③ 대화가 없으면 `pending`이다(올릴 곳이 없다). ④ `open`으로 요청을 올리고 응답이 없으면 `pending`, 허용이면 `approved`, 거부면 `denied`다.
