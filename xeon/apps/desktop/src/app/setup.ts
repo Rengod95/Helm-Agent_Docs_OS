@@ -6,6 +6,7 @@ import {
   defaultModelOf,
   PROVIDERS_KEY,
   providersOf,
+  readProviders,
   withProviderKey,
   type BinaryView,
   type KeyRegisterError,
@@ -104,11 +105,16 @@ export function createSetupCommands(
       // 목록 전체를 한 키로 쓰므로(병합 단위는 키 하나) 현재 값을 읽어 원소만 바꾼 목록을 보낸다
       const current = await run((c) => c.request("settings.get", { keys: [PROVIDERS_KEY] }));
       if (!current.ok) return current;
-      const providers = withProviderKey(
-        providersOf(current.value.settings[0]?.value),
-        providerId,
-        secretName,
-      );
+      // 읽을 수 없는 목록 위에는 쓰지 않는다: 빈 목록으로 보고 쓰면 다른 provider와 baseUrl이 사라진다
+      const stored = readProviders(current.value.settings[0]?.value);
+      if (!stored.ok) {
+        return err({
+          kind: "rejected",
+          code: null,
+          detail: "the stored provider list cannot be read, so it was left as it is",
+        });
+      }
+      const providers = withProviderKey(stored.value, providerId, secretName);
       const written = await run((c) =>
         c.request("settings.set", { key: PROVIDERS_KEY, value: providers, scope: SCOPE }),
       );

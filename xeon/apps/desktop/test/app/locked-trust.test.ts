@@ -322,6 +322,24 @@ describe("settings screen wire", () => {
     await app.stop();
   });
 
+  // f/F-01: 읽을 수 없는 목록을 빈 목록으로 보고 그 위에 쓰면 사용자 provider 설정이 사라졌다
+  test("connectProviderKey does not write over a stored provider list it cannot read", async () => {
+    const { app, params } = await liveApp({
+      results: {
+        "settings.get": {
+          settings: [setting("l1.models.providers", [{ id: "openai", extra: "field" }])],
+        },
+        "settings.set": { setting: setting("l1.models.providers", []) },
+      },
+    });
+    const name = providerSecretName("anthropic");
+    if (!name.ok) throw new Error("fixture");
+    const done = await app.commands.setup.connectProviderKey("anthropic", name.value);
+    expect(done.ok).toBe(false);
+    expect(params.some((p) => p.method === "settings.set")).toBe(false);
+    await app.stop();
+  });
+
   test("setDefaultModel writes the user scope; beginKeyEntry sends the name and action only", async () => {
     const { app, params } = await liveApp({
       results: {
