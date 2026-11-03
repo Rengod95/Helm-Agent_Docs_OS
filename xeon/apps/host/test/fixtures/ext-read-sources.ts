@@ -110,9 +110,30 @@ export function createRecordedSources(patch: Partial<ExtReadSources> = {}): Reco
     ],
     // 디스패치 순서는 이름 순이 아니다: team의 tier가 더 낮아 먼저 돈다
     hookHandlers: () => [
-      { point: "input.bash.before", registrationId: "team", extension: "team", tier: 0 },
-      { point: "input.user.before", registrationId: "team", extension: "team", tier: 0 },
-      { point: "input.user.before", registrationId: "alpha", extension: "alpha", tier: 1 },
+      {
+        point: "input.bash.before",
+        registrationId: "team",
+        extension: "team",
+        tier: 0,
+        loadIndex: 1,
+        seq: 0,
+      },
+      {
+        point: "input.user.before",
+        registrationId: "team",
+        extension: "team",
+        tier: 0,
+        loadIndex: 1,
+        seq: 0,
+      },
+      {
+        point: "input.user.before",
+        registrationId: "alpha",
+        extension: "alpha",
+        tier: 1,
+        loadIndex: 0,
+        seq: 0,
+      },
     ],
     boundCapabilities: () => [{ capability: "alpha.cap", provider: "alpha", version: "1.0.0" }],
     threadStatus: (threadId, registrationId) =>

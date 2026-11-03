@@ -156,10 +156,12 @@ function wireErrorOfProfileStore(failure: ProfileStoreFailure): WireError {
   }
 }
 
-function wireErrorOfWrite(
+/** 설정 쓰기 실패를 와이어 오류로 옮긴다. `where`는 메시지와 저장소 오류 머리말이다(프로필 적용은 `profile.apply`, 순서 쓰기는 메서드 이름) */
+export function wireErrorOfWrite(
   key: string,
   failure: ProfileWriteFailure,
   errors: HostErrorMappers,
+  where = "profile.apply",
 ): WireError {
   switch (failure.kind) {
     case "untrusted_project":
@@ -178,16 +180,16 @@ function wireErrorOfWrite(
       return errors.threadLocked();
     case "file_invalid":
       return wireError("store.io", {
-        message: "profile.apply: the settings file is not a JSON object",
+        message: `${where}: the settings file is not a JSON object`,
         details: { code: "settings_file_invalid" },
       });
     case "file_unwritable":
       return wireError("store.io", {
-        message: "profile.apply: the settings file cannot be written",
+        message: `${where}: the settings file cannot be written`,
         details: { code: failure.code.slice(0, 64) },
       });
     case "key_reused":
-      return wireError("internal", { message: "profile.apply: settings request key reused" });
+      return wireError("internal", { message: `${where}: settings request key reused` });
     case "busy":
     case "disk_full":
     case "io":
@@ -195,7 +197,7 @@ function wireErrorOfWrite(
     case "read_only":
     case "thread_not_found":
     case "row_invalid":
-      return errors.ofStore(failure, "profile.apply");
+      return errors.ofStore(failure, where);
     default:
       return assertNever(failure, "ProfileWriteFailure");
   }

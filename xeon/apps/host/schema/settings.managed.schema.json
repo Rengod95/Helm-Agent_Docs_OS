@@ -5974,6 +5974,35 @@
         }
       }
     },
+    "x.operations.hookOrder": {
+      "default": {},
+      "patternProperties": {
+        "^.*$": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "훅마다 핸들러(Registration id) 실행 순서를 사용자가 정한다. 새 단계가 시작될 때 적용한다. guard tier 핸들러는 항상 맨 앞이고 옮길 수 없다.",
+          "label": "핸들러 순서",
+          "order": 600,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
     "x.operations.safeMode.default": {
       "default": false,
       "type": "boolean",
