@@ -78,6 +78,9 @@ export interface ManifestInput {
   readonly provides?: PluginDecl["provides"];
   readonly recordKinds?: PluginDecl["recordKinds"];
   readonly readsRecordKinds?: PluginDecl["readsRecordKinds"];
+  readonly replaces?: PluginDecl["replaces"];
+  /** 확장 수준 신뢰 요청 */
+  readonly trust?: ExtensionManifest["trust"];
   /** 루트 뒤에 붙는 플러그인 선언. 각각 `id`가 있어야 한다 */
   readonly extraPlugins?: readonly PluginDecl[];
   /** 확장 수준 메서드 선언(F.extensions.spec §3.1.1). 처리기 등록(`registerMethod`)은 이 목록의 동사만 받는다 */
@@ -96,6 +99,7 @@ export function makeManifest(input: ManifestInput): ExtensionManifest {
     ...(input.provides === undefined ? {} : { provides: input.provides }),
     ...(input.recordKinds === undefined ? {} : { recordKinds: input.recordKinds }),
     ...(input.readsRecordKinds === undefined ? {} : { readsRecordKinds: input.readsRecordKinds }),
+    ...(input.replaces === undefined ? {} : { replaces: input.replaces }),
   };
   return {
     schemaVersion: 2,
@@ -104,6 +108,7 @@ export function makeManifest(input: ManifestInput): ExtensionManifest {
     entry: "./src/index.ts",
     plugins: [root, ...(input.extraPlugins ?? [])],
     ...(input.defaultEnabled === undefined ? {} : { defaultEnabled: input.defaultEnabled }),
+    ...(input.trust === undefined ? {} : { trust: input.trust }),
     ...(input.group === undefined ? {} : { group: input.group }),
     ...(input.methods === undefined ? {} : { methods: input.methods }),
   };

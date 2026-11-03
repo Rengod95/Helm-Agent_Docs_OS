@@ -14,6 +14,7 @@ import {
   type PortLookup,
   type ProviderResourceDef,
   type RegistrationId,
+  type ToolReplaceClaim,
   type ToolResourceDef,
   type Unsubscribe,
 } from "@fresnel/contracts/extensions";
@@ -56,6 +57,8 @@ export interface ResourceRecord {
   readonly builtin: boolean;
   /** kind별 `*ResourceDef` */
   readonly def: unknown;
+  /** 매니페스트 `replaces`에 선언한 이름으로 내장 도구를 대체하는 등록이다. 이름 정책을 거치지 않고 요청한 이름 그대로 노출한다(F.capabilities.spec §10) */
+  readonly replaces?: ToolReplaceClaim;
 }
 
 /** `ResourcePolicy.exposeAll`이 레코드마다 돌려주는 노출 이름. 레코드는 (kind, scopeId, name)으로 가리킨다 */
@@ -176,6 +179,7 @@ export interface ResourceSpec {
   readonly extension: ExtensionName;
   readonly builtin: boolean;
   readonly def: unknown;
+  readonly replaces?: ToolReplaceClaim;
 }
 
 export interface ResourceStore extends ResourceRegistry {
@@ -265,13 +269,17 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
           replay: original.replay,
           ...(original.risk === undefined ? {} : { risk: original.risk }),
           ...(original.hints === undefined ? {} : { hints: original.hints }),
+          ...(record.replaces === undefined ? {} : { replaces: record.replaces }),
           execute: (args, ctx) => original.execute(args, ctx),
         });
         if (!registered.ok) {
+          const failure = registered.error;
           return err(
             new PrimitiveError(
               "resource_conflict",
-              `tool ${record.exposed} is already registered in fresnel.tools`,
+              failure.kind === "name_conflict"
+                ? `tool ${record.exposed} is already registered in fresnel.tools`
+                : `tool ${record.exposed} cannot replace the built-in tool: ${failure.kind}`,
               { scopeId: record.scopeId },
             ),
           );
@@ -335,7 +343,8 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
   function reexpose(kind: ResourceKind, extra?: ResourceRecord): ResourceExposure | undefined {
     const policy = deps.policy;
     if (policy?.exposeAll === undefined || !GOVERNED.has(kind)) return undefined;
-    const records = recordsOf(kind);
+    // 대체 등록은 이름 정책의 집합에 넣지 않는다. 요청한 이름이 곧 노출 이름이다
+    const records = recordsOf(kind).filter((record) => record.replaces === undefined);
     const exposures = policy.exposeAll(extra === undefined ? records : [...records, extra]);
     const mine =
       extra === undefined
@@ -410,6 +419,21 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
       }
       let record: ResourceRecord = { ...spec, exposed: spec.name };
       const sameKind = recordsOf(spec.kind);
+      if (spec.replaces !== undefined) {
+        // 한 이름에 대체는 하나다. 내장 도구와의 겹침 판정은 대상 포트(fresnel.tools)가 한다
+        const rival = sameKind.find(
+          (other) => other.replaces !== undefined && other.name === spec.name,
+        );
+        if (rival !== undefined) {
+          return err(
+            new PrimitiveError(
+              "resource_conflict",
+              `tool ${spec.name} is already replaced by ${rival.extension} (replace_conflict)`,
+              { scopeId: spec.scopeId },
+            ),
+          );
+        }
+      }
       // 확장 메서드 동사는 확장 안에서 유일하다. 다른 Registration의 같은 동사도 거부하고 이름 정책은 거치지 않는다
       if (
         spec.kind === "ext_method" &&
@@ -425,7 +449,9 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
       }
       const policy = deps.policy;
       let setLevel = false;
-      if (policy?.exposeAll !== undefined && GOVERNED.has(spec.kind)) {
+      if (spec.replaces !== undefined) {
+        // 요청한 이름을 그대로 노출한다
+      } else if (policy?.exposeAll !== undefined && GOVERNED.has(spec.kind)) {
         setLevel = true;
         const mine = reexpose(spec.kind, record);
         if (mine?.reason === "too_long") {
