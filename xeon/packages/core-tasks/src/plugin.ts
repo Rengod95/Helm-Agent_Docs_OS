@@ -5,7 +5,11 @@ import {
   type ExtensionEntry,
   type ExtensionManifest,
 } from "@fresnel/contracts/extensions";
-import { SessionPortKey, TaskServicePortKey } from "@fresnel/contracts/services";
+import {
+  SessionPortKey,
+  StoreServicePortKey,
+  TaskServicePortKey,
+} from "@fresnel/contracts/services";
 import { hostOf } from "@fresnel/ext-host";
 import { createTaskService } from "./service.ts";
 import type { TasksSettingsSource } from "./settings-source.ts";
@@ -39,12 +43,14 @@ export function createTasksEntry(deps: TasksPluginDeps): ExtensionEntry {
     register(manifest.name, {}, (g) => {
       const host = hostOf(g);
       const session = host.port(SessionPortKey);
+      const store = host.port(StoreServicePortKey);
       const service = createTaskService({
         session,
         producer: session.producer("core.tasks"),
         ids: deps.ids,
         settings: deps.settings,
         log: deps.log,
+        readBlob: (ref) => store.readBlob(ref),
       });
       host.providePort(TaskServicePortKey, service);
       g.onDispose(() => service.close());

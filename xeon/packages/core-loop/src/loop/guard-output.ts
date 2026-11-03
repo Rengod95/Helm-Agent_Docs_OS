@@ -23,6 +23,8 @@ export async function guardFinalOutput(
   message: AssistantMessage,
 ): Promise<AssistantMessage> {
   if (message.content.some((block) => block.type === "toolCall")) return message;
+  // 사용자가 스트리밍 중에 중단한 부분 답은 가드 대상이 아니다. 그대로 기록한다(spec §4.11, 부분 출력에는 걸지 않는다)
+  if (message.stopReason === "aborted") return message;
   const content = textOf(message);
   if (content === "") return message;
   const { ctx, threadId, turnId, scope } = run;

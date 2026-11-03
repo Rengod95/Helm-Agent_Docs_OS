@@ -568,6 +568,60 @@ describe("detached payloads", () => {
   });
 });
 
+/** 첫 입력의 payload 문자열을 blob 자리표시로 바꾸고 detached를 붙인다(큰 입력이 커밋되면 writer가 하는 일) */
+function detach(world: World, index: number, sha: string): void {
+  const event = world.session.events.filter((candidate) => candidate.kind === "input.queued")[
+    index
+  ];
+  if (event === undefined) throw new Bug("missing event");
+  const payload: unknown = event.payload;
+  if (typeof payload !== "object" || payload === null || !("item" in payload)) {
+    throw new Bug("unexpected payload");
+  }
+  Reflect.set(payload.item ?? {}, "content", `blob:sha256:${sha}`);
+  Reflect.set(event, "detached", [
+    { pointer: "/item/content", ref: { type: "blob", sha256: sha, size: 10, mediaType: null } },
+  ]);
+}
+
+describe("large inputs", () => {
+  test("a detached input is read back from its blob and handed out with the full text", async () => {
+    const sha = "b".repeat(64);
+    const world = createWorld({
+      readBlob: (ref) =>
+        ref.sha256 === sha
+          ? ok(new TextEncoder().encode("the very large pasted text"))
+          : { ok: false, error: { kind: "blob_missing", sha256: ref.sha256 } },
+    });
+    await mustEnqueue(world, userDraft(world.threadId, "big", { mode: "followUp" }));
+    detach(world, 0, sha);
+    const [peeked] = unwrapped(world.tasks.inputs.peek(world.threadId));
+    expect(peeked?.item).toEqual({ kind: "user", content: "the very large pasted text" });
+    expect(viewSelection(world, "turnStart").inputs.map((input) => input.item)).toEqual([
+      { kind: "user", content: "the very large pasted text" },
+    ]);
+  });
+
+  test("an input whose blob is gone does not block the inputs behind it", async () => {
+    const world = createWorld({
+      readBlob: (ref) => ({ ok: false, error: { kind: "blob_missing", sha256: ref.sha256 } }),
+    });
+    await mustEnqueue(world, userDraft(world.threadId, "lost"));
+    await mustEnqueue(world, userDraft(world.threadId, "next-steer"));
+    await mustEnqueue(world, userDraft(world.threadId, "later", { mode: "followUp" }));
+    detach(world, 0, "c".repeat(64));
+    expect(viewSelection(world, "stepEnd").inputs.map((input) => input.requestId)).toEqual([
+      "next-steer",
+    ]);
+    expect(viewSelection(world, "turnStart").inputs.map((input) => input.requestId)).toEqual([
+      "next-steer",
+    ]);
+    expect(world.log.records.map((record) => record.event)).toContain(
+      "tasks.queued_input_blob_unreadable",
+    );
+  });
+});
+
 describe("drain", () => {
   test("steer_vs_followup_drain_order", async () => {
     const world = await seeded();

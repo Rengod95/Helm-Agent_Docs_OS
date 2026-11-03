@@ -13,6 +13,7 @@ import type {
   TaskService,
 } from "@fresnel/contracts/services";
 import { CLOSE_ABORT_REASON, UNKNOWN_ABORT_REASON } from "./abort-reason.ts";
+import type { BlobReader } from "./input-events.ts";
 import { createInputQueue } from "./input-queue.ts";
 import { createKeyedQueue } from "./keyed-queue.ts";
 import { createLimiter } from "./limiter.ts";
@@ -27,6 +28,8 @@ export interface TaskServiceDeps {
   readonly ids: IdFactory;
   readonly settings: TasksSettingsSource;
   readonly log: Logger;
+  /** blob 동기 읽기(fresnel.store). 큰 입력의 detached 필드를 되돌려 큐에서 꺼낼 수 있게 한다 */
+  readonly readBlob?: BlobReader;
 }
 
 /** 스레드 목록을 한 쪽에 읽는 크기(ThreadListQuery.limit 상한) */

@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { Message } from "@fresnel/contracts/conversation";
 import {
+  checkReply,
   computeFileLists,
+  FILE_LIST_MAX_CHARS,
   extractFileOps,
   formatFileOperations,
   fileOpsFromDetails,
@@ -109,5 +111,55 @@ describe("prompts", () => {
     expect(UPDATE_SUMMARIZATION_PROMPT).toContain("<previous-summary>");
     expect(UPDATE_SUMMARIZATION_PROMPT).toContain("PRESERVE all existing information");
     expect(TURN_PREFIX_SUMMARIZATION_PROMPT).toContain("## Original Request");
+  });
+});
+
+describe("file list budget", () => {
+  test("a long history keeps the newest paths inside the budget and a repeated path counts as newest", () => {
+    const paths = Array.from(
+      { length: 1600 },
+      (_, i) => `src/dir/file-${String(i).padStart(4, "0")}.ts`,
+    );
+    const calls = paths.map((path, i) => ({
+      type: "toolCall" as const,
+      id: String(i),
+      name: "read",
+      arguments: { path },
+    }));
+    const first = extractFileOps([assistantWith(calls.slice(0, 800))], { read: [], modified: [] });
+    const second = extractFileOps([assistantWith(calls.slice(800))], first);
+    const chars = second.read.reduce((sum, path) => sum + path.length + 1, 0);
+    expect(chars).toBeLessThanOrEqual(FILE_LIST_MAX_CHARS);
+    expect(second.read.at(-1)).toBe("src/dir/file-1599.ts");
+    expect(second.read).not.toContain("src/dir/file-0000.ts");
+    const again = extractFileOps(
+      [
+        assistantWith([
+          { type: "toolCall", id: "x", name: "read", arguments: { path: "src/dir/file-1000.ts" } },
+        ]),
+      ],
+      second,
+    );
+    expect(again.read.at(-1)).toBe("src/dir/file-1000.ts");
+    expect(formatFileOperations(again.read, []).length).toBeLessThan(FILE_LIST_MAX_CHARS + 64);
+  });
+});
+
+const reply = (text: string) => ({
+  stopReason: "stop" as const,
+  text,
+  hasToolCall: false,
+  errorMessage: null,
+  usage,
+});
+
+describe("checkReply", () => {
+  test("an empty or blank summary is a failure and real text passes", () => {
+    expect(checkReply(reply(""), "Summarization")).toEqual({
+      kind: "summary_failed",
+      message: "Summarization failed: the model returned an empty summary",
+    });
+    expect(checkReply(reply("  \n\t "), "Summarization")?.kind).toBe("summary_failed");
+    expect(checkReply(reply("## Goal"), "Summarization")).toBeUndefined();
   });
 });

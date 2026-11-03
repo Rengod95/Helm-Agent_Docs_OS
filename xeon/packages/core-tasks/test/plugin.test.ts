@@ -7,6 +7,7 @@ import {
   type PortKey,
   type PostReceipt,
 } from "@fresnel/contracts/extensions";
+import type { StoreService } from "@fresnel/contracts/records";
 import { TaskServiceName, type TaskService } from "@fresnel/contracts/services";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import { createTestHost } from "@fresnel/ext-host/testing";
@@ -17,6 +18,7 @@ import { fixedIdFactory } from "./support/ids.ts";
 
 // fresnel.session 대역을 ext-host 포트로 제공한다. 키의 타입은 시험 대역에 맞춘다
 const FakeSessionKey: PortKey<MemorySession> = { name: "fresnel.session" };
+const FakeStoreKey: PortKey<Pick<StoreService, "readBlob">> = { name: "fresnel.store" };
 const TaskServiceKey: PortKey<TaskService> = { name: TaskServiceName };
 
 const POSTER_MANIFEST: ExtensionManifest = {
@@ -37,6 +39,9 @@ async function setup() {
     name: "fake-session",
     setup(ctx) {
       ctx.providePort(FakeSessionKey, session);
+      ctx.providePort(FakeStoreKey, {
+        readBlob: (ref) => ({ ok: false, error: { kind: "blob_missing", sha256: ref.sha256 } }),
+      });
     },
   });
   const unit: ExtensionUnit = {

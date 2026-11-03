@@ -3,6 +3,7 @@ import type { Logger } from "@fresnel/contracts";
 import type { IdFactory } from "@fresnel/contracts/conversation";
 import type { FaultInjector } from "@fresnel/contracts/records";
 import type { TaskService } from "@fresnel/contracts/services";
+import type { BlobReader } from "../input-events.ts";
 import { createTaskService } from "../service.ts";
 import { createStaticTasksSettings, type TasksSettingsSource } from "../settings-source.ts";
 import { recordingLogger } from "./log.ts";
@@ -18,6 +19,7 @@ export interface MemoryTasksOptions {
   readonly settings?: TasksSettingsSource;
   readonly log?: Logger;
   readonly faults?: FaultInjector;
+  readonly readBlob?: BlobReader;
 }
 
 export interface MemoryTasks {
@@ -39,6 +41,7 @@ export function memoryTasks(options: MemoryTasksOptions): MemoryTasks {
     ids: options.ids,
     settings: options.settings ?? createStaticTasksSettings(),
     log: options.log ?? recordingLogger().logger,
+    ...(options.readBlob === undefined ? {} : { readBlob: options.readBlob }),
   });
   return { tasks, session };
 }

@@ -149,6 +149,48 @@ describe("p_blob_refs collects placeholders in event payloads", () => {
   });
 });
 
+describe("p_blob_refs collects BlobRef objects anywhere in a payload", () => {
+  test("an artifact body and an approval argument BlobRef are live, and the older projection is rebuilt", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const body = "d".repeat(64);
+    const turnId = h.ids.next("trn");
+    const ref = { type: "blob", sha256: body, size: 12, mediaType: "text/plain" };
+    commitOrThrow(h, threadId, "artifact:body", () => ({
+      kind: "append",
+      drafts: [
+        draftOf(
+          h,
+          h.service.producer("cap.artifacts"),
+          "artifact.registered",
+          threadId,
+          { turnId, stepId: null },
+          {
+            artifactId: "art_01HZZZZZZZZZZZZZZZZZZZZZZZ",
+            kind: "doc",
+            title: "t",
+            version: 1,
+            content: ref,
+            sourcePath: null,
+            meta: {},
+            turnId: null,
+            toolCallId: null,
+            producer: "agent",
+          },
+        ),
+      ],
+      checkpoint: null,
+    }));
+    expect(expectOk(h.service.query.liveBlobRefs())).toEqual([body]);
+
+    h.store.raw.run("UPDATE projector_state SET version = 5 WHERE name = 'core'");
+    h.store.raw.run("DELETE FROM p_blob_refs");
+    const restarted = await reopenHarness(h);
+    expect(expectOk(restarted.service.query.liveBlobRefs())).toEqual([body]);
+    expectProjectionsRebuildable(restarted.store.db);
+  });
+});
+
 function blobFile(blobsDir: string, sha256: string): string {
   return join(blobsDir, sha256.slice(0, 2), sha256.slice(2));
 }

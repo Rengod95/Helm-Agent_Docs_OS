@@ -5,6 +5,8 @@ import {
   InputPlacedPayloadSchema,
   InputQueuedPayloadSchema,
   InputWithdrawnPayloadSchema,
+  type BlobError,
+  type BlobRef,
   type DurableEventEnvelope,
   type InputQueuedPayload,
   type InputView,
@@ -116,11 +118,46 @@ function readThreadEvents(
  * 투영 행(InputView) 하나에 대응하는 input.queued 이벤트를 읽어 QueuedInput으로 만든다.
  * 이벤트를 읽을 수 없거나 모양이 틀린 입력은 건너뛰고(undefined) 기록한다. 읽기 연결의 실패는 오류 값이다
  */
+/** blob 동기 읽기(fresnel.store `readBlob`). 큰 입력의 detached 필드를 되돌리는 데 쓴다 */
+export type BlobReader = (ref: BlobRef) => Result<Uint8Array, BlobError>;
+
+/** RFC 6901 포인터 토큰 해석 */
+function pointerTokens(pointer: string): readonly string[] {
+  if (pointer === "") return [];
+  return pointer
+    .slice(1)
+    .split("/")
+    .map((token) => token.replaceAll("~1", "/").replaceAll("~0", "~"));
+}
+
+/** 포인터 위치의 값을 바꾼 새 값을 돌려준다(원본을 바꾸지 않는다). 위치가 없으면 원본 그대로다 */
+function replaceAt(root: unknown, tokens: readonly string[], value: string): unknown {
+  const [head, ...rest] = tokens;
+  if (head === undefined) return value;
+  if (Array.isArray(root)) {
+    const items: readonly unknown[] = root;
+    const index = Number(head);
+    if (!Number.isInteger(index) || index < 0 || index >= items.length) return root;
+    return items.map((item, position) =>
+      position === index ? replaceAt(item, rest, value) : item,
+    );
+  }
+  if (typeof root === "object" && root !== null && head in root) {
+    const entries = Object.entries(root).map(([key, member]): [string, unknown] => [
+      key,
+      key === head ? replaceAt(member, rest, value) : member,
+    ]);
+    return Object.fromEntries(entries);
+  }
+  return root;
+}
+
 export function loadQueuedInput(
   session: Pick<TasksSession, "feed">,
   log: Logger,
   threadId: ThreadId,
   view: InputView,
+  readBlob?: BlobReader,
 ): Result<QueuedInput | undefined, ReadFailure> {
   const page = session.feed.read(
     view.seq - 1,
@@ -135,12 +172,29 @@ export function loadQueuedInput(
     log.error("tasks.queued_event_missing", { threadId, inputId: view.inputId, seq: view.seq });
     return ok(undefined);
   }
-  if (event.detached !== undefined && event.detached.length > 0) {
-    // 큰 문자열(이미지 data 등)이 blob 자리표시로 바뀐 입력은 동기 읽기로 되돌릴 수 없다. 자리표시를 모델에 보내지 않는다
-    log.error("tasks.queued_input_detached", { threadId, inputId: view.inputId });
-    return ok(undefined);
+  let payload: unknown = event.payload;
+  for (const field of event.detached ?? []) {
+    // 큰 문자열(이미지 data 등)은 blob 자리표시로 바뀌어 있다. blob을 읽을 수 없으면 자리표시를 모델에 보내지 않고 건너뛴다
+    if (readBlob === undefined) {
+      log.error("tasks.queued_input_detached", { threadId, inputId: view.inputId });
+      return ok(undefined);
+    }
+    const blob = readBlob(field.ref);
+    if (!blob.ok) {
+      log.error("tasks.queued_input_blob_unreadable", {
+        threadId,
+        inputId: view.inputId,
+        reason: blob.error.kind,
+      });
+      return ok(undefined);
+    }
+    payload = replaceAt(
+      payload,
+      pointerTokens(field.pointer),
+      new TextDecoder().decode(blob.value),
+    );
   }
-  const parsed = parse(InputQueuedPayloadSchema, event.payload);
+  const parsed = parse(InputQueuedPayloadSchema, payload);
   if (!parsed.ok) {
     log.error("tasks.queued_payload_invalid", { threadId, inputId: view.inputId });
     return ok(undefined);

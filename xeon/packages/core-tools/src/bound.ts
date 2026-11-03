@@ -49,6 +49,16 @@ function limitOriginal(bytes: Uint8Array): Uint8Array {
   return joined;
 }
 
+/** 앞에서 `maxBytes` 바이트까지의 UTF-8 글자 경계 접두. 첫 줄 하나가 한도를 넘을 때 미리보기로 쓴다 */
+function utf8Prefix(text: string, maxBytes: number): { text: string; bytes: number } {
+  const bytes = utf8Bytes(text);
+  if (bytes.length <= maxBytes) return { text, bytes: bytes.length };
+  let end = maxBytes;
+  // 잘리는 자리가 글자 중간(연속 바이트)이면 글자 처음까지 물린다
+  while (end > 0 && ((bytes[end] ?? 0) & 0xc0) === 0x80) end -= 1;
+  return { text: new TextDecoder().decode(bytes.subarray(0, end)), bytes: end };
+}
+
 function withTruncation(details: JsonValue | null, truncation: JsonObject): JsonValue | null {
   if (details === null) return { truncation };
   if (isJsonObject(details)) return { ...details, truncation };
@@ -110,7 +120,14 @@ export function boundResult(
   const stored = deps.store.putBlob(limitOriginal(utf8Bytes(full)), "text/plain; charset=utf-8");
   const blobRef = stored.ok ? stored.value : null;
   const blobError = stored.ok ? null : stored.error.kind;
-  const sizes = `${cut.outputLines} of ${cut.totalLines} lines (${deps.truncator.formatSize(cut.outputBytes)} of ${deps.truncator.formatSize(cut.totalBytes)})`;
+  // 첫 줄 하나가 바이트 한도를 넘으면 절단 함수는 빈 내용을 준다. 그 줄의 앞부분을 한도만큼 미리보기로 쓴다
+  const partial = cut.firstLineExceedsLimit
+    ? utf8Prefix(full.split("\n")[0] ?? "", limits.maxBytes)
+    : null;
+  const previewText = partial === null ? cut.content : partial.text;
+  const outputLines = partial === null ? cut.outputLines : 1;
+  const outputBytes = partial === null ? cut.outputBytes : partial.bytes;
+  const sizes = `${outputLines} of ${cut.totalLines} lines (${deps.truncator.formatSize(outputBytes)} of ${deps.truncator.formatSize(cut.totalBytes)})`;
   const notice =
     blobRef === null
       ? `[fresnel:output_truncated] Showing the first ${sizes}. The full output was not stored.`
@@ -118,14 +135,14 @@ export function boundResult(
   const truncation: JsonObject = {
     totalLines: cut.totalLines,
     totalBytes: cut.totalBytes,
-    outputLines: cut.outputLines,
-    outputBytes: cut.outputBytes,
+    outputLines,
+    outputBytes,
     truncatedBy: cut.truncatedBy,
     ...(blobError === null ? {} : { blobError }),
   };
   return {
     bounded: {
-      content: [{ type: "text", text: cut.content }, { type: "text", text: notice }, ...others],
+      content: [{ type: "text", text: previewText }, { type: "text", text: notice }, ...others],
       blobRef,
       truncated: true,
       totalLines: cut.totalLines,

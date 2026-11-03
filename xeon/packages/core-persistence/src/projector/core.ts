@@ -564,13 +564,25 @@ function placeholderHashesIn(value: unknown, into: string[]): void {
   }
 }
 
+/** payload 어디에 있든 BlobRef 모양(`{type:"blob", sha256, size, mediaType}`)인 객체의 해시를 모은다. kind와 필드 이름은 보지 않는다 */
+function blobRefHashesIn(value: unknown, into: string[]): void {
+  if (Array.isArray(value)) {
+    for (const entry of value) blobRefHashesIn(entry, into);
+  } else if (typeof value === "object" && value !== null) {
+    const ref = parse(BlobRefSchema, value);
+    if (ref.ok) into.push(ref.value.sha256);
+    else for (const entry of Object.values(value)) blobRefHashesIn(entry, into);
+  }
+}
+
 /**
- * 이 이벤트가 참조하는 blob 해시: `detached`의 BlobRef, effect.intent.args, effect.result.blobRef,
- * 그리고 payload 문자열의 `blob:sha256:<hex>` 자리표시(cap-mcp 내용, cap-dialog 이미지 첨부, cap-workspace 이미지)
+ * 이 이벤트가 참조하는 blob 해시: `detached`의 BlobRef, payload 어디에든 있는 BlobRef(산출물 본문, 승인 인자·계획 포함),
+ * effect.intent.args, effect.result.blobRef, 그리고 payload 문자열의 `blob:sha256:<hex>` 자리표시(cap-mcp 내용, cap-dialog 이미지 첨부, cap-workspace 이미지)
  */
 function blobHashesOf(event: DurableEventEnvelope): readonly string[] {
   const hashes = (event.detached ?? []).map((field) => field.ref.sha256);
   placeholderHashesIn(event.payload, hashes);
+  blobRefHashesIn(event.payload, hashes);
   if (event.kind === "effect.intent") {
     const intent = parse(EffectIntentSchema, event.payload);
     const ref = intent.ok ? parse(BlobRefSchema, intent.value.args) : undefined;
