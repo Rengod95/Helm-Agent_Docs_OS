@@ -1,11 +1,10 @@
 import { dirname } from "node:path";
 import { createInterface, type Interface } from "node:readline";
 import { fileURLToPath } from "node:url";
-import { attemptAsync, parseJson } from "@fresnel/contracts";
 import { resolveOsDirs, systemClock } from "@fresnel/platform-os";
 import { devWireRoundTripOf } from "./dev-mode.ts";
 import { createGroupTemplatesFs, locateGroupTemplates } from "./group/fs-port.ts";
-import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "./io.ts";
+import type { CliDeps, CliIo, CliSignal } from "./io.ts";
 
 // L4.cli.spec §3.4 "최상위 코드". 실제 프로세스(process, Bun)를 직접 쓰는 코드는 이 파일에만 둔다. 테스트는 이 파일을 쓰지 않고
 // runCli에 가짜 io·deps를 넣는다(그래서 이 파일은 커버리지 대상에서 제외하는 편이 맞다).
@@ -238,38 +237,6 @@ export function createRealIo(): CliIo {
   };
 }
 
-/** 루프백 후보 하나에 SearXNG 탐침을 보낸다(L2.web.spec §4.8.3). 응답은 64 KiB까지만 읽는다 */
-const SEARXNG_PROBE_TIMEOUT_MS = 1500;
-const SEARXNG_PROBE_MAX_BYTES = 64 * 1024;
-
-async function probeSearxng(
-  baseUrl: string,
-  signal: AbortSignal,
-): Promise<"ok" | "json-disabled" | "unreachable"> {
-  const attempted = await attemptAsync(async () => {
-    const response = await fetch(`${baseUrl}/search?q=fresnel&format=json&pageno=1`, {
-      signal: AbortSignal.any([signal, AbortSignal.timeout(SEARXNG_PROBE_TIMEOUT_MS)]),
-      redirect: "manual",
-    });
-    if (response.status === 403) return "json-disabled" as const;
-    if (response.status !== 200) return "unreachable" as const;
-    const text = (await response.text()).slice(0, SEARXNG_PROBE_MAX_BYTES);
-    const body = parseJson(text);
-    if (!body.ok || typeof body.value !== "object" || body.value === null) {
-      return "unreachable" as const;
-    }
-    const results: unknown = Reflect.get(body.value, "results");
-    const query: unknown = Reflect.get(body.value, "query");
-    return Array.isArray(results) && typeof query === "string"
-      ? ("ok" as const)
-      : ("unreachable" as const);
-  });
-  // 연결 거부, 시간 초과, 중단은 모두 응답이 없는 것으로 본다. 진단 항목이라 원인을 따로 알리지 않는다
-  return attempted.ok ? attempted.value : "unreachable";
-}
-
-const REAL_PROBES: DoctorProbes = { probeSearxng };
-
 /**
  * 폴더 없이 설치된 기본 그룹 이름(apps/host의 assembly/catalog.ts가 올린다). CLI는 host 조립 코드를 import하지 않으므로
  * 여기 옮겨 적는다. 목록이 어긋나면 `fresnel group new`가 기본 그룹과 겹치는 이름을 거르지 못한다 [미결: L4.cli.spec §10]
@@ -305,7 +272,6 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       const { bridgeStdioToService } = await import("@fresnel/host");
       return bridgeStdioToService(options);
     },
-    probes: REAL_PROBES,
     groupTemplates: createGroupTemplatesFs({
       templatesDir: locateGroupTemplates(
         env,

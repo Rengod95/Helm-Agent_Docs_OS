@@ -23,7 +23,6 @@ afterEach(() => {
 });
 
 const SEARCH_DEFS = [
-  def("l2.web.search.searxng.url", { default: "", layer: "L2" }),
   def("l0.process.service.enabled", { type: { type: "boolean" }, default: false, layer: "L0" }),
 ];
 
@@ -45,16 +44,12 @@ function blockOf(text: string): string[] {
   return text.slice(text.indexOf("검색 provider\n")).trimEnd().split("\n");
 }
 
-const SEARXNG_UNSET =
-  "  SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>";
-
 test("(a) default: the builtin wrapper is current, Exa needs a key and Brave is not installed", async () => {
   const h = harness({ "web.providers": () => DEFAULT_RESULT });
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   expect(blockOf(h.stdoutText())).toEqual([
     "검색 provider",
     "  검색 provider: auto → Built-in search (model provider) (builtin-wrapper)",
-    SEARXNG_UNSET,
     "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)",
     "웹 provider",
     "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있어요",
@@ -101,7 +96,6 @@ test("(b) Exa and Brave both ready, the user order puts Exa first: auto goes to 
   expect(blockOf(h.stdoutText())).toEqual([
     "검색 provider",
     "  검색 provider: auto → Exa (plugin:web-exa)",
-    SEARXNG_UNSET,
     "  키 플러그인: Exa, Brave 모두 쓸 수 있다",
     "웹 provider",
     "  [ok]   plugin:web-exa  플러그인 · 검색 · 순위 1 · 현재 · 사용할 수 있어요 · 가격표 오래됨(2026-10-01)",
@@ -117,7 +111,6 @@ test("(c) an engine without web.providers: the search lines say unknown, the def
   expect(blockOf(h.stdoutText())).toEqual([
     "검색 provider",
     "  검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)",
-    SEARXNG_UNSET,
     "  키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)",
     "  (엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다)",
   ]);
@@ -134,7 +127,6 @@ test("(c) a web.providers request that fails gives the same unknown lines", asyn
   expect(blockOf(h.stdoutText())).toEqual([
     "검색 provider",
     "  검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)",
-    SEARXNG_UNSET,
     "  키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)",
     "  (엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다)",
   ]);
@@ -232,7 +224,7 @@ test("auto with no usable search provider says so, and the recommendation lists 
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   const lines = blockOf(h.stdoutText());
   expect(lines[1]).toBe("  검색 provider: auto → 쓸 수 있는 provider가 없다");
-  expect(lines[3]).toBe(
+  expect(lines[2]).toBe(
     "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)",
   );
 });
@@ -251,7 +243,7 @@ test("a key plugin that is installed but unusable is recommended as unavailable 
       ]),
   });
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
-  expect(blockOf(h.stdoutText())[3]).toBe("  권장 키 플러그인: Brave(사용 불가 — unreachable)");
+  expect(blockOf(h.stdoutText())[2]).toBe("  권장 키 플러그인: Brave(사용 불가 — unreachable)");
 });
 
 test("an empty provider list prints the search lines as no usable provider and a placeholder web block", async () => {
@@ -260,7 +252,6 @@ test("an empty provider list prints the search lines as no usable provider and a
   expect(blockOf(h.stdoutText())).toEqual([
     "검색 provider",
     "  검색 provider: auto → 쓸 수 있는 provider가 없다",
-    SEARXNG_UNSET,
     "  권장 키 플러그인: Exa(설치 필요 — 플러그인을 설치해 주세요), Brave(설치 필요 — 플러그인을 설치해 주세요)",
     "웹 provider",
     "  provider가 없다",
@@ -273,7 +264,7 @@ test("the browse and fetch rows keep their own sections after the search rows", 
   });
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   const lines = blockOf(h.stdoutText());
-  expect(lines.slice(4)).toEqual([
+  expect(lines.slice(3)).toEqual([
     "웹 provider",
     "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있어요",
     "  [ok]   playwright-mcp  플러그인 · 브라우저 · 순위 1 · 현재 · 사용할 수 있어요",
