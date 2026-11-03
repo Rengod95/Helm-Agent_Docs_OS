@@ -5,9 +5,9 @@
 ## 연결
 
 - 개요 화면 `overview`는 `views/workbench/craft-screen.tsx`가 등록합니다. 목록을 아직 못 읽었으면 띠(읽는 중·오류·오프라인)만 보이고, 읽히면 이 폴더의 `CraftBody`를 `CraftProvider`로 감싸 그립니다. 캔버스가 화면 전체를 쓰고 도구 막대·찾기·층 패널·선택 패널·자세히 보기는 캔버스 위에 뜹니다.
-- 데이터와 동작은 `CraftSource`(`craft-context.tsx`) 하나로 들어옵니다: `snapshot`, 훅별 `order`, 그룹 스위치 `setOn`, `orderPort`(`hooks.order.get|set|reset|preview`), `openBuilder(hook | null)`, `recentRuns(id)`(`trace.turn`, 계측이 꺼져 있으면 `null`). `views/workbench/craft-source.ts`의 `useCraftSource`가 워크벤치 스토어와 명령(`commands.workbench`)에서 만듭니다.
+- 데이터와 동작은 `CraftSource`(`craft-context.tsx`) 하나로 들어옵니다: `snapshot`, 훅별 `order`, 그룹 스위치 `setOn`, `orderPort`(`hooks.order.get|set|reset|preview`, 결과는 `Result`이고 실패는 던지지 않고 err 값으로 옮긴다), `openBuilder(hook | null)`, `recentRuns(id)`(`trace.turn`, 계측이 꺼져 있으면 `null`). `views/workbench/craft-source.ts`의 `useCraftSource`가 워크벤치 스토어와 명령(`commands.workbench`)에서 만듭니다.
 - 화면 상태는 따로 두지 않습니다. `CraftProvider`는 스토어의 `view`·`sel`·`panel`·`detail`·`kind`·`contrib`·`query`를 `craftStateOf`로 읽고(`mode`는 `view`), `useCraft().dispatch`는 `craftDispatch`로 스토어 동작(`setView`, `pickPlugin`, `toggleContrib` …)에 옮깁니다. `mode`를 바꾸는 `setView`는 자세히 보기를 닫습니다.
-- `recentRuns`의 턴 id는 엔진 거울의 `latestTurnId`(thread별 마지막 `turn.started` 사실)입니다. 거울이 이 구독에서 본 턴만 알므로, 열린 대화의 이전 턴은 새 턴이 시작될 때까지 최근 실행이 잠깁니다.
+- `recentRuns`의 턴 id는 엔진 거울의 `latestTurnId`(thread별 가장 최근 턴)입니다. 목록을 읽을 때 `ThreadSummary.lastTurnId`로 먼저 채우고 이후 `turn.started` 사실이 덮어쓰므로 앱을 다시 켠 뒤에도 잠기지 않습니다. 분기해 자기 턴이 없는 대화만 첫 턴까지 잠깁니다.
 - 자세히 보기(`detail`)는 확장 화면의 상세(`ExtDetail`)와 같은 값입니다. 한쪽에서 열면 다른 쪽에도 그 확장이 보입니다.
 - `orderPort`의 타입은 `m4/order`의 wire를 옮겨 적은 `order-wire.ts`입니다. 병합 뒤 `@fresnel/contracts`의 타입으로 바꾸고 그 파일을 지웁니다.
 - 스타일: 지도는 `orbit.css`(`src/styles.css`가 가져옴), 링크는 `link-style.ts`의 문자열입니다. 색은 caustic 토큰만이고 셰이더 상수만 예외입니다(`space-math.ts`).

@@ -115,9 +115,20 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
     }
     case "threads": {
       const byId: Record<string, ThreadSummary> = {};
-      for (const t of input.threads) byId[t.threadId] = t;
+      // 목록의 lastTurnId는 거울이 아직 turn을 모르는 thread에만 채운다. 이미 있는 값은 turn.started 사실이라 더 새것이다
+      const latestTurnId: Record<string, TurnId> = { ...state.latestTurnId };
+      for (const t of input.threads) {
+        byId[t.threadId] = t;
+        if (t.lastTurnId !== undefined && latestTurnId[t.threadId] === undefined) {
+          latestTurnId[t.threadId] = t.lastTurnId;
+        }
+      }
       return keep(
-        { ...state, threads: { status: "ready", ids: input.threads.map((t) => t.threadId), byId } },
+        {
+          ...state,
+          threads: { status: "ready", ids: input.threads.map((t) => t.threadId), byId },
+          latestTurnId,
+        },
         "applied",
       );
     }

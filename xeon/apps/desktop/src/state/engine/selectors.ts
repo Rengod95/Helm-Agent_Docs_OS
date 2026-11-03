@@ -74,7 +74,7 @@ export const selectThreadRunning = (s: EngineMirror, id: ThreadId): boolean =>
   s.threads.byId[id]?.status === "running";
 export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string | null =>
   id === null ? null : (s.turnFailures[id] ?? null);
-/** thread의 가장 최근 turn id. 대화가 없거나 이 거울에서 turn이 시작된 적이 없으면 null이다(최근 실행은 잠긴다) */
+/** thread의 가장 최근 turn id. 대화가 없거나 목록에도 거울의 turn.started에도 turn이 없으면 null이다(최근 실행은 잠긴다) */
 export const selectLatestTurnId = (s: EngineMirror, id: ThreadId | null): TurnId | null =>
   id === null ? null : (s.latestTurnId[id] ?? null);
 export const selectApprovalCount = (s: EngineMirror): number => s.approvals.ids.length;

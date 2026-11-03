@@ -458,4 +458,37 @@ describe("latest turn id per thread", () => {
     };
     expect(run([resumed], s).latestTurnId).toEqual({ [T]: trn(1) });
   });
+
+  test("a thread list seeds the turn id from the summary's lastTurnId; a summary without one seeds nothing", () => {
+    const s = run([
+      head(5),
+      {
+        type: "threads",
+        threads: [summary(T, { lastTurnId: trn(2) }), summary(thr(2))],
+      },
+    ]);
+    expect(s.latestTurnId).toEqual({ [T]: trn(2) });
+    expect(selectLatestTurnId(s, T)).toBe(trn(2));
+    expect(selectLatestTurnId(s, thr(2))).toBeNull();
+    expect(checkMirror(s)).toEqual([]);
+  });
+
+  test("a live turn.started after the list read replaces the seeded turn id", () => {
+    const s = run([
+      head(5),
+      { type: "threads", threads: [summary(T, { lastTurnId: trn(2) })] },
+      batch(5, 6, [started(6, T, trn(3))]),
+    ]);
+    expect(s.latestTurnId).toEqual({ [T]: trn(3) });
+  });
+
+  test("a thread list read after a live turn.started does not overwrite that newer turn id", () => {
+    const s = run([
+      head(5),
+      batch(5, 6, [started(6, T, trn(3))]),
+      { type: "threads", threads: [summary(T, { lastTurnId: trn(2) })] },
+    ]);
+    expect(s.latestTurnId).toEqual({ [T]: trn(3) });
+    expect(selectLatestTurnId(s, T)).toBe(trn(3));
+  });
 });

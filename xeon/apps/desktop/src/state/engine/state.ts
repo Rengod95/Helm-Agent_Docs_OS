@@ -116,7 +116,7 @@ export type EngineMirror = {
   readonly approvals: Approvals;
   /** 실패로 끝난 마지막 turn의 오류 문장. thread별이며 다음 turn이 시작되면 지운다 */
   readonly turnFailures: Readonly<Record<string, string>>;
-  /** thread별로 가장 최근에 시작한 turn id(`turn.started` 사실). 최근 실행 읽기가 턴을 고를 때 쓴다. 거울을 head부터 다시 맞추면 비운다 */
+  /** thread별 가장 최근 turn id. thread.list의 `lastTurnId`로 먼저 채우고(없을 때만), 이후 `turn.started` 사실이 덮는다. 최근 실행 읽기가 턴을 고를 때 쓴다. 거울을 head부터 다시 맞추면 비우고, 뒤이은 목록 읽기가 다시 채운다 */
   readonly latestTurnId: Readonly<Record<string, TurnId>>;
 };
 
