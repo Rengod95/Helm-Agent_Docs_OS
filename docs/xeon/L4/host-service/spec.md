@@ -1156,6 +1156,15 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - 읽기 wire(T-MEAS-READ, F wire §3.3.8): `measure.turn { threadId, turnId }`은 한 Turn의 행을 시간 순으로, `measure.daily { kind, metric }`은 일별 집계를 돌려준다(`handlers/measure.ts`, 포트 `EnginePorts.measure`, 원천 `assembly/measure/read.ts`). 읽기만 해서 쓰기 소유를 얻지 않는다. 없는 thread는 3001이고 저장소를 읽지 못하면 `store.io`다. 꺼져 있으면(`x.operations.trace.enabled`) `enabled: false`와 빈 목록이다. 시험: `test/handlers/measure.test.ts`, `test/assembly/measure/read.test.ts`, `test/int/measure-recorder.int.test.ts`(실제 wire).
 - [제안] 보관 기간 설정 키는 `x.operations.trace.retentionDays`(정수, 기본 30)이고 요청 본문 저장 키는 `x.operations.trace.storeRequestBody`(기본 끔, 켜면 마스킹 후 저장)다. 이 둘은 아직 설정 카탈로그에 올리지 않았고 보존은 기본 30일로 돈다 [미결: 설정 키 이름 확정과 UI 노출은 T-MEAS-READ 앞에서 한다].
 
+### 4.21 시험 격리·케이스 채점·켬/끔 비교 판정 [제안: T-TEST-ISO·CASE·AB, 기획서 §6]
+
+`assembly/eval/`의 순수 모듈이다. 모델을 부르지 않고 wire나 Test run에 아직 연결하지 않았다(실제 `ext.test.run`은 `notImplemented`다). 실제 모델을 부르는 실행과 단계 0 보정(`exp0`)은 사용자 승인 뒤에 한다.
+
+- 격리(`isolate.ts`): `createIsolatedWorkspace(source)`가 작업 폴더를 시스템 임시 폴더의 새 폴더로 복사한다(`node_modules`와 `.git`은 뺀다. 2만 파일이나 512 MiB를 넘으면 `too_large`). `dispose()`가 지운다. `digestTree(dir)`는 파일 경로와 내용의 sha256이라 비교 실행 앞뒤로 원래 폴더가 그대로인지 확인한다. 외부 부작용 차단(네트워크, 폴더 밖 쓰기)은 복사본을 실행하는 샌드박스 정책이 맡으며 아직 연결하지 않았다 [미결].
+- 케이스(`case.ts`): `parseCase`가 `{ id, type: capability|regression|quiet, start?: { workspace? }, prompt, checks[] }`를 검증한다. 검사는 `file_exists`, `file_matches { path, pattern }`(정규식 200자, 파일 1 MiB 상한), `command`(+`exit`, 기본 0), `tool_used { name, min?, max? }`, `max_cost_usd`다. 경로는 작업 폴더 안이어야 한다(`..`와 절대 경로는 실패 `path_outside_workspace`). `gradeCase(case, evidence, runCommand)`는 모든 검사를 돌려 검사마다 통과와 이유를 돌려준다. 명령은 실행 쪽이 넘기는 `CommandRunner`로 돈다. 케이스 파일(YAML)을 읽는 일, 결과 저장, 근거 Turn 연결은 하지 않았다 [미결].
+- 비교(`compare.ts`): `compareRuns`가 케이스마다 반복별 통과 횟수를 두 프로필로 견줘 좋아짐·나빠짐·같음 수와 양측 정확 부호 검정 p값, 판정(`improved`, `regressed`, `indistinguishable`, 기준 5%)을 낸다. 같은 프로필끼리 비교가 구분 안 됨이 아니면 `isNoisy`로 표시한다. `planRuns`는 시작 전 확인 창에 보일 실행 수(케이스 × 반복 × 2, 처음 변동폭 측정은 케이스 × 반복을 더함)와 비용 범위다. 한 번 비용은 호출자가 작업 몇 개로 재서 넘긴다.
+- 시험: `test/assembly/eval/{isolate,case,compare}.test.ts`.
+
 ## 5. 실패와 경계 사례
 
 | 사례 | 처리 |
