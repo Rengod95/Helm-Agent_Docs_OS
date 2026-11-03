@@ -9,6 +9,7 @@ import {
   StoreServiceName,
   storeFailureKindOf,
   type LeaseHolder,
+  type ScopeHandlerFailedPayload,
   type SessionService,
   type StoreFailureKind,
   type StoreService,
@@ -94,7 +95,7 @@ import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { createDialogAreaHolder } from "./assembly/m4/dialog-area-bridge.ts";
 import { createExtensionRecords } from "./assembly/m4/ext-read-sources.ts";
-import { startMeasurement } from "./assembly/measure/recorder.ts";
+import { startMeasurement, type HandlerFailureInput } from "./assembly/measure/recorder.ts";
 import { DEFAULT_RETENTION_DAYS } from "./assembly/measure/store.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
@@ -403,7 +404,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   // 휘발 조각 번호 발급기. `scope.handler_failed`와 `dialog.status`가 같은 (thread, turn) 키의 번호를 한 열로 나눈다(F.records.spec §4.3)
   const chunkNumbering = createChunkNumbering();
   // 확장 핸들러 실패를 `scope.handler_failed` 휘발 이벤트로 보낸다(M3-REQ-35, L4.host-service HS-92). 열린 thread는 허브가 있어야 읽을 수 있어 옵션으로 받는다
-  const handlerFailed = createHandlerFailedEmitter({
+  const emitHandlerFailed = createHandlerFailedEmitter({
     emitVolatile: (event) => {
       late.session?.emitVolatile(event);
     },
@@ -415,6 +416,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     log: logOperations,
     mask: (text) => redact.current(text),
   });
+  // 같은 실패를 측정 저장소에도 남긴다(T-MEAS-EV). 휘발 이벤트는 재시작 뒤 사라지므로 이 기록이 남는 사본이다. 저장소는 늦게 열린다
+  const handlerFailed = (payload: ScopeHandlerFailedPayload): void => {
+    emitHandlerFailed(payload);
+    measureSlot.recordFailure?.({
+      at: clock.now(),
+      ...payload,
+      message: redact.current(payload.message),
+    });
+  };
   // 여러 번의 시작에서 반복해 자동으로 꺼지는 확장을 센다(결정 2026-11-04 B5). 저장 경로는 상태 디렉터리를 안 뒤에 묶는다
   const repeatDisableFile = createLateFileBackend();
   const repeatDisable = createRepeatDisableLedger({
@@ -466,7 +476,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
   /** 보관 정리와 블롭 GC 타이머. 닫을 때 먼저 끊는다(저장소를 닫기 전) */
   const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
-  const measureSlot: { stop: (() => void) | undefined } = { stop: undefined };
+  const measureSlot: {
+    stop: (() => void) | undefined;
+    recordFailure: ((input: HandlerFailureInput) => void) | undefined;
+  } = { stop: undefined, recordFailure: undefined };
   /** 자동 제목 연결. 엔진 포트가 올라온 뒤에 연다. 닫을 때 구독을 거둔다 */
   const autoTitleSlot: { title: AutoTitle | undefined } = { title: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
@@ -946,6 +959,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       mask: (text) => secrets.service.redactor.mask(text).text,
     });
     measureSlot.stop = measurement.stop;
+    measureSlot.recordFailure = measurement.offerFailure;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
       stateDir: os.dirs.state,

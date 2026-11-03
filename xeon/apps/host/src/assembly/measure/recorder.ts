@@ -56,6 +56,19 @@ interface MeasureRecorderDeps {
   readonly mask: ((text: string) => string) | undefined;
 }
 
+/** 확장 핸들러 실패 한 건(`scope.handler_failed`의 값). 휘발 이벤트라 이 기록이 재시작 뒤에도 남는 유일한 사본이다 */
+export interface HandlerFailureInput {
+  readonly at: number;
+  readonly owner: string;
+  readonly point: string;
+  readonly result: string;
+  readonly message: string;
+  readonly consecutive: number;
+}
+
+/** 실패 메시지를 저장하는 글자 수 상한 */
+const MAX_FAILURE_MESSAGE_CHARS = 500;
+
 /** 모델로 나간 요청 본문 한 건(측정 쪽 입력) */
 export interface RequestBodyInput {
   readonly threadId: string;
@@ -204,6 +217,7 @@ function cacheRecord(
 function startMeasureRecorder(deps: MeasureRecorderDeps): {
   readonly stop: () => void;
   readonly offerBody: (input: RequestBodyInput) => void;
+  readonly offerFailure: (input: HandlerFailureInput) => void;
 } {
   let pending: MeasureRecord[] = [];
   let pendingBodies = 0;
@@ -241,6 +255,28 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
       });
     }
     deps.maintain();
+  }
+
+  /** 핸들러 실패 한 건을 `handler_failed` 행으로 모은다. thread가 없는 알림이라 threadId는 빈 문자열이다 */
+  function offerFailure(input: HandlerFailureInput): void {
+    if (!deps.enabled()) return;
+    pending.push({
+      at: input.at,
+      threadId: "",
+      turnId: null,
+      kind: "handler_failed",
+      metrics: { consecutive: input.consecutive },
+      tags: {
+        owner: input.owner,
+        point: input.point,
+        result: input.result,
+        message: input.message.slice(0, MAX_FAILURE_MESSAGE_CHARS),
+      },
+    });
+    if (!scheduled) {
+      scheduled = true;
+      queueMicrotask(flush);
+    }
   }
 
   /** 켜져 있고 가릴 수단이 있을 때만 본문 행을 모은다. 가린 뒤의 문자열만 행에 들어간다 */
@@ -332,6 +368,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
       flush();
     },
     offerBody,
+    offerFailure,
   };
 }
 
@@ -362,11 +399,18 @@ export function startMeasurement(deps: MeasurementDeps): {
   readonly store: MeasureStore | undefined;
   /** 모델로 나간 요청 본문을 넘긴다. 저장 설정이 꺼져 있거나 가릴 수단이 없으면 아무것도 하지 않는다 */
   readonly offerBody: (input: RequestBodyInput) => void;
+  /** 확장 핸들러 실패를 `handler_failed` 행으로 남긴다. 계측이 꺼져 있으면 아무것도 하지 않는다 */
+  readonly offerFailure: (input: HandlerFailureInput) => void;
 } {
   const opened = openMeasureStore(join(deps.dir, MEASURE_DB_FILE_NAME));
   if (!opened.ok) {
     deps.logger.warn("measure.open_failed", { reason: opened.error.kind });
-    return { stop: () => undefined, store: undefined, offerBody: () => undefined };
+    return {
+      stop: () => undefined,
+      store: undefined,
+      offerBody: () => undefined,
+      offerFailure: () => undefined,
+    };
   }
   const store = opened.value;
   const retention = (): number => deps.retentionDays?.() ?? DEFAULT_RETENTION_DAYS;
@@ -398,5 +442,6 @@ export function startMeasurement(deps: MeasurementDeps): {
     },
     store,
     offerBody: recorder.offerBody,
+    offerFailure: recorder.offerFailure,
   };
 }

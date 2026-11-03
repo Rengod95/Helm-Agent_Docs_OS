@@ -177,3 +177,67 @@ test("without a masking function nothing is stored even when switched on", async
 test("with measurement off the body is not stored either", async () => {
   expect(await bodyRows({ store: true, mask: (text) => text, enabled: false })).toEqual([]);
 });
+
+test("a handler failure is written to the store and is still there after a restart", async () => {
+  await withDir(async (dir) => {
+    const first = startMeasurement({
+      dir,
+      session: { feed },
+      usage,
+      enabled: () => true,
+      logger,
+      now: () => NOW,
+    });
+    first.offerFailure({
+      at: NOW,
+      owner: "ext:acme",
+      point: "tool.call.before",
+      result: "timeout",
+      message: "budget 5000ms exceeded",
+      consecutive: 2,
+    });
+    await Promise.resolve();
+    first.stop();
+
+    const peek = must(openMeasureStore(join(dir, "measure.db")));
+    expect(must(peek.daily("handler_failed", "consecutive"))).toEqual([
+      {
+        day: "2026-11-04",
+        kind: "handler_failed",
+        metric: "consecutive",
+        count: 1,
+        sum: 2,
+        min: 2,
+        max: 2,
+      },
+    ]);
+    expect(must(peek.rawCount())).toBe(1);
+    peek.close();
+  });
+});
+
+test("a handler failure is not written while measurement is off", async () => {
+  await withDir(async (dir) => {
+    const { stop, offerFailure } = startMeasurement({
+      dir,
+      session: { feed },
+      usage,
+      enabled: () => false,
+      logger,
+      now: () => NOW,
+    });
+    offerFailure({
+      at: NOW,
+      owner: "ext:acme",
+      point: "tool.call.before",
+      result: "error",
+      message: "boom",
+      consecutive: 1,
+    });
+    await Promise.resolve();
+    stop();
+    const peek = must(openMeasureStore(join(dir, "measure.db")));
+    expect(must(peek.rawCount())).toBe(0);
+    peek.close();
+  });
+});
