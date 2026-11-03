@@ -16,6 +16,7 @@ import {
   UiNodeSchema,
 } from "../../extensions/index.ts";
 import type { SchemaProof } from "../../base/index.ts";
+import { SemVerSchema } from "../../capabilities/index.ts";
 import { closed, request, type Req } from "./schema-kit.ts";
 
 // F.wire-settings.spec §3.3.4(M4 확장 읽기). L4.desktop-ux.spec §10.1 W-15, W-20~W-26, W-31, W-33, W-35~W-42, W-47.
@@ -44,6 +45,9 @@ const EnabledSourceShape = Type.Union(ENABLED_SOURCES.map((name) => Type.Literal
 export const EXT_ORIGINS = ["builtin", "managed", "user", "project"] as const;
 export type ExtOrigin = (typeof EXT_ORIGINS)[number];
 const ExtOriginShape = Type.Union(EXT_ORIGINS.map((name) => Type.Literal(name)));
+/** 설치 등급(`ext.ui.list`의 `trust`). `origin`과 같은 네 값이다. `builtin`은 설치 폴더가 없다 */
+export type ExtTrust = ExtOrigin;
+const ExtTrustShape = ExtOriginShape;
 
 /** 진단 한 건. 로더가 읽은 위치(W-38)를 `file`, `line`으로 싣는다 */
 export interface ExtDiagnostic {
@@ -608,6 +612,15 @@ export interface ExtUiEntry {
   readonly mode: UiMode;
   readonly title: string;
   readonly state: "ok" | "invalid" | "disabled";
+  /** 확장 버전(SemVer, 매니페스트 값). builtin도 채운다 */
+  readonly version: string;
+  /** 설치 등급. 셸이 앱 root를 등록할 때 쓴다. `builtin`은 설치 폴더가 없다 */
+  readonly trust: ExtTrust;
+  /**
+   * app root의 절대 경로(확장 설치 폴더에 선언된 root 폴더를 이은 것). `mode`가 `app`이고 `state`가 `ok`인 항목에만 있다.
+   * 스키마는 상대 경로도 받지만 호스트는 절대 경로만 보낸다. builtin은 설치 폴더가 없어 항목에 없다
+   */
+  readonly appRoot?: string;
   /** 엔진이 검사한 화면 트리. `app` 모드면 없다 */
   readonly tree?: UiNode;
   readonly app?: AppDecl;
@@ -627,6 +640,9 @@ const UiEntryShape = closed({
   mode: Type.Union([Type.Literal("native"), Type.Literal("app")]),
   title: Type.String({ maxLength: 256 }),
   state: Type.Union([Type.Literal("ok"), Type.Literal("invalid"), Type.Literal("disabled")]),
+  version: SemVerSchema,
+  trust: ExtTrustShape,
+  appRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
   tree: Type.Optional(UiNodeSchema),
   app: Type.Optional(AppDeclSchema),
   issues: Type.Array(DiagnosticShape, { maxItems: 200 }),

@@ -213,6 +213,8 @@ describe("M4 ext read methods", () => {
           mode: "native",
           title: "Status",
           state: "ok",
+          version: "1.2.0",
+          trust: "managed",
           tree: { type: "Text" },
           issues: [],
         },
@@ -233,6 +235,45 @@ describe("M4 ext read methods", () => {
       parse(WIRE_METHODS["ext.ui.requestApproval"].params, { extension: "e", ui: "u", method: "m" })
         .ok,
     ).toBe(false);
+  });
+
+  test("ext.ui.list entries carry version, trust and appRoot by value, and reject bad ones", () => {
+    const schema = WIRE_METHODS["ext.ui.list"].result;
+    const base = {
+      extension: "learning",
+      id: "graph",
+      placement: "page",
+      mode: "app",
+      title: "Graph",
+      state: "ok",
+      version: "1.2.0",
+      trust: "user",
+      app: { root: "./ui/graph", entry: "index.html", bridge: "^1.0.0", reason: "그래프 화면" },
+      issues: [],
+    };
+    // appRoot is the install folder joined with the declared root (absolute on the wire)
+    const withRoot = { ...base, appRoot: "/home/u/.fresnel/extensions/learning/1.2.0/ui/graph" };
+    roundTrip(schema, { items: [withRoot] });
+    roundTrip(schema, { items: [{ ...withRoot, version: "1.2.0-beta.1", trust: "project" }] });
+    // builtin has no install folder, so the entry has no appRoot
+    roundTrip(schema, { items: [{ ...base, trust: "builtin" }] });
+    // the schema accepts a relative appRoot; the host documents and sends absolute paths only
+    roundTrip(schema, { items: [{ ...withRoot, appRoot: "ui/graph" }] });
+
+    expect(parse(schema, { items: [{ ...base, trust: "system" }] }).ok).toBe(false);
+    expect(parse(schema, { items: [{ ...base, trust: "Managed" }] }).ok).toBe(false);
+    expect(parse(schema, { items: [{ ...base, version: "1.2" }] }).ok).toBe(false);
+    const { trust: _trust, ...noTrust } = base;
+    expect(parse(schema, { items: [noTrust] }).ok).toBe(false);
+    const { version: _version, ...noVersion } = base;
+    expect(parse(schema, { items: [noVersion] }).ok).toBe(false);
+    expect(parse(schema, { items: [{ ...withRoot, appRoot: "" }] }).ok).toBe(false);
+    expect(parse(schema, { items: [{ ...withRoot, installDir: "/x" }] }).ok).toBe(false);
+
+    const longRoot = `/${"a".repeat(1023)}`;
+    expect(longRoot.length).toBe(1024);
+    roundTrip(schema, { items: [{ ...withRoot, appRoot: longRoot }] });
+    expect(parse(schema, { items: [{ ...withRoot, appRoot: `${longRoot}b` }] }).ok).toBe(false);
   });
 
   test("ext.validateComposition takes a composition and returns issues", () => {
