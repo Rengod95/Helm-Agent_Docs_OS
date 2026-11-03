@@ -62,10 +62,10 @@ import type { WebStatusHolder } from "./web-providers.ts";
 // m2-plan HOST.6, L2.web.plan §8.5. cap-web은 확장 엔트리를 내놓지 않아(WEB.6) 조립 루트가 `createWebRuntime`에 실제 포트를 이어 붙인다:
 // `fresnel.store`(WebStorePort), `fresnel.approvals`(도메인·URL 승인), `fresnel.session` 이벤트 읽기(이미 나온 URL), `fresnel.secrets`(외부 전송 마스킹),
 // `fresnel.models`의 hosted 검색(내장 검색 래퍼, E4), 설정 층. `web.search`의 기본 provider는 내장 검색 래퍼다: 이 조립이 `hostedSearch`를
-// 넘기지 않으면 래퍼가 후보에 들지 않아 설정한 provider가 없을 때 검색할 곳이 없다(M2 마감 G1-12, H1). SearXNG와 키 API는 사용자가 설정했을 때만
+// 넘기지 않으면 래퍼가 후보에 들지 않아 설정한 provider가 없을 때 검색할 곳이 없다(M2 마감 G1-12, H1). 키 기반 검색 플러그인은 설치하고 설정했을 때만
 // 체인에 든다(ADR-0005 개정, L2.web.spec §4.8).
 // 지점 구독(결과를 바꾸지 않는 tap): `input.user.before`(나온 URL), `thread.shutdown`(닫힌 세션의 보관 원문 정리와 브라우저 세션 닫기).
-// 설정이 바뀌면 탐침 기억을 지운다: SearXNG를 새로 띄우거나 주소를 바꾼 뒤 실패 탐침의 30초를 기다리지 않게 한다.
+// 설정이 바뀌면 탐침 기억을 지운다: 설정을 고친 뒤 실패 탐침의 30초를 기다리지 않게 한다.
 // M3b(B2-WEB): 플러그인 provider 등록(`registrations`, `web_provider` 기록)과 헤더 시크릿(`headerSecrets`), 브라우저 MCP(`browserMcp`,
 // `playwright` 서버), 브라우저 도구(`web_browse_*`)를 잇는다. `browseConfirm`은 아직 잇지 않아 확인이 필요한 브라우저 동작은 거부된다 [미결].
 // `modelTool` 판정(`boundary.step.before`)은 L1.models의 hosted 경로가 연결된 뒤에 한다. 조립 루트 코드(DR-14 예외 2).
