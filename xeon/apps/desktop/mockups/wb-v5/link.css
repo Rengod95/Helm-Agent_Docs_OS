@@ -1,0 +1,207 @@
+/* 링크(Link) 보기: 가운데 실 묶음, 왼쪽 카드와 오른쪽 열, 떠 있는 정보 카드.
+   들어오는 것은 wb5-spring으로 떠오르고, 움직임을 줄이면 모두 즉시 바뀌며 흐르는 빛은 없다. */
+
+/* 실 한 가닥: pathLength=1 기준으로 그려진다. 시작 지연은 묶음마다 인라인으로 준다. */
+.wb5-link-strand {
+  fill: none;
+  stroke-width: 0.75px;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  animation: wb5-link-draw 700ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+@keyframes wb5-link-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 묶음: 밝힌 것 말고는 흐려진다 */
+.wb5-link-bundle {
+  transition: opacity 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* 잡는 선: 실보다 넓고 보이지 않는다 */
+.wb5-link-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14px;
+  cursor: pointer;
+}
+
+/* 고른 묶음을 따라 천천히 흐르는 밝은 토막 */
+.wb5-link-light {
+  fill: none;
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  stroke-dasharray: 0.07 0.93;
+  animation: wb5-link-travel 3.2s linear infinite;
+}
+@keyframes wb5-link-travel {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+
+/* 들어오는 카드와 행: 6px 아래에서 용수철(--wb5-spring)로 올라와 앉는다 */
+.wb5-link-arrive {
+  animation: wb5-link-arrive var(--wb5-spring-t) var(--wb5-spring) both;
+}
+@keyframes wb5-link-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* 카드 이름 위의 작은 표제(종류 이름) */
+.wb5-link-caps {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cs-color-text-tertiary);
+}
+
+/* 정보 카드 표제 앞의 작은 점: 종류의 색 */
+.wb5-link-tick {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+/* 종류의 점: 카드 오른쪽 가장자리. 가리키면 조금 커진다. */
+.wb5-link-anchor {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow:
+    0 0 0 2px var(--cs-color-surface-raised),
+    0 0 0 3px color-mix(in oklab, currentColor 40%, transparent);
+  transition: transform var(--wb5-spring-t) var(--wb5-spring);
+}
+.wb5-link-anchor[data-hot] {
+  transform: scale(1.35);
+}
+
+/* 행 안의 종류 점: 14px 누름 자리, 가운데 7px 점. 고른 것은 고리가 생긴다. */
+.wb5-link-dot {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.wb5-link-dot > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  transition: transform 0.2s;
+}
+.wb5-link-dot:hover > span {
+  transform: scale(1.4);
+}
+.wb5-link-dot[aria-pressed="true"] > span {
+  box-shadow:
+    0 0 0 2px var(--cs-color-surface-raised),
+    0 0 0 3.5px currentColor;
+}
+.wb5-link-dot:focus-visible {
+  box-shadow: var(--cs-focus);
+}
+
+/* 오른쪽 열의 상대 한 줄 */
+.wb5-link-row {
+  transition:
+    background-color 180ms,
+    opacity 260ms;
+}
+.wb5-link-row[data-hot] {
+  background-color: var(--cs-color-neutral-hover);
+}
+.wb5-link-row[data-pick] {
+  outline: 1px solid var(--cs-color-text-primary);
+  outline-offset: -1px;
+}
+.wb5-link-main:focus-visible {
+  box-shadow: var(--cs-focus);
+  border-radius: 8px;
+}
+
+/* 배치는 칸의 폭(cqw)을 따른다. 고른 것 패널이 열리면 칸이 줄어들고, 실이 설 자리는 남는다. */
+.wb5-link-root {
+  container-type: inline-size;
+}
+/* 가운데 칸은 빈 자리를 통과시킨다: 실의 가닥과 빈 곳 누르기가 그 밑으로 간다. 카드와 열만 받는다. */
+.wb5-link-box {
+  padding-inline: clamp(20px, 3cqw, 48px);
+  pointer-events: none;
+}
+.wb5-link-left,
+.wb5-link-col {
+  pointer-events: auto;
+}
+.wb5-link-left {
+  width: clamp(216px, 24cqw, 300px);
+}
+.wb5-link-float {
+  width: clamp(168px, 28cqw, 248px);
+}
+
+/* 열은 안에서 스크롤하고 막대는 보이지 않는다 */
+.wb5-link-col {
+  width: clamp(180px, 21cqw, 280px);
+  scrollbar-width: none;
+  /* 위아래가 잘린 행은 가장자리에서 흐려진다(마스크의 색은 알파만 쓴다) */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    currentColor 10px,
+    currentColor calc(100% - 10px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    currentColor 10px,
+    currentColor calc(100% - 10px),
+    transparent 100%
+  );
+}
+.wb5-link-col::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb5-link-strand,
+  .wb5-link-arrive {
+    animation: none;
+  }
+  .wb5-link-light {
+    display: none;
+  }
+  .wb5-link-bundle,
+  .wb5-link-row,
+  .wb5-link-anchor,
+  .wb5-link-dot > span {
+    transition: none;
+  }
+  .wb5-link-anchor[data-hot] {
+    transform: none;
+  }
+}

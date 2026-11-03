@@ -1,7 +1,6 @@
 // 점의 모양과 색. 층은 모양으로(L1 네모, L2 동그라미, L3 마름모, 외부 세모), 그룹은 색 하나(남보라)로 가른다.
-// 깊이는 면 하나에서 나온다: 위에서 아래로 번지는 색, 위쪽 가장자리의 가는 빛, 아래로 깔리는 그림자.
+// 깊이는 없다: 면은 한 색이고 그림자와 번짐은 사방으로 같다. 위·아래를 가르는 빛은 쓰지 않는다.
 // 상태는 모양과 무관하게 같은 방식이다: 꺼짐 = 속이 빔, 실패 = 붉은 색(고리 없음), 고름 = 바깥 검은 선이 용수철로 앉는다.
-import { useId } from "react";
 import type { LayerKey } from "./data";
 
 export type Shape = "square" | "circle" | "diamond" | "triangle";
@@ -82,12 +81,11 @@ export function Mark({
   shadowed = false,
   className,
 }: MarkProps) {
-  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const hue = failing ? DANGER : group ? GRP.graphic : INK;
   const hollow = !on || autoOff;
   const rim = failing ? DANGER : hollow ? (group ? GRP.mark : MUTE) : hue;
-  const gid = `mk${uid}`;
-  const lit = hot ? 14 : 0;
+  // 가리키면 면 전체가 조금 밝아진다(방향 없이)
+  const face = hot ? lighten(hue, 14) : hue;
   return (
     <svg
       width={size}
@@ -98,24 +96,10 @@ export function Mark({
       style={{
         overflow: "visible",
         filter: hollow
-          ? "drop-shadow(0 1px 1.5px color-mix(in oklab, var(--cs-color-text-primary) 16%, transparent))"
-          : `drop-shadow(0 1.6px 2.2px color-mix(in oklab, ${hue} 38%, transparent))`,
+          ? "drop-shadow(0 0 1.5px color-mix(in oklab, var(--cs-color-text-primary) 18%, transparent))"
+          : `drop-shadow(0 0 2px color-mix(in oklab, ${hue} 40%, transparent))`,
       }}
     >
-      <defs>
-        <linearGradient id={`${gid}f`} x1="0" y1="-1" x2="0" y2="1">
-          <stop offset="0" style={{ stopColor: lighten(hue, 38 + lit) }} />
-          <stop offset="1" style={{ stopColor: hue }} />
-        </linearGradient>
-        <linearGradient id={`${gid}h`} x1="0" y1="-1" x2="0" y2="0.55">
-          <stop offset="0" stopColor="#fff" stopOpacity={failing || group ? 0.5 : 0.36} />
-          <stop offset="1" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id={`${gid}e`} x1="0" y1="-1" x2="0" y2="1">
-          <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
-          <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
       {picked && (
         <g className="wb5-pop">
           <circle r={12.8} fill="none" stroke={INK} strokeOpacity={0.9} strokeWidth={1.4} />
@@ -129,28 +113,21 @@ export function Mark({
         </g>
       )}
       {hollow ? (
-        <>
-          <Body
-            shape={shape}
-            fill={BASE}
-            stroke={rim}
-            sw={1.5}
-            dash={shadowed || autoOff ? "2.4 2" : undefined}
-          />
-          <Body shape={shape} fill={`url(#${gid}h)`} stroke="none" sw={0} />
-        </>
+        <Body
+          shape={shape}
+          fill={BASE}
+          stroke={rim}
+          sw={1.5}
+          dash={shadowed || autoOff ? "2.4 2" : undefined}
+        />
       ) : (
-        <>
-          <Body
-            shape={shape}
-            fill={`url(#${gid}f)`}
-            stroke={rim}
-            sw={0.9}
-            dash={shadowed ? "2.4 2" : undefined}
-          />
-          <Body shape={shape} fill={`url(#${gid}h)`} stroke="none" sw={0} />
-          <Body shape={shape} fill="none" stroke={`url(#${gid}e)`} sw={0.9} />
-        </>
+        <Body
+          shape={shape}
+          fill={face}
+          stroke={rim}
+          sw={0.9}
+          dash={shadowed ? "2.4 2" : undefined}
+        />
       )}
     </svg>
   );

@@ -1,7 +1,10 @@
-// 캔버스 전체 배경: 아주 큰 원 네 개가 겹치고, 가장자리마다 안쪽으로 번지는 빛이 있다(테두리만 밝고 속은 깊다).
-// 원은 느린 파도처럼 흔들린다. 날 WebGL 조각 셰이더 하나(의존 없음). 밝은 판은 따로 짠 연한 색, 어두운 판은 깊은 색이다.
-// WebGL이 없으면 CSS 그라디언트(.wb5-paper)로 돌아가고, 탭이 숨겨지면 멈추며, 움직임 줄이기를 켜면 한 장만 그린다.
-import { useEffect, useRef, type RefObject } from "react";
+// 캔버스 전체 배경: 큰 유기체 블롭 네 개가 느린 리사주 궤도로 떠다니며 붙었다 떨어진다.
+// 안쪽은 깊고, 빛은 가장자리에서 안쪽으로만 번진다. 빛의 색은 둘레를 따라 파랑 → 보라 → 자홍으로 흐른다.
+// 밝은 판은 진주빛 몸통에 periwinkle → 진주 → 복숭아 가장자리를 둔다. 날 WebGL 조각 셰이더 하나(의존 없음).
+// WebGL이 없거나 셰이더가 실패하면 onUnavailable로 CSS 그라디언트(.wb5-paper)로 돌아간다.
+// 문맥을 잃으면 그 위에 같은 CSS 바탕을 덮어 빈 화면을 막고, 되살아나면 프로그램을 다시 짠다.
+// 탭이 숨겨지면 멈추고, 움직임 줄이기를 켜면 한 장만 그린다.
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { reducedMotion, type View } from "./viewport";
 
 interface Props {
@@ -13,6 +16,8 @@ interface Props {
 const DPR_CAP = 1.25;
 /** 가만히 있을 때 초당 그리는 횟수 상한 */
 const IDLE_FPS = 30;
+/** 블롭 칸 수(셰이더가 읽는 상한). 블롭이 이보다 적으면 나머지 칸은 0으로 둔다. */
+const N = 5;
 
 const VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
 const FRAG = `
@@ -21,70 +26,243 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform vec2 uRes; uniform float uDpr; uniform float uTime; uniform vec2 uPan; uniform float uMotion;
+uniform vec2 uRes; uniform float uDpr; uniform float uTime; uniform vec2 uPan;
 uniform float uDark;
 uniform vec3 uBase; uniform vec3 uA; uniform vec3 uB; uniform vec3 uC;
+// 블롭: (중심 x, 중심 y, 반지름 x, 반지름 y) / (회전, 색 위상, 0, 0). 단위는 캔버스 긴 변, 가운데가 0.
+uniform vec4 uBlobA[5];
+uniform vec4 uBlobB[5];
+
+const float TAU = 6.2831853;
+// 안쪽 빛의 폭, 가장자리 실선의 두께, 바깥 번짐(긴 변 단위)
+const float RIM_W = 0.032;
+const float LINE_W = 0.0018;
+const float SPILL_W = 0.02;
+// 두 윤곽이 붙기 시작하는 거리
+const float SMIN_K = 0.1;
+// 어두운 판: 빛 피크의 상한(선형 휘도). 위의 글자(#f2f2f2)와 4.5:1 이상을 지킨다.
+const float CAP = 0.14;
 
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
-// 원 하나: 안쪽으로 번지는 가장자리 빛(rim)과 속 채움(fill)
-void disc(vec2 q, vec2 c, float r, float aa, float w, out float rim, out float fill){
-  float d = length(q - c) - r;
-  float inside = 1.0 - smoothstep(-aa, aa, d);
-  rim = exp(d / w) * inside;
-  // 바깥쪽으로 아주 얇게 새는 빛
-  rim += exp(-d / (aa * 6.0)) * (1.0 - inside) * 0.22;
-  fill = inside;
+// 타원까지의 거리(경계는 정확하고 바깥은 근사)
+float sdEllipse(vec2 p, vec2 r){
+  float k0 = length(p / r);
+  float k1 = length(p / (r * r));
+  return k0 * (k0 - 1.0) / max(k1, 1e-6);
+}
+
+// 다항 smooth-min: 두 거리장을 k 폭으로 잇는다
+float smin(float a, float b, float k){
+  float h = max(k - abs(a - b), 0.0) / k;
+  return min(a, b) - h * h * k * 0.25;
+}
+
+// 둘레 색환: 첫째 색 → 둘째 → 셋째 → 둘째 → 첫째. 셋째와 첫째를 바로 섞지 않아 회색이 생기지 않는다.
+vec3 rimPal(float x){
+  float f = fract(x) * 4.0;
+  float s = fract(f);
+  s = s * s * (3.0 - 2.0 * s);
+  vec3 c = uA;
+  vec3 e = uB;
+  if (f >= 1.0) { c = uB; e = uC; }
+  if (f >= 2.0) { c = uC; e = uB; }
+  if (f >= 3.0) { c = uB; e = uA; }
+  return mix(c, e, s);
+}
+
+// 두 겹 사인으로 샘플 점을 민다: 윤곽이 유기체처럼 흔들린다(느린 주기, 25초 이상)
+vec2 warp(vec2 q, float t){
+  return 0.040 * vec2(sin(q.y * 3.1 + 0.21 * t), cos(q.x * 2.7 - 0.17 * t))
+       + 0.013 * vec2(sin(q.y * 7.3 - 0.23 * t + 1.2), cos(q.x * 6.1 + 0.19 * t + 0.5));
+}
+
+// 피크 휘도를 cap 아래로 부드럽게 누른다. 색의 비율은 그대로다.
+vec3 capPeak(vec3 c, float cap){
+  vec3 lin = pow(c, vec3(2.2));
+  float y = dot(lin, vec3(0.2126, 0.7152, 0.0722));
+  float knee = 0.6 * cap;
+  float yo = y;
+  if (y > knee) yo = knee + (cap - knee) * (1.0 - exp(-(y - knee) / (cap - knee)));
+  return c * pow(yo / max(y, 1e-6), 1.0 / 2.2);
 }
 
 void main(){
   vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y) / uDpr;
   float S = max(uRes.x, uRes.y) / uDpr;
-  float t = uTime * uMotion;
+  float t = uTime;
   // 끌면 배경은 지도의 0.1배만 따라온다: 한 층 뒤에 있는 듯한 깊이
-  vec2 q = (p - uPan * 0.1) / S;
-  // 가장자리를 천천히 흔드는 파도
-  q += 0.016 * vec2(sin(q.y * 5.2 + t * 0.21), cos(q.x * 4.4 + t * 0.17));
-  q += 0.008 * vec2(sin(q.y * 11.0 - t * 0.13 + 1.3), cos(q.x * 9.0 + t * 0.11));
+  vec2 q = (p - 0.5 * uRes / uDpr - 0.1 * uPan) / S;
+  vec2 w = q + warp(q, t);
 
-  float aa = 1.6 / S;
-  float w = 0.085;
+  float d = 1e3;
+  vec3 acc = vec3(0.0);
+  float wsum = 0.0;
+  for (int i = 0; i < 5; i++) {
+    vec4 ba = uBlobA[i];
+    vec4 bb = uBlobB[i];
+    // 반지름이 0인 빈 칸이면 그만둔다(블롭이 다섯보다 적을 때)
+    if (ba.z <= 0.0) break;
+    vec2 v = w - ba.xy;
+    float cs = cos(bb.x);
+    float sn = sin(bb.x);
+    vec2 lp = vec2(cs * v.x + sn * v.y, cs * v.y - sn * v.x);
+    float di = sdEllipse(lp, ba.zw);
+    d = smin(d, di, SMIN_K);
+    // 이 블롭 둘레의 각도로 색을 고르고, 시간에 따라 둘레를 따라 흐른다
+    float ci = atan(lp.y, lp.x) / TAU + 0.02 * t + bb.y;
+    // 가중치는 이 블롭 윤곽에 가까울수록 크다(안팎 모두)
+    float ri = exp(-abs(di) / RIM_W);
+    float wi = ri * ri;
+    acc += rimPal(ci) * wi;
+    wsum += wi;
+  }
+
+  float aa = 1.5 / S;
+  float inside = 1.0 - smoothstep(-aa, aa, d);
+  // 안쪽으로만 번지는 빛: 바깥은 마스크로 0이 된다. 밝은 판은 빛이 더 깊이 번진다.
+  float rw = mix(0.046, RIM_W, uDark);
+  float rim = inside * exp(min(d, 0.0) / rw);
+  float hair = exp(-abs(d) / LINE_W);
+  // 바깥으로 아주 약하게 새는 빛(안에서는 0)
+  float spill = (1.0 - inside) * exp(-max(d, 0.0) / SPILL_W);
+  vec3 rc = (acc + uA * 1e-4) / (wsum + 1e-4);
+
   vec3 col = uBase;
-  float fillSum = 0.0;
-  vec3 glowDark = vec3(0.0);
-  vec3 glowLight = vec3(0.0);
-  float glowMax = 0.0;
-  for (int i = 0; i < 4; i++) {
-    float fi = float(i);
-    vec2 c0 = vec2(0.08, 0.02);
-    float r0 = 0.58;
-    vec3 hue = uA;
-    if (i == 1) { c0 = vec2(0.98, 0.84); r0 = 0.74; hue = uB; }
-    if (i == 2) { c0 = vec2(0.0, 0.98); r0 = 0.44; hue = uC; }
-    if (i == 3) { c0 = vec2(1.04, 0.0); r0 = 0.36; hue = uB; }
-    vec2 c = c0 + 0.045 * vec2(sin(t * 0.063 * (1.0 + 0.27 * fi) + fi * 1.7), cos(t * 0.052 * (1.0 + 0.19 * fi) + fi * 2.3));
-    float r = r0 * (1.0 + 0.035 * sin(t * 0.083 + fi * 1.1));
-    float rim; float fill;
-    disc(q, c, r, aa, w * (0.8 + 0.12 * fi), rim, fill);
-    fillSum += fill;
-    glowDark += hue * rim;
-    glowLight = mix(glowLight, mix(vec3(1.0), hue, 0.6), clamp(rim * 0.6, 0.0, 1.0));
-    glowMax = max(glowMax, rim);
-  }
   if (uDark > 0.5) {
-    // 깊은 바탕 위에 빛이 쌓인다: 겹친 곳은 더 밝다
-    col = mix(col, col * 0.6 + uA * 0.05, clamp(fillSum, 0.0, 1.0) * 0.8);
-    col += glowDark * 0.4;
+    // 깊은 바탕: 속은 거의 검정, 빛은 가장자리에서만 안쪽으로 번진다
+    col += inside * 0.006 * rc;
+    col += rc * (0.7 * rim + 1.2 * hair + 0.08 * spill);
+    col = capPeak(col, CAP);
   } else {
-    // 밝은 바탕에서는 연한 색이 가장자리에 스며든다
-    col = mix(col, mix(vec3(1.0), uA, 0.35), clamp(fillSum, 0.0, 1.0) * 0.02);
-    col = mix(col, glowLight, clamp(glowMax, 0.0, 1.0) * 0.34);
+    // 밝은 바탕: 진주빛 몸통, 가장자리에 색이 스민다
+    vec3 body = mix(uBase, vec3(1.0), 0.6);
+    col = mix(uBase, body, inside * 0.85);
+    col = mix(col, rc, rim * 0.7);
+    col = mix(col, rc, hair * 0.8);
+    col = mix(col, rc, spill * 0.2);
   }
+  // 필름 결: 1/255 수준의 떨림(띠가 지지 않게)
   col += (hash(gl_FragCoord.xy + fract(t)) - 0.5) / 255.0;
   gl_FragColor = vec4(col, 1.0);
 }`;
 
 type Rgb = [number, number, number];
+
+interface Palette {
+  dark: boolean;
+  base: Rgb;
+  a: Rgb;
+  b: Rgb;
+  c: Rgb;
+}
+
+/** 밝은 판(고정): 바탕, periwinkle, 진주, 복숭아 */
+const LIGHT: Palette = {
+  dark: false,
+  base: [0.969, 0.965, 0.984],
+  a: [0.557, 0.612, 0.941],
+  b: [0.957, 0.945, 0.98],
+  c: [0.965, 0.788, 0.706],
+};
+/** 어두운 판의 고정 점: 보라, 자홍. info 색을 이쪽으로 섞어 셋을 만든다. */
+const VIOLET: Rgb = [0.49, 0.298, 1.0];
+const MAGENTA: Rgb = [0.757, 0.235, 0.839];
+/** 어두운 바탕: 거의 검정에 info 색을 조금 섞는다 */
+const DARK_INK: Rgb = [0.008, 0.009, 0.02];
+
+/** 블롭 하나. 위치와 반지름은 캔버스 긴 변 단위이고 가운데가 0이다. */
+interface Blob {
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  rot: number;
+  ax: number;
+  ay: number;
+  wx: number;
+  wy: number;
+  px: number;
+  py: number;
+  hue: number;
+}
+
+/** 네 블롭. 각속도는 0.16~0.24rad/s라 한 바퀴가 26~39초다(짧은 것도 25초를 넘는다). 작은 것은 반지름 0.1 이상. */
+const BLOBS: readonly Blob[] = [
+  {
+    x: 0.14,
+    y: -0.06,
+    rx: 0.25,
+    ry: 0.2,
+    rot: 0.5,
+    ax: 0.12,
+    ay: 0.09,
+    wx: 0.21,
+    wy: 0.17,
+    px: 0,
+    py: 1.3,
+    hue: 0.1,
+  },
+  {
+    x: -0.27,
+    y: 0.0,
+    rx: 0.18,
+    ry: 0.23,
+    rot: -0.3,
+    ax: 0.09,
+    ay: 0.11,
+    wx: 0.19,
+    wy: 0.23,
+    px: 2.1,
+    py: 0.4,
+    hue: 0.4,
+  },
+  {
+    x: 0.26,
+    y: 0.23,
+    rx: 0.2,
+    ry: 0.13,
+    rot: 0.6,
+    ax: 0.12,
+    ay: 0.07,
+    wx: 0.16,
+    wy: 0.24,
+    px: 4.0,
+    py: 2.2,
+    hue: 0.7,
+  },
+  {
+    x: -0.1,
+    y: -0.24,
+    rx: 0.12,
+    ry: 0.11,
+    rot: 0,
+    ax: 0.1,
+    ay: 0.07,
+    wx: 0.24,
+    wy: 0.2,
+    px: 1.0,
+    py: 5.0,
+    hue: 0.2,
+  },
+];
+
+/** t초의 블롭 상태를 uniform 배열 두 개에 채운다 */
+function blobState(t: number, pos: Float32Array, shape: Float32Array): void {
+  BLOBS.forEach((b, i) => {
+    const br = 1 + 0.05 * Math.sin(0.19 * t + b.px);
+    pos.set(
+      [
+        b.x + b.ax * Math.sin(b.wx * t + b.px),
+        b.y + b.ay * Math.cos(b.wy * t + b.py),
+        b.rx * br,
+        b.ry * br,
+      ],
+      i * 4,
+    );
+    shape.set([b.rot + 0.3 * Math.sin(0.12 * t + b.py), b.hue, 0, 0], i * 4);
+  });
+}
 
 /** CSS 변수의 색을 0..1 RGB로. 색 공간이 무엇이든 1×1 캔버스가 풀어 준다. */
 function readColor(host: HTMLElement, name: string, fallback: Rgb): Rgb {
@@ -111,6 +289,17 @@ const mixRgb = (x: Rgb, y: Rgb, t: number): Rgb => [
   x[2] + (y[2] - x[2]) * t,
 ];
 
+/** 어두운 판의 색: info 색이 파랑 닻, 보라와 자홍은 그쪽으로 섞어 낸다 */
+function darkPalette(info: Rgb): Palette {
+  return {
+    dark: true,
+    base: mixRgb(DARK_INK, info, 0.035),
+    a: info,
+    b: mixRgb(info, VIOLET, 0.55),
+    c: mixRgb(info, MAGENTA, 0.7),
+  };
+}
+
 function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader | null {
   const sh = gl.createShader(type);
   if (sh === null) return null;
@@ -123,11 +312,79 @@ function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLSha
   return sh;
 }
 
+interface Uniforms {
+  res: WebGLUniformLocation | null;
+  dpr: WebGLUniformLocation | null;
+  time: WebGLUniformLocation | null;
+  pan: WebGLUniformLocation | null;
+  dark: WebGLUniformLocation | null;
+  base: WebGLUniformLocation | null;
+  a: WebGLUniformLocation | null;
+  b: WebGLUniformLocation | null;
+  c: WebGLUniformLocation | null;
+  blobA: WebGLUniformLocation | null;
+  blobB: WebGLUniformLocation | null;
+}
+
+interface Gpu {
+  prog: WebGLProgram;
+  buf: WebGLBuffer;
+  u: Uniforms;
+}
+
+/** 프로그램과 버퍼를 새로 짠다. 문맥이 되살아난 뒤에도 쓴다(예전 GL 객체는 그때 무효다). */
+function build(gl: WebGLRenderingContext): Gpu | null {
+  const vs = compile(gl, gl.VERTEX_SHADER, VERT);
+  const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+  const prog = gl.createProgram();
+  if (vs === null || fs === null || prog === null) return null;
+  gl.attachShader(prog, vs);
+  gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
+  if (gl.getProgramParameter(prog, gl.LINK_STATUS) !== true) {
+    gl.deleteProgram(prog);
+    return null;
+  }
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  if (buf === null) {
+    gl.deleteProgram(prog);
+    return null;
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, "a");
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const u = (name: string): WebGLUniformLocation | null => gl.getUniformLocation(prog, name);
+  return {
+    prog,
+    buf,
+    u: {
+      res: u("uRes"),
+      dpr: u("uDpr"),
+      time: u("uTime"),
+      pan: u("uPan"),
+      dark: u("uDark"),
+      base: u("uBase"),
+      a: u("uA"),
+      b: u("uB"),
+      c: u("uC"),
+      blobA: u("uBlobA"),
+      blobB: u("uBlobB"),
+    },
+  };
+}
+
 /** 측정용: 마지막 1초 동안 그린 횟수. 화면에는 쓰지 않는다. */
 export const fieldStats = { draws: 0, since: 0, perSec: 0 };
 
 export function Field({ view, onUnavailable }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
+  // 문맥을 잃은 동안: 잃은 캔버스는 흰 칸으로 남으므로 그 위를 CSS 바탕이 덮는다
+  const [lostUi, setLostUi] = useState(false);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -137,67 +394,33 @@ export function Field({ view, onUnavailable }: Props) {
       alpha: false,
       powerPreference: "low-power",
     });
-    const vs = gl === null ? null : compile(gl, gl.VERTEX_SHADER, VERT);
-    const fs = gl === null ? null : compile(gl, gl.FRAGMENT_SHADER, FRAG);
-    const prog = gl === null ? null : gl.createProgram();
-    if (gl === null || vs === null || fs === null || prog === null) {
+    if (gl === null) {
       onUnavailable();
       return undefined;
     }
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (gl.getProgramParameter(prog, gl.LINK_STATUS) !== true) {
+    let gpu = build(gl);
+    if (gpu === null) {
       onUnavailable();
       return undefined;
     }
-    gl.useProgram(prog);
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-    const loc = gl.getAttribLocation(prog, "a");
-    gl.enableVertexAttribArray(loc);
-    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-    const u = (name: string): WebGLUniformLocation | null => gl.getUniformLocation(prog, name);
-    const U = {
-      res: u("uRes"),
-      dpr: u("uDpr"),
-      time: u("uTime"),
-      pan: u("uPan"),
-      motion: u("uMotion"),
-      dark: u("uDark"),
-      base: u("uBase"),
-      a: u("uA"),
-      b: u("uB"),
-      c: u("uC"),
-    };
 
-    let colors: { base: Rgb; a: Rgb; b: Rgb; c: Rgb; dark: boolean } = {
-      base: [1, 1, 1],
-      a: [0.4, 0.5, 0.95],
-      b: [0.6, 0.45, 0.95],
-      c: [0.2, 0.75, 0.7],
-      dark: false,
-    };
+    const blobA = new Float32Array(N * 4);
+    const blobB = new Float32Array(N * 4);
+    let pal: Palette = LIGHT;
     const host = canvas.parentElement ?? document.body;
     const refreshColors = (): void => {
-      const base = readColor(host, "--cs-color-surface-base", colors.base);
-      const dark = (base[0] + base[1] + base[2]) / 3 < 0.5;
-      const a = readColor(host, "--cs-color-info-graphic", colors.a);
-      colors = {
-        base,
-        dark,
-        // 어두운 판은 info 색에서 갈라진 이웃 색 둘(보랏빛, 청록빛): 서로 멀지 않아 한 가족으로 읽힌다.
-        // 밝은 판은 따로 짠 연한 색이다: 흰 바탕에 스며드는 파랑, 보라, 하늘.
-        a: dark ? a : [0.5, 0.62, 1.0],
-        b: dark ? mixRgb(a, [0.62, 0.4, 0.96], 0.5) : [0.74, 0.56, 1.0],
-        c: dark ? mixRgb(a, [0.2, 0.78, 0.9], 0.5) : [0.42, 0.84, 0.97],
-      };
+      // 바탕의 밝기로 판을 고른다(색 자체는 쓰지 않는다). 어두운 판의 파랑 닻은 info 색이다.
+      const surface = readColor(host, "--cs-color-surface-base", [1, 1, 1]);
+      const dark = (surface[0] + surface[1] + surface[2]) / 3 < 0.5;
+      pal = dark
+        ? darkPalette(readColor(host, "--cs-color-info-graphic", [0.36, 0.5, 0.86]))
+        : LIGHT;
       dirty = true;
     };
 
     let dpr = 1;
     let dirty = true;
+    let lost = false;
     const resize = (): void => {
       dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
       const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
@@ -205,8 +428,8 @@ export function Field({ view, onUnavailable }: Props) {
       if (canvas.width !== w || canvas.height !== h) {
         canvas.width = w;
         canvas.height = h;
-        gl.viewport(0, 0, w, h);
       }
+      gl.viewport(0, 0, canvas.width, canvas.height);
       dirty = true;
     };
     const ro = new ResizeObserver(resize);
@@ -229,6 +452,8 @@ export function Field({ view, onUnavailable }: Props) {
 
     const frame = (now: number): void => {
       raf = requestAnimationFrame(frame);
+      const g = gpu;
+      if (g === null || lost) return;
       const v = view.current;
       const motion = reducedMotion() ? 0 : 1;
       const sig = `${v.x.toFixed(1)}|${v.y.toFixed(1)}`;
@@ -240,16 +465,20 @@ export function Field({ view, onUnavailable }: Props) {
       if (!dirty && (motion === 0 || now - lastDraw < 1000 / IDLE_FPS - 2)) return;
       dirty = false;
       lastDraw = now;
-      gl.uniform2f(U.res, canvas.width, canvas.height);
-      gl.uniform1f(U.dpr, dpr);
-      gl.uniform1f(U.time, (now - t0) / 1000);
-      gl.uniform2f(U.pan, v.x, v.y);
-      gl.uniform1f(U.motion, motion);
-      gl.uniform1f(U.dark, colors.dark ? 1 : 0);
-      gl.uniform3f(U.base, ...colors.base);
-      gl.uniform3f(U.a, ...colors.a);
-      gl.uniform3f(U.b, ...colors.b);
-      gl.uniform3f(U.c, ...colors.c);
+      const t = ((now - t0) / 1000) * motion;
+      blobState(t, blobA, blobB);
+      gl.useProgram(g.prog);
+      gl.uniform2f(g.u.res, canvas.width, canvas.height);
+      gl.uniform1f(g.u.dpr, dpr);
+      gl.uniform1f(g.u.time, t);
+      gl.uniform2f(g.u.pan, v.x, v.y);
+      gl.uniform1f(g.u.dark, pal.dark ? 1 : 0);
+      gl.uniform3f(g.u.base, ...pal.base);
+      gl.uniform3f(g.u.a, ...pal.a);
+      gl.uniform3f(g.u.b, ...pal.b);
+      gl.uniform3f(g.u.c, ...pal.c);
+      gl.uniform4fv(g.u.blobA, blobA);
+      gl.uniform4fv(g.u.blobB, blobB);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       fieldStats.draws += 1;
       if (now - fieldStats.since >= 1000) {
@@ -259,7 +488,7 @@ export function Field({ view, onUnavailable }: Props) {
       }
     };
     const start = (): void => {
-      if (raf === 0 && !document.hidden) raf = requestAnimationFrame(frame);
+      if (raf === 0 && !lost && !document.hidden) raf = requestAnimationFrame(frame);
     };
     const stop = (): void => {
       if (raf !== 0) cancelAnimationFrame(raf);
@@ -272,20 +501,50 @@ export function Field({ view, onUnavailable }: Props) {
         start();
       }
     };
+    // 문맥을 잃으면: 복구를 허용하고(preventDefault), 그리기를 멈추고, 위에 CSS 바탕을 덮어 빈 화면을 막는다.
+    const onLost = (e: Event): void => {
+      e.preventDefault();
+      lost = true;
+      stop();
+      setLostUi(true);
+    };
+    // 문맥이 돌아오면 프로그램과 버퍼를 다시 짜고 한 장 그린다.
+    const onRestored = (): void => {
+      lost = false;
+      const g = build(gl);
+      if (g === null) {
+        onUnavailable();
+        return;
+      }
+      gpu = g;
+      setLostUi(false);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      dirty = true;
+      start();
+    };
+    canvas.addEventListener("webglcontextlost", onLost);
+    canvas.addEventListener("webglcontextrestored", onRestored);
     document.addEventListener("visibilitychange", onVis);
     start();
     return () => {
       stop();
       document.removeEventListener("visibilitychange", onVis);
+      canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
       mq.removeEventListener("change", refreshColors);
       mo.disconnect();
       ro.disconnect();
-      gl.deleteProgram(prog);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteBuffer(buf);
+      if (!lost && gpu !== null) {
+        gl.deleteProgram(gpu.prog);
+        gl.deleteBuffer(gpu.buf);
+      }
     };
   }, [view, onUnavailable]);
 
-  return <canvas ref={ref} aria-hidden className="absolute inset-0 size-full" />;
+  return (
+    <>
+      <canvas ref={ref} aria-hidden className="absolute inset-0 size-full" />
+      {lostUi && <div aria-hidden className="wb5-paper absolute inset-0" />}
+    </>
+  );
 }

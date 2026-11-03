@@ -13,7 +13,7 @@ import {
   SegmentedControl,
   SegmentedControlItem,
 } from "@caustic/react";
-import { Filter, Pencil, Plus, Rows3, Target, X } from "../_shell";
+import { Filter, Link2, Pencil, Plus, Rows3, Target, X } from "../_shell";
 import { T } from "../_shell/terms";
 import {
   CONTRIB_LABEL,
@@ -95,9 +95,9 @@ export function CanvasBar() {
           size="sm"
           radius="lg"
           aria-label="보기 방식"
-          value={m.view === "strata" ? "strata" : "orbit"}
+          value={m.view === "strata" || m.view === "link" ? m.view : "orbit"}
           onValueChange={(v) => {
-            if (v === "orbit" || v === "strata") m.setView(v);
+            if (v === "orbit" || v === "strata" || v === "link") m.setView(v);
           }}
         >
           <SegmentedControlItem value="orbit" icon={<Target />}>
@@ -105,6 +105,9 @@ export function CanvasBar() {
           </SegmentedControlItem>
           <SegmentedControlItem value="strata" icon={<Rows3 />}>
             Strata
+          </SegmentedControlItem>
+          <SegmentedControlItem value="link" icon={<Link2 />}>
+            Link
           </SegmentedControlItem>
         </SegmentedControl>
         <FloatingBarSeparator />

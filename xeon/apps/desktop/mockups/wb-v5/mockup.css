@@ -1,6 +1,8 @@
 /* 크래프트 v5: caustic 스타일 + 공용 셸 CSS. 지도의 움직임·코어·점 종이(WebGL이 없을 때)만 이 화면의 몫. */
 @import "@caustic/react/styles.css";
 @import "../_shell/shell.css";
+@import "./link.css";
+@import "./core.css";
 @source "./";
 
 /* WebGL을 못 쓸 때의 배경: 큰 원 두 개의 가장자리 빛만 CSS로 */
@@ -138,17 +140,20 @@
   }
 }
 
-/* 이름표: 불투명한 면 + 가장자리에서 번지는 빛. 점이 비쳐 글자를 가리지 않는다. */
+/* 이름표: 불투명한 면 + 방향 없는 빛. 점이 비쳐 글자를 가리지 않는다.
+   고른 안: 사방이 같은 번짐 하나와 사방이 같은 가는 테두리(비교한 다른 두 안은 지웠다).
+   위·아래를 가르는 하이라이트, 아래로 떨어지는 그림자, 방향 그라데이션 테두리는 쓰지 않는다. */
 .wb5-label {
-  --tint: var(--cs-color-text-primary);
+  --tint: var(--chip-ink, var(--cs-color-text-primary));
   --fill: var(--cs-color-surface-raised);
+  --edge: 0.4;
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 28px;
   padding: 0 12px;
-  border: 1px solid transparent;
+  border: 1px solid color-mix(in oklab, var(--tint) calc(var(--edge) * 100%), transparent);
   border-radius: 999px;
   color: var(--cs-color-text-primary);
   font-family: inherit;
@@ -164,17 +169,9 @@
         color-mix(in oklab, var(--tint) calc(var(--spot) * 16%), transparent),
         transparent 72%
       )
-      padding-box,
-    linear-gradient(var(--fill), var(--fill)) padding-box,
-    linear-gradient(
-        158deg,
-        color-mix(in oklab, var(--tint) calc(var(--edge) * 100%), transparent),
-        color-mix(in oklab, var(--tint) calc(var(--edge) * 26%), transparent) 58%
-      )
-      border-box;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    0 5px 12px -7px color-mix(in oklab, var(--tint) 55%, transparent);
+      padding-box no-repeat,
+    linear-gradient(var(--fill), var(--fill)) border-box;
+  box-shadow: 0 0 14px -2px color-mix(in oklab, var(--tint) 28%, transparent);
   transition:
     --spot 0.14s,
     --edge 0.14s,
@@ -190,16 +187,9 @@
 }
 .wb5-label:hover {
   --spot: 1;
-  --edge: 0.72;
-  transform: translateY(-1px) scale(1.035);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.55),
-    0 9px 18px -8px color-mix(in oklab, var(--tint) 62%, transparent);
-}
-.wb5-label:focus-visible {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    var(--cs-focus);
+  --edge: 0.6;
+  transform: scale(1.035);
+  box-shadow: 0 0 18px -2px color-mix(in oklab, var(--tint) 40%, transparent);
 }
 .wb5-label[data-group] {
   --tint: var(--cs-color-info-graphic);
@@ -212,9 +202,8 @@
 .wb5-label[data-lit] {
   --edge: 0.7;
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
     0 0 0 3px color-mix(in oklab, var(--tint) 16%, transparent),
-    0 8px 16px -8px color-mix(in oklab, var(--tint) 60%, transparent);
+    0 0 14px -2px color-mix(in oklab, var(--tint) 46%, transparent);
 }
 .wb5-label[data-off] {
   --edge: 0.18;
@@ -229,14 +218,12 @@
     wb5-nudge var(--wb5-spring-t) var(--wb5-spring) 900ms both,
     wb5-warm 5.5s ease-in-out 1.6s infinite alternate;
 }
-/* 고른 것: 면이 잉크색으로 앉고 윗변에 가는 빛이 남는다 */
+/* 고른 것: 면이 잉크색으로 앉고, 같은 밝기의 번짐이 사방을 둘러싼다 */
 .wb5-label[data-picked] {
   color: var(--cs-color-surface-base);
   --fill: color-mix(in oklab, var(--cs-color-text-primary) 92%, white);
   --edge: 1;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.3),
-    0 10px 22px -10px color-mix(in oklab, var(--cs-color-text-primary) 70%, transparent);
+  box-shadow: 0 0 16px -2px color-mix(in oklab, var(--tint) 50%, transparent);
 }
 .wb5-label[data-picked][data-group] {
   --fill: color-mix(in oklab, var(--cs-color-info-graphic) 82%, black);
@@ -245,6 +232,9 @@
 .wb5-label[data-picked][data-fail] {
   --fill: color-mix(in oklab, var(--cs-color-danger-graphic) 82%, black);
   color: #fff;
+}
+.wb5-label:focus-visible {
+  box-shadow: var(--cs-focus);
 }
 .wb5-label-tag {
   font-size: 11px;
@@ -266,7 +256,7 @@
   transition: transform var(--wb5-spring-t) var(--wb5-spring);
 }
 .wb5-dot[data-hot] > svg {
-  transform: translateY(-1px) scale(1.12);
+  transform: scale(1.12);
 }
 .wb5-pop {
   transform-origin: 0 0;

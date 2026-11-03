@@ -626,10 +626,15 @@ export function Lanes({ rightInset }: { rightInset: number }) {
   return (
     <section
       aria-label="순서"
-      className="absolute inset-0 overflow-y-auto"
-      style={{ paddingRight: rightInset }}
+      className="absolute inset-x-0 bottom-14 top-0 overflow-y-auto"
+      style={{
+        paddingRight: rightInset,
+        // 왼쪽 아래 찾기 칸 위에서 끝낸다: 글자가 칸 뒤로 지나가지 않고 아래 끝은 옅어진다
+        maskImage: "linear-gradient(to bottom, #000 calc(100% - 20px), transparent)",
+        WebkitMaskImage: "linear-gradient(to bottom, #000 calc(100% - 20px), transparent)",
+      }}
     >
-      <div className="mx-auto max-w-[960px] px-4 pb-24 pt-[96px]">
+      <div className="mx-auto max-w-[960px] px-4 pb-10 pt-[96px]">
         <Card variant="surface" size="sm" shadow="3" className="gap-0 p-2">
           <SectionHeader
             size="sm"

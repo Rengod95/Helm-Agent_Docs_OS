@@ -283,8 +283,14 @@ export interface Plugin {
   hooks: string[];
   provides: string[];
   optional?: string[];
+  /** 꼭 있어야 하는 기능(매니페스트 requires, 스펙 §3.1). 없는 기능은 기능 대기다. */
+  requires?: string[];
   pieces: Piece[];
   drives?: boolean;
+  /** 남기는 기록 종류(recordKinds, 스펙 §3.6): grp.<그룹>.<주제>.<일> 또는 x.<확장>.<주제>.<일> */
+  records?: string[];
+  /** 읽는 기록 종류(readsRecordKinds). 끝이 ".*"이면 앞부분으로 시작하는 것 전부다. */
+  reads?: string[];
   /** 켜져 있나(전역 하나. 대화마다 끄는 일은 대화 화면의 몫이다) */
   on: boolean;
   health?: Health;
@@ -354,6 +360,7 @@ export const PLUGINS: Plugin[] = [
       "boundary.settle.after",
       "lifecycle.lease.rejected",
     ],
+    reads: ["grp.learning.memory.*"],
     pieces: [piece("command", "/explore")],
     health: {
       fails: 1,
@@ -403,6 +410,7 @@ export const PLUGINS: Plugin[] = [
     version: "0.4.0",
     on: true,
     hooks: ["boundary.settle.after", "thread.shutdown"],
+    requires: ["knowledge.memory"],
     provides: [],
     pieces: [piece("skill", "write-lesson"), piece("command", "/learn")],
   },
@@ -417,6 +425,7 @@ export const PLUGINS: Plugin[] = [
     on: true,
     hooks: [],
     provides: ["knowledge.memory"],
+    records: ["grp.learning.memory.written"],
     pieces: [piece("tool", "memory_write")],
   },
   {
@@ -430,6 +439,7 @@ export const PLUGINS: Plugin[] = [
     on: true,
     hooks: ["boundary.settle.after"],
     provides: [],
+    requires: ["knowledge.search"],
     pieces: [piece("command", "/review")],
     health: {
       fails: 5,
@@ -487,6 +497,7 @@ export const PLUGINS: Plugin[] = [
     on: true,
     hooks: [],
     provides: ["knowledge.search", "knowledge.skills"],
+    reads: ["x.acme-notes.note.*"],
     pieces: [piece("tool", "skill_load"), piece("tool", "knowledge_search")],
   },
   {
@@ -571,6 +582,7 @@ export const PLUGINS: Plugin[] = [
     on: true,
     hooks: ["tool.result"],
     provides: ["notes.search"],
+    records: ["x.acme-notes.note.indexed"],
     pieces: [piece("mcp", "acme-wiki"), piece("skill", "acme-style")],
     health: {
       fails: 2,
@@ -771,6 +783,12 @@ export function manifestText(
       fields.push(
         `provides: [${p.provides.map((c) => `{ id: "${c}", version: "1.0.0" }`).join(", ")}]`,
       );
+    const req = p.requires ?? [];
+    if (req.length > 0) fields.push(`requires: [${req.map((c) => `"${c}"`).join(", ")}]`);
+    const rec = p.records ?? [];
+    if (rec.length > 0) fields.push(`recordKinds: [${rec.map((k) => `"${k}"`).join(", ")}]`);
+    const rd = p.reads ?? [];
+    if (rd.length > 0) fields.push(`readsRecordKinds: [${rd.map((k) => `"${k}"`).join(", ")}]`);
     if (isOn(p.id)) fields.push("defaultEnabled: true");
     lines.push(`    { ${fields.join(", ")} },`);
   }

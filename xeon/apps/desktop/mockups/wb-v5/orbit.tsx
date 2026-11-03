@@ -21,6 +21,7 @@ import {
 import { createPortal } from "react-dom";
 import { Maximize } from "../_shell";
 import { T } from "../_shell/terms";
+import { CoreOrb } from "./core";
 import {
   ANGLE,
   CAPS,
@@ -489,19 +490,11 @@ export function Orbit({
             className="pointer-events-none relative -translate-x-1/2 -translate-y-1/2"
             style={{ width: CORE, height: CORE }}
           >
-            <span aria-hidden className="wb5-planet-glow absolute rounded-full" />
-            <button
-              type="button"
-              data-box="core"
-              onClick={() => m.select({ k: "agent" })}
-              aria-label={`${T.baseAgent} 보기`}
-              aria-pressed={coreSel}
-              className={`wb5-planet pointer-events-auto absolute inset-0 cursor-pointer rounded-full border-0 p-0 outline-none focus-visible:shadow-focus ${coreSel ? "wb5-planet-on" : ""}`}
-            />
+            <CoreOrb size={CORE} selected={coreSel} onSelect={() => m.select({ k: "agent" })} />
             <div className="pointer-events-auto absolute left-1/2 top-full -mt-3 -translate-x-1/2">
               <button
                 type="button"
-                className="wb5-label wb5-label-sm"
+                className="wb5-label wb5-label-sm wb5-core-label"
                 data-picked={coreSel ? "" : undefined}
                 onClick={() => m.select({ k: "agent" })}
                 onPointerMove={spot}

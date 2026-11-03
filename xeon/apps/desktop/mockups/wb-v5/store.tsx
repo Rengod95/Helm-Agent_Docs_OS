@@ -52,7 +52,8 @@ export interface Created {
   command?: string;
 }
 
-export type View = "orbit" | "strata" | "detail";
+export type MapView = "orbit" | "strata" | "link";
+export type View = MapView | "detail";
 export interface Filter {
   kind: KindFilter;
   contrib: readonly Contrib[];
@@ -73,10 +74,10 @@ export interface Mock {
   closePanel: () => void;
   /** 지도(orbit)·순서(strata)·플러그인 자세히(detail) */
   view: View;
-  setView: (v: "orbit" | "strata") => void;
+  setView: (v: MapView) => void;
   detail: DetailTarget | null;
   /** 자세히 보기에서 돌아갈 곳 */
-  back: "orbit" | "strata";
+  back: MapView;
   /** 자세히 보기를 연다. code=true면 코드가 펼쳐진 채로 */
   openDetail: (t: DetailTarget, code?: boolean) => void;
   detailCode: boolean;
@@ -143,7 +144,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
   const [sel, setSel] = useState<Sel>({ k: "agent" });
   const [panel, setPanel] = useState(false);
   const [view, setViewState] = useState<View>("orbit");
-  const [back, setBack] = useState<"orbit" | "strata">("orbit");
+  const [back, setBack] = useState<MapView>("orbit");
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const [detailCode, setDetailCode] = useState(false);
   const [run, setRun] = useState<RunMode>("sample");
@@ -257,7 +258,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
     setPanel(open && s.k !== "layer");
   }, []);
   const closePanel = useCallback(() => setPanel(false), []);
-  const setView = useCallback((v: "orbit" | "strata") => {
+  const setView = useCallback((v: MapView) => {
     const apply = (): void => {
       setViewState(v);
       setBack(v);

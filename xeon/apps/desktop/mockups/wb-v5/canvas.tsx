@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Field } from "./field";
 import { Finder } from "./finder";
 import { Lanes } from "./lanes";
+import { Link } from "./link";
 import { Orbit } from "./orbit";
 import { PANEL_W, RingPanel, SelectionPanel } from "./panels";
 import { useMock } from "./store";
@@ -19,7 +20,8 @@ export function Canvas() {
   const bg = useRef<View>({ k: 1, x: 0, y: 0 });
   const [glOk, setGlOk] = useState(true);
   const noGl = useCallback(() => setGlOk(false), []);
-  const panelOpen = m.panel && m.sel.k !== "layer";
+  // 링크 보기는 오른쪽 열이 선택 패널 자리를 쓴다: 패널은 숨기고 상태는 둔다(지도로 돌아가면 그대로).
+  const panelOpen = m.panel && m.sel.k !== "layer" && view !== "link";
   const right = panelOpen ? PANEL_W + 24 : 0;
   const ringOpen = ring !== null && view === "orbit";
   // 고리 패널이 열려 있으면 다른 보기로 가도 남지 않게 접는다.
@@ -35,6 +37,8 @@ export function Canvas() {
           zoomSlot={zoomSlot}
           view={bg}
         />
+      ) : view === "link" ? (
+        <Link rightInset={right} />
       ) : (
         <Lanes rightInset={right} />
       )}
