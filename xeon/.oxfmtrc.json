@@ -18,6 +18,7 @@
     "**/*.md",
     "**/*.html",
     "**/*.toml",
-    "packages/group-sdk/templates/**"
+    "packages/group-sdk/templates/**",
+    "packages/plugin-builder/templates/**"
   ]
 }

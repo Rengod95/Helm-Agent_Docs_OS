@@ -258,3 +258,17 @@ test("scan.finds-forbidden-calls-in-real-group-shapes", () => {
     codes(`defineGroup({ setup(g) { g.drive(async () => { await g.commit({ n: 1 }); }); } });`),
   ).toEqual([]);
 });
+
+test("scan.finds-a-drive-nested-in-call-arguments", () => {
+  const source = `export default defineGroup({
+  setup(g) {
+    g.drive(async () => {
+      const a = Date.now();
+    });
+  },
+});`;
+  const found = scanDriveSource(source);
+  expect(found.map((finding) => [finding.code, finding.target, finding.line])).toEqual([
+    ["SD-01", "Date.now", 4],
+  ]);
+});

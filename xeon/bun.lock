@@ -91,6 +91,7 @@
         "@fresnel/platform-sandbox": "workspace:*",
         "@fresnel/platform-secrets": "workspace:*",
         "@fresnel/platform-store": "workspace:*",
+        "@fresnel/plugin-builder": "workspace:*",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -509,6 +510,18 @@
         "@types/bun": "catalog:",
       },
     },
+    "packages/plugin-builder": {
+      "name": "@fresnel/plugin-builder",
+      "version": "0.0.0",
+      "dependencies": {
+        "@fresnel/contracts": "workspace:*",
+        "@fresnel/ext-host": "workspace:*",
+        "@fresnel/group-sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
+    },
     "plugins/provider-anthropic-oauth": {
       "name": "@fresnel/provider-anthropic-oauth",
       "version": "0.0.0",
@@ -697,6 +710,8 @@
     "@fresnel/platform-secrets": ["@fresnel/platform-secrets@workspace:packages/platform-secrets"],
 
     "@fresnel/platform-store": ["@fresnel/platform-store@workspace:packages/platform-store"],
+
+    "@fresnel/plugin-builder": ["@fresnel/plugin-builder@workspace:packages/plugin-builder"],
 
     "@fresnel/provider-anthropic-oauth": ["@fresnel/provider-anthropic-oauth@workspace:plugins/provider-anthropic-oauth"],
 

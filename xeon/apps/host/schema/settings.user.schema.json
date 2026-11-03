@@ -7110,11 +7110,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "지난 원본은 지우고 일별 집계만 남긴다",
-          "label": "측정 원본 보관 기간",
+          "help": "Older raw data is deleted; daily summaries stay",
+          "helpKey": "settings.x.operations.trace.retentionDays.help",
+          "label": "Measurement raw data retention",
+          "labelKey": "settings.x.operations.trace.retentionDays.label",
           "order": 520,
           "tab": "plugins",
-          "unit": "일",
+          "unit": "days",
+          "unitKey": "settings.x.operations.trace.retentionDays.unit",
           "widget": "number"
         }
       }
@@ -7132,8 +7135,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "켜면 모델로 나간 요청 본문을 시크릿 값을 가린 뒤 측정 원본 보관 기간만큼 저장한다",
-          "label": "모델 요청 본문 저장",
+          "help": "When on, requests sent to the model are stored with secret values masked, for the raw data retention period",
+          "helpKey": "settings.x.operations.trace.storeRequestBody.help",
+          "label": "Store model request bodies",
+          "labelKey": "settings.x.operations.trace.storeRequestBody.label",
           "order": 530,
           "tab": "plugins",
           "widget": "toggle"

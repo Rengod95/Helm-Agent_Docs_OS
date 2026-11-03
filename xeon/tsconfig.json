@@ -74,6 +74,9 @@
       "path": "./packages/group-sdk"
     },
     {
+      "path": "./packages/plugin-builder"
+    },
+    {
       "path": "./packages/group-helm"
     },
     {

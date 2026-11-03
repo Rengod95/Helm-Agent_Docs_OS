@@ -111,6 +111,11 @@ interface DevkitService {
 - `validate`는 F `validateManifest`, `validateUsage`, `validateComposition`, group-sdk `scanDriveSource`, ADR-0021 화면 규칙, 카탈로그 항목의 필수 검사를 차례로 돌린 결과입니다.
 - `trial`은 Test run을 만듭니다(`thread.create { trial: true }`, W-34). Test run은 대상 확장을 `session` 범위로 켜고, 학습 그룹 리뷰에서 빠지며(X-14), 단계 경계 멈춤(W-48)을 쓸 수 있습니다.
 - `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 시크릿처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
+- [결정: M4 T-AUTH] 구현은 `xeon/packages/plugin-builder`의 함수(`scaffoldExtension`, `validateExtensionDir`, `validateCompositionReport`, `packExtension`, `installExtension`, `removeExtension`)이고 `apps/host`의 `assembly/m4/devkit-port.ts`가 wire에 연결합니다.
+- [결정: M4 T-AUTH] `pack`은 엔트리를 한 파일 `dist/index.js`로 번들하고 묶음 매니페스트의 `entry`를 `./dist/index.js`로 바꿉니다. 호스트가 같은 인스턴스를 주는 SDK 모듈(`SDK_MODULE_SPECIFIERS`)은 번들에 넣지 않고 외부 import로 둡니다. `ext.reload`는 한 파일 번들 엔트리만 완전히 다시 읽기 때문입니다(여러 파일 소스는 옛 상대 import가 모듈 캐시에 남습니다). `link`는 `.js`·`.mjs` 엔트리만 받고 `.ts` 소스 폴더는 `invalid_input`으로 돌려 먼저 `pack`하게 합니다. 번들이 한 파일이 아니면 `pack`이 실패합니다. 그룹 템플릿은 `defineGroup`이 만든 모듈 객체를 default로 내므로(`GroupModule.entry`가 함수), 묶을 때 가상 진입 파일이 엔트리의 `extension`이나 default를 함수로 맞춰 `extension`과 default로 다시 냅니다(함수면 그대로). 이 맞춤이 없으면 외부 로더가 `entry_not_function`으로 거절합니다. 시험 `authoring.drive-bundle`이 drive 그룹 하나를 묶어 외부 로더로 불러 drive가 도는 것까지 봅니다.
+- [결정: M4 T-AUTH] `pack` 출력은 기본 `<dir>/dist/package`(다시 만들면 비우고 씁니다)이고, 지정한 `out`은 없거나 비어 있어야 합니다(`exists`). 묶음 형식은 폴더 사본이고 `sha256`은 정렬한 `경로 NUL 파일해시` 줄들의 해시입니다(§10 4번은 그대로 미결). 묶음 최상위의 `src`, `test`, `node_modules`, `dist`, `package.json`, `tsconfig.json`과 시크릿 이름(`.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_*`, `credentials*`)은 넣지 않습니다.
+- [결정: M4 T-AUTH] `link`는 `<확장 위치>/<이름>`을 임시 폴더에 복사한 뒤 바꿔 놓습니다. 같은 이름이 있으면 바꾸고(`replaced`) 새 버전은 `ext.reload`가 단계 경계에서 적용합니다. `remove`는 폴더를 지웁니다.
+- [결정: M4 T-AUTH] `scaffold`의 그룹 템플릿(drive, policy, observe)은 구성 초안으로 고릅니다: drive 블록이 있거나 초안이 없으면 drive, 모든 `on` 블록이 `tool.call.before`뿐이면 policy, 아니면 observe. 초안과 `ui`와 `group.members`는 매니페스트에 패치하고(루트 플러그인 `hooks`는 초안의 훅을 합치고 drive 블록이 있으면 `drives: true`), 패치할 것이 없으면 템플릿 글자 그대로 씁니다. 대상 폴더는 절대 경로이고 없거나 비어 있어야 하며 실패하면 파일을 쓰지 않습니다. 템플릿 위치는 `FRESNEL_GROUP_TEMPLATES_DIR`, 릴리즈 자원 폴더, 소스 저장소 순으로 찾습니다.
 
 ### 3.4 종류 카탈로그
 
@@ -132,6 +137,8 @@ interface KindEntry {
   readonly blockedReason?: string;             // status = blocked 일 때
 }
 ```
+
+- [결정: M4 T-AUTH] wire `ext.kinds`의 `KindEntry.id`는 T-F 계약이 `single-plugin`과 `plugin-group` 둘로 정했으므로, M4 카탈로그 항목은 그 둘이고 아래 표의 `group.drive`·`group.policy`·`group.observe`는 `plugin-group` 항목의 템플릿 선택지입니다. 카탈로그는 JSON 파일이 아니라 타입이 붙은 데이터(`catalog.ts`의 `KIND_CATALOG`)입니다. 화면 종류(`view.*`)와 `plugin.l2-provider`, `plugin.tool`, `x.hook` 항목은 계약이 종류 id를 늘릴 때(T-F) 더합니다. 적합성 시험은 `catalogConformance`입니다.
 
 M4 첫 카탈로그 [제안]:
 
@@ -168,6 +175,8 @@ M4 첫 카탈로그 [제안]:
 | AU-011 | 상태 스키마 `version`과 마이그레이션 훅(`L3.group-sdk.spec` §4.7) | 경고 |
 | AU-012 | 재생 규율: `scanDriveSource` 위반 | 오류 |
 
+- [결정: M4 T-AUTH] 구현한 규칙: AU-001(이름 규칙과 예약 이름, 설치된 이름과 충돌), AU-002, AU-003(`validateManifest`·`validateComposition`의 구성 검사가 담당), AU-006, AU-007, AU-009(소스의 시크릿 리터럴 패턴), AU-012(`scanDriveSource`). AU-005는 F `validateUi`의 `ui_mode_not_allowed`·`ui_reason_empty`가 담당합니다. AU-004(`drive_duplicate`·`on_capability_call`은 F 구성 검사 결과를 `AU-004`로도 보이고, `capability_missing`은 `validateExtensionDir(dir, { providers })`로 제공자 목록을 받을 때만 경고한다. 호스트는 아직 목록을 주지 않는다), AU-008(Plugin App 화면에 같은 모양을 그린 `fallback` 트리가 있으면 정보. 트리 후보 판정을 그 하나로 둔다), AU-010(소스에 `loop.spawn(`이나 `.delegate(`가 있거나 단계 선언에 `spawn` 노드가 있는데 `.ask(`, `human` 노드, 메서드 `approval: true`가 모두 없으면 경고), AU-011(`g.commit(`·`g.state(`를 쓰는데 `state: { … version: N }` 선언이 없거나 N이 2 이상인데 `migrations`가 없으면 경고). AU-010과 AU-011은 소스 글자 휴리스틱이다. 아직 없는 규칙: AU-005의 `widgets`·`bridge` 범위 대조(T-VIEW 뒤).
+
 ## 4. 동작 규칙
 
 ### 4.1 제작 대화 단계
@@ -197,6 +206,13 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - [제안] 제작 대화가 열려 있는 동안 `tool.call.before`(first)는 쓰기 도구(`write`, `edit`, 셸 실행의 쓰기)를 대상 폴더 안으로 제한합니다. 밖이면 거부하고 이유를 돌려줍니다.
 - 사용자 확장 위치, 관리 위치, 앱 자원 폴더에 직접 쓰지 않습니다. 설치는 `fresnel.devkit.link`(사람 확인 뒤)만 합니다.
 - 가드는 대화가 끝나면 풀립니다. Plugin Builder가 꺼져도 풀립니다.
+
+- [결정: M4 T-AUTH] 가드 판정은 함수 `authoringWriteGuard`(`guard.ts`)다. `write` 위험 등급 도구는 입력의 `path`·`file_path`·`filePath`가 대상 폴더 안이어야 하고, `exec`(셸)는 `cwd`·`workdir`가 안쪽이어야 한다. 경로를 읽을 수 없는 `write`와 작업 폴더가 없는 `exec`는 막는다. 한계 [미결]: 셸 명령 문자열 속 절대 경로는 보지 않는다.
+- [결정: M4 T-AUTH] 묶기·설치 앞 사람 확인은 `packWithConfirmation`, `installWithConfirmation`(`release.ts`)이다. 질문 `confirm`의 선택지 `yes`·`no`, `requestId`는 `authoring:package:<경로 sha256 앞 12자>:<번호>`·`authoring:install:<…>:<번호>`(64자 이하)이고, `yes`가 아니면 `pack`·`link`를 부르지 않는다. 번호는 거절 뒤 다시 묻는 질문을 가른다(같은 `requestId`는 기록된 답을 돌려주므로). `ask`는 drive의 `loop.ask`를 그대로 넘긴다. replay는 `replayInDevMode`가 개발 모드가 아니면 `dev_mode_required`를 돌려준다.
+- [결정: M4 T-AUTH] 그룹 `authoring`은 `createAuthoringGroup({ devkit, devMode?, fixLoopLimit? })`(`group.ts`)이다. `fresnel.devkit` 서비스(`DevkitService`)를 주입받고, 매니페스트는 내장(`trust.level: "builtin"`)·`defaultEnabled: false`·루트 L3 플러그인 `drives: true`, `usesPost: true`, 훅 `tool.call.before`·`thread.start`다. 상태 문서(`group-state.ts`, version 1)는 단계(`idle`·`intent`·`compose`·`scaffold`·`validate`·`fix`·`trial`·`replay`·`package`·`done`), 대상 폴더, 구성 초안, 검사 오류 지문, 사람 확인을 기다리는 요청(`pending`), 시험·묶음·설치 결과를 가진다.
+- [결정: M4 T-AUTH] 도구 아홉(`group-tools.ts`)은 `authoring_` 접두이고 입력 검사, 상태 커밋, 결과 요약만 한다. 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 `pending`만 커밋하고 `status: "awaiting_confirmation"`을 돌려주며, drive가 `loop.ask`로 확인한 뒤 서비스를 부르고 결과를 커밋한다(A-4: 확인 전에는 파일을 쓰지 않고 기다리는 동안 drive lock이 `waiting`으로 반납된다). 거절하면 `denied`가 상태에 남고 같은 도구를 다시 부르면 한 번 거절을 알린 뒤 그다음 호출이 다시 묻는다. `authoring_start`는 종류·이름 확인(`loop.ask`) 전에는 다른 도구가 `awaiting_confirmation`으로 거절하게 한다. `authoring_replay`는 `replayInDevMode`로 판정하고(A-5) 배포 형태면 상태에 `dev_mode_required`를 남긴다. `authoring_trial`은 서비스 `testRun`을 부르며 호스트가 아직 채우지 않아 오류 값을 돌려준다. 같은 검사 오류가 `fixLoopLimit`(기본 3)번 남으면 `pending: "fix_limit"`로 사용자에게 계속할지 묻는다.
+- [결정: M4 T-AUTH] 쓰기 범위 가드는 `tool.call.before`가 `authoringWriteGuard`를 부르고, 제작 대화가 열려 있는 동안(`idle`·`done`이 아닌 단계)에만 켜진다. 이 그룹의 도구(`authoring_*`)는 가드에서 뺀다. `thread.start`는 열린 대화가 있으면 알림을 하나 낸다(대화 복원). 화면 기여(`page`, `well`, `card`, `command`)와 `authoring_scaffold`의 `views` 인자, A-6은 T-VIEW 뒤로 미룬다. 설정 `l3.authoring.*`는 만들지 않고 값은 주입한다(`devMode`, `fixLoopLimit`).
+- [결정: M4 T-AUTH] 호스트는 `assembly/authoring.ts`의 `authoringUnit`으로 그룹을 내장 단위로 싣는다(기본 그룹을 끄거나 안전 모드면 싣지 않고, 싣더라도 기본 꺼짐). 서비스는 wire 제작 포트(`m4.devkit`)를 어댑터(`devkitServiceOf`)로 감싼 것이라 에이전트와 화면이 같은 검사와 뼈대를 얻는다. 포트는 엔진 포트가 만들어진 뒤에야 있어 쓸 때 읽고, 없으면 `io` 오류다. 개발 모드 판정은 호스트가 한 곳에서 주며 지금은 항상 거짓이라 `authoring_replay`는 `dev_mode_required`이고, `testRun`도 측정 계획이 wire를 더하기 전까지 `io` 오류다.
 
 ### 4.3 구성기와 화면 모드와의 관계
 
