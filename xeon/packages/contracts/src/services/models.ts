@@ -307,8 +307,12 @@ export interface UsageRecord {
   readonly stopReason: StopReason;
   /** stopReason이 "aborted"이거나 사용자 중단 */
   readonly aborted: boolean;
-  /** ms */
+  /** 종료(합산) 시각, ms */
   readonly recordedAt: number;
+  /** 요청을 시작한 시각, ms. 측정(T-MEAS-CALL)이 쓴다. 옛 기록이나 대역에는 없다 */
+  readonly startedAt?: number;
+  /** 첫 응답 조각(`start` 다음 이벤트)이 온 시각, ms. 스트림을 반복해 읽지 않았거나 조각 없이 끝났으면 null이다 */
+  readonly firstTokenAt?: number | null;
 }
 
 export interface UsageTotals {

@@ -293,7 +293,9 @@ export interface UsageRecord {
   readonly usage: Usage;              // pi-ai Usage 그대로. cost는 calculateCost 결과
   readonly stopReason: StopReason;
   readonly aborted: boolean;          // stopReason이 "aborted"이거나 사용자 중단
-  readonly recordedAt: number;        // ms
+  readonly recordedAt: number;        // 종료(합산) 시각, ms
+  readonly startedAt?: number;        // 요청 시작 시각, ms [T-MEAS-CALL]
+  readonly firstTokenAt?: number | null; // `start` 다음 첫 이벤트 시각. 스트림을 반복해 읽지 않았거나(result()만) 조각 없이 끝났으면 null
 }
 export interface UsageTotals {
   readonly calls: number;
@@ -607,7 +609,7 @@ export function resolveRole(input: {
 | 7 | 자격 증명 해석(요청 직전) | `CredentialStore.read` |
 | 8 | 응답 수신: `request.provider.after` 디스패치 | `onResponse` |
 | 9 | 원시 스트림 이벤트: `request.stream` 디스패치(지원하는 어댑터만) | `onProviderStreamEvent` |
-| 10 | 종결 이벤트(`done` 또는 `error`): `UsageRecord` 기록 | 스트림 래퍼 |
+| 10 | 종결 이벤트(`done` 또는 `error`): `UsageRecord` 기록. 시작 시각은 `startOnce` 진입, 첫 토큰 시각은 스트림 래퍼가 `start` 아닌 첫 이벤트에서 잰다(T-MEAS-CALL) | 스트림 래퍼 |
 
 - 5번 `onPayload`는 1.3.0에서 재시도 때 다시 불린다(`_research/notes/L1-2.md` §3.9). 캐시 표식 적용과 훅 디스패치는 같은 입력에 같은 결과를 내야 한다. on 핸들러 재실행 계약(`F.extensions.spec` §4.3)과 같은 조건이다.
 - 모델 요청 자체는 의도 커밋을 두지 않는다. 직전 단계 체크포인트가 그 역할을 한다(`architecture.runtime-flow.design` §4.1).

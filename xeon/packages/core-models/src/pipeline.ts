@@ -154,7 +154,11 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     return stream;
   }
 
-  function record(spec: CallSpec, message: AssistantMessage): void {
+  function record(
+    spec: CallSpec,
+    message: AssistantMessage,
+    timing: { readonly startedAt: number; readonly firstTokenAt: number | null },
+  ): void {
     const { ctx } = spec;
     deps.usage.record({
       threadId: ctx.threadId,
@@ -168,6 +172,8 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
       stopReason: message.stopReason,
       aborted: message.stopReason === "aborted" || ctx.signal?.aborted === true,
       recordedAt: deps.clock.now(),
+      startedAt: timing.startedAt,
+      firstTokenAt: timing.firstTokenAt,
     });
   }
 
@@ -404,6 +410,10 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
 
   /** 계정 하나(또는 계정 풀 없이 설정의 키)로 보내는 한 번의 요청 */
   function startOnce(spec: CallSpec): AssistantMessageEventStream {
+    const timing: { startedAt: number; firstTokenAt: number | null } = {
+      startedAt: deps.clock.now(),
+      firstTokenAt: null,
+    };
     const failureMark = deps.failures.mark();
     const model = deps.models.getModel(spec.provider, spec.modelId);
     const setting = deps.providerSetting(spec.provider);
@@ -473,20 +483,27 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
           failure === null ? (message.errorMessage ?? "") : `${failure.kind}: ${failure.reason}`;
         return { ...message, errorMessage: deps.mask(text) };
       },
+      onFirstChunk: () => {
+        timing.firstTokenAt = deps.clock.now();
+      },
       onSettled: (message) => {
-        record(spec, message);
+        record(spec, message, timing);
       },
       onAbandoned: () => {
-        record(spec, {
-          role: "assistant",
-          content: [],
-          api: model?.api ?? "unknown",
-          provider: spec.provider,
-          model: spec.modelId,
-          usage: ZERO_USAGE,
-          stopReason: "aborted",
-          timestamp: deps.clock.now(),
-        });
+        record(
+          spec,
+          {
+            role: "assistant",
+            content: [],
+            api: model?.api ?? "unknown",
+            provider: spec.provider,
+            model: spec.modelId,
+            usage: ZERO_USAGE,
+            stopReason: "aborted",
+            timestamp: deps.clock.now(),
+          },
+          timing,
+        );
       },
     });
   }
