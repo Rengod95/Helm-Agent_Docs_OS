@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { UsageMeter, UsageRecord } from "@fresnel/contracts/services";
+import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageGauge } from "@fresnel/contracts/wire";
+import { err, ok } from "@fresnel/contracts";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createUsageSource } from "../../src/assembly/usage.ts";
 
@@ -72,10 +74,16 @@ function record(
   };
 }
 
-/** provider 하나의 세션 게이지 세 줄(tokens, usd, requests 순서) */
+/** provider 하나의 세션 게이지 다섯 줄(tokens, usd, requests, cacheRead, cacheWrite 순서) */
 function sessionGauges(
   providerId: string,
-  used: { readonly tokens: number; readonly usd: number; readonly requests: number },
+  used: {
+    readonly tokens: number;
+    readonly usd: number;
+    readonly requests: number;
+    readonly cacheRead?: number;
+    readonly cacheWrite?: number;
+  },
 ): readonly UsageGauge[] {
   return [
     {
@@ -108,6 +116,26 @@ function sessionGauges(
       limit: null,
       resetsAt: null,
     },
+    {
+      id: `${providerId}::session:cacheRead`,
+      providerId,
+      account: null,
+      window: "session",
+      unit: "cacheRead",
+      used: used.cacheRead ?? 0,
+      limit: null,
+      resetsAt: null,
+    },
+    {
+      id: `${providerId}::session:cacheWrite`,
+      providerId,
+      account: null,
+      window: "session",
+      unit: "cacheWrite",
+      used: used.cacheWrite ?? 0,
+      limit: null,
+      resetsAt: null,
+    },
   ];
 }
 
@@ -129,7 +157,7 @@ test("the sums come from the records: 15 tokens, 0.002 usd, 2 requests for anthr
   push(record(THREAD_A, "anthropic", 10, 0.001));
   push(record(THREAD_A, "anthropic", 5, 0.001, true));
   const used = (await source.gauges({ threadId: THREAD_A }, SIGNAL)).map((gauge) => gauge.used);
-  expect(used).toEqual([15, 0.002, 2]);
+  expect(used).toEqual([15, 0.002, 2, 0, 0]);
 });
 
 test("a thread sees only its own records", async () => {
@@ -179,5 +207,95 @@ test("the source subscribes to the meter once, when it is created", async () => 
   expect(subscriptions()).toBe(1);
   expect(await source.gauges({ threadId: THREAD_A }, SIGNAL)).toEqual(
     sessionGauges("anthropic", { tokens: 20, usd: 0.002, requests: 2 }),
+  );
+});
+
+/** 어시스턴트 `item.recorded` 이벤트 한 건 */
+function recordedEvent(
+  seq: number,
+  threadId: ThreadId,
+  provider: string,
+  used: { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number },
+): DurableEventEnvelope {
+  return {
+    id: ids.next("evt"),
+    kind: "item.recorded",
+    version: 1,
+    threadId,
+    turnId: null,
+    stepId: null,
+    recordedAt: seq,
+    causationId: null,
+    correlationId: null,
+    payload: {
+      item: {
+        itemId: ids.next("itm"),
+        status: "completed",
+        kind: "assistant",
+        partIds: [],
+        message: {
+          role: "assistant",
+          content: [],
+          api: "test",
+          provider,
+          model: `${provider}-model`,
+          usage: {
+            input: used.input,
+            output: used.output,
+            cacheRead: used.cacheRead,
+            cacheWrite: used.cacheWrite,
+            totalTokens: used.input + used.output + used.cacheRead + used.cacheWrite,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: used.cost },
+          },
+          stopReason: "stop",
+          timestamp: 1,
+        },
+      },
+    },
+    durable: true,
+    seq,
+    parentId: null,
+  };
+}
+
+test("after a restart the gauges are rebuilt from durable records, cache read and write included", async () => {
+  // 합산기는 비어 있다(재시작 직후). 내구 기록만 있다
+  const { meter } = fakeMeter();
+  const events = [
+    recordedEvent(1, THREAD_A, "anthropic", {
+      input: 10,
+      output: 5,
+      cacheRead: 100,
+      cacheWrite: 20,
+      cost: 0.5,
+    }),
+    recordedEvent(2, THREAD_A, "anthropic", {
+      input: 1,
+      output: 1,
+      cacheRead: 50,
+      cacheWrite: 0,
+      cost: 0.25,
+    }),
+  ];
+  const source = createUsageSource(meter, async (_threadId, query) =>
+    ok(events.filter((event) => event.kind.startsWith(query.kindPrefix))),
+  );
+  expect(await source.gauges({ threadId: THREAD_A }, SIGNAL)).toEqual(
+    sessionGauges("anthropic", {
+      tokens: 187,
+      usd: 0.75,
+      requests: 2,
+      cacheRead: 150,
+      cacheWrite: 20,
+    }),
+  );
+});
+
+test("an unreadable durable log falls back to the in-memory meter", async () => {
+  const { meter, push } = fakeMeter();
+  const source = createUsageSource(meter, async () => err({ kind: "port_unavailable" }));
+  push(record(THREAD_A, "anthropic", 10, 0.001));
+  expect(await source.gauges({ threadId: THREAD_A }, SIGNAL)).toEqual(
+    sessionGauges("anthropic", { tokens: 10, usd: 0.001, requests: 1 }),
   );
 });

@@ -167,8 +167,11 @@ export function createExtensionRecords(
   };
 }
 
+/** 귀속을 이어 주는 사건(`turn.started`, `agent.spawned`)은 `since` 앞이어도 남긴다. 그래야 `since` 뒤에 끝난 턴과 자식이 scope에 묶인다 */
+const LINK_KINDS: ReadonlySet<string> = new Set(["turn.started", "agent.spawned"]);
+
 function withinSince(since: number | undefined): (event: DurableEventEnvelope) => boolean {
-  return (event) => since === undefined || event.recordedAt >= since;
+  return (event) => since === undefined || event.recordedAt >= since || LINK_KINDS.has(event.kind);
 }
 
 const NO_USAGE: ScopeUsage = {
@@ -252,7 +255,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
     return env.ext.registrations().find((info) => info.id === registrationId)?.extension;
   }
 
-  /** 이 thread의 `lease.*`·`turn.*` 이벤트를 접은 scope별 사용량. 읽지 못한 thread는 건너뛴다(그룹 서비스 `refreshUsage`와 같다) */
+  /** 이 thread의 `lease.*`·`turn.*`·`agent.*` 이벤트를 접은 scope별 사용량. 읽지 못한 thread는 건너뛴다(그룹 서비스 `refreshUsage`와 같다) */
   async function usageOf(
     id: string,
     threadIds: readonly ThreadId[],
@@ -271,11 +274,12 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       threadIds.map(async (threadId) => ({
         leases: await env.ext.queryEvents(threadId, { kindPrefix: "lease." }),
         turns: await env.ext.queryEvents(threadId, { kindPrefix: "turn." }),
+        agents: await env.ext.queryEvents(threadId, { kindPrefix: "agent." }),
       })),
     );
-    for (const { leases, turns } of reads) {
-      if (!leases.ok || !turns.ok) continue;
-      const ordered = [...leases.value, ...turns.value]
+    for (const { leases, turns, agents } of reads) {
+      if (!leases.ok || !turns.ok || !agents.ok) continue;
+      const ordered = [...leases.value, ...turns.value, ...agents.value]
         .filter(withinSince(since))
         .toSorted((a, b) => a.seq - b.seq);
       const usage = summarizeUsage(ordered).get(id) ?? NO_USAGE;
@@ -383,12 +387,12 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
         parsedSince === undefined || Number.isNaN(parsedSince) ? undefined : parsedSince;
       const usage = await usageOf(id, threadIds, since);
       const metrics: GroupMetricsFull = {
-        inputTokens: counted?.tokens.input ?? 0,
-        outputTokens: counted?.tokens.output ?? 0,
-        cacheReadTokens: counted?.tokens.cacheRead ?? 0,
-        cacheWriteTokens: counted?.tokens.cacheWrite ?? 0,
-        // `GroupStatus.metrics`와 같은 합: 카운터의 비용에 이벤트(`turn.completed`)의 비용을 더한다
-        costUsd: (counted?.costUsd ?? 0) + usage.costUsd,
+        // 토큰과 비용의 원천은 이벤트 접기 하나다(drive 턴 `turn.completed` + 자식 `agent.settled`). 카운터의 `addUsage`는 읽지 않아 두 번 세지 않는다
+        inputTokens: usage.tokens.input,
+        outputTokens: usage.tokens.output,
+        cacheReadTokens: usage.tokens.cacheRead,
+        cacheWriteTokens: usage.tokens.cacheWrite,
+        costUsd: usage.costUsd,
         leaseMs: usage.leaseMs,
         leases: usage.leases,
         denies: counted?.denies ?? 0,
