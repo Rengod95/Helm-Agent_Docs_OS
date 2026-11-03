@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { HookOrderPort } from "@fresnel/client/workbench/canvas";
+import { err, ok, type Result } from "@fresnel/contracts";
+import type { HookOrderPort, OrderPortError } from "@fresnel/client/workbench/canvas";
 import type {
   HooksOrderPreviewResult,
   HooksOrderResetResult,
@@ -19,7 +20,10 @@ type Call =
 interface FakeOptions {
   /** 미리보기에 실을 경고. 없으면 아무 것도 없는 깨끗한 제안이다 */
   readonly preview?: Partial<Omit<HooksOrderPreviewResult, "hook" | "order">>;
-  readonly previewError?: string;
+  /** 있으면 미리보기가 이 오류 값을 err로 돌려준다 */
+  readonly previewError?: OrderPortError;
+  /** 있으면 저장이 이 오류 값을 err로 돌려준다 */
+  readonly setError?: OrderPortError;
 }
 
 const nameOf = (id: string): string => `name:${id}`;
@@ -29,32 +33,43 @@ function fakePort(opts: FakeOptions = {}): { port: HookOrderPort; calls: Call[] 
   const calls: Call[] = [];
   const port: HookOrderPort = {
     get: () => Promise.reject(new Error("get is not used by the reorder flow")),
-    set: (params): Promise<HooksOrderSetResult> => {
+    set: (params): Promise<Result<HooksOrderSetResult, OrderPortError>> => {
       calls.push({ op: "set", hook: params.hook, order: [...params.order] });
-      return Promise.resolve({
-        hook: params.hook,
-        saved: [...params.order],
-        appliesAt: "nextStepBoundary",
-      });
+      if (opts.setError !== undefined) return Promise.resolve(err(opts.setError));
+      return Promise.resolve(
+        ok({
+          hook: params.hook,
+          saved: [...params.order],
+          appliesAt: "nextStepBoundary",
+        }),
+      );
     },
-    reset: (): Promise<HooksOrderResetResult> =>
+    reset: (): Promise<Result<HooksOrderResetResult, OrderPortError>> =>
       Promise.reject(new Error("reset is not used by the reorder flow")),
-    preview: (params): Promise<HooksOrderPreviewResult> => {
+    preview: (params): Promise<Result<HooksOrderPreviewResult, OrderPortError>> => {
       calls.push({ op: "preview", hook: params.hook, order: [...params.order] });
-      if (opts.previewError !== undefined) return Promise.reject(new Error(opts.previewError));
-      return Promise.resolve({
-        hook: params.hook,
-        order: [...params.order],
-        saveable: true,
-        skips: [],
-        valueChanges: [],
-        autoDisable: [],
-        guardRisk: [],
-        ...opts.preview,
-      });
+      if (opts.previewError !== undefined) return Promise.resolve(err(opts.previewError));
+      return Promise.resolve(
+        ok({
+          hook: params.hook,
+          order: [...params.order],
+          saveable: true,
+          skips: [],
+          valueChanges: [],
+          autoDisable: [],
+          guardRisk: [],
+          ...opts.preview,
+        }),
+      );
     },
   };
   return { port, calls };
+}
+
+/** 흐름이 돌려준 단계. err면 시험을 실패시킨다 */
+function stepOf(r: Result<ReorderStep, OrderPortError>): ReorderStep {
+  if (!r.ok) throw new Error(`expected a step, got ${r.error.kind}`);
+  return r.value;
 }
 
 const guardFirstLost: Partial<Omit<HooksOrderPreviewResult, "hook" | "order">> = {
@@ -72,20 +87,20 @@ const guardFirstLost: Partial<Omit<HooksOrderPreviewResult, "hook" | "order">> =
 describe("requestReorder", () => {
   test("(a) a no-op drop makes zero port calls", async () => {
     const { port, calls } = fakePort();
-    const step = await requestReorder(
+    const result = await requestReorder(
       port,
       "tool.call.before",
       ["a", "b", "c"],
       ["a", "b", "c"],
       nameOf,
     );
-    expect(step).toEqual({ k: "unchanged" });
+    expect(result).toEqual(ok({ k: "unchanged" }));
     expect(calls).toEqual([]);
   });
 
   test("(b) a benign move previews, then sets exactly that order", async () => {
     const { port, calls } = fakePort();
-    const step = await requestReorder(
+    const result = await requestReorder(
       port,
       "tool.result",
       ["a", "b", "c"],
@@ -96,21 +111,25 @@ describe("requestReorder", () => {
       { op: "preview", hook: "tool.result", order: ["b", "a", "c"] },
       { op: "set", hook: "tool.result", order: ["b", "a", "c"] },
     ]);
-    expect(step).toEqual({
-      k: "saved",
-      hook: "tool.result",
-      committed: { saved: ["b", "a", "c"], appliesAt: "nextStepBoundary" },
-    });
+    expect(result).toEqual(
+      ok({
+        k: "saved",
+        hook: "tool.result",
+        committed: { saved: ["b", "a", "c"], appliesAt: "nextStepBoundary" },
+      }),
+    );
   });
 
   test("(c) a guard that loses the first position previews and does not set until confirmed", async () => {
     const { port, calls } = fakePort({ preview: guardFirstLost });
-    const step: ReorderStep = await requestReorder(
-      port,
-      "tool.call.before",
-      ["scan", "guard.scan"],
-      ["guard.scan", "scan"],
-      nameOf,
+    const step = stepOf(
+      await requestReorder(
+        port,
+        "tool.call.before",
+        ["scan", "guard.scan"],
+        ["guard.scan", "scan"],
+        nameOf,
+      ),
     );
     expect(calls).toEqual([
       { op: "preview", hook: "tool.call.before", order: ["guard.scan", "scan"] },
@@ -126,17 +145,19 @@ describe("requestReorder", () => {
       { op: "preview", hook: "tool.call.before", order: ["guard.scan", "scan"] },
       { op: "set", hook: "tool.call.before", order: ["guard.scan", "scan"] },
     ]);
-    expect(committed).toEqual({ saved: ["guard.scan", "scan"], appliesAt: "nextStepBoundary" });
+    expect(committed).toEqual(ok({ saved: ["guard.scan", "scan"], appliesAt: "nextStepBoundary" }));
   });
 
   test("(d) cancelling the confirm never sets", async () => {
     const { port, calls } = fakePort({ preview: guardFirstLost });
-    const step = await requestReorder(
-      port,
-      "tool.call.before",
-      ["scan", "guard.scan"],
-      ["guard.scan", "scan"],
-      nameOf,
+    const step = stepOf(
+      await requestReorder(
+        port,
+        "tool.call.before",
+        ["scan", "guard.scan"],
+        ["guard.scan", "scan"],
+        nameOf,
+      ),
     );
     // 취소는 저장 호출을 하지 않고 확인 상태만 버린다
     expect(step.k).toBe("confirm");
@@ -156,12 +177,8 @@ describe("requestReorder", () => {
         ],
       },
     });
-    const step = await requestReorder(
-      port,
-      "tool.call.before",
-      ["late", "early"],
-      ["early", "late"],
-      nameOf,
+    const step = stepOf(
+      await requestReorder(port, "tool.call.before", ["late", "early"], ["early", "late"], nameOf),
     );
     expect(step.k).toBe("confirm");
     expect(calls.map((c) => c.op)).toEqual(["preview"]);
@@ -181,19 +198,42 @@ describe("requestReorder", () => {
     const { port, calls } = fakePort({
       preview: { valueChanges: [{ registrationId: "patch", extension: "p", by: [] }] },
     });
-    const step = await requestReorder(port, "tool.result", ["a", "b"], ["b", "a"], nameOf);
+    const step = stepOf(await requestReorder(port, "tool.result", ["a", "b"], ["b", "a"], nameOf));
     expect(step.k).toBe("confirm");
     expect(calls.map((c) => c.op)).toEqual(["preview"]);
   });
 
-  test("a port error on preview is not swallowed", async () => {
-    const { port, calls } = fakePort({ previewError: "wire down" });
-    const error = await requestReorder(port, "tool.result", ["a", "b"], ["b", "a"], nameOf).then(
-      () => "no error",
-      (cause: unknown) => (cause instanceof Error ? cause.message : "not an Error"),
-    );
-    expect(error).toBe("wire down");
+  test("a port err on preview comes back as the value and nothing is saved", async () => {
+    const { port, calls } = fakePort({ previewError: { kind: "offline" } });
+    const result = await requestReorder(port, "tool.result", ["a", "b"], ["b", "a"], nameOf);
+    expect(result).toEqual(err({ kind: "offline" }));
     expect(calls.map((c) => c.op)).toEqual(["preview"]);
+  });
+
+  test("a port err on the save comes back as the value", async () => {
+    const { port, calls } = fakePort({ setError: { kind: "locked", ownerKind: "cli" } });
+    const result = await requestReorder(port, "tool.result", ["a", "b"], ["b", "a"], nameOf);
+    expect(result).toEqual(err({ kind: "locked", ownerKind: "cli" }));
+    expect(calls.map((c) => c.op)).toEqual(["preview", "set"]);
+  });
+});
+
+describe("saveConfirmed", () => {
+  test("a port err on the confirmed save comes back as the value", async () => {
+    const { port, calls } = fakePort({ preview: guardFirstLost, setError: { kind: "failed" } });
+    const step = stepOf(
+      await requestReorder(
+        port,
+        "tool.call.before",
+        ["scan", "guard.scan"],
+        ["guard.scan", "scan"],
+        nameOf,
+      ),
+    );
+    if (step.k !== "confirm") throw new Error("expected a confirm step");
+
+    expect(await saveConfirmed(port, step)).toEqual(err({ kind: "failed" }));
+    expect(calls.map((c) => c.op)).toEqual(["preview", "set"]);
   });
 });
 

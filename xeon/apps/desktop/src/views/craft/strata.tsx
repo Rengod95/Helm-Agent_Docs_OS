@@ -147,7 +147,7 @@ export function Strata(): ReactNode {
   );
 
   const loadOrders = useCallback(async (): Promise<void> => {
-    const r = await attemptAsync(() => readOrders(port));
+    const r = await readOrders(port);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.load");
       return;
@@ -159,7 +159,7 @@ export function Strata(): ReactNode {
   useEffect(() => {
     let live = true;
     const load = async (): Promise<void> => {
-      const r = await attemptAsync(() => readOrders(port));
+      const r = await readOrders(port);
       if (!live) return;
       if (r.ok) setOrders(r.value);
       else setFailure("desktop.craft.strata.error.load");
@@ -175,7 +175,7 @@ export function Strata(): ReactNode {
     before: readonly string[],
     after: readonly string[],
   ): Promise<void> => {
-    const r = await attemptAsync(() => requestReorder(port, hook, before, after, nameOf));
+    const r = await requestReorder(port, hook, before, after, nameOf);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.save");
       return;
@@ -199,7 +199,7 @@ export function Strata(): ReactNode {
 
   const saveConfirm = async (c: ReorderConfirm): Promise<void> => {
     setConfirm(null);
-    const r = await attemptAsync(() => saveConfirmed(port, c));
+    const r = await saveConfirmed(port, c);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.save");
       return;
@@ -210,7 +210,7 @@ export function Strata(): ReactNode {
   };
 
   const resetHook = async (hook: string): Promise<void> => {
-    const r = await attemptAsync(() => resetOrder(port, hook));
+    const r = await resetOrder(port, hook);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.reset");
       return;

@@ -1,8 +1,12 @@
 // 크래프트 개요가 읽는 `CraftSource`를 스토어와 명령에서 만든다. 화면은 이 값 하나만 받는다.
 // 켜기·끄기는 컨트롤러 요청 경로(`useToggleRequest`)를 거쳐 O-10 확인 대화 상자가 뜬다.
 import { extOf, snapshotOf, toggleRequestOf, type WorkbenchState } from "@fresnel/client/workbench";
-import type { CanvasSnapshot, HookOrderPort } from "@fresnel/client/workbench/canvas";
-import { assertNever, type Result } from "@fresnel/contracts";
+import type {
+  CanvasSnapshot,
+  HookOrderPort,
+  OrderPortError,
+} from "@fresnel/client/workbench/canvas";
+import { assertNever, err, type Result } from "@fresnel/contracts";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -141,30 +145,54 @@ export async function recentRunsOf(
 }
 
 /**
- * 순서 포트: 순서 호출 넷을 `commands.workbench`에 잇는다. 포트 계약(`HookOrderPort`)은 실패를 거부로 알리므로
- * 명령의 `err`는 `commandFailure`로 거부한다. 화면은 `attemptAsync`로 이 거부를 Result로 바꾼다. 쓰기가 성공하면 `afterWrite`를 부른다.
+ * 순서 포트: 순서 호출 넷을 `commands.workbench`에 잇는다. 명령의 `err`는 포트의 `OrderPortError` 값으로 옮겨 돌려주고 던지지 않는다.
+ * 쓰기가 성공했을 때만 `afterWrite`를 부른다.
  */
 export function orderPortOf(workbench: WorkbenchCommands, afterWrite: () => void): HookOrderPort {
   return {
-    get: () => unwrap(workbench.orderGet()),
+    get: () => fromCommand(workbench.orderGet()),
     set: async (params) => {
-      const saved = await unwrap(workbench.orderSet(params.hook, params.order));
-      afterWrite();
+      const saved = await fromCommand(workbench.orderSet(params.hook, params.order));
+      if (saved.ok) afterWrite();
       return saved;
     },
     reset: async (params) => {
-      const done = await unwrap(workbench.orderReset(params.hook));
-      afterWrite();
+      const done = await fromCommand(workbench.orderReset(params.hook));
+      if (done.ok) afterWrite();
       return done;
     },
-    preview: (params) => unwrap(workbench.orderPreview(params.hook, params.order)),
+    preview: (params) => fromCommand(workbench.orderPreview(params.hook, params.order)),
   };
 }
 
-async function unwrap<T>(pending: Promise<Result<T, CommandError>>): Promise<T> {
+/** 명령 결과를 포트 결과로 옮긴다. 성공 값은 그대로, 실패는 `orderErrorOf`로 옮긴다 */
+async function fromCommand<T>(
+  pending: Promise<Result<T, CommandError>>,
+): Promise<Result<T, OrderPortError>> {
   const got = await pending;
-  if (got.ok) return got.value;
-  throw commandFailure(got.error);
+  return got.ok ? got : err(orderErrorOf(got.error));
+}
+
+/** 명령 실패를 포트 오류로 옮긴다. 종류와 값은 그대로 옮기고, 순서 화면이 쓰지 않는 `locked`의 선택지 목록만 뺀다 */
+function orderErrorOf(error: CommandError): OrderPortError {
+  switch (error.kind) {
+    case "offline":
+      return { kind: "offline" };
+    case "unsupported":
+      return { kind: "unsupported" };
+    case "locked":
+      return { kind: "locked", ownerKind: error.ownerKind };
+    case "rejected":
+      return error.detail === undefined
+        ? { kind: "rejected", code: error.code }
+        : { kind: "rejected", code: error.code, detail: error.detail };
+    case "failed":
+      return { kind: "failed" };
+    case "switching":
+      return { kind: "switching" };
+    default:
+      return assertNever(error, "orderErrorOf");
+  }
 }
 
 /** 명령 실패를 `Error`로 바꾼다. 원래 값은 `cause`에 남는다 */
