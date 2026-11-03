@@ -19,6 +19,7 @@ import {
 } from "./host.ts";
 import { notImplemented } from "./not-implemented.ts";
 import { createProposalHandlers } from "./proposal.ts";
+import { createMeasureHandlers } from "./measure.ts";
 import { createUsageGetHandler } from "./usage.ts";
 import { createSecretHandlers } from "./secret.ts";
 import {
@@ -94,6 +95,7 @@ export function createWireHandlers(
     "settings.readFile": createSettingsReadFileHandler(engine),
     "settings.writeFile": createSettingsWriteFileHandler(engine),
     "usage.get": createUsageGetHandler(engine),
+    ...createMeasureHandlers(engine),
     ...createProposalHandlers(engine),
     ...createSecretHandlers(engine),
     ...createTrustHandlers(engine),

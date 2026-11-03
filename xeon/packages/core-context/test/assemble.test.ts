@@ -551,3 +551,43 @@ test("cache marks follow the compaction summary and the last user message", asyn
   expect(result.cacheMarks.policy).toEqual(assembleOptions(h.log.ids).cachePolicy);
   expect(result.cacheMarks.marks.map((mark) => mark.site)).toEqual(["system", "tools", "tail"]);
 });
+
+test("composition: each section is its owner's tokens and the parts add up to the estimate total", async () => {
+  const { h } = await conversation();
+  const plain = valueOf(
+    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
+  );
+  const composition = present(plain.composition);
+  // 절 이름이 소유자다: "Project notes" 13자, "Memory notes" 12자를 4자에 1토큰으로 올림한다
+  expect(composition.sections).toEqual({ project: 4, memory: 3 });
+  expect(composition.injected).toBe(0);
+  expect(composition.volatile).toBe(0);
+  expect(composition.total).toBe(plain.estimate.tokens);
+  expect(composition.tools).toBeGreaterThan(0);
+  expect(
+    composition.system +
+      present(composition.sections.project) +
+      present(composition.sections.memory) +
+      composition.injected +
+      composition.volatile +
+      composition.history,
+  ).toBe(composition.total);
+
+  // 합치기 훅이 더한 메시지는 injected로 가고, volatile은 따로 센다
+  await installContextHandler(h.host, "ctx-inject", 0, (payload) => ({
+    messages: [...payload.messages, { role: "user", content: "x".repeat(400), timestamp: 9 }],
+  }));
+  const hooked = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { volatile: { cwd: "/work" } }),
+    ),
+  );
+  const next = present(hooked.composition);
+  expect(next.injected).toBeGreaterThanOrEqual(100);
+  // 추정기가 메시지마다 더하는 고정 몫(12)까지 센다: 본문 5 + 12
+  expect(next.volatile).toBe(17);
+  expect(next.total).toBe(hooked.estimate.tokens);
+  expect(next.history).toBe(composition.history);
+});

@@ -8,6 +8,7 @@ import {
   type TNull,
   type TObject,
   type TOptional,
+  type TRecord,
   type TString,
   type TUnion,
   type TUnsafe,
@@ -264,6 +265,29 @@ export const StepContextWarningSchema: TObject<{
 );
 export type StepContextWarning = Static<typeof StepContextWarningSchema>;
 
+/** 이 단계 요청의 소유자별 토큰 추정(`ContextComposition`). 측정이 읽는 내구 기록이다 */
+export const StepCompositionSchema: TObject<{
+  system: TInteger;
+  tools: TInteger;
+  sections: TRecord<"^.*$", TInteger>;
+  injected: TInteger;
+  volatile: TInteger;
+  history: TInteger;
+  total: TInteger;
+}> = Type.Object(
+  {
+    system: Type.Integer({ minimum: 0 }),
+    tools: Type.Integer({ minimum: 0 }),
+    sections: Type.Record(Type.String(), Type.Integer({ minimum: 0 })),
+    injected: Type.Integer({ minimum: 0 }),
+    volatile: Type.Integer({ minimum: 0 }),
+    history: Type.Integer({ minimum: 0 }),
+    total: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type StepComposition = Static<typeof StepCompositionSchema>;
+
 export const StepCompletedPayloadSchema: TObject<{
   stepIndex: TInteger;
   status: TUnion<[TLiteral<"completed">, TLiteral<"interrupted">, TLiteral<"failed">]>;
@@ -271,6 +295,7 @@ export const StepCompletedPayloadSchema: TObject<{
   assistantItemId: TUnion<[TUnsafe<ItemId>, TNull]>;
   toolResultItemIds: TArray<TUnsafe<ItemId>>;
   contextWarnings: TOptional<TArray<typeof StepContextWarningSchema>>;
+  composition: TOptional<typeof StepCompositionSchema>;
 }> = Type.Object(
   {
     stepIndex: Type.Integer({ minimum: 0 }),
@@ -284,6 +309,8 @@ export const StepCompletedPayloadSchema: TObject<{
     toolResultItemIds: Type.Array(ItemIdSchema, { maxItems: 1024 }),
     /** 선택이라 옛 기록에는 없다. 경고가 없던 단계에도 없다 */
     contextWarnings: Type.Optional(Type.Array(StepContextWarningSchema, { maxItems: 16 })),
+    /** 선택이라 옛 기록과 조립 대역에는 없다(T-MEAS-CTX) */
+    composition: Type.Optional(StepCompositionSchema),
   },
   { additionalProperties: false },
 );

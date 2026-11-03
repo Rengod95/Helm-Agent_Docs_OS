@@ -36,3 +36,29 @@ test("a step without warnings keeps the step.completed payload as before", async
   const checked = parse(StepCompletedPayloadSchema, completed?.payload);
   expect(checked.ok && "contextWarnings" in checked.value).toBe(false);
 });
+
+test("the request composition of the assembly lands in the step.completed record", async () => {
+  const h = await createHarness({ script: [answer] });
+  h.context.composition.value = {
+    system: 10,
+    tools: 40,
+    sections: { memory: 3 },
+    injected: 2,
+    volatile: 5,
+    history: 30,
+    total: 50,
+  };
+  await h.loop.admit({ threadId: h.threadId, content: "hi", via: "interactive" });
+  await h.settle();
+  const completed = h.fake.events(h.threadId).find((event) => event.kind === "step.completed");
+  const checked = parse(StepCompletedPayloadSchema, completed?.payload);
+  expect(checked.ok ? checked.value.composition : undefined).toEqual({
+    system: 10,
+    tools: 40,
+    sections: { memory: 3 },
+    injected: 2,
+    volatile: 5,
+    history: 30,
+    total: 50,
+  });
+});

@@ -3,6 +3,7 @@ import {
   attempt,
   attemptAsync,
   Bug,
+  detach,
   err,
   ok,
   parse,
@@ -69,7 +70,9 @@ import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
-import { createUsageSource } from "./usage.ts";
+import { unreadableInputNotice } from "@fresnel/cap-dialog";
+import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
+import { createUsageSource, readEventsOfAllBranches } from "./usage.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 import { createWebPort, type WebStatusHolder } from "./web-providers.ts";
@@ -114,6 +117,8 @@ export interface PortsDeps {
   readonly secrets: SecretsPort;
   /** 명령 등록부 자리. 브리지 확장이 명령 서비스 API를 채운다 */
   readonly commands: CommandRegistryHolder;
+  /** 측정 저장소 읽기 원천(T-MEAS-READ) */
+  readonly measure: MeasureReadSource;
   /** 웹 런타임 자리. cap-web 확장이 채운다(`web.providers`) */
   readonly web: WebStatusHolder;
   /** 지식 제안 대기열 둘의 합친 조회·결정(`proposal.*`) */
@@ -664,6 +669,25 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
   };
 
+  // 큐에 남았지만 읽을 수 없는 입력은 조용히 남지 않게 사용자 알림(`dialog.notify`, 내구 `dialog.notified`)으로 알린다.
+  // 알림 서비스가 아직 없으면 로그만 남고(L1.tasks가 이미 남겼다), 같은 입력은 requestId로 한 번만 기록된다
+  tasks.inputs.onUnreadable((input) => {
+    const api = deps.commands.notify;
+    if (api === undefined) return;
+    detach(
+      api.emit(unreadableInputNotice(input.reason), {
+        requestId: `unreadable:${input.inputId}`.slice(0, 64),
+        context: { threadId: input.threadId, caller: { kind: "host" } },
+      }),
+      (cause) => {
+        log.error("notify.unreadable_input_failed", {
+          threadId: input.threadId,
+          message: messageOf(cause),
+        });
+      },
+    );
+  });
+
   const notify: UserNotifyPort = {
     async show(input) {
       const result = await deps.os.notify(
@@ -697,8 +721,9 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     web: createWebPort({ holder: deps.web, settings: deps.settings }),
     dialog: createDialogWirePort({ holder: deps.commands }),
     usage: createUsageSource(deps.models.usage, (threadId, query) =>
-      deps.ext.queryEvents(threadId, query),
+      readEventsOfAllBranches(deps.session, threadId, query.kindPrefix),
     ),
+    measure: createMeasurePort(deps.measure),
     proposals: deps.proposals,
     trust,
     schedule: deps.schedule,

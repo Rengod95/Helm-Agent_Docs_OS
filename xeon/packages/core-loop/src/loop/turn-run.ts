@@ -5,6 +5,7 @@ import type {
   EventId,
   ItemId,
   PartRecord,
+  StepComposition,
   StepContextWarning,
   StepId,
   ThreadId,
@@ -55,6 +56,8 @@ interface RunState {
   prelude: PreludeItem[];
   /** 이 단계의 마지막 조립이 낸 컨텍스트 경고. 단계 끝(`step.completed`)에 실어 내구 기록으로 남긴다 */
   contextWarnings: StepContextWarning[];
+  /** 이 단계의 마지막 조립이 낸 요청 구성 토큰(T-MEAS-CTX). 조립 대역은 내지 않는다 */
+  composition: StepComposition | undefined;
   assistant: AssistantMessage | null;
   assistantItemId: ItemId | null;
   assistantParts: readonly PartRecord[];
@@ -158,6 +161,7 @@ export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
           : null,
     prelude: [],
     contextWarnings: [],
+    composition: undefined,
     assistant: null,
     assistantItemId: null,
     assistantParts: [],

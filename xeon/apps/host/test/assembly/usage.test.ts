@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { UsageMeter, UsageRecord } from "@fresnel/contracts/services";
-import type { DurableEventEnvelope } from "@fresnel/contracts/records";
+import type { DurableEventEnvelope, SessionService } from "@fresnel/contracts/records";
 import type { UsageGauge } from "@fresnel/contracts/wire";
 import { err, ok } from "@fresnel/contracts";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { createUsageSource } from "../../src/assembly/usage.ts";
+import { createUsageSource, readEventsOfAllBranches } from "../../src/assembly/usage.ts";
 
 // M3-REQ-15: 조립 기본 사용량 원천은 L1.models 합산기의 기록으로 thread의 세션 게이지(tokens, usd, requests)를 만든다.
 // 창, 한도, 계정 게이지는 L1이 기록을 보관하지 않아 없다. 기록은 구독으로 받고 중단된 호출도 센다.
@@ -313,17 +313,117 @@ test("an unreadable durable log falls back to the in-memory meter", async () => 
   );
 });
 
-test("without a threadId the sum comes from the meter and never reads the durable log", async () => {
-  const { meter, push } = fakeMeter();
-  let reads = 0;
-  const source = createUsageSource(meter, async () => {
-    reads += 1;
-    return ok([]);
+test("without a threadId the sum comes from the durable log of every thread, so a restart keeps it", async () => {
+  const { meter } = fakeMeter();
+  const events = [
+    recordedEvent(1, THREAD_A, "anthropic", {
+      input: 10,
+      output: 5,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0.5,
+    }),
+    recordedEvent(2, THREAD_B, "anthropic", {
+      input: 1,
+      output: 4,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0.25,
+    }),
+  ];
+  const asked: (ThreadId | undefined)[] = [];
+  const source = createUsageSource(meter, async (threadId, query) => {
+    asked.push(threadId);
+    return ok(events.filter((event) => event.kind.startsWith(query.kindPrefix)));
   });
+  expect(await source.gauges({}, SIGNAL)).toEqual(
+    sessionGauges("anthropic", { tokens: 20, usd: 0.75, requests: 2 }),
+  );
+  expect(asked).toEqual([undefined]);
+});
+
+test("without a threadId an unreadable durable log falls back to the meter sum", async () => {
+  const { meter, push } = fakeMeter();
+  const source = createUsageSource(meter, async () => err({ kind: "port_unavailable" }));
   push(record(THREAD_A, "anthropic", 10, 0.5));
   push(record(THREAD_B, "anthropic", 5, 0.25));
   expect(await source.gauges({}, SIGNAL)).toEqual(
     sessionGauges("anthropic", { tokens: 15, usd: 0.75, requests: 2 }),
   );
-  expect(reads).toBe(0);
+});
+
+/** `readFrom`만 가진 세션 대역. 모든 분기의 기록을 커밋 순서로 낸다 */
+function fakeSession(rows: readonly DurableEventEnvelope[]): Pick<SessionService, "readFrom"> {
+  return {
+    readFrom: (afterSeq, options) =>
+      (async function* () {
+        for (const row of rows) {
+          if (row.seq <= afterSeq) continue;
+          if (options?.threadId !== undefined && row.threadId !== options.threadId) continue;
+          yield ok(row);
+        }
+      })(),
+  };
+}
+
+test("rewound and abandoned branches still count: every branch's assistant record is summed", async () => {
+  const kept = recordedEvent(1, THREAD_A, "anthropic", {
+    input: 10,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    cost: 0.5,
+  });
+  // 되감아 버려진 분기의 기록. 부모가 다른 가지에 있어 readBranch로는 읽히지 않는다
+  const abandoned = {
+    ...recordedEvent(2, THREAD_A, "anthropic", {
+      input: 7,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0.25,
+    }),
+    parentId: null,
+  };
+  const other = recordedEvent(3, THREAD_B, "anthropic", {
+    input: 100,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    cost: 1,
+  });
+  const session = fakeSession([kept, abandoned, other]);
+  const { meter } = fakeMeter();
+  const source = createUsageSource(meter, (threadId, query) =>
+    readEventsOfAllBranches(session, threadId, query.kindPrefix),
+  );
+  expect(await source.gauges({ threadId: THREAD_A }, SIGNAL)).toEqual(
+    sessionGauges("anthropic", { tokens: 17, usd: 0.75, requests: 2 }),
+  );
+  expect(await source.gauges({}, SIGNAL)).toEqual(
+    sessionGauges("anthropic", { tokens: 117, usd: 1.75, requests: 3 }),
+  );
+});
+
+test("calls with no assistant item (summary, search, judge) are added to the durable sum, loop calls are not counted twice", async () => {
+  const { meter, push } = fakeMeter();
+  const events = [
+    recordedEvent(1, THREAD_A, "anthropic", {
+      input: 10,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0.5,
+    }),
+  ];
+  const source = createUsageSource(meter, async (_threadId, query) =>
+    ok(events.filter((event) => event.kind.startsWith(query.kindPrefix))),
+  );
+  // 루프 호출은 내구 기록에 이미 있다. 요약 호출은 없다
+  push({ ...record(THREAD_A, "anthropic", 10, 0.5), role: "main" });
+  push({ ...record(THREAD_A, "anthropic", 3, 0.125), role: "summary" });
+  push({ ...record(THREAD_B, "anthropic", 99, 9), role: "search" });
+  expect(await source.gauges({ threadId: THREAD_A }, SIGNAL)).toEqual(
+    sessionGauges("anthropic", { tokens: 13, usd: 0.625, requests: 2 }),
+  );
 });

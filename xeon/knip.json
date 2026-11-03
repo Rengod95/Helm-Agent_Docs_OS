@@ -49,6 +49,7 @@
     "apps/host": {
       "entry": [
         "test/**/*.test.ts",
+        "test/**/*.benchmark.ts",
         "test/fixtures/crash-host.ts",
         "test/fixtures/helm-crash-host.ts",
         "test/fixtures/mcp-stdio-server.ts",

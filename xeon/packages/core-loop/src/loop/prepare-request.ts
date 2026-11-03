@@ -107,6 +107,7 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
   if (!assembled.ok) return err({ kind: "context_unavailable", detail: assembled.error.kind });
   // 같은 단계의 재시도(오버플로우 압축)는 마지막 조립의 경고만 남긴다
   state.contextWarnings = assembled.value.warnings.map(warningRecordOf);
+  state.composition = assembled.value.composition;
   for (const warning of assembled.value.warnings) {
     ctx.logger.debug("loop.context_warning", { threadId, turnId, code: warning.code });
   }

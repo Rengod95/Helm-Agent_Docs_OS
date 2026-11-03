@@ -259,3 +259,27 @@ describe("guard.model.before (M3-REQ-109)", () => {
     expect(h.fake.calls()[0]?.payload).toEqual({ chained: true });
   });
 });
+
+describe("call timing for measurement", () => {
+  test("the usage record carries when the request started and when the first chunk arrived", async () => {
+    const h = createHarness({ tape: ONE_TURN });
+    const seen: { startedAt?: number; firstTokenAt?: number | null; recordedAt: number }[] = [];
+    h.service.usage.subscribe((record) => {
+      seen.push({
+        recordedAt: record.recordedAt,
+        ...(record.startedAt === undefined ? {} : { startedAt: record.startedAt }),
+        ...(record.firstTokenAt === undefined ? {} : { firstTokenAt: record.firstTokenAt }),
+      });
+    });
+    h.clock.advance(1000);
+    const begun = h.clock.now();
+    const stream = h.service.stream(h.request("hi"));
+    for await (const event of stream) void event;
+    expect(seen).toHaveLength(1);
+    const record = seen[0];
+    expect(record?.startedAt).toBe(begun);
+    expect(typeof record?.firstTokenAt).toBe("number");
+    expect((record?.startedAt ?? 0) <= (record?.firstTokenAt ?? -1)).toBe(true);
+    expect((record?.firstTokenAt ?? Infinity) <= (record?.recordedAt ?? -1)).toBe(true);
+  });
+});

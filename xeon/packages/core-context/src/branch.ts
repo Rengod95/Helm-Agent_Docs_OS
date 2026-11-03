@@ -24,6 +24,7 @@ import {
   itemToMessage,
 } from "./convert.ts";
 import { recentFileMessages } from "./recent-files.ts";
+import { skillBodyMessages } from "./skill-bodies.ts";
 
 // 가지 읽기와 투영. assemble(조립), compact(컴팩션), summarizeBranch(가지 요약)가 같은 읽기 규칙을 쓴다.
 
@@ -194,7 +195,7 @@ function reinjectedMessages(
  * 컴팩션 머리와 기록된 접두를 반영한 모델 컨텍스트 메시지(§4.1 0~2). 접두는 호출자가 정해 첫 메시지로 넣는다.
  * 도구 변경·절 갱신 item은 접두 뒤 위치 그대로 두고, 머리 앞에 기록된 것은 새 접두가 반영하므로 뺀다.
  * `reinject`에 든 customType의 custom 메시지는 머리 앞(요약에 접힌 범위)에 있어도 요약 바로 뒤에 시간 순서대로 다시
- * 넣고, 최근 읽은 파일 `recentFiles`개도 그 뒤에 넣는다(컴팩션 뒤 재주입, L1.context.spec §4.9a·§4.10). 가지에서 매번 같은 값으로 다시 만들어 커밋하지 않는다.
+ * 넣고, 최근 읽은 파일 `recentFiles`개와 호출된 스킬 본문도 그 뒤에 넣는다(컴팩션 뒤 재주입, L1.context.spec §4.9a·§4.10). 가지에서 매번 같은 값으로 다시 만들어 커밋하지 않는다.
  * volatile, 변경 덧붙이기, 지점 처리는 하지 않는다
  */
 export function effectiveMessages(
@@ -210,13 +211,9 @@ export function effectiveMessages(
   if (head !== null) {
     messages.push(compactionSummaryMessage(head.summary, head.recordedAt));
     messages.push(...reinjectedMessages(projected, head, reinject));
-    messages.push(
-      ...recentFileMessages(
-        projected.map((entry) => (entry?.type === "item" ? entry.item : undefined)),
-        head.firstKeptIndex,
-        recentFiles,
-      ),
-    );
+    const items = projected.map((entry) => (entry?.type === "item" ? entry.item : undefined));
+    messages.push(...recentFileMessages(items, head.firstKeptIndex, recentFiles));
+    messages.push(...skillBodyMessages(items, head.firstKeptIndex));
   }
   const startIndex = head === null ? 0 : head.firstKeptIndex;
   for (let index = startIndex; index < projected.length; index += 1) {

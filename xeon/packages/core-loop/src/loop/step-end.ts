@@ -263,6 +263,7 @@ export async function endStep(
       assistantItemId: completed.assistantItemId,
       toolResultItemIds: [...completed.toolResultItemIds],
       ...(state.contextWarnings.length === 0 ? {} : { contextWarnings: state.contextWarnings }),
+      ...(state.composition === undefined ? {} : { composition: state.composition }),
     },
     entries,
     contributions: contribution.drafts,

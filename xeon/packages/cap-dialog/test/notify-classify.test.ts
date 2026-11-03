@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
-import { classifyNotice } from "../src/notify/classify.ts";
+import { classifyNotice, unreadableInputNotice } from "../src/notify/classify.ts";
 import { newThread } from "./support/harness.ts";
 
 // L2.dialog.spec §4.7.1 분류 표. 원인 내구 이벤트마다 kind가 맞고 interrupted 턴은 null이다.
@@ -350,5 +350,16 @@ describe("classifyNotice: 경계", () => {
       const event = envelope(thread, kind, {});
       expect(classifyNotice(event)).toBeNull();
     }
+  });
+});
+
+describe("unreadableInputNotice", () => {
+  test("is an error notice from origin tasks that names the reason", () => {
+    expect(unreadableInputNotice("blob_unreadable")).toEqual({
+      kind: "error",
+      title: "읽을 수 없는 입력이 큐에 있다",
+      body: "큐에 넣은 입력을 읽지 못해 건너뛴다(blob_unreadable). 큐에서 지우고 다시 보내 달라.",
+      origin: "tasks",
+    });
   });
 });

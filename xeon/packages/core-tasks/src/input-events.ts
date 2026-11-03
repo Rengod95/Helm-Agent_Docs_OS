@@ -13,7 +13,7 @@ import {
   type ReadFailure,
 } from "@fresnel/contracts/records";
 import type { PostContent, PostItem, RecordKind } from "@fresnel/contracts/extensions";
-import type { InputDraft, QueuedInput } from "@fresnel/contracts/services";
+import type { InputDraft, QueuedInput, UnreadableInputReason } from "@fresnel/contracts/services";
 import type { TasksSession } from "./session-port.ts";
 import { sourceKeyOf } from "./source-key.ts";
 
@@ -158,6 +158,7 @@ export function loadQueuedInput(
   threadId: ThreadId,
   view: InputView,
   readBlob?: BlobReader,
+  onUnreadable?: (reason: UnreadableInputReason) => void,
 ): Result<QueuedInput | undefined, ReadFailure> {
   const page = session.feed.read(
     view.seq - 1,
@@ -170,6 +171,7 @@ export function loadQueuedInput(
   const event = page.value.events.find((candidate) => candidate.id === view.inputId);
   if (event === undefined) {
     log.error("tasks.queued_event_missing", { threadId, inputId: view.inputId, seq: view.seq });
+    onUnreadable?.("event_missing");
     return ok(undefined);
   }
   let payload: unknown = event.payload;
@@ -177,6 +179,7 @@ export function loadQueuedInput(
     // 큰 문자열(이미지 data 등)은 blob 자리표시로 바뀌어 있다. blob을 읽을 수 없으면 자리표시를 모델에 보내지 않고 건너뛴다
     if (readBlob === undefined) {
       log.error("tasks.queued_input_detached", { threadId, inputId: view.inputId });
+      onUnreadable?.("detached");
       return ok(undefined);
     }
     const blob = readBlob(field.ref);
@@ -186,6 +189,7 @@ export function loadQueuedInput(
         inputId: view.inputId,
         reason: blob.error.kind,
       });
+      onUnreadable?.("blob_unreadable");
       return ok(undefined);
     }
     payload = replaceAt(
@@ -197,11 +201,13 @@ export function loadQueuedInput(
   const parsed = parse(InputQueuedPayloadSchema, payload);
   if (!parsed.ok) {
     log.error("tasks.queued_payload_invalid", { threadId, inputId: view.inputId });
+    onUnreadable?.("payload_invalid");
     return ok(undefined);
   }
   const draft = draftOfPayload(threadId, parsed.value);
   if (draft === undefined) {
     log.error("tasks.queued_item_invalid", { threadId, inputId: view.inputId });
+    onUnreadable?.("item_invalid");
     return ok(undefined);
   }
   return ok({ ...draft, inputId: event.id, seq: event.seq });

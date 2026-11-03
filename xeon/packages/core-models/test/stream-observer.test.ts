@@ -107,4 +107,45 @@ describe("observeStream", () => {
     observeStream(sourceOf([], final), probe.hooks);
     expect(probe.log).toEqual([]);
   });
+
+  test("onFirstChunk fires once on the first event after start, never for start, done or error", async () => {
+    const final = message("hi");
+    const probe = hooks();
+    const chunks: string[] = [];
+    const observed = observeStream(
+      sourceOf(
+        [
+          START,
+          { type: "text_start", contentIndex: 0, partial: final },
+          { type: "text_delta", contentIndex: 0, delta: "hi", partial: final },
+          { type: "done", reason: "stop", message: final },
+        ],
+        final,
+      ),
+      {
+        ...probe.hooks,
+        onFirstChunk: () => {
+          chunks.push(probe.log.join(","));
+        },
+      },
+    );
+    for await (const event of observed) void event;
+    expect(chunks).toEqual([""]);
+    expect(probe.log).toEqual(["settled:stop"]);
+
+    const quiet = hooks();
+    let fired = 0;
+    const failed = message("", "error");
+    for await (const event of observeStream(
+      sourceOf([START, { type: "error", reason: "error", error: failed }], failed),
+      {
+        ...quiet.hooks,
+        onFirstChunk: () => {
+          fired += 1;
+        },
+      },
+    ))
+      void event;
+    expect(fired).toBe(0);
+  });
 });

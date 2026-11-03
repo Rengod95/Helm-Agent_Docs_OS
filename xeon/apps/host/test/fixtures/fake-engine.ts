@@ -1,6 +1,7 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, ok } from "@fresnel/contracts";
+import type { MeasurePort } from "../../src/assembly/measure/read.ts";
 import type { Notice } from "@fresnel/contracts/capabilities";
 import type { IdFactory, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
@@ -127,6 +128,7 @@ export interface FakeEngineOptions {
     readonly dialog?: Partial<DialogWirePort>;
     readonly proposals?: Partial<ProposalPort>;
     readonly usage?: Partial<UsagePort>;
+    readonly measure?: Partial<MeasurePort>;
     readonly activity?: Partial<ActivityPort>;
     readonly schedule?: Partial<ScheduleService>;
     /** 대화 영역 포트(`goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)를 바꾼다. 쓰지 않는 멤버는 부르면 바로 실패한다 */
@@ -437,6 +439,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     usage: {
       gauges: () => Promise.resolve([]),
       ...options.overrides?.usage,
+    },
+    measure: {
+      turn: () => ok({ enabled: false, rows: [] }),
+      daily: () => ok({ enabled: false, days: [] }),
+      ...options.overrides?.measure,
     },
     trust: {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),

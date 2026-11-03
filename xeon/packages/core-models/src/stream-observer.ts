@@ -14,6 +14,8 @@ export interface ObserveHooks {
   readonly onSettled: (message: AssistantMessage) => void;
   /** 종결 이벤트 없이 반복이 닫혔을 때 한 번 */
   readonly onAbandoned: () => void;
+  /** 종결 전에 `start` 아닌 첫 이벤트가 올 때 한 번(첫 토큰 시각). `result()`만 쓰는 호출에서는 불리지 않는다 */
+  readonly onFirstChunk?: () => void;
 }
 
 export function observeStream(
@@ -22,6 +24,7 @@ export function observeStream(
 ): AssistantMessageEventStream {
   let settled: AssistantMessage | null = null;
   let abandoned = false;
+  let sawChunk = false;
 
   function settle(message: AssistantMessage): AssistantMessage {
     if (settled === null) {
@@ -39,6 +42,10 @@ export function observeStream(
   }
 
   function rewrite(event: AssistantMessageEvent): AssistantMessageEvent {
+    if (!sawChunk && event.type !== "start" && event.type !== "done" && event.type !== "error") {
+      sawChunk = true;
+      hooks.onFirstChunk?.();
+    }
     if (event.type === "done") return { ...event, message: settle(event.message) };
     if (event.type === "error") return { ...event, error: settle(event.error) };
     return event;
