@@ -8,7 +8,7 @@ import {
   type PluginUiRuntimeDeps,
 } from "../../src/plugin-ui/runtime.ts";
 import { fakeConnection, type Table } from "../state/fake-connection.ts";
-import { appEntryOf, extGetOf, uiEntryOf } from "./support.ts";
+import { appEntryOf, extGetOf, extListEntryOf, uiEntryOf } from "./support.ts";
 
 function setting(key: string, value: unknown) {
   return {
@@ -55,9 +55,13 @@ const commandInfo = (name: string, origin: string) => ({
 const page = uiEntryOf({ id: "status" });
 const app = appEntryOf({ id: "graph", placement: "page" });
 
-function table(settings: readonly ReturnType<typeof setting>[]): Table {
+function table(
+  settings: readonly ReturnType<typeof setting>[],
+  extensions: ReturnType<typeof extListEntryOf>[] = [extListEntryOf("helm")],
+): Table {
   return {
     "ext.ui.list": () => Promise.resolve({ items: [page, app] }),
+    "ext.list": () => Promise.resolve({ extensions }),
     "settings.get": () => Promise.resolve({ settings: [...settings] }),
   };
 }
@@ -74,7 +78,7 @@ describe("plugin ui runtime", () => {
       ["status", null],
     ]);
     expect(h.roots).toEqual([{ entries: [expect.objectContaining({ extension: "helm" })] }]);
-    expect(h.calls.map((call) => call.method)).toEqual(["ext.ui.list", "settings.get"]);
+    expect(h.calls.map((call) => call.method)).toEqual(["ext.ui.list", "ext.list", "settings.get"]);
     expect(h.runtime.framesAllowed(app)).toBe(true);
   });
 
@@ -90,6 +94,34 @@ describe("plugin ui runtime", () => {
     await windows.runtime.refresh();
     expect(windows.runtime.framesAllowed(app)).toBe(false);
     expect(windows.roots).toEqual([]);
+  });
+
+  test("an extension that is off or left out by safe mode loses its app roots and frames, and comes back when turned on", async () => {
+    let extensions = [extListEntryOf("helm", { status: "disabled" })];
+    const h = harness({
+      ...table([setting("x.ui.apps", true)]),
+      "ext.list": () => Promise.resolve({ extensions }),
+    });
+    await h.runtime.refresh();
+    expect([...h.runtime.getState().inactive]).toEqual(["helm"]);
+    expect(h.runtime.framesAllowed(app)).toBe(false);
+    expect(h.roots).toEqual([{ entries: [] }]);
+
+    extensions = [extListEntryOf("helm", { safeModeExcluded: "safe mode" })];
+    await h.runtime.refresh();
+    expect([...h.runtime.getState().inactive]).toEqual(["helm"]);
+
+    extensions = [extListEntryOf("helm")];
+    await h.runtime.refresh();
+    expect([...h.runtime.getState().inactive]).toEqual([]);
+    expect(h.runtime.framesAllowed(app)).toBe(true);
+    expect(h.roots.at(-1)).toEqual({ entries: [expect.objectContaining({ extension: "helm" })] });
+  });
+
+  test("refreshes that overlap are merged: one more read runs after the first, not one per request", async () => {
+    const h = harness(table([setting("x.ui.apps", true)]));
+    await Promise.all([h.runtime.refresh(), h.runtime.refresh(), h.runtime.refresh()]);
+    expect(h.calls.filter((call) => call.method === "ext.ui.list").length).toBe(2);
   });
 
   test("an offline engine keeps the last entries and says offline", async () => {

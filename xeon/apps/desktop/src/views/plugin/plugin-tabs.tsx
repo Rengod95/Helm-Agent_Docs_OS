@@ -4,7 +4,9 @@ import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import { Button } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { PlacedEntry } from "../../plugin-ui/placements.ts";
+import { watchExtensionChanges } from "../../plugin-ui/watch.ts";
 import { useLinkPhase } from "../../state/engine/index.ts";
+import { useCommands } from "../commands.ts";
 import { ConfirmHost } from "./confirm-host.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
 import { PluginView, screenKeyOf } from "./plugin-view.tsx";
@@ -71,12 +73,22 @@ export function PluginPagesTab(): ReactNode {
   return <EntryList items={items} />;
 }
 
-/** 엔진이 붙으면(`live`) 화면 목록을 읽고, 확인 줄 모달을 그린다. 화면 트리 어디에든 한 번 둔다 */
+/**
+ * 엔진이 붙으면(`live`) 화면 목록을 읽고, 확장 켜짐·꺼짐과 앱 정책이 바뀌는 알림에서 다시 읽는다. 확인 줄 모달을 그린다.
+ * 화면 트리 어디에든 한 번 둔다. 재연결하면 새 연결로 다시 듣는다
+ */
 export function PluginUiHost(): ReactNode {
   const { runtime, confirm } = usePluginUi();
+  const commands = useCommands();
   const phase = useLinkPhase();
   useEffect(() => {
-    if (phase === "live") detach(runtime.refresh(), rethrow);
-  }, [phase, runtime]);
+    if (phase !== "live") return undefined;
+    detach(runtime.refresh(), rethrow);
+    const connection = commands.pluginUi.current();
+    if (connection === null) return undefined;
+    return watchExtensionChanges(connection, () => {
+      detach(runtime.refresh(), rethrow);
+    });
+  }, [phase, runtime, commands]);
   return <ConfirmHost queue={confirm} />;
 }

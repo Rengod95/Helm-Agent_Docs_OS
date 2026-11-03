@@ -66,11 +66,22 @@ describe("groupPlacements", () => {
         appEntryOf({ id: "user-app", trust: "user" }),
         appEntryOf({ id: "project-app", trust: "project" }),
       ],
-      { [UI_ALLOW_PROJECT_APPS_KEY]: true },
+      { [UI_APPS_KEY]: true, [UI_ALLOW_PROJECT_APPS_KEY]: true },
     );
     expect(groups.page.map((row) => [row.entry.id, row.blocked])).toEqual([
       ["project-app", null],
       ["user-app", null],
+    ]);
+  });
+
+  test("with no settings every app entry is blocked (x.ui.apps defaults off) and a native entry is not", () => {
+    const groups = groupPlacements(
+      [appEntryOf({ id: "app", trust: "user" }), uiEntryOf({ id: "native", trust: "user" })],
+      {},
+    );
+    expect(groups.page.map((row) => [row.entry.id, row.blocked])).toEqual([
+      ["app", "frame_blocked"],
+      ["native", null],
     ]);
   });
 

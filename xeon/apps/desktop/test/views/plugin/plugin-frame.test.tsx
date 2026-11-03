@@ -38,6 +38,7 @@ function props(ledger: ScreenLedger): PluginFrameProps {
     context: notCalled,
     makeBackend: notCalled,
     confirm: () => Promise.resolve("deny"),
+    cancelConfirm: () => {},
     theme: () => THEME,
     title: "Helm panel",
     onClosed: notCalled,

@@ -56,6 +56,8 @@ export interface PluginFrameProps {
   readonly makeBackend: (resize: (height: number) => void) => BridgeBackend;
   /** `call`·`command` 확인 줄의 답. 확인 줄 큐의 `request`를 주면 된다 */
   readonly confirm: (request: ConfirmRequest) => Promise<ConfirmAnswer>;
+  /** 답이 없는 확인 요청을 줄에서 뺀다(시간 초과, 프레임 닫힘). 확인 줄 큐의 `cancel`을 주면 된다 */
+  readonly cancelConfirm: (request: ConfirmRequest) => void;
   /** 테마. 이 함수의 identity가 바뀌면 새 테마를 보낸다 */
   readonly theme: () => ThemePush;
   /** iframe의 `title` 속성 */
@@ -65,13 +67,13 @@ export interface PluginFrameProps {
 }
 
 /** 브라우저 시계와 타이머. 프레임 수명 안의 시간만 잰다 */
-const browserScheduler: Scheduler = {
+export const browserScheduler: Scheduler = {
   setTimeout: (fn, ms) => window.setTimeout(fn, ms),
   clearTimeout: (handle) => {
     window.clearTimeout(handle);
   },
 };
-const browserClock: Clock = { now: () => Date.now() };
+export const browserClock: Clock = { now: () => Date.now() };
 
 /** `MessagePort`를 다리 포트 구조로 바꾼다. 핸들러는 한 번에 하나이고, 널을 주면 떼어 낸다 */
 function bridgePortOf(port: MessagePort): BridgePort {
@@ -197,6 +199,9 @@ function PluginFrameMount(props: PluginFrameProps): ReactNode {
         backend: latest.current.makeBackend(applyResize),
         clock: browserClock,
         confirm: (request) => latest.current.confirm(request),
+        cancelConfirm: (request) => {
+          latest.current.cancelConfirm(request);
+        },
       },
       initialPushes: () => {
         setReady(true);

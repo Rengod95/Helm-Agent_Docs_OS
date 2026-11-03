@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { ItemRecord } from "@fresnel/contracts/conversation";
 import { WireError } from "@fresnel/contracts/wire";
 import type { BackendResult, BridgePolicyContext, HostSnapshot } from "@fresnel/client/views/app";
+import type { HostConnection } from "@fresnel/contracts/wire";
 import { createBridgeBackend, type BridgeBackendDeps } from "../../src/plugin-ui/backend.ts";
 import { policyContextOf } from "../../src/plugin-ui/policy-context.ts";
 import { fakeConnection, type ExtTable, type Table } from "../state/fake-connection.ts";
@@ -41,7 +42,7 @@ function harness(
   const diagnostics: { op: string; size: number }[] = [];
   const resized: number[] = [];
   const deps: BridgeBackendDeps = {
-    connection: fake.connection,
+    connection: () => fake.connection,
     extension: "helm",
     screen: "status",
     openThreadId: () => OPEN,
@@ -500,5 +501,24 @@ describe("wire errors become bridge error names", () => {
     const other = await thrown.backend.command("helm", "");
     expect(other).toEqual(refused("wire_failed"));
     expect(JSON.stringify(other)).not.toContain("secret-leak");
+  });
+});
+
+describe("connection", () => {
+  test("each request reads the current connection, so a reconnect does not leave the screen on the old one", async () => {
+    const before = fakeConnection({}, { "ext.helm.status": () => Promise.resolve("before") });
+    const after = fakeConnection({}, { "ext.helm.status": () => Promise.resolve("after") });
+    let current: HostConnection | undefined = before.connection;
+    const h = harness({}, { connection: () => current });
+    expect(await h.backend.query("status", {})).toEqual({ ok: true, value: "before" });
+    current = after.connection;
+    expect(await h.backend.query("status", {})).toEqual({ ok: true, value: "after" });
+    expect(before.calls.length).toBe(1);
+    expect(after.calls.length).toBe(1);
+    current = undefined;
+    expect(await h.backend.query("status", {})).toEqual({
+      ok: false,
+      error: { kind: "failed", detail: "offline" },
+    });
   });
 });

@@ -18,6 +18,7 @@ import { fakeCommands } from "../fake-commands.ts";
 async function render(entries: readonly ExtUiEntry[], tab: "helm" | "pages"): Promise<string> {
   const fake = fakeConnection({
     "ext.ui.list": () => Promise.resolve({ items: [...entries] }),
+    "ext.list": () => Promise.resolve({ extensions: [] }),
     "settings.get": () => Promise.resolve({ settings: [] }),
   });
   const runtime = createPluginUiRuntime({

@@ -244,6 +244,8 @@ interface PluginUiCommands {
   withConnection<T>(
     run: (connection: HostConnection) => Promise<T>,
   ): Promise<Result<T, CommandError>>;
+  /** 지금 연결. 재연결 뒤에는 새 연결이다. 화면이 연결을 붙잡고 있으면 낡은 연결로 요청이 간다. 없으면 null */
+  current(): HostConnection | null;
 }
 
 export interface Commands {

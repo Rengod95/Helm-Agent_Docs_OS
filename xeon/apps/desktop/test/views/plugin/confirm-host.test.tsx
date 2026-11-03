@@ -166,7 +166,7 @@ describe("ConfirmDialogView", () => {
     expect(html).toContain('path=/work/a, mode="read"');
   });
 
-  test("uses the manifest label in place of the action name when one is given", () => {
+  test("shows the manifest label together with the real verb", () => {
     const html = decoded(
       renderToString(
         <ConfirmDialogView
@@ -177,7 +177,7 @@ describe("ConfirmDialogView", () => {
         />,
       ),
     );
-    expect(html).toContain('"helm" 확장이 "작업 실행" 동작을 하려고 해요');
+    expect(html).toContain('"helm" 확장이 "작업 실행 (runTask)" 동작을 하려고 해요');
     expect(html).not.toContain('"runTask"');
   });
 

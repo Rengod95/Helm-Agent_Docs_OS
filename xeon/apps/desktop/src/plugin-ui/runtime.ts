@@ -22,6 +22,8 @@ export interface PluginUiState {
   /** 앱 정책 설정 값(`x.ui.*`). 프레임을 못 쓰는 기기에서는 `x.ui.apps`가 거짓으로 덮인다 */
   readonly settings: Readonly<Record<string, unknown>>;
   readonly groups: PlacementGroups;
+  /** 꺼졌거나 안전 모드로 실리지 않은 확장 이름. 이 확장의 화면은 프레임과 폴링을 닫고 앱 root도 셸에 알리지 않는다 */
+  readonly inactive: ReadonlySet<string>;
 }
 
 export interface PluginUiRuntimeDeps {
@@ -51,19 +53,25 @@ export interface PluginUiRuntime {
 }
 
 const EMPTY_SETTINGS: Readonly<Record<string, unknown>> = {};
+const NO_NAMES: ReadonlySet<string> = new Set();
 
 function stateOf(
   phase: PluginUiPhase,
   entries: readonly ExtUiEntry[],
   settings: Readonly<Record<string, unknown>>,
+  inactive: ReadonlySet<string>,
 ): PluginUiState {
-  return { phase, entries, settings, groups: groupPlacements(entries, settings) };
+  return { phase, entries, settings, groups: groupPlacements(entries, settings), inactive };
 }
 
 export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntime {
   const listeners = new Set<() => void>();
   const ledger = createScreenLedger();
-  let state: PluginUiState = stateOf("loading", [], EMPTY_SETTINGS);
+  let state: PluginUiState = stateOf("loading", [], EMPTY_SETTINGS, NO_NAMES);
+  /** 읽기가 겹치면 하나로 묶는다. 읽는 중에 또 요청이 오면 끝난 뒤 한 번 더 읽는다 */
+  let running: Promise<void> | undefined;
+  let again = false;
+  let againThread: string | undefined;
 
   function set(next: PluginUiState): void {
     state = next;
@@ -71,7 +79,46 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
   }
 
   function framesAllowed(entry: ExtUiEntry): boolean {
-    return deps.framesSupported && appsAllowed(entry.trust, state.settings);
+    return (
+      deps.framesSupported &&
+      !state.inactive.has(entry.extension) &&
+      appsAllowed(entry.trust, state.settings)
+    );
+  }
+
+  async function readOnce(threadId: string | undefined): Promise<void> {
+    const read = await deps.withConnection(async (connection) => {
+      const list = await connection.request(
+        "ext.ui.list",
+        threadId === undefined ? {} : { threadId },
+      );
+      const extensions = await connection.request("ext.list", {});
+      const got = await connection.request("settings.get", {
+        keys: [UI_APPS_KEY, UI_ALLOW_PROJECT_APPS_KEY],
+      });
+      return { items: list.items, extensions: extensions.extensions, settings: got.settings };
+    });
+    if (!read.ok) {
+      set(stateOf("offline", state.entries, state.settings, state.inactive));
+      return;
+    }
+    const values: Record<string, unknown> = {};
+    for (const row of read.value.settings) values[row.key] = row.value;
+    // 이 기기가 프레임을 못 쓰면 정책 값과 상관없이 앱을 막는다
+    const settings = deps.framesSupported ? values : { ...values, [UI_APPS_KEY]: false };
+    const inactive = new Set(
+      read.value.extensions
+        .filter((item) => item.status !== "enabled" || item.safeModeExcluded !== null)
+        .map((item) => item.name),
+    );
+    set(stateOf("ready", read.value.items, settings, inactive));
+    if (deps.appRootsInvoke !== undefined && deps.framesSupported) {
+      // 꺼진 확장의 앱 root는 셸에 두지 않는다. 거부 이유는 화면이 앱 root 없이 그리는 것으로 드러난다(프레임 주소가 404). 여기서는 던지지 않는다
+      await syncAppRoots(
+        deps.appRootsInvoke,
+        read.value.items.filter((item) => !inactive.has(item.extension)),
+      );
+    }
   }
 
   return {
@@ -85,30 +132,24 @@ export function createPluginUiRuntime(deps: PluginUiRuntimeDeps): PluginUiRuntim
     },
     framesAllowed,
 
-    async refresh(threadId) {
-      const read = await deps.withConnection(async (connection) => {
-        const list = await connection.request(
-          "ext.ui.list",
-          threadId === undefined ? {} : { threadId },
-        );
-        const got = await connection.request("settings.get", {
-          keys: [UI_APPS_KEY, UI_ALLOW_PROJECT_APPS_KEY],
-        });
-        return { items: list.items, settings: got.settings };
+    refresh(threadId) {
+      if (running !== undefined) {
+        again = true;
+        againThread = threadId;
+        return running;
+      }
+      const work = (async (): Promise<void> => {
+        await readOnce(threadId);
+        while (again) {
+          again = false;
+          // oxlint-disable-next-line no-await-in-loop -- 읽기가 겹치면 끝난 뒤 한 번 더 읽는다 (X.loading-trust.spec §4.3.4)
+          await readOnce(againThread);
+        }
+      })();
+      running = work.finally(() => {
+        running = undefined;
       });
-      if (!read.ok) {
-        set(stateOf("offline", state.entries, state.settings));
-        return;
-      }
-      const values: Record<string, unknown> = {};
-      for (const row of read.value.settings) values[row.key] = row.value;
-      // 이 기기가 프레임을 못 쓰면 정책 값과 상관없이 앱을 막는다
-      const settings = deps.framesSupported ? values : { ...values, [UI_APPS_KEY]: false };
-      set(stateOf("ready", read.value.items, settings));
-      if (deps.appRootsInvoke !== undefined && deps.framesSupported) {
-        // 거부 이유는 화면이 앱 root 없이 그리는 것으로 드러난다(프레임 주소가 404). 여기서는 던지지 않는다
-        await syncAppRoots(deps.appRootsInvoke, read.value.items);
-      }
+      return running;
     },
 
     async contextFor(entry, openThreadId) {

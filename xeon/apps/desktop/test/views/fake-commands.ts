@@ -59,7 +59,10 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       fire: () => Promise.resolve(err({ kind: "unsupported" })),
       enableService: () => Promise.resolve(err({ kind: "unsupported" })),
     },
-    pluginUi: { withConnection: () => Promise.resolve(err({ kind: "offline" })) },
+    pluginUi: {
+      withConnection: () => Promise.resolve(err({ kind: "offline" })),
+      current: () => null,
+    },
     connection: {
       targets: () => Promise.resolve(ok([])),
       saveTargets: () => Promise.resolve(ok(null)),

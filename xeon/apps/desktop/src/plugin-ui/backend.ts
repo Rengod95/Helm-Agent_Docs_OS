@@ -36,7 +36,8 @@ import {
 type ShellNavigateTarget = Exclude<NavigateTarget, { readonly kind: "external" }>;
 
 export interface BridgeBackendDeps {
-  readonly connection: HostConnection;
+  /** 요청마다 지금 연결을 읽는다. 재연결 뒤에도 낡은 연결로 보내지 않는다. 연결이 없으면 요청은 실패한다 */
+  readonly connection: () => HostConnection | undefined;
   /** 확장 이름. `ext.ui.post`의 `extension`에 쓴다 */
   readonly extension: string;
   /** 화면 id(매니페스트 `ui` 항목의 id). `ext.ui.post`의 `ui`에 쓴다 */
@@ -175,7 +176,12 @@ function commandResultOf(output: CommandRunResult): BackendResult<unknown> {
 }
 
 export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
-  const { connection } = deps;
+  /** 지금 연결로 wire 호출 하나. 연결이 없으면 `offline`이다 */
+  function onWire<T>(run: (connection: HostConnection) => Promise<T>): Promise<BackendResult<T>> {
+    const connection = deps.connection();
+    if (connection === undefined) return Promise.resolve(fail("failed", "offline"));
+    return wire(() => run(connection));
+  }
   /** `ext.<확장>.<동사>` 한 번. 대화는 열린 대화로만 싣고 프레임이 준 `threadId`는 버린다 */
   function extension(
     verb: string,
@@ -184,7 +190,7 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     const rest = Object.fromEntries(Object.entries(params).filter(([key]) => key !== THREAD_KEY));
     const open = threadOf(deps.openThreadId());
     const sent = open.ok ? { ...rest, [THREAD_KEY]: open.value } : rest;
-    return wire(() => connection.requestExtension(deps.extension, verb, sent));
+    return onWire((connection) => connection.requestExtension(deps.extension, verb, sent));
   }
 
   return {
@@ -206,7 +212,7 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
       const open = threadOf(deps.openThreadId());
       if (!open.ok) return ok([]);
       const cap = Math.min(limit, EVENT_ROWS_MAX);
-      const read = await wire(() =>
+      const read = await onWire((connection) =>
         connection.request("thread.read", { threadId: open.value, limit: cap }),
       );
       if (!read.ok) return read;
@@ -214,10 +220,10 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     },
 
     async settings(keys) {
-      const defs = await wire(() => connection.request("settings.list", {}));
+      const defs = await onWire((connection) => connection.request("settings.list", {}));
       if (!defs.ok) return defs;
       const open = threadOf(deps.openThreadId());
-      const got = await wire(() =>
+      const got = await onWire((connection) =>
         connection.request("settings.get", {
           keys: [...keys],
           ...(open.ok ? { threadId: open.value } : {}),
@@ -237,7 +243,7 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
       if (!open.ok) return open;
       const tail = stripUnsafeText(args, false).trim();
       const text = tail === "" ? `/${name}` : `/${name} ${tail}`;
-      const ran = await wire(() =>
+      const ran = await onWire((connection) =>
         connection.request("command.run", { threadId: open.value, text }),
       );
       if (!ran.ok) return ran;
@@ -245,7 +251,7 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     },
 
     post(threadId, text) {
-      return wire(() =>
+      return onWire((connection) =>
         connection.request("ext.ui.post", {
           extension: deps.extension,
           ui: deps.screen,
