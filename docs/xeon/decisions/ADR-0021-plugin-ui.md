@@ -13,12 +13,13 @@ binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/c
 ## 1. 상태와 날짜
 
 - 상태: accepted(방식). 스키마와 이름의 세부는 [제안]이고 정본은 F가 정합니다(§6).
-- 날짜: 2026-10-30 초안, 2026-10-31 개정
+- 날짜: 2026-10-30 초안, 2026-10-31 개정, 2026-11-04 개정
 - [결정: 2026-10-30 사용자] Fresnel은 층별 플러그인(F, X, L0~L3)을 조립하고 적응시키는 대화형 에이전트 런타임입니다. Helm 같은 의도 그룹(에이전트 안의 에이전트 시스템)이 핵심 단위입니다.
 - [결정: 2026-10-30 사용자] 대화 화면과 런타임 작업이 둘 다 1급입니다. 원문: "핵심은 대화화면이라는 건 어쨋든 에이전트 런타임의 숙명이라고 봄. 그래서 둘다 1급인느낌."
 - [결정: 2026-10-30 사용자] 플러그인마다 클라이언트 안에서 자기 화면을 구성할 수 있어야 합니다. 원문: "플러그인 별로 우리 클라이언트 안에서 자기만의 ui 화면을 구성할 수 있는 시스템을 지원했으면 해, 단순 특정 파일을 렌더링 한다기 보다는, 어떤 플러그인을 어댑팅 했을 때, 이 플러그인이 만약 l3고 자기만의 워크플로우나 에이전틱한 흐름에서 대화창이 아닌 커스텀한 화면을 요구한다면 이를 지원할 수 있어야 해."
 - [결정: 2026-10-31 사용자] 두 모드를 모두 지원합니다. 선언형 모드(클라이언트가 caustic으로 그림)와 격리 iframe·웹 컴포넌트 모드입니다. 에이전트가 플러그인을 만들 때 어느 모드가 필요한지는 에이전트가 판단합니다(`L4.desktop-ux.spec` §12.3 U-1).
 - 2026-10-30 초안의 "(d) 혼합, 선언형만, iframe은 이름만 예약"은 이 개정으로 바뀝니다.
+- [결정: 2026-11-04 사용자] 프레임 `call`·`command`의 확인 줄은 끌 수 없고 호출마다 뜹니다. "이 화면에서 묻지 않기"와 확장별 허용 기억은 두지 않습니다(B2 1안, §3.4). 설정 키 `x.views.frames`, `x.views.allowProjectFrames`는 X가 소유합니다(§6 9번).
 
 ## 2. 맥락
 
@@ -124,7 +125,7 @@ interface ExtMethodDecl {
 | 동작 | `requestApproval` | 사용자 승인 요청 | 앱이 그리는 표준 승인 카드로만 보임(ADR-0018). 화면은 결과만 받음 | `ext.view.requestApproval` `[미결]` |
 | 동작 | `navigate` | 자기 다른 화면, 대화·턴, 확장 상세(P-17), 자기 설정 구역, 비밀 화면(P-10) 열기, 외부 링크 | 앱 화면은 정해진 목록만. 외부 링크는 셸 확인 뒤 OS 브라우저 | 클라이언트 |
 
-- "사용자 조작 뒤에만"의 판정: 선언형은 렌더러가 누름 이벤트를 압니다. 프레임은 셸이 프레임 안 입력을 볼 수 없으므로, 프레임의 `call`은 셸이 띄우는 확인 줄("<확장>이 <동작 라벨>을 하려고 해요")을 거칩니다. 확인 줄은 확장·세션마다 "이 화면에서 묻지 않기"로 끌 수 있고, `approval: true` 메서드는 승인 카드를 끌 수 없습니다 [제안].
+- "사용자 조작 뒤에만"의 판정: 선언형은 렌더러가 누름 이벤트를 압니다. 프레임은 셸이 프레임 안 입력을 볼 수 없으므로, 프레임의 `call`과 `command`는 셸이 띄우는 확인 줄("<확장>이 <동작 라벨>을 하려고 해요")을 거칩니다(`command`까지 거치는 것은 표보다 엄격한 [제안]입니다). 확인 줄은 끌 수 없고 호출마다 뜹니다. 허용한 뒤에도 같은 확장의 다음 호출은 다시 묻고, "이 화면에서 묻지 않기" 같은 선택과 확장별 허용 기억은 두지 않습니다(B2 1안) [결정: 2026-11-04 사용자]. `approval: true` 메서드의 표준 승인 카드는 이 줄과 따로 뜨며 끌 수 없습니다 [제안].
 - `query` 갱신: `invalidateOn`(자기 kind 목록) 이벤트가 오면 다시 부릅니다. 주기 갱신은 5초 이상만 허용합니다 [제안].
 - 크기 상한 [제안]: `query` 결과 256 KiB, `events` 목록 500행. 선언형 트리는 노드 2000개, 깊이 24입니다. 프레임 다리 메시지는 하나에 1 MiB, 초당 50개입니다. 넘으면 선언형은 그 노드를 "긴 내용"으로 자르고, 프레임은 그 메시지를 오류로 돌려주고 장부에 셉니다.
 
@@ -185,7 +186,7 @@ interface ExtMethodDecl {
 #### 3.6.3 CSP
 
 - 앱 문서: 기존 `default-src 'self'`에 `frame-src fresnel-view:`만 더합니다. `unsafe-eval`, 원격 `script-src`는 더하지 않습니다.
-- 프레임 문서(셸이 응답 헤더로 붙임) [제안]: `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'none'; frame-src 'none'; worker-src 'self' blob:; form-action 'none'; base-uri 'none'`. 네트워크 요청, 다른 프레임 열기, `eval`은 막힙니다. 프레임 HTML의 `<meta>` CSP는 이 헤더보다 넓힐 수 없습니다.
+- 프레임 문서(셸이 응답 헤더로 붙임) [제안]: `default-src 'none'; script-src fresnel-view://<확장이름>/<버전>/; style-src fresnel-view://<확장이름>/<버전>/ 'unsafe-inline'; img-src fresnel-view://<확장이름>/<버전>/ data: blob:; font-src fresnel-view://<확장이름>/<버전>/; media-src fresnel-view://<확장이름>/<버전>/ blob:; connect-src 'none'; frame-src 'none'; worker-src fresnel-view://<확장이름>/<버전>/ blob:; form-action 'none'; base-uri 'none'`. `<확장이름>/<버전>/` 자리는 그 확장 버전의 주소 접두(예: `fresnel-view://helm/1.0.0/`)입니다. 프레임은 불투명 origin이라 `'self'`를 쓰지 않습니다. WebKit은 sandbox 프레임에서 `'self'`를 같은 출처로 풀지 않아 프레임 자기 스크립트가 막히기 때문입니다(`L4.desktop-ux.spec` §6.25). 네트워크 요청, 다른 프레임 열기, `eval`은 막힙니다. 프레임 HTML의 `<meta>` CSP는 이 헤더보다 넓힐 수 없습니다.
 
 #### 3.6.4 wire 직접 연결 없음
 
@@ -205,7 +206,7 @@ interface ExtMethodDecl {
 #### 3.6.7 등급과 사용자 제한
 
 - 화면 기여는 그 확장이 로드됐을 때만 보입니다. `untrusted`는 로드하지 않으므로 화면도 없습니다.
-- 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.views.frames = false`로 모든 프레임을 끌 수 있습니다. 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
+- 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.views.frames = false`로 모든 프레임을 끌 수 있습니다(키는 X가 소유합니다, §6 9번). 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
 - 안전 모드에서 빠진 확장의 화면은 자리표시 상태로 보입니다(§3.7).
 
 #### 3.6.8 테마 토큰 전달
@@ -310,6 +311,6 @@ interface ExtMethodDecl {
 6. [미결] `architecture.security.spec` §4 T-16~T-18 행과 확장 메서드 결과의 마스킹 위치.
 7. [제안 기본값, 2026-11-03 M4 T-UIPOST] `requestApproval`의 승인 kind는 새로 두지 않고 `question` kind에 출처 `origin.caller = ext:<확장>`을 싣는다. `loop.ask`와 같은 카드다. 사용자 확인 전에는 [제안]이다.
 8. [미결] `events`의 kind 거름 인자를 `events.subscribe`에 둘지 확장 화면 전용 구독을 둘지(`F.wire-settings.spec`, `L4.desktop-ux.spec` W-37).
-9. [미결] 설정 키 `x.views.frames`, `x.views.allowProjectFrames`의 소유 문서(`X.loading-trust.spec` 또는 `L4.settings-ui.spec`)와 프레임 `call` 확인 줄을 끄는 범위.
+9. [결정: 2026-11-04 사용자] 설정 키 `x.views.frames`, `x.views.allowProjectFrames`는 X가 소유합니다(B2). 키의 정의와 소유 문서는 X 트랙이 정하고, 이 문서는 키 이름만 씁니다. 이름을 `x.ui.*`로 바꾸자는 안은 `F.wire-settings.spec`에 [제안]으로 있으며 이것도 X 트랙이 정합니다. 프레임 `call`·`command`의 확인 줄은 끌 수 없으므로 끄는 범위는 없습니다(§3.4).
 10. [미결] 프레임 안에서 caustic을 쓸 배포물(웹 컴포넌트 빌드 또는 토큰 CSS만)을 caustic 저장소에서 낼지.
 11. [가정] 위젯 카탈로그 v1로 Helm 탐구 화면을 그릴 수 있습니다. 작업대 시안(`L4.desktop-ux.spec` §14 W4)에서 확인했고 구현에서 다시 확인합니다.

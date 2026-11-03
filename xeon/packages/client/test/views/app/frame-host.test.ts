@@ -6,7 +6,6 @@ import {
   appResponseHeaders,
   attachFrame,
   buildAppUrl,
-  createConfirmMemory,
   FRAME_SANDBOX,
   HOST_DOCUMENT_CSP,
   parseAppUrl,
@@ -85,7 +84,6 @@ function setupFrame() {
       backend,
       clock: time,
       confirm: () => Promise.resolve("deny"),
-      confirmMemory: createConfirmMemory(),
     },
     initialPushes: () => [{ name: "theme", value: { scheme: "dark" } }],
     onClosed: (reason) => closed.push(reason),
@@ -320,10 +318,7 @@ describe("theme tokens and confirm line", () => {
     expect(confirmLineText({ extension: "helm", action: "start", approval: false })).toBe(
       '"helm" 확장이 "start" 동작을 하려고 해요',
     );
-    expect(confirmButtons().map((button) => button.answer)).toEqual([
-      "allow",
-      "allow_always",
-      "deny",
-    ]);
+    // 확인 줄은 끌 수 없다. 허용과 거부만 있다(2026-11-04 사용자, B2 1안)
+    expect(confirmButtons().map((button) => button.answer)).toEqual(["allow", "deny"]);
   });
 });

@@ -1,6 +1,5 @@
 import {
   attachFrame,
-  createConfirmMemory,
   type BackendResult,
   type BridgeBackend,
   type BridgePolicyContext,
@@ -137,7 +136,6 @@ attachFrame({
       confirmAsked.push(request);
       return Promise.resolve("deny");
     },
-    confirmMemory: createConfirmMemory(),
   },
   initialPushes: () => [{ name: "theme", value: { scheme: "dark" } }],
   onClosed: () => {},

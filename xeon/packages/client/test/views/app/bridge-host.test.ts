@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { createScreenLedger } from "../../../src/views/ledger.ts";
 import {
   createBridgeHost,
-  createConfirmMemory,
   LIVENESS_INTERVAL_MS,
   type BridgePolicyContext,
   type ConfirmAnswer,
@@ -32,7 +31,6 @@ function setup(
   const { backend, calls } = fakeBackend(options.backend);
   const confirm = confirmer(options.answers ?? ["allow"]);
   const closed: string[] = [];
-  const memory = createConfirmMemory();
   const host = createBridgeHost({
     port: pair.host,
     screenKey: "helm/inquiry",
@@ -42,10 +40,9 @@ function setup(
     clock: time,
     scheduler: time,
     confirm: confirm.confirm,
-    confirmMemory: memory,
     onClosed: (reason) => closed.push(reason),
   });
-  return { time, pair, ledger, calls, confirm, closed, host, memory };
+  return { time, pair, ledger, calls, confirm, closed, host };
 }
 
 describe("bridge host", () => {
@@ -154,16 +151,24 @@ describe("bridge host", () => {
     expect(calls.names).toEqual(["command:helm-start:go"]);
   });
 
-  test("allow_always silences the line for that extension, shared through the memory", async () => {
-    const { pair, confirm, calls, memory } = setup({ answers: ["allow_always"] });
+  test("a second call from the same extension asks the line again after an allow", async () => {
+    // 두 번째 답은 거부다. 줄을 건너뛰었다면 두 번째 호출이 실행되어 이 시험이 깨진다
+    const { pair, confirm, calls } = setup({ answers: ["allow", "deny"] });
     pair.frame.send(request(1, "call", { verb: "start" }));
     await flush();
-    pair.frame.send(request(2, "call", { verb: "wipe" }));
+    pair.frame.send(request(2, "call", { verb: "start" }));
     await flush();
-    expect(confirm.asked).toEqual([{ extension: "helm", action: "start", approval: false }]);
-    expect(calls.names).toEqual(["call:start", "call:wipe"]);
-    expect(memory.isSuppressed("helm")).toBe(true);
-    expect(memory.isSuppressed("other")).toBe(false);
+    expect(confirm.asked).toEqual([
+      { extension: "helm", action: "start", approval: false },
+      { extension: "helm", action: "start", approval: false },
+    ]);
+    expect(calls.names).toEqual(["call:start"]);
+    expect(pair.toFrame[1]).toEqual({
+      v: 1,
+      id: 2,
+      ok: false,
+      error: { kind: "denied", detail: "not_confirmed" },
+    });
   });
 
   test("only one confirmation can be pending, a second call is denied at once", async () => {
@@ -186,7 +191,6 @@ describe("bridge host", () => {
           release = resolve;
         });
       },
-      confirmMemory: createConfirmMemory(),
       onClosed: () => {},
     });
     pair.frame.send(request(1, "call", { verb: "start" }));
@@ -221,7 +225,6 @@ describe("bridge host", () => {
         enabled = false;
         return Promise.resolve("allow");
       },
-      confirmMemory: createConfirmMemory(),
       onClosed: () => {},
     });
     pair2.frame.send(request(1, "call", { verb: "start" }));

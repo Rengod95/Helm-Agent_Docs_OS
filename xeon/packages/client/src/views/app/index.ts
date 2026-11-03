@@ -1,6 +1,5 @@
 export {
   createBridgeHost,
-  createConfirmMemory,
   CONFIRM_TIMEOUT_MS,
   LIVENESS_INTERVAL_MS,
   type BackendResult,
@@ -9,7 +8,6 @@ export {
   type BridgeHostOptions,
   type BridgePort,
   type ConfirmAnswer,
-  type ConfirmMemory,
   type ConfirmRequest,
   type HostSnapshot,
   type SettingRead,

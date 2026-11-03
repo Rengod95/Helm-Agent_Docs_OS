@@ -9,13 +9,13 @@ export function confirmLineText(request: ConfirmRequest): string {
 }
 
 export function confirmButtons(): readonly {
-  readonly answer: "allow" | "allow_always" | "deny";
+  readonly answer: "allow" | "deny";
   readonly label: string;
 }[] {
-  // 표준 승인 카드가 따로 뜨는 메서드의 카드는 끌 수 없다. 이 줄만 끄는 선택은 모든 호출에 준다(§3.4 [제안])
+  // 확인 줄은 끌 수 없고 호출마다 뜬다. "이 화면에서 묻지 않기" 같은 단축은 없다(2026-11-04 사용자, B2 1안).
+  // 표준 승인 카드(`approval: true`)는 이 줄과 따로 뜨며 역시 끌 수 없다.
   return [
     { answer: "allow", label: t("client.view.confirm.allow") },
-    { answer: "allow_always", label: t("client.view.confirm.allowAlways") },
     { answer: "deny", label: t("client.view.confirm.deny") },
   ];
 }

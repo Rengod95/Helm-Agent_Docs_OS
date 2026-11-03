@@ -78,7 +78,7 @@ export interface BridgeBackend {
   diagnostic(line: { readonly op: string; readonly size: number }): void;
 }
 
-export type ConfirmAnswer = "allow" | "allow_always" | "deny";
+export type ConfirmAnswer = "allow" | "deny";
 
 /** 프레임 `call`·`command` 앞의 확인 줄(§3.4). 글은 매니페스트에서 온 값(확장 이름, 동사)으로만 만든다. 프레임이 준 글은 쓰지 않는다 */
 export interface ConfirmRequest {
@@ -87,22 +87,6 @@ export interface ConfirmRequest {
   readonly action: string;
   /** 표준 승인 카드가 따로 뜨는 메서드인가(그 카드는 끌 수 없다) */
   readonly approval: boolean;
-}
-
-/** "이 화면에서 묻지 않기"의 세션 기억(확장마다). 앱이 하나 만들어 같은 확장의 프레임이 나눠 쓴다. 재시작하면 사라진다 */
-export interface ConfirmMemory {
-  isSuppressed(extension: string): boolean;
-  suppress(extension: string): void;
-}
-
-export function createConfirmMemory(): ConfirmMemory {
-  const suppressed = new Set<string>();
-  return {
-    isSuppressed: (extension) => suppressed.has(extension),
-    suppress: (extension) => {
-      suppressed.add(extension);
-    },
-  };
 }
 
 export interface BridgeHostOptions {
@@ -116,7 +100,6 @@ export interface BridgeHostOptions {
   readonly clock: Clock;
   readonly scheduler: Scheduler;
   readonly confirm: (request: ConfirmRequest) => Promise<ConfirmAnswer>;
-  readonly confirmMemory: ConfirmMemory;
   /** 닫힘. 이유는 장부 이름이거나 `disposed`다 */
   readonly onClosed: (reason: LedgerFailure | "disposed") => void;
 }
@@ -204,8 +187,8 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
     return windowCount > UI_LIMITS.bridgeMessagesPerSecond;
   }
 
+  /** 확인 줄은 끌 수 없어 호출마다 묻는다. 같은 확장이라도 앞의 허용을 기억하지 않는다(2026-11-04 사용자, B2 1안) */
   async function askConfirm(request: ConfirmRequest): Promise<ConfirmAnswer> {
-    if (options.confirmMemory.isSuppressed(request.extension)) return "allow";
     if (confirmPending) return "deny";
     confirmPending = true;
     const answer = new Promise<ConfirmAnswer>((resolve) => {
@@ -218,7 +201,6 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
     confirmTimer = undefined;
     confirmResolve = undefined;
     confirmPending = false;
-    if (result === "allow_always") options.confirmMemory.suppress(request.extension);
     return result;
   }
 
