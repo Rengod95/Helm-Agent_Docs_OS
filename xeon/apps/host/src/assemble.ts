@@ -33,6 +33,7 @@ import { StoreIdSchema } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
+  createRepeatDisableLedger,
   createRegistrationControl,
   createVolatileNotifier,
   registrationToggleSourceOf,
@@ -100,6 +101,7 @@ import {
   effectiveSecretsConfig,
   settingKeysReferencing,
 } from "./assembly/secrets.ts";
+import { createLateFileBackend, REPEAT_DISABLE_FILE } from "./assembly/repeat-disable-store.ts";
 import { createProjectTrust, createLoaderFs, fileBackend } from "./assembly/trust.ts";
 import {
   defaultPluginNamesFor,
@@ -398,6 +400,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     numbering: chunkNumbering,
     log: logOperations,
   });
+  // 여러 번의 시작에서 반복해 자동으로 꺼지는 확장을 센다(결정 2026-11-04 B5). 저장 경로는 상태 디렉터리를 안 뒤에 묶는다
+  const repeatDisableFile = createLateFileBackend();
+  const repeatDisable = createRepeatDisableLedger({
+    backend: repeatDisableFile,
+    log: logOperations,
+  });
   const operations = createOperationsPolicy({
     now: () => clock.now(),
     setTimer,
@@ -408,6 +416,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     },
     notifier: createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
     log: logOperations,
+    repeatDisable,
   });
   /** 확장 진단. 상한(256)을 넘으면 오래된 것부터 버린다(L0.os.spec §3.14, M3-REQ-52) */
   const diagnostics = createExtDiagnosticSink();
@@ -527,6 +536,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const logger = os.logger("host");
     late.logger = logger;
     // 연속 시작 실패 수(X.operations.spec §4.6.4). 조립이 던지면 "진행 중" 표시가 남아 다음 시작에서 1이 는다
+    repeatDisableFile.bind(join(os.dirs.state, REPEAT_DISABLE_FILE));
+    await repeatDisable.load();
     const startupHealth = createFileStartupHealth(os.dirs.state);
     const startupFailures = startupHealth.beginStartup();
     await settings.loadUserFile(join(os.dirs.config, "settings.json"));
@@ -926,6 +937,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       dialogArea,
       extRead: {
         operations,
+        repeatDisable,
         // `host.status.safeMode`와 같은 원인이다: 시작 옵션은 `flag`, 설정 `x.operations.safeMode.default`는 `user`
         safeMode: {
           active: safeMode,

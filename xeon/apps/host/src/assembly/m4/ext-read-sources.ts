@@ -24,6 +24,7 @@ import {
   type ExtensionUnit,
   type ExtHost,
   type OperationsPolicy,
+  type RepeatDisableLedger,
 } from "@fresnel/ext-host";
 import {
   buildPromotionReport,
@@ -50,6 +51,8 @@ interface ExtReadSafeMode {
 /** 조립 루트(`assemble.ts`)가 넘기는 것: 엔진 포트가 올라오기 전에 있는 값 */
 export interface ExtReadAssembly {
   readonly operations: Pick<OperationsPolicy, "ledger" | "autoDisabler">;
+  /** 반복 자동 끄기 원장(결정 2026-11-04 B5). 없으면 질문을 내지 않는다 */
+  readonly repeatDisable?: RepeatDisableLedger;
   readonly safeMode: ExtReadSafeMode;
   readonly extensions: () => readonly ExtensionRecord[];
   /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다. `ext.reload`가 새 버전으로 바꾸는 데 쓴다 */
@@ -241,6 +244,19 @@ async function reloadThroughLoader(
   };
 }
 
+/**
+ * 반복 자동 끄기 질문을 낼지 정한다(결정 2026-11-04 B5). 기준 횟수에 닿았고(`disabledStarts`가 있고), 지금 자동으로 꺼져 있고,
+ * 사용자가 설정으로 이미 꺼 두지 않았을 때만 묻는다. 이미 꺼 둔 것이 "계속 끈다" 답이다
+ */
+export function keepOffQuestionOf(input: {
+  readonly disabledStarts: number | null;
+  readonly autoDisabledNow: boolean;
+  readonly enabledSetting: unknown;
+}): { readonly disabledStarts: number } | null {
+  if (input.disabledStarts === null || !input.autoDisabledNow) return null;
+  return input.enabledSetting === false ? null : { disabledStarts: input.disabledStarts };
+}
+
 export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv): ExtReadSources {
   const catalog = env.settings.catalog;
   const view = extReadViewOf(env.ext);
@@ -348,7 +364,15 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       };
     },
     autoDisabled: (name) => assembly.operations.autoDisabler.disabled().includes(`ext:${name}`),
+    keepOffQuestion: (name) =>
+      keepOffQuestionOf({
+        disabledStarts: assembly.repeatDisable?.question(name)?.disabledStarts ?? null,
+        autoDisabledNow: assembly.operations.autoDisabler.disabled().includes(`ext:${name}`),
+        enabledSetting: env.settings.value(`ext.${name}.enabled`),
+      }),
     reenable: (name) => {
+      // "계속 켠다" 답이다. 반복 횟수를 지운다
+      assembly.repeatDisable?.clear(name);
       assembly.operations.autoDisabler.reenable(`ext:${name}`);
     },
     reload: (name, signal) => reloadThroughLoader(assembly.loader(), name, signal),
