@@ -4,11 +4,12 @@ import {
   ModelsPortKey,
   ToolsPortKey,
   type ProviderResourceDef,
+  type ToolReplaceClaim,
   type ToolResourceDef,
 } from "@fresnel/contracts/extensions";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import { Type } from "typebox";
-import { defineGroup, type GroupManifest } from "../src/index.ts";
+import { defineGroup, groupManifest, type GroupManifest } from "../src/index.ts";
 import { install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
@@ -172,4 +173,56 @@ test("resources.group-registerMethod-is-callable-and-released-with-the-group", a
   t.host.registration("methoded")?.disable();
   await t.settled();
   expect(t.host.methods.list()).toEqual([]);
+});
+
+// F.capabilities.spec §10 [결정: 2026-11-03 사용자]: 외부 그룹도 plugin.json의 루트 L3 플러그인 `replaces`로 내장 도구를 대체한다
+test("an external group from plugin.json replaces a built-in tool through g.registerTool with its loaded trust", async () => {
+  const manifest = groupManifest({
+    schemaVersion: 2,
+    name: "ext-files",
+    version: "0.1.0",
+    entry: "./src/index.ts",
+    plugins: [{ layer: "L3", hooks: [], replaces: ["read"] }],
+    group: {},
+  });
+  expect(manifest.plugins[0]?.replaces).toEqual(["read"]);
+  const t = await createTestHost();
+  const claims: ToolReplaceClaim[] = [];
+  await t.host.registerPlatform({
+    name: "claim-recorder",
+    setup(ctx) {
+      ctx.providePort(ToolsPortKey, {
+        register(_owner, def) {
+          if (def.replaces !== undefined) claims.push(def.replaces);
+          return ok(() => {});
+        },
+      });
+    },
+  });
+  const group = defineGroup({
+    manifest,
+    setup(g) {
+      g.registerTool({
+        name: "read",
+        description: "read files my way",
+        parameters: Type.Object({ path: Type.String() }),
+        replay: "safe",
+        execute: () => Promise.resolve("from the group"),
+      });
+    },
+  });
+  // 로더를 거치지 않으므로 신뢰 등급은 로더가 정할 값을 직접 준다(설치 위치가 user)
+  await t.host.install({
+    manifest: group.manifest,
+    entry: group.entry,
+    loadIndex: 0,
+    builtin: false,
+    trust: "user",
+  });
+  await t.host.openThread(t.newThread());
+  await t.settled();
+  expect(claims).toEqual([{ extension: "ext-files", trust: "user" }]);
+  expect(t.host.resources.list("tool")).toMatchObject([
+    { name: "read", exposed: "read", extension: "ext-files" },
+  ]);
 });

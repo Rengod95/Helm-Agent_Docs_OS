@@ -11,7 +11,12 @@ import {
   type TUnion,
   type TUnsafe,
 } from "typebox";
-import { CapabilityIdSchema, SemVerRangeSchema, SemVerSchema } from "../capabilities/index.ts";
+import {
+  CapabilityIdSchema,
+  SemVerRangeSchema,
+  SemVerSchema,
+  TOOL_NAME_PATTERN,
+} from "../capabilities/index.ts";
 import { RECORD_KIND_READ_PATTERN, RecordKindDeclJsonSchema } from "./group-record.ts";
 import { ExtensionNameSchema } from "./name.ts";
 import { HookNameSchema } from "./hooks.ts";
@@ -142,6 +147,7 @@ export const PluginDeclSchema: TObject<{
   provides: TOptional<TArray<typeof CapabilityProvisionSchema>>;
   recordKinds: TOptional<TArray<typeof RecordKindDeclJsonSchema>>;
   readsRecordKinds: TOptional<TArray<TString>>;
+  replaces: TOptional<TArray<TString>>;
 }> = Type.Object(
   {
     /** 생략하면 확장의 루트 플러그인. 확장당 하나만 생략할 수 있다 */
@@ -164,6 +170,15 @@ export const PluginDeclSchema: TObject<{
     readsRecordKinds: Type.Optional(
       Type.Array(Type.String({ pattern: RECORD_KIND_READ_PATTERN, maxLength: 160 }), {
         maxItems: 128,
+      }),
+    ),
+    /**
+     * 같은 이름으로 바꿔 놓는 내장 도구 이름(F.capabilities.spec §10 [결정: 2026-11-03 사용자]).
+     * 이 선언이 있는 이름만 내장 도구를 대체할 수 있고, 선언 없이 이름이 겹치면 대체가 아니다. 활성화는 사용자 승인이 있어야 한다
+     */
+    replaces: Type.Optional(
+      Type.Array(Type.String({ pattern: TOOL_NAME_PATTERN, maxLength: 64 }), {
+        maxItems: 16,
       }),
     ),
   },

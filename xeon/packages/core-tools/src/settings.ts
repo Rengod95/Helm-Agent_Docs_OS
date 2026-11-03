@@ -71,6 +71,12 @@ const ALL_SCOPES = ["managed", "user", "project", "local", "launch"] as const;
 const FILE_SCOPES = ["managed", "user", "project", "local"] as const;
 const MANAGED_ONLY = ["managed"] as const;
 
+/**
+ * 저장소가 커밋할 수 있는 범위. 여기서 온 규칙과 모드는 사용자가 고른 것이 아니라서 내장 도구 대체를 승인 없이 켜지 못한다
+ * (L1.tools.spec §4.13). 출처 문자열의 범위 이름도 이 목록으로 알아본다(tiers.ts `isRepositorySource`)
+ */
+export const REPOSITORY_SCOPES: readonly SettingScope[] = ["project", "local"];
+
 const group = defineSettings("l1.tools", {
   permissionMode: {
     type: Type.String({ maxLength: 16 }),
@@ -219,6 +225,8 @@ export function layerValue(layer: ScopeLayer, key: string): unknown {
 
 export interface ToolsScalarConfig {
   readonly mode: PermissionMode;
+  /** 모드 `bypass`를 정한 범위가 저장소(`REPOSITORY_SCOPES`)면 참이다. 대체 항목에는 bypass를 허용하지 않는다 */
+  readonly modeFromRepository: boolean;
   readonly bypassAllowed: boolean;
   readonly output: { readonly maxLines: number; readonly maxBytes: number };
   readonly deferThreshold: number;
@@ -230,12 +238,29 @@ export interface ToolsUnattendedConfig {
   readonly timeoutSeconds: number;
 }
 
+/** 권한 모드와 그 값을 정한 범위. `pick`과 같은 순서와 검사를 쓰되 범위를 함께 돌려준다 */
+function pickMode(layers: ScopeStack): {
+  readonly mode: PermissionMode;
+  readonly fromRepository: boolean;
+} {
+  for (const scope of SCOPE_PRECEDENCE) {
+    if (!ALL_SCOPES.some((allowed) => allowed === scope)) continue;
+    const layer = layers.find((candidate) => candidate.scope === scope);
+    if (layer === undefined || !layer.values.has(TOOLS_SETTING_KEYS.permissionMode)) continue;
+    const value = layer.values.get(TOOLS_SETTING_KEYS.permissionMode);
+    if (isPermissionMode(value)) {
+      return { mode: value, fromRepository: REPOSITORY_SCOPES.some((repo) => repo === scope) };
+    }
+  }
+  return { mode: TOOLS_SETTING_DEFAULTS.permissionMode, fromRepository: false };
+}
+
 export function readScalarConfig(layers: ScopeStack): ToolsScalarConfig {
   const defaults = TOOLS_SETTING_DEFAULTS;
+  const mode = pickMode(layers);
   return {
-    mode:
-      pick(layers, TOOLS_SETTING_KEYS.permissionMode, ALL_SCOPES, isPermissionMode) ??
-      defaults.permissionMode,
+    mode: mode.mode,
+    modeFromRepository: mode.fromRepository,
     bypassAllowed:
       pick(layers, TOOLS_SETTING_KEYS.bypassAllowed, MANAGED_ONLY, isBoolean) ??
       defaults.bypassAllowed,

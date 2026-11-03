@@ -49,6 +49,8 @@ export interface PluginFiles {
   readonly entry?: string;
   /** 매니페스트 `ui`(JSON 값). 생략하면 없다. 화면 파일은 호출자가 따로 쓴다 */
   readonly ui?: unknown;
+  /** 루트 플러그인의 `replaces`(내장 도구 대체 선언). 생략하면 없다 */
+  readonly replaces?: readonly string[];
 }
 
 /** `boundary.settle.after`에 `on` 핸들러를 걸고 호출 때 `<이름>:fired`를 기록하는 엔트리 */
@@ -85,6 +87,7 @@ export async function writePlugin(
       {
         layer: files.layer ?? "plugin",
         hooks: files.hooks ?? ["boundary.settle.after"],
+        ...(files.replaces === undefined ? {} : { replaces: [...files.replaces] }),
       },
     ],
     ...(files.group === true ? { group: {} } : {}),

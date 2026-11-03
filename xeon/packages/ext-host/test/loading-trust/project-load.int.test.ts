@@ -2,11 +2,20 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { TrustChoice } from "@fresnel/contracts/extensions";
+import { fileURLToPath } from "node:url";
+import { ok } from "@fresnel/contracts";
+import {
+  ToolsPortKey,
+  type ToolReplaceClaim,
+  type TrustChoice,
+} from "@fresnel/contracts/extensions";
 import type { LoaderPaths } from "../../src/loading-trust/index.ts";
 import { fakeGroupSdk, SDK, writePlugin } from "./support/plugin-fixture.ts";
 import { createLoaderHarness, type LoaderHarness } from "./support/harness.ts";
 import { makeTempDir, realLoaderFs } from "./support/real-fs.ts";
+
+// 호스트 원시 API(hostOf)를 절대 경로로 가져오는 시험 확장 엔트리. 외부 확장의 SDK 대역에는 registerTool이 없다
+const PRIMITIVES_PATH = fileURLToPath(new URL("../../src/primitives/index.ts", import.meta.url));
 
 let temp: Awaited<ReturnType<typeof makeTempDir>>;
 let paths: LoaderPaths;
@@ -221,4 +230,96 @@ test("a load that is cancelled midway is not remembered and the next call loads 
   });
   expect(retry.alreadyLoaded).toBe(false);
   expect(retry.extensions.map((info) => info.name)).toEqual(["proj-a"]);
+});
+
+/** `read`를 같은 이름으로 대체하는 도구를 등록하는 엔트리. 등록 도구의 본문은 쓰지 않는다 */
+function replacingEntry(name: string): string {
+  return `import { hostOf } from ${JSON.stringify(PRIMITIVES_PATH)};
+import { Type } from "typebox";
+export const extension = ({ register }) => {
+  register(${JSON.stringify(name)}, {}, (g) => {
+    hostOf(g).registerTool({
+      name: "read",
+      description: "read files my way",
+      parameters: Type.Object({ path: Type.String() }),
+      replay: "safe",
+      execute: () => Promise.resolve("from the plugin"),
+    });
+  });
+};
+`;
+}
+
+/** 대체 등록이 fresnel.tools에 넘긴 출처를 모은다. 포트는 등록만 받고 실제 표는 건드리지 않는다 */
+async function claimsOf(harness: LoaderHarness): Promise<ToolReplaceClaim[]> {
+  const claims: ToolReplaceClaim[] = [];
+  await harness.t.host.registerPlatform({
+    name: "claim-recorder",
+    setup(ctx) {
+      ctx.providePort(ToolsPortKey, {
+        register(_owner, def) {
+          if (def.replaces !== undefined) claims.push(def.replaces);
+          return ok(() => {});
+        },
+      });
+    },
+  });
+  return claims;
+}
+
+test("a project plugin that requests no trust is labelled project in its replacement claim", async () => {
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "repo-files", {
+    name: "repo-files",
+    replaces: ["read"],
+    entry: replacingEntry("repo-files"),
+  });
+  const harness = await harnessOf();
+  const claims = await claimsOf(harness);
+  await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
+  const report = await harness.loader.loadProject({
+    projectRoot: projectA,
+    mode: "headless",
+    trustOverride: true,
+    signal,
+  });
+  // 설치 위치(프로젝트)의 유효 등급이 claim과 승인 본문에 실린다. 요청이 없어도 user로 적지 않는다
+  expect(report.extensions.map((info) => [info.name, info.trust, info.state])).toEqual([
+    ["repo-files", "project", "active"],
+  ]);
+  expect(claims).toEqual([{ extension: "repo-files", trust: "project" }]);
+});
+
+test("a project plugin that requests user trust is refused before it can register a replacement", async () => {
+  await writePlugin(join(projectA, ".fresnel", "extensions"), "greedy-files", {
+    name: "greedy-files",
+    trustLevel: "user",
+    replaces: ["read"],
+    entry: replacingEntry("greedy-files"),
+  });
+  const harness = await harnessOf();
+  const claims = await claimsOf(harness);
+  await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
+  const report = await harness.loader.loadProject({
+    projectRoot: projectA,
+    mode: "headless",
+    trustOverride: true,
+    signal,
+  });
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([
+    ["greedy-files", "rejected"],
+  ]);
+  expect(report.diagnostics.map((entry) => entry.code)).toContain("trust_exceeds_source");
+  expect(claims).toEqual([]);
+});
+
+test("a user plugin that requests no trust stays labelled user in its replacement claim", async () => {
+  await writePlugin(join(paths.userDir, "extensions"), "user-files", {
+    name: "user-files",
+    replaces: ["read"],
+    entry: replacingEntry("user-files"),
+  });
+  const harness = await harnessOf();
+  const claims = await claimsOf(harness);
+  await harness.loader.loadAll(harness.options([], { cwd: "/", projects: "on_demand" }));
+  expect(claims).toEqual([{ extension: "user-files", trust: "user" }]);
 });

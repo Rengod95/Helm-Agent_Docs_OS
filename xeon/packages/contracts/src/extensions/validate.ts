@@ -60,6 +60,8 @@ export type ManifestIssueCode =
   | "record_kind_prefix"
   | "record_kind_duplicate"
   | "read_kind_invalid"
+  | "replaces_invalid"
+  | "replaces_duplicate"
   | "user_config_invalid"
   | "isolation_invalid"
   | "trust_invalid"
@@ -97,6 +99,7 @@ export type ManifestIssueCode =
   | "registration_unknown_plugin"
   // validateManifestSet
   | "name_conflict"
+  | "replace_conflict"
   | "drive_conflict"
   | "capability_unprovided"
   // validateGroupRecord
@@ -199,6 +202,8 @@ function codeForPluginPath(segments: readonly string[]): ManifestIssueCode {
       return last === "kind" ? "record_kind_prefix" : "schema";
     case "readsRecordKinds":
       return segments.length > 4 ? "read_kind_invalid" : "schema";
+    case "replaces":
+      return segments.length > 4 ? "replaces_invalid" : "schema";
     // fresnel-disable-next-line fresnel/switch-default-never -- 검증 경로의 마디는 스키마가 정하는 열린 문자열이다. 모르는 마디는 일반 schema 코드로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return "schema";
@@ -845,6 +850,31 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
         );
       }
     });
+
+    const replaces = plugin.replaces ?? [];
+    replaces.forEach((tool, index) => {
+      // 확장이 붙인 정식 이름(`<확장>__<이름>`)은 내장 도구 이름이 아니다
+      if (tool.includes("__")) {
+        issues.push(
+          issue(
+            "error",
+            "replaces_invalid",
+            `${base}/replaces/${index}`,
+            `"${tool}" is an extension-qualified name; replaces lists built-in tool names`,
+          ),
+        );
+      }
+    });
+    for (const { index, id } of duplicatesIn(replaces)) {
+      issues.push(
+        issue(
+          "error",
+          "replaces_duplicate",
+          `${base}/replaces/${index}`,
+          `tool "${id}" is listed twice in replaces`,
+        ),
+      );
+    }
   });
 
   for (const [key, entry] of Object.entries(manifest.userConfig ?? {})) {
@@ -1140,6 +1170,28 @@ export function validateManifestSet(
       );
     }
     names.add(manifest.name);
+  }
+
+  // 두 확장이 같은 내장 도구를 대체하겠다고 선언하면 어느 쪽도 고르지 않고 오류다(F.capabilities.spec §10)
+  const replacers = new Map<string, string>();
+  for (const manifest of manifests) {
+    manifest.plugins.forEach((plugin, pluginIndex) => {
+      (plugin.replaces ?? []).forEach((tool, index) => {
+        const first = replacers.get(tool);
+        if (first === undefined) {
+          replacers.set(tool, manifest.name);
+          return;
+        }
+        issues.push(
+          issue(
+            "error",
+            "replace_conflict",
+            `${manifest.name}/plugins/${pluginIndex}/replaces/${index}`,
+            `tool "${tool}" is already replaced by extension "${first}"; a tool can have only one replacement`,
+          ),
+        );
+      });
+    });
   }
 
   const drivers = manifests.flatMap((manifest) =>

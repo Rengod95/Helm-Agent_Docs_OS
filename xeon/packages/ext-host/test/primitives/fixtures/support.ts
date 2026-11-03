@@ -9,6 +9,7 @@ import type {
   PluginDecl,
   RegistrationDef,
   RegistrationSetup,
+  TrustRequest,
 } from "@fresnel/contracts/extensions";
 import type {
   AssistantMessage,
@@ -78,6 +79,9 @@ export interface ManifestInput {
   readonly provides?: PluginDecl["provides"];
   readonly recordKinds?: PluginDecl["recordKinds"];
   readonly readsRecordKinds?: PluginDecl["readsRecordKinds"];
+  readonly replaces?: PluginDecl["replaces"];
+  /** 확장 수준 신뢰 요청 */
+  readonly trust?: ExtensionManifest["trust"];
   /** 루트 뒤에 붙는 플러그인 선언. 각각 `id`가 있어야 한다 */
   readonly extraPlugins?: readonly PluginDecl[];
   /** 확장 수준 메서드 선언(F.extensions.spec §3.1.1). 처리기 등록(`registerMethod`)은 이 목록의 동사만 받는다 */
@@ -96,6 +100,7 @@ export function makeManifest(input: ManifestInput): ExtensionManifest {
     ...(input.provides === undefined ? {} : { provides: input.provides }),
     ...(input.recordKinds === undefined ? {} : { recordKinds: input.recordKinds }),
     ...(input.readsRecordKinds === undefined ? {} : { readsRecordKinds: input.readsRecordKinds }),
+    ...(input.replaces === undefined ? {} : { replaces: input.replaces }),
   };
   return {
     schemaVersion: 2,
@@ -104,6 +109,7 @@ export function makeManifest(input: ManifestInput): ExtensionManifest {
     entry: "./src/index.ts",
     plugins: [root, ...(input.extraPlugins ?? [])],
     ...(input.defaultEnabled === undefined ? {} : { defaultEnabled: input.defaultEnabled }),
+    ...(input.trust === undefined ? {} : { trust: input.trust }),
     ...(input.group === undefined ? {} : { group: input.group }),
     ...(input.methods === undefined ? {} : { methods: input.methods }),
   };
@@ -113,6 +119,8 @@ export interface UnitInput<S> extends ManifestInput {
   readonly def?: RegistrationDef<S>;
   readonly loadIndex?: number;
   readonly builtin?: boolean;
+  /** 로더가 정한 유효 등급(단위의 `trust`). 매니페스트 `trust`(요청)와 따로 준다. 생략하면 host가 정한다 */
+  readonly loadedTrust?: TrustRequest["level"];
   readonly initialEnabled?: boolean;
 }
 
@@ -129,6 +137,7 @@ export function makeUnit<S = never>(
     },
     loadIndex: input.loadIndex ?? 0,
     builtin: input.builtin ?? true,
+    ...(input.loadedTrust === undefined ? {} : { trust: input.loadedTrust }),
     ...(input.initialEnabled === undefined ? {} : { initialEnabled: input.initialEnabled }),
   };
 }

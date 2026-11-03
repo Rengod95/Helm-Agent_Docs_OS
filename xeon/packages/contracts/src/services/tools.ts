@@ -147,6 +147,28 @@ export type ToolRegistration = CapabilityToolsRegistration | DirectToolRegistrat
 
 export type Unregister = () => void;
 
+/** 내장 도구 대체 활성화 승인(승인 요청 kind `tool`)의 도구 이름과 규칙 id. 화면은 이 이름으로 대체 승인을 알아본다 */
+export const TOOL_REPLACE_APPROVAL_TOOL = "tool_replace" as const;
+export const TOOL_REPLACE_RULE_ID = "tools.replace" as const;
+
+/** 대체 등록의 승인 상태. `active`일 때만 모델이 대체 도구를 본다 */
+export type ToolReplacementStatus = "pending" | "active" | "denied";
+
+export interface ToolReplacementState {
+  readonly toolName: ToolName;
+  readonly owner: RegistrationId;
+  /** 대체하는 확장 이름 */
+  readonly extension: string;
+  readonly trust: "builtin" | "user" | "project" | "untrusted";
+  readonly status: ToolReplacementStatus;
+  /** 열려 있거나 마지막으로 닫힌 승인 요청. 아직 요청하지 않았으면 null */
+  readonly approvalId: string | null;
+  /** 원본 도구의 위험 등급 */
+  readonly originalRisk: ToolRisk;
+  /** 대체 도구가 실제로 쓰는 위험 등급. 선언한 값과 원본 중 높은 쪽이다 */
+  readonly effectiveRisk: ToolRisk;
+}
+
 // ── 실행 맥락 ────────────────────────────────────────────────────────────
 
 export interface ToolRunDrafts {
@@ -537,6 +559,9 @@ export interface ToolService extends ToolsPort {
 
   /** 메타 조회. 동기, 순수 조회. 확장 핸들러가 쓰기 판정에 쓴다 */
   meta(name: ToolName): ToolMeta | undefined;
+
+  /** 내장 도구 대체 등록의 현재 상태. 승인 전(`pending`)과 거부(`denied`)인 대체도 나온다. 등록 순서다 */
+  replacements(): readonly ToolReplacementState[];
 
   /** 광고 목록 산출. 같은 입력과 같은 등록·규칙 상태면 같은 결과 */
   advertise(input: AdvertiseInput): Promise<Result<AdvertisedToolset, AdvertiseError>>;

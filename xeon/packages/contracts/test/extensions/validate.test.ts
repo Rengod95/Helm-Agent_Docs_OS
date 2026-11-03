@@ -263,6 +263,41 @@ describe("validateManifest rules", () => {
   });
 });
 
+describe("plugin replaces", () => {
+  test("a declared built-in tool name is accepted and kept on the plugin", () => {
+    const result = validateManifest(pluginJson({}, { replaces: ["read", "ls"] }));
+    expect(result.issues).toEqual([]);
+    expect(result.manifest?.plugins[0]?.replaces).toEqual(["read", "ls"]);
+  });
+
+  test("a name that is not a tool name is rejected", () => {
+    const result = validateManifest(pluginJson({}, { replaces: ["acme__read"] }));
+    expect(result.issues.map((i) => [i.code, i.severity, i.path])).toEqual([
+      ["replaces_invalid", "error", "/plugins/0/replaces/0"],
+    ]);
+    expect(result.manifest).toBeUndefined();
+  });
+
+  test("the same tool listed twice is rejected", () => {
+    const result = validateManifest(pluginJson({}, { replaces: ["read", "read"] }));
+    expect(result.issues.map((i) => [i.code, i.path])).toEqual([
+      ["replaces_duplicate", "/plugins/0/replaces/1"],
+    ]);
+  });
+
+  test("two extensions replacing one tool is a conflict error", () => {
+    const first = validManifest(pluginJson({ name: "alpha" }, { replaces: ["read"] }));
+    const second = validManifest(pluginJson({ name: "beta" }, { replaces: ["ls", "read"] }));
+    const issues = validateManifestSet([first, second]);
+    expect(issues.map((i) => [i.code, i.severity, i.path])).toEqual([
+      ["replace_conflict", "error", "beta/plugins/0/replaces/1"],
+    ]);
+    expect(issues[0]?.message).toContain('"alpha"');
+    const other = validManifest(pluginJson({ name: "gamma" }, { replaces: ["write"] }));
+    expect(validateManifestSet([first, other])).toEqual([]);
+  });
+});
+
 describe("validateManifestSet", () => {
   test("name conflict", () => {
     const a = validManifest(pluginJson());

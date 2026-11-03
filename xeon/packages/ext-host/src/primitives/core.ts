@@ -15,6 +15,7 @@ import type {
   RegistrationId,
   RegistrationSetup,
   RegistrationStatus,
+  TrustRequest,
 } from "@fresnel/contracts/extensions";
 import type {
   DurableEventDraft,
@@ -137,6 +138,8 @@ export interface RegistrationDefinition {
   plugin: PluginEntry;
   loadIndex: number;
   builtin: boolean;
+  /** 로더가 정한 유효 등급(설치 위치와 요청의 낮은 쪽). 대체 주장의 출처 표시에 쓴다. 요청 값을 그대로 쓰지 않는다 */
+  trust: TrustRequest["level"];
   def: RegistrationDef<AnyState>;
   setup: RegistrationSetup<AnyState>;
 }
@@ -293,6 +296,8 @@ export interface InstalledUnit {
   manifest: ExtensionManifest;
   loadIndex: number;
   readonly builtin: boolean;
+  /** 단위 교체는 신뢰 등급을 바꾸지 못하므로(loading-trust 재읽기 3단계) 설치 때 정한 값이 끝까지 간다 */
+  readonly trust: TrustRequest["level"];
   readonly scopeIds: RegistrationId[];
 }
 

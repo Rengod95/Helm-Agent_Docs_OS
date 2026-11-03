@@ -1,4 +1,4 @@
-import { Bug, type Result } from "@fresnel/contracts";
+import { Bug, ok, type Result } from "@fresnel/contracts";
 import type { ToolName } from "@fresnel/contracts/capabilities";
 import type {
   RegistrationId,
@@ -25,6 +25,7 @@ import { toolSearchEntry } from "./builtin/tool-search.ts";
 import { evaluatePolicy } from "./policy/engine.ts";
 import { createCoreRules } from "./policy/core-rules.ts";
 import { createRegistry } from "./registry.ts";
+import { createToolReplaceGate } from "./replace-gate.ts";
 import { TOOLS_SETTING_KEYS } from "./settings.ts";
 
 // ToolService(fresnel.tools)와 ApprovalService(fresnel.approvals) 조립(L1.tools.plan TL-8). Cordis는 쓰지 않는다.
@@ -74,6 +75,12 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     readToolOutputEntry({ session: deps.session, store: deps.store, config: deps.config }),
   ]);
 
+  const replaceGate = createToolReplaceGate({
+    approvals,
+    registry,
+    logger: deps.logger,
+  });
+
   /** 도구가 올린 승인의 해결을 기다린다. 턴 취소로 끊기면 그 승인을 닫는다(L1.tools.spec §4.7 8번) */
   async function waitInput(approvalId: string, signal: AbortSignal): Promise<InputWaitResult> {
     const waited = await approvals.wait(approvalId, signal);
@@ -95,7 +102,24 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
   ): Result<Unregister, ToolRegisterError> {
     if (typeof first === "string") {
       if (def === undefined) throw new Bug("tools.register: a ToolResourceDef is required");
-      return registry.add([resourceEntry(first, def)]);
+      if (def.replaces === undefined) return registry.add([resourceEntry(first, def)]);
+      // 내장 도구 대체(§4.13): 후보로만 두고 사용자가 승인하기 전까지 표는 바뀌지 않는다
+      const added = registry.addReplacement(first, resourceEntry(first, def), def.replaces);
+      if (!added.ok) return added;
+      const remove = added.value;
+      return ok(() => {
+        const open = registry
+          .replacements()
+          .find((state) => state.owner === first && state.toolName === def.name);
+        remove();
+        if (
+          open?.approvalId !== null &&
+          open?.approvalId !== undefined &&
+          open.status === "pending"
+        ) {
+          replaceGate.cancel(open.approvalId);
+        }
+      });
     }
     return registry.add(entriesOf(first, deps.resolveCapability, bridge));
   }
@@ -106,7 +130,10 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
       const entry = registry.get(name);
       return entry === undefined ? undefined : toToolMeta(entry, deps.config(null).output);
     },
+    replacements: () => registry.replacements(),
     async advertise(input) {
+      // 승인 전인 대체가 있으면 이 대화에 승인 요청을 올린다. 승인되면 다음 광고부터 대체 도구가 보인다
+      await replaceGate.requestPending(input.run.threadId);
       const config = deps.config(input.run.threadId);
       return advertiseTools(registry.all(), input, {
         rules: config.rules,

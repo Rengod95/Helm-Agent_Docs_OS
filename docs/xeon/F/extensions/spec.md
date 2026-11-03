@@ -151,6 +151,9 @@ export const PluginDeclSchema = Type.Object({
   /** 이 플러그인이 읽는 다른 확장의 레코드 종류. 끝의 ".*"는 접두 일치 */
   readsRecordKinds: Type.Optional(
     Type.Array(Type.String({ pattern: RECORD_KIND_READ_PATTERN, maxLength: 160 }), { maxItems: 128 })),
+  /** 같은 이름으로 대체하는 내장 도구 이름. 이 선언이 있는 이름만 대체할 수 있다. `TOOL_NAME_PATTERN`이고 `__`를 담지 않는다.
+   *  활성화는 사용자 승인을 거친다(F.capabilities.spec §10 [결정: 2026-11-03 사용자]) */
+  replaces: Type.Optional(Type.Array(Type.String({ pattern: TOOL_NAME_PATTERN, maxLength: 64 }), { maxItems: 16 })),
 }, { additionalProperties: false });
 export type PluginDecl = Static<typeof PluginDeclSchema>;
 
@@ -777,7 +780,13 @@ export type ProviderResourceDef = JsonValue;
 /** 모양은 L2.mcp.spec(McpServerDefSchema)이 정한다 */
 export type McpServerResourceDef = JsonValue;
 /** 도구 등록 실패. 확장 조합이 같은 도구 이름을 내면 정상 운영 중에도 생긴다(eng.typescript.guide TY-24) */
-export interface ToolRegisterError { readonly kind: "name_conflict"; readonly toolName: string }
+export type ToolRegisterError =
+  | { readonly kind: "name_conflict"; readonly toolName: string }          // 대체 선언 없이 같은 이름
+  | { readonly kind: "replace_forbidden"; readonly toolName: string;       // 대체할 수 없는 도구
+      readonly reason: "no_target" | "not_builtin" | "core_pipeline" }
+  | { readonly kind: "replace_conflict"; readonly toolName: string; readonly existing: string }  // 다른 확장이 이미 대체함
+/** 내장 도구 대체 등록의 출처. X가 매니페스트 `replaces` 선언이 있는 이름에만 `ToolResourceDef.replaces`로 싣는다 */
+export interface ToolReplaceClaim { readonly extension: string; readonly trust: "builtin" | "user" | "project" | "untrusted" }
 /** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 도구 표는 그대로다 */
 export interface ToolsPort { register(owner: RegistrationId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError> }
 /** ModelService(fresnel.models)가 포함하는 등록 부분형 */
@@ -1340,6 +1349,7 @@ export type ManifestIssueCode =
   | "hook_unknown" | "hook_duplicate"
   | "capability_invalid" | "range_invalid" | "capability_duplicate" | "capability_both"
   | "provides_reserved" | "record_kind_prefix" | "record_kind_duplicate" | "read_kind_invalid"
+  | "replaces_invalid" | "replaces_duplicate"
   | "user_config_invalid" | "isolation_invalid" | "trust_invalid"
   | "ui_invalid" | "ui_duplicate" | "ui_mode_not_allowed" | "ui_limit" | "ui_path_invalid"
   | "ui_reason_empty" | "widgets_required" | "method_invalid" | "method_duplicate"   // ui, methods, §3.1.1
@@ -1353,7 +1363,7 @@ export type ManifestIssueCode =
   // X 설치 시점(PrimitiveError)과 로더 진단. 정책 설정과 엔트리 실행 결과가 정하므로 정적 검사로 보지 못한다
   | "drive_requires_group" | "plugin_not_registered" | "registration_unknown_plugin"
   // validateManifestSet
-  | "name_conflict" | "drive_conflict" | "capability_unprovided"
+  | "name_conflict" | "replace_conflict" | "drive_conflict" | "capability_unprovided"
   // validateGroupRecord
   | "record_kind_unregistered" | "record_payload_invalid" | "record_version_unknown";
 
@@ -1500,6 +1510,7 @@ chain의 보충 규칙 [제안]:
 | `record_kind_prefix` | error | 플러그인 그룹(`group` 있음)은 `grp.<name>.`, 그 밖은 `x.<name>.` 접두가 아닌 레코드 종류를 선언하거나, `RECORD_KIND_PATTERN`(4마디) 형식이 아님 |
 | `record_kind_duplicate` | error | 같은 `kind`를 두 번 선언 |
 | `read_kind_invalid` | error | `readsRecordKinds`가 자기 접두를 가리킴(자기 레코드는 선언 없이 읽음) 또는 형식 위반 |
+| `replaces_invalid` / `replaces_duplicate` | error | `replaces`의 이름이 `TOOL_NAME_PATTERN`이 아니거나 `__`를 담음 / 같은 이름을 두 번 적음 [결정: 2026-11-03 사용자] |
 | `user_config_invalid` | error | `userConfig` 항목 안의 알 수 없는 키, 빈 `setting` |
 | `isolation_invalid` / `trust_invalid` | error | 허용 값 밖 |
 | `ui_*`, `widgets_required`, `method_*` | error | `ui`와 `methods` 검사. 코드와 조건은 §3.1.1 |
@@ -1523,6 +1534,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | 코드 | 심각도 | 조건 |
 |---|---|---|
 | `name_conflict` | error | 같은 `name`의 확장이 둘 이상 |
+| `replace_conflict` | error | 두 확장이 같은 내장 도구를 `replaces`에 적음. 어느 쪽도 고르지 않는다 [결정: 2026-11-03 사용자] |
 | `drive_conflict` | warning | `drives: true`이고 기본 켜짐인 Registration이 둘 이상. Registration id를 메시지에 쓴다. 실행 중에는 X가 drive lock을 하나만 준다 |
 | `capability_unprovided` | warning | 어떤 플러그인의 `requires` 기능을 집합 안의 누구도 `provides`하지 않음 |
 

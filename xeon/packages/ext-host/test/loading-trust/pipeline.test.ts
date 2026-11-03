@@ -470,3 +470,25 @@ test("pipeline: ensureLoaded with an aborted signal installs nothing and can be 
   expect(info.state).toBe("active");
   expect(entryCalls).toBe(1);
 });
+
+test("pipeline: two extensions replacing one built-in tool reject the later one with name_conflict", async () => {
+  const harness = await createLoaderHarness();
+  const report = await harness.loader.loadAll(
+    harness.options([
+      moduleOf({ name: "pipe-rep-a", replaces: ["read"] }),
+      moduleOf({ name: "pipe-rep-b", replaces: ["read"] }),
+      moduleOf({ name: "pipe-rep-c", replaces: ["ls"] }),
+    ]),
+  );
+  expect(
+    report.extensions
+      .map((info) => [info.name, info.state])
+      .toSorted((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  ).toEqual([
+    ["pipe-rep-a", "active"],
+    ["pipe-rep-b", "rejected"],
+    ["pipe-rep-c", "active"],
+  ]);
+  const conflict = report.diagnostics.find((entry) => entry.code === "name_conflict");
+  expect(conflict?.issues?.map((issue) => issue.code)).toEqual(["replace_conflict"]);
+});

@@ -6,6 +6,7 @@ import { callTool, createHarness, layer, registerWorkspace } from "./support/har
 test("defaults match the l1.tools settings table", () => {
   expect(readScalarConfig([])).toEqual({
     mode: "default",
+    modeFromRepository: false,
     bypassAllowed: true,
     output: { maxLines: 2000, maxBytes: 51_200 },
     deferThreshold: 64,
@@ -27,6 +28,18 @@ test("precedence is managed, session, local, project, user and out-of-range valu
   // session이 project와 user를 이긴다. 범위 밖 값(maxLines 50 < 100)은 건너뛰고 아래 층을 쓴다
   expect(config.mode).toBe("bypass");
   expect(config.output.maxLines).toBe(500);
+});
+
+test("the scope that set the mode is reported, and a repository scope is flagged", () => {
+  const bypass = { "l1.tools.permissionMode": "bypass" };
+  expect(readScalarConfig([layer("project", bypass)]).modeFromRepository).toBe(true);
+  expect(readScalarConfig([layer("local", bypass)]).modeFromRepository).toBe(true);
+  expect(readScalarConfig([layer("user", bypass)]).modeFromRepository).toBe(false);
+  expect(readScalarConfig([layer("launch", bypass)]).modeFromRepository).toBe(false);
+  // 범위 안이어도 값 검사에 걸리면 건너뛰므로 그 층이 정한 모드가 아니다
+  expect(
+    readScalarConfig([layer("project", { "l1.tools.permissionMode": "nope" })]).modeFromRepository,
+  ).toBe(false);
 });
 
 test("bypassAllowed is read from the managed scope only; output limits are not allowed in session scope", () => {

@@ -17,6 +17,7 @@ import type {
   RegistrationStatus,
   TestRunControlPort,
   TraceReadPort,
+  TrustRequest,
   Unsubscribe,
 } from "@fresnel/contracts/extensions";
 import {
@@ -143,6 +144,11 @@ export interface ExtensionUnit {
   readonly loadIndex: number;
   /** 내장 패키지(core-*, cap-*, group-*)면 참. 포트 제공·조회와 fresnel.* 서비스 이름을 허용한다 */
   readonly builtin: boolean;
+  /**
+   * 로더가 정한 유효 신뢰 등급(X.loading-trust §4.6: 설치 위치 상한과 요청의 낮은 쪽). 매니페스트의 요청을 그대로 넘기지 않는다.
+   * 로더 없이 설치한 단위는 이 값이 없고, 내장이면 builtin, 그 밖이면 가장 낮은 untrusted로 본다(요청을 믿지 않는다)
+   */
+  readonly trust?: TrustRequest["level"];
   /**
    * 주 scope의 초기 켜기 요청. `ext.<name>.enabled` 설정 값이 있으면 로더가 넘긴다 [제안].
    * 없으면 RegistrationDef.defaultEnabled, 매니페스트 defaultEnabled, true 순으로 정한다(X.primitives.spec §4.5.1)
@@ -846,6 +852,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       manifest: deepFreeze(structuredClone(unit.manifest)),
       loadIndex: unit.loadIndex,
       builtin: unit.builtin,
+      trust: unit.trust ?? (unit.builtin ? "builtin" : "untrusted"),
       scopeIds: [],
     };
     core.units.set(name, installed);

@@ -977,6 +977,21 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 도구 결과의 `structuredContent`가 `sandboxed: false`와 `unsandboxedBy`(`escape`, `run_unsandboxed`, `disabled`)를 싣고 있으면 결과 커밋(`effect.result`)에 감사 이벤트 `tool.sandbox_bypassed`를 함께 쓴다. 페이로드는 `{ toolCallId, toolName, reason, at }`이고 명령과 출력은 싣지 않는다. 소유자는 core-tools다(`L0.sandbox.spec` §4.8). 알 수 없는 이유 값은 기록하지 않는다.
 
+### 4.13 내장 도구 같은 이름 대체 [결정: 2026-11-03 사용자]
+
+플러그인이 내장 도구(read, ls, bash 등)를 같은 이름으로 바꿔 놓는 길이다. 정본 조건은 F.capabilities.spec §10이고 이 절은 L1.tools의 동작을 정한다.
+
+- 등록: `register(owner, def)`의 `def.replaces`(`ToolReplaceClaim`: 확장 이름, 신뢰 등급)가 있으면 대체 등록이다. X가 매니페스트 `replaces`에 적힌 이름에만 이 값을 싣는다. `replaces`가 없으면 §3.3 그대로 `name_conflict`다.
+- 대상: 기능 도구(`ToolEntry.capability`가 있는 내장 도구)만 대체한다. 순서 키 `core.*`의 도구(`tool_search`, `read_tool_output`, 위임·질문 도구 등 도구 실행 틀)는 `replace_forbidden{reason:"core_pipeline"}`, MCP·확장 도구는 `not_builtin`, 없는 이름은 `no_target`이다. 한 이름에 후보는 하나라서 둘째는 `replace_conflict{existing}`다. 등록은 통째로 실패하고 표는 그대로다.
+- 상태: 대체는 `pending`으로 시작한다. 표(`get`, `all`, `meta`, 광고)는 원본을 그대로 돌려준다. 사용자가 승인하면 `active`가 되어 다음 조회부터 원본 대신 대체 항목이 나오고, 거부하면 `denied`로 남는다. `ToolService.replacements()`가 모든 후보의 상태(`ToolReplacementState`)를 등록 순서로 돌려준다. 후보가 빠지면(확장 해제) 원본이 다시 보이고 열린 승인 요청은 취소된다.
+- 승인 요청: `advertise`가 대화를 알 때 승인 전이고 아직 요청하지 않은 후보마다 요청을 하나 올린다(비차단, 요청 키는 도구·등록·신뢰 등급으로 정해 같은 대화에서 다시 묻지 않는다). 모양은 kind `tool`, `toolName: "tool_replace"`, `ruleId: "tools.replace"`, `risk`는 대체의 실제 위험 등급, `remember: ["once"]`이고 `args`에 `tool`, `extension`, `owner`, `trust`, `originalRisk`, `effectiveRisk`, `notice`를 싣는다. `notice`는 경로 보호가 내장 도구 안에 있어 대체 도구가 스스로 지켜야 한다는 안내다(`TOOL_REPLACE_NOTICE`). 사용자가 답한 요청만 결정으로 친다. 취소·만료·무인 거부는 `pending`으로 되돌려 다음에 다시 묻는다. 신뢰 등급이 `project`인 플러그인도 같은 요청을 거친다. 모달 화면은 별도 화면 트랙이 `tool_replace` 이름으로 알아보고 그린다.
+- 위험 등급 하한: 대체 항목의 `risk`는 선언(없으면 §3.3 유도 규칙)과 원본 중 높은 쪽이고 `classes`는 원본과 선언의 합집합이다. `capability`는 비운다(원본의 기능 id를 물려주지 않는다).
+- 기본 허용 배제: 대체 항목의 정책 판정이 내장 기본 규칙(`default` 티어)의 allow이거나 위험 등급 때문에 생기는 모드 기본 allow이면 ask로 낮춘다(`demoteReplacementAllow`). `read`·`ls`의 기본 허용(기능 `workspace.files`와 위험 `read`로 묶인 규칙, §4.5)이 대체에 넘어가지 않는다. deny·ask 규칙, user·managed 범위의 allow, 사용자가 고른 `bypass`는 그대로다. 사람이 답할 수 없으면 ask는 deny다(§4.5 7단계).
+- 저장소 범위 배제 [제안]: 저장소가 커밋할 수 있는 범위(`project`, `local`)의 설정은 사용자가 고른 것이 아니므로 대체 항목을 승인 없이 켜지 못한다. 이 범위의 `l1.tools.rules`에서 온 allow는 `user` 티어로 들어오므로 기본 허용 배제로는 막히지 않는다. 그래서 대체 항목의 평가(`evaluateReplacement`)에서 그 allow를 뺀다. 저장소 범위의 deny와 ask는 그대로 남는다. 저장소 범위의 `l1.tools.permissionMode`가 `bypass`이면 그 호출의 `bypassAllowed`를 거짓으로 보고 평가한다(`ToolsScalarConfig.modeFromRepository`). bypass는 기본값으로 내려가고 대체는 ask가 된다. 사용자·managed 범위가 고른 bypass는 그대로다. 저장소 범위가 대체 밖의 도구에 어떻게 적용되는지는 이 배제가 정하지 않는다(§4.5 그대로).
+- 도구 실행 틀은 그대로: 대체 도구도 같은 파이프라인(§4.2)을 지난다. 정책·승인, `effect` 기록, 시크릿 검사, 마스킹, 절단, `tool.call.before`(인자를 바꾸지 못한다, U-06)는 대체하지 못한다.
+- 경로 보호: 내장 파일 도구 안에 있는 경로 보호(쓰기 범위, 민감 경로)는 대체 도구에 적용되지 않는다. 대체 도구가 스스로 지켜야 하고 승인 요청 본문과 매니페스트 문서가 이를 알린다.
+- 시험: `test/tool-replace.test.ts`.
+
 ## 5. 실패와 경계 사례
 
 1. 모델이 광고하지 않은 도구를 부름(전역 deny로 뺀 도구 포함): `prepare` 2단계는 광고 목록을 다시 보지 않고 등록 표에서 이름을 찾는다. 등록되지 않은 이름이면 `[fresnel:tool_unavailable]` 오류 결과(`settled`)다. 등록된 도구면 5a·5b를 지나므로 전역 deny 규칙이 그 호출을 거부한다.
@@ -990,7 +1005,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 9. 승인 요청 이후 도구 등록이 사라짐(확장 비활성화): 응답이 allow여도 실행 단계 진입 전에 도구 해석을 다시 확인하고 `tool_unavailable` 오류 결과로 닫는다. 요청은 `resolvedBy: "superseded"`로 닫는다.
 10. blob 쓰기 실패: 경계화 미리보기만 모델에 보내고 `blobRef: null`, `details.truncation.blobError`를 남긴다. 원문은 잃는다. 이 경우를 경고 이벤트로 남길지는 L0.store.spec의 blob 실패 정책을 따른다.
 11. `bypass` 모드인데 managed가 금지함: `setMode`는 `tools.mode_forbidden`을 돌려준다. 이미 `launch` 값이 `bypass`인 채 managed 금지가 생기면 평가기가 `default`로 본다(§4.5 4단계).
-12. 같은 이름의 도구를 두 출처가 등록함: `register`가 `err({ kind: "name_conflict", toolName })`을 돌려주고 도구 표는 바뀌지 않는다. 확장 조합이 낼 수 있는 정상 운영 중의 실패라 던지지 않는다(eng.typescript.guide TY-24). 해소 규칙은 F.capabilities.spec §10 [미결](도구 이름 네임스페이스)을 따른다.
+12. 같은 이름의 도구를 두 출처가 등록함: `register`가 `err({ kind: "name_conflict", toolName })`을 돌려주고 도구 표는 바뀌지 않는다. 확장 조합이 낼 수 있는 정상 운영 중의 실패라 던지지 않는다(eng.typescript.guide TY-24). 해소 규칙은 F.capabilities.spec §10 [결정: 2026-11-03 사용자](내장 도구 같은 이름 대체)를 따른다. 확장이 매니페스트 `replaces`로 선언한 내장 도구 이름만 대체할 수 있고, 선언 없는 겹침은 이 오류다. 대체는 §4.13이 정한다.
 
 ## 6. 설정 노출
 

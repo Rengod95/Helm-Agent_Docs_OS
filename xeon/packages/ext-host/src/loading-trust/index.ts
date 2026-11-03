@@ -847,7 +847,10 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   ): Promise<ExtensionUnit | undefined> {
     const module = record.candidate.builtin;
     const initialEnabled = enabledSettingOf(record);
-    if (module !== null) return unitOfBuiltin(module, manifest, loadIndex, initialEnabled);
+    // 단위에 싣는 등급은 신뢰 단계가 정한 유효 등급이다. 요청 값은 상한을 넘으면 이미 거부되었다
+    if (module !== null) {
+      return unitOfBuiltin(module, manifest, loadIndex, initialEnabled, record.trust);
+    }
     const root = record.candidate.root;
     if (root === null) return undefined;
     // X가 쓰는 SDK 모듈(contracts와 하위 경로, typebox)은 항상 등록하고, 조립 루트가 넘긴 것(group-sdk 등)을 더한다
@@ -869,7 +872,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       fail(record, "error", "entry", loaded.error.code, loaded.error.message);
       return undefined;
     }
-    return unitOfExternal(loaded.value, manifest, loadIndex, initialEnabled);
+    return unitOfExternal(loaded.value, manifest, loadIndex, initialEnabled, record.trust);
   }
 
   /** 6a~9단계 가운데 설치: admit → (외부는 엔트리 import) → install → InstallResult 변환 */
@@ -1163,7 +1166,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     }
     throwIfCancelled(signal, `reloading ${name}`);
     // 5. 호스트가 엔트리를 따로 실행해 검사하고 경계에서 바꾼다
-    const unit = unitOfExternal(loaded.value, manifest, record.loadIndex, undefined);
+    // 재읽기는 등급을 바꾸지 않는다(3단계에서 같은 등급인지 확인했다)
+    const unit = unitOfExternal(loaded.value, manifest, record.loadIndex, undefined, record.trust);
     const started = await deps.host.replaceUnit(unit, {
       signal,
       ...(options?.resetRefusedState === true ? { resetRefusedState: true } : {}),
