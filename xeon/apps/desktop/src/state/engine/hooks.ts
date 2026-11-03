@@ -79,3 +79,6 @@ export const useApprovalCount = (): number => useEngine(sel.selectApprovalCount)
 /** 받은 확장 핸들러 실패 기록(휘발, 최대 500행). 확장별로 거르는 일은 화면이 한다 */
 export const useHandlerFailures = (): EngineMirror["handlerFailures"] =>
   useEngine(sel.selectHandlerFailures);
+/** 변경 검토 결과(리뷰마다 가장 최근 라운드 하나). 제출 결과 표가 리뷰 id로 찾는다 */
+export const useReviewResults = (): EngineMirror["reviewResults"] =>
+  useEngine((s) => s.reviewResults);

@@ -16,12 +16,14 @@ import {
   EMPTY_STREAMING,
   HANDLER_FAILURE_CAP,
   INITIAL_MIRROR,
+  REVIEW_RESULT_CAP,
   type EngineMirror,
   type HandlerFailureRecord,
   type Link,
   type ResetReason,
   type PendingApproval,
   type ResyncReason,
+  type ReviewResult,
   type Streaming,
   type StreamingItem,
   type StreamingPart,
@@ -523,12 +525,46 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       };
       return bumpPending(next, found.threadId, -1);
     }
+    case "review.applied":
+      return withReviewResult(state, fact.payload.reviewId, fact.payload.round, (r) => ({
+        ...r,
+        outcomes: fact.payload.outcomes,
+      }));
+    case "review.submitted":
+      return withReviewResult(state, fact.payload.reviewId, fact.payload.round, (r) => ({
+        ...r,
+        submitted: true,
+        delivery: fact.payload.delivery,
+      }));
     case "other":
     case "unreadable":
       return state;
     default:
       return assertNever(fact, "applyFact");
   }
+}
+
+/**
+ * 리뷰의 결과 한 줄을 고친다. 같은 라운드면 이어 채우고, 새 라운드면 옛 결과를 버리고 새로 만든다.
+ * 옛 라운드의 이벤트는 무시한다. 리뷰마다 한 줄이고, 가장 최근에 바뀐 리뷰가 뒤에 온다.
+ */
+function withReviewResult(
+  state: EngineMirror,
+  reviewId: string,
+  round: number,
+  change: (current: ReviewResult) => ReviewResult,
+): EngineMirror {
+  const found = state.reviewResults.find((r) => r.reviewId === reviewId);
+  if (found !== undefined && found.round > round) return state;
+  const base: ReviewResult =
+    found !== undefined && found.round === round
+      ? found
+      : { reviewId, round, outcomes: null, submitted: false, delivery: null };
+  const reviewResults = [
+    ...state.reviewResults.filter((r) => r.reviewId !== reviewId),
+    change(base),
+  ];
+  return { ...state, reviewResults: reviewResults.slice(-REVIEW_RESULT_CAP) };
 }
 
 function applySnapshot(

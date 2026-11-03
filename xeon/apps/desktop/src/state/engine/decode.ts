@@ -14,6 +14,8 @@ import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   ItemRecordedPayloadSchema,
+  ReviewAppliedPayloadSchema,
+  ReviewSubmittedPayloadSchema,
   ScopeHandlerFailedPayloadSchema,
   maskApprovalRequest,
 } from "@fresnel/contracts/records";
@@ -80,6 +82,19 @@ const DURABLE: Readonly<
     const p = parse(ApprovalResolvedPayloadSchema, payload);
     return p.ok
       ? { ...base, type: "approval.resolved", approvalId: p.value.approvalId }
+      : { ...base, type: "unreadable" };
+  },
+  // 변경 검토 결과(P-04 제출 결과 표). 리뷰 id와 라운드, 되돌림 결과, 전달을 싣는다
+  "artifact.review_applied": (base, payload) => {
+    const p = parse(ReviewAppliedPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "review.applied", payload: p.value }
+      : { ...base, type: "unreadable" };
+  },
+  "artifact.review_submitted": (base, payload) => {
+    const p = parse(ReviewSubmittedPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "review.submitted", payload: p.value }
       : { ...base, type: "unreadable" };
   },
 };

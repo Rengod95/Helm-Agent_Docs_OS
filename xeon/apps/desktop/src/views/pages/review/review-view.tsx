@@ -15,33 +15,46 @@ import {
   ListRow,
   MessageCode,
   Skeleton,
+  Table,
   Textarea,
   type CodeDiffDecision,
+  type TableColumn,
+  type TableRow,
 } from "@caustic/react";
-import { useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { ApprovalFailure } from "../../../state/ui/index.ts";
 import { APPROVAL_FAILURE_ID, REVIEW_CHANGE_ID } from "../../approval-form.ts";
 import {
   COMMENT_MAX,
   diffRowsOf,
+  type DiffRow,
   type ReviewFile,
   foldedHunksOf,
   hunkDecisionOf,
   commentsOfHunk,
   hunkIdsOf,
+  lineOfRow,
+  reviewKeyContextOf,
+  reviewKeyOf,
   submitBlockOf,
+  submitOpenOf,
   tallyOf,
   type HunkDecision,
   type ReviewComment,
+  type ReviewKeyAction,
+  type ReviewKeyEvent,
+  type ReviewLine,
+  type ReviewResultView,
   type ReviewState,
   type ReviewTally,
   type SetDecision,
   type SubmitBlock,
 } from "../../review-model.ts";
-import { decisionIdOf } from "./review-text.ts";
+import { decisionIdOf, methodIdOf, resultIdOf } from "./review-text.ts";
 
 // 변경 검토 화면(P-04)의 그림. 상태와 동작은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // hunk와 파일의 승인·거절 단추는 caustic `CodeDiffHunk`·`CodeDiff`의 Accept·Reject 글자가 영어로 고정되어 있어 쓰지 않고, 같은 자리에 이 화면의 단추를 놓는다.
+// 키보드는 루트 `section`이 받는다. 판정은 `reviewKeyOf`가 하고, 그림은 집중한 hunk를 표시하고 화면이 보이도록 옮길 뿐이다.
 
 /** 화면이 연 검토 요청의 머리 */
 interface ReviewHead {
@@ -62,15 +75,18 @@ export interface ReviewHandlers {
   readonly fileExpand: (path: string) => void;
   readonly hunkDecide: (hunkId: string, decision: SetDecision) => void;
   readonly fileDecide: (hunkIds: readonly string[], decision: SetDecision) => void;
-  readonly composeOpen: (hunkId: string) => void;
+  /** 의견을 쓰기 시작한다. `line`이 null이면 hunk 전체 의견이다 */
+  readonly composeOpen: (hunkId: string, line: ReviewLine | null) => void;
   readonly composeChange: (text: string) => void;
-  readonly composeSave: (hunkId: string) => void;
+  readonly composeSave: (hunkId: string, line: ReviewLine | null) => void;
   readonly composeCancel: () => void;
   readonly commentRemove: (key: string) => void;
   readonly approveRemaining: (on: boolean) => void;
   readonly submit: () => void;
   readonly approveAll: () => void;
   readonly deny: () => void;
+  /** 키보드 판정의 결과. 제출은 화면이 답을 조립하고, 나머지는 초안 동작이다 */
+  readonly key: (action: ReviewKeyAction) => void;
 }
 
 /** 연 검토 요청의 화면 값. 없으면(`open`이 null) 이미 처리된 요청이다 */
@@ -90,6 +106,8 @@ export interface ReviewOpenView {
 export interface ReviewViewProps {
   readonly onBack: () => void;
   readonly open: ReviewOpenView | null;
+  /** 제출 결과 표. 검토가 닫혔고 이 리뷰의 결과가 있을 때만 준다 */
+  readonly result?: ReviewResultView | null;
 }
 
 const CAUSTIC_DECISION: Readonly<Record<HunkDecision, CodeDiffDecision>> = {
@@ -101,10 +119,45 @@ const CAUSTIC_DECISION: Readonly<Record<HunkDecision, CodeDiffDecision>> = {
 export function ReviewView(props: ReviewViewProps): ReactNode {
   const { open } = props;
   const headingId = useId();
+  const rootRef = useRef<HTMLElement>(null);
+  const focusedHunkId = open?.state.focusedHunkId ?? null;
+  const keys =
+    open === null || open.body.kind !== "ready"
+      ? null
+      : reviewKeyContextOf(open.body.files, open.state, {
+          editable: !open.busy,
+          submitOpen: submitOpenOf(hunkIdsOf(open.body.files), open.state.draft, {
+            live: open.live,
+            busy: open.busy,
+          }),
+        });
+  // 화면이 열리면 키가 바로 먹도록 루트에 초점을 준다
+  useEffect(() => {
+    rootRef.current?.focus({ preventScroll: true });
+  }, []);
+  // 집중한 hunk가 바뀌면 그 hunk가 보이도록 옮긴다
+  useEffect(() => {
+    if (focusedHunkId === null) return;
+    rootRef.current
+      ?.querySelector(`[data-hunk="${CSS.escape(focusedHunkId)}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [focusedHunkId]);
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+    if (open === null || keys === null) return;
+    const action = reviewKeyOf(keyEventOf(event), keys);
+    if (action === null) return;
+    event.preventDefault();
+    // 처리한 키는 셸의 창 수준 바로 가기(Esc 포함)로 넘기지 않는다
+    event.stopPropagation();
+    open.handlers.key(action);
+  };
   return (
     <section
+      ref={rootRef}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
       aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 outline-none"
     >
       <header className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="ghost" onClick={props.onBack}>
@@ -118,14 +171,85 @@ export function ReviewView(props: ReviewViewProps): ReactNode {
         )}
       </header>
       {open === null ? (
-        <EmptyState
-          size="sm"
-          title={t("desktop.review.closed")}
-          description={t("desktop.review.closed.hint")}
-        />
+        props.result === undefined || props.result === null ? (
+          <EmptyState
+            size="sm"
+            title={t("desktop.review.closed")}
+            description={t("desktop.review.closed.hint")}
+          />
+        ) : (
+          <ResultBox result={props.result} onClose={props.onBack} />
+        )
       ) : (
         <OpenReview view={open} />
       )}
+    </section>
+  );
+}
+
+/** 키보드 이벤트에서 판정에 필요한 값만 옮긴다. keyCode는 WebKit이 IME 조합 중 Enter에 싣는 값이라 읽는다(composer와 같다) */
+function keyEventOf(event: KeyboardEvent<HTMLElement>): ReviewKeyEvent {
+  return {
+    key: event.key,
+    shiftKey: event.shiftKey,
+    metaKey: event.metaKey,
+    ctrlKey: event.ctrlKey,
+    altKey: event.altKey,
+    isComposing: event.nativeEvent.isComposing,
+    // oxlint-disable-next-line typescript/no-deprecated -- keyCode는 폐기 표시지만 WebKit이 IME 처리 중 Enter keydown에 실어 보내는 값(229)이라 읽는다 (review.macos-checklist M-11)
+    keyCode: event.keyCode,
+    editing: event.target instanceof HTMLTextAreaElement,
+  };
+}
+
+/** 제출 결과 표: 되돌림 결과를 hunk마다 한 줄로 보이고, 에이전트 전달을 한 줄로 보인다. [닫기]는 화면을 떠난다 */
+function ResultBox(props: {
+  readonly result: ReviewResultView;
+  readonly onClose: () => void;
+}): ReactNode {
+  const { result } = props;
+  const headingId = useId();
+  const columns: TableColumn[] = [
+    { key: "file", header: t("desktop.review.result.col.file") },
+    { key: "hunk", header: t("desktop.review.result.col.hunk") },
+    { key: "result", header: t("desktop.review.result.col.result") },
+    { key: "method", header: t("desktop.review.result.col.method") },
+    { key: "detail", header: t("desktop.review.result.col.detail") },
+  ];
+  const rows: TableRow[] = result.rows.map((row, index) => ({
+    id: String(index),
+    file: row.path,
+    hunk: row.hunkId ?? "",
+    result: t(resultIdOf(row.result)),
+    method: t(methodIdOf(row.method)),
+    detail: row.detail ?? "",
+  }));
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="flex flex-col gap-3 rounded-lg border border-border-subtle p-4"
+    >
+      <header className="flex items-center gap-2">
+        <h2 id={headingId} className="min-w-0 flex-1 text-ui-strong text-text-primary">
+          {t("desktop.review.result.title")}
+        </h2>
+        <Button size="xs" variant="outline" onClick={props.onClose}>
+          {t("desktop.review.result.close")}
+        </Button>
+      </header>
+      {rows.length === 0 ? (
+        <span className="text-caption text-text-secondary">{t("desktop.review.result.empty")}</span>
+      ) : (
+        <Table columns={columns} rows={rows} dividers={false} />
+      )}
+      <span className="text-caption text-text-secondary">
+        {result.delivery === null
+          ? t("desktop.review.result.delivery.none")
+          : t("desktop.review.result.delivery", {
+              when: result.delivery.when,
+              requestId: result.delivery.requestId,
+            })}
+      </span>
     </section>
   );
 }
@@ -290,7 +414,12 @@ function FilePane(props: { readonly file: ReviewFile; readonly view: ReviewOpenV
           actions={false}
         >
           {folded.shown.map((hunk) => (
-            <HunkBlock key={hunk.hunkId} hunk={hunk} view={view} />
+            <HunkBlock
+              key={hunk.hunkId}
+              hunk={hunk}
+              view={view}
+              focused={hunk.hunkId === state.focusedHunkId}
+            />
           ))}
         </CodeDiff>
       )}
@@ -307,7 +436,13 @@ function FilePane(props: { readonly file: ReviewFile; readonly view: ReviewOpenV
       )}
       {composingHunk === undefined || composing === null ? null : (
         <Composer
+          key={
+            composing.line === null
+              ? composing.hunkId
+              : `${composing.hunkId}:${composing.line.side}:${String(composing.line.number)}`
+          }
           hunkId={composingHunk.hunkId}
+          line={composing.line}
           text={composing.text}
           editable={editable}
           handlers={handlers}
@@ -324,8 +459,27 @@ function countLines(file: ReviewFile, kind: "add" | "del"): number {
   );
 }
 
-/** 한 hunk: 머리(헤더 줄, 결정 글자, 승인·거절·의견 단추), 줄, 의견 줄 */
-function HunkBlock(props: { readonly hunk: HunkView; readonly view: ReviewOpenView }): ReactNode {
+/** 줄의 의견 단추 속성. 잠긴 동안에는 단추 자체를 그리지 않는다(`onComment`이 없으면 caustic이 단추를 그리지 않는다) */
+function lineCommentOf(
+  hunkId: string,
+  row: DiffRow,
+  handlers: ReviewHandlers,
+): { readonly onComment: () => void; readonly commentLabel: string } {
+  const line: ReviewLine = lineOfRow(row);
+  return {
+    onComment: () => {
+      handlers.composeOpen(hunkId, line);
+    },
+    commentLabel: t("desktop.review.line.comment", { number: row.number }),
+  };
+}
+
+/** 한 hunk: 머리(헤더 줄, 결정 글자, 승인·거절·의견 단추), 줄, 의견 줄. 집중한 hunk는 테두리로 표시한다 */
+function HunkBlock(props: {
+  readonly hunk: HunkView;
+  readonly view: ReviewOpenView;
+  readonly focused: boolean;
+}): ReactNode {
   const { hunk, view } = props;
   const { handlers, state } = view;
   const editable = !view.busy;
@@ -335,6 +489,8 @@ function HunkBlock(props: { readonly hunk: HunkView; readonly view: ReviewOpenVi
   return (
     <CodeDiffHunk
       data-hunk={hunk.hunkId}
+      data-focused={props.focused || undefined}
+      className={props.focused ? "ring-1 ring-inset ring-border-default" : undefined}
       header={
         <span className="flex flex-wrap items-center gap-2">
           <span>{hunk.header}</span>
@@ -366,7 +522,7 @@ function HunkBlock(props: { readonly hunk: HunkView; readonly view: ReviewOpenVi
             variant="ghost"
             disabled={!editable}
             onClick={() => {
-              handlers.composeOpen(hunk.hunkId);
+              handlers.composeOpen(hunk.hunkId, null);
             }}
           >
             {t("desktop.review.hunk.comment")}
@@ -381,6 +537,7 @@ function HunkBlock(props: { readonly hunk: HunkView; readonly view: ReviewOpenVi
           key={`${String(row.number)}:${String(index)}`}
           kind={row.kind}
           number={row.number}
+          {...(editable ? lineCommentOf(hunk.hunkId, row, handlers) : {})}
         >
           {row.text}
         </CodeDiffLine>
@@ -402,9 +559,13 @@ function CommentLine(props: {
   readonly editable: boolean;
   readonly onRemove: (key: string) => void;
 }): ReactNode {
+  const { line, body } = props.comment;
+  // 줄 머리와 글을 한 글 조각으로 그린다(조각이 둘이면 서버 렌더가 사이에 주석 표식을 넣는다)
+  const text =
+    line === null ? body : `${t("desktop.review.comment.line", { number: line.number })} ${body}`;
   return (
     <CodeDiffComment author={t("desktop.review.comment.author")}>
-      {props.comment.body}{" "}
+      {text}{" "}
       <Button
         size="xs"
         variant="ghost"
@@ -419,19 +580,29 @@ function CommentLine(props: {
   );
 }
 
-/** 의견 입력 칸. `pre` 밖에 둔다(줄 상자는 글만 받는다) */
+/** 의견 입력 칸. `pre` 밖에 둔다(줄 상자는 글만 받는다). 열리면 바로 쓸 수 있게 초점을 받는다 */
 function Composer(props: {
   readonly hunkId: string;
+  readonly line: ReviewLine | null;
   readonly text: string;
   readonly editable: boolean;
   readonly handlers: ReviewHandlers;
 }): ReactNode {
-  const { hunkId, text, handlers } = props;
+  const { hunkId, line, text, handlers } = props;
+  const label =
+    line === null
+      ? t("desktop.review.comment.label")
+      : t("desktop.review.comment.line.label", { number: line.number });
+  const placeholder =
+    line === null
+      ? t("desktop.review.comment.placeholder")
+      : t("desktop.review.comment.line.placeholder", { number: line.number });
   return (
     <div className="flex flex-col gap-2">
       <Textarea
-        aria-label={t("desktop.review.comment.label")}
-        placeholder={t("desktop.review.comment.placeholder")}
+        aria-label={label}
+        placeholder={placeholder}
+        autoFocus
         rows={3}
         maxLength={COMMENT_MAX}
         value={text}
@@ -445,7 +616,7 @@ function Composer(props: {
           size="sm"
           disabled={!props.editable || text.trim() === ""}
           onClick={() => {
-            handlers.composeSave(hunkId);
+            handlers.composeSave(hunkId, line);
           }}
         >
           {t("desktop.review.comment.save")}
@@ -507,6 +678,7 @@ function Footer(props: {
           })}
         </span>
       ) : null}
+      <span className="text-caption text-text-tertiary">{t("desktop.review.keys")}</span>
       {blockText === null ? null : (
         <span className="text-caption text-text-secondary">{blockText}</span>
       )}
