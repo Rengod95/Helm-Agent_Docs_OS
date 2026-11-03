@@ -188,7 +188,7 @@ test("sumsBody writes one `<sha256>  <path>` line per file, sorted by path", () 
   );
 });
 
-test("noticesBody names each bundled binary with its license and source on a mac", () => {
+test("noticesBody groups the bundled binaries by license, each with its link, on a mac", () => {
   const bundled = [
     {
       name: "sops",
@@ -209,24 +209,56 @@ test("noticesBody names each bundled binary with its license and source on a mac
       source: "https://github.com/BurntSushi/ripgrep",
     },
   ];
+  const rule = "=".repeat(78);
+  const none =
+    "The archive ships no license text for this license. The license text link above has it.";
+  const notShipped =
+    "  The archive does not ship this program's license file; see the source link.";
   expect(noticesBody("0.0.0-smoke", MAC, bundled, [])).toEqual(
     [
       "Fresnel 0.0.0-smoke (aarch64-apple-darwin) third-party notices",
       "",
-      "sops 3.13.3",
-      "  license: MPL-2.0",
-      "  source:  https://github.com/getsops/sops",
+      "Grouped by license. Each section names the license and links its text, prints the standard text once, and lists its",
+      "packages with name, version, copyright line (from the package's license file) and source link.",
+      "",
+      rule,
+      "License: BSD-3-Clause (1 package)",
+      "License text (SPDX): https://spdx.org/licenses/BSD-3-Clause.html",
+      rule,
+      "",
+      none,
+      "",
+      "Packages:",
       "",
       "age 1.3.2",
-      "  license: BSD-3-Clause",
-      "  source:  https://github.com/FiloSottile/age",
+      "  link: https://github.com/FiloSottile/age",
+      notShipped,
+      "",
+      rule,
+      "License: MPL-2.0 (1 package)",
+      "License text (SPDX): https://spdx.org/licenses/MPL-2.0.html",
+      rule,
+      "",
+      none,
+      "",
+      "Packages:",
+      "",
+      "sops 3.13.3",
+      "  link: https://github.com/getsops/sops",
+      notShipped,
+      "",
+      rule,
+      "License: Unlicense OR MIT (1 package)",
+      "License text (SPDX): https://spdx.org/licenses/Unlicense.html, https://spdx.org/licenses/MIT.html",
+      rule,
+      "",
+      none,
+      "",
+      "Packages:",
       "",
       "rg 15.0.0",
-      "  license: Unlicense OR MIT",
-      "  source:  https://github.com/BurntSushi/ripgrep",
-      "",
-      "",
-      "The full license texts are in the sources above.",
+      "  link: https://github.com/BurntSushi/ripgrep",
+      notShipped,
       "",
     ].join("\n"),
   );
@@ -237,11 +269,13 @@ test("noticesBody on linux says nothing is bundled and names rg, bwrap and socat
     [
       "Fresnel 0.0.0-smoke (x86_64-unknown-linux-gnu) third-party notices",
       "",
+      "Grouped by license. Each section names the license and links its text, prints the standard text once, and lists its",
+      "packages with name, version, copyright line (from the package's license file) and source link.",
+      "",
       "Bundled external binaries: none.",
+      "",
       "Required from the system, not bundled: rg, bwrap, socat.",
       "Install them with the package manager (`fresnel doctor` prints the command).",
-      "",
-      "The full license texts are in the sources above.",
       "",
     ].join("\n"),
   );

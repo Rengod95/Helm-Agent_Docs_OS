@@ -15,20 +15,19 @@ const LOG_FILE_MAX_FILES: number = 3;
 export interface LateLogSink {
   readonly sink: (line: string) => void;
   /**
-   * 파일 경로를 정하고 모은 줄을 쓴다. 디렉터리를 만들지 못하거나 쓰지 못하면 그 뒤의 줄을 버린다(로그가 시작을 막지 않는다)
+   * 파일 경로를 정하고 모은 줄을 쓴다. 디렉터리를 만들지 못하거나 쓰지 못하면 그 줄만 버리고 다음 줄에 다시 쓴다
+   * (로그가 시작을 막지 않고, 디스크가 비거나 폴더가 다시 생기면 이어서 남는다. L0.os.spec의 줄 단위 실패)
    */
   attach(path: string): void;
 }
 
 export function createLateLogSink(): LateLogSink {
-  const state: { file: LogSink | undefined; buffered: string[]; broken: boolean } = {
+  const state: { file: LogSink | undefined; buffered: string[] } = {
     file: undefined,
     buffered: [],
-    broken: false,
   };
 
   function emit(line: string): void {
-    if (state.broken) return;
     if (state.file === undefined) {
       if (state.buffered.length < MAX_BUFFERED_LINES) state.buffered.push(line);
       return;
@@ -39,21 +38,13 @@ export function createLateLogSink(): LateLogSink {
   return {
     sink: emit,
     attach(path) {
-      // 디렉터리(0700)를 만들고 파일(0600)에 덧붙이고 회전하는 일은 회전 싱크가 한다. 실패는 onError로 알려온다
+      // 디렉터리(0700)를 만들고 파일(0600)에 덧붙이고 회전하는 일은 회전 싱크가 한다. 쓰지 못한 줄은 싱크가 버린다
       const file = createRotatingFileSink({
         dir: dirname(path),
         fileName: basename(path),
         maxBytes: LOG_FILE_MAX_BYTES,
         maxFiles: LOG_FILE_MAX_FILES,
-        // 기록할 곳이 없다. broken 표지를 세워 이후 줄을 버린다
-        onError: () => {
-          state.broken = true;
-        },
       });
-      if (state.broken) {
-        state.buffered = [];
-        return;
-      }
       state.file = file;
       for (const line of state.buffered.splice(0)) emit(line);
     },

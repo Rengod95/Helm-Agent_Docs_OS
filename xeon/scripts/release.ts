@@ -29,6 +29,13 @@ import { parseArgs } from "node:util";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { hostTriple, outputFileName } from "./build-sidecar.ts";
+import {
+  BUN_ITEM,
+  collectNotices,
+  ENTRY_PACKAGES,
+  groupedNoticesText,
+  type NoticeItem,
+} from "./notices.ts";
 
 const BundledBinarySchema = Type.Object(
   {
@@ -104,6 +111,7 @@ export type ReleaseError =
       readonly got: string;
     }
   | { readonly kind: "input.missing"; readonly path: string }
+  | { readonly kind: "notices.failed"; readonly problems: readonly string[] }
   | { readonly kind: "step.failed"; readonly step: string; readonly exitCode: number }
   | { readonly kind: "host.unsupported"; readonly platform: string; readonly arch: string }
   | { readonly kind: "tool.missing"; readonly name: string };
@@ -166,26 +174,47 @@ export function sumsBody(
     .join("");
 }
 
-/** The notices text: one block per bundled binary (name, version, license, source), then the system requirements. */
+/** A bundled program as a notice item. The archive does not ship its license file, so the item carries only the source link. */
+function binaryItem(binary: BundledBinary): NoticeItem {
+  return {
+    name: binary.name,
+    version: binary.version,
+    license: binary.license,
+    link: binary.source,
+    copyright: [],
+    texts: [],
+    notes: ["The archive does not ship this program's license file; see the source link."],
+  };
+}
+
+/**
+ * The notices text: a header, the system requirements, then one section per license for the bundled binaries and the
+ * packages (`packages` carries the Bun runtime and the npm packages).
+ */
 export function noticesBody(
   version: string,
   triple: string,
   bundled: readonly BundledBinary[],
   systemRequired: readonly string[],
+  packages: readonly NoticeItem[] = [],
 ): string {
-  const lines = [`Fresnel ${version} (${triple}) third-party notices`, ""];
-  if (bundled.length === 0) lines.push("Bundled external binaries: none.");
-  for (const b of bundled) {
-    lines.push(`${b.name} ${b.version}`, `  license: ${b.license}`, `  source:  ${b.source}`, "");
-  }
+  const head = [
+    `Fresnel ${version} (${triple}) third-party notices`,
+    "",
+    "Grouped by license. Each section names the license and links its text, prints the standard text once, and lists its",
+    "packages with name, version, copyright line (from the package's license file) and source link.",
+    "",
+  ];
+  if (bundled.length === 0) head.push("Bundled external binaries: none.", "");
   if (systemRequired.length > 0) {
-    lines.push(
+    head.push(
       `Required from the system, not bundled: ${systemRequired.join(", ")}.`,
       "Install them with the package manager (`fresnel doctor` prints the command).",
+      "",
     );
   }
-  lines.push("", "The full license texts are in the sources above.", "");
-  return lines.join("\n");
+  const grouped = groupedNoticesText([...bundled.map(binaryItem), ...packages]);
+  return `${head.join("\n")}${grouped === "" ? "" : `\n${grouped}`}`;
 }
 
 export function archiveName(version: string, triple: string): string {
@@ -379,9 +408,14 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
     : triple.includes("-apple-")
       ? "darwin"
       : "other";
+  const npm = collectNotices(fresnelRoot, ENTRY_PACKAGES);
+  if (!npm.ok) return fail({ kind: "notices.failed", problems: npm.error });
   writeFileSync(
     join(stage, "THIRD-PARTY-NOTICES.txt"),
-    noticesBody(version, triple, bundled, config.value.systemRequired[platformKey] ?? []),
+    noticesBody(version, triple, bundled, config.value.systemRequired[platformKey] ?? [], [
+      BUN_ITEM,
+      ...npm.value,
+    ]),
   );
 
   const files = listFiles(stage).map((path) => ({
@@ -422,6 +456,8 @@ export function describeError(error: ReleaseError): string {
       return `bundled binary ${error.name} must be ${error.want}, found "${error.got}"`;
     case "input.missing":
       return `missing input ${error.path}`;
+    case "notices.failed":
+      return `third-party notices cannot be built: ${error.problems.join("; ")}`;
     case "step.failed":
       return `step ${error.step} failed with exit ${String(error.exitCode)}`;
     case "host.unsupported":

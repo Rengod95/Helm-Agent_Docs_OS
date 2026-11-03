@@ -85,7 +85,7 @@ test("rotation keeps the newest files only: the current file and two rotated cop
   expect(readFileSync(`${path}.2`, "utf8").charAt(0)).toEqual("2");
 });
 
-test("when the log directory cannot be made the sink is broken and later lines are dropped", () => {
+test("a failed write drops only that line: lines after the log directory is restored are written", () => {
   const root = tempDir();
   // logs 자리에 파일이 있어서 그 아래에 디렉터리를 만들 수 없다
   const blocker = join(root, "logs");
@@ -95,11 +95,23 @@ test("when the log directory cannot be made the sink is broken and later lines a
   logs.sink("before");
   logs.attach(path);
   logs.sink("after");
+  expect(existsSync(path)).toEqual(false);
 
-  // 자리를 디렉터리로 바꿔도 깨진 싱크는 다시 쓰지 않는다
+  // 자리를 디렉터리로 바꾸면 다음 줄부터 남는다. 막혀 있는 동안의 줄은 버려진 채다
   rmSync(blocker);
   mkdirSync(blocker);
   logs.sink("later");
-  expect(existsSync(path)).toEqual(false);
-  expect(readdirSync(blocker)).toEqual([]);
+  expect(readFileSync(path, "utf8")).toEqual("later\n");
+});
+
+test("when the log directory is deleted while running, the next line recreates it and is kept", () => {
+  const root = tempDir();
+  const path = join(root, "logs", "service.log");
+  const logs = createLateLogSink();
+  logs.attach(path);
+  logs.sink("one");
+  rmSync(join(root, "logs"), { recursive: true });
+  logs.sink("two");
+  logs.sink("three");
+  expect(readFileSync(path, "utf8")).toEqual("two\nthree\n");
 });

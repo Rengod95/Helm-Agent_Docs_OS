@@ -17,7 +17,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 - 릴리즈 아카이브의 구성과 배치(§3.1). 실행 파일, 그룹 템플릿, 기본 플러그인, 번들 바이너리, 고지, 체크섬이 어디에 놓이는지 정합니다.
 - 자원 디렉터리 탐색과 소비처(§3.2). 실행 파일이 든 폴더를 자원 디렉터리로 보고, 세 소비처가 그 안에서 어떻게 찾는지 정합니다.
 - 번들 바이너리의 버전, 라이선스, 출처와 Linux의 시스템 요구(§3.3). 대상 플랫폼은 §3.4입니다.
-- 서명과 공증 단계, 시크릿이 없을 때의 건너뛰기(§4).
+- 서명과 공증 단계, 시크릿이 없을 때의 미서명 상태(§4).
 - M3b의 업데이트 방식과 사용자 절차(§5).
 - 공급망과 고지 파일(§6).
 - 릴리즈 스모크 X11과 단위 시험, 그 실행 위치(§7).
@@ -56,7 +56,7 @@ fresnel-<버전>-<triple>/
 │   └── account-rotation/         같은 구조
 ├── binaries/                     macOS만: sops, age, rg
 ├── binaries.lock.json            macOS만: 번들 바이너리 목록
-├── THIRD-PARTY-NOTICES.txt       번들 바이너리 고지와 시스템 요구
+├── THIRD-PARTY-NOTICES.txt       번들 바이너리 고지, 시스템 요구, Bun 런타임과 npm 의존의 고지
 └── SHA256SUMS                    위 모든 파일의 SHA-256, 경로순
 ```
 
@@ -94,7 +94,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - `release.ts`는 파일을 복사하기 전에 `<이름> --version`의 출력에 고정 버전이 있는지 확인합니다. 없으면 `binary.version` 오류로 끝납니다.
 - `binaries.lock.json`은 이름순으로 정렬한 항목을 씁니다. 항목은 `name`, `platform`, `arch`, `path`(자원 디렉터리 기준 상대 경로), `sha256`, `version`입니다. 실행할 때 해석기가 이 목록을 읽고 해시를 맞춥니다(`L0.os.spec` §3.6).
 - Linux에서 `rg`, `bwrap`, `socat`은 시스템 패키지로 요구합니다. 아카이브는 세 바이너리를 싣지 않습니다. 목록은 `release-bundle.json`의 `systemRequired.linux`에 있고, 세 바이너리는 점검 표(`requirements.ts`)에서 모두 필수입니다. `fresnel doctor`가 설치 명령을 안내합니다(`installHint`, 예: `apt install bubblewrap`).
-- `THIRD-PARTY-NOTICES.txt`는 번들 바이너리마다 이름, 버전, 라이선스, 출처를 적고, Linux 아카이브에는 시스템 요구 목록을 적습니다.
+- `THIRD-PARTY-NOTICES.txt`는 라이선스별로 묶어 번들 바이너리, Bun 런타임, npm 의존을 적고, Linux 아카이브에는 시스템 요구 목록을 앞에 적습니다([결정: 2026-11-04 사용자], §6).
 
 ### 3.4 대상
 
@@ -109,11 +109,11 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 ## 4. 서명과 공증
 
 - 서명은 macOS 아카이브에만 합니다(triple에 `-apple-`이 든 경우). `release.ts`는 스테이징 폴더를 `xeon/scripts/release-sign.sh`에 넘긴 뒤에 해시를 계산합니다. 서명이 파일을 바꾸므로 해시는 서명 뒤에 계산합니다.
-- `release-sign.sh`는 여섯 시크릿을 확인합니다. `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`입니다. 하나라도 비어 있으면 `release-sign: skipped, secrets not set: <빠진 이름>`을 출력하고 0으로 끝납니다. 값은 출력하지 않습니다. 포크와 pull request에는 시크릿이 없으므로 이 경로를 탑니다.
+- `release-sign.sh`는 여섯 시크릿을 확인합니다. `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`입니다. 하나라도 비어 있으면 서명하지 않고 `release-sign: UNSIGNED, secrets not set: <빠진 이름>`을 출력합니다. CI에서는 경고 주석(`::warning`)과 작업 요약(`GITHUB_STEP_SUMMARY`)에도 UNSIGNED를 적습니다. 값은 출력하지 않습니다. 포크, pull request, 수동 실행에는 시크릿이 없으므로 이 상태로 0으로 끝납니다. 릴리즈 태그(`GITHUB_REF`가 `refs/tags/v`로 시작)에서는 같은 상태가 종료 코드 1입니다. 서명 없는 아카이브가 초록 작업으로 나오지 않게 하려는 것입니다.
 - 시크릿이 모두 있으면 임시 키체인에 인증서를 가져오고, 번들 바이너리와 `fresnel`을 `codesign --force --options runtime --timestamp`로 서명한 뒤 `codesign --verify --strict`로 확인합니다. 공증은 아카이브 폴더를 zip으로 묶어 `xcrun notarytool submit --wait`로 보냅니다. 바이너리에는 스테이플할 수 없으므로 Gatekeeper가 온라인으로 공증 기록을 확인합니다. 임시 키체인은 끝날 때 지웁니다.
 - 실패는 종료 코드 1이고, 도구가 없는 환경은 2입니다.
 - 시크릿의 등록은 사용자가 합니다. 저장소는 시크릿을 등록하지 않고, `fresnel-release.yml`이 시크릿을 환경 변수로 넘길 뿐입니다.
-- 서명과 공증의 실제 실행은 Mac 실기와 시크릿 등록 뒤의 일입니다([미결] §8). 이 저장소의 시험은 시크릿이 없는 건너뛰기 경로만 확인합니다(§7).
+- 서명과 공증의 실제 실행은 Mac 실기와 시크릿 등록 뒤의 일입니다([미결] §8). 이 저장소의 시험은 시크릿이 없는 미서명 경로(0, 태그에서 1)만 확인합니다(§7).
 
 ## 5. 업데이트
 
@@ -127,7 +127,8 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 
 - 산출물의 무결성은 `SHA256SUMS`(아카이브 안의 모든 파일)와 `binaries.lock.json`(번들 바이너리)이 맡습니다. 아카이브 옆의 `.sha256`은 내려받는 중의 깨짐을 잡습니다.
 - 이 해시들은 서명이 아닙니다. `.sha256`과 아카이브를 같은 곳에서 받으므로, 그 자체로는 변조를 막지 못합니다([미결] §8).
-- `THIRD-PARTY-NOTICES.txt`는 번들 바이너리 세 개의 이름, 버전, 라이선스, 출처를 적습니다. [결정: 2026-11-04 사용자, B19] 라이선스별로 묶어 전문을 싣고, 각 프로그램의 출처 링크를 적습니다. 지금 구현은 출처 주소만 적습니다. 법률 자문이 아니므로 배포 전에 한 번 읽어 봅니다.
+- [결정: 2026-11-04 사용자] `THIRD-PARTY-NOTICES.txt`는 라이선스별로 한 절씩 묶습니다(B19). 번들 바이너리 sops, age, rg, npm 의존, Bun 런타임이 같은 절에 들어갑니다. 각 절은 라이선스의 SPDX 텍스트 링크를 적고, 표준 라이선스 전문을 한 번만 싣고, 패키지마다 이름, 버전, 저작권 줄, 출처 또는 라이선스 링크를 적습니다. 아카이브에 라이선스 파일이 없는 번들 바이너리는 출처 링크와 SPDX 링크만 적습니다.
+- [결정: 2026-11-04 사용자] npm 의존의 고지는 `xeon/scripts/notices.ts`가 만듭니다. `apps/host`와 `apps/cli`의 `dependencies`를 `node_modules` 심볼릭 링크를 따라 훑고(devDependencies 제외), 제3자 패키지마다 이름, 버전, 라이선스, 링크를 적습니다. 링크는 package.json의 저장소나 홈페이지이고, `vendor/`의 패키지는 UPSTREAM.json의 `upstream`입니다. 저작권 줄은 라이선스 파일의 머리말(라이선스 본문이 시작하기 전)에서 읽고, 읽을 수 없으면 적지 않습니다. 패키지의 본문이 절의 표준 전문에 있는 단어 쌍만 가지면 표준 전문으로 갈음하고, 그렇지 않으면 본문 전문을 그 패키지 항목 아래에 싣습니다. 선택 가능한 이중 라이선스는 고른 쪽을 적습니다(node-forge는 BSD-3-Clause). 라이선스 파일이 없고 `NO_LICENSE_FILE` 허용 목록에도 없는 패키지가 있거나 라이선스 정보가 없는 패키지가 있으면 `release.ts`가 `notices.failed`로 실패합니다. 허용 목록의 패키지는 package.json의 선언 라이선스, 저자, 저장소를 적습니다. Bun 런타임은 MIT, 저작권 줄, 출처 주소를 적고, 내장 JavaScriptCore 등의 고지는 Bun의 LICENSE.md를 가리킵니다.
 - 워크플로의 액션은 커밋 SHA로 고정하고, 버전 주석을 붙입니다(M3-30). 주석의 버전이 SHA와 맞는지는 저장소 안에서 확인하지 않습니다([미결] §8).
 - 시크릿 검사(gitleaks) 단계는 fresnel 워크플로에 아직 없습니다([미결] §8).
 - npm 공개는 없습니다(D-M3-25 행 6).
@@ -137,7 +138,8 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 | 시험 | 종류 | 무엇을 확인하나 | 실행 위치 |
 |---|---|---|---|
 | `xeon/scripts/release.test.ts` | 단위 | 설정 파싱과 잘못된 설정, 잠금 파일, SHA256SUMS, 고지, 아카이브 이름, 버전 검사, 종료 코드, 스모크의 배치와 sums 파싱, 번들 버전과 mise 고정 값의 일치 | fresnel-ci `root` 층(Linux x86_64, `bun test scripts`) |
-| `xeon/scripts/workflow-pins.test.ts` | 단위 | 워크플로 `uses:`의 SHA 고정과 버전 주석(M3-30), 시크릿이 없을 때와 APPLE_ID만 있을 때의 서명 건너뛰기, 값 미출력 | 같음 |
+| `xeon/scripts/notices.test.ts` | 단위 | 고지 수집의 링크(저장소 형식, UPSTREAM.json), 저작권 줄(머리말만), 라이선스 정보와 파일이 없을 때의 실패, 라이선스별 절의 표준 전문 한 번 싣기와 다른 본문의 전문, Bun 항목 | fresnel-ci `root` 층(Linux x86_64, `bun test scripts`) |
+| `xeon/scripts/workflow-pins.test.ts` | 단위 | 워크플로 `uses:`의 SHA 고정과 버전 주석(M3-30), 시크릿이 없을 때와 APPLE_ID만 있을 때의 UNSIGNED 상태, 태그에서의 실패, 값 미출력 | 같음 |
 | `xeon/apps/cli/test/group-templates-locate.test.ts` | 단위 | 템플릿 탐색 순서와 찾지 못했을 때 null | fresnel-ci `L4` 층 |
 | `xeon/packages/platform-os/test/binaries.test.ts` | 단위 | Linux에서 bwrap과 socat이 없을 때의 설치 안내 문구 | fresnel-ci `L0` 층, `fresnel-macos.yml`(`just test packages/platform-os`) |
 | `xeon/scripts/release-smoke.test.ts`(X11) | 종단 | `release-smoke.sh`가 이 기기의 아카이브를 만들고, §3.1 배치, 해시, 잠금, 실행, 템플릿, doctor 줄, `@swc/core` 부재를 확인합니다 | fresnel-ci `exit-tests`(Linux x86_64), `fresnel-macos.yml`의 `exit-tests`와 `release smoke`(macOS arm64), `fresnel-release.yml`(두 OS) |
@@ -157,12 +159,13 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - [결정: 2026-11-04 사용자, A2 2안] 앱 안 업데이트는 M4에 확인 줄과 상태 표시만, 내려받기와 교체는 M5.
 - [결정: 오케스트레이터 기본값] 개발 사이드카 보호(M3b B6-FIX). 릴리즈 빌드는 `build-sidecar.ts --out-dir <출력 폴더>/.sidecar-build`로 사이드카를 따로 만들고(`release.ts`의 `releaseSidecarDir`), 개발 사이드카 경로 `apps/desktop/src-tauri/binaries/fresnel-<triple>`에는 쓰지 않습니다. 그 경로는 e2e 시험과 `ensure-sidecar.sh`가 `0.0.0` 빌드로 다시 쓰기 때문입니다. `--no-build`만 개발 사이드카를 읽습니다. `ensure-sidecar.sh`는 실행되는 바이너리의 `version --json`이 `0.0.0`이 아닌 `cli` 값을 알리면 낡은 것으로 보고 다시 만듭니다. X11 시험(`release-smoke.test.ts`)은 스모크 전후로 개발 사이드카 파일이 같은지 확인합니다.
 - [결정: 오케스트레이터 기본값] 버전 주입(M3b B5-FIX2). `release.ts`가 `--version`을 `build-sidecar.ts`에 넘기고, 빌드가 `bun build --define FRESNEL_BUILD_VERSION="<버전>"`으로 문자열 상수를 넣습니다. `CLI_VERSION`(`xeon/apps/cli/src/commands/version.ts`)과 `ENGINE_VERSION`(`xeon/apps/host/src/assemble.ts`)은 `typeof FRESNEL_BUILD_VERSION`이 문자열이면 그 값을, 아니면(소스 실행, 개발 빌드) `"0.0.0"`을 씁니다. 버전은 `x.y.z` 또는 `x.y.z-<꼬리>` 모양만 받습니다. `fresnel-release.yml`은 `v<x.y.z>` 태그에서 태그의 버전을 `FRESNEL_RELEASE_VERSION`으로 넘기고, 그 밖에는 스모크 기본값 `0.0.0-smoke`입니다. 스모크는 `fresnel version` 출력에 아카이브 버전이 있는지 확인합니다(`run.version-injected`). 앱 번들(Tauri) 버전과의 정합은 M4 패키징 몫입니다.
+- [결정: 2026-11-04 사용자] 고지는 라이선스별로 묶습니다(§6, B19). 번들 바이너리의 라이선스 전문은 싣지 않고 출처 링크와 SPDX 링크를 적습니다.
 
 ### 8.2 미결
 
 1. [해소] 버전 값은 §8.1의 버전 주입으로 정했습니다.
 2. [미결] Tauri 자원 매핑. `xeon/apps/desktop/src-tauri/tauri.conf.json`에는 `externalBin`만 있습니다. 템플릿과 기본 플러그인을 `Contents/MacOS`에 두는 설정(`resources`와 macOS 파일 매핑)은 M4입니다.
-3. [결정: 2026-11-04 사용자, B19] 고지 파일에 라이선스 전문을 라이선스별로 묶어 넣고 프로그램마다 링크를 둡니다. BSD-3-Clause(age)는 배포물과 함께 저작권 고지와 조건을 두라고 합니다. 구현(`THIRD-PARTY-NOTICES.txt` 생성)은 아직 출처 주소만 적습니다.
+3. [해소] 번들 바이너리(sops, age, rg)의 라이선스 전문은 싣지 않고, 라이선스별 절의 출처 링크와 SPDX 링크로 적습니다([결정: 2026-11-04 사용자], §6). 아카이브에 라이선스 파일이 없으므로 이 세 바이너리의 저작권 줄은 적지 않습니다. [미결] Bun의 LICENSE.md 전문(JavaScriptCore 등)을 싣는지는 사용자가 정합니다. 지금은 주소만 적습니다.
 4. [미결] 체크섬의 출처. `.sha256`과 아카이브는 같은 곳에서 받습니다. 서명된 체크섬이나 별도 공개 키는 없습니다.
 5. [미결] CI의 gitleaks 단계. fresnel 워크플로에 없습니다(M3-30의 일부).
 6. [미결] 액션 주석 검증. 주석의 `v<버전>`과 SHA가 맞는지는 저장소 안에서 검사하지 않습니다. 사용자나 리뷰가 한 번 확인합니다.

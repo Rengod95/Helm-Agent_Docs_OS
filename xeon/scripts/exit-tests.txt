@@ -46,6 +46,9 @@ X11 scripts release-smoke.test.ts
 # M4 conditions Y1 to Y17 (review.m4-plan 1.3, product.scope.spec 4.4 M4). Each Y line below is a placeholder, like the M3b lines:
 # the owning track removes the leading "# " when its test file exists and replaces <파일> with the real path. An uncommented line
 # with an unfilled <파일> fails as missing, so an unfinished condition cannot pass by accident.
+# Enabled now: Y4 (host half), Y10 (host half), Y11, Y13, Y16: their test files exist and pass without skips. Every other Y line
+# stays commented because its test file does not exist yet; the "Track ..." comment above it names the owner. A condition with
+# one enabled and one commented line (Y4, Y10) is only half checked until the owner enables the second line.
 # Track T-CHAT1, T-CHAT2 (pages.six-states-render, approval-card.same-in-three-places, the P0 screenshots)
 # Y1 apps/desktop <파일>
 # Track T-BENCH, T-CANVAS, T-COMPOSE, T-TRIAL, T-VIEW (the workbench pages in six states)
@@ -53,8 +56,8 @@ X11 scripts release-smoke.test.ts
 # Track T-SHELL, T-BENCH (area.switch-restores-place, workbench.context-drives-all-pages, workbench.context-follows-unless-pinned)
 # Y3 apps/desktop <파일>
 # Track T-CANVAS and T-XD (canvas.selection-sync, canvas.no-edit-actions, canvas.order-persists-and-resets, replay-bar.matches-trace)
-# Y4 packages/client <파일>
-# Y4 apps/host test/int/trace-turn.int.test.ts
+# Y4 packages/client <파일>   (owner T-CANVAS, T-XD: not written yet)
+Y4 apps/host test/int/trace-turn.int.test.ts
 # Track T-VIEW (view-host.*, and the Linux frame-isolation e2e)
 # Y5 packages/client <파일>
 # Y5 apps/desktop test/e2e/frame-isolation.e2e.test.ts
@@ -71,22 +74,22 @@ X11 scripts release-smoke.test.ts
 # Y9 apps/host test/int/trial.int.test.ts
 # Y9 apps/desktop <파일>
 # Track T-WB (profile.int.test.ts and the CLI profile list)
-# Y10 apps/host test/int/profile.int.test.ts
-# Y10 apps/cli <파일>
+Y10 apps/host test/int/profile.int.test.ts
+# Y10 apps/cli <파일>   (owner T-WB: the CLI profile list test is not written yet)
 # Track T-XV and T-BENCH (version-history.test.ts or bundled-revert.test.ts)
-# Y11 packages/ext-host <파일>
+Y11 packages/ext-host test/loading-trust/version-history.test.ts
 # Track T-FIX and T-XD (the four code defects)
 # Y12 packages/ext-host <파일>
 # Y12 packages/group-sdk <파일>
 # Y12 apps/host <파일>
 # Track T-CAU1 and T-CAU2 (caustic-gaps.test.ts; the grep check is not a test file)
-# Y13 scripts caustic-gaps.test.ts
+Y13 scripts caustic-gaps.test.ts
 # Track T-A11Y (a11y.axe-all-pages and the keyboard path)
 # Y14 apps/desktop <파일>
 # Track T-I18N (the hardcoded-Korean rule and the desktop en smoke)
 # Y15 scripts <파일>
 # Y15 apps/desktop <파일>
 # Track T-LED, T-RT1, T-RT2 (req-ledger.test.ts: no carry-over item unassigned)
-# Y16 scripts req-ledger.test.ts
+Y16 scripts req-ledger.test.ts
 # Track T-PERF (scripts/desktop-benchmark.ts result and the size check)
 # Y17 scripts <파일>

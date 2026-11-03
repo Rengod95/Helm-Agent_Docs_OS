@@ -69,7 +69,19 @@ export function createRotatingFileSink(opts: RotatingFileSinkOptions): LogSink {
     const text = `${line}\n`;
     const bytes = Buffer.byteLength(text);
     if (size > 0 && size + bytes > maxBytes) rotate();
-    const written = attempt(() => appendFileSync(current, text, { mode: 0o600 }));
+    const append = () => attempt(() => appendFileSync(current, text, { mode: 0o600 }));
+    let written = append();
+    if (!written.ok) {
+      // 로그 폴더가 지워졌거나 막혀 있었다면 다시 만들어 이 줄을 한 번 더 쓴다. 그래도 안 되면 이 줄만 버린다
+      const code = errnoOf(written.error.cause);
+      if (code === "ENOENT" || code === "ENOTDIR") {
+        const remade = attempt(() => mkdirSync(opts.dir, { recursive: true, mode: 0o700 }));
+        if (remade.ok) {
+          size = 0;
+          written = append();
+        }
+      }
+    }
     if (written.ok) size += bytes;
     else report(written.error.cause);
   };
