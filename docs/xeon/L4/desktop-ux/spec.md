@@ -2300,11 +2300,21 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 접근성: 셸이 머리에 `h1`, 트리의 `Heading`은 `h2`부터입니다. 트리 위젯은 caustic 부품의 접근성을 그대로 갖습니다. 플러그인은 `aria-*`를 직접 주지 않고 `label` prop만 줍니다.
 - caustic: 위젯 카탈로그 v1(ADR-0021 §3.4)이 쓰는 부품 전부. 없는 것 `Meter` `[gap:C-05]`, `Timeline`·`Sparkline` `[gap:C-17]`.
 - Native UI 순수 핵심(`packages/client/src/views/native`, 구현됨 [결정: 2026-11-03 M4 T-VIEW]). React와 DOM이 없고 데스크톱과 웹이 같이 쓴다.
-  - 카탈로그 v1(`WIDGET_CATALOG_VERSION` `1.0.0`)은 이름 33개와 위젯별 허용 prop·bind 키를 정한다. prop은 글자, 숫자, 불리언, 고정 선택값만 받고 `style`, `class`, `color`, `width`, `href`, 처리기 이름은 모든 위젯에서 `forbidden_prop`이다.
+  - 카탈로그 v1(`WIDGET_CATALOG_VERSION` `1.0.0`)은 이름 34개와 위젯별 허용 prop·bind 키를 정한다. prop은 글자, 숫자, 불리언, 고정 선택값만 받고 `style`, `class`, `color`, `width`, `href`, 처리기 이름은 모든 위젯에서 `forbidden_prop`이다.
   - `checkTree`는 던지지 않고 `unknown_widget`, `prop_not_allowed`, `prop_type`, `bind_not_allowed`, `children_not_allowed`, `forbidden_prop`, `each_scope` 이슈를 위치(JSON Pointer)와 함께 돌려준다. 모르는 위젯은 그 노드만 자리표시이고 트리 전체를 막지 않는다.
   - `resolveTree`는 `when`을 평가하고 `each`를 항목 수만큼 펼치고(최대 500) `bind`를 값으로 바꾼다. 데이터 경로의 첫 마디는 `each.as` 이름이면 그 항목을, 아니면 문서를 가리킨다. 경로가 없으면 그 prop을 뺀다. 객체와 배열은 prop이 되지 않는다(목록 위젯의 배열 바인딩은 렌더러 몫이며 [미결] 구현 때 정한다). 노드 2000개, 깊이 24를 넘으면 `too_long` 자리표시 하나와 `truncated`다. 바인딩 문자열은 4096자에서 자른다.
   - 서식 이름 여섯(`duration`, `bytes`, `relativeTime`, `number`, `percent`, `dateTime`)은 값이 맞지 않으면 prop을 뺀다. `dateTime`은 UTC로 그린다.
   - 조건 `eq`는 경로가 없을 때 거짓이다(`null`과 같지 않다). `exists`는 값이 `null`이 아닐 때 참이다.
+- 화면 장부(`packages/client/src/views/ledger.ts`, 구현됨 [결정: 2026-11-03 M4 T-VIEW]). 화면 키 `<확장이름>/<화면 id>`마다 연속 실패를 세고 5번째에 그 화면만 `view_disabled`로 두며, 성공 하나가 횟수를 0으로 되돌린다. 실패 이름은 `query_failed`, `result_invalid`, `render_exception`, `ready_timeout`, `bridge_format`, `limit_exceeded`, `liveness_lost`, `frame_navigated`다. 값은 담지 않는다. 꺼진 화면은 `reenable`로만 돌아온다.
+- Plugin App 다리 셸 쪽(`packages/client/src/views/app`, 구현됨 [결정: 2026-11-03 M4 T-VIEW]). DOM 타입 없이 구조 인터페이스로 받아 시험이 대역을 넣는다.
+  - 프레임 속성은 `sandbox="allow-scripts"`, `referrerpolicy="no-referrer"`, `allow=""`, 마지막에 `src`다. 프레임 호스트는 `ready`를 5초 기다리고, 프레임 창에서 온 `ready`에만 포트 하나를 한 번 넘긴다(대상 origin `*`는 불투명 origin 때문이며 source 창을 먼저 확인한다). `ready.bridge`가 매니페스트 `app.bridge`와 다르면 닫는다. 프레임이 두 번째로 문서를 불러오면(스스로 이동) `frame_navigated`로 포트를 거둔다.
+  - 요청 판정 순서는 크기 1 MiB, 초당 50개(고정 1초 창), 모양, `decide`(op 허용 목록, 확장 상태, 인자 스키마, 매니페스트 선언, 열린 대화)다. 인자 오류 문장은 위치와 키워드만 담는다. 크기·속도·모양 위반은 장부에 세고 `args`가 마지막 5번이면 포트를 닫는다. 정책 거부는 세지 않는다.
+  - `query`는 `readOnly: true` 선언만, `call`은 `readOnly: false` 선언만, `command`는 확장이 등록한 이름만, `settings`는 `ext.<이름>.`·`l3.<이름>.` 키만, `events`는 `x.<이름>.`·`grp.<이름>.`, `readsRecordKinds`, `turn.`·`lease.` 접두와 `scope.changed`·`scope.handler_failed`만, `post`·`requestApproval`은 지금 열린 대화에만 받는다. `post`는 신뢰 등급이 허용할 때만 받는다. `navigate`의 외부 링크는 `http(s)`에 계정 정보 없이만 받고 셸이 먼저 확인한다.
+  - 시크릿 설정 키는 값 대신 `status: "set" | "unset"`만 건넨다. `host`는 필드를 하나씩 옮긴다. `log`는 op와 크기만 진단에 남긴다. `query` 결과 256 KiB, `events` 500행, 응답 1 MiB를 넘으면 `too_large`와 장부 계수다.
+  - 확인 줄: `call`과 `command`는 사용자가 확인 줄에서 허용하기 전에 실행되지 않는다(`command`까지 확인하는 것은 §3.4 표보다 엄격한 [제안]이다). 줄의 글은 매니페스트의 확장 이름과 동사로만 만들고 프레임이 준 글은 받지 않는다(알 수 없는 인자는 `args_invalid`). 한 번에 하나만 열 수 있고 두 번째는 즉시 거부되며 60초 뒤 자동 거부다. 허용 뒤 확장이 꺼지거나 안전 모드가 되면 `extension_off`·`safe_mode`로 멈춘다. "이 화면에서 묻지 않기"는 확장마다 앱이 켜져 있는 동안만 메모리에 두고 재시작하면 사라진다. 표준 승인 카드(`approval: true`)는 이 선택과 무관하게 엔진이 낸다.
+  - 생존 확인: 5초마다 `ping` 푸시 `{ n }`을 보내고 프레임은 `pong` 요청 `{ n }`으로 답한다(`pong`에는 응답이 없다). 번호가 다른 `pong`은 답이 아니다. 2번 연속 답이 없으면 `liveness_lost`로 닫는다.
+  - 전용 스킴 주소는 `fresnel-view://<확장이름>/<버전>/<경로>`이고 확장 이름과 버전 마디는 문자 집합을 좁혀 조립·해석한다. `%2e%2e`는 URL 규칙이 점 마디로 접으므로 해석에서 거부되고, `%252e%252e`는 그대로 넘어가 `resolveAppFile`이 한 번만 풀어 글자로 다룬다. 응답 헤더는 프레임 문서 CSP(ADR-0021 §3.6.3 글 그대로), `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, 권한 정책 비움이다. 앱 문서 CSP는 `frame-src fresnel-view:`만 더한다.
+  - 테마 push는 토큰 이름 `--[a-z][a-z0-9-]*`와 CSS 선언 값 하나(`;`, 중괄호, 꺾쇠, 역슬래시, 줄바꿈, `url(`, `@import`, 주석 제외)만 싣는다.
 
 ### 6.26 P-19 시험 실행
 
