@@ -271,7 +271,7 @@ fresnel: 예약 상태 파일을 읽거나 쓰지 못했다
 
 ### 5.4 코어 투영 버전 올림
 
-- 투영 규칙의 테이블 모양이나 규칙이 바뀌면 `CORE_PROJECTOR_VERSION`을 올립니다. 현재 값은 5입니다(`packages/core-persistence/src/projector/core.ts`).
+- 투영 규칙의 테이블 모양이나 규칙이 바뀌면 `CORE_PROJECTOR_VERSION`을 올립니다. 현재 값은 7입니다(`packages/core-persistence/src/projector/core.ts`).
 - 저장소를 열 때 저장된 투영 버전과 다르면 코어 투영기만 이벤트에서 다시 만듭니다. 사용자가 할 일은 없습니다.
 - 재생성은 투영기마다 한 트랜잭션입니다. 테이블을 지우고, DDL을 실행하고, 이벤트를 seq 순으로 다시 적용합니다. 이벤트가 많으면 첫 열기가 오래 걸립니다(`L1.persistence.spec` §4.5.3).
 - 이벤트가 많을 때 청크로 나눠 다시 만드는 규칙은 [제안]이고 구현 여부를 확인하지 못했습니다 [미결 7].

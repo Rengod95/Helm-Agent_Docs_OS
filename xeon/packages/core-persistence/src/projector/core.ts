@@ -41,7 +41,7 @@ import {
 } from "@fresnel/contracts/records";
 
 /** 투영 규칙 버전. 테이블 모양이나 규칙이 바뀌면 올린다(다음 열기 때 core만 다시 만든다) */
-export const CORE_PROJECTOR_VERSION = 6;
+export const CORE_PROJECTOR_VERSION = 7;
 
 export const CORE_PROJECTOR_TABLES: readonly string[] = [
   "p_threads",

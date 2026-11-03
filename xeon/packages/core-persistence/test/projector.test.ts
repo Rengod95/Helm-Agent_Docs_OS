@@ -335,7 +335,9 @@ describe("rebuild", () => {
         "SELECT version, last_seq FROM projector_state WHERE name = 'core'",
       )
       .get();
-    expect(state?.version).toBe(CORE_PROJECTOR_VERSION);
+    // 6은 제목 출처 투영(T-RT2), 7은 자리표시 블롭 참조 규칙(T-AUDIT2)이다
+    expect(CORE_PROJECTOR_VERSION).toBe(7);
+    expect(state?.version).toBe(7);
     expect(state?.last_seq).toBe(expectOk(restarted.service.feed.headSeq()));
   });
 

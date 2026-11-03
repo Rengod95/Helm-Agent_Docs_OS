@@ -183,7 +183,7 @@ describe("p_blob_refs collects BlobRef objects anywhere in a payload", () => {
     }));
     expect(expectOk(h.service.query.liveBlobRefs())).toEqual([body]);
 
-    h.store.raw.run("UPDATE projector_state SET version = 5 WHERE name = 'core'");
+    h.store.raw.run("UPDATE projector_state SET version = 6 WHERE name = 'core'");
     h.store.raw.run("DELETE FROM p_blob_refs");
     const restarted = await reopenHarness(h);
     expect(expectOk(restarted.service.query.liveBlobRefs())).toEqual([body]);
