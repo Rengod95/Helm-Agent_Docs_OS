@@ -137,6 +137,70 @@ describe("http transport", () => {
     expect(seen.every((header) => header.startsWith("Bearer t"))).toBe(true);
   });
 
+  test("plain header values are sent as they are and never reach the secrets port or an error (#1)", async () => {
+    const PLAIN = "team-alpha-plain-value";
+    const stub = createStubServer({ era: "modern", tools: [{ name: "a" }] });
+    const sent: string[] = [];
+    const asked: string[] = [];
+    const secrets: McpHeaderSecrets = {
+      resolveHeaders(request) {
+        asked.push(...Object.values(request.refs));
+        const [first] = Object.values(request.refs);
+        return Promise.resolve(
+          first === undefined
+            ? ok({})
+            : { ok: false, error: { kind: "secret_missing", ref: first } },
+        );
+      },
+    };
+    const factory = factoryFor((url, init) => {
+      sent.push(new Headers(init?.headers).get("x-team") ?? "none");
+      return stub.http(new Request(url, init));
+    }, secrets);
+    const opened = await factory.open(
+      definitionFor("https://mcp.example.com/mcp", { "X-Team": PLAIN }),
+      signal,
+    );
+    if (!opened.ok) throw new Error("open failed");
+    const connected = await connectMcp({
+      transport: opened.value.transport,
+      negotiation: "auto",
+      connectTimeoutMs: 5000,
+      signal,
+      client: { name: "fresnel-test", version: "0.0.0" },
+      logger: captureLogger(),
+    });
+    expect(connected.ok).toBe(true);
+    if (connected.ok) await connected.value.close();
+    expect(asked).toEqual([]);
+    expect(sent.length).toBeGreaterThan(0);
+    expect(sent.every((value) => value === PLAIN)).toBe(true);
+  });
+
+  test("a failing secret reference names only the reference, not a plain header value (#1)", async () => {
+    const PLAIN = "team-alpha-plain-value";
+    const secrets: McpHeaderSecrets = {
+      resolveHeaders: () =>
+        Promise.resolve({ ok: false, error: { kind: "secret_missing", ref: PLAIN } }),
+    };
+    const stub = createStubServer({ era: "modern", tools: [] });
+    const opened = await factoryFor((url, init) => stub.http(new Request(url, init)), secrets).open(
+      definitionFor("https://mcp.example.com/mcp", { Authorization: "secret://auth" }),
+      signal,
+    );
+    if (!opened.ok) throw new Error("open failed");
+    const connected = await connectMcp({
+      transport: opened.value.transport,
+      negotiation: "auto",
+      connectTimeoutMs: 1000,
+      signal,
+      client: { name: "fresnel-test", version: "0.0.0" },
+      logger: captureLogger(),
+    });
+    expect(connected.ok).toBe(false);
+    if (!connected.ok) expect(connected.error.message).not.toContain(PLAIN);
+  });
+
   test("a bad url and a missing secrets port are reported", async () => {
     const bad = await factoryFor(undefined).open(definitionFor("https://"), signal);
     expect(bad).toMatchObject({ ok: false, error: { code: "invalid_url" } });
