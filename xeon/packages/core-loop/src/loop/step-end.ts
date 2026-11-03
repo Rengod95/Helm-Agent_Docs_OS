@@ -262,6 +262,7 @@ export async function endStep(
       stopReason: completed.stopReason,
       assistantItemId: completed.assistantItemId,
       toolResultItemIds: [...completed.toolResultItemIds],
+      ...(state.contextWarnings.length === 0 ? {} : { contextWarnings: state.contextWarnings }),
     },
     entries,
     contributions: contribution.drafts,

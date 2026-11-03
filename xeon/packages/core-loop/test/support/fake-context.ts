@@ -13,6 +13,7 @@ import type {
   CompactCheck,
   CompactRequest,
   ContextService,
+  ContextWarning,
   OverflowRecovery,
 } from "@fresnel/contracts/services";
 
@@ -35,6 +36,8 @@ interface FakeCompaction {
 export interface FakeContext {
   readonly service: ContextService;
   readonly compaction: FakeCompaction;
+  /** `assemble`이 다음 조립부터 낼 경고. 시험이 채운다 */
+  readonly warnings: ContextWarning[];
   /** assemble이 낸 요청별 메시지 수 */
   readonly assembled: readonly {
     readonly stepId: string;
@@ -72,6 +75,7 @@ export function createFakeContext(options: {
     compactCalls: [],
     overflowCalls: [],
   };
+  const warnings: ContextWarning[] = [];
   let compactions = 0;
   const ids = fixedIdFactory(9_500_000);
   const producer = options.session.producer("core.context");
@@ -184,7 +188,7 @@ export function createFakeContext(options: {
       estimate: { tokens: 0, usageTokens: 0, trailingTokens: 0, lastUsageIndex: null },
       compactionHead: null,
       pendingItems,
-      warnings: [],
+      warnings: [...warnings],
     });
   }
 
@@ -222,5 +226,5 @@ export function createFakeContext(options: {
     },
     summarizeBranch: () => notImplemented("summarizeBranch"),
   };
-  return { service, assembled, compaction };
+  return { service, assembled, compaction, warnings };
 }

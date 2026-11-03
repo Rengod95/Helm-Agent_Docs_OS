@@ -2,9 +2,10 @@ import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type {
   AgentMessage,
   ModelThinkingLevel,
+  StepContextWarning,
   ThinkingBudgets,
 } from "@fresnel/contracts/conversation";
-import type { ResolvedModel } from "@fresnel/contracts/services";
+import type { ContextWarning, ModelBinding, ResolvedModel } from "@fresnel/contracts/services";
 import { activatedTools } from "./activation.ts";
 import { compactBeforeRequest } from "./compaction.ts";
 import { environmentText } from "./environment.ts";
@@ -104,6 +105,8 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
     signal: scope.signal,
   });
   if (!assembled.ok) return err({ kind: "context_unavailable", detail: assembled.error.kind });
+  // 같은 단계의 재시도(오버플로우 압축)는 마지막 조립의 경고만 남긴다
+  state.contextWarnings = assembled.value.warnings.map(warningRecordOf);
   for (const warning of assembled.value.warnings) {
     ctx.logger.debug("loop.context_warning", { threadId, turnId, code: warning.code });
   }
@@ -125,4 +128,28 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
     thinkingLevel: resolved.value.binding.thinkingLevel,
     ...(thinkingBudgets === undefined ? {} : { thinkingBudgets }),
   });
+}
+
+function bindingText(binding: ModelBinding): string {
+  return `${binding.provider}/${binding.modelId}`;
+}
+
+/** 조립 경고를 `step.completed.contextWarnings`의 항목으로 바꾼다. 코드마다 쓰는 필드만 담는다 */
+function warningRecordOf(warning: ContextWarning): StepContextWarning {
+  switch (warning.code) {
+    case "cache_reset_model_switch":
+      return {
+        code: warning.code,
+        from: bindingText(warning.from),
+        to: bindingText(warning.to),
+      };
+    case "cache_prefix_reset":
+      return { code: warning.code, at: warning.at };
+    case "tools_deferred":
+      return { code: warning.code, added: [...warning.added], removed: [...warning.removed] };
+    case "near_window":
+      return { code: warning.code, tokens: warning.tokens, contextWindow: warning.contextWindow };
+    default:
+      return assertNever(warning, "loop.context_warning");
+  }
 }
