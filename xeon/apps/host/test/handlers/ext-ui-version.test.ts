@@ -21,6 +21,8 @@ const VERSION: ExtVersionEntry = {
 
 const UI_ITEM: ExtUiEntry = {
   extension: "helm",
+  version: "0.2.0",
+  trust: "user",
   id: "panel",
   placement: "panel",
   mode: "native",
