@@ -22,6 +22,7 @@ function newRequestId(): string {
 
 function sendErrorText(error: CommandError): string {
   if (error.kind === "offline") return t("desktop.composer.error.offline");
+  if (error.kind === "switching") return t("desktop.composer.error.switching");
   if (error.kind === "locked") return t("desktop.composer.error.locked");
   if (error.kind === "unsupported") return t("desktop.composer.error.unsupported");
   if (error.kind === "rejected" && error.code !== null) {

@@ -7,6 +7,7 @@ import { createEngineStore, type ApplyNote, type EngineStore } from "../state/en
 import { createUiStore, type UiStore } from "../state/ui/index.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
 import { createCommands } from "./commands.ts";
+import { createEngineSwitch } from "./engine-switch.ts";
 import { BUILD_CHECKS } from "./build.ts";
 import { startLocale } from "./locale.ts";
 import { createWebViewLogger, type LogLine, type LogRing } from "./logger.ts";
@@ -90,6 +91,17 @@ export function createApp(env: AppEnv): App {
       });
     },
   );
+  const engineSwitch = createEngineSwitch({
+    ipc: env.ipc,
+    engine: engine.read,
+    ui,
+    scheduler: env.scheduler,
+    report: (cause) => {
+      log.logger.error("desktop.engine.switch_failed", {
+        error: cause instanceof Error ? cause.name : "unknown",
+      });
+    },
+  });
   const commands = createCommands({
     session,
     ipc: env.ipc,
@@ -98,6 +110,7 @@ export function createApp(env: AppEnv): App {
     journal,
     versions: () => ({ app: env.appVersion, engine: session.engineVersion() }),
     clipboard: env.clipboard,
+    engineSwitch,
   });
   return {
     engine,
@@ -107,6 +120,7 @@ export function createApp(env: AppEnv): App {
     log,
     async stop() {
       stopCleanup();
+      engineSwitch.dispose();
       await session.stop();
     },
   };

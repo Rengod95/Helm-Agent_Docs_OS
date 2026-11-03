@@ -34,6 +34,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     retryTranscript: () => {},
     reconnect: () => {},
     restartEngine: () => Promise.resolve(),
+    retargetEngine: () => Promise.resolve(ok(null)),
     copyDiagnostics: () => Promise.resolve(true),
     ...overrides,
   };

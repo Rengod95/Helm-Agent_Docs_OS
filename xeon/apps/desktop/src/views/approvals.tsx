@@ -27,6 +27,7 @@ const FAILURE_ID: Readonly<Record<Exclude<ApprovalSend, "sending">, MessageId>> 
   invalid: "desktop.approvals.failure.invalid",
   closed: "desktop.approvals.failure.closed",
   unapplied: "desktop.approvals.failure.unapplied",
+  switching: "desktop.approvals.failure.switching",
 };
 
 function ToolDetails(props: { readonly view: ToolApprovalView }): ReactNode {

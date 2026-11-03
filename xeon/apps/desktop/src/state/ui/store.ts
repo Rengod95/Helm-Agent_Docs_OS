@@ -6,9 +6,10 @@ import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
 /**
  * 응답을 보낸 뒤 승인 카드가 보이는 실패 표시. 같은 "적용되지 않음"도 이유에 따라 사용자가 할 일이 달라 나눠 둔다:
  * failed(연결이나 host 오류, 다시 누른다), invalid(답이 맞지 않음, 선택을 고쳐 다시 보낸다),
- * closed(다른 곳에서 이미 해결됨, 곧 사라진다), unapplied(적용되지 않았다는 것만 알림, 이유 미상)
+ * closed(다른 곳에서 이미 해결됨, 곧 사라진다), unapplied(적용되지 않았다는 것만 알림, 이유 미상),
+ * switching(엔진 대상을 바꾸는 중이라 보내지 않았다, 새 엔진이 붙으면 다시 누른다)
  */
-export type ApprovalFailure = "failed" | "invalid" | "closed" | "unapplied";
+export type ApprovalFailure = "failed" | "invalid" | "closed" | "unapplied" | "switching";
 export type ApprovalSend = "sending" | ApprovalFailure;
 
 /** 화면 둘 중 지금 보이는 것. 설정은 대화 화면 위에 열리는 같은 창의 다른 화면이다 */
@@ -63,6 +64,8 @@ export type UiState = {
   readonly commandOutput: CommandOutput | null;
   /** 셸 주입 확인 대기. 열려 있는 동안만 있다 */
   readonly shellConfirm: ShellConfirm | null;
+  /** 엔진 대상을 바꾸는 중(W-08). 쓰기 명령이 보류되고 입력창이 이를 알린다 */
+  readonly engineSwitching: boolean;
 };
 
 interface UiActions {
@@ -82,6 +85,7 @@ interface UiActions {
   dismissCommandOutput(): void;
   askShellConfirm(confirm: ShellConfirm): void;
   clearShellConfirm(): void;
+  setEngineSwitching(switching: boolean): void;
 }
 
 const INITIAL_UI: UiState = {
@@ -95,6 +99,7 @@ const INITIAL_UI: UiState = {
   observing: {},
   commandOutput: null,
   shellConfirm: null,
+  engineSwitching: false,
 };
 
 export type UiStore = { readonly read: ReadonlyStore<UiState>; readonly actions: UiActions };
@@ -136,6 +141,7 @@ export function createUiStore(): UiStore {
     dismissCommandOutput: () => api.setState({ commandOutput: null }),
     askShellConfirm: (shellConfirm) => api.setState({ shellConfirm }),
     clearShellConfirm: () => api.setState({ shellConfirm: null }),
+    setEngineSwitching: (engineSwitching) => api.setState({ engineSwitching }),
     setObserving: (id, observing) =>
       api.setState((s) => {
         if ((s.observing[id] === true) === observing) return s;
