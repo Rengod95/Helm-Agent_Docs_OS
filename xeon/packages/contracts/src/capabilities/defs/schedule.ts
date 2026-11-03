@@ -348,8 +348,15 @@ export const ScheduleCreateInputSchema: TObject<{
   { additionalProperties: false },
 );
 
-const CreateOutputSchema: TObject<{ entry: typeof ScheduleEntryViewSchema }> = Type.Object(
-  { entry: ScheduleEntryViewSchema },
+/** 서비스 모드가 꺼져 있어 이 예약이 앱이 열려 있어도 실행되지 않을 때 싣는다(L2.schedule.spec §4.4.6) */
+const CreateOutputSchema: TObject<{
+  entry: typeof ScheduleEntryViewSchema;
+  warnings: TOptional<TArray<TLiteral<"service_mode_off">>>;
+}> = Type.Object(
+  {
+    entry: ScheduleEntryViewSchema,
+    warnings: Type.Optional(Type.Array(Type.Literal("service_mode_off"), { maxItems: 4 })),
+  },
   { additionalProperties: false },
 );
 
@@ -444,9 +451,12 @@ function createInputOfToolParams(
 }
 
 /** 결과를 모델에게 한 줄로 돌려준다. 다음 기한이 없으면 `none`이다 */
-function createTextOf(entry: ScheduleEntryView): string {
+function createTextOf(entry: ScheduleEntryView, warnings: readonly string[] = []): string {
   const next = entry.nextDueAt === null ? "none" : new Date(entry.nextDueAt).toISOString();
-  return `schedule ${entry.id} next=${next}`;
+  const base = `schedule ${entry.id} next=${next}`;
+  return warnings.includes("service_mode_off")
+    ? `${base} warning=service_mode_off: this schedule does not run until the service mode is on; tell the user`
+    : base;
 }
 
 // L2.schedule.spec §4.4.9. 기능 정의는 이 파일 하나다.
@@ -554,7 +564,7 @@ export const ScheduleEntries: CapabilityDef<
       parameters: ScheduleCreateToolParams,
       toInput: createInputOfToolParams,
       toContent: (out) => ({
-        content: [{ type: "text", text: createTextOf(out.entry) }],
+        content: [{ type: "text", text: createTextOf(out.entry, out.warnings) }],
       }),
       executionMode: "sequential",
       hints: { readOnly: false, destructive: false, idempotent: false, openWorld: false },

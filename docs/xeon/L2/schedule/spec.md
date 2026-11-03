@@ -1361,6 +1361,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `"keepWithWarning"` | 저장하고 결과 `warnings`에 `runs_only_while_app_open`을 싣는다 | 앱 호스트가 Scheduler leader를 쥐는 동안(앱이 열려 있는 동안)만 틱이 돈다. 앱을 닫은 동안의 기한은 다음에 앱을 열 때 놓친 실행 정책을 따른다 |
 
 - 기본값은 `"autoStart"`다 [결정: review.decisions-2 U-23]. 서비스 모드 자동 기동은 결정 2의 1차 범위이고, 기동에 실패하면 거부하므로 사용자가 "예약했는데 안 돌았다"를 겪지 않는다. `L2.readme` §8의 수준 2 규칙과 같다. UC-4 대안 흐름("앱을 닫으면 멈춘다는 점을 예약 생성 때 표시한다")은 `"keepWithWarning"`이 구현한다.
+- 서비스 모드가 꺼진 채 저장된 예약은 `create` 결과(기능 출력)의 `warnings`에 `service_mode_off`를 싣고, 모델 도구 `schedule_create`는 결과 한 줄에 `warning=service_mode_off`와 사용자에게 알리라는 안내를 붙인다. 모델이 "예약했다"고만 답하지 않게 하려는 것이다 [제안].
 - 자동 기동 요청 경로는 `l2.schedule.service.ensureOnCreate`와 같은 클라이언트 호스트 `ensure`다. 요청 경로는 `L4.host-service.spec`이 정한다 [가정].
 - 서비스 모드가 켜져 있는데 서비스가 떠 있지 않으면 `create`는 저장한 뒤, `l2.schedule.service.ensureOnCreate`(기본 참)이면 클라이언트 호스트에 `ensure`를 요청한다. 요청 경로는 `L4.host-service.spec`이 정한다 [가정].
 
