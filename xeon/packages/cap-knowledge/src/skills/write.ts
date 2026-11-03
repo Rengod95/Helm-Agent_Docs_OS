@@ -127,6 +127,16 @@ function fileOf(tree: Tree | null, path: string): Uint8Array | undefined {
   return tree?.files.find((file) => file.path === path)?.bytes;
 }
 
+/** 대소문자와 유니코드 정규형만 다른 이름. 대소문자를 구분하지 않는 파일 시스템(APFS)에서는 같은 파일이다 */
+function foldedPath(path: string): string {
+  return path.normalize("NFC").toLowerCase();
+}
+
+function caseTwinOf(tree: Tree | null, path: string): string | undefined {
+  const folded = foldedPath(path);
+  return tree?.files.find((file) => file.path !== path && foldedPath(file.path) === folded)?.path;
+}
+
 function withFile(tree: Tree, path: string, bytes: Uint8Array): Tree {
   return treeOf([...tree.files.filter((file) => file.path !== path), { path, bytes }]);
 }
@@ -494,6 +504,15 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
     }
     const located = await locate(input.name, input.scope, caller, input.approval);
     if (!located.ok) return located;
+    // 이름만 대소문자가 다른 기존 파일이 있으면 거부한다. 트리는 둘을 따로 세지만 디스크에서는 한 파일이라 덮어쓰고 되돌림이 깨진다
+    const twin = caseTwinOf(located.value.current, input.path);
+    if (twin !== undefined) {
+      return err(
+        writeFailure(
+          `${twin} already exists and differs from ${input.path} only in case; write to ${twin} instead`,
+        ),
+      );
+    }
     const existing = fileOf(located.value.current, input.path);
     if (existing !== undefined && input.baseHash === undefined) {
       return err(writeFailure("baseHash is required to overwrite an existing file"));
