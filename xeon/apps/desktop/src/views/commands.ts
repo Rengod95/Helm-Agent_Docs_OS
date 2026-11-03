@@ -94,7 +94,8 @@ export interface ScheduleSnapshot {
  * 구형 host의 `unsupported`, 그 밖)만 바깥 `Result`의 `error`가 된다.
  */
 export interface ScheduleCommands {
-  list(): Promise<Result<ScheduleSnapshot, CommandError>>;
+  /** `schedule.list`. 거르기는 인자(`enabled: true`)로 보낸다. 모두는 빈 인자다 */
+  list(params: WireParams<"schedule.list">): Promise<Result<ScheduleSnapshot, CommandError>>;
   create(
     params: WireParams<"schedule.create">,
   ): Promise<Result<WireResult<"schedule.create">, CommandError>>;
@@ -140,10 +141,14 @@ export type ConnectTarget =
   | { readonly kind: "local" }
   | { readonly kind: "remote"; readonly address: string };
 
-/** 연결 화면이 읽는 host 상태. `host.status` 결과와 서비스 모드 설정 값이다 */
+/**
+ * 연결 화면이 읽는 host 상태. `host.status` 결과와 서비스 모드 설정 값이다. `remoteAllowRespond`는 원격 응답 허용 값이고,
+ * 엔진이 그 설정을 알리지 않으면(카탈로그에 없으면) `null`이다
+ */
 export interface ConnectionSnapshot {
   readonly host: WireResult<"host.status">;
   readonly serviceEnabled: boolean;
+  readonly remoteAllowRespond: boolean | null;
 }
 
 /** 원격 대상 목록을 읽거나 쓰지 못했다(로컬 설정 파일) */
@@ -164,6 +169,8 @@ export interface ConnectionCommands {
   load(): Promise<Result<ConnectionSnapshot, CommandError>>;
   /** 서비스 모드를 켜거나 끈다(`settings.set`, 사용자 범위). 적용은 엔진 재시작 뒤다 */
   setServiceMode(enabled: boolean): Promise<Result<null, CommandError>>;
+  /** 원격 연결에서 승인 요청에 답하는 것을 허락할지 바꾼다(`settings.set`, 사용자 범위). 바로 적용된다 */
+  setRemoteRespond(enabled: boolean): Promise<Result<null, CommandError>>;
   /** 서비스를 협조 종료한다(`host.shutdown`). 받아들여졌으면 `true`다 */
   stopService(): Promise<Result<boolean, CommandError>>;
 }

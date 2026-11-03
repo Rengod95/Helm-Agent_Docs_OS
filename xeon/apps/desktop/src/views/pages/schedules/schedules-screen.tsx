@@ -18,9 +18,11 @@ import {
   INITIAL_SCHEDULE_STATE,
   keyIntentOf,
   listFailureOf,
+  listParamsOf,
   noticeOf,
   scheduleReducer,
   selectedItemOf,
+  type ScheduleFilter,
 } from "./schedule-model.ts";
 import { commandErrorOf, message, scheduleErrorOf, type MessageRef } from "./schedule-text.ts";
 import { ScheduleScreenView, type ScheduleScreenHandlers } from "./schedules-view.tsx";
@@ -40,18 +42,21 @@ export function SchedulesScreen(): ReactNode {
   const [state, dispatch] = useReducer(scheduleReducer, INITIAL_SCHEDULE_STATE);
   // 늦게 온 응답이 새 응답을 덮지 않도록 읽기마다 번호를 매긴다
   const latest = useRef(0);
+  // 목록을 읽을 때 쓰는 거르기. 거르기 동작이 상태와 함께 바꾸고, 다시 읽기는 이 값을 쓴다
+  const filterRef = useRef<ScheduleFilter>(INITIAL_SCHEDULE_STATE.filter);
 
   const load = useCallback(async (): Promise<void> => {
     latest.current += 1;
     const seq = latest.current;
     dispatch({ type: "listStarted" });
-    const listed = await commands.schedule.list();
+    const listed = await commands.schedule.list(listParamsOf(filterRef.current));
     if (seq !== latest.current) return;
     if (listed.ok) {
       dispatch({
         type: "listLoaded",
         items: listed.value.items,
         serviceModeOff: listed.value.serviceModeOff,
+        nowMs: Date.now(),
       });
     } else {
       dispatch({ type: "listFailed", reason: listFailureOf(listed.error) });
@@ -183,6 +188,11 @@ export function SchedulesScreen(): ReactNode {
   };
 
   const handlers: ScheduleScreenHandlers = {
+    filter: (filter) => {
+      filterRef.current = filter;
+      dispatch({ type: "filterChanged", filter });
+      detach(load(), rethrow);
+    },
     openNew: () => {
       dispatch({ type: "openNew", nowMs: Date.now() });
     },

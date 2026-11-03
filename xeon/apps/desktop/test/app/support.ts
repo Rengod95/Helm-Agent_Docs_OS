@@ -11,6 +11,13 @@ export type EngineExtra = {
   readonly registerError?: SecretRegisterError;
   readonly results?: Readonly<Record<string, unknown>>;
   readonly errors?: Readonly<Record<string, { code: number; kind: string; details?: unknown }>>;
+  /** 요청 인자까지 보고 결과를 고른다(같은 메서드를 인자만 바꿔 두 번 부르는 시험용). `undefined`를 주면 `results`를 쓴다 */
+  readonly resultFor?: (method: string, params: unknown) => unknown;
+  /** 요청 인자까지 보고 오류를 고른다. `undefined`를 주면 `errors`를 쓴다 */
+  readonly failFor?: (
+    method: string,
+    params: unknown,
+  ) => { code: number; kind: string; details?: unknown } | undefined;
 };
 
 export const tick = (ms = 5): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -66,7 +73,8 @@ export function engineFake(
     },
     "turn.start": { turnId: "trn_00000000000000000000000001" },
   };
-  const result = (method: string): unknown => extra.results?.[method] ?? results[method] ?? {};
+  const result = (method: string, params: unknown): unknown =>
+    extra.resultFor?.(method, params) ?? extra.results?.[method] ?? results[method] ?? {};
   const fake = fakeIpc({
     ...(extra.registerError === undefined ? {} : { registerError: extra.registerError }),
     ...(stateForAttach === undefined ? {} : { stateForAttach }),
@@ -75,7 +83,7 @@ export function engineFake(
       methods.push(method);
       if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없어요
       params.push({ method, params: paramsOf(message) });
-      const failure = extra.errors?.[method];
+      const failure = extra.failFor?.(method, paramsOf(message)) ?? extra.errors?.[method];
       if (failure !== undefined) {
         f.emitLine({
           jsonrpc: "2.0",
@@ -92,7 +100,11 @@ export function engineFake(
         });
         return;
       }
-      f.emitLine({ jsonrpc: "2.0", id: requestId(message), result: result(method) });
+      f.emitLine({
+        jsonrpc: "2.0",
+        id: requestId(message),
+        result: result(method, paramsOf(message)),
+      });
     },
   });
   return { fake, methods, params };

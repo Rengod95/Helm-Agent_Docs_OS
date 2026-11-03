@@ -31,6 +31,7 @@ const handlers: ConnectionScreenHandlers = {
   confirmStop: NOOP,
   restart: NOOP,
   setServiceMode: NOOP,
+  setRemoteRespond: NOOP,
   setStopConfirm: NOOP,
   openExtensions: NOOP,
 };
@@ -99,5 +100,29 @@ describe("connection screen server render", () => {
       { type: "formFailed", errors: { label: false, address: "non_loopback" } },
     );
     expect(html(refused)).toContain("SSH 터널이나 사설망을 써요");
+  });
+
+  test("the remote answer row says what it does, and an engine that does not report the setting says it cannot be changed", () => {
+    const host = {
+      mode: "service" as const,
+      pid: 4211,
+      startedAt: "2026-11-04T01:00:00.000Z",
+      connections: 2,
+      liveTurns: 1,
+      idleShutdownAt: null,
+    };
+    const allowed = stateAfter({
+      type: "statusLoaded",
+      snapshot: { host, serviceEnabled: true, remoteAllowRespond: true },
+    });
+    const allowedMarkup = html(allowed);
+    expect(allowedMarkup).toContain("원격 응답 허용");
+    expect(allowedMarkup).toContain("꺼져 있으면 원격 연결에서는 승인 요청에 답할 수 없어요.");
+    expect(allowedMarkup).not.toContain("아직 알리지 않아서");
+    const unknown = stateAfter({
+      type: "statusLoaded",
+      snapshot: { host, serviceEnabled: true, remoteAllowRespond: null },
+    });
+    expect(html(unknown)).toContain("이 엔진은 이 설정을 아직 알리지 않아서 바꿀 수 없어요.");
   });
 });

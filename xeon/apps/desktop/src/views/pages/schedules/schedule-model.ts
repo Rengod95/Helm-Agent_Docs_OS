@@ -1,6 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
 import type { ScheduleListItem } from "@fresnel/contracts/capabilities";
 import { scheduleListView, type ScheduleRow } from "@fresnel/client";
+import type { WireParams } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
 import {
   draftOfEntry,
@@ -9,7 +10,7 @@ import {
   type ScheduleDraft,
   type SheetErrors,
 } from "./schedule-draft.ts";
-import type { MessageRef } from "./schedule-text.ts";
+import type { MessageRef, RowAction } from "./schedule-text.ts";
 
 // 예약 화면(P-07)의 상태 기계. 순수 함수만 둔다: 명령을 부르는 일은 화면이 맡고, 결과를 이 모델의 동작으로 옮긴다.
 // 목록은 요청 결과라 거울에 넣지 않는다(FS-03). 시각이 필요한 동작은 `now`를 받아 시험에서 값을 고정한다.
@@ -34,11 +35,20 @@ export interface SheetState {
   readonly sending: boolean;
 }
 
+/**
+ * 목록 거르기. `enabled`는 켜진 항목만(`schedule.list { enabled: true }`), `all`은 끈 항목까지(`schedule.list {}`)다.
+ * 거르기는 wire 인자라 바꾸면 목록을 다시 읽는다.
+ */
+export type ScheduleFilter = "enabled" | "all";
+
 export interface ScheduleState {
   readonly list: ListState;
   /** host가 준 목록 항목 그대로다. 행(`ScheduleRow`)은 `rowsOf`가 만든다 */
   readonly items: readonly ScheduleListItem[];
   readonly serviceModeOff: boolean;
+  readonly filter: ScheduleFilter;
+  /** 목록을 마지막으로 읽은 시각(epoch ms). 상대 시각은 이 값 기준이다(화면을 다시 그리지 않는다) */
+  readonly nowMs: number;
   readonly selectedId: string | null;
   /** 프롬프트를 펼친 항목 id */
   readonly expanded: readonly string[];
@@ -54,6 +64,8 @@ export const INITIAL_SCHEDULE_STATE: ScheduleState = {
   list: { kind: "loading" },
   items: [],
   serviceModeOff: false,
+  filter: "enabled",
+  nowMs: 0,
   selectedId: null,
   expanded: [],
   sheet: null,
@@ -68,8 +80,10 @@ export type ScheduleAction =
       readonly type: "listLoaded";
       readonly items: readonly ScheduleListItem[];
       readonly serviceModeOff: boolean;
+      readonly nowMs: number;
     }
   | { readonly type: "listFailed"; readonly reason: ListFailure }
+  | { readonly type: "filterChanged"; readonly filter: ScheduleFilter }
   | { readonly type: "select"; readonly id: string }
   | { readonly type: "move"; readonly delta: 1 | -1 }
   | { readonly type: "toggleExpanded"; readonly id: string }
@@ -150,6 +164,34 @@ function moved(state: ScheduleState, delta: 1 | -1): ScheduleState {
   return row === undefined ? state : { ...state, selectedId: row.id };
 }
 
+/** 거르기 값을 `schedule.list` 인자로 바꾼다. 모두는 빈 인자다(인자를 생략하면 가장 새 200개다) */
+export function listParamsOf(filter: ScheduleFilter): WireParams<"schedule.list"> {
+  return filter === "enabled" ? { enabled: true } : {};
+}
+
+export interface RowMenuItem {
+  readonly action: RowAction;
+  readonly disabled: boolean;
+}
+
+/**
+ * 행 메뉴의 항목과 잠금. 마지막 실행 대화 열기는 대화가 있을 때만 나오고 목록에 없으면 잠근다. 지금 실행은 원격 트리거
+ * 행만, 취소는 켜진 행만 나온다. 복제는 늘 나온다. `acting`이 거짓이면(연결 없음, 다른 명령 중) 모든 항목을 잠근다.
+ */
+export function rowMenuOf(
+  row: ScheduleRow,
+  acting: boolean,
+  openable: boolean,
+): readonly RowMenuItem[] {
+  const items: RowMenuItem[] = [];
+  const threadId = row.lastRun?.threadId ?? null;
+  if (threadId !== null) items.push({ action: "openThread", disabled: !acting || !openable });
+  if (row.triggerKind === "remote") items.push({ action: "fire", disabled: !acting });
+  if (row.enabled) items.push({ action: "cancel", disabled: !acting });
+  items.push({ action: "copy", disabled: !acting });
+  return items;
+}
+
 export function scheduleReducer(state: ScheduleState, action: ScheduleAction): ScheduleState {
   switch (action.type) {
     case "listStarted":
@@ -161,11 +203,21 @@ export function scheduleReducer(state: ScheduleState, action: ScheduleAction): S
         list: { kind: "ready" },
         items: action.items,
         serviceModeOff: action.serviceModeOff,
+        nowMs: action.nowMs,
         selectedId: keepSelection(state.selectedId, rows),
       };
     }
     case "listFailed":
       return { ...state, list: listStateOf(action.reason) };
+    case "filterChanged":
+      // 거르기를 바꾸면 선택과 열린 프롬프트, 취소 확인을 비운다(목록은 화면이 다시 읽는다)
+      return {
+        ...state,
+        filter: action.filter,
+        selectedId: null,
+        expanded: [],
+        cancelId: null,
+      };
     case "select":
       return { ...state, selectedId: action.id };
     case "move":

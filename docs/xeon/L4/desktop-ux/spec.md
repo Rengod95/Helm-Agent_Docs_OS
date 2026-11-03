@@ -1516,6 +1516,16 @@ compact 폭(720 이하)과 사이드바 시트:
 - 접근성: 표는 `Table` 머리와 정렬, 상태는 문자와 색 둘 다.
 - caustic: `Table`, `Sheet`, `FormLayout`, `Field`, `Input`, `NumberField`, `SegmentedControl`, `DatePicker`, `TagInput`(감시 경로), `Textarea`, `Switch`, `Alert`, `Menu`, `Badge`, `EmptyState`. 트리거 편집 부품은 조합으로 만듭니다 `[gap:C-13]`.
 
+#### 구현 노트 (P-07, 트랙 chat3)
+
+- 파일: `xeon/apps/desktop/src/views/pages/schedules/`(모델 `schedule-model.ts`: 거르기, 목록 시각, 행 메뉴 `rowMenuOf`, 상태 기계. 문장 `schedule-text.ts`. 표 `schedule-table.tsx`. 그림 `schedules-view.tsx`. 동작 `schedules-screen.tsx`. 시트와 복제는 `schedule-sheet.tsx`, `schedule-draft.ts`가 맡는다). 명령은 `app/schedule.ts`(`list(params)`). 상대 시각은 `views/pages/shared/relative-age.ts`(앞으로의 시각 `dueAgeOf`, 지난 시각 `relativeAgeOf`).
+- 거르기: `[켜진 것 | 모두]`는 wire 인자다. 켜진 것은 `schedule.list { enabled: true }`, 모두는 `schedule.list {}`다(CLI §4.14와 같다). 기본은 켜진 것이다. 거르기를 바꾸면 선택, 열린 프롬프트, 취소 확인을 비우고 목록을 다시 읽는다.
+- 행 메뉴: 행 끝의 `[...]`(`IconButton`, `Menu`)에 네 항목을 둔다. 항목과 잠금은 `rowMenuOf`가 정한다: 마지막 실행 대화 열기(대화 id가 있을 때만, 목록에 없으면 잠금), 지금 실행(원격 트리거 행만, `schedule.fire { scheduleId }`), 취소(켜진 행만, 기존 O-06 확인), 복제(늘, O-08 시트를 같은 값으로 연다). 표의 "대화 열기" 단추는 메뉴로 옮겼다. Enter로 대화를 여는 키는 그대로다.
+- 상대 시각: 다음 실행은 `dueAgeOf`가 "곧", "N분 뒤", "14:20", "내일 09:00"을 만들고, 그 밖은 절대 시각이다. 마지막 실행은 끝난 때(없으면 시작한 때, 그도 없으면 잡은 때)를 "N분 전"으로 쓴다. 절대 시각은 `Tooltip`에 둔다. 기준 시각은 목록을 마지막으로 읽은 때(`state.nowMs`)다. "완료 어제"의 "어제"는 아직 없어 "1일 전"으로 쓴다 [미결].
+- 경고: 서비스 모드 꺼짐 띠와 "서비스 켜기"는 이미 있던 그대로다. 행의 멈춘 이유는 `stoppedReason` 칸이다. `l2.schedule.timers.whenServiceOff`와 `host.status.mode`는 읽지 않는다(L2 schedule §4.4.6에서 자동 기동은 M4에 구현하지 않기로 했다).
+- 시험: `test/views/schedule-model.test.ts`(거르기 인자, 정렬과 갱신, 행 메뉴 항목과 잠금, 다음 실행과 마지막 실행 문장, 카탈로그 키), `test/views/relative-age.test.ts`(`dueAgeOf`), `test/views/schedules-screen.test.tsx`(서버 렌더: 거르기 칸, 상대 시각, 메뉴 단추), `test/app/schedule-commands.test.ts`(가짜 엔진: list 인자, fire 인자와 결과, 복제한 시트의 create 인자).
+- 빠진 것: 메뉴 항목은 열어야 그려지므로 서버 렌더에서는 보이지 않는다(뜻은 모델 시험이 본다). 실행 기록은 `lastRun`만 있다 [gap:W-07]. `schedule.list`의 `before` 쪽 나누기는 쓰지 않는다(200개 상한).
+
 ### 6.12 P-08 연결
 
 ```text
@@ -1575,6 +1585,15 @@ compact 폭(720 이하)과 사이드바 시트:
 - caustic: `RadioGroup`, `List`, `ListDescription`(상태 키-값), `Stepper`, `Switch`, `Input`, `Button`, `Alert`, `Badge`, `Dialog`.
 
 - 확장 요약은 P-08에 두지 않습니다. 연결(P-08)은 대화 영역 주 내비에 남고 [결정: 2026-10-31 사용자], 확장 상태는 LightCraft 엔진(P-15)과 개요(P-16)가 보입니다(DP-23). P-08 엔진 상태 행 아래에 "LightCraft 엔진에서 확장 상태 보기" 링크 한 줄만 둡니다.
+
+#### 구현 노트 (P-08, 트랙 chat3)
+
+- 파일: `xeon/apps/desktop/src/views/pages/connection/`(상태 `connection-model.ts`와 잠금 `canSetRemoteRespond`, 상태 카드 `connection-status.tsx`, 동작 `connection-screen.tsx`). 명령은 `app/connection.ts`(`load`, `setRemoteRespond`)다.
+- 원격 응답 허용: 상태 카드에서 서비스 모드 줄 아래에 둔다. 켜고 끄는 것은 `settings.set { key: "l2.schedule.remote.allowRespond", value, scope: "user" }`이고 재시작 없이 바로 적용된다(L2 schedule §6은 `live`). 값은 `ConnectionSnapshot.remoteAllowRespond`로 읽는다. 줄 아래에 한 줄 설명을 둔다: "꺼져 있으면 원격 연결에서는 승인 요청에 답할 수 없어요."
+- 읽기는 spec과 다르게 두 번 나눴다. spec은 서비스 키와 원격 응답 키를 한 `settings.get`으로 읽는다. 그런데 지금 엔진 카탈로그에는 `l2.schedule.remote.allowRespond`가 없어(cap-schedule 설정 정의는 `l2.schedule.entries.directCreate` 하나다) 한 키라도 모르면 `settings.get` 전체가 `settings.unknownKey`로 거절되고, 상태 카드가 통째로 실패한다. 그래서 원격 응답 키는 따로 읽고, 그 키를 모른다는 거절만 값 모름(`null`)으로 받는다. 다른 실패는 `load` 전체 실패다. 값이 `null`이면 줄은 잠기고 "이 엔진은 이 설정을 아직 알리지 않아서 바꿀 수 없어요."를 보인다.
+- 잠금: `canSetRemoteRespond`는 상태를 읽었고, 값을 알고, 다른 명령이나 연결 진행이 없을 때만 참이다. 오프라인이면 값을 보이고 잠근다.
+- 시험: `test/views/connection-model.test.ts`(잠금 규칙, 값 반영, 재시작 필요 표시가 없음), `test/views/connection-screen.test.tsx`(줄 문장과 알 수 없음 문장), `test/app/connection-commands.test.ts`(두 번의 `settings.get` 인자, 모르는 키의 처리, 다른 실패, `settings.set` 인자).
+- 빠진 것: `l2.schedule.remote.enabled`는 읽지 않는다(이 줄에 필요 없다). 원격 연결 단계는 `[gap:W-08]` 그대로다. `l2.schedule.remote.allowRespond` 정의가 cap-schedule에 생기기 전까지 이 줄은 "알리지 않음" 상태다 [gap: L2 schedule §6 정의 없음].
 
 ### 6.13 P-09 설정
 

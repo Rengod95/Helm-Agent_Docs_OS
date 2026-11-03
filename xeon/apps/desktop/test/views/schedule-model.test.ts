@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { catalogOf } from "@fresnel/client/i18n";
-import type { ScheduleLastRun } from "@fresnel/client";
-import type { ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
+import { scheduleRowOf, type ScheduleLastRun } from "@fresnel/client";
+import type { RunView, ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
 import {
   checkDraft,
   draftOfEntry,
@@ -11,19 +11,28 @@ import {
   type ScheduleDraft,
 } from "../../src/views/pages/schedules/schedule-draft.ts";
 import {
+  canAct,
   INITIAL_SCHEDULE_STATE,
   isOffline,
   keyIntentOf,
   listFailureOf,
+  listParamsOf,
+  rowMenuOf,
   rowsOf,
   scheduleReducer,
   type ScheduleState,
 } from "../../src/views/pages/schedules/schedule-model.ts";
 import {
+  FILTER_ID,
+  lastRunAtOf,
   lastRunStatusOf,
+  message,
+  nextRunTextOf,
+  ROW_ACTION_ID,
   type MessageRef,
   SCHEDULE_ERROR_ID,
   scheduleErrorOf,
+  timeTextOf,
   triggerSummaryOf,
 } from "../../src/views/pages/schedules/schedule-text.ts";
 
@@ -68,7 +77,28 @@ function loaded(items: readonly ScheduleListItem[], serviceModeOff = false): Sch
     type: "listLoaded",
     items,
     serviceModeOff,
+    nowMs: NOW,
   });
+}
+
+/** 목록 항목 한 줄의 마지막 실행 기록. 시험 값은 끝난 실행 하나다 */
+function finishedRunOf(overrides: Partial<RunView>): RunView {
+  return {
+    runId: "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    scheduleId: "sch_aa1",
+    firedBy: "interval",
+    dueAt: NOW - 600_000,
+    claimedAt: NOW - 600_000,
+    missed: false,
+    status: "finished",
+    threadId: "thr_00000000000000000000000001",
+    startedAt: NOW - 600_000,
+    endedAt: NOW - 180_000,
+    outcome: "completed",
+    reason: null,
+    skippedCount: 0,
+    ...overrides,
+  };
 }
 
 describe("list state and rows", () => {
@@ -85,6 +115,7 @@ describe("list state and rows", () => {
       type: "listLoaded",
       items: [LATER, SOONER],
       serviceModeOff: false,
+      nowMs: NOW,
     });
     expect(refreshed.selectedId).toBe("sch_bb2");
   });
@@ -95,6 +126,7 @@ describe("list state and rows", () => {
       type: "listLoaded",
       items: [SOONER],
       serviceModeOff: false,
+      nowMs: NOW,
     });
     expect(refreshed.selectedId).toBe("sch_cc3");
   });
@@ -441,5 +473,129 @@ describe("message keys", () => {
       id: "desktop.schedules.error.notRemote",
       args: {},
     });
+  });
+});
+
+describe("filter, list time and the row menu", () => {
+  test("the list opens on the enabled rows, with no list time yet", () => {
+    expect(INITIAL_SCHEDULE_STATE.filter).toBe("enabled");
+    expect(INITIAL_SCHEDULE_STATE.nowMs).toBe(0);
+  });
+
+  test("the filter is a wire argument: enabled asks for enabled rows, all asks with no argument", () => {
+    expect(listParamsOf("enabled")).toEqual({ enabled: true });
+    expect(listParamsOf("all")).toEqual({});
+  });
+
+  test("a loaded list keeps the time it was read at, for the relative times", () => {
+    expect(loaded([LATER]).nowMs).toBe(NOW);
+  });
+
+  test("changing the filter clears the selection, the open prompts and the cancel confirm, and keeps the filter", () => {
+    const state: ScheduleState = {
+      ...loaded([LATER, SOONER]),
+      expanded: ["sch_bb2"],
+      cancelId: "sch_bb2",
+    };
+    const changed = scheduleReducer(state, { type: "filterChanged", filter: "all" });
+    expect(changed.filter).toBe("all");
+    expect(changed.selectedId).toBeNull();
+    expect(changed.expanded).toEqual([]);
+    expect(changed.cancelId).toBeNull();
+    expect(changed.items).toEqual([LATER, SOONER]);
+  });
+
+  test("a remote row with a thread on the list has open, run now, cancel and duplicate, in that order", () => {
+    const row = scheduleRowOf(
+      itemOf({ id: "sch_rr1", trigger: { kind: "remote" } }, finishedRunOf({})),
+    );
+    expect(rowMenuOf(row, true, true)).toEqual([
+      { action: "openThread", disabled: false },
+      { action: "fire", disabled: false },
+      { action: "cancel", disabled: false },
+      { action: "copy", disabled: false },
+    ]);
+  });
+
+  test("an interval row with no run has only cancel and duplicate, and a thread no longer on the list is locked", () => {
+    const plain = scheduleRowOf(itemOf({ id: "sch_pp1" }));
+    expect(rowMenuOf(plain, true, false)).toEqual([
+      { action: "cancel", disabled: false },
+      { action: "copy", disabled: false },
+    ]);
+    const gone = scheduleRowOf(itemOf({ id: "sch_gg1" }, finishedRunOf({})));
+    expect(rowMenuOf(gone, true, false)).toEqual([
+      { action: "openThread", disabled: true },
+      { action: "cancel", disabled: false },
+      { action: "copy", disabled: false },
+    ]);
+  });
+
+  test("a switched-off row has no cancel, and offline or busy locks every item", () => {
+    const off = scheduleRowOf(
+      itemOf({ id: "sch_of1", enabled: false, nextDueAt: null }, finishedRunOf({})),
+    );
+    expect(rowMenuOf(off, true, true)).toEqual([
+      { action: "openThread", disabled: false },
+      { action: "copy", disabled: false },
+    ]);
+    const remote = scheduleRowOf(
+      itemOf({ id: "sch_rr2", trigger: { kind: "remote" } }, finishedRunOf({})),
+    );
+    expect(rowMenuOf(remote, false, true)).toEqual([
+      { action: "openThread", disabled: true },
+      { action: "fire", disabled: true },
+      { action: "cancel", disabled: true },
+      { action: "copy", disabled: true },
+    ]);
+    const offline = loaded([]);
+    expect(canAct({ ...offline, busy: true })).toBe(false);
+  });
+
+  test("the next run reads as a relative time: soon, minutes, the clock, tomorrow, and the absolute time after that", () => {
+    const now = new Date(2026, 10, 4, 8, 0).getTime();
+    const soon = new Date(2026, 10, 4, 8, 0, 30).getTime();
+    const minutes = new Date(2026, 10, 4, 8, 20).getTime();
+    const today = new Date(2026, 10, 4, 14, 20).getTime();
+    const tomorrow = new Date(2026, 10, 5, 9, 0).getTime();
+    const later = new Date(2026, 10, 9, 9, 5).getTime();
+    expect(nextRunTextOf(soon, now, "ko")).toEqual(message("desktop.common.due.soon"));
+    expect(nextRunTextOf(minutes, now, "ko")).toEqual(
+      message("desktop.common.due.inMinutes", { count: 20 }),
+    );
+    expect(nextRunTextOf(today, now, "ko")).toEqual(
+      message("desktop.common.due.at", { time: "14:20" }),
+    );
+    expect(nextRunTextOf(tomorrow, now, "ko")).toEqual(
+      message("desktop.common.due.tomorrow", { time: "09:00" }),
+    );
+    expect(nextRunTextOf(later, now, "ko")).toEqual(
+      message("desktop.common.due.at", { time: timeTextOf(later, "ko") }),
+    );
+  });
+
+  test("the last run time is the end, else the start, else the claim", () => {
+    expect(lastRunAtOf(finishedRunOf({ endedAt: 9, startedAt: 7, claimedAt: 5 }))).toBe(9);
+    expect(lastRunAtOf(finishedRunOf({ endedAt: null, startedAt: 7, claimedAt: 5 }))).toBe(7);
+    expect(lastRunAtOf(finishedRunOf({ endedAt: null, startedAt: null, claimedAt: 5 }))).toBe(5);
+  });
+
+  test("the filter, the row menu and the due-time sentences exist in both locales", () => {
+    const ko = catalogOf("ko");
+    const en = catalogOf("en");
+    const ids: readonly string[] = [
+      ...Object.values(FILTER_ID),
+      ...Object.values(ROW_ACTION_ID),
+      "desktop.schedules.rowMenu",
+      "desktop.schedules.filter.label",
+      "desktop.common.due.soon",
+      "desktop.common.due.inMinutes",
+      "desktop.common.due.at",
+      "desktop.common.due.tomorrow",
+    ];
+    for (const id of ids) {
+      expect(ko[id] === undefined).toBe(false);
+      expect(en[id] === undefined).toBe(false);
+    }
   });
 });

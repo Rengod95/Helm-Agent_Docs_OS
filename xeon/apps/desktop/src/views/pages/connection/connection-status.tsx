@@ -12,7 +12,11 @@ import {
 import { ArrowRight, RotateCw } from "@caustic/react/icons";
 import { useId, type ReactNode } from "react";
 import type { EngineState } from "../../../state/engine/index.ts";
-import type { ConnectionState, TargetChoice } from "./connection-model.ts";
+import {
+  canSetRemoteRespond,
+  type ConnectionState,
+  type TargetChoice,
+} from "./connection-model.ts";
 import { engineMessageOf, modeMessageOf, timeTextOf } from "./connection-text.ts";
 
 // 연결 화면의 상태 카드(P-08 오른쪽). 현재 대상과 host.status 값을 키-값 목록으로, 서비스 모드 설정, 엔진 다시 시작,
@@ -23,6 +27,7 @@ import { engineMessageOf, modeMessageOf, timeTextOf } from "./connection-text.ts
 export interface StatusHandlers {
   readonly restart: () => void;
   readonly setServiceMode: (enabled: boolean) => void;
+  readonly setRemoteRespond: (enabled: boolean) => void;
   readonly setStopConfirm: (open: boolean) => void;
   readonly openExtensions: () => void;
 }
@@ -46,6 +51,7 @@ export function ConnectionStatusCard(props: ConnectionStatusCardProps): ReactNod
   const { state, engine, locale, handlers } = props;
   const headingId = useId();
   const switchId = useId();
+  const respondId = useId();
   const snapshot = state.status.kind === "ready" ? state.status.snapshot : null;
   const host = snapshot === null ? null : snapshot.host;
   // 설정 쓰기와 서비스 멈추기는 연결이 있고 다른 동작이 가고 있지 않을 때만 한다
@@ -129,6 +135,25 @@ export function ConnectionStatusCard(props: ConnectionStatusCardProps): ReactNod
       <p className="text-ui-sm text-text-tertiary">
         {t("desktop.connection.status.serviceModeHint")}
       </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span id={respondId} className="text-ui text-text-primary">
+          {t("desktop.connection.status.remoteRespond")}
+        </span>
+        <Switch
+          aria-labelledby={respondId}
+          checked={state.remoteAllowRespond === true}
+          disabled={!canSetRemoteRespond(state)}
+          onCheckedChange={handlers.setRemoteRespond}
+        />
+      </div>
+      <p className="text-ui-sm text-text-tertiary">
+        {t("desktop.connection.status.remoteRespondHint")}
+      </p>
+      {state.status.kind === "ready" && state.remoteAllowRespond === null ? (
+        <p className="text-ui-sm text-text-tertiary">
+          {t("desktop.connection.status.remoteRespondUnknown")}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="outline"

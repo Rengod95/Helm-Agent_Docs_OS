@@ -6,6 +6,7 @@ import type { EngineState, Link } from "../../src/state/engine/index.ts";
 import {
   attachFailureOf,
   canConnect,
+  canSetRemoteRespond,
   checkForm,
   choiceOfValue,
   connectionReducer,
@@ -405,6 +406,7 @@ describe("the list, selection and status follow their actions", () => {
           idleShutdownAt: null,
         },
         serviceEnabled: false,
+        remoteAllowRespond: true,
       },
     });
     expect(loaded.serviceEnabled).toBe(false);
@@ -417,5 +419,54 @@ describe("the list, selection and status follow their actions", () => {
   test("the update line with no data source is the unchecked line", () => {
     expect(updateLineKey({ state: "unchecked" })).toBe("desktop.update.unchecked");
     expect(catalogOf("ko")["desktop.update.unchecked"]).toBe("업데이트를 아직 확인하지 않았어요.");
+  });
+});
+
+/** 상태를 읽은 뒤의 화면 상태. 원격 응답 허용 값을 정한다(null이면 엔진이 알리지 않는다) */
+function statusWith(remoteAllowRespond: boolean | null): ConnectionState {
+  return run(withItems([]), {
+    type: "statusLoaded",
+    snapshot: {
+      host: {
+        mode: "service",
+        pid: 1,
+        startedAt: "2026-11-04T01:00:00.000Z",
+        connections: 0,
+        liveTurns: 0,
+        idleShutdownAt: null,
+      },
+      serviceEnabled: true,
+      remoteAllowRespond,
+    },
+  });
+}
+
+describe("the remote answer setting", () => {
+  test("the loaded value is kept, and a change shows at once with no restart needed", () => {
+    const loaded = statusWith(false);
+    expect(loaded.remoteAllowRespond).toBe(false);
+    const changed = connectionReducer(loaded, { type: "remoteRespondSet", enabled: true });
+    expect(changed.remoteAllowRespond).toBe(true);
+    expect(changed.restartNeeded).toBe(false);
+  });
+
+  test("the row is locked while the status is not read, while the engine does not report the setting, and while busy or connecting", () => {
+    expect(canSetRemoteRespond(INITIAL_CONNECTION_STATE)).toBe(false);
+    expect(canSetRemoteRespond(statusWith(null))).toBe(false);
+    expect(canSetRemoteRespond({ ...statusWith(true), busy: true })).toBe(false);
+    expect(canSetRemoteRespond(run(statusWith(true), started(REMOTE_BUILD, null, "offline")))).toBe(
+      false,
+    );
+  });
+
+  test("the row is open once the status is read, the value is known, and nothing else is going on", () => {
+    expect(canSetRemoteRespond(statusWith(true))).toBe(true);
+    expect(canSetRemoteRespond(statusWith(false))).toBe(true);
+  });
+
+  test("with no connection the status is offline and the row stays locked", () => {
+    const offline = run(statusWith(true), { type: "statusFailed", reason: "offline" });
+    expect(canSetRemoteRespond(offline)).toBe(false);
+    expect(offline.remoteAllowRespond).toBe(true);
   });
 });

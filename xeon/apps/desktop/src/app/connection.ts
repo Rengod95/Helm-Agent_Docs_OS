@@ -1,6 +1,6 @@
 import { targetsStorageOf, type AttachFailureKind, type TargetEntry } from "@fresnel/client";
 import { err, ok, type Result } from "@fresnel/contracts";
-import type { HostConnection } from "@fresnel/contracts/wire";
+import { WIRE_ERRORS, type HostConnection } from "@fresnel/contracts/wire";
 import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
 import type {
@@ -18,6 +18,9 @@ import type { Session } from "./session.ts";
 
 /** 서비스 모드 설정 키. 설정 화면과 예약 화면이 같은 키를 쓴다(app/schedule.ts) */
 const SERVICE_ENABLED_KEY = "l0.process.service.enabled";
+/** 원격 응답 허용 설정 키(L2.schedule §6). 엔진 카탈로그에 없으면 `settings.unknownKey`로 거절된다 */
+const REMOTE_RESPOND_KEY = "l2.schedule.remote.allowRespond";
+const UNKNOWN_KEY_CODE = WIRE_ERRORS["settings.unknownKey"].code;
 
 const SCOPE = "user";
 
@@ -76,11 +79,30 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
       const settings = await run((c) => c.request("settings.get", { keys: [SERVICE_ENABLED_KEY] }));
       if (!settings.ok) return settings;
       const setting = settings.value.settings.find((item) => item.key === SERVICE_ENABLED_KEY);
-      return ok({ host: host.value, serviceEnabled: setting?.value === true });
+      // 원격 응답 허용은 따로 읽는다. 엔진이 모르는 키 하나 때문에 `settings.get`이 통째로 거절되면 상태 카드 전체를 잃는다
+      const remote = await run((c) => c.request("settings.get", { keys: [REMOTE_RESPOND_KEY] }));
+      if (!remote.ok) {
+        const unknown = remote.error.kind === "rejected" && remote.error.code === UNKNOWN_KEY_CODE;
+        if (!unknown) return remote;
+        return ok({
+          host: host.value,
+          serviceEnabled: setting?.value === true,
+          remoteAllowRespond: null,
+        });
+      }
+      const allow = remote.value.settings.find((item) => item.key === REMOTE_RESPOND_KEY);
+      const remoteAllowRespond = typeof allow?.value === "boolean" ? allow.value : null;
+      return ok({ host: host.value, serviceEnabled: setting?.value === true, remoteAllowRespond });
     },
     async setServiceMode(enabled: boolean): Promise<Result<null, CommandError>> {
       const written = await run((c) =>
         c.request("settings.set", { key: SERVICE_ENABLED_KEY, value: enabled, scope: SCOPE }),
+      );
+      return written.ok ? ok(null) : written;
+    },
+    async setRemoteRespond(enabled: boolean): Promise<Result<null, CommandError>> {
+      const written = await run((c) =>
+        c.request("settings.set", { key: REMOTE_RESPOND_KEY, value: enabled, scope: SCOPE }),
       );
       return written.ok ? ok(null) : written;
     },

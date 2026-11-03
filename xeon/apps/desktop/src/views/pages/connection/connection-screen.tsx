@@ -155,6 +155,20 @@ export function ConnectionScreen(): ReactNode {
     dispatch({ type: "serviceModeSet", enabled });
   };
 
+  const writeRemoteRespond = async (enabled: boolean): Promise<void> => {
+    dispatch({ type: "busy", busy: true });
+    const written = await commands.connection.setRemoteRespond(enabled);
+    dispatch({ type: "busy", busy: false });
+    if (!written.ok) {
+      dispatch({
+        type: "notice",
+        notice: { tone: "danger", id: "desktop.connection.actionFailed" },
+      });
+      return;
+    }
+    dispatch({ type: "remoteRespondSet", enabled });
+  };
+
   const stopService = async (): Promise<void> => {
     dispatch({ type: "stopConfirm", open: false });
     dispatch({ type: "busy", busy: true });
@@ -213,6 +227,9 @@ export function ConnectionScreen(): ReactNode {
     },
     setServiceMode: (enabled) => {
       detach(writeServiceMode(enabled), rethrow);
+    },
+    setRemoteRespond: (enabled) => {
+      detach(writeRemoteRespond(enabled), rethrow);
     },
     setStopConfirm: (open) => {
       dispatch({ type: "stopConfirm", open });

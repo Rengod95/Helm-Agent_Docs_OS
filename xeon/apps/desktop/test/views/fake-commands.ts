@@ -76,6 +76,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       retry: () => Promise.resolve(),
       load: () => Promise.resolve(err({ kind: "unsupported" })),
       setServiceMode: () => Promise.resolve(err({ kind: "unsupported" })),
+      setRemoteRespond: () => Promise.resolve(err({ kind: "unsupported" })),
       stopService: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     secrets: {

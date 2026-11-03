@@ -14,6 +14,7 @@ import {
   type TriggerDraftResult,
 } from "@fresnel/client";
 import type { CommandError } from "../../commands.ts";
+import { dueAgeOf } from "../shared/relative-age.ts";
 
 // 예약 화면의 문장 조립. 값은 메시지 키와 인자로 바꾸고, 문장은 화면이 `t()`로 만든다(트리거 요약은 데이터다).
 // 키 이름은 카탈로그 검사(MESSAGE_KEY_PATTERN)를 따르려고 `_` 없이 camelCase다. 오류 코드는 `SCHEDULE_ERROR_ID`로 잇는다.
@@ -62,6 +63,33 @@ export function timeTextOf(epochMs: number, locale: Locale): string {
     new Date(epochMs),
   );
 }
+
+/** 다음 실행 칸의 문장. 가까운 시각은 상대 문장("N분 뒤", "내일 09:00")이고, 먼 시각은 절대 시각이다 */
+export function nextRunTextOf(dueMs: number, nowMs: number, locale: Locale): MessageRef {
+  const age = dueAgeOf(dueMs, nowMs, timeTextOf(dueMs, locale));
+  return message(age.id, age.args);
+}
+
+/** 마지막 실행의 시각: 끝난 때, 없으면 시작한 때, 그도 없으면 잡은 때다 */
+export function lastRunAtOf(run: RunView): number {
+  return run.endedAt ?? run.startedAt ?? run.claimedAt;
+}
+
+/** 행 메뉴의 항목 문장 */
+export type RowAction = "openThread" | "fire" | "cancel" | "copy";
+
+export const ROW_ACTION_ID: Readonly<Record<RowAction, MessageId>> = {
+  openThread: "desktop.schedules.openThread",
+  fire: "desktop.schedules.fire",
+  cancel: "desktop.schedules.cancel",
+  copy: "desktop.schedules.copy",
+};
+
+/** 거르기 칸의 문장. 값은 `ScheduleFilter`와 같다 */
+export const FILTER_ID: Readonly<Record<"enabled" | "all", MessageId>> = {
+  enabled: "desktop.schedules.filter.enabled",
+  all: "desktop.schedules.filter.all",
+};
 
 /** 트리거 한 줄 요약(표의 "트리거" 칸) */
 export function triggerSummaryOf(trigger: ScheduleTrigger, locale: Locale): MessageRef {
