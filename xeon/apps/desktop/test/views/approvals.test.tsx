@@ -237,3 +237,16 @@ describe("tool replacement approval card", () => {
     expect(html(toolRequest({ command: "ls" }))).not.toContain("기본 도구를 대체하려는");
   });
 });
+
+const withCaller = (caller: string): ApprovalRequestedPayload => ({
+  ...toolRequest({ command: "ls" }),
+  origin: { ...origin, caller },
+});
+
+describe("approval origin line", () => {
+  test("a child agent request shows where it came from, and a main request shows nothing", () => {
+    expect(html(withCaller("subagent:렌즈"))).toContain("요청한 곳: 보조 에이전트 렌즈");
+    expect(html(withCaller("ext:helm"))).toContain("요청한 곳: 그룹 helm");
+    expect(html(withCaller("main"))).not.toContain("요청한 곳");
+  });
+});

@@ -91,7 +91,7 @@ export function toolApprovalView(body: ToolApprovalBody): ToolApprovalView {
 // ── 내장 도구 대체 승인 ──────────────────────────────────────────────────
 
 /** 대체 승인의 도구 이름. 서비스 쪽 상수 `TOOL_REPLACE_APPROVAL_TOOL`과 같은 wire 문자열이다(L1.tools §4.13) */
-export const TOOL_REPLACE_TOOL_NAME = "tool_replace";
+const TOOL_REPLACE_TOOL_NAME = "tool_replace";
 
 type ReplaceTrust = "builtin" | "user" | "project" | "untrusted";
 const REPLACE_TRUSTS: readonly ReplaceTrust[] = ["builtin", "user", "project", "untrusted"];
@@ -196,3 +196,20 @@ export function answerOf(
 }
 
 export const QUESTION_TEXT_MAX: number = FREE_TEXT_MAX;
+
+// ── 요청한 곳(U-7) ───────────────────────────────────────────────────────
+
+/** 승인 출처 표시. `main`은 보이지 않는다(null). 확장 caller `ext:<이름>`은 그룹 이름으로 보인다(화면은 `grp:<이름>`) */
+export type ApprovalOriginView =
+  | { readonly kind: "background" }
+  | { readonly kind: "host" }
+  | { readonly kind: "subagent"; readonly name: string }
+  | { readonly kind: "group"; readonly name: string };
+
+export function approvalOriginView(caller: string): ApprovalOriginView | null {
+  if (caller === "background") return { kind: "background" };
+  if (caller === "host") return { kind: "host" };
+  if (caller.startsWith("subagent:")) return { kind: "subagent", name: caller.slice(9) };
+  if (caller.startsWith("ext:")) return { kind: "group", name: caller.slice(4) };
+  return null;
+}

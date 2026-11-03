@@ -1,5 +1,5 @@
 import { Inbox, MessageSquare } from "@caustic/react/icons";
-import { ApprovalQueue } from "./approvals.tsx";
+import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
 import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { TrustCard } from "./trust.tsx";
@@ -10,8 +10,6 @@ import {
   type ScreenDef,
   type ShellRegistry,
 } from "./shell/registry.ts";
-import { EmptyState } from "@caustic/react";
-import { t } from "@fresnel/client/i18n";
 import type { ReactNode } from "react";
 
 // 지금 만들어져 있는 화면만 등록한다. 나머지 화면 id는 셸이 "아직 없어요" 빈 상태로 그린다.
@@ -30,7 +28,7 @@ function ChatScreen(): ReactNode {
 }
 
 function InboxTab(): ReactNode {
-  return <EmptyState size="sm" surface="none" title={t("desktop.shell.inbox.pending")} />;
+  return <InboxApprovals />;
 }
 
 const CHAT_SCREEN: ScreenDef = {

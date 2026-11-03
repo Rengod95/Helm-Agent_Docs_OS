@@ -30,4 +30,3 @@ export const useScreen = (): Screen => useUi((s) => s.screen);
 export const useLocked = (): LockedThread | null => useUi((s) => s.locked);
 export const useObserving = (id: ThreadId | null): boolean =>
   useUi((s) => id !== null && s.observing[id] === true);
-export const useEngineSwitching = (): boolean => useUi((s) => s.engineSwitching);

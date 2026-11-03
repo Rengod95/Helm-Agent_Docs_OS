@@ -8,6 +8,7 @@ import { useApprovalDetail, useApprovalSend } from "../state/ui/index.ts";
 import type { ApprovalSend } from "../state/ui/index.ts";
 import {
   answerOf,
+  approvalOriginView,
   QUESTION_TEXT_MAX,
   setPickText,
   toolApprovalView,
@@ -132,6 +133,20 @@ function ToolDetails(props: {
   );
 }
 
+function OriginLine(props: { readonly caller: string }): ReactNode {
+  const origin = approvalOriginView(props.caller);
+  if (origin === null) return null;
+  const text =
+    origin.kind === "background"
+      ? t("desktop.approvals.origin.background")
+      : origin.kind === "host"
+        ? t("desktop.approvals.origin.host")
+        : origin.kind === "subagent"
+          ? t("desktop.approvals.origin.subagent", { name: origin.name })
+          : t("desktop.approvals.origin.group", { name: origin.name });
+  return <div className="dim">{`${t("desktop.approvals.origin.label")}: ${text}`}</div>;
+}
+
 function QuestionField(props: {
   readonly scope: string;
   readonly question: QuestionItem;
@@ -214,6 +229,7 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
   return (
     <li className="approval">
       <div className="approval-title">{request.title}</div>
+      <OriginLine caller={request.origin.caller} />
       {body.kind === "tool" ? (
         <ToolDetails view={toolApprovalView(body.tool)} body={body.tool} />
       ) : null}
@@ -281,6 +297,19 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
     </li>
   );
 });
+
+/** 끝 영역 받은 요청 탭. 트랜스크립트 아래와 같은 카드 부품을 쓴다(`approval.resolved`로 함께 사라진다) */
+export function InboxApprovals(): ReactNode {
+  const ids = useApprovalIds();
+  if (ids.length === 0) return <div className="dim">{t("desktop.approvals.inbox.empty")}</div>;
+  return (
+    <ul aria-label={t("desktop.approvals.queue.label")}>
+      {ids.map((id) => (
+        <ApprovalCard key={id} id={id} />
+      ))}
+    </ul>
+  );
+}
 
 export function ApprovalQueue(): ReactNode {
   const ids = useApprovalIds();
