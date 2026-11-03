@@ -187,6 +187,11 @@ function fieldOf(
     secret: facts.secret,
     problem: facts.problem,
     editor: ui.editor ?? null,
+    dirty: false,
+    issues: [],
+    saving: false,
+    error: null,
+    remoteChanged: false,
   };
 }
 

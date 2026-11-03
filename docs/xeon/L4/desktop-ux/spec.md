@@ -1584,7 +1584,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 쓰기 범위 후보와 기본 | `writableScopes`, `defaultWriteScope` |
 | 잠금 문장 | `lockInfo` |
 | 파일 전용 항목 | `SettingsView.fileOnly`, 파일 편집 `settings.readFile`·`settings.writeFile` |
-| 편집 중 값, 저장 중, 오류, 다른 곳에서 바뀜 | `SettingsController` `[gap:V-09]`(spec에만 있고 코드에 없습니다) |
+| 편집 중 값, 저장 중, 오류, 다른 곳에서 바뀜 | `createSettingsController`(`packages/client/src/settings/controller.ts`)와 `settingsViewOf`(`state.ts`). 변경 알림 `settings.invalidated`는 `invalidationConcerns`로 거른다(`L4.settings-ui` §4.5.4, V-09 구현됨) |
 | 게이지 자리 | budgets, providers 탭 `GaugeSlotVM` → P-11 게이지 |
 
 | 기능 | wire |
@@ -3057,7 +3057,7 @@ export const palette = [
 | V-06 | 리뷰 초안과 `ReviewAnswer` 만들기 | `apps/desktop/src/views/review-model.ts` [제안] |
 | V-07 | Helm 상태 보기 모델 | `packages/client/src/groups` [제안] |
 | V-08 | 목표·계획·작업 보기 모델 | 같은 곳 |
-| V-09 | `SettingsController`(초안, 저장 중, 오류, 외부 변경) | `packages/client/src/settings`(spec §3.2에 있음, 코드 없음) |
+| V-09 | `SettingsController`(초안, 저장 중, 오류, 외부 변경) | `packages/client/src/settings/controller.ts`, `state.ts`, `write-flow.ts`, `invalidation.ts`(구현됨. 차이는 `L4.settings-ui` §3.2) |
 | V-10 | 시크릿 탭 행과 삭제 사전 검사 | `packages/client/src/settings/secrets.ts` [제안] |
 | V-11 | 사용량 게이지 행(`UsageGauge` → 막대와 문장) | `packages/client/src/settings` |
 | V-12 | 계획 승인 보기와 답 만들기 | `apps/desktop/src/views/approval-form.ts`에 추가 |

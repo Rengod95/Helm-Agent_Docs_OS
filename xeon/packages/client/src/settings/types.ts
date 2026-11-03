@@ -7,7 +7,34 @@ import type {
   SettingsTab,
 } from "@fresnel/contracts/settings";
 
-// 설정 화면 view-model 타입(L4.settings-ui §3.4). 화면 부품 없이 값만 담는다. 쓰기 흐름의 초안·저장 중·오류 필드는 M3 쓰기 단계에서 더한다.
+// 설정 화면 view-model 타입(L4.settings-ui §3.4). 화면 부품 없이 값만 담는다. 초안·저장 중·오류·외부 변경 필드는 `settingsViewOf`(state.ts)가 채운다.
+
+/** 클라이언트 검사나 서버 거절의 한 항목. `message`는 화면 문장이고 `path`는 JSON Pointer다 */
+export interface ValueIssue {
+  readonly path: string;
+  readonly message: string;
+}
+
+/**
+ * 필드 아래에 보이는 저장 오류 일곱 종(L4.settings-ui §4.4.4). 서버 `message`는 담지 않는다.
+ * `transient`는 연결이 끊기거나 엔진이 종료 중일 때, `internal`은 그 밖의 모든 오류다.
+ */
+export type FieldError =
+  | {
+      readonly kind: "invalidValue";
+      readonly message: string;
+      readonly issues: readonly ValueIssue[];
+    }
+  | {
+      readonly kind: "scopeNotAllowed";
+      readonly message: string;
+      readonly allowed: readonly SettingScope[];
+    }
+  | { readonly kind: "locked"; readonly message: string }
+  | { readonly kind: "secretValue"; readonly message: string }
+  | { readonly kind: "unknownKey"; readonly message: string }
+  | { readonly kind: "transient"; readonly message: string }
+  | { readonly kind: "internal"; readonly message: string; readonly traceId: string | null };
 
 /** 쓰기 범위 후보. managed는 화면이 쓰지 않는다(§4.3.6) */
 export type WritableScope = Exclude<SettingScope, "managed">;
@@ -133,6 +160,17 @@ export interface FieldVM {
   } | null;
   /** 전용 편집기 힌트. 모르는 값은 일반 위젯으로 그린다(§4.2.4) */
   readonly editor: SettingEditor | null;
+  // ── 쓰기 상태(settingsViewOf가 채운다. buildSettingsView만 쓰면 기본값이다) ──
+  /** 초안이 있다. `value`는 그때 초안 값이다 */
+  readonly dirty: boolean;
+  /** 초안의 클라이언트 검사 결과. 비어 있으면 저장할 수 있다 */
+  readonly issues: readonly ValueIssue[];
+  /** 전송 중이다 */
+  readonly saving: boolean;
+  /** 마지막 저장 시도의 오류. 다음 편집이나 성공 때 지운다 */
+  readonly error: FieldError | null;
+  /** 초안을 가진 채 다른 곳에서 값이 바뀌었다(L4.settings-ui §4.5.3) */
+  readonly remoteChanged: boolean;
 }
 
 export interface GaugeSlotVM {

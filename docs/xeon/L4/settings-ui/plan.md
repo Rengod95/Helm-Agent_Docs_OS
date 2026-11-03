@@ -34,7 +34,7 @@ binds: [xeon/packages/client/src/settings/**]
 
 ### 1.4 M3: 화면 전체
 
-- 12탭 전체에 실제 키 배치 확인, 탭별 전용 편집기(spec §4.2.4).
+- 13탭 전체에 실제 키 배치 확인, 탭별 전용 편집기(spec §4.2.4).
 - 시크릿 탭(`SecretsTab`): F·L0.secrets의 값 없는 메서드가 생긴 뒤(spec §10 미결 2, 3).
 - 상태 게이지 자리(budgets, providers). 레이트 리밋(`l1.models.rateLimit`)과 계정 풀·회전(`l1.models.accounts`) 설정 항목은 M3에 넣는다(review.decisions-2 U-21).
 - 첫 실행 권장 화면(spec §4.10, ADR-0005 ④).
@@ -91,7 +91,7 @@ xeon/packages/client/test/web/
 
 | id | 내용 | 파일 | 선행 | 규모 | 단계 |
 |---|---|---|---|---|---|
-| U1 | fixture 카탈로그: `SettingDefWire` 샘플로 12탭 전부를 채우고, 위젯 8종, `ui` 없는 키, 잠금(managed), shadowed, deprecated(대체 키 있음·없음), secret(참조 있음·없음), `restart` 대기, 위젯 불일치, 모르는 탭 값을 넣는다. 각 정의에 맞는 `EffectiveSetting`. 가짜 호스트와 가짜 로컬 저장소 | `test/fixtures/*` | F W7~W12 | M | M2 |
+| U1 | fixture 카탈로그: `SettingDefWire` 샘플로 13탭 전부를 채우고, 위젯 8종, `ui` 없는 키, 잠금(managed), shadowed, deprecated(대체 키 있음·없음), secret(참조 있음·없음), `restart` 대기, 위젯 불일치, 모르는 탭 값을 넣는다. 각 정의에 맞는 `EffectiveSetting`. 가짜 호스트와 가짜 로컬 저장소 | `test/fixtures/*` | F W7~W12 | M | M2 |
 | U2 | `TAB_SPECS`, `groupByTab`(정확히 한 곳 배치, `ui.order`·`key` 정렬, 모르는 탭), 두 원천 합치기(spec §4.1.3) | `model/group-by-tab.ts`, `model/types.ts` | U1 | S | M2 |
 | U3 | `resolveWidget`: 위젯 8종 대응, `range`·`unit`·정수 판정, `table`의 `rows`·`record` 모양, 불일치·모르는 위젯 진단 | `model/widget-map.ts` | U1 | S | M2 |
 | U4 | 배지 계산: `scopeBadge`, `runtimeBadge`(`pendingUntil`), `lockInfo`, `deprecatedInfo`, `writableScopes`, `defaultWriteScope` | `model/badges.ts` | U1 | S | M2 |
@@ -129,7 +129,7 @@ xeon/packages/client/test/web/
 
 | 테스트 이름 | 확인할 동작 | 파일 |
 |---|---|---|
-| `every-def-in-exactly-one-tab` | fixture의 모든 정의가 `buildSettingsView` 결과에서 정확히 한 곳(한 탭의 `fields` 또는 `fileOnly`)에 있다. `tabs`는 12개이고 id 집합이 `SettingsTab`과 같다 | `test/group-by-tab.test.ts` |
+| `every-def-in-exactly-one-tab` | fixture의 모든 정의가 `buildSettingsView` 결과에서 정확히 한 곳(한 탭의 `fields` 또는 `fileOnly`)에 있다. `tabs`는 13개이고 id 집합이 `SettingsTab`과 같다 | `test/group-by-tab.test.ts` |
 | `def-without-ui-only-in-advanced` | `ui`가 없는 정의와 모르는 탭 값의 정의는 `fileOnly`에만 있고 어느 탭 `fields`에도 없다 | `test/group-by-tab.test.ts` |
 | `order-sort-stable` | 입력 순서를 섞은 여러 경우에 탭 안 순서가 `ui.order` 오름차순, 같으면 `key` 오름차순으로 같다 | `test/group-by-tab.test.ts` |
 | `widget-kinds-all-mapped` | 위젯 8종이 같은 `kind`의 `WidgetVM`으로 바뀌고 `number`는 `min`·`max`·`unit`·`integer`, `select`는 `range.enum`, `table`은 `rows`·`record` 모양을 담는다. 불일치는 `readonly`와 `widgetMismatch` | `test/widget-map.test.ts` |
@@ -172,7 +172,7 @@ M2:
 
 M3:
 
-- 12탭 모두에 실제 키가 하나 이상 보인다. 비어 있는 탭은 `emptyText`로 이유를 보인다(예: 키 소유 층이 아직 키를 정하지 않음).
+- 13탭 모두에 실제 키가 하나 이상 보인다. 비어 있는 탭은 `emptyText`로 이유를 보인다(예: 키 소유 층이 아직 키를 정하지 않음).
 - 시크릿 탭이 값 없이 동작한다. 목록·메타·정책·이력·삭제가 보이고, 값 입력·열람은 `openSecretFlow` 경로로만 일어나며, 그 사이 WebView DOM과 상태 직렬화와 앱 로그에 값이 없다(수동 확인 또는 미결 해소 뒤 `ui` 테스트).
 - 전용 편집기 5종(U10)이 각 키를 일반 렌더러와 같은 결과로 저장한다.
 - budgets·providers 탭에 게이지 자리와 문구가 보인다.

@@ -21,7 +21,7 @@ binds: [xeon/packages/client/src/settings/**]
 ### 1.1 정하는 것
 
 - `SettingDefWire`와 `EffectiveSetting`에서 화면 탭과 항목을 만드는 규칙(§4.1, §4.2).
-- `SettingsTab` 12값 각각의 한국어 라벨, 들어오는 층과 키 네임스페이스, 편집 방식, 상태 게이지 유무(§4.1).
+- `SettingsTab` 13값 각각의 한국어 라벨, 들어오는 층과 키 네임스페이스, 편집 방식, 상태 게이지 유무(§4.1).
 - `SettingWidget` 8값과 화면 부품의 대응, `range`·`ui.unit`·`ui.help`·`ui.order` 반영 규칙(§4.2).
 - 항목 공통 표시: 범위 배지, `runtimeChange` 배지와 `pendingUntil`, 잠금, 가려진 값, 저장 파일 경로, 기본값 복귀, 폐기 배지, 쓰기 범위 선택(§4.3).
 - 쓰기 흐름: 편집, 클라이언트 즉시 검사, `settings.set`, 오류 코드의 필드 문구 변환, 변경 수신, 재시작 안내(§4.4, §4.5).
@@ -138,6 +138,13 @@ export type { SecretStatus };
 ```
 
 - [제안] 렌더러는 `SettingsController`와 `buildSettingsView`(§3.4)의 결과만 쓴다. 렌더러가 `HostConnection`을 직접 부르지 않는다.
+- [V-09 구현] 컨트롤러와 상태 전이는 `xeon/packages/client/src/settings/`에 있고 `index.ts`가 모두 내보낸다(`@fresnel/client/settings`).
+  - `controller.ts`: `createSettingsController`, `SettingsHostPort`, `SettingsController`, `SecretFlowRequest`, `SecretFlowOutcome`. 연결 호출과 상태 전이를 잇고, 메서드는 던지지 않는다. 실패는 상태의 오류 값이다.
+  - `state.ts`: `SettingsState`, `SettingsAction`, `initialSettingsState`, `reduceSettings`(순수 함수), `settingsViewOf`(상태 → `SettingsView`, 초안·저장 중·오류·바깥 변경을 `FieldVM`에 덮어 쓴다).
+  - `write-flow.ts`: `coerceInput`, `checkClientValue`(`toValueJsonSchema` + `typebox/schema`의 `Errors`), `planWrite`, `planReset`, `blockedBy`, `toFieldError`(§4.4.4 표, 서버 `message`는 쓰지 않는다).
+  - `invalidation.ts`: `invalidationConcerns`, `affectedKeys`(§4.5.4).
+  - 시험: `xeon/packages/client/test/settings/state.test.ts`(전이 값), `invalidation.test.ts`(알림 판정), `write-flow.test.ts`(검사·계획·오류 문장), `controller.test.ts`(가짜 호스트 위의 읽기·쓰기·알림), `fields-schema.test.ts`(시험 이름 `settings.fields-equal-schema-keys`, X10).
+- [V-09 구현 차이] (1) `SettingsHostPort.localStore`(§3.2 코드 블록의 `DesktopSettingsStore`)는 두지 않았다. `DesktopSettingsStore`는 `apps/desktop`의 타입이라 패키지가 가져올 수 없다(층 규칙, `L4.desktop.spec` §4.9). §4.1.3의 두 원천 합치기는 desktop이 이 포트에 구조 타입으로 더할 때 맞춘다. (2) 변경 수신은 `settings.invalidated` 알림이다(§4.5.1 머리 참고). (3) 대화에 묶인 쓰기 범위의 wire 값은 `launch`다. 이 문서의 `session`은 같은 범위를 가리키고, 코드는 `launch`를 쓴다. (4) `SecretStatus`는 현재 `unset`·`referenced` 두 값이다(§4.6.2의 `registered`·`missing`은 시크릿 상태 경로가 생길 때 더한다). (5) `openSecretFlow`는 포트에 타입만 있고 컨트롤러가 호출하지 않는다(§4.6.4 C안 흐름은 값 입력 화면이 맡는다). (6) `settings.readFile`·`settings.writeFile`(파일 편집기, §4.2.3)은 컨트롤러 밖이다. `settings.fileConflict`(3107)는 그 단계에서 "다른 곳에서 바뀌었어요"와 다시 읽기로 맞춘다. 이 컨트롤러의 `toFieldError`는 3107을 `internal`로 둔다.
 
 ### 3.3 연결 어댑터
 
@@ -311,7 +318,7 @@ export interface OverviewVM {
 }
 
 export interface SettingsView {
-  readonly tabs: readonly TabVM[];           // TAB_SPECS.position 순서, 항상 12개
+  readonly tabs: readonly TabVM[];           // TAB_SPECS.position 순서, 항상 13개
   readonly fileOnly: readonly FileOnlyEntryVM[];
   readonly overview: OverviewVM;
   readonly diagnostics: readonly ViewDiagnostic[];
@@ -534,7 +541,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 ### 4.1 탭 생성 규칙
 
-1. 탭은 `SettingsTab` 12값 전부를 `TAB_SPECS.position` 순서로 항상 만든다. 정의가 없는 탭도 숨기지 않고 `emptyText`를 보인다.
+1. 탭은 `SettingsTab` 13값 전부를 `TAB_SPECS.position` 순서로 항상 만든다. 정의가 없는 탭도 숨기지 않고 `emptyText`를 보인다.
 2. 정의 하나는 정확히 한 곳에 놓인다.
    - `ui`가 있으면 `ui.tab` 탭의 항목이 된다.
    - `ui`가 없으면 advanced 탭의 파일 편집기 목록(`fileOnly`)에만 들어간다.
@@ -553,7 +560,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `budgets` | 예산과 한도 | L1-b `l1.loop.*`(단계 상한, 완료 게이트, 반복 감지), L1-c `l1.models.rateLimit`(레이트 리밋 정책, M3) | 폼(number, select) | 있음(자리만, §4.7) |
 | `providers` | 계정과 제공자 | L1-c `l1.models.*` 중 제공자 연결, `l1.models.accounts`(계정 풀, 우선순위, 예약 %, 계정 회전, M3), 확장 제공자 `ext.<id>.*` 중 키 참조 | 목록·표 편집기, 키는 `secret` 위젯(참조만) | 있음(자리만, §4.7) |
 | `secrets` | 시크릿 | L0-c `l0.secrets.*` 중 `ui.tab: "secrets"`인 키(제공자 기본값 등) + 시크릿 관리 패널(§4.6) | 폼 + `SecretsTab` 전용 패널 | 없음 |
-| `permissions` | 권한과 샌드박스 | L1-d 승인·권한 규칙(소유 문서 `L1.tools.spec`, `l1.tools.*`), L0-c `l0.secrets.approval.*`(시크릿 승인 기본 정책, 쓰기 허용 호스트), L0-b `l0.sandbox.*`(켜기·끄기, 쓰기 경로, 허용 도메인, 프록시) | 규칙 편집기, 목록 편집기(M3) | 없음 |
+| `permissions` | 권한 | L1-d 승인·권한 규칙(소유 문서 `L1.tools.spec`, `l1.tools.*`), L0-c `l0.secrets.approval.*`(시크릿 승인 기본 정책, 쓰기 허용 호스트) | 규칙 편집기, 목록 편집기(M3) | 없음 |
+| `sandbox` | 샌드박스 | L0-b `l0.sandbox.*`(켜기·끄기, 쓰기 경로, 허용 도메인, 프록시) | 폼과 목록 편집기(M3) | 없음 |
 | `sessions` | 대화와 컨텍스트 | L1-e `l1.context.*`(자동 컴팩션, 임계), L1-f `l1.persistence.*`(보관 기간, 내보내기, 자동 재개), L2-d `l2.knowledge.*`(메모리) | 토글과 폼. 삭제성 동작은 확인 단계 | 없음 |
 | `tools` | 도구와 웹 | L2 `l2.mcp.*`, `l2.web.*`, `l2.workspace.*`, `l2.knowledge.*`(스킬), `l2.dialog.*` 중 질문·명령·첨부 키, 그 밖의 `l2.*` | 목록 토글, 선택 | 없음 |
 | `plugins` | 플러그인과 그룹 | X `x.loading-trust.*`(신뢰, 격리), `x.operations.*`(핸들러 시한, 자동 끄기, 안전 모드), `x.primitives.driveDefaultLimits`(drive 기본 상한, review.decisions-2 U-12), `x.primitives.driveLimits`(천장), `x.primitives.activeDriver`(주도 플러그인 선택, review.decisions-2 S-15), `x.primitives.driveRequiresGroup`(drive는 플러그인 그룹만, 기본 켜짐), `x.primitives.capabilityProviders`, 그룹 켜기 키 `ext.<id>.enabled`, L3 `l3.group-sdk.*`, `l3.helm.*`, `l3.learning.*`, 확장 `ext.<id>.*`(userConfig에서 온 키는 `plugins` 고정, `F.wire-settings.spec` §3.8.3) | 목록 토글과 그룹별 묶음 | 없음 |
@@ -566,9 +574,9 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 - [결정: review.decisions-2 S-11] 이 표의 배치는 각 키 소유 층 문서의 `ui.tab`을 옮긴 것이다(`L1.loop.spec` §6, `L1.models.spec` §6, `L1.agents.spec` §6, `L0.secrets.spec` §6, `L2.dialog.spec` §6, `X.operations.spec` §6, `X.primitives.spec` §6). 어긋나면 소유 층 문서가 정본이고 이 표를 고친다.
 - [결정: review.decisions-2 S-14] `l1.agents.*`는 models 탭이다. `F.wire-settings.spec` §4.9가 "에이전트" 탭을 모델에 합쳤기 때문이다.
 
-#### 4.1.2 초안 탭과 F 12값의 대응
+#### 4.1.2 초안 탭과 F 13값의 대응
 
-`_research/settings.md` §4의 13개 초안과 `_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 8탭이 `SettingsTab` 12값으로 합쳐진 대응이다. `F.wire-settings.spec` §4.9는 "에이전트를 모델에 합침, 시크릿과 외관을 따로 둠"만 적었다. 나머지 합침(권한+샌드박스, 플러그인+그룹)은 8탭안의 묶음을 따른 것으로 이 문서가 읽어 낸 결과다 [제안].
+`_research/settings.md` §4의 13개 초안과 `_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 8탭이 `SettingsTab` 13값으로 합쳐진 대응이다. `F.wire-settings.spec` §4.9는 "에이전트를 모델에 합침, 시크릿과 외관을 따로 둠"만 적었다. 나머지 합침(플러그인+그룹)은 8탭안의 묶음을 따른 것으로 이 문서가 읽어 낸 결과다 [제안]. 권한과 샌드박스는 8탭안에서 한 탭이었지만 `SettingsTab`과 `TAB_SPECS`가 두 탭으로 나눈다(desktop-ux 스펙 §6.13의 13탭 결정을 따른다).
 
 | `SettingsTab` | settings.md §4 초안(13) | layer-plan-v2 8탭 | 비고 |
 |---|---|---|---|
@@ -577,7 +585,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `budgets` | 2. 예산과 한도 | 없음(모델·계정 탭에 흩어짐) | 레이트 리밋 정책은 이 탭, 계정 풀과 회전은 providers |
 | `providers` | 3. 계정과 제공자 | 계정과 provider | 사용량 게이지 자리 |
 | `secrets` | 없음(3번 안의 "키는 등록 전용") | 시크릿 | 8탭안에서 가져옴 |
-| `permissions` | 4. 권한 + 5. 샌드박스와 네트워크 | 권한과 샌드박스 | 8탭안 묶음을 따름 |
+| `permissions` | 4. 권한 | 권한과 샌드박스 | 샌드박스를 떼어 `sandbox`로 둔다 |
+| `sandbox` | 5. 샌드박스와 네트워크 | 권한과 샌드박스 | `permissions`에서 떼어 냈다 |
 | `sessions` | 6. 대화와 컨텍스트 | 대화와 컨텍스트 | |
 | `tools` | 7. 도구와 확장 | 도구와 웹 | 라벨은 8탭안의 것 |
 | `plugins` | 8. 플러그인과 신뢰 + 11. 그룹 | 플러그인과 그룹 | 8탭안 묶음을 따름 |
@@ -585,7 +594,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `appearance` | 없음(§2.13 층 밖 항목) | 없음 | `SettingLayer`에 L4를 넣은 이유와 같다(`F.wire-settings.spec` §3.8.1) |
 | `advanced` | 12. 고급 | 없음 | |
 
-- 합계: 13 − 3(에이전트, 샌드박스, 그룹을 합침) + 2(시크릿, 외관 추가) = 12.
+- 합계: 13 − 2(에이전트, 그룹을 합침) + 2(시크릿, 외관 추가) = 13.
 - [제안] 현재 `SettingsTab` enum은 바꾸지 않는다. 탭별 전용 편집기(§4.2.4)가 새 탭을 요구하면 F 부 버전 변경 요청으로 올린다(§10 미결 8).
 
 #### 4.1.3 두 원천 합치기
@@ -818,6 +827,8 @@ sequenceDiagram
 
 #### 4.5.1 수신 경로
 
+[V-09 구현 결정] 아래 1~2번의 `events.subscribe`와 `settings.changed` 경로는 쓰지 않는다. 구현은 `settings.invalidated` 알림을 `connection.onNotification`으로 구독한다(알림 params `{ keys, scopes, threadId }`는 F wire §3.3.2에 M2로 있다). 알림 대상 판정은 §4.5.4, 3~6번은 그대로 따른다.
+
 1. `load()`가 `events.subscribe({from: "head", filter: {kindPrefixes: ["settings."]}})`로 구독한다. `threadIds` 필터는 두지 않는다.
 2. `settings.changed` 이벤트가 오면 `payload.key`, `payload.scope`, 이벤트의 `threadId`로 `SettingsChangeSignal`을 만든다.
 3. 신호를 받으면 그 키만 `settings.get({keys: [key], threadId: 현재 thread})`로 다시 읽는다. 같은 틱에 여러 신호가 오면 키를 모아 한 번에 읽는다.
@@ -836,6 +847,17 @@ sequenceDiagram
 
 - 초안이 없는 항목은 다시 읽은 값으로 바로 바꾼다.
 - 초안이 있는 항목은 초안을 지우지 않고 `remoteChanged: true`로 "다른 곳에서 값이 바뀌었어요" 안내와 새 값을 함께 보인다. 사용자가 저장하면 나중 쓰기가 남는다(서버 기준). 별도 충돌 검사는 두지 않는다 [제안]. `settings.set`에 버전 조건이 없기 때문이다.
+
+#### 4.5.4 알림 대상 판정 [V-09 구현]
+
+`settings.invalidated`는 값을 싣지 않는다. 열린 대화의 화면을 다시 읽을지는 `invalidationConcerns(notice, openThreadId)`가 정한다.
+
+1. 범위 가운데 `launch`가 아닌 것(`managed`, `user`, `project`, `local`)이 하나라도 있으면 다시 읽는다. 열린 대화가 없어도 그렇다.
+2. 범위가 `launch`뿐이면 알림의 `threadId`가 열린 대화와 같을 때만 다시 읽는다. 다른 대화의 대화 범위 변경은 읽지 않는다.
+3. `threadId`가 null이면 어느 대화인지 모르므로 다시 읽는다(보수적으로 본다).
+4. 다시 읽을 때는 먼저 `invalidated` 전이로 초안이 있는 키를 바깥 변경으로 표시한다. 키 목록이 비었으면 모든 키다(`affectedKeys`). 그다음 `settings.get`으로 그 키들을 읽는다. 키 목록이 비었거나 카탈로그에 없는 키가 있으면 `settings.list`를 먼저 다시 읽는다.
+5. 초안이 없는 키는 읽은 값으로 바로 바꾼다. 초안이 있는 키는 값만 바꾸고 초안은 그대로 둔다(§4.5.3).
+6. 알림이 상관없으면 아무것도 읽지 않고 상태도 바꾸지 않는다.
 
 ### 4.6 시크릿 화면
 
@@ -1048,7 +1070,7 @@ sequenceDiagram
 ## 9. 수용 기준
 
 - AC1. 테스트 카탈로그 fixture의 모든 `SettingDefWire`가 `buildSettingsView` 결과에서 정확히 한 곳에 나타난다. `ui`가 있으면 `ui.tab` 탭의 `fields`, 없으면 `fileOnly`(advanced 탭 파일 편집기)다.
-- AC2. `buildSettingsView`의 `tabs`는 항상 12개이고 id 집합이 `SettingsTab` 값 집합과 같다. 정의가 없는 탭은 `emptyText`가 null이 아니다.
+- AC2. `buildSettingsView`의 `tabs`는 항상 13개이고 id 집합이 `SettingsTab` 값 집합과 같다. 정의가 없는 탭은 `emptyText`가 null이 아니다.
 - AC3. 같은 탭 안 항목 순서는 `ui.order` 오름차순, 같으면 `key` 오름차순이고 입력 순서를 섞어도 결과가 같다.
 - AC4. `SettingWidget` 8값 각각이 `resolveWidget`에서 같은 `kind`의 `WidgetVM`으로 바뀌고, 렌더러가 8종 모두를 그린다. `number`는 `range.min`·`max`·`ui.unit`을, `select`는 `range.enum`을 담는다.
 - AC5. `locked: true`인 항목은 `editable: false`, `writableScopes: []`, `canReset: false`다. 이 항목에 `commit`을 불러도 `settings.set`이 나가지 않는다.
