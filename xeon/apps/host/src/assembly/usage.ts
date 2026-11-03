@@ -1,7 +1,11 @@
-import type { Result } from "@fresnel/contracts";
-import { parse } from "@fresnel/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { ItemRecordedPayloadSchema, type DurableEventEnvelope } from "@fresnel/contracts/records";
+import {
+  ItemRecordedPayloadSchema,
+  type DurableEventEnvelope,
+  type ReadFailure,
+  type SessionService,
+} from "@fresnel/contracts/records";
 import type { UsageMeter, UsageRecord } from "@fresnel/contracts/services";
 import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
 import type { UsagePort } from "../types.ts";
@@ -22,9 +26,12 @@ interface Tally {
 
 const EMPTY_TALLY: Tally = { tokens: 0, usd: 0, requests: 0, cacheRead: 0, cacheWrite: 0 };
 
-/** 내구 기록 읽기. 어시스턴트 `item.recorded`를 접두로 조회한다(`ExtHost.queryEvents`와 같은 모양). 읽지 못하면 오류 값이다 */
+/**
+ * 내구 기록 읽기. kind 접두로 조회한다. 활성 분기만이 아니라 되감거나 버린 분기의 기록까지 모두 돌려준다(돈을 쓴 호출은 분기와 상관없이 센다).
+ * `threadId`가 없으면 모든 thread의 기록이다. 읽지 못하면 오류 값이다
+ */
 export type UsageEventReader = (
-  threadId: ThreadId,
+  threadId: ThreadId | undefined,
   query: { readonly kindPrefix: string },
 ) => Promise<Result<readonly DurableEventEnvelope[], unknown>>;
 
@@ -53,6 +60,24 @@ function sessionGauges(providerId: string, tally: Tally): readonly UsageGauge[] 
   ];
 }
 
+/**
+ * `SessionService.readFrom`(커밋 순서, 모든 분기)으로 kind 접두에 맞는 기록을 읽는다. `readBranch`는 활성 분기만 돌려줘 되감거나 버린 분기의 사용량이
+ * 빠지므로 쓰지 않는다. `threadId`가 없으면 모든 thread다
+ */
+export async function readEventsOfAllBranches(
+  session: Pick<SessionService, "readFrom">,
+  threadId: ThreadId | undefined,
+  kindPrefix: string,
+): Promise<Result<readonly DurableEventEnvelope[], ReadFailure>> {
+  const rows: DurableEventEnvelope[] = [];
+  const options = threadId === undefined ? undefined : { threadId };
+  for await (const item of session.readFrom(0, options)) {
+    if (!item.ok) return err(item.error);
+    if (item.value.kind.startsWith(kindPrefix)) rows.push(item.value);
+  }
+  return ok(rows);
+}
+
 function compareNames(a: string, b: string): number {
   if (a === b) return 0;
   return a < b ? -1 : 1;
@@ -79,7 +104,9 @@ export function createUsageSource(meter: UsageMeter, readEvents?: UsageEventRead
   });
 
   /** 내구 기록(어시스턴트 `item.recorded`의 `message.usage`)을 provider별로 접는다. 재시작해도 같은 값이 나온다. 읽지 못하면 undefined */
-  async function durableProviders(threadId: ThreadId): Promise<Map<string, Tally> | undefined> {
+  async function durableProviders(
+    threadId: ThreadId | undefined,
+  ): Promise<Map<string, Tally> | undefined> {
     if (readEvents === undefined) return undefined;
     const read = await readEvents(threadId, { kindPrefix: "item.recorded" });
     if (!read.ok) return undefined;
@@ -103,12 +130,15 @@ export function createUsageSource(meter: UsageMeter, readEvents?: UsageEventRead
 
   return {
     gauges: async ({ providerId, threadId }) => {
-      // 내구 기록이 있으면 그것이 원천이다. 읽지 못할 때만 이 프로세스의 합산기로 돌아간다.
-      // threadId가 없으면 내구 기록으로 thread 목록을 알 수 없어, 이 프로세스가 본 모든 thread의 합산기 합이다(다중 thread 사용량)
+      // 내구 기록이 있으면 그것이 원천이다(재시작 뒤와 버린 분기 포함). 읽지 못할 때만 이 프로세스의 합산기로 돌아간다.
+      // threadId가 없으면 모든 thread의 내구 기록 합이고, 읽지 못하면 이 프로세스가 본 모든 thread의 합산기 합이다
+      const durable = await durableProviders(threadId);
       const scoped =
-        threadId === undefined
-          ? [...byThread.values()]
-          : [(await durableProviders(threadId)) ?? byThread.get(threadId)];
+        durable !== undefined
+          ? [durable]
+          : threadId === undefined
+            ? [...byThread.values()]
+            : [byThread.get(threadId)];
       const totals = new Map<string, Tally>();
       for (const providers of scoped) {
         if (providers === undefined) continue;

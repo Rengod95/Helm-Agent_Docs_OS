@@ -69,7 +69,7 @@ import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
-import { createUsageSource } from "./usage.ts";
+import { createUsageSource, readEventsOfAllBranches } from "./usage.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 import { createWebPort, type WebStatusHolder } from "./web-providers.ts";
@@ -697,7 +697,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     web: createWebPort({ holder: deps.web, settings: deps.settings }),
     dialog: createDialogWirePort({ holder: deps.commands }),
     usage: createUsageSource(deps.models.usage, (threadId, query) =>
-      deps.ext.queryEvents(threadId, query),
+      readEventsOfAllBranches(deps.session, threadId, query.kindPrefix),
     ),
     proposals: deps.proposals,
     trust,
