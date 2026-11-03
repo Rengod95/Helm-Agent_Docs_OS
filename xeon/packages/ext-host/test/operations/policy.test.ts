@@ -187,7 +187,7 @@ test("policy: a changed hookOrder setting is pending until the step boundary app
     scopes: { requestDisable: () => {}, requestEnable: () => {}, scopesOf: () => [] },
     ports: { get: () => undefined },
   });
-  // 첫 호출이 원천을 한 번 읽어 적용 중인 값으로 삼는다
+  // 만들 때 원천을 한 번 읽어 적용 중인 값으로 삼는다(아직 저장 값이 없다)
   expect(policy.handlerOrder?.("tool.call.before")).toBeUndefined();
   saved = hookOrderOf({ "tool.call.before": ["beta", "alpha"] });
   expect(policy.hookOrder.pending()).toBe(true);

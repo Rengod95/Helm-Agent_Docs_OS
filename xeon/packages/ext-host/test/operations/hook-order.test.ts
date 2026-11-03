@@ -63,16 +63,15 @@ test("hook order: hookOrderValue round-trips a valid value", () => {
   expect(hookOrderValue(hookOrderOf(value))).toEqual(value);
 });
 
-test("hook order state: reads the source on the first call and keeps the applied value until applyPending", () => {
+test("hook order state: reads the source at creation and keeps the applied value until applyPending", () => {
   let stored: HookOrderMap = hookOrderOf({ "tool.call.before": ["alpha", "beta"] });
   let reads = 0;
   const state = createHookOrderState(() => {
     reads += 1;
     return stored;
   });
-  expect(reads).toBe(0);
-  expect(state.applied("tool.call.before")).toEqual(["alpha", "beta"]);
   expect(reads).toBe(1);
+  expect(state.applied("tool.call.before")).toEqual(["alpha", "beta"]);
   expect(state.applied("tool.call.before")).toEqual(["alpha", "beta"]);
   expect(reads).toBe(1);
 
@@ -99,6 +98,27 @@ test("hook order state: an equal saved value is not pending and applyPending rep
   expect(state.applyPending()).toBe(true);
   expect(state.applied("tool.call.before")).toBeUndefined();
   expect(state.appliedMap().size).toBe(0);
+});
+
+test("hook order state: a change saved before any read stays pending until applyPending", () => {
+  let stored: HookOrderMap = hookOrderOf({ "tool.call.before": ["alpha", "beta"] });
+  const state = createHookOrderState(() => stored);
+  // 아무도 읽기 전에 저장이 바뀌어도 적용 중인 값은 처음 저장된 값이고, 단계 경계 전까지 보류다
+  stored = hookOrderOf({ "tool.call.before": ["beta", "alpha"] });
+  expect(state.pending()).toBe(true);
+  expect(state.applied("tool.call.before")).toEqual(["alpha", "beta"]);
+  expect(state.applyPending()).toBe(true);
+  expect(state.applied("tool.call.before")).toEqual(["beta", "alpha"]);
+  expect(state.pending()).toBe(false);
+});
+
+test("hook order state: start adopts the saved value read now, so a state built before the settings load applies it at startup", () => {
+  let stored: HookOrderMap = hookOrderOf({});
+  const state = createHookOrderState(() => stored);
+  stored = hookOrderOf({ "tool.call.before": ["beta", "alpha"] });
+  state.start();
+  expect(state.pending()).toBe(false);
+  expect(state.applied("tool.call.before")).toEqual(["beta", "alpha"]);
 });
 
 test("checkOrder: drops duplicates and keeps unknown ids and the guard id in the proposed order", () => {

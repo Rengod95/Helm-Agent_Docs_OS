@@ -95,9 +95,6 @@ async function assemble(): Promise<Rig> {
   ).toEqual({ ok: true, value: "guard" });
   await t.host.install(unitOf("core-tools", 0, "L1", true, calls));
 
-  // 적용 상태는 처음 읽을 때 원천 값을 든다. 설정을 바꾸기 전에 기본 순서를 먼저 읽어 둔다
-  policy.hookOrder.applied(TAP);
-
   return {
     t,
     policy,

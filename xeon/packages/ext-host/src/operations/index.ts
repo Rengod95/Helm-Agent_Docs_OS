@@ -262,7 +262,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
   function tierFor(extension: ExtensionName): Tier {
     return tiers.get(extension) ?? "builtin";
   }
-  // 저장된 순서는 단계 경계에서만 적용한다(설정을 바꿔도 진행 중인 단계의 순서는 그대로다)
+  // 저장된 순서는 만들 때 읽고, 조립이 설정 파일을 읽은 뒤 start로 다시 든다. 이후 바뀐 순서는 단계 경계에서만 적용한다
   const hookOrder = createHookOrderState(() => deps.settings.hookOrder?.() ?? new Map());
 
   return {

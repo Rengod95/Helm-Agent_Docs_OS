@@ -69,32 +69,36 @@ function sameMap(a: HookOrderMap, b: HookOrderMap): boolean {
 }
 
 export interface HookOrderState {
-  /** 지금 적용 중인 순서. 처음 부를 때 한 번 원천에서 읽는다 */
+  /** 지금 적용 중인 순서. 만들 때와 start에서 원천을 읽어 정한다 */
   applied(point: HookName): readonly RegistrationId[] | undefined;
   appliedMap(): HookOrderMap;
   /** 원천(저장된 설정)의 현재 값. 아직 적용되지 않았을 수 있다 */
   saved(): HookOrderMap;
   /** 저장된 값과 적용 중인 값이 다른가 */
   pending(): boolean;
+  /** 저장된 값을 지금 적용 중인 값으로 든다. 조립이 설정 파일을 읽은 뒤 한 번 부른다(단계 경계를 기다리지 않는다) */
+  start(): void;
   /** 보류 중인 값을 적용한다. 바뀌었으면 true. 단계 경계에서 부른다 */
   applyPending(): boolean;
 }
 
-/** 적용 상태를 든다. 저장 값이 바뀌어도 단계 경계(applyPending)까지는 적용 중인 값을 그대로 쓴다 */
+/**
+ * 적용 상태를 든다. 만들 때 원천을 읽어 적용 중인 값으로 삼는다. 이후 저장 값이 바뀌어도 단계 경계(applyPending)까지는
+ * 적용 중인 값을 그대로 쓴다. 만든 시점에 설정 파일이 아직 안 읽혔을 수 있으므로(조립 순서) 조립은 설정을 읽은 뒤 start를 부른다.
+ */
 export function createHookOrderState(read: () => HookOrderMap): HookOrderState {
-  let active: HookOrderMap | undefined;
-  function current(): HookOrderMap {
-    if (active === undefined) active = copyOf(read());
-    return active;
-  }
+  let active: HookOrderMap = copyOf(read());
   return {
-    applied: (point) => current().get(point),
-    appliedMap: () => current(),
+    applied: (point) => active.get(point),
+    appliedMap: () => active,
     saved: () => copyOf(read()),
-    pending: () => !sameMap(current(), copyOf(read())),
+    pending: () => !sameMap(active, copyOf(read())),
+    start() {
+      active = copyOf(read());
+    },
     applyPending() {
       const next = copyOf(read());
-      if (sameMap(current(), next)) return false;
+      if (sameMap(active, next)) return false;
       active = next;
       return true;
     },

@@ -755,7 +755,7 @@ export function hookEnv(
 
 ### 3.8 DispatchPolicy 연결 (`index.ts`)
 
-`DispatchPolicy`의 정의는 `X.primitives.spec` §3.4가 소유한다. 모양은 필수 `tierOf(entry)`, `budgetMs(entry)`, `onHandlerFailure(failure)`와 선택 `onHandlerSettled(entry, activeMs)`, `run(entry, work, outer)`다. 선택 두 메서드는 이 문서의 요청(성공 보고, 사용자 응답 대기 제외)을 primitives가 받아들인 것이다 [제안]. `OperationsPolicy`는 다섯 자리를 모두 채우고, 선택 `handlerOrder(point)`와 `onStepBoundary()`도 채운다(§4.1.5). 둘은 `OperationsPolicy.hookOrder`(`HookOrderState`: `applied`, `saved`, `pending`, `applyPending`)를 거친다. 저장된 값은 `OperationsSettingsSource.hookOrder?()`가 읽는다.
+`DispatchPolicy`의 정의는 `X.primitives.spec` §3.4가 소유한다. 모양은 필수 `tierOf(entry)`, `budgetMs(entry)`, `onHandlerFailure(failure)`와 선택 `onHandlerSettled(entry, activeMs)`, `run(entry, work, outer)`다. 선택 두 메서드는 이 문서의 요청(성공 보고, 사용자 응답 대기 제외)을 primitives가 받아들인 것이다 [제안]. `OperationsPolicy`는 다섯 자리를 모두 채우고, 선택 `handlerOrder(point)`와 `onStepBoundary()`도 채운다(§4.1.5). 둘은 `OperationsPolicy.hookOrder`(`HookOrderState`: `applied`, `saved`, `pending`, `start`, `applyPending`)를 거친다. 저장된 값은 `OperationsSettingsSource.hookOrder?()`가 읽는다.
 
 ```ts
 export interface OperationsDeps {
@@ -983,7 +983,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 [결정: 2026-11-03 사용자] 기본 순서에서 `guard` tier 핸들러는 맨 앞이다. 사용자는 훅마다 핸들러 순서를 바꿀 수 있고, tier를 넘는 이동(`user`, `project`, `builtin`, `core` 사이)도 자유롭다. **`guard` tier 핸들러도 옮길 수 있다. 고정은 없다.** 옮기면 안전 검사(§4.1.3 예 2, 수용 기준 1·2의 보안 판정)가 건너뛰어지거나 맨 앞을 잃을 수 있다. 그래서 저장은 막지 않고, 미리보기가 `guardRisk`로 알리며 설정 화면은 "안전 검사가 건너뛰어질 수 있다"는 강한 경고를 띄운다. 고정 상수와 `isPinnedTier`는 없다.
 
 - 저장소: 설정 `x.operations.hookOrder`(`{ "<훅 이름>": ["<registrationId>", …] }`, 범위 `managed`, `user`, 기본 `{}`, `nextTurn`). 설정 저장소를 쓰는 이유는 재시작 뒤에도 남고, 쓰기 검증과 `settings.explain`이 그대로 적용되며, 프로젝트 범위가 사용자의 순서를 바꾸지 못하도록 범위를 좁힐 수 있어서다. 따로 확장 상태를 두지 않는다. 읽을 때 훅 이름이 아닌 키, 배열이 아닌 값, 문자열이 아닌 원소, 중복은 버린다(`hookOrderOf`). 손상된 값이 디스패치를 막지 않는다.
-- 적용 시점: 저장은 즉시이고 디스패처가 쓰는 값은 새 단계가 시작될 때 바뀐다(`boundary.turn.before`와 `boundary.step.before`의 디스패치 시작에서 `DispatchPolicy.onStepBoundary`). 한 단계 안에서는 순서가 바뀌지 않는다. `hooks.order.get`의 `applied`가 그 차이를 말한다.
+- 적용 시점: 저장은 즉시이고 디스패처가 쓰는 값은 새 단계가 시작될 때 바뀐다(`boundary.turn.before`와 `boundary.step.before`의 디스패치 시작에서 `DispatchPolicy.onStepBoundary`). 한 단계 안에서는 순서가 바뀌지 않는다. `hooks.order.get`의 `applied`가 그 차이를 말한다. 적용 중인 값은 처음 읽을 때가 아니라 시작 때 정한다. 정책을 만들 때 원천을 한 번 읽고, 조립이 설정 파일을 읽은 뒤 `start`로 저장된 순서를 다시 든다. 그래서 재시작하면 저장된 순서가 첫 단계부터 적용되고, 시작 뒤에 저장한 순서는 `hooks.order.get`이나 디스패치가 한 번도 없었더라도 다음 단계 경계까지 보류다(`pending: true`).
 - 의미: 덮어쓰기에 이름이 있는 핸들러는, 기본 순서에서 그 핸들러들이 차지한 자리에 덮어쓰기 순서대로 놓인다. 이름이 없는 핸들러는 자리를 지킨다. 한 Registration이 한 훅에 핸들러를 여럿 걸었으면 Registration 단위로 하나의 이름이고 서로의 상대 순서를 지킨다. 지워졌거나, 안전 모드로 싣지 않았거나, 꺼진 핸들러의 이름은 무시한다(오류가 아니다).
 - 범위: 설정 키는 `managed`와 `user`만 받는다(`allowedScopes`). 저장소 파일(`project` 범위)의 같은 키는 무시되고 `project` 쓰기는 `settings.scopeNotAllowed`(3103)다. 그래서 저장소 파일의 내용은 guard의 위치를 바꿀 수 없다(`settings-sources.test.ts`, `settings-write.int.test.ts`). [결정: 2026-11-03 사용자]
 - 저장(`checkOrder`): 제안을 저장할 값으로 고친다. 중복을 빼고 제안의 첫 출현 순서를 지킨다. 거부하지 않는다. guard 핸들러를 옮기거나 그 위에 다른 핸들러를 두는 제안도 그대로 저장된다. 알 수 없는 id도 그대로 저장한다. 저장을 막는 검사는 없다. [결정: 2026-11-03 사용자]

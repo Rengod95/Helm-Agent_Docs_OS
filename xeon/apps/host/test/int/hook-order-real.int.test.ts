@@ -479,8 +479,6 @@ realTest(
     const running = await openHost(ANSWERS);
     const { connection } = running;
     try {
-      // 설정 화면이 편집 전에 적용 상태를 읽는다. 적용 상태는 처음 읽을 때 원천 값을 든다(hook-order.ts)
-      expect(await connection.request("hooks.order.get", {})).toEqual({ hooks: [] });
       // guard tier 핸들러가 없어서 뒤집기는 저장되고, 미리보기의 guardRisk도 비어 있다
       expect(
         await connection.request("hooks.order.set", { hook: CALL, order: [FIRST_B, FIRST_A] }),
