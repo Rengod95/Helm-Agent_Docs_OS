@@ -601,6 +601,13 @@ export function createBrowseApi(
         provider: session.candidate.provider.id,
       });
     }
+    // §4.10.2: 읽기 전에 스크립트가 늦게 옮긴 페이지도 내용을 돌려주기 전에 다시 검사한다
+    const denied = await recheckNavigations(
+      session,
+      { page: read.value.page, navigations: [read.value.page.url] },
+      accessContext(callOptions, `browse.read:${session.id}`),
+    );
+    if (denied !== undefined) return err({ ...denied, provider: session.candidate.provider.id });
     return ok({ ...read.value, meta: metaOf(session, startedAt, NO_COST, []) });
   }
 

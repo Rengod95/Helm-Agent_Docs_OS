@@ -1478,6 +1478,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 
 - 모든 `navigate`(open의 `url` 포함)는 fetch와 같은 도메인 정책(§4.5)과 SSRF 검사(§4.6.1~4.6.3)를 거친다(`_research/web-tools.md` §4.4).
 - 이동이 끝난 뒤 `BrowserStep.navigations`의 모든 최상위 문서 URL을 다시 검사한다. 리다이렉트나 스크립트 이동으로 금지 주소에 갔으면 그 페이지를 `about:blank`로 바꾸고 `denied`를 낸다.
+- [결정: 감사 l2/W-01] `read`도 내용을 돌려주기 전에 읽은 페이지의 URL을 같은 검사에 건다. 동작과 동작 사이에 스크립트가 늦게 옮긴 페이지가 검사 없이 읽히지 않게 하기 위해서다. 금지 주소면 `act`와 같이 `about:blank`로 바꾸고 `denied`를 낸다.
 - [제안] 하위 리소스와 스크립트가 여는 연결(XHR, WebSocket, 이미지, 워커)까지 막기 위해 브라우저의 모든 트래픽을 `cap-web`이 띄운 로컬 필터 프록시로 보낸다. 브라우저는 `--proxy-server=http://127.0.0.1:<port>`로 실행하고, 프록시는 CONNECT·HTTP 요청마다 도메인 정책과 연결 시점 IP 검사(§4.6.3)를 한다. Playwright의 `--allowed-origins` 경로 가로채기는 옵션 설명 스스로 보안 경계로 쓸 수 없다고 밝히므로 경계로 쓰지 않는다(`_research/browser-tools.md` 주류 도구 절, `_research/web-tools.md` §5.2 4번).
   - 프록시는 `browse/proxy.ts`에 있고 루프백에만 바인딩한다. 프록시를 우회하는 Chromium 플래그(`--proxy-bypass-list`)는 쓰지 않는다.
   - WebRTC는 프록시를 거치지 않으므로 끈다(`--force-webrtc-ip-handling-policy=disable_non_proxied_udp`) [가정: playwright-core 1.64.1의 Chromium에서 플래그가 동작한다. B10에서 확인].
@@ -1526,7 +1527,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 | `evaluate` | `browser_evaluate {function: text}` |
 | `forward`, `upload` | 도구를 부르지 않고 `unsupported`다 |
 | 좌표 `target` | 도구를 부르지 않고 `invalid_input`이다. ref만 받는다 |
-| `describe`(확인 판정) | 도구를 부르지 않는다. 마지막 스냅샷의 ref 표에서 역할과 이름을 낸다 |
+| `describe`(확인 판정) | 역할과 이름은 마지막 스냅샷의 ref 표에서 낸다. 버튼·입력 요소(폼을 제출할 수 있는 역할)는 `browser_evaluate`로 요소의 폼 action을 물어 `formAction`을 채운다(교차 출처 폼 확인용 [가정: 이 도구가 `element`·`ref`를 받는다]). 조회가 실패하면 `formAction` 없이 돌려준다 [결정: 감사 l2/W-02] |
 | `read`의 `snapshot`, `text`, `find` | `browser_snapshot {}` |
 | `read`의 `screenshot` | `browser_snapshot {}`, 이어서 `browser_take_screenshot {}` |
 | `close` | `browser_close {}`. 결과는 쓰지 않고 브라우저 "세션" 슬롯은 비운다 |

@@ -542,6 +542,35 @@ describe("web.browse actions", () => {
   });
 });
 
+describe("web.browse read recheck", () => {
+  test("a read of a page that a script moved to a denied address is refused and resets the page", async () => {
+    // 열기 때 알린 이동(EXAMPLE)은 통과하지만 페이지는 늦게 메타데이터 주소로 옮겨 가 있다
+    const moved: Readonly<Record<string, FakePage>> = {
+      [EXAMPLE]: { url: "http://169.254.169.254/latest", title: "Meta", text: "secret-token" },
+    };
+    const local = fakeBrowseProvider("local-browser", { pages: moved });
+    const world = await worldOf([browseCandidate(local, "builtin")]);
+    const { sessionId } = await world.browse.open({ url: EXAMPLE }, hostCall());
+    const caught = await rejection(world.browse.read({ sessionId, mode: "text" }, hostCall()));
+    expect(caught.data.code).toBe("denied");
+    expect(caught.data.detail).toEqual({
+      reason: "navigation_denied",
+      cause: { reason: "metadata_address", host: "169.254.169.254" },
+    });
+    expect(local.log).toEqual([`navigate:${EXAMPLE}`, "read:text", "navigate:about:blank"]);
+  });
+
+  test("a read of an allowed page returns its text", async () => {
+    const local = fakeBrowseProvider("local-browser", {
+      pages: { [EXAMPLE]: { url: EXAMPLE, title: "A", text: "hello" } },
+    });
+    const world = await worldOf([browseCandidate(local, "builtin")]);
+    const { sessionId } = await world.browse.open({ url: EXAMPLE }, hostCall());
+    const out = await world.browse.read({ sessionId, mode: "text" }, hostCall());
+    expect(out.text).toBe("hello");
+  });
+});
+
 describe("web.browse human confirmation", () => {
   test("a sensitive click without a confirm port is refused", async () => {
     const local = fakeBrowseProvider("local-browser", { pages: PAGES });

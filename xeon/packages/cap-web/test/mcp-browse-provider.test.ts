@@ -305,6 +305,39 @@ describe("playwright-mcp provider: 동작 매핑", () => {
     expect(await handle.describe({ ref: "e4" }, SIGNAL)).toEqual({ role: "link", name: "Docs" });
   });
 
+  test("describe asks the element for its form action so a cross-origin submit is noticed", async () => {
+    const fake = fakeBrowserMcp({
+      replies: {
+        browser_evaluate: () => markdown('### Result\n"https://evil.example/collect"\n'),
+      },
+    });
+    const handle = await openShop(fake);
+    expect(await handle.describe({ ref: "e3" }, SIGNAL)).toEqual({
+      role: "button",
+      name: "Pay now",
+      formAction: "https://evil.example/collect",
+    });
+    expect(fake.calls.at(-1)).toMatchObject({
+      tool: "browser_evaluate",
+      args: { ref: "e3" },
+    });
+    // 링크는 폼을 제출하지 않으므로 요소에 묻지 않는다
+    const before = fake.calls.length;
+    expect(await handle.describe({ ref: "e4" }, SIGNAL)).toEqual({ role: "link", name: "Docs" });
+    expect(fake.calls.length).toBe(before);
+  });
+
+  test("a failed form action lookup falls back to role and name only", async () => {
+    const fake = fakeBrowserMcp({
+      replies: { browser_evaluate: () => ok({ text: "boom", images: [], isError: true }) },
+    });
+    const handle = await openShop(fake);
+    expect(await handle.describe({ ref: "e3" }, SIGNAL)).toEqual({
+      role: "button",
+      name: "Pay now",
+    });
+  });
+
   test("a failed tool result is upstream_error with the text cut to 500 characters", async () => {
     const long = "x".repeat(600);
     const fake = fakeBrowserMcp({
@@ -462,6 +495,32 @@ describe("playwright-mcp provider: web.browse에서", () => {
     expect(fake.calls.map((call) => call.tool)).toEqual(["browser_navigate", "browser_snapshot"]);
   });
 
+  test("a click on a button whose form posts to another origin asks for confirmation", async () => {
+    const fake = fakeBrowserMcp({
+      replies: {
+        browser_snapshot: () => markdown(pageStateText(SHOP, "Shop", '- button "Go" [ref=e7]')),
+        browser_evaluate: () => markdown('"https://evil.example/collect"'),
+      },
+    });
+    const requests: string[] = [];
+    const world = await makeWebWorld({
+      browserMcp: fake,
+      browseConfirm: {
+        confirm(request) {
+          requests.push(request.reason);
+          return Promise.resolve(ok("deny"));
+        },
+      },
+    });
+    const { sessionId } = await world.browse.open({ url: SHOP }, HOST);
+    const caught = await rejection(
+      world.browse.act({ sessionId, action: "click", target: { ref: "e7" } }, HOST),
+    );
+    expect(requests).toEqual(["cross_origin_form"]);
+    expect(caught.data.code).toBe("confirmation_denied");
+    expect(fake.calls.map((call) => call.tool)).not.toContain("browser_click");
+  });
+
   test("without a browserMcp port there is no browser candidate", async () => {
     const world = await makeWebWorld();
     const caught = await rejection(world.browse.open({}, HOST));
@@ -482,7 +541,12 @@ describe("playwright-mcp provider: web.browse에서", () => {
       code: "confirmation_denied",
       detail: { reason: "sensitive_click" },
     });
-    expect(fake.calls.map((call) => call.tool)).toEqual(["browser_navigate", "browser_snapshot"]);
+    // 요소에 폼 주소를 묻는 조회까지만 나가고 클릭은 나가지 않는다
+    expect(fake.calls.map((call) => call.tool)).toEqual([
+      "browser_navigate",
+      "browser_snapshot",
+      "browser_evaluate",
+    ]);
   });
 
   test("a Docs click runs through the tool", async () => {

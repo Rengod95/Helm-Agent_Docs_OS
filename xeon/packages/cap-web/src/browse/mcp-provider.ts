@@ -103,6 +103,21 @@ function portError(error: BrowserMcpError): CapabilityError {
 }
 
 /** 도구 한 번 호출. 포트 실패와 `isError` 응답은 오류로 던진다 */
+/** 폼을 제출할 수 있는 요소의 역할 */
+const FORM_ROLES: ReadonlySet<string> = new Set([
+  "button",
+  "textbox",
+  "searchbox",
+  "combobox",
+  "checkbox",
+  "radio",
+]);
+/** 요소가 속한 폼의 action 주소. 폼이 없으면 null이다 [가정: browser_evaluate가 element와 ref를 받는다] */
+const FORM_ACTION_SCRIPT = "(element) => (element.form ? element.form.action : null)";
+/** 응답 본문의 첫 따옴표 친 http(s) 주소 */
+const FORM_ACTION_REPLY = /"(https?:\/\/[^"\s]+)"/;
+const MAX_URL = 2048;
+
 async function callTool(
   port: BrowserMcpPort,
   tool: string,
@@ -416,17 +431,22 @@ export function createMcpBrowseProvider(port: BrowserMcpPort): WebBrowseProvider
         }
       },
 
-      describe(target) {
-        // 실패는 거부로 돌려준다. 동기 throw를 쓰지 않으려고 executor 안에서 확인한다
-        return new Promise<{ readonly role: string; readonly name?: string }>((resolve) => {
-          assertOpen();
-          const entry = entryOf(target.ref);
-          resolve(
-            entry.name === undefined
-              ? { role: entry.role }
-              : { role: entry.role, name: entry.name },
-          );
-        });
+      async describe(target, signal) {
+        assertOpen();
+        const entry = entryOf(target.ref);
+        const base =
+          entry.name === undefined ? { role: entry.role } : { role: entry.role, name: entry.name };
+        // 교차 출처 폼 제출 확인(§4.10.3)에는 폼의 action이 필요하다. 스냅샷에는 없으므로 제출할 수 있는 요소만 요소에 물어본다
+        if (!FORM_ROLES.has(entry.role)) return base;
+        const element = entry.name === undefined ? entry.ref : `${entry.role} "${entry.name}"`;
+        const reply = await port.callTool(
+          "browser_evaluate",
+          { function: FORM_ACTION_SCRIPT, element, ref: entry.ref },
+          signal,
+        );
+        if (!reply.ok || reply.value.isError) return base;
+        const action = FORM_ACTION_REPLY.exec(reply.value.text)?.[1];
+        return action === undefined ? base : { ...base, formAction: clip(action, MAX_URL) };
       },
 
       async close() {
