@@ -187,3 +187,66 @@ describe("answer_invalid detail", () => {
     expect(out).toContain("q2: choose at most one");
   });
 });
+
+const replaceRequest = (args: Record<string, unknown>): ApprovalRequestedPayload => ({
+  ...toolRequest({}),
+  title: 'Let "safe-write" replace the built-in tool "write"?',
+  body: {
+    kind: "tool",
+    tool: {
+      toolName: "tool_replace",
+      risk: "write",
+      args: JSON.parse(JSON.stringify(args)),
+      argsHash: "h",
+      ruleId: "tools.replace",
+    },
+  },
+});
+
+describe("tool replacement approval card", () => {
+  test("shows the extension, the tool, the trust, the risk change and the path protection notice in Korean", () => {
+    const out = html(
+      replaceRequest({
+        tool: "write",
+        extension: "safe-write",
+        owner: "ext.safe-write",
+        trust: "untrusted",
+        originalRisk: "write",
+        effectiveRisk: "execute",
+        notice: "Built-in file path protection runs inside the built-in tool.",
+      }),
+    );
+    expect(out).toContain("기본 도구를 대체하려는 요청이에요");
+    expect(out).toContain("<code>safe-write</code>");
+    expect(out).toContain("<code>write</code>");
+    expect(out).toContain("신뢰하지 않음");
+    expect(out).toContain("write → execute");
+    expect(out).toContain("파일 경로 보호는 대체 도구에 적용되지 않아요");
+    // 같은 카드의 허용·거부 단추와 일반 도구 요약도 그대로 있다
+    expect(out).toContain("허용");
+    expect(out).toContain("도구 tool_replace");
+  });
+
+  test("a trust the card does not know shows no trust line, and the notice is shown even without notice args", () => {
+    const out = html(replaceRequest({ tool: "write", extension: "x", trust: "root" }));
+    expect(out).not.toContain("신뢰 등급");
+    expect(out).toContain("파일 경로 보호는 대체 도구에 적용되지 않아요");
+  });
+
+  test("an ordinary tool card shows no replacement block", () => {
+    expect(html(toolRequest({ command: "ls" }))).not.toContain("기본 도구를 대체하려는");
+  });
+});
+
+const withCaller = (caller: string): ApprovalRequestedPayload => ({
+  ...toolRequest({ command: "ls" }),
+  origin: { ...origin, caller },
+});
+
+describe("approval origin line", () => {
+  test("a child agent request shows where it came from, and a main request shows nothing", () => {
+    expect(html(withCaller("subagent:렌즈"))).toContain("요청한 곳: 보조 에이전트 렌즈");
+    expect(html(withCaller("ext:helm"))).toContain("요청한 곳: 그룹 helm");
+    expect(html(withCaller("main"))).not.toContain("요청한 곳");
+  });
+});

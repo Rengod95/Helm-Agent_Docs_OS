@@ -6,6 +6,7 @@ import type { TrustChoice, TrustStatus } from "@fresnel/contracts/wire";
 import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
 import type { WorkbenchCommands } from "../app/workbench-commands.ts";
+import type { EngineTarget } from "../transport/ipc.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
 // 보낸 직후의 표시(보내는 중, 실패)는 UI 스토어가, 결과는 엔진 이벤트가 거울에 넣는다.
@@ -26,7 +27,9 @@ export type CommandError =
       /** host가 값 검사 실패(`settings.invalidValue`, 3102)에서 준 첫 문제의 문장. 설정 화면이 그대로 보인다 */
       readonly detail?: string;
     }
-  | { readonly kind: "failed" };
+  | { readonly kind: "failed" }
+  /** 엔진 대상을 바꾸는 중이라 쓰기를 보류했다(W-08). 새 엔진이 붙은 뒤 다시 보낸다 */
+  | { readonly kind: "switching" };
 
 export type ApprovalDecision =
   | { readonly decision: "allow" | "deny"; readonly remember?: "once" | "thread" | "always" }
@@ -103,7 +106,14 @@ export interface Commands {
   dismissCommandOutput(): void;
   /** 엔진에 등록한 슬래시 명령 목록(`command.list`)을 목록·자동완성 view-model로 돌려준다. `threadId`를 주면 그 대화의 프로젝트 명령도 싣는다 */
   commandList(threadId: ThreadId | null): Promise<Result<readonly CommandRowVM[], CommandError>>;
+  /** 보류 중이면 응답을 보내지 않고 카드에 `switching` 실패 표시를 둔다(보내는 중 표시는 켜지 않는다) */
   respondApproval(approvalId: EventId, response: ApprovalDecision): Promise<void>;
+  /**
+   * 엔진 대상을 바꾼다(W-08, `engine_retarget`). 바꾸는 동안 쓰기 명령(`sendTurn`, `interrupt`, `respondApproval`, `createThread`,
+   * `forkThread`, `trust.decide`)은 `switching`으로 거절한다. 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어서다.
+   * `graceMs`는 `l4.desktop.engine.shutdownGraceMs`.
+   */
+  retargetEngine(target: EngineTarget, graceMs: number): Promise<Result<null, CommandError>>;
   readonly trust: TrustCommands;
   readonly setup: SetupCommands;
   /** 크래프트(`workbench`)의 확장 읽기·켜기·되돌리기 */

@@ -47,8 +47,8 @@ const STORE_FAILURE_TEXT: Readonly<
 };
 
 /** 저장소를 열지 못해 끝난 엔진은 분류별 안내를 보인다(종료 코드 70~72). 그 밖의 종료는 일반 문구다 */
-export function engineTextOf(state: EngineState | undefined): MessageId {
-  if (state === undefined) return "desktop.status.engine.checking";
+export function engineTextOf(state: EngineState | null | undefined): MessageId {
+  if (state === undefined || state === null) return "desktop.status.engine.checking";
   if (state.kind === "failed" || state.kind === "restarting") {
     const failure = storeFailureOfExitCode(state.lastExit.code);
     if (failure !== undefined) return STORE_FAILURE_TEXT[failure];

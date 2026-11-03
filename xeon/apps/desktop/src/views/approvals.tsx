@@ -1,19 +1,24 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { EventId } from "@fresnel/contracts/conversation";
+import { Alert } from "@caustic/react";
 import { memo, useState, type ReactNode } from "react";
 import { useApproval, useApprovalIds } from "../state/engine/index.ts";
 import { useApprovalDetail, useApprovalSend } from "../state/ui/index.ts";
 import type { ApprovalSend } from "../state/ui/index.ts";
 import {
   answerOf,
+  approvalOriginView,
   QUESTION_TEXT_MAX,
   setPickText,
   toolApprovalView,
+  toolReplaceView,
   togglePick,
+  type ToolApprovalBody,
   type QuestionDraft,
   type QuestionItem,
   type ToolApprovalView,
+  type ToolReplaceView,
 } from "./approval-form.ts";
 import { useCommands } from "./commands.ts";
 
@@ -27,12 +32,64 @@ const FAILURE_ID: Readonly<Record<Exclude<ApprovalSend, "sending">, MessageId>> 
   invalid: "desktop.approvals.failure.invalid",
   closed: "desktop.approvals.failure.closed",
   unapplied: "desktop.approvals.failure.unapplied",
+  switching: "desktop.approvals.failure.switching",
 };
 
-function ToolDetails(props: { readonly view: ToolApprovalView }): ReactNode {
+const TRUST_TEXT: Readonly<Record<NonNullable<ToolReplaceView["trust"]>, MessageId>> = {
+  builtin: "desktop.approvals.replace.trust.builtin",
+  user: "desktop.approvals.replace.trust.user",
+  project: "desktop.approvals.replace.trust.project",
+  untrusted: "desktop.approvals.replace.trust.untrusted",
+};
+
+/** 내장 도구 대체 승인(`tool_replace`). 누가 어떤 도구를 어떤 신뢰로 대체하는지와 경로 보호가 빠진다는 안내를 먼저 보인다 */
+function ReplaceDetails(props: { readonly view: ToolReplaceView }): ReactNode {
   const { view } = props;
   return (
+    <div className="approval-replace">
+      <div>{t("desktop.approvals.replace.heading")}</div>
+      <dl>
+        <dt>{t("desktop.approvals.replace.extension")}</dt>
+        <dd>
+          <code>{view.extension}</code>
+        </dd>
+        <dt>{t("desktop.approvals.replace.tool")}</dt>
+        <dd>
+          <code>{view.tool}</code>
+        </dd>
+        {view.trust === null ? null : (
+          <>
+            <dt>{t("desktop.approvals.replace.trust")}</dt>
+            <dd>{t(TRUST_TEXT[view.trust])}</dd>
+          </>
+        )}
+        <dt>{t("desktop.approvals.replace.risk")}</dt>
+        <dd>
+          {view.originalRisk === view.effectiveRisk
+            ? view.effectiveRisk
+            : t("desktop.approvals.replace.risk.value", {
+                originalRisk: view.originalRisk,
+                effectiveRisk: view.effectiveRisk,
+              })}
+        </dd>
+      </dl>
+      <Alert tone="warning" layout="inline">
+        {t("desktop.approvals.replace.pathProtection")}
+      </Alert>
+      <div className="dim">{t("desktop.approvals.replace.effect")}</div>
+    </div>
+  );
+}
+
+function ToolDetails(props: {
+  readonly view: ToolApprovalView;
+  readonly body: ToolApprovalBody;
+}): ReactNode {
+  const { view } = props;
+  const replace = toolReplaceView(props.body);
+  return (
     <>
+      {replace === null ? null : <ReplaceDetails view={replace} />}
       <div className="dim">
         {t("desktop.approvals.tool.summary", { toolName: view.toolName, risk: view.risk })}
       </div>
@@ -74,6 +131,20 @@ function ToolDetails(props: { readonly view: ToolApprovalView }): ReactNode {
       )}
     </>
   );
+}
+
+function OriginLine(props: { readonly caller: string }): ReactNode {
+  const origin = approvalOriginView(props.caller);
+  if (origin === null) return null;
+  const text =
+    origin.kind === "background"
+      ? t("desktop.approvals.origin.background")
+      : origin.kind === "host"
+        ? t("desktop.approvals.origin.host")
+        : origin.kind === "subagent"
+          ? t("desktop.approvals.origin.subagent", { name: origin.name })
+          : t("desktop.approvals.origin.group", { name: origin.name });
+  return <div className="dim">{`${t("desktop.approvals.origin.label")}: ${text}`}</div>;
 }
 
 function QuestionField(props: {
@@ -158,7 +229,10 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
   return (
     <li className="approval">
       <div className="approval-title">{request.title}</div>
-      {body.kind === "tool" ? <ToolDetails view={toolApprovalView(body.tool)} /> : null}
+      <OriginLine caller={request.origin.caller} />
+      {body.kind === "tool" ? (
+        <ToolDetails view={toolApprovalView(body.tool)} body={body.tool} />
+      ) : null}
       {body.kind === "plan" ? (
         <pre className="code">
           {typeof body.plan.plan === "string"
@@ -223,6 +297,19 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
     </li>
   );
 });
+
+/** 끝 영역 받은 요청 탭. 트랜스크립트 아래와 같은 카드 부품을 쓴다(`approval.resolved`로 함께 사라진다) */
+export function InboxApprovals(): ReactNode {
+  const ids = useApprovalIds();
+  if (ids.length === 0) return <div className="dim">{t("desktop.approvals.inbox.empty")}</div>;
+  return (
+    <ul aria-label={t("desktop.approvals.queue.label")}>
+      {ids.map((id) => (
+        <ApprovalCard key={id} id={id} />
+      ))}
+    </ul>
+  );
+}
 
 export function ApprovalQueue(): ReactNode {
   const ids = useApprovalIds();

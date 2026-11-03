@@ -21,6 +21,7 @@ import { createSetupCommands } from "./setup.ts";
 import { createWorkbenchCommands } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
+import type { EngineSwitch } from "./engine-switch.ts";
 
 export type CommandDeps = {
   readonly session: Session;
@@ -31,6 +32,8 @@ export type CommandDeps = {
   readonly journal: Journal<ApplyNote>;
   readonly versions: () => AppVersions;
   readonly clipboard: { writeText(text: string): Promise<void> };
+  /** 엔진 대상을 바꾸는 동안 쓰기를 보류한다(W-08) */
+  readonly engineSwitch: EngineSwitch;
 };
 
 export function createCommands(deps: CommandDeps): Commands {
@@ -45,6 +48,12 @@ export function createCommands(deps: CommandDeps): Commands {
     return result.ok ? ok(result.value) : err(errorOf(result.error.cause));
   };
 
+  /** 쓰기 명령 전용. 엔진 대상을 바꾸는 중이면 연결을 건드리지 않고 `switching`으로 거절한다 */
+  const withWriteConnection = async <T>(
+    run: (connection: NonNullable<ReturnType<Session["connection"]>>) => Promise<T>,
+  ): Promise<Result<T, CommandError>> =>
+    deps.engineSwitch.held() ? err({ kind: "switching" }) : withConnection(run);
+
   /** 쓰기 소유를 다른 프로세스가 쥐었다면 대화 상자가 대안을 묻는다. 호출한 입력창에도 오류는 그대로 돌려준다 */
   const showLockedIfLocked = (threadId: ThreadId, error: CommandError): void => {
     if (error.kind === "locked") {
@@ -57,7 +66,7 @@ export function createCommands(deps: CommandDeps): Commands {
     text: string,
     requestId: string,
   ): Promise<Result<null, CommandError>> => {
-    const started = await withConnection((c) =>
+    const started = await withWriteConnection((c) =>
       c.request("turn.start", { threadId, input: text, requestId }),
     );
     if (!started.ok) {
@@ -78,7 +87,7 @@ export function createCommands(deps: CommandDeps): Commands {
     requestId: string,
     confirmed: boolean,
   ): Promise<Result<null, CommandError>> => {
-    const ran = await withConnection((c) =>
+    const ran = await withWriteConnection((c) =>
       c.request("command.run", {
         threadId,
         text: line.text,
@@ -126,7 +135,7 @@ export function createCommands(deps: CommandDeps): Commands {
       session.link()?.openThread(threadId);
     },
     async createThread(workspace) {
-      const created = await withConnection((c) =>
+      const created = await withWriteConnection((c) =>
         c.request("thread.create", workspace === undefined ? {} : { workspace }),
       );
       if (!created.ok) return created;
@@ -159,10 +168,14 @@ export function createCommands(deps: CommandDeps): Commands {
       return listed.ok ? ok(commandListView(listed.value)) : listed;
     },
     async interrupt(threadId) {
-      const done = await withConnection((c) => c.request("turn.interrupt", { threadId }));
+      const done = await withWriteConnection((c) => c.request("turn.interrupt", { threadId }));
       return done.ok ? ok(null) : done;
     },
     async respondApproval(approvalId: EventId, response: ApprovalDecision) {
+      if (deps.engineSwitch.held()) {
+        ui.actions.approvalFailed(approvalId, "switching");
+        return;
+      }
       ui.actions.approvalSending(approvalId);
       const sent = await withConnection((c) =>
         c.request(
@@ -183,7 +196,7 @@ export function createCommands(deps: CommandDeps): Commands {
     trust: {
       status: (workspace) => withConnection((c) => c.request("trust.get", { workspace })),
       decide: (workspace, choice) =>
-        withConnection((c) => c.request("trust.decide", { workspace, choice })),
+        withWriteConnection((c) => c.request("trust.decide", { workspace, choice })),
     },
     workbench: createWorkbenchCommands(withConnection),
     setup: createSetupCommands(
@@ -210,7 +223,7 @@ export function createCommands(deps: CommandDeps): Commands {
       return ok(null);
     },
     async forkThread(threadId) {
-      const forked = await withConnection((c) => c.request("thread.fork", { threadId }));
+      const forked = await withWriteConnection((c) => c.request("thread.fork", { threadId }));
       if (!forked.ok) return forked;
       ui.actions.dismissLocked();
       // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다
@@ -228,6 +241,7 @@ export function createCommands(deps: CommandDeps): Commands {
       if (id !== null) session.link()?.openThread(id);
     },
     reconnect: () => session.reconnect(),
+    retargetEngine: (target, graceMs) => deps.engineSwitch.retarget(target, graceMs),
     async restartEngine() {
       const restarted = await session.restartEngine();
       if (!restarted) session.reconnect();

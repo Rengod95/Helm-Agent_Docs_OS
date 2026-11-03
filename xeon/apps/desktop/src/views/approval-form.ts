@@ -1,5 +1,6 @@
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { ApprovalRequestedPayload, BlobRef } from "@fresnel/contracts/records";
+import { TOOL_REPLACE_APPROVAL_TOOL } from "@fresnel/contracts/services";
 
 // 승인 카드의 순수 로직(L4.desktop.spec §4.13). 도구 승인 카드가 보이는 값과 질문 카드의 답 조립을 React 밖에서 시험한다.
 // 질문 응답은 core-tools `validateResponse`(L1.tools.spec §3.6)가 받는 모양으로만 만든다: 모든 질문에 답이 하나씩,
@@ -88,6 +89,49 @@ export function toolApprovalView(body: ToolApprovalBody): ToolApprovalView {
   };
 }
 
+// ── 내장 도구 대체 승인 ──────────────────────────────────────────────────
+
+type ReplaceTrust = "builtin" | "user" | "project" | "untrusted";
+const REPLACE_TRUSTS: readonly ReplaceTrust[] = ["builtin", "user", "project", "untrusted"];
+
+export type ToolReplaceView = {
+  /** 대체될 내장 도구 이름 */
+  readonly tool: string;
+  /** 대체하는 확장 이름 */
+  readonly extension: string;
+  /** 확장의 신뢰 등급. 모르는 값이면 null이고 카드는 등급 줄을 그리지 않는다 */
+  readonly trust: ReplaceTrust | null;
+  readonly originalRisk: string;
+  readonly effectiveRisk: string;
+  /** 대체 도구가 경로 보호를 스스로 지켜야 한다는 안내가 본문에 실려 왔는지. 실려 오지 않아도 카드는 안내를 그린다 */
+  readonly hasNotice: boolean;
+};
+
+function textOf(value: JsonValue | undefined): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+/**
+ * 도구 승인 본문이 내장 도구 대체 승인이면 카드가 그리는 값으로 바꾼다. 아니면 null이다.
+ * 인자는 프로세스 밖에서 온 값이라 모양을 확인하고, 필수 값(대상 도구, 확장 이름)이 없으면 일반 도구 승인으로 그린다.
+ */
+export function toolReplaceView(body: ToolApprovalBody): ToolReplaceView | null {
+  if (body.toolName !== TOOL_REPLACE_APPROVAL_TOOL || isBlobRef(body.args)) return null;
+  const { args } = body;
+  const tool = textOf(args["tool"]);
+  const extension = textOf(args["extension"]);
+  if (tool === null || extension === null) return null;
+  const trust = REPLACE_TRUSTS.find((candidate) => candidate === args["trust"]) ?? null;
+  return {
+    tool,
+    extension,
+    trust,
+    originalRisk: textOf(args["originalRisk"]) ?? body.risk,
+    effectiveRisk: textOf(args["effectiveRisk"]) ?? body.risk,
+    hasNotice: textOf(args["notice"]) !== null,
+  };
+}
+
 // ── 질문 ─────────────────────────────────────────────────────────────────
 
 /** 질문 하나의 입력 상태. 선택한 선택지 id 목록과 자유 입력 */
@@ -150,3 +194,20 @@ export function answerOf(
 }
 
 export const QUESTION_TEXT_MAX: number = FREE_TEXT_MAX;
+
+// ── 요청한 곳(U-7) ───────────────────────────────────────────────────────
+
+/** 승인 출처 표시. `main`은 보이지 않는다(null). 확장 caller `ext:<이름>`은 그룹 이름으로 보인다(화면은 `grp:<이름>`) */
+export type ApprovalOriginView =
+  | { readonly kind: "background" }
+  | { readonly kind: "host" }
+  | { readonly kind: "subagent"; readonly name: string }
+  | { readonly kind: "group"; readonly name: string };
+
+export function approvalOriginView(caller: string): ApprovalOriginView | null {
+  if (caller === "background") return { kind: "background" };
+  if (caller === "host") return { kind: "host" };
+  if (caller.startsWith("subagent:")) return { kind: "subagent", name: caller.slice(9) };
+  if (caller.startsWith("ext:")) return { kind: "group", name: caller.slice(4) };
+  return null;
+}
