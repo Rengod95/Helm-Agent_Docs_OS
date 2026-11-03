@@ -27,6 +27,16 @@ function useEngine<U>(selector: (state: EngineMirror) => U): U {
 export const useThreadIds = (): readonly ThreadId[] => useEngine(sel.selectThreadIds);
 export const useThread = (id: ThreadId): ThreadSummary | undefined =>
   useEngine((s) => sel.selectThread(s, id));
+/** 목록 순서(최근 활동 먼저)의 대화 요약. 셸의 맥락 칸이 쓴다 */
+export const useThreadSummaries = (): readonly ThreadSummary[] =>
+  useEngine(
+    useShallow((s: EngineMirror) =>
+      s.threads.ids.flatMap((id) => {
+        const summary = sel.selectThread(s, id);
+        return summary === undefined ? [] : [summary];
+      }),
+    ),
+  );
 export const useRecentWorkspaces = (limit: number): readonly string[] =>
   useEngine(useShallow((s: EngineMirror) => sel.selectRecentWorkspaces(s, limit)));
 export const useTranscriptItemIds = (): readonly ItemId[] => useEngine(sel.selectTranscriptItemIds);

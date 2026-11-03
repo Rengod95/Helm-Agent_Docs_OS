@@ -24,7 +24,6 @@ export const useSelectedThreadId = (): ThreadId | null => useUi((s) => s.selecte
 export const useApprovalSend = (id: EventId): ApprovalSend | undefined =>
   useUi((s) => s.approvalSends[id]);
 export const useConnectError = (): string | null => useUi((s) => s.connectError);
-export const useSidebarOpen = (): boolean => useUi((s) => s.sidebarOpen);
 export const useApprovalDetail = (id: EventId): string | undefined =>
   useUi((s) => s.approvalDetails[id]);
 export const useScreen = (): Screen => useUi((s) => s.screen);

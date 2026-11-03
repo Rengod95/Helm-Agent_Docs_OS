@@ -1,0 +1,197 @@
+// S-01 앱 셸. 제목 띠 없음(DP-05). 왼쪽 패널(창 위아래 끝까지) | 가운데 무대(투명) | 오른쪽 떠 있는 막대 + well | 아래 상태 표시줄.
+// 두 영역(대화, 작업대)은 이 셸 하나를 같이 쓰고 왼쪽 패널 내용과 오른쪽 탭만 바뀐다. 화면은 등록부(registry)가 준다.
+import { t } from "@fresnel/client/i18n";
+import { EmptyState, Toaster } from "@caustic/react";
+import { useEffect, useMemo, type ReactNode } from "react";
+import { EndPanel, wellWidthOf } from "./end-panel.tsx";
+import type { ContextProfile } from "./context-picker.tsx";
+import { resolveKeymap, type ActionId } from "./keybindings.ts";
+import { runShellAction, resolveShortcut } from "./shortcuts.ts";
+import type { ShellRegistry } from "./registry.ts";
+import { StartPanel } from "./start-panel.tsx";
+import { useShell, useShellActions } from "../../state/shell/index.ts";
+import { toastPlace } from "./toaster-slot.ts";
+
+const STAGE_ID = "stage";
+
+export interface ShellProps {
+  readonly registry: ShellRegistry;
+  /** 사용자가 바꾼 바로 가기 키(`l4.desktop.appearance.keybindings`). 없으면 기본 표 */
+  readonly keyOverrides?: Readonly<Record<string, string>> | undefined;
+  readonly mac: boolean;
+  /** 설정 화면이 무대를 채우는 중인가(두 영역 공통 화면) */
+  readonly settingsOpen: boolean;
+  readonly onSettingsOpenChange: (open: boolean) => void;
+  /** 설정 화면 내용 */
+  readonly settingsScreen: ReactNode;
+  /** 대화 영역 왼쪽 대화 목록 슬롯 */
+  readonly threadList: ReactNode;
+  /** 맥락 칸의 프로필 목록. 프로필 화면 트랙이 준다 */
+  readonly profiles?: readonly ContextProfile[] | undefined;
+  /** 상태 표시줄 슬롯(S-03). 셸은 자리만 둔다 */
+  readonly statusBar: ReactNode;
+  /** 명령 팔레트 슬롯(S-02). `paletteOpen`일 때 그리는 것은 팔레트 쪽이다 */
+  readonly palette?: ReactNode;
+  /** 대화 상자가 열려 있으면 Esc를 셸이 쓰지 않는다 */
+  readonly modalOpen?: boolean | undefined;
+  /** 셸이 처리하지 않는 동작(`thread.new`, `turn.interrupt` 등) */
+  readonly onAction?: ((id: ActionId) => void) | undefined;
+  /** "대화로 가기": 맥락 대화를 대화 영역에서 연다 */
+  readonly onGoToThread: (threadId: string) => void;
+}
+
+function useWindowResize(): void {
+  const actions = useShellActions();
+  useEffect(() => {
+    const update = (): void => {
+      actions.resize(window.innerWidth);
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("resize", update);
+    };
+  }, [actions]);
+}
+
+function useShellShortcuts(props: ShellProps): void {
+  const actions = useShellActions();
+  const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
+  const { mac, settingsOpen, onSettingsOpenChange, onAction, modalOpen } = props;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const model = actions.snapshot();
+      if (e.key === "Escape" && !model.paletteOpen && modalOpen !== true) {
+        actions.dismissFloating();
+        return;
+      }
+      const id = resolveShortcut(keymap, e, mac);
+      if (id === null) return;
+      const handled = runShellAction(id, model, actions, {
+        open: settingsOpen,
+        set: onSettingsOpenChange,
+      });
+      if (handled) e.preventDefault();
+      else if (onAction !== undefined) {
+        e.preventDefault();
+        onAction(id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [actions, keymap, mac, settingsOpen, onSettingsOpenChange, onAction, modalOpen]);
+}
+
+function Stage(props: {
+  readonly registry: ShellRegistry;
+  readonly settingsOpen: boolean;
+  readonly settingsScreen: ReactNode;
+}): ReactNode {
+  const screen = useShell((s) => s.places[s.area].screen);
+  if (props.settingsOpen) return props.settingsScreen;
+  const def = props.registry.screen(screen);
+  if (def !== undefined) return def.render();
+  return <EmptyState surface="none" title={t("desktop.shell.screen.missing")} />;
+}
+
+function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
+  const layout = useShell((s) => s.layout);
+  const open = useShell((s) => s.endOpen);
+  const area = useShell((s) => s.area);
+  const tabId = useShell((s) => s.places[s.area].endTab);
+  const tabs = props.registry.endTabs(area);
+  const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
+  // 위치만 바꾼다. 토스트 규칙(4초, danger는 머묾)은 caustic 그대로다
+  return (
+    <Toaster
+      label={t("desktop.shell.toast.label")}
+      className="bottom-10 transition-[inset] duration-quick"
+      style={
+        place.kind === "center-bottom"
+          ? { insetInline: "0.5rem" }
+          : { insetInlineEnd: `${String(place.endPx)}px` }
+      }
+    />
+  );
+}
+
+export function Shell(props: ShellProps): ReactNode {
+  const actions = useShellActions();
+  const layout = useShell((s) => s.layout);
+  const startOpen = useShell((s) => s.startOpen);
+  const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
+  useWindowResize();
+  useShellShortcuts(props);
+  const compact = layout === "compact";
+  const navigate = (screen: string): void => {
+    props.onSettingsOpenChange(false);
+    actions.updatePlace({ screen, scroll: 0 });
+    if (compact) actions.setStartOpen(false);
+  };
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-bg-app">
+      <a
+        href={`#${STAGE_ID}`}
+        onClick={(e) => {
+          e.preventDefault();
+          document.getElementById(STAGE_ID)?.focus();
+        }}
+        className="absolute top-2 left-2 z-40 -translate-y-[200%] rounded-lg bg-control-raised px-3 py-2 text-ui-strong text-text-primary opacity-0 outline-none focus:translate-y-0 focus:opacity-100 focus-visible:focus-ring"
+      >
+        {t("desktop.shell.skip")}
+      </a>
+      <div className="relative flex min-h-0 flex-1">
+        {compact && !startOpen ? null : (
+          <div
+            className={
+              compact
+                ? "absolute inset-y-0 start-0 z-30 flex w-[min(20rem,calc(100%-3rem))]"
+                : "flex"
+            }
+          >
+            <StartPanel
+              registry={props.registry}
+              keymap={keymap}
+              mac={props.mac}
+              settingsOpen={props.settingsOpen}
+              onOpenSettings={() => {
+                props.onSettingsOpenChange(true);
+                if (compact) actions.setStartOpen(false);
+              }}
+              onNavigate={navigate}
+              onSwitchArea={(area) => {
+                props.onSettingsOpenChange(false);
+                actions.switchArea(area);
+              }}
+              threadList={props.threadList}
+              profiles={props.profiles ?? []}
+              onGoToThread={props.onGoToThread}
+            />
+          </div>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative flex min-h-0 flex-1 p-1.5 pb-0">
+            <main
+              id={STAGE_ID}
+              tabIndex={-1}
+              aria-label={t("desktop.shell.stage.label")}
+              className="flex min-w-0 flex-1 flex-col outline-none"
+            >
+              <Stage
+                registry={props.registry}
+                settingsOpen={props.settingsOpen}
+                settingsScreen={props.settingsScreen}
+              />
+            </main>
+            <EndPanel registry={props.registry} />
+          </div>
+          {props.statusBar}
+        </div>
+      </div>
+      <ShellToaster registry={props.registry} />
+      {props.palette}
+    </div>
+  );
+}
