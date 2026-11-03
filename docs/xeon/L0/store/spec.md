@@ -814,7 +814,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 
 - 어느 단계에서 프로세스가 죽어도 현재 DB는 제자리에 있거나 `restore-previous/`에 있습니다. 같은 명령을 다시 실행하면 4번이 정리한 뒤 복원을 처음부터 합니다. 정리 전에 엔진을 띄우면 `fresnel.db`가 없는 틈에 빈 DB를 만들 수 있으므로 멈춘 복원은 엔진을 띄우기 전에 다시 실행해야 합니다.
 - 오류: `RestoreError`의 kind는 `backup_not_found`, `backup_invalid`(`reason`: `manifest`, `format`, `integrity`, `schema`, `blob_missing`, `blob_hash`), `foreign_database`, `not_a_database`, `future_version`, `engine_running`, `disk_full`, `io`(`code`)입니다.
-- 비밀: 사본은 설정 파일과 age 키(`secrets/age/keys.txt`)를 담지 않고 이 함수도 그 파일을 읽거나 만들거나 덮어쓰지 않습니다. DB 안의 비밀 참조를 복호화하려면 원래 기기의 age 키가 따로 있어야 합니다. 이 함수는 비밀 값을 읽지 않습니다.
+- 시크릿: 사본은 설정 파일과 age 키(`secrets/age/keys.txt`)를 담지 않고 이 함수도 그 파일을 읽거나 만들거나 덮어쓰지 않습니다. DB 안의 시크릿 참조를 복호화하려면 원래 기기의 age 키가 따로 있어야 합니다. 이 함수는 시크릿 값을 읽지 않습니다.
 - 다른 owner(`sys` 밖)의 버전은 이 함수가 코드 버전을 몰라 검사하지 않습니다. 그 owner의 `migration_future_version`은 다음 열기에서 드러나고, 복원 전 DB는 `restore-previous/`에 있습니다.
 - 테스트용 `hit(point)`는 단계 사이에서 불리며 운영은 넘기지 않습니다.
 
