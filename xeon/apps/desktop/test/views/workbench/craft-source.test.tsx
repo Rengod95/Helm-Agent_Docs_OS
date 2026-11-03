@@ -18,8 +18,12 @@ import { reduceMirror } from "../../../src/state/engine/reduce.ts";
 import { INITIAL_MIRROR, type EngineMirror } from "../../../src/state/engine/state.ts";
 import type { ReadonlyStore } from "../../../src/state/shared/readonly-store.ts";
 import { createWorkbenchStore, WorkbenchStoreContext } from "../../../src/state/workbench/index.ts";
-import type { WorkbenchCommands } from "../../../src/app/workbench-commands.ts";
-import { CommandsContext, type Commands, type CommandError } from "../../../src/views/commands.ts";
+import {
+  CommandsContext,
+  type Commands,
+  type CommandError,
+  type WorkbenchCommands,
+} from "../../../src/views/commands.ts";
 import type { CraftSource } from "../../../src/views/craft/craft-context.tsx";
 import {
   commandErrorText,

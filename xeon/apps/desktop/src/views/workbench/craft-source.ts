@@ -6,11 +6,9 @@ import { assertNever, type Result } from "@fresnel/contracts";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import type { WorkbenchCommands } from "../../app/workbench-commands.ts";
 import { useLatestTurnId, useOpenThreadId } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
-import type { CommandError } from "../commands.ts";
-import { useCommands } from "../commands.ts";
+import { useCommands, type CommandError, type WorkbenchCommands } from "../commands.ts";
 import type { CraftRunEntry, CraftSource } from "../craft/craft-context.tsx";
 import { detachVoid, type WorkbenchController } from "./controller.ts";
 

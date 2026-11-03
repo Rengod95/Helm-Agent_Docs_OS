@@ -15,8 +15,11 @@ import {
   WorkbenchStoreContext,
   type WorkbenchStore,
 } from "../../../src/state/workbench/index.ts";
-import { CommandsContext, type Commands } from "../../../src/views/commands.ts";
-import type { WorkbenchCommands } from "../../../src/app/workbench-commands.ts";
+import {
+  CommandsContext,
+  type Commands,
+  type WorkbenchCommands,
+} from "../../../src/views/commands.ts";
 import {
   useWorkbenchController,
   type WorkbenchController,
