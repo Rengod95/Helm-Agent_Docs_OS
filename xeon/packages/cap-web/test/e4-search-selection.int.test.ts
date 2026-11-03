@@ -1,57 +1,22 @@
-import { afterAll, afterEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import type { Logger } from "@fresnel/contracts";
 import type { WebService } from "@fresnel/contracts/capabilities";
 import type { HostedSearchPort } from "@fresnel/contracts/services";
 import { directConvertRunner } from "../src/fetch/convert-runner.ts";
-import type { HttpTransport } from "../src/ports/transport.ts";
-import { createWebRuntime, type WebRuntime } from "../src/runtime.ts";
+import type { PluginRegistration } from "../src/search/registry.ts";
+import { createWebRuntime } from "../src/runtime.ts";
 import { DEFAULT_WEB_SETTINGS, type WebSettings } from "../src/settings.ts";
+import { fakeSearchProvider, type FakeSearchProvider } from "../src/testing/fake-providers.ts";
 import { fakeSessionSources } from "../src/testing/fake-ports.ts";
 import { fakeResolver } from "../src/testing/fake-resolver.ts";
-import { fixtureTransport } from "../src/testing/http-fixtures.ts";
-import { createHttpTransport } from "../src/transport/http-transport.ts";
+import { fixtureTransport, type FixtureTransport } from "../src/testing/http-fixtures.ts";
 import { manualClock } from "./support/clock.ts";
 import { fixedLocalIds } from "./support/ids.ts";
 import { hostedTape } from "./support/tapes.ts";
 
-// m2-plan E4: SearXNG 주소를 설정하지 않으면 `web.search`는 내장 검색 래퍼를, 설정하면 SearXNG를 쓴다(L2.web.spec §9 수용 기준 1, 2).
-// 자동 감지는 없다(ADR-0005 개정, 사용자 결정 H1).
-// SearXNG는 루프백 가짜 서버(127.0.0.1)이고 운영 전송(`createHttpTransport`)이 그 서버로 실제 연결한다. 모델 호출은 테이프다.
-// 인터넷으로 나가는 요청은 없다.
-
-const SEARX_JSON = JSON.stringify({
-  query: "fresnel",
-  results: [
-    { url: "https://docs.example.org/a", title: "A", content: "first result" },
-    { url: "https://docs.example.org/b", title: "B", content: "second result" },
-  ],
-});
-
-interface ServerState {
-  mode: "json" | "forbidden";
-  hits: string[];
-}
-
-const state: ServerState = { mode: "json", hits: [] };
-
-const server = Bun.serve({
-  port: 0,
-  hostname: "127.0.0.1",
-  fetch(request) {
-    state.hits.push(new URL(request.url).pathname);
-    if (state.mode === "forbidden") return new Response("Forbidden", { status: 403 });
-    return new Response(SEARX_JSON, { headers: { "content-type": "application/json" } });
-  },
-});
-
-afterAll(async () => {
-  await server.stop(true);
-});
-
-afterEach(() => {
-  state.mode = "json";
-  state.hits.length = 0;
-});
+// m2-plan E4: 검색 도구의 기본 선택. 키를 등록한 플러그인이 없으면 `web.search`는 내장 검색 래퍼가 답하고 아무것도 탐침하지 않는다.
+// 플러그인을 설치해 순서의 앞에 올리면 그 플러그인이 답하고 래퍼는 불리지 않는다(L2.web.spec §9 수용 기준 1, 2).
+// 자동 감지는 없다(ADR-0005 개정, 사용자 결정 H1). 플러그인 provider는 키 기반 가짜이고, 모델 호출은 테이프다. 인터넷 요청은 없다.
 
 const SILENT: Logger = {
   debug() {},
@@ -61,31 +26,34 @@ const SILENT: Logger = {
   child: () => SILENT,
 };
 
-/** 사용하지 않는 포트. 열었다가 닫아 그 포트에 연결하면 거부된다 */
-async function closedPort(): Promise<number> {
-  const probe = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Response("x") });
-  const port = probe.port ?? 0;
-  await probe.stop(true);
-  return port;
-}
+const PLUGIN_ID = "plugin:example-search";
 
 interface Built {
-  readonly runtime: WebRuntime;
   readonly service: WebService;
+  /** 네트워크로 나간 요청. 이 시험에서는 아무것도 나가지 않아야 한다 */
+  readonly transport: FixtureTransport;
 }
 
+/** 플러그인 하나를 등록하고(없으면 등록하지 않는다) 사용자 순서를 정해 조립한다 */
 function build(
-  searxng: Partial<WebSettings["search"]["searxng"]>,
-  options: { readonly hosted?: HostedSearchPort; readonly transport?: HttpTransport } = {},
+  plugin: FakeSearchProvider | undefined,
+  options: { readonly hosted?: HostedSearchPort; readonly order?: readonly string[] } = {},
 ): Built {
   const settings: WebSettings = {
     ...DEFAULT_WEB_SETTINGS,
-    search: {
-      ...DEFAULT_WEB_SETTINGS.search,
-      searxng: { ...DEFAULT_WEB_SETTINGS.search.searxng, ...searxng },
-    },
+    search: { ...DEFAULT_WEB_SETTINGS.search, order: options.order ?? [] },
   };
-  const resolver = fakeResolver({ localhost: ["127.0.0.1"] });
+  const registrations: readonly PluginRegistration[] =
+    plugin === undefined
+      ? []
+      : [
+          {
+            extension: "example-search",
+            registration: { capability: "web.search", create: () => plugin },
+          },
+        ];
+  const resolver = fakeResolver();
+  const transport = fixtureTransport({}, resolver);
   const runtime = createWebRuntime({
     clock: manualClock(),
     ids: fixedLocalIds(),
@@ -93,140 +61,115 @@ function build(
     settings: () => settings,
     sessionSources: fakeSessionSources(),
     resolver,
-    transport: options.transport ?? createHttpTransport({ resolver }),
+    transport,
     convert: directConvertRunner(),
+    registrations: { list: () => registrations },
     ...(options.hosted === undefined ? {} : { hostedSearch: options.hosted }),
   });
-  return { runtime, service: runtime.service };
+  return { service: runtime.service, transport };
 }
 
-const SEARX_URL = `http://127.0.0.1:${String(server.port)}`;
+async function failureOf(promise: Promise<unknown>): Promise<unknown> {
+  return promise.then(
+    () => undefined,
+    (reason: unknown) => reason,
+  );
+}
 
 describe("E4 web.search provider selection", () => {
-  test("a reachable SearXNG answers and the wrapper is never called", async () => {
+  test("a plugin listed first answers and the wrapper is never called", async () => {
     const hosted = hostedTape("wrapper-basic");
-    const { service } = build({ url: SEARX_URL }, { hosted });
+    const plugin = fakeSearchProvider(PLUGIN_ID);
+    const { service } = build(plugin, { hosted, order: [PLUGIN_ID] });
     const found = await service.search.search({ query: "fresnel" });
-    expect(found.meta.provider).toBe("searxng");
+    expect(found.meta.provider).toBe(PLUGIN_ID);
     expect(found.meta.selectedBy).toBe("auto");
     expect(found.meta.fallbacks).toEqual([]);
-    expect(found.meta.cost).toMatchObject({ basis: "free", usd: 0 });
-    expect(found.results.map((result) => result.url)).toEqual([
-      "https://docs.example.org/a",
-      "https://docs.example.org/b",
-    ]);
-    // 탐침 한 번과 검색 한 번이 루프백 서버에 도착했다
-    expect(state.hits).toEqual(["/search", "/search"]);
+    expect(found.meta.cost.basis).toBe("estimated");
+    expect(plugin.searches.map((request) => request.terms)).toEqual(["fresnel"]);
     expect(hosted.requests).toHaveLength(0);
   });
 
-  test("without a SearXNG the built-in wrapper answers and the fallback names the probe", async () => {
+  test("without a plugin the wrapper answers alone and nothing is probed", async () => {
     const hosted = hostedTape("wrapper-basic");
-    const port = await closedPort();
-    const { service } = build({ url: `http://127.0.0.1:${String(port)}` }, { hosted });
+    const { service, transport } = build(undefined, { hosted });
     const found = await service.search.search({ query: "fresnel" });
     expect(found.meta.provider).toBe("builtin-wrapper");
     expect(found.meta.selectedBy).toBe("auto");
-    expect(found.meta.fallbacks).toHaveLength(1);
-    expect(found.meta.fallbacks[0]).toMatchObject({
-      provider: "searxng",
-      stage: "probe",
-      reason: "unreachable",
-    });
+    expect(found.meta.fallbacks).toEqual([]);
     expect(found.meta.cost.basis).toBe("estimated");
+    expect(transport.requests).toHaveLength(0);
     expect(hosted.requests).toHaveLength(1);
     expect(found.results.length).toBeGreaterThan(0);
   });
 
-  test("a SearXNG with json turned off falls back and says how to fix it once per thread", async () => {
-    state.mode = "forbidden";
+  test("a listed plugin that is not available falls back to the wrapper and the fallback names the probe", async () => {
     const hosted = hostedTape("wrapper-basic");
-    const { service } = build({ url: SEARX_URL }, { hosted });
-    const first = await service.search.search({ query: "fresnel one" });
-    expect(first.meta.provider).toBe("builtin-wrapper");
-    expect(first.meta.fallbacks[0]).toMatchObject({ provider: "searxng", reason: "json-disabled" });
-    expect(first.meta.warnings.some((line) => line.startsWith("searxng_json_disabled"))).toBe(true);
-    // 두 번째 호출은 같은 안내를 다시 붙이지 않는다. 탐침 실패는 30초 동안 기억되어 서버에도 다시 가지 않는다
-    const second = await service.search.search({ query: "fresnel two" });
-    expect(second.meta.fallbacks[0]).toMatchObject({ reason: "json-disabled" });
-    expect(second.meta.warnings.some((line) => line.startsWith("searxng_json_disabled"))).toBe(
-      false,
-    );
-    expect(state.hits).toEqual(["/search"]);
-  });
-
-  test("an explicit builtin-wrapper never asks SearXNG", async () => {
-    const hosted = hostedTape("wrapper-basic");
-    const { service } = build({ url: SEARX_URL }, { hosted });
-    const found = await service.search.search({ query: "fresnel", provider: "builtin-wrapper" });
-    expect(found.meta.provider).toBe("builtin-wrapper");
-    expect(found.meta.selectedBy).toBe("call");
-    expect(state.hits).toEqual([]);
-  });
-
-  test("an explicit searxng that is down does not fall back", async () => {
-    const hosted = hostedTape("wrapper-basic");
-    const port = await closedPort();
-    const { service } = build({ url: `http://127.0.0.1:${String(port)}` }, { hosted });
-    const failed = await service.search.search({ query: "fresnel", provider: "searxng" }).then(
-      () => undefined,
-      (reason: unknown) => reason,
-    );
-    expect(failed).toMatchObject({
-      data: { code: "unavailable", detail: { reason: "unreachable" } },
+    const plugin = fakeSearchProvider(PLUGIN_ID, {
+      availability: { ok: false, reason: "no-key" },
     });
-    expect(hosted.requests).toHaveLength(0);
-  });
-
-  test("neither provider available is unavailable with the whole fallback list", async () => {
-    const port = await closedPort();
-    const { service } = build({ url: `http://127.0.0.1:${String(port)}` });
-    const failed = await service.search.search({ query: "fresnel" }).then(
-      () => undefined,
-      (reason: unknown) => reason,
-    );
-    // 래퍼 포트가 없으면 후보는 SearXNG 하나다
-    expect(failed).toMatchObject({ data: { code: "unavailable" } });
-  });
-
-  test("without an address the wrapper answers, the chain has no searxng step and nothing is probed", async () => {
-    const hosted = hostedTape("wrapper-basic");
-    const transport = fixtureTransport({}, fakeResolver());
-    const { service } = build({ url: "" }, { hosted, transport });
+    const { service } = build(plugin, { hosted, order: [PLUGIN_ID] });
     const found = await service.search.search({ query: "fresnel" });
     expect(found.meta.provider).toBe("builtin-wrapper");
     expect(found.meta.selectedBy).toBe("auto");
-    expect(found.meta.fallbacks).toEqual([]);
-    expect(transport.requests).toHaveLength(0);
+    expect(found.meta.fallbacks).toEqual([
+      { provider: PLUGIN_ID, stage: "probe", reason: "no-key" },
+    ]);
+    expect(found.meta.cost.basis).toBe("estimated");
+    expect(plugin.searches).toHaveLength(0);
     expect(hosted.requests).toHaveLength(1);
+    expect(found.results.length).toBeGreaterThan(0);
   });
 
-  test("a SearXNG listening on a former detect address is ignored while no address is set", async () => {
+  test("an explicit builtin-wrapper never asks the plugin", async () => {
     const hosted = hostedTape("wrapper-basic");
-    const resolver = fakeResolver({ localhost: ["127.0.0.1"] });
-    const answer = { body: SEARX_JSON };
-    const transport = fixtureTransport(
-      {
-        "http://127.0.0.1:8888/search?q=fresnel&format=json&pageno=1": answer,
-        "http://127.0.0.1:8080/search?q=fresnel&format=json&pageno=1": answer,
-        "http://localhost:8888/search?q=fresnel&format=json&pageno=1": answer,
-        "http://localhost:8080/search?q=fresnel&format=json&pageno=1": answer,
-      },
-      resolver,
-    );
-    const { service } = build({ url: "" }, { hosted, transport });
-    const found = await service.search.search({ query: "fresnel" });
+    const plugin = fakeSearchProvider(PLUGIN_ID);
+    const { service } = build(plugin, { hosted, order: [PLUGIN_ID] });
+    const found = await service.search.search({ query: "fresnel", provider: "builtin-wrapper" });
     expect(found.meta.provider).toBe("builtin-wrapper");
-    expect(transport.requests).toHaveLength(0);
+    expect(found.meta.selectedBy).toBe("call");
+    expect(plugin.probes()).toBe(0);
+    expect(plugin.searches).toHaveLength(0);
   });
 
-  test("asking for searxng by name without an address is unavailable and sends nothing", async () => {
+  test("an explicit plugin that is not available does not fall back", async () => {
     const hosted = hostedTape("wrapper-basic");
-    const transport = fixtureTransport({}, fakeResolver());
-    const { service } = build({ url: "" }, { hosted, transport });
-    const failed = await service.search.search({ query: "fresnel", provider: "searxng" }).then(
-      () => undefined,
-      (reason: unknown) => reason,
+    const plugin = fakeSearchProvider(PLUGIN_ID, {
+      availability: { ok: false, reason: "no-key" },
+    });
+    const { service } = build(plugin, { hosted });
+    const failed = await failureOf(
+      service.search.search({ query: "fresnel", provider: PLUGIN_ID }),
+    );
+    expect(failed).toMatchObject({
+      data: { code: "unavailable", detail: { reason: "no-key" } },
+    });
+    expect(hosted.requests).toHaveLength(0);
+    expect(plugin.searches).toHaveLength(0);
+  });
+
+  test("no provider available is unavailable with the whole fallback list", async () => {
+    const plugin = fakeSearchProvider(PLUGIN_ID, {
+      availability: { ok: false, reason: "no-key" },
+    });
+    const { service } = build(plugin, { order: [PLUGIN_ID] });
+    const failed = await failureOf(service.search.search({ query: "fresnel" }));
+    expect(failed).toMatchObject({
+      data: {
+        code: "unavailable",
+        detail: {
+          reason: "all_failed",
+          fallbacks: [{ provider: PLUGIN_ID, stage: "probe", reason: "no-key" }],
+        },
+      },
+    });
+  });
+
+  test("asking for a plugin that is not installed is unavailable and sends nothing", async () => {
+    const hosted = hostedTape("wrapper-basic");
+    const { service, transport } = build(undefined, { hosted });
+    const failed = await failureOf(
+      service.search.search({ query: "fresnel", provider: PLUGIN_ID }),
     );
     expect(failed).toMatchObject({
       data: { code: "unavailable", detail: { reason: "unknown_provider" } },

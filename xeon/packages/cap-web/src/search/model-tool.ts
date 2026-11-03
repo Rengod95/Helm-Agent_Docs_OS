@@ -13,15 +13,15 @@ export type ModelSearchTool = "hosted" | "function" | "off";
 export interface ModelToolInput {
   /** `l2.web.search.modelTool` */
   readonly setting: ModelSearchSetting;
-  /** auto 체인의 첫 후보가 내장 래퍼뿐인가(키를 등록한 플러그인도 주소를 설정한 SearXNG도 없다) */
+  /** auto 체인의 후보가 내장 래퍼뿐인가(키를 등록한 플러그인이 없다) */
   readonly wrapperOnlyChain: boolean;
   /** 현재 모델 provider·모델에 hosted 검색 서버 도구가 있는가 */
   readonly hostedSupported: boolean;
 }
 
 /**
- * auto 체인의 후보가 내장 래퍼뿐인가. `catalog.searchCandidates()`가 돌려준 목록(설정하지 않은 SearXNG는 이미 빠져 있다)을 넘긴다.
- * 키를 등록한 플러그인이나 주소를 설정한 SearXNG가 하나라도 있으면 거짓이고, 후보가 비어 있어도 거짓이다
+ * auto 체인의 후보가 내장 래퍼뿐인가. `catalog.searchCandidates()`가 돌려준 목록을 넘긴다.
+ * 키를 등록한 플러그인이 하나라도 있으면 거짓이고, 후보가 비어 있어도 거짓이다
  */
 export function isWrapperOnlyChain(candidates: readonly SearchCandidate[]): boolean {
   return candidates.length > 0 && candidates.every((candidate) => candidate.origin === "builtin");

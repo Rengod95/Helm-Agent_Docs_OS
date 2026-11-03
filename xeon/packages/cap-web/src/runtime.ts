@@ -67,10 +67,10 @@ export interface WebRuntimeOptions {
   readonly registrations?: RegistrationSource;
   /**
    * 모델 provider의 hosted 검색 포트(`ModelService.hostedSearch`). 있으면 내장 검색 래퍼가 후보에 들어간다(L2.web.spec §4.8.4).
-   * 없으면 래퍼 없이 SearXNG와 플러그인만 후보다
+   * 없으면 래퍼 없이 플러그인만 후보다
    */
   readonly hostedSearch?: HostedSearchPort;
-  /** false면 내장 검색 provider(searxng, builtin-wrapper)를 후보에 넣지 않는다. 기본 true. 체인을 직접 짜는 시험이 쓴다 */
+  /** false면 내장 검색 provider(builtin-wrapper)를 후보에 넣지 않는다. 기본 true. 체인을 직접 짜는 시험이 쓴다 */
   readonly builtinSearch?: boolean;
   /**
    * 브라우저 MCP 포트(L2.web.spec §4.10.4a). 있으면 `playwright-mcp` 후보가 내장 `web.browse` 후보 뒤에 붙는다.
@@ -142,7 +142,6 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     options.builtinSearch === false
       ? []
       : createBuiltinSearchCandidates({
-          http: providerHttp,
           settings: () => options.settings(undefined).search,
           clock: options.clock,
           logger: options.logger,

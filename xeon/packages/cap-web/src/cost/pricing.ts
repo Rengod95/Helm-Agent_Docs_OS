@@ -5,7 +5,6 @@ import type { PricingTable } from "@fresnel/contracts/capabilities";
 /** 무료 provider의 표시. 가격표 대신 `free`를 쓴다 */
 export type ProviderPricing = PricingTable | "free";
 
-const SEARXNG_PRICING: ProviderPricing = "free";
 const LOCAL_FETCH_PRICING: ProviderPricing = "free";
 
 /**
@@ -25,7 +24,6 @@ export const BUILTIN_WRAPPER_PRICING: PricingTable = {
 
 /** 내장 provider ID → 가격표. 플러그인 가격표는 각 매니페스트가 가진다 */
 export const BUILTIN_PRICING: Readonly<Record<string, ProviderPricing>> = {
-  searxng: SEARXNG_PRICING,
   local: LOCAL_FETCH_PRICING,
   "builtin-wrapper": BUILTIN_WRAPPER_PRICING,
 };

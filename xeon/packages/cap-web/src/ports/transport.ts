@@ -6,7 +6,7 @@ import type { AddressPolicy } from "../policy/ssrf.ts";
 
 /**
  * public: 연결 시점에 해석된 모든 주소를 다시 검사하고 검사를 통과한 주소로 직접 연결한다(DNS 리바인딩 방어).
- * direct: 사용자가 설정한 provider endpoint(SearXNG의 루프백 주소)와 사설망 허용 설정에서만 쓴다. 전송이 IP 리터럴이 아닌
+ * direct: 사설망 허용 설정과 endpoint 예외에서만 쓴다. 전송이 IP 리터럴이 아닌
  * 호스트 이름을 다시 풀어 `addressPolicy`로 모든 주소를 검사하고(메타데이터는 항상 거부), 검사를 통과한 주소 하나로 직접
  * 연결한다(Host 헤더와 TLS 서버 이름은 원래 호스트). 전역 fetch가 이름을 따로 다시 풀 틈을 주지 않는다.
  */

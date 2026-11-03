@@ -37,11 +37,11 @@ function manifestWithPolicy(name: string, cachePolicy: "none" | "session" | "per
 }
 
 async function worldWith(
-  provider = fakeSearchProvider("searxng"),
+  provider = fakeSearchProvider("plugin:example-search"),
   policy: "none" | "session" | "persist" = "persist",
 ) {
   const world = await makeWebWorld({
-    catalog: fakeCatalog([searchCandidate(provider, "detected", policy)]),
+    catalog: fakeCatalog([searchCandidate(provider, "plugin", policy)]),
   });
   return { world, provider };
 }
@@ -55,10 +55,13 @@ describe("search service", () => {
       [2, "s2"],
     ]);
     expect(output.sources.map((source) => source.id)).toEqual(["s1", "s2"]);
-    expect(output.sources[0]).toMatchObject({ provider: "searxng", usage: { cache: "persist" } });
+    expect(output.sources[0]).toMatchObject({
+      provider: "plugin:example-search",
+      usage: { cache: "persist" },
+    });
     expect(output.results[0]?.passages[0]).toMatchObject({ sourceId: "s1", kind: "snippet" });
     expect(output.meta).toMatchObject({
-      provider: "searxng",
+      provider: "plugin:example-search",
       selectedBy: "auto",
       cache: "miss",
       untrusted: true,
@@ -256,9 +259,9 @@ describe("search service", () => {
   });
 
   test("a registered secret in the query is refused before any provider call", async () => {
-    const provider = fakeSearchProvider("searxng");
+    const provider = fakeSearchProvider("plugin:example-search");
     const world = await makeWebWorld({
-      catalog: fakeCatalog([searchCandidate(provider, "detected")]),
+      catalog: fakeCatalog([searchCandidate(provider, "plugin")]),
       secretValues: ["hunter2-top-secret"],
     });
     const failure = await rejection(world.search({ query: "what is hunter2-top-secret" }));
@@ -407,7 +410,7 @@ describe("search cache", () => {
     await world.search({ query: "alpha" });
     world.setSettings({
       ...world.settings(),
-      search: { ...world.settings().search, provider: "searxng" },
+      search: { ...world.settings().search, provider: "plugin:example-search" },
     });
     await world.search({ query: "alpha" });
     expect(provider.searches.length).toBe(1);
@@ -425,11 +428,11 @@ describe("search cost", () => {
       }),
     });
     const estimated = fakeSearchProvider("plugin:web-estimated");
-    const free = fakeSearchProvider("searxng", {
-      manifest: fakeManifest("searxng", {
+    const free = fakeSearchProvider("plugin:web-free", {
+      manifest: fakeManifest("web-free", {
         pricing: {
           asOf: "2026-10-20",
-          sourceUrl: "https://searxng.example",
+          sourceUrl: "https://free.example",
           currency: "USD",
           units: {},
         },
@@ -439,7 +442,7 @@ describe("search cost", () => {
       catalog: fakeCatalog([
         searchCandidate(reported, "plugin"),
         searchCandidate(estimated, "plugin"),
-        searchCandidate(free, "detected"),
+        searchCandidate(free, "plugin"),
       ]),
     });
     const a = await world.search({ query: "q", provider: "plugin:web-reported" });
@@ -447,7 +450,7 @@ describe("search cost", () => {
     const b = await world.search({ query: "q", provider: "plugin:web-estimated" });
     expect(b.meta.cost).toMatchObject({ basis: "estimated", pricingAsOf: "2026-10-20" });
     expect(b.meta.cost.usd).toBeGreaterThan(0.004);
-    const c = await world.search({ query: "q", provider: "searxng" });
+    const c = await world.search({ query: "q", provider: "plugin:web-free" });
     expect(c.meta.cost.usd).toBe(0);
     // 사용량 표에 provider별로 쌓인다
     const totals = world.deps.meter?.monthTotals("plugin:web-estimated");
@@ -476,10 +479,10 @@ describe("search cost", () => {
   });
 
   test("without a store the search still works and is not metered", async () => {
-    const provider = fakeSearchProvider("searxng");
+    const provider = fakeSearchProvider("plugin:example-search");
     const world = await makeWebWorld({
       withStore: false,
-      catalog: fakeCatalog([searchCandidate(provider, "detected")]),
+      catalog: fakeCatalog([searchCandidate(provider, "plugin")]),
     });
     const output: WebSearchOutput = await world.search({ query: "alpha" });
     expect(output.results.length).toBeGreaterThan(0);

@@ -32,7 +32,7 @@ export interface RegistrationSource {
 
 export interface ProviderRegistryDeps {
   readonly source: RegistrationSource;
-  /** 내장 provider 후보(searxng, builtin-wrapper). 내장 `local`은 후보가 아니라 fetch 파이프라인 자체다 */
+  /** 내장 provider 후보(builtin-wrapper). 내장 `local`은 후보가 아니라 fetch 파이프라인 자체다 */
   readonly builtin: {
     readonly search: readonly SearchCandidate[];
     readonly fetch: readonly FetchCandidate[];

@@ -37,11 +37,7 @@ export {
 } from "./policy/domain.ts";
 export type { DomainRules, DomainVerdict } from "./policy/domain.ts";
 export { createBoundProviderHttp, WebHttpError } from "./policy/guarded-http.ts";
-export type {
-  BoundProviderHttp,
-  ProviderHttpDeps,
-  ProviderHttpOptions,
-} from "./policy/guarded-http.ts";
+export type { BoundProviderHttp, ProviderHttpDeps } from "./policy/guarded-http.ts";
 export {
   createRobotsChecker,
   parseRobots,
@@ -149,13 +145,6 @@ export {
 export type { ModelSearchSetting, ModelSearchTool, ModelToolInput } from "./search/model-tool.ts";
 export { parseSearchQuery, recencyCutoff } from "./search/query.ts";
 export type { ParsedQuery } from "./search/query.ts";
-export {
-  createSearxngProvider,
-  SEARXNG_JSON_DISABLED_WARNING,
-  SEARXNG_PROVIDER_ID,
-  searxngManifest,
-} from "./search/providers/searxng.ts";
-export type { SearxngDeps } from "./search/providers/searxng.ts";
 export {
   BUILTIN_WRAPPER_PROVIDER_ID,
   createWrapperProvider,

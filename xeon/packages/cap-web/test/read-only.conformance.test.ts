@@ -50,7 +50,9 @@ describe("web readOnly conformance", () => {
 
   test("search and fetch write only the derived tables listed here", async () => {
     const world = await makeWebWorld({
-      catalog: fakeCatalog([searchCandidate(fakeSearchProvider("searxng"), "detected", "persist")]),
+      catalog: fakeCatalog([
+        searchCandidate(fakeSearchProvider("plugin:example-search"), "plugin", "persist"),
+      ]),
       routes: {
         "https://example.com/a": { headers: { "content-type": "text/plain" }, body: "alpha" },
       },

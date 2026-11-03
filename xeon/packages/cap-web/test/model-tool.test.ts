@@ -35,7 +35,7 @@ describe("model tool", () => {
   });
 });
 
-const candidate = (id: string, origin: "plugin" | "detected" | "builtin"): SearchCandidate => ({
+const candidate = (id: string, origin: "plugin" | "builtin"): SearchCandidate => ({
   provider: fakeSearchProvider(id),
   origin,
   cachePolicy: "session",
@@ -45,11 +45,6 @@ describe("wrapper-only chain", () => {
   test("only builtin candidates make the chain wrapper-only", () => {
     const table: readonly (readonly [string, readonly SearchCandidate[], boolean])[] = [
       ["wrapper alone", [candidate("builtin-wrapper", "builtin")], true],
-      [
-        "a configured searxng ahead of the wrapper",
-        [candidate("searxng", "detected"), candidate("builtin-wrapper", "builtin")],
-        false,
-      ],
       [
         "a key plugin ahead of the wrapper",
         [candidate("plugin:a", "plugin"), candidate("builtin-wrapper", "builtin")],

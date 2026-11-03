@@ -91,7 +91,7 @@ describe("cost", () => {
     expect(estimated.warnings).toEqual([]);
 
     const free = computeCost(
-      { provider: "searxng", pricing: "free", units: [], contextChars: 400 },
+      { provider: "plugin:example-search", pricing: "free", units: [], contextChars: 400 },
       NOW,
     );
     expect(free.cost).toEqual({
@@ -110,7 +110,7 @@ describe("cost", () => {
     };
     const free = computeCost(
       {
-        provider: "searxng",
+        provider: "plugin:example-search",
         pricing: empty,
         units: [{ name: "search", count: 1 }],
         contextChars: 10,
