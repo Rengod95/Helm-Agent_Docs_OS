@@ -687,7 +687,7 @@ runChildTurn(req):
 
 | 사례 | 처리 |
 |---|---|
-| 스트리밍 중 사용자 중단 | pi-ai가 부분 assistant 메시지를 `stopReason: "aborted"`로 끝낸다. T3가 부분 내용을 그대로 기록한다(`_research/ref-synthesis.md` L1 (f) "부분 스트림은 aborted로 보존"). T4 `next: "turn_end"`, T6 `interrupted` |
+| 스트리밍 중 사용자 중단 | pi-ai가 부분 assistant 메시지를 `stopReason: "aborted"`로 끝낸다. T3가 부분 내용을 그대로 기록한다. `guard.output.before`는 이 부분 답에 걸지 않고 내용을 비우지도 않는다(`_research/ref-synthesis.md` L1 (f) "부분 스트림은 aborted로 보존"). T4 `next: "turn_end"`, T6 `interrupted` |
 | 도구 실행 중 사용자 중단 | 도구 노드 신호가 켜진다. 결과가 있는 호출은 L1.tools가 기록, 없는 호출은 §3.3 A3 처리로 `not_executed`. 그 뒤 T4, T6 |
 | `stopReason: "length"`이고 도구 호출 있음 | 루프가 실행하지 않고 `tools.settleRejected(all, "truncated")`로 닫는다(§3.3 규칙 5, 원본 `agent-loop.ts:478-506`). L1.tools가 `invalid_args` 계열 거부로 기록한다 |
 | T3 커밋 실패 | `commitResponse`가 `err`를 돌려주고 단계 반복이 멈춘다. 도구는 실행되지 않는다. 루프가 T6 `failed`를 시도하고, 그것도 실패하면 열린 turn으로 남는다(재개 후보) |

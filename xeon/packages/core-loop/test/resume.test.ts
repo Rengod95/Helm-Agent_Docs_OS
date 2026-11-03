@@ -200,7 +200,10 @@ test("aborted_partial_stream_saved_as_aborted", async () => {
       event.payload.item.kind === "assistant",
   );
   expect(assistantItem?.payload).toMatchObject({
-    item: { status: "interrupted", message: { stopReason: "aborted" } },
+    item: {
+      status: "interrupted",
+      message: { stopReason: "aborted", content: [{ type: "text", text: "part" }] },
+    },
   });
   expect(firstOfKind(events, "turn.completed")?.payload).toMatchObject({
     status: "interrupted",
