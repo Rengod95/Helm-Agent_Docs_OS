@@ -1,5 +1,4 @@
 // 훅별 핸들러 순서 덮어쓰기: 설정 값 읽기·쓰기, 적용 상태, 제안 검사, 미리보기. 대부분 순수 함수다.
-import { err, ok, type Result } from "@fresnel/contracts";
 import {
   CHAIN_RULES,
   HOOKS,
@@ -9,9 +8,13 @@ import {
   type HookName,
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
-import { isPinnedTier, orderEntries } from "../primitives/order.ts";
+import { orderEntries } from "../primitives/order.ts";
+import { TIERS } from "./tier.ts";
 
-/** 훅 이름 → Registration id 목록(앞이 먼저 실행된다). 고정 tier 핸들러 id는 들어가지 않는다 */
+/** guard tier의 순위(0). 미리보기가 guard 핸들러를 알아보는 데만 쓴다. 순서를 고정하지 않는다 */
+const GUARD_RANK = TIERS.indexOf("guard");
+
+/** 훅 이름 → Registration id 목록(앞이 먼저 실행된다) */
 export type HookOrderMap = ReadonlyMap<HookName, readonly RegistrationId[]>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -104,70 +107,13 @@ export interface OrderRow {
   readonly tier: number;
 }
 
-export type OrderCheckError =
-  /** 고정(guard) 핸들러를 현재 상대 순서와 다르게 놓으려 했다 */
-  | {
-      readonly kind: "guard_moved";
-      readonly hook: HookName;
-      readonly registrationId: RegistrationId;
-    }
-  /** 고정 핸들러 위에 다른 핸들러를 놓으려 했다: registrationId는 고정 핸들러, above는 그 앞에 놓인 일반 핸들러 */
-  | {
-      readonly kind: "above_guard";
-      readonly hook: HookName;
-      readonly registrationId: RegistrationId;
-      readonly above: RegistrationId;
-    };
-
-/** 고정 핸들러 id → 고정 행끼리의 상대 순서(current 기준). current는 디스패치 순서다 */
-function pinnedRanksOf(current: readonly OrderRow[]): ReadonlyMap<RegistrationId, number> {
-  const ranks = new Map<RegistrationId, number>();
-  for (const row of current) {
-    if (isPinnedTier(row.tier) && !ranks.has(row.registrationId)) {
-      ranks.set(row.registrationId, ranks.size);
-    }
-  }
-  return ranks;
-}
-
-/** 저장할 목록: 고정 핸들러 id를 뺀 중복 없는 목록. 순서는 제안의 첫 출현 순서다 */
-function withoutPinned(
-  proposal: readonly string[],
-  pinned: ReadonlyMap<RegistrationId, number>,
-): RegistrationId[] {
-  return uniq(proposal).filter((id) => !pinned.has(id));
-}
-
 /**
- * 제안한 순서를 검사하고 저장할 값(고정 핸들러를 뺀 중복 없는 목록)을 돌려준다.
- * 제안이 고정 핸들러 id를 포함하면 그것들이 제안 안에서 모든 일반 핸들러보다 앞이고 current의 상대 순서와 같을 때만 받는다.
- * 고정 핸들러 id를 아예 안 적는 것은 괜찮다. 알 수 없는 id(current에 없는 id)는 오류가 아니고 그대로 저장한다.
+ * 제안한 순서를 저장할 값으로 고친다: 중복을 뺀 목록이고 제안의 첫 출현 순서를 지킨다. 거부하지 않는다.
+ * guard tier 핸들러도 옮길 수 있다(2026-11-03 사용자 결정). 알 수 없는 id(없는 핸들러, 꺼진 핸들러)는 오류가 아니고 그대로 저장한다.
+ * 저장을 막는 사유는 없다. 옮긴 guard가 건너뛰어질 수 있는 위험은 `previewOrder`의 `guardRisk`가 알린다.
  */
-export function checkOrder(
-  hook: HookName,
-  proposal: readonly string[],
-  current: readonly OrderRow[],
-): Result<readonly RegistrationId[], OrderCheckError> {
-  const pinned = pinnedRanksOf(current);
-  const ids = uniq(proposal);
-  // 고정 핸들러가 처음 본 일반 핸들러 뒤에 오면 안 된다. 뒤에 오는 고정 핸들러마다 첫 일반 핸들러를 알린다
-  let firstFree: RegistrationId | undefined;
-  for (const id of ids) {
-    if (!pinned.has(id)) {
-      firstFree ??= id;
-    } else if (firstFree !== undefined) {
-      return err({ kind: "above_guard", hook, registrationId: id, above: firstFree });
-    }
-  }
-  // 제안 안의 고정 핸들러(중복 뺌)가 현재 상대 순서를 지켜야 한다. 순서가 깨지는 첫 고정 핸들러를 알린다
-  let lastRank = -1;
-  for (const id of ids) {
-    const rank = pinned.get(id);
-    if (rank === undefined) continue;
-    if (rank < lastRank) return err({ kind: "guard_moved", hook, registrationId: id });
-    lastRank = rank;
-  }
-  return ok(withoutPinned(ids, pinned));
+export function checkOrder(proposal: readonly string[]): RegistrationId[] {
+  return uniq(proposal);
 }
 
 /** 미리보기 입력 행. exempt는 자동 끄기에서 빠지는지(guard, core tier, essential) */
@@ -202,15 +148,33 @@ export interface AutoDisableNote {
   readonly affects: readonly PreviewRef[];
 }
 
+/**
+ * guard tier 핸들러의 위험 노트. 제안을 적용하면 guard 핸들러가 건너뛰어지거나 맨 앞을 잃을 수 있다.
+ * 저장은 막지 않는다. UI는 이 목록이 비어 있지 않으면 "안전 검사가 건너뛰어질 수 있다"는 강한 경고를 띄운다.
+ */
+export interface GuardRiskNote {
+  readonly registrationId: RegistrationId;
+  readonly extension: ExtensionName;
+  /**
+   * 제안이 앞에 둔 핸들러 때문에 이 훅에서 실행되지 않을 수 있다(first의 앞선 결정, closed first의 앞선 실패, chain의 멈춤).
+   * 기본 순서에서 이미 앞이던 핸들러는 세지 않는다. skips에 같은 종류의 노트가 있다
+   */
+  readonly mayBeSkipped: boolean;
+  /** 기본 순서에서 맨 앞이던 guard 핸들러가 이 제안에서 맨 앞을 잃었다 */
+  readonly losesFirstPosition: boolean;
+  /** 이 핸들러보다 앞에 놓인 핸들러 */
+  readonly by: readonly PreviewRef[];
+}
+
 export interface OrderPreview {
   readonly hook: HookName;
-  /** 이 제안을 적용했을 때의 전체 순서(고정 핸들러가 항상 앞) */
+  /** 이 제안을 적용했을 때의 전체 순서(덮어쓰기 적용 뒤) */
   readonly order: readonly RegistrationId[];
   readonly skips: readonly SkipNote[];
   readonly valueChanges: readonly ValueChangeNote[];
   readonly autoDisable: readonly AutoDisableNote[];
-  /** 저장을 막는 유일한 사유. 없으면 null. 미리보기는 이 경우에도 고정 핸들러 이름을 뺀 제안으로 계산해 돌려준다 */
-  readonly guard: OrderCheckError | null;
+  /** guard 핸들러의 건너뜀과 맨 앞 상실. 없으면 빈 목록이다 */
+  readonly guardRisk: readonly GuardRiskNote[];
 }
 
 function refOf(row: OrderRow): PreviewRef {
@@ -227,20 +191,34 @@ function isChainHook(hook: HookName): hook is ChainHookName {
  * - chain: 뒤 핸들러의 패치가 앞선 핸들러가 낸 값을 바꿀 수 있다(valueChanges). 멈춤 규칙이 있으면 뒤 핸들러를 건너뛴다(chain_stop).
  * - tap, collect: 모든 핸들러가 돈다. 노트가 없다.
  * - 자동 끄기: closed first 훅에서 면제되지 않은 핸들러가 실패하면 뒤 핸들러 전부가 막힌다(affects).
+ * - guard: guard tier 핸들러가 기본 순서에 없던 앞선 핸들러 때문에 건너뛰어지거나, 기본 순서에서 맨 앞이던 guard가 맨 앞을 잃으면
+ *   guardRisk에 남긴다. 기본 순서에서 이미 뒤 guard가 앞 guard에게 가려지는 것은 위험으로 세지 않는다(제안이 만든 위험만 알린다).
+ *   저장은 막지 않는다.
+ * current는 기본 순서의 행이다(tier, loadIndex, seq). 제안은 이 순서 위에 얹힌다.
  */
 export function previewOrder(
   hook: HookName,
   proposal: readonly string[],
   current: readonly PreviewRow[],
 ): OrderPreview {
-  const checked = checkOrder(hook, proposal, current);
-  const guard = checked.ok ? null : checked.error;
-  const normalized = checked.ok ? checked.value : withoutPinned(proposal, pinnedRanksOf(current));
   const rows = orderEntries(
     current.map((row) => ({ ...row, scopeId: row.registrationId })),
-    (row) => row.tier,
-    normalized,
+    checkOrder(proposal),
   );
+  // 기본 순서에서의 자리(등록 id의 첫 출현). 제안이 앞으로 보낸 핸들러가 무엇인지 가린다
+  const defaultPosOf = new Map<RegistrationId, number>();
+  current.forEach((row, index) => {
+    if (!defaultPosOf.has(row.registrationId)) defaultPosOf.set(row.registrationId, index);
+  });
+  const defaultPos = (id: RegistrationId): number =>
+    defaultPosOf.get(id) ?? Number.MAX_SAFE_INTEGER;
+  // 기본 순서에서 맨 앞인 행이 guard면 그 핸들러가 맨 앞을 가진다. 제안이 그 자리를 다른 핸들러에게 주면 맨 앞을 잃는다
+  const defaultFirst = current[0];
+  const guardFirst =
+    defaultFirst !== undefined && defaultFirst.tier === GUARD_RANK
+      ? defaultFirst.registrationId
+      : undefined;
+  const firstLost = guardFirst !== undefined && rows[0]?.registrationId !== guardFirst;
 
   const fold = HOOKS[hook].fold;
   const closed = fold === "first" && HOOKS[hook].failure === "closed";
@@ -248,10 +226,26 @@ export function previewOrder(
   const skips: SkipNote[] = [];
   const valueChanges: ValueChangeNote[] = [];
   const autoDisable: AutoDisableNote[] = [];
+  const guardRisk: GuardRiskNote[] = [];
   for (const [index, row] of rows.entries()) {
-    const earlier = rows.slice(0, index).map(refOf);
+    const earlierRows = rows.slice(0, index);
+    const earlier = earlierRows.map(refOf);
     const later = rows.slice(index + 1).map(refOf);
     const base = { registrationId: row.registrationId, extension: row.extension };
+    // 앞선 핸들러 때문에 실행되지 않을 수 있는가(skips와 같은 조건). 기본 순서에서 뒤에 있던 핸들러가 앞에 온 경우만 새 위험이다
+    const mayBeSkipped =
+      (fold === "first" || (fold === "chain" && chainStop)) &&
+      earlierRows.some((prev) => defaultPos(prev.registrationId) > defaultPos(row.registrationId));
+    const losesFirstPosition = firstLost && row.registrationId === guardFirst;
+    if (row.tier === GUARD_RANK && (mayBeSkipped || losesFirstPosition)) {
+      guardRisk.push({
+        registrationId: row.registrationId,
+        extension: row.extension,
+        mayBeSkipped,
+        losesFirstPosition,
+        by: earlier,
+      });
+    }
     if (earlier.length > 0) {
       if (fold === "first") {
         skips.push({ ...base, reason: "first_answer", by: earlier });
@@ -273,6 +267,6 @@ export function previewOrder(
     skips,
     valueChanges,
     autoDisable,
-    guard,
+    guardRisk,
   };
 }

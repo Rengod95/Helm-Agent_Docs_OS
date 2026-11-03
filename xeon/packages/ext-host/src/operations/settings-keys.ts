@@ -223,7 +223,7 @@ export const operationsSettings: SettingGroup<
       widget: "table",
       order: 600,
       label: "핸들러 순서",
-      help: "훅마다 핸들러(Registration id) 실행 순서를 사용자가 정한다. 새 단계가 시작될 때 적용한다. guard tier 핸들러는 항상 맨 앞이고 옮길 수 없다.",
+      help: "훅마다 핸들러(Registration id) 실행 순서를 사용자가 정한다. 새 단계가 시작될 때 적용한다. guard tier 핸들러도 옮길 수 있고, 옮기면 안전 검사가 건너뛰어질 수 있다.",
     },
     since: "0.1.0",
   },

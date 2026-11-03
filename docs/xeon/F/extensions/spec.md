@@ -1410,7 +1410,7 @@ chain의 보충 규칙 [제안]:
 
 ### 4.2 디스패치 순서
 
-- [결정: 2026-11-03 M4 T-ORDER, 사용자 결정 m4-decisions 15-2] 한 훅의 기본 핸들러 순서는 tier, 확장 로드 순서, 등록 순서의 사전식 순서다. 사용자는 훅마다 이 순서를 덮어쓸 수 있고, 덮어쓴 순서는 설정 `x.operations.hookOrder`에 저장되어 재시작 뒤에도 남으며 다음 단계 경계(`boundary.turn.before`, `boundary.step.before`의 디스패치 시작)에 적용된다. 이름을 적지 않은 핸들러는 기본 자리를 지킨다. 지워졌거나 싣지 않았거나 꺼진 핸들러의 이름은 무시한다. **guard tier 핸들러는 항상 맨 앞이고 덮어쓰기가 옮기지 못하며 그 위에 다른 핸들러를 둘 수도 없다.** 이 고정은 `X.operations.spec` §4.1.1·§4.1.5가 정하고 코드는 `PINNED_TIER_RANK` 한 곳이다. tier 정의, 덮어쓰기 규칙, 핸들러 시간 예산은 X.operations.spec이 정한다(`_research/item-catalog.md` X절 실행 순서와 tier 행).
+- [결정: 2026-11-03 M4 T-ORDER, 사용자 결정 m4-decisions 15-2] 한 훅의 기본 핸들러 순서는 tier, 확장 로드 순서, 등록 순서의 사전식 순서다. 사용자는 훅마다 이 순서를 덮어쓸 수 있고, 덮어쓴 순서는 설정 `x.operations.hookOrder`에 저장되어 재시작 뒤에도 남으며 다음 단계 경계(`boundary.turn.before`, `boundary.step.before`의 디스패치 시작)에 적용된다. 이름을 적지 않은 핸들러는 기본 자리를 지킨다. 지워졌거나 싣지 않았거나 꺼진 핸들러의 이름은 무시한다. 기본 순서에서 **guard tier 핸들러는 맨 앞이다.** [결정: 2026-11-03 사용자] 사용자는 guard 핸들러도 덮어쓰기로 옮길 수 있고, 옮기면 안전 검사가 건너뛰어질 수 있어 설정 화면이 경고한다. 고정은 없다(`X.operations.spec` §4.1.1·§4.1.5). tier 정의, 덮어쓰기 규칙, 핸들러 시간 예산은 X.operations.spec이 정한다(`_research/item-catalog.md` X절 실행 순서와 tier 행).
 - 디스패치 시작 시 핸들러 목록을 스냅샷한다. 디스패치 도중의 등록·해제·토글은 그 디스패치에 반영되지 않는다(pi `runner.ts:269-271`과 같다).
 - `dispatch: "detached"` tap 훅은 디스패처가 완료를 기다리지 않는다. 나머지는 순차 await다.
 

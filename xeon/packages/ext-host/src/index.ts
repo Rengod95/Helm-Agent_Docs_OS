@@ -232,19 +232,17 @@ export {
   type Tier,
 } from "./operations/index.ts";
 
-// 훅별 핸들러 순서 덮어쓰기(설정 값 읽기·쓰기, 제안 검사, 미리보기). 고정 tier(guard)는 PINNED_TIER_RANK·isPinnedTier로 이름을 댄다
+// 훅별 핸들러 순서 덮어쓰기(설정 값 읽기·쓰기, 제안 정리, 미리보기). guard tier도 덮어쓰기로 옮길 수 있고, 미리보기의 guardRisk가 위험을 알린다
 export {
   checkOrder,
   createHookOrderState,
   hookOrderOf,
   hookOrderValue,
-  isPinnedTier,
-  PINNED_TIER_RANK,
   previewOrder,
   type AutoDisableNote,
+  type GuardRiskNote,
   type HookOrderMap,
   type HookOrderState,
-  type OrderCheckError,
   type OrderPreview,
   type OrderRow,
   type PreviewRef,

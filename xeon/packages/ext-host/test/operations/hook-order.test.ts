@@ -4,8 +4,6 @@ import {
   createHookOrderState,
   hookOrderOf,
   hookOrderValue,
-  isPinnedTier,
-  PINNED_TIER_RANK,
   previewOrder,
   TIERS,
   type HookOrderMap,
@@ -13,7 +11,7 @@ import {
   type PreviewRow,
 } from "../../src/operations/index.ts";
 
-const GUARD = PINNED_TIER_RANK;
+const GUARD = TIERS.indexOf("guard");
 const USER = TIERS.indexOf("user");
 const BUILTIN = TIERS.indexOf("builtin");
 const CORE = TIERS.indexOf("core");
@@ -26,18 +24,18 @@ function refOf(registrationId: string, tier: number): PreviewRef {
   return { registrationId, extension: registrationId, tier };
 }
 
-// 디스패치 순서: 고정(guard) → 사용자 → 내장
+// 기본 순서: guard → 사용자 → 내장
 const TOOL_ROWS: readonly PreviewRow[] = [
   rowOf("core-tools", GUARD, true),
   rowOf("alpha", USER),
   rowOf("beta", BUILTIN),
 ];
 
-test("hook order: the guard tier is rank 0 and only it is pinned", () => {
-  expect(TIERS[PINNED_TIER_RANK]).toBe("guard");
-  expect(isPinnedTier(PINNED_TIER_RANK)).toBe(true);
-  expect(isPinnedTier(USER)).toBe(false);
-  expect(isPinnedTier(CORE)).toBe(false);
+test("hook order: the guard tier is rank 0 of TIERS, the default's first rank", () => {
+  expect(GUARD).toBe(0);
+  expect(TIERS[GUARD]).toBe("guard");
+  expect(USER).toBeGreaterThan(GUARD);
+  expect(CORE).toBeGreaterThan(BUILTIN);
 });
 
 test("hook order: hookOrderOf keeps valid lists and drops junk keys, values, items and duplicates", () => {
@@ -103,50 +101,22 @@ test("hook order state: an equal saved value is not pending and applyPending rep
   expect(state.appliedMap().size).toBe(0);
 });
 
-test("checkOrder: drops guard ids and duplicates and keeps unknown ids", () => {
-  expect(
-    checkOrder("tool.call.before", ["core-tools", "beta", "zeta", "beta", "alpha"], TOOL_ROWS),
-  ).toEqual({ ok: true, value: ["beta", "zeta", "alpha"] });
+test("checkOrder: drops duplicates and keeps unknown ids and the guard id in the proposed order", () => {
+  expect(checkOrder(["core-tools", "beta", "zeta", "beta", "alpha"])).toEqual([
+    "core-tools",
+    "beta",
+    "zeta",
+    "alpha",
+  ]);
 });
 
-test("checkOrder: omitting the guard id is fine", () => {
-  expect(checkOrder("tool.call.before", ["beta", "alpha"], TOOL_ROWS)).toEqual({
-    ok: true,
-    value: ["beta", "alpha"],
-  });
-});
-
-test("checkOrder: a guard placed after a regular handler is above_guard", () => {
-  expect(checkOrder("tool.call.before", ["alpha", "core-tools"], TOOL_ROWS)).toEqual({
-    ok: false,
-    error: {
-      kind: "above_guard",
-      hook: "tool.call.before",
-      registrationId: "core-tools",
-      above: "alpha",
-    },
-  });
-});
-
-test("checkOrder: guards in a different relative order are guard_moved", () => {
-  const rows: readonly PreviewRow[] = [
-    rowOf("g-one", GUARD, true),
-    rowOf("g-two", GUARD, true),
-    rowOf("alpha", USER),
-  ];
-  expect(checkOrder("tool.call.before", ["g-two", "g-one", "alpha"], rows)).toEqual({
-    ok: false,
-    error: { kind: "guard_moved", hook: "tool.call.before", registrationId: "g-one" },
-  });
-  expect(checkOrder("tool.call.before", ["g-one", "g-two", "alpha"], rows)).toEqual({
-    ok: true,
-    value: ["alpha"],
-  });
+test("checkOrder never rejects: a guard placed after a regular handler is saved as proposed", () => {
+  expect(checkOrder(["alpha", "core-tools"])).toEqual(["alpha", "core-tools"]);
+  expect(checkOrder(["beta", "core-tools", "alpha"])).toEqual(["beta", "core-tools", "alpha"]);
 });
 
 test("previewOrder: first closed hook gives first_answer and first_failure_deny with the earlier rows, and an autoDisable for the non-exempt row", () => {
   const preview = previewOrder("tool.call.before", ["beta", "alpha"], TOOL_ROWS);
-  expect(preview.guard).toBeNull();
   expect(preview.order).toEqual(["core-tools", "beta", "alpha"]);
   expect(preview.skips).toEqual([
     {
@@ -175,15 +145,72 @@ test("previewOrder: first closed hook gives first_answer and first_failure_deny 
     },
   ]);
   expect(preview.valueChanges).toEqual([]);
-  // guard는 면제라 노트가 없다. beta는 뒤에 alpha가 있으므로 자동 끄기 노트가 있다
+  // guard는 면제라 자동 끄기 노트가 없다. beta는 뒤에 alpha가 있으므로 노트가 있다
   expect(preview.autoDisable).toEqual([
     { registrationId: "beta", extension: "beta", affects: [refOf("alpha", USER)] },
+  ]);
+  // guard가 기본 순서대로 맨 앞에 있으므로 guard 위험 노트는 없다
+  expect(preview).not.toHaveProperty("guard");
+  expect(preview.guardRisk).toEqual([]);
+});
+
+test("previewOrder: a guard moved behind a regular handler may be skipped and loses its first position", () => {
+  const preview = previewOrder("tool.call.before", ["alpha", "core-tools"], TOOL_ROWS);
+  expect(preview.order).toEqual(["alpha", "core-tools", "beta"]);
+  expect(preview.guardRisk).toEqual([
+    {
+      registrationId: "core-tools",
+      extension: "core-tools",
+      mayBeSkipped: true,
+      losesFirstPosition: true,
+      by: [refOf("alpha", USER)],
+    },
+  ]);
+  // 같은 guard가 건너뛰어지는 노트도 skips에 있다(guardRisk는 그 사실을 따로 모아 알린다)
+  expect(preview.skips).toContainEqual({
+    registrationId: "core-tools",
+    extension: "core-tools",
+    reason: "first_answer",
+    by: [refOf("alpha", USER)],
+  });
+});
+
+test("previewOrder: a guard kept first in the proposal has no guard risk", () => {
+  const preview = previewOrder("tool.call.before", ["core-tools", "beta", "alpha"], TOOL_ROWS);
+  expect(preview.order).toEqual(["core-tools", "beta", "alpha"]);
+  expect(preview.guardRisk).toEqual([]);
+});
+
+test("previewOrder: on a tap hook a moved guard loses its first position but is never skipped", () => {
+  const preview = previewOrder("boundary.turn.before", ["beta", "core-tools"], TOOL_ROWS);
+  expect(preview.order).toEqual(["beta", "alpha", "core-tools"]);
+  expect(preview.skips).toEqual([]);
+  expect(preview.guardRisk).toEqual([
+    {
+      registrationId: "core-tools",
+      extension: "core-tools",
+      mayBeSkipped: false,
+      losesFirstPosition: true,
+      by: [refOf("beta", BUILTIN), refOf("alpha", USER)],
+    },
+  ]);
+});
+
+test("previewOrder: a chain hook with a stop rule can skip a guard moved behind a handler", () => {
+  const preview = previewOrder("input.user.before", ["alpha", "core-tools"], TOOL_ROWS);
+  expect(preview.guardRisk).toEqual([
+    {
+      registrationId: "core-tools",
+      extension: "core-tools",
+      mayBeSkipped: true,
+      losesFirstPosition: true,
+      by: [refOf("alpha", USER)],
+    },
   ]);
 });
 
 test("previewOrder: an open first hook gives first_answer only, with no failure deny and no autoDisable", () => {
   const preview = previewOrder("thread.compact.before", ["beta", "alpha"], TOOL_ROWS);
-  expect(preview.guard).toBeNull();
   expect(preview.skips.map((note) => note.reason)).toEqual(["first_answer", "first_answer"]);
   expect(preview.skips[0]).toEqual({
     registrationId: "beta",
@@ -193,11 +220,12 @@ test("previewOrder: an open first hook gives first_answer only, with no failure 
   });
   expect(preview.valueChanges).toEqual([]);
   expect(preview.autoDisable).toEqual([]);
+  // guard가 맨 앞에 남으므로 건너뛰어질 수 없고 맨 앞을 잃지도 않는다
+  expect(preview.guardRisk).toEqual([]);
 });
 
 test("previewOrder: a chain hook with a stop rule gives valueChanges and chain_stop", () => {
   const preview = previewOrder("input.user.before", ["beta", "alpha"], TOOL_ROWS);
-  expect(preview.guard).toBeNull();
   expect(preview.valueChanges).toEqual([
     { registrationId: "beta", extension: "beta", by: [refOf("core-tools", GUARD)] },
     {
@@ -221,6 +249,7 @@ test("previewOrder: a chain hook with a stop rule gives valueChanges and chain_s
     },
   ]);
   expect(preview.autoDisable).toEqual([]);
+  expect(preview.guardRisk).toEqual([]);
 });
 
 test("previewOrder: a chain hook without a stop rule gives valueChanges only", () => {
@@ -230,7 +259,7 @@ test("previewOrder: a chain hook without a stop rule gives valueChanges only", (
   expect(preview.autoDisable).toEqual([]);
 });
 
-test("previewOrder: a tap hook gives no notes", () => {
+test("previewOrder: a tap hook gives no notes and no guard risk when the guard stays first", () => {
   const preview = previewOrder("boundary.turn.before", ["beta", "alpha"], TOOL_ROWS);
   expect(preview).toEqual({
     hook: "boundary.turn.before",
@@ -238,32 +267,26 @@ test("previewOrder: a tap hook gives no notes", () => {
     skips: [],
     valueChanges: [],
     autoDisable: [],
-    guard: null,
+    guardRisk: [],
   });
 });
 
-test("previewOrder: a proposal that puts a regular handler above a guard reports the guard error and still orders the guard first", () => {
-  const preview = previewOrder("tool.call.before", ["beta", "core-tools", "alpha"], TOOL_ROWS);
-  expect(preview.guard).toEqual({
-    kind: "above_guard",
-    hook: "tool.call.before",
-    registrationId: "core-tools",
-    above: "beta",
-  });
-  expect(preview.order).toEqual(["core-tools", "beta", "alpha"]);
-});
-
-test("previewOrder: moving a guard reports guard_moved and keeps the guards in their current order", () => {
+test("previewOrder: moving a guard among guards reports the first guard as losing its position and the later one as skippable", () => {
   const rows: readonly PreviewRow[] = [
     rowOf("g-one", GUARD, true),
     rowOf("g-two", GUARD, true),
     rowOf("alpha", USER),
   ];
   const preview = previewOrder("tool.call.before", ["g-two", "g-one", "alpha"], rows);
-  expect(preview.guard).toEqual({
-    kind: "guard_moved",
-    hook: "tool.call.before",
-    registrationId: "g-one",
-  });
-  expect(preview.order).toEqual(["g-one", "g-two", "alpha"]);
+  expect(preview.order).toEqual(["g-two", "g-one", "alpha"]);
+  // g-two가 맨 앞으로 올라가 위험이 없다. g-one은 맨 앞을 잃고 g-two 뒤에서 건너뛰어질 수 있다
+  expect(preview.guardRisk).toEqual([
+    {
+      registrationId: "g-one",
+      extension: "g-one",
+      mayBeSkipped: true,
+      losesFirstPosition: true,
+      by: [refOf("g-two", GUARD)],
+    },
+  ]);
 });

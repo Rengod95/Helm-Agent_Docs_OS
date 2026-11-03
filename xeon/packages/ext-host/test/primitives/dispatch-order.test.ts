@@ -5,7 +5,7 @@ import type { DispatchPolicy } from "../../src/primitives/index.ts";
 import { createTestHost, type TestHost } from "../../src/testing/index.ts";
 import { makeUnit } from "./fixtures/support.ts";
 
-/** 이름별 tier. guard(0)는 고정 순위라 순서 덮어쓰기가 움직이지 못한다 */
+/** 이름별 tier. guard(0)는 기본 순서에서 맨 앞이고, 순서 덮어쓰기로는 옮길 수 있다(2026-11-03) */
 const TIER_OF: Readonly<Record<string, number>> = {
   "ord-guard": 0,
   "ord-a": 1,
@@ -144,7 +144,7 @@ test("override applies from the next step boundary and can move a tier 1 handler
   ]);
 });
 
-test("a guard handler stays first even when the override lists it last", async () => {
+test("an override that names the guard handler moves it like any other handler", async () => {
   const ordering = orderingPolicy();
   const { t, thread } = await setup(ordering);
   const calls: string[] = [];
@@ -152,10 +152,26 @@ test("a guard handler stays first even when the override lists it last", async (
   ordering.queue(["ord-c", "ord-b", "ord-a", "ord-guard"]);
   await stepBefore(t, thread, "ord-boundary");
   expect(await settleOrder(t, thread, calls, "ord-guard-last")).toEqual([
-    "ord-guard",
     "ord-c",
     "ord-b",
     "ord-a",
+    "ord-guard",
+  ]);
+});
+
+test("an override can place the guard handler between two tier 1 handlers", async () => {
+  const ordering = orderingPolicy();
+  const { t, thread } = await setup(ordering);
+  const calls: string[] = [];
+  await installRecorders(t, calls);
+  // guard(첫 자리)는 b가 차지한 자리(2)로, b는 guard의 자리(0)로 간다. a·c는 이름이 없어 그대로다
+  ordering.queue(["ord-b", "ord-guard"]);
+  await stepBefore(t, thread, "ord-boundary");
+  expect(await settleOrder(t, thread, calls, "ord-guard-middle")).toEqual([
+    "ord-b",
+    "ord-a",
+    "ord-guard",
+    "ord-c",
   ]);
 });
 

@@ -132,7 +132,7 @@ import type {
 | `HookProcessPort`, `HookRunSpec`, `HookRawRun` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.operations.spec §3.7) |
 | `createOperationsPolicy`, `OperationsPolicy`, `OperationsDeps`, `OperationsSettingsSource` | 함수, 인터페이스 | X.operations.spec §3.8 |
 | `operationsSettings` | `defineSettings` 결과 | X.operations.spec §6 |
-| `hookOrderOf`, `hookOrderValue`, `createHookOrderState`, `checkOrder`, `previewOrder`, `isPinnedTier`, `PINNED_TIER_RANK`, `HookOrderMap`, `HookOrderState`, `OrderRow`, `OrderCheckError`, `PreviewRow`, `PreviewRef`, `SkipReason`, `SkipNote`, `ValueChangeNote`, `AutoDisableNote`, `OrderPreview` | 함수, 상수, 타입 | X.operations.spec §4.1.5 |
+| `hookOrderOf`, `hookOrderValue`, `createHookOrderState`, `checkOrder`, `previewOrder`, `HookOrderMap`, `HookOrderState`, `OrderRow`, `PreviewRow`, `PreviewRef`, `SkipReason`, `SkipNote`, `ValueChangeNote`, `AutoDisableNote`, `GuardRiskNote`, `OrderPreview` | 함수, 타입 | X.operations.spec §4.1.5 |
 | `traceReadOf`, `TraceSettings`, `DEFAULT_TRACE_SETTINGS` | 함수, 타입, 상수 | X.operations.spec §3.9 |
 | `testRunControlOf` | 함수 | 이 문서 §4.4.8 |
 | `extReadViewOf`, `ExtReadView`, `DriveLockView`, `DriveLockCandidate`, `HookHandlerView`, `BoundCapabilityView` | 함수, 인터페이스 | 이 문서 §4.4.9 |
@@ -474,7 +474,7 @@ export interface DispatchPolicy {
     work: (signal: AbortSignal, gate: HandlerGate) => T | Promise<T>,
     outer: AbortSignal | undefined,
   ): Promise<HandlerRunOutcome<T>>;
-  /** 선택. 지금 적용 중인 훅별 순서 덮어쓰기(RegistrationId 목록). 기본 정렬 뒤에 적용하고 고정 tier(guard) 항목은 옮기지 못한다(X.operations.spec §4.1.5) */
+  /** 선택. 지금 적용 중인 훅별 순서 덮어쓰기(RegistrationId 목록). 기본 정렬 뒤에 적용한다. guard tier 항목도 옮길 수 있다(X.operations.spec §4.1.5, 2026-11-03 사용자 결정) */
   handlerOrder?(point: HookName): readonly string[] | undefined;
   /** 선택. 디스패처가 `boundary.turn.before`, `boundary.step.before`의 디스패치를 시작할 때 부른다. 보류 중인 순서 변경을 적용한다. 동기, 예외를 던지지 않는다 */
   onStepBoundary?(): void;
@@ -484,7 +484,7 @@ export interface DispatchPolicy {
 export const DEFAULT_DISPATCH_POLICY: DispatchPolicy;
 ```
 
-- 정렬 키는 `(tierOf(entry), entry.loadIndex, entry.seq)`의 사전식 순서다(F.extensions.spec §4.2). `handlerOrder`가 있으면 그 뒤에 `orderEntries`(`primitives/order.ts`)로 덮어쓴다. 고정 tier(`PINNED_TIER_RANK`)는 항상 앞이다. 읽기 조회 `handlers()`도 같은 함수를 쓴다.
+- 정렬 키는 `(tierOf(entry), entry.loadIndex, entry.seq)`의 사전식 순서다(F.extensions.spec §4.2). `handlerOrder`가 있으면 그 뒤에 `orderEntries`(`primitives/order.ts`)로 덮어쓴다. 덮어쓰기가 없으면 guard tier가 앞이고, guard도 덮어쓰기로 옮길 수 있다([결정: 2026-11-03 사용자]). 읽기 조회 `handlers()`도 같은 함수를 쓴다.
 - [제안] `onHandlerSettled`와 `run`은 X.operations.spec §3.8의 요청을 받아들인 선택 메서드다. 성공 보고가 있어야 operations가 연속 실패 수를 0으로 돌리고 실패율을 계산하며, `run`이 있어야 UI 대기를 예산에서 뺄 수 있다. 둘 다 선택이라 `DEFAULT_DISPATCH_POLICY`와 테스트 정책은 구현하지 않아도 된다.
 - `run`이 받는 `gate`는 핸들러의 UI 포트 래퍼에 넘긴다. UI 포트를 핸들러에 주는 방법은 §10 미결이다(X.operations.spec §10 미결 5). `run`이 없으면 디스패처는 멈추지 않는 빈 `HandlerGate`를 쓴다.
 - 정렬은 스냅샷을 만들 때 한다. 레지스트리 버전(등록·해제마다 1 증가)과 정책 버전이 같으면 직전 정렬 결과를 재사용한다 [제안].

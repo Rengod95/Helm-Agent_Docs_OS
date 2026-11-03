@@ -54,7 +54,7 @@ export interface ExtReadView {
   driveLock(threadId: ThreadId): DriveLockView | undefined;
   /**
    * 레지스트리에 실제로 등록된 핸들러 전부를, 훅별로 모아 디스패치 순서로 돌려준다.
-   * 디스패치 순서 = 기본 정렬(tier, loadIndex, seq, F.extensions.spec §4.2) 뒤에 순서 덮어쓰기를 적용한 순서다. guard tier는 덮어쓰기와 무관하게 항상 앞이다.
+   * 디스패치 순서 = 기본 정렬(tier, loadIndex, seq, F.extensions.spec §4.2) 뒤에 순서 덮어쓰기를 적용한 순서다. 덮어쓰기가 없으면 guard tier가 앞이고, guard도 덮어쓰기로 옮길 수 있다.
    * 훅 순서는 훅 이름 오름차순이다. 꺼진 scope의 핸들러도 있다(디스패치는 `isOpen`으로 거르고 이 조회는 거르지 않는다)
    */
   handlers(): readonly HookHandlerView[];

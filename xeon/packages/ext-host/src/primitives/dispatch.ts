@@ -172,11 +172,7 @@ export function sortEntries(
     (a, b) => a.tier - b.tier || a.entry.loadIndex - b.entry.loadIndex || a.entry.seq - b.entry.seq,
   );
   const sorted = keyed.map((item) => item.entry);
-  return orderEntries(
-    sorted,
-    (entry) => policy.tierOf(infoOf(entry)),
-    policy.handlerOrder?.(point),
-  );
+  return orderEntries(sorted, policy.handlerOrder?.(point));
 }
 
 /** 디스패처 자체 실행기. 정책에 run이 없을 때 쓴다(X.primitives.spec §4.2 ownRun) */

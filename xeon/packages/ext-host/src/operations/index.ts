@@ -68,7 +68,6 @@ export {
   TIERS,
   type Tier,
 } from "./tier.ts";
-export { isPinnedTier, PINNED_TIER_RANK } from "../primitives/order.ts";
 export {
   checkOrder,
   createHookOrderState,
@@ -76,9 +75,9 @@ export {
   hookOrderValue,
   previewOrder,
   type AutoDisableNote,
+  type GuardRiskNote,
   type HookOrderMap,
   type HookOrderState,
-  type OrderCheckError,
   type OrderPreview,
   type OrderRow,
   type PreviewRef,
