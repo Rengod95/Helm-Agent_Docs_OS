@@ -2299,6 +2299,12 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 상태: 빈(기여 없음 "이 확장은 화면을 내지 않아요"), 읽는 중 `loading`, 오류 `invalid`(진단 한 줄, 모르는 위젯만 자리표시), 오프라인 `offline`, 권한 필요 `extension_disabled`·안전 모드, 긴 내용(ADR-0021 §3.4 크기 상한에서 자름). 화면만 꺼진 `view_disabled`는 "다시 켜기".
 - 접근성: 셸이 머리에 `h1`, 트리의 `Heading`은 `h2`부터입니다. 트리 위젯은 caustic 부품의 접근성을 그대로 갖습니다. 플러그인은 `aria-*`를 직접 주지 않고 `label` prop만 줍니다.
 - caustic: 위젯 카탈로그 v1(ADR-0021 §3.4)이 쓰는 부품 전부. 없는 것 `Meter` `[gap:C-05]`, `Timeline`·`Sparkline` `[gap:C-17]`.
+- Native UI 순수 핵심(`packages/client/src/views/native`, 구현됨 [결정: 2026-11-03 M4 T-VIEW]). React와 DOM이 없고 데스크톱과 웹이 같이 쓴다.
+  - 카탈로그 v1(`WIDGET_CATALOG_VERSION` `1.0.0`)은 이름 33개와 위젯별 허용 prop·bind 키를 정한다. prop은 글자, 숫자, 불리언, 고정 선택값만 받고 `style`, `class`, `color`, `width`, `href`, 처리기 이름은 모든 위젯에서 `forbidden_prop`이다.
+  - `checkTree`는 던지지 않고 `unknown_widget`, `prop_not_allowed`, `prop_type`, `bind_not_allowed`, `children_not_allowed`, `forbidden_prop`, `each_scope` 이슈를 위치(JSON Pointer)와 함께 돌려준다. 모르는 위젯은 그 노드만 자리표시이고 트리 전체를 막지 않는다.
+  - `resolveTree`는 `when`을 평가하고 `each`를 항목 수만큼 펼치고(최대 500) `bind`를 값으로 바꾼다. 데이터 경로의 첫 마디는 `each.as` 이름이면 그 항목을, 아니면 문서를 가리킨다. 경로가 없으면 그 prop을 뺀다. 객체와 배열은 prop이 되지 않는다(목록 위젯의 배열 바인딩은 렌더러 몫이며 [미결] 구현 때 정한다). 노드 2000개, 깊이 24를 넘으면 `too_long` 자리표시 하나와 `truncated`다. 바인딩 문자열은 4096자에서 자른다.
+  - 서식 이름 여섯(`duration`, `bytes`, `relativeTime`, `number`, `percent`, `dateTime`)은 값이 맞지 않으면 prop을 뺀다. `dateTime`은 UTC로 그린다.
+  - 조건 `eq`는 경로가 없을 때 거짓이다(`null`과 같지 않다). `exists`는 값이 `null`이 아닐 때 참이다.
 
 ### 6.26 P-19 시험 실행
 
