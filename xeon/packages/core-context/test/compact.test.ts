@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { canonicalJson } from "@fresnel/contracts";
+import { canonicalJson, parse } from "@fresnel/contracts";
 import type { ItemRecord } from "@fresnel/contracts/conversation";
-import type { DurableEventEnvelope } from "@fresnel/contracts/records";
+import { CompactedPayloadSchema, type DurableEventEnvelope } from "@fresnel/contracts/records";
 import {
   UPDATE_SUMMARIZATION_PROMPT,
   SUMMARIZATION_SYSTEM_PROMPT,
@@ -129,6 +129,20 @@ describe("compaction_is_non_destructive", () => {
     const compacted = present(h.log.events.findLast((event) => event.kind === "thread.compacted"));
     expect(compacted.payload).toMatchObject({ usage: { input: 321, output: 12 } });
     expect(outcome.status === "compacted" && outcome.tokensBefore).toBeGreaterThan(0);
+  });
+
+  test("the compaction record carries the reason and an estimated tokensAfter below tokensBefore", async () => {
+    const h = await harness({ settings: SMALL });
+    await buildChat(h, 6);
+    h.fake.replies.push({ kind: "text", text: "S" });
+    valueOf(await h.service.compact(h.log.threadId, request()));
+    const compacted = present(h.log.events.findLast((event) => event.kind === "thread.compacted"));
+    const checked = parse(CompactedPayloadSchema, compacted.payload);
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.reason).toBe("manual");
+    expect(checked.value.tokensAfter).toBeGreaterThan(0);
+    expect(checked.value.tokensAfter).toBeLessThan(checked.value.tokensBefore);
   });
 });
 
