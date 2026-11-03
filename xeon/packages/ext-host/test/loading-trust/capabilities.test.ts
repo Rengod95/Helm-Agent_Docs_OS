@@ -195,3 +195,56 @@ test("isolation: a process-isolated extension is refused instead of running in p
   expect(diagnostic?.stage).toBe("isolation");
   expect(diagnostic?.severity).toBe("error");
 });
+
+test("capabilities: a consumer sorted before its provider by name is installed after it", async () => {
+  const harness = await createLoaderHarness();
+  const answers: string[] = [];
+  const report = await harness.loader.loadAll(
+    harness.options([
+      // 같은 층에서 이름순이면 aa-consumer가 먼저다. 설치는 공급자가 먼저여야 한다
+      moduleOf({ name: "aa-consumer", requires: [{ id: "demo.echo", range: "^1.0.0" }] }, (g) => {
+        answers.push(g.capability(echoKey).echo());
+      }),
+      moduleOf({ name: "zz-provider", provides: [{ id: "demo.echo", version: "1.0.0" }] }, (g) => {
+        hostOf(g).provide(echoKey, { echo: () => "from provider" });
+      }),
+    ]),
+  );
+  expect(report.extensions.map((info) => [info.name, info.state, info.loadIndex])).toEqual([
+    ["aa-consumer", "active", 0],
+    ["zz-provider", "active", 1],
+  ]);
+  expect(answers).toEqual(["from provider"]);
+});
+
+test("capabilities: a requires cycle fails both extensions without hanging", async () => {
+  const harness = await createLoaderHarness();
+  const report = await harness.loader.loadAll(
+    harness.options([
+      moduleOf(
+        {
+          name: "cyc-a",
+          provides: [{ id: "demo.a", version: "1.0.0" }],
+          requires: [{ id: "demo.b", range: "^1.0.0" }],
+        },
+        (g) => {
+          g.capability({ capability: "demo.b", version: "1.0.0" });
+        },
+      ),
+      moduleOf(
+        {
+          name: "cyc-b",
+          provides: [{ id: "demo.b", version: "1.0.0" }],
+          requires: [{ id: "demo.a", range: "^1.0.0" }],
+        },
+        (g) => {
+          g.capability({ capability: "demo.a", version: "1.0.0" });
+        },
+      ),
+    ]),
+  );
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([
+    ["cyc-a", "error"],
+    ["cyc-b", "error"],
+  ]);
+});

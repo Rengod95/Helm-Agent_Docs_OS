@@ -888,6 +888,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 - [제안] 순서 키는 (설치 위치 순서, 내장 층 순서, 이름)이다. `SOURCE_ORDER`는 `builtin` → `managed` → `user` → `project`, 내장 층 순서는 `L1` → `L2` → `L3` → `plugin`이다. 같은 위치·같은 층은 `name`의 코드 포인트 사전순이다.
 - L0 플랫폼 패키지는 매니페스트 층 값(`ExtensionLayerSchema`)에 L0가 없으므로 이 파이프라인 밖에서 조립 루트가 `ExtHost.registerPlatform`(X.primitives.spec §3.2)으로 먼저 등록한다. L0 등록 실패는 시작 실패다.
 - 순서는 파일 시스템 나열 순서, 입력 배열 순서와 무관하게 같아야 한다. 이 순서는 디스패치 순서의 두 번째 키다(F.extensions.spec §4.2).
+- 설치 순서는 로드 순서와 따로 정한다. 7단계 설치는 `requires`를 만족시키는 공급자를 소비자보다 먼저 설치하도록 로드 순서를 안정 정렬한 순서로 한다(로드 순서와 `loadIndex`는 바뀌지 않는다). 순환 의존은 풀 수 없어 로드 순서대로 설치하고, 관련 확장은 모두 `capability_missing`으로 `error`가 된다. 같은 묶음 안에서 이름이 앞선 소비자가 공급자 때문에 영구 실패하는 일을 막는다.
 
 ### 4.3 로드 파이프라인
 

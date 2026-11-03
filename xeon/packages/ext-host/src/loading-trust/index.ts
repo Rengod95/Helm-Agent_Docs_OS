@@ -839,6 +839,40 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     }
   }
 
+  /**
+   * 설치 순서. 로드 순서(디스패치의 두 번째 키, §4.2.3)는 그대로 두고, 공급자를 소비자보다 먼저 설치하도록 `requires`로만 안정 정렬한다.
+   * 소비자가 공급자보다 앞서 설치되면 `capability_unavailable`로 영구 실패하기 때문이다. 순환은 풀 수 없어 로드 순서대로 두고 둘 다 설치에서 실패한다
+   */
+  function installSequence(loadOrdered: readonly ExtRecord[]): readonly ExtRecord[] {
+    const providersOf = (record: ExtRecord): ExtRecord[] => {
+      const requirements =
+        record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? [];
+      return loadOrdered.filter(
+        (other) =>
+          other !== record &&
+          (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
+            (provision) =>
+              requirements.some(
+                (requirement) =>
+                  requirement.id === provision.id &&
+                  satisfiesRange(provision.version, requirement.range),
+              ),
+          ),
+      );
+    };
+    const sequence: ExtRecord[] = [];
+    const visiting = new Set<ExtRecord>();
+    const visit = (record: ExtRecord): void => {
+      if (sequence.includes(record) || visiting.has(record)) return;
+      visiting.add(record);
+      for (const provider of providersOf(record)) visit(provider);
+      visiting.delete(record);
+      sequence.push(record);
+    };
+    for (const record of loadOrdered) visit(record);
+    return sequence;
+  }
+
   /** 요구한 기능을 공급하기로 한 확장이 모두 활성화되지 못했으면 그 기능 id를 돌려준다 */
   function deadProvider(record: ExtRecord): CapabilityId | undefined {
     for (const requirement of record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ??
@@ -1292,7 +1326,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     );
 
     await eachInOrder(
-      order.filter((record) => alive.includes(record)),
+      installSequence(order.filter((record) => alive.includes(record))),
       async (record) => {
         if (record.state !== "resolved") return "continue";
         throwIfCancelled(signal, `installing ${record.name}`);
