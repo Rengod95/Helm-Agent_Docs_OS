@@ -1972,7 +1972,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 ### 6.22 P-16 LightCraft 개요(목록 + 캔버스)
 
-[결정: 2026-10-31 사용자] 런타임 개요는 나눔 보기입니다. 가운데 왼쪽은 확장 목록 옆 패널, 오른쪽은 런타임 캔버스이고 두 쪽의 고름이 같이 움직입니다. 오른쪽 well은 검사기입니다(§12.4 C-1). 캔버스는 운영만 하고 구조 편집은 구성기(P-21)에서만 합니다(C-2). 이 절은 캔버스 라운드 제안(`mockups/wb-canvas/SPEC.md`, 브랜치 `m4/canvas`)을 합친 것이고, 시각 언어(색 단계, 선 굵기, 간격 값)는 캔버스 2차 시안 뒤에 정합니다.
+[결정: 2026-10-31 사용자] 런타임 개요는 나눔 보기입니다. 가운데 왼쪽은 확장 목록 옆 패널, 오른쪽은 런타임 캔버스이고 두 쪽의 고름이 같이 움직입니다. 오른쪽 well은 검사기입니다(§12.4 C-1). 캔버스는 운영만 하고 구조 편집은 구성기(P-21)에서만 합니다(C-2). 이 절은 캔버스 라운드 제안(옛 시안 `wb-canvas/SPEC.md`는 삭제했고 이력 커밋 `b726e9a9`에 있다, 브랜치 `m4/canvas`) [결정: 2026-11-04 사용자, C1]을 합친 것이고, 시각 언어(색 단계, 선 굵기, 간격 값)는 캔버스 2차 시안 뒤에 정합니다.
 
 [결정: 2026-11-03 사용자] 크래프트 8차 시안(`apps/desktop/mockups/wb-v5/SPEC.md`, 브랜치 `m4/mock3`)을 승인했습니다. 세부 디자인은 구현 뒤 다듬습니다. 아래 §6.22.0이 시안과 겹치는 곳에서는 이 절의 옛 설계(와이어프레임, 나눔 보기, 층 띠 표, 포트와 엣지, 미니맵)보다 앞섭니다. 시안이 그리지 않은 것(맥락별 보기 데이터, 설정 바인딩, 트레이스 데이터)은 폐기가 아니라 모양을 다시 정할 대상입니다. 이 승인은 2026-11-01 (4) 10번("지도 보기는 쓰지 않는다")과 그 뒤 계획의 "층 × 단계 선 격자 표" 방향을 대체합니다. 2026-11-02 (15)로 디자인 언어를 되돌린 뒤의 결정이고, 시안의 CSS 값은 시안 쪽 정본이며 이 문서에 값을 옮기지 않습니다.
 
@@ -2936,11 +2936,11 @@ export const palette = [
 | C-31 | 다시 열 수 있는 단계 목록 | P-01 | `Accordion`(`Stepper checklist`는 누를 수 없음) | caustic `Stepper`에 단계 누르기 제안 | caustic 반영 (caustic PR #11, `xeon/m4-p0`) |
 | C-32 | 크기 이름이 같은 입력과 버튼의 높이 | P-01, LightCraft 맥락 칸 | 입력 옆 버튼은 한 단계 큰 `size`(`Input xs` 32px, `Button xs` 24px) | caustic에서 같은 `size`의 입력·버튼 높이를 맞추는 것을 제안(DP-30) | caustic 반영 (caustic PR #11, `xeon/m4-p0`) |
 | C-33 | 부품 문구 i18n과 작은 결함 | P-02, P-07, S-02 | `ListNavigationItem` 화면 리더 상태 단어가 영어("Running:"), `Field optional`의 "선택"이 라벨에 붙어 읽힘, 팔레트 listbox 높이 상한 | caustic 문구 prop과 `Field optional` 표기 위치 제안 | caustic 반영 (caustic PR #11, `xeon/m4-p0`) |
-| C-34 | 캔버스 뷰포트(이동, 확대, 맞춤 배율, 투명 점 격자, 화면 좌표 덧그림 칸) | P-16, P-21 | 시안 `wb-canvas/parts`, `wb-compose/parts`. `canvas-grid` 유틸은 `bg.canvas` 바탕을 같이 칠해 DP-01·DP-47과 맞지 않음 | caustic `CanvasViewport`(`view`, `onViewChange`, `minZoom`, `maxZoom`, `fit`), 점 무늬만 그리는 격자 유틸 제안 | caustic 대기 (T-CAU2) |
+| C-34 | 캔버스 뷰포트(이동, 확대, 맞춤 배율, 투명 점 격자, 화면 좌표 덧그림 칸) | P-16, P-21 | 시안 `wb-v5/viewport.ts`·`wb-v5/canvas.tsx`(8차), `wb-compose/parts`(옛 `wb-canvas/parts`는 삭제, 이력 `b726e9a9`). `canvas-grid` 유틸은 `bg.canvas` 바탕을 같이 칠해 DP-01·DP-47과 맞지 않음 | caustic `CanvasViewport`(`view`, `onViewChange`, `minZoom`, `maxZoom`, `fit`), 점 무늬만 그리는 격자 유틸 제안 | caustic 대기 (T-CAU2) |
 | C-35 | 그래프 노드와 포트(제목, 메타, 상태 면, 네 변 포트, 포트 모양·상태) | P-16, P-21 | caustic `xeon/m4-design`의 `GraphNode`·`GraphPort`(구성기 라운드에서 더함, catalog 항목·기준 스냅숏 없음). `TokenGraphNode`는 좌우 포트 하나씩이라 맞지 않음 | `GraphNode`·`GraphPort`를 catalog에 올리고 운영 캔버스 블록(상태 면, 의미 줌 막대 모양)을 변형으로 더함 | caustic 반영 (`NodeGraphNode`·`NodeGraphPort` catalog와 기준 스냅숏, caustic PR #10. 운영 캔버스 변형은 T-CAU2) |
 | C-36 | 그래프 엣지(kind별 선 모양, traced·dimmed·ghost·invalid·draft, 흐름 표시, 경로를 따르는 점, 가운데 이름표) | P-16, P-21 | caustic `xeon/m4-design`의 `GraphEdge`·`GraphDraft`·`NodeGraph` | 운영 캔버스의 엣지 kind(기능, on, post, drive, 발화)를 선 모양 표로 더함(DP-48) | caustic 반영 (`NodeGraph` 엣지, caustic PR #10. 엣지 kind 선 모양 표는 T-CAU2) |
-| C-37 | 캔버스 미니맵(세계 축소판, 보이는 영역, 눌러 이동) | P-16 | 시안 `wb-canvas/parts` | caustic `CanvasMinimap`, `ZoomControl`과 한 덩어리 | caustic 대기 (T-CAU2) |
-| C-38 | 이벤트 재생 눈금(이산 눈금, 높이, 표지, 경계 표지, 재생, `role="slider"`) | P-16, P-19, P-21 | 시안 `wb-canvas/parts` | caustic `EventScrubber` | caustic 대기 (T-CAU2) |
+| C-37 | 캔버스 미니맵(세계 축소판, 보이는 영역, 눌러 이동) | P-16 | 옛 시안 `wb-canvas/parts`(삭제, 이력 `b726e9a9`). 8차 시안은 미니맵을 그리지 않는다 | caustic `CanvasMinimap`, `ZoomControl`과 한 덩어리 | caustic 대기 (T-CAU2) |
+| C-38 | 이벤트 재생 눈금(이산 눈금, 높이, 표지, 경계 표지, 재생, `role="slider"`) | P-16, P-19, P-21 | 옛 시안 `wb-canvas/parts`(삭제, 이력 `b726e9a9`). 8차 시안에는 없다 | caustic `EventScrubber` | caustic 대기 (T-CAU2) |
 | C-39 | 설정 바인딩 두 단 행(값 + 기계 키, compact 한 줄) | P-16 검사기, P-17 | `InspectorBindingsRow`(토큰 경로 한 줄 전제라 두 줄 카드가 됨) | `InspectorBindingsRow`에 값·키 두 단 칸과 compact 높이 제안 | caustic 대기 (T-CAU2) |
 
 - caustic 문서의 "glass" 표현은 FOUNDATION 정책 1(흐림 없는 단색 떠 있는 면)로 읽습니다.
@@ -3136,7 +3136,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | 17 | 닫음 [결정: 2026-10-31 사용자] 연결은 대화 주 내비에 남음(다섯) | 사용자 |
 | 18 | 닫음 [결정: 2026-10-31 사용자] 개발 모드에서만. 옛 문장: 배포 앱에서 replay·benchmark·코어 변경 검사를 돌릴지(W-29, W-30). 지금은 저장소 스크립트와 시험 파일 전용이라 개발 모드에서만 가능합니다 | 사용자, `L3.group-sdk.spec`, `eng.toolchain.guide` |
 | 19 | 닫음 [결정: 2026-10-31 사용자] 런타임 호스트 저장, CLI·서비스와 공유(W-46, X-18) | 사용자, `F.wire-settings.spec` |
-| 20 | 닫음 [결정: 2026-11-04 사용자, B4 1안] 뺍니다(시험 대화는 학습 리뷰에서 제외). 옛 문장: Test run을 학습 그룹 리뷰에서 뺄지(X-14) | 사용자, `L3.learning.spec` |
+| 20 | 닫음 [결정: 2026-11-04 사용자, B4 1안] 뺍니다(Test run은 학습 리뷰에서 제외). 옛 문장: Test run을 학습 그룹 리뷰에서 뺄지(X-14) | 사용자, `L3.learning.spec` |
 | 21 | 닫음 [결정: 2026-10-31 사용자] M4에 되는 만큼, 대체 경로 §6.24.1 | 사용자, `X.loading-trust.spec` |
 | 22 | 닫음 [결정: 2026-10-31 사용자] 템플릿 묶음을 고정하지 않고 Plugin Builder 카탈로그로 갱신(`L3.authoring.spec`) | 사용자, `L3.group-sdk.spec` |
 | 23 | 이 문서 도메인과 LightCraft를 `L4/README.md`에 더하는 일, ADR-0021을 `decisions/README.md` 색인에 더하는 일. README는 이번 작업에서 고치지 않았습니다 | 오케스트레이터 |
@@ -3307,7 +3307,7 @@ DP-11을 caustic 토큰으로 정했습니다(caustic `27fe658`, `bbb094a`, `FOU
 
 ### 13.7 캔버스 라운드에서 나온 원칙 (2026-10-31)
 
-런타임 캔버스(`wb-canvas`)와 구성기(`wb-compose`) 제안을 합쳤습니다. 두 제안이 같은 번호(DP-47~51)를 따로 썼으므로 다시 매겼고 겹치는 것은 하나로 묶었습니다. 표지가 없는 항목은 [제안]입니다. 값(색 단계, 굵기, 간격)은 캔버스 2차 시안(`m4/canvas-v2-*`) 뒤에 이 절에 더합니다.
+런타임 캔버스(옛 `wb-canvas`, 삭제, 이력 `b726e9a9`)와 구성기(`wb-compose`) 제안을 합쳤습니다. 두 제안이 같은 번호(DP-47~51)를 따로 썼으므로 다시 매겼고 겹치는 것은 하나로 묶었습니다. 표지가 없는 항목은 [제안]입니다. 값(색 단계, 굵기, 간격)은 캔버스 2차 시안(`m4/canvas-v2-*`) 뒤에 이 절에 더합니다.
 
 - DP-47 캔버스는 투명한 가운데 위의 점 격자 하나입니다. 캔버스 바탕색, 테두리, 캔버스 카드를 두지 않습니다(DP-01). 캔버스 위에 뜨는 것은 줌 캡슐·미니맵 한 덩어리, 재생 막대, 그 상태의 Alert뿐입니다.
 - DP-48 엣지는 포트끼리만 잇고 연산마다 선 모양(실선, 점선, 굵기)으로 구분합니다. tone 색을 쓰지 않고 강조는 neutral 단계와 농도로만 합니다. 실패한 연결만 invalid 선입니다(DP-29를 선으로 넓힘).

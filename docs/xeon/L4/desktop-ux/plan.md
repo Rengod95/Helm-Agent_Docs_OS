@@ -42,7 +42,7 @@ binds: [xeon/apps/desktop/src/views/**]
 | UX-7 | P-06 제안, P-07 예약(V-04, O-08), P-08 연결(V-05) | UX-2 | L |
 | UX-8 | P-04 변경 검토(V-06), P-05 탐구(V-07) | UX-3, W-02, W-04 | M |
 | UX-9 | P-14 목표와 작업, P-15 진단, O-03, O-09 | UX-3 | M |
-| UX-11 | LightCraft 시안(spec §14), 캔버스·구성기 시안(`wb-canvas`, `wb-compose`). 끝남. 캔버스 2차 시안은 진행 중 | UX-1 | M |
+| UX-11 | LightCraft 시안(spec §14), 캔버스·구성기 시안(옛 `wb-canvas`는 삭제, 이력 `b726e9a9`. `wb-compose`와 크래프트 8차 `wb-v5`). 끝남. 캔버스 2차 시안은 진행 중 | UX-1 | M |
 | UX-12 | 셸 영역 바꾸기(대화 ↔ LightCraft), 영역별 왼쪽 패널과 오른쪽 탭, 맥락 칸 모델(전체·대화·프로필·시험, 따라가기·고정, V-25). 연결은 대화 주 내비에 남음(T-SHELL) | UX-2, UX-11 | M |
 | UX-13 | wire 선행: `review.m4-plan` T-F, T-WA, T-WB, T-WC | 없음(M4 착수 즉시) | L |
 | UX-14 | 대화 영역 런타임 표시: 런타임 줄, 트랜스크립트 런타임 행, 런타임 탭(V-24) | UX-3, UX-13 | M |
