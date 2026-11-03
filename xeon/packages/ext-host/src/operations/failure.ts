@@ -42,6 +42,8 @@ export interface FailureStats {
   readonly consecutive: number;
   readonly windowCalls: number;
   readonly windowFailures: number;
+  /** 창 안 가장 오래된 호출의 시각(ms). 창이 비면 없다. 창은 시간이 아니라 호출 수라서 이 시각으로 창이 덮는 시간을 잰다 */
+  readonly windowStartedAt?: number;
   readonly totalCalls: number;
   readonly totalFailures: number;
   readonly lastFailure?: HandlerOutcomeRecord;
@@ -114,8 +116,8 @@ export function fromMethodSettled(
 
 interface LedgerEntry {
   consecutive: number;
-  /** true는 실패. 최근 windowSize번의 호출 */
-  window: boolean[];
+  /** 최근 windowSize번의 호출. `at`은 호출이 기록된 시각(ms) */
+  window: { readonly failed: boolean; readonly at: number }[];
   totalCalls: number;
   totalFailures: number;
   lastFailure: HandlerOutcomeRecord | undefined;
@@ -133,7 +135,8 @@ function statsOf(entry: LedgerEntry): FailureStats {
   return {
     consecutive: entry.consecutive,
     windowCalls: entry.window.length,
-    windowFailures: entry.window.filter(Boolean).length,
+    windowFailures: entry.window.filter((call) => call.failed).length,
+    ...(entry.window[0] === undefined ? {} : { windowStartedAt: entry.window[0].at }),
     totalCalls: entry.totalCalls,
     totalFailures: entry.totalFailures,
     ...(entry.lastFailure === undefined ? {} : { lastFailure: entry.lastFailure }),
@@ -168,7 +171,7 @@ export function createFailureLedger(options: { readonly windowSize: number }): F
       const entry = entryOf(key);
       const failed = outcome.result !== "ok";
       entry.totalCalls += 1;
-      entry.window.push(failed);
+      entry.window.push({ failed, at: outcome.at });
       if (entry.window.length > options.windowSize) {
         entry.window.splice(0, entry.window.length - options.windowSize);
       }

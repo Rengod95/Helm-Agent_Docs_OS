@@ -451,6 +451,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       essential: record.essential,
       loadIndex: record.loadIndex,
       generation: record.generation,
+      ...(record.manifest === undefined ? {} : { manifest: record.manifest }),
+      ...(record.candidate.root === null ? {} : { root: record.candidate.root }),
       diagnostics: [...record.diagnostics],
     };
   }

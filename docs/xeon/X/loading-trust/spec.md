@@ -255,6 +255,10 @@ export interface LoadedExtensionInfo {
   /** 로드 순서 index. 디스패치 순서의 두 번째 키(F.extensions.spec §4.2). 로드되지 않았으면 null */
   readonly loadIndex: number | null;
   readonly generation: number;
+  /** 읽은 매니페스트. 읽거나 검증하지 못한 후보는 없다. 조립 루트의 `ext.list`가 위치와 상관없이(사용자, 관리, 프로젝트) 이 값으로 행을 만든다 */
+  readonly manifest?: ExtensionManifest;
+  /** 확장 루트 디렉터리(절대 경로). 내장 확장은 없다 */
+  readonly root?: string;
   readonly diagnostics: readonly LoadDiagnostic[];
 }
 ```

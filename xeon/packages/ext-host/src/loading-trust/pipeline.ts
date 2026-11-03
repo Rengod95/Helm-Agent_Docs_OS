@@ -1,5 +1,9 @@
 import type { SemVer } from "@fresnel/contracts/capabilities";
-import type { ExtensionName, ManifestIssue } from "@fresnel/contracts/extensions";
+import type {
+  ExtensionManifest,
+  ExtensionName,
+  ManifestIssue,
+} from "@fresnel/contracts/extensions";
 import type { CatalogIssue } from "@fresnel/contracts/settings";
 import {
   Type,
@@ -158,5 +162,9 @@ export interface LoadedExtensionInfo {
   /** 로드 순서 index. 디스패치 순서의 두 번째 키. 로드되지 않았으면 null */
   readonly loadIndex: number | null;
   readonly generation: number;
+  /** 읽은 매니페스트. 매니페스트를 읽거나 검증하지 못한 후보는 없다 */
+  readonly manifest?: ExtensionManifest;
+  /** 확장 루트 디렉터리(절대 경로). 내장 확장은 없다 */
+  readonly root?: string;
   readonly diagnostics: readonly LoadDiagnostic[];
 }

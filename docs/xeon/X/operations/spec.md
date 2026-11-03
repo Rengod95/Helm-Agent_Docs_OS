@@ -280,6 +280,8 @@ export interface FailureStats {
   readonly consecutive: number;
   readonly windowCalls: number;
   readonly windowFailures: number;
+  /** 창 안 가장 오래된 호출의 시각(ms). 창이 비면 없다. 창은 시간이 아니라 호출 수라서 창이 덮는 시간은 이 시각에서 지금까지로 잰다(wire `ext.health`의 `windowMs`) */
+  readonly windowStartedAt?: number;
   readonly totalCalls: number;
   readonly totalFailures: number;
   readonly lastFailure?: HandlerOutcomeRecord;

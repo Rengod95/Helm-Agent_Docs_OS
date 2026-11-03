@@ -18,6 +18,12 @@ export interface CapabilityBindings {
   ): () => void;
   /** 지금 바인딩된 공급자가 내장 확장이면 true. 바인딩이 없거나 외부 확장이면 false다(닫힌 쪽) */
   providerIsBuiltin(id: CapabilityId): boolean;
+  /** 지금 바인딩된 공급자와 그 버전. 읽기 조회용 */
+  bound(): readonly {
+    readonly id: CapabilityId;
+    readonly provider: ExtensionName;
+    readonly version: string;
+  }[];
   /** 진행 중인 바인딩 변경이 끝나기를 기다린다 */
   settled(): Promise<void>;
   /** 모든 바인딩 fiber를 해제한다 */
@@ -114,6 +120,15 @@ export function createCapabilityBindings(
   }
 
   return {
+    bound() {
+      return [...bound.entries()].map(([id, current]) => ({
+        id,
+        provider: current.provider,
+        version:
+          (providers.get(id) ?? []).find((info) => info.provider === current.provider)?.version ??
+          "",
+      }));
+    },
     providerIsBuiltin(id) {
       const current = bound.get(id);
       if (current === undefined) return false;
