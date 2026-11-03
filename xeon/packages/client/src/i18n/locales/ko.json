@@ -1204,7 +1204,7 @@
   "desktop.approvals.kind.question": "질문",
   "desktop.approvals.kind.plan": "계획 승인",
   "desktop.approvals.kind.review": "변경 검토",
-  "desktop.approvals.card.thread": "대화: {name}",
+  "desktop.approvals.card.threadLabel": "대화",
   "desktop.approvals.card.thread.untitled": "이름 없는 대화",
   "desktop.approvals.age.now": "지금",
   "desktop.approvals.age.minutes": "{count}분 전",

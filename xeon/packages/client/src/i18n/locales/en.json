@@ -1204,7 +1204,7 @@
   "desktop.approvals.kind.question": "Question",
   "desktop.approvals.kind.plan": "Plan approval",
   "desktop.approvals.kind.review": "Change review",
-  "desktop.approvals.card.thread": "Conversation: {name}",
+  "desktop.approvals.card.threadLabel": "Conversation",
   "desktop.approvals.card.thread.untitled": "Untitled conversation",
   "desktop.approvals.age.now": "now",
   "desktop.approvals.age.minutes": "{count} min ago",

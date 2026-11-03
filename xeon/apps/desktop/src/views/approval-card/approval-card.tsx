@@ -24,11 +24,14 @@ import {
   approvalKeyOf,
   clockTextOf,
   feedbackTextOf,
+  threadLinkVisibleOf,
   type ApprovalAge,
 } from "./card-model.ts";
+import { useGoToThread } from "../thread-link.ts";
 
 // 승인 카드. 트랜스크립트 끝, 끝 영역 받은 요청(InboxApprovals), P-03 목록이 같은 카드를 쓴다(FS-02).
 // 카드는 거울의 approvals를 읽고 응답 직후 표시는 UI 스토어가 가진다. 대기열에서 빠지는 일은 approval.resolved가 한다.
+// 머리의 대화 이름은 트랜스크립트 밖에서만 누를 수 있다(threadLinkVisibleOf).
 // 부품: caustic AgentRequest(머리, 종류별 아이콘), 본문 ChoiceGroup·Input·Textarea·MessageCode·Alert, 단추 Button.
 
 type ApprovalBodyKind = ApprovalRequestedPayload["body"]["kind"];
@@ -126,12 +129,15 @@ function PendingCard(props: {
   readonly id: EventId;
   readonly threadId: ThreadId;
   readonly request: ApprovalRequestedPayload;
+  /** 이 카드를 그리는 트랜스크립트의 대화. 트랜스크립트 밖이면 null */
+  readonly within: ThreadId | null;
 }): ReactNode {
   const { id, request } = props;
   const commands = useCommands();
   const sendState = useApprovalSend(id);
   const detail = useApprovalDetail(id);
   const thread = useThread(props.threadId);
+  const goToThread = useGoToThread();
   const now = useClockNow();
   const [draft, setDraft] = useState<QuestionDraft>({});
   const [mode, setMode] = useState("");
@@ -167,10 +173,16 @@ function PendingCard(props: {
   const origin = approvalOriginView(request.origin.caller);
   const expiry = approvalExpiryOf(request);
   const review = body.kind === "review" ? body.review : null;
-  const parts = [
-    t("desktop.approvals.card.thread", {
-      name: thread?.title ?? t("desktop.approvals.card.thread.untitled"),
-    }),
+  const threadName = thread?.title ?? t("desktop.approvals.card.thread.untitled");
+  // 대화 이름이 링크인 것은 트랜스크립트 밖의 카드이고, 열 수 있는 대화(거울에 있음, 이동 문맥이 있음)일 때다
+  const linkTo = threadLinkVisibleOf({
+    threadId: props.threadId,
+    within: props.within,
+    openable: thread !== undefined && goToThread !== null,
+  })
+    ? goToThread
+    : null;
+  const meta = [
     review === null ? null : t("desktop.approvals.review.round", { round: review.round }),
     ageTextOf(approvalAgeOf(now, request.requestedAt)),
     expiry === null
@@ -184,6 +196,27 @@ function PendingCard(props: {
           },
         ),
   ].filter((part): part is string => part !== null);
+  const threadLabel = t("desktop.approvals.card.threadLabel");
+  const subtitle: ReactNode =
+    linkTo === null ? (
+      [`${threadLabel}: ${threadName}`, ...meta].join(" · ")
+    ) : (
+      <>
+        {`${threadLabel}: `}
+        <Button
+          type="button"
+          data-action="thread"
+          variant="ghost"
+          size="xs"
+          onClick={() => {
+            linkTo(props.threadId);
+          }}
+        >
+          {threadName}
+        </Button>
+        {meta.map((part) => ` · ${part}`)}
+      </>
+    );
 
   const leading: Action[] = [
     { id: "deny", label: "desktop.approvals.deny.button", decision: decisions.deny, look: "ghost" },
@@ -242,7 +275,7 @@ function PendingCard(props: {
         kind={AGENT_KIND[body.kind]}
         lead={t(KIND_LEAD[body.kind])}
         title={request.title}
-        subtitle={parts.join(" · ")}
+        subtitle={subtitle}
         badge={origin === null ? undefined : originTextOf(origin)}
         actions={[]}
         tabIndex={-1}
@@ -342,21 +375,33 @@ function decisionsOf(
   };
 }
 
-const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId }): ReactNode {
+const ApprovalCard = memo(function ApprovalCard(props: {
+  readonly id: EventId;
+  readonly within: ThreadId | null;
+}): ReactNode {
   const approval = useApproval(props.id);
   if (approval === undefined) return null;
-  return <PendingCard id={props.id} threadId={approval.threadId} request={approval.request} />;
+  return (
+    <PendingCard
+      id={props.id}
+      threadId={approval.threadId}
+      request={approval.request}
+      within={props.within}
+    />
+  );
 });
 
-/** 승인 카드 목록. 트랜스크립트 끝과 끝 영역 받은 요청이 같은 카드를 그린다 */
+/** 승인 카드 목록. 트랜스크립트 끝과 끝 영역 받은 요청이 같은 카드를 그린다. `within`은 그 트랜스크립트의 대화(밖이면 null) */
 export function ApprovalCardList(props: {
   readonly ids: readonly EventId[];
   readonly label?: string;
+  readonly within?: ThreadId | null;
 }): ReactNode {
+  const within = props.within ?? null;
   return (
     <ul aria-label={props.label}>
       {props.ids.map((id) => (
-        <ApprovalCard key={id} id={id} />
+        <ApprovalCard key={id} id={id} within={within} />
       ))}
     </ul>
   );

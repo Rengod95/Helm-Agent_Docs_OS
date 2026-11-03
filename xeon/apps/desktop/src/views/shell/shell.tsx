@@ -11,6 +11,7 @@ import type { ShellRegistry } from "./registry.ts";
 import { StartPanel } from "./start-panel.tsx";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { toastPlace } from "./toaster-slot.ts";
+import { GoToThreadContext } from "../thread-link.ts";
 
 const STAGE_ID = "stage";
 
@@ -117,7 +118,16 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   );
 }
 
+/** 셸 전체가 "대화로 가기"를 무대와 끝 영역(받은 요청 등)에 내린다. 셸 본문은 `ShellFrame`이 그린다 */
 export function Shell(props: ShellProps): ReactNode {
+  return (
+    <GoToThreadContext value={props.onGoToThread}>
+      <ShellFrame {...props} />
+    </GoToThreadContext>
+  );
+}
+
+function ShellFrame(props: ShellProps): ReactNode {
   const actions = useShellActions();
   const layout = useShell((s) => s.layout);
   const startOpen = useShell((s) => s.startOpen);
