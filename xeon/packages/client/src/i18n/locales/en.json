@@ -2402,7 +2402,7 @@
   "desktop.shortcuts.action.areaWorkbench": "LightCraft area",
   "desktop.measure.ms": "{ms}ms",
   "desktop.measure.off": "Performance measurement is off, so there are no records.",
-  "desktop.measure.outcome.modified": "Patched",
+  "desktop.measure.outcome.modified": "Changed",
   "desktop.measure.outcome.passed": "Passed",
   "desktop.measure.outcome.blocked": "Blocked",
   "desktop.measure.outcome.failed": "Failed",
