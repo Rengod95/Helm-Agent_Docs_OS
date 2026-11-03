@@ -141,6 +141,8 @@ export type WireErrorKind =
   | "extension.notFound"
   | "group.notFound"
   | "extension.safeModeActive"
+  | "hooks.guardPinned"
+  | "hooks.notFound"
   | "request.cancelled"
   | "host.shuttingDown"
   | "store.busy"
@@ -597,7 +599,7 @@ export const WIRE_ERRORS: {
   "testRun.notATestRun": { code: 3312, kind: "testRun.notATestRun", retryable: false },
   /** Test run이 멈춰 있지 않아 `testRun.resume`·`testRun.step`을 받지 않는다 */
   "testRun.notPaused": { code: 3313, kind: "testRun.notPaused", retryable: false },
-  // 3400~3499: 확장 읽기·운영(`ext.*`, `group.*` 메서드)
+  // 3400~3499: 확장 읽기·운영(`ext.*`, `group.*`, `hooks.*` 메서드)
   /** 그 이름의 확장이 설치되어 있지 않다(`ext.get`·`ext.reenable`·`ext.reload`·`ext.health`·`ext.timings`) */
   "extension.notFound": {
     code: 3401,
@@ -620,6 +622,31 @@ export const WIRE_ERRORS: {
     code: 3403,
     kind: "extension.safeModeActive",
     retryable: false,
+  },
+  /** `hooks.order.set`이 guard tier 핸들러를 옮기거나(`guard_moved`) 그 위에 다른 핸들러를 뒀다(`above_guard`). guard 핸들러는 항상 맨 앞이다(`X.operations.spec` §4.1.5) */
+  "hooks.guardPinned": {
+    code: 3404,
+    kind: "hooks.guardPinned",
+    retryable: false,
+    details: Type.Object(
+      {
+        hook: Type.String({ maxLength: 128 }),
+        kind: Type.Union([Type.Literal("guard_moved"), Type.Literal("above_guard")]),
+        registrationId: Type.String({ maxLength: 128 }),
+        above: Type.Optional(Type.String({ maxLength: 128 })),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  /** 그런 이름의 훅이 없다(`hooks.order.set`·`hooks.order.reset`) */
+  "hooks.notFound": {
+    code: 3405,
+    kind: "hooks.notFound",
+    retryable: false,
+    details: Type.Object(
+      { hook: Type.String({ maxLength: 128 }) },
+      { additionalProperties: false },
+    ),
   },
   "request.cancelled": { code: 5001, kind: "request.cancelled", retryable: false },
   "host.shuttingDown": {

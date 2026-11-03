@@ -84,6 +84,8 @@ describe("WIRE_ERRORS", () => {
       "extension.notFound": 3401,
       "group.notFound": 3402,
       "extension.safeModeActive": 3403,
+      "hooks.guardPinned": 3404,
+      "hooks.notFound": 3405,
       "request.cancelled": 5001,
       "host.shuttingDown": 5002,
       "store.busy": 5003,
@@ -205,6 +207,34 @@ describe("WIRE_ERRORS", () => {
     ] as const) {
       const code = WIRE_ERRORS[kind].code;
       expect({ kind, core: code >= 3400 && code <= 3499 }).toEqual({ kind, core: true });
+    }
+  });
+
+  test("hooks.guardPinned and hooks.notFound name the hook, and guardPinned names the pinned handler", () => {
+    const pinned = WIRE_ERRORS["hooks.guardPinned"].details;
+    const notFound = WIRE_ERRORS["hooks.notFound"].details;
+    if (pinned === undefined || notFound === undefined) throw new Error("details expected");
+    const moved = { hook: "tool.call.before", kind: "guard_moved", registrationId: "guard/a" };
+    expect([
+      parse(pinned, moved).ok,
+      parse(pinned, { ...moved, kind: "above_guard", above: "learning/review" }).ok,
+      parse(pinned, { ...moved, kind: "moved" }).ok,
+      parse(pinned, { ...moved, above: "x".repeat(129), kind: "above_guard" }).ok,
+      parse(pinned, { ...moved, extra: 1 }).ok,
+      parse(pinned, { hook: "tool.call.before", kind: "guard_moved" }).ok,
+      parse(notFound, { hook: "tool.call.before" }).ok,
+      parse(notFound, {}).ok,
+      parse(notFound, { hook: "tool.call.before", extra: 1 }).ok,
+    ]).toEqual([true, true, false, false, false, false, true, false, false]);
+    expect(wireError("hooks.guardPinned", { details: moved }).code).toBe(3404);
+    expect(wireError("hooks.notFound", { details: { hook: "x" } }).code).toBe(3405);
+    for (const kind of ["hooks.guardPinned", "hooks.notFound"] as const) {
+      const spec = WIRE_ERRORS[kind];
+      expect({ kind, core: spec.code >= 3400 && spec.code <= 3499, r: spec.retryable }).toEqual({
+        kind,
+        core: true,
+        r: false,
+      });
     }
   });
 

@@ -277,4 +277,153 @@ describe("M4 ext read methods", () => {
     expect(classifyMethodName("work.tasks.list")).toBe("core");
     expect(classifyMethodName("a.b.c.d")).toBeUndefined();
   });
+
+  test("hooks.order.* are M4 core methods, next to hooks.list", () => {
+    const names = Object.keys(WIRE_METHODS).filter((name) => name.startsWith("hooks.order."));
+    expect(names.toSorted()).toEqual([
+      "hooks.order.get",
+      "hooks.order.preview",
+      "hooks.order.reset",
+      "hooks.order.set",
+    ]);
+    expect(WIRE_METHODS["hooks.order.set"].stage).toBe("M4");
+    expect(WIRE_METHODS["hooks.order.set"].stage).toBe(WIRE_METHODS["hooks.list"].stage);
+    for (const name of names) {
+      expect({ name, kind: classifyMethodName(name) }).toEqual({ name, kind: "core" });
+    }
+  });
+
+  test("hooks.order.set, reset and preview params accept a valid value and reject bad ones", () => {
+    const order = ["learning/review", "learning"];
+    const tooLong = Array.from({ length: 257 }, (_, index) => `learning/h${index}`);
+    const set = WIRE_METHODS["hooks.order.set"].params;
+    expect(parse(set, { hook: "tool.call.before", order, _meta: {} }).ok).toBe(true);
+    expect([
+      parse(set, { hook: "tool.call.before", order, extra: 1 }).ok,
+      parse(set, { hook: "tool.call.before", order: "learning" }).ok,
+      parse(set, { hook: 3, order }).ok,
+      parse(set, { hook: "tool.call.before", order: tooLong }).ok,
+      parse(set, { hook: "tool.call.before" }).ok,
+      parse(set, { hook: "", order }).ok,
+    ]).toEqual([false, false, false, false, false, false]);
+
+    const reset = WIRE_METHODS["hooks.order.reset"].params;
+    expect([
+      parse(reset, {}).ok,
+      parse(reset, { hook: "tool.call.before" }).ok,
+      parse(reset, { hook: "" }).ok,
+      parse(reset, { hook: "tool.call.before", all: true }).ok,
+    ]).toEqual([true, true, false, false]);
+
+    const preview = WIRE_METHODS["hooks.order.preview"].params;
+    expect(parse(preview, { hook: "tool.call.before", order }).ok).toBe(true);
+    expect([
+      parse(preview, { hook: "tool.call.before", order, extra: 1 }).ok,
+      parse(preview, { hook: "tool.call.before", order: tooLong }).ok,
+      parse(preview, { order }).ok,
+    ]).toEqual([false, false, false]);
+
+    expect([
+      parse(WIRE_METHODS["hooks.order.get"].params, {}).ok,
+      parse(WIRE_METHODS["hooks.order.get"].params, { hook: "tool.call.before" }).ok,
+    ]).toEqual([true, false]);
+  });
+
+  test("hooks.order.get, set and reset results round trip and reject missing fields", () => {
+    const guarded = {
+      hook: "tool.call.before",
+      saved: ["learning/review", "learning"],
+      applied: ["learning/review", "learning"],
+      pending: false,
+      pinned: ["guard/a"],
+    };
+    const pendingHook = {
+      hook: "input.user.before",
+      saved: [],
+      applied: ["x"],
+      pending: true,
+      pinned: [],
+    };
+    roundTrip(WIRE_METHODS["hooks.order.get"].result, { hooks: [guarded, pendingHook] });
+    roundTrip(WIRE_METHODS["hooks.order.get"].result, { hooks: [] });
+    const { pending: _pending, ...noPending } = guarded;
+    expect(parse(WIRE_METHODS["hooks.order.get"].result, { hooks: [noPending] }).ok).toBe(false);
+
+    const set = {
+      hook: "tool.call.before",
+      saved: ["learning/review", "learning"],
+      appliesAt: "nextStepBoundary",
+    };
+    roundTrip(WIRE_METHODS["hooks.order.set"].result, set);
+    expect(
+      parse(WIRE_METHODS["hooks.order.set"].result, { hook: set.hook, saved: set.saved }).ok,
+    ).toBe(false);
+    expect(parse(WIRE_METHODS["hooks.order.set"].result, { ...set, appliesAt: "now" }).ok).toBe(
+      false,
+    );
+
+    const reset = { hooks: ["tool.call.before"], appliesAt: "nextStepBoundary" };
+    roundTrip(WIRE_METHODS["hooks.order.reset"].result, reset);
+    roundTrip(WIRE_METHODS["hooks.order.reset"].result, {
+      hooks: [],
+      appliesAt: "nextStepBoundary",
+    });
+    expect(
+      parse(WIRE_METHODS["hooks.order.reset"].result, { appliesAt: "nextStepBoundary" }).ok,
+    ).toBe(false);
+  });
+
+  test("hooks.order.preview result round trips with and without a guard issue", () => {
+    const ref = { registrationId: "learning", extension: "learning", tier: 1 };
+    const skip = {
+      registrationId: "learning/review",
+      extension: "learning",
+      reason: "first_answer",
+      by: [ref],
+    };
+    const valueChange = { registrationId: "guard/b", extension: "guard", by: [ref] };
+    const withGuard = {
+      hook: "tool.call.before",
+      order: ["learning/review", "guard/a"],
+      saveable: false,
+      guard: { kind: "above_guard", registrationId: "guard/a", above: "learning/review" },
+      skips: [skip],
+      valueChanges: [valueChange],
+      autoDisable: [
+        {
+          registrationId: "learning",
+          extension: "learning",
+          affects: [{ registrationId: "learning/review", extension: "learning", tier: 2 }],
+        },
+      ],
+    };
+    const preview = WIRE_METHODS["hooks.order.preview"].result;
+    roundTrip(preview, withGuard);
+    roundTrip(preview, {
+      ...withGuard,
+      saveable: true,
+      guard: null,
+      skips: [],
+      valueChanges: [],
+      autoDisable: [],
+    });
+    roundTrip(preview, {
+      ...withGuard,
+      saveable: false,
+      guard: { kind: "guard_moved", registrationId: "guard/a" },
+    });
+
+    const { guard: _guard, ...noGuard } = withGuard;
+    expect(parse(preview, noGuard).ok).toBe(false);
+    expect(parse(preview, { ...withGuard, skips: [{ ...skip, reason: "always_first" }] }).ok).toBe(
+      false,
+    );
+    expect(
+      parse(preview, { ...withGuard, guard: { kind: "moved", registrationId: "guard/a" } }).ok,
+    ).toBe(false);
+    const fractionalTier = { ...valueChange, by: [{ ...ref, tier: 1.5 }] };
+    expect(parse(preview, { ...withGuard, valueChanges: [fractionalTier] }).ok).toBe(false);
+    const longSkips = Array.from({ length: 769 }, () => skip);
+    expect(parse(preview, { ...withGuard, skips: longSkips }).ok).toBe(false);
+  });
 });
