@@ -192,7 +192,7 @@ function maskKv(text: string, hits: Map<string, number>): string {
 }
 
 /** 청크 경계에 걸친 값을 가리기 위한 이어 가는 상태. 호출자는 끝에 flush를 한 번 부른다 */
-export interface StreamMasker {
+interface StreamMasker {
   push(chunk: string): { readonly text: string; readonly hits: readonly RedactionHit[] };
   flush(): { readonly text: string; readonly hits: readonly RedactionHit[] };
 }
