@@ -368,6 +368,8 @@ export type StoreWarning =
 export declare function openStore(options: OpenStoreOptions): Promise<Result<OpenedStore, StoreOpenError>>;
 /** §4.10. 원본을 읽기 전용으로만 열어 `destDir`로 내보낸다. 동기 함수다 */
 export declare function exportDatabase(options: { readonly dbPath: string; readonly destDir: string; readonly clock: Clock }): Result<ExportReport, ExportError>;
+/** §4.10.1. `exportDatabase` 사본을 `dbPath`로 되돌린다. 동기 함수다 */
+export declare function restoreDatabase(options: { readonly dbPath: string; readonly backupDir: string; readonly clock: Clock; readonly hit?: (point: RestorePoint) => void }): Result<RestoreReport, RestoreError>;
 
 /** L0 등록 단위. setup(ctx)가 ctx.providePort로 opened.service를 fresnel.store에 등록한다. 조립 루트가 ExtHost.registerPlatform으로 등록한다(X.primitives.spec §3.2) */
 export declare function storePlugin(opened: OpenedStore): PlatformModule;   // name: "platform-store"
@@ -795,6 +797,27 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - 잠금 대기: 원본 연결은 `busy_timeout` 5000ms를 씁니다. WAL 모드에서는 다른 프로세스의 쓰기가 읽기를 막지 않습니다.
 - SQLite 로드: 이 함수도 `newDatabase`를 거치므로 첫 연결이 SQLite 로드 상태를 정합니다. `openStore` 전에 부르면 macOS 커스텀 dylib 지정이 나중에 `Bug(store.sqlite_already_loaded)`가 됩니다 [미결 S-13].
 
+### 4.10.1 DB 되돌리기 [결정: 2026-11-04 사용자]
+
+`restoreDatabase({ dbPath, backupDir, clock })`는 `exportDatabase`가 만든 폴더를 `dbPath`(데이터 디렉터리의 `fresnel.db`)로 되돌립니다. 동기 함수이고, 예상 가능한 실패는 `RestoreError` 값으로 돌려줍니다. 사본의 `format`은 1만 받습니다.
+
+순서는 다음과 같습니다. 앞 단계가 실패하면 현재 DB는 그대로입니다.
+
+1. 사본 검증: `manifest.json`과 `fresnel.sqlite`가 있는지, `application_id`, `PRAGMA integrity_check`, sys 버전, `sys_blobs`의 블롭 파일(파일이 있으면 내용의 SHA-256이 이름과 같아야 하고, 없으면 manifest의 `missingBlobs`에 있어야 합니다)을 봅니다.
+2. 사본의 sys 버전이 이 빌드의 코드 버전보다 높으면 `future_version`(`backupVersion`, `codeVersion`)으로 거절합니다. 옛 빌드로 새 빌드의 사본을 되돌리는 길은 없습니다.
+3. 엔진 확인: 현재 DB가 있으면 쓰기로 열어 `journal_mode = DELETE`와 `BEGIN EXCLUSIVE`를 시도합니다. 다른 연결이 하나라도 열려 있으면 SQLite가 `SQLITE_BUSY`를 돌려주고 `engine_running`으로 거절합니다. 성공하면 WAL이 DB에 합쳐집니다. 이 확인 뒤 엔진을 띄우지 않는 것은 사용자의 몫입니다.
+4. 이전 복원이 멈춘 흔적(`fresnel.db.restore-journal`)이 있으면 정리합니다. 옮기는 중이면 되돌리고(`rolled_back`), 다 옮겼으면 준비한 DB를 놓아 끝냅니다(`rolled_forward`).
+5. 블롭을 데이터 디렉터리의 `blobs/`에 더합니다. 이름이 내용 해시라 같은 이름은 같은 내용이고, 있던 블롭은 지우지 않습니다. 복원 뒤 어느 행도 가리키지 않는 블롭은 블롭 GC가 거둡니다.
+6. `fresnel.db.restore-staging`에 사본을 복사하고 다시 검증합니다.
+7. 저널을 `moving`으로 쓰고, 현재 `fresnel.db`, `fresnel.db-wal`, `fresnel.db-shm`을 `<데이터 디렉터리>/restore-previous/<UTC 시각>/`로 옮기고, 저널을 `moved`로 쓰고, 준비 파일을 `fresnel.db`로 바꾸고(rename), 저널을 지웁니다. 새 DB와 옛 `-wal`/`-shm`이 짝이 되지 않게 셋을 함께 옮깁니다. 사본의 DB는 저널 모드가 delete라 새로 생기는 `-wal`/`-shm`은 없고, 엔진이 열 때 WAL로 바꿉니다.
+8. `restore-previous/`는 최근 3개만 남깁니다. 복원 전 DB는 성공한 뒤에도 남아 있어 사용자가 직접 되돌릴 수 있습니다.
+
+- 어느 단계에서 프로세스가 죽어도 현재 DB는 제자리에 있거나 `restore-previous/`에 있습니다. 같은 명령을 다시 실행하면 4번이 정리한 뒤 복원을 처음부터 합니다. 정리 전에 엔진을 띄우면 `fresnel.db`가 없는 틈에 빈 DB를 만들 수 있으므로 멈춘 복원은 엔진을 띄우기 전에 다시 실행해야 합니다.
+- 오류: `RestoreError`의 kind는 `backup_not_found`, `backup_invalid`(`reason`: `manifest`, `format`, `integrity`, `schema`, `blob_missing`, `blob_hash`), `foreign_database`, `not_a_database`, `future_version`, `engine_running`, `disk_full`, `io`(`code`)입니다.
+- 시크릿: 사본은 설정 파일과 age 키(`secrets/age/keys.txt`)를 담지 않고 이 함수도 그 파일을 읽거나 만들거나 덮어쓰지 않습니다. DB 안의 시크릿 참조를 복호화하려면 원래 기기의 age 키가 따로 있어야 합니다. 이 함수는 시크릿 값을 읽지 않습니다.
+- 다른 owner(`sys` 밖)의 버전은 이 함수가 코드 버전을 몰라 검사하지 않습니다. 그 owner의 `migration_future_version`은 다음 열기에서 드러나고, 복원 전 DB는 `restore-previous/`에 있습니다.
+- 테스트용 `hit(point)`는 단계 사이에서 불리며 운영은 넘기지 않습니다.
+
 ### 4.11 읽기 전용 열기 [결정: M3-REQ-63]
 
 `openStore({ readOnly: true })`는 DB를 읽기 전용으로 엽니다. 다른 Fresnel 버전이 만든 DB를 확인하는 경로이고, 쓰기는 모두 거절합니다.
@@ -950,6 +973,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 17. `bun:sqlite` import가 `platform-store` 밖에 없다(DR-07 검사).
 18. X의 확장 저장 영역 계약 시나리오(`ext-storage.contract.ts`)가 이 패키지의 실제 bun:sqlite 팩토리로 통과한다. 장애 주입 롤백 시나리오(`after_ext_projection:<n>`)에서 확장 테이블 행 해시가 바뀌지 않는다 [결정: review.decisions-2 D-05]. X 테스트는 L0를 import하지 않으므로 bun:sqlite 실행은 이 스위트만 맡는다.
 19. `exportDatabase`로 낸 `fresnel.sqlite`를 `openStore`로 열면 행과 블롭 바이트가 원본과 같다. 미래 버전 DB도 내보내진다. 비어 있지 않은 대상은 `dest_not_empty`이고 내용이 그대로다. 파일이 없는 블롭은 `missingBlobs`에 든다(`test/export.int.test.ts`).
+19a. `restoreDatabase`: 사본을 되돌리면 행과 블롭 바이트가 사본과 같고 옛 DB가 `restore-previous/`에 남으며 `-wal`/`-shm`이 없다. 다른 연결이 열려 있으면 `engine_running`이고 아무것도 바뀌지 않는다. 더 높은 버전의 사본은 `future_version`이다. 블롭 해시가 틀리거나 manifest가 깨졌거나 폴더가 없으면 현재 DB를 건드리지 않고 거절한다. 저장 단계 8곳마다 죽어도 DB가 남고 다시 실행하면 사본 내용으로 끝난다(`test/restore.int.test.ts`).
 20. `readOnly: true`로 미래 버전 DB를 열면 성공하고 `warnings`는 `read_only`(`future_version`) 하나다. 쓰기 경로(`root`, `scoped`, `putBlob`, `pinBlob`, `unpinBlob`, `gcBlobs`, `leases.acquire`, `migrations.apply`)는 모두 거절 값을 돌려주고 DB 파일의 SHA-256이 그대로다(`test/open-readonly.int.test.ts`).
 
 ## 10. 미결 사항

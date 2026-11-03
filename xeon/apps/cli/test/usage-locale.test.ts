@@ -152,6 +152,7 @@ Commands
   trust allow|deny [--scope folder|parent|session]
                             Send a trust decision. When trusted, .mcp.json, project skills, and project commands are read
   db export <folder> [--json] [--yes] Export the storage files read-only, without the engine. The engine may be running
+  db restore <folder> [--json] Restore a database from an export. Close the engine first. Secrets need the age key separately
   schedule add <prompt…> (--every <seconds> | --at <time> | --remote | --watch <path>[,…] | --loop <seconds> …)
                             Create a schedule. If service mode is off, it is only saved and does not run. See fresnel help schedule
   schedule list [--all] [--json]
@@ -183,12 +184,16 @@ Exit codes
 test("a help topic is English", async () => {
   expect(await textOf((write) => runHelp("db", write))).toBe(
     `Usage: fresnel db export <folder> [--json] [--yes]
+       fresnel db restore <folder> [--json]
 
   <folder>      Folder to export to. It is created if it is missing. If it exists, it must be empty. A relative path is based on the working folder (-C)
   --json        Write the export result (destDir, exportedAt, blobCount, missingBlobs) as JSON
   --yes         Skip the confirmation. The copy may contain secret values in plain text. Without a terminal this flag is required
 
   Creates <folder>/fresnel.sqlite, <folder>/blobs/, and <folder>/manifest.json. The engine is not started.
+
+  restore puts an export back in place of the current database. It verifies the backup first, refuses while an engine is running, refuses a backup from a newer version, and keeps the current database in <data directory>/restore-previous/. Run it again if it was interrupted.
+  Secrets are not in the backup: the age key (secrets/age/keys.txt) and the config file are not copied. Keep the age key separately.
 `,
   );
 });

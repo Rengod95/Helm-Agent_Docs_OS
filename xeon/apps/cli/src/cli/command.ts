@@ -201,12 +201,19 @@ interface HelpCommand {
  * `db export <폴더>`. 엔진을 띄우지 않고 저장소 파일을 내보낸다(L4.cli.spec §4.13). destDir은 작업 폴더 기준 상대 경로일 수 있다.
  * yes는 확인을 건너뛴다(`sessions rm`, `secret rm`과 같은 규칙). 사본에는 시크릿 값이 그대로 있을 수 있다.
  */
-export type DbCommand = {
-  readonly kind: "db.export";
-  readonly destDir: string;
-  readonly output: OutputMode;
-  readonly yes: boolean;
-};
+export type DbCommand =
+  | {
+      readonly kind: "db.export";
+      readonly destDir: string;
+      readonly output: OutputMode;
+      readonly yes: boolean;
+    }
+  | {
+      /** `db restore <폴더>`. `db export`가 만든 폴더를 데이터 디렉터리로 되돌린다. 엔진이 떠 있으면 거절한다 */
+      readonly kind: "db.restore";
+      readonly backupDir: string;
+      readonly output: OutputMode;
+    };
 
 export type CliCommand =
   | ChatCommand
@@ -1745,6 +1752,30 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
         output: outputOf(scanned.value),
         yes: has(scanned.value, "--yes"),
       });
+    }
+    case "restore": {
+      const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+      if (!scanned.ok) return scanned;
+      const [backupDir, ...extra] = scanned.value.positionals;
+      if (backupDir === undefined || backupDir === "") {
+        return err(
+          usage(
+            "missingArgument",
+            t("cli.usage.db.restoreFolderMissing.message"),
+            t("cli.usage.db.restoreSyntax"),
+          ),
+        );
+      }
+      if (extra.length > 0) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.tooManyArgs.message", { command: "db restore" }),
+            t("cli.usage.oneFolder.fix"),
+          ),
+        );
+      }
+      return ok({ kind: "db.restore", backupDir, output: outputOf(scanned.value) });
     }
     case undefined:
       return err(

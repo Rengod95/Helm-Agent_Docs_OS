@@ -8,7 +8,14 @@ import type {
   RemoteResolution,
   StdioHostOptions,
 } from "@fresnel/host";
-import type { ExportError, ExportOptions, ExportReport } from "@fresnel/platform-store";
+import type {
+  ExportError,
+  ExportOptions,
+  ExportReport,
+  RestoreError,
+  RestoreOptions,
+  RestoreReport,
+} from "@fresnel/platform-store";
 import type { TerminalFacts } from "./cli/command.ts";
 import type { ConnectEngine, EngineAssembleOverrides } from "./engine.ts";
 
@@ -126,6 +133,13 @@ export interface CliDeps {
    * [spec에 더한 필드: M3b B3-DATA]
    */
   readonly exportDatabase: (options: ExportOptions) => Promise<Result<ExportReport, ExportError>>;
+  /**
+   * 저장소 되돌리기(`db restore`, L4.cli.spec §4.13). 실제 값은 @fresnel/platform-store의 restoreDatabase다.
+   * 엔진을 띄우지 않고, 엔진이 떠 있으면 거절한다. 같은 함수를 나중의 설정 화면이 쓴다 [결정: 2026-11-04 사용자]
+   */
+  readonly restoreDatabase: (
+    options: RestoreOptions,
+  ) => Promise<Result<RestoreReport, RestoreError>>;
   /**
    * 데이터 디렉터리(OsDirs.data)의 절대 경로. 엔진을 띄우지도 디렉터리를 만들지도 않고 위치만 묻는다.
    * 정할 수 없으면 null이다. 실제 값은 runtime.ts가 @fresnel/platform-os의 resolveOsDirs로 정한다 [spec에 더한 필드: M3b B3-DATA]
