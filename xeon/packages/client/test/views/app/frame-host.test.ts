@@ -354,13 +354,13 @@ describe("theme tokens and confirm line", () => {
       approval: false,
     } as const;
     expect(confirmLineText(base)).toBe('"helm" 확장이 "start" 동작을 하려고 해요');
-    // 매니페스트 라벨이 있으면 동사 대신 라벨을 보인다
+    // 매니페스트 라벨이 있으면 라벨 옆에 실제 동사를 함께 보인다(라벨이 다른 동작처럼 보이게 하지 못한다)
     expect(confirmLineText({ ...base, label: "작업 시작" })).toBe(
-      '"helm" 확장이 "작업 시작" 동작을 하려고 해요',
+      '"helm" 확장이 "작업 시작 (start)" 동작을 하려고 해요',
     );
-    // 라벨의 제어·방향 제어 글자는 지운다. 지우고 남은 것이 없으면 동사를 보인다
-    expect(confirmLineText({ ...base, label: "작업\u202e 시작\u0007" })).toBe(
-      '"helm" 확장이 "작업 시작" 동작을 하려고 해요',
+    // 라벨의 제어·방향 제어·보이지 않는 글자는 지운다. 지우고 남은 것이 없으면 동사만 보인다
+    expect(confirmLineText({ ...base, label: "작업\u202e 시\u200b작\u0007" })).toBe(
+      '"helm" 확장이 "작업 시작 (start)" 동작을 하려고 해요',
     );
     expect(confirmLineText({ ...base, label: "\u202e\u0007" })).toBe(
       '"helm" 확장이 "start" 동작을 하려고 해요',

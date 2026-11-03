@@ -133,7 +133,7 @@ interface ExtMethodDecl {
 
 - 노드: `{ type, props?, bind?, each?, when?, children? }`. `type`은 위젯 카탈로그 이름입니다. `props`는 caustic 부품의 `variant`, `tone`, `size` 같은 선택값과 글자만 받습니다(DP-08). 색, 크기 숫자, CSS, HTML은 받지 않습니다.
 - 표현식: 데이터 경로(JSON Pointer)와 같음·있음·없음 비교, 배열 반복(`each`)만 둡니다. 스크립트와 함수 호출은 두지 않습니다. 숫자·시간·바이트·상대 시각 서식은 호스트가 이름으로 제공합니다(`format: "duration"` 등).
-- 배열 bind [결정: 2026-11-04 사용자]: `List.items`, `Table.rows`, `ListDescription.items`, `ActivityTree.items`, `Timeline.items`, `Sparkline.points`에 배열이 오면 렌더러는 목록(`lists`)으로 풉니다. 원소는 스칼라이거나 스칼라 속성만 담은 평평한 레코드(`__proto__`, `constructor`, `prototype` 키 제외)이고, 앞 500개만 보며 넘치면 `truncated`입니다. 원소 하나가 일 한 단위입니다. `format`은 배열에 적용하지 않습니다.
+- 배열 bind [결정: 2026-11-04 사용자]: `List.items`, `Table.rows`, `ListDescription.items`, `ActivityTree.items`, `Timeline.items`, `Sparkline.points`, `Select.options`, `SegmentedControl.options`에 배열이 오면 렌더러는 목록(`lists`)으로 풉니다. 원소는 스칼라이거나 스칼라 속성만 담은 평평한 레코드(`__proto__`, `constructor`, `prototype` 키 제외)이고, 앞 500개만 보며 넘치면 `truncated`입니다. 원소 하나가 일 한 단위입니다. `format`은 배열에 적용하지 않습니다.
 - 일 예산 [결정: 2026-11-04 사용자]: 렌더러는 `each` 복사 한 벌과 `when` 판정 한 번을 일 한 단위로 세고 `treeNodes`의 10배(2000 × 10)에서 멈춥니다. 그리지 않는 복사(거짓 `when`)도 세므로 중첩 `each`가 앱을 얼리지 못합니다. 멈추면 `truncated`가 참입니다. 선언형 화면은 프로젝트 신뢰 아래에서도 열리므로 복제한 저장소가 앱을 멈출 수 없어야 합니다.
 - 위젯 카탈로그 v1(초안): 배치(`Stack`, `Row`, `Section`, `Tabs`, `Split`), 글(`Text`, `Heading`, `Markdown`(HTML 없는 부분 집합), `Code`), 자료(`List`, `Table`, `ListDescription`, `Badge`, `Chip`, `Progress`, `Meter`, `Stepper`, `ActivityTree`, `Timeline`, `Sparkline`), 알림(`Alert`, `EmptyState`, `Skeleton`), 입력(`Button`, `Switch`, `Select`, `TextField`, `NumberField`, `SegmentedControl`, `Form`), 연결(`ThreadLink`, `TurnLink`, `ViewLink`, `ApprovalLink`). 이름은 caustic export와 같게 두고, caustic에 없는 것은 `L4.desktop-ux.spec` §9 간극으로 올립니다.
 
@@ -216,10 +216,10 @@ interface ExtMethodDecl {
 보안 검토 결과를 다리에 넣습니다. 확인 줄은 항상 켜져 있습니다(B2 1안).
 
 - 외부 링크: 원문에 제어 문자(탭, 줄바꿈 포함), 공백, 방향 제어 글자가 있으면 거부합니다. 통과한 글은 `new URL`로 정규화하고 확인 줄과 OS 브라우저 열기에 둘 다 `href`를 씁니다. 보일 글에서 방향 제어 글자를 빼고, 사용자가 쓴 호스트와 정규화된 호스트가 다르면(국제화 도메인) 퓨니코드 호스트를 함께 보입니다.
-- 확인 줄: 허용·거부는 장부에 센다(거부 `confirm_denied`, 시간 초과 `confirm_timeout`). 연속 3번 거부하면 5초 동안 줄을 띄우지 않고 거부합니다(그 거부도 셉니다). 줄은 확장 신뢰 등급 배지와, `project`이면 프로젝트 배지, 매니페스트 라벨(없으면 동사), 실제로 실행될 params의 요약을 보입니다. 화면은 줄이 나타난 뒤 500 ms 동안 누름을 무시하고 거부에 처음 초점을 둡니다(UI가 지킬 계약, `confirmButtons().defaultFocus`, `CONFIRM_CLICK_GUARD_MS`).
-- `post`와 `requestApproval`: 화면마다 5초에 1번, 미결 5개까지입니다. 제어·방향 제어 글자를 빼고, 카드는 확장 이름과 등급을 보입니다(B3 1안: 기존 질문 카드 + 출처). `post`는 `allowPost`가 참일 때만이고 기본은 `builtin`만 참입니다. 사용자·프로젝트 확장은 `requestApproval`로만 묻습니다.
+- 확인 줄: 허용·거부는 장부에 센다(거부 `confirm_denied`, 시간 초과 `confirm_timeout`). 연속 3번 거부하면 5초 동안 줄을 띄우지 않고 거부합니다(그 거부도 셉니다). 줄은 확장 신뢰 등급 배지와, `project`이면 프로젝트 배지, 매니페스트 라벨과 실제로 실행될 동사(라벨 옆에 함께, 라벨이 없으면 동사만), 실제로 실행될 params의 요약을 보입니다. `command`는 실행될 `args`를 `args="…"`로 보입니다. 요약에서 제어·방향 제어 글자와 보이지 않는 글자(U+200B, 200C, 200D, 2060, FEFF, 00AD)를 뺍니다. 요약이 400자를 넘으면 앞쪽 키만 보이고 빠진 키 수를 `…(+N)`으로 붙입니다. 값 하나가 400자를 넘어 다 보일 수 없으면 줄을 띄우지 않고 거부합니다(`params_too_long_to_confirm`, 장부에 `confirm_denied`). 시간 초과와 프레임 닫힘 때는 줄에 남은 요청을 `ConfirmQueue.cancel`로 뺍니다. 화면은 줄이 나타난 뒤 500 ms 동안 누름을 무시하고 거부에 처음 초점을 둡니다(UI가 지킬 계약, `confirmButtons().defaultFocus`, `CONFIRM_CLICK_GUARD_MS`).
+- `post`, `requestApproval`, `navigate`: 화면마다 5초에 1번, 미결 5개까지입니다(`navigate`는 같은 한도의 따로 센 예산이고 넘으면 `rate_limited`와 장부 `limit_exceeded`). 제어·방향 제어 글자를 빼고, 카드는 확장 이름과 등급을 보입니다(B3 1안: 기존 질문 카드 + 출처). `post`는 `allowPost`가 참일 때만이고 기본은 `builtin`만 참입니다. 사용자·프로젝트 확장은 `requestApproval`로만 묻습니다.
 - `settings`: 매니페스트에 선언한 키만 값을 돌려줍니다. 선언하지 않은 키와 `secret` 키는 `status`만 줍니다.
-- 장부: 연속 실패를 되돌리는 성공은 일을 한 `query`, `events`, `settings`, `call`, `command`, `post`, `requestApproval`, `navigate`뿐입니다. `host`, `pong`, `resize`, `log`는 되돌리지 않습니다. `query`는 동시 8개까지입니다. params의 `__proto__`는 자료 키로만 다룹니다.
+- 장부: 연속 실패를 되돌리는 성공은 일을 한 `query`, `events`, `settings`, `call`, `command`, `post`, `requestApproval`뿐입니다. `host`, `pong`, `resize`, `log`, `navigate`는 되돌리지 않습니다. `query`는 동시 8개까지입니다. params의 `__proto__`는 자료 키로만 다룹니다.
 
 #### 3.6.8 테마 토큰 전달
 

@@ -7,6 +7,8 @@ import {
   decide,
   defaultAllowPost,
   normalizeExternalLink,
+  paramsFitSummary,
+  PARAMS_SUMMARY_MAX,
   POST_MIN_INTERVAL_MS,
   stripUnsafeText,
   summarizeParams,
@@ -99,6 +101,8 @@ describe("post and requestApproval text", () => {
   test("control and bidi characters are stripped, newlines stay only where layout is kept", () => {
     expect(stripUnsafeText("a‮b\u0007c\nd\te", true)).toBe("abc\nd\te");
     expect(stripUnsafeText("a‮b\u0007c\nd", false)).toBe("abcd");
+    // 보이지 않는 글자(U+200B, 200C, 200D, 2060, FEFF, 00AD)도 뺀다
+    expect(stripUnsafeText("a\u200bb\u200cc\u200dd\u2060e\ufefff\u00adg", false)).toBe("abcdefg");
     const post = decide(
       req("post", { threadId: "thr_1", text: "hi‮\u0000 there" }),
       policyContext(),
@@ -222,6 +226,37 @@ describe("confirm line failures", () => {
     expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 1 });
   });
 
+  test("a confirmation that times out is withdrawn from the line, and so is one open at close", async () => {
+    const time = new ManualTime();
+    const pair = portPair();
+    const { backend } = fakeBackend();
+    const withdrawn: string[] = [];
+    const host = createBridgeHost({
+      port: pair.host,
+      screenKey: "helm/inquiry",
+      context: () => policyContext(),
+      backend,
+      ledger: createScreenLedger(),
+      clock: time,
+      scheduler: time,
+      confirm: () => new Promise<ConfirmAnswer>(() => {}),
+      cancelConfirm: (line) => withdrawn.push(line.action),
+      onClosed: () => {},
+    });
+    pair.frame.send(request(1, "call", { verb: "start" }));
+    await flush();
+    time.advance(CONFIRM_TIMEOUT_MS);
+    await flush();
+    expect(withdrawn).toEqual(["start"]);
+    // 두 번째 요청이 열린 채 프레임이 닫히면 그 창도 줄에서 뺀다
+    time.advance(POST_MIN_INTERVAL_MS);
+    pair.frame.send(request(2, "call", { verb: "start" }));
+    await flush();
+    host.dispose();
+    await flush();
+    expect(withdrawn).toEqual(["start", "start"]);
+  });
+
   test("the line shows the params summary of what will run, the trust and no frame-supplied label", async () => {
     const { pair, confirm } = build(["allow"]);
     pair.frame.send(request(1, "call", { verb: "start", params: { b: 2, a: "x‮y" } }));
@@ -265,7 +300,44 @@ describe("confirm line failures", () => {
   test("params summary is capped and sorted", () => {
     expect(summarizeParams({})).toBe("");
     expect(summarizeParams({ z: 1, a: [1, 2] })).toBe("a=[1,2], z=1");
-    expect(summarizeParams({ big: "x".repeat(500) }).length).toBe(161);
+    // 상한을 넘으면 앞쪽 키만 보이고 빠진 키 수를 보인다
+    const many: Record<string, unknown> = {};
+    for (let index = 0; index < 30; index += 1)
+      many[`key${String(index).padStart(2, "0")}`] = "v".repeat(20);
+    const summary = summarizeParams(many);
+    expect(summary.length).toBeLessThanOrEqual(PARAMS_SUMMARY_MAX + 12);
+    expect(summary.startsWith('key00="vvvvvvvvvvvvvvvvvvvv", key01=')).toBe(true);
+    expect(summary).toMatch(/, …\(\+\d+\)$/u);
+    const shownKeys = summary.match(/key\d\d=/gu)?.length ?? 0;
+    expect(summary.endsWith(`…(+${30 - shownKeys})`)).toBe(true);
+    expect(30 - shownKeys).toBeGreaterThan(0);
+  });
+
+  test("invisible characters are stripped from the summary", () => {
+    expect(summarizeParams({ a: "x\u200by\u200cz\u200d\u2060\ufeff\u00ad" })).toBe('a="xyz"');
+  });
+
+  test("a value too long to show makes the request unconfirmable", () => {
+    expect(paramsFitSummary({ big: "x".repeat(500) })).toBe(false);
+    expect(paramsFitSummary({ a: 1, b: "short" })).toBe(true);
+  });
+
+  test("a command's args are shown on the line and an oversized args is refused without asking", async () => {
+    const { pair, confirm } = build(["allow", "allow"]);
+    pair.frame.send(request(1, "command", { name: "helm-start", args: "go --force" }));
+    await flush();
+    expect(confirm.asked.map((line) => [line.action, line.paramsSummary])).toEqual([
+      ["/helm-start", 'args="go --force"'],
+    ]);
+    pair.frame.send(request(2, "command", { name: "helm-start", args: "x".repeat(900) }));
+    await flush();
+    expect(confirm.asked.length).toBe(1);
+    expect(pair.toFrame.at(-1)).toEqual({
+      v: 1,
+      id: 2,
+      ok: false,
+      error: { kind: "denied", detail: "params_too_long_to_confirm" },
+    });
   });
 });
 

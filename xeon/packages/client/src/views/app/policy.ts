@@ -232,6 +232,8 @@ function hasControlOrSpace(text: string): boolean {
   }
   return false;
 }
+/** 보이지 않는 글자: 너비 0 공백·이음(U+200B-D), 단어 결합자(U+2060), BOM(U+FEFF), 소프트 하이픈(U+00AD). 글을 가려 다른 글처럼 보이게 한다 */
+const INVISIBLE = /[\u00ad\u200b-\u200d\u2060\ufeff]/gu;
 const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
 const BIDI_PROBE = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
 
@@ -240,10 +242,10 @@ export function stripBidi(text: string): string {
   return text.replace(BIDI, "");
 }
 
-/** 제어 문자와 방향 제어 글자를 뺀다. `keepLayout`이면 줄바꿈과 탭은 남긴다 */
+/** 제어 문자, 방향 제어 글자, 보이지 않는 글자를 뺀다. `keepLayout`이면 줄바꿈과 탭은 남긴다 */
 export function stripUnsafeText(text: string, keepLayout: boolean): string {
   let out = "";
-  for (const ch of stripBidi(text)) {
+  for (const ch of stripBidi(text).replace(INVISIBLE, "")) {
     const code = ch.codePointAt(0) ?? 0;
     const layout = code === 0x0a || code === 0x09;
     const control = code < 0x20 || (code >= 0x7f && code <= 0x9f);

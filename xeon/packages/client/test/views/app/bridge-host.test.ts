@@ -156,7 +156,8 @@ describe("bridge host", () => {
     const { pair, confirm, calls } = setup();
     pair.frame.send(request(1, "command", { name: "helm-start", args: "go" }));
     await flush();
-    expect(confirm.asked).toEqual([asked("/helm-start")]);
+    // 실행될 인자를 줄에 그대로 보인다(숨은 args로 다른 일을 시킬 수 없다)
+    expect(confirm.asked).toEqual([asked("/helm-start", 'args="go"')]);
     expect(calls.names).toEqual(["command:helm-start:go"]);
   });
 
@@ -346,6 +347,30 @@ describe("bridge host", () => {
     pair.frame.send(request(3, "log", { message: "x" }));
     await flush();
     expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 4 });
+  });
+
+  test("navigate does not reset the strike count either", async () => {
+    const { pair, ledger } = setup();
+    for (let index = 0; index < 4; index += 1) pair.frame.send({ nope: true });
+    pair.frame.send(request(1, "navigate", { target: { kind: "settings" } }));
+    await flush();
+    expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 4 });
+  });
+
+  test("navigate shares the post budget: one per 5 s, the next is rate limited and counted", async () => {
+    const { pair, time, ledger } = setup();
+    pair.frame.send(request(1, "navigate", { target: { kind: "settings" } }));
+    pair.frame.send(request(2, "navigate", { target: { kind: "settings" } }));
+    await flush();
+    expect(pair.toFrame).toEqual([
+      { v: 1, id: 2, ok: false, error: { kind: "rate_limited" } },
+      { v: 1, id: 1, ok: true, value: null },
+    ]);
+    expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 1 });
+    time.advance(5000);
+    pair.frame.send(request(3, "navigate", { target: { kind: "settings" } }));
+    await flush();
+    expect(pair.toFrame[2]).toEqual({ v: 1, id: 3, ok: true, value: null });
   });
 
   test("a good request resets the consecutive count", async () => {

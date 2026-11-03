@@ -23,13 +23,13 @@ export function confirmBadges(request: ConfirmRequest): readonly string[] {
   return badges;
 }
 
-/** 라벨은 확장이 쓴 글이라 제어·방향 제어 글자를 지운다. 지우고 남은 것이 없으면 동사를 보인다 */
+/** 라벨은 확장이 쓴 글이라 제어·방향 제어·보이지 않는 글자를 지운다. 라벨 옆에 실제로 실행되는 동사를 함께 보인다. 지우고 남은 라벨이 없으면 동사만 보인다 */
 function shownAction(request: ConfirmRequest): string {
   const label = request.label === undefined ? "" : stripUnsafeText(request.label, false).trim();
-  return label === "" ? request.action : label;
+  return label === "" ? request.action : `${label} (${request.action})`;
 }
 
-/** 확인 줄 문장. 매니페스트 라벨이 있으면 동사 대신 라벨을 보인다 */
+/** 확인 줄 문장. 매니페스트 라벨이 있으면 라벨과 실제 동사를 함께 보인다 */
 export function confirmLineText(request: ConfirmRequest): string {
   return t("client.view.confirm.line", {
     extension: request.extension,
