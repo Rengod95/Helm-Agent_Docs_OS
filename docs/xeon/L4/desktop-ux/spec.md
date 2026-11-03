@@ -1209,6 +1209,8 @@ compact 폭(720 이하)과 사이드바 시트:
 
 - 승인 카드 화면 가림 [결정: 2026-11-03 사용자]: 카드의 제목과 도구 인자(JSON)는 호스트가 준 표식(`F.wire-settings.spec` §3.4.5a, `approval.requested`의 `mask`와 `approval.list`의 `masks`)을 `@fresnel/contracts/records`의 `maskApprovalRequest`로 적용한 뒤에만 상태에 들어갑니다. 대화(P-02)와 같은 값 판정을 쓰므로 카드가 트랜스크립트가 가린 값을 보이지 않습니다. 계획, 질문, 검토 본문도 같은 방식으로 가립니다. 질문과 검토의 문자열 필드(질문 본문, 선택지 이름과 설명, 검토 제목과 파일 경로)는 필드마다 같은 자리의 표식을 적용합니다. 요청 키와 식별자는 화면 글이 아니므로 가리지 않습니다. 표식이 맞지 않는 승인은 목록에 넣지 않습니다(카드를 읽을 수 없는 것으로 둡니다).
 
+- 구현 노트 [구현: 2026-11-04, 카드 재구성 트랙]: 카드는 `apps/desktop/src/views/approval-card/`에 있습니다(`approval-card.tsx` 셸·상태·단추·Y/N/⇧Y, `bodies.tsx` 종류별 본문, `card-model.ts` 시간·만료·키·계획 접기·검토 합계 순수 값, `clock.ts` 30초 시계). 트랜스크립트 끝(`ApprovalQueue`)과 끝 영역 받은 요청(`InboxApprovals`)은 같은 `ApprovalCardList`를 씁니다. 판정과 답 조립(`approval-form.ts`)과 `respondApproval` 명령은 그대로입니다. caustic 부품: `AgentRequest`(머리, 종류 아이콘; `actions`는 쓰지 않고 단추 줄을 따로 그립니다), `ChoiceGroup`(질문과 승인 뒤 모드), `Input`(질문 직접 입력), `Textarea`(계획 피드백), `MessageCode`(명령, 인자, 계획 본문), `Alert`(내장 도구 대체 경고), `Badge`(요청한 곳), `Button`(단추). 검토 승인은 `allow`를 계약이 거절하므로 `ReviewAnswer`(`submit`, `approveRemaining`)를 답으로 보냅니다. 계획의 "수정 요청"과 "거부"는 둘 다 `deny`이고 수정 요청만 `{ feedback }`을 싣습니다 [가정, `[gap:V-12]`]. 시험: `test/views/approval-card-mounts.test.tsx`의 `approval-card.same-in-three-places`. 빠진 것: 원격 배지(승인 payload에 원격 표식이 없음), 대화 이름으로 가기, 검토 열기(P-04 없음), P-03 목록(화면 없음; 세 번째 자리는 `ApprovalCardList`가 맡음). caustic 빈틈: `AgentRequest`의 `actions`가 단추별 `disabled`를 받지 못해 보내는 중·답 미완성 잠금을 단추 줄로 옮겼습니다. `Plan`은 단계 진행 체크리스트라 Markdown 원문 계획에 맞지 않아 쓰지 않았습니다(`[gap:C-06]`).
+
 ### 6.8 P-04 변경 검토
 
 ```text

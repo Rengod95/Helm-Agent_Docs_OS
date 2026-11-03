@@ -200,6 +200,7 @@ export function createCommands(deps: CommandDeps): Commands {
                 approvalId,
                 decision: response.decision,
                 ...(response.remember === undefined ? {} : { remember: response.remember }),
+                ...(response.answer === undefined ? {} : { answer: response.answer }),
               },
         ),
       );

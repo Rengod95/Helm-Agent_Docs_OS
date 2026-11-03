@@ -3,6 +3,7 @@ import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
+import type { DenyAnswerJson, PlanAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
 import type {
   ExtGetResult,
   ExtHealthEntry,
@@ -58,11 +59,18 @@ export type CommandError =
   | { readonly kind: "switching" };
 
 export type ApprovalDecision =
-  | { readonly decision: "allow" | "deny"; readonly remember?: "once" | "thread" | "always" }
-  /** 질문 응답은 QuestionAnswer(질문 id → 선택지 id 목록과 자유 입력)다(F.wire-settings.spec §3.3.1) */
+  /** 계획 승인은 `{ mode }`, 수정 요청과 거부는 `{ feedback }`를 answer로 싣는다(F.wire-settings.spec §3.3.1). 그 밖에는 답이 없다 */
+  | {
+      readonly decision: "allow" | "deny";
+      readonly remember?: "once" | "thread" | "always";
+      readonly answer?: PlanAnswerJson | DenyAnswerJson;
+    }
+  /** 질문 응답은 QuestionAnswer(질문 id → 선택지 id 목록과 자유 입력), 검토 응답은 ReviewAnswer다(F.wire-settings.spec §3.3.1) */
   | {
       readonly decision: "answer";
-      readonly answer: Readonly<Record<string, { selected: string[]; text?: string }>>;
+      readonly answer:
+        | Readonly<Record<string, { selected: string[]; text?: string }>>
+        | ReviewAnswerJson;
     };
 
 /**
