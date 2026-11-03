@@ -13,6 +13,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { Logger } from "@fresnel/contracts";
 import {
   DEFAULT_PLUGIN_NAMES,
+  defaultPluginNamesFor,
   DEFAULT_PLUGINS_MARKER_FILE,
   installDefaultPlugins,
   installedAgentDefinitions,
@@ -167,11 +168,17 @@ test("a bundle without a valid manifest is a failed install that leaves nothing 
   expect(existsSync(join(stateDir, DEFAULT_PLUGINS_MARKER_FILE))).toBe(false);
 });
 
-// 기본 목록은 helm과 account-rotation이다. 위장 provider는 목록에 들지 않는다(L1.models.spec §4.11.4)
-test("the default list is helm and account-rotation, and account-rotation installs from its own bundle", async () => {
-  expect(DEFAULT_PLUGIN_NAMES).toEqual(["helm", "account-rotation"]);
+// 기본 목록은 helm뿐이다. 계정 회전은 개발 모드에서만 더해진다(결정 2026-11-04 A1)
+test("the release default list is helm only, and account-rotation joins it only in dev mode", async () => {
+  expect(DEFAULT_PLUGIN_NAMES).toEqual(["helm"]);
+  expect(defaultPluginNamesFor(false)).toEqual(["helm"]);
+  expect(defaultPluginNamesFor(true)).toEqual(["helm", "account-rotation"]);
   writeBundle("0.1.0", "account-rotation");
-  expect(await install(DEFAULT_PLUGIN_NAMES)).toEqual([
+  expect(await install(defaultPluginNamesFor(false))).toEqual([
+    { name: "helm", action: "no_bundle" },
+  ]);
+  expect(existsSync(join(extensionsDir, "account-rotation"))).toBe(false);
+  expect(await install(defaultPluginNamesFor(true))).toEqual([
     { name: "helm", action: "no_bundle" },
     { name: "account-rotation", action: "installed", version: "0.1.0" },
   ]);

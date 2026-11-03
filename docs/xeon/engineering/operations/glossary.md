@@ -63,7 +63,7 @@ binds: []
 | 엔진 | Cordis 호스트, 루프, SQLite를 묶은 라이브러리입니다. 데몬 여부, 전송, 유휴 종료 같은 프로세스 정책은 갖지 않습니다 | architecture.overview.spec §2, L0.process.spec §2 |
 | 예약 (`timer`) | cron 또는 at으로 정한 예약입니다. 기한마다 새 대화를 만들어 실행합니다 | L2.schedule.spec §2 |
 | 원장 | 스킬과 메모리의 모든 변경 기록입니다. 전후 내용을 blob으로 가집니다 | L2.knowledge.spec §2 |
-| 웹 provider | 웹 기능(검색, 가져오기, 브라우즈)을 실제로 수행하는 구현입니다. 내장(`builtin-wrapper`, `searxng`, `local`, `playwright-local`, `native`)과 플러그인(`plugin:<확장 이름>`)이 있습니다 | L2.web.spec §2 |
+| 웹 provider | 웹 기능(검색, 가져오기, 브라우즈)을 실제로 수행하는 구현입니다. 내장(`builtin-wrapper`, `local`, `playwright-local`, `native`)과 플러그인(`plugin:<확장 이름>`)이 있습니다. SearXNG provider는 2026-11-04 사용자 B15 결정으로 없어졌습니다. 쓰려면 검색 플러그인으로 직접 등록합니다 | L2.web.spec §2 |
 | 입력 큐 | thread별 내구 대기열입니다. 이벤트 `input.*`와 투영 `p_inputs`로 이루어집니다 | L1.tasks.spec §2 |
 | 자동 끄기 | 실패 기준을 넘은 확장의 Registration을 다음 단계 경계에서 끄는 동작입니다 | X.operations.spec §2 |
 | 자식 대화 | 서브에이전트 실행마다 새로 여는 thread입니다. 부모 대화와 소유자를 기록합니다 | L1.agents.spec §2 |

@@ -29,12 +29,10 @@ function capabilityError(code: string, extra: { retryAfterMs?: number } = {}): C
 
 const A = fakeSearchProvider("plugin:web-a");
 const B = fakeSearchProvider("plugin:web-b");
-const SEARXNG = fakeSearchProvider("searxng");
 const WRAPPER = fakeSearchProvider("builtin-wrapper");
 const ALL = [
   searchCandidate(A, "plugin"),
   searchCandidate(B, "plugin"),
-  searchCandidate(SEARXNG, "detected"),
   searchCandidate(WRAPPER, "builtin"),
 ];
 
@@ -50,13 +48,13 @@ describe("search chain", () => {
       order: readonly string[];
     }[] = [
       {
-        name: "the user's order list comes first, then searxng, the wrapper, and unlisted plugins last",
+        name: "the user's order list comes first, then the wrapper, and unlisted plugins last",
         candidates: ALL,
         call: undefined,
         setting: "auto",
         listing: ["plugin:web-b", "plugin:web-a"],
         selectedBy: "auto",
-        order: ["plugin:web-b", "plugin:web-a", "searxng", "builtin-wrapper"],
+        order: ["plugin:web-b", "plugin:web-a", "builtin-wrapper"],
       },
       {
         name: "a built-in tool can be dragged ahead of plugins, unknown ids are skipped",
@@ -65,7 +63,7 @@ describe("search chain", () => {
         setting: "auto",
         listing: ["builtin-wrapper", "plugin:not-installed", "plugin:web-b"],
         selectedBy: "auto",
-        order: ["builtin-wrapper", "plugin:web-b", "searxng", "plugin:web-a"],
+        order: ["builtin-wrapper", "plugin:web-b", "plugin:web-a"],
       },
       {
         name: "plugins are last by default, in byte order",
@@ -74,16 +72,16 @@ describe("search chain", () => {
         setting: "auto",
         listing: [],
         selectedBy: "auto",
-        order: ["searxng", "builtin-wrapper", "plugin:web-a", "plugin:web-b"],
+        order: ["builtin-wrapper", "plugin:web-a", "plugin:web-b"],
       },
       {
-        name: "no plugin: searxng then the wrapper",
-        candidates: [searchCandidate(SEARXNG, "detected"), searchCandidate(WRAPPER, "builtin")],
+        name: "one plugin and the wrapper: the wrapper first, then the plugin",
+        candidates: [searchCandidate(A, "plugin"), searchCandidate(WRAPPER, "builtin")],
         call: undefined,
         setting: "auto",
         listing: [],
         selectedBy: "auto",
-        order: ["searxng", "builtin-wrapper"],
+        order: ["builtin-wrapper", "plugin:web-a"],
       },
       {
         name: "only the wrapper",
@@ -97,11 +95,11 @@ describe("search chain", () => {
       {
         name: "a call argument selects one provider",
         candidates: ALL,
-        call: "searxng",
+        call: "builtin-wrapper",
         setting: "plugin:web-a",
         listing: [],
         selectedBy: "call",
-        order: ["searxng"],
+        order: ["builtin-wrapper"],
       },
       {
         name: "the setting selects one provider",
@@ -173,15 +171,15 @@ describe("search chain", () => {
     const keyless = fakeSearchProvider("plugin:web-x", {
       availability: { ok: false, reason: "no-key" },
     });
-    const searx = fakeSearchProvider("searxng", {
+    const offline = fakeSearchProvider("plugin:web-y", {
       availability: { ok: false, reason: "unreachable" },
     });
     const wrapper = fakeSearchProvider("builtin-wrapper");
     const world = await makeWebWorld({
-      settings: { search: { order: ["plugin:web-x"] } },
+      settings: { search: { order: ["plugin:web-x", "plugin:web-y"] } },
       catalog: fakeCatalog([
         searchCandidate(keyless, "plugin"),
-        searchCandidate(searx, "detected"),
+        searchCandidate(offline, "plugin"),
         searchCandidate(wrapper, "builtin"),
       ]),
     });
@@ -190,23 +188,24 @@ describe("search chain", () => {
     expect(output.meta.selectedBy).toBe("auto");
     expect(output.meta.fallbacks).toEqual([
       { provider: "plugin:web-x", stage: "probe", reason: "no-key" },
-      { provider: "searxng", stage: "probe", reason: "unreachable" },
+      { provider: "plugin:web-y", stage: "probe", reason: "unreachable" },
     ]);
-    expect(keyless.searches.length + searx.searches.length).toBe(0);
+    expect(keyless.searches.length + offline.searches.length).toBe(0);
     expect(wrapper.searches.length).toBe(1);
   });
 
-  test("searxng is used when detected and the wrapper stays untouched", async () => {
-    const searx = fakeSearchProvider("searxng");
+  test("a listed plugin that answers is used and the wrapper stays untouched", async () => {
+    const plugin = fakeSearchProvider("plugin:web-p");
     const wrapper = fakeSearchProvider("builtin-wrapper");
     const world = await makeWebWorld({
+      settings: { search: { order: ["plugin:web-p"] } },
       catalog: fakeCatalog([
-        searchCandidate(searx, "detected"),
+        searchCandidate(plugin, "plugin"),
         searchCandidate(wrapper, "builtin"),
       ]),
     });
     const output = await world.search({ query: "fresnel" });
-    expect(output.meta.provider).toBe("searxng");
+    expect(output.meta.provider).toBe("plugin:web-p");
     expect(output.meta.fallbacks).toEqual([]);
     expect(wrapper.probes()).toBe(0);
   });
@@ -283,8 +282,16 @@ describe("search chain", () => {
         { provider: "builtin-wrapper", stage: "probe", reason: "unsupported-model" },
       ],
     });
+  });
+
+  test("with no search provider configured the auto call is unavailable and says to install a plugin", async () => {
     const empty = await makeWebWorld({ catalog: fakeCatalog() });
     const none = await rejection(empty.search({ query: "fresnel" }));
-    expect(none.data.detail).toMatchObject({ reason: "no_provider" });
+    expect(none.data.code).toBe("unavailable");
+    expect(none.data.detail).toEqual({ reason: "no_provider", fallbacks: [] });
+    expect(none.message).toBe(
+      "No search provider is configured. Install or configure a search plugin to use web search.",
+    );
+    expect(none.data.retryable).toBe(false);
   });
 });

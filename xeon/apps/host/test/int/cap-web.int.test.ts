@@ -11,8 +11,9 @@ import { fetchingModels } from "../fixtures/web-tape.ts";
 import {
   fakeHostedSearch,
   publicResolver,
+  recordingTransport,
   searchingModels,
-  searxngSwitch,
+  type RecordingTransport,
 } from "../fixtures/web-search.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
@@ -92,14 +93,12 @@ realTest(
   30_000,
 );
 
-// E4(M2 종료 조건, ADR-0005 개정, H1): `web.search`의 기본 provider는 내장 검색 래퍼이고, SearXNG는 사용자가 주소를 설정했을 때만 쓴다.
+// E4(M2 종료 조건, ADR-0005 개정, H1): `web.search`의 기본 provider는 내장 검색 래퍼다. 키 기반 플러그인은 설치하고 설정했을 때만 쓴다.
 // 조립 루트가 `fresnel.models`의 hosted 검색을 cap-web에 넘기지 않으면 래퍼가 후보에 들지 않는다.
-
-const SEARXNG_URL = "http://127.0.0.1:8888";
 
 interface SearchRig {
   readonly hosted: ReturnType<typeof fakeHostedSearch>;
-  readonly searxng: ReturnType<typeof searxngSwitch>;
+  readonly network: RecordingTransport;
   readonly connection: Awaited<ReturnType<typeof openSearchHost>>["connection"];
   readonly collector: ReturnType<typeof collectEvents>;
   readonly threadId: string;
@@ -109,38 +108,35 @@ interface SearchRig {
 
 async function openSearchHost(
   settings: Readonly<Record<string, unknown>>,
-  searxngUp: boolean,
   queries: readonly string[],
   injectHosted: boolean,
 ) {
   const home = useEngineHome();
   writeUserSettings(home, { ...TAPE_SETTINGS, ...settings });
   const hosted = fakeHostedSearch();
-  const searxng = searxngSwitch(searxngUp);
+  const network = recordingTransport();
   const host = await startInProcessHost({
     devChecks: true,
     defaultGroups: false,
     buildModels: searchingModels("web-search", queries),
     webPorts: {
       resolver: publicResolver,
-      transport: searxng.transport,
+      transport: network.transport,
       ...(injectHosted ? { hostedSearch: hosted.port } : {}),
     },
   });
   const connection = createHostConnection(host.client);
   await connection.request("host.hello", HELLO_PARAMS);
-  return { home, host, hosted, searxng, connection };
+  return { home, host, hosted, network, connection };
 }
 
 async function searchRig(
   settings: Readonly<Record<string, unknown>>,
-  searxngUp: boolean,
   queries: readonly string[],
   injectHosted = true,
 ): Promise<SearchRig> {
-  const { home, host, hosted, searxng, connection } = await openSearchHost(
+  const { home, host, hosted, network, connection } = await openSearchHost(
     settings,
-    searxngUp,
     queries,
     injectHosted,
   );
@@ -149,7 +145,7 @@ async function searchRig(
   const created = await connection.request("thread.create", {});
   return {
     hosted,
-    searxng,
+    network,
     connection,
     collector,
     threadId: created.threadId,
@@ -179,48 +175,15 @@ async function searchRig(
 }
 
 realTest(
-  "with no SearXNG address set, web_search uses the built-in wrapper and never calls a SearXNG that happens to run",
+  "with no search plugin installed, web_search uses the built-in wrapper and sends nothing to the network",
   async () => {
-    // 설정은 비어 있고 SearXNG는 떠 있다: 자동 감지가 없으므로 호출하지 않는다(H1)
-    const rig = await searchRig({}, true, ["only query"]);
+    const rig = await searchRig({}, ["only query"]);
     await rig.runTurn("search it");
     expect(rig.hosted.requests).toHaveLength(1);
     expect(rig.hosted.requests[0]?.query).toBe("only query");
-    expect(rig.searxng.hits).toBe(0);
+    expect(rig.network.hits).toBe(0);
     expect(toolResultTexts(rig.collector.events, 6000).join("\n")).toContain(
       "docs.example.org/wrapper",
-    );
-    await rig.close();
-  },
-  30_000,
-);
-
-realTest(
-  "with a SearXNG address set, web_search uses SearXNG, and a settings change drops the remembered failed probe",
-  async () => {
-    const rig = await searchRig({ "l2.web.search.searxng.url": SEARXNG_URL }, false, [
-      "first query",
-      "second query",
-    ]);
-    // 설정한 SearXNG가 아직 떠 있지 않으면 내장 래퍼로 내려간다
-    await rig.runTurn("search first");
-    expect(rig.hosted.requests).toHaveLength(1);
-    expect(toolResultTexts(rig.collector.events, 6000).join("\n")).toContain(
-      "docs.example.org/wrapper",
-    );
-
-    // SearXNG를 띄워도 실패 탐침을 30초 기억하므로 아직 래퍼가 답한다. 설정을 바꾸면 기억을 지운다(HS-75)
-    rig.searxng.up = true;
-    await rig.connection.request("settings.set", {
-      key: "l1.loop.maxSteps",
-      value: 25,
-      scope: "user",
-    });
-    await rig.runTurn("search second");
-    expect(rig.hosted.requests).toHaveLength(1);
-    expect(rig.searxng.hits).toBeGreaterThan(0);
-    expect(toolResultTexts(rig.collector.events, 6000).join("\n")).toContain(
-      "docs.example.org/searxng",
     );
     await rig.close();
   },
@@ -232,7 +195,7 @@ realTest(
   async () => {
     // 시험이 hosted 검색 대역을 주지 않으면 fresnel.models의 포트가 쓰인다. 테이프 provider는 hosted 검색이 없어 래퍼가 모델 미지원으로 내려가지만,
     // 래퍼가 후보에 올라 있다는 것이 연결의 증거다(연결하지 않으면 후보에 없다)
-    const rig = await searchRig({}, false, ["any"], false);
+    const rig = await searchRig({}, ["any"], false);
     await rig.runTurn("search it");
     expect(toolResultTexts(rig.collector.events, 6000).join("\n")).toContain(
       "builtin-wrapper probe:unsupported-model",

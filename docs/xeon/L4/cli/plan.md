@@ -245,12 +245,12 @@ xeon/apps/cli/
 | C10 `sessions` | 구현: `ls`(쪽 단위, `--all`, `--limit`, `--json`), `show`(`events.subscribe` → 머리까지 → `events.unsubscribe`), `fork --at`, `rm`(`--yes`, 비TTY는 2) | `src/commands/sessions.ts` |
 | C11 승인·잠금·중단 | 구현: 도구·계획·질문 프롬프트(kind별 `answer` 모양), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
 | C13 `config set/reset/list`, `--set`, 슬래시 | 구현. 사전 검사는 하지 않는다(spec §10 13번). 슬래시는 `/set`, `/model`, `/resume`, `/help`, `/quit`와 Tab 완성 | `src/commands/config.ts`, `src/commands/overrides.ts`, `src/slash.ts`, `src/tui/minimal.ts` |
-| C15 `doctor` | 구현: 엔진·저장소·시크릿 저장소·외부 바이너리·서비스·터미널과 검색 provider 세 줄. 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침한다(자동 감지 삭제, M2 마감 H1). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
+| C15 `doctor` | 구현: 엔진·저장소·시크릿 저장소·외부 바이너리·서비스·터미널과 검색 provider 두 줄([결정: 2026-11-04 사용자 B15] 옛 세 줄에서 SearXNG 줄을 뺐다). 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침했다(자동 감지 삭제, M2 마감 H1)(삭제됨 2026-11-04). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
 | C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용. M3b B2-RMT: 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 중계한다 | `src/commands/host.ts` |
 | 시크릿 오류 해결 줄 (m2r sec) | 구현: `provider_unavailable`, `key_unavailable`, `write_failed`의 해결 줄을 원인별로 나눴다(spec §4.7). 깨끗한 기기의 첫 `secret add`가 `not_registered`에 "sops와 age를 설치"를 보이던 문제를 고쳤다. `test/errors-wire.test.ts`, `test/secret-first-write.int.test.ts`(실제 호스트, 설정 없이 첫 `add`, 같은 홈의 두 클라이언트가 한 시크릿을 봄) |
 
 - 호스트가 아직 구현하지 않은 메서드와의 호환: `thread.list`는 -32601이면 상태 파일로, `thread.open`·`turn.interrupt`·`approval.list`·`events.unsubscribe`는 `host.hello`의 `features`에 없으면 쓰지 않는다. HOST.2·HOST.4가 병합되기 전의 `xeon/foundation`에서도 `just verify`가 통과한다.
-- 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `fresnel version`은 0.036초, `fresnel doctor`는 1.8초다(당시 구현의 SearXNG 후보 네 곳 병렬 탐침 포함, 지금은 자동 감지가 없다). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
+- 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `fresnel version`은 0.036초, `fresnel doctor`는 1.8초다(당시 구현의 SearXNG 후보 네 곳 병렬 탐침 포함. 이 탐침은 [결정: 2026-11-04 사용자 B15]로 삭제됐다). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
 
 ### 4.6 M2 마감 구현 기록 (T6, 2026-10-25)
 
@@ -279,7 +279,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | `secret-host.int.test.ts` | 실제 sops·age로 `secret add`, `ls`, `test`(길이와 해시 앞 8자), `rm`(참조 한 줄과 `[y/N]`), `rm --yes`를 한 저장소에서 잇는다. 값, base64, hex가 stdout·stderr·보낸 요청·홈 아래 모든 파일에 없다 | 설정 키와 활성 lease가 있는 참조 표시, `reveal`, 제공자·키 오류 종료 코드 |
 | `rename-host.int.test.ts` | 호스트가 첫 입력(공백 정리, 앞 80자)으로 제목을 정하고 `sessions rename`이 그것을 바꾸며 `sessions ls`가 보인다. `/rename`이 정한 제목을 첫 입력이 덮지 않는다. 없는 대화는 `thread.notFound` 문구와 1이다 | 호스트가 `thread.rename`을 모르는 경우 |
 | `approval-consent-host.int.test.ts` | 실제 bash 승인 카드가 명령 전체를 보인다. `t`는 `remember: "thread"`로 가고 같은 대화의 다음 호출은 묻지 않는다. 거부 이유가 `answer.feedback`으로 간다. print 모드는 거부로 답한다 | `secretEnv` 카드(운영 `bash` 도구는 모델에 `secretEnv`를 내지 않는다), 요청 주체, 만료, `resolvedBy`, 낮춤 알림, `answer_invalid`·`commit_failed` 재질문 |
-| `doctor-host.int.test.ts` | 실제 `host.status { includeBinaries: true }`의 보고서가 `--json`의 `binaries`가 되고 종료 코드가 `ready`를 따른다. 바이너리마다 한 줄이 있다. 주소가 없으면 탐침이 0번이고 설정한 주소만 탐침한다. 실제 카탈로그에 `searxng.detect`가 없다 | `ready: false`인 보고서 |
+| `doctor-host.int.test.ts` | 실제 `host.status { includeBinaries: true }`의 보고서가 `--json`의 `binaries`가 되고 종료 코드가 `ready`를 따른다. 바이너리마다 한 줄이 있다. 주소가 없으면 탐침이 0번이고 설정한 주소만 탐침한다. 실제 카탈로그에 `searxng.detect`가 없다 (SearXNG 시험 부분 삭제됨 2026-11-04) | `ready: false`인 보고서 |
 
 이 시험들에서 알게 된 동작:
 

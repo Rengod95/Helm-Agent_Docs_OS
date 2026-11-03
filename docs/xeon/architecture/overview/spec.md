@@ -165,7 +165,7 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 | [ADR-0002](../../decisions/ADR-0002-di-cordis.md) | [결정] DI는 Cordis 하나 | Cordis 4.0.0-rc를 `xeon/vendor/cordis`에 커밋 고정으로 두고 `ext-host` 뒤에 숨긴다 |
 | [ADR-0003](../../decisions/ADR-0003-pi-durable-fork.md) | [결정] pi durable 부분 포크 | env, tools, images, truncate만 Chord 의존을 걷어 내고 포크한다. 커널(L1-a/b/f/g)은 직접 구현하고 durable `docs/spec.md`를 설계 근거로 인용한다 |
 | [ADR-0004](../../decisions/ADR-0004-session-storage.md) | [결정] 대화 저장 C안 | SQLite 이벤트 소싱과 투영, 단일 DB 파일, 확장별 접두사 테이블. 단계 경계 커밋은 `synchronous=FULL` |
-| [ADR-0005](../../decisions/ADR-0005-web-search-default.md) | [결정] 무료 웹 검색 기본값 | 모델 도구는 provider 내장 검색, 서비스 API `web.search`는 내장 검색 래퍼, SearXNG 감지 시 우선, 무료 크레딧 API는 플러그인 권장. 키 없는 스크레이핑 제외 |
+| [ADR-0005](../../decisions/ADR-0005-web-search-default.md) | [결정] 무료 웹 검색 기본값 | 모델 도구는 provider 내장 검색, 서비스 API `web.search`는 내장 검색 래퍼, 무료 크레딧 API는 플러그인 권장. 키 없는 스크레이핑 제외. [결정: 2026-11-04 사용자 B15] SearXNG는 없앴다 |
 | [ADR-0006](../../decisions/ADR-0006-process-service-mode.md) | [결정] 프로세스 구조와 서비스 모드 | 엔진 라이브러리, Runtime API 하나, 전송 교체. `fresnel service`는 1차, OS 서비스 등록은 2차 |
 | [ADR-0007](../../decisions/ADR-0007-ext-points.md) | [결정] 훅 4연산 | `on`(fold `tap`/`first`/`chain`), `post`(`steer`/`followUp`/`next`), `drive`(배타 drive 락, 상한 `{maxTurns, maxSpawns, maxTokens}`), `scope`(단계 경계 토글). 훅 종류와 이름 목록은 [제안](미합의) |
 | [ADR-0008](../../decisions/ADR-0008-desktop-tauri.md) | [결정] 데스크톱 Tauri 2 | 시스템 WebView, 3플랫폼. 엔진은 `bun build --compile` 사이드카, UI와 stdio JSON-RPC로 연결 |

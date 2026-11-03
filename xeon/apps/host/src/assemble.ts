@@ -33,6 +33,7 @@ import { StoreIdSchema } from "@fresnel/contracts/wire";
 import {
   createExtHost,
   createOperationsPolicy,
+  createRepeatDisableLedger,
   createRegistrationControl,
   createVolatileNotifier,
   registrationToggleSourceOf,
@@ -101,9 +102,10 @@ import {
   effectiveSecretsConfig,
   settingKeysReferencing,
 } from "./assembly/secrets.ts";
+import { createLateFileBackend, REPEAT_DISABLE_FILE } from "./assembly/repeat-disable-store.ts";
 import { createProjectTrust, createLoaderFs, fileBackend } from "./assembly/trust.ts";
 import {
-  DEFAULT_PLUGIN_NAMES,
+  defaultPluginNamesFor,
   installDefaultPlugins,
   installedAgentDefinitions,
 } from "./assembly/default-plugins.ts";
@@ -401,6 +403,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     log: logOperations,
     mask: (text) => redact.current(text),
   });
+  // 여러 번의 시작에서 반복해 자동으로 꺼지는 확장을 센다(결정 2026-11-04 B5). 저장 경로는 상태 디렉터리를 안 뒤에 묶는다
+  const repeatDisableFile = createLateFileBackend();
+  const repeatDisable = createRepeatDisableLedger({
+    backend: repeatDisableFile,
+    log: logOperations,
+  });
   const operations = createOperationsPolicy({
     now: () => clock.now(),
     setTimer,
@@ -411,6 +419,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     },
     notifier: createVolatileNotifier({ emit: handlerFailed, log: logOperations }),
     log: logOperations,
+    repeatDisable,
   });
   /** 확장 진단. 상한(256)을 넘으면 오래된 것부터 버린다(L0.os.spec §3.14, M3-REQ-52) */
   const diagnostics = createExtDiagnosticSink(undefined, (text) => redact.current(text));
@@ -530,6 +539,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const logger = os.logger("host");
     late.logger = logger;
     // 연속 시작 실패 수(X.operations.spec §4.6.4). 조립이 던지면 "진행 중" 표시가 남아 다음 시작에서 1이 는다
+    repeatDisableFile.bind(join(os.dirs.state, REPEAT_DISABLE_FILE));
+    await repeatDisable.load();
     const startupHealth = createFileStartupHealth(os.dirs.state);
     const startupFailures = startupHealth.beginStartup();
     await settings.loadUserFile(join(os.dirs.config, "settings.json"));
@@ -699,20 +710,27 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       loader: () => external.loader,
       heldThreads: () => portsHandle?.heldThreads() ?? [],
     });
+    // 개발 모드에서만 계정 회전을 더 설치한다(결정 2026-11-04 A1). 키가 카탈로그에 없으면 꺼진 것이다
+    const defaultPluginNames = defaultPluginNamesFor(
+      built.catalog.has("l3.authoring.devMode") && settings.value("l3.authoring.devMode") === true,
+    );
     if (defaultsEnabled) {
-      await installDefaultPlugins({
-        bundleDir: options.defaultPluginsDir ?? defaultPluginsDir(),
-        extensionsDir: userExtensionsDir,
-        stateDir: os.dirs.state,
-        stagingRoot: join(os.dirs.config, ".staging"),
-        logger: os.logger("default-plugins"),
-        history: extUi.history,
-      });
+      await installDefaultPlugins(
+        {
+          bundleDir: options.defaultPluginsDir ?? defaultPluginsDir(),
+          extensionsDir: userExtensionsDir,
+          stateDir: os.dirs.state,
+          stagingRoot: join(os.dirs.config, ".staging"),
+          logger: os.logger("default-plugins"),
+          history: extUi.history,
+        },
+        defaultPluginNames,
+      );
     }
     const pluginAgents = defaultsEnabled
       ? await installedAgentDefinitions(
           userExtensionsDir,
-          DEFAULT_PLUGIN_NAMES,
+          defaultPluginNames,
           os.logger("default-plugins"),
         )
       : [];
@@ -948,6 +966,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       dialogArea,
       extRead: {
         operations,
+        repeatDisable,
         // `host.status.safeMode`와 같은 원인이다: 시작 옵션은 `flag`, 설정 `x.operations.safeMode.default`는 `user`
         safeMode: {
           active: safeMode,

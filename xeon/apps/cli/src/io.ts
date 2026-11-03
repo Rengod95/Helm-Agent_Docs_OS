@@ -50,18 +50,6 @@ export interface CliIo {
   readonly stderrStream: WritableStream<Uint8Array>;
 }
 
-/** doctor가 쓰는 바깥 세계 조회. 실제 값은 runtime.ts, 시험은 가짜를 넣는다 */
-export interface DoctorProbes {
-  /**
-   * SearXNG 탐침(L2.web.spec §4.8.3): `GET <base>/search?q=fresnel&format=json&pageno=1`, 제한 시간 1.5초, 응답 64 KiB 상한.
-   * 200이고 JSON에 results 배열과 query 문자열이 있으면 ok, 403이면 json-disabled, 그 밖에는 unreachable
-   */
-  probeSearxng(
-    baseUrl: string,
-    signal: AbortSignal,
-  ): Promise<"ok" | "json-disabled" | "unreachable">;
-}
-
 /** 그룹 생성 명령의 파일 작업이 낸 실패. path는 실패한 위치, message는 사람이 읽는 한 줄이다 */
 export interface GroupIoError {
   readonly path: string;
@@ -121,7 +109,6 @@ export interface CliDeps {
   }) => Promise<RemoteResolution>;
   /** stdin/stdout을 원격 서비스에 중계한다(HS-89). 실제 값은 @fresnel/host의 bridgeStdioToService */
   readonly bridgeStdio: (options: BridgeOptions) => Promise<BridgeExit>;
-  readonly probes: DoctorProbes;
   /** `fresnel group new`의 파일 작업. 실제 값은 group/fs-port.ts, 시험은 메모리 가짜 */
   readonly groupTemplates: GroupTemplatesPort;
   /** Ctrl+C 2회 판정(§4.6) */

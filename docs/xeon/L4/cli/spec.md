@@ -350,7 +350,7 @@ export declare function runCli(argv: readonly string[], io: CliIo, deps: CliDeps
   - `CliIo.readSecret(prompt, signal)`: 에코 없는 한 줄 입력을 바이트 배열로 돌려준다(§4.7). EOF·Ctrl+C는 null이다. TTY일 때만 부른다.
   - `CliIo.setCompleter(complete)`: 대화형 입력의 Tab 완성기를 바꾼다(§4.12).
   - `CliIo.stdoutStream`, `stderrStream`: 바이트 출력. `host --stdio`는 계약(JSON Lines) 전용으로 `stdoutStream`만 쓰고, `secret reveal`은 값을 이 스트림에 바이트로 쓴다.
-  - `CliDeps.startStdioHost`: `@fresnel/host`의 `startStdioHost` 그대로(§3.3 표). `CliDeps.probes.probeSearxng`: doctor의 SearXNG 탐침(§4.7.1).
+  - `CliDeps.startStdioHost`: `@fresnel/host`의 `startStdioHost` 그대로(§3.3 표). [결정: 2026-11-04 사용자 B15] `CliDeps.probes.probeSearxng`(doctor의 SearXNG 탐침, §4.7.1)는 없앴다.
   - `EngineHandle.secretOutOfBand`: in-process 접속에서 값 입력·열람 수단을 wire 밖으로 맡기는 통로(`SecretOutOfBandPort`, `InProcessHost.secretOutOfBand`). 서비스 접속은 null이다.
   - `EngineHandle.supports(feature)`: `host.hello`의 `features`(active, experimental)에 그 이름이 있는지. 호스트가 아직 구현하지 않은 메서드(`turn.interrupt`, `thread.open`, `approval.list`, `events.unsubscribe`)를 쓰기 전에 거른다.
 - M3b B3-DATA에서 더한 필드: `CliDeps.exportDatabase`(`@fresnel/platform-store`의 `exportDatabase`를 감싼 비동기 함수. 부를 때 모듈을 읽는다)와 `CliDeps.resolveDataDir`(`@fresnel/platform-os`의 `resolveOsDirs`가 정한 데이터 디렉터리의 절대 경로, 정할 수 없으면 null). 둘 다 엔진을 띄우지 않는다. 시험은 가짜를 넣는다.
@@ -675,31 +675,31 @@ export interface GroupTemplatesPort {
 
 #### 4.7.1 검색 provider 상태 출력
 
-[제안] ADR-0005 ④의 첫 실행 권장 내용(`product.scope.spec` I10)을 CLI에서는 `fresnel doctor`의 한 묶음으로 보인다. M3 데스크톱 첫 실행 화면은 `L4.settings-ui.spec`이 맡는다. 줄 1, 줄 3과 `웹 provider` 블록은 `web.providers`의 값을 `@fresnel/client/web`의 `toolsWebViewOf`로 바꾼 view-model을 읽기만 한다(M3b B2-WEB, M3-12, M3-REQ-96).
+[제안] ADR-0005 ④의 첫 실행 권장 내용(`product.scope.spec` I10)을 CLI에서는 `fresnel doctor`의 한 묶음으로 보인다. M3 데스크톱 첫 실행 화면은 `L4.settings-ui.spec`이 맡는다. 줄 1, 줄 2(키 플러그인 권장)와 `웹 provider` 블록은 `web.providers`의 값을 `@fresnel/client/web`의 `toolsWebViewOf`로 바꾼 view-model을 읽기만 한다(M3b B2-WEB, M3-12, M3-REQ-96).
 
 - 줄 1: 검색 provider. `search` 행과 웹 설정 값에서 정한다.
   - 설정이 `auto`이면 `검색 provider: auto → <표시 이름> (<id>)`다. 표시 이름과 id는 다음 호출이 쓸 행(`current`)의 것이다. 자동 순서는 호스트가 `autoRank`로 정해 싣고 CLI는 다시 계산하지 않는다(`L2.web.spec` §4.8.2).
   - 설정이 provider를 고정했으면 `검색 provider: <id> (l2.web.search.provider로 고정)`다. 고정한 행을 쓸 수 없으면 ` — <문구>`를 더한다. 목록에 그 id가 없으면 ` — 목록에 없는 provider다`를 더한다 [결정: 오케스트레이터 기본값].
   - 자동인데 쓸 수 있는 행이 없으면 `검색 provider: auto → 쓸 수 있는 provider가 없다`다 [결정: 오케스트레이터 기본값].
   - 웹 provider 목록을 읽지 못했으면 `검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)`다.
-- 줄 2: 설정한 SearXNG 주소의 상태. 자동 감지는 없다 [결정: m2c H1, `L2.web.spec` §4.8.3]. 주소(`l2.web.search.searxng.url`)가 비어 있으면 어디에도 요청하지 않고 "주소를 설정하지 않았다"와 `fresnel config set l2.web.search.searxng.url <주소>`를 보인다. 주소가 있으면 그 주소 하나만 탐침해 응답함, JSON 형식 꺼짐, 응답 없음 중 하나를 보인다. 응답이 없으면 검색이 내장 래퍼로 내려간다는 말을 덧붙인다.
-- 줄 3: 키 플러그인 권장. Exa와 Brave(`plugin:web-exa`, `plugin:web-brave`, `L2.web.spec` §4.8)의 상태에서 만든다. 둘 다 쓸 수 있으면 `키 플러그인: Exa, Brave 모두 쓸 수 있다`다. 아니면 `권장 키 플러그인: ` 뒤에 쓸 수 없는 항목을 쉼표로 잇는다. 항목은 `<표시>(<상태> — <해결>)`이다 [결정: 오케스트레이터 기본값: 해결 문구를 항목 괄호 안에 둔다].
+- [결정: 2026-11-04 사용자 B15] 설정한 SearXNG 주소의 상태 줄(옛 줄 2)은 없앴다. 검색 provider 묶음은 줄 1과 줄 2 두 줄이다.
+- 줄 2: 키 플러그인 권장. Exa와 Brave(`plugin:web-exa`, `plugin:web-brave`, `L2.web.spec` §4.8)의 상태에서 만든다. 둘 다 쓸 수 있으면 `키 플러그인: Exa, Brave 모두 쓸 수 있다`다. 아니면 `권장 키 플러그인: ` 뒤에 쓸 수 없는 항목을 쉼표로 잇는다. 항목은 `<표시>(<상태> — <해결>)`이다 [결정: 오케스트레이터 기본값: 해결 문구를 항목 괄호 안에 둔다].
   - `needs-key`: `Exa(키 필요 — fresnel secret add exa-api-key)`처럼 등록 명령 `fresnel secret add <시크릿 이름>`을 보인다.
   - `not-installed`(행이 없다): `Brave(설치 필요 — 플러그인을 설치해 주세요)`.
   - `unavailable`: `Brave(사용 불가 — <사유 코드>)`.
   - 웹 provider 목록을 읽지 못했으면 `키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)`다.
 - 값은 키 이름과 참조 문자열만 보인다. 시크릿 값은 없다.
 - 키 이름과 provider 목록의 정본은 `L2.web.spec`이다. 이 출력은 그 값을 읽기만 한다.
-- 웹 provider 블록 [제안]: 줄 3 뒤에 `웹 provider` 머리 줄을 내고, 검색, 브라우즈, 가져오기 섹션의 모든 행을 이 순서로 한 줄씩 보인다. 각 섹션 안에서는 view-model의 순서다.
+- 웹 provider 블록 [제안]: 줄 2 뒤에 `웹 provider` 머리 줄을 내고, 검색, 브라우즈, 가져오기 섹션의 모든 행을 이 순서로 한 줄씩 보인다. 각 섹션 안에서는 view-model의 순서다.
   - 줄 형식: `  <표시> <id>  <출처> · <기능> · <순위>[ · 현재][ · 고정] · <문구>[ · 첫 사용 고지 대기][ · 가격표 오래됨(<기준일>)]`
   - 표시: 쓸 수 있으면 `[ok]  `, 못 쓰면 `[경고]`.
-  - 출처: `builtin`은 내장, `plugin`은 플러그인, `detected`는 사용자 설정.
+  - 출처: `builtin`은 내장, `plugin`은 플러그인, `detected`는 사용자 설정이다. [결정: 2026-11-04 사용자 B15] 내장 provider는 `detected`를 쓰지 않는다(SearXNG 삭제).
   - 기능: `web.search`는 검색, `web.browse`는 브라우저, `web.fetch`는 가져오기.
   - 순위: `autoRank`에 1을 더한 `순위 N`. 순위가 없는 행(가져오기)은 `순위 없음`.
   - `현재`는 다음 호출이 쓸 행, `고정`은 설정이 고정한 행이다.
   - 문구는 view-model의 `note`다. 상세 문구(`detail`)는 출력하지 않는다.
   - `첫 사용 고지 대기`는 고지가 아직 나가지 않은 행이고, `가격표 오래됨`은 가격표 기준일이 오래된 행이다.
-  - 행이 하나도 없으면 `  provider가 없다` 한 줄을 낸다 [결정: 오케스트레이터 기본값]. 웹 provider 목록을 읽지 못했으면 이 블록을 내지 않는다(줄 1과 줄 3이 알 수 없다고 말한다) [결정: 오케스트레이터 기본값].
+  - 행이 하나도 없으면 `  provider가 없다` 한 줄을 낸다 [결정: 오케스트레이터 기본값]. 웹 provider 목록을 읽지 못했으면 이 블록을 내지 않는다(줄 1과 줄 2가 알 수 없다고 말한다) [결정: 오케스트레이터 기본값].
 - 출력 형식:
 
   ```text
@@ -715,7 +715,6 @@ export interface GroupTemplatesPort {
     [ok]   터미널: stdin TTY, stdout TTY, 100열, 색 사용
   검색 provider
     검색 provider: auto → Built-in search (model provider) (builtin-wrapper)
-    SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>
     권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)
   웹 provider
     [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 사용할 수 있어요
@@ -724,13 +723,13 @@ export interface GroupTemplatesPort {
     [ok]   builtin-fetch  내장 · 가져오기 · 순위 없음 · 사용할 수 있어요
   ```
 
-  엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 세 줄은 엔진 없이도 낸다. 이때 줄 1과 줄 3은 `알 수 없다`다. `--json`은 같은 내용을 `{ version, checks, binaries, search, web }` 문서 하나로 쓴다. `binaries`는 호스트가 준 `HostBinaryReport` 그대로이고 점검 결과가 없으면 `null`이다. `web`은 view-model `ToolsWebView`(검색, 브라우즈, 가져오기 섹션, 키 플러그인 권장, 첫 사용 고지가 남은 id)이고 웹 provider 목록을 읽지 못했으면 `null`이다. `web`의 행에는 view-model이 200자에서 자른 `detail`이 들어 있지만 텍스트 출력에는 없다.
-- 구현 (임시 경로, §10 5번): 엔진에서 SearXNG 주소 키 `l2.web.search.searxng.url` 하나를 `settings.get`으로 읽는다. 웹 provider 목록은 `host.hello`의 `features`에 `web.providers`가 있을 때만 한 번 보내 받는다. 요청이 예상 가능한 실패로 끝나면 목록 없이 판정하고 원인은 줄로 내지 않는다 [결정: 오케스트레이터 기본값]. 예상 가능한 실패가 아닌 오류는 버그이므로 다시 던진다. 목록이나 주소 키가 없으면 `(엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다)`를 덧붙인다. provider 고정 값과 순서는 `web.providers`의 `settings`가 준다. 옛 키 `l2.web.search.pluginOrder`는 없어졌으므로 읽지 않는다. 설정한 주소의 탐침은 L2.web.spec §4.8.3의 형식(`GET <base>/search?q=fresnel&format=json&pageno=1`, 1.5초, 64 KiB, 403이면 `json-disabled`)을 CLI가 같은 값으로 가진다. L2.web의 provider 상태 조회가 조립 진입점으로 나오면 이 복제를 그쪽 조회로 바꾼다.
+  엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 두 줄은 엔진 없이도 낸다. 이때 줄 1과 줄 2는 `알 수 없다`다. `--json`은 같은 내용을 `{ version, checks, binaries, search, web }` 문서 하나로 쓴다. `binaries`는 호스트가 준 `HostBinaryReport` 그대로이고 점검 결과가 없으면 `null`이다. `web`은 view-model `ToolsWebView`(검색, 브라우즈, 가져오기 섹션, 키 플러그인 권장, 첫 사용 고지가 남은 id)이고 웹 provider 목록을 읽지 못했으면 `null`이다. `web`의 행에는 view-model이 200자에서 자른 `detail`이 들어 있지만 텍스트 출력에는 없다.
+- 구현 (임시 경로, §10 5번): 웹 provider 목록은 `host.hello`의 `features`에 `web.providers`가 있을 때만 한 번 보내 받는다. 요청이 예상 가능한 실패로 끝나면 목록 없이 판정하고 원인은 줄로 내지 않는다 [결정: 오케스트레이터 기본값]. 예상 가능한 실패가 아닌 오류는 버그이므로 다시 던진다. 목록이 없으면 `(엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다)`를 덧붙인다. provider 고정 값과 순서는 `web.providers`의 `settings`가 준다. 옛 키 `l2.web.search.pluginOrder`는 없어졌으므로 읽지 않는다. [결정: 2026-11-04 사용자 B15] SearXNG 주소 키 `l2.web.search.searxng.url`을 읽지 않고, 설정한 주소의 탐침 형식(옛 §4.8.3)을 CLI에 복제하지 않는다.
 - 외부 바이너리 점검 [결정: m2c G2-07, `L4.host-service.spec` HS-69]: 엔진을 연 뒤 `host.status { includeBinaries: true }`를 한 번 보내 `binaries`를 받고 바이너리마다 항목 한 줄을 낸다. 점검은 바이너리마다 자식 프로세스를 띄우므로 doctor 말고 다른 명령은 요청하지 않는다.
   - `ok`는 `[ok]   외부 바이너리 <이름>: <버전> (번들|시스템) — <쓰는 곳>`이다.
   - `missing`, `too_old`, `unusable`은 `need`가 `required`이면 `[실패]`, `optional`이면 `[경고]`다. 해결 줄은 `missing`이면 호스트가 준 `hint`, `too_old`이면 필요한 버전 이상으로 올리라는 말, `unusable`이면 설치와 실행 권한을 확인하라는 말이다.
   - 보고서의 `ready`가 거짓(필수 바이너리를 쓸 수 없음)이면 종료 코드는 3(환경 문제)이다. 선택 바이너리만 빠졌으면 0이다. HS-69가 "종료코드 2 계열"이라 적은 자리는 CLI 종료 코드 표(§3.6)에서 환경 문제인 3으로 읽는다.
-  - `host.hello`의 `features`에 `host.status`가 없거나 응답에 `binaries`가 없으면 "점검 결과를 알리지 않는다"를 `[참고]`로 한 줄 낸다. 점검 요청이 실패하면(`request.cancelled` 등) `[경고]` 한 줄로 알리고 doctor는 이어 간다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고, 등록 여부는 `web.providers` 행의 상태가 준다(줄 3).
+  - `host.hello`의 `features`에 `host.status`가 없거나 응답에 `binaries`가 없으면 "점검 결과를 알리지 않는다"를 `[참고]`로 한 줄 낸다. 점검 요청이 실패하면(`request.cancelled` 등) `[경고]` 한 줄로 알리고 doctor는 이어 간다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고, 등록 여부는 `web.providers` 행의 상태가 준다(줄 2).
 - 설정의 시크릿 키(`secret: true`)는 `config get`이 참조 문자열(`secret://<name>`)이나 `null`만 보인다(F wire §4.9).
 
 ### 4.8 설정 명령과 대화 덮어쓰기
@@ -1065,7 +1064,7 @@ $ fresnel db restore ~/backup/fresnel-2026-10-29
 - AC11. 개발 빌드의 in-process 연결에서 `devWireRoundTrip: true`가 `AssembleOptions.devChecks`로 전달된다(§3.3). 컴파일 바이너리에서는 `false`다.
 - AC12. 사용법 오류 출력은 두 줄(무엇, 해결)이고 종료 코드는 2다.
 - AC13. stdout이 TTY가 아닐 때 `fresnel secret reveal <name>`은 2로 끝나고, stdout·stderr·이벤트 DB 어디에도 그 시크릿 값이 없다. TTY에서 열람하면 감사 기록이 한 건 늘고 그 기록에 값이 없다.
-- AC14. 키 플러그인이 없고 SearXNG 주소를 설정하지 않은 설정에서 `fresnel doctor`는 검색 provider 묶음 세 줄을 내고, 권장 목록에 Exa와 Brave가 있다. 주소가 비어 있으면 어떤 주소에도 탐침을 보내지 않는다. 옛 후보 주소(`127.0.0.1`·`localhost`의 8888, 8080)에서 SearXNG가 응답해도 쓰지 않는다.
+- AC14. [결정: 2026-11-04 사용자 B15] 키 플러그인이 없는 설정에서 `fresnel doctor`는 검색 provider 묶음 두 줄(검색 provider 줄과 키 플러그인 권장 줄)을 내고, 권장 목록에 Exa와 Brave가 있다. SearXNG 줄과 SearXNG 탐침은 없다. 옛 AC14의 SearXNG 주소 부분(빈 주소에서 탐침하지 않음, 옛 후보 주소에서 응답해도 쓰지 않음)은 삭제됐다.
 - AC24. `fresnel doctor`는 `host.status { includeBinaries: true }`를 한 번 보내 바이너리마다 한 줄을 낸다. 필수 바이너리를 쓸 수 없으면 종료 코드 3이고 선택 바이너리만 빠졌으면 0이다. `--json`의 `binaries`는 호스트가 준 보고서와 같다.
 - AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`, 검토는 `ReviewAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
@@ -1088,7 +1087,7 @@ $ fresnel db restore ~/backup/fresnel-2026-10-29
 2. [미결] M1 중단의 wire 지원. `turn.interrupt`가 M2라서 M1의 Ctrl+C 1회가 종료 요청이다(§4.6). M1에 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기는 F 변경 요청이 필요하다. 기존 대화의 쓰기 소유를 `turn.start`가 얻는 동작은 `L4.host-service.spec` HS-28로 확정되어 이 항목에서 닫았다(§4.3).
 3. [미결] 시크릿 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `fresnel secret reveal`로 정했다 [결정: review.decisions-2 U-20]. F의 `secret.beginReveal`과 in-process 값 전달 통로(`InProcessHost.secretOutOfBand`)는 구현되어 CLI가 쓴다(§4.7). 남은 것: `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
-5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 시크릿 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정]. M3b(B2-WEB)에서 검색 provider 줄과 웹 provider 블록은 `web.providers`(view-model)로 판정하도록 바꿨다. 설정 키는 SearXNG 주소 하나만 `settings.get`으로 읽는다(§4.7.1).
+5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 시크릿 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정]. M3b(B2-WEB)에서 검색 provider 줄과 웹 provider 블록은 `web.providers`(view-model)로 판정하도록 바꿨다. [결정: 2026-11-04 사용자 B15] 설정 키 `l2.web.search.searxng.url`은 더 읽지 않는다(삭제됨). 검색 설정은 `web.providers`가 준다(§4.7.1).
 6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다(§4.9.2). 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과(2026-10-24, `L4.cli.plan` §4.4): CJK 폭, IME 확정 입력, 하드웨어 커서 위치, 줄바꿈의 자동 확인은 모두 통과했다. 실제 터미널(macOS·Linux·WSL)의 한국어 IME 확인과 Bun 1.4.3 `--compile` 실행 확인이 남아 채택을 보류하고 최소 renderer를 유지한다. 최소 renderer의 진행 줄이 문자 수로 잘리던 문제는 칸 수 기준으로 고쳤다.
 7. [결정: review.m3-design-inputs D-M3-25 행 4] 릴리즈 형태는 단일 파일이다. native 모듈이 꼭 필요하면 옆 디렉터리를 쓴다. 이전 질문: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
 8. [결정: M2] print 모드에서 승인 요청이 오면 거부로 답하고 stderr에 한 줄 알린다(§4.11 4번). [결정: review.m3-design-inputs D-M3-14] M3 기본은 L1.tools 사전 허용 규칙만 적용하고 나머지는 거부한다. [결정: 오케스트레이터 기본값, M3b B1-SCH] 옵션 플래그는 `--auto-approve`다(이전 [제안] `--yes-all`은 쓰지 않는다). print 모드에서만 쓰고, 도구 승인만 한 번 허용한다. D-M3-14 b의 "모두 허용 포함" 범위는 도구 승인으로 좁힌다. 질문·계획·검토 승인은 이 플래그로도 거부한다(§4.11 4번).

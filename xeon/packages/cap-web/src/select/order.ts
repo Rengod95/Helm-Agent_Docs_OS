@@ -2,8 +2,8 @@ import type { ProviderCandidate } from "@fresnel/contracts/capabilities";
 
 // L2.web.spec §4.8.2 (D-M3-23 행 1). 검색·브라우저 provider의 자동 선택 순서 하나.
 // 호출 인자 provider → 설정 provider → auto. auto는 사용자가 설정 화면에서 끌어 옮겨 정한 `order` 목록이 먼저다.
-// 목록은 등록된 도구 전부(내장 기본 도구와 플러그인)이고 목록에 없는 후보는 뒤에 붙는다: 사용자가 주소를 설정한 내장(detected),
-// 기본 내장(builtin), 플러그인 순이다. 플러그인은 사용자가 순서에 올리기 전까지 기본 후순위다.
+// 목록은 등록된 도구 전부(내장 기본 도구와 플러그인)이고 목록에 없는 후보는 뒤에 붙는다: 내장(builtin), 플러그인 순이다.
+// 플러그인은 사용자가 순서에 올리기 전까지 기본 후순위다.
 
 type SelectedBy = "call" | "setting" | "auto";
 

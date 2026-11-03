@@ -252,10 +252,7 @@ async function ranksOf(deps: WebDeps): Promise<[string, number | null][]> {
 }
 
 describe("auto rank and probe isolation (L2.web.spec §4.8.2, §6.1)", () => {
-  test("search rows rank in the auto order: the user order first, then detected, builtin, and plugins by id", async () => {
-    const detected = fakeSearchProvider("searxng", {
-      manifest: fakeManifest("searxng", { services: ["search"] }),
-    });
+  test("search rows rank in the auto order: the user order first, then builtin, and plugins by id", async () => {
     const wrapper = fakeSearchProvider("builtin-wrapper");
     const alpha = fakeSearchProvider("plugin:alpha");
     const beta = fakeSearchProvider("plugin:beta");
@@ -264,17 +261,15 @@ describe("auto rank and probe isolation (L2.web.spec §4.8.2, §6.1)", () => {
         searchCandidate(beta, "plugin"),
         searchCandidate(wrapper, "builtin"),
         searchCandidate(alpha, "plugin"),
-        searchCandidate(detected, "detected"),
       ]),
     });
     expect(await ranksOf(world.deps)).toEqual([
-      ["plugin:beta", 3],
-      ["builtin-wrapper", 1],
-      ["plugin:alpha", 2],
-      ["searxng", 0],
+      ["plugin:beta", 2],
+      ["builtin-wrapper", 0],
+      ["plugin:alpha", 1],
     ]);
 
-    // 사용자 순서 목록이 먼저다. 목록에 없는 id는 건너뛰고, 나머지는 감지, 내장, 플러그인 순으로 붙는다
+    // 사용자 순서 목록이 먼저다. 목록에 없는 id는 건너뛰고, 나머지는 내장, 플러그인 순으로 붙는다
     world.setSettings({
       ...world.settings(),
       search: { ...world.settings().search, order: ["plugin:beta", "ghost", "builtin-wrapper"] },
@@ -282,8 +277,7 @@ describe("auto rank and probe isolation (L2.web.spec §4.8.2, §6.1)", () => {
     expect(await ranksOf(world.deps)).toEqual([
       ["plugin:beta", 0],
       ["builtin-wrapper", 1],
-      ["plugin:alpha", 3],
-      ["searxng", 2],
+      ["plugin:alpha", 2],
     ]);
 
     // 설정 provider와 동시 질의 수는 자동 순서를 바꾸지 않는다
@@ -294,8 +288,7 @@ describe("auto rank and probe isolation (L2.web.spec §4.8.2, §6.1)", () => {
     expect(await ranksOf(world.deps)).toEqual([
       ["plugin:beta", 0],
       ["builtin-wrapper", 1],
-      ["plugin:alpha", 3],
-      ["searxng", 2],
+      ["plugin:alpha", 2],
     ]);
   });
 

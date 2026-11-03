@@ -156,3 +156,30 @@ test("host.status carries the startup failure count and the safe-mode suggestion
   expect("suggestSafeMode" in quiet).toBe(false);
   await other.close();
 });
+
+// 결정 2026-11-04 B11. 승인을 기다리는 요청이 있으면 host.status가 그 수를 싣고, 없으면 필드를 두지 않는다.
+test("host.status reports waitingApprovals only while an approval is pending", async () => {
+  const waiting = { count: 2 };
+  const host = createFakeHost({
+    overrides: {
+      activity: {
+        snapshot: () => ({
+          liveTurns: 0,
+          liveTasks: 0,
+          waitingApprovals: waiting.count,
+          pendingSchedules: 0,
+        }),
+      },
+    },
+  });
+  const connection = await open(host);
+  expect(await connection.request("host.status", {})).toMatchObject({
+    liveTurns: 0,
+    waitingApprovals: 2,
+  });
+  waiting.count = 0;
+  expect(Object.keys(await connection.request("host.status", {}))).not.toContain(
+    "waitingApprovals",
+  );
+  await connection.close();
+});

@@ -138,7 +138,7 @@ describe("search memo", () => {
     expect(limitBucket(11)).toBe(20);
     expect(limitBucket(20)).toBe(20);
     const base = {
-      chain: ["searxng"],
+      chain: ["plugin:example-search"],
       parallel: 1,
       query: "fresnel  agents",
       objective: undefined,
@@ -157,7 +157,7 @@ describe("search memo", () => {
 
   test("the memo key separates chain, filters and content", () => {
     const base = {
-      chain: ["searxng", "builtin-wrapper"],
+      chain: ["plugin:example-search", "builtin-wrapper"],
       parallel: 1,
       query: "fresnel",
       objective: undefined,

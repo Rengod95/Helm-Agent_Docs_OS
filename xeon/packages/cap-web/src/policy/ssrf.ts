@@ -54,19 +54,8 @@ function blockedHostName(host: string): "host_name_blocked" | "metadata_name" | 
   return undefined;
 }
 
-export interface UrlCheckOptions {
-  /**
-   * provider endpoint 예외(§4.6.5). 이름 거부 목록 가운데 메타데이터 이름만 계속 거부한다.
-   * 콘텐츠 URL에는 쓰지 않는다
-   */
-  readonly localEndpoint?: boolean;
-}
-
 /** 연결 전 URL 검사. 스킴, 사용자 정보, 호스트 이름, IP 리터럴을 본다 */
-export function checkUrlSyntax(
-  raw: string,
-  options: UrlCheckOptions = {},
-): Result<CheckedUrl, UrlRejection> {
+export function checkUrlSyntax(raw: string): Result<CheckedUrl, UrlRejection> {
   const parsed = attempt(() => new URL(raw));
   if (!parsed.ok) return err({ kind: "invalid_url", cause: parsed.error.cause });
   const url = parsed.value;
@@ -79,15 +68,12 @@ export function checkUrlSyntax(
   }
   const blocked = blockedHostName(host);
   if (blocked === "metadata_name") return err({ kind: "denied", reason: blocked, host });
-  if (blocked !== undefined && options.localEndpoint !== true) {
+  if (blocked !== undefined) {
     return err({ kind: "denied", reason: blocked, host });
   }
   const literal = isIpLiteral(host) ? host : undefined;
   if (literal !== undefined) {
-    const verdict = addressVerdict(literal, {
-      allowPrivateNetwork: false,
-      localEndpoint: options.localEndpoint === true,
-    });
+    const verdict = addressVerdict(literal, { allowPrivateNetwork: false, localEndpoint: false });
     // 사설망 허용 여부는 해석 단계에서 판정한다. 여기서는 어떤 설정으로도 열리지 않는 주소만 막는다
     if (!verdict.ok && verdict.reason !== "private_network_disabled") {
       return err({ kind: "denied", reason: verdict.reason, host });
@@ -99,7 +85,7 @@ export function checkUrlSyntax(
 export interface AddressPolicy {
   /** `l2.web.policy.allowPrivateNetwork` */
   readonly allowPrivateNetwork: boolean;
-  /** SearXNG 같은 사용자 설정 endpoint 예외(§4.6.5). 메타데이터만 계속 거부한다 */
+  /** endpoint 예외(§4.6.5). 루프백과 사설 주소를 연다. 메타데이터는 계속 거부한다 */
   readonly localEndpoint: boolean;
 }
 

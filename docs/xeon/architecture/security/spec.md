@@ -70,11 +70,11 @@ binds: []
 | T-01 | 외부 콘텐츠의 프롬프트 주입으로 모델이 위험한 도구를 부름 | B-01, B-02 | 도구 승인 규칙과 권한 모드, 쓰기·셸 도구 승인, `web.fetch` 기본 `ask`와 대화에 나온 URL만 허용 | `L1.tools.spec`, `L2.web.spec` §4.6.6 | 가짜(승인 흐름은 실제 `ApprovalService` 시험) | G2-10 동의 표시 요건, `always` 강등 표시(T4) |
 | T-02 | 샌드박스 `bash`가 작업 폴더 밖에 쓰거나 보호 경로를 읽음 | B-03 | `fresnel.sandbox`(bubblewrap·socat, Seatbelt), 자가 시험 6항목, 격리 불가 시 기본 `disable_execute` | `L0.sandbox.spec` §4.4·§4.5 | 없음. int 시험 0개, `selfTest` 호출처 없음 | G4-01 int 시험(T3), G1-12 `selfTest` 호출(T2), CI 설치(Z), macOS Seatbelt 확인(`review.macos-checklist`) |
 | T-03 | 신뢰하지 않은 저장소의 프로젝트 자원이 코드를 실행하거나 설정을 바꿈 | B-04 | 프로젝트 신뢰. 판정 전에는 프로젝트 확장을 import하지 않고 `.mcp.json`, 스킬, 설정을 읽지 않음. `untrusted`는 로드하지 않음 | `X.loading-trust.spec` §4.6·§4.7 | 가짜(X 단위 시험). 클라이언트 신뢰 카드 없음 | G1-03 wire 이름 통일(T1), 카드(T6, T7), `.fresnel/commands` 자원 표(T5), G1-10 `trust.json` 잠금(T3) |
-| T-04 | stdio MCP 서버가 사용자 권한으로 임의 동작 | B-05 | 프로젝트 정의는 신뢰 뒤에만, 평문 env 거부, 시크릿 env 서버는 M2에서 띄우지 않음, 서버 허용·차단 목록 | ADR-0011, `L2.mcp.spec` §4.3·§4.4 | 가짜(인메모리 스텁, HTTP 서버) | G1-04 `McpProcessPort`(T3, T5), M3 샌드박스 정책과 기동 승인 |
+| T-04 | stdio MCP 서버가 사용자 권한으로 임의 동작 | B-05 | 프로젝트 정의는 신뢰 뒤에만, 신뢰한 프로젝트에서도 새로 생기거나 바뀐 `.mcp.json` 명령은 기동 승인 [결정: 2026-11-04 사용자 A3], 평문 env 거부, 시크릿 env 서버는 M2에서 띄우지 않음, 서버 허용·차단 목록 | ADR-0011, `L2.mcp.spec` §4.3·§4.4 | 가짜(인메모리 스텁, HTTP 서버) | G1-04 `McpProcessPort`(T3, T5), M3 샌드박스 정책과 기동 승인 |
 | T-05 | 시크릿 값이 모델 요청, 이벤트 DB, 로그, 자식 env로 새어 나감 | B-06 | 참조만 저장, 사용 모드(`runtime-http`, 승인된 `env`), 마스킹 5계층, 자식 env 필터 `SENSITIVE_ENV_PATTERNS` | `L0.secrets.spec` §4.3~§4.5, `review.decisions-2` U-19 | 실측(실제 sops, Linux). 승인 증거 전달은 host 시험 | 시크릿 사후 삭제(G2-16, M3) |
 | T-06 | 화면 앞의 다른 사람이 시크릿을 열람 | B-06 | `reveal`의 재인증(60초, `os-auth` 우선, 없으면 `tty-confirm`), 감사 기록 | `L0.secrets.spec` §3.8·§4.9 | `tty-confirm`만 실측. `os-auth`·macOS 키체인 없음 | G4-02 macOS 확인 |
 | T-07 | `web.fetch`가 사설망·메타데이터 주소에 요청(SSRF)하거나 리다이렉트로 우회 | B-07 | URL 검사, 연결 시점 IP 검사와 고정, 리다이렉트 재검사, provider endpoint 예외 | `L2.web.spec` §4.6 | 가짜(루프백 가짜 서버). public 모드 SSRF 방어가 Bun에서 도는지 미확인 | G4-05 loopback 스모크(T5) |
-| T-08 | 검색어가 의도하지 않은 수신자에게 나감 | B-07 | 사용자가 설정한 provider만 체인에 넣음. SearXNG 자동 탐침 없음. 키 플러그인은 등록이 동의 | ADR-0005 §3.3(2026-10-25 개정) | 미구현(감지 제거는 T5) | H1(T5), 키 플러그인 첫 사용 고지 [제안] |
+| T-08 | 검색어가 의도하지 않은 수신자에게 나감 | B-07 | 사용자가 설정한 provider만 체인에 넣음. SearXNG 자동 탐침 없음. SearXNG provider는 [결정: 2026-11-04 사용자 B15]로 없앴다. 키 플러그인은 등록이 동의 | ADR-0005 §3.3(2026-10-25 개정) | 미구현(감지 제거는 T5) | H1(T5), 키 플러그인 첫 사용 고지 [제안] |
 | T-09 | 사용자·프로젝트 확장 코드가 엔진 권한으로 실행 | B-04 | 신뢰 등급 × 허용 연산 표, 설치 위치 상한, 예약 이름 거부. 외부 확장 로더는 M3 | `X.loading-trust.spec` §4.6, `review.m2-plan` §8 D9 | 가짜 | M3 외부 로더, 프로세스 격리는 2차(보안 경계 아님) |
 | T-10 | 로컬·원격 클라이언트가 엔진을 조작 | B-08 | 비루프백 리스너 없음. 데스크톱은 자식 stdio. M3 원격은 SSH 터널·사설망 | `L4.host-service.spec` §4.11, `review.decisions-2` U-11, ADR-0006 | 가짜(전송 적합성 시험) | M3 서비스 소켓 권한 |
 | T-11 | WebView에 원격 콘텐츠가 들어와 IPC를 부름 | B-09 | CSP `default-src 'self'`, 셸은 바이트만 릴레이 | `L4.desktop.spec`, `src-tauri/tauri.conf.json` | 없음(WebView e2e 없음) | G4-03 e2e(T7), 원격 점검 디버그 기능은 `cfg(debug_assertions)` 아래(T7) |
@@ -97,7 +97,7 @@ binds: []
 | `l0.sandbox.enabled`, `l0.sandbox.onUnavailable` | T-02 | `L0.sandbox.spec` §6 |
 | `x.loading-trust.defaultProjectTrust` | T-03 | `X.loading-trust.spec` §3.6 |
 | `l2.mcp.servers` | T-04 | `L2.mcp.spec` §6 |
-| `l2.web.search.provider`, `l2.web.search.searxng.url`, `l2.web.search.order`, `l2.web.search.parallel` | T-08 | `L2.web.spec` §6 |
+| `l2.web.search.provider`, `l2.web.search.order`, `l2.web.search.parallel` (`l2.web.search.searxng.url`은 [결정: 2026-11-04 사용자 B15]로 삭제됨) | T-08 | `L2.web.spec` §6 |
 | `l0.secrets.*` | T-05, T-06 | `L0.secrets.spec` §6.1 |
 
 ## 7. 훅

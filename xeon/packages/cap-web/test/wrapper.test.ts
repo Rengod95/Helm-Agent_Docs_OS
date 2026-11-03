@@ -147,7 +147,7 @@ describe("builtin wrapper", () => {
   test("the service prices a wrapper call from its units and keeps basis estimated", async () => {
     const hosted = hostedTape("wrapper-basic");
     const world = await makeWebWorld({ builtinSearch: true, hostedSearch: hosted });
-    // SearXNG는 이 시험에서 없다. 래퍼만 고른다
+    // 플러그인은 이 시험에서 없다. 래퍼만 고른다
     const found = await world.search({ query: "fresnel", provider: "builtin-wrapper" });
     expect(found.meta.provider).toBe("builtin-wrapper");
     expect(found.meta.cost.basis).toBe("estimated");

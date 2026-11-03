@@ -125,6 +125,8 @@ export interface ExtReadSources {
   managedLocked(name: string): boolean;
   health(name: string): ExtHealthStats;
   autoDisabled(name: string): boolean;
+  /** 반복 자동 끄기 질문(결정 2026-11-04 B5). 묻는 중이 아니면 null */
+  keepOffQuestion(name: string): { readonly disabledStarts: number } | null;
   /** `AutoDisabler.reenable(ext:<이름>)`. 장부를 비우고 켜기를 요청한다 */
   reenable(name: string): void;
   /**
@@ -192,6 +194,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
     lastError: null,
   }),
   autoDisabled: () => false,
+  keepOffQuestion: () => null,
   reenable: () => {},
   reload: () => Promise.resolve({ appliesAt: "nextStepBoundary", diagnostics: [] }),
   groups: () => [],
@@ -347,6 +350,14 @@ export function createExtReadPort(
       : deps.env.settings.write("user", HOOK_ORDER_KEY, hookOrderValue(map), undefined);
   }
 
+  /** 묻는 중이면 `keepOffQuestion` 필드를 더한다. 아니면 필드를 싣지 않는다 */
+  function keepOffOf(name: string): {
+    readonly keepOffQuestion?: { readonly disabledStarts: number };
+  } {
+    const question = sources.keepOffQuestion(name);
+    return question === null ? {} : { keepOffQuestion: question };
+  }
+
   function entryOf(
     record: ExtensionRecord,
     infos: ReadonlyMap<string, RegistrationStatus>,
@@ -387,6 +398,7 @@ export function createExtReadPort(
       plugins,
       diagnostics: record.diagnostics,
       autoDisabled: sources.autoDisabled(manifest.name),
+      ...keepOffOf(manifest.name),
       safeModeExcluded: !record.loaded && safe.active ? (safe.cause ?? "flag") : null,
       hookCount: entries.reduce((sum, entry) => sum + entry.decl.hooks.length, 0),
     };

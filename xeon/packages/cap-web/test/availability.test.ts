@@ -29,7 +29,7 @@ describe("availability", () => {
   test("probe cache ttl", async () => {
     const clock = manualClock();
     const cache = createProbeCache(clock);
-    const good = fakeSearchProvider("searxng");
+    const good = fakeSearchProvider("plugin:example-search");
     expect(await cache.probe(good, SIGNAL)).toEqual({ ok: true });
     clock.advance(4 * MINUTE + 59_000);
     await cache.probe(good, SIGNAL);

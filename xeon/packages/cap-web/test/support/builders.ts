@@ -11,7 +11,7 @@ const FREE_COST: Cost = { usd: 0, basis: "free", units: [] };
 export function metaOf(overrides: Partial<WebCallMeta> = {}): WebCallMeta {
   return {
     callId: "wcl_01ARZ3NDEKTSV4RRFFQ5000001",
-    provider: "searxng",
+    provider: "plugin:example-search",
     selectedBy: "auto",
     fallbacks: [],
     cache: "miss",
@@ -33,7 +33,7 @@ export function sourceOf(
     id,
     url,
     retrievedAt: "2026-10-24T00:00:00Z",
-    provider: "searxng",
+    provider: "plugin:example-search",
     usage: { cache },
     ...overrides,
   };

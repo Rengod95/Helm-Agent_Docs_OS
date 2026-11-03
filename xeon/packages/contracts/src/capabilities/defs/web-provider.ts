@@ -28,9 +28,9 @@ export const ProviderUnavailableReasonSchema: TUnion<
   [
     // 플러그인 키 미등록
     TLiteral<"no-key">,
-    // 주소 응답 없음(SearXNG 등)
+    // 주소에 응답이 없다
     TLiteral<"unreachable">,
-    // SearXNG format=json 403
+    // 응답 형식(JSON)이 꺼져 있다(HTTP 403)
     TLiteral<"json-disabled">,
     // Anthropic web_search 400(조직 관리자 차단)
     TLiteral<"org-disabled">,

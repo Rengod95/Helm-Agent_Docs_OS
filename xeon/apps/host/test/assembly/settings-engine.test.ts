@@ -74,6 +74,27 @@ test("unknown keys have no effective value", () => {
   expect(engineOver().value("l1.nope.missing")).toBeUndefined();
 });
 
+test("a stored key the catalog no longer has loads without failing and is kept, not read", async () => {
+  const built = buildEngineCatalog();
+  if (!built.ok) throw new Error("the core catalog must build");
+  const settings = createSettingsEngine(built.catalog);
+  await settings.loadUserFile(
+    fileWith(
+      "retired-key.json",
+      JSON.stringify({
+        "l2.web.search.searxng.url": "http://127.0.0.1:8080",
+        "l1.loop.maxSteps": 12,
+      }),
+    ),
+  );
+  expect(built.catalog.has("l2.web.search.searxng.url")).toBe(false);
+  expect(settings.value("l2.web.search.searxng.url")).toBeUndefined();
+  expect(settings.value("l1.loop.maxSteps")).toBe(12);
+  // 파일에는 그대로 보존된다. 엔진은 카탈로그에 없는 키를 진단으로 올리지 않는다(경고는 settings.readFile의 unknownKeys가 낸다)
+  expect(settings.raw("l2.web.search.")).toEqual({ "searxng.url": "http://127.0.0.1:8080" });
+  expect(settings.diagnostics).toEqual([]);
+});
+
 test("the session scope is added for a thread once the session store is bound", () => {
   const settings = engineOver();
   const threadId = fixedIdFactory().next("thr");

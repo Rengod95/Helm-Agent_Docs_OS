@@ -14,7 +14,7 @@ describe("buildMeta", () => {
       ids: fixedLocalIds(),
       clock,
       startedAt,
-      provider: "searxng",
+      provider: "plugin:example-search",
       selectedBy: "auto",
       fallbacks: [{ provider: "plugin:web-x", stage: "probe", reason: "no-key" }],
       cache: "miss",

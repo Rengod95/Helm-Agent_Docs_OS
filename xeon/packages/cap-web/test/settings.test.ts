@@ -16,7 +16,6 @@ const SPEC_KEYS = [
   "search.provider",
   "search.order",
   "search.parallel",
-  "search.searxng.url",
   "search.wrapper.model",
   "search.wrapper.maxContinuations",
   "search.modelTool",
@@ -73,7 +72,6 @@ describe("web settings", () => {
     // 저장소를 여는 것만으로 방어가 풀리지 않게 project 범위를 막는 키(§6)
     for (const name of [
       "policy.allowPrivateNetwork",
-      "search.searxng.url",
       "browse.allowJavascriptExec",
       "browse.allowFileUpload",
     ]) {
@@ -105,7 +103,6 @@ describe("web settings", () => {
       fetchTtlMinutes: 15,
       maxMegabytes: 256,
     });
-    expect(DEFAULT_WEB_SETTINGS.search.searxng).toEqual({ url: "" });
     expect(DEFAULT_WEB_SETTINGS.policy.unseenUrl).toBe("ask");
   });
 
@@ -118,7 +115,7 @@ describe("web settings", () => {
       // project가 허용하지 않는 키는 무시한다
       layer("project", {
         "l2.web.policy.allowPrivateNetwork": true,
-        "l2.web.search.searxng.url": "http://evil.example",
+        "l2.web.browse.allowFileUpload": true,
         "l2.web.policy.allow": ["*"],
         "l2.web.policy.unseenUrl": "allow",
       }),
@@ -127,7 +124,7 @@ describe("web settings", () => {
     expect(settings.fetch.maxChars).toBe(30000);
     expect(settings.limits.searchPerSession).toBe(10);
     expect(settings.policy.allowPrivateNetwork).toBe(false);
-    expect(settings.search.searxng.url).toBe("");
+    expect(settings.browse.allowFileUpload).toBe(false);
     expect(settings.policy.allow).toEqual([]);
     expect(settings.policy.unseenUrl).toBe("ask");
   });

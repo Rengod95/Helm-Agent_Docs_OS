@@ -120,7 +120,7 @@ xeon/packages/group-helm/
 | `scanDriveSource` | L3.group-sdk.plan (M3: G-19) | H-18 |
 | drive 락 부여·`idle` 반납, `DriveLockBudget`, 상한 집행, `lease.*` 이벤트 | X.primitives.plan | H-09 |
 | `loop.spawn`, 그룹 제공 에이전트 정의 로딩 | L1.agents.plan | H-09, H-15 |
-| `web.search` 최소형(내장 검색 래퍼 또는 SearXNG) | L2.web.plan | H-10 |
+| `web.search` 최소형(내장 검색 래퍼 또는 검색 플러그인, [결정: 2026-11-04 사용자 B15]로 SearXNG 삭제) | L2.web.plan | H-10 |
 | `knowledge.search`, `knowledge.skills`, `knowledge.memory` 읽기 기능 | L2.knowledge.plan | H-10(없으면 저하 동작) |
 | `work.tasks`의 `create` | L2.work.plan | H-11(없으면 건너뜀) |
 | `ToolCallPayload.risk`·`hints`·`caller`, `tool_execution_end.input` | F.records·F.extensions, L1.tools.plan(M3-02, REQ-F-04) | H-05, H-08 |

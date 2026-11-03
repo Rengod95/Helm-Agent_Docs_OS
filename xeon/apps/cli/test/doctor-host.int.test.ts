@@ -10,13 +10,8 @@ afterEach(() => {
   for (const cli of clis.splice(0)) cli.dispose();
 });
 
-function start(probed: string[], settings: Readonly<Record<string, unknown>> = {}): RealCli {
-  const cli = createRealCli({
-    settings,
-    harness: {
-      probes: { probeSearxng: (url) => (probed.push(url), Promise.resolve("unreachable")) },
-    },
-  });
+function start(): RealCli {
+  const cli = createRealCli();
   clis.push(cli);
   return cli;
 }
@@ -26,7 +21,7 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 }
 
 test("doctor --json carries the host's binary report, and the exit code follows its ready flag", async () => {
-  const cli = start([]);
+  const cli = start();
   const code = await cli.harness.run(["doctor", "--json"]);
   expect(cli.sent("host.status")).toEqual([
     { method: "host.status", params: { includeBinaries: true } },
@@ -46,33 +41,11 @@ test("doctor --json carries the host's binary report, and the exit code follows 
 }, 60_000);
 
 test("the text report has one line per binary the host checked", async () => {
-  const cli = start([]);
+  const cli = start();
   await cli.harness.run(["doctor"]);
   const lines = cli.harness.stdoutText().split("\n");
   for (const name of ["sops", "age", "rg", "git"]) {
     expect(lines.some((line) => line.includes(`외부 바이너리 ${name}:`))).toBe(true);
   }
   expect(cli.harness.stdoutText()).not.toContain("감지됨");
-}, 60_000);
-
-test("no SearXNG address means no probe at all; a configured address is the only one probed", async () => {
-  const none: string[] = [];
-  const unset = start(none);
-  await unset.harness.run(["doctor"]);
-  expect(none).toEqual([]);
-  expect(unset.harness.stdoutText()).toContain(
-    "SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다)",
-  );
-
-  const probed: string[] = [];
-  const set = start(probed, { "l2.web.search.searxng.url": "http://search.local:9000" });
-  await set.harness.run(["doctor"]);
-  expect(probed).toEqual(["http://search.local:9000"]);
-  expect(set.harness.stdoutText()).toContain("SearXNG: http://search.local:9000에 응답이 없다");
-}, 90_000);
-
-test("the removed detection key is unknown to the real catalog", async () => {
-  const cli = start([]);
-  expect(await cli.harness.run(["config", "get", "l2.web.search.searxng.detect"])).toBe(EXIT.usage);
-  expect(cli.harness.stderrText()).toContain("등록되지 않은 설정 키: l2.web.search.searxng.detect");
 }, 60_000);

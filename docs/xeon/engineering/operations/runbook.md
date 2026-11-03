@@ -31,7 +31,7 @@ binds: []
 |---|---|
 | `fresnel` | 컴파일된 엔진과 CLI (Windows는 `fresnel.exe`) |
 | `group-sdk/templates/` | `fresnel group new`의 템플릿과 `index.json` |
-| `default-plugins/` | 기본 플러그인(`helm`, `account-rotation`) |
+| `default-plugins/` | 기본 플러그인(`helm`) |
 | `binaries/`, `binaries.lock.json` | macOS 아카이브에만 있습니다. 번들 바이너리(sops, age, rg)와 목록 |
 | `THIRD-PARTY-NOTICES.txt` | 번들 바이너리의 고지와 시스템 요구 목록 |
 | `SHA256SUMS` | 위 모든 파일의 SHA-256(경로순) |
@@ -208,7 +208,6 @@ fresnel doctor (fresnel 0.0.0)
   [ok]   터미널: stdin TTY, stdout TTY, 100열, 색 사용
 검색 provider
   검색 provider: auto → Built-in search (model provider) (builtin-wrapper)
-  SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>
   권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)
 웹 provider
   ...

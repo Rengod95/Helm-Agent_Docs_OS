@@ -73,20 +73,6 @@ const webSettings = defineSettings("l2.web", {
     },
     since: "0.1.0",
   },
-  "search.searxng.url": {
-    type: Type.String({ pattern: "^(|https?://[^\\s]+)$", maxLength: 2048 }),
-    default: "",
-    runtimeChange: "nextTurn",
-    allowedScopes: NO_PROJECT,
-    ui: {
-      tab: "tools",
-      widget: "text",
-      order: 102,
-      label: "SearXNG 주소",
-      help: "비워 두면 SearXNG를 쓰지 않는다. 주소를 찾아 나서지 않는다",
-    },
-    since: "0.1.0",
-  },
   "search.wrapper.model": {
     type: Type.String({ minLength: 1, maxLength: 128 }),
     default: "auto",
@@ -451,7 +437,6 @@ export interface WebSettings {
     readonly order: readonly string[];
     /** 동시에 질의하는 검색 도구 수(1이면 순서대로 하나씩) */
     readonly parallel: number;
-    readonly searxng: { readonly url: string };
     readonly wrapper: { readonly model: string; readonly maxContinuations: number };
     readonly modelTool: "auto" | "hosted" | "function" | "off";
   };
@@ -496,7 +481,6 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
     provider: "auto",
     order: [],
     parallel: 1,
-    searxng: { url: "" },
     wrapper: { model: "auto", maxContinuations: 3 },
     modelTool: "auto",
   },
@@ -606,9 +590,6 @@ export function readWebSettings(layers: ScopeStack): WebSettings {
       provider: stringOr(effective("search.provider", layers), fallback.search.provider),
       order: stringList(effective("search.order", layers)),
       parallel: integerOr(effective("search.parallel", layers), fallback.search.parallel),
-      searxng: {
-        url: stringOr(effective("search.searxng.url", layers), fallback.search.searxng.url),
-      },
       wrapper: {
         model: stringOr(effective("search.wrapper.model", layers), fallback.search.wrapper.model),
         maxContinuations: integerOr(

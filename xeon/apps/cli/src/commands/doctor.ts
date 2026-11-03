@@ -19,7 +19,7 @@ import type { DoctorCommand } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
-import type { CliIo, DoctorProbes } from "../io.ts";
+import type { CliIo } from "../io.ts";
 import { CLI_VERSION } from "./version.ts";
 import { connectOrReportQuiet, type CommandContext } from "./context.ts";
 
@@ -36,45 +36,18 @@ interface DoctorCheck {
   readonly fix?: string;
 }
 
-/** doctor가 엔진에서 직접 읽는 검색 설정. provider와 순서, 키 플러그인 권장은 `web.providers`의 값과 행이 준다(§4.7.1) */
-export interface SearchSettings {
-  /** `l2.web.search.searxng.url`. 비어 있으면 어디에도 요청하지 않는다 */
-  readonly searxngUrl: string;
-}
-
-const DEFAULT_SEARCH_SETTINGS: SearchSettings = {
-  searxngUrl: "",
-};
-
 export interface SearchStatus {
   /** 줄 1: "검색 provider: …". 웹 provider 목록을 읽지 못했으면 알 수 없다 */
   readonly provider: string;
-  /** 줄 2: 설정한 SearXNG 주소의 상태. 주소가 비어 있으면 어디에도 요청하지 않는다 */
-  readonly searxng: string;
-  /** 줄 3: 키 플러그인 권장, 또는 모두 쓸 수 있다는 말. 웹 provider 목록을 읽지 못했으면 알 수 없다 */
+  /** 줄 2: 키 플러그인 권장, 또는 모두 쓸 수 있다는 말. 웹 provider 목록을 읽지 못했으면 알 수 없다 */
   readonly recommended: string;
   /** 설정을 엔진에서 읽지 못해 기본값으로 판정했다 */
   readonly assumedDefaults: boolean;
 }
 
-function stringOf(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
 async function readOne(connection: HostConnection, key: string): Promise<unknown> {
   const read = await attemptAsync(() => connection.request("settings.get", { keys: [key] }));
   return read.ok ? read.value.settings[0]?.value : undefined;
-}
-
-/** SearXNG 주소 키를 읽는다. 엔진에 없으면 기본값(빈 주소)이고 `complete`가 거짓이다(L2.web 조립 전의 엔진) */
-async function readSearchSettings(
-  connection: HostConnection,
-): Promise<{ readonly settings: SearchSettings; readonly complete: boolean }> {
-  const url = stringOf(await readOne(connection, "l2.web.search.searxng.url"));
-  return {
-    settings: { searxngUrl: url ?? DEFAULT_SEARCH_SETTINGS.searxngUrl },
-    complete: url !== undefined,
-  };
 }
 
 /**
@@ -90,17 +63,6 @@ async function webProvidersOf(handle: EngineHandle): Promise<ToolsWebView | unde
     return undefined;
   }
   return toolsWebViewOf(read.value);
-}
-
-/**
- * 설정한 SearXNG 주소 하나를 탐침한다. 자동 감지는 없다(사용자 결정 H1, L2.web.spec §4.8.3): 주소가 비어 있으면 요청을 보내지 않는다
- */
-async function probeConfiguredSearxng(
-  settings: SearchSettings,
-  probes: DoctorProbes,
-): Promise<"unset" | "ok" | "json-disabled" | "unreachable"> {
-  if (settings.searxngUrl.length === 0) return "unset";
-  return probes.probeSearxng(settings.searxngUrl, new AbortController().signal);
 }
 
 /** 줄 1. 고정이면 고정한 행(쓸 수 없으면 사유), 자동이면 다음 호출이 쓸 행(`current`)을 보인다 */
@@ -144,36 +106,13 @@ function recommendedLineOf(recommendations: readonly WebRecommendation[]): strin
   return t("cli.doctor.recommend.list", { items: items.join(", ") });
 }
 
-/** 검색 provider 상태 세 줄(§4.7.1). 줄 1과 줄 3은 `web.providers`의 view-model에서, 줄 2는 설정한 주소 하나의 탐침에서 나온다 */
-export async function describeSearch(
-  settings: SearchSettings,
-  probes: DoctorProbes,
+/** 검색 provider 상태 두 줄(§4.7.1). 두 줄 모두 `web.providers`의 view-model에서 나온다. 엔진이 목록을 주지 않으면 알 수 없다 */
+export function describeSearch(
   web: ToolsWebView | undefined,
   assumedDefaults: boolean,
-): Promise<SearchStatus> {
-  const verdict = await probeConfiguredSearxng(settings, probes);
-  const url = settings.searxngUrl;
-  let searxng: string;
-  switch (verdict) {
-    case "ok":
-      searxng = t("cli.doctor.searxng.ok", { url });
-      break;
-    case "json-disabled":
-      searxng = t("cli.doctor.searxng.jsonDisabled", { url });
-      break;
-    case "unreachable":
-      searxng = t("cli.doctor.searxng.unreachable", { url });
-      break;
-    case "unset":
-      searxng = t("cli.doctor.searxng.unset");
-      break;
-    default:
-      return assertNever(verdict, "SearxngVerdict");
-  }
-
+): SearchStatus {
   return {
     provider: web === undefined ? t("cli.doctor.search.unknown") : searchLineOf(web.search),
-    searxng,
     recommended:
       web === undefined
         ? t("cli.doctor.recommend.unknown")
@@ -461,7 +400,6 @@ function formatDoctor(
   }
   lines.push(t("cli.doctor.section.search"));
   lines.push(`  ${search.provider}`);
-  lines.push(`  ${search.searxng}`);
   lines.push(`  ${search.recommended}`);
   if (search.assumedDefaults) {
     lines.push(t("cli.doctor.search.assumedDefaults"));
@@ -474,16 +412,12 @@ function formatDoctor(
 }
 
 export async function runDoctor(ctx: CommandContext, command: DoctorCommand): Promise<ExitCode> {
-  const { io, deps } = ctx;
+  const { io } = ctx;
   const connected: Result<EngineHandle, Failure> = await connectOrReportQuiet(ctx);
   let checks: DoctorCheck[] = [];
   let binaries: HostBinaryReport | null = null;
   let web: ToolsWebView | undefined;
   let code: ExitCode = EXIT.ok;
-  let settings: { readonly settings: SearchSettings; readonly complete: boolean } = {
-    settings: DEFAULT_SEARCH_SETTINGS,
-    complete: false,
-  };
   if (connected.ok) {
     const handle = connected.value;
     try {
@@ -493,7 +427,6 @@ export async function runDoctor(ctx: CommandContext, command: DoctorCommand): Pr
       // 필수 바이너리를 쓸 수 없으면 환경 문제로 끝낸다(HS-69). 선택 바이너리만 빠진 것은 경고다
       if (binaries?.ready === false) code = EXIT.environment;
       web = await webProvidersOf(handle);
-      settings = await readSearchSettings(handle.connection);
     } finally {
       await handle.shutdown("user");
     }
@@ -502,12 +435,7 @@ export async function runDoctor(ctx: CommandContext, command: DoctorCommand): Pr
     code = connected.error.code;
   }
   checks.push(terminalCheck(io, ctx.global.color));
-  const search = await describeSearch(
-    settings.settings,
-    deps.probes,
-    web,
-    web === undefined || !settings.complete,
-  );
+  const search = describeSearch(web, web === undefined);
   if (command.output === "json") {
     await io.stdout(
       `${JSON.stringify({ version: CLI_VERSION, checks, binaries, search, web: web ?? null }, null, 2)}\n`,

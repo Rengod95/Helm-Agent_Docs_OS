@@ -94,6 +94,11 @@ const ExtListPluginShape = closed({
  * `ext.list` 한 행(W-15, W-41). 행은 확장 하나이고 Registration은 `plugins` 아래에 있다.
  * `status`는 대표 Registration(루트 플러그인, 없으면 첫 플러그인)의 상태이고 `registration`은 `threadId`를 줬을 때 그 Registration의 대화 상태다
  */
+/** 반복 자동 끄기 질문. `disabledStarts`는 자동으로 꺼진 시작 횟수 */
+export interface ExtKeepOffQuestion {
+  readonly disabledStarts: number;
+}
+
 export interface ExtListEntry {
   readonly name: string;
   readonly displayName: string;
@@ -118,6 +123,11 @@ export interface ExtListEntry {
   readonly plugins: readonly ExtListPlugin[];
   readonly diagnostics: readonly ExtDiagnostic[];
   readonly autoDisabled: boolean;
+  /**
+   * 여러 번의 시작에서 반복해 자동으로 꺼져 사용자에게 계속 꺼 둘지 묻는 중이면 있다(결정 2026-11-04 B5).
+   * 답은 "계속 켠다" = `ext.reenable`, "계속 끈다" = 설정 `ext.<이름>.enabled=false` 저장이다. 없으면 호스트가 아직 채우지 않거나 묻지 않는다
+   */
+  readonly keepOffQuestion?: ExtKeepOffQuestion;
   /** 안전 모드에서 실리지 않은 이유. 실렸으면 null */
   readonly safeModeExcluded: string | null;
   /** 모든 플러그인의 Hook 수 */
@@ -140,6 +150,7 @@ const ExtListEntryShape = closed({
   plugins: Type.Array(ExtListPluginShape, { minItems: 1, maxItems: 16 }),
   diagnostics: Type.Array(DiagnosticShape, { maxItems: 200 }),
   autoDisabled: Type.Boolean(),
+  keepOffQuestion: Type.Optional(closed({ disabledStarts: Count })),
   safeModeExcluded: Type.Union([Line, Type.Null()]),
   hookCount: Count,
 });

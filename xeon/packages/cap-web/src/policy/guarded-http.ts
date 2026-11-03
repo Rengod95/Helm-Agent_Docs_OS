@@ -70,11 +70,6 @@ export interface ProviderHttpDeps {
   readonly guard: OutboundSecretGuard | undefined;
 }
 
-export interface ProviderHttpOptions {
-  /** 사용자가 설정한 로컬 endpoint(`host[:port]`). 루프백·사설 주소를 허용하되 메타데이터는 거부한다(§4.6.5) */
-  readonly localEndpoints?: readonly string[];
-}
-
 export interface BoundProviderHttp {
   readonly http: GuardedHttp;
   /** provider 생성 뒤 manifest를 묶는다. 묶기 전 요청은 provider 결함이다 */
@@ -171,10 +166,7 @@ function withSecretHeaders(
   return merged;
 }
 
-export function createBoundProviderHttp(
-  deps: ProviderHttpDeps,
-  options: ProviderHttpOptions = {},
-): BoundProviderHttp {
+export function createBoundProviderHttp(deps: ProviderHttpDeps): BoundProviderHttp {
   let manifest: WebProviderManifest | undefined;
 
   async function request(
@@ -187,8 +179,7 @@ export function createBoundProviderHttp(
       );
     }
     const bound = manifest;
-    const locals = options.localEndpoints ?? [];
-    const syntax = checkUrlSyntax(req.url, { localEndpoint: locals.length > 0 });
+    const syntax = checkUrlSyntax(req.url);
     if (!syntax.ok) {
       return err(
         syntax.error.kind === "invalid_url"
@@ -199,32 +190,20 @@ export function createBoundProviderHttp(
       );
     }
     const { url, host, port } = syntax.value;
-    const isLocal = locals.some((endpoint) => endpointMatches(endpoint, host, port));
     const isPublicEndpoint = bound.endpoints.some((endpoint) =>
       endpointMatches(endpoint, host, port),
     );
-    if (!isLocal && !isPublicEndpoint) {
+    if (!isPublicEndpoint) {
       return err(
         deniedFailure("endpoint_not_allowed", `${host} is not an endpoint of ${bound.name}.`, {
           host,
         }),
       );
     }
-    if (!isLocal && url.protocol !== "https:") {
+    if (url.protocol !== "https:") {
       return err(
         deniedFailure("endpoint_not_https", "Provider endpoints must use https.", { host }),
       );
-    }
-    // 이름 규칙(localhost, 점 없는 이름)은 로컬 endpoint에만 풀어 준다. 공개 endpoint가 그런 이름이면 거부한다
-    if (!isLocal) {
-      const strict = checkUrlSyntax(req.url);
-      if (!strict.ok) {
-        return err(
-          strict.error.kind === "denied"
-            ? deniedFailure(strict.error.reason, "The provider URL is not allowed.", { host })
-            : { code: "invalid_input", message: "The provider URL could not be parsed." },
-        );
-      }
     }
     if (
       deps.guard?.containsKnown(req.url) === true ||
@@ -248,7 +227,7 @@ export function createBoundProviderHttp(
         detail: { reason: "dns_unresolvable", host },
       });
     }
-    const addressPolicy = { allowPrivateNetwork: false, localEndpoint: isLocal } as const;
+    const addressPolicy = { allowPrivateNetwork: false, localEndpoint: false } as const;
     const verdict = resolvedVerdict(addresses.value, addressPolicy);
     if (!verdict.ok) {
       return err(

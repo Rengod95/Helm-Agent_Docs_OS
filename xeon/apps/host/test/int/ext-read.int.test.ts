@@ -296,6 +296,20 @@ test("ext.reload: returns the diagnostic position; refused in safe mode", async 
   await safeConnection.close();
 });
 
+test("ext.list reports the keep-off question only for the extension the port is asking about", async () => {
+  const { sources } = createRecordedSources({
+    keepOffQuestion: (name) => (name === "team" ? { disabledStarts: 3 } : null),
+  });
+  const connection = connect(sources);
+  await connection.request("host.hello", HELLO_PARAMS);
+  const listed = await connection.request("ext.list", {});
+  expect(listed.extensions.map((row) => [row.name, row.keepOffQuestion])).toEqual([
+    ["alpha", undefined],
+    ["team", { disabledStarts: 3 }],
+  ]);
+  await connection.close();
+});
+
 test("ext.health: ledger numbers per extension, filtered by name", async () => {
   const { sources } = createRecordedSources({
     health: (name) => ({

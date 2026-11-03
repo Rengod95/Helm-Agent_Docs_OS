@@ -6,7 +6,7 @@ import { realTapeClock } from "./tape-host.ts";
 import type { AssembleOptions } from "../../src/types.ts";
 
 // HOST.6 cap-web 검색 시험(int)이 쓰는 대역: web_search를 질의마다 한 번씩 부르는 모델 테이프, hosted 검색 포트 대역(내장 래퍼),
-// 켰다 끌 수 있는 SearXNG 전송. 네트워크에 나가지 않는다.
+// 네트워크로 나간 요청을 세는 전송. 네트워크에 나가지 않는다.
 
 /** 질의마다 web_search를 한 번 부르고 결과를 본 뒤 한 문장으로 끝내는 테이프. turn 하나가 질의 하나다 */
 export function searchingModels(
@@ -73,39 +73,22 @@ export const publicResolver: DnsResolver = {
   resolve: () => Promise.resolve(ok(["93.184.216.34"])),
 };
 
-export interface SearxngSwitch {
+/** 네트워크로 나간 요청을 세는 전송 대역. 이 시험에서는 아무 요청도 나가지 않아야 한다 */
+export interface RecordingTransport {
   readonly transport: HttpTransport;
-  /** SearXNG가 떠 있는가. 꺼져 있으면 모든 요청이 연결 거부다 */
-  up: boolean;
-  /** SearXNG로 간 요청 수 */
+  /** 전송으로 들어온 요청 수 */
   hits: number;
 }
 
-const SEARXNG_JSON = JSON.stringify({
-  query: "q",
-  results: [
-    { url: "https://docs.example.org/searxng", title: "SearXNG hit", content: "from searxng" },
-  ],
-});
-
-/** 루프백 SearXNG 대역. `up`이 거짓이면 연결 거부, 참이면 고정 결과를 돌려준다 */
-export function searxngSwitch(initiallyUp: boolean): SearxngSwitch {
-  const state: SearxngSwitch = {
-    up: initiallyUp,
+/** 요청을 세고 연결하지 않는다. 받은 요청은 실패로 돌려준다 */
+export function recordingTransport(): RecordingTransport {
+  const state: RecordingTransport = {
     hits: 0,
     transport: {
-      send(request) {
-        if (!state.up) {
-          return Promise.resolve(err({ kind: "network", message: "connection refused" }));
-        }
+      send() {
         state.hits += 1;
         return Promise.resolve(
-          ok({
-            status: 200,
-            url: request.url,
-            headers: { "content-type": "application/json" },
-            body: new TextEncoder().encode(SEARXNG_JSON),
-          }),
+          err({ kind: "network", message: "the test transport does not connect" }),
         );
       },
     },

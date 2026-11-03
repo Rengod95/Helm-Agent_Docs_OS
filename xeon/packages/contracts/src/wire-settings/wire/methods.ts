@@ -312,6 +312,7 @@ export const HostStatusResultSchema: TObject<{
   startedAt: typeof IsoTimeSchema;
   connections: TInteger;
   liveTurns: TInteger;
+  waitingApprovals: TOptional<TInteger>;
   idleShutdownAt: TUnion<[typeof IsoTimeSchema, TNull]>;
   binaries: TOptional<typeof HostBinaryReportSchema>;
   safeMode: TOptional<TBoolean>;
@@ -327,6 +328,8 @@ export const HostStatusResultSchema: TObject<{
     startedAt: IsoTimeSchema,
     connections: Type.Integer({ minimum: 0 }),
     liveTurns: Type.Integer({ minimum: 0 }),
+    /** 승인을 기다리는 요청 수. 하나 이상일 때만 있다. 승인 대기 thread도 바쁜 것으로 센다(결정 2026-11-04 B11) */
+    waitingApprovals: Type.Optional(Type.Integer({ minimum: 1 })),
     idleShutdownAt: Nullable(IsoTimeSchema),
     /** 요청에 `includeBinaries: true`가 있을 때만 있다(F wire §3.3.1) */
     binaries: Type.Optional(HostBinaryReportSchema),

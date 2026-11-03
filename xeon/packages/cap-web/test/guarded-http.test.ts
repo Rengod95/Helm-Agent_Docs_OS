@@ -42,7 +42,6 @@ const SECRET_ECHOED: Result<never, WebFailure> = err({
 function setup(
   options: {
     manifest?: WebProviderManifest;
-    local?: readonly string[];
     key?: string;
     secrets?: HeaderSecretSender;
   } = {},
@@ -50,7 +49,6 @@ function setup(
   const resolver = fakeResolver({
     "api.vendor.example": [PUBLIC_IP],
     "other.example": [PUBLIC_IP],
-    "searx.lan": ["10.1.2.3"],
   });
   const transport = fixtureTransport(
     {
@@ -61,19 +59,16 @@ function setup(
     },
     resolver,
   );
-  const bound = createBoundProviderHttp(
-    {
-      resolver,
-      transport,
-      secrets:
-        options.secrets ??
-        (options.key === undefined
-          ? undefined
-          : fakeHeaderSecrets({ "ext.fake-search.apiKey": options.key })),
-      guard: fakeSecretGuard(["registered-secret-value"]),
-    },
-    options.local === undefined ? {} : { localEndpoints: options.local },
-  );
+  const bound = createBoundProviderHttp({
+    resolver,
+    transport,
+    secrets:
+      options.secrets ??
+      (options.key === undefined
+        ? undefined
+        : fakeHeaderSecrets({ "ext.fake-search.apiKey": options.key })),
+    guard: fakeSecretGuard(["registered-secret-value"]),
+  });
   bound.bind(options.manifest ?? manifestOf());
   return { bound, transport, resolver };
 }
@@ -358,60 +353,6 @@ describe("provider http", () => {
     );
     expect(port.ok).toBe(false);
     expect(transport.requests.length).toBe(0);
-  });
-
-  test("searxng loopback endpoint exception is provider-only", async () => {
-    const resolver = fakeResolver({ "public.example": [PUBLIC_IP] });
-    const transport = fixtureTransport(
-      { "http://127.0.0.1:8888/search?q=fresnel&format=json": { body: "{}" } },
-      resolver,
-    );
-    const bound = createBoundProviderHttp(
-      { resolver, transport, secrets: undefined, guard: undefined },
-      { localEndpoints: ["127.0.0.1:8888"] },
-    );
-    bound.bind(manifestOf({ name: "searxng", endpoints: [], auth: { kind: "none", secrets: [] } }));
-    const allowed = await bound.request(
-      { method: "GET", url: "http://127.0.0.1:8888/search?q=fresnel&format=json" },
-      SIGNAL,
-    );
-    expect(allowed.ok).toBe(true);
-    expect(transport.requests.at(-1)?.mode).toBe("direct");
-    // 같은 루프백 주소라도 다른 포트나 다른 주소는 endpoint가 아니다
-    const otherPort = await bound.request({ method: "GET", url: "http://127.0.0.1:9999/" }, SIGNAL);
-    expect(otherPort.ok).toBe(false);
-    const metadata = await bound.request({ method: "GET", url: "http://169.254.169.254/" }, SIGNAL);
-    expect(metadata.ok).toBe(false);
-    expect(transport.requests.length).toBe(1);
-  });
-
-  test("a bracketed IPv6 local endpoint matches its host and port", async () => {
-    const resolver = fakeResolver();
-    const transport = fixtureTransport({ "http://[::1]:8888/ping": { body: "pong" } }, resolver);
-    const bound = createBoundProviderHttp(
-      { resolver, transport, secrets: undefined, guard: undefined },
-      { localEndpoints: ["[::1]:8888"] },
-    );
-    bound.bind(manifestOf({ endpoints: [], auth: { kind: "none", secrets: [] } }));
-    const ok = await bound.request({ method: "GET", url: "http://[::1]:8888/ping" }, SIGNAL);
-    expect(ok.ok).toBe(true);
-    const otherPort = await bound.request({ method: "GET", url: "http://[::1]:9999/ping" }, SIGNAL);
-    expect(otherPort.ok).toBe(false);
-  });
-
-  test("a local endpoint on a private lan address uses the direct mode", async () => {
-    const { bound, transport } = setup({ local: ["searx.lan:8080"] });
-    const resolver = fakeResolver({ "searx.lan": ["10.1.2.3"] });
-    const lan = createBoundProviderHttp(
-      { resolver, transport, secrets: undefined, guard: undefined },
-      { localEndpoints: ["searx.lan:8080"] },
-    );
-    lan.bind(manifestOf({ endpoints: [], auth: { kind: "none", secrets: [] } }));
-    transport.route("http://searx.lan:8080/ping", { body: "pong" });
-    const out = await lan.request({ method: "GET", url: "http://searx.lan:8080/ping" }, SIGNAL);
-    expect(out.ok).toBe(true);
-    expect(transport.requests.at(-1)?.mode).toBe("direct");
-    expect(bound).toBeDefined();
   });
 
   test("a registered secret in the url or body is refused", async () => {

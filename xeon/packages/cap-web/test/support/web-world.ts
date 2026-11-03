@@ -59,7 +59,7 @@ export interface WebWorldOptions {
   readonly browseConfirm?: BrowseConfirmPort;
   /** 브라우저 MCP 포트 대역. 있으면 `playwright-mcp` 후보가 등록된다 */
   readonly browserMcp?: BrowserMcpPort;
-  /** true면 내장 검색 provider(searxng, builtin-wrapper)를 후보에 넣는다. 기본은 넣지 않는다 */
+  /** true면 내장 검색 provider(builtin-wrapper)를 후보에 넣는다. 기본은 넣지 않는다 */
   readonly builtinSearch?: boolean;
   readonly hostedSearch?: HostedSearchPort;
   readonly asker?: FakeAsker;

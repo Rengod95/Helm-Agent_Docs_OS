@@ -107,6 +107,12 @@ realTest(
         choice: { kind: "folder", verdict: "allow" },
       });
       await turnDone("after trust");
+      // 신뢰한 폴더라도 새 `.mcp.json` 명령은 사용자가 시작을 승인하기 전에는 뜨지 않는다(결정 2026-11-04 A3)
+      const asked = await collector.waitFor((event) => event.kind === "approval.requested");
+      expect(existsSync(projectPid)).toBe(false);
+      expect(
+        await connection.request("approval.respond", { approvalId: asked.id, decision: "allow" }),
+      ).toEqual({ applied: true });
       // 서버가 목록을 낸 뒤 turn을 한 번 돌려 단계 경계가 연결 결과를 반영하게 한 다음 도구를 부른다(mcp-settle.ts)
       await settleMcpTools(
         () => existsSync(projectListed),

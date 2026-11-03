@@ -43,13 +43,7 @@ test("the committed release-bundle.json parses into the bundle the release build
   if (!result.ok) return;
   expect(result.value).toEqual({
     templates: "packages/group-sdk/templates",
-    defaultPlugins: [
-      { name: "helm", buildScript: "packages/group-helm/scripts/build-plugin.ts" },
-      {
-        name: "account-rotation",
-        buildScript: "packages/group-account-rotation/scripts/build-plugin.ts",
-      },
-    ],
+    defaultPlugins: [{ name: "helm", buildScript: "packages/group-helm/scripts/build-plugin.ts" }],
     bundledBinaries: {
       [MAC]: {
         platform: "darwin",
@@ -87,7 +81,7 @@ test("every path the bundle config names exists in the repository", () => {
     result.value.templates,
     ...result.value.defaultPlugins.map((plugin) => plugin.buildScript),
   ];
-  expect(paths.map((path) => existsSync(join(REPO, "xeon", path)))).toEqual([true, true, true]);
+  expect(paths.map((path) => existsSync(join(REPO, "xeon", path)))).toEqual([true, true]);
 });
 
 test("a bundle config with a bad value, an extra key or a missing field is config.invalid", () => {
@@ -363,7 +357,6 @@ test("requiredPaths asks for the lock and the bundled binaries only on macOS", (
     "fresnel",
     "group-sdk/templates/index.json",
     "default-plugins/helm/.fresnel-plugin/plugin.json",
-    "default-plugins/account-rotation/.fresnel-plugin/plugin.json",
     "THIRD-PARTY-NOTICES.txt",
     "SHA256SUMS",
   ];

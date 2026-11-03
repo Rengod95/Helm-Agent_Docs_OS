@@ -72,7 +72,9 @@ function handlesOf(secretEnv: Readonly<Record<string, string>>): SecretHandle[] 
   return handles;
 }
 
-function titleOf(server: string, handles: readonly SecretHandle[]): string {
+function titleOf(server: string, handles: readonly SecretHandle[], command: string): string {
+  // 시크릿 없이 프로젝트 출처라서 묻는 정의는 실행할 명령을 제목에 보인다
+  if (handles.length === 0) return `Run MCP server "${server}" (${command})?`.slice(0, TITLE_MAX);
   const head = `Start MCP server "${server}" with `;
   const full = `${head}${handles.join(", ")}?`;
   if (full.length <= TITLE_MAX) return full;
@@ -100,7 +102,7 @@ function mcpStartApprovalInput(
       `mcpstart:${definition.server}:${definitionHash.slice(0, 24)}`,
       sha256HexSync,
     ),
-    title: titleOf(definition.server, handles),
+    title: titleOf(definition.server, handles, definition.command),
     body: {
       kind: "tool",
       tool: {
@@ -174,6 +176,8 @@ export function createMcpStartGate(deps: McpStartGateDeps): McpStartGate {
     definition: McpStartDefinition,
     handles: readonly SecretHandle[],
   ): Promise<string | undefined> {
+    // 시크릿이 없는 정의(프로젝트 출처 명령)는 시크릿 정책을 거치지 않는다
+    if (handles.length === 0) return undefined;
     if (deps.secrets === undefined) return "the secrets service is not available";
     const ctx: UseCtx = {
       mode: "env",

@@ -22,7 +22,7 @@ import { createHostConnection } from "../../src/host-client.ts";
 import type { TerminalFacts } from "../../src/cli/command.ts";
 import { createConnectEngine, type ConnectEngine, type HostApi } from "../../src/engine.ts";
 import type { ExitCode } from "../../src/exit-codes.ts";
-import type { CliDeps, CliIo, CliSignal, DoctorProbes, GroupTemplatesPort } from "../../src/io.ts";
+import type { CliDeps, CliIo, CliSignal, GroupTemplatesPort } from "../../src/io.ts";
 import { runCli } from "../../src/main.ts";
 import {
   createFakeStore,
@@ -84,7 +84,6 @@ export interface HarnessOptions {
   readonly resolveRemote?: CliDeps["resolveRemote"];
   /** host --stdio의 원격 중계 가짜(기본은 stdin이 닫힌 것) */
   readonly bridgeStdio?: (options: BridgeOptions) => Promise<BridgeExit>;
-  readonly probes?: DoctorProbes;
   /** 저장소 내보내기 가짜(db export). 없으면 호출이 실패한다: 쓰는 시험이 넣어야 한다 */
   readonly exportDatabase?: CliDeps["exportDatabase"];
   readonly restoreDatabase?: CliDeps["restoreDatabase"];
@@ -331,7 +330,6 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     resolveRemote: options.resolveRemote ?? (() => Promise.resolve({ kind: "none" })),
     bridgeStdio:
       options.bridgeStdio ?? (() => Promise.resolve({ code: 0, reason: "stdin_closed" })),
-    probes: options.probes ?? { probeSearxng: () => Promise.resolve("unreachable") },
     groupTemplates: options.groupTemplates ?? createMemoryGroupFs().port,
     clock,
     devWireRoundTrip: options.devWireRoundTrip ?? false,

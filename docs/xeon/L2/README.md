@@ -131,7 +131,7 @@ cap-<domain>/
 - 1·2번처럼 명시로 고른 provider는 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류를 내고 `detail`에 사유를 싣는다. 사용자가 고른 것을 조용히 바꾸지 않기 위해서다.
 - auto 체인에서 호출 중 오류가 `unavailable`, `rate_limited`, `upstream_error`이면 다음 후보로 내려갈 수 있다. 단, 메서드의 `replay`가 `"safe"`일 때만이다. `"unsafe"` 메서드는 효과가 이미 났을 수 있으므로 호출 중 오류로는 내려가지 않는다.
 - 후보가 모두 실패하면 `unavailable` 오류를 내고 `detail.fallbacks`에 전체 사유를 싣는다.
-- `web.search`의 ADR-0005 §3.3(호출 인자 > 설정 > 키 플러그인 > SearXNG > 내장 검색 래퍼)은 이 규약의 옛 사례다. D-M3-23 행 1이 사용자 순서 목록(`order`)과 플러그인 후순위로 바꿨고 규칙은 `L2.web.spec` §4.8.2다. ADR-0005의 짧은 키 `web.search.provider`는 키 문법(§7.1)에 맞춰 `l2.web.search.provider`로 읽는다. ADR-0005 §6의 [미결](플러그인과 SearXNG 순서)은 이 규약의 3번 순서(플러그인 > 설정한 로컬)로 제안하고 확정은 ADR-0005를 따른다.
+- `web.search`의 ADR-0005 §3.3(호출 인자 > 설정 > 키 플러그인 > SearXNG > 내장 검색 래퍼)은 이 규약의 옛 사례다. D-M3-23 행 1이 사용자 순서 목록(`order`)과 플러그인 후순위로 바꿨고 규칙은 `L2.web.spec` §4.8.2다. ADR-0005의 짧은 키 `web.search.provider`는 키 문법(§7.1)에 맞춰 `l2.web.search.provider`로 읽는다. ADR-0005 §6의 [미결](플러그인과 SearXNG 순서)은 이 규약의 3번 순서(플러그인 > 설정한 로컬)로 제안했다. [결정: 2026-11-04 사용자 B15] SearXNG를 없앴으므로 이 순서의 SearXNG 자리와 그 미결은 대상이 없어졌다. 현재 후보는 검색 플러그인과 내장 검색 래퍼뿐이다(`L2.web.spec` §4.8.2, §4.8.3).
 
 공통 타입은 F `capabilities/provider.ts`가 정본이다(`F.capabilities.spec` §3.11). 이름은 `PROVIDER_ID_PATTERN`, `ProviderIdSchema`, `ProviderId`, `ProviderOrigin`, `ProviderAvailability`, `ProviderFallback`, `ProviderSelectionMeta`, `ProviderCandidate`, `ProviderOrderInput`, `orderProviderCandidates`다. 내장 provider id는 소문자 이름이고 플러그인 provider id는 `plugin:<확장 이름>`이다.
 

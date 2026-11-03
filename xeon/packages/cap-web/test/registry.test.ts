@@ -213,8 +213,8 @@ describe("provider registry", () => {
       builtin: {
         search: [
           {
-            provider: fakeSearchProvider("searxng"),
-            origin: "detected",
+            provider: fakeSearchProvider("example-builtin"),
+            origin: "builtin",
             cachePolicy: "persist",
             enabled: () => configured,
           },
@@ -247,15 +247,15 @@ describe("provider registry", () => {
     const ids = () => catalog.searchCandidates().map((candidate) => candidate.provider.id);
     expect(ids()).toEqual(["builtin-wrapper"]);
     configured = true;
-    expect(ids()).toEqual(["searxng", "builtin-wrapper"]);
+    expect(ids()).toEqual(["example-builtin", "builtin-wrapper"]);
   });
 
   test("the builtin candidates come first", () => {
-    const builtin = fakeSearchProvider("searxng");
+    const builtin = fakeSearchProvider("builtin-wrapper");
     const catalog = createProviderRegistry({
       source: { list: () => [searchRegistration("web-a")] },
       builtin: {
-        search: [{ provider: builtin, origin: "detected", cachePolicy: "persist" }],
+        search: [{ provider: builtin, origin: "builtin", cachePolicy: "persist" }],
         fetch: [],
       },
       http: {
@@ -277,7 +277,7 @@ describe("provider registry", () => {
       extensionSetting: () => undefined,
     });
     expect(catalog.searchCandidates().map((candidate) => candidate.provider.id)).toEqual([
-      "searxng",
+      "builtin-wrapper",
       "plugin:web-a",
     ]);
   });

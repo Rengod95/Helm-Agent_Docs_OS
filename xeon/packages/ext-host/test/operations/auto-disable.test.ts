@@ -510,3 +510,24 @@ test("autoDisable: clearLedger resets the ledger without a toggle request, so th
   for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
   expect(rec.requests.filter((request) => request.startsWith("disable:flaky-ext"))).toHaveLength(2);
 });
+
+// 결정 2026-11-04 B5. 자동 끄기를 요청하면 `onDisabled`가 한 번 불리고, 끄지 않으면 불리지 않는다
+test("onDisabled fires once when a threshold crossing requests the disable", () => {
+  const r = recorder();
+  const fired: string[] = [];
+  const disabler = createAutoDisabler({
+    ledger: createFailureLedger({ windowSize: 50 }),
+    policy: () => DEFAULT_AUTO_DISABLE,
+    scopes: { ...r.scopes, scopesOf: () => ["flaky"] },
+    hooks: { disable: () => {}, enable: () => {} },
+    notifier: r.notifier,
+    onDisabled: (key) => fired.push(key),
+  });
+  for (let i = 0; i < DEFAULT_AUTO_DISABLE.consecutive - 1; i += 1) {
+    disabler.onOutcome(failed("flaky", "builtin"));
+  }
+  expect(fired).toEqual([]);
+  disabler.onOutcome(failed("flaky", "builtin"));
+  disabler.onOutcome(failed("flaky", "builtin"));
+  expect(fired).toEqual(["ext:flaky"]);
+});

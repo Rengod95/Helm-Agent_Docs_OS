@@ -4,13 +4,7 @@ import { EXIT } from "../src/exit-codes.ts";
 import { describeSearch } from "../src/commands/doctor.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { def, fakeSettings } from "./support/m2.ts";
-import {
-  DEFAULT_RESULT,
-  EXA_NO_KEY,
-  providerOf,
-  resultOf,
-  WRAPPER,
-} from "./support/web-providers.ts";
+import { DEFAULT_RESULT, EXA_NO_KEY, resultOf, WRAPPER } from "./support/web-providers.ts";
 
 const harnesses: Harness[] = [];
 afterEach(() => {
@@ -19,7 +13,6 @@ afterEach(() => {
 
 const SEARCH_DEFS = [
   def("l2.web.search.provider", { default: "auto", layer: "L2" }),
-  def("l2.web.search.searxng.url", { default: "", layer: "L2" }),
   def("l0.process.service.enabled", { type: { type: "boolean" }, default: false, layer: "L0" }),
 ];
 
@@ -48,7 +41,7 @@ function harness(
   return h;
 }
 
-test("doctor prints the engine checks and the three search provider lines (AC14)", async () => {
+test("doctor prints the engine checks and the two search provider lines (AC14)", async () => {
   const h = harness();
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   const text = h.stdoutText();
@@ -56,81 +49,22 @@ test("doctor prints the engine checks and the three search provider lines (AC14)
   expect(text).toContain("[ok]   시크릿 저장소: 사용할 수 있다 (등록 0개)");
   expect(text).toContain("[참고] 서비스 모드: 사용 안 함 (in-process)");
   const block = text.slice(text.indexOf("검색 provider\n")).split("\n");
-  expect(block.slice(0, 5)).toEqual([
+  expect(block.slice(0, 4)).toEqual([
     "검색 provider",
     "  검색 provider: auto → Built-in search (model provider) (builtin-wrapper)",
-    "  SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>",
     "  권장 키 플러그인: Exa(키 필요 — fresnel secret add exa-api-key), Brave(설치 필요 — 플러그인을 설치해 주세요)",
     "웹 provider",
   ]);
   expect(h.closed()).toBe(true);
 });
 
-test("without a configured address nothing is probed, even when the old candidate addresses would answer (H1)", async () => {
-  const probed: string[] = [];
-  const h = harness(
-    {},
-    {
-      probes: {
-        probeSearxng: (url) => (probed.push(url), Promise.resolve("ok")),
-      },
-    },
-  );
+test("the search block is the provider line and the recommendation only", async () => {
+  const h = harness();
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
-  expect(probed).toEqual([]);
   expect(h.stdoutText()).toContain(
     "검색 provider: auto → Built-in search (model provider) (builtin-wrapper)",
   );
-  expect(h.stdoutText()).toContain("SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다)");
-  expect(h.stdoutText()).not.toContain("감지됨");
-});
-
-test("a configured SearXNG address is the only one probed; the provider line comes from the engine's list", async () => {
-  const probed: string[] = [];
-  const searxng = providerOf("searxng", "web.search", {
-    origin: "detected",
-    displayName: "SearXNG",
-    autoRank: 0,
-  });
-  const h = harness(
-    { "l2.web.search.searxng.url": "http://search.local:9000" },
-    { probes: { probeSearxng: (url) => (probed.push(url), Promise.resolve("ok")) } },
-    { "web.providers": () => resultOf([searxng, { ...WRAPPER, autoRank: 1 }]) },
-  );
-  expect(await h.run(["doctor"])).toBe(EXIT.ok);
-  expect(probed).toEqual(["http://search.local:9000"]);
-  expect(h.stdoutText()).toContain("검색 provider: auto → SearXNG (searxng)");
-  expect(h.stdoutText()).toContain("SearXNG: 설정한 주소가 응답한다 http://search.local:9000");
-  expect(h.stdoutText()).toContain(
-    "  [ok]   searxng  사용자 설정 · 검색 · 순위 1 · 현재 · 사용할 수 있어요",
-  );
-});
-
-test("a configured address that does not answer falls back to the wrapper and says so; JSON-disabled gets its own hint", async () => {
-  const down = harness(
-    { "l2.web.search.searxng.url": "http://search.local:9000" },
-    { probes: { probeSearxng: () => Promise.resolve("unreachable") } },
-  );
-  expect(await down.run(["doctor"])).toBe(EXIT.ok);
-  expect(down.stdoutText()).toContain(
-    "SearXNG: http://search.local:9000에 응답이 없다 — 해결: 주소와 서버 상태를 확인한다. 그동안 검색은 내장 검색 래퍼로 내려간다",
-  );
-  expect(down.stdoutText()).toContain("auto → Built-in search (model provider) (builtin-wrapper)");
-
-  const probed: string[] = [];
-  const h = harness(
-    { "l2.web.search.searxng.url": "http://search.local:9000" },
-    {
-      probes: {
-        probeSearxng: (url) => (probed.push(url), Promise.resolve("json-disabled")),
-      },
-    },
-  );
-  expect(await h.run(["doctor"])).toBe(EXIT.ok);
-  expect(probed).toEqual(["http://search.local:9000"]);
-  expect(h.stdoutText()).toContain("JSON 형식이 꺼져 있다");
-  expect(h.stdoutText()).toContain("search.formats에 json");
-  expect(h.stdoutText()).toContain("auto → Built-in search (model provider) (builtin-wrapper)");
+  expect(h.stdoutText()).not.toContain("주소");
 });
 
 test("an explicit provider is shown as pinned and current", async () => {
@@ -147,27 +81,6 @@ test("an explicit provider is shown as pinned and current", async () => {
   );
   expect(h.stdoutText()).toContain(
     "  [ok]   builtin-wrapper  내장 · 검색 · 순위 1 · 현재 · 고정 · 사용할 수 있어요",
-  );
-});
-
-test("search settings the engine does not know yet fall back to the defaults and say so", async () => {
-  const settings = fakeSettings([]);
-  const h = createHarness({
-    env: { NO_COLOR: "1" },
-    server: {
-      handlers: {
-        ...settings.handlers,
-        "secret.list": () => ({ secrets: [] }),
-        "web.providers": () => DEFAULT_RESULT,
-      },
-    },
-  });
-  harnesses.push(h);
-  expect(await h.run(["doctor"])).toBe(EXIT.ok);
-  expect(h.stdoutText()).toContain("엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다");
-  // 웹 provider 목록은 읽었으므로 줄 1은 목록의 값이다
-  expect(h.stdoutText()).toContain(
-    "  검색 provider: auto → Built-in search (model provider) (builtin-wrapper)",
   );
 });
 
@@ -193,6 +106,8 @@ test("an engine that cannot start is reported as a failed check and the environm
   expect(h.stdoutText()).toContain(
     "검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)",
   );
+  // 웹 provider 목록을 읽지 못했으므로 검색 설정도 기본값으로 판정했다고 말한다
+  expect(h.stdoutText()).toContain("엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다");
 });
 
 test("a secret store that cannot be used is a warning with the fix, not a failure", async () => {
@@ -238,17 +153,10 @@ test("doctor --json has the same content as one document", async () => {
   });
 });
 
-test("describeSearch is pure over its settings, the engine's web view and the probe", async () => {
-  const unknown = await describeSearch(
-    { searxngUrl: "" },
-    { probeSearxng: () => Promise.resolve("unreachable") },
-    undefined,
-    true,
-  );
+test("describeSearch is pure over the engine's web view", () => {
+  const unknown = describeSearch(undefined, true);
   expect(unknown).toEqual({
     provider: "검색 provider: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)",
-    searxng:
-      "SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: fresnel config set l2.web.search.searxng.url <주소>",
     recommended: "키 플러그인: 알 수 없다 (엔진에서 provider 목록을 읽지 못했다)",
     assumedDefaults: true,
   });
