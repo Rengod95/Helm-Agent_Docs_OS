@@ -31,7 +31,7 @@ binds: []
 |---|---|
 | `fresnel` | 컴파일된 엔진과 CLI (Windows는 `fresnel.exe`) |
 | `group-sdk/templates/` | `fresnel group new`의 템플릿과 `index.json` |
-| `default-plugins/` | 기본 플러그인(`helm`, `account-rotation`) |
+| `default-plugins/` | 기본 플러그인(`helm`) |
 | `binaries/`, `binaries.lock.json` | macOS 아카이브에만 있습니다. 번들 바이너리(sops, age, rg)와 목록 |
 | `THIRD-PARTY-NOTICES.txt` | 번들 바이너리의 고지와 시스템 요구 목록 |
 | `SHA256SUMS` | 위 모든 파일의 SHA-256(경로순) |

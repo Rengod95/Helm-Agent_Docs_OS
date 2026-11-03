@@ -102,7 +102,7 @@ import {
 } from "./assembly/secrets.ts";
 import { createProjectTrust, createLoaderFs, fileBackend } from "./assembly/trust.ts";
 import {
-  DEFAULT_PLUGIN_NAMES,
+  defaultPluginNamesFor,
   installDefaultPlugins,
   installedAgentDefinitions,
 } from "./assembly/default-plugins.ts";
@@ -694,20 +694,27 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       loader: () => external.loader,
       heldThreads: () => portsHandle?.heldThreads() ?? [],
     });
+    // 개발 모드에서만 계정 회전을 더 설치한다(결정 2026-11-04 A1). 키가 카탈로그에 없으면 꺼진 것이다
+    const defaultPluginNames = defaultPluginNamesFor(
+      built.catalog.has("l3.authoring.devMode") && settings.value("l3.authoring.devMode") === true,
+    );
     if (defaultsEnabled) {
-      await installDefaultPlugins({
-        bundleDir: options.defaultPluginsDir ?? defaultPluginsDir(),
-        extensionsDir: userExtensionsDir,
-        stateDir: os.dirs.state,
-        stagingRoot: join(os.dirs.config, ".staging"),
-        logger: os.logger("default-plugins"),
-        history: extUi.history,
-      });
+      await installDefaultPlugins(
+        {
+          bundleDir: options.defaultPluginsDir ?? defaultPluginsDir(),
+          extensionsDir: userExtensionsDir,
+          stateDir: os.dirs.state,
+          stagingRoot: join(os.dirs.config, ".staging"),
+          logger: os.logger("default-plugins"),
+          history: extUi.history,
+        },
+        defaultPluginNames,
+      );
     }
     const pluginAgents = defaultsEnabled
       ? await installedAgentDefinitions(
           userExtensionsDir,
-          DEFAULT_PLUGIN_NAMES,
+          defaultPluginNames,
           os.logger("default-plugins"),
         )
       : [];

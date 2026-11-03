@@ -37,7 +37,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 | M3-REQ-54 (L0.os, F.wire-settings) | 제품 이름에 묶인 값을 소비처에서 확인합니다 | 릴리즈 스크립트는 workspace 패키지를 import하지 않으므로 이름 `fresnel`을 스크립트에 적습니다(`release.ts`, `release-smoke.ts`, `release-smoke.sh`). 소비처 목록은 §8 미결 9 | X11의 `run.version`과 환경 변수 없는 `fresnel group new` |
 | M3-26 | macOS의 sops·age·rg 번들과 서명, Linux의 bwrap·socat 시스템 요구와 doctor 안내 | `xeon/scripts/release-bundle.json`, `xeon/scripts/release.ts`(버전 확인과 복사), `xeon/scripts/release-sign.sh` | `xeon/scripts/release.test.ts`(설정 값, 버전 고정 일치, 고지), X11 |
 | M3-27 | 단일 아카이브 릴리즈, 서명과 공증, 업데이트 절차, 공급망과 고지 | §3, §4, §5, §6의 산출물. `release.ts`가 `SHA256SUMS`와 `.sha256`을 씁니다 | `xeon/scripts/release.test.ts`(sumsBody, noticesBody, archiveName), X11의 `archive.sha256`과 `sums.match` |
-| M3-new-22 | 기본 플러그인 번들을 `default-plugins/<이름>/`에 싣습니다 | `xeon/scripts/release.ts`(`packages/group-helm`, `packages/group-account-rotation`의 build-plugin 실행), `xeon/apps/host/src/state-paths.ts`(`defaultPluginsDir`) | `xeon/scripts/release.test.ts`(빌드 스크립트 경로 존재), X11의 `layout`(`.fresnel-plugin/plugin.json`) |
+| M3-new-22 | 기본 플러그인 번들을 `default-plugins/<이름>/`에 싣습니다 | `xeon/scripts/release.ts`(`packages/group-helm`의 build-plugin 실행. 계정 회전은 싣지 않는다 [결정: 2026-11-04 사용자]), `xeon/apps/host/src/state-paths.ts`(`defaultPluginsDir`) | `xeon/scripts/release.test.ts`(빌드 스크립트 경로 존재), X11의 `layout`(`.fresnel-plugin/plugin.json`) |
 | M3-30 | `.github/workflows/fresnel-*.yml`의 액션을 40자리 SHA로 고정하고 `# v<버전>` 주석을 붙입니다 | `.github/workflows/fresnel-ci.yml`, `fresnel-macos.yml`, `fresnel-release.yml` | `xeon/scripts/workflow-pins.test.ts`(실제 파일과 판정 함수) |
 | DR-07 `@swc/core` | 릴리즈 바이너리에 `@swc/core`가 들어가지 않습니다 | `xeon/scripts/release-smoke.ts`의 `swc.absent` 검사 | X11. 바이너리 안의 문자열을 확인합니다 |
 | 템플릿 패키징(`L4.cli.spec` §10 29번) | 컴파일 바이너리가 `fresnel group new`의 템플릿을 찾습니다 | `xeon/apps/cli/src/group/fs-port.ts`(`locateGroupTemplates`의 `resourceDir`), `xeon/apps/cli/src/runtime.ts` | `xeon/apps/cli/test/group-templates-locate.test.ts`, X11의 `run.group-new` |
@@ -52,8 +52,7 @@ fresnel-<버전>-<triple>/
 ├── fresnel                          컴파일된 엔진 (Windows는 fresnel.exe)
 ├── group-sdk/templates/          `fresnel group new`의 템플릿과 index.json
 ├── default-plugins/
-│   ├── helm/                     .fresnel-plugin/plugin.json과 엔트리 번들
-│   └── account-rotation/         같은 구조
+│   └── helm/                     .fresnel-plugin/plugin.json과 엔트리 번들
 ├── binaries/                     macOS만: sops, age, rg
 ├── binaries.lock.json            macOS만: 번들 바이너리 목록
 ├── THIRD-PARTY-NOTICES.txt       번들 바이너리 고지와 시스템 요구
