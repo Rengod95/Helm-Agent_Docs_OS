@@ -165,7 +165,7 @@ test("a project-installed app view is served from its fallback until x.ui.allowP
 
   const allowed = await harnessOf();
   await allowed.loader.loadAll(
-    loadOptions(allowed, { trustOverride: true, uiPolicy: { allowProjectApps: true } }),
+    loadOptions(allowed, { trustOverride: true, uiPolicy: { apps: true, allowProjectApps: true } }),
   );
   expect(
     allowed.loader.uiEntries().map((entry) => [entry.mode, entry.state, entry.issues]),
@@ -193,6 +193,13 @@ test("x.ui.apps off turns a user app view into its fallback, or into a disabled 
   await putFile(join(root, "ui", "fallback.json"), TEXT_TREE);
 
   const harness = await harnessOf();
+  // 정책을 주지 않은 기본값도 같다: 실기 확인 전 빌드는 앱을 끈다(ADR-0021 §6 미결 1)
+  const byDefault = await harnessOf();
+  await byDefault.loader.loadAll(loadOptions(byDefault, {}));
+  expect(byDefault.loader.uiEntries().map((entry) => [entry.id, entry.mode, entry.state])).toEqual([
+    ["graph", "native", "ok"],
+    ["plain", "app", "disabled"],
+  ]);
   await harness.loader.loadAll(loadOptions(harness, { uiPolicy: { apps: false } }));
   expect(
     harness.loader

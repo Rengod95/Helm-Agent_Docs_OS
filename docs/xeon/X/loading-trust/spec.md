@@ -283,7 +283,7 @@ export interface LoadOptions {
    * "on_demand"는 판정도 적재도 하지 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 loadProject를 부른다(§4.7.8)
    */
   readonly projects?: "cwd" | "on_demand";
-  /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 켬, 프로젝트 앱 끔이다. `loadProject`도 이 값을 쓴다 */
+  /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 끔, 프로젝트 앱 끔이다(ADR-0021 §3.6.2 3번, §6 미결 1: 실기 확인 전 빌드는 프레임 모드를 끈다. 켜는 시점은 [미결]이고 사용자가 정한다). `loadProject`도 이 값을 쓴다 */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   readonly signal: AbortSignal;
 }
@@ -683,7 +683,7 @@ export interface UiPolicy {
   readonly apps: boolean;
   readonly allowProjectApps: boolean;
 }
-export const DEFAULT_UI_POLICY: UiPolicy;    // { apps: true, allowProjectApps: false }
+export const DEFAULT_UI_POLICY: UiPolicy;    // { apps: false, allowProjectApps: false }
 
 export interface UiIssue {
   readonly severity: "error" | "warning" | "info";
@@ -1413,7 +1413,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `x.loading-trust.paths` | `string[]` | `[]` | - | `restart` | `managed`, `user` | `list` |
 | `x.loading-trust.isolation.maxRestarts` | `integer` | `3` | 0~20 | `live` | `managed`, `user` | `number` |
 | `x.loading-trust.isolation.restartWindowSec` | `integer` | `600` | 10~86400 | `live` | `managed`, `user` | `number` |
-| `x.ui.apps` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
+| `x.ui.apps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 | `x.ui.allowProjectApps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 
 - `x.loading-trust.*` 키는 프로젝트 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).

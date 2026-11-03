@@ -32,13 +32,13 @@ export const HOST_BRIDGE_VERSION: string = `${String(BRIDGE_VERSION)}.0.0`;
 /** 화면 JSON 파일 하나의 크기 상한(1 MiB). 넘으면 `ui_limit`다 */
 export const UI_FILE_MAX_BYTES: number = 1_048_576;
 
-/** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`). 기본은 앱을 쓰고, 프로젝트 확장의 앱은 막는다 */
+/** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`). 기본은 앱을 막는다(ADR-0021 §6 미결 1 확인 전). 프로젝트 확장의 앱도 막는다 */
 export interface UiPolicy {
   readonly apps: boolean;
   readonly allowProjectApps: boolean;
 }
 
-export const DEFAULT_UI_POLICY: UiPolicy = { apps: true, allowProjectApps: false };
+export const DEFAULT_UI_POLICY: UiPolicy = { apps: false, allowProjectApps: false };
 
 /** 항목 하나의 진단. `severity`는 `LoadDiagnostic`과 같은 값 집합이다 */
 export interface UiIssue {

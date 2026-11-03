@@ -36,6 +36,8 @@ export interface Ambient {
    * 기능 래퍼의 재실행 검사를 받지 않는다. on 핸들러와 drive 함수에서는 없다(X.primitives.spec §4.6.6, §4.12)
    */
   readonly invocation?: "tool" | "command" | "method";
+  /** `readOnly: true`로 선언한 확장 메서드 처리기가 연 문맥. 기능 래퍼가 읽기 전용 기능 호출만 통과시킨다(ADR-0021 §3.4.2) */
+  readonly readOnlyMethod?: true;
 }
 
 const storage = new AsyncLocalStorage<Ambient>();

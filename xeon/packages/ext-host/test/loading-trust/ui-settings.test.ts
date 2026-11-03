@@ -7,10 +7,10 @@ test("settings: x.ui keys pass the catalog", () => {
   expect(buildCatalog([{ owner: "ext-host", namespace: "x.ui", defs }]).ok).toBe(true);
 });
 
-test("settings: apps defaults on and allowProjectApps defaults off, both in the X layer", () => {
+test("settings: apps and allowProjectApps both default off until the real-device check (ADR-0021 §6), both in the X layer", () => {
   expect(Object.keys(uiSettings.defs)).toEqual(["apps", "allowProjectApps"]);
   expect(uiSettings.defs.apps.key).toBe("x.ui.apps");
-  expect(uiSettings.defs.apps.default).toBe(true);
+  expect(uiSettings.defs.apps.default).toBe(false);
   expect(uiSettings.defs.apps.layer).toBe("X");
   expect(uiSettings.defs.allowProjectApps.key).toBe("x.ui.allowProjectApps");
   expect(uiSettings.defs.allowProjectApps.default).toBe(false);

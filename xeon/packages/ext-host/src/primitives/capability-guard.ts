@@ -131,6 +131,15 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
         const amb = ambient();
         const context = replayContextOf(amb);
         const requestId = given?.requestId;
+        // `readOnly: true` 메서드는 `query`로 확인 없이 지나가므로 읽기 전용으로 선언된 기능 메서드만 부를 수 있다
+        if (amb?.readOnlyMethod === true && effect !== "capability.readOnly") {
+          return refuse(
+            id,
+            name,
+            "effect_not_allowed",
+            `${id}.${name} is ${effectLabel(effect)}; a readOnly extension method may only call readOnly capability methods`,
+          );
+        }
         if (context !== null) {
           if (!isEffectAllowed(effect, context)) {
             return refuse(
