@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": ["src", "test"],
+  "exclude": ["templates"],
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../ext-host"
+    },
+    {
+      "path": "../group-sdk"
+    }
+  ]
+}

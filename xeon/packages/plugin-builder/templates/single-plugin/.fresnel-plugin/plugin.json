@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 2,
+  "name": "__ID__",
+  "version": "__VERSION__",
+  "displayName": "__TITLE__",
+  "entry": "./src/index.ts",
+  "plugins": [{ "layer": "plugin", "hooks": ["boundary.settle.after"] }],
+  "defaultEnabled": false,
+  "trust": { "level": "user" }
+}

@@ -111,6 +111,11 @@ interface DevkitService {
 - `validate`는 F `validateManifest`, `validateUsage`, `validateComposition`, group-sdk `scanDriveSource`, ADR-0021 화면 규칙, 카탈로그 항목의 필수 검사를 차례로 돌린 결과입니다.
 - `trial`은 Test run을 만듭니다(`thread.create { trial: true }`, W-34). Test run은 대상 확장을 `session` 범위로 켜고, 학습 그룹 리뷰에서 빠지며(X-14), 단계 경계 멈춤(W-48)을 쓸 수 있습니다.
 - `pack`은 확장 폴더를 설치 가능한 묶음(폴더 사본 또는 tar)으로 만들고 파일 목록과 SHA-256을 돌려줍니다. 원본 폴더 밖 파일, 시크릿처럼 보이는 파일(`.env`, 키 파일 이름 패턴)을 넣지 않습니다.
+- [결정: M4 T-AUTH] 구현은 `xeon/packages/plugin-builder`의 함수(`scaffoldExtension`, `validateExtensionDir`, `validateCompositionReport`, `packExtension`, `installExtension`, `removeExtension`)이고 `apps/host`의 `assembly/m4/devkit-port.ts`가 wire에 연결합니다.
+- [결정: M4 T-AUTH] `pack`은 엔트리를 한 파일 `dist/index.js`로 번들하고 묶음 매니페스트의 `entry`를 `./dist/index.js`로 바꿉니다. 호스트가 같은 인스턴스를 주는 SDK 모듈(`SDK_MODULE_SPECIFIERS`)은 번들에 넣지 않고 외부 import로 둡니다. `ext.reload`는 한 파일 번들 엔트리만 완전히 다시 읽기 때문입니다(여러 파일 소스는 옛 상대 import가 모듈 캐시에 남습니다). `link`는 `.js`·`.mjs` 엔트리만 받고 `.ts` 소스 폴더는 `invalid_input`으로 돌려 먼저 `pack`하게 합니다. 번들이 한 파일이 아니면 `pack`이 실패합니다.
+- [결정: M4 T-AUTH] `pack` 출력은 기본 `<dir>/dist/package`(다시 만들면 비우고 씁니다)이고, 지정한 `out`은 없거나 비어 있어야 합니다(`exists`). 묶음 형식은 폴더 사본이고 `sha256`은 정렬한 `경로 NUL 파일해시` 줄들의 해시입니다(§10 4번은 그대로 미결). 묶음 최상위의 `src`, `test`, `node_modules`, `dist`, `package.json`, `tsconfig.json`과 비밀 이름(`.env*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `id_*`, `credentials*`)은 넣지 않습니다.
+- [결정: M4 T-AUTH] `link`는 `<확장 위치>/<이름>`을 임시 폴더에 복사한 뒤 바꿔 놓습니다. 같은 이름이 있으면 바꾸고(`replaced`) 새 버전은 `ext.reload`가 단계 경계에서 적용합니다. `remove`는 폴더를 지웁니다.
+- [결정: M4 T-AUTH] `scaffold`의 그룹 템플릿(drive, policy, observe)은 구성 초안으로 고릅니다: drive 블록이 있거나 초안이 없으면 drive, 모든 `on` 블록이 `tool.call.before`뿐이면 policy, 아니면 observe. 초안과 `ui`와 `group.members`는 매니페스트에 패치하고(루트 플러그인 `hooks`는 초안의 훅을 합치고 drive 블록이 있으면 `drives: true`), 패치할 것이 없으면 템플릿 글자 그대로 씁니다. 대상 폴더는 절대 경로이고 없거나 비어 있어야 하며 실패하면 파일을 쓰지 않습니다. 템플릿 위치는 `FRESNEL_GROUP_TEMPLATES_DIR`, 릴리즈 자원 폴더, 소스 저장소 순으로 찾습니다.
 
 ### 3.4 종류 카탈로그
 
@@ -132,6 +137,8 @@ interface KindEntry {
   readonly blockedReason?: string;             // status = blocked 일 때
 }
 ```
+
+- [결정: M4 T-AUTH] wire `ext.kinds`의 `KindEntry.id`는 T-F 계약이 `single-plugin`과 `plugin-group` 둘로 정했으므로, M4 카탈로그 항목은 그 둘이고 아래 표의 `group.drive`·`group.policy`·`group.observe`는 `plugin-group` 항목의 템플릿 선택지입니다. 카탈로그는 JSON 파일이 아니라 타입이 붙은 데이터(`catalog.ts`의 `KIND_CATALOG`)입니다. 화면 종류(`view.*`)와 `plugin.l2-provider`, `plugin.tool`, `x.hook` 항목은 계약이 종류 id를 늘릴 때(T-F) 더합니다. 적합성 시험은 `catalogConformance`입니다.
 
 M4 첫 카탈로그 [제안]:
 
@@ -167,6 +174,8 @@ M4 첫 카탈로그 [제안]:
 | AU-010 | 사람 확인이 필요한 단계(외부 쓰기, 비용)에 `loop.ask` 또는 `approval: true`가 없음 | 경고 |
 | AU-011 | 상태 스키마 `version`과 마이그레이션 훅(`L3.group-sdk.spec` §4.7) | 경고 |
 | AU-012 | 재생 규율: `scanDriveSource` 위반 | 오류 |
+
+- [결정: M4 T-AUTH] 구현한 규칙: AU-001(이름 규칙과 예약 이름, 설치된 이름과 충돌), AU-002, AU-003(`validateManifest`·`validateComposition`의 구성 검사가 담당), AU-006, AU-007, AU-009(소스의 시크릿 리터럴 패턴), AU-012(`scanDriveSource`). AU-005는 F `validateUi`의 `ui_mode_not_allowed`·`ui_reason_empty`가 담당합니다. 아직 없는 규칙: AU-004 일부, AU-008, AU-010, AU-011.
 
 ## 4. 동작 규칙
 

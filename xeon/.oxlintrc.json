@@ -20,6 +20,7 @@
     "**/coverage/**",
     "vendor/**",
     "packages/group-sdk/templates/**",
+    "packages/plugin-builder/templates/**",
     "apps/desktop/mockups/**"
   ],
   "rules": {

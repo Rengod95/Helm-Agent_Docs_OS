@@ -1,0 +1,27 @@
+{
+  "name": "@fresnel/plugin-builder",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
+    "typecheck": "tsc -b",
+    "test": "bash ../../scripts/test-pkg.sh",
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+  },
+  "dependencies": {
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/ext-host": "workspace:*",
+    "@fresnel/group-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "fresnel": {
+    "layer": "L3",
+    "domain": "authoring"
+  }
+}

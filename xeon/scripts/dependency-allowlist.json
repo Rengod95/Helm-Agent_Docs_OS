@@ -45,6 +45,15 @@
     "approvedBy": "review.decisions-2"
   },
   {
+    "id": "DR-02/plugin-builder-group-sdk",
+    "rule": "DR-02",
+    "from": "packages/plugin-builder",
+    "to": "@fresnel/group-sdk",
+    "entries": [".", "./testing"],
+    "reason": "The Plugin Builder (L3.authoring.spec) is an L3 package outside the packages/group-* family. It validates and scaffolds groups with the group-sdk name rules and the drive source scan (scanDriveSource), through the entries \".\" and \"./testing\" only.",
+    "approvedBy": "L3.authoring.spec"
+  },
+  {
     "id": "DR-07/group-sdk-test-spawn",
     "rule": "DR-07",
     "from": "packages/group-sdk",
