@@ -56,5 +56,9 @@ export function fakeRedactor(secrets: Readonly<Record<string, string>> = {}): Re
       return { value: masked as T, hits };
     },
     containsKnown: (text) => maskText(known, text).hits.length > 0,
+    // 가짜는 화면 가림 구간을 만들지 않는다(이 패키지는 도구 결과의 mask만 본다)
+    displayRanges: () => [],
+    displayVisibleLength: (text) => text.length,
+    displayLeafMasks: () => [],
   };
 }

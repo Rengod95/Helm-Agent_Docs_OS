@@ -68,6 +68,10 @@ export function memorySecrets(values: Readonly<Record<string, string>>): MemoryS
     maskDeep: (value) => ({ value, hits: [] }),
     containsKnown: (text) =>
       [...known.values()].some((value) => value.length > 0 && text.includes(value)),
+    // 가짜는 화면 가림 구간을 만들지 않는다(이 패키지는 모델 입력만 본다)
+    displayRanges: () => [],
+    displayVisibleLength: (text) => text.length,
+    displayLeafMasks: () => [],
   };
 
   const service: SecretService = {

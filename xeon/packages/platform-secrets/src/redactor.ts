@@ -1,5 +1,6 @@
 import { attempt, err, ok, type Result } from "@fresnel/contracts";
 import type { RedactionHit, SecretName } from "@fresnel/contracts/capabilities";
+import type { LeafMask, MaskRange } from "@fresnel/contracts/conversation";
 import type { RegisterKnownError, Redactor } from "@fresnel/contracts/services";
 
 // L0.secrets.spec §3.5. docs/design/18-security.md §3.10.4의 규칙 1~3을 옮긴 것이다.
@@ -197,6 +198,31 @@ interface StreamMasker {
   flush(): { readonly text: string; readonly hits: readonly RedactionHit[] };
 }
 
+/** 화면 가림 구간을 모으는 임시 항목. rank는 같은 자리에서 규칙 우선순위다(알려진 값, 접두 패턴, 키-값) */
+interface FoundRange {
+  readonly start: number;
+  readonly end: number;
+  readonly label: string;
+  readonly rank: number;
+}
+
+/** 마지막 공백 문자 다음 위치. 공백이 없으면 0 */
+function lastWhitespaceEnd(text: string): number {
+  for (let i = text.length - 1; i >= 0; i -= 1) {
+    if (/\s/.test(text.charAt(i))) return i + 1;
+  }
+  return 0;
+}
+
+/** RFC 6901 토큰 이스케이프 */
+function pointerToken(key: string): string {
+  return key.replaceAll("~", "~0").replaceAll("/", "~1");
+}
+
+const PEM_BEGIN = "-----BEGIN";
+/** PEM 블록의 끝 줄(`-----END …-----`). 보이는 앞부분에 있어야 블록이 온전하다. 어떤 종류의 블록이든 같다 */
+const PEM_CLOSED = /-----END [A-Z ]*-----/;
+
 export interface RedactorImpl extends Redactor {
   /** 스트림 하나당 마스커 하나. 값이 청크에 걸쳐도 가린다(SEC-03) */
   maskStream(): StreamMasker;
@@ -357,6 +383,108 @@ export function createRedactor(): RedactorImpl {
     return cut;
   }
 
+  /**
+   * 원문 위치의 가림 구간. `mask`와 같은 규칙(알려진 값, 접두 패턴, 키-값, 접속 문자열)을 원문에 그대로 적용한다.
+   * `mask`는 앞 규칙의 결과 위에 다음 규칙을 걸지만 여기서는 모든 규칙을 원문에 건 뒤 겹치는 구간을 합친다.
+   * 같은 자리에서 이름이 겹치면 우선순위가 높은 표지를 쓴다. 값은 돌려주지 않는다.
+   */
+  function rangesOfText(text: string): MaskRange[] {
+    const found: FoundRange[] = [];
+    for (const { name, variant } of ordered) {
+      let at = text.indexOf(variant);
+      while (at !== -1) {
+        found.push({ start: at, end: at + variant.length, label: `known:${name}`, rank: 0 });
+        at = text.indexOf(variant, at + variant.length);
+      }
+    }
+    for (const rule of PREFIX_RULES) {
+      for (const match of text.matchAll(rule.pattern)) {
+        found.push({
+          start: match.index,
+          end: match.index + match[0].length,
+          label: rule.kind,
+          rank: 1,
+        });
+      }
+    }
+    for (const match of text.matchAll(KV_PATTERN)) {
+      const value = match[3];
+      if (value === undefined) continue;
+      // 값 그룹은 일치의 끝에 있다
+      const start = match.index + match[0].length - value.length;
+      found.push({ start, end: start + value.length, label: "kv", rank: 2 });
+    }
+    for (const match of text.matchAll(USERINFO_PATTERN)) {
+      const head = match[1];
+      const value = match[2];
+      if (head === undefined || value === undefined) continue;
+      const start = match.index + head.length;
+      found.push({ start, end: start + value.length, label: "kv", rank: 2 });
+    }
+    found.sort((a, b) => a.start - b.start || a.rank - b.rank || b.end - a.end);
+    const merged: MaskRange[] = [];
+    for (const f of found) {
+      const last = merged[merged.length - 1];
+      if (last !== undefined && f.start < last.end) {
+        if (f.end > last.end)
+          merged[merged.length - 1] = { start: last.start, end: f.end, label: last.label };
+        continue;
+      }
+      merged.push({ start: f.start, end: f.end, label: f.label });
+    }
+    return merged;
+  }
+
+  /**
+   * 진행 중 텍스트에서 보여도 되는 앞부분 길이. 공백 뒤의 낱말은 아직 끝나지 않았을 수 있다.
+   * 접두 패턴, 키-값 값, 접속 문자열은 공백을 담지 않으므로 공백 뒤에서 자르면 일치가 잘리지 않는다.
+   * 알려진 값 변형은 공백을 담을 수 있어 `safeCut`으로 한 번 더 뺀다. PEM 키는 시작 뒤 끝 줄이 올 때까지 시작부터 뺀다.
+   */
+  function visibleLengthOf(text: string): number {
+    let cut = safeCut(text, lastWhitespaceEnd(text));
+    // 보이는 앞부분 안에서 PEM 블록이 닫히지 않았으면 시작부터 뺀다. 끝 줄이 뒤에 있어도 앞부분만 본다
+    const begin = text.lastIndexOf(PEM_BEGIN);
+    if (begin !== -1 && begin < cut && !PEM_CLOSED.test(text.slice(begin, cut))) cut = begin;
+    return cut;
+  }
+
+  function leafMasksOf(value: unknown, base: string): LeafMask[] {
+    const out: LeafMask[] = [];
+    // 같은 객체가 경로마다 다시 나와도 가린다. 지금 방문 중인 객체만 순환으로 본다
+    const onPath = new Set<object>();
+    const visit = (node: unknown, pointer: string, key: string | null): void => {
+      if (typeof node === "string") {
+        let ranges: readonly MaskRange[] = rangesOfText(node);
+        // 민감한 키 아래의 값은 모양과 상관없이 가린다(maskDeep의 walkEntry와 같은 규칙)
+        if (
+          ranges.length === 0 &&
+          key !== null &&
+          node.length >= MIN_KV_VALUE_CHARS &&
+          isSensitiveKey(key)
+        ) {
+          ranges = [{ start: 0, end: node.length, label: "kv" }];
+        }
+        if (ranges.length > 0) out.push({ pointer, len: node.length, ranges: [...ranges] });
+        return;
+      }
+      if (typeof node !== "object" || node === null || onPath.has(node)) return;
+      onPath.add(node);
+      if (Array.isArray(node)) {
+        const items: readonly unknown[] = node;
+        items.forEach((item, index) => {
+          visit(item, `${pointer}/${String(index)}`, null);
+        });
+      } else {
+        for (const [name, inner] of Object.entries(node)) {
+          visit(inner, `${pointer}/${pointerToken(name)}`, name);
+        }
+      }
+      onPath.delete(node);
+    };
+    visit(value, base, null);
+    return out;
+  }
+
   function createStreamMasker(): StreamMasker {
     let pending = "";
     function release(cut: number): { text: string; hits: readonly RedactionHit[] } {
@@ -413,6 +541,15 @@ export function createRedactor(): RedactorImpl {
     maskStream: createStreamMasker,
     containsKnown(text: string): boolean {
       return ordered.some(({ variant }) => text.includes(variant));
+    },
+    displayRanges(text: string): readonly MaskRange[] {
+      return rangesOfText(text);
+    },
+    displayVisibleLength(text: string): number {
+      return visibleLengthOf(text);
+    },
+    displayLeafMasks(value: unknown, base: string): readonly LeafMask[] {
+      return leafMasksOf(value, base);
     },
     knownCount(): number {
       return known.size;
