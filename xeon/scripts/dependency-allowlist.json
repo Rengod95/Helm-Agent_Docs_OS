@@ -30,7 +30,8 @@
       "./views/native",
       "./views/app",
       "./views/ledger",
-      "./workbench"
+      "./workbench",
+      "./workbench/canvas"
     ],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020). The Plugin UI core (views/native, views/app, views/ledger) is pure code the desktop shell and the web client both use (ADR-0021 3.1, m4-plan T-VIEW).",
     "approvedBy": "adr.0020"
