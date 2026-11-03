@@ -641,6 +641,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       [...prior, ...valid].flatMap((record) =>
         record.manifest === undefined ? [] : [record.manifest],
       ),
+      new Set<string>(deps.coreCapabilities?.keys() ?? []),
     );
     for (const issue of setIssues) {
       const owner = valid.find((record) => issue.path.startsWith(`${record.name}/`));
@@ -1108,12 +1109,15 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       return rejected();
     }
     // 2. 집합 검사: 다른 확장이 있는 채로 이 매니페스트가 이름·기능 충돌을 만들지 않아야 한다
-    const setIssues = validateManifestSet([
-      ...[...records.values()]
-        .filter((other) => other !== record && other.state !== "rejected")
-        .flatMap((other) => (other.manifest === undefined ? [] : [other.manifest])),
-      manifest,
-    ]).filter((issue) => issue.severity === "error" && issue.path.startsWith(`${name}/`));
+    const setIssues = validateManifestSet(
+      [
+        ...[...records.values()]
+          .filter((other) => other !== record && other.state !== "rejected")
+          .flatMap((other) => (other.manifest === undefined ? [] : [other.manifest])),
+        manifest,
+      ],
+      new Set<string>(deps.coreCapabilities?.keys() ?? []),
+    ).filter((issue) => issue.severity === "error" && issue.path.startsWith(`${name}/`));
     if (setIssues.length > 0) {
       reloadDiag(
         record,
