@@ -1,7 +1,9 @@
-// 확장 행 부품(V-16, §6.21): 표시 이름, id mono, 층 mono, 종류, 등급, 상태 점 + 글, 버전, 켜짐 스위치(그룹은 하나, 15-1).
+// 확장 행 부품(V-16, §6.21, §6.23): 표 칸 하나의 내용. 표 틀과 고르기·키보드는 `layer-list.tsx`의 caustic `Table`이 맡는다.
+// 칸: 표시 이름과 id mono, 층 mono, 종류, 등급, 상태 점 + 글, 버전, 켜짐 스위치(그룹은 하나, 15-1).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ExtKind, ExtRowVM, ExtState, ToggleLock } from "@fresnel/client/workbench";
-import { Badge, StatusDot, Switch } from "@caustic/react";
+import { assertNever } from "@fresnel/contracts";
+import { Badge, StatusDot, Switch, Tooltip } from "@caustic/react";
 import type { ReactNode } from "react";
 
 type DotTone = "neutral" | "success" | "warning" | "danger" | "info";
@@ -51,7 +53,10 @@ export function ExtName(props: { readonly row: ExtRowVM }): ReactNode {
   );
 }
 
-/** 켜짐 스위치. 잠긴 행은 이유를 `title`과 `aria-description`으로 준다 */
+/**
+ * 켜짐 스위치. 잠긴 행은 스위치가 꺼져 포커스와 마우스 올림을 받지 못하므로, 스위치를 감싼 span에 `Tooltip`으로 이유를 보인다.
+ * 이유는 `aria-description`으로도 준다.
+ */
 export function ExtSwitch(props: {
   readonly row: ExtRowVM;
   readonly onToggle: (target: boolean) => void;
@@ -59,48 +64,70 @@ export function ExtSwitch(props: {
   const { row } = props;
   const reason = row.lock === null ? undefined : lockText(row.lock);
   const checked = row.pendingTarget ?? row.on;
-  return (
+  const control = (
     <Switch
       size="sm"
       checked={checked}
       disabled={row.lock !== null}
       aria-label={t("desktop.workbench.switch.label", { name: row.displayName ?? row.name })}
-      title={reason}
       aria-description={reason}
       onCheckedChange={props.onToggle}
     />
   );
-}
-
-export interface ExtRowProps {
-  readonly row: ExtRowVM;
-  readonly selected: boolean;
-  readonly onSelect: () => void;
-  readonly onToggle: (target: boolean) => void;
-}
-
-export function ExtRow(props: ExtRowProps): ReactNode {
-  const { row } = props;
+  if (reason === undefined) return control;
   return (
-    <li
-      data-selected={props.selected}
-      className="flex items-center gap-3 rounded-md px-2 py-1.5 text-ui-sm data-[selected=true]:bg-control-raised"
-    >
-      <button
-        type="button"
-        aria-pressed={props.selected}
-        onClick={props.onSelect}
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+    <Tooltip content={reason}>
+      <span
+        tabIndex={0}
+        className="inline-flex rounded-full outline-none focus-visible:shadow-focus"
       >
-        <span className="w-12 shrink-0 font-mono text-text-tertiary">{row.layer}</span>
-        <ExtName row={row} />
-        <Badge size="sm">{kindText(row.kind)}</Badge>
-        <span className="ms-auto shrink-0">
-          <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
-        </span>
-        <span className="w-14 shrink-0 text-end font-mono text-text-tertiary">{row.version}</span>
-      </button>
-      <ExtSwitch row={row} onToggle={props.onToggle} />
-    </li>
+        {control}
+      </span>
+    </Tooltip>
   );
+}
+
+/** 확장 표의 열(§6.23). 칸 내용은 이 이름으로 고른다 */
+export type ExtColumn = "name" | "layer" | "kind" | "grade" | "state" | "version" | "switch";
+
+const EXT_COLUMNS: readonly ExtColumn[] = [
+  "name",
+  "layer",
+  "kind",
+  "grade",
+  "state",
+  "version",
+  "switch",
+];
+
+/** 표 열의 키(문자열)를 열 이름으로 바꾼다. 열 이름이 아니면 undefined */
+export function extColumnOf(key: string): ExtColumn | undefined {
+  return EXT_COLUMNS.find((column) => column === key);
+}
+
+/** 표 한 칸의 내용 */
+export function ExtCell(props: {
+  readonly row: ExtRowVM;
+  readonly column: ExtColumn;
+  readonly onToggle: (target: boolean) => void;
+}): ReactNode {
+  const { row } = props;
+  switch (props.column) {
+    case "name":
+      return <ExtName row={row} />;
+    case "layer":
+      return <span className="font-mono text-text-tertiary">{row.layer}</span>;
+    case "kind":
+      return <Badge size="sm">{kindText(row.kind)}</Badge>;
+    case "grade":
+      return <span className="text-text-tertiary">{row.grade}</span>;
+    case "state":
+      return <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />;
+    case "version":
+      return <span className="font-mono text-text-tertiary">{row.version}</span>;
+    case "switch":
+      return <ExtSwitch row={row} onToggle={props.onToggle} />;
+    default:
+      return assertNever(props.column, "ExtCell");
+  }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import { listLoaded } from "@fresnel/client/workbench";
+import { listLoaded, type WorkbenchState } from "@fresnel/client/workbench";
 import type {
   ExtGetResult,
   ExtHealthEntry,
@@ -20,12 +20,16 @@ import {
   type Commands,
   type WorkbenchCommands,
 } from "../../../src/views/commands.ts";
+import { ExtensionsScreen } from "../../../src/views/workbench/extensions-screen.tsx";
 import {
+  reloadOnExtChanges,
   useWorkbenchController,
   type WorkbenchController,
 } from "../../../src/views/workbench/controller.ts";
+import { t } from "@fresnel/client/i18n";
 import { harness } from "../../state/helpers.ts";
 import { fakeCommands } from "../fake-commands.ts";
+import { inContexts } from "./support.tsx";
 
 function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
   return {
@@ -47,6 +51,22 @@ function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
     hookCount: 1,
     ...over,
   };
+}
+
+/** 이벤트 루프를 한 바퀴 돌려 이미 풀린 읽기들의 뒤처리를 끝낸다. 시험의 가짜 명령은 모두 바로 풀린다 */
+const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+/**
+ * 서버 렌더(`renderToString`)는 스토어의 처음 상태만 읽는다(zustand의 `getInitialState`). 그래서 값을 바꾼 뒤의 그림은
+ * 그 값을 처음 상태로 가진 스토어로 그린다. 화면 코드는 같다.
+ */
+function renderSeeded(state: WorkbenchState): string {
+  return renderToString(
+    inContexts(
+      <ExtensionsScreen />,
+      createWorkbenchStore(() => state),
+    ),
+  );
 }
 
 const WEB = entry("web");
@@ -185,5 +205,57 @@ describe("reload: 목록 뒤의 보조 읽기", () => {
     expect(state.entries).toEqual(ENTRIES);
     expect(asked).toEqual([]);
     expect(state.details).toEqual({});
+  });
+});
+
+describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른다", () => {
+  const REVIEW_OFF = entry("review", {
+    layer: "L3",
+    isGroup: true,
+    status: "disabled",
+    autoDisabled: true,
+  });
+  const REVIEW_ON = entry("review", {
+    layer: "L3",
+    isGroup: true,
+    status: "enabled",
+    autoDisabled: false,
+  });
+  const autoOffText = t("desktop.workbench.autoDisabled", { name: "review" });
+
+  test("확장 설정 알림을 받으면 목록을 다시 읽고, 같은 화면이 띠와 개수를 새 값으로 그린다", async () => {
+    const store = createWorkbenchStore();
+    const seen: { listener: (() => void) | null; listed: readonly ExtListEntry[] } = {
+      listener: null,
+      listed: [WEB, REVIEW_OFF],
+    };
+    const commands = commandsWith({
+      list: () => Promise.resolve(ok(seen.listed)),
+      onChanged: (listener) => {
+        seen.listener = listener;
+        return () => {
+          seen.listener = null;
+        };
+      },
+    });
+    const controller = controllerOf(store, commands);
+    await controller.reload();
+
+    const before = renderSeeded(store.actions.snapshot());
+    expect(before).toContain(autoOffText);
+    expect(before).toContain(t("desktop.workbench.counts", { total: 2, on: 1, auto: 1 }));
+
+    const stop = reloadOnExtChanges(commands.workbench, () => controller.reload());
+    seen.listed = [WEB, REVIEW_ON];
+    seen.listener?.();
+    await settle();
+
+    expect(store.actions.snapshot().entries).toEqual([WEB, REVIEW_ON]);
+    const after = renderSeeded(store.actions.snapshot());
+    expect(after).not.toContain(autoOffText);
+    expect(after).toContain(t("desktop.workbench.counts", { total: 2, on: 2, auto: 0 }));
+
+    stop();
+    expect(seen.listener).toBeNull();
   });
 });

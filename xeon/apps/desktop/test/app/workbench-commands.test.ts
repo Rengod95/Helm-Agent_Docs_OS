@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import type {
+  EventWire,
   ExtHealthEntry,
   HookEntry,
   HooksOrderGetResult,
@@ -8,8 +9,14 @@ import type {
   HooksOrderResetResult,
   HooksOrderSetResult,
 } from "@fresnel/contracts/wire";
-import { thr, trn } from "../state/helpers.ts";
-import { engineFake, makeApp, until } from "./support.ts";
+import {
+  hasScopeChange,
+  isExtSettingsChange,
+  subscribeExtChanges,
+} from "../../src/app/workbench-commands.ts";
+import { fakeConnection } from "../state/fake-connection.ts";
+import { evt, SUB, thr, trn } from "../state/helpers.ts";
+import { engineFake, makeApp, tick, until } from "./support.ts";
 
 // 크래프트 명령이 보내는 wire 메서드와 params(W-22 ext.health, W-36 hooks.list, W-51 hooks.order.*, W-43 trace.turn).
 // 가짜 엔진 위에서 명령을 부르고, 보낸 메서드와 params, 돌아온 값을 값으로 본다.
@@ -153,6 +160,102 @@ describe("크래프트 명령의 wire 호출", () => {
       ok: false,
       error: { kind: "unsupported" },
     });
+    await app.stop();
+  });
+});
+
+/** 내구 이벤트 하나(시험용). 종류와 seq만 바꾼다 */
+const durable = (kind: EventWire["kind"], seq: number): EventWire => ({
+  id: evt(seq),
+  kind,
+  version: 1,
+  durable: true,
+  seq,
+  parentId: null,
+  threadId: thr(1),
+  turnId: null,
+  stepId: null,
+  recordedAt: "2026-11-04T10:00:00.000Z",
+  causationId: null,
+  correlationId: "c",
+  payload: {},
+  redactions: [],
+});
+
+describe("확장 목록을 다시 읽을 알림", () => {
+  test("확장 설정 키가 바뀌었거나 키 목록이 비면(전체) 맞고, 다른 설정만 바뀌면 아니다", () => {
+    expect(isExtSettingsChange({ keys: ["ext.web.enabled"] })).toBe(true);
+    expect(isExtSettingsChange({ keys: ["l4.cli.theme", "ext.core-loop.enabled"] })).toBe(true);
+    expect(isExtSettingsChange({ keys: [] })).toBe(true);
+    expect(isExtSettingsChange({ keys: ["l1.models.default"] })).toBe(false);
+  });
+
+  test("내구 이벤트 묶음에 scope.changed가 있을 때만 맞다(자동 끄기 기록)", () => {
+    expect(hasScopeChange({ events: [durable("scope.changed", 6)] })).toBe(true);
+    expect(hasScopeChange({ events: [durable("turn.started", 6)] })).toBe(false);
+    expect(hasScopeChange({ events: [] })).toBe(false);
+  });
+
+  test("구독은 맞는 알림마다 한 번 부르고, 구독을 풀면 더 부르지 않는다", () => {
+    const fake = fakeConnection({});
+    let woke = 0;
+    const stop = subscribeExtChanges(fake.connection, () => void (woke += 1));
+    fake.emit("settings.invalidated", {
+      keys: ["ext.web.enabled"],
+      scopes: ["user"],
+      threadId: null,
+    });
+    fake.emit("settings.invalidated", {
+      keys: ["l1.models.default"],
+      scopes: ["user"],
+      threadId: null,
+    });
+    fake.emit("events.batch", {
+      sub: SUB,
+      from: 5,
+      to: 6,
+      caughtUp: true,
+      events: [durable("turn.started", 6)],
+    });
+    expect(woke).toBe(1);
+    fake.emit("events.batch", {
+      sub: SUB,
+      from: 6,
+      to: 7,
+      caughtUp: true,
+      events: [durable("scope.changed", 7)],
+    });
+    expect(woke).toBe(2);
+    stop();
+    fake.emit("settings.invalidated", { keys: [], scopes: ["user"], threadId: null });
+    fake.emit("events.batch", {
+      sub: SUB,
+      from: 7,
+      to: 8,
+      caughtUp: true,
+      events: [durable("scope.changed", 8)],
+    });
+    expect(woke).toBe(2);
+  });
+
+  test("명령의 onChanged는 살아 있는 연결의 ext 설정 무효화 알림에 반응한다", async () => {
+    const { app, fake } = await liveApp({});
+    let woke = 0;
+    const stop = app.commands.workbench.onChanged(() => void (woke += 1));
+    fake.emitLine({
+      jsonrpc: "2.0",
+      method: "settings.invalidated",
+      params: { keys: ["ext.web.enabled"], scopes: ["user"], threadId: null },
+    });
+    await until(() => woke === 1, "ext settings wake-up");
+    stop();
+    fake.emitLine({
+      jsonrpc: "2.0",
+      method: "settings.invalidated",
+      params: { keys: ["ext.web.enabled"], scopes: ["user"], threadId: null },
+    });
+    await tick(20);
+    expect(woke).toBe(1);
     await app.stop();
   });
 });

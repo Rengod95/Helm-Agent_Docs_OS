@@ -27,6 +27,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     },
     workbench: {
       list: () => Promise.resolve(ok([])),
+      onChanged: () => () => {},
       get: () => Promise.resolve(err({ kind: "unsupported" })),
       toggle: () => Promise.resolve(ok(null)),
       reenable: () => Promise.resolve(ok(null)),

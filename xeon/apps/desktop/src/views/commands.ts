@@ -204,6 +204,11 @@ export interface SecretCommands {
 export interface WorkbenchCommands {
   /** `ext.list`. 전역 값이라 `threadId`를 보내지 않는다 */
   list(): Promise<Result<readonly ExtListEntry[], CommandError>>;
+  /**
+   * 확장 목록이 바뀌었을 수 있으면 부른다: 확장 설정 키(`ext.`)가 바뀐 `settings.invalidated`, 자동 끄기 기록(내구 `scope.changed`).
+   * 알림의 값은 싣지 않는다(다시 읽는 신호일 뿐). 반환값은 구독 해제
+   */
+  onChanged(listener: () => void): () => void;
   /** `ext.get`: 매니페스트 훅·기능 바인딩·진단 */
   get(name: string): Promise<Result<ExtGetResult, CommandError>>;
   /** 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "user" }` */
