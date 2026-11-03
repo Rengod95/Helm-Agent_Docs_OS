@@ -178,6 +178,11 @@ tape-record scenario *flags:
 benchmark *flags:
     cd xeon && just benchmark {{flags}}
 
+# 데스크톱 속도·크기(Y17): size, startup, frame, trace, all. 실제 모델 호출 없음. startup은 macOS GUI 세션 필요 (xeon/scripts/desktop-benchmark.ts)
+[group('local')]
+desktop-benchmark *flags:
+    cd xeon && just desktop-benchmark {{flags}}
+
 # 서버 측정 결과의 예산 판정(예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패) (xeon/scripts/benchmark-gate.ts)
 [group('local')]
 benchmark-gate *flags:

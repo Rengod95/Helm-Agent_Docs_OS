@@ -14,7 +14,7 @@ binds: []
 
 - 사용자가 체감하는 속도(시작, 첫 응답, 종료)의 예산과 측정 방법을 정합니다. 근거 결정은 ADR-0012(속도를 앱 크기보다 우선)입니다.
 - 마일스톤 재점검 G2-04의 산출물입니다. M2는 기준선을 재고 예산표의 틀을 둡니다. M3에서 예산을 넘으면 실패하는 게이트로 바꿉니다(`review.m3-plan`).
-- 측정 레시피는 `just benchmark`(`xeon/scripts/benchmark.ts`)입니다. 서버 측정은 `just benchmark --server`, 예산 판정은 `just benchmark-gate`입니다. 둘 다 메모리 상한(`scripts/guard.sh run`) 아래에서 돌고 `just verify`에는 들어가지 않습니다.
+- 데스크톱 속도·크기는 `just desktop-benchmark`(§2.2)입니다. 측정 레시피는 `just benchmark`(`xeon/scripts/benchmark.ts`)입니다. 서버 측정은 `just benchmark --server`, 예산 판정은 `just benchmark-gate`입니다. 둘 다 메모리 상한(`scripts/guard.sh run`) 아래에서 돌고 `just verify`에는 들어가지 않습니다.
 
 ## 2. 예산표
 
@@ -31,20 +31,20 @@ binds: []
 
 ## 2.1 서버 측정표
 
-`just benchmark --server`(`xeon/scripts/benchmark-server.ts`)가 패키지 안의 측정 진입(`<패키지>/test/benchmark/*.benchmark.ts`)을 차례로 돌립니다. 진입은 줄마다 JSON 한 개를 출력합니다. 값은 WSL2(Linux 6.18, 12 CPU, 디스크 ext4) 2026-10-29, 다른 에이전트가 함께 돌던 기기 부하(load average 9~16)에서 잰 것입니다. 부하 때문에 꼬리 값(p90, 최대)은 흔들리고 기준선이 아닙니다. 예산 칸은 모두 `사용자 결정 대기`이며, 정하면 `benchmark-server.ts`의 `SERVER_BUDGET`을 같은 커밋에서 고칩니다.
+`just benchmark --server`(`xeon/scripts/benchmark-server.ts`)가 패키지 안의 측정 진입(`<패키지>/test/benchmark/*.benchmark.ts`)을 차례로 돌립니다. 진입은 줄마다 JSON 한 개를 출력합니다. 값은 WSL2(Linux 6.18, 12 CPU, 디스크 ext4) 2026-10-29, 다른 에이전트가 함께 돌던 기기 부하(load average 9~16)에서 잰 것입니다. 부하 때문에 꼬리 값(p90, 최대)은 흔들리고 기준선이 아닙니다. 예산 칸은 모두 "기록만"입니다 [결정: 2026-11-04 사용자, B17]. 예산을 정하면 `benchmark-server.ts`의 `SERVER_BUDGET`을 같은 커밋에서 고칩니다(지금 코드는 모두 대기 상태이고 판정은 "기록됨"입니다).
 
 | 지표 | 뜻 | 중앙값 | p90 | 판정 | 예산 | 근거 요구 |
 |---|---|---|---|---|---|---|
-| `index_build_200_skills` | 스킬 200개로 인덱스 블록 만들기(호출 1회) | 0.013 ms | 0.031 ms | 판정 대상 | 사용자 결정 대기 | M3-REQ-98 |
+| `index_build_200_skills` | 스킬 200개로 인덱스 블록 만들기(호출 1회) | 0.013 ms | 0.031 ms | 판정 대상 | 기록만 [결정: 2026-11-04 사용자, B17] | M3-REQ-98 |
 | `like_scan_2char_20000_docs` | 2글자 질의의 대화 LIKE 탐색(문서 20,000개 전체 훑기) | 23~28 ms | 30 ms | 참고 | 없음 | M3-REQ-98 |
 | `index_fit_<N>_skills` | 8,000자 예산에 실리는 스킬 수(설명 160자) | 33개(N≥40) | 해당 없음 | 참고 | 없음 | M3-REQ-98 |
 | `index_fit_<N>_skills_desc60` | 같은 예산에 설명 60자일 때 | 57개(N≥80) | 해당 없음 | 참고 | 없음 | M3-REQ-98 |
-| `lease_turn_overhead` | drive 락을 쓰는 그룹이 있을 때 turn당 추가 시간(메모리 호스트, 저장소 I/O 없음) | 0.017~0.022 ms | 0.07~0.08 ms | 판정 대상 | 사용자 결정 대기 | M3-REQ-41 |
+| `lease_turn_overhead` | drive 락을 쓰는 그룹이 있을 때 turn당 추가 시간(메모리 호스트, 저장소 I/O 없음) | 0.017~0.022 ms | 0.07~0.08 ms | 판정 대상 | 기록만 [결정: 2026-11-04 사용자, B17] | M3-REQ-41 |
 | `lease_records_per_turn` | turn당 추가 기록(`lease.acquired`·`lease.released`) | 0.667개 | 해당 없음 | 참고 | 없음 | M3-REQ-41 |
-| `dispatch_overhead_per_handler` | 빈 tap 핸들러 하나를 예산 정책(`OperationsPolicy`)으로 돌린 시간 − 정책 없는 시간 | 0 ms(−0.004~0.000) | 0.013 ms | 판정 대상 | 사용자 결정 대기 | M3-REQ-40 |
-| `store_commit_event` | 사용자 item 이벤트 커밋 1건(`synchronous=FULL`, WAL, 디스크) | 5.4~7.0 ms | 12.7 ms | 판정 대상 | 사용자 결정 대기 | M3-REQ-64, M3-29 |
-| `thread_read_1k_items` | 활성 가지 item 1,000개 읽기(`readBranch`) | 5.6~6.1 ms | 8.4 ms | 판정 대상 | 사용자 결정 대기 | M3-29 |
-| `projector_rebuild_10k_events` | 코어 투영기 재생성(이벤트 10,000개) | 217~565 ms | 482~837 ms | 판정 대상 | 사용자 결정 대기 | M3-new-18 |
+| `dispatch_overhead_per_handler` | 빈 tap 핸들러 하나를 예산 정책(`OperationsPolicy`)으로 돌린 시간 − 정책 없는 시간 | 0 ms(−0.004~0.000) | 0.013 ms | 판정 대상 | 기록만 [결정: 2026-11-04 사용자, B17] | M3-REQ-40 |
+| `store_commit_event` | 사용자 item 이벤트 커밋 1건(`synchronous=FULL`, WAL, 디스크) | 5.4~7.0 ms | 12.7 ms | 판정 대상 | 기록만 [결정: 2026-11-04 사용자, B17] | M3-REQ-64, M3-29 |
+| `thread_read_1k_items` | 활성 가지 item 1,000개 읽기(`readBranch`) | 5.6~6.1 ms | 8.4 ms | 판정 대상 | 기록만 [결정: 2026-11-04 사용자, B17] | M3-29 |
+| `projector_rebuild_10k_events` | 코어 투영기 재생성(이벤트 10,000개) | 217~565 ms | 482~837 ms | 판정 대상 | 기록만 [결정: 2026-11-04 사용자, B17] | M3-new-18 |
 | `projector_rebuild_events_per_sec` | 재생성 처리량 | 17,700~46,000 건/초 | 해당 없음 | 참고 | 없음 | M3-new-18 |
 | `reinject_tokens_5_files_<크기>` | 컴팩션 뒤 최근 파일 5개 재주입의 추정 토큰(글자/3.5) | 2,000자 2,935 / 8,000자 11,510 / 16,000자 이상 22,935 | 해당 없음 | 참고 | 없음 | M3-new-18 |
 | `recent_files_compute_2000_items` | 재주입 후보 계산(branch 2,000 item) | 0.026~0.046 ms | 0.05 ms | 참고 | 없음 | M3-new-18 |
@@ -58,6 +58,29 @@ binds: []
 - 투영기 청크 재생성 기준(이벤트 10만 건): 값을 유지합니다. 10,000건이 0.2~0.6초이므로 10만 건은 약 2~6초(선형 외삽)입니다. 쓰기 열기를 막는 시간으로 보면 수 초 수준이라 기준을 올릴 이유가 없습니다.
 - M3-REQ-87 게이트 상한(8)과 반복 감지 임계(4, 3): 게이트 상한 8은 유지합니다. 반복 감지(`l1.loop.repeat.*`)는 M3b B5-FIX2에서 구현했고(`xeon/packages/core-loop/src/repeat.ts`, 합성 테이프 값 시험 `test/repeat.test.ts`, `test/loop-repeat.test.ts`) 기본 임계는 4와 3입니다. 임계를 실제 모델 행동에 맞춰 조정하는 일은 실제 provider 녹화(`just tape-record`, 비용이 들어 사람 확인 `--yes`)가 먼저입니다. [미결]
 - M3-REQ-64 서버 측정: 커밋·읽기 기준선만 기록합니다. `synchronous=NORMAL` 비교, 프로세스 시작 지문 시간은 쓰기 연결을 시험에서 바꿀 길이 없어(platform-store 시험 훅 필요) 재지 못했습니다. macOS `fullfsync` 기본값과 지문 수단은 사용자 묶음입니다(아래 §5).
+
+## 2.2 데스크톱 측정표 (Y17)
+
+`just desktop-benchmark <size|startup|frame|trace|all>`(`xeon/scripts/desktop-benchmark.ts`)가 쟀습니다. 실제 모델 호출은 없습니다. 기기: Apple M1 Pro, 메모리 32 GB, macOS 26.5.2(arm64), 2026-11-04. **측정 중 load average가 약 625(1분)였습니다.** 다른 worktree의 작업이 함께 돌아 시간 값은 기준선이 아니라 참고입니다. 예산 칸은 모두 기록만입니다 [결정: 2026-11-04 사용자, B17]. 값을 줄이는 일이 목표가 아닙니다(ADR-0012).
+
+| 지표 | 뜻 | 값 | 못 잰 부분 |
+|---|---|---|---|
+| `app_size_mib` | 릴리즈 앱 크기: 셸 바이너리 + 번들 사이드카(`just desktop-build`, `just desktop-sidecar host`) | 109.3 MiB(셸 13.6 + 사이드카 95.8, 화면 번들 3 MiB는 셸 안). 상한 500 MiB 이내 | `.app`·설치 파일은 만들지 않아 못 잼(맨 바이너리 합) |
+| `first_screen_ms` | 프로세스 시작부터 앱 창이 비지 않게 그려진 첫 화면까지(창 스크린샷이 10만 바이트 이상) | 중앙값 6,653 ms. 5회 6,653 / 9,355 / 5,101 / 5,380 / 11,343 ms. 창이 화면에 뜨기까지 중앙값 2,704 ms. 해상도 약 300 ms | 깨끗한 홈(모델 키 없음)이라 "설정 필요" 첫 화면입니다. 부하가 커서 흔들림이 큽니다. 앱 안의 그리기 완료 표식이 없어 스크린샷으로 대신했습니다 |
+| `idle_rss_mib` | 첫 화면 10초 뒤 유휴 메모리: 셸 + 엔진(사이드카) + 이번 실행 중 새로 생긴 WebKit 도우미 프로세스의 상주 메모리 합 | 3회 중앙값 219.9 MiB(셸 78.7, 엔진 81.8, WebKit 57.3), 5회 중앙값 338.7 MiB | 같은 시간에 다른 앱이 띄운 WebKit 프로세스가 섞여 WebKit 몫이 흔들립니다. 셸과 엔진 값(약 79, 약 82 MiB)이 믿을 만합니다. 공유 페이지를 프로세스마다 세어 실제보다 큽니다 |
+| `orbit_frame_cpu_ms` | 크래프트 지도 한 장의 계산 시간(배치, 밝힘, 보일 것 고르기), 확장 77개 고정 데이터(`buildFixture(77)`), 2,000장 | p50 0.019 ms, p95 0.033 ms, 최대 393.6 ms(한 번의 튀는 값: 적재·GC나 부하) | **실제 프레임 시간은 못 잼.** WebGL 배경, DOM 그리기, 합성은 창 안에서 77개 데이터를 띄울 길이 없어 재지 못했습니다. 위 값은 한 프레임 예산(16.7 ms) 중 계산 몫의 하한입니다 |
+| 계측 켬·끔 Turn 비용 | 한 Turn(시작부터 `turn.completed`)의 시간, 모델 테이프(즉답), 기본 그룹, Turn 30개 × 5라운드 | 아래 표 | 모델 시간이 0에 가까워 비중의 상한에 가깝습니다 |
+
+| 조건(`x.operations.trace`) | Turn p50 | Turn p95 | 힙 증가(평균, 30 Turn) | p50 차이(끔 대비) |
+|---|---|---|---|---|
+| 끔 | 36.2 ms | 111.0 ms | 3.54 MB | 기준 |
+| 켬, thread당 8 Turn | 35.6 ms | 111.8 ms | 2.36 MB | −1.8% |
+| 켬, 20 Turn(기본값) | 36.6 ms | 96.0 ms | 1.92 MB | +0.9% |
+| 켬, 200 Turn(상한) | 37.3 ms | 109.0 ms | 2.47 MB | +2.9% |
+
+- 이전 값(끔 45.8 ms, 8 Turn +1.0%, 20 +1.3%, 200 +1.9%, p50, 힙 미측정)과 방향이 같습니다: 켬 비용은 한 자리 퍼센트 이하이고 조건 사이 차이가 라운드 사이 흔들림 안에 듭니다. 힙은 조건 순서와 맞지 않습니다(끔이 가장 큼). 이 크기에서는 계측의 메모리 비용을 가려낼 수 없고, 값은 GC 시점과 부하에 좌우됩니다.
+- 트레이스 수 값(8, 20, 200)은 사용자 결정(B18)이라 바꾸지 않았습니다.
+- 실행: `just desktop-benchmark all`(앱을 먼저 빌드). 값만 다시 재려면 `size`, `frame`, `trace`, `startup --runs <n>`. `startup`은 macOS GUI 환경(로그인한 화면)이 필요하고 없으면 종료코드 2입니다.
 
 ## 3. 규칙
 
@@ -82,6 +105,7 @@ binds: []
 ## 4. 강제 수단
 
 - `xeon/scripts/benchmark.test.ts`: 통계, 예산 판정, `--first-token`의 확인 요구를 값으로 비교합니다.
+- `xeon/scripts/desktop-benchmark.test.ts`: 앱 크기 판정(500 MiB), `ps` 해석, 유휴 메모리 합산(앱 트리와 새 WebKit 프로세스만), 중앙값, 첫 화면 기준을 값으로 비교합니다(Y17).
 - `xeon/scripts/benchmark-gate.test.ts`: 측정 줄 해석, 예산 판정(대기, 안, 초과), 게이트 통과·실패(`--strict`는 예산 대기도 실패), 출시 예산이 모두 대기 상태인지 값으로 비교합니다. `just benchmark-gate`가 서버 측정 결과로 게이트를 돌립니다.
 - 리뷰: 예산표 값이 바뀌면 `BUDGET_MS`도 같은 커밋에서 바뀌어야 합니다.
 

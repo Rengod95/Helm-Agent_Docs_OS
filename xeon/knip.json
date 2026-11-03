@@ -43,7 +43,12 @@
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
     },
     "apps/desktop": {
-      "entry": ["test/**/*.test.{ts,tsx}", "mockups/*/main.tsx", "src/styles.css"],
+      "entry": [
+        "test/**/*.test.{ts,tsx}",
+        "test/**/*.benchmark.ts",
+        "mockups/*/main.tsx",
+        "src/styles.css"
+      ],
       "ignore": ["mockups/**"]
     },
     "apps/host": {
