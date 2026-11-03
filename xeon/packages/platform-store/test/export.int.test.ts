@@ -203,3 +203,83 @@ describe("exportDatabase", () => {
     expect(existsSync(dest)).toBe(false);
   });
 });
+
+/** 파일 시스템 오류처럼 code를 가진 예외. 내보내기는 code로 분류한다 */
+function fsError(code: string): Error {
+  return Object.assign(new Error(`${code}: injected`), { code });
+}
+
+describe("exportDatabase under a concurrent removal", () => {
+  test("a blob directory removed before cleanup does not replace the original error", async () => {
+    const dir = own(tempDir());
+    const clock = manualClock();
+    const source = join(dir.path, "src", "fresnel.db");
+    const [ref] = await seedStore(source, clock, [BYTES]);
+    if (ref === undefined) throw new Error("no blob ref");
+    const dest = join(dir.path, "out");
+    const shard = join(dest, "blobs", ref.sha256.slice(0, 2));
+
+    const exported = exportDatabase({
+      dbPath: source,
+      destDir: dest,
+      clock,
+      faults: {
+        // 복사 직전 지점: 다른 쪽이 블롭 디렉터리를 먼저 지운 뒤 복사가 I/O 오류를 낸다. 정리는 이미 없는 디렉터리를 지우게 된다
+        hit: (): void => {
+          rmSync(shard, { recursive: true, force: true });
+          throw fsError("EIO");
+        },
+      },
+    });
+    expect(exported).toEqual({ ok: false, error: { kind: "io", code: "EIO" } });
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  test("a blob removed between its check and its copy is io ENOENT and leaves nothing behind", async () => {
+    const dir = own(tempDir());
+    const clock = manualClock();
+    const source = join(dir.path, "src", "fresnel.db");
+    const [ref] = await seedStore(source, clock, [BYTES]);
+    if (ref === undefined) throw new Error("no blob ref");
+    const dest = join(dir.path, "out");
+
+    const exported = exportDatabase({
+      dbPath: source,
+      destDir: dest,
+      clock,
+      faults: {
+        // 복사 직전 지점: 확인을 통과한 블롭 파일이 복사 전에 사라진다
+        hit: (): void => {
+          rmSync(blobPathOf(join(dir.path, "src"), ref));
+        },
+      },
+    });
+    expect(exported).toEqual({ ok: false, error: { kind: "io", code: "ENOENT" } });
+    expect(existsSync(dest)).toBe(false);
+  });
+
+  test("when cleanup fails too, the cleanup error is returned and the original error is not (S-14)", async () => {
+    const dir = own(tempDir());
+    const clock = manualClock();
+    const source = join(dir.path, "src", "fresnel.db");
+    const [ref] = await seedStore(source, clock, [BYTES]);
+    if (ref === undefined) throw new Error("no blob ref");
+    const dest = join(dir.path, "out");
+    const shard = join(dest, "blobs", ref.sha256.slice(0, 2));
+
+    const exported = exportDatabase({
+      dbPath: source,
+      destDir: dest,
+      clock,
+      faults: {
+        // 복사 직전 지점: 블롭 디렉터리에 남의 파일이 생긴 뒤 복사가 실패한다. 정리는 그 디렉터리를 지우지 못한다
+        hit: (): void => {
+          writeFileSync(join(shard, "foreign.txt"), "not ours");
+          throw fsError("EIO");
+        },
+      },
+    });
+    expect(exported).toEqual({ ok: false, error: { kind: "io", code: "ENOTEMPTY" } });
+    expect(readFileSync(join(shard, "foreign.txt"), "utf8")).toBe("not ours");
+  });
+});
