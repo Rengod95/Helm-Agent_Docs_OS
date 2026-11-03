@@ -16,12 +16,13 @@ export const FRAME_SANDBOX = "allow-scripts" as const;
 export const READY_TIMEOUT_MS = 5000;
 export const HOST_BRIDGE_RANGE: string = `${String(BRIDGE_VERSION)}.0.0`;
 
-export interface FrameWindowLike {
-  postMessage(message: unknown, targetOrigin: string, transfer: readonly unknown[]): void;
+/** `Transfer`는 포트로 옮겨 보내는 값의 종류다. DOM에서는 MessagePort가 들어오고 시험에서는 대역이 들어온다 */
+export interface FrameWindowLike<Transfer> {
+  postMessage(message: unknown, targetOrigin: string, transfer: Transfer[]): void;
 }
-export interface FrameElementLike {
+export interface FrameElementLike<Transfer> {
   setAttribute(name: string, value: string): void;
-  readonly contentWindow: FrameWindowLike | null;
+  readonly contentWindow: FrameWindowLike<Transfer> | null;
   addEventListener(type: "load", listener: () => void): void;
   removeEventListener(type: "load", listener: () => void): void;
 }
@@ -33,23 +34,23 @@ export interface MessageSourceLike {
   addEventListener(type: "message", listener: (event: MessageEventLike) => void): void;
   removeEventListener(type: "message", listener: (event: MessageEventLike) => void): void;
 }
-export interface ChannelLike {
+export interface ChannelLike<Transfer> {
   readonly port1: BridgePort;
   /** 프레임으로 옮겨 보내는 쪽 */
-  readonly port2: unknown;
+  readonly port2: Transfer;
 }
 
 export type FrameState = "loading" | "ready" | "closed";
 
-export interface FrameHostOptions {
-  readonly element: FrameElementLike;
+export interface FrameHostOptions<Transfer> {
+  readonly element: FrameElementLike<Transfer>;
   /** 앱 문서의 `window`. `message`를 듣는다 */
   readonly messages: MessageSourceLike;
   /** `fresnel-view://...` 프레임 주소. buildAppUrl이 만든 값 */
   readonly url: string;
   /** 매니페스트 `app.bridge`. `ready`가 같은 값을 말해야 한다 */
   readonly declaredBridge: string;
-  readonly createChannel: () => ChannelLike;
+  readonly createChannel: () => ChannelLike<Transfer>;
   readonly scheduler: Scheduler;
   readonly ledger: ScreenLedger;
   readonly screenKey: string;
@@ -71,7 +72,10 @@ export interface FrameHost {
 }
 
 /** iframe에 거는 속성. `src`는 마지막에 건다(다른 속성이 먼저 적용돼야 한다) */
-export function applyFrameAttributes(element: FrameElementLike, url: string): void {
+export function applyFrameAttributes(
+  element: { setAttribute(name: string, value: string): void },
+  url: string,
+): void {
   element.setAttribute("sandbox", FRAME_SANDBOX);
   element.setAttribute("referrerpolicy", "no-referrer");
   // 권한 정책을 비운다(카메라, 마이크, 위치 등 전부 막힘)
@@ -79,7 +83,7 @@ export function applyFrameAttributes(element: FrameElementLike, url: string): vo
   element.setAttribute("src", url);
 }
 
-export function attachFrame(options: FrameHostOptions): FrameHost {
+export function attachFrame<Transfer>(options: FrameHostOptions<Transfer>): FrameHost {
   const { element, messages, scheduler } = options;
   let state: FrameState = "loading";
   let bridge: BridgeHost | undefined;

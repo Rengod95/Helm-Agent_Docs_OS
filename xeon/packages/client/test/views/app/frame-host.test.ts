@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { createScreenLedger } from "../../../src/views/ledger.ts";
 import {
-  APP_FRAME_CSP,
+  appBase,
+  appFrameCsp,
   appResponseHeaders,
   attachFrame,
   buildAppUrl,
@@ -29,7 +30,7 @@ import {
 interface Sent {
   readonly message: unknown;
   readonly targetOrigin: string;
-  readonly transfer: readonly unknown[];
+  readonly transfer: unknown[];
 }
 
 function setupFrame() {
@@ -40,11 +41,11 @@ function setupFrame() {
   const messageListeners = new Set<(event: MessageEventLike) => void>();
   const sent: Sent[] = [];
   const frameWindow = {
-    postMessage(message: unknown, targetOrigin: string, transfer: readonly unknown[]): void {
+    postMessage(message: unknown, targetOrigin: string, transfer: unknown[]): void {
       sent.push({ message, targetOrigin, transfer });
     },
   };
-  const element: FrameElementLike = {
+  const element: FrameElementLike<unknown> = {
     setAttribute(name, value) {
       attributes[name] = value;
     },
@@ -265,18 +266,35 @@ describe("app scheme", () => {
     });
   });
 
-  test("the frame CSP is the spec string and every response carries it", () => {
-    expect(APP_FRAME_CSP).toBe(
-      "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'none'; frame-src 'none'; worker-src 'self' blob:; form-action 'none'; base-uri 'none'",
+  test("the frame CSP pins every source to the extension version prefix and blocks the network", () => {
+    const base = appBase("helm", "1.0.0");
+    expect(base).toBe("fresnel-view://helm/1.0.0/");
+    expect(appFrameCsp("fresnel-view://helm/1.0.0/")).toBe(
+      "default-src 'none'; script-src fresnel-view://helm/1.0.0/; style-src fresnel-view://helm/1.0.0/ 'unsafe-inline'; img-src fresnel-view://helm/1.0.0/ data: blob:; font-src fresnel-view://helm/1.0.0/; media-src fresnel-view://helm/1.0.0/ blob:; connect-src 'none'; frame-src 'none'; worker-src fresnel-view://helm/1.0.0/ blob:; form-action 'none'; base-uri 'none'",
     );
     expect(HOST_DOCUMENT_CSP).toBe(
       "default-src 'self'; connect-src ipc: http://ipc.localhost; frame-src fresnel-view:",
     );
-    const headers = appResponseHeaders("text/html; charset=utf-8");
-    expect(headers["Content-Type"]).toBe("text/html; charset=utf-8");
-    expect(headers["Content-Security-Policy"]).toBe(APP_FRAME_CSP);
-    expect(headers["X-Content-Type-Options"]).toBe("nosniff");
-    expect(headers["Cache-Control"]).toBe("no-store");
+    const headers = appResponseHeaders("text/html; charset=utf-8", "fresnel-view://helm/1.0.0/");
+    expect(headers?.["Content-Type"]).toBe("text/html; charset=utf-8");
+    expect(headers?.["Content-Security-Policy"]).toBe(appFrameCsp("fresnel-view://helm/1.0.0/"));
+    expect(headers?.["X-Content-Type-Options"]).toBe("nosniff");
+    expect(headers?.["Cache-Control"]).toBe("no-store");
+  });
+
+  test("a base that could break the CSP list is refused", () => {
+    for (const bad of [
+      "fresnel-view://helm/1.0.0",
+      "fresnel-view://a b/1.0.0/",
+      "fresnel-view://x/;script-src */",
+      "x",
+      "fresnel-view://x/'unsafe-eval'/",
+    ]) {
+      expect(appFrameCsp(bad)).toBeUndefined();
+      expect(appResponseHeaders("text/html", bad)).toBeUndefined();
+    }
+    expect(appBase("../x", "1.0.0")).toBeUndefined();
+    expect(appBase("helm", "x")).toBeUndefined();
   });
 });
 

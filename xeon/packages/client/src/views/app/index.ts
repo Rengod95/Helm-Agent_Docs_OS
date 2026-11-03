@@ -41,7 +41,8 @@ export {
   type NavigateTarget,
 } from "./policy.ts";
 export {
-  APP_FRAME_CSP,
+  appBase,
+  appFrameCsp,
   APP_SCHEME,
   HOST_DOCUMENT_CSP,
   TOKENS_HOST,
