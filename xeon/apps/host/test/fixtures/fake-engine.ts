@@ -26,7 +26,7 @@ import { createProfileTestRunPort } from "../../src/assembly/m4/profile-test-run
 import { createExtReadPort, EMPTY_EXT_READ_SOURCES } from "../../src/assembly/m4/ext-read-port.ts";
 import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
 import type { ExtMethodPort } from "../../src/handlers/m4/ext-method.ts";
-import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
+import { createFakeSecrets, NO_DISPLAY, type FakeSecrets } from "./fake-secrets.ts";
 import { createProcessShutdown } from "@fresnel/platform-process";
 import { createManualScheduler, type ManualScheduler } from "./manual-scheduler.ts";
 import type {
@@ -80,6 +80,8 @@ const noExtensionsPort: ExtUiVersionPort = {
 
 export interface FakeEngineOptions {
   readonly mode?: HostMode;
+  /** 화면 가림 면. 생략하면 아무것도 가리지 않는다. 값 가림을 보는 시험은 실제 redactor를 넘긴다 */
+  readonly display?: EnginePorts["secrets"]["display"];
   /** 연속 시작 실패 수와 안전 모드 제안(`host.status`). 생략하면 0과 거짓 */
   readonly startup?: Engine["startup"];
   readonly storeId?: StoreId;
@@ -155,7 +157,13 @@ export interface FakeEngine {
   readonly scheduler: ManualScheduler;
   /** 종료 협조 시한을 넘겨 불린 exit의 종료코드. 대역의 exit는 프로세스를 끝내지 않고 던진다 */
   readonly exits: number[];
-  emitVolatile(event: Pick<VolatileEventEnvelope, "threadId" | "turnId" | "n" | "afterSeq">): void;
+  emitVolatile(
+    event: Pick<VolatileEventEnvelope, "threadId" | "turnId" | "n" | "afterSeq"> & {
+      /** 생략하면 `{ delta: "x" }`다. 파트 조각을 흉내 낼 때 넘긴다 */
+      readonly payload?: unknown;
+      readonly kind?: VolatileEventEnvelope["kind"];
+    },
+  ): void;
   /** 설정 변경 신호를 낸다(`SettingsStorePort.onChange` 구독자에게). 실제 엔진에서는 설정 저장소와 신뢰 결정이 낸다 */
   emitSettingsChange(change: SettingsChange): void;
   /** 알림 하나를 알림 포트의 구독자(`subscribeNotices`)에게 낸다. 실제 엔진에서는 cap-dialog의 알림 서비스가 낸다 */
@@ -448,7 +456,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         log.infos.push({ message, fields });
       },
     },
-    secrets: secrets.port,
+    secrets: { ...secrets.port, display: options.display ?? NO_DISPLAY },
     models: { modelIds: (provider) => (provider === "tape" ? ["tape-1"] : []) },
     ids,
     clock: { now: () => RECORDED_AT },
@@ -533,7 +541,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     emitVolatile(partial) {
       const event: VolatileEventEnvelope = {
         id: ids.next("evt"),
-        kind: "item.updated",
+        kind: partial.kind ?? "item.updated",
         version: 1,
         durable: false,
         threadId: partial.threadId,
@@ -542,7 +550,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         recordedAt: RECORDED_AT,
         causationId: null,
         correlationId: null,
-        payload: { delta: "x" },
+        payload: partial.payload ?? { delta: "x" },
         n: partial.n,
         afterSeq: partial.afterSeq,
       };

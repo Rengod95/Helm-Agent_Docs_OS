@@ -1,5 +1,6 @@
 import { assertNever } from "@fresnel/contracts";
 import type { WireError, WireHandler } from "@fresnel/contracts/wire";
+import { approvalMaskEntries } from "../display-mask.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 import type { ApprovalListFailure, Engine } from "../types.ts";
 import { threadLocked } from "./owner.ts";
@@ -48,6 +49,8 @@ export function createApprovalListHandler(engine: Engine): WireHandler<"approval
         ? await approvals.listAll()
         : await approvals.list(params.threadId);
     if (!listed.ok) throw listFailure(listed.error);
-    return listed.value;
+    // 화면 가림 표식은 목록 옆에 붙인다. 승인 목록은 바뀌지 않는다(L0.secrets.spec §3.5.1)
+    const masks = approvalMaskEntries(engine.ports.secrets.display, listed.value.approvals);
+    return masks.length === 0 ? listed.value : { ...listed.value, masks };
   };
 }

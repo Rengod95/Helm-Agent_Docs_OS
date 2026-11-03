@@ -22,6 +22,7 @@ import type {
   HostedSearchPort,
   LoopError,
   ResumeResult,
+  Redactor,
   SecretAdminService,
   ShutdownCoordinator,
   ShutdownReason,
@@ -651,6 +652,11 @@ export interface UserNotifyPort {
  */
 export interface SecretsPort {
   readonly admin: SecretAdminService;
+  /**
+   * 화면 가림 표식을 만드는 redactor 면(L0.secrets.spec §3.5.1 [결정: 2026-11-03 사용자]). 이벤트 송신이 쓴다.
+   * 값은 이 면이 돌려주지 않는다. 구간만 wire에 싣는다.
+   */
+  readonly display: Pick<Redactor, "displayRanges" | "displayVisibleLength" | "displayLeafMasks">;
   /** CLI가 맡긴 값 입력·열람 수단. 처리기가 꺼내 쓰고, 맡기는 쪽은 `InProcessHost.secretOutOfBand`다 */
   readonly offers: SecretOfferStore;
   /**

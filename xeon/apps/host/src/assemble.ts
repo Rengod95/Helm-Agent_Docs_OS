@@ -914,6 +914,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           targetOf: (providerId) => models.providerTarget(providerId),
           logger: os.logger("secret-link"),
         }),
+        secrets.service.redactor,
       ),
       commands,
       dialogArea,
