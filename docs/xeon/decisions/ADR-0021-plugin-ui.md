@@ -133,6 +133,7 @@ interface ExtMethodDecl {
 
 - 노드: `{ type, props?, bind?, each?, when?, children? }`. `type`은 위젯 카탈로그 이름입니다. `props`는 caustic 부품의 `variant`, `tone`, `size` 같은 선택값과 글자만 받습니다(DP-08). 색, 크기 숫자, CSS, HTML은 받지 않습니다.
 - 표현식: 데이터 경로(JSON Pointer)와 같음·있음·없음 비교, 배열 반복(`each`)만 둡니다. 스크립트와 함수 호출은 두지 않습니다. 숫자·시간·바이트·상대 시각 서식은 호스트가 이름으로 제공합니다(`format: "duration"` 등).
+- 일 예산 [결정: 2026-11-04 사용자]: 렌더러는 `each` 복사 한 벌과 `when` 판정 한 번을 일 한 단위로 세고 `treeNodes`의 10배(2000 × 10)에서 멈춥니다. 그리지 않는 복사(거짓 `when`)도 세므로 중첩 `each`가 앱을 얼리지 못합니다. 멈추면 `truncated`가 참입니다. 선언형 화면은 프로젝트 신뢰 아래에서도 열리므로 복제한 저장소가 앱을 멈출 수 없어야 합니다.
 - 위젯 카탈로그 v1(초안): 배치(`Stack`, `Row`, `Section`, `Tabs`, `Split`), 글(`Text`, `Heading`, `Markdown`(HTML 없는 부분 집합), `Code`), 자료(`List`, `Table`, `ListDescription`, `Badge`, `Chip`, `Progress`, `Meter`, `Stepper`, `ActivityTree`, `Timeline`, `Sparkline`), 알림(`Alert`, `EmptyState`, `Skeleton`), 입력(`Button`, `Switch`, `Select`, `TextField`, `NumberField`, `SegmentedControl`, `Form`), 연결(`ThreadLink`, `TurnLink`, `ViewLink`, `ApprovalLink`). 이름은 caustic export와 같게 두고, caustic에 없는 것은 `L4.desktop-ux.spec` §9 간극으로 올립니다.
 
 #### 3.4.2 프레임 다리

@@ -32,6 +32,8 @@ import { createScope, resolvePath, withLocal, type Scope } from "./scope.ts";
 
 const BOUND_STRING_LIMIT = 4096;
 const EACH_COPY_LIMIT: number = UI_LIMITS.eventRows;
+/** each 복사 한 벌과 when 판정 한 번이 각각 일 한 단위다. 그리지 않는 복사도 세므로 거짓 when 아래의 중첩 each도 멈춘다 */
+const WORK_LIMIT: number = UI_LIMITS.treeNodes * 10;
 
 export interface ResolvedNode {
   readonly type: string;
@@ -60,6 +62,7 @@ interface Walk {
   readonly nodeLimit: number;
   readonly depthLimit: number;
   nodes: number;
+  work: number;
   stopped: boolean;
   truncated: boolean;
   readonly issues: TreeIssue[];
@@ -74,6 +77,7 @@ export function resolveTree(tree: UiNode, input: ResolveInput): ResolvedTree {
     nodeLimit: input.limits?.nodes ?? UI_LIMITS.treeNodes,
     depthLimit: input.limits?.depth ?? UI_LIMITS.treeDepth,
     nodes: 0,
+    work: 0,
     stopped: false,
     truncated: false,
     issues: [...check.issues],
@@ -106,6 +110,7 @@ function resolveTemplate(
   const count = Math.min(items.length, EACH_COPY_LIMIT);
   const copies: ResolvedNode[] = [];
   for (let index = 0; index < count && !isStopped(walk); index += 1) {
+    if (!spendWork(walk)) break;
     const inner = withLocal(scope, each.as, items[index]);
     copies.push(...resolveInstance(node, inner, depth, path, walk));
   }
@@ -126,7 +131,10 @@ function resolveInstance(
   walk: Walk,
 ): readonly ResolvedNode[] {
   if (walk.stopped) return [];
-  if (node.when !== undefined && !evalCondition(node.when, scope)) return [];
+  if (node.when !== undefined) {
+    if (!spendWork(walk)) return [];
+    if (!evalCondition(node.when, scope)) return [];
+  }
   if (depth > walk.depthLimit || walk.nodes >= walk.nodeLimit) {
     return [stop(node.type, walk)];
   }
@@ -142,6 +150,16 @@ function resolveInstance(
     children.push(...resolveTemplate(child, scope, depth + 1, `${path}/children/${index}`, walk));
   }
   return [{ type, props, children }];
+}
+
+/** 일 한 단위를 쓴다. 예산이 다하면 멈추고 잘렸다고 표시한다(자리표시 노드는 없다) */
+function spendWork(walk: Walk): boolean {
+  if (walk.stopped) return false;
+  walk.work += 1;
+  if (walk.work <= WORK_LIMIT) return true;
+  walk.stopped = true;
+  walk.truncated = true;
+  return false;
 }
 
 function stop(type: string, walk: Walk): ResolvedNode {

@@ -228,6 +228,26 @@ describe("resolveTree structure rules", () => {
     ]);
   });
 
+  test("copies that fail their when still spend the work budget, so nested each cannot freeze", () => {
+    const leaf: UiNode = {
+      type: "Text",
+      props: { text: "never" },
+      each: { path: "/items", as: "x" },
+      when: { path: "/flag", op: "eq", value: true },
+    };
+    const tree: UiNode = {
+      type: "Stack",
+      each: { path: "/items", as: "row" },
+      children: Array.from({ length: 100 }, () => leaf),
+    };
+    const items = Array.from({ length: 500 }, (_, index) => index);
+    const started = Date.now();
+    const resolved = resolveTree(tree, input({ items, flag: false }));
+    expect(resolved.truncated).toBe(true);
+    expect(Date.now() - started).toBeLessThan(2000);
+    for (const child of resolved.root?.children ?? []) expect(child.children).toEqual([]);
+  });
+
   test("a root each with several copies is wrapped in one Stack", () => {
     const tree: UiNode = {
       type: "Text",
