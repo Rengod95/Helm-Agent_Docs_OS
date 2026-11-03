@@ -9,6 +9,7 @@ import type {
   PluginDecl,
   RegistrationDef,
   RegistrationSetup,
+  TrustRequest,
 } from "@fresnel/contracts/extensions";
 import type {
   AssistantMessage,
@@ -118,6 +119,8 @@ export interface UnitInput<S> extends ManifestInput {
   readonly def?: RegistrationDef<S>;
   readonly loadIndex?: number;
   readonly builtin?: boolean;
+  /** 로더가 정한 유효 등급(단위의 `trust`). 매니페스트 `trust`(요청)와 따로 준다. 생략하면 host가 정한다 */
+  readonly loadedTrust?: TrustRequest["level"];
   readonly initialEnabled?: boolean;
 }
 
@@ -134,6 +137,7 @@ export function makeUnit<S = never>(
     },
     loadIndex: input.loadIndex ?? 0,
     builtin: input.builtin ?? true,
+    ...(input.loadedTrust === undefined ? {} : { trust: input.loadedTrust }),
     ...(input.initialEnabled === undefined ? {} : { initialEnabled: input.initialEnabled }),
   };
 }

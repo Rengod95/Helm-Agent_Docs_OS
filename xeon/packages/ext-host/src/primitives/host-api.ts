@@ -520,12 +520,10 @@ export function createRegistrationApi(
             def.execute(args, ctx),
           ),
       };
-      // 매니페스트 `replaces`에 적은 이름만 내장 도구 대체 등록이다. 적지 않았으면 이름 정책이 정식 이름으로 돌린다
+      // 매니페스트 `replaces`에 적은 이름만 내장 도구 대체 등록이다. 적지 않았으면 이름 정책이 정식 이름으로 돌린다.
+      // 출처 등급은 로더가 정한 유효 등급이다. 매니페스트 요청은 설치 위치 상한을 넘을 수 없어 거부되므로 요청 값을 쓰면 안 된다
       const replaces: ToolReplaceClaim | undefined = plugin.decl.replaces?.includes(def.name)
-        ? {
-            extension: record.extension,
-            trust: record.builtin ? "builtin" : (manifest.trust?.level ?? "user"),
-          }
+        ? { extension: record.extension, trust: record.trust }
         : undefined;
       register("tool", def.name, wrapped, replaces);
     },

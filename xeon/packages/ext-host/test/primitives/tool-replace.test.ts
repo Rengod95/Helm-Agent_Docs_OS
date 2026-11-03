@@ -80,7 +80,13 @@ test("a declared name reaches the tools port with the claim and keeps its short 
   const registered = await withToolsPort(t);
   await t.host.install(
     makeUnit(
-      { name: "acme-files", builtin: false, replaces: ["read"], trust: { level: "project" } },
+      {
+        name: "acme-files",
+        builtin: false,
+        replaces: ["read"],
+        trust: { level: "project" },
+        loadedTrust: "project",
+      },
       (g) => {
         hostOf(g).registerTool({ ...def("read"), risk: "exec" });
       },
@@ -94,12 +100,12 @@ test("a declared name reaches the tools port with the claim and keeps its short 
   ]);
 });
 
-test("a user-trust extension without a trust request is labelled user and a builtin one builtin", async () => {
+test("the claim carries the loaded trust, not the manifest request, and a unit without one is untrusted", async () => {
   const t = await createTestHost({ resourcePolicy: createResourcePolicy(NO_RESERVED_NAMES) });
   const registered = await withToolsPort(t);
   registered.delete("read");
   await t.host.install(
-    makeUnit({ name: "plain-user", builtin: false, replaces: ["ls"] }, (g) => {
+    makeUnit({ name: "plain-user", builtin: false, replaces: ["ls"], loadedTrust: "user" }, (g) => {
       hostOf(g).registerTool(def("ls"));
     }),
   );
@@ -108,10 +114,29 @@ test("a user-trust extension without a trust request is labelled user and a buil
       hostOf(g).registerTool(def("grep"));
     }),
   );
+  // 로더 없이 설치한 외부 단위는 등급을 모르므로 가장 낮은 untrusted다. 요청 값은 이 경로에서 쓰지 않는다
+  await t.host.install(
+    makeUnit(
+      {
+        name: "unlabelled",
+        builtin: false,
+        replaces: ["cat"],
+        trust: { level: "user" },
+        loadIndex: 2,
+      },
+      (g) => {
+        hostOf(g).registerTool(def("cat"));
+      },
+    ),
+  );
   expect(registered.get("ls")?.[0]?.replaces).toEqual({ extension: "plain-user", trust: "user" });
   expect(registered.get("grep")?.[0]?.replaces).toEqual({
     extension: "core-grep",
     trust: "builtin",
+  });
+  expect(registered.get("cat")?.[0]?.replaces).toEqual({
+    extension: "unlabelled",
+    trust: "untrusted",
   });
 });
 

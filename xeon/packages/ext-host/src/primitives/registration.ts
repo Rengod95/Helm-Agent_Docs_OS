@@ -265,6 +265,7 @@ function recordOf(unit: InstalledUnit, staged: StagedScope): RegistrationRecord 
     plugin: staged.plugin,
     loadIndex: unit.loadIndex,
     builtin: unit.builtin,
+    trust: unit.trust,
     def: staged.def,
     setup: staged.setup,
     desired: staged.initial,
@@ -285,6 +286,7 @@ function definitionOf(record: RegistrationRecord): RegistrationDefinition {
     plugin: record.plugin,
     loadIndex: record.loadIndex,
     builtin: record.builtin,
+    trust: record.trust,
     def: record.def,
     setup: record.setup,
   };
@@ -295,6 +297,7 @@ function assignDefinition(record: RegistrationRecord, definition: RegistrationDe
   record.plugin = definition.plugin;
   record.loadIndex = definition.loadIndex;
   record.builtin = definition.builtin;
+  record.trust = definition.trust;
   record.def = definition.def;
   record.setup = definition.setup;
 }
@@ -660,6 +663,7 @@ export function createRegistrationRuntime(
         plugin: item.plugin,
         loadIndex: plan.loadIndex,
         builtin: unit.builtin,
+        trust: unit.trust,
         def: item.def,
         setup: item.setup,
       });

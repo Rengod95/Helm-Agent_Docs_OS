@@ -6,6 +6,7 @@ import type {
   ExtensionManifest,
   LoaderFs,
   ManifestIssue,
+  TrustRequest,
 } from "@fresnel/contracts/extensions";
 import { PrimitiveError } from "../primitives/errors.ts";
 import type { ExtensionUnit, InstallResult } from "../primitives/host.ts";
@@ -149,18 +150,20 @@ export function verdictOfInstall(result: InstallResult): InstallVerdict {
   return { ok: !diagnostics.some((entry) => entry.severity === "error"), diagnostics };
 }
 
-/** 내장 모듈과 검증을 마친 매니페스트 → ExtHost.install이 받는 단위 */
+/** 내장 모듈과 검증을 마친 매니페스트 → ExtHost.install이 받는 단위. `trust`는 신뢰 단계가 정한 유효 등급이다 */
 export function unitOfBuiltin(
   module: BuiltinExtensionModule,
   manifest: ExtensionManifest,
   loadIndex: number,
   initialEnabled: boolean | undefined,
+  trust: TrustRequest["level"],
 ): ExtensionUnit {
   return {
     manifest,
     entry: module.extension,
     loadIndex,
     builtin: true,
+    trust,
     ...(initialEnabled === undefined ? {} : { initialEnabled }),
   };
 }
@@ -248,18 +251,20 @@ export async function importExternalEntry(
   return ok(entry);
 }
 
-/** 외부 확장과 검증을 마친 매니페스트 → ExtHost.install이 받는 단위 */
+/** 외부 확장과 검증을 마친 매니페스트 → ExtHost.install이 받는 단위. `trust`는 신뢰 단계가 정한 유효 등급이다 */
 export function unitOfExternal(
   entry: ExtensionEntry,
   manifest: ExtensionManifest,
   loadIndex: number,
   initialEnabled: boolean | undefined,
+  trust: TrustRequest["level"],
 ): ExtensionUnit {
   return {
     manifest,
     entry,
     loadIndex,
     builtin: false,
+    trust,
     ...(initialEnabled === undefined ? {} : { initialEnabled }),
   };
 }
