@@ -2335,7 +2335,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 항목 | 출처 |
 |---|---|
-| 시험 목록(종류, 대상, 결과, 시각, 소요) | `ext.test.list` `[gap:W-29]` |
+| 시험 목록(종류 `replay`·`testRun`, 대상, 결과, 시각, 소요). benchmark와 코어 변경 검사는 이 목록에 없다(W-30은 wire가 아니다) | `ext.test.list` `[gap:W-29]` |
 | replay 결과(커밋 수, 절단마다 같음·다름(`cuts[].equal`), 처음 다른 위치 `firstDiff`, 효과 수 `EffectCounts`(turn, spawn, delegate, post), 실패 종류 `effects-doubled`·`effects-mismatch`·`max-commits-exceeded`·`no-commits`) | `ReplayDriveReport`(`group-sdk/src/testing/replay/replay-drive.ts`) `[gap:W-29]` |
 | benchmark 결과(지표, 값, 예산, 판정) | `scripts/benchmark-server.ts` 출력과 `benchmark-gate` 판정. 예산은 모두 미정("사용자 결정 대기") `[gap:W-30]` |
 | 코어 변경 검사(보호 경로 변경 파일) | `scripts/core-diff-check.ts` 종료 코드 0·1·2와 파일 목록 `[gap:W-30]` |
@@ -2385,7 +2385,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 요약 | `GroupStatus.metrics`(`GroupMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
 | 핸들러 시간과 예산 | `[gap:W-23]`. 예산 값은 `x.operations.budget.*` |
 | 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion` `[gap:W-26]`. 임시로 `/group status`의 "승격 후보" 줄 |
-| 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | `ext.test.list`의 마지막 `diff` 결과 `[gap:W-29]` `[gap:W-30]` |
+| 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | 개발 모드 셸 명령 `core-diff-check`의 마지막 결과. `ext.test.list`는 `replay`·`testRun`만 돌려주므로 읽는 wire가 없다 `[gap:W-30]` |
 | 대화별 사용량 | `usage.get { threadId }` |
 
 - 기능: 기간 고르기(1일, 7일, 30일), 행 누르기(P-17 측정 탭), CSV 복사 [제안]. 맥락은 왼쪽 패널 맥락 칸에서만 바꿉니다(§6.21). 머리에 맥락 `Select`를 두지 않습니다.
@@ -3002,7 +3002,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-12 | T-16 플러그인 화면 흉내 위협 행 | `architecture.security.spec` §4 | 없음 |
 | X-13 | `managed` 설치 위치가 tier `guard`가 되는 코드(`ext-host/src/operations/tier.ts` `assignTier`의 `case "managed"`)와 주석·문서의 상한 `user` 설명의 차이. LightCraft가 tier를 보이므로 먼저 맞춰야 함 | `X.operations.spec` §3.1, `X.loading-trust.spec` §3.1 | 코드 결함 확인(2026-10-31). 주석은 "사용자 등급 상한"인데 `ok("guard")`를 돌려줌 |
 | X-14 | Test run 표지(`ThreadSummary.trial`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 기본값은 제외 [제안] |
-| X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), `x.operations.trace.turnsPerThread`(기본 8) [제안] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 대화마다 작은 버퍼] |
+| X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), `x.operations.trace.turnsPerThread`(기본 20, 코드와 `X.operations.spec` §6이 같다) [제안] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 대화마다 작은 버퍼] |
 | X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
 | X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 drive 락을 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 Registration을 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
 | X-18 | 프로필 타입(`Profile`)과 호스트 저장소, `profile.*` 메서드 | `F.wire-settings.spec` §3.3·§3.9, `L4.host-service.spec` | 없음 [결정: 2026-10-31 사용자] |
@@ -3089,7 +3089,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | 26 | 프로젝트 안 그룹·훅(`.fresnel/` 아래 L3 그룹)의 신뢰 카드 표기. 이 문서는 카드의 "불러오려는 자원"에 `groups/<이름> (on·post·drive)`처럼 쓰는 연산을 함께 보이는 것을 기본값으로 둡니다(D-23). 신뢰한 폴더의 그룹도 `project` tier라 자동 끄기 대상입니다(`X.operations.spec` §4.3.3, 면제는 guard·core뿐) | `X.loading-trust.spec` §4.7.2 |
 | 27 | 프레임 모드 설정 키(`x.views.frames`, `x.views.allowProjectFrames`)의 소유 문서와, 프레임 `call` 확인 줄을 끌 수 있는 범위 | 사용자, ADR-0021 §6 9번 |
 | 28 | 프로필 저장 파일(`profiles.json`)의 위치와, 프로젝트 범위 프로필(저장소에 커밋되는 프로필)을 둘지 | 사용자, `F.wire-settings.spec`, `L4.host-service.spec` |
-| 29 | 트레이스 버퍼 크기 기본값(대화마다 8턴)과 계측 비용 기준(얼마를 넘으면 기본을 끌지) | 사용자, X-15, T-PERF 결과 |
+| 29 | 트레이스 버퍼 크기 기본값(대화마다 20 Turn, `X.operations.spec` §6)과 계측 비용 기준(얼마를 넘으면 기본을 끌지) | 사용자, X-15, T-PERF 결과 |
 | 30 | Plugin Builder를 기본 켬으로 둘지(이 문서와 `L3.authoring.spec`은 꺼짐) | 사용자, `L3.authoring.spec` §10 |
 | 31 | 버전 기록 보관 개수(확장마다 5)와 위치 | 사용자, X-8 |
 

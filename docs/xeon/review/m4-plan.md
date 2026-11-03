@@ -480,7 +480,7 @@ M4 착수 전이나 도중에 필요한 것과 마감 뒤 한 번에 묻는 것�
 - 이월 범위 확대: §9.3 표는 13행 100개 넘는 항목입니다. T-RT1·T-RT2는 먼저 분류만 하고, M4 완료로 고른 항목만 합니다. 분류 결과는 오케스트레이터가 확인합니다.
 - Haiku의 화면 코드 품질: caustic 규칙(§13, DP-08)과 TS 규칙을 어길 수 있습니다. 리드가 화면마다 `grep` 색 검사와 `check-ts-rules`를 끝 시험에 넣고, 시안 파일을 그대로 옮기는 단위로 작업을 나눕니다.
 - 템플릿 원천 둘: `group-sdk/templates`와 Plugin Builder 카탈로그가 어긋날 수 있습니다. 카탈로그 항목은 템플릿 폴더를 가리키기만 하고, 적합성 시험(A-1, A-2)이 둘을 함께 검사합니다.
-- 용어 `Test run`과 `ext.test.*`: wire 이름 `ext.test.run`·`ext.test.list`(플러그인 시험 묶음 실행)가 `Test run`(격리 대화)과 헷갈릴 수 있습니다. T-F 재작업 때 이름을 정합니다 [미결, `spec-deltas/t-f.md` §6].
+- 용어 `Test run`과 `ext.test.*`: wire 이름 `ext.test.run`·`ext.test.list`(플러그인 시험 묶음 실행)가 `Test run`(격리 대화)과 헷갈릴 수 있습니다. 이름은 그대로 둡니다 [결정: 2026-11-03 제안 기본값 자동 승인, `F.wire-settings.spec`].
 - 테스트 메모리: host int와 데스크톱 e2e가 자식 프로세스와 WebView를 띄웁니다. cgroup 상한 아래 패키지별 실행을 지킵니다.
 
 ## 6. M4 마감 판정
