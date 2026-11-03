@@ -76,7 +76,7 @@ const BUSY_RETRY_ATTEMPTS = 4000;
 export async function startTurnWhenIdle(
   connection: HostConnection,
   params: WireParams<"turn.start">,
-  attempts = BUSY_RETRY_ATTEMPTS,
+  attempts: number = BUSY_RETRY_ATTEMPTS,
 ): Promise<{ readonly turnId: TurnId }> {
   const state = { left: attempts };
   return await repeatAsync<{ readonly turnId: TurnId }>(async () => {
@@ -96,7 +96,7 @@ export async function startTurnWhenIdle(
 export async function compactWhenIdle(
   connection: HostConnection,
   params: WireParams<"thread.compact">,
-  attempts = BUSY_RETRY_ATTEMPTS,
+  attempts: number = BUSY_RETRY_ATTEMPTS,
 ): Promise<WireResult<"thread.compact">> {
   const state = { left: attempts };
   return await repeatAsync<WireResult<"thread.compact">>(async () => {

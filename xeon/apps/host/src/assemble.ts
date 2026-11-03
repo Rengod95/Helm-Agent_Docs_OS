@@ -37,6 +37,7 @@ import {
   createRegistrationControl,
   createVolatileNotifier,
   registrationToggleSourceOf,
+  traceReadOf,
   type ExtHost,
   type ExtensionLoader,
   type ExtensionUnit,
@@ -923,6 +924,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     measureSlot.stop = startMeasurement({
       dir: dbDir,
       session,
+      usage: models.usage,
+      trace: traceReadOf(ext),
       enabled: () => operations.trace().enabled,
       logger,
       now: () => clock.now(),

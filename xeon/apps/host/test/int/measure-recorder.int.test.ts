@@ -54,13 +54,39 @@ async function oneTurn(settings: Readonly<Record<string, unknown>>) {
 }
 
 realTest("a finished turn leaves one turn row with its token usage and status", async () => {
-  const rows = await oneTurn({});
+  const rows = (await oneTurn({})).filter((row) => row.kind === "turn");
   expect(rows).toHaveLength(1);
-  expect(rows[0]?.kind).toBe("turn");
   expect(rows[0]?.tags).toEqual({ status: "completed" });
   expect(rows[0]?.metrics["input"]).toBe(1234);
   expect(rows[0]?.metrics["steps"]).toBe(1);
 });
+
+realTest(
+  "the same turn also leaves its model call, request composition and handler rows",
+  async () => {
+    const rows = await oneTurn({});
+    const calls = rows.filter((row) => row.kind === "call");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.tags["role"]).toBe("main");
+    expect(calls[0]?.metrics["input"]).toBe(1234);
+    expect(typeof calls[0]?.metrics["durationMs"]).toBe("number");
+    const contexts = rows.filter((row) => row.kind === "ctx");
+    expect(contexts).toHaveLength(1);
+    const parts = contexts[0]?.metrics ?? {};
+    const sections = Object.entries(parts)
+      .filter(([name]) => name.startsWith("section."))
+      .reduce((sum, [, tokens]) => sum + tokens, 0);
+    expect(
+      (parts["system"] ?? 0) +
+        sections +
+        (parts["injected"] ?? 0) +
+        (parts["volatile"] ?? 0) +
+        (parts["history"] ?? 0),
+    ).toBe(parts["total"] ?? -1);
+    // 요청 본문은 어떤 행에도 없다
+    for (const row of rows) expect(JSON.stringify(row)).not.toContain("hello");
+  },
+);
 
 realTest("with x.operations.trace.enabled off no turn row is written", async () => {
   expect(await oneTurn({ "x.operations.trace.enabled": false })).toEqual([]);

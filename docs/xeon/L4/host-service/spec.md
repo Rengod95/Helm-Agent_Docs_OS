@@ -1147,7 +1147,12 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - 조립 루트(`assemble.ts`)가 대화 DB(`fresnel.db`)와 같은 데이터 폴더에 측정 전용 SQLite 파일 `measure.db`를 연다(`assembly/measure/store.ts`, `recorder.ts`). 이벤트 로그의 구조는 바꾸지 않는다. 열지 못하면 `measure.open_failed`를 로그에 남기고 측정 없이 간다. 측정은 대화를 막지 않는다.
 - 테이블은 원본 `measure_raw`(시각, thread, Turn, 종류, 숫자 칸 JSON, 짧은 문자열 칸 JSON)와 일별 집계 `measure_daily`(날짜, 종류, 칸, 개수, 합, 최소, 최대)다. 원본 보관은 기본 30일이다. 엔진을 열 때 한 번, 보관 기간보다 오래된 원본을 일별 집계로 접고 지운다(한 트랜잭션). 일별 집계는 계속 둔다. 백분위는 원본 행을 정렬해서 계산하므로 보관 기간을 넘긴 날에는 개수·합·최소·최대만 남는다.
 - 기록기는 내구 이벤트 피드(`feed.onCommit`)에서 `turn.completed`를 보고 Turn 하나의 요약(`kind: "turn"`: 단계 수, 입력·출력·캐시 읽기·캐시 쓰기·전체 토큰, 비용 USD, 종료 상태)을 모은다. 커밋 경로 안에서는 모으기만 하고 쓰기는 마이크로태스크에서 한 묶음으로 한다(모델 호출 경로가 SQLite 쓰기를 기다리지 않는다). 쓰기 실패는 `measure.write_failed`로 남긴다.
-- 켜기와 끄기는 `x.operations.trace.enabled`다. 꺼져 있으면 모으지도 쓰지도 않는다. 다른 기록(모델 호출 시각, 핸들러 결과, 요청 구성, 캐시 사건)은 T-MEAS-CALL·HOOK·CTX·CACHE가 같은 저장소에 `kind`를 더해 쓴다.
+- 켜기와 끄기는 `x.operations.trace.enabled`다. 꺼져 있으면 모으지도 쓰지도 않는다.
+- 같은 저장소에 `kind`를 더해 쓴다(T-MEAS-CALL·HOOK·CTX·CACHE, 사용자 2026-11-03 기획서 §8). 모두 대화 커밋 뒤, `turn.completed` 커밋이 오는 같은 묶음에 넣는다. 요청 본문은 어떤 행에도 넣지 않는다.
+  - `call`: 모델 호출 한 번. 합산기(`UsageMeter.subscribe`)로 Turn별로 모았다가 그 Turn의 묶음에 넣는다. Turn이 없는 호출(제목 등)은 다음 묶음에 넣는다. 칸: `durationMs`(시작~종료), `firstTokenMs`(시작~첫 응답 조각, 스트림을 반복해 읽지 않은 호출은 없음), `startedAt`, `input`, `output`, `cacheRead`, `cacheWrite`, `totalTokens`, `usd`. 문자열: `role`, `provider`, `model`, `stopReason`, `scope`(있을 때). 모으는 호출은 2000건까지다.
+  - `hook`: 핸들러 실행 한 번. `turn.completed` 때 계측 링 버퍼(`TraceReadPort.turn`)에서 읽는다. 칸: `ms`, `seq`, `step`. 문자열: `hook`, `registrationId`, `result`(`ok`, `error`, `over_budget`, `denied`, `skipped`). Turn당 500행까지다. [미결: 기획서의 "고침과 지나감 구분, Turn 시작 후 시점, 바뀐 크기"는 링 버퍼 항목(`TraceHandlerResult`)에 없어 아직 기록하지 못한다. `ok`가 둘을 합친다. 건너뜀 횟수는 `skipped` 행 수로 센다]
+  - `ctx`: 단계 요청의 소유자별 토큰. `step.completed.composition`(내구 기록)에서 읽는다. 칸: `step`, `system`, `tools`, `injected`, `volatile`, `history`, `total`, `section.<절 이름>`.
+  - `cache`: 캐시를 깬 사건. `step.completed.contextWarnings`에서 `cache_prefix_reset`, `cache_reset_model_switch`, `tools_deferred`만 읽는다(`near_window`는 캐시 사건이 아니다). 문자열 `code`와 `owner`(`context-hook`, `model`, `tools`). [미결: 접두 변경의 원인 소유자는 어느 플러그인인지까지 알지 못하고 합치기 훅이라는 것까지만 안다. 요청 접두가 바뀐 위치와 바뀐 부분의 구분, 제공자 응답과의 교차 확인은 하지 않았다]
 - [제안] 보관 기간 설정 키는 `x.operations.trace.retentionDays`(정수, 기본 30)이고 요청 본문 저장 키는 `x.operations.trace.storeRequestBody`(기본 끔, 켜면 마스킹 후 저장)다. 이 둘은 아직 설정 카탈로그에 올리지 않았고 보존은 기본 30일로 돈다 [미결: 설정 키 이름 확정과 UI 노출은 T-MEAS-READ 앞에서 한다].
 
 ## 5. 실패와 경계 사례
