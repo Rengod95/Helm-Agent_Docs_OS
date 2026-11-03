@@ -404,3 +404,26 @@ test("rewound and abandoned branches still count: every branch's assistant recor
     sessionGauges("anthropic", { tokens: 117, usd: 1.75, requests: 3 }),
   );
 });
+
+test("calls with no assistant item (summary, search, judge) are added to the durable sum, loop calls are not counted twice", async () => {
+  const { meter, push } = fakeMeter();
+  const events = [
+    recordedEvent(1, THREAD_A, "anthropic", {
+      input: 10,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0.5,
+    }),
+  ];
+  const source = createUsageSource(meter, async (_threadId, query) =>
+    ok(events.filter((event) => event.kind.startsWith(query.kindPrefix))),
+  );
+  // 루프 호출은 내구 기록에 이미 있다. 요약 호출은 없다
+  push({ ...record(THREAD_A, "anthropic", 10, 0.5), role: "main" });
+  push({ ...record(THREAD_A, "anthropic", 3, 0.125), role: "summary" });
+  push({ ...record(THREAD_B, "anthropic", 99, 9), role: "search" });
+  expect(await source.gauges({ threadId: THREAD_A }, SIGNAL)).toEqual(
+    sessionGauges("anthropic", { tokens: 13, usd: 0.625, requests: 2 }),
+  );
+});

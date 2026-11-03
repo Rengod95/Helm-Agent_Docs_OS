@@ -26,6 +26,19 @@ interface Tally {
 
 const EMPTY_TALLY: Tally = { tokens: 0, usd: 0, requests: 0, cacheRead: 0, cacheWrite: 0 };
 
+/** 호출마다 어시스턴트 `item.recorded`를 남기지 않는 역할. 내구 기록에서 다시 만든 합계에 합산기의 이 역할 기록을 더한다 */
+const OFF_LOOP_ROLES: ReadonlySet<string> = new Set(["summary", "search", "judge"]);
+
+function addRecord(tally: Tally, record: UsageRecord): Tally {
+  return {
+    tokens: tally.tokens + record.usage.totalTokens,
+    usd: tally.usd + record.usage.cost.total,
+    requests: tally.requests + 1,
+    cacheRead: tally.cacheRead + record.usage.cacheRead,
+    cacheWrite: tally.cacheWrite + record.usage.cacheWrite,
+  };
+}
+
 /**
  * 내구 기록 읽기. kind 접두로 조회한다. 활성 분기만이 아니라 되감거나 버린 분기의 기록까지 모두 돌려준다(돈을 쓴 호출은 분기와 상관없이 센다).
  * `threadId`가 없으면 모든 thread의 기록이다. 읽지 못하면 오류 값이다
@@ -89,8 +102,15 @@ function compareNames(a: string, b: string): number {
  */
 export function createUsageSource(meter: UsageMeter, readEvents?: UsageEventReader): UsagePort {
   const byThread = new Map<ThreadId, Map<string, Tally>>();
+  /** 대화 루프 밖에서 부른 호출(요약, 검색, 판정)의 합산. 어시스턴트 `item.recorded`가 남지 않아 내구 기록에 없다. 이 프로세스가 본 것만 있다 */
+  const offLoop = new Map<ThreadId, Map<string, Tally>>();
 
   meter.subscribe((record: UsageRecord) => {
+    if (OFF_LOOP_ROLES.has(record.role)) {
+      const own = offLoop.get(record.threadId) ?? new Map<string, Tally>();
+      own.set(record.provider, addRecord(own.get(record.provider) ?? EMPTY_TALLY, record));
+      offLoop.set(record.threadId, own);
+    }
     const providers = byThread.get(record.threadId) ?? new Map<string, Tally>();
     const tally = providers.get(record.provider) ?? EMPTY_TALLY;
     providers.set(record.provider, {
@@ -135,7 +155,7 @@ export function createUsageSource(meter: UsageMeter, readEvents?: UsageEventRead
       const durable = await durableProviders(threadId);
       const scoped =
         durable !== undefined
-          ? [durable]
+          ? [durable, ...(threadId === undefined ? [...offLoop.values()] : [offLoop.get(threadId)])]
           : threadId === undefined
             ? [...byThread.values()]
             : [byThread.get(threadId)];
