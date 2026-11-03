@@ -20,7 +20,8 @@
 //   fresnel/reflect-get      `Reflect.get(` in a test file: narrow the value with `in` or a guard (TY-23). Source files are not scanned
 //   fresnel/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
 //                         ts-expect-error comments outside tests (TY-08, guide 4.1)
-//   fresnel/hardcoded-korean a string literal with Hangul in L4 `src` (apps/host, apps/cli, apps/desktop, packages/client), excluding
+//   fresnel/hardcoded-korean a string literal with Hangul in `src` of apps/host, apps/cli, apps/desktop, packages/client and packages/contracts (T-I18N widens
+//                         this package by package as each reaches 0), excluding
 //                         tests, `testing/` and the catalogs (JSON, not scanned). `.tsx` view components are scanned too: besides
 //                         literals, Hangul text between JSX tags counts (term lint phase 2, S-01).
 //                         User sentences come from the message catalog (ADR-0016); code holds ids and arguments
@@ -105,7 +106,10 @@ const HANGUL = /[\u3131-\u318E\uAC00-\uD7A3]/;
 
 /** ADR-0016: L4 `src`의 문자열 리터럴은 한국어 문장을 담지 않는다. 화면 컴포넌트(`.tsx`)도 같다(용어 검사 2단계, S-01) */
 function isCatalogScoped(path: string): boolean {
-  return /^(apps\/(host|cli|desktop)|packages\/client)\/src\//.test(path) && !isTestSupport(path);
+  return (
+    /^(apps\/(host|cli|desktop)|packages\/(client|contracts))\/src\//.test(path) &&
+    !isTestSupport(path)
+  );
 }
 
 /**

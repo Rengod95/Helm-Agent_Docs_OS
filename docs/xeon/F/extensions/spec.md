@@ -1001,15 +1001,15 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 1 | `input.user.before` | input | chain | InputPayload | InputPatch | skip | ● | `input` | types.ts:1143/1156 | runner.ts:1520 emitInput | `handled`는 `stop` 규칙으로 표현 |
 | 2 | `input.bash.before` | input | first | UserBashPayload | UserBashDecision | closed |  | `user_bash` | types.ts:1125/1438 | runner.ts:1262 emitUserBash | 결정에 `deny` 변형 추가. pi는 예외를 다시 던짐 |
 | 3 | `input.agent.before` | input | collect | BeforeAgentStartPayload | BeforeAgentStartPatch | open |  | `before_agent_start` | types.ts:919/1468 | runner.ts:1420 emitBeforeAgentStart | pi의 message 수집을 `collect`로 받는다. `systemPrompt`는 원본 뒤에 덧붙인 값이 순서대로 쌓이고, 원본으로 시작하지 않는 전체 교체는 마지막 값이 이긴다(병합 규칙). `systemPromptOptions`(JSON 객체, 읽기 전용) 제자리 변경은 지원하지 않음 |
-| 4 | `request.context.before` | request | chain | ContextPayload | ContextPatch | skip | ● | `context` | types.ts:871/1415 | runner.ts:1298 emitContext 1단계 | 제자리 수정 대신 패치 반환만 |
-| 5 | `request.system.before` | request | chain | ContextPayload | ContextPatch | skip |  | `context_with_system` | types.ts:881/1415 | runner.ts:1298 emitContext 2단계 | 같음 |
+| 4 | `request.context.before` | request | chain | ContextPayload | ContextPatch | skip | ● | `context` | types.ts:871/1415 | runner.ts:1298 emitContext stage 1 | 제자리 수정 대신 패치 반환만 |
+| 5 | `request.system.before` | request | chain | ContextPayload | ContextPatch | skip |  | `context_with_system` | types.ts:881/1415 | runner.ts:1298 emitContext stage 2 | 같음 |
 | 6 | `request.cache.before` | request | chain | CacheWarmingDecisionPayload | CacheWarmingPatch | skip |  | `cache_warming_decision` | cache-warmer.ts:112/117 | runner.ts:1121 emitCacheWarmingDecision | pi collect(마지막 정의값). 핸들러가 원본 payload를 받으므로 결과가 같다 |
 | 7 | `request.provider.before` | request | chain | BeforeProviderRequestPayload | ProviderPayloadPatch | skip | ● | `before_provider_request` | types.ts:887/1422 | runner.ts:1361 emitBeforeProviderRequest | 같음 |
 | 8 | `request.headers.before` | request | chain | BeforeProviderHeadersPayload | HeadersPatch | skip |  | `before_provider_headers` | types.ts:897/— | runner.ts:1392 emitBeforeProviderHeaders | pi는 제자리 변경 tap. Fresnel은 헤더 패치(null은 삭제) |
 | 9 | `request.provider.after` | request | tap | AfterProviderResponsePayload | void | open |  | `after_provider_response` | types.ts:903 | runner.ts:1089 emit | 같음 |
 | 10 | `request.stream` | request | tap | ProviderStreamPayload | void | open |  | `provider_stream_event` | types.ts:910 | runner.ts:1089 emit | 같음 |
 | 11 | `request.model.after` | request | tap | ModelSelectPayload | void | open |  | `model_select` | types.ts:1106 | runner.ts:1089 emit | 같음 |
-| 12 | `request.thinking.after` | request | tap | ThinkingLevelSelectPayload | void | open |  | `thinking_level_select` | types.ts:1114 | runner.ts:1089 emit (대기 안 함) | `dispatch: detached` |
+| 12 | `request.thinking.after` | request | tap | ThinkingLevelSelectPayload | void | open |  | `thinking_level_select` | types.ts:1114 | runner.ts:1089 emit (not awaited) | `dispatch: detached` |
 | 13 | `tool.call.before` | tool | first | ToolCallPayload | ToolCallDecision | closed | ● | `tool_call` | types.ts:1228/1426 | runner.ts:1242 emitToolCall | `input` 제자리 변경 미지원(§10). 비차단 결과는 없음 |
 | 14 | `tool.result` | tool | chain | ToolResultPayload | ToolResultPatch | skip | ● | `tool_result` | types.ts:1303/1455 | runner.ts:1183 emitToolResult | 같음(필드별 병합) |
 | 15 | `tool.execution.before` | tool | tap | ToolExecutionStartPayload | void | open |  | `tool_execution_start` | types.ts:1066 | runner.ts:1089 emit | 같음 |
@@ -1026,10 +1026,10 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 26 | `boundary.settle.after` | boundary | tap | AgentSettledPayload | void | open | ● | `agent_settled` | types.ts:1005 | runner.ts:1089 emit | Fresnel turn 끝. `origin`, `status`, `hasFinalAnswer`, `lastItemId`를 싣는다(M3-REQ-100, §3.5 블록) |
 | 27 | `thread.trust.before` | thread | first | ProjectTrustPayload | ProjectTrustDecision | closed |  | `project_trust` | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Fresnel은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
 | 28 | `thread.resources` | thread | collect | ResourcesDiscoverPayload | ResourcesPatch | open |  | `resources_discover` | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. 병합 규칙이 경로를 확장 이름과 함께 추가 |
-| 29 | `thread.mcp.after` | thread | tap | McpServersChangePayload | void | open |  | `mcp_servers_change` | types.ts:730 | runner.ts:459 emit (대기 안 함) | `dispatch: detached` |
+| 29 | `thread.mcp.after` | thread | tap | McpServersChangePayload | void | open |  | `mcp_servers_change` | types.ts:730 | runner.ts:459 emit (not awaited) | `dispatch: detached` |
 | 30 | `thread.start` | thread | tap | SessionStartPayload | void | open | ● | `session_start` | types.ts:741 | runner.ts:1089 emit | 같음 |
-| 31 | `thread.info.after` | thread | tap | SessionInfoChangedPayload | void | open |  | `session_info_changed` | types.ts:750 | runner.ts:1089 emit (대기 안 함) | `dispatch: detached` |
-| 32 | `thread.switch.before` | thread | first | SessionBeforeSwitchPayload | SessionCancelDecision | closed |  | `session_before_switch` | types.ts:757/1474 | runner.ts:1089 emit (cancel 중단 1096-1103) | pi fail-open. Fresnel은 예외 시 취소 |
+| 31 | `thread.info.after` | thread | tap | SessionInfoChangedPayload | void | open |  | `session_info_changed` | types.ts:750 | runner.ts:1089 emit (not awaited) | `dispatch: detached` |
+| 32 | `thread.switch.before` | thread | first | SessionBeforeSwitchPayload | SessionCancelDecision | closed |  | `session_before_switch` | types.ts:757/1474 | runner.ts:1089 emit (cancel aborts 1096-1103) | pi fail-open. Fresnel은 예외 시 취소 |
 | 33 | `thread.fork.before` | thread | first | SessionBeforeForkPayload | SessionBeforeForkDecision | closed |  | `session_before_fork` | types.ts:764/1478 | runner.ts:1089 emit | 같은 차이 |
 | 34 | `thread.compact.before` | thread | first | SessionBeforeCompactPayload | SessionBeforeCompactDecision | open |  | `session_before_compact` | types.ts:771/1483 | runner.ts:1089 emit | pi는 cancel 외 필드를 마지막 정의값으로 모음. Fresnel은 첫 결정. pi와 같이 fail-open이다(핸들러 예외는 결정 없음). 컨텍스트가 넘친 상태에서 예외가 컴팩션을 막으면 대화를 이어 갈 수 없기 때문이다 [제안: adr.0017 §3.4] |
 | 35 | `thread.compact.after` | thread | tap | SessionCompactPayload | void | open |  | `session_compact` | types.ts:784 | runner.ts:1089 emit | 같음 |
@@ -1037,8 +1037,8 @@ export type CollectHookName = { [N in HookName]: HookSignatures[N]["fold"] exten
 | 37 | `thread.tree.before` | thread | first | SessionBeforeTreePayload | SessionBeforeTreeDecision | closed |  | `session_before_tree` | types.ts:833/1488 | runner.ts:1089 emit | 34번과 같은 차이 |
 | 38 | `thread.tree.after` | thread | tap | SessionTreePayload | void | open |  | `session_tree` | types.ts:840 | runner.ts:1089 emit | 같음 |
 | 39 | `thread.shutdown` | thread | tap | SessionShutdownPayload | void | open | ● | `session_shutdown` | types.ts:810 | runner.ts:258 emitSessionShutdownEvent | 같음 |
-| 40 | `thread.prompt.before` | thread | tap | UIPromptPayload | void | open |  | `ui_prompt_start` | types.ts:1014 | runner.ts:611 emitUIPromptEvent (대기 안 함) | `dispatch: detached` |
-| 41 | `thread.prompt.after` | thread | tap | UIPromptPayload | void | open |  | `ui_prompt_end` | types.ts:1022 | runner.ts:595, 611 (대기 안 함) | `dispatch: detached` |
+| 40 | `thread.prompt.before` | thread | tap | UIPromptPayload | void | open |  | `ui_prompt_start` | types.ts:1014 | runner.ts:611 emitUIPromptEvent (not awaited) | `dispatch: detached` |
+| 41 | `thread.prompt.after` | thread | tap | UIPromptPayload | void | open |  | `ui_prompt_end` | types.ts:1022 | runner.ts:595, 611 (not awaited) | `dispatch: detached` |
 | 42 | `guard.model.before` | guard | first | BeforeProviderRequestPayload | GuardDecision | closed |  | — | — | — | 제공자 요청 본문이 확정된 뒤, 전송 전. `request.provider.before`의 모든 핸들러 뒤 최종 값으로 발화한다 |
 | 43 | `guard.tool.before` | guard | first | ToolCallPayload | GuardDecision | closed |  | — | — | — | 도구 호출 허가 판정이 끝난 뒤, 실행 전. `tool.call.before` 뒤에 발화한다 |
 | 44 | `guard.output.before` | guard | first | GuardOutputPayload | GuardDecision | closed |  | — | — | — | 모델 출력이 표시나 실행 경로로 넘어가기 전. 출력 대상(`display`, `execution`)은 [가정] |

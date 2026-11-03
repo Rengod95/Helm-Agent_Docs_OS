@@ -83,7 +83,7 @@ describe("cap-work", () => {
       expect(answered).toEqual({ applied: true });
       const done = await collector.waitFor((event) => event.kind === "turn.completed");
       expect(done.payload).toMatchObject({ status: "completed" });
-      expect(toolResultTexts(collector.events).join("\n")).toContain("승인됨");
+      expect(toolResultTexts(collector.events).join("\n")).toContain("Approved");
       await connection.close();
       await host.close();
       home.dispose();

@@ -353,7 +353,7 @@ const ArtifactCreateParams: TObject<{
     Type.Literal("log"),
   ]),
   title: Type.String({ minLength: 1, maxLength: 200 }),
-  text: Type.String({ minLength: 1, maxLength: 1_048_576, description: "본문" }),
+  text: Type.String({ minLength: 1, maxLength: 1_048_576, description: "Body" }),
   mediaType: Type.Optional(MediaTypeSchema),
   summary: Type.Optional(Type.String({ maxLength: 500 })),
 });
@@ -408,69 +408,74 @@ export const ArtifactsRegistry: CapabilityDef<
 > = defineCapability({
   id: "artifacts.registry",
   version: "1.0.0",
-  description: "세션 산출물 등록·갱신·조회. 본문은 blob이고 버전과 출처를 기록한다.",
+  description:
+    "Registers, updates, and looks up session artifacts. The body is stored as a blob, and the version and source are recorded.",
   service: {
     methods: {
       register: {
-        description: "산출물을 새로 등록한다. 버전 1을 만든다.",
+        description: "Registers a new artifact. Creates version 1.",
         input: RegisterInput,
         output: ArtifactSummarySchema,
         replay: "safe",
         idempotent: true,
         errors: {
           artifact_limit_reached: {
-            description: "세션당 산출물 상한(l2.artifacts.maxPerSession)을 넘음",
+            description: "Exceeds the per-session artifact limit (l2.artifacts.maxPerSession)",
             retryable: false,
           },
           content_too_large: {
-            description: "본문이 l2.artifacts.maxContentBytes를 넘음",
+            description: "Body exceeds l2.artifacts.maxContentBytes",
             retryable: false,
           },
           file_unreadable: {
-            description: "content.type file의 경로를 읽을 수 없음",
+            description: "Cannot read the content.type file path",
             retryable: false,
           },
         },
       },
       update: {
-        description: "산출물의 새 버전을 만든다. baseVersion이 최신과 같아야 한다.",
+        description:
+          "Creates a new version of the artifact. baseVersion must match the latest version.",
         input: UpdateInput,
         output: ArtifactSummarySchema,
         replay: "safe",
         idempotent: true,
         errors: {
           version_conflict: {
-            description: "baseVersion이 최신 버전과 다름",
+            description: "baseVersion does not match the latest version",
             retryable: false,
             detail: Type.Object({ latestVersion: Type.Integer({ minimum: 1 }) }),
           },
-          artifact_archived: { description: "보관된 산출물은 갱신할 수 없음", retryable: false },
+          artifact_archived: {
+            description: "Archived artifacts cannot be updated",
+            retryable: false,
+          },
           content_too_large: {
-            description: "본문이 l2.artifacts.maxContentBytes를 넘음",
+            description: "Body exceeds l2.artifacts.maxContentBytes",
             retryable: false,
           },
           file_unreadable: {
-            description: "content.type file의 경로를 읽을 수 없음",
+            description: "Cannot read the content.type file path",
             retryable: false,
           },
         },
       },
       list: {
-        description: "산출물 목록을 최근 갱신 순으로 돌려준다.",
+        description: "Returns the artifact list, most recently updated first.",
         input: ListInput,
         output: ListOutput,
         replay: "safe",
         readOnly: true,
       },
       get: {
-        description: "산출물 하나와 선택한 버전을 돌려준다.",
+        description: "Returns one artifact and the selected version.",
         input: GetInput,
         output: GetOutput,
         replay: "safe",
         readOnly: true,
       },
       archive: {
-        description: "산출물을 보관 상태로 바꾼다. 이벤트와 blob은 지우지 않는다.",
+        description: "Archives the artifact. Events and blobs are not deleted.",
         input: ArchiveInput,
         output: ArtifactSummarySchema,
         replay: "safe",
@@ -481,10 +486,10 @@ export const ArtifactsRegistry: CapabilityDef<
   tools: [
     {
       name: "artifact_create",
-      label: "산출물 만들기",
+      label: "Create artifact",
       description:
-        "작업 결과(문서, 표, 계획, 로그 등)를 세션 산출물로 등록한다. 사용자가 나중에 목록에서 찾아 열 수 있다. " +
-        "대화에 이미 쓴 짧은 답은 등록하지 않는다.",
+        "Registers work results (documents, tables, plans, logs, etc.) as session artifacts. The user can find and open them later from the list. " +
+        "Does not register short answers already given in the conversation.",
       method: "register",
       parameters: ArtifactCreateParams,
       toInput: (p) => ({
@@ -506,8 +511,9 @@ export const ArtifactsRegistry: CapabilityDef<
     },
     {
       name: "artifact_update",
-      label: "산출물 고치기",
-      description: "등록한 산출물의 새 버전을 만든다. baseVersion은 마지막으로 본 버전 번호다.",
+      label: "Update artifact",
+      description:
+        "Creates a new version of a registered artifact. baseVersion is the last version number seen.",
       method: "update",
       parameters: ArtifactUpdateParams,
       toInput: (p) => ({
@@ -844,92 +850,99 @@ export const ArtifactsReviews: CapabilityDef<
 > = defineCapability({
   id: "artifacts.reviews",
   version: "1.0.0",
-  description: "파일 변경을 hunk 단위로 승인·거절하고 코멘트를 에이전트 입력으로 되돌린다.",
+  description:
+    "Approves or rejects file changes per hunk and returns comments to the agent as input.",
   service: {
     methods: {
       open: {
         description:
-          "변경을 모아 리뷰를 연다. changeset 산출물을 함께 등록하고 사용자 승인 요청을 낸다.",
+          "Collects changes and opens a review. Also registers a changeset artifact and requests user approval.",
         input: OpenInput,
         output: ReviewViewSchema,
         replay: "safe",
         idempotent: true,
         errors: {
-          no_changes: { description: "모은 변경이 없음", retryable: false },
+          no_changes: { description: "No collected changes", retryable: false },
           source_unsupported: {
-            description: "이 버전이 지원하지 않는 변경 원본(checkpoint, M3b)",
+            description: "Change source not supported by this version (checkpoint, M3b)",
             retryable: false,
           },
           diff_unparsable: {
-            description: "diff를 통합 diff로 해석할 수 없음",
+            description: "Cannot parse the diff as a unified diff",
             retryable: false,
             detail: Type.Object({ source: Type.String(), line: Type.Integer({ minimum: 0 }) }),
           },
-          review_too_large: { description: "파일 수나 hunk 수가 상한을 넘음", retryable: false },
+          review_too_large: {
+            description: "File or hunk count exceeds the limit",
+            retryable: false,
+          },
         },
       },
       get: {
-        description: "리뷰 상태를 돌려준다.",
+        description: "Returns the review status.",
         input: ReviewOnlyInput,
         output: ReviewViewSchema,
         replay: "safe",
         readOnly: true,
       },
       approve: {
-        description: "hunk를 승인으로 표시한다.",
+        description: "Marks a hunk as approved.",
         input: HunksInput,
         output: ReviewViewSchema,
         replay: "safe",
         idempotent: true,
         errors: {
-          review_closed: { description: "닫힌 리뷰", retryable: false },
-          hunk_unknown: { description: "리뷰에 없는 hunkId", retryable: false },
+          review_closed: { description: "Review is closed", retryable: false },
+          hunk_unknown: { description: "hunkId not in the review", retryable: false },
         },
       },
       reject: {
-        description: "hunk를 거절로 표시한다. 되돌림은 submit에서 적용한다.",
+        description: "Marks a hunk as rejected. The revert is applied on submit.",
         input: HunksInput,
         output: ReviewViewSchema,
         replay: "safe",
         idempotent: true,
         errors: {
-          review_closed: { description: "닫힌 리뷰", retryable: false },
-          hunk_unknown: { description: "리뷰에 없는 hunkId", retryable: false },
+          review_closed: { description: "Review is closed", retryable: false },
+          hunk_unknown: { description: "hunkId not in the review", retryable: false },
         },
       },
       comment: {
-        description: "hunk의 줄, 파일, 리뷰 전체에 코멘트를 단다.",
+        description: "Adds a comment to a hunk line, a file, or the whole review.",
         input: CommentInput,
         output: CommentViewSchema,
         replay: "safe",
         idempotent: true,
         errors: {
-          review_closed: { description: "닫힌 리뷰", retryable: false },
-          hunk_unknown: { description: "리뷰에 없는 hunkId", retryable: false },
-          line_out_of_range: { description: "줄 번호가 hunk 범위 밖", retryable: false },
+          review_closed: { description: "Review is closed", retryable: false },
+          hunk_unknown: { description: "hunkId not in the review", retryable: false },
+          line_out_of_range: {
+            description: "Line number is outside the hunk range",
+            retryable: false,
+          },
         },
       },
       submit: {
         description:
-          "현재 라운드를 확정한다. 거절 hunk를 되돌리고 결정·코멘트를 에이전트 입력으로 넣는다.",
+          "Finalizes the current round. Reverts rejected hunks and passes decisions and comments to the agent as input.",
         input: SubmitInput,
         output: SubmitOutput,
         replay: "safe",
         idempotent: true,
         errors: {
-          review_closed: { description: "닫힌 리뷰", retryable: false },
+          review_closed: { description: "Review is closed", retryable: false },
           decisions_pending: {
-            description: "pending hunk가 남았고 approveRemaining이 거짓",
+            description: "Pending hunks remain and approveRemaining is false",
             retryable: false,
           },
           revert_unavailable: {
-            description: "거절 적용 경로(§4.2.5)를 쓸 수 없음",
+            description: "Rejection apply path (§4.2.5) is unavailable",
             retryable: true,
           },
         },
       },
       close: {
-        description: "리뷰를 닫는다. 이후 결정·코멘트를 받지 않는다.",
+        description: "Closes the review. Decisions and comments are no longer accepted.",
         input: CloseInput,
         output: ReviewViewSchema,
         replay: "safe",
@@ -941,10 +954,10 @@ export const ArtifactsReviews: CapabilityDef<
     {
       // [제안] 모델이 사용자 리뷰를 요청하는 도구. 기본 노출 여부는 l2.artifacts.tools.reviewRequest
       name: "review_request",
-      label: "변경 리뷰 요청",
+      label: "Request change review",
       description:
-        "이번 턴(또는 지정한 도구 호출)에서 바꾼 파일을 사용자 리뷰에 올린다. 결과를 기다리지 않는다. " +
-        "사용자의 결정과 코멘트는 나중에 사용자 입력으로 들어온다.",
+        "Submits files changed in this turn (or in the specified tool call) for user review. Does not wait for the result. " +
+        "Decisions and comments from the user arrive later as user input.",
       method: "open",
       parameters: ReviewRequestParams,
       toInput: (p) => ({
@@ -1093,21 +1106,22 @@ export const ArtifactsSessions: CapabilityDef<
 > = defineCapability({
   id: "artifacts.sessions",
   version: "1.0.0",
-  description: "세션 제목·라벨 메타와 메타 검색.",
+  description: "Session title and label metadata, and metadata search.",
   service: {
     methods: {
       setMeta: {
-        description: "세션 제목과 라벨을 바꾼다. 제목은 fresnel.session 제목 변경 API로 기록한다.",
+        description:
+          "Changes the session title and labels. The title is recorded through the fresnel.session title-change API.",
         input: SetMetaInput,
         output: SessionMetaViewSchema,
         replay: "safe",
         idempotent: true,
         errors: {
-          too_many_labels: { description: "라벨이 32개를 넘음", retryable: false },
+          too_many_labels: { description: "More than 32 labels", retryable: false },
         },
       },
       list: {
-        description: "세션 메타 목록. 라벨·작업 공간으로 거른다.",
+        description: "Lists session metadata. Filters by label or workspace.",
         input: SessionsListInput,
         output: SessionsListOutput,
         replay: "safe",
@@ -1115,7 +1129,7 @@ export const ArtifactsSessions: CapabilityDef<
       },
       search: {
         description:
-          "제목과 라벨에서 부분 문자열로 세션을 찾는다. 대화 본문은 찾지 않는다(knowledge.search).",
+          "Finds sessions by substring in the title and labels. Does not search conversation bodies (knowledge.search).",
         input: SessionsSearchInput,
         output: SessionsSearchOutput,
         replay: "safe",
@@ -1127,8 +1141,9 @@ export const ArtifactsSessions: CapabilityDef<
     {
       // [제안] 기본 노출 여부는 l2.artifacts.tools.sessionRename
       name: "session_rename",
-      label: "세션 이름 바꾸기",
-      description: "현재 세션의 제목을 바꾼다. 사용자가 이름을 요청했을 때만 쓴다.",
+      label: "Rename session",
+      description:
+        "Changes the current session title. Use only when the user asks for a name change.",
       method: "setMeta",
       parameters: SessionRenameParams,
       toInput: (p) => ({ title: p.title }),

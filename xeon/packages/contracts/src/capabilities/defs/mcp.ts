@@ -608,19 +608,22 @@ export const ReadResourceToolParams: TUnsafe<ReadResourceToolParamsValue> =
   );
 
 const MCP_ERRORS = {
-  server_unknown: { description: "정의에 없는 서버 id", retryable: false },
-  server_blocked: { description: "허용·차단 정책이나 관리 잠금으로 막힌 서버", retryable: false },
-  server_disconnected: { description: "서버 연결이 끊겨 있음", retryable: true },
-  tool_unknown: { description: "서버가 광고하지 않은 도구", retryable: false },
+  server_unknown: { description: "Server id not in the definitions", retryable: false },
+  server_blocked: {
+    description: "Server blocked by an allow/deny policy or a managed lock",
+    retryable: false,
+  },
+  server_disconnected: { description: "Server connection is down", retryable: true },
+  tool_unknown: { description: "Tool the server does not advertise", retryable: false },
   input_rounds_exceeded: {
-    description: "input_required 라운드가 l2.mcp.inputRequired.maxRounds를 넘음",
+    description: "input_required rounds exceed l2.mcp.inputRequired.maxRounds",
     retryable: false,
   },
   input_unsupported: {
-    description: "서버가 선언하지 않은 입력 종류를 요청함",
+    description: "Server requested an input kind it did not declare",
     retryable: false,
   },
-  protocol_error: { description: "서버 응답이 사양을 위반함", retryable: false },
+  protocol_error: { description: "Server response violates the spec", retryable: false },
 } as const;
 
 // ── 경계 감싸기와 렌더러 (순수 함수) ────────────────────────────────────
@@ -641,7 +644,7 @@ export function wrapUntrustedMcp(server: string, text: string): string {
 export function renderServers(out: ListServersOutputValue): ToolContent {
   const lines = out.servers.map(
     (s) =>
-      `${s.server} ${s.state} 도구 ${s.toolCount}개${s.lastError ? ` 오류: ${s.lastError.code}` : ""}`,
+      `${s.server} ${s.state} ${s.toolCount} tools${s.lastError ? ` error: ${s.lastError.code}` : ""}`,
   );
   return { content: [{ type: "text", text: lines.join("\n") }], structuredContent: out };
 }
@@ -661,7 +664,7 @@ function contentLine(c: McpContent): string {
 export function renderRead(out: ReadResourceOutputValue): ToolContent {
   if (out.status === "input_required") {
     return {
-      content: [{ type: "text", text: "서버가 추가 입력을 요구함" }],
+      content: [{ type: "text", text: "Server requires additional input" }],
       structuredContent: out,
     };
   }
@@ -696,18 +699,18 @@ export const McpClient: CapabilityDef<
 > = defineCapability({
   id: "mcp.client",
   version: "1.0.0",
-  description: "MCP 서버 연결 관리와 서버 도구·프롬프트·리소스 호출.",
+  description: "Manages MCP server connections and calls server tools, prompts, and resources.",
   service: {
     methods: {
       listServers: {
-        description: "정의된 서버와 상태 목록.",
+        description: "Defined servers and their states.",
         input: ListServersInput,
         output: ListServersOutput,
         replay: "safe",
         readOnly: true,
       },
       status: {
-        description: "서버 하나의 상태.",
+        description: "State of one server.",
         input: McpServerRefSchema,
         output: McpServerStatusSchema,
         replay: "safe",
@@ -715,25 +718,26 @@ export const McpClient: CapabilityDef<
         errors: MCP_ERRORS,
       },
       connect: {
-        description: "꺼진 서버를 이 세션에서 켜고 연결한다.",
+        description: "Turns on and connects a disabled server in this session.",
         input: McpServerRefSchema,
         output: McpServerStatusSchema,
         errors: MCP_ERRORS,
       },
       reconnect: {
-        description: "연결을 닫고 다시 연결한다. 도구 목록을 다시 읽는다.",
+        description: "Closes the connection and reconnects. Rereads the tool list.",
         input: McpServerRefSchema,
         output: McpServerStatusSchema,
         errors: MCP_ERRORS,
       },
       disable: {
-        description: "이 세션에서 서버를 끈다. 도구는 다음 단계 경계에서 빠진다.",
+        description:
+          "Disables the server in this session. Its tools drop out at the next step boundary.",
         input: McpServerRefSchema,
         output: McpServerStatusSchema,
         errors: MCP_ERRORS,
       },
       listTools: {
-        description: "서버가 광고한 도구와 노출 여부.",
+        description: "Tools the server advertises and whether each one is exposed.",
         input: McpServerRefSchema,
         output: ListToolsOutput,
         replay: "safe",
@@ -741,14 +745,15 @@ export const McpClient: CapabilityDef<
         errors: MCP_ERRORS,
       },
       callTool: {
-        description: "서버 도구를 호출한다. input_required면 연속 정보를 돌려준다.",
+        description:
+          "Calls a server tool. If the result is input_required, returns continuation info.",
         input: CallToolInput,
         output: CallToolOutput,
         replay: "unsafe",
         errors: MCP_ERRORS,
       },
       listPrompts: {
-        description: "서버 프롬프트 목록.",
+        description: "List of server prompts.",
         input: McpServerRefSchema,
         output: ListPromptsOutput,
         replay: "safe",
@@ -756,7 +761,7 @@ export const McpClient: CapabilityDef<
         errors: MCP_ERRORS,
       },
       getPrompt: {
-        description: "프롬프트를 인자로 펼친다.",
+        description: "Expands a prompt with arguments.",
         input: GetPromptInput,
         output: GetPromptOutput,
         replay: "safe",
@@ -764,7 +769,7 @@ export const McpClient: CapabilityDef<
         errors: MCP_ERRORS,
       },
       listResources: {
-        description: "리소스 목록. server가 없으면 연결된 모든 서버.",
+        description: "Resource list. If server is omitted, all connected servers.",
         input: ListResourcesInput,
         output: ListResourcesOutput,
         replay: "safe",
@@ -772,7 +777,7 @@ export const McpClient: CapabilityDef<
         errors: MCP_ERRORS,
       },
       readResource: {
-        description: "리소스 하나를 읽는다.",
+        description: "Reads one resource.",
         input: ReadResourceInput,
         output: ReadResourceOutput,
         replay: "safe",
@@ -784,10 +789,10 @@ export const McpClient: CapabilityDef<
   tools: [
     {
       name: "mcp_servers",
-      label: "MCP 서버 상태",
+      label: "MCP Server Status",
       method: "listServers",
       parameters: ListServersInput,
-      description: "연결된 MCP 서버와 상태, 도구 수를 보여 준다.",
+      description: "Shows connected MCP servers, their states, and tool counts.",
       toContent: renderServers,
       replay: "safe",
       executionMode: "parallel",
@@ -795,10 +800,11 @@ export const McpClient: CapabilityDef<
     },
     {
       name: "mcp_list_resources",
-      label: "MCP 리소스 목록",
+      label: "List MCP Resources",
       method: "listResources",
       parameters: ListResourcesInput,
-      description: "MCP 서버가 제공하는 리소스(uri, 이름)를 나열한다. server를 주면 그 서버만.",
+      description:
+        "Lists resources (uri, name) that MCP servers provide. If server is given, only that server is listed.",
       toContent: renderResources,
       replay: "safe",
       executionMode: "parallel",
@@ -806,11 +812,11 @@ export const McpClient: CapabilityDef<
     },
     {
       name: "mcp_read_resource",
-      label: "MCP 리소스 읽기",
+      label: "Read MCP Resource",
       method: "readResource",
       parameters: ReadResourceToolParams,
       toInput: (p) => ({ server: p.server, uri: p.uri }),
-      description: "MCP 리소스 하나를 읽는다. 내용은 신뢰하지 않는 외부 내용이다.",
+      description: "Reads one MCP resource. Its content is untrusted external content.",
       toContent: renderRead,
       replay: "safe",
       executionMode: "parallel",

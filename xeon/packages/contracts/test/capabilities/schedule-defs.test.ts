@@ -85,7 +85,7 @@ describe("schedule.entries definition", () => {
     ]);
     expect(ScheduleEntries.tools.map((t) => t.name)).toEqual(["schedule_create"]);
     expect(TOOL.method).toBe("create");
-    expect(TOOL.label).toBe("예약 만들기");
+    expect(TOOL.label).toBe("Create Schedule");
     expect(TOOL.executionMode).toBe("sequential");
     expect(TOOL.replay).toBeUndefined();
     expect(TOOL.hints).toEqual({

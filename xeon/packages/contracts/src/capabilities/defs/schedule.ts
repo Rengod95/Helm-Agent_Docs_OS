@@ -508,41 +508,41 @@ export const ScheduleEntries: CapabilityDef<
   id: "schedule.entries",
   version: "1.0.0",
   description:
-    "예약 항목(무인 새 세션에서 프롬프트를 실행)의 만들기, 목록, 취소, 원격 실행. cron 식이 없고 schedule.timers와 다른 기능이다.",
+    "Creates, lists, cancels, and remotely fires schedule entries (prompts run in an unattended new session). No cron expression; this is a different capability from schedule.timers.",
   service: {
     methods: {
       // ADR-0015: 효과가 있는 쓰기다. requestId 기억이 없어 분류하지 않는다(멱등이 아니다)
       create: {
         description:
-          "예약 항목을 만든다. 트리거는 간격, 한 번의 시각, 파일 감시, 원격, 루프 가운데 하나다. 간격 최소값과 켜진 예약 수 상한은 엔진이 검사한다.",
+          "Creates a schedule entry. The trigger is one of: interval, one-time time, file watch, remote, or loop. The engine checks the minimum interval and the limit on enabled entries.",
         input: ScheduleCreateInputSchema,
         output: CreateOutputSchema,
         errors: {
           interval_too_short: {
-            description: "간격이 최소값(300초)보다 짧다",
+            description: "Interval is shorter than the minimum (300 seconds)",
             retryable: false,
             detail: IntervalTooShortDetail,
           },
-          at_in_past: { description: "시각이 이미 지났다", retryable: false },
+          at_in_past: { description: "The time has already passed", retryable: false },
           invalid_trigger: {
-            description: "트리거 값이 엔진 규칙에 맞지 않다",
+            description: "Trigger value does not match engine rules",
             retryable: false,
             detail: InvalidTriggerDetail,
           },
           limit_reached: {
-            description: "켜진 예약 수 상한에 닿았다",
+            description: "Reached the limit on enabled entries",
             retryable: false,
             detail: LimitReachedDetail,
           },
           store_failed: {
-            description: "예약 저장소를 읽거나 쓰지 못했다",
+            description: "Could not read or write the schedule store",
             retryable: false,
             detail: StoreFailedDetail,
           },
         },
       },
       list: {
-        description: "예약 항목과 항목마다 마지막 실행 기록을 돌려준다. 읽기 전용이다.",
+        description: "Returns schedule entries, and the last run record of each. Read-only.",
         input: ScheduleListInputSchema,
         output: ScheduleListOutputSchema,
         // ADR-0015: 읽기 전용
@@ -550,7 +550,7 @@ export const ScheduleEntries: CapabilityDef<
         readOnly: true,
         errors: {
           store_failed: {
-            description: "예약 저장소를 읽지 못했다",
+            description: "Could not read the schedule store",
             retryable: false,
             detail: StoreFailedDetail,
           },
@@ -558,13 +558,13 @@ export const ScheduleEntries: CapabilityDef<
       },
       cancel: {
         description:
-          "예약 항목을 끈다. 멈춘 이유는 cancelled로 남는다. 이미 꺼진 항목은 그대로 돌려준다.",
+          "Disables a schedule entry. The stop reason is recorded as cancelled. An entry that is already disabled is returned unchanged.",
         input: ScheduleCancelInputSchema,
         output: CancelOutputSchema,
         // ADR-0015: 효과가 있는 쓰기이고 requestId 기억이 없어 분류하지 않는다
         errors: {
           store_failed: {
-            description: "예약 저장소에 쓰지 못했다",
+            description: "Could not write to the schedule store",
             retryable: false,
             detail: StoreFailedDetail,
           },
@@ -572,15 +572,15 @@ export const ScheduleEntries: CapabilityDef<
       },
       fire: {
         description:
-          "원격 트리거 예약을 지금 한 번 실행한다. 원격이 아닌 항목과 꺼진 항목은 거부된다.",
+          "Fires a remote-trigger entry once now. Entries that are not remote, or that are disabled, are rejected.",
         input: ScheduleFireInputSchema,
         output: FireOutputSchema,
         // ADR-0015: 효과가 있는 쓰기이고 requestId 기억이 없어 분류하지 않는다
         errors: {
-          not_remote: { description: "원격 트리거가 아니다", retryable: false },
-          disabled: { description: "꺼진 항목이다", retryable: false },
+          not_remote: { description: "Not a remote trigger", retryable: false },
+          disabled: { description: "Entry is disabled", retryable: false },
           store_failed: {
-            description: "예약 저장소에 쓰지 못했다",
+            description: "Could not write to the schedule store",
             retryable: false,
             detail: StoreFailedDetail,
           },
@@ -591,9 +591,9 @@ export const ScheduleEntries: CapabilityDef<
   tools: [
     {
       name: "schedule_create",
-      label: "예약 만들기",
+      label: "Create Schedule",
       description:
-        "지정한 간격이나 시각에 이 프롬프트를 사용자 없이 새 세션에서 실행하도록 예약한다. 사용자가 나중에 실행을 요청했을 때만 쓴다. everySeconds와 at 가운데 하나만 준다.",
+        "Schedules this prompt to run in a new session without the user, at the given interval or time. Use only when the user asked for it to run later. Provide only one of everySeconds and at.",
       method: "create",
       parameters: ScheduleCreateToolParams,
       toInput: createInputOfToolParams,

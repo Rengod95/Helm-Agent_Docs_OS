@@ -197,15 +197,15 @@ describe("checkAskQuestions", () => {
     };
     const issues = checkAskQuestions([SCOPE_Q, { ...SCOPE_Q }, dupOptions]);
     expect(issues).toEqual([
-      "질문 id가 겹친다: scope",
-      "질문 dup의 선택지 id가 겹친다: x",
-      "질문 dup의 추천 항목이 둘 이상이다",
+      "Duplicate question id: scope",
+      "Question dup has a duplicate option id: x",
+      "Question dup has more than one recommended option",
     ]);
   });
 
   test("a free-text block needs options to choose from", () => {
     expect(checkAskQuestions([{ id: "q", question: "?", allowFreeText: false }])).toEqual([
-      "질문 q는 선택지가 없는데 자유 입력을 막았다",
+      "Question q has no options but disallows free-text input",
     ]);
   });
 });
@@ -358,7 +358,7 @@ describe("renderAsk", () => {
 
   test("each status has its own sentence", () => {
     expect(firstText(renderAsk({ status: "input_required", approvalId }))).toBe(
-      "사용자의 답을 기다리는 중이다.",
+      "Waiting for the user to answer.",
     );
     const answers = [
       { questionId: "scope", selected: ["small"], text: null },
@@ -368,20 +368,20 @@ describe("renderAsk", () => {
     const answered: AskResult = { status: "answered", approvalId, answers, defaulted: false };
     expect(firstText(renderAsk(answered))).toBe(
       [
-        "사용자가 답했다.",
-        "scope: 선택: small",
-        "name: 직접 입력: Helm",
-        "tags: 선택: a / 직접 입력: also this",
+        "The user answered.",
+        "scope: Selected: small",
+        "name: Free text: Helm",
+        "tags: Selected: a / Free text: also this",
       ].join("\n"),
     );
     expect(firstText(renderAsk({ ...answered, defaulted: true })).split("\n")[0]).toBe(
-      "시간 초과로 추천 항목이 선택되었다.",
+      "Timed out, so the recommended option was selected.",
     );
     const cancelled = (reason: "timeout" | "dismissed" | "aborted"): string =>
       firstText(renderAsk({ status: "cancelled", approvalId, reason }));
-    expect(cancelled("timeout")).toContain("시간 초과");
-    expect(cancelled("dismissed")).toContain("닫았다");
-    expect(cancelled("aborted")).toContain("중단");
+    expect(cancelled("timeout")).toContain("timeout");
+    expect(cancelled("dismissed")).toContain("dismissed");
+    expect(cancelled("aborted")).toContain("interrupted");
   });
 
   test("the result is returned as structured content unchanged", () => {

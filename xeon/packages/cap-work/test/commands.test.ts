@@ -121,7 +121,7 @@ describe("work commands", () => {
 
   test("/tasks prints the checklist", async () => {
     const { h, registry } = await boot();
-    expect((await registry.run("tasks", [])).message).toBe("(작업 없음)");
+    expect((await registry.run("tasks", [])).message).toBe("(no tasks)");
     await h.api.write(
       {
         ops: [

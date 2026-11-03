@@ -55,7 +55,7 @@ test("ask_user_waits_for_the_answer: input_required holds the call until the use
   const out = await done;
   expect(out.blocked).toBeUndefined();
   expect(out.isError).toBe(false);
-  expect(textOf(out.result)).toContain("color: 선택: blue");
+  expect(textOf(out.result)).toContain("color: Selected: blue");
   // 같은 requestId로 두 번 불렀다: 처음 pending, 두 번째 저장된 답
   expect(dialog.calls.map((call) => call.requestId)).toEqual(["tool:ask_1", "tool:ask_1"]);
   expect(dialog.calls.every((call) => call.wait === false)).toBe(true);
@@ -110,7 +110,7 @@ test("ask_user_after_restart: restore plus rerun continues the same request and 
   });
   const result = expectOk(await rerun);
   expect(result.state).toBe("executed");
-  expect(textOf(result.result)).toContain("color: 선택: red");
+  expect(textOf(result.result)).toContain("color: Selected: red");
   expect(kindsOf(h, "effect.result")).toHaveLength(1);
 });
 
@@ -130,7 +130,7 @@ test("ask_user_after_the_answer_was_committed: a rerun gets the stored answer wi
   installDialog(h, restarted);
   // 이 프로세스는 restore를 부르지 않아도 같은 requestId 요청이 저장된 해결을 읽는다
   const result = expectOk(await restarted.tools.rerun(intent.value, h.run()));
-  expect(textOf(result.result)).toContain("color: 선택: red");
+  expect(textOf(result.result)).toContain("color: Selected: red");
   expect(kindsOf(h, "approval.requested")).toHaveLength(1);
 });
 
@@ -143,7 +143,7 @@ test("a non-interactive ask is denied at once and the tool reports a dismissed q
     args: ARGS,
   });
   expect(out.blocked).toBeUndefined();
-  expect(textOf(out.result)).toContain("사용자가 질문을 닫았다");
+  expect(textOf(out.result)).toContain("The user dismissed the question. No answer.");
   const commit = h.session.commits.find((entry) => entry.kinds.includes("approval.requested"));
   expect(commit?.kinds).toEqual(["approval.requested", "approval.resolved"]);
 });
