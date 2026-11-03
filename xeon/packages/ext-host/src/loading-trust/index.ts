@@ -1488,7 +1488,12 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     diagnostics: () => diagnosticLog.snapshot(),
     uiEntries: () =>
       inLoadOrder().flatMap((record) =>
-        record.ui.map((item) => ({ extension: record.name, ...item })),
+        record.ui.map((item) => ({
+          extension: record.name,
+          version: versionOf(record.manifest),
+          trust: record.source,
+          ...item,
+        })),
       ),
     async dispose() {
       await eachInOrder([...order].toReversed(), async (record) => {
