@@ -1,7 +1,15 @@
-import { Type, type TArray, type TLiteral, type TObject, type TUnion } from "typebox";
+import {
+  Type,
+  type TArray,
+  type TLiteral,
+  type TObject,
+  type TOptional,
+  type TUnion,
+} from "typebox";
 import {
   ScheduleEntryViewSchema,
   ScheduleErrorSchema,
+  ScheduleIdSchema,
   ScheduleListItemSchema,
   RunViewSchema,
 } from "../../capabilities/index.ts";
@@ -42,12 +50,20 @@ export const ScheduleCreateResultSchema: TUnion<
 /** `schedule.list` 결과 */
 export const ScheduleListResultSchema: TUnion<
   [
-    TObject<{ ok: TLiteral<true>; items: TArray<typeof ScheduleListItemSchema> }>,
+    TObject<{
+      ok: TLiteral<true>;
+      items: TArray<typeof ScheduleListItemSchema>;
+      nextBefore: TOptional<typeof ScheduleIdSchema>;
+    }>,
     typeof ScheduleFailedSchema,
   ]
 > = Type.Union([
   Type.Object(
-    { ok: Type.Literal(true), items: Type.Array(ScheduleListItemSchema, { maxItems: 200 }) },
+    {
+      ok: Type.Literal(true),
+      items: Type.Array(ScheduleListItemSchema, { maxItems: 200 }),
+      nextBefore: Type.Optional(ScheduleIdSchema),
+    },
     { additionalProperties: false },
   ),
   ScheduleFailedSchema,

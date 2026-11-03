@@ -121,11 +121,21 @@ describe("schedule.create", () => {
 });
 
 describe("schedule.list", () => {
-  test("params take an optional enabled flag and nothing else", () => {
+  test("params take optional enabled, before and limit, and nothing else", () => {
     expect(parse(list.params, {}).ok).toBe(true);
     expect(parse(list.params, { enabled: true, _meta: {} }).ok).toBe(true);
     expect(parse(list.params, { enabled: "yes" }).ok).toBe(false);
-    expect(parse(list.params, { limit: 5 }).ok).toBe(false);
+    expect(parse(list.params, { before: SCH, limit: 5 }).ok).toBe(true);
+    expect(parse(list.params, { limit: 0 }).ok).toBe(false);
+    expect(parse(list.params, { limit: 201 }).ok).toBe(false);
+    expect(parse(list.params, { before: "x" }).ok).toBe(false);
+    expect(parse(list.params, { offset: 5 }).ok).toBe(false);
+  });
+
+  test("an ok result may carry nextBefore, which must be a schedule id", () => {
+    const page = { ok: true, items: [{ entry, lastRun: null }], nextBefore: SCH };
+    expect(parsed(list.result, page)).toEqual(page);
+    expect(parse(list.result, { ok: true, items: [], nextBefore: "x" }).ok).toBe(false);
   });
 
   test("an ok result carries the items with their last run or null", () => {

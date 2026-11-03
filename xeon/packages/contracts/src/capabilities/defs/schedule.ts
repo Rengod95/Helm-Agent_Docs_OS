@@ -360,13 +360,32 @@ const CreateOutputSchema: TObject<{
   { additionalProperties: false },
 );
 
-export const ScheduleListInputSchema: TObject<{ enabled: TOptional<TBoolean> }> = Type.Object(
-  { enabled: Type.Optional(Type.Boolean()) },
+/**
+ * 목록 입력. `before`와 `limit`는 쪽 나누기다(l2/F-01). 항목은 저장 순서(오래된 것부터)이고, 쪽은 가장 새 쪽부터 거슬러 올라간다.
+ * 생략하면 가장 새 `limit`개(기본 200)다. 이전 결과의 `nextBefore`를 `before`로 주면 그 항목보다 오래된 쪽을 돌려준다
+ */
+export const ScheduleListInputSchema: TObject<{
+  enabled: TOptional<TBoolean>;
+  before: TOptional<typeof ScheduleIdSchema>;
+  limit: TOptional<TInteger>;
+}> = Type.Object(
+  {
+    enabled: Type.Optional(Type.Boolean()),
+    before: Type.Optional(ScheduleIdSchema),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+  },
   { additionalProperties: false },
 );
 
-const ListOutputSchema: TObject<{ items: TArray<typeof ScheduleListItemSchema> }> = Type.Object(
-  { items: Type.Array(ScheduleListItemSchema, { maxItems: 200 }) },
+/** 목록 결과. 더 오래된 항목이 남아 있으면 `nextBefore`가 이 쪽의 가장 오래된 항목 ID다 */
+export const ScheduleListOutputSchema: TObject<{
+  items: TArray<typeof ScheduleListItemSchema>;
+  nextBefore: TOptional<typeof ScheduleIdSchema>;
+}> = Type.Object(
+  {
+    items: Type.Array(ScheduleListItemSchema, { maxItems: 200 }),
+    nextBefore: Type.Optional(ScheduleIdSchema),
+  },
   { additionalProperties: false },
 );
 
@@ -402,7 +421,7 @@ const StoreFailedDetail: TObject<{ message: TString }> = Type.Object({
 
 type ScheduleMethods = {
   readonly create: MethodDef<typeof ScheduleCreateInputSchema, typeof CreateOutputSchema>;
-  readonly list: MethodDef<typeof ScheduleListInputSchema, typeof ListOutputSchema>;
+  readonly list: MethodDef<typeof ScheduleListInputSchema, typeof ScheduleListOutputSchema>;
   readonly cancel: MethodDef<typeof ScheduleCancelInputSchema, typeof CancelOutputSchema>;
   readonly fire: MethodDef<typeof ScheduleFireInputSchema, typeof FireOutputSchema>;
 };
@@ -510,7 +529,7 @@ export const ScheduleEntries: CapabilityDef<
       list: {
         description: "예약 항목과 항목마다 마지막 실행 기록을 돌려준다. 읽기 전용이다.",
         input: ScheduleListInputSchema,
-        output: ListOutputSchema,
+        output: ScheduleListOutputSchema,
         // ADR-0015: 읽기 전용
         replay: "safe",
         readOnly: true,
