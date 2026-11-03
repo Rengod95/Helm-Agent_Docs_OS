@@ -13,6 +13,11 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "RegistrationToggleSource",
   "AdmitInfo",
   "LoaderSettingsSource",
+  "createRepeatDisableLedger", // 반복 자동 끄기 원장(X.operations §9 7번, 결정 2026-11-04 B5)
+  "REPEAT_DISABLE_THRESHOLD",
+  "RepeatDisableBackend",
+  "RepeatDisableLedger",
+  "RepeatDisableQuestion",
   "ExtDiagnostic", // §3.2에 정의되어 있으나 §3.1 표에는 빠져 있다
 ]);
 

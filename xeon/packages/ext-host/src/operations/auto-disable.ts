@@ -211,6 +211,8 @@ export interface AutoDisablerDeps {
    * 표에 없으면(undefined) tier 면제는 적용되지 않고 isExempt만 본다
    */
   readonly tierOf?: (key: HandlerOwnerKey) => Tier | undefined;
+  /** 자동 끄기를 요청한 직후 부른다(기준 판정으로 끈 경우와 `disableNow` 모두). 반복 끄기 원장이 쓴다 */
+  readonly onDisabled?: (key: HandlerOwnerKey) => void;
 }
 
 export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
@@ -218,6 +220,7 @@ export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
 
   function applyDisable(key: HandlerOwnerKey): void {
     disabled.add(key);
+    deps.onDisabled?.(key);
     if (key.startsWith("ext:")) {
       for (const scopeId of deps.scopes.scopesOf(key.slice("ext:".length))) {
         deps.scopes.requestDisable(scopeId, "auto_disable");

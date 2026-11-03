@@ -36,6 +36,7 @@ import {
   type FailureLedger,
 } from "./failure.ts";
 import { createResourcePolicy, NO_RESERVED_NAMES, type ReservedNames } from "./naming.ts";
+import type { RepeatDisableLedger } from "./repeat-disable.ts";
 import type { OperationsSettingsSource } from "./settings-keys.ts";
 import { createExtStorageManager, type ExtStorageManager } from "./storage/ext-storage.ts";
 import { DEFAULT_TRACE_SETTINGS, type TraceSettings } from "./trace-buffer.ts";
@@ -107,6 +108,13 @@ export {
   type RegistrationToggleSource,
 } from "./auto-disable.ts";
 export {
+  createRepeatDisableLedger,
+  REPEAT_DISABLE_THRESHOLD,
+  type RepeatDisableBackend,
+  type RepeatDisableLedger,
+  type RepeatDisableQuestion,
+} from "./repeat-disable.ts";
+export {
   createStaticOperationsSettings,
   operationsSettings,
   type OperationsSettingsSource,
@@ -161,6 +169,8 @@ export interface OperationsDeps {
   readonly guardStatements?: boolean;
   /** 외부 확장이 짧은 이름으로 쓸 수 없는 내장 이름. 기본은 없음(내장 패키지의 등록만 짧은 이름을 지킨다) */
   readonly reservedNames?: ReservedNames;
+  /** 반복해 자동으로 꺼지는 확장을 세는 원장. 없으면 세지 않는다(결정 2026-11-04 B5) */
+  readonly repeatDisable?: RepeatDisableLedger;
 }
 
 /** admit이 받는 확장 정보. LoadedExtensionInfo의 부분형이다(타입 순환을 피하려고 구조로 적는다) */
@@ -228,6 +238,9 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
     notifier: deps.notifier ?? createLogNotifier(deps.log ?? (() => {})),
     isExempt: (key) => key.startsWith("ext:") && essentials.has(key.slice("ext:".length)),
     tierOf: (key) => (key.startsWith("ext:") ? tiers.get(key.slice("ext:".length)) : undefined),
+    onDisabled: (key) => {
+      if (key.startsWith("ext:")) deps.repeatDisable?.recordAutoDisable(key.slice("ext:".length));
+    },
   });
   const storage = createExtStorageManager({
     ports: deps.ports,
@@ -293,6 +306,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
       tiers.delete(name);
       essentials.delete(name);
       ledger.reset(`ext:${name}`);
+      deps.repeatDisable?.clear(name);
       storage.release(name);
     },
     setupBudgetMs: () => deps.settings.budgets().setup,
