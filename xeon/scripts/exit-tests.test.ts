@@ -91,6 +91,11 @@ test("the repository list parses and names every exit condition it covers", () =
     "X7",
     "X8",
     "X9",
+    "Y10",
+    "Y11",
+    "Y13",
+    "Y16",
+    "Y4",
   ]);
 });
 
@@ -213,11 +218,9 @@ test("X7 names the view-model test and the host test through the real settings.w
   expect(linesOf("X11")).toEqual([["scripts", ["release-smoke.test.ts"]]]);
 });
 
-test("the list keeps a placeholder line for each M4 condition Y1 to Y17 and for no other", () => {
+test("each M4 condition Y1 to Y17 and no other has an enabled or a placeholder line", () => {
   const text = readFileSync(join(import.meta.dir, "exit-tests.txt"), "utf8");
-  const placeholders = [...text.matchAll(/^# (Y\d+) /gm)].map((match) =>
-    Number(match[1]?.slice(1)),
-  );
+  const listed = [...text.matchAll(/^(?:# )?(Y\d+) /gm)].map((match) => Number(match[1]?.slice(1)));
   const expected = Array.from({ length: 17 }, (_, index) => index + 1);
-  expect([...new Set(placeholders)].toSorted((a, b) => a - b)).toEqual(expected);
+  expect([...new Set(listed)].toSorted((a, b) => a - b)).toEqual(expected);
 });
