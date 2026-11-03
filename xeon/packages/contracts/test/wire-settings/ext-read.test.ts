@@ -165,7 +165,7 @@ describe("M4 ext read methods", () => {
             {
               registrationId: "learning",
               extension: "learning",
-              tier: 2,
+              tier: null,
               status: "disabled",
               error: "setup_failed",
             },

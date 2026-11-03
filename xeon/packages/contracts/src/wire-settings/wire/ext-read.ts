@@ -710,8 +710,9 @@ export interface HookEntry {
   /** 외부(X) 훅이면 참 */
   readonly external: boolean;
   /**
-   * 실제로 등록된 핸들러를 디스패치 순서(tier, 확장 로드 순서, 등록 순서, F.extensions.spec §4.2)로 센 목록.
-   * `handlers`와 `registrations`는 이 목록과 같은 원천이다. 꺼진 Registration의 핸들러도 있고 `status`로 구분한다.
+   * 실제로 등록된 핸들러를 디스패치 순서(tier, 확장 로드 순서, 등록 순서, F.extensions.spec §4.2)로 센 목록에,
+   * 핸들러가 없는(꺼졌거나 setup에 실패해 레지스트리에서 빠진) Registration이 선언한 Hook을 `tier: null`로 뒤에 붙인다
+   * (`registrationId` 오름차순, 디스패치되지 않는다). `handlers`와 `registrations`는 이 목록에서 센다.
    * 호스트는 항상 채운다(없으면 옛 호스트)
    */
   readonly order?: readonly HookHandlerRow[];
@@ -720,8 +721,8 @@ export interface HookEntry {
 export interface HookHandlerRow {
   readonly registrationId: string;
   readonly extension: string;
-  /** 디스패치 정렬의 첫째 키. 작을수록 먼저 */
-  readonly tier: number;
+  /** 디스패치 정렬의 첫째 키. 작을수록 먼저. 등록된 핸들러가 없는 행은 null */
+  readonly tier: number | null;
   /** 그 Registration의 전역 상태. `disabled`이면 디스패치에서 빠진다 */
   readonly status: RegistrationStatus;
   /** Registration의 마지막 오류 코드(setup 실패 등). 없으면 null */
@@ -730,7 +731,7 @@ export interface HookHandlerRow {
 const HookHandlerRowShape = closed({
   registrationId: Name,
   extension: Name,
-  tier: Type.Integer(),
+  tier: Type.Union([Type.Integer(), Type.Null()]),
   status: RegistrationStatusShape,
   error: Type.Union([Line, Type.Null()]),
 });
