@@ -35,6 +35,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
       toggle: () => Promise.resolve(ok(null)),
       reenable: () => Promise.resolve(ok(null)),
+      keepOff: () => Promise.resolve(ok(null)),
       versions: () => Promise.resolve(ok({ versions: [] })),
       rollback: () => Promise.resolve(ok("nextStepBoundary")),
       health: () => Promise.resolve(ok([])),

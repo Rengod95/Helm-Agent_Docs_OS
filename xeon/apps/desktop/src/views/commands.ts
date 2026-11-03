@@ -278,8 +278,10 @@ export interface WorkbenchCommands {
   get(name: string): Promise<Result<ExtGetResult, CommandError>>;
   /** 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "user" }` */
   toggle(request: ToggleRequest): Promise<Result<null, CommandError>>;
-  /** 자동 꺼짐 다시 켜기. 적용은 다음 단계 경계다 */
+  /** 자동 꺼짐 다시 켜기. 적용은 다음 단계 경계다. "계속 켜 둘게요" 답도 이 명령이다 */
   reenable(name: string): Promise<Result<null, CommandError>>;
+  /** "계속 꺼 둘게요" 답: `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` */
+  keepOff(name: string): Promise<Result<null, CommandError>>;
   versions(name: string): Promise<Result<ExtVersionsResult, CommandError>>;
   /** 되돌리기. `restart`면 다음 시작에 적용된다(HS-108) */
   rollback(

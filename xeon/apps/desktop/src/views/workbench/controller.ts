@@ -25,6 +25,8 @@ export interface WorkbenchController {
   reloadOrders(): Promise<void>;
   toggle(name: string, target: boolean): Promise<void>;
   reenable(name: string): Promise<void>;
+  /** "계속 꺼 둘게요" 답. 끄고 목록을 다시 읽는다. "계속 켜 둘게요"는 `reenable`이다 */
+  keepOff(name: string): Promise<void>;
 }
 
 export function useWorkbenchController(): WorkbenchController {
@@ -103,6 +105,18 @@ export function useWorkbenchController(): WorkbenchController {
     [commands, reload],
   );
 
+  const keepOff = useCallback(
+    async (name: string): Promise<void> => {
+      const done = await commands.workbench.keepOff(name);
+      if (!done.ok) {
+        toast({ tone: "danger", title: t("desktop.workbench.toggle.failed") });
+        return;
+      }
+      await reload();
+    },
+    [commands, reload],
+  );
+
   // 화면을 열 때와 엔진이 (다시) 살아날 때 읽는다
   useEffect(() => {
     if (phase === "live") detach(reload(), rethrow);
@@ -110,7 +124,7 @@ export function useWorkbenchController(): WorkbenchController {
 
   // 원천이 identity로 다시 그릴지 정하므로 같은 객체를 돌려준다
   return useMemo(
-    () => ({ reload, reloadOrders, toggle, reenable }),
-    [reload, reloadOrders, toggle, reenable],
+    () => ({ reload, reloadOrders, toggle, reenable, keepOff }),
+    [reload, reloadOrders, toggle, reenable, keepOff],
   );
 }

@@ -4,6 +4,7 @@ import { rowOf, type WorkbenchState } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { Badge, Button, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
+import { KeepOffAlert } from "./craft-parts.tsx";
 import { ExtName, ExtSwitch, kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 
 export function SelectionPanel(props: {
@@ -13,6 +14,7 @@ export function SelectionPanel(props: {
   readonly onDetail: () => void;
   readonly onClear: () => void;
   readonly onReenable: () => void;
+  readonly onKeepOff: () => void;
 }): ReactNode {
   const { entry } = props;
   const row = rowOf(entry, props.state.pending);
@@ -48,10 +50,14 @@ export function SelectionPanel(props: {
         )}
       </div>
       {row.lock !== null && <p className="text-ui-sm text-text-tertiary">{lockText(row.lock)}</p>}
-      {row.state === "auto_disabled" && (
-        <Button size="sm" variant="outline" onClick={props.onReenable}>
-          {t("desktop.workbench.reenable")}
-        </Button>
+      {entry.keepOffQuestion === undefined ? (
+        row.state === "auto_disabled" && (
+          <Button size="sm" variant="outline" onClick={props.onReenable}>
+            {t("desktop.workbench.reenable")}
+          </Button>
+        )
+      ) : (
+        <KeepOffAlert entry={entry} onKeepOn={props.onReenable} onKeepOff={props.onKeepOff} />
       )}
       <p className="text-ui-sm text-text-secondary">
         {t("desktop.workbench.selection.hooks", { count: row.hookCount })}
