@@ -69,7 +69,7 @@ export function createScheduleHandlers(
       const items = open.service
         .list()
         .filter((entry) => params.enabled === undefined || entry.enabled === params.enabled)
-        .slice(0, 200)
+        .slice(-200)
         .map((entry) => ({
           entry: entryViewOf(entry),
           lastRun: open.service.runs(entry.id, 1)[0] ?? null,

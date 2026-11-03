@@ -367,3 +367,20 @@ test("fire answers disabled for a switched-off remote trigger", async () => {
   expectWireResult("schedule.fire", result);
   await connection.close();
 });
+
+// l2/F-01: 앞 200건만 보여 새 예약이 목록에서 사라졌다
+test("list keeps the newest 200 entries when the store holds more", async () => {
+  const entries = Array.from({ length: 201 }, (_unused, index) => ({
+    ...INTERVAL_ENTRY,
+    id: `sch_${String(index)}`,
+  }));
+  const host = serviceHost({ ...OPENED, list: () => entries, runs: () => [] });
+  const connection = await connected(host);
+  const listed = await connection.request("schedule.list", {});
+  expect(listed.ok).toBe(true);
+  if (!listed.ok) throw new Error("list failed");
+  expect(listed.items).toHaveLength(200);
+  expect(listed.items[0]?.entry.id).toBe("sch_1");
+  expect(listed.items.at(-1)?.entry.id).toBe("sch_200");
+  await connection.close();
+});
