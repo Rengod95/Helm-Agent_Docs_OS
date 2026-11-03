@@ -9,6 +9,7 @@ import type {
 import type { GroupApi } from "@fresnel/group-sdk";
 import { dedupeFindings } from "./findings.ts";
 import { failureOf, type FailureSite, type HelmFailure } from "./failures.ts";
+import type { ExplorationMarker } from "./guard.ts";
 import { gatherContext } from "./knowledge.ts";
 import { BUILTIN_LENSES, selectLenses } from "./lenses.ts";
 import { linkWork, recordDiscoveries, recordFinished } from "./outputs.ts";
@@ -140,10 +141,23 @@ function toLensResults(
 
 /**
  * g.drive에 넘기는 함수. 클로저 지역 변수에 진행 상태를 두지 않는다(EV-09). 한 호출은 현재 단계 하나만 처리하고 커밋한다.
- * 다음 단계는 X가 다시 부를 때 처리한다(상태만 커밋하고 반환하면 X가 새 판으로 다시 부른다)
+ * 다음 단계는 X가 다시 부를 때 처리한다(상태만 커밋하고 반환하면 X가 새 판으로 다시 부른다).
+ * 표지(`marker`)는 그룹 전역 값이다. 호출이 도는 동안만 커밋된 `st.phase`로 두고, 끝나면 idle로 되돌린다.
+ * explorer 자식은 explore 분기 안에서만 spawn되고 그 안에서 끝나므로 이 기간이 표지가 필요한 전부다
  */
-export function helmDrive(g: DriveApi, settings: () => HelmSettings): DriveFn<HelmState> {
-  return (loop, st) => branch(g, settings, loop, st);
+export function helmDrive(
+  g: DriveApi,
+  settings: () => HelmSettings,
+  marker: ExplorationMarker,
+): DriveFn<HelmState> {
+  return async (loop, st) => {
+    marker.phase = st.phase;
+    try {
+      await branch(g, settings, loop, st);
+    } finally {
+      marker.phase = "idle";
+    }
+  };
 }
 
 async function branch(

@@ -1,7 +1,7 @@
 import { defineGroup, type GroupApi, type GroupModule } from "@fresnel/group-sdk";
 import { helmComposition } from "./composition.ts";
 import { helmDrive } from "./drive.ts";
-import { guardWrite } from "./guard.ts";
+import { guardWrite, type ExplorationMarker } from "./guard.ts";
 import { injectLens } from "./inject.ts";
 import { checkRestore, onLeaseRejected } from "./lifecycle.ts";
 import { helmCommand } from "./command-def.ts";
@@ -16,9 +16,11 @@ function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
   const settings = (): HelmSettings => helmSettingsOf(g.settings());
   const tallies: TallyStore = new Map();
   const missingMeta = new Set<string>();
+  /** 구동 중인 탐구의 단계. explorer 자식 대화의 쓰기 판정이 쓴다(guard.ts) */
+  const marker: ExplorationMarker = { phase: "idle" };
   const observe = observeTool(tallies);
   const settleTurn = settle(g, tallies, settings);
-  const guard = guardWrite(settings, missingMeta);
+  const guard = guardWrite(settings, missingMeta, marker);
   const inject = injectLens(tallies);
   const restore = checkRestore(g);
   const rejected = onLeaseRejected(g);
@@ -45,7 +47,7 @@ function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
   g.on("thread.start", (payload, ctx) => restore(payload, ctx));
   g.on("lifecycle.lease.rejected", (payload, ctx) => rejected(payload, ctx));
   // X는 임대를 받을 때 options.limits를 읽는다. getter라 설정 변경이 다음 임대(다음 탐구)부터 반영된다
-  g.drive(helmDrive(g, settings), {
+  g.drive(helmDrive(g, settings, marker), {
     get limits() {
       return settings().driveLimits;
     },
