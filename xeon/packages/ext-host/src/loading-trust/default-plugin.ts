@@ -80,7 +80,8 @@ async function readVersion(
 async function copyTree(fs: PluginInstallFs, from: string, to: string): Promise<void> {
   await fs.makeDir(to);
   const entries = (await fs.listDir(from)) ?? [];
-  await Promise.all(
+  // 하나가 실패해도 나머지가 끝난 뒤에 알린다. 먼저 알리면 호출자가 임시 폴더를 지우는 동안 남은 복사가 다시 만든다
+  const settled = await Promise.allSettled(
     entries.map(async (entry) => {
       const source = join(from, entry.name);
       const target = join(to, entry.name);
@@ -92,6 +93,9 @@ async function copyTree(fs: PluginInstallFs, from: string, to: string): Promise<
       }
     }),
   );
+  for (const result of settled) {
+    if (result.status === "rejected") throw result.reason;
+  }
 }
 
 /**

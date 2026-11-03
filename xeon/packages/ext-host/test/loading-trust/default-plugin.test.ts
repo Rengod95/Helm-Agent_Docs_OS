@@ -135,6 +135,30 @@ test("a copy that fails midway keeps the previous install and leaves no staging 
   expect(await realInstallFs.listDir(join(stagingRoot, "helm.new"))).toBeNull();
 });
 
+test("a copy that fails leaves no staging directory even when a sibling write finishes later", async () => {
+  await writeBundle("1.0.0", "v1");
+  await installDefaultPlugin({ fs: realInstallFs, source, destination });
+  await realInstallFs.removeDir(source);
+  await writeBundle("1.1.0", "v2");
+  const failing: PluginInstallFs = {
+    ...realInstallFs,
+    makeDir: async (path) => {
+      // 형제 복사를 늦춰, 실패가 먼저 알려져도 정리가 그 뒤에 오는지 본다
+      if (path.endsWith("dist")) await new Promise((resolve) => setTimeout(resolve, 20));
+      await realInstallFs.makeDir(path);
+    },
+    writeBytes: (path, bytes) =>
+      path.endsWith("icon.txt")
+        ? Promise.reject(new Error("disk full"))
+        : realInstallFs.writeBytes(path, bytes),
+  };
+  const result = await installDefaultPlugin({ fs: failing, source, destination });
+  expect(result.ok).toBe(false);
+  // 고치기 전에는 설치가 끝난 뒤 늦은 복사가 임시 폴더를 다시 만들었다. 그 시간이 지나도 없어야 한다
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  expect(await realInstallFs.listDir(join(stagingRoot, "helm.new"))).toBeNull();
+});
+
 test("a rename that fails while placing the new copy restores the previous install", async () => {
   await writeBundle("1.0.0", "v1");
   await installDefaultPlugin({ fs: realInstallFs, source, destination });

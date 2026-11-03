@@ -169,15 +169,12 @@ describe("app-mode schedule ticks", () => {
         await first.engine.close();
         time.advance(EVERY_SECONDS * 1000 + 1_000);
         await second.engine.ports.schedule.tick();
-        await eventually(
-          () =>
-            second.engine.ports.schedule.runs(entry.id).some((run) => run.status === "finished"),
-          15_000,
-        );
+        // 이어받은 첫 기록도 finished라, 두 번째 실행까지 끝나기를 기다리려면 개수를 봐야 한다
+        const finished = () =>
+          second.engine.ports.schedule.runs(entry.id).filter((run) => run.status === "finished");
+        await eventually(() => finished().length >= 2, 15_000);
         // 첫 실행(leader였던 쪽)의 기록은 파일에서 이어받았다
-        expect(
-          second.engine.ports.schedule.runs(entry.id).filter((run) => run.status === "finished"),
-        ).toHaveLength(2);
+        expect(finished()).toHaveLength(2);
       } finally {
         await second.engine.close();
       }
