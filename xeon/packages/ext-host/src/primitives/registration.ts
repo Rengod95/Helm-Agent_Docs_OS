@@ -20,6 +20,7 @@ import { withoutAmbient } from "./ambient.ts";
 import {
   newUsage,
   type BoundaryTxn,
+  type RegistrationDefinition,
   type Generation,
   type HostCore,
   type InstalledUnit,
@@ -126,7 +127,57 @@ export interface RegistrationRuntime {
   info(record: RegistrationRecord): RegistrationInfo;
   /** 실행 중인 thread가 있는가 */
   anyRunning(): boolean;
+  /** 정의 하나를 검사해 교체용으로 만든다. 호스트 상태는 바꾸지 않는다. 검사에 실패하면 PrimitiveError를 던진다 */
+  describe<S>(
+    unit: Pick<InstalledUnit, "name" | "manifest">,
+    id: RegistrationId,
+    def: RegistrationDef<S>,
+    setup: RegistrationSetup<S>,
+  ): StagedScope;
+  /**
+   * 단위 교체를 지금 적용하면 진행 중인 일을 끊게 되는가. 다른 thread가 실행 중이거나 경계를 정산하는 중이거나,
+   * 교체 대상 scope의 drive 함수가 호출 중이면 참이다. `current`는 지금 경계를 처리하는 thread다(실행 중이어도 막지 않는다)
+   */
+  swapBlocked(current: ThreadRuntime | undefined, scopeIds: readonly RegistrationId[]): boolean;
+  /** 단위 교체를 적용한다(`ExtHost.replaceUnit`). 호출자가 `swapBlocked`가 거짓임을 확인한 뒤 부른다 */
+  applySwap(plan: SwapPlan): Promise<SwapResult>;
 }
+
+/** 교체용으로 검사를 마친 scope 정의 하나 */
+export interface StagedScope {
+  readonly id: RegistrationId;
+  readonly plugin: RegistrationDefinition["plugin"];
+  readonly initial: boolean;
+  readonly def: RegistrationDefinition["def"];
+  readonly setup: RegistrationDefinition["setup"];
+}
+
+export interface SwapPlan {
+  readonly unit: InstalledUnit;
+  readonly manifest: RegistrationDefinition["manifest"];
+  readonly loadIndex: number;
+  /** 새 버전의 scope, 엔트리가 `register`한 순서 */
+  readonly staged: readonly StagedScope[];
+  /** 참이면 새 버전이 저장된 상태를 받지 못할 때 그 상태를 `initial`로 다시 쓴다(되돌리기 `clearState`) */
+  readonly resetRefusedState: boolean;
+}
+
+export type SwapResult =
+  | {
+      readonly ok: true;
+      /** 이 교체가 `initial`로 다시 쓴 (thread, scope) 상태 수 */
+      readonly statesCleared: number;
+    }
+  | {
+      readonly ok: false;
+      readonly scopeId: RegistrationId;
+      readonly code: PrimitiveErrorCode;
+      readonly message: string;
+      readonly cause: unknown;
+      /** 옛 정의로 되돌려 다시 켰는가. 거짓이면 `failedToRestore`의 scope가 꺼진 채다 */
+      readonly restored: boolean;
+      readonly failedToRestore: readonly RegistrationId[];
+    };
 
 export type ResetRegistrationStateError = StateResetError | { readonly kind: "not_refused" };
 
@@ -147,6 +198,8 @@ export interface RegistrationRuntimeDeps {
   readonly lease: LeaseBroker;
   /** 토글 요청이 들어왔을 때 유휴 적용을 예약한다. threadId가 있으면 그 thread만 */
   readonly requestApply: (threadId?: ThreadId) => void;
+  /** 경계 적용의 맨 앞에서 부른다. 기다리는 단위 교체(`replaceUnit`)가 있고 끊을 일이 없으면 적용한다 */
+  readonly drainSwaps: (current: ThreadRuntime) => Promise<void> | undefined;
 }
 
 function codeOf(error: unknown): PrimitiveErrorCode | undefined {
@@ -159,10 +212,98 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : "setup failed";
 }
 
+interface SwapFailure {
+  readonly code: PrimitiveErrorCode;
+  readonly message: string;
+  readonly cause: unknown;
+  /** setup 실패였으면 그 결과. 상태 문서가 거부했으면 없다 */
+  readonly result: Extract<SetupResult, { ok: false }> | undefined;
+}
+
 /** 이 thread가 scope를 켜 두기를 바라는가: thread별 요청이 있으면 그것, 없으면 전체 기본값 */
 function wantedBy(thread: ThreadRuntime, record: RegistrationRecord): boolean {
   return thread.want.get(record.id)?.enabled ?? record.desired;
 }
+
+/** 정의 하나를 검사한다. id는 확장 이름으로 시작해야 하고 매니페스트에 선언된 플러그인이어야 한다 */
+function describeScope<S>(
+  unit: Pick<InstalledUnit, "name" | "manifest">,
+  id: RegistrationId,
+  def: RegistrationDef<S>,
+  setup: RegistrationSetup<S>,
+): StagedScope {
+  if (id !== unit.name && !id.startsWith(`${unit.name}/`)) {
+    throw new PrimitiveError(
+      "registration_foreign_id",
+      `registration id ${id} does not start with the extension name ${unit.name}`,
+      { scopeId: id },
+    );
+  }
+  const plugin = pluginsOf(unit.manifest).find((entry) => entry.registrationId === id);
+  if (plugin === undefined) {
+    throw new PrimitiveError(
+      "registration_unknown_plugin",
+      `registration id ${id} is not a plugin declared in the manifest of ${unit.name}`,
+      { scopeId: id },
+    );
+  }
+  const erased = eraseRegistration(def, setup);
+  return {
+    id,
+    plugin,
+    initial: def.defaultEnabled ?? pluginDefaultEnabled(unit.manifest, plugin),
+    def: erased.def,
+    setup: erased.setup,
+  };
+}
+
+function recordOf(unit: InstalledUnit, staged: StagedScope): RegistrationRecord {
+  return {
+    id: staged.id,
+    extension: unit.name,
+    manifest: unit.manifest,
+    plugin: staged.plugin,
+    loadIndex: unit.loadIndex,
+    builtin: unit.builtin,
+    def: staged.def,
+    setup: staged.setup,
+    desired: staged.initial,
+    reason: undefined,
+    status: staged.initial ? "enabling" : "disabled",
+    generationCount: 0,
+    generation: null,
+    lastError: undefined,
+    waiting: [],
+    driveError: false,
+    busy: false,
+  };
+}
+
+function definitionOf(record: RegistrationRecord): RegistrationDefinition {
+  return {
+    manifest: record.manifest,
+    plugin: record.plugin,
+    loadIndex: record.loadIndex,
+    builtin: record.builtin,
+    def: record.def,
+    setup: record.setup,
+  };
+}
+
+function assignDefinition(record: RegistrationRecord, definition: RegistrationDefinition): void {
+  record.manifest = definition.manifest;
+  record.plugin = definition.plugin;
+  record.loadIndex = definition.loadIndex;
+  record.builtin = definition.builtin;
+  record.def = definition.def;
+  record.setup = definition.setup;
+}
+
+type BringUpFailure = {
+  readonly ok: false;
+  readonly record: RegistrationRecord;
+  readonly failure: SwapFailure;
+};
 
 export function createRegistrationRuntime(
   core: HostCore,
@@ -385,6 +526,203 @@ export function createRegistrationRuntime(
     });
   }
 
+  function swapBlocked(
+    current: ThreadRuntime | undefined,
+    scopeIds: readonly RegistrationId[],
+  ): boolean {
+    if (scopeIds.some((id) => core.scopes.get(id)?.busy === true)) return true;
+    const loop = core.ports.get(LoopPortKey);
+    for (const thread of core.threads.values()) {
+      const held = thread.lease;
+      if (held !== null && held.running && scopeIds.includes(held.scopeId)) return true;
+      if (thread === current) continue;
+      if (thread.txn !== null || thread.idleApply !== null) return true;
+      if (loop?.status(thread.threadId) === "running") return true;
+    }
+    return false;
+  }
+
+  /** 새 정의로 세대를 다시 만든다. 실패하면 만들어 둔 세대를 모두 닫고 처음 실패한 scope와 값을 돌려준다 */
+  async function bringUp(
+    records: readonly RegistrationRecord[],
+    resetRefusedState: boolean,
+    cleared: { count: number },
+  ): Promise<{ readonly ok: true } | BringUpFailure> {
+    const made: { readonly record: RegistrationRecord; readonly generation: Generation }[] = [];
+    const failed: { value: BringUpFailure | undefined } = { value: undefined };
+    await eachInOrder(records, async (record) => {
+      const result = await runSetup(record);
+      if (result.ok) {
+        made.push({ record, generation: result.generation });
+        return "continue";
+      }
+      const error = result.failure.error;
+      failed.value = {
+        ok: false,
+        record,
+        failure: {
+          code: result.failure.code ?? "registration_setup_failed",
+          message:
+            result.failure.kind === "timeout"
+              ? `setup of ${record.id} exceeded its time budget`
+              : messageOf(error ?? `setup of ${record.id} failed`),
+          cause: error ?? result.failure.kind,
+          result,
+        },
+      };
+      return "stop";
+    });
+    // 모든 setup이 끝난 뒤에 저장된 상태를 맞춘다. 그 scope를 켜 둔 thread마다 본다
+    if (failed.value === undefined) {
+      await eachInOrder(made, async (item) => {
+        await eachInOrder([...core.threads.values()], async (thread) => {
+          if (!thread.active.has(item.record.id)) return "continue";
+          let refused = await deps.state.prepareStored(item.record, item.generation, thread);
+          if (refused !== undefined && resetRefusedState && STORED_STATE_ERRORS.has(refused.code)) {
+            const reset = await deps.state.resetStored(item.record, thread);
+            if (reset.ok) {
+              cleared.count += 1;
+              refused = await deps.state.prepareStored(item.record, item.generation, thread);
+            }
+          }
+          if (refused === undefined) return "continue";
+          failed.value = {
+            ok: false,
+            record: item.record,
+            failure: {
+              code: refused.code,
+              message: refused.message,
+              cause: refused,
+              result: undefined,
+            },
+          };
+          return "stop";
+        });
+        return failed.value === undefined ? "continue" : "stop";
+      });
+    }
+    if (failed.value !== undefined) {
+      await eachInOrder(made.toReversed(), async (item) => {
+        await disposeGeneration(item.record, item.generation);
+        if (item.generation.number === item.record.generationCount)
+          item.record.generationCount -= 1;
+        return "continue";
+      });
+      return failed.value;
+    }
+    for (const item of made) {
+      item.record.generation = item.generation;
+      item.record.waiting = [];
+      item.record.lastError = undefined;
+      item.generation.open = true;
+    }
+    return { ok: true };
+  }
+
+  /** 임대를 쥔 scope의 drive 함수는 새 세대의 것으로 다음 경계에서 다시 부른다. 임대는 반납하지 않는다 */
+  function keepDriving(records: readonly RegistrationRecord[]): void {
+    for (const thread of core.threads.values()) {
+      const held = thread.lease;
+      if (held === null || held.status !== "active") continue;
+      if (!records.some((record) => record.id === held.scopeId)) continue;
+      held.wantInvoke = true;
+    }
+  }
+
+  async function applySwap(plan: SwapPlan): Promise<SwapResult> {
+    const unit = plan.unit;
+    const newIds = new Set(plan.staged.map((item) => item.id));
+    const removed = unit.scopeIds.filter((id) => !newIds.has(id));
+    const kept = plan.staged
+      .map((item) => core.scopes.get(item.id))
+      .filter((record): record is RegistrationRecord => record !== undefined);
+    const previous = new Map<RegistrationId, RegistrationDefinition>();
+    const previousUnit = { manifest: unit.manifest, loadIndex: unit.loadIndex };
+    // 열린 세대가 있던 scope만 다시 만든다. 꺼져 있던 scope는 정의만 바뀌고 다음에 켤 때 새 정의로 돈다
+    const live = kept.filter((record) => record.generation !== null && !record.generation.closed);
+    // 1. 옛 세대를 닫고(등록 해제기 실행) 정의를 바꾼다. 같은 이름의 도구와 포트를 새 세대가 이어받으려면 먼저 내려야 한다
+    await eachInOrder(kept.toReversed(), async (record) => {
+      previous.set(record.id, definitionOf(record));
+      const generation = record.generation;
+      if (generation !== null && live.includes(record)) {
+        record.generation = null;
+        await disposeGeneration(record, generation);
+      }
+      return "continue";
+    });
+    unit.manifest = plan.manifest;
+    unit.loadIndex = plan.loadIndex;
+    for (const item of plan.staged) {
+      const record = core.scopes.get(item.id);
+      if (record === undefined) continue;
+      assignDefinition(record, {
+        manifest: plan.manifest,
+        plugin: item.plugin,
+        loadIndex: plan.loadIndex,
+        builtin: unit.builtin,
+        def: item.def,
+        setup: item.setup,
+      });
+    }
+    // 2. 새 세대
+    const cleared = { count: 0 };
+    const brought = await bringUp(live, plan.resetRefusedState, cleared);
+    if (!brought.ok) {
+      // 3. 실패: 옛 정의로 되돌려 다시 연다. 실패한 새 버전의 기록은 남기지 않는다
+      unit.manifest = previousUnit.manifest;
+      unit.loadIndex = previousUnit.loadIndex;
+      for (const record of kept) {
+        const before = previous.get(record.id);
+        if (before !== undefined) assignDefinition(record, before);
+      }
+      const restoring = await bringUp(live, false, { count: 0 });
+      const failedToRestore: RegistrationId[] = [];
+      if (!restoring.ok) {
+        // 옛 정의도 다시 열리지 않는다(환경이 바뀌었다). 이 단위의 열려 있던 scope는 꺼진 채다
+        for (const record of live) failedToRestore.push(record.id);
+        markFailed(
+          restoring.record,
+          restoring.failure.result ?? {
+            ok: false,
+            failure: { kind: "threw", code: restoring.failure.code },
+            issues: [],
+            waiting: [],
+          },
+        );
+      }
+      for (const record of live) refreshStatus(record);
+      keepDriving(live);
+      deps.requestApply();
+      return {
+        ok: false,
+        scopeId: brought.record.id,
+        code: brought.failure.code,
+        message: brought.failure.message,
+        cause: brought.failure.cause,
+        restored: failedToRestore.length === 0,
+        failedToRestore,
+      };
+    }
+    // 4. 성공: 새 버전에 없는 scope는 내리고, 새로 생긴 scope는 정의한다. 켜는 일은 다음 경계가 한다
+    await eachInOrder(removed, async (id) => {
+      const record = core.scopes.get(id);
+      if (record === undefined) return "continue";
+      await teardown(record);
+      core.scopes.delete(id);
+      core.notify({ kind: "scope", scopeId: id, threadId: null });
+      return "continue";
+    });
+    for (const item of plan.staged) {
+      if (!core.scopes.has(item.id)) core.scopes.set(item.id, recordOf(unit, item));
+    }
+    unit.scopeIds.splice(0, unit.scopeIds.length, ...plan.staged.map((item) => item.id));
+    for (const record of kept) refreshStatus(record);
+    for (const record of live) core.notify({ kind: "scope", scopeId: record.id, threadId: null });
+    keepDriving(live);
+    deps.requestApply();
+    return { ok: true, statesCleared: cleared.count };
+  }
+
   function anyRunning(): boolean {
     const loop = core.ports.get(LoopPortKey);
     if (loop === undefined) return false;
@@ -436,6 +774,19 @@ export function createRegistrationRuntime(
     refreshStatus(record);
     core.notify({ kind: "scope", scopeId: record.id, threadId: null });
     deps.requestApply();
+  }
+
+  async function teardown(record: RegistrationRecord): Promise<void> {
+    const generation = record.generation;
+    record.desired = false;
+    for (const thread of core.threads.values()) {
+      thread.want.delete(record.id);
+      thread.active.delete(record.id);
+    }
+    deps.lease.releaseForRegistration(record.id, "disabled");
+    record.generation = null;
+    if (generation !== null) await disposeGeneration(record, generation);
+    record.status = "disabled";
   }
 
   const handles = new WeakMap<RegistrationRecord, RegistrationHandle>();
@@ -509,6 +860,9 @@ export function createRegistrationRuntime(
   return {
     anyRunning,
     refreshStatus,
+    describe: (unit, id, def, setup) => describeScope(unit, id, def, setup),
+    swapBlocked,
+    applySwap,
     define(unit, id, def, setup) {
       const existing = core.scopes.get(id);
       if (existing !== undefined) {
@@ -516,41 +870,8 @@ export function createRegistrationRuntime(
           scopeId: id,
         });
       }
-      if (id !== unit.name && !id.startsWith(`${unit.name}/`)) {
-        throw new PrimitiveError(
-          "registration_foreign_id",
-          `registration id ${id} does not start with the extension name ${unit.name}`,
-          { scopeId: id },
-        );
-      }
-      const plugin = pluginsOf(unit.manifest).find((entry) => entry.registrationId === id);
-      if (plugin === undefined) {
-        throw new PrimitiveError(
-          "registration_unknown_plugin",
-          `registration id ${id} is not a plugin declared in the manifest of ${unit.name}`,
-          { scopeId: id },
-        );
-      }
-      const initial = def.defaultEnabled ?? pluginDefaultEnabled(unit.manifest, plugin);
-      const erased = eraseRegistration(def, setup);
-      const record: RegistrationRecord = {
-        id,
-        extension: unit.name,
-        manifest: unit.manifest,
-        plugin,
-        loadIndex: unit.loadIndex,
-        builtin: unit.builtin,
-        ...erased,
-        desired: initial,
-        reason: undefined,
-        status: initial ? "enabling" : "disabled",
-        generationCount: 0,
-        generation: null,
-        lastError: undefined,
-        waiting: [],
-        driveError: false,
-        busy: false,
-      };
+      const staged = describeScope(unit, id, def, setup);
+      const record = recordOf(unit, staged);
       core.scopes.set(id, record);
       unit.scopeIds.push(id);
       return handleOf(record);
@@ -626,6 +947,9 @@ export function createRegistrationRuntime(
       });
     },
     async applyToggles(thread, txn) {
+      // 기다리는 교체가 없으면 await하지 않는다(경계 적용의 마이크로태스크 순서를 바꾸지 않는다)
+      const draining = deps.drainSwaps(thread);
+      if (draining !== undefined) await draining;
       const records = [...core.scopes.values()].toSorted(
         (a, b) => a.loadIndex - b.loadIndex || a.id.localeCompare(b.id),
       );
@@ -745,18 +1069,7 @@ export function createRegistrationRuntime(
       }
       for (const record of core.scopes.values()) refreshStatus(record);
     },
-    async teardown(record) {
-      const generation = record.generation;
-      record.desired = false;
-      for (const thread of core.threads.values()) {
-        thread.want.delete(record.id);
-        thread.active.delete(record.id);
-      }
-      deps.lease.releaseForRegistration(record.id, "disabled");
-      record.generation = null;
-      if (generation !== null) await disposeGeneration(record, generation);
-      record.status = "disabled";
-    },
+    teardown,
     info(record) {
       const holding = [...core.threads.values()].some(
         (thread) => thread.lease?.scopeId === record.id && thread.lease.status === "active",

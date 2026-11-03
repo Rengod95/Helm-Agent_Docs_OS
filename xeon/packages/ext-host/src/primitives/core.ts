@@ -131,16 +131,20 @@ interface ThreadWant {
   readonly reason: RegistrationToggleReason | undefined;
 }
 
-export interface RegistrationRecord {
+/** 단위 교체(`ExtHost.replaceUnit`)가 바꾸는 Registration의 정의 부분 */
+export interface RegistrationDefinition {
+  manifest: ExtensionManifest;
+  plugin: PluginEntry;
+  loadIndex: number;
+  builtin: boolean;
+  def: RegistrationDef<AnyState>;
+  setup: RegistrationSetup<AnyState>;
+}
+
+export interface RegistrationRecord extends RegistrationDefinition {
   readonly id: RegistrationId;
   readonly extension: ExtensionName;
-  readonly manifest: ExtensionManifest;
-  /** 이 Registration의 플러그인 선언. 한 확장의 Registration은 플러그인마다 하나다 */
-  readonly plugin: PluginEntry;
-  readonly loadIndex: number;
-  readonly builtin: boolean;
-  readonly def: RegistrationDef<AnyState>;
-  readonly setup: RegistrationSetup<AnyState>;
+  // 정의 필드는 `replaceUnit`이 경계에서만 바꾼다
   /** 마지막 켜기·끄기 요청 */
   desired: boolean;
   reason: RegistrationToggleReason | undefined;
@@ -281,8 +285,8 @@ export interface ThreadRuntime {
 
 export interface InstalledUnit {
   readonly name: ExtensionName;
-  readonly manifest: ExtensionManifest;
-  readonly loadIndex: number;
+  manifest: ExtensionManifest;
+  loadIndex: number;
   readonly builtin: boolean;
   readonly scopeIds: RegistrationId[];
 }
