@@ -93,19 +93,59 @@ describe("saved remote targets live in the local settings file", () => {
 
 describe("retarget hands the engine target to the shell", () => {
   test("a remote target goes out as the address only, and a local one as the local kind", async () => {
-    const engine = engineFake();
-    const app = makeApp(engine.fake);
+    const fake = fakeIpc();
+    const app = makeApp(fake);
+    await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
     const remote = await app.commands.connection.retarget({
       kind: "remote",
       address: SAVED.address,
     });
+    // 바꾸는 동안에는 다음 바꾸기가 거절되므로 엔진이 내려갔다 올라오기를 기다린다
+    fake.emitState({ kind: "stopping" });
+    await until(() => app.engine.read.getState().engine?.kind === "stopping", "stopping");
+    fake.emitState({ kind: "running", source: "sidecar", pid: 2 });
+    await until(() => !app.ui.read.getState().engineSwitching, "hold released");
     const local = await app.commands.connection.retarget({ kind: "local" });
     expect(remote).toEqual({ ok: true, value: null });
     expect(local).toEqual({ ok: true, value: null });
-    expect(engine.fake.retargeted).toEqual([
+    expect(fake.retargeted).toEqual([
       { kind: "remote", address: "ssh://me@build/run/fresnel.sock" },
       { kind: "local" },
     ]);
+    await app.stop();
+  });
+
+  test("the connection screen's retarget holds writes as switching until the new engine runs", async () => {
+    const fake = fakeIpc();
+    const app = makeApp(fake);
+    await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
+    const done = await app.commands.connection.retarget({
+      kind: "remote",
+      address: SAVED.address,
+    });
+    expect(done).toEqual({ ok: true, value: null });
+    expect(app.ui.read.getState().engineSwitching).toBe(true);
+    const before = fake.written.length;
+    expect(await app.commands.sendTurn(thr(1), "hi", "r1")).toEqual({
+      ok: false,
+      error: { kind: "switching" },
+    });
+    expect(fake.written.length).toBe(before);
+    fake.emitState({ kind: "stopping" });
+    await until(() => app.engine.read.getState().engine?.kind === "stopping", "stopping");
+    fake.emitState({ kind: "running", source: "sidecar", pid: 2 });
+    await until(() => !app.ui.read.getState().engineSwitching, "hold released");
+    await app.stop();
+  });
+
+  test("a second retarget while the switch is held is reported as other", async () => {
+    const fake = fakeIpc();
+    const app = makeApp(fake);
+    await until(() => app.engine.read.getState().engine?.kind === "running", "engine running");
+    await app.commands.connection.retarget({ kind: "remote", address: SAVED.address });
+    const second = await app.commands.connection.retarget({ kind: "local" });
+    expect(second).toEqual({ ok: false, error: "other" });
+    expect(fake.retargeted).toEqual([{ kind: "remote", address: SAVED.address }]);
     await app.stop();
   });
 

@@ -221,7 +221,7 @@ export function createCommands(deps: CommandDeps): Commands {
     ),
     schedule: createScheduleCommands(withConnection),
     connection: createConnectionCommands({
-      ipc: deps.ipc,
+      engineSwitch: deps.engineSwitch,
       local: deps.local,
       session,
       ui,
