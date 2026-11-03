@@ -45,8 +45,9 @@ import {
   tabSwitchOf,
   type SettingsKeyIntent,
 } from "./settings-model.ts";
-import type { FieldHandlers } from "./settings-field.tsx";
+import type { DedicatedEditors, FieldHandlers } from "./settings-field.tsx";
 import { SettingsFileEditorView, type SettingsFileHandlers } from "./settings-file-view.tsx";
+import { SETTINGS_EDITORS } from "./settings-editors-screen.tsx";
 import { SettingsPageView, type SettingsPageHandlers } from "./settings-view.tsx";
 
 // 설정 화면(P-09)의 동작. 컨트롤러(`commands.settings.open()`)는 연결마다 하나씩 만든다. 읽기와 알림 구독은 효과가 하고,
@@ -66,6 +67,9 @@ interface Binding {
   readonly live: boolean;
   readonly controller: SettingsController | null;
 }
+
+/** 이 화면의 전용 편집기 전부. 계정과 제공자(P-11)와 설정 전용 편집기(P-09 §6.13)를 합친다 */
+const EDITORS: DedicatedEditors = { ...PROVIDER_EDITORS, ...SETTINGS_EDITORS };
 
 function withKey(set: ReadonlySet<SettingKey>, key: SettingKey): ReadonlySet<SettingKey> {
   return new Set([...set, key]);
@@ -419,7 +423,7 @@ export function SettingsPage(): ReactNode {
       secretsPanel={<SecretsPanel />}
       fileEditor={fileEditor}
       fileOpen={file.phase !== "closed"}
-      editors={PROVIDER_EDITORS}
+      editors={EDITORS}
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
       handlers={handlers}
     />

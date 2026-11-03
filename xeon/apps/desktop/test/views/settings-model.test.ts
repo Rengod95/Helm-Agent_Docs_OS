@@ -168,7 +168,7 @@ describe("field controls", () => {
       "l1.models.default": "text",
       "l1.models.allow": "tags",
       "l1.models.roles": "editor",
-      "l1.models.thinkingBudgets": "summary",
+      "l1.models.thinkingBudgets": "editor",
       "l1.loop.maxSteps": "number",
     });
     const listField = fieldIn(view, list.key);

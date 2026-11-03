@@ -27,6 +27,7 @@ import {
   dedicatedEditorOf,
   fallbackScopeOf,
   fieldControlOf,
+  foldableOf,
   hasFooter,
   type DedicatedEditorKind,
   launchChoiceOf,
@@ -44,9 +45,9 @@ import {
 import { RUNTIME_TONE, SCOPE_TONE, TONE_CLASS } from "./settings-text.ts";
 
 // 설정 항목 한 줄(P-09)의 그림. 위젯 종류마다 caustic 부품 하나를 고른다(L4.settings-ui §4.2.1).
-// 표(table), 시크릿(secret), 읽기 전용(readonly)은 값을 요약만 보이고 "파일로 보기"를 안내한다.
-// 전용 편집기는 `editors`로 받는다(종류마다 그림 하나, P-11 `pages/providers`). 종류가 없는 힌트(permissionRules,
-// sandboxLists)는 요약이고, 검색 순서는 도구와 웹 패널이 맡는다(`panelOwnedOf`). 상태와 명령은 없고 `handlers`만 받는다.
+// 표(table), 시크릿(secret)은 전용 편집기(`editors`, 종류마다 그림 하나: P-11 `pages/providers`, P-09 `pages/settings`)로 그린다.
+// 읽기 전용(readonly)은 객체와 배열을 접힌 JSON으로 보인다. 검색 순서는 도구와 웹 패널이 맡는다(`panelOwnedOf`).
+// 상태와 명령은 없고 `handlers`만 받는다.
 
 export interface FieldHandlers {
   /** 초안만 바꾼다(글 칸과 목록 칸은 저장 버튼이나 떠날 때 저장한다) */
@@ -226,7 +227,7 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           hint={t("desktop.settings.field.fileHint")}
           disabled={disabled}
         >
-          <p className="text-ui-sm text-text-secondary">{summaryTextOf(field)}</p>
+          <ReadonlyValue field={field} />
         </Field>
       ) : null}
       {field.saving ? (
@@ -356,6 +357,26 @@ function renderEditor(
     return <p className="text-ui-sm text-text-secondary">{summaryTextOf(field)}</p>;
   }
   return <Editor field={field} editable={editable} handlers={handlers} />;
+}
+
+/** 읽기 값. 객체와 배열은 접힌 JSON 보기로, 원시 값은 글로 보인다(L4.settings-ui §4.2.1 readonly) */
+function ReadonlyValue(props: { readonly field: FieldVM }): ReactNode {
+  const { field } = props;
+  if (!foldableOf(field.value)) {
+    return <p className="text-ui-sm text-text-secondary">{summaryTextOf(field)}</p>;
+  }
+  return (
+    <Accordion variant="ghost">
+      <AccordionItem value="json">
+        <AccordionTrigger>{t("desktop.settings.field.json.title")}</AccordionTrigger>
+        <AccordionContent>
+          <pre className="text-ui-sm break-all whitespace-pre-wrap text-text-secondary">
+            {JSON.stringify(field.value, null, 2)}
+          </pre>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
 }
 
 /** 읽기 요약. 표는 항목 수를, 시크릿은 참조 글을, 원시 값은 글을 보인다 */

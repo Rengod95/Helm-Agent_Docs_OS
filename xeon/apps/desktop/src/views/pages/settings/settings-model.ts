@@ -3,6 +3,7 @@ import type {
   FieldVM,
   SettingsView,
   TabVM,
+  WidgetVM,
   WritableScope,
 } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
@@ -143,8 +144,19 @@ export function scopeChoiceShown(field: FieldVM): boolean {
 /** 위젯 하나가 그려지는 칸. `editor`는 전용 편집기(P-11), `summary`는 읽기 요약과 "파일로 보기" 안내다 */
 export type FieldControl = "switch" | "select" | "number" | "text" | "tags" | "editor" | "summary";
 
-/** 화면이 전용 편집기로 그리는 종류. 계정 풀, 레이트 리밋 표, 모델 역할, 대체 사슬(P-11)이다 */
-export type DedicatedEditorKind = "accountPool" | "modelRoles" | "fallbackChain" | "rateLimit";
+/**
+ * 화면이 전용 편집기로 그리는 종류. 계정 풀, 레이트 리밋 표, 모델 역할, 대체 사슬(P-11), 권한 규칙, 샌드박스 목록,
+ * 시크릿 참조(P-09 §6.13)와 일반 표(`table` 위젯의 세 모양)다.
+ */
+export type DedicatedEditorKind =
+  | "accountPool"
+  | "modelRoles"
+  | "fallbackChain"
+  | "rateLimit"
+  | "permissionRules"
+  | "sandboxLists"
+  | "secretRef"
+  | "table";
 
 /** 키 이름으로 고르는 전용 편집기(L4.settings-ui §4.2.4). 편집기 힌트가 없을 때 쓴다 */
 const EDITOR_BY_KEY: ReadonlyMap<SettingKey, DedicatedEditorKind> = new Map<
@@ -154,6 +166,9 @@ const EDITOR_BY_KEY: ReadonlyMap<SettingKey, DedicatedEditorKind> = new Map<
   ["l1.models.accounts", "accountPool"],
   ["l1.models.rateLimit", "rateLimit"],
   ["l1.models.fallbackChains", "fallbackChain"],
+  ["l1.tools.rules", "permissionRules"],
+  ["l0.sandbox.writeRoots.extra", "sandboxLists"],
+  ["l0.sandbox.network.blockedDomains", "sandboxLists"],
 ]);
 
 /** 검색 순서 키. 도구와 웹 패널이 맡으므로 항목 목록에서 뺀다(`panelOwnedOf`) */
@@ -169,7 +184,9 @@ function editorHintOf(editor: SettingEditor | null): DedicatedEditorKind | null 
     case "fallbackChain":
       return "fallbackChain";
     case "permissionRules":
+      return "permissionRules";
     case "sandboxLists":
+      return "sandboxLists";
     case "searchOrder":
     case null:
       return null;
@@ -178,9 +195,36 @@ function editorHintOf(editor: SettingEditor | null): DedicatedEditorKind | null 
   }
 }
 
-/** 항목을 그릴 전용 편집기 종류. 편집기 힌트가 먼저이고, 없으면 키 이름이다. 해당 없으면 `null`이다 */
+/** 위젯 종류로 고르는 일반 편집기. 시크릿은 참조 선택기, 표는 표 편집기다 */
+function widgetEditorOf(widget: WidgetVM): DedicatedEditorKind | null {
+  switch (widget.kind) {
+    case "secret":
+      return "secretRef";
+    case "table":
+      return "table";
+    case "toggle":
+    case "select":
+    case "number":
+    case "text":
+    case "list":
+    case "readonly":
+      return null;
+    default:
+      return assertNever(widget, "WidgetVM");
+  }
+}
+
+/**
+ * 항목을 그릴 전용 편집기 종류. 편집기 힌트가 먼저이고, 없으면 키 이름이고, 그다음은 위젯 종류다.
+ * 해당 없으면 `null`이다
+ */
 export function dedicatedEditorOf(field: FieldVM): DedicatedEditorKind | null {
-  return editorHintOf(field.editor) ?? EDITOR_BY_KEY.get(field.key) ?? null;
+  return editorHintOf(field.editor) ?? EDITOR_BY_KEY.get(field.key) ?? widgetEditorOf(field.widget);
+}
+
+/** 읽기 전용 값을 접어 보일 가치가 있는가. 객체와 배열은 JSON으로 접어 보이고, 원시 값은 글로 보인다 */
+export function foldableOf(value: unknown): boolean {
+  return typeof value === "object" && value !== null;
 }
 
 /** 도구와 웹 패널이 맡는 항목인가(검색 순서). 패널이 그리므로 탭의 항목 목록에서는 뺀다 */
@@ -189,8 +233,8 @@ export function panelOwnedOf(field: FieldVM): boolean {
 }
 
 /**
- * 위젯 종류에서 칸을 고른다. 전용 편집기가 있으면 `editor`다. 편집기가 없는 힌트(권한 규칙, 샌드박스 목록)와
- * 표, 시크릿, 읽기 전용은 요약이다.
+ * 위젯 종류에서 칸을 고른다. 전용 편집기가 있으면 `editor`다(표와 시크릿도 여기서 편집기를 얻는다).
+ * 편집기가 없는 힌트와 읽기 전용은 요약이다.
  */
 export function fieldControlOf(field: FieldVM): FieldControl {
   if (dedicatedEditorOf(field) !== null) return "editor";
