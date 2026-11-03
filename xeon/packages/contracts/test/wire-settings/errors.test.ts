@@ -72,6 +72,15 @@ describe("WIRE_ERRORS", () => {
       "secret.cancelled": 3210,
       "secret.auditUnwritable": 3211,
       "secret.writeFailed": 3212,
+      "profile.notFound": 3301,
+      "profile.conflict": 3302,
+      "profile.fileCorrupt": 3303,
+      "profile.trustRequired": 3304,
+      "profile.applyPartial": 3305,
+      "profile.limit": 3306,
+      "testRun.unavailable": 3311,
+      "testRun.notATestRun": 3312,
+      "testRun.notPaused": 3313,
       "extension.notFound": 3401,
       "group.notFound": 3402,
       "extension.safeModeActive": 3403,
@@ -94,6 +103,42 @@ describe("WIRE_ERRORS", () => {
       "host.shuttingDown",
       "store.busy",
     ]);
+  });
+
+  test("profile.* and testRun.* errors live in 3300~3399, are not retryable and validate their details", () => {
+    const own = specs.filter((s) => s.kind.startsWith("profile.") || s.kind.startsWith("testRun."));
+    expect(own.map((s) => s.kind)).toEqual([
+      "profile.notFound",
+      "profile.conflict",
+      "profile.fileCorrupt",
+      "profile.trustRequired",
+      "profile.applyPartial",
+      "profile.limit",
+      "testRun.unavailable",
+      "testRun.notATestRun",
+      "testRun.notPaused",
+    ]);
+    for (const spec of own) {
+      expect({
+        kind: spec.kind,
+        in: spec.code >= 3300 && spec.code <= 3399,
+        r: spec.retryable,
+      }).toEqual({
+        kind: spec.kind,
+        in: true,
+        r: false,
+      });
+    }
+    const conflict = WIRE_ERRORS["profile.conflict"].details;
+    if (conflict === undefined) throw new Error("details expected");
+    expect(parse(conflict, { id: "a", rev: null, baseRev: 4 }).ok).toBe(true);
+    expect(parse(conflict, { id: "a", rev: 2, baseRev: null }).ok).toBe(true);
+    expect(parse(conflict, { id: "a", rev: "2", baseRev: null }).ok).toBe(false);
+    const partial = WIRE_ERRORS["profile.applyPartial"].details;
+    if (partial === undefined) throw new Error("details expected");
+    expect(parse(partial, { written: ["a", "b"], failed: "c" }).ok).toBe(true);
+    expect(parse(partial, { written: "a", failed: "c" }).ok).toBe(false);
+    expect(WIRE_ERRORS["testRun.notPaused"].details).toBeUndefined();
   });
 
   test("code ranges stay in the wire-owned blocks", () => {

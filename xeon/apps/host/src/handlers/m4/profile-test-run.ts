@@ -10,7 +10,7 @@ import type { ReadFailure, StoreError } from "@fresnel/contracts/records";
 import type { SettingScope, WriteCheck } from "@fresnel/contracts/settings";
 import {
   wireError,
-  WireError,
+  type WireError,
   type Profile,
   type ProfileApplyResult,
   type ProfileInput,
@@ -126,29 +126,7 @@ export type ProfileTestRunMethods =
   | "testRun.phase";
 
 // ── 오류 ────────────────────────────────────────────────────────────────
-// 계약(WIRE_ERRORS)에 아직 없는 kind다. 코드는 core 구간(3000~3999)의 3300대를 쓴다 [제안, T-F가 표에 더한다].
-
-const M4_ERROR_CODES = {
-  "profile.notFound": 3301,
-  "profile.conflict": 3302,
-  "profile.fileCorrupt": 3303,
-  "profile.trustRequired": 3304,
-  "profile.applyPartial": 3305,
-  "profile.limit": 3306,
-  "testRun.unavailable": 3311,
-  "testRun.notATestRun": 3312,
-  "testRun.notPaused": 3313,
-} as const;
-
-type M4ErrorKind = keyof typeof M4_ERROR_CODES;
-
-function m4Error(kind: M4ErrorKind, details?: Readonly<Record<string, unknown>>): WireError {
-  return new WireError(M4_ERROR_CODES[kind], kind, {
-    kind,
-    retryable: false,
-    ...(details === undefined ? {} : { details }),
-  });
-}
+// `profile.*`·`testRun.*` kind와 코드(3301~3313)는 계약 `WIRE_ERRORS`가 정한다(F.wire-settings.spec §3.5.2). 이 파일은 실패 값을 kind로 옮기기만 한다.
 
 function invalidParam(path: string, message: string): WireError {
   return wireError("jsonrpc.invalidParams", { details: { issues: [{ path, message }] } });
@@ -157,22 +135,22 @@ function invalidParam(path: string, message: string): WireError {
 function wireErrorOfProfileStore(failure: ProfileStoreFailure): WireError {
   switch (failure.kind) {
     case "not_found":
-      return m4Error("profile.notFound", { id: failure.id });
+      return wireError("profile.notFound", { details: { id: failure.id } });
     case "conflict":
-      return m4Error("profile.conflict", {
-        id: failure.id,
-        rev: failure.rev,
-        baseRev: failure.baseRev,
+      return wireError("profile.conflict", {
+        details: { id: failure.id, rev: failure.rev, baseRev: failure.baseRev },
       });
     case "corrupt":
-      return m4Error("profile.fileCorrupt", { reason: failure.reason.slice(0, 200) });
+      return wireError("profile.fileCorrupt", {
+        details: { reason: failure.reason.slice(0, 200) },
+      });
     case "io":
       return wireError("store.io", {
         message: "profiles.json cannot be read or written",
         details: { code: failure.code.slice(0, 64) },
       });
     case "limit":
-      return m4Error("profile.limit", { max: failure.max });
+      return wireError("profile.limit", { details: { max: failure.max } });
     default:
       return assertNever(failure, "ProfileStoreFailure");
   }
@@ -185,7 +163,7 @@ function wireErrorOfWrite(
 ): WireError {
   switch (failure.kind) {
     case "untrusted_project":
-      return m4Error("profile.trustRequired", { workspace: failure.workspace });
+      return wireError("profile.trustRequired", { details: { workspace: failure.workspace } });
     case "thread_required":
       return invalidParam("threadId", "threadId is required for this layer");
     case "workspace_required":
@@ -242,9 +220,8 @@ export function wireErrorOfApply(
     case "unknown_extension":
       return wireError("settings.unknownKey", { details: { key: `ext.${failure.name}.enabled` } });
     case "apply_partial":
-      return m4Error("profile.applyPartial", {
-        written: failure.written.slice(0, 256),
-        failed: failure.failed,
+      return wireError("profile.applyPartial", {
+        details: { written: failure.written.slice(0, 256), failed: failure.failed },
       });
     case "corrupt":
     case "io":
@@ -260,11 +237,11 @@ export function wireErrorOfApply(
 function wireErrorOfControl(failure: TestRunControlError): WireError {
   switch (failure.kind) {
     case "not_a_test_run":
-      return m4Error("testRun.notATestRun");
+      return wireError("testRun.notATestRun");
     case "not_paused":
-      return m4Error("testRun.notPaused");
+      return wireError("testRun.notPaused");
     case "not_available":
-      return m4Error("testRun.unavailable");
+      return wireError("testRun.unavailable");
     default:
       return assertNever(failure.kind, "TestRunControlError");
   }
