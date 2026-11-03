@@ -19,7 +19,7 @@ export const DEFAULT_PLUGIN_NAMES: readonly string[] = ["helm"];
  * 개발 모드(`l3.authoring.devMode`)에서만 더 설치하는 플러그인. 배포 번들에는 없어서 개발 번들 디렉터리에 만들어 둔 때만 설치된다.
  * 설치돼도 기본 꺼짐과 위험 확인(동의)은 그대로다
  */
-export const DEV_PLUGIN_NAMES: readonly string[] = ["account-rotation"];
+const DEV_PLUGIN_NAMES: readonly string[] = ["account-rotation"];
 
 /** 이번 실행에서 설치할 기본 플러그인 이름. 개발 모드가 아니면 배포 목록뿐이다 */
 export function defaultPluginNamesFor(devMode: boolean): readonly string[] {
