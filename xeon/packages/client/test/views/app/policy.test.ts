@@ -155,7 +155,15 @@ describe("bridge policy", () => {
       ok: true,
       action: {
         op: "navigate",
-        target: { kind: "external", url: "https://example.com/a" },
+        target: {
+          kind: "external",
+          url: "https://example.com/a",
+          link: {
+            href: "https://example.com/a",
+            display: "https://example.com/a",
+            punycodeHost: undefined,
+          },
+        },
         needsShellConfirm: true,
       },
     });

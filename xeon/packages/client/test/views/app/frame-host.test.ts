@@ -15,7 +15,12 @@ import {
   type MessageEventLike,
 } from "../../../src/views/app/index.ts";
 import { collectThemeTokens, tokenValueAllowed } from "../../../src/views/app/theme.ts";
-import { confirmButtons, confirmLineText } from "../../../src/views/app/confirm-line.ts";
+import {
+  confirmBadges,
+  confirmButtons,
+  confirmLineText,
+  CONFIRM_CLICK_GUARD_MS,
+} from "../../../src/views/app/confirm-line.ts";
 import {
   fakeBackend,
   flush,
@@ -315,9 +320,30 @@ describe("theme tokens and confirm line", () => {
   });
 
   test("the confirmation line is built only from manifest values", () => {
-    expect(confirmLineText({ extension: "helm", action: "start", approval: false })).toBe(
-      '"helm" 확장이 "start" 동작을 하려고 해요',
+    const base = {
+      extension: "helm",
+      trust: "user",
+      action: "start",
+      label: undefined,
+      paramsSummary: "",
+      approval: false,
+    } as const;
+    expect(confirmLineText(base)).toBe('"helm" 확장이 "start" 동작을 하려고 해요');
+    // 매니페스트 라벨이 있으면 동사 대신 라벨을 보인다
+    expect(confirmLineText({ ...base, label: "작업 시작" })).toBe(
+      '"helm" 확장이 "작업 시작" 동작을 하려고 해요',
     );
+    expect(confirmBadges(base)).toEqual(["직접 설치"]);
+    expect(confirmBadges({ ...base, trust: "project" })).toEqual([
+      "이 프로젝트에서 옴",
+      "프로젝트",
+    ]);
+    // 클릭 보호와 기본 초점은 화면이 지킬 계약이다
+    expect(CONFIRM_CLICK_GUARD_MS).toBe(500);
+    expect(confirmButtons().map((button) => [button.answer, button.defaultFocus])).toEqual([
+      ["allow", false],
+      ["deny", true],
+    ]);
     // 확인 줄은 끌 수 없다. 허용과 거부만 있다(2026-11-04 사용자, B2 1안)
     expect(confirmButtons().map((button) => button.answer)).toEqual(["allow", "deny"]);
   });

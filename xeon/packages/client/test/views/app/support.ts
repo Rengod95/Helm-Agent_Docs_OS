@@ -98,6 +98,7 @@ export function policyContext(overrides: Partial<BridgePolicyContext> = {}): Bri
     extension: "helm",
     enabled: true,
     safeMode: false,
+    trust: "user",
     methods: new Map([
       ["status", { readOnly: true, approval: false }],
       ["start", { readOnly: false, approval: false }],
@@ -105,6 +106,7 @@ export function policyContext(overrides: Partial<BridgePolicyContext> = {}): Bri
     ]),
     readsRecordKinds: ["note.created"],
     settingPrefixes: ["ext.helm.", "l3.helm."],
+    declaredSettingKeys: new Set(["ext.helm.depth"]),
     ownCommands: new Set(["helm-start"]),
     allowPost: true,
     openThreadId: "thr_1",

@@ -1,6 +1,12 @@
 export {
   createBridgeHost,
+  CONFIRM_COOLDOWN_MS,
+  CONFIRM_DENY_STREAK,
   CONFIRM_TIMEOUT_MS,
+  POST_MIN_INTERVAL_MS,
+  POST_OUTSTANDING_MAX,
+  QUERY_INFLIGHT_MAX,
+  summarizeParams,
   LIVENESS_INTERVAL_MS,
   type BackendResult,
   type BridgeBackend,
@@ -12,7 +18,13 @@ export {
   type HostSnapshot,
   type SettingRead,
 } from "./bridge-host.ts";
-export { confirmButtons, confirmLineText } from "./confirm-line.ts";
+export {
+  confirmBadges,
+  confirmButtons,
+  confirmLineText,
+  CONFIRM_CLICK_GUARD_MS,
+  type ConfirmButton,
+} from "./confirm-line.ts";
 export {
   applyFrameAttributes,
   attachFrame,
@@ -30,11 +42,16 @@ export {
 } from "./frame-host.ts";
 export {
   decide,
+  defaultAllowPost,
   eventKindAllowed,
+  normalizeExternalLink,
+  stripBidi,
+  stripUnsafeText,
   settingKeyAllowed,
   type BridgeAction,
   type BridgePolicyContext,
   type Decision,
+  type ExternalLink,
   type MethodGrant,
   type NavigateTarget,
 } from "./policy.ts";

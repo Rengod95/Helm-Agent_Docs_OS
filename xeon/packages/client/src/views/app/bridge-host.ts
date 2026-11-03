@@ -21,8 +21,10 @@ import {
 import type { LedgerFailure, ScreenLedger } from "../ledger.ts";
 import {
   decide,
+  stripUnsafeText,
   type BridgeAction,
   type BridgePolicyContext,
+  type ExternalLink,
   type NavigateTarget,
 } from "./policy.ts";
 
@@ -71,8 +73,8 @@ export interface BridgeBackend {
   post(threadId: string, text: string): Promise<BackendResult<unknown>>;
   requestApproval(threadId: string, title: string, detail: string): Promise<BackendResult<unknown>>;
   navigate(target: NavigateTarget, shellConfirmed: boolean): Promise<BackendResult<unknown>>;
-  /** 외부 링크는 셸이 먼저 확인한다 */
-  confirmExternal(url: string): Promise<boolean>;
+  /** 외부 링크는 셸이 먼저 확인한다. 확인 글과 OS 브라우저 열기 모두 `link.href`만 쓴다 */
+  confirmExternal(link: ExternalLink): Promise<boolean>;
   resize(height: number): void;
   /** 진단 줄. op와 크기만 온다 */
   diagnostic(line: { readonly op: string; readonly size: number }): void;
@@ -83,8 +85,14 @@ export type ConfirmAnswer = "allow" | "deny";
 /** 프레임 `call`·`command` 앞의 확인 줄(§3.4). 글은 매니페스트에서 온 값(확장 이름, 동사)으로만 만든다. 프레임이 준 글은 쓰지 않는다 */
 export interface ConfirmRequest {
   readonly extension: string;
+  /** 확장의 신뢰 등급. `project`이면 줄에 프로젝트 배지를 단다 */
+  readonly trust: "builtin" | "user" | "project";
   /** `call`이면 동사, `command`이면 `/이름` */
   readonly action: string;
+  /** 매니페스트 라벨. 있으면 줄이 동사 대신 이것을 보인다 */
+  readonly label: string | undefined;
+  /** 실제로 실행될 params의 요약(키=값, 제어·방향 제어 글자 제거, 길이 제한). 빈 객체면 빈 글이다. 확인한 값과 실행하는 값은 같은 객체다 */
+  readonly paramsSummary: string;
   /** 표준 승인 카드가 따로 뜨는 메서드인가(그 카드는 끌 수 없다) */
   readonly approval: boolean;
 }
@@ -117,6 +125,41 @@ export const LIVENESS_INTERVAL_MS = 5000;
 const LIVENESS_MISSES = 2;
 export const CONFIRM_TIMEOUT_MS = 60000;
 const RATE_WINDOW_MS = 1000;
+/** 연속 거부·시간 초과가 이 횟수에 이르면 잠시 묻지 않고 거부한다 */
+export const CONFIRM_DENY_STREAK = 3;
+export const CONFIRM_COOLDOWN_MS = 5000;
+/** 읽기 길 동시 처리 상한 */
+export const QUERY_INFLIGHT_MAX = 8;
+/** `post`, `requestApproval` 화면당 예산: 5초에 1번, 미결 5개 */
+export const POST_MIN_INTERVAL_MS = 5000;
+export const POST_OUTSTANDING_MAX = 5;
+const PARAMS_SUMMARY_MAX = 160;
+
+/** 장부의 연속 실패를 되돌리는 성공은 일을 한 것뿐이다. 생존 확인, 크기 조절, 진단, host 읽기는 세지 않는다 */
+const SUBSTANTIVE_OPS: ReadonlySet<string> = new Set([
+  "query",
+  "events",
+  "settings",
+  "call",
+  "command",
+  "post",
+  "requestApproval",
+  "navigate",
+]);
+
+/** params 요약. 키를 정렬하고 값은 JSON으로 줄인다. 프레임이 준 글이라 제어·방향 제어 글자를 뺀다 */
+export function summarizeParams(params: Readonly<Record<string, unknown>>): string {
+  const parts = Object.keys(params)
+    .toSorted()
+    .map((key) => {
+      const text = attempt(() =>
+        JSON.stringify(Object.getOwnPropertyDescriptor(params, key)?.value),
+      );
+      return `${key}=${text.ok ? text.value : "?"}`;
+    });
+  const joined = stripUnsafeText(parts.join(", "), false);
+  return joined.length <= PARAMS_SUMMARY_MAX ? joined : `${joined.slice(0, PARAMS_SUMMARY_MAX)}…`;
+}
 
 function failed(kind: BridgeError["kind"], detail?: string): BackendResult<never> {
   return { ok: false, error: detail === undefined ? { kind } : { kind, detail } };
@@ -141,6 +184,11 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
   let closed = false;
   const isClosed = (): boolean => closed;
   let confirmPending = false;
+  let denyStreak = 0;
+  let cooldownUntil = 0;
+  let queriesInflight = 0;
+  let outstanding = 0;
+  let lastPostAt = Number.NEGATIVE_INFINITY;
   let windowStart = options.clock.now();
   let windowCount = 0;
   let livenessTimer: TimerHandle | undefined;
@@ -188,12 +236,12 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
   }
 
   /** 확인 줄은 끌 수 없어 호출마다 묻는다. 같은 확장이라도 앞의 허용을 기억하지 않는다(2026-11-04 사용자, B2 1안) */
-  async function askConfirm(request: ConfirmRequest): Promise<ConfirmAnswer> {
+  async function askConfirm(request: ConfirmRequest): Promise<"allow" | "deny" | "timeout"> {
     if (confirmPending) return "deny";
     confirmPending = true;
-    const answer = new Promise<ConfirmAnswer>((resolve) => {
-      confirmResolve = resolve;
-      confirmTimer = options.scheduler.setTimeout(() => resolve("deny"), CONFIRM_TIMEOUT_MS);
+    const answer = new Promise<"timeout">((resolve) => {
+      confirmResolve = () => resolve("timeout");
+      confirmTimer = options.scheduler.setTimeout(() => resolve("timeout"), CONFIRM_TIMEOUT_MS);
     });
     const asked = attemptAsync(() => options.confirm(request));
     const result = await Promise.race([answer, asked.then((r) => (r.ok ? r.value : "deny"))]);
@@ -204,17 +252,99 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
     return result;
   }
 
+  /**
+   * 확인 한 번. 거부와 시간 초과는 장부에 센다. 연속 3번이면 CONFIRM_COOLDOWN_MS 동안 줄을 띄우지 않고 거부한다(그 거부도 센다).
+   * 허용이면 undefined, 아니면 돌려줄 오류다
+   */
+  async function confirmGate(
+    action: string,
+    label: string | undefined,
+    params: Readonly<Record<string, unknown>>,
+    approval: boolean,
+  ): Promise<BridgeError | undefined> {
+    if (options.clock.now() < cooldownUntil) {
+      count("confirm_denied");
+      return { kind: "denied", detail: "confirm_cooldown" };
+    }
+    const outcome = await askConfirm({
+      extension: options.context().extension,
+      trust: options.context().trust,
+      action,
+      label,
+      paramsSummary: summarizeParams(params),
+      approval,
+    });
+    if (outcome === "allow") {
+      denyStreak = 0;
+      return undefined;
+    }
+    denyStreak += 1;
+    if (denyStreak >= CONFIRM_DENY_STREAK) {
+      denyStreak = 0;
+      cooldownUntil = options.clock.now() + CONFIRM_COOLDOWN_MS;
+    }
+    count(outcome === "timeout" ? "confirm_timeout" : "confirm_denied");
+    return { kind: "denied", detail: "not_confirmed" };
+  }
+
+  /** `post`와 `requestApproval`의 화면당 예산. 넘으면 오류 이름을 돌려주고 장부에 센다 */
+  function postBudgetError(): BridgeError | undefined {
+    const now = options.clock.now();
+    if (outstanding >= POST_OUTSTANDING_MAX || now - lastPostAt < POST_MIN_INTERVAL_MS) {
+      count("limit_exceeded");
+      return { kind: "rate_limited" };
+    }
+    lastPostAt = now;
+    return undefined;
+  }
+
+  /** 확인을 기다리는 동안 확장이 꺼졌거나 안전 모드가 되었을 수 있다. 실행 직전에 다시 판정한다 */
+  function stillRunnable(): BridgeError | undefined {
+    if (isClosed()) return { kind: "extension_off" };
+    const context = options.context();
+    if (!context.enabled) return { kind: "extension_off" };
+    if (context.safeMode) return { kind: "safe_mode" };
+    return undefined;
+  }
+
+  async function runQuery(
+    action: Extract<BridgeAction, { op: "query" }>,
+  ): Promise<BackendResult<unknown>> {
+    if (queriesInflight >= QUERY_INFLIGHT_MAX) {
+      count("limit_exceeded");
+      return failed("rate_limited", "query_inflight");
+    }
+    queriesInflight += 1;
+    const result = await attemptAsync(() => backend.query(action.verb, action.params));
+    queriesInflight -= 1;
+    if (!result.ok) return failed("failed");
+    if (!result.value.ok) return result.value;
+    if (sizeOf(result.value.value) > UI_LIMITS.queryResultBytes) {
+      count("limit_exceeded");
+      return failed("too_large");
+    }
+    return result.value;
+  }
+
+  async function runPosted(
+    action: Extract<BridgeAction, { op: "post" | "requestApproval" }>,
+  ): Promise<BackendResult<unknown>> {
+    const over = postBudgetError();
+    if (over !== undefined) return { ok: false, error: over };
+    outstanding += 1;
+    const result = await attemptAsync(() =>
+      action.op === "post"
+        ? backend.post(action.threadId, action.text)
+        : backend.requestApproval(action.threadId, action.title, action.detail),
+    );
+    outstanding -= 1;
+    return result.ok ? result.value : failed("failed");
+  }
+
   async function run(action: BridgeAction): Promise<BackendResult<unknown>> {
     switch (action.op) {
-      case "query": {
-        const result = await backend.query(action.verb, action.params);
-        if (!result.ok) return result;
-        if (sizeOf(result.value) > UI_LIMITS.queryResultBytes) {
-          count("limit_exceeded");
-          return failed("too_large");
-        }
-        return result;
-      }
+      case "query":
+        return runQuery(action);
       case "events": {
         const result = await backend.events(action.kinds, action.limit);
         if (!result.ok) return result;
@@ -227,9 +357,10 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
       case "settings": {
         const result = await backend.settings(action.keys);
         if (!result.ok) return result;
-        // 비밀 키는 값 대신 "설정됨/없음"만 건넨다(§3.6.5). 다른 필드는 옮기지 않는다
+        const declared = options.context().declaredSettingKeys;
+        // 값은 매니페스트가 선언한 키만 건넨다. 선언 없는 키와 비밀 키는 "설정됨/없음"만 준다(§3.6.5). 다른 필드는 옮기지 않는다
         const rows = result.value.map((row) =>
-          row.secret
+          row.secret || !declared.has(row.key)
             ? { key: row.key, status: row.isSet ? "set" : "unset" }
             : { key: row.key, value: row.value },
         );
@@ -248,46 +379,38 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
             theme: snapshot.theme,
             extension: {
               enabled: snapshot.extension.enabled,
-              trust: snapshot.extension.trust,
+              trust: options.context().trust,
               safeMode: snapshot.extension.safeMode,
             },
           },
         };
       }
       case "call": {
-        const answer = await askConfirm({
-          extension: options.context().extension,
-          action: action.verb,
-          approval: action.approval,
-        });
-        if (answer === "deny") return failed("denied", "not_confirmed");
-        // 확인을 기다리는 동안 확장이 꺼졌거나 안전 모드가 되었을 수 있다. 다시 판정한다
-        if (isClosed()) return failed("extension_off");
-        const context = options.context();
-        if (!context.enabled) return failed("extension_off");
-        if (context.safeMode) return failed("safe_mode");
+        const grant = options.context().methods.get(action.verb);
+        const refused = await confirmGate(
+          action.verb,
+          grant?.label,
+          action.params,
+          action.approval,
+        );
+        if (refused !== undefined) return { ok: false, error: refused };
+        const gone = stillRunnable();
+        if (gone !== undefined) return { ok: false, error: gone };
         return backend.call(action.verb, action.params);
       }
       case "command": {
-        const answer = await askConfirm({
-          extension: options.context().extension,
-          action: `/${action.name}`,
-          approval: false,
-        });
-        if (answer === "deny") return failed("denied", "not_confirmed");
-        if (isClosed()) return failed("extension_off");
-        const context = options.context();
-        if (!context.enabled) return failed("extension_off");
-        if (context.safeMode) return failed("safe_mode");
+        const refused = await confirmGate(`/${action.name}`, undefined, {}, false);
+        if (refused !== undefined) return { ok: false, error: refused };
+        const gone = stillRunnable();
+        if (gone !== undefined) return { ok: false, error: gone };
         return backend.command(action.name, action.args);
       }
       case "post":
-        return backend.post(action.threadId, action.text);
       case "requestApproval":
-        return backend.requestApproval(action.threadId, action.title, action.detail);
+        return runPosted(action);
       case "navigate": {
         if (action.target.kind === "external") {
-          const allowed = await backend.confirmExternal(action.target.url);
+          const allowed = await backend.confirmExternal(action.target.link);
           if (!allowed) return failed("denied", "not_confirmed");
         }
         return backend.navigate(action.target, action.needsShellConfirm);
@@ -362,7 +485,8 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
       respondError(request.id, { kind: "too_large" });
       return;
     }
-    ledger.succeed(screenKey);
+    // 일을 한 요청만 연속 실패를 되돌린다(host, pong, resize, log는 싸서 실패 사이에 끼워 넣어 장부를 비울 수 있다)
+    if (SUBSTANTIVE_OPS.has(decision.action.op)) ledger.succeed(screenKey);
     // 생존 확인 답에는 응답하지 않는다. 답에 답하면 끝이 없다
     if (decision.action.op === "pong") return;
     respond(response);

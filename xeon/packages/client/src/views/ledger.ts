@@ -11,6 +11,8 @@ export const LEDGER_FAILURES = [
   "limit_exceeded",
   "liveness_lost",
   "frame_navigated",
+  "confirm_denied",
+  "confirm_timeout",
 ] as const;
 export type LedgerFailure = (typeof LEDGER_FAILURES)[number];
 

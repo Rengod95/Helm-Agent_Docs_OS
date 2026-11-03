@@ -16,6 +16,8 @@ import { assertNever, parse } from "@fresnel/contracts";
 export interface MethodGrant {
   readonly readOnly: boolean;
   readonly approval: boolean;
+  /** 매니페스트가 정한 사람 말 라벨. 확인 줄이 날 동사 대신 보인다. 없으면 동사를 보인다 */
+  readonly label?: string;
 }
 
 /** 요청마다 새로 읽는 판정 맥락. 셸이 확장 상태와 열린 대화를 바꾸면 다음 요청부터 바뀐다 */
@@ -24,18 +26,27 @@ export interface BridgePolicyContext {
   readonly extension: string;
   readonly enabled: boolean;
   readonly safeMode: boolean;
+  /** 확장의 신뢰 등급. 확인 줄이 배지로 보인다 */
+  readonly trust: "builtin" | "user" | "project";
   /** 동사 → 선언. 선언에 없는 동사는 부를 수 없다 */
   readonly methods: ReadonlyMap<string, MethodGrant>;
   /** 매니페스트 `readsRecordKinds` */
   readonly readsRecordKinds: readonly string[];
   /** 설정 키 접두. 예 `["ext.helm.", "l3.helm."]` */
   readonly settingPrefixes: readonly string[];
+  /** 매니페스트가 선언한 설정 키. 여기 없는 키는 값을 주지 않고 상태(설정됨/없음)만 준다(B2 후속, 2026-11-04) */
+  readonly declaredSettingKeys: ReadonlySet<string>;
   /** 이 확장이 등록한 슬래시 명령 이름(앞 `/` 없음) */
   readonly ownCommands: ReadonlySet<string>;
-  /** 신뢰 등급이 `post`를 허용하는가 */
+  /** 신뢰 등급이 `post`를 허용하는가. 기본은 `defaultAllowPost(trust)`다 */
   readonly allowPost: boolean;
   /** 지금 열린 대화. 없으면 undefined. post, requestApproval은 이 대화에만 쓸 수 있다 */
   readonly openThreadId: string | undefined;
+}
+
+/** 신뢰 등급별 `post` 기본값. 내장 확장만 대화에 글을 올린다. 사용자·프로젝트 확장은 승인 카드(`requestApproval`)로만 사용자에게 묻는다 */
+export function defaultAllowPost(trust: "builtin" | "user" | "project"): boolean {
+  return trust === "builtin";
 }
 
 /** 코어 이벤트 허용 목록(§3.4 `events`). `turn.*`, `lease.*`는 접두, 나머지는 같은 이름만이다 */
@@ -130,7 +141,16 @@ export type NavigateTarget =
   | { readonly kind: "extension" }
   | { readonly kind: "settings" }
   | { readonly kind: "secrets" }
-  | { readonly kind: "external"; readonly url: string };
+  | { readonly kind: "external"; readonly url: string; readonly link: ExternalLink };
+
+/** 외부 링크를 `new URL`로 정규화한 결과. 확인 줄과 OS 브라우저 열기는 둘 다 `href`만 쓴다 */
+export interface ExternalLink {
+  readonly href: string;
+  /** 사람에게 보일 글. 방향 제어 글자를 뺐다 */
+  readonly display: string;
+  /** 사용자가 쓴 호스트와 정규화된 호스트가 다르면(국제화 도메인) 퓨니코드 호스트. 같으면 undefined */
+  readonly punycodeHost: string | undefined;
+}
 
 /** 판정을 통과한 동작. 셸은 이 값만 실행하고 프레임이 보낸 원문 인자는 다시 쓰지 않는다 */
 export type BridgeAction =
@@ -204,12 +224,45 @@ export function settingKeyAllowed(key: string, context: BridgePolicyContext): bo
   );
 }
 
-/** 외부 링크 주소. `http(s)`만, 계정 정보 없이(§3.6.1) */
-function externalUrlAllowed(text: string): boolean {
-  const url = URL.canParse(text) ? new URL(text) : undefined;
-  if (url === undefined) return false;
-  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
-  return url.username === "" && url.password === "";
+// 제어 문자(탭·줄바꿈 포함), 공백, 방향 제어 글자(U+061C, U+200E/F, U+202A-E, U+2066-9)
+function hasControlOrSpace(text: string): boolean {
+  for (const ch of text) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code <= 0x20 || (code >= 0x7f && code <= 0x9f)) return true;
+  }
+  return false;
+}
+const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
+const BIDI_PROBE = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
+
+/** 글에서 방향 제어 글자를 뺀다. 확인 줄과 카드에 보일 글에 쓴다 */
+export function stripBidi(text: string): string {
+  return text.replace(BIDI, "");
+}
+
+/** 제어 문자와 방향 제어 글자를 뺀다. `keepLayout`이면 줄바꿈과 탭은 남긴다 */
+export function stripUnsafeText(text: string, keepLayout: boolean): string {
+  let out = "";
+  for (const ch of stripBidi(text)) {
+    const code = ch.codePointAt(0) ?? 0;
+    const layout = code === 0x0a || code === 0x09;
+    const control = code < 0x20 || (code >= 0x7f && code <= 0x9f);
+    if (control && !(keepLayout && layout)) continue;
+    out += ch;
+  }
+  return out;
+}
+
+/** 외부 링크 주소. `http(s)`만, 계정 정보 없이(§3.6.1). 원문에 제어 문자·공백·방향 제어 글자가 있으면 거부하고, 통과하면 `new URL`의 `href`만 쓴다 */
+export function normalizeExternalLink(raw: string): ExternalLink | undefined {
+  if (hasControlOrSpace(raw) || BIDI_PROBE.test(raw)) return undefined;
+  if (!URL.canParse(raw)) return undefined;
+  const url = new URL(raw);
+  if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+  if (url.username !== "" || url.password !== "") return undefined;
+  const typed = /^https?:\/\/([^/?#:]*)/iu.exec(raw)?.[1]?.toLowerCase();
+  const punycodeHost = typed !== undefined && typed !== url.hostname ? url.hostname : undefined;
+  return { href: url.href, display: stripBidi(url.href), punycodeHost };
 }
 
 const KNOWN_OPS: ReadonlySet<string> = new Set<string>(BRIDGE_OPS);
@@ -305,10 +358,9 @@ export function decide(request: BridgeRequest, context: BridgePolicyContext): De
       if (context.openThreadId === undefined || parsed.value.threadId !== context.openThreadId) {
         return deny("denied", "thread_not_open");
       }
-      return {
-        ok: true,
-        action: { op: "post", threadId: parsed.value.threadId, text: parsed.value.text },
-      };
+      const text = stripUnsafeText(parsed.value.text, true);
+      if (text.trim() === "") return deny("args_invalid", "/text empty");
+      return { ok: true, action: { op: "post", threadId: parsed.value.threadId, text } };
     }
     case "requestApproval": {
       const parsed = parse(ApprovalArgs, request.args);
@@ -316,13 +368,15 @@ export function decide(request: BridgeRequest, context: BridgePolicyContext): De
       if (context.openThreadId === undefined || parsed.value.threadId !== context.openThreadId) {
         return deny("denied", "thread_not_open");
       }
+      const title = stripUnsafeText(parsed.value.title, false).trim();
+      if (title === "") return deny("args_invalid", "/title empty");
       return {
         ok: true,
         action: {
           op: "requestApproval",
           threadId: parsed.value.threadId,
-          title: parsed.value.title,
-          detail: parsed.value.detail ?? "",
+          title,
+          detail: stripUnsafeText(parsed.value.detail ?? "", true),
         },
       };
     }
@@ -331,8 +385,16 @@ export function decide(request: BridgeRequest, context: BridgePolicyContext): De
       if (!parsed.ok) return argsInvalid(parsed.error);
       const target = parsed.value.target;
       if (target.kind === "external") {
-        if (!externalUrlAllowed(target.url)) return deny("args_invalid", "/target/url scheme");
-        return { ok: true, action: { op: "navigate", target, needsShellConfirm: true } };
+        const link = normalizeExternalLink(target.url);
+        if (link === undefined) return deny("args_invalid", "/target/url scheme");
+        return {
+          ok: true,
+          action: {
+            op: "navigate",
+            target: { kind: "external", url: link.href, link },
+            needsShellConfirm: true,
+          },
+        };
       }
       return { ok: true, action: { op: "navigate", target, needsShellConfirm: false } };
     }

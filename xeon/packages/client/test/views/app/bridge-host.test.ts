@@ -5,6 +5,7 @@ import {
   LIVENESS_INTERVAL_MS,
   type BridgePolicyContext,
   type ConfirmAnswer,
+  type ConfirmRequest,
   type SettingRead,
 } from "../../../src/views/app/index.ts";
 import {
@@ -44,6 +45,16 @@ function setup(
   });
   return { time, pair, ledger, calls, confirm, closed, host };
 }
+
+/** 확인 줄이 받는 요청. 신뢰 등급은 fakeBackend의 host 값(user)이다 */
+const asked = (action: string, paramsSummary = ""): ConfirmRequest => ({
+  extension: "helm",
+  trust: "user",
+  action,
+  label: undefined,
+  paramsSummary,
+  approval: false,
+});
 
 describe("bridge host", () => {
   test("a declared query returns the backend value for the same id", async () => {
@@ -117,9 +128,7 @@ describe("bridge host", () => {
     const allowed = setup({ answers: ["allow"] });
     allowed.pair.frame.send(request(1, "call", { verb: "start" }));
     await flush();
-    expect(allowed.confirm.asked).toEqual([
-      { extension: "helm", action: "start", approval: false },
-    ]);
+    expect(allowed.confirm.asked).toEqual([asked("start")]);
     expect(allowed.calls.names).toEqual(["call:start"]);
     expect(allowed.pair.toFrame).toEqual([{ v: 1, id: 1, ok: true, value: { done: true } }]);
 
@@ -147,7 +156,7 @@ describe("bridge host", () => {
     const { pair, confirm, calls } = setup();
     pair.frame.send(request(1, "command", { name: "helm-start", args: "go" }));
     await flush();
-    expect(confirm.asked).toEqual([{ extension: "helm", action: "/helm-start", approval: false }]);
+    expect(confirm.asked).toEqual([asked("/helm-start")]);
     expect(calls.names).toEqual(["command:helm-start:go"]);
   });
 
@@ -158,10 +167,7 @@ describe("bridge host", () => {
     await flush();
     pair.frame.send(request(2, "call", { verb: "start" }));
     await flush();
-    expect(confirm.asked).toEqual([
-      { extension: "helm", action: "start", approval: false },
-      { extension: "helm", action: "start", approval: false },
-    ]);
+    expect(confirm.asked).toEqual([asked("start"), asked("start")]);
     expect(calls.names).toEqual(["call:start"]);
     expect(pair.toFrame[1]).toEqual({
       v: 1,
@@ -251,7 +257,18 @@ describe("bridge host", () => {
     );
     await flush();
     expect(allowed.calls.navigations).toEqual([
-      { target: { kind: "external", url: "https://example.com" }, shellConfirmed: true },
+      {
+        target: {
+          kind: "external",
+          url: "https://example.com/",
+          link: {
+            href: "https://example.com/",
+            display: "https://example.com/",
+            punycodeHost: undefined,
+          },
+        },
+        shellConfirmed: true,
+      },
     ]);
   });
 
@@ -321,10 +338,20 @@ describe("bridge host", () => {
     expect(pair.toFrame.length).toBe(before);
   });
 
-  test("a good request resets the consecutive count", async () => {
+  test("cheap ops (host, resize, log) do not reset the strike count, only real work does", async () => {
     const { pair, ledger } = setup();
     for (let index = 0; index < 4; index += 1) pair.frame.send({ nope: true });
     pair.frame.send(request(1, "host", {}));
+    pair.frame.send(request(2, "resize", { height: 10 }));
+    pair.frame.send(request(3, "log", { message: "x" }));
+    await flush();
+    expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 4 });
+  });
+
+  test("a good request resets the consecutive count", async () => {
+    const { pair, ledger } = setup();
+    for (let index = 0; index < 4; index += 1) pair.frame.send({ nope: true });
+    pair.frame.send(request(1, "query", { verb: "status" }));
     await flush();
     expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 0 });
   });

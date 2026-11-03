@@ -210,6 +210,16 @@ interface ExtMethodDecl {
 - 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.views.frames = false`로 모든 프레임을 끌 수 있습니다(키는 X가 소유합니다, §6 9번). 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
 - 안전 모드에서 빠진 확장의 화면은 자리표시 상태로 보입니다(§3.7).
 
+#### 3.6.7.1 다리 판정 보강 [결정: 2026-11-04 사용자]
+
+보안 검토 결과를 다리에 넣습니다. 확인 줄은 항상 켜져 있습니다(B2 1안).
+
+- 외부 링크: 원문에 제어 문자(탭, 줄바꿈 포함), 공백, 방향 제어 글자가 있으면 거부합니다. 통과한 글은 `new URL`로 정규화하고 확인 줄과 OS 브라우저 열기에 둘 다 `href`를 씁니다. 보일 글에서 방향 제어 글자를 빼고, 사용자가 쓴 호스트와 정규화된 호스트가 다르면(국제화 도메인) 퓨니코드 호스트를 함께 보입니다.
+- 확인 줄: 허용·거부는 장부에 센다(거부 `confirm_denied`, 시간 초과 `confirm_timeout`). 연속 3번 거부하면 5초 동안 줄을 띄우지 않고 거부합니다(그 거부도 셉니다). 줄은 확장 신뢰 등급 배지와, `project`이면 프로젝트 배지, 매니페스트 라벨(없으면 동사), 실제로 실행될 params의 요약을 보입니다. 화면은 줄이 나타난 뒤 500 ms 동안 누름을 무시하고 거부에 처음 초점을 둡니다(UI가 지킬 계약, `confirmButtons().defaultFocus`, `CONFIRM_CLICK_GUARD_MS`).
+- `post`와 `requestApproval`: 화면마다 5초에 1번, 미결 5개까지입니다. 제어·방향 제어 글자를 빼고, 카드는 확장 이름과 등급을 보입니다(B3 1안: 기존 질문 카드 + 출처). `post`는 `allowPost`가 참일 때만이고 기본은 `builtin`만 참입니다. 사용자·프로젝트 확장은 `requestApproval`로만 묻습니다.
+- `settings`: 매니페스트에 선언한 키만 값을 돌려줍니다. 선언하지 않은 키와 `secret` 키는 `status`만 줍니다.
+- 장부: 연속 실패를 되돌리는 성공은 일을 한 `query`, `events`, `settings`, `call`, `command`, `post`, `requestApproval`, `navigate`뿐입니다. `host`, `pong`, `resize`, `log`는 되돌리지 않습니다. `query`는 동시 8개까지입니다. params의 `__proto__`는 자료 키로만 다룹니다.
+
 #### 3.6.8 테마 토큰 전달
 
 - 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. 셸은 `fresnel-view://_caustic/tokens.css`(앱에 든 `@caustic/tokens` 사본, 읽기 전용)도 제공합니다 [제안].
