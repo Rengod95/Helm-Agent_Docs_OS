@@ -93,6 +93,7 @@ import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { createDialogAreaHolder } from "./assembly/m4/dialog-area-bridge.ts";
 import { createExtensionRecords } from "./assembly/m4/ext-read-sources.ts";
+import { startMeasurement } from "./assembly/measure/recorder.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
@@ -454,6 +455,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const scheduleSlot: { service: ScheduleService | undefined } = { service: undefined };
   /** 보관 정리와 블롭 GC 타이머. 닫을 때 먼저 끊는다(저장소를 닫기 전) */
   const dataOpsSlot: { ops: DataOps | undefined } = { ops: undefined };
+  const measureSlot: { stop: (() => void) | undefined } = { stop: undefined };
   /** 자동 제목 연결. 엔진 포트가 올라온 뒤에 연다. 닫을 때 구독을 거둔다 */
   const autoTitleSlot: { title: AutoTitle | undefined } = { title: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
@@ -472,6 +474,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       // 자동 제목과 보관 정리를 먼저 끊는다. 예약을 멈추고 저장소를 닫기 전이어야 한다
       autoTitleSlot.title?.close();
       dataOpsSlot.ops?.close();
+      measureSlot.stop?.();
       // 예약을 먼저 멈춘다: 틱과 감시를 끊고 진행 중인 저장을 기다린다. 저장소를 닫기 전이어야 한다
       await scheduleSlot.service?.close();
       await portsHandle?.releaseAll();
@@ -916,6 +919,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);
+    // 측정 저장소(T-MEAS-STORE): 대화 DB와 분리한 파일. 켜고 끄는 값은 x.operations.trace.enabled다
+    measureSlot.stop = startMeasurement({
+      dir: dbDir,
+      session,
+      enabled: () => operations.trace().enabled,
+      logger,
+      now: () => clock.now(),
+    });
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
       stateDir: os.dirs.state,
