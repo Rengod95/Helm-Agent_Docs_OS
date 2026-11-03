@@ -17,6 +17,13 @@ const DB_FILE_NAME = "fresnel.db";
 /** 누락 블롭 경고를 목록으로 보이는 최대 줄 수. 넘으면 나머지는 개수 한 줄로 센다 */
 const MISSING_LIST_CAP = 10;
 
+/** 확인 질문. 답이 y 또는 yes일 때만 참이다(sessions rm과 같다) */
+async function confirmed(ctx: CommandContext, question: string): Promise<boolean> {
+  const answer = await ctx.io.readLine(`${question} [y/N] `, new AbortController().signal);
+  const text = answer?.trim().toLowerCase() ?? "";
+  return text === "y" || text === "yes";
+}
+
 /** 데이터 디렉터리 위치를 정하지 못했을 때의 실패. 문장은 쓸 때 현재 로케일로 만든다 */
 function dataDirFailure(): Failure {
   return {
@@ -37,6 +44,25 @@ async function runExport(ctx: CommandContext, command: DbCommand): Promise<ExitC
     const failure = dataDirFailure();
     await printFailure(ctx.io, failure);
     return failure.code;
+  }
+  // 사본의 저장소 파일에는 시크릿 값이 그대로 있을 수 있다. 화면 가림은 파일에 적용되지 않는다(L0.secrets.spec §3.5.1).
+  // 확인 규칙은 `sessions rm`, `secret rm`과 같다: --yes가 없으면 터미널에서 묻고, 터미널이 아니면 종료 코드 2로 거부한다
+  if (!command.yes) {
+    if (!ctx.io.terminal.stdinIsTty) {
+      await printFailure(ctx.io, {
+        message: t("cli.db.export.noTerminal.message"),
+        fix: t("cli.db.export.yesFix"),
+      });
+      return EXIT.usage;
+    }
+    await ctx.io.stderr(`${t("cli.db.export.warning")}\n`);
+    if (!(await confirmed(ctx, t("cli.db.export.confirm")))) {
+      await ctx.io.stderr(`${t("cli.db.export.kept")}\n`);
+      return EXIT.error;
+    }
+  } else if (command.output === "text") {
+    // --json이면 stdout만 쓴다(누락 블롭 경고와 같은 규칙)
+    await ctx.io.stderr(`${t("cli.db.export.warning")}\n`);
   }
   // 대상 폴더는 작업 폴더(-C, 없으면 현재 폴더) 기준이다
   const destDir = resolve(ctx.workspace, command.destDir);

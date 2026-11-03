@@ -23,22 +23,26 @@ function parse(argv: readonly string[]): unknown {
   return parsed.ok ? parsed.value.command : parsed.error.code;
 }
 
-test("db export takes one destination and an optional --json", () => {
+test("db export takes one destination, an optional --json, and an optional --yes", () => {
   expect(parse(["db", "export", "out"])).toEqual({
     kind: "db.export",
     destDir: "out",
     output: "text",
+    yes: false,
   });
   expect(parse(["db", "export", "out", "--json"])).toEqual({
     kind: "db.export",
     destDir: "out",
     output: "json",
+    yes: false,
   });
   expect(parse(["db", "export", "--json", "out"])).toEqual({
     kind: "db.export",
     destDir: "out",
     output: "json",
+    yes: false,
   });
+  expect(parse(["db", "export", "out", "--yes"])).toMatchObject({ kind: "db.export", yes: true });
 });
 
 test("db export without a destination, with two, or with an unknown word is a usage error", () => {
@@ -84,9 +88,19 @@ function exporting(result: Result<ExportReport, ExportError>): {
   };
 }
 
+/** 사본 경고 한 줄(stderr, 사람용 출력에서 내보내기 전에 쓴다) */
+const WARNING =
+  "경고: 사본의 저장소 파일에는 시크릿 값이 그대로 있을 수 있다. 화면 가림은 이 파일에 적용되지 않는다. 공유하기 전에 확인한다\n";
+
 function harness(
   result: Result<ExportReport, ExportError>,
-  options: { readonly dataDir?: string | null } = {},
+  options: {
+    readonly dataDir?: string | null;
+    /** 터미널 여부. 기본은 터미널이 아니다 */
+    readonly terminal?: { readonly stdinIsTty: boolean };
+    /** 확인 질문에 대한 답 대본 */
+    readonly lines?: readonly string[];
+  } = {},
 ): { readonly h: Harness; readonly calls: ExportOptions[] } {
   const fake = exporting(result);
   const h = createHarness({
@@ -108,9 +122,9 @@ const REPORT: ExportReport = {
 
 test("db export prints the blob count and the destination, and runs no engine", async () => {
   const { h, calls } = harness(ok(REPORT));
-  expect(await h.run(["db", "export", "out"])).toBe(EXIT.ok);
+  expect(await h.run(["db", "export", "out", "--yes"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toBe("exported 2 blobs to /work/project/out\n");
-  expect(h.stderrText()).toBe("");
+  expect(h.stderrText()).toBe(WARNING);
   expect(calls).toEqual([{ dbPath: DB_PATH, destDir: "/work/project/out", clock: h.clock }]);
   expect(h.startOptions).toEqual([]);
   expect(h.methods()).toEqual([]);
@@ -118,33 +132,33 @@ test("db export prints the blob count and the destination, and runs no engine", 
 
 test("the destination is resolved against -C, not against the process cwd", async () => {
   const { h, calls } = harness(ok({ ...REPORT, destDir: "/work/project/sub/out" }));
-  expect(await h.run(["-C", "sub", "db", "export", "out"])).toBe(EXIT.ok);
+  expect(await h.run(["-C", "sub", "db", "export", "out", "--yes"])).toBe(EXIT.ok);
   expect(calls.map((call) => call.destDir)).toEqual(["/work/project/sub/out"]);
 });
 
 test("db export --json prints the report as one JSON document", async () => {
   const { h } = harness(ok(REPORT));
-  expect(await h.run(["db", "export", "out", "--json"])).toBe(EXIT.ok);
+  expect(await h.run(["db", "export", "out", "--json", "--yes"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toBe(`${JSON.stringify(REPORT, null, 2)}\n`);
   expect(JSON.parse(h.stdoutText())).toEqual(REPORT);
   expect(h.stderrText()).toBe("");
 });
 
-test("each missing blob gets one warning line; the exit code stays 0", async () => {
+test("each missing blob gets one warning line after the export warning; the exit code stays 0", async () => {
   const missing = ["a".repeat(64), "b".repeat(64), "c".repeat(64)];
   const { h } = harness(ok({ ...REPORT, blobCount: 0, missingBlobs: missing }));
-  expect(await h.run(["db", "export", "out"])).toBe(EXIT.ok);
+  expect(await h.run(["db", "export", "out", "--yes"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toBe("exported 0 blobs to /work/project/out\n");
   expect(h.stderrText()).toBe(
-    missing.map((sha256) => `경고: 블롭 파일이 없어 빠졌다: ${sha256}\n`).join(""),
+    WARNING + missing.map((sha256) => `경고: 블롭 파일이 없어 빠졌다: ${sha256}\n`).join(""),
   );
 });
 
 test("more than ten missing blobs list ten lines and then count the rest", async () => {
   const missing = Array.from({ length: 12 }, (_, index) => String(index).padStart(64, "0"));
   const { h } = harness(ok({ ...REPORT, blobCount: 0, missingBlobs: missing }));
-  expect(await h.run(["db", "export", "out"])).toBe(EXIT.ok);
-  const lines = h.stderrText().split("\n").slice(0, -1);
+  expect(await h.run(["db", "export", "out", "--yes"])).toBe(EXIT.ok);
+  const lines = h.stderrText().split("\n").slice(1, -1);
   expect(lines).toHaveLength(11);
   expect(lines.slice(0, 10)).toEqual(
     missing.slice(0, 10).map((sha256) => `경고: 블롭 파일이 없어 빠졌다: ${sha256}`),
@@ -154,9 +168,35 @@ test("more than ten missing blobs list ten lines and then count the rest", async
 
 test("the JSON output does not repeat the missing blobs as warnings", async () => {
   const { h } = harness(ok({ ...REPORT, missingBlobs: ["d".repeat(64)] }));
-  expect(await h.run(["db", "export", "out", "--json"])).toBe(EXIT.ok);
+  expect(await h.run(["db", "export", "out", "--json", "--yes"])).toBe(EXIT.ok);
   expect(h.stderrText()).toBe("");
   expect(JSON.parse(h.stdoutText())).toMatchObject({ missingBlobs: ["d".repeat(64)] });
+});
+
+test("without --yes and without a terminal the export is refused with exit 2 and nothing runs", async () => {
+  const { h, calls } = harness(ok(REPORT));
+  expect(await h.run(["db", "export", "out"])).toBe(EXIT.usage);
+  expect(h.stderrText()).toBe(
+    "fresnel: db export는 시크릿 값이 그대로 든 사본을 만든다. 터미널이 아니므로 --yes 없이는 실행하지 않는다\n  해결: fresnel db export <폴더> --yes\n",
+  );
+  expect(h.stdoutText()).toBe("");
+  expect(calls).toEqual([]);
+});
+
+test("on a terminal the warning comes first and a y answer runs the export", async () => {
+  const { h, calls } = harness(ok(REPORT), { terminal: { stdinIsTty: true }, lines: ["y"] });
+  expect(await h.run(["db", "export", "out"])).toBe(EXIT.ok);
+  expect(h.stderrText().startsWith(WARNING)).toBe(true);
+  expect(h.stdoutText()).toBe("exported 2 blobs to /work/project/out\n");
+  expect(calls).toHaveLength(1);
+});
+
+test("on a terminal any answer other than y keeps the copy undone and exits 1", async () => {
+  const { h, calls } = harness(ok(REPORT), { terminal: { stdinIsTty: true }, lines: ["n"] });
+  expect(await h.run(["db", "export", "out"])).toBe(EXIT.error);
+  expect(h.stderrText()).toBe(`${WARNING}내보내지 않았다 (아무것도 바꾸지 않았다)\n`);
+  expect(h.stdoutText()).toBe("");
+  expect(calls).toEqual([]);
 });
 
 /** ExportError 하나마다 종료 코드와 두 줄 오류 문구를 고정한다. dest_not_empty는 사용법(2), 나머지는 환경 문제(3) */
@@ -211,8 +251,8 @@ const FAILURES: readonly {
 for (const failure of FAILURES) {
   test(`db export maps ${failure.name} to exit ${String(failure.code)} and a two-line message`, async () => {
     const { h, calls } = harness(err(failure.error));
-    expect(await h.run(["db", "export", "out"])).toBe(failure.code);
-    expect(h.stderrText()).toBe(failure.stderr);
+    expect(await h.run(["db", "export", "out", "--yes"])).toBe(failure.code);
+    expect(h.stderrText()).toBe(WARNING + failure.stderr);
     expect(h.stdoutText()).toBe("");
     expect(calls).toHaveLength(1);
   });

@@ -151,7 +151,7 @@ Commands
   trust [status] [--json]   Show the project trust state for this working folder, and the choices
   trust allow|deny [--scope folder|parent|session]
                             Send a trust decision. When trusted, .mcp.json, project skills, and project commands are read
-  db export <folder> [--json] Export the storage files read-only, without the engine. The engine may be running
+  db export <folder> [--json] [--yes] Export the storage files read-only, without the engine. The engine may be running
   schedule add <prompt…> (--every <seconds> | --at <time> | --remote | --watch <path>[,…] | --loop <seconds> …)
                             Create a schedule. If service mode is off, it is only saved and does not run. See fresnel help schedule
   schedule list [--all] [--json]
@@ -182,10 +182,11 @@ Exit codes
 
 test("a help topic is English", async () => {
   expect(await textOf((write) => runHelp("db", write))).toBe(
-    `Usage: fresnel db export <folder> [--json]
+    `Usage: fresnel db export <folder> [--json] [--yes]
 
   <folder>      Folder to export to. It is created if it is missing. If it exists, it must be empty. A relative path is based on the working folder (-C)
   --json        Write the export result (destDir, exportedAt, blobCount, missingBlobs) as JSON
+  --yes         Skip the confirmation. The copy may contain secret values in plain text. Without a terminal this flag is required
 
   Creates <folder>/fresnel.sqlite, <folder>/blobs/, and <folder>/manifest.json. The engine is not started.
 `,

@@ -197,11 +197,15 @@ interface HelpCommand {
   readonly kind: "help";
   readonly topic: string | null;
 }
-/** `db export <폴더>`. 엔진을 띄우지 않고 저장소 파일을 내보낸다(L4.cli.spec §4.13). destDir은 작업 폴더 기준 상대 경로일 수 있다 */
+/**
+ * `db export <폴더>`. 엔진을 띄우지 않고 저장소 파일을 내보낸다(L4.cli.spec §4.13). destDir은 작업 폴더 기준 상대 경로일 수 있다.
+ * yes는 확인을 건너뛴다(`sessions rm`, `secret rm`과 같은 규칙). 사본에는 시크릿 값이 그대로 있을 수 있다.
+ */
 export type DbCommand = {
   readonly kind: "db.export";
   readonly destDir: string;
   readonly output: OutputMode;
+  readonly yes: boolean;
 };
 
 export type CliCommand =
@@ -1711,7 +1715,10 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
   const [action, ...tail] = rest;
   switch (action) {
     case "export": {
-      const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+      const scanned = scanArgs(acc, tail, {
+        "--json": { value: "none" },
+        "--yes": { value: "none" },
+      });
       if (!scanned.ok) return scanned;
       const [destDir, ...extra] = scanned.value.positionals;
       if (destDir === undefined || destDir === "") {
@@ -1732,7 +1739,12 @@ function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, Usa
           ),
         );
       }
-      return ok({ kind: "db.export", destDir, output: outputOf(scanned.value) });
+      return ok({
+        kind: "db.export",
+        destDir,
+        output: outputOf(scanned.value),
+        yes: has(scanned.value, "--yes"),
+      });
     }
     case undefined:
       return err(
