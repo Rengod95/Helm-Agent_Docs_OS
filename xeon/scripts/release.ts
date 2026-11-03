@@ -29,6 +29,7 @@ import { parseArgs } from "node:util";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { hostTriple, outputFileName } from "./build-sidecar.ts";
+import { collectNotices, ENTRY_PACKAGES, noticesText } from "./notices.ts";
 
 const BundledBinarySchema = Type.Object(
   {
@@ -104,6 +105,7 @@ export type ReleaseError =
       readonly got: string;
     }
   | { readonly kind: "input.missing"; readonly path: string }
+  | { readonly kind: "notices.failed"; readonly problems: readonly string[] }
   | { readonly kind: "step.failed"; readonly step: string; readonly exitCode: number }
   | { readonly kind: "host.unsupported"; readonly platform: string; readonly arch: string }
   | { readonly kind: "tool.missing"; readonly name: string };
@@ -172,6 +174,7 @@ export function noticesBody(
   triple: string,
   bundled: readonly BundledBinary[],
   systemRequired: readonly string[],
+  npmNotices: string = "",
 ): string {
   const lines = [`Fresnel ${version} (${triple}) third-party notices`, ""];
   if (bundled.length === 0) lines.push("Bundled external binaries: none.");
@@ -185,6 +188,7 @@ export function noticesBody(
     );
   }
   lines.push("", "The full license texts are in the sources above.", "");
+  if (npmNotices !== "") lines.push(npmNotices);
   return lines.join("\n");
 }
 
@@ -379,9 +383,17 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
     : triple.includes("-apple-")
       ? "darwin"
       : "other";
+  const npm = collectNotices(fresnelRoot, ENTRY_PACKAGES);
+  if (!npm.ok) return fail({ kind: "notices.failed", problems: npm.error });
   writeFileSync(
     join(stage, "THIRD-PARTY-NOTICES.txt"),
-    noticesBody(version, triple, bundled, config.value.systemRequired[platformKey] ?? []),
+    noticesBody(
+      version,
+      triple,
+      bundled,
+      config.value.systemRequired[platformKey] ?? [],
+      noticesText(npm.value),
+    ),
   );
 
   const files = listFiles(stage).map((path) => ({
@@ -422,6 +434,8 @@ export function describeError(error: ReleaseError): string {
       return `bundled binary ${error.name} must be ${error.want}, found "${error.got}"`;
     case "input.missing":
       return `missing input ${error.path}`;
+    case "notices.failed":
+      return `third-party notices cannot be built: ${error.problems.join("; ")}`;
     case "step.failed":
       return `step ${error.step} failed with exit ${String(error.exitCode)}`;
     case "host.unsupported":
