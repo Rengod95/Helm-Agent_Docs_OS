@@ -929,7 +929,7 @@ export interface DriveScanFinding {
 export function scanDriveSource(source: string, options?: { readonly fileName?: string }): readonly DriveScanFinding[];
 ```
 
-- 대상: `<식>.drive(` 호출의 첫 인자로 넘긴 함수 식, 또는 같은 파일 안에서 그 이름으로 선언한 함수의 본문이다. 본문 안에 정의한 중첩 함수도 포함한다. 같은 파일의 다른 함수를 drive 본문이 직접 부르면 그 함수 본문도 한 단계만 검사한다 [제안]. 다른 모듈은 검사하지 않는다.
+- 대상: `<식>.drive(` 호출의 첫 인자로 넘긴 함수 식, 또는 같은 파일 안에서 그 이름으로 선언한 함수의 본문이다. 첫 인자가 같은 파일 함수의 호출(`g.drive(helmDrive(g, settings))`)이면 그 팩토리 함수의 본문을 본다. `.drive(` 호출은 `defineGroup({ setup(g) { ... } })`처럼 호출 인자·객체·배열 안 어디에 있어도 찾고, drive 본문 안의 호출 인자·배열 원소에 있는 금지 호출도 찾는다. 본문 안에 정의한 중첩 함수도 포함한다. 같은 파일의 다른 함수를 drive 본문이 직접 부르면 그 함수 본문도 한 단계만 검사한다 [제안]. 다른 모듈은 검사하지 않는다.
 - 금지 문자열은 `eng.typescript.guide` TY-21과 `eng.anti-patterns.guide` AP-C-05의 목록과 같다. 메시지는 TY-21 `.oxlintrc.json` 항목의 문자열을 그대로 쓴다.
 
 | 코드 | 대상 | 심각도 | 메시지 | 근거 |
