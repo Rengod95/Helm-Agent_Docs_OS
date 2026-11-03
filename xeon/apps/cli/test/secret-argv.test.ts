@@ -18,6 +18,18 @@ test("a value after the name is secretValueInArgv and is never echoed (AC6)", ()
   expect(errorOf(["secret", "rotate", "api-key", VALUE])).toBe("secretValueInArgv");
 });
 
+test("a value that starts with a dash is secretValueInArgv and is never echoed (CLI-01)", () => {
+  const dashed = `-${VALUE}`;
+  const doubled = `--${VALUE}`;
+  for (const action of ["add", "set", "rotate"]) {
+    expect(errorOf(["secret", action, "api-key", dashed])).toBe("secretValueInArgv");
+    expect(errorOf(["secret", action, "api-key", doubled])).toBe("secretValueInArgv");
+    expect(errorOf(["secret", action, "api-key", `${doubled}=tail-${VALUE}`])).toBe(
+      "secretValueInArgv",
+    );
+  }
+});
+
 test("--value in any spelling is secretValueInArgv", () => {
   expect(errorOf(["secret", "set", "api-key", "--value", VALUE])).toBe("secretValueInArgv");
   expect(errorOf(["secret", "set", "api-key", `--value=${VALUE}`])).toBe("secretValueInArgv");

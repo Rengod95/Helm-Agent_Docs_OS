@@ -13,11 +13,15 @@ export interface ExtDiagnosticSink {
 }
 
 /** 확장 진단 모음을 만든다. 상한은 `DEFAULT_DIAGNOSTICS_CAP`(256)이 기본이다 */
-export function createExtDiagnosticSink(cap: number = DEFAULT_DIAGNOSTICS_CAP): ExtDiagnosticSink {
+export function createExtDiagnosticSink(
+  cap: number = DEFAULT_DIAGNOSTICS_CAP,
+  /** 메시지의 시크릿 가림. 진단 메시지는 확장 오류 문구라 값이 들어 있을 수 있다 */
+  mask: (text: string) => string = (text) => text,
+): ExtDiagnosticSink {
   const list = createBoundedList<ExtDiagnostic>(cap);
   return {
     push: (diagnostic) => {
-      list.push(diagnostic);
+      list.push({ ...diagnostic, message: mask(diagnostic.message) });
     },
     items: () => list.items(),
     dropped: () => list.dropped(),

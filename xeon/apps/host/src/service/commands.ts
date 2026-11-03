@@ -1,7 +1,7 @@
 import { basename } from "node:path";
 import { assertNever } from "@fresnel/contracts";
 import type { CommandIo, HostCommand } from "../host-command.ts";
-import { serviceStatus, stopHostService } from "./control.ts";
+import { serviceStatus, serviceStatusView, stopHostService } from "./control.ts";
 import { ensureHostService, type ServiceCommand } from "./ensure.ts";
 import { resolveLaunchMode } from "./launch-mode.ts";
 import { startService } from "./lifetime.ts";
@@ -140,7 +140,7 @@ export async function runServiceCommand(
         return 1;
       }
       if (command.json) {
-        await write(io.stdout, `${JSON.stringify(status.value)}\n`);
+        await write(io.stdout, `${JSON.stringify(serviceStatusView(status.value))}\n`);
         return status.value.running ? 0 : 1;
       }
       if (!status.value.running) {

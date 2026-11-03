@@ -1443,9 +1443,8 @@ function parseSecret(
     case "rotate": {
       const table: FlagTable =
         action === "add" ? { ...SECRET_META_FLAGS, ...valueFlagTable } : valueFlagTable;
-      const scanned = scanArgs(acc, tail, table, (name) =>
-        SECRET_VALUE_FLAGS.includes(name) ? secretValueInArgv() : undefined,
-      );
+      // 모르는 플래그 토큰은 값일 수 있다(`-`로 시작하는 값). 토큰을 문구에 되쓰지 않고 argv 값 오류로 막는다(spec §4.7)
+      const scanned = scanArgs(acc, tail, table, () => secretValueInArgv());
       if (!scanned.ok) return scanned;
       if (wantsValue(scanned.value)) return err(secretValueInArgv());
       const [nameText, ...extra] = scanned.value.positionals;
