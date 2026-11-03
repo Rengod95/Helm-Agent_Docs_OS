@@ -345,6 +345,12 @@ export function decideAction(
 /** thread별 집계표. 프로세스 메모리에만 둔다. 크래시로 잃으면 그 turn의 신호가 한 turn 늦어진다 */
 export type TallyStore = Map<string, HelmTurnTally>;
 
+/**
+ * thread별로 마지막 신호가 난 turn의 용어 후보. 집계표는 `boundary.settle.after`에서 지워지므로
+ * 정착 뒤에 `/helm start`를 주제 없이 실행하는 경로(제안 카드의 시작 단추)가 쓰도록 따로 남긴다(L3.helm.spec 752행)
+ */
+export type SignalTermsStore = Map<string, readonly string[]>;
+
 function tallyOf(store: TallyStore, threadId: string, state: Readonly<HelmState>): HelmTurnTally {
   return store.get(threadId) ?? openTally(state.watch);
 }
@@ -374,6 +380,7 @@ export function settle(
   g: SignalApi,
   tallies: TallyStore,
   settings: () => HelmSettings,
+  signalTerms: SignalTermsStore,
 ): (
   payload: { readonly turnId: string },
   ctx: { readonly threadId: string; readonly state: Readonly<HelmState> },
@@ -382,6 +389,9 @@ export function settle(
     const tally = tallyOf(tallies, ctx.threadId, ctx.state);
     const { watch, crossed, evidence } = settleTurn(tally, SIGNAL_DEFAULTS);
     tallies.delete(ctx.threadId);
+    if (crossed.length > 0 && tally.promptTerms.length > 0) {
+      signalTerms.set(ctx.threadId, tally.promptTerms);
+    }
     const decided = decideAction(ctx.state, crossed, settings().autoStart, {
       turnId: payload.turnId,
       evidence,

@@ -7,7 +7,7 @@ import {
   statusText,
 } from "./commands.ts";
 import { statusNotice } from "./prompts.ts";
-import type { TallyStore } from "./signals.ts";
+import type { SignalTermsStore, TallyStore } from "./signals.ts";
 import type { HelmState } from "./state.ts";
 
 type CommandApi = Pick<GroupApi<HelmState>, "state" | "commit" | "post">;
@@ -20,6 +20,7 @@ type CommandApi = Pick<GroupApi<HelmState>, "state" | "commit" | "post">;
 export function helmCommand(
   g: CommandApi,
   tallies: TallyStore,
+  signalTerms: SignalTermsStore,
   missingMeta: ReadonlySet<string>,
 ): Parameters<GroupApi<HelmState>["registerCommand"]>[1] {
   return {
@@ -31,7 +32,9 @@ export function helmCommand(
       if (!parsed.ok) {
         text = commandErrorText(parsed.error);
       } else {
-        const terms = tallies.get(ctx.threadId)?.promptTerms ?? [];
+        // 이 turn 입력의 용어가 우선이고, 없으면 마지막 신호의 근거 용어를 쓴다
+        const current = tallies.get(ctx.threadId)?.promptTerms ?? [];
+        const terms = current.length > 0 ? current : (signalTerms.get(ctx.threadId) ?? []);
         const result = await runHelmCommand(g, parsed.value, { nonce: ctx.invocationId, terms });
         text = result.ok
           ? statusText(result.value, [...missingMeta])
