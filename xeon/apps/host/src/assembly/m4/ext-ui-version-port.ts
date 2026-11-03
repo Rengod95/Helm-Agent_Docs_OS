@@ -1,14 +1,20 @@
 import { join } from "node:path";
-import { assertNever, err, ok, type Result } from "@fresnel/contracts";
+import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
+import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import type {
   ExtDiagnostic,
   ExtRollbackParams,
   ExtRollbackResult,
+  ExtUiApprovalParams,
+  ExtUiApprovalResult,
   ExtUiEntry,
   ExtUiListResult,
+  ExtUiPostParams,
+  ExtUiPostResult,
   ExtVersionsResult,
 } from "@fresnel/contracts/wire";
 import type {
+  ExtUiRefusal,
   LoadedExtensionInfo,
   RollbackHooks,
   UiEntryReport,
@@ -46,7 +52,52 @@ export function createExtUiVersionPort(deps: Pick<M4PortDeps, "extUi">): ExtUiVe
     rollback: (params) => rollbackOf(source, params),
     // 화면 목록은 대화별 켜짐을 쓰지 않는다. ExtHost가 thread별 켜짐을 내주지 않아 전역 상태로 본다(HS-108 [미결])
     uiList: () => uiListOf(source),
+    uiPost: (params) => uiPostOf(source, params),
+    uiRequestApproval: (params) => uiApprovalOf(source, params),
   };
+}
+
+/** 로더가 없거나 확장 호스트가 없으면 확장이 없는 것으로 본다(`unknown_extension`) */
+async function uiPostOf(
+  source: ExtUiVersionSource | undefined,
+  params: ExtUiPostParams,
+): Promise<Result<ExtUiPostResult, ExtUiRefusal>> {
+  if (source === undefined) return err({ kind: "unknown_extension", extension: params.extension });
+  const threadId = threadOf(params.threadId);
+  if (threadId === undefined) return err({ kind: "unknown_thread", threadId: params.threadId });
+  const posted = await source.host.ui.post({
+    extension: params.extension,
+    ui: params.ui,
+    threadId,
+    name: params.name,
+    ...(params.payload === undefined ? {} : { payload: params.payload }),
+    ...(params.requestId === undefined ? {} : { requestId: params.requestId }),
+  });
+  // 같은 키의 두 번째 호출도 받아들인 것이다(처음 호출이 이미 큐에 넣었다)
+  return posted.ok ? ok({ accepted: true }) : posted;
+}
+
+async function uiApprovalOf(
+  source: ExtUiVersionSource | undefined,
+  params: ExtUiApprovalParams,
+): Promise<Result<ExtUiApprovalResult, ExtUiRefusal>> {
+  if (source === undefined) return err({ kind: "unknown_extension", extension: params.extension });
+  const threadId = threadOf(params.threadId);
+  if (threadId === undefined) return err({ kind: "unknown_thread", threadId: params.threadId });
+  return source.host.ui.requestApproval({
+    extension: params.extension,
+    ui: params.ui,
+    threadId,
+    method: params.method,
+    ...(params.params === undefined ? {} : { params: params.params }),
+    ...(params.requestId === undefined ? {} : { requestId: params.requestId }),
+  });
+}
+
+/** wire 문자열이 대화 id 모양이 아니면 열린 대화일 수 없다 */
+function threadOf(raw: string): ThreadId | undefined {
+  const parsed = parse(ThreadIdSchema, raw);
+  return parsed.ok ? parsed.value : undefined;
 }
 
 async function versionsOf(

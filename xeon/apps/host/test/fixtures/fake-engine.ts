@@ -72,6 +72,10 @@ const noExtensionsPort: ExtUiVersionPort = {
   versions: (name) => Promise.resolve(err({ kind: "unknown_extension", name })),
   rollback: (params) => Promise.resolve(err({ kind: "unknown_extension", name: params.name })),
   uiList: () => ({ items: [] }),
+  uiPost: (params) =>
+    Promise.resolve(err({ kind: "unknown_extension", extension: params.extension })),
+  uiRequestApproval: (params) =>
+    Promise.resolve(err({ kind: "unknown_extension", extension: params.extension })),
 };
 
 export interface FakeEngineOptions {

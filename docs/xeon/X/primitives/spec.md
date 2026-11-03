@@ -102,6 +102,7 @@ import type {
 | `RegistrationInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `CommandOutput`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스, 타입 | 이 문서 §3.9 |
 | `webProviderRegistrationOf` | 함수 | 이 문서 §3.9, §3.9.1 |
 | `ExtMethods`, `ExtMethodInfo`, `ExtMethodCallInput`, `ExtMethodOutcome`, `ExtMethodIssue`, `ExtMethodSettled`, `ExtMethodResourceDef`, `ExtMethodCallContext` | 인터페이스, 타입 | 이 문서 §3.9.2, §4.12 (`ExtMethods`는 `ExtHost.methods`) |
+| `ExtUi`, `ExtUiPostInput`, `ExtUiApprovalInput`, `ExtUiRefusal` | 인터페이스, 타입 | 이 문서 §4.13 (`ExtUi`는 `ExtHost.ui`) |
 | `ToolsPort`, `ModelsPort`, `McpPort`, `ToolsPortKey`, `ModelsPortKey`, `McpPortKey`, `ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef` | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.9) |
 | `PrimitiveError`, `PrimitiveErrorCode` | 클래스, 타입 | 이 문서 §3.10 |
 | `primitivesSettings`, `withDriveDefaults` | `defineSettings` 결과, 함수 | 이 문서 §6, §4.4.2 |
@@ -292,6 +293,8 @@ export interface ExtHost {
   readonly resources: ResourceRegistry;
   /** 확장 메서드 표와 호출(§3.9.2, §4.12). wire `ext.<확장>.<동사>`의 처리는 조립 루트(L4)가 이 함수로 넘긴다 [제안, M4 T-XV] */
   readonly methods: ExtMethods;
+  /** 화면(Plugin UI)이 대화 입력 큐에 넣고 승인을 청하는 길(§4.13). wire `ext.ui.post`·`ext.ui.requestApproval`이 쓴다 [제안, M4 T-UIPOST] */
+  readonly ui: ExtUi;
   /**
    * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). 호스트용이고 확장 scope에는 열지 않는다.
    * 서비스 `fresnel.session`의 `readBranch`(`SessionBranchPortKey`)가 없으면 `port_unavailable`, 접두가 비면 `invalid_prefix`다
@@ -1613,6 +1616,14 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - `onMethodSettled`(§3.2)는 처리기에 닿은 호출마다 한 번 불린다. 구독자가 던지면 `report`로 남기고 호출 결과는 바꾸지 않는다. `callId`를 생략하면 X가 `crypto.randomUUID()`로 만든다. 재실행 기록의 멱등 키로 쓰려면 호출자가 준다.
 - 시간 예산은 이 절에 없다. 다음 작업이 붙인다 [미결](X.operations §4.2와 §3.9.2 끝).
 - 시험: `test/primitives/ext-method.test.ts`(§9 58~64).
+
+### 4.13 화면의 post와 승인 요청 [제안, M4 T-UIPOST]
+
+`ExtHost.ui`는 Plugin UI가 wire로 부르는 두 동작이다. 대화(`threadId`)는 호출자가 정하고 호스트가 추정하지 않는다. 화면이 대화 전환보다 오래 남을 수 있어서다.
+
+- 공통 검사(실패는 `ExtUiRefusal` 값이다): `threadId`가 이 엔진에 열려 있어야 하고(`unknown_thread`), 확장이 설치돼 있어야 하고(`unknown_extension`), 매니페스트 `ui.items`에 그 `ui` id가 있어야 하고(`ui_not_declared`), 그 대화에서 켜진 Registration이 있어야 한다(`extension_off`).
+- `post`: 확장의 플러그인 중 `usesPost: true`가 있어야 한다(`post_not_allowed`). 켜진 `usesPost` Registration의 id를 `scopeId`로 `InputQueuePort.enqueue`에 `when: "steer"`로 넣는다. 항목은 `kind: "context"`, `customType: x.<확장>.ui.<name>`, `display: true`, `details`는 JSON 페이로드다. 멱등 키는 `(scopeId, requestId)`이고 `requestId`를 생략하면 새 키다. 같은 키의 두 번째 호출은 `duplicate: true`다. 단계 경계에서 모델 문맥에 들어간다(`steer`, `L1.tasks.spec`).
+- `requestApproval`: `method`가 매니페스트 `methods`에 있어야 한다(`method_not_declared`). `ApprovalService.open`으로 question kind 승인을 만든다. 출처 `origin.caller`는 `ext:<확장>`이고 `loop.ask`(§4.4.4)와 같은 종류다. 그래서 승인 카드가 하나다. 요청 키는 `ui:<확장>:<requestId>`를 `requestKeyFor`로 줄인 값이라 같은 키의 두 번째 호출은 새 승인 없이 같은 `approvalId`를 돌려준다. 기다리지 않는다. 결과(`allow`, `deny`, 만료)는 `approval.resolved`로 화면에 간다. 질문 본문은 허용·거부 두 선택지와 `params`의 400자 미리보기다 [제안: ADR-0021 §6 7번에 새 kind를 두지 않고 question kind에 출처를 싣는다].
 
 ## 5. 실패와 경계 사례
 

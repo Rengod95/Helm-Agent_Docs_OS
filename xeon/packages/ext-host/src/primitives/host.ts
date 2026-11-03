@@ -61,6 +61,7 @@ import { createRegistrationApi } from "./host-api.ts";
 import { createLeaseBroker } from "./lease.ts";
 import { createPortProvider } from "./port-provider.ts";
 import { eachInOrder } from "./sequence.ts";
+import { createExtUi, type ExtUi } from "./ext-ui.ts";
 import { createPostQueue } from "./post.ts";
 import { createHandlerRegistry } from "./registry.ts";
 import {
@@ -243,6 +244,8 @@ export interface ExtHost {
   readonly resources: ResourceRegistry;
   /** 확장 메서드 표와 호출(X.primitives.spec §3.9.2, §4.12). 조립 루트가 wire `ext.<확장>.<동사>`를 이 함수로 넘긴다 */
   readonly methods: ExtMethods;
+  /** 화면(Plugin UI)이 대화 입력 큐에 넣고 승인을 청하는 길. wire `ext.ui.post`·`ext.ui.requestApproval`이 쓴다 */
+  readonly ui: ExtUi;
   /**
    * 활성 가지의 내구 이벤트를 kind 접두로 조회한다(M3-REQ-39, L3.group-sdk.spec §3.13 요청 5). `fresnel.session`의 `readBranch` 포트가 없으면
    * `port_unavailable`이다. 확장 scope에는 열지 않는 호스트용 조회다
@@ -827,6 +830,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     ports,
     resources,
     methods,
+    ui: createExtUi(core),
     queryEvents: createEventQuery(ports),
     async resetRegistrationState(threadId, scopeId) {
       const record = core.scopes.get(scopeId);

@@ -118,3 +118,4 @@ export {
   type ExtMethodSettled,
   type ExtMethods,
 } from "./ext-method.ts";
+export type { ExtUi, ExtUiApprovalInput, ExtUiPostInput, ExtUiRefusal } from "./ext-ui.ts";
