@@ -325,6 +325,11 @@ test("a Hangul string literal in L4 src fails and comments, tests and lower laye
     "3 fresnel/hardcoded-korean",
   ]);
   expect(scan("packages/client/src/a/b.ts", 'f("한")')).toEqual(["1 fresnel/hardcoded-korean"]);
+  expect(scan("packages/contracts/src/capabilities/defs/x.ts", 'f("한")')).toEqual([
+    "1 fresnel/hardcoded-korean",
+  ]);
+  // 아직 옮기지 않은 하위 층 패키지는 범위 밖이다(T-I18N이 패키지마다 넓힌다)
+  expect(scan("packages/cap-web/src/x.ts", 'f("한")')).toEqual([]);
   expect(scan("apps/host/src/x.ts", '/* "한" */ const a = 1;')).toEqual([]);
   expect(scan("apps/cli/test/x.test.ts", text)).toEqual([]);
   expect(scan("apps/desktop/src/views/a.tsx", text)).toEqual([

@@ -285,15 +285,15 @@ describe("work renderers", () => {
     };
     expect(firstText(renderTaskList(out))).toBe(
       [
-        "생성: @a=t3",
+        "Created: @a=t3",
         "[x] t1 content of t1",
         "[>] t2 writing tests @main",
-        "[ ] t3 content of t3 (막힘: t2)",
+        "[ ] t3 content of t3 (blocked by: t2)",
         "[!] t4 content of t4",
         "[-] t5 content of t5",
       ].join("\n"),
     );
-    expect(firstText(renderTaskList({ tasks: [], created: [] }))).toBe("(작업 없음)");
+    expect(firstText(renderTaskList({ tasks: [], created: [] }))).toBe("(no tasks)");
   });
 });
 
@@ -317,18 +317,20 @@ describe("renderPlanSubmit outcomes", () => {
   test("pending, approved, rejected with and without a reason, revision requested", () => {
     expect(
       firstText(renderPlanSubmit({ status: "input_required", planId, version: 2, approvalId: id })),
-    ).toBe("계획 p3 v2: 사용자 승인 대기 중.");
-    expect(firstText(renderPlanSubmit(result({})))).toBe("계획 p3 v2: 승인됨. 계획대로 실행한다.");
+    ).toBe("Plan p3 v2: awaiting user approval.");
+    expect(firstText(renderPlanSubmit(result({})))).toBe(
+      "Plan p3 v2: Approved. Proceed with the plan.",
+    );
     expect(firstText(renderPlanSubmit(result({ decision: "rejected" })))).toBe(
-      "계획 p3 v2: 반려됨.",
+      "Plan p3 v2: Rejected.",
     );
     expect(
       firstText(renderPlanSubmit(result({ decision: "rejected", feedback: "too risky" }))),
-    ).toBe("계획 p3 v2: 반려됨. 사유: too risky");
+    ).toBe("Plan p3 v2: Rejected. Reason: too risky");
     expect(
       firstText(
         renderPlanSubmit(result({ decision: "revision_requested", feedback: "add rollback" })),
       ),
-    ).toBe("계획 p3 v2: 수정 요청. add rollback");
+    ).toBe("Plan p3 v2: Revision requested. add rollback");
   });
 });

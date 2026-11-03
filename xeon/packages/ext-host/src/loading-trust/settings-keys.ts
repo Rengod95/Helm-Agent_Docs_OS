@@ -30,7 +30,7 @@ export function reservedExtensionSettings(
       tab: "plugins",
       widget: "toggle",
       order: 10,
-      label: `${manifest.displayName ?? manifest.name} 켜기`,
+      label: `Enable ${manifest.displayName ?? manifest.name}`,
     },
     since: "0.1.0",
   };
@@ -45,7 +45,7 @@ export function reservedExtensionSettings(
       tab: "plugins",
       widget: "select",
       order: 20,
-      label: `${manifest.displayName ?? manifest.name} 격리`,
+      label: `${manifest.displayName ?? manifest.name} isolation`,
     },
     since: "0.1.0",
   };
@@ -75,7 +75,7 @@ export const loadingTrustSettings: SettingGroup<
     range: { enum: ["ask", "always", "never"] },
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "plugins", widget: "select", order: 400, label: "프로젝트 신뢰 기본값" },
+    ui: { tab: "plugins", widget: "select", order: 400, label: "Default project trust" },
     since: "0.1.0",
   },
   paths: {
@@ -83,7 +83,7 @@ export const loadingTrustSettings: SettingGroup<
     default: [],
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "plugins", widget: "list", order: 410, label: "확장 탐색 경로" },
+    ui: { tab: "plugins", widget: "list", order: 410, label: "Extension search paths" },
     since: "0.1.0",
   },
   "isolation.maxRestarts": {
@@ -92,7 +92,12 @@ export const loadingTrustSettings: SettingGroup<
     range: { min: 0, max: 20 },
     runtimeChange: "live",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "plugins", widget: "number", order: 430, label: "격리 확장 최대 재시작 수" },
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 430,
+      label: "Max restarts for isolated extensions",
+    },
     since: "0.1.0",
   },
   "isolation.restartWindowSec": {
@@ -105,7 +110,7 @@ export const loadingTrustSettings: SettingGroup<
       tab: "plugins",
       widget: "number",
       order: 440,
-      label: "격리 확장 재시작 창",
+      label: "Isolated extension restart window",
       unit: "s",
     },
     since: "0.1.0",

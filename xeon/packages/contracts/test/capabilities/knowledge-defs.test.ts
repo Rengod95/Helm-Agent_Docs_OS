@@ -284,7 +284,7 @@ describe("knowledge renderers", () => {
     const agent = firstText(renderSkillView(view));
     expect(agent).toContain(`treeHash=${HASH}`);
     expect(agent).toContain('<untrusted_session_content kind="skill" createdBy="agent">');
-    expect(agent).toContain("지원 파일: references/a.md");
+    expect(agent).toContain("Supporting files: references/a.md");
     const user = firstText(renderSkillView({ ...view, createdBy: "user" }));
     expect(user).not.toContain(UNTRUSTED_SESSION_OPEN);
     expect(user).toContain("do things");
@@ -292,9 +292,9 @@ describe("knowledge renderers", () => {
 
   test("renderWriteOutcome describes applied and queued results with scan findings", () => {
     const applied = firstText(renderWriteOutcome(APPLIED));
-    expect(applied).toContain(`적용함 ledgerId=${LEDGER_ID} afterHash=${HASH}`);
-    expect(applied).toContain("검사 warn: hidden.html_comment (줄 3)");
-    expect(applied).toContain("스킬 인덱스가 바뀜");
+    expect(applied).toContain(`Applied ledgerId=${LEDGER_ID} afterHash=${HASH}`);
+    expect(applied).toContain("Scan warn: hidden.html_comment (line 3)");
+    expect(applied).toContain("Skill index changed");
     const queued = firstText(
       renderWriteOutcome({
         status: "queued",
@@ -304,7 +304,7 @@ describe("knowledge renderers", () => {
       }),
     );
     expect(queued).toContain(`proposalId=${PROPOSAL_ID}`);
-    expect(queued).toContain("사용자 승인을 기다린다");
+    expect(queued).toContain("Waiting for user approval");
   });
 
   test("renderMemoryWrite lists entry ids and the file hash for the next write", () => {
@@ -321,7 +321,7 @@ describe("knowledge renderers", () => {
         },
       }),
     );
-    expect(text).toContain(`env 메모리 8/2000자 fileHash=${HASH}`);
+    expect(text).toContain(`env memory 8/2000 chars fileHash=${HASH}`);
     expect(text).toContain("[0123456789ab] uses bun");
   });
 
@@ -347,7 +347,7 @@ describe("knowledge renderers", () => {
     expect(text).toContain("[skill] my-skill My skill\nskill text");
     expect(text).toContain('<untrusted_session_content session="thr_x" seq="4" role="assistant">');
     expect(text.split(UNTRUSTED_SESSION_OPEN)).toHaveLength(2);
-    expect(text).toContain("검색 불가로 뺀 종류: memory");
+    expect(text).toContain("Kinds left out because search is unavailable: memory");
   });
 
   test("renderMessages wraps every message and prints the continuation", () => {
@@ -364,9 +364,9 @@ describe("knowledge renderers", () => {
     ];
     const text = firstText(renderMessages({ messages, nextSeq: 3 }));
     expect(text.split(UNTRUSTED_SESSION_OPEN)).toHaveLength(3);
-    expect(text).toContain("[잘림]");
-    expect(text).toContain("이어 읽기: fromSeq=3");
-    expect(firstText(renderMessages({ messages: [] }))).toBe("(메시지 없음)");
+    expect(text).toContain("[truncated]");
+    expect(text).toContain("Continue reading: fromSeq=3");
+    expect(firstText(renderMessages({ messages: [] }))).toBe("(no messages)");
   });
 });
 

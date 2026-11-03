@@ -43,7 +43,7 @@ realTest(
       });
       expect(tasks).toMatchObject({ status: "done", name: "tasks" });
       expect(tasks.status === "done" ? tasks.message : null).toBe(
-        emptyList?.type === "text" ? emptyList.text : "(작업 없음)",
+        emptyList?.type === "text" ? emptyList.text : "(no tasks)",
       );
 
       const started = await connection.request("command.run", {

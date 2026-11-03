@@ -231,7 +231,9 @@ describe("bash", () => {
     });
     const result = await callTool(WorkspaceShell, shell, "bash", { command: "seq 4" });
     expect(result.isError).toBe(false);
-    expect(result.text).toBe("[앞부분 생략, 전체 출력: /tmp/fresnel/spill-3]\nl2\nl3\nl4\n");
+    expect(result.text).toBe(
+      "[Leading output omitted, full output: /tmp/fresnel/spill-3]\nl2\nl3\nl4\n",
+    );
   });
 
   test("output the environment omitted is counted as dropped", async () => {

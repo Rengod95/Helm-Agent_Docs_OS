@@ -81,7 +81,7 @@ knip:
 docs-route +args:
     cd xeon && just docs-route {{args}}
 
-# 용어 검사 1~2단계: gen은 원본(packages/client/src/i18n/terms.json)에서 카탈로그 term.* 키를 만들고 표식 문장(locales/*.src.json)을 풀며(--mockups는 목업 파생물도), check는 T·C·M·S·D 규칙을 검사한다 (xeon/scripts/terms.ts)
+# 용어 검사 1~3단계: gen은 원본(packages/client/src/i18n/terms.json)에서 카탈로그 term.* 키를 만들고 표식 문장(locales/*.src.json)을 풀며(--mockups는 목업 파생물도), check는 T·C·M·S·D 규칙을 검사한다 (xeon/scripts/terms.ts)
 [group('local')]
 terms mode *flags:
     cd xeon && just terms {{mode}} {{flags}}

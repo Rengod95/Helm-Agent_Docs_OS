@@ -319,7 +319,7 @@ describe("mcp renderers", () => {
         ],
       }),
     );
-    expect(text).toBe("a connected 도구 2개\nb failed 도구 0개 오류: connect_timeout");
+    expect(text).toBe("a connected 2 tools\nb failed 0 tools error: connect_timeout");
   });
 
   test("renderResources prints server, uri and title", () => {
@@ -355,6 +355,6 @@ describe("mcp renderers", () => {
       requestState: null,
       questions: [],
     });
-    expect(firstText(pending)).toBe("서버가 추가 입력을 요구함");
+    expect(firstText(pending)).toBe("Server requires additional input");
   });
 });

@@ -200,8 +200,8 @@ describe("untrusted boundary and renderers", () => {
     expect(text).toContain("  first excerpt");
     expect(text).toContain("[s2] https://example.org/b");
     const closeAt = text.indexOf(UNTRUSTED_CLOSE);
-    expect(text.indexOf("경고: wrapper_continuation_limit")).toBeGreaterThan(closeAt);
-    expect(text.indexOf("완화한 조건: recency")).toBeGreaterThan(closeAt);
+    expect(text.indexOf("Warning: wrapper_continuation_limit")).toBeGreaterThan(closeAt);
+    expect(text.indexOf("Relaxed conditions: recency")).toBeGreaterThan(closeAt);
   });
 
   test("renderSearch is pure and returns the output as structured content", () => {
@@ -213,7 +213,7 @@ describe("untrusted boundary and renderers", () => {
 
   test("renderSearch with no results says so inside the boundary", () => {
     const text = firstText(renderSearch({ ...SAMPLE_SEARCH_OUTPUT, results: [], sources: [] }));
-    expect(text).toContain("(결과 없음)");
+    expect(text).toContain("(no results)");
   });
 
   test("renderSearch shows the provider answer with its citations", () => {
@@ -226,7 +226,7 @@ describe("untrusted boundary and renderers", () => {
         },
       }),
     );
-    expect(text).toContain("답변: It is X. [s2][s1]");
+    expect(text).toContain("Answer: It is X. [s2][s1]");
   });
 
   test("renderFetch puts the body inside and continuation hints outside the boundary", () => {
@@ -258,8 +258,8 @@ describe("untrusted boundary and renderers", () => {
       ],
     };
     const text = firstText(renderFetch(redirected));
-    expect(text).toContain("다른 호스트로 리다이렉트됨: https://b.example/");
-    expect(text).toContain("실패: blocked_by_policy domain denied");
+    expect(text).toContain("Redirected to another host: https://b.example/");
+    expect(text).toContain("Failed: blocked_by_policy domain denied");
   });
 
   test("renderBrowse wraps page text, appends the screenshot and keeps the session id outside", () => {
@@ -285,8 +285,8 @@ describe("untrusted boundary and renderers", () => {
 
   test("renderBrowseClose distinguishes a closed session from an already closed one", () => {
     const stats = { actions: 3, seconds: 12, usd: 0 };
-    expect(firstText(renderBrowseClose({ closed: true, stats }))).toContain("동작 3회");
-    expect(firstText(renderBrowseClose({ closed: false, stats }))).toContain("이미 닫힌");
+    expect(firstText(renderBrowseClose({ closed: true, stats }))).toContain("3 actions");
+    expect(firstText(renderBrowseClose({ closed: false, stats }))).toContain("already closed");
   });
 
   test("renderResearch states status and verified claim counts outside the report", () => {
@@ -307,7 +307,7 @@ describe("untrusted boundary and renderers", () => {
     );
     expect(text).toContain("Findings [s1]");
     const closeAt = text.indexOf(UNTRUSTED_CLOSE);
-    expect(text.indexOf("검증된 주장 1개, 제거한 주장 1개")).toBeGreaterThan(closeAt);
+    expect(text.indexOf("1 verified claims, 1 removed")).toBeGreaterThan(closeAt);
   });
 });
 

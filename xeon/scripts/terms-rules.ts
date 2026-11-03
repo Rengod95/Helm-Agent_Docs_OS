@@ -61,13 +61,13 @@ const ALIAS_COMPOUNDS: Readonly<Record<string, readonly string[]>> = {
   비밀: ["비밀번호"],
 };
 
-function mentionsAlias(text: string, alias: string): boolean {
+export function mentionsAlias(text: string, alias: string): boolean {
   let rest = text;
   for (const compound of ALIAS_COMPOUNDS[alias] ?? []) rest = rest.split(compound).join(" ");
   return mentions(rest, alias);
 }
 
-interface Alias {
+export interface Alias {
   readonly word: string;
   /** 정식 이름으로 안내할 개념 id */
   readonly concept: string;
@@ -76,7 +76,7 @@ interface Alias {
   readonly under?: readonly string[];
 }
 
-function aliasesOf(terms: Terms, kind: "ui" | "docs"): Alias[] {
+export function aliasesOf(terms: Terms, kind: "ui" | "docs"): Alias[] {
   const out: Alias[] = [];
   for (const id of Object.keys(terms).toSorted()) {
     const term = terms[id];

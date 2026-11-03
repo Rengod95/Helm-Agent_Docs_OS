@@ -40,6 +40,15 @@ export interface UiPolicy {
 
 export const DEFAULT_UI_POLICY: UiPolicy = { apps: false, allowProjectApps: false };
 
+/** 확장 메시지 카탈로그: 로케일 -> 키 -> 문장 */
+type UiMessages = Readonly<Record<string, Readonly<Record<string, string>>>>;
+
+/** 메시지 카탈로그를 읽는 로케일. 화면이 쓰는 로케일(ko, en)만 읽는다 */
+const MESSAGE_LOCALES: readonly string[] = ["en", "ko"];
+
+/** 메시지 파일 하나의 크기 상한(32 KiB) */
+const UI_MESSAGES_MAX_BYTES: number = 32_768;
+
 /** 항목 하나의 진단. `severity`는 `LoadDiagnostic`과 같은 값 집합이다 */
 export interface UiIssue {
   readonly severity: "error" | "warning" | "info";
@@ -64,6 +73,8 @@ export interface UiItemReport {
   readonly tree?: UiNode;
   /** 선언한 앱. 모드가 `app`이면 상태와 상관없이 있다 */
   readonly app?: AppDecl;
+  /** `ui.messages` 폴더에서 읽은 카탈로그(로케일 -> 키 -> 문장). 읽은 파일이 없으면 없다(ADR-0021 §3.8) */
+  readonly messages?: UiMessages;
   /**
    * 앱 root의 절대 경로 = 확장 루트 + `app.root`(엔진이 앱 파일을 풀 때와 같은 `join`). 모드가 `app`이고 상태가 `ok`이며
    * 설치 폴더가 있는 확장(`builtin`이 아닌 설치 위치)일 때만 있다. 상대 경로는 없다
@@ -342,6 +353,61 @@ function checkItem(ctx: Ctx, item: UiContribution, index: number): Promise<UiIte
   return nativeItem(ctx, head, item.file, at);
 }
 
+/** JSON 값이 키와 문장이 모두 문자열인 평평한 객체인가. 아니면 undefined */
+function flatMessagesOf(value: unknown): Readonly<Record<string, string>> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  const entries: [string, string][] = [];
+  for (const [key, text] of Object.entries(value)) {
+    if (typeof text !== "string") return undefined;
+    entries.push([key, text]);
+  }
+  return Object.fromEntries(entries);
+}
+
+interface MessagesRead {
+  readonly messages?: UiMessages;
+  readonly issues: readonly UiIssue[];
+}
+
+/**
+ * `ui.messages` 폴더의 `<로케일>.json`(en, ko)을 읽는다(ADR-0021 §3.8). 로케일 파일이 없는 것은 오류가 아니다. 읽을 수 없거나
+ * 모양이 틀린 파일은 경고로 알리고 그 로케일만 뺀다: 문구는 키 자체로 내려가므로 화면은 그대로 그려진다
+ */
+async function readMessages(ctx: Ctx, folder: string): Promise<MessagesRead> {
+  const at = "/ui/messages";
+  const dir = await resolveInside(ctx, folder, at, "dir");
+  if (!dir.ok) return { issues: [{ ...dir.error, severity: "warning" }] };
+  const found: [string, Readonly<Record<string, string>>][] = [];
+  const issues: UiIssue[] = [];
+  await eachInOrder(MESSAGE_LOCALES, async (locale) => {
+    const relative = join(folder, `${locale}.json`);
+    const present = await attemptAsync(() => ctx.fs.exists(join(ctx.root, relative)));
+    if (!present.ok || !present.value) return "continue";
+    const place = await resolveInside(ctx, relative, at, "file");
+    if (!place.ok) {
+      issues.push({ ...place.error, severity: "warning" });
+      return "continue";
+    }
+    const read = await attemptAsync(() => ctx.fs.readText(place.value));
+    const text = read.ok ? read.value : null;
+    if (text === null || new TextEncoder().encode(text).byteLength > UI_MESSAGES_MAX_BYTES) {
+      issues.push(issueOf("warning", "ui_limit", at, `${relative} cannot be read or is too large`));
+      return "continue";
+    }
+    const json = parseJson(text.startsWith("\uFEFF") ? text.slice(1) : text);
+    const flat = json.ok ? flatMessagesOf(json.value) : undefined;
+    if (flat === undefined) {
+      issues.push(
+        issueOf("warning", "ui_invalid", at, `${relative} must be a flat JSON object of strings`),
+      );
+      return "continue";
+    }
+    found.push([locale, flat]);
+    return "continue";
+  });
+  return { ...(found.length === 0 ? {} : { messages: Object.fromEntries(found) }), issues };
+}
+
 /**
  * 매니페스트 `ui` 하나를 검사해 항목마다 보고를 만든다(X.loading-trust.spec §4.3.4). 입력은 매니페스트 검사를 통과한 값이고,
  * 파일 접근은 `fs`만 쓴다. 던지지 않는다: fs 호출이 던지면 그 항목의 진단이 된다
@@ -367,5 +433,15 @@ export async function checkUiDecl(input: UiCheckInput): Promise<readonly UiItemR
     reports.push(await checkItem(ctx, item, index));
     return "continue";
   });
-  return reports;
+  if (input.ui.messages === undefined) return reports;
+  const catalog = await readMessages(ctx, input.ui.messages);
+  const withMessages: UiItemReport[] = [];
+  for (const report of reports) {
+    withMessages.push({
+      ...report,
+      ...(catalog.messages === undefined ? {} : { messages: catalog.messages }),
+      issues: [...report.issues, ...catalog.issues],
+    });
+  }
+  return withMessages;
 }

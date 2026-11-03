@@ -14,7 +14,7 @@ const group = defineSettings("l0.process", {
     default: false,
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "execution", widget: "toggle", order: 10, label: "공유 서비스 모드" },
+    ui: { tab: "execution", widget: "toggle", order: 10, label: "Shared service mode" },
     since: "0.1.0",
   },
   // 빈 값이면 로컬 서비스(또는 프로세스 안 엔진)를 쓴다. 값 형식(`unix:`, `tcp://`, `ssh://`)은 @fresnel/client가 해석한다. 토큰은 설정에 두지 않는다
@@ -23,7 +23,7 @@ const group = defineSettings("l0.process", {
     default: "",
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "execution", widget: "text", order: 15, label: "원격 서비스 주소" },
+    ui: { tab: "execution", widget: "text", order: 15, label: "Remote service address" },
     since: "0.1.0",
   },
   "service.idleGraceMs": {
@@ -36,7 +36,7 @@ const group = defineSettings("l0.process", {
       tab: "execution",
       widget: "number",
       order: 20,
-      label: "서비스 유휴 종료 유예",
+      label: "Idle service shutdown grace period",
       unit: "ms",
     },
     since: "0.1.0",
@@ -55,7 +55,13 @@ const group = defineSettings("l0.process", {
     range: { min: 500, max: 60_000 },
     runtimeChange: "live",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "execution", widget: "number", order: 30, label: "종료 협조 시한", unit: "ms" },
+    ui: {
+      tab: "execution",
+      widget: "number",
+      order: 30,
+      label: "Graceful shutdown timeout",
+      unit: "ms",
+    },
     since: "0.1.0",
   },
   "lockFallback.default": {
@@ -64,7 +70,12 @@ const group = defineSettings("l0.process", {
     range: { enum: ["ask", "observe", "fork"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "project"],
-    ui: { tab: "execution", widget: "select", order: 40, label: "세션 잠금 실패 때 기본 동작" },
+    ui: {
+      tab: "execution",
+      widget: "select",
+      order: 40,
+      label: "Default action when session lock fails",
+    },
     since: "0.1.0",
   },
 });

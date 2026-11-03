@@ -24,7 +24,7 @@ test("settings_defs_pass_checks", () => {
   }
   for (const key of ["limits.tools", "limits.subagents", "limits.modelCalls"] as const) {
     expect(tasksSettings.defs[key].ui?.widget).toBe("number");
-    expect(tasksSettings.defs[key].ui?.unit).toBe("개");
+    expect(tasksSettings.defs[key].ui?.unit).toBe("items");
   }
   for (const key of ["queue.steeringMode", "queue.followUpMode"] as const) {
     expect(tasksSettings.defs[key].default).toBe("one-at-a-time");
@@ -45,23 +45,23 @@ test("settings_defs_pass_checks", () => {
   });
   expect(tasksSettings.defs["limits.tools"].ui).toMatchObject({
     order: 10,
-    label: "동시 도구 실행 수",
+    label: "Concurrent tool runs",
   });
   expect(tasksSettings.defs["limits.subagents"].ui).toMatchObject({
     order: 20,
-    label: "동시 서브에이전트 수",
+    label: "Concurrent subagents",
   });
   expect(tasksSettings.defs["limits.modelCalls"].ui).toMatchObject({
     order: 30,
-    label: "동시 모델 요청 수",
+    label: "Concurrent model requests",
   });
   expect(tasksSettings.defs["queue.steeringMode"].ui).toMatchObject({
     order: 40,
-    label: "방향 수정 입력 배치",
+    label: "Steering input batching",
   });
   expect(tasksSettings.defs["queue.followUpMode"].ui).toMatchObject({
     order: 50,
-    label: "후속 입력 배치",
+    label: "Follow-up input batching",
   });
   const catalog = buildCatalog([{ owner: "core-tasks", namespace: tasksSettings.namespace, defs }]);
   expect(catalog.ok).toBe(true);

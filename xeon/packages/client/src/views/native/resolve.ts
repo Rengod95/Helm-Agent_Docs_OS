@@ -16,6 +16,7 @@ import {
 import { checkTree, type TreeIssue } from "./check.ts";
 import { evalCondition } from "./expr.ts";
 import { formatValue } from "./format.ts";
+import { extMessageOf, type ExtMessages } from "./messages.ts";
 import { escapePointerSegment, type PointerRead } from "./pointer.ts";
 import { createScope, resolvePath, withLocal, type Scope } from "./scope.ts";
 
@@ -75,10 +76,13 @@ export interface ResolveInput {
   readonly locale: string;
   readonly nowMs: number;
   readonly limits?: { readonly nodes?: number; readonly depth?: number };
+  /** 확장 메시지 카탈로그. 정적 글 prop이 키이면 현재 로케일, 영어, 키 자체 순으로 푼다(ADR-0021 §3.8). 바인드한 값은 풀지 않는다 */
+  readonly messages?: ExtMessages;
 }
 
 interface Walk {
   readonly locale: string;
+  readonly messages: ExtMessages | undefined;
   readonly nowMs: number;
   readonly nodeLimit: number;
   readonly depthLimit: number;
@@ -94,6 +98,7 @@ export function resolveTree(tree: UiNode, input: ResolveInput): ResolvedTree {
   const check = checkTree(tree);
   const walk: Walk = {
     locale: input.locale,
+    messages: input.messages,
     nowMs: input.nowMs,
     nodeLimit: input.limits?.nodes ?? UI_LIMITS.treeNodes,
     depthLimit: input.limits?.depth ?? UI_LIMITS.treeDepth,
@@ -211,7 +216,10 @@ function resolveProps(
     if (isForbiddenPropName(key)) continue;
     const prop = propSpecOf(widget, key);
     if (prop === undefined || scalarMismatch(prop, value) !== undefined) continue;
-    props[key] = clipScalar(value);
+    props[key] =
+      typeof value === "string"
+        ? clipText(extMessageOf(walk.messages, walk.locale, value))
+        : clipScalar(value);
   }
   let lists: Record<string, readonly ResolvedItem[]> | undefined;
   const binds: Readonly<Record<string, UiBinding>> = node.bind ?? {};

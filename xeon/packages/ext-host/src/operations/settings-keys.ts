@@ -90,7 +90,7 @@ export const operationsSettings: SettingGroup<
   }
 > = defineSettings("x.operations", {
   "budget.firstMs": budgetKey(
-    "first 핸들러 시간 예산",
+    "first handler time budget",
     DEFAULT_BUDGETS_MS.first,
     100,
     600_000,
@@ -99,7 +99,7 @@ export const operationsSettings: SettingGroup<
     BUDGET_SCOPES,
   ),
   "budget.chainMs": budgetKey(
-    "chain 핸들러 시간 예산",
+    "chain handler time budget",
     DEFAULT_BUDGETS_MS.chain,
     100,
     600_000,
@@ -108,7 +108,7 @@ export const operationsSettings: SettingGroup<
     BUDGET_SCOPES,
   ),
   "budget.tapMs": budgetKey(
-    "tap 핸들러 시간 예산",
+    "tap handler time budget",
     DEFAULT_BUDGETS_MS.tap,
     100,
     600_000,
@@ -117,7 +117,7 @@ export const operationsSettings: SettingGroup<
     BUDGET_SCOPES,
   ),
   "budget.streamTapMs": budgetKey(
-    "스트림 tap 핸들러 시간 예산",
+    "stream tap handler time budget",
     DEFAULT_BUDGETS_MS.streamTap,
     50,
     60_000,
@@ -126,7 +126,7 @@ export const operationsSettings: SettingGroup<
     BUDGET_SCOPES,
   ),
   "budget.shutdownMs": budgetKey(
-    "종료 핸들러 시간 예산",
+    "shutdown handler time budget",
     DEFAULT_BUDGETS_MS.shutdown,
     100,
     30_000,
@@ -135,7 +135,7 @@ export const operationsSettings: SettingGroup<
     STARTUP_BUDGET_SCOPES,
   ),
   "budget.setupMs": budgetKey(
-    "scope setup 시간 예산",
+    "scope setup time budget",
     DEFAULT_BUDGETS_MS.setup,
     100,
     600_000,
@@ -144,7 +144,7 @@ export const operationsSettings: SettingGroup<
     STARTUP_BUDGET_SCOPES,
   ),
   "budget.uiMs": budgetKey(
-    "확장 메서드 호출 시간 예산",
+    "extension method call time budget",
     DEFAULT_BUDGETS_MS.ui,
     100,
     600_000,
@@ -152,31 +152,31 @@ export const operationsSettings: SettingGroup<
     true,
     BUDGET_SCOPES,
   ),
-  "autoDisable.enabled": autoKey(Type.Boolean(), "자동 끄기", DEFAULT_AUTO_DISABLE.enabled, 300),
+  "autoDisable.enabled": autoKey(Type.Boolean(), "Auto-disable", DEFAULT_AUTO_DISABLE.enabled, 300),
   "autoDisable.consecutive": autoKey(
     Type.Integer(),
-    "연속 실패 기준",
+    "Consecutive failure threshold",
     DEFAULT_AUTO_DISABLE.consecutive,
     310,
     { min: 1, max: 1000 },
   ),
   "autoDisable.windowSize": autoKey(
     Type.Integer(),
-    "최근 호출 창 크기",
+    "Recent call window size",
     DEFAULT_AUTO_DISABLE.windowSize,
     320,
     { min: 5, max: 10_000 },
   ),
   "autoDisable.minFailures": autoKey(
     Type.Integer(),
-    "실패율 적용 최소 실패 수",
+    "Minimum failures before failure rate applies",
     DEFAULT_AUTO_DISABLE.minFailures,
     330,
     { min: 1, max: 10_000 },
   ),
   "autoDisable.failureRate": autoKey(
     Type.Number(),
-    "실패율 기준",
+    "Failure rate threshold",
     DEFAULT_AUTO_DISABLE.failureRate,
     340,
     { min: 0.05, max: 1 },
@@ -186,7 +186,7 @@ export const operationsSettings: SettingGroup<
     default: false,
     runtimeChange: "restart",
     allowedScopes: SAFE_MODE_SCOPES,
-    ui: { tab: "plugins", widget: "toggle", order: 400, label: "안전 모드로 시작" },
+    ui: { tab: "plugins", widget: "toggle", order: 400, label: "Start in safe mode" },
     since: "0.1.0",
   },
   "safeMode.suggestAfter": {
@@ -195,7 +195,12 @@ export const operationsSettings: SettingGroup<
     range: { min: 1, max: 100 },
     runtimeChange: "restart",
     allowedScopes: SAFE_MODE_SCOPES,
-    ui: { tab: "plugins", widget: "number", order: 410, label: "안전 모드 제안 기준(연속 실패)" },
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 410,
+      label: "Safe mode suggestion threshold (consecutive failures)",
+    },
     since: "0.1.0",
   },
   "trace.enabled": {
@@ -203,7 +208,7 @@ export const operationsSettings: SettingGroup<
     default: DEFAULT_TRACE_SETTINGS.enabled,
     runtimeChange: "nextTurn",
     allowedScopes: TRACE_SCOPES,
-    ui: { tab: "plugins", widget: "toggle", order: 500, label: "핸들러 계측 켜기" },
+    ui: { tab: "plugins", widget: "toggle", order: 500, label: "Enable handler tracing" },
     since: "0.1.0",
   },
   "trace.turnsPerThread": {
@@ -212,7 +217,12 @@ export const operationsSettings: SettingGroup<
     range: { min: 1, max: 200 },
     runtimeChange: "nextTurn",
     allowedScopes: TRACE_SCOPES,
-    ui: { tab: "plugins", widget: "number", order: 510, label: "계측 보관 Turn 수(thread마다)" },
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 510,
+      label: "Turns kept for tracing (per thread)",
+    },
     since: "0.1.0",
   },
   // 측정 저장소(T-MEAS-STORE)가 읽는다. 원본 보관 기본 30일, 요청 본문 저장 기본 끔 [결정: 2026-11-03 사용자]. 키 이름은 [제안]
@@ -255,8 +265,8 @@ export const operationsSettings: SettingGroup<
       tab: "plugins",
       widget: "table",
       order: 600,
-      label: "핸들러 순서",
-      help: "훅마다 핸들러(Registration id) 실행 순서를 사용자가 정한다. 새 단계가 시작될 때 적용한다. guard tier 핸들러도 옮길 수 있고, 옮기면 안전 검사가 건너뛰어질 수 있다.",
+      label: "Handler order",
+      help: "Users set the order in which handlers (Registration id) run for each hook. The order applies when a new stage starts. Guard-tier handlers can also be moved, and moving one may skip safety checks.",
     },
     since: "0.1.0",
   },

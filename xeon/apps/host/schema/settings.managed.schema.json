@@ -15,7 +15,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "약관 위험 고지에 동의",
+          "label": "Accept the terms-of-service risk notice",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -38,7 +38,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Account rotation 켜기",
+          "label": "Enable Account rotation",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -62,7 +62,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Account rotation 격리",
+          "label": "Account rotation isolation",
           "order": 20,
           "tab": "plugins",
           "widget": "select"
@@ -91,8 +91,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "탐구 신호가 났을 때: off는 기록만, suggest는 제안 메시지, auto는 바로 탐구를 요청한다",
-          "label": "Helm 자동 시작",
+          "help": "When an inquiry signal fires: off only records it, suggest posts a proposal message, auto requests the inquiry right away",
+          "label": "Helm auto start",
           "order": 200,
           "tab": "plugins",
           "widget": "select"
@@ -134,8 +134,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Helm 탐구가 쓰는 턴, 하위 에이전트, 토큰 상한. x.primitives.driveDefaultLimits를 Helm에 한해 덮어쓰고 천장 x.primitives.driveLimits를 넘지 못한다.",
-          "label": "Helm drive 상한",
+          "help": "Turn, sub-agent, and token limits used by a Helm inquiry. Overrides x.primitives.driveDefaultLimits for Helm only, and cannot exceed the ceiling x.primitives.driveLimits.",
+          "label": "Helm drive limits",
           "order": 210,
           "tab": "plugins",
           "widget": "table"
@@ -158,7 +158,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Helm 켜기",
+          "label": "Enable Helm",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -182,7 +182,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Helm 격리",
+          "label": "Helm isolation",
           "order": 20,
           "tab": "plugins",
           "widget": "select"
@@ -207,11 +207,11 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "한 탐구가 병렬로 띄우는 탐색 관점의 수. 남은 spawn 예산보다 많으면 앞 렌즈만 실행한다",
-          "label": "Helm 렌즈 수",
+          "help": "Number of exploration perspectives one inquiry runs in parallel. If it exceeds the remaining spawn budget, only the first lenses run",
+          "label": "Helm lens count",
           "order": 220,
           "tab": "plugins",
-          "unit": "개",
+          "unit": "items",
           "widget": "number"
         }
       }
@@ -232,8 +232,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "발산·탐색 단계에서 쓰기 도구 호출을 실행 전에 거부한다",
-          "label": "Helm 쓰기 거부",
+          "help": "Blocks write tool calls before execution in the divergent and exploration phases",
+          "label": "Helm write blocking",
           "order": 230,
           "tab": "plugins",
           "widget": "toggle"
@@ -253,7 +253,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "약관 위험 고지에 동의",
+          "label": "Accept the terms-of-service risk notice",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -282,7 +282,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "OAuth 토큰 시크릿 참조",
+          "label": "OAuth token secret reference",
           "order": 20,
           "tab": "plugins",
           "widget": "text"
@@ -305,7 +305,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Anthropic OAuth provider 켜기",
+          "label": "Enable Anthropic OAuth provider",
           "order": 10,
           "tab": "plugins",
           "widget": "toggle"
@@ -329,7 +329,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Anthropic OAuth provider 격리",
+          "label": "Anthropic OAuth provider isolation",
           "order": 20,
           "tab": "plugins",
           "widget": "select"
@@ -352,11 +352,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 호출자가 정하지 않을 때 제한 없음",
-          "label": "명령 기본 시간 제한",
+          "help": "0 means no limit when the caller does not set one",
+          "helpKey": "settings.l0.exec.defaultTimeoutMs.help",
+          "label": "Default command time limit",
+          "labelKey": "settings.l0.exec.defaultTimeoutMs.label",
           "order": 110,
           "tab": "execution",
           "unit": "ms",
+          "unitKey": "settings.l0.exec.defaultTimeoutMs.unit",
           "widget": "number"
         }
       }
@@ -379,8 +382,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "이름만 적는다. 시크릿 값은 넣지 않는다",
-          "label": "자식 프로세스에 넘길 추가 환경 변수",
+          "help": "Enter names only. Do not put secret values here",
+          "helpKey": "settings.l0.exec.envAllowlist.extra.help",
+          "label": "Extra environment variables passed to child processes",
+          "labelKey": "settings.l0.exec.envAllowlist.extra.label",
           "order": 120,
           "tab": "execution",
           "widget": "list"
@@ -418,8 +423,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "절대 경로. 비우면 자동으로 찾는다",
-          "label": "셸 경로",
+          "help": "Absolute path. Leave empty to find it automatically",
+          "helpKey": "settings.l0.exec.shell.help",
+          "label": "Shell path",
+          "labelKey": "settings.l0.exec.shell.label",
           "order": 100,
           "tab": "execution",
           "widget": "text"
@@ -441,11 +448,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 상한이 없다. 넘으면 새 명령의 출력 파일을 만들지 않는다",
-          "label": "출력 파일 디스크 상한",
+          "help": "0 means no limit. When exceeded, no output files are created for new commands",
+          "helpKey": "settings.l0.exec.spillMaxBytes.help",
+          "label": "Output file disk limit",
+          "labelKey": "settings.l0.exec.spillMaxBytes.label",
           "order": 130,
           "tab": "execution",
           "unit": "B",
+          "unitKey": "settings.l0.exec.spillMaxBytes.unit",
           "widget": "number"
         }
       }
@@ -465,11 +475,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 지우지 않는다. 이 기간보다 오래된 명령 출력 파일을 정리 때 지운다",
-          "label": "출력 파일 보관 기간",
+          "help": "0 means never delete. Command output files older than this period are removed during cleanup",
+          "helpKey": "settings.l0.exec.spillRetentionDays.help",
+          "label": "Output file retention period",
+          "labelKey": "settings.l0.exec.spillRetentionDays.label",
           "order": 125,
           "tab": "execution",
-          "unit": "일",
+          "unit": "days",
+          "unitKey": "settings.l0.exec.spillRetentionDays.unit",
           "widget": "number"
         }
       }
@@ -489,11 +502,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "예약·루프처럼 사람이 없는 경로의 명령에만 적용한다. 일반 대화는 제한 없음",
-          "label": "무인 실행 명령 시간 상한",
+          "help": "Applies only to commands on unattended paths such as schedules and loops. Regular conversations have no limit",
+          "helpKey": "settings.l0.exec.unattendedTimeoutMs.help",
+          "label": "Unattended command time limit",
+          "labelKey": "settings.l0.exec.unattendedTimeoutMs.label",
           "order": 115,
           "tab": "execution",
           "unit": "ms",
+          "unitKey": "settings.l0.exec.unattendedTimeoutMs.unit",
           "widget": "number"
         }
       }
@@ -534,7 +550,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "로그 수준",
+          "label": "Log level",
+          "labelKey": "settings.l0.os.log.level.label",
           "order": 130,
           "tab": "advanced",
           "widget": "select"
@@ -554,7 +571,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "텔레메트리 내보내기",
+          "label": "Telemetry export",
+          "labelKey": "settings.l0.os.telemetry.enabled.label",
           "order": 100,
           "tab": "advanced",
           "widget": "toggle"
@@ -576,7 +594,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "OTLP 수집 주소",
+          "label": "OTLP collector address",
+          "labelKey": "settings.l0.os.telemetry.endpoint.label",
           "order": 120,
           "tab": "advanced",
           "widget": "text"
@@ -601,7 +620,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "텔레메트리 내보내기 방식",
+          "label": "Telemetry export method",
+          "labelKey": "settings.l0.os.telemetry.exporter.label",
           "order": 110,
           "tab": "advanced",
           "widget": "select"
@@ -627,7 +647,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "세션 잠금 실패 때 기본 동작",
+          "label": "Default action when session lock fails",
+          "labelKey": "settings.l0.process.lockFallback.default.label",
           "order": 40,
           "tab": "execution",
           "widget": "select"
@@ -647,7 +668,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "공유 서비스 모드",
+          "label": "Shared service mode",
+          "labelKey": "settings.l0.process.service.enabled.label",
           "order": 10,
           "tab": "execution",
           "widget": "toggle"
@@ -669,10 +691,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "서비스 유휴 종료 유예",
+          "label": "Idle service shutdown grace period",
+          "labelKey": "settings.l0.process.service.idleGraceMs.label",
           "order": 20,
           "tab": "execution",
           "unit": "ms",
+          "unitKey": "settings.l0.process.service.idleGraceMs.unit",
           "widget": "number"
         }
       }
@@ -690,7 +714,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "원격 서비스 주소",
+          "label": "Remote service address",
+          "labelKey": "settings.l0.process.service.remote.label",
           "order": 15,
           "tab": "execution",
           "widget": "text"
@@ -728,10 +753,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "종료 협조 시한",
+          "label": "Graceful shutdown timeout",
+          "labelKey": "settings.l0.process.shutdown.timeoutMs.label",
           "order": 30,
           "tab": "execution",
           "unit": "ms",
+          "unitKey": "settings.l0.process.shutdown.timeoutMs.unit",
           "widget": "number"
         }
       }
@@ -755,7 +782,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "deny also blocks reading them from sandboxed shell commands.",
+          "helpKey": "settings.l0.sandbox.credentialFiles.help",
           "label": "Credential files such as ~/.npmrc and ~/.config/gh",
+          "labelKey": "settings.l0.sandbox.credentialFiles.label",
           "order": 106,
           "tab": "permissions",
           "widget": "select"
@@ -776,7 +805,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Turning this off runs shell commands without isolation.",
+          "helpKey": "settings.l0.sandbox.enabled.help",
           "label": "Sandbox shell commands",
+          "labelKey": "settings.l0.sandbox.enabled.label",
           "order": 100,
           "tab": "permissions",
           "widget": "toggle"
@@ -797,7 +828,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Every call outside the sandbox still needs approval.",
+          "helpKey": "settings.l0.sandbox.escapeRetry.help",
           "label": "Allow retry outside the sandbox",
+          "labelKey": "settings.l0.sandbox.escapeRetry.label",
           "order": 104,
           "tab": "permissions",
           "widget": "toggle"
@@ -818,7 +851,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Needed to start a browser inside the sandbox. It weakens isolation, so keep it off otherwise.",
+          "helpKey": "settings.l0.sandbox.nestedNamespaces.help",
           "label": "Allow nested namespaces for browser tools",
+          "labelKey": "settings.l0.sandbox.nestedNamespaces.label",
           "order": 107,
           "tab": "permissions",
           "widget": "toggle"
@@ -846,7 +881,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Shell commands in the sandbox cannot reach these domains. Everything else stays reachable.",
+          "helpKey": "settings.l0.sandbox.network.blockedDomains.help",
           "label": "Blocked network domains",
+          "labelKey": "settings.l0.sandbox.network.blockedDomains.label",
           "order": 105,
           "tab": "permissions",
           "widget": "list"
@@ -873,7 +910,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "run_unsandboxed runs shell commands without isolation.",
+          "helpKey": "settings.l0.sandbox.onUnavailable.help",
           "label": "When the sandbox is unavailable",
+          "labelKey": "settings.l0.sandbox.onUnavailable.label",
           "order": 101,
           "tab": "permissions",
           "widget": "select"
@@ -901,7 +940,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
+          "helpKey": "settings.l0.sandbox.protectedPaths.extra.help",
           "label": "Extra protected paths",
+          "labelKey": "settings.l0.sandbox.protectedPaths.extra.label",
           "order": 102,
           "tab": "permissions",
           "widget": "list"
@@ -944,6 +985,7 @@
         "since": "0.1.0",
         "ui": {
           "label": "Extra writable directories",
+          "labelKey": "settings.l0.sandbox.writeRoots.extra.label",
           "order": 103,
           "tab": "permissions",
           "widget": "list"
@@ -972,8 +1014,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "비우면 설정 디렉터리의 secrets/age/keys.txt",
-          "label": "age 키 파일 경로",
+          "help": "Leave empty to use secrets/age/keys.txt in the config directory",
+          "helpKey": "settings.l0.secrets.ageKey.filePath.help",
+          "label": "age key file path",
+          "labelKey": "settings.l0.secrets.ageKey.filePath.label",
           "order": 50,
           "tab": "secrets",
           "widget": "text"
@@ -1000,7 +1044,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "age 키 위치",
+          "label": "age key location",
+          "labelKey": "settings.l0.secrets.ageKey.source.label",
           "order": 40,
           "tab": "secrets",
           "widget": "select"
@@ -1026,7 +1071,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "시크릿 사용 승인 기본값",
+          "label": "Default approval for secret use",
+          "labelKey": "settings.l0.secrets.approval.default.label",
           "order": 200,
           "tab": "permissions",
           "widget": "select"
@@ -1051,7 +1097,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "쓰기 호스트 승인",
+          "label": "Write host approval",
+          "labelKey": "settings.l0.secrets.approval.writeHosts.label",
           "order": 210,
           "tab": "permissions",
           "widget": "select"
@@ -1073,10 +1120,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "감사 기록 보관",
+          "label": "Audit log retention",
+          "labelKey": "settings.l0.secrets.audit.retentionDays.label",
           "order": 90,
           "tab": "secrets",
-          "unit": "일",
+          "unit": "days",
+          "unitKey": "settings.l0.secrets.audit.retentionDays.unit",
           "widget": "number"
         }
       }
@@ -1101,7 +1150,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "기본 시크릿 제공자",
+          "label": "Default secret provider",
+          "labelKey": "settings.l0.secrets.defaultProvider.label",
           "order": 20,
           "tab": "secrets",
           "widget": "select"
@@ -1123,10 +1173,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "임대당 최대 사용 횟수",
+          "label": "Max uses per lease",
+          "labelKey": "settings.l0.secrets.lease.maxUses.label",
           "order": 70,
           "tab": "secrets",
-          "unit": "회",
+          "unit": "uses",
+          "unitKey": "settings.l0.secrets.lease.maxUses.unit",
           "widget": "number"
         }
       }
@@ -1146,10 +1198,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "시크릿 임대 시간",
+          "label": "Secret lease duration",
+          "labelKey": "settings.l0.secrets.lease.ttlSeconds.label",
           "order": 60,
           "tab": "secrets",
-          "unit": "초",
+          "unit": "s",
+          "unitKey": "settings.l0.secrets.lease.ttlSeconds.unit",
           "widget": "number"
         }
       }
@@ -1192,7 +1246,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "시크릿 제공자 목록",
+          "label": "Secret provider list",
+          "labelKey": "settings.l0.secrets.providers.label",
           "order": 10,
           "tab": "secrets",
           "widget": "list"
@@ -1212,7 +1267,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "출력 마스킹(보조 수단)",
+          "label": "Output masking (supplementary)",
+          "labelKey": "settings.l0.secrets.redaction.enabled.label",
           "order": 80,
           "tab": "secrets",
           "widget": "readonly"
@@ -1241,8 +1297,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "비우면 fresnel.os가 찾는다",
-          "label": "sops 실행 파일",
+          "help": "Leave empty to let fresnel.os find it",
+          "helpKey": "settings.l0.secrets.sops.binary.help",
+          "label": "sops executable",
+          "labelKey": "settings.l0.secrets.sops.binary.label",
           "order": 340,
           "tab": "advanced",
           "widget": "text"
@@ -1283,8 +1341,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "환경 이름과 절대 경로의 쌍",
-          "label": "SOPS 파일",
+          "help": "Pairs of environment name and absolute path",
+          "helpKey": "settings.l0.secrets.sops.files.help",
+          "label": "SOPS files",
+          "labelKey": "settings.l0.secrets.sops.files.label",
           "order": 30,
           "tab": "secrets",
           "widget": "table"
@@ -1304,8 +1364,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "모든 블롭 소비자가 블롭을 고정한 뒤에만 켠다",
-          "label": "미참조 블롭 정리 켜기",
+          "help": "Enable only after every blob consumer pins its blobs",
+          "helpKey": "settings.l0.store.blobGcEnabled.help",
+          "label": "Enable unreferenced blob cleanup",
+          "labelKey": "settings.l0.store.blobGcEnabled.label",
           "order": 305,
           "tab": "sessions",
           "widget": "toggle"
@@ -1327,10 +1389,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "미참조 블롭 보존 시간",
+          "label": "Unreferenced blob retention time",
+          "labelKey": "settings.l0.store.blobGraceMs.label",
           "order": 300,
           "tab": "sessions",
           "unit": "ms",
+          "unitKey": "settings.l0.store.blobGraceMs.unit",
           "widget": "number"
         }
       }
@@ -1389,10 +1453,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "임대 하트비트 주기",
+          "label": "Lease heartbeat interval",
+          "labelKey": "settings.l0.store.heartbeatMs.label",
           "order": 300,
           "tab": "advanced",
           "unit": "ms",
+          "unitKey": "settings.l0.store.heartbeatMs.unit",
           "widget": "number"
         }
       }
@@ -1412,11 +1478,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "하트비트 주기의 3배 이상이어야 한다",
-          "label": "임대 만료 시간",
+          "help": "Must be at least three times the heartbeat interval",
+          "helpKey": "settings.l0.store.leaseTtlMs.help",
+          "label": "Lease expiry time",
+          "labelKey": "settings.l0.store.leaseTtlMs.label",
           "order": 310,
           "tab": "advanced",
           "unit": "ms",
+          "unitKey": "settings.l0.store.leaseTtlMs.unit",
           "widget": "number"
         }
       }
@@ -1434,8 +1503,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "macOS에서만 의미가 있다",
-          "label": "macOS 전체 fsync",
+          "help": "Only meaningful on macOS",
+          "helpKey": "settings.l0.store.macFullFsync.help",
+          "label": "Full fsync on macOS",
+          "labelKey": "settings.l0.store.macFullFsync.label",
           "order": 330,
           "tab": "advanced",
           "widget": "toggle"
@@ -1455,7 +1526,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "FTS5 필수",
+          "label": "FTS5 required",
+          "labelKey": "settings.l0.store.requireFts5.label",
           "order": 320,
           "tab": "advanced",
           "widget": "toggle"
@@ -1480,10 +1552,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "목표 판정 최대 실행 수",
+          "label": "Max goal judge runs",
+          "labelKey": "settings.l1.agents.judge.maxRuns.label",
           "order": 330,
           "tab": "models",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l1.agents.judge.maxRuns.unit",
           "widget": "number"
         }
       }
@@ -1505,11 +1579,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "소유 트리 루트 하나의 동시 자식 수",
-          "label": "동시 서브에이전트 수",
+          "help": "Concurrent children of one owning tree root",
+          "helpKey": "settings.l1.agents.maxConcurrent.help",
+          "label": "Concurrent subagents",
+          "labelKey": "settings.l1.agents.maxConcurrent.label",
           "order": 310,
           "tab": "models",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l1.agents.maxConcurrent.unit",
           "widget": "number"
         }
       }
@@ -1531,8 +1608,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 서브에이전트를 쓰지 않는다",
-          "label": "서브에이전트 최대 깊이",
+          "help": "0 disables subagents",
+          "helpKey": "settings.l1.agents.maxDepth.help",
+          "label": "Max subagent depth",
+          "labelKey": "settings.l1.agents.maxDepth.label",
           "order": 300,
           "tab": "models",
           "widget": "number"
@@ -1556,10 +1635,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "서브에이전트 결과 최대 길이",
+          "label": "Max subagent result length",
+          "labelKey": "settings.l1.agents.resultMaxChars.label",
           "order": 320,
           "tab": "models",
-          "unit": "자",
+          "unit": "chars",
+          "unitKey": "settings.l1.agents.resultMaxChars.unit",
           "widget": "number"
         }
       }
@@ -1580,7 +1661,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "자동 컴팩션",
+          "label": "Auto compaction",
+          "labelKey": "settings.l1.context.autoCompact.label",
           "order": 200,
           "tab": "sessions",
           "widget": "toggle"
@@ -1605,7 +1687,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "프롬프트 캐시 워밍",
+          "label": "Prompt cache warming",
+          "labelKey": "settings.l1.context.cacheWarming.label",
           "order": 270,
           "tab": "sessions",
           "widget": "select"
@@ -1628,7 +1711,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "컴팩션 지침",
+          "label": "Compaction instructions",
+          "labelKey": "settings.l1.context.compactionInstructions.label",
           "order": 230,
           "tab": "sessions",
           "widget": "text"
@@ -1653,10 +1737,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "컴팩션 뒤 유지할 최근 토큰",
+          "label": "Recent tokens kept after compaction",
+          "labelKey": "settings.l1.context.keepRecentTokens.label",
           "order": 220,
           "tab": "sessions",
-          "unit": "토큰",
+          "unit": "tokens",
+          "unitKey": "settings.l1.context.keepRecentTokens.unit",
           "widget": "number"
         }
       }
@@ -1677,10 +1763,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "도구 결과 줄이기 기준",
+          "label": "Tool result pruning threshold",
+          "labelKey": "settings.l1.context.pruneThresholdChars.label",
           "order": 250,
           "tab": "sessions",
-          "unit": "자",
+          "unit": "chars",
+          "unitKey": "settings.l1.context.pruneThresholdChars.unit",
           "widget": "number"
         }
       }
@@ -1701,7 +1789,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "오래된 도구 결과 줄이기",
+          "label": "Prune old tool results",
+          "labelKey": "settings.l1.context.pruneToolResults.label",
           "order": 240,
           "tab": "sessions",
           "widget": "toggle"
@@ -1724,10 +1813,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "컴팩션 뒤 다시 넣을 최근 파일",
+          "label": "Recent files re-added after compaction",
+          "labelKey": "settings.l1.context.reinjectRecentFiles.label",
           "order": 260,
           "tab": "sessions",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l1.context.reinjectRecentFiles.unit",
           "widget": "number"
         }
       }
@@ -1750,10 +1841,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "응답용 예약 토큰",
+          "label": "Tokens reserved for response",
+          "labelKey": "settings.l1.context.reserveTokens.label",
           "order": 210,
           "tab": "sessions",
-          "unit": "토큰",
+          "unit": "tokens",
+          "unitKey": "settings.l1.context.reserveTokens.unit",
           "widget": "number"
         }
       }
@@ -1776,11 +1869,14 @@
         "secret": false,
         "since": "0.2.0",
         "ui": {
-          "help": "0이면 boundary 계속 지시를 따르지 않음",
-          "label": "완료 게이트 연속 계속 상한",
+          "help": "0 ignores boundary continue instructions",
+          "helpKey": "settings.l1.loop.gate.maxContinues.help",
+          "label": "Max consecutive completion gate continues",
+          "labelKey": "settings.l1.loop.gate.maxContinues.label",
           "order": 20,
           "tab": "budgets",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l1.loop.gate.maxContinues.unit",
           "widget": "number"
         }
       }
@@ -1803,11 +1899,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 상한 없음",
-          "label": "turn당 최대 단계",
+          "help": "0 means no limit",
+          "helpKey": "settings.l1.loop.maxSteps.help",
+          "label": "Max steps per turn",
+          "labelKey": "settings.l1.loop.maxSteps.label",
           "order": 10,
           "tab": "budgets",
-          "unit": "단계",
+          "unit": "steps",
+          "unitKey": "settings.l1.loop.maxSteps.unit",
           "widget": "number"
         }
       }
@@ -1830,10 +1929,12 @@
         "secret": false,
         "since": "0.3.0",
         "ui": {
-          "label": "같은 행동-오류 반복 임계",
+          "label": "Repeated action-error threshold",
+          "labelKey": "settings.l1.loop.repeat.actionError.label",
           "order": 32,
           "tab": "budgets",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l1.loop.repeat.actionError.unit",
           "widget": "number"
         }
       }
@@ -1856,10 +1957,12 @@
         "secret": false,
         "since": "0.3.0",
         "ui": {
-          "label": "같은 행동-관찰 반복 임계",
+          "label": "Repeated action-observation threshold",
+          "labelKey": "settings.l1.loop.repeat.actionObservation.label",
           "order": 31,
           "tab": "budgets",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l1.loop.repeat.actionObservation.unit",
           "widget": "number"
         }
       }
@@ -1880,7 +1983,8 @@
         "secret": false,
         "since": "0.3.0",
         "ui": {
-          "label": "반복 감지 알림",
+          "label": "Repeat detection alerts",
+          "labelKey": "settings.l1.loop.repeat.enabled.label",
           "order": 30,
           "tab": "budgets",
           "widget": "toggle"
@@ -1939,8 +2043,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "같은 provider의 계정 목록. 키는 secret:// 참조만 저장한다. 계정 회전 플러그인을 켜야 쓴다",
-          "label": "모델 계정",
+          "help": "Account list for one provider. Keys are stored only as secret:// references. Requires the account rotation plugin to be enabled",
+          "helpKey": "settings.l1.models.accounts.help",
+          "label": "Model accounts",
+          "labelKey": "settings.l1.models.accounts.label",
           "order": 20,
           "tab": "providers",
           "widget": "table"
@@ -1967,8 +2073,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "provider/modelId 또는 provider/*. 비우면 전체 허용",
-          "label": "허용 모델",
+          "help": "provider/modelId or provider/*. Empty allows all models",
+          "helpKey": "settings.l1.models.allowedModels.help",
+          "label": "Allowed models",
+          "labelKey": "settings.l1.models.allowedModels.label",
           "order": 60,
           "tab": "models",
           "widget": "list"
@@ -1995,7 +2103,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "프롬프트 캐시 보존",
+          "label": "Prompt cache retention",
+          "labelKey": "settings.l1.models.cacheRetention.label",
           "order": 5,
           "tab": "advanced",
           "widget": "select"
@@ -2027,8 +2136,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "provider/modelId[:추론레벨] 형식",
-          "label": "기본 모델",
+          "help": "provider/modelId[:thinking level] format",
+          "helpKey": "settings.l1.models.default.help",
+          "label": "Default model",
+          "labelKey": "settings.l1.models.default.label",
           "order": 10,
           "tab": "models",
           "widget": "text"
@@ -2055,8 +2166,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "provider/modelId 또는 provider/*",
-          "label": "차단 모델",
+          "help": "provider/modelId or provider/*",
+          "helpKey": "settings.l1.models.deniedModels.help",
+          "label": "Blocked models",
+          "labelKey": "settings.l1.models.deniedModels.label",
           "order": 61,
           "tab": "models",
           "widget": "list"
@@ -2093,8 +2206,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "scope id → 역할 → provider/modelId[:추론레벨]",
-          "label": "그룹별 모델",
+          "help": "scope id → role → provider/modelId[:thinking level]",
+          "helpKey": "settings.l1.models.groupRouting.help",
+          "label": "Models by group",
+          "labelKey": "settings.l1.models.groupRouting.label",
           "order": 30,
           "tab": "models",
           "widget": "table"
@@ -2161,8 +2276,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "키는 secret:// 참조만 저장한다",
+          "help": "Keys are stored only as secret:// references",
+          "helpKey": "settings.l1.models.providers.help",
           "label": "provider",
+          "labelKey": "settings.l1.models.providers.label",
           "order": 10,
           "tab": "providers",
           "widget": "table"
@@ -2225,7 +2342,9 @@
         "since": "0.1.0",
         "ui": {
           "help": "provider → { minIntervalMs, onLimit(wait|switch|fail), maxWaitMs }",
-          "label": "레이트 리밋",
+          "helpKey": "settings.l1.models.rateLimit.help",
+          "label": "Rate limit",
+          "labelKey": "settings.l1.models.rateLimit.label",
           "order": 10,
           "tab": "budgets",
           "widget": "table"
@@ -2272,7 +2391,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "모델 요청 재시도",
+          "label": "Model request retries",
+          "labelKey": "settings.l1.models.retry.label",
           "order": 10,
           "tab": "advanced",
           "widget": "table"
@@ -2304,7 +2424,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "판정 모델",
+          "label": "Judge model",
+          "labelKey": "settings.l1.models.routing.judge.label",
           "order": 23,
           "tab": "models",
           "widget": "text"
@@ -2336,7 +2457,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "검토 모델",
+          "label": "Review model",
+          "labelKey": "settings.l1.models.routing.review.label",
           "order": 20,
           "tab": "models",
           "widget": "text"
@@ -2368,7 +2490,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "검색 모델",
+          "label": "Search model",
+          "labelKey": "settings.l1.models.routing.search.label",
           "order": 24,
           "tab": "models",
           "widget": "text"
@@ -2400,7 +2523,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "서브에이전트 모델",
+          "label": "Subagent model",
+          "labelKey": "settings.l1.models.routing.subagent.label",
           "order": 22,
           "tab": "models",
           "widget": "text"
@@ -2432,7 +2556,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "요약 모델",
+          "label": "Summary model",
+          "labelKey": "settings.l1.models.routing.summary.label",
           "order": 21,
           "tab": "models",
           "widget": "text"
@@ -2501,10 +2626,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "추론 레벨별 토큰 예산",
+          "label": "Thinking token budget per level",
+          "labelKey": "settings.l1.models.thinkingBudgets.label",
           "order": 50,
           "tab": "models",
-          "unit": "토큰",
+          "unit": "tokens",
+          "unitKey": "settings.l1.models.thinkingBudgets.unit",
           "widget": "table"
         }
       }
@@ -2535,7 +2662,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "추론 레벨",
+          "label": "Thinking level",
+          "labelKey": "settings.l1.models.thinkingLevel.label",
           "order": 40,
           "tab": "models",
           "widget": "select"
@@ -2555,8 +2683,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "서비스 모드에서 열 때 표식이 남은 대화를 자동으로 재개한다",
-          "label": "중단된 대화 자동 재개",
+          "help": "Resumes conversations left with a marker when opened in service mode",
+          "helpKey": "settings.l1.persistence.autoResume.help",
+          "label": "Auto-resume interrupted conversations",
+          "labelKey": "settings.l1.persistence.autoResume.label",
           "order": 120,
           "tab": "sessions",
           "widget": "toggle"
@@ -2582,7 +2712,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "내보내기 기본 형식",
+          "label": "Default export format",
+          "labelKey": "settings.l1.persistence.export.format.label",
           "order": 140,
           "tab": "sessions",
           "widget": "select"
@@ -2604,10 +2735,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "turn당 재개 시도 상한",
+          "label": "Max resume attempts per turn",
+          "labelKey": "settings.l1.persistence.maxResumeAttempts.label",
           "order": 130,
           "tab": "sessions",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l1.persistence.maxResumeAttempts.unit",
           "widget": "number"
         }
       }
@@ -2627,11 +2760,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "마지막 갱신 뒤 이 일수가 지난 대화를 지운다. 0이면 지우지 않는다",
-          "label": "대화 보관 기간",
+          "help": "Deletes conversations this many days after their last update. 0 keeps them",
+          "helpKey": "settings.l1.persistence.retention.maxAgeDays.help",
+          "label": "Conversation retention period",
+          "labelKey": "settings.l1.persistence.retention.maxAgeDays.label",
           "order": 100,
           "tab": "sessions",
-          "unit": "일",
+          "unit": "days",
+          "unitKey": "settings.l1.persistence.retention.maxAgeDays.unit",
           "widget": "number"
         }
       }
@@ -2651,8 +2787,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "넘으면 오래된 것부터 지운다. 0이면 상한 없음",
-          "label": "대화 최대 개수",
+          "help": "Oldest conversations are deleted beyond this count. 0 means no limit",
+          "helpKey": "settings.l1.persistence.retention.maxCount.help",
+          "label": "Max conversations",
+          "labelKey": "settings.l1.persistence.retention.maxCount.label",
           "order": 110,
           "tab": "sessions",
           "widget": "number"
@@ -2677,10 +2815,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "동시 모델 요청 수",
+          "label": "Concurrent model requests",
+          "labelKey": "settings.l1.tasks.limits.modelCalls.label",
           "order": 30,
           "tab": "execution",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l1.tasks.limits.modelCalls.unit",
           "widget": "number"
         }
       }
@@ -2703,10 +2843,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "동시 서브에이전트 수",
+          "label": "Concurrent subagents",
+          "labelKey": "settings.l1.tasks.limits.subagents.label",
           "order": 20,
           "tab": "execution",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l1.tasks.limits.subagents.unit",
           "widget": "number"
         }
       }
@@ -2729,10 +2871,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "동시 도구 실행 수",
+          "label": "Concurrent tool runs",
+          "labelKey": "settings.l1.tasks.limits.tools.label",
           "order": 10,
           "tab": "execution",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l1.tasks.limits.tools.unit",
           "widget": "number"
         }
       }
@@ -2757,7 +2901,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "후속 입력 배치",
+          "label": "Follow-up input batching",
+          "labelKey": "settings.l1.tasks.queue.followUpMode.label",
           "order": 50,
           "tab": "execution",
           "widget": "select"
@@ -2784,7 +2929,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "방향 수정 입력 배치",
+          "label": "Steering input batching",
+          "labelKey": "settings.l1.tasks.queue.steeringMode.label",
           "order": 40,
           "tab": "execution",
           "widget": "select"
@@ -2803,8 +2949,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "관리 설정에서만 바꾼다",
-          "label": "bypass 모드 허용",
+          "help": "Change only in managed settings",
+          "helpKey": "settings.l1.tools.bypassAllowed.help",
+          "label": "Allow bypass mode",
+          "labelKey": "settings.l1.tools.bypassAllowed.label",
           "order": 20,
           "tab": "permissions",
           "widget": "toggle"
@@ -2828,11 +2976,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 auto 도구는 모두 지연 도구다",
-          "label": "도구 지연 노출 기준",
+          "help": "At 0, all auto tools are deferred",
+          "helpKey": "settings.l1.tools.exposure.deferThreshold.help",
+          "label": "Tool deferral threshold",
+          "labelKey": "settings.l1.tools.exposure.deferThreshold.label",
           "order": 30,
           "tab": "tools",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l1.tools.exposure.deferThreshold.unit",
           "widget": "number"
         }
       }
@@ -2854,10 +3005,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "도구 출력 최대 바이트",
+          "label": "Max tool output bytes",
+          "labelKey": "settings.l1.tools.output.maxBytes.label",
           "order": 20,
           "tab": "tools",
           "unit": "B",
+          "unitKey": "settings.l1.tools.output.maxBytes.unit",
           "widget": "number"
         }
       }
@@ -2879,10 +3032,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "도구 출력 최대 줄 수",
+          "label": "Max tool output lines",
+          "labelKey": "settings.l1.tools.output.maxLines.label",
           "order": 10,
           "tab": "tools",
-          "unit": "줄",
+          "unit": "lines",
+          "unitKey": "settings.l1.tools.output.maxLines.unit",
           "widget": "number"
         }
       }
@@ -2910,7 +3065,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "권한 모드",
+          "label": "Permission mode",
+          "labelKey": "settings.l1.tools.permissionMode.label",
           "order": 10,
           "tab": "permissions",
           "widget": "select"
@@ -3101,7 +3257,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "권한 규칙",
+          "label": "Permission rules",
+          "labelKey": "settings.l1.tools.rules.label",
           "order": 30,
           "tab": "permissions",
           "widget": "table"
@@ -3130,8 +3287,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "wait는 답이 올 때까지 기다리고, deny는 바로 거부하고, expire는 기다리다 제한 시간이 지나면 거부한다",
-          "label": "무인 실행의 승인 요청",
+          "help": "wait waits for a reply, deny rejects at once, and expire waits and then rejects once the time limit passes",
+          "helpKey": "settings.l1.tools.unattended.approval.help",
+          "label": "Approval requests when unattended",
+          "labelKey": "settings.l1.tools.unattended.approval.label",
           "order": 40,
           "tab": "permissions",
           "widget": "select"
@@ -3156,11 +3315,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "무인 승인이 expire일 때 이 시간이 지나면 거부로 끝낸다",
-          "label": "무인 실행의 승인 제한 시간",
+          "help": "With expire, the request is rejected once this time passes",
+          "helpKey": "settings.l1.tools.unattended.timeoutSeconds.help",
+          "label": "Approval time limit when unattended",
+          "labelKey": "settings.l1.tools.unattended.timeoutSeconds.label",
           "order": 50,
           "tab": "permissions",
-          "unit": "초",
+          "unit": "s",
+          "unitKey": "settings.l1.tools.unattended.timeoutSeconds.unit",
           "widget": "number"
         }
       }
@@ -3182,10 +3344,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "산출물 본문 최대 크기",
+          "label": "Max artifact content size",
+          "labelKey": "settings.l2.artifacts.maxContentBytes.label",
           "order": 410,
           "tab": "sessions",
           "unit": "B",
+          "unitKey": "settings.l2.artifacts.maxContentBytes.unit",
           "widget": "number"
         }
       }
@@ -3207,10 +3371,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "세션당 산출물 최대 개수",
+          "label": "Max artifacts per session",
+          "labelKey": "settings.l2.artifacts.maxPerSession.label",
           "order": 400,
           "tab": "sessions",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l2.artifacts.maxPerSession.unit",
           "widget": "number"
         }
       }
@@ -3236,7 +3402,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "리뷰 결과 전달 방식",
+          "label": "Review result delivery",
+          "labelKey": "settings.l2.artifacts.reviews.deliverAs.label",
           "order": 320,
           "tab": "tools",
           "widget": "select"
@@ -3259,8 +3426,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "끄면 모델이 리뷰를 요청하는 도구를 쓸 수 없습니다",
-          "label": "리뷰 요청 도구 노출",
+          "help": "When off, the model cannot use the tool that requests a review.",
+          "helpKey": "settings.l2.artifacts.tools.reviewRequest.help",
+          "label": "Expose review request tool",
+          "labelKey": "settings.l2.artifacts.tools.reviewRequest.label",
           "order": 330,
           "tab": "tools",
           "widget": "toggle"
@@ -3283,7 +3452,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "세션 이름 바꾸기 도구 노출",
+          "label": "Expose session rename tool",
+          "labelKey": "settings.l2.artifacts.tools.sessionRename.label",
           "order": 340,
           "tab": "tools",
           "widget": "toggle"
@@ -3307,10 +3477,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "첨부 하나의 최대 크기",
+          "label": "Max size of one attachment",
+          "labelKey": "settings.l2.dialog.attachments.maxBytes.label",
           "order": 320,
           "tab": "tools",
           "unit": "B",
+          "unitKey": "settings.l2.dialog.attachments.maxBytes.unit",
           "widget": "number"
         }
       }
@@ -3335,8 +3507,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "confirm은 실행 전에 확인하고, off는 막는다",
-          "label": "명령 템플릿의 셸 주입",
+          "help": "confirm asks before running, off blocks it",
+          "helpKey": "settings.l2.dialog.commands.shellInjection.help",
+          "label": "Shell injection in command templates",
+          "labelKey": "settings.l2.dialog.commands.shellInjection.label",
           "order": 303,
           "tab": "tools",
           "widget": "select"
@@ -3359,7 +3533,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "메모리 사용",
+          "label": "Use memory",
+          "labelKey": "settings.l2.knowledge.memory.enabled.label",
           "order": 310,
           "tab": "sessions",
           "widget": "toggle"
@@ -3381,10 +3556,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "환경 사실 한도",
+          "label": "Environment facts limit",
+          "labelKey": "settings.l2.knowledge.memory.envLimitChars.label",
           "order": 312,
           "tab": "sessions",
-          "unit": "자",
+          "unit": "chars",
+          "unitKey": "settings.l2.knowledge.memory.envLimitChars.unit",
           "widget": "number"
         }
       }
@@ -3404,10 +3581,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "사용자 정보 한도",
+          "label": "User info limit",
+          "labelKey": "settings.l2.knowledge.memory.userLimitChars.label",
           "order": 311,
           "tab": "sessions",
-          "unit": "자",
+          "unit": "chars",
+          "unitKey": "settings.l2.knowledge.memory.userLimitChars.unit",
           "widget": "number"
         }
       }
@@ -3432,7 +3611,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "검색 기본 범위",
+          "label": "Default search scope",
+          "labelKey": "settings.l2.knowledge.search.defaultScope.label",
           "order": 331,
           "tab": "sessions",
           "widget": "select"
@@ -3455,7 +3635,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "지식 검색 사용",
+          "label": "Use knowledge search",
+          "labelKey": "settings.l2.knowledge.search.enabled.label",
           "order": 330,
           "tab": "sessions",
           "widget": "toggle"
@@ -3475,7 +3656,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "숨긴 세션 기본 포함",
+          "label": "Include hidden sessions by default",
+          "labelKey": "settings.l2.knowledge.search.includeHiddenDefault.label",
           "order": 332,
           "tab": "sessions",
           "widget": "toggle"
@@ -3497,10 +3679,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "짧은 질의 탐색 한도",
+          "label": "Short query scan limit",
+          "labelKey": "settings.l2.knowledge.search.likeScanLimit.label",
           "order": 333,
           "tab": "advanced",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l2.knowledge.search.likeScanLimit.unit",
           "widget": "number"
         }
       }
@@ -3521,7 +3705,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "스킬 사용",
+          "label": "Use skills",
+          "labelKey": "settings.l2.knowledge.skills.enabled.label",
           "order": 300,
           "tab": "tools",
           "widget": "toggle"
@@ -3545,10 +3730,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "스킬 인덱스 예산",
+          "label": "Skill index budget",
+          "labelKey": "settings.l2.knowledge.skills.indexBudgetChars.label",
           "order": 303,
           "tab": "tools",
-          "unit": "자",
+          "unit": "chars",
+          "unitKey": "settings.l2.knowledge.skills.indexBudgetChars.unit",
           "widget": "number"
         }
       }
@@ -3570,10 +3757,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "인덱스 설명 길이",
+          "label": "Index description length",
+          "labelKey": "settings.l2.knowledge.skills.indexDescriptionChars.label",
           "order": 304,
           "tab": "tools",
-          "unit": "자",
+          "unit": "chars",
+          "unitKey": "settings.l2.knowledge.skills.indexDescriptionChars.unit",
           "widget": "number"
         }
       }
@@ -3597,8 +3786,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "절대 경로. 디렉터리나 .md 파일. 읽기 전용으로 싣는다",
-          "label": "추가 스킬 경로",
+          "help": "Absolute path to a directory or .md file. Loaded read-only",
+          "helpKey": "settings.l2.knowledge.skills.paths.help",
+          "label": "Extra skill paths",
+          "labelKey": "settings.l2.knowledge.skills.paths.label",
           "order": 302,
           "tab": "tools",
           "widget": "list"
@@ -3618,7 +3809,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "프로젝트 스킬 사용",
+          "label": "Use project skills",
+          "labelKey": "settings.l2.knowledge.skills.projectSkills.label",
           "order": 301,
           "tab": "tools",
           "widget": "toggle"
@@ -3638,8 +3830,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "끄면 비파괴 연산은 승인 없이 적용한다. 백그라운드 포크의 파괴적 연산은 항상 대기열이다",
-          "label": "에이전트 쓰기 승인",
+          "help": "When off, non-destructive operations apply without approval. Destructive operations from background forks are always queued",
+          "helpKey": "settings.l2.knowledge.write.approval.help",
+          "label": "Agent write approval",
+          "labelKey": "settings.l2.knowledge.write.approval.label",
           "order": 320,
           "tab": "tools",
           "widget": "toggle"
@@ -3661,10 +3855,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "제안 만료",
+          "label": "Proposal expiry",
+          "labelKey": "settings.l2.knowledge.write.proposalExpiryDays.label",
           "order": 322,
           "tab": "tools",
-          "unit": "일",
+          "unit": "days",
+          "unitKey": "settings.l2.knowledge.write.proposalExpiryDays.unit",
           "widget": "number"
         }
       }
@@ -3682,8 +3878,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "메모리 쓰기 검사는 이 설정과 무관하게 항상 한다",
-          "label": "스킬 쓰기 위협 검사",
+          "help": "Memory write scans always run regardless of this setting",
+          "helpKey": "settings.l2.knowledge.write.scan.help",
+          "label": "Skill write threat scan",
+          "labelKey": "settings.l2.knowledge.write.scan.label",
           "order": 321,
           "tab": "tools",
           "widget": "toggle"
@@ -3709,8 +3907,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "<확장 이름>.<대기열 이름> 형식",
-          "label": "신뢰하는 승인 증거 출처",
+          "help": "<extension name>.<queue name> format",
+          "helpKey": "settings.l2.knowledge.write.trustedEvidenceSources.help",
+          "label": "Trusted approval evidence sources",
+          "labelKey": "settings.l2.knowledge.write.trustedEvidenceSources.label",
           "order": 323,
           "tab": "advanced",
           "widget": "list"
@@ -3736,7 +3936,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "허용 서버",
+          "label": "Allowed servers",
+          "labelKey": "settings.l2.mcp.allowedServers.label",
           "order": 305,
           "tab": "tools",
           "widget": "list"
@@ -3764,7 +3965,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "MCP 도구 승인 방식",
+          "label": "MCP tool approval mode",
+          "labelKey": "settings.l2.mcp.approvalMode.label",
           "order": 304,
           "tab": "tools",
           "widget": "select"
@@ -3789,10 +3991,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "MCP 호출 제한 시간",
+          "label": "MCP call timeout",
+          "labelKey": "settings.l2.mcp.callTimeoutMs.label",
           "order": 303,
           "tab": "tools",
           "unit": "ms",
+          "unitKey": "settings.l2.mcp.callTimeoutMs.unit",
           "widget": "number"
         }
       }
@@ -3814,10 +4018,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "MCP 연결 제한 시간",
+          "label": "MCP connect timeout",
+          "labelKey": "settings.l2.mcp.connectTimeoutMs.label",
           "order": 302,
           "tab": "tools",
           "unit": "ms",
+          "unitKey": "settings.l2.mcp.connectTimeoutMs.unit",
           "widget": "number"
         }
       }
@@ -3842,7 +4048,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "차단 서버",
+          "label": "Blocked servers",
+          "labelKey": "settings.l2.mcp.deniedServers.label",
           "order": 306,
           "tab": "tools",
           "widget": "list"
@@ -3863,7 +4070,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": ".mcp.json 가져오기",
+          "label": "Import .mcp.json",
+          "labelKey": "settings.l2.mcp.importMcpJson.label",
           "order": 301,
           "tab": "tools",
           "widget": "toggle"
@@ -3886,7 +4094,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "추가 입력 요청 라운드 상한",
+          "label": "Max extra input request rounds",
+          "labelKey": "settings.l2.mcp.inputRequired.maxRounds.label",
           "order": 309,
           "tab": "tools",
           "widget": "number"
@@ -3905,7 +4114,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "관리 서버만 허용",
+          "label": "Allow managed servers only",
+          "labelKey": "settings.l2.mcp.managedOnly.label",
           "order": 307,
           "tab": "tools",
           "widget": "toggle"
@@ -3927,10 +4137,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "재연결 시도 상한",
+          "label": "Max reconnect attempts",
+          "labelKey": "settings.l2.mcp.reconnect.maxAttempts.label",
           "order": 312,
           "tab": "tools",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l2.mcp.reconnect.maxAttempts.unit",
           "widget": "number"
         }
       }
@@ -3950,10 +4162,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "재연결 최대 대기",
+          "label": "Max reconnect delay",
+          "labelKey": "settings.l2.mcp.reconnect.maxDelayMs.label",
           "order": 311,
           "tab": "tools",
           "unit": "ms",
+          "unitKey": "settings.l2.mcp.reconnect.maxDelayMs.unit",
           "widget": "number"
         }
       }
@@ -3976,10 +4190,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "MCP 결과 크기 상한",
+          "label": "MCP result size limit",
+          "labelKey": "settings.l2.mcp.result.maxBytes.label",
           "order": 310,
           "tab": "tools",
           "unit": "B",
+          "unitKey": "settings.l2.mcp.result.maxBytes.unit",
           "widget": "number"
         }
       }
@@ -3997,7 +4213,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "프로젝트·확장 출처 stdio 서버 샌드박스",
+          "label": "Sandbox stdio servers from project and extension sources",
+          "labelKey": "settings.l2.mcp.sandbox.projectSource.label",
           "order": 314,
           "tab": "tools",
           "widget": "toggle"
@@ -4017,7 +4234,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "사용자 설정 stdio 서버 샌드박스",
+          "label": "Sandbox stdio servers from user settings",
+          "labelKey": "settings.l2.mcp.sandbox.userSource.label",
           "order": 308,
           "tab": "tools",
           "widget": "toggle"
@@ -4209,7 +4427,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "MCP 서버",
+          "label": "MCP servers",
+          "labelKey": "settings.l2.mcp.servers.label",
           "order": 300,
           "tab": "tools",
           "widget": "table"
@@ -4235,7 +4454,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "MCP 사양 버전 협상",
+          "label": "MCP spec version negotiation",
+          "labelKey": "settings.l2.mcp.versionNegotiation.label",
           "order": 313,
           "tab": "tools",
           "widget": "select"
@@ -4261,8 +4481,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "모델 도구가 아닌 확장·그룹의 직접 호출을 다룬다. allow는 바로 만들고, ask는 승인을 묻고, deny는 막는다",
-          "label": "확장의 예약 직접 만들기",
+          "help": "Covers direct calls from extensions and groups, not model tools. allow creates at once, ask requests approval, deny blocks.",
+          "helpKey": "settings.l2.schedule.entries.directCreate.help",
+          "label": "Direct schedule creation by extensions",
+          "labelKey": "settings.l2.schedule.entries.directCreate.label",
           "order": 350,
           "tab": "execution",
           "widget": "select"
@@ -4283,7 +4505,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "파일 업로드 허용",
+          "label": "Allow file uploads",
+          "labelKey": "settings.l2.web.browse.allowFileUpload.label",
           "order": 160,
           "tab": "tools",
           "widget": "toggle"
@@ -4304,7 +4527,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "페이지 스크립트 실행 허용",
+          "label": "Allow running page scripts",
+          "labelKey": "settings.l2.web.browse.allowJavascriptExec.label",
           "order": 159,
           "tab": "tools",
           "widget": "toggle"
@@ -4324,7 +4548,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "이름 있는 프로필 허용",
+          "label": "Allow named profiles",
+          "labelKey": "settings.l2.web.browse.allowNamedProfiles.label",
           "order": 158,
           "tab": "tools",
           "widget": "toggle"
@@ -4346,7 +4571,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "브라우저 실행 파일 경로",
+          "label": "Browser executable path",
+          "labelKey": "settings.l2.web.browse.executablePath.label",
           "order": 153,
           "tab": "tools",
           "widget": "text"
@@ -4369,7 +4595,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "헤드리스 실행",
+          "label": "Headless mode",
+          "labelKey": "settings.l2.web.browse.headless.label",
           "order": 151,
           "tab": "tools",
           "widget": "toggle"
@@ -4394,10 +4621,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "브라우저 동작 상한",
+          "label": "Browser action limit",
+          "labelKey": "settings.l2.web.browse.maxActions.label",
           "order": 155,
           "tab": "tools",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l2.web.browse.maxActions.unit",
           "widget": "number"
         }
       }
@@ -4420,10 +4649,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "브라우저 세션 시간 상한",
+          "label": "Browser session time limit",
+          "labelKey": "settings.l2.web.browse.maxMinutes.label",
           "order": 154,
           "tab": "tools",
-          "unit": "분",
+          "unit": "min",
+          "unitKey": "settings.l2.web.browse.maxMinutes.unit",
           "widget": "number"
         }
       }
@@ -4445,7 +4676,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "동시 브라우저 세션 수",
+          "label": "Concurrent browser sessions",
+          "labelKey": "settings.l2.web.browse.maxSessions.label",
           "order": 157,
           "tab": "tools",
           "widget": "number"
@@ -4470,10 +4702,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "브라우저 세션 비용 상한",
+          "label": "Browser session cost limit",
+          "labelKey": "settings.l2.web.browse.maxUsd.label",
           "order": 156,
           "tab": "tools",
           "unit": "USD",
+          "unitKey": "settings.l2.web.browse.maxUsd.unit",
           "widget": "number"
         }
       }
@@ -4499,8 +4733,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "등록된 브라우저 도구를 끌어 옮겨 정한다. 목록에 없는 도구는 뒤에 붙고 플러그인이 마지막이다",
-          "label": "브라우저 도구 순서",
+          "help": "Drag registered browser tools to set their order. Tools not in the list go after them, and plugins go last.",
+          "helpKey": "settings.l2.web.browse.order.help",
+          "label": "Browser tool order",
+          "labelKey": "settings.l2.web.browse.order.label",
           "order": 161,
           "tab": "tools",
           "widget": "list"
@@ -4525,8 +4761,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "auto 또는 provider ID",
-          "label": "브라우저 provider",
+          "help": "auto or a provider ID",
+          "helpKey": "settings.l2.web.browse.provider.help",
+          "label": "Browser provider",
+          "labelKey": "settings.l2.web.browse.provider.label",
           "order": 150,
           "tab": "tools",
           "widget": "text"
@@ -4551,7 +4789,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "브라우저 런타임",
+          "label": "Browser runtime",
+          "labelKey": "settings.l2.web.browse.runtime.label",
           "order": 152,
           "tab": "tools",
           "widget": "select"
@@ -4575,10 +4814,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "읽기 캐시 유지 시간",
+          "label": "Read cache lifetime",
+          "labelKey": "settings.l2.web.cache.fetchTtlMinutes.label",
           "order": 131,
           "tab": "tools",
-          "unit": "분",
+          "unit": "min",
+          "unitKey": "settings.l2.web.cache.fetchTtlMinutes.unit",
           "widget": "number"
         }
       }
@@ -4598,10 +4839,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "디스크 캐시 상한",
+          "label": "Disk cache limit",
+          "labelKey": "settings.l2.web.cache.maxMegabytes.label",
           "order": 132,
           "tab": "tools",
           "unit": "MB",
+          "unitKey": "settings.l2.web.cache.maxMegabytes.unit",
           "widget": "number"
         }
       }
@@ -4623,10 +4866,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "검색 캐시 유지 시간",
+          "label": "Search cache lifetime",
+          "labelKey": "settings.l2.web.cache.searchTtlMinutes.label",
           "order": 130,
           "tab": "tools",
-          "unit": "분",
+          "unit": "min",
+          "unitKey": "settings.l2.web.cache.searchTtlMinutes.unit",
           "widget": "number"
         }
       }
@@ -4650,7 +4895,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "본문 추출기",
+          "label": "Page content extractor",
+          "labelKey": "settings.l2.web.fetch.extractor.label",
           "order": 110,
           "tab": "tools",
           "widget": "select"
@@ -4675,10 +4921,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "읽기 최대 글자 수",
+          "label": "Max characters per read",
+          "labelKey": "settings.l2.web.fetch.maxChars.label",
           "order": 111,
           "tab": "tools",
-          "unit": "자",
+          "unit": "chars",
+          "unitKey": "settings.l2.web.fetch.maxChars.unit",
           "widget": "number"
         }
       }
@@ -4704,7 +4952,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "읽기 승격 플러그인 순서",
+          "label": "Read escalation plugin order",
+          "labelKey": "settings.l2.web.fetch.pluginOrder.label",
           "order": 114,
           "tab": "tools",
           "widget": "list"
@@ -4731,7 +4980,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "빈 본문 승격",
+          "label": "Escalate on empty page body",
+          "labelKey": "settings.l2.web.fetch.promote.label",
           "order": 113,
           "tab": "tools",
           "widget": "select"
@@ -4756,10 +5006,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "읽기 제한 시간",
+          "label": "Read timeout",
+          "labelKey": "settings.l2.web.fetch.timeoutSeconds.label",
           "order": 112,
           "tab": "tools",
-          "unit": "초",
+          "unit": "s",
+          "unitKey": "settings.l2.web.fetch.timeoutSeconds.unit",
           "widget": "number"
         }
       }
@@ -4782,11 +5034,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 제한 없음",
-          "label": "세션당 읽기 상한",
+          "help": "0 means no limit",
+          "helpKey": "settings.l2.web.limits.fetchPerSession.help",
+          "label": "Read limit per session",
+          "labelKey": "settings.l2.web.limits.fetchPerSession.label",
           "order": 141,
           "tab": "tools",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l2.web.limits.fetchPerSession.unit",
           "widget": "number"
         }
       }
@@ -4809,11 +5064,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 제한 없음",
-          "label": "세션당 검색 상한",
+          "help": "0 means no limit",
+          "helpKey": "settings.l2.web.limits.searchPerSession.help",
+          "label": "Search limit per session",
+          "labelKey": "settings.l2.web.limits.searchPerSession.label",
           "order": 140,
           "tab": "tools",
-          "unit": "회",
+          "unit": "times",
+          "unitKey": "settings.l2.web.limits.searchPerSession.unit",
           "widget": "number"
         }
       }
@@ -4839,7 +5097,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "허용 도메인",
+          "label": "Allowed domains",
+          "labelKey": "settings.l2.web.policy.allow.label",
           "order": 120,
           "tab": "tools",
           "widget": "list"
@@ -4860,8 +5119,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "루프백과 메타데이터 주소는 계속 막는다",
-          "label": "사설망 허용",
+          "help": "Loopback and metadata addresses stay blocked.",
+          "helpKey": "settings.l2.web.policy.allowPrivateNetwork.help",
+          "label": "Allow private network",
+          "labelKey": "settings.l2.web.policy.allowPrivateNetwork.label",
           "order": 123,
           "tab": "tools",
           "widget": "toggle"
@@ -4890,7 +5151,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "확인 도메인",
+          "label": "Domains to confirm",
+          "labelKey": "settings.l2.web.policy.ask.label",
           "order": 121,
           "tab": "tools",
           "widget": "list"
@@ -4919,7 +5181,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "차단 도메인",
+          "label": "Blocked domains",
+          "labelKey": "settings.l2.web.policy.deny.label",
           "order": 122,
           "tab": "tools",
           "widget": "list"
@@ -4946,8 +5209,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "never(기본)는 따르지 않는다. auto는 자동 수집 경로만, always는 모든 fetch에 적용한다",
-          "label": "robots.txt 적용",
+          "help": "never (default) does not follow it. auto applies it only to automatic collection paths; always applies it to every fetch.",
+          "helpKey": "settings.l2.web.policy.robots.help",
+          "label": "Apply robots.txt",
+          "labelKey": "settings.l2.web.policy.robots.label",
           "order": 125,
           "tab": "tools",
           "widget": "select"
@@ -4974,7 +5239,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "대화에 없던 URL",
+          "label": "URLs not in the conversation",
+          "labelKey": "settings.l2.web.policy.unseenUrl.label",
           "order": 124,
           "tab": "tools",
           "widget": "select"
@@ -4997,7 +5263,8 @@
         "secret": false,
         "since": "0.2.0",
         "ui": {
-          "label": "검증 못한 주장 유지",
+          "label": "Keep unverified claims",
+          "labelKey": "settings.l2.web.research.keepUnverified.label",
           "order": 172,
           "tab": "tools",
           "widget": "toggle"
@@ -5022,10 +5289,12 @@
         "secret": false,
         "since": "0.2.0",
         "ui": {
-          "label": "조사 비용 상한",
+          "label": "Research cost limit",
+          "labelKey": "settings.l2.web.research.maxBudgetUsd.label",
           "order": 171,
           "tab": "tools",
           "unit": "USD",
+          "unitKey": "settings.l2.web.research.maxBudgetUsd.unit",
           "widget": "number"
         }
       }
@@ -5048,8 +5317,10 @@
         "secret": false,
         "since": "0.2.0",
         "ui": {
-          "help": "auto 또는 provider ID",
-          "label": "조사 provider",
+          "help": "auto or a provider ID",
+          "helpKey": "settings.l2.web.research.provider.help",
+          "label": "Research provider",
+          "labelKey": "settings.l2.web.research.provider.label",
           "order": 170,
           "tab": "tools",
           "widget": "text"
@@ -5078,7 +5349,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "모델용 검색 도구",
+          "label": "Search tool for the model",
+          "labelKey": "settings.l2.web.search.modelTool.label",
           "order": 106,
           "tab": "tools",
           "widget": "select"
@@ -5106,8 +5378,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "등록된 검색 도구를 끌어 옮겨 정한다. 목록에 없는 도구는 뒤에 붙고 플러그인이 마지막이다",
-          "label": "검색 도구 순서",
+          "help": "Drag registered search tools to set their order. Tools not in the list go after them, and plugins go last.",
+          "helpKey": "settings.l2.web.search.order.help",
+          "label": "Search tool order",
+          "labelKey": "settings.l2.web.search.order.label",
           "order": 101,
           "tab": "tools",
           "widget": "list"
@@ -5131,11 +5405,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "1이면 순서대로 하나씩 쓴다. 2 이상이면 순서의 앞에서부터 그 수만큼 동시에 질의해 결과를 합친다. 검색어가 여러 수신자에게 나간다",
-          "label": "동시 질의 검색 도구 수",
+          "help": "1 uses tools one at a time, in order. 2 or more queries that many tools from the front of the order at once and merges the results. Search terms are sent to multiple recipients.",
+          "helpKey": "settings.l2.web.search.parallel.help",
+          "label": "Search tools queried at once",
+          "labelKey": "settings.l2.web.search.parallel.label",
           "order": 103,
           "tab": "tools",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l2.web.search.parallel.unit",
           "widget": "number"
         }
       }
@@ -5158,8 +5435,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "auto 또는 provider ID",
-          "label": "검색 provider",
+          "help": "auto or a provider ID",
+          "helpKey": "settings.l2.web.search.provider.help",
+          "label": "Search provider",
+          "labelKey": "settings.l2.web.search.provider.label",
           "order": 100,
           "tab": "tools",
           "widget": "text"
@@ -5184,7 +5463,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "래퍼 pause_turn 재요청 상한",
+          "label": "Wrapper pause_turn retry limit",
+          "labelKey": "settings.l2.web.search.wrapper.maxContinuations.label",
           "order": 105,
           "tab": "tools",
           "widget": "number"
@@ -5209,8 +5489,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "auto 또는 모델 ID",
-          "label": "검색 래퍼 모델",
+          "help": "auto or a model ID",
+          "helpKey": "settings.l2.web.search.wrapper.model.help",
+          "label": "Search wrapper model",
+          "labelKey": "settings.l2.web.search.wrapper.model.label",
           "order": 104,
           "tab": "tools",
           "widget": "text"
@@ -5233,8 +5515,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "켜면 승인된 계획이 없을 때 계획 모드를 나갈 수 없습니다",
-          "label": "계획 승인 필수",
+          "help": "When on, plan mode cannot be exited without an approved plan",
+          "helpKey": "settings.l2.work.plans.requireApproval.help",
+          "label": "Require plan approval",
+          "labelKey": "settings.l2.work.plans.requireApproval.label",
           "order": 300,
           "tab": "permissions",
           "widget": "toggle"
@@ -5257,8 +5541,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "정확 일치가 없을 때 따옴표, 대시, 공백 차이를 무시하고 찾는다",
-          "label": "퍼지 일치 편집",
+          "help": "When there is no exact match, ignore differences in quotes, dashes, and whitespace",
+          "helpKey": "settings.l2.workspace.edit.fuzzy.help",
+          "label": "Fuzzy match edits",
+          "labelKey": "settings.l2.workspace.edit.fuzzy.label",
           "order": 210,
           "tab": "tools",
           "widget": "toggle"
@@ -5283,10 +5569,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "파일 찾기 최대 결과 수",
+          "label": "Max file find results",
+          "labelKey": "settings.l2.workspace.find.maxResults.label",
           "order": 213,
           "tab": "tools",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l2.workspace.find.maxResults.unit",
           "widget": "number"
         }
       }
@@ -5309,10 +5597,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "검색 결과 최대 줄 길이",
+          "label": "Max search result line length",
+          "labelKey": "settings.l2.workspace.grep.maxLineLength.label",
           "order": 212,
           "tab": "tools",
-          "unit": "자",
+          "unit": "chars",
+          "unitKey": "settings.l2.workspace.grep.maxLineLength.unit",
           "widget": "number"
         }
       }
@@ -5335,10 +5625,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "검색 최대 일치 수",
+          "label": "Max search matches",
+          "labelKey": "settings.l2.workspace.grep.maxMatches.label",
           "order": 211,
           "tab": "tools",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l2.workspace.grep.maxMatches.unit",
           "widget": "number"
         }
       }
@@ -5356,8 +5648,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "비워 두면 번들된 rg를 쓴다. 프로젝트 설정으로는 바꿀 수 없다",
-          "label": "ripgrep 실행 파일 경로",
+          "help": "Leave empty to use the bundled rg. Project settings cannot change it",
+          "helpKey": "settings.l2.workspace.grep.rgPath.help",
+          "label": "ripgrep executable path",
+          "labelKey": "settings.l2.workspace.grep.rgPath.label",
           "order": 214,
           "tab": "tools",
           "widget": "text"
@@ -5381,10 +5675,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "이미지 최대 크기(base64)",
+          "label": "Max image size (base64)",
+          "labelKey": "settings.l2.workspace.images.maxBytes.label",
           "order": 208,
           "tab": "tools",
           "unit": "B",
+          "unitKey": "settings.l2.workspace.images.maxBytes.unit",
           "widget": "number"
         }
       }
@@ -5406,10 +5702,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "이미지 최대 높이",
+          "label": "Max image height",
+          "labelKey": "settings.l2.workspace.images.maxHeight.label",
           "order": 207,
           "tab": "tools",
           "unit": "px",
+          "unitKey": "settings.l2.workspace.images.maxHeight.unit",
           "widget": "number"
         }
       }
@@ -5429,11 +5727,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "처리 전에 이 크기를 넘는 입력은 거부한다",
-          "label": "이미지 입력 최대 크기",
+          "help": "Inputs larger than this are rejected before processing",
+          "helpKey": "settings.l2.workspace.images.maxInputBytes.help",
+          "label": "Max image input size",
+          "labelKey": "settings.l2.workspace.images.maxInputBytes.label",
           "order": 209,
           "tab": "tools",
           "unit": "B",
+          "unitKey": "settings.l2.workspace.images.maxInputBytes.unit",
           "widget": "number"
         }
       }
@@ -5455,10 +5756,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "이미지 최대 너비",
+          "label": "Max image width",
+          "labelKey": "settings.l2.workspace.images.maxWidth.label",
           "order": 206,
           "tab": "tools",
           "unit": "px",
+          "unitKey": "settings.l2.workspace.images.maxWidth.unit",
           "widget": "number"
         }
       }
@@ -5481,10 +5784,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "목록 최대 항목 수",
+          "label": "Max list entries",
+          "labelKey": "settings.l2.workspace.list.maxEntries.label",
           "order": 205,
           "tab": "tools",
-          "unit": "개",
+          "unit": "items",
+          "unitKey": "settings.l2.workspace.list.maxEntries.unit",
           "widget": "number"
         }
       }
@@ -5507,10 +5812,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "읽기 최대 바이트",
+          "label": "Max bytes per read",
+          "labelKey": "settings.l2.workspace.read.maxBytes.label",
           "order": 201,
           "tab": "tools",
           "unit": "B",
+          "unitKey": "settings.l2.workspace.read.maxBytes.unit",
           "widget": "number"
         }
       }
@@ -5533,10 +5840,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "읽기 최대 줄 수",
+          "label": "Max lines per read",
+          "labelKey": "settings.l2.workspace.read.maxLines.label",
           "order": 200,
           "tab": "tools",
-          "unit": "줄",
+          "unit": "lines",
+          "unitKey": "settings.l2.workspace.read.maxLines.unit",
           "widget": "number"
         }
       }
@@ -5559,11 +5868,14 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "0이면 제한 없음",
-          "label": "셸 기본 제한 시간",
+          "help": "0 means no limit",
+          "helpKey": "settings.l2.workspace.shell.defaultTimeoutSec.help",
+          "label": "Default shell timeout",
+          "labelKey": "settings.l2.workspace.shell.defaultTimeoutSec.label",
           "order": 204,
           "tab": "tools",
-          "unit": "초",
+          "unit": "s",
+          "unitKey": "settings.l2.workspace.shell.defaultTimeoutSec.unit",
           "widget": "number"
         }
       }
@@ -5586,10 +5898,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "셸 출력 최대 바이트",
+          "label": "Max shell output bytes",
+          "labelKey": "settings.l2.workspace.shell.maxBytes.label",
           "order": 203,
           "tab": "tools",
           "unit": "B",
+          "unitKey": "settings.l2.workspace.shell.maxBytes.unit",
           "widget": "number"
         }
       }
@@ -5612,10 +5926,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "셸 출력 최대 줄 수",
+          "label": "Max shell output lines",
+          "labelKey": "settings.l2.workspace.shell.maxLines.label",
           "order": 202,
           "tab": "tools",
-          "unit": "줄",
+          "unit": "lines",
+          "unitKey": "settings.l2.workspace.shell.maxLines.unit",
           "widget": "number"
         }
       }
@@ -5636,8 +5952,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "그룹이 거부, 게시, 위임, 임대 시간을 얼마나 썼는지 기록한다. 끄면 기록과 /group status 계측 값이 없다.",
-          "label": "그룹 계측",
+          "help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no /group status instrumentation values.",
+          "helpKey": "settings.l3.groupSdk.instrumentation.help",
+          "label": "Group instrumentation",
+          "labelKey": "settings.l3.groupSdk.instrumentation.label",
           "order": 200,
           "tab": "plugins",
           "widget": "toggle"
@@ -5666,6 +5984,7 @@
           "order": 200,
           "tab": "execution",
           "unit": "items",
+          "unitKey": "settings.l4.hostService.maxReplayEvents.unit",
           "widget": "number"
         }
       }
@@ -5690,6 +6009,7 @@
           "order": 210,
           "tab": "execution",
           "unit": "items",
+          "unitKey": "settings.l4.hostService.maxSubscriptionsPerConnection.unit",
           "widget": "number"
         }
       }
@@ -5712,7 +6032,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "프로젝트 신뢰 기본값",
+          "label": "Default project trust",
+          "labelKey": "settings.x.loadingTrust.defaultProjectTrust.label",
           "order": 400,
           "tab": "plugins",
           "widget": "select"
@@ -5734,7 +6055,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "격리 확장 최대 재시작 수",
+          "label": "Max restarts for isolated extensions",
+          "labelKey": "settings.x.loadingTrust.isolation.maxRestarts.label",
           "order": 430,
           "tab": "plugins",
           "widget": "number"
@@ -5756,10 +6078,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "격리 확장 재시작 창",
+          "label": "Isolated extension restart window",
+          "labelKey": "settings.x.loadingTrust.isolation.restartWindowSec.label",
           "order": 440,
           "tab": "plugins",
           "unit": "s",
+          "unitKey": "settings.x.loadingTrust.isolation.restartWindowSec.unit",
           "widget": "number"
         }
       }
@@ -5780,7 +6104,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "확장 탐색 경로",
+          "label": "Extension search paths",
+          "labelKey": "settings.x.loadingTrust.paths.label",
           "order": 410,
           "tab": "plugins",
           "widget": "list"
@@ -5803,7 +6128,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "연속 실패 기준",
+          "label": "Consecutive failure threshold",
+          "labelKey": "settings.x.operations.autoDisable.consecutive.label",
           "order": 310,
           "tab": "plugins",
           "widget": "number"
@@ -5824,7 +6150,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "자동 끄기",
+          "label": "Auto-disable",
+          "labelKey": "settings.x.operations.autoDisable.enabled.label",
           "order": 300,
           "tab": "plugins",
           "widget": "toggle"
@@ -5847,7 +6174,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "실패율 기준",
+          "label": "Failure rate threshold",
+          "labelKey": "settings.x.operations.autoDisable.failureRate.label",
           "order": 340,
           "tab": "plugins",
           "widget": "number"
@@ -5870,7 +6198,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "실패율 적용 최소 실패 수",
+          "label": "Minimum failures before failure rate applies",
+          "labelKey": "settings.x.operations.autoDisable.minFailures.label",
           "order": 330,
           "tab": "plugins",
           "widget": "number"
@@ -5893,7 +6222,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "최근 호출 창 크기",
+          "label": "Recent call window size",
+          "labelKey": "settings.x.operations.autoDisable.windowSize.label",
           "order": 320,
           "tab": "plugins",
           "widget": "number"
@@ -5917,10 +6247,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "chain 핸들러 시간 예산",
+          "label": "chain handler time budget",
+          "labelKey": "settings.x.operations.budget.chainMs.label",
           "order": 210,
           "tab": "plugins",
           "unit": "ms",
+          "unitKey": "settings.x.operations.budget.chainMs.unit",
           "widget": "number"
         }
       }
@@ -5942,10 +6274,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "first 핸들러 시간 예산",
+          "label": "first handler time budget",
+          "labelKey": "settings.x.operations.budget.firstMs.label",
           "order": 200,
           "tab": "plugins",
           "unit": "ms",
+          "unitKey": "settings.x.operations.budget.firstMs.unit",
           "widget": "number"
         }
       }
@@ -5966,10 +6300,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "scope setup 시간 예산",
+          "label": "scope setup time budget",
+          "labelKey": "settings.x.operations.budget.setupMs.label",
           "order": 250,
           "tab": "plugins",
           "unit": "ms",
+          "unitKey": "settings.x.operations.budget.setupMs.unit",
           "widget": "number"
         }
       }
@@ -5990,10 +6326,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "종료 핸들러 시간 예산",
+          "label": "shutdown handler time budget",
+          "labelKey": "settings.x.operations.budget.shutdownMs.label",
           "order": 240,
           "tab": "plugins",
           "unit": "ms",
+          "unitKey": "settings.x.operations.budget.shutdownMs.unit",
           "widget": "number"
         }
       }
@@ -6015,10 +6353,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "스트림 tap 핸들러 시간 예산",
+          "label": "stream tap handler time budget",
+          "labelKey": "settings.x.operations.budget.streamTapMs.label",
           "order": 230,
           "tab": "plugins",
           "unit": "ms",
+          "unitKey": "settings.x.operations.budget.streamTapMs.unit",
           "widget": "number"
         }
       }
@@ -6040,10 +6380,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "tap 핸들러 시간 예산",
+          "label": "tap handler time budget",
+          "labelKey": "settings.x.operations.budget.tapMs.label",
           "order": 220,
           "tab": "plugins",
           "unit": "ms",
+          "unitKey": "settings.x.operations.budget.tapMs.unit",
           "widget": "number"
         }
       }
@@ -6065,10 +6407,12 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "확장 메서드 호출 시간 예산",
+          "label": "extension method call time budget",
+          "labelKey": "settings.x.operations.budget.uiMs.label",
           "order": 260,
           "tab": "plugins",
           "unit": "ms",
+          "unitKey": "settings.x.operations.budget.uiMs.unit",
           "widget": "number"
         }
       }
@@ -6094,8 +6438,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "훅마다 핸들러(Registration id) 실행 순서를 사용자가 정한다. 새 단계가 시작될 때 적용한다. guard tier 핸들러도 옮길 수 있고, 옮기면 안전 검사가 건너뛰어질 수 있다.",
-          "label": "핸들러 순서",
+          "help": "Users set the order in which handlers (Registration id) run for each hook. The order applies when a new stage starts. Guard-tier handlers can also be moved, and moving one may skip safety checks.",
+          "helpKey": "settings.x.operations.hookOrder.help",
+          "label": "Handler order",
+          "labelKey": "settings.x.operations.hookOrder.label",
           "order": 600,
           "tab": "plugins",
           "widget": "table"
@@ -6115,7 +6461,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "안전 모드로 시작",
+          "label": "Start in safe mode",
+          "labelKey": "settings.x.operations.safeMode.default.label",
           "order": 400,
           "tab": "plugins",
           "widget": "toggle"
@@ -6137,7 +6484,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "안전 모드 제안 기준(연속 실패)",
+          "label": "Safe mode suggestion threshold (consecutive failures)",
+          "labelKey": "settings.x.operations.safeMode.suggestAfter.label",
           "order": 410,
           "tab": "plugins",
           "widget": "number"
@@ -6157,7 +6505,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "핸들러 계측 켜기",
+          "label": "Enable handler tracing",
+          "labelKey": "settings.x.operations.trace.enabled.label",
           "order": 500,
           "tab": "plugins",
           "widget": "toggle"
@@ -6224,7 +6573,8 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "계측 보관 Turn 수(thread마다)",
+          "label": "Turns kept for tracing (per thread)",
+          "labelKey": "settings.x.operations.trace.turnsPerThread.label",
           "order": 510,
           "tab": "plugins",
           "widget": "number"
@@ -6265,8 +6615,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "상한을 명시하지 않은 drive 임대에 쓴다. 그룹이 자기 상한을 넘기면 그 값이 우선한다. 비운 필드는 기본 상한(4/8/400000)을 쓴다. 일반 대화 턴에는 상한이 없다.",
-          "label": "drive 기본 상한",
+          "help": "Applies to drive leases that set no limits of their own. If a group sets its own limit, that value takes precedence. Empty fields use the default limits (4/8/400000). Regular conversation turns have no limits.",
+          "helpKey": "settings.x.primitives.driveDefaultLimits.help",
+          "label": "Default drive limits",
+          "labelKey": "settings.x.primitives.driveDefaultLimits.label",
           "order": 100,
           "tab": "plugins",
           "widget": "table"
@@ -6303,8 +6655,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "어떤 drive 임대도 이 값을 넘지 못한다. 비어 있으면 천장이 없다.",
-          "label": "drive 상한 천장",
+          "help": "No drive lease may exceed this value. If empty, there is no ceiling.",
+          "helpKey": "settings.x.primitives.driveLimits.help",
+          "label": "Drive limit ceiling",
+          "labelKey": "settings.x.primitives.driveLimits.label",
           "order": 101,
           "tab": "plugins",
           "widget": "table"
@@ -6324,8 +6678,10 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "켜 두면 플러그인 그룹의 구성원만 drive를 등록합니다. 끄면 그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다. Registration을 다시 켜거나 확장을 다시 불러올 때 적용합니다.",
-          "label": "drive는 플러그인 그룹만",
+          "help": "When on, only members of a plugin group can register a drive. When off, plugins outside a group can also lead conversations. Applies when a Registration is re-enabled or an extension is reloaded.",
+          "helpKey": "settings.x.primitives.driveRequiresGroup.help",
+          "label": "Drive only from plugin groups",
+          "labelKey": "settings.x.primitives.driveRequiresGroup.label",
           "order": 112,
           "tab": "plugins",
           "widget": "toggle"

@@ -60,7 +60,8 @@ describe("l0.process settings", () => {
       tab: "execution",
       widget: "text",
       order: 15,
-      label: "원격 서비스 주소",
+      label: "Remote service address",
+      labelKey: "settings.l0.process.service.remote.label",
     });
     expect(
       validateSettingValue(remote, "ssh://me@box.example/run/user/1000/fresnel/fresnel.sock").ok,

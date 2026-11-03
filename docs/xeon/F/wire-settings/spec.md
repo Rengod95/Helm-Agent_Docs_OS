@@ -355,7 +355,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | ext | `ext.rollback` | `{ name: string, version: string, clearState?: boolean }` | `{ appliesAt: "nextStepBoundary"\|"restart", stateCleared: boolean }`. 실린 외부 확장은 열린 대화가 있어도 단계 경계에서 새 버전으로 바뀐다(`nextStepBoundary`). 실리지 않은 확장은 재시작 뒤(`restart`)다. 경계를 기다리는 동안은 `stateCleared`가 거짓이다 | M4 (W-31) |
 | ext | `ext.bindings` | `{ threadId?: string }` | `{ capabilities: CapabilityBinding[] }`(Registration 단위 엣지). `provider`는 ExtHost가 지금 실제로 바인딩한 공급자다(선언만 있고 바인딩되지 않았으면 null이고 `unmet`이 참) | M4 (W-40) |
 | ext | `ext.validateComposition` | `{ composition: CompositionDecl, plugins?: PluginDecl[], threadId?: string }` | `{ issues: ManifestIssue[] }` | M4 (W-47) |
-| ext | `ext.ui.list` | `{ threadId?: string }` | `{ items: ExtUiEntry[] }`. 행은 화면 기여 하나다. `version`(SemVer, 매니페스트 값, builtin도 채운다), `trust`(설치 등급 `builtin`·`user`·`project`·`managed`, `origin`과 같은 네 값, builtin은 설치 폴더가 없다), `appRoot?`(절대 경로 = 확장 설치 폴더에 선언된 app root 폴더를 이은 것, 최대 1024자)를 싣는다. `appRoot`는 `mode`가 `app`이고 `state`가 `ok`인 항목에만 있고 builtin 항목에는 없다. 스키마는 상대 경로도 받지만 호스트는 절대 경로만 낸다 [결정: 2026-11-04 사용자] | M4 (W-33) |
+| ext | `ext.ui.list` | `{ threadId?: string }` | `{ items: ExtUiEntry[] }`. 행은 화면 기여 하나다. `version`(SemVer, 매니페스트 값, builtin도 채운다), `trust`(설치 등급 `builtin`·`user`·`project`·`managed`, `origin`과 같은 네 값, builtin은 설치 폴더가 없다), `appRoot?`(절대 경로 = 확장 설치 폴더에 선언된 app root 폴더를 이은 것, 최대 1024자)를 싣는다. `appRoot`는 `mode`가 `app`이고 `state`가 `ok`인 항목에만 있고 builtin 항목에는 없다. 스키마는 상대 경로도 받지만 호스트는 절대 경로만 낸다 [결정: 2026-11-04 사용자]. `messages?`(로케일 `ko`·`en` -> 키 -> 문장)는 확장의 `ui.messages` 폴더에서 읽은 카탈로그이고, 화면 `title`과 화면 트리의 정적 글 prop이 이 키이면 클라이언트가 현재 로케일, 영어, 키 자체 순으로 푼다(ADR-0021 §3.8) [결정: 2026-11-04 T-I18N 기본값] | M4 (W-33) |
 | ext | `ext.ui.post` | `{ extension, ui, threadId: string, name: string, payload?: unknown, requestId?: string(1..64) }` | `{ accepted: boolean }` | M4 (W-33) |
 | ext | `ext.ui.requestApproval` | `{ extension, ui, threadId: string, method: string, params?: unknown, requestId?: string(1..64) }` | `{ approvalId: string }` | M4 (W-33) |
 | group | `group.list` | `{ threadId?: string }` | `{ groups: GroupStatusWire[] }` | M4 (W-24) |
@@ -989,7 +989,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 5000 ~ 5999 | 호스트(L4) | 호스트 상태, 취소, 서비스 모드 |
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
 
-- [결정: M3-REQ-21, M3-REQ-112, adr.0016] 오류 문장은 wire에 싣지 않는다. 오류는 `kind`와 인자로 가고 문장은 클라이언트가 `kind`를 메시지 키로 ko·en 카탈로그(`@fresnel/client`, JSON [제안])에서 만든다. 문장에 끼울 값은 `WireErrorData.args`(문자열·숫자·불리언·null, 시크릿 값 금지)다. `details`는 구조 정보로 그대로 둔다. `message`는 개발자용 영어 한 줄로 남고 화면에 쓰지 않는다. 설정 라벨과 설명은 `SettingUi.labelKey`·`helpKey`(`MessageKey`)로 싣고 `label`·`help`는 키가 없을 때의 대체 문구다. 모델용 도구 설명은 영어 원문을 유지한다. 시각은 UTC로 저장하고 날짜·숫자 표시는 클라이언트의 `Intl`이 한다.
+- [결정: M3-REQ-21, M3-REQ-112, adr.0016] 오류 문장은 wire에 싣지 않는다. 오류는 `kind`와 인자로 가고 문장은 클라이언트가 `kind`를 메시지 키로 ko·en 카탈로그(`@fresnel/client`, JSON [제안])에서 만든다. 문장에 끼울 값은 `WireErrorData.args`(문자열·숫자·불리언·null, 시크릿 값 금지)다. `details`는 구조 정보로 그대로 둔다. `message`는 개발자용 영어 한 줄로 남고 화면에 쓰지 않는다. 설정 라벨과 설명은 `SettingUi.labelKey`·`helpKey`(`MessageKey`)로 싣고 `label`·`help`는 키가 없을 때의 대체 문구다. 내장 층(`ext.`가 아닌 이름공간)은 `defineSettings`가 키를 `settings.<설정 키>.label|help|unit`(이름공간의 `-`는 camelCase, 예 `x.loading-trust.…` → `settings.x.loadingTrust.…`)으로 채우고 정의가 직접 적은 키가 앞서며, `label`·`help`·`unit`은 영어 대체 문구다. 한국어는 클라이언트 카탈로그에만 둔다(`apps/host`의 시험이 키의 존재와 en 대체 문구 일치를 확인한다). 확장 설정(`ext.<이름>`)은 확장 패키지의 `locales`가 푼다(ADR-0021 §3.8) [결정: 2026-11-04 T-I18N 기본값]. 모델용 도구 설명은 영어 원문을 유지한다. 시각은 UTC로 저장하고 날짜·숫자 표시는 클라이언트의 `Intl`이 한다.
 - [제안] 클라이언트는 분기 판단에 `code`보다 `kind`를 쓴다. 확장 구간은 코드가 겹칠 수 있기 때문이다.
 - [결정: m2-plan F.5] 구간 표는 코드 상수 `WIRE_CODE_RANGES`(`wire/errors.ts`)다. 순수 함수 `codeRangeOf(code)`는 코드가 속한 구간을 돌려주고, 어느 구간에도 속하지 않는 코드(0~999, 6000~9999, 20000 이상, 정수가 아닌 값)는 `null`이다. `wireErrorCodeMatchesKind(code, kind)`는 기능 구간의 `cap.`, 확장 구간의 `ext.` 접두를 `kind`가 지키는지 검사한다. 기능 오류 코드 4000은 `WIRE_CAPABILITY_ERROR_CODE`다. 등록된 `WIRE_ERRORS`의 모든 코드는 시험이 이 두 함수로 확인한다.
 - 근거: MCP `JSON_RPC_ERROR_CODES`(`_research/packages.md` §4.1 F5 "오류 코드 구간"), 19 §3.3.4.
@@ -1116,7 +1116,8 @@ export const SettingUi = Obj({
   labelKey: Type.Optional(MessageKey),                     // 메시지 키 [결정: M3-REQ-21, adr.0016]
   help: Type.Optional(Type.String({ maxLength: 500 })),
   helpKey: Type.Optional(MessageKey),
-  unit: Type.Optional(Type.String({ maxLength: 16 })),
+  unit: Type.Optional(Type.String({ maxLength: 16 })),     // 대체 문구(영어)
+  unitKey: Type.Optional(MessageKey),                      // 단위의 메시지 키
 });
 export const SettingRange = Obj({
   min: Type.Optional(Type.Number()),

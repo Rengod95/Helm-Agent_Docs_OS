@@ -7,6 +7,7 @@ import {
   type SettingDefRule,
   type SettingKey,
   type SettingLayer,
+  type SettingUi,
 } from "./def.ts";
 
 export type SettingNamespace =
@@ -53,6 +54,30 @@ function layerOf(namespace: string): SettingLayer {
 }
 
 /**
+ * 내장 층(`ext.`가 아닌 이름공간)의 설정은 라벨·설명·단위의 메시지 키를 `settings.<설정 키>.label|help|unit`(`-`는 camelCase)으로 정한다
+ * (ADR-0016 §3.3, 클라이언트 카탈로그). 정의가 키를 직접 적으면 그것이 앞선다. `label`·`help`·`unit`은 키가 없을 때의 영어 대체 문구다.
+ * 확장 설정은 확장 패키지의 `locales`가 풀므로 키를 만들지 않는다(ADR-0021 §3.8)
+ */
+function derivedUi(
+  input: SettingDefInput,
+  key: string,
+  namespace: string,
+): { readonly ui?: SettingUi } {
+  const { ui } = input;
+  if (ui === undefined || namespace.startsWith("ext.")) return {};
+  // 이름공간의 `-`는 메시지 키에 쓸 수 없어 camelCase로 바꾼다(`x.loading-trust` -> `x.loadingTrust`)
+  const base = `settings.${key.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase())}`;
+  return {
+    ui: {
+      ...ui,
+      labelKey: ui.labelKey ?? `${base}.label`,
+      ...(ui.help === undefined ? {} : { helpKey: ui.helpKey ?? `${base}.help` }),
+      ...(ui.unit === undefined ? {} : { unitKey: ui.unitKey ?? `${base}.unit` }),
+    },
+  };
+}
+
+/**
  * 선언만 한다. 등록(카탈로그에 넣기)은 X·L1의 로딩 경로가 buildCatalog로 한다.
  * 규칙 D1~D8을 어기면 SettingDefError를 던진다.
  */
@@ -74,7 +99,7 @@ export function defineSettings<
         { rule: "D1", message: `setting name "${name}" must be lower camel case segments` },
       ]);
     }
-    const def: SettingDef = { ...input, key, layer };
+    const def: SettingDef = { ...input, key, layer, ...derivedUi(input, key, namespace) };
     const issues = checkSettingDef(def);
     if (issues.length > 0) throw new SettingDefError(key, issues);
     built[name] = def;

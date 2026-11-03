@@ -766,32 +766,56 @@ export interface WireCodeRange {
 export const WIRE_CAPABILITY_ERROR_CODE: number = 4000;
 
 export const WIRE_CODE_RANGES: readonly WireCodeRange[] = [
-  { name: "jsonrpc", from: -32768, to: -32000, owner: "JSON-RPC", purpose: "표준 다섯 개만 쓴다" },
-  { name: "wire.connection", from: 1000, to: 1999, owner: "F", purpose: "연결, 핸드셰이크, 버전" },
-  { name: "wire.events", from: 2000, to: 2999, owner: "F", purpose: "이벤트, 구독, 재전송" },
+  {
+    name: "jsonrpc",
+    from: -32768,
+    to: -32000,
+    owner: "JSON-RPC",
+    purpose: "Only the five standard codes are used",
+  },
+  {
+    name: "wire.connection",
+    from: 1000,
+    to: 1999,
+    owner: "F",
+    purpose: "Connection, handshake, version",
+  },
+  {
+    name: "wire.events",
+    from: 2000,
+    to: 2999,
+    owner: "F",
+    purpose: "Events, subscriptions, replay",
+  },
   {
     name: "core",
     from: 3000,
     to: 3999,
     owner: "L1",
     purpose:
-      "thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 나머지 L1 예비",
+      "thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), profiles and Test run(3300~3399), extension reads(3400~3499), rest of L1 reserved",
   },
   {
     name: "capability",
     from: 4000,
     to: 4999,
     owner: "L2",
-    purpose: "기능 오류는 4000 하나. 4001~4999는 예비",
+    purpose: "Capability errors use only 4000. 4001~4999 are reserved",
     kindPrefix: "cap.",
   },
-  { name: "host", from: 5000, to: 5999, owner: "L4", purpose: "호스트 상태, 취소, 서비스 모드" },
+  {
+    name: "host",
+    from: 5000,
+    to: 5999,
+    owner: "L4",
+    purpose: "Host state, cancellation, service mode",
+  },
   {
     name: "extension",
     from: 10000,
     to: 19999,
     owner: "extension",
-    purpose: "확장이 자유롭게 쓴다. 코드가 겹치면 kind로 구분한다",
+    purpose: "Extensions use these freely. Where codes overlap, tell them apart by kind",
     kindPrefix: "ext.",
   },
 ];

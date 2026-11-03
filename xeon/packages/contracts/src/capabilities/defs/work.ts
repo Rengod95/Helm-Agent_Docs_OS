@@ -89,7 +89,7 @@ const Content = Type.String({ minLength: 1, maxLength: 500 });
 const ActiveForm = Type.String({
   minLength: 1,
   maxLength: 200,
-  description: "진행 중일 때 표시할 문장. 예: '테스트를 고치는 중'",
+  description: "Sentence to show while in progress. e.g. 'Fixing the tests'",
 });
 
 export type WorkTask = {
@@ -311,22 +311,28 @@ export const TaskListOutput: TUnsafe<TaskListOutputValue> = Type.Unsafe<TaskList
 
 const TASK_ERRORS = {
   task_cycle: {
-    description: "선행 간선을 더하면 순환이 생긴다. detail.path는 순환 경로",
+    description: "Adding this prerequisite edge creates a cycle. detail.path is the cycle path",
     retryable: false,
     detail: Type.Object({ path: Type.Array(WorkTaskIdSchema) }),
   },
   task_blocked: {
-    description: "끝나지 않은 선행 작업이 있어 시작할 수 없다",
+    description: "Cannot start because an unfinished prerequisite task exists",
     retryable: false,
     detail: Type.Object({ blockers: Type.Array(WorkTaskIdSchema) }),
   },
   task_transition_invalid: {
-    description: "허용하지 않는 상태 전이(§4.1.2)",
+    description: "Disallowed status transition (§4.1.2)",
     retryable: false,
     detail: Type.Object({ from: WorkTaskStatusSchema, to: WorkTaskStatusSchema }),
   },
-  task_ref_unknown: { description: "write 안의 임시 참조가 앞선 create에 없다", retryable: false },
-  task_limit: { description: "스레드의 작업 수 상한(MAX_WORK_TASKS) 초과", retryable: false },
+  task_ref_unknown: {
+    description: "A temporary ref in write has no matching earlier create",
+    retryable: false,
+  },
+  task_limit: {
+    description: "Thread task count limit (MAX_WORK_TASKS) exceeded",
+    retryable: false,
+  },
 } as const;
 
 const TASK_MARK: Readonly<Record<WorkTaskStatus, string>> = {
@@ -341,7 +347,7 @@ const TASK_MARK: Readonly<Record<WorkTaskStatus, string>> = {
 export function renderTaskList(out: TaskWriteOutputValue): ToolContent {
   const lines = out.tasks.map((t) => {
     const label = t.status === "in_progress" && t.activeForm !== null ? t.activeForm : t.content;
-    const blocked = t.blocked ? ` (막힘: ${t.blockedBy.join(", ")})` : "";
+    const blocked = t.blocked ? ` (blocked by: ${t.blockedBy.join(", ")})` : "";
     const owner = t.owner === null ? "" : ` @${t.owner}`;
     return `${TASK_MARK[t.status]} ${t.id} ${label}${blocked}${owner}`;
   });
@@ -349,9 +355,9 @@ export function renderTaskList(out: TaskWriteOutputValue): ToolContent {
     .filter((c) => c.ref !== null)
     .map((c) => `${c.ref}=${c.id}`)
     .join(", ");
-  const head = created === "" ? "" : `생성: ${created}\n`;
+  const head = created === "" ? "" : `Created: ${created}\n`;
   return {
-    content: [{ type: "text", text: head + (lines.length > 0 ? lines.join("\n") : "(작업 없음)") }],
+    content: [{ type: "text", text: head + (lines.length > 0 ? lines.join("\n") : "(no tasks)") }],
     structuredContent: out,
   };
 }
@@ -372,11 +378,11 @@ export const WorkTasks: CapabilityDef<
 > = defineCapability({
   id: "work.tasks",
   version: "1.0.0",
-  description: "턴 사이에 유지되는 작업 목록과 선행 간선.",
+  description: "Task list and prerequisite edges kept across turns.",
   service: {
     methods: {
       create: {
-        description: "작업 하나를 만든다.",
+        description: "Creates one task.",
         input: TaskCreateInput,
         output: TaskOutput,
         replay: "safe",
@@ -384,7 +390,7 @@ export const WorkTasks: CapabilityDef<
         errors: TASK_ERRORS,
       },
       update: {
-        description: "작업의 내용, 상태, owner를 바꾼다.",
+        description: "Changes a task's content, status, or owner.",
         input: TaskUpdateInput,
         output: TaskOutput,
         replay: "safe",
@@ -392,7 +398,8 @@ export const WorkTasks: CapabilityDef<
         errors: TASK_ERRORS,
       },
       link: {
-        description: "선행 간선을 더하거나 뺀다. 순환이 생기면 거부한다.",
+        description:
+          "Adds or removes prerequisite edges. Rejects the change if it would create a cycle.",
         input: TaskLinkInput,
         output: TaskOutput,
         replay: "safe",
@@ -400,14 +407,14 @@ export const WorkTasks: CapabilityDef<
         errors: TASK_ERRORS,
       },
       list: {
-        description: "작업 목록을 조회한다.",
+        description: "Lists tasks.",
         input: TaskListInput,
         output: TaskListOutput,
         replay: "safe",
         readOnly: true,
       },
       write: {
-        description: "여러 연산을 한 번에 적용한다. 전부 적용되거나 하나도 적용되지 않는다.",
+        description: "Applies several operations at once. Either all are applied or none are.",
         input: TaskWriteInput,
         output: TaskWriteOutput,
         replay: "safe",
@@ -419,11 +426,11 @@ export const WorkTasks: CapabilityDef<
   tools: [
     {
       name: "task_write",
-      label: "작업 목록",
+      label: "Task List",
       description:
-        "작업 목록을 만들고 갱신한다. ops에 create, update, link, unlink 연산을 순서대로 적는다. " +
-        "같은 호출에서 만든 작업은 ref(@a 같은 이름)로 가리킬 수 있다. 한 번에 in_progress는 하나만 두기를 권한다. " +
-        "결과로 전체 목록을 돌려준다.",
+        "Creates and updates the task list. List the create, update, link, and unlink operations in order in ops. " +
+        "A task created in the same call can be referenced by a ref such as @a. Keeping only one task in_progress at a time is recommended. " +
+        "Returns the full list as the result.",
       method: "write",
       parameters: TaskWriteInput,
       toContent: renderTaskList,
@@ -471,7 +478,7 @@ export const PlanDecisionSchema: TUnion<
 export type PlanDecision = Static<typeof PlanDecisionSchema>;
 
 const PlanTitle = Type.String({ minLength: 1, maxLength: 200 });
-const PlanBody = Type.String({ minLength: 1, maxLength: 65536, description: "Markdown 계획 본문" });
+const PlanBody = Type.String({ minLength: 1, maxLength: 65536, description: "Markdown plan body" });
 
 export type PlanVersion = {
   planId: PlanId;
@@ -658,33 +665,36 @@ export const PlanVersionsOutput: TUnsafe<PlanVersionsOutputValue> =
 
 const PLAN_ERRORS = {
   plan_not_approved: {
-    description: "승인 필수 설정에서 승인된 계획 없이 계획 모드를 나가려 함",
+    description: "Tried to exit plan mode without an approved plan while approval is required",
     retryable: false,
   },
-  plan_pending: { description: "같은 계획의 이전 버전이 아직 승인 대기 중", retryable: false },
+  plan_pending: {
+    description: "An earlier version of the same plan is still awaiting approval",
+    retryable: false,
+  },
   plan_closed: {
-    description: "이미 결정된 버전에 결정을 다시 내리려 함",
+    description: "Tried to decide again on a version that was already decided",
     retryable: false,
     detail: Type.Object({ status: PlanStatusSchema }),
   },
   plan_mode_inactive: {
-    description: "계획 모드가 아닌데 계획 모드 전용 동작을 요청함",
+    description: "Requested a plan-mode-only action while not in plan mode",
     retryable: false,
   },
 } as const;
 
 /** submit_plan 결과의 모델용 문장. 순수 함수 */
 export function renderPlanSubmit(out: PlanSubmitResult): ToolContent {
-  const head = `계획 ${out.planId} v${out.version}`;
+  const head = `Plan ${out.planId} v${out.version}`;
   let text: string;
   if (out.status === "input_required") {
-    text = `${head}: 사용자 승인 대기 중.`;
+    text = `${head}: awaiting user approval.`;
   } else if (out.decision === "approved") {
-    text = `${head}: 승인됨. 계획대로 실행한다.`;
+    text = `${head}: Approved. Proceed with the plan.`;
   } else if (out.decision === "rejected") {
-    text = `${head}: 반려됨.${out.feedback === null || out.feedback === "" ? "" : ` 사유: ${out.feedback}`}`;
+    text = `${head}: Rejected.${out.feedback === null || out.feedback === "" ? "" : ` Reason: ${out.feedback}`}`;
   } else {
-    text = `${head}: 수정 요청. ${out.feedback ?? ""}`.trimEnd();
+    text = `${head}: Revision requested. ${out.feedback ?? ""}`.trimEnd();
   }
   return { content: [{ type: "text", text }], structuredContent: out };
 }
@@ -749,11 +759,12 @@ export const WorkPlans: CapabilityDef<
 > = defineCapability({
   id: "work.plans",
   version: "1.0.0",
-  description: "계획 객체와 승인 흐름. 계획 모드의 쓰기 차단은 L1.tools가 한다.",
+  description:
+    "Plan objects and the approval flow. Write blocking in plan mode is handled by L1.tools.",
   service: {
     methods: {
       enterMode: {
-        description: "권한 모드를 계획 모드로 바꾸도록 L1.tools에 요청한다.",
+        description: "Asks L1.tools to switch the permission mode to plan mode.",
         input: PlanEnterModeInput,
         output: PlanModeOutput,
         replay: "unsafe",
@@ -761,14 +772,14 @@ export const WorkPlans: CapabilityDef<
       },
       exitMode: {
         description:
-          "계획 모드를 끝내고 이전 모드로 돌린다. 승인 필수면 승인된 계획이 있어야 한다.",
+          "Ends plan mode and restores the previous mode. If approval is required, an approved plan must exist.",
         input: PlanExitModeInput,
         output: PlanModeOutput,
         replay: "unsafe",
         errors: PLAN_ERRORS,
       },
       submit: {
-        description: "계획을 제출하고 승인을 요청한다.",
+        description: "Submits a plan and requests approval.",
         input: PlanSubmitInput,
         output: PlanSubmitOutput,
         replay: "safe",
@@ -776,28 +787,28 @@ export const WorkPlans: CapabilityDef<
         errors: PLAN_ERRORS,
       },
       approve: {
-        description: "승인 대기 중인 버전을 승인한다.",
+        description: "Approves a version awaiting approval.",
         input: PlanApproveInput,
         output: PlanOutput,
         replay: "unsafe",
         errors: PLAN_ERRORS,
       },
       reject: {
-        description: "승인 대기 중인 버전을 반려한다.",
+        description: "Rejects a version awaiting approval.",
         input: PlanRejectInput,
         output: PlanOutput,
         replay: "unsafe",
         errors: PLAN_ERRORS,
       },
       revise: {
-        description: "승인 대기 중인 버전에 수정을 요청한다.",
+        description: "Requests changes to a version awaiting approval.",
         input: PlanReviseInput,
         output: PlanOutput,
         replay: "unsafe",
         errors: PLAN_ERRORS,
       },
       versions: {
-        description: "계획의 모든 버전을 조회한다.",
+        description: "Lists all versions of the plan.",
         input: PlanVersionsInput,
         output: PlanVersionsOutput,
         replay: "safe",
@@ -808,8 +819,9 @@ export const WorkPlans: CapabilityDef<
   tools: [
     {
       name: "enter_plan_mode",
-      label: "계획 모드 시작",
-      description: "쓰기 도구를 막는 계획 모드로 들어간다. 큰 변경 전에 조사와 계획만 할 때 쓴다.",
+      label: "Enter Plan Mode",
+      description:
+        "Enters plan mode, which blocks write tools. Use it to research and plan only before a large change.",
       method: "enterMode",
       parameters: PlanEnterModeInput,
       replay: "unsafe",
@@ -818,9 +830,9 @@ export const WorkPlans: CapabilityDef<
     },
     {
       name: "exit_plan_mode",
-      label: "계획 모드 종료",
+      label: "Exit Plan Mode",
       description:
-        "계획 모드를 끝낸다. 승인 필수 설정이면 submit_plan으로 승인받은 뒤에만 끝낼 수 있다.",
+        "Ends plan mode. If approval is required by settings, plan mode can only be ended after the plan is approved via submit_plan.",
       method: "exitMode",
       parameters: PlanExitModeInput,
       replay: "unsafe",
@@ -829,10 +841,10 @@ export const WorkPlans: CapabilityDef<
     },
     {
       name: "submit_plan",
-      label: "계획 제출",
+      label: "Submit Plan",
       description:
-        "계획을 Markdown 본문으로 제출하고 사용자 승인을 받는다. 결과는 승인, 반려, 수정 요청 중 하나다. " +
-        "수정 요청이면 같은 planId로 새 버전을 제출한다.",
+        "Submits the plan as a Markdown body and requests user approval. The result is one of approved, rejected, or revision requested. " +
+        "For a revision request, submit a new version with the same planId.",
       method: "submit",
       parameters: PlanSubmitParams,
       toInput: (p) => ({ ...p, wait: false }),
@@ -1055,17 +1067,20 @@ export const GoalJudgeOutput: TUnsafe<GoalJudgeOutputValue> = Type.Unsafe<GoalJu
 
 const GOAL_ERRORS = {
   goal_active: {
-    description: "활성 목표가 이미 있다. replace: true로 바꿀 수 있다",
+    description: "An active goal already exists. Replace it with replace: true",
     retryable: false,
     detail: Type.Object({ goalId: GoalIdSchema }),
   },
-  goal_closed: { description: "끝난 목표에 판정이나 해제를 요청함", retryable: false },
+  goal_closed: {
+    description: "Requested a verdict or release on a finished goal",
+    retryable: false,
+  },
   goal_not_delegated: {
-    description: "delegated 판정자가 아닌 목표에 judge를 호출함",
+    description: "Called judge on a goal that does not use a delegated judge",
     retryable: false,
   },
   goal_turn_stale: {
-    description: "판정 대상 턴이 그 목표의 판정 대기 턴이 아님",
+    description: "The turn being judged is not the turn awaiting a verdict for that goal",
     retryable: false,
   },
 } as const;
@@ -1082,11 +1097,11 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
   id: "work.goals",
   version: "1.0.0",
   description:
-    "완료 조건을 걸고 턴마다 별도 판정자의 판정으로 다음 턴을 이어 간다. 모델 도구는 없다.",
+    "Sets a completion condition and continues to the next turn based on a separate judge's verdict after each turn. It has no model tools.",
   service: {
     methods: {
       set: {
-        description: "목표를 건다.",
+        description: "Sets a goal.",
         input: GoalSetInput,
         output: GoalOutput,
         replay: "safe",
@@ -1094,14 +1109,14 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
         errors: GOAL_ERRORS,
       },
       status: {
-        description: "활성 목표(또는 지정 목표)와 최근 판정을 조회한다.",
+        description: "Reads the active goal (or a specified goal) and its recent verdicts.",
         input: GoalStatusInput,
         output: GoalStatusOutput,
         replay: "safe",
         readOnly: true,
       },
       clear: {
-        description: "목표를 해제한다.",
+        description: "Releases the goal.",
         input: GoalClearInput,
         output: GoalOutput,
         replay: "safe",
@@ -1109,7 +1124,7 @@ export const WorkGoals: CapabilityDef<GoalsMethods, readonly []> = defineCapabil
         errors: GOAL_ERRORS,
       },
       judge: {
-        description: "delegated 판정자가 판정을 넣는다.",
+        description: "The delegated judge submits a verdict.",
         input: GoalJudgeInput,
         output: GoalJudgeOutput,
         replay: "safe",
@@ -1293,11 +1308,11 @@ export const WorkReports: CapabilityDef<ReportsMethods, readonly []> = defineCap
   id: "work.reports",
   version: "1.0.0",
   description:
-    "완료 보고를 정해진 스키마로 만들고 이벤트로 남긴다. 턴 결과 형식이며 모델 도구는 없다.",
+    "Builds a completion report in the defined schema and records it as an event. It is a turn result format and has no model tools.",
   service: {
     methods: {
       build: {
-        description: "대상(목표 또는 턴)의 완료 보고를 만든다.",
+        description: "Builds a completion report for the target (a goal or a turn).",
         input: ReportBuildInput,
         output: ReportBuildOutput,
         replay: "safe",

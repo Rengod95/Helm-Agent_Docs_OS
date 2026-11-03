@@ -24,7 +24,7 @@ import type { ToolContent, ToolSpec } from "../tool-spec.ts";
 const PathParam = Type.String({
   minLength: 1,
   maxLength: 4096,
-  description: "파일 경로(상대 또는 절대)",
+  description: "File path (relative or absolute)",
 });
 
 // ── 공통 스키마 (L2.workspace.spec §3.1) ────────────────────────────────
@@ -147,9 +147,15 @@ export const ReadInput: TObject<{
 }> = Type.Object(
   {
     path: PathParam,
-    offset: Type.Optional(Type.Integer({ minimum: 1, description: "읽기 시작 줄(1부터)" })),
+    offset: Type.Optional(
+      Type.Integer({ minimum: 1, description: "First line to read (1-based)" }),
+    ),
     limit: Type.Optional(
-      Type.Integer({ minimum: 1, maximum: 100_000, description: "읽을 최대 줄 수" }),
+      Type.Integer({
+        minimum: 1,
+        maximum: 100_000,
+        description: "Maximum number of lines to read",
+      }),
     ),
   },
   { additionalProperties: false },
@@ -230,7 +236,8 @@ export const EditToolParams: TObject<{
     path: PathParam,
     edits: Type.Optional(
       Type.Union([Type.Array(Replacement, { maxItems: 64 }), Replacement, Type.String()], {
-        description: "편집 목록. 각 편집은 원본 파일 기준으로 찾는다. 겹치는 편집은 하나로 합친다",
+        description:
+          "Edit list. Each edit is matched against the original file. Merge overlapping edits into one",
       }),
     ),
     oldText: Type.Optional(Type.String()),
@@ -297,10 +304,12 @@ export const GrepInput: TObject<{
     pattern: Type.String({
       minLength: 1,
       maxLength: 4096,
-      description: "정규식 또는 literal이 참이면 문자열",
+      description: "Regular expression, or a plain string when literal is true",
     }),
     path: Type.Optional(PathParam),
-    glob: Type.Optional(Type.String({ maxLength: 512, description: "파일 거르기 glob. 예: *.ts" })),
+    glob: Type.Optional(
+      Type.String({ maxLength: 512, description: "File filter glob. Example: *.ts" }),
+    ),
     ignoreCase: Type.Optional(Type.Boolean()),
     literal: Type.Optional(Type.Boolean()),
     context: Type.Optional(Type.Integer({ minimum: 0, maximum: 20 })),
@@ -345,7 +354,7 @@ export const FindInput: TObject<{
     pattern: Type.String({
       minLength: 1,
       maxLength: 512,
-      description: "파일 glob. 예: **/*.spec.ts",
+      description: "File glob. Example: **/*.spec.ts",
     }),
     path: Type.Optional(PathParam),
     limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000 })),
@@ -370,9 +379,9 @@ export const FindOutput: TObject<{
 
 function truncNote(t: TruncationInfo | undefined): string {
   if (t === undefined) return "";
-  const total = t.total === undefined ? "" : ` / 전체 ${t.total}`;
-  const next = t.nextOffset === undefined ? "" : ` 이어 읽기: offset=${t.nextOffset}`;
-  return `\n\n[절단: ${t.by} 한도, ${t.shown}${total}.${next}]`;
+  const total = t.total === undefined ? "" : ` / total ${t.total}`;
+  const next = t.nextOffset === undefined ? "" : ` Continue reading: offset=${t.nextOffset}`;
+  return `\n\n[Truncated: ${t.by} limit, ${t.shown}${total}.${next}]`;
 }
 
 function renderRead(out: Static<typeof ReadOutput>): ToolContent {
@@ -381,7 +390,7 @@ function renderRead(out: Static<typeof ReadOutput>): ToolContent {
       content: [
         {
           type: "text",
-          text: `${out.path} (${out.image.mimeType}${out.image.resized ? ", 크기 조정됨" : ""})`,
+          text: `${out.path} (${out.image.mimeType}${out.image.resized ? ", resized" : ""})`,
         },
         // data는 자리표시 문자열이다. L1.context가 요청 직전에 blob 내용으로 바꾼다(L2.workspace.spec §4.6)
         {
@@ -491,81 +500,92 @@ export const WorkspaceFiles: CapabilityDef<
 > = defineCapability({
   id: "workspace.files",
   version: "1.0.0",
-  description: "작업 디렉터리의 파일 읽기, 쓰기, 편집, 목록, 내용 검색, 파일 찾기.",
+  description:
+    "Read, write, edit, list, search contents of, and find files in the working directory.",
   service: {
     methods: {
       read: {
-        description: "텍스트 파일을 줄 범위로 읽는다. 이미지 파일이면 이미지 참조를 돌려준다.",
+        description:
+          "Reads a text file by line range. For an image file, returns an image reference.",
         input: ReadInput,
         output: ReadOutput,
         replay: "safe",
         readOnly: true,
         errors: {
-          read_binary: { description: "이미지가 아닌 바이너리 파일", retryable: false },
-          offset_beyond_end: { description: "offset이 파일 줄 수보다 큼", retryable: false },
+          read_binary: { description: "Binary file that is not an image", retryable: false },
+          offset_beyond_end: {
+            description: "offset is larger than the number of lines in the file",
+            retryable: false,
+          },
         },
       },
       write: {
-        description: "파일 전체를 쓴다. 없으면 만들고 부모 디렉터리도 만든다.",
+        description:
+          "Writes the whole file. Creates it, along with parent directories, if it does not exist.",
         input: WriteInput,
         output: WriteOutput,
         replay: "unsafe",
       },
       edit: {
         description:
-          "원본 기준으로 찾은 구간들을 한 번에 바꾼다. 정확 일치를 먼저 쓰고 실패하면 퍼지 일치를 쓴다.",
+          "Replaces several ranges, each located against the original, in one call. Tries exact matching first and falls back to fuzzy matching.",
         input: EditInput,
         output: EditOutput,
         replay: "unsafe",
         errors: {
-          edit_not_found: { description: "oldText를 찾지 못함", retryable: false },
-          edit_ambiguous: { description: "oldText가 두 곳 이상에 있음", retryable: false },
-          edit_overlap: { description: "두 편집의 구간이 겹침", retryable: false },
-          edit_empty_old_text: { description: "oldText가 빈 문자열", retryable: false },
-          edit_no_change: { description: "편집 결과가 원본과 같음", retryable: false },
+          edit_not_found: { description: "oldText not found", retryable: false },
+          edit_ambiguous: { description: "oldText occurs in two or more places", retryable: false },
+          edit_overlap: { description: "Ranges of two edits overlap", retryable: false },
+          edit_empty_old_text: { description: "oldText is an empty string", retryable: false },
+          edit_no_change: {
+            description: "Edit result is the same as the original",
+            retryable: false,
+          },
           edit_not_text: {
-            description: "파일이 NUL을 담았거나 유효한 UTF-8이 아님. 아무것도 쓰지 않음",
+            description: "File contains NUL or is not valid UTF-8. Nothing was written",
             retryable: false,
           },
           edit_conflict: {
-            description: "읽은 뒤 다른 쓰기가 파일을 바꿈. 아무것도 쓰지 않음",
+            description: "Another write changed the file after it was read. Nothing was written",
             retryable: false,
           },
         },
       },
       list: {
-        description: "디렉터리 항목을 이름 순으로 돌려준다.",
+        description: "Returns directory entries sorted by name.",
         input: ListInput,
         output: ListOutput,
         replay: "safe",
         readOnly: true,
       },
       grep: {
-        description: "파일 내용을 정규식이나 문자열로 검색한다. .gitignore를 따른다.",
+        description: "Searches file contents by regular expression or string. Respects .gitignore.",
         input: GrepInput,
         output: GrepOutput,
         replay: "safe",
         readOnly: true,
-        errors: { pattern_invalid: { description: "정규식 문법 오류", retryable: false } },
+        errors: {
+          pattern_invalid: { description: "Invalid regular expression syntax", retryable: false },
+        },
       },
       find: {
-        description: "glob으로 파일을 찾는다. .gitignore를 따른다.",
+        description: "Finds files by glob. Respects .gitignore.",
         input: FindInput,
         output: FindOutput,
         replay: "safe",
         readOnly: true,
-        errors: { pattern_invalid: { description: "glob 문법 오류", retryable: false } },
+        errors: { pattern_invalid: { description: "Invalid glob syntax", retryable: false } },
       },
     },
   },
   tools: [
     {
       name: "read",
-      label: "파일 읽기",
+      label: "Read File",
       method: "read",
       parameters: ReadInput,
       description:
-        "파일 내용을 읽는다. 큰 파일은 설정된 줄·바이트 한도에서 잘리고 이어 읽을 offset을 알려 준다. 이미지 파일은 이미지로 돌려준다.",
+        "Reads file contents. Large files are cut at the configured line and byte limits, and the offset to continue reading from is reported. Image files are returned as images.",
       toContent: renderRead,
       replay: "safe",
       executionMode: "parallel",
@@ -573,35 +593,36 @@ export const WorkspaceFiles: CapabilityDef<
     },
     {
       name: "write",
-      label: "파일 쓰기",
+      label: "Write File",
       method: "write",
       parameters: WriteInput,
-      description: "파일에 내용을 통째로 쓴다. 기존 파일은 덮어쓴다. 부분 수정은 edit를 쓴다.",
-      toContent: renderChange("썼음"),
+      description:
+        "Writes the full content to a file, overwriting any existing file. Use edit for partial changes.",
+      toContent: renderChange("Wrote"),
       replay: "unsafe",
       executionMode: "parallel",
       hints: { readOnly: false, destructive: true, idempotent: true },
     },
     {
       name: "edit",
-      label: "파일 편집",
+      label: "Edit File",
       method: "edit",
       parameters: EditToolParams,
       toInput: toEditInput,
       description:
-        "파일의 특정 구간을 바꾼다. oldText는 원본에서 한 곳에만 있어야 한다. 여러 편집은 edits 배열로 한 번에 보낸다.",
-      toContent: renderChange("편집함"),
+        "Replaces specific ranges in a file. oldText must occur in exactly one place in the original. To make several edits at once, send them in the edits array.",
+      toContent: renderChange("Edited"),
       replay: "unsafe",
       executionMode: "parallel",
       hints: { readOnly: false, destructive: true, idempotent: false },
     },
     {
       name: "ls",
-      label: "디렉터리 목록",
+      label: "List Directory",
       method: "list",
       parameters: ListInput,
       description:
-        "디렉터리 항목을 이름 순으로 보여 준다. 디렉터리는 끝에 /를 붙인다. 점 파일을 포함한다.",
+        "Lists directory entries sorted by name. Directories end with /. Includes dot files.",
       toContent: renderList,
       replay: "safe",
       executionMode: "parallel",
@@ -609,11 +630,11 @@ export const WorkspaceFiles: CapabilityDef<
     },
     {
       name: "grep",
-      label: "내용 검색",
+      label: "Search Contents",
       method: "grep",
       parameters: GrepInput,
       description:
-        "파일 내용을 검색해 경로와 줄 번호를 돌려준다. .gitignore를 따른다. 결과 수와 줄 길이에 한도가 있다.",
+        "Searches file contents and returns paths and line numbers. Respects .gitignore. Result count and line length are limited.",
       toContent: renderGrep,
       replay: "safe",
       executionMode: "parallel",
@@ -621,11 +642,11 @@ export const WorkspaceFiles: CapabilityDef<
     },
     {
       name: "find",
-      label: "파일 찾기",
+      label: "Find Files",
       method: "find",
       parameters: FindInput,
       description:
-        "glob 패턴으로 파일을 찾아 기준 디렉터리 상대 경로를 돌려준다. .gitignore를 따른다.",
+        "Finds files by glob pattern and returns paths relative to the base directory. Respects .gitignore.",
       toContent: renderFind,
       replay: "safe",
       executionMode: "parallel",
@@ -698,9 +719,13 @@ export const RunOutput: TObject<{
 export const BashToolParams: TObject<{ command: TString; timeout: TOptional<TNumber> }> =
   Type.Object(
     {
-      command: Type.String({ minLength: 1, maxLength: 131_072, description: "실행할 bash 명령" }),
+      command: Type.String({
+        minLength: 1,
+        maxLength: 131_072,
+        description: "bash command to run",
+      }),
       timeout: Type.Optional(
-        Type.Number({ exclusiveMinimum: 0, maximum: 86_400, description: "제한 시간(초)" }),
+        Type.Number({ exclusiveMinimum: 0, maximum: 86_400, description: "Timeout (seconds)" }),
       ),
     },
     { additionalProperties: false },
@@ -708,7 +733,7 @@ export const BashToolParams: TObject<{ command: TString; timeout: TOptional<TNum
 
 function renderRun(out: Static<typeof RunOutput>): ToolContent {
   const head = out.truncated
-    ? `[앞부분 생략${out.fullOutputPath ? `, 전체 출력: ${out.fullOutputPath}` : ""}]\n`
+    ? `[Leading output omitted${out.fullOutputPath ? `, full output: ${out.fullOutputPath}` : ""}]\n`
     : "";
   return { content: [{ type: "text", text: head + out.output }], structuredContent: out };
 }
@@ -723,17 +748,19 @@ export const WorkspaceShell: CapabilityDef<
 > = defineCapability({
   id: "workspace.shell",
   version: "1.0.0",
-  description: "작업 디렉터리에서 셸 명령을 실행한다. 샌드박스가 켜져 있으면 그 안에서 실행한다.",
+  description:
+    "Runs shell commands in the working directory. If the sandbox is on, commands run inside it.",
   service: {
     methods: {
       run: {
-        description: "bash 명령을 실행하고 종료 코드와 출력 꼬리를 돌려준다.",
+        description: "Runs a bash command and returns its exit code and the tail of its output.",
         input: RunInput,
         output: RunOutput,
         replay: "unsafe",
         errors: {
           exit_nonzero: {
-            description: "failOnNonZero가 참이고 종료 코드가 0이 아님. detail에 RunOutput을 싣는다",
+            description:
+              "failOnNonZero is true and the exit code is not 0. Puts RunOutput in detail",
             retryable: false,
             detail: RunOutput,
           },
@@ -744,7 +771,7 @@ export const WorkspaceShell: CapabilityDef<
   tools: [
     {
       name: "bash",
-      label: "셸 명령",
+      label: "Shell Command",
       method: "run",
       parameters: BashToolParams,
       toInput: (p) => ({
@@ -753,7 +780,7 @@ export const WorkspaceShell: CapabilityDef<
         ...(p.timeout === undefined ? {} : { timeoutSec: p.timeout }),
       }),
       description:
-        "현재 작업 디렉터리에서 bash 명령을 실행한다. stdout과 stderr를 합쳐 돌려준다. 출력이 한도를 넘으면 마지막 부분만 남기고 전체는 임시 파일에 둔다. 제한 시간을 초로 줄 수 있다.",
+        "Runs a bash command in the current working directory and returns stdout and stderr combined. If the output exceeds the limit, only the last part is kept and the full output goes to a temporary file. A timeout in seconds can be set.",
       toContent: renderRun,
       replay: "unsafe",
       executionMode: "sequential",
@@ -818,14 +845,15 @@ export const RegisterImageInput: TObject<{
 
 const IMAGE_ERRORS = {
   image_unsupported: {
-    description: "지원하지 않는 형식이고 변환할 처리기가 없음",
+    description: "Unsupported format and no converter available",
     retryable: false,
   },
   image_too_large: {
-    description: "한도 안으로 줄일 수 없음(처리기가 없거나 줄여도 넘음)",
+    description:
+      "Cannot be reduced within the limit (no converter, or still over the limit after reducing)",
     retryable: false,
   },
-  image_decode_failed: { description: "이미지를 해석하지 못함", retryable: false },
+  image_decode_failed: { description: "Could not decode the image", retryable: false },
 } as const;
 
 type ImagesMethods = {
@@ -838,11 +866,11 @@ type ImagesMethods = {
 export const WorkspaceImages: CapabilityDef<ImagesMethods, readonly []> = defineCapability({
   id: "workspace.images",
   version: "1.0.0",
-  description: "이미지를 모델이 받을 수 있는 형식과 크기로 맞추고 blob으로 등록한다.",
+  description: "Fits an image to a format and size the model accepts, and registers it as a blob.",
   service: {
     methods: {
       load: {
-        description: "파일에서 이미지를 읽어 준비하고 등록한다.",
+        description: "Reads an image from a file, prepares it, and registers it.",
         input: LoadImageInput,
         output: WorkspaceImageSchema,
         replay: "safe",
@@ -850,7 +878,7 @@ export const WorkspaceImages: CapabilityDef<ImagesMethods, readonly []> = define
         errors: IMAGE_ERRORS,
       },
       resize: {
-        description: "등록된 이미지를 다른 한도로 다시 준비한다.",
+        description: "Prepares a registered image again with different limits.",
         input: ResizeImageInput,
         output: WorkspaceImageSchema,
         replay: "safe",
@@ -858,7 +886,7 @@ export const WorkspaceImages: CapabilityDef<ImagesMethods, readonly []> = define
         errors: IMAGE_ERRORS,
       },
       register: {
-        description: "base64 이미지 데이터를 준비하고 등록한다. 붙여넣기 첨부에 쓴다.",
+        description: "Prepares and registers base64 image data. Used for pasted attachments.",
         input: RegisterImageInput,
         output: WorkspaceImageSchema,
         replay: "unsafe",

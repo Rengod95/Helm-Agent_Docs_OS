@@ -4,7 +4,7 @@ import {
   type SettingDefWire,
   type SettingWidget,
 } from "@fresnel/contracts/settings";
-import { t } from "../i18n/index.ts";
+import { t, tKey } from "../i18n/index.ts";
 import type { ListItemKind, TableColumn, ViewDiagnostic, WidgetVM } from "./types.ts";
 
 // 위젯 대응(L4.settings-ui §4.2.1). 정의의 `ui.widget`이 JSON Schema 모양과 맞는지 보고, 맞지 않으면 읽기 전용과 진단을 낸다.
@@ -158,6 +158,15 @@ function recordValueSchema(core: Schema): Schema | null {
   return values.length === 1 && isSchema(only) ? only : null;
 }
 
+/** 숫자 칸의 단위. `unitKey`가 있으면 카탈로그 문장을 쓰고 `unit`은 키가 없을 때의 대체 문구다 */
+function unitOf(
+  ui: { readonly unit?: string; readonly unitKey?: string } | undefined,
+): string | null {
+  if (ui === undefined) return null;
+  if (ui.unitKey !== undefined) return tKey(ui.unitKey, ui.unit ?? "");
+  return ui.unit ?? null;
+}
+
 function recordOf(core: Schema): WidgetVM | null {
   if (core["type"] !== "object" || propertiesOf(core) !== null) return null;
   const value = recordValueSchema(core);
@@ -197,7 +206,7 @@ function widgetFor(widget: SettingWidget, def: SettingDefWire): WidgetVM | null 
         min: def.range?.min ?? null,
         max: def.range?.max ?? null,
         integer: primitive === "integer",
-        unit: def.ui?.unit ?? null,
+        unit: unitOf(def.ui),
       };
     }
     case "text":

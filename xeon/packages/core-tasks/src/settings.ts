@@ -28,7 +28,13 @@ export const tasksSettings: SettingGroup<
     range: { min: 1, max: 64 },
     runtimeChange: "live",
     allowedScopes: ALL_SCOPES,
-    ui: { tab: "execution", widget: "number", order: 10, label: "동시 도구 실행 수", unit: "개" },
+    ui: {
+      tab: "execution",
+      widget: "number",
+      order: 10,
+      label: "Concurrent tool runs",
+      unit: "items",
+    },
     since: "0.1.0",
   },
   "limits.subagents": {
@@ -41,8 +47,8 @@ export const tasksSettings: SettingGroup<
       tab: "execution",
       widget: "number",
       order: 20,
-      label: "동시 서브에이전트 수",
-      unit: "개",
+      label: "Concurrent subagents",
+      unit: "items",
     },
     since: "0.1.0",
   },
@@ -52,7 +58,13 @@ export const tasksSettings: SettingGroup<
     range: { min: 1, max: 100 },
     runtimeChange: "live",
     allowedScopes: ALL_SCOPES,
-    ui: { tab: "execution", widget: "number", order: 30, label: "동시 모델 요청 수", unit: "개" },
+    ui: {
+      tab: "execution",
+      widget: "number",
+      order: 30,
+      label: "Concurrent model requests",
+      unit: "items",
+    },
     since: "0.1.0",
   },
   "queue.steeringMode": {
@@ -61,7 +73,7 @@ export const tasksSettings: SettingGroup<
     range: { enum: ["all", "one-at-a-time"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "project", "local", "launch"],
-    ui: { tab: "execution", widget: "select", order: 40, label: "방향 수정 입력 배치" },
+    ui: { tab: "execution", widget: "select", order: 40, label: "Steering input batching" },
     since: "0.1.0",
   },
   "queue.followUpMode": {
@@ -70,7 +82,7 @@ export const tasksSettings: SettingGroup<
     range: { enum: ["all", "one-at-a-time"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "project", "local", "launch"],
-    ui: { tab: "execution", widget: "select", order: 50, label: "후속 입력 배치" },
+    ui: { tab: "execution", widget: "select", order: 50, label: "Follow-up input batching" },
     since: "0.1.0",
   },
 });

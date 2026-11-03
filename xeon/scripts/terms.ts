@@ -22,6 +22,7 @@ import {
   type TermDecl,
 } from "../packages/client/src/i18n/terms.ts";
 import { applyOverlay, checkOverlay, expandOverlay } from "./terms-markers.ts";
+import { checkLengthBudget, checkUiQuotes, checkUnusedKeys } from "./terms-stage3.ts";
 import {
   CHAT_INTERNAL_WORDS,
   checkCatalogStyle,
@@ -45,6 +46,8 @@ export interface Violation {
   readonly message: string;
   /** 고치는 방법 */
   readonly fix: string;
+  /** `warn`이면 알리기만 하고 종료코드를 바꾸지 않는다(3단계 C-09·C-10·D-04). 없으면 오류다 */
+  readonly level?: "warn";
 }
 
 export type Catalog = Readonly<Record<string, string>>;
@@ -536,6 +539,33 @@ export function collectDocs(dir: string): DocText[] {
   return out;
 }
 
+/** C-09가 키 쓰임을 찾을 소스: 시험·목업·카탈로그를 뺀 모든 앱·패키지·플러그인의 `src`. 경로는 xeon 루트 기준이다 */
+export function collectKeySources(root: string): SourceText[] {
+  const out: SourceText[] = [];
+  const walk = (dir: string): void => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!SOURCE_SKIP.has(entry.name) && entry.name !== "locales") walk(path);
+      } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name)) {
+        out.push({
+          path: relative(root, path).split(sep).join("/"),
+          text: readFileSync(path, "utf8"),
+        });
+      }
+    }
+  };
+  for (const group of ["apps", "packages", "plugins"]) {
+    const base = join(root, group);
+    if (!existsSync(base)) continue;
+    for (const entry of readdirSync(base, { withFileTypes: true })) {
+      if (entry.isDirectory()) walk(join(base, entry.name, "src"));
+    }
+  }
+  return out;
+}
+
 const SOURCE_SKIP = new Set(["node_modules", "dist", ".turbo", "coverage", "vendor", "mockups"]);
 
 /** 화면 소스(apps/desktop·packages/client의 src)를 읽는다. 경로는 xeon 루트 기준이다 */
@@ -656,14 +686,22 @@ function main(argv: readonly string[]): number {
         TERMS,
         existsSync(GLOSSARY_FILE) ? readFileSync(GLOSSARY_FILE, "utf8") : undefined,
       ),
+      // 3단계: 경고(level: "warn")라 종료코드에 들지 않는다
+      ...checkUnusedKeys(en, collectKeySources(ROOT)),
+      ...checkLengthBudget(ko, en),
+      ...checkUiQuotes(collectDocs(DOCS_DIR), TERMS),
     ];
+    const errors = violations.filter((v) => v.level !== "warn");
+    const warnings = violations.filter((v) => v.level === "warn");
     if (flags.includes("--json")) console.log(JSON.stringify(violations, null, 2));
-    else
-      for (const v of violations) console.log(`FAIL ${v.rule} ${v.where}: ${v.message} → ${v.fix}`);
+    else {
+      for (const v of errors) console.log(`FAIL ${v.rule} ${v.where}: ${v.message} → ${v.fix}`);
+      for (const v of warnings) console.log(`WARN ${v.rule} ${v.where}: ${v.message} → ${v.fix}`);
+    }
     console.log(
-      `terms check: ${String(Object.keys(TERMS).length)} terms, ${String(Object.keys(en).length)} keys, ${String(violations.length)} violations`,
+      `terms check: ${String(Object.keys(TERMS).length)} terms, ${String(Object.keys(en).length)} keys, ${String(errors.length)} violations, ${String(warnings.length)} warnings`,
     );
-    return violations.length === 0 ? 0 : 1;
+    return errors.length === 0 ? 0 : 1;
   }
   console.error("usage: bun scripts/terms.ts gen [--mockups] | check [--json]");
   return 2;

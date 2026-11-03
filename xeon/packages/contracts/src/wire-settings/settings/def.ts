@@ -185,6 +185,7 @@ export const SettingUiSchema: TObject<{
   help: TOptional<TString>;
   helpKey: TOptional<TString>;
   unit: TOptional<TString>;
+  unitKey: TOptional<TString>;
 }> = Type.Object(
   {
     tab: SettingsTabSchema,
@@ -199,6 +200,8 @@ export const SettingUiSchema: TObject<{
     /** 설명의 메시지 키 */
     helpKey: Type.Optional(MessageKeySchema),
     unit: Type.Optional(Type.String({ maxLength: 16 })),
+    /** 단위의 메시지 키. 없으면 `unit`을 그대로 쓴다 */
+    unitKey: Type.Optional(MessageKeySchema),
   },
   { additionalProperties: false },
 );

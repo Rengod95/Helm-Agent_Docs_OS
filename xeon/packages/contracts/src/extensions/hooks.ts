@@ -420,7 +420,7 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     payload: ContextPayloadSchema,
     result: ContextPatchSchema,
     m1: true,
-    pi: pi("context", "types.ts:871/1415", "runner.ts:1298 emitContext 1단계", "chain"),
+    pi: pi("context", "types.ts:871/1415", "runner.ts:1298 emitContext stage 1", "chain"),
   },
   "request.system.before": {
     name: "request.system.before",
@@ -431,7 +431,12 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     payload: ContextPayloadSchema,
     result: ContextPatchSchema,
     m1: false,
-    pi: pi("context_with_system", "types.ts:881/1415", "runner.ts:1298 emitContext 2단계", "chain"),
+    pi: pi(
+      "context_with_system",
+      "types.ts:881/1415",
+      "runner.ts:1298 emitContext stage 2",
+      "chain",
+    ),
   },
   "request.cache.before": {
     name: "request.cache.before",
@@ -519,7 +524,7 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     dispatch: "detached",
     payload: ThinkingLevelSelectPayloadSchema,
     m1: false,
-    pi: pi("thinking_level_select", "types.ts:1114", "runner.ts:1089 emit (대기 안 함)", "tap"),
+    pi: pi("thinking_level_select", "types.ts:1114", "runner.ts:1089 emit (not awaited)", "tap"),
   },
   "tool.call.before": {
     name: "tool.call.before",
@@ -704,7 +709,7 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     dispatch: "detached",
     payload: McpServersChangePayloadSchema,
     m1: false,
-    pi: pi("mcp_servers_change", "types.ts:730", "runner.ts:459 emit (대기 안 함)", "tap"),
+    pi: pi("mcp_servers_change", "types.ts:730", "runner.ts:459 emit (not awaited)", "tap"),
   },
   "thread.start": {
     name: "thread.start",
@@ -724,7 +729,7 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     dispatch: "detached",
     payload: SessionInfoChangedPayloadSchema,
     m1: false,
-    pi: pi("session_info_changed", "types.ts:750", "runner.ts:1089 emit (대기 안 함)", "tap"),
+    pi: pi("session_info_changed", "types.ts:750", "runner.ts:1089 emit (not awaited)", "tap"),
   },
   "thread.switch.before": {
     name: "thread.switch.before",
@@ -738,7 +743,7 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     pi: pi(
       "session_before_switch",
       "types.ts:757/1474",
-      "runner.ts:1089 emit (cancel 중단 1096-1103)",
+      "runner.ts:1089 emit (cancel aborts 1096-1103)",
       "first",
     ),
   },
@@ -828,7 +833,7 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     pi: pi(
       "ui_prompt_start",
       "types.ts:1014",
-      "runner.ts:611 emitUIPromptEvent (대기 안 함)",
+      "runner.ts:611 emitUIPromptEvent (not awaited)",
       "tap",
     ),
   },
@@ -840,7 +845,7 @@ export const HOOKS: { readonly [N in HookName]: HookDecl<N> } = {
     dispatch: "detached",
     payload: UIPromptPayloadSchema,
     m1: false,
-    pi: pi("ui_prompt_end", "types.ts:1022", "runner.ts:595, 611 (대기 안 함)", "tap"),
+    pi: pi("ui_prompt_end", "types.ts:1022", "runner.ts:595, 611 (not awaited)", "tap"),
   },
   "guard.model.before": {
     name: "guard.model.before",

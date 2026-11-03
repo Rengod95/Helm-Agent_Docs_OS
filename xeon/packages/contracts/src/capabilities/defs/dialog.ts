@@ -214,18 +214,18 @@ export function checkAskQuestions(questions: readonly AskQuestion[]): readonly s
   const issues: string[] = [];
   const seenQuestions = new Set<string>();
   for (const q of questions) {
-    if (seenQuestions.has(q.id)) issues.push(`질문 id가 겹친다: ${q.id}`);
+    if (seenQuestions.has(q.id)) issues.push(`Duplicate question id: ${q.id}`);
     seenQuestions.add(q.id);
     const options = q.options ?? [];
     const seenOptions = new Set<string>();
     for (const o of options) {
-      if (seenOptions.has(o.id)) issues.push(`질문 ${q.id}의 선택지 id가 겹친다: ${o.id}`);
+      if (seenOptions.has(o.id)) issues.push(`Question ${q.id} has a duplicate option id: ${o.id}`);
       seenOptions.add(o.id);
     }
     const recommended = options.filter((o) => o.recommended === true).length;
-    if (recommended > 1) issues.push(`질문 ${q.id}의 추천 항목이 둘 이상이다`);
+    if (recommended > 1) issues.push(`Question ${q.id} has more than one recommended option`);
     if (options.length === 0 && q.allowFreeText === false) {
-      issues.push(`질문 ${q.id}는 선택지가 없는데 자유 입력을 막았다`);
+      issues.push(`Question ${q.id} has no options but disallows free-text input`);
     }
   }
   return issues;
@@ -322,25 +322,27 @@ export function defaultAskAnswer(questions: readonly AskQuestion[]): AskAnswer |
 
 function answerLine(item: AskAnswerItem): string {
   const parts: string[] = [];
-  if (item.selected.length > 0) parts.push(`선택: ${item.selected.join(", ")}`);
-  if (item.text !== null) parts.push(`직접 입력: ${item.text}`);
-  return `${item.questionId}: ${parts.length > 0 ? parts.join(" / ") : "(답 없음)"}`;
+  if (item.selected.length > 0) parts.push(`Selected: ${item.selected.join(", ")}`);
+  if (item.text !== null) parts.push(`Free text: ${item.text}`);
+  return `${item.questionId}: ${parts.length > 0 ? parts.join(" / ") : "(no answer)"}`;
 }
 
 /** ask_user 결과의 모델용 문장. 순수 함수 */
 export function renderAsk(out: AskResult): ToolContent {
   let text: string;
   if (out.status === "input_required") {
-    text = "사용자의 답을 기다리는 중이다.";
+    text = "Waiting for the user to answer.";
   } else if (out.status === "answered") {
-    const head = out.defaulted ? "시간 초과로 추천 항목이 선택되었다." : "사용자가 답했다.";
+    const head = out.defaulted
+      ? "Timed out, so the recommended option was selected."
+      : "The user answered.";
     text = [head, ...out.answers.map(answerLine)].join("\n");
   } else if (out.reason === "timeout") {
-    text = "시간 초과로 질문이 취소되었다. 사용자의 답이 없다.";
+    text = "The question was cancelled due to timeout. The user did not answer.";
   } else if (out.reason === "dismissed") {
-    text = "사용자가 질문을 닫았다. 답이 없다.";
+    text = "The user dismissed the question. No answer.";
   } else {
-    text = "턴이 중단되어 질문이 취소되었다.";
+    text = "The turn was interrupted, so the question was cancelled.";
   }
   return { content: [{ type: "text", text }], structuredContent: out };
 }
@@ -358,23 +360,23 @@ export const DialogAsk: CapabilityDef<
   id: "dialog.ask",
   version: "1.0.0",
   description:
-    "모델이나 그룹 코드가 사용자에게 질문하고 답을 받는다. 답은 승인 프로토콜(kind question)로 받는다.",
+    "Lets a model or group code ask the user a question and receive the answer. The answer is received through the approval protocol (kind question).",
   service: {
     methods: {
       ask: {
-        description: "질문 묶음을 사용자에게 보내고 답을 받는다.",
+        description: "Sends a batch of questions to the user and receives the answers.",
         input: AskInput,
         output: AskOutput,
         replay: "safe",
         idempotent: true,
         errors: {
           ask_invalid_questions: {
-            description: "질문 정의가 규칙(checkAskQuestions)을 어김",
+            description: "Question definition violates the rules (checkAskQuestions)",
             retryable: false,
             detail: AskIssuesDetail,
           },
           ask_unavailable_headless: {
-            description: "답할 클라이언트가 없는 실행(비대화형)에서 질문함",
+            description: "Asked a question in a non-interactive run with no client to answer it",
             retryable: false,
           },
         },
@@ -384,10 +386,10 @@ export const DialogAsk: CapabilityDef<
   tools: [
     {
       name: "ask_user",
-      label: "사용자에게 질문",
+      label: "Ask user",
       description:
-        "요구가 모호해 추측해야 할 때 사용자에게 1~4개 질문을 한다. 선택지를 주면 2~8개로 하고, 가장 무난한 항목에 recommended를 표시한다. " +
-        "답이 오면 그 답으로 계속한다. 사용자가 답하지 않거나 취소하면 그 사실이 결과로 온다.",
+        "Asks the user 1 to 4 questions when the request is ambiguous and a guess would be needed. If options are given, use 2 to 8 and mark the most sensible option with recommended. " +
+        "Continues with the answer once it arrives. If the user does not answer or cancels, that fact comes back in the result.",
       method: "ask",
       parameters: AskParams,
       toInput: (p) => ({ ...p, wait: false }),
@@ -660,14 +662,17 @@ export const CommandRunOutput: TUnsafe<CommandRunOutputValue> = Type.Unsafe<Comm
 );
 
 const COMMAND_ERRORS = {
-  command_name_taken: { description: "같은 출처 등급에 같은 이름이 이미 있다", retryable: false },
+  command_name_taken: {
+    description: "A command with the same name already exists at the same source level",
+    retryable: false,
+  },
   command_args_invalid: {
-    description: "동작 명령 인자가 선언(args)에 맞지 않는다",
+    description: "Action command arguments do not match the declaration (args)",
     retryable: false,
     detail: Type.Object({ message: Type.String() }),
   },
   command_shell_disabled: {
-    description: "설정이 셸 주입을 끔(l2.dialog.commands.shellInjection = off)",
+    description: "Setting turns off shell injection (l2.dialog.commands.shellInjection = off)",
     retryable: false,
   },
 } as const;
@@ -683,25 +688,26 @@ type CommandsMethods = {
 export const DialogCommands: CapabilityDef<CommandsMethods, readonly []> = defineCapability({
   id: "dialog.commands",
   version: "1.0.0",
-  description: "슬래시 명령과 프롬프트 템플릿. 모델은 명령을 호출하지 않는다.",
+  description: "Slash commands and prompt templates. The model does not invoke commands.",
   service: {
     methods: {
       register: {
-        description: "템플릿 명령을 등록한다.",
+        description: "Registers a template command.",
         input: CommandRegisterInput,
         output: CommandRegisterOutput,
         replay: "unsafe",
         errors: COMMAND_ERRORS,
       },
       list: {
-        description: "명령 목록과 인자 선언을 돌려준다.",
+        description: "Returns the command list and argument declarations.",
         input: CommandListInput,
         output: CommandListOutput,
         replay: "safe",
         readOnly: true,
       },
       expand: {
-        description: "입력이 명령이면 치환 결과를 돌려준다. 아무것도 실행하지 않는다.",
+        description:
+          "If the input is a command, returns the substitution result. Executes nothing.",
         input: CommandExpandInput,
         output: CommandExpandOutput,
         replay: "safe",
@@ -709,7 +715,8 @@ export const DialogCommands: CapabilityDef<CommandsMethods, readonly []> = defin
         errors: COMMAND_ERRORS,
       },
       run: {
-        description: "명령을 실행한다. 템플릿은 최종 텍스트를, 동작 명령은 처리기 결과를 돌려준다.",
+        description:
+          "Runs a command. Templates return the final text, and action commands return the handler result.",
         input: CommandRunInput,
         output: CommandRunOutput,
         replay: "unsafe",
@@ -808,23 +815,24 @@ type StatusMethods = {
 export const DialogStatus: CapabilityDef<StatusMethods, readonly []> = defineCapability({
   id: "dialog.status",
   version: "1.0.0",
-  description: "상태줄 세그먼트 등록. 변경은 휘발 이벤트 dialog.status로만 나간다.",
+  description:
+    "Registers status-line segments. Changes are sent only as the transient dialog.status event.",
   service: {
     methods: {
       setItem: {
-        description: "세그먼트를 만들거나 바꾼다.",
+        description: "Creates or changes a segment.",
         input: StatusItemSchema,
         output: EmptyOutput,
         replay: "unsafe",
       },
       clearItem: {
-        description: "세그먼트를 지운다.",
+        description: "Removes a segment.",
         input: StatusClearInput,
         output: EmptyOutput,
         replay: "unsafe",
       },
       list: {
-        description: "현재 세그먼트 전체(재접속 뒤 다시 그리기용).",
+        description: "All current segments, for redrawing after reconnect.",
         input: EmptyInput,
         output: StatusListOutput,
         replay: "safe",
@@ -955,22 +963,23 @@ type AttachmentsMethods = {
 export const DialogAttachments: CapabilityDef<AttachmentsMethods, readonly []> = defineCapability({
   id: "dialog.attachments",
   version: "1.0.0",
-  description: "이미지, 파일, URL을 사용자 입력에 붙인다. 큰 바이너리는 blob 참조로 저장한다.",
+  description:
+    "Attaches images, files, and URLs to user input. Large binaries are stored as blob references.",
   requires: ["workspace.images"],
   service: {
     methods: {
       add: {
-        description: "첨부 하나를 검사하고 저장한 뒤 입력 파트를 만든다.",
+        description: "Checks and stores one attachment, then creates the input part.",
         input: AttachmentAddInput,
         output: AttachmentAddOutput,
         replay: "unsafe",
         errors: {
           attachment_too_large: {
-            description: "l2.dialog.attachments.maxBytes 초과",
+            description: "Exceeds l2.dialog.attachments.maxBytes",
             retryable: false,
             detail: Type.Object({ size: Type.Integer(), limit: Type.Integer() }),
           },
-          attachment_type_unsupported: { description: "읽을 수 없는 형식", retryable: false },
+          attachment_type_unsupported: { description: "Unreadable format", retryable: false },
         },
       },
     },
@@ -1018,11 +1027,12 @@ type AsideMethods = {
 export const DialogAside: CapabilityDef<AsideMethods, readonly []> = defineCapability({
   id: "dialog.aside",
   version: "1.0.0",
-  description: "본류 컨텍스트를 읽기만 하는 별도 질문. 본류 기록을 바꾸지 않는다.",
+  description:
+    "Separate aside question that only reads the main-thread context. Does not change the main-thread record.",
   service: {
     methods: {
       ask: {
-        description: "본류 스냅숏을 읽고 별도 모델 호출로 답한다.",
+        description: "Reads a snapshot of the main thread and answers with a separate model call.",
         input: AsideAskInput,
         output: AsideAskOutput,
         replay: "unsafe",
@@ -1089,21 +1099,21 @@ type StylesMethods = {
 export const DialogStyles: CapabilityDef<StylesMethods, readonly []> = defineCapability({
   id: "dialog.styles",
   version: "1.0.0",
-  description: "세션 단위 출력 스타일. 적용은 다음 턴 시작이다.",
+  description: "Per-session output style. Takes effect at the start of the next turn.",
   service: {
     methods: {
       register: {
-        description: "스타일을 등록한다.",
+        description: "Registers a style.",
         input: StyleSchema,
         output: EmptyOutput,
         replay: "unsafe",
       },
       select: {
-        description: "이 세션의 스타일을 고른다. null은 기본 스타일.",
+        description: "Selects the style for this session. null means the default style.",
         input: StyleSelectInput,
         output: StyleSelectOutput,
         replay: "unsafe",
-        errors: { style_unknown: { description: "등록되지 않은 스타일", retryable: false } },
+        errors: { style_unknown: { description: "Style is not registered", retryable: false } },
       },
     },
   },
@@ -1218,17 +1228,17 @@ type NotifyMethods = {
 export const DialogNotify: CapabilityDef<NotifyMethods, readonly []> = defineCapability({
   id: "dialog.notify",
   version: "1.0.0",
-  description: "사용자 주의가 필요한 상태를 5종으로 분류하고 알린다.",
+  description: "Classifies states that need user attention into five kinds and notifies.",
   service: {
     methods: {
       emit: {
-        description: "그룹·플러그인이 알림을 직접 낸다(내구 기록).",
+        description: "Groups and plugins emit notifications directly (durable record).",
         input: NotifyEmitInput,
         output: NotifyEmitOutput,
         replay: "unsafe",
       },
       list: {
-        description: "afterSeq 뒤의 알림을 분류해 돌려준다(당겨 읽기).",
+        description: "Returns notifications after afterSeq, classified (pull read).",
         input: NotifyListInput,
         output: NotifyListOutput,
         replay: "safe",
