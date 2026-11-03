@@ -92,4 +92,4 @@ Y13 scripts caustic-gaps.test.ts
 # Track T-LED, T-RT1, T-RT2 (req-ledger.test.ts: no carry-over item unassigned)
 Y16 scripts req-ledger.test.ts
 # Track T-PERF (scripts/desktop-benchmark.ts result and the size check)
-# Y17 scripts <파일>
+Y17 scripts desktop-benchmark.test.ts

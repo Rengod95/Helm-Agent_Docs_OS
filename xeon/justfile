@@ -157,6 +157,11 @@ tape-record scenario *flags:
 benchmark *flags:
     bash ../scripts/guard.sh run -- {{bun}} scripts/benchmark.ts {{flags}}
 
+# 데스크톱 속도·크기(Y17): size, startup(창 띄워 첫 화면·유휴 메모리, macOS 전용, GUI 없으면 종료코드 2), frame(77개 Orbit CPU), trace(계측 켬·끔 Turn 비용), all. 실제 모델 호출 없음 (scripts/desktop-benchmark.ts)
+[group('local')]
+desktop-benchmark *flags:
+    bash ../scripts/guard.sh run -- {{bun}} scripts/desktop-benchmark.ts {{flags}}
+
 # 서버 측정 결과의 예산 판정: 예산이 사용자 결정 대기면 통과, 넘으면 실패, --strict면 대기도 실패 (scripts/benchmark-gate.ts)
 [group('local')]
 benchmark-gate *flags:
