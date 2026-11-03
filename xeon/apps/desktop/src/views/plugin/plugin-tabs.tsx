@@ -1,4 +1,5 @@
-import { t } from "@fresnel/client/i18n";
+import { activeLocale, t } from "@fresnel/client/i18n";
+import { extMessageOf } from "@fresnel/client/views/native";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import { Button } from "@caustic/react";
@@ -34,7 +35,7 @@ function Pick(props: {
             props.onSelect(screenKeyOf(entry));
           }}
         >
-          {entry.title}
+          {extMessageOf(entry.messages, activeLocale(), entry.title)}
         </Button>
       ))}
     </div>

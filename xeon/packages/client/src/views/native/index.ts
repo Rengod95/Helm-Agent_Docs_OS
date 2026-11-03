@@ -14,6 +14,7 @@ export {
   type PropSpec,
 } from "./catalog.ts";
 export { checkTree, type TreeCheck, type TreeIssue } from "./check.ts";
+export { extMessageOf, type ExtMessages } from "./messages.ts";
 export {
   resolveTree,
   type ResolveInput,

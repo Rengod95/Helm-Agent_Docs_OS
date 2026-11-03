@@ -1,7 +1,7 @@
 import { t, activeLocale } from "@fresnel/client/i18n";
 import { attemptAsync, detach, rethrow } from "@fresnel/contracts";
 import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
-import { resolveTree, type ResolvedTree } from "@fresnel/client/views/native";
+import { extMessageOf, resolveTree, type ResolvedTree } from "@fresnel/client/views/native";
 import { BRIDGE_VERSION } from "@fresnel/contracts/extensions";
 import {
   buildAppUrl,
@@ -71,7 +71,9 @@ function Header(props: { readonly entry: ExtUiEntry }): ReactNode {
   const trust = entry.trust === "managed" ? "user" : entry.trust;
   return (
     <header className="flex items-baseline gap-2 border-b px-3 py-2">
-      <h2 className="text-sm font-medium">{entry.title}</h2>
+      <h2 className="text-sm font-medium">
+        {extMessageOf(entry.messages, activeLocale(), entry.title)}
+      </h2>
       <span className="text-xs text-muted-foreground">
         {entry.extension} · v{entry.version}
       </span>
@@ -283,7 +285,7 @@ function FrameBody(props: {
       confirm={plugin.confirm.request}
       cancelConfirm={plugin.confirm.cancel}
       theme={themeNow}
-      title={entry.title}
+      title={extMessageOf(entry.messages, activeLocale(), entry.title)}
       onClosed={() => {}}
     />
   );
@@ -386,7 +388,14 @@ function NativeBody(props: {
         return;
       }
       runtime.ledger.succeed(key);
-      setTree(resolveTree(treeDoc, { doc: doc.value, locale: activeLocale(), nowMs: Date.now() }));
+      setTree(
+        resolveTree(treeDoc, {
+          doc: doc.value,
+          locale: activeLocale(),
+          nowMs: Date.now(),
+          ...(entry.messages === undefined ? {} : { messages: entry.messages }),
+        }),
+      );
     };
     detach(run(), rethrow);
     const timer = window.setInterval(() => detach(run(), rethrow), POLL_MS);
@@ -394,7 +403,7 @@ function NativeBody(props: {
       live = false;
       window.clearInterval(timer);
     };
-  }, [runner, session, runtime, key, disabled, treeDoc]);
+  }, [runner, session, runtime, key, disabled, treeDoc, entry.messages]);
   if (disabled) return <DisabledNote runtime={runtime} keyName={key} />;
   if (tree === undefined) return <Note text={t("desktop.plugin.state.loading")} />;
   if (tree === "failed") return <Note text={t("desktop.plugin.state.queryFailed")} />;

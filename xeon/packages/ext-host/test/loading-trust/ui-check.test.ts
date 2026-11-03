@@ -612,3 +612,49 @@ test("ui: reports keep the declaration order of the items", async () => {
   const { reports } = await checkWith(uiOf([first, second]), nativeTree(TEXT_TREE));
   expect(reports.map((report) => report.id)).toEqual(["first", "second"]);
 });
+
+test("ui: messages folder locale files are read into every report; a bad or missing locale file is skipped", async () => {
+  const ui: UiDecl = { ...uiOf([PAGE]), messages: "./locales" };
+  const { reports } = await checkWith(ui, {
+    files: {
+      "/ext/demo/ui/page.json": TEXT_TREE,
+      "/ext/demo/locales/en.json": '{"demo.title":"Demo"}',
+      "/ext/demo/locales/ko.json": '{"demo.title":"데모"}',
+    },
+  });
+  expect(reports.map((report) => report.messages)).toEqual([
+    { en: { "demo.title": "Demo" }, ko: { "demo.title": "데모" } },
+  ]);
+  expect(reports.map((report) => report.issues)).toEqual([[]]);
+
+  const partial = await checkWith(ui, {
+    files: {
+      "/ext/demo/ui/page.json": TEXT_TREE,
+      "/ext/demo/locales/en.json": '{"demo.title":"Demo"}',
+    },
+  });
+  expect(partial.reports.map((report) => report.messages)).toEqual([
+    { en: { "demo.title": "Demo" } },
+  ]);
+
+  const broken = await checkWith(ui, {
+    files: {
+      "/ext/demo/ui/page.json": TEXT_TREE,
+      "/ext/demo/locales/en.json": '{"demo.title":3}',
+      "/ext/demo/locales/ko.json": '{"demo.title":"데모"}',
+    },
+  });
+  expect(broken.reports.map((report) => report.messages)).toEqual([
+    { ko: { "demo.title": "데모" } },
+  ]);
+  expect(broken.reports.map((report) => report.issues)).toEqual([
+    [
+      {
+        severity: "warning",
+        code: "ui_invalid",
+        path: "/ui/messages",
+        message: "locales/en.json must be a flat JSON object of strings",
+      },
+    ],
+  ]);
+});

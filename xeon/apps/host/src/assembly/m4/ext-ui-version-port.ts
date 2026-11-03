@@ -343,6 +343,7 @@ function entryOf(report: UiEntryReport, off: boolean): ExtUiEntry {
     ...(report.appRoot === undefined ? {} : { appRoot: report.appRoot }),
     ...(report.tree === undefined ? {} : { tree: report.tree }),
     ...(report.app === undefined ? {} : { app: report.app }),
+    ...(report.messages === undefined ? {} : { messages: report.messages }),
     issues: report.issues.slice(0, ISSUES_LIMIT).map(diagnosticOf),
   };
 }

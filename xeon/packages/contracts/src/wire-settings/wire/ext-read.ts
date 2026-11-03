@@ -635,6 +635,11 @@ export interface ExtUiEntry {
   /** 엔진이 검사한 화면 트리. `app` 모드면 없다 */
   readonly tree?: UiNode;
   readonly app?: AppDecl;
+  /**
+   * 확장 패키지의 메시지 카탈로그(`ui.messages` 폴더의 `<로케일>.json`, 로케일 ko·en만). 로케일 -> 키 -> 문장이다.
+   * 화면 `title`과 화면 트리의 정적 글 prop이 이 키면 클라이언트가 현재 로케일, 영어, 키 자체 순으로 푼다(ADR-0021 §3.8)
+   */
+  readonly messages?: Readonly<Record<string, Readonly<Record<string, string>>>>;
   readonly issues: readonly ExtDiagnostic[];
 }
 const UiEntryShape = closed({
@@ -656,6 +661,12 @@ const UiEntryShape = closed({
   appRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
   tree: Type.Optional(UiNodeSchema),
   app: Type.Optional(AppDeclSchema),
+  messages: Type.Optional(
+    Type.Record(
+      Type.String({ maxLength: 16 }),
+      Type.Record(Type.String({ maxLength: 160 }), Type.String({ maxLength: 2000 })),
+    ),
+  ),
   issues: Type.Array(DiagnosticShape, { maxItems: 200 }),
 });
 export interface ExtUiListResult {
