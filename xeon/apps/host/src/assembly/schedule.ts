@@ -37,6 +37,7 @@ import {
   type ScheduleWatcher,
   type StartedRun,
 } from "@fresnel/cap-schedule";
+import type { FileLock } from "@fresnel/platform-os";
 import type {
   EventFeedPort,
   OwnerKind,
@@ -70,6 +71,8 @@ export interface ScheduleRunnerPorts {
 
 export interface HostScheduleDeps {
   readonly os: Pick<OsService, "dirs" | "time" | "watch">;
+  /** 예약 상태 파일을 호스트끼리 겹쳐 쓰지 않게 하는 프로세스 사이 잠금(`OsServiceHandle.fileLock`) */
+  readonly fileLock: FileLock;
   readonly clock: Clock;
   readonly ids: IdFactory;
   readonly tasks: Pick<TaskService, "inputs">;
@@ -87,7 +90,9 @@ export function createHostSchedule(deps: HostScheduleDeps): ScheduleService {
   const overrides = deps.overrides;
   return createScheduleService({
     clock: overrides?.clock ?? deps.clock,
-    store: overrides?.store ?? createFileScheduleStore(join(deps.os.dirs.state, SCHEDULE_DIR_NAME)),
+    store:
+      overrides?.store ??
+      createFileScheduleStore(join(deps.os.dirs.state, SCHEDULE_DIR_NAME), deps.fileLock),
     runner: runnerOf(deps),
     ticker: overrides?.ticker ?? schedulerTickerOf(deps.os.time.scheduler),
     watcher: fileWatcherOf(deps.os, deps.logger),

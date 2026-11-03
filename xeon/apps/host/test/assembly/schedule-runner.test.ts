@@ -1,8 +1,13 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import type { RunRecord, ScheduleService, ScheduleState } from "@fresnel/cap-schedule";
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
+import type {
+  RunRecord,
+  ScheduleService,
+  ScheduleState,
+  ScheduleStore,
+} from "@fresnel/cap-schedule";
 import { err, ok, repeatAsync, type Logger } from "@fresnel/contracts";
 import type { StoreId } from "@fresnel/contracts/wire";
 import type { ThreadId, TurnCompletedPayload } from "@fresnel/contracts/conversation";
@@ -22,11 +27,28 @@ import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { createFileScheduleStore } from "../../src/assembly/schedule-store.ts";
 import { createHostSchedule } from "../../src/assembly/schedule.ts";
 import type { EventFeedPort, SessionLockPort, ThreadPort } from "../../src/types.ts";
+import { openFileLock } from "../fixtures/file-lock.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
 // 예약 실행 기록(L4.host-service.spec §4.17, HS-107). 재시작 뒤 `claimed` 실행이 같은 요청으로 다시 시작해도 thread는 하나다.
 // 재시작 뒤에는 thread의 저장된 `turn.completed`로 정착한다. 세션은 creationKey로 멱등인 가짜이고, 내구 기록(이벤트 목록)과
 // 구독자를 가진다. 상태 파일은 실제 파일 저장소다.
+
+// 실제 OS 파일 잠금. 저장소는 이 잠금 안에서 디스크를 읽고 병합해 쓴다
+const lockDir = mkdtempSync(join(tmpdir(), "xh-sch-lock-"));
+const opened = await openFileLock(lockDir);
+const realLock = opened.fileLock;
+afterAll(async () => {
+  await opened.dispose();
+  rmSync(lockDir, { recursive: true, force: true });
+});
+
+/** 디스크 상태를 읽어 기준으로 삼은 저장소. 읽지 않은 저장소는 저장해도 다른 호스트의 기록을 지우지 않는다 */
+async function loadedStore(stateDir: string): Promise<ScheduleStore> {
+  const store = createFileScheduleStore(stateDir, realLock);
+  expect((await store.load()).ok).toBe(true);
+  return store;
+}
 
 const STORE_ID: StoreId = "sto_01ARZ3NDEKTSV4RRFFQ69G5FAV";
 const SCHEDULE_ID = "sch_01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -206,6 +228,7 @@ function serviceOver(
 ): ScheduleService {
   return createHostSchedule({
     os: partial<OsService>({}),
+    fileLock: realLock,
     clock: { now: () => NOW },
     ids: fixedIdFactory(100),
     tasks: partial<TaskService>({ inputs: session.inputs }),
@@ -215,7 +238,7 @@ function serviceOver(
     logger: log,
     overrides: {
       ticker: { every: () => () => undefined },
-      store: createFileScheduleStore(stateDir),
+      store: createFileScheduleStore(stateDir, realLock),
     },
   });
 }
@@ -251,7 +274,7 @@ async function untilRun(
  * 돌려주는 thread는 첫 시작이 만든 것이다.
  */
 async function firstProcessStarts(session: SharedSession, stateDir: string): Promise<ThreadId> {
-  expect((await createFileScheduleStore(stateDir).save(claimedState())).ok).toBe(true);
+  expect((await (await loadedStore(stateDir)).save(claimedState())).ok).toBe(true);
   const first = serviceOver(session, stateDir);
   expect((await first.start()).ok).toBe(true);
   expect(first.runs(SCHEDULE_ID)[0]?.status).toBe("started");
@@ -270,7 +293,7 @@ async function restartFromClaim(
   stateDir: string,
   log: Logger = logger,
 ): Promise<ScheduleService> {
-  expect((await createFileScheduleStore(stateDir).save(claimedState())).ok).toBe(true);
+  expect((await (await loadedStore(stateDir)).save(claimedState())).ok).toBe(true);
   const second = serviceOver(session, stateDir, log);
   expect((await second.start()).ok).toBe(true);
   return second;
@@ -287,7 +310,7 @@ describe("the schedule runner after a restart (L2.schedule §4.4.4, L4.host-serv
 
   test("a claimed run begun again after a restart reuses the thread it made before, so only one thread exists", async () => {
     const stateDir = join(root, "schedule");
-    const store = createFileScheduleStore(stateDir);
+    const store = await loadedStore(stateDir);
     expect((await store.save(claimedState())).ok).toBe(true);
     const session = sharedSession();
 
@@ -300,7 +323,7 @@ describe("the schedule runner after a restart (L2.schedule §4.4.4, L4.host-serv
     await first.close();
 
     // 재시작: 시작을 기록하기 전에 죽은 것처럼 상태를 claim으로 되돌리고 새 서비스가 다시 시작한다
-    expect((await store.save(claimedState())).ok).toBe(true);
+    expect((await (await loadedStore(stateDir)).save(claimedState())).ok).toBe(true);
     const second = serviceOver(session, stateDir);
     expect((await second.start()).ok).toBe(true);
     const again = second.runs(SCHEDULE_ID)[0];
