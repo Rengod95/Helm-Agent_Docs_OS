@@ -263,7 +263,7 @@ export interface Redactor {
 - 이미 기록된 이벤트 행은 바꾸지 않는다. 표시(`display`), 내보내기(`export`), 모델 입력(`model-input`) 세 단계가 행을 읽는 시점에 `createPostHocRedaction(redactor).apply(stage, value)`를 부른다. 결과 `PostHocResult`는 가려진 새 값(`value`), `hits`, 키 회전 안내(`advice`)를 가진다. 입력 객체는 바뀌지 않는다(`Redactor.maskDeep`은 새 값을 돌려준다).
 - 값이 기록된 뒤에 등록된 시크릿(예: 기록 뒤 처음 lease가 풀린 값)도 이후 표시와 내보내기에서 가려진다. 반대로 등록 전에는 알 수 없어 가릴 수 없다. 프로세스가 다시 시작되면 등록부가 비므로, 단계 호출자는 필요할 때 목록(`list`)의 시크릿을 먼저 lease해 등록한다 [가정].
 - 키 회전 안내는 문장이 아니라 값이다. `advice`는 `{ kind: "rotate_key", names, patternHits }`이고 가려진 것이 없으면 null이다. `names`는 `known:<이름>`으로 가려진 시크릿 이름(중복 없음, 정렬), `patternHits`는 이름 없이 패턴으로 가려진 개수다. 문구는 L4가 이 값으로 만든다(i18n, `eng.context-map.design` 하위 층 문장 금지). 이미 모델이나 외부에 나간 값은 가려도 되돌릴 수 없으므로 안내는 "원본 키를 회전한다"(`fresnel secret rotate`)가 기본이다.
-- 호출 시점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. 이 문서는 호출 시점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
+- 호출 시점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. L1은 `platform-secrets`를 import하지 못하므로(DR-14) 모델 입력 단계는 F `Redactor`(`fresnel.secrets`의 `redactor`)를 받아 직접 가린다(`L1.context.spec` §4.1). 이 함수(`createPostHocRedaction`)는 `advice`가 필요한 표시·내보내기 호출자용이다. 이 문서는 호출 시점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
 
 ### 3.6 서비스 (`service.ts`)
 

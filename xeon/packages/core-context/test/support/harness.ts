@@ -6,7 +6,7 @@ import type {
 } from "@fresnel/contracts/extensions";
 import type { Logger, LogFields } from "@fresnel/contracts";
 import type { ProducerHandle } from "@fresnel/contracts/records";
-import type { ContextService } from "@fresnel/contracts/services";
+import type { ContextService, Redactor } from "@fresnel/contracts/services";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
 import { createContextService } from "../../src/service.ts";
@@ -47,6 +47,8 @@ export interface HarnessOptions {
   readonly compaction?: boolean;
   /** 컴팩션 뒤 재주입 customType. 생략하면 서비스 기본값 */
   readonly reinjectCustomTypes?: readonly string[];
+  /** 모델 입력 사후 가림 */
+  readonly redactor?: Pick<Redactor, "mask" | "maskDeep">;
 }
 
 export interface Harness {
@@ -80,6 +82,7 @@ export async function harness(options: HarnessOptions = {}): Promise<Harness> {
     ...(options.reinjectCustomTypes === undefined
       ? {}
       : { reinjectCustomTypes: options.reinjectCustomTypes }),
+    ...(options.redactor === undefined ? {} : { redactor: options.redactor }),
     logger: memoryLogger(logged),
   });
   return {
