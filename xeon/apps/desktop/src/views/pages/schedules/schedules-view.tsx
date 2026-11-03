@@ -7,20 +7,35 @@ import {
   DialogAction,
   DialogClose,
   EmptyState,
+  SegmentedControl,
+  SegmentedControlItem,
   Skeleton,
 } from "@caustic/react";
 import { Plus, TriangleAlert } from "@caustic/react/icons";
 import { useId, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import type { ScheduleDraft } from "./schedule-draft.ts";
-import { canAct, isOffline, rowsOf, type ScheduleState } from "./schedule-model.ts";
+import {
+  canAct,
+  isOffline,
+  rowsOf,
+  type ScheduleFilter,
+  type ScheduleState,
+} from "./schedule-model.ts";
 import { ScheduleSheet } from "./schedule-sheet.tsx";
 import { ScheduleTable, type RowHandlers } from "./schedule-table.tsx";
+import { FILTER_ID } from "./schedule-text.ts";
 
 // 예약 화면의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 바로 가기 키의 뜻은 `keyIntentOf`가, 실제 동작은 `schedules-screen.tsx`의 `SchedulesScreen`이 맡는다.
 
+/** 거르기 값인가. 칸의 글자 값을 `ScheduleFilter`로 좁힌다 */
+function filterOf(value: string): ScheduleFilter | null {
+  return value === "enabled" || value === "all" ? value : null;
+}
+
 /** 화면 동작. 속성 형태로 둬서 핸들러를 `onClick`에 그대로 넘겨도 된다 */
 export interface ScheduleScreenHandlers extends RowHandlers {
+  readonly filter: (filter: ScheduleFilter) => void;
   readonly openNew: () => void;
   readonly retry: () => void;
   readonly enableService: () => void;
@@ -56,9 +71,24 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
         <h1 id={headingId} className="text-ui-strong text-text-primary">
           {t("desktop.schedules.title")}
         </h1>
-        <Button size="sm" iconStart={<Plus />} disabled={!acting} onClick={handlers.openNew}>
-          {t("desktop.schedules.new")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            size="sm"
+            aria-label={t("desktop.schedules.filter.label")}
+            value={state.filter}
+            disabled={!acting}
+            onValueChange={(value) => {
+              const filter = filterOf(value);
+              if (filter !== null) handlers.filter(filter);
+            }}
+          >
+            <SegmentedControlItem value="enabled">{t(FILTER_ID.enabled)}</SegmentedControlItem>
+            <SegmentedControlItem value="all">{t(FILTER_ID.all)}</SegmentedControlItem>
+          </SegmentedControl>
+          <Button size="sm" iconStart={<Plus />} disabled={!acting} onClick={handlers.openNew}>
+            {t("desktop.schedules.new")}
+          </Button>
+        </div>
       </div>
       {state.serviceModeOff ? (
         <Alert

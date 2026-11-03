@@ -79,6 +79,12 @@ export function createWorkbenchCommands(
       const done = await withConnection((c) => c.request("ext.reenable", { name }));
       return done.ok ? ok(null) : err(done.error);
     },
+    async keepOff(name) {
+      const done = await withConnection((c) =>
+        c.request("settings.set", { key: `ext.${name}.enabled`, value: false, scope: "user" }),
+      );
+      return done.ok ? ok(null) : err(done.error);
+    },
     versions: (name) => withConnection((c) => c.request("ext.versions", { name })),
     async rollback(name, version, clearState) {
       const done = await withConnection((c) =>

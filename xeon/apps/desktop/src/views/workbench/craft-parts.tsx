@@ -1,7 +1,7 @@
 // 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인·자동 꺼짐)와 켜기 요청 + O-10. 찾기 막대와 개수 줄은 확장 화면이 쓴다.
 import { t } from "@fresnel/client/i18n";
-import { countsOf } from "@fresnel/client/workbench";
-import { Alert, Input, Skeleton } from "@caustic/react";
+import { countsOf, keepOffOf } from "@fresnel/client/workbench";
+import { Alert, Button, Input, Skeleton } from "@caustic/react";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
@@ -107,24 +107,80 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
   return null;
 }
 
-/** 자동 꺼진 확장마다 한 줄 + "다시 켜기" */
+/**
+ * "계속 꺼 둘까요?" 질문과 두 답. 호스트가 묻지 않은 확장이면 아무것도 그리지 않는다.
+ * 연결이 끊겼거나 확장이 잠겼으면 두 답을 누를 수 없다(`keepOffOf`).
+ */
+export function KeepOffAlert(props: {
+  readonly entry: ExtListEntry;
+  readonly onKeepOn: () => void;
+  readonly onKeepOff: () => void;
+}): ReactNode {
+  const online = useLinkPhase() === "live";
+  const question = keepOffOf(props.entry, online);
+  if (question === null) return null;
+  return (
+    <Alert tone="danger">
+      <p>
+        {t("desktop.workbench.keepOff.count", {
+          name: props.entry.displayName,
+          count: question.disabledStarts,
+        })}
+      </p>
+      <p className="text-ui-strong">{t("desktop.workbench.keepOff.question")}</p>
+      <div className="mt-1 flex flex-wrap gap-2">
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={!question.answerable}
+          onClick={props.onKeepOn}
+        >
+          {t("desktop.workbench.keepOff.keepOn")}
+        </Button>
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={!question.answerable}
+          onClick={props.onKeepOff}
+        >
+          {t("desktop.workbench.keepOff.keepOff")}
+        </Button>
+      </div>
+    </Alert>
+  );
+}
+
+/** 자동 꺼진 확장마다 한 줄 + "다시 켜기". 질문이 있는 확장은 질문과 두 답으로 바꾼다 */
 export function AutoDisabledAlerts(props: { readonly controller: WorkbenchController }): ReactNode {
   const entries = useWorkbench((s) => s.entries);
-  const broken = entries.filter((e) => e.autoDisabled);
-  return broken.map((e) => (
-    <Alert
-      key={e.name}
-      tone="danger"
-      actions={[
-        {
-          label: t("desktop.workbench.reenable"),
-          onClick: () => {
-            detachVoid(props.controller.reenable(e.name));
+  const broken = entries.filter((e) => e.autoDisabled || e.keepOffQuestion !== undefined);
+  return broken.map((e) =>
+    e.keepOffQuestion === undefined ? (
+      <Alert
+        key={e.name}
+        tone="danger"
+        actions={[
+          {
+            label: t("desktop.workbench.reenable"),
+            onClick: () => {
+              detachVoid(props.controller.reenable(e.name));
+            },
           },
-        },
-      ]}
-    >
-      {t("desktop.workbench.autoDisabled", { name: e.displayName })}
-    </Alert>
-  ));
+        ]}
+      >
+        {t("desktop.workbench.autoDisabled", { name: e.displayName })}
+      </Alert>
+    ) : (
+      <KeepOffAlert
+        key={e.name}
+        entry={e}
+        onKeepOn={() => {
+          detachVoid(props.controller.reenable(e.name));
+        }}
+        onKeepOff={() => {
+          detachVoid(props.controller.keepOff(e.name));
+        }}
+      />
+    ),
+  );
 }

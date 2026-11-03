@@ -24,6 +24,7 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
 import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
+import { KeepOffAlert } from "./craft-parts.tsx";
 import { ExtName, ExtSwitch, kindText, lockText, stateText } from "./ext-row.tsx";
 import { MetricsTab } from "./metrics-tab.tsx";
 import { OriginBadge, ScopeBadge } from "./source-badge.tsx";
@@ -203,6 +204,8 @@ export function ExtDetail(props: {
   readonly entry: ExtListEntry;
   readonly onBack: () => void;
   readonly onToggle: (target: boolean) => void;
+  readonly onKeepOn: () => void;
+  readonly onKeepOff: () => void;
 }): ReactNode {
   const commands = useCommands();
   const { entry } = props;
@@ -234,6 +237,7 @@ export function ExtDetail(props: {
         <ExtSwitch row={row} onToggle={props.onToggle} />
       </header>
       {row.lock !== null && <p className="text-ui-sm text-text-tertiary">{lockText(row.lock)}</p>}
+      <KeepOffAlert entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">{t("desktop.workbench.detail.tab.overview")}</TabsTrigger>

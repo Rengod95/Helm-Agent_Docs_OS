@@ -1,13 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
-import type {
-  EventWire,
-  ExtHealthEntry,
-  HookEntry,
-  HooksOrderGetResult,
-  HooksOrderPreviewResult,
-  HooksOrderResetResult,
-  HooksOrderSetResult,
+import {
+  WIRE_ERRORS,
+  type EventWire,
+  type ExtHealthEntry,
+  type HookEntry,
+  type HooksOrderGetResult,
+  type HooksOrderPreviewResult,
+  type HooksOrderResetResult,
+  type HooksOrderSetResult,
 } from "@fresnel/contracts/wire";
 import {
   hasScopeChange,
@@ -149,6 +150,67 @@ describe("크래프트 명령의 wire 호출", () => {
     const { app, params } = await liveApp({ results: { "trace.turn": turn } });
     expect(await app.commands.workbench.trace(thr(1), trn(1))).toEqual({ ok: true, value: turn });
     expect(paramsOf(params, "trace.turn")).toEqual([{ threadId: thr(1), turnId: trn(1) }]);
+    await app.stop();
+  });
+
+  test("계속 켜 둘게요는 ext.reenable을 name만 담아 보내고 값 null을 돌려준다", async () => {
+    const applied = { appliesAt: "nextStepBoundary", diagnostics: [] };
+    const { app, params } = await liveApp({ results: { "ext.reenable": applied } });
+    expect(await app.commands.workbench.reenable("review")).toEqual({ ok: true, value: null });
+    expect(paramsOf(params, "ext.reenable")).toEqual([{ name: "review" }]);
+    await app.stop();
+  });
+
+  test("계속 꺼 둘게요는 settings.set으로 ext.<이름>.enabled를 false, 사용자 범위에 쓰고 값 null을 돌려준다", async () => {
+    const saved = {
+      setting: {
+        key: "ext.review.enabled",
+        value: false,
+        source: { scope: "user" },
+        locked: false,
+        shadowed: [],
+        runtimeChange: "live",
+        pendingUntil: null,
+        deprecated: false,
+      },
+    };
+    const { app, params } = await liveApp({ results: { "settings.set": saved } });
+    expect(await app.commands.workbench.keepOff("review")).toEqual({ ok: true, value: null });
+    expect(paramsOf(params, "settings.set")).toEqual([
+      { key: "ext.review.enabled", value: false, scope: "user" },
+    ]);
+    await app.stop();
+  });
+
+  test("계속 꺼 둘게요가 잠긴 설정으로 거절되면 코드를 담은 오류 값이다", async () => {
+    const { app } = await liveApp({
+      errors: {
+        "settings.set": {
+          code: WIRE_ERRORS["settings.locked"].code,
+          kind: "settings.locked",
+        },
+      },
+    });
+    expect(await app.commands.workbench.keepOff("review")).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: WIRE_ERRORS["settings.locked"].code },
+    });
+    await app.stop();
+  });
+
+  test("계속 켜 둘게요가 안전 모드로 거절되면 코드를 담은 오류 값이다", async () => {
+    const { app } = await liveApp({
+      errors: {
+        "ext.reenable": {
+          code: WIRE_ERRORS["extension.safeModeActive"].code,
+          kind: "extension.safeModeActive",
+        },
+      },
+    });
+    expect(await app.commands.workbench.reenable("review")).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: WIRE_ERRORS["extension.safeModeActive"].code },
+    });
     await app.stop();
   });
 

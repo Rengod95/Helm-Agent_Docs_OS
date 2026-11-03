@@ -233,7 +233,14 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
   const state = listLoaded(INITIAL_WORKBENCH, [row]);
   return renderToString(
     inContexts(
-      <ExtDetail state={state} entry={row} onBack={() => undefined} onToggle={() => undefined} />,
+      <ExtDetail
+        state={state}
+        entry={row}
+        onBack={() => undefined}
+        onToggle={() => undefined}
+        onKeepOn={() => undefined}
+        onKeepOff={() => undefined}
+      />,
       createWorkbenchStore(() => state),
     ),
   );

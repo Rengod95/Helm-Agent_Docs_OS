@@ -396,6 +396,7 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
     reloadOrders: noop,
     toggle: noop,
     reenable: noop,
+    keepOff: noop,
   };
 
   test("스냅샷은 대기 표시를 덮고, 순서와 빌더 요청은 스토어를 따르며, 켜기는 잠긴 확장을 뺀다", async () => {

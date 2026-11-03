@@ -17,8 +17,8 @@ type Run = <T>(
 
 export function createScheduleCommands(run: Run): ScheduleCommands {
   return {
-    async list() {
-      const listed = await run((c) => c.request("schedule.list", {}));
+    async list(params) {
+      const listed = await run((c) => c.request("schedule.list", params));
       if (!listed.ok) return listed;
       // 호스트가 실패 값(`store_failed` 등)을 주면 목록을 읽지 못한 것이다
       if (!listed.value.ok) return err({ kind: "failed" });

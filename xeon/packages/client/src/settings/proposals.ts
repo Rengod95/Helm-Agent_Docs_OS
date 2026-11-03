@@ -46,6 +46,8 @@ export type ProposalRowVM = {
   readonly source: ProposalSource;
   readonly sourceLabel: string;
   readonly id: string;
+  /** 종류의 원래 값. 화면이 종류로 거를 때 쓴다 */
+  readonly kind: ProposalRow["kind"];
   readonly kindLabel: string;
   readonly op: string;
   readonly target: string;
@@ -64,6 +66,8 @@ export type ProposalRowVM = {
   readonly diff: string;
   readonly rationale: string | null;
   readonly evidenceCount: number;
+  /** 근거 이벤트가 든 대화 id(중복 없이, 등장 순서). "대화 열기"가 쓴다. 본문은 wire가 없어 읽지 않는다 */
+  readonly evidenceThreadIds: readonly string[];
   /** 결정 때 맞춰 보내는 판 */
   readonly revision: number;
   /** 스킬만 적용 범위를 고른다. 기본은 user다(D-M3-09) */
@@ -98,6 +102,7 @@ function rowOf(row: ProposalRow): ProposalRowVM {
     source: row.source,
     sourceLabel: t(SOURCE_LABELS[row.source]),
     id: row.id,
+    kind: row.kind,
     kindLabel: t(KIND_LABELS[row.kind]),
     op: row.op,
     target: row.target,
@@ -111,6 +116,7 @@ function rowOf(row: ProposalRow): ProposalRowVM {
     diff: row.diff,
     rationale: row.rationale,
     evidenceCount: row.evidence.length,
+    evidenceThreadIds: [...new Set(row.evidence.map((item) => item.threadId))],
     revision: row.revision,
     scopeChoice: row.kind === "skill" ? { allowed: ["user", "project"], initial: "user" } : null,
     createdAt: row.createdAt,

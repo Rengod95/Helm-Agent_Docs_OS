@@ -20,6 +20,11 @@ import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
 import { createScheduleCommands } from "./schedule.ts";
 import { createSecretCommands } from "./secrets.ts";
+import { createSettingsCommands } from "./settings.ts";
+import { createWebCommands } from "./web.ts";
+import { createProposalCommands } from "./proposals.ts";
+import { createWorkCommands } from "./work.ts";
+import { createReviewCommands } from "./review.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createTestCommands } from "./tests-commands.ts";
 import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
@@ -168,6 +173,10 @@ export function createCommands(deps: CommandDeps): Commands {
     },
     cancelShell: () => ui.actions.clearShellConfirm(),
     dismissCommandOutput: () => ui.actions.dismissCommandOutput(),
+    async copyText(text) {
+      const written = await attemptAsync(() => deps.clipboard.writeText(text));
+      return written.ok;
+    },
     async commandList(threadId) {
       const listed = await withConnection((c) =>
         c.request("command.list", threadId === null ? {} : { threadId }),
@@ -193,6 +202,7 @@ export function createCommands(deps: CommandDeps): Commands {
                 approvalId,
                 decision: response.decision,
                 ...(response.remember === undefined ? {} : { remember: response.remember }),
+                ...(response.answer === undefined ? {} : { answer: response.answer }),
               },
         ),
       );
@@ -222,18 +232,24 @@ export function createCommands(deps: CommandDeps): Commands {
             });
       },
       deps.ipc,
+      deps.local,
     ),
     tests: createTestCommands(withConnection, withWriteConnection),
     schedule: createScheduleCommands(withConnection),
     pluginUi: { withConnection, current: () => session.connection() },
     connection: createConnectionCommands({
-      ipc: deps.ipc,
+      engineSwitch: deps.engineSwitch,
       local: deps.local,
       session,
       ui,
       run: withConnection,
     }),
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
+    settings: createSettingsCommands({ session, ui }),
+    web: createWebCommands(withConnection),
+    proposals: createProposalCommands(withConnection, withWriteConnection),
+    work: createWorkCommands(withConnection, withWriteConnection),
+    review: createReviewCommands(withConnection),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),
@@ -256,6 +272,11 @@ export function createCommands(deps: CommandDeps): Commands {
     dismissLocked: () => ui.actions.dismissLocked(),
     retryWrite: (threadId) => ui.actions.setObserving(threadId, false),
     showScreen: (screen) => ui.actions.showScreen(screen),
+    requestComposer: (insert) => ui.actions.requestComposer(insert),
+    settleComposerRequest: () => ui.actions.settleComposerRequest(),
+    requestSettingsJump: (jump) => ui.actions.requestSettingsJump(jump),
+    settleSettingsJump: () => ui.actions.settleSettingsJump(),
+    openReview: (target) => ui.actions.openReview(target),
     reloadThreads: () => session.link()?.reloadThreads(),
     retryTranscript() {
       const id: ThreadId | null = ui.read.getState().selectedThreadId;

@@ -4,7 +4,16 @@ import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";
-import type { ApprovalSend, LockedThread, Screen, UiState } from "./store.ts";
+import type {
+  ApprovalSend,
+  CommandOutput,
+  ComposerRequest,
+  LockedThread,
+  ReviewTarget,
+  Screen,
+  SettingsJump,
+  UiState,
+} from "./store.ts";
 
 export const UiStoreContext: React.Context<ReadonlyStore<UiState> | null> =
   createContext<ReadonlyStore<UiState> | null>(null);
@@ -28,5 +37,9 @@ export const useApprovalDetail = (id: EventId): string | undefined =>
   useUi((s) => s.approvalDetails[id]);
 export const useScreen = (): Screen => useUi((s) => s.screen);
 export const useLocked = (): LockedThread | null => useUi((s) => s.locked);
+export const useCommandOutput = (): CommandOutput | null => useUi((s) => s.commandOutput);
 export const useObserving = (id: ThreadId | null): boolean =>
   useUi((s) => id !== null && s.observing[id] === true);
+export const useComposerRequest = (): ComposerRequest | null => useUi((s) => s.composerRequest);
+export const useSettingsJump = (): SettingsJump | null => useUi((s) => s.settingsJump);
+export const useReviewTarget = (): ReviewTarget | null => useUi((s) => s.reviewTarget);

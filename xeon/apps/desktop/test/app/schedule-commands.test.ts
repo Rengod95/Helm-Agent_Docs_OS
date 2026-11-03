@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import type { ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
+import type { RunView, ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
+import type { WireParams } from "@fresnel/contracts/wire";
+import { checkDraft, draftOfEntry } from "../../src/views/pages/schedules/schedule-draft.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until, type EngineExtra } from "./support.ts";
 
@@ -24,6 +26,22 @@ const ENTRY: ScheduleEntryView = {
 };
 
 const ITEM: ScheduleListItem = { entry: ENTRY, lastRun: null };
+
+const RUN: RunView = {
+  runId: "run_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  scheduleId: "sch_aa1",
+  firedBy: "remote",
+  dueAt: NOW,
+  claimedAt: NOW,
+  missed: false,
+  status: "started",
+  threadId: null,
+  startedAt: NOW,
+  endedAt: null,
+  outcome: null,
+  reason: null,
+  skippedCount: 0,
+};
 
 /** 설정 한 줄(`settings.get`의 값 모양). 시험 값은 서비스 모드 키 하나다 */
 function serviceSetting(value: unknown) {
@@ -57,7 +75,7 @@ describe("schedule.list maps the list and the service-mode setting", () => {
         "settings.get": { settings: [serviceSetting(false)] },
       },
     });
-    const listed = await app.commands.schedule.list();
+    const listed = await app.commands.schedule.list({});
     expect(listed).toEqual({ ok: true, value: { items: [ITEM], serviceModeOff: true } });
     await app.stop();
   });
@@ -69,7 +87,7 @@ describe("schedule.list maps the list and the service-mode setting", () => {
         "settings.get": { settings: [serviceSetting(true)] },
       },
     });
-    const listed = await app.commands.schedule.list();
+    const listed = await app.commands.schedule.list({});
     expect(listed).toEqual({ ok: true, value: { items: [], serviceModeOff: false } });
     await app.stop();
   });
@@ -80,7 +98,7 @@ describe("schedule.list maps the list and the service-mode setting", () => {
         "schedule.list": { ok: false, error: { kind: "store_failed", message: "disk" } },
       },
     });
-    const listed = await app.commands.schedule.list();
+    const listed = await app.commands.schedule.list({});
     expect(listed).toEqual({ ok: false, error: { kind: "failed" } });
     await app.stop();
   });
@@ -89,7 +107,7 @@ describe("schedule.list maps the list and the service-mode setting", () => {
     const { app } = await liveApp({
       errors: { "schedule.list": { code: -32601, kind: "jsonrpc.methodNotFound" } },
     });
-    const listed = await app.commands.schedule.list();
+    const listed = await app.commands.schedule.list({});
     expect(listed).toEqual({ ok: false, error: { kind: "unsupported" } });
     await app.stop();
   });
@@ -167,6 +185,54 @@ describe("schedule create, cancel, fire and enable return the host's values", ()
       prompt: "원격",
     });
     expect(created).toEqual({ ok: false, error: { kind: "unsupported" } });
+    await app.stop();
+  });
+});
+
+describe("each row action sends its exact wire params", () => {
+  test("the list asks for the enabled rows, or for all rows with no argument", async () => {
+    const { app, params } = await liveApp({
+      results: {
+        "schedule.list": { ok: true, items: [] },
+        "settings.get": { settings: [serviceSetting(true)] },
+      },
+    });
+    await app.commands.schedule.list({ enabled: true });
+    await app.commands.schedule.list({});
+    const sent = params
+      .filter((entry) => entry.method === "schedule.list")
+      .map((entry) => entry.params);
+    expect(sent).toEqual([{ enabled: true }, {}]);
+    await app.stop();
+  });
+
+  test("fire sends the schedule id and returns the run the host started", async () => {
+    const { app, params } = await liveApp({
+      results: { "schedule.fire": { ok: true, run: RUN } },
+    });
+    const fired = await app.commands.schedule.fire("sch_aa1");
+    expect(fired).toEqual({ ok: true, value: { ok: true, run: RUN } });
+    expect(paramsOf(params, "schedule.fire")).toEqual({ scheduleId: "sch_aa1" });
+    await app.stop();
+  });
+
+  test("duplicate prefills the sheet from the entry, and submitting it sends the exact create params", async () => {
+    const drafted = checkDraft(draftOfEntry(ENTRY, NOW), NOW);
+    const expected: WireParams<"schedule.create"> = {
+      trigger: { kind: "interval", everySeconds: 600 },
+      prompt: "캐시를 정리한다",
+      title: "캐시 정리",
+      enabled: true,
+    };
+    expect(drafted).toEqual({ ok: true, params: expected });
+    const { app, params } = await liveApp({
+      results: {
+        "schedule.create": { ok: true, entry: ENTRY, warnings: [] },
+      },
+    });
+    const created = await app.commands.schedule.create(expected);
+    expect(created).toEqual({ ok: true, value: { ok: true, entry: ENTRY, warnings: [] } });
+    expect(paramsOf(params, "schedule.create")).toEqual(expected);
     await app.stop();
   });
 });

@@ -1,42 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { parse } from "@fresnel/contracts";
-import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
-import { renderToString } from "react-dom/server";
+import { binaryViewOf, type SetupSnapshot } from "@fresnel/client/settings";
 import { keepTools } from "../../src/app/setup.ts";
-import { binaryViewOf, setupSteps, type SetupSnapshot } from "@fresnel/client/settings";
-import { errorText, SettingsBody, Steps, Tools, type KeyEntry } from "../../src/views/settings.tsx";
+import { errorText } from "../../src/views/settings.tsx";
 
-const noop = (): void => {};
-
-function secretName(text: string): SecretName {
-  const parsed = parse(SecretNameSchema, text);
-  if (!parsed.ok) throw new Error("test name must parse");
-  return parsed.value;
-}
-
-function body(
-  snapshot: SetupSnapshot,
-  over: { providerInput?: string; modelInput?: string; keyEntry?: KeyEntry } = {},
-): string {
-  return renderToString(
-    <SettingsBody
-      snapshot={snapshot}
-      providerInput={over.providerInput ?? "anthropic"}
-      modelInput={over.modelInput ?? ""}
-      keyEntry={over.keyEntry ?? { state: "idle" }}
-      busy={false}
-      message={null}
-      onProvider={noop}
-      onModel={noop}
-      onRegister={noop}
-      onSubmitKey={noop}
-      onCancelKey={noop}
-      onConnect={noop}
-      onRecheck={noop}
-      onSaveModel={noop}
-    />,
-  );
-}
+// 최소 설정 화면의 본문은 P-09 설정 화면과 P-01 첫 실행 화면으로 옮겼다(각 시험이 그 그림을 본다).
+// 이 파일에는 두 화면이 아직 쓰는 함수만 남긴다: 설정을 다시 읽을 때 도구 점검을 잇는 `keepTools`와 저장 오류 문장 `errorText`.
 
 const EMPTY: SetupSnapshot = {
   providers: [],
@@ -45,113 +13,6 @@ const EMPTY: SetupSnapshot = {
   toolsReady: null,
   binaries: null,
 };
-
-describe("settings screen", () => {
-  test("a fresh install shows the three steps open, the doctor hint and no key input yet", () => {
-    const out = body(EMPTY);
-    expect(out.match(/data-done="no"/g)?.length).toBe(3);
-    expect(out).toContain("fresnel doctor");
-    expect(out).toContain("anthropic-api-key");
-    expect(out).toContain("등록되지 않음");
-    expect(out).toContain("키 등록");
-    // 등록 창을 열기 전에는 입력란이 provider와 모델 둘뿐이다. 시크릿 값을 받는 password 입력이 없다
-    expect(out).not.toContain('type="password"');
-    expect(out.match(/<input/g)?.length).toBe(2);
-  });
-
-  test("a registered secret that is not linked offers the connect button; a linked one says so", () => {
-    const registered: SetupSnapshot = {
-      ...EMPTY,
-      secrets: [{ name: "anthropic-api-key", registered: true }],
-    };
-    const unlinked = body(registered);
-    expect(unlinked).toContain("등록됨");
-    expect(unlinked).toContain("키 바꾸기");
-    expect(unlinked).not.toContain("provider에 연결됨");
-    expect(unlinked).toMatch(/<button[^>]*type="button"[^>]*>provider에 연결</);
-    const linked = body({
-      ...registered,
-      providers: [
-        {
-          id: "anthropic",
-          enabled: true,
-          apiKeyRef: "secret://anthropic-api-key",
-          baseUrl: null,
-        },
-      ],
-      defaultModel: "anthropic/claude-sonnet-5-5",
-    });
-    expect(linked).toContain("provider에 연결됨");
-    expect(linked).toContain("anthropic/claude-sonnet-5-5</span>");
-    expect(linked).toMatch(/<button[^>]*disabled[^>]*>provider에 연결</);
-  });
-
-  test("the key form is a masked, uncontrolled input that renders without any value", () => {
-    const name = secretName("anthropic-api-key");
-    const out = body(EMPTY, { keyEntry: { state: "form", name, action: "add" } });
-    expect(out.match(/<input[^>]*type="password"[^>]*>/g)?.length).toBe(1);
-    const input = out.match(/<input[^>]*type="password"[^>]*>/)?.[0] ?? "";
-    expect(input).toContain('autoComplete="off"');
-    // 값을 속성으로 싣지 않는다(제어 컴포넌트가 아니다)
-    expect(input).not.toMatch(/value="[^"]/);
-    expect(out).toMatch(/<button[^>]*type="submit"[^>]*>저장</);
-    expect(out).toContain("취소");
-    // 터미널 안내는 셸에도 길이 없을 때만이다
-    expect(out).not.toContain("fresnel secret add anthropic-api-key");
-  });
-
-  test("when not even the shell can take the key it shows the terminal command, never an input for the value", () => {
-    const out = body(EMPTY, {
-      keyEntry: { state: "terminal", command: "fresnel secret add anthropic-api-key" },
-    });
-    expect(out).toContain("fresnel secret add anthropic-api-key");
-    expect(out).not.toContain('type="password"');
-  });
-
-  test("an invalid model ref disables save and explains the format", () => {
-    const out = body(EMPTY, { modelInput: "claude" });
-    expect(out).toContain("형식은 provider/모델");
-    expect(out).toMatch(/<button[^>]*disabled[^>]*>저장</);
-    expect(body(EMPTY, { modelInput: "anthropic/claude-sonnet-5-5" })).not.toMatch(
-      /<button[^>]*disabled[^>]*>저장</,
-    );
-  });
-});
-
-describe("external tools table", () => {
-  test("renders the check results from the report", () => {
-    const view = binaryViewOf({
-      platform: "linux",
-      ready: false,
-      blocking: ["sops"],
-      degraded: [],
-      items: [
-        {
-          name: "sops",
-          need: "required",
-          usedBy: "시크릿 저장소",
-          impact: "키를 저장할 수 없다",
-          status: { kind: "missing", hint: "brew install sops" },
-        },
-      ],
-    });
-    const out = renderToString(<Tools binaries={view} />);
-    expect(out).toContain("sops");
-    expect(out).toContain("필수");
-    expect(out).toContain("사용 불가");
-    expect(out).toContain("brew install sops");
-    expect(out).toContain("키를 저장할 수 없다");
-  });
-
-  test("steps mark an unknown result", () => {
-    const out = renderToString(
-      <Steps
-        steps={setupSteps({ providers: [], defaultModel: null, secrets: null, toolsReady: null })}
-      />,
-    );
-    expect(out.match(/확인할 수 없음/g)?.length).toBe(2);
-  });
-});
 
 describe("keepTools", () => {
   test("a settings re-read keeps the earlier tool check and takes everything else from the new read", () => {

@@ -11,6 +11,7 @@ import {
   extOf,
   failureRowsOf,
   healthLoaded,
+  keepOffOf,
   layerGroups,
   listLoaded,
   markPending,
@@ -146,6 +147,32 @@ describe("workbench model", () => {
     });
     expect(toggleRequestOf(base, "core-loop", false)).toEqual({ ok: false, reason: "locked" });
     expect(toggleRequestOf(base, "nope", true)).toEqual({ ok: false, reason: "unknown" });
+  });
+
+  test("계속 꺼 둘까요: 묻지 않은 확장은 null이고, 물으면 시작 횟수와 답할 수 있는지를 준다", () => {
+    const asked = entry("review", {
+      status: "disabled",
+      autoDisabled: true,
+      keepOffQuestion: { disabledStarts: 3 },
+    });
+    expect(keepOffOf(entry("web"), true)).toBeNull();
+    expect(keepOffOf(asked, true)).toEqual({ disabledStarts: 3, answerable: true });
+  });
+
+  test("계속 꺼 둘까요: 연결이 끊기면 답할 수 없고, 잠긴 확장도 답할 수 없다", () => {
+    const asked = { keepOffQuestion: { disabledStarts: 2 } };
+    expect(keepOffOf(entry("review", asked), false)).toEqual({
+      disabledStarts: 2,
+      answerable: false,
+    });
+    expect(keepOffOf(entry("review", { ...asked, enabledSource: "managed" }), true)).toEqual({
+      disabledStarts: 2,
+      answerable: false,
+    });
+    expect(keepOffOf(entry("acme", { ...asked, safeModeExcluded: "안전 모드" }), true)).toEqual({
+      disabledStarts: 2,
+      answerable: false,
+    });
   });
 
   test("대기 표시는 반영되면 목록이 걷어 낸다", () => {

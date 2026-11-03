@@ -49,6 +49,12 @@ export function ExtensionsScreen(): ReactNode {
             onToggle={(target) => {
               toggle.request(detailEntry.name, target);
             }}
+            onKeepOn={() => {
+              detachVoid(controller.reenable(detailEntry.name));
+            }}
+            onKeepOff={() => {
+              detachVoid(controller.keepOff(detailEntry.name));
+            }}
           />
         </div>
       )}
@@ -81,6 +87,9 @@ export function ExtensionsScreen(): ReactNode {
               }}
               onReenable={() => {
                 detachVoid(controller.reenable(entry.name));
+              }}
+              onKeepOff={() => {
+                detachVoid(controller.keepOff(entry.name));
               }}
             />
           )}

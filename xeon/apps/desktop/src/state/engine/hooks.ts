@@ -56,6 +56,7 @@ export const usePartText = (id: ItemId, contentIndex: number): string =>
 export const useApprovalIds = (): readonly EventId[] => useEngine(sel.selectApprovalIds);
 export const useApproval = (id: EventId): PendingApproval | undefined =>
   useEngine((s) => sel.selectApproval(s, id));
+export const useApprovalMirror = (): EngineMirror["approvals"] => useEngine((s) => s.approvals);
 export const useRunningCount = (): number => useEngine(sel.selectRunningCount);
 export const useLinkBanner = (): { readonly phase: Link["phase"]; readonly attempt: number } =>
   useEngine(useShallow(sel.selectLinkBanner));

@@ -1,9 +1,21 @@
-import { CalendarClock, Clock, Inbox, MessageSquare, Plug } from "@caustic/react/icons";
+import {
+  CalendarClock,
+  Clock,
+  Inbox,
+  Lightbulb,
+  ListChecks,
+  MessageSquare,
+  Plug,
+} from "@caustic/react/icons";
 import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
 import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
+import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
+import { ProposalsScreen } from "./pages/proposals/proposals-screen.tsx";
+import { ReviewScreen } from "./pages/review/review-screen.tsx";
+import { WorkScreen } from "./pages/work/work-screen.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
 import { Transcript } from "./transcript.tsx";
@@ -54,6 +66,14 @@ const SCHEDULES_SCREEN: ScreenDef = {
   render: () => <SchedulesScreen />,
 };
 
+const PROPOSALS_SCREEN: ScreenDef = {
+  id: "proposals",
+  area: "chat",
+  label: "desktop.shell.nav.proposals",
+  icon: <Lightbulb />,
+  render: () => <ProposalsScreen />,
+};
+
 const CONNECTION_SCREEN: ScreenDef = {
   id: "connection",
   area: "chat",
@@ -68,6 +88,22 @@ const SECRETS_SCREEN: ScreenDef = {
   area: "both",
   label: "desktop.secrets.title",
   render: () => <SecretsPanel />,
+};
+
+// 첫 실행 화면(P-01)은 내비 항목이 없다. "설정 필요" 띠의 "설정 열기"가 무대에 연다(setup-banner.tsx).
+const FIRST_RUN_SCREEN: ScreenDef = {
+  id: "first-run",
+  area: "both",
+  label: "desktop.firstRun.title",
+  render: () => <FirstRunScreen />,
+};
+
+// 변경 검토 화면(P-04)은 내비 항목이 없다. 승인 카드의 "검토 열기"가 UI 스토어에 검토 승인을 두고, App이 무대를 이 화면으로 옮긴다.
+const REVIEW_SCREEN: ScreenDef = {
+  id: "review",
+  area: "both",
+  label: "desktop.review.title",
+  render: () => <ReviewScreen />,
 };
 
 const INBOX_TAB: EndTabDef = {
@@ -103,14 +139,27 @@ const RUNTIME_TAB: EndTabDef = {
   render: () => <RuntimeTab />,
 };
 
+// 목표와 작업 탭(P-14). 대화 영역의 끝 영역이고 열린 대화의 목표와 작업을 보인다(`panel.work`, ⌘⇧T)
+const WORK_TAB: EndTabDef = {
+  id: "work",
+  area: "chat",
+  label: "desktop.work.tab",
+  icon: <ListChecks />,
+  render: () => <WorkScreen />,
+};
+
 /** 크래프트 화면 셋(개요·확장·엔진)은 `registerWorkbench`가 등록한다. 개요는 캔버스 하나이고 목록을 못 읽으면 띠가 상태를 보인다 */
 export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
   registry.registerScreen(CHAT_SCREEN);
   registry.registerScreen(SCHEDULES_SCREEN);
+  registry.registerScreen(PROPOSALS_SCREEN);
   registry.registerScreen(CONNECTION_SCREEN);
   registry.registerScreen(SECRETS_SCREEN);
+  registry.registerScreen(FIRST_RUN_SCREEN);
+  registry.registerScreen(REVIEW_SCREEN);
   registry.registerEndTab(INBOX_TAB);
+  registry.registerEndTab(WORK_TAB);
   registry.registerEndTab(HELM_TAB);
   registry.registerEndTab(PLUGIN_PAGES_TAB);
   registry.registerEndTab(RUNTIME_TAB);

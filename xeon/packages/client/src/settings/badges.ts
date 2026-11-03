@@ -42,6 +42,15 @@ const PENDING_TEXT_ID: Readonly<Record<"nextTurn" | "restart", MessageId>> = {
 /** 기본 쓰기 범위의 우선순위(§4.3.6 규칙 4) */
 const DEFAULT_SCOPE_ORDER: readonly WritableScope[] = ["user", "project", "local", "launch"];
 
+function isBadgeScope(scope: string): scope is BadgeScope {
+  return Object.hasOwn(SCOPE_TEXT_ID, scope);
+}
+
+/** 범위 이름의 현재 로케일 문장. 알 수 없는 이름은 그대로 돌려준다(오류 문장의 인자용) */
+export function scopeText(scope: string): string {
+  return isBadgeScope(scope) ? t(SCOPE_TEXT_ID[scope]) : scope;
+}
+
 export function scopeBadge(source: SettingSource): ScopeBadge {
   return { scope: source.scope, text: t(SCOPE_TEXT_ID[source.scope]), tone: source.scope };
 }

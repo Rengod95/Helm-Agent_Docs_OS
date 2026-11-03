@@ -6,7 +6,9 @@ export {
   type ApprovalSend,
   type LockedOption,
   type LockedThread,
+  type ReviewTarget,
   type Screen,
+  type SettingsJump,
   type UiState,
   type UiStore,
 } from "./store.ts";

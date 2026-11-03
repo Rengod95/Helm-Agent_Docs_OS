@@ -8,6 +8,7 @@ import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
 import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
+import type { DenyAnswerJson, PlanAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
 import type {
   ExtGetResult,
   ExtHealthEntry,
@@ -35,10 +36,17 @@ import type {
   WireParams,
   WireResult,
 } from "@fresnel/contracts/wire";
-import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
-import type { AttachFailureKind, TargetEntry } from "@fresnel/client";
+import type {
+  CommandRowVM,
+  DecisionOutcome,
+  KeyRegisterError,
+  ProposalListVM,
+  SettingsController,
+  SetupSnapshot,
+} from "@fresnel/client/settings";
+import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
 import type { ToggleRequest } from "@fresnel/client/workbench";
-import type { LockedOption, Screen } from "../state/ui/index.ts";
+import type { LockedOption, ReviewTarget, Screen, SettingsJump } from "../state/ui/index.ts";
 import type { EngineTarget } from "../transport/ipc.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -65,11 +73,18 @@ export type CommandError =
   | { readonly kind: "switching" };
 
 export type ApprovalDecision =
-  | { readonly decision: "allow" | "deny"; readonly remember?: "once" | "thread" | "always" }
-  /** 질문 응답은 QuestionAnswer(질문 id → 선택지 id 목록과 자유 입력)다(F.wire-settings.spec §3.3.1) */
+  /** 계획 승인은 `{ mode }`, 수정 요청과 거부는 `{ feedback }`를 answer로 싣는다(F.wire-settings.spec §3.3.1). 그 밖에는 답이 없다 */
+  | {
+      readonly decision: "allow" | "deny";
+      readonly remember?: "once" | "thread" | "always";
+      readonly answer?: PlanAnswerJson | DenyAnswerJson;
+    }
+  /** 질문 응답은 QuestionAnswer(질문 id → 선택지 id 목록과 자유 입력), 검토 응답은 ReviewAnswer다(F.wire-settings.spec §3.3.1) */
   | {
       readonly decision: "answer";
-      readonly answer: Readonly<Record<string, { selected: string[]; text?: string }>>;
+      readonly answer:
+        | Readonly<Record<string, { selected: string[]; text?: string }>>
+        | ReviewAnswerJson;
     };
 
 /**
@@ -93,7 +108,8 @@ export interface ScheduleSnapshot {
  * 구형 host의 `unsupported`, 그 밖)만 바깥 `Result`의 `error`가 된다.
  */
 export interface ScheduleCommands {
-  list(): Promise<Result<ScheduleSnapshot, CommandError>>;
+  /** `schedule.list`. 거르기는 인자(`enabled: true`)로 보낸다. 모두는 빈 인자다 */
+  list(params: WireParams<"schedule.list">): Promise<Result<ScheduleSnapshot, CommandError>>;
   create(
     params: WireParams<"schedule.create">,
   ): Promise<Result<WireResult<"schedule.create">, CommandError>>;
@@ -126,15 +142,50 @@ export interface TestCommands {
   phase(threadId: string): Promise<Result<TestRunPhaseResult, CommandError>>;
 }
 
+/**
+ * 제안 화면(P-06). 목록은 `proposal.list`를 화면 값(`ProposalListVM`)으로, 결정은 `proposal.decide`를 문장이 된 결과(`DecisionOutcome`)로
+ * 돌려준다. 둘 다 거울에 넣지 않는다(FS-03). 기대한 실패(`ok: false`)는 값이고, 연결과 host 실패만 `CommandError`다.
+ */
+export interface ProposalCommands {
+  list(params: WireParams<"proposal.list">): Promise<Result<ProposalListVM, CommandError>>;
+  decide(params: WireParams<"proposal.decide">): Promise<Result<DecisionOutcome, CommandError>>;
+}
+
+/**
+ * 변경 검토 화면(P-04). hunk 본문은 요청 결과라 거울에 넣지 않는다(FS-03). 승인 답은 `respondApproval`로 보낸다.
+ * 읽기 실패(연결 없음, 없는 리뷰)는 `CommandError`다.
+ */
+export interface ReviewCommands {
+  /** `review.get`. 리뷰의 파일과 hunk 본문을 읽는다 */
+  get(reviewId: string): Promise<Result<WireResult<"review.get">, CommandError>>;
+}
+
+/**
+ * 목표와 작업(P-14). 목표와 작업 목록은 요청 결과라 거울에 넣지 않는다(FS-03). 목표를 걸고 해제하는 것은 `command.run`에 `/goal` 줄을
+ * 그대로 보낸다. `done`이 아닌 결과와 실패는 화면이 문장으로 바꾼다.
+ */
+export interface WorkCommands {
+  goal(threadId: ThreadId): Promise<Result<WireResult<"goal.status">, CommandError>>;
+  tasks(threadId: ThreadId): Promise<Result<WireResult<"work.tasks.list">, CommandError>>;
+  goalCommand(
+    threadId: ThreadId,
+    text: string,
+  ): Promise<Result<WireResult<"command.run">, CommandError>>;
+}
+
 /** 연결 화면이 고른 대상. `local`은 이 기기의 사이드카, `remote`는 서비스 주소다(W-08) */
 export type ConnectTarget =
   | { readonly kind: "local" }
   | { readonly kind: "remote"; readonly address: string };
 
-/** 연결 화면이 읽는 host 상태. `host.status` 결과와 서비스 모드 설정 값이다 */
+/**
+ * 연결 화면이 읽는 host 상태. `host.status` 결과와 서비스 모드 설정 값이다. `remoteAllowRespond`는 원격 응답 허용 값이고,
+ * 엔진이 그 설정을 알리지 않으면(카탈로그에 없으면) `null`이다
+ */
 export interface ConnectionSnapshot {
   readonly host: WireResult<"host.status">;
   readonly serviceEnabled: boolean;
+  readonly remoteAllowRespond: boolean | null;
 }
 
 /** 원격 대상 목록을 읽거나 쓰지 못했다(로컬 설정 파일) */
@@ -155,8 +206,26 @@ export interface ConnectionCommands {
   load(): Promise<Result<ConnectionSnapshot, CommandError>>;
   /** 서비스 모드를 켜거나 끈다(`settings.set`, 사용자 범위). 적용은 엔진 재시작 뒤다 */
   setServiceMode(enabled: boolean): Promise<Result<null, CommandError>>;
+  /** 원격 연결에서 승인 요청에 답하는 것을 허락할지 바꾼다(`settings.set`, 사용자 범위). 바로 적용된다 */
+  setRemoteRespond(enabled: boolean): Promise<Result<null, CommandError>>;
   /** 서비스를 협조 종료한다(`host.shutdown`). 받아들여졌으면 `true`다 */
   stopService(): Promise<Result<boolean, CommandError>>;
+}
+
+/** 첫 실행 화면의 기본 그룹(L4.desktop-ux §6.5). 켜기 키는 `ext.<그룹>.enabled`(X 로더 예약 키)다 */
+export type DefaultGroupId = "helm" | "learning";
+
+/** 기본 그룹의 켜짐 값과 안전 모드 여부. `enabled`의 null은 설정 값을 쓴 적이 없다는 뜻이다(기본값은 화면 모델이 정한다) */
+export interface GroupsSnapshot {
+  readonly enabled: Readonly<Record<DefaultGroupId, boolean | null>>;
+  /** 안전 모드로 떠 있으면 참(`host.status.safeMode`). 그룹은 실리지 않는다 */
+  readonly safeMode: boolean;
+}
+
+/** 검색 권장 단계의 값: 웹 provider 상태(`web.providers`)와 "나중에"를 이미 눌렀는지(데스크톱 로컬 설정) */
+export interface SearchSnapshot {
+  readonly web: ToolsWebView;
+  readonly dismissed: boolean;
 }
 
 /**
@@ -191,8 +260,33 @@ export interface SetupCommands {
     secretName: SecretName,
   ): Promise<Result<null, CommandError>>;
   setDefaultModel(ref: string): Promise<Result<null, CommandError>>;
+  /** 기본 그룹 두 개의 켜짐 값(`settings.get`)과 안전 모드(`host.status`)를 읽는다 */
+  loadGroups(): Promise<Result<GroupsSnapshot, CommandError>>;
+  /** 기본 그룹 하나를 켜거나 끈다(`settings.set { key: "ext.<그룹>.enabled", scope: "user" }`). 적용은 다음 단계 경계다 */
+  setGroupEnabled(group: DefaultGroupId, enabled: boolean): Promise<Result<null, CommandError>>;
+  /** 검색 권장을 읽는다(`web.providers`와 "나중에" 값) */
+  loadSearch(): Promise<Result<SearchSnapshot, CommandError>>;
+  /** 검색 권장을 "나중에"로 닫는다(데스크톱 로컬 설정 `l4.desktop.firstRun.searchHintDismissed`) */
+  dismissSearchHint(): Promise<Result<null, CommandError>>;
   /** `settings.invalidated`를 받으면 부른다. 반환값은 구독 해제 */
   onInvalidated(listener: () => void): () => void;
+}
+
+/**
+ * 도구와 웹 화면(P-12). `providers`는 `web.providers` 결과를 화면 값으로 바꾼 것이고, `setOrder`는 `orderUpdateOf`가 검사한
+ * 순서를 `settings.set` 한 번으로 쓴다. 둘 다 거울에 넣지 않는다(FS-03).
+ */
+export interface WebCommands {
+  providers(): Promise<Result<ToolsWebView, CommandError>>;
+  setOrder(update: OrderUpdate): Promise<Result<null, CommandError>>;
+}
+
+/**
+ * 설정 화면(P-09)의 컨트롤러. 연결이 없으면 `null`이다. 컨트롤러는 연결마다 새로 만들고, 화면이 `dispose()`로 놓는다.
+ * 읽기·쓰기·알림의 판정은 `@fresnel/client/settings`가 하고, 이 명령은 연결과 현재 대화만 잇는다(`app/settings.ts`).
+ */
+export interface SettingsCommands {
+  open(): SettingsController | null;
 }
 
 /**
@@ -261,8 +355,10 @@ export interface WorkbenchCommands {
   explain(key: string, threadId: ThreadId): Promise<Result<SettingsExplainResult, CommandError>>;
   /** 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "user" }` */
   toggle(request: ToggleRequest): Promise<Result<null, CommandError>>;
-  /** 자동 꺼짐 다시 켜기. 적용은 다음 단계 경계다 */
+  /** 자동 꺼짐 다시 켜기. 적용은 다음 단계 경계다. "계속 켜 둘게요" 답도 이 명령이다 */
   reenable(name: string): Promise<Result<null, CommandError>>;
+  /** "계속 꺼 둘게요" 답: `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` */
+  keepOff(name: string): Promise<Result<null, CommandError>>;
   versions(name: string): Promise<Result<ExtVersionsResult, CommandError>>;
   /** 되돌리기. `restart`면 다음 시작에 적용된다(HS-108) */
   rollback(
@@ -335,6 +431,8 @@ export interface Commands {
   cancelShell(): void;
   /** 동작 명령이 낸 출력(`UiState.commandOutput`)을 닫는다 */
   dismissCommandOutput(): void;
+  /** 글을 클립보드에 쓴다. 쓰면 `true`다(결과 시트의 복사) */
+  copyText(text: string): Promise<boolean>;
   /** 엔진에 등록한 슬래시 명령 목록(`command.list`)을 목록·자동완성 view-model로 돌려준다. `threadId`를 주면 그 대화의 프로젝트 명령도 싣는다 */
   commandList(threadId: ThreadId | null): Promise<Result<readonly CommandRowVM[], CommandError>>;
   /** 보류 중이면 응답을 보내지 않고 카드에 `switching` 실패 표시를 둔다(보내는 중 표시는 켜지 않는다) */
@@ -356,6 +454,11 @@ export interface Commands {
   readonly pluginUi: PluginUiCommands;
   readonly connection: ConnectionCommands;
   readonly secrets: SecretCommands;
+  readonly settings: SettingsCommands;
+  readonly web: WebCommands;
+  readonly proposals: ProposalCommands;
+  readonly work: WorkCommands;
+  readonly review: ReviewCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */
@@ -364,6 +467,17 @@ export interface Commands {
   /** 관찰을 끝내고 쓰기를 다시 시도하게 한다 */
   retryWrite(threadId: ThreadId): void;
   showScreen(screen: Screen): void;
+  /**
+   * 입력창에 초점을 준다(⌘L). `insert`가 글이면 입력창이 비어 있을 때 그 글을 채운다(슬래시 명령 고르기). 입력창이 없으면 입력창이
+   * 생길 때 받는다. 입력창은 받으면 `settleComposerRequest`를 부른다.
+   */
+  requestComposer(insert: string | null): void;
+  settleComposerRequest(): void;
+  /** 설정 화면을 열고 그 탭과 항목으로 옮긴다(명령 팔레트). 화면이 받으면 `settleSettingsJump`를 부른다 */
+  requestSettingsJump(jump: SettingsJump): void;
+  settleSettingsJump(): void;
+  /** 변경 검토 화면(P-04)을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
+  openReview(target: ReviewTarget): void;
   reloadThreads(): void;
   retryTranscript(): void;
   reconnect(): void;

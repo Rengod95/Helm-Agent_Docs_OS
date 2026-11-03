@@ -139,8 +139,9 @@ describe("question approval card", () => {
     expect(out).toContain("Alpha");
     expect(out).toContain("(추천)");
     expect(out).toContain("first");
-    expect(out).toContain('type="radio"');
-    expect(out).toContain('type="checkbox"');
+    // 선택지는 caustic ChoiceGroup의 단추다(역할로 라디오와 체크박스를 구분한다)
+    expect(out).toContain('role="radio"');
+    expect(out).toContain('role="checkbox"');
   });
 
   test("a free-text input appears only where allowFreeText is set", () => {
@@ -248,5 +249,76 @@ describe("approval origin line", () => {
     expect(html(withCaller("subagent:렌즈"))).toContain("요청한 곳: 보조 에이전트 렌즈");
     expect(html(withCaller("ext:helm"))).toContain("요청한 곳: 그룹 helm");
     expect(html(withCaller("main"))).not.toContain("요청한 곳");
+  });
+});
+
+const planRequest = (plan: string): ApprovalRequestedPayload => ({
+  origin,
+  requestKey: "k",
+  title: "Split the cache step",
+  remember: ["once"],
+  surfaceThreadId: thr(1),
+  requestedAt: 0,
+  body: { kind: "plan", plan: { plan, planRef: null, nextModes: ["default", "plan"] } },
+});
+
+describe("plan approval card", () => {
+  test("shows the mode choice and the approve, request-changes and deny buttons", () => {
+    const out = html(planRequest("1. Split the step\n2. Add two tests"));
+    expect(out).toContain("승인 뒤 모드");
+    expect(out).toContain("수정 요청");
+    expect(out).toContain("피드백");
+    expect(out).toMatch(/data-action="primary"[^>]*>승인</);
+    expect(out).toMatch(/data-action="deny"[^>]*>거부</);
+  });
+
+  test("a plan longer than the fold line offers the rest behind 전체 보기, a short plan does not", () => {
+    const long = Array.from({ length: 14 }, (_, i) => `step ${i + 1}`).join("\n");
+    expect(html(planRequest(long))).toContain("전체 보기");
+    expect(html(planRequest("1. only step"))).not.toContain("전체 보기");
+  });
+});
+
+const reviewRequest: ApprovalRequestedPayload = {
+  origin,
+  requestKey: "k",
+  title: "Review the cache changes",
+  remember: ["once"],
+  surfaceThreadId: thr(1),
+  requestedAt: 0,
+  body: {
+    kind: "review",
+    review: {
+      reviewId: `rvw_${"0".repeat(24)}AB`,
+      artifactId: `art_${"0".repeat(24)}CD`,
+      title: "Cache expiry",
+      round: 1,
+      files: [
+        { path: "src/cache.ts", change: "modified", binary: false, hunks: 4 },
+        { path: "test/expiry.test.ts", change: "added", binary: false, hunks: 2 },
+      ],
+    },
+  },
+};
+
+describe("review approval card", () => {
+  test("shows the round, the file totals, each file's change and hunks, and the approve-all and deny buttons", () => {
+    const out = html(reviewRequest);
+    expect(out).toContain("라운드 1");
+    expect(out).toContain("파일 2 · hunk 6");
+    expect(out).toContain("src/cache.ts");
+    expect(out).toContain("hunk 4");
+    expect(out).toContain("추가");
+    expect(out).toMatch(/data-action="primary"[^>]*>모두 승인</);
+    expect(out).toMatch(/data-action="deny"[^>]*>거부</);
+  });
+});
+
+describe("always-in-this-conversation choice", () => {
+  test("a tool request that may be remembered for the thread offers it, a once-only request does not", () => {
+    expect(html({ ...toolRequest({ command: "ls" }), remember: ["once", "thread"] })).toContain(
+      "이 대화에서 항상",
+    );
+    expect(html(toolRequest({ command: "ls" }))).not.toContain("이 대화에서 항상");
   });
 });

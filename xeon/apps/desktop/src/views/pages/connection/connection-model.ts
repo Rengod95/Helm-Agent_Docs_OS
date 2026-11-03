@@ -60,6 +60,19 @@ type StatusState =
   | { readonly kind: "offline" }
   | { readonly kind: "failed" };
 
+/**
+ * 원격 응답 허용 줄을 바꿀 수 있는가: 연결이 있고(상태를 읽었고), 값을 알고 있고, 다른 명령이나 연결 진행이 없을 때다.
+ * 연결이 없으면 값을 보이고 잠근다.
+ */
+export function canSetRemoteRespond(state: ConnectionState): boolean {
+  return (
+    state.status.kind === "ready" &&
+    state.remoteAllowRespond !== null &&
+    !state.busy &&
+    state.pending === null
+  );
+}
+
 /** 추가 칸의 문장 검사 결과. 이름은 비었는가, 주소는 어떤 사유로 거절됐는가 */
 export interface FormErrors {
   readonly label: boolean;
@@ -98,6 +111,8 @@ export interface ConnectionState {
   readonly serviceEnabled: boolean | null;
   /** 서비스 모드를 바꾼 뒤부터 참이다. 설정은 엔진을 다시 띄워야 적용된다 */
   readonly restartNeeded: boolean;
+  /** 원격 응답 허용 값. 읽기 전이거나 엔진이 이 설정을 알리지 않으면 null이다(이때 줄은 잠긴다) */
+  readonly remoteAllowRespond: boolean | null;
   /** 서비스 멈추기 확인 대화 상자가 떠 있는가 */
   readonly stopConfirm: boolean;
   /** 목록 저장이나 설정 쓰기가 가고 있다. 같은 동작을 두 번 보내지 않도록 버튼을 잠근다 */
@@ -117,6 +132,7 @@ export const INITIAL_CONNECTION_STATE: ConnectionState = {
   status: { kind: "loading" },
   serviceEnabled: null,
   restartNeeded: false,
+  remoteAllowRespond: null,
   stopConfirm: false,
   busy: false,
   notice: null,
@@ -156,6 +172,7 @@ export type ConnectionAction =
   | { readonly type: "connectRejected"; readonly kind: AttachFailureKind }
   | { readonly type: "engineSeen"; readonly observed: EngineObservation }
   | { readonly type: "serviceModeSet"; readonly enabled: boolean }
+  | { readonly type: "remoteRespondSet"; readonly enabled: boolean }
   | { readonly type: "stopConfirm"; readonly open: boolean }
   | { readonly type: "notice"; readonly notice: Notice | null };
 
@@ -418,6 +435,7 @@ export function connectionReducer(
         ...state,
         status: { kind: "ready", snapshot: action.snapshot },
         serviceEnabled: action.snapshot.serviceEnabled,
+        remoteAllowRespond: action.snapshot.remoteAllowRespond,
       };
     case "statusFailed":
       return { ...state, status: { kind: action.reason === "offline" ? "offline" : "failed" } };
@@ -453,6 +471,9 @@ export function connectionReducer(
       return observe(state, action.observed);
     case "serviceModeSet":
       return { ...state, serviceEnabled: action.enabled, restartNeeded: true };
+    case "remoteRespondSet":
+      // 원격 응답 허용은 엔진을 다시 띄우지 않아도 바로 적용된다(L2.schedule §6: live)
+      return { ...state, remoteAllowRespond: action.enabled };
     case "stopConfirm":
       return { ...state, stopConfirm: action.open };
     case "notice":

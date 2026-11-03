@@ -64,6 +64,8 @@ export const LOCAL: {
   readonly searchHintDismissed: LocalKey<TBoolean>;
   /** 연결 화면(P-08)의 원격 대상 목록. 값은 `targetsStorageOf`가 항목마다 검사한다 */
   readonly connectionTargets: LocalKey<TArray<TUnknown>>;
+  /** 엔진 정상 종료 대기(ms). 셸이 같은 파일에서 읽는 키다. 대상을 바꾸는 동안의 쓰기 보류 한도를 정한다 */
+  readonly shutdownGraceMs: LocalKey<TInteger>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -78,6 +80,10 @@ export const LOCAL: {
   keybindings: localKey("l4.desktop.appearance.keybindings", KeybindingsSchema),
   searchHintDismissed: localKey("l4.desktop.firstRun.searchHintDismissed", Type.Boolean()),
   connectionTargets: localKey(TARGETS_KEY, Type.Array(Type.Unknown())),
+  shutdownGraceMs: localKey(
+    "l4.desktop.engine.shutdownGraceMs",
+    Type.Integer({ minimum: 1000, maximum: 180000 }),
+  ),
 };
 
 type LocalSettingsError =
