@@ -152,7 +152,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
   let usage: UsageCache | undefined;
 
   /**
-   * 기본 계측 요약: 카운터(등록부)에 캐시한 이벤트 집계를 더한다. 비용은 카운터 `addUsage`와 `turn.completed`의 합이고
+   * 기본 계측 요약: 카운터(등록부)에 캐시한 이벤트 집계를 더한다. 토큰과 비용은 이벤트 집계(`turn.completed`와 `agent.settled`) 하나에서 오고(카운터 `addUsage`는 더하지 않는다)
    * 임대 시간은 `lease.*`에서 온다. 캐시는 그 thread를 `refreshUsage`로 갱신했을 때만 있다.
    */
   function summaryOf(id: GroupId, thread: ThreadId | null): GroupMetricsSummary | null {
@@ -167,7 +167,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
       posts: counted.posts,
       spawns: counted.spawns,
       delegates: counted.delegates,
-      costUsd: counted.costUsd + (cached?.costUsd ?? 0),
+      costUsd: cached?.costUsd ?? 0,
       leaseMs: cached?.leaseMs ?? 0,
     };
   }
@@ -323,9 +323,12 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithUsag
     async refreshUsage(threadId) {
       const leases = await deps.host.queryEvents(threadId, { kindPrefix: "lease." });
       const turns = await deps.host.queryEvents(threadId, { kindPrefix: "turn." });
+      const agents = await deps.host.queryEvents(threadId, { kindPrefix: "agent." });
       // 조회가 실패하면 캐시를 그대로 둔다. 이전 값이 남고 상태 조회는 실패하지 않는다
-      if (!leases.ok || !turns.ok) return;
-      const ordered = [...leases.value, ...turns.value].toSorted((a, b) => a.seq - b.seq);
+      if (!leases.ok || !turns.ok || !agents.ok) return;
+      const ordered = [...leases.value, ...turns.value, ...agents.value].toSorted(
+        (a, b) => a.seq - b.seq,
+      );
       usage = { threadId, byScope: summarizeUsage(ordered) };
     },
     status(id) {
