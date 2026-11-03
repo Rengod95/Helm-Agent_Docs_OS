@@ -17,6 +17,7 @@ function specOf(ids: IdFactory): DelegateSpec {
     limits: { maxSteps: 16 },
     model: "fast",
     fork: { at: "item", itemId: ids.next("itm") },
+    promptFrom: "parent",
   };
 }
 
@@ -58,6 +59,7 @@ test("delegate.calls-l1-with-the-scope-owner-and-the-callers-request-id", async 
     limits: { maxSteps: 16 },
     model: "fast",
     ...(spec.fork === undefined ? {} : { fork: spec.fork }),
+    promptFrom: "parent",
   });
   expect(call?.origin).toMatchObject({
     parentThreadId: thread,

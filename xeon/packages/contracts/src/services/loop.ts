@@ -78,8 +78,8 @@ export interface ChildTurnRequest {
   readonly input: PostItem;
   /** 자식 requestId. turn.started.requestId가 되고 멱등 키로 쓴다 */
   readonly requestId: string;
-  /** 정의 prompt. L1.context 조립의 기본 프롬프트로 넘긴다 */
-  readonly systemPrompt: string;
+  /** 정의 prompt. L1.context 조립의 기본 프롬프트로 넘긴다. 없으면 부모 대화와 같은 루프 기본 프롬프트를 쓴다(`SpawnRequest.promptFrom: "parent"`) */
+  readonly systemPrompt?: string;
   /** ModelRole 이름 또는 ModelRef 문자열. fresnel.models가 해석한다 */
   readonly model: string;
   /** 자식 ToolRunContext에 넣을 값 */

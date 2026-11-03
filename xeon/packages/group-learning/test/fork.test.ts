@@ -49,6 +49,7 @@ test("fork.uses-item-fork-point: item fork, no report, read-only tool policy and
   expect(spec.limits).toEqual({ maxSteps: 16, maxInputTokens: 150_000 });
   expect(spec.toolPolicy?.allow).toEqual([...REVIEW_ALLOWED_TOOLS]);
   expect(spec.toolPolicy?.keepParentList).toBe(true);
+  expect(spec.promptFrom).toBe("parent");
   expect(spec.toolPolicy?.denyHint).toContain("learning_propose");
   // 쓰기, 편집, 셸, 위임 도구는 허용 목록에 없다
   for (const denied of [

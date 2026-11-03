@@ -48,6 +48,8 @@ export interface DelegateSpec {
    */
   readonly report?: DelegateReport;
   readonly toolPolicy?: DelegateToolPolicy;
+  /** `parent`면 자식이 부모 대화와 같은 기본 프롬프트를 쓴다(접두 캐시 공유). 정의의 `prompt`는 쓰지 않는다. 기본은 `definition` */
+  readonly promptFrom?: "definition" | "parent";
   readonly limits?: DelegateLimits;
   /** 모델 역할 이름 또는 모델 참조. 없으면 정의의 model */
   readonly model?: string;
@@ -175,6 +177,7 @@ export function toDelegateRequest(spec: DelegateSpec): DelegateRequest {
     ...(spec.limits === undefined ? {} : { limits: spec.limits }),
     ...(spec.model === undefined ? {} : { model: spec.model }),
     ...(spec.fork === undefined ? {} : { fork: spec.fork }),
+    ...(spec.promptFrom === undefined ? {} : { promptFrom: spec.promptFrom }),
   };
 }
 

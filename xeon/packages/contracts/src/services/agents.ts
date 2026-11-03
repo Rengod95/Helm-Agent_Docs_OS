@@ -149,6 +149,11 @@ export interface SpawnRequest extends SpawnSpec {
   readonly limits?: ChildLimits;
   /** 모델 역할 덮어쓰기 */
   readonly model?: string;
+  /**
+   * 자식 시스템 프롬프트의 출처. `definition`(기본)은 정의의 `prompt`, `parent`는 부모 대화와 같은 기본 프롬프트를 쓴다.
+   * 접두 캐시를 부모와 공유하는 검토 포크가 쓴다(L1.agents.spec §4.3 검토 포크 3번). 정의의 `prompt`는 이때 쓰지 않는다
+   */
+  readonly promptFrom?: "definition" | "parent";
 }
 
 export const AGENT_REPORT_TYPE = "agent.report" as const;

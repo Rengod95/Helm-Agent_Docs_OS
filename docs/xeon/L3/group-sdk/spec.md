@@ -344,6 +344,8 @@ export interface DelegateSpec {
    */
   readonly report?: DelegateReport;
   readonly toolPolicy?: DelegateToolPolicy;
+  /** `parent`면 자식이 부모 대화와 같은 기본 프롬프트를 쓴다(접두 캐시 공유, 정의 `prompt`는 쓰지 않는다). 기본 `definition`. L1 `SpawnRequest.promptFrom`으로 간다 */
+  readonly promptFrom?: "definition" | "parent";
   readonly limits?: DelegateLimits;
   /** 모델 역할 이름 또는 모델 참조. 없으면 정의의 model(L1.agents.spec §4.9) */
   readonly model?: string;
