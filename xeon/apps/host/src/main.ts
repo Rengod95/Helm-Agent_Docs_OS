@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { assertNever, detach } from "@fresnel/contracts";
+import { STORE_FAILURE_EXIT_CODES } from "@fresnel/contracts/records";
 import type { SecretOutOfBandPort } from "@fresnel/contracts/services";
 import type { StdioTransportOptions, Transport } from "@fresnel/contracts/wire";
 import { AssembleError } from "./assemble.ts";
@@ -77,6 +78,18 @@ export async function startInProcessHost(
  * 절차는 엔진의 종료 협조 창구(`Engine.shutdown`)로 요청하므로 확장의 종료 참여자도 시한 안에서 불리고,
  * 시한을 넘기면 창구가 `exit(1)`로 프로세스를 끝낸다(L0.process.spec §4.2).
  */
+/** 저장소를 열지 못한 시작 실패는 분류별 종료 코드로 알린다. 앱 셸이 종료 코드만 전달하기 때문이다 */
+function startupExitCodeOf(caught: unknown): 1 | 70 | 71 | 72 {
+  if (!(caught instanceof AssembleError)) return 1;
+  for (const issue of caught.issues) {
+    if (issue.code !== "store") continue;
+    if (issue.failure === "future_version") return STORE_FAILURE_EXIT_CODES.future_version;
+    if (issue.failure === "corrupt") return STORE_FAILURE_EXIT_CODES.corrupt;
+    if (issue.failure === "migration_failed") return STORE_FAILURE_EXIT_CODES.migration_failed;
+  }
+  return 1;
+}
+
 export async function startStdioHost(options: StdioHostOptions): Promise<HostExit> {
   const devChecks = options.assemble?.devChecks === true;
   const stopRequested = Promise.withResolvers<"stop">();
@@ -93,7 +106,7 @@ export async function startStdioHost(options: StdioHostOptions): Promise<HostExi
   } catch (caught) {
     const message =
       caught instanceof AssembleError ? caught.message : `startup failed: ${messageOf(caught)}`;
-    return { code: 1, reason: "startup", message };
+    return { code: startupExitCodeOf(caught), reason: "startup", message };
   }
   const { engine } = running;
   // 호스트 자신의 참여자. 등록 역순이라 확장·L0 참여자보다 먼저 불려 turn을 멈춘다
@@ -157,8 +170,11 @@ async function writeText(stream: WritableStream<Uint8Array>, text: string): Prom
   }
 }
 
-/** 종료코드를 돌려준다. 0 성공, 1 실패(시작 거부, 서비스 없음 등), 2 사용 오류 */
-export async function runHostCommand(command: HostCommand, io: CommandIo): Promise<0 | 1 | 2> {
+/** 종료코드를 돌려준다. 0 성공, 1 실패(시작 거부, 서비스 없음 등), 2 사용 오류, 70~72 저장소 열기 실패 분류 */
+export async function runHostCommand(
+  command: HostCommand,
+  io: CommandIo,
+): Promise<0 | 1 | 2 | 70 | 71 | 72> {
   switch (command.kind) {
     case "host-stdio": {
       const exit = await startStdioHost({ readable: io.stdin, writable: io.stdout });

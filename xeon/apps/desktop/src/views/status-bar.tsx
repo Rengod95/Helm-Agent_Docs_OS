@@ -1,5 +1,6 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
+import { storeFailureOfExitCode } from "@fresnel/contracts/records";
 import { useState, type ReactNode } from "react";
 import {
   useApprovalCount,
@@ -37,8 +38,23 @@ const SOURCE_TEXT: Readonly<Record<"sidecar" | "service", MessageId>> = {
   service: "desktop.status.engine.sourceService",
 };
 
-const engineText = (kind: EngineState["kind"] | undefined): MessageId =>
-  kind === undefined ? "desktop.status.engine.checking" : ENGINE_TEXT[kind];
+const STORE_FAILURE_TEXT: Readonly<
+  Record<NonNullable<ReturnType<typeof storeFailureOfExitCode>>, MessageId>
+> = {
+  future_version: "desktop.status.engine.storeFutureVersion",
+  corrupt: "desktop.status.engine.storeCorrupt",
+  migration_failed: "desktop.status.engine.storeMigrationFailed",
+};
+
+/** 저장소를 열지 못해 끝난 엔진은 분류별 안내를 보인다(종료 코드 70~72). 그 밖의 종료는 일반 문구다 */
+export function engineTextOf(state: EngineState | undefined): MessageId {
+  if (state === undefined) return "desktop.status.engine.checking";
+  if (state.kind === "failed" || state.kind === "restarting") {
+    const failure = storeFailureOfExitCode(state.lastExit.code);
+    if (failure !== undefined) return STORE_FAILURE_TEXT[failure];
+  }
+  return ENGINE_TEXT[state.kind];
+}
 
 export function StatusBar(): ReactNode {
   const commands = useCommands();
@@ -54,7 +70,7 @@ export function StatusBar(): ReactNode {
   return (
     <footer className="statusbar" role="status">
       <span>
-        {t(engineText(engine?.kind))}
+        {t(engineTextOf(engine))}
         {engine?.kind === "running" ? ` (${t(SOURCE_TEXT[engine.source])})` : ""}
       </span>
       <span>

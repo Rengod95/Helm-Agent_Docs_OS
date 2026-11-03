@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  STORE_FAILURE_EXIT_CODES,
   STORE_FAILURE_KINDS,
+  storeFailureOfExitCode,
   storeFailureKindOf,
   type MigrationError,
 } from "../../src/records/index.ts";
@@ -59,4 +61,17 @@ describe("storeFailureKindOf", () => {
       "unavailable",
     ]);
   });
+});
+
+test("the store failure exit codes round-trip and other codes map to nothing", () => {
+  expect(STORE_FAILURE_EXIT_CODES).toEqual({
+    future_version: 70,
+    corrupt: 71,
+    migration_failed: 72,
+  });
+  expect(storeFailureOfExitCode(70)).toBe("future_version");
+  expect(storeFailureOfExitCode(71)).toBe("corrupt");
+  expect(storeFailureOfExitCode(72)).toBe("migration_failed");
+  expect(storeFailureOfExitCode(1)).toBeUndefined();
+  expect(storeFailureOfExitCode(null)).toBeUndefined();
 });
