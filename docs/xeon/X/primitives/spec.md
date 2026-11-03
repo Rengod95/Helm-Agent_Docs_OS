@@ -1230,7 +1230,7 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 - `idempotent` 호출에 `requestId`가 없으면 on 핸들러와 drive 함수 모두 `invalid_input`으로 거부한다(공급자를 부르지 않는다). 길이가 1~64자가 아니어도 `invalid_input`이다.
 - [결정: adr.0015] drive 함수의 `idempotent` 호출도 명시 `requestId`만 받는다(ADR-0015 §3.4 3번). 기본 키를 주지 않고, 키가 없으면 공급자를 부르지 않고 `invalid_input`으로 거부한다. 기본 키(`${leaseId}:${순번}`)는 `loop.turn`·`loop.spawn`만 받는다(§4.4.4).
 - 공급자는 `withoutAmbient`로 부른다. 공급자 안에서 도는 도구와 서비스가 호출자의 재실행 문맥으로 판정되지 않게 한다. `loop.turn`·`loop.spawn`도 같다(turn 안의 도구).
-- 호출 옵션에 `context`가 없으면 `CallOptions.context`(`threadId`, `caller { kind: "extension", extension }`)를 채운다(F.capabilities.spec §3.2). L1.tools 어댑터가 이미 채운 `context`(도구 호출 id, 모델 호출자, 승인 증거)는 덮지 않는다.
+- 호출 옵션에 `context`가 없으면 `CallOptions.context`(`threadId`, `caller { kind: "extension", extension }`)를 채운다(F.capabilities.spec §3.2). 내장 확장(`fresnel.*` 포트를 읽을 수 있는 코드, L1.tools 어댑터 포함)이 채운 `context`(도구 호출 id, 모델 호출자, 승인 증거)는 덮지 않는다. 내장이 아닌 확장은 `caller`를 고를 수 없다. `caller`는 항상 `{ kind: "extension", extension }`으로 다시 채우고, 넘긴 `context`에서는 `toolCallId`만 받는다(`threadId`는 호출한 맥락의 값을 먼저 쓰고 없을 때만 넘긴 값을 쓴다). `turnId`, `interactive`, `approval`은 버린다(호스트나 모델 행세, 시크릿 승인 증거 위조를 막는다).
 - `effects` 계수에는 기능 호출을 넣지 않는다. 공급자의 반환만으로는 처음 결과인지 재생된 결과인지 알 수 없다 [미결].
 - 시험: `replay-effects.test.ts`가 "재생 2회, 효과 1회"(같은 상태 판으로 drive를 두 번 호출해도 공급자 효과 1회), on의 읽기·선언 없는 쓰기·키 없는 멱등 쓰기 거부와 공급자 미호출을 확인한다.
 

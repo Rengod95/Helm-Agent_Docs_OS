@@ -1,6 +1,7 @@
 import {
   CapabilityError,
   type AnyCapabilityDef,
+  type CallContext,
   type CallOptions,
   type CapabilityId,
   type MethodDef,
@@ -14,6 +15,7 @@ import {
   type ReplayEffect,
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { ambient, withoutAmbient, type Ambient } from "./ambient.ts";
 
 /**
@@ -44,6 +46,12 @@ export interface GuardTarget {
   readonly providerTrusted: () => boolean;
   readonly extension: ExtensionName;
   readonly scopeId: RegistrationId;
+  /**
+   * 호출자가 넘긴 `options.context`를 그대로 실어도 되는가. 내장 확장(L1.tools 어댑터처럼 `fresnel.*` 포트를 읽는 코드)만 참이다.
+   * 거짓이면 `caller`는 항상 이 확장으로 다시 채우고 호출자가 고를 수 있는 것은 `threadId`와 `toolCallId`뿐이다
+   * (호스트·모델 행세, `interactive`, 시크릿 승인 증거 위조를 막는다)
+   */
+  readonly contextTrusted: boolean;
 }
 
 type AnyMethod = (...args: readonly unknown[]) => unknown;
@@ -79,6 +87,20 @@ function refuse(
 function effectLabel(effect: ReplayEffect): string {
   const row = REPLAY_EFFECT_TABLE[effect];
   return `${effect} (on ${row.on}, drive ${row.drive})`;
+}
+
+function untrustedContext(
+  given: CallContext | undefined,
+  ambientThread: ThreadId | undefined,
+  extension: ExtensionName,
+): CallContext {
+  const threadId = ambientThread ?? given?.threadId;
+  const toolCallId = given?.toolCallId;
+  return {
+    ...(threadId === undefined ? {} : { threadId }),
+    ...(toolCallId === undefined ? {} : { toolCallId }),
+    caller: { kind: "extension", extension },
+  };
 }
 
 /**
@@ -137,11 +159,12 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
         const merged: CallOptions = {
           ...given,
           ...(requestId === undefined ? {} : { requestId }),
-          // L1.tools 어댑터가 이미 채운 호출 문맥(도구 호출 id, 모델 호출자, 승인 증거)은 덮지 않는다
-          context: given?.context ?? {
-            ...(amb === undefined ? {} : { threadId: amb.threadId }),
-            caller: { kind: "extension", extension: target.extension },
-          },
+          // 내장 확장(L1.tools 어댑터)이 채운 호출 문맥(도구 호출 id, 모델 호출자, 승인 증거)은 덮지 않는다.
+          // 그 밖의 확장은 호출자를 직접 고르지 못한다. caller는 항상 이 확장이고 threadId와 toolCallId만 받는다
+          context:
+            target.contextTrusted && given?.context !== undefined
+              ? given.context
+              : untrustedContext(given?.context, amb?.threadId, target.extension),
         };
         // 공급자 안에서 도는 도구와 서비스는 재실행되는 문맥이 아니다. 호출자의 ambient가 따라 들어가지 않게 끊는다
         return withoutAmbient(() => method.call(service, input, merged));
