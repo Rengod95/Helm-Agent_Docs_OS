@@ -69,7 +69,12 @@ export function createTransportFactory(deps: DefaultTransportDeps): TransportFac
         }
         const { plain, secret } = splitEnv(transport.env);
         let approval: McpStartEvidence | null = null;
-        if (Object.keys(secret).length > 0 && deps.startGate !== undefined) {
+        // 시크릿 env가 있거나 프로젝트 출처(`.mcp.json`, project 범위 설정)의 실행 명령이면 기동 승인을 받는다.
+        // 명령이 새로 생기거나 바뀌면 정의 해시가 달라져 그 서버만 다시 묻고, 승인 전에는 spawn하지 않는다(결정 2026-11-04 A3)
+        if (
+          (Object.keys(secret).length > 0 || server.requiresTrust) &&
+          deps.startGate !== undefined
+        ) {
           const verdict = await deps.startGate.check(
             {
               server: server.id,
