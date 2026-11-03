@@ -110,6 +110,26 @@ export function accountsOf(value: unknown): readonly AccountEntry[] {
   return parsed.ok ? parsed.value : [];
 }
 
+/** 계정 목록을 읽되 읽을 수 없는 값을 빈 목록과 구분한다. 쓰기 경로가 쓴다(`readProviders`와 같은 규칙) */
+export function readAccounts(
+  value: unknown,
+): Result<readonly AccountEntry[], { readonly kind: "unreadable" }> {
+  const parsed = parse(AccountsSchema, value);
+  return parsed.ok
+    ? { ok: true, value: parsed.value }
+    : { ok: false, error: { kind: "unreadable" } };
+}
+
+/** 레이트 리밋 맵을 읽되 읽을 수 없는 값을 빈 맵과 구분한다. 쓰기 경로가 쓴다 */
+export function readRateLimit(
+  value: unknown,
+): Result<Readonly<Record<string, RateLimitEntry>>, { readonly kind: "unreadable" }> {
+  const parsed = parse(RateLimitMapSchema, value);
+  return parsed.ok
+    ? { ok: true, value: parsed.value }
+    : { ok: false, error: { kind: "unreadable" } };
+}
+
 /** 설정 값의 레이트 리밋 맵을 읽는다. 모양이 맞지 않으면 빈 맵이다 */
 export function rateLimitOf(value: unknown): Readonly<Record<string, RateLimitEntry>> {
   const parsed = parse(RateLimitMapSchema, value);
