@@ -52,7 +52,7 @@ interface Drag {
 export function LayerPanel({ layer }: { readonly layer: LayerKey }): ReactNode {
   const { source, state, dispatch } = useCraft();
   const sw = useSwitch();
-  const list = layerPlugins(source.snapshot, layer);
+  const list = layerPlugins(source.snapshot, layer, state.contrib);
   const ids = list.map((p) => p.id);
   // [미결] 순서는 상태에만 둔다(위 주석). 층이 바뀌면 호출하는 쪽이 key로 새로 만든다.
   const [saved, setSaved] = useState<readonly string[]>([]);

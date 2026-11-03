@@ -32,6 +32,7 @@ import {
   relationContext,
   rowsOf,
   visibleFacts,
+  visibleRels,
   type LinkRow,
 } from "./link-model.ts";
 import { LINK_CSS } from "./link-style.ts";
@@ -360,14 +361,18 @@ function LinkCanvas({ focus }: { readonly focus: CanvasPlugin }): ReactNode {
   const { source, state, dispatch } = useCraft();
   const { snapshot } = source;
   const focusId = focus.id;
+  // 구성 요소 거르기에 맞지 않는 상대는 줄과 실에서 뺀다(숨긴다)
   const rels = useMemo<Relation[]>(
     () =>
-      relationsOf(
-        focus,
-        snapshot,
-        relationContext(snapshot, hooksInOrder(snapshot.plugins, source.order)),
+      visibleRels(
+        relationsOf(
+          focus,
+          snapshot,
+          relationContext(snapshot, hooksInOrder(snapshot.plugins, source.order)),
+        ),
+        state.contrib,
       ),
-    [focus, snapshot, source.order],
+    [focus, snapshot, source.order, state.contrib],
   );
   const rootRef = useRef<HTMLElement>(null);
   const colRef = useRef<HTMLUListElement>(null);

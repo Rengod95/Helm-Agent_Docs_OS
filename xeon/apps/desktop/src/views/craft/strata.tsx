@@ -35,7 +35,15 @@ import { DropBar, useRowDrag, type RowDrag } from "./drag.tsx";
 import { OrderWarningModal } from "./order-modal.tsx";
 import { useCraft } from "./craft-context.tsx";
 import { keyReorder, requestReorder, saveConfirmed, type ReorderConfirm } from "./strata-flow.ts";
-import { litFor, matchesFilter, overridesOf, type LaneMap, type Lit } from "./strata-model.ts";
+import {
+  litFor,
+  matchesFilter,
+  mergeVisibleLane,
+  overridesOf,
+  visibleLane,
+  type LaneMap,
+  type Lit,
+} from "./strata-model.ts";
 
 type PhaseId = (typeof PHASES)[number];
 type Fold = (typeof HOOKS)[number]["fold"];
@@ -372,7 +380,11 @@ function HookRow({
   readonly ctx: StrataCtx;
 }): ReactNode {
   const lane = ctx.lanes[def.id] ?? [];
-  const drag = useRowDrag((id, index) => ctx.reorder(def.id, lane, moveHandler(lane, id, index)));
+  // 끌어 놓기의 자리는 보이는 핸들러 사이의 자리다. 가려진 핸들러는 제자리에 남긴다
+  const drag = useRowDrag((id, index) => {
+    const next = moveHandler(visibleLane(lane, ctx.snapshot, ctx.contrib), id, index);
+    ctx.reorder(def.id, lane, mergeVisibleLane(lane, ctx.snapshot, ctx.contrib, next));
+  });
   const picked = ctx.sel.k === "hook" && ctx.sel.id === def.id;
   const lit = ctx.lit.hooks.has(def.id);
   const label = HOOK_LABEL[def.id];
@@ -442,7 +454,8 @@ function LaneItems({
   const items: ReactNode[] = [];
   let shown = withBuiltin ? 1 : 0;
   let rest = 0;
-  for (const id of lane) {
+  // 구성 요소 거르기에 맞지 않는 핸들러는 줄에 그리지 않는다
+  for (const id of visibleLane(lane, ctx.snapshot, ctx.contrib)) {
     const p = ctx.snapshot.plugins.find((q) => q.id === id);
     if (p === undefined) continue;
     const dragging = drag.dragId === id;
@@ -500,10 +513,10 @@ function Pill({
         ? "border-info-border"
         : "border-border-strong";
   const onKey = (e: KeyboardEvent<HTMLButtonElement>): void => {
-    const next = keyReorder(e, lane, p.id);
+    const next = keyReorder(e, visibleLane(lane, ctx.snapshot, ctx.contrib), p.id);
     if (next === null) return;
     e.preventDefault();
-    ctx.reorder(hook, lane, next);
+    ctx.reorder(hook, lane, mergeVisibleLane(lane, ctx.snapshot, ctx.contrib, next));
   };
   const dim = !matchesFilter(p, ctx.kind, ctx.contrib);
   return (

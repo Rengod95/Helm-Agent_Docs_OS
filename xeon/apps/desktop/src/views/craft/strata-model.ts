@@ -1,6 +1,6 @@
 // 순서 화면과 링크 화면이 함께 읽는 순수 값. 화면 문구와 React를 모른다.
 import {
-  hasContrib,
+  keepsContrib,
   matchesKind,
   type CanvasPlugin,
   type CanvasSnapshot,
@@ -78,13 +78,44 @@ export function litFor(sel: Sel, snapshot: CanvasSnapshot, lanes: LaneMap): Lit 
   return { plugins, hooks };
 }
 
-/** 구성 요소와 종류 필터에 맞나. 맞지 않는 것은 화면에서 흐리게 둔다 */
+/** 종류와 구성 요소 거르기에 맞나. 종류에 맞지 않는 것은 흐리게 두고, 구성 요소에 맞지 않는 것은 줄에서 숨긴다(`visibleLane`) */
 export function matchesFilter(
   p: CanvasPlugin,
   kind: KindFilter,
   contrib: readonly Contrib[],
 ): boolean {
-  return matchesKind(p, kind) && (contrib.length === 0 || contrib.some((c) => hasContrib(p, c)));
+  return matchesKind(p, kind) && keepsContrib(p, contrib);
+}
+
+/**
+ * 줄에 보일 핸들러 id들, 순서 그대로. 구성 요소 거르기에 맞지 않는 핸들러는 뺀다.
+ * 저장할 순서는 가려진 것까지 든 전체 줄이어야 하므로 화면은 전체 줄을 `mergeVisibleLane`으로 되돌려 쓴다.
+ */
+export function visibleLane(
+  lane: readonly string[],
+  snapshot: CanvasSnapshot,
+  contrib: readonly Contrib[],
+): string[] {
+  return lane.filter((id) => shownInLane(id, snapshot, contrib));
+}
+
+/**
+ * 보이는 핸들러의 새 순서를 전체 줄에 되돌린다. 가려진 핸들러는 제자리에 두고, 보이는 자리만 새 순서로 채운다.
+ * `nextVisible`은 `visibleLane(lane, ...)`을 바꾼 목록이어야 한다.
+ */
+export function mergeVisibleLane(
+  lane: readonly string[],
+  snapshot: CanvasSnapshot,
+  contrib: readonly Contrib[],
+  nextVisible: readonly string[],
+): string[] {
+  let k = 0;
+  return lane.map((id) => (shownInLane(id, snapshot, contrib) ? (nextVisible[k++] ?? id) : id));
+}
+
+function shownInLane(id: string, snapshot: CanvasSnapshot, contrib: readonly Contrib[]): boolean {
+  const p = snapshot.plugins.find((x) => x.id === id);
+  return p !== undefined && keepsContrib(p, contrib);
 }
 
 /** 두 순서가 같은가(길이와 자리마다 id) */

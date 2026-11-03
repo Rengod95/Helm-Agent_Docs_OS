@@ -160,6 +160,8 @@ function pluginOf(
     ...(records.length === 0 ? {} : { records }),
     ...(reads.length === 0 ? {} : { reads }),
     ...(failure === undefined ? {} : { health: failure }),
+    // 매니페스트를 못 읽었으면 넣어 주는 것을 모른다(구성 요소 거르기가 숨기지 않는다)
+    ...(manifest === undefined ? { unread: true } : {}),
   };
 }
 
