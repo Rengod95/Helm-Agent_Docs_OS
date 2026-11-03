@@ -2965,8 +2965,8 @@ export const palette = [
 | V-11 | 사용량 게이지 행(`UsageGauge` → 막대와 문장) | `packages/client/src/settings` |
 | V-12 | 계획 승인 보기와 답 만들기 | `apps/desktop/src/views/approval-form.ts`에 추가 |
 | V-13 | 상태 표시줄 칸 모델 | `apps/desktop/src/views` |
-| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/index.ts`(spec에 있음, 코드 없음). 선언되지 않은 키 6개 |
-| V-15 | 바로 가기 키 표(동작 id ↔ 키) | 같은 곳 |
+| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/local.ts`(T-SHELL 구현: `LOCAL` 키 표, `createLocalSettings`, 셸 명령 `desktop_settings_read`·`desktop_settings_write`). 키는 `l4.desktop.window.{sidebarOpen,sidebarWidth,endOpen,endWidth,area.current,area.chat,area.workbench}`, `l4.desktop.appearance.keybindings`, `l4.desktop.firstRun.searchHintDismissed`. 테마와 캔버스 순서 키는 소유 트랙이 `LOCAL`에 더함 |
+| V-15 | 바로 가기 키 표(동작 id ↔ 키) | `apps/desktop/src/views/shell/keybindings.ts`(T-SHELL 구현: §4.8의 동작 22개 `ACTION_IDS`, `DEFAULT_KEYMAP`, 사용자 덮어쓰기 `resolveKeymap`) |
 | V-16 | 확장 행 모델과 거르기·정렬(층, 종류, 등급, 상태) | `packages/client/src/workbench` [제안] |
 | V-17 | 층 × 확장 지도 모델(칸 tone, 경고) | 같은 곳 |
 | V-18 | 확장 상세 탭 모델(훅 × 예산 비교, drive 락 기록) | 같은 곳 |
@@ -2976,7 +2976,7 @@ export const palette = [
 | V-22 | 프로필 편집 모델(켜기·끄기·그대로, 덮어쓰기, 실효 스택 표시) | 같은 곳. 저장과 적용은 엔진(W-46) [결정: 2026-10-31 사용자] |
 | V-23 | 만들기 폼 검사(이름 규칙, 예약 이름) | 같은 곳. 규칙은 `apps/cli/src/group/rules.ts`와 같은 표 |
 | V-24 | 런타임 줄·런타임 행·런타임 탭 모델(이벤트 → 한 줄) | `packages/client/src/workbench` |
-| V-25 | 맥락 모델(`workbench.context`: 전체·대화·프로필·시험, 따라가기와 고정) | 같은 곳 |
+| V-25 | 맥락 모델(`workbench.context`: 전체·대화·프로필·시험, 따라가기와 고정) | `apps/desktop/src/views/shell/model.ts`(T-SHELL 구현: 영역·영역별 자리와 같은 순수 모델. 맥락은 저장하지 않고 앱을 켜면 "전체"에서 시작). 화면 트랙은 `useShell(s => s.context)`로 읽음 |
 | V-26 | 캔버스 모델(띠, 블록, 포트, 엣지, 맥락 표지, 비교 차이, 자동 배치와 층 안 순서) | `packages/client/src/workbench/canvas` [제안] |
 | V-27 | 트레이스 모델(trace → 눈금, 핸들러 꼬리표) | 같은 곳 |
 | V-28 | 구성기 모델(`composition` ↔ 블록, 흐름 노드, 검사 결과 붙이기, 코드 보기 매핑) | `packages/client/src/workbench/compose` [제안] |

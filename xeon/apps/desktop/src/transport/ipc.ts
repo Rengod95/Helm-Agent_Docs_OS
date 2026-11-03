@@ -8,8 +8,10 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TRecord,
   type TString,
   type TUnion,
+  type TUnknown,
 } from "typebox";
 
 // L4.desktop.spec 3.3. @tauri-apps/*를 import하는 파일은 이 파일과 src/shell/**뿐이다(W2).
@@ -161,6 +163,11 @@ export type IpcError =
   | { readonly kind: "command"; readonly command: string; readonly code: string }
   | { readonly kind: "invalid"; readonly command: string };
 
+/** W-08. 엔진이 붙을 곳: 이 기기의 사이드카, 또는 `host --stdio --remote <주소>`의 원격 서비스. 접속 토큰은 여기에 싣지 않는다(환경 변수 `FRESNEL_REMOTE_TOKEN`) */
+export type EngineTarget =
+  | { readonly kind: "local" }
+  | { readonly kind: "remote"; readonly address: string };
+
 export interface DesktopIpc {
   /** 현재 페이지에 릴레이를 붙인다. 이전 세대는 끊긴다. 바이트는 완성된 줄 단위로 온다 */
   attach(
@@ -172,6 +179,12 @@ export interface DesktopIpc {
   /** 처리를 끝낸 바이트 수를 알려 신용을 돌려준다 */
   ack(epoch: number, bytes: number): Promise<Result<null, IpcError>>;
   restart(): Promise<Result<null, IpcError>>;
+  /** 대상을 바꾸고 엔진을 새 대상으로 다시 띄운다(W-08). 같은 대상이면 아무 일도 없다 */
+  retarget(target: EngineTarget): Promise<Result<null, IpcError>>;
+  /** 데스크톱 로컬 설정 파일의 내용(V-14). 파일이 없으면 빈 객체 */
+  readSettings(): Promise<Result<Readonly<Record<string, unknown>>, IpcError>>;
+  /** 로컬 설정 한 키를 쓴다. 모르는 키나 범위 밖 값은 셸이 거부한다 */
+  writeSettings(key: string, value: unknown): Promise<Result<null, IpcError>>;
   detach(epoch: number): Promise<Result<null, IpcError>>;
   /**
    * 모델 키를 등록한다. 셸이 번들된 사이드카를 `fresnel secret <동작> <이름>`으로 실행하고 값을 그 stdin에 한 번 쓴다.
@@ -203,6 +216,8 @@ function bytesOf(message: unknown): Uint8Array | null {
   }
   return null;
 }
+
+const SettingsFileSchema: TRecord<string, TUnknown> = Type.Record(Type.String(), Type.Unknown());
 
 /** @tauri-apps/api의 invoke와 Channel로 DesktopIpc를 만든다 */
 export function createTauriIpc(): DesktopIpc {
@@ -242,6 +257,26 @@ export function createTauriIpc(): DesktopIpc {
     restart: () =>
       call("engine_restart", async () => {
         await invoke("engine_restart");
+        return null;
+      }),
+    retarget: (target) =>
+      call("engine_retarget", async () => {
+        await invoke("engine_retarget", { target });
+        return null;
+      }),
+    async readSettings() {
+      const raw = await call<unknown>("desktop_settings_read", () =>
+        invoke<unknown>("desktop_settings_read"),
+      );
+      if (!raw.ok) return raw;
+      const parsed = parse(SettingsFileSchema, raw.value);
+      return parsed.ok
+        ? parsed
+        : { ok: false, error: { kind: "invalid", command: "desktop_settings_read" } };
+    },
+    writeSettings: (key, value) =>
+      call("desktop_settings_write", async () => {
+        await invoke("desktop_settings_write", { key, value });
         return null;
       }),
     detach: (epoch) =>
