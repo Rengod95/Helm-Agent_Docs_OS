@@ -1121,9 +1121,10 @@ export function validateUsage(
   return issues;
 }
 
-/** 설치된 매니페스트 집합. 순수 함수 */
+/** 설치된 매니페스트 집합. `coreCapabilityIds`는 코어가 제공하는 기능 id로, `capability_unprovided`에서 제공된 것으로 본다. 순수 함수 */
 export function validateManifestSet(
   manifests: readonly ExtensionManifest[],
+  coreCapabilityIds: ReadonlySet<string> = new Set<string>(),
 ): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
 
@@ -1167,7 +1168,7 @@ export function validateManifestSet(
   for (const manifest of manifests) {
     manifest.plugins.forEach((plugin, pluginIndex) => {
       (plugin.requires ?? []).forEach((entry, index) => {
-        if (!provided.has(entry.id)) {
+        if (!provided.has(entry.id) && !coreCapabilityIds.has(entry.id)) {
           issues.push(
             issue(
               "warning",

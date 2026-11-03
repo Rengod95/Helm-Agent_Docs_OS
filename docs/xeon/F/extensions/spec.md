@@ -1380,7 +1380,10 @@ export interface ExtensionUsage {
 export function validateUsage(manifest: ExtensionManifest, plugin: PluginEntry, usage: ExtensionUsage): readonly ManifestIssue[];
 
 /** 설치된 매니페스트 집합. 순수 함수 */
-export function validateManifestSet(manifests: readonly ExtensionManifest[]): readonly ManifestIssue[];
+export function validateManifestSet(
+  manifests: readonly ExtensionManifest[],
+  coreCapabilityIds?: ReadonlySet<string>,
+): readonly ManifestIssue[];
 
 /** 그룹 레코드 하나. decl이 없으면 record_kind_unregistered. 순수 함수 */
 export function validateGroupRecord(record: GroupRecord, decl: RecordKindDecl | undefined): readonly ManifestIssue[];
@@ -1518,13 +1521,13 @@ chain의 보충 규칙 [제안]:
 
 X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_group`(정책 `x.primitives.driveRequiresGroup`이 참인데 `inGroup`이 아닌 플러그인이 `drive`를 등록), `registration_unknown_plugin`(매니페스트에 없는 플러그인 id로 `register`), `plugin_not_registered`(warning, 선언한 플러그인을 엔트리가 `register`하지 않음) [제안].
 
-`validateManifestSet(manifests)`:
+`validateManifestSet(manifests, coreCapabilityIds?)`. `coreCapabilityIds`는 코어가 제공하는 기능 id 집합이다(생략하면 빈 집합). `capability_unprovided`는 이 집합도 제공자로 본다:
 
 | 코드 | 심각도 | 조건 |
 |---|---|---|
 | `name_conflict` | error | 같은 `name`의 확장이 둘 이상 |
 | `drive_conflict` | warning | `drives: true`이고 기본 켜짐인 Registration이 둘 이상. Registration id를 메시지에 쓴다. 실행 중에는 X가 drive lock을 하나만 준다 |
-| `capability_unprovided` | warning | 어떤 플러그인의 `requires` 기능을 집합 안의 누구도 `provides`하지 않음 |
+| `capability_unprovided` | warning | 어떤 플러그인의 `requires` 기능을 집합 안의 누구도 `provides`하지 않고 코어 기능도 아님 |
 
 ### 4.8 그룹 간 통신
 
