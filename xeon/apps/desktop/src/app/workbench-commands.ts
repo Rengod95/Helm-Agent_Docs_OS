@@ -44,12 +44,25 @@ export function createWorkbenchCommands(
   subscribeChanges: (listener: () => void) => () => void,
 ): WorkbenchCommands {
   return {
-    async list() {
-      const listed = await withConnection((c) => c.request("ext.list", {}));
+    async list(threadId) {
+      const listed = await withConnection((c) =>
+        c.request("ext.list", threadId === undefined ? {} : { threadId }),
+      );
       return listed.ok ? ok(listed.value.extensions) : err(listed.error);
     },
     onChanged: subscribeChanges,
     get: (name) => withConnection((c) => c.request("ext.get", { name })),
+    async groups(threadId) {
+      const got = await withConnection((c) => c.request("group.list", { threadId }));
+      return got.ok ? ok(got.value.groups) : err(got.error);
+    },
+    driveLock: (threadId) => withConnection((c) => c.request("group.driveLock", { threadId })),
+    timings: (name, threadId) =>
+      withConnection((c) =>
+        c.request("ext.timings", threadId === undefined ? { name } : { name, threadId }),
+      ),
+    explain: (key, threadId) =>
+      withConnection((c) => c.request("settings.explain", { key, threadId })),
     async toggle(request) {
       const done = await withConnection((c) =>
         c.request("settings.set", {

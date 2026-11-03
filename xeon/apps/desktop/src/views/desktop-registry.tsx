@@ -1,4 +1,4 @@
-import { CalendarClock, Inbox, MessageSquare, Plug } from "@caustic/react/icons";
+import { CalendarClock, Clock, Inbox, MessageSquare, Plug } from "@caustic/react/icons";
 import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
 import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
@@ -14,7 +14,8 @@ import {
   type ShellRegistry,
 } from "./shell/registry.ts";
 import { createWorkbenchStore } from "../state/workbench/index.ts";
-import { registerWorkbench } from "./workbench/index.tsx";
+import { inspectEndTab, registerWorkbench } from "./workbench/index.tsx";
+import { RuntimeTab } from "./runtime/runtime-tab.tsx";
 import type { ReactNode } from "react";
 
 // 지금 만들어져 있는 화면만 등록한다. 나머지 화면 id는 셸이 "아직 없어요" 빈 상태로 그린다.
@@ -76,6 +77,15 @@ const INBOX_TAB: EndTabDef = {
   render: () => <InboxTab />,
 };
 
+/** 대화 영역의 "런타임" 탭(§4.9.8): 이 대화의 주도 락, 켜진 그룹과 확장, 실패 */
+const RUNTIME_TAB: EndTabDef = {
+  id: "runtime",
+  area: "chat",
+  label: "desktop.shell.tab.runtime",
+  icon: <Clock />,
+  render: () => <RuntimeTab />,
+};
+
 /** 크래프트 화면 셋(개요·확장·엔진)은 `registerWorkbench`가 등록한다. 개요는 캔버스 하나이고 목록을 못 읽으면 띠가 상태를 보인다 */
 export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
@@ -84,6 +94,9 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(CONNECTION_SCREEN);
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerEndTab(INBOX_TAB);
-  registerWorkbench(registry, createWorkbenchStore());
+  registry.registerEndTab(RUNTIME_TAB);
+  const workbench = createWorkbenchStore();
+  registerWorkbench(registry, workbench);
+  registry.registerEndTab(inspectEndTab(workbench));
   return registry;
 }

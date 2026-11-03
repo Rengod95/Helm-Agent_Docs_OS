@@ -495,7 +495,14 @@ export function failureRowsOf(
   records: readonly HandlerFailureEntry[],
   name: string,
 ): readonly FailureRowVM[] {
-  const owner = `ext:${name}`;
+  return failureRowsOfOwner(records, `ext:${name}`);
+}
+
+/** owner 하나(`ext:<이름>`이나 `hook:<이름>`)의 실패 기록을 묶는다. `failureRowsOf`와 런타임 탭의 실패 구역이 쓴다 */
+export function failureRowsOfOwner(
+  records: readonly HandlerFailureEntry[],
+  owner: string,
+): readonly FailureRowVM[] {
   const byKey = new Map<string, { row: FailureRowVM; last: number }>();
   records.forEach((r, index) => {
     if (r.owner !== owner) return;

@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import {
+  INITIAL_WORKBENCH,
+  listLoaded,
   openDetail,
   pickGroup,
   pickPlugin,
   setQuery,
+  visibleRows,
   type WorkbenchState,
 } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
@@ -187,13 +190,27 @@ describe("확장 화면: 자세히 보기(P-17)는 목록 대신 그린다", () 
 });
 
 describe("확장 화면: 잠긴 스위치의 이유는 Tooltip으로 보인다", () => {
-  test("잠긴 행의 스위치는 이유를 aria-description으로 주고 Tooltip 칸에 감싸인다", () => {
-    const rows = rowsOf(render());
-    const core = rows.find((row) => row.cells[0]?.includes("core-loop"));
-    expect(core?.markup).toContain(`aria-description="${t("desktop.workbench.lock.exempt")}"`);
-    expect(core?.markup).toContain('data-slot="tooltip-trigger"');
-    expect(core?.markup).toContain('role="switch"');
-    expect(core?.markup).toContain("disabled");
+  test("ext-list.exempt-tier-switch-locked: core와 guard tier 행의 켜짐 스위치는 꺼져 잠기고 이유를 보인다", () => {
+    const state = listLoaded(INITIAL_WORKBENCH, [
+      entry("core-loop", { layer: "L1", tier: "core", origin: "builtin" }),
+      entry("gate", { layer: "L2", tier: "guard" }),
+      entry("web", { displayName: "웹 검색" }),
+    ]);
+    expect(visibleRows(state).map((r) => [r.name, r.lock])).toEqual([
+      ["core-loop", "exempt"],
+      ["gate", "exempt"],
+      ["web", null],
+    ]);
+    const rows = rowsOf(renderState(state));
+    for (const name of ["core-loop", "gate"]) {
+      const row = rows.find((r) => r.cells[0]?.includes(name));
+      expect(row?.markup).toContain(`aria-description="${t("desktop.workbench.lock.exempt")}"`);
+      expect(row?.markup).toContain('data-slot="tooltip-trigger"');
+      // 스위치 여는 태그에 disabled가 있어야 잠긴 것이다
+      expect(row?.markup).toMatch(/<button[^>]*role="switch"[^>]*disabled=""/);
+    }
+    const web = rows.find((r) => r.cells[0]?.includes("웹 검색"));
+    expect(web?.markup).not.toMatch(/<button[^>]*role="switch"[^>]*disabled=""/);
   });
 
   test("잠기지 않은 행은 Tooltip 칸이 없고 이유 설명도 없다", () => {
