@@ -416,4 +416,7 @@ test("release-smoke.sh passes its version to release.ts, and fresnel-release.yml
   const workflow = readFileSync(join(REPO, ".github", "workflows", "fresnel-release.yml"), "utf8");
   expect(workflow).toContain("FRESNEL_RELEASE_VERSION:");
   expect(workflow).toContain("refs/tags/v");
+  // Actions 표현식에 없는 함수를 쓰면 파일 전체가 거부되어 push마다 실패한다
+  expect(workflow).not.toContain("substring(");
+  expect(smoke).toContain('version="${version#v}"');
 });

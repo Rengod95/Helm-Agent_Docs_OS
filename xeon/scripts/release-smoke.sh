@@ -9,6 +9,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 version="${FRESNEL_RELEASE_VERSION:-0.0.0-smoke}"
+version="${version#v}"
 out="${FRESNEL_RELEASE_OUT:-dist/release-smoke}"
 bun="mise exec -- bun"
 rm -rf "$out"
