@@ -56,7 +56,7 @@ fresnel-<버전>-<triple>/
 │   └── account-rotation/         같은 구조
 ├── binaries/                     macOS만: sops, age, rg
 ├── binaries.lock.json            macOS만: 번들 바이너리 목록
-├── THIRD-PARTY-NOTICES.txt       번들 바이너리 고지와 시스템 요구
+├── THIRD-PARTY-NOTICES.txt       번들 바이너리 고지, 시스템 요구, Bun 런타임과 npm 의존의 고지
 └── SHA256SUMS                    위 모든 파일의 SHA-256, 경로순
 ```
 
@@ -94,7 +94,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - `release.ts`는 파일을 복사하기 전에 `<이름> --version`의 출력에 고정 버전이 있는지 확인합니다. 없으면 `binary.version` 오류로 끝납니다.
 - `binaries.lock.json`은 이름순으로 정렬한 항목을 씁니다. 항목은 `name`, `platform`, `arch`, `path`(자원 디렉터리 기준 상대 경로), `sha256`, `version`입니다. 실행할 때 해석기가 이 목록을 읽고 해시를 맞춥니다(`L0.os.spec` §3.6).
 - Linux에서 `rg`, `bwrap`, `socat`은 시스템 패키지로 요구합니다. 아카이브는 세 바이너리를 싣지 않습니다. 목록은 `release-bundle.json`의 `systemRequired.linux`에 있고, 세 바이너리는 점검 표(`requirements.ts`)에서 모두 필수입니다. `fresnel doctor`가 설치 명령을 안내합니다(`installHint`, 예: `apt install bubblewrap`).
-- `THIRD-PARTY-NOTICES.txt`는 번들 바이너리마다 이름, 버전, 라이선스, 출처를 적고, Linux 아카이브에는 시스템 요구 목록을 적습니다.
+- `THIRD-PARTY-NOTICES.txt`는 번들 바이너리마다 이름, 버전, 라이선스, 출처를 적고, Linux 아카이브에는 시스템 요구 목록을 적습니다. 그 뒤에 Bun 런타임 고지와 npm 의존 고지가 붙습니다(§6).
 
 ### 3.4 대상
 
@@ -128,6 +128,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - 산출물의 무결성은 `SHA256SUMS`(아카이브 안의 모든 파일)와 `binaries.lock.json`(번들 바이너리)이 맡습니다. 아카이브 옆의 `.sha256`은 내려받는 중의 깨짐을 잡습니다.
 - 이 해시들은 서명이 아닙니다. `.sha256`과 아카이브를 같은 곳에서 받으므로, 그 자체로는 변조를 막지 못합니다([미결] §8).
 - `THIRD-PARTY-NOTICES.txt`는 번들 바이너리 세 개의 이름, 버전, 라이선스, 출처를 적습니다. 라이선스 전문은 싣지 않고 출처 주소만 적습니다. 이 방식이 배포 조건을 충족하는지는 사용자 확인이 필요합니다([미결] §8).
+- 컴파일한 바이너리에 든 npm 의존의 고지는 `xeon/scripts/notices.ts`가 만듭니다. `apps/host`와 `apps/cli`의 `dependencies`를 `node_modules` 심볼릭 링크를 따라 훑고(devDependencies 제외), 제3자 패키지마다 이름, 버전, 라이선스와 LICENSE·COPYING·NOTICE 파일 전문을 적습니다. `vendor/cordis`도 포함합니다. 선택 가능한 이중 라이선스는 고른 쪽을 적습니다(node-forge는 BSD-3-Clause). 라이선스 파일이 없고 `NO_LICENSE_FILE` 허용 목록에도 없는 패키지가 있으면 `release.ts`가 `notices.failed`로 실패합니다. 허용 목록의 패키지는 package.json의 선언 라이선스, 저자, 저장소를 적습니다. Bun 런타임은 MIT와 출처 주소를 적고, 내장 JavaScriptCore 등의 고지는 Bun의 LICENSE.md를 가리킵니다.
 - 워크플로의 액션은 커밋 SHA로 고정하고, 버전 주석을 붙입니다(M3-30). 주석의 버전이 SHA와 맞는지는 저장소 안에서 확인하지 않습니다([미결] §8).
 - 시크릿 검사(gitleaks) 단계는 fresnel 워크플로에 아직 없습니다([미결] §8).
 - npm 공개는 없습니다(D-M3-25 행 6).
@@ -161,7 +162,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 
 1. [해소] 버전 값은 §8.1의 버전 주입으로 정했습니다.
 2. [미결] Tauri 자원 매핑. `xeon/apps/desktop/src-tauri/tauri.conf.json`에는 `externalBin`만 있습니다. 템플릿과 기본 플러그인을 `Contents/MacOS`에 두는 설정(`resources`와 macOS 파일 매핑)은 M4입니다.
-3. [미결] 고지 파일의 라이선스 전문. BSD-3-Clause(age)는 배포물과 함께 저작권 고지와 조건을 두라고 합니다. 현재 고지는 출처 주소만 적습니다. 전문을 넣을지 사용자가 정합니다.
+3. [미결] 번들 바이너리(sops, age, rg)의 라이선스 전문. npm 의존은 전문을 싣지만 번들 바이너리는 출처 주소만 적습니다. BSD-3-Clause(age)는 배포물과 함께 저작권 고지와 조건을 두라고 합니다. 전문을 넣을지 사용자가 정합니다. Bun의 LICENSE.md 전문(JavaScriptCore 등)을 싣는지도 사용자가 확인합니다.
 4. [미결] 체크섬의 출처. `.sha256`과 아카이브는 같은 곳에서 받습니다. 서명된 체크섬이나 별도 공개 키는 없습니다.
 5. [미결] CI의 gitleaks 단계. fresnel 워크플로에 없습니다(M3-30의 일부).
 6. [미결] 액션 주석 검증. 주석의 `v<버전>`과 SHA가 맞는지는 저장소 안에서 검사하지 않습니다. 사용자나 리뷰가 한 번 확인합니다.
