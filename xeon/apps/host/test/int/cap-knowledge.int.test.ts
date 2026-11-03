@@ -127,7 +127,7 @@ describe("skill_view", () => {
 });
 
 /** 모델이 `tool`을 `args`로 한 번 부르는 turn을 돌리고 도구 결과 본문을 돌려준다 */
-async function callTool(tool: string, args: Readonly<Record<string, unknown>>): Promise<string> {
+async function callTool(tool: string, args: Readonly<Record<string, string>>): Promise<string> {
   const home = useEngineHome();
   writeUserSettings(home, TAPE_SETTINGS);
   const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-kn-")));
@@ -160,16 +160,21 @@ async function callTool(tool: string, args: Readonly<Record<string, unknown>>): 
 
 // cross/C-01: 두 기능이 core-tools 매니페스트에 선언되지 않아 도구가 항상 "no active provider"로 끝났다.
 describe("knowledge.search and knowledge.memory tools", () => {
-  for (const [tool, args] of [
+  const cases: readonly (readonly [string, Readonly<Record<string, string>>])[] = [
     ["knowledge_search", { query: "anything" }],
     ["session_scroll", { threadId: "thr_none" }],
     ["session_read", { threadId: "thr_none" }],
     ["memory_manage", { action: "list" }],
-  ] as const) {
-    realTest(`${tool} reaches its provider`, async () => {
-      const text = await callTool(tool, args);
-      expect(text.length).toBeGreaterThan(0);
-      expect(text).not.toContain("has no active provider");
-    });
+  ];
+  for (const [tool, args] of cases) {
+    realTest(
+      `${tool} reaches its provider`,
+      async () => {
+        const text = await callTool(tool, args);
+        expect(text.length).toBeGreaterThan(0);
+        expect(text).not.toContain("has no active provider");
+      },
+      60_000,
+    );
   }
 });

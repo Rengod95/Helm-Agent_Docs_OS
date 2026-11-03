@@ -27,6 +27,8 @@ import {
   WorkspaceImages,
   WorkspaceShell,
   type AnyCapabilityDef,
+  type CapabilityId,
+  type SemVer,
 } from "@fresnel/contracts/capabilities";
 import { capabilityDefTable, type CapabilityDefLookup } from "@fresnel/ext-host";
 
@@ -68,4 +70,17 @@ export const BUILTIN_CAPABILITY_DEFS: readonly AnyCapabilityDef[] = [
 /** 내장 정의에 확장이 공급하는 기능의 정의(`extra`)를 더한 조회 함수 */
 export function capabilityDefsOf(extra: readonly AnyCapabilityDef[] = []): CapabilityDefLookup {
   return capabilityDefTable([...BUILTIN_CAPABILITY_DEFS, ...extra]);
+}
+
+/**
+ * 코어가 제공하는 기능과 버전. 외부 확장 로더가 `requires`를 채울 때 외부 `provides`와 함께 본다(X.loading-trust.spec §4.8 b).
+ * `web.research`는 공급자가 아직 없어(cap-web 2차) 뺀다.
+ */
+export function coreCapabilityVersions(): ReadonlyMap<CapabilityId, SemVer> {
+  const out = new Map<CapabilityId, SemVer>();
+  for (const def of BUILTIN_CAPABILITY_DEFS) {
+    if (def.id === "web.research") continue;
+    out.set(def.id, def.version);
+  }
+  return out;
 }
