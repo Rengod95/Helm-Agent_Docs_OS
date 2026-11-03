@@ -50,7 +50,7 @@ function limitOriginal(bytes: Uint8Array): Uint8Array {
 }
 
 /** 앞에서 `maxBytes` 바이트까지의 UTF-8 글자 경계 접두. 첫 줄 하나가 한도를 넘을 때 미리보기로 쓴다 */
-export function utf8Prefix(text: string, maxBytes: number): { text: string; bytes: number } {
+function utf8Prefix(text: string, maxBytes: number): { text: string; bytes: number } {
   const bytes = utf8Bytes(text);
   if (bytes.length <= maxBytes) return { text, bytes: bytes.length };
   let end = maxBytes;
