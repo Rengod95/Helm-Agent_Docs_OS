@@ -4,7 +4,7 @@ import { WireError } from "@fresnel/contracts/wire";
 import type { BackendResult, BridgePolicyContext, HostSnapshot } from "@fresnel/client/views/app";
 import { createBridgeBackend, type BridgeBackendDeps } from "../../src/plugin-ui/backend.ts";
 import { policyContextOf } from "../../src/plugin-ui/policy-context.ts";
-import { fakeConnection, type Table } from "../state/fake-connection.ts";
+import { fakeConnection, type ExtTable, type Table } from "../state/fake-connection.ts";
 import { STORE, itm, thr, userItem } from "../state/helpers.ts";
 import { extGetOf, uiEntryOf } from "./support.ts";
 
@@ -30,8 +30,12 @@ function policyOf(): BridgePolicyContext {
   return built.value;
 }
 
-function harness(table: Table, overrides: Partial<BridgeBackendDeps> = {}) {
-  const fake = fakeConnection(table);
+function harness(
+  table: Table,
+  overrides: Partial<BridgeBackendDeps> = {},
+  extTable: ExtTable = {},
+) {
+  const fake = fakeConnection(table, extTable);
   const navigated: unknown[] = [];
   const opened: string[] = [];
   const diagnostics: { op: string; size: number }[] = [];
@@ -121,11 +125,53 @@ function customItem(n: number, customType: string, text: string): ItemRecord {
   };
 }
 
-describe("unavailable operations", () => {
-  test("query, call and requestApproval are refused without any wire call", async () => {
+describe("extension methods and approvals", () => {
+  test("query sends ext.helm.<verb> with the open thread and returns the raw value", async () => {
+    const h = harness({}, {}, { "ext.helm.status": () => Promise.resolve({ runs: 2 }) });
+    expect(await h.backend.query("status", { limit: 1 })).toEqual({ ok: true, value: { runs: 2 } });
+    expect(h.calls).toEqual([{ method: "ext.helm.status", params: { limit: 1, threadId: OPEN } }]);
+  });
+
+  test("a threadId the frame wrote is dropped and never reaches the wire", async () => {
+    const h = harness(
+      {},
+      { openThreadId: () => undefined },
+      { "ext.helm.save": () => Promise.resolve({}) },
+    );
+    await h.backend.call("save", { threadId: "thr_other", name: "a" });
+    expect(h.calls).toEqual([{ method: "ext.helm.save", params: { name: "a" } }]);
+  });
+
+  test("a wire error becomes a bridge error name without the engine text", async () => {
+    const h = harness(
+      {},
+      {},
+      {
+        "ext.helm.save": rejecting("ext.helm.off", "secret detail"),
+        "ext.helm.status": rejecting("jsonrpc.invalidParams", "secret detail"),
+      },
+    );
+    expect(await h.backend.call("save", {})).toEqual({
+      ok: false,
+      error: { kind: "extension_off" },
+    });
+    expect(await h.backend.query("status", {})).toEqual({
+      ok: false,
+      error: { kind: "args_invalid", detail: "params" },
+    });
+  });
+
+  test("a method that needs approval is closed and sends nothing", async () => {
+    const h = harness({}, {}, { "ext.helm.reset": () => Promise.resolve({}) });
+    expect(await h.backend.call("reset", {})).toEqual({
+      ok: false,
+      error: { kind: "denied", detail: "approval_required" },
+    });
+    expect(h.calls).toEqual([]);
+  });
+
+  test("requestApproval is refused without any wire call", async () => {
     const h = harness({});
-    expect(await h.backend.query("status", {})).toEqual(refused("wire_unavailable"));
-    expect(await h.backend.call("save", {})).toEqual(refused("wire_unavailable"));
     expect(await h.backend.requestApproval(OPEN, "제목", "본문")).toEqual(
       refused("wire_unavailable"),
     );

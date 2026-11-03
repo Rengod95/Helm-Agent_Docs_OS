@@ -61,7 +61,11 @@ export function policyContextOf(
   const methods: ReadonlyMap<string, MethodGrant> = new Map(
     (manifest.methods ?? []).map((decl): [string, MethodGrant] => [
       decl.verb,
-      { readOnly: decl.readOnly, approval: decl.approval === true },
+      {
+        readOnly: decl.readOnly,
+        approval: decl.approval === true,
+        ...(decl.label === undefined ? {} : { label: decl.label }),
+      },
     ]),
   );
   // 내장 확장만 그룹 설정 접두 `l3.<이름>.`을 받는다(ADR-0021 §3.4 표)

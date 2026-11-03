@@ -65,13 +65,16 @@ function fail(kind: BridgeError["kind"], detail?: string): BackendResult<never> 
 }
 
 /**
- * 확장 메서드(`ext.<확장>.<동사>`)와 승인 요청은 지금 타입이 있는 wire로 부를 길이 없다.
- * `HostConnection.request`는 닫힌 목록 `WireMethodName`만 받고, `ext.ui.requestApproval`은 매니페스트에 선언된 `method`를 요구하는데
- * 다리 `requestApproval`은 제목과 설명만 준다. 두 길은 계약 결정 뒤에 잇는다(작업 보고 [미결]).
+ * 프레임이 글을 준 승인 요청(`requestApproval`)은 wire로 잇지 않는다. `ext.ui.requestApproval`은 매니페스트에 선언된 `method`를 요구하는데
+ * 다리 `requestApproval`은 제목과 설명만 주고, 프레임이 쓴 글이 표준 승인 카드가 되는 길은 사용자 결정 전에 열지 않는다(작업 보고 [미결]).
+ * 승인이 필요한 메서드(`approval: true`) 호출도 승인 뒤 실행하는 길이 정해지지 않아 닫는다
  */
 function unavailable(): Promise<BackendResult<never>> {
   return Promise.resolve(fail("failed", "wire_unavailable"));
 }
+
+/** 확장 메서드 params의 예약 키. 프레임이 준 값은 버리고 열린 대화로만 채운다 */
+const THREAD_KEY = "threadId";
 
 function isExtensionOff(kind: string): boolean {
   return kind.startsWith("ext.") && kind.endsWith(".off");
@@ -172,11 +175,31 @@ function commandResultOf(output: CommandRunResult): BackendResult<unknown> {
 
 export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
   const { connection } = deps;
+  /** `ext.<확장>.<동사>` 한 번. 대화는 열린 대화로만 싣고 프레임이 준 `threadId`는 버린다 */
+  function extension(
+    verb: string,
+    params: Readonly<Record<string, unknown>>,
+  ): Promise<BackendResult<unknown>> {
+    const rest = Object.fromEntries(Object.entries(params).filter(([key]) => key !== THREAD_KEY));
+    const open = threadOf(deps.openThreadId());
+    const sent = open.ok ? { ...rest, [THREAD_KEY]: open.value } : rest;
+    return wire(() => connection.requestExtension(deps.extension, verb, sent));
+  }
+
   return {
-    // 확장 메서드 읽기와 호출은 위 `unavailable` 주석의 이유로 아직 wire를 부르지 않는다
-    query: unavailable,
-    call: unavailable,
     requestApproval: unavailable,
+
+    query(verb, params) {
+      return extension(verb, params);
+    },
+
+    call(verb, params) {
+      // 승인이 필요한 메서드는 승인 뒤 실행하는 길이 없어 닫는다. 판정은 `decide`가 이미 했고 여기서 다시 선언을 본다
+      if (deps.policy().methods.get(verb)?.approval === true) {
+        return Promise.resolve(fail("denied", "approval_required"));
+      }
+      return extension(verb, params);
+    },
 
     async events(kinds, limit) {
       const open = threadOf(deps.openThreadId());

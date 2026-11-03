@@ -32,6 +32,26 @@ describe("policyContextOf", () => {
     expect(context.value.methods.has("missing")).toBe(false);
   });
 
+  test("a manifest label reaches the method grant", () => {
+    const manifest = {
+      ...HELM_MANIFEST,
+      methods: [{ verb: "save", params: {}, result: {}, readOnly: false, label: "Save the plan" }],
+    };
+    const context = policyContextOf({
+      get: extGetOf(manifest),
+      entry: uiEntryOf(),
+      openThreadId: undefined,
+      commands,
+    });
+    expect(context.ok).toBe(true);
+    if (!context.ok) return;
+    expect(context.value.methods.get("save")).toEqual({
+      readOnly: false,
+      approval: false,
+      label: "Save the plan",
+    });
+  });
+
   test("readsRecordKinds is the union over the plugins; declared setting keys come from userConfig", () => {
     const context = policyContextOf({
       get: extGetOf(),
