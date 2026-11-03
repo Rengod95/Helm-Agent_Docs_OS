@@ -11,7 +11,7 @@ import {
   propSpecOf,
   scalarMismatch,
   WIDGET_SPECS,
-  type WidgetSpec,
+  type WidgetName,
 } from "./catalog.ts";
 import { checkTree, type TreeIssue } from "./check.ts";
 import { evalCondition } from "./expr.ts";
@@ -29,17 +29,36 @@ import { createScope, resolvePath, withLocal, type Scope } from "./scope.ts";
 // - 모르는 위젯은 자리표시 노드 하나이고 자식은 버린다.
 // - 노드 수와 깊이는 한도로 막는다. 한도를 넘는 첫 노드가 too_long 자리표시 하나가 되고, 그 뒤는 모두 버린다.
 // - 바인드 문자열은 4096자에서 자른다.
+// - 배열 바인드: LIST_BINDS의 목록 키(List.items, Table.rows, ListDescription.items, ActivityTree.items, Timeline.items, Sparkline.points)에
+//   배열이 오면 props가 아니라 lists로 푼다. 원소는 스칼라이거나 스칼라 속성만 담은 평평한 레코드다. 앞 500개만 보고 넘치면 truncated다.
+//   목록 원소 하나가 일 한 단위다. format은 배열 바인드에 적용하지 않는다. 배열이 아닌 값은 목록을 만들지 않고 위의 bind 규칙을 따른다.
 
 const BOUND_STRING_LIMIT = 4096;
 const EACH_COPY_LIMIT: number = UI_LIMITS.eventRows;
-/** each 복사 한 벌과 when 판정 한 번이 각각 일 한 단위다. 그리지 않는 복사도 세므로 거짓 when 아래의 중첩 each도 멈춘다 */
+const LIST_LIMIT: number = UI_LIMITS.eventRows;
+/** each 복사 한 벌, when 판정 한 번, 목록 원소 하나가 각각 일 한 단위다. 그리지 않는 복사도 세므로 거짓 when 아래의 중첩 each도 멈춘다 */
 const WORK_LIMIT: number = UI_LIMITS.treeNodes * 10;
+/** 배열 바인드를 목록으로 받는 위젯과 그 키. 카탈로그 binds의 키 가운데 배열만 받는 것이다 */
+const LIST_BINDS: Readonly<Partial<Record<WidgetName, string>>> = {
+  List: "items",
+  Table: "rows",
+  ListDescription: "items",
+  ActivityTree: "items",
+  Timeline: "items",
+  Sparkline: "points",
+};
+/** 목록 레코드에 옮기지 않는 키. 프로토타입을 바꾸거나 바깥 이름을 흉내 낸다 */
+const RECORD_DENY_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
+
+export type ResolvedItem = UiScalar | Readonly<Record<string, UiScalar>>;
 
 export interface ResolvedNode {
   readonly type: string;
   readonly props: Readonly<Record<string, UiScalar>>;
   readonly children: readonly ResolvedNode[];
   readonly placeholder?: "unknown_widget" | "too_long";
+  /** 배열 바인드를 목록으로 푼 것. 목록 키마다 하나이고, 목록 바인드가 없으면 이 속성이 없다 */
+  readonly lists?: Readonly<Record<string, readonly ResolvedItem[]>>;
 }
 
 export interface ResolvedTree {
@@ -143,13 +162,14 @@ function resolveInstance(
   if (!isWidgetName(type)) {
     return [{ type, props: {}, children: [], placeholder: "unknown_widget" }];
   }
-  const props = resolveProps(node, WIDGET_SPECS[type], scope, path, walk);
+  const bound = resolveProps(node, type, scope, path, walk);
   const children: ResolvedNode[] = [];
   const childNodes: readonly UiNode[] = node.children ?? [];
   for (const [index, child] of childNodes.entries()) {
     children.push(...resolveTemplate(child, scope, depth + 1, `${path}/children/${index}`, walk));
   }
-  return [{ type, props, children }];
+  if (bound.lists === undefined) return [{ type, props: bound.props, children }];
+  return [{ type, props: bound.props, children, lists: bound.lists }];
 }
 
 /** 일 한 단위를 쓴다. 예산이 다하면 멈추고 잘렸다고 표시한다(자리표시 노드는 없다) */
@@ -168,13 +188,20 @@ function stop(type: string, walk: Walk): ResolvedNode {
   return { type, props: {}, children: [], placeholder: "too_long" };
 }
 
+/** 한 노드의 prop과 목록. 목록은 배열 바인드가 하나라도 있을 때만 있다 */
+interface BoundProps {
+  readonly props: Readonly<Record<string, UiScalar>>;
+  readonly lists: Readonly<Record<string, readonly ResolvedItem[]>> | undefined;
+}
+
 function resolveProps(
   node: UiNode,
-  widget: WidgetSpec,
+  type: WidgetName,
   scope: Scope,
   path: string,
   walk: Walk,
-): Readonly<Record<string, UiScalar>> {
+): BoundProps {
+  const widget = WIDGET_SPECS[type];
   const props: Record<string, UiScalar> = {};
   const staticProps: Readonly<Record<string, UiScalar>> = node.props ?? {};
   for (const [key, value] of Object.entries(staticProps)) {
@@ -184,10 +211,17 @@ function resolveProps(
     if (prop === undefined || scalarMismatch(prop, value) !== undefined) continue;
     props[key] = clipScalar(value);
   }
+  let lists: Record<string, readonly ResolvedItem[]> | undefined;
   const binds: Readonly<Record<string, UiBinding>> = node.bind ?? {};
   for (const [key, binding] of Object.entries(binds)) {
     if (isForbiddenPropName(key) || !bindAllowed(widget, key)) continue;
-    const value = boundValue(binding, scope, walk);
+    const read: PointerRead = resolvePath(scope, binding.path);
+    if (read.found && isArrayValue(read.value) && LIST_BINDS[type] === key) {
+      lists ??= {};
+      lists[key] = listOf(read.value, walk);
+      continue;
+    }
+    const value = boundValue(binding, read, walk);
     if (value === undefined) continue;
     const prop = propSpecOf(widget, key);
     if (prop !== undefined) {
@@ -203,12 +237,41 @@ function resolveProps(
     }
     props[key] = value;
   }
-  return props;
+  return { props, lists };
 }
 
-/** 바인드 하나의 값. 경로가 없거나, 서식이 맞지 않거나, 스칼라가 아니거나, null이면 undefined다 */
-function boundValue(binding: UiBinding, scope: Scope, walk: Walk): UiScalar | undefined {
-  const read: PointerRead = resolvePath(scope, binding.path);
+/** 배열 바인드 하나를 목록으로 푼다. 원본의 앞 LIST_LIMIT개 원소만 보고, 본 원소마다 일 한 단위를 쓴다. 예산이 다하면 거기서 멈춘다 */
+function listOf(source: readonly unknown[], walk: Walk): readonly ResolvedItem[] {
+  if (source.length > LIST_LIMIT) walk.truncated = true;
+  const count = Math.min(source.length, LIST_LIMIT);
+  const items: ResolvedItem[] = [];
+  for (let index = 0; index < count; index += 1) {
+    if (!spendWork(walk)) break;
+    const item = itemOf(source[index]);
+    if (item !== undefined) items.push(item);
+  }
+  return items;
+}
+
+/** 목록 원소 하나. 스칼라는 그대로 두고, 객체는 평평한 레코드로 줄이며, 배열과 쓸 수 없는 수는 버린다 */
+function itemOf(value: unknown): ResolvedItem | undefined {
+  if (isRecordValue(value)) return recordOf(value);
+  return scalarOf(value);
+}
+
+/** 객체의 own 스칼라 속성만 새 레코드에 담는다. Object.fromEntries는 키를 own 속성으로만 만들므로 프로토타입이 바뀌지 않는다 */
+function recordOf(source: Readonly<Record<string, unknown>>): Readonly<Record<string, UiScalar>> {
+  const fields: [string, UiScalar][] = [];
+  for (const [key, value] of Object.entries(source)) {
+    if (RECORD_DENY_KEYS.has(key)) continue;
+    const scalar = scalarOf(value);
+    if (scalar !== undefined) fields.push([key, scalar]);
+  }
+  return Object.fromEntries(fields);
+}
+
+/** 바인드 하나의 스칼라 값. 경로가 없거나, 서식이 맞지 않거나, 스칼라가 아니거나, null이면 undefined다 */
+function boundValue(binding: UiBinding, read: PointerRead, walk: Walk): UiScalar | undefined {
   if (!read.found) return undefined;
   const value: UiScalar | undefined =
     binding.format === undefined
@@ -250,4 +313,8 @@ function issueKey(issue: TreeIssue): string {
 
 function isArrayValue(value: unknown): value is readonly unknown[] {
   return Array.isArray(value);
+}
+
+function isRecordValue(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

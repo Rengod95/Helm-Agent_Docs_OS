@@ -14,4 +14,10 @@ export {
   type PropSpec,
 } from "./catalog.ts";
 export { checkTree, type TreeCheck, type TreeIssue } from "./check.ts";
-export { resolveTree, type ResolveInput, type ResolvedNode, type ResolvedTree } from "./resolve.ts";
+export {
+  resolveTree,
+  type ResolveInput,
+  type ResolvedItem,
+  type ResolvedNode,
+  type ResolvedTree,
+} from "./resolve.ts";

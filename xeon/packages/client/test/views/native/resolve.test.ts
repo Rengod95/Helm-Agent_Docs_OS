@@ -421,3 +421,66 @@ describe("resolveTree limits", () => {
     });
   });
 });
+
+const listTree = (path: string, type = "List"): UiNode => ({
+  type,
+  bind: { [type === "Table" ? "rows" : "items"]: { path } },
+});
+const key = (type: string): string => (type === "Table" ? "rows" : "items");
+
+describe("resolveTree array binds", () => {
+  test("a scalar array becomes a list and clips long strings", () => {
+    const long = "x".repeat(5000);
+    const resolved = resolveTree(
+      listTree("/names"),
+      input({ names: ["a", 2, true, null, long, Number.NaN, { deep: 1 }.deep] }),
+    );
+    expect(resolved.root).toEqual({
+      type: "List",
+      props: {},
+      children: [],
+      lists: { items: ["a", 2, true, null, "x".repeat(4096), 1] },
+    });
+  });
+
+  test("objects keep only their own scalar fields and skip prototype keys", () => {
+    const rows: unknown = JSON.parse(
+      '[{"id":"r1","n":3,"nested":{"a":1},"list":[1],"__proto__":{"polluted":true},"constructor":"c"},[1,2],"s"]',
+    );
+    const resolved = resolveTree(listTree("/rows", "Table"), input({ rows }));
+    expect(resolved.root?.lists).toEqual({ rows: [{ id: "r1", n: 3 }, "s"] });
+    const first = resolved.root?.lists?.[key("Table")]?.[0];
+    expect(Object.getPrototypeOf(first)).toBe(Object.prototype);
+    expect("polluted" in {}).toBe(false);
+  });
+
+  test("lists are capped at 500 and mark the tree truncated", () => {
+    const items = Array.from({ length: 600 }, (_, index) => index);
+    const resolved = resolveTree(listTree("/items"), input({ items }));
+    expect(resolved.truncated).toBe(true);
+    expect(resolved.root?.lists?.["items"]).toEqual(items.slice(0, 500));
+  });
+
+  test("a non-array value on a list key keeps the old behaviour", () => {
+    const scalar = resolveTree(listTree("/v"), input({ v: "text" }));
+    expect(scalar.root?.lists).toBeUndefined();
+    expect(scalar.root?.props).toEqual({ items: "text" });
+    const object = resolveTree(listTree("/v"), input({ v: { a: 1 } }));
+    expect(object.root).toEqual({ type: "List", props: {}, children: [] });
+  });
+
+  test("list elements spend the shared work budget", () => {
+    const items = Array.from({ length: 500 }, (_, index) => index);
+    const tree: UiNode = {
+      type: "Stack",
+      children: Array.from({ length: 100 }, () => listTree("/items")),
+    };
+    const resolved = resolveTree(tree, input({ items }));
+    expect(resolved.truncated).toBe(true);
+    const total = (resolved.root?.children ?? []).reduce(
+      (sum, child) => sum + (child.lists?.["items"]?.length ?? 0),
+      0,
+    );
+    expect(total).toBe(20000);
+  });
+});
