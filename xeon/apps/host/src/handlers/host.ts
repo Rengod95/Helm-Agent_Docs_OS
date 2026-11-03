@@ -153,12 +153,15 @@ export function createHostStatusHandler(
 ): WireHandler<"host.status"> {
   return async (params, context) => {
     const idleAt = lifecycle?.idleShutdownAt?.() ?? null;
+    const activity = engine.ports.activity.snapshot();
     const status = {
       mode: engine.mode,
       pid: info.pid,
       startedAt: new Date(engine.startedAt).toISOString(),
       connections: hub().size,
-      liveTurns: engine.ports.activity.snapshot().liveTurns,
+      liveTurns: activity.liveTurns,
+      // 승인을 기다리는 thread는 바쁜 것이다. 있을 때만 싣는다(결정 2026-11-04 B11)
+      ...(activity.waitingApprovals > 0 ? { waitingApprovals: activity.waitingApprovals } : {}),
       idleShutdownAt: idleAt === null ? null : new Date(idleAt).toISOString(),
       // 안전 모드일 때만 싣는다(F wire host.status). 켜지 않았으면 필드를 두지 않는다
       ...(engine.safeMode ? { safeMode: true } : {}),

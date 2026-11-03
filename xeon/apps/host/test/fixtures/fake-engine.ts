@@ -49,6 +49,7 @@ import type {
   TrustPort,
   TurnPort,
   UsagePort,
+  ActivityPort,
 } from "../../src/types.ts";
 
 // 아래 층 패키지 없이 호스트의 연결·처리기·전송을 시험하려는 가짜 엔진. 이벤트 로그는 메모리이고 커밋 알림은 커밋 직후 같은 턴에서
@@ -124,6 +125,7 @@ export interface FakeEngineOptions {
     readonly dialog?: Partial<DialogWirePort>;
     readonly proposals?: Partial<ProposalPort>;
     readonly usage?: Partial<UsagePort>;
+    readonly activity?: Partial<ActivityPort>;
     readonly schedule?: Partial<ScheduleService>;
     /** 대화 영역 포트(`goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)를 바꾼다. 쓰지 않는 멤버는 부르면 바로 실패한다 */
     readonly dialogArea?: Partial<DialogAreaPort>;
@@ -436,6 +438,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     activity: {
       snapshot: () => ({ liveTurns: 0, liveTasks: 0, waitingApprovals: 0, pendingSchedules: 0 }),
       onChange: () => () => undefined,
+      ...options.overrides?.activity,
     },
     // 예약 서비스는 `overrides.schedule`로 쓰는 멤버만 채운다. 채우지 않은 멤버를 부르면 undefined라 시험이 바로 실패한다
     schedule: partial<ScheduleService>({ ...options.overrides?.schedule }),

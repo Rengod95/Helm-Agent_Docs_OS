@@ -33,7 +33,7 @@ import { resolveServicePaths, type ServicePathError, type ServicePaths } from ".
 import { systemTime } from "./time.ts";
 
 // L4.host-service.spec §3.3.4 ensure.ts, SV-03·SV-06. `ensureService`(L0.process)의 의존을 호스트 계약(`host.hello`, `host.status`, `host.shutdown`)과
-// 실제 프로세스 기동으로 채운다. 한가함은 `liveTurns == 0`이고 연결이 자기 하나뿐인 때다(승인 대기 turn은 liveTurns에 들어 있다 [가정]).
+// 실제 프로세스 기동으로 채운다. 한가함은 `liveTurns == 0`이고 연결이 자기 하나뿐인 때다(승인 대기 thread는 `waitingApprovals`로 따로 센다, 결정 2026-11-04 B11).
 
 /** 서비스를 띄우는 전체 명령(`... service run`). 실행 파일 위치는 호출자가 안다(CLI 바이너리, 개발 진입) */
 export interface ServiceCommand {
@@ -65,6 +65,18 @@ export interface EnsuredService {
 const DEFAULT_REPLACE_WAIT_MS = 5000;
 const CLIENT_NAME = "fresnel-ensure";
 
+/**
+ * 버전이 다른 서비스를 바꿔도 되는 한가함. 진행 중 turn이 없고 연결이 자기 하나뿐이며 승인을 기다리는 thread도 없어야 한다.
+ * 승인 대기 thread는 turn이 멈춰 있어도 바쁜 것이다(결정 2026-11-04 B11, L1.tools.plan §7)
+ */
+export function isServiceIdle(status: {
+  readonly liveTurns: number;
+  readonly connections: number;
+  readonly waitingApprovals?: number | undefined;
+}): boolean {
+  return status.liveTurns === 0 && (status.waitingApprovals ?? 0) === 0 && status.connections <= 1;
+}
+
 /** 소켓에 접속해 hello와 status를 한 번 왕복한다. 연결은 닫고 돌려준다 */
 async function probeService(
   registration: ServiceRegistration,
@@ -91,7 +103,7 @@ async function probeService(
     return ok({
       version: hello.value.server.version,
       protocolVersion: hello.value.protocolVersion,
-      idle: status.value.liveTurns === 0 && status.value.connections <= 1,
+      idle: isServiceIdle(status.value),
       pid: status.value.pid,
       startedAt: status.value.startedAt,
     });
