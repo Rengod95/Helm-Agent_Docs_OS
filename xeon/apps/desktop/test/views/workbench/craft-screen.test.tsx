@@ -4,8 +4,10 @@ import { Bug } from "@fresnel/contracts";
 import {
   listLoaded,
   openDetail,
+  pickSel,
   select,
   setQuery,
+  toggleContrib,
   type WorkbenchState,
 } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
@@ -63,6 +65,18 @@ function render(
   );
 }
 
+/** 누름 상태가 켜진 단추의 글(태그는 뺀다) */
+function pressedLabels(html: string): string[] {
+  return [...html.matchAll(/<button\b[^>]*>(.*?)<\/button>/g)]
+    .filter((m) => m[0].includes('aria-pressed="true"'))
+    .map((m) => (m[1] ?? "").replace(/<[^>]*>/g, ""));
+}
+
+/** 층 목록이 그린 층 이름, 그린 순서대로 */
+function sectionLayers(html: string): string[] {
+  return [...html.matchAll(/<section aria-label="([^"]+)"/g)].map((m) => m[1] ?? "");
+}
+
 describe("크래프트 개요", () => {
   test("머리에 제목과 개수, 보기 셋이 보인다", () => {
     const html = render(<CraftScreen slots={createCanvasSlots()} />);
@@ -77,6 +91,33 @@ describe("크래프트 개요", () => {
     expect(html.indexOf("L2")).toBeLessThan(html.indexOf("L3"));
     expect(html).toContain("웹 검색");
     expect(html).toContain("1/1 켜짐");
+  });
+
+  test("층 목록은 L1, L2, L3 순서로 모두 보이고 층을 고르면 그 층만 보인다", () => {
+    expect(sectionLayers(render(<CraftScreen slots={createCanvasSlots()} />))).toEqual([
+      "L1",
+      "L2",
+      "L3",
+    ]);
+    const layer = render(<CraftScreen slots={createCanvasSlots()} />, (s) =>
+      pickSel(s, { k: "layer", id: "L2" }),
+    );
+    expect(sectionLayers(layer)).toEqual(["L2"]);
+  });
+
+  test("구성 요소 거르기는 고른 칸만 눌린 상태로 보이고 글은 옛 문구 키를 쓴다", () => {
+    const html = render(<CraftScreen slots={createCanvasSlots()} />, (s) =>
+      toggleContrib(toggleContrib(s, "agent"), "hook"),
+    );
+    // 칸 순서(훅, 스킬, 명령, 도구, MCP, 에이전트, 뷰)대로
+    expect(pressedLabels(html)).toEqual(["훅", "보조 에이전트"]);
+  });
+
+  test("고른 확장의 행만 눌린 상태로 보인다", () => {
+    const html = render(<CraftScreen slots={createCanvasSlots()} />, (s) => select(s, "web"));
+    const pressed = pressedLabels(html);
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]).toContain("웹 검색");
   });
 
   test("등록된 보기가 있으면 그것이 캔버스로 그려진다", () => {

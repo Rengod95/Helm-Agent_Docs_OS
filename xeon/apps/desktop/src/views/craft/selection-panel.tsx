@@ -159,11 +159,13 @@ function PluginBody({ plugin }: { readonly plugin: CanvasPlugin }): ReactNode {
       {health !== undefined && (
         <Alert tone="danger" size="sm" radius="md">
           <span className="block">
-            {t("desktop.craft.orbit.panel.failed", {
-              hook: health.hook,
-              fails: health.fails,
-              limit: health.limit,
-            })}
+            {health.hook !== undefined && health.limit !== undefined
+              ? t("desktop.craft.orbit.panel.failed", {
+                  hook: health.hook,
+                  fails: health.fails,
+                  limit: health.limit,
+                })
+              : t("desktop.craft.orbit.panel.failedPlain", { fails: health.fails })}
           </span>
           <span className="block font-mono text-mono-sm">{health.text}</span>
         </Alert>

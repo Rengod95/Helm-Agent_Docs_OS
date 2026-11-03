@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
+import type { HookOrderPort } from "@fresnel/client/workbench/canvas";
 import type {
-  HookOrderPort,
   HooksOrderPreviewResult,
   HooksOrderResetResult,
   HooksOrderSetResult,
-} from "@fresnel/client/workbench/canvas";
+} from "@fresnel/contracts/wire";
 import {
   keyReorder,
   requestReorder,

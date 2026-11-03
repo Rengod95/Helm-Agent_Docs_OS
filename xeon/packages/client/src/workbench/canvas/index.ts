@@ -6,7 +6,6 @@ export * from "./select.ts";
 export * from "./fixture.ts";
 export * from "./viewport.ts";
 export * from "./order.ts";
-export * from "./order-wire.ts";
 export * from "./order-flow.ts";
 export * from "./guard-warning.ts";
 export * from "./frame-policy.ts";

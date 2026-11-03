@@ -1,7 +1,23 @@
 // 순서 화면이 쓰는 호출 묶음. 미리보기는 저장하지 않고, 저장은 미리보기 뒤에 사용자가 확인했을 때만 부른다.
 // 포트의 오류는 잡지 않고 그대로 올린다.
+import type {
+  HooksOrderGetResult,
+  HooksOrderPreviewParams,
+  HooksOrderPreviewResult,
+  HooksOrderResetParams,
+  HooksOrderResetResult,
+  HooksOrderSetParams,
+  HooksOrderSetResult,
+} from "@fresnel/contracts/wire";
 import { buildOrderWarning, type OrderWarning } from "./guard-warning.ts";
-import type { HookOrderPort, HooksOrderResetResult, HooksOrderSetResult } from "./order-wire.ts";
+
+/** 순서 기능이 쓰는 wire 호출 넷. 전송 계층(클라이언트 연결)이 이것을 구현한다 */
+export interface HookOrderPort {
+  get(): Promise<HooksOrderGetResult>;
+  set(params: HooksOrderSetParams): Promise<HooksOrderSetResult>;
+  reset(params: HooksOrderResetParams): Promise<HooksOrderResetResult>;
+  preview(params: HooksOrderPreviewParams): Promise<HooksOrderPreviewResult>;
+}
 
 export interface ProposedOrder {
   readonly warning: OrderWarning;

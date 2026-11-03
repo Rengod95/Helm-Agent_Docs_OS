@@ -2,12 +2,12 @@
 // 캔버스는 T-CANVAS가 슬롯에 등록한 지도·순서·링크이고, 등록 전에는 층 목록이 보인다. 전역만 보인다(범위·맥락 칸 없음).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
-  COMPONENT_KINDS,
+  openLayerOf,
   selectedEntry,
   WORKBENCH_VIEWS,
-  type ComponentKind,
   type WorkbenchView,
 } from "@fresnel/client/workbench";
+import type { Contrib } from "@fresnel/client/workbench/canvas";
 import { Button, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
@@ -30,15 +30,18 @@ const VIEW_TEXT: Readonly<Record<WorkbenchView, MessageId>> = {
   link: "desktop.workbench.view.link",
 };
 
-const KIND_TEXT: Readonly<Record<ComponentKind, MessageId>> = {
+// 구성 요소 거르기 칸. 값은 캔버스의 `Contrib`이고 글은 옛 구성 요소 문구 키를 그대로 쓴다(agent는 subagent, view는 ui)
+const CONTRIB_TEXT: Readonly<Record<Contrib, MessageId>> = {
   hook: "desktop.workbench.filter.hook",
   skill: "desktop.workbench.filter.skill",
   command: "desktop.workbench.filter.command",
   tool: "desktop.workbench.filter.tool",
   mcp: "desktop.workbench.filter.mcp",
-  subagent: "desktop.workbench.filter.subagent",
-  ui: "desktop.workbench.filter.ui",
+  agent: "desktop.workbench.filter.subagent",
+  view: "desktop.workbench.filter.ui",
 };
+
+const CONTRIBS: readonly Contrib[] = ["hook", "skill", "command", "tool", "mcp", "agent", "view"];
 
 function isView(value: string): value is WorkbenchView {
   return WORKBENCH_VIEWS.some((v) => v === value);
@@ -66,7 +69,7 @@ function ViewSwitch(): ReactNode {
 }
 
 function KindFilters(): ReactNode {
-  const kinds = useWorkbench((s) => s.kinds);
+  const contrib = useWorkbench((s) => s.contrib);
   const actions = useWorkbenchActions();
   return (
     <div
@@ -74,18 +77,17 @@ function KindFilters(): ReactNode {
       aria-label={t("desktop.workbench.filter.label")}
       className="flex flex-wrap gap-1"
     >
-      {COMPONENT_KINDS.map((kind) => (
+      {CONTRIBS.map((c) => (
         <Button
-          key={kind}
+          key={c}
           size="xs"
-
-          variant={kinds.includes(kind) ? "soft" : "outline"}
-          aria-pressed={kinds.includes(kind)}
+          variant={contrib.includes(c) ? "soft" : "outline"}
+          aria-pressed={contrib.includes(c)}
           onClick={() => {
-            actions.toggleKind(kind);
+            actions.toggleContrib(c);
           }}
         >
-          {t(KIND_TEXT[kind])}
+          {t(CONTRIB_TEXT[c])}
         </Button>
       ))}
     </div>
@@ -134,7 +136,7 @@ export function CraftScreen(props: { readonly slots: CanvasSlots }): ReactNode {
       {ready && detailEntry === null && (
         <div className="flex min-h-0 flex-1 gap-4">
           <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-            {canvas ?? <LayerList only={state.layer} onToggle={toggle.request} />}
+            {canvas ?? <LayerList only={openLayerOf(state)} onToggle={toggle.request} />}
           </div>
           {entry !== null && (
             <SelectionPanel

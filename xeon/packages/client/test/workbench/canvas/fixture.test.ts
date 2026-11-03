@@ -60,8 +60,13 @@ describe("buildFixture", () => {
     expect(snap.plugins.flatMap((p) => p.requires ?? []).filter((c) => !provided.has(c))).toEqual(
       [],
     );
+    // 훅 이름이 없는 실패도 어긴 것이다(픽스처는 모두 이름을 준다)
     expect(
-      snap.plugins.filter((p) => p.health !== undefined && !p.hooks.includes(p.health.hook)),
+      snap.plugins.filter(
+        (p) =>
+          p.health !== undefined &&
+          (p.health.hook === undefined || !p.hooks.includes(p.health.hook)),
+      ),
     ).toEqual([]);
   });
 

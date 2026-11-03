@@ -1,6 +1,6 @@
 // 층별 목록. 지도·순서·링크가 등록되기 전의 개요 캔버스 대신이고, 층 패널(고리를 누르면 그 층)도 이 부품이다.
 import { t } from "@fresnel/client/i18n";
-import { layerGroups } from "@fresnel/client/workbench";
+import { layerGroups, selectedName } from "@fresnel/client/workbench";
 import type { ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { ExtRow } from "./ext-row.tsx";
@@ -12,6 +12,7 @@ export function LayerList(props: {
 }): ReactNode {
   const state = useWorkbench((s) => s);
   const actions = useWorkbenchActions();
+  const selected = selectedName(state);
   const groups = layerGroups(state).filter(
     (g) => props.only === undefined || props.only === null || g.layer === props.only,
   );
@@ -30,9 +31,9 @@ export function LayerList(props: {
               <ExtRow
                 key={row.name}
                 row={row}
-                selected={state.selected === row.name}
+                selected={selected === row.name}
                 onSelect={() => {
-                  actions.select(state.selected === row.name ? null : row.name);
+                  actions.select(selected === row.name ? null : row.name);
                 }}
                 onToggle={(target) => {
                   props.onToggle(row.name, target);

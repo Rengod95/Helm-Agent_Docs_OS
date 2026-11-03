@@ -1,12 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  commitOrder,
-  proposeOrder,
-  readOrders,
-  resetOrder,
-} from "../../../src/workbench/canvas/order-flow.ts";
 import type {
-  HookOrderPort,
   HooksOrderGetResult,
   HooksOrderPreviewParams,
   HooksOrderPreviewResult,
@@ -14,7 +7,14 @@ import type {
   HooksOrderResetResult,
   HooksOrderSetParams,
   HooksOrderSetResult,
-} from "../../../src/workbench/canvas/order-wire.ts";
+} from "@fresnel/contracts/wire";
+import {
+  commitOrder,
+  proposeOrder,
+  readOrders,
+  resetOrder,
+  type HookOrderPort,
+} from "../../../src/workbench/canvas/order-flow.ts";
 
 interface Replies {
   readonly get?: HooksOrderGetResult;

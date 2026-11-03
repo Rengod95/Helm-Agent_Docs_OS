@@ -291,11 +291,13 @@ export function DetailView(props: DetailViewProps): ReactNode {
             >
               {failing.map((f) => (
                 <span key={f.id} className="block">
-                  {t("desktop.craft.detail.failing.item", {
-                    name: f.name,
-                    hook: f.hook,
-                    text: f.text,
-                  })}
+                  {f.hook === undefined
+                    ? t("desktop.craft.detail.failing.itemPlain", { name: f.name, text: f.text })
+                    : t("desktop.craft.detail.failing.item", {
+                        name: f.name,
+                        hook: f.hook,
+                        text: f.text,
+                      })}
                 </span>
               ))}
             </Alert>

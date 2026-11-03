@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import type { HooksOrderPreviewResult, HookOrderRef } from "@fresnel/contracts/wire";
 import { buildOrderWarning, needsConfirm } from "../../../src/workbench/canvas/guard-warning.ts";
-import type {
-  HooksOrderPreviewResult,
-  HookOrderRef,
-} from "../../../src/workbench/canvas/order-wire.ts";
 
 const NAMES = new Map([
   ["allow", "Allow"],

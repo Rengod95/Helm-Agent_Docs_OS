@@ -1,26 +1,32 @@
 // 크래프트 스토어: `@fresnel/client/workbench`의 순수 함수를 zustand 스토어 하나로 감싼다(README는 그 패키지에 있다).
-import type { ExtListEntry } from "@fresnel/contracts/wire";
+import type { Contrib, KindFilter, Sel } from "@fresnel/client/workbench/canvas";
 import {
   clearPending,
+  clearPick,
   closeBuilder,
   closeDetail,
+  detailsLoaded,
+  healthLoaded,
   INITIAL_WORKBENCH,
   listFailed,
   listLoaded,
   listLoading,
   markPending,
   openDetail,
-  openLayer,
+  ordersLoaded,
+  pickGroup,
+  pickPlugin,
+  pickSel,
   requestBuilder,
   select,
+  setKind,
   setQuery,
   setView,
-  toggleKind,
-  type ComponentKind,
-  type LayerKey,
+  toggleContrib,
   type WorkbenchState,
   type WorkbenchView,
 } from "@fresnel/client/workbench";
+import type { ExtGetResult, ExtHealthEntry, ExtListEntry } from "@fresnel/contracts/wire";
 import { createStore } from "zustand/vanilla";
 import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
 
@@ -29,12 +35,19 @@ export interface WorkbenchActions {
   listLoaded(entries: readonly ExtListEntry[]): void;
   listFailed(): void;
   setView(view: WorkbenchView): void;
+  pickPlugin(id: string): void;
+  pickGroup(id: string): void;
+  pickSel(sel: Sel): void;
+  clearPick(): void;
   select(name: string | null): void;
-  openDetail(name: string): void;
+  openDetail(id: string): void;
   closeDetail(): void;
-  openLayer(layer: LayerKey | null): void;
   setQuery(query: string): void;
-  toggleKind(kind: ComponentKind): void;
+  setKind(kind: KindFilter): void;
+  toggleContrib(c: Contrib): void;
+  detailsLoaded(name: string, result: ExtGetResult): void;
+  healthLoaded(entries: readonly ExtHealthEntry[]): void;
+  ordersLoaded(order: Readonly<Record<string, readonly string[]>>): void;
   markPending(name: string, target: boolean): void;
   clearPending(name: string): void;
   requestBuilder(hook: string | null): void;
@@ -62,12 +75,19 @@ export function createWorkbenchStore(
     listLoaded: (entries) => apply((s) => listLoaded(s, entries)),
     listFailed: () => apply(listFailed),
     setView: (view) => apply((s) => setView(s, view)),
+    pickPlugin: (id) => apply((s) => pickPlugin(s, id)),
+    pickGroup: (id) => apply((s) => pickGroup(s, id)),
+    pickSel: (sel) => apply((s) => pickSel(s, sel)),
+    clearPick: () => apply(clearPick),
     select: (name) => apply((s) => select(s, name)),
-    openDetail: (name) => apply((s) => openDetail(s, name)),
+    openDetail: (id) => apply((s) => openDetail(s, id)),
     closeDetail: () => apply(closeDetail),
-    openLayer: (layer) => apply((s) => openLayer(s, layer)),
     setQuery: (query) => apply((s) => setQuery(s, query)),
-    toggleKind: (kind) => apply((s) => toggleKind(s, kind)),
+    setKind: (kind) => apply((s) => setKind(s, kind)),
+    toggleContrib: (c) => apply((s) => toggleContrib(s, c)),
+    detailsLoaded: (name, result) => apply((s) => detailsLoaded(s, name, result)),
+    healthLoaded: (entries) => apply((s) => healthLoaded(s, entries)),
+    ordersLoaded: (order) => apply((s) => ordersLoaded(s, order)),
     markPending: (name, target) => apply((s) => markPending(s, name, target)),
     clearPending: (name) => apply((s) => clearPending(s, name)),
     requestBuilder: (hook) => apply((s) => requestBuilder(s, hook)),

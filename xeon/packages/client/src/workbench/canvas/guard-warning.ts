@@ -1,5 +1,5 @@
 // 순서 저장 전 경고 모델. 문구는 없고 이름과 wire 열거값만 담는다. 화면이 문구를 입힌다.
-import type { HooksOrderPreviewResult, HookSkipNote } from "./order-wire.ts";
+import type { HooksOrderPreviewResult, HookSkipNote } from "@fresnel/contracts/wire";
 
 /** none은 바로 저장, skip과 guard는 `그대로 저장`을 묻는다. guard가 더 강하다 */
 type WarningSeverity = "none" | "skip" | "guard";

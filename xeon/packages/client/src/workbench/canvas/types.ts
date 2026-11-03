@@ -26,16 +26,16 @@ export interface CanvasPiece {
 export interface CanvasHealth {
   /** 연속 실패 횟수 */
   readonly fails: number;
-  /** 어느 훅에서 실패했나 */
-  readonly hook: string;
+  /** 어느 훅에서 실패했나. ext.health에는 없어서 스냅샷 어댑터는 비운다 */
+  readonly hook?: string;
   /** 엔진이 남긴 실패 사유(데이터다, 문구가 아니다) */
   readonly text: string;
   /** 실패 시각(엔진 표기) */
   readonly at: string;
   /** 연속 실패가 기준을 넘어 자동으로 꺼졌나 */
   readonly autoOff?: boolean;
-  /** 자동 꺼짐 기준(연속 실패 수) */
-  readonly limit: number;
+  /** 자동 꺼짐 기준(연속 실패 수). ext.health에는 없어서 스냅샷 어댑터는 비운다 */
+  readonly limit?: number;
 }
 
 export interface CanvasPlugin {

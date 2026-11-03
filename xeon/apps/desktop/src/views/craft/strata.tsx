@@ -16,10 +16,10 @@ import {
   type CanvasSnapshot,
   type Contrib,
   type HookOrderState,
-  type HooksOrderSetResult,
   type KindFilter,
   type Sel,
 } from "@fresnel/client/workbench/canvas";
+import type { HooksOrderSetResult } from "@fresnel/contracts/wire";
 import { attemptAsync, assertNever, detach, rethrow } from "@fresnel/contracts";
 import { Badge, Button, Card, SectionHeader, Tooltip } from "@caustic/react";
 import { GripVertical, Lock, Plus } from "@caustic/react/icons";
