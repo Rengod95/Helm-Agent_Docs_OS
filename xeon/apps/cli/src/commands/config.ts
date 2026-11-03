@@ -4,7 +4,7 @@ import type { EffectiveSetting, SettingDefWire, SettingSource } from "@fresnel/c
 import type { HostConnection } from "@fresnel/contracts/wire";
 import type { CommandIo, HostCommand } from "@fresnel/host";
 import type { ConfigCommand } from "../cli/command.ts";
-import { EXIT, type ExitCode } from "../exit-codes.ts";
+import { EXIT, exitCodeOfHost, type ExitCode } from "../exit-codes.ts";
 import { interpretRaw } from "../settings-input.ts";
 import { cliSettingGroups } from "../settings.ts";
 import { withEngine, type CommandContext } from "./context.ts";
@@ -188,7 +188,7 @@ async function runConfigSchema(
     stdout: textSink(ctx.io.stdout),
     stderr: textSink(ctx.io.stderr),
   };
-  return ctx.deps.runHostCommand(hostCommand, io);
+  return exitCodeOfHost(await ctx.deps.runHostCommand(hostCommand, io));
 }
 
 export async function runConfig(ctx: CommandContext, command: ConfigCommand): Promise<ExitCode> {

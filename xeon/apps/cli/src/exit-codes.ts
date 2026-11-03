@@ -1,5 +1,7 @@
 // L4.cli.spec §3.6. 제품 CLI의 종료 코드다. 개발 레시피의 종료코드(1 고침, 2 환경, 3 사람 확인)와 섞지 않는다.
 
+import { assertNever } from "@fresnel/contracts";
+
 export type ExitCode = 0 | 1 | 2 | 3 | 4 | 129 | 130 | 143;
 
 export const EXIT: {
@@ -21,3 +23,24 @@ export const EXIT: {
   interrupted: 130,
   terminated: 143,
 };
+
+/**
+ * `@fresnel/host`의 `runHostCommand`가 돌려주는 종료 코드를 CLI 종료 코드로 옮긴다.
+ * 70~72는 저장소를 열지 못한 종료(`storeFailureOfExitCode`)라 환경 문제(3)다. 그 밖의 알 수 없는 값은 1이다(L4.cli.spec §3.6)
+ */
+export function exitCodeOfHost(code: 0 | 1 | 2 | 70 | 71 | 72): ExitCode {
+  switch (code) {
+    case 0:
+      return EXIT.ok;
+    case 2:
+      return EXIT.usage;
+    case 70:
+    case 71:
+    case 72:
+      return EXIT.environment;
+    case 1:
+      return EXIT.error;
+    default:
+      return assertNever(code, "HostExitCode");
+  }
+}

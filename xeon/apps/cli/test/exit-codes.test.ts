@@ -3,7 +3,7 @@ import { err } from "@fresnel/contracts";
 import { WireError, wireError } from "@fresnel/contracts/wire";
 import type { ConnectEngine, EngineStartErrorKind } from "../src/engine.ts";
 import { exitCodeOfStartError, failureOfWire } from "../src/errors.ts";
-import { EXIT } from "../src/exit-codes.ts";
+import { EXIT, exitCodeOfHost } from "../src/exit-codes.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 
 const harnesses: Harness[] = [];
@@ -115,4 +115,13 @@ test("an unknown setting key from config get is exit 2", async () => {
   const h = harness();
   expect(await h.run(["config", "get", "l4.cli.nothing"])).toBe(EXIT.usage);
   expect(h.stderrText()).toContain("등록되지 않은 설정 키: l4.cli.nothing");
+});
+
+test("the host exit codes map to CLI codes: 70 to 72 (store open failures) are environment problems", () => {
+  expect(exitCodeOfHost(0)).toBe(0);
+  expect(exitCodeOfHost(1)).toBe(1);
+  expect(exitCodeOfHost(2)).toBe(2);
+  expect(exitCodeOfHost(70)).toBe(3);
+  expect(exitCodeOfHost(71)).toBe(3);
+  expect(exitCodeOfHost(72)).toBe(3);
 });

@@ -1,7 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
 import type { CommandIo, HostCommand } from "@fresnel/host";
 import type { ServiceCommand } from "../cli/command.ts";
-import { EXIT, type ExitCode } from "../exit-codes.ts";
+import { exitCodeOfHost, type ExitCode } from "../exit-codes.ts";
 import type { CommandContext } from "./context.ts";
 
 // L4.cli.spec §3.1 service. `fresnel service start|status|stop|ensure`와 숨은 `launch-mode`·`run`. 엔진을 이 프로세스에서 열지 않는다:
@@ -62,5 +62,5 @@ export async function runService(ctx: CommandContext, command: ServiceCommand): 
     stderr: textSink(ctx.io.stderr),
   };
   const code = await ctx.deps.runHostCommand(hostCommandOf(command), io);
-  return code === 0 ? EXIT.ok : code === 2 ? EXIT.usage : EXIT.error;
+  return exitCodeOfHost(code);
 }

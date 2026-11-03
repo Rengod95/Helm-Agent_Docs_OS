@@ -72,7 +72,10 @@ export interface HarnessOptions {
   /** connect를 통째로 바꾼다(시작 실패 시험) */
   readonly connect?: ConnectEngine;
   /** runHostCommand 가짜(config schema, service, host) */
-  readonly runHostCommand?: (command: HostCommand, io: CommandIo) => Promise<0 | 1 | 2>;
+  readonly runHostCommand?: (
+    command: HostCommand,
+    io: CommandIo,
+  ) => Promise<0 | 1 | 2 | 70 | 71 | 72>;
   readonly readLine?: (prompt: string, signal: AbortSignal) => Promise<string | null>;
   /** 가려진 입력 대본. 한 번 부를 때마다 하나를 꺼낸다. 끝나면 null이다 */
   readonly secretInputs?: readonly (string | null)[];
