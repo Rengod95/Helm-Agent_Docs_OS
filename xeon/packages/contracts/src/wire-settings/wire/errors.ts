@@ -129,6 +129,15 @@ export type WireErrorKind =
   | "secret.cancelled"
   | "secret.auditUnwritable"
   | "secret.writeFailed"
+  | "profile.notFound"
+  | "profile.conflict"
+  | "profile.fileCorrupt"
+  | "profile.trustRequired"
+  | "profile.applyPartial"
+  | "profile.limit"
+  | "testRun.unavailable"
+  | "testRun.notATestRun"
+  | "testRun.notPaused"
   | "extension.notFound"
   | "group.notFound"
   | "extension.safeModeActive"
@@ -520,6 +529,74 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
+  // 3300~3399: 프로필과 Test run(`profile.*`, `testRun.*` 메서드)
+  /** 그 id의 프로필이 없다(`profile.get`·`profile.delete`·`profile.apply`·`profile.preview`, `thread.create { profileId }`) */
+  "profile.notFound": {
+    code: 3301,
+    kind: "profile.notFound",
+    retryable: false,
+    details: Type.Object({ id: Type.String({ maxLength: 128 }) }, { additionalProperties: false }),
+  },
+  /** `profile.put`의 `baseRev`가 저장된 `rev`와 다르다. `rev`가 null이면 저장된 프로필이 없다. 다시 읽고 합친 뒤 보낸다 */
+  "profile.conflict": {
+    code: 3302,
+    kind: "profile.conflict",
+    retryable: false,
+    details: Type.Object(
+      {
+        id: Type.String({ maxLength: 128 }),
+        rev: Type.Union([Type.Integer(), Type.Null()]),
+        baseRev: Type.Union([Type.Integer(), Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  /** `profiles.json`이 JSON이 아니거나 모양이 틀리다. 호스트는 덮어쓰지 않는다 */
+  "profile.fileCorrupt": {
+    code: 3303,
+    kind: "profile.fileCorrupt",
+    retryable: false,
+    details: Type.Object(
+      { reason: Type.String({ maxLength: 200 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** 신뢰하지 않은 작업 폴더의 `project` 층에는 적용하지 않는다. 폴더를 신뢰한 뒤 다시 보낸다 */
+  "profile.trustRequired": {
+    code: 3304,
+    kind: "profile.trustRequired",
+    retryable: false,
+    details: Type.Object(
+      { workspace: Type.String({ maxLength: 512 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** 적용이 중간에 실패했고 되돌리기도 실패했다. `written`은 아직 쓰인 채 남은 키, `failed`는 실패한 키다 */
+  "profile.applyPartial": {
+    code: 3305,
+    kind: "profile.applyPartial",
+    retryable: false,
+    details: Type.Object(
+      {
+        written: Type.Array(Type.String({ maxLength: 128 }), { maxItems: 256 }),
+        failed: Type.String({ maxLength: 128 }),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  /** 프로필 개수가 상한을 넘는다 */
+  "profile.limit": {
+    code: 3306,
+    kind: "profile.limit",
+    retryable: false,
+    details: Type.Object({ max: Type.Integer({ minimum: 0 }) }, { additionalProperties: false }),
+  },
+  /** 이 호스트는 Test run 제어 포트가 없다(`testRun.*`) */
+  "testRun.unavailable": { code: 3311, kind: "testRun.unavailable", retryable: false },
+  /** 그 대화는 Test run이 아니다(`testRun.*`) */
+  "testRun.notATestRun": { code: 3312, kind: "testRun.notATestRun", retryable: false },
+  /** Test run이 멈춰 있지 않아 `testRun.resume`·`testRun.step`을 받지 않는다 */
+  "testRun.notPaused": { code: 3313, kind: "testRun.notPaused", retryable: false },
   // 3400~3499: 확장 읽기·운영(`ext.*`, `group.*` 메서드)
   /** 그 이름의 확장이 설치되어 있지 않다(`ext.get`·`ext.reenable`·`ext.reload`·`ext.health`·`ext.timings`) */
   "extension.notFound": {
@@ -687,7 +764,7 @@ export const WIRE_CODE_RANGES: readonly WireCodeRange[] = [
     to: 3999,
     owner: "L1",
     purpose:
-      "thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 확장 읽기(3400~3499), 나머지 L1 예비",
+      "thread, turn, approval(3000~3099), settings(3100~3199), secret(3200~3299), 프로필·Test run(3300~3399), 확장 읽기(3400~3499), 나머지 L1 예비",
   },
   {
     name: "capability",
