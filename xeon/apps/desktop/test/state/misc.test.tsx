@@ -7,7 +7,9 @@ import { checkMirror } from "../../src/state/engine/invariants.ts";
 import { createFrameClock } from "../../src/state/shared/frame.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
 import type { Commands } from "../../src/views/commands.ts";
+import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { fakeCommands } from "../views/fake-commands.ts";
+import { emptyPluginUi } from "../views/plugin/support.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import { StatusBar } from "../../src/views/status-bar.tsx";
 import { Transcript } from "../../src/views/transcript.tsx";
@@ -242,7 +244,9 @@ describe("react surface (server render, no DOM)", () => {
     const ui = createUiStore();
     const html = renderToString(
       <Providers engine={h.store.read} ui={ui.read} commands={commands}>
-        <StatusBar />
+        <PluginUiProvider value={emptyPluginUi()}>
+          <StatusBar />
+        </PluginUiProvider>
       </Providers>,
     );
     expect(html).toContain("엔진 상태 확인 중");

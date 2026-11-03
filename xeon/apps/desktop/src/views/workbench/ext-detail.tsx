@@ -22,8 +22,11 @@ import {
   type TableColumn,
 } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
+import { nativeEntriesOf } from "../../plugin-ui/placements.ts";
 import { useCommands } from "../commands.ts";
 import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
+import { EntrySurface } from "../plugin/plugin-view.tsx";
+import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import { KeepOffAlert } from "./craft-parts.tsx";
 import { ExtName, ExtSwitch, kindText, lockText, stateText } from "./ext-row.tsx";
 import { MetricsTab } from "./metrics-tab.tsx";
@@ -192,6 +195,24 @@ export function FailureRecords(props: {
   );
 }
 
+/**
+ * 확장 상세의 설정 구역. 이 확장의 `settings` 화면 항목 하나를 항목 제목으로 그린다(ADR-0021 §3.2).
+ * 항목이 없거나 확장이 꺼졌으면 아무것도 그리지 않는다
+ */
+function SettingsSection(props: { readonly name: string }): ReactNode {
+  const plugin = usePluginUiState();
+  const shown = nativeEntriesOf(plugin.groups.settings, plugin.inactive).find(
+    (entry) => entry.extension === props.name,
+  );
+  if (shown === undefined) return null;
+  return (
+    <section aria-label={shown.title} className="grid gap-2">
+      <h4 className="text-ui-strong text-text-primary">{shown.title}</h4>
+      <EntrySurface entry={shown} />
+    </section>
+  );
+}
+
 /** 기록 탭: 이 확장의 `scope.handler_failed`를 엔진 거울에서 읽어 묶는다. 안전 모드·자동 꺼짐 띠는 건드리지 않는다 */
 function RecordTab(props: { readonly name: string }): ReactNode {
   const records = useHandlerFailures();
@@ -272,6 +293,7 @@ export function ExtDetail(props: {
           <ScreensTab name={entry.name} />
         </TabsContent>
       </Tabs>
+      <SettingsSection name={entry.name} />
     </article>
   );
 }

@@ -3,11 +3,13 @@ import type { ItemRecord } from "@fresnel/contracts/conversation";
 import { renderToString } from "react-dom/server";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
+import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import { RecordedItem } from "../../src/views/item-view.tsx";
 import { Transcript } from "../../src/views/transcript.tsx";
 import { SUB, evt, itm, openedHarness, recorded, thr, trn } from "../state/helpers.ts";
 import { fakeCommands } from "./fake-commands.ts";
+import { emptyPluginUi } from "./plugin/support.tsx";
 
 function custom(n: number, display: boolean): ItemRecord {
   return {
@@ -34,7 +36,7 @@ function render(node: React.ReactNode, h: ReturnType<typeof openedHarness>): str
   const ui = createUiStore();
   return renderToString(
     <Providers engine={frozen(h.store.read.getState())} ui={ui.read} commands={fakeCommands()}>
-      {node}
+      <PluginUiProvider value={emptyPluginUi()}>{node}</PluginUiProvider>
     </Providers>,
   );
 }

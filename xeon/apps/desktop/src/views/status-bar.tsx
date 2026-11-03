@@ -2,6 +2,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { storeFailureOfExitCode } from "@fresnel/contracts/records";
 import { useState, type ReactNode } from "react";
+import { nativeEntriesOf } from "../plugin-ui/placements.ts";
 import {
   useApprovalCount,
   useEngineState,
@@ -10,8 +11,10 @@ import {
   type EngineState,
   type Link,
 } from "../state/engine/index.ts";
-import { useConnectError } from "../state/ui/index.ts";
+import { useConnectError, useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
+import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
+import { usePluginUiState } from "./plugin/plugin-context.tsx";
 
 const LINK_TEXT: Readonly<Record<Link["phase"], MessageId>> = {
   offline: "desktop.status.link.offline",
@@ -56,6 +59,26 @@ export function engineTextOf(state: EngineState | null | undefined): MessageId {
   return ENGINE_TEXT[state.kind];
 }
 
+/**
+ * 확장의 상태 칸. 열린 대화가 있을 때만 그린다(ADR-0021 §3.2). 꺼졌거나 안전 모드인 확장의 칸은 그리지 않는다.
+ * 칸 하나는 선언형 트리를 좁은 자리에 담고 글이 넘치면 줄인다
+ */
+function StatusCells(): ReactNode {
+  const plugin = usePluginUiState();
+  const threadId = useSelectedThreadId();
+  if (threadId === null) return null;
+  return nativeEntriesOf(plugin.groups.status, plugin.inactive).map((entry) => (
+    <div
+      key={screenKeyOf(entry)}
+      className="min-w-0 max-w-[24ch] truncate"
+      title={entry.title}
+      data-status-cell={screenKeyOf(entry)}
+    >
+      <EntrySurface entry={entry} dense />
+    </div>
+  ));
+}
+
 export function StatusBar(): ReactNode {
   const commands = useCommands();
   const engine = useEngineState();
@@ -86,6 +109,7 @@ export function StatusBar(): ReactNode {
       {connectError === null ? null : (
         <span className="error">{t("desktop.status.connectFailed", { error: connectError })}</span>
       )}
+      <StatusCells />
       <span className="grow" />
       <button
         type="button"

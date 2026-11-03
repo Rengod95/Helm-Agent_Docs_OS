@@ -1550,6 +1550,7 @@
   "desktop.palette.empty": "맞는 항목이 없어요",
   "desktop.palette.group.threads": "대화",
   "desktop.palette.group.commands": "명령",
+  "desktop.palette.group.plugin": "플러그인",
   "desktop.palette.command.threadNew": "새 대화",
   "desktop.palette.command.interrupt": "중단",
   "desktop.palette.command.inbox": "받은 요청 열기",

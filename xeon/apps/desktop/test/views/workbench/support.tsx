@@ -4,6 +4,7 @@ import { listLoaded, type WorkbenchState } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { EngineStoreContext } from "../../../src/state/engine/index.ts";
 import { reduceMirror } from "../../../src/state/engine/reduce.ts";
+import { createUiStore, UiStoreContext } from "../../../src/state/ui/index.ts";
 import { INITIAL_MIRROR, type EngineMirror } from "../../../src/state/engine/state.ts";
 import type { ReadonlyStore } from "../../../src/state/shared/readonly-store.ts";
 import {
@@ -12,8 +13,11 @@ import {
   type WorkbenchStore,
 } from "../../../src/state/workbench/index.ts";
 import { CommandsContext } from "../../../src/views/commands.ts";
+import type { PluginUiContextValue } from "../../../src/views/plugin/plugin-context.tsx";
+import { PluginUiProvider } from "../../../src/views/plugin/plugin-context.tsx";
 import { harness, STORE, SUB } from "../../state/helpers.ts";
 import { fakeCommands } from "../fake-commands.ts";
+import { emptyPluginUi } from "../plugin/support.tsx";
 
 export function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
   return {
@@ -90,17 +94,25 @@ export function liveEngine(): ReadonlyStore<EngineMirror> {
   );
 }
 
-/** 엔진·명령·워크벤치 스토어 provider로 감싼다. 화면이 읽는 세 문맥을 모두 채운다. 엔진은 기본으로 끊긴 거울이다 */
+/**
+ * 엔진·명령·워크벤치 스토어·플러그인 문맥 provider로 감싼다. 화면이 읽는 문맥을 모두 채운다.
+ * 엔진은 기본으로 끊긴 거울이고, 플러그인 문맥은 기본으로 빈 목록이다
+ */
 export function inContexts(
   ui: ReactNode,
   store: WorkbenchStore,
   engine: ReadonlyStore<EngineMirror> = harness().store.read,
+  plugin: PluginUiContextValue = emptyPluginUi(),
 ): ReactNode {
   return (
     <EngineStoreContext value={engine}>
-      <CommandsContext value={fakeCommands()}>
-        <WorkbenchStoreContext value={store}>{ui}</WorkbenchStoreContext>
-      </CommandsContext>
+      <UiStoreContext value={createUiStore().read}>
+        <CommandsContext value={fakeCommands()}>
+          <WorkbenchStoreContext value={store}>
+            <PluginUiProvider value={plugin}>{ui}</PluginUiProvider>
+          </WorkbenchStoreContext>
+        </CommandsContext>
+      </UiStoreContext>
     </EngineStoreContext>
   );
 }

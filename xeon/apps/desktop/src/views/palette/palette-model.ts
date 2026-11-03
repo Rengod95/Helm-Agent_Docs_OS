@@ -1,10 +1,11 @@
 import type { MessageId } from "@fresnel/client/i18n";
 import { TAB_ORDER } from "@fresnel/client/settings";
 import type { SettingsTab } from "@fresnel/contracts/settings";
+import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import type { ActionId } from "../shell/keybindings.ts";
 
-// S-02 명령 팔레트의 순수 부분(spec §4.5, §6.2). 묶음은 순서대로 "대화", "명령", "슬래시 명령", "설정"이다.
-// 항목 값은 `thread:<id>`, `command:<id>`, `slash:<이름>`, `setting:<탭>:<항목 키>`, `more:<묶음>`(더 보기)이고,
+// S-02 명령 팔레트의 순수 부분(spec §4.5, §6.2). 묶음은 순서대로 "대화", "명령", "플러그인", "슬래시 명령", "설정"이다.
+// 항목 값은 `thread:<id>`, `command:<id>`, `plugin:<확장>/<항목 id>`, `slash:<이름>`, `setting:<탭>:<항목 키>`, `more:<묶음>`(더 보기)이고,
 // 고른 값은 `decodeValue`로만 읽는다. 행의 글(번역된 라벨)은 화면이 정해 넘기므로 이 모듈은 번역하지 않는다.
 
 export const PALETTE_COMMAND_IDS = [
@@ -72,8 +73,8 @@ const PALETTE_COMMANDS: readonly PaletteCommand[] = [
   },
 ];
 
-/** 묶음 네 개. 이 순서로 보인다(spec §4.5의 최근 대화, 명령, 슬래시 명령, 설정. 화면 이동은 아직 없다) */
-const PALETTE_GROUP_IDS = ["thread", "command", "slash", "setting"] as const;
+/** 묶음 다섯 개. 이 순서로 보인다(spec §4.5의 최근 대화, 명령, 플러그인, 슬래시 명령, 설정. 화면 이동은 아직 없다) */
+const PALETTE_GROUP_IDS = ["thread", "command", "plugin", "slash", "setting"] as const;
 export type PaletteGroupId = (typeof PALETTE_GROUP_IDS)[number];
 
 /** 묶음마다 먼저 보이는 행 수(spec §6.2 "묶음마다 5개 뒤 더 보기"). 넘는 행은 "더 보기" 한 행 뒤에 있다 */
@@ -83,6 +84,8 @@ export const PALETTE_GROUP_LIMIT = 5;
 export type PaletteRun =
   | { readonly kind: "thread"; readonly threadId: string }
   | { readonly kind: "command"; readonly id: PaletteCommandId }
+  /** 확장이 `command` 자리에 기여한 명령. `id`가 등록된 명령 이름이다 */
+  | { readonly kind: "plugin"; readonly extension: string; readonly id: string }
   | { readonly kind: "slash"; readonly name: string }
   /** `key`가 null이면 탭만 연다 */
   | { readonly kind: "setting"; readonly tab: SettingsTab; readonly key: string | null };
@@ -91,6 +94,8 @@ export type PaletteValue = PaletteRun | { readonly kind: "more"; readonly group:
 
 export const threadValue = (threadId: string): string => `thread:${threadId}`;
 export const commandValue = (id: PaletteCommandId): string => `command:${id}`;
+/** 확장 명령 값. 확장 이름에는 `/`가 없으므로 첫 `/`에서 나눈다 */
+export const pluginValue = (extension: string, id: string): string => `plugin:${extension}/${id}`;
 export const slashValue = (name: string): string => `slash:${name}`;
 export const settingValue = (tab: SettingsTab, key: string | null): string =>
   `setting:${tab}:${key ?? ""}`;
@@ -107,6 +112,7 @@ export function decodeValue(value: string): PaletteValue | null {
     const found = PALETTE_COMMAND_IDS.find((id) => id === rest);
     return found === undefined ? null : { kind: "command", id: found };
   }
+  if (head === "plugin") return decodePlugin(rest);
   if (head === "slash") return rest === "" ? null : { kind: "slash", name: rest };
   if (head === "setting") return decodeSetting(rest);
   if (head === "more") {
@@ -114,6 +120,13 @@ export function decodeValue(value: string): PaletteValue | null {
     return group === undefined ? null : { kind: "more", group };
   }
   return null;
+}
+
+/** `확장/항목 id` 꼴. 확장 이름이나 id가 비면 값이 아니다 */
+function decodePlugin(rest: string): PaletteRun | null {
+  const cut = rest.indexOf("/");
+  if (cut <= 0 || cut === rest.length - 1) return null;
+  return { kind: "plugin", extension: rest.slice(0, cut), id: rest.slice(cut + 1) };
 }
 
 /** `탭:키` 꼴. 키가 비면 탭만이고, 탭 이름이 모르는 것이면 null이다 */
@@ -141,9 +154,20 @@ export function visibleGroupsOf(input: {
 }): readonly PaletteGroupId[] {
   return PALETTE_GROUP_IDS.filter((id) => {
     if (id === "command") return true;
-    if (id === "slash") return input.live && input.hasThread;
+    // 확장 명령은 열린 대화가 있어야 실행된다(wire에 `when`이 없어 모두 대화를 요구한다고 본다)
+    if (id === "plugin" || id === "slash") return input.live && input.hasThread;
     return input.live;
   });
+}
+
+/** 확장 명령 행. 글은 항목 제목이고 설명은 확장 이름이다. 입력은 `commandEntriesOf`가 거른 목록이다 */
+export function pluginCommandItemsOf(entries: readonly ExtUiEntry[]): PaletteItem[] {
+  return entries.map((entry) => ({
+    value: pluginValue(entry.extension, entry.id),
+    label: entry.title,
+    description: entry.extension,
+    meta: null,
+  }));
 }
 
 /** 행 하나. 라벨과 설명은 화면이 번역해 넘긴 글이다 */

@@ -52,3 +52,56 @@ export function groupPlacements(
     settings: at("settings"),
   };
 }
+
+/**
+ * 상태 표시줄 칸이나 설정 구역에 그릴 선언형 항목. 상태가 `ok`이고 선언형이며 트리가 있고, 확장이 꺼졌거나 안전 모드로 빠지지 않은 것만 준다.
+ * `inactive`는 `PluginUiState.inactive`다. 앱 항목과 그 밖의 항목은 여기서 빠진다
+ */
+export function nativeEntriesOf(
+  items: readonly PlacedEntry[],
+  inactive: ReadonlySet<string>,
+): readonly ExtUiEntry[] {
+  return items
+    .map((item) => item.entry)
+    .filter(
+      (entry) =>
+        entry.state === "ok" &&
+        entry.mode === "native" &&
+        entry.tree !== undefined &&
+        !inactive.has(entry.extension),
+    );
+}
+
+/**
+ * 팔레트 명령 자리(`command`)의 항목 가운데 실행할 수 있는 것: 상태가 `ok`이고 확장이 꺼지지 않은 것.
+ * 명령 항목에는 트리가 없고 `when`도 wire에 없어 열린 대화를 요구하는 것은 팔레트가 정한다
+ */
+export function commandEntriesOf(
+  items: readonly PlacedEntry[],
+  inactive: ReadonlySet<string>,
+): readonly ExtUiEntry[] {
+  return items
+    .map((item) => item.entry)
+    .filter((entry) => entry.state === "ok" && !inactive.has(entry.extension));
+}
+
+/**
+ * 레코드 종류(`kind`)에 맞는 `card` 항목 하나. `nativeEntriesOf`와 같은 조건(상태 `ok`, 선언형, 트리 있음, 꺼지지 않음)을 거친다.
+ * 여럿이면 자리 목록의 앞 것이다(확장 이름, 화면 id 순). 기록 하나에 카드 하나만 그린다
+ */
+export function cardOf(
+  items: readonly PlacedEntry[],
+  inactive: ReadonlySet<string>,
+  kind: string,
+): ExtUiEntry | undefined {
+  return nativeEntriesOf(items, inactive).find((entry) => entry.forKind === kind);
+}
+
+/**
+ * 카드 아래 출처 줄(DP-33). `forKind`가 `grp.<그룹>.`으로 시작하면 `grp:<그룹>`, 아니면 `ext:<확장>`이다.
+ * 와이어 항목과 `forKind`만 보고 기록의 내용(payload)은 보지 않는다
+ */
+export function provenanceOf(entry: ExtUiEntry): string {
+  const group = /^grp\.([^.]+)\./.exec(entry.forKind ?? "")?.[1];
+  return group === undefined ? `ext:${entry.extension}` : `grp:${group}`;
+}

@@ -1,27 +1,34 @@
 import { describe, expect, test } from "bun:test";
+import type { ExtListResult, ExtUiEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
 import { createUiStore, type UiState } from "../../src/state/ui/store.ts";
 import { PaletteBody } from "../../src/views/palette/palette.tsx";
+import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
 import { Providers } from "../../src/views/providers.tsx";
+import { extListEntryOf, uiEntryOf } from "../plugin-ui/support.ts";
 import { harness, STORE, SUB, summary, thr } from "../state/helpers.ts";
 import { fakeCommands } from "./fake-commands.ts";
+import { loadedPluginUi } from "./plugin/support.tsx";
 
 // 팔레트 본문을 서버에서 그린다. Dialog는 포털이라 SSR에 그려지지 않으므로 본문만 본다.
 // SSR의 스토어 읽기는 `getInitialState`를 쓰므로(zustand) 값을 가진 읽기 면을 고정해서 넘긴다(approval-card-mounts와 같은 방식).
 // 읽기(`command.list`, 설정 목록)는 효과가 하므로 여기서는 읽는 중 상태가 처음 그림이다.
+// 플러그인 명령은 확장 목록을 먼저 읽어야 하므로(`loadedPluginUi`) 그릴 때 이미 들어 있다.
 
 function frozen<T>(state: T): ReadonlyStore<T> {
   return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
 }
 
-function render(input: {
+async function render(input: {
   readonly live: boolean;
   readonly titles: readonly string[];
   readonly selected: boolean;
-}): string {
+  readonly plugins?: readonly ExtUiEntry[];
+  readonly extensions?: ExtListResult["extensions"];
+}): Promise<string> {
   const h = harness();
   if (input.live) {
     h.store.ingest({
@@ -45,11 +52,14 @@ function render(input: {
   };
   const engine: EngineMirror = h.store.read.getState();
   const shell = createShellStore(1400);
+  const plugin = await loadedPluginUi(input.plugins ?? [], input.extensions);
   return renderToString(
     <Providers engine={frozen(engine)} ui={frozen(uiState)} commands={fakeCommands()}>
-      <ShellStoreContext value={shell}>
-        <PaletteBody mac onRun={() => {}} />
-      </ShellStoreContext>
+      <PluginUiProvider value={plugin}>
+        <ShellStoreContext value={shell}>
+          <PaletteBody mac onRun={() => {}} />
+        </ShellStoreContext>
+      </PluginUiProvider>
     </Providers>,
   );
 }
@@ -57,8 +67,8 @@ function render(input: {
 const SEVEN = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf"];
 
 describe("palette body (server render)", () => {
-  test("offline the palette shows the app actions and the offline notice only", () => {
-    const html = render({ live: false, titles: ["alpha"], selected: true });
+  test("offline the palette shows the app actions and the offline notice only", async () => {
+    const html = await render({ live: false, titles: ["alpha"], selected: true });
     expect(html).toContain("새 대화");
     expect(html).toContain("엔진에 연결되면");
     expect(html).not.toContain("명령 목록을 읽고 있어요");
@@ -66,8 +76,8 @@ describe("palette body (server render)", () => {
     expect(html).not.toContain("alpha");
   });
 
-  test("connected with an open thread the slash and settings groups show while they load", () => {
-    const html = render({ live: true, titles: ["alpha"], selected: true });
+  test("connected with an open thread the slash and settings groups show while they load", async () => {
+    const html = await render({ live: true, titles: ["alpha"], selected: true });
     expect(html).toContain("alpha");
     expect(html).toContain("슬래시 명령");
     expect(html).toContain("명령 목록을 읽고 있어요");
@@ -76,19 +86,61 @@ describe("palette body (server render)", () => {
     expect(html).not.toContain("엔진에 연결되면");
   });
 
-  test("connected without an open thread the slash group is left out", () => {
-    const html = render({ live: true, titles: [], selected: false });
+  test("connected without an open thread the slash group is left out", async () => {
+    const html = await render({ live: true, titles: [], selected: false });
     expect(html).not.toContain("슬래시 명령");
     expect(html).not.toContain("명령 목록을 읽고 있어요");
     expect(html).toContain("설정 항목을 읽고 있어요");
   });
 
-  test("a group shows five rows and a more row for the rest", () => {
-    const html = render({ live: true, titles: SEVEN, selected: false });
+  test("a group shows five rows and a more row for the rest", async () => {
+    const html = await render({ live: true, titles: SEVEN, selected: false });
     expect(html).toContain("echo");
     expect(html).not.toContain("foxtrot");
     expect(html).not.toContain("golf");
     expect(html).toContain("더 보기");
+  });
+});
+
+const START = uiEntryOf({ id: "helm-start", placement: "command", title: "탐구 시작…" });
+
+describe("palette plugin group (server render)", () => {
+  test("with an open thread a plugin command shows in its group with its extension name", async () => {
+    const html = await render({ live: true, titles: [], selected: true, plugins: [START] });
+    expect(html).toContain("플러그인");
+    expect(html).toContain("탐구 시작…");
+    expect(html).toContain("helm");
+  });
+
+  test("without an open thread the plugin group is left out", async () => {
+    const html = await render({ live: true, titles: [], selected: false, plugins: [START] });
+    expect(html).not.toContain("플러그인");
+    expect(html).not.toContain("탐구 시작…");
+  });
+
+  test("a switched-off extension's command is left out", async () => {
+    const html = await render({
+      live: true,
+      titles: [],
+      selected: true,
+      plugins: [START],
+      extensions: [extListEntryOf("helm", { status: "disabled" })],
+    });
+    expect(html).not.toContain("플러그인");
+    expect(html).not.toContain("탐구 시작…");
+  });
+
+  test("a command whose state is not ok is left out", async () => {
+    const html = await render({
+      live: true,
+      titles: [],
+      selected: true,
+      plugins: [
+        uiEntryOf({ id: "off", placement: "command", title: "끈 명령", state: "disabled" }),
+      ],
+    });
+    expect(html).not.toContain("플러그인");
+    expect(html).not.toContain("끈 명령");
   });
 });
 

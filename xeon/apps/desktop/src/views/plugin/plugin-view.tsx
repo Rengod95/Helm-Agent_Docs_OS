@@ -1,18 +1,15 @@
 import { t, activeLocale } from "@fresnel/client/i18n";
-import { attemptAsync, detach, rethrow } from "@fresnel/contracts";
+import { detach, rethrow } from "@fresnel/contracts";
 import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
 import { resolveTree, type ResolvedTree } from "@fresnel/client/views/native";
-import { BRIDGE_VERSION } from "@fresnel/contracts/extensions";
 import {
   buildAppUrl,
   collectThemeTokens,
   createActionRunner,
-  decide,
   stripUnsafeText,
   type ActionRunner,
   type BridgeBackend,
   type BridgePolicyContext,
-  type RunnableAction,
   type ThemePush,
 } from "@fresnel/client/views/app";
 import { Button } from "@caustic/react";
@@ -21,12 +18,14 @@ import { createBridgeBackend } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
 import { useCommands } from "../commands.ts";
-import { NativeTree, type NativeTreeActions } from "./native-tree.tsx";
+import { NativeTree } from "./native-tree.tsx";
+import { readTreeOf, treeActionsOf } from "./native-run.ts";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
 import { browserClock, browserScheduler, PluginFrame } from "./plugin-frame.tsx";
 
-// 플러그인 화면 하나를 셸 틀(머리)과 함께 그린다. 선언형은 `NativeTree`, 앱은 `PluginFrame`이다.
+// 플러그인 화면 하나를 셸 틀(머리)과 함께 그린다. 선언형은 `NativeSurface`(`NativeTree`), 앱은 `PluginFrame`이다.
 // 셸 머리(확장 이름, 등급, 버전, 프로젝트 배지)는 프레임 밖 셸 층에 있다(ADR-0021 §3.6.6).
+// 선언형 본문은 페이지·패널만이 아니라 상태 표시줄 칸과 확장 상세의 설정 구역도 같이 쓴다(`EntrySurface`).
 
 const POLL_MS = 10_000;
 const THEME_TOKEN_NAMES: readonly string[] = [
@@ -62,8 +61,19 @@ const randomFill = (bytes: Uint8Array): void => {
   crypto.getRandomValues(bytes);
 };
 
-function Note(props: { readonly text: string }): ReactNode {
-  return <p className="p-3 text-sm text-muted-foreground">{props.text}</p>;
+/** 한 줄 자리(상태 표시줄 칸)에서는 `dense`로 여백을 줄인다 */
+function Note(props: { readonly text: string; readonly dense?: boolean }): ReactNode {
+  return (
+    <p
+      className={
+        props.dense === true
+          ? "px-1 text-xs text-muted-foreground"
+          : "p-3 text-sm text-muted-foreground"
+      }
+    >
+      {props.text}
+    </p>
+  );
 }
 
 function Header(props: { readonly entry: ExtUiEntry }): ReactNode {
@@ -97,10 +107,15 @@ function useDisabled(runtime: PluginUiRuntime, key: string): boolean {
 function DisabledNote(props: {
   readonly runtime: PluginUiRuntime;
   readonly keyName: string;
+  readonly dense?: boolean;
 }): ReactNode {
   return (
-    <div className="flex flex-col items-start gap-2 p-3">
-      <Note text={t("desktop.plugin.frame.disabled")} />
+    <div
+      className={
+        props.dense === true ? "flex items-center gap-2" : "flex flex-col items-start gap-2 p-3"
+      }
+    >
+      <Note text={t("desktop.plugin.frame.disabled")} dense={props.dense === true} />
       <Button
         onClick={() => {
           props.runtime.ledger.reenable(props.keyName);
@@ -112,7 +127,8 @@ function DisabledNote(props: {
   );
 }
 
-interface Loaded {
+/** 확장 문맥: 연결과 판정 맥락. 화면이 읽은 뒤에만 만든다 */
+export interface Loaded {
   readonly connection: HostConnection;
   readonly context: BridgePolicyContext;
 }
@@ -160,7 +176,7 @@ interface SessionBox {
   context: BridgePolicyContext;
 }
 
-interface Session {
+export interface Session {
   readonly box: SessionBox;
   /** 판정 맥락을 엔진에서 새로 읽어 `box`에 넣는다. 읽지 못하면 undefined다 */
   readonly recheck: () => Promise<BridgePolicyContext | undefined>;
@@ -169,20 +185,21 @@ interface Session {
   readonly nonce: string;
 }
 
-function createSession(
+/** 화면 하나(또는 화면 밖 명령 실행기 하나)가 쓰는 세션. 다리 백엔드와 판정 맥락 갱신을 묶는다 */
+export function createSession(
   entry: ExtUiEntry,
-  loaded: Loaded,
+  context: BridgePolicyContext,
   threadId: string | null,
   showScreen: (screen: "chat" | "settings") => void,
   current: () => HostConnection | null,
   runtime: PluginUiRuntime,
 ): Session {
-  const box: SessionBox = { thread: threadId, context: loaded.context };
+  const box: SessionBox = { thread: threadId, context };
   return {
     box,
-    update: (thread, context) => {
+    update: (thread, next) => {
       box.thread = thread;
-      box.context = context;
+      box.context = next;
     },
     nonce: newFrameNonce(randomFill),
     recheck: async () => {
@@ -233,7 +250,7 @@ function createSession(
 
 function useSession(
   entry: ExtUiEntry,
-  loaded: Loaded,
+  context: BridgePolicyContext,
   threadId: string | null,
   runtime: PluginUiRuntime,
 ): Session {
@@ -241,7 +258,7 @@ function useSession(
   const [session] = useState(() =>
     createSession(
       entry,
-      loaded,
+      context,
       threadId,
       (screen) => commands.showScreen(screen),
       () => commands.pluginUi.current(),
@@ -249,8 +266,8 @@ function useSession(
     ),
   );
   useEffect(() => {
-    session.update(threadId, loaded.context);
-  }, [session, threadId, loaded]);
+    session.update(threadId, context);
+  }, [session, threadId, context]);
   return session;
 }
 
@@ -262,7 +279,7 @@ function FrameBody(props: {
   const { entry, loaded, runtime } = props;
   const plugin = usePluginUi();
   const threadId = useSelectedThreadId();
-  const session = useSession(entry, loaded, threadId, runtime);
+  const session = useSession(entry, loaded.context, threadId, runtime);
   const app = entry.app;
   const url =
     app === undefined
@@ -287,41 +304,6 @@ function FrameBody(props: {
       onClosed={() => {}}
     />
   );
-}
-
-/** 한 동작을 판정(`decide`)하고 실행기로 돌린다. 판정이 거부하면 실행하지 않는다 */
-async function runDecided(
-  runner: ActionRunner,
-  context: BridgePolicyContext,
-  op: "query" | "host" | "command",
-  args: unknown,
-): Promise<{ readonly ok: true; readonly value: unknown } | { readonly ok: false }> {
-  const decision = decide({ v: BRIDGE_VERSION, id: 0, op, args }, context);
-  if (!decision.ok || decision.action.op === "pong") return { ok: false };
-  const action: RunnableAction = decision.action;
-  const result = await runner.run(action);
-  return result.ok ? { ok: true, value: result.value } : { ok: false };
-}
-
-/**
- * 선언형 화면의 데이터 문서. 뿌리 키는 읽기 전용 메서드 동사(`/status/...`)와 `host`다.
- * 프레임의 `query`와 같은 길(`decide`, 실행기의 결과 크기 상한과 장부)을 거치고, 읽기는 하나씩 차례로 한다
- */
-async function readDoc(
-  runner: ActionRunner,
-  context: BridgePolicyContext,
-): Promise<Record<string, unknown> | undefined> {
-  const verbs = [...context.methods].filter(([, grant]) => grant.readOnly).map(([verb]) => verb);
-  const doc: Record<string, unknown> = {};
-  await verbs.reduce<Promise<void>>(async (before, verb) => {
-    await before;
-    const result = await runDecided(runner, context, "query", { verb });
-    if (result.ok) doc[verb] = result.value;
-  }, Promise.resolve());
-  if (verbs.length > 0 && Object.keys(doc).length === 0) return undefined;
-  const host = await runDecided(runner, context, "host", {});
-  if (host.ok) doc["host"] = host.value;
-  return doc;
 }
 
 /**
@@ -359,34 +341,55 @@ function useRunner(
   return runner;
 }
 
-function NativeBody(props: {
+/**
+ * 선언형 본문. 확장 문맥(`loaded`)으로 연결과 판정 맥락을 잡고 트리를 그린다.
+ * `doc`이 있으면 그 문서로 그릴 때 한 번 자르고 읽기를 하지 않는다. 없으면 데이터 문서를 10초마다 읽어 자른다.
+ * 버튼 명령은 `treeActionsOf`로 실행기를 거친다(확인 줄, 쿨다운, 장부). 페이지·패널과 상태 표시줄·설정 구역이 같이 쓴다
+ */
+export function NativeSurface(props: {
   readonly entry: ExtUiEntry;
   readonly loaded: Loaded;
-  readonly runtime: PluginUiRuntime;
+  readonly doc?: Readonly<Record<string, unknown>> | undefined;
+  readonly dense?: boolean;
 }): ReactNode {
-  const { entry, loaded, runtime } = props;
+  const { entry, loaded, doc, dense = false } = props;
+  const { runtime } = usePluginUi();
   const commands = useCommands();
   const threadId = useSelectedThreadId();
-  const session = useSession(entry, loaded, threadId, runtime);
+  const session = useSession(entry, loaded.context, threadId, runtime);
   const [backend] = useState(() => session.makeBackend(() => {}));
-  const [tree, setTree] = useState<ResolvedTree | "failed" | undefined>(undefined);
   const key = screenKeyOf(entry);
   const runner = useRunner(session, backend, runtime, key);
+  const [actions] = useState(() =>
+    treeActionsOf({
+      runner,
+      context: () => session.box.context,
+      ledger: runtime.ledger,
+      screenKey: key,
+      openChat: () => commands.showScreen("chat"),
+    }),
+  );
+  const [tree, setTree] = useState<ResolvedTree | "failed" | undefined>(undefined);
+  // 고정 문서를 자르는 시각은 화면이 처음 잡힐 때 한 번 정한다(그릴 때마다 시각을 읽지 않는다)
+  const [mountedAt] = useState(() => Date.now());
   const disabled = useDisabled(runtime, key);
   const treeDoc = entry.tree;
   useEffect(() => {
-    if (disabled || treeDoc === undefined) return undefined;
+    if (disabled || treeDoc === undefined || doc !== undefined) return undefined;
     let live = true;
     const run = async (): Promise<void> => {
-      const doc = await attemptAsync(() => readDoc(runner, session.box.context));
+      const next = await readTreeOf(runner, session.box.context, treeDoc, {
+        locale: activeLocale(),
+        nowMs: Date.now(),
+      });
       if (!live) return;
-      if (!doc.ok || doc.value === undefined) {
+      if (next === undefined) {
         runtime.ledger.fail(key, "query_failed");
         setTree("failed");
         return;
       }
       runtime.ledger.succeed(key);
-      setTree(resolveTree(treeDoc, { doc: doc.value, locale: activeLocale(), nowMs: Date.now() }));
+      setTree(next);
     };
     detach(run(), rethrow);
     const timer = window.setInterval(() => detach(run(), rethrow), POLL_MS);
@@ -394,33 +397,46 @@ function NativeBody(props: {
       live = false;
       window.clearInterval(timer);
     };
-  }, [runner, session, runtime, key, disabled, treeDoc]);
-  if (disabled) return <DisabledNote runtime={runtime} keyName={key} />;
-  if (tree === undefined) return <Note text={t("desktop.plugin.state.loading")} />;
-  if (tree === "failed") return <Note text={t("desktop.plugin.state.queryFailed")} />;
-  const actions: NativeTreeActions = {
-    runCommand(name, values) {
-      const args = Object.entries(values)
-        .map(([field, value]) => `${field}=${String(value)}`)
-        .join(" ");
-      // 프레임의 `command`와 같은 길이다: `decide`(자기 확장이 등록한 명령만), 확인 줄, 쿨다운, 장부
-      const run = async (): Promise<void> => {
-        const done = await runDecided(runner, session.box.context, "command", { name, args });
-        if (done.ok) runtime.ledger.succeed(key);
-      };
-      detach(run(), rethrow);
-    },
-    openLink(link) {
-      if (link.kind === "thread") commands.showScreen("chat");
-    },
-  };
+  }, [runner, session, runtime, key, disabled, treeDoc, doc]);
+  if (disabled) return <DisabledNote runtime={runtime} keyName={key} dense={dense} />;
+  if (treeDoc === undefined) return null;
+  // 고정 문서는 그릴 때 바로 자른다(읽기 폴링 없이 첫 장면부터 글이 보인다)
+  const shown: ResolvedTree | "failed" | undefined =
+    doc === undefined
+      ? tree
+      : resolveTree(treeDoc, { doc, locale: activeLocale(), nowMs: mountedAt });
+  if (shown === undefined) return <Note dense={dense} text={t("desktop.plugin.state.loading")} />;
+  if (shown === "failed")
+    return <Note dense={dense} text={t("desktop.plugin.state.queryFailed")} />;
   return (
     <NativeTree
-      root={tree.root}
+      root={shown.root}
       actions={actions}
       onRenderError={() => runtime.ledger.fail(key, "render_exception")}
     />
   );
+}
+
+/**
+ * 항목 하나를 확장 문맥을 읽은 뒤 선언형 본문으로 그린다. 상태 표시줄 칸과 확장 상세의 설정 구역이 쓴다.
+ * `doc`이 있으면 데이터 문서를 읽지 않고 그 값으로 그린다(트랜스크립트 카드는 기록의 details를 준다).
+ * 페이지와 패널은 `PluginView`가 같은 문맥을 읽는다
+ */
+export function EntrySurface(props: {
+  readonly entry: ExtUiEntry;
+  readonly dense?: boolean;
+  readonly doc?: Readonly<Record<string, unknown>> | undefined;
+}): ReactNode {
+  const { entry, dense = false, doc } = props;
+  const { runtime } = usePluginUi();
+  const threadId = useSelectedThreadId();
+  const loaded = useLoaded(runtime, entry, threadId);
+  if (loaded === undefined) return <Note dense={dense} text={t("desktop.plugin.state.loading")} />;
+  if (loaded === "offline") return <Note dense={dense} text={t("desktop.plugin.state.offline")} />;
+  if (!loaded.context.enabled || loaded.context.safeMode) {
+    return <Note dense={dense} text={t("desktop.plugin.state.disabled")} />;
+  }
+  return <NativeSurface entry={entry} loaded={loaded} dense={dense} doc={doc} />;
 }
 
 export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
@@ -454,8 +470,7 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
     ) : (
       <FrameBody entry={entry} loaded={loaded} runtime={runtime} />
     );
-  } else if (entry.tree !== undefined)
-    body = <NativeBody entry={entry} loaded={loaded} runtime={runtime} />;
+  } else if (entry.tree !== undefined) body = <NativeSurface entry={entry} loaded={loaded} />;
   else body = <Note text={t("desktop.plugin.state.frameBlocked")} />;
   return (
     <section className="flex min-h-0 flex-1 flex-col">

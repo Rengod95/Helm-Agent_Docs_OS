@@ -1,13 +1,18 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import type { ItemId, ItemRecord } from "@fresnel/contracts/conversation";
+import type { ItemId, ItemRecord, JsonObject, JsonValue } from "@fresnel/contracts/conversation";
 import { memo, useState, type NamedExoticComponent, type ReactNode } from "react";
+import { cardOf, provenanceOf } from "../plugin-ui/placements.ts";
 import { useItem, useOpenThreadId, usePartText, useStreamingItem } from "../state/engine/index.ts";
+import { usePluginUiState } from "./plugin/plugin-context.tsx";
+import { EntrySurface } from "./plugin/plugin-view.tsx";
 
 // 확정 item과 진행 중 item의 한 행. 행 부품은 자기 id만 구독한다(FS-19).
 // 마크다운과 코드 하이라이트는 넣지 않았다(FS-21 [제안]): 평문 줄바꿈 보존으로 그린다.
 
 const PREVIEW_CHARS = 400;
+/** 트랜스크립트 카드의 높이 상한(px). 넘는 글은 잘린다. "더 보기"는 아직 없다([미결], spec 2478) */
+const CARD_MAX_HEIGHT = 320;
 
 type Block = { readonly type: string };
 
@@ -41,6 +46,37 @@ function Collapsible(props: { readonly summary: string; readonly children: React
       </button>
       {open ? props.children : null}
     </div>
+  );
+}
+
+/** JSON 객체인가. `Array.isArray`는 읽기 전용 배열을 걸러내지 못해 직접 가린다 */
+function isJsonObject(value: JsonValue): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** 기록의 details를 카드의 데이터 문서로 쓴다. 객체가 아니면 빈 문서다 */
+function dataDocOf(details: JsonValue): Readonly<Record<string, unknown>> {
+  return isJsonObject(details) ? details : {};
+}
+
+/**
+ * 확장 기록의 본문. 이 종류(`customType`)의 `card` 기여가 있으면 그 화면을 기록의 details로 그리고 출처 줄을 덧붙인다.
+ * 카드가 없거나 확장이 꺼졌으면 종류 이름만 보인다. 출처는 와이어 항목과 `forKind`로만 정한다
+ */
+function CustomBody(props: {
+  readonly customType: string;
+  readonly details: JsonValue;
+}): ReactNode {
+  const plugin = usePluginUiState();
+  const card = cardOf(plugin.groups.card, plugin.inactive, props.customType);
+  if (card === undefined) return <div className="text dim">{props.customType}</div>;
+  return (
+    <>
+      <div style={{ maxHeight: CARD_MAX_HEIGHT, overflow: "hidden" }}>
+        <EntrySurface entry={card} doc={dataDocOf(props.details)} dense />
+      </div>
+      <div className="text-ui-sm text-text-tertiary">{provenanceOf(card)}</div>
+    </>
   );
 }
 
@@ -95,7 +131,7 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
     case "system":
       return <div className="text dim">{textOf(item.message.content)}</div>;
     case "custom":
-      return <div className="text dim">{item.message.customType}</div>;
+      return <CustomBody customType={item.message.customType} details={item.message.details} />;
     default:
       return assertNever(item, "item kind");
   }

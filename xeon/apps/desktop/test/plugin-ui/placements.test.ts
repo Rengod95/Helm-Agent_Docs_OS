@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { groupPlacements, type PlacedEntry } from "../../src/plugin-ui/placements.ts";
+import type { UiNode } from "@fresnel/contracts/extensions";
+import type { ExtUiEntry } from "@fresnel/contracts/wire";
+import {
+  cardOf,
+  commandEntriesOf,
+  groupPlacements,
+  nativeEntriesOf,
+  provenanceOf,
+  type PlacedEntry,
+} from "../../src/plugin-ui/placements.ts";
 import { UI_ALLOW_PROJECT_APPS_KEY, UI_APPS_KEY } from "../../src/plugin-ui/policy-context.ts";
 import { appEntryOf, uiEntryOf } from "./support.ts";
 
@@ -101,5 +110,84 @@ describe("groupPlacements", () => {
     const groups = groupPlacements([uiEntryOf({ id: "native", trust: "project", tree })], {});
     expect(groups.page[0]?.entry.tree).toEqual(tree);
     expect(groups.page[0]?.blocked).toBeNull();
+  });
+});
+
+describe("nativeEntriesOf", () => {
+  const TEXT = { type: "Text", props: { text: "글" } } as const;
+
+  test("keeps only ok native entries with a tree, from extensions that are not inactive", () => {
+    const groups = groupPlacements(
+      [
+        uiEntryOf({ id: "ok", placement: "status", tree: TEXT }),
+        uiEntryOf({ id: "off", placement: "status", state: "disabled", tree: TEXT }),
+        uiEntryOf({ id: "bare", placement: "status" }),
+        appEntryOf({ id: "app", placement: "status" }),
+        uiEntryOf({ extension: "other", id: "stopped", placement: "status", tree: TEXT }),
+      ],
+      {},
+    );
+    const kept = nativeEntriesOf(groups.status, new Set(["other"])).map(
+      (entry) => `${entry.extension}/${entry.id}`,
+    );
+    expect(kept).toEqual(["helm/ok"]);
+  });
+});
+
+describe("commandEntriesOf", () => {
+  test("keeps ok command entries of extensions that are not inactive, whatever their mode", () => {
+    const groups = groupPlacements(
+      [
+        uiEntryOf({ id: "start", placement: "command", title: "탐구 시작…" }),
+        uiEntryOf({ id: "off", placement: "command", state: "disabled" }),
+        uiEntryOf({ id: "bad", placement: "command", state: "invalid" }),
+        uiEntryOf({ extension: "other", id: "stopped", placement: "command" }),
+      ],
+      {},
+    );
+    const kept = commandEntriesOf(groups.command, new Set(["other"])).map(
+      (entry) => `${entry.extension}/${entry.id}:${entry.title}`,
+    );
+    expect(kept).toEqual(["helm/start:탐구 시작…"]);
+  });
+});
+
+const CARD_TREE: UiNode = { type: "Chip", bind: { text: { path: "/lens" } } };
+
+/** 카드 항목 하나(출처 시험용). 트리가 있어야 카드다 */
+const cardEntry = (extension: string, forKind: string): ExtUiEntry =>
+  uiEntryOf({ extension, placement: "card", forKind, tree: CARD_TREE });
+
+describe("cardOf and provenanceOf", () => {
+  test("cardOf finds the card of the record kind and skips the card when its extension is inactive", () => {
+    const groups = groupPlacements(
+      [
+        uiEntryOf({
+          id: "finished",
+          placement: "card",
+          forKind: "grp.helm.inquiry.finished",
+          tree: CARD_TREE,
+        }),
+      ],
+      {},
+    );
+    expect(cardOf(groups.card, new Set(), "grp.helm.inquiry.finished")?.id).toBe("finished");
+    expect(cardOf(groups.card, new Set(), "grp.helm.other")).toBeUndefined();
+    expect(cardOf(groups.card, new Set(["helm"]), "grp.helm.inquiry.finished")).toBeUndefined();
+  });
+
+  test("a card without a tree is not a card to draw", () => {
+    const groups = groupPlacements(
+      [uiEntryOf({ id: "bare", placement: "card", forKind: "x.helm.note.saved" })],
+      {},
+    );
+    expect(cardOf(groups.card, new Set(), "x.helm.note.saved")).toBeUndefined();
+  });
+
+  test("provenance is grp:<group> for a grp kind with a dot after the group, else ext:<extension>", () => {
+    expect(provenanceOf(cardEntry("helm", "grp.helm.inquiry.finished"))).toBe("grp:helm");
+    expect(provenanceOf(cardEntry("helm", "x.helm.note.saved"))).toBe("ext:helm");
+    expect(provenanceOf(cardEntry("notes", "x.notes.k.v"))).toBe("ext:notes");
+    expect(provenanceOf(cardEntry("notes", "grp.helm"))).toBe("ext:notes");
   });
 });

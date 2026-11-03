@@ -1550,6 +1550,7 @@
   "desktop.palette.empty": "Nothing matches",
   "desktop.palette.group.threads": "Conversations",
   "desktop.palette.group.commands": "Commands",
+  "desktop.palette.group.plugin": "Plugin",
   "desktop.palette.command.threadNew": "New conversation",
   "desktop.palette.command.interrupt": "Interrupt",
   "desktop.palette.command.inbox": "Open inbox",

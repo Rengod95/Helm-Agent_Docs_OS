@@ -6,7 +6,14 @@ import {
   type ComboboxGroupData,
   type ComboboxOptionData,
 } from "@caustic/react";
-import { ChevronRight, Ellipsis, MessageSquare, Play, Settings } from "@caustic/react/icons";
+import {
+  ChevronRight,
+  Ellipsis,
+  MessageSquare,
+  Package,
+  Play,
+  Settings,
+} from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   settingsViewOf,
@@ -17,16 +24,19 @@ import {
 } from "@fresnel/client/settings";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { commandEntriesOf } from "../../plugin-ui/placements.ts";
 import { useLinkPhase, useThreadSummaries } from "../../state/engine/index.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
 import { useCommands } from "../commands.ts";
 import { formatKey, resolveKeymap } from "../shell/keybindings.ts";
+import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import {
   availableCommands,
   commandValue,
   decodeValue,
   groupCellsOf,
+  pluginCommandItemsOf,
   settingValue,
   slashValue,
   threadValue,
@@ -58,6 +68,7 @@ type Loaded<T> =
 const GROUP_HEADING: Readonly<Record<PaletteGroupId, MessageId>> = {
   thread: "desktop.palette.group.threads",
   command: "desktop.palette.group.commands",
+  plugin: "desktop.palette.group.plugin",
   slash: "desktop.palette.group.slash",
   setting: "desktop.palette.group.settings",
 };
@@ -66,6 +77,7 @@ const GROUP_HEADING: Readonly<Record<PaletteGroupId, MessageId>> = {
 const GROUP_ICON: Readonly<Record<PaletteGroupId, ComponentType>> = {
   thread: MessageSquare,
   command: Play,
+  plugin: Package,
   slash: ChevronRight,
   setting: Settings,
 };
@@ -82,6 +94,7 @@ function statusTextOf(group: PaletteGroupId, status: Exclude<GroupStatus, "ready
         : "desktop.palette.status.settingsLoading";
     case "thread":
     case "command":
+    case "plugin":
       return failed ? "desktop.palette.status.failed" : "desktop.palette.status.loading";
     default:
       return assertNever(group, "palette group");
@@ -135,6 +148,7 @@ export function PaletteBody(props: PaletteProps): ReactNode {
   const live = useLinkPhase() === "live";
   const selected = useSelectedThreadId();
   const threads = useThreadSummaries();
+  const pluginState = usePluginUiState();
   const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<PaletteGroupId>>(() => new Set());
@@ -208,6 +222,10 @@ export function PaletteBody(props: PaletteProps): ReactNode {
       meta: spec === null ? null : formatKey(spec, props.mac),
     };
   });
+  // 확장 명령은 꺼진 확장과 상태가 `ok`가 아닌 항목을 뺀다. 열린 대화가 없으면 묶음이 보이지 않는다(`visibleGroupsOf`)
+  const pluginItems: PaletteItem[] = pluginCommandItemsOf(
+    commandEntriesOf(pluginState.groups.command, pluginState.inactive),
+  );
   const slashItems: PaletteItem[] =
     slash.status === "ready"
       ? slash.value.map((row) => ({
@@ -240,6 +258,7 @@ export function PaletteBody(props: PaletteProps): ReactNode {
   > = {
     thread: { items: threadItems, status: "ready" },
     command: { items: commandItems, status: "ready" },
+    plugin: { items: pluginItems, status: "ready" },
     slash: { items: slashItems, status: slash.status },
     setting: { items: settingItems, status: fields.status },
   };

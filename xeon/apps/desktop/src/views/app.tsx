@@ -16,6 +16,7 @@ import { Palette } from "./palette/palette.tsx";
 import type { PaletteCommandId, PaletteRun } from "./palette/palette-model.ts";
 import { resolveKeymap, type ActionId } from "./shell/keybindings.ts";
 import { ShortcutHelpDialog } from "./shortcut-help-dialog.tsx";
+import { usePluginCommandRunner } from "./plugin/command-run.ts";
 import { PluginUiHost } from "./plugin/plugin-tabs.tsx";
 import { StatusBar } from "./status-bar.tsx";
 import { ThreadList } from "./thread-list.tsx";
@@ -52,6 +53,7 @@ export function App(props: AppProps): ReactNode {
   const threads = useThreadSummaries();
   const threadIds = useThreadIds();
   const approvalIds = useApprovalIds();
+  const runPluginCommand = usePluginCommandRunner();
   // 대화 영역에서 열린 대화가 바뀌면 작업대 맥락이 (고정이 아니면) 따라간다
   useEffect(() => {
     shell.selectChatThread(selected);
@@ -81,6 +83,9 @@ export function App(props: AppProps): ReactNode {
         return;
       case "command":
         runCommand(run.id);
+        return;
+      case "plugin":
+        runPluginCommand(run.extension, run.id);
         return;
       case "slash":
         if (selected === null) return;
