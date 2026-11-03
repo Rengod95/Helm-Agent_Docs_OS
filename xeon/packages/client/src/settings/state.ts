@@ -7,11 +7,21 @@ import type {
   SettingScope,
 } from "@fresnel/contracts/settings";
 import { writableScopes } from "./badges.ts";
+import { mergeCatalogs, type CatalogSources } from "./catalog.ts";
 import { affectedKeys } from "./invalidation.ts";
+import { t } from "../i18n/index.ts";
 import { resolveWidget } from "./widget-map.ts";
 import { buildSettingsView } from "./view.ts";
 import { checkClientValue, coerceInput } from "./write-flow.ts";
-import type { FieldError, FieldVM, SettingsView, ValueIssue, WritableScope } from "./types.ts";
+import type {
+  FieldError,
+  FieldVM,
+  SettingOrigin,
+  SettingsView,
+  ValueIssue,
+  ViewDiagnostic,
+  WritableScope,
+} from "./types.ts";
 
 // 설정 화면의 상태와 전이(L4.settings-ui §3.5 model/state, §4.4, §4.5). 순수 함수만 둔다.
 // 호스트 호출은 controller.ts가 하고, 응답을 이 전이 함수의 행동으로 바꾼다. 같은 행동 목록이면 같은 상태가 나온다.
@@ -27,8 +37,16 @@ export type LoadStatus = "idle" | "loading" | "ready" | "failed";
 export interface SettingsState {
   readonly status: LoadStatus;
   readonly loadError: FieldError | null;
-  /** 키별 정의. 같은 키가 두 번 오면 처음 것을 쓴다 */
+  /** 원천별 정의 목록(`settings.list`, `localStore.defs()`). `defs`·`origins`·`duplicateKeys`는 이것을 합친 값이다 */
+  readonly catalogs: CatalogSources;
+  /** 키별 정의. 두 원천의 합집합이고, 같은 키는 desktop 정의를 쓴다(§4.1.3) */
   readonly defs: ReadonlyMap<SettingKey, SettingDefWire>;
+  /** 키별 원천(§4.1.3 규칙 1) */
+  readonly origins: ReadonlyMap<SettingKey, SettingOrigin>;
+  /** 두 원천이 같은 키를 낸 키. 화면은 `duplicateKey` 진단으로 보인다(§4.1.3 규칙 2) */
+  readonly duplicateKeys: readonly SettingKey[];
+  /** 엔진 연결이 없거나 끊겼다. 이때 `engine` 항목은 읽기 전용이다(§4.1.3) */
+  readonly engineOffline: boolean;
   /** 키별 유효 값(`settings.get` 결과) */
   readonly values: ReadonlyMap<SettingKey, EffectiveSetting>;
   readonly drafts: ReadonlyMap<SettingKey, FieldDraft>;
@@ -47,8 +65,16 @@ export interface SettingsState {
 
 export type SettingsAction =
   | { readonly type: "loadStarted" }
-  | { readonly type: "catalogLoaded"; readonly defs: readonly SettingDefWire[] }
+  /** 한 원천의 정의 목록. 다른 원천의 목록은 그대로 두고 합집합을 다시 만든다 */
+  | {
+      readonly type: "catalogLoaded";
+      readonly origin: "engine" | "desktop";
+      readonly defs: readonly SettingDefWire[];
+    }
+  | { readonly type: "engineStateChanged"; readonly offline: boolean }
   | { readonly type: "valuesLoaded"; readonly settings: readonly EffectiveSetting[] }
+  /** 데스크톱 로컬 저장소에서 값이 바뀌었다. 상태(load 단계)는 건드리지 않는다 */
+  | { readonly type: "valueChanged"; readonly setting: EffectiveSetting }
   | { readonly type: "loadFailed"; readonly error: FieldError }
   | { readonly type: "draftEdited"; readonly key: SettingKey; readonly raw: unknown }
   | { readonly type: "draftDiscarded"; readonly key: SettingKey }
@@ -85,7 +111,11 @@ export type SettingsAction =
 export const initialSettingsState: SettingsState = {
   status: "idle",
   loadError: null,
+  catalogs: { engine: [], desktop: [] },
   defs: new Map(),
+  origins: new Map(),
+  duplicateKeys: [],
+  engineOffline: false,
   values: new Map(),
   drafts: new Map(),
   scopes: new Map(),
@@ -96,14 +126,6 @@ export const initialSettingsState: SettingsState = {
   threadId: null,
   restartError: null,
 };
-
-function catalogOf(defs: readonly SettingDefWire[]): Map<SettingKey, SettingDefWire> {
-  const catalog = new Map<SettingKey, SettingDefWire>();
-  for (const def of defs) {
-    if (!catalog.has(def.key)) catalog.set(def.key, def);
-  }
-  return catalog;
-}
 
 function withEntry<K, V>(map: ReadonlyMap<K, V>, key: K, value: V): Map<K, V> {
   const next = new Map(map);
@@ -198,13 +220,24 @@ export function reduceSettings(state: SettingsState, action: SettingsAction): Se
   switch (action.type) {
     case "loadStarted":
       return { ...state, status: "loading", loadError: null };
-    case "catalogLoaded":
-      return { ...state, defs: catalogOf(action.defs) };
+    case "catalogLoaded": {
+      const catalogs: CatalogSources =
+        action.origin === "engine"
+          ? { engine: action.defs, desktop: state.catalogs.desktop }
+          : { engine: state.catalogs.engine, desktop: action.defs };
+      return { ...state, catalogs, ...mergeCatalogs(catalogs) };
+    }
+    case "engineStateChanged":
+      return state.engineOffline === action.offline
+        ? state
+        : { ...state, engineOffline: action.offline };
     case "valuesLoaded": {
       const values = new Map(state.values);
       for (const setting of action.settings) values.set(setting.key, setting);
       return { ...state, values, status: "ready", loadError: null };
     }
+    case "valueChanged":
+      return { ...state, values: withEntry(state.values, action.setting.key, action.setting) };
     case "loadFailed":
       return { ...state, status: "failed", loadError: action.error };
     case "draftEdited":
@@ -279,16 +312,27 @@ export function reduceSettings(state: SettingsState, action: SettingsAction): Se
 function overlayField(field: FieldVM, state: SettingsState): FieldVM {
   const draft = state.drafts.get(field.key);
   const scope = state.scopes.get(field.key);
+  const origin = state.origins.get(field.key) ?? "engine";
+  // 엔진 원천 항목은 엔진이 없을 때 읽기 전용이다. 바꿀 수 있었던 항목에만 안내 문장을 보인다(§4.1.3)
+  const unlinked = origin === "engine" && state.engineOffline;
   return {
     ...field,
     value: draft === undefined ? field.value : draft.value,
     selectedScope: scope ?? field.selectedScope,
+    origin,
+    editable: field.editable && !unlinked,
+    offlineNote: unlinked && field.editable ? t("client.settings.origin.engineOffline") : null,
     dirty: draft !== undefined,
     issues: draft?.issues ?? [],
     saving: state.saving.has(field.key),
     error: state.errors.get(field.key) ?? null,
     remoteChanged: state.remoteChanged.has(field.key),
   };
+}
+
+/** 같은 키를 두 원천이 냈을 때의 진단. 화면 진단 목록 앞에 둔다 */
+function duplicateDiagnosticsOf(state: SettingsState): readonly ViewDiagnostic[] {
+  return state.duplicateKeys.map((key): ViewDiagnostic => ({ code: "duplicateKey", key }));
 }
 
 /** 상태에서 화면 view-model을 만든다. 초안 값과 쓰기 상태를 항목에 덮어 쓴다 */
@@ -300,6 +344,7 @@ export function settingsViewOf(state: SettingsState): SettingsView {
   });
   return {
     ...view,
+    diagnostics: [...duplicateDiagnosticsOf(state), ...view.diagnostics],
     tabs: view.tabs.map((tab) => ({
       id: tab.id,
       label: tab.label,

@@ -102,10 +102,11 @@ export function SettingsPage(): ReactNode {
   const loadedThread = useRef<ThreadId | null>(null);
   const savedTimers = useRef(new Map<SettingKey, number>());
 
-  // 연결이 바뀌면 이 연결의 컨트롤러를 만든다. 만드는 일만 하고(구독하지 않는다), 읽기는 아래 효과가 한다.
-  // 연결이 끊기면 컨트롤러는 그대로 두어 마지막 값을 읽기 전용으로 보인다
-  if (binding.live !== live) {
-    setBinding({ live, controller: live ? commands.settings.open() : binding.controller });
+  // 연결이 살아날 때 이 연결의 컨트롤러를 만들고, 처음 열 때도 만든다. 만드는 일만 하고(구독하지 않는다), 읽기는 아래 효과가 한다.
+  // 연결이 끊기면 컨트롤러는 그대로 두어 마지막 값을 보인다. 엔진 항목만 읽기 전용이고 로컬 항목은 바꿀 수 있다(§4.1.3)
+  if (binding.live !== live || binding.controller === null) {
+    const reopen = live || binding.controller === null;
+    setBinding({ live, controller: reopen ? commands.settings.open() : binding.controller });
   }
   const controller = binding.controller;
 
@@ -113,15 +114,15 @@ export function SettingsPage(): ReactNode {
     threadRef.current = threadId;
   }, [threadId]);
 
-  // 컨트롤러마다 한 번 읽는다. 컨트롤러를 놓을 때(연결이 끊기거나 화면을 떠날 때) 알림 구독을 끊는다
+  // 컨트롤러마다 한 번 읽는다. 엔진이 없는 컨트롤러는 로컬 원천만 읽는다. 컨트롤러를 놓을 때(바뀌거나 화면을 떠날 때) 알림 구독을 끊는다
   useEffect(() => {
-    if (controller === null || !live) return undefined;
+    if (controller === null) return undefined;
     loadedThread.current = threadRef.current;
     detach(controller.load(), rethrow);
     return () => {
       detach(controller.dispose(), rethrow);
     };
-  }, [controller, live]);
+  }, [controller]);
 
   // 열린 대화가 바뀌면 대화 범위 값을 다시 읽는다. 같은 대화는 다시 읽지 않는다(컨트롤러를 만든 읽기가 이미 맞다)
   useEffect(() => {

@@ -187,6 +187,8 @@ function fieldOf(
     secret: facts.secret,
     problem: facts.problem,
     editor: ui.editor ?? null,
+    origin: "engine",
+    offlineNote: null,
     dirty: false,
     issues: [],
     saving: false,

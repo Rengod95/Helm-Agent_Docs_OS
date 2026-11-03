@@ -173,10 +173,6 @@ export function PaletteBody(props: PaletteProps): ReactNode {
     let stale = false;
     const load = async (): Promise<void> => {
       const controller = commands.settings.open();
-      if (controller === null) {
-        if (!stale) setFields({ status: "failed" });
-        return;
-      }
       await controller.load();
       const state = controller.getState();
       await controller.dispose();

@@ -12,15 +12,19 @@ import type {
   SettingsWriteError,
 } from "../views/commands.ts";
 import { errorOf } from "./command-error.ts";
+import { createLocalSettingsPort, type LocalSettings } from "../settings-store/index.ts";
 
 // 설정 화면(P-09)의 컨트롤러 발급과 설정 파일 읽기·쓰기. 컨트롤러는 연결 하나에 묶인다(`HostConnection`을 포트에 고정한다).
 // 그래서 화면은 연결이 살아날 때마다 `open()`을 다시 부르고, 옛 컨트롤러는 `dispose()`로 알림 구독을 끊는다.
+// 엔진이 없으면 `open()`도 컨트롤러를 준다. 그 컨트롤러는 연결 없이 데스크톱 로컬 설정만 읽고 쓴다(§4.1.3).
 // 현재 대화는 열린 대화 상태에서 매번 읽는다(`settings.invalidated` 판정과 `launch` 범위 쓰기에 쓴다).
 // 파일 읽기와 쓰기는 호출할 때마다 현재 연결을 읽는다. 연결이 없으면 `offline`이다.
 
 export interface SettingsDeps {
   readonly session: Pick<Session, "connection" | "restartEngine" | "reconnect">;
   readonly ui: Pick<UiStore, "read">;
+  /** 데스크톱 로컬 설정 저장소. 설정 화면의 `l4.desktop.*` 항목을 읽고 쓴다 */
+  readonly local: Pick<LocalSettings, "get" | "set">;
 }
 
 /** `settings.fileInvalid`(3108)의 details. host가 준 첫 문제의 문장만 쓴다 */
@@ -62,12 +66,13 @@ function scopeParamsOf(target: SettingsFileTarget) {
 }
 
 export function createSettingsCommands(deps: SettingsDeps): SettingsCommands {
+  // 로컬 원천 포트는 명령마다 하나만 만든다. 청취자는 컨트롤러가 놓을 때 떼어 낸다
+  const localStore = createLocalSettingsPort(deps.local);
   return {
     open() {
-      const connection = deps.session.connection();
-      if (connection === null) return null;
       return createSettingsController({
-        connection,
+        connection: deps.session.connection(),
+        localStore,
         currentThreadId: () => deps.ui.read.getState().selectedThreadId,
         // 재시작이 거절되면 연결을 다시 잇는다. 새 연결의 화면이 대기 표시를 다시 읽는다(L4.settings-ui §4.4.5)
         requestHostRestart: async () => {

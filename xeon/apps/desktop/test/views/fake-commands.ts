@@ -1,4 +1,5 @@
 import { err, ok } from "@fresnel/contracts";
+import { createSettingsController } from "@fresnel/client/settings";
 import type { Commands } from "../../src/views/commands.ts";
 
 /** 화면 시험이 쓰는 명령 대역. 기본은 모두 성공하고 신뢰 메서드는 host에 없는 것(unsupported)처럼 답한다 */
@@ -113,7 +114,13 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       writeClipboard: () => Promise.resolve(),
     },
     settings: {
-      open: () => null,
+      // 연결이 없는 컨트롤러다. 실제 명령과 같이 로컬 원천만 읽고 쓴다
+      open: () =>
+        createSettingsController({
+          connection: null,
+          currentThreadId: () => null,
+          requestHostRestart: () => Promise.resolve(),
+        }),
       readFile: () => Promise.resolve(err({ kind: "unsupported" })),
       writeFile: () => Promise.resolve(err({ kind: "unsupported" })),
     },

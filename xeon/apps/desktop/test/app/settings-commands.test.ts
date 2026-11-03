@@ -56,7 +56,6 @@ describe("settings page commands", () => {
   test("an edited field is saved with settings.set and exactly key, value and scope", async () => {
     const { app, params } = await liveApp(EXTRA);
     const controller = app.commands.settings.open();
-    if (controller === null) throw new Error("a live connection must give a controller");
     await controller.load();
     controller.edit(KEY, SAVED_VALUE);
     await controller.commit(KEY);
@@ -68,10 +67,21 @@ describe("settings page commands", () => {
     await app.stop();
   });
 
-  test("without a connection there is no controller to open", async () => {
+  test("without a connection the controller still opens and reads only the desktop settings", async () => {
     const engine = engineFake([summary(thr(1))], undefined, EXTRA);
     const app = makeApp(engine.fake);
-    expect(app.commands.settings.open()).toBeNull();
+    const controller = app.commands.settings.open();
+    await controller.load();
+    const state = controller.getState();
+    expect(state.status).toBe("ready");
+    expect(state.engineOffline).toBe(true);
+    expect([...state.defs.keys()].toSorted()).toEqual([
+      "l4.desktop.engine.restartLimit",
+      "l4.desktop.engine.shutdownGraceMs",
+      "l4.desktop.window.closeBehavior",
+    ]);
+    expect(state.defs.has(KEY)).toBe(false);
+    await controller.dispose();
     await app.stop();
   });
 
@@ -79,7 +89,6 @@ describe("settings page commands", () => {
     const { app, fake, methods } = await liveApp(EXTRA);
     app.commands.selectThread(thr(1));
     const controller = app.commands.settings.open();
-    if (controller === null) throw new Error("a live connection must give a controller");
     await controller.load();
     const before = countOf(methods, "settings.get");
 

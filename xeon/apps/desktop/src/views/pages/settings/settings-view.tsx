@@ -273,7 +273,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     <FieldRow
       key={field.key}
       field={field}
-      editable={!readOnly && field.editable}
+      editable={field.editable && (!readOnly || field.origin === "desktop")}
       hasThread={hasThread}
       saved={saved.has(field.key)}
       editors={props.editors}

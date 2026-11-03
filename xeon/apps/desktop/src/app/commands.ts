@@ -245,7 +245,7 @@ export function createCommands(deps: CommandDeps): Commands {
       run: withConnection,
     }),
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
-    settings: createSettingsCommands({ session, ui }),
+    settings: createSettingsCommands({ session, ui, local: deps.local }),
     web: createWebCommands(withConnection),
     proposals: createProposalCommands(withConnection, withWriteConnection),
     work: createWorkCommands(withConnection, withWriteConnection),

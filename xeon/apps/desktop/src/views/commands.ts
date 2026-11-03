@@ -285,11 +285,11 @@ export interface WebCommands {
 }
 
 /**
- * 설정 화면(P-09)의 컨트롤러. 연결이 없으면 `null`이다. 컨트롤러는 연결마다 새로 만들고, 화면이 `dispose()`로 놓는다.
+ * 설정 화면(P-09)의 컨트롤러. 연결이 없어도 준다(엔진 원천 항목은 빠지고 로컬 원천 항목은 쓸 수 있다). 컨트롤러는 연결마다 새로 만들고, 화면이 `dispose()`로 놓는다.
  * 읽기·쓰기·알림의 판정은 `@fresnel/client/settings`가 하고, 이 명령은 연결과 현재 대화만 잇는다(`app/settings.ts`).
  */
 export interface SettingsCommands {
-  open(): SettingsController | null;
+  open(): SettingsController;
   /** `settings.readFile`(파일 편집기). 범위가 `user`이면 대화를 보내지 않는다. 연결이 없으면 `offline`이다 */
   readFile(target: SettingsFileTarget): Promise<Result<SettingsReadFileResult, CommandError>>;
   /** `settings.writeFile`(파일 편집기). 읽은 뒤 파일이 바뀌었으면 `conflict`(3107)다 */

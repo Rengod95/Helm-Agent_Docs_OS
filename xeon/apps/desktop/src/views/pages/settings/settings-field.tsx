@@ -135,6 +135,9 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           {field.lock.text}
         </p>
       )}
+      {field.offlineNote === null ? null : (
+        <p className="text-ui-sm text-text-tertiary">{field.offlineNote}</p>
+      )}
       {field.runtime.pendingText === null ? null : (
         <p className="text-ui-sm text-text-tertiary">{field.runtime.pendingText}</p>
       )}
