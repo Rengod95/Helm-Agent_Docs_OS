@@ -330,24 +330,25 @@ describe("M4 ext read methods", () => {
   });
 
   test("hooks.order.get, set and reset results round trip and reject missing fields", () => {
-    const guarded = {
+    const ordered = {
       hook: "tool.call.before",
-      saved: ["learning/review", "learning"],
-      applied: ["learning/review", "learning"],
+      saved: ["guard/a", "learning/review", "learning"],
+      applied: ["guard/a", "learning/review", "learning"],
       pending: false,
-      pinned: ["guard/a"],
     };
     const pendingHook = {
       hook: "input.user.before",
       saved: [],
       applied: ["x"],
       pending: true,
-      pinned: [],
     };
-    roundTrip(WIRE_METHODS["hooks.order.get"].result, { hooks: [guarded, pendingHook] });
+    roundTrip(WIRE_METHODS["hooks.order.get"].result, { hooks: [ordered, pendingHook] });
     roundTrip(WIRE_METHODS["hooks.order.get"].result, { hooks: [] });
-    const { pending: _pending, ...noPending } = guarded;
+    const { pending: _pending, ...noPending } = ordered;
     expect(parse(WIRE_METHODS["hooks.order.get"].result, { hooks: [noPending] }).ok).toBe(false);
+    // 옛 `pinned` 칸은 없다. 닫힌 객체라서 그 칸을 실은 값은 거부된다
+    const withPinned = { ...ordered, pinned: ["guard/a"] };
+    expect(parse(WIRE_METHODS["hooks.order.get"].result, { hooks: [withPinned] }).ok).toBe(false);
 
     const set = {
       hook: "tool.call.before",
@@ -373,7 +374,7 @@ describe("M4 ext read methods", () => {
     ).toBe(false);
   });
 
-  test("hooks.order.preview result round trips with and without a guard issue", () => {
+  test("hooks.order.preview result round trips with guard risk notes and rejects the removed guard field", () => {
     const ref = { registrationId: "learning", extension: "learning", tier: 1 };
     const skip = {
       registrationId: "learning/review",
@@ -382,11 +383,17 @@ describe("M4 ext read methods", () => {
       by: [ref],
     };
     const valueChange = { registrationId: "guard/b", extension: "guard", by: [ref] };
-    const withGuard = {
+    const risk = {
+      registrationId: "guard/a",
+      extension: "guard",
+      mayBeSkipped: true,
+      losesFirstPosition: true,
+      by: [ref],
+    };
+    const withRisk = {
       hook: "tool.call.before",
       order: ["learning/review", "guard/a"],
-      saveable: false,
-      guard: { kind: "above_guard", registrationId: "guard/a", above: "learning/review" },
+      saveable: true,
       skips: [skip],
       valueChanges: [valueChange],
       autoDisable: [
@@ -396,34 +403,34 @@ describe("M4 ext read methods", () => {
           affects: [{ registrationId: "learning/review", extension: "learning", tier: 2 }],
         },
       ],
+      guardRisk: [risk],
     };
     const preview = WIRE_METHODS["hooks.order.preview"].result;
-    roundTrip(preview, withGuard);
+    roundTrip(preview, withRisk);
     roundTrip(preview, {
-      ...withGuard,
-      saveable: true,
-      guard: null,
+      ...withRisk,
       skips: [],
       valueChanges: [],
       autoDisable: [],
-    });
-    roundTrip(preview, {
-      ...withGuard,
-      saveable: false,
-      guard: { kind: "guard_moved", registrationId: "guard/a" },
+      guardRisk: [],
     });
 
-    const { guard: _guard, ...noGuard } = withGuard;
-    expect(parse(preview, noGuard).ok).toBe(false);
-    expect(parse(preview, { ...withGuard, skips: [{ ...skip, reason: "always_first" }] }).ok).toBe(
+    const { guardRisk: _risk, ...noRisk } = withRisk;
+    expect(parse(preview, noRisk).ok).toBe(false);
+    // 옛 `guard` 칸(규칙 위반 거절)은 없다. 닫힌 객체라서 거부한다
+    expect(parse(preview, { ...withRisk, guard: null }).ok).toBe(false);
+    expect(
+      parse(preview, { ...withRisk, guardRisk: [{ ...risk, losesFirstPosition: "yes" }] }).ok,
+    ).toBe(false);
+    expect(
+      parse(preview, { ...withRisk, guardRisk: [{ ...risk, mayBeSkipped: undefined }] }).ok,
+    ).toBe(false);
+    expect(parse(preview, { ...withRisk, skips: [{ ...skip, reason: "always_first" }] }).ok).toBe(
       false,
     );
-    expect(
-      parse(preview, { ...withGuard, guard: { kind: "moved", registrationId: "guard/a" } }).ok,
-    ).toBe(false);
     const fractionalTier = { ...valueChange, by: [{ ...ref, tier: 1.5 }] };
-    expect(parse(preview, { ...withGuard, valueChanges: [fractionalTier] }).ok).toBe(false);
+    expect(parse(preview, { ...withRisk, valueChanges: [fractionalTier] }).ok).toBe(false);
     const longSkips = Array.from({ length: 769 }, () => skip);
-    expect(parse(preview, { ...withGuard, skips: longSkips }).ok).toBe(false);
+    expect(parse(preview, { ...withRisk, skips: longSkips }).ok).toBe(false);
   });
 });

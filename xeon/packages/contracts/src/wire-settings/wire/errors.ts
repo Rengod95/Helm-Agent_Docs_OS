@@ -141,7 +141,6 @@ export type WireErrorKind =
   | "extension.notFound"
   | "group.notFound"
   | "extension.safeModeActive"
-  | "hooks.guardPinned"
   | "hooks.notFound"
   | "request.cancelled"
   | "host.shuttingDown"
@@ -623,22 +622,7 @@ export const WIRE_ERRORS: {
     kind: "extension.safeModeActive",
     retryable: false,
   },
-  /** `hooks.order.set`이 guard tier 핸들러를 옮기거나(`guard_moved`) 그 위에 다른 핸들러를 뒀다(`above_guard`). guard 핸들러는 항상 맨 앞이다(`X.operations.spec` §4.1.5) */
-  "hooks.guardPinned": {
-    code: 3404,
-    kind: "hooks.guardPinned",
-    retryable: false,
-    details: Type.Object(
-      {
-        hook: Type.String({ maxLength: 128 }),
-        kind: Type.Union([Type.Literal("guard_moved"), Type.Literal("above_guard")]),
-        registrationId: Type.String({ maxLength: 128 }),
-        above: Type.Optional(Type.String({ maxLength: 128 })),
-      },
-      { additionalProperties: false },
-    ),
-  },
-  /** 그런 이름의 훅이 없다(`hooks.order.set`·`hooks.order.reset`) */
+  /** 그런 이름의 훅이 없다(`hooks.order.set`·`hooks.order.reset`·`hooks.order.preview`). 코드 3404는 옛 `hooks.guardPinned`가 쓰던 자리라 비워 둔다 */
   "hooks.notFound": {
     code: 3405,
     kind: "hooks.notFound",

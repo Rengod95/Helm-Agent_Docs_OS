@@ -765,7 +765,8 @@ export const HooksListResultSchema: TUnsafe<HooksListResult> = Type.Unsafe<Hooks
 
 /**
  * `hooks.order.*`(W-51). 훅별 핸들러 순서 덮어쓰기는 설정 `x.operations.hookOrder`(범위 managed, user)에 저장된다.
- * 적용은 다음 단계 경계다(`pending`). guard tier 핸들러는 항상 맨 앞이고 옮길 수 없다(X.operations.spec §4.1.5)
+ * 적용은 다음 단계 경계다(`pending`). guard tier 핸들러도 옮길 수 있다(2026-11-03 사용자 결정, X.operations.spec §4.1.5).
+ * 옮기면 안전 검사가 건너뛰어질 수 있어서 `hooks.order.preview`의 `guardRisk`가 알린다.
  */
 const RegistrationOrder = Type.Array(Name, { maxItems: 256 });
 /** 훅 하나의 순서 한 줄. 저장된 덮어쓰기가 있거나 적용 중인 훅마다 나온다 */
@@ -777,15 +778,12 @@ export interface HookOrderEntry {
   readonly applied: readonly string[];
   /** 저장 값과 적용 값이 다르다. 다음 단계 경계에 적용된다 */
   readonly pending: boolean;
-  /** 그 훅에서 맨 앞에 고정된 guard 핸들러의 Registration id. 옮길 수 없다 */
-  readonly pinned: readonly string[];
 }
 const HookOrderEntryShape = closed({
   hook: Name,
   saved: RegistrationOrder,
   applied: RegistrationOrder,
   pending: Type.Boolean(),
-  pinned: RegistrationOrder,
 });
 export interface HooksOrderGetResult {
   readonly hooks: readonly HookOrderEntry[];
@@ -801,7 +799,7 @@ export const HooksOrderGetResultSchema: TUnsafe<HooksOrderGetResult> =
     >,
   );
 
-/** `hooks.order.set`. guard 핸들러를 옮기거나 그 위에 다른 핸들러를 두면 `hooks.guardPinned`다 */
+/** `hooks.order.set`. 없는 훅이면 `hooks.notFound`다. 그 밖의 이름은 오류 없이 저장하고 디스패치에서 무시한다 */
 export interface HooksOrderSetParams {
   readonly hook: string;
   readonly order: readonly string[];
@@ -817,7 +815,7 @@ export const HooksOrderSetParamsSchema: TUnsafe<Req<HooksOrderSetParams>> = Type
 );
 export interface HooksOrderSetResult {
   readonly hook: string;
-  /** guard 핸들러 이름과 중복을 뺀 저장 값 */
+  /** 중복을 뺀 저장 값. 제안한 순서를 그대로 지킨다 */
   readonly saved: readonly string[];
   readonly appliesAt: "nextStepBoundary";
 }
@@ -926,36 +924,42 @@ const HookAutoDisableNoteShape = closed({
   extension: Name,
   affects: HookOrderRefs,
 });
-/** guard 규칙 위반. `guard_moved`: guard 핸들러를 현재 상대 순서와 다르게 놓았다. `above_guard`: guard 핸들러 위에 다른 핸들러를 두었다 */
-export interface HookGuardIssue {
-  readonly kind: "guard_moved" | "above_guard";
+/**
+ * guard tier 핸들러의 위험. `mayBeSkipped`: 제안이 앞에 둔 핸들러 때문에 이 훅에서 실행되지 않을 수 있다(기본 순서에서 이미 앞이던 핸들러는 세지 않는다. `skips`에 같은 종류의 노트가 있다).
+ * `losesFirstPosition`: 기본 순서에서 맨 앞이던 guard가 이 제안에서 맨 앞을 잃었다. 비어 있지 않으면 UI는 "안전 검사가 건너뛰어질 수 있다"는 강한 경고를 띄운다
+ */
+export interface HookGuardRiskNote {
   readonly registrationId: string;
-  /** `above_guard`일 때 guard 위에 놓인 Registration id */
-  readonly above?: string;
+  readonly extension: string;
+  readonly mayBeSkipped: boolean;
+  readonly losesFirstPosition: boolean;
+  readonly by: readonly HookOrderRef[];
 }
-const HookGuardIssueShape = closed({
-  kind: Type.Union([Type.Literal("guard_moved"), Type.Literal("above_guard")]),
+const HookGuardRiskNoteShape = closed({
   registrationId: Name,
-  above: Type.Optional(Name),
+  extension: Name,
+  mayBeSkipped: Type.Boolean(),
+  losesFirstPosition: Type.Boolean(),
+  by: HookOrderRefs,
 });
 export interface HooksOrderPreviewResult {
   readonly hook: string;
   readonly order: readonly string[];
-  /** guard 문제가 없으면 참이다. 건너뜀과 값 변화는 저장을 막지 않는다 */
+  /** 항상 참이다. 저장을 막는 사유가 없다. 안전 위험은 `guardRisk`가 알린다 */
   readonly saveable: boolean;
-  readonly guard: HookGuardIssue | null;
   readonly skips: readonly HookSkipNote[];
   readonly valueChanges: readonly HookValueChangeNote[];
   readonly autoDisable: readonly HookAutoDisableNote[];
+  readonly guardRisk: readonly HookGuardRiskNote[];
 }
 const HooksOrderPreviewResultShape2 = closed({
   hook: Name,
   order: RegistrationOrder,
   saveable: Type.Boolean(),
-  guard: Type.Union([HookGuardIssueShape, Type.Null()]),
   skips: Type.Array(HookSkipNoteShape, { maxItems: 768 }),
   valueChanges: Type.Array(HookValueChangeNoteShape, { maxItems: 256 }),
   autoDisable: Type.Array(HookAutoDisableNoteShape, { maxItems: 256 }),
+  guardRisk: Type.Array(HookGuardRiskNoteShape, { maxItems: 256 }),
 });
 export const HooksOrderPreviewResultSchema: TUnsafe<HooksOrderPreviewResult> =
   Type.Unsafe<HooksOrderPreviewResult>(
