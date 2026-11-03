@@ -232,7 +232,13 @@ describe("Plugin App frame isolation (Y5, Linux e2e)", () => {
 
   e2e("a write call waits for the shell's confirmation line and was not run", () => {
     expect(run?.report.confirmAsked).toEqual([
-      { extension: "helm", action: "start", approval: false },
+      {
+        extension: "helm",
+        trust: "user",
+        action: "start",
+        paramsSummary: "",
+        approval: false,
+      },
     ]);
     expect(run?.report.executedCalls).toEqual([]);
     expect(run?.frame.answers["call"]).toMatchObject({
