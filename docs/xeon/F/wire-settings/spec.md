@@ -343,24 +343,24 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | schedule | `schedule.list` | `{ enabled?: boolean }` | `{ ok: true, items: ScheduleListItem[](최대 200) }`, `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.cancel` | `{ scheduleId: ScheduleId }` | `{ ok: true, entry: ScheduleEntryView }`, `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.fire` | `{ scheduleId: ScheduleId }` | `{ ok: true, run: RunView }`, `{ ok: false, error: ScheduleError }` | M3 |
-| ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount` | M4 (W-15, W-41) |
+| ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount`. 행의 `origin`은 실린 위치(`builtin`, `managed`, `user`, `project`)다. 프로젝트 확장은 신뢰된 작업 폴더에서 로더가 실은 것이 로더 목록에서 바로 나온다 | M4 (W-15, W-41) |
 | ext | `ext.get` | `{ name: string }` | `{ entry: ExtListEntry, manifest, hooks: ExtHookInfo[], bindings: ExtBindingEdge[] }` | M4 (W-20) |
 | ext | `ext.reenable` | `{ name: string }` | `{ appliesAt: "nextStepBoundary"\|"now", diagnostics: ExtDiagnostic[] }` | M4 (W-21) |
 | ext | `ext.reload` | `{ name: string }` | `ext.reenable`과 같음 | M4 (W-38) |
-| ext | `ext.health` | `{ name?: string, threadId?: string }` | `{ health: ExtHealthEntry[] }`(Registration 단위) | M4 (W-22) |
+| ext | `ext.health` | `{ name?: string, threadId?: string }` | `{ health: ExtHealthEntry[] }`(Registration 단위). 실패 장부 창은 최근 호출 수라서 `windowMs`는 창 안 가장 오래된 호출부터 지금까지의 시간이고 `windowCalls`가 창 안 호출 수다. 호출이 없으면 둘 다 0 | M4 (W-22) |
 | ext | `ext.timings` | `{ name: string, threadId?: string }` | `{ traceEnabled: boolean, timings: ExtHookTiming[] }` | M4 (W-23) |
 | ext | `ext.versions` | `{ name: string }` | `{ versions: ExtVersionEntry[] }` | M4 (W-31) |
 | ext | `ext.rollback` | `{ name: string, version: string, clearState?: boolean }` | `{ appliesAt: "nextStepBoundary"\|"restart", stateCleared: boolean }` | M4 (W-31) |
-| ext | `ext.bindings` | `{ threadId?: string }` | `{ capabilities: CapabilityBinding[] }`(Registration 단위 엣지) | M4 (W-40) |
+| ext | `ext.bindings` | `{ threadId?: string }` | `{ capabilities: CapabilityBinding[] }`(Registration 단위 엣지). `provider`는 ExtHost가 지금 실제로 바인딩한 공급자다(선언만 있고 바인딩되지 않았으면 null이고 `unmet`이 참) | M4 (W-40) |
 | ext | `ext.validateComposition` | `{ composition: CompositionDecl, plugins?: PluginDecl[], threadId?: string }` | `{ issues: ManifestIssue[] }` | M4 (W-47) |
 | ext | `ext.ui.list` | `{ threadId?: string }` | `{ items: ExtUiEntry[] }` | M4 (W-33) |
 | ext | `ext.ui.post` | `{ extension, ui, name: string, payload?: unknown }` | `{ accepted: boolean }` | M4 (W-33) |
 | ext | `ext.ui.requestApproval` | `{ extension, ui, method: string, params?: unknown }` | `{ approvalId: string }` | M4 (W-33) |
 | group | `group.list` | `{ threadId?: string }` | `{ groups: GroupStatusWire[] }` | M4 (W-24) |
-| group | `group.metrics` | `{ id: string, threadId?: string, since?: IsoTime }` | `{ id, metrics: GroupMetricsFull \| null, since: IsoTime \| null }` | M4 (W-25) |
+| group | `group.metrics` | `{ id: string, threadId?: string, since?: IsoTime }` | `{ id, metrics: GroupMetricsFull \| null, since: IsoTime \| null, sinceIgnoredBy?: string[] }`. `since`는 이벤트에서 접는 값(`leases`, `leaseMs`)만 거른다. 메모리 카운터 값(토큰, 개수)은 프로세스가 뜬 뒤의 누계라 거르지 못하고, 합인 `costUsd`도 같다. `since`가 있으면 `sinceIgnoredBy`가 그 지표 이름을 싣는다 | M4 (W-25) |
 | group | `group.promotion` | `{ threadIds?: string[] }` | `{ throughSeq, threads, candidates: PromotionCandidate[] }` | M4 (W-26) |
 | group | `group.driveLock` | `{ threadId: string }` | `{ holder, leaseEpoch, activeDriver, limits, used, candidates: DriveLockWait[], lastRejected }` | M4 (W-42) |
-| hooks | `hooks.list` | `{}` | `{ hooks: HookEntry[] }` | M4 (W-36) |
+| hooks | `hooks.list` | `{}` | `{ hooks: HookEntry[] }`. 행의 `order`는 호스트 핸들러 레지스트리에 실제로 등록된 핸들러를 디스패치 순서(F.extensions.spec §4.2: tier, 확장 로드 순서, 등록 순서)로 센 `HookHandlerRow[]`(`registrationId`, `extension`, `tier`, `status`, `error`)다. 꺼졌거나 setup에 실패한 Registration의 핸들러도 상태와 함께 나온다. `handlers`·`registrations`는 같은 목록에서 낸다(매니페스트 선언에서 만들지 않는다) | M4 (W-36) |
 | review | `review.get` | `{ reviewId: string }` | `{ reviewId, files: { path, hunks: HunkView[] }[] }` | M4 (W-02) |
 | goal | `goal.status` | `{ threadId: string }` | `{ goal: GoalView \| null }` | M4 (W-05) |
 | work | `work.tasks.list` | `{ threadId: string }` | `{ tasks: TaskView[] }` | M4 (W-06) |

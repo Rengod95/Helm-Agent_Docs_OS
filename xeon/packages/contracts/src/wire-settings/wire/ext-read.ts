@@ -40,6 +40,11 @@ export const ENABLED_SOURCES = ["managed", "thread", "project", "user", "default
 export type EnabledSource = (typeof ENABLED_SOURCES)[number];
 const EnabledSourceShape = Type.Union(ENABLED_SOURCES.map((name) => Type.Literal(name)));
 
+/** 확장이 실린 위치의 종류(`ext.list`의 `origin`). 프로젝트 확장은 신뢰 판정을 거친 작업 폴더 것이다 */
+export const EXT_ORIGINS = ["builtin", "managed", "user", "project"] as const;
+export type ExtOrigin = (typeof EXT_ORIGINS)[number];
+const ExtOriginShape = Type.Union(EXT_ORIGINS.map((name) => Type.Literal(name)));
+
 /** 진단 한 건. 로더가 읽은 위치(W-38)를 `file`, `line`으로 싣는다 */
 export interface ExtDiagnostic {
   readonly severity: "error" | "warning";
@@ -98,6 +103,11 @@ export interface ExtListEntry {
   readonly isGroup: boolean;
   readonly version: string;
   readonly location: string;
+  /**
+   * 어디서 실린 확장인가. `builtin`은 호스트 단위, `managed`·`user`·`project`는 로더가 찾은 위치다.
+   * 호스트는 항상 채운다(없으면 옛 호스트)
+   */
+  readonly origin?: ExtOrigin;
   readonly requestedGrade: string;
   readonly effectiveGrade: string;
   readonly tier: string | null;
@@ -120,6 +130,7 @@ const ExtListEntryShape = closed({
   isGroup: Type.Boolean(),
   version: Type.String({ minLength: 1, maxLength: 64 }),
   location: Type.String({ maxLength: 4096 }),
+  origin: Type.Optional(ExtOriginShape),
   requestedGrade: Type.String({ maxLength: 32 }),
   effectiveGrade: Type.String({ maxLength: 32 }),
   tier: Type.Union([Type.String({ maxLength: 32 }), Type.Null()]),
@@ -237,7 +248,14 @@ export interface ExtHealthEntry {
   readonly registrationId: string;
   readonly consecutiveFailures: number;
   readonly windowFailures: number;
+  /**
+   * 실패 장부 창이 덮는 시간(ms): 창 안의 가장 오래된 호출부터 지금까지. 장부의 창은 시간이 아니라 최근 호출 수
+   * (`x.operations.autoDisable.windowSize`)라서 이 값은 호출이 얼마나 뜸한지에 따라 변한다. 창에 호출이 없으면 0.
+   * 비율은 `windowFailures / windowCalls`(호출당)나 `windowFailures / windowMs`(시간당)로 계산한다
+   */
   readonly windowMs: number;
+  /** 창 안의 호출 수. 호스트는 항상 채운다 */
+  readonly windowCalls?: number;
   readonly autoDisabled: boolean;
   readonly lastFailureAt: string | null;
   readonly lastError: string | null;
@@ -248,6 +266,7 @@ const HealthEntryShape = closed({
   consecutiveFailures: Count,
   windowFailures: Count,
   windowMs: Ms,
+  windowCalls: Type.Optional(Count),
   autoDisabled: Type.Boolean(),
   lastFailureAt: Type.Union([Iso, Type.Null()]),
   lastError: Type.Union([Line, Type.Null()]),
@@ -390,11 +409,18 @@ export interface GroupMetricsResult {
   /** 계측이 꺼져 있으면(`l3.group-kit.instrumentation = false`) null */
   readonly metrics: GroupMetricsFull | null;
   readonly since: string | null;
+  /**
+   * `since`를 지킬 수 없는 지표 이름. `since`가 없으면 빈 배열이다. 이벤트에서 접는 값(`leases`, `leaseMs`)은 `since`를 지키고,
+   * 프로세스 메모리 카운터에서 오는 값(토큰, `denies`, `posts` 같은 개수)은 프로세스가 뜬 뒤의 누계라 지키지 않는다.
+   * `costUsd`는 둘의 합이라 지키지 않는다. 호스트는 항상 채운다
+   */
+  readonly sinceIgnoredBy?: readonly string[];
 }
 const GroupMetricsResultShape2 = closed({
   id: Name,
   metrics: Type.Union([MetricsFullShape, Type.Null()]),
   since: Type.Union([Iso, Type.Null()]),
+  sinceIgnoredBy: Type.Optional(Type.Array(Name, { maxItems: 32 })),
 });
 export const GroupMetricsResultSchema: TUnsafe<GroupMetricsResult> =
   Type.Unsafe<GroupMetricsResult>(
@@ -683,13 +709,38 @@ export interface HookEntry {
   readonly registrations: readonly string[];
   /** 외부(X) 훅이면 참 */
   readonly external: boolean;
+  /**
+   * 실제로 등록된 핸들러를 디스패치 순서(tier, 확장 로드 순서, 등록 순서, F.extensions.spec §4.2)로 센 목록.
+   * `handlers`와 `registrations`는 이 목록과 같은 원천이다. 꺼진 Registration의 핸들러도 있고 `status`로 구분한다.
+   * 호스트는 항상 채운다(없으면 옛 호스트)
+   */
+  readonly order?: readonly HookHandlerRow[];
 }
+/** 훅 핸들러 하나. 순서는 배열 위치다 */
+export interface HookHandlerRow {
+  readonly registrationId: string;
+  readonly extension: string;
+  /** 디스패치 정렬의 첫째 키. 작을수록 먼저 */
+  readonly tier: number;
+  /** 그 Registration의 전역 상태. `disabled`이면 디스패치에서 빠진다 */
+  readonly status: RegistrationStatus;
+  /** Registration의 마지막 오류 코드(setup 실패 등). 없으면 null */
+  readonly error: string | null;
+}
+const HookHandlerRowShape = closed({
+  registrationId: Name,
+  extension: Name,
+  tier: Type.Integer(),
+  status: RegistrationStatusShape,
+  error: Type.Union([Line, Type.Null()]),
+});
 const HookEntryShape = closed({
   hook: Name,
   fold: Name,
   handlers: Count,
   registrations: Type.Array(Name, { maxItems: 256 }),
   external: Type.Boolean(),
+  order: Type.Optional(Type.Array(HookHandlerRowShape, { maxItems: 256 })),
 });
 export interface HooksListResult {
   readonly hooks: readonly HookEntry[];
