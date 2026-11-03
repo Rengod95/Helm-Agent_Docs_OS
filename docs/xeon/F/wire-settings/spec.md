@@ -453,7 +453,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - 기대한 실패는 JSON-RPC 오류가 아니라 `ok: false`의 `error`(`kind`)다. `proposal.decide`와 같은 규칙이다. `kind`는 `interval_too_short`, `at_in_past`, `invalid_trigger`, `limit_reached`, `not_found`, `not_remote`, `disabled`, `store_failed` 여덟이고, `ScheduleError`는 엔진의 `CreateError`, `CancelError`, `FireError`의 합집합이다.
   - 트리거는 `interval`, `at`, `file_watch`, `remote`, `loop` 다섯 모양이고 각 모양은 정해진 필드만 받는다. 간격 최소값 300초와 켜진 예약 수 상한은 스키마가 아니라 엔진이 검사한다.
   - `schedule.list`만 읽기 전용이다(`readOnly`, `replay: "safe"`). `create`, `cancel`, `fire`는 효과가 있는 쓰기이고 `requestId` 기억이 없어 멱등으로 분류하지 않는다(ADR-0015 §3.3). 같은 생성 요청을 두 번 받으면 항목이 두 개 생긴다.
-  - `schedule.create`의 `warnings`는 지금 `service_mode_off` 하나를 받는다. `L2.schedule.spec` §4.4.6은 `keepWithWarning`의 경고를 `runs_only_while_app_open`이라 적는다. 두 이름을 맞추는 일은 [미결]이다(§10).
+  - `schedule.create`의 `warnings`는 `service_mode_off` 하나를 받는다. `L2.schedule.spec` §4.4.6도 같은 이름을 쓴다 [결정: 2026-11-04 사용자, B13 1안].
   - 모델 도구 `schedule_create`는 `everySeconds`(정수)나 `at`(RFC 3339 날짜시각) 가운데 하나만 받는다. 둘 다 없거나 둘 다 있거나 `at`을 읽지 못하면 메서드 입력 검사가 `invalid_input`으로 거부한다.
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 대화 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
@@ -1384,7 +1384,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 5. 잠금 표시 규칙: L4 화면은 `locked: true`인 항목에 잠금 배지와 출처 경로를 보이고 편집을 막는다. `shadowed`가 비어 있지 않으면 "다른 범위의 값이 가려짐"을 보인다. CLI `config get`은 같은 정보를 `source`와 함께 출력한다.
 6. `runtimeChange`: `live`는 즉시, `nextTurn`은 다음 turn 시작 때, `restart`는 호스트 재시작 때 적용한다. 적용 전까지 `pendingUntil`에 그 시점을 둔다.
 
-[미결] 이 우선순위 표는 작성자 제안이다. 관리 범위가 "잠금"만 하는지, 사용자가 덮어쓸 수 있는 "관리 기본값"도 둘지(Codex `requirements.toml`과 관리 설정의 구분) 사용자 확인이 필요하다.
+[결정: 2026-11-04 사용자, B10 1안] 관리 범위는 "잠금"만 합니다. 사용자가 덮어쓸 수 있는 "관리 기본값"은 두지 않습니다(관리자 배포 사례가 생기면 더합니다). 우선순위 표는 이 결정으로 확정입니다.
 
 ### 4.8 파일 값의 검사와 보존
 
@@ -1534,7 +1534,7 @@ settings:
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + `approval.respond`)이다(§4.6).
-2. [미결] 설정 우선순위 표(§4.7). 관리 범위를 잠금 전용으로 둘지, 관리 기본값을 따로 둘지.
+2. [결정: 2026-11-04 사용자, B10 1안] 설정 우선순위 표(§4.7)는 확정입니다. 관리 범위는 잠금 전용이고 관리 기본값은 두지 않습니다.
 3. [미결] 폐기 기간(§3.7). 제안은 12개월 또는 다음 주 버전 중 늦은 쪽.
 4. [결정: review.m3-design-inputs D-M3-16 c, M3-REQ-19] 서비스 모드 인증. 로컬 Unix 소켓은 파일 권한(0600)만으로 막고 `auth`를 받지 않는다. TCP로 열 때만 `host.hello`의 `auth.token`이 필수이고, 없거나 맞지 않으면 `host.authFailed`(`details.reason`: `missing`·`invalid`, 토큰 값은 싣지 않는다)로 응답한 뒤 연결을 닫는다. 어느 전송이 토큰을 요구하는지는 호스트가 정한다(계약은 `auth?`와 오류만 둔다). 토큰 열기 옵션과 회전은 `L0.process.spec`이 정한다(M3-REQ-43). 원격은 [결정: review.decisions-2 U-11]로 M3에 넣되, 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식이다. 그래서 원격도 소켓 인증 규칙을 그대로 쓴다. 내장 TLS + 토큰 WebSocket 전송은 2차다.
 5. [결정: 2026-10-31 사용자, M4 T-F] 확장이 wire 메서드를 더하는 것은 허용한다. 이름은 `ext.<확장이름>.<동사>`다(§4.2).
@@ -1544,4 +1544,4 @@ settings:
 9. [결정: m2-plan F.6] `ThreadSummary`의 필드는 §3.3.1 아래 코드로 정했다. 이어서 실행 후보는 전용 메서드 없이 `resumable` 필드로 알린다.
 10. [결정: m2c G1-08] U-04가 미룬 Runtime API 요청은 §3.3.4 판정표로 하나씩 받거나 보류하거나 반려했다. 보류 항목은 M3 계획이 받는다. 이전에 받은 항목은 그대로다: 이어서 실행 후보는 `ThreadSummary.resumable`(미결 9), thread 오류 kind 3004~3006(§3.5.2), `secret.beginReveal`(§3.3.1 표).
 11. [결정: m2 F.2] L4.desktop 상태 설계 §14의 1번(스냅샷), 2번과 13번(대기 승인 목록)을 `thread.read`, `approval.list`로 받았다(§3.3.1, §3.4.6). 12번(로딩 신호)은 새 신호 없이 클라이언트가 요청 수명주기로 얻는다(§3.4.6 6항).
-12. [미결: M3b B1-SCH2] `schedule.create`의 `warnings` 값이다. 기능 입력과 wire는 `service_mode_off`만 받도록 정했다. `L2.schedule.spec` §4.4.6은 `keepWithWarning`의 경고를 `runs_only_while_app_open`이라 적는다. 두 이름을 하나로 맞출지(경고 값을 늘릴지, L2 문서를 고칠지) 사용자가 정한다.
+12. [결정: 2026-11-04 사용자, B13 1안] `schedule.create`의 `warnings` 값 이름은 `service_mode_off`로 하나입니다. `L2.schedule.spec` §4.4.6을 이 이름으로 고쳤습니다(경고 값은 늘리지 않음).

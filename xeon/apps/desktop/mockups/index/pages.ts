@@ -161,30 +161,10 @@ export const pages: MockPage[] = [
     states: 22,
   },
   {
-    id: "P-16 캔버스",
-    title: "런타임 캔버스: 층 띠·블록·연결, 맥락 분리, 트레이스, 검사기",
-    folder: "wb-canvas",
-    states: 13,
-  },
-  {
     id: "P-21·P-22",
     title: "블록 구성기: 그룹 쌓기, 흐름, 프로필 쌓기, 테스트, 코드",
     folder: "wb-compose",
     states: 8,
-  },
-  {
-    id: "캔버스 v2 · B",
-    title:
-      "정교한 노드 편집기: 나눔 지도, 그룹 하위 캔버스, 구성(놓기·연결), 단계 머신·테스트, 층 × 훅 열지도, 맥락 차이",
-    folder: "wb-v2b",
-    states: 14,
-  },
-  {
-    id: "P-16·P-21 v2 A",
-    title:
-      "런타임 지도·구성기 v2 A: 층 건물·루프 소켓, 줌 3단계, 구조 살펴보기, 맥락 테두리, 층×훅 표, Helm 부품·흐름·테스트·프로필",
-    folder: "wb-v2a",
-    states: 13,
   },
   {
     id: "캔버스 v3",
@@ -193,15 +173,15 @@ export const pages: MockPage[] = [
     folder: "wb-v3",
     states: 12,
   },
+  {
+    id: "크래프트 8차",
+    title: "크래프트 8차 시안(v5): 지도·순서·링크 세 보기, 카드, 빌더, 순서 변경 확인",
+    folder: "wb-v5",
+    states: 1,
+  },
   // 묶음 F(구성기 진입·테스트, 개요 상태, 프로필 적용). 상태 수는 redesign 사본의 STATES 개수.
   { id: "F1", title: "구성기 진입", folder: "f01-compose-entry", states: 13 },
   { id: "F2", title: "구성기 흐름 테스트", folder: "f02-compose-trial", states: 6 },
   { id: "F3", title: "개요 화면 상태", folder: "f03-structure-states", states: 6 },
   { id: "F4", title: "프로필 적용", folder: "f04-preset-apply", states: 5 },
-  {
-    id: "일러스트",
-    title: "런타임 일러스트 세트: X 수명 고리, 층 쌓기, 개념 그림 8, 빈 상태 3 (밝음·어두움)",
-    folder: "_art-preview",
-    states: 1,
-  },
 ];

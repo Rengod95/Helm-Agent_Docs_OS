@@ -276,7 +276,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 1. [미결] `L3/README.md` 도메인 표에 `authoring`을 더하는 일(README 수정 금지라 사용자 몫).
 2. [미결] 서비스 `fresnel.devkit`의 정본 위치(F `services/devkit.ts` [제안])와 L4 구현 위치(`apps/host`).
-3. [미결] Plugin Builder를 기본 켬으로 둘지. 이 문서는 꺼짐을 기본값으로 둡니다.
+3. [결정: 2026-11-04 사용자, 결정 목록 R11, m4-decisions 2026-11-01 (2)] Plugin Builder는 기본 꺼짐입니다.
 4. [미결] 묶음 형식(폴더 사본, tar, 서명). 서명은 릴리즈 서명(`L4.release.spec`)과 함께 정합니다.
-5. [미결] 사용자 로컬 카탈로그 경로와, 로컬 항목을 다른 기기와 나눌지.
-6. [미결] 배포 앱에서 개발 모드를 켜는 조건(저장소 경로 설정, 시험 하니스 번들 여부). `L4.desktop-ux.spec` §12.3 U-4는 "개발 모드에서만"입니다.
+5. [결정: 2026-11-04 사용자, 결정 목록 R16] 로컬 카탈로그 공유와 묶음 서명은 M4 밖입니다(`review.m4-plan` §1.2). 로컬 카탈로그 경로는 구현 세부로 남깁니다.
+6. [결정: 2026-11-04 사용자, 결정 목록 R16] replay·benchmark·코어 변경 검사는 개발 모드에서만 돕니다(`L4.desktop-ux.spec` §12.3 U-4, m4-decisions Desktop UX 4). 배포 앱에서 개발 모드를 켜는 조건은 M4 밖입니다. 켬/끔 비교(Test run 묶음 실행)는 배포 앱에도 엽니다(2026-11-03 결정).

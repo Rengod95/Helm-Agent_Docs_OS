@@ -12,13 +12,13 @@ binds: []
 
 이 문서는 기능 요구가 아닌 요구를 모읍니다. 성능, 크기와 플랫폼, 신뢰성, 보안, 호환성, 다국어, 관측성, 접근성입니다. 각 항목 끝의 괄호는 근거입니다. 표지 `[결정]`, `[제안]`, `[가정]`, `[미결]`은 원문의 것을 그대로 옮겼습니다.
 
-성능 수치는 참고 수치입니다. 예산은 아직 정하지 않았습니다. 예산을 정할 사용자 결정은 `[미결]`입니다.
+성능 수치는 참고 수치입니다. 예산은 아직 정하지 않았습니다. [결정: 2026-11-04 사용자, B17] 지금은 기록만 하고 판정은 "기록됨"입니다. Mac에서 잰 값이 쌓인 뒤 정합니다. `first_token`은 외부 모델 속도라 예산 대상이 아닙니다.
 
 ## 1. 성능
 
 ### 1.1 예산 상태
 
-- 모든 예산 칸은 `[미결]`이고 사용자 결정 대기입니다(`eng.performance.guide` §2, §2.1). 2026-10-29 기준입니다.
+- 예산 칸은 "기록만"입니다 [결정: 2026-11-04 사용자, B17]. 판정은 "기록됨"이고 예산 수치는 Mac 기준선 뒤에 정합니다(`eng.performance.guide` §2, §2.1).
 - 예산을 정하면 `xeon/scripts/benchmark.ts`의 `BUDGET_MS`(§2)와 `xeon/scripts/benchmark-server.ts`의 `SERVER_BUDGET`(§2.1)을 같은 커밋에서 고칩니다(`eng.performance.guide` PF-03).
 - M3에서 예산을 넘으면 실패하는 게이트로 바꿉니다(`eng.performance.guide` §1). `just benchmark-gate`는 `--strict`가 없으면 예산 대기를 실패로 보지 않습니다. `--strict`를 주면 예산 대기도 실패로 봅니다(`eng.performance.guide` §4).
 
@@ -34,9 +34,9 @@ binds: []
 
 | 지표 | 뜻 | 측정 | 기준선 | 예산 | 비고 | 표지 |
 |---|---|---|---|---|---|---|
-| `cold_start_cli` | `bun apps/cli/src/main.ts version --json` 시작부터 종료까지 | `just benchmark` | WSL2 중앙값 143.6 ms(3회, 2026-10-25). 서버(WSL2) 중앙값 189.8 ms(2026-10-27) | [미결] | 번들 전 소스 진입. 모듈 적재 비용을 봅니다 | 참고 수치(indicative) |
-| `cold_start_sidecar` | 컴파일한 사이드카 `fresnel-<triple> version --json` 시작부터 종료까지 | `just desktop-sidecar host` 뒤 `just benchmark` | WSL2 약 131 ms(`--bytecode`, `L4.desktop.plan` §3 spike S2). 서버(WSL2) 중앙값 46.9 ms(2026-10-27) | [미결] | macOS 값은 `review.macos-checklist` M-07 | 참고 수치(indicative) |
-| `first_token` | `fresnel chat -p` 시작부터 첫 `stream.chunk` 알림까지 | `just benchmark --first-token --yes` | 서버(WSL2) 1289.5 ms(1회, 실제 provider, 2026-10-27) | [미결] | 실제 모델 호출. 사용자 확인 뒤 1회(결정 D-e) | 참고 수치(indicative) |
+| `cold_start_cli` | `bun apps/cli/src/main.ts version --json` 시작부터 종료까지 | `just benchmark` | WSL2 중앙값 143.6 ms(3회, 2026-10-25). 서버(WSL2) 중앙값 189.8 ms(2026-10-27) | 기록만 [결정: 2026-11-04 사용자, B17] | 번들 전 소스 진입. 모듈 적재 비용을 봅니다 | 참고 수치(indicative) |
+| `cold_start_sidecar` | 컴파일한 사이드카 `fresnel-<triple> version --json` 시작부터 종료까지 | `just desktop-sidecar host` 뒤 `just benchmark` | WSL2 약 131 ms(`--bytecode`, `L4.desktop.plan` §3 spike S2). 서버(WSL2) 중앙값 46.9 ms(2026-10-27) | 기록만 [결정: 2026-11-04 사용자, B17] | macOS 값은 `review.macos-checklist` M-07 | 참고 수치(indicative) |
+| `first_token` | `fresnel chat -p` 시작부터 첫 `stream.chunk` 알림까지 | `just benchmark --first-token --yes` | 서버(WSL2) 1289.5 ms(1회, 실제 provider, 2026-10-27) | 기록만 [결정: 2026-11-04 사용자, B17] | 실제 모델 호출. 사용자 확인 뒤 1회(결정 D-e) | 참고 수치(indicative) |
 | 사이드카 크기 | triple별 바이너리 크기 | `just desktop-sidecar <triple>` | WSL2 `x86_64-unknown-linux-gnu` 109.8 MiB(T7, `L4.desktop.plan` 구현 기록), macOS 26.5.2 `aarch64-apple-darwin` 91.0 MiB(`ws mac` 작업 20261025-224508-0141) | 500 MiB(회귀 상한) | ADR-0012 §3 2번. 줄이는 목표가 아닙니다. macOS 값은 `review.macos-checklist` M-07 | 참고 수치(indicative) |
 
 

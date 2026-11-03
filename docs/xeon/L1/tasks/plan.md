@@ -71,7 +71,7 @@ xeon/packages/core-tasks/
 | TK-5 | `input-queue.ts`: `enqueue`(커밋 안 requestId 판정, 출처 키, 신원만 담는 지문, 확장 post도 `input.queued` 하나, `post.accepted`는 retire(review.decisions-2 U-05)), `TaskService.enqueue`(`InputQueuePort`), `draftQueued`, `peek`(투영 읽기), `drain`(배치 선택 표, `consumedSeq`, `drafts`), `withdraw`, `onQueued`(커밋 후 알림) | TK-0, M0: platform-store·core-persistence 투영 인터페이스 | M | M1(steer·followUp), M2(next·aside) |
 | TK-6 | `service.ts` 조립과 `settings.ts`(`l1.tasks.*` 다섯 키, D1~D9), `plugin.ts`(ext-host 플러그인 API로 `fresnel.tasks` 제공, `fresnel.session` 주입, dispose → `close()`), `activity()`·`onActivity` | TK-1, TK-2, TK-3, TK-5, M0: ext-host 플러그인 API | S | M1(서비스), M2(limits 키 노출) |
 | TK-7 | 재개 시 큐 복원: 열 때 `p_inputs` 재읽기, `consumedSeq` 일관성 검사와 진단, 자동 재개 꺼짐일 때 queued 유지 | TK-5, M0: core-persistence 열 때 복구 | S | M1 |
-| TK-8 | `next`·`aside` 모드: `L1.tasks.spec` §4.9 결정 반영(B안이면 stepEnd `continuing` 규칙과 turnStart 부착) | TK-5, 사용자 결정(§4.9 [미결]) | S | M2 |
+| TK-8 | `next`·`aside` 모드: `L1.tasks.spec` §4.9 결정 반영(B안이면 stepEnd `continuing` 규칙과 turnStart 부착) | TK-5, 사용자 결정 D7(§4.9, 2026-10-23: B안 + `aside` 1안. [결정: 2026-11-04 사용자, 결정 목록 R7]) | S | M2 |
 | TK-9 | 서브에이전트 풀 연결 시험: core-agents와 함께 렌즈 N개 탐구 테이프로 `subagents`·`modelCalls` 기본값 조정 | TK-4, L1.agents.plan의 자식 실행 | M | M2 |
 | TK-10 | 수락과 완료 분리(2차): queued 입력의 수락 알림, `input.placed`·`input.withdrawn` 클라이언트 표시 규칙(F.wire-settings와 함께) | TK-5 | M | 2차 |
 | TK-11 | 병렬 interrupt 다중 재개(2차): 한 단계의 여러 승인 대기를 id별 응답 맵으로 한 번에 재개(LangGraph, durable `waiting` + allSettled) | L1.tools 승인 프로토콜 | M | 2차 |

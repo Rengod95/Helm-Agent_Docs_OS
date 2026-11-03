@@ -445,6 +445,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 ### 3.4 CI (`.github/workflows/fresnel-ci.yml`)
 
 - CI는 수동 실행이다(`workflow_dispatch`). 병합 직전에만 돌린다 [결정: 2026-11-02 사용자].
+- [결정: 2026-11-04 사용자, A4 1안] `main`과 `xeon/foundation`에 병합 게이트(브랜치 보호, 필수 검사)를 두지 않는 것은 의도된 결정입니다. 수동 CI는 필수 검사가 될 수 없습니다(실행 기록이 없으면 병합을 막을 근거가 없고, 자동으로 돌지 않습니다). 한계: "병합 직전 `just verify`와 CI"는 사람(메인 에이전트, 사용자)의 기억과 절차에만 기댑니다. GitHub은 검사 없는 병합을 막지 않습니다. 저장소가 혼자 쓰는 것이라 받아들입니다. 팀이 커지면 가벼운 검사(서식, 층 규칙, 문서 경로)만 PR에서 자동으로 돌려 필수 검사로 거는 안을 다시 봅니다.
 
 [결정] `_research/foundation-plan.md §5` P3: 층별 job matrix, 각 job은 turbo `--affected`의 lint·typecheck·test, 통합 테스트는 모델 테이프 기반 스모크 1개.
 

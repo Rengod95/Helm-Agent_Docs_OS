@@ -266,7 +266,7 @@ xeon/packages/cap-schedule/
 | › 승인 대기는 멈춤 아님 | 승인 대기 대화는 600초가 지나도 중단하지 않는다 |
 | › whenServiceOff autoStart | 서비스 꺼짐에서 `create`가 자동 기동을 요청하고, 기동하면 저장한다. 가짜 호스트가 기동에 실패하면 `unavailable` + `service_mode_off`와 조치 안내, 저장 없음 [결정: review.decisions-2 U-23] |
 | › whenServiceOff reject | 서비스 꺼짐에서 `create`가 `unavailable` + `service_mode_off`, 저장 없음 |
-| › whenServiceOff keepWithWarning | 저장하고 `runs_only_while_app_open` 경고 |
+| › whenServiceOff keepWithWarning | 저장하고 `service_mode_off` 경고 |
 
 ### 5.9 원격 인증과 정책 (H10)
 

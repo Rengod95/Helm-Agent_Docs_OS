@@ -42,15 +42,15 @@ binds: [xeon/apps/desktop/src/views/**]
 | UX-7 | P-06 제안, P-07 예약(V-04, O-08), P-08 연결(V-05) | UX-2 | L |
 | UX-8 | P-04 변경 검토(V-06), P-05 탐구(V-07) | UX-3, W-02, W-04 | M |
 | UX-9 | P-14 목표와 작업, P-15 진단, O-03, O-09 | UX-3 | M |
-| UX-11 | LightCraft 시안(spec §14), 캔버스·구성기 시안(`wb-canvas`, `wb-compose`). 끝남. 캔버스 2차 시안은 진행 중 | UX-1 | M |
+| UX-11 | LightCraft 시안(spec §14), 캔버스·구성기 시안(옛 `wb-canvas`는 삭제, 이력 `b726e9a9`. `wb-compose`와 크래프트 8차 `wb-v5`). 끝남. 캔버스 2차 시안은 진행 중 | UX-1 | M |
 | UX-12 | 셸 영역 바꾸기(대화 ↔ LightCraft), 영역별 왼쪽 패널과 오른쪽 탭, 맥락 칸 모델(전체·대화·프로필·시험, 따라가기·고정, V-25). 연결은 대화 주 내비에 남음(T-SHELL) | UX-2, UX-11 | M |
 | UX-13 | wire 선행: `review.m4-plan` T-F, T-WA, T-WB, T-WC | 없음(M4 착수 즉시) | L |
 | UX-14 | 대화 영역 런타임 표시: 런타임 줄, 트랜스크립트 런타임 행, 런타임 탭(V-24) | UX-3, UX-13 | M |
-| UX-15 | P-13, P-16 목록 옆 패널, P-17(버전 탭 §6.24.1), P-15 엔진, O-10(V-16~V-18)(T-BENCH) | UX-12, UX-13 | L |
+| UX-15 | P-13, P-16 선택 패널·층 패널 데이터(크래프트 8차 시안, 전역만), P-17(버전 탭 §6.24.1), P-15 엔진, O-10(V-16~V-18)(T-BENCH) | UX-12, UX-13 | L |
 | UX-16 | F·X 선행: 매니페스트 `views` 두 모드, 확장 메서드와 등록 API, 예산 등급 `view`, 화면 진단, `composition`, `loop.ask`, 계측 링 버퍼, 시험 멈춤, 버전 기록(T-F, T-XV, T-XD, T-GK) | ADR-0021 accepted(2026-10-31) | L |
 | UX-17 | P-18 플러그인 화면 호스트, 여섯 슬롯, 선언형 렌더러와 위젯 카탈로그 v1, 프레임 호스트와 다리, 화면 장부(V-19, V-29). Helm 기여로 P-05 대체(X-9)(T-VIEW) | UX-14, UX-16 | L |
 | UX-18 | P-19 시험 실행, P-20 측정과 평가, O-11, O-12(V-20, V-21)(T-TRIAL) | UX-15, T-WB | M |
-| UX-19 | P-16 런타임 캔버스, 검사기, 트레이스, 자동 배치(V-26, V-27)(T-CANVAS) | UX-15, T-CAU2, T-WA, T-WB | L |
+| UX-19 | P-16 크래프트 개요: 지도·순서·링크, 선택 패널, 자세히 보기, 훅 순서 경고 모달(V-26, V-27)(T-CANVAS, 스펙 §6.22.0) | UX-15, T-WA, T-WB | L |
 | UX-20 | P-21 구성기(그룹·흐름·프로필·코드, "새 그룹", Plugin Builder 연결)(V-22, V-28)(T-COMPOSE) | UX-15, T-WB, T-AUTH | L |
 | UX-10 | 접근성 점검과 수정(axe, 키보드 경로), 다크 테마 점검 | UX-3~UX-9, UX-12~UX-18 | M |
 
@@ -84,9 +84,9 @@ binds: [xeon/apps/desktop/src/views/**]
 | `view-host.helm-renders-with-catalog-v1` | Helm `helm/inquiry` 트리가 위젯 카탈로그 v1만으로 검사를 통과 |
 | `view-host.frame-only-page-well` | `card`·`status`·`settings`의 `frame` 선언은 `view_mode_not_allowed` |
 | `view-host.frame-bridge-allowlist` | 허용 목록 밖 `op`, 선언 밖 메서드, 상한 초과 메시지는 거부되고 장부에 셈 |
-| `workbench.context-drives-all-pages` | 맥락 칸 값 하나로 LightCraft 화면 전부의 맥락이 바뀜 |
-| `canvas.selection-sync` | 목록 행과 캔버스 블록의 고름이 같이 움직임 |
-| `canvas.order-persists-and-resets` | 층 안 순서가 재시작 뒤 같고 초기화로 자동 배치 |
+| `workbench.context-drives-all-pages` | 맥락 칸 값 하나로 LightCraft 화면의 맥락이 바뀜. 크래프트 8차 시안 화면(P-16, P-13)은 전역 고정이라 이 시험의 대상에서 빠질 수 있음 [미결: spec §12.1 32번] |
+| `canvas.selection-sync` | 지도와 순서가 고른 것을 함께 읽음(시안 구조에 맞춰 이름과 내용이 바뀔 수 있음) |
+| `canvas.order-persists-and-resets` | 층 안 순서가 재시작 뒤 같고 초기화로 자동 배치 [미결: 시안의 층 패널 순서가 불러오는 순서라면 시험 대상이 바뀜] |
 | `compose.undeclared-group-single-block` | `composition` 없는 그룹은 블록 하나 "구성 정보 없음" |
 
 ## 6. 완료 기준

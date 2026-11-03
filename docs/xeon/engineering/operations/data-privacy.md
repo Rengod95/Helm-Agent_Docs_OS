@@ -166,7 +166,7 @@ Fresnel은 `OsDirs`의 다섯 디렉터리를 씁니다. 값은 `L0.os.spec` §3
 
 - `fresnel db export <폴더> [--json]`은 데이터 디렉터리의 DB와 블롭을 엔진을 띄우지 않고 읽기 전용으로 복사합니다. 대상 폴더는 비어 있어야 합니다(L4.cli.spec, eng.operations.recovery §2).
 - 사본은 `fresnel.sqlite`, `blobs/`, `manifest.json`입니다. 설정, 신뢰 결정, 시크릿 파일은 사본에 없습니다(eng.operations.recovery §2.4).
-- 사본은 파일 모드만 `0600`과 `0700`으로 맞춥니다. 사본 구성에 암호화 단계는 없습니다. 보관할 때 암호화는 사용자가 정합니다 `[미결]`.
+- 사본은 파일 모드만 `0600`과 `0700`으로 맞춥니다. 사본 구성에 암호화 단계는 없습니다. [결정: 2026-11-04 사용자, B22 1안] M4에서는 암호화를 만들지 않습니다. 대신 "보관할 때 디스크 암호화나 암호 보관함을 쓰세요"라고 안내합니다. 제품에 백업 화면이 생길 때 다시 정합니다(`db export`는 CLI이고 CLI는 제품 표면이 아닙니다).
 - `fresnel db restore <폴더>`가 사본을 데이터 디렉터리로 되돌립니다. 엔진이 떠 있으면 거절하고, 복원 전 DB는 `restore-previous/`에 남깁니다. 사본에는 age 키와 설정 파일이 없으므로 시크릿을 복호화하려면 키를 따로 보관해야 합니다(eng.operations.recovery §2.6).
 - `FRESNEL_HOME`으로 데이터 위치를 바꾸었다면 같은 값을 주고 내보냅니다(eng.operations.recovery §2.3).
 

@@ -152,4 +152,4 @@
 **부모 창 알림(postMessage)**
 
 - `MockRoot`가 뜰 때 `window.parent.postMessage({ type: "fresnel-route", page: "<폴더>" }, "*")`를 보냅니다. 최상위 창이면 아무것도 하지 않습니다. 비교 페이지가 iframe으로 시안을 넣고 `message` 이벤트로 폴더 이름을 받습니다. 옆 시안으로 옮겨 새로 뜨면 다시 알립니다.
-- `MockRoot`를 쓰지 않는 `index/`는 `postRoute()`를 직접 부릅니다. `_base`, `_type-ko`, `_art-preview`는 알리지 않습니다.
+- `MockRoot`를 쓰지 않는 `index/`는 `postRoute()`를 직접 부릅니다. `_base`, `_type-ko`는 알리지 않습니다.

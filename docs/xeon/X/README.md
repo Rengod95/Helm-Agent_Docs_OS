@@ -135,7 +135,7 @@ X가 정하지 않는 것:
 11. [미결] F 추가 요청 모음: 상태 영역 예약 오류 코드(`record_kind_reserved`, `X.primitives.spec` §10). `ScopeChangedPayload.reason`과 휘발 kind `scope.handler_failed`는 `F.records.spec` §3.3에 들어갔다(`X.operations.spec` §10 미결 4). 매니페스트 `storage`·`hooks` 필드와 `HandlerContext.ui`는 M1에 넣지 않는다([결정: review.decisions-2 U-07], `X.operations.spec` §10 미결 2·5).
 12. [미결] `fresnel.domain` 값과 routes.yaml 도메인의 불일치(`architecture.layers.spec` §10).
 13. 이름 정리(§4). extId 형식은 [결정: review.decisions-2 U-18], kind 접두는 [결정: review.decisions-2 T-21]로 정했고 F·eng·L0·ADR 문서에 반영됐다. 남은 일은 §4 "알려진 불일치"의 서비스 이름·열 이름 정리다.
-14. [미결] 안전 모드에서 L3 내장 그룹(Helm, 학습 그룹)을 끌지. [제안] 끈다. Helm이 L3 기본 그룹이므로 사용자 확인이 필요하다(`X.operations.spec` §10 미결 19).
+14. [결정: 2026-11-04 사용자, 결정 목록 R8] 안전 모드에서 L3 내장 그룹(Helm, 학습 그룹)을 끈다. X 훅도 싣지 않는다(`X.operations.spec` §4.6.2, §10 미결 19·21).
 15. [미결] 샌드박스 강제를 on 핸들러로 둘지, L0 실행 경로에서만 할지. [제안] L0 실행 경로. L0는 on을 쓰지 않으므로 `GUARD_EXTENSIONS`에 L0 패키지를 넣지 않는다(`X.operations.spec` §10 미결 20).
 
 ## 이 층 문서의 읽는 순서

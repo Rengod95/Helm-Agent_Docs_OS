@@ -22,7 +22,7 @@ binds: [xeon/packages/**, xeon/apps/**, xeon/scripts/check-layers.ts]
 | 용어 | 뜻 |
 |---|---|
 | 층 | 의존 순위가 같은 패키지 묶음. F, X, L0, L1, L2, L3, L4 |
-| 층 표시 이름 | 층 코드(`L1` 등)는 문서와 의존 규칙에 남기고, 부르는 이름은 F Contracts, X Extension Runtime, L0 System, L1 Agent Core, L2 Capabilities, L3 Orchestration, L4 Apps다(ADR-0022 §3.5 9번). 화면에 층 숫자를 남길지는 사용자가 정한다 [미결] |
+| 층 표시 이름 | 층 코드(`L1` 등)는 문서와 의존 규칙에 남기고, 부르는 이름은 F Contracts, X Extension Runtime, L0 System, L1 Agent Core, L2 Capabilities, L3 Orchestration, L4 Apps다(ADR-0022 §3.5 9번). 화면에는 이름만 보이고 층 번호는 보이지 않는다. 번호는 문서와 개발자 모드에서만 쓴다 [결정: 2026-11-04 사용자, B21 1안] |
 | 순위 | 층의 import 순서를 나타내는 숫자. `check-layers.ts`의 `RANK` 값이다(4.1절) |
 | 하위 층 | `_research/layer-plan-v2.json`이 층 안을 나눈 단위. 예: L1-b 에이전트 루프 |
 | 같은 층 import | 순위가 같은 두 패키지 사이의 import. 기본 규칙 2가 금지한다(3절) |

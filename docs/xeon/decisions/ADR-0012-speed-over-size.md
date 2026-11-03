@@ -53,5 +53,5 @@ binds: [xeon/apps/desktop/**, xeon/apps/cli/**, xeon/apps/host/**]
 
 ## 6. 미결 사항
 
-- [미결] 예산 수치. `eng.performance.guide` §2 표의 값은 기준선 측정 뒤 사용자가 정합니다.
+- [결정: 2026-11-04 사용자, B17] 예산 수치는 지금 정하지 않고 기록만 합니다(판정 "기록됨"). `eng.performance.guide` §2 표의 값은 Mac 기준선 측정 뒤 다시 정합니다.
 - [가정] 131 ms는 WSL2 한 기기의 측정입니다. macOS 값은 `review.macos-checklist`에서 잽니다.

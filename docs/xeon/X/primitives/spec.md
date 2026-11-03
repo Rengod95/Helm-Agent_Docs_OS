@@ -1351,7 +1351,7 @@ stateDiagram-v2
 
 F.extensions.spec §4.5와 L3.readme가 위임한 항목이다.
 
-[제안] thread가 유휴이면 토글 요청을 다음 매크로태스크에서 적용한다. 절차는 다음과 같다.
+[결정: 2026-11-04 사용자, R19] 유휴 thread는 즉시 적용한다(구현은 다음 매크로태스크). thread가 유휴이면 토글 요청을 다음 매크로태스크에서 적용한다. 절차는 다음과 같다.
 
 1. X는 `LoopPort.whenIdle(threadId, apply)`를 부른다. L1은 `apply`가 끝날 때까지 새 turn 시작을 막는다.
 2. `apply`는 `boundary.prepare({ kind: "idle" })`, `RecordCommitPort.commit({ requestId: "scope:<scopeId>:<세대>" 또는 임대 키, drafts })`, `boundary.settle(...)`을 차례로 실행한다. 키에 넣는 scope id의 `/`는 `:`로 바꾼다(예: `scope:helm:review:3`). [결정: review.decisions-2 U-13] 커밋 키 형식의 정본은 eng.transactions.design의 `COMMIT_KEY_PATTERN`이고 `/`는 그 패턴에 없다.
@@ -1374,11 +1374,11 @@ F.extensions.spec §4.5와 L3.readme가 위임한 항목이다.
 - 시작 적용으로 켜진 scope의 `scope.changed`는 install 시점에 커밋하지 않는다. thread를 열 때(`openThread`) 이미 세대가 열린 scope를 그 thread의 켜짐 집합에 올리고(`seedThread`), `ExtThreadSnapshot.enabled`와 켜짐 집합이 다를 때만 첫 경계 기여에 넣는다. 같으면 아무것도 쓰지 않는다(`review.open-issues` N-01). 이미 열린 thread가 있는 상태에서 설치하면 그 thread들을 같은 방식으로 바로 켠다.
 - setup 실패 원인은 `RegistrationSetupOutcome.failure`로 돌려준다. 로더는 이것을 진단 코드로 옮긴다(X.loading-trust.spec §4.4.3 표).
 
-#### 4.5.7 덮어쓰기 결과를 Registration의 thread별 켜짐 상태로 옮기는 규칙 [미결: 사용자 확인 대기]
+#### 4.5.7 덮어쓰기 결과를 Registration의 thread별 켜짐 상태로 옮기는 규칙 [결정: 2026-11-04 사용자] (b)(c) 확정, (a) 프로젝트 층의 정의만 [미결]
 
-ADR-0022 §3.3 5번의 제안입니다. 사용자가 확인하기 전에는 구현하지 않고, 아래 4.5.2의 지금 규칙(전체 기본값과 thread별 요청)이 그대로 적용됩니다. 지금 코드의 사실: `ext.<name>.enabled`는 허용 범위가 `managed, user, project, local, launch`이고, 한 thread만의 요청은 `registrationToggleSourceOf(host).request(id, enabled, reason, threadId)`가 launch 범위로 기록하며, `RegistrationHandle.enable()`·`disable()`은 전체 기본값을 바꾸고 모든 thread의 별도 요청을 지웁니다(§4.5.2).
+ADR-0022 §3.3 5번의 규칙입니다. [결정: 2026-11-04 사용자] 세 층(전역 > 프로젝트 > 대화), (b)(c)는 제안대로 승인했습니다. 프로젝트 층이 무엇인지(아래 1번)는 사용자의 새 정의로 바뀌어 정하지 못한 부분이 있습니다. 그 부분이 닫히기 전에는 프로젝트 층을 구현하지 않고, 아래 4.5.2의 지금 규칙(전체 기본값과 thread별 요청)이 그대로 적용됩니다. 지금 코드의 사실: `ext.<name>.enabled`는 허용 범위가 `managed, user, project, local, launch`이고, 한 thread만의 요청은 `registrationToggleSourceOf(host).request(id, enabled, reason, threadId)`가 launch 범위로 기록하며, `RegistrationHandle.enable()`·`disable()`은 전체 기본값을 바꾸고 모든 thread의 별도 요청을 지웁니다(§4.5.2).
 
-1. **세 층과 설정 범위의 대응.** 전역 = `user` 범위 값(기본 프로필이 쓴 값 포함). 프로젝트 = `project`·`local` 범위 값(그 thread의 작업 폴더가 속한 프로젝트). 대화 = 그 thread만의 요청. 코드에서는 `ThreadToggle`이라 부릅니다(새 범위 이름 `launch`와 혼동하지 않으려는 이름입니다) [제안]. `managed`는 모든 층 위에서 잠급니다(지금 규칙 그대로).
+1. **세 층과 설정 범위의 대응.** 전역 = `user` 범위 값(기본 프로필이 쓴 값 포함). 프로젝트 = [결정: 2026-11-04 사용자] "프로젝트는 여러 대화(thread)를 묶는 개념에 더 가깝다"입니다. 옛 제안(`project`·`local` 설정 파일 범위 값, thread의 작업 폴더가 속한 프로젝트)은 이 정의로 대체되어 폐기합니다. 저장 방식은 정하지 않았습니다(아래 "열린 항목"). 대화 = 그 thread만의 요청. 코드에서는 `ThreadToggle`이라 부릅니다(새 범위 이름 `launch`와 혼동하지 않으려는 이름입니다) [제안]. `managed`는 모든 층 위에서 잠급니다(지금 규칙 그대로).
 2. **해석.** `enabledOf(thread, registration) = managed ?? threadToggle ?? project ?? user ?? default`. `default`는 §4.5.1 3번의 초기 켜기 요청입니다. 가장 구체적인 층이 이깁니다.
 3. **적용 시점.** thread를 열 때(`seedThread`) 위 식으로 켜짐 집합을 계산합니다. 열린 thread에서 user·project 값이 바뀌면 그 thread에 `threadToggle`이 없는 Registration만 다음 단계 경계에서 다시 계산해 적용합니다. `threadToggle`이 있으면 바뀌지 않습니다. `RegistrationHandle.enable()`·`disable()`은 지금처럼 모든 `threadToggle`을 지우되, 지우기는 "사용자 요청으로 온 전체 켜기"에서만 일어나고 설정 파일 변경은 `threadToggle`을 지우지 않습니다 [제안: 지금 코드가 같은지 구현 때 확인].
 4. **프로필.** `profile.apply`는 적용 층을 인자로 받습니다. `layer: "user" | "project" | "thread"`(기본은 크래프트 맥락 칸 값: 전체 → user, 대화·프로필·테스트 → thread). 프로필의 `enable`·`disable` 목록은 그 층의 값으로 기록하고 `settings`는 같은 층 범위로 씁니다. 프로젝트 층 쓰기에는 프로젝트 신뢰가 필요합니다.
@@ -1387,7 +1387,11 @@ ADR-0022 §3.3 5번의 제안입니다. 사용자가 확인하기 전에는 구�
 7. **`profile.preview`.** 같은 식으로 계산한 결과와 지금 결과의 차이를 출처와 함께 돌려줍니다.
 8. **끄기 시 정리.** 어느 thread도 쓰지 않으면 정리를 실행한다는 규칙(§4.5.3)은 그대로입니다.
 
-사용자 확인이 필요한 점: (a) 프로젝트 층을 `project`와 `local` 둘 다로 보는지, (b) 설정 파일 변경이 `threadToggle`을 지우지 않는 것이 맞는지, (c) 프로필 적용의 기본 층이 맥락 칸 값을 따르는지.
+결정 기록 [결정: 2026-11-04 사용자]: (a) 프로젝트는 여러 대화를 묶는 개념입니다(`project`/`local` 파일 범위로 읽지 않습니다). (b) 설정 파일 변경이 `threadToggle`을 지우지 않습니다(제안대로). (c) 프로필 적용의 기본 층이 크래프트 맥락 칸 값을 따릅니다(제안대로).
+
+이 정의가 바꾸는 곳: 위 1번(프로젝트 층 값의 출처), 3번(열린 thread가 보는 프로젝트 값), 4번(`profile.apply`의 `layer: "project"`와 "프로젝트 층 쓰기에는 프로젝트 신뢰가 필요" 문장: 신뢰는 폴더 기준이라 묶음 단위와 맞지 않음), 5번(출처 배지 `"project"`), ADR-0022 §3.3 1번("이 폴더에서만 켜는 플러그인 그룹, 이 폴더의 기본 프로필")과 3번, `F.wire-settings.spec`의 `profile.apply` 인자 `layer`, `review.m4-plan` Y3·UX-15의 "전역 → 프로젝트 → 대화" 배지, `L4.desktop-ux.spec`의 맥락 칸 값과 §6.28 프로필 적용 층. 설정 파일의 `project`·`local` 범위 자체(`settings` 범위 규칙)와 폴더 기반 신뢰 등급 "이 프로젝트"는 이 결정과 별개라 바뀌지 않습니다.
+
+열린 항목 [미결: 사용자 확인]: 프로젝트(thread 묶음)를 어디에 어떻게 저장할지. 권장(설계 확정이 아닙니다): 호스트 저장소에 프로젝트 레코드(`projectId`, 이름)와 thread의 소속 한 곳(thread 하나는 프로젝트 하나에만)을 두고, 프로젝트 층의 켜짐 값은 그 레코드에 붙여 저장합니다. 프로필 저장(`profiles.json`, 호스트 쪽)과 같은 층에서 다루면 데스크톱·웹·앱이 함께 씁니다. 프로젝트 자체가 아직 제품에 없는 개념이라 이 권장은 프로젝트의 정의(소속 변경, 폴더와의 관계)를 사용자가 먼저 정한 뒤에 구체화해야 합니다.
 
 ### 4.6 상태 문서, 기록, 레코드
 

@@ -1597,7 +1597,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
    - [미결] 남은 일: `RegistrationHandle.enable`/`disable`에 사유 인자가 없어 `RegistrationControl`의 사유를 `scope.changed`에 싣는 경로가 없다. `X.primitives.spec` §3.2에 사유 인자 추가를 요청한다.
 5. (해소, M2 O-07) [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않고 X 공개 API의 별도 함수 `hostOf(g).awaitUser`로 연결했다(§4.2.3). 핸들러에 UI 포트 자체를 주는 일은 L2.dialog가 정한다.
 6. (해소, M3-REQ-36) [결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영 `apply` 예외의 복구 경로(§5 6번)는 투영기를 정지한 뒤 커밋을 다시 시도하는 것으로 정했다. 대화를 읽기 전용으로 여는 방식은 채택하지 않았다. 정지와 재시도의 구현 위치는 `L1.persistence.spec`이다.
-7. [미결] 자동 끄기의 영속 여부. 현재 [제안]은 프로세스 단위(재시작하면 다시 실림)다. 여러 번의 시작에서 반복해 꺼지는 확장을 `ext.<name>.enabled=false`로 기록할지, 사용자 확인을 받을지.
+7. [결정: 2026-11-04 사용자, B5 3안] 자동 끄기는 기본이 프로세스 단위(재시작하면 다시 실림)다. 여러 번의 시작에서 반복해 꺼지는 확장은 사용자에게 "끌까요?"를 묻는다. 승인하면 `ext.<name>.enabled=false`를 사용자 범위에 기록하고, 거절하면 프로세스 단위를 그대로 둔다. 몰래 영구히 끄지 않는다. [제안] "반복"의 기준은 연속 3번의 시작에서 자동 꺼짐으로 하고, 묻는 카드는 확장 이름과 실패 이유를 보인다. 거절하면 같은 확장에는 다시 묻지 않고 "자주 실패함" 표시만 둔다. 숫자와 카드 모양은 구현 때 사용자가 고친다.
 8. [미결] 이벤트에서 다시 만들 수 없는 부가 데이터 테이블(보존 테이블)을 허용할지. 허용하면 `eng.context-map.design` §5.2의 "`x_`는 확장 투영기만 쓴다, 재생 가능"을 바꾸고, 직접 쓰기 경로(커밋 계획에 데이터 연산 목록을 싣는 F `CommitPlan` 확장)와 열 추가 마이그레이션(`storage/migrate.ts`)이 필요하다.
 9. [미결] `ExtQuery`의 범위 조건(`gt`, `lt`, `in`, 접두 일치)과 집계. 그리고 SQLite authorizer(§4.4.6 C안)를 `bun:sqlite`에서 쓸 수 있는지 확인.
 10. (닫힘) pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c]. 외부 확장의 내장 도구 교체는 규칙 2대로 허용하지 않는다. 이전 질문: pi 어댑터 확장의 내장 도구 교체 허용 여부. pi는 같은 이름 등록으로 내장 도구를 바꾼다. 허용하면 사용자 설정(예: `ext.<name>.overrideTools`)으로 명시 허용하는 방식을 제안한다.
@@ -1613,7 +1613,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 20. (해소, M3-REQ-32) 샌드박스 강제는 L0 실행 경로에서 하고 on 핸들러는 두지 않는다(§4.1.4). on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다.
 21. [결정: 2026-10-28 사용자] 외부 훅(§3.7, §4.7)은 M3 밖이고 M4로 옮긴다. D-M3-11 c안 원문("로더·안전 모드만")과 같은 판단이다. 이 항목은 닫았다.
 22. (해소) `traceReadOf`와 `TraceSettings`는 `X.primitives.spec` §3.1 표에 행이 있고 루트(`src/index.ts`)에서 내보낸다.
-23. [미결] `x.operations.trace.turnsPerThread`의 기본값 20과 thread 상한 32는 [제안]이다. 계측 기본 켬은 사용자 결정이다. 비용(`dispatch_overhead_trace_on_vs_off`)이 기준을 넘으면 기본값을 다시 정하도록 사용자에게 묻는다(`review/m4-plan.md` §5).
+23. [미결: B18, 사용자 결정 대기] `x.operations.trace.turnsPerThread`의 기본값(20 또는 8)과 thread 상한 32는 [제안]이다. 계측 기본 켬은 닫혔다 [결정: 2026-11-04 사용자, 결정 목록 R9, m4-decisions Canvas 5]. 남은 것은 버퍼 크기와 비용 기준뿐이다. 2026-11-04 사용자 답: 먼저 실제 대화가 눈에 띄게 느려지는지 보고, 가능하면 제한 없는 전체 기록을 원한다. 8턴·20턴은 이 문서에서 정하지 않는다. 비용(`dispatch_overhead_trace_on_vs_off`)이 기준을 넘으면 기본값을 다시 정하도록 사용자에게 묻는다(`review/m4-plan.md` §5).
 24. [미결] `trace.turn`의 `traceEnabled`·`retained` 조립은 wire 처리기의 몫이다. `turn()`이 `undefined`를 돌려주므로 처리기가 `enabled()`로 `traceEnabled`를 채우고 `retained: false`를 만든다(§3.9). 현재 `apps/host/src/handlers/m4/profile-test-run.ts`는 `trace.turn`을 아직 구현하지 않았다.
 25. [미결] `denied` 실행 결과를 만드는 경로가 없다(§4.8.2). 실패 집계에는 들어가 있다.
 26. [미결] threadId가 없는 확장 메서드 호출은 ambient를 열지 않는다(명령과 같다). 그래서 그 호출 안의 `hostOf(g).awaitUser` 대기는 예산 시계를 멈추지 못하고 예산에 든다. 해결하려면 gate를 ambient와 분리한 문맥이 필요하다. M4 T-XV 뒤의 과제다.
