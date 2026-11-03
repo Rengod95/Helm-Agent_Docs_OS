@@ -1,8 +1,10 @@
 import { afterAll, expect, test } from "bun:test";
 import { Bug } from "@fresnel/contracts";
+import { resolveSetting } from "@fresnel/contracts/settings";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { hookOrderValue } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/settings-engine.ts";
@@ -164,6 +166,30 @@ test("x.operations.* fill the budget table and the auto-disable policy", async (
   );
   expect(set.budgets().first).toBe(1234);
   expect(set.autoDisable()).toMatchObject({ enabled: false, failureRate: 0.25 });
+});
+
+test("x.operations.hookOrder: the user file's order applies, and a trusted project file's order has no effect", async () => {
+  // 저장소 파일이 핸들러 순서를 바꾸려 해도 이 키는 project 범위를 받지 않으므로 무시된다(guard를 움직일 수 없다)
+  const user = { "tool.call.before": ["alpha", "beta"] };
+  const settings = await engineWith({ "x.operations.hookOrder": user });
+  const workspace = join(scratch, "workspace-hook-order");
+  settings.bindWorkspaces((threadId) => (threadId === THREAD ? workspace : undefined));
+  settings.setWorkspaceFiles(workspace, {
+    project: new Map<string, unknown>([
+      ["x.operations.hookOrder", { "tool.call.before": ["beta", "alpha"] }],
+    ]),
+    projectPath: join(workspace, ".fresnel", "settings.json"),
+    local: new Map<string, unknown>(),
+    localPath: join(workspace, ".fresnel", "settings.local.json"),
+  });
+
+  const def = settings.catalog.get("x.operations.hookOrder");
+  if (def === undefined) throw new Error("x.operations.hookOrder must be in the catalog");
+  const { setting, issues } = resolveSetting(def, settings.layers(THREAD));
+  expect(setting.value).toEqual(user);
+  expect(setting.source.scope).toBe("user");
+  expect(issues.map((issue) => issue.scope)).toEqual(["project"]);
+  expect(hookOrderValue(operationsSource(settings).hookOrder?.() ?? new Map())).toEqual(user);
 });
 
 test("l1.tasks.queue.* reach the tasks source", async () => {

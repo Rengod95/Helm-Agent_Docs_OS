@@ -146,6 +146,15 @@ describe("user scope", () => {
       }),
     );
     expect(project.code).toBe(3103);
+    // 핸들러 순서는 저장소 범위를 받지 않는다: 프로젝트 쓰기는 거절되고 아무것도 바뀌지 않는다(guard를 옮길 수 없다)
+    const order = await wireErrorOf(
+      fx.connection.request("settings.set", {
+        key: "x.operations.hookOrder",
+        value: { "tool.call.before": ["policy"] },
+        scope: "project",
+      }),
+    );
+    expect(order.code).toBe(3103);
     await fx.close();
   });
 });

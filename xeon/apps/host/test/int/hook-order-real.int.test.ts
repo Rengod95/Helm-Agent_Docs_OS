@@ -20,7 +20,7 @@ import { HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 // `hooks.order.get`의 applied)은 같은 정렬을 쓰는 읽기 값이라 실행 순서와 맞는지를 덧붙여 본다.
 //
 // 가드 tier: 이 호스트에는 가드 tier 핸들러가 실제로 없다(core-tools는 훅을 걸지 않고, 내장 단위는 tier가 매겨지지 않는다).
-// 그래서 고정(guard) 관련 시험은 실제 엔진에서 닿는 가장 가까운 자리에서만 쓰고, 나머지는 보고서의 공백으로 남긴다.
+// 그래서 guard를 옮기는 시험은 실제 엔진에서 닿는 가장 가까운 자리에서만 쓰고, guard가 건너뛰어지는 시험은 ext-host의 hook-order-guard 시험이 덮는다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -175,7 +175,7 @@ realTest(
       ).toEqual({ hook: SETTLE, saved: [LEARNING, PROBE], appliesAt: "nextStepBoundary" });
       // 아직 경계 전이라 적용 중인 순서는 비어 있고(기본 순서) 저장 값과 달라 보류다
       expect(await connection.request("hooks.order.get", {})).toEqual({
-        hooks: [{ hook: SETTLE, saved: [LEARNING, PROBE], applied: [], pending: true, pinned: [] }],
+        hooks: [{ hook: SETTLE, saved: [LEARNING, PROBE], applied: [], pending: true }],
       });
 
       // 다음 Turn의 경계에서 적용되어 실제 실행 순서가 뒤집힌다
@@ -187,7 +187,6 @@ realTest(
             saved: [LEARNING, PROBE],
             applied: [LEARNING, PROBE],
             pending: false,
-            pinned: [],
           },
         ],
       });
@@ -237,7 +236,6 @@ realTest(
             saved: [LEARNING, PROBE],
             applied: [LEARNING, PROBE],
             pending: false,
-            pinned: [],
           },
         ],
       });
@@ -291,7 +289,6 @@ realTest(
             saved: [GONE, LEARNING, PROBE],
             applied: [GONE, LEARNING, PROBE],
             pending: false,
-            pinned: [],
           },
         ],
       });
@@ -324,7 +321,7 @@ realTest(
         hook: CALL,
         order: [FIRST_B, FIRST_A],
         saveable: true,
-        guard: null,
+        guardRisk: [],
         skips: [
           {
             registrationId: FIRST_A,
@@ -372,7 +369,7 @@ realTest(
         hook: COMPACT,
         order: [COMPACT_B, COMPACT_A],
         saveable: true,
-        guard: null,
+        guardRisk: [],
         skips: [
           {
             registrationId: COMPACT_A,
@@ -410,7 +407,7 @@ realTest(
         hook: CHAIN,
         order: [CHAIN_SECOND, CHAIN_FIRST],
         saveable: true,
-        guard: null,
+        guardRisk: [],
         skips: [
           {
             registrationId: CHAIN_FIRST,
@@ -437,7 +434,7 @@ realTest(
 );
 
 realTest(
-  "nearest to the guard pin: the real host has no guard-tier handler, so pinned stays empty and a reorder is saved and applied unpinned",
+  "nearest to the guard: the real host has no guard-tier handler, so a reorder is saved and applied as proposed",
   async () => {
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
@@ -445,7 +442,7 @@ realTest(
     const running = await openHost(ANSWERS);
     const { connection } = running;
     try {
-      // 가드 tier(0) 핸들러가 한 줄도 없다. 고정 대상이 없어서 `pinned`는 어느 훅에서도 비어 있다
+      // 가드 tier(0) 핸들러가 한 줄도 없다. 그래서 guard를 옮기는 저장과 실행은 이 호스트에서 볼 수 없다
       const listed = await connection.request("hooks.list", {});
       const rows = listed.hooks.flatMap((row) => row.order ?? []);
       expect(rows.filter((entry) => entry.tier === 0)).toEqual([]);
@@ -461,7 +458,6 @@ realTest(
             saved: [LEARNING, PROBE],
             applied: [LEARNING, PROBE],
             pending: false,
-            pinned: [],
           },
         ],
       });
@@ -474,7 +470,7 @@ realTest(
 );
 
 realTest(
-  "nearest to the guard rejection: with no guard-tier row, reversing two first-hook handlers is saved and previewed as saveable",
+  "nearest to the guard move: with no guard-tier row, reversing two first-hook handlers is saved and previewed with no guard risk",
   async () => {
     const home = useEngineHome();
     writeUserSettings(home, TAPE_SETTINGS);
@@ -483,18 +479,20 @@ realTest(
     const running = await openHost(ANSWERS);
     const { connection } = running;
     try {
-      // 3404(hooks.guardPinned)는 guard tier 핸들러가 있어야 닿는다. 이 호스트에는 없어서 뒤집기도 저장된다
+      // 설정 화면이 편집 전에 적용 상태를 읽는다. 적용 상태는 처음 읽을 때 원천 값을 든다(hook-order.ts)
+      expect(await connection.request("hooks.order.get", {})).toEqual({ hooks: [] });
+      // guard tier 핸들러가 없어서 뒤집기는 저장되고, 미리보기의 guardRisk도 비어 있다
       expect(
         await connection.request("hooks.order.set", { hook: CALL, order: [FIRST_B, FIRST_A] }),
       ).toEqual({ hook: CALL, saved: [FIRST_B, FIRST_A], appliesAt: "nextStepBoundary" });
       expect(await connection.request("hooks.order.get", {})).toEqual({
-        hooks: [{ hook: CALL, saved: [FIRST_B, FIRST_A], applied: [], pending: true, pinned: [] }],
+        hooks: [{ hook: CALL, saved: [FIRST_B, FIRST_A], applied: [], pending: true }],
       });
       const preview = await connection.request("hooks.order.preview", {
         hook: CALL,
         order: [FIRST_A, FIRST_B],
       });
-      expect(preview).toMatchObject({ saveable: true, guard: null });
+      expect(preview).toMatchObject({ saveable: true, guardRisk: [] });
     } finally {
       await closeHost(running);
       home.dispose();
@@ -529,7 +527,7 @@ realTest(
       expect(settingsOf(home)).toEqual(TAPE_SETTINGS);
       // 저장 값은 비었고 적용 중인 순서는 다음 경계까지 남아 보류다
       expect(await connection.request("hooks.order.get", {})).toEqual({
-        hooks: [{ hook: SETTLE, saved: [], applied: [LEARNING, PROBE], pending: true, pinned: [] }],
+        hooks: [{ hook: SETTLE, saved: [], applied: [LEARNING, PROBE], pending: true }],
       });
       expect(await turnOrder(connection, created.threadId, "되돌린 뒤 질문")).toEqual([
         PROBE,

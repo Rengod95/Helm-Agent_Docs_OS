@@ -7,7 +7,6 @@ import {
   type WireParams,
   type WireResult,
 } from "@fresnel/contracts/wire";
-import type { OrderCheckError } from "@fresnel/ext-host";
 import {
   wireErrorOfWrite,
   type HostErrorMappers,
@@ -27,8 +26,6 @@ type ExtReadError =
   | { readonly kind: "safe_mode_active" }
   /** `managed` 범위가 잠근 확장은 자동 끔을 풀 수 없다 */
   | { readonly kind: "managed_locked"; readonly name: string }
-  /** `hooks.order.set`이 guard 핸들러 규칙을 어겼다(`checkOrder`의 거절 그대로) */
-  | { readonly kind: "guard_pinned"; readonly hook: string; readonly check: OrderCheckError }
   /** 그런 이름의 훅이 없다 */
   | { readonly kind: "unknown_hook"; readonly hook: string }
   /** 순서 설정 쓰기가 실패했다. 키는 `x.operations.hookOrder`다 */
@@ -102,15 +99,6 @@ function wireErrorOf(
     case "managed_locked":
       return wireError("settings.locked", {
         details: { key: `ext.${error.name}.enabled`, lockedBy: "managed" },
-      });
-    case "guard_pinned":
-      return wireError("hooks.guardPinned", {
-        details: {
-          hook: error.hook,
-          kind: error.check.kind,
-          registrationId: error.check.registrationId,
-          ...(error.check.kind === "above_guard" ? { above: error.check.above } : {}),
-        },
       });
     case "unknown_hook":
       return wireError("hooks.notFound", { details: { hook: error.hook } });

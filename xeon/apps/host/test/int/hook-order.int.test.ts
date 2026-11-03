@@ -18,7 +18,7 @@ const KEY = "x.operations.hookOrder";
 
 type HandlerRow = ReturnType<ExtReadSources["hookHandlers"]>[number];
 
-// tool.call.before: first, closed. 고정(guard, tier 0) policy와 audit, user alpha, project gamma.
+// tool.call.before: first, closed. guard(tier 0) policy와 audit, user alpha, project gamma.
 // request.context.before: chain, 멈춤 규칙 없음. alpha, gamma. 배열 순서는 일부러 뒤섞었다: 기본 순서는 (tier, loadIndex, seq)다.
 const HANDLERS: readonly HandlerRow[] = [
   {
@@ -108,16 +108,6 @@ async function failureOf(call: Promise<unknown>): Promise<unknown> {
   );
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** 실패의 wire 오류 details. 모양이 다르면 undefined다 */
-function detailsOf(failure: unknown): unknown {
-  if (!isRecord(failure) || !isRecord(failure.data)) return undefined;
-  return failure.data.details;
-}
-
 const POLICY = { registrationId: "policy", extension: "policy", tier: 0 };
 const AUDIT = { registrationId: "audit", extension: "audit", tier: 0 };
 const ALPHA = { registrationId: "alpha", extension: "alpha", tier: 1 };
@@ -131,7 +121,7 @@ test("hooks.order.get: nothing saved and nothing applied gives an empty list", a
   await connection.close();
 });
 
-test("hooks.order.get: saved and applied per hook, pending when they differ, guard ids pinned in default order", async () => {
+test("hooks.order.get: saved and applied per hook, and pending when they differ", async () => {
   const env = recordingEnv();
   env.values.set(KEY, { "tool.call.before": ["gamma", "alpha"] });
   const applied = hookOrderOf({
@@ -142,13 +132,12 @@ test("hooks.order.get: saved and applied per hook, pending when they differ, gua
   await connection.request("host.hello", HELLO_PARAMS);
   expect(await connection.request("hooks.order.get", {})).toEqual({
     hooks: [
-      { hook: "request.context.before", saved: [], applied: ["gamma"], pending: true, pinned: [] },
+      { hook: "request.context.before", saved: [], applied: ["gamma"], pending: true },
       {
         hook: "tool.call.before",
         saved: ["gamma", "alpha"],
         applied: ["alpha", "gamma"],
         pending: true,
-        pinned: ["policy", "audit"],
       },
     ],
   });
@@ -181,64 +170,69 @@ test("hooks.order.set: across tiers stores the list under the user scope with th
         saved: ["gamma", "alpha"],
         applied: [],
         pending: true,
-        pinned: ["policy", "audit"],
       },
     ],
   });
   await connection.close();
 });
 
-test("hooks.order.set: moving a guard handler rejects with guard_moved and writes nothing", async () => {
-  const env = recordingEnv();
-  const connection = connect(sourcesOf(env.values), env);
-  await connection.request("host.hello", HELLO_PARAMS);
-  const moved = await failureOf(
-    connection.request("hooks.order.set", { hook: "tool.call.before", order: ["audit", "policy"] }),
-  );
-  expect(moved).toMatchObject({ code: 3404, data: { kind: "hooks.guardPinned" } });
-  expect(detailsOf(moved)).toStrictEqual({
-    hook: "tool.call.before",
-    kind: "guard_moved",
-    registrationId: "policy",
-  });
-  expect(env.calls).toEqual([]);
-  await connection.close();
-});
-
-test("hooks.order.set: a normal handler above a guard rejects with above_guard and writes nothing", async () => {
-  const env = recordingEnv();
-  const connection = connect(sourcesOf(env.values), env);
-  await connection.request("host.hello", HELLO_PARAMS);
-  const above = await failureOf(
-    connection.request("hooks.order.set", { hook: "tool.call.before", order: ["alpha", "policy"] }),
-  );
-  expect(above).toMatchObject({ code: 3404, data: { kind: "hooks.guardPinned" } });
-  expect(detailsOf(above)).toStrictEqual({
-    hook: "tool.call.before",
-    kind: "above_guard",
-    registrationId: "policy",
-    above: "alpha",
-  });
-  expect(env.calls).toEqual([]);
-  await connection.close();
-});
-
-test("hooks.order.set: guard ids that stay in their current order are accepted and stripped from the stored list", async () => {
+test("hooks.order.set: moving a guard handler is saved as proposed, above or below a regular handler, and nothing is refused", async () => {
   const env = recordingEnv();
   const connection = connect(sourcesOf(env.values), env);
   await connection.request("host.hello", HELLO_PARAMS);
   expect(
     await connection.request("hooks.order.set", {
       hook: "tool.call.before",
-      order: ["policy", "audit", "gamma", "alpha"],
+      order: ["audit", "policy"],
     }),
-  ).toEqual({ hook: "tool.call.before", saved: ["gamma", "alpha"], appliesAt: "nextStepBoundary" });
+  ).toEqual({
+    hook: "tool.call.before",
+    saved: ["audit", "policy"],
+    appliesAt: "nextStepBoundary",
+  });
   expect(env.calls).toEqual([
     {
       op: "write",
       scope: "user",
       key: KEY,
-      value: { "tool.call.before": ["gamma", "alpha"] },
+      value: { "tool.call.before": ["audit", "policy"] },
+      threadId: undefined,
+    },
+  ]);
+  expect(
+    await connection.request("hooks.order.set", {
+      hook: "tool.call.before",
+      order: ["alpha", "policy"],
+    }),
+  ).toEqual({
+    hook: "tool.call.before",
+    saved: ["alpha", "policy"],
+    appliesAt: "nextStepBoundary",
+  });
+  expect(env.values.get(KEY)).toEqual({ "tool.call.before": ["alpha", "policy"] });
+  await connection.close();
+});
+
+test("hooks.order.set: guard ids are stored as proposed, with duplicates dropped", async () => {
+  const env = recordingEnv();
+  const connection = connect(sourcesOf(env.values), env);
+  await connection.request("host.hello", HELLO_PARAMS);
+  expect(
+    await connection.request("hooks.order.set", {
+      hook: "tool.call.before",
+      order: ["policy", "audit", "gamma", "alpha", "policy"],
+    }),
+  ).toEqual({
+    hook: "tool.call.before",
+    saved: ["policy", "audit", "gamma", "alpha"],
+    appliesAt: "nextStepBoundary",
+  });
+  expect(env.calls).toEqual([
+    {
+      op: "write",
+      scope: "user",
+      key: KEY,
+      value: { "tool.call.before": ["policy", "audit", "gamma", "alpha"] },
       threadId: undefined,
     },
   ]);
@@ -376,7 +370,7 @@ test("hooks.order.preview: a first closed hook lists first_answer and first_fail
     hook: "tool.call.before",
     order: ["policy", "audit", "gamma", "alpha"],
     saveable: true,
-    guard: null,
+    guardRisk: [],
     skips: [
       { registrationId: "audit", extension: "audit", reason: "first_answer", by: [POLICY] },
       { registrationId: "audit", extension: "audit", reason: "first_failure_deny", by: [POLICY] },
@@ -408,7 +402,7 @@ test("hooks.order.preview: a first closed hook lists first_answer and first_fail
   await connection.close();
 });
 
-test("hooks.order.preview: a guard-moving proposal is not saveable and names the guard", async () => {
+test("hooks.order.preview: a guard-moving proposal stays saveable and reports the guard as skippable and losing its first place", async () => {
   const env = recordingEnv();
   const connection = connect(sourcesOf(env.values), env);
   await connection.request("host.hello", HELLO_PARAMS);
@@ -417,11 +411,45 @@ test("hooks.order.preview: a guard-moving proposal is not saveable and names the
       hook: "tool.call.before",
       order: ["audit", "policy"],
     }),
-  ).toMatchObject({
+  ).toEqual({
     hook: "tool.call.before",
-    order: ["policy", "audit", "alpha", "gamma"],
-    saveable: false,
-    guard: { kind: "guard_moved", registrationId: "policy" },
+    order: ["audit", "policy", "alpha", "gamma"],
+    saveable: true,
+    skips: [
+      { registrationId: "policy", extension: "policy", reason: "first_answer", by: [AUDIT] },
+      { registrationId: "policy", extension: "policy", reason: "first_failure_deny", by: [AUDIT] },
+      { registrationId: "alpha", extension: "alpha", reason: "first_answer", by: [AUDIT, POLICY] },
+      {
+        registrationId: "alpha",
+        extension: "alpha",
+        reason: "first_failure_deny",
+        by: [AUDIT, POLICY],
+      },
+      {
+        registrationId: "gamma",
+        extension: "gamma",
+        reason: "first_answer",
+        by: [AUDIT, POLICY, ALPHA],
+      },
+      {
+        registrationId: "gamma",
+        extension: "gamma",
+        reason: "first_failure_deny",
+        by: [AUDIT, POLICY, ALPHA],
+      },
+    ],
+    valueChanges: [],
+    // audit과 policy는 guard라 면제다. alpha는 뒤에 gamma가 있어 노트가 있다
+    autoDisable: [{ registrationId: "alpha", extension: "alpha", affects: [GAMMA] }],
+    guardRisk: [
+      {
+        registrationId: "policy",
+        extension: "policy",
+        mayBeSkipped: true,
+        losesFirstPosition: true,
+        by: [AUDIT],
+      },
+    ],
   });
   await connection.close();
 });
@@ -439,7 +467,7 @@ test("hooks.order.preview: a chain hook lists value changes and no skips", async
     hook: "request.context.before",
     order: ["gamma", "alpha"],
     saveable: true,
-    guard: null,
+    guardRisk: [],
     skips: [],
     valueChanges: [{ registrationId: "alpha", extension: "alpha", by: [GAMMA] }],
     autoDisable: [],

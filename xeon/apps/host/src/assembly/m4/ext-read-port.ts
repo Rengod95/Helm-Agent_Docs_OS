@@ -30,7 +30,7 @@ import type {
   GroupPromotionResult,
   GroupStatusWire,
   HookEntry,
-  HookGuardIssue,
+  HookGuardRiskNote,
   HookHandlerRow,
   HookOrderEntry,
   HookOrderRef,
@@ -41,11 +41,10 @@ import type {
 import {
   checkOrder,
   hookOrderValue,
-  isPinnedTier,
   previewOrder,
   TIERS,
+  type GuardRiskNote,
   type HookOrderMap,
-  type OrderCheckError,
   type OrderPreview,
   type OrderRow,
   type PreviewRef,
@@ -226,26 +225,36 @@ function byText(a: string, b: string): number {
 
 /** 자동 끄기 면제 판정의 입력. guard 핸들러와 core tier는 면제다(X.operations §4.1.5). essential 확장의 표시는 원천에 없다 */
 function previewRowOf(row: OrderRow): PreviewRow {
-  return { ...row, exempt: isPinnedTier(row.tier) || row.tier === TIERS.indexOf("core") };
+  return {
+    ...row,
+    exempt: row.tier === TIERS.indexOf("guard") || row.tier === TIERS.indexOf("core"),
+  };
 }
 
 function orderRefOf(ref: PreviewRef): HookOrderRef {
   return { registrationId: ref.registrationId, extension: ref.extension, tier: ref.tier };
 }
 
-function guardIssueOf(check: OrderCheckError): HookGuardIssue {
-  return check.kind === "above_guard"
-    ? { kind: check.kind, registrationId: check.registrationId, above: check.above }
-    : { kind: check.kind, registrationId: check.registrationId };
+function guardRiskOf(note: GuardRiskNote): HookGuardRiskNote {
+  return {
+    registrationId: note.registrationId,
+    extension: note.extension,
+    mayBeSkipped: note.mayBeSkipped,
+    losesFirstPosition: note.losesFirstPosition,
+    by: note.by.map(orderRefOf),
+  };
 }
 
-/** 미리보기 결과를 wire 모양으로 옮긴다. 값은 새로 계산하지 않는다 */
+/**
+ * 미리보기 결과를 wire 모양으로 옮긴다. 값은 새로 계산하지 않는다.
+ * 저장을 막는 사유가 없으므로 `saveable`은 항상 참이다. guard의 위험은 `guardRisk`로 따로 알린다.
+ */
 function previewResultOf(preview: OrderPreview): HooksOrderPreviewResult {
   return {
     hook: preview.hook,
     order: [...preview.order],
-    saveable: preview.guard === null,
-    guard: preview.guard === null ? null : guardIssueOf(preview.guard),
+    saveable: true,
+    guardRisk: preview.guardRisk.map(guardRiskOf),
     skips: preview.skips.map((note) => ({
       registrationId: note.registrationId,
       extension: note.extension,
@@ -712,9 +721,6 @@ export function createExtReadPort(
           saved: [...savedIds],
           applied: [...appliedIds],
           pending: !sameOrder(savedIds, appliedIds),
-          pinned: defaultRowsOf(hook)
-            .filter((row) => isPinnedTier(row.tier))
-            .map((row) => row.registrationId),
         };
       });
       return Promise.resolve(ok({ hooks: rows }));
@@ -723,16 +729,15 @@ export function createExtReadPort(
     async orderSet(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return err({ kind: "unknown_hook", hook });
-      const checked = checkOrder(hook, params.order, defaultRowsOf(hook));
-      if (!checked.ok) return err({ kind: "guard_pinned", hook, check: checked.error });
+      const order = checkOrder(params.order);
       const next = new Map<HookName, readonly string[]>(sources.hookOrder().saved());
-      if (checked.value.length === 0) next.delete(hook);
-      else next.set(hook, checked.value);
+      if (order.length === 0) next.delete(hook);
+      else next.set(hook, order);
       const written = await writeOrder(next);
       if (!written.ok) {
         return err({ kind: "write_failed", key: HOOK_ORDER_KEY, failure: written.error });
       }
-      return ok({ hook, saved: [...checked.value], appliesAt: "nextStepBoundary" });
+      return ok({ hook, saved: [...order], appliesAt: "nextStepBoundary" });
     },
 
     async orderReset(params) {
