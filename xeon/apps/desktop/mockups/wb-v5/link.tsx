@@ -2,6 +2,7 @@
 // 사이를 잇는 실 묶음이 관계 하나씩이다. 같은 종류의 실은 카드 오른쪽 가장자리의 한 점에서 나온다.
 import { Badge, Card, Meter } from "@caustic/react";
 import {
+  Fragment,
   useCallback,
   useLayoutEffect,
   useMemo,
@@ -46,22 +47,31 @@ const FAIL_LIMIT = 5;
 /** 훅 전체 수: 순서 화면의 13개와 나머지 33개 */
 const HOOK_TOTAL = HOOKS.length + OTHER_HOOKS.length;
 
-/** 종류의 색: 토큰만 쓴다. 위험(danger)은 종류에 쓰지 않는다. */
+/** 종류의 색: 값은 link.css가 토큰으로 정한다. 위험(danger)은 종류에 쓰지 않는다. */
 const HUE: Record<RelKind, string> = {
-  hook: "var(--cs-color-info-graphic)",
-  cap: "var(--cs-color-agent-graphic)",
-  group: "var(--cs-color-neutral-graphic)",
-  drive: "var(--cs-color-warning-graphic)",
-  record: "var(--cs-color-success-graphic)",
+  hook: "var(--wb5-hue-hook)",
+  cap: "var(--wb5-hue-cap)",
+  group: "var(--wb5-hue-group)",
+  drive: "var(--wb5-hue-drive)",
+  record: "var(--wb5-hue-record)",
 };
 
-/** 실의 기하(화면 px): 점 가장자리에서 모이고, 행 왼쪽 앞에서 펼쳐져 끝난다. */
+/** 실의 기하(화면 px): 점 가장자리에서 모이고, 행 가장자리의 점에서 끝난다. */
 const START = 4;
-const END = 2;
+/** 끝점의 점 반지름. 실은 점의 가운데에서 끝나고, 점은 행 가장자리에 붙는다. */
+const DOT_R = 2.4;
+const END = DOT_R;
 const NEAR = 1.6;
 const FAR = 8;
+/** 같은 행으로 가는 묶음들의 끝점 간격(세로) */
+const ROW_STEP = 6;
 /** 아무것도 가리키지 않을 때 묶음의 밝기 */
-const REST = 0.62;
+const REST = 0.8;
+/** 가리킨 것이 있을 때 밝히지 않은 묶음의 밝기: 지우지 않고 따라갈 수 있게 남긴다 */
+const DIM = 0.2;
+/** 묶음의 상태: 고른 것, 가리킨 것, 밝히지 않은 것, 쉬는 것 */
+type BundleState = "sel" | "hot" | "dim" | "rest";
+const RANK: Record<BundleState, number> = { dim: 0, rest: 1, hot: 2, sel: 3 };
 /** 그리기 지연: 묶음마다 60ms, 같은 묶음 안에서는 실마다 14ms */
 const STAGGER_BUNDLE = 60;
 const STAGGER_STRAND = 14;
@@ -94,8 +104,8 @@ interface Bundle {
   gid: string;
   from: Pt;
   to: Pt;
-  /** 실 한 가닥의 경로 */
-  strands: string[];
+  /** 실 한 가닥의 경로: 전체(얇음)와 앞 절반(굵음, 점 쪽) */
+  strands: Strand[];
   /** 가운데 실: 빛이 지나가고 누르는 것을 받는다 */
   center: string;
   /** 가운데 실의 점 몇 개(카드가 실을 가리지 않게 잰다) */
@@ -107,6 +117,10 @@ type Hov = { k: "bundle"; key: string } | { k: "row"; id: string } | { k: "kind"
 interface RowItem {
   other: Plugin;
   list: Relation[];
+}
+interface Strand {
+  full: string;
+  head: string;
 }
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
@@ -131,6 +145,21 @@ function bez(p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt {
   };
 }
 
+/** 가닥 하나의 전체와 앞 절반(t=0.5까지의 곡선, 드 카스텔조 분할)을 만든다. */
+function strandOf(s: Pt, c1: Pt, c2: Pt, e: Pt): Strand {
+  const half = (p: Pt, q: Pt): Pt => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+  const m01 = half(s, c1);
+  const m12 = half(c1, c2);
+  const m23 = half(c2, e);
+  const m012 = half(m01, m12);
+  const m123 = half(m12, m23);
+  const mid = half(m012, m123);
+  return {
+    full: `M${fx(s.x)} ${fx(s.y)}C${fx(c1.x)} ${fx(c1.y)} ${fx(c2.x)} ${fx(c2.y)} ${fx(e.x)} ${fx(e.y)}`,
+    head: `M${fx(s.x)} ${fx(s.y)}C${fx(m01.x)} ${fx(m01.y)} ${fx(m012.x)} ${fx(m012.y)} ${fx(mid.x)} ${fx(mid.y)}`,
+  };
+}
+
 /** 묶음 하나: 점 a에서 행 t까지 실 여러 가닥. 가운데 실이 기준이고 나머지는 위상을 달리한다. */
 function bundleOf(focusId: string, rel: Relation, slot: number, a: Pt, t: Pt): Bundle {
   const key = keyOf(focusId, rel);
@@ -140,7 +169,7 @@ function bundleOf(focusId: string, rel: Relation, slot: number, a: Pt, t: Pt): B
   // 실 수: 한 줄이면 11가닥, 맞닿은 수만큼 늘어 최대 20가닥
   const n = Math.min(20, 11 + 3 * (rel.count - 1));
   const seed = slot * 1.31;
-  const strands: string[] = [];
+  const strands: Strand[] = [];
   for (let i = 0; i < n; i += 1) {
     const o = n === 1 ? 0 : (2 * i) / (n - 1) - 1;
     // 실마다 다른 위상: 복사본이 아니라 짜인 묶음처럼 보이게 한다
@@ -149,9 +178,7 @@ function bundleOf(focusId: string, rel: Relation, slot: number, a: Pt, t: Pt): B
     const e = { x: ex, y: t.y + o * FAR + ph * 0.8 };
     const c1 = { x: s.x + dx * (0.46 + 0.05 * ph), y: s.y + ph * 1.2 };
     const c2 = { x: e.x - dx * (0.46 - 0.05 * ph), y: e.y - ph * 1.2 };
-    strands.push(
-      `M${fx(s.x)} ${fx(s.y)}C${fx(c1.x)} ${fx(c1.y)} ${fx(c2.x)} ${fx(c2.y)} ${fx(e.x)} ${fx(e.y)}`,
-    );
+    strands.push(strandOf(s, c1, c2, e));
   }
   const p0 = { x: sx, y: a.y };
   const p3 = { x: ex, y: t.y };
@@ -179,41 +206,46 @@ function bundleOf(focusId: string, rel: Relation, slot: number, a: Pt, t: Pt): B
 function buildBundles(focusId: string, rels: readonly Relation[], geo: Geo | null): Bundle[] {
   if (geo === null) return [];
   const out: Bundle[] = [];
+  // 같은 행으로 가는 묶음은 끝점을 세로로 나눠 점이 겹치지 않게 한다
+  const perRow = new Map<string, number>();
+  for (const rel of rels) perRow.set(rel.other.id, (perRow.get(rel.other.id) ?? 0) + 1);
+  const seen = new Map<string, number>();
   rels.forEach((rel) => {
     const a = geo.anchors[rel.kind];
     const row = geo.rows[rel.other.id];
     if (a === undefined || row === undefined) return;
+    const n = perRow.get(rel.other.id) ?? 1;
+    const k = seen.get(rel.other.id) ?? 0;
+    seen.set(rel.other.id, k + 1);
     // 열이 스크롤로 밖에 있으면 실의 끝을 보이는 가장자리에 붙인다
-    const y = clamp(row.y, geo.view.top + 10, geo.view.bottom - 10);
+    const y = clamp(row.y + (k - (n - 1) / 2) * ROW_STEP, geo.view.top + 10, geo.view.bottom - 10);
     out.push(bundleOf(focusId, rel, out.length, a, { x: row.x, y }));
   });
   return out;
 }
 
-/** 밝힐 묶음 키. null이면 모두 같은 밝기다. 가리킨 것이 우선이고, 없으면 고른 묶음이다. 가리킨 것이 묶음이 없으면(바뀐 뒤 남은 값) 밝히지 않는다. */
-function litOf(
-  hov: Hov | null,
-  pick: string | null,
-  bundles: readonly Bundle[],
-): Set<string> | null {
-  if (hov === null) return pick === null ? null : new Set([pick]);
-  let keys: string[];
-  if (hov.k === "bundle") keys = [hov.key];
-  else if (hov.k === "row") {
+/** 가리킨 것이 밝히는 묶음 키들. 묶음이 없는 것(바뀐 뒤 남은 값)은 아무것도 밝히지 않는다. */
+function hotOf(hov: Hov | null, bundles: readonly Bundle[]): Set<string> {
+  if (hov === null) return new Set();
+  let keys: Bundle[];
+  if (hov.k === "bundle") {
+    const key = hov.key;
+    keys = bundles.filter((b) => b.key === key);
+  } else if (hov.k === "row") {
     const id = hov.id;
-    keys = bundles.filter((b) => b.otherId === id).map((b) => b.key);
+    keys = bundles.filter((b) => b.otherId === id);
   } else {
     const kind = hov.kind;
-    keys = bundles.filter((b) => b.kind === kind).map((b) => b.key);
+    keys = bundles.filter((b) => b.kind === kind);
   }
-  return keys.length === 0 ? null : new Set(keys);
+  return new Set(keys.map((b) => b.key));
 }
 
 /** 떠 있는 카드가 가리킬 묶음. 줄이나 종류를 가리킬 때는 고른 묶음이 그 안에 있을 때만 보인다. */
-function shownOf(hov: Hov | null, pick: string | null, lit: Set<string> | null): string | null {
+function shownOf(hov: Hov | null, pick: string | null, hot: ReadonlySet<string>): string | null {
   if (hov === null) return pick;
   if (hov.k === "bundle") return hov.key;
-  return pick !== null && lit?.has(pick) === true ? pick : null;
+  return pick !== null && hot.has(pick) ? pick : null;
 }
 
 /**
@@ -348,8 +380,9 @@ export function Link({ rightInset }: { rightInset: number }) {
   }, [measure]);
 
   const bundles = useMemo(() => buildBundles(focusId, rels, geo), [focusId, rels, geo]);
-  const lit = litOf(hov, pick, bundles);
-  const shownKey = shownOf(hov, pick, lit);
+  const hot = hotOf(hov, bundles);
+  const selKey = bundles.some((b) => b.key === pick) ? pick : null;
+  const shownKey = shownOf(hov, pick, hot);
   const shown = shownKey === null ? undefined : bundles.find((b) => b.key === shownKey);
   // 떠 있는 카드의 크기를 재고, 바뀌면 자리를 다시 잡는다
   useLayoutEffect(() => {
@@ -362,14 +395,15 @@ export function Link({ rightInset }: { rightInset: number }) {
   const reduced = reducedMotion();
   const kinds = REL_ORDER.filter((k) => rels.some((r) => r.kind === k));
   const rows = rowsOf(rels);
-  // 밝힌 묶음이 있는 상대 행은 함께 밝힌다
+  // 가리키거나 고른 묶음이 있는 상대 행은 함께 옅게 깐다
   const hotIds = new Set<string>();
-  if (lit !== null) for (const b of bundles) if (lit.has(b.key)) hotIds.add(b.otherId);
-  // 고른 묶음은 맨 위에 그린다
-  const ordered =
-    lit === null
-      ? bundles
-      : [...bundles.filter((b) => !lit.has(b.key)), ...bundles.filter((b) => lit.has(b.key))];
+  for (const b of bundles) if (b.key === selKey || hot.has(b.key)) hotIds.add(b.otherId);
+  // 묶음의 상태: 고른 것 > 가리킨 것 > 쉬는 것, 가리킨 것이 있을 때는 나머지는 흐리다
+  const dimming = hot.size > 0 || selKey !== null;
+  const markOf = (key: string): BundleState =>
+    key === selKey ? "sel" : hot.has(key) ? "hot" : dimming ? "dim" : "rest";
+  // 밝은 것은 위에 그린다: 흐린 것, 쉬는 것, 가리킨 것, 고른 것 순
+  const ordered = [...bundles].sort((a, c) => RANK[markOf(a.key)] - RANK[markOf(c.key)]);
 
   if (focus === undefined) return null;
   return (
@@ -402,34 +436,59 @@ export function Link({ rightInset }: { rightInset: number }) {
                 x2={b.to.x}
                 y2={b.to.y}
               >
-                <stop offset={0} style={{ stopColor: b.hue }} stopOpacity={0.95} />
-                <stop offset={0.6} style={{ stopColor: b.hue }} stopOpacity={0.5} />
-                <stop offset={1} style={{ stopColor: b.hue }} stopOpacity={0.22} />
+                <stop offset={0} style={{ stopColor: b.hue }} stopOpacity={1} />
+                <stop offset={0.55} style={{ stopColor: b.hue }} stopOpacity={0.8} />
+                <stop offset={1} style={{ stopColor: b.hue }} stopOpacity={0.6} />
               </linearGradient>
             ))}
           </defs>
           <g key={focusId}>
             {ordered.map((b) => {
-              const isLit = lit === null || lit.has(b.key);
+              const mark = markOf(b.key);
               // 쉴 때는 실이 한 덩이로 조용하다. 필터에 안 맞는 상대와 꺼진 상대는 더 흐리다.
               const rest =
                 REST * (m.matches(b.rel.other) ? 1 : 0.35) * (m.isOn(b.otherId) ? 1 : 0.55);
-              const opacity = lit === null ? rest : isLit ? 1 : 0.15;
+              const opacity = mark === "rest" ? rest : mark === "dim" ? DIM : 1;
               return (
-                <g key={b.key} className="wb5-link-bundle" style={{ opacity }} data-bundle={b.key}>
-                  {b.strands.map((d, i) => (
-                    <path
-                      key={i}
-                      d={d}
-                      pathLength={1}
-                      className="wb5-link-strand"
-                      stroke={`url(#${b.gid})`}
-                      style={{
-                        animationDelay: `${b.slot * STAGGER_BUNDLE + (i % 4) * STAGGER_STRAND}ms`,
-                      }}
-                    />
-                  ))}
-                  {pick === b.key && !reduced && (
+                <g
+                  key={b.key}
+                  className="wb5-link-bundle"
+                  style={{ opacity }}
+                  data-bundle={b.key}
+                  data-state={mark}
+                >
+                  {b.strands.map((s, i) => {
+                    const delay = b.slot * STAGGER_BUNDLE + (i % 4) * STAGGER_STRAND;
+                    return (
+                      <Fragment key={i}>
+                        <path
+                          d={s.full}
+                          pathLength={1}
+                          className="wb5-link-strand"
+                          stroke={`url(#${b.gid})`}
+                          style={{ animationDelay: `${delay}ms` }}
+                        />
+                        <path
+                          d={s.head}
+                          pathLength={1}
+                          className="wb5-link-strand wb5-link-head"
+                          stroke={`url(#${b.gid})`}
+                          style={{ animationDelay: `${delay}ms`, animationDuration: "350ms" }}
+                        />
+                      </Fragment>
+                    );
+                  })}
+                  <circle
+                    cx={b.to.x}
+                    cy={b.to.y}
+                    r={DOT_R}
+                    className="wb5-link-end"
+                    style={{
+                      fill: b.hue,
+                      animationDelay: `${b.slot * STAGGER_BUNDLE + 600}ms`,
+                    }}
+                  />
+                  {mark === "sel" && !reduced && (
                     <path
                       d={b.center}
                       pathLength={1}
@@ -630,7 +689,7 @@ function Anchors({
   );
 }
 
-/** 오른쪽 열의 상대 한 줄: 이름, 관계 수, 종류 점(누르면 그 실을 고른다) */
+/** 오른쪽 열의 상대 한 줄: 이름, 관계가 여럿이면 그 수, 종류 점(누르면 그 실을 고른다) */
 function RelRow({
   row,
   index,
@@ -693,7 +752,7 @@ function RelRow({
           >
             {other.name}
           </span>
-          <Badge size="xs">{list.length}</Badge>
+          {list.length > 1 && <Badge size="xs">{list.length}</Badge>}
         </button>
         <span className="flex flex-none items-center">
           {list.map((r) => {

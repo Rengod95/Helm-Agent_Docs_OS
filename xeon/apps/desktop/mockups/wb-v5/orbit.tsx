@@ -53,8 +53,13 @@ const FRAC = [0.28, 0.5, 0.71, 0.89] as const;
 const RING_LAYER: readonly LayerKey[] = ["L1", "L2", "L3", "plugin"];
 /** 그룹 이름표가 앉는 호의 끝. 구성원 이름표와 겹치지 않는 쪽으로 골랐다. */
 const GROUP_END: Record<string, "from" | "to"> = { helm: "from", learning: "to", review: "from" };
-/** 행성(코어) 지름(화면 px, 배율 1) */
-const CORE = 92;
+/** 코어 지름: 첫 고리(L1) 안지름의 75%. 고리와 함께 커져 언제나 같은 비율로 앉는다(세계 px, 배율 1) */
+const R1 = FRAC[0] * OUTER;
+const CORE = 0.75 * 2 * R1;
+/** 코어 지름의 CSS 값: 확대(--k)에 따라 커지고, 글자 배율(--ls)은 상쇄한다 */
+const CORE_SIZE = `calc(var(--k, 1) * ${CORE.toFixed(1)}px / var(--ls, 1))`;
+/** 이름표 윗변: 구체 아래 첫 고리 바깥쪽에 앉는다(요약 직접 점 아래). 구체 지름의 %에 22px를 더한다. */
+const CORE_LABEL_TOP = `calc(${(((CORE / 2 + R1) / CORE) * 100).toFixed(2)}% + 22px)`;
 
 const rad = (deg: number): number => (deg * Math.PI) / 180;
 const pt = (deg: number, f: number): { x: number; y: number } => ({
@@ -488,13 +493,16 @@ export function Orbit({
         <Pin x={CENTER} y={CENTER}>
           <div
             className="pointer-events-none relative -translate-x-1/2 -translate-y-1/2"
-            style={{ width: CORE, height: CORE }}
+            style={{ width: CORE_SIZE, height: CORE_SIZE }}
           >
             <CoreOrb size={CORE} selected={coreSel} onSelect={() => m.select({ k: "agent" })} />
-            <div className="pointer-events-auto absolute left-1/2 top-full -mt-3 -translate-x-1/2">
+            <div
+              className="pointer-events-auto absolute left-1/2 -translate-x-1/2"
+              style={{ top: CORE_LABEL_TOP }}
+            >
               <button
                 type="button"
-                className="wb5-label wb5-label-sm wb5-core-label"
+                className="wb5-label wb5-label-sm"
                 data-picked={coreSel ? "" : undefined}
                 onClick={() => m.select({ k: "agent" })}
                 onPointerMove={spot}

@@ -1,13 +1,19 @@
 /* 링크(Link) 보기: 가운데 실 묶음, 왼쪽 카드와 오른쪽 열, 떠 있는 정보 카드.
    들어오는 것은 wb5-spring으로 떠오르고, 움직임을 줄이면 모두 즉시 바뀌며 흐르는 빛은 없다. */
 
-/* 실 한 가닥: pathLength=1 기준으로 그려진다. 시작 지연은 묶음마다 인라인으로 준다. */
+/* 실 한 가닥: pathLength=1 기준으로 그려진다. 시작 지연은 묶음마다 인라인으로 준다.
+   굵기는 묶음의 --wb5-w를 따른다. */
 .wb5-link-strand {
   fill: none;
-  stroke-width: 0.75px;
+  stroke-width: var(--wb5-w);
   stroke-linecap: round;
   stroke-dasharray: 1;
+  transition: stroke-width 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
   animation: wb5-link-draw 700ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+/* 앞 절반(점 쪽)은 더 굵다. 가닥이 행으로 갈수록 가늘어진다. 길이는 인라인으로 350ms에 그린다. */
+.wb5-link-head {
+  stroke-width: calc(var(--wb5-w) * 1.6);
 }
 @keyframes wb5-link-draw {
   from {
@@ -18,9 +24,26 @@
   }
 }
 
-/* 묶음: 밝힌 것 말고는 흐려진다 */
+/* 묶음: 쉴 때는 조용하고, 가리킨 것은 밝고 조금 굵고, 고른 것이 가장 굵다. 밝히지 않은 것은 흐려진다. */
 .wb5-link-bundle {
+  --wb5-w: 0.8px;
   transition: opacity 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.wb5-link-bundle[data-state="hot"] {
+  --wb5-w: 0.95px;
+}
+.wb5-link-bundle[data-state="sel"] {
+  --wb5-w: 1.1px;
+}
+
+/* 끝점: 행 가장자리에 붙는 작은 점. 실이 다 닿은 뒤에 나타난다. */
+.wb5-link-end {
+  animation: wb5-link-end 240ms ease-out both;
+}
+@keyframes wb5-link-end {
+  from {
+    opacity: 0;
+  }
 }
 
 /* 잡는 선: 실보다 넓고 보이지 않는다 */
@@ -131,8 +154,12 @@
     background-color 180ms,
     opacity 260ms;
 }
+/* 가리킨 묶음이나 고른 묶음과 이어진 행: 배경만 옅게 밝힌다(테두리·빛 없음). 어두운 바탕에서 더 세게 섞는다. */
 .wb5-link-row[data-hot] {
-  background-color: var(--cs-color-neutral-hover);
+  background-color: color-mix(in oklch, var(--cs-color-surface-raised), var(--cs-color-text-primary) 10%);
+}
+:root[data-theme="light"] .wb5-link-row[data-hot] {
+  background-color: color-mix(in oklch, var(--cs-color-surface-raised), var(--cs-color-text-primary) 5%);
 }
 .wb5-link-row[data-pick] {
   outline: 1px solid var(--cs-color-text-primary);
@@ -146,6 +173,19 @@
 /* 배치는 칸의 폭(cqw)을 따른다. 고른 것 패널이 열리면 칸이 줄어들고, 실이 설 자리는 남는다. */
 .wb5-link-root {
   container-type: inline-size;
+  /* 종류의 색: 어두운 바탕은 그래픽 토큰을 그대로 쓴다 */
+  --wb5-hue-hook: var(--cs-color-info-graphic);
+  --wb5-hue-cap: var(--cs-color-agent-graphic);
+  --wb5-hue-group: var(--cs-color-neutral-graphic);
+  --wb5-hue-drive: var(--cs-color-warning-graphic);
+  --wb5-hue-record: var(--cs-color-success-graphic);
+}
+/* 밝은 바탕에서는 그래픽 토큰이 흰 바탕에 묻히니, 같은 토큰을 조금 어둡게 섞어 쓴다 */
+:root[data-theme="light"] .wb5-link-root {
+  --wb5-hue-hook: color-mix(in oklch, var(--cs-color-info-graphic), black 22%);
+  --wb5-hue-cap: color-mix(in oklch, var(--cs-color-agent-graphic), black 15%);
+  --wb5-hue-drive: color-mix(in oklch, var(--cs-color-warning-graphic), black 28%);
+  --wb5-hue-record: color-mix(in oklch, var(--cs-color-success-graphic), black 22%);
 }
 /* 가운데 칸은 빈 자리를 통과시킨다: 실의 가닥과 빈 곳 누르기가 그 밑으로 간다. 카드와 열만 받는다. */
 .wb5-link-box {
@@ -189,12 +229,14 @@
 
 @media (prefers-reduced-motion: reduce) {
   .wb5-link-strand,
-  .wb5-link-arrive {
+  .wb5-link-arrive,
+  .wb5-link-end {
     animation: none;
   }
   .wb5-link-light {
     display: none;
   }
+  .wb5-link-strand,
   .wb5-link-bundle,
   .wb5-link-row,
   .wb5-link-anchor,

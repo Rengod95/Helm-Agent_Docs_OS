@@ -460,7 +460,7 @@ function CoreRow({ step }: { step: CoreStep }) {
         <span className="truncate font-mono text-mono-sm text-text-tertiary">{step.id}</span>
       </div>
       <div className="flex min-h-8 items-center">
-        <CoreItem locked tip={step.tip} />
+        <CoreItem locked={step.locked} tip={step.tip} />
       </div>
     </div>
   );

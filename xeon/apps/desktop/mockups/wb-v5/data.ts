@@ -145,6 +145,8 @@ export interface CoreStep {
   wrap: readonly [string, string];
   /** 툴팁 한 줄 */
   tip: string;
+  /** 잠금: 플러그인이 건드릴 수 없는 단계(도구 실행뿐). 컨텍스트 조립과 모델 호출은 훅과 모델 제공자로 바뀔 수 있다. */
+  locked: boolean;
 }
 export const CORE_STEPS: readonly CoreStep[] = [
   {
@@ -153,6 +155,7 @@ export const CORE_STEPS: readonly CoreStep[] = [
     after: "thread.compact.before",
     wrap: ["input.agent.before", "request.provider.before"],
     tip: "앞뒤 줄에서 감쌀 수 있어요",
+    locked: false,
   },
   {
     id: "core.model.call",
@@ -160,6 +163,7 @@ export const CORE_STEPS: readonly CoreStep[] = [
     after: "guard.model.before",
     wrap: ["request.provider.before", "request.model.after"],
     tip: "앞뒤 줄에서 감쌀 수 있어요",
+    locked: false,
   },
   {
     id: "core.tools.run",
@@ -167,6 +171,7 @@ export const CORE_STEPS: readonly CoreStep[] = [
     after: "tool.call.before",
     wrap: ["tool.call.before", "tool.result"],
     tip: "앞뒤 줄에서 감쌀 수 있어요",
+    locked: true,
   },
 ];
 export const hookDef = (id: string): HookDef | undefined => HOOKS.find((h) => h.id === id);

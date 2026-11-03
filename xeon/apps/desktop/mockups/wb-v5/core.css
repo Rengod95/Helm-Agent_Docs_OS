@@ -24,27 +24,6 @@
     0 0 0 5.5px var(--cs-color-text-primary);
 }
 
-/* 코어 이름표: 구체의 밝은 쪽과 어두운 쪽 모두에서 면이 떨어져 보이도록 얇은 선을 두른다 */
-.wb5-label.wb5-core-label {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.5),
-    0 0 0 1px color-mix(in oklab, var(--cs-color-text-primary) 34%, transparent),
-    0 5px 12px -7px color-mix(in oklab, var(--tint) 55%, transparent);
-}
-.wb5-label.wb5-core-label:hover {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.55),
-    0 0 0 1px color-mix(in oklab, var(--cs-color-text-primary) 46%, transparent),
-    0 9px 18px -8px color-mix(in oklab, var(--tint) 62%, transparent);
-}
-/* 고른 것: 면이 잉크색(어두운 판에서는 밝은 면)이라 구체의 반대 명암과 맞닿으면 면 색의 틈을 둔다 */
-.wb5-label.wb5-core-label[data-picked] {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.3),
-    0 0 0 2px var(--cs-color-surface-base),
-    0 10px 22px -10px color-mix(in oklab, var(--cs-color-text-primary) 70%, transparent);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .wb5-core-hit,
   .wb5-core-canvas {
