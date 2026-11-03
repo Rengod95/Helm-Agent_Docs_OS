@@ -20,9 +20,9 @@ binds: []
 
 | 지표 | 뜻 | 측정 | 기준선 | 예산 | 비고 |
 |---|---|---|---|---|---|
-| `cold_start_cli` | `bun apps/cli/src/main.ts version --json` 시작부터 종료까지 | `just benchmark` | WSL2 중앙값 143.6 ms(3회, 2026-10-25). 서버(WSL2) 중앙값 189.8 ms(2026-10-27) | [미결] | 번들 전 소스 진입. 모듈 적재 비용을 봅니다 |
-| `cold_start_sidecar` | 컴파일한 사이드카 `fresnel-<triple> version --json` 시작부터 종료까지 | `just desktop-sidecar host` 뒤 `just benchmark` | WSL2 약 131 ms(`--bytecode`, `L4.desktop.plan` §3 spike S2). 서버(WSL2) 중앙값 46.9 ms(2026-10-27) | [미결] | macOS 값은 `review.macos-checklist` M-07 |
-| `first_token` | `fresnel chat -p` 시작부터 첫 `stream.chunk` 알림까지 | `just benchmark --first-token --yes` | 서버(WSL2) 1289.5 ms(1회, 실제 provider, 2026-10-27) | [미결] | 실제 모델 호출. 사용자 확인 뒤 1회(결정 D-e) |
+| `cold_start_cli` | `bun apps/cli/src/main.ts version --json` 시작부터 종료까지 | `just benchmark` | WSL2 중앙값 143.6 ms(3회, 2026-10-25). 서버(WSL2) 중앙값 189.8 ms(2026-10-27) | 기록만 [결정: 2026-11-04 사용자, B17] | 번들 전 소스 진입. 모듈 적재 비용을 봅니다 |
+| `cold_start_sidecar` | 컴파일한 사이드카 `fresnel-<triple> version --json` 시작부터 종료까지 | `just desktop-sidecar host` 뒤 `just benchmark` | WSL2 약 131 ms(`--bytecode`, `L4.desktop.plan` §3 spike S2). 서버(WSL2) 중앙값 46.9 ms(2026-10-27) | 기록만 [결정: 2026-11-04 사용자, B17] | macOS 값은 `review.macos-checklist` M-07 |
+| `first_token` | `fresnel chat -p` 시작부터 첫 `stream.chunk` 알림까지 | `just benchmark --first-token --yes` | 서버(WSL2) 1289.5 ms(1회, 실제 provider, 2026-10-27) | 기록만 [결정: 2026-11-04 사용자, B17] | 실제 모델 호출. 사용자 확인 뒤 1회(결정 D-e) |
 | 사이드카 크기 | triple별 바이너리 크기 | `just desktop-sidecar <triple>` | WSL2 `x86_64-unknown-linux-gnu` 109.8 MiB(T7, `L4.desktop.plan` 구현 기록), macOS 26.5.2 `aarch64-apple-darwin` 91.0 MiB(`ws mac` 작업 20261025-224508-0141) | 500 MiB(회귀 상한) | ADR-0012 §3 2번. 줄이는 목표가 아닙니다. macOS 값은 `review.macos-checklist` M-07 |
 
 - 2026-10-27 값은 M2 마감 절차(`review.m2-plan` §11 5번)의 `just benchmark`와 `just benchmark --first-token --yes` 결과입니다. 콜드 스타트 두 지표의 실행 횟수는 기록하지 않았습니다(기본값 5회 [가정]). macOS 값은 아직 없습니다.
@@ -87,8 +87,8 @@ binds: []
 
 ## 5. 예외와 미결 사항
 
-- [미결] 지표별 예산 수치(§2). 기준선을 macOS에서 잰 뒤 정합니다.
-- [미결] 서버 지표 예산 수치(§2.1 사용자 결정 대기 칸). 예산을 정하면 `just benchmark-gate --strict`를 릴리즈 점검에 넣습니다.
+- [결정: 2026-11-04 사용자, B17] 지표별 예산 수치(§2)는 정하지 않고 기록만 합니다. 판정은 "기록됨"입니다. 기준선을 macOS에서 잰 뒤 다시 정합니다.
+- [결정: 2026-11-04 사용자, B17] 서버 지표 예산 수치(§2.1)도 기록만 합니다. 예산을 정하면 `just benchmark-gate --strict`를 릴리즈 점검에 넣습니다.
 - [미결] macOS 기준선(사용자 항목): `cold_start_cli`, `cold_start_sidecar`, 서버 측정 전부, `fullfsync` 기본값, `processStartFingerprint` macOS 수단, 접두 밖 문장 거부의 운영 빌드 비용. `ws mac`으로 `just benchmark --server`를 돌려 §2.1에 macOS 열을 더합니다.
 - [미결] `store_commit_event`의 `synchronous=NORMAL` 대조와 프로세스 시작 지문 시간: platform-store 시험 훅(연결 옵션)과 platform-os 지문 읽기 export가 필요합니다.
 - [미결] 컴팩션 시간 지표(`thread.read`는 §2.1에 더함).

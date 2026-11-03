@@ -794,10 +794,10 @@ F에 요청:
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-03] `Logger`·`Clock` 인터페이스 위치는 F 루트 base((a)안)이고 구현과 ID 발급기 구현은 이 패키지, 테스트 대역은 쓰는 패키지의 `test/`다(3.4절, 3.5절).
-2. [미결] 파일 감시 책임 경계. 작업 공간 = exec(`ExecutionEnv.watch`), 앱 설정·스킬·플러그인 디렉터리 = os(`FileWatcher`). 계획 v2의 "ExecutionEnv.watch를 쓰고 없으면 @parcel/watcher" 문장과 다르므로 사용자 확인이 필요하다. `L0.exec.spec`과 같은 문장으로 맞춘다.
+2. [결정: 2026-11-04 사용자, B14 1안] 파일 감시 책임 경계(아래 나눔으로 확정). 작업 공간 = exec(`ExecutionEnv.watch`), 앱 설정·스킬·플러그인 디렉터리 = os(`FileWatcher`). 계획 v2의 "ExecutionEnv.watch를 쓰고 없으면 @parcel/watcher" 문장은 이 나눔으로 대체한다. 외부 라이브러리 `@parcel/watcher` 도입 승인은 별개 질문이다(`review.m3-plan` §9.4 4번). `L0.exec.spec`과 같은 문장으로 맞춘다.
 3. [미결] `sops`, `age`, `bwrap`, `socat`의 번들 정책. 번들하면 설치가 쉬워지고 배포 크기와 라이선스 고지, 보안 갱신 책임이 늘어난다. 정해지기 전에는 시스템 바이너리를 요구한다.
 4. [결정: M3-REQ-50] WSL 알림에서 Windows 토스트 상호운용은 쓰지 않는다(§3.7). 이전 논점: WSL 알림에서 Windows 토스트 상호운용(`powershell.exe`)을 쓸지.
-5. [미결] 디렉터리 규칙과 사용자의 기존 설정 위치 충돌. macOS config를 `~/Library/Application Support/fresnel/config`로 둘지 `~/.config/fresnel`으로 둘지, 위치를 바꿀 때 마이그레이션을 둘지.
+5. [닫음 결정: 2026-11-04 사용자, 결정 목록 R6] 옛 설정 위치를 읽는 기간은 두지 않는다. 개발 기기는 이전 스크립트로 한 번 옮긴다(m4-decisions 2026-11-01 (8) 6번). 옛 항목: 디렉터리 규칙과 사용자의 기존 설정 위치 충돌. macOS config를 `~/Library/Application Support/fresnel/config`로 둘지 `~/.config/fresnel`으로 둘지, 위치를 바꿀 때 마이그레이션을 둘지.
 6. [미결] 단조 시계를 F 계약에 더할지(`performance.now` 대응). 현재는 `Clock.now()` 차이로 경과 시간을 잰다.
 7. [미결] `time`(시계·타이머·난수)을 `OsService` 필드로 둘지 별도 서비스 이름으로 나눌지. 나누면 `eng.context-map.design` §5.3에 행이 늘어난다.
 8. [미결] provider id 규칙(`L0.readme` §9 미결 1). 이 문서는 권고안 `os.os.<슬롯>/<구현 id>`를 쓴다.

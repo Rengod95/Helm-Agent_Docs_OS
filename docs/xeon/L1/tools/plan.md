@@ -214,7 +214,7 @@ xeon/packages/core-tools/
 | 위험 | 대응 |
 |---|---|
 | 정책 규칙 언어 과설계 | M1은 allow·ask·deny, 도구명 glob, 인자 패턴만 둔다(§1). 티어 4종과 나머지 resource 필드는 M2. 셸 접두 규칙은 2차 |
-| 승인 대기 중 서비스 유휴 종료 정책 미정(architecture.runtime-flow.design §7) | M2까지 [미결]로 두고 테스트에서 대기 대화를 live로 취급한다. M3 서비스 모드 작업 전에 사용자 결정을 받는다 |
+| 승인 대기 중 서비스 유휴 종료 정책(architecture.runtime-flow.design §7) | [결정: 2026-11-04 사용자, B11 1안] 승인 대기 대화는 live로 셉니다. 대기 중에는 서비스를 유휴 종료하지 않습니다. 테스트도 같은 규칙입니다 |
 | 인자 재작성 훅 없음(pi-agent-core 1.3.0 `BeforeToolCallResult`에도 없었다) | `tool.call.before`에서는 인자 변경을 지원하지 않는다 [결정: review.decisions-2 U-06]. 2차에 별도 chain 훅을 더할 때 다룬다. 도입 방법은 아래 |
 | 병렬 배치에서 승인 대기가 다른 호출 준비를 막음 | 한 배치의 승인은 차례로 낸다(L1.tools.spec §4.2). 체감 문제가 확인되면 L4 화면이 `pending()`으로 묶어 보인다 |
 | `tool.result` 처리 예외가 결과를 오류로 덮음(원본 `afterToolCall` 래퍼, agent-loop.ts:897-900) | `execute`의 마감에서 핸들러 하나의 실패는 그 패치만 버리고, 디스패처 자체가 실패하면 경고를 남기고 원래 결과를 쓴다. 테스트 `tool_result_handler_throw_skipped` |

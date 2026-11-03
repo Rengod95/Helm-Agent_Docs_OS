@@ -22,7 +22,7 @@ binds: [xeon/apps/cli/**, xeon/apps/desktop/**, xeon/apps/host/**]
 
 - CLI(`fresnel chat`), 데스크톱 사이드카(`fresnel host --stdio`), 서비스 모드(`fresnel service …`, M3)가 같은 엔진 라이브러리를 씁니다(ADR-0006).
 - 사이드카를 `apps/host` 단독 바이너리로 따로 만들면 바이너리가 둘이 되고, 같은 엔진 코드를 두 번 번들합니다.
-- 제품 이름은 정하지 않았습니다. `fresnel`은 임시 이름입니다(`product.scope.spec` §10 미결 2).
+- 제품 이름은 Fresnel(프레넬)로 확정했습니다 [결정: 2026-11-04 사용자, 결정 목록 R10]. 쓰기 당시에는 `fresnel`이 임시 이름이었습니다(`product.scope.spec` §10 미결 2).
 
 ## 3. 결정
 
@@ -51,5 +51,5 @@ binds: [xeon/apps/cli/**, xeon/apps/desktop/**, xeon/apps/host/**]
 
 ## 6. 미결 사항
 
-- [미결] 제품 이름(`product.scope.spec` §10 미결 2). 시점은 정해졌다: M3는 `fresnel`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b].
+- [결정: 2026-11-04 사용자, 결정 목록 R10] 제품 이름은 Fresnel(프레넬)로 확정했다(`product.scope.spec` §10 미결 2 닫음). 옛 항목의 시점: M3는 `fresnel`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b].
 - 닫음 [결정: review.m3-design-inputs D-M3-25 행 2·3]: macOS Intel은 지원하지 않고 빌드하지 않습니다. macOS는 14 이상 arm64만, Linux는 x86_64와 arm64를 빌드합니다.

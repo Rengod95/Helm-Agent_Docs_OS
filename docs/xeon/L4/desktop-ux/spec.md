@@ -1566,7 +1566,7 @@ compact 폭(720 이하)과 사이드바 시트:
 ```
 
 - 목적: F5 스키마의 모든 화면 항목을 탭별로 보이고 바꿉니다(SC-13, X10).
-- 구성: 시작 영역은 그대로 두고 무대를 탭 목록(왼쪽 열)과 폼(오른쪽 열)으로 나눕니다. 탭은 13개(`TAB_SPECS`, `permissions`와 `sandbox` 분리)입니다 [결정: 오케스트레이터 기본값 — 코드와 계약이 13개라 spec의 12개 대신 코드를 따릅니다. `L4.settings-ui.spec` 갱신은 [미결]].
+- 구성: 시작 영역은 그대로 두고 무대를 탭 목록(왼쪽 열)과 폼(오른쪽 열)으로 나눕니다. 탭은 13개(`TAB_SPECS`, `permissions`와 `sandbox` 분리)입니다 [결정: 오케스트레이터 기본값 — 코드와 계약이 13개라 spec의 12개 대신 코드를 따릅니다. `L4.settings-ui.spec` 갱신은 R14로 정했습니다].
 
 | 항목 | 출처 |
 |---|---|
@@ -1666,7 +1666,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 삭제 | `secret.references` → O-06 → `secret.remove { name }`. 사용 중이면 거부 문장 |
 
 - 값 보기 규칙: 값은 30초(`REVEAL_VISIBLE_MS`) 보인 뒤 가려집니다. 다른 이름을 열거나 "지금 가리기"를 누르면 즉시 0으로 덮습니다. 창이 뒤로 가거나 화면을 떠나도 가립니다 [제안]. 복사는 클립보드에 넣고 30초 뒤 비우기를 시도합니다 [제안, 미결: OS 지원].
-- 현재 제약: 사이드카(stdio)와 서비스 연결의 `secret.beginReveal`은 `started: false`라 데스크톱에서 값을 볼 수 없습니다. M4는 이 경우 `not_started` 문장을 보입니다. 값 보기 경로(셸 쪽 OS 인증과 표시)는 [미결] `[gap:W-10]`입니다.
+- 현재 제약: 사이드카(stdio)와 서비스 연결의 `secret.beginReveal`은 `started: false`라 데스크톱에서 값을 볼 수 없습니다. M4는 이 경우 `not_started` 문장을 보입니다. 값 보기 경로(셸 쪽 OS 인증과 표시)는 [결정: 2026-11-04 사용자, B8 2안] M4에서 재인증을 구현한 뒤 열립니다 `[gap:W-10]`. 그때까지 `not_started` 문장을 보입니다.
 - 상태
   - 빈: "등록된 시크릿이 없어요" + "추가".
   - 읽는 중: 표 `Skeleton`.
@@ -2561,7 +2561,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 대화 머리 런타임 줄: drive 보유 그룹과 단계(플러그인 `status` 기여가 있으면 그 글자), 켜진 확장 수, 이 대화의 확장 실패 수. 누르면 런타임 탭. 데이터는 `lease.*`, `scope.changed`, `scope.handler_failed` 이벤트와 `group.list` `[gap:W-24]` `[gap:V-24]`.
 - 트랜스크립트 런타임 행: `lease.acquired`·`lease.released`·`lease.rejected`, `scope.changed`, 같은 턴 안 같은 확장의 `scope.handler_failed` 묶음을 흐린 한 줄로 보입니다(DP-19). 누르면 LightCraft P-17 기록 탭입니다.
 - 런타임 탭(오른쪽): §4.9.4 표.
-- Test run: 머리에 "시험" `Badge`, 적용한 프로필 이름, 멈춤 상태면 "단계 경계에서 멈춤 · 임대 helm 유지"와 "이어서". 학습 그룹이 Test run을 리뷰 대상으로 볼지는 `[미결]`(§12.1 20번)이고 기본값은 뺌입니다(X-14).
+- Test run: 머리에 "시험" `Badge`, 적용한 프로필 이름, 멈춤 상태면 "단계 경계에서 멈춤 · 임대 helm 유지"와 "이어서". 학습 그룹은 Test run을 리뷰 대상에서 뺍니다 [결정: 2026-11-04 사용자, B4 1안](§12.1 20번, X-14).
 - 사람 확인 관문: drive가 `loop.ask`로 기다리는 동안 대화 머리 런타임 줄에 "helm 확인 기다림 · 임대 반납"이 보이고, 질문은 표준 승인 카드(question kind, 출처 `grp:<그룹>`)로 옵니다(X-17).
 
 ### 6.31 대화 상자와 시트(O-10~O-12)
@@ -2908,7 +2908,7 @@ export const palette = [
 | C-03 | 상태 표시줄(창 아래 띠, 칸, 팝오버) | S-03 | `Button` ghost + `Popover` + `Badge` | caustic `AppShell`에 `AppShellStatusbar` 슬롯 추가 제안 | caustic 반영 (caustic PR #11, `xeon/m4-p0`) |
 | C-04 | 가상 목록(트랜스크립트, 긴 목록) | P-02, P-04, S-01 | 지금 앱의 `virtual-list.tsx` | 앱에 유지. caustic `ScrollArea`와 맞춤 | 앱 조합 |
 | C-05 | 게이지·미터(`role="meter"`), 예산 대비 시간 막대 | S-03, P-11, P-17, P-20 | `Progress`, `CardStat`, 시안 `wb2-opus/parts/budget-meter.tsx` | caustic `Meter` 제안: `value`, `max`, `low`·`high` 문턱(예산 50%는 warning, 100%는 danger), `label`. tone은 막대에만 | caustic 반영 (`Meter`, caustic PR #11) |
-| C-06 | Markdown 렌더와 코드 강조, 코드 편집기 | P-02, P-03(계획), P-06, P-09(파일) | `Message` children, `MessageCode`, `Textarea` | 앱 의존성으로 해결(렌더러 선택은 [미결]) | 앱 조합 |
+| C-06 | Markdown 렌더와 코드 강조, 코드 편집기 | P-02, P-03(계획), P-06, P-09(파일) | `Message` children, `MessageCode`, `Textarea` | 앱 의존성으로 해결(렌더러 선택은 사례 조사 뒤 승인, 지금은 평문 [결정: 2026-11-04 사용자, 결정 목록 R17]) | 앱 조합 |
 | C-07 | 오른쪽 클릭 메뉴 | S-01 대화 행, P-02 메시지 | `Menu`(버튼으로 열기) | M4는 버튼 메뉴만 [결정: 오케스트레이터 기본값] | 앱 조합 |
 | C-08 | hunk 단위 diff 검토(hunk 머리, hunk별 결정, 줄 의견), 텍스트 나란히 비교 | P-04, P-06 | `CodeDiff`(diff 하나에 수락·거절 하나), `CompareView`(이미지용), 시안 `p04-review/parts/hunk-review.tsx` | caustic `CodeDiff` 확장 제안: `<CodeDiff>` 안 `<CodeDiffHunk header decision onDecide actions>`, 줄 뒤 `<CodeDiffComment>` 슬롯, `CodeDiffLine`의 `onComment`(줄 번호 hover +) | caustic 반영 (caustic PR #11, `xeon/m4-p0`) |
 | C-09 | 바뀐 파일 목록(상태 글자, 진행 수) | P-04 | `List` + `Badge` | 앱 조합 | 앱 조합 |
@@ -2962,7 +2962,7 @@ export const palette = [
 | W-07 | 예약 다시 켜기·고치기, 실행 기록 | P-07 | `cancel`은 끝, `lastRun`만 | `schedule.update`, `schedule.runs` |
 | W-08 | 대상 바꾸기와 원격 연결 단계 | P-08, S-03 | 셸 명령 없음 | Tauri 명령 `engine_retarget { target }`과 진행 이벤트 |
 | W-09 | 알림 읽음 상태 | P-03 | 없음 | 데스크톱 로컬 커서로 대신 [제안] |
-| W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식) [미결] |
+| W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식). [결정: 2026-11-04 사용자, B8 2안] 재인증을 M4에 구현한 뒤 보기를 엽니다 |
 | W-11 | 사용량 한도·창·계정 게이지 | P-11, S-03 | `session` 게이지만 | L1.models 계정·창 데이터 연결(B2-MDL 이후) |
 | W-12 | 연결된 클라이언트 목록 | P-08 | 수만 | `host.clients` [미결] |
 | W-13 | 시크릿 사용 기록 | P-10 | 없음 | `secret.audit { name, limit }` |
@@ -3057,7 +3057,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-11 | 플러그인 화면의 승인 kind | ADR-0018 | 넷(tool, plan, question, review) |
 | X-12 | T-16 플러그인 화면 흉내 위협 행 | `architecture.security.spec` §4 | 없음 |
 | X-13 | `managed` 설치 위치가 tier `guard`가 되는 코드(`ext-host/src/operations/tier.ts` `assignTier`의 `case "managed"`)와 주석·문서의 상한 `user` 설명의 차이. LightCraft가 tier를 보이므로 먼저 맞춰야 함 | `X.operations.spec` §3.1, `X.loading-trust.spec` §3.1 | 코드 결함 확인(2026-10-31). 주석은 "사용자 등급 상한"인데 `ok("guard")`를 돌려줌 |
-| X-14 | Test run 표지(`ThreadSummary.trial`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 기본값은 제외 [제안] |
+| X-14 | Test run 표지(`ThreadSummary.trial`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 제외 [결정: 2026-11-04 사용자, B4 1안] |
 | X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), `x.operations.trace.turnsPerThread`(기본 8) [제안] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 대화마다 작은 버퍼] |
 | X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
 | X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 drive 락을 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 Registration을 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
@@ -3074,7 +3074,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | 문서 | 관계 |
 |---|---|
 | `L4.desktop.spec` | 셸 수명, IPC, 화면 구성 표(§4.13)를 이 문서의 영역 구조로 넓힙니다. §4.13 표와 다르면 이 문서를 따릅니다 [제안] |
-| `L4.settings-ui.spec` | view-model과 쓰기 흐름을 받아 P-09~P-13에 놓습니다. 탭 수(12 대 13)는 [미결] |
+| `L4.settings-ui.spec` | view-model과 쓰기 흐름을 받아 P-09~P-13에 놓습니다. 탭 수는 13으로 정했습니다(D-6, [결정: 2026-11-04 사용자, 결정 목록 R14]) |
 | `L4.host-service.spec`, `F.wire-settings.spec` | wire 메서드를 받습니다. §10.1 간극을 요구합니다 |
 | `L3.helm.spec`, `L3.learning.spec` | 기록, 명령, `ProposalView`를 받아 P-05, P-06에 놓습니다 |
 | `L2.artifacts.spec` | 리뷰 상태 기계와 `ReviewAnswer`를 받습니다(P-04) |
@@ -3117,34 +3117,34 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 
 | # | 항목 | 확인 대상 |
 |---|---|---|
-| 1 | 데스크톱 시크릿 값 보기 경로(W-10). 지금 stdio·서비스에서 볼 수 없어 X8 화면 부분을 만족하지 못합니다 | 사용자, `L4.desktop.spec`, `L0.secrets.spec` |
+| 1 | 닫음 [결정: 2026-11-04 사용자, B8 2안] 재인증(macOS Touch ID·암호)을 M4에 구현하고, 그 위에 값 보기를 만듭니다(순서: 재인증 → 보기). 재인증 실기 확인은 Mac 점검표 M-05입니다. 옛 문장: 데스크톱 시크릿 값 보기 경로(W-10). 지금 stdio·서비스에서 볼 수 없어 X8 화면 부분을 만족하지 못합니다 | `L4.desktop.spec`, `L0.secrets.spec` |
 | 2 | 모든 대화의 대기 승인 목록 wire(W-01). 없으면 받은 요청은 열린 대화만 카드로 보입니다 | `F.wire-settings.spec` |
 | 3 | 리뷰 hunk 본문 wire(W-02). 없으면 P-04는 파일 요약만 보입니다 | `L2.artifacts.spec`, `F.wire-settings.spec` |
 | 4 | 대상 바꾸기 셸 명령과 원격 대상 목록 저장 키(W-08, V-05) | `L4.desktop.spec` §4.8 |
-| 5 | 설정 탭 수 12(spec) 대 13(코드). 이 문서는 13을 씁니다 | `L4.settings-ui.spec` |
+| 5 | 닫음 [결정: 2026-11-04 사용자, 결정 목록 R14] 설정 탭은 13개(D-6, 코드와 계약). `L4.settings-ui.spec`을 13으로 맞춥니다 | `L4.settings-ui.spec` |
 | 6 | 계획 승인의 "수정 요청"과 "거부" 구분 값 | `L1.tools.spec` §3.6 |
-| 7 | Markdown 렌더러와 코드 강조 라이브러리(C-06) | 사용자(의존성 승인) |
+| 7 | [결정: 2026-11-04 사용자, 결정 목록 R17] 아직 승인하지 않습니다. 가볍고 빠른 Rust 기반 우선으로 다른 에이전트 데스크톱 앱의 사례 조사가 먼저이고, 그 전에는 `MessageCode`와 평문으로 둡니다. 조사 결과가 오면 승인합니다. Markdown 렌더러와 코드 강조 라이브러리(C-06) | 사용자(의존성 승인) |
 | 8 | 플러그인·MCP 설치를 화면에서 할지(W-15) | 사용자 |
 | 9 | Helm·목표·작업을 명령 결과로 읽을지 구조화 wire를 만들지(W-04~W-06) | `L3.helm.spec`, `L2.work.spec` |
 | 10 | Helm·학습 기록을 알림 kind에 넣을지(L2 dialog 분류표에 없음) | `L2.dialog.spec`, `L3.helm.spec` §4.13 |
 | 11 | 클립보드 비우기(시크릿 복사 30초 뒤) 지원 범위 | `L4.desktop.spec` |
 | 12 | 큐 입력 철회(W-17) | ADR-0007, `L1.tasks.spec` |
-| 13 | 제품 이름. M4 전에 바꾸므로 화면 문구의 "Fresnel"과 `fresnel` 명령 안내가 바뀝니다 | 사용자(`product.scope.spec` 미결 2) |
+| 13 | 닫음 [결정: 2026-11-04 사용자, 결정 목록 R10] 이름은 Fresnel로 확정, 개명 완료. 옛 문장: 제품 이름. M4 전에 바꾸므로 화면 문구의 "Fresnel"과 `fresnel` 명령 안내가 바뀝니다 | 사용자(`product.scope.spec` 미결 2) |
 | 14 | 이 도메인을 `L4/README.md` 도메인 표에 더하는 일. README는 이번 작업에서 고치지 않았습니다 | 오케스트레이터 |
 | 15 | 닫음 [결정: 2026-10-31 사용자] LightCraft 전부 M4. P-16·P-13·P-17 P0, 나머지 P1(§5). 옛 문장: LightCraft를 P0로 올릴지. 이 문서는 P-16·P-17·P-18을 P1, 나머지를 P2로 둡니다. "둘 다 1급"을 M4 종료 필수로 읽으면 P-16·P-13·P-17을 P0로 올리고 W-15·W-20·W-24를 먼저 만들어야 합니다 | 사용자 |
 | 16 | 닫음 [결정: 2026-10-31 사용자] 두 모드(선언형, 격리 프레임), 모드는 에이전트가 고름(ADR-0021 개정) | 사용자, ADR-0021 §6 |
 | 17 | 닫음 [결정: 2026-10-31 사용자] 연결은 대화 주 내비에 남음(다섯) | 사용자 |
 | 18 | 닫음 [결정: 2026-10-31 사용자] 개발 모드에서만. 옛 문장: 배포 앱에서 replay·benchmark·코어 변경 검사를 돌릴지(W-29, W-30). 지금은 저장소 스크립트와 시험 파일 전용이라 개발 모드에서만 가능합니다 | 사용자, `L3.group-sdk.spec`, `eng.toolchain.guide` |
 | 19 | 닫음 [결정: 2026-10-31 사용자] 런타임 호스트 저장, CLI·서비스와 공유(W-46, X-18) | 사용자, `F.wire-settings.spec` |
-| 20 | Test run을 학습 그룹 리뷰에서 뺄지(X-14) | 사용자, `L3.learning.spec` |
+| 20 | 닫음 [결정: 2026-11-04 사용자, B4 1안] 뺍니다(시험 대화는 학습 리뷰에서 제외). 옛 문장: Test run을 학습 그룹 리뷰에서 뺄지(X-14) | 사용자, `L3.learning.spec` |
 | 21 | 닫음 [결정: 2026-10-31 사용자] M4에 되는 만큼, 대체 경로 §6.24.1 | 사용자, `X.loading-trust.spec` |
 | 22 | 닫음 [결정: 2026-10-31 사용자] 템플릿 묶음을 고정하지 않고 Plugin Builder 카탈로그로 갱신(`L3.authoring.spec`) | 사용자, `L3.group-sdk.spec` |
 | 23 | 이 문서 도메인과 LightCraft를 `L4/README.md`에 더하는 일, ADR-0021을 `decisions/README.md` 색인에 더하는 일. README는 이번 작업에서 고치지 않았습니다 | 오케스트레이터 |
-| 24 | 앱을 켤 때 누르는 키로 안전 모드에 들어가는 길(셸 쪽 확인 필요) | 사용자, `L4.desktop.spec` |
+| 24 | 닫음 [결정: 2026-11-04 사용자, B7 1안] 키 진입은 만들지 않습니다. 이미 있는 길(시작 인자 `--safe-mode`, 설정 `x.operations.safeMode.default`, 시작 실패 뒤 안전 모드 권유)만 씁니다. 옛 문장: 앱을 켤 때 누르는 키로 안전 모드에 들어가는 길 | `L4.desktop.spec` |
 | 25 | 닫음 [결정: 2026-10-31 사용자] M4는 요청 단위만, 자식 승인은 출처 표시. 옛 문장: 승인 기억을 그룹 단위로 둘지("이 그룹에서 항상"). 지금 기억 값은 `request.remember`가 주는 것뿐입니다(D-12). 자식 에이전트가 낸 승인을 부모 그룹 기억으로 묶을지도 함께 정합니다 | 사용자, adr.0018, `L1.tools.spec` |
 | 26 | 프로젝트 안 그룹·훅(`.fresnel/` 아래 L3 그룹)의 신뢰 카드 표기. 이 문서는 카드의 "불러오려는 자원"에 `groups/<이름> (on·post·drive)`처럼 쓰는 연산을 함께 보이는 것을 기본값으로 둡니다(D-23). 신뢰한 폴더의 그룹도 `project` tier라 자동 끄기 대상입니다(`X.operations.spec` §4.3.3, 면제는 guard·core뿐) | `X.loading-trust.spec` §4.7.2 |
-| 27 | 프레임 모드 설정 키(`x.views.frames`, `x.views.allowProjectFrames`)의 소유 문서와, 프레임 `call` 확인 줄을 끌 수 있는 범위 | 사용자, ADR-0021 §6 9번 |
-| 28 | 프로필 저장 파일(`profiles.json`)의 위치와, 프로젝트 범위 프로필(저장소에 커밋되는 프로필)을 둘지 | 사용자, `F.wire-settings.spec`, `L4.host-service.spec` |
+| 27 | 닫음 [결정: 2026-11-04 사용자, B2 1안] 키 소유는 `X.loading-trust.spec`, 프레임 `call` 확인 줄은 끌 수 없음(항상 보임). 옛 문장: 프레임 모드 설정 키(`x.views.frames`, `x.views.allowProjectFrames`)의 소유 문서와, 프레임 `call` 확인 줄을 끌 수 있는 범위 | 사용자, ADR-0021 §6 9번 |
+| 28 | 닫음 [결정: 2026-11-04 사용자, B6 1안] M4에는 프로젝트 범위 프로필(저장소에 커밋되는 프로필)을 두지 않습니다. 저장 위치는 R13대로 호스트 쪽입니다. 옛 문장: 프로필 저장 파일(`profiles.json`)의 위치와, 프로젝트 범위 프로필을 둘지 | `F.wire-settings.spec`, `L4.host-service.spec` |
 | 29 | 트레이스 버퍼 크기 기본값(대화마다 8턴)과 계측 비용 기준(얼마를 넘으면 기본을 끌지) | 사용자, X-15, T-PERF 결과 |
 | 30 | 닫음 [결정: 2026-11-01 사용자] 기본 꺼짐(권장 수락) | 사용자, `L3.authoring.spec` §10 |
 | 31 | 닫음 [결정: 2026-11-01 사용자] 확장마다 5개, 사용자 데이터 폴더 아래. 상태 스키마가 바뀌었으면 코드만 되돌리기로 대체 | 사용자, X-8 |

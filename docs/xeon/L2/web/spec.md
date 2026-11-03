@@ -29,7 +29,7 @@ L2-c 웹 기능의 서비스 API, 모델 도구, provider 교체 구조, 공통 
 
 - 공통 웹 계약: `Source`, `Passage`, `Cost`, `WebCallMeta`, 인용 규칙, untrusted 경계, 캐시 3계층과 provider별 `cachePolicy`, 비용 계측, 호출 상한, 도메인 정책 문법, SSRF 규칙, robots.txt 처리
 - 네 기능의 TypeBox 정의(`CapabilityDef`)와 모델 도구
-- `web.search` provider 선택 체인(사용자가 설정한 provider만 후보), 설정한 SearXNG provider, 내장 검색 래퍼
+- `web.search` provider 선택 체인(사용자가 설정한 provider만 후보), 내장 검색 래퍼
 - `web.fetch` 처리 순서와 `eng.dependency-rules.guide` §3.3 R16(웹 변환 작업자 네트워크 금지)의 구체 규칙
 - `web.browse` "세션" 수명, 정책, provider
 - `web.research`(2차)의 루프, 예산, 인용 검증, 상태 머신
@@ -45,13 +45,13 @@ L2-c 웹 기능의 서비스 API, 모델 도구, provider 교체 구조, 공통 
 - 설정 화면의 배치와 위젯 구현: `L4.settings-ui.spec`
 - 검색 품질 순위 판단. 벤치마크 수치는 `_research/web-tools.md` §1.2, §2.6을 인용만 하고 이 문서에 옮기지 않는다.
 
-ADR-0005와의 관계: 이 문서는 ADR-0005 §3.1~3.5를 인용하고 구체화한다. 타입을 완성하고, ADR §6 미결 가운데 이 문서가 정해야 하는 선택 순서 3·4번을 [제안]과 [미결]로 승계한다(§4.8.2). SearXNG 자동 감지는 2026-10-25 사용자 결정 H1로 없앴고, 이 문서는 ADR-0005의 개정(§3.3)을 따른다(§4.8.3).
+ADR-0005와의 관계: 이 문서는 ADR-0005 §3.1~3.5를 인용하고 구체화한다. 타입을 완성하고, ADR §6 미결 가운데 이 문서가 정해야 하는 선택 순서 3·4번을 [제안]과 [미결]로 승계한다(§4.8.2). SearXNG 자동 감지는 2026-10-25 사용자 결정 H1로 없앴고, 2026-11-04 사용자 결정(B15)으로 SearXNG를 제품에서 완전히 뺐다. 쓰고 싶은 사용자는 플러그인으로 직접 더한다(§4.8.3, ADR-0005 개정). 코드 제거는 별도 트랙이 한다.
 
 ## 2. 용어
 
 | 용어 | 뜻 |
 |---|---|
-| provider | 한 기능을 실제로 수행하는 구현. 내장(`builtin-wrapper`, `searxng`, `local`, `playwright-local`, `native`)과 플러그인(`plugin:<확장 이름>`)이 있다 |
+| provider | 한 기능을 실제로 수행하는 구현. 내장(`builtin-wrapper`, `local`, `playwright-local`, `native`)과 플러그인(`plugin:<확장 이름>`)이 있다 |
 | 앞단 | `cap-web`이 기능마다 등록하는 API 객체(바인딩 `cap:web.search` 등, `L2.readme` §5.6). consumer는 앞단만 부르고, 앞단이 provider를 고른다(`L2.readme` §5.1) |
 | 선택 체인 | 앞단이 provider를 고르는 순서. `L2.readme` §5.2 공통형을 따른다 |
 | 내장 검색 래퍼 | 소형 모델에 provider 내장 검색 서버 도구 하나만 주고 한 턴 요청해 결과를 받는 provider(`builtin-wrapper`). ADR-0005 §3.1 ② |
@@ -692,8 +692,7 @@ import type { Clock } from "../../base/index.ts";             // eng.typescript.
 /** ADR-0005 §3.4. 웹 provider의 탐침 실패 사유 */
 export const ProviderUnavailableReasonSchema = Type.Union([
   Type.Literal("no-key"),            // 플러그인 키 미등록
-  Type.Literal("unreachable"),       // 주소 응답 없음(SearXNG 등)
-  Type.Literal("json-disabled"),     // SearXNG format=json 403
+  Type.Literal("unreachable"),       // 주소 응답 없음
   Type.Literal("org-disabled"),      // Anthropic web_search 400(조직 관리자 차단)
   Type.Literal("unsupported-model"), // 현재 provider·모델에 hosted 검색 없음
 ]);
@@ -897,7 +896,7 @@ ADR-0005 §3.4 초안과의 차이:
 
 | 항목 | ADR-0005 초안 | 이 문서 | 이유 |
 |---|---|---|---|
-| `WebSearchProviderId` | `"builtin-wrapper" \| "searxng" \| plugin:${string}` | `L2.readme` §5.2 `ProviderIdSchema` | 8개 도메인이 같은 ID 형식을 쓴다. 기존 값은 모두 이 형식 안에 있다 |
+| `WebSearchProviderId` | `"builtin-wrapper" \| plugin:${string}` | `L2.readme` §5.2 `ProviderIdSchema` | 8개 도메인이 같은 ID 형식을 쓴다. 기존 값은 모두 이 형식 안에 있다 |
 | `ProviderAvailability` | 사유가 `ProviderUnavailableReason` | 공통 타입은 `reason: string`, 웹은 `ProviderAvailabilityWeb`로 좁힌다 | `L2.readme` §5.2 공통 타입 |
 | `search` 인자 | `WebSearchRequest` | `ProviderSearchRequest`(지시어를 푼 정규화 요청) | 지시어 해석과 후처리 필터를 앞단 한 곳에 둔다(§4.8.5) |
 | `manifest` | 없음 | 필수 | 캐시·비용·약관 처리를 앞단이 provider 선언으로 정한다 |
@@ -951,7 +950,6 @@ export const registrations: readonly WebProviderRegistration[] = [
 
 | ProviderId | 기능 | origin(체인 순서) | cachePolicy | 가격표 | 비고 |
 |---|---|---|---|---|---|
-| `searxng` | search | detected | `persist` | `free` | 사용자 자가 호스팅. 별도 프로세스 HTTP만(ADR-0005 §3.1 [가정]). `l2.web.search.searxng.url`이 비어 있으면 후보가 아니다. origin 값 `detected`는 F 계약의 이름을 그대로 쓴 것이고 "사용자가 주소를 설정한 내장 provider" 자리를 뜻한다(§10 미결 18) |
 | `builtin-wrapper` | search | builtin | `session` | 검색 수수료 + 토큰. `_research/durable-and-search-facts.md` §B-1 값으로 asOf 2026-10-21 | Anthropic 약관 미확인이라 `session`(`_research/web-tools.md` §4.7) |
 | `local` | fetch | builtin | `persist` | `free` | 로컬 파이프라인(§4.9) |
 | `playwright-local` | browse | builtin | `persist` | `browser_minutes` 0달러(로컬) | §4.10 |
@@ -1281,8 +1279,8 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 #### 4.6.5 provider endpoint 예외
 
-- provider 호출(검색 API, SearXNG, fetch provider)은 콘텐츠 URL 정책과 다른 규칙을 쓴다. `GuardedHttp`는 요청 호스트가 그 provider의 `manifest.endpoints`에 있을 때만 보낸다.
-- SearXNG는 사용자가 설정한 주소(`l2.web.search.searxng.url`)의 origin 하나만 endpoint로 허용한다. 이 예외는 SearXNG provider의 요청에만 쓰이고 `web.fetch`의 콘텐츠 URL에는 쓰이지 않는다. 루프백 주소의 SearXNG가 동작하는 근거다.
+- provider 호출(검색 API, fetch provider)은 콘텐츠 URL 정책과 다른 규칙을 쓴다. `GuardedHttp`는 요청 호스트가 그 provider의 `manifest.endpoints`에 있을 때만 보낸다.
+- 사용자가 SearXNG 같은 자가 호스팅 검색을 플러그인으로 더하면 그 플러그인의 `manifest.endpoints`가 endpoint 예외가 된다. 이 예외는 그 provider의 요청에만 쓰이고 `web.fetch`의 콘텐츠 URL에는 쓰이지 않는다 [결정: 2026-11-04 사용자, B15].
 - endpoint 예외라도 메타데이터 주소는 거부한다.
 
 #### 4.6.6 유출 경로 차단
@@ -1319,8 +1317,8 @@ ADR-0005 §3.1의 ①(모델용 도구)과 ②(서비스 API)를 이 문서의 �
 | 안 | 광고하는 도구 | 실행 | 장점 | 단점 |
 |---|---|---|---|---|
 | A. hosted | provider 내장 서버 도구(Anthropic `web_search` 등)를 L1.models가 요청에 넣는다. `web_search` 함수 도구는 광고하지 않는다 | 모델 provider 서버 | 설정이 필요 없다(ADR-0005 ① 원문). 추가 모델 호출이 없다 | 우리 정책·캐시·비용·인용 규칙이 서버 쪽 검색에 적용되지 않는다. 결과 정규화는 사후에만 가능하다. 모델 provider마다 동작이 다르다 |
-| B. function | `web_search` 함수 도구만 광고한다 | 앞단 체인 | 공통 계약이 그대로 적용된다. SearXNG·플러그인이 있으면 더 싸다 | 체인 끝이 래퍼면 검색 한 번에 모델 호출이 하나 더 든다 |
-| C. auto [제안] | 체인 auto 결과가 래퍼뿐이고 현재 모델에 hosted 검색이 있으면 A, 아니면 B | 위와 같음 | 설정 없이 A의 비용 이점을 얻고, 사용자가 SearXNG나 키를 등록하면 공통 계약으로 넘어간다 | 판정이 턴 경계마다 바뀌면 도구 집합이 바뀐다. 판정은 대화 시작 때 한 번 하고 대화 동안 고정한다 |
+| B. function | `web_search` 함수 도구만 광고한다 | 앞단 체인 | 공통 계약이 그대로 적용된다. 플러그인이 있으면 더 싸다 | 체인 끝이 래퍼면 검색 한 번에 모델 호출이 하나 더 든다 |
+| C. auto [제안] | 체인 auto 결과가 래퍼뿐이고 현재 모델에 hosted 검색이 있으면 A, 아니면 B | 위와 같음 | 설정 없이 A의 비용 이점을 얻고, 사용자가 키 플러그인을 등록하면 공통 계약으로 넘어간다 | 판정이 턴 경계마다 바뀌면 도구 집합이 바뀐다. 판정은 대화 시작 때 한 번 하고 대화 동안 고정한다 |
 
 - 설정 `l2.web.search.modelTool`: `auto`(C), `hosted`(A), `function`(B), `off`(①을 광고하지 않음). 기본 `auto`.
 - 책임 경계 [제안]: `cap-web`은 판정 함수 `decideModelSearchTool(input): "hosted" | "function" | "off"`(순수)를 제공한다. hosted 서버 도구를 요청에 넣는 일, `encrypted_content` 블록의 보관과 반송, `pause_turn` 처리는 L1.models가 한다. hosted 결과를 `Source`로 정규화해 L4 인용 렌더링에 쓰는 일은 `cap-web`의 순수 함수 `normalizeHostedSearch`가 한다. hosted를 고르면 `web_search` 도구는 `diffToolsets`로 빠진다(`F.capabilities.spec` §4.5).
@@ -1333,11 +1331,11 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 1. 호출 인자 `provider`가 있으면 그 provider만 쓴다.
 2. `l2.web.search.provider`가 `"auto"`가 아니면 그 provider만 쓴다. ADR-0005의 키 `web.search.provider`는 키 문법에 맞춘 `l2.web.search.provider`로 읽는다.
 3. `"auto"`이면 `l2.web.search.order` 목록의 순서로 쓴다. 목록은 설정 화면에서 끌어 옮겨 정하며, 등록된 검색 도구 전부(내장 기본 검색 도구 포함)가 대상이다. 등록되지 않은 id는 건너뛴다.
-4. 목록에 없는 후보는 목록 뒤에 붙는다: 사용자가 `l2.web.search.searxng.url`을 설정한 SearXNG, 내장 검색 래퍼, 플러그인 순이다. 각 묶음 안은 id 바이트 순이다. 플러그인은 사용자가 순서에 올리기 전까지 기본 후순위다.
+4. 목록에 없는 후보는 목록 뒤에 붙는다: 내장 검색 래퍼, 플러그인 순이다. 각 묶음 안은 id 바이트 순이다. 플러그인은 사용자가 순서에 올리기 전까지 기본 후순위다.
 5. 후보가 하나도 없거나 모두 실패하면 `unavailable`이다. 아무것도 설정하지 않은 상태의 기본 경로는 내장 검색 래퍼다.
 
-- [결정] 후보에는 사용자가 설정한 provider만 들어간다(사용자 결정 H1, ADR-0005 §3.3). 주소를 설정하지 않은 SearXNG는 후보에서 빠지므로 탐침 요청도, `meta.fallbacks` 항목도 없다. 구현은 `SearchCandidate.enabled`(호출마다 읽는다)가 후보 목록에서 걸러낸다. `l2.web.search.provider`를 `searxng`로 고정했는데 주소가 비어 있으면 후보에 없으므로 `unavailable`이고 `detail.reason`은 `unknown_provider`다.
-- [결정: review.m3-design-inputs D-M3-23 행 1] 옛 규칙(키 플러그인 → SearXNG → 래퍼)과 `pluginOrder` 키를 위 규칙과 `order` 키로 바꾼다. 순서 규칙은 `cap-web/src/select/order.ts`의 `planSelection` 하나이고 검색과 브라우저가 같이 쓴다. F `orderProviderCandidates`는 fetch 승격이 계속 쓴다.
+- [결정] 후보에는 사용자가 설정한 provider만 들어간다(사용자 결정 H1, ADR-0005 §3.3). SearXNG는 제품에 없고(2026-11-04 B15) 플러그인으로 더한 것만 후보가 된다. 구현은 `SearchCandidate.enabled`(호출마다 읽는다)가 후보 목록에서 걸러낸다. `l2.web.search.provider`를 후보에 없는 id로 고정하면 `unavailable`이고 `detail.reason`은 `unknown_provider`다.
+- [결정: review.m3-design-inputs D-M3-23 행 1] 옛 규칙(키 플러그인 → SearXNG → 래퍼, 2026-11-04에 SearXNG 제거)과 `pluginOrder` 키를 위 규칙과 `order` 키로 바꾼다. 순서 규칙은 `cap-web/src/select/order.ts`의 `planSelection` 하나이고 검색과 브라우저가 같이 쓴다. F `orderProviderCandidates`는 fetch 승격이 계속 쓴다.
 - 여러 provider 동시 질의: `l2.web.search.parallel`이 2 이상이고 선택이 auto이면, 순서대로 탐침하며 가용한 provider를 `parallel`개 모은 뒤 그 묶음을 동시에 호출한다. 성공한 결과는 provider 차례로 한 건씩 번갈아 합치고 URL이 같은 항목은 먼저 나온 것만 둔다. 항목마다 `sources[].provider`는 그 항목을 준 provider다. `meta.provider`는 순서가 가장 앞선 성공 provider이고, 답한 provider 목록은 `meta.warnings`의 `fanout:<id>,<id>`에 남긴다. 한 provider만 답했으면 이 경고는 없다. 답변(`answer`)은 첫 provider의 것만 쓴다. 비용은 답한 provider마다 §4.4.1대로 계산해 사용량 표에 기록하고 `meta.cost`는 그 합이다. 일부가 실패하면 성공한 것만 합치고 실패는 `meta.fallbacks`(`stage: "call"`)에 남긴다. `invalid_input` 같은 그 밖의 실패는 다른 provider가 답했어도 검색 전체를 실패로 만든다. 묶음이 하나도 답하지 못하면 묶음 밖에 남은 후보를 순차 체인으로 이어 간다(실패 기록은 그대로 남는다). 그래도 모두 실패하면 순차 체인과 같은 `unavailable`이다. 합친 결과의 `cachePolicy`는 답한 provider 중 가장 엄격한 값이다. 여러 provider가 답한 결과는 검색 메모에 넣지 않는다(§4.3.1). 메모 키에는 `parallel`을 넣는다. 도메인 조건(`domains`)은 첫 provider가 아닌 provider가 답했거나 조건을 다 넘기지 못한 provider가 있으면 앞단이 다시 건다. 다른 차원은 답한 provider 모두가 직접 건 것만 앞단이 생략한다. 명시 선택(1, 2)에는 적용하지 않는다. [결정: 오케스트레이터 기본값] 기본값은 1이다. 동시 질의는 검색어를 여러 수신자에게 보내고 비용도 늘기 때문에 사용자가 올린다. D-M3-23의 "기본 기능"은 기능이 기본으로 들어 있다는 뜻으로 읽는다.
 - 키 플러그인 첫 사용 고지: 플러그인 provider(`auth.kind`가 `none`이 아닌 것)가 처음 호출에 쓰이면 `meta.warnings`에 `first_use_notice:<provider>`를 한 번 싣고 그 provider를 고지한 것으로 저장소에 남긴다(표 `cap_web_notices`). 고지 문구는 L4가 만든다: 검색어가 이 provider의 수신자에게 나간다는 것과 가격표 기준일이다. 승인을 요구하지 않는다.
   - 판정은 출처가 `plugin`이고 `auth.kind`가 `none`이 아닌 provider에만 한다. 내장 provider는 인증 방식과 무관하게 제외한다. 동시 질의에서는 답한 키 플러그인마다 따로 본다.
@@ -1349,25 +1347,17 @@ ADR-0005 §3.3(2026-10-25 개정)과 `L2.readme` §5.2를 따른다.
 - 모든 후보가 실패하면 `unavailable` 오류이고 `detail.fallbacks`에 전체 기록을 싣는다.
 - provider의 `isAvailable`이 던지면 탐침 캐시가 `unreachable`(`detail: "probe threw"`) 실패로 바꾸고 `web.probe_threw`를 기록한다. 호출 전체가 거부되지 않고 auto 체인은 다음 후보로 내려간다.
 - 탐침 결과는 provider별로 5분 메모리 캐시한다. 실패 결과는 30초만 둔다 [제안]. 매 호출마다 탐침 요청을 보내지 않기 위해서다.
-- 모델용 도구의 판정(§4.8.1)에 쓰는 "체인이 래퍼뿐인가"는 이 후보 목록으로 정한다. `isWrapperOnlyChain(catalog.searchCandidates())`가 그 값이며, 키 플러그인이나 주소를 설정한 SearXNG가 하나라도 있으면 거짓이다. 기본 설정(둘 다 없음)에서는 참이고, `modelTool = auto`이면 활성 모델의 호스티드 검색이 모델용 도구가 된다.
+- 모델용 도구의 판정(§4.8.1)에 쓰는 "체인이 래퍼뿐인가"는 이 후보 목록으로 정한다. `isWrapperOnlyChain(catalog.searchCandidates())`가 그 값이며, 키 플러그인이 하나라도 있으면 거짓이다. 기본 설정(플러그인 없음)에서는 참이고, `modelTool = auto`이면 활성 모델의 호스티드 검색이 모델용 도구가 된다.
 - 키 없는 무료 MCP 층(Exa·Parallel 익명 MCP)은 체인에 넣지 않는다. 품질·한도·약관이 불명확하고 공개 릴리즈 기본값에서 뺀다(`_research/web-tools.md` §5.4).
 - 키 없는 DuckDuckGo 스크레이핑 같은 스크레이퍼형 검색은 지원하지 않는다(ADR-0005 §3.1 제외 행).
 
-#### 4.8.3 설정한 SearXNG
+#### 4.8.3 SearXNG는 제품에 없다 [결정: 2026-11-04 사용자, B15]
 
-SearXNG는 사용자가 `l2.web.search.searxng.url`을 설정했을 때만 provider가 된다. 자동 감지는 없다(사용자 결정 H1, ADR-0005 §3.3 개정). 감지를 없앤 이유는 ADR-0005 §3.3에 있다: 탐침이 검색어를 상위 검색 엔진으로 내보내고, 기본 경로가 로컬 서버의 기동 여부에 달리며, 조사한 런타임 중 SearXNG를 기본값으로 쓰는 곳이 없었다. 감지 설정 `l2.web.search.searxng.detect`와 후보 주소 목록(`127.0.0.1`·`localhost`의 8888, 8080)은 삭제했다.
+SearXNG를 제품에서 완전히 뺐다. 내장 provider `searxng`, 설정 키 `l2.web.search.searxng.url`, 오류 이유 `json-disabled`, 탐침, 경고 `searxng_json_disabled`·`searxng_engine_unresponsive`, doctor의 SearXNG 줄과 `probeSearxng`, 설정 화면의 SearXNG 주소 칸이 모두 대상이다. 자동 감지는 2026-10-25(H1)에 이미 없앴다. 의도 변경: 쓰고 싶은 사용자는 자가 호스팅 SearXNG를 `plugin:<확장 이름>` 검색 provider 플러그인으로 직접 더한다. 그 플러그인은 다른 키 플러그인처럼 `l2.web.search.order` 순서와 `manifest.endpoints` 규칙(§4.6.5)을 따른다.
 
-- 주소: `l2.web.search.searxng.url` 하나뿐이다. 범위는 managed, user, local이고 project 범위에서는 정하지 못한다(저장소를 여는 것만으로 요청 대상이 바뀌지 않게 한다). 비어 있으면 후보에서 빠지고 어디에도 요청을 보내지 않는다. http(s) 주소가 아니면 요청 없이 `unreachable`이다. 경로가 있으면(`https://host/searx`) 경로를 유지하고 끝 슬래시만 뺀다.
-- 탐침 요청: `GET <base>/search?q=fresnel&format=json&pageno=1`, 제한 시간 1.5초, 응답 512 KiB 상한 [가정: WEB.6. 처음 제안한 64 KiB는 실제 응답 크기를 재지 않은 추측이었다. 결과 수십 건의 `format=json` 응답은 그보다 커서 64 KiB에서 잘리면 탐침이 항상 실패한다. 실측 전까지 넉넉히 잡는다]. 질의는 고정 문자열 `fresnel`이고 사용자의 검색어는 탐침에 들어가지 않는다. 탐침은 사용자가 설정한 인스턴스에만 간다.
-  - 200이고 JSON 본문에 `results` 배열과 `query` 문자열이 있으면 성공.
-  - 403이면 `json-disabled`. `settings.yml` `search.formats`에 `json`이 없을 때다(`_research/durable-and-search-facts.md` §B-2).
-  - 연결 거부, 시간 초과, JSON이 아니거나 필드가 없으면 `unreachable`.
-- 탐침은 대화의 첫 검색 때 한 번 하고 결과를 5분 캐시한다(§4.8.2). 앱 시작 때 미리 하지 않는다.
-- 설정한 주소의 origin 하나가 그 SearXNG provider의 endpoint 예외가 된다(§4.6.5).
-- `json-disabled`이면 사용자에게 한 번 안내한다: "설정한 SearXNG가 403을 돌려준다. JSON 형식이 꺼져 있다. settings.yml의 search.formats에 json을 더한다." 안내는 `meta.warnings`와 L4 진단에 남긴다. 구현(WEB.6): provider가 프로세스당 한 번 `web.searxng_json_disabled`를 로그로 남기고, 서비스가 `meta.warnings`에 `"searxng_json_disabled: add json to search.formats in SearXNG settings.yml"`을 대화마다 한 번 싣는다.
-- 검색 호출(WEB.6): `GET <base>/search?q=<검색어>&format=json&pageno=1&categories=general`에 `recency`가 있으면 `time_range`(day, week, month, year)를 더한다. 검색어는 앞단이 푼 지시어를 엔진이 흔히 알아듣는 연산자(`"구절"`, `-제외어`, `site:`, `-site:`, `filetype:`, `intitle:`)로 되돌려 만든다. `site:`와 `filetype:`은 값이 하나일 때만 넣는다. 네이티브 적용으로 알리는 차원은 `recency`뿐이고 나머지는 앞단이 결과에 다시 적용한다.
-- 결과 정규화(WEB.6): `results[]`의 `url`(http·https만), `title`, `content`(`snippet` 구절), `publishedDate`(시간대가 없으면 UTC)를 `ProviderSearchItem`으로 옮긴다. 결과가 하나도 없는데 `unresponsive_engines`가 있으면 `upstream_error`로 내려가 체인이 다음 후보를 쓰게 한다. 결과가 있으면 응답하지 않은 엔진을 `searxng_engine_unresponsive:<엔진>` 경고로 싣는다(최대 4개). SearXNG의 `answers`, `infoboxes`, `suggestions`는 쓰지 않는다.
-- SearXNG 코드를 번들하거나 링크하지 않는다. AGPL-3.0 해석은 법률 확인 전 [가정]이다(ADR-0005 §3.1).
+- 코드 제거는 별도 코드 트랙이 한다. 이 문서가 제거 대상의 목록이고, 제거가 끝나기 전까지는 구현에 남아 있을 수 있다.
+- SearXNG 코드를 번들하거나 링크하지 않는다. AGPL 해석 문제는 제품이 SearXNG를 싣지 않으므로 이 문서의 범위 밖이다(사용자가 플러그인으로 더하는 일은 사용자의 책임이다).
+- 제품이 SearXNG 전용 형식(탐침, 결과 정규화)을 더는 알지 않으므로 SearXNG 플러그인은 일반 검색 provider 계약(`ProviderSearchItem`)으로 결과를 돌려준다.
 
 #### 4.8.4 내장 검색 래퍼
 
@@ -1631,11 +1621,10 @@ stateDiagram-v2
 
 | # | 사례 | 처리 | 오류 코드 |
 |---|---|---|---|
-| 1 | auto 체인에 플러그인이 없고 SearXNG도 없다 | 내장 검색 래퍼를 쓴다 | — |
+| 1 | auto 체인에 플러그인이 없다 | 내장 검색 래퍼를 쓴다 | — |
 | 2 | 래퍼도 `unsupported-model`이나 `org-disabled` | 모든 후보 실패. `detail.fallbacks`에 사유 셋 | `unavailable` |
 | 3 | 플러그인이 `no-key` | 다음 후보로 내려가고 `meta.fallbacks`에 `{ stage: "probe", reason: "no-key" }` | — |
 | 4 | 플러그인 호출이 429 | auto면 다음 후보, `stage: "call"`, `reason: "rate_limited"`. 명시 선택이면 `retryAfterMs`를 채워 거부 | `rate_limited` |
-| 5 | SearXNG `format=json` 403 | `json-disabled`. 안내 경고 1회 | — |
 | 6 | 래퍼 `pause_turn`이 상한을 넘음 | 받은 결과만 돌려주고 경고 | — |
 | 7 | 검색어에 등록된 시크릿 값 | 전송 전 거부 | `denied` |
 | 8 | URL이 `http://169.254.169.254/latest/meta-data` | 메타데이터 거부. 사설망 허용과 무관 | `denied` |
@@ -1674,7 +1663,6 @@ stateDiagram-v2
 | `l2.web.search.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.search.order` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.search.parallel` | integer | `1` | min 1, max 4 | nextTurn | managed, user, project, local | tools | false |
-| `l2.web.search.searxng.url` | string(URL 또는 빈 문자열) | `""` | — | nextTurn | managed, user, local | tools | false |
 | `l2.web.search.wrapper.model` | string(`"auto"` 또는 모델 ID) | `"auto"` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.search.wrapper.maxContinuations` | integer | `3` | min 0, max 10 | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.search.modelTool` | string | `"auto"` | enum auto, hosted, function, off | nextTurn | managed, user, project, local, launch | tools | false |
@@ -1715,9 +1703,9 @@ stateDiagram-v2
 - 도메인 목록 세 키는 범위별 값을 합친다(§4.5.2). 다른 키는 `F.wire-settings.spec` §3.9 일반 규칙(높은 범위 하나)을 따른다.
 - `l2.web.browse.allowNamedProfiles`는 관리·사용자 범위만 허용한다. 프로젝트 파일로 로그인 프로필을 켜는 경로를 막기 위해서다.
 - `l2.web.policy.allow`(허용 목록)와 `l2.web.policy.unseenUrl`(대화에 없던 URL 확인)은 project 범위를 허용하지 않는다 [제안]. 저장소 설정 파일이 `allow: ["*"]`와 `unseenUrl: "allow"`를 넣으면 기본 `ask`가 모든 도메인에서 꺼지고 대화 내용을 쿼리에 실어 내보내는 경로를 막는 검사도 꺼진다. project 범위는 `ask`와 `deny`처럼 막는 쪽 목록에만 더할 수 있다.
-- `l2.web.policy.allowPrivateNetwork`(사설망·루프백 방어 해제), `l2.web.search.searxng.url`(검색어를 받는 외부 호스트), `l2.web.browse.allowJavascriptExec`, `l2.web.browse.allowFileUpload`는 project 범위를 허용하지 않는다 [제안]. 저장소를 여는 것만으로 SSRF 방어가 풀리거나 검색어가 저장소가 정한 호스트로 가거나 브라우저 위험 동작이 켜지지 않게 하려는 것이다(`L2.readme` §7.1 범위 제한 규칙). 사용자가 직접 만드는 local 범위는 허용한다.
+- `l2.web.policy.allowPrivateNetwork`(사설망·루프백 방어 해제), `l2.web.browse.allowJavascriptExec`, `l2.web.browse.allowFileUpload`는 project 범위를 허용하지 않는다 [제안]. 저장소를 여는 것만으로 SSRF 방어가 풀리거나 검색어가 저장소가 정한 호스트로 가거나 브라우저 위험 동작이 켜지지 않게 하려는 것이다(`L2.readme` §7.1 범위 제한 규칙). 사용자가 직접 만드는 local 범위는 허용한다.
 - provider 체인 키의 기본값은 모두 `"auto"`다(`L2.readme` §5.2, §7.1). `browse`의 auto 체인은 등록 플러그인이 없으면 내장 `playwright-local`을, `research`(2차)는 내장 `native`를 고른다. fetch는 `l2.web.fetch.provider`를 두지 않는다. 로컬 파이프라인이 항상 먼저 돌고 플러그인 후보는 승격 경로(§4.9.1)에서 `pluginOrder` 순으로만 쓰기 때문이다(`L2.readme` §7.1 예외).
-- 첫 실행 권장 흐름(L4 "도구와 웹" 탭): 키 플러그인 등록 권장(Exa, Brave 등)과 SearXNG 주소 입력을 보여 준다(ADR-0005 §3.1 ④, `L2.web.plan` §1.3). 무료 크레딧 수치는 `_research/durable-and-search-facts.md` §B-4를 인용해 화면 문구로만 쓴다.
+- 첫 실행 권장 흐름(L4 "도구와 웹" 탭): 키 플러그인 등록 권장(Exa, Brave 등)을 보여 준다(SearXNG 주소 입력은 없다. [결정: 2026-11-04 사용자, B15])(ADR-0005 §3.1 ④, `L2.web.plan` §1.3). 무료 크레딧 수치는 `_research/durable-and-search-facts.md` §B-4를 인용해 화면 문구로만 쓴다.
 
 설정 정의 코드의 형태(`settings.ts`, 일부):
 
@@ -1817,7 +1805,7 @@ export const webSettings = defineSettings("l2.web", {
 
 ## 9. 수용 기준
 
-1. `l2.web.search.searxng.url`을 설정하지 않은 auto 체인의 `search`는 `meta.provider = "builtin-wrapper"`이고 `meta.fallbacks`가 비어 있으며 어떤 주소에도 요청이 나가지 않는다. 옛 감지 후보 주소(`127.0.0.1`·`localhost`의 8888, 8080)에서 SearXNG가 응답해도 쓰지 않는다. 주소를 설정하고 탐침이 성공하면 `meta.provider = "searxng"`이고, 탐침이 `unreachable`이면 `meta.provider = "builtin-wrapper"`이며 `meta.fallbacks`에 `{ provider: "searxng", stage: "probe", reason: "unreachable" }`가 있다. 이 시험이 M2 종료 조건 E4 "SearXNG 주소 미설정이면 내장 검색 래퍼, 설정하면 SearXNG"(`product.scope.spec` §4.4.1)를 확인한다.
+1. 플러그인이 없는 auto 체인의 `search`는 `meta.provider = "builtin-wrapper"`이고 `meta.fallbacks`가 비어 있으며 어떤 주소에도 요청이 나가지 않는다. 옛 감지 후보 주소(`127.0.0.1`·`localhost`의 8888, 8080)에서 SearXNG가 응답해도 쓰지 않는다. 플러그인이 있으면 `meta.provider`가 그 플러그인이다 [결정: 2026-11-04 사용자, B15](옛 E4 "SearXNG 주소 설정하면 SearXNG"는 폐기).
 2. auto 체인에서 앞 provider가 탐침이나 호출(`unavailable`, `rate_limited`, `upstream_error`)에 실패하면 다음 provider가 응답하고, 실패한 provider마다 `meta.fallbacks`에 사유 한 줄이 남는다. 명시 선택(호출 인자, 설정)이면 내려가지 않고 `unavailable`이며 `detail`에 사유가 있다.
 3. 다음 URL의 `fetch`는 모두 `denied`이고 네트워크 연결 시도가 0이다: `http://127.0.0.1/`, `http://2130706433/`, `http://0x7f.1/`, `http://[::1]/`, `http://[::ffff:127.0.0.1]/`, `http://169.254.169.254/latest/meta-data`, `http://metadata.google.internal/`, `http://intranet/`(점 없음), `http://user:pw@example.com/`. 공개 호스트의 `302 Location: http://10.0.0.5/`는 리다이렉트 hop에서 `denied`이고, 다른 공개 호스트로 가는 302는 `redirect.followed = false`다. 연결 시점에 사설 IP로 바뀌는 해석(가짜 리졸버)도 `denied`다.
 4. Brave 매니페스트(`cachePolicy: "none"`)로 등록한 가짜 provider의 검색·fetch 결과는 `cap_web_fetch_cache`, `cap_web_raw`, 메모리 검색 메모 어디에도 남지 않는다. 같은 질의를 두 번 하면 provider 호출이 두 번이다. 동시에 같은 질의 두 개는 provider 호출 한 번이다(single-flight).
@@ -1829,7 +1817,7 @@ export const webSettings = defineSettings("l2.web", {
 10. `fetch({ rawRef, range: { offset } })`는 네트워크 요청 없이 이어진 본문을 돌려준다.
 11. 래퍼가 `pause_turn`을 4번 연속 받으면(테이프) 재요청은 3번에서 멈추고 `wrapper_continuation_limit` 경고가 있다. 결과에 `encrypted_content`가 없다.
 12. `cap-web/src/fetch/convert/**`에 `fetch(` 호출이나 `node:http` import를 넣으면 `just lint` 또는 `just check-layers`가 실패한다.
-13. 비용: provider가 금액을 준 결과는 `cost.basis = "reported"`, 가격표로 계산한 결과는 `"estimated"`와 `pricingAsOf`를, SearXNG는 `"free"`를 갖는다. 주입한 시계가 asOf + 91일이면 `pricing_stale` 경고가 붙는다.
+13. 비용: provider가 금액을 준 결과는 `cost.basis = "reported"`, 가격표로 계산한 결과는 `"estimated"`와 `pricingAsOf`를, 키 없는 무료 플러그인은 `"free"`를 갖는다. 주입한 시계가 asOf + 91일이면 `pricing_stale` 경고가 붙는다.
 14. `web.browse`: 정책이 막는 호스트로의 `navigate`는 `denied`다. 허용 호스트에서 스크립트 이동으로 금지 호스트에 가면 페이지가 비워지고 `denied`다. 설정이 꺼진 `evaluate`와 `upload`는 `action_disabled`다.
 15. `web.research`(2차): 인용문이 rawRef 본문에 없는 주장은 보고서에서 빠지고 `removedClaims`가 늘어난다. 예산을 넘으면 상태가 `budget_exceeded`이고 부분 결과가 있다. 상태는 종료 상태에서 바뀌지 않는다.
 16. `web_search` 모델 도구 경로: 도구 정의의 파라미터 파싱, 서비스 입력 변환, 서비스 호출, 모델용 결과 렌더링을 실제 조립(`createWebRuntime`)에서 걸면 출력이 `WebSearchOutputSchema`를 만족하고 본문이 `<untrusted_web_content`로 시작하며 `[s1]` 인용을 담는다. 기본 설정에서는 후보가 내장 래퍼뿐이고(`isWrapperOnlyChain` 참) 요청이 나가지 않으며, 주소를 설정하면 루프백 SearXNG가 운영 전송으로 답하고 모델용 도구는 `function`이다(G4-05).
@@ -1866,7 +1854,7 @@ export const webSettings = defineSettings("l2.web", {
    - 풀려면 다음 중 하나가 필요하다. 어느 쪽이든 M2 범위 밖이라 `m3-plan`으로 넘긴다. 1) pi-ai 어댑터 패치(서버 도구 블록을 content에 싣고 이력 변환에서 되돌린다), 2) F `AssistantMessage` 확장 또는 provider 불투명 블록 레코드와 루프의 `pause_turn` 이어 요청. 둘 다 F 계약이나 vendor 변경이다.
    - 영향: 기능 손실은 없다. 기본 설정(체인이 래퍼뿐)에서 모델의 검색이 `web_search` 함수 도구 → 내장 래퍼 경로로 처리되어 검색마다 모델 호출이 하나 더 든다(§4.8.1 B안의 단점). `l2.web.search.modelTool`의 `hosted`와 `auto`는 지금 `function`과 같게 동작한다.
 4. 닫힘. [결정: review.m3-design-inputs D-M3-23 행 1] 자동 선택 순서는 사용자가 설정 화면에서 끌어 옮겨 정한다(`l2.web.search.order`). 선택 체인(§4.8.2)이 이 규칙으로 바뀌었다. 끌어 옮기는 화면은 M4다.
-5. 닫힘. 자동 감지는 없앴고 사용자가 주소를 설정한 SearXNG만 후보다(사용자 결정 H1, 2026-10-25, ADR-0005 §3.3 개정, §4.8.3). 설정한 주소의 탐침 형식은 §4.8.3이다.
+5. 닫힘. 자동 감지는 없앴고(사용자 결정 H1, 2026-10-25), SearXNG 자체도 제품에서 뺐다(2026-11-04 B15, ADR-0005 개정, §4.8.3).
 6. 닫힘. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7, 기본값 `never`). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
 7. [미결] 대화당 호출 상한 카운터의 영속화. 제안은 프로세스 메모리다(§4.4.4).
 8. [미결] 브라우저 트래픽 필터를 `cap-web` 로컬 프록시로 할지 `L0.sandbox`의 네트워크 필터로 할지(§4.10.2). playwright-local에서 `allowedDomains`를 강제하는 방법은 선행 조사에서도 확인되지 않았다(`_research/notes/L2-2.md` §6).
@@ -1876,7 +1864,7 @@ export const webSettings = defineSettings("l2.web", {
 12. [미결] 기본 추출기. 제안은 readability 0.6.0 + linkedom 0.18.13이고 defuddle 0.19.5는 설정으로 고른다. 우리 샘플 페이지로 비교 측정한 뒤 정한다(`_research/web-tools.md` §2.3 "측정마다 순위가 뒤집힌다").
 13. [미결] `none` 결과의 영속 사본(발췌 삭제)을 적용하는 위치와 재개 때 프롬프트 캐시 영향(§4.3.4).
 14. [결정: review.m3-design-inputs D-M3-23 행 2·3] Parallel과 Jina는 넣지 않는다. 키 플러그인은 첫 사용 때 고지한다(행 5).
-15. [가정] SearXNG를 수정 없이 별도 프로세스로 쓰면 AGPL 배포 의무가 없다. 법률 확인 전에는 번들하지 않는다(ADR-0005 §3.1).
+15. 닫힘 [결정: 2026-11-04 사용자, B15]. SearXNG를 제품에서 뺐으므로 AGPL 문제는 이 문서에서 사라졌다.
 16. [가정] 래퍼 1회 약 $0.011, 지연 미측정(ADR-0005 §3.2, §6).
 17. 소스는 확인함(`L2.web.plan` §8.2). 0.1.x 신생 패키지이고 Bun 런타임에서의 동작은 실행으로 확인하지 못했다 [미결](`L2.web.plan` §8.3).
 18. [미결] F `ProviderOrigin`의 `detected` 이름. 자동 감지를 없앤 뒤 이 자리는 "사용자가 주소를 설정한 내장 provider"를 뜻하므로 `configured` 같은 이름이 맞다. 이름 변경은 F 계약(`F.capabilities.spec` §3.11)과 `orderProviderCandidates`를 함께 고치는 요청이 필요하다. 그때까지 cap-web은 `detected` 값을 그대로 쓰고 순서 규칙(plugin, detected, builtin)은 같다(§3.6.2).

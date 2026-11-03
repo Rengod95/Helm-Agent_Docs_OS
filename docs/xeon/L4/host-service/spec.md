@@ -1259,7 +1259,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-15] 조립 위치(DR-10)는 안 1이다(§3.1). 허용 목록 항목 `DR-10/cli-host`, DR-10·DR-14 문구 수정, `architecture.layers.spec` §3.2의 L4 부분은 각 문서 쪽에서 반영한다.
-2. [미결] 바이너리 구성. 단일 `fresnel`(제안)과 `apps/host` 단독 사이드카 중 선택(§3.2). 사용자 확인.
+2. [결정: 2026-11-04 사용자, 결정 목록 R2] 바이너리 구성은 단일 `fresnel`이다(ADR-0014 결정 1). 옛 항목: 단일 `fresnel`과 `apps/host` 단독 사이드카 중 선택(§3.2).
 3. [미결] 문서 수정 요청: `eng.toolchain.guide` TC-10과 같은 문서 §2 바이너리 행, `xeon/apps/desktop/README.md`의 사이드카 문구(§3.2). 2번이 확정되면 작성자가 고친다.
 4. [결정: review.decisions-2 U-11] 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널·사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다(§4.11).
 5. [결정: adr.0020] 클라이언트 연결 코드(`createHostConnection`)와 설정 view-model, CLI·데스크톱 공유 로직은 새 L4 공유 패키지 `xeon/packages/client`(`@fresnel/client`, F만 import)로 옮긴다(`review.m3-design-inputs` D-M3-26 b 변형). `@fresnel/host/client`는 M3a 구현에서 `@fresnel/client`를 다시 내보내는 얇은 파일로 남겼고(허용 목록 `DR-10/host-client`), F는 런타임 로직 없는 계약(stdio 줄 프레이밍 제외)으로 둔다. [미결] 재노출을 없애는 안은 호스트 시험의 `@fresnel/client` import에 시험 한정 DR-10 예외가 필요하다. `apps/cli`·`apps/desktop` → `@fresnel/client`는 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`다(`architecture.layers.spec` §3.2).

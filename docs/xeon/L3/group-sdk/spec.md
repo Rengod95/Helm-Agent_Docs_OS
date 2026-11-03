@@ -677,7 +677,7 @@ export type GroupResult<T> =
 export interface ToggleReceipt {
   readonly id: GroupId;
   readonly status: RegistrationStatus;
-  /** 실행 중인 turn이 있으면 nextStepBoundary. 유휴 시점 적용은 X.primitives.spec [가정] */
+  /** 실행 중인 turn이 있으면 nextStepBoundary. 유휴 시점 적용은 즉시 now(X.primitives.spec §4.5.5, R19) */
   readonly appliesAt: "nextStepBoundary" | "now";
 }
 
@@ -1145,7 +1145,7 @@ X는 drive lock이 없을 때 경계 훅(`step_end`, `turn_settled`, `idle`)과 
 - `GroupService.enable/disable`은 `RegistrationHandle.enable/disable`을 부른다. 요청만 기록하고 X가 단계 경계에서 적용한다(F.extensions.spec §4.5). 적용되면 `scope.changed`가 커밋된다.
 - 요청과 적용 사이에 `GroupStatus.pendingToggle`이 채워지고 상태줄에 "다음 단계 경계에 적용"이 붙는다(§3.9).
 - 비활성화 적용 순서는 F.extensions.spec §4.5 [제안](on 핸들러 제외 → drive lock 반납 → `onDispose`)을 따른다. group-sdk `wrap`은 `onDispose` 목록 끝에 계측 마감(2차)을 더한다.
-- 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다 [가정]. 그 시점이 "즉시"면 `ToggleReceipt.appliesAt`은 `"now"`다.
+- 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec §4.5.5가 정한다(유휴 thread는 즉시 적용, [결정: 2026-11-04 사용자, 결정 목록 R19]). 그 시점이 "즉시"이므로 `ToggleReceipt.appliesAt`은 `"now"`다.
 
 ### 4.5 상태 커밋 규칙
 

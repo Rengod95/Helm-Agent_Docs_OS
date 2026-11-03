@@ -657,7 +657,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - `restartLimit` 0은 자동 재기동을 끈다는 뜻이다.
 - `firstRun.searchHintDismissed`: 첫 실행 권장 화면(`L4.settings-ui.spec` §4.10)을 처음 연 뒤 닫으면 참이 된다. 참이면 첫 실행 때 자동으로 띄우지 않고 `tools` 탭 묶음에만 보인다 [제안].
 - `shutdownGraceMs`의 기본 7000은 엔진 체크포인트 시한 `l0.process.shutdown.timeoutMs` 기본 3000에 2000을 더한 하한(5000)보다 2000 크다. 여유분은 엔진 시한을 5000까지 올려도 불변식이 깨지지 않게 둔 값이다. 하한 규칙은 `service stop`의 "`l0.process.shutdown.timeoutMs` + 2000ms 뒤 SIGKILL"(`L4.host-service.spec` SV-07)과 같다 [제안]. 불변식은 §4.3에 둔다. S1 측정 뒤 확정한다.
-- `l4.desktop.update.auto`: 자동 업데이트는 M3 이후 검토이고 채택 여부가 [미결]이다(§10 미결 12). 정의는 M3에서 더한다.
+- `l4.desktop.update.auto`: [결정: 2026-11-04 사용자, A2 2안] M4는 "업데이트 확인" 줄과 상태 표시만 둔다. 내려받기와 교체는 M5다(`L4.release.spec` §5). 설정 키 정의는 확인 줄을 만들 때 더한다.
 - `allowedScopes`에 `managed`를 넣은 키는 관리 범위가 잠글 수 있다. 데스크톱 로컬 저장소가 관리 범위 파일을 읽는 방법은 `L4.settings-ui.spec`과 함께 정한다 [미결: §10 미결 6에 포함].
 - 서비스 사용 설정 키는 `l0.process.service.enabled`이고 `L0.process.spec` §6이 소유한다. 데스크톱은 §4.2 2단계의 `fresnel service launch-mode --json`으로 읽기만 한다.
 
@@ -718,7 +718,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다. 참고: WSLg(XWayland, llvmpipe)에서 Tauri 창이 열리고 S1·S3이 돌았다(`L4.desktop.plan` §3.1.1).
 10. [결정: review.m3-design-inputs D-M3-25 행 3] 최소 지원 macOS는 14이고 arm64만이다. Linux는 x86_64·arm64이고 WebKitGTK 4.1은 [가정]으로 둔다. 실측 뒤 배포판 목록을 적는다. 빌드 타깃(V5)이 여기에 묶인다.
 11. (닫힘) 프런트엔드 프레임워크와 상태 라이브러리는 React 19 + Zustand 5다(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`다.
-12. [미결] 자동 업데이트 채택(M3 이후). Tauri updater 플러그인과 서명 키 관리가 필요하다.
+12. [결정: 2026-11-04 사용자, A2 2안] M4는 업데이트 확인 줄과 상태만, 내려받기와 교체는 M5. Tauri updater 플러그인과 서명 키 관리는 M5에서 정한다.
 13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Linux/WSL2에서 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
 14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
 15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `fresnel secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.

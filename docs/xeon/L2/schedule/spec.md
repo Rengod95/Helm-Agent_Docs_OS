@@ -710,7 +710,7 @@ export type TimerView = Static<typeof TimerViewSchema>;
 
 export const ScheduleWarningSchema = Type.Union([
   /** 서비스 모드가 꺼져 있어 앱이 열려 있을 때만 실행된다(§4.4.6) */
-  Type.Literal("runs_only_while_app_open"),
+  Type.Literal("service_mode_off"),
   /** 다음 기한이 l2.schedule.timers.minIntervalSeconds보다 가까움 */
   Type.Literal("interval_clamped"),
 ]);
@@ -1358,7 +1358,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 |---|---|---|
 | `"autoStart"` (기본) | 서비스 자동 기동을 시도한다. 기동하면 저장한다. 실패하면 `unavailable`, `detail.reason: "service_mode_off"`와 조치 안내(`detail.hint`: 서비스 모드 켜기, `fresnel service start`)를 싣고 저장하지 않는다 | 서비스가 틱을 돌린다 |
 | `"reject"` | `unavailable`, `detail.reason: "service_mode_off"`와 조치 안내. 저장하지 않는다 | 없음 |
-| `"keepWithWarning"` | 저장하고 결과 `warnings`에 `runs_only_while_app_open`을 싣는다 | 앱 호스트가 Scheduler leader를 쥐는 동안(앱이 열려 있는 동안)만 틱이 돈다. 앱을 닫은 동안의 기한은 다음에 앱을 열 때 놓친 실행 정책을 따른다 |
+| `"keepWithWarning"` | 저장하고 결과 `warnings`에 `service_mode_off`를 싣는다 [결정: 2026-11-04 사용자, B13 1안] | 앱 호스트가 Scheduler leader를 쥐는 동안(앱이 열려 있는 동안)만 틱이 돈다. 앱을 닫은 동안의 기한은 다음에 앱을 열 때 놓친 실행 정책을 따른다 |
 
 - 기본값은 `"autoStart"`다 [결정: review.decisions-2 U-23]. 서비스 모드 자동 기동은 결정 2의 1차 범위이고, 기동에 실패하면 거부하므로 사용자가 "예약했는데 안 돌았다"를 겪지 않는다. `L2.readme` §8의 수준 2 규칙과 같다. UC-4 대안 흐름("앱을 닫으면 멈춘다는 점을 예약 생성 때 표시한다")은 `"keepWithWarning"`이 구현한다.
 - 자동 기동 요청 경로는 `l2.schedule.service.ensureOnCreate`와 같은 클라이언트 호스트 `ensure`다. 요청 경로는 `L4.host-service.spec`이 정한다 [가정].
@@ -1576,7 +1576,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 7. [미결] `jobs.spawn`의 replay 정책. L1.agents·L0.process가 `requestId` 멱등을 보장하면 `"safe"`로 넓힌다.
 8. [미결] 도구 없는 기능(`schedule.remote`)의 허용(F.capabilities.spec §4.4). 허용되지 않으면 `cap-schedule` 내부 API로 옮긴다.
 9. [미결] 긴 bash 자동 백그라운드 전환의 책임(§4.2.4): L1.tools, L2.workspace.shell(제안), schedule.jobs.
-10. [결정: 오케스트레이터 기본값, M3b B1-SCH] 기본 `once`와 최소 간격 300초로 구현했다(§4.4.9). 사용자 확인은 남아 있다. 원래 항목: 놓친 실행 기본 정책 `once`와 최소 간격 300초 같은 기본값의 사용자 확인. ADR-0006 §3.5가 이 문서에 넘긴 [미결: L2.schedule.spec](놓친 예약 따라잡기 여부)은 §4.4.4 표로 제안하고 확정은 사용자에게 받는다.
+10. [결정: 오케스트레이터 기본값, M3b B1-SCH] 기본 `once`와 최소 간격 300초로 구현했다(§4.4.9). [결정: 2026-11-04 사용자, B12 1안] 기본 `once`와 최소 간격 300초를 확정한다. 원래 항목: 놓친 실행 기본 정책 `once`와 최소 간격 300초 같은 기본값의 사용자 확인. ADR-0006 §3.5가 이 문서에 넘긴 [미결: L2.schedule.spec](놓친 예약 따라잡기 여부)은 §4.4.4 표로 제안하고 확정은 2026-11-04 사용자 결정(B12)으로 났다.
 11. [결정: 오케스트레이터 기본값, M3b B1-SCH] 넣는다(M3-10, `liveSchedulerTasks`). 원래 항목: 반복 예약을 `ActivitySnapshot.liveTasks`에 넣을지(§3.9, §4.1.5). 넣으면 서비스 모드에서 반복 예약이 도는 동안 유휴 종료하지 않는다. `L4.host-service.spec` `ActivitySnapshot` 정의와 맞춘다.
 12. [미결] 기존 대화를 대상으로 하는 예약(§4.4.1). 1차에서 제외를 제안한다.
 13. [미결] 워크트리 연산의 위치(§3.10, §4.3). `L0.os.spec`의 `OsService`에는 워크트리 연산이 없다. L0.os에 `worktree.create/list/remove` 추가를 요청하거나, `fresnel.exec`로 `git worktree` 명령을 실행하는 안 중에서 정한다. `watch`의 `root`가 앱 디렉터리 하위로 제한되는 것(`L0.os.spec` §3.8)도 작업 디렉터리의 파일 감시(`source.type: "file"`)와 맞지 않으므로 함께 요청한다.

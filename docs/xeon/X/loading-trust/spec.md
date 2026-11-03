@@ -1532,3 +1532,4 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 22. [미결] 이름 정리. L4.desktop-ux.spec §10.3 W-33과 X-7의 옛 이름(`ext.view.list`, `view_*`)은 이 문서의 `ext.ui.list`와 `ui_*`와 다르다. 화면 쪽 문서를 고치는 일은 L4 담당이다.
 23. [미결] `VersionHistoryFs`의 정본 위치. `PluginInstallFs`와 같은 사정이다. 쓰기 포트는 F.extensions.spec §3.2.1 로더 포트에 있어야 한다. F 수정 요청과 함께 정한다.
 24. [미결] 기본 플러그인 기록과 되돌리기 전 기록의 `stateSchemaVersion`은 파일에서 알 수 없어 `null`이다. 상태 스키마 검사(§4.4.8)가 번들 버전에 걸리려면, 로더가 확장을 등록할 때 `StateDecl.version`(F.extensions.spec)을 알려 보관 항목의 값을 채우는 경로를 정해야 한다.
+25. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.views.frames`와 `x.views.allowProjectFrames`의 소유 문서는 이 문서입니다(ADR-0021 §6 9번). 구현 때 §3.6의 `loadingTrustSettings` 키 집합에 더하고 §6 표에 값 스키마를 적습니다. 프레임 `call` 확인 줄은 끌 수 없습니다. 어떤 설정 범위에서도 끄는 키를 두지 않습니다.

@@ -1079,7 +1079,7 @@ $ echo $?
 20. [미결] 주소 문구에서 `@`가 든 값을 가리는 규칙(자격 증명 방어)은 HS-87에 없다. 이 문서의 구현이 먼저 두었다. host-service 문서로 옮길지 정한다.
 21. [미결] 서비스 접속의 `clock`과 `newRequestId`를 CLI의 운영 값으로 낸다([제안]). `L4.host-service.spec` §3.3.5의 `EngineHandle` 정의와 맞출지 확인한다.
 22. [미결] 서비스 쪽 값 입력 창(§4.7, `L4.settings-ui.spec` §4.6.4 C안)은 아직 없다. `secret.ts`의 두 줄 오류 문구는 "서비스 모드는 M3에서 제공한다"라고 쓰는데, M3b에서도 그 창이 없으면 이 문구가 틀린다. 창을 만드는 단위와 문구를 정한다.
-23. [미결] 대화형 완료 알림의 노이즈. §4.5.1 규칙대로면 turn이 끝날 때마다 `[완료] 작업이 끝났다`가 한 줄 붙는다. 같은 thread의 답은 화면에 이미 보이므로 이 줄은 잉여다. 같은 thread의 `completed`를 접을지, 다른 thread의 알림에만 쓸지 사용자가 정한다. 그 전까지 규칙은 §4.5.1 그대로다.
+23. [닫음 결정: 2026-11-04 사용자, 결정 목록 R1] CLI 화면은 설계하지 않는다(m4-decisions 2026-11-01, "No CLI surface"). 규칙은 §4.5.1 그대로다. 옛 항목: 대화형 완료 알림의 노이즈. §4.5.1 규칙대로면 turn이 끝날 때마다 `[완료] 작업이 끝났다`가 한 줄 붙는다. 같은 thread의 답은 화면에 이미 보이므로 이 줄은 잉여다. 같은 thread의 `completed`를 접을지, 다른 thread의 알림에만 쓸지 사용자가 정한다. 그 전까지 규칙은 §4.5.1 그대로다.
 24. [미결] 알림 도착과 대화 종료의 경합. 시험(`slash-commands-host.int.test.ts`, `/compact`)에서 turn 세 개 가운데 한 건의 완료 알림만 대화 종료 전에 도착했다. 종료 직전에 알림 대기열을 짧게 비우는 방법(시간 상한 포함)을 정한다.
 25. [미결] `db export`의 저장소 파일 이름(`fresnel.db`)과 데이터 디렉터리 위치. 이름은 `apps/host/src/assemble.ts`의 `DB_FILE_NAME`과 같고 호스트가 내보내지 않아 `apps/cli/src/commands/db.ts`에 한 번 더 있다. 위치는 `runtime.ts`가 `@fresnel/platform-os`의 `resolveOsDirs`로 정한다. 호스트가 데이터 디렉터리를 공개 API로 내보내면 두 곳을 그 값으로 바꾼다(§4.13).
 26. [미결] `apps/cli` → `@fresnel/platform-store` 간선. `L0.store.spec` §3.2는 `openStore`와 `exportDatabase`를 조립 루트 `apps/host`만 import한다고 적는다. 이 간선은 DR-14 예외 목록에 없다. 의존 검사(`just depcruise`)는 통과하지만, 문서와 맞추려면 허용 목록 항목을 더하거나 호스트 공개 API로 옮기는 결정이 필요하다.
