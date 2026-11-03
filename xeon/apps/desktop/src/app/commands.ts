@@ -220,6 +220,7 @@ export function createCommands(deps: CommandDeps): Commands {
       deps.ipc,
     ),
     schedule: createScheduleCommands(withConnection),
+    pluginUi: { withConnection, current: () => session.connection() },
     connection: createConnectionCommands({
       ipc: deps.ipc,
       local: deps.local,

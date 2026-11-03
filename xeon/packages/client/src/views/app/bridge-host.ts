@@ -108,6 +108,8 @@ export interface BridgeHostOptions {
   readonly clock: Clock;
   readonly scheduler: Scheduler;
   readonly confirm: (request: ConfirmRequest) => Promise<ConfirmAnswer>;
+  /** 답이 없는 확인 요청을 줄에서 뺀다. 시간 초과와 닫힘 때 부른다. 없으면 부르지 않는다 */
+  readonly cancelConfirm?: (request: ConfirmRequest) => void;
   /** 닫힘. 이유는 장부 이름이거나 `disposed`다 */
   readonly onClosed: (reason: LedgerFailure | "disposed") => void;
 }
@@ -133,9 +135,9 @@ export const QUERY_INFLIGHT_MAX = 8;
 /** `post`, `requestApproval` 화면당 예산: 5초에 1번, 미결 5개 */
 export const POST_MIN_INTERVAL_MS = 5000;
 export const POST_OUTSTANDING_MAX = 5;
-const PARAMS_SUMMARY_MAX = 160;
+export const PARAMS_SUMMARY_MAX = 400;
 
-/** 장부의 연속 실패를 되돌리는 성공은 일을 한 것뿐이다. 생존 확인, 크기 조절, 진단, host 읽기는 세지 않는다 */
+/** 장부의 연속 실패를 되돌리는 성공은 일을 한 것뿐이다. 생존 확인, 크기 조절, 진단, host 읽기, 이동은 세지 않는다(싸서 실패 사이에 끼워 넣어 장부를 비울 수 있다) */
 const SUBSTANTIVE_OPS: ReadonlySet<string> = new Set([
   "query",
   "events",
@@ -144,21 +146,45 @@ const SUBSTANTIVE_OPS: ReadonlySet<string> = new Set([
   "command",
   "post",
   "requestApproval",
-  "navigate",
 ]);
 
-/** params 요약. 키를 정렬하고 값은 JSON으로 줄인다. 프레임이 준 글이라 제어·방향 제어 글자를 뺀다 */
-export function summarizeParams(params: Readonly<Record<string, unknown>>): string {
-  const parts = Object.keys(params)
+function paramParts(params: Readonly<Record<string, unknown>>): string[] {
+  return Object.keys(params)
     .toSorted()
     .map((key) => {
       const text = attempt(() =>
         JSON.stringify(Object.getOwnPropertyDescriptor(params, key)?.value),
       );
-      return `${key}=${text.ok ? text.value : "?"}`;
+      return stripUnsafeText(`${key}=${text.ok ? text.value : "?"}`, false);
     });
-  const joined = stripUnsafeText(parts.join(", "), false);
-  return joined.length <= PARAMS_SUMMARY_MAX ? joined : `${joined.slice(0, PARAMS_SUMMARY_MAX)}…`;
+}
+
+/**
+ * 값 하나가 요약 상한을 넘어 잘리면 사람이 실행 내용을 다 볼 수 없다. 그런 요청은 확인 줄을 띄우지 않고 거부한다.
+ * (키 하나가 통째로 빠지는 것은 요약이 빠진 키 수를 보인다)
+ */
+export function paramsFitSummary(params: Readonly<Record<string, unknown>>): boolean {
+  return paramParts(params).every((part) => part.length <= PARAMS_SUMMARY_MAX);
+}
+
+/**
+ * params 요약. 키를 정렬하고 값은 JSON으로 줄인다. 프레임이 준 글이라 제어·방향 제어·보이지 않는 글자를 뺀다.
+ * 상한을 넘으면 앞쪽 키만 보이고 뒤에 빠진 키 수를 `…(+N)`으로 붙인다
+ */
+export function summarizeParams(params: Readonly<Record<string, unknown>>): string {
+  const parts = paramParts(params);
+  const joined = parts.join(", ");
+  if (joined.length <= PARAMS_SUMMARY_MAX) return joined;
+  let shown = "";
+  let count = 0;
+  for (const part of parts) {
+    const next = count === 0 ? part : `${shown}, ${part}`;
+    if (next.length > PARAMS_SUMMARY_MAX) break;
+    shown = next;
+    count += 1;
+  }
+  if (count === 0) return `${(parts[0] ?? "").slice(0, PARAMS_SUMMARY_MAX)}…(+${parts.length - 1})`;
+  return `${shown}, …(+${parts.length - count})`;
 }
 
 function failed(kind: BridgeError["kind"], detail?: string): BackendResult<never> {
@@ -179,60 +205,60 @@ function sizeOf(value: unknown): number {
   return new TextEncoder().encode(text.value).byteLength;
 }
 
-export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
-  const { port, backend, ledger, screenKey } = options;
-  let closed = false;
-  const isClosed = (): boolean => closed;
+export interface ActionRunnerOptions {
+  readonly screenKey: string;
+  /** 요청마다 읽는다 */
+  readonly context: () => BridgePolicyContext;
+  readonly backend: BridgeBackend;
+  readonly ledger: ScreenLedger;
+  readonly clock: Clock;
+  readonly scheduler: Scheduler;
+  readonly confirm: (request: ConfirmRequest) => Promise<ConfirmAnswer>;
+  readonly cancelConfirm?: (request: ConfirmRequest) => void;
+  /**
+   * 쓰기 실행 직전에 판정 맥락을 새로 읽는다. 없으면 `context()`를 쓴다. 돌려주는 값이 없으면 읽지 못한 것이라 실행하지 않는다.
+   * `context()`가 화면 쪽에서 갱신되는 값이라 확인을 기다리는 동안 낡을 수 있어서다
+   */
+  readonly recheck?: () => Promise<BridgePolicyContext | undefined>;
+  /** 이 실패로 장부가 화면을 껐다 */
+  readonly onDisabled: (reason: LedgerFailure) => void;
+}
+
+/** `pong`은 다리 포트 쪽 일이다. 나머지 판정을 통과한 동작은 모두 이 실행기를 거친다 */
+export type RunnableAction = Exclude<BridgeAction, { op: "pong" }>;
+
+export interface ActionRunner {
+  /** 판정(`decide`)을 통과한 동작 하나를 실행한다. 확인 줄, 속도·예산, 읽기 상한이 여기서 걸린다 */
+  run(action: RunnableAction): Promise<BackendResult<unknown>>;
+  /** 실패 하나를 장부에 센다 */
+  count(failure: LedgerFailure): void;
+  /** 대기 중인 확인을 거부로 끝내고 줄에서 뺀다. 이후 `run`은 `extension_off`를 돌려준다 */
+  dispose(): void;
+}
+
+/**
+ * 프레임과 선언형 화면이 같이 쓰는 동작 실행기. 확인 줄(연속 거부 쿨다운 포함), `post`·`navigate` 예산, 읽기 동시 처리와 결과 크기 상한,
+ * 장부 계수를 한곳에서 한다. 선언형 버튼과 폴링이 프레임과 다른 길로 `backend`를 부르지 못하게 하려는 것이다
+ */
+export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
+  const { backend, ledger, screenKey } = options;
+  let disposed = false;
   let confirmPending = false;
   let denyStreak = 0;
   let cooldownUntil = 0;
   let queriesInflight = 0;
-  let outstanding = 0;
-  let lastPostAt = Number.NEGATIVE_INFINITY;
-  let windowStart = options.clock.now();
-  let windowCount = 0;
-  let livenessTimer: TimerHandle | undefined;
-  let pingSeq = 0;
-  let outstandingPing: number | undefined;
-  let misses = 0;
+  const postBudget = createCallBudget();
+  const navigateBudget = createCallBudget();
   let confirmTimer: TimerHandle | undefined;
   let confirmResolve: ((answer: ConfirmAnswer) => void) | undefined;
 
-  function close(reason: LedgerFailure | "disposed"): void {
-    if (closed) return;
-    closed = true;
-    if (livenessTimer !== undefined) options.scheduler.clearTimeout(livenessTimer);
-    if (confirmTimer !== undefined) options.scheduler.clearTimeout(confirmTimer);
-    confirmResolve?.("deny");
-    port.setHandler(undefined);
-    port.close();
-    options.onClosed(reason);
-  }
-
-  /** 실패 하나를 장부에 센다. 이 실패로 화면이 꺼지면 포트를 닫는다 */
   function count(failure: LedgerFailure): void {
-    if (ledger.fail(screenKey, failure)) close(failure);
+    if (ledger.fail(screenKey, failure)) options.onDisabled(failure);
   }
 
-  function send(message: unknown): void {
-    if (closed) return;
-    port.postMessage(message);
-  }
-  function respond(response: BridgeResponse): void {
-    send(response);
-  }
-  function respondError(id: number, error: BridgeError): void {
-    respond({ v: BRIDGE_VERSION, id, ok: false, error });
-  }
-
-  function overRate(): boolean {
-    const now = options.clock.now();
-    if (now - windowStart >= RATE_WINDOW_MS) {
-      windowStart = now;
-      windowCount = 0;
-    }
-    windowCount += 1;
-    return windowCount > UI_LIMITS.bridgeMessagesPerSecond;
+  /** 줄에 올린 요청을 뺀다. 같은 요청을 두 번 빼도 줄이 알아서 무시한다 */
+  function withdraw(request: ConfirmRequest): void {
+    options.cancelConfirm?.(request);
   }
 
   /** 확인 줄은 끌 수 없어 호출마다 묻는다. 같은 확장이라도 앞의 허용을 기억하지 않는다(2026-11-04 사용자, B2 1안) */
@@ -249,6 +275,8 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
     confirmTimer = undefined;
     confirmResolve = undefined;
     confirmPending = false;
+    // 시간 초과로 끝났으면 줄에 남은 창을 닫는다(답한 요청은 이미 줄에서 빠졌다)
+    if (result === "timeout") withdraw(request);
     return result;
   }
 
@@ -265,6 +293,11 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
     if (options.clock.now() < cooldownUntil) {
       count("confirm_denied");
       return { kind: "denied", detail: "confirm_cooldown" };
+    }
+    // 요약에 다 담기지 않는 값은 사람이 실행 내용을 볼 수 없으므로 묻지 않고 거부한다
+    if (!paramsFitSummary(params)) {
+      count("confirm_denied");
+      return { kind: "denied", detail: "params_too_long_to_confirm" };
     }
     const outcome = await askConfirm({
       extension: options.context().extension,
@@ -287,21 +320,28 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
     return { kind: "denied", detail: "not_confirmed" };
   }
 
-  /** `post`와 `requestApproval`의 화면당 예산. 넘으면 오류 이름을 돌려주고 장부에 센다 */
-  function postBudgetError(): BridgeError | undefined {
-    const now = options.clock.now();
-    if (outstanding >= POST_OUTSTANDING_MAX || now - lastPostAt < POST_MIN_INTERVAL_MS) {
+  /** `post`, `requestApproval`, `navigate`의 화면당 예산. 넘으면 오류 이름을 돌려주고 장부에 센다 */
+  function budgetError(budget: CallBudget): BridgeError | undefined {
+    if (!budget.admit(options.clock.now())) {
       count("limit_exceeded");
       return { kind: "rate_limited" };
     }
-    lastPostAt = now;
     return undefined;
   }
 
-  /** 확인을 기다리는 동안 확장이 꺼졌거나 안전 모드가 되었을 수 있다. 실행 직전에 다시 판정한다 */
-  function stillRunnable(): BridgeError | undefined {
-    if (isClosed()) return { kind: "extension_off" };
-    const context = options.context();
+  /** 확인을 기다리는 동안 확장이 꺼졌거나 안전 모드가 되었을 수 있다. 실행 직전에 맥락을 새로 읽어 다시 판정한다 */
+  async function gone(): Promise<BridgeError | undefined> {
+    if (options.recheck === undefined) return stillRunnable();
+    const fresh = await attemptAsync(options.recheck);
+    if (!fresh.ok || fresh.value === undefined) {
+      return { kind: "failed", detail: "context_unavailable" };
+    }
+    return stillRunnable(fresh.value);
+  }
+
+  function stillRunnable(fresh?: BridgePolicyContext): BridgeError | undefined {
+    if (disposed) return { kind: "extension_off" };
+    const context = fresh ?? options.context();
     if (!context.enabled) return { kind: "extension_off" };
     if (context.safeMode) return { kind: "safe_mode" };
     return undefined;
@@ -314,9 +354,13 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
       count("limit_exceeded");
       return failed("rate_limited", "query_inflight");
     }
+    const before = stillRunnable();
+    if (before !== undefined) return { ok: false, error: before };
     queriesInflight += 1;
     const result = await attemptAsync(() => backend.query(action.verb, action.params));
     queriesInflight -= 1;
+    const after = stillRunnable();
+    if (after !== undefined) return { ok: false, error: after };
     if (!result.ok) return failed("failed");
     if (!result.value.ok) return result.value;
     if (sizeOf(result.value.value) > UI_LIMITS.queryResultBytes) {
@@ -327,26 +371,48 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
   }
 
   async function runPosted(
-    action: Extract<BridgeAction, { op: "post" | "requestApproval" }>,
+    action: Extract<RunnableAction, { op: "post" | "requestApproval" }>,
   ): Promise<BackendResult<unknown>> {
-    const over = postBudgetError();
+    const over = budgetError(postBudget);
     if (over !== undefined) return { ok: false, error: over };
-    outstanding += 1;
+    postBudget.begin();
     const result = await attemptAsync(() =>
       action.op === "post"
         ? backend.post(action.threadId, action.text)
         : backend.requestApproval(action.threadId, action.title, action.detail),
     );
-    outstanding -= 1;
+    postBudget.end();
     return result.ok ? result.value : failed("failed");
   }
 
-  async function run(action: BridgeAction): Promise<BackendResult<unknown>> {
+  async function runNavigate(
+    action: Extract<RunnableAction, { op: "navigate" }>,
+  ): Promise<BackendResult<unknown>> {
+    const over = budgetError(navigateBudget);
+    if (over !== undefined) return { ok: false, error: over };
+    navigateBudget.begin();
+    const result = await attemptAsync(async () => {
+      if (action.target.kind === "external") {
+        const allowed = await backend.confirmExternal(action.target.link);
+        if (!allowed) return failed("denied", "not_confirmed");
+      }
+      return backend.navigate(action.target, action.needsShellConfirm);
+    });
+    navigateBudget.end();
+    return result.ok ? result.value : failed("failed");
+  }
+
+  async function run(action: RunnableAction): Promise<BackendResult<unknown>> {
     switch (action.op) {
       case "query":
         return runQuery(action);
       case "events": {
+        const before = stillRunnable();
+        if (before !== undefined) return { ok: false, error: before };
         const result = await backend.events(action.kinds, action.limit);
+        // 읽는 동안 꺼졌으면 그 값은 건네지 않는다
+        const after = stillRunnable();
+        if (after !== undefined) return { ok: false, error: after };
         if (!result.ok) return result;
         if (result.value.length > UI_LIMITS.eventRows) {
           count("limit_exceeded");
@@ -355,7 +421,11 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
         return result;
       }
       case "settings": {
+        const before = stillRunnable();
+        if (before !== undefined) return { ok: false, error: before };
         const result = await backend.settings(action.keys);
+        const after = stillRunnable();
+        if (after !== undefined) return { ok: false, error: after };
         if (!result.ok) return result;
         const declared = options.context().declaredSettingKeys;
         // 값은 매니페스트가 선언한 키만 건넨다. 선언 없는 키와 비밀 키는 "설정됨/없음"만 준다(§3.6.5). 다른 필드는 옮기지 않는다
@@ -394,42 +464,144 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
           action.approval,
         );
         if (refused !== undefined) return { ok: false, error: refused };
-        const gone = stillRunnable();
-        if (gone !== undefined) return { ok: false, error: gone };
+        const off = await gone();
+        if (off !== undefined) return { ok: false, error: off };
         return backend.call(action.verb, action.params);
       }
       case "command": {
-        const refused = await confirmGate(`/${action.name}`, undefined, {}, false);
+        // 실행될 인자(`args`)를 줄에 그대로 보인다. 확인한 값과 실행하는 값은 같다
+        const refused = await confirmGate(
+          `/${action.name}`,
+          undefined,
+          { args: action.args },
+          false,
+        );
         if (refused !== undefined) return { ok: false, error: refused };
-        const gone = stillRunnable();
-        if (gone !== undefined) return { ok: false, error: gone };
+        const off = await gone();
+        if (off !== undefined) return { ok: false, error: off };
         return backend.command(action.name, action.args);
       }
       case "post":
       case "requestApproval":
         return runPosted(action);
-      case "navigate": {
-        if (action.target.kind === "external") {
-          const allowed = await backend.confirmExternal(action.target.link);
-          if (!allowed) return failed("denied", "not_confirmed");
-        }
-        return backend.navigate(action.target, action.needsShellConfirm);
-      }
+      case "navigate":
+        return runNavigate(action);
       case "resize":
         backend.resize(action.height);
         return { ok: true, value: null };
       case "log":
         backend.diagnostic({ op: "log", size: action.size });
         return { ok: true, value: null };
-      case "pong":
-        if (outstandingPing === action.n) {
-          outstandingPing = undefined;
-          misses = 0;
-        }
-        return { ok: true, value: null };
       default:
         return assertNever(action, "BridgeAction");
     }
+  }
+
+  return {
+    run,
+    count,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      if (confirmTimer !== undefined) options.scheduler.clearTimeout(confirmTimer);
+      confirmTimer = undefined;
+      // 열린 확인은 시간 초과와 같은 길로 끝나며 줄에서 빠진다(`askConfirm`)
+      confirmResolve?.("deny");
+    },
+  };
+}
+
+interface CallBudget {
+  /** 지금 시작해도 되면 참이고 시작 시각을 적는다 */
+  admit(now: number): boolean;
+  begin(): void;
+  end(): void;
+}
+
+/** `post`와 같은 예산: 5초에 1번, 미결 5개 */
+function createCallBudget(): CallBudget {
+  let outstanding = 0;
+  let last = Number.NEGATIVE_INFINITY;
+  return {
+    admit(now) {
+      if (outstanding >= POST_OUTSTANDING_MAX || now - last < POST_MIN_INTERVAL_MS) return false;
+      last = now;
+      return true;
+    },
+    begin() {
+      outstanding += 1;
+    },
+    end() {
+      outstanding -= 1;
+    },
+  };
+}
+
+export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
+  const { port, backend, ledger, screenKey } = options;
+  let closed = false;
+  const isClosed = (): boolean => closed;
+  let windowStart = options.clock.now();
+  let windowCount = 0;
+  let livenessTimer: TimerHandle | undefined;
+  let pingSeq = 0;
+  let outstandingPing: number | undefined;
+  let misses = 0;
+  const runner = createActionRunner({
+    screenKey,
+    context: options.context,
+    backend,
+    ledger,
+    clock: options.clock,
+    scheduler: options.scheduler,
+    confirm: options.confirm,
+    ...(options.cancelConfirm === undefined ? {} : { cancelConfirm: options.cancelConfirm }),
+    onDisabled: (reason) => {
+      close(reason);
+    },
+  });
+  const count = (failure: LedgerFailure): void => {
+    runner.count(failure);
+  };
+
+  function close(reason: LedgerFailure | "disposed"): void {
+    if (closed) return;
+    closed = true;
+    if (livenessTimer !== undefined) options.scheduler.clearTimeout(livenessTimer);
+    runner.dispose();
+    port.setHandler(undefined);
+    port.close();
+    options.onClosed(reason);
+  }
+
+  function send(message: unknown): void {
+    if (closed) return;
+    port.postMessage(message);
+  }
+  function respond(response: BridgeResponse): void {
+    send(response);
+  }
+  function respondError(id: number, error: BridgeError): void {
+    respond({ v: BRIDGE_VERSION, id, ok: false, error });
+  }
+
+  function overRate(): boolean {
+    const now = options.clock.now();
+    if (now - windowStart >= RATE_WINDOW_MS) {
+      windowStart = now;
+      windowCount = 0;
+    }
+    windowCount += 1;
+    return windowCount > UI_LIMITS.bridgeMessagesPerSecond;
+  }
+
+  function run(action: BridgeAction): Promise<BackendResult<unknown>> {
+    if (action.op !== "pong") return runner.run(action);
+    if (outstandingPing === action.n) {
+      outstandingPing = undefined;
+      misses = 0;
+    }
+    return Promise.resolve({ ok: true, value: null });
   }
 
   async function onMessage(data: unknown): Promise<void> {

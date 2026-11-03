@@ -1,4 +1,4 @@
-import type { ExtGetResult, ExtUiEntry } from "@fresnel/contracts/wire";
+import type { ExtGetResult, ExtListResult, ExtUiEntry } from "@fresnel/contracts/wire";
 
 // Plugin UI 모델 시험의 공용 입력. 매니페스트는 `ExtensionManifestSchema`를 통과하는 모양이다.
 
@@ -87,4 +87,20 @@ export function appEntryOf(overrides: Partial<ExtUiEntry> = {}): ExtUiEntry {
     app: APP_DECL,
     ...overrides,
   });
+}
+
+/** `ext.list` 결과 한 줄. 기본은 켜진 확장이다 */
+export function extListEntryOf(
+  name: string,
+  options: {
+    readonly status?: RegistrationStatus;
+    readonly safeModeExcluded?: string | null;
+  } = {},
+): ExtListResult["extensions"][number] {
+  return {
+    ...extGetOf().entry,
+    name,
+    status: options.status ?? "enabled",
+    safeModeExcluded: options.safeModeExcluded ?? null,
+  };
 }

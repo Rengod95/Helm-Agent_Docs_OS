@@ -172,7 +172,7 @@ export interface LoadOptions {
    */
   readonly projects?: "cwd" | "on_demand";
   /**
-   * 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, X.loading-trust.spec §4.3.4). 없는 값은 기본을 쓴다(앱 켬, 프로젝트 앱 끔).
+   * 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, X.loading-trust.spec §4.3.4). 없는 값은 기본을 쓴다(앱 끔, 프로젝트 앱 끔).
    * 이 호출의 값을 `loadProject`도 그대로 쓴다. 바뀌면 다음 시작에 적용한다
    */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };

@@ -19,7 +19,8 @@ export const uiSettings: SettingGroup<
 > = defineSettings("x.ui", {
   apps: {
     type: Type.Boolean(),
-    default: true,
+    // 실기 확인(ADR-0021 §3.6.2 3번, §6 미결 1) 전 빌드는 프레임 모드를 끈다. 켜는 시점은 사용자가 정한다
+    default: false,
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
     ui: { tab: "plugins", widget: "toggle", order: 450, label: "플러그인 앱 화면 허용" },

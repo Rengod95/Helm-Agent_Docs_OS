@@ -67,6 +67,37 @@ const HELLO_RESULT = {
 };
 
 describe("createHostConnection", () => {
+  test("requestExtension sends ext.<extension>.<verb> and returns the raw result", async () => {
+    const manual = manualTransport();
+    const connection = createHostConnection(manual.transport);
+    const call = connection.requestExtension("helm", "listRuns", { limit: 3 });
+    expect(manual.sent[0]).toEqual({
+      jsonrpc: "2.0",
+      id: "r1",
+      method: "ext.helm.listRuns",
+      params: { limit: 3 },
+    });
+    manual.deliver({ jsonrpc: "2.0", id: "r1", result: { runs: [1, 2] } });
+    expect(await call).toEqual({ runs: [1, 2] });
+  });
+
+  test("requestExtension turns a wire error into WireError", async () => {
+    const manual = manualTransport();
+    const connection = createHostConnection(manual.transport);
+    const call = connection.requestExtension("helm", "nope", {});
+    manual.deliver({
+      jsonrpc: "2.0",
+      id: "r1",
+      error: {
+        code: 1001,
+        message: "hello first",
+        data: { kind: "host.helloRequired", retryable: false },
+      },
+    });
+    const failure = await call.catch((caught: unknown) => caught);
+    expect(failure).toBeInstanceOf(WireError);
+  });
+
   test("numbers requests r1, r2 and matches responses by id", async () => {
     const manual = manualTransport();
     const connection = createHostConnection(manual.transport);

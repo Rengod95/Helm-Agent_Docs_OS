@@ -584,6 +584,7 @@ export function createRegistrationApi(
           : withAmbient(
               {
                 ...directAmbient(record.id, ctx.threadId, "method", ctx.callId),
+                ...(declared.readOnly ? { readOnlyMethod: true as const } : {}),
                 handler: { signal: ctx.signal, gate },
               },
               () => def.handler(params, ctx),

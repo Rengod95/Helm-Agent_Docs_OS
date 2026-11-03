@@ -37,7 +37,7 @@ interface Sent {
   readonly transfer: unknown[];
 }
 
-function setupFrame() {
+function setupFrame(readyNonce?: string) {
   const time = new ManualTime();
   const ledger = createScreenLedger();
   const attributes: Record<string, string> = {};
@@ -76,6 +76,7 @@ function setupFrame() {
     },
     url: "fresnel-view://helm/1.0.0/index.html",
     declaredBridge: "^1.0.0",
+    ...(readyNonce === undefined ? {} : { readyNonce }),
     createChannel: () => {
       const pair = portPair();
       channels.push(pair);
@@ -175,6 +176,33 @@ describe("frame host", () => {
     wrongShape.emit({ source: wrongShape.frameWindow, data: { ready: "yes" } });
     expect(wrongShape.closed).toEqual(["bridge_format"]);
     expect(wrongShape.host.state).toBe("closed");
+  });
+
+  test("with a shell nonce, only a ready that echoes it gets the port", () => {
+    const nonce = "abcDEF123_-xyz90";
+    const missing = setupFrame(nonce);
+    missing.emit({ source: missing.frameWindow, data: READY });
+    expect(missing.sent).toEqual([]);
+    expect(missing.closed).toEqual(["bridge_format"]);
+
+    const wrong = setupFrame(nonce);
+    wrong.emit({ source: wrong.frameWindow, data: { ...READY, nonce: "zzzzzzzzzzzz" } });
+    expect(wrong.sent).toEqual([]);
+    expect(wrong.closed).toEqual(["bridge_format"]);
+
+    const right = setupFrame(nonce);
+    right.emit({ source: right.frameWindow, data: { ...READY, nonce } });
+    expect(right.sent).toHaveLength(1);
+    expect(right.host.state).toBe("ready");
+    expect(right.closed).toEqual([]);
+  });
+
+  test("buildAppUrl puts the nonce in the fragment and refuses an unsafe one", () => {
+    expect(buildAppUrl("helm", "1.0.0", "index.html", "abcDEF123_-xyz90")).toBe(
+      "fresnel-view://helm/1.0.0/index.html#n=abcDEF123_-xyz90",
+    );
+    expect(buildAppUrl("helm", "1.0.0", "index.html", "short")).toBeUndefined();
+    expect(buildAppUrl("helm", "1.0.0", "index.html", "has space and ;x")).toBeUndefined();
   });
 
   test("no ready in 5 s closes the frame as ready_timeout", () => {
@@ -326,9 +354,16 @@ describe("theme tokens and confirm line", () => {
       approval: false,
     } as const;
     expect(confirmLineText(base)).toBe('"helm" 확장이 "start" 동작을 하려고 해요');
-    // 매니페스트 라벨이 있으면 동사 대신 라벨을 보인다
+    // 매니페스트 라벨이 있으면 라벨 옆에 실제 동사를 함께 보인다(라벨이 다른 동작처럼 보이게 하지 못한다)
     expect(confirmLineText({ ...base, label: "작업 시작" })).toBe(
-      '"helm" 확장이 "작업 시작" 동작을 하려고 해요',
+      '"helm" 확장이 "작업 시작 (start)" 동작을 하려고 해요',
+    );
+    // 라벨의 제어·방향 제어·보이지 않는 글자는 지운다. 지우고 남은 것이 없으면 동사만 보인다
+    expect(confirmLineText({ ...base, label: "작업\u202e 시\u200b작\u0007" })).toBe(
+      '"helm" 확장이 "작업 시작 (start)" 동작을 하려고 해요',
+    );
+    expect(confirmLineText({ ...base, label: "\u202e\u0007" })).toBe(
+      '"helm" 확장이 "start" 동작을 하려고 해요',
     );
     expect(confirmBadges(base)).toEqual(["직접 설치"]);
     expect(confirmBadges({ ...base, trust: "project" })).toEqual([

@@ -36,7 +36,8 @@ import {
 type ShellNavigateTarget = Exclude<NavigateTarget, { readonly kind: "external" }>;
 
 export interface BridgeBackendDeps {
-  readonly connection: HostConnection;
+  /** 요청마다 지금 연결을 읽는다. 재연결 뒤에도 낡은 연결로 보내지 않는다. 연결이 없으면 요청은 실패한다 */
+  readonly connection: () => HostConnection | undefined;
   /** 확장 이름. `ext.ui.post`의 `extension`에 쓴다 */
   readonly extension: string;
   /** 화면 id(매니페스트 `ui` 항목의 id). `ext.ui.post`의 `ui`에 쓴다 */
@@ -47,7 +48,8 @@ export interface BridgeBackendDeps {
   readonly policy: () => BridgePolicyContext;
   /** 고정 맥락 읽기(`host`)의 바탕. `threadId`는 `openThreadId`로 덮는다 */
   readonly snapshot: () => HostSnapshot;
-  readonly navigate: (target: ShellNavigateTarget) => void;
+  /** 셸이 열 수 있으면 참. 모르는 대상이면 거짓이고 다리는 `navigate_unsupported`로 답한다 */
+  readonly navigate: (target: ShellNavigateTarget) => boolean;
   /** OS 브라우저 열기. 호출자는 확인을 받은 링크의 `href`만 넘긴다 */
   readonly openExternal: (href: string) => Promise<void>;
   readonly confirmExternal: (link: ExternalLink) => Promise<boolean>;
@@ -65,13 +67,16 @@ function fail(kind: BridgeError["kind"], detail?: string): BackendResult<never> 
 }
 
 /**
- * 확장 메서드(`ext.<확장>.<동사>`)와 승인 요청은 지금 타입이 있는 wire로 부를 길이 없다.
- * `HostConnection.request`는 닫힌 목록 `WireMethodName`만 받고, `ext.ui.requestApproval`은 매니페스트에 선언된 `method`를 요구하는데
- * 다리 `requestApproval`은 제목과 설명만 준다. 두 길은 계약 결정 뒤에 잇는다(작업 보고 [미결]).
+ * 프레임이 글을 준 승인 요청(`requestApproval`)은 wire로 잇지 않는다. `ext.ui.requestApproval`은 매니페스트에 선언된 `method`를 요구하는데
+ * 다리 `requestApproval`은 제목과 설명만 주고, 프레임이 쓴 글이 표준 승인 카드가 되는 길은 사용자 결정 전에 열지 않는다(작업 보고 [미결]).
+ * 승인이 필요한 메서드(`approval: true`) 호출도 승인 뒤 실행하는 길이 정해지지 않아 닫는다
  */
 function unavailable(): Promise<BackendResult<never>> {
   return Promise.resolve(fail("failed", "wire_unavailable"));
 }
+
+/** 확장 메서드 params의 예약 키. 프레임이 준 값은 버리고 열린 대화로만 채운다 */
+const THREAD_KEY = "threadId";
 
 function isExtensionOff(kind: string): boolean {
   return kind.startsWith("ext.") && kind.endsWith(".off");
@@ -171,18 +176,43 @@ function commandResultOf(output: CommandRunResult): BackendResult<unknown> {
 }
 
 export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
-  const { connection } = deps;
+  /** 지금 연결로 wire 호출 하나. 연결이 없으면 `offline`이다 */
+  function onWire<T>(run: (connection: HostConnection) => Promise<T>): Promise<BackendResult<T>> {
+    const connection = deps.connection();
+    if (connection === undefined) return Promise.resolve(fail("failed", "offline"));
+    return wire(() => run(connection));
+  }
+  /** `ext.<확장>.<동사>` 한 번. 대화는 열린 대화로만 싣고 프레임이 준 `threadId`는 버린다 */
+  function extension(
+    verb: string,
+    params: Readonly<Record<string, unknown>>,
+  ): Promise<BackendResult<unknown>> {
+    const rest = Object.fromEntries(Object.entries(params).filter(([key]) => key !== THREAD_KEY));
+    const open = threadOf(deps.openThreadId());
+    const sent = open.ok ? { ...rest, [THREAD_KEY]: open.value } : rest;
+    return onWire((connection) => connection.requestExtension(deps.extension, verb, sent));
+  }
+
   return {
-    // 확장 메서드 읽기와 호출은 위 `unavailable` 주석의 이유로 아직 wire를 부르지 않는다
-    query: unavailable,
-    call: unavailable,
     requestApproval: unavailable,
+
+    query(verb, params) {
+      return extension(verb, params);
+    },
+
+    call(verb, params) {
+      // 승인이 필요한 메서드는 승인 뒤 실행하는 길이 없어 닫는다. 판정은 `decide`가 이미 했고 여기서 다시 선언을 본다
+      if (deps.policy().methods.get(verb)?.approval === true) {
+        return Promise.resolve(fail("denied", "approval_required"));
+      }
+      return extension(verb, params);
+    },
 
     async events(kinds, limit) {
       const open = threadOf(deps.openThreadId());
       if (!open.ok) return ok([]);
       const cap = Math.min(limit, EVENT_ROWS_MAX);
-      const read = await wire(() =>
+      const read = await onWire((connection) =>
         connection.request("thread.read", { threadId: open.value, limit: cap }),
       );
       if (!read.ok) return read;
@@ -190,10 +220,10 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     },
 
     async settings(keys) {
-      const defs = await wire(() => connection.request("settings.list", {}));
+      const defs = await onWire((connection) => connection.request("settings.list", {}));
       if (!defs.ok) return defs;
       const open = threadOf(deps.openThreadId());
-      const got = await wire(() =>
+      const got = await onWire((connection) =>
         connection.request("settings.get", {
           keys: [...keys],
           ...(open.ok ? { threadId: open.value } : {}),
@@ -213,7 +243,7 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
       if (!open.ok) return open;
       const tail = stripUnsafeText(args, false).trim();
       const text = tail === "" ? `/${name}` : `/${name} ${tail}`;
-      const ran = await wire(() =>
+      const ran = await onWire((connection) =>
         connection.request("command.run", { threadId: open.value, text }),
       );
       if (!ran.ok) return ran;
@@ -221,7 +251,7 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     },
 
     post(threadId, text) {
-      return wire(() =>
+      return onWire((connection) =>
         connection.request("ext.ui.post", {
           extension: deps.extension,
           ui: deps.screen,
@@ -235,7 +265,8 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     async navigate(target, shellConfirmed) {
       if (target.kind !== "external") {
         const moved = attempt(() => deps.navigate(target));
-        return moved.ok ? ok(null) : fail("failed", "navigate");
+        if (!moved.ok) return fail("failed", "navigate");
+        return moved.value ? ok(null) : fail("failed", "navigate_unsupported");
       }
       // 외부 링크는 판정 뒤 `confirmExternal`을 거친 것만 온다(브리지는 이때 `needsShellConfirm`을 참으로 보낸다)
       if (!shellConfirmed) return fail("denied", "not_confirmed");

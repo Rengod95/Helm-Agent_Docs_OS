@@ -270,6 +270,7 @@ export interface ExtMethodDecl {
   readonly result: Readonly<Record<string, unknown>>;   // JSON Schema
   readonly readOnly: boolean;
   readonly approval?: boolean;
+  readonly label?: string;             // 1~48자. 프레임 call 확인 줄이 동사 대신 보인다 (EXT_LABEL_MAX)
 }
 export function validateUi(ui: UiDecl): readonly ManifestIssue[];
 export function validateMethods(methods: readonly ExtMethodDecl[]): readonly ManifestIssue[];
@@ -291,7 +292,7 @@ export function validateMethods(methods: readonly ExtMethodDecl[]): readonly Man
   | `method_duplicate` | 같은 `verb`가 둘 |
 
 - 화면 트리는 `UiNode`(`{ type, props?, bind?, each?, when?, children? }`)입니다. `props`는 글자·숫자·불리언·null 값만 받고(색, CSS, HTML 키는 렌더러가 버립니다), `bind`는 속성 이름에서 JSON Pointer 경로(`format?`은 `UI_FORMATS`)로, `each`는 `{ path, as }`, `when`은 `{ path, op: "eq"|"ne"|"exists"|"missing", value? }`입니다. `validateUiTree(input)`이 스키마와 크기 상한(`UI_LIMITS`: 노드 2000개, 깊이 24)을 검사해 `{ ok: true, tree }` 또는 `{ ok: false, issues }`(`ui_invalid`, `ui_limit`)를 돌려줍니다. 순수 함수입니다.
-- Plugin App 다리 메시지 스키마는 `BridgeRequestSchema`(`{ v: 1, id, op, args }`), `BridgeResponseSchema`(`{ v: 1, id, ok: true, value }` 또는 `{ v: 1, id, ok: false, error: { kind, detail? } }`), `BridgePushSchema`(`{ v: 1, push, value }`, `push`는 `theme`, `host`, `event`, `invalidate`, `ping`이고 `ping`은 5초마다 `{ n }`을 보내 `pong` 요청 `{ n }`으로 답을 받는 생존 확인입니다. 2번 연속 답이 없으면 그 프레임을 내립니다), `BridgeReadySchema`(`{ v: 1, ready: true, bridge }`)입니다. `op`는 `BRIDGE_OPS`(호스트 API 아홉과 `resize`, `log`, `pong`), 오류 `kind`는 `BRIDGE_ERROR_KINDS`입니다. 메시지 크기 상한 1 MiB는 `bridgeMessageWithinLimit`이 보고, 초당 50개 제한은 호스트가 셉니다. `args`와 `value`의 내용 검사는 `op`별로 셸이 합니다.
+- Plugin App 다리 메시지 스키마는 `BridgeRequestSchema`(`{ v: 1, id, op, args }`), `BridgeResponseSchema`(`{ v: 1, id, ok: true, value }` 또는 `{ v: 1, id, ok: false, error: { kind, detail? } }`), `BridgePushSchema`(`{ v: 1, push, value }`, `push`는 `theme`, `host`, `event`, `invalidate`, `ping`이고 `ping`은 5초마다 `{ n }`을 보내 `pong` 요청 `{ n }`으로 답을 받는 생존 확인입니다. 2번 연속 답이 없으면 그 프레임을 내립니다), `BridgeReadySchema`(`{ v: 1, ready: true, bridge, nonce? }`, `nonce`는 8~64자이고 셸이 프레임 주소 조각 `#n=<nonce>`로 준 값을 되돌린다. 셸이 nonce를 냈으면 같은 값이 와야 포트를 넘긴다)입니다. 메서드 선언의 `label`(1~48자)은 확인 줄에 동사 대신 보이는 글이고 셸이 제어·방향 제어 글자를 지우고 보입니다 [결정: 2026-11-03 M4 T-VIEW]. `op`는 `BRIDGE_OPS`(호스트 API 아홉과 `resize`, `log`, `pong`), 오류 `kind`는 `BRIDGE_ERROR_KINDS`입니다. 메시지 크기 상한 1 MiB는 `bridgeMessageWithinLimit`이 보고, 초당 50개 제한은 호스트가 셉니다. `args`와 `value`의 내용 검사는 `op`별로 셸이 합니다.
 
 #### 3.1.2 구성 선언 (`composition.ts`) [결정: 2026-10-31 사용자, X-16]
 

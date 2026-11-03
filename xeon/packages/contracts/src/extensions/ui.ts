@@ -375,6 +375,8 @@ export interface BridgeReady {
   readonly v: 1;
   readonly ready: true;
   readonly bridge: string;
+  /** 셸이 프레임 주소 조각(`#n=<nonce>`)으로 준 값을 되돌려 보낸다. 셸이 nonce를 냈으면 같아야 포트를 넘긴다 */
+  readonly nonce?: string;
 }
 
 const BridgeIdSchema = Type.Integer({ minimum: 0, maximum: Number.MAX_SAFE_INTEGER });
@@ -426,7 +428,12 @@ export const BridgePushSchema: TUnsafe<BridgePushMessage> = Type.Unsafe<BridgePu
   BridgePushShape satisfies SchemaProof<BridgePushMessage, typeof BridgePushShape>,
 );
 const BridgeReadyShape = Type.Object(
-  { v: Type.Literal(BRIDGE_VERSION), ready: Type.Literal(true), bridge: SemVerRangeSchema },
+  {
+    v: Type.Literal(BRIDGE_VERSION),
+    ready: Type.Literal(true),
+    bridge: SemVerRangeSchema,
+    nonce: Type.Optional(Type.String({ minLength: 8, maxLength: 64 })),
+  },
   { additionalProperties: false },
 );
 export const BridgeReadySchema: TUnsafe<BridgeReady> = Type.Unsafe<BridgeReady>(

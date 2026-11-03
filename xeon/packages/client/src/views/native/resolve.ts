@@ -29,7 +29,7 @@ import { createScope, resolvePath, withLocal, type Scope } from "./scope.ts";
 // - 모르는 위젯은 자리표시 노드 하나이고 자식은 버린다.
 // - 노드 수와 깊이는 한도로 막는다. 한도를 넘는 첫 노드가 too_long 자리표시 하나가 되고, 그 뒤는 모두 버린다.
 // - 바인드 문자열은 4096자에서 자른다.
-// - 배열 바인드: LIST_BINDS의 목록 키(List.items, Table.rows, ListDescription.items, ActivityTree.items, Timeline.items, Sparkline.points)에
+// - 배열 바인드: LIST_BINDS의 목록 키(List.items, Table.rows, ListDescription.items, ActivityTree.items, Timeline.items, Sparkline.points, Select.options, SegmentedControl.options)에
 //   배열이 오면 props가 아니라 lists로 푼다. 원소는 스칼라이거나 스칼라 속성만 담은 평평한 레코드다. 앞 500개만 보고 넘치면 truncated다.
 //   목록 원소 하나가 일 한 단위다. format은 배열 바인드에 적용하지 않는다. 배열이 아닌 값은 목록을 만들지 않고 위의 bind 규칙을 따른다.
 
@@ -46,6 +46,8 @@ const LIST_BINDS: Readonly<Partial<Record<WidgetName, string>>> = {
   ActivityTree: "items",
   Timeline: "items",
   Sparkline: "points",
+  Select: "options",
+  SegmentedControl: "options",
 };
 /** 목록 레코드에 옮기지 않는 키. 프로토타입을 바꾸거나 바깥 이름을 흉내 낸다 */
 const RECORD_DENY_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);

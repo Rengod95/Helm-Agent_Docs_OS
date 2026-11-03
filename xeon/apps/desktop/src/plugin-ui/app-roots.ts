@@ -78,13 +78,42 @@ function errorKindOf(cause: unknown): AppRootErrorKind | "unknown" {
   return typeof cause === "string" && isAppRootErrorKind(cause) ? cause : "unknown";
 }
 
-/** 앱 root 목록을 셸에 통째로 보낸다. 명령은 한 번만 부른다. 던지지 않고 거부 이유를 `kind`로 돌려준다 */
+/** 셸이 건너뛴 항목 하나. 항목의 글은 옮기지 않고 확장 이름과 버전, 이유만 남긴다 */
+export interface SkippedAppRoot {
+  readonly extension: string;
+  readonly version: string;
+  readonly kind: AppRootErrorKind | "unknown";
+}
+
+/** 셸의 답에서 건너뛴 자리와 이유를 읽는다. 모양이 다르면(옛 셸의 `null` 포함) 건너뛴 것이 없는 것으로 본다 */
+function skippedOf(reply: unknown, sent: readonly AppRootEntry[]): readonly SkippedAppRoot[] {
+  if (!Array.isArray(reply)) return [];
+  const out: SkippedAppRoot[] = [];
+  const rows: readonly unknown[] = reply;
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) continue;
+    const index: unknown = Object.getOwnPropertyDescriptor(row, "index")?.value;
+    const kind: unknown = Object.getOwnPropertyDescriptor(row, "kind")?.value;
+    const target = typeof index === "number" ? sent[index] : undefined;
+    if (target === undefined) continue;
+    out.push({
+      extension: target.extension,
+      version: target.version,
+      kind: typeof kind === "string" && isAppRootErrorKind(kind) ? kind : "unknown",
+    });
+  }
+  return out;
+}
+
+/**
+ * 앱 root 목록을 셸에 통째로 보낸다. 명령은 한 번만 부른다. 던지지 않고 거부 이유를 `kind`로 돌려준다.
+ * 항목 하나가 나빠도 나머지는 등록되고, 셸이 건너뛴 항목은 값으로 돌려준다
+ */
 export async function syncAppRoots(
   invoke: AppRootsInvoke,
   entries: readonly ExtUiEntry[],
-): Promise<Result<null, AppRootsSyncError>> {
-  const sent = await attemptAsync(() =>
-    invoke("app_roots_set", { entries: appRootInputs(entries) }),
-  );
-  return sent.ok ? ok(null) : err({ kind: errorKindOf(sent.error.cause) });
+): Promise<Result<readonly SkippedAppRoot[], AppRootsSyncError>> {
+  const inputs = appRootInputs(entries);
+  const sent = await attemptAsync(() => invoke("app_roots_set", { entries: inputs }));
+  return sent.ok ? ok(skippedOf(sent.value, inputs)) : err({ kind: errorKindOf(sent.error.cause) });
 }

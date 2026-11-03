@@ -9,6 +9,7 @@ import type {
   ExtListEntry,
   ExtVersionsResult,
   HookEntry,
+  HostConnection,
   HooksOrderGetResult,
   HooksOrderPreviewResult,
   HooksOrderResetResult,
@@ -239,6 +240,14 @@ export interface WorkbenchCommands {
   trace(threadId: ThreadId, turnId: TurnId): Promise<Result<TraceTurnResult, CommandError>>;
 }
 
+interface PluginUiCommands {
+  withConnection<T>(
+    run: (connection: HostConnection) => Promise<T>,
+  ): Promise<Result<T, CommandError>>;
+  /** 지금 연결. 재연결 뒤에는 새 연결이다. 화면이 연결을 붙잡고 있으면 낡은 연결로 요청이 간다. 없으면 null */
+  current(): HostConnection | null;
+}
+
 export interface Commands {
   selectThread(threadId: ThreadId): void;
   /** `workspace`는 작업 폴더(절대 경로)이고 `thread.create`로 그대로 보낸다. 없으면 폴더 없는 대화다(G2-02) */
@@ -274,6 +283,8 @@ export interface Commands {
   /** 크래프트(`workbench`)의 확장 읽기·켜기·되돌리기 */
   readonly workbench: WorkbenchCommands;
   readonly schedule: ScheduleCommands;
+  /** 플러그인 화면 실행 맥락이 쓰는 연결 한 번. 연결이 없으면 `offline`이다 */
+  readonly pluginUi: PluginUiCommands;
   readonly connection: ConnectionCommands;
   readonly secrets: SecretCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */

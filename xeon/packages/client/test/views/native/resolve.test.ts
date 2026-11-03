@@ -454,6 +454,21 @@ describe("resolveTree array binds", () => {
     expect("polluted" in {}).toBe(false);
   });
 
+  test("Select and SegmentedControl take their options as a list next to a scalar value", () => {
+    for (const type of ["Select", "SegmentedControl"]) {
+      const resolved = resolveTree(
+        { type, bind: { value: { path: "/mode" }, options: { path: "/modes" } } },
+        input({ mode: "b", modes: ["a", "b", "c"] }),
+      );
+      expect(resolved.root).toEqual({
+        type,
+        props: { value: "b" },
+        children: [],
+        lists: { options: ["a", "b", "c"] },
+      });
+    }
+  });
+
   test("lists are capped at 500 and mark the tree truncated", () => {
     const items = Array.from({ length: 600 }, (_, index) => index);
     const resolved = resolveTree(listTree("/items"), input({ items }));

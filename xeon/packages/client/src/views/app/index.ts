@@ -1,5 +1,8 @@
 export {
+  createActionRunner,
   createBridgeHost,
+  paramsFitSummary,
+  PARAMS_SUMMARY_MAX,
   CONFIRM_COOLDOWN_MS,
   CONFIRM_DENY_STREAK,
   CONFIRM_TIMEOUT_MS,
@@ -8,6 +11,8 @@ export {
   QUERY_INFLIGHT_MAX,
   summarizeParams,
   LIVENESS_INTERVAL_MS,
+  type ActionRunner,
+  type ActionRunnerOptions,
   type BackendResult,
   type BridgeBackend,
   type BridgeHost,
@@ -16,6 +21,7 @@ export {
   type ConfirmAnswer,
   type ConfirmRequest,
   type HostSnapshot,
+  type RunnableAction,
   type SettingRead,
 } from "./bridge-host.ts";
 export {

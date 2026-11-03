@@ -5,6 +5,9 @@
 const NAME_SEGMENT = /^[a-z][a-z0-9-]{0,63}$/;
 const VERSION_SEGMENT = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]{1,32})?$/;
 
+/** 넘겨받기 nonce의 모양. 주소 조각에 그대로 들어가므로 URL 안전 글자만 받는다 */
+const NONCE_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+
 export const APP_SCHEME = "fresnel-view" as const;
 
 /**
@@ -47,14 +50,22 @@ export type AppUrlParts = {
   readonly path: string;
 };
 
-/** 프레임 주소 `fresnel-view://<확장이름>/<버전>/<경로>`. 마디가 규칙에 맞지 않으면 undefined다 */
-export function buildAppUrl(extension: string, version: string, path: string): string | undefined {
+/** 프레임 주소 `fresnel-view://<확장이름>/<버전>/<경로>[#n=<nonce>]`. 마디가 규칙에 맞지 않으면 undefined다 */
+export function buildAppUrl(
+  extension: string,
+  version: string,
+  path: string,
+  nonce?: string,
+): string | undefined {
   if (!NAME_SEGMENT.test(extension) || !VERSION_SEGMENT.test(version)) return undefined;
   const segments = path.split("/");
   if (segments.some((segment) => segment === "" || segment === "." || segment === ".."))
     return undefined;
   if (path.includes("\\") || path.includes("\0")) return undefined;
-  return `${APP_SCHEME}://${extension}/${version}/${segments.map(encodeURIComponent).join("/")}`;
+  // nonce는 조각이라 요청에 실리지 않는다(스킴 처리기는 보지 못한다). 프레임 스크립트만 `location.hash`로 읽는다
+  if (nonce !== undefined && !NONCE_PATTERN.test(nonce)) return undefined;
+  const fragment = nonce === undefined ? "" : `#n=${nonce}`;
+  return `${APP_SCHEME}://${extension}/${version}/${segments.map(encodeURIComponent).join("/")}${fragment}`;
 }
 
 /** 요청 주소를 푼다. 스킴, 호스트(확장 이름), 버전, 나머지 경로(퍼센트 인코딩 그대로)로 나눈다. 모양이 틀리면 undefined다 */

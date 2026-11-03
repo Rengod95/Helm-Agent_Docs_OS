@@ -32,6 +32,26 @@ describe("policyContextOf", () => {
     expect(context.value.methods.has("missing")).toBe(false);
   });
 
+  test("a manifest label reaches the method grant", () => {
+    const manifest = {
+      ...HELM_MANIFEST,
+      methods: [{ verb: "save", params: {}, result: {}, readOnly: false, label: "Save the plan" }],
+    };
+    const context = policyContextOf({
+      get: extGetOf(manifest),
+      entry: uiEntryOf(),
+      openThreadId: undefined,
+      commands,
+    });
+    expect(context.ok).toBe(true);
+    if (!context.ok) return;
+    expect(context.value.methods.get("save")).toEqual({
+      readOnly: false,
+      approval: false,
+      label: "Save the plan",
+    });
+  });
+
   test("readsRecordKinds is the union over the plugins; declared setting keys come from userConfig", () => {
     const context = policyContextOf({
       get: extGetOf(),
@@ -164,9 +184,9 @@ describe("policyContextOf", () => {
 });
 
 describe("appsAllowed", () => {
-  test("apps are on and project apps are off by default", () => {
-    expect(appsAllowed("user", {})).toBe(true);
-    expect(appsAllowed("builtin", {})).toBe(true);
+  test("apps and project apps are both off by default", () => {
+    expect(appsAllowed("user", {})).toBe(false);
+    expect(appsAllowed("builtin", {})).toBe(false);
     expect(appsAllowed("project", {})).toBe(false);
   });
 
@@ -178,13 +198,14 @@ describe("appsAllowed", () => {
   });
 
   test("project apps need x.ui.allowProjectApps true", () => {
-    expect(appsAllowed("project", { [UI_ALLOW_PROJECT_APPS_KEY]: true })).toBe(true);
-    expect(appsAllowed("project", { [UI_ALLOW_PROJECT_APPS_KEY]: false })).toBe(false);
-    expect(appsAllowed("user", { [UI_ALLOW_PROJECT_APPS_KEY]: false })).toBe(true);
+    const on = { [UI_APPS_KEY]: true };
+    expect(appsAllowed("project", { ...on, [UI_ALLOW_PROJECT_APPS_KEY]: true })).toBe(true);
+    expect(appsAllowed("project", { ...on, [UI_ALLOW_PROJECT_APPS_KEY]: false })).toBe(false);
+    expect(appsAllowed("user", { ...on, [UI_ALLOW_PROJECT_APPS_KEY]: false })).toBe(true);
   });
 
   test("a value that is not a boolean falls back to the default", () => {
-    expect(appsAllowed("user", { [UI_APPS_KEY]: "no" })).toBe(true);
+    expect(appsAllowed("user", { [UI_APPS_KEY]: "no" })).toBe(false);
     expect(appsAllowed("project", { [UI_ALLOW_PROJECT_APPS_KEY]: 1 })).toBe(false);
   });
 });

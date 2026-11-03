@@ -1,6 +1,7 @@
 import { detach, parse } from "@fresnel/contracts";
 import {
   checkEnvelope,
+  extMethodName,
   WIRE_METHODS,
   WIRE_NOTIFICATIONS,
   WireError,
@@ -151,78 +152,88 @@ export function createHostConnection(
     );
   }
 
+  function send(
+    method: string,
+    params: object,
+    requestOptions?: WireRequestOptions,
+  ): Promise<unknown> {
+    if (state.closed !== undefined) {
+      return Promise.reject(new HostClientError("closed", "connection is closed", state.closed));
+    }
+    const signal = requestOptions?.signal;
+    if (signal?.aborted === true) {
+      return Promise.reject(new HostClientError("aborted", `${method} was aborted before sending`));
+    }
+    state.counter += 1;
+    const id = `r${state.counter}`;
+    const waiter = Promise.withResolvers<unknown>();
+    const cleanups: (() => void)[] = [];
+    const finish = (): void => {
+      for (const cleanup of cleanups.splice(0)) cleanup();
+    };
+    pending.set(id, {
+      method,
+      resolve(result) {
+        finish();
+        waiter.resolve(result);
+      },
+      reject(error) {
+        finish();
+        waiter.reject(error);
+      },
+    });
+
+    const timeoutMs = requestOptions?.timeoutMs ?? options.defaultTimeoutMs;
+    if (timeoutMs !== undefined) {
+      const timer = setTimeout(() => {
+        if (!pending.delete(id)) return;
+        sendCancel(id);
+        finish();
+        waiter.reject(new HostClientError("timeout", `${method} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      cleanups.push(() => {
+        clearTimeout(timer);
+      });
+    }
+    if (signal !== undefined) {
+      const onAbort = (): void => {
+        // 서버가 5001로 응답하거나 이미 낸 결과를 보낸다(F.wire-settings.spec §4.4). 응답을 기다린다
+        if (pending.has(id)) sendCancel(id);
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      cleanups.push(() => {
+        signal.removeEventListener("abort", onAbort);
+      });
+    }
+
+    transport
+      .send({ jsonrpc: "2.0", id, method, params: paramsRecord(params) })
+      .catch((caught: unknown) => {
+        const entry = pending.get(id);
+        if (entry === undefined) return;
+        pending.delete(id);
+        entry.reject(
+          new HostClientError(
+            "sendFailed",
+            caught instanceof Error ? caught.message : String(caught),
+            state.closed,
+          ),
+        );
+      });
+    return waiter.promise;
+  }
+
   return {
     request<M extends WireMethodName>(
       method: M,
       params: WireParams<M>,
       requestOptions?: WireRequestOptions,
     ): Promise<WireResult<M>> {
-      if (state.closed !== undefined) {
-        return Promise.reject(new HostClientError("closed", "connection is closed", state.closed));
-      }
-      const signal = requestOptions?.signal;
-      if (signal?.aborted === true) {
-        return Promise.reject(
-          new HostClientError("aborted", `${method} was aborted before sending`),
-        );
-      }
-      state.counter += 1;
-      const id = `r${state.counter}`;
-      const waiter = Promise.withResolvers<unknown>();
-      const cleanups: (() => void)[] = [];
-      const finish = (): void => {
-        for (const cleanup of cleanups.splice(0)) cleanup();
-      };
-      pending.set(id, {
-        method,
-        resolve(result) {
-          finish();
-          waiter.resolve(result);
-        },
-        reject(error) {
-          finish();
-          waiter.reject(error);
-        },
-      });
+      return send(method, params, requestOptions).then((result) => toResult(method, result));
+    },
 
-      const timeoutMs = requestOptions?.timeoutMs ?? options.defaultTimeoutMs;
-      if (timeoutMs !== undefined) {
-        const timer = setTimeout(() => {
-          if (!pending.delete(id)) return;
-          sendCancel(id);
-          finish();
-          waiter.reject(new HostClientError("timeout", `${method} timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
-        cleanups.push(() => {
-          clearTimeout(timer);
-        });
-      }
-      if (signal !== undefined) {
-        const onAbort = (): void => {
-          // 서버가 5001로 응답하거나 이미 낸 결과를 보낸다(F.wire-settings.spec §4.4). 응답을 기다린다
-          if (pending.has(id)) sendCancel(id);
-        };
-        signal.addEventListener("abort", onAbort, { once: true });
-        cleanups.push(() => {
-          signal.removeEventListener("abort", onAbort);
-        });
-      }
-
-      transport
-        .send({ jsonrpc: "2.0", id, method, params: paramsRecord(params) })
-        .catch((caught: unknown) => {
-          const entry = pending.get(id);
-          if (entry === undefined) return;
-          pending.delete(id);
-          entry.reject(
-            new HostClientError(
-              "sendFailed",
-              caught instanceof Error ? caught.message : String(caught),
-              state.closed,
-            ),
-          );
-        });
-      return waiter.promise.then((result) => toResult(method, result));
+    requestExtension(extension, verb, params, requestOptions) {
+      return send(extMethodName(extension, verb), params, requestOptions);
     },
 
     onNotification<N extends ServerNotificationName>(

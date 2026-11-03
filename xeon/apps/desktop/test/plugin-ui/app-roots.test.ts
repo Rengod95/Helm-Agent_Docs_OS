@@ -73,7 +73,7 @@ describe("syncAppRoots", () => {
   test("calls app_roots_set exactly once with the filtered list and succeeds", async () => {
     const fake = recorder(() => Promise.resolve(null));
     const result = await syncAppRoots(fake.invoke, [uiEntryOf(), appEntryOf({ trust: "project" })]);
-    expect(result).toEqual({ ok: true, value: null });
+    expect(result).toEqual({ ok: true, value: [] });
     expect(fake.calls).toEqual([
       {
         command: "app_roots_set",
@@ -94,8 +94,30 @@ describe("syncAppRoots", () => {
 
   test("an empty list still calls the command, so a cleared list replaces the old one", async () => {
     const fake = recorder(() => Promise.resolve(null));
-    expect(await syncAppRoots(fake.invoke, [])).toEqual({ ok: true, value: null });
+    expect(await syncAppRoots(fake.invoke, [])).toEqual({ ok: true, value: [] });
     expect(fake.calls).toEqual([{ command: "app_roots_set", args: { entries: [] } }]);
+  });
+
+  test("entries the shell skipped come back with their extension, version and kind, never their paths", async () => {
+    const fake = recorder(() =>
+      Promise.resolve([
+        { index: 1, kind: "outside_install" },
+        { index: 0, kind: "something_new" },
+        { index: 9, kind: "too_broad" },
+        "junk",
+      ]),
+    );
+    const result = await syncAppRoots(fake.invoke, [
+      appEntryOf({ id: "a", extension: "helm" }),
+      appEntryOf({ id: "b", extension: "other", version: "2.0.0" }),
+    ]);
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        { extension: "other", version: "2.0.0", kind: "outside_install" },
+        { extension: "helm", version: "0.1.0", kind: "unknown" },
+      ],
+    });
   });
 
   test("each known rejection string becomes its kind", async () => {

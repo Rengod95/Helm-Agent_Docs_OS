@@ -217,62 +217,106 @@ fn too_broad(real: &Path, home: Option<&Path>) -> bool {
     }
 }
 
+/// 건너뛴 항목 하나. `index`는 보낸 목록에서의 자리이고 `kind`는 거부 이유 이름이다. 항목의 글(이름, 경로)은 옮기지 않는다.
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+pub struct SkippedRoot {
+    pub index: usize,
+    pub kind: &'static str,
+}
+
+impl RootsError {
+    /// 화면과 시험이 쓰는 이름. `RootsError`의 변형과 같다.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            RootsError::TooMany => "too_many",
+            RootsError::BadName => "bad_name",
+            RootsError::BadVersion => "bad_version",
+            RootsError::BadEntry => "bad_entry",
+            RootsError::NotAbsolute => "not_absolute",
+            RootsError::NotADirectory => "not_a_directory",
+            RootsError::TooBroad => "too_broad",
+            RootsError::OutsideInstall => "outside_install",
+        }
+    }
+}
+
+/// 항목 하나의 검사. 통과하면 등록할 값을, 아니면 거부 이유를 돌려준다.
+fn check_entry(
+    input: AppRootInput,
+    home: Option<&Path>,
+) -> Result<((String, String), RootEntry), RootsError> {
+    if !valid_extension_name(&input.extension) {
+        return Err(RootsError::BadName);
+    }
+    if !valid_version(&input.version) {
+        return Err(RootsError::BadVersion);
+    }
+    if relative_segments(&input.entry).is_none() {
+        return Err(RootsError::BadEntry);
+    }
+    let path = PathBuf::from(&input.root);
+    if !path.is_absolute() {
+        return Err(RootsError::NotAbsolute);
+    }
+    let real = fs::canonicalize(&path).map_err(|_| RootsError::NotADirectory)?;
+    if !real.is_dir() {
+        return Err(RootsError::NotADirectory);
+    }
+    if too_broad(&real, home) {
+        return Err(RootsError::TooBroad);
+    }
+    if !inside_install_dir(&real, &input.extension, input.trust) {
+        return Err(RootsError::OutsideInstall);
+    }
+    Ok((
+        (input.extension, input.version),
+        RootEntry {
+            root: real,
+            entry: input.entry,
+            tier: input.trust,
+        },
+    ))
+}
+
 impl AppRoots {
+    /// 목록을 통째로 바꾼다. 항목 수가 한도를 넘으면 목록 전체를 거부한다(바꾸지 않는다).
+    /// 나쁜 항목은 그 항목만 건너뛰고 건너뛴 자리와 이유를 돌려준다. 나머지는 모두 등록한다.
+    /// 설치 폴더 밖, 너무 넓은 폴더 같은 항목은 건너뛰므로 한 항목이 다른 확장의 화면을 막지 못한다.
     /// `home`은 사용자 홈 폴더다. 알 수 없으면(None) 홈 검사만 건너뛰고 나머지 검사는 그대로 한다.
     pub fn replace(
         &self,
         inputs: Vec<AppRootInput>,
         home: Option<&Path>,
-    ) -> Result<(), RootsError> {
+    ) -> Result<Vec<SkippedRoot>, RootsError> {
         if inputs.len() > MAX_ROOTS {
             return Err(RootsError::TooMany);
         }
-        let mut next = HashMap::new();
-        for input in inputs {
-            if !valid_extension_name(&input.extension) {
-                return Err(RootsError::BadName);
-            }
-            if !valid_version(&input.version) {
-                return Err(RootsError::BadVersion);
-            }
-            if relative_segments(&input.entry).is_none() {
-                return Err(RootsError::BadEntry);
-            }
-            let path = PathBuf::from(&input.root);
-            if !path.is_absolute() {
-                return Err(RootsError::NotAbsolute);
-            }
-            let real = fs::canonicalize(&path).map_err(|_| RootsError::NotADirectory)?;
-            if !real.is_dir() {
-                return Err(RootsError::NotADirectory);
-            }
-            if too_broad(&real, home) {
-                return Err(RootsError::TooBroad);
-            }
-            if !inside_install_dir(&real, &input.extension, input.trust) {
-                return Err(RootsError::OutsideInstall);
-            }
-            let key = (input.extension, input.version);
+        let mut next: HashMap<(String, String), RootEntry> = HashMap::new();
+        let mut skipped = Vec::new();
+        for (index, input) in inputs.into_iter().enumerate() {
+            let (key, entry) = match check_entry(input, home) {
+                Ok(checked) => checked,
+                Err(error) => {
+                    skipped.push(SkippedRoot {
+                        index,
+                        kind: error.kind(),
+                    });
+                    continue;
+                }
+            };
             // 같은 이름과 버전이 여러 번 오면 높은 등급이 이긴다. 프로젝트 확장이 사용자 확장의 root를 바꿀 수 없다.
             if next
                 .get(&key)
-                .is_some_and(|old: &RootEntry| old.tier >= input.trust)
+                .is_some_and(|old: &RootEntry| old.tier >= entry.tier)
             {
                 continue;
             }
-            next.insert(
-                key,
-                RootEntry {
-                    root: real,
-                    entry: input.entry,
-                    tier: input.trust,
-                },
-            );
+            next.insert(key, entry);
         }
         // 잠금이 깨졌다면(다른 스레드의 패닉) 지난 목록을 새 목록으로 덮는다. 목록은 통째로 바뀌므로 안전하다.
         let mut guard = self.map.lock().unwrap_or_else(|e| e.into_inner());
         *guard = next;
-        Ok(())
+        Ok(skipped)
     }
 
     fn get(&self, extension: &str, version: &str) -> Option<RootEntry> {
@@ -437,27 +481,19 @@ fn failure(rejection: Rejection) -> tauri::http::Response<Cow<'static, [u8]>> {
     response
 }
 
-/// 메인 창이 app root 목록을 통째로 바꾼다. 거부하면 아무것도 바꾸지 않는다.
+/// 메인 창이 app root 목록을 통째로 바꾼다. 항목 수가 한도를 넘으면 아무것도 바꾸지 않고 거부한다.
+/// 나쁜 항목은 건너뛰고, 건너뛴 항목의 자리와 이유를 돌려준다.
 #[tauri::command]
 pub fn app_roots_set(
     app: tauri::AppHandle,
     roots: tauri::State<'_, std::sync::Arc<AppRoots>>,
     entries: Vec<AppRootInput>,
-) -> Result<(), String> {
+) -> Result<Vec<SkippedRoot>, String> {
     use tauri::Manager;
     let home = app.path().home_dir().ok();
     roots
         .replace(entries, home.as_deref())
-        .map_err(|error| match error {
-            RootsError::TooMany => "too_many".to_string(),
-            RootsError::BadName => "bad_name".to_string(),
-            RootsError::BadVersion => "bad_version".to_string(),
-            RootsError::BadEntry => "bad_entry".to_string(),
-            RootsError::NotAbsolute => "not_absolute".to_string(),
-            RootsError::NotADirectory => "not_a_directory".to_string(),
-            RootsError::TooBroad => "too_broad".to_string(),
-            RootsError::OutsideInstall => "outside_install".to_string(),
-        })
+        .map_err(|error| error.kind().to_string())
 }
 
 #[cfg(test)]
@@ -466,6 +502,10 @@ mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     static COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn skipped(index: usize, kind: &'static str) -> SkippedRoot {
+        SkippedRoot { index, kind }
+    }
 
     /// 시험용 임시 폴더. 지울 때까지 쓰는 쪽이 책임진다.
     struct Sandbox {
@@ -665,7 +705,7 @@ mod tests {
         let ui = sandbox.dir.join("extensions/helm/ui");
         assert_eq!(
             roots.replace(vec![good("Bad", &ui)], None),
-            Err(RootsError::BadName)
+            Ok(vec![skipped(0, "bad_name")])
         );
         assert_eq!(
             roots.replace(
@@ -675,7 +715,7 @@ mod tests {
                 }],
                 None
             ),
-            Err(RootsError::BadVersion)
+            Ok(vec![skipped(0, "bad_version")])
         );
         assert_eq!(
             roots.replace(
@@ -685,18 +725,18 @@ mod tests {
                 }],
                 None
             ),
-            Err(RootsError::BadEntry)
+            Ok(vec![skipped(0, "bad_entry")])
         );
         assert_eq!(
             roots.replace(vec![good("helm", Path::new("relative/dir"))], None),
-            Err(RootsError::NotAbsolute)
+            Ok(vec![skipped(0, "not_absolute")])
         );
         assert_eq!(
             roots.replace(vec![good("helm", &ui.join("index.html"))], None),
-            Err(RootsError::NotADirectory)
+            Ok(vec![skipped(0, "not_a_directory")])
         );
-        // 거부하면 이전 목록이 그대로다
-        assert!(get(&roots, "app.js").is_ok());
+        // 나쁜 항목만 건너뛰었으므로 목록은 비었다(이전 항목은 사라졌다)
+        assert_eq!(get(&roots, "app.js").unwrap_err(), Rejection::NotFound);
         // 성공하면 이전 항목이 사라진다
         roots.replace(vec![good("helm", &ui)], None).unwrap();
         roots
@@ -729,38 +769,72 @@ mod tests {
         // 다른 확장의 설치 폴더 이름으로는 등록할 수 없다
         assert_eq!(
             roots.replace(vec![input("other", &ui, Tier::User)], None),
-            Err(RootsError::OutsideInstall)
+            Ok(vec![skipped(0, "outside_install")])
         );
         // 설치 폴더 밖(`extensions/<이름>`이 아닌 곳)
         assert_eq!(
             roots.replace(vec![input("helm", &sandbox.dir, Tier::User)], None),
-            Err(RootsError::OutsideInstall)
+            Ok(vec![skipped(0, "outside_install")])
         );
         // 프로젝트 등급은 `.fresnel/extensions/<이름>` 모양이어야 한다
         assert_eq!(
             roots.replace(vec![input("helm", &ui, Tier::Project)], None),
-            Err(RootsError::OutsideInstall)
+            Ok(vec![skipped(0, "outside_install")])
         );
         let project_ui = sandbox.dir.join("proj/.fresnel/extensions/helm/ui");
         fs::create_dir_all(&project_ui).unwrap();
         assert_eq!(
             roots.replace(vec![input("helm", &project_ui, Tier::Project)], None),
-            Ok(())
+            Ok(vec![])
         );
         // `/`와 홈 폴더, 홈을 품은 폴더
         assert_eq!(
             roots.replace(vec![input("helm", Path::new("/"), Tier::User)], None),
-            Err(RootsError::TooBroad)
+            Ok(vec![skipped(0, "too_broad")])
         );
         let home = sandbox.dir.join("extensions/helm");
         assert_eq!(
             roots.replace(vec![input("helm", &home, Tier::User)], Some(&home)),
-            Err(RootsError::TooBroad)
+            Ok(vec![skipped(0, "too_broad")])
         );
         assert_eq!(
             roots.replace(vec![input("helm", &ui, Tier::User)], Some(&ui)),
-            Err(RootsError::TooBroad)
+            Ok(vec![skipped(0, "too_broad")])
         );
+    }
+
+    #[test]
+    fn a_bad_entry_is_skipped_and_the_rest_of_the_list_is_registered() {
+        let sandbox = Sandbox::new();
+        let ui = sandbox.dir.join("extensions/helm/ui");
+        let input = |extension: &str, root: &Path| AppRootInput {
+            extension: extension.into(),
+            version: "1.0.0".into(),
+            root: root.to_string_lossy().into_owned(),
+            entry: "index.html".into(),
+            trust: Tier::User,
+        };
+        let roots = AppRoots::default();
+        // 앞의 나쁜 항목(다른 확장의 설치 폴더), 좋은 항목, 뒤의 나쁜 항목(`/`)
+        let result = roots.replace(
+            vec![
+                input("other", &ui),
+                input("helm", &ui),
+                input("helm2", Path::new("/")),
+            ],
+            None,
+        );
+        assert_eq!(
+            result,
+            Ok(vec![skipped(0, "outside_install"), skipped(2, "too_broad")])
+        );
+        assert_eq!(get(&roots, "app.js").unwrap().0, b"1".to_vec());
+        // 항목 수가 한도를 넘으면 목록 전체를 거부하고 지난 목록을 그대로 둔다
+        assert_eq!(
+            roots.replace((0..257).map(|_| input("helm", &ui)).collect(), None),
+            Err(RootsError::TooMany)
+        );
+        assert_eq!(get(&roots, "app.js").unwrap().0, b"1".to_vec());
     }
 
     #[test]

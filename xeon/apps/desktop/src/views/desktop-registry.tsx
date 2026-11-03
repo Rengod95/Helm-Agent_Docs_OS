@@ -15,6 +15,7 @@ import {
 } from "./shell/registry.ts";
 import { createWorkbenchStore } from "../state/workbench/index.ts";
 import { registerWorkbench } from "./workbench/index.tsx";
+import { HelmPanelTab, PluginPagesTab } from "./plugin/plugin-tabs.tsx";
 import type { ReactNode } from "react";
 
 // 지금 만들어져 있는 화면만 등록한다. 나머지 화면 id는 셸이 "아직 없어요" 빈 상태로 그린다.
@@ -76,6 +77,22 @@ const INBOX_TAB: EndTabDef = {
   render: () => <InboxTab />,
 };
 
+const HELM_TAB: EndTabDef = {
+  id: "helm",
+  area: "chat",
+  label: "desktop.plugin.tab.helm",
+  icon: <Plug />,
+  render: () => <HelmPanelTab />,
+};
+
+const PLUGIN_PAGES_TAB: EndTabDef = {
+  id: "plugin-pages",
+  area: "both",
+  label: "desktop.plugin.tab.pages",
+  icon: <Plug />,
+  render: () => <PluginPagesTab />,
+};
+
 /** 크래프트 화면 셋(개요·확장·엔진)은 `registerWorkbench`가 등록한다. 개요는 캔버스 하나이고 목록을 못 읽으면 띠가 상태를 보인다 */
 export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
@@ -84,6 +101,8 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(CONNECTION_SCREEN);
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerEndTab(INBOX_TAB);
+  registry.registerEndTab(HELM_TAB);
+  registry.registerEndTab(PLUGIN_PAGES_TAB);
   registerWorkbench(registry, createWorkbenchStore());
   return registry;
 }
