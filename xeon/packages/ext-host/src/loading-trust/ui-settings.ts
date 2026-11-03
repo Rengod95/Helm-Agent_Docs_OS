@@ -23,7 +23,7 @@ export const uiSettings: SettingGroup<
     default: false,
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "plugins", widget: "toggle", order: 450, label: "플러그인 앱 화면 허용" },
+    ui: { tab: "plugins", widget: "toggle", order: 450, label: "Allow plugin app screens" },
     since: "0.1.0",
   },
   allowProjectApps: {
@@ -35,7 +35,7 @@ export const uiSettings: SettingGroup<
       tab: "plugins",
       widget: "toggle",
       order: 460,
-      label: "프로젝트 플러그인의 앱 화면 허용",
+      label: "Allow app screens for project plugins",
     },
     since: "0.1.0",
   },

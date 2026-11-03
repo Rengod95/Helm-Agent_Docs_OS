@@ -24,7 +24,7 @@ export const accountRotationSettings: SettingGroup<
       tab: "plugins",
       widget: "toggle",
       order: 10,
-      label: "약관 위험 고지에 동의",
+      label: "Accept the terms-of-service risk notice",
     },
     since: "0.1.0",
   },

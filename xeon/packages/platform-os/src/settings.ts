@@ -11,7 +11,7 @@ const group = defineSettings("l0.os", {
     default: false,
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "advanced", widget: "toggle", order: 100, label: "텔레메트리 내보내기" },
+    ui: { tab: "advanced", widget: "toggle", order: 100, label: "Telemetry export" },
     since: "0.1.0",
   },
   "telemetry.exporter": {
@@ -20,7 +20,7 @@ const group = defineSettings("l0.os", {
     range: { enum: ["file", "otlp-http"] },
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "advanced", widget: "select", order: 110, label: "텔레메트리 내보내기 방식" },
+    ui: { tab: "advanced", widget: "select", order: 110, label: "Telemetry export method" },
     since: "0.1.0",
   },
   "telemetry.endpoint": {
@@ -28,7 +28,7 @@ const group = defineSettings("l0.os", {
     default: "http://localhost:4318/v1/traces",
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "advanced", widget: "text", order: 120, label: "OTLP 수집 주소" },
+    ui: { tab: "advanced", widget: "text", order: 120, label: "OTLP collector address" },
     since: "0.1.0",
   },
   "dirs.override": {
@@ -43,7 +43,7 @@ const group = defineSettings("l0.os", {
     range: { enum: ["debug", "info", "warn", "error"] },
     runtimeChange: "live",
     allowedScopes: ["managed", "user", "local", "launch"],
-    ui: { tab: "advanced", widget: "select", order: 130, label: "로그 수준" },
+    ui: { tab: "advanced", widget: "select", order: 130, label: "Log level" },
     since: "0.1.0",
   },
 });

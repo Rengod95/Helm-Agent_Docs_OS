@@ -26,7 +26,13 @@ test("l1_loop_declares_the_step_and_gate_keys_with_the_documented_shape", () => 
     default: 8,
     range: { min: 0, max: 100 },
     runtimeChange: "nextTurn",
-    ui: { tab: "budgets", widget: "number", order: 20, unit: "회" },
+    ui: {
+      tab: "budgets",
+      widget: "number",
+      order: 20,
+      unit: "times",
+      unitKey: "settings.l1.loop.gate.maxContinues.unit",
+    },
   });
   expect(def).toMatchObject({
     key: "l1.loop.maxSteps",
@@ -35,7 +41,12 @@ test("l1_loop_declares_the_step_and_gate_keys_with_the_documented_shape", () => 
     range: { min: 0, max: 10_000 },
     runtimeChange: "nextTurn",
     since: "0.1.0",
-    ui: { tab: "budgets", widget: "number", unit: "단계" },
+    ui: {
+      tab: "budgets",
+      widget: "number",
+      unit: "steps",
+      unitKey: "settings.l1.loop.maxSteps.unit",
+    },
   });
   expect(def?.allowedScopes).toEqual(["managed", "user", "project", "local", "launch"]);
 });
@@ -56,7 +67,13 @@ test("l1_loop_declares_the_repeat_keys_with_the_documented_shape", () => {
     default: true,
     runtimeChange: "live",
     since: "0.3.0",
-    ui: { tab: "budgets", widget: "toggle", order: 30, label: "반복 감지 알림" },
+    ui: {
+      tab: "budgets",
+      widget: "toggle",
+      order: 30,
+      label: "Repeat detection alerts",
+      labelKey: "settings.l1.loop.repeat.enabled.label",
+    },
   });
   expect(enabled?.range).toBeUndefined();
   expect(observation).toMatchObject({
@@ -66,7 +83,13 @@ test("l1_loop_declares_the_repeat_keys_with_the_documented_shape", () => {
     range: { min: 2, max: 50 },
     runtimeChange: "live",
     since: "0.3.0",
-    ui: { tab: "budgets", widget: "number", order: 31, unit: "회" },
+    ui: {
+      tab: "budgets",
+      widget: "number",
+      order: 31,
+      unit: "times",
+      unitKey: "settings.l1.loop.repeat.actionObservation.unit",
+    },
   });
   expect(error).toMatchObject({
     key: "l1.loop.repeat.actionError",
@@ -75,7 +98,13 @@ test("l1_loop_declares_the_repeat_keys_with_the_documented_shape", () => {
     range: { min: 2, max: 50 },
     runtimeChange: "live",
     since: "0.3.0",
-    ui: { tab: "budgets", widget: "number", order: 32, unit: "회" },
+    ui: {
+      tab: "budgets",
+      widget: "number",
+      order: 32,
+      unit: "times",
+      unitKey: "settings.l1.loop.repeat.actionError.unit",
+    },
   });
   for (const def of [enabled, observation, error]) {
     expect(def?.allowedScopes).toEqual(["managed", "user", "project", "local", "launch"]);

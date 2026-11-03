@@ -32,7 +32,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     default: {},
     runtimeChange: "nextTurn",
     allowedScopes: NO_SESSION,
-    ui: { tab: "tools", widget: "table", order: 300, label: "MCP 서버" },
+    ui: { tab: "tools", widget: "table", order: 300, label: "MCP servers" },
     since: "0.1.0",
   },
   importMcpJson: {
@@ -40,7 +40,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     default: true,
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER_PROJECT,
-    ui: { tab: "tools", widget: "toggle", order: 301, label: ".mcp.json 가져오기" },
+    ui: { tab: "tools", widget: "toggle", order: 301, label: "Import .mcp.json" },
     since: "0.1.0",
   },
   connectTimeoutMs: {
@@ -49,7 +49,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     range: { min: 1000, max: 600000 },
     runtimeChange: "nextTurn",
     allowedScopes: NO_SESSION,
-    ui: { tab: "tools", widget: "number", order: 302, label: "MCP 연결 제한 시간", unit: "ms" },
+    ui: { tab: "tools", widget: "number", order: 302, label: "MCP connect timeout", unit: "ms" },
     since: "0.1.0",
   },
   callTimeoutMs: {
@@ -58,7 +58,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     range: { min: 1000, max: 3600000 },
     runtimeChange: "nextTurn",
     allowedScopes: ALL,
-    ui: { tab: "tools", widget: "number", order: 303, label: "MCP 호출 제한 시간", unit: "ms" },
+    ui: { tab: "tools", widget: "number", order: 303, label: "MCP call timeout", unit: "ms" },
     since: "0.1.0",
   },
   approvalMode: {
@@ -67,7 +67,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     range: { enum: ["prompt", "auto", "deny"] },
     runtimeChange: "nextTurn",
     allowedScopes: ALL,
-    ui: { tab: "tools", widget: "select", order: 304, label: "MCP 도구 승인 방식" },
+    ui: { tab: "tools", widget: "select", order: 304, label: "MCP tool approval mode" },
     since: "0.1.0",
   },
   allowedServers: {
@@ -75,7 +75,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     default: [],
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "tools", widget: "list", order: 305, label: "허용 서버" },
+    ui: { tab: "tools", widget: "list", order: 305, label: "Allowed servers" },
     since: "0.1.0",
   },
   deniedServers: {
@@ -83,7 +83,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     default: [],
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER_PROJECT,
-    ui: { tab: "tools", widget: "list", order: 306, label: "차단 서버" },
+    ui: { tab: "tools", widget: "list", order: 306, label: "Blocked servers" },
     since: "0.1.0",
   },
   managedOnly: {
@@ -91,7 +91,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     default: false,
     runtimeChange: "restart",
     allowedScopes: ["managed"],
-    ui: { tab: "tools", widget: "toggle", order: 307, label: "관리 서버만 허용" },
+    ui: { tab: "tools", widget: "toggle", order: 307, label: "Allow managed servers only" },
     since: "0.1.0",
   },
   "sandbox.userSource": {
@@ -99,7 +99,12 @@ const mcpSettings = defineSettings("l2.mcp", {
     default: false,
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "tools", widget: "toggle", order: 308, label: "사용자 설정 stdio 서버 샌드박스" },
+    ui: {
+      tab: "tools",
+      widget: "toggle",
+      order: 308,
+      label: "Sandbox stdio servers from user settings",
+    },
     since: "0.1.0",
   },
   "sandbox.projectSource": {
@@ -111,7 +116,7 @@ const mcpSettings = defineSettings("l2.mcp", {
       tab: "tools",
       widget: "toggle",
       order: 314,
-      label: "프로젝트·확장 출처 stdio 서버 샌드박스",
+      label: "Sandbox stdio servers from project and extension sources",
     },
     since: "0.1.0",
   },
@@ -121,7 +126,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     range: { min: 1, max: 50 },
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER_PROJECT,
-    ui: { tab: "tools", widget: "number", order: 309, label: "추가 입력 요청 라운드 상한" },
+    ui: { tab: "tools", widget: "number", order: 309, label: "Max extra input request rounds" },
     since: "0.1.0",
   },
   "result.maxBytes": {
@@ -130,7 +135,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     range: { min: 1024, max: 10485760 },
     runtimeChange: "nextTurn",
     allowedScopes: ALL,
-    ui: { tab: "tools", widget: "number", order: 310, label: "MCP 결과 크기 상한", unit: "B" },
+    ui: { tab: "tools", widget: "number", order: 310, label: "MCP result size limit", unit: "B" },
     since: "0.1.0",
   },
   "reconnect.maxDelayMs": {
@@ -139,7 +144,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     range: { min: 1000, max: 3600000 },
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "tools", widget: "number", order: 311, label: "재연결 최대 대기", unit: "ms" },
+    ui: { tab: "tools", widget: "number", order: 311, label: "Max reconnect delay", unit: "ms" },
     since: "0.1.0",
   },
   "reconnect.maxAttempts": {
@@ -148,7 +153,13 @@ const mcpSettings = defineSettings("l2.mcp", {
     range: { min: 1, max: 100 },
     runtimeChange: "nextTurn",
     allowedScopes: MANAGED_USER,
-    ui: { tab: "tools", widget: "number", order: 312, label: "재연결 시도 상한", unit: "회" },
+    ui: {
+      tab: "tools",
+      widget: "number",
+      order: 312,
+      label: "Max reconnect attempts",
+      unit: "times",
+    },
     since: "0.1.0",
   },
   versionNegotiation: {
@@ -157,7 +168,7 @@ const mcpSettings = defineSettings("l2.mcp", {
     range: { enum: ["auto", "legacy", "pin"] },
     runtimeChange: "restart",
     allowedScopes: MANAGED_USER_PROJECT,
-    ui: { tab: "tools", widget: "select", order: 313, label: "MCP 사양 버전 협상" },
+    ui: { tab: "tools", widget: "select", order: 313, label: "MCP spec version negotiation" },
     since: "0.1.0",
   },
 });
