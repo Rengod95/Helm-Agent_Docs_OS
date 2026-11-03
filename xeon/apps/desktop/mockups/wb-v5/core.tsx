@@ -1,6 +1,5 @@
-// 코어(기본 에이전트): 가운데 진주 구체. 조각 셰이더 하나가 구체 위의 얇은 시트 네 장과 바깥 초승달을 그린다.
-// 시트마다 가장자리는 날카로운 가는 선이고, 안쪽 면은 그 선에서 빠르게 옅어진다. 바탕은 흰빛과 페리윙클이다.
-// 캔버스는 구체보다 2.4배 넓어 빛이 잘리지 않는다. 단추는 구체와 같은 원으로 고르기·호버·초점을 맡는다.
+// 코어(기본 에이전트): 가운데 유리 구체. 조각 셰이더 하나가 구체, 안쪽의 기울어진 리본 층, 바깥 빛을 그린다.
+// 캔버스는 구체보다 2.4배 넓어 빛이 잘리지 않는다. 단추는 그 위의 지름 92px 원이고 고르기·호버·초점을 맡는다.
 // WebGL을 못 쓰거나 컨텍스트를 잃으면 CSS 행성(.wb5-planet)을 대신 보인다. 움직임을 줄이면 한 장만 그린다.
 import { useLayoutEffect, useRef, useState } from "react";
 import { T } from "../_shell/terms";
@@ -8,14 +7,14 @@ import { reducedMotion } from "./viewport";
 
 /** 캔버스 한 변은 구체 지름의 2.4배: 바깥 빛이 캔버스 가장자리 안에서 0이 되도록 여유를 둔다 */
 const BOX_SCALE = 2.4;
-/** 확대 여유: 배율 1에서 이만큼 커져도 선명하도록 장치 해상도에 곱한다 */
+/** 라벨 글자 배율 상한(viewport.ts labelScale). 이만큼 커져도 선명하도록 장치 해상도에 곱한다 */
 const ZOOM_MAX = 1.5;
 /** 긴 변 상한(성능) */
 const MAX_PX = 1536;
 /** 가만히 있을 때 초당 그리는 횟수 상한 */
 const IDLE_FPS = 30;
-/** 움직임을 줄일 때 찍는 한 장의 시각(초): 시트가 고르게 펼쳐 있는 때 */
-const STILL_T = 6;
+/** 움직임을 줄일 때 찍는 한 장의 시각(초): 리본이 고르게 펼쳐 있는 때 */
+const STILL_T = 12;
 
 const VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
 
@@ -31,114 +30,232 @@ uniform float uEdge; // 캔버스 가장자리까지 거리(구체 반지름 단
 uniform float uTime; // 초
 uniform float uDark; // 1이면 어두운 판
 
-// 축을 y축 둘레로 θ만큼 돌린다: 시트가 깊이 방향으로 천천히 기운다
-vec3 tilt(vec3 a, float th) {
-  float c = cos(th);
-  float s = sin(th);
-  return vec3(c * a.x + s * a.z, a.y, c * a.z - s * a.x);
+vec2 hash2(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return fract(sin(p) * 43758.5453) * 2.0 - 1.0;
 }
 
-// 가장자리를 흔드는 낮은 주파수의 굽힘(d 단위). 천천히 흐른다.
-float bend(vec3 n, float k, float T) {
-  return 0.070 * sin(2.6 * n.x + 2.0 * n.y + 0.090 * T + k)
-    + 0.035 * sin(1.7 * n.y - 3.4 * n.x - 0.070 * T + 2.1 * k);
+// 기울기 잡음(펄린형): 격자 무늬가 없어 등고선이 매끄럽다. 값은 약 -0.7..0.7.
+float gnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  float a = dot(hash2(i), f);
+  float b = dot(hash2(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0));
+  float c = dot(hash2(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0));
+  float d = dot(hash2(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 }
 
-// 빛 방향: 왼쪽 위, 앞
-vec3 lightDir() {
-  return normalize(vec3(-0.45, 0.60, 0.66));
+// 흐름 잡음 두 옥타브(평균 0): 천을 접는 힘
+float flow(vec2 p) {
+  return gnoise(p) * 0.66 + gnoise(p * 2.03 + vec2(11.7, 5.3)) * 0.34;
 }
 
-// 시트 하나: 구면 위의 작은 원 d = dot(n, a) - c 의 한쪽 면.
-// ln: 가장자리의 가는 빛 선(빛 쪽이 밝고 얇다). gw: 선 둘레로 퍼지는 빛. fl: 가장자리에서 안으로 옅어지는 면.
-void sheet(vec3 n, vec3 a, float c, float k, float w, float T,
-           out float ln, out float gw, out float fl) {
-  float d = dot(n, a) - c + bend(n, k, T);
-  float lit = smoothstep(-0.4, 0.9, dot(n, lightDir()));
-  float wd = w * (0.6 + 0.7 * lit);
-  ln = exp(-abs(d) / wd) * (0.35 + 0.65 * lit);
-  gw = exp(-abs(d) / (wd * 6.0)) * lit;
-  // 밝은 판은 면이 더 넓게 번져 가장자리에서 반지름의 3분의 1쯤까지 옅어진다
-  float kf = mix(3.4, 6.0, uDark);
-  fl = smoothstep(-wd, wd, d) * exp(-kf * max(d, 0.0));
+// 진주빛: 페리윙클 → 진주 → 복숭아 → 진주 → 페리윙클을 주기적으로 오간다. 어두운 판은 채도와 밝기를 낮춘다.
+vec3 pearl(float u) {
+  float w = 0.5 + 0.5 * sin(6.2831853 * u);
+  vec3 peri = mix(vec3(0.55, 0.62, 0.98), vec3(0.36, 0.42, 0.74), uDark);
+  vec3 peach = mix(vec3(1.0, 0.80, 0.66), vec3(0.80, 0.60, 0.52), uDark);
+  vec3 p0 = mix(vec3(0.97, 0.97, 1.0), vec3(0.52, 0.56, 0.68), uDark);
+  return w < 0.5 ? mix(peri, p0, 2.0 * w) : mix(p0, peach, 2.0 * w - 1.0);
 }
 
-// 밝기를 더하는 합성(스크린): 어두워지지 않고 흰색에 닿는다
-vec3 screen(vec3 base, vec3 add) {
-  return 1.0 - (1.0 - base) * (1.0 - clamp(add, 0.0, 1.0));
+// 넓은 천 k의 모양: 띠 방향 ang, 가운데 c, 반폭 w, 접힘 A, 접힘 빈도 fq, 깊이 위상 ph. 천천히 돈다.
+void params(int k, float T, out float ang, out float c, out float w, out float A, out float fq, out float ph) {
+  if (k == 0) {
+    // 큰 천: 왼쪽 아래에서 오른쪽 위로 가로지른다
+    ang = 5.50 + 0.08 * sin(0.06 * T);
+    c = -0.04;
+    w = 0.36;
+    A = 0.42;
+    fq = 1.00;
+    ph = 0.4 + 0.30 * sin(0.05 * T);
+  } else if (k == 1) {
+    // 아래쪽 천
+    ang = 1.95 + 0.08 * sin(0.05 * T + 1.0);
+    c = -0.46;
+    w = 0.26;
+    A = 0.50;
+    fq = 1.20;
+    ph = 1.7 + 0.30 * sin(0.04 * T + 2.0);
+  } else if (k == 2) {
+    // 위쪽 호
+    ang = 0.95 + 0.08 * sin(0.07 * T + 2.0);
+    c = 0.44;
+    w = 0.22;
+    A = 0.42;
+    fq = 1.40;
+    ph = 3.0 + 0.30 * sin(0.06 * T + 0.5);
+  } else {
+    // 얇은 진주 천: 세로로 지나며 빛을 더한다
+    ang = 3.55 + 0.07 * sin(0.08 * T + 0.3);
+    c = -0.12;
+    w = 0.13;
+    A = 0.36;
+    fq = 1.80;
+    ph = 4.4 + 0.30 * sin(0.07 * T + 1.2);
+  }
 }
 
-// 시트 하나를 얹는다. 어두운 판은 밝기를 더하고(스크린), 밝은 판은 옅은 하늘빛 막을 덮은 뒤 흰 선을 긋는다.
-// f: 면, l: 가장자리 선, g: 복숭아 빛 번짐. kd, kl, kp: 어두운 판의 계수(밝은 판도 같은 세기로 쓴다).
-vec3 putSheet(vec3 col, float f, float l, float g, float kd, float kl, float kp) {
-  vec3 dk = screen(col, vec3(0.93, 0.95, 1.0) * f * kd + vec3(l * kl) + vec3(1.0, 0.84, 0.72) * g * kp);
-  vec3 lt = mix(col, vec3(0.66, 0.73, 0.98), clamp(f * 0.6, 0.0, 0.36));
-  lt = mix(lt, vec3(1.0, 0.86, 0.76), clamp(g * kp * 0.5, 0.0, 0.5));
-  lt = mix(lt, vec3(1.0), clamp(l * kl, 0.0, 1.0));
-  return mix(lt, dk, uDark);
+// 넓은 천 k: 화면 위의 부드러운 띠. 가장자리는 흐리고, 접혀 꺾이는 곳에만 가는 빛 선이 생긴다.
+// 색은 구체의 N·V와 깊이에 따라 페리윙클·진주·복숭아로 바뀐다. 결과는 premultiplied 색과 깊이다.
+void ribbonK(int k, vec2 s, float T, out vec4 layer, out float zh) {
+  float ang;
+  float c;
+  float w;
+  float A;
+  float fq;
+  float ph;
+  params(k, T, ang, c, w, A, fq, ph);
+  vec2 d = vec2(cos(ang), sin(ang));
+  vec2 dp = vec2(-d.y, d.x);
+  float fk = float(k);
+  float nz = sqrt(max(1.0 - dot(s, s), 0.0));
+  // 깊이: 구체 앞면 위에서 위상에 따라 앞뒤가 바뀐다. 가까운 층일수록 카메라가 흔들릴 때 더 움직인다.
+  float dep = nz * cos(ph) + sin(ph) * dot(s, dp);
+  zh = dep;
+  vec2 sp = s + dep * vec2(0.07 * sin(0.11 * T), 0.05 * cos(0.08 * T));
+  vec2 q = sp * fq + vec2(fk * 3.7 + 1.3, fk * 1.9 - 2.1) + vec2(cos(fk * 2.1), sin(fk * 2.1)) * 0.007 * T;
+  const float e = 0.015;
+  float W0 = flow(q);
+  float Wx = (flow(q + vec2(e, 0.0)) - W0) / e;
+  float Wy = (flow(q + vec2(0.0, e)) - W0) / e;
+  float G = dot(sp, d) - c + A * W0;
+  vec2 gG = d + A * fq * vec2(Wx, Wy);
+  float gl = max(length(gG), 0.2);
+  float u = G / w;
+  float au = abs(u);
+  float fade = smoothstep(1.0, 0.70, length(s));
+  if (fade <= 0.0 || au > 1.6) {
+    layer = vec4(0.0);
+    return;
+  }
+  // 넓고 부드러운 몸: 가운데는 평평하고 가장자리로 갈수록 옅어진다
+  float body = 1.0 - smoothstep(0.25, 1.0, au);
+  // 가장자리가 급하게 꺾이는 곳에만 가는 빛 선
+  float delta = (abs(G) - w) / gl;
+  float sigL = 1.2 / uR;
+  float turn = smoothstep(0.9, 1.5, gl);
+  float lineA = exp(-(delta * delta) / (sigL * sigL)) * turn;
+  vec3 rc = pearl(nz * 0.9 + dep * 0.45 + fk * 0.21 + W0 * 0.5);
+  vec3 Ls = normalize(vec3(-0.5, 0.65, 0.58));
+  float lam = 0.86 + 0.14 * dot(vec3(s, nz), Ls);
+  float aBody = body * fade * mix(0.36, 0.20, uDark);
+  vec3 lineC = mix(vec3(1.0, 0.99, 1.0), rc, 0.35);
+  float lineAf = lineA * fade * mix(0.7, 0.42, uDark);
+  // 밝은 판: 색이 섞여 흐려지는 막. 어두운 판: 낮은 밝기로 스스로 빛나는 막.
+  vec3 emit = rc * lam * body * fade * uDark * 0.40;
+  layer = vec4(rc * lam * aBody * (1.0 - uDark) + emit + lineC * lineAf, aBody + lineAf * (1.0 - aBody));
+}
+
+// 바깥 큰 호: 구체를 가로질러 가장자리 밖 빛까지 뻗는 기울어진 타원 띠. 캔버스 가장자리 안에서 0이 된다.
+vec4 outerSheet(vec2 s, float T) {
+  float fadeO = 1.0 - smoothstep(1.55, 2.05, length(s));
+  if (fadeO <= 0.0) return vec4(0.0);
+  vec2 v = s - vec2(0.10, -0.10);
+  float th = 0.55 + 0.05 * sin(0.05 * T);
+  vec2 p = vec2(cos(th) * v.x + sin(th) * v.y, -sin(th) * v.x + cos(th) * v.y);
+  float er = length(vec2(p.x / 1.62, p.y / 0.50));
+  float wob = 0.05 * flow(s * 1.3 + vec2(3.0, 7.0) + vec2(0.01, 0.006) * T);
+  float dd = er - 1.0 + wob;
+  // 넓고 흐린 띠. 오른쪽(복숭아 쪽)이 더 진하고, 왼쪽은 거의 사라진다.
+  float band = 1.0 - smoothstep(0.02, 0.40, abs(dd));
+  float side = mix(0.40, 1.0, smoothstep(-1.2, 1.0, p.x));
+  float a = band * fadeO * side * mix(0.16, 0.08, uDark);
+  float xe = (abs(dd) - 0.10) / 0.03;
+  float edgeL = exp(-xe * xe) * fadeO * side * mix(0.14, 0.06, uDark);
+  vec3 oc = mix(vec3(0.70, 0.75, 1.0), vec3(1.0, 0.84, 0.74), smoothstep(-0.2, 1.2, p.x));
+  oc = mix(oc, vec3(0.30, 0.36, 0.66), uDark);
+  vec3 lineO = mix(vec3(1.0), oc, 0.3);
+  return vec4(oc * a + lineO * edgeL, a + edgeL * (1.0 - a));
+}
+
+// 깊이 순서로 두 층을 맞바꾼다(뒤 층이 앞에)
+void cswap(inout float za, inout float zb, inout vec4 la, inout vec4 lb) {
+  if (za > zb) {
+    float tz = za;
+    za = zb;
+    zb = tz;
+    vec4 tl = la;
+    la = lb;
+    lb = tl;
+  }
 }
 
 void main() {
   vec2 dpx = gl_FragCoord.xy - uCenter;
   float rpx = length(dpx);
   vec2 s = dpx / uR;
-  float r = length(s);
   float T = uTime;
-  // 가장자리 선의 기본 폭: 장치 픽셀 1.6개 남짓
-  float w = 1.6 / uR;
+  // 빛의 방향은 아주 천천히 흔들린다
+  vec3 L = normalize(vec3(-0.45 + 0.04 * sin(0.07 * T), 0.60 + 0.03 * cos(0.06 * T), 0.66));
+  vec3 Hs = normalize(L + vec3(0.0, 0.0, 1.0));
+
+  // 바깥 빛: 구체 밖 거리에 따라 exp로 줄고, 캔버스 가장자리 근처에서 0이 된다
+  float d = rpx / uR;
+  float g = exp(-max(d - 1.0, 0.0) * 3.0);
+  float fadeOut = 1.0 - smoothstep(uEdge * 0.72, uEdge, d);
+  vec2 dir = dpx / max(rpx, 0.001);
+  vec3 hPeri = mix(vec3(0.60, 0.66, 1.0), vec3(0.26, 0.33, 0.80), uDark);
+  vec3 hPeach = mix(vec3(1.0, 0.82, 0.70), vec3(0.50, 0.34, 0.78), uDark);
+  vec3 haloC = mix(hPeri, hPeach, smoothstep(0.1, -0.8, dir.y));
+  float haloA = g * fadeOut * mix(0.26, 0.40, uDark);
+
+  // 바깥 호: 구체 안에서는 가장 뒤 층, 구체 밖에서는 빛 위에 얹힌다
+  vec4 outer = outerSheet(s, T);
+
   float cov = clamp(uR - rpx + 0.5, 0.0, 1.0);
-  vec3 L = lightDir();
-
-  // 구체 밖: 큰 초승달 하나(가장자리 선이 따로 있다)와 빛 번짐
-  vec2 cs = s - vec2(-0.08, 0.06);
-  float dS = length(cs) - 1.05;
-  float edS = exp(-abs(dS) / w);
-  float inS = dS < 0.0 ? exp(dS * 6.0) : 0.0;
-  float fadeS = 1.0 - smoothstep(1.13, 1.20, r);
-  vec3 shC = mix(vec3(0.80, 0.84, 1.0), vec3(0.66, 0.72, 1.0), uDark);
-  float shA = (edS * 0.55 + inS * 0.20) * fadeS * mix(0.7, 0.9, uDark);
-  float g = exp(-max(r - 1.0, 0.0) * 2.8);
-  float fadeH = 1.0 - smoothstep(uEdge * 0.72, uEdge, r);
-  vec3 hC = mix(vec3(0.62, 0.68, 1.0), vec3(0.42, 0.46, 1.0), uDark);
-  float hA = g * fadeH * mix(0.14, 0.34, uDark);
-  vec3 rgbO = shC * shA + hC * hA * (1.0 - shA);
-  float aO = shA + hA * (1.0 - shA);
-
   vec3 col = vec3(0.0);
   if (cov > 0.0) {
     vec3 N = vec3(s, sqrt(max(1.0 - dot(s, s), 0.0)));
-    // 바탕: 위쪽은 밝은 라일락 흰색, 아래왼쪽으로 갈수록 페리윙클과 보랏빛 남색
-    float bl = dot(N, normalize(vec3(-0.50, -0.62, 0.60)));
-    // 어두운 판은 남색 유리 바탕. 밝은 판은 흰 진주 바탕에 아래왼쪽 가장자리의 페리윙클 웅덩이만 둔다.
-    vec3 bD = mix(vec3(0.95, 0.96, 1.00), vec3(0.56, 0.61, 0.95), smoothstep(-0.15, 0.75, bl));
-    bD = mix(bD, vec3(0.40, 0.44, 0.86), smoothstep(0.55, 0.98, bl) * 0.55);
-    vec3 bL = mix(vec3(0.985, 0.988, 1.00), vec3(0.60, 0.66, 0.96), smoothstep(0.42, 0.98, bl) * 0.75);
-    bL = mix(bL, vec3(0.46, 0.51, 0.89), smoothstep(0.75, 1.0, bl) * 0.45);
-    col = mix(bL, bD, uDark);
+    // 바탕: 밝은 판은 진주에 아래왼쪽 푸른 그늘과 오른쪽 복숭아빛, 어두운 판은 남색 유리
+    vec3 base = vec3(0.955, 0.962, 0.99);
+    float shL = smoothstep(0.35, -0.85, dot(N.xy, normalize(vec2(-0.7, -0.75))));
+    base = mix(base, vec3(0.62, 0.69, 0.92), shL * 0.62 * (1.0 - uDark));
+    float glR = smoothstep(0.10, 0.95, dot(N.xy, normalize(vec2(0.8, 0.35))));
+    base = mix(base, vec3(1.0, 0.82, 0.70), glR * 0.38 * (1.0 - uDark));
+    vec3 bd = vec3(0.020, 0.026, 0.060) + vec3(0.05, 0.07, 0.16) * pow(1.0 - N.z, 2.0);
+    col = mix(base, bd, uDark);
+    // 바탕에 옅은 무지개빛(진주): N·V에 따라 색이 돈다
+    col = mix(col, pearl(N.z * 1.3 + N.x * 0.4 - N.y * 0.3), 0.12 * (1.0 - uDark) + 0.05 * uDark);
+    // 바깥 호: 구체 안에서 가장 뒤의 얇은 막
+    col = outer.rgb + col * (1.0 - outer.a);
 
-    // 시트 네 장을 뒤에서 앞으로 빛으로 쌓는다. 축은 아주 천천히 기운다.
-    float l1; float g1; float f1;
-    float l2; float g2; float f2;
-    float l3; float g3; float f3;
-    float l4; float g4; float f4;
-    sheet(N, tilt(normalize(vec3(-0.35, 0.62, 0.70)), 0.12 * sin(0.030 * T)), 0.30, 1.0, w, T, l1, g1, f1);
-    sheet(N, tilt(normalize(vec3(-0.85, -0.10, 0.52)), 0.10 * sin(0.026 * T + 1.0)), 0.55, 2.0, w, T, l4, g4, f4);
-    sheet(N, tilt(normalize(vec3(0.25, -0.72, 0.65)), 0.10 * sin(0.034 * T + 2.0)), 0.12, 3.0, w, T, l2, g2, f2);
-    sheet(N, tilt(normalize(vec3(0.65, 0.35, 0.67)), 0.11 * sin(0.028 * T + 3.0)), 0.42, 4.0, w, T, l3, g3, f3);
-    col = putSheet(col, f1, l1, 0.0, 0.42, 0.85, 0.0);
-    col = putSheet(col, f4, l4, 0.0, 0.28, 0.55, 0.0);
-    col = putSheet(col, f2, l2, g2, 0.46, 0.95, 0.55);
-    col = putSheet(col, f3, l3, g3, 0.46, 0.95, 0.60);
+    // 넓은 천 네 장, 뒤에서 앞으로 쌓는다
+    vec4 la;
+    vec4 lb;
+    vec4 lc;
+    vec4 ld;
+    float za;
+    float zb;
+    float zc;
+    float zd;
+    ribbonK(0, s, T, la, za);
+    ribbonK(1, s, T, lb, zb);
+    ribbonK(2, s, T, lc, zc);
+    ribbonK(3, s, T, ld, zd);
+    cswap(za, zb, la, lb);
+    cswap(zc, zd, lc, ld);
+    cswap(za, zc, la, lc);
+    cswap(zb, zd, lb, ld);
+    cswap(zb, zc, lb, lc);
+    col = la.rgb + col * (1.0 - la.a);
+    col = lb.rgb + col * (1.0 - lb.a);
+    col = lc.rgb + col * (1.0 - lc.a);
+    col = ld.rgb + col * (1.0 - ld.a);
 
-    // 가장자리: 흰 림, 빛 쪽에 작고 부드러운 하이라이트, 밝은 판에서만 옅은 페리윙클 윤곽
-    float fres = pow(1.0 - N.z, 2.4);
-    col = mix(col, vec3(1.0), fres * 0.50);
-    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
-    col += vec3(pow(max(dot(N, H), 0.0), 70.0) * 0.30);
-    float rim = exp(-(1.0 - r) * uR / 1.8);
-    col = mix(col, vec3(0.46, 0.52, 0.90), rim * 0.45 * (1.0 - uDark));
-    col = min(col, vec3(1.0));
+    // 유리 겉면: 진주빛 림, 작고 날카로운 하이라이트, 아주 약한 넓은 빛
+    float fres = pow(1.0 - N.z, 3.0);
+    vec3 rimC = mix(pearl(N.z * 0.9 + 0.1 + N.x * 0.2), vec3(0.50, 0.56, 0.93), 0.4 * (1.0 - uDark));
+    col = mix(col, rimC, fres * 0.55 * (1.0 - uDark)) + rimC * fres * 0.55 * uDark;
+    float ndh = max(dot(N, Hs), 0.0);
+    col += vec3(1.0) * (pow(ndh, 260.0) * mix(1.5, 0.9, uDark) + pow(ndh, 18.0) * 0.05 * mix(1.0, 0.4, uDark));
   }
+  col = min(col, vec3(1.0));
+  // 구체 밖: 바깥 호와 빛을 합친다
+  vec3 rgbO = outer.rgb + haloC * haloA * (1.0 - outer.a);
+  float aO = outer.a + haloA * (1.0 - outer.a);
   vec3 rgb = col * cov + rgbO * (1.0 - cov);
   float a = cov + aO * (1.0 - cov);
   gl_FragColor = vec4(rgb, a);
@@ -160,7 +277,7 @@ interface Gfx {
   dark: WebGLUniformLocation | null;
 }
 
-/** 캔버스 한 변(장치 px): 장치 해상도 × 확대 여유, 긴 변은 상한 아래 */
+/** 캔버스 한 변(장치 px): 장치 해상도 × 라벨 최대 배율, 긴 변은 상한 아래 */
 function backingPx(size: number): number {
   const dpr = window.devicePixelRatio || 1;
   return Math.min(MAX_PX, Math.round(size * BOX_SCALE * dpr * ZOOM_MAX));
@@ -248,13 +365,13 @@ function createGfx(canvas: HTMLCanvasElement, size: number): Gfx | null {
 }
 
 interface CoreOrbProps {
-  /** 배율 1에서의 지름(화면 px). 실제 지름은 부모가 확대에 맞춰 CSS로 정하고, 캔버스는 부모를 따른다. */
+  /** 코어 지름(화면 px, 배율 1) */
   size: number;
   selected: boolean;
   onSelect: () => void;
 }
 
-/** 가운데 구체와 그 단추. 부모 원의 지름이 구체 지름이고, 캔버스는 그 뒤에서 빛까지 그린다. */
+/** 가운데 구체와 그 단추. 단추는 지름 size의 원이고, 캔버스는 그 뒤에서 빛까지 그린다. */
 export function CoreOrb({ size, selected, onSelect }: CoreOrbProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   // 셰이더를 쓸 수 있나: 아니면 CSS 행성을 보인다
@@ -386,13 +503,8 @@ export function CoreOrb({ size, selected, onSelect }: CoreOrbProps) {
     };
   }, [size]);
 
-  // 캔버스는 부모(구체 원)의 2.4배 정사각형이고, 가운데에 놓는다
-  const canvasBox = {
-    width: `${BOX_SCALE * 100}%`,
-    height: `${BOX_SCALE * 100}%`,
-    left: `${(-(BOX_SCALE - 1) / 2) * 100}%`,
-    top: `${(-(BOX_SCALE - 1) / 2) * 100}%`,
-  };
+  const box = Math.round(size * BOX_SCALE);
+  const inset = (size - box) / 2;
   return (
     <>
       {!live && <span aria-hidden className="wb5-planet-glow absolute rounded-full" />}
@@ -408,7 +520,13 @@ export function CoreOrb({ size, selected, onSelect }: CoreOrbProps) {
         ref={ref}
         aria-hidden
         className="wb5-core-canvas"
-        style={{ ...canvasBox, display: live ? undefined : "none" }}
+        style={{
+          width: box,
+          height: box,
+          left: inset,
+          top: inset,
+          display: live ? undefined : "none",
+        }}
       />
     </>
   );
