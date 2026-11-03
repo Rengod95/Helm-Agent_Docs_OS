@@ -71,6 +71,7 @@ import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
+import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
 import { createUsageSource, readEventsOfAllBranches } from "./usage.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
@@ -116,6 +117,8 @@ export interface PortsDeps {
   readonly secrets: SecretsPort;
   /** 명령 등록부 자리. 브리지 확장이 명령 서비스 API를 채운다 */
   readonly commands: CommandRegistryHolder;
+  /** 측정 저장소 읽기 원천(T-MEAS-READ) */
+  readonly measure: MeasureReadSource;
   /** 웹 런타임 자리. cap-web 확장이 채운다(`web.providers`) */
   readonly web: WebStatusHolder;
   /** 지식 제안 대기열 둘의 합친 조회·결정(`proposal.*`) */
@@ -720,6 +723,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     usage: createUsageSource(deps.models.usage, (threadId, query) =>
       readEventsOfAllBranches(deps.session, threadId, query.kindPrefix),
     ),
+    measure: createMeasurePort(deps.measure),
     proposals: deps.proposals,
     trust,
     schedule: deps.schedule,

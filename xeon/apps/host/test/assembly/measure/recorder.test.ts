@@ -24,9 +24,14 @@ const logger: Logger = {
   info: () => undefined,
   warn: () => undefined,
   error: () => undefined,
+  child: () => logger,
 };
 
-function event(seq: number, kind: string, payload: unknown): DurableEventEnvelope {
+function event(
+  seq: number,
+  kind: "step.completed" | "turn.completed",
+  payload: unknown,
+): DurableEventEnvelope {
   return {
     id: ids.next("evt"),
     kind,
@@ -102,7 +107,7 @@ async function run(enabled: boolean) {
   const dir = mkdtempSync(join(tmpdir(), "measure-recorder-"));
   const listeners = new Set<CommitListener>();
   let meterListener: ((record: UsageRecord) => void) | undefined;
-  const stop = startMeasurement({
+  const { stop } = startMeasurement({
     dir,
     session: {
       feed: {

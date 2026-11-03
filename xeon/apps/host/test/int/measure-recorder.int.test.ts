@@ -15,8 +15,16 @@ import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
+/** 마지막 `oneTurn`이 wire(`measure.turn`)로 읽은 결과 */
+let lastWire:
+  | { readonly enabled: boolean; readonly rows: readonly { readonly kind: string }[] }
+  | undefined;
+
 /** 한 Turn을 돌리고 엔진을 닫은 뒤, 측정 DB에서 그 thread의 `turn` 행을 읽는다 */
 async function oneTurn(settings: Readonly<Record<string, unknown>>) {
+  let wire:
+    | { readonly enabled: boolean; readonly rows: readonly { readonly kind: string }[] }
+    | undefined;
   const home = useEngineHome();
   writeUserSettings(home, { ...TAPE_SETTINGS, ...settings });
   const models = recordingModels("measure", [{ text: "답", inputTokens: 1234 }], {
@@ -41,12 +49,17 @@ async function oneTurn(settings: Readonly<Record<string, unknown>>) {
       (event) => event.kind === "turn.completed" && event.turnId === started.turnId,
       20_000,
     );
+    wire = await connection.request("measure.turn", {
+      threadId: created.threadId,
+      turnId: started.turnId,
+    });
     await host.close();
     const opened = openMeasureStore(join(home.dataDir, "measure.db"));
     if (!opened.ok) throw new Bug("the measure database must exist after a turn");
     const rows = opened.value.turn(created.threadId, started.turnId);
     opened.value.close();
     if (!rows.ok) throw new Bug("the measure database must be readable");
+    lastWire = wire;
     return rows.value;
   } finally {
     home.dispose();
@@ -91,3 +104,14 @@ realTest(
 realTest("with x.operations.trace.enabled off no turn row is written", async () => {
   expect(await oneTurn({ "x.operations.trace.enabled": false })).toEqual([]);
 });
+
+realTest(
+  "measure.turn over the wire returns the same kinds the store holds, and is off-aware",
+  async () => {
+    const rows = await oneTurn({});
+    expect(lastWire?.enabled).toBe(true);
+    expect(lastWire?.rows.map((row) => row.kind)).toEqual(rows.map((row) => row.kind));
+    await oneTurn({ "x.operations.trace.enabled": false });
+    expect(lastWire).toEqual({ enabled: false, rows: [] });
+  },
+);

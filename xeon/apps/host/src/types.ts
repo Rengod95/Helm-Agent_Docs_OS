@@ -1,4 +1,5 @@
 import type { Clock, Result, Scheduler } from "@fresnel/contracts";
+import type { MeasurePort } from "./assembly/measure/read.ts";
 import type {
   AnyCapabilityDef,
   Notice,
@@ -263,6 +264,8 @@ export interface EnginePorts {
   readonly dialog: DialogWirePort;
   /** 사용량 게이지 원천(`usage.get`, M3-REQ-15). 조립 기본은 빈 목록이다 */
   readonly usage: UsagePort;
+  /** 측정 저장소 읽기(`measure.turn`, `measure.daily`, T-MEAS-READ) */
+  readonly measure: MeasurePort;
   /** 지식 제안 대기열 둘(학습 그룹, L2.knowledge)을 한 목록으로 보이고 결정한다(M3-REQ-18, D-M3-32 a) */
   readonly proposals: ProposalPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */

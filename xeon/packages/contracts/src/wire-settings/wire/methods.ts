@@ -66,6 +66,7 @@ import { WireMetaSchema } from "./jsonrpc.ts";
 import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
+import { MEASURE_WIRE_METHODS, type MeasureWireSchemas } from "./measure.ts";
 import {
   PROFILE_TEST_RUN_METHODS,
   ProfileChangedParamsSchema,
@@ -1386,7 +1387,12 @@ const ProposalDecideRequestSchema: TUnion<
 
 /** 메서드별 params·result 스키마. 타입 쪽(WireMethodMap)과 값 쪽(WIRE_METHODS)의 같은 원천이다 */
 interface WireSchemas
-  extends ExtReadSchemas, DialogAreaSchemas, ProfileTestRunSchemas, DevkitWireSchemas {
+  extends
+    ExtReadSchemas,
+    DialogAreaSchemas,
+    ProfileTestRunSchemas,
+    DevkitWireSchemas,
+    MeasureWireSchemas {
   "host.hello": {
     params: WithMeta<typeof HostHelloParamsSchema>;
     result: typeof HostHelloResultSchema;
@@ -1718,6 +1724,7 @@ export const WIRE_METHODS: {
   ...DIALOG_AREA_METHODS,
   ...PROFILE_TEST_RUN_METHODS,
   ...DEVKIT_WIRE_METHODS,
+  ...MEASURE_WIRE_METHODS,
   "schedule.fire": spec(withMeta(ScheduleFireInputSchema), ScheduleFireResultSchema, "M3"),
 };
 

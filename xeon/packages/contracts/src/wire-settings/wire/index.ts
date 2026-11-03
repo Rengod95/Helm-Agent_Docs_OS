@@ -20,3 +20,4 @@ export * from "./ext-read.ts";
 export * from "./dialog-area.ts";
 export * from "./profile-test-run.ts";
 export * from "./devkit.ts";
+export * from "./measure.ts";

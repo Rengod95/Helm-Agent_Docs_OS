@@ -4,7 +4,7 @@ import { isNotImplemented } from "../../src/handlers/not-implemented.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// spec-deltas/t-f.md §5 5번. M4 wire 메서드 47개(hooks.order.* 4개 포함)는 처리기가 있고, 소유 트랙이 채우기 전에는 notImplemented이며
+// spec-deltas/t-f.md §5 5번. M4 wire 메서드 49개(hooks.order.* 4개 포함)는 처리기가 있고, 소유 트랙이 채우기 전에는 notImplemented이며
 // host.hello의 features에 없다. 이 시험은 어느 메서드가 기본인지 목록을 갖지 않는다: 소유 트랙이 처리기를 채우면
 // features에 오르므로 두 쪽이 계속 일치하고, 시험은 고치지 않는다.
 
@@ -19,7 +19,7 @@ function m4Methods(): WireMethodName[] {
     .filter(isMethodName);
 }
 
-test("m4-defaults: the 47 M4 methods all have a handler and notImplemented matches their absence from hello features", async () => {
+test("m4-defaults: the 49 M4 methods all have a handler and notImplemented matches their absence from hello features", async () => {
   const slot: { table: WireHandlers | undefined } = { table: undefined };
   const host = createFakeHost({
     override: (table) => {
@@ -34,7 +34,7 @@ test("m4-defaults: the 47 M4 methods all have a handler and notImplemented match
   if (table === undefined) throw new Error("the handler table was not captured");
 
   const names = m4Methods();
-  expect(names).toHaveLength(47);
+  expect(names).toHaveLength(49);
   const actual = names.map((name) => ({
     name,
     hasHandler: typeof table[name] === "function",

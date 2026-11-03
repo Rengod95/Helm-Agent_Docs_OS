@@ -921,7 +921,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);
     // 측정 저장소(T-MEAS-STORE): 대화 DB와 분리한 파일. 켜고 끄는 값은 x.operations.trace.enabled다
-    measureSlot.stop = startMeasurement({
+    const measurement = startMeasurement({
       dir: dbDir,
       session,
       usage: models.usage,
@@ -930,6 +930,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       logger,
       now: () => clock.now(),
     });
+    measureSlot.stop = measurement.stop;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
       stateDir: os.dirs.state,
@@ -947,6 +948,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // fresnel-disable-next-line fresnel/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
+      measure: {
+        store: () => measurement.store,
+        enabled: () => operations.trace().enabled,
+      },
       mode: options.mode,
       os,
       clock,

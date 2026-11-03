@@ -6,7 +6,7 @@ import {
   type StepContextWarning,
 } from "@fresnel/contracts/conversation";
 import type { TraceReadPort } from "@fresnel/contracts/extensions";
-import type { CommitBatch, SessionService } from "@fresnel/contracts/records";
+import type { CommitBatch, EventFeed } from "@fresnel/contracts/records";
 import type { UsageMeter, UsageRecord } from "@fresnel/contracts/services";
 import {
   DEFAULT_RETENTION_DAYS,
@@ -32,7 +32,7 @@ const MAX_PENDING_CALLS = 2000;
 const MAX_HOOK_ROWS_PER_TURN = 500;
 
 interface MeasureRecorderDeps {
-  readonly session: Pick<SessionService, "feed">;
+  readonly session: { readonly feed: Pick<EventFeed, "onCommit"> };
   /** 모델 호출 합산기(`ModelService.usage`) */
   readonly usage: Pick<UsageMeter, "subscribe">;
   /** 핸들러 계측 링 버퍼 읽기. 없으면 `hook` 기록을 하지 않는다 */
@@ -134,42 +134,36 @@ function cacheRecord(
   stepIndex: number,
   warning: StepContextWarning,
 ): MeasureRecord | undefined {
-  switch (warning.code) {
-    case "cache_prefix_reset":
-      return {
-        ...base,
-        kind: "cache",
-        metrics: { step: stepIndex, at: warning.at ?? -1 },
-        tags: { code: warning.code, owner: "context-hook" },
-      };
-    case "cache_reset_model_switch":
-      return {
-        ...base,
-        kind: "cache",
-        metrics: { step: stepIndex },
-        tags: {
-          code: warning.code,
-          owner: "model",
-          from: warning.from ?? "",
-          to: warning.to ?? "",
-        },
-      };
-    case "tools_deferred":
-      return {
-        ...base,
-        kind: "cache",
-        metrics: {
-          step: stepIndex,
-          added: warning.added?.length ?? 0,
-          removed: warning.removed?.length ?? 0,
-        },
-        tags: { code: warning.code, owner: "tools" },
-      };
-    case "near_window":
-      return undefined;
-    default:
-      return undefined;
+  if (warning.code === "cache_prefix_reset") {
+    return {
+      ...base,
+      kind: "cache",
+      metrics: { step: stepIndex, at: warning.at ?? -1 },
+      tags: { code: warning.code, owner: "context-hook" },
+    };
   }
+  if (warning.code === "cache_reset_model_switch") {
+    return {
+      ...base,
+      kind: "cache",
+      metrics: { step: stepIndex },
+      tags: { code: warning.code, owner: "model", from: warning.from ?? "", to: warning.to ?? "" },
+    };
+  }
+  if (warning.code === "tools_deferred") {
+    return {
+      ...base,
+      kind: "cache",
+      metrics: {
+        step: stepIndex,
+        added: warning.added?.length ?? 0,
+        removed: warning.removed?.length ?? 0,
+      },
+      tags: { code: warning.code, owner: "tools" },
+    };
+  }
+  // near_window는 캐시 사건이 아니다
+  return undefined;
 }
 
 /** 피드를 구독해 Turn 경계마다 한 묶음을 쓴다. 돌려주는 함수가 구독을 끊고 남은 묶음을 쓴다 */
@@ -263,7 +257,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): () => void {
 export interface MeasurementDeps {
   /** 측정 DB를 둘 폴더(대화 DB와 같은 데이터 폴더). 파일 이름은 `measure.db`다 */
   readonly dir: string;
-  readonly session: Pick<SessionService, "feed">;
+  readonly session: { readonly feed: Pick<EventFeed, "onCommit"> };
   readonly usage: Pick<UsageMeter, "subscribe">;
   readonly trace?: Pick<TraceReadPort, "turn">;
   readonly enabled: () => boolean;
@@ -275,13 +269,17 @@ export interface MeasurementDeps {
 
 /**
  * 측정 저장소를 열고 보존 정리를 한 번 한 뒤 기록기를 켠다. 열지 못하면 로그만 남기고 측정 없이 간다(측정은 대화를 막지 않는다).
- * 돌려주는 함수가 기록기를 끊고 저장소를 닫는다
+ * `stop`이 기록기를 끊고 저장소를 닫는다
  */
-export function startMeasurement(deps: MeasurementDeps): () => void {
+export function startMeasurement(deps: MeasurementDeps): {
+  readonly stop: () => void;
+  /** 열린 저장소(읽기 포트용). 열지 못했으면 undefined */
+  readonly store: MeasureStore | undefined;
+} {
   const opened = openMeasureStore(join(deps.dir, MEASURE_DB_FILE_NAME));
   if (!opened.ok) {
     deps.logger.warn("measure.open_failed", { reason: opened.error.kind });
-    return () => undefined;
+    return { stop: () => undefined, store: undefined };
   }
   const store = opened.value;
   const pruned = store.prune(deps.now(), deps.retentionDays ?? DEFAULT_RETENTION_DAYS);
@@ -294,8 +292,11 @@ export function startMeasurement(deps: MeasurementDeps): () => void {
     enabled: deps.enabled,
     logger: deps.logger,
   });
-  return () => {
-    stop();
-    store.close();
+  return {
+    stop: () => {
+      stop();
+      store.close();
+    },
+    store,
   };
 }
