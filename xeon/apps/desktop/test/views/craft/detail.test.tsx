@@ -73,12 +73,13 @@ describe("Detail: 계측이 꺼져 있을 때", () => {
 
 describe("Detail: 기록이 있을 때", () => {
   const entries: CraftRunEntry[] = [
-    { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "ok" },
+    { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "passed", reason: null },
     {
       hook: "boundary.settle.after",
       registrationId: "helm",
       ms: 30000,
-      result: "error",
+      result: "failed",
+      reason: "threw",
     },
   ];
 
@@ -93,6 +94,24 @@ describe("Detail: 기록이 있을 때", () => {
     expect(out).toContain(t("desktop.craft.detail.outcome.passed"));
     expect(out).toContain(t("desktop.craft.detail.outcome.failed"));
     expect(out).toContain(t("desktop.craft.detail.reason.error"));
+  });
+
+  test("failed이고 이유가 timeout이면 시간 한도 넘김 줄이 보인다", async () => {
+    const timedOut: CraftRunEntry[] = [
+      {
+        hook: "boundary.settle.after",
+        registrationId: "helm",
+        ms: 30000,
+        result: "failed",
+        reason: "timeout",
+      },
+    ];
+    const source = fakeSource((id) => Promise.resolve(id === "helm" ? timedOut : []));
+    const target = need(targetOf(source.snapshot, "helm"));
+    const runs = await loadRuns(source, membersOfTarget(target));
+    const out = render(target, runs, "recent");
+    expect(out).toContain(t("desktop.craft.detail.reason.overBudget"));
+    expect(out).not.toContain(t("desktop.craft.detail.reason.error"));
   });
 
   test("기록이 하나도 없으면 빈 기록 안내가 나온다", async () => {

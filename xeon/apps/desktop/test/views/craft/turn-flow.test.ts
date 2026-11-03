@@ -7,7 +7,6 @@ import {
   loadRuns,
   MOMENTS,
   momentsFor,
-  outcomeOf,
   runOverlay,
   timeLabel,
   TOOL_RUN,
@@ -137,21 +136,28 @@ describe("columnsFor: 그룹은 구성원마다 열 하나", () => {
 
 describe("runOverlay: 걸린 시간은 trace.turn 값 그대로", () => {
   const entries: CraftRunEntry[] = [
-    { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "ok" },
+    { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "passed", reason: null },
     {
       hook: "boundary.settle.after",
       registrationId: "helm",
       ms: 30000,
-      result: "error",
+      result: "failed",
+      reason: "threw",
     },
-    { hook: "tool.call.before", registrationId: "secret-scan", ms: 8123, result: "ok" },
+    {
+      hook: "tool.call.before",
+      registrationId: "secret-scan",
+      ms: 8123,
+      result: "passed",
+      reason: null,
+    },
   ];
 
   test("이 플러그인의 기록만 훅별로 모은다. ms 3과 30000이 그대로 남는다", () => {
     const marks = runOverlay(entries, plugin("helm"));
-    expect(marks.get("tool.call.before")).toEqual([{ ms: 3, result: "ok", outcome: "passed" }]);
+    expect(marks.get("tool.call.before")).toEqual([{ ms: 3, result: "passed", reason: null }]);
     expect(marks.get("boundary.settle.after")).toEqual([
-      { ms: 30000, result: "error", outcome: "failed" },
+      { ms: 30000, result: "failed", reason: "threw" },
     ]);
     expect([...marks.keys()].toSorted()).toEqual(["boundary.settle.after", "tool.call.before"]);
   });
@@ -164,12 +170,27 @@ describe("runOverlay: 걸린 시간은 trace.turn 값 그대로", () => {
     expect(timeLabel(8123)).toEqual({ unit: "s", n: 8.123 });
   });
 
-  test("결과 대응: ok 지나감, error·over_budget 실패, denied 막음, skipped 건너뜀", () => {
-    expect(outcomeOf("ok")).toBe("passed");
-    expect(outcomeOf("error")).toBe("failed");
-    expect(outcomeOf("over_budget")).toBe("failed");
-    expect(outcomeOf("denied")).toBe("blocked");
-    expect(outcomeOf("skipped")).toBe("skipped");
+  test("다섯 결과와 실패 이유는 wire 값 그대로 옮겨진다", () => {
+    const each: CraftRunEntry[] = [
+      { hook: "tool.call.before", registrationId: "helm", ms: 1, result: "modified", reason: null },
+      { hook: "tool.call.before", registrationId: "helm", ms: 2, result: "passed", reason: null },
+      { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "blocked", reason: null },
+      {
+        hook: "tool.call.before",
+        registrationId: "helm",
+        ms: 4,
+        result: "failed",
+        reason: "timeout",
+      },
+      { hook: "tool.call.before", registrationId: "helm", ms: 5, result: "skipped", reason: null },
+    ];
+    expect(runOverlay(each, plugin("helm")).get("tool.call.before")).toEqual([
+      { ms: 1, result: "modified", reason: null },
+      { ms: 2, result: "passed", reason: null },
+      { ms: 3, result: "blocked", reason: null },
+      { ms: 4, result: "failed", reason: "timeout" },
+      { ms: 5, result: "skipped", reason: null },
+    ]);
   });
 });
 
@@ -205,12 +226,19 @@ describe("loadRuns: 계측 꺼짐, 읽기 실패, 읽음", () => {
         Promise.resolve(
           id === "helm"
             ? [
-                { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "ok" },
+                {
+                  hook: "tool.call.before",
+                  registrationId: "helm",
+                  ms: 3,
+                  result: "passed",
+                  reason: null,
+                },
                 {
                   hook: "boundary.settle.after",
                   registrationId: "helm",
                   ms: 30000,
-                  result: "error",
+                  result: "failed",
+                  reason: "threw",
                 },
               ]
             : [],
@@ -221,7 +249,7 @@ describe("loadRuns: 계측 꺼짐, 읽기 실패, 읽음", () => {
     expect(got.k).toBe("ready");
     if (got.k !== "ready") throw new Error("expected ready");
     expect(got.byPlugin.get("helm")?.get("boundary.settle.after")).toEqual([
-      { ms: 30000, result: "error", outcome: "failed" },
+      { ms: 30000, result: "failed", reason: "threw" },
     ]);
   });
 });

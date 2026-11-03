@@ -24,7 +24,7 @@ const input: PerfInput = {
       ],
     },
   ],
-  turns: [{ turnId: "trn_a", result: { enabled: true, rows: [hook("acme", 900, "over_budget")] } }],
+  turns: [{ turnId: "trn_a", result: { enabled: true, rows: [hook("acme", 900, "failed")] } }],
   capped: true,
 };
 const noop = (): void => {};

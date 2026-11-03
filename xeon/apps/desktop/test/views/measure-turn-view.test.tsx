@@ -11,7 +11,7 @@ const result: MeasureTurnResult = {
       at: 1,
       kind: "hook",
       metrics: { ms: 812, seq: 1, step: 0 },
-      tags: { hook: "context", registrationId: "acme", result: "over_budget" },
+      tags: { hook: "context", registrationId: "acme", result: "failed" },
     },
     {
       at: 1,
@@ -34,7 +34,7 @@ describe("TurnView", () => {
     const out = html({ kind: "ready", value: result, stale: false });
     expect(out).toContain("acme");
     expect(out).toContain("812ms");
-    expect(out).toContain("예산 초과");
+    expect(out).toContain("실패");
     expect(out).toContain("brand_new");
     expect(out).toContain("캐시 접두가 바뀜");
     expect(out).toContain("합치기 훅");

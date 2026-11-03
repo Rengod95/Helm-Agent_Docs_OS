@@ -8,7 +8,8 @@ import {
   type CanvasSnapshot,
   type PHASES,
 } from "@fresnel/client/workbench/canvas";
-import { assertNever, attemptAsync, Bug } from "@fresnel/contracts";
+import { attemptAsync, Bug } from "@fresnel/contracts";
+import type { TraceFailureReason, TraceHandlerResult } from "@fresnel/contracts/extensions";
 import type { CraftRunEntry, CraftSource } from "./craft-context.tsx";
 
 /** 훅 결과 규칙(F.extensions §4.1). 도구 실행 순간은 훅이 아니라서 fold가 없다 */
@@ -209,43 +210,27 @@ export function activeMoments(columns: readonly Column[]): ReadonlySet<string> {
 }
 
 // ── 최근 실행 ────────────────────────────────────────────────────
-export type RunResult = CraftRunEntry["result"];
-/** 화면의 결과. 고침(changed)은 wire 결과로 알 수 없어 없다 */
-export type RunOutcome = "passed" | "failed" | "blocked" | "skipped";
+/** 화면이 받는 결과. wire의 다섯 이름(고침·지나감·막음·실패·건너뜀)을 그대로 쓴다 */
+type RunResult = TraceHandlerResult;
+export type RunOutcome = TraceHandlerResult;
 
 export interface RunMark {
   /** 걸린 시간(trace.turn의 ms 그대로) */
   readonly ms: number;
   readonly result: RunResult;
-  readonly outcome: RunOutcome;
+  /** `failed`의 이유. 그 밖의 결과에서는 null */
+  readonly reason: TraceFailureReason | null;
 }
 
 /** 훅(순간) id → 그 턴의 기록들. 한 훅이 턴 안에서 여러 번 돌면 여러 개다 */
 export type RunMarks = ReadonlyMap<string, readonly RunMark[]>;
-
-export function outcomeOf(result: RunResult): RunOutcome {
-  switch (result) {
-    case "ok":
-      return "passed";
-    case "error":
-    case "over_budget":
-      return "failed";
-    case "denied":
-      return "blocked";
-    case "skipped":
-      return "skipped";
-    // [미결] "고침(changed)"은 wire 결과에 없어 만들지 않는다. 고친 값을 알리는 wire 필드가 생기면 여기에 더한다.
-    default:
-      return assertNever(result, "outcomeOf");
-  }
-}
 
 /** 이 플러그인의 기록만 훅별로 모은다. 기록은 입력 순서대로다(wire의 seq 순서) */
 export function runOverlay(entries: readonly CraftRunEntry[], plugin: CanvasPlugin): RunMarks {
   const out = new Map<string, RunMark[]>();
   for (const e of entries) {
     if (e.registrationId !== plugin.id) continue;
-    const mark: RunMark = { ms: e.ms, result: e.result, outcome: outcomeOf(e.result) };
+    const mark: RunMark = { ms: e.ms, result: e.result, reason: e.reason };
     const list = out.get(e.hook);
     if (list === undefined) out.set(e.hook, [mark]);
     else list.push(mark);

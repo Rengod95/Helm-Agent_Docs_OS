@@ -2,27 +2,14 @@
 // 모르는 종류, 모르는 결과 이름, 빠진 값은 버리거나 원문 그대로 둔다(meas4가 값을 넓혀도 깨지지 않는다). 합치는 점수는 없다.
 import type { MeasureRow, MeasureTurnResult } from "@fresnel/contracts/wire";
 
-/** 핸들러 결과의 알려진 이름. wire는 지금 `ok`·`error`·`over_budget`·`denied`·`skipped`를 주고, 사용자 글은 다섯 갈래(고침·지나감·막음·실패·건너뜀)다 */
-export type OutcomeKey =
-  | "ok"
-  | "patched"
-  | "passed"
-  | "blocked"
-  | "denied"
-  | "failed"
-  | "error"
-  | "over_budget"
-  | "skipped";
+/** 핸들러 결과의 알려진 이름. wire가 주는 다섯(고침·지나감·막음·실패·건너뜀)이고 사용자 글도 같은 다섯 갈래다 */
+export type OutcomeKey = "modified" | "passed" | "blocked" | "failed" | "skipped";
 
 const KNOWN_OUTCOMES: readonly OutcomeKey[] = [
-  "ok",
-  "patched",
+  "modified",
   "passed",
   "blocked",
-  "denied",
   "failed",
-  "error",
-  "over_budget",
   "skipped",
 ];
 
@@ -34,7 +21,7 @@ export interface OutcomeVM {
   readonly problem: boolean;
 }
 
-const PROBLEM_OUTCOMES: ReadonlySet<string> = new Set(["failed", "error", "over_budget"]);
+const PROBLEM_OUTCOMES: ReadonlySet<string> = new Set(["failed"]);
 
 export function outcomeOf(raw: string): OutcomeVM {
   const key = KNOWN_OUTCOMES.find((name) => name === raw) ?? null;

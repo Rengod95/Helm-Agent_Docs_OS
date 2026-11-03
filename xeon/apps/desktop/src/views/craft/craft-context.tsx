@@ -11,6 +11,7 @@ import type {
 import type { WorkbenchState, WorkbenchView } from "@fresnel/client/workbench";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { assertNever, Bug } from "@fresnel/contracts";
+import type { TraceFailureReason, TraceHandlerResult } from "@fresnel/contracts/extensions";
 import { useShallow } from "zustand/react/shallow";
 import {
   useWorkbench,
@@ -26,7 +27,9 @@ export interface CraftRunEntry {
   readonly hook: string;
   readonly registrationId: string;
   readonly ms: number;
-  readonly result: "ok" | "error" | "over_budget" | "denied" | "skipped";
+  readonly result: TraceHandlerResult;
+  /** `failed`의 이유. 그 밖의 결과에서는 null */
+  readonly reason: TraceFailureReason | null;
 }
 
 export interface CraftSource {

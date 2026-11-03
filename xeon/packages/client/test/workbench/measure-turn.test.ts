@@ -34,13 +34,14 @@ const ctx: MeasureRow = {
 
 describe("outcomeOf", () => {
   test("keeps known names and flags problems; unknown names stay raw", () => {
-    expect(outcomeOf("over_budget")).toEqual({
-      key: "over_budget",
-      raw: "over_budget",
-      problem: true,
-    });
-    expect(outcomeOf("patched")).toEqual({ key: "patched", raw: "patched", problem: false });
+    expect(outcomeOf("failed")).toEqual({ key: "failed", raw: "failed", problem: true });
+    expect(outcomeOf("modified")).toEqual({ key: "modified", raw: "modified", problem: false });
     expect(outcomeOf("future_kind")).toEqual({ key: null, raw: "future_kind", problem: false });
+  });
+
+  test("the old names are no longer known, so they stay raw", () => {
+    expect(outcomeOf("over_budget")).toEqual({ key: null, raw: "over_budget", problem: false });
+    expect(outcomeOf("patched")).toEqual({ key: null, raw: "patched", problem: false });
   });
 });
 
@@ -54,9 +55,9 @@ describe("turnViewOf", () => {
     const state = turnViewOf({
       enabled: true,
       rows: [
-        hook(3, "helm", 5, "ok"),
-        hook(1, "acme", 800, "over_budget"),
-        hook(2, "acme", 100, "ok"),
+        hook(3, "helm", 5, "passed"),
+        hook(1, "acme", 800, "failed"),
+        hook(2, "acme", 100, "passed"),
         ctx,
         {
           at: 1,

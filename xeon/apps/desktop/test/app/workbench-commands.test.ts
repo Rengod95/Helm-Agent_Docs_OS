@@ -143,7 +143,17 @@ describe("크래프트 명령의 wire 호출", () => {
           seq: 1,
           hook: "tool.call.before",
           step: 0,
-          handlers: [{ registrationId: "web", ms: 3, result: "ok" }],
+          handlers: [
+            {
+              registrationId: "web",
+              ms: 3,
+              result: "passed",
+              atMs: 0,
+              size: 0,
+              skippedBy: null,
+              reason: null,
+            },
+          ],
         },
       ],
     };

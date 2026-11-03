@@ -74,9 +74,9 @@ describe("perfViewOf", () => {
     const state = perfViewOf(
       [],
       [
-        turn("t1", [turnRow(100), hook("acme", 10, "ok")]),
-        turn("t2", [turnRow(110), hook("acme", 900, "over_budget"), hook("helm", 5, "ok", 2)]),
-        turn("t3", [turnRow(90), hook("acme", 20, "ok")]),
+        turn("t1", [turnRow(100), hook("acme", 10, "passed")]),
+        turn("t2", [turnRow(110), hook("acme", 900, "failed"), hook("helm", 5, "passed", 2)]),
+        turn("t3", [turnRow(90), hook("acme", 20, "passed")]),
         turn("t4", [
           turnRow(500),
           {

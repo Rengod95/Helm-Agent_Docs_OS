@@ -124,6 +124,7 @@ export function runEntriesOf(
         registrationId: handler.registrationId,
         ms: handler.ms,
         result: handler.result,
+        reason: handler.reason,
       })),
   );
 }

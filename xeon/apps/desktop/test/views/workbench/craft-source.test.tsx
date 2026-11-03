@@ -8,7 +8,12 @@ import {
   snapshotOf,
 } from "@fresnel/client/workbench";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
-import type { TraceTurnResult } from "@fresnel/contracts/extensions";
+import type {
+  TraceFailureReason,
+  TraceHandlerEntry,
+  TraceHandlerResult,
+  TraceTurnResult,
+} from "@fresnel/contracts/extensions";
 import type { OrderPortError } from "@fresnel/client/workbench/canvas";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
@@ -115,6 +120,16 @@ describe("namesToToggle: 확장 이름마다 한 번, 잠긴 확장과 모르는
   });
 });
 
+/** trace.turn의 핸들러 한 칸. 시각과 크기는 이 시험이 보지 않아 0으로 둔다 */
+function handler(
+  registrationId: string,
+  ms: number,
+  result: TraceHandlerResult,
+  reason: TraceFailureReason | null = null,
+): TraceHandlerEntry {
+  return { registrationId, ms, result, atMs: 0, size: 0, skippedBy: null, reason };
+}
+
 describe("runEntriesOf: trace.turn을 이 플러그인의 최근 실행 줄로", () => {
   const trace: TraceTurnResult = {
     traceEnabled: true,
@@ -124,24 +139,27 @@ describe("runEntriesOf: trace.turn을 이 플러그인의 최근 실행 줄로",
         seq: 1,
         hook: "tool.call.before",
         step: 0,
-        handlers: [
-          { registrationId: "web", ms: 3, result: "ok" },
-          { registrationId: "other", ms: 9, result: "denied" },
-        ],
+        handlers: [handler("web", 3, "passed"), handler("other", 9, "blocked")],
       },
       {
         seq: 2,
         hook: "boundary.settle.after",
         step: 1,
-        handlers: [{ registrationId: "web", ms: 30000, result: "error" }],
+        handlers: [handler("web", 30000, "failed", "threw")],
       },
     ],
   };
 
-  test("이 플러그인의 핸들러만 훅 순서대로 나온다", () => {
+  test("이 플러그인의 핸들러만 훅 순서대로 나오고 이유도 그대로 옮긴다", () => {
     expect(runEntriesOf(trace, "web")).toEqual([
-      { hook: "tool.call.before", registrationId: "web", ms: 3, result: "ok" },
-      { hook: "boundary.settle.after", registrationId: "web", ms: 30000, result: "error" },
+      { hook: "tool.call.before", registrationId: "web", ms: 3, result: "passed", reason: null },
+      {
+        hook: "boundary.settle.after",
+        registrationId: "web",
+        ms: 30000,
+        result: "failed",
+        reason: "threw",
+      },
     ]);
   });
 
@@ -185,7 +203,7 @@ describe("recentRunsOf: 열린 대화와 턴 id가 있을 때만 trace.turn을 �
         seq: 1,
         hook: "tool.call.before",
         step: 0,
-        handlers: [{ registrationId: "web", ms: 3, result: "ok" }],
+        handlers: [handler("web", 3, "passed")],
       },
     ],
   };
@@ -200,7 +218,7 @@ describe("recentRunsOf: 열린 대화와 턴 id가 있을 때만 trace.turn을 �
   test("대화와 턴이 있으면 두 id로 한 번 부르고 이 플러그인의 줄을 돌려준다", async () => {
     const { workbench, calls } = recording(ok(trace));
     expect(await recentRunsOf(workbench, thr(1), trn(1), "web")).toEqual([
-      { hook: "tool.call.before", registrationId: "web", ms: 3, result: "ok" },
+      { hook: "tool.call.before", registrationId: "web", ms: 3, result: "passed", reason: null },
     ]);
     expect(calls).toEqual([{ threadId: thr(1), turnId: trn(1) }]);
   });
@@ -443,10 +461,7 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
           seq: 1,
           hook: "tool.call.before",
           step: 0,
-          handlers: [
-            { registrationId: "web", ms: 3, result: "ok" },
-            { registrationId: "other", ms: 9, result: "denied" },
-          ],
+          handlers: [handler("web", 3, "passed"), handler("other", 9, "blocked")],
         },
       ],
     };
@@ -460,7 +475,7 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
       commands,
     );
     expect(await source.recentRuns("web")).toEqual([
-      { hook: "tool.call.before", registrationId: "web", ms: 3, result: "ok" },
+      { hook: "tool.call.before", registrationId: "web", ms: 3, result: "passed", reason: null },
     ]);
     expect(calls).toEqual([{ threadId: thr(1), turnId: trn(2) }]);
   });

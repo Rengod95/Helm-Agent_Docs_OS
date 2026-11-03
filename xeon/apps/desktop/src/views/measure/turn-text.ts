@@ -8,14 +8,10 @@ import type {
 } from "@fresnel/client/workbench";
 
 const OUTCOME_TEXT: Readonly<Record<OutcomeKey, MessageId>> = {
-  ok: "desktop.measure.outcome.ok",
-  patched: "desktop.measure.outcome.patched",
+  modified: "desktop.measure.outcome.modified",
   passed: "desktop.measure.outcome.passed",
   blocked: "desktop.measure.outcome.blocked",
-  denied: "desktop.measure.outcome.denied",
   failed: "desktop.measure.outcome.failed",
-  error: "desktop.measure.outcome.error",
-  over_budget: "desktop.measure.outcome.overBudget",
   skipped: "desktop.measure.outcome.skipped",
 };
 

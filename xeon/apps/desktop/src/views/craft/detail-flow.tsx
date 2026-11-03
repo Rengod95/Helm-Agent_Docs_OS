@@ -3,6 +3,7 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { PHASES } from "@fresnel/client/workbench/canvas";
 import { Alert, Chip, Tooltip, type ChipProps } from "@caustic/react";
+import type { TraceFailureReason } from "@fresnel/contracts/extensions";
 import type { ReactNode } from "react";
 import {
   MOMENTS,
@@ -17,7 +18,6 @@ import {
   type RunMark,
   type RunMarks,
   type RunOutcome,
-  type RunResult,
   type ValueKind,
   type Verb,
 } from "./turn-flow.ts";
@@ -87,29 +87,29 @@ const HAND_LABEL: Record<Hand, MessageId> = {
   result: "desktop.craft.detail.hand.result",
 };
 
-// [미결] "고침"(changed)은 wire 결과에 없어 목록에 넣지 않는다(turn-flow의 outcomeOf 참고).
 const OUTCOME_LABEL: Record<RunOutcome, MessageId> = {
+  modified: "desktop.craft.detail.outcome.modified",
   passed: "desktop.craft.detail.outcome.passed",
   failed: "desktop.craft.detail.outcome.failed",
   blocked: "desktop.craft.detail.outcome.blocked",
   skipped: "desktop.craft.detail.outcome.skipped",
 };
 
-// 결과 칩: 실패만 위험 색, 막음은 잉크 채움, 나머지는 중립. 색만으로 구분하지 않도록 글자가 늘 함께 나온다.
+// 결과 칩: 실패만 위험 색, 막음은 잉크 채움, 고침은 옅은 중립, 나머지는 중립. 색만으로 구분하지 않도록 글자가 늘 함께 나온다.
 const OUTCOME_CHIP = {
+  modified: { variant: "soft", tone: "neutral" },
   passed: { variant: "outline", tone: "neutral" },
   failed: { variant: "soft", tone: "danger" },
   blocked: { variant: "solid", tone: "neutral" },
   skipped: { variant: "dashed", tone: "neutral" },
 } satisfies Record<RunOutcome, Pick<ChipProps, "variant" | "tone">>;
 
-/** 실패 이유 한 줄. wire 결과에 이유 글이 없어서 결과 종류로 고른다 */
-const RESULT_REASON: Record<RunResult, MessageId | null> = {
-  ok: null,
-  error: "desktop.craft.detail.reason.error",
-  over_budget: "desktop.craft.detail.reason.overBudget",
-  denied: null,
-  skipped: null,
+/** 실패 이유 한 줄의 글. 이유 값으로 고르고, 이유가 null이면 아무것도 보이지 않는다 */
+const RESULT_REASON: Record<TraceFailureReason, MessageId> = {
+  threw: "desktop.craft.detail.reason.error",
+  timeout: "desktop.craft.detail.reason.overBudget",
+  result_invalid: "desktop.craft.detail.reason.error",
+  merge_rejected: "desktop.craft.detail.reason.error",
 };
 
 const railOf = (grouped: boolean): string => (grouped ? "9.5rem" : "13rem");
@@ -136,7 +136,7 @@ function VerbChip({ verb }: { readonly verb: Verb }): ReactNode {
 
 function MarkLine({ mark }: { readonly mark: RunMark }): ReactNode {
   const time = timeLabel(mark.ms);
-  const reason = RESULT_REASON[mark.result];
+  const reason = mark.reason === null ? null : RESULT_REASON[mark.reason];
   return (
     <div className="grid gap-1.5 border-t border-border-subtle pt-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -145,11 +145,11 @@ function MarkLine({ mark }: { readonly mark: RunMark }): ReactNode {
             n: time.n,
           })}
         </span>
-        <Chip size="sm" className="ms-auto" {...OUTCOME_CHIP[mark.outcome]}>
-          {t(OUTCOME_LABEL[mark.outcome])}
+        <Chip size="sm" className="ms-auto" {...OUTCOME_CHIP[mark.result]}>
+          {t(OUTCOME_LABEL[mark.result])}
         </Chip>
       </div>
-      {mark.outcome === "failed" && reason !== null && (
+      {reason !== null && (
         <Alert tone="danger" size="sm" radius="lg">
           {t(reason)}
         </Alert>
