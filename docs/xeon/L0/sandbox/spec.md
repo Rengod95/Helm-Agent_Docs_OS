@@ -206,8 +206,12 @@ export interface SandboxService {
   status(): SandboxStatus;
   /** 작업 공간 root와 임시 디렉터리로 기본 정책을 만든다. 보호 경로와 설정 추가분이 들어간다 */
   defaultPolicy(input: { workspaceRoots: readonly string[]; tempDir: string }): SandboxPolicy;
-  /** 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용 */
-  protectedPaths(): readonly ProtectedPathEntry[];
+  /**
+   * 보호 경로 전체(기본 + 설정 추가분). L2 파일 도구용. `roots`는 호출한 쪽이 지금 허용하는 작업 공간 root(정규 경로)다.
+   * root별 git 항목(`.git/hooks`, `.git/config` 등)이 이 호출의 결과에 들어가므로, bash를 한 번도 돌리지 않은 파일 도구도
+   * 첫 호출부터 보호된다. 생략하면 샌드박스가 정책으로 이미 본 root만 쓴다.
+   */
+  protectedPaths(roots?: readonly string[]): readonly ProtectedPathEntry[];
   /** F Shell을 받아 F Shell을 돌려준다. exec 패키지를 import하지 않는다 */
   wrapShell(shell: Shell, policy: SandboxPolicy): Shell;
   /** 오래 사는 프로세스(stdio MCP 서버)를 정책 안에서 돌릴 명령줄을 만든다(4.9절). 호출자가 argv를 스트림 그대로 spawn한다 */
