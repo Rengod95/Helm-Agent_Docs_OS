@@ -358,6 +358,13 @@ describe("theme tokens and confirm line", () => {
     expect(confirmLineText({ ...base, label: "작업 시작" })).toBe(
       '"helm" 확장이 "작업 시작" 동작을 하려고 해요',
     );
+    // 라벨의 제어·방향 제어 글자는 지운다. 지우고 남은 것이 없으면 동사를 보인다
+    expect(confirmLineText({ ...base, label: "작업\u202e 시작\u0007" })).toBe(
+      '"helm" 확장이 "작업 시작" 동작을 하려고 해요',
+    );
+    expect(confirmLineText({ ...base, label: "\u202e\u0007" })).toBe(
+      '"helm" 확장이 "start" 동작을 하려고 해요',
+    );
     expect(confirmBadges(base)).toEqual(["직접 설치"]);
     expect(confirmBadges({ ...base, trust: "project" })).toEqual([
       "이 프로젝트에서 옴",
