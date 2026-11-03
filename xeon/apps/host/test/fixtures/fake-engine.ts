@@ -16,6 +16,7 @@ import type { StoreId, StreamPosition } from "@fresnel/contracts/wire";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { partial } from "./unsafe.ts";
+import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import type { DialogAreaPort } from "../../src/handlers/m4/dialog-area.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
@@ -127,6 +128,7 @@ export interface FakeEngineOptions {
     readonly schedule?: Partial<ScheduleService>;
     /** 대화 영역 포트(`goal.status`, `work.tasks.list`, `schedule.update`, `schedule.runs`)를 바꾼다. 쓰지 않는 멤버는 부르면 바로 실패한다 */
     readonly dialogArea?: Partial<DialogAreaPort>;
+    readonly devkit?: Partial<DevkitPort>;
   };
 }
 
@@ -493,7 +495,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         },
       }),
       dialogArea: partial<DialogAreaPort>({ ...options.overrides?.dialogArea }),
-      devkit: {},
+      devkit: partial<DevkitPort>({ ...options.overrides?.devkit }),
     },
   };
 

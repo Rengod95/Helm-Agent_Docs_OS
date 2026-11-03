@@ -42,6 +42,7 @@
     "@fresnel/platform-sandbox": "workspace:*",
     "@fresnel/platform-secrets": "workspace:*",
     "@fresnel/platform-store": "workspace:*",
+    "@fresnel/plugin-builder": "workspace:*",
     "typebox": "catalog:"
   },
   "devDependencies": {
