@@ -6,6 +6,8 @@ import type { HandlerGate } from "./dispatch-types.ts";
 /** drive 호출 하나의 멱등 키 재료(X.primitives.spec §4.4.3, §4.6.1) */
 export interface DriveInvocation {
   readonly leaseId: string;
+  /** 기본 `requestId`의 앞부분. `waiting` 재부여를 넘어 유지된다 */
+  readonly lineageId: string;
   /** 호출 시작 때의 상태 판 */
   readonly baseRev: number;
   /** 임대의 취소 신호. 반납·회수·끄기로 abort된다 */

@@ -342,6 +342,7 @@ export function memoryRecordStore(): MemoryRecordStore {
     const scopeIds = new Set<string>();
     const epochs: Record<string, number> = {};
     let open: OpenLease | null = null;
+    let waitingLineage: ExtThreadSnapshot["waitingLineage"] = null;
     for (const event of branch) {
       const payload = event.draft.payload;
       if (!isRecord(payload)) continue;
@@ -362,8 +363,10 @@ export function memoryRecordStore(): MemoryRecordStore {
         epochs[id] = (epochs[id] ?? 0) + 1;
         const limits = isRecord(payload["limits"]) ? payload["limits"] : {};
         const leaseId = String(payload["leaseId"]);
+        waitingLineage = null;
         open = {
           leaseId,
+          lineageId: String(payload["lineageId"]),
           scopeId: id,
           leaseEpoch: epochs[id] ?? 1,
           limits: {
@@ -374,7 +377,11 @@ export function memoryRecordStore(): MemoryRecordStore {
           used: usage.get(leaseId) ?? { turns: 0, spawns: 0, tokens: 0 },
         };
       } else if (event.draft.kind === "lease.released") {
-        open = null;
+        waitingLineage =
+          open !== null && open.leaseId === payload["leaseId"] && payload["reason"] === "waiting"
+            ? { scopeId: open.scopeId, lineageId: open.lineageId }
+            : null;
+        if (open?.leaseId === payload["leaseId"]) open = null;
       } else if (STATE_KIND.test(event.draft.kind)) {
         scopeIds.add(String(payload["scopeId"]));
       }
@@ -390,6 +397,7 @@ export function memoryRecordStore(): MemoryRecordStore {
       enabledAtSeq: Object.fromEntries(enabledAtSeq),
       states,
       openLease: open,
+      waitingLineage,
       leaseEpochs: epochs,
     };
   }

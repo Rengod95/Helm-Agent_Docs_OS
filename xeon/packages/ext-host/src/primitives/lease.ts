@@ -353,7 +353,7 @@ export function createLeaseBroker(
         const loop = requireLoop();
         const index = invocation.i;
         invocation.i += 1;
-        const requestId = input.requestId ?? `${lease.leaseId}:${invocation.baseRev}.${index}`;
+        const requestId = input.requestId ?? `${lease.lineageId}:${invocation.baseRev}.${index}`;
         // turn 안의 도구와 서비스는 재실행되는 문맥이 아니다. drive의 ambient가 따라 들어가지 않게 끊는다(ADR-0015 §3.1 1번)
         const result = await withoutAmbient(() =>
           loop.runTurn({
@@ -380,7 +380,7 @@ export function createLeaseBroker(
         const loop = requireLoop();
         const index = invocation.i;
         invocation.i += 1;
-        const requestId = spec.requestId ?? `${lease.leaseId}:${invocation.baseRev}.${index}`;
+        const requestId = spec.requestId ?? `${lease.lineageId}:${invocation.baseRev}.${index}`;
         const result = await withoutAmbient(() =>
           loop.spawn({
             threadId: lease.threadId,
@@ -431,6 +431,7 @@ export function createLeaseBroker(
     const baseRev = stateService.revOf(thread.threadId, lease.scopeId);
     const invocation: DriveInvocation = {
       leaseId: lease.leaseId,
+      lineageId: lease.lineageId,
       baseRev,
       signal: lease.abort.signal,
       i: 0,
@@ -611,15 +612,22 @@ export function createLeaseBroker(
     const draft = makeDraft(core.deps.ids, {
       threadId: thread.threadId,
       kind: "lease.acquired",
-      payload: { leaseId: "", scopeId: chosen.id, limits, leaseEpoch },
+      payload: { leaseId: "", scopeId: chosen.id, lineageId: "", limits, leaseEpoch },
       turnId: txn.signal.turnId,
       stepId: txn.signal.stepId,
     });
     // 임대 id는 부여 초안의 이벤트 id를 그대로 쓴다(불투명 문자열, 40자 이하)
     const leaseId = draft.id;
-    txn.drafts.push({ ...draft, payload: { leaseId, scopeId: chosen.id, limits, leaseEpoch } });
+    // waiting 반납 바로 뒤 같은 Registration의 부여는 앞 계통을 이어받는다. 그 밖의 부여는 새 계통이다(REQ-X-04)
+    const waited = thread.waitingLineage;
+    const lineageId = waited !== null && waited.scopeId === chosen.id ? waited.lineageId : leaseId;
+    txn.drafts.push({
+      ...draft,
+      payload: { leaseId, scopeId: chosen.id, lineageId, limits, leaseEpoch },
+    });
     txn.grant = {
       leaseId,
+      lineageId,
       scopeId: chosen.id,
       threadId: thread.threadId,
       leaseEpoch,
@@ -701,6 +709,7 @@ export function createLeaseBroker(
       const record = core.scopes.get(open.scopeId);
       const lease: LeaseRuntime = {
         leaseId: open.leaseId,
+        lineageId: open.lineageId,
         scopeId: open.scopeId,
         threadId: thread.threadId,
         leaseEpoch: open.leaseEpoch,
@@ -775,6 +784,10 @@ export function createLeaseBroker(
     applyCommitted(thread, txn) {
       for (const lease of txn.releasing) {
         lease.status = "released";
+        thread.waitingLineage =
+          lease.reason === "waiting"
+            ? { scopeId: lease.scopeId, lineageId: lease.lineageId }
+            : null;
         if (thread.lease === lease) thread.lease = null;
         // waiting은 쿨다운을 걸지 않는다. 답이 오면 같은 상태 판에서도 바로 다시 후보가 되어야 한다(X-17)
         if (lease.reason === "idle" || lease.reason === "budget") {
@@ -785,6 +798,7 @@ export function createLeaseBroker(
       const grant = txn.grant;
       if (grant !== null) {
         grant.committed = true;
+        thread.waitingLineage = null;
         thread.lease = grant;
         thread.leaseEpochs.set(grant.scopeId, grant.leaseEpoch);
         core.notify({ kind: "lease", scopeId: grant.scopeId, threadId: thread.threadId });
