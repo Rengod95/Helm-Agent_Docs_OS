@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parse, parseJson } from "@fresnel/contracts";
+import { eachAsync, parse, parseJson } from "@fresnel/contracts";
 import { CapabilityError, ScheduleEntries } from "@fresnel/contracts/capabilities";
 import { createScheduleApi } from "../src/index.ts";
 import { createHarness, MemoryStore, SECOND, type Harness } from "./support/harness.ts";
@@ -161,6 +161,26 @@ describe("list", () => {
       ok: true,
       value: {},
     });
+  });
+
+  // l2/F-01: 앞 200건만 보여 새 예약이 목록에서 사라졌다
+  test("with more than 200 entries the list keeps the newest 200, in creation order", async () => {
+    const api = apiOf(createHarness({ policy: { maxActive: 1000 } }));
+    await eachAsync(
+      Array.from({ length: 201 }, (_unused, index) => index),
+      async (index) => {
+        await api.create({
+          trigger: { kind: "remote" },
+          prompt: `p${String(index)}`,
+          enabled: false,
+        });
+        return undefined;
+      },
+    );
+    const listed = await api.list({});
+    expect(listed.items).toHaveLength(200);
+    expect(listed.items[0]?.entry.id).toBe("sch_2");
+    expect(listed.items.at(-1)?.entry.id).toBe("sch_201");
   });
 
   test("a file watch entry's paths are a copy, not the engine's array", async () => {

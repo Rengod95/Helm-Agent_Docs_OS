@@ -96,7 +96,7 @@ export function createScheduleApi(service: ScheduleService): CapabilityApi<typeo
       const items = service
         .list()
         .filter((entry) => input.enabled === undefined || entry.enabled === input.enabled)
-        .slice(0, 200)
+        .slice(-200)
         .map((entry) => ({
           entry: entryViewOf(entry),
           lastRun: service.runs(entry.id, 1)[0] ?? null,
