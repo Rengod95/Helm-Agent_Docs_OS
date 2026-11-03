@@ -261,12 +261,9 @@ describe("app scheme", () => {
     );
   });
 
-  test("the caustic tokens host is recognised", () => {
-    expect(parseAppUrl("fresnel-view://_caustic/1/tokens.css")).toEqual({
-      extension: "_caustic",
-      version: "1",
-      path: "tokens.css",
-    });
+  test("there is no caustic tokens host: the Rust shell cannot serve it and the frame CSP would block it", () => {
+    expect(parseAppUrl("fresnel-view://_caustic/1/tokens.css")).toBeUndefined();
+    expect(parseAppUrl("fresnel-view://_caustic/1.0.0/tokens.css")).toBeUndefined();
   });
 
   test("the frame CSP pins every source to the extension version prefix and blocks the network", () => {

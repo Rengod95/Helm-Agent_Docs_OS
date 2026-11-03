@@ -60,8 +60,6 @@ export {
   appFrameCsp,
   APP_SCHEME,
   HOST_DOCUMENT_CSP,
-  TOKENS_HOST,
-  TOKENS_PATH,
   appResponseHeaders,
   buildAppUrl,
   parseAppUrl,

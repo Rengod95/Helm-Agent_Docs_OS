@@ -188,7 +188,7 @@ interface ExtMethodDecl {
 #### 3.6.3 CSP
 
 - 앱 문서: 기존 `default-src 'self'`에 `frame-src fresnel-view:`만 더합니다. `unsafe-eval`, 원격 `script-src`는 더하지 않습니다.
-- 프레임 문서(셸이 응답 헤더로 붙임) [제안]: `default-src 'none'; script-src fresnel-view://<확장이름>/<버전>/; style-src fresnel-view://<확장이름>/<버전>/ 'unsafe-inline'; img-src fresnel-view://<확장이름>/<버전>/ data: blob:; font-src fresnel-view://<확장이름>/<버전>/; media-src fresnel-view://<확장이름>/<버전>/ blob:; connect-src 'none'; frame-src 'none'; worker-src fresnel-view://<확장이름>/<버전>/ blob:; form-action 'none'; base-uri 'none'`. `<확장이름>/<버전>/` 자리는 그 확장 버전의 주소 접두(예: `fresnel-view://helm/1.0.0/`)입니다. 프레임은 불투명 origin이라 `'self'`를 쓰지 않습니다. WebKit은 sandbox 프레임에서 `'self'`를 같은 출처로 풀지 않아 프레임 자기 스크립트가 막히기 때문입니다(`L4.desktop-ux.spec` §6.25). 네트워크 요청, 다른 프레임 열기, `eval`은 막힙니다. 프레임 HTML의 `<meta>` CSP는 이 헤더보다 넓힐 수 없습니다.
+- 프레임 문서(셸이 응답 헤더로 붙임) [제안]: `default-src 'none'; script-src fresnel-view://<확장이름>/<버전>/; style-src fresnel-view://<확장이름>/<버전>/ 'unsafe-inline'; img-src fresnel-view://<확장이름>/<버전>/ data: blob:; font-src fresnel-view://<확장이름>/<버전>/; media-src fresnel-view://<확장이름>/<버전>/ blob:; connect-src 'none'; frame-src 'none'; worker-src fresnel-view://<확장이름>/<버전>/ blob:; form-action 'none'; base-uri 'none'`. `<확장이름>/<버전>/` 자리는 그 확장 버전의 주소 접두(예: `fresnel-view://helm/1.0.0/`)입니다. 프레임은 불투명 origin이라 `'self'`를 쓰지 않습니다. WebKit은 sandbox 프레임에서 `'self'`를 같은 출처로 풀지 않아 프레임 자기 스크립트가 막히기 때문입니다(`L4.desktop-ux.spec` §6.25). 네트워크 요청, 다른 프레임 열기, `eval`은 막힙니다. 프레임 HTML의 `<meta>` CSP는 이 헤더보다 넓힐 수 없습니다. [결정: 2026-11-04 사용자] 응답에는 `Access-Control-Allow-Origin: *`도 붙입니다. 불투명 origin(`null`) 프레임은 `<script type="module">`을 CORS 모드로 가져오므로 이 헤더가 없으면 모듈 스크립트가 로드되지 않습니다(macOS WKWebView 실기로 확인, `just desktop-ipc-probe`). 프레임 CSP가 `connect-src 'none'`이고 앱 문서 CSP도 이 스킴 fetch를 막아 다른 문서가 이 주소를 읽지 못합니다.
 
 #### 3.6.4 wire 직접 연결 없음
 
@@ -223,7 +223,7 @@ interface ExtMethodDecl {
 
 #### 3.6.8 테마 토큰 전달
 
-- 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. 셸은 `fresnel-view://_caustic/tokens.css`(앱에 든 `@caustic/tokens` 사본, 읽기 전용)도 제공합니다 [제안].
+- 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. [결정: 2026-11-04 사용자] `fresnel-view://_caustic/tokens.css`는 두지 않습니다. 프레임 CSP의 `style-src`는 그 확장 버전 접두만 허용해 그 주소를 막고, Rust 셸도 `_` 이름을 거부했습니다. 토큰은 이 푸시의 값을 프레임이 `:root`에 적용해 씁니다(`style-src`가 `'unsafe-inline'`을 허용).
 - 프레임 안 모양을 caustic에 맞추는 일은 플러그인 몫입니다. 셸은 머리와 상자 경계를 그려 프레임 화면이 앱 화면처럼 보이지 않게 합니다(§3.6.6).
 
 #### 3.6.9 위협 표

@@ -6,9 +6,6 @@ const NAME_SEGMENT = /^[a-z][a-z0-9-]{0,63}$/;
 const VERSION_SEGMENT = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]{1,32})?$/;
 
 export const APP_SCHEME = "fresnel-view" as const;
-/** 앱에 든 caustic 토큰 사본이 나오는 가짜 확장 이름(§3.6.8). 확장 이름 규칙에 걸리지 않는 `_` 접두다 */
-export const TOKENS_HOST = "_caustic" as const;
-export const TOKENS_PATH = "tokens.css" as const;
 
 /**
  * 프레임 문서에 붙이는 CSP(§3.6.3). 네트워크, 다른 프레임, eval, 폼 전송, base 바꾸기를 막는다.
@@ -68,12 +65,11 @@ export function parseAppUrl(text: string): AppUrlParts | undefined {
   if (url.search !== "" || url.hash !== "" || url.username !== "" || url.password !== "")
     return undefined;
   const extension = url.hostname;
-  if (extension !== TOKENS_HOST && !NAME_SEGMENT.test(extension)) return undefined;
+  if (!NAME_SEGMENT.test(extension)) return undefined;
   const parts = url.pathname.split("/");
   // 맨 앞은 빈 칸이다("/1.0.0/index.html")
   const version = parts[1];
-  if (version === undefined || (extension !== TOKENS_HOST && !VERSION_SEGMENT.test(version)))
-    return undefined;
+  if (version === undefined || !VERSION_SEGMENT.test(version)) return undefined;
   const rest = parts.slice(2).join("/");
   return { extension, version, path: rest };
 }
@@ -87,6 +83,8 @@ export function appResponseHeaders(
   if (csp === undefined) return undefined;
   return {
     "Content-Type": contentType,
+    // 불투명 origin(`null`)의 프레임이 모듈 스크립트(CORS 모드로 가져온다)를 불러올 수 있게 한다. 확장 자기 파일은 비밀이 아니고, 어떤 문서도 프레임 CSP 밖에서는 이 주소를 가져오지 못한다
+    "Access-Control-Allow-Origin": "*",
     "Content-Security-Policy": csp,
     "X-Content-Type-Options": "nosniff",
     "Cache-Control": "no-store",
