@@ -22,7 +22,10 @@ export async function openFileLock(resourceDir: string): Promise<OpenedFileLock>
     {
       ...runtime,
       systemTmp: resourceDir,
-      env: { ...runtime.env, XDG_RUNTIME_DIR: join(resourceDir, "run") },
+      env: {
+        get: (name) =>
+          name === "XDG_RUNTIME_DIR" ? join(resourceDir, "run") : runtime.env.get(name),
+      },
     },
   );
   if (!started.ok)
