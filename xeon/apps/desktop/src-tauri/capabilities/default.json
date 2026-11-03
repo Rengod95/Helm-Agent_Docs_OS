@@ -10,6 +10,7 @@
     "allow-engine-ack",
     "allow-engine-restart",
     "allow-engine-detach",
-    "allow-secret-register"
+    "allow-secret-register",
+    "allow-app-roots-set"
   ]
 }

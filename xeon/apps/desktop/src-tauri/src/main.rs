@@ -13,6 +13,7 @@ mod inspect;
 mod relay;
 mod secret_entry;
 mod time;
+mod view_scheme;
 mod window;
 
 use std::sync::Arc;
@@ -34,7 +35,22 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             reopen_main(app);
         }))
-        .plugin(tauri_plugin_shell::init());
+        .plugin(tauri_plugin_shell::init())
+        // Plugin App 전용 스킴. 프레임 파일은 이 스킴으로만 나온다(view_scheme.rs, ADR-0021 §3.6.2)
+        .register_uri_scheme_protocol(view_scheme::SCHEME, |ctx, request| {
+            match ctx.app_handle().try_state::<Arc<view_scheme::AppRoots>>() {
+                Some(roots) => view_scheme::respond(
+                    roots.inner(),
+                    request.method().as_str(),
+                    &request.uri().to_string(),
+                ),
+                None => view_scheme::respond(
+                    &view_scheme::AppRoots::default(),
+                    request.method().as_str(),
+                    &request.uri().to_string(),
+                ),
+            }
+        });
     // 디버그 빌드의 로그 파일(Phase 1 원격 점검). 릴리스는 applog.rs의 로그만 쓴다.
     #[cfg(debug_assertions)]
     let builder = builder.plugin(debug_log_plugin());
@@ -45,7 +61,8 @@ fn main() {
             relay::engine_ack,
             relay::engine_restart,
             relay::engine_detach,
-            secret_entry::secret_register
+            secret_entry::secret_register,
+            view_scheme::app_roots_set
         ])
         .setup(|app| {
             let log = Arc::new(AppLog::open(app.path().app_log_dir().ok().as_deref()));
@@ -75,6 +92,7 @@ fn main() {
             let entry: Arc<AppSecretEntry> =
                 Arc::new(SecretEntry::new(entry_launcher, log.clone(), ENTRY_TIMEOUT));
             app.manage(entry);
+            app.manage(Arc::new(view_scheme::AppRoots::default()));
             app.manage(relay.clone());
             app.manage(supervisor.clone());
             app.manage(settings.close_behavior);
