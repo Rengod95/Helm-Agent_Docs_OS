@@ -8,6 +8,7 @@ import { startInProcessHost } from "../../src/main.ts";
 import { callingModels } from "../fixtures/call-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
+import { settleMcpTools } from "../fixtures/mcp-settle.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
@@ -67,10 +68,19 @@ realTest(
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});
-    // 연결은 세션 시작을 막지 않는다. 서버가 도구 목록을 내준 뒤 한 turn을 돌리면 도구가 다음 turn_start에 도구 표에 오른다
-    expect(await until(() => existsSync(listedFile), 10_000)).toBe(true);
-    await connection.request("turn.start", { threadId: created.threadId, input: "warm up" });
-    await collector.waitFor((event) => event.kind === "turn.completed");
+    // 연결은 세션 시작을 막지 않는다. 서버가 도구 목록을 내준 뒤 turn을 한 번 돌리면 그 뒤 단계 경계가 연결 결과를 반영한다(mcp-settle.ts)
+    await settleMcpTools(
+      () => existsSync(listedFile),
+      async () => {
+        const warm = await startTurnWhenIdle(connection, {
+          threadId: created.threadId,
+          input: "warm up",
+        });
+        await collector.waitFor(
+          (event) => event.kind === "turn.completed" && event.turnId === warm.turnId,
+        );
+      },
+    );
     expect(existsSync(pidFile)).toBe(true);
     const pid = Number(readFileSync(pidFile, "utf8"));
     expect(isAlive(pid)).toBe(true);

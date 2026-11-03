@@ -7,10 +7,11 @@ import { startInProcessHost } from "../../src/main.ts";
 import { callingModels, type ToolStep } from "../fixtures/call-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
+import { serveMcpStub, settleMcpTools } from "../fixtures/mcp-settle.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { SECRET_REF, SECRET_TOOL, startSecretEnvScenario } from "../fixtures/secret-env.ts";
-import { collectEvents, HELLO_PARAMS, startTurnWhenIdle, until } from "../fixtures/wire-client.ts";
+import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 
 // M2 E5 (HOST.6): 질문 도구(cap-dialog), 계획 승인(cap-work), MCP 서버 주도 질문(cap-mcp), 도구 승인(L1.tools)과 시크릿 사용 승인(L1.tools)이
 // 같은 승인 요청 레코드 모양으로 기록되고, 출처(origin)의 turnId, stepId, toolCallId, caller가 같은 규칙의 값을 갖는다.
@@ -40,8 +41,8 @@ async function runScenario(
   options: {
     readonly settings?: JsonObject;
     readonly lead?: readonly string[];
-    /** warm turn 전에 기다릴 조건. 연결은 세션 시작을 막지 않아 느린 러너(macOS)에서는 warm turn이 연결보다 먼저 끝날 수 있다 */
-    readonly ready?: () => boolean;
+    /** MCP 서버가 tools/list 응답을 냈는지. 있으면 warm turn 하나를 돌린 뒤 `go`를 부른다(`lead`는 그 warm turn의 모델 응답이다) */
+    readonly listed?: () => boolean;
   } = {},
 ): Promise<Scenario> {
   const home = useEngineHome();
@@ -57,17 +58,17 @@ async function runScenario(
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});
-    // MCP 서버 도구는 연결된 다음 turn 시작에 오른다. 앞선 turn 하나로 연결을 기다린다(`lead`는 그 turn의 모델 응답이다)
-    if ((options.lead ?? []).length > 0) {
-      const ready = options.ready;
-      if (ready !== undefined) expect(await until(ready, 10_000)).toBe(true);
-      const warm = await startTurnWhenIdle(connection, {
-        threadId: created.threadId,
-        input: "warm",
+    // MCP 서버 도구는 서버가 목록을 낸 뒤의 단계 경계에 오른다. 목록 표지를 기다린 뒤 warm turn을 돌리고, `go`의 단계 경계가 그 뒤에 온다
+    if (options.listed !== undefined) {
+      await settleMcpTools(options.listed, async () => {
+        const warm = await startTurnWhenIdle(connection, {
+          threadId: created.threadId,
+          input: "warm",
+        });
+        await collector.waitFor(
+          (event) => event.kind === "turn.completed" && event.turnId === warm.turnId,
+        );
       });
-      await collector.waitFor(
-        (event) => event.kind === "turn.completed" && event.turnId === warm.turnId,
-      );
     }
     const started = await startTurnWhenIdle(connection, {
       threadId: created.threadId,
@@ -198,11 +199,7 @@ realTest(
         },
       ],
     });
-    const server = Bun.serve({
-      port: 0,
-      hostname: "127.0.0.1",
-      fetch: (request) => stub.http(request),
-    });
+    const served = serveMcpStub(stub);
     try {
       const question = await runScenario(
         [
@@ -244,12 +241,10 @@ realTest(
         { decision: "answer", answer: { q1: { selected: [], text: "Ada" } } },
         {
           lead: ["warmed up."],
-          ready: () => stub.requests.some((request) => request.method === "tools/list"),
+          listed: served.listed,
           settings: {
             "l2.mcp.servers": {
-              fixture: {
-                transport: { type: "http", url: `http://127.0.0.1:${String(server.port)}/mcp` },
-              },
+              fixture: { transport: { type: "http", url: served.url } },
             },
             "l2.mcp.approvalMode": "auto",
           },
@@ -304,7 +299,7 @@ realTest(
       expect(mcp.texts).toContain("Ada");
       expect(question.texts).toContain("blue");
     } finally {
-      await server.stop(true);
+      await served.stop();
     }
   },
   90_000,

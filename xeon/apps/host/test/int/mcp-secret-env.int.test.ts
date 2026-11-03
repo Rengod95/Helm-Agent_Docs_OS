@@ -106,6 +106,7 @@ realTest(
           tapePlayer(
             tape("mcp-secret-env", [
               main("warm up", text("warm.")),
+              main("settle first", text("settled first.")),
               main("first call", call("call_1")),
               main("first done", text("done one.")),
               main("after change", text("changed.")),
@@ -157,6 +158,8 @@ realTest(
     expect(await until(() => existsSync(listedFile), 10_000)).toBe(true);
     const firstPid = Number(readFileSync(pidFile, "utf8"));
     expect(isAlive(firstPid)).toBe(true);
+    // 표식은 서버가 목록을 내줄 때 생긴다. 도구는 그 뒤 첫 단계 경계에 도구 표에 오르므로 한 turn을 먼저 돌린다
+    await runTurn("settle first");
     await runTurn("call it");
     expect(toolResultTexts(collector.events).join("\n")).toContain(
       "marker-from-stdio token=present log=info",

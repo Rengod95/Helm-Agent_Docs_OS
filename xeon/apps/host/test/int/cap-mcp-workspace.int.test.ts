@@ -16,6 +16,7 @@ import { startInProcessHost } from "../../src/main.ts";
 import { callingModels } from "../fixtures/call-tape.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
+import { settleMcpTools } from "../fixtures/mcp-settle.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
@@ -79,6 +80,7 @@ realTest(
       buildModels: callingModels("mcp-ws", [{ name: "stdio_marker", args: {} }], "done.", [
         "untrusted turn.",
         "warmed up.",
+        "settled.",
       ]),
     });
     const connection = createHostConnection(host.client);
@@ -105,7 +107,11 @@ realTest(
         choice: { kind: "folder", verdict: "allow" },
       });
       await turnDone("after trust");
-      expect(await until(() => existsSync(projectListed), 10_000)).toBe(true);
+      // 서버가 목록을 낸 뒤 turn을 한 번 돌려 단계 경계가 연결 결과를 반영하게 한 다음 도구를 부른다(mcp-settle.ts)
+      await settleMcpTools(
+        () => existsSync(projectListed),
+        () => turnDone("settle"),
+      );
       const pid = Number(readFileSync(projectPid, "utf8"));
       expect(isAlive(pid)).toBe(true);
       await turnDone("call it");
