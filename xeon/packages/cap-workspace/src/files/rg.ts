@@ -195,7 +195,7 @@ export function parseRgJson(stdout: string): readonly RgLine[] {
  * 허용 root 안의 보호 하위 경로(시크릿 키 등)가 `grep`·`find`로 드러난다. `read`가 거부하는 경로는 여기서도 보이지 않는다.
  */
 export function unprotected(deps: WorkspaceDeps, root: string): (relativePath: string) => boolean {
-  const entries = deps.roots.protectedPaths();
+  const entries = deps.roots.protectedPaths([root]);
   if (entries.length === 0) return () => true;
   const base = root.endsWith("/") ? root : `${root}/`;
   return (relativePath) =>

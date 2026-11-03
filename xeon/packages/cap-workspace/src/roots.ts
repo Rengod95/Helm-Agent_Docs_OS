@@ -29,8 +29,11 @@ export interface RootsDeps {
    * 그 전에는 읽기·쓰기 root 모두 `defaultRoots`가 만든 세션 cwd 하나다.
    */
   readonly roots: (context: CancelScope) => Promise<AllowedRoots>;
-  /** L0.sandbox 보호 경로 목록. 샌드박스 서비스가 없으면 빈 목록 */
-  readonly protectedPaths: () => readonly ProtectedPathEntry[];
+  /**
+   * L0.sandbox 보호 경로 목록. 샌드박스 서비스가 없으면 빈 목록. `roots`는 이 호출이 허용하는 정규 root이고,
+   * 샌드박스가 root별 git 항목(`.git/hooks` 등)을 더한다. 넘기지 않으면 bash를 돌리기 전에는 그 항목이 비어 있다.
+   */
+  readonly protectedPaths: (roots: readonly string[]) => readonly ProtectedPathEntry[];
 }
 
 export interface ResolvedPath {
@@ -159,7 +162,11 @@ export async function resolveWorkspacePath(
   if (!allowed.some((root) => isWithin(root, canonical))) {
     throw denied("outside_root", requested, canonical);
   }
-  const protectedEntry = matchProtectedPath(deps.protectedPaths(), canonical, access);
+  const protectedEntry = matchProtectedPath(
+    deps.protectedPaths([...roots.read, ...roots.write]),
+    canonical,
+    access,
+  );
   if (protectedEntry !== undefined) {
     throw denied("protected_path", requested, canonical, { protectedBy: protectedEntry.reason });
   }

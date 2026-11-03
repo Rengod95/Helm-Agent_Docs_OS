@@ -581,7 +581,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 3. 읽기 변형(read만): 없으면 macOS 스크린샷 이름 변형(좁은 공백 AM/PM, NFD, 곡선 따옴표)을 차례로 시도한다(`resolveReadToolPath`).
 4. 정규 경로: `ExecutionEnv.canonicalPath`로 심볼릭 링크와 `..`를 푼다. 대상이 아직 없으면(새 파일 쓰기) 존재하는 가장 가까운 상위 디렉터리의 정규 경로에 나머지 마디를 붙인다. 나머지 마디에 `..`가 있으면 거부한다.
 5. 포함 검사: 정규 경로가 허용 root 가운데 하나의 안에 있어야 한다. 읽기 도구(`read`, `ls`, `grep`, `find`)는 읽기 root, 쓰기 도구(`write`, `edit`)는 쓰기 root와 비교한다. 비교는 경로 마디 단위다. 문자열 접두 비교는 쓰지 않는다(`/a/bc`는 `/a/b` 안이 아니다).
-6. 보호 경로: 정규 경로가 L0.sandbox의 보호 경로 목록에 걸리면 root 안이어도 거부한다.
+6. 보호 경로: 정규 경로가 L0.sandbox의 보호 경로 목록에 걸리면 root 안이어도 거부한다. 목록을 조회할 때 이 호출의 허용 root를 넘겨(`protectedPaths(roots)`), bash를 한 번도 돌리지 않았어도 root별 `.git/hooks`, `.git/config`가 첫 호출부터 막히게 한다.
 
 - 4·5·6번 위반은 `denied`다. `detail`은 `{ reason: "outside_root" | "protected_path" | "parent_traversal", requested: <입력 경로>, resolved: <정규 경로> }`다.
 - `grep`, `find`는 검색 기준 디렉터리를 검사하고, 결과에서는 읽기 보호 경로에 걸린 파일을 뺀다(`read`가 거부하는 경로가 검색으로 드러나지 않게 한다) [결정: 오케스트레이터 기본값]. 검색 중 만나는 심볼릭 링크는 따라가지 않는다(ripgrep 기본 동작, `--follow` 미사용).
