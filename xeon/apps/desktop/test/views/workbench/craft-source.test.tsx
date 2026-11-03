@@ -389,6 +389,7 @@ function sourceOf(
 }
 
 const noop = (): Promise<void> => Promise.resolve();
+const refuse = (): Promise<boolean> => Promise.resolve(false);
 
 describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => {
   const controller: WorkbenchController = {
@@ -397,6 +398,8 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
     toggle: noop,
     reenable: noop,
     keepOff: noop,
+    toggleForThread: refuse,
+    applyProfile: refuse,
   };
 
   test("스냅샷은 대기 표시를 덮고, 순서와 빌더 요청은 스토어를 따르며, 켜기는 잠긴 확장을 뺀다", async () => {

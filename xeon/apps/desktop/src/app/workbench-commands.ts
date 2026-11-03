@@ -1,4 +1,4 @@
-import { extSettingPrefixes } from "@fresnel/client/workbench";
+import { extSettingPrefixes, profileApplyRequestOf } from "@fresnel/client/workbench";
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { SettingDefWire } from "@fresnel/contracts/settings";
 import type {
@@ -85,6 +85,23 @@ export function createWorkbenchCommands(
       );
       return done.ok ? ok(null) : err(done.error);
     },
+    async toggleForThread(request) {
+      const done = await withConnection((c) =>
+        c.request("settings.set", {
+          key: request.key,
+          value: request.value,
+          scope: request.scope,
+          threadId: request.threadId,
+        }),
+      );
+      return done.ok ? ok(null) : err(done.error);
+    },
+    async profiles() {
+      const got = await withConnection((c) => c.request("profile.list", {}));
+      return got.ok ? ok(got.value.profiles) : err(got.error);
+    },
+    applyProfile: (id, threadId) =>
+      withConnection((c) => c.request("profile.apply", profileApplyRequestOf(id, threadId))),
     versions: (name) => withConnection((c) => c.request("ext.versions", { name })),
     async rollback(name, version, clearState) {
       const done = await withConnection((c) =>

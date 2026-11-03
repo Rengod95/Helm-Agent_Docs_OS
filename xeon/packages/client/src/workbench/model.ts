@@ -233,6 +233,11 @@ export interface ExtRowVM {
 /** 면제 tier(guard, core)는 끌 수 없다(`AUTO_DISABLE_EXEMPT_TIERS`) */
 const EXEMPT_TIERS: ReadonlySet<string> = new Set(["guard", "core"]);
 
+/** 면제 tier의 확장인가. 대화 범위 스위치는 이 확장에 아예 없다(`thread.ts`) */
+export function isExemptTier(e: ExtListEntry): boolean {
+  return e.tier !== null && EXEMPT_TIERS.has(e.tier);
+}
+
 export function isOn(e: ExtListEntry): boolean {
   return e.status === "enabled" || e.status === "enabling";
 }
@@ -259,9 +264,10 @@ function kindOf(e: ExtListEntry): ExtKind {
   return e.isGroup ? "group" : "plugin";
 }
 
-function lockOf(e: ExtListEntry): ToggleLock {
+/** 켜기·끄기를 잠그는 이유(전역 스위치와 대화 범위 스위치가 같이 쓴다). 잠기지 않으면 null */
+export function lockOf(e: ExtListEntry): ToggleLock {
   if (e.safeModeExcluded !== null) return "safe_mode";
-  if (e.tier !== null && EXEMPT_TIERS.has(e.tier)) return "exempt";
+  if (isExemptTier(e)) return "exempt";
   if (e.enabledSource === "managed") return "managed";
   return null;
 }

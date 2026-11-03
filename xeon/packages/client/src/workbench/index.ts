@@ -5,3 +5,4 @@ export * from "./inspect.ts";
 export * from "./detail-tabs.ts";
 export * from "./tests.ts";
 export * from "./tests-state.ts";
+export * from "./thread.ts";

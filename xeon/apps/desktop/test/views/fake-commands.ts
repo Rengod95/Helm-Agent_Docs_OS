@@ -55,6 +55,10 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       toggle: () => Promise.resolve(ok(null)),
       reenable: () => Promise.resolve(ok(null)),
       keepOff: () => Promise.resolve(ok(null)),
+      toggleForThread: () => Promise.resolve(ok(null)),
+      profiles: () => Promise.resolve(ok([])),
+      applyProfile: () =>
+        Promise.resolve(ok({ written: [], layer: "thread", appliesAt: "nextStepBoundary" })),
       versions: () => Promise.resolve(ok({ versions: [] })),
       rollback: () => Promise.resolve(ok("nextStepBoundary")),
       health: () => Promise.resolve(ok([])),

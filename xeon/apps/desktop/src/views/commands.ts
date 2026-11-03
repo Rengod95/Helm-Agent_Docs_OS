@@ -24,6 +24,8 @@ import type {
   HooksOrderPreviewResult,
   HooksOrderResetResult,
   HooksOrderSetResult,
+  Profile,
+  ProfileApplyResult,
   SecretListEntry,
   SecretReferencesResult,
   SecretTestResult,
@@ -45,7 +47,7 @@ import type {
   SetupSnapshot,
 } from "@fresnel/client/settings";
 import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
-import type { ToggleRequest } from "@fresnel/client/workbench";
+import type { ThreadToggleRequest, ToggleRequest } from "@fresnel/client/workbench";
 import type { LockedOption, ReviewTarget, Screen, SettingsJump } from "../state/ui/index.ts";
 import type { EngineTarget } from "../transport/ipc.ts";
 
@@ -359,6 +361,12 @@ export interface WorkbenchCommands {
   reenable(name: string): Promise<Result<null, CommandError>>;
   /** "계속 꺼 둘게요" 답: `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` */
   keepOff(name: string): Promise<Result<null, CommandError>>;
+  /** 이 대화에서 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "launch", threadId }`. 적용은 다음 단계 경계다 */
+  toggleForThread(request: ThreadToggleRequest): Promise<Result<null, CommandError>>;
+  /** `profile.list`: 저장된 프로필 목록 */
+  profiles(): Promise<Result<readonly Profile[], CommandError>>;
+  /** `profile.apply { id, threadId, layer: "thread" }`: 프로필을 이 대화에 쓴다. 결과는 쓴 키와 적용 시점이다 */
+  applyProfile(id: string, threadId: ThreadId): Promise<Result<ProfileApplyResult, CommandError>>;
   versions(name: string): Promise<Result<ExtVersionsResult, CommandError>>;
   /** 되돌리기. `restart`면 다음 시작에 적용된다(HS-108) */
   rollback(
