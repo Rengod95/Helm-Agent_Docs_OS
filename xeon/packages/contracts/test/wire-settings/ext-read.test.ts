@@ -194,11 +194,20 @@ describe("M4 ext read methods", () => {
         },
       ],
     });
+    const post = { extension: "e", ui: "u", threadId: "thr_1", name: "n" };
+    expect(parse(WIRE_METHODS["ext.ui.post"].params, post).ok).toBe(true);
+    expect(parse(WIRE_METHODS["ext.ui.post"].params, { ...post, requestId: "r1" }).ok).toBe(true);
+    expect(parse(WIRE_METHODS["ext.ui.post"].params, { ...post, requestId: "" }).ok).toBe(false);
+    expect(parse(WIRE_METHODS["ext.ui.post"].params, { ...post, view: "u" }).ok).toBe(false);
+    // threadId is required: a panel can outlive thread switching, so it is never inferred
     expect(
       parse(WIRE_METHODS["ext.ui.post"].params, { extension: "e", ui: "u", name: "n" }).ok,
-    ).toBe(true);
+    ).toBe(false);
+    const approval = { extension: "e", ui: "u", threadId: "thr_1", method: "m" };
+    expect(parse(WIRE_METHODS["ext.ui.requestApproval"].params, approval).ok).toBe(true);
     expect(
-      parse(WIRE_METHODS["ext.ui.post"].params, { extension: "e", view: "u", name: "n" }).ok,
+      parse(WIRE_METHODS["ext.ui.requestApproval"].params, { extension: "e", ui: "u", method: "m" })
+        .ok,
     ).toBe(false);
   });
 

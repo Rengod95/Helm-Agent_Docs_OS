@@ -617,14 +617,20 @@ export const ExtUiListResultSchema: TUnsafe<ExtUiListResult> = Type.Unsafe<ExtUi
 export interface ExtUiPostParams {
   readonly extension: string;
   readonly ui: string;
+  /** 대화. 필수다. 화면은 대화를 바꿔도 남을 수 있어 "활성 대화"로 추정하지 않는다 */
+  readonly threadId: string;
   readonly name: string;
   readonly payload?: unknown;
+  /** 멱등 키(1~64자). 같은 키의 두 번째 호출은 큐에 넣지 않고 `accepted: true`를 돌려준다. 생략하면 호출마다 새 키다 */
+  readonly requestId?: string;
 }
 const ExtUiPostParamsShape2 = request({
   extension: Name,
   ui: Name,
+  threadId: ThreadRef,
   name: Name,
   payload: Type.Optional(Type.Unknown()),
+  requestId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
 });
 export const ExtUiPostParamsSchema: TUnsafe<Req<ExtUiPostParams>> = Type.Unsafe<
   Req<ExtUiPostParams>
@@ -632,14 +638,20 @@ export const ExtUiPostParamsSchema: TUnsafe<Req<ExtUiPostParams>> = Type.Unsafe<
 export interface ExtUiApprovalParams {
   readonly extension: string;
   readonly ui: string;
+  /** 승인 카드가 뜰 대화. 필수다(`ExtUiPostParams.threadId`와 같은 이유) */
+  readonly threadId: string;
   readonly method: string;
   readonly params?: unknown;
+  /** 멱등 키(1~64자). 같은 키의 두 번째 호출은 새 승인을 만들지 않고 처음 승인의 id를 돌려준다. 생략하면 호출마다 새 승인이다 */
+  readonly requestId?: string;
 }
 const ExtUiApprovalParamsShape2 = request({
   extension: Name,
   ui: Name,
+  threadId: ThreadRef,
   method: Name,
   params: Type.Optional(Type.Unknown()),
+  requestId: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
 });
 export const ExtUiApprovalParamsSchema: TUnsafe<Req<ExtUiApprovalParams>> = Type.Unsafe<
   Req<ExtUiApprovalParams>
