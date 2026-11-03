@@ -204,3 +204,24 @@ describe("decisionOutcomeOf", () => {
     }
   });
 });
+
+describe("proposal row keeps the raw kind and the distinct evidence threads", () => {
+  test("the kind is the wire value and each evidence thread appears once, in order", () => {
+    const other = ((): ProposalRow["evidence"][number]["threadId"] => {
+      const parsed = parse(ThreadIdSchema, "thr_00000000000000000000000002");
+      if (!parsed.ok) throw new Error("test id must parse");
+      return parsed.value;
+    })();
+    const shaped = vm({
+      kind: "memory",
+      evidence: [
+        { eventId: "evt_1", threadId: THREAD },
+        { eventId: "evt_2", threadId: other },
+        { eventId: "evt_3", threadId: THREAD },
+      ],
+    });
+    expect(shaped.kind).toBe("memory");
+    expect(shaped.evidenceCount).toBe(3);
+    expect(shaped.evidenceThreadIds).toEqual([THREAD, other]);
+  });
+});

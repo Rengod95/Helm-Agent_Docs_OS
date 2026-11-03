@@ -1,10 +1,19 @@
-import { CalendarClock, Inbox, MessageSquare, Plug } from "@caustic/react/icons";
+import {
+  CalendarClock,
+  Inbox,
+  Lightbulb,
+  ListChecks,
+  MessageSquare,
+  Plug,
+} from "@caustic/react/icons";
 import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
 import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
 import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
+import { ProposalsScreen } from "./pages/proposals/proposals-screen.tsx";
+import { WorkScreen } from "./pages/work/work-screen.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
 import { Transcript } from "./transcript.tsx";
@@ -53,6 +62,14 @@ const SCHEDULES_SCREEN: ScreenDef = {
   render: () => <SchedulesScreen />,
 };
 
+const PROPOSALS_SCREEN: ScreenDef = {
+  id: "proposals",
+  area: "chat",
+  label: "desktop.shell.nav.proposals",
+  icon: <Lightbulb />,
+  render: () => <ProposalsScreen />,
+};
+
 const CONNECTION_SCREEN: ScreenDef = {
   id: "connection",
   area: "chat",
@@ -85,15 +102,26 @@ const INBOX_TAB: EndTabDef = {
   render: () => <InboxTab />,
 };
 
+// 목표와 작업 탭(P-14). 대화 영역의 끝 영역이고 열린 대화의 목표와 작업을 보인다(`panel.work`, ⌘⇧T)
+const WORK_TAB: EndTabDef = {
+  id: "work",
+  area: "chat",
+  label: "desktop.work.tab",
+  icon: <ListChecks />,
+  render: () => <WorkScreen />,
+};
+
 /** 크래프트 화면 셋(개요·확장·엔진)은 `registerWorkbench`가 등록한다. 개요는 캔버스 하나이고 목록을 못 읽으면 띠가 상태를 보인다 */
 export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
   registry.registerScreen(CHAT_SCREEN);
   registry.registerScreen(SCHEDULES_SCREEN);
+  registry.registerScreen(PROPOSALS_SCREEN);
   registry.registerScreen(CONNECTION_SCREEN);
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerScreen(FIRST_RUN_SCREEN);
   registry.registerEndTab(INBOX_TAB);
+  registry.registerEndTab(WORK_TAB);
   registerWorkbench(registry, createWorkbenchStore());
   return registry;
 }

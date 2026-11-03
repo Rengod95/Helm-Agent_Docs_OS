@@ -27,7 +27,7 @@ export type LockedThread = {
 };
 
 /** 동작 슬래시 명령(`command.run`의 `done`)이 낸 출력. 화면이 대화 옆에 보이고 사용자가 닫는다 */
-type CommandOutput = {
+export type CommandOutput = {
   readonly threadId: ThreadId;
   readonly name: string;
   readonly message: string | null;

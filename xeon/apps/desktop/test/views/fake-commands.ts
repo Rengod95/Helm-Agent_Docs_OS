@@ -11,6 +11,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     confirmShell: () => Promise.resolve(ok(null)),
     cancelShell: () => {},
     dismissCommandOutput: () => {},
+    copyText: () => Promise.resolve(true),
     commandList: () => Promise.resolve(ok([])),
     respondApproval: () => Promise.resolve(),
     trust: {
@@ -87,6 +88,15 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     web: {
       providers: () => Promise.resolve(err({ kind: "unsupported" })),
       setOrder: () => Promise.resolve(ok(null)),
+    },
+    proposals: {
+      list: () => Promise.resolve(err({ kind: "unsupported" })),
+      decide: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
+    work: {
+      goal: () => Promise.resolve(err({ kind: "unsupported" })),
+      tasks: () => Promise.resolve(err({ kind: "unsupported" })),
+      goalCommand: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     observeThread: () => Promise.resolve(ok(null)),
     forkThread: () => Promise.resolve(ok(null)),

@@ -23,7 +23,9 @@ import type {
 } from "@fresnel/contracts/wire";
 import type {
   CommandRowVM,
+  DecisionOutcome,
   KeyRegisterError,
+  ProposalListVM,
   SettingsController,
   SetupSnapshot,
 } from "@fresnel/client/settings";
@@ -92,6 +94,28 @@ export interface ScheduleCommands {
   fire(scheduleId: string): Promise<Result<WireResult<"schedule.fire">, CommandError>>;
   /** 서비스 모드를 켠다(`settings.set`, 사용자 범위) */
   enableService(): Promise<Result<null, CommandError>>;
+}
+
+/**
+ * 제안 화면(P-06). 목록은 `proposal.list`를 화면 값(`ProposalListVM`)으로, 결정은 `proposal.decide`를 문장이 된 결과(`DecisionOutcome`)로
+ * 돌려준다. 둘 다 거울에 넣지 않는다(FS-03). 기대한 실패(`ok: false`)는 값이고, 연결과 host 실패만 `CommandError`다.
+ */
+export interface ProposalCommands {
+  list(params: WireParams<"proposal.list">): Promise<Result<ProposalListVM, CommandError>>;
+  decide(params: WireParams<"proposal.decide">): Promise<Result<DecisionOutcome, CommandError>>;
+}
+
+/**
+ * 목표와 작업(P-14). 목표와 작업 목록은 요청 결과라 거울에 넣지 않는다(FS-03). 목표를 걸고 해제하는 것은 `command.run`에 `/goal` 줄을
+ * 그대로 보낸다. `done`이 아닌 결과와 실패는 화면이 문장으로 바꾼다.
+ */
+export interface WorkCommands {
+  goal(threadId: ThreadId): Promise<Result<WireResult<"goal.status">, CommandError>>;
+  tasks(threadId: ThreadId): Promise<Result<WireResult<"work.tasks.list">, CommandError>>;
+  goalCommand(
+    threadId: ThreadId,
+    text: string,
+  ): Promise<Result<WireResult<"command.run">, CommandError>>;
 }
 
 /** 연결 화면이 고른 대상. `local`은 이 기기의 사이드카, `remote`는 서비스 주소다(W-08) */
@@ -305,6 +329,8 @@ export interface Commands {
   cancelShell(): void;
   /** 동작 명령이 낸 출력(`UiState.commandOutput`)을 닫는다 */
   dismissCommandOutput(): void;
+  /** 글을 클립보드에 쓴다. 쓰면 `true`다(결과 시트의 복사) */
+  copyText(text: string): Promise<boolean>;
   /** 엔진에 등록한 슬래시 명령 목록(`command.list`)을 목록·자동완성 view-model로 돌려준다. `threadId`를 주면 그 대화의 프로젝트 명령도 싣는다 */
   commandList(threadId: ThreadId | null): Promise<Result<readonly CommandRowVM[], CommandError>>;
   /** 보류 중이면 응답을 보내지 않고 카드에 `switching` 실패 표시를 둔다(보내는 중 표시는 켜지 않는다) */
@@ -324,6 +350,8 @@ export interface Commands {
   readonly secrets: SecretCommands;
   readonly settings: SettingsCommands;
   readonly web: WebCommands;
+  readonly proposals: ProposalCommands;
+  readonly work: WorkCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */

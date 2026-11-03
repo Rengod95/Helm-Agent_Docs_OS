@@ -1,7 +1,8 @@
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useThreadSummaries } from "../state/engine/index.ts";
 import { useScreen, useSelectedThreadId } from "../state/ui/index.ts";
+import { CommandOutputSheet } from "./command-output-sheet.tsx";
 import { useCommands } from "./commands.ts";
 import { LockedDialog } from "./locked-dialog.tsx";
 import { SettingsPage } from "./pages/settings/settings-screen.tsx";
@@ -10,7 +11,8 @@ import type { ShellRegistry } from "./shell/registry.ts";
 import { Shell } from "./shell/shell.tsx";
 import { Palette } from "./palette/palette.tsx";
 import type { PaletteCommandId } from "./palette/palette-model.ts";
-import type { ActionId } from "./shell/keybindings.ts";
+import { resolveKeymap, type ActionId } from "./shell/keybindings.ts";
+import { ShortcutHelpDialog } from "./shortcut-help-dialog.tsx";
 import { StatusBar } from "./status-bar.tsx";
 import { ThreadList } from "./thread-list.tsx";
 
@@ -64,10 +66,13 @@ export function App(props: AppProps): ReactNode {
         return assertNever(id, "PaletteCommandId");
     }
   };
-  // 셸이 처리하지 않는 바로 가기 키(spec §4.8). 나머지(`composer.focus` 등)는 아직 연결하지 않았다
+  // 셸이 처리하지 않는 바로 가기 키(spec §4.8). `help.shortcuts`는 O-09를 연다. 나머지(`composer.focus` 등)는 아직 연결하지 않았다
+  const [helpOpen, setHelpOpen] = useState(false);
+  const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
   const onAction = (id: ActionId): void => {
     if (id === "thread.new") runCommand("thread.new");
     else if (id === "turn.interrupt") runCommand("turn.interrupt");
+    else if (id === "help.shortcuts") setHelpOpen(true);
   };
   return (
     <>
@@ -83,6 +88,7 @@ export function App(props: AppProps): ReactNode {
           />
         }
         onAction={onAction}
+        modalOpen={helpOpen}
         registry={props.registry}
         keyOverrides={props.keyOverrides}
         mac={props.mac}
@@ -96,6 +102,13 @@ export function App(props: AppProps): ReactNode {
         onGoToThread={openThread}
       />
       <LockedDialog />
+      <CommandOutputSheet />
+      <ShortcutHelpDialog
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        keymap={keymap}
+        mac={props.mac}
+      />
     </>
   );
 }

@@ -1404,6 +1404,17 @@ compact 폭(720 이하)과 사이드바 시트:
 - 접근성: 목록과 상세는 `role="listbox"`와 `region` 랜드마크, 파괴 동작(`destructive`)은 버튼 `tone="danger"`와 확인.
 - caustic: `List`, `ListRow`, `SegmentedControl`, `Select`, `CodeDiff`(읽기 전용), `CompareView`(충돌 나란히, 텍스트용으로는 맞지 않아 `[gap:C-08]`), `RadioGroup`(범위), `Textarea`, `Alert`, `Badge`, `Button`, `EmptyState`.
 
+#### 구현 노트 (P-06, 트랙 chat3)
+
+- 파일: `xeon/apps/desktop/src/views/pages/proposals/`(모델 `proposals-model.ts`: 거르기, 목록 리듀서, 편집기·확인 상태, 바로 가기 키 뜻, 변경 줄 나누기 `diffLinesOf`. 문장 `proposals-text.ts`. 그림 `proposals-view.tsx`. 동작 `proposals-screen.tsx`). 내비 id `proposals`는 `registerScreen`으로 붙는다(`desktop-registry.tsx`).
+- 명령: `commands.proposals.list(params)`(`proposal.list`, `proposalListView`), `commands.proposals.decide(params)`(`proposal.decide`, `decisionOutcomeOf`). 결정 params는 `decisionParams`가 만든다. 결정은 쓰기라 엔진 대상을 바꾸는 중이면 `switching`으로 거절한다. 시험 `test/app/proposal-commands.test.ts`가 wire params를 고정한다.
+- 거르기: 상태(대기, 적용됨, 모두)와 출처는 wire로 보낸다. 종류는 wire에 거름이 없어 읽은 행에서 거른다. 거르기를 바꾸면 목록을 다시 읽고 선택과 열린 입력을 비운다. 더 보기는 `nextCursor`다.
+- 상세: `ProposalRowVM`에 종류 원래 값(`kind`)과 근거 대화 id(`evidenceThreadIds`, 중복 없이)를 더했다(`packages/client/src/settings/proposals.ts`). "대화 열기"는 근거 대화가 대화 목록에 있을 때만 보인다. 근거 이벤트 본문과 충돌 스킬 본문은 여전히 읽지 않는다([gap:W-16], [gap:W-14]).
+- 파괴 동작: 되돌리기는 늘, 지우거나 덮어쓰는 제안(`destructive`)의 승인은 확인 대화 상자(`Dialog kind="alert"`)를 먼저 연다. 버튼은 `tone`을 쓰지 않는다(caustic `Button`의 `tone`은 옛 값이 섞여 lint가 막는다). 위험 색은 확인의 `DialogAction`이 낸다.
+- 바로 가기 키: ↑↓(행), `a` 승인, `e` 수정, `x` 거절, `u` 되돌리기. 입력 칸에 초점이 있으면 받지 않는다. Enter로 상세에 초점을 옮기는 동작은 아직 없다.
+- 상태 여섯 가지는 `proposals-view.test.tsx`가 서버 렌더로 본다(빈, 읽는 중, 오류, 오프라인, 권한 필요, 긴 내용). 긴 내용은 줄 500개를 넘으면 나머지를 접는다(`DIFF_FOLD_LINES`).
+- 빠진 것 [gap]: 상세의 적용 범위 라디오는 `scopeChoice`가 있는 스킬 승인에만 보인다. 상대 시각은 목록을 마지막으로 읽은 시각 기준이다(화면을 다시 그리지 않는다).
+
 ### 6.11 P-07 예약
 
 ```text
@@ -1919,6 +1930,18 @@ compact 폭(720 이하)과 사이드바 시트:
 - 상태: 빈(B), 읽는 중 `Skeleton`, 오류 명령 오류 문장, 오프라인 잠금, 권한 필요 해당 없음, 긴 내용(작업 100개 넘으면 완료 접기).
 - caustic: `Card`, `Plan`(작업 체크리스트. well 안에서는 테두리 없는 변형이 필요하고 행을 누를 수 없음 `[gap:C-19]`), `Stepper variant="checklist"`, `Badge`, `Button`, `Input`, `EmptyState`.
 
+#### 구현 노트 (P-14, 트랙 chat3)
+
+- 파일: `xeon/apps/desktop/src/views/pages/work/`(모델 `work-model.ts`: 목표 값 `goalVMOf`, 작업 목록 접기 `taskListOf`, 목표 명령 줄 `goalCommandTextOf`, 읽기 리듀서. 문장 `work-text.ts`. 그림 `work-view.tsx`. 동작 `work-screen.tsx`). 끝 영역 탭 id `work`(`desktop-registry.tsx`, ⌘⇧T는 `panel.work`).
+- 읽기는 wire 두 개다: `goal.status { threadId }`, `work.tasks.list { threadId }`(`contracts/wire-settings/wire/dialog-area.ts`, host `handlers/m4/dialog-area.ts`에 이미 있다). 그래서 위 표의 [gap:W-05], [gap:W-06]과 `/goal status` 임시 경로는 쓰지 않는다. 읽기는 대화가 바뀔 때, 연결이 살아날 때, 턴이 끝났을 때 한다.
+- 목표 걸기와 해제는 `command.run { threadId, text }`에 `/goal <조건>`과 `/goal clear` 줄을 그대로 보낸다(`commands.work.goalCommand`, 쓰기). 조건은 앞뒤 빈칸을 떼고 4000자 이하만 보낸다. `done`이 아니면 "목표 명령을 실행하지 못했어요"다. 시험 `test/app/work-commands.test.ts`가 wire params를 고정한다.
+- 끝난 상태: 호스트는 `limit_reached`와 `judge_failed`를 둘 다 `exhausted`로 준다(`goalViewOf`). 판정 횟수가 최대에 닿았으면 "N번 판정 뒤 멈췄어요", 아니면 "판정에 실패해 멈췄어요"로 문장만 가른다. 상태 값은 그대로 둔다.
+- 계획 [gap:W-18]: 계획 버전 목록 wire가 없어 계획 카드 자리와 "계획 보기"는 이번 변경에 없다. 작업 행 누르기(만든 턴으로 스크롤)도 `TaskView`에 턴 id가 없어 빠졌다. 작업 행은 누를 수 없다(`clickable: false`).
+- 작업 목록: `Plan`을 `bare`로 써서 well 안에 테두리 없이 그린다(caustic C-19). 작업이 100개를 넘으면 완료 작업을 접는다(`DONE_FOLD_LIMIT`). 취소된 작업은 대기 칸에 "취소됨"으로 보인다.
+- 판정 2/3 자리: 목표 줄의 숫자와 "판정 2/3"은 `goal.status`의 `judged`와 `maxJudgments`다. 판정 모델을 고르는 select는 `/goal` 줄에 그 입력이 없어 넣지 않았다.
+- 빈 상태: 열린 대화가 없으면 "열린 대화가 없어요"만 보인다. 목표 칸은 진행 중인 목표가 있을 때 걸기 입력을 숨긴다. 권한 필요는 이 탭에 해당하지 않는다(목표와 작업은 승인을 묻지 않는다).
+- 탭 보임 범위: 끝 영역 탭은 `area`만 거르므로 대화 영역의 다른 내비 화면에서도 보인다. 화면별로 탭을 숨기려면 셸 등록부에 화면 목록이 필요하다(셸 파일은 이번 변경에서 고치지 않았다).
+
 ### 6.19 P-15 진단과 정보
 
 ```text
@@ -1991,6 +2014,12 @@ compact 폭(720 이하)과 사이드바 시트:
 | O-09 | §4.8 표 | 없음 | `[gap:C-11]` |
 
 caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, `DialogAction`), `Sheet`, `Combobox`, `Kbd`, `Table`.
+
+#### 구현 노트 (O-03과 O-09, 트랙 chat3)
+
+- O-03 명령 결과 시트(`views/command-output-sheet.tsx`, 모델 `views/command-output-model.ts`): 동작 슬래시 명령의 `command.run` `done { message, result }`가 `UiState.commandOutput`에 들어가면 `Sheet side="right"`가 연다. 결과 JSON은 접혀 있다. 복사는 `commands.copyText`(클립보드)로 메시지와 JSON을 한 글로 쓰고, 닫기는 `dismissCommandOutput`이다. 파싱은 바꾸지 않았다(`app/commands.ts`의 `runSlash`는 `show`에서 그대로 연다). 시트는 `App`에 한 번 붙는다.
+- O-09 바로 가기 키 도움말(`views/shortcut-help-dialog.tsx`, 모델 `views/shortcut-help-model.ts`): 표는 `ACTION_IDS` 순서의 22행이고 키는 `resolveKeymap`(사용자 덮어쓰기 반영)과 `formatKey`(macOS 기호)로 쓴다. 동작 이름은 `desktop.shortcuts.action.*` 문장이다. `help.shortcuts`는 셸이 처리하지 않아 `App`의 `onAction`이 `helpOpen` 상태를 켠다(이번 변경에서 연결했다). 열린 동안은 `Shell`의 `modalOpen`으로 Esc가 끝 영역을 닫지 않게 한다.
+- C-11은 앱 조합(`Dialog` + `Table` + `Kbd`)으로 해결했다. 빠진 것: `thread.new`와 `turn.interrupt`를 뺀 나머지 셸 밖 동작(`composer.focus`, `thread.next|prev`, `approval.next`)은 이번 변경에서 연결하지 않았다. 키를 고치는 화면은 이 표에 없다.
 
 ### 6.21 LightCraft 공통 규칙
 

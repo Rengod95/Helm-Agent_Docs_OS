@@ -22,6 +22,8 @@ import { createScheduleCommands } from "./schedule.ts";
 import { createSecretCommands } from "./secrets.ts";
 import { createSettingsCommands } from "./settings.ts";
 import { createWebCommands } from "./web.ts";
+import { createProposalCommands } from "./proposals.ts";
+import { createWorkCommands } from "./work.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createWorkbenchCommands } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
@@ -169,6 +171,10 @@ export function createCommands(deps: CommandDeps): Commands {
     },
     cancelShell: () => ui.actions.clearShellConfirm(),
     dismissCommandOutput: () => ui.actions.dismissCommandOutput(),
+    async copyText(text) {
+      const written = await attemptAsync(() => deps.clipboard.writeText(text));
+      return written.ok;
+    },
     async commandList(threadId) {
       const listed = await withConnection((c) =>
         c.request("command.list", threadId === null ? {} : { threadId }),
@@ -233,6 +239,8 @@ export function createCommands(deps: CommandDeps): Commands {
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
     settings: createSettingsCommands({ session, ui }),
     web: createWebCommands(withConnection),
+    proposals: createProposalCommands(withConnection, withWriteConnection),
+    work: createWorkCommands(withConnection, withWriteConnection),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),
