@@ -503,7 +503,15 @@ test("request.system.before sees the whole array including the prefix and may re
     await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
   );
   expect(texts(rewritten.messages)[0]).toBe("system:rewritten");
-  expect(rewritten.warnings).toEqual([{ code: "cache_prefix_reset", at: 0 }]);
+  expect(rewritten.warnings).toEqual([
+    {
+      code: "cache_prefix_reset",
+      at: 0,
+      changed: ["system", "sections"],
+      owners: ["sys-rewrite"],
+      plugins: ["sys-rewrite"],
+    },
+  ]);
   // 접두 해시는 기록된 접두 기준이라 핸들러의 변경과 무관하다
   expect(rewritten.prefix.prefixHash).toBe(result.prefix.prefixHash);
 });

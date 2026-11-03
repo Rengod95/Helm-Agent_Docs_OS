@@ -143,7 +143,17 @@ export interface PendingSystemItem {
 
 export type ContextWarning =
   | { readonly code: "cache_reset_model_switch"; readonly from: ModelBinding; readonly to: ModelBinding }
-  | { readonly code: "cache_prefix_reset"; readonly at: number | null }
+  | {
+      readonly code: "cache_prefix_reset";
+      /** 요청 메시지에서 훅을 거치기 전과 처음 달라진 위치. 알 수 없으면 null */
+      readonly at: number | null;
+      /** 바뀐 부분: `system`(접두 본문), `sections`(절), `messages`(그 밖) */
+      readonly changed: readonly string[];
+      /** 바꾼 핸들러의 RegistrationId(`request.context.before`, `request.system.before`에서 값을 적용한 순서) */
+      readonly owners: readonly string[];
+      /** owners가 속한 플러그인(확장) 이름. 중복 없음 */
+      readonly plugins: readonly string[];
+    }
   | { readonly code: "tools_deferred"; readonly added: readonly string[]; readonly removed: readonly string[] }
   | { readonly code: "near_window"; readonly tokens: number; readonly contextWindow: number };
 
@@ -409,7 +419,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 | leaf가 thread에 없음 | `branch_not_found` |
 | 가지에 `firstKeptEventId`가 없음(손상) | 머리를 무시하고 원문 전체로 조립, 경고 기록. 투영 오류로 올리지 않는다 [제안] |
 | `context` 핸들러가 시스템 메시지를 지움 | 시스템 메시지는 핸들러에 넘기지 않으므로 지울 수 없다. 결과 뒤에 되돌린다 |
-| `request.system.before` 핸들러가 접두를 바꿈 | 그대로 보낸다. 핸들러가 프롬프트와 도구 선언을 정하는 규칙은 pi와 같다. 경고 `cache_prefix_reset`을 남긴다 |
+| `request.system.before` 핸들러가 접두를 바꿈 | 그대로 보낸다. 핸들러가 프롬프트와 도구 선언을 정하는 규칙은 pi와 같다. 경고 `cache_prefix_reset`을 남기고 바뀐 위치(`at`), 바뀐 부분(`changed`), 값을 적용한 핸들러와 플러그인(`owners`, `plugins`)을 싣는다 [제안: 2026-11-04 T-MEAS-CACHE]. 접두 바뀜의 판정 기준은 그대로다(첫 메시지가 기록된 접두와 다름). 제공자가 알려 주는 원인과의 교차 확인은 하지 않는다 [미결] |
 | 요약 응답에 도구 호출 | `summary_has_tool_call`, `thread.compact.failed` |
 | 요약이 `length`로 끊김 | `summary_truncated`, `thread.compact.failed` |
 | 요약 대상이 비어 있음 | `skipped(nothing_to_summarize)`. 훅을 발화하지 않는다 |

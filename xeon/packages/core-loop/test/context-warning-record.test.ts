@@ -14,7 +14,13 @@ const answer = {
 test("context warnings of the assembly land in the step.completed record", async () => {
   const h = await createHarness({ script: [answer] });
   h.context.warnings.push(
-    { code: "cache_prefix_reset", at: 0 },
+    {
+      code: "cache_prefix_reset",
+      at: 0,
+      changed: ["system"],
+      owners: ["reg-a"],
+      plugins: ["acme-notes"],
+    },
     { code: "near_window", tokens: 900, contextWindow: 1000 },
   );
   await h.loop.admit({ threadId: h.threadId, content: "hi", via: "interactive" });
@@ -23,7 +29,13 @@ test("context warnings of the assembly land in the step.completed record", async
   expect(completed).toHaveLength(1);
   const checked = parse(StepCompletedPayloadSchema, completed[0]?.payload);
   expect(checked.ok ? checked.value.contextWarnings : undefined).toEqual([
-    { code: "cache_prefix_reset", at: 0 },
+    {
+      code: "cache_prefix_reset",
+      at: 0,
+      changed: ["system"],
+      owners: ["reg-a"],
+      plugins: ["acme-notes"],
+    },
     { code: "near_window", tokens: 900, contextWindow: 1000 },
   ]);
 });

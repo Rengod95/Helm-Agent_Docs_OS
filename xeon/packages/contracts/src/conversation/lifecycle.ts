@@ -245,6 +245,9 @@ export const StepContextWarningSchema: TObject<{
   removed: TOptional<TArray<TString>>;
   tokens: TOptional<TInteger>;
   contextWindow: TOptional<TInteger>;
+  changed: TOptional<TArray<TString>>;
+  owners: TOptional<TArray<TString>>;
+  plugins: TOptional<TArray<TString>>;
 }> = Type.Object(
   {
     code: Type.Union([
@@ -260,6 +263,12 @@ export const StepContextWarningSchema: TObject<{
     removed: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 256 })),
     tokens: Type.Optional(Type.Integer({ minimum: 0 })),
     contextWindow: Type.Optional(Type.Integer({ minimum: 0 })),
+    /** `cache_prefix_reset`: 바뀐 부분(`system`, `sections`, `messages`) */
+    changed: Type.Optional(Type.Array(Type.String({ maxLength: 64 }), { maxItems: 16 })),
+    /** `cache_prefix_reset`: 바꾼 핸들러의 RegistrationId */
+    owners: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 64 })),
+    /** `cache_prefix_reset`: 바꾼 핸들러가 속한 플러그인 이름 */
+    plugins: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 64 })),
   },
   { additionalProperties: false },
 );
