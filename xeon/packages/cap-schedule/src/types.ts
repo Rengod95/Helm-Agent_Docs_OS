@@ -53,6 +53,8 @@ export interface ScheduleEntry {
   /** 루프가 시작한 반복 수 */
   readonly iterations: number;
   readonly stoppedReason: StopReason | null;
+  /** 만든 쪽(`approvalCallerOf`의 값). 이 필드가 생기기 전에 만든 항목에는 없다 [결정: 2026-11-03 사용자] */
+  readonly createdBy?: string;
 }
 
 export type RunStatus = "claimed" | "started" | "finished" | "skipped" | "failed";
@@ -195,6 +197,8 @@ export interface CreateInput {
   readonly title?: string;
   /** 생략하면 켠다 */
   readonly enabled?: boolean;
+  /** 만든 쪽. 생략하면 항목에 남기지 않는다 */
+  readonly createdBy?: string;
 }
 
 export type CreateError =

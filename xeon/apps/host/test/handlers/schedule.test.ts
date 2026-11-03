@@ -102,6 +102,8 @@ test("create passes the trigger, prompt, workspace, title and enabled through an
       workspace: "/work/notes",
       title: "Daily",
       enabled: false,
+      // 와이어 호출은 호스트가 직접 낸 호출로 남는다
+      createdBy: "host",
     },
   ]);
   expect(result).toEqual({
@@ -124,7 +126,7 @@ test("create leaves out the optional fields the caller did not send", async () =
   });
   const connection = await connected(host);
   await connection.request("schedule.create", { trigger: TRIGGER, prompt: "summarize the day" });
-  expect(seen).toEqual([{ trigger: TRIGGER, prompt: "summarize the day" }]);
+  expect(seen).toEqual([{ trigger: TRIGGER, prompt: "summarize the day", createdBy: "host" }]);
   await connection.close();
 });
 

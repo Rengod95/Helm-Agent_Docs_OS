@@ -1397,6 +1397,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 저장소는 처음 쓰일 때 한 번 읽는다(`open()`, 지연 읽기). 읽기가 실패하면(상태 파일이 손상되어 해석하지 못하는 경우를 포함한다) `create`·`cancel`·`fire`·`start`는 `store_failed`를 돌려주고 아무것도 쓰지 않으며, `start`는 틱과 감시를 켜지 않는다. 엔진은 읽지 못한 파일을 빈 상태로 덮어쓰지 않는다. 사용자가 파일을 고치거나 지워야 한다. 실패는 기억하지 않으므로 다음 호출이 다시 읽는다.
 - [결정: 오케스트레이터 기본값, M4 T-RT1] 사용자가 부른 `create`와 `cancel`은 저장에 실패하면 메모리 상태를 호출 전으로 되돌리고 `store_failed`를 돌려준다. 되돌리지 않으면 `list`가 저장되지 않은 항목을 보이고 다음 저장이 그 항목을 몰래 쓴다. `cancel`은 저장에 성공한 뒤에 파일 감시를 해제한다. 저장 사이에 다른 커밋이 끼어 상태가 바뀌었으면 그 커밋이 이 변경을 이어받았으므로 되돌리지 않는다. 틱이 만드는 claim과 실행 기록의 저장 실패는 §4.4.5가 따로 정한다.
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 모델 도구 `schedule_create`는 실행 등급 `exec`로 등록한다(`tools.register`의 정책 `{ schedule_create: { risk: "exec" } }`). 예약은 사용자 없이 나중의 실행을 만들므로 기본 모드에서 승인을 묻는다.
+- [결정: 2026-11-03 사용자] 직접 호출의 정책. 모델 도구 경로 밖에서 `schedule.entries.create`를 부르는 호출(확장·그룹 코드, 호스트 코드)은 설정 `l2.schedule.entries.directCreate`를 따른다. 기본은 `allow`다(바로 만든다). `deny`는 `denied` `CapabilityError`로 거부하고 항목을 만들지 않는다. `ask`는 호출 문맥에 대화(`threadId`)가 있고 무인 실행이 아닐 때 `fresnel.approvals`에 kind `tool` 승인을 낸다(`toolName` `schedule.entries.create`, 위험 등급 `exec`, 기억 `once`, 요청 키는 호출마다 새 값). 허용이면 만들고 거부면 `denied`다. 대화가 없으면 `unavailable`, 무인 실행이면 `denied`로 거부하고 승인을 내지 않는다. 승인 서비스가 없으면 `unavailable`이다. 설정은 호출마다 읽는다. 모델 호출(`caller.kind`가 `model`)은 이 설정을 읽지 않고 `schedule_create`의 승인 경로를 그대로 쓴다. 와이어 `schedule.create`(UI·CLI가 부르는 호스트 처리기)는 기능 API를 거치지 않으므로 이 설정을 받지 않는다. 와이어 호출은 `createdBy`를 `host`로 남긴다.
+- [결정: 2026-11-03 사용자] 항목의 `createdBy`(선택 필드). 만든 쪽을 `approvalCallerOf`와 같은 값으로 남긴다: `ext:<확장 이름>`, `main`, `subagent:<이름>`, `background`, `host`. 문맥이 없는 기능 호출은 `host`다. 저장 파일(`state.json`)의 항목에 선택 필드로 더한다. 이 필드가 없는 옛 항목은 version을 올리지 않고 그대로 읽는다. 목록(`schedule.list`)으로 사용자가 확장이 만든 예약을 볼 수 있다.
 - [결정: 오케스트레이터 기본값, M3b B1-SCH2] 플러그인 `cap-schedule`(`schedulePlugin`)은 기능 `schedule.entries`(1.0.0)를 제공하고, 서비스는 호스트가 만들어 `schedulePlugin({ service })`로 넘긴다. 틱과 상태 저장소는 호스트가 맡고 플러그인은 서비스를 시작하지 않는다. 도구 서비스가 없으면 기능만 올리고 도구는 올리지 않으며 예외를 던지지 않는다. 기능 API(`createScheduleApi`)는 엔진의 `Result` 실패를 `CapabilityError`의 `code`로 바꾼다.
 - [결정: 오케스트레이터 기본값, M4 W-07] `update(scheduleId, patch)`는 항목의 켜짐(`enabled`), 제목(`title`), 프롬프트(`prompt`)를 고친다. 트리거와 `workspace`는 고치지 않는다. 생략한 필드는 그대로 둔다. 실패 값은 `not_found`(모르는 id), `limit_reached { max }`(켜기가 `maxActive`를 넘을 때), `store_failed`다. 다른 메서드와 같이 `open()`을 먼저 거치므로, 저장소를 읽지 못하면 `store_failed`를 돌려주고 아무것도 쓰지 않는다. 와이어 `schedule.update`의 `nextRunAt`은 항목의 `nextDueAt`을 옮긴 값이다 [제안].
   - 바뀌는 것이 없으면 저장하지 않는다. 빈 패치와 이미 그 상태인 값만 담은 패치가 여기에 든다. 항목을 그대로 돌려주고 변경 알림도 부르지 않는다.
@@ -1497,13 +1499,14 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `l2.schedule.remote.enabled` | boolean | false | — | restart | managed, user | execution | false | 화면, 명령(`fresnel service remote on`) |
 | `l2.schedule.remote.allowRespond` | boolean | true | — | live | managed, user | execution | false | 화면 |
 | `l2.schedule.remote.tokenRef` | string(`SecretRef`) | 없음 | — | restart | managed, user | secrets | true | 화면(시크릿 탭). 값은 `secret://<name>` |
+| `l2.schedule.entries.directCreate` | string | `"allow"` | enum `allow`, `ask`, `deny` | live | managed, user | execution | false | 화면. 모델 도구가 아닌 확장·그룹의 `schedule.entries.create` 직접 호출(§4.4.9) [결정: 2026-11-03 사용자] |
 | `l2.schedule.tools.timers` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_*` 도구 노출 |
 | `l2.schedule.tools.wakeup` | boolean | true | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `schedule_wakeup`, `loop_done` |
 | `l2.schedule.tools.jobs` | boolean | false | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `job_*`, `monitor_start` |
 | `l2.schedule.tools.worktree` | boolean | false | — | nextTurn | managed, user, project, local, launch | tools | false | 화면. `worktree_*` |
 
 - 안전 상한(`l2.schedule.timers.maxRunsPerHour`, `l2.schedule.timers.minIntervalSeconds`, `l2.schedule.timers.maxActive`, `l2.schedule.loops.maxIterations`, `l2.schedule.loops.maxLifetimeHours`)은 pi 방식(기본 상한 없음)의 예외다. 사용자 입력 없이 실행되는 경로라 상한이 없으면 무한 실행된다 [결정: review.decisions-2 U-22].
-- 타이머·원격 키의 `allowedScopes`를 `managed`, `user`로 좁힌 이유: 예약과 원격은 기기 단위 기능이고, 저장소를 받는 것만으로 예약 폭주나 원격 접속이 켜지지 않게 하려는 것이다.
+- 타이머·원격 키의 `allowedScopes`를 `managed`, `user`로 좁힌 이유: 예약과 원격은 기기 단위 기능이고, 저장소를 받는 것만으로 예약 폭주나 원격 접속이 켜지지 않게 하려는 것이다. `l2.schedule.entries.directCreate`도 같은 이유로 `managed`, `user`만 받는다. 저장소(project, local) 설정이 확장의 예약 만들기를 열지 못하게 하려는 것이다 [결정: 2026-11-03 사용자].
 - `l2.schedule.remote.tokenRef`는 D2·D3 규칙에 따라 `default`가 없고 `ui.widget`은 `"secret"`이다.
 - `l2.schedule.remote.enabled`와 서비스 사용 설정(`l0.process.service.enabled`, `L0.process.spec` §6)은 다른 키다. 서비스 로컬 소켓 위치는 설정 키가 없고 `L0.process.spec` §4.4가 `<runtimeDir>/fresnel.sock`으로 정한다.
 - L4 노출 구분: "화면"은 설정 화면 항목, "명령"은 CLI 명령(`/loop`, `/schedule`, `/jobs`, `/worktree`, `fresnel service remote`)이 같은 서비스 메서드를 쓰는 경우, "파일만"은 `ui`가 없는 키다. 명령 이름은 `L4.cli.spec`이 정한다.

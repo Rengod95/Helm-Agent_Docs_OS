@@ -60,6 +60,8 @@ const EntrySchema = Type.Object({
   lastStartedAt: nullable(Type.Number()),
   iterations: Type.Number(),
   stoppedReason: nullable(StopReasonSchema),
+  // 만든 쪽. 이 필드가 생기기 전의 파일에는 없다(선택 필드라 version을 올리지 않는다 [결정: 2026-11-03 사용자])
+  createdBy: Type.Optional(Type.String()),
 });
 
 const RunSchema = Type.Object({

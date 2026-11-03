@@ -77,6 +77,17 @@ test("each scope's schema lists only the keys that scope allows, and the host ke
   }
 });
 
+test("l2.schedule.entries.directCreate is listed for managed and user only, so a repository cannot set it [결정: 2026-11-03 사용자]", () => {
+  const catalog = coreCatalog();
+  const key = "l2.schedule.entries.directCreate";
+  for (const scope of ["managed", "user"] as const) {
+    expect(keysOf(JSON.parse(renderSettingsSchema(catalog, scope)))).toContain(key);
+  }
+  for (const scope of ["project", "local"] as const) {
+    expect(keysOf(JSON.parse(renderSettingsSchema(catalog, scope)))).not.toContain(key);
+  }
+});
+
 test("hostSettings declares the two l4.host-service keys with the documented defaults and ranges", () => {
   const { maxReplayEvents, maxSubscriptionsPerConnection } = hostSettings.defs;
   expect(maxReplayEvents.key).toBe("l4.host-service.maxReplayEvents");

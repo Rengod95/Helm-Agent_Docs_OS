@@ -115,6 +115,7 @@ import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-e
 import type { SettingCatalog } from "@fresnel/contracts/settings";
 import {
   execOptionsOf,
+  layersSource,
   logLevelOf,
   operationsSource,
   primitivesSource,
@@ -854,7 +855,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
     scheduleSlot.service = schedule;
     // 예약 플러그인은 서비스가 생긴 뒤에 올린다(`scheduleUnit`). 도구 등록은 core-tools가 이미 올라와 있어야 한다
-    const scheduleExtension = scheduleUnit(schedule, units.length);
+    const scheduleExtension = scheduleUnit(schedule, units.length, layersSource(settings));
     lateUnits.push(scheduleExtension);
     const scheduled = installFailureOf(await ext.install(scheduleExtension));
     if (scheduled !== undefined) {

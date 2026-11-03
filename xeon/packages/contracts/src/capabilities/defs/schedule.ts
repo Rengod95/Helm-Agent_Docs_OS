@@ -134,6 +134,7 @@ export const ScheduleEntryViewSchema: TObject<{
   lastStartedAt: TUnion<[TInteger, TNull]>;
   iterations: TInteger;
   stoppedReason: TUnion<[typeof StopReasonSchema, TNull]>;
+  createdBy: TOptional<TString>;
 }> = Type.Object(
   {
     id: ScheduleIdSchema,
@@ -149,10 +150,24 @@ export const ScheduleEntryViewSchema: TObject<{
     lastStartedAt: Nullable(Type.Integer({ minimum: 0 })),
     iterations: Type.Integer({ minimum: 0 }),
     stoppedReason: Nullable(StopReasonSchema),
+    /**
+     * 만든 쪽(`approvalCallerOf`의 값: `main`, `subagent:<이름>`, `background`, `host`, `ext:<확장 이름>`).
+     * 이 필드가 생기기 전에 만든 항목에는 없다 [결정: 2026-11-03 사용자]
+     */
+    createdBy: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   },
   { additionalProperties: false },
 );
 export type ScheduleEntryView = Static<typeof ScheduleEntryViewSchema>;
+
+/**
+ * 직접 호출(모델 도구 경로 밖: 확장·그룹·호스트 코드가 `schedule.entries.create`를 부르는 경우)의 만들기 방식.
+ * 설정 `l2.schedule.entries.directCreate`의 값이고 기본은 `allow`다 [결정: 2026-11-03 사용자]. 설정 정의(cap-schedule)가 이 목록을 쓴다.
+ */
+export const DIRECT_CREATE_MODES: readonly ["allow", "ask", "deny"] = ["allow", "ask", "deny"];
+export type DirectCreateMode = (typeof DIRECT_CREATE_MODES)[number];
+/** 설정 정의의 값 스키마. 값 목록 검사(`range.enum`)는 설정 정의가 맡는다 */
+export const DirectCreateModeSettingSchema: TString = Type.String({ maxLength: 16 });
 
 const TriggerKindSchema: TUnion<
   [

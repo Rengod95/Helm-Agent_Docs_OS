@@ -84,6 +84,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "cap-dialog",
     "cap-knowledge",
     "cap-mcp",
+    "cap-schedule",
     "cap-web",
     "cap-work",
     "cap-workspace",

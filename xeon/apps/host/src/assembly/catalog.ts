@@ -16,6 +16,7 @@ import {
   type SettingNamespace,
 } from "@fresnel/contracts/settings";
 import { DIALOG_SETTING_DEFS } from "@fresnel/cap-dialog";
+import { SCHEDULE_SETTING_DEFS } from "@fresnel/cap-schedule";
 import { KNOWLEDGE_SETTING_DEFS } from "@fresnel/cap-knowledge";
 import { ARTIFACTS_SETTING_DEFS } from "@fresnel/cap-artifacts";
 import { MCP_SETTING_DEFS } from "@fresnel/cap-mcp";
@@ -86,6 +87,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("cap-work", "l2.work", WORK_SETTING_DEFS),
     ofDefs("cap-artifacts", "l2.artifacts", ARTIFACTS_SETTING_DEFS),
     ofDefs("cap-dialog", "l2.dialog", DIALOG_SETTING_DEFS),
+    ofDefs("cap-schedule", "l2.schedule", SCHEDULE_SETTING_DEFS),
     ofGroup("group-sdk", groupSdkSettings),
     ofGroup("group-helm", helmSettings),
     ofGroup("group-learning", learningSettings),

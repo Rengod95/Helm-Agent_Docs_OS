@@ -4329,6 +4329,33 @@
         }
       }
     },
+    "l2.schedule.entries.directCreate": {
+      "default": "allow",
+      "enum": [
+        "allow",
+        "ask",
+        "deny"
+      ],
+      "maxLength": 16,
+      "type": "string",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L2",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "모델 도구가 아닌 확장·그룹의 직접 호출을 다룬다. allow는 바로 만들고, ask는 승인을 묻고, deny는 막는다",
+          "label": "확장의 예약 직접 만들기",
+          "order": 350,
+          "tab": "execution",
+          "widget": "select"
+        }
+      }
+    },
     "l2.web.browse.allowFileUpload": {
       "default": false,
       "type": "boolean",

@@ -622,7 +622,7 @@ export const WebSearchKey = serviceKey(WebSearch);   // ServiceKey<{ search(inpu
 
 - 위 코드는 읽기 쉽도록 export 상수의 타입 주석을 생략했다. 생략은 이 예시에만 해당한다. `isolatedDeclarations`는 `xeon/tsconfig.base.json`에서 contracts 전체에 켜져 있으므로(`_research/foundation-plan.md` §2 언어 행) 실제 정의 파일은 export 상수마다 명시 타입 주석을 단다(`_research/notes/eng-2.md` §8).
 - 모델 경로: 모델이 `web_search`를 호출하면 L1.tools가 `tool.call.before` 훅(F.extensions.spec, fold first)을 거쳐 `search(params, { signal, requestId })`를 호출한다. 결과는 `renderSearch`로 바꾸고 `tool.result` 훅(fold chain)을 거쳐 모델에게 돌아간다.
-- 그룹 경로: L3 그룹(예: Helm)은 매니페스트 `requires`에 `{ id: "web.search", range: "^1.0.0" }`을 선언한다. 그룹 코드는 `g.capability(WebSearchKey)`로 API를 얻고, 모델 턴 밖(예: `drive` 함수 안의 병렬 탐색 준비, 경계 처리)에서 `await web.search({ query })`를 호출한다. 이 호출은 tool 훅을 거치지 않는다. 서비스 호출 정책은 X와 L1.tools가 정한다.
+- 그룹 경로: L3 그룹(예: Helm)은 매니페스트 `requires`에 `{ id: "web.search", range: "^1.0.0" }`을 선언한다. 그룹 코드는 `g.capability(WebSearchKey)`로 API를 얻고, 모델 턴 밖(예: `drive` 함수 안의 병렬 탐색 준비, 경계 처리)에서 `await web.search({ query })`를 호출한다. 이 호출은 tool 훅을 거치지 않는다. 서비스 호출 정책은 X와 L1.tools가 정한다. 다만 예약 기능 `schedule.entries`의 `create` 직접 호출은 [결정: 2026-11-03 사용자] 설정 `l2.schedule.entries.directCreate`(기본 `allow`, `ask`, `deny`, 파일 범위는 managed·user뿐)를 따른다. `deny`는 `denied`로 거부하고 항목을 만들지 않으며, `ask`는 호출한 대화에 승인을 내고 기다린다. 모델 호출(`schedule_create`)은 이 설정을 읽지 않는다. 자세한 규칙은 `L2.schedule.spec` §4.4.9다. 이 정책이 다른 기능의 직접 호출에도 일반화되는지는 아직 정하지 않았다.
 - 정의 파일의 위치 [제안, 확정]: 내장 L2 기능의 정의는 F의 `xeon/packages/contracts/src/capabilities/defs/<domain>.ts`에 둔다. 층 사이 규칙 2에 따라 L3가 provider 패키지(`cap-web`)를 import하지 않고 정의를 쓸 수 있어야 하기 때문이다. `L2.readme` §3·§5.1과 L2 plan의 첫 작업이 이 경로를 전제하므로 대안(각 cap 패키지가 구현 없는 `def` 서브패스를 export)은 쓰지 않는다. 정의의 내용은 각 `L2.<domain>.spec`이 정하고, F에는 데이터만 둔다. 외부 플러그인의 기능 정의는 구현과 분리된 정의 전용 모듈로 배포한다 [제안].
 
 ### 3.10 시크릿 참조 형식 (`secrets.ts`)
@@ -1054,7 +1054,7 @@ export type NotifyError =
 
 - 이 문서는 훅을 새로 정의하지 않는다.
 - 기능의 모델 도구 호출은 F.extensions.spec의 tool 훅을 지난다. 호출 전 `tool.call.before`(fold first), 결과 후 `tool.result`(fold chain), 관찰용 `tool.execution.before`, `tool.execution.update`, `tool.execution.after`(fold tap)다. 두 훅의 페이로드에는 `capability?: { id: CapabilityId; method: string }`가 실려서 핸들러가 도구 이름 대신 기능으로 대상을 고를 수 있다(F.extensions.spec §3.5).
-- 그룹 코드가 서비스를 직접 호출하는 경로(§3.9 그룹 경로)는 tool 훅을 지나지 않는다.
+- 그룹 코드가 서비스를 직접 호출하는 경로(§3.9 그룹 경로)는 tool 훅을 지나지 않는다. 승인도 거치지 않으므로, 예약 `schedule.entries.create`는 이 경로에서 설정 `l2.schedule.entries.directCreate`(기본 `allow`)를 따른다 [결정: 2026-11-03 사용자]. `ask`는 대화 문맥(`threadId`)이 있을 때만 승인을 낼 수 있다.
 - 확장이 기능을 쓰려면 매니페스트 `requires`나 `optional`에 선언해야 한다. 선언하지 않은 기능의 `capability(key)` 호출은 `validateUsage` 오류다(F.extensions.spec §4.7).
 
 ## 8. 다른 문서와의 인터페이스
