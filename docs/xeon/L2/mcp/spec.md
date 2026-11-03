@@ -554,6 +554,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
   - 관리 범위 값은 낮은 범위가 덮어쓰지 못한다(`F.wire-settings.spec` §4.7). 화면은 잠금 표시를 한다.
 - 도구 수준: 서버 정의의 `tools.deny` > `tools.allow` 순으로 거른다. 걸러진 도구는 `listTools` 결과에 `exposed: false`로 남고 모델 도구 집합에는 없다. 도구를 시야에서 빼는 방식이다(`_research/item-catalog.md` 진보된 설계 5번).
 - 승인 모드: `prompt`(매번 묻기), `auto`(묻지 않음), `deny`(호출 거부). 서버 정의 `tools.approval[도구]` > `l2.mcp.approvalMode` 순으로 정한다.
+  - `deny`인 도구의 호출은 도구 경로(모델의 동적 도구)와 직접 경로(`mcp.client.callTool`을 부르는 그룹 코드) 모두 전송에 닿기 전에 `denied` 오류로 거부한다. 직접 경로는 L1.tools 규칙을 거치지 않으므로 `cap-mcp`가 이 검사를 맡는다 [결정: 감사 l2/mcp #6].
   - 승인 판정과 실행은 L1.tools가 한다. `cap-mcp`는 위 값을 L1.tools 권한 규칙으로 공급한다. 규칙 키 형식은 `mcp__<서버 id>`(서버 전체)와 `mcp__<서버 id>__<서버 도구 이름>`(도구 하나)이다(`_research/settings.md` §2.10 도구별 승인 행 omp `mcp__<이름>`) [제안]. 이 키는 권한 규칙 키이고 도구 기계 이름과 별개다.
   - 규칙을 공급하는 API는 `L1.tools.spec`이 정한다 [가정]. `ToolService.registerRules`는 `core:` 출처만 받으므로 구현은 `McpRulesSink` 포트(`src/ports/rules.ts`)로 규칙을 내고 L1A 레인에 확장 티어 공급 API를 요청했다(`L2.mcp.plan` §8.5).
 

@@ -51,7 +51,12 @@ import type { McpStorePort } from "../ports/store.ts";
 import type { McpContinuationSource, McpToolRegistrar } from "../ports/tools.ts";
 import type { McpProjectTrust } from "../ports/trust.ts";
 import { loadDefinitions, type LoadedDefinitions } from "../servers/definitions.ts";
-import { buildApprovalRules, evaluateServer, filterTool } from "../servers/policy.ts";
+import {
+  buildApprovalRules,
+  effectiveApprovalMode,
+  evaluateServer,
+  filterTool,
+} from "../servers/policy.ts";
 import {
   DEFAULT_MCP_SETTINGS,
   readMcpSettings,
@@ -479,6 +484,12 @@ export function createMcp(deps: McpDeps): McpRuntime {
       }
       if (!filterTool(lease.definition.def, input.tool).exposed) {
         throw mcpError(method, "denied", `tool ${input.tool} is hidden by the server definition`);
+      }
+      // §4.4: 승인 모드 deny는 호출 거부다. 이 직접 경로는 L1.tools 규칙을 거치지 않으므로 여기서 막는다
+      if (
+        effectiveApprovalMode(lease.definition.def, input.tool, settings.approvalMode) === "deny"
+      ) {
+        throw mcpError(method, "denied", `tool ${input.tool} is denied by the approval mode`);
       }
       const result = await lease.connection.callTool(input.tool, input.arguments, {
         signal: env.signal,
