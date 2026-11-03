@@ -1,20 +1,25 @@
-// 크래프트 개요의 화면 상태와 바깥과 닿는 자리(포트). 세 보기(지도·순서·링크)와 자세히 보기가 같은 값을 읽는다.
-// 데이터는 `CraftSource`가 준다. 엔진 연결(T-BENCH)이 오기 전에는 고정 데이터나 빈 상태를 넣는다.
-import {
-  clearSel,
-  selectGroup,
-  selectPlugin,
-  type CanvasSnapshot,
-  type Contrib,
-  type HookOrderPort,
-  type KindFilter,
-  type Sel,
-  type SelState,
+// 크래프트 개요의 바깥과 닿는 자리. 화면 상태는 따로 두지 않고 워크벤치 스토어(`state/workbench`)에서 읽고 쓴다.
+// 세 보기(지도·순서·링크)와 자세히 보기가 같은 값을 읽는다. 데이터는 `CraftSource`가 주고(`useCraftSource`가 스토어와 명령에서 만든다).
+import type {
+  CanvasSnapshot,
+  Contrib,
+  HookOrderPort,
+  KindFilter,
+  Sel,
+  SelState,
 } from "@fresnel/client/workbench/canvas";
-import { createContext, useContext, useMemo, useReducer, type ReactNode } from "react";
+import type { WorkbenchState, WorkbenchView } from "@fresnel/client/workbench";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { assertNever, Bug } from "@fresnel/contracts";
+import { useShallow } from "zustand/react/shallow";
+import {
+  useWorkbench,
+  useWorkbenchActions,
+  type WorkbenchActions,
+} from "../../state/workbench/index.ts";
 
-export type CraftMode = "orbit" | "strata" | "link";
+/** 세 보기 중 하나. 스토어의 `view`와 같은 값이다 */
+export type CraftMode = WorkbenchView;
 
 /** 최근 실행 한 줄(`trace.turn`의 훅 한 칸에서 핸들러 하나). 턴 안의 순서는 wire의 seq 순서다 */
 export interface CraftRunEntry {
@@ -37,6 +42,10 @@ export interface CraftSource {
   readonly recentRuns: (pluginId: string) => Promise<readonly CraftRunEntry[] | null>;
 }
 
+/**
+ * 캔버스가 읽는 화면 상태. 스토어 상태에서 뽑은 읽기 전용 모양이고 따로 저장하지 않는다.
+ * `mode`는 스토어의 `view`, 나머지는 같은 이름의 필드다.
+ */
 export interface CraftState extends SelState {
   readonly mode: CraftMode;
   readonly kind: KindFilter;
@@ -48,6 +57,7 @@ export interface CraftState extends SelState {
   readonly query: string;
 }
 
+/** 캔버스가 내는 동작. 값을 바꾸는 일은 `craftDispatch`가 스토어 동작으로 옮긴다 */
 export type CraftAction =
   | { readonly t: "mode"; readonly mode: CraftMode }
   | { readonly t: "kind"; readonly kind: KindFilter }
@@ -59,42 +69,52 @@ export type CraftAction =
   | { readonly t: "detail"; readonly id: string | null }
   | { readonly t: "query"; readonly query: string };
 
-export const initialCraftState: CraftState = {
-  ...clearSel(),
-  mode: "orbit",
-  kind: "all",
-  contrib: [],
-  detail: null,
-  query: "",
-};
+/** 스토어 상태에서 캔버스가 읽는 값만 뽑는다. 필드 값은 스토어의 것을 그대로 가리킨다 */
+export function craftStateOf(s: WorkbenchState): CraftState {
+  return {
+    mode: s.view,
+    kind: s.kind,
+    contrib: s.contrib,
+    detail: s.detail,
+    query: s.query,
+    sel: s.sel,
+    panel: s.panel,
+  };
+}
 
-export function craftReducer(state: CraftState, action: CraftAction): CraftState {
+/** 캔버스 동작 하나를 스토어 동작 하나로 옮긴다. `mode`는 `setView`라서 자세히 보기를 닫는다(툴바는 자세히 보기 중에 없다) */
+export function craftDispatch(actions: WorkbenchActions, action: CraftAction): void {
   switch (action.t) {
     case "mode":
-      return { ...state, mode: action.mode };
+      actions.setView(action.mode);
+      return;
     case "kind":
-      return { ...state, kind: action.kind };
+      actions.setKind(action.kind);
+      return;
     case "contrib":
-      return {
-        ...state,
-        contrib: state.contrib.includes(action.contrib)
-          ? state.contrib.filter((c) => c !== action.contrib)
-          : [...state.contrib, action.contrib],
-      };
+      actions.toggleContrib(action.contrib);
+      return;
     case "selectPlugin":
-      return { ...state, ...selectPlugin(action.id) };
+      actions.pickPlugin(action.id);
+      return;
     case "selectGroup":
-      return { ...state, ...selectGroup(action.id) };
+      actions.pickGroup(action.id);
+      return;
     case "selectOther":
-      return { ...state, sel: action.sel, panel: true };
+      actions.pickSel(action.sel);
+      return;
     case "clear":
-      return { ...state, ...clearSel() };
+      actions.clearPick();
+      return;
     case "detail":
-      return { ...state, detail: action.id };
+      if (action.id === null) actions.closeDetail();
+      else actions.openDetail(action.id);
+      return;
     case "query":
-      return { ...state, query: action.query };
+      actions.setQuery(action.query);
+      return;
     default:
-      return assertNever(action, "craftReducer");
+      return assertNever(action, "craftDispatch");
   }
 }
 
@@ -106,12 +126,23 @@ interface CraftValue {
 
 const CraftContext = createContext<CraftValue | null>(null);
 
+/** 워크벤치 스토어 provider 안에서 쓴다. 캔버스 상태가 바뀌면 이 값을 다시 만든다 */
 export function CraftProvider(props: {
   readonly source: CraftSource;
   readonly children: ReactNode;
 }): ReactNode {
-  const [state, dispatch] = useReducer(craftReducer, initialCraftState);
-  const value = useMemo(() => ({ source: props.source, state, dispatch }), [props.source, state]);
+  const state = useWorkbench(useShallow(craftStateOf));
+  const actions = useWorkbenchActions();
+  const value = useMemo(
+    (): CraftValue => ({
+      source: props.source,
+      state,
+      dispatch: (action) => {
+        craftDispatch(actions, action);
+      },
+    }),
+    [props.source, state, actions],
+  );
   return <CraftContext.Provider value={value}>{props.children}</CraftContext.Provider>;
 }
 

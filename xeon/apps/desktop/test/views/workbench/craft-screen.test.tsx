@@ -1,206 +1,163 @@
 import { describe, expect, test } from "bun:test";
-import { renderToString } from "react-dom/server";
-import { Bug } from "@fresnel/contracts";
+import { t } from "@fresnel/client/i18n";
 import {
-  listLoaded,
-  openDetail,
-  pickSel,
-  select,
-  setQuery,
-  toggleContrib,
-  type WorkbenchState,
+  detailsLoaded,
+  healthLoaded,
+  listFailed,
+  ordersLoaded,
+  pickPlugin,
+  setView,
+  type WorkbenchView,
 } from "@fresnel/client/workbench";
-import type { ExtListEntry } from "@fresnel/contracts/wire";
-import { EngineStoreContext } from "../../../src/state/engine/index.ts";
-import { createWorkbenchStore, WorkbenchStoreContext } from "../../../src/state/workbench/index.ts";
-import { CommandsContext } from "../../../src/views/commands.ts";
-import { createCanvasSlots } from "../../../src/views/workbench/canvas-slots.ts";
+import type { ExtHealthEntry } from "@fresnel/contracts/wire";
+import { createWorkbenchStore, type WorkbenchStore } from "../../../src/state/workbench/index.ts";
+import { createDesktopRegistry } from "../../../src/views/desktop-registry.tsx";
 import { CraftScreen } from "../../../src/views/workbench/craft-screen.tsx";
-import { EngineScreen } from "../../../src/views/workbench/engine-screen.tsx";
-import { ExtensionsScreen } from "../../../src/views/workbench/extensions-screen.tsx";
-import { needsTrustConfirm } from "../../../src/views/workbench/trust-dialog.tsx";
-import { harness } from "../../state/helpers.ts";
-import { fakeCommands } from "../fake-commands.ts";
+import { renderWithWindowStub } from "../craft/render-support.tsx";
+import { entry, inContexts, liveEngine, screenStore } from "./support.tsx";
 
-function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
-  return {
-    name,
-    displayName: name,
-    layer: "L2",
-    isGroup: false,
-    version: "1.0.0",
-    location: "/x",
-    origin: "user",
-    requestedGrade: "user",
-    effectiveGrade: "user",
-    tier: null,
-    status: "enabled",
-    plugins: [{ registrationId: `${name}#root`, layer: "L2", status: "enabled", inGroup: false }],
-    diagnostics: [],
-    autoDisabled: false,
-    safeModeExcluded: null,
-    hookCount: 2,
-    ...over,
-  };
+/**
+ * 개요 화면을 그린다. 캔버스가 첫 그리기 때 창 값을 읽으므로 창 흉내를 씌운다.
+ * `live`가 아니면 엔진이 끊긴 것이라 목록 띠 대신 오프라인 글이 앞선다.
+ */
+function overview(store: WorkbenchStore, live = false): string {
+  return renderWithWindowStub(inContexts(<CraftScreen />, store, live ? liveEngine() : undefined));
 }
 
-const ENTRIES = [
-  entry("core-loop", { layer: "L1", tier: "core", origin: "builtin" }),
-  entry("web", { displayName: "웹 검색" }),
-  entry("review", { layer: "L3", isGroup: true, status: "disabled", autoDisabled: true }),
-];
-
-function render(
-  ui: React.ReactNode,
-  prepare: (state: WorkbenchState) => WorkbenchState = (state) => state,
-): string {
-  const store = createWorkbenchStore((initial) => prepare(listLoaded(initial, ENTRIES)));
-  const engine = harness().store;
-  return renderToString(
-    <EngineStoreContext value={engine.read}>
-      <CommandsContext value={fakeCommands()}>
-        <WorkbenchStoreContext value={store}>{ui}</WorkbenchStoreContext>
-      </CommandsContext>
-    </EngineStoreContext>,
+/** 지도 점 버튼마다 이름표(aria-label) 글 */
+function dotLabels(html: string): string[] {
+  return [...html.matchAll(/<button\b[^>]*data-dot="[^"]*"[^>]*>/g)].map(
+    (m) => m[0].match(/aria-label="([^"]*)"/)?.[1] ?? "",
   );
 }
 
-/** 누름 상태가 켜진 단추의 글(태그는 뺀다) */
-function pressedLabels(html: string): string[] {
-  return [...html.matchAll(/<button\b[^>]*>(.*?)<\/button>/g)]
-    .filter((m) => m[0].includes('aria-pressed="true"'))
-    .map((m) => (m[1] ?? "").replace(/<[^>]*>/g, ""));
+const VIEWS: readonly WorkbenchView[] = ["orbit", "strata", "link"];
+
+/**
+ * 보기 토글(지도·순서·링크)에서 켜진 칸의 값. 같은 모양의 거르기 토글(종류)은 뺀다.
+ */
+function checkedViews(html: string): string[] {
+  return [...html.matchAll(/<button\b[^>]*role="radio"[^>]*>/g)]
+    .map((m) => m[0])
+    .filter((tag) => tag.includes('aria-checked="true"'))
+    .map((tag) => tag.match(/ value="([^"]+)"/)?.[1] ?? "")
+    .filter((value) => VIEWS.some((view) => view === value));
 }
 
-/** 층 목록이 그린 층 이름, 그린 순서대로 */
-function sectionLayers(html: string): string[] {
-  return [...html.matchAll(/<section aria-label="([^"]+)"/g)].map((m) => m[1] ?? "");
+/** 훅 줄 하나의 마크업(다음 훅 줄 전까지) */
+function hookRow(html: string, hook: string): string {
+  const start = html.indexOf(`data-hook="${hook}"`);
+  if (start === -1) return "";
+  const next = html.indexOf("data-hook=", start + 1);
+  return html.slice(start, next === -1 ? undefined : next);
 }
 
-describe("크래프트 개요", () => {
-  test("머리에 제목과 개수, 보기 셋이 보인다", () => {
-    const html = render(<CraftScreen slots={createCanvasSlots()} />);
-    expect(html).toContain("크래프트");
-    expect(html).toContain("확장 3 · 켜짐 2 · 자동 꺼짐 1");
-    for (const view of ["지도", "순서", "링크"]) expect(html).toContain(view);
+const failing = (registrationId: string): ExtHealthEntry => ({
+  name: registrationId,
+  registrationId,
+  consecutiveFailures: 2,
+  windowFailures: 2,
+  windowMs: 60_000,
+  autoDisabled: false,
+  lastFailureAt: "2026-11-04T10:00:00Z",
+  lastError: "timeout while calling the search API",
+});
+
+describe("크래프트 개요: 캔버스가 화면을 쓰고 목록 띠가 위에 온다", () => {
+  test("목록이 읽히면 지도 점은 플러그인 수만큼이고 이름표는 표시 이름을 쓴다", () => {
+    const labels = dotLabels(overview(screenStore()));
+    // core-loop, 웹 검색, review(루트)와 review/lint: 플러그인 넷
+    expect(labels).toHaveLength(4);
+    expect(labels).toContain("core-loop, 켜짐");
+    expect(labels).toContain("웹 검색, 켜짐");
   });
 
-  test("슬롯이 비어 있으면 층 목록이 보이고 층 순서는 L1, L2, L3다", () => {
-    const html = render(<CraftScreen slots={createCanvasSlots()} />);
-    expect(html.indexOf("L1")).toBeLessThan(html.indexOf("L2"));
-    expect(html.indexOf("L2")).toBeLessThan(html.indexOf("L3"));
+  test("자동 꺼진 확장은 위 띠에 알림과 다시 켜기 단추를 보인다", () => {
+    const html = overview(screenStore());
+    expect(html).toContain(t("desktop.workbench.autoDisabled", { name: "review" }));
+    expect(html).toContain(t("desktop.workbench.reenable"));
+  });
+
+  test("토글에는 스토어의 view 하나만 켜져 있고, 캔버스도 같은 보기다", () => {
+    for (const view of VIEWS) {
+      const html = overview(screenStore((s) => setView(s, view)));
+      expect(checkedViews(html)).toEqual([view]);
+      expect(html).toContain(`data-craft-mode="${view}"`);
+    }
+  });
+
+  test("고른 플러그인은 선택 패널에 이름과 장부의 실패 글을 보인다", () => {
+    const html = overview(screenStore((s) => healthLoaded(pickPlugin(s, "web"), [failing("web")])));
+    expect(html).toContain(t("desktop.craft.orbit.panel.failedPlain", { fails: 2 }));
+    expect(html).toContain("timeout while calling the search API");
+    expect(dotLabels(html)).toContain("웹 검색, 실패");
+  });
+
+  test("순서 보기는 훅 줄에 적용 중인 플러그인 이름을 보인다", () => {
+    const html = overview(
+      screenStore((s) =>
+        ordersLoaded(
+          detailsLoaded(setView(s, "strata"), "web", {
+            entry: entry("web", { displayName: "웹 검색" }),
+            manifest: {},
+            hooks: [
+              {
+                registrationId: "web",
+                hook: "tool.call.before",
+                budgetClass: "fast",
+                budgetMs: 100,
+              },
+            ],
+            bindings: [],
+          }),
+          { "tool.call.before": ["web"] },
+        ),
+      ),
+    );
+    expect(html).toContain('data-craft-mode="strata"');
+    expect(hookRow(html, "tool.call.before")).toContain("웹 검색");
+  });
+
+  test("연결 보기로 바꿔도 고른 플러그인은 선택 패널에 남는다", () => {
+    const html = overview(screenStore((s) => pickPlugin(setView(s, "link"), "web")));
+    expect(html).toContain('data-craft-mode="link"');
+    expect(checkedViews(html)).toEqual(["link"]);
+    // 지도 점은 연결 보기에 없으므로 이름은 고른 플러그인의 패널이나 초점에서 온다
     expect(html).toContain("웹 검색");
-    expect(html).toContain("1/1 켜짐");
   });
 
-  test("층 목록은 L1, L2, L3 순서로 모두 보이고 층을 고르면 그 층만 보인다", () => {
-    expect(sectionLayers(render(<CraftScreen slots={createCanvasSlots()} />))).toEqual([
-      "L1",
-      "L2",
-      "L3",
-    ]);
-    const layer = render(<CraftScreen slots={createCanvasSlots()} />, (s) =>
-      pickSel(s, { k: "layer", id: "L2" }),
+  test("목록을 읽는 중이면 읽는 띠만 보이고 캔버스는 그리지 않는다", () => {
+    const html = overview(createWorkbenchStore(), true);
+    expect(html).toContain(`aria-label="${t("desktop.workbench.loading")}"`);
+    expect(html).not.toContain("data-craft-mode");
+  });
+
+  test("목록을 못 읽으면 오류 띠와 다시 읽기 단추만 보이고 캔버스는 그리지 않는다", () => {
+    const html = overview(
+      createWorkbenchStore((s) => listFailed(s)),
+      true,
     );
-    expect(sectionLayers(layer)).toEqual(["L2"]);
+    expect(html).toContain(t("desktop.workbench.error.heading"));
+    expect(html).toContain(t("desktop.workbench.error.retry"));
+    expect(html).not.toContain("data-craft-mode");
+    expect(dotLabels(html)).toEqual([]);
   });
 
-  test("구성 요소 거르기는 고른 칸만 눌린 상태로 보이고 글은 옛 문구 키를 쓴다", () => {
-    const html = render(<CraftScreen slots={createCanvasSlots()} />, (s) =>
-      toggleContrib(toggleContrib(s, "agent"), "hook"),
-    );
-    // 칸 순서(훅, 스킬, 명령, 도구, MCP, 에이전트, 뷰)대로
-    expect(pressedLabels(html)).toEqual(["훅", "보조 에이전트"]);
-  });
-
-  test("고른 확장의 행만 눌린 상태로 보인다", () => {
-    const html = render(<CraftScreen slots={createCanvasSlots()} />, (s) => select(s, "web"));
-    const pressed = pressedLabels(html);
-    expect(pressed).toHaveLength(1);
-    expect(pressed[0]).toContain("웹 검색");
-  });
-
-  test("등록된 보기가 있으면 그것이 캔버스로 그려진다", () => {
-    const slots = createCanvasSlots();
-    slots.register("orbit", () => <p>지도 캔버스</p>);
-    const html = render(<CraftScreen slots={slots} />);
-    expect(html).toContain("지도 캔버스");
-    expect(html).not.toContain("1/1 켜짐");
-  });
-
-  test("같은 보기를 두 번 등록하면 Bug다", () => {
-    const slots = createCanvasSlots();
-    slots.register("link", () => <p>a</p>);
-    expect(() => {
-      slots.register("link", () => <p>b</p>);
-    }).toThrow(Bug);
-  });
-
-  test("자동 꺼진 확장은 알림과 다시 켜기 단추를 보인다", () => {
-    const html = render(<CraftScreen slots={createCanvasSlots()} />);
-    expect(html).toContain("review이 연속 실패로 자동 꺼졌어요");
-    expect(html).toContain("다시 켜기");
-  });
-
-  test("면제 tier 스위치는 잠기고 이유를 준다", () => {
-    const html = render(<CraftScreen slots={createCanvasSlots()} />);
-    expect(html).toContain("보안·기본 동작이라 끌 수 없어요");
-  });
-
-  test("고른 확장은 선택 패널에 켜짐 스위치와 자세히 보기를 보인다", () => {
-    const html = render(<CraftScreen slots={createCanvasSlots()} />, (s) => select(s, "web"));
-    expect(html).toContain('aria-label="선택한 확장"');
-    expect(html).toContain("자세히 보기");
-    expect(html).toContain("훅 2개");
-  });
-
-  test("자세히 보기는 캔버스 대신 탭을 그린다", () => {
-    const html = render(<CraftScreen slots={createCanvasSlots()} />, (s) => openDetail(s, "web"));
-    expect(html).toContain("개요로");
-    for (const tab of ["개요", "훅", "버전"]) expect(html).toContain(tab);
-    expect(html).not.toContain("1/1 켜짐");
-  });
-
-  test("엔진에 연결되지 않고 목록이 없으면 오프라인 띠를 보인다", () => {
-    const store = createWorkbenchStore((s) => ({ ...s, list: "error" }));
-    const engine = harness().store;
-    const html = renderToString(
-      <EngineStoreContext value={engine.read}>
-        <CommandsContext value={fakeCommands()}>
-          <WorkbenchStoreContext value={store}>
-            <CraftScreen slots={createCanvasSlots()} />
-          </WorkbenchStoreContext>
-        </CommandsContext>
-      </EngineStoreContext>,
-    );
-    expect(html).toContain("엔진에 연결되어 있지 않아요");
+  test("엔진에 닿지 않고 목록도 없으면 오프라인 띠만 보인다", () => {
+    const html = overview(createWorkbenchStore());
+    expect(html).toContain(t("desktop.workbench.offline"));
+    expect(html).not.toContain("data-craft-mode");
   });
 });
 
-describe("확장·엔진 화면", () => {
-  test("확장 화면은 같은 행을 찾기로 거른다", () => {
-    const html = render(<ExtensionsScreen />, (s) => setQuery(s, "웹"));
-    expect(html).toContain("웹 검색");
-    expect(html).not.toContain("core-loop");
-  });
-
-  test("찾는 확장이 없으면 빈 상태를 보인다", () => {
-    const html = render(<ExtensionsScreen />, (s) => setQuery(s, "zzz"));
-    expect(html).toContain("찾는 확장이 없어요");
-  });
-
-  test("엔진 화면은 연결 상태와 세 단추를 보인다", () => {
-    const html = render(<EngineScreen />);
-    expect(html).toContain("연결 상태");
-    for (const text of ["다시 연결", "엔진 다시 시작", "진단 복사"]) expect(html).toContain(text);
-  });
-});
-
-describe("신뢰 확인(O-10)", () => {
-  test("user·project 위치만 켜기 전에 묻는다", () => {
-    expect(needsTrustConfirm(entry("a", { origin: "user" }))).toBe(true);
-    expect(needsTrustConfirm(entry("a", { origin: "project" }))).toBe(true);
-    expect(needsTrustConfirm(entry("a", { origin: "builtin" }))).toBe(false);
-    expect(needsTrustConfirm(entry("a", { origin: "managed" }))).toBe(false);
+describe("크래프트 화면 등록", () => {
+  test("개요는 크래프트 영역에 nav id로 등록되고, 등록은 한 번씩이라 던지지 않는다", () => {
+    expect(() => createDesktopRegistry()).not.toThrow();
+    const registry = createDesktopRegistry();
+    const overviewDef = registry.screen("overview");
+    expect(overviewDef?.area).toBe("workbench");
+    expect(overviewDef?.label).toBe("desktop.shell.nav.overview");
+    expect(registry.screen("extensions")?.area).toBe("workbench");
+    expect(registry.screen("engine")?.area).toBe("workbench");
   });
 });

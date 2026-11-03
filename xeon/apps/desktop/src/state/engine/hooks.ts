@@ -1,6 +1,12 @@
 // src/state/engine/hooks.ts
 import { Bug } from "@fresnel/contracts";
-import type { EventId, ItemId, ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
+import type {
+  EventId,
+  ItemId,
+  ItemRecord,
+  ThreadId,
+  TurnId,
+} from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
@@ -66,4 +72,6 @@ export const useThreadRunning = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectThreadRunning(s, id));
 export const useTurnFailure = (id: ThreadId | null): string | null =>
   useEngine((s) => sel.selectTurnFailure(s, id));
+export const useLatestTurnId = (id: ThreadId | null): TurnId | null =>
+  useEngine((s) => sel.selectLatestTurnId(s, id));
 export const useApprovalCount = (): number => useEngine(sel.selectApprovalCount);

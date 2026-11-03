@@ -8,6 +8,7 @@ import {
 import { renderToString } from "react-dom/server";
 import { CraftProvider, type CraftSource } from "../../../src/views/craft/craft-context.tsx";
 import { LinkView } from "../../../src/views/craft/link.tsx";
+import { inStore } from "./render-support.tsx";
 
 const unused = (): Promise<never> =>
   Promise.reject(new Error("the render test never calls the port"));
@@ -32,9 +33,11 @@ function sourceOf(snapshot: CanvasSnapshot): CraftSource {
 
 function render(snapshot: CanvasSnapshot): string {
   return renderToString(
-    <CraftProvider source={sourceOf(snapshot)}>
-      <LinkView />
-    </CraftProvider>,
+    inStore(
+      <CraftProvider source={sourceOf(snapshot)}>
+        <LinkView />
+      </CraftProvider>,
+    ),
   );
 }
 

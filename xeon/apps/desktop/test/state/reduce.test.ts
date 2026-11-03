@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { ItemRecord } from "@fresnel/contracts/conversation";
+import type { ItemRecord, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import { INITIAL_MIRROR, type EngineMirror } from "../../src/state/engine/state.ts";
 import type { DurableFact, MirrorInput } from "../../src/state/engine/input.ts";
 import { MAX_SYNC_ATTEMPTS, reduceMirror } from "../../src/state/engine/reduce.ts";
 import { checkMirror } from "../../src/state/engine/invariants.ts";
+import { selectLatestTurnId } from "../../src/state/engine/selectors.ts";
 import {
   STORE,
   SUB,
@@ -413,5 +414,48 @@ describe("loading and failure states, approval restoration", () => {
     expect(
       reduceAll(resolvedFirst, { type: "approvals", approvals: [listed] }).approvals.ids,
     ).toEqual([]);
+  });
+});
+
+/** turn.started 사실 하나. turnId가 null이면 호스트가 준 값이 없는 경우다 */
+const started = (seq: number, threadId: ThreadId, turnId: TurnId | null): DurableFact => ({
+  type: "turn.started",
+  seq,
+  eventId: evt(seq),
+  threadId,
+  turnId,
+  at: "t",
+});
+
+describe("latest turn id per thread", () => {
+  test("turn.started records the turn id under its thread; a later turn replaces it and other threads keep theirs", () => {
+    const s = run([
+      head(5),
+      batch(5, 6, [started(6, T, trn(1))]),
+      batch(6, 9, [started(7, thr(2), trn(3)), started(8, T, trn(2))]),
+    ]);
+    expect(s.latestTurnId).toEqual({ [T]: trn(2), [thr(2)]: trn(3) });
+    expect(selectLatestTurnId(s, T)).toBe(trn(2));
+    expect(selectLatestTurnId(s, null)).toBeNull();
+    expect(checkMirror(s)).toEqual([]);
+  });
+
+  test("a turn.started without a turn id records nothing", () => {
+    const s = run([head(5), batch(5, 6, [started(6, T, null)])]);
+    expect(s.latestTurnId).toEqual({});
+  });
+
+  test("a head reset forgets the turn ids; a cursor resubscribe on the same store keeps them", () => {
+    const s = run([head(5), batch(5, 6, [started(6, T, trn(1))])]);
+    expect(run([head(9)], s).latestTurnId).toEqual({});
+    const resumed: MirrorInput = {
+      type: "subscribed",
+      sub: SUB,
+      storeId: STORE,
+      start: 6,
+      live: true,
+      from: "cursor",
+    };
+    expect(run([resumed], s).latestTurnId).toEqual({ [T]: trn(1) });
   });
 });

@@ -2,8 +2,6 @@ import { Inbox, MessageSquare } from "@caustic/react/icons";
 import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
 import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
-import { CraftScreen } from "./craft/craft-screen.tsx";
-import type { CraftSource } from "./craft/craft-context.tsx";
 import { TrustCard } from "./trust.tsx";
 import { Transcript } from "./transcript.tsx";
 import {
@@ -13,7 +11,7 @@ import {
   type ShellRegistry,
 } from "./shell/registry.ts";
 import { createWorkbenchStore } from "../state/workbench/index.ts";
-import { createCanvasSlots, registerWorkbench } from "./workbench/index.tsx";
+import { registerWorkbench } from "./workbench/index.tsx";
 import type { ReactNode } from "react";
 
 // 지금 만들어져 있는 화면만 등록한다. 나머지 화면 id는 셸이 "아직 없어요" 빈 상태로 그린다.
@@ -51,19 +49,11 @@ const INBOX_TAB: EndTabDef = {
   render: () => <InboxTab />,
 };
 
-/** 데이터 연결(T-BENCH)이 오기 전에는 `craftSource`가 없고 크래프트 화면은 빈 상태를 그린다 */
-export function createDesktopRegistry(craftSource: CraftSource | null = null): ShellRegistry {
+/** 크래프트 화면 셋(개요·확장·엔진)은 `registerWorkbench`가 등록한다. 개요는 캔버스 하나이고 목록을 못 읽으면 띠가 상태를 보인다 */
+export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
   registry.registerScreen(CHAT_SCREEN);
-  registry.registerScreen({
-    id: "overview",
-    area: "workbench",
-    label: "desktop.shell.nav.overview",
-    render: () => <CraftScreen source={craftSource} />,
-  });
   registry.registerEndTab(INBOX_TAB);
-  // 크래프트(T-BENCH). T-CANVAS는 `slots.register("orbit"|"strata"|"link", render)`를 여기에 더한다
-  const slots = createCanvasSlots();
-  registerWorkbench(registry, createWorkbenchStore(), slots);
+  registerWorkbench(registry, createWorkbenchStore());
   return registry;
 }

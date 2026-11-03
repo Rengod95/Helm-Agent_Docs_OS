@@ -1,4 +1,4 @@
-// 층별 목록. 지도·순서·링크가 등록되기 전의 개요 캔버스 대신이고, 층 패널(고리를 누르면 그 층)도 이 부품이다.
+// 층별 목록. 확장 화면의 본체다. 행을 누르면 고르고(확장 묶음이면 그룹, 아니면 플러그인), 고른 행을 다시 누르면 푼다.
 import { t } from "@fresnel/client/i18n";
 import { layerGroups, selectedName } from "@fresnel/client/workbench";
 import type { ReactNode } from "react";
@@ -6,16 +6,12 @@ import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.t
 import { ExtRow } from "./ext-row.tsx";
 
 export function LayerList(props: {
-  /** 하나만 보일 층. 없으면 전부 */
-  readonly only?: string | null;
   readonly onToggle: (name: string, target: boolean) => void;
 }): ReactNode {
   const state = useWorkbench((s) => s);
   const actions = useWorkbenchActions();
   const selected = selectedName(state);
-  const groups = layerGroups(state).filter(
-    (g) => props.only === undefined || props.only === null || g.layer === props.only,
-  );
+  const groups = layerGroups(state);
   return (
     <div className="grid gap-4">
       {groups.map((group) => (
@@ -33,7 +29,9 @@ export function LayerList(props: {
                 row={row}
                 selected={selected === row.name}
                 onSelect={() => {
-                  actions.select(selected === row.name ? null : row.name);
+                  if (selected === row.name) actions.clearPick();
+                  else if (row.kind === "group") actions.pickGroup(row.name);
+                  else actions.pickPlugin(row.name);
                 }}
                 onToggle={(target) => {
                   props.onToggle(row.name, target);

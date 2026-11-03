@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { FIXTURE_ORDER, buildFixture, type HookOrderPort } from "@fresnel/client/workbench/canvas";
-import { renderToString } from "react-dom/server";
 import { CraftProvider, type CraftSource } from "../../../src/views/craft/craft-context.tsx";
 import { Orbit } from "../../../src/views/craft/orbit.tsx";
+import { inStore, renderWithWindowStub } from "./render-support.tsx";
 
 const unused = (): Promise<never> =>
   Promise.reject(new Error("the render test never calls the port"));
@@ -25,35 +25,14 @@ function fakeSource(): CraftSource {
   };
 }
 
-/**
- * 서버 그리기 동안만 window를 흉내 낸다. 배경 셰이더의 프레임 고리는 첫 그리기 때 움직임 설정을 읽는다.
- * 실제 창에서는 있는 값이고, 시험 뒤에는 지워서 다른 시험 파일에 남지 않게 한다.
- */
-const STUB_WINDOW = {
-  devicePixelRatio: 1,
-  matchMedia: (query: string) => ({
-    matches: false,
-    media: query,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
-  }),
-};
-
 function render(): string {
-  Object.defineProperty(globalThis, "window", {
-    value: STUB_WINDOW,
-    configurable: true,
-    writable: true,
-  });
-  try {
-    return renderToString(
+  return renderWithWindowStub(
+    inStore(
       <CraftProvider source={fakeSource()}>
         <Orbit />
       </CraftProvider>,
-    );
-  } finally {
-    Reflect.deleteProperty(globalThis, "window");
-  }
+    ),
+  );
 }
 
 /** 점 버튼 하나의 여는 태그(속성 목록)를 모두 뽑는다 */

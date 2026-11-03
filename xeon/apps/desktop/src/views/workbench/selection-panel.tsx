@@ -1,4 +1,4 @@
-// 선택 패널(오른쪽): 이름·표식, 켜짐 스위치 하나, 자동 꺼짐 알림, "자세히 보기". 지도와 순서가 고른 확장을 읽는다.
+// 선택 패널(확장 화면 오른쪽): 이름·표식, 켜짐 스위치 하나, 자동 꺼짐 알림, "자세히 보기". 고른 확장을 읽는다.
 import { t } from "@fresnel/client/i18n";
 import { rowOf, type WorkbenchState } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";

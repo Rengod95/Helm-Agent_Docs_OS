@@ -7,7 +7,7 @@ import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { WorkbenchCommands } from "../../app/workbench-commands.ts";
-import { useOpenThreadId } from "../../state/engine/index.ts";
+import { useLatestTurnId, useOpenThreadId } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import type { CommandError } from "../commands.ts";
 import { useCommands } from "../commands.ts";
@@ -33,6 +33,7 @@ export function useCraftSource(
   const pending = useWorkbench((s) => s.pending);
   const order = useWorkbench((s) => s.order);
   const threadId = useOpenThreadId();
+  const turnId = useLatestTurnId(threadId);
 
   // 매니페스트 검사(`snapshotOf`)는 목록·자세히·장부가 바뀔 때만 한다. 대기 표시만 바뀌면 덮어쓰기만 다시 한다
   const base = useMemo(() => snapshotOf({ entries, details, health }), [entries, details, health]);
@@ -62,9 +63,10 @@ export function useCraftSource(
     [actions],
   );
 
+  // 새 턴이 시작되면 턴 id가 바뀌어 원천이 새로 만들어지고, 자세히 보기가 최근 실행을 다시 읽는다
   const recentRuns = useCallback(
-    (pluginId: string) => recentRunsOf(commands.workbench, threadId, latestTurnOf(), pluginId),
-    [commands, threadId],
+    (pluginId: string) => recentRunsOf(commands.workbench, threadId, turnId, pluginId),
+    [commands, threadId, turnId],
   );
 
   // 순서 화면은 포트 identity가 바뀌면 읽기를 다시 한다. 그래서 포트는 명령과 컨트롤러가 바뀔 때만 만든다
@@ -104,14 +106,6 @@ export function namesToToggle(
 ): string[] {
   const names = [...new Set(ids.map(extOf))];
   return names.filter((name) => toggleRequestOf(state, name, on).ok);
-}
-
-/**
- * 열린 대화의 가장 최근 턴 id. 엔진 거울은 아직 이 값을 들고 있지 않다: `ItemRecord`에는 turnId가 없고,
- * `turn.*` 사실은 상태와 실패 문장만 바꾼다. 값을 들게 되면 이 함수만 고친다. 그 전까지 최근 실행은 null(잠김)이다.
- */
-function latestTurnOf(): TurnId | null {
-  return null;
 }
 
 /** `trace.turn`의 턴 기록을 이 플러그인의 최근 실행 줄로 바꾼다. 계측이 꺼졌거나 링 버퍼에서 밀렸으면 null이다 */

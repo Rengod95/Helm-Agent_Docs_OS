@@ -1,4 +1,4 @@
-// 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인·자동 꺼짐), 찾기 막대, 켜기 요청 + O-10.
+// 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인·자동 꺼짐)와 켜기 요청 + O-10. 찾기 막대와 개수 줄은 확장 화면이 쓴다.
 import { t } from "@fresnel/client/i18n";
 import { countsOf } from "@fresnel/client/workbench";
 import { Alert, Input, Skeleton } from "@caustic/react";

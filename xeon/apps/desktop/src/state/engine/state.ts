@@ -116,6 +116,8 @@ export type EngineMirror = {
   readonly approvals: Approvals;
   /** 실패로 끝난 마지막 turn의 오류 문장. thread별이며 다음 turn이 시작되면 지운다 */
   readonly turnFailures: Readonly<Record<string, string>>;
+  /** thread별로 가장 최근에 시작한 turn id(`turn.started` 사실). 최근 실행 읽기가 턴을 고를 때 쓴다. 거울을 head부터 다시 맞추면 비운다 */
+  readonly latestTurnId: Readonly<Record<string, TurnId>>;
 };
 
 export const EMPTY_STREAMING: Streaming = {
@@ -135,4 +137,5 @@ export const INITIAL_MIRROR: EngineMirror = {
   streaming: EMPTY_STREAMING,
   approvals: { resolved: [], ids: [], byId: {} },
   turnFailures: {},
+  latestTurnId: {},
 };

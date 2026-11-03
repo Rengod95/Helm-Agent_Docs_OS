@@ -7,14 +7,19 @@ import {
   ordersLoaded,
   snapshotOf,
 } from "@fresnel/client/workbench";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { EngineStoreContext } from "../../../src/state/engine/index.ts";
+import type { MirrorInput } from "../../../src/state/engine/input.ts";
+import { reduceMirror } from "../../../src/state/engine/reduce.ts";
+import { INITIAL_MIRROR, type EngineMirror } from "../../../src/state/engine/state.ts";
+import type { ReadonlyStore } from "../../../src/state/shared/readonly-store.ts";
 import { createWorkbenchStore, WorkbenchStoreContext } from "../../../src/state/workbench/index.ts";
 import type { WorkbenchCommands } from "../../../src/app/workbench-commands.ts";
-import { CommandsContext, type CommandError } from "../../../src/views/commands.ts";
+import { CommandsContext, type Commands, type CommandError } from "../../../src/views/commands.ts";
 import type { CraftSource } from "../../../src/views/craft/craft-context.tsx";
 import {
   commandErrorText,
@@ -28,8 +33,9 @@ import {
   type RequestToggle,
 } from "../../../src/views/workbench/craft-source.ts";
 import type { WorkbenchController } from "../../../src/views/workbench/controller.ts";
-import { harness, thr, trn } from "../../state/helpers.ts";
+import { evt, harness, STORE, SUB, thr, trn } from "../../state/helpers.ts";
 import { fakeCommands } from "../fake-commands.ts";
+import { seededEngine } from "./support.tsx";
 
 function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
   return {
@@ -149,10 +155,11 @@ describe("runEntriesOf: trace.turn을 이 플러그인의 최근 실행 줄로",
 /** `trace`만 바꾼 명령 대역. 불린 대화·턴 id를 `calls`에 쌓는다 */
 function recording(result: Result<TraceTurnResult, CommandError>): {
   readonly workbench: WorkbenchCommands;
+  readonly commands: Commands;
   readonly calls: { threadId: string; turnId: string }[];
 } {
   const calls: { threadId: string; turnId: string }[] = [];
-  const workbench = fakeCommands({
+  const commands = fakeCommands({
     workbench: {
       ...fakeCommands().workbench,
       trace: (threadId, turnId) => {
@@ -160,8 +167,8 @@ function recording(result: Result<TraceTurnResult, CommandError>): {
         return Promise.resolve(result);
       },
     },
-  }).workbench;
-  return { workbench, calls };
+  });
+  return { workbench: commands.workbench, commands, calls };
 }
 
 describe("recentRunsOf: 열린 대화와 턴 id가 있을 때만 trace.turn을 부른다", () => {
@@ -295,11 +302,45 @@ describe("orderPortOf: 명령 결과를 포트 계약으로 옮긴다", () => {
   });
 });
 
+/**
+ * 열린 대화(`threadId`)에 turn.started 사실 하나를 넣은 엔진 거울의 읽기 면. 서버 렌더는 스토어의 처음 상태를 읽으므로
+ * 엔진 거울의 처음 상태 자체를 이 입력들로 만든다(reducer 순서 그대로).
+ */
+function engineWithTurn(threadId: ThreadId, turnId: TurnId): ReadonlyStore<EngineMirror> {
+  const inputs: readonly MirrorInput[] = [
+    { type: "subscribed", sub: SUB, storeId: STORE, start: 5, live: true, from: "head" },
+    { type: "transcript_opening", threadId },
+    { type: "transcript", threadId, asOfSeq: 5, items: [] },
+    {
+      type: "batch",
+      sub: SUB,
+      from: 5,
+      to: 6,
+      caughtUp: true,
+      facts: [
+        {
+          type: "turn.started",
+          seq: 6,
+          eventId: evt(6),
+          threadId,
+          turnId,
+          at: "2026-11-04T10:00:00.000Z",
+        },
+      ],
+    },
+  ];
+  return seededEngine(
+    inputs.reduce((state, input) => reduceMirror(state, input).state, INITIAL_MIRROR),
+  );
+}
+
 /** 원천을 한 번 그려 얻는다. 효과 없이 읽기만 하는 훅이라 서버 렌더로 충분하다 */
 function sourceOf(
   store: ReturnType<typeof createWorkbenchStore>,
   request: RequestToggle,
   controller: WorkbenchController,
+  engine: ReadonlyStore<EngineMirror> = harness().store.read,
+  commands: Commands = fakeCommands(),
 ): CraftSource {
   const seen: { source: CraftSource | null } = { source: null };
   function Probe(): ReactNode {
@@ -307,8 +348,8 @@ function sourceOf(
     return null;
   }
   renderToString(
-    <EngineStoreContext value={harness().store.read}>
-      <CommandsContext value={fakeCommands()}>
+    <EngineStoreContext value={engine}>
+      <CommandsContext value={commands}>
         <WorkbenchStoreContext value={store}>
           <Probe />
         </WorkbenchStoreContext>
@@ -362,5 +403,36 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
     const store = createWorkbenchStore((s) => listLoaded(s, [entry("web")]));
     const source = sourceOf(store, () => undefined, controller);
     expect(await source.recentRuns("web")).toBeNull();
+  });
+
+  test("열린 대화의 가장 최근 turn으로 trace.turn을 읽어 이 플러그인의 최근 실행을 준다", async () => {
+    const trace: TraceTurnResult = {
+      traceEnabled: true,
+      retained: true,
+      entries: [
+        {
+          seq: 1,
+          hook: "tool.call.before",
+          step: 0,
+          handlers: [
+            { registrationId: "web", ms: 3, result: "ok" },
+            { registrationId: "other", ms: 9, result: "denied" },
+          ],
+        },
+      ],
+    };
+    const { commands, calls } = recording(ok(trace));
+    const store = createWorkbenchStore((s) => listLoaded(s, [entry("web")]));
+    const source = sourceOf(
+      store,
+      () => undefined,
+      controller,
+      engineWithTurn(thr(1), trn(2)),
+      commands,
+    );
+    expect(await source.recentRuns("web")).toEqual([
+      { hook: "tool.call.before", registrationId: "web", ms: 3, result: "ok" },
+    ]);
+    expect(calls).toEqual([{ threadId: thr(1), turnId: trn(2) }]);
   });
 });

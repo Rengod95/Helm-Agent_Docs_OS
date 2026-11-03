@@ -14,6 +14,7 @@ import {
   type DetailTarget,
 } from "../../../src/views/craft/detail-model.ts";
 import { columnsFor, loadRuns } from "../../../src/views/craft/turn-flow.ts";
+import { inStore } from "./render-support.tsx";
 
 const snapshot = buildFixture(18);
 
@@ -125,9 +126,11 @@ describe("Detail: 읽는 중, 읽기 실패, 대상 없음", () => {
 describe("Detail: 자세히 보기가 닫혀 있을 때", () => {
   test("state.detail이 없으면 아무것도 그리지 않는다", () => {
     const out = renderToString(
-      <CraftProvider source={fakeSource(() => Promise.resolve(null))}>
-        <Detail />
-      </CraftProvider>,
+      inStore(
+        <CraftProvider source={fakeSource(() => Promise.resolve(null))}>
+          <Detail />
+        </CraftProvider>,
+      ),
     );
     expect(out).toBe("");
   });

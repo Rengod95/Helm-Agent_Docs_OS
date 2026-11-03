@@ -427,12 +427,15 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       }));
     case "thread.closed":
       return patchThread(state, fact.threadId, (t) => ({ ...t, status: "closed" }));
-    case "turn.started":
-      return withTurnFailure(
-        patchThread(state, fact.threadId, (t) => ({ ...t, status: "running" })),
-        fact.threadId,
-        null,
-      );
+    case "turn.started": {
+      const running = patchThread(state, fact.threadId, (t) => ({ ...t, status: "running" }));
+      // turn.started의 turnId는 호스트가 항상 준다(projector가 turnIdOf로 읽는다). 없으면 기록하지 않는다
+      const latestTurnId =
+        fact.turnId === null
+          ? running.latestTurnId
+          : { ...running.latestTurnId, [fact.threadId]: fact.turnId };
+      return withTurnFailure({ ...running, latestTurnId }, fact.threadId, null);
+    }
     case "turn.completed": {
       const done = patchThread(state, fact.threadId, (t) => ({ ...t, status: "idle" }));
       const failure =

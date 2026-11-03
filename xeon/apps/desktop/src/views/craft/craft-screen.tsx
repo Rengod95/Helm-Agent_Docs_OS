@@ -1,10 +1,8 @@
-// 크래프트 개요 화면. 지도·순서·링크 세 보기와 자세히 보기를 `CraftSource` 하나로 읽는다.
-// 데이터 연결(T-BENCH)이 오기 전에는 source가 없고, 화면은 빈 상태를 그린다.
+// 크래프트 개요의 캔버스 본문: 지도·순서·링크 세 보기와 자세히 보기. 목록 띠와 원천 연결은 `views/workbench/craft-screen.tsx`가 맡는다.
+// `CraftProvider` 안에서만 그린다.
 import { CENTER, type View } from "@fresnel/client/workbench/canvas";
-import { EmptyState } from "@caustic/react";
-import { t } from "@fresnel/client/i18n";
 import { useRef, type ReactNode } from "react";
-import { CraftProvider, useCraft, type CraftSource } from "./craft-context.tsx";
+import { useCraft } from "./craft-context.tsx";
 import { Detail } from "./detail.tsx";
 import { LinkView } from "./link.tsx";
 import { Orbit, useCraftTheme } from "./orbit.tsx";
@@ -20,7 +18,7 @@ function FlatBackdrop(): ReactNode {
   return <SpaceBackground view={view} theme={useCraftTheme()} />;
 }
 
-function CraftBody(): ReactNode {
+export function CraftBody(): ReactNode {
   const { state } = useCraft();
   if (state.detail !== null) {
     return (
@@ -41,23 +39,5 @@ function CraftBody(): ReactNode {
       )}
       <CraftToolbar />
     </div>
-  );
-}
-
-export function CraftScreen(props: { readonly source: CraftSource | null }): ReactNode {
-  if (props.source === null) {
-    return (
-      <EmptyState
-        size="md"
-        surface="none"
-        title={t("desktop.craft.screen.noSourceTitle")}
-        description={t("desktop.craft.screen.noSourceBody")}
-      />
-    );
-  }
-  return (
-    <CraftProvider source={props.source}>
-      <CraftBody />
-    </CraftProvider>
   );
 }

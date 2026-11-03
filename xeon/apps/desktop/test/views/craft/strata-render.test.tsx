@@ -9,6 +9,7 @@ import {
 import { renderToString } from "react-dom/server";
 import { CraftProvider, type CraftSource } from "../../../src/views/craft/craft-context.tsx";
 import { Strata } from "../../../src/views/craft/strata.tsx";
+import { inStore } from "./render-support.tsx";
 
 const unused = (): Promise<never> =>
   Promise.reject(new Error("the render test never calls the port"));
@@ -33,9 +34,11 @@ function fakeSource(): CraftSource {
 
 function render(): string {
   return renderToString(
-    <CraftProvider source={fakeSource()}>
-      <Strata />
-    </CraftProvider>,
+    inStore(
+      <CraftProvider source={fakeSource()}>
+        <Strata />
+      </CraftProvider>,
+    ),
   );
 }
 
