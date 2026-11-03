@@ -1180,7 +1180,7 @@ g.on("boundary.step.after", async (end, _current, ctx) => {
 - [결정: review.decisions-2 §3 T-20] 그룹 상태 = leaf의 조상 경로(활성 가지)에서 가장 가까운 `grp.<그룹>.state.committed` 이벤트의 `doc`(업캐스트 뒤). 없으면 `StateDecl.initial`이다. 활성 가지 규칙은 X.primitives.spec §4.6.1이 정한다.
 - 투영 `x_<그룹>_state`의 `prev_event_id` 연결로 조상 경로의 상태를 찾는다. 투영은 X가 소유하고 재생으로 다시 만들 수 있다(X.primitives.spec §4.6.1).
 - drive lock 복원: 마지막 `checkpoint.step`의 `leaseRefs`(F.records.spec §3.6)가 가리키는 `lease.acquired`가 있으면 X가 그 그룹의 drive 함수를 복원한 상태로 다시 부른다. 분기로 leaf가 drive lock 전 시점으로 가면 `leaseRefs`가 비고, `decide`가 처음부터 다시 정한다.
-- 분기 뒤의 drive 재호출은 재개와 같은 규율을 따른다. `loop.turn`의 기본 `requestId`(`${leaseId}:${순번}`)는 가지가 다르면 `leaseId`가 달라 충돌하지 않는다 [가정: X.primitives.spec].
+- 분기 뒤의 drive 재호출은 재개와 같은 규율을 따른다. `loop.turn`의 기본 `requestId`(`${lineageId}:${순번}`)는 가지가 다르면 계통 id가 달라 충돌하지 않는다. 계통은 `waiting` 반납 바로 뒤 같은 thread의 재부여만 잇기 때문이다 [가정: X.primitives.spec §4.4.1 11번].
 
 ### 4.7 상태 스키마 버전과 마이그레이션 훅
 

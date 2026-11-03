@@ -164,7 +164,10 @@ export interface RegistrationRecord extends RegistrationDefinition {
 export type ReleaseReason = LeaseReleasedPayload["reason"];
 
 export interface LeaseRuntime {
+  /** 부여마다 새로 발급한다. 펜싱(`lease_revoked`)과 `lease:<leaseId>:released` 커밋 키의 재료라 재사용하지 않는다 */
   readonly leaseId: string;
+  /** 기본 키 계통. `waiting` 반납 바로 뒤 같은 Registration의 부여가 이어받고, 아니면 `leaseId`와 같다 */
+  readonly lineageId: string;
   readonly scopeId: RegistrationId;
   readonly threadId: ThreadId;
   readonly leaseEpoch: number;
@@ -260,6 +263,8 @@ export interface ThreadRuntime {
   enabledAtSeq: Map<RegistrationId, number>;
   leaseEpochs: Map<RegistrationId, number>;
   lease: LeaseRuntime | null;
+  /** 마지막 lease.* 커밋이 사유 `waiting` 반납이면 그 scope와 계통. 같은 scope의 다음 부여가 이어받고, 다른 lease.* 커밋이 지운다 */
+  waitingLineage: { readonly scopeId: RegistrationId; readonly lineageId: string } | null;
   /** 임대를 받지 못하고 기다리는 후보. requestSeq는 대기를 시작한 순번, waited는 넘긴 `turn_settled`·`idle` 경계 수 */
   leaseWait: Map<RegistrationId, { readonly requestSeq: number; waited: number }>;
   /** 대기 상한을 넘겨 거부된 scope. 다음 임대 반납이 커밋되면 다시 후보가 된다 */

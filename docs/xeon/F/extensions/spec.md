@@ -433,7 +433,7 @@ export interface DriveLockBudget {
 export interface TurnInput {
   readonly input: PostItem;
   /**
-   * 생략하면 X가 `${leaseId}:${순번}`으로 결정적으로 만든다. 같은 순서의 재호출은 커밋된 결과를 돌려받는다.
+   * 생략하면 X가 `${lineageId}:${순번}`으로 결정적으로 만든다. `lineageId`는 `loop.ask` 답 뒤 재부여를 넘어 유지된다(§4.6). 같은 순서의 재호출은 커밋된 결과를 돌려받는다.
    * 명시하면 같은 커밋 상태와 페이로드에서 같은 값이 나와야 한다(§4.3 `requestId` 규칙)
    */
   readonly requestId?: string;
@@ -1440,7 +1440,7 @@ chain의 보충 규칙 [제안]:
 | 그 밖의 I/O(직접 파일·네트워크, 시각, 난수) | 허용하지 않음 | 허용하지 않음 | 해당 없음 | 없음 |
 
 - on 핸들러의 읽기 메서드 호출은 허용하지 않는다 [결정: review.m3-design-inputs D-M3-31 행 8]. 거부는 공통 오류 `effect_not_allowed`다(`F.capabilities.spec` §3.6). 검사는 X 기능 래퍼가 ambient 문맥으로 한다(`X.primitives.spec`).
-- `requestId` 결정성 [결정: adr.0015 §3.4]: 재실행되는 코드가 넘기는 키는 같은 커밋 상태와 같은 페이로드에서 같은 값이어야 한다. 재료는 커밋된 id(`turnId`, `stepId`), 커밋된 상태 문서의 값, 디스패치 키다. `Date.now`, `Math.random`, 클로저 지역 변수의 진행 값, `leaseId`(유지 규칙 REQ-X-04가 닫히기 전)는 쓰지 않는다. 기본 키는 `loop.turn`과 `loop.spawn`에만 준다. 명시 키는 Registration id로 시작한다. 길이는 1~64자이고 위임 키는 48자 이하다.
+- `requestId` 결정성 [결정: adr.0015 §3.4]: 재실행되는 코드가 넘기는 키는 같은 커밋 상태와 같은 페이로드에서 같은 값이어야 한다. 재료는 커밋된 id(`turnId`, `stepId`), 커밋된 상태 문서의 값, 디스패치 키다. `Date.now`, `Math.random`, 클로저 지역 변수의 진행 값은 쓰지 않는다. `leaseId`는 부여마다 바뀌므로 키 재료가 아니다(기본 키는 계통 id `lineageId`로 만들어 REQ-X-04가 닫혔다). 기본 키는 `loop.turn`과 `loop.spawn`에만 준다. 명시 키는 Registration id로 시작한다. 길이는 1~64자이고 위임 키는 48자 이하다.
 - 선언 없는 쓰기의 판정은 `capabilityEffectOf(method)`가 표의 행을 고른다. `idempotent`와 `readOnly`를 함께 선언한 메서드는 정적 검증이 막으므로(`effect_class_conflict`) 표에서는 선언 없음이다.
 - 재실행된 핸들러의 상태 커밋 [제안]: 멱등 키와 지문은 키의 신원 부분(Registration id, 디스패치 키, 순번)만으로 만든다. doc 본문과 기대 판은 지문에 넣지 않는다. 재실행에서 같은 키의 커밋은 `replayed`가 되고, X는 그때 저장된 상태(`ExtCommitResult.stored`)를 캐시에 두고 `commit`의 반환값으로 돌려준다. 핸들러가 다시 계산한 값은 버린다. 그래서 상태 갱신 함수는 이미 반영된 갱신을 다시 적용해도 결과가 같은 멱등 reducer로 쓴다. 저장소 거부 코드의 변환(`ownership_lost` → `lease_lost`, `key_reused` → `invalid`, 잠금 대기 초과 → `busy`, `disk_full`·`read_only` → `storage`)과 세부 규칙은 `X.primitives.spec` §4.6.1이 정본이다.
 - 핸들러 결과를 고정해야 하면 Registration 상태에 저장한다. durable `api.memo`에 해당하는 고정 API를 X에 둘지는 X.primitives.spec이 정한다.
@@ -1472,7 +1472,7 @@ chain의 보충 규칙 [제안]:
 - drive 정책 [결정: 2026-11-01 사용자, 설정 키 이름과 범위는 [제안]]: 설정 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`)이 참이면 플러그인 그룹의 구성원이 아닌 플러그인(`inGroup`이 거짓)의 `drive` 등록은 X 설치 시점에 `drive_requires_group`으로 거부한다. 거짓이면 `drives: true`를 선언한 모든 플러그인이 drive를 등록할 수 있다. 기본값은 "그룹만 허용"이다. 키는 `user`와 `managed` 범위만 받고(project 범위로 정책을 풀면 신뢰 관문을 건너뛰므로 막음), Registration을 다시 켜거나 `ext.reload`할 때 적용한다. 정책이 거짓이어도 한 thread에 drive lock은 하나뿐이다. 외부 플러그인의 신뢰 등급 규칙(`untrusted`는 `drive` 불가)은 그대로다.
 - 재생 규율 [결정]: drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 §4.3 허용 효과 표의 drive 열로만 낸다(루프 효과는 `loop.turn`, `loop.spawn`, `loop.ask`, `post`. ADR-0015가 위임과 기능 호출을 더했다). 상태 변경은 `commit`으로만 한다.
   - 다시 호출되는 시점: drive lock을 받을 때(`loop.ask`의 답이 와서 다시 받는 경우 포함), 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 그룹이 아직 활성일 때.
-  - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${leaseId}:${순번}`이다. 기능 호출의 `idempotent` 쓰기는 기본 키를 받지 않고 명시 키를 요구한다(ADR-0015 §3.4 3번). 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
+  - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${lineageId}:${순번}`이다. `leaseId`는 부여마다 새로 발급해 펜싱에 쓰고, `lineageId`는 `lease.acquired` 페이로드에 실려 사유 `waiting` 반납 바로 뒤 같은 Registration의 부여가 이어받는다. 그 밖의 부여는 자기 `leaseId`와 같은 값으로 새 계통을 연다(REQ-X-04, X.primitives.spec §4.4.1 11번). 기능 호출의 `idempotent` 쓰기는 기본 키를 받지 않고 명시 키를 요구한다(ADR-0015 §3.4 3번). 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
   - 클로저 지역 변수에 진행 상태를 두는 drive 함수는 재개 뒤 다르게 동작한다. 이 위반은 타입으로 막을 수 없다. 결정성 검사(`Date.now`, `Math.random` 금지 등)는 L3.group-sdk.spec의 lint 규칙으로 보완한다(`_research/packages.md` §4.6 L3-a).
 - 예산: [결정] 일반 대화 turn에는 기본 상한을 두지 않고 상한은 drive lock에만 건다(`_research/decisions-log.md` 20행 "예산은 pi 방식"). `DriveLockBudget`은 남은 양이고 `null`은 상한 없음이다. 상한에 이르면 `loop.turn`과 `loop.spawn`은 거부되고 drive lock은 `releasing`이 된다.
   - [결정: review.decisions-2 U-12] drive는 사용자 입력 없이 turn을 만들므로 pi 방식의 예외로 기본 상한을 둔다. 상한을 명시하지 않은 drive lock은 X 설정 `x.primitives.driveDefaultLimits`(기본 4/8/400000)를 쓰고, 그룹은 자기 설정(Helm은 `l3.helm.driveLimits`, 기본 4/8/400000)으로 덮어쓴다. 천장 `x.primitives.driveLimits`(기본 없음)를 넘지 못한다. 세 키 모두 설정 화면에서 조정한다(`X.primitives.spec` §4.4.2, §6).

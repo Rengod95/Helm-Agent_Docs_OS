@@ -349,6 +349,8 @@ export interface ScopeHandlerFailedPayload {
 export interface LeaseAcquiredPayload {
   leaseId: string;                // F.extensions.spec DriveLock.leaseId
   scopeId: string;                // 임대를 받은 그룹의 scope
+  /** 계통 id(필수). `waiting` 반납 바로 뒤 같은 thread·scope의 부여는 앞 drive 락의 값을 이어받고, 그 밖의 부여는 자기 leaseId와 같다. 기본 requestId 재료(X.primitives.spec §4.4.1 11번) */
+  lineageId: string;
   limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number };   // DriveLock.limits(DriveLimits)
   /**
    * 임대 차수. 그 scope의 활성 가지 위 직전 lease.acquired 개수 + 1, 1부터(X.primitives.spec §4.4.1). 같은 임대의 이어짐을 판정하는 근거다.
@@ -1080,6 +1082,7 @@ export interface StoredScopeState {
 }
 export interface OpenLease {
   readonly leaseId: string;
+  readonly lineageId: string;
   readonly scopeId: string;
   readonly leaseEpoch: number;
   readonly limits: { readonly maxTurns?: number; readonly maxSpawns?: number; readonly maxTokens?: number };
@@ -1097,6 +1100,8 @@ export interface ExtThreadSnapshot {
   readonly states: readonly StoredScopeState[];
   /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
   readonly openLease: OpenLease | null;
+  /** 활성 가지 위 마지막 lease.* 이벤트가 사유 waiting의 lease.released이면 그 scope와 반납한 drive 락의 계통 id. 아니면 null */
+  readonly waitingLineage: { readonly scopeId: string; readonly lineageId: string } | null;
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }

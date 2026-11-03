@@ -103,6 +103,7 @@ function fakePort(committer: string): RecordCommitPort {
           enabledAtSeq: {},
           states: [],
           openLease: null,
+          waitingLineage: null,
           leaseEpochs: {},
         }),
       );
@@ -309,6 +310,7 @@ describe("ExtThreadSnapshot scope history", () => {
       enabledAtSeq: { alpha: 7 },
       states: [],
       openLease: null,
+      waitingLineage: null,
       leaseEpochs: {},
     };
     const port: Pick<RecordCommitPort, "loadThread"> = {

@@ -217,6 +217,7 @@ describe("ext.loadThread", () => {
     ).toBe("committed");
     const acquired = draftOf(h, threadId, "lease.acquired", {
       leaseId: "lease-1",
+      lineageId: "lease-1",
       scopeId: "alpha",
       limits: { maxTurns: 4 },
     });
@@ -235,6 +236,7 @@ describe("ext.loadThread", () => {
     expect(snapshot.leaseEpochs).toEqual({ alpha: 1 });
     expect(snapshot.openLease).toEqual({
       leaseId: "lease-1",
+      lineageId: "lease-1",
       scopeId: "alpha",
       leaseEpoch: 1,
       limits: { maxTurns: 4 },
@@ -255,6 +257,41 @@ describe("ext.loadThread", () => {
     });
   });
 
+  test("waitingLineage is the lineage of a waiting release that is the last lease event", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const commit = async (
+      requestId: string,
+      kind: "lease.acquired" | "lease.released",
+      payload: Record<string, unknown>,
+    ) =>
+      h.service.ext.commit({ threadId, requestId, drafts: [draftOf(h, threadId, kind, payload)] });
+    const lineageOf = async () => expectOk(await h.service.ext.loadThread(threadId)).waitingLineage;
+
+    await commit("a1", "lease.acquired", {
+      leaseId: "l1",
+      lineageId: "l1",
+      scopeId: "alpha",
+      limits: {},
+    });
+    expect(await lineageOf()).toBeNull();
+    await commit("r1", "lease.released", { leaseId: "l1", scopeId: "alpha", reason: "waiting" });
+    expect(await lineageOf()).toEqual({ scopeId: "alpha", lineageId: "l1" });
+    // 이어받은 부여: 새 leaseId, 같은 계통. 열려 있는 동안 waitingLineage는 없다
+    await commit("a2", "lease.acquired", {
+      leaseId: "l2",
+      lineageId: "l1",
+      scopeId: "alpha",
+      limits: {},
+    });
+    const open = expectOk(await h.service.ext.loadThread(threadId));
+    expect(open.waitingLineage).toBeNull();
+    expect(open.openLease).toMatchObject({ leaseId: "l2", lineageId: "l1" });
+    // 다른 사유의 반납은 계통을 잇지 않는다
+    await commit("r2", "lease.released", { leaseId: "l2", scopeId: "alpha", reason: "budget" });
+    expect(await lineageOf()).toBeNull();
+  });
+
   test("open lease usage counts turns of the lease scope and its drive spawns", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h);
@@ -264,6 +301,7 @@ describe("ext.loadThread", () => {
       drafts: [
         draftOf(h, threadId, "lease.acquired", {
           leaseId: "lease-9",
+          lineageId: "lease-9",
           scopeId: "alpha",
           limits: {},
         }),

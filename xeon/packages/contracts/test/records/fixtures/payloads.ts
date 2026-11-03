@@ -139,7 +139,12 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
       message: "boom",
       consecutive: 1,
     },
-    "lease.acquired": { leaseId: "lease-1", scopeId: "helm", limits: { maxTurns: 4 } },
+    "lease.acquired": {
+      leaseId: "lease-1",
+      lineageId: "lease-1",
+      scopeId: "helm",
+      limits: { maxTurns: 4 },
+    },
     "lease.released": { leaseId: "lease-1", scopeId: "helm", reason: "budget" },
     "lease.rejected": { groupId: "helm", reason: "wait_limit", requestSeq: 3 },
     "post.accepted": {

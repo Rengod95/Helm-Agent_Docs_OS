@@ -54,6 +54,7 @@ const EMPTY_SNAPSHOT: ExtThreadSnapshot = {
   enabledAtSeq: {},
   states: [],
   openLease: null,
+  waitingLineage: null,
   leaseEpochs: {},
 };
 
@@ -403,6 +404,13 @@ export function createBoundary(
         enabledAtSeq: new Map(Object.entries(snapshot.enabledAtSeq)),
         leaseEpochs: new Map(Object.entries(snapshot.leaseEpochs)),
         lease: null,
+        waitingLineage:
+          snapshot.waitingLineage === null
+            ? null
+            : {
+                scopeId: snapshot.waitingLineage.scopeId,
+                lineageId: snapshot.waitingLineage.lineageId,
+              },
         cooldown: new Map(),
         leaseWait: new Map(),
         leaseRejected: new Set(),
