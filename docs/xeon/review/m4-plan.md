@@ -31,8 +31,13 @@ binds: []
 | ADR-0022 accepted (2026-11-01 (10), (11)) | §3.2(매니페스트 `plugins[]` + 선택적 `group`, Registration, drive 넓히기, 정책 기본값 "그룹만")는 이름 변경과 별도 트랙 T-REG입니다. T-F 재작업이 T-REG 위에 서므로 T-F가 뒤로 밀립니다. §3.3 5번(덮어쓰기 결과를 Registration의 thread별 켜짐 상태로 옮기는 규칙)은 [미결: 사용자 확인 대기]이고 T-REG가 제안합니다 |
 | 이름 변경 계획 승인 (2026-11-01 (8)) | T-REN이 커밋 0~12를 합니다. 커밋 13(디렉터리 이동)은 뺍니다. 층별 커밋과 패키지 범위 한 번에 치환(BP-11 예외, 승인됨)을 따릅니다 |
 | 용어 검사 (2026-11-01 (2)) | 용어 원본 `packages/client/src/i18n/terms.ts`와 검사를 4단계로 들입니다. 0단계는 T-REN 1번 커밋입니다. 1·2단계는 T-TERM, 3단계는 T-I18N과 함께입니다(§2.0). 화면 라벨이 `decided`가 되려면 사용자가 `ui-terms-guide.md` 검토를 마쳐야 합니다 |
-| 디자인 언어와 caustic 기반 변경 (2026-11-01 (4), (5), (7)) | caustic 기반 토큰과 구조(선 셀 격자, 그림자, 타이포, 중립 팔레트, 헤어라인, 간격)를 `design-language.md` §9 값으로 바꿉니다. 작업은 caustic 브랜치 `xeon/m4-language`와 쌓은 PR이고 병합은 사용자가 합니다. 시안 재작성(`m4/redesign*`)은 이어서 하고, 끝난 뒤 그 위에 시안을 더 만듭니다. 간격은 SaaS 값입니다(페이지 여백 24, 섹션 사이 32, 머리와 내용 12, 항목 8, 단추 반지름 8, 카드 반지름 12). 지도 보기는 쓰지 않고 층 × 단계 선 격자 표 하나로 그립니다 → T-LANG(§2.0)과 T-CAU2·T-CANVAS 범위 변경 |
+| 디자인 언어와 caustic 기반 변경 (2026-11-01 (4), (5), (7)) | **되돌림: 2026-11-02 (15)로 서지 않습니다(위 행).** 옛 내용: caustic 기반 토큰과 구조(선 셀 격자, 그림자, 타이포, 중립 팔레트, 헤어라인, 간격)를 `design-language.md` §9 값으로 바꿉니다. 작업은 caustic 브랜치 `xeon/m4-language`와 쌓은 PR이고 병합은 사용자가 합니다. 시안 재작성(`m4/redesign*`)은 이어서 하고, 끝난 뒤 그 위에 시안을 더 만듭니다. 간격은 SaaS 값입니다(페이지 여백 24, 섹션 사이 32, 머리와 내용 12, 항목 8, 단추 반지름 8, 카드 반지름 12). 지도 보기는 쓰지 않고 층 × 단계 선 격자 표 하나로 그립니다(2026-11-03 (4)로 지도가 돌아와 이 문장도 대체됨) → T-LANG(§2.0, 취소)과 T-CAU2·T-CANVAS 범위 변경 |
 | 프로필·덮어쓰기 위치 (2026-10-31 UX 5번, ADR-0022 §3.3) | 프로필은 호스트 설정에 저장하고 데스크톱·웹·앱이 호스트를 거쳐 함께 씁니다. 전역 → 프로젝트 → 대화 순서의 덮어쓰기와 출처 배지는 T-REG(규칙 제안)와 T-WB·T-BENCH(저장과 화면)가 나눠 맡습니다 |
+| 디자인 언어 되돌림 (2026-11-02 (15)) | 크래프트 밖 화면은 이전 디자인과 변형으로 돌아가고, 크래프트는 선 격자만 유지합니다. T-LANG, Y13의 `xeon/m4-language` 부분, caustic PR #13은 서지 않고 `m4/redesign`은 참고로 남습니다. 타이포는 대화형으로 다시 정합니다. 아래 선행 표와 그래프의 T-LANG은 "해당 없음(취소)"으로 읽고, 그 몫이던 토큰·구조는 T-SHELL과 시안(`m4/mock*`)이 맡습니다. T-LANG 줄과 §2.3의 caustic 기반 설명은 기록으로 남깁니다 |
+| 크래프트 8차 시안 승인 (2026-11-03 (4)) | 시안 `apps/desktop/mockups/wb-v5`(`SPEC.md`)를 승인했습니다. 개요는 지도(Orbit)·순서(Strata)·링크(Link) 세 보기이고 **지도 보기가 돌아왔습니다**: 2026-11-01 (4) 10번과 "층 × 단계 선 격자 표 하나" 방향을 대체합니다. 크래프트는 전역만 보입니다(범위, 맥락 칸 없음). T-CANVAS 범위와 Y4가 바뀝니다. 스펙 반영은 `L4.desktop-ux` §6.22.0이고 시안에만 있는 것의 목록도 거기 있습니다. 세부 디자인은 구현 뒤 다듬습니다 |
+| 훅 순서와 그룹 끄기 (2026-11-03 15-1, 15-2, 15-3, (3)) | 그룹 단위 끄기를 유지하고 "하나씩 끄고 테스트"는 뺍니다. 훅 줄의 핸들러 순서는 가드까지 자유이고 기본값은 가드 맨 앞이며, 안전 검사가 건너뛰어질 수 있으면 경고 모달을 거칩니다(엔진은 `m4/order`). `추가`는 그 훅을 고른 채 빌더를 엽니다 |
+| 테스트·측정 기획서 (2026-11-03) | 켬/끔 비교는 배포 앱에도 열고(Test run의 묶음 실행, 시작 전 비용 확인), replay·benchmark는 개발 모드입니다. 측정 원본은 기본 30일 보관(설정에서 변경, 일별 집계 유지), 요청 본문 저장은 기본 끔(설정에서 누구나 켬, 마스킹 후 저장). 단계 0~2는 M4 후반, 화면은 T-VIEW와 함께, 단계 4 이후는 단계 0 결과를 보고 정합니다. 켬/끔 비교는 적극 제안해도 되고 실행 전 확인을 한 번 받습니다. 트랙은 §2.0.1입니다. 단계 0 실험 진행 여부는 사용자 대기입니다 |
+| 이름 확인 (2026-11-03) | 사용자가 Fresnel 이름을 쓸 수 있다고 확인했습니다. 이름 확인 항목은 닫힙니다 |
 
 ### 0.2 이 문서의 이름 쓰기
 
@@ -93,7 +98,7 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 | Y1 | 대화 영역 P0 화면(S-01~S-04, P-01, P-02, P-03, P-09, P-10, O-01~O-07)이 caustic으로 그려지고 화면마다 여섯 상태를 보임. 승인 카드 네 종류가 트랜스크립트, 끝 영역, P-03에서 같은 부품이고 `approval.resolved`로 함께 사라짐 | `pages.six-states-render`, `approval-card.same-in-three-places`, 화면 점검 스크린숏 | T-CHAT1, T-CHAT2 |
 | Y2 | 크래프트 P-13, P-15, P-16, P-17, P-18, P-19, P-20, P-21이 가짜 엔진 위에서 여섯 상태를 보이고, 대화 ↔ 크래프트를 오가면 같은 대화·스크롤·오른쪽 탭으로 돌아옴 | `pages.six-states-render`(크래프트), `area.switch-restores-place` | T-BENCH, T-CANVAS, T-COMPOSE, T-TRIAL, T-VIEW |
 | Y3 | 맥락 칸 값 하나가 모든 크래프트 화면의 맥락을 바꾸고, 따라가기·고정이 spec §4.9.3대로 동작. 전역 → 프로젝트 → 대화 덮어쓰기의 출처 배지가 보임 | `workbench.context-drives-all-pages`, `workbench.context-follows-unless-pinned` | T-SHELL, T-BENCH |
-| Y4 | 개요 나눔 보기: 목록과 층 × 단계 표 고름 동기화(지도 보기 없음), 표에 구조 편집 동작 없음, 층 안 순서 기억과 초기화, Trace 재생 시간이 `trace.turn`과 같음, 계측 끄면 Trace 재생 잠김. 시험 이름은 표 구조 확정 뒤 바뀔 수 있음 [미결] | `canvas.selection-sync`, `canvas.no-edit-actions`, `canvas.order-persists-and-resets`, `replay-bar.matches-trace`, host int `trace-turn.int.test.ts` | T-CANVAS, T-XD |
+| Y4 | 개요(크래프트 8차 시안): 지도·순서·링크 세 보기가 고른 것을 함께 읽음, 전역 상태만 보임(범위와 맥락 칸 없음), 지도에 구조 편집 동작 없음, 그룹은 스위치 하나로 켜고 끔(15-1), 훅 줄 핸들러 순서 변경은 건너뛰기 경고 모달을 거침(15-2), `추가`는 그 훅을 고른 채 빌더를 엶(15-3), 자세히 보기 최근 실행의 시간이 `trace.turn`과 같고 계측을 끄면 잠김. 층 패널 순서의 뜻(표시용인지 불러오는 순서인지)과 재생 막대는 [미결]. 시험 이름은 시안 구조에 맞춰 바뀔 수 있음 [미결] | `canvas.selection-sync`, `canvas.no-edit-actions`, `canvas.order-persists-and-resets`, `replay-bar.matches-trace`, host int `trace-turn.int.test.ts` | T-CANVAS, T-XD |
 | Y5 | Plugin UI 두 모드: Helm `helm/inquiry`가 Native UI 위젯 카탈로그 v1만으로 그려짐. 시험용 Plugin App이 격리 iframe에서 그려지고 Linux e2e에서 `__TAURI__` 없음, 네트워크 요청 실패, 프레임 안 승인 버튼 무효, 다리 메시지에 비밀 없음. 화면 실패 5번이면 그 화면만 `view_disabled` | `view-host.*`, desktop e2e `frame-isolation.e2e.test.ts`(Linux). macOS는 사용자 묶음 | T-VIEW |
 | Y6 | spec §10.1의 M4 wire(메서드 43개, 알림 `profile.changed`)가 `WIRE_METHODS`와 wire 문서 표에 있고 메서드마다 host int 시험이 있음. T-F 재작업 직후에는 모두 `notImplemented`이고 `host.hello`의 `features`에 없음. 소유 트랙이 처리기를 채우며 `features`에 올림. 배정은 `spec-deltas/t-f.md` §4 | `wire-methods.doc.test.ts`, host int 시험, `host.hello` features 시험 | T-F, T-WA, T-WB, T-WC, T-XV, T-AUTH |
 | Y7 | 플러그인 그룹 모델: 매니페스트 `plugins[]` + 선택적 `group`이 검증되고 Helm이 새 형식으로 로드됨, drive 정책 기본값은 "그룹만"이며 설정으로 풀면 그룹이 아닌 플러그인도 drive를 등록함. drive 사람 확인: `loop.ask`가 승인을 만들고 drive lock을 `waiting`으로 반납, 답 뒤 같은 플러그인이 drive lock을 다시 받고 같은 `requestId` 재호출이 기록된 답을 돌려줌. `replayDrive`가 ask를 포함한 그룹에서 통과 | contracts `manifest-plugins.test.ts`, ext-host `drive-policy.test.ts`·`drive-ask.test.ts`, group-sdk replay 시험 | T-REG, T-XD, T-GK |
@@ -102,7 +107,7 @@ M3가 X1~X11을 썼으므로 M4는 Y를 씁니다. T-LED가 `product.scope.spec`
 | Y10 | 프로필이 호스트에 저장되어, 한 클라이언트(창, 웹)가 저장한 프로필이 다른 클라이언트의 `profile.list`에 보이고 `profile.changed`로 갱신됨. `profile.apply`가 하나라도 실패하면 모든 키를 되돌림 | host int `profile.int.test.ts`(두 연결) | T-WB |
 | Y11 | 버전 탭: 전체 단계(기록 보관 + 되돌리기)이면 되돌리기 왕복 시험, 대체 단계이면 기본 플러그인 번들 버전 되돌리기 시험. 어느 단계로 냈는지 spec §6.24.1에 적음 | ext-host `version-history.test.ts` 또는 `bundled-revert.test.ts` | T-XV, T-BENCH |
 | Y12 | 코드 결함 넷: `/group on`과 설정 토글이 장부를 비움, managed 설치는 상한 `user` tier, 핸들러 시간이 훅별로 기록됨, 시작 실패 뒤 `host.status.suggestSafeMode`가 참. 안전 모드에서 X 훅이 실리지 않음. 앞의 셋은 병합됨(T-FIX) | ext-host·group-sdk·host 시험 각 1개 이상 | T-FIX(완료), T-XD |
-| Y13 | caustic `xeon/m4-design`과 기반 변경 `xeon/m4-language`가 caustic `main`에 PR로 들어가고 submodule이 `main` 커밋을 가리킴. spec §9의 C 항목마다 상태(caustic 반영, 앱 조합, M5)가 있음. `grep -E '#[0-9a-fA-F]{3,6}\|rgb\('`가 `apps/desktop/src`에서 비어 있음 | `scripts/caustic-gaps.test.ts`(표 상태 검사), grep 검사 | T-CAU1, T-LANG, T-CAU2 |
+| Y13 | caustic `xeon/m4-design`과 기반 변경 `xeon/m4-language`가 caustic `main`에 PR로 들어가고 submodule이 `main` 커밋을 가리킴. spec §9의 C 항목마다 상태(caustic 반영, 앱 조합, M5)가 있음. `grep -E '#[0-9a-fA-F]{3,6}\|rgb\('`가 `apps/desktop/src`에서 비어 있음 | `scripts/caustic-gaps.test.ts`(표 상태 검사), grep 검사 | T-CAU1, T-CAU2. `xeon/m4-language` 부분은 취소(2026-11-02 (15)) |
 | Y14 | 모든 화면에서 axe 위반 0, 키보드만으로 spec §4.8 동작에 감, 라이트·다크 모두 | `a11y.axe-all-pages`, 키보드 경로 시험, 원격 점검 Phase 2 | T-A11Y |
 | Y15 | 하드코딩 한국어 검사가 `apps/desktop/src`와 하위 층에서 0이고, `ui.locale=en` 데스크톱 스모크 통과. `just terms check`가 3단계까지 오류 0(`decided` 항목). `cli.*` 키는 검사 대상 밖. `review.m3-plan` §9.3 i18n 행 닫음 | `fresnel/hardcoded-korean` 규칙, `terms check`, desktop en 스모크 | T-I18N, T-TERM |
 | Y16 | `review.m3-plan` §9.3 이월 표의 모든 항목이 요구 장부에 상태(M4 완료, M5 이월과 사유, 삭제와 사유)를 가지고 `just req-ledger` 문제 0 | `req-ledger.test.ts` | T-LED, T-RT1, T-RT2 |
@@ -124,7 +129,44 @@ T-F 재작업과 X·wire 트랙이 모두 이 네 트랙 뒤에 놓입니다. �
 | **T-REN** 이름과 용어 변경 | L · Sonnet 리드 + Haiku xhigh(스크립트 적용과 대조). 브랜치 `m4/rename` | 이름 변경 계획 커밋 0~12. 0 `scripts/rename.ts`·`scripts/migrate-dev-machine.ts`와 시험, 1 용어 검사 0단계(`terms.ts` 원본, T-01~T-05, C-01·02·03·06, M-01, `just terms gen\|check`), 2 제품 정체성(`product.ts`, DB `fresnel.db`, 표식 `1179799116`, `FRESNEL_HOME`), 3 F(`Hook*`, 훅 이름 `session.*` → `thread.*`, 설정 범위 `launch`), 4 X, 5 L0(프로세스 락 키 `thread:<threadId>`, `FRESNEL_*`), 6 L1(주석과 용어 문구만, 없으면 건너뜀), 7 L2(Schedule `repeat`, Injection mode), 8 L3(`group-sdk`, `plugin-builder`, Stages), 9 L4(host·desktop·client, i18n 키, `.fresnel/`·`.fresnel-plugin/`), 10 패키지 범위·서비스 이름·규칙 id·예외 주석 한 번에(BP-11 예외, 승인됨), 11 배포물(실행 파일, 사이드카, Tauri `productName`·`identifier`, `bench` → `benchmark`), 12 문서 용어. `Turn*`, wire `turn.*`, `scope.changed`, `lease.*`, `trn_`, `sys_leases`는 바꾸지 않습니다. 옛 이름 읽기 없음. **ADR-0022 §3.2의 이름(`host.scope` → `host.register`, `Scope*` → `Registration*`, `DriveLock*`, `x.primitives.activeDriveGroup` → `activeDriver`, `kind` → `plugins[]`·`group`)은 T-REG 몫이라 건드리지 않습니다** | T-CAU1 병합(사용자가 caustic PR #10·#11을 병합한 뒤) | 마지막 커밋 뒤 `just verify`, 용어 검사 0단계 통과, 이전 스크립트 임시 디렉터리 시험, 이름 변경 계획 §4.5 직접 할 일을 사용자 묶음에 올림 |
 | **T-REG** 플러그인 그룹 모델 | L · Sonnet 리드. 매니페스트 스키마, drive 정책, Registration 이름은 리드가 직접 씀 | ADR-0022 §3.2: 매니페스트 `plugins[]` + 선택적 `group`(F), Registration 이름 변경(`host.scope` → `host.register` 등, F·X·group-sdk·group-helm·host 조립), drive 넓히기와 정책 `drive_requires_group`(기본 "그룹만", 설정으로 엶), 로더·검증 오류 이전, Helm·group-sdk 템플릿·Plugin Builder 템플릿 이전, §3.3 5번 규칙 제안. spec 변경은 `spec-deltas/t-reg.md`를 그대로 적용합니다 | T-REN | 새 매니페스트 시험(`plugins[]`, `group`, 옛 `kind` 거부), drive 정책 시험(기본 거부, 설정 열면 허용, 한 thread에 drive lock 하나), Registration 이름 시험, Helm 로드·재생 시험, `just check`(contracts, ext-host, group-sdk, group-helm, apps/host) |
 | **T-TERM** 용어 검사 1~3단계 | M · Sonnet 리드 + Haiku xhigh. `scripts`, `packages/client/src/i18n`, 문서 | 1단계(C-04·05·08, S-02·03, D-01·02를 경고로), 2단계(오류로 올림, `[[표식]]`과 조사 처리, S-01을 `.tsx` 전체로), 3단계(C-09·10, D-03·04, 영어 화면 길이)는 T-I18N과 함께 켭니다. 0단계는 T-REN 1번 커밋입니다. 옛 이름 금지(`forbid`)를 문서·카탈로그에 대조합니다. CLI 코드와 `cli.*` 키는 검사 대상에서 뺍니다 | T-REN. 1단계 이상은 사용자 `ui-terms-guide.md` 검토 끝(항목 `decided`) | 1단계 경고 0(이 트랙의 끝 시험). 2단계는 T-SHELL이 시작되기 전에 켭니다 |
-| **T-LANG** 디자인 언어와 caustic 기반 | L · Sonnet 리드 + Haiku xhigh. caustic 저장소(브랜치 `xeon/m4-language`, 쌓은 PR), `apps/desktop/mockups/**` | 1 `design-language.md`를 `docs/xeon/L4/desktop-ux/` 아래 문서로 옮길지 [미결], 2 caustic 기반 토큰·구조(§9 값: 중립 팔레트, 그림자와 링, 헤어라인, 선 셀 격자 부품, 타이포, 변형 규칙) + caustic catalog 스냅숏, 3 시안 재작성(`m4/redesign*` 열네 브랜치를 새 값으로: 시안 토큰 `_shell/page.tsx`의 섹션 간격 32, 페이지 여백 24 등을 고치고 강제로 caustic List·Field를 쓴 곳 재검토), 4 T-REN 뒤 시안 용어를 `terms.ts` 원본으로 바꿈(이름 변경 계획 §4.4 절차), 5 그 위에서 추가 시안. caustic 저장소는 xeon 이름이 0회라 T-REN과 겹치지 않아 병렬이고, 시안 쪽은 T-REN 뒤입니다 | 2는 없음(T-REN과 병렬). 3·4·5는 T-REN, T-CAU1 | caustic catalog 스냅숏, `caustic-gaps.test.ts`, 시안 격자·간격 값 grep 검사(하드코딩 간격 0). PR 병합은 사용자 |
+| **T-LANG** 디자인 언어와 caustic 기반 **[취소: 2026-11-02 (15), 아래는 기록]** | L · Sonnet 리드 + Haiku xhigh. caustic 저장소(브랜치 `xeon/m4-language`, 쌓은 PR), `apps/desktop/mockups/**` | 1 `design-language.md`를 `docs/xeon/L4/desktop-ux/` 아래 문서로 옮길지 [미결], 2 caustic 기반 토큰·구조(§9 값: 중립 팔레트, 그림자와 링, 헤어라인, 선 셀 격자 부품, 타이포, 변형 규칙) + caustic catalog 스냅숏, 3 시안 재작성(`m4/redesign*` 열네 브랜치를 새 값으로: 시안 토큰 `_shell/page.tsx`의 섹션 간격 32, 페이지 여백 24 등을 고치고 강제로 caustic List·Field를 쓴 곳 재검토), 4 T-REN 뒤 시안 용어를 `terms.ts` 원본으로 바꿈(이름 변경 계획 §4.4 절차), 5 그 위에서 추가 시안. caustic 저장소는 xeon 이름이 0회라 T-REN과 겹치지 않아 병렬이고, 시안 쪽은 T-REN 뒤입니다 | 2는 없음(T-REN과 병렬). 3·4·5는 T-REN, T-CAU1 | caustic catalog 스냅숏, `caustic-gaps.test.ts`, 시안 격자·간격 값 grep 검사(하드코딩 간격 0). PR 병합은 사용자 |
+
+### 2.0.1 테스트·측정 트랙 (표로 선언)
+
+근거: `reports/Fresnel 테스트와 측정 기획서.md`(2026-11-03)와 같은 날 사용자 결정(§0.1 "테스트·측정 기획서"). 표 행은 §0.3 때문에 `**T-`로 시작하지 않고 장부 검사의 트랙 목록(26)에 들어가지 않습니다. 장부 상태에서 이 id를 가리킬 수 없습니다.
+
+- 마일스톤 [결정: 2026-11-03 사용자]: 단계 0~2(실험, 숫자 고치기, 기록)는 M4 후반입니다. 단계 3의 화면은 T-VIEW와 함께 갑니다. 단계 4 이후(켬/끔 비교, 케이스, 판단, 확장)는 단계 0의 결과를 보고 정합니다. 그래서 단계 4·5 행은 선언만 하고 시작 조건은 단계 0 결과입니다.
+- 원칙: 비교 대상 없는 판정 없음, 합성 점수 없음, 모든 숫자는 Turn으로 내려감, 규칙 채점 먼저, 기본은 로컬, 비용 드는 실행은 시작 전에 묻기, 코어가 재는 값을 플러그인이 신고하게 하지 않음, 요청 본문은 기본 저장하지 않음. 각 트랙은 스펙을 먼저 고치고 시험을 함께 넣습니다. 전체 검사는 병합 직전에만 돕니다. `eval` 모델 품질은 `just verify`에 넣지 않습니다.
+- 결정으로 정해진 값: 켬/끔 비교는 배포 앱에도 열림(비용 확인 뒤), replay·benchmark는 개발 모드, 원본 보관 기본 30일(설정에서 변경, 일별 집계 유지), 요청 본문 저장 기본 끔(설정에서 누구나 켬, 마스킹 후 저장, 켤 때 안내), 켬/끔 비교는 적극 제안 가능(실행 전 확인 한 번, 거절해도 다시 요청 가능).
+- 새 외부 의존(시계열 uPlot, 긴 목록 TanStack Virtual 후보)은 승인 뒤에만 더합니다. 승인 전에는 caustic 부품과 SVG로 둡니다. DuckDB-WASM과 전체 ECharts는 쓰지 않습니다.
+- 대기(사용자): 단계 0 실험 진행 여부(`L4.desktop-ux` §12.1 33번). 설정 키 이름(보관 기간, 본문 저장)은 [제안]이라 T-MEAS-STORE가 정하고 F 설정 문서에 적습니다(34번).
+
+| 트랙 | 크기·담당 | 범위 | 선행 | 끝 시험 |
+|---|---|---|---|---|
+| **T-MEAS-0** 단계 0 실험 | S · 메인 세션(사용자 확인 뒤) | 제품 코드 변경 없음. 있는 Test run과 프로필을 스크립트로 묶어 Helm 그룹의 플러그인 하나로 켬/끔 비교를 돌림: 케이스 20개, 반복 3회, A/A 포함. 먼저 모델 호출 없이 케이스와 스크립트를 준비하고, 작업 2~3개로 1회 비용을 잰 뒤 전체 예상 비용을 보이고 확인을 받음. 임시 작업 폴더는 스크립트가 직접 만듦. 그만둘 조건: 비용이 너무 크거나 거의 전부 "구분 안 됨"이면 단계 4 범위를 단건 시험과 회귀로 줄임 | 사용자 확인(진행 여부) | 결과 보고: 변동폭 대비 차이, 1회 비용과 시간, 사용자가 결과로 무언가 바꾸는지 |
+| **T-MEAS-FIX** 믿을 수 있는 숫자 (단계 1) | M · Sonnet medium. `apps/host/src/assembly`, `group-sdk/src/metrics` | `group.metrics` 출처를 하나로 통합(비용은 카운터 + 이벤트, 토큰은 카운터뿐이라 주도 Turn이 비용에만 들어가던 것), `usage.get`을 재시작해도 유지되고 캐시 칸이 있게 내구 기록에서 다시 만들기, Helm 렌즈 자식 사용량 귀속, 부분의 합 = 전체 불변식 시험 | 안전 트랙 병합 | 재시작 뒤 사용량 유지, 주도 Turn과 자식 사용량이 합계에 맞음, 합계 시험 통과 |
+| **T-MEAS-EV** 내구 기록 | S · Sonnet medium. `core-loop`, `contracts/records` | 컨텍스트 경고를 내구 기록으로, `thread.compacted`에 압축 후 토큰과 이유 추가, 휘발되는 `scope.handler_failed`를 측정 저장소에도 남기기 | 없음 | 압축 기록에 후 토큰과 이유가 보임, 실패 기록이 재시작 뒤에도 남음 |
+| **T-MEAS-TERM** 스펙 정리 | S · Haiku xhigh. 문서 | P-19와 wire 불일치, 트레이스 버퍼 8턴과 20턴 값의 불일치, `ext.test.*` 이름 정리. `L4.desktop-ux` §12.1 29번과 함께 닫음 | 없음 | `docs-route --check`, `terms check` |
+| **T-MEAS-STORE** 측정 저장소 (단계 2) | M · Sonnet medium. `apps/host`, `platform-store` | 대화 DB와 분리한 측정 전용 SQLite, Turn 경계에서 묶어 쓰기(모델 호출 경로를 느리게 하지 않음), 보존(원본 기본 30일, 설정에서 변경, 일별 집계 유지, 백분위는 정렬 쿼리나 집계), 켜기·끄기를 `x.operations.trace.enabled`로 묶기, 요청 본문 저장 설정(기본 끔, 마스킹 후 저장). 켬/끔 비용은 T-PERF가 잼 | T-MEAS-FIX | 보존 기간이 지나면 원본이 지워지고 집계가 남음, 켬·끔 시험 |
+| **T-MEAS-CALL** 모델 호출 기록 | S · Sonnet medium. `core-models/src/pipeline.ts` | 호출 시작, 첫 토큰, 종료 시각과 역할, 소유자, 토큰 칸 | T-MEAS-STORE | 한 Turn의 첫 토큰 시간이 조회됨 |
+| **T-MEAS-HOOK** 핸들러 결과 기록 | M · Sonnet medium. `ext-host`의 `dispatch`, `fold`, `trace-types` | 핸들러 결과 다섯 가지(고침·지나감·막음·실패·건너뜀), Turn 시작 후 시점, 바뀐 크기. 지금은 `{id, ms, result}`만 있고 고침과 지나감을 구분하지 못함 | T-MEAS-STORE, `m4/order`(순서 규칙) | 결과 다섯이 구분되어 기록됨, 앞 핸들러 때문에 건너뛴 횟수가 셈 |
+| **T-MEAS-CTX** 요청 구성 | M · Sonnet medium. `core-context/assemble`, `core-loop/prepare-request` | 소유자별 요청 구성 토큰(시스템, 도구, 스킬, 기억, 플러그인 주입, 기록)과 해시. 지금은 `sections: {}`. 합치기 훅이 한 덩어리로 합쳐져 누가 넣었는지 모르는 것을 분리 | T-MEAS-STORE | 소유자별 토큰의 합이 요청 전체와 맞음 |
+| **T-MEAS-CACHE** 캐시 사건 | S · Sonnet medium. `core-context`, `core-models` | 요청 접두가 바뀐 위치, 바뀐 부분, 원인 소유자(지금은 `cache_prefix_reset` 디버그 로그뿐). 제공자가 원인을 알려 주면 교차 확인 | T-MEAS-CTX | 캐시를 깬 Turn에서 원인 소유자가 보임 |
+| **T-MEAS-READ** 읽기 wire와 일별 집계 (단계 3) | M · Sonnet medium. `contracts/wire-settings`, `apps/host` | 측정 읽기 메서드, 일별 집계. 새 메서드 이름은 [제안]이고 F wire 문서에 먼저 적음 | 단계 2 | 한 Turn의 소유자별 토큰, 핸들러 결과, 첫 토큰 시간을 wire로 조회 |
+| **T-VIEW-TURN** Turn 다시 보기 | L · Sonnet medium. `apps/desktop`, caustic | 훅 발화 시간줄, 핸들러 결과, 요청 구성 막대, 캐시 사건(`L4.desktop-ux` §6.27). T-VIEW와 함께 | T-MEAS-READ, T-VIEW | 비싼 Turn에서 어느 플러그인 때문인지 화면만으로 찾아감 |
+| **T-VIEW-PERF** 성능 측정 화면 | L · Sonnet medium. `apps/desktop` | P-20 첫 화면("최근 달라진 것, 이상 신호, 읽어 볼 Turn"), 플러그인 부담 표(토큰·비용·시간·캐시), 대화 Turn 번호 곡선. 숫자 판과 합성 점수 없음 | T-MEAS-READ | 위와 같음(단계 3 완료 기준) |
+| **T-TEST-ISO** 작업 폴더 격리 (단계 4) | M · Sonnet medium. `platform-sandbox`, Test run | 임시 작업 폴더와 외부 부작용 차단. Test run 코드에서 격리를 찾지 못함. 켬/끔 비교는 파일을 고치므로 이것이 먼저입니다. 포크 비교의 첫 버전은 현재 파일을 복사한 폴더에서 돌림 | 단계 0 결과 | 비교 실행이 원래 작업 폴더를 바꾸지 않음 |
+| **T-TEST-CASE** 케이스와 규칙 채점 | L · Sonnet medium. `L3.authoring`, `apps/host/handlers/m4/devkit.ts` | 케이스 형식(`evals/`, 유형 `capability`·`regression`·`quiet`), 최종 상태 채점(파일, 명령 종료 코드, 정규식)과 경로·상한, 결과 저장(케이스, 프로필, 판정, 근거 Turn, 비용, 모델, 기준 버전), 진짜 `ext.test.run`(지금은 임시 처리기) | T-TEST-ISO, T-MEAS-STORE | 케이스 하나가 규칙 채점으로 통과·실패하고 근거 Turn이 남음 |
+| **T-TEST-AB** 켬/끔 비교 | M · Sonnet medium | 켬/끔 실행, 변동폭(A/A), 정확 부호 검정 판정(좋아짐·나빠짐·구분 안 됨), 시작 전 비용 확인(예상 실행 수와 비용 범위). 배포 앱에서 열림 | T-TEST-CASE | 확인 뒤에 비교가 돌고 세 판정과 근거 Turn이 보이며 작업 폴더가 오염되지 않음 |
+| **T-VIEW-TEST** 테스트 화면 | L · Sonnet medium. `apps/desktop` | P-19 케이스 묶음, 실행, 플러그인 × 케이스 표, 칸을 누르면 양쪽 Turn 나란히. T-TRIAL이 만든 P-19 위에 얹음 | T-TEST-AB, T-TRIAL | 위 단계 4 완료 기준의 화면 부분 |
+| **T-QUAL** 정성 평가 (단계 5) | M · Sonnet medium. wire, `apps/desktop` | Turn에 통과·실패와 메모(별점 없음), 실패 유형 묶기(AI가 후보를 내고 사람이 확정), "이 Turn을 케이스로" 승격(복사 없이 참조) | T-MEAS-READ, T-TEST-CASE | 실패 Turn 하나에 메모를 달아 회귀 케이스로 만들고 다시 돌림 |
+| **T-JUDGE** AI 채점 | M · Sonnet medium. `core-agents`의 `judge` 역할 재사용 | 항목별 통과·실패, 근거 문장, 실패를 잡은 비율과 통과를 맞힌 비율을 따로 보임, 사람 라벨이 부류별 30~50개가 될 때까지 "미검증"(Wilson 구간), 기준을 고치면 버전이 오르고 다른 버전 결과는 합치지 않음 | T-QUAL | 미검증 표시와 버전 분리 시험 |
+| **T-SENSOR** 선언 센서 | M · Sonnet medium. `contracts`, `ext-host`, `group-sdk` | 매니페스트 선택 항목 `sensors`와 `sensor.emit`. 값은 숫자만, 플러그인당 개수와 초당 호출 상한(넘으면 "버림"으로 셈), 항상 "플러그인 보고" 표시. 자동 센서가 얼마나 답하는지 보고 시작 | 단계 3 | 상한 초과가 버려지고 셈, 문자열 값 거부 |
+| **T-CONV** 포크 비교와 압축 탐침 | L · Sonnet medium. `core-persistence`, Test run | 실제 대화의 한 시점을 포크해 다음 입력을 두 프로필로 돌림. 압축 탐침 질문(회상, 산출물, 이어갈 일, 결정) | T-TEST-AB | 포크 비교가 같은 시점에서 두 프로필을 돌림 |
+| **T-EXPORT** 내보내기 | S · Sonnet medium. `apps/host` | OpenTelemetry GenAI와 Perfetto 내보내기. 내부 이름을 맞추지 않고 내보낼 때 변환, Perfetto는 개발 모드 기능으로 시작 | T-MEAS-STORE | 내보낸 파일이 열림 |
+
+- 이 표의 화면 트랙(T-VIEW-TURN, T-VIEW-PERF, T-VIEW-TEST)은 `L4.desktop-ux` P-19·P-20 변경(§6.26, §6.27)을 구현합니다. 측정 켬·끔 비용은 T-PERF가 잽니다(Y17).
+- 위험과 가정은 기획서 §13에 있고 첫째 가정("사용자가 비용을 내고 비교를 돌린다")이 가장 약해 T-MEAS-0이 먼저입니다. 단계 1~3은 그 결과와 상관없이 가치가 있습니다.
 
 ### 2.1 준비와 계약
 
@@ -157,8 +199,8 @@ T-F 재작업과 X·wire 트랙이 모두 이 네 트랙 뒤에 놓입니다. �
 - 끝 시험: `scripts/caustic-gaps.test.ts`(spec §9 표의 상태 칸이 비지 않음), caustic catalog 스냅숏.
 
 **T-CAU2 캔버스 부품** · Sonnet medium · caustic 저장소 · M
-- C-34~C-39: `CanvasViewport`, 운영 캔버스 블록 변형, 엣지 kind, `CanvasMinimap`, `EventScrubber`, `InspectorBindingsRow` 두 단 칸. **범위 변경**: 사용자가 지도 보기를 쓰지 않기로 해서(2026-11-01 (4)) 층 × 단계 선 격자 표가 개요의 중심입니다. `CanvasMinimap`과 엣지 kind는 구성기(`node-graph`)가 쓰는지에 따라 남기거나 뺍니다 [미결: T-LANG 시안 재작성 결과와 사용자 확인]. 선 셀 격자 자체는 T-LANG이 caustic 기반 부품으로 만듭니다.
-- 선행: T-CAU1, T-LANG(기반 토큰). 캔버스 시안은 `m4/canvas-v3`가 병합되어 고르는 단계가 끝났고 시각 값은 `design-language.md` §7·§9를 따릅니다. spec §13.7에 값을 더합니다.
+- C-34~C-39: `CanvasViewport`, 운영 캔버스 블록 변형, 엣지 kind, `CanvasMinimap`, `EventScrubber`, `InspectorBindingsRow` 두 단 칸. **범위 변경(2026-11-03 (4))**: 크래프트 8차 시안이 개요를 지도·순서·링크 세 보기로 그립니다. 지도는 코어와 고리와 점이고 미니맵은 시안에 없으며, 엣지 대신 링크 보기의 관계 실 묶음(다섯 종류)이 같은 일을 합니다. 그래서 `CanvasMinimap`은 개요에서 필요 없고 구성기(`node-graph`)가 쓰는지에 따라 남기거나 뺍니다. 엣지 kind는 링크 보기의 관계 종류와 맞춥니다. 시안의 지도·구체·배경은 caustic 부품이 아니라 시안 자체 구현(`core.tsx`, 배경 셰이더)이라 `[gap:C-34~36]` 중 caustic에 올릴 것은 구현 때 고릅니다 [미결].
+- 선행: T-CAU1. (T-LANG은 취소, 위 §0.1.) 캔버스 시안은 8차(`wb-v5`)가 승인되어 고르는 단계가 끝났고 시각 값은 시안 `SPEC.md`가 정본입니다.
 - 끝 시험: caustic catalog 스냅숏, 접근성(`role="slider"`, 키보드 이동) 단위 시험.
 
 ### 2.2 X와 L3
@@ -229,15 +271,22 @@ T-F 재작업 뒤 T-XD, T-WA, T-WB, T-XV는 서로 다른 파일만 만지도록
 - 끝 시험: Y1 중 설정·비밀 부분, `settings.fields-equal-schema-keys`, `secrets.value-never-in-state`, `web-order.keyboard-move-saves`.
 
 **T-BENCH 크래프트 기본** · Sonnet medium · `apps/desktop`, `packages/client/src/workbench` · L
-- UX-15: P-13, P-16 목록 옆 패널(층 × 단계 표 자리는 빈 칸), P-17(버전 탭 §6.24.1 포함), P-15 엔진, O-10, 확장 행 모델(V-16~V-18), 표시 이름(U-13, 이름 + 회색 mono id), 런타임 탭 데이터 연결, 전역·프로젝트·대화 출처 배지(ADR-0022 §3.3). 크래프트 안 개발 모드 표시는 `benchmark` mono 라벨입니다.
+- UX-15: P-13, P-16의 선택 패널과 층 패널 데이터(켜기·끄기는 그룹 하나의 스위치, 전역만. 지도 그리기는 T-CANVAS), P-17(버전 탭 §6.24.1 포함), P-15 엔진, O-10, 확장 행 모델(V-16~V-18), 표시 이름(U-13, 이름 + 회색 mono id), 런타임 탭 데이터 연결, 전역·프로젝트·대화 출처 배지(ADR-0022 §3.3). 크래프트 안 개발 모드 표시는 `benchmark` mono 라벨입니다.
 - 이월: `handler_failed` 데스크톱 표시.
 - 선행: T-SHELL, T-WA.
 - 끝 시험: `ext-list.exempt-tier-switch-locked`, `runtime-tab.drive-queue-matches-group-status`, `workbench.context-drives-all-pages`, Y11 화면 부분.
 
-**T-CANVAS 런타임 캔버스와 Trace 재생** · Sonnet medium · `apps/desktop`, `packages/client/src/workbench/canvas` · L
-- spec §6.22 개정(층 × 단계 선 격자 표 하나, 지도 보기 없음): 층 띠, 칸, 맥락별 보기와 비교, 검사기, 자동 배치와 층 안 순서, 의미 줌, Trace 재생(V-26, V-27). 엣지와 포트를 계속 그릴지는 [미결: 사용자 확인, T-CAU2 범위와 같은 질문].
-- 리드가 직접 쓰는 부분: 격자 배치와 선 위계 계산(새 의존 없이).
-- 선행: T-BENCH, T-LANG, T-WA(W-40·W-42), T-WB(W-43·W-44). T-CAU2는 §2.1 범위 결정 뒤 필요한 것만 선행입니다.
+**T-CANVAS 크래프트 개요(지도·순서·링크)와 Trace** · Sonnet medium · `apps/desktop`, `packages/client/src/workbench/canvas` · L
+- 범위 변경(2026-11-03 (4), 크래프트 8차 시안 `mockups/wb-v5` 승인): 표 설계(층 × 단계 선 격자)를 시안이 대체합니다. spec `L4.desktop-ux` §6.22.0 기준으로 구현합니다.
+  - 지도(Orbit): 코어 구체(`core.tsx` 셰이더, 말소리 모션), 층 고리(L1, L2, L3, 외부), 점(층별 모양, 상태 규칙), 그룹 호, 휠·모으기·끌기 줌과 이동, 확대 막대, 찾기. 배경 셰이더와 CSS 대체(WebGL 없음, 움직임 줄이기).
+  - 순서(Strata): 시작·생각·행동·마무리 네 묶음, 코어 단계 줄, 규칙 이름표(tap·chain·first·collect), 줄 안 핸들러 끌어 순서 바꾸기와 **건너뛰기 경고 모달**(15-2, 가드까지 자유), 훅 줄 `추가` → 빌더(15-3).
+  - 링크(Link): 관계 다섯 종류(hook, cap, group, drive, record), 실 묶음과 사실 카드.
+  - 선택 패널, 층 패널, 자세히 보기(한 턴 흐름, 최근 실행). 그룹은 스위치 하나(15-1). 전역만 보이고 맥락 칸·범위·비교는 크래프트에서 뺍니다.
+  - 미니맵과 의미 줌(이름 숨김)은 하지 않습니다. 이름표는 확대에 따라 1~1.3배입니다.
+- 시안에서 아직 모형인 것(`SPEC.md` "아직 모형인 것")은 실제 wire로 바꿀 때 목록을 보고 하나씩 닫습니다: 층 패널 순서 값, 최근 실행 숫자, 설정 편집, 코드 저장, 가져오기, 지우기, 그룹 해제, 대화에서 만들기 요약, 확장 정보 파일 고치기, 명령 훅 실행, 나머지 훅 33개 이름, 프로필 적용.
+- [미결: 사용자 확인] 층 패널 순서가 표시용인지 불러오는 순서인지, 트레이스 재생 막대를 둘지, 시안 내비(크래프트·테스트·성능 측정)와 엔진·구성기 보기 자리.
+- 리드가 직접 쓰는 부분: 지도 좌표·확대 계산과 순서 변경 판정(건너뛰기 계산은 엔진 `m4/order`의 결과를 읽음). 새 의존 없이.
+- 선행: T-BENCH, T-WA(W-40·W-42), T-WB(W-43·W-44), `m4/order`(훅 순서 읽기·쓰기). T-LANG은 취소, T-CAU2는 필요한 것만 선행입니다.
 - 끝 시험: Y4. 확장 77개 고정 데이터에서 프레임 시간 기록(T-PERF에 넘김).
 
 **T-COMPOSE 구성기** · Sonnet medium · `apps/desktop`, `packages/client/src/workbench/compose` · L
@@ -322,7 +371,7 @@ T-F 재작업 뒤 T-XD, T-WA, T-WB, T-XV는 서로 다른 파일만 만지도록
 | T-BENCH | T-SHELL, T-WA | 확장 상태 모델 | 화면 |
 | T-VIEW | T-SHELL, T-GK, T-XV | 다리 판정, IPC e2e | 위젯 카탈로그 |
 | T-TRIAL | T-BENCH, T-WB | 없음(검토만) | 전부 |
-| T-CAU2 | T-CAU1, T-LANG, 사용자 범위 확인 | 격자 연동 API | 부품 구현 |
+| T-CAU2 | T-CAU1(T-LANG은 취소, 범위 확인은 닫힘) | 격자 연동 API | 부품 구현 |
 | T-CANVAS | T-BENCH, T-LANG, T-WA, T-WB | 격자 배치, 선 위계 | 검사기, 재생 막대, 시험 |
 | T-COMPOSE | T-BENCH, T-WB, T-AUTH | 블록 ↔ `group.composition` 매핑 | 보기 넷, 시험 |
 | T-RT1, T-RT2 | T-REN | 항목 분류 | 고른 항목 구현 |
@@ -365,7 +414,6 @@ flowchart LR
   LANG --> SHELL
   TERM --> SHELL
   LANG --> CAU2[T-CAU2]
-  U2((사용자: 지도 보기 범위)) --> CAU2
   SHELL --> CHAT1[T-CHAT1]
   SHELL --> CHAT2[T-CHAT2]
   SHELL --> BENCH[T-BENCH]
@@ -399,8 +447,8 @@ flowchart LR
 ```
 
 - 임계 경로: T-CAU1 병합 → T-REN → T-REG → T-F → T-XD → T-GK → T-AUTH → T-COMPOSE → T-A11Y → Z. T-REN과 T-REG는 단독 구간이라 가장 먼저 시작합니다. T-F는 병합 A(매니페스트, drive, 호환 수정)를 먼저 병합해 X 트랙을 엽니다.
-- 둘째 경로: T-LANG(caustic 기반) → T-SHELL → T-BENCH → T-CANVAS. T-LANG의 caustic 쪽은 이름 변경과 겹치지 않아 T-CAU1 병합 전에도 시작할 수 있습니다.
-- 사용자 대기 게이트: caustic PR #10·#11 병합(T-REN 시작), `ui-terms-guide.md` 검토 끝(T-TERM 1단계, T-SHELL), 지도 보기 범위 확인(T-CAU2, T-CANVAS), §3.3 5번 규칙 확인(T-REG 마지막 커밋과 T-WB의 덮어쓰기 부분).
+- 둘째 경로: T-SHELL → T-BENCH → T-CANVAS. (T-LANG은 2026-11-02 (15)로 취소되어 경로에서 빠집니다.)
+- 사용자 대기 게이트: caustic PR #10·#11 병합(T-REN 시작), `ui-terms-guide.md` 검토 끝(T-TERM 1단계, T-SHELL), 지도 보기 범위는 닫힘(2026-11-03 (4)), §3.3 5번 규칙 확인(T-REG 마지막 커밋과 T-WB의 덮어쓰기 부분).
 
 ### 3.3 이름 변경 뒤 병렬 구간
 
@@ -448,7 +496,7 @@ M4 착수 전이나 도중에 필요한 것과 마감 뒤 한 번에 묻는 것�
 2. `ui-terms-guide.md`와 `domain-terms-review.md` 검토 끝 선언. 화면 라벨이 `decided`가 되고 T-TERM 1단계, T-SHELL이 열립니다.
 3. 이름 변경 직전에 직접 할 일(이름 변경 계획 §4.5): 개발 기기 이전 스크립트 실행, 셸 설정의 `XEON_*` → `FRESNEL_*`, CI 비밀 이름(`just secret-add <키> [env]`로 새 키), GitHub 브랜치 보호와 dependabot의 새 워크플로 이름, 다른 저장소 `.xeon/`·`.xeon-plugin/` 폴더 이름, 서비스 재등록, Mac WebView 저장소·키체인 재설정.
 4. ADR-0022 §3.3 5번(덮어쓰기 결과를 Registration의 thread별 켜짐 상태로 옮기는 규칙)과 T-REG가 낸 매니페스트 세부(`spec-deltas/t-reg.md`의 [미결]) 확인.
-5. 지도 보기 범위: 개요에서 엣지·포트·미니맵을 완전히 빼는지, 구성기(`node-graph`)에만 남기는지(T-CAU2, T-CANVAS).
+5. 닫음 [결정: 2026-11-03 사용자]: 지도 보기가 크래프트 8차 시안으로 돌아왔습니다(미니맵과 엣지·포트는 개요에 없음). 남은 질문은 시안 내비·층 패널 순서·재생 막대(`L4.desktop-ux` §12.1 32번).
 6. 새 외부 의존 승인: Markdown 렌더러와 코드 강조(C-06). 가볍고 빠른 Rust 기반 우선으로 다른 에이전트 데스크톱 앱의 사례 조사가 먼저입니다. 그 전에는 `MessageCode`와 일반 글로 둡니다.
 7. 수치 기준: 계측 비용 상한(Trace 버퍼 기본값은 켬으로 정해졌고 비용을 재서 보고), 데스크톱 첫 화면 시간. 그 전에는 기록만 합니다.
 8. spec §12.1 27·28·30·31번 가운데 남은 것(Plugin App 설정 키 소유 `x.ui.*`, 프로젝트 프로필)과 `L3.authoring.spec` §10. 제작 확장 기본 끔과 버전 보관 5개(코드 전용 되돌리기 대체)는 이미 정해졌습니다.
