@@ -297,6 +297,10 @@ export function fakeSession(ids: IdFactory): FakeSession {
           .map(viewOfLink);
         return ok(rows);
       },
+      agentOfChild(child) {
+        const link = [...links.values()].find((candidate) => candidate.childThreadId === child);
+        return ok(link === undefined ? undefined : viewOfLink(link));
+      },
       branchItems: () => ok([]),
       itemEvent: () => ok(undefined),
       latestEvent(threadId, kind, match) {

@@ -138,6 +138,9 @@ describe("p_agents", () => {
     });
     if (seen === undefined) throw new Bug("the spawned child is missing");
     expect(expectOk(h.service.query.childAgents(parent.threadId))).toEqual([seen]);
+    // 자식 thread에서 부모 연결을 찾는다. 최상위 thread는 연결이 없다
+    expect(expectOk(h.service.query.agentOfChild(spawned.childThreadId))).toEqual(seen);
+    expect(expectOk(h.service.query.agentOfChild(parent.threadId))).toBeUndefined();
     settle(h, parent.threadId, spawned.childThreadId, "req-1");
     const after = lookup();
     expect(after?.settled?.status).toBe("completed");

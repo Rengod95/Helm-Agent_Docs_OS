@@ -680,6 +680,7 @@ runChildTurn(req):
   - 시스템 프롬프트는 `input.agent.before`의 초기 값이고 접두가 기록되기 전 조립의 기본 프롬프트다. turn 노드는 요청의 `scope`(subagent 노드) 아래에 열린다. `req.signal`이 켜지면 turn 노드를 취소한다(`parent` 사유).
   - 단계 상한은 설정 `l1.loop.maxSteps`와 `limits.maxSteps` 중 작은 양수다. 자식 한도가 정한 상한이면 `error: "child_limit"`, 설정이 더 작으면 `step_limit`이다. `maxInputTokens`는 이 turn의 `usage.input` 합이 한도 이상이 되면 그 단계 뒤에 끝낸다.
   - 열린 자식 turn을 같은 `requestId`로 다시 부르면 요청의 프롬프트·모델·도구 맥락으로 이어 끝낸다(재개 항목이 기록하지 않은 값이라 요청에서 다시 받는다).
+  - [결정: 감사 l1/L-01] 자식 thread의 열린 turn은 일반 재개(`turn.resume`, 자동 재개, `LoopService.resume`)로 이어 끝내지 않는다. 요청의 맥락 없이 되살리면 주 대화 권한(caller `main`, 깊이 0, 천장 없음)으로 도구를 실행하기 때문이다. `resume`은 `agentOfChild`가 부모 연결을 돌려주는 thread에 `input_invalid`를 돌려주고 아무것도 기록하지 않는다. 호스트의 `thread.list`는 그 thread의 `resumable`을 `null`로 낸다(자동 재개 후보에서도 빠진다). 부모가 같은 `requestId`로 `runChildTurn`을 다시 부를 때만 이어진다.
   - `ToolRunContext`의 `caller`, `depth`, `ceiling`, `surfaceThreadId`, `interactive`는 요청 값이고 광고는 `allow`·`keepParentList`를 함께 넘긴다.
   - 호스트가 자식 thread를 `ExtHost.openThread`로 열어 두어야 한다(경계 훅이 열린 thread를 요구한다).
 

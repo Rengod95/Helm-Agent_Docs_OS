@@ -486,6 +486,8 @@ export interface ProjectionQuery {
   pendingApprovals(threadId: ThreadId): Result<readonly ApprovalView[], ReadFailure>;
   /** 부모 대화의 자식 thread 연결. unsettledOnly가 참이면 정착하지 않은 것만 */
   childAgents(parentThreadId: ThreadId, options?: { readonly unsettledOnly?: boolean }): Result<readonly AgentView[], ReadFailure>;
+  /** 이 thread가 위임으로 만들어진 자식이면 부모 연결(p_agents의 child_thread_id 조회). 최상위 thread는 undefined [결정: 감사 l1/L-01] */
+  agentOfChild(childThreadId: ThreadId): Result<AgentView | undefined, ReadFailure>;
   /** 활성 가지의 item, 순서대로. 컨텍스트 조립과 화면이 쓴다 */
   branchItems(threadId: ThreadId, options?: { readonly afterItemId?: ItemId; readonly limit?: number }): Result<readonly ItemRow[], ReadFailure>;
   /** item을 기록한 이벤트 id(fork, revert의 대상 해석) */

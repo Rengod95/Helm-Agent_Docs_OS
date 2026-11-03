@@ -13,6 +13,7 @@ import type {
 import { branchItems, itemEvent, kindIn, latestEvent } from "./branch.ts";
 import { columns, readResult } from "./rows.ts";
 import {
+  readAgentByChild,
   readChildAgents,
   readThreadSummary,
   readPendingApprovals,
@@ -61,6 +62,9 @@ export function createProjectionQuery(db: StoreDb): ProjectionQuery {
       return readResult(db, (tx) =>
         readChildAgents(tx, parentThreadId, options?.unsettledOnly === true),
       );
+    },
+    agentOfChild(childThreadId): Result<AgentView | undefined, ReadFailure> {
+      return readResult(db, (tx) => readAgentByChild(tx, childThreadId));
     },
     branchItems: (threadId, options) => readResult(db, (tx) => branchItems(tx, threadId, options)),
     itemEvent: (threadId, itemId) => readResult(db, (tx) => itemEvent(tx, threadId, itemId)),
