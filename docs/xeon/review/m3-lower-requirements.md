@@ -434,6 +434,7 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 - 트랙 리드는 맡은 항목마다 `M4` 또는 `M5: <사유>`로 바꿉니다(`review.m4-plan` §2.5). 이 배정은 T-LED의 기본값이며 오케스트레이터가 확인합니다 [결정: 오케스트레이터 기본값].
 - §3 표의 M4 행 16개는 이 표에 옮기지 않았습니다. 같은 행을 두 곳에 적으면 어긋나므로, 트랙 id는 §3 상태 칸의 `M4:<트랙 id>`에만 적었습니다.
 - 검사는 `just req-ledger`가 합니다. 상태별 개수는 실행 결과에 나옵니다.
+- T-RT2가 정한 값(2026-11-03): `M4` 2건은 `engine.ts` 저장소 열기 실패 분류(`storeFutureVersion`·`storeCorrupt`·`storeMigrationFailed`, `apps/cli/test/engine-start.test.ts`와 `exit-codes.test.ts`)와 `l2.web.cache.maxMegabytes`(`cap-web/src/fetch/pipeline.ts`가 쓰기 뒤 `cache.sweep`에 상한을 넘기고 `fetch-cache.int.test.ts`가 sweep을 시험)입니다. 나머지 30건은 `M5: <사유>`로 옮겼습니다. 감사 트랙 소관(컴팩션, 취소, 지식 도구, 확장 호스트 수명주기)과 사용자 결정 묶음(m3-plan §9.4 13·14번)에 걸린 행은 사유에 그렇게 적었습니다. 사유가 "정의가 없다"인 행은 출처 보고에 한 줄뿐이라 대상을 정하지 못한 것이고, 구현이 어려워서가 아닙니다. 아직 `M4:T-RT2`로 남은 요구 행은 §3의 51·70·87·96입니다(요구 행은 상태 칸에 `M5`를 쓸 수 없습니다) [결정: 오케스트레이터 기본값].
 
 | 이월 항목 | 영역 | 트랙 id |
 |---|---|---|
@@ -467,17 +468,17 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | 리뷰 재시작 복구 | 작업 공간·산출물 | M5: 승인 해결 재생 범위와 재시작 뒤 재요청 정책 결정 대기(L2.artifacts 미결) |
 | 병렬 배치 순서 | 작업 공간·산출물 | M4 |
 | 삭제·바이너리·이름 바꾸기·새 파일 hunk | 작업 공간·산출물 | M4 |
-| 회전 상태가 메모리 전용(`core_models_*` 표) | 모델·웹 | T-RT2 |
-| `reservePct` 미공급 | 모델·웹 | T-RT2 |
-| 위장 provider 와이어 동등성 래퍼(M-8) | 모델·웹 | T-RT2 |
+| 회전 상태가 메모리 전용(`core_models_*` 표) | 모델·웹 | M5: 저장 표와 마이그레이션을 새로 정해야 하는 저장 설계(L1.models §3.11 결정 대기) |
+| `reservePct` 미공급 | 모델·웹 | M5: 창 사용률 공급원이 사용량 게이지(T-WC)의 wire에 달려 있어 그 뒤에 잇는다 |
+| 위장 provider 와이어 동등성 래퍼(M-8) | 모델·웹 | M5: 실서버 응답과 계정으로만 동등성을 확인할 수 있어 이 환경에서 시험하지 못한다 |
 | DR-09·`L1.models.spec` §3.11이 옛 결정을 서술 | 모델·웹 | T-CLN |
-| `routing.*` 문제 점검 | 모델·웹 | T-RT2 |
-| Playwright MCP 도구 이름 실서버 확인 | 모델·웹 | T-RT2 |
-| `orderUpdateOf` 부분 목록 | 모델·웹 | T-RT2 |
-| 헤더 비밀 설정의 `ext.<ext>.<key>` 카탈로그 | 모델·웹 | T-RT2 |
-| 첫 사용 고지가 호출 뒤 경고 | 모델·웹 | T-RT2 |
-| 바이너리 본문 echo 검사 | 모델·웹 | T-RT2 |
-| `browse-close` int 시험 | 모델·웹 | T-RT2 |
+| `routing.*` 문제 점검 | 모델·웹 | M5: 점검 기준이 정해지지 않아 구현 대상이 아니다. 기준 결정이 먼저 |
+| Playwright MCP 도구 이름 실서버 확인 | 모델·웹 | M5: 실서버 실행과 외부 네트워크가 필요한 확인이다 |
+| `orderUpdateOf` 부분 목록 | 모델·웹 | M5: 빠진 id를 거부할지 뒤에 붙일지는 L4.settings-ui §10 미결 결정 |
+| 헤더 비밀 설정의 `ext.<ext>.<key>` 카탈로그 | 모델·웹 | M5: 확장 설정 카탈로그 계약(F·X) 변경이 먼저 |
+| 첫 사용 고지가 호출 뒤 경고 | 모델·웹 | M5: 호출 전 고지는 승인 흐름을 바꾸는 결정이고 L2.web §4.8.2가 호출 시점 경고로 정함 |
+| 바이너리 본문 echo 검사 | 모델·웹 | M5: 출처 보고에 검사 대상이 한 줄뿐이라 정의가 없다. 대상 정의 뒤 시험으로 닫는다 |
+| `browse-close` int 시험 | 모델·웹 | M5: 출처 보고에 시험 대상이 한 줄뿐이라 정의가 없다. 대상 정의 뒤 시험으로 닫는다 |
 | 인증 종류 `query` 등록 거부와 F 스키마 불일치 | 모델·웹 | T-F |
 | 사용량 게이지가 메모리 전용이고 창·한도·계정 게이지는 비어 있음(HS §10-46) | 모델·웹 | T-WC |
 | 시작 승인 증거가 메모리 전용(재시작·다른 thread에서 다시 물음) | 보안·샌드박스 | M5: 다른 대화의 같은 해시 승인 조회가 F `ApprovalService`에 없음(F 계약 변경 또는 cap_mcp 복사 결정) |
@@ -501,31 +502,31 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | `unitKey`(contracts) | 설정 | T-F |
 | 블롭 GC 기본 꺼짐(`blobGcEnabled=false`, 켜려면 넓은 감사와 긴 GC 시험) | 데이터 | M5: 블롭 GC 켜기 결정 대기(m3-plan §9.4 14번) |
 | GC는 서비스 모드에서만(HS-40) | 데이터 | M5: 블롭 GC 켜기 결정과 함께(m3-plan §9.4 14번) |
-| 자동 제목 출처 메모리 전용 | 데이터 | T-RT2 |
-| `L0.store` S-13·S-14와 export ENOENT 경합 | 데이터 | T-RT2 |
+| 자동 제목 출처 메모리 전용 | 데이터 | M5: 저장 열 추가가 core-persistence 마이그레이션과 F 계약을 건드려 별도 트랙이 맞다 |
+| `L0.store` S-13·S-14와 export ENOENT 경합 | 데이터 | M5: 동시성 재현 시험 설계가 필요해 이 트랙에서 고르지 않았다 |
 | `apps/cli`가 `@fresnel/platform-store`를 import(spec은 host만) | 데이터 | M5: 층 규칙 결정 대기(m3-plan §9.4 15번) |
-| `cap.*` 투영기 격리(L1 §10-19) | 데이터 | T-RT2 |
+| `cap.*` 투영기 격리(L1 §10-19) | 데이터 | M5: L1.persistence §10 19번 미결 결정(같은 격리를 적용할지)이 먼저 |
 | 진단 배열의 wire 소비자 없음 | 데이터 | T-WA |
 | "1 blobs" 문구 | 데이터 | T-I18N |
-| cap-knowledge 고정 전 행 | 데이터 | T-RT2 |
-| cap-web 고정 해제→고정 틈 | 데이터 | T-RT2 |
+| cap-knowledge 고정 전 행 | 데이터 | M5: 지식 도구는 감사 트랙 소관이라 건너뛴다 |
+| cap-web 고정 해제→고정 틈 | 데이터 | M5: 블롭 GC 켜기 결정(m3-plan §9.4 14번)과 함께 닫는다 |
 | group-sdk `delegate`가 signal을 받고 무시 | 데이터 | T-GK |
-| 검토 포크 system-prompt 공유(`SpawnRequest` 옵션)와 REQ-70 fork 사용량 귀속 | L1·그룹 | T-RT2 |
-| 컴팩션 뒤 skill 본문 재주입 없음 | L1·그룹 | T-RT2 |
-| M3-21 잔여 | L1·그룹 | T-RT2 |
-| 저장된 자식 취소가 보고 입력을 큐에 넣지 않음 | L1·그룹 | T-RT2 |
+| 검토 포크 system-prompt 공유(`SpawnRequest` 옵션)와 REQ-70 fork 사용량 귀속 | L1·그룹 | M5: 새 SpawnRequest 옵션은 F 계약 변경이고 REQ-70 귀속과 같이 정해야 한다 |
+| 컴팩션 뒤 skill 본문 재주입 없음 | L1·그룹 | M5: core-context 컴팩션은 감사 트랙 소관이라 건너뛴다 |
+| M3-21 잔여 | L1·그룹 | M5: 잔여 범위가 출처 보고에 한 줄뿐이라 정의가 없다 |
+| 저장된 자식 취소가 보고 입력을 큐에 넣지 않음 | L1·그룹 | M5: core-loop 취소 경로와 safe3 자식 취소(병합 전)와 겹쳐 건너뛴다 |
 | 재생 하네스 thread id 불일치 오류 종류(§3.10) | L1·그룹 | T-GK |
 | `delegateStatus` 소유자 범위 | L1·그룹 | T-GK |
-| 다중 thread 사용량 표시 | L1·그룹 | T-RT2 |
-| 생성된 `package.json` 의존 | L1·그룹 | T-RT2 |
+| 다중 thread 사용량 표시 | L1·그룹 | M5: 사용량 게이지는 T-WC 소관 |
+| 생성된 `package.json` 의존 | L1·그룹 | M5: 생성 파이프라인 설계 변경이라 이 트랙에서 고르지 않았다 |
 | 내장 그룹 이름이 `runtime.ts`에 복사됨 | L1·그룹 | T-GK |
-| `test/.generated` 잔여 | L1·그룹 | T-RT2 |
-| §3.3.5 편차 | L1·그룹 | T-RT2 |
-| S-02 참조 정책 플러그인 미구현 | L1·그룹 | T-RT2 |
+| `test/.generated` 잔여 | L1·그룹 | M5: 생성 파이프라인 정리와 함께 닫는다. 이 트랙에서 고르지 않았다 |
+| §3.3.5 편차 | L1·그룹 | M5: 편차 내용이 출처 보고에 한 줄뿐이라 정의가 없다 |
+| S-02 참조 정책 플러그인 미구현 | L1·그룹 | M5: 플러그인 종류 신설은 F 계약과 사용자 결정(플러그인 위치)이 먼저 |
 | 반복 감지 임계는 실제 테이프 필요 | L1·그룹 | M5: 실제 테이프 녹화는 사용자 확인 뒤(m3-plan §9.4 13번) |
-| 반복 감지: 전체 오류 연속 모호 | L1·그룹 | T-RT2 |
-| 반복 감지: 재개 때 연속 초기화 | L1·그룹 | T-RT2 |
-| 반복 감지: `storedOutcome`이 feed를 seq 0부터 훑음 | L1·그룹 | T-RT2 |
+| 반복 감지: 전체 오류 연속 모호 | L1·그룹 | M5: core-loop 반복 감지는 실제 테이프 조정(§9.4 13번)과 함께 정한다 |
+| 반복 감지: 재개 때 연속 초기화 | L1·그룹 | M5: core-loop 반복 감지는 실제 테이프 조정(§9.4 13번)과 함께 정한다 |
+| 반복 감지: `storedOutcome`이 feed를 seq 0부터 훑음 | L1·그룹 | M5: core-loop 반복 감지는 실제 테이프 조정(§9.4 13번)과 함께 정한다 |
 | `desktop_settings_read/write` | 데스크톱 | T-SHELL |
 | 트레이 아이콘·메뉴 없음 | 데스크톱 | T-SHELL |
 | Mac 확인 항목(트레이 닫기 e2e D-10, 두 번째 실행 재열기 D-13, `RunEvent::Reopen` 컴파일, Finder PATH sops·age·rg와 `xeon secret add`, 디버그 로그 내용, §4.15 릴리즈 점검) | 데스크톱 | M5: Mac 확인 항목 전부(사용자 묶음, m4-plan §4 7번) |
@@ -538,11 +539,11 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | `db.ts:58` 영어 리터럴 | i18n | T-I18N |
 | 서버 예산 수치(§9.4 사용자 결정) | 성능·릴리즈 | T-PERF |
 | macOS 기준선 | 성능·릴리즈 | M5: macOS 기준선은 Mac 실기 뒤(사용자 묶음, m4-plan §4 7번) |
-| 재주입 파일 상한 8000과 `keepRecentTokens` | 성능·릴리즈 | T-RT2 |
+| 재주입 파일 상한 8000과 `keepRecentTokens` | 성능·릴리즈 | M5: core-context 컴팩션은 감사 트랙 소관이라 건너뛴다 |
 | REQ-64 `synchronous=NORMAL` 비교와 `processStartFingerprint` 타이밍 | 성능·릴리즈 | T-PERF |
 | 부하 중 측정한 수치는 참고용 | 성능·릴리즈 | T-PERF |
 | SHA256SUMS 무서명 | 성능·릴리즈 | M5: 서명 비밀 등록 뒤 서명(m3-plan §9.4 3번) |
-| gitleaks가 xeon 워크플로에 없음(M3-30 절반) | 성능·릴리즈 | T-RT2 |
+| gitleaks가 xeon 워크플로에 없음(M3-30 절반) | 성능·릴리즈 | M5: 외부 액션이나 바이너리 설치가 새 외부 의존이라 승인 전에는 넣지 않는다(로컬 lefthook에는 있음) |
 | `release-sign.sh` 키체인 목록 복원 안 함 | 성능·릴리즈 | M5: 서명 비밀 등록과 함께(m3-plan §9.4 3번) |
 | macOS 릴리즈 경로 미실행 | 성능·릴리즈 | M5: macOS 릴리즈 경로 실기(사용자 묶음, m4-plan §4 7번) |
 | `L0.os` §3.6·§10-3 번들 정책 문구 | 성능·릴리즈 | T-CLN |
@@ -556,13 +557,13 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | B5-DOC 미결: `l0.os.dirs.override` | 정리·문서 | T-CLN |
 | B5-DOC 미결: 로그 회전과 `OsDirs log` | 정리·문서 | M4 |
 | B5-DOC 미결: `FRESNEL_SAFE_MODE`·`/safe-mode`·`--disable-ext` | 정리·문서 | T-CLN |
-| B5-DOC 미결: `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음 | 정리·문서 | T-RT2 |
-| B5-DOC 미결: 읽기 전용 열기 명령 | 정리·문서 | T-RT2 |
+| B5-DOC 미결: `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음 | 정리·문서 | M4 |
+| B5-DOC 미결: 읽기 전용 열기 명령 | 정리·문서 | M5: 새 CLI 명령이라 L4.cli spec 결정이 먼저 |
 | B5-DOC 미결: 복원·`store.corrupt` 절차 | 정리·문서 | T-CLN |
 | B5-DOC 미결: `schedule/state.json` 복구 도구 | 정리·문서 | M5: 새 CLI 기능이고 삭제 대 격리 백업 정책 결정이 필요 |
 | B5-DOC 미결: 자동 비활성 확장 재활성 CLI | 정리·문서 | T-WA |
 | B5-DOC 미결: `secret add --provider` 허용값 | 정리·문서 | M4 |
-| B5-DOC 미결: `l2.web.cache.maxMegabytes` 미구현 | 정리·문서 | T-RT2 |
+| B5-DOC 미결: `l2.web.cache.maxMegabytes` 미구현 | 정리·문서 | M4 |
 | B5-DOC 미결: `trust.json` 위치 불일치 | 정리·문서 | T-CLN |
 | B5-DOC 미결: 시험 메모리 상한 문서 | 정리·문서 | T-CLN |
 | B5-DOC 미결: docs-route 경고 6(operations id 이름) | 정리·문서 | T-CLN |
