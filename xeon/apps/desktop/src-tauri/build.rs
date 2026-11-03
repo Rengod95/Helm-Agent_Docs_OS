@@ -6,6 +6,9 @@ fn main() {
         "engine_ack",
         "engine_restart",
         "engine_detach",
+        "engine_retarget",
+        "desktop_settings_read",
+        "desktop_settings_write",
         "secret_register",
         "app_roots_set",
     ]);

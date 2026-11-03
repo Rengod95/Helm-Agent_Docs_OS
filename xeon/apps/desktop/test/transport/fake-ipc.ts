@@ -2,6 +2,7 @@ import type {
   AttachResult,
   DesktopIpc,
   EngineState,
+  EngineTarget,
   IpcError,
   SecretRegisterError,
 } from "../../src/transport/ipc.ts";
@@ -19,6 +20,10 @@ export type FakeIpc = {
   readonly written: { readonly epoch: number; readonly text: string }[];
   readonly acks: { readonly epoch: number; readonly bytes: number }[];
   readonly detached: number[];
+  /** `retarget` 호출 순서 */
+  readonly retargeted: EngineTarget[];
+  /** `desktop-settings.json`의 가짜 내용. `readSettings`·`writeSettings`가 이 객체를 읽고 쓴다 */
+  readonly settingsFile: Record<string, unknown>;
   /** `registerSecret` 호출. 값은 호출 시점의 글자로 남긴다(호출자가 바이트를 덮은 뒤에도 비교할 수 있다) */
   readonly registered: { readonly name: string; readonly action: string; readonly text: string }[];
   epoch(): number;
@@ -46,6 +51,8 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
   const written: { epoch: number; text: string }[] = [];
   const acks: { epoch: number; bytes: number }[] = [];
   const detached: number[] = [];
+  const retargeted: EngineTarget[] = [];
+  const settingsFile: Record<string, unknown> = {};
   const registered: { name: string; action: string; text: string }[] = [];
   const fake: FakeIpc = {
     ipc: {
@@ -73,6 +80,15 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
         return Promise.resolve({ ok: true, value: null });
       },
       restart: () => Promise.resolve({ ok: true, value: null }),
+      retarget(target) {
+        retargeted.push(target);
+        return Promise.resolve({ ok: true, value: null });
+      },
+      readSettings: () => Promise.resolve({ ok: true, value: { ...settingsFile } }),
+      writeSettings(key, value) {
+        settingsFile[key] = value;
+        return Promise.resolve({ ok: true, value: null });
+      },
       detach(e) {
         detached.push(e);
         return Promise.resolve({ ok: true, value: null });
@@ -92,6 +108,8 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
     written,
     acks,
     detached,
+    retargeted,
+    settingsFile,
     registered,
     epoch: () => epoch,
   };

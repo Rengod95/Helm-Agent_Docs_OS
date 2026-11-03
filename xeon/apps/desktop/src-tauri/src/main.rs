@@ -61,6 +61,9 @@ fn main() {
             relay::engine_ack,
             relay::engine_restart,
             relay::engine_detach,
+            relay::engine_retarget,
+            desktop_settings::desktop_settings_read,
+            desktop_settings::desktop_settings_write,
             secret_entry::secret_register,
             view_scheme::app_roots_set
         ])
@@ -191,7 +194,9 @@ fn install_signal_handlers(
                     log.line(&format!("signal {signal}: starting the shutdown sequence"));
                     handle.exit(0);
                 } else {
-                    log.line(&format!("signal {signal} again: killing the engine group now"));
+                    log.line(&format!(
+                        "signal {signal} again: killing the engine group now"
+                    ));
                     supervisor.kill_remaining();
                     std::process::exit(130);
                 }
@@ -227,7 +232,10 @@ fn start_inspect(app: &tauri::AppHandle, relay: &Arc<Relay>, log: &Arc<AppLog>) 
         log.line("debug inspect did not start: no log directory");
         return;
     };
-    let path = inspect::socket_path(&log_dir, std::env::var("FRESNEL_DESKTOP_INSPECT_SOCKET").ok());
+    let path = inspect::socket_path(
+        &log_dir,
+        std::env::var("FRESNEL_DESKTOP_INSPECT_SOCKET").ok(),
+    );
     let probe = Arc::new(inspect::AppProbe {
         app: app.clone(),
         relay: relay.clone(),

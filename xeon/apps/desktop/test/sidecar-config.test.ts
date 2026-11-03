@@ -58,7 +58,7 @@ test("the WebView gets no shell plugin permission, only the engine_* app command
   expect(permissions.some((permission) => permission.startsWith("shell:"))).toBe(false);
   const commands = permissions.filter((permission) => permission.startsWith("allow-engine-"));
   expect(commands.toSorted()).toEqual(
-    ["attach", "write", "ack", "restart", "detach"]
+    ["attach", "write", "ack", "restart", "retarget", "detach"]
       .map((verb) => `allow-engine-${verb}`)
       .toSorted(),
   );

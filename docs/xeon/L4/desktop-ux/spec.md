@@ -2923,7 +2923,7 @@ export const palette = [
 | W-05 | 목표 상태 읽기 | P-14, S-03 | `/goal status` 명령 결과 | `goal.status { threadId }` |
 | W-06 | 작업 목록 읽기 | P-14 | 없음(이벤트만) | `work.tasks.list { threadId }` |
 | W-07 | 예약 다시 켜기·고치기, 실행 기록 | P-07 | `cancel`은 끝, `lastRun`만 | `schedule.update`, `schedule.runs` |
-| W-08 | 대상 바꾸기와 원격 연결 단계 | P-08, S-03 | 셸 명령 없음 | Tauri 명령 `engine_retarget { target }`과 진행 이벤트 |
+| W-08 | 대상 바꾸기와 원격 연결 단계 | P-08, S-03 | 셸 명령 `engine_retarget { target }`(`target`은 `{ kind: "local" }` 또는 `{ kind: "remote", address }`)이 있음(T-SHELL). 사이드카를 `host --stdio [--remote <주소>]`로 다시 띄우고 상태는 기존 `EngineState` 전이(`restarting` → `running`)로 알림. 접속 토큰은 인자에 싣지 않고 환경 변수 `FRESNEL_REMOTE_TOKEN`으로만 줌. 연결 단계별 진행 이벤트는 없음 | 단계 이벤트는 P-08(T-CHAT2)이 필요할 때 더함 |
 | W-09 | 알림 읽음 상태 | P-03 | 없음 | 데스크톱 로컬 커서로 대신 [제안] |
 | W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식) [미결] |
 | W-11 | 사용량 한도·창·계정 게이지 | P-11, S-03 | `session` 게이지만 | L1.models 계정·창 데이터 연결(B2-MDL 이후) |
@@ -2934,7 +2934,7 @@ export const palette = [
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 없음 | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
 | W-17 | 큐에 넣은 입력 철회 | P-02 | `input.withdrawn` 이벤트만 | `turn.withdraw { requestId }` [미결] |
 | W-18 | 계획 버전 목록 | P-14 | 없음 | `work.plans.versions` wire |
-| W-19 | OS 폴더 고르기 | O-07 | Tauri dialog 플러그인 없음 | 셸 capability 추가(`L4.desktop.spec` §10 17번) |
+| W-19 | OS 폴더 고르기 | O-07 | Tauri dialog 플러그인 없음. M4 T-SHELL은 새 외부 의존 없음 규칙 때문에 넣지 못함 [미결: `tauri-plugin-dialog` 추가 승인] | 셸 capability 추가(`L4.desktop.spec` §10 17번). 승인 전에는 O-07이 폴더 경로를 입력란으로 받음 |
 | W-20 | 확장 하나의 상세(매니페스트, 유효 등급, tier, 기능 바인딩, 훅과 예산 등급, 진단) | P-17 | 없음 | `ext.get { name }` |
 | W-21 | 자동 꺼짐 확장 다시 켜기(장부 비우기) | P-13, P-17, P-16 | `AutoDisabler.reenable`은 시험만 부름. `/group on`은 scope만 켬 | `ext.reenable { name }` |
 | W-22 | 확장별 실패 장부(연속 수, 최근 창) | P-13, P-17 | 프로세스 메모리, 휘발 이벤트만 | `ext.health { name?, threadId? }` |
@@ -2984,8 +2984,8 @@ export const palette = [
 | V-11 | 사용량 게이지 행(`UsageGauge` → 막대와 문장) | `packages/client/src/settings` |
 | V-12 | 계획 승인 보기와 답 만들기 | `apps/desktop/src/views/approval-form.ts`에 추가 |
 | V-13 | 상태 표시줄 칸 모델 | `apps/desktop/src/views` |
-| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/index.ts`(spec에 있음, 코드 없음). 선언되지 않은 키 6개 |
-| V-15 | 바로 가기 키 표(동작 id ↔ 키) | 같은 곳 |
+| V-14 | 데스크톱 로컬 설정 저장소(창, 패널, 테마, 바로 가기 키, 첫 실행 표시) | `apps/desktop/src/settings-store/local.ts`(T-SHELL 구현: `LOCAL` 키 표, `createLocalSettings`, 셸 명령 `desktop_settings_read`·`desktop_settings_write`). 키는 `l4.desktop.window.{sidebarOpen,sidebarWidth,endOpen,endWidth,area.current,area.chat,area.workbench}`, `l4.desktop.appearance.keybindings`, `l4.desktop.firstRun.searchHintDismissed`. 테마와 캔버스 순서 키는 소유 트랙이 `LOCAL`에 더함 |
+| V-15 | 바로 가기 키 표(동작 id ↔ 키) | `apps/desktop/src/views/shell/keybindings.ts`(T-SHELL 구현: §4.8의 동작 22개 `ACTION_IDS`, `DEFAULT_KEYMAP`, 사용자 덮어쓰기 `resolveKeymap`) |
 | V-16 | 확장 행 모델과 거르기·정렬(층, 종류, 등급, 상태) | `packages/client/src/workbench` [제안] |
 | V-17 | 층 × 확장 지도 모델(칸 tone, 경고) | 같은 곳 |
 | V-18 | 확장 상세 탭 모델(훅 × 예산 비교, drive 락 기록) | 같은 곳 |
@@ -2995,7 +2995,7 @@ export const palette = [
 | V-22 | 프로필 편집 모델(켜기·끄기·그대로, 덮어쓰기, 실효 스택 표시) | 같은 곳. 저장과 적용은 엔진(W-46) [결정: 2026-10-31 사용자] |
 | V-23 | 만들기 폼 검사(이름 규칙, 예약 이름) | 같은 곳. 규칙은 `apps/cli/src/group/rules.ts`와 같은 표 |
 | V-24 | 런타임 줄·런타임 행·런타임 탭 모델(이벤트 → 한 줄) | `packages/client/src/workbench` |
-| V-25 | 맥락 모델(`workbench.context`: 전체·대화·프로필·시험, 따라가기와 고정) | 같은 곳 |
+| V-25 | 맥락 모델(`workbench.context`: 전체·대화·프로필·시험, 따라가기와 고정) | `apps/desktop/src/views/shell/model.ts`(T-SHELL 구현: 영역·영역별 자리와 같은 순수 모델. 맥락은 저장하지 않고 앱을 켜면 "전체"에서 시작). 화면 트랙은 `useShell(s => s.context)`로 읽음 |
 | V-26 | 캔버스 모델(띠, 블록, 포트, 엣지, 맥락 표지, 비교 차이, 자동 배치와 층 안 순서) | `packages/client/src/workbench/canvas` [제안] |
 | V-27 | 트레이스 모델(trace → 눈금, 핸들러 꼬리표) | 같은 곳 |
 | V-28 | 구성기 모델(`composition` ↔ 블록, 흐름 노드, 검사 결과 붙이기, 코드 보기 매핑) | `packages/client/src/workbench/compose` [제안] |

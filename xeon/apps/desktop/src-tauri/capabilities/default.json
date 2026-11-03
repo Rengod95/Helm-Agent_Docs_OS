@@ -10,6 +10,9 @@
     "allow-engine-ack",
     "allow-engine-restart",
     "allow-engine-detach",
+    "allow-engine-retarget",
+    "allow-desktop-settings-read",
+    "allow-desktop-settings-write",
     "allow-secret-register",
     "allow-app-roots-set"
   ]

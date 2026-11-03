@@ -1,3 +1,7 @@
+/* caustic 부품과 토큰(셸). Tailwind가 이 폴더의 유틸리티 클래스를 만든다. 아래 규칙은 옮겨지지 않은 옛 화면의 것이다. */
+@import "@caustic/react/styles.css";
+@source "./";
+
 :root {
   --bg: #ffffff;
   --panel: #f5f5f7;
