@@ -7,6 +7,7 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TOptional,
   type TString,
   type TUnion,
   type TUnsafe,
@@ -214,12 +215,53 @@ export const StepUpdatedPayloadSchema: TObject<{ status: typeof StepStatusSchema
 );
 export type StepUpdatedPayload = Static<typeof StepUpdatedPayloadSchema>;
 
+/**
+ * 이 단계의 요청을 조립하며 나온 컨텍스트 경고(`cache_prefix_reset` 등). 측정이 캐시 사건을 읽는 내구 기록이다.
+ * 코드마다 쓰는 필드가 다르고 나머지는 없다. 모델 바인딩은 `provider/modelId` 문자열로 줄여 담는다
+ */
+export const StepContextWarningSchema: TObject<{
+  code: TUnion<
+    [
+      TLiteral<"cache_reset_model_switch">,
+      TLiteral<"cache_prefix_reset">,
+      TLiteral<"tools_deferred">,
+      TLiteral<"near_window">,
+    ]
+  >;
+  from: TOptional<TString>;
+  to: TOptional<TString>;
+  at: TOptional<TUnion<[TInteger, TNull]>>;
+  added: TOptional<TArray<TString>>;
+  removed: TOptional<TArray<TString>>;
+  tokens: TOptional<TInteger>;
+  contextWindow: TOptional<TInteger>;
+}> = Type.Object(
+  {
+    code: Type.Union([
+      Type.Literal("cache_reset_model_switch"),
+      Type.Literal("cache_prefix_reset"),
+      Type.Literal("tools_deferred"),
+      Type.Literal("near_window"),
+    ]),
+    from: Type.Optional(Type.String({ maxLength: 256 })),
+    to: Type.Optional(Type.String({ maxLength: 256 })),
+    at: Type.Optional(Nullable(Type.Integer({ minimum: 0 }))),
+    added: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 256 })),
+    removed: Type.Optional(Type.Array(Type.String({ maxLength: 128 }), { maxItems: 256 })),
+    tokens: Type.Optional(Type.Integer({ minimum: 0 })),
+    contextWindow: Type.Optional(Type.Integer({ minimum: 0 })),
+  },
+  { additionalProperties: false },
+);
+export type StepContextWarning = Static<typeof StepContextWarningSchema>;
+
 export const StepCompletedPayloadSchema: TObject<{
   stepIndex: TInteger;
   status: TUnion<[TLiteral<"completed">, TLiteral<"interrupted">, TLiteral<"failed">]>;
   stopReason: TUnsafe<StopReason>;
   assistantItemId: TUnion<[TUnsafe<ItemId>, TNull]>;
   toolResultItemIds: TArray<TUnsafe<ItemId>>;
+  contextWarnings: TOptional<TArray<typeof StepContextWarningSchema>>;
 }> = Type.Object(
   {
     stepIndex: Type.Integer({ minimum: 0 }),
@@ -231,6 +273,8 @@ export const StepCompletedPayloadSchema: TObject<{
     stopReason: StopReasonSchema,
     assistantItemId: Nullable(ItemIdSchema),
     toolResultItemIds: Type.Array(ItemIdSchema, { maxItems: 1024 }),
+    /** 선택이라 옛 기록에는 없다. 경고가 없던 단계에도 없다 */
+    contextWarnings: Type.Optional(Type.Array(StepContextWarningSchema, { maxItems: 16 })),
   },
   { additionalProperties: false },
 );
