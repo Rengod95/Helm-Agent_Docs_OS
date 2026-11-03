@@ -106,6 +106,31 @@ describe("path resolution", () => {
     });
   });
 
+  test("passes the allowed roots to protectedPaths so git entries exist before any bash call", async () => {
+    // 샌드박스처럼 넘겨받은 root마다 .git/hooks 항목을 만드는 대역
+    const env = memoryEnv({ cwd: "/work" });
+    env.mkdir("/work");
+    const seen: (readonly string[])[] = [];
+    const deps = {
+      env,
+      roots: (context: CancelScope) => defaultRoots(env, context),
+      protectedPaths: (roots: readonly string[]): readonly ProtectedPathEntry[] => {
+        seen.push(roots);
+        return roots.map((root) => ({
+          path: `${root}/.git/hooks`,
+          match: "prefix",
+          access: "write",
+          reason: "git_exec",
+        }));
+      },
+    };
+    const denied = await failure(
+      resolveWorkspacePath(deps, ".git/hooks/pre-commit", "write", CONTEXT),
+    );
+    expect(denied.detail).toMatchObject({ reason: "protected_path", protectedBy: "git_exec" });
+    expect(seen).toEqual([["/work", "/work"]]);
+  });
+
   test("a missing path under an existing root resolves as not existing, not as denied", async () => {
     const { resolve } = resolver("/work");
     expect(await resolve("missing/file.txt")).toMatchObject({

@@ -933,7 +933,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
   - `edit`이 설명을 바꿀 때는 frontmatter 원문에서 최상위 `description` 키의 줄들만 바꾸고 다른 키와 주석은 글자 그대로 둔다. 설명 없이 본문만 바꾸면 frontmatter 원문을 건드리지 않는다. 읽을 수 없는 frontmatter나 frontmatter가 없는 `SKILL.md`는 `invalid_input`이다.
   - `patch`는 `SKILL.md`의 본문(frontmatter 뒤)에만 적용하고 `file`을 주면 그 지원 파일 전체에 적용한다. 치환은 차례로 적용하며 각 `oldText`는 그 시점의 텍스트에서 정확히 한 번 나와야 한다(`patch_mismatch`, `detail: { edit, matches }`). 본문은 앞뒤 공백을 지워 읽으므로 쓸 때도 끝에 줄바꿈 하나로 맞춘다.
   - 바뀌는 내용이 없는 `edit`과 같은 내용의 `writeFile`은 `invalid_input`이다. 원장에 빈 변경을 남기지 않는다.
-  - `writeFile`의 `baseHash`는 스킬의 트리 해시다(파일 하나의 해시가 아니다). 새 파일이면 생략할 수 있고 기존 파일을 덮어쓰면 필수다.
+  - `writeFile`의 `baseHash`는 스킬의 트리 해시다(파일 하나의 해시가 아니다). 새 파일이면 생략할 수 있고 기존 파일을 덮어쓰면 필수다. 스킬 안에 이름만 대소문자(또는 NFC/NFD)가 다른 파일이 이미 있으면 `baseHash`와 무관하게 `invalid_input`이다. 대소문자를 구분하지 않는 파일 시스템(macOS APFS)에서는 둘이 한 파일이라 기록 없이 덮어쓰고 되돌림이 깨지기 때문이다. 기존 이름으로 쓰면 된다.
   - `remove`에 `file`을 주면 그 지원 파일만 지운다(원장 연산 `skill.write_file`). `mode: "delete"`는 행위자가 `user`일 때만이다.
   - 쓰기 대상 범위는 `scope`가 있으면 그 범위, 없으면 모델이 보는 이름 해석(프로젝트 → 사용자 → 확장 → 경로)의 승자다. 승자가 확장·경로 범위이거나 단일 파일 스킬이면 `read_only_scope`다. 프로젝트 범위 쓰기는 사용자나 유효한 증거를 가진 확장만 한다. 그 밖(에이전트, 증거 없는 확장)은 `denied`다. 승인된 제안을 다시 실행하는 경우는 사람이 이미 봤으므로 이 검사를 건너뛴다.
   - 위협 검사(§4.6)는 바뀌거나 새로 쓰이는 파일의 전체 텍스트에 건다. 바뀐 조각만 검사하면 `Do not ignore…`에서 `Do not `을 지워 위험한 구절을 완성하는 치환을 놓친다. `scripts/` 아래 파일은 엄격 범위다. 설정 `l2.knowledge.write.scan`이 꺼져 있으면 검사하지 않는다(요약은 비어 있다).

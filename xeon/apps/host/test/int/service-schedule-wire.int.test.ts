@@ -7,6 +7,7 @@ import { parse, repeatAsync } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import type { WireResult } from "@fresnel/contracts/wire";
 import { createFileScheduleStore } from "../../src/assembly/schedule-store.ts";
+import { openFileLock } from "../fixtures/file-lock.ts";
 import { startService, type ServiceStart } from "../../src/index.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
@@ -59,9 +60,17 @@ function manualTicker(): ScheduleTicker {
   };
 }
 
+// 상태 파일을 읽는 시험용 저장소가 쓰는 파일 잠금(읽기만 하므로 잠금은 쓰이지 않는다)
+const readerLockDir = mkdtempSync(join(tmpdir(), "svc-sched-lock-"));
+const readerLock = await openFileLock(readerLockDir);
+afterAll(async () => {
+  await readerLock.dispose();
+  rmSync(readerLockDir, { recursive: true, force: true });
+});
+
 /** 상태 파일에 실행 기록이 `finished`로 쓰일 때까지 기다린다. 파일 쓰기는 메모리 상태보다 늦게 끝난다 */
 async function persistedFinishedRun(stateDir: string, runId: string): Promise<RunRecord> {
-  const store = createFileScheduleStore(stateDir);
+  const store = createFileScheduleStore(stateDir, readerLock.fileLock);
   const deadline = Date.now() + 15_000;
   return repeatAsync<RunRecord>(async () => {
     const loaded = await store.load();

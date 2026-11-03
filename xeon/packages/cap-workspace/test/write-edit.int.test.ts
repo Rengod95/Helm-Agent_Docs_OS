@@ -103,10 +103,10 @@ describe("write and edit on a real file system", () => {
     let reads = 0;
     const base = realEnv(root);
     const env = override(base, {
-      // 두 번째 읽기(이름 바꾸기 직전 확인) 직전에 다른 프로세스가 파일을 바꾼 상황을 만든다
+      // 첫 readTextFile 호출(이름 바꾸기 직전 확인, 원본은 readBinaryFile로 읽는다) 직전에 다른 프로세스가 파일을 바꾼 상황을 만든다
       readTextFile: async (path, context) => {
         reads += 1;
-        if (reads === 2) writeFileSync(target, "alpha\nother writer\n");
+        if (reads === 1) writeFileSync(target, "alpha\nother writer\n");
         return base.readTextFile(path, context);
       },
     });
@@ -131,7 +131,7 @@ describe("write and edit on a real file system", () => {
     const env = override(base, {
       readTextFile: async (path, context) => {
         reads += 1;
-        if (reads === 2) rmSync(target);
+        if (reads === 1) rmSync(target);
         return base.readTextFile(path, context);
       },
     });

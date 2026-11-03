@@ -269,6 +269,40 @@ describe("skill edit, patch and files", () => {
     expect(viewed.files).toContain("references/notes.md");
   });
 
+  test("writeFile refuses a path that differs from an existing file only in case, with or without a baseHash", async () => {
+    // APFS 같은 대소문자 무시 파일 시스템에서는 api.md가 API.md를 조용히 덮어쓴다(K-02)
+    const world = await createWorld();
+    await seed(world);
+    await world.runtime.skillsApi.writeFile(
+      { name: "deploy", path: "references/API.md", content: "original" },
+      asHost(),
+    );
+    const hash = (await world.runtime.skillsApi.view({ name: "deploy" })).treeHash;
+    const plain = await rejection(
+      world.runtime.skillsApi.writeFile(
+        { name: "deploy", path: "references/api.md", content: "clobber" },
+        asHost(),
+      ),
+    );
+    const based = await rejection(
+      world.runtime.skillsApi.writeFile(
+        { name: "deploy", path: "references/api.md", content: "clobber", baseHash: hash },
+        asHost(),
+      ),
+    );
+    expect([plain.data.code, based.data.code]).toEqual(["invalid_input", "invalid_input"]);
+    expect(plain.data.message).toContain("references/API.md");
+    expect(world.fs.text(`${DEPLOY}/references/API.md`)).toBe("original");
+    expect(world.fs.has(`${DEPLOY}/references/api.md`)).toBe(false);
+    expect((await world.runtime.skillsApi.view({ name: "deploy" })).treeHash).toBe(hash);
+    // 같은 이름의 덮어쓰기는 baseHash가 있으면 그대로 된다
+    await world.runtime.skillsApi.writeFile(
+      { name: "deploy", path: "references/API.md", content: "second", baseHash: hash },
+      asHost(),
+    );
+    expect(world.fs.text(`${DEPLOY}/references/API.md`)).toBe("second");
+  });
+
   test("remove archives by default and only the user deletes permanently", async () => {
     const world = await createWorld();
     const { hash } = await seed(world);

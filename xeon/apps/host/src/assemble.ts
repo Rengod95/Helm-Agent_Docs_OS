@@ -837,6 +837,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const scheduleRunner: { ports: ScheduleRunnerPorts | undefined } = { ports: undefined };
     const schedule = createHostSchedule({
       os,
+      fileLock: osHandle.fileLock,
       clock,
       ids,
       tasks,

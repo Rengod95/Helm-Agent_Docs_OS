@@ -166,7 +166,8 @@ function consumer() {
     }),
     entry,
     loadIndex: 1,
-    builtin: false,
+    // 이 소비자는 호스트와 L1 어댑터 자리다. 내장이 아니면 ext-host 가드가 caller를 확장으로 다시 채운다(K-01)
+    builtin: true,
   };
   return { apis, unit };
 }

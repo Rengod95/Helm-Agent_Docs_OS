@@ -108,3 +108,50 @@ describe("write and edit keep line endings and respect protected paths", () => {
     });
   });
 });
+
+async function bytesOf(env: ReturnType<typeof memoryEnv>, path: string): Promise<number[]> {
+  const read = await env.readBinaryFile(path, { abortSignal: undefined });
+  if (!read.ok) throw read.error;
+  return [...read.value];
+}
+
+describe("edit refuses files that are not valid UTF-8 text", () => {
+  test("CP949 bytes are rejected as edit_not_text and stay byte for byte", async () => {
+    const { env, files } = setup();
+    // "한글" in CP949 is c7 d1 b1 db, plus ASCII "foo" to edit
+    const original = new Uint8Array([0x66, 0x6f, 0x6f, 0x20, 0xc7, 0xd1, 0xb1, 0xdb, 0x0a]);
+    env.put("/work/k.txt", original);
+    const failure = await rejection(
+      files.edit({ path: "k.txt", edits: [{ oldText: "foo", newText: "bar" }] }),
+    );
+    expect(failure.data.code).toBe("edit_not_text");
+    expect(await bytesOf(env, "/work/k.txt")).toEqual([...original]);
+  });
+
+  test("a NUL byte is rejected even when the rest is valid UTF-8", async () => {
+    const { env, files } = setup();
+    const original = new Uint8Array([0x66, 0x6f, 0x6f, 0x00, 0x62, 0x0a]);
+    env.put("/work/n.bin", original);
+    const failure = await rejection(
+      files.edit({ path: "n.bin", edits: [{ oldText: "foo", newText: "bar" }] }),
+    );
+    expect(failure.data.code).toBe("edit_not_text");
+    expect(await bytesOf(env, "/work/n.bin")).toEqual([...original]);
+  });
+
+  test("valid UTF-8 Korean text and a BOM still edit", async () => {
+    const { env, files } = setup();
+    env.put("/work/ok.txt", "﻿한글 foo\n");
+    await files.edit({ path: "ok.txt", edits: [{ oldText: "foo", newText: "bar" }] });
+    expect(await text(env, "/work/ok.txt")).toBe("﻿한글 bar\n");
+  });
+
+  test("write over a non-text file replaces it and records an empty before", async () => {
+    const { env, files } = setup();
+    env.put("/work/k.txt", new Uint8Array([0xc7, 0xd1, 0xb1, 0xdb]));
+    const result = await files.write({ path: "k.txt", content: "new\n" });
+    expect(await text(env, "/work/k.txt")).toBe("new\n");
+    expect(result.change.removed).toBe(0);
+    expect(result.change.added).toBe(1);
+  });
+});

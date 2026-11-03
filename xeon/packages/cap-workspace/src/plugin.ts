@@ -107,7 +107,7 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       const roots: RootsDeps = {
         env: exec,
         roots: (context) => defaultRoots(exec, context),
-        protectedPaths: () => sandbox?.protectedPaths() ?? [],
+        protectedPaths: (allowed) => sandbox?.protectedPaths(allowed) ?? [],
       };
       const deps: WorkspaceDeps = {
         env: exec,

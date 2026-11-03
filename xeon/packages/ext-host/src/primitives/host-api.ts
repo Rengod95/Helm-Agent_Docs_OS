@@ -365,6 +365,7 @@ export function createRegistrationApi(
           providerTrusted: () => deps.bindings.providerIsBuiltin(id),
           extension: record.extension,
           scopeId: record.id,
+          contextTrusted: record.builtin,
         }),
       );
     },

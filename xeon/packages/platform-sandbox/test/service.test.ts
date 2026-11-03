@@ -64,7 +64,7 @@ describe("sandbox service wiring", () => {
     expect(decision).toEqual({ allow: false, blocks: ["write_root_outside"] });
   });
 
-  test("protectedPaths grows with the workspace roots it has seen", async () => {
+  test("protectedPaths covers the roots the caller passes from the first call", async () => {
     const dirs = makeTestDirs();
     const service = await createSandboxService(
       {
@@ -77,6 +77,18 @@ describe("sandbox service wiring", () => {
       new AbortController().signal,
     );
     const hook = join(dirs.workspace, ".git", "hooks", "pre-commit");
+    // 호출한 쪽이 root를 넘기면 bash를 돌린 적이 없어도 첫 호출부터 막힌다
+    expect(
+      matchProtectedPath(service.protectedPaths([dirs.workspace]), hook, "write")?.reason,
+    ).toBe("git_exec");
+    expect(
+      matchProtectedPath(
+        service.protectedPaths([dirs.workspace]),
+        join(dirs.workspace, ".git", "config"),
+        "write",
+      )?.reason,
+    ).toBe("git_exec");
+    // root를 모르면(넘기지 않았고 정책으로 본 적도 없으면) 알 수 없다. 이 경우를 막는 것은 호출한 쪽이 root를 넘기는 것이다
     expect(matchProtectedPath(service.protectedPaths(), hook, "write")).toBeUndefined();
     service.defaultPolicy({ workspaceRoots: [dirs.workspace], tempDir: dirs.tmp });
     expect(matchProtectedPath(service.protectedPaths(), hook, "write")?.reason).toBe("git_exec");
