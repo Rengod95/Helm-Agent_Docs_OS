@@ -8,7 +8,7 @@ import type {
 /** 웹 정의 시험이 함께 쓰는 올바른 값 */
 export const SAMPLE_META: WebCallMeta = {
   callId: "wcl_01J00000000000000000000000",
-  provider: "searxng",
+  provider: "plugin:example-search",
   selectedBy: "auto",
   fallbacks: [{ provider: "plugin:web-exa", stage: "probe", reason: "no-key" }],
   cache: "miss",
@@ -25,7 +25,7 @@ export function sampleSource(id: string, url: string): Source {
     title: `title of ${id}`,
     publishedAt: "2026-09-30",
     retrievedAt: "2026-10-23T01:02:03Z",
-    provider: "searxng",
+    provider: "plugin:example-search",
     usage: { cache: "persist" },
   };
 }

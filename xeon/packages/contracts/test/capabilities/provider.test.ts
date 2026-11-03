@@ -11,7 +11,7 @@ const CANDIDATES: readonly ProviderCandidate[] = [
   { id: "builtin-a", origin: "builtin" },
   { id: "plugin:exa", origin: "plugin" },
   { id: "plugin:acme", origin: "plugin" },
-  { id: "searxng", origin: "detected" },
+  { id: "example-search", origin: "detected" },
   { id: "plugin:zed", origin: "plugin" },
 ];
 
@@ -20,11 +20,11 @@ describe("orderProviderCandidates", () => {
     expect(
       orderProviderCandidates({
         candidates: CANDIDATES,
-        callProvider: "searxng",
+        callProvider: "example-search",
         settingProvider: "builtin-a",
         pluginOrder: [],
       }),
-    ).toEqual({ selectedBy: "call", order: ["searxng"] });
+    ).toEqual({ selectedBy: "call", order: ["example-search"] });
   });
 
   test("a setting provider is tried alone, and an unknown one yields nothing", () => {
@@ -63,7 +63,7 @@ describe("orderProviderCandidates", () => {
       "plugin:exa",
       "plugin:acme",
       "plugin:zed",
-      "searxng",
+      "example-search",
       "builtin-a",
       "builtin-b",
     ]);
@@ -79,7 +79,7 @@ describe("orderProviderCandidates", () => {
 
   test("provider id schema", () => {
     expect(parse(ProviderIdSchema, "plugin:web-exa").ok).toBe(true);
-    expect(parse(ProviderIdSchema, "searxng").ok).toBe(true);
+    expect(parse(ProviderIdSchema, "example-search").ok).toBe(true);
     expect(parse(ProviderIdSchema, "Plugin:x").ok).toBe(false);
   });
 });
