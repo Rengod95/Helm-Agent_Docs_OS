@@ -5,6 +5,14 @@ export {
   type ExportOptions,
   type ExportReport,
 } from "./export.ts";
+export {
+  restoreDatabase,
+  type BackupInvalidReason,
+  type RestoreError,
+  type RestoreOptions,
+  type RestorePoint,
+  type RestoreReport,
+} from "./restore.ts";
 export { storePlugin } from "./service.ts";
 export {
   DEFAULT_STORE_SETTINGS,
