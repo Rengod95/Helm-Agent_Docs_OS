@@ -6,6 +6,7 @@ import {
   createVersionHistory,
   type ExtensionLoader,
   type LoadedExtensionInfo,
+  type ReloadApplied,
   type RegistrationInfo,
   type UiEntryReport,
   type VersionHistory,
@@ -144,6 +145,19 @@ function loaded(
   };
 }
 
+/** 바로 적용되어 끝난 다시 읽기 */
+function reloadedNow(
+  name: string,
+  statesCleared: number,
+): ReturnType<ExtensionLoader["reload"]> extends Promise<infer R> ? R : never {
+  const applied: ReloadApplied = {
+    status: "applied",
+    statesCleared,
+    info: loaded(name, "active", "user", "0.1.0"),
+  };
+  return ok({ appliesAt: "now", applied: Promise.resolve(applied) });
+}
+
 function scope(
   id: string,
   extension: string,
@@ -165,6 +179,11 @@ interface RigOptions {
   readonly reset?: HostView["resetRegistrationState"];
   /** 참이면 끄기 요청이 던진다 */
   readonly disableFails?: boolean;
+  /** 로더의 다시 읽기. 생략하면 바로 적용되고 비운 상태가 없다 */
+  readonly reload?: (
+    name: string,
+    resetRefusedState: boolean,
+  ) => ReturnType<ExtensionLoader["reload"]>;
 }
 
 interface Rig {
@@ -223,9 +242,14 @@ function rigOf(options: RigOptions): Rig {
       );
     },
   };
-  const loader: Pick<ExtensionLoader, "list" | "uiEntries"> = {
+  const loader: Pick<ExtensionLoader, "list" | "uiEntries" | "reload"> = {
     list: () => options.infos ?? [],
     uiEntries: () => options.entries ?? [],
+    reload: (name, _signal, reloadOptions) => {
+      const clear = reloadOptions?.resetRefusedState === true;
+      calls.push(`reload ${name} clearState=${String(clear)}`);
+      return (options.reload ?? ((target) => Promise.resolve(reloadedNow(target, 0))))(name, clear);
+    },
   };
   const source: ExtUiVersionSource = {
     host,
@@ -320,9 +344,9 @@ describe("ext-ui-version port: versions", () => {
 });
 
 describe("ext-ui-version port: rollback", () => {
-  test("a round trip swaps the files, records the installed version and reports restart", async () => {
+  test("an extension the loader did not load swaps the files, records the installed version and reports restart", async () => {
     const rig = rigOf({
-      infos: [loaded("helm", "active", "user", "0.2.0")],
+      infos: [loaded("helm", "error", "user", "0.2.0")],
       scopes: [scope("helm/main", "helm", "enabled")],
     });
     await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
@@ -368,9 +392,9 @@ describe("ext-ui-version port: rollback", () => {
     });
   });
 
-  test("clearState reports stateCleared when a refused state was reset, between disable and enable", async () => {
+  test("a not-loaded extension: clearState reports stateCleared when a refused state was reset, between disable and enable", async () => {
     const rig = rigOf({
-      infos: [loaded("helm", "active", "user", "0.2.0")],
+      infos: [loaded("helm", "error", "user", "0.2.0")],
       scopes: [scope("helm/main", "helm", "enabled")],
       threads: [THREAD],
       schema: 2,
@@ -389,9 +413,9 @@ describe("ext-ui-version port: rollback", () => {
     ]);
   });
 
-  test("clearState with nothing refused reports stateCleared false", async () => {
+  test("a not-loaded extension: clearState with nothing refused reports stateCleared false", async () => {
     const rig = rigOf({
-      infos: [loaded("helm", "active", "user", "0.2.0")],
+      infos: [loaded("helm", "error", "user", "0.2.0")],
       scopes: [scope("helm/main", "helm", "enabled")],
       threads: [THREAD, OTHER_THREAD],
     });
@@ -411,7 +435,7 @@ describe("ext-ui-version port: rollback", () => {
 
   test("a failed state reset stops the rollback as rollback_failed after the swap, with the extension left off", async () => {
     const rig = rigOf({
-      infos: [loaded("helm", "active", "user", "0.2.0")],
+      infos: [loaded("helm", "error", "user", "0.2.0")],
       scopes: [scope("helm/main", "helm", "enabled")],
       threads: [THREAD],
       reset: () => Promise.resolve(err({ kind: "port_unavailable" })),
@@ -427,7 +451,7 @@ describe("ext-ui-version port: rollback", () => {
 
   test("a disable that throws changes nothing and reports disable_failed", async () => {
     const rig = rigOf({
-      infos: [loaded("helm", "active", "user", "0.2.0")],
+      infos: [loaded("helm", "error", "user", "0.2.0")],
       scopes: [scope("helm/main", "helm", "enabled")],
       disableFails: true,
     });
@@ -459,6 +483,124 @@ describe("ext-ui-version port: rollback", () => {
     expect(await rig.port.rollback({ name: "core-tools", version: "0.1.0" })).toEqual(
       err({ kind: "history_unavailable", reason: "builtin extension has no version history" }),
     );
+  });
+});
+
+async function hotRig(options: Partial<RigOptions> = {}): Promise<Rig> {
+  const rig = rigOf({
+    infos: [loaded("helm", "active", "user", "0.2.0")],
+    scopes: [scope("helm/main", "helm", "enabled")],
+    threads: [THREAD],
+    ...options,
+  });
+  await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+  await record(rig, "helm", "0.1.0", "bundled", null);
+  return rig;
+}
+
+const installedText = (rig: Rig): unknown =>
+  rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"));
+
+describe("ext-ui-version port: hot rollback", () => {
+  test("a loaded extension is reloaded instead of disabled and re-enabled", async () => {
+    const rig = await hotRig();
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      ok({ appliesAt: "nextStepBoundary", stateCleared: false }),
+    );
+    expect(rig.calls).toEqual(["reload helm clearState=false"]);
+    expect(installedText(rig)).toEqual({ kind: "file", text: 'export const version = "0.1.0";\n' });
+  });
+
+  test("clearState goes to the reload and its cleared count decides stateCleared", async () => {
+    const rig = await hotRig({
+      schema: 2,
+      reload: (name) => Promise.resolve(reloadedNow(name, 1)),
+    });
+    await record(rig, "helm", "0.0.5", "bundled", 1);
+    expect(await rig.port.rollback({ name: "helm", version: "0.0.5", clearState: true })).toEqual(
+      ok({ appliesAt: "nextStepBoundary", stateCleared: true }),
+    );
+    expect(rig.calls).toEqual(["reload helm clearState=true"]);
+  });
+
+  test("a reload that is waiting for a step boundary does not hold the call and reports the state as not cleared yet", async () => {
+    const waiting = Promise.withResolvers<ReloadApplied>();
+    const rig = await hotRig({
+      reload: () =>
+        Promise.resolve(ok({ appliesAt: "nextStepBoundary", applied: waiting.promise })),
+    });
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0", clearState: true })).toEqual(
+      ok({ appliesAt: "nextStepBoundary", stateCleared: false }),
+    );
+    waiting.resolve({ status: "superseded" });
+  });
+
+  test("a new version that cannot be loaded puts the installed files back and reports rollback_failed", async () => {
+    const rig = await hotRig({
+      reload: () =>
+        Promise.resolve(
+          err({
+            kind: "rejected",
+            diagnostics: [
+              {
+                extension: "helm",
+                source: "user",
+                stage: "entry",
+                severity: "error",
+                code: "entry_import_failed",
+                message: "entry ./src/index.ts failed to import",
+                generation: 1,
+              },
+            ],
+          }),
+        ),
+    });
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      err({
+        kind: "rollback_failed",
+        reason: "reload_failed (files restored true): entry ./src/index.ts failed to import",
+      }),
+    );
+    // 도는 코드와 디스크가 모두 0.2.0이고 보관본 0.1.0도 남아 있다
+    expect(installedText(rig)).toEqual({ kind: "file", text: 'export const version = "0.2.0";\n' });
+    const listing = await rig.history.list("helm", "0.2.0");
+    expect(listing.ok ? listing.value.versions.map((entry) => entry.version) : null).toContain(
+      "0.1.0",
+    );
+  });
+
+  test("a reload that applies and then fails at the boundary is reported while the call is open", async () => {
+    const rig = await hotRig({
+      reload: () =>
+        Promise.resolve(
+          ok({
+            appliesAt: "now",
+            applied: Promise.resolve({
+              status: "failed",
+              restored: true,
+              diagnostics: [
+                {
+                  extension: "helm",
+                  source: "user",
+                  stage: "activate",
+                  severity: "error",
+                  code: "reload_failed",
+                  message: "reload of helm failed at helm (registration_setup_failed)",
+                  generation: 1,
+                },
+              ],
+            }),
+          }),
+        ),
+    });
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      err({
+        kind: "rollback_failed",
+        reason:
+          "reload_failed (files restored true): reload of helm failed at helm (registration_setup_failed)",
+      }),
+    );
+    expect(installedText(rig)).toEqual({ kind: "file", text: 'export const version = "0.2.0";\n' });
   });
 });
 

@@ -1461,6 +1461,7 @@ chain의 보충 규칙 [제안]:
 - [결정: review.decisions-2 U-01] 적용 시점은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤, `boundary.step.after` 처리 뒤)다(F.conversation.spec §2, §2.1). drive lock 교대도 같은 시점이다. turn의 마지막 step이 끝나는 시점도 단계 경계이므로 turn 정착 시점을 따로 두지 않는다. 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다. drive lock의 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다. `loop.ask`의 반납(사유 `waiting`)은 호출한 drive 함수가 이미 호출 사이에 있으므로 이 규칙과 부딪히지 않는다(ADR-0022 §3.2.3).
 - 켜기·끄기의 단위는 Registration이다. 플러그인 그룹의 구성원(`group.members` 전체)은 한 번에 켜지고 꺼진다. 구성원 하나가 setup에 실패하면 그룹 전체 켜기가 실패하고 이미 켜진 구성원은 다음 경계에서 되돌린다 [제안: 기본값, 미결 5번].
 - `enable()`, `disable()`은 요청만 기록한다. 상태는 `enabling`, `disabling`을 거쳐 적용 시점에서 바뀐다.
+- 확장 코드를 새 버전으로 바꾸는 일(`ext.reload`, 버전 되돌리기)도 같은 단계 경계에 적용한다 [결정: 2026-11-03 사용자]. 실행 중인 step과 `loop.turn()`은 끊지 않고 옛 세대의 핸들러가 그 step을 끝낸다. 새 세대는 다음 경계부터 받는다. 새 버전을 싣지 못하면(검사 실패, setup 실패) 옛 버전이 그대로 돌고 기록은 남지 않는다. 쥐고 있는 drive lock은 반납하지 않고 다음 경계에서 새 drive 함수로 이어 간다. 정본은 X.primitives.spec §4.4.10이다.
 - 비활성화 적용 순서 [제안]: on 핸들러 제외 → drive lock 반납 → `onDispose` 정리 동작 실행. 큐에 이미 들어간 post 항목은 그대로 둔다.
 
 ### 4.6 drive lock

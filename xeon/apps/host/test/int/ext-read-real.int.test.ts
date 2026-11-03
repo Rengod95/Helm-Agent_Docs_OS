@@ -299,11 +299,9 @@ realTest(
       expect(await failureOf(connection.request("ext.list", { threadId: ghost }))).toMatchObject({
         code: 3001,
       });
-      // 로더에 핫 리로드가 없다: 다시 읽은 것처럼 답하지 않고 진단으로 알린다
+      // 로더가 실제로 다시 읽는다: 바뀐 것이 없어도 새 세대로 바꾸고 진단은 없다(자세한 시험은 ext-reload.int.test.ts)
       const reloaded = await connection.request("ext.reload", { name: PROBE });
-      expect(reloaded.diagnostics.map((diagnostic) => diagnostic.code)).toEqual([
-        "reload_unavailable",
-      ]);
+      expect(reloaded.diagnostics).toEqual([]);
     } finally {
       await connection.close();
       await host.close();

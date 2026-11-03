@@ -17,6 +17,7 @@ import type {
   ExtUiRefusal,
   LoadedExtensionInfo,
   RollbackHooks,
+  RollbackReloadOutcome,
   UiEntryReport,
   UiIssue,
   VersionHistoryError,
@@ -135,12 +136,17 @@ async function rollbackOf(
     extensionDir: join(source.extensionsDir, params.name),
     currentVersion: info.version,
     currentStateSchemaVersion: source.stateSchemaVersion(params.name),
-    // 명세대로 다음 단계 경계에 적용한다(X.loading-trust §4.4.8). 로더는 확장 코드를 다시 적재하지 않으므로 실제로는 재시작 뒤에 새 코드가 돈다 [미결 HS-108]
-    hotReload: false,
+    // 로더가 싣고 있는(`active`) 외부 확장은 끄지 않고 새 버전으로 바꾼다(X.loading-trust §4.4.4, §4.4.8). 열린 대화가 있어도 단계 경계에서 적용된다.
+    // 실리지 않은 확장(`error`, `disabled`)은 바꿀 코드가 호스트에 없으므로 재시작 뒤에 적용한다
+    hotReload: info.state === "active",
     hooks: hooksOf(source, tally),
   });
   if (!rolled.ok) return err(failureOf(rolled.error));
-  return ok({ appliesAt: rolled.value.appliesAt, stateCleared: tally.cleared > 0 });
+  return ok({
+    appliesAt: rolled.value.appliesAt,
+    // 끄고 켜는 길은 실제로 비운 scope가 있을 때만, 다시 읽는 길은 다시 읽기가 알려 준 값이다
+    stateCleared: info.state === "active" ? rolled.value.stateCleared : tally.cleared > 0,
+  });
 }
 
 /**
@@ -160,7 +166,39 @@ function hooksOf(source: ExtUiVersionSource, tally: { cleared: number }): Rollba
     clearState: async (target) => {
       tally.cleared += await clearStates(source, target);
     },
+    reload: (target, options) => reloadOf(source, target, options.clearState),
   };
+}
+
+/**
+ * 되돌리기가 교체한 파일을 새 버전으로 바꾼다(`ExtensionLoader.reload`). 새 버전이 열리지 못하면 던져 되돌리기가 파일을 되돌리게 한다.
+ * 실행 중인 turn 때문에 경계를 기다리면(`nextStepBoundary`) 그 경계의 적용 결과는 기다리지 않는다: 그 실패는 로더 진단(`reload_failed`)에만 남고 옛 버전이 계속 돈다.
+ * 상태는 적용이 끝난 호출(`now`)에서만 비웠다고 알린다
+ */
+async function reloadOf(
+  source: ExtUiVersionSource,
+  name: string,
+  clearState: boolean,
+): Promise<RollbackReloadOutcome> {
+  const loader = source.loader();
+  if (loader === undefined) throw new Error("the extension loader is not running");
+  const started = await loader.reload(name, new AbortController().signal, {
+    resetRefusedState: clearState,
+  });
+  if (!started.ok) {
+    const failure = started.error;
+    throw new Error(
+      failure.kind === "rejected"
+        ? failure.diagnostics.map((entry) => entry.message).join("; ")
+        : `${name} cannot be reloaded (${failure.kind})`,
+    );
+  }
+  if (started.value.appliesAt === "nextStepBoundary") return { stateCleared: false };
+  const applied = await started.value.applied;
+  if (applied.status === "failed") {
+    throw new Error(applied.diagnostics.map((entry) => entry.message).join("; "));
+  }
+  return { stateCleared: applied.status === "applied" && applied.statesCleared > 0 };
 }
 
 /** 이름이 같은 scope마다 켜기나 끄기를 요청한다. 요청만 기록하고 적용은 단계 경계에서 한다 */
@@ -228,9 +266,18 @@ function failureOf(error: VersionHistoryError): ExtUiVersionFailure {
       return { kind: "rollback_failed", reason: "clear_state_failed" };
     case "enable_failed":
       return { kind: "rollback_failed", reason: "enable_failed" };
+    case "reload_failed":
+      return {
+        kind: "rollback_failed",
+        reason: `reload_failed (files restored ${String(error.restored)}): ${causeMessage(error.cause)}`,
+      };
     default:
       return assertNever(error, "VersionHistoryError");
   }
+}
+
+function causeMessage(cause: unknown): string {
+  return (cause instanceof Error ? cause.message : String(cause)).slice(0, MESSAGE_LIMIT);
 }
 
 /** 저장 매체 오류의 OS 코드(`ENOENT` 같은 값). 없으면 `io`다 */

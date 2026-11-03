@@ -125,15 +125,18 @@ export function createRecordedSources(patch: Partial<ExtReadSources> = {}): Reco
     },
     reload: (name) => {
       reloaded.push(name);
-      return Promise.resolve([
-        {
-          severity: "warning",
-          code: "unused_hook",
-          message: "unused",
-          file: "src/index.ts",
-          line: 7,
-        },
-      ]);
+      return Promise.resolve({
+        appliesAt: "nextStepBoundary",
+        diagnostics: [
+          {
+            severity: "warning",
+            code: "unused_hook",
+            message: "unused",
+            file: "src/index.ts",
+            line: 7,
+          },
+        ],
+      });
     },
     ...patch,
   };

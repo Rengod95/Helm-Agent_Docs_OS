@@ -929,6 +929,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           tierOf: (name) => operations.tiers.get(name),
           userExtensionsDir,
         }),
+        loader: () => external.loader,
         now: () => clock.now(),
         groupService: () => groupServiceSlot.current,
       },
