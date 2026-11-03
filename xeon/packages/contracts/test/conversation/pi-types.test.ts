@@ -47,6 +47,7 @@ import type {
   PartDelta,
   PartId,
   PartRecord,
+  PartMask,
   StepId,
   ThreadId,
   ToolResultRecord,
@@ -147,6 +148,8 @@ export type PartDeltaShape = Expect<
       kind: "text" | "thinking" | "toolCall";
       phase: "start" | "delta" | "end";
       delta: string;
+      /** 호스트가 붙이는 화면 가림 표식(L0.secrets.spec §3.5.1). 엔진 조각에는 없다 */
+      mask?: PartMask;
     }
   >
 >;

@@ -11,7 +11,7 @@ import type {
   SecretRefError,
   InjectionMode,
 } from "../capabilities/index.ts";
-import type { LocalId } from "../conversation/index.ts";
+import type { LeafMask, LocalId, MaskRange } from "../conversation/index.ts";
 import type { PortKey } from "../extensions/index.ts";
 
 // L0.secrets.spec §3.3~§3.6, §3.10. 구현은 platform-secrets다. 참조 형식·메타·감사 레코드는 capabilities/secrets.ts가 정본이다
@@ -119,6 +119,15 @@ export interface Redactor {
   maskDeep<T>(value: T): { readonly value: T; readonly hits: readonly RedactionHit[] };
   /** 외부 전송 판정. 알려진 값이 들어 있으면 true. 값을 고치지 않는다 */
   containsKnown(text: string): boolean;
+  /**
+   * 화면 가림 구간(L0.secrets.spec §3.5.1). `mask`와 같은 규칙을 원문 위치에 적용한 구간이다. 겹치지 않고 start 순서다.
+   * 값을 돌려주지 않는다. 구간과 표지 이름만 준다.
+   */
+  displayRanges(text: string): readonly MaskRange[];
+  /** 진행 중 텍스트에서 지금 보여도 되는 앞부분 길이. 뒤에 이어 올 조각과 합쳐져 가려질 수 있는 꼬리는 뺀다. 끝난 텍스트에는 쓰지 않는다 */
+  displayVisibleLength(text: string): number;
+  /** 값 트리의 문자열 잎 가운데 가릴 것이 있는 잎의 표식. 포인터는 base 아래의 RFC 6901이다. `maskDeep`과 같은 규칙을 쓴다 */
+  displayLeafMasks(value: unknown, base: string): readonly LeafMask[];
 }
 
 // ── 서비스 ───────────────────────────────────────────────────────────────

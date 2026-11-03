@@ -37,6 +37,8 @@ import {
   EventIdSchema,
   ImageContentSchema,
   ItemIdSchema,
+  ApprovalMaskEntrySchema,
+  ItemMaskEntrySchema,
   ItemRecordSchema,
   TextContentSchema,
   ThreadIdSchema,
@@ -580,6 +582,7 @@ export const ThreadReadResultSchema: TObject<{
   items: TArray<typeof ItemRecordSchema>;
   position: typeof StreamPositionSchema;
   hasMore: TBoolean;
+  masks: TOptional<TArray<typeof ItemMaskEntrySchema>>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -587,6 +590,11 @@ export const ThreadReadResultSchema: TObject<{
     position: StreamPositionSchema,
     /** items[0]보다 앞선 item이 더 있다 */
     hasMore: Type.Boolean(),
+    /**
+     * 화면 가림 표식(L0.secrets.spec §3.5.1, [결정: 2026-11-03 사용자]). 가릴 것이 있는 item만 든다. 포인터는 item 레코드 기준이다.
+     * items는 바뀌지 않는다.
+     */
+    masks: Type.Optional(Type.Array(ItemMaskEntrySchema, { maxItems: THREAD_READ_MAX_ITEMS })),
   },
   { additionalProperties: false },
 );
@@ -920,10 +928,16 @@ export type PendingApproval = Static<typeof PendingApprovalSchema>;
 export const ApprovalListResultSchema: TObject<{
   approvals: TArray<typeof PendingApprovalSchema>;
   position: typeof StreamPositionSchema;
+  masks: TOptional<TArray<typeof ApprovalMaskEntrySchema>>;
 }> = Type.Object(
   {
     approvals: Type.Array(PendingApprovalSchema, { maxItems: APPROVAL_LIST_MAX }),
     position: StreamPositionSchema,
+    /**
+     * 화면 가림 표식(L0.secrets.spec §3.5.1, [결정: 2026-11-03 사용자]). 제목과 도구 인자에 가릴 것이 있는 승인만 든다.
+     * approvals는 바뀌지 않는다.
+     */
+    masks: Type.Optional(Type.Array(ApprovalMaskEntrySchema, { maxItems: APPROVAL_LIST_MAX })),
   },
   { additionalProperties: false },
 );

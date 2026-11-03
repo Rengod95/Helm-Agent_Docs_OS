@@ -3,6 +3,7 @@ export * from "./kinds.ts";
 export * from "./owners.ts";
 export * from "./envelope.ts";
 export * from "./catalog/index.ts";
+export * from "./approval-mask.ts";
 export * from "./effects.ts";
 export * from "./checkpoint.ts";
 export * from "./versioning.ts";
