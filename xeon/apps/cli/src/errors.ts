@@ -1,7 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
 import { WireError } from "@fresnel/contracts/wire";
 import { t, type MessageId } from "@fresnel/client/i18n";
-import type { ExportError } from "@fresnel/platform-store";
+import type { BackupInvalidReason, ExportError, RestoreError } from "@fresnel/platform-store";
 import { HostClientError } from "./host-client.ts";
 import type { UsageError } from "./cli/command.ts";
 import { EXIT, type ExitCode } from "./exit-codes.ts";
@@ -592,6 +592,84 @@ export function failureOfExport(error: ExportError): Failure {
       };
     default:
       return assertNever(error, "ExportError");
+  }
+}
+
+/** `db restore`의 되돌리기 오류를 문구와 종료 코드로 바꾼다. 값은 싣지 않는다 */
+export function failureOfRestore(error: RestoreError): Failure {
+  switch (error.kind) {
+    case "backup_not_found":
+      return {
+        message: t("cli.errors.restore.notFound.message"),
+        fix: t("cli.errors.restore.notFound.fix"),
+        code: EXIT.usage,
+      };
+    case "backup_invalid":
+      return {
+        message: t(backupInvalidMessage(error.reason)),
+        fix: t("cli.errors.restore.backupInvalid.fix"),
+        code: EXIT.environment,
+      };
+    case "foreign_database":
+      return {
+        message: t("cli.errors.restore.foreign.message", { applicationId: error.applicationId }),
+        fix: t("cli.errors.restore.foreign.fix"),
+        code: EXIT.environment,
+      };
+    case "not_a_database":
+      return {
+        message: t("cli.errors.restore.notDatabase.message"),
+        fix: t("cli.errors.restore.notDatabase.fix"),
+        code: EXIT.environment,
+      };
+    case "future_version":
+      return {
+        message: t("cli.errors.restore.futureVersion.message", {
+          backupVersion: error.backupVersion,
+          codeVersion: error.codeVersion,
+        }),
+        fix: t("cli.errors.restore.futureVersion.fix"),
+        code: EXIT.environment,
+      };
+    case "engine_running":
+      return {
+        message: t("cli.errors.restore.engineRunning.message"),
+        fix: t("cli.errors.restore.engineRunning.fix"),
+        code: EXIT.environment,
+      };
+    case "disk_full":
+      return {
+        message: t("cli.errors.common.storageFull.message"),
+        fix: t("cli.errors.common.storageFull.fix"),
+        code: EXIT.environment,
+      };
+    case "io":
+      return {
+        message: t("cli.errors.restore.io.message", { code: error.code }),
+        fix: t("cli.errors.restore.io.fix"),
+        code: EXIT.environment,
+      };
+    default:
+      return assertNever(error, "RestoreError");
+  }
+}
+
+function backupInvalidMessage(reason: BackupInvalidReason): MessageId {
+  switch (reason) {
+    case "manifest":
+      return "cli.errors.restore.backupInvalid.manifest";
+    case "format":
+      return "cli.errors.restore.backupInvalid.format";
+    case "integrity":
+      return "cli.errors.restore.backupInvalid.integrity";
+    case "schema":
+      return "cli.errors.restore.backupInvalid.schema";
+    case "blob_missing":
+      return "cli.errors.restore.backupInvalid.blobMissing";
+    case "blob_hash":
+      return "cli.errors.restore.backupInvalid.blobHash";
+    default:
+      return assertNever(reason, "BackupInvalidReason");
   }
 }
 

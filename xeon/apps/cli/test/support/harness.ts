@@ -84,6 +84,7 @@ export interface HarnessOptions {
   readonly probes?: DoctorProbes;
   /** 저장소 내보내기 가짜(db export). 없으면 호출이 실패한다: 쓰는 시험이 넣어야 한다 */
   readonly exportDatabase?: CliDeps["exportDatabase"];
+  readonly restoreDatabase?: CliDeps["restoreDatabase"];
   /** 데이터 디렉터리 위치. null이면 정할 수 없는 상황이다. 없으면 `<임시 폴더>/data` */
   readonly dataDir?: string | null;
   /** `group new`의 파일 작업 가짜. 없으면 템플릿이 없는 메모리 가짜다 */
@@ -336,6 +337,9 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     exportDatabase:
       options.exportDatabase ??
       (() => Promise.reject(new Error("exportDatabase was not injected"))),
+    restoreDatabase:
+      options.restoreDatabase ??
+      (() => Promise.reject(new Error("restoreDatabase was not injected"))),
     resolveDataDir: () => (options.dataDir === undefined ? join(dir, "data") : options.dataDir),
   };
 

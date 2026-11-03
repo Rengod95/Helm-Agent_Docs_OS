@@ -322,6 +322,10 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       const { exportDatabase } = await import("@fresnel/platform-store");
       return exportDatabase(options);
     },
+    restoreDatabase: async (options) => {
+      const { restoreDatabase } = await import("@fresnel/platform-store");
+      return restoreDatabase(options);
+    },
     // 데이터 디렉터리는 호스트와 같은 resolveOsDirs가 정한다(FRESNEL_HOME 포함). 자원 디렉터리는 데이터 위치와 무관하고
     // resolveOsDirs가 절대 경로를 요구해 실행 파일 옆을 넘긴다(@fresnel/host의 hostResourceDir과 같은 값)
     resolveDataDir: () => {

@@ -1,7 +1,8 @@
 import { join, resolve } from "node:path";
+import { assertNever } from "@fresnel/contracts";
 import { t } from "@fresnel/client/i18n";
 import type { DbCommand } from "../cli/command.ts";
-import { failureOfExport, type Failure } from "../errors.ts";
+import { failureOfExport, failureOfRestore, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
 import { printFailure, type CommandContext } from "./context.ts";
 
@@ -28,10 +29,77 @@ function dataDirFailure(): Failure {
 
 /** `db` 명령군. 지금은 `export` 하나뿐이라 분기하지 않는다. 하위 명령을 더하면 여기서 나눈다 */
 export async function runDb(ctx: CommandContext, command: DbCommand): Promise<ExitCode> {
-  return runExport(ctx, command);
+  switch (command.kind) {
+    case "db.export":
+      return runExport(ctx, command);
+    case "db.restore":
+      return runRestore(ctx, command);
+    default:
+      return assertNever(command, "DbCommand");
+  }
 }
 
-async function runExport(ctx: CommandContext, command: DbCommand): Promise<ExitCode> {
+type ExportCommand = Extract<DbCommand, { readonly kind: "db.export" }>;
+type RestoreCommand = Extract<DbCommand, { readonly kind: "db.restore" }>;
+
+/**
+ * `fresnel db restore <폴더>`. 엔진을 띄우지 않는다. 엔진이 떠 있으면 거절한다(L0.store.spec §4.10.1).
+ * 비밀 값은 읽지도 쓰지도 않는다. age 키와 설정 파일은 사본에 없으므로 따로 필요하다는 안내만 stderr에 쓴다.
+ */
+async function runRestore(ctx: CommandContext, command: RestoreCommand): Promise<ExitCode> {
+  const dataDir = ctx.deps.resolveDataDir();
+  if (dataDir === null) {
+    const failure = dataDirFailure();
+    await printFailure(ctx.io, failure);
+    return failure.code;
+  }
+  const backupDir = resolve(ctx.workspace, command.backupDir);
+  const restored = await ctx.deps.restoreDatabase({
+    dbPath: join(dataDir, DB_FILE_NAME),
+    backupDir,
+    clock: ctx.deps.clock,
+  });
+  if (!restored.ok) {
+    const failure = failureOfRestore(restored.error);
+    await printFailure(ctx.io, failure);
+    return failure.code;
+  }
+  const report = restored.value;
+  if (command.output === "json") {
+    await ctx.io.stdout(`${JSON.stringify(report, null, 2)}\n`);
+    return EXIT.ok;
+  }
+  await ctx.io.stdout(
+    t("cli.db.restore.done", {
+      backupDir: report.backupDir,
+      blobsAdded: String(report.blobsAdded),
+    }),
+  );
+  if (report.previousDir !== null) {
+    await ctx.io.stdout(t("cli.db.restore.previous", { previousDir: report.previousDir }));
+  }
+  const lines: string[] = [];
+  if (report.recovered !== null) {
+    lines.push(t("cli.db.restore.recovered", { direction: report.recovered }));
+  }
+  for (const sha256 of report.missingBlobs.slice(0, MISSING_LIST_CAP)) {
+    lines.push(t("cli.db.export.missingBlob", { sha256 }));
+  }
+  const rest = report.missingBlobs.length - MISSING_LIST_CAP;
+  if (rest > 0) {
+    lines.push(
+      t("cli.db.export.missingRest", {
+        rest: String(rest),
+        total: String(report.missingBlobs.length),
+      }),
+    );
+  }
+  lines.push(t("cli.db.restore.secretsNotice"));
+  await ctx.io.stderr(lines.join(""));
+  return EXIT.ok;
+}
+
+async function runExport(ctx: CommandContext, command: ExportCommand): Promise<ExitCode> {
   const dataDir = ctx.deps.resolveDataDir();
   if (dataDir === null) {
     const failure = dataDirFailure();

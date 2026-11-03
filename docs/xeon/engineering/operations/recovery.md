@@ -101,9 +101,33 @@ fresnel db export <폴더> --json
 
 출처는 `L0.store.spec` §4.10의 `ExportError`와 `apps/cli/src/errors.ts`입니다. 오류 값의 `code`는 파일 시스템의 원래 코드(예: `EACCES`)이고 값은 싣지 않습니다.
 
-### 2.6 되돌리기
+### 2.6 되돌리기 [결정: 2026-11-04 사용자]
 
-내보낸 사본을 데이터 디렉터리로 되돌리는 절차는 `fresnel db export`가 하지 않습니다(`L4.cli.spec` §4.13). 되돌리는 절차는 정해지지 않았습니다 [미결 1].
+`fresnel db restore <폴더>`가 `fresnel db export` 사본을 데이터 디렉터리로 되돌립니다(`L4.cli.spec` §4.13.1, `L0.store.spec` §4.10.1).
+
+```
+fresnel db restore <폴더>
+fresnel db restore <폴더> --json
+```
+
+1. 엔진을 먼저 멈춥니다. Fresnel 앱과 chat을 모두 닫고 서비스 모드를 쓴다면 `fresnel service stop`을 실행합니다. 엔진이 DB를 열고 있으면 명령이 `engine_running`으로 거절하고 아무것도 바꾸지 않습니다.
+2. 명령을 실행합니다. 데이터 디렉터리를 `FRESNEL_HOME`으로 옮겨 두었다면 같은 값을 줍니다. 순서는 사본 검증, 엔진 확인, 블롭 더하기, 준비 파일 만들기, 현재 DB 옮기기, 교체입니다.
+3. 현재 `fresnel.db`, `fresnel.db-wal`, `fresnel.db-shm`은 지우지 않고 `<데이터 디렉터리>/restore-previous/<UTC 시각>/`로 함께 옮깁니다. 새 DB에 옛 `-wal`/`-shm`이 짝지어지지 않습니다. 최근 3개를 남기고, 필요 없으면 그 폴더를 직접 지웁니다.
+4. 중간에 멈췄으면(전원, 강제 종료) 엔진을 띄우기 전에 같은 명령을 다시 실행합니다. 이전 시도를 정리한 뒤 처음부터 합니다. 현재 DB는 제자리나 `restore-previous/`에 있습니다.
+5. 끝나면 `fresnel doctor`로 엔진이 열리는지 확인합니다.
+
+실패 문구와 종료 코드:
+
+| kind | 문구 | 해결 | 종료 코드 |
+|---|---|---|---|
+| `backup_not_found` | `db export`가 만든 백업 폴더가 아니다 | 그 폴더를 지정한다 | 2 |
+| `backup_invalid` | 사본이 깨졌다(manifest, 형식, 무결성, 스키마, 블롭 없음, 블롭 해시) | 이 사본은 쓰지 않고 다시 내보낸다. 현재 DB는 바뀌지 않았다 | 3 |
+| `future_version` | 더 새 버전이 만든 사본이다(두 버전 번호를 문구에 쓴다) | 사본을 만든 버전으로 Fresnel을 올린 뒤 되돌린다 | 3 |
+| `engine_running` | 실행 중인 엔진이 쓰고 있다 | 앱과 chat을 닫고 `fresnel service stop` 뒤 다시 실행한다 | 3 |
+| `foreign_database`, `not_a_database` | 사본이 Fresnel DB가 아니다 | `db export` 폴더를 지정한다 | 3 |
+| `disk_full`, `io`(`code`) | 저장 공간이나 입출력 오류다. 현재 DB는 그대로다 | 디스크와 권한을 확인하고 같은 명령을 다시 실행한다 | 3 |
+
+시크릿: 사본에는 설정 파일과 age 키(`secrets/age/keys.txt`)가 없습니다. 복원은 이 파일들을 읽거나 복사하지 않고, 사본에 키를 넣지도 않습니다. 복원한 DB가 참조하는 시크릿을 복호화하려면 원래 기기의 age 키와 시크릿 메타 파일을 따로 보관했다가 같은 위치에 놓아야 합니다(`L0.secrets.spec` §3.7). 키를 잃으면 저장된 시크릿은 복호화하지 못하고 새로 등록해야 합니다.
 
 ## 3. `future_version`: 더 새 버전이 만든 DB
 
@@ -147,7 +171,7 @@ fresnel db export <폴더> --json
    fresnel doctor
    ```
 
-4. 옛 빌드로 되돌아가야 하면 먼저 §2의 사본을 만듭니다. 옛 빌드에서 DB를 되돌리는 절차는 정해지지 않았습니다 [미결 1].
+4. 옛 빌드로 되돌아가야 하면 먼저 §2의 사본을 만듭니다. 옛 빌드는 더 새 빌드가 만든 사본을 `future_version`으로 거절하므로(§2.6), 되돌릴 사본은 옛 빌드(또는 같은 버전)가 내보낸 것이어야 합니다.
 
 DB가 어느 버전으로 만들어졌는지 보여 주는 명령은 없습니다 [미결 4].
 
@@ -344,11 +368,11 @@ fresnel: 저장된 데이터가 스키마와 다르다 (<표>.<열>)
    ```
 
 2. 스냅샷을 만들지 못한 경우는 디스크 공간을 확보한 뒤 다시 실행합니다.
-3. 스냅샷으로 되돌리는 절차는 정해지지 않았습니다 [미결 1].
+3. 스냅샷은 `db restore`의 사본 형식(폴더, manifest)이 아니라서 `db restore`로 되돌리지 못합니다 [미결 10].
 
 ## 미결 사항
 
-1. 되돌리는 절차가 소스에 없습니다. `fresnel db export` 사본이나 마이그레이션 스냅샷을 데이터 디렉터리로 되돌리는 방법, 엔진을 멈추는 순서, WAL 파일(`fresnel.db-wal`, `fresnel.db-shm`)의 처리를 정해야 합니다(`L4.cli.spec` §4.13이 M3 복구 런북에 맡겼습니다).
+1. (닫음 2026-11-04) `fresnel db export` 사본을 되돌리는 방법, 엔진을 멈추는 순서, WAL 파일의 처리는 §2.6과 `fresnel db restore`로 정했습니다. 번호는 다른 문장의 참조 때문에 남깁니다. 마이그레이션 스냅샷은 10번입니다.
 2. `store.corrupt`로 판정된 데이터를 고치는 절차가 없습니다.
 3. 저장소 열기 실패 문구가 `future_version`, `corrupt`, `migration_failed`를 구별하지 않습니다. `apps/cli/src/engine.ts`의 `storeError`는 `fts5Missing`과 `dataDirPermission`만 구별하고 나머지는 `세션 저장소를 열지 못했다`로 씁니다. `L4.host-service.spec` §3.3.5는 이 값을 구별한다고 씁니다.
 4. 읽기 전용 열기(`openStore({ readOnly: true })`)를 쓰는 제품 명령이 없습니다. DB의 버전 번호를 보여 주는 명령도 없습니다.
@@ -357,3 +381,4 @@ fresnel: 저장된 데이터가 스키마와 다르다 (<표>.<열>)
 7. `cap.*` 기능 투영기에 같은 격리를 적용할지 정해지지 않았습니다(`L1.persistence.spec` §10 19번). 청크 재생성(`L1.persistence.spec` §4.5.3)의 구현 여부를 확인하지 못했습니다.
 8. 프로젝트와 로컬 설정을 CLI에서 쓸 때 작업 폴더를 정하는 방법을 확인하지 못했습니다.
 9. 관리 정책 파일의 위치가 정해지지 않았습니다(`F.wire-settings.spec` §3.9).
+10. 마이그레이션 스냅샷(`backups/*.sqlite`)을 되돌리는 명령이 없습니다. 스냅샷은 DB 파일 하나이고 `db restore`가 받는 사본(폴더, manifest, 블롭)이 아닙니다.
