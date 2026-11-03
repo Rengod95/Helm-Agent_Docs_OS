@@ -46,17 +46,37 @@ export interface AccountsConnection {
 }
 
 /**
- * 저장 실패.
- * - `not_object`: 파일이 JSON 객체가 아니어서 편집할 수 없다(파일은 건드리지 않았다)
- * - `conflict`: 읽은 뒤 파일이 바뀌었다(`settings.fileConflict`). 다시 읽고 합친 뒤 보낸다
+ * 설정 파일 읽기와 쓰기의 실패.
+ * - `conflict`: 읽은 뒤 파일이 바뀌었다(`settings.fileConflict`). 다시 읽고 합친 뒤 보낸다. 읽기 호출은 받지 않는다
  * - `host`: 호스트가 낸 다른 오류(예: `settings.fileInvalid`, 스키마 위반)
  * - `transport`: 응답을 받지 못했다(연결이 닫혔거나 시한이 지났다). `cause`는 `HostClientError`다
  */
-export type SaveModelAccountsError =
-  | { readonly kind: "not_object" }
+export type SettingsFileError =
   | { readonly kind: "conflict" }
   | { readonly kind: "host"; readonly error: WireError }
   | { readonly kind: "transport"; readonly cause: unknown };
+
+/**
+ * 모델 계정 저장 실패. `not_object`는 파일이 JSON 객체가 아니어서 편집할 수 없다는 뜻이다(파일은 건드리지 않았다).
+ * 나머지는 `SettingsFileError`와 같다.
+ */
+export type SaveModelAccountsError = { readonly kind: "not_object" } | SettingsFileError;
+
+/** 설정 파일 원문을 읽는다(`settings.readFile`). 쓰기의 `baseSha256`은 돌려준 `sha256`이다 */
+export function readSettingsFile(
+  connection: AccountsConnection,
+  params: WireParams<"settings.readFile">,
+): Promise<Result<WireResult<"settings.readFile">, SettingsFileError>> {
+  return callWire(() => connection.request("settings.readFile", params));
+}
+
+/** 설정 파일 원문을 통째로 쓴다(`settings.writeFile`). 읽은 뒤 바뀌었으면 `conflict`다 */
+export function writeSettingsFile(
+  connection: AccountsConnection,
+  params: WireParams<"settings.writeFile">,
+): Promise<Result<WireResult<"settings.writeFile">, SettingsFileError>> {
+  return callWire(() => connection.request("settings.writeFile", params));
+}
 
 /**
  * 사용자 설정 파일을 읽고 편집 값을 넣어 같은 `baseSha256`으로 다시 쓴다. 읽기와 쓰기 사이에 파일이 바뀌면 `conflict`다.
@@ -66,29 +86,27 @@ export async function saveModelAccounts(
   connection: AccountsConnection,
   edits: AccountsEdits,
 ): Promise<Result<{ readonly sha256: string }, SaveModelAccountsError>> {
-  const read = await callWire(() => connection.request("settings.readFile", { scope: "user" }));
+  const read = await readSettingsFile(connection, { scope: "user" });
   if (!read.ok) return read;
   const text = settingsFileWith(read.value.text, edits);
   if (!text.ok) return { ok: false, error: text.error };
-  const written = await callWire(() =>
-    connection.request("settings.writeFile", {
-      scope: "user",
-      text: text.value,
-      baseSha256: read.value.sha256,
-    }),
-  );
+  const written = await writeSettingsFile(connection, {
+    scope: "user",
+    text: text.value,
+    baseSha256: read.value.sha256,
+  });
   if (!written.ok) return written;
   return { ok: true, value: { sha256: written.value.sha256 } };
 }
 
 /** 와이어 호출 하나를 `Result`로 바꾼다. 던진 값은 종류를 나눠 담는다 */
-async function callWire<T>(work: () => PromiseLike<T>): Promise<Result<T, SaveModelAccountsError>> {
+async function callWire<T>(work: () => PromiseLike<T>): Promise<Result<T, SettingsFileError>> {
   const outcome = await attemptAsync(work);
   if (outcome.ok) return outcome;
   return { ok: false, error: failureOf(outcome.error.cause) };
 }
 
-function failureOf(cause: unknown): SaveModelAccountsError {
+function failureOf(cause: unknown): SettingsFileError {
   if (!(cause instanceof WireError)) return { kind: "transport", cause };
   if (cause.data.kind === "settings.fileConflict") return { kind: "conflict" };
   return { kind: "host", error: cause };

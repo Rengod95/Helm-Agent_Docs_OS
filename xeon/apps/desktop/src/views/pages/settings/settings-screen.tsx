@@ -13,6 +13,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   useSyncExternalStore,
@@ -25,10 +26,18 @@ import {
   useSettingsJump,
   type SettingsJump,
 } from "../../../state/ui/index.ts";
-import { useCommands } from "../../commands.ts";
+import { useCommands, type SettingsFileTarget, type SettingsFileWrite } from "../../commands.ts";
 import { PROVIDER_EDITORS } from "../providers/providers-screen.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
 import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
+import {
+  fileDirtyOf,
+  fileEditableOf,
+  fileEditorReducer,
+  fileSaveableOf,
+  initialFileEditor,
+  type FileScope,
+} from "./settings-file-model.ts";
 import {
   dirtyKeysOf,
   pageStatusOf,
@@ -37,6 +46,7 @@ import {
   type SettingsKeyIntent,
 } from "./settings-model.ts";
 import type { FieldHandlers } from "./settings-field.tsx";
+import { SettingsFileEditorView, type SettingsFileHandlers } from "./settings-file-view.tsx";
 import { SettingsPageView, type SettingsPageHandlers } from "./settings-view.tsx";
 
 // 설정 화면(P-09)의 동작. 컨트롤러(`commands.settings.open()`)는 연결마다 하나씩 만든다. 읽기와 알림 구독은 효과가 하고,
@@ -80,6 +90,9 @@ export function SettingsPage(): ReactNode {
   // 명령 팔레트가 준 요청 가운데 이 화면이 받은 것. 스크롤은 값이 읽힌 뒤 이 요청마다 한 번 한다
   const [taken, setTaken] = useState<SettingsJump | null>(null);
   const scrolled = useRef<SettingsJump | null>(null);
+  // 설정 파일 편집기(P-09 "파일로 보기"). 읽기와 쓰기마다 번호를 새로 주고, 응답은 그 번호가 맞을 때만 반영된다(reducer)
+  const [file, dispatchFile] = useReducer(fileEditorReducer, initialFileEditor);
+  const fileSeq = useRef(0);
   // 읽기 때의 열린 대화. 효과에서만 읽고 쓴다(렌더 중에는 건드리지 않는다)
   const threadRef = useRef<ThreadId | null>(threadId);
   const loadedThread = useRef<ThreadId | null>(null);
@@ -203,6 +216,17 @@ export function SettingsPage(): ReactNode {
     if (jump !== null) commands.settleSettingsJump();
   }, [jump, commands]);
 
+  // "저장됨" 표시는 2초 뒤 지운다. 화면을 떠나면 시계를 끈다
+  useEffect(() => {
+    if (!file.saved) return undefined;
+    const handle = window.setTimeout(() => {
+      dispatchFile({ type: "savedMarkCleared" });
+    }, SAVED_MARK_MS);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [file.saved]);
+
   // 항목 자리로 스크롤한다. 탭이 옮겨진 뒤와 값이 읽힌 뒤에 자리가 생긴다. 자리가 없으면(묻기로 막히거나 항목이 없으면) 그만둔다
   useEffect(() => {
     if (taken === null || scrolled.current === taken || view === null) return;
@@ -235,6 +259,104 @@ export function SettingsPage(): ReactNode {
       if (controller !== null) detach(controller.reset(key, scope), rethrow);
     },
   };
+
+  /** 원문을 읽는다. 응답은 시작할 때의 번호가 맞을 때만 편집기에 들어간다 */
+  const readFileText = async (seq: number, target: SettingsFileTarget): Promise<void> => {
+    const read = await commands.settings.readFile(target);
+    if (read.ok) {
+      dispatchFile({ type: "loaded", seq, doc: read.value });
+    } else {
+      dispatchFile({ type: "loadFailed", seq, error: read.error });
+    }
+  };
+
+  /** 쓴다. 파일이 그 사이에 바뀌었으면 충돌 단계로 두고 초안은 남긴다 */
+  const writeFileText = async (seq: number, write: SettingsFileWrite): Promise<void> => {
+    const written = await commands.settings.writeFile(write);
+    if (written.ok) {
+      dispatchFile({
+        type: "saved",
+        seq,
+        path: written.value.path,
+        sha256: written.value.sha256,
+        text: write.text,
+      });
+      return;
+    }
+    const error = written.error;
+    if (error.kind === "conflict") {
+      dispatchFile({ type: "saveConflicted", seq });
+    } else {
+      dispatchFile({ type: "saveFailed", seq, error });
+    }
+  };
+
+  /** 읽기를 새 번호로 시작한다. 범위를 바꾸거나 다시 읽을 때도 이것을 쓴다 */
+  const startFile = (scope: FileScope, thread: ThreadId | null): void => {
+    fileSeq.current += 1;
+    const seq = fileSeq.current;
+    dispatchFile({ type: "started", seq, scope, threadId: thread });
+    detach(readFileText(seq, { scope, threadId: thread }), rethrow);
+  };
+
+  const openFile = (): void => {
+    if (!live || file.phase !== "closed") return;
+    startFile("user", threadId);
+  };
+
+  const selectFileScope = (scope: FileScope): void => {
+    if (fileDirtyOf(file) || file.saving || file.phase === "loading") return;
+    startFile(scope, threadId);
+  };
+
+  // 다시 읽기는 편집기가 처음 연 대화로 읽는다. 충돌이나 읽기 실패 뒤에는 초안이 파일 내용으로 바뀐다
+  const rereadFile = (): void => {
+    if (!live || file.saving) return;
+    startFile(file.scope, file.threadId);
+  };
+
+  const saveFile = (): void => {
+    if (!fileSaveableOf(file, live) || file.doc === null) return;
+    fileSeq.current += 1;
+    const seq = fileSeq.current;
+    dispatchFile({ type: "saveStarted", seq });
+    detach(
+      writeFileText(seq, {
+        scope: file.scope,
+        threadId: file.threadId,
+        text: file.draft,
+        baseSha256: file.doc.sha256,
+      }),
+      rethrow,
+    );
+  };
+
+  const editFile = (text: string): void => {
+    if (!fileEditableOf(file, live)) return;
+    dispatchFile({ type: "edited", text });
+  };
+
+  const fileHandlers: SettingsFileHandlers = {
+    scope: selectFileScope,
+    edit: editFile,
+    save: saveFile,
+    discard: () => {
+      dispatchFile({ type: "discarded" });
+    },
+    close: () => {
+      dispatchFile({ type: "closed" });
+    },
+    reread: rereadFile,
+  };
+  const fileEditor =
+    file.phase === "closed" ? null : (
+      <SettingsFileEditorView
+        state={file}
+        live={live}
+        hasThread={threadId !== null}
+        handlers={fileHandlers}
+      />
+    );
 
   const keyIntent = (intent: SettingsKeyIntent): void => {
     if (intent === "save") {
@@ -278,6 +400,7 @@ export function SettingsPage(): ReactNode {
     promptStay: () => {
       setPending(null);
     },
+    openFile,
   };
 
   return (
@@ -294,6 +417,8 @@ export function SettingsPage(): ReactNode {
       restartError={state.restartError?.message ?? null}
       prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
       secretsPanel={<SecretsPanel />}
+      fileEditor={fileEditor}
+      fileOpen={file.phase !== "closed"}
       editors={PROVIDER_EDITORS}
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
       handlers={handlers}

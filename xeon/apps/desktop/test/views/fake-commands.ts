@@ -112,7 +112,11 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       beginReveal: () => Promise.resolve(err({ kind: "unsupported" })),
       writeClipboard: () => Promise.resolve(),
     },
-    settings: { open: () => null },
+    settings: {
+      open: () => null,
+      readFile: () => Promise.resolve(err({ kind: "unsupported" })),
+      writeFile: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
     web: {
       providers: () => Promise.resolve(err({ kind: "unsupported" })),
       setOrder: () => Promise.resolve(ok(null)),

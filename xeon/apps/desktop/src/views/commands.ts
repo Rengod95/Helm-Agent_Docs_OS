@@ -31,6 +31,9 @@ import type {
   ExtTestRunParams,
   ExtTestRunResult,
   SettingsExplainResult,
+  SettingsReadFileResult,
+  SettingsWritableFileScope,
+  SettingsWriteFileResult,
   TrustChoice,
   TrustStatus,
   WireParams,
@@ -287,7 +290,26 @@ export interface WebCommands {
  */
 export interface SettingsCommands {
   open(): SettingsController | null;
+  /** `settings.readFile`(파일 편집기). 범위가 `user`이면 대화를 보내지 않는다. 연결이 없으면 `offline`이다 */
+  readFile(target: SettingsFileTarget): Promise<Result<SettingsReadFileResult, CommandError>>;
+  /** `settings.writeFile`(파일 편집기). 읽은 뒤 파일이 바뀌었으면 `conflict`(3107)다 */
+  writeFile(write: SettingsFileWrite): Promise<Result<SettingsWriteFileResult, SettingsWriteError>>;
 }
+
+/** 파일 편집기가 고르는 범위와 대화. `project`와 `local`은 대화의 작업 폴더를 쓴다 */
+export interface SettingsFileTarget {
+  readonly scope: SettingsWritableFileScope;
+  readonly threadId: ThreadId | null;
+}
+
+/** 파일 전체를 바꾸는 요청. `baseSha256`은 읽었을 때의 해시이고, 파일이 없었으면 `null`이다 */
+export interface SettingsFileWrite extends SettingsFileTarget {
+  readonly text: string;
+  readonly baseSha256: string | null;
+}
+
+/** 파일 쓰기의 오류. 충돌은 화면이 다시 읽기로 맞추므로 따로 둔다 */
+export type SettingsWriteError = CommandError | { readonly kind: "conflict" };
 
 /**
  * 시크릿 화면의 기대하지 않은 실패. `secret.*`의 몇 가지 오류 종류만 구분하고 나머지는 `failed`다.

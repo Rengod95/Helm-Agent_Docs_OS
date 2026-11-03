@@ -45,6 +45,8 @@ export interface SettingsPageHandlers {
   readonly promptSave: () => void;
   readonly promptDiscard: () => void;
   readonly promptStay: () => void;
+  /** 탭의 "파일로 보기"를 누르면 편집기를 연다(범위는 사용자) */
+  readonly openFile: () => void;
 }
 
 export interface SettingsPageProps {
@@ -63,6 +65,10 @@ export interface SettingsPageProps {
   /** 탭을 옮기려는데 저장하지 않은 초안이 있을 때. `count`는 초안 개수다 */
   readonly prompt: { readonly to: SettingsTab; readonly count: number } | null;
   readonly secretsPanel: ReactNode;
+  /** 설정 파일 편집기(P-09 "파일로 보기"). 닫혀 있으면 `null`이다. 항목 목록 위에 보인다 */
+  readonly fileEditor: ReactNode;
+  /** 편집기가 열려 있는가. 열려 있으면 "파일로 보기" 단추가 잠긴다 */
+  readonly fileOpen: boolean;
   /** 종류마다 전용 편집기 그림(P-11). 빠진 종류는 요약이다 */
   readonly editors: DedicatedEditors;
   /** 도구와 웹 탭의 패널(P-12). 탭이 `tools`일 때 항목 위에 보인다 */
@@ -232,8 +238,35 @@ function Body(props: SettingsPageProps): ReactNode {
   );
 }
 
-/** 찾기 결과나 고른 탭의 항목. 시크릿 탭은 시크릿 화면이 자리를 차지한다 */
+/**
+ * 항목 목록 위의 자리. 탭을 고른 자리에는 "파일로 보기" 줄을 두고, 찾기 자리와 시크릿 탭에는 두지 않는다.
+ * 편집기는 탭과 찾기 어디서나 열린 채로 보인다(초안을 가리지 않으려고).
+ */
 function FieldList(props: SettingsPageProps & { readonly view: SettingsView }): ReactNode {
+  const { query, tab, readOnly, fileOpen, fileEditor, handlers } = props;
+  const tabMode = query.trim() === "" && tab !== "secrets";
+  return (
+    <>
+      {tabMode ? (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={readOnly || fileOpen}
+            onClick={handlers.openFile}
+          >
+            {t("desktop.settings.file.open.button")}
+          </Button>
+        </div>
+      ) : null}
+      {fileEditor}
+      <FieldItems {...props} />
+    </>
+  );
+}
+
+/** 찾기 결과나 고른 탭의 항목. 시크릿 탭은 시크릿 화면이 자리를 차지한다 */
+function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }): ReactNode {
   const { view, query, tab, hasThread, readOnly, saved, handlers } = props;
   const rowHandlers = handlers.fields;
   const rowOf = (field: FieldVM): ReactNode => (

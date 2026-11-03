@@ -33,6 +33,7 @@ const handlers: SettingsPageHandlers = {
   promptSave: NOOP,
   promptDiscard: NOOP,
   promptStay: NOOP,
+  openFile: NOOP,
 };
 
 const MODEL = defOf(
@@ -75,6 +76,8 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     restartError: null,
     prompt: null,
     secretsPanel: <p>SECRETS PANEL</p>,
+    fileEditor: null,
+    fileOpen: false,
     editors: {},
     toolsPanel: <p>TOOLS PANEL</p>,
     handlers,
@@ -288,5 +291,44 @@ describe("widget controls", () => {
     const moved = reduceSettings(edited, { type: "invalidated", keys: [ALLOW.key] });
     const noticed = html(propsOf({ view: settingsViewOf(moved), tab: "models", hasThread: true }));
     expect(noticed).toContain(t("desktop.settings.field.remoteChanged"));
+  });
+});
+
+/** 글이 그 문장 하나인 단추의 태그 묶음. 없으면 빈 글이다 */
+function buttonOf(out: string, label: string): string {
+  const buttons = out.match(/<button[\s\S]*?<\/button>/g) ?? [];
+  return buttons.find((button) => button.includes(`>${label}<`)) ?? "";
+}
+
+describe("file editor entry", () => {
+  const label = t("desktop.settings.file.open.button");
+
+  test("a field tab offers the view-as-file button in its header", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    expect(buttonOf(html(propsOf({ view, tab: "models" })), label)).not.toBe("");
+  });
+
+  test("the button is locked offline and while the editor is already open", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    expect(buttonOf(html(propsOf({ view, tab: "models" })), label)).not.toContain('disabled=""');
+    expect(buttonOf(html(propsOf({ view, tab: "models", readOnly: true })), label)).toContain(
+      'disabled=""',
+    );
+    expect(buttonOf(html(propsOf({ view, tab: "models", fileOpen: true })), label)).toContain(
+      'disabled=""',
+    );
+  });
+
+  test("the secrets tab and a search result have no button of their own", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    expect(html(propsOf({ view, tab: "secrets" }))).not.toContain(label);
+    expect(html(propsOf({ view, query: "기본" }))).not.toContain(label);
+  });
+
+  test("an open editor is drawn above the field list", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    const out = html(propsOf({ view, tab: "models", fileEditor: <p>FILE EDITOR</p> }));
+    expect(out.indexOf("FILE EDITOR")).toBeGreaterThan(-1);
+    expect(out.indexOf("FILE EDITOR")).toBeLessThan(out.indexOf('data-slot="settings-field"'));
   });
 });
