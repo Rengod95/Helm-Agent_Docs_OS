@@ -712,7 +712,7 @@ export interface HookEntry {
   /**
    * 실제로 등록된 핸들러를 디스패치 순서(tier, 확장 로드 순서, 등록 순서, F.extensions.spec §4.2)로 센 목록에,
    * 핸들러가 없는(꺼졌거나 setup에 실패해 레지스트리에서 빠진) Registration이 선언한 Hook을 `tier: null`로 뒤에 붙인다
-   * (`registrationId` 오름차순, 디스패치되지 않는다). `handlers`와 `registrations`는 이 목록에서 센다.
+   * (`registrationId` 오름차순, 디스패치되지 않는다). `handlers`와 `registrations`는 이 목록에서 `tier`가 있는 행을 같은 순서로 센다.
    * 호스트는 항상 채운다(없으면 옛 호스트)
    */
   readonly order?: readonly HookHandlerRow[];
