@@ -11,7 +11,7 @@
 # Every scope sits in the shared slice WS_GUARD_SLICE (ws-dev.slice, installed by the ws module: dot install ws), whose
 # limit is the memory budget of all tests and verifications together. Exceeding a cap ends only that run (exit 137).
 # Inside a guarded run the nested guard.sh calls run the command directly: the outer scope already caps it (and a nested
-# verify would wait for a slot its parent holds).
+# verify would wait for a slot its parent holds). group is the exception: it has no cap and no slot, so it stays supervised.
 # Without a systemd user session (macOS, CI, containers) there is no memory cap, but the command runs supervised by
 # scripts/guard-supervise.pl (perl, no new dependency): its own process group, the time limit (exit 124), and the whole group
 # plus its descendants end when the command exits, the limit passes, the guard gets TERM/INT/HUP, or the caller is gone. verify
@@ -55,8 +55,8 @@ if [ "$#" -eq 0 ]; then
   exit 64
 fi
 
-# nested in a guarded run: the outer scope is the cap
-if [ -n "${WS_GUARD_ACTIVE:-}" ]; then exec "$@"; fi
+# nested in a guarded run: the outer scope is the cap (group has none, so it is not nested-exec'd)
+if [ -n "${WS_GUARD_ACTIVE:-}" ] && [ "$mode" != group ]; then exec "$@"; fi
 
 slice="${WS_GUARD_SLICE:-ws-dev.slice}"
 slots="${WS_GUARD_SLOTS:-2}"

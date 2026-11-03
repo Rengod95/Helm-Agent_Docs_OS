@@ -5,12 +5,14 @@
 #   timeout_sec  seconds the command may run, 0 for no limit
 #   grace_sec    seconds between SIGTERM and SIGKILL when the group is ended
 # The command runs in its own process group (and owns the terminal while it runs, so a test that reads stdin still works).
-# The group, plus every descendant that left it (setsid, a daemon), is ended when:
+# The group, plus every descendant that left it (setsid) while its parent is still alive, is ended when:
 #   - the command exits (a test runner's leftover children, e.g. a `log stream` monitor, end with it),
 #   - the time limit passes (exit 124),
 #   - this process gets TERM, INT or HUP (exit 128+signal),
 #   - the process that started this one is gone (reparented: exit 143). The check runs every 0.2s, so a caller that was
 #     SIGKILLed cannot leave the group behind. Only this process being SIGKILLed itself is not covered: `just orphans` finds that.
+# A descendant whose parent exited before the end (a double fork that daemonizes) is not found: macOS has no child subreaper,
+# so the only link to it is its parent. It is not killed.
 # exit: the command's exit code, 128+n when a signal ended it, 124 time limit, 143 caller gone, 127 command not found.
 use strict;
 use warnings;
