@@ -1,13 +1,15 @@
 import { expect, test } from "bun:test";
 import { buildCatalog } from "@fresnel/contracts/settings";
 import {
+  createOperationsPolicy,
   createStaticOperationsSettings,
   DEFAULT_AUTO_DISABLE,
   DEFAULT_BUDGETS_MS,
+  hookOrderOf,
   operationsSettings,
 } from "../../src/operations/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
-import { flushMicrotasks } from "../../src/testing/index.ts";
+import { fakeTimers, flushMicrotasks } from "../../src/testing/index.ts";
 import { makeUnit } from "../primitives/fixtures/support.ts";
 import { createOperationsHarness } from "./support/harness.ts";
 
@@ -15,7 +17,14 @@ test("settings: x.operations keys pass catalog", () => {
   const defs = Object.values(operationsSettings.defs);
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.operations", defs }]);
   expect(catalog.ok).toBe(true);
-  expect(defs).toHaveLength(16);
+  expect(defs).toHaveLength(17);
+  // 훅 순서는 저장소 설정이 바꾸지 못한다(managed·user만)
+  expect(operationsSettings.defs.hookOrder).toMatchObject({
+    key: "x.operations.hookOrder",
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    default: {},
+  });
   for (const def of defs) {
     expect(def.layer).toBe("X");
     // 저장소에 든 설정이 예산·자동 끄기를 바꾸지 못한다
@@ -154,4 +163,36 @@ test("policy: handlers run through runWithBudget and report settled once", async
     { threadId: thread, dispatchKey: "k2" },
   );
   expect(policy.ledger.stats("ext:pol-fine")).toMatchObject({ consecutive: 0, totalCalls: 1 });
+});
+
+test("policy: a static hookOrder setting is the handler order of its hook", async () => {
+  const harness = await createOperationsHarness({
+    settings: { hookOrder: hookOrderOf({ "tool.call.before": ["beta", "alpha"] }) },
+  });
+  expect(harness.policy.handlerOrder?.("tool.call.before")).toEqual(["beta", "alpha"]);
+  expect(harness.policy.handlerOrder?.("tool.result")).toBeUndefined();
+});
+
+test("policy: a changed hookOrder setting is pending until the step boundary applies it", () => {
+  let saved = hookOrderOf({});
+  const timers = fakeTimers();
+  const policy = createOperationsPolicy({
+    now: timers.now,
+    setTimer: timers.setTimer,
+    settings: {
+      budgets: () => DEFAULT_BUDGETS_MS,
+      autoDisable: () => DEFAULT_AUTO_DISABLE,
+      hookOrder: () => saved,
+    },
+    scopes: { requestDisable: () => {}, requestEnable: () => {}, scopesOf: () => [] },
+    ports: { get: () => undefined },
+  });
+  // 첫 호출이 원천을 한 번 읽어 적용 중인 값으로 삼는다
+  expect(policy.handlerOrder?.("tool.call.before")).toBeUndefined();
+  saved = hookOrderOf({ "tool.call.before": ["beta", "alpha"] });
+  expect(policy.hookOrder.pending()).toBe(true);
+  expect(policy.handlerOrder?.("tool.call.before")).toBeUndefined();
+  policy.onStepBoundary?.();
+  expect(policy.handlerOrder?.("tool.call.before")).toEqual(["beta", "alpha"]);
+  expect(policy.hookOrder.pending()).toBe(false);
 });

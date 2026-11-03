@@ -232,6 +232,28 @@ export {
   type Tier,
 } from "./operations/index.ts";
 
+// 훅별 핸들러 순서 덮어쓰기(설정 값 읽기·쓰기, 제안 검사, 미리보기). 고정 tier(guard)는 PINNED_TIER_RANK·isPinnedTier로 이름을 댄다
+export {
+  checkOrder,
+  createHookOrderState,
+  hookOrderOf,
+  hookOrderValue,
+  isPinnedTier,
+  PINNED_TIER_RANK,
+  previewOrder,
+  type AutoDisableNote,
+  type HookOrderMap,
+  type HookOrderState,
+  type OrderCheckError,
+  type OrderPreview,
+  type OrderRow,
+  type PreviewRef,
+  type PreviewRow,
+  type SkipNote,
+  type SkipReason,
+  type ValueChangeNote,
+} from "./operations/index.ts";
+
 // 조립 루트(L4 host)가 ExtHost·정책·로더를 이을 때 필요한 이름 [제안: 문서 표에 없어 문서 반영을 요청한다]
 export {
   registrationToggleSourceOf,

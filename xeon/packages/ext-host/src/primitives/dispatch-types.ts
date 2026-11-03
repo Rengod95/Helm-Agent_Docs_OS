@@ -155,6 +155,10 @@ export interface DispatchPolicy {
     work: (signal: AbortSignal, gate: HandlerGate) => T | Promise<T>,
     outer: AbortSignal | undefined,
   ): Promise<HandlerRunOutcome<T>>;
+  /** 선택. 지금 적용 중인 훅별 순서 덮어쓰기(RegistrationId 목록, 원하는 순서). 없으면 기본 순서다. 고정 tier 항목은 덮어쓰기가 움직이지 못한다 */
+  handlerOrder?(point: HookName): readonly string[] | undefined;
+  /** 선택. 디스패처가 새 단계가 시작될 때(`boundary.turn.before`, `boundary.step.before`의 디스패치 시작) 부른다. 보류 중인 순서 변경을 이때 적용한다. 동기, 예외를 던지지 않는다 */
+  onStepBoundary?(): void;
 }
 
 /** tier 0, 예산 없음. 실패 기록은 ExtHostDeps.report가 맡는다. onHandlerSettled·run 없음 */

@@ -7,6 +7,7 @@ import { Type } from "typebox";
 import { DEFAULT_AUTO_DISABLE, type AutoDisablePolicy } from "./auto-disable.ts";
 import { DEFAULT_BUDGETS_MS, type BudgetTable } from "./budget.ts";
 import { DEFAULT_TRACE_SETTINGS, type TraceSettings } from "./trace-buffer.ts";
+import type { HookOrderMap } from "./hook-order.ts";
 
 const BUDGET_SCOPES = ["managed", "user", "local", "launch"] as const;
 const STARTUP_BUDGET_SCOPES = ["managed", "user", "local"] as const;
@@ -14,6 +15,8 @@ const STARTUP_BUDGET_SCOPES = ["managed", "user", "local"] as const;
 const SAFE_MODE_SCOPES = ["managed", "user"] as const;
 /** 계측 키는 저장소 설정이 다른 사람의 Turn 기록 방식을 바꾸지 못하게 managed·user만 받는다 [제안] */
 const TRACE_SCOPES = ["managed", "user"] as const;
+/** 훅 순서 키는 저장소 설정이 다른 기능의 실행 순서를 바꾸지 못하게 managed·user만 받는다 */
+const HOOK_ORDER_SCOPES = ["managed", "user"] as const;
 
 function budgetKey(
   label: string,
@@ -81,6 +84,7 @@ export const operationsSettings: SettingGroup<
     readonly "safeMode.suggestAfter": SettingDefInput;
     readonly "trace.enabled": SettingDefInput;
     readonly "trace.turnsPerThread": SettingDefInput;
+    readonly hookOrder: SettingDefInput;
   }
 > = defineSettings("x.operations", {
   "budget.firstMs": budgetKey(
@@ -209,6 +213,20 @@ export const operationsSettings: SettingGroup<
     ui: { tab: "plugins", widget: "number", order: 510, label: "계측 보관 Turn 수(thread마다)" },
     since: "0.1.0",
   },
+  hookOrder: {
+    type: Type.Record(Type.String(), Type.Array(Type.String())),
+    default: {},
+    runtimeChange: "nextTurn",
+    allowedScopes: HOOK_ORDER_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "table",
+      order: 600,
+      label: "핸들러 순서",
+      help: "훅마다 핸들러(Registration id) 실행 순서를 사용자가 정한다. 새 단계가 시작될 때 적용한다. guard tier 핸들러는 항상 맨 앞이고 옮길 수 없다.",
+    },
+    since: "0.1.0",
+  },
 });
 
 /** 유효 설정 값 읽기. 조립 루트(L4 host)가 설정 서비스에 연결해 넘긴다 */
@@ -217,12 +235,15 @@ export interface OperationsSettingsSource {
   autoDisable(): AutoDisablePolicy;
   /** x.operations.trace.* 유효 값(X.operations §3.9). 없으면 기본값이다 */
   trace?(): TraceSettings;
+  /** x.operations.hookOrder 유효 값(훅별 핸들러 순서). 없으면 빈 순서다 */
+  hookOrder?(): HookOrderMap;
 }
 
 export interface StaticOperationsSettings {
   readonly budgets?: Partial<BudgetTable>;
   readonly autoDisable?: Partial<AutoDisablePolicy>;
   readonly trace?: Partial<TraceSettings>;
+  readonly hookOrder?: HookOrderMap;
 }
 
 /** 값이 정해진 설정 읽기. 없는 값은 문서의 기본값이다 */
@@ -233,5 +254,6 @@ export function createStaticOperationsSettings(
     budgets: () => ({ ...DEFAULT_BUDGETS_MS, ...values.budgets }),
     autoDisable: () => ({ ...DEFAULT_AUTO_DISABLE, ...values.autoDisable }),
     trace: () => ({ ...DEFAULT_TRACE_SETTINGS, ...values.trace }),
+    hookOrder: () => values.hookOrder ?? new Map(),
   };
 }

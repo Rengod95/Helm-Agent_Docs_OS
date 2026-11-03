@@ -33,6 +33,7 @@ import type { FoldEnv, RunResult } from "./fold/env.ts";
 import { foldFirst } from "./fold/first.ts";
 import { foldTap } from "./fold/tap.ts";
 import { deepFreeze } from "./freeze.ts";
+import { orderEntries } from "./order.ts";
 import type { HandlerEntry, HandlerRegistry } from "./registry.ts";
 import type { StepPause } from "./step-pause.ts";
 
@@ -157,16 +158,25 @@ function combineSignals(...signals: readonly (AbortSignal | undefined)[]): Abort
   return present.length === 1 && only !== undefined ? only : AbortSignal.any(present);
 }
 
-/** 정렬 키 (tierOf, loadIndex, seq)의 사전식 오름차순(F.extensions.spec §4.2) */
-function sortEntries(
+/**
+ * 디스패치 순서. 정렬 키 (tierOf, loadIndex, seq)의 사전식 오름차순(F.extensions.spec §4.2) 뒤에 훅별 순서 덮어쓰기를 적용한다.
+ * 디스패치와 읽기 조회(extReadViewOf().handlers)가 이 함수를 같이 써서 순서가 어긋나지 않게 한다
+ */
+export function sortEntries(
   entries: readonly HandlerEntry[],
+  point: HookName,
   policy: DispatchPolicy,
 ): readonly HandlerEntry[] {
   const keyed = entries.map((entry) => ({ entry, tier: policy.tierOf(infoOf(entry)) }));
   keyed.sort(
     (a, b) => a.tier - b.tier || a.entry.loadIndex - b.entry.loadIndex || a.entry.seq - b.entry.seq,
   );
-  return keyed.map((item) => item.entry);
+  const sorted = keyed.map((item) => item.entry);
+  return orderEntries(
+    sorted,
+    (entry) => policy.tierOf(infoOf(entry)),
+    policy.handlerOrder?.(point),
+  );
 }
 
 /** 디스패처 자체 실행기. 정책에 run이 없을 때 쓴다(X.primitives.spec §4.2 ownRun) */
@@ -357,12 +367,17 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         dispatchKey: options.dispatchKey,
         hook: point,
       });
+      // 단계가 새로 시작될 때 보류 중인 순서 변경을 적용한다. 이 호출은 아래 스냅샷과 정렬보다 앞선다
+      if (point === "boundary.turn.before" || point === "boundary.step.before") {
+        policy.onStepBoundary?.();
+      }
       const entries = sortEntries(
         deps.registry
           .snapshot(point, options.threadId)
           .filter(
             (entry) => options.onlyScope === undefined || entry.scopeId === options.onlyScope,
           ),
+        point,
         policy,
       );
       const fold = decl.fold;
