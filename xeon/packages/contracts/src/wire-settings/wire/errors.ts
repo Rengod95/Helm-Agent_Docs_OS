@@ -141,6 +141,7 @@ export type WireErrorKind =
   | "extension.notFound"
   | "group.notFound"
   | "extension.safeModeActive"
+  | "hooks.notFound"
   | "request.cancelled"
   | "host.shuttingDown"
   | "store.busy"
@@ -597,7 +598,7 @@ export const WIRE_ERRORS: {
   "testRun.notATestRun": { code: 3312, kind: "testRun.notATestRun", retryable: false },
   /** Test run이 멈춰 있지 않아 `testRun.resume`·`testRun.step`을 받지 않는다 */
   "testRun.notPaused": { code: 3313, kind: "testRun.notPaused", retryable: false },
-  // 3400~3499: 확장 읽기·운영(`ext.*`, `group.*` 메서드)
+  // 3400~3499: 확장 읽기·운영(`ext.*`, `group.*`, `hooks.*` 메서드)
   /** 그 이름의 확장이 설치되어 있지 않다(`ext.get`·`ext.reenable`·`ext.reload`·`ext.health`·`ext.timings`) */
   "extension.notFound": {
     code: 3401,
@@ -620,6 +621,16 @@ export const WIRE_ERRORS: {
     code: 3403,
     kind: "extension.safeModeActive",
     retryable: false,
+  },
+  /** 그런 이름의 훅이 없다(`hooks.order.set`·`hooks.order.reset`·`hooks.order.preview`). 코드 3404는 옛 `hooks.guardPinned`가 쓰던 자리라 비워 둔다 */
+  "hooks.notFound": {
+    code: 3405,
+    kind: "hooks.notFound",
+    retryable: false,
+    details: Type.Object(
+      { hook: Type.String({ maxLength: 128 }) },
+      { additionalProperties: false },
+    ),
   },
   "request.cancelled": { code: 5001, kind: "request.cancelled", retryable: false },
   "host.shuttingDown": {

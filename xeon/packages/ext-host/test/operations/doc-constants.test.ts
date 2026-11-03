@@ -51,7 +51,13 @@ test("docs: settings keys match spec §6", async () => {
     const cells = documented.get(def.key);
     expect(cells).toBeDefined();
     if (cells === undefined) continue;
-    expect(String(def.default)).toBe((cells[2] ?? "").replaceAll("`", ""));
+    // 객체 기본값(`{}`)은 JSON으로 적는다
+    const fallback: unknown = def.default;
+    const shown =
+      typeof fallback === "string" || typeof fallback === "number" || typeof fallback === "boolean"
+        ? String(fallback)
+        : JSON.stringify(fallback);
+    expect(shown).toBe((cells[2] ?? "").replaceAll("`", ""));
     const runtimeChange: string = def.runtimeChange;
     const tab: string | undefined = def.ui?.tab;
     expect(runtimeChange).toBe(cells[4] ?? "");

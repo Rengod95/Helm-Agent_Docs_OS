@@ -755,7 +755,7 @@ export function hookEnv(
 
 ### 3.8 DispatchPolicy 연결 (`index.ts`)
 
-`DispatchPolicy`의 정의는 `X.primitives.spec` §3.4가 소유한다. 모양은 필수 `tierOf(entry)`, `budgetMs(entry)`, `onHandlerFailure(failure)`와 선택 `onHandlerSettled(entry, activeMs)`, `run(entry, work, outer)`다. 선택 두 메서드는 이 문서의 요청(성공 보고, 사용자 응답 대기 제외)을 primitives가 받아들인 것이다 [제안]. `OperationsPolicy`는 다섯 자리를 모두 채운다.
+`DispatchPolicy`의 정의는 `X.primitives.spec` §3.4가 소유한다. 모양은 필수 `tierOf(entry)`, `budgetMs(entry)`, `onHandlerFailure(failure)`와 선택 `onHandlerSettled(entry, activeMs)`, `run(entry, work, outer)`다. 선택 두 메서드는 이 문서의 요청(성공 보고, 사용자 응답 대기 제외)을 primitives가 받아들인 것이다 [제안]. `OperationsPolicy`는 다섯 자리를 모두 채우고, 선택 `handlerOrder(point)`와 `onStepBoundary()`도 채운다(§4.1.5). 둘은 `OperationsPolicy.hookOrder`(`HookOrderState`: `applied`, `saved`, `pending`, `start`, `applyPending`)를 거친다. 저장된 값은 `OperationsSettingsSource.hookOrder?()`가 읽는다.
 
 ```ts
 export interface OperationsDeps {
@@ -916,6 +916,7 @@ export function timingsOf(runs: Iterable<HandlerRun>, filter: TimingFilter): rea
   - 조직 append tier는 두지 않는다. 관리(managed) 범위 확장은 2차이고, 들어오면 신뢰 상한(`user`)과 같은 `user` tier에 둔다 [결정: 오케스트레이터 기본값, M4 X-13].
   - 사용자 tier와 내장 tier 사이에 `project`를 둔다. 프로젝트 폴더 확장은 사용자가 직접 설치한 확장보다 신뢰가 낮으므로 사용자 확장 안쪽에 둔다.
 - 정렬 키는 디스패치 시작 때 스냅샷한 핸들러 목록에 한 번 적용한다(`F.extensions.spec` §4.2 스냅샷 규칙).
+- [결정: 2026-11-03 사용자] 위 정렬 키는 기본 순서다. 기본 순서는 `guard` tier 핸들러가 맨 앞이다. 사용자는 훅별 순서 덮어쓰기(§4.1.5)로 이 순서를 포기하고 `guard` 핸들러도 옮길 수 있다. §4.1.3 예 1·2와 수용 기준 1·2는 기본 순서를 전제로 한다.
 
 #### 4.1.2 tier 부여
 
@@ -943,9 +944,9 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `first` | 바깥 tier의 결정이 우선한다. 바깥 핸들러가 `undefined`가 아닌 값을 내면 안쪽 핸들러는 실행되지 않는다 |
 | `chain` | 바깥에서 안쪽으로 적용한다. 안쪽 핸들러는 바깥 핸들러들이 만든 `current`를 받는다. 교체 규칙의 훅에서는 안쪽 패치가 바깥 패치를 덮어쓸 수 있다 |
 
-예 1 (`first`, `tool.call.before`): `guard`의 권한 핸들러, `user` 확장 A, `builtin`의 Helm이 모두 `tool.call.before`에 걸려 있다. 권한 핸들러가 `{ block: true, reason: "denied by rule" }`을 내면 A와 Helm은 실행되지 않는다. 권한 핸들러가 `undefined`를 내고 A가 거부를 내면 Helm은 실행되지 않는다. `ToolCallDecision`에는 허용 변형이 없으므로(`F.extensions.spec` §3.5) 안쪽 확장이 바깥의 거부를 허용으로 바꾸는 경로가 없다.
+예 1 (`first`, `tool.call.before`): 기본 순서에서 `guard`의 권한 핸들러, `user` 확장 A, `builtin`의 Helm이 모두 `tool.call.before`에 걸려 있다. 권한 핸들러가 `{ block: true, reason: "denied by rule" }`을 내면 A와 Helm은 실행되지 않는다. 권한 핸들러가 `undefined`를 내고 A가 거부를 내면 Helm은 실행되지 않는다. `ToolCallDecision`에는 허용 변형이 없으므로(`F.extensions.spec` §3.5) 안쪽 확장이 바깥의 거부를 허용으로 바꾸는 경로가 없다. [결정: 2026-11-03 사용자] 사용자가 덮어쓰기로 권한 핸들러를 A 뒤로 보내면 A가 먼저 결정할 수 있고, 그때 권한 핸들러는 건너뛰어진다(§4.1.5 `first_answer`, 미리보기의 `guardRisk`가 알린다). 권한 핸들러가 실행되어 실패하면 그 자리와 무관하게 거부다.
 
-예 2 (`first`, `thread.trust.before`): 결정에 "신뢰함"이 있는 훅이다. 사용자 확장이 가드보다 바깥에 있으면 그 확장의 "신뢰함"이 가드를 건너뛴다. 그래서 가드는 가장 바깥 tier여야 한다.
+예 2 (`first`, `thread.trust.before`): 결정에 "신뢰함"이 있는 훅이다. 기본 순서에서는 가드가 가장 바깥 tier라 사용자 확장의 "신뢰함"이 가드를 건너뛰지 못한다. [결정: 2026-11-03 사용자] 사용자가 덮어쓰기로 사용자 확장을 가드 앞에 두면 그 확장의 "신뢰함"이 가드를 건너뛸 수 있다. 이 설정은 막지 않고 미리보기의 `guardRisk`로 경고한다(§4.1.5).
 
 예 3 (`chain`, `input.agent.before`): `guard`가 시스템 프롬프트에 안전 문구를 더하고, `user` 확장이 시스템 프롬프트를 교체하면 안전 문구는 사라진다. chain은 안쪽 핸들러가 값을 고칠 수 있는 fold다. 그래서 [제안] 보안 불변식은 chain 훅에 두지 않는다. 보안 판정은 first 훅(`tool.call.before`, `input.bash.before`, `thread.trust.before`, `session_before_*`)과 L1의 최종 검증(`F.extensions.spec` §4.1 `finalize`, `L1.tools.spec`의 권한 판정)에 둔다. 가드 tier의 chain 핸들러는 기본값 제공 용도로만 쓴다.
 
@@ -976,6 +977,28 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - Helm 쓰기 거부가 샌드박스보다 먼저인 이유: 거부된 호출은 실행하지 않으므로 샌드박스의 허용·거부 판정이 필요 없고, 승인 대기와 감사 이벤트도 남기지 않습니다. 샌드박스는 허용된 호출의 마지막 방어선입니다.
 - 샌드박스를 쓸 수 없을 때(`disable_execute`, `ask`)의 결과는 거부 오류이고, `run_unsandboxed`이면 실행한 뒤 `tool.sandbox_bypassed`가 남습니다.
 - 확장이 `tool.call.before`에서 샌드박스를 우회하게 하는 경로는 없습니다. 이 훅의 결정에는 허용 변형이 없고(`ToolCallDecision`), `allowEscape`는 호출자(도구 구현)만 정하며 항상 승인 대상입니다(`L0.sandbox.spec` §4.2).
+
+#### 4.1.5 사용자 순서 덮어쓰기 [결정: 2026-11-03 M4 T-ORDER, m4-decisions 15-2]
+
+[결정: 2026-11-03 사용자] 기본 순서에서 `guard` tier 핸들러는 맨 앞이다. 사용자는 훅마다 핸들러 순서를 바꿀 수 있고, tier를 넘는 이동(`user`, `project`, `builtin`, `core` 사이)도 자유롭다. **`guard` tier 핸들러도 옮길 수 있다. 고정은 없다.** 옮기면 안전 검사(§4.1.3 예 2, 수용 기준 1·2의 보안 판정)가 건너뛰어지거나 맨 앞을 잃을 수 있다. 그래서 저장은 막지 않고, 미리보기가 `guardRisk`로 알리며 설정 화면은 "안전 검사가 건너뛰어질 수 있다"는 강한 경고를 띄운다. 고정 상수와 `isPinnedTier`는 없다.
+
+- 저장소: 설정 `x.operations.hookOrder`(`{ "<훅 이름>": ["<registrationId>", …] }`, 범위 `managed`, `user`, 기본 `{}`, `nextTurn`). 설정 저장소를 쓰는 이유는 재시작 뒤에도 남고, 쓰기 검증과 `settings.explain`이 그대로 적용되며, 프로젝트 범위가 사용자의 순서를 바꾸지 못하도록 범위를 좁힐 수 있어서다. 따로 확장 상태를 두지 않는다. 읽을 때 훅 이름이 아닌 키, 배열이 아닌 값, 문자열이 아닌 원소, 중복은 버린다(`hookOrderOf`). 손상된 값이 디스패치를 막지 않는다.
+- 적용 시점: 저장은 즉시이고 디스패처가 쓰는 값은 새 단계가 시작될 때 바뀐다(`boundary.turn.before`와 `boundary.step.before`의 디스패치 시작에서 `DispatchPolicy.onStepBoundary`). 한 단계 안에서는 순서가 바뀌지 않는다. `hooks.order.get`의 `applied`가 그 차이를 말한다. 적용 중인 값은 처음 읽을 때가 아니라 시작 때 정한다. 정책을 만들 때 원천을 한 번 읽고, 조립이 설정 파일을 읽은 뒤 `start`로 저장된 순서를 다시 든다. 그래서 재시작하면 저장된 순서가 첫 단계부터 적용되고, 시작 뒤에 저장한 순서는 `hooks.order.get`이나 디스패치가 한 번도 없었더라도 다음 단계 경계까지 보류다(`pending: true`).
+- 의미: 덮어쓰기에 이름이 있는 핸들러는, 기본 순서에서 그 핸들러들이 차지한 자리에 덮어쓰기 순서대로 놓인다. 이름이 없는 핸들러는 자리를 지킨다. 한 Registration이 한 훅에 핸들러를 여럿 걸었으면 Registration 단위로 하나의 이름이고 서로의 상대 순서를 지킨다. 지워졌거나, 안전 모드로 싣지 않았거나, 꺼진 핸들러의 이름은 무시한다(오류가 아니다).
+- 범위: 설정 키는 `managed`와 `user`만 받는다(`allowedScopes`). 저장소 파일(`project` 범위)의 같은 키는 무시되고 `project` 쓰기는 `settings.scopeNotAllowed`(3103)다. 그래서 저장소 파일의 내용은 guard의 위치를 바꿀 수 없다(`settings-sources.test.ts`, `settings-write.int.test.ts`). [결정: 2026-11-03 사용자]
+- 저장(`checkOrder`): 제안을 저장할 값으로 고친다. 중복을 빼고 제안의 첫 출현 순서를 지킨다. 거부하지 않는다. guard 핸들러를 옮기거나 그 위에 다른 핸들러를 두는 제안도 그대로 저장된다. 알 수 없는 id도 그대로 저장한다. 저장을 막는 검사는 없다. [결정: 2026-11-03 사용자]
+- 건너뜀 미리보기(`previewOrder`, wire `hooks.order.preview`): 제안한 순서에서 어떤 핸들러가 어느 앞선 핸들러 때문에 실행되지 않을 수 있는지를 저장 전에 읽을 수 있다. 저장을 막지 않는다. 결과의 `saveable`은 항상 참이다. [결정: 2026-11-03 사용자]
+- guard 위험(`guardRisk`, 미리보기 결과의 별도 칸): guard 핸들러가 제안 때문에 건너뛰어지거나 맨 앞을 잃으면 노트를 남긴다. `mayBeSkipped`는 제안이 앞에 둔 핸들러 때문에 이 훅에서 실행되지 않을 수 있다는 뜻이다. 기본 순서에서 이미 앞이던 핸들러는 세지 않는다. `losesFirstPosition`은 기본 순서에서 맨 앞이던 guard가 이 제안에서 맨 앞을 잃었다는 뜻이다. 목록이 비어 있지 않으면 설정 화면은 "안전 검사가 건너뛰어질 수 있다"는 강한 경고를 띄운다. 이 노트는 `skips`와 별개다. [결정: 2026-11-03 사용자]
+
+| 종류 | fold | 내용 |
+|---|---|---|
+| `first_answer` | `first` | 앞선 핸들러가 `undefined`가 아닌 값으로 답하면 뒤 핸들러는 실행되지 않는다 |
+| `first_failure_deny` | `first`, 실패 정책 `closed` | 앞선 핸들러가 예외, 시간 초과, 스키마 위반을 내면 그 훅의 거부값(`FIRST_DENY`)이 결정이 되고 디스패치가 멈춘다(`fold/first.ts`). `open`인 `thread.compact.before`는 결정 없음으로 보고 계속하므로 이 종류가 없다 |
+| `chain_stop` | `chain`, `CHAIN_RULES[훅].stop`이 있는 훅 | 앞선 핸들러가 멈춤 값을 내면 뒤 핸들러는 실행되지 않는다(`input.user.before`의 `handled`) |
+| 값 변경(`valueChanges`) | `chain` | 건너뜀이 아니다. 뒤(안쪽) 핸들러의 패치가 앞(바깥) 핸들러의 패치를 덮어쓸 수 있다. 순서를 바꾸면 최종 값이 바뀐다 |
+| 자동 끄기(`autoDisable`) | `first`, `closed` | 면제가 아닌 핸들러가 실패하는 동안 뒤 핸들러가 가려지고, 연속 실패가 기준을 넘으면 그 확장이 꺼진다. `guard`·`core` tier와 essential 확장은 면제다(수용 기준 12) |
+
+`tap`과 `collect`는 모든 핸들러가 실행되므로 건너뜀과 값 변경 항목이 없다. 앞선 핸들러에는 guard도 들어간다. 가드가 답해서 뒤 핸들러를 멈추는 것은 순서와 무관한 기존 동작이다.
 
 ### 4.2 핸들러 시간 예산
 
@@ -1446,6 +1469,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 1차 |
 | `x.operations.trace.enabled` | boolean | true | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.trace.turnsPerThread` | integer | 20 | 1~200 | nextTurn | managed, user | plugins | 1차 |
+| `x.operations.hookOrder` | `Record<훅 이름, registrationId[]>` | {} | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 2차 |
 | `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
 | `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins(widget `list`) | 2차 |
@@ -1507,8 +1531,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 ## 9. 수용 기준
 
-1. `guard` tier 핸들러는 로드·등록 순서와 관계없이 같은 훅의 다른 tier 핸들러보다 먼저 실행된다. 사용자 확장을 먼저 싣고 먼저 등록해도 같다.
-2. `tool.call.before`에서 `guard` 핸들러가 거부하면 `user`·`builtin` 핸들러는 호출되지 않고 결정은 가드의 거부다.
+1. [결정: 2026-11-03 사용자] 기본 순서(덮어쓰기가 없을 때)에서 `guard` tier 핸들러는 로드·등록 순서와 관계없이 같은 훅의 다른 tier 핸들러보다 먼저 실행된다. 사용자 확장을 먼저 싣고 먼저 등록해도 같다. 사용자가 덮어쓰기로 guard를 뒤에 두면 저장한 순서대로 실행된다(§4.1.5).
+2. [결정: 2026-11-03 사용자] 기본 순서의 `tool.call.before`에서 `guard` 핸들러가 거부하면 `user`·`builtin` 핸들러는 호출되지 않고 결정은 가드의 거부다. 덮어쓰기로 guard가 뒤에 오면, 앞선 핸들러가 결정하면 guard는 호출되지 않고, guard가 실행되어 실패하면 그 자리와 무관하게 거부다(`FIRST_DENY`, `test/operations/hook-order-guard.test.ts`).
 3. `orderKeyOf`·`tierOfFrom`으로 정렬한 결과는 tier가 같으면 `loadIndex`, 그것도 같으면 `registrationIndex` 오름차순이다.
 4. `assignTier`는 `GUARD_EXTENSIONS`에 없는 확장에 `guard`를 주지 않는다. `project` 설치 위치에 `builtin` 신뢰가 오면 `source_trust_mismatch`다.
 5. 가짜 시계에서 `first` 훅 핸들러가 30,000ms까지 끝나지 않으면 결정은 `FIRST_DENY[point]`이고 핸들러 signal은 `TimeoutError`로 abort된다. 29,999ms에 끝나면 그 값을 쓴다.
@@ -1550,6 +1574,11 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 41. 처리기가 `decl.result`를 어긴 값을 돌려준 메서드 호출은 `result_invalid`이고, 장부에서 연속 수와 창 실패 수가 각각 1 오른다(`ext:<이름>` 키) [제안, M4 T-XV].
 42. 매개변수가 스키마를 어긴 호출(`params_invalid`)과 `aborted`로 끝난 호출은 장부의 `totalCalls`, 연속 수, 창을 바꾸지 않는다 [제안, M4 T-XV].
 43. 메서드 실패 `threw` 두 번이 `consecutive: 2`에서 그 확장의 모든 scope에 `requestDisable(…, "auto_disable")`을 부른다. 사이에 `ok`가 끼면 연속 수는 0으로 돌아가 끄지 않는다 [제안, M4 T-XV].
+44. [결정: 2026-11-03 사용자] 순서 덮어쓰기는 tier를 넘어 실제 디스패치 순서를 바꾸고, 이름 없는 핸들러는 자리를 지키며, 지워진 핸들러의 이름은 무시한다. `guard` tier 핸들러도 덮어쓰기로 옮길 수 있다. 덮어쓰기가 없으면 guard가 맨 앞이다(`test/primitives/order.test.ts`, `test/primitives/dispatch-order.test.ts`). 실제 `OperationsPolicy`와 `ExtHost`로 저장한 순서가 guard를 앞선 핸들러 뒤로 보내 실행 순서를 바꾸는 것, 덮어쓰기가 없으면 guard가 먼저인 것, 기본 순서의 first 훅에서 guard가 실패하면 그 자리와 무관하게 거부인 것을 보이는 시험은 `test/operations/hook-order-guard.test.ts`다. 실제 호스트에는 guard tier 핸들러가 아직 없어서(내장 단위가 `admit`을 거치지 않고 `core-tools`는 훅을 걸지 않는다) 호스트 조립 시험(`apps/host/test/int/hook-order-real.int.test.ts`)은 tier를 넘는 재정렬, 재시작 유지, 없어진 핸들러 무시, 미리보기, 초기화만 보인다 [M4 T-ORDER].
+45. 순서 덮어쓰기는 저장 직후가 아니라 다음 단계 경계(`boundary.turn.before`, `boundary.step.before`)에서 적용된다. `onStepBoundary`는 다른 훅의 디스패치에서는 불리지 않는다(`dispatch-order.test.ts`, `policy.test.ts`) [M4 T-ORDER].
+46. [결정: 2026-11-03 사용자] `checkOrder`는 제안을 거부하지 않고 중복만 뺀다. guard 핸들러를 옮기는 제안도, 알 수 없는 id도 그대로 저장한다. `previewOrder`는 `first` 답(`first_answer`), `closed` first의 실패(`first_failure_deny`), `chain`의 멈춤과 값 변경, 자동 끄기를 구분해 돌려주고 `open` first와 `tap`에는 해당 항목을 내지 않는다(`test/operations/hook-order.test.ts`). guard의 건너뜀과 맨 앞 상실은 `guardRisk`에 따로 낸다(`test/operations/hook-order.test.ts`, `apps/host/test/int/hook-order.int.test.ts`) [M4 T-ORDER].
+47. [결정: 2026-11-03 사용자] 설정 `x.operations.hookOrder`는 `managed`와 `user` 범위만 받는다. 신뢰한 작업 폴더의 프로젝트 파일에 든 같은 키는 무시되고(`settings-sources.test.ts`), `project` 범위로 쓰면 `settings.scopeNotAllowed`(3103)로 거절된다(`settings-write.int.test.ts`). 저장소 파일은 guard의 위치를 바꿀 수 없다.
+48. [결정: 2026-11-03 사용자] `hooks.order.preview`의 `guardRisk`는 제안이 guard 핸들러를 앞선 핸들러 뒤에 둬 건너뛰어질 수 있을 때(`mayBeSkipped`)와, 기본 순서에서 맨 앞이던 guard가 맨 앞을 잃을 때(`losesFirstPosition`) 노트를 남긴다. 기본 순서에서 이미 뒤에 있던 guard에는 노트가 없다. `saveable`은 항상 참이다(`test/operations/hook-order-guard.test.ts`, `apps/host/test/int/hook-order.int.test.ts`).
 
 ## 10. 미결 사항
 

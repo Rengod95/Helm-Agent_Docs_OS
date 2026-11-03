@@ -242,6 +242,26 @@ export {
   type Tier,
 } from "./operations/index.ts";
 
+// 훅별 핸들러 순서 덮어쓰기(설정 값 읽기·쓰기, 제안 정리, 미리보기). guard tier도 덮어쓰기로 옮길 수 있고, 미리보기의 guardRisk가 위험을 알린다
+export {
+  checkOrder,
+  createHookOrderState,
+  hookOrderOf,
+  hookOrderValue,
+  previewOrder,
+  type AutoDisableNote,
+  type GuardRiskNote,
+  type HookOrderMap,
+  type HookOrderState,
+  type OrderPreview,
+  type OrderRow,
+  type PreviewRef,
+  type PreviewRow,
+  type SkipNote,
+  type SkipReason,
+  type ValueChangeNote,
+} from "./operations/index.ts";
+
 // 조립 루트(L4 host)가 ExtHost·정책·로더를 이을 때 필요한 이름 [제안: 문서 표에 없어 문서 반영을 요청한다]
 export {
   registrationToggleSourceOf,

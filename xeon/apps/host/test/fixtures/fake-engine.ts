@@ -457,7 +457,16 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     // M4 처리기는 소유 트랙이 채울 때까지 모두 기본(notImplemented)이다. 포트는 빈 구현이다. 프로필·Test run은 T-WB가 채웠다
     m4: {
       extRead: createExtReadPort(
-        { traceRead: options.profiles?.traceRead ?? OFF_TRACE },
+        {
+          traceRead: options.profiles?.traceRead ?? OFF_TRACE,
+          env: {
+            // 순서 쓰기(`hooks.order.*`)가 설정 저장소를 쓴다. 포트가 호출할 때마다 읽는다(프로필 처리기와 같다)
+            get settings() {
+              return ports.settings;
+            },
+            errors: { ofStore: wireErrorOfStore, threadLocked: () => threadLocked(null) },
+          },
+        },
         EMPTY_EXT_READ_SOURCES,
       ),
       extUi: options.extUi ?? noExtensionsPort,

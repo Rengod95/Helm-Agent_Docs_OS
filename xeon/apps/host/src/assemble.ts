@@ -530,6 +530,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const startupHealth = createFileStartupHealth(os.dirs.state);
     const startupFailures = startupHealth.beginStartup();
     await settings.loadUserFile(join(os.dirs.config, "settings.json"));
+    // 훅 순서 덮어쓰기의 적용 상태는 정책을 만들 때(위) 읽는다. 그때 설정 파일은 아직 안 읽혔으므로 지금 저장된 순서를 든다(X.operations §4.1.5)
+    operations.hookOrder.start();
     for (const line of settings.diagnostics) logger.warn(line);
     // 안전 모드(X.operations.spec §4.6.1): 시작 옵션(`options.safeMode`, CLI `--safe-mode`)이나 설정 `x.operations.safeMode.default`(관리·사용자 범위)가 켠다.
     // 옵션이 `false`를 명시하면 설정보다 앞서 끈다

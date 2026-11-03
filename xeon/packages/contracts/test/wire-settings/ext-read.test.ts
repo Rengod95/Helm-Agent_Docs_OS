@@ -277,4 +277,160 @@ describe("M4 ext read methods", () => {
     expect(classifyMethodName("work.tasks.list")).toBe("core");
     expect(classifyMethodName("a.b.c.d")).toBeUndefined();
   });
+
+  test("hooks.order.* are M4 core methods, next to hooks.list", () => {
+    const names = Object.keys(WIRE_METHODS).filter((name) => name.startsWith("hooks.order."));
+    expect(names.toSorted()).toEqual([
+      "hooks.order.get",
+      "hooks.order.preview",
+      "hooks.order.reset",
+      "hooks.order.set",
+    ]);
+    expect(WIRE_METHODS["hooks.order.set"].stage).toBe("M4");
+    expect(WIRE_METHODS["hooks.order.set"].stage).toBe(WIRE_METHODS["hooks.list"].stage);
+    for (const name of names) {
+      expect({ name, kind: classifyMethodName(name) }).toEqual({ name, kind: "core" });
+    }
+  });
+
+  test("hooks.order.set, reset and preview params accept a valid value and reject bad ones", () => {
+    const order = ["learning/review", "learning"];
+    const tooLong = Array.from({ length: 257 }, (_, index) => `learning/h${index}`);
+    const set = WIRE_METHODS["hooks.order.set"].params;
+    expect(parse(set, { hook: "tool.call.before", order, _meta: {} }).ok).toBe(true);
+    expect([
+      parse(set, { hook: "tool.call.before", order, extra: 1 }).ok,
+      parse(set, { hook: "tool.call.before", order: "learning" }).ok,
+      parse(set, { hook: 3, order }).ok,
+      parse(set, { hook: "tool.call.before", order: tooLong }).ok,
+      parse(set, { hook: "tool.call.before" }).ok,
+      parse(set, { hook: "", order }).ok,
+    ]).toEqual([false, false, false, false, false, false]);
+
+    const reset = WIRE_METHODS["hooks.order.reset"].params;
+    expect([
+      parse(reset, {}).ok,
+      parse(reset, { hook: "tool.call.before" }).ok,
+      parse(reset, { hook: "" }).ok,
+      parse(reset, { hook: "tool.call.before", all: true }).ok,
+    ]).toEqual([true, true, false, false]);
+
+    const preview = WIRE_METHODS["hooks.order.preview"].params;
+    expect(parse(preview, { hook: "tool.call.before", order }).ok).toBe(true);
+    expect([
+      parse(preview, { hook: "tool.call.before", order, extra: 1 }).ok,
+      parse(preview, { hook: "tool.call.before", order: tooLong }).ok,
+      parse(preview, { order }).ok,
+    ]).toEqual([false, false, false]);
+
+    expect([
+      parse(WIRE_METHODS["hooks.order.get"].params, {}).ok,
+      parse(WIRE_METHODS["hooks.order.get"].params, { hook: "tool.call.before" }).ok,
+    ]).toEqual([true, false]);
+  });
+
+  test("hooks.order.get, set and reset results round trip and reject missing fields", () => {
+    const ordered = {
+      hook: "tool.call.before",
+      saved: ["guard/a", "learning/review", "learning"],
+      applied: ["guard/a", "learning/review", "learning"],
+      pending: false,
+    };
+    const pendingHook = {
+      hook: "input.user.before",
+      saved: [],
+      applied: ["x"],
+      pending: true,
+    };
+    roundTrip(WIRE_METHODS["hooks.order.get"].result, { hooks: [ordered, pendingHook] });
+    roundTrip(WIRE_METHODS["hooks.order.get"].result, { hooks: [] });
+    const { pending: _pending, ...noPending } = ordered;
+    expect(parse(WIRE_METHODS["hooks.order.get"].result, { hooks: [noPending] }).ok).toBe(false);
+    // 옛 `pinned` 칸은 없다. 닫힌 객체라서 그 칸을 실은 값은 거부된다
+    const withPinned = { ...ordered, pinned: ["guard/a"] };
+    expect(parse(WIRE_METHODS["hooks.order.get"].result, { hooks: [withPinned] }).ok).toBe(false);
+
+    const set = {
+      hook: "tool.call.before",
+      saved: ["learning/review", "learning"],
+      appliesAt: "nextStepBoundary",
+    };
+    roundTrip(WIRE_METHODS["hooks.order.set"].result, set);
+    expect(
+      parse(WIRE_METHODS["hooks.order.set"].result, { hook: set.hook, saved: set.saved }).ok,
+    ).toBe(false);
+    expect(parse(WIRE_METHODS["hooks.order.set"].result, { ...set, appliesAt: "now" }).ok).toBe(
+      false,
+    );
+
+    const reset = { hooks: ["tool.call.before"], appliesAt: "nextStepBoundary" };
+    roundTrip(WIRE_METHODS["hooks.order.reset"].result, reset);
+    roundTrip(WIRE_METHODS["hooks.order.reset"].result, {
+      hooks: [],
+      appliesAt: "nextStepBoundary",
+    });
+    expect(
+      parse(WIRE_METHODS["hooks.order.reset"].result, { appliesAt: "nextStepBoundary" }).ok,
+    ).toBe(false);
+  });
+
+  test("hooks.order.preview result round trips with guard risk notes and rejects the removed guard field", () => {
+    const ref = { registrationId: "learning", extension: "learning", tier: 1 };
+    const skip = {
+      registrationId: "learning/review",
+      extension: "learning",
+      reason: "first_answer",
+      by: [ref],
+    };
+    const valueChange = { registrationId: "guard/b", extension: "guard", by: [ref] };
+    const risk = {
+      registrationId: "guard/a",
+      extension: "guard",
+      mayBeSkipped: true,
+      losesFirstPosition: true,
+      by: [ref],
+    };
+    const withRisk = {
+      hook: "tool.call.before",
+      order: ["learning/review", "guard/a"],
+      saveable: true,
+      skips: [skip],
+      valueChanges: [valueChange],
+      autoDisable: [
+        {
+          registrationId: "learning",
+          extension: "learning",
+          affects: [{ registrationId: "learning/review", extension: "learning", tier: 2 }],
+        },
+      ],
+      guardRisk: [risk],
+    };
+    const preview = WIRE_METHODS["hooks.order.preview"].result;
+    roundTrip(preview, withRisk);
+    roundTrip(preview, {
+      ...withRisk,
+      skips: [],
+      valueChanges: [],
+      autoDisable: [],
+      guardRisk: [],
+    });
+
+    const { guardRisk: _risk, ...noRisk } = withRisk;
+    expect(parse(preview, noRisk).ok).toBe(false);
+    // 옛 `guard` 칸(규칙 위반 거절)은 없다. 닫힌 객체라서 거부한다
+    expect(parse(preview, { ...withRisk, guard: null }).ok).toBe(false);
+    expect(
+      parse(preview, { ...withRisk, guardRisk: [{ ...risk, losesFirstPosition: "yes" }] }).ok,
+    ).toBe(false);
+    expect(
+      parse(preview, { ...withRisk, guardRisk: [{ ...risk, mayBeSkipped: undefined }] }).ok,
+    ).toBe(false);
+    expect(parse(preview, { ...withRisk, skips: [{ ...skip, reason: "always_first" }] }).ok).toBe(
+      false,
+    );
+    const fractionalTier = { ...valueChange, by: [{ ...ref, tier: 1.5 }] };
+    expect(parse(preview, { ...withRisk, valueChanges: [fractionalTier] }).ok).toBe(false);
+    const longSkips = Array.from({ length: 769 }, () => skip);
+    expect(parse(preview, { ...withRisk, skips: longSkips }).ok).toBe(false);
+  });
 });

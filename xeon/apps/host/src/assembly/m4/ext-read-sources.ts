@@ -49,7 +49,7 @@ interface ExtReadSafeMode {
 
 /** 조립 루트(`assemble.ts`)가 넘기는 것: 엔진 포트가 올라오기 전에 있는 값 */
 export interface ExtReadAssembly {
-  readonly operations: Pick<OperationsPolicy, "ledger" | "autoDisabler">;
+  readonly operations: Pick<OperationsPolicy, "ledger" | "autoDisabler" | "hookOrder">;
   readonly safeMode: ExtReadSafeMode;
   readonly extensions: () => readonly ExtensionRecord[];
   /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다. `ext.reload`가 새 버전으로 바꾸는 데 쓴다 */
@@ -245,6 +245,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
   const catalog = env.settings.catalog;
   const view = extReadViewOf(env.ext);
   const ledger = assembly.operations.ledger;
+  const order = assembly.operations.hookOrder;
 
   const instrumented = (): boolean => env.settings.value("l3.group-sdk.instrumentation") !== false;
 
@@ -358,7 +359,14 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
         registrationId: handler.scopeId,
         extension: handler.extension,
         tier: handler.tier,
+        loadIndex: handler.loadIndex,
+        seq: handler.seq,
       })),
+    hookOrder: () => ({
+      saved: () => order.saved(),
+      applied: () => order.appliedMap(),
+      pending: () => order.pending(),
+    }),
     boundCapabilities: () => view.boundCapabilities(),
     registrationErrors: () =>
       new Map(

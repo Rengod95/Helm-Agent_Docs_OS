@@ -19,6 +19,7 @@ import type { ToolsSettingsSource } from "@fresnel/core-tools";
 import type { WorkspaceSettingsSource } from "@fresnel/cap-workspace";
 import {
   DEFAULT_TRACE_SETTINGS,
+  hookOrderOf,
   withDriveDefaults,
   type ExtHostDeps,
   type OperationsSettingsSource,
@@ -139,6 +140,8 @@ export function operationsSource(settings: SettingsEngine): OperationsSettingsSo
       enabled: boolOr(settings.value("x.operations.trace.enabled"), DEFAULT_TRACE_SETTINGS.enabled),
       turnsPerThread: int("trace.turnsPerThread", DEFAULT_TRACE_SETTINGS.turnsPerThread),
     }),
+    // 훅별 순서 덮어쓰기(X.operations §4.1.5). 손상된 값은 `hookOrderOf`가 버리고 디스패치를 막지 않는다
+    hookOrder: () => hookOrderOf(settings.value("x.operations.hookOrder")),
   };
 }
 

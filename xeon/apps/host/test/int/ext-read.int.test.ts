@@ -10,6 +10,7 @@ import {
 import { createExtReadHandlers } from "../../src/handlers/m4/ext-read.ts";
 import { isNotImplemented } from "../../src/handlers/not-implemented.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
+import { recordingEnv } from "../fixtures/hook-order-env.ts";
 import {
   catalogOfTest,
   createRecordedSources,
@@ -36,6 +37,10 @@ const EXT_READ_METHODS: readonly WireMethodName[] = [
   "group.driveLock",
   "hooks.list",
   "settings.explain",
+  "hooks.order.get",
+  "hooks.order.set",
+  "hooks.order.reset",
+  "hooks.order.preview",
 ];
 
 const EMPTY_TRACE: TraceReadPort = {
@@ -44,7 +49,7 @@ const EMPTY_TRACE: TraceReadPort = {
   timings: () => ({ traceEnabled: false, timings: [] }),
 };
 function connect(sources: ExtReadSources, traceRead: TraceReadPort = EMPTY_TRACE) {
-  const port = createExtReadPort({ traceRead }, sources);
+  const port = createExtReadPort({ traceRead, env: recordingEnv().env }, sources);
   const host = createFakeHost({
     override: (table) => ({ ...table, ...createExtReadHandlers(port) }),
   });
@@ -86,7 +91,7 @@ const ALPHA_ENTRY: ExtListEntry = {
   hookCount: 1,
 };
 
-test("ext-read: the 13 handlers are listed in host.hello features instead of notImplemented", async () => {
+test("ext-read: the 17 handlers are listed in host.hello features instead of notImplemented", async () => {
   const connection = connect(createRecordedSources().sources);
   const hello = await connection.request("host.hello", HELLO_PARAMS);
   const featured = new Set(hello.features.map((feature) => feature.name));
@@ -94,7 +99,7 @@ test("ext-read: the 13 handlers are listed in host.hello features instead of not
     EXT_READ_METHODS.map((name) => [name, true]),
   );
   const handlers = createExtReadHandlers(
-    createExtReadPort({ traceRead: EMPTY_TRACE }, EMPTY_EXT_READ_SOURCES),
+    createExtReadPort({ traceRead: EMPTY_TRACE, env: recordingEnv().env }, EMPTY_EXT_READ_SOURCES),
   );
   expect(Object.values(handlers).map((handler) => isNotImplemented(handler))).toEqual(
     EXT_READ_METHODS.map(() => false),

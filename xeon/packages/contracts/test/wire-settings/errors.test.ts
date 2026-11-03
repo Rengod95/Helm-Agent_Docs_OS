@@ -84,6 +84,7 @@ describe("WIRE_ERRORS", () => {
       "extension.notFound": 3401,
       "group.notFound": 3402,
       "extension.safeModeActive": 3403,
+      "hooks.notFound": 3405,
       "request.cancelled": 5001,
       "host.shuttingDown": 5002,
       "store.busy": 5003,
@@ -206,6 +207,25 @@ describe("WIRE_ERRORS", () => {
       const code = WIRE_ERRORS[kind].code;
       expect({ kind, core: code >= 3400 && code <= 3499 }).toEqual({ kind, core: true });
     }
+  });
+
+  test("hooks.notFound names the hook, and the guard pin error 3404 is gone and not reused", () => {
+    const notFound = WIRE_ERRORS["hooks.notFound"].details;
+    if (notFound === undefined) throw new Error("details expected");
+    expect([
+      parse(notFound, { hook: "tool.call.before" }).ok,
+      parse(notFound, {}).ok,
+      parse(notFound, { hook: "tool.call.before", extra: 1 }).ok,
+    ]).toEqual([true, false, false]);
+    expect(wireError("hooks.notFound", { details: { hook: "x" } }).code).toBe(3405);
+    const spec = WIRE_ERRORS["hooks.notFound"];
+    expect({
+      kind: spec.kind,
+      core: spec.code >= 3400 && spec.code <= 3499,
+      r: spec.retryable,
+    }).toEqual({ kind: "hooks.notFound", core: true, r: false });
+    // 3404는 옛 hooks.guardPinned가 쓰던 자리다. 다른 오류가 조용히 받지 않는다(코드를 다시 쓰지 않는다)
+    expect(Object.values(WIRE_ERRORS).some((s) => s.code === 3404)).toBe(false);
   });
 
   test("store.corrupt names where the stored row is wrong and is not a media error", () => {

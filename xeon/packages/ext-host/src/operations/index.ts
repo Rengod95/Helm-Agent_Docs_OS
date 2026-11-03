@@ -35,6 +35,7 @@ import {
   fromMethodSettled,
   type FailureLedger,
 } from "./failure.ts";
+import { createHookOrderState, type HookOrderState } from "./hook-order.ts";
 import { createResourcePolicy, NO_RESERVED_NAMES, type ReservedNames } from "./naming.ts";
 import type { OperationsSettingsSource } from "./settings-keys.ts";
 import { createExtStorageManager, type ExtStorageManager } from "./storage/ext-storage.ts";
@@ -67,6 +68,24 @@ export {
   TIERS,
   type Tier,
 } from "./tier.ts";
+export {
+  checkOrder,
+  createHookOrderState,
+  hookOrderOf,
+  hookOrderValue,
+  previewOrder,
+  type AutoDisableNote,
+  type GuardRiskNote,
+  type HookOrderMap,
+  type HookOrderState,
+  type OrderPreview,
+  type OrderRow,
+  type PreviewRef,
+  type PreviewRow,
+  type SkipNote,
+  type SkipReason,
+  type ValueChangeNote,
+} from "./hook-order.ts";
 export {
   awaitUser,
   budgetClassOf,
@@ -191,6 +210,8 @@ export interface OperationsPolicy extends DispatchPolicy {
    */
   readonly onMethodSettled: (info: ExtMethodSettled) => void;
   readonly tiers: TierTable;
+  /** 훅별 순서 덮어쓰기 상태. handlerOrder는 적용 중인 값을, onStepBoundary는 보류 중인 값을 적용한다 */
+  readonly hookOrder: HookOrderState;
   readonly ledger: FailureLedger;
   readonly autoDisabler: AutoDisabler;
   /** 확장 전용 저장 영역 관리자. storageOf(g)가 쓴다 */
@@ -241,10 +262,17 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
   function tierFor(extension: ExtensionName): Tier {
     return tiers.get(extension) ?? "builtin";
   }
+  // 저장된 순서는 만들 때 읽고, 조립이 설정 파일을 읽은 뒤 start로 다시 든다. 이후 바뀐 순서는 단계 경계에서만 적용한다
+  const hookOrder = createHookOrderState(() => deps.settings.hookOrder?.() ?? new Map());
 
   return {
     tierOf: tierOfFrom(tiers),
     budgetMs: budgetOf,
+    handlerOrder: (point) => hookOrder.applied(point),
+    onStepBoundary() {
+      hookOrder.applyPending();
+    },
+    hookOrder,
     onHandlerFailure(failure: HandlerFailure) {
       autoDisabler.onOutcome(
         fromHandlerFailure(failure, tierFor(failure.handler.extension), deps.now()),

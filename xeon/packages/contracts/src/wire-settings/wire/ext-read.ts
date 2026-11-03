@@ -763,6 +763,212 @@ export const HooksListResultSchema: TUnsafe<HooksListResult> = Type.Unsafe<Hooks
   HooksListResultShape2 satisfies SchemaProof<HooksListResult, typeof HooksListResultShape2>,
 );
 
+/**
+ * `hooks.order.*`(W-51). 훅별 핸들러 순서 덮어쓰기는 설정 `x.operations.hookOrder`(범위 managed, user)에 저장된다.
+ * 적용은 다음 단계 경계다(`pending`). guard tier 핸들러도 옮길 수 있다(2026-11-03 사용자 결정, X.operations.spec §4.1.5).
+ * 옮기면 안전 검사가 건너뛰어질 수 있어서 `hooks.order.preview`의 `guardRisk`가 알린다.
+ */
+const RegistrationOrder = Type.Array(Name, { maxItems: 256 });
+/** 훅 하나의 순서 한 줄. 저장된 덮어쓰기가 있거나 적용 중인 훅마다 나온다 */
+export interface HookOrderEntry {
+  readonly hook: string;
+  /** 저장된 Registration id 순서. 저장 값이 없으면 빈 목록이다 */
+  readonly saved: readonly string[];
+  /** 디스패처가 지금 쓰는 순서 */
+  readonly applied: readonly string[];
+  /** 저장 값과 적용 값이 다르다. 다음 단계 경계에 적용된다 */
+  readonly pending: boolean;
+}
+const HookOrderEntryShape = closed({
+  hook: Name,
+  saved: RegistrationOrder,
+  applied: RegistrationOrder,
+  pending: Type.Boolean(),
+});
+export interface HooksOrderGetResult {
+  readonly hooks: readonly HookOrderEntry[];
+}
+const HooksOrderGetResultShape2 = closed({
+  hooks: Type.Array(HookOrderEntryShape, { maxItems: 500 }),
+});
+export const HooksOrderGetResultSchema: TUnsafe<HooksOrderGetResult> =
+  Type.Unsafe<HooksOrderGetResult>(
+    HooksOrderGetResultShape2 satisfies SchemaProof<
+      HooksOrderGetResult,
+      typeof HooksOrderGetResultShape2
+    >,
+  );
+
+/** `hooks.order.set`. 없는 훅이면 `hooks.notFound`다. 그 밖의 이름은 오류 없이 저장하고 디스패치에서 무시한다 */
+export interface HooksOrderSetParams {
+  readonly hook: string;
+  readonly order: readonly string[];
+}
+const HooksOrderSetParamsShape2 = request({ hook: Name, order: RegistrationOrder });
+export const HooksOrderSetParamsSchema: TUnsafe<Req<HooksOrderSetParams>> = Type.Unsafe<
+  Req<HooksOrderSetParams>
+>(
+  HooksOrderSetParamsShape2 satisfies SchemaProof<
+    Req<HooksOrderSetParams>,
+    typeof HooksOrderSetParamsShape2
+  >,
+);
+export interface HooksOrderSetResult {
+  readonly hook: string;
+  /** 중복을 뺀 저장 값. 제안한 순서를 그대로 지킨다 */
+  readonly saved: readonly string[];
+  readonly appliesAt: "nextStepBoundary";
+}
+const HooksOrderSetResultShape2 = closed({
+  hook: Name,
+  saved: RegistrationOrder,
+  appliesAt: Type.Literal("nextStepBoundary"),
+});
+export const HooksOrderSetResultSchema: TUnsafe<HooksOrderSetResult> =
+  Type.Unsafe<HooksOrderSetResult>(
+    HooksOrderSetResultShape2 satisfies SchemaProof<
+      HooksOrderSetResult,
+      typeof HooksOrderSetResultShape2
+    >,
+  );
+
+/** `hooks.order.reset`. `hook`을 생략하면 모든 훅이다 */
+export interface HooksOrderResetParams {
+  readonly hook?: string;
+}
+const HooksOrderResetParamsShape2 = request({ hook: Type.Optional(Name) });
+export const HooksOrderResetParamsSchema: TUnsafe<Req<HooksOrderResetParams>> = Type.Unsafe<
+  Req<HooksOrderResetParams>
+>(
+  HooksOrderResetParamsShape2 satisfies SchemaProof<
+    Req<HooksOrderResetParams>,
+    typeof HooksOrderResetParamsShape2
+  >,
+);
+export interface HooksOrderResetResult {
+  /** 저장된 덮어쓰기를 실제로 지운 훅. 저장된 값이 없으면 빈 목록이다 */
+  readonly hooks: readonly string[];
+  readonly appliesAt: "nextStepBoundary";
+}
+const HooksOrderResetResultShape2 = closed({
+  hooks: Type.Array(Name, { maxItems: 500 }),
+  appliesAt: Type.Literal("nextStepBoundary"),
+});
+export const HooksOrderResetResultSchema: TUnsafe<HooksOrderResetResult> =
+  Type.Unsafe<HooksOrderResetResult>(
+    HooksOrderResetResultShape2 satisfies SchemaProof<
+      HooksOrderResetResult,
+      typeof HooksOrderResetResultShape2
+    >,
+  );
+
+/** `hooks.order.preview`. 저장하기 전에 읽는다. `order`는 이 제안을 적용했을 때의 전체 순서다 */
+export interface HooksOrderPreviewParams {
+  readonly hook: string;
+  readonly order: readonly string[];
+}
+const HooksOrderPreviewParamsShape2 = request({ hook: Name, order: RegistrationOrder });
+export const HooksOrderPreviewParamsSchema: TUnsafe<Req<HooksOrderPreviewParams>> = Type.Unsafe<
+  Req<HooksOrderPreviewParams>
+>(
+  HooksOrderPreviewParamsShape2 satisfies SchemaProof<
+    Req<HooksOrderPreviewParams>,
+    typeof HooksOrderPreviewParamsShape2
+  >,
+);
+/** 앞선 핸들러 하나(`HookSkipNote.by`, `HookAutoDisableNote.affects`의 원소) */
+export interface HookOrderRef {
+  readonly registrationId: string;
+  readonly extension: string;
+  readonly tier: number;
+}
+const HookOrderRefShape = closed({ registrationId: Name, extension: Name, tier: Type.Integer() });
+const HookOrderRefs = Type.Array(HookOrderRefShape, { maxItems: 256 });
+/** 건너뜀. 핸들러가 앞선 핸들러 때문에 실행되지 않는다 */
+export interface HookSkipNote {
+  readonly registrationId: string;
+  readonly extension: string;
+  /** `first_answer`: 앞선 first 핸들러가 답한다. `first_failure_deny`: closed first 훅에서 앞선 핸들러가 실패해 `FIRST_DENY`가 결정이 된다. `chain_stop`: chain 훅의 멈춤 규칙 */
+  readonly reason: "first_answer" | "first_failure_deny" | "chain_stop";
+  readonly by: readonly HookOrderRef[];
+}
+const HookSkipNoteShape = closed({
+  registrationId: Name,
+  extension: Name,
+  reason: Type.Union([
+    Type.Literal("first_answer"),
+    Type.Literal("first_failure_deny"),
+    Type.Literal("chain_stop"),
+  ]),
+  by: HookOrderRefs,
+});
+/** 값이 바뀔 수 있음. 건너뜀이 아니다: chain에서 뒤 핸들러의 패치가 앞 핸들러의 패치를 덮어쓴다 */
+export interface HookValueChangeNote {
+  readonly registrationId: string;
+  readonly extension: string;
+  readonly by: readonly HookOrderRef[];
+}
+const HookValueChangeNoteShape = closed({
+  registrationId: Name,
+  extension: Name,
+  by: HookOrderRefs,
+});
+/** closed first 훅에서 자동 끄기 대상인 핸들러가 실패하는 동안 가려지는 뒤 핸들러. guard 핸들러는 면제라 나오지 않는다 */
+export interface HookAutoDisableNote {
+  readonly registrationId: string;
+  readonly extension: string;
+  readonly affects: readonly HookOrderRef[];
+}
+const HookAutoDisableNoteShape = closed({
+  registrationId: Name,
+  extension: Name,
+  affects: HookOrderRefs,
+});
+/**
+ * guard tier 핸들러의 위험. `mayBeSkipped`: 제안이 앞에 둔 핸들러 때문에 이 훅에서 실행되지 않을 수 있다(기본 순서에서 이미 앞이던 핸들러는 세지 않는다. `skips`에 같은 종류의 노트가 있다).
+ * `losesFirstPosition`: 기본 순서에서 맨 앞이던 guard가 이 제안에서 맨 앞을 잃었다. 비어 있지 않으면 UI는 "안전 검사가 건너뛰어질 수 있다"는 강한 경고를 띄운다
+ */
+export interface HookGuardRiskNote {
+  readonly registrationId: string;
+  readonly extension: string;
+  readonly mayBeSkipped: boolean;
+  readonly losesFirstPosition: boolean;
+  readonly by: readonly HookOrderRef[];
+}
+const HookGuardRiskNoteShape = closed({
+  registrationId: Name,
+  extension: Name,
+  mayBeSkipped: Type.Boolean(),
+  losesFirstPosition: Type.Boolean(),
+  by: HookOrderRefs,
+});
+export interface HooksOrderPreviewResult {
+  readonly hook: string;
+  readonly order: readonly string[];
+  /** 항상 참이다. 저장을 막는 사유가 없다. 안전 위험은 `guardRisk`가 알린다 */
+  readonly saveable: boolean;
+  readonly skips: readonly HookSkipNote[];
+  readonly valueChanges: readonly HookValueChangeNote[];
+  readonly autoDisable: readonly HookAutoDisableNote[];
+  readonly guardRisk: readonly HookGuardRiskNote[];
+}
+const HooksOrderPreviewResultShape2 = closed({
+  hook: Name,
+  order: RegistrationOrder,
+  saveable: Type.Boolean(),
+  skips: Type.Array(HookSkipNoteShape, { maxItems: 768 }),
+  valueChanges: Type.Array(HookValueChangeNoteShape, { maxItems: 256 }),
+  autoDisable: Type.Array(HookAutoDisableNoteShape, { maxItems: 256 }),
+  guardRisk: Type.Array(HookGuardRiskNoteShape, { maxItems: 256 }),
+});
+export const HooksOrderPreviewResultSchema: TUnsafe<HooksOrderPreviewResult> =
+  Type.Unsafe<HooksOrderPreviewResult>(
+    HooksOrderPreviewResultShape2 satisfies SchemaProof<
+      HooksOrderPreviewResult,
+      typeof HooksOrderPreviewResultShape2
+    >,
+  );
+
 /** `ext.bindings`(W-40). 엣지는 Registration 단위다 */
 export interface ExtBindingsParams {
   readonly threadId?: string;

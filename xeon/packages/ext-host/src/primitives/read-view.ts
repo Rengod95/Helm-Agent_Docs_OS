@@ -1,6 +1,8 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { HookName, RegistrationId, RegistrationStatus } from "@fresnel/contracts/extensions";
+import { sortEntries } from "./dispatch.ts";
 import { hostInternalsOf, type ExtHost } from "./host.ts";
+import type { HandlerEntry } from "./registry.ts";
 import { DEFAULT_LEASE_WAIT_LIMIT } from "./settings.ts";
 
 /** 임대를 받지 못하고 기다리는 후보 하나(`group.driveLock`의 candidates) */
@@ -23,7 +25,7 @@ export interface DriveLockView {
   readonly candidates: readonly DriveLockCandidate[];
 }
 
-/** 호스트 핸들러 레지스트리의 행 하나. 순서는 디스패치 정렬 키(tier, loadIndex, seq)의 사전식이다 */
+/** 호스트 핸들러 레지스트리의 행 하나. 같은 훅 안의 순서는 디스패치 순서다(기본 정렬 뒤 순서 덮어쓰기를 적용한다) */
 export interface HookHandlerView {
   readonly point: HookName;
   readonly scopeId: RegistrationId;
@@ -51,7 +53,8 @@ export interface ExtReadView {
   /** thread의 drive lock. thread가 열려 있지 않으면 undefined */
   driveLock(threadId: ThreadId): DriveLockView | undefined;
   /**
-   * 레지스트리에 실제로 등록된 핸들러 전부를, 훅별로 모아 디스패치 순서로(F.extensions.spec §4.2) 돌려준다.
+   * 레지스트리에 실제로 등록된 핸들러 전부를, 훅별로 모아 디스패치 순서로 돌려준다.
+   * 디스패치 순서 = 기본 정렬(tier, loadIndex, seq, F.extensions.spec §4.2) 뒤에 순서 덮어쓰기를 적용한 순서다. 덮어쓰기가 없으면 guard tier가 앞이고, guard도 덮어쓰기로 옮길 수 있다.
    * 훅 순서는 훅 이름 오름차순이다. 꺼진 scope의 핸들러도 있다(디스패치는 `isOpen`으로 거르고 이 조회는 거르지 않는다)
    */
   handlers(): readonly HookHandlerView[];
@@ -64,22 +67,24 @@ export function extReadViewOf(host: ExtHost): ExtReadView {
   return {
     handlers() {
       const { core } = hostInternalsOf(host);
-      return core.registry
-        .entries()
-        .map((entry) => ({
-          point: entry.point,
-          scopeId: entry.scopeId,
-          extension: entry.extension,
-          tier: core.deps.policy.tierOf(entry),
-          loadIndex: entry.loadIndex,
-          seq: entry.seq,
-        }))
-        .toSorted(
-          (a, b) =>
-            (a.point < b.point ? -1 : a.point > b.point ? 1 : 0) ||
-            a.tier - b.tier ||
-            a.loadIndex - b.loadIndex ||
-            a.seq - b.seq,
+      const { policy } = core.deps;
+      const byHook = new Map<HookName, HandlerEntry[]>();
+      for (const entry of core.registry.entries()) {
+        const list = byHook.get(entry.point) ?? [];
+        list.push(entry);
+        byHook.set(entry.point, list);
+      }
+      return [...byHook.keys()]
+        .toSorted((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+        .flatMap((point) =>
+          sortEntries(byHook.get(point) ?? [], point, policy).map((entry) => ({
+            point: entry.point,
+            scopeId: entry.scopeId,
+            extension: entry.extension,
+            tier: policy.tierOf(entry),
+            loadIndex: entry.loadIndex,
+            seq: entry.seq,
+          })),
         );
     },
     boundCapabilities() {

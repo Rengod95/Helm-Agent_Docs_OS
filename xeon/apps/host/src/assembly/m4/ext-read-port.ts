@@ -1,4 +1,4 @@
-import { assertNever, err, ok } from "@fresnel/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import {
   effectiveLayer,
   HOOKS,
@@ -30,12 +30,29 @@ import type {
   GroupPromotionResult,
   GroupStatusWire,
   HookEntry,
+  HookGuardRiskNote,
   HookHandlerRow,
+  HookOrderEntry,
+  HookOrderRef,
+  HooksOrderPreviewResult,
   SafeModeCause,
   SettingWriter,
 } from "@fresnel/contracts/wire";
+import {
+  checkOrder,
+  hookOrderValue,
+  previewOrder,
+  TIERS,
+  type GuardRiskNote,
+  type HookOrderMap,
+  type OrderPreview,
+  type OrderRow,
+  type PreviewRef,
+  type PreviewRow,
+} from "@fresnel/ext-host";
 import type { ExtReadPort, ExtReadResult } from "../../handlers/m4/ext-read.ts";
-import type { M4PortDeps } from "./deps.ts";
+import type { HostErrorMappers, ProfileWriteFailure } from "../../handlers/m4/profile-test-run.ts";
+import type { M4HostEnv, M4PortDeps } from "./deps.ts";
 
 // ExtRead 포트 구현(`spec-deltas/t-wa.md` §1). 원천은 `ExtReadSources`가 돌려주는 읽기 값이고(조립 루트가 로더, 실패 장부,
 // `GroupService`, 설정 엔진을 얇게 감싸 넘긴다), 이 파일은 그 값을 wire 모양으로 옮긴다. 값을 새로 계산하지 않는다(§2 1번).
@@ -80,6 +97,16 @@ interface SettingExplainSource {
     key: string,
     threadId: string,
   ) => { readonly writer: "profile" | "testRun"; readonly profileId?: string } | undefined;
+}
+
+/** 훅별 순서 덮어쓰기의 읽기 원천. `OperationsPolicy.hookOrder`를 감싼다 */
+interface HookOrderSource {
+  /** 저장된 순서(설정 `x.operations.hookOrder`의 현재 값) */
+  saved(): HookOrderMap;
+  /** 디스패처가 지금 쓰는 순서 */
+  applied(): HookOrderMap;
+  /** 저장 값과 적용 값이 다르다. 다음 단계 경계에 적용된다 */
+  pending(): boolean;
 }
 
 export interface ExtReadSources {
@@ -127,7 +154,12 @@ export interface ExtReadSources {
     readonly registrationId: string;
     readonly extension: string;
     readonly tier: number;
+    /** 기본 정렬의 둘째와 셋째 키(tier, loadIndex, seq). 순서 제안은 이 기본 순서에 얹힌다 */
+    readonly loadIndex: number;
+    readonly seq: number;
   }[];
+  /** 훅별 순서 덮어쓰기(X.operations §4.1.5): 저장 값, 적용 중인 값, 저장 값과 적용 값이 다른가 */
+  hookOrder(): HookOrderSource;
   /** ExtHost가 지금 바인딩한 기능 공급자(기능 id 오름차순) */
   boundCapabilities(): readonly {
     readonly capability: string;
@@ -176,10 +208,80 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
       lastRejected: null,
     }),
   hookHandlers: () => [],
+  hookOrder: () => ({ saved: () => new Map(), applied: () => new Map(), pending: () => false }),
   boundCapabilities: () => [],
   registrationErrors: () => new Map(),
   settings: NO_SETTINGS,
 };
+
+/** 순서 덮어쓰기가 쓰는 환경: 설정 저장소의 쓰기와 되돌리기, 저장소 오류 옮기기. `M4HostEnv`의 부분이다 */
+interface HookOrderEnv {
+  readonly settings: Pick<M4HostEnv["settings"], "write" | "reset">;
+  readonly errors: HostErrorMappers;
+}
+
+/** 순서 덮어쓰기를 저장하는 설정 키. 범위는 `user`다(X.operations §4.1.5) */
+const HOOK_ORDER_KEY = "x.operations.hookOrder";
+
+/** 같은 순서인가(둘 다 같은 자리에 같은 Registration id) */
+function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
+function byText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** 자동 끄기 면제 판정의 입력. guard 핸들러와 core tier는 면제다(X.operations §4.1.5). essential 확장의 표시는 원천에 없다 */
+function previewRowOf(row: OrderRow): PreviewRow {
+  return {
+    ...row,
+    exempt: row.tier === TIERS.indexOf("guard") || row.tier === TIERS.indexOf("core"),
+  };
+}
+
+function orderRefOf(ref: PreviewRef): HookOrderRef {
+  return { registrationId: ref.registrationId, extension: ref.extension, tier: ref.tier };
+}
+
+function guardRiskOf(note: GuardRiskNote): HookGuardRiskNote {
+  return {
+    registrationId: note.registrationId,
+    extension: note.extension,
+    mayBeSkipped: note.mayBeSkipped,
+    losesFirstPosition: note.losesFirstPosition,
+    by: note.by.map(orderRefOf),
+  };
+}
+
+/**
+ * 미리보기 결과를 wire 모양으로 옮긴다. 값은 새로 계산하지 않는다.
+ * 저장을 막는 사유가 없으므로 `saveable`은 항상 참이다. guard의 위험은 `guardRisk`로 따로 알린다.
+ */
+function previewResultOf(preview: OrderPreview): HooksOrderPreviewResult {
+  return {
+    hook: preview.hook,
+    order: [...preview.order],
+    saveable: true,
+    guardRisk: preview.guardRisk.map(guardRiskOf),
+    skips: preview.skips.map((note) => ({
+      registrationId: note.registrationId,
+      extension: note.extension,
+      reason: note.reason,
+      by: note.by.map(orderRefOf),
+    })),
+    valueChanges: preview.valueChanges.map((note) => ({
+      registrationId: note.registrationId,
+      extension: note.extension,
+      by: note.by.map(orderRefOf),
+    })),
+    autoDisable: preview.autoDisable.map((note) => ({
+      registrationId: note.registrationId,
+      extension: note.extension,
+      affects: note.affects.map(orderRefOf),
+    })),
+  };
+}
 
 function isHookName(name: string): name is HookName {
   return Object.hasOwn(HOOKS, name);
@@ -219,9 +321,32 @@ function statusOf(
 }
 
 export function createExtReadPort(
-  deps: Pick<M4PortDeps, "traceRead">,
+  deps: Pick<M4PortDeps, "traceRead"> & { readonly env: HookOrderEnv },
   sources: ExtReadSources,
 ): ExtReadPort {
+  /**
+   * 훅의 기본 순서 행(tier, loadIndex, seq). 순서 제안은 현재 적용 순서가 아니라 이 기본 순서에 얹힌다.
+   * 저장된 순서는 적용 전이어도 기본 순서를 기준으로 검사한다.
+   */
+  function defaultRowsOf(hook: HookName): OrderRow[] {
+    return sources
+      .hookHandlers()
+      .filter((handler) => handler.point === hook)
+      .toSorted((a, b) => a.tier - b.tier || a.loadIndex - b.loadIndex || a.seq - b.seq)
+      .map((handler) => ({
+        registrationId: handler.registrationId,
+        extension: handler.extension,
+        tier: handler.tier,
+      }));
+  }
+
+  /** 순서 전체를 설정 값으로 쓴다. 비면 설정을 지워 기본값(`{}`)으로 돌린다 */
+  function writeOrder(map: HookOrderMap): Promise<Result<void, ProfileWriteFailure>> {
+    return map.size === 0
+      ? deps.env.settings.reset("user", HOOK_ORDER_KEY, undefined)
+      : deps.env.settings.write("user", HOOK_ORDER_KEY, hookOrderValue(map), undefined);
+  }
+
   function entryOf(
     record: ExtensionRecord,
     infos: ReadonlyMap<string, RegistrationStatus>,
@@ -585,6 +710,65 @@ export function createExtReadPort(
         writer: context?.writer ?? writerOf(scope),
         ...(context?.profileId === undefined ? {} : { profileId: context.profileId }),
       });
+    },
+
+    errors: deps.env.errors,
+
+    orderGet() {
+      const order = sources.hookOrder();
+      const saved = order.saved();
+      const applied = order.applied();
+      const hooks = new Set<HookName>([...saved.keys(), ...applied.keys()]);
+      const rows: HookOrderEntry[] = [...hooks].toSorted(byText).map((hook) => {
+        const savedIds = saved.get(hook) ?? [];
+        const appliedIds = applied.get(hook) ?? [];
+        return {
+          hook,
+          saved: [...savedIds],
+          applied: [...appliedIds],
+          pending: !sameOrder(savedIds, appliedIds),
+        };
+      });
+      return Promise.resolve(ok({ hooks: rows }));
+    },
+
+    async orderSet(params) {
+      const hook = params.hook;
+      if (!isHookName(hook)) return err({ kind: "unknown_hook", hook });
+      const order = checkOrder(params.order);
+      const next = new Map<HookName, readonly string[]>(sources.hookOrder().saved());
+      if (order.length === 0) next.delete(hook);
+      else next.set(hook, order);
+      const written = await writeOrder(next);
+      if (!written.ok) {
+        return err({ kind: "write_failed", key: HOOK_ORDER_KEY, failure: written.error });
+      }
+      return ok({ hook, saved: [...order], appliesAt: "nextStepBoundary" });
+    },
+
+    async orderReset(params) {
+      const hook = params.hook;
+      if (hook !== undefined && !isHookName(hook)) return err({ kind: "unknown_hook", hook });
+      const saved = sources.hookOrder().saved();
+      // 훅을 주면 그 훅만, 생략하면 저장된 훅 전부다. 저장된 값이 없는 훅은 지울 것이 없다
+      const cleared: HookName[] =
+        hook === undefined ? [...saved.keys()] : saved.has(hook) ? [hook] : [];
+      if (cleared.length === 0) return ok({ hooks: [], appliesAt: "nextStepBoundary" });
+      const next = new Map<HookName, readonly string[]>(saved);
+      for (const name of cleared) next.delete(name);
+      const written = await writeOrder(next);
+      if (!written.ok) {
+        return err({ kind: "write_failed", key: HOOK_ORDER_KEY, failure: written.error });
+      }
+      return ok({ hooks: cleared.toSorted(byText), appliesAt: "nextStepBoundary" });
+    },
+
+    orderPreview(params) {
+      const hook = params.hook;
+      if (!isHookName(hook)) return Promise.resolve(err({ kind: "unknown_hook", hook }));
+      const rows = defaultRowsOf(hook).map(previewRowOf);
+      const preview = previewOrder(hook, params.order, rows);
+      return Promise.resolve(ok(previewResultOf(preview)));
     },
   };
   return port;
