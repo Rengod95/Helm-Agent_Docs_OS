@@ -32,6 +32,9 @@ test("catalog conflicts, missing services and plugin failures are 1; the rest of
     "sopsMissing",
     "dataDirPermission",
     "storeUnavailable",
+    "storeFutureVersion",
+    "storeCorrupt",
+    "storeMigrationFailed",
     "serviceUnreachable",
     "protocolUnsupported",
   ];

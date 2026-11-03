@@ -4,7 +4,7 @@ import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
 import type { UsagePort } from "../types.ts";
 
 // M3-REQ-15. 사용량 게이지 원천의 조립 기본이다. L1.models 합산기(`ModelService.usage`)의 기록을 구독해 thread와 provider별로 모은다.
-// `usage.get`이 `threadId`를 주면 그 thread의 `session` 게이지(tokens, usd, requests)를 돌려준다. 분에서 월까지의 창, 한도, 계정 행은
+// `usage.get`이 `threadId`를 주면 그 thread의 `session` 게이지(tokens, usd, requests)를, 주지 않으면 모든 thread의 합을 돌려준다. 분에서 월까지의 창, 한도, 계정 행은
 // L1이 레이트 리밋과 계정 기록을 보관하지 않아 만들지 않는다(L4.host-service.spec §10 46번 [미결]).
 // 원천을 바꿔 끼우는 자리는 `EnginePorts.usage`다. 조립 루트 코드(DR-14 예외 2).
 
@@ -47,7 +47,7 @@ function compareNames(a: string, b: string): number {
 
 /**
  * `meter`의 모든 기록(중단된 호출 포함)을 한 번 구독해 thread와 provider별로 합산하는 원천을 만든다.
- * `gauges`는 `threadId`가 없으면 빈 목록이다. 창 데이터가 없기 때문이다. 모르는 thread도 빈 목록이다.
+ * `gauges`는 `threadId`가 없으면 이 프로세스가 본 모든 thread의 합산이고, 모르는 thread는 빈 목록이다. 창 데이터는 없다.
  */
 export function createUsageSource(meter: UsageMeter): UsagePort {
   const byThread = new Map<ThreadId, Map<string, Tally>>();
@@ -65,10 +65,21 @@ export function createUsageSource(meter: UsageMeter): UsagePort {
 
   return {
     gauges: ({ providerId, threadId }) => {
-      if (threadId === undefined) return Promise.resolve([]);
-      const providers = byThread.get(threadId);
-      if (providers === undefined) return Promise.resolve([]);
-      const gauges = [...providers.entries()]
+      // threadId가 없으면 이 프로세스가 본 모든 thread의 합이다(다중 thread 사용량). 있으면 그 thread의 것이다
+      const scoped = threadId === undefined ? [...byThread.values()] : [byThread.get(threadId)];
+      const totals = new Map<string, Tally>();
+      for (const providers of scoped) {
+        if (providers === undefined) continue;
+        for (const [name, tally] of providers) {
+          const sum = totals.get(name) ?? EMPTY_TALLY;
+          totals.set(name, {
+            tokens: sum.tokens + tally.tokens,
+            usd: sum.usd + tally.usd,
+            requests: sum.requests + tally.requests,
+          });
+        }
+      }
+      const gauges = [...totals.entries()]
         .filter(([name]) => providerId === undefined || name === providerId)
         .toSorted(([a], [b]) => compareNames(a, b))
         .flatMap(([name, tally]) => sessionGauges(name, tally));

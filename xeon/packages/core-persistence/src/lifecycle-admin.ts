@@ -241,13 +241,13 @@ export function createAdminOps(
       return ok(undefined);
     },
 
-    setTitle(threadId, title, requestKey): Result<void, LifecycleError> {
+    setTitle(threadId, title, requestKey, source): Result<void, LifecycleError> {
       const denied = ownerError(sessions, threadId);
       if (denied !== null) return err(denied);
       const committed = writer.commit({
         threadId,
         requestId: `title:${commitKeyPart(requestKey, sha256Hex)}`,
-        fingerprintSource: { title },
+        fingerprintSource: source === undefined ? { title } : { title, source },
         build(view): CommitPlan {
           if (view.threadStatus === "closed") {
             return { kind: "reject", code: "thread_closed", detail: null };
@@ -263,7 +263,7 @@ export function createAdminOps(
                 stepId: null,
                 causationId: null,
                 correlationId: null,
-                payload: { title },
+                payload: source === undefined ? { title } : { title, titleSource: source },
               }),
             ],
             checkpoint: null,

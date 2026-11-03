@@ -80,6 +80,26 @@ export function storeFailureKindOf(kind: string): StoreFailureKind {
   return STORE_FAILURE_BY_KIND.get(kind) ?? "unavailable";
 }
 
+/**
+ * 호스트 프로세스(stdio 사이드카)가 저장소를 열지 못하고 끝날 때 쓰는 종료 코드. 앱 셸은 종료 코드만 알려 주므로 분류마다 코드를 따로 둔다.
+ * `unavailable`은 일반 시작 실패(1)와 같아서 표에 없다.
+ */
+export const STORE_FAILURE_EXIT_CODES: {
+  readonly future_version: 70;
+  readonly corrupt: 71;
+  readonly migration_failed: 72;
+} = { future_version: 70, corrupt: 71, migration_failed: 72 };
+
+/** 순수 함수. 종료 코드를 저장소 열기 실패 분류로 되돌린다. 표에 없는 코드(신호로 끝난 null 포함)는 undefined다 */
+export function storeFailureOfExitCode(
+  code: number | null,
+): Exclude<StoreFailureKind, "unavailable"> | undefined {
+  if (code === STORE_FAILURE_EXIT_CODES.future_version) return "future_version";
+  if (code === STORE_FAILURE_EXIT_CODES.corrupt) return "corrupt";
+  if (code === STORE_FAILURE_EXIT_CODES.migration_failed) return "migration_failed";
+  return undefined;
+}
+
 export interface MigrationReport {
   readonly owner: string;
   readonly from: number;

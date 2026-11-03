@@ -56,6 +56,8 @@ export function buildReviewSpec(input: BuildReviewInput): DelegateSpec {
     task: reviewTask(input.reasons),
     requestId: input.requestId,
     toolPolicy: reviewToolPolicy(),
+    // 시스템 프롬프트와 도구 배열을 부모와 같게 두어 접두 캐시를 공유한다(L1.agents.spec §4.3). 검토 지시는 task가 싣는다
+    promptFrom: "parent",
     limits: {
       maxSteps: settings.maxIterations,
       maxInputTokens: reviewTokenBudget(input.contextWindow, settings.tokenBudget),

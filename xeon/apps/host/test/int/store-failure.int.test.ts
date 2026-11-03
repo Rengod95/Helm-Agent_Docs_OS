@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { AssembleError, assemble } from "../../src/assemble.ts";
+import { startStdioHost } from "../../src/main.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 
 // G2-06: 저장소를 열지 못했을 때 호스트가 안내 분류(F.records.spec §3.7 7항)를 이슈에 싣는다.
@@ -77,5 +78,54 @@ test("a step that fails is migration_failed, and the snapshot taken first is on 
     expect(readdirSync(join(home.dataDir, "backups")).length).toBe(1);
   } finally {
     home.dispose();
+  }
+});
+
+async function stdioExitOfFailedStart(): Promise<{ code: number; reason: string }> {
+  const exit = await startStdioHost({
+    readable: new ReadableStream<Uint8Array>(),
+    writable: new WritableStream<Uint8Array>(),
+    handleSignals: false,
+  });
+  return { code: exit.code, reason: exit.reason };
+}
+
+test("the stdio host exits with one code per store failure so the app shell can tell them apart", async () => {
+  const future = useEngineHome();
+  try {
+    const path = await createDatabase(future);
+    const newer = new Database(path);
+    newer.run(
+      `INSERT INTO sys_migrations (owner, version, checksum, applied_at, engine_version)
+       SELECT 'sys', MAX(version) + 1, '${"1".repeat(64)}', 1, '9.9.9' FROM sys_migrations WHERE owner = 'sys'`,
+    );
+    newer.close();
+    expect(await stdioExitOfFailedStart()).toEqual({ code: 70, reason: "startup" });
+  } finally {
+    future.dispose();
+  }
+  const corrupt = useEngineHome();
+  try {
+    const path = await createDatabase(corrupt);
+    const tamper = new Database(path);
+    tamper.run(
+      `UPDATE sys_migrations SET checksum = '${"0".repeat(64)}' WHERE owner = 'sys' AND version = 1`,
+    );
+    tamper.close();
+    expect(await stdioExitOfFailedStart()).toEqual({ code: 71, reason: "startup" });
+  } finally {
+    corrupt.dispose();
+  }
+  const failed = useEngineHome();
+  try {
+    const path = await createDatabase(failed);
+    const rewind = new Database(path);
+    rewind.run(
+      `DELETE FROM sys_migrations WHERE owner = 'sys' AND version = (SELECT MAX(version) FROM sys_migrations WHERE owner = 'sys')`,
+    );
+    rewind.close();
+    expect(await stdioExitOfFailedStart()).toEqual({ code: 72, reason: "startup" });
+  } finally {
+    failed.dispose();
   }
 });

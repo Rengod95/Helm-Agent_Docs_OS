@@ -183,8 +183,8 @@ function viewOf(
   return {
     threadId: row.threadId,
     title: row.title,
-    // 제목 이벤트에는 출처가 없어 출처는 호출 경로로만 정한다(§4.3.1, §10 미결 2). 제목이 없으면 null이다
-    titleSource: row.title === null ? null : source,
+    // 저장된 출처를 쓴다. 출처 없는 옛 제목은 호출 경로의 값이다(§4.3.1). 제목이 없으면 null이다
+    titleSource: row.title === null ? null : (row.titleSource ?? source),
     labels: [...(index.labels.get(row.threadId) ?? [])],
     workspace: row.workspace,
     artifactCount: index.artifactCounts.get(row.threadId) ?? 0,
@@ -333,6 +333,7 @@ export function createSessions(deps: SessionsDeps): SessionsRuntime {
             threadId,
             input.title,
             `retitle:${commitKeyPart(requestId, sha256Hex)}`,
+            "model",
           );
           if (!titled.ok) throw titleFailure(method, titled.error);
         }

@@ -747,7 +747,7 @@ export interface ThreadLifecycle {
   moveLeaf(threadId: ThreadId, target: EventId, options: { readonly reason: "branch" | "restore"; readonly summary?: BranchSummaryInput; readonly requestKey: string }):
     Promise<Result<{ readonly leaf: EventId; readonly headSeq: number }, LifecycleError>>;
   /** thread.updated{title} 커밋 뒤 session_info_changed(tap, detached). L2 artifacts가 부른다 */
-  setTitle(threadId: ThreadId, title: string | null, requestKey: string): Result<void, LifecycleError>;
+  setTitle(threadId: ThreadId, title: string | null, requestKey: string, source?: ThreadTitleSource): Result<void, LifecycleError>;
   /** 같은 클라이언트가 다른 thread로 옮기기 전에 session_before_switch(first)를 발화한다 */
   prepareSwitch(from: ThreadId, to: ThreadId | null): Promise<Result<void, LifecycleError>>;
 }
@@ -862,7 +862,7 @@ CREATE TABLE thread_creation_keys (
 
 | 테이블 | 기본 키 | 주요 열 | 갱신 kind |
 |---|---|---|---|
-| `p_threads` | `thread_id` | `title`, `status`, `workspace`, `created_at`, `updated_at`, `first_seq`, `head_seq`, `leaf_event_id`, `forked_from_thread`, `forked_from_event`, `closed_reason`, `open_turn_id`, `running_since`, `resume_attempts` | `thread.*`, `turn.started`, `turn.completed`, `thread.resumed`, 모든 내구 이벤트(head·leaf·updated_at) |
+| `p_threads` | `thread_id` | `title`, `title_source`, `status`, `workspace`, `created_at`, `updated_at`, `first_seq`, `head_seq`, `leaf_event_id`, `forked_from_thread`, `forked_from_event`, `closed_reason`, `open_turn_id`, `running_since`, `resume_attempts` | `thread.*`, `turn.started`, `turn.completed`, `thread.resumed`, 모든 내구 이벤트(head·leaf·updated_at) |
 | `p_items` | `item_id` | `thread_id`, `event_id`, `parent_event_id`, `seq`, `turn_id`, `step_id`, `kind`, `status`, `stop_reason`, `effect_id` | `item.recorded` |
 | `p_parts` | `part_id` | `item_id`, `idx`, `type`, `text`, `blob_sha256` | `part.recorded` |
 | `p_effects` | `effect_id` | `thread_id`, `tool_call_id`, `item_id`, `tool_name`, `replay`, `intent_seq`, `exec_count`, `last_exec_seq`, `result_seq`, `result_status`, `synthesized` | `effect.intent`, `effect.exec`, `effect.result` |
@@ -1181,6 +1181,7 @@ export interface RewindPlan {
 
 - `close`: `thread.closed { reason }`을 커밋한다. 커밋 키는 `thread:<id>:close`, 지문은 이유와 무관해 두 번째 호출은 처음 결과를 돌려준다(이벤트 1개). 쓰기 소유자만 부르고(`not_owner`), 열린 turn이 있으면 `turn_running`이다. 이후 그 thread의 커밋은 `build`의 `view.threadStatus === "closed"` 검사로 생산 spec이 거부한다(`reject("thread_closed")`). wire `thread.close`는 연결의 열기 기록을 지우는 일이라 이 API와 다르다(`L4.host-service.spec` §3.4). thread 종결을 wire로 노출할지는 [미결]이다.
 - `remove`: 쓰기 소유자만 한다. 한 트랜잭션에서 `thread_delete_guard`에 행을 넣고, `events`, `requests`, 모든 투영기 테이블의 그 thread 행, 그 thread를 가리키는 `thread_creation_keys` 행을 지우고, 표지 행을 지운다. 대화 프로세스 락 행은 L0.store 소유라 지우지 않고 `release`로 반납한다. `consumer_cursors`는 건드리지 않는다. 다른 thread의 `forked_from_thread`가 이 thread면 `has_forks`로 거부한다 [제안]. 지운 seq는 다시 쓰지 않는다(`event_seq`). 지운 뒤 커밋 뒤 방출은 없다. 화면 갱신은 wire `thread.delete` 응답으로 한다.
+- 제목 출처(M4 T-RT2): `thread.updated`의 선택 필드 `titleSource`(`user`, `auto`, `model`)를 `setTitle`의 넷째 인자로 받아 싣는다. 투영 `p_threads.title_source`(투영 규칙 버전 6, 다음 열기 때 core 투영을 다시 만든다)로 옮기고 `ThreadSummaryRow.titleSource`로 읽는다. 출처 없는 옛 이벤트와 출처를 안 주는 호출은 출처를 모른다(열은 null, 필드 없음). 출처가 있으면 멱등 지문에 넣는다. 호출자: 사람의 이름 바꾸기 `user`(host), 자동 제목 `auto`(`autoTitleThread`), 모델 도구 `model`(cap-artifacts).
 - `setTitle`: 커밋 키는 `title:<commitKeyPart(requestKey)>`다. 같은 키로 다른 제목을 내면 `key_reused{requestKey}` 값이다. L2 artifacts가 `fresnel.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `thread.info.after`(tap, detached)를 발화한다.
 
 #### 4.10.6 자동 제목 [결정: 오케스트레이터 기본값, M3-REQ-83]

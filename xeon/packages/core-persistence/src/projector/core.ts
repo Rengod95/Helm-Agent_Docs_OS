@@ -41,7 +41,7 @@ import {
 } from "@fresnel/contracts/records";
 
 /** 투영 규칙 버전. 테이블 모양이나 규칙이 바뀌면 올린다(다음 열기 때 core만 다시 만든다) */
-export const CORE_PROJECTOR_VERSION = 5;
+export const CORE_PROJECTOR_VERSION = 6;
 
 export const CORE_PROJECTOR_TABLES: readonly string[] = [
   "p_threads",
@@ -59,6 +59,7 @@ const CORE_PROJECTOR_DDL: readonly string[] = [
   `CREATE TABLE p_threads (
   thread_id          TEXT PRIMARY KEY,
   title              TEXT,
+  title_source       TEXT CHECK (title_source IN ('user', 'auto', 'model')),
   status             TEXT NOT NULL CHECK (status IN ('idle', 'running', 'closed')),
   workspace          TEXT,
   created_at         INTEGER NOT NULL,
@@ -252,8 +253,10 @@ const REDUCERS: ReadonlyMap<EventKind, Reducer> = new Map<EventKind, Reducer>([
     (tx, event): void => {
       const payload = expectPayload(parse(ThreadUpdatedPayloadSchema, event.payload), event);
       if (payload.title !== undefined) {
-        tx.run("UPDATE p_threads SET title = ? WHERE thread_id = ?", [
+        // 출처 없는 제목 이벤트(옛 기록, 출처를 안 주는 호출)는 출처를 모른다: 앞의 출처를 남기지 않는다
+        tx.run("UPDATE p_threads SET title = ?, title_source = ? WHERE thread_id = ?", [
           payload.title,
+          payload.title === null ? null : (payload.titleSource ?? null),
           event.threadId,
         ]);
       }

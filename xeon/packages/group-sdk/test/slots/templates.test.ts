@@ -1,6 +1,6 @@
-import { afterAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { eachAsync, parse, parseJson } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -34,13 +34,38 @@ import {
 
 const TEMPLATE_KINDS: readonly TemplateKind[] = ["drive", "policy", "observe"];
 
+// 앞선 실행이 도중에 죽어 남긴 생성 디렉터리를 먼저 치운다. 마지막 시험은 이 실행이 남긴 것만 보게 된다
+beforeAll(() => {
+  rmSync(GENERATED_ROOT, { recursive: true, force: true });
+});
+
 // 생성 뿌리(test/.generated)까지 지운다. 각 시험은 자기 무작위 디렉터리를 finally에서 지운다
 afterAll(() => {
   rmSync(GENERATED_ROOT, { recursive: true, force: true });
 });
 
+/**
+ * 시작했으나 아직 끝나지 않은 생성 본문. 시간 초과로 끝난 시험의 본문은 시험이 끝난 뒤에도 돌면서 생성을 더 시작할 수 있다.
+ * 마지막 시험은 이 집합이 빌 때까지 기다린 뒤 생성 뿌리를 본다.
+ */
+const running = new Set<Promise<unknown>>();
+
 /** 템플릿을 새 디렉터리에 만들고 본문을 돌린 뒤 지운다. 본문이 던져도 지운다 */
-async function withGenerated<T>(
+function withGenerated<T>(
+  kind: TemplateKind,
+  name: string,
+  body: (dir: string) => Promise<T>,
+): Promise<T> {
+  const run = generateAndRun(kind, name, body);
+  running.add(run);
+  const forget = (): void => {
+    running.delete(run);
+  };
+  void run.then(forget, forget);
+  return run;
+}
+
+async function generateAndRun<T>(
   kind: TemplateKind,
   name: string,
   body: (dir: string) => Promise<T>,
@@ -56,6 +81,77 @@ async function withGenerated<T>(
   } finally {
     removeGenerated(root);
   }
+}
+
+/** 집합이 빌 때까지 기다린다. 기다리는 동안 본문이 새 생성을 시작할 수 있어 한 번에 끝내지 않고 되풀이한다 */
+async function settleRunning(): Promise<void> {
+  if (running.size === 0) return;
+  await Promise.allSettled(running);
+  return settleRunning();
+}
+
+interface ExpectedDependencies {
+  /** package.json의 dependencies. 생성 코드의 실행 경로(src/)가 import하는 패키지다 */
+  readonly dependencies: Readonly<Record<string, string>>;
+  /** package.json의 devDependencies. 시험 파일만 import하는 패키지다 */
+  readonly devDependencies: Readonly<Record<string, string>>;
+  /** tsconfig.json의 references 경로. DR-04는 이 집합과 package.json의 의존 집합이 같아야 한다고 본다 */
+  readonly references: readonly string[];
+}
+
+const RUNTIME_DEPENDENCIES: Readonly<Record<string, string>> = {
+  "@fresnel/contracts": "workspace:*",
+  "@fresnel/group-sdk": "workspace:*",
+  typebox: "catalog:",
+};
+
+const EXPECTED_DEPENDENCIES: Readonly<Record<TemplateKind, ExpectedDependencies>> = {
+  drive: {
+    dependencies: RUNTIME_DEPENDENCIES,
+    devDependencies: { "@fresnel/ext-host": "workspace:*" },
+    references: ["../contracts", "../ext-host", "../group-sdk"],
+  },
+  policy: {
+    dependencies: RUNTIME_DEPENDENCIES,
+    devDependencies: { "@fresnel/ext-host": "workspace:*" },
+    references: ["../contracts", "../ext-host", "../group-sdk"],
+  },
+  observe: {
+    dependencies: RUNTIME_DEPENDENCIES,
+    devDependencies: {},
+    references: ["../contracts", "../group-sdk"],
+  },
+};
+
+const IMPORT_SPECIFIER = /\b(?:from\s+|import\s*\(\s*|import\s+)"([^"]+)"/g;
+
+/** import 지정자의 패키지 이름. 상대 경로와 bun:·node: 내장 모듈은 패키지가 아니므로 undefined */
+function packageNameOf(specifier: string): string | undefined {
+  if (specifier.startsWith(".") || specifier.startsWith("/")) return undefined;
+  if (specifier.startsWith("bun:") || specifier.startsWith("node:")) return undefined;
+  const parts = specifier.split("/");
+  return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
+}
+
+/**
+ * 생성 디렉터리의 .ts 파일이 import하는 패키지 이름. source는 src/ 아래만, all은 모든 .ts 파일이다.
+ * 둘 다 정렬한 고유 목록이다.
+ */
+function importedPackages(dir: string): { readonly source: string[]; readonly all: string[] } {
+  const source = new Set<string>();
+  const all = new Set<string>();
+  for (const file of new Bun.Glob("**/*.ts").scanSync({ cwd: dir, onlyFiles: true })) {
+    const text = readFileSync(join(dir, file), "utf8");
+    for (const match of text.matchAll(IMPORT_SPECIFIER)) {
+      const specifier = match[1];
+      if (specifier === undefined) continue;
+      const name = packageNameOf(specifier);
+      if (name === undefined) continue;
+      all.add(name);
+      if (file.startsWith("src/")) source.add(name);
+    }
+  }
+  return { source: [...source].toSorted(), all: [...all].toSorted() };
 }
 
 async function readTemplateIndex(): Promise<TemplateIndex> {
@@ -227,6 +323,46 @@ test("template.manifest-passes-validateManifest", async () => {
       await switchOn(t, thread, "tpl-manifest");
       expect(t.host.registration("tpl-manifest")?.status).toBe("enabled");
       expect(t.diagnostics).toEqual([]);
+    });
+    return undefined;
+  });
+});
+
+test("template.dependencies-match-imports", async () => {
+  await eachAsync(TEMPLATE_KINDS, async (kind) => {
+    await withGenerated(kind, "tpl-deps", async (dir) => {
+      const expected = EXPECTED_DEPENDENCIES[kind];
+      const json = parseJson(await Bun.file(join(dir, "package.json")).text());
+      if (!json.ok) throw new Error(`${kind} package.json is not JSON`);
+      expect(json.value).toEqual({
+        name: "@fresnel/group-tpl-deps",
+        version: "0.1.0",
+        private: true,
+        type: "module",
+        exports: { ".": "./src/index.ts" },
+        dependencies: expected.dependencies,
+        devDependencies: expected.devDependencies,
+        fresnel: { layer: "L3", domain: "tpl-deps" },
+      });
+
+      // 선언은 실제 import와 같아야 한다. src/의 import는 dependencies와, 모든 .ts의 import는 두 묶음 합과 같다
+      const imported = importedPackages(dir);
+      expect(imported.source).toEqual(Object.keys(expected.dependencies).toSorted());
+      expect(imported.all).toEqual(
+        [
+          ...Object.keys(expected.dependencies),
+          ...Object.keys(expected.devDependencies),
+        ].toSorted(),
+      );
+
+      const tsconfig = parseJson(await Bun.file(join(dir, "tsconfig.json")).text());
+      if (!tsconfig.ok) throw new Error(`${kind} tsconfig.json is not JSON`);
+      expect(tsconfig.value).toEqual({
+        extends: "../../tsconfig.base.json",
+        compilerOptions: { rootDir: ".", outDir: "dist", tsBuildInfoFile: "dist/.tsbuildinfo" },
+        include: ["src", "test"],
+        references: expected.references.map((path) => ({ path })),
+      });
     });
     return undefined;
   });
@@ -429,3 +565,11 @@ test("template.generated-tests-pass", async () => {
     return undefined;
   });
 });
+
+// 이 파일의 마지막 시험이다. 앞의 시험이 시작한 생성이 모두 끝나 각자의 무작위 디렉터리를 지운 뒤, 생성 뿌리에 아무것도 없어야 한다.
+// afterAll이 뿌리를 지우기 전에 본다. 시간 초과로 끝난 시험의 본문이 남아 있으면 그 본문이 끝날 때까지 기다린다.
+test("template.leaves-no-generated-output", async () => {
+  await settleRunning();
+  const left = existsSync(GENERATED_ROOT) ? readdirSync(GENERATED_ROOT) : [];
+  expect(left).toEqual([]);
+}, 300_000);

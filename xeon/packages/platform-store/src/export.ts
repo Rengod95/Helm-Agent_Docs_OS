@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { err, ok, type Clock, type Result } from "@fresnel/contracts";
+import { attempt, err, ok, type Clock, type Result } from "@fresnel/contracts";
 import { sqliteIoFailureOf } from "./db.ts";
 import { APPLICATION_ID, readIdentity } from "./pragmas.ts";
 import { columnString, toSqlRow } from "./rows.ts";
@@ -29,12 +29,25 @@ const EXPORT_MANIFEST_FILE = "manifest.json";
 const EXPORT_BUSY_TIMEOUT_MS = 5000;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
+/** 내보내기 장애 주입 지점. 이 패키지 전용이고 StoreFaultPoint에 넣지 않는다. 시험이 파일 시스템 경쟁을 시간에 기대지 않고 재현한다 */
+type ExportFaultPoint = "export_before_blob_copy";
+
+interface ExportFaultInjector {
+  hit(point: ExportFaultPoint): void;
+}
+
+const NO_EXPORT_FAULTS: ExportFaultInjector = {
+  hit: (): void => {},
+};
+
 export interface ExportOptions {
   /** 내보낼 DB 파일의 절대 경로. 블롭은 이 파일의 디렉터리 아래 `blobs/`에서 읽는다 */
   readonly dbPath: string;
   /** 대상 디렉터리. 없으면 만든다(부모는 있어야 한다). 있으면 비어 있어야 한다 */
   readonly destDir: string;
   readonly clock: Clock;
+  /** 테스트 전용. 운영은 생략한다 */
+  readonly faults?: ExportFaultInjector;
 }
 
 /** 내보내기 결과. `manifest.json`의 내용과 같다 */
@@ -190,6 +203,7 @@ function copyBlob(
   destDir: string,
   sha256: string,
   created: Created,
+  faults: ExportFaultInjector,
 ): Result<boolean, ExportError> {
   const shard = sha256.slice(0, 2);
   const from = join(dbDir, "blobs", shard, sha256.slice(2));
@@ -206,6 +220,7 @@ function copyBlob(
   const reserved = createFile(to, created);
   if (!reserved.ok) return reserved;
   const copied = attemptIo(() => {
+    faults.hit("export_before_blob_copy");
     copyFileSync(from, to);
     chmodSync(to, 0o600);
   });
@@ -220,6 +235,7 @@ function writeExport(
   createDest: boolean,
 ): Result<ExportReport, ExportError> {
   const created: Created = { files: [], dirs: [] };
+  const faults = options.faults ?? NO_EXPORT_FAULTS;
   const fail = (error: ExportError): Result<never, ExportError> => err(cleanup(created, error));
 
   if (createDest) {
@@ -255,7 +271,7 @@ function writeExport(
       missingBlobs.push(sha256);
       continue;
     }
-    const copied = copyBlob(dirname(options.dbPath), options.destDir, sha256, created);
+    const copied = copyBlob(dirname(options.dbPath), options.destDir, sha256, created, faults);
     if (!copied.ok) return fail(copied.error);
     if (copied.value) blobCount += 1;
     else missingBlobs.push(sha256);
@@ -275,11 +291,25 @@ function writeExport(
   return ok({ destDir: options.destDir, exportedAt, blobCount, missingBlobs });
 }
 
-/** 실패한 내보내기가 만든 것만 지운다. 정리가 실패하면 원래 오류 대신 정리 오류를 돌려준다(ExportError에 원인 필드가 없다) */
+/**
+ * 빈 디렉터리를 지운다. 이미 없으면 지운 것으로 본다(정리 중 다른 쪽이 먼저 지운 경우, rmSync의 force와 같다).
+ * 그 밖의 오류(예: 남의 파일이 있어 ENOTEMPTY)는 다시 던진다
+ */
+function rmEmptyDirIfPresent(path: string): void {
+  const removed = attempt(() => rmdirSync(path));
+  if (removed.ok) return;
+  if (fsCodeOf(removed.error.cause) === "ENOENT") return;
+  throw removed.error.cause;
+}
+
+/**
+ * 실패한 내보내기가 만든 것만 지운다. 정리가 실패하면 원래 오류 대신 정리 오류를 돌려준다.
+ * ExportError에 원인 필드가 없어서 이렇게 정했다(L0.store.spec §4.10, 미결 S-14 해소). 원래 오류를 실을 필드는 T-F 백로그다
+ */
 function cleanup(created: Created, original: ExportError): ExportError {
   const removed = attemptIo(() => {
     for (const file of created.files.toReversed()) rmSync(file, { force: true });
-    for (const dir of created.dirs.toReversed()) rmdirSync(dir);
+    for (const dir of created.dirs.toReversed()) rmEmptyDirIfPresent(dir);
   });
   return removed.ok ? original : removed.error;
 }
@@ -287,6 +317,7 @@ function cleanup(created: Created, original: ExportError): ExportError {
 /**
  * DB를 `destDir`로 내보낸다(L0.store.spec §4.10). 동기 함수다. 원본 DB는 읽기 전용으로만 연다.
  * 결과 디렉터리: `fresnel.sqlite`(VACUUM INTO 복사본), `blobs/<ab>/<rest>`(sys_blobs의 파일), `manifest.json`.
+ * 이 함수가 첫 SQLite 연결이면 로드 상태를 번들로 정한다(S-13). 호출처는 열기 뒤에 부르거나 열기 없이 부른다.
  */
 export function exportDatabase(options: ExportOptions): Result<ExportReport, ExportError> {
   const createDest = checkDestination(options.destDir);

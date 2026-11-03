@@ -127,6 +127,32 @@ test("a carry-over cell takes a track id of either plan, M4, or M5 and 삭제 wi
   ]);
 });
 
+test("a carry-over cell also takes M4 after a merge, a user decision and will not do, each with its detail", () => {
+  const scanned = scanOk(
+    `${CARRY_HEADER}\n| 합류 대기 | M4: after audit2 merge |\n| 합류 대기 설명 | M4: after audit3 merge (owner gap: audit3 does not fix it) |\n| 사용자 결정 | user decision: sheet A1 |\n| 권고 | user decision: recommend option 2 |\n| 하지 않음 | will not do: no CLI surface |\n| 합류 대상 없음 | M4: after merge |\n| 사유 없는 결정 | user decision: |\n| 사유 없는 불가 | will not do: |\n\n${HEADER}\n| M3-REQ-01 | F | x | 0 | M3a |\n`,
+  );
+  expect(scanned.problems).toEqual([
+    { kind: "carryover_unknown_track", item: "합류 대상 없음", line: 8, track: "M4: after merge" },
+    { kind: "carryover_missing_reason", item: "사유 없는 결정", line: 9, track: "user decision:" },
+    { kind: "carryover_missing_reason", item: "사유 없는 불가", line: 10, track: "will not do:" },
+  ]);
+});
+
+test("countCarryover counts the owner-wait, user decision and will-not-do cells under their own words", () => {
+  expect(
+    countCarryover([
+      { item: "a", line: 1, track: "M4: after audit2 merge" },
+      { item: "b", line: 2, track: "M4: after safe3 merge" },
+      { item: "c", line: 3, track: "user decision: sheet A1" },
+      { item: "d", line: 4, track: "will not do: no CLI surface" },
+    ]),
+  ).toEqual([
+    ["M4 (after merge)", 2],
+    ["user decision", 1],
+    ["will not do", 1],
+  ]);
+});
+
 test("countCarryover counts a track id under itself and M5 and 삭제 under their words", () => {
   expect(
     countCarryover([
@@ -230,12 +256,15 @@ test("the repository ledger has a valid status on all 112 rows, and every carry-
   });
   expect(scanned.requirements.length).toBe(112);
   expect(scanned.problems).toEqual([]);
-  // §9 holds the 37 M3a carry-over items on M3b tracks; §11 holds the 132 review.m3-plan §9.3 items.
-  expect(scanned.carryover.length).toBe(169);
-  expect(scanned.carryover.filter((row) => row.track.startsWith("M5:")).length).toBe(41);
-  expect(scanned.carryover.filter((row) => row.track.startsWith("삭제:")).length).toBe(1);
+  // §9 holds the 37 M3a carry-over items on M3b tracks; §11 holds the 134 review.m3-plan §9.3 items and M4 additions.
+  expect(scanned.carryover.length).toBe(171);
+  expect(scanned.carryover.filter((row) => row.track.startsWith("M5:")).length).toBe(43);
+  expect(scanned.carryover.filter((row) => row.track.startsWith("삭제:")).length).toBe(2);
+  expect(scanned.carryover.filter((row) => row.track.startsWith("user decision:")).length).toBe(9);
+  expect(scanned.carryover.filter((row) => row.track.startsWith("will not do:")).length).toBe(1);
+  expect(scanned.carryover.filter((row) => row.track.startsWith("M4: after ")).length).toBe(6);
   const byId = new Map(scanned.requirements.map((row) => [row.id, row.status]));
   expect(byId.get("M3-REQ-112")).toBe("M4:T-I18N");
   expect(byId.get("M3-REQ-33")).toBe("M3a");
-  expect(scanned.requirements.filter((row) => row.status.startsWith("M4:")).length).toBe(14);
+  expect(scanned.requirements.filter((row) => row.status.startsWith("M4:")).length).toBe(10);
 });

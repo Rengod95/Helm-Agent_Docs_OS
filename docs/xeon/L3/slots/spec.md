@@ -396,28 +396,48 @@ export const TemplateIndexSchema: TObject = Type.Object({
 
 매니페스트 전달 [제안]: 템플릿은 외부 그룹이 기본 대상이라 매니페스트가 `.fresnel-plugin/plugin.json`에만 있다. `src/index.ts`는 이 파일을 JSON import로 읽어 `groupManifest`(`L3.group-sdk.spec` §3.2)로 검증·좁힌 값을 `defineGroup`의 `manifest`에 넘긴다. 저장소 안 그룹으로 바꿀 때는 `src/manifest.ts`의 `defineManifest` 상수를 넘긴다(3.3.2).
 
+[편차 정리: M4 T-RT2] 아래 코드는 `xeon/packages/group-sdk/templates/`의 실제 파일과 같다. 설계 때 목록과 다른 점(식별자에 이름을 넣지 않음, drive의 `ROUNDS`와 `requestId`, 종류별 `package.json`)과 이유는 `L3.slots.plan` S-01 구현 기록에 있다.
+
 drive 템플릿 `src/index.ts`:
 
 ```ts
 import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
-import { __ID__State, initialState, type State } from "./state.ts";
-import { __ID__Settings } from "./settings.ts";
+import { settings } from "./settings.ts";
+import { initialState, stateSchema, type State } from "./state.ts";
+
+/** 골격의 단계 수. 정책 값이 아니라 재생 시험이 끝나는 자리를 보이려는 값이다 */
+const ROUNDS = 3;
 
 const group: GroupModule = defineGroup<State>({
   manifest: groupManifest(manifestJson),
-  state: { schema: __ID__State, initial: initialState, version: 1 },
-  settings: __ID__Settings,
+  state: { schema: stateSchema, initial: initialState, version: 1 },
+  settings,
   setup(g) {
-    g.on("boundary.settle.after", () => {});                  // 관찰 자리(tap). 커밋은 turn당 한 번, 효과는 commit·record·post만
-    g.drive(async (loop, st) => {
-      // 재생 규율: 진행 상태는 st(커밋된 상태)에만 둔다. Date.now·Math.random·직접 I/O 금지
-      if (st.phase === "done" || loop.budget.turns === 0) return;
-      const out = await loop.turn({ input: { kind: "user", content: `__TITLE__ 단계 ${st.round}` } });
-      await g.commit({ ...st, round: st.round + 1, phase: out.status === "completed" ? st.phase : "done" });
-    }, { limits: { maxTurns: 4 } });
+    // 관찰 자리(tap). 커밋은 turn당 한 번만 하고, 효과는 commit·record·post만 낸다
+    g.on("boundary.settle.after", () => {});
+    g.drive(
+      async (loop, st) => {
+        // 재생 규율: 멈춤과 진행은 커밋된 st로만 정한다. 임대의 남은 예산(loop.budget)은 임대마다 달라서 쓰지 않는다.
+        // Date.now, Math.random, 직접 I/O를 쓰지 않는다
+        if (st.phase === "done") return;
+        // requestId는 커밋된 상태에서 정한다. 빼면 X가 임대 id로 만들어 재생 뒤 턴이 새로 난다(ADR-0015 §3.4)
+        const out = await loop.turn({
+          input: { kind: "user", content: `__TITLE__ 단계 ${st.round}` },
+          requestId: `__ID__:round:${st.round}`,
+        });
+        const round = st.round + 1;
+        await g.commit({
+          ...st,
+          round,
+          phase: out.status === "completed" && round < ROUNDS ? "run" : "done",
+        });
+      },
+      { limits: { maxTurns: 4 } },
+    );
   },
 });
+
 export default group;
 ```
 
@@ -426,14 +446,20 @@ drive 템플릿 `src/state.ts`:
 ```ts
 import { Type, type TInteger, type TLiteral, type TObject, type TUnion } from "typebox";
 
+/** 구동 그룹의 상태. 진행은 커밋된 값으로만 정한다(재생 규율) */
 export interface State {
   readonly phase: "run" | "done";
   readonly round: number;
 }
-export const __ID__State: TObject<{ phase: TUnion<[TLiteral<"run">, TLiteral<"done">]>; round: TInteger }> = Type.Object({
+
+export const stateSchema: TObject<{
+  phase: TUnion<[TLiteral<"run">, TLiteral<"done">]>;
+  round: TInteger;
+}> = Type.Object({
   phase: Type.Union([Type.Literal("run"), Type.Literal("done")]),
   round: Type.Integer({ minimum: 0 }),
 });
+
 export const initialState: State = { phase: "run", round: 0 };
 ```
 
@@ -444,19 +470,22 @@ policy 템플릿 `src/index.ts`(상태 없는 그룹. `state`를 생략한다, `
 ```ts
 import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
-import { __ID__Settings } from "./settings.ts";
+import { settings } from "./settings.ts";
 
+// 상태가 없는 정책 그룹이다. state를 두지 않는다.
 const group: GroupModule = defineGroup({
   manifest: groupManifest(manifestJson),
-  settings: __ID__Settings,
+  settings,
   setup(g) {
-    g.on("tool.call.before", (p) => {                        // first: 차단. 예외는 거부가 된다
+    // first 훅: 차단 결정을 낸다. 핸들러가 던지면 이 도구 호출은 거부된다(fail-closed)
+    g.on("tool.call.before", (p) => {
       return g.settings().blockedTools.includes(p.toolName)
         ? { block: true, reason: "__TITLE__ 정책이 이 도구를 막았다" }
         : undefined;
     });
   },
 });
+
 export default group;
 ```
 
@@ -465,31 +494,37 @@ observe 템플릿 `src/index.ts`:
 ```ts
 import { defineGroup, groupManifest, type GroupModule } from "@fresnel/group-sdk";
 import manifestJson from "../.fresnel-plugin/plugin.json" with { type: "json" };
-import { __ID__State, initialState, type State } from "./state.ts";
-import { __ID__Settings } from "./settings.ts";
+import { settings } from "./settings.ts";
+import { initialState, stateSchema, type State } from "./state.ts";
 
 const group: GroupModule = defineGroup<State>({
   manifest: groupManifest(manifestJson),
-  state: { schema: __ID__State, initial: initialState, version: 1 },
-  settings: __ID__Settings,
+  state: { schema: stateSchema, initial: initialState, version: 1 },
+  settings,
   setup(g) {
-    g.on("boundary.settle.after", async (p) => {              // tap: 관찰. 반환값은 쓰지 않는다
+    // tap 훅: 관찰만 한다. 반환값은 쓰지 않는다. 턴마다 커밋 한 번과 기록 한 번을 낸다
+    g.on("boundary.settle.after", async (p) => {
       const next = { count: g.state().count + 1 };
       await g.commit(next);
       await g.record("grp.__ID__.turn.counted", { type: "turn", id: p.turnId }, next);
     });
   },
 });
+
 export default group;
 ```
 
 공통 `src/settings.ts`(policy 예):
 
 ```ts
-import { Type, type TArray, type TString } from "typebox";
 import { defineSettings, type SettingDefInput, type SettingGroup } from "@fresnel/contracts/settings";
+import { Type, type TArray, type TString } from "typebox";
 
-export const __ID__Settings: SettingGroup<"ext.__ID__", { blockedTools: SettingDefInput<TArray<TString>> }> = defineSettings("ext.__ID__", {
+/** ext.__ID__.* 설정 키. enabled와 isolation은 X가 예약한 키라 여기에 두지 않는다 */
+export const settings: SettingGroup<
+  "ext.__ID__",
+  { readonly blockedTools: SettingDefInput<TArray<TString>> }
+> = defineSettings("ext.__ID__", {
   blockedTools: {
     type: Type.Array(Type.String()),
     default: [],

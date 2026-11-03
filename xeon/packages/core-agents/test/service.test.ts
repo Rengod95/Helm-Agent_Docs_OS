@@ -96,6 +96,23 @@ describe("spawn", () => {
     expect(h.service.liveCount()).toBe(0);
   });
 
+  test("promptFrom parent leaves the child system prompt to the loop default, and the default sends the definition prompt", async () => {
+    const shared = openHarness();
+    const first = shared.openToolCall("tc-1");
+    await shared.service.spawn(
+      { agent: "explorer", task: "look", promptFrom: "parent" },
+      first.origin,
+    );
+    expect(shared.loop.calls[0]?.systemPrompt).toBeUndefined();
+    const own = openHarness();
+    const second = own.openToolCall("tc-1");
+    await own.service.spawn(
+      { agent: "explorer", task: "look", promptFrom: "definition" },
+      second.origin,
+    );
+    expect(own.loop.calls[0]?.systemPrompt).toBe(EXPLORER.prompt);
+  });
+
   test("usage_attributed_once: the child's usage is only in agent.settled", async () => {
     const h = openHarness({
       run: (request, session) =>

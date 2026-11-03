@@ -793,9 +793,10 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | `disk_full` | `SQLITE_FULL` 또는 `ENOSPC` |
 | `io`(`code`) | 그 밖의 SQLite와 파일 시스템 오류 |
 
-- 실패 정리: 이 호출이 만든 파일과 디렉터리만 만든 순서의 역순으로 지웁니다. 원래 있던 빈 대상 디렉터리는 지우지 않습니다. 정리가 실패하면 원래 오류 대신 정리 오류를 돌려줍니다. `ExportError`에 원인을 실을 필드가 없기 때문입니다 [미결 S-14].
+- 실패 정리: 이 호출이 만든 파일과 디렉터리만 만든 순서의 역순으로 지웁니다. 원래 있던 빈 대상 디렉터리는 지우지 않습니다. 이미 없는 파일과 디렉터리는 지운 것으로 봅니다. 정리 중 다른 쪽이 먼저 지운 경우입니다(§9 21번).
+- 정리 오류 [해소 S-14, 결정]: 정리가 다른 이유로 실패하면(예: 남의 파일이 있어 `ENOTEMPTY`) 원래 오류 대신 정리 오류를 돌려줍니다. 원래 오류는 사라지고 대상에 이 호출이 만든 것이 남을 수 있습니다. 다시 쓰려면 대상을 먼저 비웁니다. 원래 오류를 싣는 필드는 넣지 않습니다. `ExportError`의 값 모양은 L4.cli 문서와 운영 복구 문서(`docs/xeon/engineering/operations/recovery.md`)가 `kind`와 `code`로 적고 있어 이 패키지만으로 바꿀 수 없습니다. 원인 필드는 T-F 백로그(§8.1 FR-S10)입니다. 이 결정은 §9 21번이 고정합니다.
 - 잠금 대기: 원본 연결은 `busy_timeout` 5000ms를 씁니다. WAL 모드에서는 다른 프로세스의 쓰기가 읽기를 막지 않습니다.
-- SQLite 로드: 이 함수도 `newDatabase`를 거치므로 첫 연결이 SQLite 로드 상태를 정합니다. `openStore` 전에 부르면 macOS 커스텀 dylib 지정이 나중에 `Bug(store.sqlite_already_loaded)`가 됩니다 [미결 S-13].
+- SQLite 로드 [해소 S-13]: 이 함수도 `newDatabase`를 거치므로 첫 연결이 SQLite 로드 상태를 정합니다. 내보내기는 `customSqlitePath`를 읽지 않고 번들 SQLite로 로드 상태를 정하므로, 열기 전에 내보내면 같은 프로세스의 나중 `openStore`가 커스텀 dylib을 지정할 때 `Bug(store.sqlite_already_loaded)`가 됩니다(§9 22번). 호출처 확인(2026-11-03): `apps/host/src`는 `exportDatabase`를 아직 부르지 않습니다. `apps/cli`의 `db export`(`commands/db.ts`, `runtime.ts`)는 엔진과 `openStore` 없이 내보내기만 하는 프로세스입니다. 충돌하는 호출처가 없으므로 이 규칙은 지켜집니다. 호스트가 내보내기를 붙일 때는 `openStore` 뒤에 부릅니다.
 
 ### 4.10.1 DB 되돌리기 [결정: 2026-11-04 사용자]
 
@@ -951,6 +952,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | FR-S7 | eng.context-map.design §5.2·§5.4, CM-07 | (반영됨, review.decisions-2 U-18) 확장 id `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두 `x_<하이픈→밑줄>_`, 지역 이름 밑줄 금지로 소유를 판정한다 | 이 문서와 X가 하이픈 허용 이름을 쓴다. 접두 일치만으로는 확장 `a`의 삭제가 `a-b`의 테이블을 지운다 |
 | FR-S8 | L0.os.spec | `fsKind(path, signal)`, `dirs.resource`(macOS 동봉 dylib), `processStartFingerprint(pid)`(동기), `machineId`를 `OsService`에 둔다(반영됨: `L0.os.spec` §3.3·§3.10). 비동기인 `fsKind`는 조립 루트가 미리 풀어 `StoreEnvironment.dbDirFsKind`로 넘긴다 | DR-13. store는 OS를 판정하지 않는다 |
 | FR-S9 | F.conversation.spec §3.2 | `IdPrefix`에 `sto`를 더할지(`F.wire-settings.spec` §10 미결 7) | `storeId` 발급 |
+| FR-S10 | T-F 백로그(L0.store §4.10의 `ExportError` 값, L4.cli 문서와 `recovery.md`의 오류 표) | `ExportError`의 값에 정리 실패 원인을 싣는 필드를 더할지 정한다 | [해소 S-14] 결정 전까지 정리 오류를 돌려준다. 값 모양을 L4와 운영 문서가 적고 있어 이 패키지 단독으로 바꾸지 않는다 |
 
 ## 9. 수용 기준
 
@@ -975,6 +977,8 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 19. `exportDatabase`로 낸 `fresnel.sqlite`를 `openStore`로 열면 행과 블롭 바이트가 원본과 같다. 미래 버전 DB도 내보내진다. 비어 있지 않은 대상은 `dest_not_empty`이고 내용이 그대로다. 파일이 없는 블롭은 `missingBlobs`에 든다(`test/export.int.test.ts`).
 19a. `restoreDatabase`: 사본을 되돌리면 행과 블롭 바이트가 사본과 같고 옛 DB가 `restore-previous/`에 남으며 `-wal`/`-shm`이 없다. 다른 연결이 열려 있으면 `engine_running`이고 아무것도 바뀌지 않는다. 더 높은 버전의 사본은 `future_version`이다. 블롭 해시가 틀리거나 manifest가 깨졌거나 폴더가 없으면 현재 DB를 건드리지 않고 거절한다. 저장 단계 8곳마다 죽어도 DB가 남고 다시 실행하면 사본 내용으로 끝난다(`test/restore.int.test.ts`).
 20. `readOnly: true`로 미래 버전 DB를 열면 성공하고 `warnings`는 `read_only`(`future_version`) 하나다. 쓰기 경로(`root`, `scoped`, `putBlob`, `pinBlob`, `unpinBlob`, `gcBlobs`, `leases.acquire`, `migrations.apply`)는 모두 거절 값을 돌려주고 DB 파일의 SHA-256이 그대로다(`test/open-readonly.int.test.ts`).
+21. 내보내기 경쟁(`test/export.int.test.ts`, "under a concurrent removal"). 복사 직전에 블롭 디렉터리가 지워지고 복사가 `EIO`를 내면 결과는 원래 오류 `io`(`EIO`)다. 정리의 빈 디렉터리 제거는 없는 것을 지운 것으로 보므로 정리 오류가 원래 오류를 덮지 않는다. 복사 직전에 블롭 파일이 사라지면 `io`(`ENOENT`)이고 대상은 남지 않는다. 정리가 남의 파일 때문에 실패하면 정리 오류 `io`(`ENOTEMPTY`)를 돌려주고 남의 파일은 그대로다(§4.10 S-14 결정).
+22. `exportDatabase`를 `openStore`보다 먼저 부른 프로세스에서 커스텀 dylib 경로로 열면 `Bug(store.sqlite_already_loaded)`다. 내보내기 결과는 `ok`다(`test/sqlite-order.int.test.ts`, 자식 프로세스 `fixtures/export-first.ts`).
 
 ## 10. 미결 사항
 
@@ -988,7 +992,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - [미결 S-10] bun:ffi 안정성. Bun 문서의 실험 기능 경고 원문을 확인하고, 문제가 있으면 `none` provider(DB 프로세스 락만)를 기본으로 둘지 정한다.
 - [미결 S-11] 블롭 해시 재검증을 운영 빌드에서도 할지(읽기 비용).
 - [미결 S-12] F 요청, 스냅샷 실패 전용 오류 kind. 지금은 `migration_failed`의 `code: "snapshot_failed:<코드>"`로 돌려준다(§4.6.1). `MigrationError`에 `migration_snapshot_failed`를 더하고, 손상(`corrupt`)과 미래 버전(`migration_future_version`) 오류를 사용자 안내 문구로 나누는 일은 F·host가 맡는다 [마감 G2-06].
-- [미결 S-13] 내보내기와 열기는 같은 SQLite 로드 규칙(§4.1)을 쓴다. 열기 전에 내보내면 첫 연결이 SQLite 로드 상태를 번들로 정하므로, macOS에서 나중의 `openStore`가 커스텀 dylib을 지정하면 `Bug(store.sqlite_already_loaded)`가 난다. 호스트가 내보내기를 `openStore` 뒤에 부르는지 M3 호스트 연결 때 정한다.
-- [미결 S-14] 내보내기 실패 뒤 정리가 실패하면 원래 오류 대신 정리 오류를 돌려준다. `ExportError`에 원인 필드가 없어서다. 원인을 실을 필드를 더할지는 F 요청 후보로 둔다(§4.10).
+- [해소 S-13] 내보내기와 열기는 같은 SQLite 로드 규칙(§4.1)을 쓴다. 열기 전에 내보내면 첫 연결이 로드 상태를 번들로 정하고, 같은 프로세스의 나중 커스텀 dylib 열기는 `Bug(store.sqlite_already_loaded)`다(§9 22번). 호출처를 확인했다(2026-11-03): 호스트는 `exportDatabase`를 부르지 않고, CLI `db export`는 열기 없이 내보내기만 한다. 충돌하는 호출처가 없어 닫는다. 호스트가 내보내기를 붙일 때는 `openStore` 뒤에 부른다(§4.10).
+- [해소 S-14] 내보내기 실패 뒤 정리가 실패하면 원래 오류 대신 정리 오류를 돌려준다(결정, §4.10, §9 21번). 원래 오류를 싣는 필드는 T-F 백로그다(§8.1 FR-S10).
 - [해소 S-15] 자리표시(`blob:sha256:<hex>`)로만 커밋 이벤트에 남는 블롭은 후보 (a)로 모은다. `blobHashesOf`가 `detached`와 `effect.*`의 BlobRef에 더해 이벤트 payload의 모든 문자열에서 `blob:sha256:<64자 hex>`를 찾아 `p_blob_refs`에 넣는다(키 이름과 깊이를 가리지 않는다). 해당하는 것은 cap-mcp 내용 블롭, cap-dialog 이미지 첨부, cap-workspace 이미지다. 투영 규칙이 바뀌어 `CORE_PROJECTOR_VERSION`을 5로 올렸고, 다음 열기에서 core 투영기가 기존 이벤트로 다시 만들어지므로 이미 쌓인 DB도 자리표시 참조를 얻는다. 한계: 사용자가 쓴 텍스트에 같은 문자열이 있으면 그 블롭도 남는다(과보존, 안전한 쪽이다). `l0.store.blobGcEnabled`는 이 항목이 해소됐으므로 켤 수 있다. 켜는 결정은 따로 한다 [결정: 오케스트레이터 기본값, 기본 false 유지]. 소유는 `core-persistence`다.
 - [가정] macOS에서 bun:ffi `flock`, `libSystem.B.dylib` 이름, O_CLOEXEC 동작은 실측하지 않았다. Windows 전 구간, WSL `/mnt/c`의 flock도 실측하지 않았다(`_research/notes/L0-2.md §5`).

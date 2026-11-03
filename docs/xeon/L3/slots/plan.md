@@ -198,7 +198,9 @@ S-01 구현에서 바뀐 점은 다음과 같다. 골격의 계약은 `L3.slots.
 - 템플릿 `defaultEnabled`는 `false`다(§3.3.5). 시험은 켜는 요청을 낸 뒤 다음 경계까지 돌린다. 재생 시험은 켜진 그룹을 본다(범위 정의에 `defaultEnabled: true`만 더한 같은 그룹).
 - 재생 골격은 현재 API `replayDrive({ group, harness })`를 쓴다. 하니스는 테스트 파일 안에 있다. 생성 그룹은 `@fresnel/group-sdk/testing`의 `replayDrive`만 import한다.
 - drive·observe의 `settings.ts`는 키가 없는 묶음이다. 키를 더하는 자리만 둔다.
-- 생성 `package.json`은 `name`, `version`, `private`, `type`, `exports`, `fresnel`만 둔다. 의존 선언은 없다. 시험은 워크스페이스 해석에 기댄다. 생성 명령이 의존을 어떻게 적을지는 [미결](`L4.cli.spec`)이다.
+- 생성 `package.json`은 `name`, `version`, `private`, `type`, `exports`, `fresnel`과 종류별 의존을 둔다. `dependencies`는 `@fresnel/contracts`·`@fresnel/group-sdk`(`workspace:*`)와 `typebox`(`catalog:`)이고, drive·policy는 `devDependencies`에 `@fresnel/ext-host`를 더한다. 의존은 생성된 코드가 import하는 것과 같다(`templates.test.ts` `template.dependencies-match-imports`). 템플릿 파일은 종류별 폴더에 있다.
+
+- `L3.slots.spec` §3.3.5의 코드 목록은 위 변경과 실제 템플릿 파일에 맞춰 고쳤다(M4 T-RT2, 옛 목록의 `__ID__State`·`loop.budget.turns` 서술 제거).
 
 시험 지원 파일은 `xeon/packages/group-sdk/test/support/`에 있다.
 

@@ -939,10 +939,11 @@ export const registrations: readonly WebProviderRegistration[] = [
 - 헤더 시크릿의 전송 규칙 [결정: M3-REQ-60, WB-18]. 치환은 L0 플러그인 HTTP 통로를 거친다(`L0.secrets.spec` §3.6, `createPluginHttp(service, { purpose: "web.search" })`의 `send`, 안에서 `SecretService.withHttp`를 쓴다). cap-web은 값을 얻지 않고 포트 `HeaderSecretSender`(`src/ports/secrets.ts`)만 부른다. 포트는 `ext.<이름>.<키>` 설정을 확인하고, 값은 `send` 콜백 안에서만 헤더에 붙는다.
   - 주입 위치는 두 가지다. `header`는 지정한 헤더 이름에, `bearer`는 `authorization: Bearer <값>`에 넣는다. `none`은 시크릿이 없다.
   - `query`(질의 문자열 인증)는 지원하지 않는다[결정: 오케스트레이터 기본값]. 시크릿 값이 URL에 들어가 로그와 리퍼러로 새기 쉽기 때문이다. 등록 때 `web.provider_rejected`(reason `auth_kind_unsupported`)로 거부한다. `header` kind에 헤더 이름이 없으면 `secret_header_missing`으로 거부한다. 계약 스키마 `WebProviderManifestSchema`(F)는 바꾸지 않는다.
+  - 시크릿 설정 키(`setting`)는 그 확장 자신의 `ext.<이름>.` 키여야 한다. 다른 확장이나 코어의 키를 가리키면 등록 때 `web.provider_rejected`(reason `secret_setting_foreign`)로 거부한다(M3 이월 `ext.<ext>.<key>` 카탈로그의 cap-web 쪽 검사). 그 키가 확장 매니페스트의 `userConfig`로 선언돼 설정 카탈로그에 오르는 것은 확장 로더가 맡는다(`X.loading-trust.spec` §4.5.1).
   - provider가 준 같은 이름의 헤더는 버린다. 시크릿 헤더가 이긴다.
   - 설정이 비었거나 참조를 풀 수 없으면(`unset`, `unavailable`) 전송하지 않고 `unavailable`, `detail.reason`은 `no-key`, `detail.setting`은 그 설정 키다.
   - 응답 본문 텍스트(`text/*`, JSON, XML)나 헤더 값이 시크릿 값을 되돌리면(에코) 본문과 헤더를 버리고 `upstream_error`, `detail.reason`은 `secret_echoed`다(§5 32행). 텍스트가 아닌 본문은 에코 검사 대상이 아니다(L0 계약, `bodyText`가 null).
-  - 조립 쪽 어댑터: `HeaderSecretSender`를 구현해 `SecretService.withHttp`를 부르는 어댑터는 조립 쪽이 맡는다. 이 문서 시점에는 아직 연결되지 않았고 L4 후속 유닛에서 잇는다. 그 전에는 `headerSecrets`가 없는 provider의 시크릿 헤더 요청이 `no-key`다.
+  - 조립 쪽 어댑터: `HeaderSecretSender`를 구현해 `SecretService.withHttp`를 부르는 어댑터는 조립 쪽이 맡는다. 어댑터는 `apps/host/src/assembly/web-header-secrets.ts`의 `createWebHeaderSecrets`이고 `assembly/cap-web.ts`가 `headerSecrets`로 잇는다(M3b B2-WEB). `headerSecrets`가 없으면 시크릿 헤더 요청은 `no-key`다.
 - 키 설정이 비어 있으면 `isAvailable`은 `{ ok: false, reason: "no-key" }`다. 앞단이 provider를 부르기 전에 같은 판정을 한 번 더 한다.
 - 유료 provider(Exa, Parallel, Brave, Firecrawl)는 모두 이 구조의 플러그인이다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 내장 패키지 `cap-web`에는 유료 provider 코드가 없다.
 

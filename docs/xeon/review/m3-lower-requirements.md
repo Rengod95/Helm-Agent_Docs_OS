@@ -139,7 +139,7 @@ binds: []
 | M3-REQ-48 | L0 | `L0.os.spec` | 워크트리 연산(`create`, `list`, `remove`)과 파일 감시 root 완화를 정한다. 감시 책임은 작업 공간 exec, 앱 설정·스킬·플러그인 디렉터리 os다. `@parcel/watcher` 정확한 버전을 적는다 | M3-07, SC-01, §3.8 A-72, A-80 | 1 | M3b |
 | M3-REQ-49 | L0 | `L0.os.spec` | 설정 파일 외부 변경을 `OsService.watch`로 감시해 통지한다 | M3-new-08, M-16 | 1 ← M3-REQ-48 | M3b |
 | M3-REQ-50 | L0 | `L0.os.spec` `Notifier` | `NotifierProvider` 1차(macOS, Linux)를 구현 범위로 확정한다. 클라이언트 창이 앞에 있어도 기본으로 보내고, 설정으로 끌 수 있게 한다 [결정: review.m3-design-inputs D-M3-17]. WSL 토스트는 쓰지 않는다 | M3-11, B-12, D-M3-17 행 2·3, §3.8 A-74 | 1 | M3b |
-| M3-REQ-51 | L0 | `L0.os.spec` | `OsService.fileLock`을 더한다. 대상은 `settings.json`과 지식 파일이다 | M3-23, A-82, KN-16 | 1 | M4:T-RT2 |
+| M3-REQ-51 | L0 | `L0.os.spec` | `OsService.fileLock`을 더한다. 대상은 `settings.json`과 지식 파일이다 | M3-23, A-82, KN-16 | 1 | M4 |
 | M3-REQ-52 | L0 | `L0.os.spec` | `l0.os.log.level` 적용 잔여, 로그 회전, `traceparent`·telemetry 설정, 확장 진단 배열 상한을 정한다 | M3-22, M3-24, M3-32, A-80 | 1 | M4 |
 | M3-REQ-53 | L0 | `L0.os.spec` | 번들 외부 바이너리(macOS의 sops, age, rg) 경로를 앱 자원 디렉터리에서 찾는다. Linux의 bwrap, socat은 시스템 패키지로 요구하고 doctor가 안내한다 [결정: review.m3-design-inputs D-M3-25 행 5]. 대상은 macOS 14 이상 arm64, Linux x86_64·arm64이고 Intel macOS는 빌드하지 않는다(D-M3-25 행 2·3). 읽기 전용 자원 디렉터리 위치를 정한다 | M3-26, D-M3-25 행 5, U-96, WS-04 | 1 | M4:T-SHELL |
 | M3-REQ-54 | L0 | `L0.os.spec`, `F.wire-settings.spec` | 제품 이름에 묶인 값(앱 디렉터리 이름, 설정 파일 이름, 사용자 대행 UA)을 상수 한 곳에서 읽게 한다. M3 값은 `xeon`이고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b] | D-M3-24, C-001, C-011, WB-16, ADR-0014 §3.3 | 1 | M4:T-CLN |
@@ -163,7 +163,7 @@ binds: []
 | M3-REQ-67 | L1 | `L1.agents.spec`, `L1.tasks.spec` | 그룹 위임의 caller 표기, 포그라운드·백그라운드 자식의 subagents 풀 공유, 임대 밖 위임의 상한 귀속을 정한다 | AG-13, AG-02, U-08, L-IN-07, REQ-L1-03 | 2 | M3b |
 | M3-REQ-68 | L1 | `L1.agents.spec` §4.1, §4.3 | 자식 대화에서 지점이 발화하는지와 그룹 핸들러 적용 범위를 정한다. Helm explorer의 쓰기 거부와 학습 검토 포크의 집계 제외가 이 규칙에 기댄다 | U-02, L-IN-05, REQ-L1-04. Helm §4.6 [가정], 학습 §4.2 [가정] | 2 ← M3-REQ-26 | M3a |
 | M3-REQ-69 | L1 | `L1.agents.spec` §4.5, §4.7, `L1.loop.spec` §4.8 | `delegate`와 `loop.spawn`의 (thread, `requestId`) 멱등을 세션 DB에 커밋해 재시작 뒤에도 유지한다. 지금은 프로세스 메모리 64개다. "재생 2회, 효과 1회" 시험을 둔다 | ADR-0015 §3.2·§4.3, REQ-L1-01, LP-01, SC-04 | 2 ← M3-REQ-02 | M3a |
-| M3-REQ-70 | L1 | `L1.agents.spec` §4.3 | 검토 포크의 사용량 부모 귀속, 캐시 접두 공유 조건(모델, 도구 배열, 시스템 프롬프트, 메시지 접두 유지), `tools.keepParentList` 실행 시점 거르기를 확정한다 | 학습 §4.3 포크 실행 속성 [가정] | 2 | M4:T-RT2 |
+| M3-REQ-70 | L1 | `L1.agents.spec` §4.3 | 검토 포크의 사용량 부모 귀속, 캐시 접두 공유 조건(모델, 도구 배열, 시스템 프롬프트, 메시지 접두 유지), `tools.keepParentList` 실행 시점 거르기를 확정한다 | 학습 §4.3 포크 실행 속성 [가정] | 2 | M4 |
 | M3-REQ-71 | L1 | `L1.tools.spec` §3.6, §4.2 | `ToolCallPayload`에 `risk`·`hints`·`caller`를 채우고 `tool_execution_end`에 `input`을 싣는다. `ToolSpec.locks`를 구현한다 | M3-02, TL-06, H-IN-07 | 2 ← M3-REQ-04 | M3a |
 | M3-REQ-72 | L1 | `L1.tools.spec` §3.6 | 승인 만료(`expiresAt`, `expired` 해결자)를 구현한다. 만료 기본값을 정한다 | M3-06, B-05, DG-12 | 2 | M3a |
 | M3-REQ-73 | L1 | `L1.tools.spec` §3.5, §3.6 | 무인 승인 정책: 예약 실행 세션은 대기하고 승인 만료 뒤 거부로 끝내는 것이 기본이고, 설정(`l1.tools.unattended.approval` [제안])으로 대기·거부·만료 뒤 거부 가운데 고른다 [결정: review.m3-design-inputs D-M3-12]. print 모드는 사전 허용 규칙만 적용하고 나머지는 거부하며, 전체 자동 승인 플래그를 옵션으로 둔다 [결정: review.m3-design-inputs D-M3-14]. 승인 origin 구현을 정리한다 | D-M3-12, D-M3-14, M3-08, M3-21, SC-03, U-54 | 2 ← M3-REQ-72 | M3a |
@@ -180,7 +180,7 @@ binds: []
 | M3-REQ-84 | L1 | `L1.persistence.spec` | 보관 정리와 블롭 GC를 L0 규칙에 연결한다 | M3-24, D-M3-21 | 2 ← M3-REQ-62 | M3b |
 | M3-REQ-85 | L1 | `L1.models.spec` | 계정 풀과 레이트 리밋을 정한다. 회전 대상은 API 키 계정과 구독 계정 모두이고 기본 꺼짐과 첫 사용 고지(약관 위험)를 둔다 [결정: review.m3-design-inputs D-M3-22 행 2]. 위장 provider는 기본 꺼짐과 첫 사용 고지를 단 별도 플러그인이다(D-M3-22 행 1). 그룹이 새 모델 역할을 등록하지 않는다는 규칙을 [제안]으로 적는다(Helm 렌즈는 기존 역할과 그룹 설정의 모델 지정) | MD-08, D-M3-22, MD-04, REQ-L1-06, M3-new-07. Helm H-IN-03 | 2 | M3b |
 | M3-REQ-86 | L1 | `L1.context.spec` | 최근 읽은 파일 재주입, 메모리 스냅샷·스킬 인덱스 위치와 컴팩션 뒤 재주입을 정한다 | CX-09, KN-09, L-IN-15, REQ-L2-03 | 2 | M3b |
-| M3-REQ-87 | L1 | `L1.loop.spec` | 기본 프롬프트 문안(응답 언어, 도구 사용 규칙)을 쓰고 게이트 상한·반복 감지 임계를 테이프 시험으로 조정한다 | LP-10, LP-07, M3-new-14 | 4 | M4:T-RT2 |
+| M3-REQ-87 | L1 | `L1.loop.spec` | 기본 프롬프트 문안(응답 언어, 도구 사용 규칙)을 쓰고 게이트 상한·반복 감지 임계를 테이프 시험으로 조정한다 | LP-10, LP-07, M3-new-14 | 4 | M4 |
 | M3-REQ-109 | L1 | `L1.loop.spec`, `L1.tools.spec` | 가드레일 지점의 발화 위치를 정한다. 모델 요청 직전(요청 변형 chain 뒤 [제안]), 도구 호출 직전(정책·승인 판정 뒤, 실행 직전 [제안]), 출력 표시·실행 직전(최종 어시스턴트 메시지 커밋 전과 산출물 적용 전 [제안])이다. 차단 사유는 대화 기록에 남긴다. 수명주기 지점(위임 정착, 임대 거부)은 해당 이벤트 커밋 뒤에 발화한다 | adr.0017, D-M3-30 행 1, REQ-LN-02 | 2 ← M3-REQ-107, 108 | M3a |
 
 ### 3.5 L2 (능력)
@@ -195,7 +195,7 @@ binds: []
 | M3-REQ-93 | L2 | `L2.schedule.spec` | `cap-schedule`(타이머, 파일 감시, 원격, 루프)을 정한다. 놓친 실행은 1회 따라잡기(`once`)와 최소 간격 300초, 기존 세션 대상 예약은 1차에서 뺀다 [결정: review.m3-design-inputs D-M3-13 행 3·4]. cron 세션 종류, 무인 명령 시간 상한 전달, 루프의 `ActivitySnapshot` 카운터를 적는다 | SC-08, D-M3-13 행 3·4, KN-21, M3-16, M3-10, M-15, M3-new-12 | 3 ← M3-REQ-46, 48, 73 | M3b |
 | M3-REQ-94 | L2 | `L2.workspace.spec` | `write`·`edit`·`grep`·`find`, 원자적 쓰기와 동시 변경 감지, `find` 엔진(rg)을 정한다 | WS-10, WS-02, WS-04, M3-new-10 | 3 ← M3-REQ-53 | M3b |
 | M3-REQ-95 | L2 | `L2.artifacts.spec` | 리뷰·diff 승인(승인 kind `review`), 제목·라벨 메타, 레코드 카탈로그를 정한다 | AR-08, B-07, M3-new-11 | 3 ← M3-REQ-14, 74 | M3b |
-| M3-REQ-96 | L2 | `L2.web.spec` | `web.browse`의 브라우저 provider(Stagehand 기본 포함, Playwright MCP 후보, Aside·Ego Lite는 공식 API가 생기면 어댑터), 플러그인 provider와 헤더 비밀, 플러그인 가격표, 자동 선택 순서(설정 화면 드래그앤드롭, 기본 웹 검색 도구 포함, 플러그인 기본 후순위)와 여러 provider 동시 질의, 키 플러그인 첫 사용 고지, robots.txt 기본 무시와 준수 옵션을 정한다. Parallel·Jina는 넣지 않는다 [결정: review.m3-design-inputs D-M3-23] | WB-17, WB-18, WB-19, WB-20, M3-12, D-M3-23, M3-new-13 | 3 ← M3-REQ-37, 56, 60 | M4:T-RT2 |
+| M3-REQ-96 | L2 | `L2.web.spec` | `web.browse`의 브라우저 provider(Stagehand 기본 포함, Playwright MCP 후보, Aside·Ego Lite는 공식 API가 생기면 어댑터), 플러그인 provider와 헤더 비밀, 플러그인 가격표, 자동 선택 순서(설정 화면 드래그앤드롭, 기본 웹 검색 도구 포함, 플러그인 기본 후순위)와 여러 provider 동시 질의, 키 플러그인 첫 사용 고지, robots.txt 기본 무시와 준수 옵션을 정한다. Parallel·Jina는 넣지 않는다 [결정: review.m3-design-inputs D-M3-23] | WB-17, WB-18, WB-19, WB-20, M3-12, D-M3-23, M3-new-13 | 3 ← M3-REQ-37, 56, 60 | M4 |
 | M3-REQ-97 | L2 | `L2.mcp.spec` | 정의 `env`·`headers` 평문 허용과 비밀 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 거부, sampling 미지원(2026-07-28 MCP 명세 개정에서 Deprecated, SEP-2577), 출처별 샌드박스 설정 키(프로젝트 출처 켬, 사용자 출처 끔), 기동 승인 단위(정의 해시마다 1회)를 정한다 [결정: review.m3-design-inputs D-M3-19]. 행 2·3은 명시 답이 없어 권고를 적용했다 [가정] | D-M3-19, MC-04, MC-05, MC-07, MC-11 | 3 ← M3-REQ-57, 75 | M3b |
 | M3-REQ-98 | L2 | `L2.knowledge.spec` | 인덱스 예산(8,000자), 설명 자르기(160자), 2글자 질의 LIKE 탐색 범위를 측정으로 조정한다 | KN-11, KN-13, M3-29 | 4 | M3b |
 
@@ -429,11 +429,17 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 
 ## 11. M4 이월 항목의 트랙 배정
 
-- `review.m3-plan` §9.3(M4로 넘기는 것)의 항목을 한 행씩 옮겼습니다. 한 문장의 쉼표 목록이 트랙마다 다르면 항목 단위로 나눴고, 나눈 행은 원문 일부이거나 `B5-DOC 미결:`처럼 원문의 머리말을 붙였습니다. 행은 132개입니다(M4에서 `M3-REQ-52`의 남은 부분을 한 행 더했습니다).
-- 트랙 id 칸은 네 가지 가운데 하나입니다. `review.m4-plan` §2의 트랙 id(예: `T-RT1`)는 그 트랙이 맡는 항목입니다. `M4`는 M4에서 끝난 항목입니다. `M5: <사유>`는 M5로 넘긴 항목이고, `삭제: <사유>`는 지운 항목입니다. 사유가 없으면 검사가 실패합니다.
+- `review.m3-plan` §9.3(M4로 넘기는 것)의 항목을 한 행씩 옮겼습니다. 한 문장의 쉼표 목록이 트랙마다 다르면 항목 단위로 나눴고, 나눈 행은 원문 일부이거나 `B5-DOC 미결:`처럼 원문의 머리말을 붙였습니다. 행은 134개입니다(M4에서 `M3-REQ-52`의 남은 부분 한 행과 T-RT2의 요구 51·96 잔여 두 행을 더한 수입니다).
+- 트랙 id 칸은 다음 가운데 하나입니다: 트랙 id, `M4`, `M4: after <트랙> merge`(실행 중인 다른 트랙의 병합을 기다림), `M5: <사유>`, `user decision: <시트 번호나 권고안>`, `will not do: <사유>`, `삭제: <사유>`. `review.m4-plan` §2의 트랙 id(예: `T-RT1`)는 그 트랙이 맡는 항목입니다. `M4`는 M4에서 끝난 항목입니다. `M5: <사유>`는 M5로 넘긴 항목이고, `삭제: <사유>`는 지운 항목입니다. 사유가 없으면 검사가 실패합니다.
 - 트랙 리드는 맡은 항목마다 `M4` 또는 `M5: <사유>`로 바꿉니다(`review.m4-plan` §2.5). 이 배정은 T-LED의 기본값이며 오케스트레이터가 확인합니다 [결정: 오케스트레이터 기본값].
 - §3 표의 M4 행 16개는 이 표에 옮기지 않았습니다. 같은 행을 두 곳에 적으면 어긋나므로, 트랙 id는 §3 상태 칸의 `M4:<트랙 id>`에만 적었습니다.
 - 검사는 `just req-ledger`가 합니다. 상태별 개수는 실행 결과에 나옵니다.
+- T-RT2가 정한 값(2026-11-03, 2차 2026-11-04): 1차는 32행 가운데 2건만 `M4`로 닫고 30건을 `M5`로 넘겼으나 사유가 "선택하지 않음"이나 낡은 것이 많아 받아들여지지 않았습니다. 2차에서 `M5`는 실제 막힘이 있는 3건만 남겼습니다: 창 사용률 공급원이 없는 `reservePct`, 실제 모델 테이프가 필요한 반복 감지 임계, 로컬에 설치되지 않은 Playwright MCP 실서버. 나머지는 이렇게 옮겼습니다.
+  - `M4`로 닫음(코드·시험·spec): 요구 51(`fileLock` 자체와 설정·신뢰·예약 저장 호출처), 요구 70(`promptFrom: "parent"`, 사용량 귀속과 `keepParentList`는 이미 구현), 요구 87(기본 프롬프트 문안과 가짜 테이프 시험), 요구 96(어댑터가 이미 이어져 있어 spec 낡은 문장을 고치고 시크릿 설정 키 검사를 더함), `L0.store` S-13·S-14와 export ENOENT 경합, 생성 `package.json` 의존, `test/.generated` 잔여, §3.3.5 편차(spec 코드 목록을 실제 템플릿에 맞춤), 자동 제목 출처 저장, 헤더 시크릿 `ext.<ext>.<key>` 검사, 바이너리 본문 echo, `browse-close` int 시험, 다중 thread 사용량, M3-21 잔여(승인 origin 규칙은 `approval-origin.test.ts`가 시험하고 남은 범위가 없음), 반복 감지의 모호한 두 행(턴 안에서만 센다와 모든 호출이 오류일 때만 행동-오류라는 동작이 §4.10에 정해져 있고 시험이 있음).
+  - 병합 대기: `M4: after audit2 merge`(컴팩션 skill 재주입, 재주입 파일 상한·`keepRecentTokens`: audit2가 고치지 않으므로 소유 공백이 있다), `M4: after audit3 merge`(지식 고정 전 행, 요구 51의 cap-knowledge 잠금), `M4: after safe3 merge`(저장된 자식 취소, `storedOutcome` 훑기).
+  - `user decision`: 시트 A1(회전 상태 저장), 시트 B9(위장 provider 래퍼), 블롭 GC cap-web 고정 해제 틈(GC는 꺼 둠), 시트에 없는 항목은 권고안을 행에 적었습니다(`orderUpdateOf`, `cap.*` 투영기 격리, `routing.*` 점검 기준, S-02, gitleaks, Stagehand 의존 승인).
+  - `will not do`: 읽기 전용 열기 명령(CLI는 제품 화면이 아님, 2026-11-01 결정). `삭제`: 첫 사용 고지(L2.web §4.8.2가 호출 시점 경고를 정함).
+  - 요구 행 51·70·87·96은 `M4`입니다. 요구 51 잔여(cap-knowledge)와 요구 96 잔여(Stagehand)는 위 두 이월 행으로 추적합니다 [결정: 오케스트레이터 기본값].
 
 | 이월 항목 | 영역 | 트랙 id |
 |---|---|---|
@@ -467,17 +473,17 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | 리뷰 재시작 복구 | 작업 공간·산출물 | M5: 승인 해결 재생 범위와 재시작 뒤 재요청 정책 결정 대기(L2.artifacts 미결) |
 | 병렬 배치 순서 | 작업 공간·산출물 | M4 |
 | 삭제·바이너리·이름 바꾸기·새 파일 hunk | 작업 공간·산출물 | M4 |
-| 회전 상태가 메모리 전용(`core_models_*` 표) | 모델·웹 | T-RT2 |
-| `reservePct` 미공급 | 모델·웹 | T-RT2 |
-| 위장 provider 와이어 동등성 래퍼(M-8) | 모델·웹 | T-RT2 |
+| 회전 상태가 메모리 전용(`core_models_*` 표) | 모델·웹 | user decision: sheet A1 |
+| `reservePct` 미공급 | 모델·웹 | M5: no window-utilization source exists. `usage.get` has only session gauges (`limit` and `resetsAt` stay null, HS §10 46), provider responses' limit headers do not reach the model call path, and no per-account window limit is configured; choosing the source (provider usage API per provider, or a user-entered limit) is a decision |
+| 위장 provider 와이어 동등성 래퍼(M-8) | 모델·웹 | user decision: sheet B9 |
 | DR-09·`L1.models.spec` §3.11이 옛 결정을 서술 | 모델·웹 | T-CLN |
-| `routing.*` 문제 점검 | 모델·웹 | T-RT2 |
-| Playwright MCP 도구 이름 실서버 확인 | 모델·웹 | T-RT2 |
-| `orderUpdateOf` 부분 목록 | 모델·웹 | T-RT2 |
-| 헤더 비밀 설정의 `ext.<ext>.<key>` 카탈로그 | 모델·웹 | T-RT2 |
-| 첫 사용 고지가 호출 뒤 경고 | 모델·웹 | T-RT2 |
-| 바이너리 본문 echo 검사 | 모델·웹 | T-RT2 |
-| `browse-close` int 시험 | 모델·웹 | T-RT2 |
+| `routing.*` 문제 점검 | 모델·웹 | user decision: recommend a non-blocking diagnostic per role: the ref resolves, has usable credentials, and fits the role (vision for image roles, context window above the role minimum); a failing role falls back to main |
+| Playwright MCP 도구 이름 실서버 확인 | 모델·웹 | M5: the real `@playwright/mcp` server is not installed locally (not in node_modules, PATH or the npx cache); running it needs a package download, which is a new install |
+| `orderUpdateOf` 부분 목록 | 모델·웹 | user decision: recommend rejecting a missing id as `missing_id` so a stale view refreshes (L4.settings-ui §10 21) |
+| 헤더 비밀 설정의 `ext.<ext>.<key>` 카탈로그 | 모델·웹 | M4 |
+| 첫 사용 고지가 호출 뒤 경고 | 모델·웹 | 삭제: L2.web §4.8.2 settles a call-time warning as the intended behavior |
+| 바이너리 본문 echo 검사 | 모델·웹 | M4 |
+| `browse-close` int 시험 | 모델·웹 | M4 |
 | 인증 종류 `query` 등록 거부와 F 스키마 불일치 | 모델·웹 | T-F |
 | 사용량 게이지가 메모리 전용이고 창·한도·계정 게이지는 비어 있음(HS §10-46) | 모델·웹 | T-WC |
 | 시작 승인 증거가 메모리 전용(재시작·다른 thread에서 다시 물음) | 보안·샌드박스 | M5: 다른 대화의 같은 해시 승인 조회가 F `ApprovalService`에 없음(F 계약 변경 또는 cap_mcp 복사 결정) |
@@ -501,31 +507,31 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | `unitKey`(contracts) | 설정 | T-F |
 | 블롭 GC 기본 꺼짐(`blobGcEnabled=false`, 켜려면 넓은 감사와 긴 GC 시험) | 데이터 | M5: 블롭 GC 켜기 결정 대기(m3-plan §9.4 14번) |
 | GC는 서비스 모드에서만(HS-40) | 데이터 | M5: 블롭 GC 켜기 결정과 함께(m3-plan §9.4 14번) |
-| 자동 제목 출처 메모리 전용 | 데이터 | T-RT2 |
-| `L0.store` S-13·S-14와 export ENOENT 경합 | 데이터 | T-RT2 |
+| 자동 제목 출처 메모리 전용 | 데이터 | M4 |
+| `L0.store` S-13·S-14와 export ENOENT 경합 | 데이터 | M4 |
 | `apps/cli`가 `@fresnel/platform-store`를 import(spec은 host만) | 데이터 | M5: 층 규칙 결정 대기(m3-plan §9.4 15번) |
-| `cap.*` 투영기 격리(L1 §10-19) | 데이터 | T-RT2 |
+| `cap.*` 투영기 격리(L1 §10-19) | 데이터 | user decision: recommend applying the same stop-and-retry isolation to `cap.*` projectors (the code already does) and fixing the M3-REQ-36 wording |
 | 진단 배열의 wire 소비자 없음 | 데이터 | T-WA |
 | "1 blobs" 문구 | 데이터 | T-I18N |
-| cap-knowledge 고정 전 행 | 데이터 | T-RT2 |
-| cap-web 고정 해제→고정 틈 | 데이터 | T-RT2 |
+| cap-knowledge 고정 전 행 | 데이터 | M4: after audit3 merge |
+| cap-web 고정 해제→고정 틈 | 데이터 | user decision: blob GC cap-web unpin gap, GC stays off until decided (m3-plan §9.4 14) |
 | group-sdk `delegate`가 signal을 받고 무시 | 데이터 | T-GK |
-| 검토 포크 system-prompt 공유(`SpawnRequest` 옵션)와 REQ-70 fork 사용량 귀속 | L1·그룹 | T-RT2 |
-| 컴팩션 뒤 skill 본문 재주입 없음 | L1·그룹 | T-RT2 |
-| M3-21 잔여 | L1·그룹 | T-RT2 |
-| 저장된 자식 취소가 보고 입력을 큐에 넣지 않음 | L1·그룹 | T-RT2 |
+| 검토 포크 system-prompt 공유(`SpawnRequest` 옵션)와 REQ-70 fork 사용량 귀속 | L1·그룹 | M4 |
+| 컴팩션 뒤 skill 본문 재주입 없음 | L1·그룹 | M4: after audit2 merge (owner gap: audit2 does not fix it, so a follow-up owner is needed) |
+| M3-21 잔여 | L1·그룹 | M4 |
+| 저장된 자식 취소가 보고 입력을 큐에 넣지 않음 | L1·그룹 | M4: after safe3 merge (stored child cancel; safe3 does not queue the report input) |
 | 재생 하네스 thread id 불일치 오류 종류(§3.10) | L1·그룹 | T-GK |
 | `delegateStatus` 소유자 범위 | L1·그룹 | T-GK |
-| 다중 thread 사용량 표시 | L1·그룹 | T-RT2 |
-| 생성된 `package.json` 의존 | L1·그룹 | T-RT2 |
+| 다중 thread 사용량 표시 | L1·그룹 | M4 |
+| 생성된 `package.json` 의존 | L1·그룹 | M4 |
 | 내장 그룹 이름이 `runtime.ts`에 복사됨 | L1·그룹 | T-GK |
-| `test/.generated` 잔여 | L1·그룹 | T-RT2 |
-| §3.3.5 편차 | L1·그룹 | T-RT2 |
-| S-02 참조 정책 플러그인 미구현 | L1·그룹 | T-RT2 |
-| 반복 감지 임계는 실제 테이프 필요 | L1·그룹 | M5: 실제 테이프 녹화는 사용자 확인 뒤(m3-plan §9.4 13번) |
-| 반복 감지: 전체 오류 연속 모호 | L1·그룹 | T-RT2 |
-| 반복 감지: 재개 때 연속 초기화 | L1·그룹 | T-RT2 |
-| 반복 감지: `storedOutcome`이 feed를 seq 0부터 훑음 | L1·그룹 | T-RT2 |
+| `test/.generated` 잔여 | L1·그룹 | M4 |
+| §3.3.5 편차 | L1·그룹 | M4 |
+| S-02 참조 정책 플러그인 미구현 | L1·그룹 | user decision: recommend building the three examples (`reviewgate`, `commitguard`, `guardrail`) as group-sdk/testing fixtures with tapes, not a new plugin kind, once the guard hook set is the only dependency |
+| 반복 감지 임계는 실제 테이프 필요 | L1·그룹 | M5: tuning the thresholds needs real-model tapes (`tape-record` costs money and needs the user's `--yes`, m3-plan §9.4 13); the fake-tape cases are closed |
+| 반복 감지: 전체 오류 연속 모호 | L1·그룹 | M4 |
+| 반복 감지: 재개 때 연속 초기화 | L1·그룹 | M4 |
+| 반복 감지: `storedOutcome`이 feed를 seq 0부터 훑음 | L1·그룹 | M4: after safe3 merge (schedule code, outside this track) |
 | `desktop_settings_read/write` | 데스크톱 | T-SHELL |
 | 트레이 아이콘·메뉴 없음 | 데스크톱 | T-SHELL |
 | Mac 확인 항목(트레이 닫기 e2e D-10, 두 번째 실행 재열기 D-13, `RunEvent::Reopen` 컴파일, Finder PATH sops·age·rg와 `xeon secret add`, 디버그 로그 내용, §4.15 릴리즈 점검) | 데스크톱 | M5: Mac 확인 항목 전부(사용자 묶음, m4-plan §4 7번) |
@@ -538,11 +544,11 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | `db.ts:58` 영어 리터럴 | i18n | T-I18N |
 | 서버 예산 수치(§9.4 사용자 결정) | 성능·릴리즈 | T-PERF |
 | macOS 기준선 | 성능·릴리즈 | M5: macOS 기준선은 Mac 실기 뒤(사용자 묶음, m4-plan §4 7번) |
-| 재주입 파일 상한 8000과 `keepRecentTokens` | 성능·릴리즈 | T-RT2 |
+| 재주입 파일 상한 8000과 `keepRecentTokens` | 성능·릴리즈 | M4: after audit2 merge (owner gap: audit2 does not fix it, so a follow-up owner is needed) |
 | REQ-64 `synchronous=NORMAL` 비교와 `processStartFingerprint` 타이밍 | 성능·릴리즈 | T-PERF |
 | 부하 중 측정한 수치는 참고용 | 성능·릴리즈 | T-PERF |
 | SHA256SUMS 무서명 | 성능·릴리즈 | M5: 서명 비밀 등록 뒤 서명(m3-plan §9.4 3번) |
-| gitleaks가 xeon 워크플로에 없음(M3-30 절반) | 성능·릴리즈 | T-RT2 |
+| gitleaks가 xeon 워크플로에 없음(M3-30 절반) | 성능·릴리즈 | user decision: new external tool; recommend pinning gitleaks in `xeon/mise.toml` and adding one `gitleaks dir` step to fresnel-ci.yml |
 | `release-sign.sh` 키체인 목록 복원 안 함 | 성능·릴리즈 | M5: 서명 비밀 등록과 함께(m3-plan §9.4 3번) |
 | macOS 릴리즈 경로 미실행 | 성능·릴리즈 | M5: macOS 릴리즈 경로 실기(사용자 묶음, m4-plan §4 7번) |
 | `L0.os` §3.6·§10-3 번들 정책 문구 | 성능·릴리즈 | T-CLN |
@@ -556,13 +562,15 @@ M3b 마감 때 `M3b:<트랙 id>` 행 60개를 코드 grep으로 하나씩 확인
 | B5-DOC 미결: `l0.os.dirs.override` | 정리·문서 | T-CLN |
 | B5-DOC 미결: 로그 회전과 `OsDirs log` | 정리·문서 | M4 |
 | B5-DOC 미결: `FRESNEL_SAFE_MODE`·`/safe-mode`·`--disable-ext` | 정리·문서 | T-CLN |
-| B5-DOC 미결: `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음 | 정리·문서 | T-RT2 |
-| B5-DOC 미결: 읽기 전용 열기 명령 | 정리·문서 | T-RT2 |
+| B5-DOC 미결: `engine.ts`가 `future_version`·`corrupt`·`migration_failed`를 구분하지 않음 | 정리·문서 | M4 |
+| 요구 51 잔여: cap-knowledge가 `fileLock` 대신 프로세스 내부 mutex를 씀(`cap-knowledge/src/fs/node-fs.ts`) | 데이터 | M4: after audit3 merge (knowledge tools are outside this track) |
+| 요구 96 잔여: Stagehand 기본 브라우저 provider(MCP provider 경로만 있음) | 모델·웹 | user decision: new external dependency approval (`@browserbasehq/stagehand`); recommend keeping the Playwright MCP default until approved |
+| B5-DOC 미결: 읽기 전용 열기 명령 | 정리·문서 | will not do: no CLI surface (2026-11-01 decision) |
 | B5-DOC 미결: 복원·`store.corrupt` 절차 | 정리·문서 | T-CLN |
 | B5-DOC 미결: `schedule/state.json` 복구 도구 | 정리·문서 | M5: 새 CLI 기능이고 삭제 대 격리 백업 정책 결정이 필요 |
 | B5-DOC 미결: 자동 비활성 확장 재활성 CLI | 정리·문서 | T-WA |
 | B5-DOC 미결: `secret add --provider` 허용값 | 정리·문서 | M4 |
-| B5-DOC 미결: `l2.web.cache.maxMegabytes` 미구현 | 정리·문서 | T-RT2 |
+| B5-DOC 미결: `l2.web.cache.maxMegabytes` 미구현 | 정리·문서 | M4 |
 | B5-DOC 미결: `trust.json` 위치 불일치 | 정리·문서 | T-CLN |
 | B5-DOC 미결: 시험 메모리 상한 문서 | 정리·문서 | T-CLN |
 | B5-DOC 미결: docs-route 경고 6(operations id 이름) | 정리·문서 | T-CLN |

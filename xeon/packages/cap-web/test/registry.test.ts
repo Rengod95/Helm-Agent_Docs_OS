@@ -161,6 +161,18 @@ describe("provider registry", () => {
     ]);
   });
 
+  test("a header secret that points at another extension's setting is rejected at registration", () => {
+    const manifest = fakeManifest("web-f", {
+      auth: { kind: "header", secrets: [{ setting: "ext.web-other.apiKey", header: "x-api-key" }] },
+    });
+    expect(rejectionsOf(manifest)).toEqual([
+      [
+        "web.provider_rejected",
+        { extension: "web-f", capability: "web.search", reason: "secret_setting_foreign" },
+      ],
+    ]);
+  });
+
   test("plugin registrations become candidates with the plugin origin", () => {
     const catalog = registry(() => [searchRegistration("web-a")]);
     const candidates = catalog.searchCandidates();

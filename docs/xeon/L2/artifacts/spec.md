@@ -1373,7 +1373,7 @@ export const ReviewAnswerSchema = Type.Object({
 - 라벨은 `artifact.session_labeled` 이벤트를 접어 얻는다. 같은 대화의 마지막 유효 이벤트가 이긴다. 투영 테이블은 두지 않는다. 목록과 찾기는 `artifact.registered`와 `artifact.session_labeled`를 한 번 읽어 모든 대화의 라벨과 산출물 수를 함께 접는다.
 - `setMeta`에서 `labels.set`은 `add`·`remove`와 함께 받지 않는다(`invalid_input`). 라벨이 바뀌지 않으면 이벤트를 쓰지 않는다. 같은 `requestId`의 재시도는 처음 요청의 변경을 지문으로 맞춰 새 이벤트를 만들지 않는다.
 - 제목은 `threads.setTitle(threadId, title, "retitle:<requestId>")`로만 쓴다. 이 기능은 `thread.updated`를 직접 커밋하지 않는다.
-- 제목 출처 [미결]: 제목 이벤트에 출처가 없어(§10 미결 2) 목록과 찾기는 제목이 있으면 `titleSource`를 `"user"`로 보인다. `setMeta` 응답만 호출 경로로 `"model"`(도구 경로)을 준다. 출처를 저장할 자리는 §10 미결 2에서 정한다.
+- 제목 출처 [닫힘 M4 T-RT2]: `thread.updated`의 선택 필드 `titleSource`가 저장된다(`L1.persistence.spec` §4.10.5). `setMeta`가 쓰는 제목은 `"model"`이고 목록과 찾기는 저장된 출처를 보인다. 출처 없는 옛 제목은 호출 경로의 값(목록 `"user"`)을 쓴다.
 - 자동 제목(§4.3.2)과 보관 정리(`retentionDays`)는 구현하지 않는다 [미결]. 핸드오프와 내보내기는 2차다(§4.4, §4.5).
 - 목록은 닫히지 않은 대화만 본다(`threads.list`의 기본값). 정렬 시각이 같으면 `threadId` 오름차순이다. `threads.list`는 읽기가 실패하면 빈 쪽을 돌려주므로 목록도 비어 보일 수 있다 [미결].
 - 찾기는 NFC 정규화 뒤 ASCII 대문자만 소문자로 바꾸고 부분 문자열로 비교한다(§4.3.3).

@@ -91,6 +91,9 @@ export type EngineStartErrorKind =
   | "sopsMissing"
   | "dataDirPermission"
   | "storeUnavailable"
+  | "storeFutureVersion"
+  | "storeCorrupt"
+  | "storeMigrationFailed"
   | "catalogConflict"
   | "missingService"
   /** 플러그인 설치 실패(AssembleIssue "plugin"). spec의 kind 목록에 더한 값이다 */
@@ -246,6 +249,24 @@ function storeError(message: string): EngineStartError {
         kind: "dataDirPermission",
         message: t("cli.errors.engineStart.dataDirPermission.message"),
         fix: t("cli.errors.engineStart.dataDirPermission.fix"),
+      };
+    case "storeFutureVersion":
+      return {
+        kind: "storeFutureVersion",
+        message: t("cli.errors.engineStart.storeFutureVersion.message"),
+        fix: t("cli.errors.engineStart.storeFutureVersion.fix"),
+      };
+    case "storeCorrupt":
+      return {
+        kind: "storeCorrupt",
+        message: t("cli.errors.engineStart.storeCorrupt.message"),
+        fix: t("cli.errors.engineStart.storeCorrupt.fix"),
+      };
+    case "storeMigrationFailed":
+      return {
+        kind: "storeMigrationFailed",
+        message: t("cli.errors.engineStart.storeMigrationFailed.message"),
+        fix: t("cli.errors.engineStart.storeMigrationFailed.fix"),
       };
     // fresnel-disable-next-line fresnel/switch-default-never -- AssembleIssue 메시지 키는 문자열이다. 모르는 키는 일반 저장소 오류로 돌려준다 (eng.typescript.guide TY-14)
     default:

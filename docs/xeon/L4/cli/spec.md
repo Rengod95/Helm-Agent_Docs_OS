@@ -284,6 +284,7 @@ export interface EngineConnectOptions {
 
 export type EngineStartErrorKind =
   | "fts5Missing" | "sopsMissing" | "dataDirPermission" | "storeUnavailable"   // AssembleIssue "store"(메시지로 구별 [가정])
+  | "storeFutureVersion" | "storeCorrupt" | "storeMigrationFailed"             // 같은 "store" 이슈, 분류(failure)마다 안내가 다르다. 종료 코드 3
   | "catalogConflict"                                                          // AssembleIssue "catalog"
   | "missingService"                                                           // AssembleIssue "missingService"
   | "serviceUnreachable"                                                       // AttachError(ensure_failed, connect_failed, hello_failed의 auth_failed·timeout·closed)
@@ -316,7 +317,7 @@ export declare const connectEngine: ConnectEngine;
 - 서비스 접속의 `EngineHandle`: `secretOutOfBand`는 `null`이다. 값 입력은 §4.7이 정한 대로 서비스 쪽 입력 창으로 받는 설계지만 이 구현은 그 창을 만들지 않는다. 그래서 서비스 접속의 `fresnel secret add`는 두 줄 오류로 끝난다(§10 22번). `shutdown`은 연결만 닫고 `"clean"`을 돌려준다. 서비스와 진행 중 turn은 계속된다(HS-88). 시계와 `newRequestId`는 CLI의 운영 값(`@fresnel/platform-os`)이다. 엔진이 CLI 밖에 있기 때문이다 [제안].
 - `AttachError`의 문구(§4.10 표 `serviceUnreachable`·`protocolUnsupported`): `ensure_failed`는 해결 `fresnel service status`다. `connect_failed`는 `not_found`·`refused`에 "원격 서비스가 켜져 있고 주소가 맞는지 확인한다", `permission`에 소켓 파일과 폴더의 소유자·권한, `tunnel_unavailable`에 재설치, `tunnel_failed`에 ssh 출력의 첫 줄과 "ssh 키나 ssh-agent로 암호 없이 접속되는지 확인한다", `io`에 `fresnel service status`다. `hello_failed`는 `auth_failed`에 `FRESNEL_REMOTE_TOKEN`을 서버 토큰과 맞추라는 해결(토큰 값은 싣지 않는다), `protocol_unsupported`에 `protocolUnsupported`, `timeout`·`closed`에 `fresnel service status`다.
 - `settingGroups`: [제안] CLI 설정(§6)은 엔진 바이너리의 진입(`apps/cli/src/main.ts`)이 in-process 연결, `host --stdio`, 서비스 기동 세 경우 모두 조립에 넘긴다. 엔진 바이너리가 하나이므로(§2) 서비스 프로세스의 카탈로그에도 `l4.cli.*`가 들어간다.
-- 오류 대응: `AssembleError.issues[].code`가 `store`면 `message`로 `fts5Missing`·`dataDirPermission`·`storeUnavailable`을 고른다 [가정: `L0.store.spec` 오류 모양을 따른다]. `catalog`는 `catalogConflict`, `missingService`는 `missingService`다. 종료 코드는 §4.10 표다.
+- 오류 대응: `AssembleError.issues[].code`가 `store`면 `message`로 `fts5Missing`·`dataDirPermission`·`storeFutureVersion`·`storeCorrupt`·`storeMigrationFailed`·`storeUnavailable`을 고른다 [가정: `L0.store.spec` 오류 모양을 따른다]. `catalog`는 `catalogConflict`, `missingService`는 `missingService`다. 종료 코드는 §4.10 표다.
 
 ### 3.4 CLI 진입
 
@@ -510,7 +511,7 @@ export interface GroupTemplatesPort {
 - 대상 폴더. `--dir`이 없으면 작업 폴더 아래 `<이름>`이다. `--dir`이 상대 경로면 작업 폴더 기준이다. 빈 값은 사용법 오류다.
 - 설치된 확장 이름. 사용자 설정 폴더(`<OsDirs.config>/extensions/*`)와 작업 폴더(`.fresnel/extensions/*`)의 `.fresnel-plugin/plugin.json` `name`을 모은다. 작업 폴더의 확장은 신뢰 여부와 관계없이 센다(보수적). 폴더 없이 설치된 기본 그룹 `helm`, `learning`, `account-rotation`은 `runtime.ts`에 옮겨 적었다([미결] §10 28번). `<OsDirs.config>`는 `@fresnel/platform-os`의 `resolveOsDirs`로 구한다. 같은 함수를 호스트가 쓴다. 매니페스트가 없는 폴더는 건너뛴다. 있는데 읽지 못하면 환경 문제다.
 - 템플릿 위치. 환경 변수 `FRESNEL_GROUP_TEMPLATES_DIR`가 있으면 그 폴더를 쓴다. 없으면 자원 디렉터리(실행 파일이 든 폴더)의 `group-sdk/templates/`를 본다. 릴리즈 아카이브가 여기에 템플릿을 싣는다(`L4.release.spec` §3.1). 그다음 실행 파일의 소스 위치에서 위로 올라가며 `packages/group-sdk/templates`를 찾는다([결정: 오케스트레이터 기본값]). 셋 모두 없으면 3으로 끝난다.
-- R5. 템플릿 코드는 실행하지 않는다. 명령은 파일을 읽고 치환해 쓸 뿐이다. 의존은 설치하지 않고 `bun install`과 `bun test`를 안내한다. 생성 `package.json`에는 의존을 적지 않는다([미결] §10 30번).
+- R5. 템플릿 코드는 실행하지 않는다. 명령은 파일을 읽고 치환해 쓸 뿐이다. 의존은 설치하지 않고 `bun install`과 `bun test`를 안내한다. 생성 `package.json`에는 생성 코드가 import하는 의존만 적는다(§10 30번, 닫힘).
 - 옵션을 더하지 않는다. 저장소 안 그룹의 `src/manifest.ts` 형식(`L3.slots.spec` §3.3.2)은 만들지 않고 외부 형식 `.fresnel-plugin/plugin.json`만 쓴다.
 - 출력. 텍스트는 만든 파일 목록과 다음 단계를 쓴다. `--json`은 `{ name, template, dir, files }` 한 개를 쓴다.
 - 시험. `test/group-new.test.ts`는 메모리 가짜로 플래그, 이름, 치환, 정확한 매니페스트 텍스트, 충돌, 비어 있지 않은 폴더, R4 되돌리기, 쓰기 실패 되돌리기, 색인 없음을 본다. `test/group-new-core-diff.test.ts`(`group-new.output-passes-core-diff-check-with-zero-lines`)는 실제 파일 시스템과 실제 `templates/`로 만든 세 그룹을 임시 저장소에 커밋하고, `scripts/core-diff-check.ts`가 보호 경로를 0줄로 보고하는지 본다. 같은 시험에서 `ext-host` README를 바꾸면 그 경로를 보고하는지도 본다.
@@ -1112,5 +1113,5 @@ $ fresnel db restore ~/backup/fresnel-2026-10-29
 27. [결정: 오케스트레이터 기본값, M3b B1-SCH2] `schedule add`의 기본값과 상한: `--workspace`를 빼면 host의 기본 작업 폴더를 쓴다(`L2.schedule.spec` §4.4.1). `--every`와 `--expires-in`은 1년(31536000초) 이하, `--loop`는 0 이상 1년 이하, `--max-iterations`는 1~10000, `--debounce`는 기본 1000 ms이고 0~3600000 ms, `--watch` 경로는 16개 이하다. 사용자 확인은 남아 있다.
 28. [미결] 기본 그룹 이름 목록의 출처(M3b B4-GRP). `runtime.ts`의 `BUILTIN_GROUP_NAMES`(`helm`, `learning`, `account-rotation`)는 `apps/host/src/assembly/catalog.ts`가 올리는 기본 그룹을 옮겨 적은 값이다. CLI가 host 조립 코드를 import하지 않으려고 둔다(DR-10은 엔진 조립 코드만 허용한다). host가 이름 목록을 내면 그쪽으로 옮기고 이 상수를 없앤다. 그 전까지 기본 그룹을 추가하면 이 목록도 같이 고친다.
 29. 닫음: 템플릿 패키징(B5-REL). 릴리즈 아카이브는 템플릿을 `group-sdk/templates/`에 싣고, `locateGroupTemplates`가 실행 파일 옆 그 자리를 찾는다. 배치와 탐색 순서는 `L4.release.spec` §3.1과 §3.2이고, 시험은 `test/group-templates-locate.test.ts`와 X11의 `group new`(환경 변수 없이)다.
-30. [미결] 생성 패키지의 의존 선언. 생성한 `package.json`이 `@fresnel/group-sdk`이나 `@fresnel/contracts`를 적을지 정하지 않았다(`L3.slots.spec` §3.3.2, S-01 구현 기록). 지금은 적지 않는다. 저장소 안에 만든 그룹은 워크스페이스 해석에 기댄다.
+30. (닫힘 M4 T-RT2) 생성 패키지의 의존 선언. 생성한 `package.json`은 `@fresnel/contracts`, `@fresnel/group-sdk`(`workspace:*`), `typebox`(`catalog:`)를 적고 drive·policy는 `@fresnel/ext-host`를 개발 의존으로 더한다. 적은 의존은 생성된 코드의 import와 시험이 대조한다.
 31. [미결] `apps/cli/package.json`의 `@fresnel/group-sdk` 워크스페이스 의존은 소스가 쓰지 않는다. knip은 잡지 않는다. 지우면 루트 `bun.lock`을 고쳐야 해서 이 작업 범위 밖이다. 다음 정리 때 지운다.

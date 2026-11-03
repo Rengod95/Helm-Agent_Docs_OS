@@ -23,6 +23,11 @@ const M4_PREFIX = "M4:";
 const DONE_IN_M4 = "M4";
 const DEFERRED_PREFIX = "M5:";
 const DELETED_PREFIX = "삭제:";
+/** `M4: after <track> merge`: M4 work that waits for another running track's merge (an owner gap is stated in the row). */
+const OWNER_WAIT = /^M4: after [a-z0-9-]+ merge(?:\b.*)?$/;
+/** `user decision: <sheet number or recommended option>`: waits for a user decision; `will not do: <reason>`: closed as out of product scope. */
+const USER_DECISION_PREFIX = "user decision:";
+const WONT_DO_PREFIX = "will not do:";
 const REQ_ID = /^M3-REQ-\d{2,3}$/;
 const STATUS_HEADER = "상태";
 const TRACK_HEADER = "트랙 id";
@@ -167,7 +172,7 @@ function statusProblem(
   return { kind: "unknown_status", id, line, status };
 }
 
-/** A carry-over track cell: a track id that either plan declares, `M4`, or `M5: <reason>` / `삭제: <reason>` with a reason. */
+/** A carry-over track cell: a track id that either plan declares, `M4`, `M4: after <track> merge`, or `M5:` / `삭제:` / `user decision:` / `will not do:` with a reason. */
 function carryoverProblem(
   item: string,
   line: number,
@@ -176,7 +181,13 @@ function carryoverProblem(
 ): LedgerProblem | undefined {
   if (track === "") return { kind: "carryover_missing_track", item, line, track };
   if (track === DONE_IN_M4) return undefined;
-  if (track.startsWith(DEFERRED_PREFIX) || track.startsWith(DELETED_PREFIX)) {
+  if (OWNER_WAIT.test(track)) return undefined;
+  if (
+    track.startsWith(DEFERRED_PREFIX) ||
+    track.startsWith(DELETED_PREFIX) ||
+    track.startsWith(USER_DECISION_PREFIX) ||
+    track.startsWith(WONT_DO_PREFIX)
+  ) {
     const reason = track.slice(track.indexOf(":") + 1).trim();
     return reason === "" ? { kind: "carryover_missing_reason", item, line, track } : undefined;
   }
@@ -265,6 +276,9 @@ function carryoverKey(track: string): string {
   if (track === "") return "(none)";
   if (track.startsWith(DEFERRED_PREFIX)) return "M5";
   if (track.startsWith(DELETED_PREFIX)) return "삭제";
+  if (OWNER_WAIT.test(track)) return "M4 (after merge)";
+  if (track.startsWith(USER_DECISION_PREFIX)) return "user decision";
+  if (track.startsWith(WONT_DO_PREFIX)) return "will not do";
   return track;
 }
 

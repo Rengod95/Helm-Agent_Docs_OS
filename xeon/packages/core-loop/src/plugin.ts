@@ -25,6 +25,7 @@ import {
   type ToolService,
 } from "@fresnel/contracts/services";
 import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@fresnel/ext-host";
+import { DEFAULT_BASE_PROMPT } from "./prompt.ts";
 import { createLoopService } from "./service.ts";
 import { DEFAULT_LOOP_SETTINGS, type LoopSettingsSource } from "./settings.ts";
 import type { HostMode, LoopDeps } from "./types.ts";
@@ -58,8 +59,7 @@ const OS_KEY: PortKey<OsService> = { name: OsServiceName };
 const AGENTS_KEY: PortKey<AgentService> = { name: AgentServiceName };
 const APPROVALS_KEY: PortKey<ApprovalService> = { name: ApprovalServiceName };
 
-/** 기본 시스템 프롬프트. 조립 루트가 설정으로 덮어쓴다 */
-export const DEFAULT_BASE_PROMPT = "You are Fresnel, a helpful coding assistant.";
+export { DEFAULT_BASE_PROMPT };
 
 export interface LoopPluginOptions {
   /** IdFactory 구현은 L0 platform-os에 있고 조립 루트가 넘긴다 */

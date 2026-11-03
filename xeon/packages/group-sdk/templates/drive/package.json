@@ -1,0 +1,21 @@
+{
+  "name": "@fresnel/group-__ID__",
+  "version": "__VERSION__",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@fresnel/contracts": "workspace:*",
+    "@fresnel/group-sdk": "workspace:*",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {
+    "@fresnel/ext-host": "workspace:*"
+  },
+  "fresnel": {
+    "layer": "L3",
+    "domain": "__ID__"
+  }
+}

@@ -657,7 +657,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       threadId: childThreadId,
       input: { kind: "user", content: request.task },
       requestId: prepared.requestId,
-      systemPrompt: definition.prompt,
+      ...(request.promptFrom === "parent" ? {} : { systemPrompt: definition.prompt }),
       model: request.model ?? definition.model ?? "subagent",
       tools: {
         caller: `subagent:${definition.name}`,

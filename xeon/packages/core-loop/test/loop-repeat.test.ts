@@ -96,3 +96,46 @@ test("repeat.enabled false gives no notice for repeated failures either", async 
   });
   expect(noticePayloads(h)).toEqual([]);
 });
+
+const readOther = (id: string): ScriptedResponse => ({
+  kind: "message",
+  content: [{ type: "toolCall", id, name: "read", arguments: { path: "b.txt" } }],
+  stopReason: "toolUse",
+});
+
+test("alternating between two different calls never reaches a threshold", async () => {
+  const h = await runTurn({
+    tools: [{ name: "read" }],
+    script: [
+      readSame("r1"),
+      readOther("r2"),
+      readSame("r3"),
+      readOther("r4"),
+      readSame("r5"),
+      readOther("r6"),
+      done("finished"),
+    ],
+  });
+  expect(noticePayloads(h)).toEqual([]);
+  expect(h.tools.executed).toHaveLength(6);
+});
+
+test("five identical failing calls notify exactly once, at the third", async () => {
+  const h = await runTurn({
+    tools: [{ name: "read", blockReason: "no such file" }],
+    script: [
+      readSame("r1"),
+      readSame("r2"),
+      readSame("r3"),
+      readSame("r4"),
+      readSame("r5"),
+      done("finished"),
+    ],
+  });
+  expect(noticePayloads(h)).toEqual([
+    {
+      status: "running",
+      notice: { code: "repeat_detected", detail: { kind: "action_error", count: 3 } },
+    },
+  ]);
+});

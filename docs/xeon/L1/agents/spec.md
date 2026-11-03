@@ -383,7 +383,7 @@ export type AgentJudgedPayload = JudgeRecord;
 검토 포크 [결정: M3-REQ-70, 오케스트레이터 기본값]: 학습 검토 포크(`fork`가 있고 `tools.keepParentList`가 참인 위임)는 아래 규칙을 따른다.
 
 - 사용량 귀속: 포크의 사용량은 `SpawnResult.usage`와 `agent.settled.usage`로 부모 대화에 귀속한다. 부모 합계에 더하는 화면 규칙은 L4가 정한다. 호출자(L3.learning)는 검토 한 번의 사용량을 자기 원장에 따로 적는다.
-- 캐시 접두 공유 조건 네 가지: (1) 모델이 부모와 같다, (2) 도구 배열이 부모와 같다(`keepParentList`), (3) 시스템 프롬프트가 부모와 같다, (4) 메시지 접두가 부모 가지의 `fork` 시점까지 그대로다. 하나라도 다르면 접두 캐시는 공유되지 않고 일반 요청 비용이 든다. 현재 구현은 (2)와 (4)를 지킨다. (1)은 호출자가 요청 `model`을 부모 모델로 주어야 하고, (3)은 자식이 정의의 `prompt`를 쓰므로 공유되지 않는다. (3)을 지키려면 `SpawnRequest`에 부모 프롬프트를 쓰는 선택을 더해야 하며 이는 [미결]이다.
+- 캐시 접두 공유 조건 네 가지: (1) 모델이 부모와 같다, (2) 도구 배열이 부모와 같다(`keepParentList`), (3) 시스템 프롬프트가 부모와 같다, (4) 메시지 접두가 부모 가지의 `fork` 시점까지 그대로다. 하나라도 다르면 접두 캐시는 공유되지 않고 일반 요청 비용이 든다. 현재 구현은 (2)와 (4)를 지키고, `SpawnRequest.promptFrom: "parent"`(F 추가 선택 필드, 기본 `definition`)이면 (3)도 지킨다. 이때 core-agents는 `ChildTurnRequest.systemPrompt`를 싣지 않고 루프가 부모 대화와 같은 기본 프롬프트를 쓴다. 정의의 `prompt`는 쓰이지 않으므로 지시는 `task`가 싣는다(학습 검토 포크가 이렇게 한다). (1)은 호출자가 요청 `model`을 부모 모델로 주어야 하며 여전히 호출자 몫이다. 사용량 귀속과 `keepParentList` 실행 시점 거르기는 구현되어 있다(`service.test.ts` `usage_attributed_once`, `core-tools` `expose`).
 - `keepParentList`는 광고 목록만 부모와 같게 두고, 허용 목록(`tools.allow`)과 정책은 실행 시점에 거른다(§4.3 3번, `L1.tools.spec` §4.1 7번). 허용 목록 밖 도구 호출은 `denyHint`와 함께 거부된다.
 
 자식 도구 차단 목록 [제안: `_research/item-catalog.md` L1-g "자식 도구 차단 목록"]: 재귀 생성, 사용자 상호작용, 공유 상태 쓰기, 외부 발신 도구를 주지 않는다. 규칙은 L1.tools.spec 어휘의 default 티어 deny로 core-agents가 `ToolService.registerRules("core:agents", rules)`(L1.tools.spec §3.3)로 등록한다. `l1.agents.maxDepth`가 바뀌면 같은 출처로 다시 등록한다.
