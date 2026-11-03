@@ -41,6 +41,8 @@ export interface WorkbenchState {
   readonly kinds: readonly ComponentKind[];
   /** 켜기·끄기 요청이 아직 반영되지 않은 확장 이름과 목표 값 */
   readonly pending: Readonly<Record<string, boolean>>;
+  /** 빌더를 열라는 요청(15-3). `hook`은 순서 보기 훅 줄의 `추가`가 고른 훅 이름, 없으면 훅 없이 연다. 빌더 화면(T-AUTH)이 읽고 `closeBuilder`로 비운다 */
+  readonly builder: { readonly hook: string | null } | null;
 }
 
 export const INITIAL_WORKBENCH: WorkbenchState = {
@@ -53,6 +55,7 @@ export const INITIAL_WORKBENCH: WorkbenchState = {
   query: "",
   kinds: [],
   pending: {},
+  builder: null,
 };
 
 export function listLoading(s: WorkbenchState): WorkbenchState {
@@ -99,6 +102,14 @@ export function closeDetail(s: WorkbenchState): WorkbenchState {
 
 export function openLayer(s: WorkbenchState, layer: LayerKey | null): WorkbenchState {
   return { ...s, layer };
+}
+
+export function requestBuilder(s: WorkbenchState, hook: string | null): WorkbenchState {
+  return { ...s, builder: { hook } };
+}
+
+export function closeBuilder(s: WorkbenchState): WorkbenchState {
+  return { ...s, builder: null };
 }
 
 export function setQuery(s: WorkbenchState, query: string): WorkbenchState {

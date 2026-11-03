@@ -32,3 +32,26 @@
 ## 앱 쪽
 
 `apps/desktop/src/state/workbench/`가 스토어(`useWorkbench(selector)`, `useWorkbenchActions()`)와 읽기·쓰기 명령(`ext.list`, `settings.set`)을 가집니다.
+
+## 앱 쪽 구현 (T-BENCH)
+
+`apps/desktop/src/state/workbench/`(스토어와 훅), `src/app/workbench-commands.ts`(`commands.workbench`: `list`, `get`, `toggle`, `reenable`, `versions`, `rollback`), `src/views/workbench/`(화면).
+
+### T-CANVAS가 보기를 채우는 법
+
+`views/desktop-registry.tsx`의 `createDesktopRegistry()`에서 `slots`를 만들어 `registerWorkbench(registry, store, slots)`에 넘깁니다. 지도·순서·링크는 같은 곳에서 등록합니다.
+
+```ts
+slots.register("orbit", () => <OrbitView />);   // "strata", "link"도 같은 방식. 두 번 등록하면 Bug
+```
+
+보기는 props 없이 `useWorkbench(selector)`로 상태를, `useWorkbenchActions()`로 `select`·`openDetail`·`openLayer`·`requestBuilder(hook)`를 씁니다. 켜기·끄기는 상태를 직접 바꾸지 않고 선택 패널·층 목록이 쓰는 컨트롤러(`views/workbench/controller.ts`의 `useWorkbenchController().toggle`)를 부르거나, 행 부품 `ExtSwitch`(`views/workbench/ext-row.tsx`)를 그대로 씁니다. 슬롯이 비어 있으면 개요는 층별 목록(`LayerList`)을 보입니다. 선택 패널과 자세히 보기(`ExtDetail`)는 이 화면이 그리고, 훅 줄의 `추가`(15-3)는 `requestBuilder(hook)`로 요청만 남깁니다(빌더 화면은 T-AUTH).
+
+### 스펙에 반영할 것 (`L4.desktop-ux` §6.22.0·§6.23·§6.24 [결정: 2026-11-04 사용자])
+
+스펙 본문은 `m4/spec` 브랜치에 있어 이 브랜치에서 고치지 않았습니다. 병합할 때 다음을 적습니다.
+
+- 크래프트 내비는 §4.9.3의 여섯 항목 그대로입니다: 개요(`overview`)가 지도·순서·링크를 담은 캔버스, 확장(`extensions`)이 같은 `ext.list`의 층별 목록, 엔진(`engine`)이 P-15입니다.
+- 켜기·끄기는 `settings.set { key: "ext.<이름>.enabled", scope: "user" }` 하나이고 잠기는 행은 면제 tier(`guard`, `core`), 안전 모드 제외, managed 켜짐입니다.
+- O-10은 "처음 켜는" 기록이 없어서 꺼져 있던 `user`·`project` 위치 확장을 켤 때마다 묻습니다 [제안: 기본값].
+- 버전 탭은 §6.24.1 전체 단계(`ext.versions`, `ext.rollback`, O-11)입니다. 되돌린 판이 `restart`에 적용되면 토스트가 그 사실을 알립니다.

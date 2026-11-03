@@ -3,6 +3,7 @@ import type { ExtListEntry } from "@fresnel/contracts/wire";
 import {
   INITIAL_WORKBENCH,
   clearPending,
+  closeBuilder,
   closeDetail,
   countsOf,
   layerGroups,
@@ -10,6 +11,7 @@ import {
   markPending,
   openDetail,
   rowOf,
+  requestBuilder,
   select,
   setQuery,
   setView,
@@ -120,6 +122,13 @@ describe("workbench model", () => {
     });
     expect(toggleKind(toggleKind(base, "hook"), "tool").kinds).toEqual(["hook", "tool"]);
     expect(toggleKind(toggleKind(base, "hook"), "hook").kinds).toEqual([]);
+  });
+
+  test("빌더 요청은 고른 훅을 담고 닫으면 비운다", () => {
+    const asked = requestBuilder(base, "tool.call.before");
+    expect(asked.builder).toEqual({ hook: "tool.call.before" });
+    expect(requestBuilder(base, null).builder).toEqual({ hook: null });
+    expect(closeBuilder(asked).builder).toBeNull();
   });
 
   test("버전 행: 지금 판은 되돌릴 수 없고 스키마가 높으면 상태를 비워야 한다", () => {
