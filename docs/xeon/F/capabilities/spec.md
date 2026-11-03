@@ -113,6 +113,7 @@ export function isCapabilityId(value: string): value is CapabilityId;
   - 외부 플러그인이 내장 기능의 provider가 되는 것은 허용한다. 예: Exa 플러그인이 `web.search`를 provide한다.
   - 이 규칙의 확정은 [미결]이다(§10).
 - [제안] 도구 이름 네임스페이스: 내장 기능(`defs/<domain>.ts`)의 도구는 `TOOL_NAME_PATTERN`을 따른다. 확장이 등록하는 모델 도구의 정식 이름은 `<확장 이름>__<이름>`이다(`X.operations.spec` §4.5, §10 후보 b). 확장 이름에 하이픈이 허용되므로 `tool_name_style` 검사는 내장 기능 도구에만 하고, 확장 도구는 `EXTENSION_TOOL_NAME_PATTERN`으로 검사한다. 둘 다 `TOOL_NAME_WIRE_PATTERN`을 지켜야 한다.
+- [결정: 2026-11-03 사용자] 내장 도구를 같은 이름으로 대체하는 것을 지원한다(§10). 확장 도구가 내장 이름을 짧은 이름으로 얻는 길은 이것 하나다.
 - `ExtensionManifest`(F.extensions.spec)의 필요·선택·제공 기능 필드는 이 `CapabilityIdSchema`와 `SemVerRangeSchema`를 그대로 import한다. 두 문서의 ID 형식은 이 절 하나를 정본으로 한다.
 
 ### 3.2 서비스 메서드 (`capability.ts`)
@@ -1111,6 +1112,15 @@ export type NotifyError =
 ## 10. 미결 사항
 
 - [미결] 기능 ID 네임스페이스 규칙(§3.1): 내장 도메인 예약, 외부 플러그인의 확장 이름 접두, 예약 접두 목록을 확정해야 한다.
+- 닫음 [결정: 2026-11-03 사용자]: 내장 도구 같은 이름 대체. 아래 조건을 모두 지킨다. 어긋난 등록은 대체가 아니라 거부(`ToolRegisterError`)이거나 기존대로 정식 이름(`<확장>__<이름>`)이 된다.
+  1. 명시 선언: 플러그인 매니페스트 `replaces: ["read"]`에 적은 이름만 대체한다. 선언 없이 이름이 겹치면 대체되지 않는다(`name_conflict`, 확장 이름 정책은 정식 이름으로 돌린다).
+  2. 활성화 승인: 대체는 사용자가 승인하기 전까지 켜지지 않고 원본이 그대로 남는다. 승인 요청은 kind `tool`, 도구 이름 `tool_replace`, 규칙 id `tools.replace`이고 `remember`는 `once`뿐이다. 승인 화면은 별도 화면 트랙이 맡는다(L1.tools.spec §4.13).
+  3. 위험 등급 하한: 대체 도구의 위험 등급은 원본보다 낮지 않다(선언과 원본 중 높은 쪽). 원본의 `classes`도 물려받는다.
+  4. 기본 자동 허용 배제: 내장 기본 규칙(`default` 티어)의 allow는 대체 도구에 적용하지 않는다. `read`·`ls`의 기본 허용(안전 1차가 기능 `workspace.files`와 위험 `read`로 묶은 것)도 마찬가지다. 사용자·managed 규칙은 그대로 적용된다.
+  5. 한 도구에 대체는 하나: 두 확장이 같은 내장 도구를 대체하면 오류다(`replace_conflict`, 매니페스트 집합과 등록 모두).
+  6. 경로 보호: 경로 보호(쓰기 범위, 민감 경로 차단)는 내장 파일 도구 안에 있다. 대체 도구는 스스로 지켜야 하고, 승인 요청 본문과 매니페스트 문서가 그렇게 알린다.
+  7. 도구 실행 틀은 대체할 수 없다: 정책, 승인, 효과 기록, 마스킹, 절단, 시크릿 검사는 대체 도구도 그대로 지난다. `tool_search`, `read_tool_output`, MCP 도구, 확장 도구는 대체할 수 없다(`replace_forbidden`). `tool.call.before`는 여전히 인자를 바꾸지 못한다(U-06).
+  8. 프로젝트 범위: 신뢰 등급이 `project`인 플러그인도 같은 선언과 같은 승인을 거친다. 승인 요청 본문에 신뢰 등급이 실린다.
 - 닫음: 도구 이름 네임스페이스. 후보 (b) `<확장 이름>__<이름>`으로 정했다(§3.1, `X.operations.spec` §4.5). 내장 기능끼리의 충돌은 `tool_name_conflict` 오류로 거부한다.
 - 닫음 [결정: review.m3-design-inputs A-01, M3-REQ-13]: A안(§3.5). F는 `ServiceKey<Api>`만 둔다.
 - 닫음 [결정: M3-REQ-07]: 도구 없는 기능은 허용한다(§4.4).

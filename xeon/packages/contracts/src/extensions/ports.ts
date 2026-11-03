@@ -239,6 +239,11 @@ export interface ToolResourceDef {
   readonly risk?: ToolRisk;
   /** 정책 힌트(`ToolHints`). 위험 등급을 유도하는 데 쓴다. `readOnly: true` 선언은 `risk`와 같은 신뢰 규칙을 따른다 */
   readonly hints?: ToolHints;
+  /**
+   * 있으면 같은 이름의 내장 도구를 대체하는 등록이다(F.capabilities.spec §10 [결정: 2026-11-03 사용자]).
+   * L1.tools는 사용자가 승인하기 전까지 대체를 켜지 않고, 위험 등급은 원본보다 낮추지 않는다
+   */
+  readonly replaces?: ToolReplaceClaim;
   execute(
     args: JsonValue,
     ctx: {
@@ -258,9 +263,31 @@ export type ProviderResourceDef = JsonValue;
 export type McpServerResourceDef = JsonValue;
 
 /** 도구 등록 실패. 확장 조합이 같은 도구 이름을 내면 정상 운영 중에도 생긴다(TY-24) */
-export interface ToolRegisterError {
-  readonly kind: "name_conflict";
-  readonly toolName: string;
+export type ToolRegisterError =
+  | {
+      /** 대체 선언 없이 같은 이름을 등록함 */
+      readonly kind: "name_conflict";
+      readonly toolName: string;
+    }
+  | {
+      /** 대체할 수 없는 도구: 내장 기능 도구가 아니거나(`no_target`, `not_builtin`) 도구 실행 틀을 이루는 내장 도구(`core_pipeline`) */
+      readonly kind: "replace_forbidden";
+      readonly toolName: string;
+      readonly reason: "no_target" | "not_builtin" | "core_pipeline";
+    }
+  | {
+      /** 이미 다른 확장이 같은 내장 도구를 대체함 */
+      readonly kind: "replace_conflict";
+      readonly toolName: string;
+      readonly existing: string;
+    };
+
+/** 내장 도구를 같은 이름으로 대체하겠다는 등록의 출처. 매니페스트 `replaces` 선언이 있는 이름에만 X가 싣는다 */
+export interface ToolReplaceClaim {
+  /** 대체하는 확장 이름 */
+  readonly extension: string;
+  /** 확장의 신뢰 등급. project도 같은 승인을 거친다 */
+  readonly trust: "builtin" | "user" | "project" | "untrusted";
 }
 
 /** ToolService(fresnel.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 표는 그대로다 */
