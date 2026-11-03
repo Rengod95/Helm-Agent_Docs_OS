@@ -16,11 +16,10 @@ import { assertNever, Bug } from "@fresnel/contracts";
 
 export type CraftMode = "orbit" | "strata" | "link";
 
-/** 최근 실행 한 줄(`trace.turn` 한 칸). `sec`은 턴 시작부터의 초 */
+/** 최근 실행 한 줄(`trace.turn`의 훅 한 칸에서 핸들러 하나). 턴 안의 순서는 wire의 seq 순서다 */
 export interface CraftRunEntry {
   readonly hook: string;
   readonly registrationId: string;
-  readonly sec: number;
   readonly ms: number;
   readonly result: "ok" | "error" | "over_budget" | "denied" | "skipped";
 }

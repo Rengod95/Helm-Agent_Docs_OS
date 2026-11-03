@@ -72,11 +72,10 @@ describe("Detail: 계측이 꺼져 있을 때", () => {
 
 describe("Detail: 기록이 있을 때", () => {
   const entries: CraftRunEntry[] = [
-    { hook: "tool.call.before", registrationId: "helm", sec: 4.9, ms: 3, result: "ok" },
+    { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "ok" },
     {
       hook: "boundary.settle.after",
       registrationId: "helm",
-      sec: 13.1,
       ms: 30000,
       result: "error",
     },
@@ -90,8 +89,6 @@ describe("Detail: 기록이 있을 때", () => {
     const out = render(target, runs, "recent");
     expect(out).toContain(">3ms<");
     expect(out).toContain(">30s<");
-    expect(out).toContain(">4.9s<");
-    expect(out).toContain(">13.1s<");
     expect(out).toContain(t("desktop.craft.detail.outcome.passed"));
     expect(out).toContain(t("desktop.craft.detail.outcome.failed"));
     expect(out).toContain(t("desktop.craft.detail.reason.error"));

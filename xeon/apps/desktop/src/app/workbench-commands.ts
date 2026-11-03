@@ -1,8 +1,16 @@
 import { err, ok, type Result } from "@fresnel/contracts";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
+import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import type {
   ExtGetResult,
+  ExtHealthEntry,
   ExtListEntry,
   ExtVersionsResult,
+  HookEntry,
+  HooksOrderGetResult,
+  HooksOrderPreviewResult,
+  HooksOrderResetResult,
+  HooksOrderSetResult,
   HostConnection,
 } from "@fresnel/contracts/wire";
 import type { ToggleRequest } from "@fresnel/client/workbench";
@@ -30,6 +38,26 @@ export interface WorkbenchCommands {
     version: string,
     clearState: boolean,
   ): Promise<Result<"nextStepBoundary" | "restart", CommandError>>;
+  /** `ext.health`(모든 확장). 실패 장부 배열 */
+  health(): Promise<Result<readonly ExtHealthEntry[], CommandError>>;
+  /** `hooks.list`: 훅마다 핸들러의 기본 순서(`order` 행)를 포함한다 */
+  hooks(): Promise<Result<readonly HookEntry[], CommandError>>;
+  /** `hooks.order.get`: 저장 값과 적용 중 순서 */
+  orderGet(): Promise<Result<HooksOrderGetResult, CommandError>>;
+  /** `hooks.order.set`: 저장만 한다. 적용은 다음 단계 경계다 */
+  orderSet(
+    hook: string,
+    order: readonly string[],
+  ): Promise<Result<HooksOrderSetResult, CommandError>>;
+  /** `hooks.order.reset`: `hook`을 생략하면 모든 훅의 덮어쓰기를 지운다 */
+  orderReset(hook?: string): Promise<Result<HooksOrderResetResult, CommandError>>;
+  /** `hooks.order.preview`: 저장하지 않고 이 순서를 적용했을 때의 결과를 본다 */
+  orderPreview(
+    hook: string,
+    order: readonly string[],
+  ): Promise<Result<HooksOrderPreviewResult, CommandError>>;
+  /** `trace.turn`: 한 턴의 훅별 핸들러 계측 */
+  trace(threadId: ThreadId, turnId: TurnId): Promise<Result<TraceTurnResult, CommandError>>;
 }
 
 export function createWorkbenchCommands(withConnection: WithConnection): WorkbenchCommands {
@@ -60,5 +88,21 @@ export function createWorkbenchCommands(withConnection: WithConnection): Workben
       );
       return done.ok ? ok(done.value.appliesAt) : err(done.error);
     },
+    async health() {
+      const got = await withConnection((c) => c.request("ext.health", {}));
+      return got.ok ? ok(got.value.health) : err(got.error);
+    },
+    async hooks() {
+      const got = await withConnection((c) => c.request("hooks.list", {}));
+      return got.ok ? ok(got.value.hooks) : err(got.error);
+    },
+    orderGet: () => withConnection((c) => c.request("hooks.order.get", {})),
+    orderSet: (hook, order) => withConnection((c) => c.request("hooks.order.set", { hook, order })),
+    orderReset: (hook) =>
+      withConnection((c) => c.request("hooks.order.reset", hook === undefined ? {} : { hook })),
+    orderPreview: (hook, order) =>
+      withConnection((c) => c.request("hooks.order.preview", { hook, order })),
+    trace: (threadId, turnId) =>
+      withConnection((c) => c.request("trace.turn", { threadId, turnId })),
   };
 }

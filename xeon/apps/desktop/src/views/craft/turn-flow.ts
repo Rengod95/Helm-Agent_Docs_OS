@@ -214,8 +214,6 @@ export type RunResult = CraftRunEntry["result"];
 export type RunOutcome = "passed" | "failed" | "blocked" | "skipped";
 
 export interface RunMark {
-  /** 턴 시작부터의 초 */
-  readonly sec: number;
   /** 걸린 시간(trace.turn의 ms 그대로) */
   readonly ms: number;
   readonly result: RunResult;
@@ -247,7 +245,7 @@ export function runOverlay(entries: readonly CraftRunEntry[], plugin: CanvasPlug
   const out = new Map<string, RunMark[]>();
   for (const e of entries) {
     if (e.registrationId !== plugin.id) continue;
-    const mark: RunMark = { sec: e.sec, ms: e.ms, result: e.result, outcome: outcomeOf(e.result) };
+    const mark: RunMark = { ms: e.ms, result: e.result, outcome: outcomeOf(e.result) };
     const list = out.get(e.hook);
     if (list === undefined) out.set(e.hook, [mark]);
     else list.push(mark);

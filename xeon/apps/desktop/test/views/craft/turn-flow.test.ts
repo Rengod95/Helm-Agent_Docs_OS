@@ -137,24 +137,21 @@ describe("columnsFor: 그룹은 구성원마다 열 하나", () => {
 
 describe("runOverlay: 걸린 시간은 trace.turn 값 그대로", () => {
   const entries: CraftRunEntry[] = [
-    { hook: "tool.call.before", registrationId: "helm", sec: 4.9, ms: 3, result: "ok" },
+    { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "ok" },
     {
       hook: "boundary.settle.after",
       registrationId: "helm",
-      sec: 13.1,
       ms: 30000,
       result: "error",
     },
-    { hook: "tool.call.before", registrationId: "secret-scan", sec: 4.9, ms: 8123, result: "ok" },
+    { hook: "tool.call.before", registrationId: "secret-scan", ms: 8123, result: "ok" },
   ];
 
   test("이 플러그인의 기록만 훅별로 모은다. ms 3과 30000이 그대로 남는다", () => {
     const marks = runOverlay(entries, plugin("helm"));
-    expect(marks.get("tool.call.before")).toEqual([
-      { sec: 4.9, ms: 3, result: "ok", outcome: "passed" },
-    ]);
+    expect(marks.get("tool.call.before")).toEqual([{ ms: 3, result: "ok", outcome: "passed" }]);
     expect(marks.get("boundary.settle.after")).toEqual([
-      { sec: 13.1, ms: 30000, result: "error", outcome: "failed" },
+      { ms: 30000, result: "error", outcome: "failed" },
     ]);
     expect([...marks.keys()].toSorted()).toEqual(["boundary.settle.after", "tool.call.before"]);
   });
@@ -208,11 +205,10 @@ describe("loadRuns: 계측 꺼짐, 읽기 실패, 읽음", () => {
         Promise.resolve(
           id === "helm"
             ? [
-                { hook: "tool.call.before", registrationId: "helm", sec: 4.9, ms: 3, result: "ok" },
+                { hook: "tool.call.before", registrationId: "helm", ms: 3, result: "ok" },
                 {
                   hook: "boundary.settle.after",
                   registrationId: "helm",
-                  sec: 13.1,
                   ms: 30000,
                   result: "error",
                 },
@@ -225,7 +221,7 @@ describe("loadRuns: 계측 꺼짐, 읽기 실패, 읽음", () => {
     expect(got.k).toBe("ready");
     if (got.k !== "ready") throw new Error("expected ready");
     expect(got.byPlugin.get("helm")?.get("boundary.settle.after")).toEqual([
-      { sec: 13.1, ms: 30000, result: "error", outcome: "failed" },
+      { ms: 30000, result: "error", outcome: "failed" },
     ]);
   });
 });

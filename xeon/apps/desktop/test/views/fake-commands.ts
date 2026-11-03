@@ -32,6 +32,25 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       reenable: () => Promise.resolve(ok(null)),
       versions: () => Promise.resolve(ok({ versions: [] })),
       rollback: () => Promise.resolve(ok("nextStepBoundary")),
+      health: () => Promise.resolve(ok([])),
+      hooks: () => Promise.resolve(ok([])),
+      orderGet: () => Promise.resolve(ok({ hooks: [] })),
+      orderSet: (hook, order) =>
+        Promise.resolve(ok({ hook, saved: [...order], appliesAt: "nextStepBoundary" })),
+      orderReset: () => Promise.resolve(ok({ hooks: [], appliesAt: "nextStepBoundary" })),
+      orderPreview: (hook, order) =>
+        Promise.resolve(
+          ok({
+            hook,
+            order: [...order],
+            saveable: true,
+            skips: [],
+            valueChanges: [],
+            autoDisable: [],
+            guardRisk: [],
+          }),
+        ),
+      trace: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     observeThread: () => Promise.resolve(ok(null)),
     forkThread: () => Promise.resolve(ok(null)),

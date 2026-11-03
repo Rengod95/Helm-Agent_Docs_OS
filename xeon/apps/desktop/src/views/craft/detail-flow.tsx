@@ -140,9 +140,6 @@ function MarkLine({ mark }: { readonly mark: RunMark }): ReactNode {
   return (
     <div className="grid gap-1.5 border-t border-border-subtle pt-2">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-mono-sm text-text-tertiary">
-          {t("desktop.craft.detail.time.s", { n: mark.sec.toFixed(1) })}
-        </span>
         <span className="font-mono text-mono-sm text-text-secondary">
           {t(time.unit === "ms" ? "desktop.craft.detail.time.ms" : "desktop.craft.detail.time.s", {
             n: time.n,
@@ -218,7 +215,7 @@ function Marks({ marks }: { readonly marks: readonly RunMark[] }): ReactNode {
   return (
     <div className="grid gap-1.5">
       {marks.map((mark, i) => (
-        <MarkLine key={`${String(i)}:${String(mark.sec)}`} mark={mark} />
+        <MarkLine key={`${String(i)}:${String(mark.ms)}:${mark.result}`} mark={mark} />
       ))}
     </div>
   );
