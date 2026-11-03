@@ -12,6 +12,7 @@ import { startLocale } from "./locale.ts";
 import { createWebViewLogger, type LogLine, type LogRing } from "./logger.ts";
 import { startSession, type Session } from "./session.ts";
 import type { Commands } from "../views/commands.ts";
+import { createLocalSettings, type LocalSettings } from "../settings-store/index.ts";
 
 // 부트스트랩(FS-05): 스토어는 여기서 한 번 만들고 Context로 넘긴다. 모듈 최상위에는 싱글턴이 없다.
 
@@ -31,6 +32,8 @@ export type AppEnv = {
   readonly languages?: readonly string[];
   /** 연결 뒤 `l4.ui.locale`로 로케일이 바뀌었을 때 부른다. 호출자가 다시 그린다 */
   readonly onLocaleChange?: (locale: Locale) => void;
+  /** 데스크톱 로컬 설정. 주면 호출자와 같은 저장소를 쓴다. 없으면 여기서 만든다 */
+  readonly localSettings?: LocalSettings;
 };
 
 export type App = {
@@ -90,9 +93,11 @@ export function createApp(env: AppEnv): App {
       });
     },
   );
+  const local = env.localSettings ?? createLocalSettings(env.ipc);
   const commands = createCommands({
     session,
     ipc: env.ipc,
+    local,
     engine,
     ui,
     journal,

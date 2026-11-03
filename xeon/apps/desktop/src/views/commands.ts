@@ -4,6 +4,7 @@ import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
 import type { TrustChoice, TrustStatus, WireParams, WireResult } from "@fresnel/contracts/wire";
 import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
+import type { AttachFailureKind, TargetEntry } from "@fresnel/client";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -64,6 +65,39 @@ export interface ScheduleCommands {
   fire(scheduleId: string): Promise<Result<WireResult<"schedule.fire">, CommandError>>;
   /** 서비스 모드를 켠다(`settings.set`, 사용자 범위) */
   enableService(): Promise<Result<null, CommandError>>;
+}
+
+/** 연결 화면이 고른 대상. `local`은 이 기기의 사이드카, `remote`는 서비스 주소다(W-08) */
+export type ConnectTarget =
+  | { readonly kind: "local" }
+  | { readonly kind: "remote"; readonly address: string };
+
+/** 연결 화면이 읽는 host 상태. `host.status` 결과와 서비스 모드 설정 값이다 */
+export interface ConnectionSnapshot {
+  readonly host: WireResult<"host.status">;
+  readonly serviceEnabled: boolean;
+}
+
+/** 원격 대상 목록을 읽거나 쓰지 못했다(로컬 설정 파일) */
+export type TargetStoreError = { readonly kind: "storage" };
+
+/**
+ * 연결 화면(P-08). 대상 목록은 로컬 설정 파일에서 읽고 쓴다(거울에 넣지 않는다). `retarget`은 셸 명령이고 진행은 엔진 상태와
+ * 연결 상태가 알린다. 실패는 연결 실패 종류로 바꿔 돌려준다. 토큰은 이 명령들을 지나지 않는다(환경 변수로만 받는다).
+ */
+export interface ConnectionCommands {
+  targets(): Promise<Result<readonly TargetEntry[], TargetStoreError>>;
+  saveTargets(list: readonly TargetEntry[]): Promise<Result<null, TargetStoreError>>;
+  /** 엔진이 붙을 대상을 바꾼다. 같은 대상이면 셸이 아무 일도 하지 않는다. 셸이 거절하면 실패 종류를 돌려준다 */
+  retarget(target: ConnectTarget): Promise<Result<null, AttachFailureKind>>;
+  /** 실패 뒤 다시 시도: 멈춘 엔진을 다시 띄우거나, 엔진은 떠 있는데 연결이 끊겼으면 다시 잇는다 */
+  retry(): Promise<void>;
+  /** `host.status`와 서비스 모드 설정. 연결이 없으면 `offline`이다 */
+  load(): Promise<Result<ConnectionSnapshot, CommandError>>;
+  /** 서비스 모드를 켜거나 끈다(`settings.set`, 사용자 범위). 적용은 엔진 재시작 뒤다 */
+  setServiceMode(enabled: boolean): Promise<Result<null, CommandError>>;
+  /** 서비스를 협조 종료한다(`host.shutdown`). 받아들여졌으면 `true`다 */
+  stopService(): Promise<Result<boolean, CommandError>>;
 }
 
 /**
@@ -128,6 +162,7 @@ export interface Commands {
   readonly trust: TrustCommands;
   readonly setup: SetupCommands;
   readonly schedule: ScheduleCommands;
+  readonly connection: ConnectionCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */

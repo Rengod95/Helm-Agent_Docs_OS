@@ -227,7 +227,7 @@ describe("addTarget and the target list", () => {
 
   test("the search box threshold is 20 and the storage key is the desktop key", () => {
     expect(TARGET_SEARCH_THRESHOLD).toBe(20);
-    expect(TARGETS_KEY).toBe("l4.desktop.targets");
+    expect(TARGETS_KEY).toBe("l4.desktop.window.targets");
   });
 });
 

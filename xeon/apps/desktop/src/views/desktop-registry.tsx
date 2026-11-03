@@ -1,8 +1,9 @@
-import { CalendarClock, Inbox, MessageSquare } from "@caustic/react/icons";
+import { CalendarClock, Inbox, MessageSquare, Plug } from "@caustic/react/icons";
 import { ApprovalQueue } from "./approvals.tsx";
 import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
+import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
 import { TrustCard } from "./trust.tsx";
 import { Transcript } from "./transcript.tsx";
 import {
@@ -50,6 +51,14 @@ const SCHEDULES_SCREEN: ScreenDef = {
   render: () => <SchedulesScreen />,
 };
 
+const CONNECTION_SCREEN: ScreenDef = {
+  id: "connection",
+  area: "chat",
+  label: "desktop.shell.nav.connection",
+  icon: <Plug />,
+  render: () => <ConnectionScreen />,
+};
+
 const INBOX_TAB: EndTabDef = {
   id: "inbox",
   area: "both",
@@ -62,6 +71,7 @@ export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
   registry.registerScreen(CHAT_SCREEN);
   registry.registerScreen(SCHEDULES_SCREEN);
+  registry.registerScreen(CONNECTION_SCREEN);
   registry.registerEndTab(INBOX_TAB);
   return registry;
 }

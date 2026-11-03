@@ -2,7 +2,7 @@ import { assertNever, parse } from "@fresnel/contracts";
 import { Type } from "typebox";
 import { parseServiceEndpoint, type EndpointParseError } from "../endpoint.ts";
 
-// 원격 대상 목록(P-08, 데스크톱 로컬 설정 `l4.desktop.targets`). 주소 문법은 `endpoint.ts`를 그대로 쓰고,
+// 원격 대상 목록(P-08, 데스크톱 로컬 설정 `TARGETS_KEY`). 주소 문법은 `endpoint.ts`를 그대로 쓰고,
 // 화면이 받을 사유만 바꾼다. 저장하는 주소는 루프백 TCP이거나 Unix·SSH 주소다. 비루프백 TCP는 SSH 터널이나 사설망을 쓴다.
 
 /** 대상 주소의 해석 결과. 화면이 연결 방식을 고르는 데 쓴다 */
@@ -91,8 +91,11 @@ export function parseTargetAddress(text: string): ParseTargetResult {
 /** 대상 목록 한 줄. id는 화면이 만든다 */
 export type TargetEntry = { readonly id: string; readonly label: string; readonly address: string };
 
-/** 로컬 설정 키 */
-export const TARGETS_KEY = "l4.desktop.targets";
+/**
+ * 로컬 설정 키. 셸이 쓰기를 허용하는 접두사(`l4.desktop.window.`) 안에 둔다. `l4.desktop.targets`는 접두사 밖이라 셸이 거부한다
+ * (src-tauri/src/desktop_settings.rs `UI_KEY_PREFIXES`).
+ */
+export const TARGETS_KEY = "l4.desktop.window.targets";
 
 /** 대상이 이 개수를 넘으면 검색 입력을 보인다 */
 export const TARGET_SEARCH_THRESHOLD = 20;
