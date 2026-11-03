@@ -44,6 +44,10 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       step: () => Promise.resolve(err({ kind: "unsupported" })),
       phase: () => Promise.resolve(err({ kind: "unsupported" })),
     },
+    measure: {
+      turn: () => Promise.resolve(err({ kind: "unsupported" })),
+      daily: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
     workbench: {
       list: () => Promise.resolve(ok([])),
       onChanged: () => () => {},

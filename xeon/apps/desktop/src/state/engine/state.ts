@@ -89,6 +89,9 @@ export type Streaming = {
   readonly settledTurns: readonly string[];
 };
 
+/** thread별 최근 turn id를 남기는 개수 상한 */
+export const RECENT_TURN_CAP = 40;
+
 /** 확정 표식을 남기는 개수 상한 */
 export const SETTLED_CAP = 256;
 
@@ -132,6 +135,8 @@ export type EngineMirror = {
   readonly turnFailures: Readonly<Record<string, string>>;
   /** thread별 가장 최근 turn id. thread.list의 `lastTurnId`로 먼저 채우고(없을 때만), 이후 `turn.started` 사실이 덮는다. 최근 실행 읽기가 턴을 고를 때 쓴다. 거울을 head부터 다시 맞추면 비우고, 뒤이은 목록 읽기가 다시 채운다 */
   readonly latestTurnId: Readonly<Record<string, TurnId>>;
+  /** thread별로 이 거울이 본 최근 turn id(오래된 것부터, `RECENT_TURN_CAP`개까지). `lastTurnId`와 `turn.started` 사실로 채운다. 성능 측정 화면이 읽어 볼 Turn 후보를 고를 때 쓴다 */
+  readonly recentTurnIds: Readonly<Record<string, readonly TurnId[]>>;
   /** 받은 확장 핸들러 실패 기록(휘발). 받은 순서대로 가장 새 것이 뒤에 오고 `HANDLER_FAILURE_CAP`행까지 둔다 */
   readonly handlerFailures: readonly HandlerFailureRecord[];
 };
@@ -154,5 +159,6 @@ export const INITIAL_MIRROR: EngineMirror = {
   approvals: { resolved: [], ids: [], byId: {} },
   turnFailures: {},
   latestTurnId: {},
+  recentTurnIds: {},
   handlerFailures: [],
 };

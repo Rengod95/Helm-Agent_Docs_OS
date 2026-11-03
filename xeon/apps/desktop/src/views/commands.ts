@@ -28,6 +28,8 @@ import type {
   SecretReferencesResult,
   SecretTestResult,
   ExtTestListResult,
+  MeasureDailyResult,
+  MeasureTurnResult,
   ExtTestRunParams,
   ExtTestRunResult,
   SettingsExplainResult,
@@ -332,6 +334,14 @@ export interface SecretCommands {
   writeClipboard(text: string): Promise<void>;
 }
 
+/** 성능 측정 화면(P-20, §6.27). 측정 저장소 읽기만 한다. 측정이 꺼져 있으면 `enabled`가 거짓이다 */
+export interface MeasureCommands {
+  /** `measure.turn`: 한 Turn의 측정 행(Turn, 호출, 훅, 요청 구성, 캐시 사건) */
+  turn(threadId: string, turnId: string): Promise<Result<MeasureTurnResult, CommandError>>;
+  /** `measure.daily`: 종류와 지표 하나의 일별 집계 */
+  daily(kind: string, metric: string): Promise<Result<MeasureDailyResult, CommandError>>;
+}
+
 export interface WorkbenchCommands {
   /**
    * `ext.list`. `threadId`가 없으면 전역 값이다. 있으면 그 대화에서의 Registration 상태(`registration`, `plugins[].thread`)를 더한다
@@ -449,6 +459,8 @@ export interface Commands {
   readonly workbench: WorkbenchCommands;
   /** 테스트 화면(P-19)의 시험 목록, 실행, Test run 제어 */
   readonly tests: TestCommands;
+  /** 성능 측정 화면(P-20)의 측정 읽기 */
+  readonly measure: MeasureCommands;
   readonly schedule: ScheduleCommands;
   /** 플러그인 화면 실행 맥락이 쓰는 연결 한 번. 연결이 없으면 `offline`이다 */
   readonly pluginUi: PluginUiCommands;

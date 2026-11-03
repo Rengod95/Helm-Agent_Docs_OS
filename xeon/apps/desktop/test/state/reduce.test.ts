@@ -10,7 +10,7 @@ import type { VolatileEventWire } from "@fresnel/contracts/wire";
 import type { DurableFact, MirrorInput } from "../../src/state/engine/input.ts";
 import { MAX_SYNC_ATTEMPTS, reduceMirror } from "../../src/state/engine/reduce.ts";
 import { checkMirror } from "../../src/state/engine/invariants.ts";
-import { selectLatestTurnId } from "../../src/state/engine/selectors.ts";
+import { selectLatestTurnId, selectRecentTurnIds } from "../../src/state/engine/selectors.ts";
 import {
   STORE,
   SUB,
@@ -444,6 +444,17 @@ describe("latest turn id per thread", () => {
     expect(selectLatestTurnId(s, T)).toBe(trn(2));
     expect(selectLatestTurnId(s, null)).toBeNull();
     expect(checkMirror(s)).toEqual([]);
+  });
+
+  test("recent turn ids keep order, skip repeats, and are dropped on a head reset", () => {
+    const s = run([
+      head(5),
+      batch(5, 8, [started(6, T, trn(1)), started(7, T, trn(2)), started(8, T, trn(1))]),
+    ]);
+    expect(s.recentTurnIds).toEqual({ [T]: [trn(1), trn(2)] });
+    expect(selectRecentTurnIds(s, T)).toEqual([trn(1), trn(2)]);
+    expect(selectRecentTurnIds(s, null)).toEqual([]);
+    expect(run([head(9)], s).recentTurnIds).toEqual({});
   });
 
   test("a turn.started without a turn id records nothing", () => {
