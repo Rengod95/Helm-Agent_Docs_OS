@@ -18,6 +18,7 @@ import type { ApprovalDecision, CommandError, Commands } from "../views/commands
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createSetupCommands } from "./setup.ts";
+import { createWorkbenchCommands } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
 
@@ -184,6 +185,7 @@ export function createCommands(deps: CommandDeps): Commands {
       decide: (workspace, choice) =>
         withConnection((c) => c.request("trust.decide", { workspace, choice })),
     },
+    workbench: createWorkbenchCommands(withConnection),
     setup: createSetupCommands(
       withConnection,
       (listener) => {

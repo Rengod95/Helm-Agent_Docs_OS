@@ -10,6 +10,8 @@ import {
   type ScreenDef,
   type ShellRegistry,
 } from "./shell/registry.ts";
+import { createWorkbenchStore } from "../state/workbench/index.ts";
+import { createCanvasSlots, registerWorkbench } from "./workbench/index.tsx";
 import { EmptyState } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import type { ReactNode } from "react";
@@ -53,5 +55,8 @@ export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
   registry.registerScreen(CHAT_SCREEN);
   registry.registerEndTab(INBOX_TAB);
+  // 크래프트(T-BENCH). T-CANVAS는 `slots.register("orbit"|"strata"|"link", render)`를 여기에 더한다
+  const slots = createCanvasSlots();
+  registerWorkbench(registry, createWorkbenchStore(), slots);
   return registry;
 }

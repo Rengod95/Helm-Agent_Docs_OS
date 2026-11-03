@@ -5,6 +5,7 @@ import type { SecretName } from "@fresnel/contracts/capabilities";
 import type { TrustChoice, TrustStatus } from "@fresnel/contracts/wire";
 import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
+import type { WorkbenchCommands } from "../app/workbench-commands.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
 // 보낸 직후의 표시(보내는 중, 실패)는 UI 스토어가, 결과는 엔진 이벤트가 거울에 넣는다.
@@ -105,6 +106,8 @@ export interface Commands {
   respondApproval(approvalId: EventId, response: ApprovalDecision): Promise<void>;
   readonly trust: TrustCommands;
   readonly setup: SetupCommands;
+  /** 크래프트(`workbench`)의 확장 읽기·켜기·되돌리기 */
+  readonly workbench: WorkbenchCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */
