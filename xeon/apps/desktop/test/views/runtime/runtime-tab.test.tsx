@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import type { HandlerFailureEntry } from "@fresnel/client/workbench";
+import type { HandlerFailureEntry, TransitionEntry } from "@fresnel/client/workbench";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
-import { thr } from "../../state/helpers.ts";
+import { thr, trn } from "../../state/helpers.ts";
 import {
   RuntimeBody,
   type LinkState,
@@ -47,6 +47,15 @@ function sectionOf(html: string, title: string): string {
   const end = html.indexOf("</section>", start);
   return html.slice(start, end === -1 ? undefined : end);
 }
+
+/** 구역 안 목록 항목(li)마다 글 하나. 항목의 순서를 그대로 따른다 */
+function listTextOf(section: string): string[] {
+  return [...section.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((m) => textOf(m[1] ?? ""));
+}
+
+/** 로컬 시각 HH:MM:SS의 `at`. 지역 시각으로 만들어 어느 시간대에서도 같은 시각을 읽는다 */
+const at = (hour: number, minute: number, second: number): string =>
+  new Date(2026, 10, 4, hour, minute, second).toISOString();
 
 function group(
   id: string,
@@ -109,6 +118,7 @@ function body(
     readonly link?: LinkState;
     readonly threadId?: ThreadId | null;
     readonly failures?: readonly HandlerFailureEntry[];
+    readonly transitions?: readonly TransitionEntry[];
   } = {},
 ): string {
   return renderToString(
@@ -117,6 +127,7 @@ function body(
       link={over.link ?? "live"}
       data={data}
       failures={over.failures ?? []}
+      transitions={over.transitions ?? []}
     />,
   );
 }
@@ -216,7 +227,7 @@ describe("runtime-tab 상태: 읽는 중, 구역별 오류, 끊김, 빈 상태",
     );
   });
 
-  test("전환 기록은 아직 연결되지 않았다는 글을 보이고 실패 구역은 기록을 묶어 보인다", () => {
+  test("전환 기록이 없으면 빈 글을 보이고 실패 구역은 기록을 묶어 보인다", () => {
     const html = body(HELM_HOLDER, {
       failures: [
         {
@@ -229,11 +240,91 @@ describe("runtime-tab 상태: 읽는 중, 구역별 오류, 끊김, 빈 상태",
       ],
     });
     expect(sectionOf(html, t("desktop.runtime.section.transitions"))).toContain(
-      t("desktop.runtime.transitions.unavailable"),
+      t("desktop.runtime.transitions.empty"),
     );
     const failures = sectionOf(html, t("desktop.runtime.section.failures"));
     expect(failures).toContain("review");
     expect(textOf(failures)).toContain("boom");
     expect(failures).toContain('data-slot="table"');
+  });
+
+  test("대화가 없으면 전환 기록 구역도 빈 글을 보인다", () => {
+    const html = body(HELM_HOLDER, { threadId: null, transitions: [] });
+    expect(sectionOf(html, t("desktop.runtime.section.transitions"))).toContain(
+      t("desktop.runtime.empty.thread"),
+    );
+  });
+});
+
+describe("runtime-tab.transitions: 전환 기록 줄", () => {
+  const RECORDS: readonly TransitionEntry[] = [
+    {
+      seq: 3,
+      at: at(14, 2, 41),
+      turnId: trn(2),
+      subject: "helm",
+      change: { kind: "lease.acquired", leaseEpoch: 1 },
+    },
+    {
+      seq: 4,
+      at: at(14, 2, 42),
+      turnId: null,
+      subject: "review",
+      change: { kind: "lease.released", reason: "waiting" },
+    },
+    {
+      seq: 5,
+      at: at(14, 2, 43),
+      turnId: trn(2),
+      subject: "work",
+      change: { kind: "lease.rejected", reason: "wait_limit" },
+    },
+    {
+      seq: 6,
+      at: at(14, 2, 44),
+      turnId: null,
+      subject: "review",
+      change: { kind: "scope.changed", status: "disabled", reason: "safe_mode" },
+    },
+  ];
+
+  test("최근 것이 먼저 오고 줄마다 시각, 턴 꼬리, 글, 대상이 정해진 글로 나온다", () => {
+    const html = body(HELM_HOLDER, { transitions: RECORDS });
+    expect(listTextOf(sectionOf(html, t("desktop.runtime.section.transitions")))).toEqual([
+      `14:02:44 ${t("desktop.runtime.transitions.scope.disabled.safeMode")} review`,
+      `14:02:43 ${t("desktop.runtime.transitions.turn", { turn: "000002" })} ${t("desktop.runtime.transitions.rejected.waitLimit")} work`,
+      `14:02:42 ${t("desktop.runtime.transitions.released.waiting")} review`,
+      `14:02:41 ${t("desktop.runtime.transitions.turn", { turn: "000002" })} ${t("desktop.runtime.transitions.acquired")} helm`,
+    ]);
+  });
+
+  test("켜기·끄기 적용은 상태와 사유마다 다른 글이다", () => {
+    const html = body(HELM_HOLDER, {
+      transitions: [
+        {
+          seq: 7,
+          at: at(9, 0, 0),
+          turnId: null,
+          subject: "review",
+          change: { kind: "scope.changed", status: "enabled", reason: "request" },
+        },
+        {
+          seq: 8,
+          at: at(9, 0, 1),
+          turnId: null,
+          subject: "review",
+          change: { kind: "scope.changed", status: "disabled", reason: "auto_disable" },
+        },
+      ],
+    });
+    expect(listTextOf(sectionOf(html, t("desktop.runtime.section.transitions")))).toEqual([
+      `09:00:01 ${t("desktop.runtime.transitions.scope.disabled.autoDisable")} review`,
+      `09:00:00 ${t("desktop.runtime.transitions.scope.enabled.request")} review`,
+    ]);
+  });
+
+  test("연결이 끊겨도 거울에 받은 전환 기록은 그대로 보인다", () => {
+    const html = body(HELM_HOLDER, { link: "offline", transitions: RECORDS });
+    expect(listTextOf(sectionOf(html, t("desktop.runtime.section.transitions")))).toHaveLength(4);
   });
 });

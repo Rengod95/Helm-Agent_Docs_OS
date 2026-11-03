@@ -716,6 +716,7 @@ Fresnel 데스크톱
 | 실패 | 확장별 `scope.handler_failed` 묶음(훅, 연속 수) | 이벤트 |
 
 - review, work 같은 다른 drive 그룹도 같은 구역에 같은 모양으로 보입니다. Helm 전용 표시가 아닙니다.
+- 전환 기록은 엔진 거울이 받은 `lease.acquired`·`lease.released`·`lease.rejected`·`scope.changed`를 대화마다 최근 20개까지 둡니다. 라이브 구독으로 받은 것만 보이고 거울을 head부터 다시 맞추면 비웁니다 `[미결: 연결 전 전환은 지난 이벤트를 읽는 wire가 없어 보이지 않음, 사용자 확인]`.
 - 플러그인 `well` 기여(Helm 탐구 요약 등)는 그룹 자기 내용만 담고, drive 락과 전환은 이 탭에서 봅니다.
 
 ## 5. 화면 목록

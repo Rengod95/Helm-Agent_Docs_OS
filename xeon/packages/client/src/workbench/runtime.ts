@@ -1,6 +1,7 @@
 // 런타임 탭(spec L4.desktop-ux §4.9.8)의 순수 모델. 대화 영역 오른쪽 "런타임" 탭이 그리는 값을 만든다.
 // drive 구역의 보유·대기열·거절은 `group.list`의 `GroupStatus.drive`가 정하고, `group.driveLock`은 차수·상한·사용량과 후보별 대기 횟수를 더한다.
 // Helm만 다루지 않는다: `drive`를 쓰는 그룹(review, work 등)은 같은 모양으로 나온다.
+import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contracts/records";
 import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
 import {
   failureRowsOfOwner,
@@ -163,4 +164,63 @@ export function failureGroupsOf(
     label: owner.startsWith("ext:") ? owner.slice("ext:".length) : owner,
     rows: failureRowsOfOwner(records, owner),
   }));
+}
+
+/**
+ * 전환 기록 한 건의 내용. 종류마다 모양이 다르다. 켜기·끄기는 상태와 사유를 함께 싣는다.
+ * 거절의 사유는 계약이 열린 글(`LeaseRejectedPayload.reason`)이라 글 그대로 둔다.
+ */
+export type TransitionChange =
+  | { readonly kind: "lease.acquired"; readonly leaseEpoch: number | null }
+  | { readonly kind: "lease.released"; readonly reason: LeaseReleasedPayload["reason"] }
+  | { readonly kind: "lease.rejected"; readonly reason: string }
+  | {
+      readonly kind: "scope.changed";
+      readonly status: ScopeChangedPayload["status"];
+      /** 계약 주석대로 사유가 없으면 "request"다 */
+      readonly reason: NonNullable<ScopeChangedPayload["reason"]>;
+    };
+
+/**
+ * 전환 기록 한 건(엔진 거울이 받은 `lease.*`·`scope.changed`). `subject`는 scope id이고 거절은 요청한 그룹 id다.
+ * 거울의 기록(`TransitionRecord`)은 이 모양에 thread id를 더한 것이다.
+ */
+export interface TransitionEntry {
+  readonly seq: number;
+  readonly at: string;
+  readonly turnId: string | null;
+  readonly subject: string;
+  readonly change: TransitionChange;
+}
+
+/** 전환 기록 한 줄 */
+export interface TransitionRowVM {
+  readonly seq: number;
+  /** 지역 시각 HH:MM:SS */
+  readonly time: string;
+  /** 턴 id의 끝 여섯 글자. 턴이 없으면 null */
+  readonly turn: string | null;
+  readonly subject: string;
+  readonly change: TransitionChange;
+}
+
+const pad2 = (n: number): string => String(n).padStart(2, "0");
+
+/**
+ * 한 대화의 전환 기록을 줄로 바꾼다. 최근 것이 먼저다. 상한(대화마다 20개)은 거울이 둔다. 여기서는 자르지 않는다.
+ * 시각은 `at`을 지역 시각으로 읽는다.
+ */
+export function transitionRowsOf(records: readonly TransitionEntry[]): readonly TransitionRowVM[] {
+  return records
+    .toSorted((a, b) => b.seq - a.seq)
+    .map((record) => {
+      const when = new Date(record.at);
+      return {
+        seq: record.seq,
+        time: [when.getHours(), when.getMinutes(), when.getSeconds()].map(pad2).join(":"),
+        turn: record.turnId === null ? null : record.turnId.slice(-6),
+        subject: record.subject,
+        change: record.change,
+      };
+    });
 }

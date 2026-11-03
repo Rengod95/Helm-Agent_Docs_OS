@@ -9,6 +9,7 @@ import type {
   ThreadId,
   TurnId,
 } from "@fresnel/contracts/conversation";
+import type { TransitionEntry } from "@fresnel/client/workbench";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import type { StoreId, SubId, ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
@@ -120,6 +121,12 @@ export type HandlerFailureRecord = {
 /** 실패 기록 상한(행). 넘으면 가장 오래된 것부터 버린다(§6.24 기록 500행) */
 export const HANDLER_FAILURE_CAP = 500;
 
+/** 받은 전환 기록 한 건(`lease.*`·`scope.changed`, 내구). 화면 모델의 항목에 thread id를 더한다 */
+export type TransitionRecord = TransitionEntry & { readonly threadId: ThreadId };
+
+/** 전환 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 것부터 버린다(spec §4.9.8 최근 20개) */
+export const TRANSITION_CAP = 20;
+
 export type EngineMirror = {
   readonly engine: EngineState | null;
   readonly link: Link;
@@ -134,6 +141,11 @@ export type EngineMirror = {
   readonly latestTurnId: Readonly<Record<string, TurnId>>;
   /** 받은 확장 핸들러 실패 기록(휘발). 받은 순서대로 가장 새 것이 뒤에 오고 `HANDLER_FAILURE_CAP`행까지 둔다 */
   readonly handlerFailures: readonly HandlerFailureRecord[];
+  /**
+   * 받은 전환 기록(내구). 받은 순서이고 thread마다 `TRANSITION_CAP`개까지 둔다. 연결 전에 일어난 전환은 읽어 오지 않는다.
+   * 거울을 head부터 다시 맞추면 비운다(실패 기록과 같다)
+   */
+  readonly transitions: readonly TransitionRecord[];
 };
 
 export const EMPTY_STREAMING: Streaming = {
@@ -155,4 +167,5 @@ export const INITIAL_MIRROR: EngineMirror = {
   turnFailures: {},
   latestTurnId: {},
   handlerFailures: [],
+  transitions: [],
 };
