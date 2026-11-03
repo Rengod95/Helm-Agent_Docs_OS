@@ -93,7 +93,12 @@ type WorkbenchContext =
 
 ## 타입 검사
 
-caustic 소스는 `exactOptionalPropertyTypes` 아래에서 타입 검사를 통과하지 못하는 곳이 있습니다(`external/caustic/packages/react/src/**`, 약 25곳). 데스크톱 `tsconfig.json`은 caustic 안의 `react` 타입을 `paths`로 찾게 했지만 이 옵션은 끄지 않았습니다. caustic을 고치거나 이 옵션을 데스크톱에서 푸는 결정이 날 때까지 `just check apps/desktop`의 typecheck 단계는 caustic 소스 오류로 실패합니다(내 코드 오류는 0).
+데스크톱은 caustic 소스를 직접 검사하지 않습니다. `apps/desktop/tsconfig.caustic.json`이 caustic `react` 패키지를 caustic 자체 설정(`external/caustic/tsconfig.json`, `exactOptionalPropertyTypes: false`)으로 검사하고 선언 파일을 `dist/caustic-react/`(gitignore)에 냅니다. 데스크톱 `tsconfig.json`은 이 프로젝트를 `references`로 걸어서 `@caustic/react`를 그 선언 파일로 읽습니다. 데스크톱 쪽은 strict 옵션 그대로입니다(`exactOptionalPropertyTypes: true`). `just check apps/desktop`의 typecheck(`tsc -b`)가 두 프로젝트를 차례로 짓습니다.
+
+- caustic 설정에서 바뀐 것은 둘입니다. `types`는 `node` 대신 `bun`입니다(이 워크스페이스에는 `@types/node`가 직접 깔려 있지 않고, `@types/bun`이 같은 `process` 전역을 줍니다). `paths`는 `react`를 데스크톱의 `@types/react`로 돌립니다(caustic 쪽에서는 그 타입을 찾을 수 없습니다).
+- 선언 파일이 쓰는 외부 의존(`class-variance-authority`, `@radix-ui/*`, `@solar-icons/react`)은 데스크톱 `tsconfig.json`의 `paths`가 caustic 자신의 `node_modules`로 풀어 줍니다. 데스크톱에 의존을 더하지 않았습니다. caustic에 외부 의존이 새로 생기면 같은 `paths`에 줄을 더해야 합니다. 데스크톱의 `skipLibCheck`(기본 설정) 아래에서는 풀리지 않은 선언이 오류 없이 `any`가 되기 때문입니다.
+- solar 패키지 자신의 선언에 있는 충돌(`IconProps`, `Omit<SVGProps>`와 `Omit<IconBaseProps>`)은 `skipLibCheck: false`에서만 보입니다. caustic 설정도 같은 이유로 가리므로 그대로 둡니다.
+- lint(type-aware)는 `dist/`가 없는 깨끗한 체크아웃에서도 통과합니다. caustic 소스는 turbo 입력이 아니므로 caustic을 올린 뒤(`just caustic-update`)에는 `TURBO_FORCE=true just check apps/desktop`으로 캐시를 건너뜁니다.
 
 ## 알려진 틈
 
