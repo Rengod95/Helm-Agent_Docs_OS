@@ -7,6 +7,7 @@ export {
   type LockedOption,
   type LockedThread,
   type Screen,
+  type SettingsJump,
   type UiState,
   type UiStore,
 } from "./store.ts";

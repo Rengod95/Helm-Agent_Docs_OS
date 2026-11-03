@@ -5,6 +5,10 @@ import type { Commands } from "../../src/views/commands.ts";
 export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
   return {
     selectThread: () => {},
+    requestComposer: () => {},
+    settleComposerRequest: () => {},
+    requestSettingsJump: () => {},
+    settleSettingsJump: () => {},
     createThread: () => Promise.resolve(ok(null)),
     sendTurn: () => Promise.resolve(ok(null)),
     interrupt: () => Promise.resolve(ok(null)),

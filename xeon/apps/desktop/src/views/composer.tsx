@@ -1,20 +1,21 @@
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
   useEngineState,
   useLinkPhase,
   useOpenThreadId,
   useThreadRunning,
 } from "../state/engine/index.ts";
-import { useObserving } from "../state/ui/index.ts";
+import { useComposerRequest, useObserving } from "../state/ui/index.ts";
 import { useCommands, type CommandError } from "./commands.ts";
 import { composerDisabledReason, createEnterGuard, createSendLatch } from "./composer-model.ts";
 import { useSetupNeeded } from "./setup-needed.ts";
 
 // 입력창. 입력 중인 글자는 이 부품만 쓰므로 로컬 상태다(FS-04).
 // requestId는 같은 입력의 재시도가 같은 값을 쓰도록 실패했을 때 유지하고, 성공하면 새로 만든다(spec 4.13).
+// ⌘L과 명령 팔레트의 슬래시 명령은 `ComposerRequest`로 온다. 받으면 초점을 주고 빈 입력창에만 글을 채운 뒤 요청을 지운다.
 
 function newRequestId(): string {
   return crypto.randomUUID();
@@ -41,6 +42,8 @@ function ComposerFor(props: {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const requestId = useRef<string>(newRequestId());
+  const textarea = useRef<HTMLTextAreaElement>(null);
+  const request = useComposerRequest();
   // 최신 입력. 한글 조합이 끝난 직후의 keydown은 React 상태가 아직 갱신되기 전일 수 있다
   const draftRef = useRef("");
   const guard = useRef(createEnterGuard());
@@ -71,6 +74,17 @@ function ComposerFor(props: {
     setError(sendErrorText(result.error));
   };
 
+  // 요청은 입력창이 받는 순간 지운다. 입력 중인 글이 있으면 채우지 않고 초점만 준다(글을 지우지 않는다)
+  useEffect(() => {
+    if (request === null) return;
+    if (request.insert !== null && draftRef.current === "") {
+      draftRef.current = request.insert;
+      setDraft(request.insert);
+    }
+    textarea.current?.focus();
+    commands.settleComposerRequest();
+  }, [request, commands]);
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     // 한글 조합 중의 Enter는 글자 확정이다. 보내지 않는다(WebKit은 keyCode 229, compositionend가 먼저)
     if (
@@ -99,6 +113,7 @@ function ComposerFor(props: {
       }}
     >
       <textarea
+        ref={textarea}
         aria-label={t("desktop.composer.input.label")}
         rows={3}
         value={draft}

@@ -20,7 +20,11 @@ import {
 } from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
 import { useShell } from "../../../state/shell/index.ts";
-import { useSelectedThreadId } from "../../../state/ui/index.ts";
+import {
+  useSelectedThreadId,
+  useSettingsJump,
+  type SettingsJump,
+} from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
 import { PROVIDER_EDITORS } from "../providers/providers-screen.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
@@ -73,6 +77,9 @@ export function SettingsPage(): ReactNode {
   const [pending, setPending] = useState<PendingMove | null>(null);
   const [saved, setSaved] = useState<ReadonlySet<SettingKey>>(() => new Set());
   const [binding, setBinding] = useState<Binding>({ live: false, controller: null });
+  // 명령 팔레트가 준 요청 가운데 이 화면이 받은 것. 스크롤은 값이 읽힌 뒤 이 요청마다 한 번 한다
+  const [taken, setTaken] = useState<SettingsJump | null>(null);
+  const scrolled = useRef<SettingsJump | null>(null);
   // 읽기 때의 열린 대화. 효과에서만 읽고 쓴다(렌더 중에는 건드리지 않는다)
   const threadRef = useRef<ThreadId | null>(threadId);
   const loadedThread = useRef<ThreadId | null>(null);
@@ -133,6 +140,7 @@ export function SettingsPage(): ReactNode {
   });
   const view = useMemo(() => (status === "ready" ? settingsViewOf(state) : null), [status, state]);
   const toolsWeb = useToolsWebState(live);
+  const jump = useSettingsJump();
   const dirtyKeys = view === null ? [] : dirtyKeysOf(view.tabs);
 
   const markSaved = (key: SettingKey): void => {
@@ -183,6 +191,27 @@ export function SettingsPage(): ReactNode {
     const stuck = move.keys.some((key) => after.drafts.has(key) || after.errors.has(key));
     if (!stuck) moveTo(move.to);
   };
+
+  // 명령 팔레트가 준 탭과 항목으로 옮긴다. 이전 요청과 다른 요청이면 그릴 때 맞춘다(찾기 글을 비우고 탭을 연다.
+  // 초안이 있으면 묻는 대화 상자가 먼저 뜬다). 요청은 맞춘 뒤 스토어에서 지운다
+  if (jump !== null && jump !== taken) {
+    setTaken(jump);
+    setQuery("");
+    requestTab(jump.tab);
+  }
+  useEffect(() => {
+    if (jump !== null) commands.settleSettingsJump();
+  }, [jump, commands]);
+
+  // 항목 자리로 스크롤한다. 탭이 옮겨진 뒤와 값이 읽힌 뒤에 자리가 생긴다. 자리가 없으면(묻기로 막히거나 항목이 없으면) 그만둔다
+  useEffect(() => {
+    if (taken === null || scrolled.current === taken || view === null) return;
+    scrolled.current = taken;
+    if (taken.key === null) return;
+    const key = taken.key;
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-slot="settings-field"]'));
+    rows.find((row) => row.dataset.key === key)?.scrollIntoView({ block: "center" });
+  }, [taken, view]);
 
   const fields: FieldHandlers = {
     edit: (key, raw) => {

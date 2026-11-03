@@ -264,6 +264,10 @@ export function createCommands(deps: CommandDeps): Commands {
     dismissLocked: () => ui.actions.dismissLocked(),
     retryWrite: (threadId) => ui.actions.setObserving(threadId, false),
     showScreen: (screen) => ui.actions.showScreen(screen),
+    requestComposer: (insert) => ui.actions.requestComposer(insert),
+    settleComposerRequest: () => ui.actions.settleComposerRequest(),
+    requestSettingsJump: (jump) => ui.actions.requestSettingsJump(jump),
+    settleSettingsJump: () => ui.actions.settleSettingsJump(),
     reloadThreads: () => session.link()?.reloadThreads(),
     retryTranscript() {
       const id: ThreadId | null = ui.read.getState().selectedThreadId;

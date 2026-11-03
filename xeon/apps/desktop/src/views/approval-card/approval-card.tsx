@@ -245,7 +245,7 @@ function PendingCard(props: {
     );
 
   return (
-    <li data-slot="approval-card-item" className="list-none">
+    <li data-slot="approval-card-item" data-approval-id={id} className="list-none">
       <AgentRequest
         data-approval-kind={body.kind}
         kind={AGENT_KIND[body.kind]}

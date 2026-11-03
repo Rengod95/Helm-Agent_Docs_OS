@@ -32,7 +32,7 @@ import type {
 } from "@fresnel/client/settings";
 import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
 import type { ToggleRequest } from "@fresnel/client/workbench";
-import type { LockedOption, Screen } from "../state/ui/index.ts";
+import type { LockedOption, Screen, SettingsJump } from "../state/ui/index.ts";
 import type { EngineTarget } from "../transport/ipc.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -370,6 +370,15 @@ export interface Commands {
   /** 관찰을 끝내고 쓰기를 다시 시도하게 한다 */
   retryWrite(threadId: ThreadId): void;
   showScreen(screen: Screen): void;
+  /**
+   * 입력창에 초점을 준다(⌘L). `insert`가 글이면 입력창이 비어 있을 때 그 글을 채운다(슬래시 명령 고르기). 입력창이 없으면 입력창이
+   * 생길 때 받는다. 입력창은 받으면 `settleComposerRequest`를 부른다.
+   */
+  requestComposer(insert: string | null): void;
+  settleComposerRequest(): void;
+  /** 설정 화면을 열고 그 탭과 항목으로 옮긴다(명령 팔레트). 화면이 받으면 `settleSettingsJump`를 부른다 */
+  requestSettingsJump(jump: SettingsJump): void;
+  settleSettingsJump(): void;
   reloadThreads(): void;
   retryTranscript(): void;
   reconnect(): void;

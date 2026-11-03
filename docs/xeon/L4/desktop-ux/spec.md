@@ -572,6 +572,14 @@ Fresnel 데스크톱
 - 입력창 안에서는 Enter 보내기, ⇧Enter 줄바꿈, ↑(빈 입력) 마지막 입력 다시 불러오기 [제안], `/` 슬래시 자동 완성입니다. 한글 조합 중 Enter는 보내지 않습니다(`composer-model.ts`).
 - 승인 카드에 초점이 있으면 `Y` 허용, `N` 거부, `⇧Y` 이 대화에서 항상입니다 [제안]. 문자 키는 입력란 밖에서만 받습니다.
 
+#### 구현 노트 (바로 가기 동작과 명령 팔레트, 트랙 chat3)
+
+- `help.shortcuts`는 O-09를 연다(§6.20). 셸이 처리하지 않는 나머지 동작은 `App`의 `onAction`이 맡는다.
+- `approval.next`(⌘⇧A): 대기 승인 목록(엔진 거울의 순서)에서 초점이 있는 카드의 다음 카드로 옮긴다. 초점이 없거나 목록에 없으면 첫 카드다. 마지막 카드 다음은 처음 카드다(`views/approval-focus-model.ts`의 `nextApprovalId`). 카드 머리(`[data-approval-kind]`, tabIndex -1)에 초점을 준다. 화면에 카드가 없으면 아무 일도 없다.
+- `thread.next`·`thread.prev`(⌥⌘↓ / ⌥⌘↑): 사이드바 대화 목록 순서(최근 활동 먼저)로 옮긴다. 끝에서 처음으로, 처음에서 끝으로 돈다(`views/thread-step-model.ts`의 `stepThreadId`). 고르기는 대화 목록 행과 같은 `commands.selectThread`다. 영역은 바꾸지 않는다.
+- `composer.focus`(⌘L): 대화가 열려 있으면 대화 영역의 대화 화면으로 바꾸고 입력창에 초점을 준다. 입력창은 `UiState.composerRequest`를 받아 지운다(`views/composer.tsx`).
+- 명령 팔레트(S-02)의 구현 노트는 §6.2에 있다.
+
 ### 4.9 두 1급 영역: 대화와 런타임 LightCraft
 
 [결정: 2026-10-30 사용자] 대화와 런타임 작업이 둘 다 1급입니다. 앱은 두 영역을 둡니다. 이 절은 §4.1~§4.7의 영역 구조보다 앞섭니다. 셸 모양은 §13(DP-01~DP-17)과 `mockups/_shell`을 따릅니다. §4.1의 제목 띠는 DP-05로 없어졌습니다.
@@ -822,6 +830,16 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 - 상태: 빈 입력은 최근 대화 5개와 자주 쓴 동작 5개, 결과 없음 "맞는 항목이 없어요", 슬래시 목록 읽기 실패는 그 묶음만 "명령 목록을 읽지 못했어요", 오프라인은 앱 동작과 화면 이동만, 긴 결과는 묶음마다 5개 뒤 "더 보기".
 - 접근성: `Dialog` 안 `Combobox mode="inline"`이라 초점은 입력란에 남고 `aria-activedescendant`로 행을 가리킵니다. 닫으면 연 곳으로 초점이 돌아갑니다.
 - caustic: `Dialog`, `Combobox`, `ComboboxOption`, `Kbd`, `Separator`. 팔레트 전용 부품은 없습니다 `[gap:C-01]`.
+
+#### 구현 노트 (트랙 chat3)
+
+- 묶음 순서는 대화, 명령, 슬래시 명령, 설정이다(`views/palette/palette-model.ts`의 `visibleGroupsOf`, §4.5의 화면 이동 묶음은 아직 없다). 묶음은 `views/palette/palette.tsx`의 `PaletteBody`가 그린다.
+- 묶음마다 찾는 글에 맞는 항목을 앞에서 다섯 개 보이고, 나머지는 "더 보기" 한 행 뒤에 둔다(`groupCellsOf`). 찾는 글은 라벨과 설명에서 찾는다. 빈 입력의 "자주 쓴 동작 5개"는 아직 쓰는 횟수를 세지 않아 명령 목록의 앞 다섯 개다 `[미결]`.
+- 상태: 빈 입력은 묶음을 그대로 보인다. 맞는 항목이 없으면 "맞는 항목이 없어요"다. 슬래시 명령과 설정 항목은 읽는 중과 읽기 실패를 그 묶음의 상태 칸으로만 보인다. 오프라인(엔진에 연결되지 않음)이면 앱 동작만 보이고 안내 한 줄을 둔다.
+- 슬래시 명령: 입력창이 있는 대화가 열려 있을 때만 묶음이 보인다. 팔레트를 열 때 `command.list { threadId }`를 읽는다(`commands.commandList`). 고르면 입력창에 `/이름 `을 채운다. 입력창에 쓴 글이 있으면 그 글을 지우지 않고 초점만 준다. 실행은 입력창에서 Enter로 보낼 때 한다.
+- 설정 항목: 탭 열세 개(고정 표)와 항목을 팔레트를 열 때 설정 목록으로 읽는다. 설정 화면의 컨트롤러를 잠깐 빌려 읽고 바로 놓는다. 고르면 설정 화면을 열고(`UiState.settingsJump`) 그 탭으로 옮기며 찾기 글을 비운 뒤 항목 자리로 스크롤한다. 항목을 강조하지는 않는다 `[미결]`. 초안이 있으면 §6.13의 묻는 대화 상자가 먼저 뜬다.
+- 요청 전달: 입력창과 설정 화면은 `UiState`의 `composerRequest`와 `settingsJump`를 받아 쓰고 바로 지운다(`views/commands.ts`의 `requestComposer`, `requestSettingsJump`). 팔레트는 입력창과 설정 화면의 상태를 직접 쓰지 않고 요청만 남긴다.
+- 아직 없는 것: 최근 사용 순 정렬, 화면 이동 묶음, 설정 항목 강조, §4.5의 나머지 앱 동작(대화 이름 바꾸기, 분기, 컴팩션, 이어서 실행, 탐구, 목표, 원격 대상 바꾸기, 테마)이다.
 
 ### 6.3 S-03 상태 표시줄
 
@@ -2021,7 +2039,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - O-03 명령 결과 시트(`views/command-output-sheet.tsx`, 모델 `views/command-output-model.ts`): 동작 슬래시 명령의 `command.run` `done { message, result }`가 `UiState.commandOutput`에 들어가면 `Sheet side="right"`가 연다. 결과 JSON은 접혀 있다. 복사는 `commands.copyText`(클립보드)로 메시지와 JSON을 한 글로 쓰고, 닫기는 `dismissCommandOutput`이다. 파싱은 바꾸지 않았다(`app/commands.ts`의 `runSlash`는 `show`에서 그대로 연다). 시트는 `App`에 한 번 붙는다.
 - O-09 바로 가기 키 도움말(`views/shortcut-help-dialog.tsx`, 모델 `views/shortcut-help-model.ts`): 표는 `ACTION_IDS` 순서의 22행이고 키는 `resolveKeymap`(사용자 덮어쓰기 반영)과 `formatKey`(macOS 기호)로 쓴다. 동작 이름은 `desktop.shortcuts.action.*` 문장이다. `help.shortcuts`는 셸이 처리하지 않아 `App`의 `onAction`이 `helpOpen` 상태를 켠다(이번 변경에서 연결했다). 열린 동안은 `Shell`의 `modalOpen`으로 Esc가 끝 영역을 닫지 않게 한다.
-- C-11은 앱 조합(`Dialog` + `Table` + `Kbd`)으로 해결했다. 빠진 것: `thread.new`와 `turn.interrupt`를 뺀 나머지 셸 밖 동작(`composer.focus`, `thread.next|prev`, `approval.next`)은 이번 변경에서 연결하지 않았다. 키를 고치는 화면은 이 표에 없다.
+- C-11은 앱 조합(`Dialog` + `Table` + `Kbd`)으로 해결했다. 빠진 것: `thread.new`와 `turn.interrupt`를 뺀 나머지 셸 밖 동작(`composer.focus`, `thread.next|prev`, `approval.next`)은 이번 변경에서 연결하지 않았다(§4.8 구현 노트에서 연결했다). 키를 고치는 화면은 이 표에 없다.
 
 ### 6.21 LightCraft 공통 규칙
 
