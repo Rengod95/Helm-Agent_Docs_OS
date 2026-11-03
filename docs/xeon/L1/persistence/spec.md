@@ -867,7 +867,7 @@ CREATE TABLE thread_creation_keys (
 | `p_turns` | `turn_id` | `thread_id`, `status`, `started_seq`, `started_at`, `completed_seq`, `abort_requested_seq`, `step_count`, `request_id`, `scope_id`(drive turn의 scope, 그 밖은 NULL, FR-P10). 색인 `(thread_id, scope_id, request_id)` 유일 | `turn.started`, `turn.completed`, `turn.abort_requested`, `step.completed` |
 | `p_inputs` | `input_id` | `thread_id`, `seq`, `mode`, `state`, `source_key`, `request_id`, `placed_item_id`, `placed_turn_id` | `input.queued`, `input.placed`, `input.withdrawn` |
 | `p_approvals` | `approval_id` | `thread_id`, `origin_thread_id`, `tool_call_id`, `body_kind`, `requested_seq`, `resolved_seq`, `decision` | `approval.requested`, `approval.resolved` |
-| `p_blob_refs` | `(thread_id, sha256)` | `first_seq` | `detached`가 있는 모든 이벤트, `BlobRef` 필드가 있는 `effect.*` |
+| `p_blob_refs` | `(thread_id, sha256)` | `first_seq` | `detached`가 있는 모든 이벤트, payload 어디에든 있는 `BlobRef` 모양 객체(kind와 필드 이름을 보지 않는다: `artifact.registered.content`, `approval.*`의 인자·계획, `effect.*` 포함), payload 문자열의 `blob:sha256:<hex>` 자리표시. 규칙이 넓어져 `CORE_PROJECTOR_VERSION`을 6으로 올렸고 다음 열기에서 core가 다시 만들어진다 |
 | `step_checkpoints` | `thread_id` | `checkpoint_id`, `seq`, `turn_id`, `step_index`, `next`, `schema_version`, `record` | `checkpoint.step` |
 | `p_agents` | `child_thread_id` | `thread_id`(부모), `request_id`, `owner_kind`, `owner_turn_id`, `owner_tool_call_id`, `background`, `depth`, `agent`, `spawned_seq`, `settled_seq`, `settled_status`, `settled_event_id`. 색인 `(thread_id, request_id)` 유일, `(thread_id, owner_turn_id)` 부분 색인(정착하지 않은 행) | `agent.spawned`, `agent.settled`. F가 `agent.*`를 받지 않으면 `thread.started.spawnedBy`에서 투영한다(§10 8번) |
 
