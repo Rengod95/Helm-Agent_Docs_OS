@@ -3,14 +3,20 @@
 //! 파일은 `<app_config_dir>/desktop-settings.json`이다. 키는 전체 설정 키(`l4.desktop.*`)를 쓰는 평평한 JSON 객체다.
 //! 셸은 시작할 때 한 번 읽는다. 값 하나가 틀리면 그 키만 기본값을 쓰고, 파일 전체가 틀리면 모두 기본값을 쓴다.
 //! 진단은 키 이름과 이유만 담는다. 다른 키의 값은 담지 않는다(E11).
-//! 쓰기 명령(`desktop_settings_read/write`)은 아직 없다 [미결: M4 settings-ui / B3-SET].
+//! WebView는 `desktop_settings_read/write`로 같은 파일을 읽고 쓴다. 알려진 키는 `parse`와 같은 범위로 검사하고,
+//! UI 상태 키(`UI_KEY_PREFIXES`)는 값을 해석하지 않고 저장한다. 쓰기는 임시 파일을 거쳐 이름을 바꾼다.
+//! 셸은 시작할 때 한 번만 읽으므로 바뀐 값은 다음 실행부터 반영된다.
 
 use std::fs::File;
-use std::io::{ErrorKind, Read};
+use std::io::{self, ErrorKind, Read, Write};
 use std::ops::RangeInclusive;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde_json::{Map, Value};
+use tauri::{AppHandle, Manager};
+
+use crate::relay::CommandError;
 
 /// 설정 파일 이름.
 pub const FILE_NAME: &str = "desktop-settings.json";
@@ -20,6 +26,16 @@ const MAX_FILE_BYTES: u64 = 64 * 1024;
 pub const KEY_CLOSE_BEHAVIOR: &str = "l4.desktop.window.closeBehavior";
 pub const KEY_SHUTDOWN_GRACE_MS: &str = "l4.desktop.engine.shutdownGraceMs";
 pub const KEY_RESTART_LIMIT: &str = "l4.desktop.engine.restartLimit";
+
+/// WebView가 UI 상태로 저장하는 키 앞부분. 셸은 값을 해석하지 않고 그대로 보관한다.
+const UI_KEY_PREFIXES: [&str; 4] = [
+    "l4.desktop.window.",
+    "l4.desktop.appearance.",
+    "l4.desktop.firstRun.",
+    "l4.desktop.workbench.",
+];
+/// 읽고 고쳐 쓰는 동안 다른 쓰기가 끼지 않게 한다.
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 /// `l4.desktop.engine.shutdownGraceMs`의 range (spec §6). `EngineConfig::from_values`도 이 범위를 쓴다.
 pub const SHUTDOWN_GRACE_MS_RANGE: RangeInclusive<i64> = 1000..=180_000;
@@ -143,6 +159,102 @@ pub fn should_prevent_exit(behavior: CloseBehavior, code: Option<i32>) -> bool {
     behavior == CloseBehavior::Tray && code.is_none()
 }
 
+/// `desktop_settings_read`: 설정 파일을 JSON 객체로 돌려준다. 파일이 없으면 `{}`다.
+#[tauri::command]
+pub async fn desktop_settings_read(app: AppHandle) -> Result<Value, CommandError> {
+    let dir = config_dir(&app)?;
+    read_object(&dir).map(Value::Object)
+}
+
+/// `desktop_settings_write`: 키 하나를 검사해 쓴다. 알 수 없는 키와 틀린 값은 `BadRequest`다.
+#[tauri::command]
+pub async fn desktop_settings_write(
+    app: AppHandle,
+    key: String,
+    value: Value,
+) -> Result<(), CommandError> {
+    let dir = config_dir(&app)?;
+    write_key(&dir, &key, value)
+}
+
+/// `load`와 같은 디렉터리(`app_config_dir`)를 쓴다.
+fn config_dir(app: &AppHandle) -> Result<PathBuf, CommandError> {
+    app.path()
+        .app_config_dir()
+        .map_err(|_| CommandError::StorageFailed)
+}
+
+/// 설정 파일을 JSON 객체로 읽는다. 파일이 없으면 빈 객체다. 크기, 인코딩, 형식이 틀리면 `StorageFailed`다.
+pub fn read_object(dir: &Path) -> Result<Map<String, Value>, CommandError> {
+    let file = match File::open(dir.join(FILE_NAME)) {
+        Ok(file) => file,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(Map::new()),
+        Err(_) => return Err(CommandError::StorageFailed),
+    };
+    let mut bytes = Vec::new();
+    file.take(MAX_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| CommandError::StorageFailed)?;
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_FILE_BYTES {
+        return Err(CommandError::StorageFailed);
+    }
+    match serde_json::from_slice(&bytes) {
+        Ok(Value::Object(map)) => Ok(map),
+        _ => Err(CommandError::StorageFailed),
+    }
+}
+
+/// 키 하나를 설정 파일에 쓴다. 다른 키는 그대로 두고, 파일 전체가 상한을 넘으면 `TooLarge`로 거부한다.
+/// 상한을 넘은 파일은 `load`가 통째로 버리므로 쓰기 전에 막는다.
+pub fn write_key(dir: &Path, key: &str, value: Value) -> Result<(), CommandError> {
+    validate_entry(key, &value)?;
+    let _guard = WRITE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut map = read_object(dir)?;
+    map.insert(key.to_string(), value);
+    let bytes = serde_json::to_vec(&Value::Object(map)).map_err(|_| CommandError::StorageFailed)?;
+    if u64::try_from(bytes.len()).unwrap_or(u64::MAX) > MAX_FILE_BYTES {
+        return Err(CommandError::TooLarge);
+    }
+    std::fs::create_dir_all(dir).map_err(|_| CommandError::StorageFailed)?;
+    write_atomic(dir, &bytes).map_err(|_| CommandError::StorageFailed)
+}
+
+/// 쓸 수 있는 키인지 보고, 알려진 키면 값이 `parse`와 같은 범위인지 본다. 아니면 `BadRequest`다.
+pub fn validate_entry(key: &str, value: &Value) -> Result<(), CommandError> {
+    let valid = match key {
+        KEY_CLOSE_BEHAVIOR => matches!(value.as_str(), Some("quit" | "tray")),
+        KEY_SHUTDOWN_GRACE_MS => value
+            .as_i64()
+            .is_some_and(|n| SHUTDOWN_GRACE_MS_RANGE.contains(&n)),
+        KEY_RESTART_LIMIT => value
+            .as_i64()
+            .is_some_and(|n| RESTART_LIMIT_RANGE.contains(&n)),
+        _ => UI_KEY_PREFIXES.iter().any(|prefix| key.starts_with(prefix)),
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(CommandError::BadRequest)
+    }
+}
+
+/// 임시 파일에 쓰고 디스크까지 내린 뒤 이름을 바꾼다. 도중에 끊겨도 기존 파일은 온전하다.
+fn write_atomic(dir: &Path, bytes: &[u8]) -> io::Result<()> {
+    let temp = dir.join(format!("{FILE_NAME}.tmp"));
+    let written =
+        write_synced(&temp, bytes).and_then(|()| std::fs::rename(&temp, dir.join(FILE_NAME)));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    written
+}
+
+fn write_synced(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut file = File::create(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()
+}
+
 fn integer_in_range(
     map: &Map<String, Value>,
     key: &str,
@@ -172,6 +284,8 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
     use std::time::Duration;
+
+    use serde_json::json;
 
     use crate::engine::EngineConfig;
 
@@ -416,6 +530,165 @@ mod tests {
         let (settings, diagnostics) = load(Some(&dir));
         assert_eq!(settings, DesktopSettings::default());
         assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ----- 쓰기 명령 (desktop_settings_read/write) -----
+
+    #[test]
+    fn read_of_a_missing_file_is_an_empty_object() {
+        let dir = scratch_dir("read-absent");
+        assert_eq!(read_object(&dir), Ok(Map::new()));
+    }
+
+    #[test]
+    fn write_then_read_returns_the_keys_that_were_written() {
+        let dir = scratch_dir("write-read");
+        assert_eq!(write_key(&dir, KEY_RESTART_LIMIT, json!(2)), Ok(()));
+        assert_eq!(
+            write_key(&dir, "l4.desktop.appearance.theme", json!("dark")),
+            Ok(())
+        );
+        assert_eq!(write_key(&dir, KEY_CLOSE_BEHAVIOR, json!("tray")), Ok(()));
+        let read = Value::Object(read_object(&dir).expect("the file reads back"));
+        assert_eq!(
+            read,
+            json!({
+                "l4.desktop.engine.restartLimit": 2,
+                "l4.desktop.appearance.theme": "dark",
+                "l4.desktop.window.closeBehavior": "tray"
+            })
+        );
+        // 쓴 파일은 시작할 때 읽는 `load`가 그대로 받는다. 임시 파일은 남지 않는다.
+        let (settings, diagnostics) = load(Some(&dir));
+        assert_eq!(settings.restart_limit, Some(2));
+        assert_eq!(settings.close_behavior, CloseBehavior::Tray);
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        assert!(!dir.join(format!("{FILE_NAME}.tmp")).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_rejects_an_unknown_key_and_creates_no_file() {
+        let dir = scratch_dir("reject-key");
+        for key in [
+            "l4.desktop.engine.bogus",
+            "l4.desktop.engine.restartLimitX",
+            "l4.desktop.window",
+            "other.app.key",
+            "",
+        ] {
+            assert_eq!(
+                write_key(&dir, key, json!(1)),
+                Err(CommandError::BadRequest),
+                "{key:?}"
+            );
+        }
+        assert!(!dir.join(FILE_NAME).exists());
+        assert_eq!(read_object(&dir), Ok(Map::new()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_rejects_a_known_key_with_a_bad_value_and_keeps_the_file_as_it_was() {
+        let dir = scratch_dir("reject-value");
+        assert_eq!(write_key(&dir, KEY_RESTART_LIMIT, json!(2)), Ok(()));
+        let before = std::fs::read(dir.join(FILE_NAME)).expect("read");
+        let cases = [
+            (KEY_RESTART_LIMIT, json!(11)),
+            (KEY_RESTART_LIMIT, json!(-1)),
+            (KEY_RESTART_LIMIT, json!("2")),
+            (KEY_RESTART_LIMIT, json!(2.0)),
+            (KEY_SHUTDOWN_GRACE_MS, json!(999)),
+            (KEY_SHUTDOWN_GRACE_MS, json!(180_001)),
+            (KEY_CLOSE_BEHAVIOR, json!("exit")),
+            (KEY_CLOSE_BEHAVIOR, json!("Tray")),
+            (KEY_CLOSE_BEHAVIOR, Value::Null),
+        ];
+        for (key, value) in cases {
+            assert_eq!(
+                write_key(&dir, key, value.clone()),
+                Err(CommandError::BadRequest),
+                "{key} = {value}"
+            );
+        }
+        assert_eq!(std::fs::read(dir.join(FILE_NAME)).expect("read"), before);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn known_keys_accept_their_range_bounds_and_their_enum_values() {
+        assert_eq!(validate_entry(KEY_SHUTDOWN_GRACE_MS, &json!(1000)), Ok(()));
+        assert_eq!(
+            validate_entry(KEY_SHUTDOWN_GRACE_MS, &json!(180_000)),
+            Ok(())
+        );
+        assert_eq!(validate_entry(KEY_RESTART_LIMIT, &json!(0)), Ok(()));
+        assert_eq!(validate_entry(KEY_RESTART_LIMIT, &json!(10)), Ok(()));
+        assert_eq!(validate_entry(KEY_CLOSE_BEHAVIOR, &json!("quit")), Ok(()));
+        assert_eq!(validate_entry(KEY_CLOSE_BEHAVIOR, &json!("tray")), Ok(()));
+        assert_eq!(
+            validate_entry("l4.desktop.firstRun.done", &json!({"at": "2026-11-03"})),
+            Ok(())
+        );
+    }
+
+    /// 파일이 상한을 넘게 되는 쓰기는 거부한다. 거부하면 파일은 그대로 남아 `load`가 읽는다.
+    #[test]
+    fn write_refuses_a_value_that_would_push_the_file_over_64_kib() {
+        let dir = scratch_dir("too-large");
+        assert_eq!(write_key(&dir, KEY_RESTART_LIMIT, json!(2)), Ok(()));
+        let big = Value::String("x".repeat(64 * 1024));
+        assert_eq!(
+            write_key(&dir, "l4.desktop.workbench.draft", big),
+            Err(CommandError::TooLarge)
+        );
+        assert_eq!(
+            Value::Object(read_object(&dir).expect("still readable")),
+            json!({"l4.desktop.engine.restartLimit": 2})
+        );
+        let (settings, diagnostics) = load(Some(&dir));
+        assert_eq!(settings.restart_limit, Some(2));
+        assert!(diagnostics.is_empty(), "{diagnostics:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// 틀린 파일은 읽지도 쓰지도 않는다. 쓰기가 틀린 파일을 덮어쓰면 남은 키가 사라진다.
+    #[test]
+    fn a_damaged_file_is_neither_read_nor_overwritten() {
+        let dir = scratch_dir("damaged");
+        for text in ["{ not json", "[1,2]", "\"tray\"", ""] {
+            std::fs::write(dir.join(FILE_NAME), text).expect("written");
+            assert_eq!(
+                read_object(&dir),
+                Err(CommandError::StorageFailed),
+                "{text:?}"
+            );
+            assert_eq!(
+                write_key(&dir, KEY_RESTART_LIMIT, json!(2)),
+                Err(CommandError::StorageFailed),
+                "{text:?}"
+            );
+            assert_eq!(
+                std::fs::read_to_string(dir.join(FILE_NAME)).expect("read"),
+                text
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn write_creates_a_missing_config_directory() {
+        let dir = std::env::temp_dir().join(format!(
+            "fresnel-desktop-settings-mkdir-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(write_key(&dir, KEY_RESTART_LIMIT, json!(3)), Ok(()));
+        assert_eq!(
+            Value::Object(read_object(&dir).expect("reads back")),
+            json!({"l4.desktop.engine.restartLimit": 3})
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

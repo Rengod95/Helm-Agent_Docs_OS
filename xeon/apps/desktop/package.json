@@ -8,7 +8,7 @@
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b tsconfig.caustic.json && tsc -b",
     "test": "bash ../../scripts/test-pkg.sh",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test",
     "spike:engine": "bun build --compile spike/tests/engine.ts --outfile spike/out/engine",
@@ -16,8 +16,8 @@
     "spike:s4": "bun spike/tests/s4.ts spike/out 20",
     "spike:stub": "bun spike/tests/parent-stub.ts",
     "spike:engine-dev": "bun spike/tests/engine.ts",
-    "build:ui": "bun build index.html --outdir src-tauri/ui --minify --define __FRESNEL_CHECKS__=false",
-    "build:ui:dev": "bun build index.html --outdir src-tauri/ui --define __FRESNEL_CHECKS__=true",
+    "build:ui": "vite build",
+    "build:ui:dev": "vite build --mode dev",
     "mockup": "vite --config mockups/vite.config.ts",
     "mockup:build": "vite build --config mockups/vite.config.ts"
   },

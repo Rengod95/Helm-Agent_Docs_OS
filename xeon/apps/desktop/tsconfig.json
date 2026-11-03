@@ -5,7 +5,25 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo",
     "lib": ["es2024", "esnext.disposable", "dom", "dom.iterable"],
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "paths": {
+      "@caustic/react": ["./dist/caustic-react/index.d.ts"],
+      "@caustic/react/icons": ["./dist/caustic-react/icons/index.d.ts"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"],
+      "class-variance-authority": [
+        "../../external/caustic/packages/react/node_modules/class-variance-authority"
+      ],
+      "class-variance-authority/types": [
+        "../../external/caustic/packages/react/node_modules/class-variance-authority/dist/types.d.ts"
+      ],
+      "@solar-icons/react/lib/types": [
+        "../../external/caustic/packages/react/node_modules/@solar-icons/react/dist/lib/types.d.mts"
+      ],
+      "@radix-ui/*": ["../../external/caustic/packages/react/node_modules/@radix-ui/*"]
+    }
   },
   "include": ["src", "test", "spike", "package.json"],
   "exclude": ["spike/out"],

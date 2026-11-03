@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
@@ -91,6 +91,55 @@ pub enum EngineState {
         last_exit: EngineExit,
     },
     Stopped,
+}
+
+// ---------------------------------------------------------------------------------------------
+// 대상 (W-08)
+
+/// 엔진이 붙을 대상. `Local`은 이 컴퓨터의 사이드카(`host --stdio`)다. `Remote`는 `--remote <주소>`를 붙여 띄운다.
+/// 토큰은 인자로 넘기지 않는다. 엔진 환경 변수 `FRESNEL_REMOTE_TOKEN`으로만 받는다(host launch-mode.ts).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum EngineTarget {
+    #[default]
+    Local,
+    Remote {
+        address: String,
+    },
+}
+
+impl EngineTarget {
+    pub fn is_remote(&self) -> bool {
+        matches!(self, EngineTarget::Remote { .. })
+    }
+}
+
+/// 원격 주소의 길이 상한(바이트).
+pub const REMOTE_ADDRESS_MAX_BYTES: usize = 512;
+
+/// 대상을 검사한다. 원격 주소는 공백을 뺀 값이 비어 있지 않고, 512바이트 이하이며, 공백이나 제어 문자가 없어야 한다.
+pub fn validate_target(target: &EngineTarget) -> Result<(), CommandError> {
+    match target {
+        EngineTarget::Local => Ok(()),
+        EngineTarget::Remote { address } => {
+            let valid = !address.trim().is_empty()
+                && address.len() <= REMOTE_ADDRESS_MAX_BYTES
+                && !address.chars().any(|c| c.is_whitespace() || c.is_control());
+            if valid {
+                Ok(())
+            } else {
+                Err(CommandError::BadRequest)
+            }
+        }
+    }
+}
+
+/// 대상에 따라 사이드카 뒤에 붙는 인자. 로컬은 없고, 원격은 `--remote <주소>`다.
+pub fn target_args(target: &EngineTarget) -> Vec<String> {
+    match target {
+        EngineTarget::Local => Vec::new(),
+        EngineTarget::Remote { address } => vec!["--remote".to_string(), address.clone()],
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -334,7 +383,7 @@ pub struct LaunchError(pub String);
 
 /// 엔진 프로세스를 띄우고 그룹을 끝내는 수단. 운영은 `TauriLauncher`, 시험은 가짜다.
 pub trait Launcher: Send + Sync + 'static {
-    fn launch(&self) -> Result<Launched, LaunchError>;
+    fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError>;
     fn kill_group(&self, pid: u32) -> io::Result<()>;
 }
 
@@ -345,6 +394,8 @@ struct Live {
     generation: u64,
     pid: u32,
     pipe: PipeHandle,
+    /// 원격 대상으로 띄운 엔진이다. 원격 엔진에는 `host.shutdown`을 보내지 않는다(`stop_engine`).
+    remote: bool,
 }
 
 #[derive(Default)]
@@ -355,6 +406,10 @@ struct Shared {
     shutdown_started: bool,
     exit_allowed: bool,
     failed: bool,
+    /// 지금 바라는 대상. 실행 루프가 띄울 때 읽는다.
+    target: EngineTarget,
+    /// 대상을 바꿀 때마다 1씩 오른다. 실행 루프는 띄울 때의 값과 비교해 대상이 바뀌었는지 안다.
+    target_epoch: u64,
 }
 
 struct Inner<L: Launcher> {
@@ -370,6 +425,8 @@ struct Inner<L: Launcher> {
     exited: watch::Sender<u64>,
     /// 실행 루프가 끝났다.
     stopped: watch::Sender<bool>,
+    /// 대상이 바뀌었다. 실패 대기와 백오프 대기를 깨운다(값은 쓰지 않는다).
+    retargeted: watch::Sender<u64>,
 }
 
 fn shared<L: Launcher>(inner: &Inner<L>) -> MutexGuard<'_, Shared> {
@@ -421,6 +478,7 @@ impl<L: Launcher> Supervisor<L> {
                 restart_wake: Notify::new(),
                 exited: watch::channel(0).0,
                 stopped: watch::channel(false).0,
+                retargeted: watch::channel(0).0,
             }),
         }
     }
@@ -458,6 +516,41 @@ impl<L: Launcher> Supervisor<L> {
         Ok(())
     }
 
+    /// 대상 바꾸기(W-08). 같은 대상이면 아무 일도 하지 않는다. 다르면 살아 있는 엔진을 정상 종료 순서로 끝내고,
+    /// 실행 루프가 새 대상으로 다시 띄운다. 이 재기동은 자동 재기동 횟수에 세지 않는다.
+    /// 주소는 로그에 남기지 않는다(E11).
+    pub fn retarget(&self, target: EngineTarget) -> Result<(), CommandError> {
+        validate_target(&target)?;
+        let (epoch, live) = {
+            let mut state = shared(&self.inner);
+            if state.stop_requested {
+                return Err(CommandError::EngineStopping);
+            }
+            if state.target == target {
+                return Ok(());
+            }
+            state.target = target;
+            state.target_epoch += 1;
+            let live = state
+                .live
+                .as_ref()
+                .map(|live| (live.generation, live.pid, live.pipe.clone(), live.remote));
+            (state.target_epoch, live)
+        };
+        self.inner.log.line("retarget: the engine target changed");
+        // 실패 대기나 백오프 대기 중이면 실행 루프가 깬다. 살아 있는 엔진은 아래 종료 순서가 끝낸다.
+        self.inner.retargeted.send_replace(epoch);
+        if let Some((generation, pid, pipe, remote)) = live {
+            let supervisor = self.clone();
+            self.inner.runtime.spawn(async move {
+                supervisor
+                    .stop_engine(generation, pid, &pipe, !remote)
+                    .await;
+            });
+        }
+        Ok(())
+    }
+
     pub fn on_exit_requested(&self) -> ExitAction {
         let mut state = shared(&self.inner);
         if state.exit_allowed {
@@ -489,13 +582,17 @@ impl<L: Launcher> Supervisor<L> {
         let live = {
             let mut state = shared(inner);
             state.stop_requested = true;
-            state.live.as_ref().map(|l| (l.generation, l.pid, l.pipe.clone()))
+            state
+                .live
+                .as_ref()
+                .map(|l| (l.generation, l.pid, l.pipe.clone(), l.remote))
         };
         inner.relay.begin_drain();
         inner.stop_wake.notify_one();
-        if let Some((generation, pid, pipe)) = live {
+        if let Some((generation, pid, pipe, remote)) = live {
             inner.relay.set_state(EngineState::Stopping);
-            self.stop_engine(generation, pid, &pipe).await;
+            // 원격 엔진에는 host.shutdown을 보내지 않는다(retarget과 같다). 브리지가 그 줄을 원격 서비스로 넘긴다.
+            self.stop_engine(generation, pid, &pipe, !remote).await;
         }
         let mut stopped = inner.stopped.subscribe();
         if timeout(KILL_SETTLE, stopped.wait_for(|done| *done)).await.is_err() {
@@ -503,15 +600,19 @@ impl<L: Launcher> Supervisor<L> {
         }
     }
 
-    async fn stop_engine(&self, generation: u64, pid: u32, pipe: &PipeHandle) {
+    /// `send_shutdown`이 거짓이면 `host.shutdown` 없이 stdin만 닫는다. 원격 엔진의 브리지는 이 줄을 그대로
+    /// 원격 서비스로 넘기므로 원격 서비스가 멈춘다. 브리지는 stdin이 닫히면 원격 연결만 끊고 끝난다(bridge.ts).
+    async fn stop_engine(&self, generation: u64, pid: u32, pipe: &PipeHandle, send_shutdown: bool) {
         let inner = &self.inner;
         let deadline = Instant::now() + inner.config.shutdown_grace;
         let mut exited = inner.exited.subscribe();
 
         // 2~3. host.shutdown 요청 한 줄을 쓰고 stdin을 닫는다. 쓰기가 막혀 있으면 시한이 끊는다.
-        let request = shutdown_request(generation);
-        if timeout_at(deadline, pipe.write_shell_frame(request)).await.is_err() {
-            inner.log.line("shutdown: stdin write is blocked, skipping to EOF wait");
+        if send_shutdown {
+            let request = shutdown_request(generation);
+            if timeout_at(deadline, pipe.write_shell_frame(request)).await.is_err() {
+                inner.log.line("shutdown: stdin write is blocked, skipping to EOF wait");
+            }
         }
         if timeout_at(deadline, pipe.close_write()).await.is_err() {
             inner.log.line("shutdown: could not queue stdin close");
@@ -556,20 +657,32 @@ fn shutdown_request(generation: u64) -> Vec<u8> {
 async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
     let mut policy = RestartPolicy::new(inner.config.restart_limit);
     let mut attempt: u32 = 0;
+    // 재기동 정책을 맞춘 대상 세대. 대상이 바뀌면(W-08) 재기동 횟수를 0으로 되돌린다.
+    let mut policy_epoch: u64 = 0;
     loop {
-        if shared(&inner).stop_requested {
-            break;
+        // 대상과 세대는 같은 락에서 읽는다. 종료 요청이 있으면 띄우지 않는다.
+        let (target, epoch) = {
+            let state = shared(&inner);
+            if state.stop_requested {
+                break;
+            }
+            (state.target.clone(), state.target_epoch)
+        };
+        if epoch != policy_epoch {
+            policy.reset();
+            attempt = 0;
+            policy_epoch = epoch;
         }
         inner.relay.set_state(EngineState::Starting {
             source: EngineSource::Sidecar,
             attempt,
         });
-        let launched = match inner.launcher.launch() {
+        let launched = match inner.launcher.launch(&target) {
             Ok(launched) => launched,
             Err(LaunchError(message)) => {
                 // 바이너리 없음, 실행 권한 없음, triple 불일치는 되풀이해도 같다. 재기동하지 않는다(spec 5).
                 inner.log.line(&format!("launch failed: {message}"));
-                if !fail_and_wait(&inner, attempt, EngineExit::new(None, None)).await {
+                if !fail_and_wait(&inner, attempt, EngineExit::new(None, None), epoch).await {
                     break;
                 }
                 policy.reset();
@@ -585,7 +698,7 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
                 if let Err(kill) = inner.launcher.kill_group(pid) {
                     inner.log.line(&format!("kill_group failed: {kill}"));
                 }
-                if !fail_and_wait(&inner, attempt, EngineExit::new(None, None)).await {
+                if !fail_and_wait(&inner, attempt, EngineExit::new(None, None), epoch).await {
                     break;
                 }
                 policy.reset();
@@ -593,23 +706,38 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
                 continue;
             }
         };
-        let generation = {
+        let (generation, stale) = {
             let mut state = shared(&inner);
             state.generation += 1;
             state.failed = false;
             let generation = state.generation;
+            // 띄우는 사이에 대상이 바뀌었으면 이 엔진은 새 대상과 맞지 않는다. 아래에서 정상 종료 순서로 끝낸다.
+            let stale = (state.target_epoch != epoch).then(|| pipe.clone());
             state.live = Some(Live {
                 generation,
                 pid,
                 pipe,
+                remote: target.is_remote(),
             });
-            generation
+            (generation, stale)
         };
         inner.log.line(&format!("engine[{generation}] started pid={pid}"));
         inner.relay.set_state(EngineState::Running {
             source: EngineSource::Sidecar,
             pid: Some(pid),
         });
+        if let Some(stale_pipe) = stale {
+            // 대상을 바꾸는 요청이 이 엔진의 live 등록보다 먼저 들어왔다. 그 요청은 이 엔진을 못 본 채 지나갔으므로 여기서 끝낸다.
+            let supervisor = Supervisor {
+                inner: inner.clone(),
+            };
+            let send_shutdown = !target.is_remote();
+            inner.runtime.spawn(async move {
+                supervisor
+                    .stop_engine(generation, pid, &stale_pipe, send_shutdown)
+                    .await;
+            });
+        }
 
         let exit = pump(&inner, generation, launched.events).await;
 
@@ -619,8 +747,24 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
             "engine[{generation}] exited code={:?} signal={:?}",
             exit.code, exit.signal
         ));
-        if shared(&inner).stop_requested {
+        let (stopping, current) = {
+            let state = shared(&inner);
+            (state.stop_requested, state.target_epoch)
+        };
+        if stopping {
             break;
+        }
+        if current != epoch {
+            // 대상을 바꾸려고 끝낸 엔진이다. 자동 재기동 횟수에 세지 않고 새 대상으로 바로 띄운다.
+            policy.reset();
+            policy_epoch = current;
+            attempt = 1;
+            inner.relay.set_state(EngineState::Restarting {
+                attempt,
+                retry_at: rfc3339_utc(now_ms()),
+                last_exit: exit,
+            });
+            continue;
         }
         match policy.on_exit(Instant::now()) {
             RestartDecision::Restart { attempt: next, delay } => {
@@ -632,14 +776,19 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
                     last_exit: exit,
                 });
                 if !delay.is_zero() {
-                    tokio::select! {
-                        () = tokio::time::sleep(delay) => {}
-                        () = inner.stop_wake.notified() => {}
+                    // 구독은 대상을 보기 전에 한다. 그 뒤에 바뀐 대상은 구독이 알려 준다.
+                    let mut retargeted = inner.retargeted.subscribe();
+                    if shared(&inner).target_epoch == epoch {
+                        tokio::select! {
+                            () = tokio::time::sleep(delay) => {}
+                            () = inner.stop_wake.notified() => {}
+                            _ = retargeted.changed() => {}
+                        }
                     }
                 }
             }
             RestartDecision::GiveUp { attempts } => {
-                if !fail_and_wait(&inner, attempts, exit).await {
+                if !fail_and_wait(&inner, attempts, exit, epoch).await {
                     break;
                 }
                 policy.reset();
@@ -651,12 +800,23 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
     inner.stopped.send_replace(true);
 }
 
-/// `failed`로 두고 수동 재기동 또는 종료를 기다린다. 수동 재기동이면 참이다.
-async fn fail_and_wait<L: Launcher>(inner: &Arc<Inner<L>>, attempts: u32, last_exit: EngineExit) -> bool {
+/// `failed`로 두고 수동 재기동, 종료, 대상 바꾸기를 기다린다. 다시 띄울 때면 참이다.
+/// `epoch`는 이 엔진을 띄울 때의 대상 세대다. 그 뒤에 대상이 바뀌었으면 기다리지 않는다.
+async fn fail_and_wait<L: Launcher>(
+    inner: &Arc<Inner<L>>,
+    attempts: u32,
+    last_exit: EngineExit,
+    epoch: u64,
+) -> bool {
+    // 구독은 대상을 보기 전에 한다. 그 사이에 바뀐 대상도, 그 뒤에 바뀐 대상도 놓치지 않는다.
+    let mut retargeted = inner.retargeted.subscribe();
     {
         let mut state = shared(inner);
         if state.stop_requested {
             return false;
+        }
+        if state.target_epoch != epoch {
+            return true;
         }
         state.failed = true;
     }
@@ -667,6 +827,7 @@ async fn fail_and_wait<L: Launcher>(inner: &Arc<Inner<L>>, attempts: u32, last_e
     tokio::select! {
         () = inner.restart_wake.notified() => !shared(inner).stop_requested,
         () = inner.stop_wake.notified() => false,
+        _ = retargeted.changed() => true,
     }
 }
 
@@ -786,15 +947,18 @@ impl TauriLauncher {
 }
 
 impl Launcher for TauriLauncher {
-    fn launch(&self) -> Result<Launched, LaunchError> {
+    fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError> {
         let cwd = self.working_dir()?;
         let shell = self.app.shell();
+        // 원격 인자는 사이드카 인자 뒤에 붙인다. 개발 덮어쓰기 명령에도 같은 인자를 붙인다.
+        let remote = target_args(target);
         let command = match Self::dev_override() {
-            Some((bin, args)) => shell.command(bin).args(args),
+            Some((bin, args)) => shell.command(bin).args(args).args(remote),
             None => shell
                 .sidecar(SIDECAR_NAME)
                 .map_err(|e| LaunchError(format!("sidecar `{SIDECAR_NAME}` is not available: {e}")))?
-                .args(SIDECAR_ARGS),
+                .args(SIDECAR_ARGS)
+                .args(remote),
         };
         // cwd는 홈 디렉터리다(E6). PATH 보강에도 이 값을 쓴다.
         let env = engine_env(std::env::vars_os(), Some(cwd.as_path()));
@@ -1052,6 +1216,7 @@ mod tests {
 
     #[derive(Clone)]
     struct EngineHandle {
+        pid: u32,
         events: mpsc::Sender<EngineEvent>,
         written: Arc<Mutex<Vec<u8>>>,
         stdin_closed: Arc<AtomicBool>,
@@ -1112,7 +1277,11 @@ mod tests {
         launches: AtomicU32,
         fail_launch: AtomicBool,
         handles: Mutex<Vec<EngineHandle>>,
+        /// 띄울 때 받은 대상을 순서대로 남긴다.
+        targets: Mutex<Vec<EngineTarget>>,
         killed: Mutex<Vec<u32>>,
+        /// `launch`가 한 번 불리기 전에 실행한다(띄우는 사이의 대상 바꾸기를 재현한다).
+        on_launch: Mutex<Option<Box<dyn FnOnce() + Send>>>,
         /// kill_group이 불렸을 때 엔진을 종료시킨다.
         die_on_kill: bool,
     }
@@ -1124,7 +1293,9 @@ mod tests {
                 launches: AtomicU32::new(0),
                 fail_launch: AtomicBool::new(false),
                 handles: Mutex::new(Vec::new()),
+                targets: Mutex::new(Vec::new()),
                 killed: Mutex::new(Vec::new()),
+                on_launch: Mutex::new(None),
                 die_on_kill,
             })
         }
@@ -1134,13 +1305,20 @@ mod tests {
     }
 
     impl Launcher for Arc<FakeLauncher> {
-        fn launch(&self) -> Result<Launched, LaunchError> {
+        fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError> {
+            let hook = self.on_launch.lock().expect("lock").take();
+            if let Some(hook) = hook {
+                hook();
+            }
             if self.fail_launch.load(Ordering::SeqCst) {
                 return Err(LaunchError("no such binary".into()));
             }
+            self.targets.lock().expect("lock").push(target.clone());
             let n = self.launches.fetch_add(1, Ordering::SeqCst) + 1;
+            let pid = 1000 + n;
             let (tx, rx) = mpsc::channel(8);
             let handle = EngineHandle {
+                pid,
                 events: tx,
                 written: Arc::new(Mutex::new(Vec::new())),
                 stdin_closed: Arc::new(AtomicBool::new(false)),
@@ -1148,7 +1326,7 @@ mod tests {
             };
             self.handles.lock().expect("lock").push(handle.clone());
             Ok(Launched {
-                pid: 1000 + n,
+                pid,
                 events: rx,
                 stdin: Box::new(FakeStdin { handle, exit_on_eof: self.behavior.exit_on_eof }),
             })
@@ -1157,7 +1335,15 @@ mod tests {
         fn kill_group(&self, pid: u32) -> io::Result<()> {
             self.killed.lock().expect("lock").push(pid);
             if self.die_on_kill {
-                if let Some(handle) = self.handles.lock().expect("lock").last() {
+                // 그룹의 pid로 엔진을 찾는다. 나중에 뜬 엔진을 잘못 끝내지 않도록 마지막 것을 고르지 않는다.
+                let found = self
+                    .handles
+                    .lock()
+                    .expect("lock")
+                    .iter()
+                    .find(|h| h.pid == pid)
+                    .cloned();
+                if let Some(handle) = found {
                     // 막힌 쓰기를 풀고 프로세스를 끝낸다.
                     *handle.gate.0.lock().expect("lock") = true;
                     handle.gate.1.notify_all();
@@ -1374,5 +1560,397 @@ mod tests {
         rig.launcher.handle(1).stdout(b"{\"id\":\"2\"}\n").await;
         until("bytes", || !rig.sink.bytes.lock().expect("lock").is_empty()).await;
         assert_eq!(*rig.sink.bytes.lock().expect("lock"), b"{\"id\":\"2\"}\n");
+    }
+
+    // ----- 대상 (W-08) -----
+
+    fn remote(address: &str) -> EngineTarget {
+        EngineTarget::Remote {
+            address: address.to_string(),
+        }
+    }
+
+    #[test]
+    fn engine_target_reads_the_ipc_shape_and_writes_it_back() {
+        let parsed: EngineTarget =
+            serde_json::from_str(r#"{"kind":"remote","address":"tcp://host:1234"}"#).expect("json");
+        assert_eq!(parsed, remote("tcp://host:1234"));
+        let local: EngineTarget = serde_json::from_str(r#"{"kind":"local"}"#).expect("json");
+        assert_eq!(local, EngineTarget::Local);
+        assert_eq!(
+            serde_json::to_value(&local).expect("json"),
+            serde_json::json!({"kind": "local"})
+        );
+        assert_eq!(
+            serde_json::to_value(remote("tcp://host:1234")).expect("json"),
+            serde_json::json!({"kind": "remote", "address": "tcp://host:1234"})
+        );
+        assert!(serde_json::from_str::<EngineTarget>(r#"{"kind":"sidecar"}"#).is_err());
+    }
+
+    #[test]
+    fn target_validation_accepts_addresses_and_rejects_empty_blank_spaced_and_oversized() {
+        assert_eq!(validate_target(&EngineTarget::Local), Ok(()));
+        for ok in [
+            "tcp://host:1234",
+            "unix:/tmp/fresnel.sock",
+            "ssh://me@build/home/me/s.sock",
+        ] {
+            assert_eq!(validate_target(&remote(ok)), Ok(()), "{ok}");
+        }
+        // 길이는 바이트로 잰다. 한글 170자는 510바이트, 171자는 513바이트다.
+        assert_eq!(
+            validate_target(&remote(&"a".repeat(REMOTE_ADDRESS_MAX_BYTES))),
+            Ok(())
+        );
+        assert_eq!(validate_target(&remote(&"가".repeat(170))), Ok(()));
+        let oversized = ["a".repeat(REMOTE_ADDRESS_MAX_BYTES + 1), "가".repeat(171)];
+        for bad in oversized {
+            assert_eq!(
+                validate_target(&remote(&bad)),
+                Err(CommandError::BadRequest),
+                "{} bytes",
+                bad.len()
+            );
+        }
+        for bad in [
+            "",
+            "   ",
+            "\t",
+            "tcp://host 1234",
+            " tcp://host:1234",
+            "tcp://host:1234\n",
+            "tcp://host\u{0}:1",
+            "tcp://host:1234\u{7f}",
+        ] {
+            assert_eq!(
+                validate_target(&remote(bad)),
+                Err(CommandError::BadRequest),
+                "{bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn launch_args_add_remote_only_for_a_remote_target() {
+        assert_eq!(target_args(&EngineTarget::Local), Vec::<String>::new());
+        let argv = |target: &EngineTarget| -> Vec<String> {
+            SIDECAR_ARGS
+                .iter()
+                .map(|arg| arg.to_string())
+                .chain(target_args(target))
+                .collect()
+        };
+        assert_eq!(argv(&EngineTarget::Local), ["host", "--stdio"]);
+        assert_eq!(
+            argv(&remote("tcp://host:1234")),
+            ["host", "--stdio", "--remote", "tcp://host:1234"]
+        );
+    }
+
+    /// 같은 대상을 다시 고르면 아무 일도 없다. 바꾸는 중에 같은 대상을 또 골라도 한 번만 바뀐다.
+    #[tokio::test(start_paused = true)]
+    async fn retarget_to_the_current_target_does_not_restart_the_engine() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || {
+            kinds(&rig.sink).contains(&"running".to_string())
+        })
+        .await;
+        assert_eq!(rig.supervisor.retarget(EngineTarget::Local), Ok(()));
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 1);
+        assert_eq!(kinds(&rig.sink), ["starting", "running"]);
+        assert!(rig.launcher.killed.lock().expect("lock").is_empty());
+
+        let target = remote("tcp://host:1234");
+        assert_eq!(rig.supervisor.retarget(target.clone()), Ok(()));
+        assert_eq!(rig.supervisor.retarget(target.clone()), Ok(()));
+        until("relaunch", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 2
+        })
+        .await;
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local, target]
+        );
+    }
+
+    /// 살아 있는 엔진은 정상 종료 순서로 끝나고, 새 대상으로 한 번 다시 뜬다. 대상 바꾸기는 재기동 횟수에 세지 않는다.
+    #[tokio::test(start_paused = true)]
+    async fn retarget_stops_the_running_engine_and_launches_the_new_target() {
+        // 한도 1: 바꾸기가 횟수를 먹었다면 아래 충돌이 자동 재기동 없이 failed가 된다.
+        let rig = rig(EOF_EXIT, true, 1);
+        rig.supervisor.start();
+        until("running", || {
+            kinds(&rig.sink).contains(&"running".to_string())
+        })
+        .await;
+        let target = remote("tcp://build.local:1234");
+        assert_eq!(rig.supervisor.retarget(target.clone()), Ok(()));
+        until("second running", || {
+            kinds(&rig.sink).iter().filter(|k| *k == "running").count() == 2
+        })
+        .await;
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local, target.clone()]
+        );
+        assert_eq!(
+            kinds(&rig.sink),
+            ["starting", "running", "restarting", "starting", "running"]
+        );
+        // 이전 엔진은 host.shutdown과 stdin 닫기로 끝났고 그룹은 한 번 정리했다.
+        let old = rig.launcher.handle(0);
+        assert!(
+            old.written().contains("\"method\":\"host.shutdown\""),
+            "{}",
+            old.written()
+        );
+        assert!(old.stdin_closed.load(Ordering::SeqCst));
+        assert_eq!(*rig.launcher.killed.lock().expect("lock"), [1001]);
+        assert!(matches!(
+            rig.relay.state(),
+            EngineState::Running {
+                pid: Some(1002),
+                ..
+            }
+        ));
+
+        // 새 엔진이 죽으면 한도 1 안에서 한 번 자동 재기동한다. 바꾸기가 횟수를 쓰지 않았기 때문이다.
+        rig.launcher.handle(1).crash(1).await;
+        until("third launch", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 3
+        })
+        .await;
+        until("running again", || {
+            kinds(&rig.sink).last().map(String::as_str) == Some("running")
+        })
+        .await;
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local, target.clone(), target]
+        );
+        assert_eq!(
+            kinds(&rig.sink),
+            [
+                "starting",
+                "running",
+                "restarting",
+                "starting",
+                "running",
+                "restarting",
+                "starting",
+                "running"
+            ]
+        );
+    }
+
+    /// 띄우는 사이에 대상이 바뀌면, 그 엔진은 낡은 대상으로 뜬 것이므로 끝내고 새 대상으로 다시 띄운다.
+    #[tokio::test(start_paused = true)]
+    async fn a_retarget_during_launch_replaces_the_engine_that_was_just_started() {
+        let rig = rig(EOF_EXIT, true, 3);
+        let target = remote("tcp://host:1234");
+        let supervisor = rig.supervisor.clone();
+        let requested = target.clone();
+        *rig.launcher.on_launch.lock().expect("lock") = Some(Box::new(move || {
+            let _ = supervisor.retarget(requested);
+        }));
+        rig.supervisor.start();
+        until("second running", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 2
+                && kinds(&rig.sink).iter().filter(|k| *k == "running").count() == 2
+        })
+        .await;
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local, target.clone()]
+        );
+        assert_eq!(
+            kinds(&rig.sink),
+            ["starting", "running", "restarting", "starting", "running"]
+        );
+        assert_eq!(*rig.launcher.killed.lock().expect("lock"), [1001]);
+        assert!(matches!(
+            rig.relay.state(),
+            EngineState::Running {
+                pid: Some(1002),
+                ..
+            }
+        ));
+    }
+
+    /// failed 상태에서 대상을 바꾸면 기다리지 않고 새 대상으로 띄운다. 자동 재기동이 꺼져 있어도 된다.
+    #[tokio::test(start_paused = true)]
+    async fn retarget_from_failed_relaunches_with_the_new_target() {
+        let rig = rig(EOF_EXIT, true, 0);
+        rig.supervisor.start();
+        until("running", || {
+            kinds(&rig.sink).contains(&"running".to_string())
+        })
+        .await;
+        rig.launcher.handle(0).crash(1).await;
+        until("failed", || {
+            kinds(&rig.sink).last().map(String::as_str) == Some("failed")
+        })
+        .await;
+        assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 1);
+
+        let target = remote("tcp://host:1234");
+        assert_eq!(rig.supervisor.retarget(target.clone()), Ok(()));
+        until("relaunch", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 2
+        })
+        .await;
+        until("running again", || {
+            kinds(&rig.sink).last().map(String::as_str) == Some("running")
+        })
+        .await;
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local, target]
+        );
+        assert_eq!(
+            kinds(&rig.sink),
+            ["starting", "running", "failed", "starting", "running"]
+        );
+    }
+
+    /// 백오프 대기 중에 대상을 바꾸면 1초를 기다리지 않고 새 대상으로 바로 띄운다.
+    #[tokio::test(start_paused = true)]
+    async fn retarget_during_a_backoff_wait_relaunches_at_once() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || {
+            kinds(&rig.sink).contains(&"running".to_string())
+        })
+        .await;
+        rig.launcher.handle(0).crash(1).await; // 1번째 재기동은 즉시
+        until("second running", || {
+            rig.launcher.handles.lock().expect("lock").len() == 2
+                && kinds(&rig.sink).iter().filter(|k| *k == "running").count() == 2
+        })
+        .await;
+        rig.launcher.handle(1).crash(1).await; // 2번째 재기동은 1초 백오프
+        until("restarting", || {
+            kinds(&rig.sink).last().map(String::as_str) == Some("restarting")
+        })
+        .await;
+
+        let target = remote("tcp://host:1234");
+        let asked_at = Instant::now();
+        assert_eq!(rig.supervisor.retarget(target.clone()), Ok(()));
+        until("third launch", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 3
+        })
+        .await;
+        assert!(
+            asked_at.elapsed() < Duration::from_secs(1),
+            "the 1s backoff was not cut short: {:?}",
+            asked_at.elapsed()
+        );
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local, EngineTarget::Local, target]
+        );
+    }
+
+    #[tokio::test]
+    async fn retarget_is_refused_once_the_shutdown_has_started() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || {
+            kinds(&rig.sink).contains(&"running".to_string())
+        })
+        .await;
+        rig.supervisor.shutdown().await;
+        assert_eq!(
+            rig.supervisor.retarget(remote("tcp://host:1234")),
+            Err(CommandError::EngineStopping)
+        );
+        // 검사는 상태 검사보다 먼저다. 잘못된 주소는 종료 중이어도 BadRequest다.
+        assert_eq!(
+            rig.supervisor.retarget(remote("")),
+            Err(CommandError::BadRequest)
+        );
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local]
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_bad_remote_address_is_refused_and_the_engine_keeps_running() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || {
+            kinds(&rig.sink).contains(&"running".to_string())
+        })
+        .await;
+        assert_eq!(
+            rig.supervisor.retarget(remote("tcp://host 1234")),
+            Err(CommandError::BadRequest)
+        );
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 1);
+        assert_eq!(kinds(&rig.sink), ["starting", "running"]);
+    }
+
+    /// 원격 엔진을 떼어 낼 때는 `host.shutdown`을 보내지 않는다. 브리지가 그 줄을 원격 서비스로 넘기기 때문이다.
+    /// stdin만 닫으면 브리지가 원격 연결만 끊고 끝난다. 로컬 엔진은 그대로 `host.shutdown`으로 끝난다.
+    #[tokio::test(start_paused = true)]
+    async fn leaving_a_remote_engine_only_closes_its_stdin() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || {
+            kinds(&rig.sink).contains(&"running".to_string())
+        })
+        .await;
+        let remote_target = remote("tcp://host:1234");
+        assert_eq!(rig.supervisor.retarget(remote_target.clone()), Ok(()));
+        until("remote running", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 2
+                && kinds(&rig.sink).iter().filter(|k| *k == "running").count() == 2
+        })
+        .await;
+        assert_eq!(rig.supervisor.retarget(EngineTarget::Local), Ok(()));
+        until("local again", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 3
+                && kinds(&rig.sink).iter().filter(|k| *k == "running").count() == 3
+        })
+        .await;
+
+        let remote_engine = rig.launcher.handle(1);
+        assert_eq!(remote_engine.written(), "");
+        assert!(remote_engine.stdin_closed.load(Ordering::SeqCst));
+        assert!(rig
+            .launcher
+            .handle(0)
+            .written()
+            .contains("\"method\":\"host.shutdown\""));
+        assert_eq!(*rig.launcher.killed.lock().expect("lock"), [1001, 1002]);
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local, remote_target, EngineTarget::Local]
+        );
+    }
+
+    /// 원격 엔진이 떠 있는 채 앱을 끝내도 `host.shutdown`을 보내지 않는다. 종료 순서(`shutdown`)는 떼어 낼 때와 같다.
+    #[tokio::test]
+    async fn quitting_with_a_remote_engine_only_closes_its_stdin() {
+        let rig = rig(EOF_EXIT, true, 3);
+        let remote_target = remote("tcp://host:1234");
+        assert_eq!(rig.supervisor.retarget(remote_target.clone()), Ok(()));
+        rig.supervisor.start();
+        until("remote running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        let engine = rig.launcher.handle(0);
+        assert_eq!(rig.supervisor.on_exit_requested(), ExitAction::PreventAndShutdown);
+        rig.supervisor.shutdown().await;
+        assert_eq!(engine.written(), "");
+        assert!(engine.stdin_closed.load(Ordering::SeqCst));
+        assert_eq!(kinds(&rig.sink).last().map(String::as_str), Some("stopped"));
+        assert_eq!(*rig.launcher.targets.lock().expect("lock"), [remote_target]);
     }
 }
