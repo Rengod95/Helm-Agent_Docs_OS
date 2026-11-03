@@ -8,6 +8,10 @@
 //!
 //! 신뢰: app root 목록은 `app_roots_set` 명령(메인 창만, capability `allow-app-roots-set`)이 정한다. 프레임에는 IPC가 없어야 하고
 //! 그 확인은 macOS와 Linux 데스크톱 빌드 실기 시험이다(ADR-0021 §6 미결 1). 엔진이 이 목록을 직접 주는 길은 후속이다.
+//! Tauri는 등록한 사용자 스킴을 로컬 출처로 보므로(`Webview::is_local_url`) capability가 프레임을 막아 주지 않는다. 막는 것은
+//! 메인 프레임에만 주입되는 invoke 키뿐이다(ADR-0021 §3.6.2). 그래서 이 명령은 목록이 가리킬 수 있는 곳을 스스로 좁힌다:
+//! root는 그 확장의 설치 폴더(`…/extensions/<확장이름>/…`, 프로젝트 등급은 `…/.fresnel/extensions/<확장이름>/…`) 안이어야 하고,
+//! `/`, 홈 폴더, 홈 폴더를 품은 폴더는 거부한다. 같은 `(이름, 버전)`이 여러 등급으로 오면 높은 등급이 이긴다(managed > user > project).
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -141,6 +145,16 @@ struct RootEntry {
     /// 등록 때 푼 실제 경로. 요청 때 다시 푼다.
     root: PathBuf,
     entry: String,
+    tier: Tier,
+}
+
+/// 설치 등급. 값이 클수록 믿는다. `builtin`은 번들 자원이라 이 명령으로 등록하지 않는다.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Tier {
+    Project,
+    User,
+    Managed,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -152,6 +166,8 @@ pub struct AppRootInput {
     pub root: String,
     /// root 안의 HTML 파일 상대 경로.
     pub entry: String,
+    /// 설치 등급. root가 있어야 할 설치 폴더 모양과 겹침 우선순위가 이 값으로 정해진다.
+    pub trust: Tier,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -162,10 +178,52 @@ pub enum RootsError {
     BadEntry,
     NotAbsolute,
     NotADirectory,
+    /// `/`, 홈 폴더, 홈 폴더를 품은 폴더.
+    TooBroad,
+    /// 그 확장의 설치 폴더 밖이다.
+    OutsideInstall,
+}
+
+/// root가 확장의 설치 폴더 안인가. `…/extensions/<확장이름>` 폴더(프로젝트 등급은 `.fresnel/extensions/<확장이름>`)가 root의 조상이거나 root 자신이다.
+fn inside_install_dir(real: &Path, extension: &str, tier: Tier) -> bool {
+    real.ancestors().any(|dir| {
+        let named = dir.file_name().and_then(|n| n.to_str()) == Some(extension);
+        let parent = dir.parent();
+        let in_extensions =
+            parent.and_then(|p| p.file_name()).and_then(|n| n.to_str()) == Some("extensions");
+        if !(named && in_extensions) {
+            return false;
+        }
+        match tier {
+            Tier::Project => {
+                parent
+                    .and_then(|p| p.parent())
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str())
+                    == Some(".fresnel")
+            }
+            Tier::User | Tier::Managed => true,
+        }
+    })
+}
+
+fn too_broad(real: &Path, home: Option<&Path>) -> bool {
+    if real.parent().is_none() || real.components().count() < 3 {
+        return true;
+    }
+    match home.and_then(|h| fs::canonicalize(h).ok()) {
+        Some(home) => real == home || home.starts_with(real),
+        None => false,
+    }
 }
 
 impl AppRoots {
-    pub fn replace(&self, inputs: Vec<AppRootInput>) -> Result<(), RootsError> {
+    /// `home`은 사용자 홈 폴더다. 알 수 없으면(None) 홈 검사만 건너뛰고 나머지 검사는 그대로 한다.
+    pub fn replace(
+        &self,
+        inputs: Vec<AppRootInput>,
+        home: Option<&Path>,
+    ) -> Result<(), RootsError> {
         if inputs.len() > MAX_ROOTS {
             return Err(RootsError::TooMany);
         }
@@ -188,11 +246,26 @@ impl AppRoots {
             if !real.is_dir() {
                 return Err(RootsError::NotADirectory);
             }
+            if too_broad(&real, home) {
+                return Err(RootsError::TooBroad);
+            }
+            if !inside_install_dir(&real, &input.extension, input.trust) {
+                return Err(RootsError::OutsideInstall);
+            }
+            let key = (input.extension, input.version);
+            // 같은 이름과 버전이 여러 번 오면 높은 등급이 이긴다. 프로젝트 확장이 사용자 확장의 root를 바꿀 수 없다.
+            if next
+                .get(&key)
+                .is_some_and(|old: &RootEntry| old.tier >= input.trust)
+            {
+                continue;
+            }
             next.insert(
-                (input.extension, input.version),
+                key,
                 RootEntry {
                     root: real,
                     entry: input.entry,
+                    tier: input.trust,
                 },
             );
         }
@@ -366,17 +439,24 @@ fn failure(rejection: Rejection) -> tauri::http::Response<Cow<'static, [u8]>> {
 /// 메인 창이 app root 목록을 통째로 바꾼다. 거부하면 아무것도 바꾸지 않는다.
 #[tauri::command]
 pub fn app_roots_set(
+    app: tauri::AppHandle,
     roots: tauri::State<'_, std::sync::Arc<AppRoots>>,
     entries: Vec<AppRootInput>,
 ) -> Result<(), String> {
-    roots.replace(entries).map_err(|error| match error {
-        RootsError::TooMany => "too_many".to_string(),
-        RootsError::BadName => "bad_name".to_string(),
-        RootsError::BadVersion => "bad_version".to_string(),
-        RootsError::BadEntry => "bad_entry".to_string(),
-        RootsError::NotAbsolute => "not_absolute".to_string(),
-        RootsError::NotADirectory => "not_a_directory".to_string(),
-    })
+    use tauri::Manager;
+    let home = app.path().home_dir().ok();
+    roots
+        .replace(entries, home.as_deref())
+        .map_err(|error| match error {
+            RootsError::TooMany => "too_many".to_string(),
+            RootsError::BadName => "bad_name".to_string(),
+            RootsError::BadVersion => "bad_version".to_string(),
+            RootsError::BadEntry => "bad_entry".to_string(),
+            RootsError::NotAbsolute => "not_absolute".to_string(),
+            RootsError::NotADirectory => "not_a_directory".to_string(),
+            RootsError::TooBroad => "too_broad".to_string(),
+            RootsError::OutsideInstall => "outside_install".to_string(),
+        })
 }
 
 #[cfg(test)]
@@ -396,26 +476,34 @@ mod tests {
             let n = COUNTER.fetch_add(1, Ordering::SeqCst);
             let dir = std::env::temp_dir()
                 .join(format!("fresnel-view-scheme-{}-{n}", std::process::id()));
-            fs::create_dir_all(dir.join("ext/ui/sub")).unwrap();
-            fs::write(dir.join("ext/ui/index.html"), "<html>ok</html>").unwrap();
-            fs::write(dir.join("ext/ui/app.js"), "1").unwrap();
-            fs::write(dir.join("ext/ui/sub/a.css"), "a{}").unwrap();
-            fs::write(dir.join("ext/ui/x.wasm"), "\0asm").unwrap();
-            fs::write(dir.join("ext/ui/UP.JS"), "2").unwrap();
+            fs::create_dir_all(dir.join("extensions/helm/ui/sub")).unwrap();
+            fs::write(dir.join("extensions/helm/ui/index.html"), "<html>ok</html>").unwrap();
+            fs::write(dir.join("extensions/helm/ui/app.js"), "1").unwrap();
+            fs::write(dir.join("extensions/helm/ui/sub/a.css"), "a{}").unwrap();
+            fs::write(dir.join("extensions/helm/ui/x.wasm"), "\0asm").unwrap();
+            fs::write(dir.join("extensions/helm/ui/UP.JS"), "2").unwrap();
             fs::write(dir.join("secret.txt"), "SECRET").unwrap();
-            fs::write(dir.join("ext/other.txt"), "OTHER").unwrap();
+            fs::write(dir.join("extensions/helm/other.txt"), "OTHER").unwrap();
             Sandbox { dir }
         }
 
         fn roots(&self) -> AppRoots {
             let roots = AppRoots::default();
             roots
-                .replace(vec![AppRootInput {
-                    extension: "helm".into(),
-                    version: "1.0.0".into(),
-                    root: self.dir.join("ext/ui").to_string_lossy().into_owned(),
-                    entry: "index.html".into(),
-                }])
+                .replace(
+                    vec![AppRootInput {
+                        extension: "helm".into(),
+                        version: "1.0.0".into(),
+                        root: self
+                            .dir
+                            .join("extensions/helm/ui")
+                            .to_string_lossy()
+                            .into_owned(),
+                        entry: "index.html".into(),
+                        trust: Tier::User,
+                    }],
+                    None,
+                )
                 .unwrap();
             roots
         }
@@ -521,10 +609,14 @@ mod tests {
         let sandbox = Sandbox::new();
         symlink(
             sandbox.dir.join("secret.txt"),
-            sandbox.dir.join("ext/ui/link.txt"),
+            sandbox.dir.join("extensions/helm/ui/link.txt"),
         )
         .unwrap();
-        symlink(sandbox.dir.join("ext"), sandbox.dir.join("ext/ui/dir-link")).unwrap();
+        symlink(
+            sandbox.dir.join("extensions/helm"),
+            sandbox.dir.join("extensions/helm/ui/dir-link"),
+        )
+        .unwrap();
         let roots = sandbox.roots();
         assert_eq!(get(&roots, "link.txt").unwrap_err(), Rejection::OutsideRoot);
         assert_eq!(
@@ -534,17 +626,21 @@ mod tests {
         // root 자체가 등록 뒤에 밖을 가리키는 링크로 바뀌어도 밖의 파일은 나오지 않는다
         let swapped = AppRoots::default();
         let link_root = sandbox.dir.join("root-link");
-        symlink(sandbox.dir.join("ext/ui"), &link_root).unwrap();
+        symlink(sandbox.dir.join("extensions/helm/ui"), &link_root).unwrap();
         swapped
-            .replace(vec![AppRootInput {
-                extension: "helm".into(),
-                version: "1.0.0".into(),
-                root: link_root.to_string_lossy().into_owned(),
-                entry: "index.html".into(),
-            }])
+            .replace(
+                vec![AppRootInput {
+                    extension: "helm".into(),
+                    version: "1.0.0".into(),
+                    root: link_root.to_string_lossy().into_owned(),
+                    entry: "index.html".into(),
+                    trust: Tier::User,
+                }],
+                None,
+            )
             .unwrap();
         fs::remove_file(&link_root).unwrap();
-        symlink(sandbox.dir.join("ext"), &link_root).unwrap();
+        symlink(sandbox.dir.join("extensions/helm"), &link_root).unwrap();
         assert_eq!(
             get(&swapped, "../secret.txt").unwrap_err(),
             Rejection::OutsideRoot
@@ -563,42 +659,152 @@ mod tests {
             version: "1.0.0".into(),
             root: root.to_string_lossy().into_owned(),
             entry: "index.html".into(),
+            trust: Tier::User,
         };
-        let ui = sandbox.dir.join("ext/ui");
+        let ui = sandbox.dir.join("extensions/helm/ui");
         assert_eq!(
-            roots.replace(vec![good("Bad", &ui)]),
+            roots.replace(vec![good("Bad", &ui)], None),
             Err(RootsError::BadName)
         );
         assert_eq!(
-            roots.replace(vec![AppRootInput {
-                version: "x".into(),
-                ..good("helm", &ui)
-            }]),
+            roots.replace(
+                vec![AppRootInput {
+                    version: "x".into(),
+                    ..good("helm", &ui)
+                }],
+                None
+            ),
             Err(RootsError::BadVersion)
         );
         assert_eq!(
-            roots.replace(vec![AppRootInput {
-                entry: "../index.html".into(),
-                ..good("helm", &ui)
-            }]),
+            roots.replace(
+                vec![AppRootInput {
+                    entry: "../index.html".into(),
+                    ..good("helm", &ui)
+                }],
+                None
+            ),
             Err(RootsError::BadEntry)
         );
         assert_eq!(
-            roots.replace(vec![good("helm", Path::new("relative/dir"))]),
+            roots.replace(vec![good("helm", Path::new("relative/dir"))], None),
             Err(RootsError::NotAbsolute)
         );
         assert_eq!(
-            roots.replace(vec![good("helm", &ui.join("index.html"))]),
+            roots.replace(vec![good("helm", &ui.join("index.html"))], None),
             Err(RootsError::NotADirectory)
         );
         // 거부하면 이전 목록이 그대로다
         assert!(get(&roots, "app.js").is_ok());
         // 성공하면 이전 항목이 사라진다
-        roots.replace(vec![good("other", &ui)]).unwrap();
+        roots.replace(vec![good("helm", &ui)], None).unwrap();
+        roots
+            .replace(
+                vec![AppRootInput {
+                    version: "2.0.0".into(),
+                    ..good("helm", &ui)
+                }],
+                None,
+            )
+            .unwrap();
         assert_eq!(get(&roots, "app.js").unwrap_err(), Rejection::NotFound);
         assert!(roots
-            .replace((0..257).map(|_| good("helm", &ui)).collect())
+            .replace((0..257).map(|_| good("helm", &ui)).collect(), None)
             .is_err());
+    }
+
+    #[test]
+    fn roots_must_sit_in_the_extension_install_dir_and_not_be_broad() {
+        let sandbox = Sandbox::new();
+        let roots = AppRoots::default();
+        let input = |extension: &str, root: &Path, trust: Tier| AppRootInput {
+            extension: extension.into(),
+            version: "1.0.0".into(),
+            root: root.to_string_lossy().into_owned(),
+            entry: "index.html".into(),
+            trust,
+        };
+        let ui = sandbox.dir.join("extensions/helm/ui");
+        // 다른 확장의 설치 폴더 이름으로는 등록할 수 없다
+        assert_eq!(
+            roots.replace(vec![input("other", &ui, Tier::User)], None),
+            Err(RootsError::OutsideInstall)
+        );
+        // 설치 폴더 밖(`extensions/<이름>`이 아닌 곳)
+        assert_eq!(
+            roots.replace(vec![input("helm", &sandbox.dir, Tier::User)], None),
+            Err(RootsError::OutsideInstall)
+        );
+        // 프로젝트 등급은 `.fresnel/extensions/<이름>` 모양이어야 한다
+        assert_eq!(
+            roots.replace(vec![input("helm", &ui, Tier::Project)], None),
+            Err(RootsError::OutsideInstall)
+        );
+        let project_ui = sandbox.dir.join("proj/.fresnel/extensions/helm/ui");
+        fs::create_dir_all(&project_ui).unwrap();
+        assert_eq!(
+            roots.replace(vec![input("helm", &project_ui, Tier::Project)], None),
+            Ok(())
+        );
+        // `/`와 홈 폴더, 홈을 품은 폴더
+        assert_eq!(
+            roots.replace(vec![input("helm", Path::new("/"), Tier::User)], None),
+            Err(RootsError::TooBroad)
+        );
+        let home = sandbox.dir.join("extensions/helm");
+        assert_eq!(
+            roots.replace(vec![input("helm", &home, Tier::User)], Some(&home)),
+            Err(RootsError::TooBroad)
+        );
+        assert_eq!(
+            roots.replace(vec![input("helm", &ui, Tier::User)], Some(&ui)),
+            Err(RootsError::TooBroad)
+        );
+    }
+
+    #[test]
+    fn a_project_extension_cannot_replace_a_user_extensions_root() {
+        let sandbox = Sandbox::new();
+        let project_ui = sandbox.dir.join("proj/.fresnel/extensions/helm/ui");
+        fs::create_dir_all(&project_ui).unwrap();
+        fs::write(project_ui.join("index.html"), "PROJECT").unwrap();
+        let user_ui = sandbox.dir.join("extensions/helm/ui");
+        let input = |root: &Path, trust: Tier| AppRootInput {
+            extension: "helm".into(),
+            version: "1.0.0".into(),
+            root: root.to_string_lossy().into_owned(),
+            entry: "index.html".into(),
+            trust,
+        };
+        let body = |roots: &AppRoots| get(roots, "index.html").unwrap().0;
+        // 프로젝트가 뒤에 와도 사용자가 이긴다
+        let roots = AppRoots::default();
+        roots
+            .replace(
+                vec![
+                    input(&user_ui, Tier::User),
+                    input(&project_ui, Tier::Project),
+                ],
+                None,
+            )
+            .unwrap();
+        assert_eq!(body(&roots), b"<html>ok</html>".to_vec());
+        // 프로젝트가 앞에 와도 사용자가 이긴다
+        roots
+            .replace(
+                vec![
+                    input(&project_ui, Tier::Project),
+                    input(&user_ui, Tier::User),
+                ],
+                None,
+            )
+            .unwrap();
+        assert_eq!(body(&roots), b"<html>ok</html>".to_vec());
+        // 프로젝트만 있으면 프로젝트다
+        roots
+            .replace(vec![input(&project_ui, Tier::Project)], None)
+            .unwrap();
+        assert_eq!(body(&roots), b"PROJECT".to_vec());
     }
 
     #[test]
