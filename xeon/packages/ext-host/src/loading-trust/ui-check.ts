@@ -3,6 +3,7 @@
 // 확장의 로드는 막지 않는다(실패 격리). 매니페스트 모양 오류는 `validateUi`가 이미 매니페스트 거부로 잡으므로 여기서 다시 보지 않는다.
 import { join } from "node:path";
 import { attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
+import type { SemVer } from "@fresnel/contracts/capabilities";
 import {
   BRIDGE_VERSION,
   isEntryInsideRoot,
@@ -63,12 +64,21 @@ export interface UiItemReport {
   readonly tree?: UiNode;
   /** 선언한 앱. 모드가 `app`이면 상태와 상관없이 있다 */
   readonly app?: AppDecl;
+  /**
+   * 앱 root의 절대 경로 = 확장 루트 + `app.root`(엔진이 앱 파일을 풀 때와 같은 `join`). 모드가 `app`이고 상태가 `ok`이며
+   * 설치 폴더가 있는 확장(`builtin`이 아닌 설치 위치)일 때만 있다. 상대 경로는 없다
+   */
+  readonly appRoot?: string;
   readonly issues: readonly UiIssue[];
 }
 
-/** `ExtensionLoader.uiEntries()`가 돌려주는 항목. 확장 이름을 덧붙인다 */
+/** `ExtensionLoader.uiEntries()`가 돌려주는 항목. 확장 이름, 버전, 설치 등급을 덧붙인다(`ext.ui.list`가 쓴다) */
 export interface UiEntryReport extends UiItemReport {
   readonly extension: ExtensionName;
+  /** 확장 버전. 매니페스트 값이다(SemVer가 아니면 로더의 `versionOf`가 `0.0.0`으로 둔다) */
+  readonly version: SemVer;
+  /** 설치 위치가 정한 등급. `builtin`이면 설치 폴더가 없다 */
+  readonly trust: InstallSource;
 }
 
 export interface UiCheckInput {
@@ -308,7 +318,17 @@ async function appItem(
       ),
     );
   }
-  return { ...head, mode: "app", state: stateOf(issues), app, issues };
+  const state = stateOf(issues);
+  // 내장 확장은 설치 폴더가 없어 앱 root를 싣지 않는다. 앱 root는 검사를 통과한 항목에만 싣는다
+  const appRoot = state === "ok" && ctx.source !== "builtin" ? join(ctx.root, app.root) : undefined;
+  return {
+    ...head,
+    mode: "app",
+    state,
+    app,
+    ...(appRoot === undefined ? {} : { appRoot }),
+    issues,
+  };
 }
 
 function checkItem(ctx: Ctx, item: UiContribution, index: number): Promise<UiItemReport> {

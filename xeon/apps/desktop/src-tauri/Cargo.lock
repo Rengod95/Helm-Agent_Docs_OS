@@ -1082,6 +1082,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "fresnel-desktop"
+version = "0.0.0"
+dependencies = [
+ "block2",
+ "libc",
+ "memchr",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "objc2-web-kit",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-log",
+ "tauri-plugin-shell",
+ "tauri-plugin-single-instance",
+ "tokio",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4829,28 +4851,6 @@ dependencies = [
  "libc",
  "once_cell",
  "pkg-config",
-]
-
-[[package]]
-name = "fresnel-desktop"
-version = "0.0.0"
-dependencies = [
- "block2",
- "libc",
- "memchr",
- "objc2",
- "objc2-app-kit",
- "objc2-foundation",
- "objc2-web-kit",
- "serde",
- "serde_json",
- "signal-hook",
- "tauri",
- "tauri-build",
- "tauri-plugin-log",
- "tauri-plugin-shell",
- "tauri-plugin-single-instance",
- "tokio",
 ]
 
 [[package]]

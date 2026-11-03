@@ -6,7 +6,9 @@
   "build": { "frontendDist": "./ui" },
   "app": {
     "windows": [{ "label": "main", "title": "Fresnel", "width": 1100, "height": 760 }],
-    "security": { "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost" }
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; frame-src fresnel-view:"
+    }
   },
   "bundle": {
     "active": true,

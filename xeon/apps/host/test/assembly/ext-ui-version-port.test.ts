@@ -291,7 +291,17 @@ function entryOfUi(
   title: string,
   placement: UiEntryReport["placement"] = "panel",
 ): UiEntryReport {
-  return { extension, id, placement, mode: "native", title, state, issues };
+  return {
+    extension,
+    id,
+    placement,
+    mode: "native",
+    title,
+    state,
+    issues,
+    version: "0.2.0",
+    trust: "user",
+  };
 }
 
 describe("ext-ui-version port: versions", () => {
@@ -605,6 +615,39 @@ describe("ext-ui-version port: hot rollback", () => {
 });
 
 describe("ext-ui-version port: ui list", () => {
+  test("carries version, install tier and the app root of an app entry", () => {
+    const app = { root: "ui/graph", entry: "index.html", bridge: "^1.0.0", reason: "graph editor" };
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "project", "1.4.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      entries: [
+        {
+          ...entryOfUi("helm", "graph", "ok", [], "Graph", "page"),
+          mode: "app",
+          version: "1.4.0",
+          trust: "project",
+          app,
+          appRoot: "/work/proj/.fresnel/extensions/helm/ui/graph",
+        },
+      ],
+    });
+    expect(rig.port.uiList({}).items).toEqual([
+      {
+        extension: "helm",
+        id: "graph",
+        placement: "page",
+        mode: "app",
+        title: "Graph",
+        state: "ok",
+        version: "1.4.0",
+        trust: "project",
+        appRoot: "/work/proj/.fresnel/extensions/helm/ui/graph",
+        app,
+        issues: [],
+      },
+    ]);
+  });
+
   test("maps the loader's entries to wire items: sorted, disabled by loader state or by registration, issues as diagnostics", async () => {
     const rig = rigOf({
       infos: [
@@ -622,6 +665,8 @@ describe("ext-ui-version port: ui list", () => {
         entryOfUi("helm", "panel", "ok", [], "Helm"),
         {
           extension: "helm",
+          version: "0.2.0",
+          trust: "user",
           id: "broken",
           placement: "card",
           mode: "native",
@@ -638,6 +683,8 @@ describe("ext-ui-version port: ui list", () => {
         },
         {
           extension: "account-rotation",
+          version: "0.2.0",
+          trust: "user",
           id: "status",
           placement: "status",
           mode: "native",
@@ -660,6 +707,8 @@ describe("ext-ui-version port: ui list", () => {
       items: [
         {
           extension: "account-rotation",
+          version: "0.2.0",
+          trust: "user",
           id: "status",
           placement: "status",
           mode: "native",
@@ -669,6 +718,8 @@ describe("ext-ui-version port: ui list", () => {
         },
         {
           extension: "helm",
+          version: "0.2.0",
+          trust: "user",
           id: "broken",
           placement: "card",
           mode: "native",
@@ -684,6 +735,8 @@ describe("ext-ui-version port: ui list", () => {
         },
         {
           extension: "helm",
+          version: "0.2.0",
+          trust: "user",
           id: "panel",
           placement: "panel",
           mode: "native",
@@ -693,6 +746,8 @@ describe("ext-ui-version port: ui list", () => {
         },
         {
           extension: "tools-kit",
+          version: "0.2.0",
+          trust: "user",
           id: "home",
           placement: "page",
           mode: "native",

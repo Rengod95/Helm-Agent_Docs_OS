@@ -287,8 +287,31 @@ test("ui: an app view that the policy allows is ok when its root and entry exist
       title: "Graph",
       state: "ok",
       app: APP,
+      appRoot: "/ext/demo/ui/graph",
       issues: [],
     },
+  ]);
+});
+
+test("ui: appRoot is left out for a builtin extension and for an app view that is not ok", async () => {
+  const graph: UiContribution = {
+    id: "graph",
+    placement: "page",
+    title: "Graph",
+    mode: "app",
+    app: APP,
+  };
+  const builtin = await checkWith(
+    uiOf([graph]),
+    { files: { "/ext/demo/ui/graph/index.html": "<html></html>" } },
+    { source: "builtin" },
+  );
+  expect(builtin.reports.map((report) => [report.state, report.appRoot])).toEqual([
+    ["ok", undefined],
+  ]);
+  const missing = await checkWith(uiOf([graph]), {});
+  expect(missing.reports.map((report) => [report.state, report.appRoot])).toEqual([
+    ["invalid", undefined],
   ]);
 });
 

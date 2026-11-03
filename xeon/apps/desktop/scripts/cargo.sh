@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tauri 셸(src-tauri)의 cargo 명령. just desktop-run / desktop-build / desktop-test가 부른다. just verify에는 들어 있지 않다.
-# usage: cargo.sh <test|check|run|build>
+# usage: cargo.sh <test|check|probe|run|build>
+#   probe        실제 창을 띄워 fresnel-view:// 프레임의 IPC 접근을 본다(tests/ipc_probe.rs). GUI 세션이 없으면 종료코드 2
 #   test, check  사이드카 바이너리 없이 돈다(externalBin을 비워 컴파일한다).
 #   run, build   src-tauri/binaries/fresnel-<host triple>이 있어야 한다: just desktop-sidecar <triple>
 # Rust는 mise.toml이 고정한 버전을 쓴다(mise exec). 빌드 산출물은 Syncthing 폴더(~/projects) 밖의 기기별 캐시에 쌓인다.
@@ -62,6 +63,9 @@ case "$mode" in
   test)
     ensure_ui test
     TAURI_CONFIG='{"bundle":{"externalBin":[]}}' run_cargo test ;;
+  probe)
+    ensure_ui test
+    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' run_cargo test --test ipc_probe -- --nocapture ;;
   check)
     ensure_ui check
     TAURI_CONFIG='{"bundle":{"externalBin":[]}}' run_cargo check --all-targets ;;
@@ -74,6 +78,6 @@ case "$mode" in
     ensure_ui build
     run_cargo build --release ;;
   *)
-    echo "usage: cargo.sh <test|check|run|build>" >&2
+    echo "usage: cargo.sh <test|check|probe|run|build>" >&2
     exit 1 ;;
 esac

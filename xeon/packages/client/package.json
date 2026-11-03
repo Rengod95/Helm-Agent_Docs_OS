@@ -12,7 +12,10 @@
     "./accounts": "./src/accounts/index.ts",
     "./web": "./src/web/index.ts",
     "./i18n": "./src/i18n/index.ts",
-    "./workbench": "./src/workbench/index.ts"
+    "./workbench": "./src/workbench/index.ts",
+    "./views/native": "./src/views/native/index.ts",
+    "./views/app": "./src/views/app/index.ts",
+    "./views/ledger": "./src/views/ledger.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",

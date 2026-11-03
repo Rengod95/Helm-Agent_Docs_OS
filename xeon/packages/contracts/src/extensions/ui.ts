@@ -334,7 +334,8 @@ export const BRIDGE_OPS = [
 ] as const;
 export type BridgeOp = (typeof BRIDGE_OPS)[number];
 
-export const BRIDGE_PUSHES = ["theme", "host", "event", "invalidate"] as const;
+/** 셸이 먼저 보내는 푸시. `ping`은 생존 확인이고 Plugin App은 `pong` 요청으로 답한다(§3.7) */
+export const BRIDGE_PUSHES = ["theme", "host", "event", "invalidate", "ping"] as const;
 export type BridgePush = (typeof BRIDGE_PUSHES)[number];
 
 /** 다리 오류 이름. 문장은 클라이언트가 만든다 */

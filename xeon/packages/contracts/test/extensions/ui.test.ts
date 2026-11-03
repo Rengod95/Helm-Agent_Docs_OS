@@ -188,6 +188,8 @@ describe("bridge messages", () => {
     expect(parse(BridgeResponseSchema, errResponse)).toEqual({ ok: true, value: errResponse });
     const push = { v: 1, push: "theme", value: { mode: "dark" } } as const;
     expect(parse(BridgePushSchema, push)).toEqual({ ok: true, value: push });
+    const ping = { v: 1, push: "ping", value: { n: 3 } } as const;
+    expect(parse(BridgePushSchema, ping)).toEqual({ ok: true, value: ping });
     const ready = { v: 1, ready: true, bridge: "^1.0.0" } as const;
     expect(parse(BridgeReadySchema, ready)).toEqual({ ok: true, value: ready });
   });

@@ -94,6 +94,24 @@ test("a broken screen file leaves the extension active: its hook runs and only t
   expect(fakeGroupSdk.seen).toEqual(["demo:shared:true:true", "demo:fired"]);
 });
 
+test("uiEntries carries the manifest version and the install tier", async () => {
+  const root = await writePlugin(userExtensions, "demo", {
+    name: "demo",
+    version: "1.2.3",
+    ui: PAGE_AND_CARD,
+  });
+  await putFile(join(root, "ui", "page.json"), TEXT_TREE);
+  await putFile(join(root, "ui", "card.json"), TEXT_TREE);
+  const harness = await harnessOf();
+  await harness.loader.loadAll(loadOptions(harness));
+  expect(harness.loader.uiEntries().map((entry) => [entry.id, entry.version, entry.trust])).toEqual(
+    [
+      ["page", "1.2.3", "user"],
+      ["card", "1.2.3", "user"],
+    ],
+  );
+});
+
 test("a disabled extension's broken screen is still checked, and the extension stays disabled", async () => {
   const root = await writePlugin(userExtensions, "demo", { name: "demo", ui: PAGE_AND_CARD });
   await putFile(join(root, "ui", "page.json"), "{");

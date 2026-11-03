@@ -33,3 +33,10 @@ objc2-web-kit = { version = "0.3", default-features = false, features = ["std", 
 [dev-dependencies]
 tauri = { version = "=2.12.3", features = ["test"] }
 tokio = { version = "1", features = ["test-util"] }
+
+# 실제 WebView에서 fresnel-view:// 프레임이 IPC에 닿는지 본다(ADR-0021 3.6.2). 창을 띄우므로 `just desktop-ipc-probe`로만 돌리고 `cargo test` 기본 묶음에는 넣지 않는다.
+[[test]]
+name = "ipc_probe"
+path = "tests/ipc_probe.rs"
+harness = false
+test = false

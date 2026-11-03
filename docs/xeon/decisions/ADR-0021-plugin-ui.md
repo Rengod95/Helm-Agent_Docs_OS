@@ -13,12 +13,13 @@ binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/c
 ## 1. 상태와 날짜
 
 - 상태: accepted(방식). 스키마와 이름의 세부는 [제안]이고 정본은 F가 정합니다(§6).
-- 날짜: 2026-10-30 초안, 2026-10-31 개정
+- 날짜: 2026-10-30 초안, 2026-10-31 개정, 2026-11-04 개정
 - [결정: 2026-10-30 사용자] Fresnel은 층별 플러그인(F, X, L0~L3)을 조립하고 적응시키는 대화형 에이전트 런타임입니다. Helm 같은 의도 그룹(에이전트 안의 에이전트 시스템)이 핵심 단위입니다.
 - [결정: 2026-10-30 사용자] 대화 화면과 런타임 작업이 둘 다 1급입니다. 원문: "핵심은 대화화면이라는 건 어쨋든 에이전트 런타임의 숙명이라고 봄. 그래서 둘다 1급인느낌."
 - [결정: 2026-10-30 사용자] 플러그인마다 클라이언트 안에서 자기 화면을 구성할 수 있어야 합니다. 원문: "플러그인 별로 우리 클라이언트 안에서 자기만의 ui 화면을 구성할 수 있는 시스템을 지원했으면 해, 단순 특정 파일을 렌더링 한다기 보다는, 어떤 플러그인을 어댑팅 했을 때, 이 플러그인이 만약 l3고 자기만의 워크플로우나 에이전틱한 흐름에서 대화창이 아닌 커스텀한 화면을 요구한다면 이를 지원할 수 있어야 해."
 - [결정: 2026-10-31 사용자] 두 모드를 모두 지원합니다. 선언형 모드(클라이언트가 caustic으로 그림)와 격리 iframe·웹 컴포넌트 모드입니다. 에이전트가 플러그인을 만들 때 어느 모드가 필요한지는 에이전트가 판단합니다(`L4.desktop-ux.spec` §12.3 U-1).
 - 2026-10-30 초안의 "(d) 혼합, 선언형만, iframe은 이름만 예약"은 이 개정으로 바뀝니다.
+- [결정: 2026-11-04 사용자] 프레임 `call`·`command`의 확인 줄은 끌 수 없고 호출마다 뜹니다. "이 화면에서 묻지 않기"와 확장별 허용 기억은 두지 않습니다(B2 1안, §3.4). 설정 키 `x.views.frames`, `x.views.allowProjectFrames`는 X가 소유합니다(§6 9번).
 
 ## 2. 맥락
 
@@ -124,7 +125,7 @@ interface ExtMethodDecl {
 | 동작 | `requestApproval` | 사용자 승인 요청 | 앱이 그리는 표준 승인 카드로만 보임(ADR-0018). 화면은 결과만 받음 | `ext.view.requestApproval` `[미결]` |
 | 동작 | `navigate` | 자기 다른 화면, 대화·턴, 확장 상세(P-17), 자기 설정 구역, 비밀 화면(P-10) 열기, 외부 링크 | 앱 화면은 정해진 목록만. 외부 링크는 셸 확인 뒤 OS 브라우저 | 클라이언트 |
 
-- "사용자 조작 뒤에만"의 판정: 선언형은 렌더러가 누름 이벤트를 압니다. 프레임은 셸이 프레임 안 입력을 볼 수 없으므로, 프레임의 `call`은 셸이 띄우는 확인 줄("<확장>이 <동작 라벨>을 하려고 해요")을 거칩니다. 확인 줄은 확장·세션마다 "이 화면에서 묻지 않기"로 끌 수 있고, `approval: true` 메서드는 승인 카드를 끌 수 없습니다 [제안].
+- "사용자 조작 뒤에만"의 판정: 선언형은 렌더러가 누름 이벤트를 압니다. 프레임은 셸이 프레임 안 입력을 볼 수 없으므로, 프레임의 `call`과 `command`는 셸이 띄우는 확인 줄("<확장>이 <동작 라벨>을 하려고 해요")을 거칩니다(`command`까지 거치는 것은 표보다 엄격한 [제안]입니다). 확인 줄은 끌 수 없고 호출마다 뜹니다. 허용한 뒤에도 같은 확장의 다음 호출은 다시 묻고, "이 화면에서 묻지 않기" 같은 선택과 확장별 허용 기억은 두지 않습니다(B2 1안) [결정: 2026-11-04 사용자]. `approval: true` 메서드의 표준 승인 카드는 이 줄과 따로 뜨며 끌 수 없습니다 [제안].
 - `query` 갱신: `invalidateOn`(자기 kind 목록) 이벤트가 오면 다시 부릅니다. 주기 갱신은 5초 이상만 허용합니다 [제안].
 - 크기 상한 [제안]: `query` 결과 256 KiB, `events` 목록 500행. 선언형 트리는 노드 2000개, 깊이 24입니다. 프레임 다리 메시지는 하나에 1 MiB, 초당 50개입니다. 넘으면 선언형은 그 노드를 "긴 내용"으로 자르고, 프레임은 그 메시지를 오류로 돌려주고 장부에 셉니다.
 
@@ -132,6 +133,8 @@ interface ExtMethodDecl {
 
 - 노드: `{ type, props?, bind?, each?, when?, children? }`. `type`은 위젯 카탈로그 이름입니다. `props`는 caustic 부품의 `variant`, `tone`, `size` 같은 선택값과 글자만 받습니다(DP-08). 색, 크기 숫자, CSS, HTML은 받지 않습니다.
 - 표현식: 데이터 경로(JSON Pointer)와 같음·있음·없음 비교, 배열 반복(`each`)만 둡니다. 스크립트와 함수 호출은 두지 않습니다. 숫자·시간·바이트·상대 시각 서식은 호스트가 이름으로 제공합니다(`format: "duration"` 등).
+- 배열 bind [결정: 2026-11-04 사용자]: `List.items`, `Table.rows`, `ListDescription.items`, `ActivityTree.items`, `Timeline.items`, `Sparkline.points`에 배열이 오면 렌더러는 목록(`lists`)으로 풉니다. 원소는 스칼라이거나 스칼라 속성만 담은 평평한 레코드(`__proto__`, `constructor`, `prototype` 키 제외)이고, 앞 500개만 보며 넘치면 `truncated`입니다. 원소 하나가 일 한 단위입니다. `format`은 배열에 적용하지 않습니다.
+- 일 예산 [결정: 2026-11-04 사용자]: 렌더러는 `each` 복사 한 벌과 `when` 판정 한 번을 일 한 단위로 세고 `treeNodes`의 10배(2000 × 10)에서 멈춥니다. 그리지 않는 복사(거짓 `when`)도 세므로 중첩 `each`가 앱을 얼리지 못합니다. 멈추면 `truncated`가 참입니다. 선언형 화면은 프로젝트 신뢰 아래에서도 열리므로 복제한 저장소가 앱을 멈출 수 없어야 합니다.
 - 위젯 카탈로그 v1(초안): 배치(`Stack`, `Row`, `Section`, `Tabs`, `Split`), 글(`Text`, `Heading`, `Markdown`(HTML 없는 부분 집합), `Code`), 자료(`List`, `Table`, `ListDescription`, `Badge`, `Chip`, `Progress`, `Meter`, `Stepper`, `ActivityTree`, `Timeline`, `Sparkline`), 알림(`Alert`, `EmptyState`, `Skeleton`), 입력(`Button`, `Switch`, `Select`, `TextField`, `NumberField`, `SegmentedControl`, `Form`), 연결(`ThreadLink`, `TurnLink`, `ViewLink`, `ApprovalLink`). 이름은 caustic export와 같게 두고, caustic에 없는 것은 `L4.desktop-ux.spec` §9 간극으로 올립니다.
 
 #### 3.4.2 프레임 다리
@@ -180,12 +183,12 @@ interface ExtMethodDecl {
 
 1. [제안] 프레임은 `<iframe sandbox="allow-scripts">`입니다. `allow-same-origin`, `allow-popups`, `allow-modals`, `allow-forms`, `allow-top-navigation`, `allow-downloads`를 주지 않습니다. 그래서 프레임 문서의 origin은 불투명이고, 앱 문서의 DOM, 저장소, 쿠키에 닿지 못하며 창을 열거나 앱을 다른 곳으로 이동시키지 못합니다.
 2. [제안] 프레임 파일은 셸이 등록한 전용 URI 스킴(`fresnel-view://<확장이름>/<버전>/<경로>`)으로만 제공합니다. 셸은 확장 패키지의 `frame.root` 아래 파일만 읽고, `..`, 폴더 밖을 가리키는 심볼릭 링크, 절대 경로를 거부합니다. 앱 자원과 다른 확장 파일은 이 스킴으로 나오지 않습니다.
-3. [제안] Tauri IPC(`window.__TAURI__`, invoke)는 프레임에 주입되지 않아야 합니다. 셸 capability 파일의 원격·iframe 허용 목록에 `fresnel-view:`를 넣지 않습니다. 이 동작을 macOS(WKWebView)와 Linux(WebKitGTK)에서 e2e 시험으로 확인한 뒤에만 프레임 모드를 켭니다(§6 미결 1). 확인 전 빌드는 `x.views.frames`(기본 `true`) [제안]를 `false`로 고정합니다.
+3. [결정: 2026-11-04 사용자] Tauri IPC는 프레임에 닿지 않아야 하지만, 이를 막는 것은 capability 허용 목록이 아닙니다. Tauri는 `register_uri_scheme_protocol`로 등록한 스킴을 로컬 출처로 봅니다(`Webview::is_local_url`). 그래서 `fresnel-view://` 프레임의 호출도 메인 창 capability(`capabilities/default.json`)의 ACL 대상이고, "허용 목록에 `fresnel-view:`를 넣지 않는다"는 통제는 존재하지 않습니다. 실제로 막는 것은 (a) 호출 본문에 든 invoke 키(`__TAURI_INVOKE_KEY__`)를 프레임이 알 수 없다는 점입니다. 키는 메인 프레임에만 주입되고(`for_main_frame_only: true`), 프레임 origin은 불투명이라 부모 문서를 읽지 못합니다. (b) sandbox 프레임이 `ipc://` fetch를 보내면 `Origin: null`이라 Tauri가 요청을 구문 분석 단계에서 버립니다. 남는 길은 wry의 IPC 메시지 핸들러입니다. macOS 실기(2026-11-04, `just desktop-ipc-probe`, WKWebView)에서 프레임에 `window.ipc`는 없고 `webkit.messageHandlers.ipc`는 있으며, 키 없이 흉내 낸 호출은 Tauri에 도달해 `__TAURI_INVOKE_KEY__ expected … but received …`로 거부됐습니다. 즉 프레임은 IPC에 "닿지만" 키가 없어 아무것도 못 합니다. `__TAURI__`, `__TAURI_INTERNALS__`, 부모의 키와 `__TAURI_INTERNALS__` 읽기(SecurityError), 프레임 `localStorage`(SecurityError), `window.origin`(`null`)은 시험이 확인합니다. Linux(WebKitGTK)는 같은 시험을 그 기기에서 돌려야 합니다. 명령 안에서 호출한 프레임을 알아보는 길은 Tauri가 주지 않으므로(`tauri::ipc::Request`는 본문과 헤더만 가진다) 명령 쪽 "메인 프레임만" 보호는 두지 못합니다. 대신 민감한 명령이 스스로 입력을 좁힙니다(`app_roots_set`은 확장 설치 폴더 밖과 `/`, 홈을 거부). Windows는 wry가 초기화 스크립트를 하위 프레임에도 넣으므로(`for_main_frame_only`가 무시됨) 이 통제가 성립하지 않습니다. 그래서 Windows 빌드는 프레임 모드를 켜지 않습니다. 이 동작은 데스크톱 빌드 e2e(`just desktop-ipc-probe`)로 확인한 뒤에만 프레임 모드를 켭니다(§6 미결 1). 확인 전 빌드는 `x.views.frames`(기본 `true`) [제안]를 `false`로 고정합니다.
 
 #### 3.6.3 CSP
 
 - 앱 문서: 기존 `default-src 'self'`에 `frame-src fresnel-view:`만 더합니다. `unsafe-eval`, 원격 `script-src`는 더하지 않습니다.
-- 프레임 문서(셸이 응답 헤더로 붙임) [제안]: `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob:; connect-src 'none'; frame-src 'none'; worker-src 'self' blob:; form-action 'none'; base-uri 'none'`. 네트워크 요청, 다른 프레임 열기, `eval`은 막힙니다. 프레임 HTML의 `<meta>` CSP는 이 헤더보다 넓힐 수 없습니다.
+- 프레임 문서(셸이 응답 헤더로 붙임) [제안]: `default-src 'none'; script-src fresnel-view://<확장이름>/<버전>/; style-src fresnel-view://<확장이름>/<버전>/ 'unsafe-inline'; img-src fresnel-view://<확장이름>/<버전>/ data: blob:; font-src fresnel-view://<확장이름>/<버전>/; media-src fresnel-view://<확장이름>/<버전>/ blob:; connect-src 'none'; frame-src 'none'; worker-src fresnel-view://<확장이름>/<버전>/ blob:; form-action 'none'; base-uri 'none'`. `<확장이름>/<버전>/` 자리는 그 확장 버전의 주소 접두(예: `fresnel-view://helm/1.0.0/`)입니다. 프레임은 불투명 origin이라 `'self'`를 쓰지 않습니다. WebKit은 sandbox 프레임에서 `'self'`를 같은 출처로 풀지 않아 프레임 자기 스크립트가 막히기 때문입니다(`L4.desktop-ux.spec` §6.25). 네트워크 요청, 다른 프레임 열기, `eval`은 막힙니다. 프레임 HTML의 `<meta>` CSP는 이 헤더보다 넓힐 수 없습니다. [결정: 2026-11-04 사용자] 응답에는 `Access-Control-Allow-Origin: *`도 붙입니다. 불투명 origin(`null`) 프레임은 `<script type="module">`을 CORS 모드로 가져오므로 이 헤더가 없으면 모듈 스크립트가 로드되지 않습니다(macOS WKWebView 실기로 확인, `just desktop-ipc-probe`). 프레임 CSP가 `connect-src 'none'`이고 앱 문서 CSP도 이 스킴 fetch를 막아 다른 문서가 이 주소를 읽지 못합니다.
 
 #### 3.6.4 wire 직접 연결 없음
 
@@ -205,12 +208,22 @@ interface ExtMethodDecl {
 #### 3.6.7 등급과 사용자 제한
 
 - 화면 기여는 그 확장이 로드됐을 때만 보입니다. `untrusted`는 로드하지 않으므로 화면도 없습니다.
-- 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.views.frames = false`로 모든 프레임을 끌 수 있습니다. 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
+- 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.views.frames = false`로 모든 프레임을 끌 수 있습니다(키는 X가 소유합니다, §6 9번). 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
 - 안전 모드에서 빠진 확장의 화면은 자리표시 상태로 보입니다(§3.7).
+
+#### 3.6.7.1 다리 판정 보강 [결정: 2026-11-04 사용자]
+
+보안 검토 결과를 다리에 넣습니다. 확인 줄은 항상 켜져 있습니다(B2 1안).
+
+- 외부 링크: 원문에 제어 문자(탭, 줄바꿈 포함), 공백, 방향 제어 글자가 있으면 거부합니다. 통과한 글은 `new URL`로 정규화하고 확인 줄과 OS 브라우저 열기에 둘 다 `href`를 씁니다. 보일 글에서 방향 제어 글자를 빼고, 사용자가 쓴 호스트와 정규화된 호스트가 다르면(국제화 도메인) 퓨니코드 호스트를 함께 보입니다.
+- 확인 줄: 허용·거부는 장부에 센다(거부 `confirm_denied`, 시간 초과 `confirm_timeout`). 연속 3번 거부하면 5초 동안 줄을 띄우지 않고 거부합니다(그 거부도 셉니다). 줄은 확장 신뢰 등급 배지와, `project`이면 프로젝트 배지, 매니페스트 라벨(없으면 동사), 실제로 실행될 params의 요약을 보입니다. 화면은 줄이 나타난 뒤 500 ms 동안 누름을 무시하고 거부에 처음 초점을 둡니다(UI가 지킬 계약, `confirmButtons().defaultFocus`, `CONFIRM_CLICK_GUARD_MS`).
+- `post`와 `requestApproval`: 화면마다 5초에 1번, 미결 5개까지입니다. 제어·방향 제어 글자를 빼고, 카드는 확장 이름과 등급을 보입니다(B3 1안: 기존 질문 카드 + 출처). `post`는 `allowPost`가 참일 때만이고 기본은 `builtin`만 참입니다. 사용자·프로젝트 확장은 `requestApproval`로만 묻습니다.
+- `settings`: 매니페스트에 선언한 키만 값을 돌려줍니다. 선언하지 않은 키와 `secret` 키는 `status`만 줍니다.
+- 장부: 연속 실패를 되돌리는 성공은 일을 한 `query`, `events`, `settings`, `call`, `command`, `post`, `requestApproval`, `navigate`뿐입니다. `host`, `pong`, `resize`, `log`는 되돌리지 않습니다. `query`는 동시 8개까지입니다. params의 `__proto__`는 자료 키로만 다룹니다.
 
 #### 3.6.8 테마 토큰 전달
 
-- 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. 셸은 `fresnel-view://_caustic/tokens.css`(앱에 든 `@caustic/tokens` 사본, 읽기 전용)도 제공합니다 [제안].
+- 셸은 처음과 테마가 바뀔 때 `push: "theme"`로 caustic 토큰 값(CSS 사용자 속성 이름과 값), 라이트·다크, 밀도, 로케일, `prefers-reduced-motion`, 한글 타이포 규칙(DP-11)을 보냅니다. [결정: 2026-11-04 사용자] `fresnel-view://_caustic/tokens.css`는 두지 않습니다. 프레임 CSP의 `style-src`는 그 확장 버전 접두만 허용해 그 주소를 막고, Rust 셸도 `_` 이름을 거부했습니다. 토큰은 이 푸시의 값을 프레임이 `:root`에 적용해 씁니다(`style-src`가 `'unsafe-inline'`을 허용).
 - 프레임 안 모양을 caustic에 맞추는 일은 플러그인 몫입니다. 셸은 머리와 상자 경계를 그려 프레임 화면이 앱 화면처럼 보이지 않게 합니다(§3.6.6).
 
 #### 3.6.9 위협 표
