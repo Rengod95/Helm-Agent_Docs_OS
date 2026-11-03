@@ -14,6 +14,7 @@ import type { LearningEvent } from "./events.ts";
 import type { KnowledgeFailure, KnowledgePort } from "./knowledge.ts";
 import { isExpired, transition, type ProposalEvent } from "./queue.ts";
 import { preScan } from "./scan.ts";
+import { parseTarget } from "./target.ts";
 import { proposalView, type Proposal, type ProposalView } from "./proposal.ts";
 import type { LearningQueueReader, ProposalFilter } from "./reader.ts";
 
@@ -65,6 +66,33 @@ export interface QueueOps {
   sweep(signal: AbortSignal): Promise<Result<QueueSweep, LearningError>>;
 }
 
+/**
+ * `base_stale`로 되돌아오는 판이 다시 승인될 때 옛 해시로 또 base_stale이 나지 않도록 대상의 현재 해시를 읽어 싣는다(§4.5 규칙 5).
+ * 읽지 못하거나(없음, 일시 실패) 해시를 쓰지 않는 후보면 null로 두어 이전 값을 유지한다
+ */
+async function withCurrentBase(
+  outcome: ApplyTransition,
+  proposal: Proposal,
+  knowledge: KnowledgePort,
+  signal: AbortSignal,
+): Promise<ApplyTransition> {
+  if (outcome.kind !== "backToPending" || proposal.baseHash === null) return outcome;
+  const target = parseTarget(proposal.kind, proposal.op, proposal.target);
+  if (!target.ok) return outcome;
+  const call = { signal };
+  if (target.value.kind === "skill") {
+    const current = await knowledge.skillHash(target.value.name, call);
+    return current.ok && current.value.state === "present"
+      ? { ...outcome, baseHash: current.value.hash }
+      : outcome;
+  }
+  if (target.value.kind === "memory") {
+    const current = await knowledge.memoryHash(target.value.area, call);
+    return current.ok ? { ...outcome, baseHash: current.value } : outcome;
+  }
+  return outcome;
+}
+
 function applyKey(proposal: Pick<Proposal, "id" | "revision">): string {
   return `learning:apply:${proposal.id}:${String(proposal.revision)}`;
 }
@@ -105,7 +133,7 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
       idempotencyKey: applyKey(proposal),
       decidedAt: proposal.updatedAt,
     });
-    const outcome = applyOutcome(applied);
+    const outcome = await withCurrentBase(applyOutcome(applied), proposal, knowledge.value, signal);
     const at = clock.now();
     const next = transition(proposal, { kind: "apply", transition: outcome }, at);
     if (!next.ok) return next;
@@ -135,6 +163,7 @@ export function createQueueOps(deps: QueueOpsDeps): QueueOps {
           id: proposal.id,
           reason: "base_stale",
           nextStatus: "pending",
+          ...(outcome.baseHash === null ? {} : { baseHash: outcome.baseHash }),
           at,
         });
         break;

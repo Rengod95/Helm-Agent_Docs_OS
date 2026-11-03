@@ -37,7 +37,14 @@ function proposalEventOf(event: LearningEvent, row: Proposal): ProposalEvent | u
       };
     case "proposal.apply_failed":
       if (event.nextStatus === "pending") {
-        return { kind: "apply", transition: { kind: "backToPending", reason: "base_stale" } };
+        return {
+          kind: "apply",
+          transition: {
+            kind: "backToPending",
+            reason: "base_stale",
+            baseHash: event.baseHash ?? null,
+          },
+        };
       }
       if (event.nextStatus === "applied") return { kind: "revertRefused" };
       return {

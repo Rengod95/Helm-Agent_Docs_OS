@@ -454,7 +454,7 @@ F.records.spec §3.2 규칙 2의 그룹 kind 형식 `grp.<groupId>.<영역>.<이
 | `grp.learning.proposal.edited` | `{ id, revision, diff, bodyHash }` | 사용자 수정 |
 | `grp.learning.proposal.decided` | `{ id, revision, status: "approved" \| "rejected", reason, decidedAt, scope }` | 사용자 결정. `scope`는 승인 때 고른 범위(§4.5 규칙 8) |
 | `grp.learning.proposal.applied` | `{ id, ledgerId, afterHash }` | L2-d 적용 성공 |
-| `grp.learning.proposal.apply_failed` | `{ id, reason, nextStatus: "pending" \| "rejected" }` | L2-d 적용 실패 |
+| `grp.learning.proposal.apply_failed` | `{ id, reason, nextStatus: "pending" \| "rejected", baseHash? }` | L2-d 적용 실패. `pending`으로 돌아올 때 `baseHash`는 그때 읽은 대상의 현재 해시이고 판이 이 값을 새 `baseHash`로 가진다. 없으면 이전 값을 둔다 |
 | `grp.learning.proposal.reverted` | `{ id, ledgerId }` | 원장 롤백 성공 |
 | `grp.learning.proposal.expired` | `{ id, at }` | 만료 판정 |
 
@@ -601,7 +601,7 @@ export type DecisionResult =
 export type ApplyTransition =
   | { readonly kind: "applied"; readonly ledgerId: string; readonly afterHash: string }
   | { readonly kind: "rejected"; readonly reason: "scan_failed" | "apply_failed" }
-  | { readonly kind: "backToPending"; readonly reason: "base_stale" }
+  | { readonly kind: "backToPending"; readonly reason: "base_stale"; readonly baseHash: string | null }  // 새로 읽은 현재 해시. 못 읽으면 null(이전 값 유지)
   | { readonly kind: "retry"; readonly detail: string };          // io, 기능 일시 실패. approved 유지
 
 /** 명령 진입 때의 지연 정리 결과(§4.5 규칙 7) */
@@ -766,7 +766,8 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
    - 같은 이름: `create`인데 같은 이름의 스킬이 있으면 `learning_propose`가 `name_exists`를 돌려준다. 모델은 `knowledge.skills.view`로 읽고 `patch`와 `baseHash`로 다시 제안한다. 같은 이름의 후보가 대기열에 둘 생기지 않는다.
    - 유사 스킬: L2-d 검색이 유사 스킬을 돌려주면 `conflictsWith`를 채운다. 후보는 그대로 두고 승인 화면이 두 스킬을 나란히 보인다.
    - 자동 병합은 하지 않는다. 사용자가 고르는 길은 셋이다: 승인(새 스킬로 둠), 거절, 수정(`edit`)으로 기존 스킬의 `patch` 후보로 바꿈. 두 스킬을 합치는 일은 2차 큐레이터의 LLM 통합 몫이다(§4.8.1).
-5. 승인 중 원본 변경: 승인 시점과 적용 시점 사이에 원본이 바뀌면 L2-d가 `base_stale`을 돌려주고 후보는 `pending`으로 돌아간다(위 표). 사용자는 새 diff를 보고 다시 결정한다.
+5. 승인 중 원본 변경: 승인 시점과 적용 시점 사이에 원본이 바뀌면 L2-d가 `base_stale`을 돌려주고 후보는 `pending`으로 돌아간다(위 표). 이때 대상의 현재 해시를 다시 읽어 후보의 `baseHash`로 바꾸므로 사용자가 다시 승인하면 새 해시로 적용한다(옛 해시로 또 `base_stale`이 되지 않는다). 사용자는 다시 결정한다.
+   - 다시 시도해도 풀리지 않는 L2-d 실패(`not_found`, `read_only_scope`, `limit_exceeded`, `effect_not_allowed`)는 `invalid`로 보고 `rejected/apply_failed`로 닫는다. 표에 없는 나머지 코드(`unavailable`, `timeout`, `upstream_error`, `rate_limited`, `internal`)만 `io`로 보고 `approved`에 둔다 [제안].
 6. 결정 경로: 결정은 사용자 명령(§6.2) 처리기 안에서 한다. 명령 처리기는 재실행되는 코드가 아니므로 ADR-0015 표의 대상이 아니고 L2-d 호출을 직접 할 수 있다. 결정 이벤트(`grp.learning.proposal.decided`)를 먼저 커밋하고 적용을 부른다. 적용 호출은 `ApprovalEvidence{ source: "learning.queue", proposalId, revision, decidedAt }`를 싣는다. L2-d는 이 증거를 믿을 때 자기 승인 요청을 내지 않으므로 승인이 한 번이다(L-IN-16). 증거를 믿는 조건(`l2.knowledge.write.trustedEvidenceSources`에 `learning.queue`가 있음)은 요구 REQ-LN-09다. 믿지 않으면 L2-d가 승인 요청을 한 번 더 내고, 학습 그룹은 그 결과를 `approval_required`로 받아 `approved`에 둔다.
 7. 지연 정리 [제안]: `/learning` 명령 처리기는 진입 때마다 먼저 `sweepQueue`를 돌린다. (1) `approved`이고 `applied`가 아닌 행의 적용을 같은 `idempotencyKey`로 다시 부른다. (2) 만료 시각이 지난 `pending` 행을 `expired`로 바꾼다. (3) `inFlightReviewId`가 있고 구독 경로가 없으면 §4.3 대체 조회를 한다. 시각은 명령 문맥의 주입 시계를 쓴다. L4 승인 화면은 목록을 `/learning queue --json`으로 받으므로 화면을 열 때도 정리가 돈다. 옛 `thread.start` 복원은 on 핸들러 안의 읽기와 기능 쓰기라 ADR-0015 §3.2에서 허용되지 않는다(기능 쓰기는 `idempotent: true` 선언이 있으면 허용되지만 대상 행을 고르는 읽기가 막힌다). `approved` 미적용 행은 결정 명령 도중 프로세스가 끝날 때만 생기므로 다음 명령까지 미뤄도 사용자가 보는 상태와 어긋나지 않는다.
 8. 범위 선택 [결정: review.m3-design-inputs D-M3-09]: 스킬 후보의 기본 범위는 `user`다. `approve`에 `scope: "project"`가 있으면 적용 어댑터가 `KnowledgeChange.scope = "project"`로 부른다. 메모리·피드백 후보에 `project`를 주면 `learning.scopeNotAllowed`다. 모델 도구 경로(`learning_propose`, `skill_manage`)는 프로젝트 범위를 고를 수 없다.

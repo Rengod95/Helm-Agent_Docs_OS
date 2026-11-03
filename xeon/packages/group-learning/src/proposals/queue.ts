@@ -132,6 +132,7 @@ function applyEvent(
       // 새 diff는 호출하는 쪽이 다시 계산해 edit 없이 넣는다. 이전 승인은 이 판에 걸리지 않게 판을 올린다
       return ok({
         ...withStatus(proposal, "pending", result.reason, now),
+        baseHash: result.baseHash ?? proposal.baseHash,
         revision: proposal.revision + 1,
       });
     case "retry":

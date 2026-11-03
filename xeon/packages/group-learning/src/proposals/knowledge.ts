@@ -108,9 +108,14 @@ const FAILURE_CODES: ReadonlyMap<string, ApplyFailure> = new Map<string, ApplyFa
   ["duplicate_entry", "invalid"],
   ["memory_full", "invalid"],
   ["unsupported", "invalid"],
+  // 다시 시도해도 풀리지 않는 실패: 대상이 사라졌거나, 범위가 읽기 전용이거나, 한도를 넘었거나, 효과가 허용되지 않는다
+  ["not_found", "invalid"],
+  ["read_only_scope", "invalid"],
+  ["limit_exceeded", "invalid"],
+  ["effect_not_allowed", "invalid"],
 ]);
 
-/** 쓰기 실패 코드를 학습 대기열의 실패 이유로 옮긴다(§3.6 본문). 표에 없는 코드는 일시 실패(`io`)로 본다 */
+/** 쓰기 실패 코드를 학습 대기열의 실패 이유로 옮긴다(§3.6 본문). 표에 없는 코드(`unavailable`, `timeout`, `upstream_error`, `rate_limited`, `internal` 등)는 일시 실패(`io`)로 본다 */
 function applyFailureOf(code: string): ApplyFailure {
   return FAILURE_CODES.get(code) ?? "io";
 }
