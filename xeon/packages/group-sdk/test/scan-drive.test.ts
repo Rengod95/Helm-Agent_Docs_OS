@@ -232,3 +232,17 @@ test("scan.reports-a-syntax-error-as-one-finding", () => {
   expect(found).toHaveLength(1);
   expect(found[0]).toMatchObject({ code: "SD-00", severity: "error", line: 1, column: 1 });
 });
+
+test("scan.finds-a-drive-nested-in-call-arguments", () => {
+  const source = `export default defineGroup({
+  setup(g) {
+    g.drive(async () => {
+      const a = Date.now();
+    });
+  },
+});`;
+  const found = scanDriveSource(source);
+  expect(found.map((finding) => [finding.code, finding.target, finding.line])).toEqual([
+    ["SD-01", "Date.now", 4],
+  ]);
+});

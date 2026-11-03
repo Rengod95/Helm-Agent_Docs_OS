@@ -102,7 +102,12 @@ function isNode(value: unknown): value is Node {
 
 function nodesOf(value: unknown): readonly Node[] {
   if (Array.isArray(value)) return value.flatMap((member) => nodesOf(member));
-  return isNode(value) ? [value] : [];
+  if (isNode(value)) return [value];
+  // swc가 호출 인자를 `{ spread, expression }` 래퍼로 감싸 배열에 넣는다. 래퍼 안의 노드까지 내려간다.
+  // 그렇지 않으면 `defineGroup({ setup(g) { g.drive(...) } })`처럼 호출 인자 안에 있는 drive를 놓친다
+  if (typeof value === "object" && value !== null)
+    return Object.values(value).flatMap((member: unknown) => nodesOf(member));
+  return [];
 }
 
 /** 노드의 직접 자식 노드들. 배열과 래퍼 객체(`{ spread, expression }`) 안의 노드도 포함한다 */
