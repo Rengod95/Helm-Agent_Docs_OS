@@ -1,6 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { err, ok, parseJson, type Result } from "@fresnel/contracts";
+import type { CapabilityId } from "@fresnel/contracts/capabilities";
 import {
   validateComposition,
   validateManifest,
@@ -11,6 +12,7 @@ import {
 } from "@fresnel/contracts/extensions";
 import type { DevkitError, DevkitIssue, ValidationReport } from "@fresnel/contracts/services";
 import { checkGroupName } from "@fresnel/group-sdk";
+import { au004, au008, au010, au011, type SourceText } from "./au-rules.ts";
 import { scanDriveSource } from "@fresnel/group-sdk/testing";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 
@@ -125,9 +127,15 @@ function manifestOf(
   });
 }
 
+export interface ValidateOptions {
+  /** 이 맥락에서 켜진 기능 제공자. 있으면 AU-004가 필수 기능의 제공자 없음을 경고한다 */
+  readonly providers?: readonly CapabilityId[];
+}
+
 /** 확장 폴더를 검사한다. 매니페스트가 없으면 `not_found`다 */
 export async function validateExtensionDir(
   dir: string,
+  options: ValidateOptions = {},
 ): Promise<Result<ValidationReport, DevkitError>> {
   const folder = await io(dir, () => stat(dir));
   if (!folder.ok) return folder;
@@ -188,9 +196,11 @@ export async function validateExtensionDir(
   const files = await sourceFiles(dir);
   if (!files.ok) return files;
   const drives = manifest?.plugins.some((plugin) => plugin.drives === true) === true;
+  const texts: SourceText[] = [];
   const sources = await mapAll(files.value, async (file) => {
     const source = await io(file, () => readFile(join(dir, file), "utf8"));
     if (!source.ok) return source;
+    texts.push({ file, text: source.value });
     const found: DevkitIssue[] = [];
     for (const { name, pattern } of SECRET_PATTERNS) {
       const match = pattern.exec(source.value);
@@ -219,5 +229,10 @@ export async function validateExtensionDir(
   });
   if (!sources.ok) return sources;
   issues.push(...sources.value.flat());
+  issues.push(...au004(issues, manifest, options.providers));
+  if (manifest !== undefined) {
+    if (drives) issues.push(...au010(manifest, texts), ...au011(texts));
+  }
+  issues.push(...au008(arrayOf(recordOf(recordOf(parsed.value.raw)?.["ui"])?.["items"])));
   return ok(reportOf(issues));
 }
