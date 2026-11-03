@@ -534,6 +534,21 @@ describe("peek", () => {
     expect(seqs).toEqual([...seqs].toSorted((x, y) => x - y));
   });
 
+  test("an unreadable input is reported once to onUnreadable and stays in the queue", async () => {
+    const world = createWorld();
+    await mustEnqueue(world, userDraft(world.threadId, "ok"));
+    const [event] = world.session.events;
+    if (event === undefined) throw new Bug("missing event");
+    Reflect.set(event, "payload", { mode: "steer" });
+    const seen: unknown[] = [];
+    world.tasks.inputs.onUnreadable((input) => seen.push(input));
+    unwrapped(world.tasks.inputs.peek(world.threadId));
+    unwrapped(world.tasks.inputs.peek(world.threadId));
+    expect(seen).toEqual([
+      { threadId: world.threadId, inputId: event.id, reason: "payload_invalid" },
+    ]);
+  });
+
   test("an input whose event payload is broken is skipped and logged", async () => {
     const world = createWorld();
     await mustEnqueue(world, userDraft(world.threadId, "ok"));

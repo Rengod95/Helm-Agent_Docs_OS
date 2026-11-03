@@ -408,6 +408,7 @@ export function createFakeTasks(options: FakeTasksOptions): FakeTasks {
         queuedListeners.delete(listener);
       };
     },
+    onUnreadable: () => () => undefined,
   };
 
   const service: TaskService = {

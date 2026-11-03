@@ -3,6 +3,7 @@ import {
   attempt,
   attemptAsync,
   Bug,
+  detach,
   err,
   ok,
   parse,
@@ -69,6 +70,7 @@ import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
+import { unreadableInputNotice } from "@fresnel/cap-dialog";
 import { createUsageSource, readEventsOfAllBranches } from "./usage.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
@@ -663,6 +665,25 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       };
     },
   };
+
+  // 큐에 남았지만 읽을 수 없는 입력은 조용히 남지 않게 사용자 알림(`dialog.notify`, 내구 `dialog.notified`)으로 알린다.
+  // 알림 서비스가 아직 없으면 로그만 남고(L1.tasks가 이미 남겼다), 같은 입력은 requestId로 한 번만 기록된다
+  tasks.inputs.onUnreadable((input) => {
+    const api = deps.commands.notify;
+    if (api === undefined) return;
+    detach(
+      api.emit(unreadableInputNotice(input.reason), {
+        requestId: `unreadable:${input.inputId}`.slice(0, 64),
+        context: { threadId: input.threadId, caller: { kind: "host" } },
+      }),
+      (cause) => {
+        log.error("notify.unreadable_input_failed", {
+          threadId: input.threadId,
+          message: messageOf(cause),
+        });
+      },
+    );
+  });
 
   const notify: UserNotifyPort = {
     async show(input) {

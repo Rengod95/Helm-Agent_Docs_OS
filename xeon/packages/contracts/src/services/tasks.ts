@@ -187,6 +187,21 @@ export type InputQueueError =
   | { readonly kind: "mode_not_supported"; readonly mode: InputMode }
   | { readonly kind: "thread_closed"; readonly threadId: ThreadId };
 
+/** 큐에 남았지만 읽을 수 없는 입력의 이유. `InputQueue.onUnreadable`이 알린다 */
+export type UnreadableInputReason =
+  | "event_missing"
+  | "detached"
+  | "blob_unreadable"
+  | "payload_invalid"
+  | "item_invalid";
+
+/** 읽을 수 없는 입력 하나의 알림. 같은 입력은 프로세스마다 한 번만 알린다 */
+export interface UnreadableInput {
+  readonly threadId: ThreadId;
+  readonly inputId: EventId;
+  readonly reason: UnreadableInputReason;
+}
+
 export interface InputQueue {
   /** input.queued를 커밋한다. 같은 (threadId, 출처 키, requestId)가 있으면 쓰지 않고 duplicate:true */
   enqueue(draft: InputDraft): Promise<Result<EnqueueReceipt, InputQueueError>>;
@@ -224,6 +239,11 @@ export interface InputQueue {
   ): Promise<Result<number, InputQueueError>>;
   /** input.queued 커밋 뒤 동기로 부른다. 쓰기가 필요하면 queueMicrotask로 미룬다 */
   onQueued(listener: (threadId: ThreadId) => void): Unsubscribe;
+  /**
+   * 큐에 남았지만 읽을 수 없는 입력(blob 없음·깨짐, 깨진 payload)을 `peek`·`drain`이 처음 만났을 때 동기로 부른다. 입력은 큐에 그대로 남는다.
+   * 사용자가 알 수 있게 알림으로 옮기는 일은 호출자의 몫이다(L1.tasks.spec §4.7)
+   */
+  onUnreadable(listener: (input: UnreadableInput) => void): Unsubscribe;
 }
 
 // ── 활동 집계 ────────────────────────────────────────────────────────────

@@ -12,3 +12,5 @@ export { createChunkNumbering } from "./chunk-numbering.ts";
 export type { ChunkNumbering } from "./chunk-numbering.ts";
 // dialog.status 발신자. 조립 루트는 쓰지 않고, 번호를 `scope.handler_failed`와 나누는 apps/host 시험이 쓴다
 export { sessionStatusPublisher } from "./session-adapter.ts";
+// 읽을 수 없는 큐 입력의 알림 내용. 조립 루트가 `InputQueue.onUnreadable`을 `dialog.notify.emit`으로 옮길 때 쓴다
+export { unreadableInputNotice } from "./notify/classify.ts";

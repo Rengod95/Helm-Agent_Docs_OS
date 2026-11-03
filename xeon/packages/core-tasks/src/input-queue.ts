@@ -26,6 +26,7 @@ import type {
   PlacementPoint,
   PlacementSelection,
   QueuedInput,
+  UnreadableInput,
   WithdrawReason,
 } from "@fresnel/contracts/services";
 import {
@@ -84,6 +85,23 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
   const { session, producer, ids, settings, log } = deps;
   const listeners = new Set<(threadId: ThreadId) => void>();
   const warnedCursor = new Set<EventId>();
+  const unreadableListeners = new Set<(input: UnreadableInput) => void>();
+  /** 이미 알린 읽을 수 없는 입력. 같은 입력은 프로세스마다 한 번만 알린다 */
+  const reportedUnreadable = new Set<EventId>();
+
+  /** 읽을 수 없는 입력을 구독자에게 한 번 알린다. 입력은 큐에 남는다 */
+  function loadQueued(
+    threadId: ThreadId,
+    view: InputView,
+  ): Result<QueuedInput | undefined, ReadFailure> {
+    return loadQueuedInput(session, log, threadId, view, deps.readBlob, (reason) => {
+      if (reportedUnreadable.has(view.inputId)) return;
+      reportedUnreadable.add(view.inputId);
+      for (const listener of unreadableListeners) {
+        listener({ threadId, inputId: view.inputId, reason });
+      }
+    });
+  }
 
   // ── 초안 ──────────────────────────────────────────────────────────────
 
@@ -253,7 +271,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     if (!queued.ok) return queued;
     for (const view of queued.value.toSorted((a, b) => a.seq - b.seq)) {
       if (modes !== undefined && !modes.includes(view.mode)) continue;
-      const loaded = loadQueuedInput(session, log, threadId, view, deps.readBlob);
+      const loaded = loadQueued(threadId, view);
       if (!loaded.ok) return loaded;
       if (loaded.value !== undefined) out.push(loaded.value);
     }
@@ -323,7 +341,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     const loadedById = new Map<EventId, QueuedInput>();
     const readable: InputView[] = [];
     for (const candidate of queued) {
-      const loaded = loadQueuedInput(session, log, threadId, candidate, deps.readBlob);
+      const loaded = loadQueued(threadId, candidate);
       if (!loaded.ok) return loaded;
       if (loaded.value === undefined) continue;
       loadedById.set(candidate.inputId, loaded.value);
@@ -416,9 +434,16 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
         resolve(result.ok ? ok({ duplicate: result.value.duplicate }) : err(result.error));
       });
     },
+    onUnreadable(listener): Unsubscribe {
+      unreadableListeners.add(listener);
+      return () => {
+        unreadableListeners.delete(listener);
+      };
+    },
     dispose() {
       unsubscribeFeed();
       listeners.clear();
+      unreadableListeners.clear();
     },
   };
 }

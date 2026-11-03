@@ -1,5 +1,6 @@
 import { assertNever, parse } from "@fresnel/contracts";
-import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
+import type { Notice, NoticeKind, NotifyEmitInputValue } from "@fresnel/contracts/capabilities";
+import type { UnreadableInputReason } from "@fresnel/contracts/services";
 import { TurnCompletedPayloadSchema } from "@fresnel/contracts/conversation";
 import type { DurableEventEnvelope } from "@fresnel/contracts/records";
 import {
@@ -142,4 +143,17 @@ function fromDialogNotified(event: DurableEventEnvelope): Notice | null {
   if (!parsed.ok || parsed.value.notice.title.length === 0) return null;
   const { kind, title, body } = parsed.value.notice;
   return notice(event, kind, title, body);
+}
+
+/**
+ * 큐에 남았지만 읽을 수 없는 입력(`InputQueue.onUnreadable`)을 사용자에게 알리는 `dialog.notify.emit` 입력이다. 입력은 큐에 그대로 남으므로
+ * 사용자가 비우고 다시 보내야 한다고 알린다(L1.tasks.spec §4.7)
+ */
+export function unreadableInputNotice(reason: UnreadableInputReason): NotifyEmitInputValue {
+  return {
+    kind: "error",
+    title: "읽을 수 없는 입력이 큐에 있다",
+    body: `큐에 넣은 입력을 읽지 못해 건너뛴다(${reason}). 큐에서 지우고 다시 보내 달라.`,
+    origin: "tasks",
+  };
 }

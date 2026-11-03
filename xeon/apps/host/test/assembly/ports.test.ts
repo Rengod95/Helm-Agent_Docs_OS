@@ -29,7 +29,9 @@ import type {
   ModelService,
   OsService,
   ResolvedModel,
+  InputQueue,
   TaskService,
+  UnreadableInput,
   ThreadLoopStatus,
   ToolMeta,
   ToolService,
@@ -39,6 +41,8 @@ import { WireError } from "@fresnel/contracts/wire";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import type { ExtHost, OperationsPolicy } from "@fresnel/ext-host";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
+import { unreadableInputNotice } from "@fresnel/cap-dialog";
+import type { CommandRegistryHolder, NotifyApi } from "../../src/assembly/l2-units.ts";
 import { createDialogAreaHolder } from "../../src/assembly/m4/dialog-area-bridge.ts";
 import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
@@ -64,6 +68,9 @@ interface Harness {
   readonly errors: string[];
   readonly compactRequests: { readonly threadId: ThreadId; readonly request: CompactRequest }[];
   readonly resolvedRoles: string[];
+  /** 읽을 수 없는 입력 구독자와, 알림 서비스가 받은 emit 호출 */
+  readonly unreadable: Set<(input: UnreadableInput) => void>;
+  readonly emitted: { readonly input: unknown; readonly options: unknown }[];
   state: {
     acquire: ReturnType<StoreService["leases"]["acquire"]>;
     openForWrite: ReturnType<SessionService["openForWrite"]>;
@@ -157,6 +164,8 @@ function harness(): Harness {
     errors,
     compactRequests: [],
     resolvedRoles: [],
+    unreadable: new Set(),
+    emitted: [],
     state,
     lostCallback: undefined,
     schedule: { pending: 0, loops: 0, listeners: new Set() },
@@ -261,6 +270,14 @@ function harness(): Harness {
     },
     activity: () => ({ liveTurns: 1, liveTasks: 3, queuedInputs: 2 }),
     onActivity: () => () => undefined,
+    inputs: partial<InputQueue>({
+      onUnreadable: (listener) => {
+        result.unreadable.add(listener);
+        return () => {
+          result.unreadable.delete(listener);
+        };
+      },
+    }),
   });
   const ext = partial<ExtHost>({
     openThread: () => {
@@ -296,6 +313,22 @@ function harness(): Harness {
       store,
       loop,
       dialogArea: createDialogAreaHolder(),
+      commands: partial<CommandRegistryHolder>({
+        notify: partial<NotifyApi>({
+          emit: (input, options) => {
+            result.emitted.push({ input, options });
+            return Promise.resolve({
+              notice: {
+                kind: "error",
+                title: input.title,
+                body: null,
+                seq: 1,
+                sourceType: "dialog.notified",
+              },
+            });
+          },
+        }),
+      }),
       // 포트 시험은 확장 읽기를 부르지 않는다. 자리만 채운다
       extRead: {
         operations: partial<OperationsPolicy>({}),
@@ -372,6 +405,25 @@ function markedRow(threadId: ThreadId): ThreadSummaryRow {
     pendingApprovals: 0,
   });
 }
+
+describe("unreadable queued input", () => {
+  test("is turned into one error notice on the thread, keyed by the input id", () => {
+    const h = harness();
+    createEnginePorts(h.deps);
+    const inputId = ids.next("evt");
+    for (const listener of h.unreadable) {
+      listener({ threadId: THREAD, inputId, reason: "payload_invalid" });
+    }
+    expect(h.emitted).toHaveLength(1);
+    expect(h.emitted[0]).toEqual({
+      input: unreadableInputNotice("payload_invalid"),
+      options: {
+        requestId: `unreadable:${inputId}`,
+        context: { threadId: THREAD, caller: { kind: "host" } },
+      },
+    });
+  });
+});
 
 describe("threads", () => {
   test("create forwards title and the canonical workspace, then reports the position in this store", async () => {
