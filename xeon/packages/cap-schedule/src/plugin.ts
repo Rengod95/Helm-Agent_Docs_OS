@@ -17,6 +17,8 @@ import type { ScheduleService } from "./types.ts";
 
 export interface SchedulePluginOptions {
   readonly service: ScheduleService;
+  /** 참이면 서비스 모드가 꺼져 있어 틱이 돌지 않는다. `create` 결과에 `service_mode_off` 경고를 싣는다 */
+  readonly serviceModeOff?: () => boolean;
   readonly loadIndex?: number;
 }
 
@@ -34,7 +36,13 @@ export function schedulePlugin(options: SchedulePluginOptions): ExtensionUnit {
   const entry: ExtensionEntry = ({ manifest: loaded, register }) => {
     register(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
-      host.provide(ScheduleEntriesKey, createScheduleApi(options.service));
+      host.provide(
+        ScheduleEntriesKey,
+        createScheduleApi(
+          options.service,
+          options.serviceModeOff === undefined ? {} : { serviceModeOff: options.serviceModeOff },
+        ),
+      );
       const tools = optionalPort(host, ToolServicePortKey);
       if (tools === undefined) return ok(undefined);
       // 예약은 사용자 없이 나중에 프롬프트를 실행시킨다. 실행 등급(exec)으로 올려 기본 모드에서 승인을 거치게 한다

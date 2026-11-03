@@ -49,7 +49,10 @@ function abortIf(method: string, signal: AbortSignal | undefined): void {
 }
 
 /** 예약 서비스를 기능 API로 감싼다. 기대한 실패는 모두 `CapabilityError`다 */
-export function createScheduleApi(service: ScheduleService): CapabilityApi<typeof ScheduleEntries> {
+export function createScheduleApi(
+  service: ScheduleService,
+  behavior: { readonly serviceModeOff?: () => boolean } = {},
+): CapabilityApi<typeof ScheduleEntries> {
   return {
     async create(input, options) {
       abortIf("create", options?.signal);
@@ -62,7 +65,12 @@ export function createScheduleApi(service: ScheduleService): CapabilityApi<typeo
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(input.enabled === undefined ? {} : { enabled: input.enabled }),
       });
-      if (created.ok) return { entry: entryViewOf(created.value) };
+      if (created.ok) {
+        // 서비스 모드가 꺼져 있으면 틱이 돌지 않는다: 호출자(모델 도구 포함)가 알도록 경고를 싣는다(L2.schedule.spec §4.4.6)
+        return behavior.serviceModeOff?.() === true
+          ? { entry: entryViewOf(created.value), warnings: ["service_mode_off"] }
+          : { entry: entryViewOf(created.value) };
+      }
       const error = created.error;
       switch (error.kind) {
         case "interval_too_short":

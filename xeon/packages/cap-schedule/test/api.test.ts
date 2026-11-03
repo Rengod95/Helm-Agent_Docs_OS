@@ -301,3 +301,15 @@ describe("failures at the boundary", () => {
     expect(h.service.list()).toEqual([]);
   });
 });
+
+describe("service mode off", () => {
+  test("create carries the service_mode_off warning only when the host says the service is off", async () => {
+    const off = createScheduleApi(createHarness().service, { serviceModeOff: () => true });
+    const created = await off.create({ trigger: { kind: "remote" }, prompt: "a" });
+    expect(created.warnings).toEqual(["service_mode_off"]);
+    const on = createScheduleApi(createHarness().service, { serviceModeOff: () => false });
+    expect(
+      (await on.create({ trigger: { kind: "remote" }, prompt: "a" })).warnings,
+    ).toBeUndefined();
+  });
+});
