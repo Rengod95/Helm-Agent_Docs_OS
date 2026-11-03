@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
@@ -27,7 +27,10 @@ function failureOf(call: Promise<unknown>): Promise<unknown> {
   );
 }
 
-/** `<config>/extensions/ext-probe`: `boundary.settle.after` 핸들러를 걸고 기능 `probe.cap`을 내며 `fail`이 참이면 핸들러가 던진다 */
+/**
+ * `<config>/extensions/ext-probe`: `boundary.settle.after` 핸들러를 걸고 기능 `probe.cap`을 내며 `fail`이 참이면 핸들러가 던진다.
+ * 루트가 아닌 플러그인 `idle`(같은 훅 선언)은 기본이 꺼짐이라 Registration은 있어도 핸들러가 레지스트리에 없다
+ */
 function writeProbe(home: EngineHome, fail: boolean): void {
   const root = join(home.root, "config", "extensions", PROBE);
   mkdirSync(join(root, ".fresnel-plugin"), { recursive: true });
@@ -45,6 +48,7 @@ function writeProbe(home: EngineHome, fail: boolean): void {
           hooks: ["boundary.settle.after"],
           provides: [{ id: "probe.cap", version: "1.0.0" }],
         },
+        { id: "idle", layer: "plugin", hooks: ["boundary.settle.after"] },
       ],
     }),
   );
@@ -55,6 +59,9 @@ function writeProbe(home: EngineHome, fail: boolean): void {
     g.on("boundary.settle.after", () => {
       ${fail ? 'throw new Error("probe handler failed");' : ""}
     });
+  });
+  register(${JSON.stringify(`${PROBE}/idle`)}, {}, (g) => {
+    g.on("boundary.settle.after", () => {});
   });
 };
 `,
@@ -112,6 +119,7 @@ realTest(
         layer: "L1",
         isGroup: false,
         location: "builtin",
+        origin: "builtin",
         tier: "builtin",
         effectiveGrade: "builtin",
         status: "enabled",
@@ -125,10 +133,11 @@ realTest(
         effectiveGrade: "user",
         status: "enabled",
         enabledSource: "default",
-        hookCount: 1,
+        hookCount: 2,
+        origin: "user",
         autoDisabled: false,
         safeModeExcluded: null,
-        location: join(home.root, "config", "extensions", PROBE),
+        location: realpathSync(join(home.root, "config", "extensions", PROBE)),
       });
 
       const got = await connection.request("ext.get", { name: PROBE });
@@ -140,6 +149,12 @@ realTest(
           budgetClass: "tap",
           budgetMs: 5000,
         },
+        {
+          registrationId: `${PROBE}/idle`,
+          hook: "boundary.settle.after",
+          budgetClass: "tap",
+          budgetMs: 5000,
+        },
       ]);
       expect(got.bindings).toEqual([
         {
@@ -147,7 +162,8 @@ realTest(
           capability: "probe.cap",
           relation: "provides",
           peer: null,
-          satisfied: true,
+          // 선언만 있고 setup이 `provide`를 부르지 않아 ExtHost는 이 기능을 바인딩하지 않았다
+          satisfied: false,
         },
       ]);
       expect(await failureOf(connection.request("ext.get", { name: "no-such" }))).toMatchObject({
@@ -157,17 +173,32 @@ realTest(
 
       const bound = await connection.request("ext.bindings", {});
       const byCapability = new Map(bound.capabilities.map((row) => [row.capability, row]));
-      expect(byCapability.get("probe.cap")?.provider).toEqual({
-        registrationId: PROBE,
-        version: "1.0.0",
-      });
+      expect(byCapability.get("probe.cap")).toMatchObject({ provider: null, unmet: false });
       expect(byCapability.get("dialog.ask")?.provider?.registrationId).toBe("cap-dialog");
 
       const hooks = await connection.request("hooks.list", {});
       const settle = hooks.hooks.find((row) => row.hook === "boundary.settle.after");
       expect(settle?.fold).toBe("tap");
-      expect(settle?.registrations).toEqual(["ext-probe", "learning"].toSorted());
-      expect(settle?.handlers).toBe(settle?.registrations.length);
+      // 실제 등록: 핸들러가 있는 Registration이 디스패치 순서로 먼저, 꺼져 있어 핸들러가 없는 `ext-probe/idle`이 tier 없이 뒤에 온다
+      expect(settle?.order).toEqual([
+        { registrationId: PROBE, extension: PROBE, tier: 1, status: "enabled", error: null },
+        {
+          registrationId: "learning",
+          extension: "learning",
+          tier: 5,
+          status: "enabled",
+          error: null,
+        },
+        {
+          registrationId: `${PROBE}/idle`,
+          extension: PROBE,
+          tier: null,
+          status: "disabled",
+          error: null,
+        },
+      ]);
+      expect(settle?.registrations).toEqual(["ext-probe", "learning"]);
+      expect(settle?.handlers).toBe(2);
 
       const health = await connection.request("ext.health", { name: PROBE });
       expect(health.health).toEqual([
@@ -176,6 +207,7 @@ realTest(
           registrationId: PROBE,
           consecutiveFailures: 0,
           windowFailures: 0,
+          windowCalls: 0,
           windowMs: 0,
           autoDisabled: false,
           lastFailureAt: null,
@@ -241,6 +273,17 @@ realTest(
       });
       expect(metrics.id).toBe(groupId);
       expect(metrics.metrics?.leases).toBe(1);
+      expect(metrics.sinceIgnoredBy).toEqual([]);
+      // since 이전의 임대는 세지 않는다. 메모리 카운터 값은 since를 지키지 못한다고 밝힌다
+      const later = await connection.request("group.metrics", {
+        id: groupId,
+        threadId: created.threadId,
+        since: "2999-01-01T00:00:00.000Z",
+      });
+      expect(later.metrics?.leases).toBe(0);
+      expect(later.metrics?.leaseMs).toBe(0);
+      expect(later.sinceIgnoredBy).toContain("inputTokens");
+      expect(later.sinceIgnoredBy).not.toContain("leases");
       expect(
         await connection.request("group.promotion", { threadIds: [created.threadId] }),
       ).toEqual({
@@ -288,6 +331,9 @@ realTest(
       );
       const row = health.health[0];
       expect(row?.windowFailures).toBeGreaterThanOrEqual(1);
+      // 창은 호출 수이고 창이 덮는 시간은 가장 오래된 호출부터 지금까지다
+      expect(row?.windowCalls).toBeGreaterThanOrEqual(1);
+      expect(row?.windowMs).toBeGreaterThan(0);
       expect(row?.consecutiveFailures).toBeGreaterThanOrEqual(1);
       expect(row?.lastError).toContain("probe handler failed");
       expect(typeof row?.lastFailureAt).toBe("string");

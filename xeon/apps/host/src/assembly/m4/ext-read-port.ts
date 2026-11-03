@@ -20,6 +20,7 @@ import type {
   CapabilityBinding,
   EnabledSource,
   ExtBindingEdge,
+  ExtOrigin,
   ExtDiagnostic,
   ExtHealthEntry,
   ExtListEntry,
@@ -29,6 +30,7 @@ import type {
   GroupPromotionResult,
   GroupStatusWire,
   HookEntry,
+  HookHandlerRow,
   SafeModeCause,
   SettingWriter,
 } from "@fresnel/contracts/wire";
@@ -49,6 +51,8 @@ interface SafeModeState {
 export interface ExtensionRecord {
   readonly manifest: ExtensionManifest;
   readonly location: string;
+  /** 어디서 실렸는가: 호스트 내장 단위, 또는 로더가 찾은 위치 */
+  readonly origin: ExtOrigin;
   readonly requestedGrade: string;
   readonly effectiveGrade: string;
   readonly tier: string | null;
@@ -60,6 +64,9 @@ export interface ExtensionRecord {
 interface ExtHealthStats {
   readonly consecutiveFailures: number;
   readonly windowFailures: number;
+  /** 창 안 호출 수 */
+  readonly windowCalls: number;
+  /** 창이 덮는 시간(ms): 창 안 가장 오래된 호출부터 지금까지. 창이 비면 0 */
   readonly windowMs: number;
   readonly lastFailureAt: string | null;
   readonly lastError: string | null;
@@ -105,6 +112,21 @@ export interface ExtReadSources {
   /** 승격 후보 읽기. 학습 그룹이 꺼져 있으면 빈 후보 */
   promotion(threadIds: readonly string[] | undefined): Promise<GroupPromotionResult>;
   driveLock(threadId: string): Promise<GroupDriveLockResult>;
+  /** 호스트 핸들러 레지스트리의 실제 등록. 지점 이름 오름차순, 안에서는 디스패치 순서(`ExtReadView.handlers`) */
+  hookHandlers(): readonly {
+    readonly point: HookName;
+    readonly registrationId: string;
+    readonly extension: string;
+    readonly tier: number;
+  }[];
+  /** ExtHost가 지금 바인딩한 기능 공급자(기능 id 오름차순) */
+  boundCapabilities(): readonly {
+    readonly capability: string;
+    readonly provider: string;
+    readonly version: string;
+  }[];
+  /** 호스트 전체의 Registration 상태와 마지막 오류 코드. 모든 scope가 나온다(켜진 것, 꺼진 것, setup에 실패한 것) */
+  registrationErrors(): ReadonlyMap<string, string>;
   settings: SettingExplainSource;
 }
 
@@ -123,6 +145,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   health: () => ({
     consecutiveFailures: 0,
     windowFailures: 0,
+    windowCalls: 0,
     windowMs: 0,
     lastFailureAt: null,
     lastError: null,
@@ -143,6 +166,9 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
       candidates: [],
       lastRejected: null,
     }),
+  hookHandlers: () => [],
+  boundCapabilities: () => [],
+  registrationErrors: () => new Map(),
   settings: NO_SETTINGS,
 };
 
@@ -217,6 +243,7 @@ export function createExtReadPort(
       isGroup: isGroupExtension(manifest),
       version: manifest.version,
       location: record.location,
+      origin: record.origin,
       requestedGrade: record.requestedGrade,
       effectiveGrade: record.effectiveGrade,
       tier: record.tier,
@@ -249,14 +276,8 @@ export function createExtReadPort(
   }
 
   /** 능력 id별로 제공자와 소비자를 모은다. 범위(semver) 대조는 하지 않고 id가 같은 제공자를 짝으로 본다 */
-  function bindingsOf(
-    infos: ReadonlyMap<string, RegistrationStatus>,
-    threadId: string | undefined,
-  ): readonly CapabilityBinding[] {
-    const statusFor = (registrationId: string): RegistrationStatus =>
-      (threadId === undefined ? undefined : sources.threadStatus(threadId, registrationId)) ??
-      infos.get(registrationId) ??
-      "disabled";
+  function bindingsOf(): readonly CapabilityBinding[] {
+    const bound = new Map(sources.boundCapabilities().map((item) => [item.capability, item]));
     const table = new Map<
       string,
       {
@@ -273,10 +294,12 @@ export function createExtReadPort(
     };
     for (const record of sources.extensions()) {
       for (const entry of pluginsOf(record.manifest)) {
+        // 공급자는 ExtHost가 지금 실제로 바인딩한 확장의 것이다. 선언만 있고 바인딩되지 않은 기능은 공급자가 없다
         for (const provided of entry.decl.provides ?? []) {
           const row = slot(provided.id);
-          if (row.provider === null || statusFor(entry.registrationId) === "enabled") {
-            row.provider = { registrationId: entry.registrationId, version: provided.version };
+          const live = bound.get(provided.id);
+          if (live !== undefined && live.provider === record.manifest.name) {
+            row.provider = { registrationId: entry.registrationId, version: live.version };
           }
         }
         for (const need of entry.decl.requires ?? []) {
@@ -305,11 +328,8 @@ export function createExtReadPort(
       }));
   }
 
-  function edgesOf(
-    record: ExtensionRecord,
-    infos: ReadonlyMap<string, RegistrationStatus>,
-  ): readonly ExtBindingEdge[] {
-    const table = bindingsOf(infos, undefined);
+  function edgesOf(record: ExtensionRecord): readonly ExtBindingEdge[] {
+    const table = bindingsOf();
     const edges: ExtBindingEdge[] = [];
     for (const entry of pluginsOf(record.manifest)) {
       for (const provided of entry.decl.provides ?? []) {
@@ -318,7 +338,9 @@ export function createExtReadPort(
           capability: provided.id,
           relation: "provides",
           peer: null,
-          satisfied: true,
+          satisfied:
+            table.find((row) => row.capability === provided.id)?.provider?.registrationId ===
+            entry.registrationId,
         });
       }
       const wants = [
@@ -374,7 +396,7 @@ export function createExtReadPort(
           entry: entryOf(record, infos, undefined, sources.safeMode()),
           manifest: { ...record.manifest },
           hooks,
-          bindings: edgesOf(record, infos),
+          bindings: edgesOf(record),
         }),
       );
     },
@@ -417,6 +439,7 @@ export function createExtReadPort(
           consecutiveFailures: stats.consecutiveFailures,
           windowFailures: stats.windowFailures,
           windowMs: stats.windowMs,
+          windowCalls: stats.windowCalls,
           autoDisabled: sources.autoDisabled(record.manifest.name),
           lastFailureAt: stats.lastFailureAt,
           lastError: stats.lastError,
@@ -441,7 +464,7 @@ export function createExtReadPort(
     async bindings(params, signal) {
       const thread = await checkThread(params.threadId, signal);
       if (!thread.ok) return thread;
-      return ok({ capabilities: bindingsOf(statusMap(), params.threadId) });
+      return ok({ capabilities: bindingsOf() });
     },
 
     async groupList(params, signal) {
@@ -477,7 +500,12 @@ export function createExtReadPort(
         threadId: params.threadId,
       });
       if (metrics === undefined) return err({ kind: "unknown_group", id: params.id });
-      return ok({ id: params.id, metrics, since: params.since ?? null });
+      return ok({
+        id: params.id,
+        metrics,
+        since: params.since ?? null,
+        sinceIgnoredBy: sinceIgnoredBy(params.since),
+      });
     },
 
     async groupPromotion(params) {
@@ -491,20 +519,47 @@ export function createExtReadPort(
     },
 
     hooks() {
-      const registrations = new Map<string, Set<string>>();
+      const infos = statusMap();
+      const errors = sources.registrationErrors();
+      const rowOf = (registrationId: string, extension: string, tier: number | null) => ({
+        registrationId,
+        extension,
+        tier,
+        status: infos.get(registrationId) ?? "disabled",
+        error: errors.get(registrationId) ?? null,
+      });
+      const live = new Map<HookName, HookHandlerRow[]>();
+      for (const handler of sources.hookHandlers()) {
+        const rows = live.get(handler.point) ?? [];
+        rows.push(rowOf(handler.registrationId, handler.extension, handler.tier));
+        live.set(handler.point, rows);
+      }
+      // 레지스트리에서 빠진 Registration(꺼졌거나 setup에 실패함)은 선언한 Hook을 뒤에 붙인다. Registration이 없는 확장은 없다
+      const idle = new Map<HookName, HookHandlerRow[]>();
       for (const record of sources.extensions()) {
         for (const entry of pluginsOf(record.manifest)) {
+          if (!infos.has(entry.registrationId)) continue;
           for (const hook of entry.decl.hooks) {
-            const found = registrations.get(hook) ?? new Set<string>();
-            found.add(entry.registrationId);
-            registrations.set(hook, found);
+            if (!isHookName(hook)) continue;
+            const registered = live
+              .get(hook)
+              ?.some((row) => row.registrationId === entry.registrationId);
+            if (registered === true) continue;
+            const rows = idle.get(hook) ?? [];
+            rows.push(rowOf(entry.registrationId, record.manifest.name, null));
+            idle.set(hook, rows);
           }
         }
       }
       const rows: HookEntry[] = [];
-      for (const [hook, owners] of registrations) {
-        if (!isHookName(hook)) continue;
-        rows.push(hookRow(hook, owners));
+      for (const hook of new Set([...live.keys(), ...idle.keys()])) {
+        const order = [
+          ...(live.get(hook) ?? []),
+          ...(idle.get(hook) ?? []).toSorted((a, b) =>
+            a.registrationId < b.registrationId ? -1 : a.registrationId > b.registrationId ? 1 : 0,
+          ),
+        ];
+        rows.push(hookRow(hook, order));
       }
       return Promise.resolve(ok({ hooks: rows.toSorted((a, b) => (a.hook < b.hook ? -1 : 1)) }));
     },
@@ -529,13 +584,40 @@ export function createExtReadPort(
   return port;
 }
 
-function hookRow(hook: HookName, owners: ReadonlySet<string>): HookEntry {
+/** 이벤트에서 접는 지표. `since`를 지킨다 */
+const EVENT_METRICS: readonly string[] = ["leases", "leaseMs"];
+/** 프로세스 메모리 카운터에서 오는 지표(`costUsd`는 카운터와 이벤트의 합). 프로세스가 뜬 뒤의 누계라 `since`를 지키지 못한다 */
+const COUNTER_METRICS: readonly string[] = [
+  "inputTokens",
+  "outputTokens",
+  "cacheReadTokens",
+  "cacheWriteTokens",
+  "costUsd",
+  "denies",
+  "chainPatches",
+  "handlerErrors",
+  "posts",
+  "spawns",
+  "delegates",
+  "commits",
+  "records",
+];
+
+/** `since`가 없으면 없다. 시각으로 읽히지 않으면 아무 지표도 걸러지지 않으므로 전부다 */
+function sinceIgnoredBy(since: string | undefined): readonly string[] {
+  if (since === undefined) return [];
+  return Number.isNaN(Date.parse(since)) ? [...EVENT_METRICS, ...COUNTER_METRICS] : COUNTER_METRICS;
+}
+
+function hookRow(hook: HookName, order: readonly HookHandlerRow[]): HookEntry {
   const decl = HOOKS[hook];
+  const registered = order.filter((row) => row.tier !== null);
   return {
     hook,
     fold: decl.fold,
-    handlers: owners.size,
-    registrations: [...owners].toSorted(),
+    handlers: registered.length,
+    registrations: registered.map((row) => row.registrationId),
     external: decl.pi === undefined,
+    order,
   };
 }

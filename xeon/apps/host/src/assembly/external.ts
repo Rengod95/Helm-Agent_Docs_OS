@@ -50,12 +50,6 @@ export interface ExternalLoading {
     readonly manifest: ExtensionManifest;
     readonly loadIndex: number;
   }[];
-  /** 찾아낸 모든 외부 확장의 매니페스트와 로드 순번(싣지 못했으면 null). 확장 읽기(`ext.list`)가 쓴다 */
-  readonly discovered: readonly {
-    readonly name: string;
-    readonly manifest: ExtensionManifest;
-    readonly loadIndex: number | null;
-  }[];
 }
 
 /** 사용자 위치의 외부 확장을 싣는다. 프로젝트 확장은 cwd의 프로젝트만 판정해 싣고, 서비스 모드는 작업 폴더를 여는 때 싣는다(project-extensions.ts) */
@@ -104,7 +98,7 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
   const manifests = discovered.flatMap((entry) =>
     entry.loadIndex === null ? [] : [{ manifest: entry.manifest, loadIndex: entry.loadIndex }],
   );
-  return { loader, report, manifests, discovered };
+  return { loader, report, manifests };
 }
 
 async function manifestOf(

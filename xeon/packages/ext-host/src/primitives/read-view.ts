@@ -51,8 +51,8 @@ export interface ExtReadView {
   /** thread의 drive lock. thread가 열려 있지 않으면 undefined */
   driveLock(threadId: ThreadId): DriveLockView | undefined;
   /**
-   * 레지스트리에 실제로 등록된 핸들러 전부를, 지점별로 모아 디스패치 순서로(F.extensions.spec §4.2) 돌려준다.
-   * 지점 순서는 지점 이름 오름차순이다. 꺼진 scope의 핸들러도 있다(디스패치는 `isOpen`으로 거르고 이 조회는 거르지 않는다)
+   * 레지스트리에 실제로 등록된 핸들러 전부를, 훅별로 모아 디스패치 순서로(F.extensions.spec §4.2) 돌려준다.
+   * 훅 순서는 훅 이름 오름차순이다. 꺼진 scope의 핸들러도 있다(디스패치는 `isOpen`으로 거르고 이 조회는 거르지 않는다)
    */
   handlers(): readonly HookHandlerView[];
   /** 지금 바인딩된 기능 공급자. 기능 id 오름차순 */
