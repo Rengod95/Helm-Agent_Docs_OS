@@ -1,24 +1,35 @@
 // 런타임 탭(대화 영역 오른쪽 "런타임", spec §4.9.8). 구역 넷: 주도 락, 켜진 그룹과 확장, 전환 기록, 실패.
 // 데이터는 열린 대화 하나를 따라 읽는다(`ext.list`, `group.list`, `group.driveLock`). 목록 알림(`reloadOnExtChanges`)마다 다시 읽는다.
+// 전환 기록과 실패 기록은 엔진 거울이 받은 이벤트를 쓴다(읽기를 하지 않는다).
 // 모양은 `RuntimeBody`가 그린다. 값은 `packages/client/src/workbench/runtime.ts`의 모델이 만든다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   failureGroupsOf,
   runtimeRowsOf,
   runtimeViewOf,
+  transitionRowsOf,
   type DriveMemberVM,
   type DriveRoleOf,
   type HandlerFailureEntry,
   type RuntimeDriveView,
   type RuntimeExtRowVM,
+  type TransitionChange,
+  type TransitionEntry,
+  type TransitionRowVM,
 } from "@fresnel/client/workbench";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { detach, rethrow } from "@fresnel/contracts";
+import { assertNever, detach, rethrow } from "@fresnel/contracts";
+import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contracts/records";
 import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
 import { Alert, Badge, Skeleton, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
+import {
+  useHandlerFailures,
+  useLinkPhase,
+  useOpenThreadId,
+  useTransitions,
+} from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { reloadOnExtChanges } from "../workbench/controller.ts";
 import { FailureRecords } from "../workbench/ext-detail.tsx";
@@ -227,6 +238,74 @@ export const RoleText: Readonly<Record<DriveRoleOf, MessageId>> = {
   none: "desktop.runtime.role.none",
 };
 
+/** 전환 기록의 해제 사유마다 글 하나다(템플릿으로 만들지 않는다) */
+const ReleasedText: Readonly<Record<LeaseReleasedPayload["reason"], MessageId>> = {
+  disabled: "desktop.runtime.transitions.released.disabled",
+  budget: "desktop.runtime.transitions.released.budget",
+  error: "desktop.runtime.transitions.released.error",
+  idle: "desktop.runtime.transitions.released.idle",
+  revoked: "desktop.runtime.transitions.released.revoked",
+  restart: "desktop.runtime.transitions.released.restart",
+  waiting: "desktop.runtime.transitions.released.waiting",
+};
+
+/** 켜기·끄기 적용의 글. 상태와 사유 조합마다 글 하나다 */
+const ScopeText: Readonly<
+  Record<
+    ScopeChangedPayload["status"],
+    Readonly<Record<NonNullable<ScopeChangedPayload["reason"]>, MessageId>>
+  >
+> = {
+  enabled: {
+    request: "desktop.runtime.transitions.scope.enabled.request",
+    auto_disable: "desktop.runtime.transitions.scope.enabled.autoDisable",
+    safe_mode: "desktop.runtime.transitions.scope.enabled.safeMode",
+    startup_disable: "desktop.runtime.transitions.scope.enabled.startupDisable",
+  },
+  disabled: {
+    request: "desktop.runtime.transitions.scope.disabled.request",
+    auto_disable: "desktop.runtime.transitions.scope.disabled.autoDisable",
+    safe_mode: "desktop.runtime.transitions.scope.disabled.safeMode",
+    startup_disable: "desktop.runtime.transitions.scope.disabled.startupDisable",
+  },
+};
+
+/** 전환 한 건의 글 id. 종류와 값으로 고른다. 거절 사유는 알려진 값(기다림 상한)만 따로 두고 나머지는 한 글이다 */
+function transitionTextOf(change: TransitionChange): MessageId {
+  switch (change.kind) {
+    case "lease.acquired":
+      return "desktop.runtime.transitions.acquired";
+    case "lease.released":
+      return ReleasedText[change.reason];
+    case "lease.rejected":
+      return change.reason === "wait_limit"
+        ? "desktop.runtime.transitions.rejected.waitLimit"
+        : "desktop.runtime.transitions.rejected.other";
+    case "scope.changed":
+      return ScopeText[change.status][change.reason];
+    default:
+      return assertNever(change, "transitionTextOf");
+  }
+}
+
+function TransitionRow(props: { readonly row: TransitionRowVM }): ReactNode {
+  const { row } = props;
+  return (
+    <li className="flex flex-wrap items-center gap-2 text-ui-sm">
+      <span className="font-mono text-text-tertiary">{row.time}</span>{" "}
+      {row.turn !== null && (
+        <>
+          <span className="font-mono text-text-tertiary">
+            {t("desktop.runtime.transitions.turn", { turn: row.turn })}
+          </span>{" "}
+        </>
+      )}
+      <span className="text-text-primary">{t(transitionTextOf(row.change))}</span>{" "}
+      <span className="font-mono text-text-tertiary">{row.subject}</span>
+    </li>
+  );
+}
+
 function ExtRow(props: { readonly row: RuntimeExtRowVM }): ReactNode {
   const { row } = props;
   return (
@@ -261,9 +340,30 @@ export function RuntimeBody(props: {
   readonly link: LinkState;
   readonly data: RuntimeData;
   readonly failures: readonly HandlerFailureEntry[];
+  readonly transitions: readonly TransitionEntry[];
 }): ReactNode {
   const { data, link } = props;
   const noThread = props.threadId === null;
+  const transitionsBody = (): ReactNode => {
+    if (noThread)
+      return (
+        <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.empty.thread")}</p>
+      );
+    const rows = transitionRowsOf(props.transitions);
+    if (rows.length === 0)
+      return (
+        <p className="m-0 text-ui-sm text-text-tertiary">
+          {t("desktop.runtime.transitions.empty")}
+        </p>
+      );
+    return (
+      <ul className="m-0 grid list-none gap-1 p-0">
+        {rows.map((row) => (
+          <TransitionRow key={row.seq} row={row} />
+        ))}
+      </ul>
+    );
+  };
   const driveBody = (): ReactNode => {
     if (noThread)
       return (
@@ -301,11 +401,7 @@ export function RuntimeBody(props: {
     <div className="grid content-start gap-5">
       <Section title={t("desktop.runtime.section.lock")}>{driveBody()}</Section>
       <Section title={t("desktop.runtime.section.exts")}>{extsBody()}</Section>
-      <Section title={t("desktop.runtime.section.transitions")}>
-        <p className="m-0 text-ui-sm text-text-tertiary">
-          {t("desktop.runtime.transitions.unavailable")}
-        </p>
-      </Section>
+      <Section title={t("desktop.runtime.section.transitions")}>{transitionsBody()}</Section>
       <Section title={t("desktop.runtime.section.failures")}>
         {groups.length === 0 ? (
           <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.runtime.failures.empty")}</p>
@@ -332,5 +428,14 @@ export function RuntimeTab(): ReactNode {
   const link = linkOf(useLinkPhase());
   const data = useRuntimeData(threadId, link === "live");
   const failures = useHandlerFailures();
-  return <RuntimeBody threadId={threadId} link={link} data={data} failures={failures} />;
+  const transitions = useTransitions(threadId);
+  return (
+    <RuntimeBody
+      threadId={threadId}
+      link={link}
+      data={data}
+      failures={failures}
+      transitions={transitions}
+    />
+  );
 }

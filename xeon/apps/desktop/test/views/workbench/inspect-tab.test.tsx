@@ -8,6 +8,7 @@ import type {
   ExtListEntry,
   GroupDriveLockResult,
   GroupStatusWire,
+  Profile,
   SettingsExplainResult,
 } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
@@ -31,6 +32,19 @@ function sectionOf(html: string, title: string): string {
 
 const REVIEW = entry("review", { layer: "L3", isGroup: true, hookCount: 1 });
 const WEB = entry("web", { displayName: "웹 검색" });
+const CORE = entry("core-loop", { layer: "L1", tier: "core", origin: "builtin" });
+
+const QUIET: Profile = {
+  id: "quiet",
+  title: "조용히",
+  enable: [],
+  disable: ["web"],
+  settings: [],
+  driver: null,
+  updatedAt: "2026-11-04T10:00:00Z",
+  rev: 1,
+};
+const LOUD: Profile = { ...QUIET, id: "loud", title: "시끄럽게", disable: [], enable: ["web"] };
 
 function detailOf(name: string, over: Partial<ExtGetResult> = {}): ExtGetResult {
   return {
@@ -106,11 +120,14 @@ const LOCK: GroupDriveLockResult = {
   lastRejected: null,
 };
 
+/** 대화를 열지 않은 기본 값: 대화 상태는 읽지 않았고(`idle`), 프로필 목록은 비어 있다 */
 const READY_DATA: InspectData = {
   detail: { kind: "ready", value: REVIEW_DETAIL },
   timings: { kind: "ready", value: TIMINGS },
   drive: { kind: "ready", value: { groups: WAITING, lock: LOCK } },
   settings: { kind: "ready", value: [] },
+  thread: { kind: "idle" },
+  profiles: { kind: "ready", value: [] },
 };
 
 function body(
@@ -120,6 +137,7 @@ function body(
     readonly link?: "live" | "offline" | "pending";
     readonly health?: readonly ExtHealthEntry[];
     readonly records?: readonly HandlerFailureEntry[];
+    readonly threadOpen?: boolean;
   } = {},
 ): string {
   return renderToString(
@@ -130,11 +148,26 @@ function body(
       data={data}
       health={over.health ?? []}
       records={over.records ?? []}
+      threadOpen={over.threadOpen ?? false}
       onToggle={() => {}}
+      onThreadToggle={() => {}}
+      onApplyProfile={() => {}}
       onReenable={() => {}}
       onDetail={() => {}}
     />,
   );
+}
+
+/** 대화 상태 한 줄을 읽은 값 */
+function withThread(entryValue: ExtListEntry): InspectData {
+  return { ...READY_DATA, thread: { kind: "ready", value: entryValue } };
+}
+
+/** 단추 하나의 여는 태그와 글. 잠김 여부를 본다 */
+function buttonOf(html: string, label: string): string {
+  const end = html.indexOf(`>${label}</button>`);
+  if (end === -1) return "";
+  return html.slice(html.lastIndexOf("<button", end), end + label.length + "</button>".length + 1);
 }
 
 describe("검사 탭: 고른 것이 없으면 빈 상태", () => {
@@ -310,5 +343,117 @@ describe("검사 탭 상태: 읽는 중, 오류, 끊김, 대화 없음", () => {
     const html = body(WEB, { ...READY_DATA, drive: { kind: "idle" } });
     expect(html).not.toContain(`aria-label="${t("desktop.inspect.composition.title")}"`);
     expect(html).not.toContain(`aria-label="${t("desktop.inspect.drive.title")}"`);
+  });
+});
+
+describe("검사 탭: 이 대화에서 끄기 스위치", () => {
+  test("열린 대화에서 켜진 확장은 이름을 붙인 스위치가 켜짐으로 보인다", () => {
+    const html = body(WEB, withThread(WEB), { threadOpen: true });
+    const section = sectionOf(html, t("desktop.inspect.thread.title"));
+    expect(section).toContain(
+      `aria-label="${t("desktop.inspect.thread.switch.label", { name: "웹 검색" })}"`,
+    );
+    expect(section).toContain('aria-checked="true"');
+    expect(section).not.toContain('disabled=""');
+    expect(textOf(section)).toContain(t("desktop.workbench.state.on"));
+  });
+
+  test("대화가 열려 있지 않으면 스위치는 잠기고 대화를 열라는 글을 보인다", () => {
+    const html = body(WEB, READY_DATA, { threadOpen: false });
+    const section = sectionOf(html, t("desktop.inspect.thread.title"));
+    expect(section).toContain('disabled=""');
+    expect(textOf(section)).toContain(t("desktop.inspect.thread.noThread"));
+  });
+
+  test("전역에서 꺼진 확장은 스위치가 잠기고 크래프트에서 켜라는 한 줄을 보인다", () => {
+    const off = entry("web", { displayName: "웹 검색", status: "disabled" });
+    const html = body(off, withThread(off), { threadOpen: true });
+    const section = sectionOf(html, t("desktop.inspect.thread.title"));
+    expect(section).toContain('aria-checked="false"');
+    expect(section).toContain('disabled=""');
+    expect(textOf(section)).toContain("전역에서 꺼져 있어요. 크래프트에서 켜 주세요.");
+  });
+
+  test("면제 tier(core)는 이 대화에서 끄기 구역이 아예 없다", () => {
+    const html = body(CORE, withThread(CORE), { threadOpen: true });
+    expect(html).not.toContain(`aria-label="${t("desktop.inspect.thread.title")}"`);
+  });
+
+  test("끄는 중(경계를 기다림)이면 스위치는 꺼짐이고 다음 단계 경계에 적용 배지를 단다", () => {
+    const html = body(WEB, withThread({ ...WEB, registration: "disabling" }), { threadOpen: true });
+    const section = sectionOf(html, t("desktop.inspect.thread.title"));
+    expect(section).toContain('aria-checked="false"');
+    expect(textOf(section)).toContain(t("desktop.inspect.thread.appliesAt"));
+    expect(textOf(section)).toContain(t("desktop.workbench.state.off"));
+  });
+
+  test("켜는 중(경계를 기다림)이면 스위치는 켜짐이고 배지를 달고, 경계를 지나면 배지가 없다", () => {
+    const enabling = body(
+      WEB,
+      withThread({ ...WEB, status: "disabled", registration: "enabling" }),
+      {
+        threadOpen: true,
+      },
+    );
+    const enablingSection = sectionOf(enabling, t("desktop.inspect.thread.title"));
+    expect(enablingSection).toContain('aria-checked="true"');
+    expect(textOf(enablingSection)).toContain(t("desktop.inspect.thread.appliesAt"));
+    const settled = body(WEB, withThread({ ...WEB, registration: "enabled" }), {
+      threadOpen: true,
+    });
+    expect(textOf(sectionOf(settled, t("desktop.inspect.thread.title")))).not.toContain(
+      t("desktop.inspect.thread.appliesAt"),
+    );
+  });
+
+  test("대화 상태를 읽는 중이면 Skeleton을, 읽기가 실패하면 오류 한 줄을 보인다", () => {
+    const loading = body(WEB, { ...READY_DATA, thread: { kind: "loading" } }, { threadOpen: true });
+    expect(sectionOf(loading, t("desktop.inspect.thread.title"))).toContain('data-slot="skeleton"');
+    const failed = body(WEB, { ...READY_DATA, thread: { kind: "error" } }, { threadOpen: true });
+    expect(textOf(sectionOf(failed, t("desktop.inspect.thread.title")))).toContain(
+      t("desktop.inspect.thread.loadFailed"),
+    );
+  });
+});
+
+describe("검사 탭: 이 대화의 프로필", () => {
+  test("열린 대화에서 프로필 고르기는 보이고, 고르기 전에는 적용이 잠긴다", () => {
+    const html = body(
+      WEB,
+      { ...READY_DATA, profiles: { kind: "ready", value: [QUIET, LOUD] } },
+      {
+        threadOpen: true,
+      },
+    );
+    const section = sectionOf(html, t("desktop.inspect.profile.title"));
+    expect(textOf(section)).toContain(t("desktop.inspect.profile.select"));
+    expect(textOf(section)).toContain(t("desktop.inspect.profile.pick"));
+    expect(buttonOf(section, t("desktop.inspect.profile.apply"))).toContain('disabled=""');
+    expect(section).not.toContain(t("desktop.inspect.profile.noThread"));
+  });
+
+  test("대화가 없으면 고르기와 적용이 잠기고 대화를 열라는 글을 보인다", () => {
+    const html = body(
+      WEB,
+      { ...READY_DATA, profiles: { kind: "ready", value: [QUIET] } },
+      {
+        threadOpen: false,
+      },
+    );
+    const section = sectionOf(html, t("desktop.inspect.profile.title"));
+    expect(textOf(section)).toContain(t("desktop.inspect.profile.noThread"));
+    expect(buttonOf(section, t("desktop.inspect.profile.apply"))).toContain('disabled=""');
+    expect(section).toContain('disabled=""');
+  });
+
+  test("저장된 프로필이 없으면 빈 글을, 목록을 못 읽으면 오류 한 줄을 보인다", () => {
+    const empty = body(WEB, READY_DATA, { threadOpen: true });
+    expect(textOf(sectionOf(empty, t("desktop.inspect.profile.title")))).toContain(
+      "저장된 프로필이 없어요.",
+    );
+    const failed = body(WEB, { ...READY_DATA, profiles: { kind: "error" } }, { threadOpen: true });
+    expect(textOf(sectionOf(failed, t("desktop.inspect.profile.title")))).toContain(
+      "프로필 목록을 읽지 못했어요.",
+    );
   });
 });

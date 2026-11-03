@@ -122,6 +122,8 @@ export {
 export {
   createExtensionLoader,
   installDefaultPlugin,
+  readBundleManifest,
+  type BundleManifest,
   SDK_MODULE_SPECIFIERS,
   findTrustRequiringResources,
   LoadAbortError,

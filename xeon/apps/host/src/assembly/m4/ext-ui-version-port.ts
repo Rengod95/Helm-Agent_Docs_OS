@@ -25,6 +25,7 @@ import type {
 import type { ExtUiVersionFailure, ExtUiVersionPort } from "../../handlers/m4/ext-ui-version.ts";
 import { sequentially } from "../../util.ts";
 import type { M4PortDeps } from "./deps.ts";
+import type { BundledPluginVersion } from "../default-plugins.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 
 // ExtUiVersion 포트 구현(T-XV, L4.host-service.spec §3.3.3, HS-108). 확장 목록과 화면 목록은 로더가, 버전 기록은 `history`가,
@@ -111,7 +112,37 @@ async function versionsOf(
   if (info.source !== "user") return ok({ versions: [] });
   const listing = await source.history.list(name, info.version);
   if (!listing.ok) return err(failureOf(listing.error));
-  return ok({ versions: listing.value.versions });
+  const bundled = await source.bundle(name);
+  return ok({
+    versions: listing.value.versions,
+    ...(bundled === null ? {} : { bundledVersion: bundled.version }),
+  });
+}
+
+/**
+ * 되돌릴 판이 앱에 든 기본 플러그인 번들의 판이고 보관에 없으면 먼저 기록한다(HS-108, X.loading-trust §4.4.8). 기록의 출처는
+ * `bundled`다. 설치본이 이미 그 판이면 되돌릴 곳이 없으므로 `unknown_version`이다
+ */
+async function recordBundledFirst(
+  source: ExtUiVersionSource,
+  name: string,
+  installed: string,
+  bundled: BundledPluginVersion,
+): Promise<Result<void, ExtUiVersionFailure>> {
+  if (bundled.version === installed) return err({ kind: "unknown_version", version: installed });
+  const listing = await source.history.list(name, installed);
+  if (!listing.ok) return err(failureOf(listing.error));
+  if (listing.value.versions.some((entry) => entry.version === bundled.version))
+    return ok(undefined);
+  const recorded = await source.history.record({
+    name,
+    version: bundled.version,
+    source: "bundled",
+    extensionDir: bundled.dir,
+    manifestText: bundled.manifestText,
+    stateSchemaVersion: null,
+  });
+  return recorded.ok ? ok(undefined) : err(failureOf(recorded.error));
 }
 
 async function rollbackOf(
@@ -127,6 +158,11 @@ async function rollbackOf(
       kind: "history_unavailable",
       reason: `${info.source} extension has no version history`,
     });
+  }
+  const bundled = await source.bundle(params.name);
+  if (bundled !== null && bundled.version === params.version) {
+    const recordedFirst = await recordBundledFirst(source, params.name, info.version, bundled);
+    if (!recordedFirst.ok) return err(recordedFirst.error);
   }
   const tally = { cleared: 0 };
   const rolled = await source.history.rollback({
@@ -341,6 +377,7 @@ function entryOf(report: UiEntryReport, off: boolean): ExtUiEntry {
     version: report.version,
     trust: report.trust,
     ...(report.appRoot === undefined ? {} : { appRoot: report.appRoot }),
+    ...(report.forKind === undefined ? {} : { forKind: report.forKind }),
     ...(report.tree === undefined ? {} : { tree: report.tree }),
     ...(report.app === undefined ? {} : { app: report.app }),
     ...(report.messages === undefined ? {} : { messages: report.messages }),

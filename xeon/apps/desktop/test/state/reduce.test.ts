@@ -3,10 +3,11 @@ import type { ItemRecord, ThreadId, TurnId } from "@fresnel/contracts/conversati
 import {
   HANDLER_FAILURE_CAP,
   INITIAL_MIRROR,
+  TRANSITION_CAP,
   type EngineMirror,
 } from "../../src/state/engine/state.ts";
-import { decodeVolatile } from "../../src/state/engine/decode.ts";
-import type { VolatileEventWire } from "@fresnel/contracts/wire";
+import { decodeDurable, decodeVolatile } from "../../src/state/engine/decode.ts";
+import type { EventWire, VolatileEventWire } from "@fresnel/contracts/wire";
 import type { DurableFact, MirrorInput } from "../../src/state/engine/input.ts";
 import { MAX_SYNC_ATTEMPTS, reduceMirror } from "../../src/state/engine/reduce.ts";
 import { checkMirror } from "../../src/state/engine/invariants.ts";
@@ -594,5 +595,246 @@ describe("scope.handler_failed: 디코드와 거울의 실패 기록", () => {
     expect(state.handlerFailures).toHaveLength(HANDLER_FAILURE_CAP);
     expect(state.handlerFailures[0]?.afterSeq).toBe(1);
     expect(state.handlerFailures.at(-1)?.afterSeq).toBe(HANDLER_FAILURE_CAP);
+  });
+});
+
+describe("lease.*·scope.changed: 디코드와 거울의 전환 기록", () => {
+  const AT = "2026-11-04T00:00:00.000Z";
+  const durableEvent = (
+    kind: EventWire["kind"],
+    seq: number,
+    payload: unknown,
+    turnId: TurnId | null = trn(2),
+    threadId: ThreadId = T,
+  ): EventWire => ({
+    id: evt(seq),
+    version: 1,
+    parentId: null,
+    stepId: null,
+    causationId: null,
+    correlationId: "c",
+    redactions: [],
+    threadId,
+    turnId,
+    recordedAt: AT,
+    kind,
+    durable: true,
+    seq,
+    payload,
+  });
+
+  test("디코드: 검증을 통과한 네 kind는 payload를 그대로 싣고, 모양이 틀리면 unreadable이다", () => {
+    expect(
+      decodeDurable(
+        durableEvent("lease.acquired", 11, {
+          leaseId: "lease_1",
+          scopeId: "review",
+          lineageId: "lin_1",
+          limits: { maxTurns: 4, maxSpawns: 2 },
+          leaseEpoch: 2,
+        }),
+      ),
+    ).toEqual({
+      type: "lease.acquired",
+      seq: 11,
+      eventId: evt(11),
+      threadId: T,
+      turnId: trn(2),
+      at: AT,
+      payload: {
+        leaseId: "lease_1",
+        scopeId: "review",
+        lineageId: "lin_1",
+        limits: { maxTurns: 4, maxSpawns: 2 },
+        leaseEpoch: 2,
+      },
+    });
+    expect(
+      decodeDurable(
+        durableEvent("lease.released", 12, {
+          leaseId: "lease_1",
+          scopeId: "review",
+          reason: "waiting",
+        }),
+      ),
+    ).toEqual({
+      type: "lease.released",
+      seq: 12,
+      eventId: evt(12),
+      threadId: T,
+      turnId: trn(2),
+      at: AT,
+      payload: { leaseId: "lease_1", scopeId: "review", reason: "waiting" },
+    });
+    expect(
+      decodeDurable(
+        durableEvent(
+          "lease.rejected",
+          13,
+          { groupId: "work", reason: "wait_limit", requestSeq: 3 },
+          null,
+        ),
+      ),
+    ).toEqual({
+      type: "lease.rejected",
+      seq: 13,
+      eventId: evt(13),
+      threadId: T,
+      turnId: null,
+      at: AT,
+      payload: { groupId: "work", reason: "wait_limit", requestSeq: 3 },
+    });
+    expect(
+      decodeDurable(
+        durableEvent("scope.changed", 14, { scopeId: "review", status: "enabled" }, null),
+      ),
+    ).toEqual({
+      type: "scope.changed",
+      seq: 14,
+      eventId: evt(14),
+      threadId: T,
+      turnId: null,
+      at: AT,
+      payload: { scopeId: "review", status: "enabled" },
+    });
+    expect(
+      decodeDurable(
+        durableEvent("lease.released", 15, { leaseId: "l", scopeId: "review", reason: "bogus" }),
+      ),
+    ).toEqual({
+      type: "unreadable",
+      seq: 15,
+      eventId: evt(15),
+      threadId: T,
+      turnId: trn(2),
+      at: AT,
+    });
+    expect(
+      decodeDurable(durableEvent("scope.changed", 16, { scopeId: "review", status: "paused" })),
+    ).toEqual({
+      type: "unreadable",
+      seq: 16,
+      eventId: evt(16),
+      threadId: T,
+      turnId: trn(2),
+      at: AT,
+    });
+  });
+
+  test("거울은 배치의 전환을 받은 순서대로 넣고 사유 없는 켜짐은 request, 턴 없는 기록은 null이다", () => {
+    const state = run([
+      head(5),
+      batch(5, 9, [
+        decodeDurable(
+          durableEvent("lease.acquired", 6, {
+            leaseId: "l1",
+            scopeId: "helm",
+            lineageId: "l1",
+            limits: { maxTurns: 4, maxSpawns: 2 },
+          }),
+        ),
+        decodeDurable(
+          durableEvent("scope.changed", 7, { scopeId: "review", status: "enabled" }, null),
+        ),
+        decodeDurable(
+          durableEvent("lease.released", 8, { leaseId: "l1", scopeId: "helm", reason: "waiting" }),
+        ),
+        decodeDurable(
+          durableEvent("lease.rejected", 9, {
+            groupId: "work",
+            reason: "wait_limit",
+            requestSeq: 3,
+          }),
+        ),
+      ]),
+    ]);
+    expect(state.transitions).toEqual([
+      {
+        threadId: T,
+        seq: 6,
+        at: AT,
+        turnId: trn(2),
+        subject: "helm",
+        change: { kind: "lease.acquired", leaseEpoch: null },
+      },
+      {
+        threadId: T,
+        seq: 7,
+        at: AT,
+        turnId: null,
+        subject: "review",
+        change: { kind: "scope.changed", status: "enabled", reason: "request" },
+      },
+      {
+        threadId: T,
+        seq: 8,
+        at: AT,
+        turnId: trn(2),
+        subject: "helm",
+        change: { kind: "lease.released", reason: "waiting" },
+      },
+      {
+        threadId: T,
+        seq: 9,
+        at: AT,
+        turnId: trn(2),
+        subject: "work",
+        change: { kind: "lease.rejected", reason: "wait_limit" },
+      },
+    ]);
+  });
+
+  test("같은 (대화, seq)의 전환은 한 번만 넣는다", () => {
+    const released = decodeDurable(
+      durableEvent("lease.released", 6, { leaseId: "l1", scopeId: "helm", reason: "idle" }),
+    );
+    const state = run([head(5), batch(5, 7, [released, released])]);
+    expect(state.transitions.map((r) => r.seq)).toEqual([6]);
+  });
+
+  test("대화마다 TRANSITION_CAP(20)개까지 두고 가장 오래된 것부터 버리며, 다른 대화의 기록은 그대로 둔다", () => {
+    expect(TRANSITION_CAP).toBe(20);
+    const other = thr(2);
+    // 커서(5) 위의 seq만 적용된다. 다른 대화의 기록은 6번, 이 대화의 25개는 7~31번이다
+    const facts = [
+      decodeDurable(
+        durableEvent(
+          "lease.released",
+          6,
+          { leaseId: "o", scopeId: "other", reason: "idle" },
+          null,
+          other,
+        ),
+      ),
+      ...Array.from({ length: 25 }, (_, i) =>
+        decodeDurable(
+          durableEvent("lease.released", i + 7, {
+            leaseId: `l${i + 7}`,
+            scopeId: "helm",
+            reason: "idle",
+          }),
+        ),
+      ),
+    ];
+    const state = run([head(5), batch(5, 31, facts)]);
+    expect(state.transitions.filter((r) => r.threadId === T).map((r) => r.seq)).toEqual([
+      12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    ]);
+    expect(state.transitions.filter((r) => r.threadId === other).map((r) => r.seq)).toEqual([6]);
+    expect(state.transitions).toHaveLength(21);
+  });
+
+  test("head부터 다시 맞추면 비우고, 같은 저장소의 커서 재구독은 유지한다", () => {
+    const released = decodeDurable(
+      durableEvent("lease.released", 6, { leaseId: "l1", scopeId: "helm", reason: "idle" }),
+    );
+    const kept = run([
+      head(5),
+      batch(5, 6, [released]),
+      { type: "subscribed", sub: SUB, storeId: STORE, start: 6, live: true, from: "cursor" },
+    ]);
+    expect(kept.transitions.map((r) => r.seq)).toEqual([6]);
+    const reset = run([head(5), batch(5, 6, [released]), head(6)]);
+    expect(reset.transitions).toEqual([]);
   });
 });

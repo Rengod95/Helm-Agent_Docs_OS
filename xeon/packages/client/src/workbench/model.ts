@@ -233,6 +233,11 @@ export interface ExtRowVM {
 /** 면제 tier(guard, core)는 끌 수 없다(`AUTO_DISABLE_EXEMPT_TIERS`) */
 const EXEMPT_TIERS: ReadonlySet<string> = new Set(["guard", "core"]);
 
+/** 면제 tier의 확장인가. 대화 범위 스위치는 이 확장에 아예 없다(`thread.ts`) */
+export function isExemptTier(e: ExtListEntry): boolean {
+  return e.tier !== null && EXEMPT_TIERS.has(e.tier);
+}
+
 export function isOn(e: ExtListEntry): boolean {
   return e.status === "enabled" || e.status === "enabling";
 }
@@ -259,9 +264,10 @@ function kindOf(e: ExtListEntry): ExtKind {
   return e.isGroup ? "group" : "plugin";
 }
 
-function lockOf(e: ExtListEntry): ToggleLock {
+/** 켜기·끄기를 잠그는 이유(전역 스위치와 대화 범위 스위치가 같이 쓴다). 잠기지 않으면 null */
+export function lockOf(e: ExtListEntry): ToggleLock {
   if (e.safeModeExcluded !== null) return "safe_mode";
-  if (e.tier !== null && EXEMPT_TIERS.has(e.tier)) return "exempt";
+  if (isExemptTier(e)) return "exempt";
   if (e.enabledSource === "managed") return "managed";
   return null;
 }
@@ -410,7 +416,8 @@ export function keepOffOf(e: ExtListEntry, online: boolean): KeepOffVM | null {
 
 export interface VersionRowVM {
   readonly version: string;
-  readonly installedAt: string;
+  /** 설치 시각. 앱에 든 번들 판의 행(기록에 없는 판)은 null이고 화면은 "앱에 든 버전"으로 보인다 */
+  readonly installedAt: string | null;
   readonly source: "bundled" | "user" | "authored";
   readonly current: boolean;
   /** 되돌릴 수 있는 행: 지금 판이 아니다 */
@@ -435,6 +442,27 @@ export function versionRows(result: ExtVersionsResult): readonly VersionRowVM[] 
   }));
 }
 
+/**
+ * 앱에 든 번들 판의 행(§6.24.1). 번들 판이 있고 설치본과 다르고 기록에 없을 때만 더한다. 되돌리기는 기록을 남기고 나서 한다
+ * (호스트 HS-108). 설치 시각이 없고, 보관 개수와 상태 스키마를 알 수 없어 상태 비우기는 요구하지 않는다
+ */
+function bundledRowOf(
+  bundledVersion: string | undefined,
+  installed: string,
+  rows: readonly VersionRowVM[],
+): VersionRowVM | null {
+  if (bundledVersion === undefined || bundledVersion === installed) return null;
+  if (rows.some((row) => row.version === bundledVersion)) return null;
+  return {
+    version: bundledVersion,
+    installedAt: null,
+    source: "bundled",
+    current: false,
+    canRollback: true,
+    needsClearState: false,
+  };
+}
+
 /** `ext.versions` 읽기의 결과. 기록을 읽었거나, 이 엔진이 기록 읽기를 지원하지 않거나(`unsupported`), 읽기가 실패했다 */
 export type VersionsLoad =
   | { readonly kind: "ready"; readonly result: ExtVersionsResult }
@@ -443,7 +471,7 @@ export type VersionsLoad =
 
 /**
  * 버전 탭이 그릴 것(§6.24.1). 기록이 있으면 전체(`history`), 기록이 없거나 읽기를 지원하지 않으면 대체(`fallback`).
- * 대체는 설치본 버전과 앱에 든 번들 버전만 보인다. 되돌리기 명령은 wire가 없어 대체에 두지 않는다.
+ * 대체는 설치본 버전과 앱에 든 번들 버전을 보이고, 호스트가 번들 판을 알려 주면 "번들 버전으로 되돌리기" 하나만 둔다.
  */
 export type VersionsView =
   | { readonly kind: "history"; readonly rows: readonly VersionRowVM[] }
@@ -451,17 +479,27 @@ export type VersionsView =
       readonly kind: "fallback";
       /** 설치본 버전 */
       readonly installed: string;
-      /** 앱에 든 번들 버전. 기본(builtin) 플러그인만 있고 그 밖의 확장은 null이다 */
+      /** 앱에 든 번들 버전. 기본(builtin) 플러그인과, 호스트가 번들 판을 알려 준 기본 플러그인만 있고 그 밖의 확장은 null이다 */
       readonly bundled: string | null;
+      /** 번들 판으로 되돌릴 수 있으면 그 버전. 기록이 없어도 호스트가 번들 판을 기록하고 되돌린다(HS-108). 없으면 null */
+      readonly rollbackTo: string | null;
     }
   | { readonly kind: "error" };
 
-function fallbackOf(entry: Pick<ExtListEntry, "version" | "origin">): VersionsView {
+function fallbackOf(
+  entry: Pick<ExtListEntry, "version" | "origin">,
+  bundledVersion?: string,
+): VersionsView {
+  const builtin = entry.origin === "builtin";
   return {
     kind: "fallback",
     installed: entry.version,
-    // 기본 플러그인은 설치 폴더 없이 앱에 든 판이 곧 설치본이다(호스트는 버전 기록을 두지 않는다)
-    bundled: entry.origin === "builtin" ? entry.version : null,
+    // builtin 기본 플러그인은 설치 폴더 없이 앱에 든 판이 곧 설치본이다(호스트는 버전 기록을 두지 않는다)
+    bundled: builtin ? entry.version : (bundledVersion ?? null),
+    rollbackTo:
+      !builtin && bundledVersion !== undefined && bundledVersion !== entry.version
+        ? bundledVersion
+        : null,
   };
 }
 
@@ -473,7 +511,9 @@ export function versionsViewOf(
   switch (load.kind) {
     case "ready": {
       const rows = versionRows(load.result);
-      return rows.length === 0 ? fallbackOf(entry) : { kind: "history", rows };
+      if (rows.length === 0) return fallbackOf(entry, load.result.bundledVersion);
+      const bundled = bundledRowOf(load.result.bundledVersion, entry.version, rows);
+      return { kind: "history", rows: bundled === null ? rows : [...rows, bundled] };
     }
     case "unsupported":
       return fallbackOf(entry);

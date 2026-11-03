@@ -378,7 +378,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   1. 확장이 자동으로 꺼지면 알림과 개요(P-16) "주의" 목록에 사유(연속 5번, 또는 최근 50번 중 10번 이상이고 실패율 0.5 이상)가 보입니다.
   2. 확장 상세 "기록" 탭에서 `scope.handler_failed`(훅, 결과, 메시지, 연속 수)를 봅니다. 고친 뒤 "다시 켜기"를 누르면 실패 장부를 비우고 켭니다(`AutoDisabler.reenable`).
   3. 엔진이 연속으로 시작에 실패했거나 원인을 모르면 "안전 모드로 다시 시작"을 누릅니다. 안전 모드에서는 guard·core와 내장 L1·L2만 실리고 L3 그룹, 외부 확장, X 훅은 빠집니다 [결정: 2026-10-31 사용자].
-  4. "버전" 탭에서 설치본, 앱에 든 번들 버전, 이전 버전을 보고 되돌립니다. 버전 기록과 되돌리기는 M4에 되는 만큼 넣습니다 [결정: 2026-10-31 사용자]. 기록 보관(X-8)이 없으면 탭은 설치본과 번들 버전 읽기만 하고 되돌리기는 "번들 버전으로 되돌리기" 하나만 둡니다(§6.24.1 대체 경로).
+  4. "버전" 탭에서 설치본, 앱에 든 번들 버전, 이전 버전을 보고 되돌립니다. 버전 기록과 되돌리기는 M4에 되는 만큼 넣습니다 [결정: 2026-10-31 사용자]. 기록 보관(X-8)이 없으면 탭은 설치본과 번들 버전 읽기만 하고 되돌리기는 "번들 버전으로 되돌리기" 하나만 둡니다(§6.24.1 대체 경로). 기록이 있으면 기본 플러그인은 목록의 "앱에 든 버전" 행으로도 번들 판에 되돌릴 수 있습니다.
 - 거치는 화면: P-16, P-17, P-13, O-11
 - 성공 기준: 다시 켠 뒤 장부가 비어 있고 같은 기준으로 다시 꺼질 수 있습니다. 지금 `/group on`은 `reenable`을 부르지 않아 손으로 켠 확장이 재시작 전까지 다시 꺼지지 않습니다(코드 `operations/auto-disable.ts`, §10.3 X-4). 버전 기록과 되돌리기는 지금 없습니다 `[gap:W-31]`.
 
@@ -491,7 +491,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 ### 4.5 명령 팔레트(S-02)
 
 - ⌘K로 엽니다. `Dialog placement="center"` 안에 `Combobox mode="inline"`을 둡니다 `[gap:C-01]`.
-- 결과 묶음 순서: 최근 대화, 명령(앱 동작), 슬래시 명령(`command.list`), 설정 항목(키와 라벨), 화면 이동.
+- 결과 묶음 순서: 최근 대화, 명령(앱 동작), 플러그인 명령(`command` 배치, 열린 대화가 있을 때만), 슬래시 명령(`command.list`), 설정 항목(키와 라벨), 화면 이동.
 - 앱 동작 목록: 새 대화, 대화 이름 바꾸기, 대화 분기, 대화 컴팩션, 중단, 이어서 실행, 탐구 시작·멈춤, 목표 걸기·해제, 받은 요청 열기, 설정 열기, 원격 대상 바꾸기, 엔진 재시작, 진단 복사, 테마 바꾸기.
 - 행은 아이콘, 라벨, 보조 설명, 바로 가기 키(`Kbd`)를 보입니다. Enter로 실행하고 Esc로 닫습니다. 닫으면 연 곳으로 초점이 돌아갑니다.
 - 데이터: 대화는 거울의 `thread.list` 결과, 슬래시 명령은 `command.list { threadId }` → `commandListView`, 설정은 `settings.list` → `buildSettingsView`의 필드 라벨입니다. 팔레트 항목 모델은 없습니다 `[gap:V-01]`.
@@ -605,7 +605,7 @@ Fresnel 데스크톱
 | 영역 | 위 | 가운데 | 아래 |
 |---|---|---|---|
 | 대화 | 찾기, 영역 바꾸기 | 주 내비 다섯(대화, 받은 요청, 제안, 예약, 연결)과 작업 폴더별 대화 목록. Test run은 "시험" 표지 | 설정 |
-| LightCraft | 찾기, 영역 바꾸기, 맥락 칸 | LightCraft 내비 여섯(개요, 확장, 시험 실행, 측정, 구성, 엔진)과 "플러그인 화면" 목록(켜진 확장의 `page` 기여, 확장별 묶음) | 설정 |
+| LightCraft | 찾기, 영역 바꾸기, 맥락 칸 | LightCraft 내비 여섯(개요, 확장, 시험 실행, 측정, 구성, 엔진)과 "플러그인 화면" 항목 하나(`nav.ts`의 `plugins`, 켜진 확장의 `page`·`panel` 기여를 확장별로 보임) [미결: 내비 여섯 결정(2026-10-31)과 어긋나 일곱이 됨, 사용자 확인]. 목록(켜진 확장의 `page` 기여, 확장별 묶음) | 설정 |
 
 - [결정: 2026-10-31 사용자] 연결(P-08)은 대화 영역 주 내비에 남습니다. 대화 내비는 다섯입니다. LightCraft "엔진"은 엔진 상태와 진단(P-15)만 담고, 연결 화면으로 가는 링크 한 줄을 둡니다.
 - [결정: 2026-10-31 사용자] 구성과 만들기는 "구성" 하나로 합칩니다. 새 그룹은 구성 안의 "새 그룹" 동작입니다(§6.28, §6.29). LightCraft 내비는 개요, 확장, 시험 실행, 측정, 구성, 엔진 여섯입니다.
@@ -716,6 +716,7 @@ Fresnel 데스크톱
 | 실패 | 확장별 `scope.handler_failed` 묶음(훅, 연속 수) | 이벤트 |
 
 - review, work 같은 다른 drive 그룹도 같은 구역에 같은 모양으로 보입니다. Helm 전용 표시가 아닙니다.
+- 전환 기록은 엔진 거울이 받은 `lease.acquired`·`lease.released`·`lease.rejected`·`scope.changed`를 대화마다 최근 20개까지 둡니다. 라이브 구독으로 받은 것만 보이고 거울을 head부터 다시 맞추면 비웁니다 `[미결: 연결 전 전환은 지난 이벤트를 읽는 wire가 없어 보이지 않음, 사용자 확인]`.
 - 플러그인 `well` 기여(Helm 탐구 요약 등)는 그룹 자기 내용만 담고, drive 락과 전환은 이 탭에서 봅니다.
 
 ## 5. 화면 목록
@@ -833,7 +834,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 
 #### 구현 노트 (트랙 chat3)
 
-- 묶음 순서는 대화, 명령, 슬래시 명령, 설정이다(`views/palette/palette-model.ts`의 `visibleGroupsOf`, §4.5의 화면 이동 묶음은 아직 없다). 묶음은 `views/palette/palette.tsx`의 `PaletteBody`가 그린다.
+- 묶음 순서는 대화, 명령, 플러그인, 슬래시 명령, 설정이다(`views/palette/palette-model.ts`의 `visibleGroupsOf`, §4.5의 화면 이동 묶음은 아직 없다). 묶음은 `views/palette/palette.tsx`의 `PaletteBody`가 그린다.
 - 묶음마다 찾는 글에 맞는 항목을 앞에서 다섯 개 보이고, 나머지는 "더 보기" 한 행 뒤에 둔다(`groupCellsOf`). 찾는 글은 라벨과 설명에서 찾는다. 빈 입력의 "자주 쓴 동작 5개"는 아직 쓰는 횟수를 세지 않아 명령 목록의 앞 다섯 개다 `[미결]`.
 - 상태: 빈 입력은 묶음을 그대로 보인다. 맞는 항목이 없으면 "맞는 항목이 없어요"다. 슬래시 명령과 설정 항목은 읽는 중과 읽기 실패를 그 묶음의 상태 칸으로만 보인다. 오프라인(엔진에 연결되지 않음)이면 앱 동작만 보이고 안내 한 줄을 둔다.
 - 슬래시 명령: 입력창이 있는 대화가 열려 있을 때만 묶음이 보인다. 팔레트를 열 때 `command.list { threadId }`를 읽는다(`commands.commandList`). 고르면 입력창에 `/이름 `을 채운다. 입력창에 쓴 글이 있으면 그 글을 지우지 않고 초점만 준다. 실행은 입력창에서 Enter로 보낼 때 한다.
@@ -2187,6 +2188,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - 최근 실패: 시각, 훅, 사유.
 - 자동 꺼짐 설명은 나눔 보기 위 `Alert` 하나에만 둡니다. 검사기에 같은 Alert를 다시 두지 않습니다(DP-23).
 
+검사기의 두 쓰기는 확인 대화 상자를 거치고 적용은 다음 단계 경계입니다. "이 대화에서 끄기" 스위치는 `settings.set`에 범위 `launch`와 `threadId`를 실어 이 대화의 `ext.<이름>.enabled`만 쓰고, "이 대화의 프로필" 구역은 고른 프로필을 `profile.apply`(층 `thread`)로 이 대화에 씁니다. 대화 영역 오른쪽 "플러그인" 탭의 같은 스위치(결정 A5, SC-18 4번)는 이 작업에서 만들지 않고, 시안(`mockups/chat-plugin-off`)을 먼저 봅니다. [미결: §6.22.3 끝과 SC-18 1번은 "이 대화만 끄기"를 런타임 탭에 두는데 검사기에도 생김, 정본 자리 사용자 확인. 대화 값 `true`를 쓰면 덮어쓰기가 남아 전역을 나중에 꺼도 이 대화는 켜진 채일 수 있음, 상속으로 되돌리기는 `settings.reset` 필요. 이 대화에 적용된 프로필을 읽는 wire는 없음]
+
 #### 6.22.5 트레이스
 
 - 머리 "턴 재생"이 캔버스 아래에 재생 막대를 엽니다. 맥락이 대화나 시험일 때만 있습니다. 시험 실행(P-19)과 구성기 흐름 보기(§6.28.4)도 같은 막대를 씁니다.
@@ -2393,11 +2396,12 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 단계 | 조건 | 탭이 보이는 것 | 되돌리기 |
 |---|---|---|---|
-| 전체 | 로더가 버전 기록을 보관(X-8)하고 `ext.versions`·`ext.rollback`(W-31)이 있음 | 설치 이력(버전, 설치 시각, 출처: 번들·사용자 연결·Plugin Builder 묶음, 매니페스트 해시), 상태 스키마 버전 | 이력의 아무 버전으로. O-11이 상태 스키마 버전 차이와 마이그레이션 훅 유무를 보이고, 내려가는 마이그레이션이 없으면 "상태를 비우고 되돌리기"만 허용 |
-| 대체 | 기록 보관이 없음 | 설치본 버전과 앱에 든 번들 버전(기본 플러그인만) | 기본 플러그인만 "번들 버전으로 되돌리기"(지금의 디렉터리 교체 경로). 사용자가 만든 확장은 되돌리기 없음과 "폴더 열기" |
+| 전체 | 로더가 버전 기록을 보관(X-8)하고 `ext.versions`·`ext.rollback`(W-31)이 있음 | 설치 이력(버전, 설치 시각, 출처: 번들·사용자 연결·Plugin Builder 묶음, 매니페스트 해시), 상태 스키마 버전. 기본 플러그인은 앱에 든 번들 판이 설치본과 다르고 기록에 없으면 맨 뒤에 "앱에 든 버전" 행(설치 시각 대신 이 글)을 더한다 | 이력의 아무 버전으로. O-11이 상태 스키마 버전 차이와 마이그레이션 훅 유무를 보이고, 내려가는 마이그레이션이 없으면 "상태를 비우고 되돌리기"만 허용. "앱에 든 버전" 행은 확인 뒤 번들 판을 기록하고 되돌린다 |
+| 대체 | 기록 보관이 없거나 비어 있음 | 설치본 버전과 앱에 든 번들 버전(기본 플러그인만) | 기본 플러그인만 "번들 버전으로 되돌리기" 하나(번들 판이 설치본과 다를 때, 호스트가 번들 판을 기록한 뒤 되돌린다). 사용자가 만든 확장은 되돌리기 없음과 "폴더 열기" |
 
 - 되돌리기는 확장을 끄고, 파일을 바꾸고, 다시 켜는 순서이며 적용은 다음 단계 경계입니다. 실패하면 이전 파일로 돌립니다.
 - 보관 개수는 확장마다 5개 [제안]이고 그 밖은 지웁니다. 보관 위치는 사용자 데이터 폴더 `extensions/.history/<이름>/<버전>/` [제안]입니다.
+- 기본 플러그인의 번들 판 되돌리기: 번들 판(`bundledVersion`)이 설치본과 다르고 기록에 없으면 목록 맨 뒤에 "앱에 든 버전" 행을 더하고 그 행에 되돌리기 단추를 둡니다. 설치 시각 칸에는 날짜 대신 이 글을 보입니다. 번들 판이 설치본과 같거나 기록에 이미 있으면 행을 더하지 않습니다. 되돌리기는 번들 판을 먼저 기록한 뒤 바꿉니다(host-service HS-108 (4)). 번들 판의 상태 스키마 버전은 모르므로 스키마 검사와 "상태를 비우고 되돌리기" 제안을 하지 않습니다. 되돌린 기본 플러그인은 다음 시작에 번들 판이 설치본보다 높으면 번들 판으로 다시 바뀝니다. 이 한계는 host-service §10 57 [미결]이고, 단추는 그 한계를 안고 둡니다.
 - [결정: 사용자 수락, M4 T-XV] M4는 "전체" 단계를 냈습니다. 로더가 버전 기록을 보관하고(X-8, `X.loading-trust.spec` §3.11, §4.4.8) 되돌리기 왕복 시험이 있습니다(`ext-host/test/loading-trust/version-history.test.ts`, Y11의 근거). 대상 버전의 상태 스키마가 지금보다 높으면 되돌리기는 `state_schema_mismatch`로 멈추고, O-11이 "상태를 비우고 되돌리기"만 제안합니다. 되돌리기 순서는 끄기, 지금 설치본 기록, 파일 교체, 상태 비우기(요청 시), 켜기이고 교체가 실패하면 이전 파일로 돌린 뒤 다시 켭니다. `ext.versions`·`ext.rollback` 처리기(W-31)는 호스트에 연결됐습니다. 되돌린 판은 로더에 다시 읽기 길이 없어 다음 시작에 적용되므로 `ext.rollback`은 `appliesAt: "restart"`를 돌려줍니다(HS-108).
 
 ### 6.25 P-18 플러그인 화면 호스트
@@ -2475,7 +2479,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - 전용 스킴 파일 제공(`apps/desktop/src-tauri/src/view_scheme.rs`, 구현됨 [결정: 2026-11-03 M4 T-VIEW]). Tauri `register_uri_scheme_protocol("fresnel-view")`가 GET·HEAD만 받고 `(확장 이름, 버전)` → app root 목록에서 파일을 낸다. 경로 규칙은 `resolveAppFile`과 같다(한 번 디코딩, 빈 마디·`.`·`..`·백슬래시·NUL·앞 `/`·드라이브 문자 거부, 실제 경로가 app root 안, 폴더 거부, 확장자 허용 목록, 파일 16 MiB 상한). 거부는 상태 코드만 내고 이유 글은 내지 않는다(400 모양, 403 밖·형식 금지, 404 없음·폴더, 405 메서드, 413 크기). app root 목록은 메인 창이 `app_roots_set`(capability `allow-app-roots-set`)으로 통째로 바꾼다. 등록 때 절대 경로, 폴더, 이름·버전 모양을 보고 실제 경로로 푼다. 항목 하나가 나빠도(설치 폴더 밖, 너무 넓은 폴더 등) 그 항목만 건너뛰고 나머지는 등록한다. 건너뛴 항목은 목록 자리(`index`)와 이유 이름(`kind`)으로 돌려주고 항목의 글(이름, 경로)은 옮기지 않는다. 항목 수가 한도(256)를 넘으면 목록 전체를 거부하고 지난 목록을 그대로 둔다. 엔진이 이 목록을 직접 주는 길은 후속이다. `ext.ui.list`가 확장 버전, 설치 등급, 앱 root를 싣는다 [결정: 2026-11-04 사용자]. 등록은 확장 설치 폴더 안만 받고(`…/extensions/<이름>`, 프로젝트는 `…/.fresnel/extensions/<이름>`), `/`·홈·홈을 품은 폴더를 거부하며, 같은 이름·버전이 여러 등급이면 높은 등급이 이긴다. `_caustic/tokens.css`는 두지 않는다(ADR-0021 §3.6.8). 응답에 `Access-Control-Allow-Origin: *`을 붙여 모듈 스크립트를 허용한다. Windows(`http://fresnel-view.localhost`)는 대상이 아니다. TS와 Rust의 CSP·헤더 글자는 `apps/desktop/test/view-scheme-parity.test.ts`가 맞춰 본다.
   - 격리 e2e(`apps/desktop/test/e2e/frame-isolation.e2e.test.ts`, Y5 Linux, 구현됨 [결정: 2026-11-03 M4 T-VIEW]): 운영 `attachFrame`과 다리 호스트를 실제 WebView(`Bun.WebView`, 기본은 기기 엔진, `FRESNEL_E2E_WEBVIEW_BACKEND`로 `chrome`·`webkit`)에서 돌리고 적대적 프레임이 시도한 것을 값으로 비교한다. Tauri 전역 없음, 부모·최상위 DOM·저장소·쿠키 접근 `SecurityError`, `eval` `EvalError`, 팝업 `null`, 네트워크(fetch, XHR, WebSocket, 이미지, 스타일)가 모두 막히고 CSP 위반 기록이 남으며 카나리아 서버 접속 0, 프레임 안 승인 버튼은 승인 0, 쓰기 `call`은 확인 줄만 열리고 실행 0, 시크릿 표지 값이 다리 어디에도 없다. 전용 스킴 자체와 Tauri IPC 주입 여부는 이 시험이 보지 못하고 macOS·Linux 데스크톱 빌드 실기가 확인한다(ADR-0021 §6 미결 1). WebView를 띄울 수 없으면 건너뛴다.
   - React 부품(`apps/desktop/src/views/plugin`, 구현됨 [결정: 2026-11-03 M4 T-VIEW]). `native-tree.tsx`는 `ResolvedNode`를 caustic 부품으로 그린다(위젯 34개. `Badge`는 `tone`이 caustic에서 deprecated라 `Chip soft`, `Sparkline`은 caustic 부품이 없어 `currentColor` SVG 폴리라인이고 `Meter`·`Timeline`은 caustic 부품이다). prop 값은 `className`, `style`, `href`, HTML 어디에도 들어가지 않고 `Markdown`은 글 문단으로만 그린다. 위젯 하나가 예외를 내면 그 노드만 `renderFailed` 자리표시이고 `onRenderError`로 알린다. `Button.command`, `Form.command`는 슬래시 없는 명령 이름과 입력값으로, 링크 위젯은 `NativeLink`로 셸에 넘긴다. `confirm-host.tsx`는 확인 줄을 셸이 그리는 모달로 한 번에 하나씩 보이고(`createConfirmQueue`), 처음 초점은 거부, 나타난 뒤 `CONFIRM_CLICK_GUARD_MS` 안의 누름은 두 버튼 모두 무시하며 Esc는 거부다. `plugin-frame.tsx`는 `attachFrame`을 묶은 iframe 부품으로 `sandbox`는 `FRAME_SANDBOX` 하나만(oxlint `iframe-missing-sandbox` 때문에 JSX에도 같은 값을 적는다), 높이는 80~800px로 자르고, 장부가 꺼진 화면이나 닫힌 프레임은 "다시 켜기" 자리표시를 그린다. 확인 줄의 라벨은 제어·방향 제어 글자를 지운다.
-  - 연결(구현됨 [결정: 2026-11-03 M4 T-VIEW]). `plugin-ui/runtime.ts`가 화면 장부 하나와 항목 목록을 들고(`refresh`: `ext.ui.list`, `ext.list`, 설정 `x.ui.apps`·`x.ui.allowProjectApps`, 앱 root `app_roots_set` 한 번. 겹친 읽기는 하나로 묶고 끝난 뒤 한 번 더 읽는다. `ext.list`에서 꺼졌거나 안전 모드로 빠진 확장은 `inactive`로 두고 그 확장의 앱 root는 셸에 알리지 않으며 프레임도 그리지 않는다), `contextFor`로 화면 하나의 다리 판정 맥락(`ext.get`, `command.list`)을 만든다. 엔진이 붙으면(`live`) 목록을 읽고, 확장·앱 정책이 바뀌는 알림(`settings.invalidated`의 `ext.`·`x.ui.` 키나 빈 키 목록, `events.batch`의 `scope.changed`)에서도 다시 읽는다. 재연결하면 새 연결로 다시 듣는다(`PluginUiHost`, `plugin-ui/watch.ts`). 꺼졌거나 안전 모드인 확장의 화면은 본문(열린 프레임, 폴링)을 거두고 "꺼져 있어요" 글만 보인다. 다리 백엔드는 요청마다 지금 연결(`commands.pluginUi.current()`)을 읽어 재연결 뒤에도 낡은 연결로 보내지 않는다. Windows는 프레임을 쓰지 않아 `x.ui.apps`가 거짓으로 덮이고 앱 root도 보내지 않는다. 화면 하나(`PluginView`)는 셸 머리(확장 이름, 버전, 등급, 프로젝트 배지)와 본문이다. 앱이면 `buildAppUrl(…, nonce)` 주소로 `PluginFrame`을, 선언형(앱 금지 때 `tree`가 있으면 그것)이면 `NativeTree`를 그린다. 선언형 데이터 문서의 뿌리 키는 읽기 전용 확장 메서드 동사(트리 경로 `/status/...`는 `ext.<확장>.status`의 결과)와 `host`이고 `{}` 인자로 읽으며 10초마다 다시 읽는다. 읽기 전부가 실패하면 장부에 `query_failed`를 센다. 선언형 `Button`·`Form`은 그 확장이 등록한 명령(`ownCommands`)만 `command.run`으로 연다(`name=값` 공백 이음). 프레임의 `command`와 같은 실행기를 거친다(`decide`, 확인 줄에 `args`, 연속 거부 쿨다운, 장부). 쓰기 직전에는 판정 맥락을 `ext.get`에서 새로 읽는다. `render_exception`은 `onRenderError`로 센다. 오른쪽 탭 `helm`(대화 영역)은 `helm` 확장의 `panel` 항목을, `plugin-pages`는 모든 `page` 항목과 Helm이 아닌 확장의 `panel` 항목을 그린다. 프레임 `navigate`는 `settings`, `thread`만 열고 나머지는 `navigate_unsupported`다. 외부 링크는 확인 줄이 아직 없어 열지 않는다 [미결]. `status`, `card`, `command`, `settings` 배치의 그리기는 후속이다 [미결]. 프레임 확인 줄 큐는 시간 초과와 프레임·화면이 닫힐 때 `cancel`로 요청을 뺀다(다리 실행기의 `cancelConfirm`).
+  - 연결(구현됨 [결정: 2026-11-03 M4 T-VIEW]). `plugin-ui/runtime.ts`가 화면 장부 하나와 항목 목록을 들고(`refresh`: `ext.ui.list`, `ext.list`, 설정 `x.ui.apps`·`x.ui.allowProjectApps`, 앱 root `app_roots_set` 한 번. 겹친 읽기는 하나로 묶고 끝난 뒤 한 번 더 읽는다. `ext.list`에서 꺼졌거나 안전 모드로 빠진 확장은 `inactive`로 두고 그 확장의 앱 root는 셸에 알리지 않으며 프레임도 그리지 않는다), `contextFor`로 화면 하나의 다리 판정 맥락(`ext.get`, `command.list`)을 만든다. 엔진이 붙으면(`live`) 목록을 읽고, 확장·앱 정책이 바뀌는 알림(`settings.invalidated`의 `ext.`·`x.ui.` 키나 빈 키 목록, `events.batch`의 `scope.changed`)에서도 다시 읽는다. 재연결하면 새 연결로 다시 듣는다(`PluginUiHost`, `plugin-ui/watch.ts`). 꺼졌거나 안전 모드인 확장의 화면은 본문(열린 프레임, 폴링)을 거두고 "꺼져 있어요" 글만 보인다. 다리 백엔드는 요청마다 지금 연결(`commands.pluginUi.current()`)을 읽어 재연결 뒤에도 낡은 연결로 보내지 않는다. Windows는 프레임을 쓰지 않아 `x.ui.apps`가 거짓으로 덮이고 앱 root도 보내지 않는다. 화면 하나(`PluginView`)는 셸 머리(확장 이름, 버전, 등급, 프로젝트 배지)와 본문이다. 앱이면 `buildAppUrl(…, nonce)` 주소로 `PluginFrame`을, 선언형(앱 금지 때 `tree`가 있으면 그것)이면 `NativeTree`를 그린다. 선언형 데이터 문서의 뿌리 키는 읽기 전용 확장 메서드 동사(트리 경로 `/status/...`는 `ext.<확장>.status`의 결과)와 `host`이고 `{}` 인자로 읽으며 10초마다 다시 읽는다. 읽기 전부가 실패하면 장부에 `query_failed`를 센다. 선언형 `Button`·`Form`은 그 확장이 등록한 명령(`ownCommands`)만 `command.run`으로 연다(`name=값` 공백 이음). 프레임의 `command`와 같은 실행기를 거친다(`decide`, 확인 줄에 `args`, 연속 거부 쿨다운, 장부). 쓰기 직전에는 판정 맥락을 `ext.get`에서 새로 읽는다. `render_exception`은 `onRenderError`로 센다. 오른쪽 탭 `helm`(대화 영역)은 `helm` 확장의 `panel` 항목을, `plugin-pages`는 모든 `page` 항목과 Helm이 아닌 확장의 `panel` 항목을 그린다. 프레임 `navigate`는 `settings`, `thread`만 열고 나머지는 `navigate_unsupported`다. 외부 링크는 확인 줄이 아직 없어 열지 않는다 [미결]. `card`는 트랜스크립트의 `custom` 기록 가운데 종류(`customType`)가 카드의 `forKind`와 같은 것에 그립니다. 카드 화면은 기록의 `details`를 데이터 문서로 읽고(고정 문서라 읽기 폴링이 없습니다), 높이 320 상한으로 자르며, 아래에 출처 줄(DP-33, `grp:<그룹>` 또는 `ext:<확장>`)을 둡니다. 출처는 와이어 항목과 `forKind`로만 정하고 기록의 내용은 보지 않습니다. 기록 하나에 카드 하나이고, 꺼진 확장의 카드는 종류 이름만 보입니다. 카드의 "더 보기"는 넣지 않았습니다. 넘는 글을 펼치는 길은 정하지 않았고, 넘었는지는 그릴 때 DOM 높이를 재야 알 수 있어 시험으로 확인할 수 없습니다 [미결]. `command`는 팔레트 묶음 "플러그인"으로 그립니다. 행의 글은 항목 제목, 설명은 확장 이름이고, 실행하는 이름은 기여의 `id`입니다(`command.run`에 `/<id>`를 보냅니다). wire에는 `when`이 없어 모든 확장 명령이 열린 대화를 요구한다고 가정합니다 [미결: `when.thread`가 wire에 없음, 필수로 둠]. 카드와 명령 모두 화면 버튼과 같은 실행기와 확인 줄을 거칩니다. `status`와 `settings`는 같은 실행기와 확인 줄을 거쳐 그린다. 상태 표시줄 칸은 열린 대화가 있을 때만, 꺼지지 않은 확장의 `ok` 선언형 항목마다 하나씩 그리고, 확장 상세의 설정 구역은 이 확장의 `settings` 항목 하나를 항목 제목으로 그린다. 프레임 확인 줄 큐는 시간 초과와 프레임·화면이 닫힐 때 `cancel`로 요청을 뺀다(다리 실행기의 `cancelConfirm`).
   - 모델 층 [결정: 2026-11-04 사용자]: `apps/desktop/src/plugin-ui`(구현됨, React와 DOM 없음, 시험 `apps/desktop/test/plugin-ui`). `app-roots.ts`는 `ext.ui.list` 항목에서 앱 root 목록을 만들어 `app_roots_set`에 통째로 보내고, 거부 이유를 kind로 옮긴다(builtin 제외). 셸이 건너뛴 항목은 확장 이름·버전·이유로 `PluginUiState.rootsSkipped`에 두고, 그 확장의 앱 화면은 이유를 보인다. `backend.ts`는 화면 하나의 `BridgeBackend`를 wire로 옮긴다. `settings`는 `settings.list`(시크릿 여부)와 `settings.get`을 읽고 시크릿 값은 싣지 않는다. `events`는 열린 대화의 `thread.read` 항목 가운데 허용 종류만 준다. `command`는 `command.run`, `post`는 `ext.ui.post`다. `query`와 `call`은 `HostConnection.requestExtension`으로 `ext.<확장>.<동사>`를 부른다. params의 `threadId`는 프레임이 준 값을 버리고 열린 대화로만 채우며, 오류는 다리 오류 이름으로만 옮긴다 [결정: 2026-11-03 M4 T-VIEW]. 매니페스트 `label`은 `MethodGrant.label`로 확인 줄에 간다. `approval: true` 메서드의 `call`은 승인 뒤 실행하는 길이 정해지지 않아 `denied`(`approval_required`)로 닫고, 프레임이 글을 준 `requestApproval`은 `wire_unavailable`로 닫는다 [미결: 사용자 결정 대기]. `policy-context.ts`는 `ext.get`과 항목 등급으로 판정 맥락을 만들고 `appsAllowed`로 앱 정책을 본다. `placements.ts`는 항목을 여섯 배치 자리로 묶고 앱 정책이 막은 앱에 `frame_blocked`를 붙인다.
   - 신뢰 결정 [결정: 2026-11-04 사용자]: 확인 줄은 항상 켜져 있다. 프레임은 매니페스트가 선언한 설정 키만 본다. `post`는 `defaultAllowPost(trust)`가 참일 때만 허용한다(내장 확장). 모든 앱은 `x.ui.apps`가 참이어야 하고, 프로젝트 등급 앱은 `x.ui.allowProjectApps`도 참이어야 한다(기본은 앱 꺼짐, 프로젝트 앱 꺼짐. 실기 확인 전 빌드의 기본이고 ADR-0021 §6 미결 1을 따른다. 켜는 시점은 사용자가 정하는 [미결]이다). 두 키는 엔진 `ui-check.ts`가 보는 `x.ui.*` 이름이다. 이 절의 `x.views.frames`·`x.views.allowProjectFrames` 표기와 ADR-0021 본문의 `x.views.frames`는 이 키를 가리키는 것으로 읽고, 표기 정리는 [미결]이다. 다리 등급에 없는 엔진 등급 `managed`는 `user`로 본다 [미결].
 
@@ -3127,7 +3131,7 @@ export const palette = [
 | W-28 | 폴더의 매니페스트와 drive 소스 검사 | P-21, P-17, Plugin Builder | `validateManifest`, `scanDriveSource`는 라이브러리 | `ext.validate { dir }`(F 검사 + AU 규칙) |
 | W-29 | 시험 실행과 결과(replay, Test run 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10. wire `ReplayReport`는 칸별 `cuts`를 싣지 않습니다(§6.26). 개발 모드 판정 키 `l3.authoring.devMode`는 카탈로그에 아직 없습니다 |
 | W-30 | benchmark와 코어 변경 검사 실행 | P-19, P-20 | `just benchmark --server`, `bun scripts/core-diff-check.ts <base>`는 저장소 스크립트(배포 앱에 없음) | 개발 모드 전용 셸 명령 [결정: 2026-10-31 사용자]. 배포 앱은 결과 읽기만 |
-| W-31 | 확장 버전 기록과 되돌리기 | P-17, O-11 | 기본 플러그인은 번들 버전이 높을 때 디렉터리째 교체하고 이전 설치본을 기록한다(X-8). `ext.versions`·`ext.rollback` 처리기가 연결됐다(host-service HS-108). 되돌린 코드는 재시작 뒤에 돈다 [미결 host-service §10 54] | `ext.versions { name }`, `ext.rollback { name, version }`. M4에 되는 만큼, 대체 경로는 §6.24.1 [결정: 2026-10-31 사용자] |
+| W-31 | 확장 버전 기록과 되돌리기 | P-17, O-11 | 기본 플러그인은 번들 버전이 높을 때 디렉터리째 교체하고 이전 설치본을 기록한다(X-8). `ext.versions`·`ext.rollback` 처리기가 연결됐다(host-service HS-108). 버전 탭은 기본 플러그인의 앱에 든 번들 판을 "앱에 든 버전" 행으로 보이고 되돌릴 수 있다(`ext.versions`의 `bundledVersion`, 되돌리기 전에 번들 판을 기록한다). 되돌린 코드는 재시작 뒤에 돈다 [미결 host-service §10 54]. 되돌린 기본 플러그인은 다음 시작에 번들 판으로 돌아갈 수 있다 [미결 host-service §10 57] | `ext.versions { name }`, `ext.rollback { name, version }`. M4에 되는 만큼, 대체 경로는 §6.24.1 [결정: 2026-10-31 사용자] |
 | W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, Plugin Builder | 디렉터리 복사 | `ext.install { source }`, `ext.remove { name }` [미결] |
 | W-33 | 화면 기여 목록, 확장 메서드, 화면용 post·승인 | P-18, 슬롯 전부 | `ext.ui.list` 처리기가 연결됐다(host-service HS-108). `ext.ui.post`·`ext.ui.requestApproval`은 `threadId`를 필수로 받아 M4 T-UIPOST에서 열었다(host-service §10 52, HS-108). `ext.<id>.<verb>`는 M4 T-GK에서 열었다(`F.wire-settings.spec` §4.2) | `ext.ui.list`, `ext.<id>.<verb>`, `ext.ui.post`, `ext.ui.requestApproval`(ADR-0021 §6) |
 | W-34 | Test run 표지와 프로필 적용 생성 | P-19, P-21, P-02 | 없음 | `thread.create { testRun: true, profileId? }`, `ThreadSummary.testRun`(`{ profileId, target, paused }`) |

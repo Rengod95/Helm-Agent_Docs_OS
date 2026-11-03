@@ -570,9 +570,15 @@ const VersionEntryShape = closed({
 });
 export interface ExtVersionsResult {
   readonly versions: readonly ExtVersionEntry[];
+  /**
+   * 이 확장의 판이 앱에 든 기본 플러그인 번들의 판(HS-108). 기본 플러그인이 아니거나 번들이 없거나 읽지 못하면 없다.
+   * 설치본 판과 다를 때 버전 탭이 "앱에 든 버전" 행으로 되돌리기를 보인다
+   */
+  readonly bundledVersion?: string;
 }
 const ExtVersionsResultShape2 = closed({
   versions: Type.Array(VersionEntryShape, { maxItems: 100 }),
+  bundledVersion: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
 });
 export const ExtVersionsResultSchema: TUnsafe<ExtVersionsResult> = Type.Unsafe<ExtVersionsResult>(
   ExtVersionsResultShape2 satisfies SchemaProof<ExtVersionsResult, typeof ExtVersionsResultShape2>,
@@ -632,6 +638,8 @@ export interface ExtUiEntry {
    * 스키마는 상대 경로도 받지만 호스트는 절대 경로만 보낸다. builtin은 설치 폴더가 없어 항목에 없다
    */
   readonly appRoot?: string;
+  /** card 항목이 맞는 레코드 kind(매니페스트 `forKind`). card가 아니면 없다 */
+  readonly forKind?: string;
   /** 엔진이 검사한 화면 트리. `app` 모드면 없다 */
   readonly tree?: UiNode;
   readonly app?: AppDecl;
@@ -659,6 +667,7 @@ const UiEntryShape = closed({
   version: SemVerSchema,
   trust: ExtTrustShape,
   appRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
+  forKind: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
   tree: Type.Optional(UiNodeSchema),
   app: Type.Optional(AppDeclSchema),
   messages: Type.Optional(

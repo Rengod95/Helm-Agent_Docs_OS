@@ -85,6 +85,8 @@ export {
 export { type BuiltinExtensionModule, type LoaderFs, type LoaderPaths } from "./discover.ts";
 export {
   installDefaultPlugin,
+  readBundleManifest,
+  type BundleManifest,
   type DefaultPluginInstallError,
   type DefaultPluginInstallInput,
   type DefaultPluginInstallOutcome,

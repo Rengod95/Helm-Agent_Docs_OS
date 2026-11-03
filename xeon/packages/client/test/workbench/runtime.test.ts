@@ -4,6 +4,7 @@ import {
   failureGroupsOf,
   runtimeRowsOf,
   runtimeViewOf,
+  transitionRowsOf,
   type HandlerFailureEntry,
 } from "../../src/workbench/index.ts";
 
@@ -168,5 +169,50 @@ describe("runtime-tab 실패 구역: 엔진 거울의 scope.handler_failed를 ow
     expect(groups[0]?.rows).toEqual([
       { point: "turn.end", result: "error", message: "boom", count: 2, consecutive: 2 },
     ]);
+  });
+});
+
+// 지역 시각으로 만든 시각이라 어느 시간대에서도 같은 HH:MM:SS를 읽는다
+const at = (hour: number, minute: number, second: number): string =>
+  new Date(2026, 10, 4, hour, minute, second).toISOString();
+
+describe("transitionRowsOf: 전환 기록 줄", () => {
+  test("최근 것이 먼저 오고, 시각은 HH:MM:SS, 턴 꼬리는 끝 여섯 글자다", () => {
+    const rows = transitionRowsOf([
+      {
+        seq: 3,
+        at: at(9, 5, 7),
+        turnId: "trn_0000000000000000000000abcdef",
+        subject: "helm",
+        change: { kind: "lease.acquired", leaseEpoch: null },
+      },
+      {
+        seq: 5,
+        at: at(14, 2, 41),
+        turnId: null,
+        subject: "review",
+        change: { kind: "lease.released", reason: "waiting" },
+      },
+    ]);
+    expect(rows).toEqual([
+      {
+        seq: 5,
+        time: "14:02:41",
+        turn: null,
+        subject: "review",
+        change: { kind: "lease.released", reason: "waiting" },
+      },
+      {
+        seq: 3,
+        time: "09:05:07",
+        turn: "abcdef",
+        subject: "helm",
+        change: { kind: "lease.acquired", leaseEpoch: null },
+      },
+    ]);
+  });
+
+  test("기록이 없으면 빈 목록이다", () => {
+    expect(transitionRowsOf([])).toEqual([]);
   });
 });

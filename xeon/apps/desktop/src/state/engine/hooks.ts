@@ -14,7 +14,13 @@ import { useShallow } from "zustand/react/shallow";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";
 import * as sel from "./selectors.ts";
 import type { EngineState } from "../../transport/ipc.ts";
-import type { EngineMirror, Link, PendingApproval, StreamingItem } from "./state.ts";
+import type {
+  EngineMirror,
+  Link,
+  PendingApproval,
+  StreamingItem,
+  TransitionRecord,
+} from "./state.ts";
 
 export const EngineStoreContext: React.Context<ReadonlyStore<EngineMirror> | null> =
   createContext<ReadonlyStore<EngineMirror> | null>(null);
@@ -81,3 +87,6 @@ export const useApprovalCount = (): number => useEngine(sel.selectApprovalCount)
 /** 받은 확장 핸들러 실패 기록(휘발, 최대 500행). 확장별로 거르는 일은 화면이 한다 */
 export const useHandlerFailures = (): EngineMirror["handlerFailures"] =>
   useEngine(sel.selectHandlerFailures);
+/** 이 대화의 전환 기록(받은 순서, 대화마다 최대 20개). 대화가 없으면 빈 목록이다. 기록이 같으면 같은 참조를 준다 */
+export const useTransitions = (threadId: ThreadId | null): readonly TransitionRecord[] =>
+  useEngine(useShallow((s: EngineMirror) => sel.selectTransitions(s, threadId)));

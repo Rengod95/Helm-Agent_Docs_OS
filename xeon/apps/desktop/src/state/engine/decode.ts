@@ -14,6 +14,10 @@ import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   ItemRecordedPayloadSchema,
+  LeaseAcquiredPayloadSchema,
+  LeaseRejectedPayloadSchema,
+  LeaseReleasedPayloadSchema,
+  ScopeChangedPayloadSchema,
   ScopeHandlerFailedPayloadSchema,
   maskApprovalRequest,
 } from "@fresnel/contracts/records";
@@ -80,6 +84,31 @@ const DURABLE: Readonly<
     const p = parse(ApprovalResolvedPayloadSchema, payload);
     return p.ok
       ? { ...base, type: "approval.resolved", approvalId: p.value.approvalId }
+      : { ...base, type: "unreadable" };
+  },
+  // 전환 기록(§4.9.8): 단계 경계의 drive 락 교대와 켜기·끄기 적용
+  "lease.acquired": (base, payload) => {
+    const p = parse(LeaseAcquiredPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "lease.acquired", payload: p.value }
+      : { ...base, type: "unreadable" };
+  },
+  "lease.released": (base, payload) => {
+    const p = parse(LeaseReleasedPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "lease.released", payload: p.value }
+      : { ...base, type: "unreadable" };
+  },
+  "lease.rejected": (base, payload) => {
+    const p = parse(LeaseRejectedPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "lease.rejected", payload: p.value }
+      : { ...base, type: "unreadable" };
+  },
+  "scope.changed": (base, payload) => {
+    const p = parse(ScopeChangedPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "scope.changed", payload: p.value }
       : { ...base, type: "unreadable" };
   },
 };

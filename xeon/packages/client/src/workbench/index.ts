@@ -7,3 +7,4 @@ export * from "./tests.ts";
 export * from "./tests-state.ts";
 export * from "./measure-turn.ts";
 export * from "./measure-perf.ts";
+export * from "./thread.ts";

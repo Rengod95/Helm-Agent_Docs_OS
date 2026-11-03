@@ -16,6 +16,7 @@ import {
   EMPTY_STREAMING,
   HANDLER_FAILURE_CAP,
   INITIAL_MIRROR,
+  TRANSITION_CAP,
   type EngineMirror,
   type HandlerFailureRecord,
   type Link,
@@ -27,6 +28,7 @@ import {
   type StreamingPart,
   type Transcript,
   RECENT_TURN_CAP,
+  type TransitionRecord,
   SETTLED_CAP,
 } from "./state.ts";
 
@@ -543,12 +545,78 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       };
       return bumpPending(next, found.threadId, -1);
     }
+    case "lease.acquired":
+      return recordTransition(
+        state,
+        fact,
+        { kind: "lease.acquired", leaseEpoch: fact.payload.leaseEpoch ?? null },
+        fact.payload.scopeId,
+      );
+    case "lease.released":
+      return recordTransition(
+        state,
+        fact,
+        { kind: "lease.released", reason: fact.payload.reason },
+        fact.payload.scopeId,
+      );
+    case "lease.rejected":
+      return recordTransition(
+        state,
+        fact,
+        { kind: "lease.rejected", reason: fact.payload.reason },
+        fact.payload.groupId,
+      );
+    case "scope.changed":
+      return recordTransition(
+        state,
+        fact,
+        {
+          kind: "scope.changed",
+          status: fact.payload.status,
+          reason: fact.payload.reason ?? "request",
+        },
+        fact.payload.scopeId,
+      );
     case "other":
     case "unreadable":
       return state;
     default:
       return assertNever(fact, "applyFact");
   }
+}
+
+type TransitionFact = Extract<
+  DurableFact,
+  { readonly type: "lease.acquired" | "lease.released" | "lease.rejected" | "scope.changed" }
+>;
+
+function recordTransition(
+  state: EngineMirror,
+  fact: TransitionFact,
+  change: TransitionRecord["change"],
+  subject: string,
+): EngineMirror {
+  const record: TransitionRecord = {
+    threadId: fact.threadId,
+    seq: fact.seq,
+    at: fact.at,
+    turnId: fact.turnId,
+    subject,
+    change,
+  };
+  return { ...state, transitions: appendTransition(state.transitions, record) };
+}
+
+/** 같은 (thread, seq)는 한 번만 넣는다. thread마다 `TRANSITION_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 것을 버린다 */
+function appendTransition(
+  list: readonly TransitionRecord[],
+  record: TransitionRecord,
+): readonly TransitionRecord[] {
+  if (list.some((r) => r.threadId === record.threadId && r.seq === record.seq)) return list;
+  const next = [...list, record];
+  if (next.filter((r) => r.threadId === record.threadId).length <= TRANSITION_CAP) return next;
+  const oldest = next.findIndex((r) => r.threadId === record.threadId);
+  return next.filter((_, i) => i !== oldest);
 }
 
 function applySnapshot(

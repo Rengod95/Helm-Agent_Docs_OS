@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { Logger } from "@fresnel/contracts";
 import {
+  bundledPluginVersionOf,
   DEFAULT_PLUGIN_NAMES,
   defaultPluginNamesFor,
   DEFAULT_PLUGINS_MARKER_FILE,
@@ -199,4 +200,20 @@ test("installed agent definitions come from <extension>/agents/*.md with the ext
     tools: ["read"],
     source: { kind: "extension", extension: "helm" },
   });
+});
+
+test("the bundled version of a plugin is read from its bundle; a missing or unreadable bundle is null", async () => {
+  writeBundle("0.3.0");
+  expect(await bundledPluginVersionOf(bundleDir, "helm", logger)).toEqual({
+    version: "0.3.0",
+    manifestText: manifest("0.3.0", "helm"),
+    dir: join(bundleDir, "helm"),
+  });
+  // 번들이 없는 이름은 오류가 아니라 없는 것이다
+  expect(await bundledPluginVersionOf(bundleDir, "account-rotation", logger)).toBeNull();
+  expect(warnings).toEqual([]);
+  // 매니페스트 자리에 디렉터리가 있으면 읽기가 실패한다. null이고 경고를 남긴다
+  mkdirSync(join(bundleDir, "broken", ".fresnel-plugin", "plugin.json"), { recursive: true });
+  expect(await bundledPluginVersionOf(bundleDir, "broken", logger)).toBeNull();
+  expect(warnings).toEqual(["default_plugins.bundle_unreadable"]);
 });

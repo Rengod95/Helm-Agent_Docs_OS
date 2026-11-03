@@ -140,6 +140,15 @@ describe("M4 ext read methods", () => {
       ],
     };
     roundTrip(WIRE_METHODS["ext.versions"].result, versions);
+    // 기본 플러그인의 번들 판은 선택 필드다. 있으면 그대로 오가고, 문자열이 아니면 거절한다
+    roundTrip(WIRE_METHODS["ext.versions"].result, { ...versions, bundledVersion: "1.0.1" });
+    roundTrip(WIRE_METHODS["ext.versions"].result, { versions: [], bundledVersion: "1.0.1" });
+    expect(
+      parse(WIRE_METHODS["ext.versions"].result, { versions: [], bundledVersion: 101 }).ok,
+    ).toBe(false);
+    expect(
+      parse(WIRE_METHODS["ext.versions"].result, { versions: [], bundledVersions: "1.0.1" }).ok,
+    ).toBe(false);
     expect(
       parse(WIRE_METHODS["group.metrics"].result, { id: "g", metrics: null, since: null }).ok,
     ).toBe(true);
@@ -284,6 +293,27 @@ describe("M4 ext read methods", () => {
     expect(longRoot.length).toBe(1024);
     roundTrip(schema, { items: [{ ...withRoot, appRoot: longRoot }] });
     expect(parse(schema, { items: [{ ...withRoot, appRoot: `${longRoot}b` }] }).ok).toBe(false);
+  });
+
+  test("ext.ui.list card entries carry forKind by value, and reject an empty or over-long one", () => {
+    const schema = WIRE_METHODS["ext.ui.list"].result;
+    const card = {
+      extension: "helm",
+      id: "inquiry",
+      placement: "card",
+      mode: "native",
+      title: "Inquiry",
+      state: "ok",
+      version: "1.2.0",
+      trust: "user",
+      forKind: "grp.helm.inquiry.finished",
+      issues: [],
+    };
+    roundTrip(schema, { items: [card] });
+    roundTrip(schema, { items: [{ ...card, forKind: "k".repeat(160) }] });
+    expect(parse(schema, { items: [{ ...card, forKind: "" }] }).ok).toBe(false);
+    expect(parse(schema, { items: [{ ...card, forKind: "k".repeat(161) }] }).ok).toBe(false);
+    expect(parse(schema, { items: [{ ...card, forKind: 1 }] }).ok).toBe(false);
   });
 
   test("ext.validateComposition takes a composition and returns issues", () => {

@@ -8,6 +8,8 @@ import {
   moreValue,
   PALETTE_COMMAND_IDS,
   PALETTE_GROUP_LIMIT,
+  pluginCommandItemsOf,
+  pluginValue,
   settingValue,
   slashValue,
   threadValue,
@@ -16,6 +18,7 @@ import {
   type PaletteItem,
 } from "../../src/views/palette/palette-model.ts";
 import { approvalOriginView } from "../../src/views/approval-form.ts";
+import { uiEntryOf } from "../plugin-ui/support.ts";
 
 describe("palette values", () => {
   test("a thread value and a command value read back as what they were made from", () => {
@@ -70,13 +73,19 @@ describe("palette values", () => {
 });
 
 describe("palette groups", () => {
-  test("a connected palette with an open thread shows the four groups in spec order", () => {
+  test("a connected palette with an open thread shows the five groups in order", () => {
     expect(visibleGroupsOf({ live: true, hasThread: true })).toEqual([
       "thread",
       "command",
+      "plugin",
       "slash",
       "setting",
     ]);
+  });
+
+  test("the plugin group needs a connection and an open thread, like the slash group", () => {
+    expect(visibleGroupsOf({ live: true, hasThread: false })).not.toContain("plugin");
+    expect(visibleGroupsOf({ live: false, hasThread: true })).not.toContain("plugin");
   });
 
   test("offline the palette keeps only the app actions", () => {
@@ -89,6 +98,36 @@ describe("palette groups", () => {
       "thread",
       "command",
       "setting",
+    ]);
+  });
+});
+
+describe("plugin command values and rows", () => {
+  test("a plugin value reads back as its extension and item id", () => {
+    expect(decodeValue(pluginValue("helm", "helm-start"))).toEqual({
+      kind: "plugin",
+      extension: "helm",
+      id: "helm-start",
+    });
+  });
+
+  test("a plugin value without an extension, an id, or the separator is not a value", () => {
+    expect(decodeValue("plugin:helm")).toBeNull();
+    expect(decodeValue("plugin:/helm-start")).toBeNull();
+    expect(decodeValue("plugin:helm/")).toBeNull();
+  });
+
+  test("a row shows the entry title and its extension name, with the title as its label", () => {
+    const rows = pluginCommandItemsOf([
+      uiEntryOf({ id: "helm-start", placement: "command", title: "탐구 시작…" }),
+    ]);
+    expect(rows).toEqual([
+      {
+        value: "plugin:helm/helm-start",
+        label: "탐구 시작…",
+        description: "helm",
+        meta: null,
+      },
     ]);
   });
 });

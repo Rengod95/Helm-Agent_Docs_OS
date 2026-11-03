@@ -12,6 +12,10 @@ import type {
 } from "@fresnel/contracts/conversation";
 import type {
   ApprovalRequestedPayload,
+  LeaseAcquiredPayload,
+  LeaseRejectedPayload,
+  LeaseReleasedPayload,
+  ScopeChangedPayload,
   ScopeHandlerFailedPayload,
 } from "@fresnel/contracts/records";
 import type {
@@ -43,6 +47,10 @@ export type DurableFact =
       readonly request: ApprovalRequestedPayload;
     })
   | (DurableBase & { readonly type: "approval.resolved"; readonly approvalId: EventId })
+  | (DurableBase & { readonly type: "lease.acquired"; readonly payload: LeaseAcquiredPayload })
+  | (DurableBase & { readonly type: "lease.released"; readonly payload: LeaseReleasedPayload })
+  | (DurableBase & { readonly type: "lease.rejected"; readonly payload: LeaseRejectedPayload })
+  | (DurableBase & { readonly type: "scope.changed"; readonly payload: ScopeChangedPayload })
   | (DurableBase & { readonly type: "other" })
   | (DurableBase & { readonly type: "unreadable" });
 

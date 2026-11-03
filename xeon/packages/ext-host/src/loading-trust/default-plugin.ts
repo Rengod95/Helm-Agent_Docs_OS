@@ -64,17 +64,52 @@ export type DefaultPluginInstallError =
   | { readonly kind: "source_invalid"; readonly message: string }
   | { readonly kind: "io"; readonly message: string; readonly cause: unknown };
 
+/** 매니페스트 파일의 원문과 검증된 버전. 파일이 없으면 null이고, 파싱이나 검증에 실패하면 버전이 undefined다 */
+interface ManifestRead {
+  readonly text: string;
+  readonly version: string | undefined;
+}
+
+async function readManifest(
+  fs: PluginInstallFs,
+  root: string,
+): Promise<Result<ManifestRead | null, { readonly cause: unknown }>> {
+  const text = await attemptAsync(() => fs.readText(join(root, MANIFEST_RELATIVE_PATH)));
+  if (!text.ok) return err({ cause: text.error.cause });
+  if (text.value === null) return ok(null);
+  const json = parseJson(text.value);
+  if (!json.ok) return ok({ text: text.value, version: undefined });
+  const checked = validateManifest(json.value);
+  return ok({ text: text.value, version: checked.manifest?.version });
+}
+
 async function readVersion(
   fs: PluginInstallFs,
   root: string,
 ): Promise<Result<string | undefined, { readonly cause: unknown }>> {
-  const text = await attemptAsync(() => fs.readText(join(root, MANIFEST_RELATIVE_PATH)));
-  if (!text.ok) return err({ cause: text.error.cause });
-  if (text.value === null) return ok(undefined);
-  const json = parseJson(text.value);
-  if (!json.ok) return ok(undefined);
-  const checked = validateManifest(json.value);
-  return ok(checked.manifest?.version);
+  const manifest = await readManifest(fs, root);
+  if (!manifest.ok) return err(manifest.error);
+  return ok(manifest.value?.version);
+}
+
+/** 번들(또는 설치본) 디렉터리의 매니페스트에서 읽은 버전과 원문 */
+export interface BundleManifest {
+  readonly version: string;
+  readonly manifestText: string;
+}
+
+/**
+ * 번들 디렉터리 `<bundleDir>/.fresnel-plugin/plugin.json`의 버전과 원문을 읽는다. 기본 플러그인 설치(`installDefaultPlugin`)가
+ * 쓰는 것과 같은 검증을 거친다. 파일이 없거나 검증에 실패하면 null이다(번들이 없는 것과 같다). 읽기 실패만 오류다
+ */
+export async function readBundleManifest(
+  fs: PluginInstallFs,
+  bundleDir: string,
+): Promise<Result<BundleManifest | null, { readonly kind: "io"; readonly cause: unknown }>> {
+  const manifest = await readManifest(fs, bundleDir);
+  if (!manifest.ok) return err({ kind: "io", cause: manifest.error.cause });
+  if (manifest.value === null || manifest.value.version === undefined) return ok(null);
+  return ok({ version: manifest.value.version, manifestText: manifest.value.text });
 }
 
 async function copyTree(fs: PluginInstallFs, from: string, to: string): Promise<void> {

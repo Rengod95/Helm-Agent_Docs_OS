@@ -1,0 +1,127 @@
+import { detach, rethrow, type Clock, type Scheduler } from "@fresnel/contracts";
+import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
+import {
+  createActionRunner,
+  type ActionRunner,
+  type BridgePolicyContext,
+} from "@fresnel/client/views/app";
+import { useEffect, useState } from "react";
+import { commandEntriesOf } from "../../plugin-ui/placements.ts";
+import type { PluginUiRuntime } from "../../plugin-ui/runtime.ts";
+import { useSelectedThreadId } from "../../state/ui/index.ts";
+import { useCommands } from "../commands.ts";
+import type { ConfirmQueue } from "./confirm-host.tsx";
+import { runDecided } from "./native-run.ts";
+import { usePluginUi } from "./plugin-context.tsx";
+import { browserClock, browserScheduler } from "./plugin-frame.tsx";
+import { createSession, screenKeyOf } from "./plugin-view.tsx";
+
+// 팔레트의 확장 명령(`command` 자리)을 실행한다. 화면 버튼의 명령과 같은 길이다: `decide`(자기 확장이 등록한 명령만), 확인 줄, 쿨다운, 장부.
+// 실행기는 확장 명령마다 처음 쓸 때 만들고 App이 사는 동안 둔다. 연속 거부 쿨다운이 실행기 안에 있어서 실행마다 새로 만들면 쿨다운이 없어진다.
+
+/** 확장 명령 하나의 실행기. 실행할 때마다 대화와 판정 맥락을 새로 넣는다 */
+export interface EntryCommandRunner {
+  /** 명령 이름을 판정하고 실행한다. 판정이 거부하면 아무것도 보내지 않는다 */
+  readonly run: (
+    threadId: string | null,
+    context: BridgePolicyContext,
+    name: string,
+  ) => Promise<void>;
+  /** 대기 중인 확인을 거부로 끝낸다 */
+  readonly dispose: () => void;
+}
+
+export function createEntryCommandRunner(options: {
+  readonly entry: ExtUiEntry;
+  readonly context: BridgePolicyContext;
+  readonly threadId: string | null;
+  readonly runtime: PluginUiRuntime;
+  readonly confirm: ConfirmQueue;
+  readonly current: () => HostConnection | null;
+  readonly showScreen: (screen: "chat" | "settings") => void;
+  /** 시계와 타이머. 생략하면 브라우저 것이다(시험은 고정 값을 넣는다) */
+  readonly clock?: Clock;
+  readonly scheduler?: Scheduler;
+}): EntryCommandRunner {
+  const { entry, runtime, confirm } = options;
+  const key = screenKeyOf(entry);
+  const session = createSession(
+    entry,
+    options.context,
+    options.threadId,
+    options.showScreen,
+    options.current,
+    runtime,
+  );
+  const runner: ActionRunner = createActionRunner({
+    screenKey: key,
+    context: () => session.box.context,
+    backend: session.makeBackend(() => {}),
+    ledger: runtime.ledger,
+    clock: options.clock ?? browserClock,
+    scheduler: options.scheduler ?? browserScheduler,
+    confirm: confirm.request,
+    cancelConfirm: confirm.cancel,
+    recheck: session.recheck,
+    // 장부가 화면을 껐어도 팔레트에는 그릴 자리가 없다. 화면의 `useDisabled`가 그 상태를 보여 준다
+    onDisabled: () => {},
+  });
+  return {
+    async run(threadId, context, name) {
+      session.update(threadId, context);
+      const done = await runDecided(runner, context, "command", { name, args: "" });
+      if (done.ok) runtime.ledger.succeed(key);
+    },
+    dispose: () => {
+      runner.dispose();
+    },
+  };
+}
+
+/**
+ * 팔레트에서 고른 확장 명령을 실행하는 함수를 돌려준다. 명령 항목은 목록에서 찾고, 꺼졌거나 상태가 `ok`가 아니면 아무 일도 없다.
+ * 열린 대화가 없으면 보내지 않는다. 판정 맥락을 못 읽어도 보내지 않는다
+ */
+export function usePluginCommandRunner(): (extension: string, id: string) => void {
+  const { runtime, confirm } = usePluginUi();
+  const commands = useCommands();
+  const threadId = useSelectedThreadId();
+  const [runners] = useState(() => new Map<string, EntryCommandRunner>());
+  useEffect(
+    () => () => {
+      for (const runner of runners.values()) runner.dispose();
+      runners.clear();
+    },
+    [runners],
+  );
+  return (extension, id) => {
+    if (threadId === null) return;
+    const state = runtime.getState();
+    const entry = commandEntriesOf(state.groups.command, state.inactive).find(
+      (item) => item.extension === extension && item.id === id,
+    );
+    if (entry === undefined) return;
+    const key = screenKeyOf(entry);
+    const run = async (): Promise<void> => {
+      const context = await runtime.contextFor(entry, threadId);
+      if (!context.ok) return;
+      let runner = runners.get(key);
+      if (runner === undefined) {
+        runner = createEntryCommandRunner({
+          entry,
+          context: context.value,
+          threadId,
+          runtime,
+          confirm,
+          current: () => commands.pluginUi.current(),
+          showScreen: (screen) => {
+            commands.showScreen(screen);
+          },
+        });
+        runners.set(key, runner);
+      }
+      await runner.run(threadId, context.value, entry.id);
+    };
+    detach(run(), rethrow);
+  };
+}

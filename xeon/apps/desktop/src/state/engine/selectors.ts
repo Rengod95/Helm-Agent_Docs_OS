@@ -8,10 +8,17 @@ import type {
 } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
-import type { EngineMirror, Link, PendingApproval, StreamingItem } from "./state.ts";
+import type {
+  EngineMirror,
+  Link,
+  PendingApproval,
+  StreamingItem,
+  TransitionRecord,
+} from "./state.ts";
 
 // 빈 값은 모듈 상수다. 선택자가 [] 리터럴을 돌려주면 매번 새 참조라 재렌더가 끝나지 않는다
 const NO_ITEMS: readonly ItemId[] = Object.freeze([]);
+const NO_TRANSITIONS: readonly TransitionRecord[] = Object.freeze([]);
 
 export const selectThreadIds = (s: EngineMirror): readonly ThreadId[] => s.threads.ids;
 export const selectThread = (s: EngineMirror, id: ThreadId): ThreadSummary | undefined =>
@@ -85,3 +92,10 @@ const NO_TURNS: readonly TurnId[] = Object.freeze([]);
 /** 이 거울이 본 대화의 최근 turn id(오래된 것부터). 없으면 빈 목록 */
 export const selectRecentTurnIds = (s: EngineMirror, id: string | null): readonly TurnId[] =>
   id === null ? NO_TURNS : (s.recentTurnIds[id] ?? NO_TURNS);
+
+/** 이 대화의 전환 기록(받은 순서). 대화가 없으면 빈 목록이다. 배열을 새로 만들므로 훅에서 useShallow로 감싼다 */
+export const selectTransitions = (
+  s: EngineMirror,
+  id: ThreadId | null,
+): readonly TransitionRecord[] =>
+  id === null ? NO_TRANSITIONS : s.transitions.filter((record) => record.threadId === id);

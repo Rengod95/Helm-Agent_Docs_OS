@@ -109,6 +109,7 @@ import {
 import { createLateFileBackend, REPEAT_DISABLE_FILE } from "./assembly/repeat-disable-store.ts";
 import { createProjectTrust, createLoaderFs, fileBackend } from "./assembly/trust.ts";
 import {
+  bundledPluginVersionOf,
   defaultPluginNamesFor,
   installDefaultPlugins,
   installedAgentDefinitions,
@@ -729,6 +730,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 기본 플러그인(Helm)을 사용자 확장 위치에 설치한다. 설치본이 낸 서브에이전트 정의는 엔진 조립에 필요해 단위 목록보다 먼저 읽는다
     const defaultsEnabled = options.defaultGroups !== false;
     const userExtensionsDir = join(os.dirs.config, "extensions");
+    // 기본 플러그인 번들 뿌리. 설치 원본이자 버전 목록의 "앱에 든 버전"이 읽는 곳이다
+    const bundleRoot = options.defaultPluginsDir ?? defaultPluginsDir();
+    // 개발 모드에서만 계정 회전을 더 설치한다(결정 2026-11-04 A1). 키가 카탈로그에 없으면 꺼진 것이다
+    const defaultPluginNames = defaultPluginNamesFor(
+      built.catalog.has("l3.authoring.devMode") && settings.value("l3.authoring.devMode") === true,
+    );
     // 확장 버전 기록과 화면 목록의 원천(T-XV, HS-108). 기본 플러그인 교체가 같은 보관을 쓴다. 로더는 아래에서 채워지므로 지연으로 읽는다
     const extUi = createExtUiVersionSource({
       host: ext,
@@ -736,15 +743,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       clock,
       loader: () => external.loader,
       heldThreads: () => portsHandle?.heldThreads() ?? [],
+      // 기본 플러그인 이름만 번들 판이 있다(개발 모드 이름은 개발 모드에서만 그 목록에 든다)
+      bundle: (name) =>
+        defaultPluginNames.includes(name)
+          ? bundledPluginVersionOf(bundleRoot, name, os.logger("default-plugins"))
+          : Promise.resolve(null),
     });
-    // 개발 모드에서만 계정 회전을 더 설치한다(결정 2026-11-04 A1). 키가 카탈로그에 없으면 꺼진 것이다
-    const defaultPluginNames = defaultPluginNamesFor(
-      built.catalog.has("l3.authoring.devMode") && settings.value("l3.authoring.devMode") === true,
-    );
     if (defaultsEnabled) {
       await installDefaultPlugins(
         {
-          bundleDir: options.defaultPluginsDir ?? defaultPluginsDir(),
+          bundleDir: bundleRoot,
           extensionsDir: userExtensionsDir,
           stateDir: os.dirs.state,
           stagingRoot: join(os.dirs.config, ".staging"),

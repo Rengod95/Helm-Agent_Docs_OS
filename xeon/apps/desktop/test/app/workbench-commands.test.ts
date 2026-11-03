@@ -4,11 +4,16 @@ import {
   WIRE_ERRORS,
   type EventWire,
   type ExtHealthEntry,
+  type ExtRollbackResult,
+  type ExtVersionsResult,
   type HookEntry,
   type HooksOrderGetResult,
   type HooksOrderPreviewResult,
   type HooksOrderResetResult,
   type HooksOrderSetResult,
+  type Profile,
+  type ProfileApplyResult,
+  type ProfileListResult,
 } from "@fresnel/contracts/wire";
 import {
   hasScopeChange,
@@ -224,6 +229,104 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
+  test("이 대화에서 끄기는 settings.set을 범위 launch와 대화 id와 함께 보내고 값 null을 돌려준다", async () => {
+    const saved = {
+      setting: {
+        key: "ext.helm.enabled",
+        value: false,
+        source: { scope: "launch" },
+        locked: false,
+        shadowed: [],
+        runtimeChange: "live",
+        pendingUntil: null,
+        deprecated: false,
+      },
+    };
+    const { app, params } = await liveApp({ results: { "settings.set": saved } });
+    const request = {
+      key: "ext.helm.enabled",
+      value: false,
+      scope: "launch" as const,
+      threadId: thr(1),
+    };
+    expect(await app.commands.workbench.toggleForThread(request)).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(paramsOf(params, "settings.set")).toEqual([
+      { key: "ext.helm.enabled", value: false, scope: "launch", threadId: thr(1) },
+    ]);
+    await app.stop();
+  });
+
+  test("이 대화에서 끄기가 대화 범위 거절(thread.notFound)이면 코드를 담은 오류 값이다", async () => {
+    const { app } = await liveApp({
+      errors: {
+        "settings.set": { code: WIRE_ERRORS["thread.notFound"].code, kind: "thread.notFound" },
+      },
+    });
+    expect(
+      await app.commands.workbench.toggleForThread({
+        key: "ext.helm.enabled",
+        value: true,
+        scope: "launch",
+        threadId: thr(1),
+      }),
+    ).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: WIRE_ERRORS["thread.notFound"].code },
+    });
+    await app.stop();
+  });
+
+  test("프로필 목록은 빈 params로 보내고 프로필 배열을 돌려준다", async () => {
+    const QUIET: Profile = {
+      id: "quiet",
+      title: "조용히",
+      enable: ["helm"],
+      disable: [],
+      settings: [],
+      driver: null,
+      updatedAt: "2026-11-04T10:00:00Z",
+      rev: 1,
+    };
+    const listed: ProfileListResult = { profiles: [QUIET], rev: 1 };
+    const { app, params } = await liveApp({ results: { "profile.list": listed } });
+    expect(await app.commands.workbench.profiles()).toEqual({ ok: true, value: [QUIET] });
+    expect(paramsOf(params, "profile.list")).toEqual([{}]);
+    await app.stop();
+  });
+
+  test("프로필 적용은 id, threadId, layer thread를 보내고 쓴 키와 적용 시점을 돌려준다", async () => {
+    const applied: ProfileApplyResult = {
+      written: ["ext.helm.enabled"],
+      layer: "thread",
+      appliesAt: "nextStepBoundary",
+    };
+    const { app, params } = await liveApp({ results: { "profile.apply": applied } });
+    expect(await app.commands.workbench.applyProfile("quiet", thr(1))).toEqual({
+      ok: true,
+      value: applied,
+    });
+    expect(paramsOf(params, "profile.apply")).toEqual([
+      { id: "quiet", threadId: thr(1), layer: "thread" },
+    ]);
+    await app.stop();
+  });
+
+  test("프로필이 없으면(profile.notFound) 코드를 담은 오류 값이다", async () => {
+    const { app } = await liveApp({
+      errors: {
+        "profile.apply": { code: WIRE_ERRORS["profile.notFound"].code, kind: "profile.notFound" },
+      },
+    });
+    expect(await app.commands.workbench.applyProfile("gone", thr(1))).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: WIRE_ERRORS["profile.notFound"].code },
+    });
+    await app.stop();
+  });
+
   test("호스트에 메서드가 없으면(-32601) 명령은 unsupported 값이다", async () => {
     const { app } = await liveApp({
       errors: { "hooks.list": { code: -32601, kind: "jsonrpc.methodNotFound" } },
@@ -232,6 +335,44 @@ describe("크래프트 명령의 wire 호출", () => {
       ok: false,
       error: { kind: "unsupported" },
     });
+    await app.stop();
+  });
+
+  test("versions는 name만 보내고 앱에 든 번들 판을 담은 결과를 그대로 돌려준다", async () => {
+    const body: ExtVersionsResult = {
+      versions: [
+        {
+          version: "0.2.0",
+          installedAt: "2026-11-02T00:00:00.000Z",
+          source: "user",
+          manifestHash: "h2",
+          stateSchemaVersion: null,
+          current: true,
+        },
+      ],
+      bundledVersion: "0.1.0",
+    };
+    const { app, params } = await liveApp({ results: { "ext.versions": body } });
+    expect(await app.commands.workbench.versions("helm")).toEqual({ ok: true, value: body });
+    expect(paramsOf(params, "ext.versions")).toEqual([{ name: "helm" }]);
+    await app.stop();
+  });
+
+  test("rollback은 번들 판을 version으로 보내고 clearState는 참일 때만 싣는다", async () => {
+    const result: ExtRollbackResult = { appliesAt: "restart", stateCleared: false };
+    const { app, params } = await liveApp({ results: { "ext.rollback": result } });
+    expect(await app.commands.workbench.rollback("helm", "0.1.0", false)).toEqual({
+      ok: true,
+      value: "restart",
+    });
+    expect(await app.commands.workbench.rollback("helm", "0.1.0", true)).toEqual({
+      ok: true,
+      value: "restart",
+    });
+    expect(paramsOf(params, "ext.rollback")).toEqual([
+      { name: "helm", version: "0.1.0" },
+      { name: "helm", version: "0.1.0", clearState: true },
+    ]);
     await app.stop();
   });
 });

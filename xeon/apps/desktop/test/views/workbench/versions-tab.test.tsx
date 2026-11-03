@@ -50,8 +50,47 @@ describe("버전 탭 그림", () => {
     expect(textOf(html)).not.toContain(t("desktop.workbench.versions.noHistory"));
   });
 
+  test("번들 판이 설치본과 다르고 기록에 없으면 '앱에 든 버전' 행이 되돌리기 단추와 함께 나온다", () => {
+    const view = versionsViewOf(
+      { version: "0.3.0", origin: "user" },
+      { kind: "ready", result: { ...history, bundledVersion: "0.1.0" } },
+    );
+    const html = render(view);
+    expect(html.match(/<button\b/g)).toHaveLength(2);
+    expect(textOf(html)).toContain("0.1.0");
+    expect(textOf(html)).toContain(t("desktop.workbench.versions.inApp"));
+    expect(textOf(html)).not.toContain(t("desktop.workbench.versions.noHistory"));
+  });
+
+  test("번들 판이 설치본과 같으면 '앱에 든 버전' 행과 추가 단추가 없다", () => {
+    const html = render(
+      versionsViewOf(
+        { version: "0.3.0", origin: "user" },
+        { kind: "ready", result: { ...history, bundledVersion: "0.3.0" } },
+      ),
+    );
+    expect(html.match(/<button\b/g)).toHaveLength(1);
+    expect(textOf(html)).not.toContain(t("desktop.workbench.versions.inApp"));
+  });
+
+  test("번들 판이 이미 기록에 있으면 그 행의 되돌리기 단추만 있다", () => {
+    const html = render(
+      versionsViewOf(
+        { version: "0.3.0", origin: "user" },
+        { kind: "ready", result: { ...history, bundledVersion: "0.2.0" } },
+      ),
+    );
+    expect(html.match(/<button\b/g)).toHaveLength(1);
+    expect(textOf(html)).not.toContain(t("desktop.workbench.versions.inApp"));
+  });
+
   test("대체(기본 플러그인): 설치본과 앱에 든 번들 버전을 읽기 전용으로 보이고 단추는 없다", () => {
-    const html = render({ kind: "fallback", installed: "0.4.1", bundled: "0.4.1" });
+    const html = render({
+      kind: "fallback",
+      installed: "0.4.1",
+      bundled: "0.4.1",
+      rollbackTo: null,
+    });
     expect(valuesOf(html)).toEqual(["0.4.1", "0.4.1"]);
     expect(html).not.toContain("<button");
     expect(textOf(html)).toContain(t("desktop.workbench.versions.installed"));
@@ -61,8 +100,21 @@ describe("버전 탭 그림", () => {
     expect(textOf(html)).not.toContain(t("desktop.workbench.versions.userNoRollback"));
   });
 
+  test("대체(기본 플러그인, 번들 판이 다름): 번들 버전으로 되돌리기 단추 하나가 있다", () => {
+    const html = render({
+      kind: "fallback",
+      installed: "0.4.1",
+      bundled: "0.4.0",
+      rollbackTo: "0.4.0",
+    });
+    expect(valuesOf(html)).toEqual(["0.4.1", "0.4.0"]);
+    expect(html.match(/<button\b/g)).toHaveLength(1);
+    expect(textOf(html)).toContain(t("desktop.workbench.versions.rollbackToBundled"));
+    expect(textOf(html)).not.toContain(t("desktop.workbench.versions.bundledNoRollback"));
+  });
+
   test("대체(사용자 확장): 설치본만 보이고 되돌리기 없음을 말한다. 폴더 열기 단추는 없다", () => {
-    const html = render({ kind: "fallback", installed: "0.0.9", bundled: null });
+    const html = render({ kind: "fallback", installed: "0.0.9", bundled: null, rollbackTo: null });
     expect(valuesOf(html)).toEqual(["0.0.9"]);
     expect(html).not.toContain("<button");
     expect(textOf(html)).not.toContain(t("desktop.workbench.versions.bundled"));
