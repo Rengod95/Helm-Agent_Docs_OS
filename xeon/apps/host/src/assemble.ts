@@ -737,6 +737,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         holder,
         ext,
         learning,
+        // 제작 그룹의 devkit 포트: 엔진 포트가 만들어진 뒤에 읽는다
+        authoring: { devkit: () => portsHandle?.ports.m4.devkit },
         ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
         safeMode,
         groups: {

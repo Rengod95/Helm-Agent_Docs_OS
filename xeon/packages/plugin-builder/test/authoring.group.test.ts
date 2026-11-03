@@ -173,3 +173,30 @@ test("authoring.drive-source-is-deterministic: the drive keeps the replay discip
   const registered = `${source}\ng.drive(authoringDrive(g, devkit));\n`;
   expect(scanDriveSource(registered, { fileName: "group-drive.ts" })).toEqual([]);
 });
+
+test("authoring.restore: thread.start tells the model about an open session and says nothing without one", async () => {
+  const rig = await createGroupRig();
+  const resume = async (key: string) => {
+    await rig.t.host.dispatch(
+      "thread.start",
+      { reason: "resume", threadId: rig.thread },
+      { threadId: rig.thread, dispatchKey: key },
+    );
+    await rig.t.settled();
+  };
+  await resume("r0");
+  expect(rig.t.queue.items).toEqual([]);
+  await confirmedSession(rig);
+  await resume("r1");
+  expect(rig.t.queue.items.map((item) => [item.requestId, item.item])).toEqual([
+    [
+      "authoring:restore:demo",
+      {
+        kind: "context",
+        customType: "grp.authoring.notice.status",
+        content: "[authoring] session auth-demo is open at compose (/work/demo)",
+        display: true,
+      },
+    ],
+  ]);
+});

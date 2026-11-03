@@ -251,6 +251,8 @@ realTest(
           .map((row) => [row.id, row.usesDrive, row.scope])
           .toSorted((a, b) => String(a[0]).localeCompare(String(b[0]))),
       ).toEqual([
+        // 제작 그룹(`authoring`)은 내장이고 기본 꺼짐이다
+        ["authoring", true, "disabled"],
         ["learning", false, "enabled"],
         [groupId, true, "enabled"],
       ]);

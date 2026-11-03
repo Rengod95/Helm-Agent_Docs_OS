@@ -64,6 +64,7 @@ import {
   proposalsBridgePlugin,
   type LearningWiring,
 } from "./learning.ts";
+import { authoringLoaded, authoringUnit, type AuthoringWiring } from "./authoring.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
@@ -136,6 +137,8 @@ export interface ExtensionDeps {
   };
   /** 학습 그룹과 L2 제안 대기열 어댑터를 잇는 자리(`proposal.*` 처리기가 읽는다) */
   readonly learning: LearningWiring;
+  /** 제작 그룹이 쓰는 devkit 포트 자리(엔진 포트가 만들어진 뒤에 읽는다) */
+  readonly authoring: AuthoringWiring;
   /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
@@ -217,6 +220,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const workspaceOfId = (threadId: string): string | undefined =>
     isId("thr", threadId) ? deps.workspaceOf(threadId) : undefined;
   const learning = learningLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
+  const authoring = authoringLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const modules: readonly (readonly [ExtensionName, (loadIndex: number) => ExtensionUnit])[] = [
     [
       "core-persistence",
@@ -450,6 +454,9 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
               ),
           ] as const,
         ]
+      : []),
+    ...(authoring
+      ? [["authoring", (loadIndex: number) => authoringUnit(deps.authoring, loadIndex)] as const]
       : []),
   ];
   return modules.map(([, make], index) => make(index));
