@@ -44,6 +44,7 @@ import {
   extractFileOps,
   fileOpsFromDetails,
   runCompaction,
+  SUMMARY_MAX_CHARS,
   type CompactionPreparation,
   type SummarizeDeps,
 } from "./summarize.ts";
@@ -51,8 +52,6 @@ import {
 // L1.context.spec §4.6, plan C-4·C-5·C-7·C-9. 컴팩션 한 번: 가지 읽기 → 준비 → session.compact.before → 요약 →
 // 한 커밋(thread.compacted + 새 접두) → session.compact.after. 원본 이벤트는 지우지 않는다.
 
-/** F `CompactedPayload.summary` 상한(글자). 넘으면 저장할 수 없다 */
-const SUMMARY_MAX_CHARS = 65_536;
 /** 요약 응답 토큰 상한. 글자 상한 안에 들도록 3.5자/토큰 기준으로 잡는다 */
 const SUMMARY_MAX_OUTPUT_TOKENS = 16_000;
 
@@ -337,6 +336,9 @@ export async function compactThread(
     const given = decision.compaction;
     if (!events.some((event) => event.id === given.firstKeptEventId)) {
       return ok({ status: "cancelled", by, reason: "firstKeptEventId is not on this branch" });
+    }
+    if (given.summary.trim().length === 0) {
+      return ok({ status: "cancelled", by, reason: "the extension summary is empty" });
     }
     summary = given.summary;
     firstKeptEventId = given.firstKeptEventId;

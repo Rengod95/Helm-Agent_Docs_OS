@@ -308,6 +308,14 @@ describe("failures", () => {
     expect((await failing({ kind: "toolCall" })).error?.kind).toBe("summary_has_tool_call");
   });
 
+  test("an empty summary fails instead of dropping the earlier conversation", async () => {
+    const { error } = await failing({ kind: "text", text: "  \n" });
+    expect(error).toEqual({
+      kind: "summary_failed",
+      message: "Summarization failed: the model returned an empty summary",
+    });
+  });
+
   test("an aborted summary is aborted and reports a null message", async () => {
     const h = await harness({ settings: SMALL });
     await buildChat(h, 6);

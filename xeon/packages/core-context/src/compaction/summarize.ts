@@ -57,7 +57,30 @@ export interface CompactionPreparation {
 const READ_TOOLS: ReadonlySet<string> = new Set(["read"]);
 const WRITE_TOOLS: ReadonlySet<string> = new Set(["write", "edit"]);
 
-/** assistant 메시지의 도구 호출에서 읽은 파일과 고친 파일 경로를 모은다 */
+/** `thread.compacted` 요약 글자 상한(F 카탈로그 `CompactedPayload.summary`) */
+export const SUMMARY_MAX_CHARS = 65_536;
+
+/** 추적하는 파일 경로의 글자 합 상한. 넘으면 오래된 경로부터 버린다(읽기 목록이 먼저). 요약 본문과 별개 예산이다 */
+export const FILE_LIST_MAX_CHARS = 8192;
+
+function touch(set: Set<string>, path: string): void {
+  set.delete(path);
+  set.add(path);
+}
+
+function trimOldest(paths: string[], budget: number): number {
+  let total = paths.reduce((sum, path) => sum + path.length + 1, 0);
+  while (total > budget && paths.length > 0) {
+    const dropped = paths.shift();
+    total -= (dropped?.length ?? 0) + 1;
+  }
+  return total;
+}
+
+/**
+ * assistant 메시지의 도구 호출에서 읽은 파일과 고친 파일 경로를 모은다.
+ * 다시 만난 경로는 최근으로 옮기고, 합계가 `FILE_LIST_MAX_CHARS`를 넘으면 오래된 경로를 버려 누적이 요약 상한을 못 넘게 한다
+ */
 export function extractFileOps(messages: readonly Message[], previous: FileOps): FileOps {
   const read = new Set(previous.read);
   const modified = new Set(previous.modified);
@@ -67,11 +90,15 @@ export function extractFileOps(messages: readonly Message[], previous: FileOps):
       if (block.type !== "toolCall") continue;
       const path: unknown = block.arguments["path"];
       if (typeof path !== "string" || path.length === 0) continue;
-      if (READ_TOOLS.has(block.name)) read.add(path);
-      else if (WRITE_TOOLS.has(block.name)) modified.add(path);
+      if (READ_TOOLS.has(block.name)) touch(read, path);
+      else if (WRITE_TOOLS.has(block.name)) touch(modified, path);
     }
   }
-  return { read: [...read], modified: [...modified] };
+  const readList = [...read];
+  const modifiedList = [...modified];
+  const modifiedChars = trimOldest(modifiedList, FILE_LIST_MAX_CHARS);
+  trimOldest(readList, FILE_LIST_MAX_CHARS - modifiedChars);
+  return { read: readList, modified: modifiedList };
 }
 
 /** 고친 파일은 읽기 목록에서 뺀다. 둘 다 정렬한다 */
@@ -207,6 +234,13 @@ export function checkReply(reply: SummaryReply, label: string): ContextError | u
   if (reply.hasToolCall) {
     return { kind: "summary_has_tool_call", message: `${label} attempted to call a tool` };
   }
+  // 빈 요약을 커밋하면 firstKeptEventId 앞의 원문이 조립에서 빠져 이전 대화가 사라진다
+  if (reply.text.trim().length === 0) {
+    return {
+      kind: "summary_failed",
+      message: `${label} failed: the model returned an empty summary`,
+    };
+  }
   return undefined;
 }
 
@@ -320,6 +354,14 @@ export async function runCompaction(
     usage = history.value.usage;
   }
   const { readFiles, modifiedFiles } = computeFileLists(prep.fileOps);
-  summary += formatFileOperations(readFiles, modifiedFiles);
+  // 상한 검사는 본문에만 건다. 파일 목록은 따로 예산이 있고, 본문 뒤에 들어갈 자리가 없으면 본문만 남긴다(목록은 details에 있다)
+  if (summary.length > SUMMARY_MAX_CHARS) {
+    return err({
+      kind: "summary_truncated",
+      message: `summary is ${summary.length} characters, the record limit is ${SUMMARY_MAX_CHARS}`,
+    });
+  }
+  const fileBlock = formatFileOperations(readFiles, modifiedFiles);
+  if (summary.length + fileBlock.length <= SUMMARY_MAX_CHARS) summary += fileBlock;
   return ok({ summary, usage, readFiles, modifiedFiles });
 }

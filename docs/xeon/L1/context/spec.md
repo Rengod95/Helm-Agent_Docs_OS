@@ -317,7 +317,8 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 7a. 요약 모델은 `fresnel.models.resolve("summary")`의 결과(역할 `summary`, 캐시 없음)이고 요약 응답 상한은 `min(0.8 × reserveTokens, 모델 maxTokens, 16,000)`이다. 상한 16,000 토큰은 `thread.compacted.summary`의 65,536자 한도 안에 들게 하려는 값이고, 그래도 넘으면 `summary_truncated`다 [구현: M2]. 확장이 준 요약(`thread.compact.before`의 `compaction`)이 같은 한도를 넘거나 `firstKeptEventId`가 가지 위에 없으면 `cancelled`로 돌려준다.
 7b. 새 접두의 재료: 컴팩션은 `AssembleOptions`를 받지 않으므로 서비스가 스레드마다 가장 최근 `assemble`의 `basePrompt`, `sections`, `tools`를 기억해 쓴다(재광고). 기억이 없으면(프로세스를 다시 띄운 뒤 첫 컴팩션) 가지 위 기록된 광고 상태를 그대로 옮기고, 접두가 없으면 새 접두 item 없이 `thread.compacted`만 커밋한다. 다음 `assemble`이 접두를 만들어 `readvertise(compaction)`으로 낸다 [구현: M2].
 7c. 컴팩션 커밋은 `core.context` 생산자 핸들과 `IdFactory`가 있어야 한다. 둘 중 하나가 없으면 `compact`는 `skipped(disabled)`, `recoverOverflow`는 `fail(disabled)`다. 커밋은 `expectedLeaf`를 요약한 leaf로 걸어 요약하는 동안 가지가 자랐으면 `commit_failed`로 끝낸다. 지문에는 요약 문장을 넣지 않는다(재시도가 같은 키로 처음 커밋을 돌려받는다) [구현: M2].
-8. 응답 검사: `error`와 `length` 종결은 실패다(`:585-593`). 도구 호출이 든 응답도 실패다(`:759-761`). 빈 요약 대상이면 `skipped`다(`:914`).
+8. 응답 검사: `error`와 `length` 종결은 실패다(`:585-593`). 도구 호출이 든 응답도 실패다(`:759-761`). 공백만 있는 빈 요약도 `summary_failed`다. 빈 요약을 커밋하면 `firstKeptEventId` 앞의 원문이 조립에서 빠져 이전 대화가 사라지기 때문이다. 확장이 준 빈 요약은 `cancelled`다. 요약 대상이 없으면 `skipped`다(`:914`).
+8a. 파일 목록: 읽은·고친 파일 경로는 합계 8,192자 예산 안에서 최근 것만 유지한다(넘으면 오래된 경로부터, 읽기 목록이 먼저 버려진다). 이 예산은 요약 본문과 별개이고, 65,536자 한도 검사는 본문에만 건다. 본문 뒤에 목록이 들어갈 자리가 없으면 본문만 커밋하고 목록은 `details`에만 남긴다.
 
 포크 범위 [제안]. 줄 수는 `_research/notes/L1-3.md` §1, §3, §11의 셈이다.
 
