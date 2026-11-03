@@ -142,6 +142,11 @@ desktop-build:
 desktop-test:
     bash apps/desktop/scripts/cargo.sh test
 
+# fresnel-view:// 프레임이 실제 Tauri 창에서 IPC에 닿는지 보는 실기 시험(ADR-0021 3.6.2). 창을 띄우므로 GUI 세션이 있는 맥에서만. GUI 세션이 없으면 종료코드 2. just verify 밖
+[group('local')]
+desktop-ipc-probe:
+    bash apps/desktop/scripts/cargo.sh probe
+
 # 실제 provider로 모델 테이프 녹화 <scenario>: 비용이 들어 --yes 없이는 계획만 보이고 종료코드 3 (scripts/tape-record.ts, D-e)
 [group('local')]
 tape-record scenario *flags:
