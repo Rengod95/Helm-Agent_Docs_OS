@@ -1,11 +1,30 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
-import { appFrameCsp, appResponseHeaders } from "@fresnel/client/views/app";
+import { appFrameCsp, appResponseHeaders, HOST_DOCUMENT_CSP } from "@fresnel/client/views/app";
 
 // Rust 셸(view_scheme.rs)과 TS(views/app/scheme.ts)가 같은 CSP와 같은 응답 헤더 글자를 쓰는지 맞춰 본다. 한쪽만 고치면 여기서 깨진다.
 const RUST = readFileSync(new URL("../src-tauri/src/view_scheme.rs", import.meta.url), "utf8");
 
+const TAURI_CONF: unknown = JSON.parse(
+  readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8"),
+);
+
 describe("view scheme parity (Rust and TS)", () => {
+  test("the app document CSP in tauri.conf.json is HOST_DOCUMENT_CSP", () => {
+    const security: unknown =
+      typeof TAURI_CONF === "object" && TAURI_CONF !== null
+        ? Object.getOwnPropertyDescriptor(TAURI_CONF, "app")?.value
+        : undefined;
+    const csp: unknown =
+      typeof security === "object" && security !== null
+        ? Object.getOwnPropertyDescriptor(
+            Object.getOwnPropertyDescriptor(security, "security")?.value ?? {},
+            "csp",
+          )?.value
+        : undefined;
+    expect(csp).toBe(HOST_DOCUMENT_CSP);
+  });
+
   test("every CSP directive of appFrameCsp appears in the Rust list with {base} in place of the prefix", () => {
     const csp = appFrameCsp("fresnel-view://@B@/");
     expect(csp).toBeDefined();

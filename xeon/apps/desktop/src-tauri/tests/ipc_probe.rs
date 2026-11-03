@@ -21,10 +21,14 @@ use std::time::Duration;
 use tauri::utils::assets::{AssetKey, AssetsIter, CspHash};
 use tauri::{Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
-const FRAME_HTML: &str = "<!doctype html><meta charset=utf-8><script src=\"frame.js\"></script>";
+const FRAME_HTML: &str = "<!doctype html><meta charset=utf-8><script type=\"module\" src=\"mod.js\"></script><script src=\"frame.js\"></script>";
+
+/// 모듈 스크립트는 CORS 모드로 가져오므로 불투명 origin(`null`)의 프레임에는 응답의 `Access-Control-Allow-Origin`이 필요하다.
+const MODULE_JS: &str = "window.__moduleRan = true;";
 
 const FRAME_JS: &str = r#"
 const out = {};
+out.moduleRan = "pending";
 const safe = (f) => { try { return String(f()); } catch (e) { return "throws:" + e.name; } };
 out.hasTauri = safe(() => typeof window.__TAURI__);
 out.hasInternals = safe(() => typeof window.__TAURI_INTERNALS__);
@@ -43,7 +47,7 @@ out.forgedWebkit = safe(() => { window.webkit.messageHandlers.ipc.postMessage(fo
 out.forgedFetch = "pending";
 fetch("ipc://localhost/app_roots_set", { method: "POST", body: "{\"entries\":[]}", headers: { "Tauri-Invoke-Key": "guess" } })
   .then((r) => { out.forgedFetch = "status:" + r.status; }, (e) => { out.forgedFetch = "rejected:" + e.name; })
-  .finally(() => setTimeout(() => parent.postMessage({ probe: out }, "*"), 800));
+  .finally(() => setTimeout(() => { out.moduleRan = String(window.__moduleRan === true); parent.postMessage({ probe: out }, "*"); }, 800));
 "#;
 
 fn host_page(root: &str) -> String {
@@ -111,6 +115,7 @@ fn main() {
     fs::create_dir_all(&ui).unwrap();
     fs::write(ui.join("index.html"), FRAME_HTML).unwrap();
     fs::write(ui.join("frame.js"), FRAME_JS).unwrap();
+    fs::write(ui.join("mod.js"), MODULE_JS).unwrap();
     let root = fs::canonicalize(&ui).unwrap();
 
     let (tx, rx) = mpsc::channel::<serde_json::Value>();
@@ -208,6 +213,12 @@ fn main() {
             }
         }
         let still = view_scheme::resolve(&roots, &sentinel);
+        if probe["moduleRan"].as_str() != Some("true") {
+            failures.push(format!(
+                "module script did not run in the opaque-origin frame: {}",
+                probe["moduleRan"]
+            ));
+        }
         // WKWebView는 불투명 origin에서도 `document.cookie`를 던지지 않고 빈 글을 준다. 앱 쿠키는 보이지 않아야 한다
         if probe["cookie"].as_str() != Some("len:0") {
             failures.push(format!(

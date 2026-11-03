@@ -417,6 +417,7 @@ pub fn respond(
             tauri::http::Response::builder()
                 .status(200)
                 .header("Content-Type", content_type)
+                .header("Access-Control-Allow-Origin", "*")
                 .header("Content-Security-Policy", frame_csp(&base))
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Cache-Control", "no-store")
