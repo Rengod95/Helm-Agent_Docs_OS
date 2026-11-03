@@ -46,6 +46,7 @@ export function record(
   return {
     manifest,
     location: `/ext/${manifest.name}`,
+    origin: "user",
     requestedGrade: "user",
     effectiveGrade: "user",
     tier: "user",
@@ -107,6 +108,13 @@ export function createRecordedSources(patch: Partial<ExtReadSources> = {}): Reco
       { id: "team", status: "enabled" },
       { id: "team/scout", status: "disabled" },
     ],
+    // 디스패치 순서는 이름 순이 아니다: team의 tier가 더 낮아 먼저 돈다
+    hookHandlers: () => [
+      { point: "input.bash.before", registrationId: "team", extension: "team", tier: 0 },
+      { point: "input.user.before", registrationId: "team", extension: "team", tier: 0 },
+      { point: "input.user.before", registrationId: "alpha", extension: "alpha", tier: 1 },
+    ],
+    boundCapabilities: () => [{ capability: "alpha.cap", provider: "alpha", version: "1.0.0" }],
     threadStatus: (threadId, registrationId) =>
       threadId === "thr_known" && registrationId === "team/scout" ? "enabled" : undefined,
     threadKnown: (threadId) => Promise.resolve(threadId !== "thr_missing"),

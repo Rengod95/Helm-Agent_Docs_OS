@@ -192,3 +192,14 @@ test("failure: method outcomes are the extension's calls; params_invalid and abo
     at: 5,
   });
 });
+
+test("failure: windowStartedAt is the time of the oldest call still in the window", () => {
+  const ledger = createFailureLedger({ windowSize: 2 });
+  const key = "ext:fail-ext";
+  expect(ledger.stats(key).windowStartedAt).toBeUndefined();
+  for (const at of [100, 250, 400]) ledger.record({ ...outcome("threw"), at });
+  // 창은 최근 2번(250, 400)이라 100은 밀려났다
+  expect(ledger.stats(key)).toMatchObject({ windowCalls: 2, windowStartedAt: 250 });
+  ledger.reset(key);
+  expect(ledger.stats(key).windowStartedAt).toBeUndefined();
+});

@@ -659,7 +659,6 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     /** 서비스가 올라온 뒤에 올리는 단위(예약). 확장 읽기 목록이 내장 단위와 함께 읽는다 */
     const lateUnits: ExtensionUnit[] = [];
     /** 로더가 찾아낸 외부 확장(싣지 못한 것 포함). 확장 읽기 목록이 읽는다 */
-    const externalFound: { name: string; manifest: ExtensionManifest }[] = [];
     /** 그룹 서비스(`host-groups` 단위가 올라올 때마다 채운다). 확장 읽기의 `group.*`가 읽는다 */
     const groupServiceSlot: { current: GroupServiceWithUsage | undefined } = { current: undefined };
     // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
@@ -810,7 +809,6 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       });
       external.loader = loaded.loader;
       externalGroups.push(...loaded.manifests);
-      externalFound.push(...loaded.discovered.map(({ name, manifest }) => ({ name, manifest })));
       external.unbridge = bridgeExtensionCommands(ext, commands, os.logger("ext-commands"));
     }
 
@@ -927,11 +925,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         extensions: createExtensionRecords({
           units: () => [...unitList.units, ...lateUnits],
-          external: () => externalFound,
           loader: () => external.loader,
           tierOf: (name) => operations.tiers.get(name),
           userExtensionsDir,
         }),
+        now: () => clock.now(),
         groupService: () => groupServiceSlot.current,
       },
       web,

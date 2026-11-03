@@ -1,11 +1,7 @@
 import { join } from "node:path";
 import { assertNever, parse, type Result } from "@fresnel/contracts";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
-import {
-  HOOKS,
-  type ExtensionManifest,
-  type RegistrationStatus,
-} from "@fresnel/contracts/extensions";
+import { HOOKS, type RegistrationStatus } from "@fresnel/contracts/extensions";
 import {
   LeaseRejectedPayloadSchema,
   type DurableEventEnvelope,
@@ -55,6 +51,8 @@ export interface ExtReadAssembly {
   readonly operations: Pick<OperationsPolicy, "ledger" | "autoDisabler">;
   readonly safeMode: ExtReadSafeMode;
   readonly extensions: () => readonly ExtensionRecord[];
+  /** 호스트 시계(ms). 실패 장부 창이 덮는 시간을 지금까지로 잰다 */
+  readonly now: () => number;
   /** 그룹 서비스. `host-groups` 단위가 올라올 때 채워지고 그 전에는 없다 */
   readonly groupService: () => GroupServiceWithUsage | undefined;
 }
@@ -105,19 +103,16 @@ function enabledSourceOf(
 /** 확장 목록 한 줄의 재료: 호스트가 올린 내장 단위, 로더가 찾아낸 외부 확장, 로더의 진단 */
 export interface ExtensionRecordsDeps {
   readonly units: () => readonly ExtensionUnit[];
-  /** 외부 확장 로더가 찾아낸 매니페스트(싣지 못한 것 포함). 사용자 위치 `<config>/extensions/<이름>` 밑이다 */
-  readonly external: () => readonly {
-    readonly name: string;
-    readonly manifest: ExtensionManifest;
-  }[];
   readonly loader: () => ExtensionLoader | undefined;
   readonly tierOf: (name: string) => string | undefined;
   readonly userExtensionsDir: string;
 }
 
 /**
- * 확장 목록을 읽는다. 내장 단위는 위치가 `builtin`이고 항상 실려 있다(안전 모드도 내장은 싣는다). 외부 확장은 로더 상태가 `active`일 때만
- * 실려 있다. 로더가 모르는 외부 확장은 `untrusted`로 본다. 프로젝트 위치에서 싣는 확장은 매니페스트를 읽을 길이 없어 목록에 없다 [미결].
+ * 확장 목록을 읽는다. 내장 단위는 위치가 `builtin`이고 항상 실려 있다(안전 모드도 내장은 싣는다). 외부 확장은 로더 목록(`loader.list()`)이
+ * 원천이다: 사용자, 관리, 프로젝트 위치를 가리지 않고 로더가 매니페스트를 읽은 확장이 나오고, 위치 종류는 `origin`이다. 로더 상태가 `active`일 때만
+ * 실려 있다. 목록은 부를 때마다 읽으므로 서비스 모드에서 작업 폴더를 열 때 실린 프로젝트 확장도 바로 보인다.
+ * 로더가 매니페스트를 읽지 못한 후보(파일 없음, 파싱 실패)는 행이 없고 로더 진단에만 있다.
  */
 export function createExtensionRecords(
   deps: ExtensionRecordsDeps,
@@ -126,6 +121,7 @@ export function createExtensionRecords(
     const builtins: ExtensionRecord[] = deps.units().map((unit) => ({
       manifest: unit.manifest,
       location: "builtin",
+      origin: "builtin",
       requestedGrade: unit.manifest.trust?.level ?? "builtin",
       effectiveGrade: "builtin",
       // 내장 단위는 로더의 승인 표(`admit`)를 거치지 않는다. 정책은 표에 없는 확장을 내장 tier로 본다
@@ -136,8 +132,9 @@ export function createExtensionRecords(
     const loader = deps.loader();
     const infos = loader?.list() ?? [];
     const problems = loader?.diagnostics() ?? [];
-    const external: ExtensionRecord[] = deps.external().map(({ name, manifest }) => {
-      const info = infos.find((candidate) => candidate.name === name);
+    const external: ExtensionRecord[] = infos.flatMap((info) => {
+      const { name, manifest } = info;
+      if (manifest === undefined || info.source === "builtin") return [];
       const diagnostics: ExtDiagnostic[] = problems.flatMap((problem) =>
         problem.extension !== name || problem.severity === "info"
           ? []
@@ -150,15 +147,18 @@ export function createExtensionRecords(
               },
             ],
       );
-      return {
-        manifest,
-        location: join(deps.userExtensionsDir, name),
-        requestedGrade: manifest.trust?.level ?? "user",
-        effectiveGrade: info?.trust ?? "untrusted",
-        tier: deps.tierOf(name) ?? null,
-        loaded: info?.state === "active",
-        diagnostics,
-      };
+      return [
+        {
+          manifest,
+          location: info.root ?? join(deps.userExtensionsDir, name),
+          origin: info.source,
+          requestedGrade: manifest.trust?.level ?? (info.source === "project" ? "project" : "user"),
+          effectiveGrade: info.trust,
+          tier: deps.tierOf(name) ?? null,
+          loaded: info.state === "active",
+          diagnostics,
+        },
+      ];
     });
     return [...builtins, ...external];
   };
@@ -270,8 +270,12 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       return {
         consecutiveFailures: stats.consecutive,
         windowFailures: stats.windowFailures,
-        // 실패 장부의 창은 시간이 아니라 호출 수(`x.operations.autoDisable.windowSize`)다. 시간 창이 없어 0이다
-        windowMs: 0,
+        windowCalls: stats.windowCalls,
+        // 실패 장부의 창은 시간이 아니라 최근 호출 수(`x.operations.autoDisable.windowSize`)다. 창이 덮는 시간은 가장 오래된 호출부터 지금까지다
+        windowMs:
+          stats.windowStartedAt === undefined
+            ? 0
+            : Math.max(0, assembly.now() - stats.windowStartedAt),
         lastFailureAt:
           stats.lastFailure === undefined ? null : new Date(stats.lastFailure.at).toISOString(),
         lastError: stats.lastFailure?.message ?? null,
@@ -281,7 +285,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
     reenable: (name) => {
       assembly.operations.autoDisabler.reenable(`ext:${name}`);
     },
-    // 로더에 핫 리로드가 없다(X.loading-trust.spec §4.4.4는 M2 이후 개발용): 다시 읽지 않았음을 진단으로 알린다
+    // 로더에 핫 리로드가 없다. §4.4.4의 순서(uninstall 뒤 재import)는 `ExtHost.uninstall`이 단계 경계 없이 즉시 해제해서 F.extensions.spec §4.5와 어긋난다 [미결]
     reload: (name) =>
       Promise.resolve([
         {
@@ -290,6 +294,22 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
           message: `the extension loader has no hot reload; restart the host to reload ${name}`,
         },
       ]),
+    hookHandlers: () =>
+      view.handlers().map((handler) => ({
+        point: handler.point,
+        registrationId: handler.scopeId,
+        extension: handler.extension,
+        tier: handler.tier,
+      })),
+    boundCapabilities: () => view.boundCapabilities(),
+    registrationErrors: () =>
+      new Map(
+        env.ext
+          .registrations()
+          .flatMap((info) =>
+            info.lastError === undefined ? [] : [[info.id, info.lastError.code] as const],
+          ),
+      ),
     groups: () => assembly.groupService()?.list() ?? [],
     async groupMetrics(id, query) {
       const service = assembly.groupService();

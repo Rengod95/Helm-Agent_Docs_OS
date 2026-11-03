@@ -24,7 +24,7 @@ import {
   type TraceBuffer,
   type TraceSettings,
 } from "../operations/trace-buffer.ts";
-import { createCapabilityBindings } from "./bindings.ts";
+import { createCapabilityBindings, type CapabilityBindings } from "./bindings.ts";
 import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
 import {
   createEventQuery,
@@ -280,6 +280,8 @@ export interface ExtHostInternals {
   readonly core: HostCore;
   /** 계측 링 버퍼(X-15). traceReadOf가 읽는다 */
   readonly trace: TraceBuffer;
+  /** 지금 바인딩된 기능 공급자(`extReadViewOf`가 읽는다) */
+  readonly bound: CapabilityBindings["bound"];
   /** 추적 중인 작업(drive 호출, 유휴 적용, 기능 바인딩)이 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
   /** 토글 요청을 사유와 함께 기록한다(X.operations RegistrationControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
@@ -914,6 +916,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   internalsByHost.set(host, {
     core,
     trace: traceBuffer,
+    bound: () => bindings.bound(),
     whenSettled: () => core.whenSettled(),
     requestScope(scopeId, enabled, reason, threadId) {
       const record = core.scopes.get(scopeId);

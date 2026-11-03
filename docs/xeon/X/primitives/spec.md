@@ -133,7 +133,7 @@ import type {
 | `operationsSettings` | `defineSettings` 결과 | X.operations.spec §6 |
 | `traceReadOf`, `TraceSettings`, `DEFAULT_TRACE_SETTINGS` | 함수, 타입, 상수 | X.operations.spec §3.9 |
 | `testRunControlOf` | 함수 | 이 문서 §4.4.8 |
-| `extReadViewOf`, `ExtReadView`, `DriveLockView`, `DriveLockCandidate` | 함수, 인터페이스 | 이 문서 §4.4.9 |
+| `extReadViewOf`, `ExtReadView`, `DriveLockView`, `DriveLockCandidate`, `HookHandlerView`, `BoundCapabilityView` | 함수, 인터페이스 | 이 문서 §4.4.9 |
 | `budgetClassOf`, `DEFAULT_BUDGETS_MS`, `BudgetClass`, `BudgetTable` | 함수, 상수, 타입 | X.operations.spec §4.2.2 |
 
 패키지 안에서만 쓰는 이름(`RegistrationRuntime`, `PostQueue`, `LeaseBroker`, `HandlerRegistry`, `CordisBridge`, `hostInternalsOf`)은 `src/primitives/index.ts`에서만 export하고 루트에서 재export하지 않는다. loading-trust와 operations 코드는 같은 패키지 안이라 이 경로로 import한다. loading-trust·operations의 다른 이름(예: `assignTier`, `runWithBudget`, `PI_COMPAT_TABLE`)도 같은 방식으로 패키지 안에서만 쓴다. 공개가 필요해지면 이 표에 행을 더한다.
@@ -1255,7 +1255,9 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 
 1. `threadStatus(threadId, scopeId)`: thread가 열려 있지 않거나 모르는 Registration이면 `undefined`다. 열려 있으면 그 thread에서 켜져 있는가(`ThreadRuntime.active`)와 그 thread의 요청(`ThreadRuntime.want`, 없으면 `RegistrationRecord.desired`)을 견준다. 켜져 있고 요청도 켜짐이면 `enabled`, 켜져 있는데 요청이 꺼짐이면 `disabling`, 꺼져 있는데 요청이 켜짐이면 `enabling`, 둘 다 꺼짐이면 `disabled`다.
 2. `driveLock(threadId)`: thread가 열려 있지 않으면 `undefined`다. `holder`는 커밋되었고 반납이 커밋되지 않은 drive 락을 가진 Registration id이고 아니면 `null`(`leaseEpoch` 0)이다. `limits`는 그 drive 락이 정한 상한(없는 필드는 상한 없음), `used`는 지금까지 쓴 turn·spawn·토큰이다. `candidates`는 drive 락을 받지 못해 기다리는 후보마다 넘긴 경계 수(`waits`)와 상한(`waitLimit`, `x.primitives.leaseWaitLimit`)이다. 거부 기록(`lease.rejected`)과 `x.primitives.activeDriver` 설정 값은 이 조회에 없고 호출자가 이벤트와 설정에서 읽는다.
-3. `budgetClassOf`, `DEFAULT_BUDGETS_MS`(`BudgetClass`, `BudgetTable`)는 X.operations §4.2.2의 순수 함수와 기본값이다. 조립 루트가 `hooks.list`·`ext.get`의 훅 예산을 설정 값과 함께 계산할 때 쓴다.
+3. `handlers()`: 호스트 핸들러 레지스트리에 실제로 등록된 핸들러 전부를 `HookHandlerView`(`point`, `scopeId`, `extension`, `tier`, `loadIndex`, `seq`)로 돌려준다. 정렬은 훅 이름 오름차순, 안에서는 디스패치 순서(tier, 확장 로드 순서, 등록 순서, F.extensions.spec §4.2)다. `tier`는 디스패처가 쓰는 `DispatchPolicy.tierOf` 값이다. 디스패치는 닫힌 세대와 꺼진 thread의 항목을 스냅샷에서 빼지만 이 조회는 빼지 않는다: 켜는 중·끄는 중인 scope의 핸들러도 보이고, 상태는 `registrations()`의 `status`·`lastError`로 짝짓는다. scope를 끄는 일이 끝나면(세대가 닫히면) 그 핸들러는 레지스트리에서 지워지고, setup이 실패한 scope는 핸들러를 등록하지 못한다. 그래서 꺼졌거나 실패한 Registration은 이 조회에 행이 없고 `registrations()`에만 남는다(그 선언 Hook은 매니페스트에서 읽는다). 매니페스트 선언이 아니라 등록 결과다.
+4. `boundCapabilities()`: 지금 바인딩된 기능 공급자(`BoundCapabilityView`: 기능 id, 공급 확장 이름, 버전)를 기능 id 오름차순으로 돌려준다. 공급자가 선언만 있고 바인딩되지 않은 기능(후보 여럿에 선택이 없음, major 불일치)은 없다.
+5. `budgetClassOf`, `DEFAULT_BUDGETS_MS`(`BudgetClass`, `BudgetTable`)는 X.operations §4.2.2의 순수 함수와 기본값이다. 조립 루트가 `hooks.list`·`ext.get`의 훅 예산을 설정 값과 함께 계산할 때 쓴다.
 
 ### 4.5 scope
 

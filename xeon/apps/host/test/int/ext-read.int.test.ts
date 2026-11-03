@@ -65,6 +65,7 @@ const ALPHA_ENTRY: ExtListEntry = {
   isGroup: false,
   version: "1.2.0",
   location: "/ext/alpha",
+  origin: "user",
   requestedGrade: "user",
   effectiveGrade: "user",
   tier: "user",
@@ -114,6 +115,7 @@ test("ext.list: rows are extensions with Registrations underneath; threadId adds
       isGroup: true,
       version: "0.3.0",
       location: "/ext/team",
+      origin: "user",
       requestedGrade: "user",
       effectiveGrade: "user",
       tier: "user",
@@ -294,6 +296,7 @@ test("ext.health: ledger numbers per extension, filtered by name", async () => {
     health: (name) => ({
       consecutiveFailures: name === "team" ? 4 : 0,
       windowFailures: name === "team" ? 6 : 0,
+      windowCalls: name === "team" ? 9 : 0,
       windowMs: 60000,
       lastFailureAt: name === "team" ? "2026-11-02T00:00:00.000Z" : null,
       lastError: name === "team" ? "boom" : null,
@@ -309,6 +312,7 @@ test("ext.health: ledger numbers per extension, filtered by name", async () => {
       registrationId: "alpha",
       consecutiveFailures: 0,
       windowFailures: 0,
+      windowCalls: 0,
       windowMs: 60000,
       autoDisabled: false,
       lastFailureAt: null,
@@ -319,6 +323,7 @@ test("ext.health: ledger numbers per extension, filtered by name", async () => {
       registrationId: "team",
       consecutiveFailures: 4,
       windowFailures: 6,
+      windowCalls: 9,
       windowMs: 60000,
       autoDisabled: true,
       lastFailureAt: "2026-11-02T00:00:00.000Z",
@@ -466,11 +471,20 @@ test("group.list, group.metrics, group.promotion pass the group service values t
   });
   expect(
     await connection.request("group.metrics", { id: "team", since: "2026-11-01T00:00:00.000Z" }),
-  ).toEqual({ id: "team", metrics: full, since: "2026-11-01T00:00:00.000Z" });
+  ).toMatchObject({
+    id: "team",
+    metrics: full,
+    since: "2026-11-01T00:00:00.000Z",
+    // 이벤트에서 접는 값(leases, leaseMs)만 since를 지킨다
+    sinceIgnoredBy: expect.not.arrayContaining(["leases", "leaseMs"]),
+  });
+  const unfiltered = await connection.request("group.metrics", { id: "team" });
+  expect(unfiltered.sinceIgnoredBy).toEqual([]);
   expect(await connection.request("group.metrics", { id: "quiet" })).toEqual({
     id: "quiet",
     metrics: null,
     since: null,
+    sinceIgnoredBy: [],
   });
   const unknown = await failureOf(connection.request("group.metrics", { id: "nope" }));
   expect(unknown).toMatchObject({
@@ -528,13 +542,20 @@ test("hooks.list: fold, handler count, hooking Registrations and the external ma
         handlers: 1,
         registrations: ["team"],
         external: false,
+        order: [
+          { registrationId: "team", extension: "team", tier: 0, status: "enabled", error: null },
+        ],
       },
       {
         hook: "input.user.before",
         fold: "chain",
         handlers: 2,
-        registrations: ["alpha", "team"],
+        registrations: ["team", "alpha"],
         external: false,
+        order: [
+          { registrationId: "team", extension: "team", tier: 0, status: "enabled", error: null },
+          { registrationId: "alpha", extension: "alpha", tier: 1, status: "enabled", error: null },
+        ],
       },
     ],
   });

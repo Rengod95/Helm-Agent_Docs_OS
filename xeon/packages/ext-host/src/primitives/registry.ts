@@ -41,6 +41,8 @@ export interface HandlerRegistry {
    * 디스패치 도중의 add·remove·세대 변화는 이 배열에 반영되지 않는다.
    */
   snapshot(point: HookName, threadId: ThreadId): readonly HandlerEntry[];
+  /** 등록된 모든 항목(세대가 닫혔거나 꺼진 scope의 것 포함). 등록 순서이고 디스패치 순서가 아니다. 읽기 조회용 */
+  entries(): readonly HandlerEntry[];
   /** 항목 수. 테스트와 진단용 */
   size(point?: HookName): number;
 }
@@ -70,6 +72,9 @@ export function createHandlerRegistry(): HandlerRegistry {
     },
     snapshot(point, threadId) {
       return (byHook.get(point) ?? []).filter((entry) => entry.isOpen(threadId));
+    },
+    entries() {
+      return [...byHook.values()].flat();
     },
     size(point) {
       if (point !== undefined) return byHook.get(point)?.length ?? 0;

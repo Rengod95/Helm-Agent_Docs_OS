@@ -56,9 +56,11 @@ export {
 } from "./host.ts";
 export {
   extReadViewOf,
+  type BoundCapabilityView,
   type DriveLockCandidate,
   type DriveLockView,
   type ExtReadView,
+  type HookHandlerView,
 } from "./read-view.ts";
 export { SessionFeedPortKey } from "./lifecycle.ts";
 export {

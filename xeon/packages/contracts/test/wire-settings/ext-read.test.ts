@@ -28,6 +28,7 @@ const entry = {
   isGroup: true,
   version: "1.2.0",
   location: "/home/u/.fresnel/plugins/learning",
+  origin: "project",
   requestedGrade: "builtin",
   effectiveGrade: "builtin",
   tier: "user",
@@ -153,8 +154,30 @@ describe("M4 ext read methods", () => {
           handlers: 2,
           registrations: ["learning", "learning/review"],
           external: false,
+          order: [
+            {
+              registrationId: "learning/review",
+              extension: "learning",
+              tier: 1,
+              status: "enabled",
+              error: null,
+            },
+            {
+              registrationId: "learning",
+              extension: "learning",
+              tier: null,
+              status: "disabled",
+              error: "setup_failed",
+            },
+          ],
         },
       ],
+    });
+    roundTrip(WIRE_METHODS["group.metrics"].result, {
+      id: "g",
+      metrics: null,
+      since: "2026-11-03T00:00:00.000Z",
+      sinceIgnoredBy: ["inputTokens", "costUsd"],
     });
     roundTrip(WIRE_METHODS["ext.health"].result, {
       health: [
@@ -164,6 +187,7 @@ describe("M4 ext read methods", () => {
           consecutiveFailures: 2,
           windowFailures: 3,
           windowMs: 60000,
+          windowCalls: 12,
           autoDisabled: false,
           lastFailureAt: null,
           lastError: null,

@@ -19,6 +19,8 @@ export {
   type DriveLockCandidate,
   type DriveLockView,
   type ExtReadView,
+  type BoundCapabilityView,
+  type HookHandlerView,
   // primitives §3.3~§3.5
   type PayloadOf,
   type DispatchOptions,
