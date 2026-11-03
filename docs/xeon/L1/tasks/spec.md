@@ -530,7 +530,7 @@ abort(target, reason, { background }):
 
 1. 큐는 이벤트와 투영으로 내구화한다. 메모리 상태는 캐시다. 재시작 뒤 `peek`는 투영 `p_inputs`의 queued 행을 seq 순으로 돌려준다. 다시 쓸 것이 없다.
 2. 일관성 검사 [제안]: thread를 열 때 마지막 `checkpoint.step`의 `inputCursor.consumedSeq`보다 seq가 작거나 같은 queued 입력이 있으면 투영과 체크포인트가 어긋난 것이다. 이벤트가 정본이므로 투영을 따르고 진단 로그를 남긴다.
-3. 취소 의도 도출: turn에 `turn.abort_requested`가 있으면 재개하지 않고 닫는다(`eng.transactions.design` §6.2 7항). 의도가 없어도 소유 사슬(turn → 부모 tool → 부모 turn …)에 의도가 있고 백그라운드 경계를 건너지 않으면 같은 처리다. 판정 함수 `isCancelledByOwner`는 `L1.persistence.spec`의 재개 절차가 부른다.
+3. 취소 의도 도출: turn에 `turn.abort_requested`가 있으면 재개하지 않고 닫는다(`eng.transactions.design` §6.2 7항). 의도가 없어도 소유 사슬(turn → 부모 tool → 부모 turn …)에 의도가 있고 백그라운드 경계를 건너지 않으면 같은 처리다. 판정 함수 `isCancelledByOwner`(`src/owner-chain.ts`)는 `L1.persistence.spec`의 재개 절차가 부른다. 소유 연결과 turn 취소 의도는 `OwnerChainReader`로 읽고, 호스트가 `SessionService.query.agentOfChild`와 `query.turn`으로 이를 만들어 복구(`recover`)와 core-loop 재개에 같은 판정을 넘긴다 [결정: 감사 l1/TA-01]. 읽지 못하면 취소로 보지 않는다.
 4. 복원된 queued 입력은 자동 재개 설정이 꺼져 있으면(기본, `architecture.runtime-flow.design` §3) 스스로 turn을 열지 않는다. 다음 사용자 입력이나 재개 명령 때 `turnStart` 선택 규칙에 따라 배치된다. L4는 queued 수를 보여 준다 [제안].
 
 ### 4.9 `post.when = next`의 시작 여부

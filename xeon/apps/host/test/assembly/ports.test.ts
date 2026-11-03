@@ -254,8 +254,9 @@ function harness(): Harness {
   });
   const tasks = partial<TaskService>({
     find: () => scope,
-    abort: (_target, reason) => {
+    abort: (_target, reason, options) => {
       calls.push(`tasks.abort:${reason.code}`);
+      if (options?.background === true) calls.push(`tasks.abort.background:${reason.code}`);
       return Promise.resolve(ok(partial<AbortTicket>({})));
     },
     activity: () => ({ liveTurns: 1, liveTasks: 3, queuedInputs: 2 }),
@@ -829,6 +830,8 @@ describe("locks", () => {
     await flushMicrotasks();
     expect(ports.locks.holds(THREAD)).toBe(false);
     expect(h.calls).toContain("tasks.abort:lease_lost");
+    // 백그라운드 자식도 부모 임대를 잃으면 멈춘다(L1.agents.spec §4.3 3번)
+    expect(h.calls).toContain("tasks.abort.background:lease_lost");
     expect(h.errors).toContain("lease.lost");
   });
 

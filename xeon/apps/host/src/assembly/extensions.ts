@@ -43,6 +43,7 @@ import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type { AgentDefinition } from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
 import { contextSettingsOf, createContextExtension } from "@fresnel/core-context";
+import { cancelledByOwnerOf } from "./owner-cancel.ts";
 import { loopExtensionUnit } from "@fresnel/core-loop";
 import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/core-models";
 import { sessionPlugin } from "@fresnel/core-persistence";
@@ -292,6 +293,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           workingDirectory: deps.workspaceOf,
           settings: loopSource(settings),
           kindLookup,
+          cancelledByOwnerOf,
           loadIndex,
         }),
     ],
