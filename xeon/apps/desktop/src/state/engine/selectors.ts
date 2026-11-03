@@ -78,3 +78,5 @@ export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string 
 export const selectLatestTurnId = (s: EngineMirror, id: ThreadId | null): TurnId | null =>
   id === null ? null : (s.latestTurnId[id] ?? null);
 export const selectApprovalCount = (s: EngineMirror): number => s.approvals.ids.length;
+export const selectHandlerFailures = (s: EngineMirror): EngineMirror["handlerFailures"] =>
+  s.handlerFailures;

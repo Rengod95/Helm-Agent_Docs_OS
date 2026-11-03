@@ -414,3 +414,110 @@ export function versionRows(result: ExtVersionsResult): readonly VersionRowVM[] 
       (currentSchema === null || v.stateSchemaVersion > currentSchema),
   }));
 }
+
+/** `ext.versions` 읽기의 결과. 기록을 읽었거나, 이 엔진이 기록 읽기를 지원하지 않거나(`unsupported`), 읽기가 실패했다 */
+export type VersionsLoad =
+  | { readonly kind: "ready"; readonly result: ExtVersionsResult }
+  | { readonly kind: "unsupported" }
+  | { readonly kind: "error" };
+
+/**
+ * 버전 탭이 그릴 것(§6.24.1). 기록이 있으면 전체(`history`), 기록이 없거나 읽기를 지원하지 않으면 대체(`fallback`).
+ * 대체는 설치본 버전과 앱에 든 번들 버전만 보인다. 되돌리기 명령은 wire가 없어 대체에 두지 않는다.
+ */
+export type VersionsView =
+  | { readonly kind: "history"; readonly rows: readonly VersionRowVM[] }
+  | {
+      readonly kind: "fallback";
+      /** 설치본 버전 */
+      readonly installed: string;
+      /** 앱에 든 번들 버전. 기본(builtin) 플러그인만 있고 그 밖의 확장은 null이다 */
+      readonly bundled: string | null;
+    }
+  | { readonly kind: "error" };
+
+function fallbackOf(entry: Pick<ExtListEntry, "version" | "origin">): VersionsView {
+  return {
+    kind: "fallback",
+    installed: entry.version,
+    // 기본 플러그인은 설치 폴더 없이 앱에 든 판이 곧 설치본이다(호스트는 버전 기록을 두지 않는다)
+    bundled: entry.origin === "builtin" ? entry.version : null,
+  };
+}
+
+/** 버전 탭의 그림을 고른다. 기록이 비었거나 지원하지 않으면 대체, 읽기 실패는 오류 한 줄이다 */
+export function versionsViewOf(
+  entry: Pick<ExtListEntry, "version" | "origin">,
+  load: VersionsLoad,
+): VersionsView {
+  switch (load.kind) {
+    case "ready": {
+      const rows = versionRows(load.result);
+      return rows.length === 0 ? fallbackOf(entry) : { kind: "history", rows };
+    }
+    case "unsupported":
+      return fallbackOf(entry);
+    case "error":
+      return { kind: "error" };
+    default:
+      return assertNever(load, "VersionsLoad");
+  }
+}
+
+// ───────── 기록 탭(§6.24 "기록", `scope.handler_failed`) ─────────
+
+/** 확장 핸들러 실패 기록 한 건의 읽을 값(엔진 거울이 받은 것). owner는 "ext:<이름>" 또는 "hook:<이름>"이다 */
+export interface HandlerFailureEntry {
+  readonly owner: string;
+  readonly point: string;
+  readonly result: string;
+  readonly message: string;
+  readonly consecutive: number;
+}
+
+/** 기록 탭의 한 행: 같은 훅·결과·메시지의 실패 묶음 */
+export interface FailureRowVM {
+  /** 훅 이름(`point`) */
+  readonly point: string;
+  readonly result: string;
+  readonly message: string;
+  /** 묶인 기록 수 */
+  readonly count: number;
+  /** 가장 나중 기록의 연속 실패 수 */
+  readonly consecutive: number;
+}
+
+/**
+ * 확장 하나(`name`)의 실패 기록을 묶는다. 같은 (훅, 결과, 메시지)는 한 행이고, 행의 횟수는 기록 수, 연속 값은 가장 나중 기록의 값이다.
+ * 가장 최근에 난 행이 위에 온다. `records`는 받은 순서(오래된 것 먼저)다.
+ */
+export function failureRowsOf(
+  records: readonly HandlerFailureEntry[],
+  name: string,
+): readonly FailureRowVM[] {
+  const owner = `ext:${name}`;
+  const byKey = new Map<string, { row: FailureRowVM; last: number }>();
+  records.forEach((r, index) => {
+    if (r.owner !== owner) return;
+    const key = `${r.point}\u0000${r.result}\u0000${r.message}`;
+    const found = byKey.get(key);
+    if (found === undefined) {
+      byKey.set(key, {
+        row: {
+          point: r.point,
+          result: r.result,
+          message: r.message,
+          count: 1,
+          consecutive: r.consecutive,
+        },
+        last: index,
+      });
+    } else {
+      byKey.set(key, {
+        row: { ...found.row, count: found.row.count + 1, consecutive: r.consecutive },
+        last: index,
+      });
+    }
+  });
+  return [...byKey.values()].toSorted((a, b) => b.last - a.last).map((v) => v.row);
+}

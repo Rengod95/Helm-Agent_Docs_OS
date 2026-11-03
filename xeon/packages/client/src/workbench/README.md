@@ -31,9 +31,9 @@
 
 - `visibleRows(state)`: 찾기로 거른 확장 행(`ExtRowVM`: 표시 이름, 층, 종류 `group|plugin|core`, 등급, 상태, 잠금, 실패, 대기 목표).
 - `layerGroups(state)`: 층별 묶음(L1 → L2 → L3 → 그 밖). 지도 고리와 층 패널의 재료.
-- `countsOf`, `versionRows(ext.versions)`(버전 탭, 지금 판은 되돌리기 불가, 상태 스키마가 높으면 `needsClearState`).
+- `countsOf`, `versionsViewOf(entry, load)`(버전 탭 그림, §6.24.1). 기록이 있으면 `history`(행: 지금 판은 되돌리기 불가, 상태 스키마가 높으면 `needsClearState`), 기록이 없거나 `unsupported`면 `fallback`(설치본, 기본 플러그인만 앱에 든 번들 버전), 읽기 실패는 `error`.
 - `selectedEntry(state)`: 자세히 보기가 있으면 그 확장, 없으면 고른 플러그인·그룹의 확장. `selectedName(state)`는 고른 것만 본다(자세히 보기는 안 봄). `openLayerOf(state)`는 층 선택이면 그 층.
-- 구성 요소 거르기(`contrib`)는 매니페스트(`ext.get`)가 있어야 걸 수 있어서 `visibleRows`는 걸지 않습니다. 지도·순서가 `snapshotOf`로 자기 데이터로 겁니다.
+- 구성 요소 거르기(`contrib`)는 매니페스트(`ext.get`)가 있어야 걸 수 있어서 `visibleRows`는 걸지 않습니다. 지도·순서·링크·층 패널이 `snapshotOf`의 자기 데이터로 `keepsContrib`를 써서 맞지 않는 플러그인을 숨깁니다. 매니페스트를 못 읽은 플러그인(`unread`)은 넣어 주는 것을 모르므로 숨기지 않습니다.
 
 ## 캔버스 스냅샷 (`snapshot.ts`)
 

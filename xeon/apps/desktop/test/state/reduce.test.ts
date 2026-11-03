@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { ItemRecord, ThreadId, TurnId } from "@fresnel/contracts/conversation";
-import { INITIAL_MIRROR, type EngineMirror } from "../../src/state/engine/state.ts";
+import {
+  HANDLER_FAILURE_CAP,
+  INITIAL_MIRROR,
+  type EngineMirror,
+} from "../../src/state/engine/state.ts";
+import { decodeVolatile } from "../../src/state/engine/decode.ts";
+import type { VolatileEventWire } from "@fresnel/contracts/wire";
 import type { DurableFact, MirrorInput } from "../../src/state/engine/input.ts";
 import { MAX_SYNC_ATTEMPTS, reduceMirror } from "../../src/state/engine/reduce.ts";
 import { checkMirror } from "../../src/state/engine/invariants.ts";
@@ -490,5 +496,92 @@ describe("latest turn id per thread", () => {
     ]);
     expect(s.latestTurnId).toEqual({ [T]: trn(3) });
     expect(selectLatestTurnId(s, T)).toBe(trn(3));
+  });
+});
+
+/** 휘발 `scope.handler_failed` 봉투. 열린 대화 하나당 한 번씩 같은 내용이 온다 */
+function failedEvent(
+  n: number,
+  afterSeq: number,
+  payload: unknown,
+  threadId: ThreadId = T,
+): VolatileEventWire {
+  return {
+    id: evt(300 + n),
+    kind: "scope.handler_failed",
+    version: 1,
+    durable: false,
+    threadId,
+    turnId: null,
+    stepId: null,
+    recordedAt: "2026-11-04T00:00:00.000Z",
+    causationId: null,
+    correlationId: "c",
+    n,
+    afterSeq,
+    payload,
+  };
+}
+const failure = (owner: string, point: string, consecutive: number, message = "boom") => ({
+  owner,
+  point,
+  result: "error",
+  message,
+  consecutive,
+});
+const chunkOf = (event: VolatileEventWire): MirrorInput => ({
+  type: "chunk",
+  fact: decodeVolatile(event),
+});
+
+describe("scope.handler_failed: 디코드와 거울의 실패 기록", () => {
+  test("디코드: 검증을 통과한 실패는 payload와 afterSeq를 싣고, 모양이 틀리면 other다", () => {
+    expect(decodeVolatile(failedEvent(0, 7, failure("ext:flaky", "tool.call.before", 1)))).toEqual({
+      type: "scope.handler_failed",
+      n: 0,
+      threadId: T,
+      turnId: null,
+      afterSeq: 7,
+      payload: failure("ext:flaky", "tool.call.before", 1),
+    });
+    expect(decodeVolatile(failedEvent(1, 7, { owner: 1 })).type).toBe("other");
+  });
+
+  test("거울은 받은 실패를 순서대로 넣고 같은 실패의 두 번째 사본(다른 대화)은 한 번만 넣는다", () => {
+    const state = run([
+      chunkOf(failedEvent(0, 7, failure("ext:flaky", "tool.call.before", 1))),
+      chunkOf(failedEvent(0, 7, failure("ext:flaky", "tool.call.before", 1), thr(2))),
+      chunkOf(failedEvent(1, 9, failure("ext:flaky", "tool.call.before", 2))),
+    ]);
+    expect(state.handlerFailures).toEqual([
+      {
+        owner: "ext:flaky",
+        point: "tool.call.before",
+        result: "error",
+        message: "boom",
+        consecutive: 1,
+        afterSeq: 7,
+      },
+      {
+        owner: "ext:flaky",
+        point: "tool.call.before",
+        result: "error",
+        message: "boom",
+        consecutive: 2,
+        afterSeq: 9,
+      },
+    ]);
+  });
+
+  test("거울의 실패 기록은 HANDLER_FAILURE_CAP행까지만 두고 가장 오래된 것부터 버린다", () => {
+    expect(HANDLER_FAILURE_CAP).toBe(500);
+    const inputs: MirrorInput[] = [];
+    for (let i = 0; i <= HANDLER_FAILURE_CAP; i += 1) {
+      inputs.push(chunkOf(failedEvent(i, i, failure("ext:flaky", "tool.call.before", i + 1))));
+    }
+    const state = run(inputs);
+    expect(state.handlerFailures).toHaveLength(HANDLER_FAILURE_CAP);
+    expect(state.handlerFailures[0]?.afterSeq).toBe(1);
+    expect(state.handlerFailures.at(-1)?.afterSeq).toBe(HANDLER_FAILURE_CAP);
   });
 });

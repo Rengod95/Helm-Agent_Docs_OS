@@ -9,6 +9,7 @@ import {
   countsOf,
   detailsLoaded,
   extOf,
+  failureRowsOf,
   healthLoaded,
   layerGroups,
   listLoaded,
@@ -30,7 +31,9 @@ import {
   toggleContrib,
   toggleRequestOf,
   versionRows,
+  versionsViewOf,
   visibleRows,
+  type HandlerFailureEntry,
 } from "../../src/workbench/index.ts";
 
 function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEntry {
@@ -291,5 +294,130 @@ describe("workbench model", () => {
       ["0.2.0", true, false],
       ["0.4.0", true, true],
     ]);
+  });
+});
+
+describe("버전 탭 그림(§6.24.1 전체·대체·오류)", () => {
+  const history = {
+    versions: [
+      {
+        version: "0.3.0",
+        installedAt: "t3",
+        source: "user" as const,
+        manifestHash: "c",
+        stateSchemaVersion: 2,
+        current: true,
+      },
+      {
+        version: "0.2.0",
+        installedAt: "t2",
+        source: "user" as const,
+        manifestHash: "b",
+        stateSchemaVersion: 1,
+        current: false,
+      },
+    ],
+  };
+
+  test("기록이 있으면 전체 단계다: 행마다 되돌릴 수 있는지, 지금 판인지", () => {
+    const view = versionsViewOf(
+      { version: "0.3.0", origin: "user" },
+      { kind: "ready", result: history },
+    );
+    expect(view).toEqual({
+      kind: "history",
+      rows: [
+        {
+          version: "0.3.0",
+          installedAt: "t3",
+          source: "user",
+          current: true,
+          canRollback: false,
+          needsClearState: false,
+        },
+        {
+          version: "0.2.0",
+          installedAt: "t2",
+          source: "user",
+          current: false,
+          canRollback: true,
+          needsClearState: false,
+        },
+      ],
+    });
+  });
+
+  test("기본(builtin) 플러그인에 기록이 없으면 대체: 설치본과 앱에 든 번들 버전을 같이 보인다", () => {
+    const empty = { kind: "ready" as const, result: { versions: [] } };
+    expect(versionsViewOf({ version: "0.4.1", origin: "builtin" }, empty)).toEqual({
+      kind: "fallback",
+      installed: "0.4.1",
+      bundled: "0.4.1",
+    });
+    expect(
+      versionsViewOf({ version: "0.4.1", origin: "builtin" }, { kind: "unsupported" }),
+    ).toEqual({ kind: "fallback", installed: "0.4.1", bundled: "0.4.1" });
+  });
+
+  test("사용자가 만든 확장에 기록이 없으면 대체이고 번들 버전은 없다", () => {
+    const empty = { kind: "ready" as const, result: { versions: [] } };
+    expect(versionsViewOf({ version: "0.0.9", origin: "user" }, empty)).toEqual({
+      kind: "fallback",
+      installed: "0.0.9",
+      bundled: null,
+    });
+    expect(versionsViewOf({ version: "0.0.9", origin: "user" }, { kind: "unsupported" })).toEqual({
+      kind: "fallback",
+      installed: "0.0.9",
+      bundled: null,
+    });
+  });
+
+  test("origin이 없는 옛 호스트의 확장은 사용자 확장으로 본다", () => {
+    expect(versionsViewOf({ version: "1.0.0" }, { kind: "unsupported" })).toEqual({
+      kind: "fallback",
+      installed: "1.0.0",
+      bundled: null,
+    });
+  });
+
+  test("읽기 실패는 오류 그림이다", () => {
+    expect(versionsViewOf({ version: "0.0.9", origin: "user" }, { kind: "error" })).toEqual({
+      kind: "error",
+    });
+  });
+});
+
+/** 기록 한 건을 만든다(시험용 짧은 이름) */
+const rec = (
+  owner: string,
+  point: string,
+  result: string,
+  message: string,
+  consecutive: number,
+): HandlerFailureEntry => ({ owner, point, result, message, consecutive });
+
+describe("기록 탭: 확장별 실패 묶음(scope.handler_failed)", () => {
+  test("같은 훅·결과·메시지는 한 행이고 횟수는 기록 수, 연속은 가장 나중 값이다. 가장 최근 행이 위에 온다", () => {
+    const rows = failureRowsOf(
+      [
+        rec("ext:flaky", "tool.call.before", "error", "boom", 1),
+        rec("ext:flaky", "input.agent.before", "timeout", "slow", 1),
+        rec("ext:flaky", "tool.call.before", "error", "boom", 2),
+        rec("ext:other", "tool.call.before", "error", "boom", 9),
+        rec("ext:flaky", "tool.call.before", "error", "boom", 3),
+      ],
+      "flaky",
+    );
+    expect(rows).toEqual([
+      { point: "tool.call.before", result: "error", message: "boom", count: 3, consecutive: 3 },
+      { point: "input.agent.before", result: "timeout", message: "slow", count: 1, consecutive: 1 },
+    ]);
+  });
+
+  test("기록이 없는 확장은 빈 목록이다", () => {
+    expect(failureRowsOf([rec("ext:other", "tool.call.before", "error", "x", 1)], "flaky")).toEqual(
+      [],
+    );
   });
 });

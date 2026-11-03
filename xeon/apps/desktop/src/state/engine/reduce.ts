@@ -14,8 +14,10 @@ import type { DurableFact, MirrorInput, VolatileFact } from "./input.ts";
 import { unknownFailureText } from "./failure-text.ts";
 import {
   EMPTY_STREAMING,
+  HANDLER_FAILURE_CAP,
   INITIAL_MIRROR,
   type EngineMirror,
+  type HandlerFailureRecord,
   type Link,
   type ResetReason,
   type PendingApproval,
@@ -264,11 +266,39 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
           return assertNever(update, "applyChunk.update");
       }
     }
+    case "scope.handler_failed": {
+      const p = fact.payload;
+      const record: HandlerFailureRecord = {
+        owner: p.owner,
+        point: p.point,
+        result: p.result,
+        message: p.message,
+        consecutive: p.consecutive,
+        afterSeq: fact.afterSeq,
+      };
+      // 같은 실패는 열린 대화마다 한 번씩 온다. 발신 시점(afterSeq)과 내용이 같으면 한 번만 넣는다
+      if (state.handlerFailures.some((r) => sameFailure(r, record))) {
+        return keep({ ...state, streaming: counted }, "duplicate");
+      }
+      const handlerFailures = [...state.handlerFailures, record].slice(-HANDLER_FAILURE_CAP);
+      return keep({ ...state, streaming: counted, handlerFailures }, "applied");
+    }
     case "other":
       return keep({ ...state, streaming: counted }, "applied");
     default:
       return assertNever(fact, "applyChunk");
   }
+}
+
+function sameFailure(a: HandlerFailureRecord, b: HandlerFailureRecord): boolean {
+  return (
+    a.afterSeq === b.afterSeq &&
+    a.owner === b.owner &&
+    a.point === b.point &&
+    a.result === b.result &&
+    a.message === b.message &&
+    a.consecutive === b.consecutive
+  );
 }
 
 function isRecorded(state: EngineMirror, itemId: ItemId): boolean {

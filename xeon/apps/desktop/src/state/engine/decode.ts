@@ -14,6 +14,7 @@ import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   ItemRecordedPayloadSchema,
+  ScopeHandlerFailedPayloadSchema,
   maskApprovalRequest,
 } from "@fresnel/contracts/records";
 
@@ -124,8 +125,17 @@ export function decodePendingApprovals(result: {
   });
 }
 
+/** 휘발 `scope.handler_failed`: 검증을 통과하면 실패 기록이고 `afterSeq`를 같이 싣는다. 모양이 맞지 않으면 other다 */
+function decodeHandlerFailed(base: VolatileBase, event: VolatileEventWire): VolatileFact {
+  const p = parse(ScopeHandlerFailedPayloadSchema, event.payload);
+  return p.ok
+    ? { ...base, type: "scope.handler_failed", payload: p.value, afterSeq: event.afterSeq }
+    : { ...base, type: "other" };
+}
+
 export function decodeVolatile(event: VolatileEventWire): VolatileFact {
   const base: VolatileBase = { n: event.n, threadId: event.threadId, turnId: event.turnId };
+  if (event.kind === "scope.handler_failed") return decodeHandlerFailed(base, event);
   const decode = VOLATILE[event.kind];
   return decode === undefined ? { ...base, type: "other" } : decode(base, event.payload);
 }

@@ -106,6 +106,20 @@ type Approvals = {
   readonly byId: Readonly<Record<string, PendingApproval>>;
 };
 
+/** 확장 핸들러 실패 기록 한 건(`scope.handler_failed`). owner는 "ext:<이름>" 또는 "hook:<이름>"이다 */
+export type HandlerFailureRecord = {
+  readonly owner: string;
+  readonly point: string;
+  readonly result: string;
+  readonly message: string;
+  readonly consecutive: number;
+  /** 발신 시점의 내구 head. 같은 실패가 열린 대화마다 올 때 한 번만 넣으려고 쓴다 */
+  readonly afterSeq: number;
+};
+
+/** 실패 기록 상한(행). 넘으면 가장 오래된 것부터 버린다(§6.24 기록 500행) */
+export const HANDLER_FAILURE_CAP = 500;
+
 export type EngineMirror = {
   readonly engine: EngineState | null;
   readonly link: Link;
@@ -118,6 +132,8 @@ export type EngineMirror = {
   readonly turnFailures: Readonly<Record<string, string>>;
   /** thread별 가장 최근 turn id. thread.list의 `lastTurnId`로 먼저 채우고(없을 때만), 이후 `turn.started` 사실이 덮는다. 최근 실행 읽기가 턴을 고를 때 쓴다. 거울을 head부터 다시 맞추면 비우고, 뒤이은 목록 읽기가 다시 채운다 */
   readonly latestTurnId: Readonly<Record<string, TurnId>>;
+  /** 받은 확장 핸들러 실패 기록(휘발). 받은 순서대로 가장 새 것이 뒤에 오고 `HANDLER_FAILURE_CAP`행까지 둔다 */
+  readonly handlerFailures: readonly HandlerFailureRecord[];
 };
 
 export const EMPTY_STREAMING: Streaming = {
@@ -138,4 +154,5 @@ export const INITIAL_MIRROR: EngineMirror = {
   approvals: { resolved: [], ids: [], byId: {} },
   turnFailures: {},
   latestTurnId: {},
+  handlerFailures: [],
 };
