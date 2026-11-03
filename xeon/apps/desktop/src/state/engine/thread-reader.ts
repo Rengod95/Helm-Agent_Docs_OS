@@ -1,8 +1,27 @@
 // src/state/engine/thread-reader.ts
 import { attemptAsync, err, ok, repeatAsync } from "@fresnel/contracts";
-import type { ItemRecord } from "@fresnel/contracts/conversation";
+import {
+  maskItemRecord,
+  type ItemMaskEntry,
+  type ItemRecord,
+} from "@fresnel/contracts/conversation";
 import type { HostConnection, StoreId } from "@fresnel/contracts/wire";
 import type { TranscriptPort } from "./link.ts";
+
+/**
+ * 한 쪽의 item에 호스트의 화면 가림 표식을 적용한다(L0.secrets.spec §3.5.1).
+ * 표식을 적용하지 못한 item은 거울에 들어가지 않는다. decode.ts의 unreadable 사실과 같은 처리다.
+ */
+function maskedItems(page: {
+  readonly items: readonly ItemRecord[];
+  readonly masks?: readonly ItemMaskEntry[];
+}): readonly ItemRecord[] {
+  return page.items.flatMap((item) => {
+    const leaves = page.masks?.find((entry) => entry.itemId === item.itemId)?.leaves;
+    const masked = maskItemRecord(item, leaves);
+    return masked === null ? [] : [masked];
+  });
+}
 
 export type ThreadReaderDeps = {
   readonly connection: HostConnection;
@@ -30,7 +49,7 @@ export function createThreadReaderPort(deps: ThreadReaderDeps): TranscriptPort {
       if (storeId === null || first.value.position.storeId !== storeId)
         return err({ kind: "unavailable" });
       // 오래된 페이지를 차례로 읽는다. 페이지 배열을 모았다가 마지막에 한 번 이어 붙인다(오래된 것이 앞)
-      const pages: (readonly ItemRecord[])[] = [first.value.items];
+      const pages: (readonly ItemRecord[])[] = [maskedItems(first.value)];
       const failed = await repeatAsync<boolean>(async () => {
         const loaded = pages.reduce((n, page) => n + page.length, 0);
         const before = pages[0]?.[0]?.itemId;
@@ -41,7 +60,7 @@ export function createThreadReaderPort(deps: ThreadReaderDeps): TranscriptPort {
           deps.connection.request("thread.read", { threadId, limit: PAGE, before }),
         );
         if (!page.ok) return { value: true };
-        pages.unshift(page.value.items);
+        pages.unshift(maskedItems(page.value));
         olderHasMore.value = page.value.hasMore;
         return undefined;
       });

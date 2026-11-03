@@ -1,11 +1,12 @@
 // src/state/engine/reduce.ts (발췌. 7절 표의 나머지 분기도 같은 모양이다)
 import { assertNever, Bug } from "@fresnel/contracts";
-import type {
-  ItemId,
-  ItemRecord,
-  PartDelta,
-  ThreadId,
-  TurnId,
+import {
+  maskPartText,
+  type ItemId,
+  type ItemRecord,
+  type PartDelta,
+  type ThreadId,
+  type TurnId,
 } from "@fresnel/contracts/conversation";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { Reduced as SharedReduced } from "../shared/pipeline.ts";
@@ -271,11 +272,14 @@ function isRecorded(state: EngineMirror, itemId: ItemId): boolean {
 function applyDelta(item: StreamingItem, delta: PartDelta): StreamingItem {
   const index = item.parts.findIndex((p) => p.contentIndex === delta.contentIndex);
   const before = index === -1 ? undefined : item.parts[index];
+  const raw = delta.phase === "delta" ? (before?.raw ?? "") + delta.delta : (before?.raw ?? "");
+  // 화면 텍스트는 호스트의 표식을 적용한 것이다. 표식이 맞지 않으면(조각을 놓쳤으면) 확정 item이 올 때까지 비운다
   const part: StreamingPart = {
     partId: delta.partId,
     contentIndex: delta.contentIndex,
     kind: delta.kind,
-    text: delta.phase === "delta" ? (before?.text ?? "") + delta.delta : (before?.text ?? ""),
+    raw,
+    text: maskPartText(raw, delta.mask),
     done: delta.phase === "end",
   };
   const parts =

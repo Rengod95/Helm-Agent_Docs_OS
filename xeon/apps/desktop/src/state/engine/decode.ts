@@ -6,25 +6,45 @@ import {
   ThreadStartedPayloadSchema,
   ThreadUpdatedPayloadSchema,
   TurnCompletedPayloadSchema,
+  maskItemRecord,
+  type ApprovalMaskEntry,
+  type LeafMask,
 } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   ItemRecordedPayloadSchema,
+  maskApprovalRequest,
 } from "@fresnel/contracts/records";
-import type { EventWire, VolatileEventWire } from "@fresnel/contracts/wire";
+
+import type {
+  EventWire,
+  PendingApproval as WirePendingApproval,
+  VolatileEventWire,
+} from "@fresnel/contracts/wire";
 import type { DurableFact, VolatileFact } from "./input.ts";
 
 type DurableBase = Omit<Extract<DurableFact, { type: "other" }>, "type">;
 type VolatileBase = Omit<Extract<VolatileFact, { type: "other" }>, "type">;
 
-/** 거울이 읽는 내구 kind와 payload 검증. 표에 없는 kind는 other로 위치만 넘긴다 */
-const DURABLE: Readonly<Record<string, (base: DurableBase, payload: unknown) => DurableFact>> = {
-  "item.recorded": (base, payload) => {
+/**
+ * 거울이 읽는 내구 kind와 payload 검증. 표에 없는 kind는 other로 위치만 넘긴다.
+ * `mask`는 호스트가 준 화면 가림 표식이다(item.recorded에만 있다). 확정 item은 표식을 적용한 복사본으로 거울에 들어간다.
+ */
+const DURABLE: Readonly<
+  Record<
+    string,
+    (base: DurableBase, payload: unknown, mask: readonly LeafMask[] | undefined) => DurableFact
+  >
+> = {
+  "item.recorded": (base, payload, mask) => {
     const p = parse(ItemRecordedPayloadSchema, payload);
-    return p.ok
-      ? { ...base, type: "item.recorded", item: p.value.item }
-      : { ...base, type: "unreadable" };
+    if (!p.ok) return { ...base, type: "unreadable" };
+    // 표식을 적용하지 못하면(모양이 맞지 않으면) 읽을 수 없는 사실로 둔다. 원문은 거울에 들어가지 않는다
+    const item = maskItemRecord(p.value.item, mask);
+    return item === null
+      ? { ...base, type: "unreadable" }
+      : { ...base, type: "item.recorded", item };
   },
   "turn.started": (base) => ({ ...base, type: "turn.started" }),
   "thread.started": (base, payload) => {
@@ -46,11 +66,14 @@ const DURABLE: Readonly<Record<string, (base: DurableBase, payload: unknown) => 
       ? { ...base, type: "turn.completed", payload: p.value }
       : { ...base, type: "unreadable" };
   },
-  "approval.requested": (base, payload) => {
+  "approval.requested": (base, payload, mask) => {
     const p = parse(ApprovalRequestedPayloadSchema, payload);
-    return p.ok
-      ? { ...base, type: "approval.requested", request: p.value }
-      : { ...base, type: "unreadable" };
+    if (!p.ok) return { ...base, type: "unreadable" };
+    // 승인 카드의 제목과 도구 인자에 호스트의 표식을 적용한다. 적용하지 못하면 읽을 수 없는 사실이다
+    const request = maskApprovalRequest(p.value, mask);
+    return request === null
+      ? { ...base, type: "unreadable" }
+      : { ...base, type: "approval.requested", request };
   },
   "approval.resolved": (base, payload) => {
     const p = parse(ApprovalResolvedPayloadSchema, payload);
@@ -81,7 +104,24 @@ export function decodeDurable(event: EventWire): DurableFact {
     at: event.recordedAt,
   };
   const decode = DURABLE[event.kind];
-  return decode === undefined ? { ...base, type: "other" } : decode(base, event.payload);
+  return decode === undefined
+    ? { ...base, type: "other" }
+    : decode(base, event.payload, event.mask);
+}
+
+/**
+ * approval.list 결과의 대기 승인에 화면 가림 표식을 적용한다. 적용하지 못한 승인은 목록에 넣지 않는다
+ * (decodeDurable의 unreadable과 같다). 승인 카드는 제목과 도구 인자만 가리는 표식을 받는다.
+ */
+export function decodePendingApprovals(result: {
+  readonly approvals: readonly WirePendingApproval[];
+  readonly masks?: readonly ApprovalMaskEntry[];
+}): readonly WirePendingApproval[] {
+  return result.approvals.flatMap((approval) => {
+    const leaves = result.masks?.find((entry) => entry.approvalId === approval.approvalId)?.leaves;
+    const request = maskApprovalRequest(approval.request, leaves);
+    return request === null ? [] : [{ ...approval, request }];
+  });
 }
 
 export function decodeVolatile(event: VolatileEventWire): VolatileFact {
