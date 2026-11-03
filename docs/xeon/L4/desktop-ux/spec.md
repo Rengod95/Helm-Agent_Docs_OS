@@ -1764,6 +1764,15 @@ compact 폭(720 이하)과 사이드바 시트:
 - 접근성: 게이지는 `role="meter"` 문장 대용으로 "anthropic 토큰 41천, 한도 모름" `[gap:C-05]`.
 - caustic: `Table`, `List reorderable`, `NumberField`, `Select`, `Combobox`(시크릿 고르기), `Switch`, `Alert tone="warning"`, `Dialog kind="alert"`(위험 확인), `CardStat`, `Progress`, `FormLayoutFooter`.
 
+#### 구현 노트 (P-11, 트랙 chat3)
+
+- 파일: `xeon/apps/desktop/src/views/pages/providers/`(모델 `providers-model.ts`, 문장 `providers-text.ts`, 그림 `providers-view.tsx`, 편집기 `providers-screen.tsx`). 설정 항목 줄은 `settings/settings-field.tsx`의 `editors`로 종류마다 그림을 받는다(`PROVIDER_EDITORS`).
+- 편집기 네 종류와 고르는 법(§4.2.4, 편집기 힌트가 먼저, 없으면 키 이름): 계정 풀 `l1.models.accounts`(힌트 `accountPool`), 레이트 리밋 표 `l1.models.rateLimit`(키 이름), 대체 사슬 `l1.models.fallbackChains`(힌트 `fallbackChain`), 모델 역할(힌트 `modelRoles`).
+- 저장: 편집기는 초안만 바꾸고(`handlers.edit`), 저장과 되돌리기는 항목 아래 줄이 한다(`settings.set` 한 번, P-09 흐름). [구현 차이] 이 탭은 `saveModelAccounts`(파일 세 키 한 번 쓰기)를 쓰지 않는다. 초안, 바깥 변경 안내, "저장됨" 표시를 한 경로로 모으려는 이유다. 파일 충돌 문구와 "다시 읽기"는 이 화면에 없다(파일 편집기 소관).
+- 계정 순서: 끌기나 행 초점의 ↑·↓로 바꾸면 같은 provider 안에서 우선순위를 10 간격으로 다시 매긴다(§6.15 [제안] 그대로). 계정 20개를 넘는 provider는 접는다.
+- 게이지 자리: `GaugeSlotView`가 `GaugeSlotVM` 글을 보인다. `usage.get`은 contracts와 host에 있으나 `GaugeSlotVM`은 `unavailable`만 가진다 [gap:W-11]. 한도와 재설정 시각은 아직 보이지 않는다.
+- 빠진 것 [gap]: 계정 회전 스위치와 위험 확인 대화 상자(`ext.account-rotation.*`, `ROTATION_RISK_NOTICE`)는 이번 변경에 없다. `l1.models.fallbackChains`는 2차 키라 호스트가 정의를 실을 때까지 이 편집기는 나타나지 않는다. `l1.models.routing.<역할>`은 역할마다 키가 따로 있어 맵으로 묶는 키가 없다(모델 역할 편집기는 힌트 `modelRoles`가 붙은 항목에서만 그린다). 호스트 카탈로그는 아직 `ui.editor`를 싣지 않는다.
+
 ### 6.16 P-12 도구와 웹
 
 ```text
@@ -1820,6 +1829,15 @@ compact 폭(720 이하)과 사이드바 시트:
 - 바로 가기 키: 행 초점에서 ⌥↑·⌥↓ 순서 이동, Space 잡기와 놓기(끌기 대체).
 - 접근성: 끌기에는 키보드 대체가 반드시 있고 이동 결과를 "Exa를 3번째로 옮겼어요"로 알립니다.
 - caustic: `List reorderable`(`useListReorder`, `ListRowHandle`), `Badge`, `Select`, `Input`, `Switch`, `Card`, `Tooltip`, `Alert`.
+
+#### 구현 노트 (P-12, 트랙 chat3)
+
+- 파일: `xeon/apps/desktop/src/views/pages/tools-web/`(모델 `tools-web-model.ts`, 문장 `tools-web-text.ts`, 그림 `tools-web-view.tsx`, 상태 훅과 패널 `tools-web-screen.tsx`). 순서 부품과 키 뜻은 `pages/shared/ordered-list.tsx`, `pages/shared/order-keys.ts`다. 패널은 설정 도구 탭의 항목 위에 보이고, `l2.web.search.order` 항목은 패널이 맡는다(`panelOwnedOf`).
+- 명령: `commands.web.providers()`(`web.providers` → `toolsWebViewOf`), `commands.web.setOrder(update)`(`settings.set { key, value, scope: "user" }`). 순서는 `orderUpdateOf`가 먼저 검사한다. 쓴 뒤 다시 읽는다.
+- 키: 행에 초점이 있을 때 ↑·↓ 또는 Alt+↑·↓가 한 칸 옮긴다(`keyboardMoveOf`, Alt 여부는 가르지 않는다). 손잡이의 Space 잡기와 끌기는 caustic `List reorderable`이 맡는다.
+- SearXNG 제거 [결정: 2026-11-04 사용자 B15]: P-12 화면은 SearXNG 행, 순서, 고정, 고지를 그리지 않는다(`visibleWebViewOf`, 시험 `tools-web-model.test.ts`). 이 결정의 범위는 P-12 화면뿐이다. 엔진과 클라이언트 패키지에는 SearXNG 코드가 없고(`packages/cap-web`, `packages/client`, `packages/contracts`에 0건), `apps/host/test/assembly/settings-engine.test.ts`가 `l2.web.search.searxng.url`이 카탈로그에 없음을 확인한다. 화면의 걸러내기는 방어용이다.
+- 상태: 쓸 수 있음, 키 필요, 설치 안 됨(권장 목록), 쓸 수 없음. 가져오기 행과 브라우저 순서는 읽기만 한다(wire에 설정이 없다, §10 19).
+- 빠진 것 [gap]: 권장 목록의 "키 등록" 바로 가기는 P-10 시크릿 화면으로 옮기는 명령이 없어 문장 힌트만 보인다. MCP 서버 목록은 [gap:W-15] 그대로다.
 
 ### 6.17 P-13 플러그인과 그룹
 

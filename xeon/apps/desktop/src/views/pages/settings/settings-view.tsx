@@ -16,7 +16,9 @@ import { t } from "@fresnel/client/i18n";
 import { TAB_ORDER, TAB_SPECS, type FieldVM, type SettingsView } from "@fresnel/client/settings";
 import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import { useId, type KeyboardEvent, type ReactNode } from "react";
+import { GaugeSlotView } from "../providers/providers-view.tsx";
 import {
+  panelOwnedOf,
   restartCountOf,
   searchGroupsOf,
   settingsKeyOf,
@@ -24,7 +26,7 @@ import {
   type PageStatus,
   type SettingsKeyIntent,
 } from "./settings-model.ts";
-import { FieldRow, type FieldHandlers } from "./settings-field.tsx";
+import { FieldRow, type DedicatedEditors, type FieldHandlers } from "./settings-field.tsx";
 import { diagnosticIdOf } from "./settings-text.ts";
 
 // 설정 화면(P-09)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
@@ -61,6 +63,10 @@ export interface SettingsPageProps {
   /** 탭을 옮기려는데 저장하지 않은 초안이 있을 때. `count`는 초안 개수다 */
   readonly prompt: { readonly to: SettingsTab; readonly count: number } | null;
   readonly secretsPanel: ReactNode;
+  /** 종류마다 전용 편집기 그림(P-11). 빠진 종류는 요약이다 */
+  readonly editors: DedicatedEditors;
+  /** 도구와 웹 탭의 패널(P-12). 탭이 `tools`일 때 항목 위에 보인다 */
+  readonly toolsPanel: ReactNode;
   readonly handlers: SettingsPageHandlers;
 }
 
@@ -237,6 +243,7 @@ function FieldList(props: SettingsPageProps & { readonly view: SettingsView }): 
       editable={!readOnly && field.editable}
       hasThread={hasThread}
       saved={saved.has(field.key)}
+      editors={props.editors}
       handlers={rowHandlers}
     />
   );
@@ -260,14 +267,14 @@ function FieldList(props: SettingsPageProps & { readonly view: SettingsView }): 
   if (tab === "secrets") return props.secretsPanel;
   const tabView = view.tabs.find((candidate) => candidate.id === tab);
   if (tabView === undefined) return null;
-  const fields = tabView.fields;
+  // 검색 순서는 도구와 웹 패널이 그린다. 패널이 있는 탭은 빈 항목 문장 대신 패널을 보인다
+  const fields = tabView.fields.filter((field) => !panelOwnedOf(field));
   return (
     <FormLayoutSection title={tabView.label}>
       {tab === "overview" ? <OverviewSummary view={view} /> : null}
-      {tabView.gauge === null ? null : (
-        <p className="text-ui-sm text-text-tertiary">{tabView.gauge.text}</p>
-      )}
-      {fields.length === 0 && tabView.emptyText !== null ? (
+      {tab === "tools" ? props.toolsPanel : null}
+      {tabView.gauge === null ? null : <GaugeSlotView gauge={tabView.gauge} />}
+      {fields.length === 0 && tabView.emptyText !== null && tab !== "tools" ? (
         <p className="text-ui-sm text-text-tertiary">{tabView.emptyText}</p>
       ) : null}
       {fields.map(rowOf)}

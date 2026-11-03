@@ -24,9 +24,11 @@ import { assertNever } from "@fresnel/contracts";
 import type { SettingKey } from "@fresnel/contracts/settings";
 import { useId, type ReactNode } from "react";
 import {
+  dedicatedEditorOf,
   fallbackScopeOf,
   fieldControlOf,
   hasFooter,
+  type DedicatedEditorKind,
   launchChoiceOf,
   numberValueOf,
   optionOf,
@@ -42,9 +44,9 @@ import {
 import { RUNTIME_TONE, SCOPE_TONE, TONE_CLASS } from "./settings-text.ts";
 
 // 설정 항목 한 줄(P-09)의 그림. 위젯 종류마다 caustic 부품 하나를 고른다(L4.settings-ui §4.2.1).
-// 표(table), 전용 편집기(editor), 시크릿(secret), 읽기 전용(readonly)은 값을 요약만 보이고 "파일로 보기"를 안내한다.
-// 전용 편집기(modelRoles, fallbackChain, permissionRules, sandboxLists, searchOrder, accountPool)의 그림은 P-11과 P-12 트랙이 붙인다.
-// 이 파일은 그 자리를 요약으로 둔다. 상태와 명령은 없고 `handlers`만 받는다.
+// 표(table), 시크릿(secret), 읽기 전용(readonly)은 값을 요약만 보이고 "파일로 보기"를 안내한다.
+// 전용 편집기는 `editors`로 받는다(종류마다 그림 하나, P-11 `pages/providers`). 종류가 없는 힌트(permissionRules,
+// sandboxLists)는 요약이고, 검색 순서는 도구와 웹 패널이 맡는다(`panelOwnedOf`). 상태와 명령은 없고 `handlers`만 받는다.
 
 export interface FieldHandlers {
   /** 초안만 바꾼다(글 칸과 목록 칸은 저장 버튼이나 떠날 때 저장한다) */
@@ -59,6 +61,18 @@ export interface FieldHandlers {
   readonly reset: (key: SettingKey, scope: WritableScope) => void;
 }
 
+/** 전용 편집기 하나가 받는 값. 초안은 `handlers.edit`로, 저장과 되돌리기는 항목 아래 줄로 바뀐다 */
+export interface DedicatedEditorProps {
+  readonly field: FieldVM;
+  readonly editable: boolean;
+  readonly handlers: FieldHandlers;
+}
+
+/** 종류마다 전용 편집기 그림 하나. 빠진 종류는 요약으로 그린다 */
+export type DedicatedEditors = Readonly<
+  Partial<Record<DedicatedEditorKind, (props: DedicatedEditorProps) => ReactNode>>
+>;
+
 export interface FieldRowProps {
   readonly field: FieldVM;
   /** 읽기 전용(오프라인)이 아니고 항목이 쓸 수 있을 때 참 */
@@ -66,6 +80,7 @@ export interface FieldRowProps {
   readonly hasThread: boolean;
   /** "저장됨" 표시가 아직 보이는가 */
   readonly saved: boolean;
+  readonly editors: DedicatedEditors;
   readonly handlers: FieldHandlers;
 }
 
@@ -86,7 +101,7 @@ function choiceTextOf(value: unknown): string {
 }
 
 export function FieldRow(props: FieldRowProps): ReactNode {
-  const { field, editable, hasThread, saved, handlers } = props;
+  const { field, editable, hasThread, saved, editors, handlers } = props;
   const lockId = useId();
   const disabled = !editable;
   const errorText = errorTextOf(field);
@@ -197,6 +212,11 @@ export function FieldRow(props: FieldRowProps): ReactNode {
               handlers.edit(field.key, next);
             }}
           />
+        </Field>
+      ) : null}
+      {control === "editor" ? (
+        <Field group label={field.label} hint={hint} error={errorText} disabled={disabled}>
+          {renderEditor(field, editable, editors, handlers)}
         </Field>
       ) : null}
       {control === "summary" ? (
@@ -321,6 +341,21 @@ function ChoiceField(props: {
       )}
     </Field>
   );
+}
+
+/** 전용 편집기 그림. 종류에 그림이 없으면 요약으로 물러난다. 편집기는 부품으로 그린다(안의 상태 훅이 항목마다 따로 선다) */
+function renderEditor(
+  field: FieldVM,
+  editable: boolean,
+  editors: DedicatedEditors,
+  handlers: FieldHandlers,
+): ReactNode {
+  const kind = dedicatedEditorOf(field);
+  const Editor = kind === null ? undefined : editors[kind];
+  if (Editor === undefined) {
+    return <p className="text-ui-sm text-text-secondary">{summaryTextOf(field)}</p>;
+  }
+  return <Editor field={field} editable={editable} handlers={handlers} />;
 }
 
 /** 읽기 요약. 표는 항목 수를, 시크릿은 참조 글을, 원시 값은 글을 보인다 */

@@ -22,7 +22,9 @@ import { useLinkPhase } from "../../../state/engine/index.ts";
 import { useShell } from "../../../state/shell/index.ts";
 import { useSelectedThreadId } from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
+import { PROVIDER_EDITORS } from "../providers/providers-screen.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
+import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
 import {
   dirtyKeysOf,
   pageStatusOf,
@@ -36,6 +38,7 @@ import { SettingsPageView, type SettingsPageHandlers } from "./settings-view.tsx
 // 설정 화면(P-09)의 동작. 컨트롤러(`commands.settings.open()`)는 연결마다 하나씩 만든다. 읽기와 알림 구독은 효과가 하고,
 // 상태는 `useSyncExternalStore`로 받는다. 탭 옮기기의 초안 묻기, 저장됨 표시 2초, ⌘S와 Esc, 열린 대화가 바뀔 때의 다시 읽기가 여기 있다.
 // 그림은 `settings-view.tsx`가 그린다. 시크릿 탭은 P-10 시크릿 화면(`SecretsPanel`)을 그대로 넣는다.
+// 계정과 제공자, 예산과 한도의 전용 편집기(P-11)와 도구와 웹 패널(P-12)은 `editors`와 `toolsPanel`로 넣는다.
 // 값 입력과 열람은 이 화면이 받지 않는다. 시크릿 값은 `SecretsPanel`의 입력 창이 받는다.
 
 /** 탭을 옮기려다 멈춘 자리. 저장하거나 버리면 `to`로 간다 */
@@ -129,6 +132,7 @@ export function SettingsPage(): ReactNode {
     loadStatus: state.status,
   });
   const view = useMemo(() => (status === "ready" ? settingsViewOf(state) : null), [status, state]);
+  const toolsWeb = useToolsWebState(live);
   const dirtyKeys = view === null ? [] : dirtyKeysOf(view.tabs);
 
   const markSaved = (key: SettingKey): void => {
@@ -261,6 +265,8 @@ export function SettingsPage(): ReactNode {
       restartError={state.restartError?.message ?? null}
       prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
       secretsPanel={<SecretsPanel />}
+      editors={PROVIDER_EDITORS}
+      toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
       handlers={handlers}
     />
   );

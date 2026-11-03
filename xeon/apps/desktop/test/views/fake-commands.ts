@@ -84,6 +84,10 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       writeClipboard: () => Promise.resolve(),
     },
     settings: { open: () => null },
+    web: {
+      providers: () => Promise.resolve(err({ kind: "unsupported" })),
+      setOrder: () => Promise.resolve(ok(null)),
+    },
     observeThread: () => Promise.resolve(ok(null)),
     forkThread: () => Promise.resolve(ok(null)),
     dismissLocked: () => {},

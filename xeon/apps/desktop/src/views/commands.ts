@@ -27,7 +27,7 @@ import type {
   SettingsController,
   SetupSnapshot,
 } from "@fresnel/client/settings";
-import type { AttachFailureKind, TargetEntry, ToolsWebView } from "@fresnel/client";
+import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
 import type { ToggleRequest } from "@fresnel/client/workbench";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
 import type { EngineTarget } from "../transport/ipc.ts";
@@ -188,6 +188,15 @@ export interface SetupCommands {
 }
 
 /**
+ * 도구와 웹 화면(P-12). `providers`는 `web.providers` 결과를 화면 값으로 바꾼 것이고, `setOrder`는 `orderUpdateOf`가 검사한
+ * 순서를 `settings.set` 한 번으로 쓴다. 둘 다 거울에 넣지 않는다(FS-03).
+ */
+export interface WebCommands {
+  providers(): Promise<Result<ToolsWebView, CommandError>>;
+  setOrder(update: OrderUpdate): Promise<Result<null, CommandError>>;
+}
+
+/**
  * 설정 화면(P-09)의 컨트롤러. 연결이 없으면 `null`이다. 컨트롤러는 연결마다 새로 만들고, 화면이 `dispose()`로 놓는다.
  * 읽기·쓰기·알림의 판정은 `@fresnel/client/settings`가 하고, 이 명령은 연결과 현재 대화만 잇는다(`app/settings.ts`).
  */
@@ -314,6 +323,7 @@ export interface Commands {
   readonly connection: ConnectionCommands;
   readonly secrets: SecretCommands;
   readonly settings: SettingsCommands;
+  readonly web: WebCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */

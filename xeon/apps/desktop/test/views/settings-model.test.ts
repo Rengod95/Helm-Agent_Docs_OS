@@ -127,7 +127,7 @@ describe("field controls", () => {
     expect(selectControlOf(1)).toBe("radio");
   });
 
-  test("each widget kind has its control, and a dedicated editor is a summary", () => {
+  test("each widget kind has its control, and a dedicated editor is an editor slot", () => {
     const toggle = defOf("l4.cli.on", "appearance", "toggle", { type: "boolean" });
     const list = defOf("l1.models.allow", "models", "list", {
       type: "array",
@@ -167,7 +167,7 @@ describe("field controls", () => {
       "l4.cli.on": "switch",
       "l1.models.default": "text",
       "l1.models.allow": "tags",
-      "l1.models.roles": "summary",
+      "l1.models.roles": "editor",
       "l1.models.thinkingBudgets": "summary",
       "l1.loop.maxSteps": "number",
     });

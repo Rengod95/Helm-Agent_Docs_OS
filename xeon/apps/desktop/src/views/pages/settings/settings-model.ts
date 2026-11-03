@@ -6,7 +6,7 @@ import type {
   WritableScope,
 } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
-import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
+import type { SettingEditor, SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 
 // 설정 화면(P-09)의 순수 모델. 탭 고르기, 키 찾기, 탭 옮길 때 초안 묻기, 입력 칸 고르기, 화면 상태를 값으로 만든다.
 // 입력은 `SettingsView`(client)와 화면 상태뿐이다. 호스트를 부르지 않고 DOM도 보지 않는다.
@@ -87,9 +87,10 @@ export function dirtyKeysOf(tabs: readonly TabVM[]): readonly SettingKey[] {
   return tabs.flatMap((tab) => tab.fields.filter((field) => field.dirty).map((field) => field.key));
 }
 
-/** 항목마다 저장 버튼이 따로 있는 위젯인가. 목록은 저장과 되돌리기 줄을 쓴다(L4.settings-ui §4.4.1) */
+/** 항목마다 저장 버튼이 따로 있는 위젯인가. 목록과 전용 편집기는 저장과 되돌리기 줄을 쓴다(L4.settings-ui §4.4.1) */
 export function hasFooter(field: FieldVM): boolean {
-  return fieldControlOf(field) === "tags";
+  const control = fieldControlOf(field);
+  return control === "tags" || control === "editor";
 }
 
 /** 바깥 변경을 알리는 줄을 보인다. 초안이 있는 항목에서만 참이다 */
@@ -139,14 +140,60 @@ export function scopeChoiceShown(field: FieldVM): boolean {
 
 // ── 입력 칸 ────────────────────────────────────────────────────────────────
 
-/** 위젯 하나가 그려지는 칸. `summary`는 읽기 요약과 "파일로 보기" 안내다 */
-export type FieldControl = "switch" | "select" | "number" | "text" | "tags" | "summary";
+/** 위젯 하나가 그려지는 칸. `editor`는 전용 편집기(P-11), `summary`는 읽기 요약과 "파일로 보기" 안내다 */
+export type FieldControl = "switch" | "select" | "number" | "text" | "tags" | "editor" | "summary";
+
+/** 화면이 전용 편집기로 그리는 종류. 계정 풀, 레이트 리밋 표, 모델 역할, 대체 사슬(P-11)이다 */
+export type DedicatedEditorKind = "accountPool" | "modelRoles" | "fallbackChain" | "rateLimit";
+
+/** 키 이름으로 고르는 전용 편집기(L4.settings-ui §4.2.4). 편집기 힌트가 없을 때 쓴다 */
+const EDITOR_BY_KEY: ReadonlyMap<SettingKey, DedicatedEditorKind> = new Map<
+  SettingKey,
+  DedicatedEditorKind
+>([
+  ["l1.models.accounts", "accountPool"],
+  ["l1.models.rateLimit", "rateLimit"],
+  ["l1.models.fallbackChains", "fallbackChain"],
+]);
+
+/** 검색 순서 키. 도구와 웹 패널이 맡으므로 항목 목록에서 뺀다(`panelOwnedOf`) */
+const SEARCH_ORDER_KEY: SettingKey = "l2.web.search.order";
+
+/** 편집기 힌트(`ui.editor`)를 화면 종류로. 화면이 그리지 않는 힌트는 `null`이다(요약으로 둔다) */
+function editorHintOf(editor: SettingEditor | null): DedicatedEditorKind | null {
+  switch (editor) {
+    case "accountPool":
+      return "accountPool";
+    case "modelRoles":
+      return "modelRoles";
+    case "fallbackChain":
+      return "fallbackChain";
+    case "permissionRules":
+    case "sandboxLists":
+    case "searchOrder":
+    case null:
+      return null;
+    default:
+      return assertNever(editor, "SettingEditor");
+  }
+}
+
+/** 항목을 그릴 전용 편집기 종류. 편집기 힌트가 먼저이고, 없으면 키 이름이다. 해당 없으면 `null`이다 */
+export function dedicatedEditorOf(field: FieldVM): DedicatedEditorKind | null {
+  return editorHintOf(field.editor) ?? EDITOR_BY_KEY.get(field.key) ?? null;
+}
+
+/** 도구와 웹 패널이 맡는 항목인가(검색 순서). 패널이 그리므로 탭의 항목 목록에서는 뺀다 */
+export function panelOwnedOf(field: FieldVM): boolean {
+  return field.editor === "searchOrder" || field.key === SEARCH_ORDER_KEY;
+}
 
 /**
- * 위젯 종류에서 칸을 고른다. 전용 편집기(`editor`)가 있으면 요약으로 둔다: 그 편집기는 P-11과 P-12가 붙인다.
- * 표, 시크릿, 읽기 전용도 요약이다.
+ * 위젯 종류에서 칸을 고른다. 전용 편집기가 있으면 `editor`다. 편집기가 없는 힌트(권한 규칙, 샌드박스 목록)와
+ * 표, 시크릿, 읽기 전용은 요약이다.
  */
 export function fieldControlOf(field: FieldVM): FieldControl {
+  if (dedicatedEditorOf(field) !== null) return "editor";
   if (field.editor !== null) return "summary";
   const widget = field.widget;
   switch (widget.kind) {

@@ -75,6 +75,8 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     restartError: null,
     prompt: null,
     secretsPanel: <p>SECRETS PANEL</p>,
+    editors: {},
+    toolsPanel: <p>TOOLS PANEL</p>,
     handlers,
     ...over,
   };
