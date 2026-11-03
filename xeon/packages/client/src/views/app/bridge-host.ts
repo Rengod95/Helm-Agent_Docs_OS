@@ -215,6 +215,11 @@ export interface ActionRunnerOptions {
   readonly scheduler: Scheduler;
   readonly confirm: (request: ConfirmRequest) => Promise<ConfirmAnswer>;
   readonly cancelConfirm?: (request: ConfirmRequest) => void;
+  /**
+   * 쓰기 실행 직전에 판정 맥락을 새로 읽는다. 없으면 `context()`를 쓴다. 돌려주는 값이 없으면 읽지 못한 것이라 실행하지 않는다.
+   * `context()`가 화면 쪽에서 갱신되는 값이라 확인을 기다리는 동안 낡을 수 있어서다
+   */
+  readonly recheck?: () => Promise<BridgePolicyContext | undefined>;
   /** 이 실패로 장부가 화면을 껐다 */
   readonly onDisabled: (reason: LedgerFailure) => void;
 }
@@ -324,10 +329,19 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
     return undefined;
   }
 
-  /** 확인을 기다리는 동안 확장이 꺼졌거나 안전 모드가 되었을 수 있다. 실행 직전에 다시 판정한다 */
-  function stillRunnable(): BridgeError | undefined {
+  /** 확인을 기다리는 동안 확장이 꺼졌거나 안전 모드가 되었을 수 있다. 실행 직전에 맥락을 새로 읽어 다시 판정한다 */
+  async function gone(): Promise<BridgeError | undefined> {
+    if (options.recheck === undefined) return stillRunnable();
+    const fresh = await attemptAsync(options.recheck);
+    if (!fresh.ok || fresh.value === undefined) {
+      return { kind: "failed", detail: "context_unavailable" };
+    }
+    return stillRunnable(fresh.value);
+  }
+
+  function stillRunnable(fresh?: BridgePolicyContext): BridgeError | undefined {
     if (disposed) return { kind: "extension_off" };
-    const context = options.context();
+    const context = fresh ?? options.context();
     if (!context.enabled) return { kind: "extension_off" };
     if (context.safeMode) return { kind: "safe_mode" };
     return undefined;
@@ -340,9 +354,13 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       count("limit_exceeded");
       return failed("rate_limited", "query_inflight");
     }
+    const before = stillRunnable();
+    if (before !== undefined) return { ok: false, error: before };
     queriesInflight += 1;
     const result = await attemptAsync(() => backend.query(action.verb, action.params));
     queriesInflight -= 1;
+    const after = stillRunnable();
+    if (after !== undefined) return { ok: false, error: after };
     if (!result.ok) return failed("failed");
     if (!result.value.ok) return result.value;
     if (sizeOf(result.value.value) > UI_LIMITS.queryResultBytes) {
@@ -389,7 +407,12 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       case "query":
         return runQuery(action);
       case "events": {
+        const before = stillRunnable();
+        if (before !== undefined) return { ok: false, error: before };
         const result = await backend.events(action.kinds, action.limit);
+        // 읽는 동안 꺼졌으면 그 값은 건네지 않는다
+        const after = stillRunnable();
+        if (after !== undefined) return { ok: false, error: after };
         if (!result.ok) return result;
         if (result.value.length > UI_LIMITS.eventRows) {
           count("limit_exceeded");
@@ -398,7 +421,11 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
         return result;
       }
       case "settings": {
+        const before = stillRunnable();
+        if (before !== undefined) return { ok: false, error: before };
         const result = await backend.settings(action.keys);
+        const after = stillRunnable();
+        if (after !== undefined) return { ok: false, error: after };
         if (!result.ok) return result;
         const declared = options.context().declaredSettingKeys;
         // 값은 매니페스트가 선언한 키만 건넨다. 선언 없는 키와 비밀 키는 "설정됨/없음"만 준다(§3.6.5). 다른 필드는 옮기지 않는다
@@ -437,8 +464,8 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
           action.approval,
         );
         if (refused !== undefined) return { ok: false, error: refused };
-        const gone = stillRunnable();
-        if (gone !== undefined) return { ok: false, error: gone };
+        const off = await gone();
+        if (off !== undefined) return { ok: false, error: off };
         return backend.call(action.verb, action.params);
       }
       case "command": {
@@ -450,8 +477,8 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
           false,
         );
         if (refused !== undefined) return { ok: false, error: refused };
-        const gone = stillRunnable();
-        if (gone !== undefined) return { ok: false, error: gone };
+        const off = await gone();
+        if (off !== undefined) return { ok: false, error: off };
         return backend.command(action.name, action.args);
       }
       case "post":
