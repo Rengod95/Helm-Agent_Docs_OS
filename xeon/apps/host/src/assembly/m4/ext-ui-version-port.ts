@@ -341,6 +341,7 @@ function entryOf(report: UiEntryReport, off: boolean): ExtUiEntry {
     version: report.version,
     trust: report.trust,
     ...(report.appRoot === undefined ? {} : { appRoot: report.appRoot }),
+    ...(report.forKind === undefined ? {} : { forKind: report.forKind }),
     ...(report.tree === undefined ? {} : { tree: report.tree }),
     ...(report.app === undefined ? {} : { app: report.app }),
     issues: report.issues.slice(0, ISSUES_LIMIT).map(diagnosticOf),

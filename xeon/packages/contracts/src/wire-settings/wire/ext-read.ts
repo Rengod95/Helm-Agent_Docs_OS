@@ -632,6 +632,8 @@ export interface ExtUiEntry {
    * 스키마는 상대 경로도 받지만 호스트는 절대 경로만 보낸다. builtin은 설치 폴더가 없어 항목에 없다
    */
   readonly appRoot?: string;
+  /** card 항목이 맞는 레코드 kind(매니페스트 `forKind`). card가 아니면 없다 */
+  readonly forKind?: string;
   /** 엔진이 검사한 화면 트리. `app` 모드면 없다 */
   readonly tree?: UiNode;
   readonly app?: AppDecl;
@@ -654,6 +656,7 @@ const UiEntryShape = closed({
   version: SemVerSchema,
   trust: ExtTrustShape,
   appRoot: Type.Optional(Type.String({ minLength: 1, maxLength: 1024 })),
+  forKind: Type.Optional(Type.String({ minLength: 1, maxLength: 160 })),
   tree: Type.Optional(UiNodeSchema),
   app: Type.Optional(AppDeclSchema),
   issues: Type.Array(DiagnosticShape, { maxItems: 200 }),

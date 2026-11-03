@@ -69,6 +69,8 @@ export interface UiItemReport {
    * 설치 폴더가 있는 확장(`builtin`이 아닌 설치 위치)일 때만 있다. 상대 경로는 없다
    */
   readonly appRoot?: string;
+  /** 레코드 kind(매니페스트 `forKind`). `card` 항목이고 매니페스트가 싣고 있을 때만 있다 */
+  readonly forKind?: string;
   readonly issues: readonly UiIssue[];
 }
 
@@ -111,6 +113,7 @@ interface Head {
   readonly id: string;
   readonly placement: Placement;
   readonly title: string;
+  readonly forKind?: string;
 }
 
 interface TreeRead {
@@ -333,7 +336,14 @@ async function appItem(
 
 function checkItem(ctx: Ctx, item: UiContribution, index: number): Promise<UiItemReport> {
   const at = `/ui/items/${index}`;
-  const head: Head = { id: item.id, placement: item.placement, title: item.title };
+  // forKind는 card 항목만 싣는다(매니페스트 검사도 card에만 허용한다)
+  const forKind = item.placement === "card" ? item.forKind : undefined;
+  const head: Head = {
+    id: item.id,
+    placement: item.placement,
+    title: item.title,
+    ...(forKind === undefined ? {} : { forKind }),
+  };
   // command는 화면이 없어 파일과 앱을 보지 않는다
   if (item.placement === "command") {
     return Promise.resolve({ ...head, mode: item.mode ?? "native", state: "ok", issues: [] });

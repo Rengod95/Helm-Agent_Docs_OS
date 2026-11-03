@@ -354,7 +354,7 @@ export interface ExtensionLoader {
   list(): readonly LoadedExtensionInfo[];
   diagnostics(): readonly LoadDiagnostic[];
   /**
-   * 화면 기여 항목의 검사 결과(§4.3.4). 로드 순서, 선언 순서다. `ext.ui.list`가 쓴다. 확장이 목록에서 빠지면 그 확장의 항목도 빠진다. 항목마다 확장 `version`, 설치 등급 `trust`(managed·user·project·builtin)가 붙고, 앱 모드이며 `ok`이고 `builtin`이 아니면 `appRoot`(확장 루트 + `app.root`의 절대 경로)가 붙는다 [결정: 2026-11-04 사용자]. 셸은 이 값으로 `app_roots_set`을 부른다
+   * 화면 기여 항목의 검사 결과(§4.3.4). 로드 순서, 선언 순서다. `ext.ui.list`가 쓴다. 확장이 목록에서 빠지면 그 확장의 항목도 빠진다. 항목마다 확장 `version`, 설치 등급 `trust`(managed·user·project·builtin)가 붙고, 앱 모드이며 `ok`이고 `builtin`이 아니면 `appRoot`(확장 루트 + `app.root`의 절대 경로)가 붙는다 [결정: 2026-11-04 사용자]. 셸은 이 값으로 `app_roots_set`을 부른다. card 항목은 `forKind`(레코드 kind)를 싣는다
    */
   uiEntries(): readonly UiEntryReport[];
   /** 설치된 외부 확장을 새 버전으로 바꾼다. 적용은 단계 경계다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */

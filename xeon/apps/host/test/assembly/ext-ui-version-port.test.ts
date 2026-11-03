@@ -648,6 +648,45 @@ describe("ext-ui-version port: ui list", () => {
     ]);
   });
 
+  test("carries the forKind of a card entry and leaves it out of a panel entry", () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      entries: [
+        {
+          ...entryOfUi("helm", "inquiry", "ok", [], "Inquiry", "card"),
+          forKind: "grp.helm.inquiry.finished",
+        },
+        entryOfUi("helm", "panel", "ok", [], "Helm"),
+      ],
+    });
+    expect(rig.port.uiList({}).items).toEqual([
+      {
+        extension: "helm",
+        id: "inquiry",
+        placement: "card",
+        mode: "native",
+        title: "Inquiry",
+        state: "ok",
+        version: "0.2.0",
+        trust: "user",
+        forKind: "grp.helm.inquiry.finished",
+        issues: [],
+      },
+      {
+        extension: "helm",
+        id: "panel",
+        placement: "panel",
+        mode: "native",
+        title: "Helm",
+        state: "ok",
+        version: "0.2.0",
+        trust: "user",
+        issues: [],
+      },
+    ]);
+  });
+
   test("maps the loader's entries to wire items: sorted, disabled by loader state or by registration, issues as diagnostics", async () => {
     const rig = rigOf({
       infos: [

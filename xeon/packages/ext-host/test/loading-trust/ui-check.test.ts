@@ -234,6 +234,38 @@ test("ui: a native item without file is ui_invalid", async () => {
   ]);
 });
 
+test("ui: a card item carries its forKind into the report, and a page item has none", async () => {
+  const card: UiContribution = {
+    id: "inquiry",
+    placement: "card",
+    title: "Inquiry",
+    file: "ui/page.json",
+    forKind: "grp.helm.inquiry.finished",
+  };
+  const { reports } = await checkWith(uiOf([card, PAGE]), nativeTree(TEXT_TREE));
+  expect(reports).toEqual([
+    {
+      id: "inquiry",
+      placement: "card",
+      mode: "native",
+      title: "Inquiry",
+      state: "ok",
+      tree: { type: "Text", props: { text: "hi" } },
+      forKind: "grp.helm.inquiry.finished",
+      issues: [],
+    },
+    {
+      id: "page",
+      placement: "page",
+      mode: "native",
+      title: "Page",
+      state: "ok",
+      tree: { type: "Text", props: { text: "hi" } },
+      issues: [],
+    },
+  ]);
+});
+
 test("ui: an unsatisfied widgets range makes every native item invalid with widgets_unsupported", async () => {
   const second: UiContribution = {
     id: "second",
