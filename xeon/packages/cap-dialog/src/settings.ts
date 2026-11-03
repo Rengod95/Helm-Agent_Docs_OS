@@ -158,7 +158,7 @@ export const DIALOG_SETTING_DEFS: readonly SettingDef[] = Object.values(dialogSe
 type ShellInjectionMode = (typeof SHELL_INJECTION_MODES)[number];
 
 /** 호출 한 번이 읽는 유효 설정. 이 패키지가 읽는 키만 담는다(styles.active는 2차 기능이 읽는다) */
-export interface CommandDirSetting {
+interface CommandDirSetting {
   readonly path: string;
   readonly scope: "user" | "project" | "local";
 }

@@ -40,7 +40,7 @@ export interface ExplorationMarker {
  * 순수 함수. 이 호출이 본 탐구 단계. `subagent:explorer`는 구동 중인 탐구의 표지를, 그 밖의 호출은
  * 호출한 대화 자신의 커밋 상태를 본다
  */
-export function phaseSeenBy(
+function phaseSeenBy(
   caller: CallerId | undefined,
   state: Readonly<Pick<HelmState, "phase">>,
   marker: Readonly<ExplorationMarker>,
