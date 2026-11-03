@@ -15,3 +15,12 @@ export {
 export { locateTemplateDirs, type TemplateDirs } from "./templates-dir.ts";
 export { MANIFEST_PATH, validateCompositionReport, validateExtensionDir } from "./validate.ts";
 export { catalogConformance } from "./conformance.ts";
+export { authoringWriteGuard } from "./guard.ts";
+export {
+  installWithConfirmation,
+  packWithConfirmation,
+  replayInDevMode,
+  type Ask,
+  type ReleaseDevkit,
+  type ReplayRunner,
+} from "./release.ts";

@@ -207,6 +207,9 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - 사용자 확장 위치, 관리 위치, 앱 자원 폴더에 직접 쓰지 않습니다. 설치는 `fresnel.devkit.link`(사람 확인 뒤)만 합니다.
 - 가드는 대화가 끝나면 풀립니다. Plugin Builder가 꺼져도 풀립니다.
 
+- [결정: M4 T-AUTH] 가드 판정은 함수 `authoringWriteGuard`(`guard.ts`)다. `write` 위험 등급 도구는 입력의 `path`·`file_path`·`filePath`가 대상 폴더 안이어야 하고, `exec`(셸)는 `cwd`·`workdir`가 안쪽이어야 한다. 경로를 읽을 수 없는 `write`와 작업 폴더가 없는 `exec`는 막는다. 한계 [미결]: 셸 명령 문자열 속 절대 경로는 보지 않는다.
+- [결정: M4 T-AUTH] 묶기·설치 앞 사람 확인은 `packWithConfirmation`, `installWithConfirmation`(`release.ts`)이다. 질문 `confirm`의 선택지 `yes`·`no`, `requestId`는 `authoring:package:<dir>`·`authoring:install:<묶음>`이고, `yes`가 아니면 `pack`·`link`를 부르지 않는다. `ask`는 drive의 `loop.ask`를 그대로 넘긴다. replay는 `replayInDevMode`가 개발 모드가 아니면 `dev_mode_required`를 돌려준다. 그룹 `authoring`(drive, 도구 아홉, 내장 등록)은 이 함수들을 부르도록 아직 만들지 않았다.
+
 ### 4.3 구성기와 화면 모드와의 관계
 
 - 구성기(`L4.desktop-ux.spec` §6.28)는 구성 초안을 편집하고 `ext.validateComposition`(W-47)으로 검사합니다. "새 그룹"은 구성기에서 초안을 만든 뒤 "제작 확장으로 만들기"를 누르면 제작 대화를 열어 그 초안을 넘깁니다(`authoring_compose`). 반대로 에이전트가 만든 초안은 구성기에서 읽기 전용으로 열 수 있습니다.
