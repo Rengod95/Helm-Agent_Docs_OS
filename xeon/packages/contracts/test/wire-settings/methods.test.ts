@@ -563,6 +563,7 @@ describe("M2 method schemas are written out", () => {
       },
       queuedInputs: 0,
       pendingApprovals: 2,
+      lastTurnId: rawId("trn", 2),
     };
     expect(parse(result, { threads: [summary], nextCursor: null }).ok).toBe(true);
     expect(parse(result, { threads: [], nextCursor: "c1" }).ok).toBe(true);

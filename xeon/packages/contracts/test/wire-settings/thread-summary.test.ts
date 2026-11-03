@@ -24,6 +24,7 @@ function row(patch: Partial<ThreadSummaryRow> = {}): ThreadSummaryRow {
     marker: null,
     queuedInputs: 1,
     pendingApprovals: 2,
+    lastTurnId: null,
     ...patch,
   };
 }
@@ -75,6 +76,34 @@ describe("threadSummaryOf", () => {
     expect(
       parse(WIRE_METHODS["thread.list"].result, { threads: [result.value], nextCursor: null }).ok,
     ).toBe(true);
+  });
+
+  test("the last turn id is carried when the thread has a turn and omitted when it has none", () => {
+    const last = must(TurnIdSchema, rawId("trn", 2));
+    const withTurn = threadSummaryOf(row({ lastTurnId: last }));
+    expect(withTurn.ok).toBe(true);
+    if (!withTurn.ok) return;
+    expect(withTurn.value).toEqual({
+      threadId: THREAD,
+      title: "hello",
+      status: "idle",
+      workspace: "/work/app",
+      createdAt: "2026-10-23T01:00:00.000Z",
+      updatedAt: "2026-10-23T01:05:00.250Z",
+      headSeq: 42,
+      forkedFrom: null,
+      resumable: null,
+      queuedInputs: 1,
+      pendingApprovals: 2,
+      lastTurnId: last,
+    });
+    expect(parse(ThreadSummarySchema, withTurn.value).ok).toBe(true);
+    expect(parse(ThreadSummarySchema, { ...withTurn.value, lastTurnId: THREAD }).ok).toBe(false);
+
+    const withoutTurn = threadSummaryOf(row());
+    expect(withoutTurn.ok).toBe(true);
+    if (!withoutTurn.ok) return;
+    expect(Object.hasOwn(withoutTurn.value, "lastTurnId")).toBe(false);
   });
 
   test("a time outside the Date range is an error value naming the field", () => {

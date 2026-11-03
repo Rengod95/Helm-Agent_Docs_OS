@@ -46,5 +46,6 @@ export function threadSummaryOf(row: ThreadSummaryRow): Result<ThreadSummary, Th
     resumable,
     queuedInputs: row.queuedInputs,
     pendingApprovals: row.pendingApprovals,
+    ...(row.lastTurnId === null ? {} : { lastTurnId: row.lastTurnId }),
   });
 }

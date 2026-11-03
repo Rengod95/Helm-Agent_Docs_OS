@@ -362,7 +362,17 @@ export function readPendingApprovals(
   );
 }
 
-/** thread.list·query.thread가 돌려주는 요약 행. 대기 입력 수와 해결되지 않은 승인 수를 같이 센다 */
+/** thread의 가장 나중 seq 이벤트가 속한 turn id. turn 표식이 없으면 null. events_thread_seq 색인을 거꾸로 읽는다 */
+function readLastTurnId(tx: SqlTx, threadId: string): Result<TurnId | null, RowFault> {
+  const row = tx.get(
+    "SELECT turn_id FROM events WHERE thread_id = ? AND turn_id IS NOT NULL ORDER BY seq DESC LIMIT 1",
+    [threadId],
+  );
+  if (row === undefined) return ok(null);
+  return columns(row, "events").id("trn", "turn_id");
+}
+
+/** thread.list·query.thread가 돌려주는 요약 행. 대기 입력 수, 해결되지 않은 승인 수, 마지막 turn id를 같이 본다 */
 export function readThreadSummary(
   tx: SqlTx,
   thread: ThreadRow,
@@ -371,6 +381,8 @@ export function readThreadSummary(
   if (!queued.ok) return queued;
   const approvals = readPendingApprovals(tx, thread.threadId);
   if (!approvals.ok) return approvals;
+  const lastTurnId = readLastTurnId(tx, thread.threadId);
+  if (!lastTurnId.ok) return lastTurnId;
   return ok({
     threadId: thread.threadId,
     title: thread.title,
@@ -384,6 +396,7 @@ export function readThreadSummary(
     marker: markerOf(thread),
     queuedInputs: queued.value.length,
     pendingApprovals: approvals.value.length,
+    lastTurnId: lastTurnId.value,
   });
 }
 

@@ -438,6 +438,7 @@ export const ThreadSummarySchema: TObject<{
   resumable: TUnion<[typeof ThreadResumableSchema, TNull]>;
   queuedInputs: TInteger;
   pendingApprovals: TInteger;
+  lastTurnId: TOptional<typeof TurnIdSchema>;
   origin: TOptional<typeof ThreadOriginSchema>;
   testRun: TOptional<typeof TestRunMarkerSchema>;
 }> = Type.Object(
@@ -462,6 +463,8 @@ export const ThreadSummarySchema: TObject<{
     resumable: Nullable(ThreadResumableSchema),
     queuedInputs: Type.Integer({ minimum: 0 }),
     pendingApprovals: Type.Integer({ minimum: 0 }),
+    /** 대화의 마지막 turn id. 최근 실행이 이 턴을 기준으로 잡는다. turn이 없으면 생략한다 */
+    lastTurnId: Type.Optional(TurnIdSchema),
     /** 대화를 만든 쪽(W-16). 호스트가 알 수 없으면 생략한다 */
     origin: Type.Optional(ThreadOriginSchema),
     /** Test run 표지(W-34, X-14). Test run이 아니면 생략한다 */

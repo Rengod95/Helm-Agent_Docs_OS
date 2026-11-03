@@ -3,6 +3,7 @@ import { Bug } from "@fresnel/contracts";
 import { threadSummaryOf } from "@fresnel/contracts/wire";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
+  endTurn,
   expectOk,
   newThread,
   openHarness,
@@ -246,6 +247,32 @@ describe("threads.create workspace", () => {
     const threadId = h.ids.next("thr");
     expectOk(h.service.threads.create({ threadId }));
     expect(expectOk(h.service.query.thread(threadId))?.workspace).toBeNull();
+  });
+});
+
+describe("thread summary lastTurnId", () => {
+  // 재시작 뒤에도 최근 실행이 마지막 turn을 알도록, 요약 행이 events의 가장 나중 turn id를 싣는다
+  test("is the id of the latest turn of a thread with two turns, and null for a thread with none", async () => {
+    const h = await openHarness();
+    const busy = newThread(h, "two turns");
+    const first = startTurn(h, busy.threadId);
+    endTurn(h, first);
+    const second = startTurn(h, busy.threadId);
+    endTurn(h, second);
+    const idle = newThread(h, "no turns");
+
+    const busyRow = expectOk(h.service.query.thread(busy.threadId));
+    expect(busyRow?.lastTurnId).toBe(second.turnId);
+    const busySummary = threadSummaryOf(busyRow ?? failRow());
+    expect(busySummary.ok).toBe(true);
+    if (busySummary.ok) expect(busySummary.value.lastTurnId).toBe(second.turnId);
+
+    expect(expectOk(h.service.query.thread(idle.threadId))?.lastTurnId).toBeNull();
+    const listed = new Map(
+      h.service.threads.list({}).threads.map((row) => [row.threadId, row.lastTurnId] as const),
+    );
+    expect(listed.get(busy.threadId)).toBe(second.turnId);
+    expect(listed.get(idle.threadId)).toBeNull();
   });
 });
 

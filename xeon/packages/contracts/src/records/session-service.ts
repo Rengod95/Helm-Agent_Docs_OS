@@ -92,6 +92,8 @@ export interface ThreadSummaryRow {
   readonly marker: RecoveryMarker | null;
   readonly queuedInputs: number;
   readonly pendingApprovals: number;
+  /** 이 대화에서 가장 나중 seq의 turn id(events.turn_id). turn이 없으면 null */
+  readonly lastTurnId: TurnId | null;
 }
 
 export interface ItemRow {
