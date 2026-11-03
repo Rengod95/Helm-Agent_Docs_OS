@@ -1,0 +1,221 @@
+/* 떠 있는 면의 바탕은 포털(찾기 목록, 말풍선)에도 닿아야 해서 루트에 둔다. */
+:root {
+  --craft-glass-fill: color-mix(in oklab, var(--cs-color-surface-raised) 74%, transparent);
+  --craft-glass-line: color-mix(in oklab, var(--cs-color-text-primary) 10%, transparent);
+  --craft-glass-shadow: 0 0 22px -10px
+    color-mix(in oklab, var(--cs-color-shadow-ambient) 18%, transparent);
+}
+
+/* 세계 좌표 한 벌을 시점 변수로 옮긴다: SVG 고리와 호는 이것만 따라 움직인다 */
+.craft-world {
+  transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--k, 1));
+  transform-origin: 0 0;
+}
+
+.craft-map {
+  --craft-lw: 1;
+  --craft-line-gain: 1;
+  --craft-halo-gain: 1;
+  --craft-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --craft-spring-t: 620ms;
+}
+
+/* 밝은 판: 선은 굵고 진하게, 점의 후광은 조금 세게 해서 바탕과 3:1을 지킨다 */
+.craft-map[data-craft-theme="light"] {
+  --craft-lw: 1.3;
+  --craft-line-gain: 1.5;
+  --craft-halo-gain: 1.5;
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --craft-glass-fill: color-mix(in oklab, var(--cs-color-surface-raised) 94%, transparent);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --craft-glass-fill: var(--cs-color-surface-raised);
+  }
+}
+
+/* 떠 있는 면: 찾기·확대 막대·선택 패널·층 패널. 뒤의 점과 빛만 흐리게 비친다(12px). 이름표에는 쓰지 않는다. */
+.craft-glass {
+  background: var(--craft-glass-fill);
+  -webkit-backdrop-filter: blur(12px) saturate(1);
+  backdrop-filter: blur(12px) saturate(1);
+  box-shadow:
+    inset 0 0 0 1px var(--craft-glass-line),
+    var(--craft-glass-shadow);
+}
+
+/* 고리: 가는 선과 옅은 번짐 하나, 밝기는 호를 따라 흔들린다(조각마다 세기가 다르다) */
+.craft-light {
+  transform-origin: 500px 500px;
+  animation-name: craft-light-turn;
+  animation-duration: var(--p);
+  animation-delay: var(--d);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.craft-light-0 {
+  --p: 70s;
+  --d: -5.8s;
+}
+.craft-light-1 {
+  --p: 95s;
+  --d: -55.4s;
+  animation-name: craft-light-back;
+}
+.craft-light-2 {
+  --p: 130s;
+  --d: -90.3s;
+}
+.craft-light-3 {
+  --p: 170s;
+  --d: -18.9s;
+  animation-name: craft-light-back;
+}
+
+.craft-drift {
+  transform-origin: 500px 500px;
+  animation: craft-drift-turn 240s linear infinite;
+}
+.craft-drift-rev {
+  animation-direction: reverse;
+}
+
+/* 그룹 호: 호 위를 점선 한 칸이 지난다. 칸을 굵고 흐린 것과 가늘고 밝은 것 두 겹으로 그린다 */
+.craft-travel {
+  fill: none;
+  stroke-dasharray: var(--l) 2;
+  stroke-dashoffset: calc(var(--l) / 2 - 0.5);
+  animation-name: craft-travel;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.craft-travel-glow {
+  --l: 0.22;
+}
+.craft-travel-core {
+  --l: 0.07;
+}
+
+/* 골라 나타난 선: 중심에서 줄까지 그려진다 */
+.craft-draw {
+  stroke-dasharray: 1;
+  animation: craft-draw 420ms ease-out both;
+}
+
+.craft-fade {
+  animation: craft-fade 420ms ease-out both;
+}
+
+@keyframes craft-light-turn {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes craft-light-back {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes craft-drift-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes craft-travel {
+  0% {
+    stroke-dashoffset: var(--l);
+    opacity: 0;
+  }
+  14%,
+  86% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+@keyframes craft-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes craft-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 이름표 칩: 반투명 면만(블러 없음: 칩이 많으면 프레임이 떨어진다). 사방이 같은 가는 선 하나. */
+.craft-label {
+  position: relative;
+  background: var(--craft-glass-fill);
+  box-shadow: inset 0 0 0 1px var(--craft-glass-line);
+  color: var(--cs-color-text-primary);
+  transition:
+    transform var(--craft-spring-t) var(--craft-spring),
+    background-color 200ms ease-out;
+}
+.craft-label:hover {
+  background: color-mix(in oklab, var(--cs-color-surface-raised) 88%, transparent);
+}
+/* 포인터를 따라오는 안쪽 빛(변수 두 개는 포인터 이동 때 DOM에서 바로 쓴다) */
+.craft-label::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    72px circle at var(--mx, 50%) var(--my, 0%),
+    color-mix(in oklab, var(--cs-color-text-primary) 10%, transparent),
+    transparent 72%
+  );
+}
+/* 고른 칩: 불투명한 잉크 면이라 글자가 대비를 지킨다. 집단과 실패는 solid 짝 토큰을 쓴다. */
+.craft-label[data-picked] {
+  background: var(--cs-color-text-primary);
+  color: var(--cs-color-surface-base);
+  box-shadow: none;
+}
+.craft-label[data-picked][data-group] {
+  background: var(--cs-color-info-solid);
+  color: var(--cs-color-info-on);
+}
+.craft-label[data-picked][data-fail] {
+  background: var(--cs-color-danger-solid);
+  color: var(--cs-color-danger-on);
+}
+.craft-label[data-fail] {
+  box-shadow: inset 0 0 0 1px var(--cs-color-danger-graphic);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .craft-light,
+  .craft-drift,
+  .craft-travel,
+  .craft-draw,
+  .craft-fade {
+    animation: none;
+  }
+  .craft-label {
+    transition: none;
+  }
+}

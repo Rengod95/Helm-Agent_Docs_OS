@@ -2,6 +2,8 @@ import { Inbox, MessageSquare } from "@caustic/react/icons";
 import { ApprovalQueue } from "./approvals.tsx";
 import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
+import { CraftScreen } from "./craft/craft-screen.tsx";
+import type { CraftSource } from "./craft/craft-context.tsx";
 import { TrustCard } from "./trust.tsx";
 import { Transcript } from "./transcript.tsx";
 import {
@@ -49,9 +51,16 @@ const INBOX_TAB: EndTabDef = {
   render: () => <InboxTab />,
 };
 
-export function createDesktopRegistry(): ShellRegistry {
+/** 데이터 연결(T-BENCH)이 오기 전에는 `craftSource`가 없고 크래프트 화면은 빈 상태를 그린다 */
+export function createDesktopRegistry(craftSource: CraftSource | null = null): ShellRegistry {
   const registry = createShellRegistry();
   registry.registerScreen(CHAT_SCREEN);
+  registry.registerScreen({
+    id: "overview",
+    area: "workbench",
+    label: "desktop.shell.nav.overview",
+    render: () => <CraftScreen source={craftSource} />,
+  });
   registry.registerEndTab(INBOX_TAB);
   return registry;
 }

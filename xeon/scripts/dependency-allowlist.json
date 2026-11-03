@@ -22,7 +22,7 @@
     "rule": "DR-10",
     "from": "apps/desktop",
     "to": "@fresnel/client",
-    "entries": [".", "./stdio", "./settings", "./i18n"],
+    "entries": [".", "./stdio", "./settings", "./i18n", "./workbench/canvas"],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
     "approvedBy": "adr.0020"
   },
