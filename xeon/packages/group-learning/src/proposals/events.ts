@@ -55,6 +55,8 @@ export type LearningEvent =
       readonly id: string;
       readonly reason: ProposalReason;
       readonly nextStatus: "pending" | "rejected" | "applied";
+      /** `pending`으로 돌아올 때 새로 읽은 대상 해시. 없으면 이전 값을 둔다 */
+      readonly baseHash?: string;
       readonly at: number;
     }
   | {
@@ -232,7 +234,15 @@ export function decodeEvent(kind: string, payload: unknown): LearningEvent | und
     const nextStatus =
       next === "pending" || next === "rejected" || next === "applied" ? next : undefined;
     if (reason === undefined || reason === null || nextStatus === undefined) return undefined;
-    return { kind: "proposal.apply_failed", id, reason, nextStatus, at };
+    const baseHash = str(fields, "baseHash");
+    return {
+      kind: "proposal.apply_failed",
+      id,
+      reason,
+      nextStatus,
+      ...(baseHash === undefined ? {} : { baseHash }),
+      at,
+    };
   }
   if (name === "proposal.reverted") {
     const ledgerId = str(fields, "ledgerId");

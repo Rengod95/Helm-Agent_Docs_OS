@@ -8,24 +8,31 @@ import { helmCommand } from "./command-def.ts";
 import { helmManifest } from "./manifest.ts";
 import { registerHelmMethods } from "./methods.ts";
 import { helmSettings, helmSettingsOf, type HelmSettings } from "./settings.ts";
-import { observeTool, settle, type TallyStore, type ToolExecutionEndView } from "./signals.ts";
+import {
+  observeTool,
+  settle,
+  type SignalTermsStore,
+  type TallyStore,
+  type ToolExecutionEndView,
+} from "./signals.ts";
 import { helmStateDecl, type HelmState } from "./state.ts";
 
 /** 그룹 등록. 설정은 g.settings()로 읽고, drive 상한은 임대를 새로 받을 때마다 다시 읽는다 */
 function setupHelm(g: GroupApi<HelmState, typeof helmSettings.defs>): void {
   const settings = (): HelmSettings => helmSettingsOf(g.settings());
   const tallies: TallyStore = new Map();
+  const signalTerms: SignalTermsStore = new Map();
   const missingMeta = new Set<string>();
   /** 구동 중인 탐구의 단계. explorer 자식 대화의 쓰기 판정이 쓴다(guard.ts) */
   const marker: ExplorationMarker = { phase: "idle" };
   const observe = observeTool(tallies);
-  const settleTurn = settle(g, tallies, settings);
+  const settleTurn = settle(g, tallies, settings, signalTerms);
   const guard = guardWrite(settings, missingMeta, marker);
   const inject = injectLens(tallies);
   const restore = checkRestore(g);
   const rejected = onLeaseRejected(g);
 
-  g.registerCommand("helm", helmCommand(g, tallies, missingMeta));
+  g.registerCommand("helm", helmCommand(g, tallies, signalTerms, missingMeta));
   registerHelmMethods(g);
   g.on("input.agent.before", (payload, ctx) =>
     inject(payload, { threadId: ctx.threadId, state: ctx.state }),

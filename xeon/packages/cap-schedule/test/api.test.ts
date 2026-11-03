@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parse, parseJson } from "@fresnel/contracts";
+import { eachAsync, parse, parseJson } from "@fresnel/contracts";
 import { CapabilityError, ScheduleEntries } from "@fresnel/contracts/capabilities";
 import { createScheduleApi } from "../src/index.ts";
 import { createHarness, MemoryStore, SECOND, type Harness } from "./support/harness.ts";
@@ -165,6 +165,55 @@ describe("list", () => {
     });
   });
 
+  // l2/F-01: 앞 200건만 보여 새 예약이 목록에서 사라졌다
+  test("with more than 200 entries the list keeps the newest 200, in creation order", async () => {
+    const api = apiOf(createHarness({ policy: { maxActive: 1000 } }));
+    await eachAsync(
+      Array.from({ length: 201 }, (_unused, index) => index),
+      async (index) => {
+        await api.create({
+          trigger: { kind: "remote" },
+          prompt: `p${String(index)}`,
+          enabled: false,
+        });
+        return undefined;
+      },
+    );
+    const listed = await api.list({});
+    expect(listed.items).toHaveLength(200);
+    expect(listed.items[0]?.entry.id).toBe("sch_2");
+    expect(listed.items.at(-1)?.entry.id).toBe("sch_201");
+    // 가장 오래된 한 건은 nextBefore로 이어서 읽는다
+    expect(listed.nextBefore).toBe("sch_2");
+    const rest = await api.list({ before: "sch_2" });
+    expect(rest.items.map((item) => item.entry.id)).toEqual(["sch_1"]);
+    expect(rest.nextBefore).toBeUndefined();
+  });
+
+  test("pages walk back from the newest with limit and before, cover every entry once, and an unknown before is an empty page", async () => {
+    const api = apiOf(createHarness({ policy: { maxActive: 1000 } }));
+    await eachAsync([1, 2, 3, 4, 5], async (index) => {
+      await api.create({
+        trigger: { kind: "remote" },
+        prompt: `p${String(index)}`,
+        enabled: false,
+      });
+      return undefined;
+    });
+    const first = await api.list({ limit: 2 });
+    expect(first.items.map((item) => item.entry.id)).toEqual(["sch_4", "sch_5"]);
+    expect(first.nextBefore).toBe("sch_4");
+    const second = await api.list({ limit: 2, before: first.nextBefore ?? "" });
+    expect(second.items.map((item) => item.entry.id)).toEqual(["sch_2", "sch_3"]);
+    expect(second.nextBefore).toBe("sch_2");
+    const third = await api.list({ limit: 2, before: second.nextBefore ?? "" });
+    expect(third.items.map((item) => item.entry.id)).toEqual(["sch_1"]);
+    expect(third).not.toHaveProperty("nextBefore");
+    expect(await api.list({ before: "sch_99" })).toEqual({ items: [] });
+    // 거른 목록의 쪽도 같은 규칙이다
+    expect((await api.list({ enabled: true })).items).toEqual([]);
+  });
+
   test("a file watch entry's paths are a copy, not the engine's array", async () => {
     const h = createHarness();
     const api = apiOf(h);
@@ -281,5 +330,17 @@ describe("failures at the boundary", () => {
     expect(store.loads).toBe(0);
     expect(store.saves).toBe(0);
     expect(h.service.list()).toEqual([]);
+  });
+});
+
+describe("service mode off", () => {
+  test("create carries the service_mode_off warning only when the host says the service is off", async () => {
+    const off = createScheduleApi(createHarness().service, { serviceModeOff: () => true });
+    const created = await off.create({ trigger: { kind: "remote" }, prompt: "a" });
+    expect(created.warnings).toEqual(["service_mode_off"]);
+    const on = createScheduleApi(createHarness().service, { serviceModeOff: () => false });
+    expect(
+      (await on.create({ trigger: { kind: "remote" }, prompt: "a" })).warnings,
+    ).toBeUndefined();
   });
 });

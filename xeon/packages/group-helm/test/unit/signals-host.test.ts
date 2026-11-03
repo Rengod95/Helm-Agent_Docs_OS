@@ -121,3 +121,27 @@ async function readCalls(rig: Rig, ids: readonly string[], before: number): Prom
   expect(statesOf(rig)).toHaveLength(before);
   await readCalls(rig, rest, before);
 }
+
+test("signals.start-without-topic: after the signal turn settles, /helm start without a topic uses that turn's terms", async () => {
+  const rig = await createRig({ settings: { "ext.helm.autoStart": "suggest" } });
+  await rig.t.host.dispatch(
+    "input.agent.before",
+    {
+      prompt: "why does `cacheKey` keep failing the build",
+      systemPrompt: "base",
+      systemPromptOptions: {},
+    },
+    {
+      threadId: rig.thread,
+      dispatchKey: "prompt-1",
+      initial: { messages: [], systemPrompt: "base" },
+    },
+  );
+  await stuckTurn(rig, "a");
+  expect(rig.records("grp.helm.signal.detected")).toEqual([
+    expect.objectContaining({ signal: "stuck", action: "suggested" }),
+  ]);
+  await rig.command("start");
+  const last = statesOf(rig).at(-1);
+  expect(last?.pending?.topic ?? last?.topic).toBe("cachekey");
+});

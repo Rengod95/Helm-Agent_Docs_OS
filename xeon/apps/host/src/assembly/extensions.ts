@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import type { Clock, Logger } from "@fresnel/contracts";
+import type { Clock, Logger, Scheduler } from "@fresnel/contracts";
 import {
   isId,
   type IdFactory,
@@ -22,6 +22,8 @@ import {
   ArtifactsReviews,
   ArtifactsSessions,
   DialogAsk,
+  KnowledgeMemory,
+  KnowledgeSearch,
   KnowledgeSkills,
   McpClient,
   ScheduleEntries,
@@ -97,6 +99,8 @@ import {
 export interface ExtensionDeps {
   readonly mode: HostMode;
   readonly clock: Clock;
+  /** 계정 회전의 간격·한도 대기가 쓰는 타이머. 시계를 따로 넘기면 core-models가 OS 타이머를 쓰지 않으므로 함께 넘긴다 */
+  readonly scheduler: Scheduler;
   readonly ids: IdFactory;
   /** `dialog.status`와 `scope.handler_failed`가 나누는 조각 번호 발급기(한 (thread, turn) 안에서 번호가 겹치지 않는다) */
   readonly chunkNumbering: ChunkNumbering;
@@ -181,11 +185,13 @@ function kindLookup(kind: string): CatalogEntry | undefined {
 }
 
 /** 도구를 올리는 L2 기능. core-tools가 호출 때 공급자를 찾으려면 이 기능이 매니페스트에 선언되어 있어야 한다 */
-const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
+export const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WebSearch,
   WebFetch,
   WebBrowse,
   KnowledgeSkills,
+  KnowledgeMemory,
+  KnowledgeSearch,
   WorkTasks,
   WorkPlans,
   DialogAsk,
@@ -214,8 +220,9 @@ export function scheduleUnit(
   service: ScheduleService,
   loadIndex: number,
   settings: ScheduleSettingsSource,
+  serviceModeOff: () => boolean,
 ): ExtensionUnit {
-  return schedulePlugin({ service, settings, loadIndex });
+  return schedulePlugin({ service, settings, loadIndex, serviceModeOff });
 }
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
@@ -263,6 +270,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           createModelsExtension({
             settings: modelsSource(settings),
             clock: deps.clock,
+            scheduler: deps.scheduler,
             ...(deps.buildModels === undefined ? {} : { buildModels: deps.buildModels }),
           }),
           loadIndex,

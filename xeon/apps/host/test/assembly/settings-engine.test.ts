@@ -128,3 +128,11 @@ test("any other failure of the session store is not hidden", () => {
   });
   expect(() => settings.layers(threadId)).toThrow("store.read_failed");
 });
+
+// l3/PAO-01: 위장 provider 플러그인의 설정 키가 카탈로그에 없으면 쓰기가 settings.unknownKey로 거부되고 설정 화면에도 안 나온다.
+test("the provider plugin's own keys are in the catalog with their defaults", () => {
+  const settings = engineOver();
+  expect(settings.value("ext.provider-anthropic-oauth.acknowledgeRisk")).toBe(false);
+  expect(settings.value("ext.provider-anthropic-oauth.credential")).toBeNull();
+  expect(settings.value("ext.provider-anthropic-oauth.enabled")).toBe(false);
+});

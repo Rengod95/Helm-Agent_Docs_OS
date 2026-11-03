@@ -44,7 +44,12 @@ export type DecisionResult =
 export type ApplyTransition =
   | { readonly kind: "applied"; readonly ledgerId: string; readonly afterHash: string }
   | { readonly kind: "rejected"; readonly reason: "scan_failed" | "apply_failed" }
-  | { readonly kind: "backToPending"; readonly reason: "base_stale" }
+  /** `baseHash`는 되돌아온 판이 앞으로 쓸 현재 해시. 읽지 못했으면 null(이전 값을 둔다) */
+  | {
+      readonly kind: "backToPending";
+      readonly reason: "base_stale";
+      readonly baseHash: string | null;
+    }
   /** io, 기능 일시 실패, 승인 요구. approved 유지 */
   | { readonly kind: "retry"; readonly detail: string };
 
@@ -76,7 +81,7 @@ export function applyOutcome(result: ApplyResult): ApplyTransition {
     case "scan_failed":
       return { kind: "rejected", reason: "scan_failed" };
     case "base_stale":
-      return { kind: "backToPending", reason: "base_stale" };
+      return { kind: "backToPending", reason: "base_stale", baseHash: null };
     case "invalid":
       return { kind: "rejected", reason: "apply_failed" };
     case "approval_required":

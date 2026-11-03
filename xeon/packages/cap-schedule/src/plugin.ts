@@ -24,6 +24,8 @@ export interface SchedulePluginOptions {
   readonly service: ScheduleService;
   /** 설정 층. 직접 호출의 만들기 방식(`l2.schedule.entries.directCreate`)을 호출마다 읽는다 */
   readonly settings: ScheduleSettingsSource;
+  /** 참이면 서비스 모드가 꺼져 있어 틱이 돌지 않는다. `create` 결과에 `service_mode_off` 경고를 싣는다 */
+  readonly serviceModeOff?: () => boolean;
   readonly loadIndex?: number;
 }
 
@@ -48,6 +50,9 @@ export function schedulePlugin(options: SchedulePluginOptions): ExtensionUnit {
         createScheduleApi(options.service, {
           directCreate: (threadId) =>
             readScheduleSettings(options.settings.layers(threadId)).entries.directCreate,
+          ...(options.serviceModeOff === undefined
+            ? {}
+            : { serviceModeOff: options.serviceModeOff }),
           ...(approvals === undefined ? {} : { approvals }),
         }),
       );

@@ -89,6 +89,8 @@ realTest(
       lastRun: null,
     });
     expect(run.texts.join("\n")).toContain(`schedule ${item.entry.id} next=`);
+    // 서비스 모드가 꺼진 호스트라 틱이 돌지 않는다: 모델이 그 사실을 결과로 받는다(l2/F-03)
+    expect(run.texts.join("\n")).toContain("warning=service_mode_off");
   },
   60_000,
 );

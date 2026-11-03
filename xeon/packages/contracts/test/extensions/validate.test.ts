@@ -351,4 +351,14 @@ describe("validateManifestSet", () => {
     );
     expect(validateManifestSet([needs, provider])).toEqual([]);
   });
+
+  test("a core capability counts as provided", () => {
+    const needs = validManifest(
+      pluginJson({ name: "needs" }, { requires: [{ id: "web.search", range: "^1.0.0" }] }),
+    );
+    expect(validateManifestSet([needs], new Set(["web.search"]))).toEqual([]);
+    expect(codesOf(validateManifestSet([needs], new Set(["web.fetch"])))).toEqual([
+      "capability_unprovided",
+    ]);
+  });
 });

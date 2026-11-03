@@ -80,6 +80,7 @@ import {
   registerLearningProjection,
 } from "./assembly/learning.ts";
 import { createHostSchedule, type ScheduleRunnerPorts } from "./assembly/schedule.ts";
+import { createStoreScheduleLeader, schedulerLeaderIsLive } from "./assembly/schedule-leader.ts";
 import { createHandlerFailedEmitter } from "./assembly/handler-failed.ts";
 import { createProposalPort } from "./assembly/proposals.ts";
 import type { WebStatusHolder } from "./assembly/web-providers.ts";
@@ -726,6 +727,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         web,
         mode: options.mode,
         clock,
+        scheduler: runtime.scheduler,
         ids,
         chunkNumbering,
         localIds,
@@ -839,7 +841,24 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const context = requirePort(ext, CONTEXT_KEY, "fresnel.context");
     // 예약 서비스(M3b, L4.host-service.spec §4.17). 실행이 쓰는 엔진 포트는 엔진 포트를 만든 뒤에 채운다(아래)
     const scheduleRunner: { ports: ScheduleRunnerPorts | undefined } = { ports: undefined };
+    // 틱을 돌리는 프로세스: 서비스, 그리고 서비스를 쓰지 않는 앱(stdio). 쓰는 쪽은 Scheduler leader 임대로 하나만 돈다(HS-40).
+    // in-process(CLI)는 명령 하나로 끝나는 일이 많아 틱을 맡지 않는다. 항목은 저장만 하고, 돌아가는 leader가 있어야 실행된다
+    const ticksHere =
+      options.mode === "service" ||
+      (options.mode === "stdio" && settings.value("l0.process.service.enabled") !== true);
+    const scheduleLeases = store.value.service.leases;
+    const scheduleRuns = (): boolean => ticksHere || schedulerLeaderIsLive(scheduleLeases, clock);
     const schedule = createHostSchedule({
+      ...(ticksHere
+        ? {
+            leader: createStoreScheduleLeader({
+              leases: scheduleLeases,
+              holder,
+              logger: os.logger("schedule"),
+              clock,
+            }),
+          }
+        : {}),
       os,
       fileLock: osHandle.fileLock,
       clock,
@@ -859,7 +878,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
     scheduleSlot.service = schedule;
     // 예약 플러그인은 서비스가 생긴 뒤에 올린다(`scheduleUnit`). 도구 등록은 core-tools가 이미 올라와 있어야 한다
-    const scheduleExtension = scheduleUnit(schedule, units.length, layersSource(settings));
+    const scheduleExtension = scheduleUnit(
+      schedule,
+      units.length,
+      layersSource(settings),
+      () => !scheduleRuns(),
+    );
     lateUnits.push(scheduleExtension);
     const scheduled = installFailureOf(await ext.install(scheduleExtension));
     if (scheduled !== undefined) {
@@ -987,8 +1011,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       logger,
       signal: lifetime.signal,
     });
-    // 틱은 서비스 모드에서만 돈다. in-process·stdio는 프로세스 사이 임대가 없어 틱의 실행권을 정할 수 없다(HS-40)
-    if (options.mode === "service") {
+    // 틱은 서비스와 서비스를 쓰지 않는 앱(stdio)만 돌리고, Scheduler leader를 쥔 하나만 실제로 돈다(HS-40, HS-83)
+    if (ticksHere) {
       const started = await schedule.start();
       if (!started.ok) {
         logger.error("schedule.start_failed", {
@@ -1001,6 +1025,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     startupHealth.markStarted();
     const engine: Engine = {
       mode: options.mode,
+      scheduleRuns,
       storeId: storeId.value,
       catalog: built.catalog,
       safeMode,

@@ -363,18 +363,44 @@ export const ScheduleCreateInputSchema: TObject<{
   { additionalProperties: false },
 );
 
-const CreateOutputSchema: TObject<{ entry: typeof ScheduleEntryViewSchema }> = Type.Object(
-  { entry: ScheduleEntryViewSchema },
+/** 서비스 모드가 꺼져 있어 이 예약이 앱이 열려 있어도 실행되지 않을 때 싣는다(L2.schedule.spec §4.4.6) */
+const CreateOutputSchema: TObject<{
+  entry: typeof ScheduleEntryViewSchema;
+  warnings: TOptional<TArray<TLiteral<"service_mode_off">>>;
+}> = Type.Object(
+  {
+    entry: ScheduleEntryViewSchema,
+    warnings: Type.Optional(Type.Array(Type.Literal("service_mode_off"), { maxItems: 4 })),
+  },
   { additionalProperties: false },
 );
 
-export const ScheduleListInputSchema: TObject<{ enabled: TOptional<TBoolean> }> = Type.Object(
-  { enabled: Type.Optional(Type.Boolean()) },
+/**
+ * 목록 입력. `before`와 `limit`는 쪽 나누기다(l2/F-01). 항목은 저장 순서(오래된 것부터)이고, 쪽은 가장 새 쪽부터 거슬러 올라간다.
+ * 생략하면 가장 새 `limit`개(기본 200)다. 이전 결과의 `nextBefore`를 `before`로 주면 그 항목보다 오래된 쪽을 돌려준다
+ */
+export const ScheduleListInputSchema: TObject<{
+  enabled: TOptional<TBoolean>;
+  before: TOptional<typeof ScheduleIdSchema>;
+  limit: TOptional<TInteger>;
+}> = Type.Object(
+  {
+    enabled: Type.Optional(Type.Boolean()),
+    before: Type.Optional(ScheduleIdSchema),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200 })),
+  },
   { additionalProperties: false },
 );
 
-const ListOutputSchema: TObject<{ items: TArray<typeof ScheduleListItemSchema> }> = Type.Object(
-  { items: Type.Array(ScheduleListItemSchema, { maxItems: 200 }) },
+/** 목록 결과. 더 오래된 항목이 남아 있으면 `nextBefore`가 이 쪽의 가장 오래된 항목 ID다 */
+export const ScheduleListOutputSchema: TObject<{
+  items: TArray<typeof ScheduleListItemSchema>;
+  nextBefore: TOptional<typeof ScheduleIdSchema>;
+}> = Type.Object(
+  {
+    items: Type.Array(ScheduleListItemSchema, { maxItems: 200 }),
+    nextBefore: Type.Optional(ScheduleIdSchema),
+  },
   { additionalProperties: false },
 );
 
@@ -410,7 +436,7 @@ const StoreFailedDetail: TObject<{ message: TString }> = Type.Object({
 
 type ScheduleMethods = {
   readonly create: MethodDef<typeof ScheduleCreateInputSchema, typeof CreateOutputSchema>;
-  readonly list: MethodDef<typeof ScheduleListInputSchema, typeof ListOutputSchema>;
+  readonly list: MethodDef<typeof ScheduleListInputSchema, typeof ScheduleListOutputSchema>;
   readonly cancel: MethodDef<typeof ScheduleCancelInputSchema, typeof CancelOutputSchema>;
   readonly fire: MethodDef<typeof ScheduleFireInputSchema, typeof FireOutputSchema>;
 };
@@ -459,9 +485,12 @@ function createInputOfToolParams(
 }
 
 /** 결과를 모델에게 한 줄로 돌려준다. 다음 기한이 없으면 `none`이다 */
-function createTextOf(entry: ScheduleEntryView): string {
+function createTextOf(entry: ScheduleEntryView, warnings: readonly string[] = []): string {
   const next = entry.nextDueAt === null ? "none" : new Date(entry.nextDueAt).toISOString();
-  return `schedule ${entry.id} next=${next}`;
+  const base = `schedule ${entry.id} next=${next}`;
+  return warnings.includes("service_mode_off")
+    ? `${base} warning=service_mode_off: this schedule does not run until the service mode is on; tell the user`
+    : base;
 }
 
 // L2.schedule.spec §4.4.9. 기능 정의는 이 파일 하나다.
@@ -515,7 +544,7 @@ export const ScheduleEntries: CapabilityDef<
       list: {
         description: "예약 항목과 항목마다 마지막 실행 기록을 돌려준다. 읽기 전용이다.",
         input: ScheduleListInputSchema,
-        output: ListOutputSchema,
+        output: ScheduleListOutputSchema,
         // ADR-0015: 읽기 전용
         replay: "safe",
         readOnly: true,
@@ -569,7 +598,7 @@ export const ScheduleEntries: CapabilityDef<
       parameters: ScheduleCreateToolParams,
       toInput: createInputOfToolParams,
       toContent: (out) => ({
-        content: [{ type: "text", text: createTextOf(out.entry) }],
+        content: [{ type: "text", text: createTextOf(out.entry, out.warnings) }],
       }),
       executionMode: "sequential",
       hints: { readOnly: false, destructive: false, idempotent: false, openWorld: false },

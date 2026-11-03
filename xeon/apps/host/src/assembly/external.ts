@@ -16,6 +16,7 @@ import {
   type StartupOptions,
 } from "@fresnel/ext-host";
 import * as groupSdk from "@fresnel/group-sdk";
+import { coreCapabilityVersions } from "./capability-defs.ts";
 
 // X.loading-trust.spec §4.2, §4.4.6. 조립 루트가 외부 확장 로더를 만들어 사용자 확장 위치(<config>/extensions)를 싣는다.
 // 외부 플러그인 번들은 SDK 모듈을 외부 import로 남기므로 호스트가 같은 인스턴스를 가상 모듈로 등록한다. 조립 루트 코드(DR-14 예외 2).
@@ -63,6 +64,7 @@ export async function loadExternalExtensions(deps: ExternalLoadingDeps): Promise
     clock: deps.clock,
     sdkModules: HOST_SDK_MODULES,
     settings: { enabled: deps.enabled, hasValue: () => false },
+    coreCapabilities: coreCapabilityVersions(),
   });
   const report = await loader.loadAll({
     builtins: [],

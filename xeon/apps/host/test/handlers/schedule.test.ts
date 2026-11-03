@@ -221,6 +221,37 @@ test("a long store failure message and a long trigger reason are cut to the wire
   await reasonedConnection.close();
 });
 
+test("list pages back from the newest entry with limit and before, and a full walk reaches all 250 entries once", async () => {
+  const entries: ScheduleEntryView[] = Array.from({ length: 250 }, (_unused, index) => ({
+    ...INTERVAL_ENTRY,
+    id: `sch_${String(index + 1).padStart(4, "0")}`,
+  }));
+  const host = serviceHost({ ...OPENED, list: () => entries, runs: () => [] });
+  const connection = await connected(host);
+
+  const first = await connection.request("schedule.list", {});
+  if (!first.ok) throw new Error("the first page failed");
+  expect(first.items).toHaveLength(200);
+  expect(first.items[0]?.entry.id).toBe("sch_0051");
+  expect(first.items.at(-1)?.entry.id).toBe("sch_0250");
+  expect(first.nextBefore).toBe("sch_0051");
+  expectWireResult("schedule.list", first);
+
+  if (first.nextBefore === undefined) throw new Error("the first page has no cursor");
+  const second = await connection.request("schedule.list", { before: first.nextBefore });
+  if (!second.ok) throw new Error("the second page failed");
+  expect(second.items).toHaveLength(50);
+  expect(second.items[0]?.entry.id).toBe("sch_0001");
+  expect(second.items.at(-1)?.entry.id).toBe("sch_0050");
+  expect(second).not.toHaveProperty("nextBefore");
+
+  const small = await connection.request("schedule.list", { limit: 3 });
+  if (!small.ok) throw new Error("the small page failed");
+  expect(small.items.map((item) => item.entry.id)).toEqual(["sch_0248", "sch_0249", "sch_0250"]);
+  expect(small.nextBefore).toBe("sch_0248");
+  await connection.close();
+});
+
 test("list filters by enabled and attaches the newest run of each entry", async () => {
   const off: ScheduleEntryView = {
     ...INTERVAL_ENTRY,
@@ -367,5 +398,22 @@ test("fire answers disabled for a switched-off remote trigger", async () => {
   const result = await connection.request("schedule.fire", { scheduleId: OTHER_ID });
   expect(result).toEqual({ ok: false, error: { kind: "disabled" } });
   expectWireResult("schedule.fire", result);
+  await connection.close();
+});
+
+// l2/F-01: 앞 200건만 보여 새 예약이 목록에서 사라졌다
+test("list keeps the newest 200 entries when the store holds more", async () => {
+  const entries = Array.from({ length: 201 }, (_unused, index) => ({
+    ...INTERVAL_ENTRY,
+    id: `sch_${String(index)}`,
+  }));
+  const host = serviceHost({ ...OPENED, list: () => entries, runs: () => [] });
+  const connection = await connected(host);
+  const listed = await connection.request("schedule.list", {});
+  expect(listed.ok).toBe(true);
+  if (!listed.ok) throw new Error("list failed");
+  expect(listed.items).toHaveLength(200);
+  expect(listed.items[0]?.entry.id).toBe("sch_1");
+  expect(listed.items.at(-1)?.entry.id).toBe("sch_200");
   await connection.close();
 });

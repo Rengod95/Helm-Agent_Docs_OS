@@ -35,6 +35,7 @@
     "@fresnel/group-account-rotation": "workspace:*",
     "@fresnel/group-helm": "workspace:*",
     "@fresnel/group-learning": "workspace:*",
+    "@fresnel/group-provider-anthropic-oauth": "workspace:*",
     "@fresnel/group-sdk": "workspace:*",
     "@fresnel/platform-exec": "workspace:*",
     "@fresnel/platform-os": "workspace:*",

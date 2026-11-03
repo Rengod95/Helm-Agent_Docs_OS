@@ -49,6 +49,22 @@ export function providersOf(value: unknown): readonly ProviderEntry[] {
   return parsed.ok ? parsed.value : [];
 }
 
+/** 저장된 값을 읽을 수 없다. 비어 있다는 뜻이 아니다 */
+export type StoredValueUnreadable = { readonly kind: "unreadable" };
+
+/**
+ * provider 목록을 읽되 "읽을 수 없음"과 "비어 있음"을 구분한다. 읽을 수 없는 값(손으로 고친 파일 등)은 오류로 돌려준다.
+ * 그 위에 목록을 다시 쓰면 다른 provider와 baseUrl이 사라지므로 쓰기 경로는 이 함수를 쓰고, 읽을 수 없으면 쓰지 않는다
+ */
+export function readProviders(
+  value: unknown,
+): Result<readonly ProviderEntry[], StoredValueUnreadable> {
+  const parsed = parse(ProvidersSchema, value);
+  return parsed.ok
+    ? { ok: true, value: parsed.value }
+    : { ok: false, error: { kind: "unreadable" } };
+}
+
 export function defaultModelOf(value: unknown): string | null {
   const parsed = parse(DefaultModelSchema, value);
   return parsed.ok ? parsed.value : null;

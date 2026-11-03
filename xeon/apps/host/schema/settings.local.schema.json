@@ -172,6 +172,29 @@
         }
       }
     },
+    "ext.provider-anthropic-oauth.enabled": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "launch"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Anthropic OAuth provider 켜기",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "l0.os.log.level": {
       "default": "info",
       "enum": [

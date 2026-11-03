@@ -52,7 +52,10 @@ const EVENTS: readonly [string, ProposalEvent][] = [
     { kind: "apply", transition: { kind: "applied", ledgerId: "knl_1", afterHash: "a" } },
   ],
   ["apply.rejected", { kind: "apply", transition: { kind: "rejected", reason: "scan_failed" } }],
-  ["apply.pending", { kind: "apply", transition: { kind: "backToPending", reason: "base_stale" } }],
+  [
+    "apply.pending",
+    { kind: "apply", transition: { kind: "backToPending", reason: "base_stale", baseHash: null } },
+  ],
   ["apply.retry", { kind: "apply", transition: { kind: "retry", detail: "io" } }],
   ["revertDone", { kind: "revertDone" }],
   ["revertRefused", { kind: "revertRefused" }],
@@ -110,7 +113,7 @@ test("queue.transition-details: edit bumps the revision, base_stale returns with
   });
   const stale = transition(
     row({ status: "approved", revision: 2 }),
-    { kind: "apply", transition: { kind: "backToPending", reason: "base_stale" } },
+    { kind: "apply", transition: { kind: "backToPending", reason: "base_stale", baseHash: null } },
     NOW + 1,
   );
   expect(stale.ok ? stale.value : undefined).toMatchObject({
@@ -181,6 +184,7 @@ test("results.apply-outcome-mapping: every L2 failure code maps to the spec tabl
   expect(applyOutcome({ ok: false, reason: "base_stale" })).toEqual({
     kind: "backToPending",
     reason: "base_stale",
+    baseHash: null,
   });
   expect(applyOutcome({ ok: false, reason: "invalid" })).toEqual({
     kind: "rejected",
@@ -441,4 +445,68 @@ test("queue.list-orders-newest-first-and-filters-by-status", async () => {
   const none = await api.list({ statuses: ["applied"] });
   expect(none.ok ? none.value : ["error"]).toEqual([]);
   expect(all.ok ? all.value[0]?.source : "").toBe("learning");
+});
+
+// l3/LN-01: 다시 시도해도 풀리지 않는 L2 실패는 approved에 남지 않고 rejected/apply_failed로 닫힌다
+test("queue.permanent-l2-failure-closes-the-row: a skill deleted after the proposal ends rejected/apply_failed", async () => {
+  const knowledge = fakeKnowledge();
+  knowledge.skills.set("release-notes", { description: "d", body: "Write notes." });
+  const review = await startReview({ knowledge });
+  const accepted = await submit(review, {
+    kind: "skill",
+    op: "patch",
+    target: "release-notes",
+    body: JSON.stringify([{ oldText: "Write notes.", newText: "Write good notes." }]),
+    baseHash: knowledge.treeHash("release-notes"),
+    rationale: "r",
+    evidenceEventIds: ["evt_1"],
+  });
+  const id = accepted.ok ? accepted.proposalId : "";
+  knowledge.skills.delete("release-notes");
+  const result = await queueApi(review.rig).decide(
+    { kind: "approve", proposalId: id, revision: 1 },
+    new AbortController().signal,
+  );
+  expect(result).toMatchObject({
+    ok: true,
+    applied: false,
+    proposal: { status: "rejected", reason: "apply_failed" },
+  });
+});
+
+// l3/LN-02: base_stale로 pending에 돌아온 판은 현재 해시를 새 baseHash로 가져 재승인이 적용된다
+test("queue.base-stale-refreshes-the-base-hash: approving the returned row again applies the patch", async () => {
+  const knowledge = fakeKnowledge();
+  knowledge.skills.set("release-notes", { description: "d", body: "Write notes." });
+  const review = await startReview({ knowledge });
+  const accepted = await submit(review, {
+    kind: "skill",
+    op: "patch",
+    target: "release-notes",
+    body: JSON.stringify([{ oldText: "Write notes.", newText: "Write good notes." }]),
+    baseHash: knowledge.treeHash("release-notes"),
+    rationale: "r",
+    evidenceEventIds: ["evt_1"],
+  });
+  const id = accepted.ok ? accepted.proposalId : "";
+  knowledge.skills.set("release-notes", {
+    description: "d",
+    body: "Write notes. Be brief.",
+  });
+  const api = queueApi(review.rig);
+  const first = await api.decide(
+    { kind: "approve", proposalId: id, revision: 1 },
+    new AbortController().signal,
+  );
+  expect(first).toMatchObject({
+    ok: true,
+    applied: false,
+    proposal: { status: "pending", reason: "base_stale", revision: 2 },
+  });
+  const second = await api.decide(
+    { kind: "approve", proposalId: id, revision: 2 },
+    new AbortController().signal,
+  );
+  expect(second).toMatchObject({ ok: true, applied: true, proposal: { status: "applied" } });
+  expect(knowledge.skills.get("release-notes")?.body).toBe("Write good notes. Be brief.");
 });

@@ -99,6 +99,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "group-account-rotation",
     "group-helm",
     "group-learning",
+    "group-provider-anthropic-oauth",
     "group-sdk",
     "host",
     "platform-exec",
