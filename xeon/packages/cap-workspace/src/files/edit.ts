@@ -5,6 +5,7 @@ import { relativeToRoots, resolveWorkspacePath } from "../roots.ts";
 import { getOrThrow } from "../upstream/get-or-throw.ts";
 import { atomicWrite } from "./atomic.ts";
 import { buildFileChange } from "./diff.ts";
+import { decodeStrictText } from "./text-bytes.ts";
 import { mutationKey, queueInCallOrder } from "./queue.ts";
 import {
   applyEdits,
@@ -61,7 +62,15 @@ export function createEdit(deps: WorkspaceDeps): EditMethod {
           });
         }
         // 이 내용이 편집의 원본이다. 이름을 바꾸기 직전에 파일이 이 내용 그대로인지 다시 본다(동시 변경 감지)
-        const original = getOrThrow(await deps.env.readTextFile(resolved.canonical, context));
+        const bytes = getOrThrow(await deps.env.readBinaryFile(resolved.canonical, context));
+        const original = decodeStrictText(bytes);
+        if (original === null) {
+          throw new WorkspaceFailure(
+            "edit_not_text",
+            `${input.path} is not valid UTF-8 text (binary data or another encoding), so edit would corrupt it. Use bash to change it.`,
+            { detail: { reason: "not_utf8_text" } },
+          );
+        }
         const { bom, text } = stripBom(original);
         const ending = detectLineEnding(text);
         const applied = applyEdits(normalizeToLF(text), input.edits, {

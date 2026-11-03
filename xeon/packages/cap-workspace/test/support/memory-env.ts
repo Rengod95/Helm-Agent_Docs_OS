@@ -286,6 +286,17 @@ export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
         }
         return Promise.resolve(ok(decoder.decode(node.bytes)));
       },
+      readBinaryFile: (path) => {
+        const real = realpath(path);
+        if (!real.ok) return Promise.resolve(err(real.error));
+        const node = nodes.get(real.value);
+        if (node?.kind !== "file") {
+          return Promise.resolve(
+            err(new FileError("is_directory", `is a directory: ${path}`, path)),
+          );
+        }
+        return Promise.resolve(ok(node.bytes.slice()));
+      },
       writeFile: (path, content) => {
         put(path, typeof content === "string" ? content : content.slice());
         return Promise.resolve(ok(undefined));

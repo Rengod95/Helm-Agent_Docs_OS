@@ -319,6 +319,7 @@ export const WorkspaceFiles = defineCapability({
           edit_overlap: { description: "두 편집의 구간이 겹침", retryable: false },
           edit_empty_old_text: { description: "oldText가 빈 문자열", retryable: false },
           edit_no_change: { description: "편집 결과가 원본과 같음", retryable: false },
+          edit_not_text: { description: "파일이 NUL을 담았거나 유효한 UTF-8이 아님. 아무것도 쓰지 않음", retryable: false },
           edit_conflict: { description: "읽은 뒤 다른 쓰기가 파일을 바꿈. 아무것도 쓰지 않음", retryable: false },
         },
       },
@@ -622,6 +623,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | E15 | 두 편집 구간이 겹치면 `edit_overlap` | 겹침 검사 | `edit rejects overlapping edits` |
 | E16 | 결과가 원본과 같으면 `edit_no_change` | `getNoChangeError` | `edit rejects no-op edits` |
 | E17 | 설정 `l2.workspace.edit.fuzzy`가 거짓이면 E4~E10을 쓰지 않고, 정확 일치 실패는 `edit_not_found`(`detail.fuzzyDisabled: true`) | Fresnel 추가 | `edit fuzzy can be disabled` |
+| E18 | 원시 바이트에 NUL이 있거나 유효한 UTF-8이 아니면 `edit_not_text`로 거부하고 아무것도 쓰지 않는다. 승인 diff(`FileChange`)도 이 검사를 통과한 텍스트로만 만든다. `write`는 전체 교체라 그런 파일도 덮어쓰되 이전 내용은 빈 문자열로 기록한다 | Fresnel 추가 | `edit refuses files that are not valid UTF-8 text` |
 
 - 오류 `detail`은 `{ editIndex, totalEdits }`를 공통으로 싣는다. 원본 메시지 문구(`edits[i].oldText ...`)는 `message`에 그대로 둔다.
 - 같은 경로의 동시 변경은 durable `tools/file-mutation-queue.ts`로 경로별로 줄 세운다. 다른 경로는 병렬로 돈다.
