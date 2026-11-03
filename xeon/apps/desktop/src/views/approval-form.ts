@@ -88,6 +88,52 @@ export function toolApprovalView(body: ToolApprovalBody): ToolApprovalView {
   };
 }
 
+// ── 내장 도구 대체 승인 ──────────────────────────────────────────────────
+
+/** 대체 승인의 도구 이름. 서비스 쪽 상수 `TOOL_REPLACE_APPROVAL_TOOL`과 같은 wire 문자열이다(L1.tools §4.13) */
+export const TOOL_REPLACE_TOOL_NAME = "tool_replace";
+
+type ReplaceTrust = "builtin" | "user" | "project" | "untrusted";
+const REPLACE_TRUSTS: readonly ReplaceTrust[] = ["builtin", "user", "project", "untrusted"];
+
+export type ToolReplaceView = {
+  /** 대체될 내장 도구 이름 */
+  readonly tool: string;
+  /** 대체하는 확장 이름 */
+  readonly extension: string;
+  /** 확장의 신뢰 등급. 모르는 값이면 null이고 카드는 등급 줄을 그리지 않는다 */
+  readonly trust: ReplaceTrust | null;
+  readonly originalRisk: string;
+  readonly effectiveRisk: string;
+  /** 대체 도구가 경로 보호를 스스로 지켜야 한다는 안내가 본문에 실려 왔는지. 실려 오지 않아도 카드는 안내를 그린다 */
+  readonly hasNotice: boolean;
+};
+
+function textOf(value: JsonValue | undefined): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+/**
+ * 도구 승인 본문이 내장 도구 대체 승인이면 카드가 그리는 값으로 바꾼다. 아니면 null이다.
+ * 인자는 프로세스 밖에서 온 값이라 모양을 확인하고, 필수 값(대상 도구, 확장 이름)이 없으면 일반 도구 승인으로 그린다.
+ */
+export function toolReplaceView(body: ToolApprovalBody): ToolReplaceView | null {
+  if (body.toolName !== TOOL_REPLACE_TOOL_NAME || isBlobRef(body.args)) return null;
+  const { args } = body;
+  const tool = textOf(args["tool"]);
+  const extension = textOf(args["extension"]);
+  if (tool === null || extension === null) return null;
+  const trust = REPLACE_TRUSTS.find((candidate) => candidate === args["trust"]) ?? null;
+  return {
+    tool,
+    extension,
+    trust,
+    originalRisk: textOf(args["originalRisk"]) ?? body.risk,
+    effectiveRisk: textOf(args["effectiveRisk"]) ?? body.risk,
+    hasNotice: textOf(args["notice"]) !== null,
+  };
+}
+
 // ── 질문 ─────────────────────────────────────────────────────────────────
 
 /** 질문 하나의 입력 상태. 선택한 선택지 id 목록과 자유 입력 */

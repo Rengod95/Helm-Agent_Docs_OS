@@ -3,6 +3,7 @@ import {
   answerOf,
   setPickText,
   toolApprovalView,
+  toolReplaceView,
   togglePick,
   type QuestionDraft,
   type QuestionItem,
@@ -120,5 +121,58 @@ describe("question answers", () => {
 
   test("text over the service limit is not sent", () => {
     expect(answerOf([free], setPickText({}, "q3", "x".repeat(8193)))).toBeNull();
+  });
+});
+
+const replaceBody = (args: ToolApprovalBody["args"], risk = "write"): ToolApprovalBody => ({
+  toolName: "tool_replace",
+  risk,
+  args,
+  argsHash: "h",
+  ruleId: "tools.replace",
+});
+
+describe("toolReplaceView", () => {
+  test("reads the extension, the tool, the trust and both risks from the approval args", () => {
+    const view = toolReplaceView(
+      replaceBody({
+        tool: "write",
+        extension: "safe-write",
+        owner: "ext.safe-write",
+        trust: "project",
+        originalRisk: "write",
+        effectiveRisk: "execute",
+        notice: "Built-in file path protection runs inside the built-in tool.",
+      }),
+    );
+    expect(view).toEqual({
+      tool: "write",
+      extension: "safe-write",
+      trust: "project",
+      originalRisk: "write",
+      effectiveRisk: "execute",
+      hasNotice: true,
+    });
+  });
+
+  test("an unknown trust drops the trust line, and a missing risk falls back to the request risk", () => {
+    const view = toolReplaceView(
+      replaceBody({ tool: "edit", extension: "x", trust: "root" }, "execute"),
+    );
+    expect(view).toEqual({
+      tool: "edit",
+      extension: "x",
+      trust: null,
+      originalRisk: "execute",
+      effectiveRisk: "execute",
+      hasNotice: false,
+    });
+  });
+
+  test("another tool, a missing tool or extension, and a stored blob are not replacement cards", () => {
+    expect(toolReplaceView(tool({ tool: "write", extension: "x" }))).toBeNull();
+    expect(toolReplaceView(replaceBody({ extension: "x" }))).toBeNull();
+    expect(toolReplaceView(replaceBody({ tool: "write", extension: "" }))).toBeNull();
+    expect(toolReplaceView(replaceBody({ type: "blob", sha256: "ab" }))).toBeNull();
   });
 });
