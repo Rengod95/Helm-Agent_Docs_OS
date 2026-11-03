@@ -25,6 +25,10 @@ import { WORKSPACE_SETTING_DEFS } from "@fresnel/cap-workspace";
 import { accountRotationManifest, accountRotationSettings } from "@fresnel/group-account-rotation";
 import { helmManifest, helmSettings } from "@fresnel/group-helm";
 import { learningSettings } from "@fresnel/group-learning";
+import {
+  providerAnthropicOauthManifest,
+  providerAnthropicOauthSettings,
+} from "@fresnel/group-provider-anthropic-oauth";
 import { groupSdkSettings } from "@fresnel/group-sdk";
 import {
   loadingTrustSettings,
@@ -96,6 +100,13 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
       "group-account-rotation",
       "ext.account-rotation",
       reservedExtensionSettings(accountRotationManifest, "user").defs,
+    ),
+    // 위장 provider 플러그인(기본 꺼짐, 기본 목록에 없다). 키가 카탈로그에 없으면 설정 쓰기가 settings.unknownKey로 거부된다
+    ofGroup("group-provider-anthropic-oauth", providerAnthropicOauthSettings),
+    ofDefs(
+      "group-provider-anthropic-oauth",
+      "ext.provider-anthropic-oauth",
+      reservedExtensionSettings(providerAnthropicOauthManifest, "user").defs,
     ),
     ofGroup("host", hostSettings),
   ];
