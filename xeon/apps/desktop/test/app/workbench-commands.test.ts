@@ -4,6 +4,8 @@ import {
   WIRE_ERRORS,
   type EventWire,
   type ExtHealthEntry,
+  type ExtRollbackResult,
+  type ExtVersionsResult,
   type HookEntry,
   type HooksOrderGetResult,
   type HooksOrderPreviewResult,
@@ -323,6 +325,44 @@ describe("크래프트 명령의 wire 호출", () => {
       ok: false,
       error: { kind: "unsupported" },
     });
+    await app.stop();
+  });
+
+  test("versions는 name만 보내고 앱에 든 번들 판을 담은 결과를 그대로 돌려준다", async () => {
+    const body: ExtVersionsResult = {
+      versions: [
+        {
+          version: "0.2.0",
+          installedAt: "2026-11-02T00:00:00.000Z",
+          source: "user",
+          manifestHash: "h2",
+          stateSchemaVersion: null,
+          current: true,
+        },
+      ],
+      bundledVersion: "0.1.0",
+    };
+    const { app, params } = await liveApp({ results: { "ext.versions": body } });
+    expect(await app.commands.workbench.versions("helm")).toEqual({ ok: true, value: body });
+    expect(paramsOf(params, "ext.versions")).toEqual([{ name: "helm" }]);
+    await app.stop();
+  });
+
+  test("rollback은 번들 판을 version으로 보내고 clearState는 참일 때만 싣는다", async () => {
+    const result: ExtRollbackResult = { appliesAt: "restart", stateCleared: false };
+    const { app, params } = await liveApp({ results: { "ext.rollback": result } });
+    expect(await app.commands.workbench.rollback("helm", "0.1.0", false)).toEqual({
+      ok: true,
+      value: "restart",
+    });
+    expect(await app.commands.workbench.rollback("helm", "0.1.0", true)).toEqual({
+      ok: true,
+      value: "restart",
+    });
+    expect(paramsOf(params, "ext.rollback")).toEqual([
+      { name: "helm", version: "0.1.0" },
+      { name: "helm", version: "0.1.0", clearState: true },
+    ]);
     await app.stop();
   });
 });

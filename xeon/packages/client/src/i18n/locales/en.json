@@ -1698,6 +1698,8 @@
   "desktop.workbench.versions.rollback": "Roll back",
   "desktop.workbench.versions.installed": "Installed",
   "desktop.workbench.versions.bundled": "Bundled in the app",
+  "desktop.workbench.versions.inApp": "Version in the app",
+  "desktop.workbench.versions.rollbackToBundled": "Roll back to the bundled version",
   "desktop.workbench.versions.noHistory": "This engine does not keep version history.",
   "desktop.workbench.versions.bundledNoRollback": "Rolling back to the version bundled in the app is not available yet.",
   "desktop.workbench.versions.userNoRollback": "Extensions you made have no rollback.",

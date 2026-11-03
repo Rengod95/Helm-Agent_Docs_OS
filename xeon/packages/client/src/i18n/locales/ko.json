@@ -1698,6 +1698,8 @@
   "desktop.workbench.versions.rollback": "되돌리기",
   "desktop.workbench.versions.installed": "설치본",
   "desktop.workbench.versions.bundled": "앱에 든 번들 버전",
+  "desktop.workbench.versions.inApp": "앱에 든 버전",
+  "desktop.workbench.versions.rollbackToBundled": "번들 버전으로 되돌리기",
   "desktop.workbench.versions.noHistory": "이 엔진은 버전 기록을 남기지 않아요.",
   "desktop.workbench.versions.bundledNoRollback": "앱에 든 번들 버전으로 되돌리는 기능은 아직 없어요.",
   "desktop.workbench.versions.userNoRollback": "사용자가 만든 확장은 되돌리기가 없어요.",

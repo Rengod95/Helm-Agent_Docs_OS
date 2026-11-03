@@ -105,7 +105,39 @@ export function VersionsPanel(props: {
     return <Alert tone="danger">{t("desktop.workbench.detail.load.failed")}</Alert>;
   }
   if (view.kind === "fallback") {
-    return <FallbackVersions installed={view.installed} bundled={view.bundled} />;
+    return (
+      <>
+        <FallbackVersions
+          installed={view.installed}
+          bundled={view.bundled}
+          onRollback={
+            view.rollbackTo === null || props.locked
+              ? null
+              : () => {
+                  setTarget({
+                    version: view.rollbackTo ?? "",
+                    installedAt: null,
+                    source: "bundled",
+                    current: false,
+                    canRollback: true,
+                    needsClearState: false,
+                  });
+                }
+          }
+        />
+        <RollbackDialog
+          current={view.installed}
+          target={target}
+          onConfirm={(version, clearState) => {
+            setTarget(null);
+            props.onRollback(version, clearState);
+          }}
+          onCancel={() => {
+            setTarget(null);
+          }}
+        />
+      </>
+    );
   }
   const current = view.rows.find((r) => r.current)?.version ?? null;
 
@@ -115,7 +147,9 @@ export function VersionsPanel(props: {
         {view.rows.map((row) => (
           <li key={row.version} className="flex items-center gap-3 px-2 py-1 text-ui-sm">
             <span className="w-16 font-mono text-text-primary">{row.version}</span>
-            <span className="text-text-tertiary">{row.installedAt}</span>
+            <span className="text-text-tertiary">
+              {row.installedAt ?? t("desktop.workbench.versions.inApp")}
+            </span>
             <Badge size="sm">{t(SOURCE_TEXT[row.source])}</Badge>
             {row.current && <Badge size="sm">{t("desktop.workbench.versions.current")}</Badge>}
             {row.canRollback && (
@@ -157,6 +191,8 @@ export function VersionsPanel(props: {
 function FallbackVersions(props: {
   readonly installed: string;
   readonly bundled: string | null;
+  /** 번들 판으로 되돌리는 단추. 되돌릴 수 없으면 null */
+  readonly onRollback: (() => void) | null;
 }): ReactNode {
   return (
     <div className="grid gap-2 text-ui-sm">
@@ -171,11 +207,22 @@ function FallbackVersions(props: {
         )}
       </dl>
       <p className="text-text-tertiary">{t("desktop.workbench.versions.noHistory")}</p>
-      <p className="text-text-tertiary">
-        {props.bundled !== null
-          ? t("desktop.workbench.versions.bundledNoRollback")
-          : t("desktop.workbench.versions.userNoRollback")}
-      </p>
+      {props.onRollback !== null ? (
+        <Button
+          size="xs"
+          variant="outline"
+          className="justify-self-start"
+          onClick={props.onRollback}
+        >
+          {t("desktop.workbench.versions.rollbackToBundled")}
+        </Button>
+      ) : (
+        <p className="text-text-tertiary">
+          {props.bundled !== null
+            ? t("desktop.workbench.versions.bundledNoRollback")
+            : t("desktop.workbench.versions.userNoRollback")}
+        </p>
+      )}
     </div>
   );
 }

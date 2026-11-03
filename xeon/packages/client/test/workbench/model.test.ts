@@ -380,10 +380,11 @@ describe("버전 탭 그림(§6.24.1 전체·대체·오류)", () => {
       kind: "fallback",
       installed: "0.4.1",
       bundled: "0.4.1",
+      rollbackTo: null,
     });
     expect(
       versionsViewOf({ version: "0.4.1", origin: "builtin" }, { kind: "unsupported" }),
-    ).toEqual({ kind: "fallback", installed: "0.4.1", bundled: "0.4.1" });
+    ).toEqual({ kind: "fallback", installed: "0.4.1", bundled: "0.4.1", rollbackTo: null });
   });
 
   test("사용자가 만든 확장에 기록이 없으면 대체이고 번들 버전은 없다", () => {
@@ -392,11 +393,13 @@ describe("버전 탭 그림(§6.24.1 전체·대체·오류)", () => {
       kind: "fallback",
       installed: "0.0.9",
       bundled: null,
+      rollbackTo: null,
     });
     expect(versionsViewOf({ version: "0.0.9", origin: "user" }, { kind: "unsupported" })).toEqual({
       kind: "fallback",
       installed: "0.0.9",
       bundled: null,
+      rollbackTo: null,
     });
   });
 
@@ -405,6 +408,7 @@ describe("버전 탭 그림(§6.24.1 전체·대체·오류)", () => {
       kind: "fallback",
       installed: "1.0.0",
       bundled: null,
+      rollbackTo: null,
     });
   });
 
@@ -412,6 +416,81 @@ describe("버전 탭 그림(§6.24.1 전체·대체·오류)", () => {
     expect(versionsViewOf({ version: "0.0.9", origin: "user" }, { kind: "error" })).toEqual({
       kind: "error",
     });
+  });
+
+  test("앱에 든 번들 판이 설치본과 다르고 기록에 없으면 되돌릴 수 있는 행을 맨 뒤에 더한다", () => {
+    const view = versionsViewOf(
+      { version: "0.3.0", origin: "user" },
+      { kind: "ready", result: { ...history, bundledVersion: "0.1.0" } },
+    );
+    expect(view).toEqual({
+      kind: "history",
+      rows: [
+        {
+          version: "0.3.0",
+          installedAt: "t3",
+          source: "user",
+          current: true,
+          canRollback: false,
+          needsClearState: false,
+        },
+        {
+          version: "0.2.0",
+          installedAt: "t2",
+          source: "user",
+          current: false,
+          canRollback: true,
+          needsClearState: false,
+        },
+        {
+          version: "0.1.0",
+          installedAt: null,
+          source: "bundled",
+          current: false,
+          canRollback: true,
+          needsClearState: false,
+        },
+      ],
+    });
+  });
+
+  test("번들 판이 설치본과 같거나 기록에 이미 있으면 행을 더하지 않는다", () => {
+    const sameAsInstalled = versionsViewOf(
+      { version: "0.3.0", origin: "user" },
+      { kind: "ready", result: { ...history, bundledVersion: "0.3.0" } },
+    );
+    expect(sameAsInstalled).toEqual(
+      versionsViewOf({ version: "0.3.0", origin: "user" }, { kind: "ready", result: history }),
+    );
+    const recorded = versionsViewOf(
+      { version: "0.3.0", origin: "user" },
+      { kind: "ready", result: { ...history, bundledVersion: "0.2.0" } },
+    );
+    expect(recorded).toEqual(
+      versionsViewOf({ version: "0.3.0", origin: "user" }, { kind: "ready", result: history }),
+    );
+    expect(recorded.kind === "history" ? recorded.rows.map((row) => row.version) : null).toEqual([
+      "0.3.0",
+      "0.2.0",
+    ]);
+  });
+
+  test("기록이 비어도 번들 판이 설치본과 다르면 대체 그림에 번들 판으로 되돌리기를 연다", () => {
+    expect(
+      versionsViewOf(
+        { version: "0.4.1", origin: "user" },
+        { kind: "ready", result: { versions: [], bundledVersion: "0.4.0" } },
+      ),
+    ).toEqual({ kind: "fallback", installed: "0.4.1", bundled: "0.4.0", rollbackTo: "0.4.0" });
+  });
+
+  test("기록이 비고 번들 판이 설치본과 같으면 되돌릴 곳이 없다", () => {
+    expect(
+      versionsViewOf(
+        { version: "0.4.1", origin: "user" },
+        { kind: "ready", result: { versions: [], bundledVersion: "0.4.1" } },
+      ),
+    ).toEqual({ kind: "fallback", installed: "0.4.1", bundled: "0.4.1", rollbackTo: null });
   });
 });
 
