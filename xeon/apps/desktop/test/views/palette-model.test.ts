@@ -67,6 +67,14 @@ describe("palette values", () => {
     expect(availableCommands(true).map((c) => c.id)).toContain("turn.interrupt");
     expect(availableCommands(true)).toHaveLength(PALETTE_COMMAND_IDS.length);
   });
+
+  test("the start command opens the first-run screen, is offered without a thread, and reads back as itself", () => {
+    expect(availableCommands(false).map((c) => c.id)).toContain("firstRun.open");
+    expect(decodeValue(commandValue("firstRun.open"))).toEqual({
+      kind: "command",
+      id: "firstRun.open",
+    });
+  });
 });
 
 describe("palette groups", () => {

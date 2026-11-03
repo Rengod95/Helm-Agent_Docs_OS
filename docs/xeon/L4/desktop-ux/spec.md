@@ -928,7 +928,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 ```
 
 - 목적: 첫 메시지를 보낼 수 있는 상태로 만듭니다(SC-01). 설정이 덜 됐으면 언제든 다시 열 수 있습니다.
-- 진입: 첫 실행에서 `readyToChat`이 거짓이면 무대에 자동으로 엽니다. 이후에는 "설정 필요" 띠의 "설정 열기"와 팔레트 "시작하기"입니다.
+- 진입: 첫 실행에서 `readyToChat`이 거짓이면 무대에 자동으로 엽니다. 자동 열기는 앱 실행마다 한 번이라서, 사용자가 다른 화면에 갔다가 돌아와도 다시 열지 않습니다(`firstRunAutoOpenDue`, `app.tsx`). 이후에는 "설정 필요" 띠의 "설정 열기"와 팔레트 "시작하기"(`firstRun.open`)입니다.
 
 | 항목 | 출처 |
 |---|---|
@@ -938,6 +938,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 시크릿 이름과 등록 여부 | `providerSecretName(id)`, `secret.list {}` → `SecretRow` |
 | 기본 모델 | `settings.get { keys: ["l1.models.default", "l1.models.providers"] }`, `defaultModelOf`, `checkModelRef` |
 | 검색 권장 | `web.providers {}` → `toolsWebViewOf` → `FirstRunSearch` |
+| 바닥글 | 앱 버전(`package.json`의 version), 엔진 한 줄과 연결 상태(`useEngineState`, `useLinkPhase`, 상태 표시줄과 같은 문장 `engineLineOf`, `linkTextOf`) |
 
 | 기능 | wire 또는 view-model |
 |---|---|
@@ -946,6 +947,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | provider에 연결 | `settings.set { key: "l1.models.providers", value: withProviderKey(...), scope: "user" }` |
 | 기본 모델 저장 | `settings.set { key: "l1.models.default", value, scope: "user" }`. 거절(3102)은 host 문장 그대로 |
 | 권장 플러그인 설치 | `[gap:W-15]` 플러그인 설치 wire가 없습니다. M4는 "설치 방법 보기" 링크로 둡니다 [제안]. CLI 명령 복사는 두지 않습니다(CLI 표면 없음, 2026-11-01) |
+| 플러그인 키 등록 | 키가 없는 권장 플러그인 행의 "키 등록"은 그 행의 시크릿 이름(`secretName`)으로 `secret.beginEntry`를 보내고, 저장은 `submitKey`입니다. 제공자에 잇지 않고 `web.providers`를 다시 읽습니다 |
 | 나중에 | `l4.desktop.firstRun.searchHintDismissed = true` (데스크톱 로컬 설정 `[gap:V-14]`) |
 | 대화 시작 | O-07 새 대화 |
 
@@ -957,13 +959,13 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
   - 권한 필요: 키체인 잠김 등 SOPS 실패는 `rejected` detail을 보입니다. 터미널 명령 안내는 두지 않습니다(CLI 표면 없음, 2026-11-01).
   - 긴 내용: 도구 표가 8행을 넘으면 필수만 펼치고 선택은 접습니다.
 - 상호작용: 단계는 순서대로 열리지만 끝난 단계도 다시 열 수 있습니다(`Stepper variant="checklist"`). 키 값 입력란은 제어하지 않는 password 입력이고 React 상태에 값이 없습니다(`L4.desktop.spec` §4.14.1). 키 단계가 끝나면 모델 단계가 자동으로 펼쳐집니다.
-- 바로 가기 키: ⌘Enter 현재 단계 주 동작.
+- 바로 가기 키: ⌘Enter는 현재 단계의 주 동작입니다. 도구 단계는 "다시 확인", 키 단계는 키 값 칸이 열려 있으면 저장, 아니면 등록, 기본 모델 단계는 저장, 검색 단계는 키 값 칸이 열려 있으면 저장, 아니면 "나중에"입니다(`primaryActionOf`). 잠겨 있거나 설정을 못 읽었거나 입력이 맞지 않으면 아무 일도 없습니다. 한글 조합 중 Enter는 무시합니다. 수식 키는 ⌘ 또는 Ctrl을 받습니다(`metaKey || ctrlKey`, 시크릿과 일정 화면과 같은 방식). 그래서 맥에서 Ctrl+Enter도 같은 일을 합니다.
 - 접근성: 단계 목록은 `aria-current="step"`, 완료는 문장 "완료됨"을 함께 읽습니다. 키 입력란 `autocomplete="off"`, 라벨 "키 값".
 - caustic: `Stepper`(checklist), `Card`, `FormLayout`, `Field`, `Input`, `Combobox mode="popup"`(provider, 모델), `Table`(도구), `Badge`, `Button`, `Alert`, `ChoiceGroup`(권장 provider 카드), `Progress`.
 
 - 기본 그룹 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 그룹" 단계를 둡니다. Helm과 학습 그룹은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm과 학습 그룹의 `Switch`와 한 줄 설명을 보이고 기본값은 둘 다 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1. 학습 그룹 `defaultEnabled: true`, `L3.learning.spec` §3.1 [결정: review.m3-design-inputs D-M3-02]). 값은 `ext.helm.enabled`, `ext.learning.enabled` 사용자 범위입니다. `fresnel group new` 안내는 두지 않고 "LightCraft에서 더 보기" 링크 하나만 둡니다(새 그룹은 LightCraft 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 그룹이 실리지 않았어요" 한 줄을 둡니다.
 
-- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "설정 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결]. (2) 검색 권장의 "설치"와 "키 등록"과 "설치 방법 보기"는 아직 없고 상태 문장과 "나중에"만 둡니다(`[gap:W-15]`). (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. (4) 첫 실행 자동 열기, ⌘Enter, 하단 앱 버전 줄은 아직 없습니다.
+- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "설정 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결]. (2) 검색 권장에는 "설치" 단추가 없고(`[gap:W-15]`), "설치 방법 보기" 링크가 설치 안 됨이나 키 없음 행에 있습니다. 링크는 설치를 이 화면에서 할 수 없다는 한 줄을 펼칩니다. 키 없는 플러그인의 "키 등록"은 행의 시크릿 이름으로 키 값 칸을 엽니다. (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. 플러그인 키는 연결하지 않고 저장만 합니다. (4) 구현됨: 첫 실행 자동 열기, 팔레트 "시작하기", ⌘Enter, 바닥글의 앱 버전과 엔진 한 줄. 바닥글의 "모델 없음" 칸은 아직 없습니다.
 
 ### 6.6 P-02 대화
 

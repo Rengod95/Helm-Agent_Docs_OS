@@ -5,8 +5,9 @@ import {
   type FirstRunSearch,
   type SetupSnapshot,
 } from "@fresnel/client/settings";
-import type { SecretName } from "@fresnel/contracts/capabilities";
-import { assertNever } from "@fresnel/contracts";
+import type { WebRecommendation } from "@fresnel/client";
+import { assertNever, parse } from "@fresnel/contracts";
+import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
 import type { DefaultGroupId, GroupsSnapshot, SearchSnapshot } from "../../commands.ts";
 
 // 첫 실행 화면(P-01)의 순수 모델. 단계 목록, 완료 여부, 다음 단계, 대화 시작 가능 여부, 기본 그룹 행을 값으로 만든다.
@@ -43,10 +44,18 @@ export type GroupRowId = GroupRow["id"];
 /** 화면이 그리는 첫 실행 상태. 설정을 읽는 중, 못 읽음, 오프라인, 읽음 */
 export type FirstRunStatus = "loading" | "error" | "offline" | "ready";
 
-/** 모델 키 칸의 상태. 값은 없다: 입력란 자체가 값을 들고 있다 */
+/**
+ * 키 값 칸의 상태. 값은 없다: 입력란 자체가 값을 들고 있다.
+ * `providerId`는 저장 뒤 이을 제공자다. null이면 검색 권장 플러그인의 키라서 저장만 하고 잇지 않는다.
+ */
 export type FirstRunKeyEntry =
   | { readonly state: "idle" }
-  | { readonly state: "form"; readonly name: SecretName; readonly action: "add" | "set" }
+  | {
+      readonly state: "form";
+      readonly name: SecretName;
+      readonly action: "add" | "set";
+      readonly providerId: string | null;
+    }
   | { readonly state: "failed"; readonly text: string };
 
 /** 검색 권장 단계의 상태. `unknown`은 `web.providers`를 읽지 못했다는 뜻이다 */
@@ -208,4 +217,68 @@ export function keyViewOf(setup: SetupSnapshot, providerInput: string): KeyView 
         entry.apiKeyRef === `secret://${secretName}`,
     );
   return { secretName, registered, linked };
+}
+
+/** 권장 플러그인의 시크릿 이름. 계약의 이름 규칙에 맞지 않으면 null이라 키 등록 단추를 보이지 않는다 */
+export function recommendSecretOf(entry: WebRecommendation): SecretName | null {
+  const parsed = parse(SecretNameSchema, entry.secretName);
+  return parsed.ok ? parsed.value : null;
+}
+
+/** 권장 플러그인이 설치되지 않았거나 키가 없으면 "설치 방법 보기" 링크를 둔다([제안] "설치" 단추 대신, §6.5) */
+export function showsInstallHelp(state: WebRecommendation["state"]): boolean {
+  return state === "not-installed" || state === "needs-key";
+}
+
+/**
+ * 첫 실행 화면을 이번 앱 실행에서 무대에 자동으로 열 차례인가. 설정이 끝나지 않았고(`useSetupNeeded`)
+ * 아직 자동으로 연 적이 없을 때만 참이다. 한 번 연 뒤에는 사용자가 다른 화면에 갔다가 와도 다시 열지 않는다.
+ */
+export function firstRunAutoOpenDue(input: {
+  readonly needed: boolean;
+  readonly openedThisRun: boolean;
+}): boolean {
+  return input.needed && !input.openedThisRun;
+}
+
+// ── ⌘Enter ───────────────────────────────────────────────────────────────
+
+/** ⌘Enter가 하는 일. 단계마다 주 동작이 하나다(L4.desktop-ux §6.5 바로 가기 키) */
+export type PrimaryAction = "recheck" | "register" | "submitKey" | "saveModel" | "dismissSearch";
+
+export interface PrimaryInput {
+  readonly step: StepId;
+  /** 쓰기가 잠겼는가(오프라인이거나 보내는 중). 잠기면 주 동작이 없다 */
+  readonly locked: boolean;
+  /** 설정을 읽었는가. 못 읽었으면 단계의 단추가 없으니 주 동작도 없다 */
+  readonly ready: boolean;
+  /** 키 값 칸이 열려 있는가. 키 단계와 검색 단계에 보인다 */
+  readonly keyFormOpen: boolean;
+  /** 입력한 제공자에서 시크릿 이름이 정해졌는가 */
+  readonly secretKnown: boolean;
+  /** 기본 모델 입력이 맞고 그 단계가 잠기지 않았는가 */
+  readonly modelReady: boolean;
+  /** "나중에"가 남아 있는가 */
+  readonly searchPending: boolean;
+}
+
+/** 현재 단계에서 ⌘Enter가 할 일. 지금 누를 수 없으면(잠김, 입력 불충분, 할 일 없음) null이다 */
+export function primaryActionOf(input: PrimaryInput): PrimaryAction | null {
+  if (input.locked || !input.ready) return null;
+  switch (input.step) {
+    case "tools":
+      return "recheck";
+    case "key":
+      if (input.keyFormOpen) return "submitKey";
+      return input.secretKnown ? "register" : null;
+    case "model":
+      return input.modelReady ? "saveModel" : null;
+    case "search":
+      if (input.keyFormOpen) return "submitKey";
+      return input.searchPending ? "dismissSearch" : null;
+    case "groups":
+      return null;
+    default:
+      return assertNever(input.step, "StepId");
+  }
 }

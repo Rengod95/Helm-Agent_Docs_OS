@@ -1,15 +1,17 @@
 import type { EventId } from "@fresnel/contracts/conversation";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApprovalIds, useThreadIds, useThreadSummaries } from "../state/engine/index.ts";
 import { useReviewTarget, useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { CommandOutputSheet } from "./command-output-sheet.tsx";
 import { useCommands } from "./commands.ts";
 import { LockedDialog } from "./locked-dialog.tsx";
 import { SettingsPage } from "./pages/settings/settings-screen.tsx";
+import { firstRunAutoOpenDue } from "./pages/first-run/first-run-model.ts";
 import { useShellActions } from "../state/shell/index.ts";
 import { nextApprovalId } from "./approval-focus-model.ts";
 import { stepThreadId } from "./thread-step-model.ts";
+import { useSetupNeeded } from "./setup-needed.ts";
 import type { ShellRegistry } from "./shell/registry.ts";
 import { Shell } from "./shell/shell.tsx";
 import { Palette } from "./palette/palette.tsx";
@@ -52,6 +54,15 @@ export function App(props: AppProps): ReactNode {
   const threads = useThreadSummaries();
   const threadIds = useThreadIds();
   const approvalIds = useApprovalIds();
+  // 모델 키와 기본 모델이 끝나지 않았으면 첫 실행 화면(P-01)을 이 앱 실행에서 한 번 무대에 연다. 나중에 다른 화면에 가도 다시 열지 않는다
+  const setupNeeded = useSetupNeeded();
+  const firstRunOpened = useRef(false);
+  useEffect(() => {
+    if (!firstRunAutoOpenDue({ needed: setupNeeded, openedThisRun: firstRunOpened.current }))
+      return;
+    firstRunOpened.current = true;
+    shell.updatePlace({ screen: "first-run", scroll: 0 });
+  }, [setupNeeded, shell]);
   // 대화 영역에서 열린 대화가 바뀌면 작업대 맥락이 (고정이 아니면) 따라간다
   useEffect(() => {
     shell.selectChatThread(selected);
@@ -107,6 +118,9 @@ export function App(props: AppProps): ReactNode {
         return;
       case "settings.open":
         commands.showScreen("settings");
+        return;
+      case "firstRun.open":
+        shell.updatePlace({ screen: "first-run", scroll: 0 });
         return;
       case "area.toggle":
         shell.toggleArea();

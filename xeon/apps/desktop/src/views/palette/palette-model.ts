@@ -12,6 +12,7 @@ export const PALETTE_COMMAND_IDS = [
   "turn.interrupt",
   "inbox.open",
   "settings.open",
+  "firstRun.open",
   "area.toggle",
   "engine.restart",
   "diagnostics.copy",
@@ -50,6 +51,12 @@ const PALETTE_COMMANDS: readonly PaletteCommand[] = [
     id: "settings.open",
     label: "desktop.palette.command.settings",
     action: "settings.open",
+    needsThread: false,
+  },
+  {
+    id: "firstRun.open",
+    label: "desktop.palette.command.firstRun",
+    action: null,
     needsThread: false,
   },
   {
