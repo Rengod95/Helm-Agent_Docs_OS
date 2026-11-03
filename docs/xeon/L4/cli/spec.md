@@ -283,6 +283,7 @@ export interface EngineConnectOptions {
 
 export type EngineStartErrorKind =
   | "fts5Missing" | "sopsMissing" | "dataDirPermission" | "storeUnavailable"   // AssembleIssue "store"(메시지로 구별 [가정])
+  | "storeFutureVersion" | "storeCorrupt" | "storeMigrationFailed"             // 같은 "store" 이슈, 분류(failure)마다 안내가 다르다. 종료 코드 3
   | "catalogConflict"                                                          // AssembleIssue "catalog"
   | "missingService"                                                           // AssembleIssue "missingService"
   | "serviceUnreachable"                                                       // AttachError(ensure_failed, connect_failed, hello_failed의 auth_failed·timeout·closed)
@@ -315,7 +316,7 @@ export declare const connectEngine: ConnectEngine;
 - 서비스 접속의 `EngineHandle`: `secretOutOfBand`는 `null`이다. 값 입력은 §4.7이 정한 대로 서비스 쪽 입력 창으로 받는 설계지만 이 구현은 그 창을 만들지 않는다. 그래서 서비스 접속의 `fresnel secret add`는 두 줄 오류로 끝난다(§10 22번). `shutdown`은 연결만 닫고 `"clean"`을 돌려준다. 서비스와 진행 중 turn은 계속된다(HS-88). 시계와 `newRequestId`는 CLI의 운영 값(`@fresnel/platform-os`)이다. 엔진이 CLI 밖에 있기 때문이다 [제안].
 - `AttachError`의 문구(§4.10 표 `serviceUnreachable`·`protocolUnsupported`): `ensure_failed`는 해결 `fresnel service status`다. `connect_failed`는 `not_found`·`refused`에 "원격 서비스가 켜져 있고 주소가 맞는지 확인한다", `permission`에 소켓 파일과 폴더의 소유자·권한, `tunnel_unavailable`에 재설치, `tunnel_failed`에 ssh 출력의 첫 줄과 "ssh 키나 ssh-agent로 암호 없이 접속되는지 확인한다", `io`에 `fresnel service status`다. `hello_failed`는 `auth_failed`에 `FRESNEL_REMOTE_TOKEN`을 서버 토큰과 맞추라는 해결(토큰 값은 싣지 않는다), `protocol_unsupported`에 `protocolUnsupported`, `timeout`·`closed`에 `fresnel service status`다.
 - `settingGroups`: [제안] CLI 설정(§6)은 엔진 바이너리의 진입(`apps/cli/src/main.ts`)이 in-process 연결, `host --stdio`, 서비스 기동 세 경우 모두 조립에 넘긴다. 엔진 바이너리가 하나이므로(§2) 서비스 프로세스의 카탈로그에도 `l4.cli.*`가 들어간다.
-- 오류 대응: `AssembleError.issues[].code`가 `store`면 `message`로 `fts5Missing`·`dataDirPermission`·`storeUnavailable`을 고른다 [가정: `L0.store.spec` 오류 모양을 따른다]. `catalog`는 `catalogConflict`, `missingService`는 `missingService`다. 종료 코드는 §4.10 표다.
+- 오류 대응: `AssembleError.issues[].code`가 `store`면 `message`로 `fts5Missing`·`dataDirPermission`·`storeFutureVersion`·`storeCorrupt`·`storeMigrationFailed`·`storeUnavailable`을 고른다 [가정: `L0.store.spec` 오류 모양을 따른다]. `catalog`는 `catalogConflict`, `missingService`는 `missingService`다. 종료 코드는 §4.10 표다.
 
 ### 3.4 CLI 진입
 

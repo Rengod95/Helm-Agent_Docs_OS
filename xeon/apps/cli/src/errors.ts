@@ -39,6 +39,9 @@ export function exitCodeOfStartError(kind: EngineStartErrorKind): ExitCode {
     case "sopsMissing":
     case "dataDirPermission":
     case "storeUnavailable":
+    case "storeFutureVersion":
+    case "storeCorrupt":
+    case "storeMigrationFailed":
     case "serviceUnreachable":
     case "protocolUnsupported":
       return EXIT.environment;

@@ -350,7 +350,7 @@ fresnel: 저장된 데이터가 스키마와 다르다 (<표>.<열>)
 
 1. 되돌리는 절차가 소스에 없습니다. `fresnel db export` 사본이나 마이그레이션 스냅샷을 데이터 디렉터리로 되돌리는 방법, 엔진을 멈추는 순서, WAL 파일(`fresnel.db-wal`, `fresnel.db-shm`)의 처리를 정해야 합니다(`L4.cli.spec` §4.13이 M3 복구 런북에 맡겼습니다).
 2. `store.corrupt`로 판정된 데이터를 고치는 절차가 없습니다.
-3. 저장소 열기 실패 문구가 `future_version`, `corrupt`, `migration_failed`를 구별하지 않습니다. `apps/cli/src/engine.ts`의 `storeError`는 `fts5Missing`과 `dataDirPermission`만 구별하고 나머지는 `세션 저장소를 열지 못했다`로 씁니다. `L4.host-service.spec` §3.3.5는 이 값을 구별한다고 씁니다.
+3. 저장소 열기 실패는 `future_version`(`storeFutureVersion`), `corrupt`(`storeCorrupt`), `migration_failed`(`storeMigrationFailed`)로 나뉘어 각자 안내를 보이고 종료 코드 3으로 끝납니다(`apps/cli/src/engine.ts`의 `storeError`). 해결 문구는 되돌리는 절차가 정해지기 전이라 "데이터 디렉터리를 그대로 백업"까지만 말합니다 [미결 1].
 4. 읽기 전용 열기(`openStore({ readOnly: true })`)를 쓰는 제품 명령이 없습니다. DB의 버전 번호를 보여 주는 명령도 없습니다.
 5. 예약 상태 파일을 검사하거나 고치는 도구가 없습니다. 파일 스키마는 소스에서만 확인할 수 있습니다.
 6. 자동으로 꺼진 확장을 다시 켜는 CLI 명령(`fresnel ext enable`)이 없습니다(`X.operations.spec` §4.3.5의 제안).
