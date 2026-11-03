@@ -96,6 +96,7 @@ export const DriveLimitsJsonSchema: TObject<{
 export const LeaseAcquiredPayloadSchema: TObject<{
   leaseId: TString;
   scopeId: TString;
+  lineageId: TString;
   limits: typeof DriveLimitsJsonSchema;
   leaseEpoch: TOptional<TInteger>;
 }> = Type.Object(
@@ -104,6 +105,12 @@ export const LeaseAcquiredPayloadSchema: TObject<{
     leaseId: leaseId(),
     /** 임대를 받은 그룹의 scope */
     scopeId: scopeId(),
+    /**
+     * 계통 id. `leaseId`는 부여마다 새로 발급하지만 계통 id는 사유 `waiting` 반납 바로 뒤, 같은 thread와 같은 Registration의 부여가
+     * 앞 drive 락에서 이어받는다. 그 밖의 부여는 자기 `leaseId`와 같은 값으로 새 계통을 연다. `loop.turn`·`loop.spawn`의 기본 키 재료다
+     * (X.primitives.spec §4.4.3, F.extensions.spec §4.6 REQ-X-04)
+     */
+    lineageId: leaseId(),
     /** DriveLock.limits(DriveLimits) */
     limits: DriveLimitsJsonSchema,
     /**

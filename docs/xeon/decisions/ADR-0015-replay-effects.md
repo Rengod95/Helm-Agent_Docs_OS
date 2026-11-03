@@ -27,7 +27,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
   - 학습 그룹은 `agent_settled` on 핸들러에서 `g.delegate`로 검토 포크를 시작한다(`L3.learning.spec` §4.3). 지금 규칙으로는 on 핸들러에서 위임을 시작할 수 없다.
   - Helm drive의 `gatherContext`는 `knowledge.search.query`, `knowledge.memory.read`, `web.search`를 부르고, `linkWork`는 `work.tasks.create`를 부른다(`L3.helm.spec` §4.5). 능력 호출은 drive 효과 목록에 없다.
 - 멱등 장치는 이미 일부 있다.
-  - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${leaseId}:${순번}`이고, 같은 순서의 재호출은 커밋된 결과를 돌려받는다(`X.primitives.spec` §4.4.4).
+  - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${lineageId}:${순번}`이고, 같은 순서의 재호출은 커밋된 결과를 돌려받는다(`X.primitives.spec` §4.4.4).
   - 자식 대화 생성은 `creationKey`와 `TxView.agentByRequestId`로 같은 `requestId`의 두 번째 생성을 막는다(`L1.agents.spec` §4.1 3번).
   - `CallOptions.requestId`는 선택 필드다(`F.capabilities.spec` §3.2). L2.work의 쓰기 메서드는 `requestId`를 필수로 받고 같은 키의 재호출에 처음 결과를 돌려주며, 그 근거로 `replay: "safe"`를 선언한다(`L2.work.spec` §3.1, `eng.transactions.design` TX-05).
 - 문제는 F 정의만 보고 메서드가 읽기인지, 멱등 쓰기인지, 선언 없는 쓰기인지 알 수 없다는 점이다. `ReplayPolicy = "safe"`는 읽기와 멱등 쓰기에 함께 쓰인다. `ToolHints.idempotent`는 모델 도구의 검증되지 않는 작성자 힌트다(`F.capabilities.spec` §3.3).
@@ -80,8 +80,8 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 ### 3.4 `requestId` 만드는 규칙
 
 1. [제안] 재실행되는 코드가 넘기는 `requestId`는 결정적이어야 한다. 같은 커밋 상태와 같은 페이로드로 다시 실행하면 같은 키가 나와야 한다. 멱등이 "재생 2회, 효과 1회"를 지키는 전제다.
-2. [제안] 키의 재료로 쓸 수 있는 값: 커밋된 id(`turnId`, `stepId`), 커밋된 상태 문서의 값(예: 학습 그룹의 `epoch`, Helm 탐구 id), 디스패치 키. `Date.now`, `Math.random`, 클로저 지역 변수의 진행 값은 쓰지 않는다. `leaseId`는 재시작 뒤 바뀔 수 있어 `leaseId` 유지 규칙(REQ-X-04)이 닫히기 전에는 명시 키의 재료로 쓰지 않는다.
-3. [제안] 기본 키는 `loop.turn`과 `loop.spawn`에만 준다(`X.primitives.spec` §4.4.4의 `${leaseId}:${순번}`). 능력 호출 가운데 읽기는 멱등 키가 필요 없으므로 `requestId`를 생략해도 된다. `idempotent` 쓰기는 drive 함수 안에서도 기본 키를 받지 않고 명시 키를 요구한다. 이유는 재시작이나 재활성화 뒤 `leaseId`가 바뀔 수 있어(`L3.helm.spec` §4.5, 요구 REQ-X-04) 기본 키가 달라지면 공급자의 (대화, 메서드, `requestId`) 멱등이 깨져 효과가 두 번 날 수 있기 때문이다. on 핸들러 안의 `g.delegate`와 능력 쓰기도 명시 키를 요구한다. 명시 키는 다른 scope와 섞이지 않게 scope id로 시작한다(예: `learning:review:<epoch>`). `leaseId` 유지 규칙이 닫히면 drive의 쓰기에도 기본 키를 줄지 다시 본다(§6 미결).
+2. [제안] 키의 재료로 쓸 수 있는 값: 커밋된 id(`turnId`, `stepId`), 커밋된 상태 문서의 값(예: 학습 그룹의 `epoch`, Helm 탐구 id), 디스패치 키. `Date.now`, `Math.random`, 클로저 지역 변수의 진행 값은 쓰지 않는다. `leaseId`는 부여마다 바뀌므로 명시 키의 재료로 쓰지 않는다. 기본 키는 `waiting` 재부여를 넘어 유지되는 계통 id `lineageId`로 만든다(REQ-X-04, X.primitives.spec §4.4.1 11번).
+3. [제안] 기본 키는 `loop.turn`과 `loop.spawn`에만 준다(`X.primitives.spec` §4.4.4의 `${lineageId}:${순번}`). 능력 호출 가운데 읽기는 멱등 키가 필요 없으므로 `requestId`를 생략해도 된다. `idempotent` 쓰기는 drive 함수 안에서도 기본 키를 받지 않고 명시 키를 요구한다. 이유는 재시작이나 재활성화 뒤 `leaseId`가 바뀔 수 있어(`L3.helm.spec` §4.5, 요구 REQ-X-04) 기본 키가 달라지면 공급자의 (대화, 메서드, `requestId`) 멱등이 깨져 효과가 두 번 날 수 있기 때문이다. on 핸들러 안의 `g.delegate`와 능력 쓰기도 명시 키를 요구한다. 명시 키는 다른 scope와 섞이지 않게 scope id로 시작한다(예: `learning:review:<epoch>`). `leaseId` 유지 규칙이 닫히면 drive의 쓰기에도 기본 키를 줄지 다시 본다(§6 미결).
 4. 길이와 형식은 `F.capabilities.spec` §3.1의 `requestId`(1~64자)를 따른다. `g.delegate`의 보고 키 접미사(`:report`)를 위해 위임 키는 48자 이하로 둔다(`L3.group-sdk.spec` §3.4).
 
 ### 3.5 선언 없는 쓰기: 요청 레코드와 워커
@@ -157,5 +157,5 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 - [미결] 요청 레코드 워커의 소유(X 효과 워커 또는 L1 백그라운드 작업)와 결과 통지 방법(§3.5).
 - 닫음 [결정: M3-REQ-31, B3-SEC]: 능력의 현재 공급자가 내장 확장일 때만 `idempotent` 선언을 믿는다. 외부 확장 공급자의 `idempotent` 메서드는 재실행되는 문맥에서 선언 없음으로 본다. 규칙은 `X.loading-trust.spec` §4.6.4, 구현은 `ext-host` `capability-guard.ts`다.
 - 닫음 [결정: review.m3-design-inputs D-M3-31 행 1]: `safe|unsafe`를 유지한다. 옛 질문: `ReplayPolicy` 값 이름(`safe|unsafe` 대 `never|safe`). 이 ADR은 현행 F 표기 `safe|unsafe`(`F.conversation.spec` §3.6)를 쓴다(§3.3, §3.5). `F.records.spec` §10 미결 4가 사용자 확인 대상이라고 적었으므로 사용자 답(`review.m3-design-inputs` D-M3-31 행 1)이 바뀌면 §3.3의 검증 규칙 이름과 §3.5의 값도 함께 바꾼다.
-- [미결] drive의 `idempotent` 쓰기에 기본 키를 줄지. `leaseId` 유지 규칙(REQ-X-04)이 닫힐 때까지는 명시 키만 받는다(§3.4 3번).
+- [미결] drive의 `idempotent` 쓰기에 기본 키를 줄지. `lineageId`는 `waiting` 재부여만 잇고 `idle`·`budget` 뒤에는 새로 시작하므로 `idempotent` 쓰기는 지금도 명시 키만 받는다(§3.4 3번).
 - [가정] `L2.knowledge`의 쓰기 메서드가 `CallOptions.requestId = idempotencyKey`로 내구 멱등을 이미 보장한다고 본다(`L3.learning.spec` §3.6). 적합성 시험으로 확인한다.

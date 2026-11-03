@@ -374,7 +374,12 @@ test("metrics.usage-summary-table", () => {
       name: "a closed lease adds its interval",
       events: sequenced([
         (seq) =>
-          envelope(seq, "lease.acquired", { leaseId: "l1", scopeId: "helm", limits: {} }, 1_000),
+          envelope(
+            seq,
+            "lease.acquired",
+            { leaseId: "l1", lineageId: "l1", scopeId: "helm", limits: {} },
+            1_000,
+          ),
         (seq) =>
           envelope(
             seq,
@@ -396,7 +401,12 @@ test("metrics.usage-summary-table", () => {
       name: "an open lease counts once and adds no time",
       events: sequenced([
         (seq) =>
-          envelope(seq, "lease.acquired", { leaseId: "l1", scopeId: "helm", limits: {} }, 1_000),
+          envelope(
+            seq,
+            "lease.acquired",
+            { leaseId: "l1", lineageId: "l1", scopeId: "helm", limits: {} },
+            1_000,
+          ),
       ]),
       expected: {
         helm: {
@@ -411,11 +421,21 @@ test("metrics.usage-summary-table", () => {
       name: "two leases of one scope add up",
       events: sequenced([
         (seq) =>
-          envelope(seq, "lease.acquired", { leaseId: "l1", scopeId: "helm", limits: {} }, 100),
+          envelope(
+            seq,
+            "lease.acquired",
+            { leaseId: "l1", lineageId: "l1", scopeId: "helm", limits: {} },
+            100,
+          ),
         (seq) =>
           envelope(seq, "lease.released", { leaseId: "l1", scopeId: "helm", reason: "idle" }, 160),
         (seq) =>
-          envelope(seq, "lease.acquired", { leaseId: "l2", scopeId: "helm", limits: {} }, 500),
+          envelope(
+            seq,
+            "lease.acquired",
+            { leaseId: "l2", lineageId: "l2", scopeId: "helm", limits: {} },
+            500,
+          ),
         (seq) =>
           envelope(
             seq,

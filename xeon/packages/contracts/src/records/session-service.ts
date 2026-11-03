@@ -430,6 +430,8 @@ export type ExtCommitResult =
 
 export interface OpenLease {
   readonly leaseId: string;
+  /** 기본 키 계통(`lease.acquired.lineageId`) */
+  readonly lineageId: string;
   readonly scopeId: string;
   readonly leaseEpoch: number;
   readonly limits: {
@@ -456,6 +458,11 @@ export interface ExtThreadSnapshot {
   readonly states: readonly StoredScopeState[];
   /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
   readonly openLease: OpenLease | null;
+  /**
+   * 활성 가지 위 마지막 lease.* 이벤트가 사유 `waiting`의 lease.released이면 그 scope와 반납한 drive 락의 계통 id.
+   * 다음 부여가 같은 scope로 가면 이 계통을 이어받는다. 아니면 null
+   */
+  readonly waitingLineage: { readonly scopeId: string; readonly lineageId: string } | null;
   /** scope마다 활성 가지 위 lease.acquired 개수 */
   readonly leaseEpochs: Readonly<Record<string, number>>;
 }

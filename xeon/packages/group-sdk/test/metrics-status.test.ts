@@ -49,7 +49,7 @@ function helmEvents(threadId: ThreadId): readonly DurableEventEnvelope[] {
       1,
       "lease.acquired",
       threadId,
-      { leaseId: "lease-1", scopeId: "helm", limits: {} },
+      { leaseId: "lease-1", lineageId: "lease-1", scopeId: "helm", limits: {} },
       1_000,
     ),
     envelope(
