@@ -309,6 +309,17 @@ describe("autoTitleThread", () => {
     expect(titleOf(h, threadId)).toBe("한 번만 쓴 제목");
   });
 
+  test("an automatic title is stored with the auto source", async () => {
+    const h = await openHarness();
+    const threadId = threadWithTurn(h, FIRST_INPUT_TITLE, "질문", "답");
+    const model = fakeModel(ok("자동 제목"));
+    await autoTitleThread(depsOf(h, model.port), threadId);
+    expect(expectOk(h.service.query.thread(threadId))).toMatchObject({
+      title: "자동 제목",
+      titleSource: "auto",
+    });
+  });
+
   test("the same title under the same request key is replayed, not written again", async () => {
     const h = await openHarness();
     const threadId = threadWithTurn(h, FIRST_INPUT_TITLE, "질문", "답");

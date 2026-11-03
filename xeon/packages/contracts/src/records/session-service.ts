@@ -7,6 +7,7 @@ import type {
   ReplayPolicy,
   ThreadId,
   ThreadStatus,
+  ThreadTitleSource,
   TurnId,
   Usage,
 } from "../conversation/index.ts";
@@ -77,6 +78,8 @@ export interface EventFeed {
 export interface ThreadSummaryRow {
   readonly threadId: ThreadId;
   readonly title: string | null;
+  /** 제목을 정한 쪽. 제목 이벤트에 출처가 없던 옛 기록이나 제목이 없으면 없다 */
+  readonly titleSource?: ThreadTitleSource;
   readonly status: ThreadStatus;
   readonly workspace: string | null;
   readonly createdAt: number;
@@ -341,6 +344,8 @@ export interface ThreadLifecycle {
     threadId: ThreadId,
     title: string | null,
     requestKey: string,
+    /** 제목을 정한 쪽. 생략하면 출처를 남기지 않는다 */
+    source?: ThreadTitleSource,
   ): Result<void, LifecycleError>;
   /** 같은 클라이언트가 다른 thread로 옮기기 전에 session_before_switch(first)를 발화한다 */
   prepareSwitch(from: ThreadId, to: ThreadId | null): Promise<Result<void, LifecycleError>>;

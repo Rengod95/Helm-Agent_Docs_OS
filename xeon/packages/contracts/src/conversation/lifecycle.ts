@@ -70,13 +70,22 @@ export const ThreadStartedPayloadSchema: TObject<{
 );
 export type ThreadStartedPayload = Static<typeof ThreadStartedPayloadSchema>;
 
+/** 제목을 정한 쪽. 사람(`user`), 자동 제목(`auto`), 모델 도구(`model`) */
+export const ThreadTitleSourceSchema: TUnion<
+  [TLiteral<"user">, TLiteral<"auto">, TLiteral<"model">]
+> = Type.Union([Type.Literal("user"), Type.Literal("auto"), Type.Literal("model")]);
+export type ThreadTitleSource = Static<typeof ThreadTitleSourceSchema>;
+
 export const ThreadUpdatedPayloadSchema: TObject<{
   title: TAddOptional<TUnion<[TString, TNull]>>;
+  titleSource: TAddOptional<typeof ThreadTitleSourceSchema>;
   status: TAddOptional<typeof ThreadStatusSchema>;
   leafEventId: TAddOptional<TUnsafe<EventId>>;
 }> = Type.Object(
   {
     title: Type.Optional(Nullable(Type.String({ maxLength: 200 }))),
+    /** 선택 필드다. 없는 옛 이벤트는 출처를 모른다(읽기는 그대로 된다) */
+    titleSource: Type.Optional(ThreadTitleSourceSchema),
     status: Type.Optional(ThreadStatusSchema),
     leafEventId: Type.Optional(EventIdSchema),
   },

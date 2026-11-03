@@ -175,7 +175,7 @@ export async function autoTitleThread(
   const title = sanitiseTitle(reply.value.value);
   if (title === "") return ok({ status: "skipped", reason: "empty_title" });
 
-  const stored = deps.session.threads.setTitle(threadId, title, `autotitle:${threadId}`);
+  const stored = deps.session.threads.setTitle(threadId, title, `autotitle:${threadId}`, "auto");
   if (!stored.ok) {
     if (stored.error.kind === "key_reused") {
       deps.logger?.warn("auto_title.key_reused", { threadId });

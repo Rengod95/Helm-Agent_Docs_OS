@@ -14,6 +14,7 @@ const PROJECTION_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   p_threads: [
     "thread_id",
     "title",
+    "title_source",
     "status",
     "workspace",
     "created_at",

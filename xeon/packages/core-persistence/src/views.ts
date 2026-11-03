@@ -1,11 +1,13 @@
-import { err, ok, type Result } from "@fresnel/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   ReplayPolicySchema,
   ThreadStatusSchema,
+  ThreadTitleSourceSchema,
   TurnStatusSchema,
   type EventId,
   type ThreadId,
   type ThreadStatus,
+  type ThreadTitleSource,
   type TurnId,
 } from "@fresnel/contracts/conversation";
 import {
@@ -225,6 +227,7 @@ export function readQueuedInputs(
 export interface ThreadRow {
   readonly threadId: ThreadId;
   readonly title: string | null;
+  readonly titleSource: ThreadTitleSource | null;
   readonly status: ThreadStatus;
   readonly workspace: string | null;
   readonly createdAt: number;
@@ -239,7 +242,7 @@ export interface ThreadRow {
 
 export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | undefined, RowFault> {
   const row = tx.get(
-    `SELECT thread_id, title, status, workspace, created_at, updated_at, head_seq, leaf_event_id,
+    `SELECT thread_id, title, title_source, status, workspace, created_at, updated_at, head_seq, leaf_event_id,
        forked_from_thread, forked_from_event, open_turn_id, running_since, resume_attempts
      FROM p_threads WHERE thread_id = ?`,
     [threadId],
@@ -250,6 +253,18 @@ export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | unde
   if (!id.ok) return id;
   const title = c.nullableString("title");
   if (!title.ok) return title;
+  const titleSourceText = c.nullableString("title_source");
+  if (!titleSourceText.ok) return titleSourceText;
+  const titleSource: Result<ThreadTitleSource | null, RowFault> =
+    titleSourceText.value === null
+      ? ok(null)
+      : (() => {
+          const parsedSource = parse(ThreadTitleSourceSchema, titleSourceText.value);
+          return parsedSource.ok
+            ? ok(parsedSource.value)
+            : err(rowInvalid("p_threads.title_source"));
+        })();
+  if (!titleSource.ok) return titleSource;
   const status = c.parsed(ThreadStatusSchema, "status");
   if (!status.ok) return status;
   const workspace = c.nullableString("workspace");
@@ -275,6 +290,7 @@ export function readThread(tx: SqlTx, threadId: string): Result<ThreadRow | unde
   return ok({
     threadId: id.value,
     title: title.value,
+    titleSource: titleSource.value,
     status: status.value,
     workspace: workspace.value,
     createdAt: createdAt.value,
@@ -358,6 +374,7 @@ export function readThreadSummary(
   return ok({
     threadId: thread.threadId,
     title: thread.title,
+    ...(thread.titleSource === null ? {} : { titleSource: thread.titleSource }),
     status: thread.status,
     workspace: thread.workspace,
     createdAt: thread.createdAt,

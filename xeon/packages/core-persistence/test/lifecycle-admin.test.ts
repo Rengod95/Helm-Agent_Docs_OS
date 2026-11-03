@@ -185,6 +185,29 @@ describe("threads.setTitle", () => {
     expect(expectOk(h.service.query.thread(threadId))?.title).toBe("t-19");
   });
 
+  test("title_source_is_stored_with_the_title_and_dropped_when_the_next_title_has_none", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h, "before");
+    expect(expectOk(h.service.query.thread(threadId))?.titleSource).toBeUndefined();
+    expectOk(h.service.threads.setTitle(threadId, "by model", "s1", "model"));
+    expect(expectOk(h.service.query.thread(threadId))).toMatchObject({
+      title: "by model",
+      titleSource: "model",
+    });
+    expectOk(h.service.threads.setTitle(threadId, "by auto", "s2", "auto"));
+    expect(expectOk(h.service.query.thread(threadId))?.titleSource).toBe("auto");
+    expectOk(h.service.threads.setTitle(threadId, "by user", "s3", "user"));
+    expect(expectOk(h.service.query.thread(threadId))?.titleSource).toBe("user");
+    // 출처를 안 주는 호출은 출처를 모른다
+    expectOk(h.service.threads.setTitle(threadId, "unknown", "s4"));
+    expect(expectOk(h.service.query.thread(threadId))?.titleSource).toBeUndefined();
+    // 제목을 지우면 출처도 지운다
+    expectOk(h.service.threads.setTitle(threadId, "again", "s5", "user"));
+    expectOk(h.service.threads.setTitle(threadId, null, "s6", "user"));
+    expect(expectOk(h.service.query.thread(threadId))).toMatchObject({ title: null });
+    expect(expectOk(h.service.query.thread(threadId))?.titleSource).toBeUndefined();
+  });
+
   test("the same key with another title is a typed key_reused error, not a Bug", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h, "before");

@@ -312,7 +312,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
     rename(threadId, title) {
       // 제목마다 새 키다: 같은 키로 다른 제목을 쓰면 key_reused라 호출 한 번이 제목 한 번이다
-      const renamed = session.threads.setTitle(threadId, title, deps.ids.next("evt"));
+      const renamed = session.threads.setTitle(threadId, title, deps.ids.next("evt"), "user");
       if (!renamed.ok) return renamed;
       const head = session.feed.headSeq();
       if (!head.ok) return head;
