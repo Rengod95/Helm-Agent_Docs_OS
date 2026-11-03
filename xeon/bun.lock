@@ -42,9 +42,9 @@
       "dependencies": {
         "@caustic/react": "workspace:*",
         "@caustic/tokens": "workspace:*",
-        "@tauri-apps/api": "catalog:",
         "@fresnel/client": "workspace:*",
         "@fresnel/contracts": "workspace:*",
+        "@tauri-apps/api": "catalog:",
         "react": "catalog:",
         "react-dom": "catalog:",
         "typebox": "catalog:",
@@ -101,7 +101,6 @@
       "name": "@caustic/react",
       "version": "1.0.0",
       "dependencies": {
-        "@caustic/tokens": "workspace:*",
         "@radix-ui/react-accordion": "1.2.20",
         "@radix-ui/react-alert-dialog": "1.1.23",
         "@radix-ui/react-dialog": "1.1.23",
@@ -120,7 +119,11 @@
         "lucide-react": "0.468.0",
         "tailwind-merge": "3.7.0",
       },
+      "devDependencies": {
+        "@caustic/tokens": "workspace:*",
+      },
       "peerDependencies": {
+        "@caustic/tokens": "*",
         "react": "^19",
         "react-dom": "^19",
       },
@@ -138,9 +141,9 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/core-persistence": "workspace:*",
         "@fresnel/platform-store": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/cap-dialog": {
@@ -152,8 +155,8 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/core-tools": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/cap-knowledge": {
@@ -165,25 +168,25 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/core-persistence": "workspace:*",
         "@fresnel/core-tools": "workspace:*",
         "@fresnel/platform-store": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/cap-mcp": {
       "name": "@fresnel/cap-mcp",
       "version": "0.0.0",
       "dependencies": {
-        "@modelcontextprotocol/client": "catalog:",
         "@fresnel/contracts": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
+        "@modelcontextprotocol/client": "catalog:",
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/core-tools": "workspace:*",
         "@fresnel/platform-store": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/cap-schedule": {
@@ -201,8 +204,8 @@
       "name": "@fresnel/cap-web",
       "version": "0.0.0",
       "dependencies": {
-        "@mozilla/readability": "catalog:",
         "@fresnel/contracts": "workspace:*",
+        "@mozilla/readability": "catalog:",
         "defuddle": "catalog:",
         "guarded-fetch": "catalog:",
         "linkedom": "catalog:",
@@ -210,10 +213,10 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
-        "@types/turndown": "catalog:",
         "@fresnel/core-tools": "workspace:*",
         "@fresnel/platform-store": "workspace:*",
+        "@types/bun": "catalog:",
+        "@types/turndown": "catalog:",
       },
     },
     "packages/cap-work": {
@@ -226,10 +229,10 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/core-persistence": "workspace:*",
         "@fresnel/core-tools": "workspace:*",
         "@fresnel/platform-store": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/cap-workspace": {
@@ -241,9 +244,9 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/core-tools": "workspace:*",
         "@fresnel/platform-exec": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/client": {
@@ -254,8 +257,8 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/core-models": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/contracts": {
@@ -328,8 +331,8 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/platform-store": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/core-tasks": {
@@ -377,8 +380,8 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/ext-host": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/group-helm": {
@@ -390,9 +393,9 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/core-models": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/group-learning": {
@@ -404,8 +407,8 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/ext-host": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/group-provider-anthropic-oauth": {
@@ -417,17 +420,17 @@
         "typebox": "catalog:",
       },
       "devDependencies": {
-        "@types/bun": "catalog:",
         "@fresnel/ext-host": "workspace:*",
+        "@types/bun": "catalog:",
       },
     },
     "packages/group-sdk": {
       "name": "@fresnel/group-sdk",
       "version": "0.0.0",
       "dependencies": {
-        "@swc/core": "catalog:",
         "@fresnel/contracts": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
+        "@swc/core": "catalog:",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -450,9 +453,9 @@
       "name": "@fresnel/platform-os",
       "version": "0.0.0",
       "dependencies": {
-        "@vscode/ripgrep": "catalog:",
         "@fresnel/contracts": "workspace:*",
         "@fresnel/ext-host": "workspace:*",
+        "@vscode/ripgrep": "catalog:",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -630,6 +633,74 @@
     "@floating-ui/react-dom": ["@floating-ui/react-dom@2.1.9", "", { "dependencies": { "@floating-ui/dom": "^1.8.0" }, "peerDependencies": { "react": ">=16.8.0", "react-dom": ">=16.8.0" } }, "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.12", "", {}, "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="],
+
+    "@fresnel/cap-artifacts": ["@fresnel/cap-artifacts@workspace:packages/cap-artifacts"],
+
+    "@fresnel/cap-dialog": ["@fresnel/cap-dialog@workspace:packages/cap-dialog"],
+
+    "@fresnel/cap-knowledge": ["@fresnel/cap-knowledge@workspace:packages/cap-knowledge"],
+
+    "@fresnel/cap-mcp": ["@fresnel/cap-mcp@workspace:packages/cap-mcp"],
+
+    "@fresnel/cap-schedule": ["@fresnel/cap-schedule@workspace:packages/cap-schedule"],
+
+    "@fresnel/cap-web": ["@fresnel/cap-web@workspace:packages/cap-web"],
+
+    "@fresnel/cap-work": ["@fresnel/cap-work@workspace:packages/cap-work"],
+
+    "@fresnel/cap-workspace": ["@fresnel/cap-workspace@workspace:packages/cap-workspace"],
+
+    "@fresnel/cli": ["@fresnel/cli@workspace:apps/cli"],
+
+    "@fresnel/client": ["@fresnel/client@workspace:packages/client"],
+
+    "@fresnel/contracts": ["@fresnel/contracts@workspace:packages/contracts"],
+
+    "@fresnel/core-agents": ["@fresnel/core-agents@workspace:packages/core-agents"],
+
+    "@fresnel/core-context": ["@fresnel/core-context@workspace:packages/core-context"],
+
+    "@fresnel/core-loop": ["@fresnel/core-loop@workspace:packages/core-loop"],
+
+    "@fresnel/core-models": ["@fresnel/core-models@workspace:packages/core-models"],
+
+    "@fresnel/core-persistence": ["@fresnel/core-persistence@workspace:packages/core-persistence"],
+
+    "@fresnel/core-tasks": ["@fresnel/core-tasks@workspace:packages/core-tasks"],
+
+    "@fresnel/core-tools": ["@fresnel/core-tools@workspace:packages/core-tools"],
+
+    "@fresnel/desktop": ["@fresnel/desktop@workspace:apps/desktop"],
+
+    "@fresnel/ext-host": ["@fresnel/ext-host@workspace:packages/ext-host"],
+
+    "@fresnel/group-account-rotation": ["@fresnel/group-account-rotation@workspace:packages/group-account-rotation"],
+
+    "@fresnel/group-helm": ["@fresnel/group-helm@workspace:packages/group-helm"],
+
+    "@fresnel/group-learning": ["@fresnel/group-learning@workspace:packages/group-learning"],
+
+    "@fresnel/group-provider-anthropic-oauth": ["@fresnel/group-provider-anthropic-oauth@workspace:packages/group-provider-anthropic-oauth"],
+
+    "@fresnel/group-sdk": ["@fresnel/group-sdk@workspace:packages/group-sdk"],
+
+    "@fresnel/host": ["@fresnel/host@workspace:apps/host"],
+
+    "@fresnel/platform-exec": ["@fresnel/platform-exec@workspace:packages/platform-exec"],
+
+    "@fresnel/platform-os": ["@fresnel/platform-os@workspace:packages/platform-os"],
+
+    "@fresnel/platform-process": ["@fresnel/platform-process@workspace:packages/platform-process"],
+
+    "@fresnel/platform-sandbox": ["@fresnel/platform-sandbox@workspace:packages/platform-sandbox"],
+
+    "@fresnel/platform-secrets": ["@fresnel/platform-secrets@workspace:packages/platform-secrets"],
+
+    "@fresnel/platform-store": ["@fresnel/platform-store@workspace:packages/platform-store"],
+
+    "@fresnel/provider-anthropic-oauth": ["@fresnel/provider-anthropic-oauth@workspace:plugins/provider-anthropic-oauth"],
+
+    "@fresnel/vendor-cordis": ["@fresnel/vendor-cordis@workspace:vendor/cordis"],
 
     "@google/genai": ["@google/genai@2.21.0", "", { "dependencies": { "google-auth-library": "^10.3.0", "p-retry": "^4.6.2", "protobufjs": "^7.5.4", "ws": "^8.18.0" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.25.2" }, "optionalPeers": ["@modelcontextprotocol/sdk"] }, "sha512-+PDtco2/Z0ONdzCGekCoCT+O1VJS9xJQNN4XzQpXG/t3El/SWWMkCWlFRO1KmivOHPa4Q0VjUYu1HBKCZ/v33Q=="],
 
@@ -1138,74 +1209,6 @@
     "@vscode/ripgrep-win32-ia32": ["@vscode/ripgrep-win32-ia32@1.18.0", "", { "os": "win32", "cpu": "ia32" }, "sha512-//rfAE+BOw5AC2EMmepmiE36jUuevtQYNQqqlw1s3m9FlRxjxEut97RkRPHAu9BG4mSojatZx+kXZXNdyI9caQ=="],
 
     "@vscode/ripgrep-win32-x64": ["@vscode/ripgrep-win32-x64@1.18.0", "", { "os": "win32", "cpu": "x64" }, "sha512-KNPvtElldqILHdnAetujPaowkNbpqJy3ssIGGN6F6Kve9Qi+nNLI2DN01O83JjCEVQbCzl8Ov3QZ9Eov3BR8Dg=="],
-
-    "@fresnel/cap-artifacts": ["@fresnel/cap-artifacts@workspace:packages/cap-artifacts"],
-
-    "@fresnel/cap-dialog": ["@fresnel/cap-dialog@workspace:packages/cap-dialog"],
-
-    "@fresnel/cap-knowledge": ["@fresnel/cap-knowledge@workspace:packages/cap-knowledge"],
-
-    "@fresnel/cap-mcp": ["@fresnel/cap-mcp@workspace:packages/cap-mcp"],
-
-    "@fresnel/cap-schedule": ["@fresnel/cap-schedule@workspace:packages/cap-schedule"],
-
-    "@fresnel/cap-web": ["@fresnel/cap-web@workspace:packages/cap-web"],
-
-    "@fresnel/cap-work": ["@fresnel/cap-work@workspace:packages/cap-work"],
-
-    "@fresnel/cap-workspace": ["@fresnel/cap-workspace@workspace:packages/cap-workspace"],
-
-    "@fresnel/cli": ["@fresnel/cli@workspace:apps/cli"],
-
-    "@fresnel/client": ["@fresnel/client@workspace:packages/client"],
-
-    "@fresnel/contracts": ["@fresnel/contracts@workspace:packages/contracts"],
-
-    "@fresnel/core-agents": ["@fresnel/core-agents@workspace:packages/core-agents"],
-
-    "@fresnel/core-context": ["@fresnel/core-context@workspace:packages/core-context"],
-
-    "@fresnel/core-loop": ["@fresnel/core-loop@workspace:packages/core-loop"],
-
-    "@fresnel/core-models": ["@fresnel/core-models@workspace:packages/core-models"],
-
-    "@fresnel/core-persistence": ["@fresnel/core-persistence@workspace:packages/core-persistence"],
-
-    "@fresnel/core-tasks": ["@fresnel/core-tasks@workspace:packages/core-tasks"],
-
-    "@fresnel/core-tools": ["@fresnel/core-tools@workspace:packages/core-tools"],
-
-    "@fresnel/desktop": ["@fresnel/desktop@workspace:apps/desktop"],
-
-    "@fresnel/ext-host": ["@fresnel/ext-host@workspace:packages/ext-host"],
-
-    "@fresnel/group-account-rotation": ["@fresnel/group-account-rotation@workspace:packages/group-account-rotation"],
-
-    "@fresnel/group-helm": ["@fresnel/group-helm@workspace:packages/group-helm"],
-
-    "@fresnel/group-learning": ["@fresnel/group-learning@workspace:packages/group-learning"],
-
-    "@fresnel/group-provider-anthropic-oauth": ["@fresnel/group-provider-anthropic-oauth@workspace:packages/group-provider-anthropic-oauth"],
-
-    "@fresnel/group-sdk": ["@fresnel/group-sdk@workspace:packages/group-sdk"],
-
-    "@fresnel/host": ["@fresnel/host@workspace:apps/host"],
-
-    "@fresnel/platform-exec": ["@fresnel/platform-exec@workspace:packages/platform-exec"],
-
-    "@fresnel/platform-os": ["@fresnel/platform-os@workspace:packages/platform-os"],
-
-    "@fresnel/platform-process": ["@fresnel/platform-process@workspace:packages/platform-process"],
-
-    "@fresnel/platform-sandbox": ["@fresnel/platform-sandbox@workspace:packages/platform-sandbox"],
-
-    "@fresnel/platform-secrets": ["@fresnel/platform-secrets@workspace:packages/platform-secrets"],
-
-    "@fresnel/platform-store": ["@fresnel/platform-store@workspace:packages/platform-store"],
-
-    "@fresnel/provider-anthropic-oauth": ["@fresnel/provider-anthropic-oauth@workspace:plugins/provider-anthropic-oauth"],
-
-    "@fresnel/vendor-cordis": ["@fresnel/vendor-cordis@workspace:vendor/cordis"],
 
     "@xmldom/xmldom": ["@xmldom/xmldom@0.9.12", "", {}, "sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A=="],
 
