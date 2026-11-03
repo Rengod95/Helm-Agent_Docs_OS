@@ -17,16 +17,22 @@ import type { UiStore } from "../state/ui/index.ts";
 import type { ApprovalDecision, CommandError, Commands } from "../views/commands.ts";
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
+import { createConnectionCommands } from "./connection.ts";
+import { createScheduleCommands } from "./schedule.ts";
+import { createSecretCommands } from "./secrets.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createWorkbenchCommands } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
+import type { LocalSettings } from "../settings-store/index.ts";
 import type { EngineSwitch } from "./engine-switch.ts";
 
 export type CommandDeps = {
   readonly session: Session;
-  /** 키 등록(`registerSecret`)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
-  readonly ipc: Pick<DesktopIpc, "registerSecret">;
+  /** 키 등록(`registerSecret`)과 엔진 대상 바꾸기(`retarget`)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
+  readonly ipc: Pick<DesktopIpc, "registerSecret" | "retarget">;
+  /** 데스크톱 로컬 설정. 원격 대상 목록을 읽고 쓴다(연결 화면) */
+  readonly local: Pick<LocalSettings, "load" | "get" | "set">;
   readonly engine: EngineStore;
   readonly ui: UiStore;
   readonly journal: Journal<ApplyNote>;
@@ -213,6 +219,15 @@ export function createCommands(deps: CommandDeps): Commands {
       },
       deps.ipc,
     ),
+    schedule: createScheduleCommands(withConnection),
+    connection: createConnectionCommands({
+      ipc: deps.ipc,
+      local: deps.local,
+      session,
+      ui,
+      run: withConnection,
+    }),
+    secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),

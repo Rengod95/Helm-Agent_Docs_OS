@@ -1,8 +1,9 @@
-import type { Result } from "@fresnel/contracts";
-import { parse } from "@fresnel/contracts";
+import { TARGETS_KEY } from "@fresnel/client";
+import { parse, type Result } from "@fresnel/contracts";
 import {
   Type,
   type Static,
+  type TArray,
   type TBoolean,
   type TInteger,
   type TLiteral,
@@ -12,6 +13,7 @@ import {
   type TSchema,
   type TString,
   type TUnion,
+  type TUnknown,
 } from "typebox";
 import type { DesktopIpc, IpcError } from "../transport/ipc.ts";
 
@@ -60,6 +62,8 @@ export const LOCAL: {
   readonly areaWorkbench: LocalKey<LocalPlaceSchema>;
   readonly keybindings: LocalKey<TRecord<string, TString>>;
   readonly searchHintDismissed: LocalKey<TBoolean>;
+  /** 연결 화면(P-08)의 원격 대상 목록. 값은 `targetsStorageOf`가 항목마다 검사한다 */
+  readonly connectionTargets: LocalKey<TArray<TUnknown>>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -73,6 +77,7 @@ export const LOCAL: {
   areaWorkbench: localKey("l4.desktop.window.area.workbench", PlaceSchema),
   keybindings: localKey("l4.desktop.appearance.keybindings", KeybindingsSchema),
   searchHintDismissed: localKey("l4.desktop.firstRun.searchHintDismissed", Type.Boolean()),
+  connectionTargets: localKey(TARGETS_KEY, Type.Array(Type.Unknown())),
 };
 
 type LocalSettingsError =

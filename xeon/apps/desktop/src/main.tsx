@@ -25,6 +25,7 @@ if (container === null) {
   const registry = createDesktopRegistry();
   const mac = navigator.platform.startsWith("Mac");
   const app = createApp({
+    localSettings,
     languages: navigator.languages.length > 0 ? navigator.languages : [navigator.language],
     onLocaleChange: (locale) => {
       rerender.current?.(locale);

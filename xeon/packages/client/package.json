@@ -16,7 +16,9 @@
     "./views/native": "./src/views/native/index.ts",
     "./views/app": "./src/views/app/index.ts",
     "./views/ledger": "./src/views/ledger.ts",
-    "./workbench/canvas": "./src/workbench/canvas/index.ts"
+    "./workbench/canvas": "./src/workbench/canvas/index.ts",
+    "./schedule": "./src/schedule/index.ts",
+    "./connection-targets": "./src/connection-targets/index.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
