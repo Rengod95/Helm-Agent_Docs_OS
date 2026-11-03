@@ -1,0 +1,5 @@
+/* P-21 구성기 진입 시안: caustic 스타일 + 공용 셸 CSS + wb-compose 블록. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../wb-compose/";

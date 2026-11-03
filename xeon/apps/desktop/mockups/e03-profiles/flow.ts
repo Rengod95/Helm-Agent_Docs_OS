@@ -63,7 +63,7 @@ export const BASE: Profile[] = [
   },
   {
     id: "review-trial",
-    title: "review 시험",
+    title: "review 테스트",
     enable: ["review", "web-exa"],
     disable: [],
     settings: [{ key: "ext.review.strict", value: "true" }],
@@ -295,7 +295,7 @@ export function reduce(s: S, a: A): S {
           L2(`"${p?.title ?? ""}"을 지웠어요`, `Deleted "${p?.title ?? ""}"`),
           "neutral",
           L2(
-            "시험 대화는 이미 적용한 값을 그대로 가져요",
+            "테스트 대화는 이미 적용한 값을 그대로 가져요",
             "Trial conversations keep the values already applied",
           ),
         ),

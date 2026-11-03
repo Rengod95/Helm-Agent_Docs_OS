@@ -1,6 +1,6 @@
-// 표 보기: 층 × 확장 지점 열지도 + 지표 표(인라인 스파크라인). 투명한 가운데 위(DP-01, DP-26).
+// 표 보기: 층 × 훅 열지도 + 지표 표(인라인 스파크라인). 투명한 가운데 위(DP-01, DP-26).
 // 칸 색 = 예산 대비 p95(로그 눈금, on 포트와 같은 아이리스 한 색상), 예산을 넘으면 danger 면, 실패는 모서리 점과 수.
-// 열은 캔버스 지점 열과 같은 루프 순서·가족 묶음이라 지도와 표가 한 체계로 읽힌다.
+// 열은 캔버스 훅 열과 같은 루프 순서·가족 묶음이라 지도와 표가 한 체계로 읽힌다.
 import { SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { useState } from "react";
 import { LayoutGrid, Rows3 } from "../../_shell";
@@ -26,8 +26,8 @@ export function TableScreen() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6">
       <div className="flex h-12 flex-none items-center gap-3">
-        <h1 className="text-title-4 text-text-primary">층 × 지점</h1>
-        <span className="text-ui-xs text-text-tertiary">지난 7일 · 핸들러가 걸린 지점 7/46</span>
+        <h1 className="text-title-4 text-text-primary">층 × 훅</h1>
+        <span className="text-ui-xs text-text-tertiary">지난 7일 · 핸들러가 걸린 훅 7/46</span>
         <div className="ms-auto flex items-center gap-1.5">
           <SegmentedControl
             aria-label="값"
@@ -47,7 +47,7 @@ export function TableScreen() {
             onValueChange={(v) => v === "map" && m.set({ screen: "map" })}
           >
             <SegmentedControlItem value="map" aria-label="지도" icon={<LayoutGrid />} />
-            <SegmentedControlItem value="table" aria-label="층 × 지점 표" icon={<Rows3 />} />
+            <SegmentedControlItem value="table" aria-label="층 × 훅 표" icon={<Rows3 />} />
           </SegmentedControl>
         </div>
       </div>
@@ -56,7 +56,7 @@ export function TableScreen() {
       <div className="overflow-x-auto">
         <div
           role="table"
-          aria-label="층 × 지점 열지도"
+          aria-label="층 × 훅 열지도"
           className="grid w-max gap-x-1 gap-y-1"
           style={{ gridTemplateColumns: `160px repeat(${SOCKETS.length}, 84px) 92px` }}
         >
@@ -111,7 +111,7 @@ export function TableScreen() {
                   {lane}
                 </span>
                 <span className="text-ui-xs text-text-tertiary">
-                  {lane === "L3" ? "의도 그룹" : "외부 확장"}
+                  {lane === "L3" ? "플러그인 그룹" : "외부 확장"}
                 </span>
               </div>
               {HEAT_ROWS.filter((r) => r.lane === lane).map((r) => {
@@ -257,7 +257,7 @@ export function TableScreen() {
         className="grid w-full max-w-[880px] items-center gap-x-4"
         style={{ gridTemplateColumns: "minmax(140px,1.4fr) 110px 70px 64px 110px 54px 54px" }}
       >
-        {["확장", "토큰", "비용", "임대", "p95 추이", "실패", "거부"].map((h, i) => (
+        {["확장", "토큰", "비용", "주도", "p95 추이", "실패", "거부"].map((h, i) => (
           <div
             key={h}
             role="columnheader"

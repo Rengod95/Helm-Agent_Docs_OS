@@ -1,5 +1,5 @@
-// 턴 다시 보기 막대(§6.22.5): 재생·멈춤, 앞·다음 발화, 눈금 줄(눈금 하나 = 지점 하나의 발화, 높이 = 돈 핸들러 수,
-// 실패 표지, 단계 사이 표지), seq·지점, 아래 줄은 핸들러마다 확장 이름 + 시간/예산 + 결과.
+// 턴 다시 보기 막대(§6.22.5): 재생·멈춤, 앞·다음 발화, 눈금 줄(눈금 하나 = 훅 하나의 발화, 높이 = 돈 핸들러 수,
+// 실패 표지, 단계 사이 표지), seq·훅, 아래 줄은 핸들러마다 확장 이름 + 시간/예산 + 결과.
 // caustic 빈틈: 눈금 줄 슬라이더(Slider는 값 하나, 눈금마다 높이·표지가 없다) [gap:C-17 Timeline·Sparkline 계열].
 // 눈금 줄은 role="slider"이고 화살표로 옮긴다. 재생은 1.1초마다 다음 발화(제안).
 // 잠김: 계측(x.operations.trace.enabled)이 꺼져 있으면 막대 대신 한 줄 + "설정에서 켜기"(결정 캔버스 5).
@@ -34,9 +34,6 @@ export function TurnReplayLocked({
         {evicted
           ? `이 ${T.turn}의 기록은 남아 있지 않아요`
           : `${josa(T.instrumentation, "이", "가")} 꺼져 있어 ${josa(T.turnReplay, "을", "를")} 쓸 수 없어요`}
-      </span>
-      <span className="text-ui-xs text-text-tertiary">
-        {evicted ? "대화마다 최근 8턴만 남겨요" : "x.operations.trace.enabled"}
       </span>
       {!evicted && onSettings !== undefined && (
         <Button size="xs" tone="neutral" variant="ghost" className="ms-auto" onClick={onSettings}>
@@ -150,22 +147,16 @@ export function TurnReplayBar({
           ))}
         </div>
         <span className="flex-none font-mono text-mono-sm tabular-nums text-text-tertiary">
-          {T.turn} {turn} · seq {t.seq}
+          {T.turn} {turn}
         </span>
       </div>
       <div className="grid gap-0.5 ps-1">
         <div className="flex min-w-0 items-baseline gap-2 text-ui-dense">
           <span className="text-text-primary">{t.point}</span>
-          <span className="font-mono text-mono-sm text-text-tertiary">{t.fold}</span>
           {t.boundary === true && (
             <Badge size="xs" tone="neutral" variant="soft">
               {T.stepBoundary}
             </Badge>
-          )}
-          {t.failed === true && t.fold === "first" && (
-            <span className="text-ui-xs text-text-tertiary">
-              닫힌 지점의 예외는 거부로 처리해요
-            </span>
           )}
         </div>
         {t.handlers.map((h) => (
@@ -174,10 +165,7 @@ export function TurnReplayBar({
               {h.result === "ok" ? <CircleCheck /> : <CircleX />}
             </ToneIcon>
             <ExtName id={h.ext} />
-            <span className="ms-auto font-mono text-mono-sm tabular-nums text-text-secondary">
-              {h.ms} / {h.budget}
-            </span>
-            <span className="w-10 text-end text-ui-xs text-text-tertiary">
+            <span className="w-10 ms-auto text-end text-ui-xs text-text-tertiary">
               {h.result === "ok" ? "허용" : h.result === "deny" ? "거부" : "예외"}
             </span>
           </div>

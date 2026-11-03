@@ -14,13 +14,13 @@ export interface StatusOptions {
   /** 연결 칸을 바꿀 때(예: 다시 맞추는 중). */
   link?: StatusCell | undefined;
   /** 런타임 칸(§14.3): "drive helm", "확장 실패 1". 주면 옛 "Helm" 칸 대신 이 칸들을 보인다.
-   *  누르면 대화 영역이면 런타임 탭, 작업대면 개요(onOpen이 정한다, §4.9.5). */
+   *  누르면 대화 영역이면 런타임 탭, 크래프트면 개요(onOpen이 정한다, §4.9.5). */
   runtime?:
     | {
         drive: string | null;
         extFailures: number;
         onOpen: () => void;
-        /** 사람 확인(loop.ask)을 기다리며 진행권을 반납한 그룹(X-17). 주면 진행 칸이 "<그룹> 확인 기다림". */
+        /** 사람 확인(loop.ask)을 기다리며 주도를 반납한 그룹(X-17). 주면 진행 칸이 "<그룹> 확인 기다림". */
         waiting?: string | undefined;
         /** 진행 칸 Popover 둘째 줄(상한 사용량 등). */
         detail?: string | undefined;
@@ -116,7 +116,7 @@ export function defaultStatusCells(m: StatusOptions): { start: StatusCell[]; end
         id: "target",
         text: L(status.target),
         title: L("대상"),
-        description: L("이 창은 이 컴퓨터의 로컬 사이드카 엔진에 붙어 있어요."),
+        description: L("이 창은 이 컴퓨터의 로컬 앱 안 엔진 엔진에 붙어 있어요."),
       },
       m.engine ?? {
         id: "engine",

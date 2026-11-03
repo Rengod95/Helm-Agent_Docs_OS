@@ -1,11 +1,11 @@
-// 목업 로컬 상태: 지금 작업대 화면, 대화 맥락, 화면별 고른 값. 엔진·wire를 부르지 않는다.
+// 목업 로컬 상태: 지금 크래프트 화면, 대화 맥락, 화면별 고른 값. 엔진·wire를 부르지 않는다.
 // ?state=S1..S14가 처음 값을 정한다(스펙 §14.6의 S12~S15는 여기 S1·S5·S8·S12, NOTES 표).
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { profiles as baseProfiles, type Profile } from "./fixtures";
 
 export const STATES = [
   { id: "S1", label: "S1 W6 replay 실패 상세" },
-  { id: "S2", label: "S2 W6 새 시험(O-12)" },
+  { id: "S2", label: "S2 W6 새 테스트(O-12)" },
   { id: "S3", label: "S3 W6 bench · 시작 실패" },
   { id: "S4", label: "S4 W6 빈" },
   { id: "S5", label: "S5 W7 기본" },
@@ -21,7 +21,7 @@ export const STATES = [
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];
 
-/** 작업대 내비 id(§4.9.3). 이 시안이 그리는 것은 trials·metrics·compose·create 넷. */
+/** 크래프트 내비 id(§4.9.3). 이 시안이 그리는 것은 trials·metrics·compose·create 넷. */
 export type Screen =
   | "overview"
   | "extensions"
@@ -95,7 +95,7 @@ function initOf(s: StateId): Init {
   }
 }
 
-/** 셸의 처음 작업대 대화 맥락(t1 = 캐시 무효화 조사, null = 전체). 셸 상태가 정본이고 store는 처음 값만 준다. */
+/** 셸의 처음 크래프트 대화 맥락(t1 = 캐시 무효화 조사, null = 전체). 셸 상태가 정본이고 store는 처음 값만 준다. */
 export const initialContextOf = (s: StateId): string | null =>
   initOf(s).context === "cache" ? "t1" : null;
 

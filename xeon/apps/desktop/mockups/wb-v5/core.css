@@ -1,0 +1,36 @@
+/* 코어(구체) 스타일. 구체는 캔버스가 그리고, 단추는 고르기·호버·초점만 맡는다. 행성 클래스(mockup.css)는 WebGL이 없을 때의 대역이다. */
+.wb5-core-canvas {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  transition: transform var(--wb5-spring-t) var(--wb5-spring);
+}
+.wb5-core-hit {
+  transition:
+    transform var(--wb5-spring-t) var(--wb5-spring),
+    box-shadow 0.3s;
+}
+/* 올리면 단추와 구체가 같이 1.04배로 앉는다 */
+.wb5-core-hit:hover {
+  transform: scale(1.04);
+}
+.wb5-core-hit:hover ~ .wb5-core-canvas {
+  transform: scale(1.04);
+}
+/* 고른 것: 면 색으로 띄운 잉크 고리(행성과 같은 치수) */
+.wb5-core-on {
+  box-shadow:
+    0 0 0 4px var(--cs-color-surface-base),
+    0 0 0 5.5px var(--cs-color-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb5-core-hit,
+  .wb5-core-canvas {
+    transition-duration: 0.01ms;
+  }
+  .wb5-core-hit:hover,
+  .wb5-core-hit:hover ~ .wb5-core-canvas {
+    transform: none;
+  }
+}

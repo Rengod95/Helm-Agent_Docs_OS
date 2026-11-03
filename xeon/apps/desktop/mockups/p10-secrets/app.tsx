@@ -1,7 +1,7 @@
-// P-10 비밀: 값 없는 목록 + 고른 비밀의 상세(ListDescription) + 값 보기 흐름(O-05 재인증 → 30초 표시 → 자동 가림) + 추가 + 삭제(O-06).
+// P-10 시크릿: 값 없는 목록 + 고른 시크릿의 상세(ListDescription) + 값 보기 흐름(O-05 재인증 → 30초 표시 → 자동 가림) + 추가 + 삭제(O-06).
 import { Button, EmptyState, Menu, MenuItem, MenuSeparator } from "@caustic/react";
 import { useState } from "react";
-import { Ellipsis, FlaskConical, KeyRound, Pencil, Plus, Trash2 } from "../_shell";
+import { Ellipsis } from "../_shell";
 import { SettingsFrame } from "../_settings/frame";
 import { gotoTabPage, type TabId } from "../_settings/tabs";
 import { AddDialog, DeleteDialog, ReauthDialog } from "./dialogs";
@@ -54,17 +54,10 @@ export function App({ state }: { state: State }) {
       <SettingsFrame
         tab="secrets"
         onTabSelect={onTabSelect}
-        meta={empty ? undefined : `${secrets.length}개`}
         modalOpen={reauthOpen || addOpen || deleteOpen}
         actions={
           empty ? undefined : (
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="outline"
-              iconStart={<Plus />}
-              onClick={() => setAddOpen(true)}
-            >
+            <Button size="xs" tone="neutral" variant="outline" onClick={() => setAddOpen(true)}>
               추가
             </Button>
           )
@@ -74,17 +67,9 @@ export function App({ state }: { state: State }) {
           <EmptyState
             size="sm"
             surface="none"
-            icon={<KeyRound />}
-            title="등록된 비밀이 없어요"
-            description="API 키와 토큰을 값 없이 이름으로 써요."
+            title="등록된 시크릿이 없어요"
             actions={
-              <Button
-                size="sm"
-                tone="neutral"
-                variant="solid"
-                iconStart={<Plus />}
-                onClick={() => setAddOpen(true)}
-              >
+              <Button size="sm" tone="neutral" variant="solid" onClick={() => setAddOpen(true)}>
                 추가
               </Button>
             }
@@ -100,14 +85,14 @@ export function App({ state }: { state: State }) {
               onHide={() => setReveal("hidden")}
               actions={
                 <>
-                  <Button size="xs" tone="neutral" variant="ghost" iconStart={<Pencil />}>
+                  <Button size="xs" tone="neutral" variant="ghost">
                     메타 고치기
                   </Button>
-                  <Button size="xs" tone="neutral" variant="ghost" iconStart={<KeyRound />}>
+                  <Button size="xs" tone="neutral" variant="ghost">
                     값 바꾸기
                   </Button>
-                  <Button size="xs" tone="neutral" variant="ghost" iconStart={<FlaskConical />}>
-                    시험
+                  <Button size="xs" tone="neutral" variant="ghost">
+                    테스트
                   </Button>
                   <Menu
                     align="end"
@@ -126,7 +111,7 @@ export function App({ state }: { state: State }) {
                     <MenuItem>이름 복사</MenuItem>
                     <MenuItem>참조 보기</MenuItem>
                     <MenuSeparator />
-                    <MenuItem icon={<Trash2 />} tone="danger" onSelect={() => setDeleteOpen(true)}>
+                    <MenuItem tone="danger" onSelect={() => setDeleteOpen(true)}>
                       삭제
                     </MenuItem>
                   </Menu>

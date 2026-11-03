@@ -1,5 +1,5 @@
 // 맥락 차이: 두 맥락 프레임(지금 대화 ↔ 프로필)을 나란히 두고 같은 확장을 같은 줄에 맞춘다. 가운데 홈에 차이 표지(+ − ~).
-// 프레임 색: 대화 = 아이리스 실선(실제로 도는 맥락), 프로필 = 잉크 점선(가정), 시험 = 금색(떨어진 실행). 표지 색은 diff 토큰.
+// 프레임 색: 대화 = 아이리스 실선(실제로 도는 맥락), 프로필 = 잉크 점선(가정), 테스트 = 금색(떨어진 실행). 표지 색은 diff 토큰.
 import { Button } from "@caustic/react";
 import type { ReactNode } from "react";
 import { MessageSquare, Play, Layers } from "../../_shell";
@@ -126,7 +126,7 @@ function Frame({
 export function DiffScreen() {
   const m = useMock();
   const lanes = ["L3", "plugin", "L2"];
-  const laneName: Record<string, string> = { L3: "의도 그룹", plugin: "외부 확장", L2: "능력" };
+  const laneName: Record<string, string> = { L3: "플러그인 그룹", plugin: "외부 확장", L2: "기능" };
   return (
     <div className="v2b-grid flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6">
       <div className="flex h-12 flex-none items-center gap-3">
@@ -149,9 +149,9 @@ export function DiffScreen() {
             tone="neutral"
             variant="soft"
             iconStart={<Play />}
-            onClick={() => m.notify("프로필로 시험 대화를 만들어요")}
+            onClick={() => m.notify("프로필로 테스트 대화를 만들어요")}
           >
-            시험 대화로
+            테스트 대화로
           </Button>
           <Button
             size="sm"

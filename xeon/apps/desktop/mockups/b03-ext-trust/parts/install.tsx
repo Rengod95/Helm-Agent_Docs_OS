@@ -64,7 +64,7 @@ export function InstallDialog({
       title={`${T.extension} ${T.install}`}
       description={
         step === "pick"
-          ? `${T.installFolder}나 ${josa(T.installBundle, "을", "를")} 골라요. ${T.installCheck} 뒤 ${T.trustConfirm}로 이어져요.`
+          ? `${T.installFolder}나 ${josa(T.installBundle, "을", "를")} 골라요. ${T.installCheck} 뒤 ${T.trustConfirm}으로 이어져요.`
           : undefined
       }
       footer={

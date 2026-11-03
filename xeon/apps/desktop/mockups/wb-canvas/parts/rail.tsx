@@ -1,5 +1,5 @@
 // 띠(층)와 레일. 층마다 한 띠, 띠 사이는 8px 틈과 바탕 단계로만 나눈다(선 없음, DP-03).
-// X 띠의 지점 레일: 지점 종류 일곱 칸, 핸들러가 걸린 지점만 이름(꾸밈 없는 글자, DP-31)과 fold 모양 포트를 보인다.
+// X 띠의 훅 레일: 훅 종류 일곱 칸, 핸들러가 걸린 훅만 이름(꾸밈 없는 글자, DP-31)과 fold 모양 포트를 보인다.
 // fold 모양: collect 고리, first 마름모(관문), chain 네모, tap 점.
 import type { ReactNode } from "react";
 import {
@@ -137,15 +137,15 @@ export function PointRail({
   usedBy,
   dimOthers,
 }: {
-  /** 재생 중 지금 발화한 지점. */
+  /** 재생 중 지금 발화한 훅. */
   activePoint?: string | null;
-  /** 지점마다 이 맥락에서 핸들러를 건 확장 수. */
+  /** 훅마다 이 맥락에서 핸들러를 건 확장 수. */
   usedBy: Record<string, number>;
   dimOthers?: boolean;
 }) {
   return (
     <div
-      aria-label="확장 지점 46"
+      aria-label="훅 46"
       role="group"
       className="absolute"
       style={{ left: POINT_RAIL.x, top: POINT_RAIL.y }}
@@ -202,14 +202,14 @@ export function PointRail({
   );
 }
 
-/** group-kit 레일: 그룹 블록이 놓이는 바닥. 확장이 아니라 라이브러리라 고를 수 없다. */
+/** group-sdk 레일: 그룹 블록이 놓이는 바닥. 확장이 아니라 라이브러리라 고를 수 없다. */
 export function GroupKitRail({ absent }: { absent?: boolean }) {
   return (
     <div
       className={`absolute flex items-center gap-3 rounded-md px-2.5 text-ui-xs ${absent === true ? "text-text-tertiary opacity-60" : "text-text-tertiary"} bg-neutral-track`}
       style={{ left: GROUP_KIT.x, top: GROUP_KIT.y, width: GROUP_KIT.w, height: GROUP_KIT.h }}
     >
-      <span className="font-mono text-mono-sm text-text-secondary">group-kit</span>
+      <span className="font-mono text-mono-sm text-text-secondary">group-sdk</span>
       <span>defineGroup</span>
       <span>DriveArbiter</span>
       <span>replayDrive</span>

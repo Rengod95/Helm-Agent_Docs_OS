@@ -5,9 +5,9 @@ import { EXTS, THREAD_MEMBERS, THREAD_PENDING, type Ext } from "../data";
 import { ExtIcon, Face, PortGlyph } from "./kit";
 
 const GROUPS: { lane: Ext["layer"]; tag: string; title: string }[] = [
-  { lane: "L3", tag: "L3", title: "의도 그룹" },
+  { lane: "L3", tag: "L3", title: "플러그인 그룹" },
   { lane: "plugin", tag: "plugin", title: "외부 확장" },
-  { lane: "L2", tag: "L2", title: "능력" },
+  { lane: "L2", tag: "L2", title: "기능" },
   { lane: "L1·L0", tag: "L1·L0", title: "코어" },
 ];
 

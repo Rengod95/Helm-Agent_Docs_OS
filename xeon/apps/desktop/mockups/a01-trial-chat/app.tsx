@@ -1,6 +1,6 @@
-// 시험 대화 화면(P-02 위, §6.30): 머리 "시험" 표지 + 적용 프로필 + 대상 확장, 런타임 줄, 입력창 위 시험 제어 띠
-// (실행 중 → 멈추는 중 → 단계 사이에서 멈춤·진행권 유지 → 한 단계씩 / 이어서 → 끝 → 끝난 시험 지우기),
-// 왼쪽 목록의 "시험" 묶음(실행 중·멈춤 표지), 오른쪽 런타임 탭(진행권, 시험 표지, 경계 기록).
+// 테스트 대화 화면(P-02 위, §6.30): 머리 "테스트" 표지 + 적용 프로필 + 대상 확장, 런타임 줄, 입력창 위 테스트 제어 띠
+// (실행 중 → 멈추는 중 → 단계 사이에서 멈춤·주도 유지 → 한 단계씩 / 이어서 → 끝 → 끝난 테스트 지우기),
+// 왼쪽 목록의 "테스트" 묶음(실행 중·멈춤 표지), 오른쪽 런타임 탭(주도, 테스트 표지, 경계 기록).
 import { Badge, EmptyState, Message, Toaster, toast } from "@caustic/react";
 import { useState } from "react";
 import {
@@ -47,13 +47,13 @@ function CompactBand(props: Parameters<typeof FullBand>[0]) {
 
 export const STATES = [
   { id: "paused", label: "멈춤(단계 사이)" },
-  { id: "draft", label: "새 시험 대화" },
+  { id: "draft", label: "새 테스트 대화" },
   { id: "running", label: "실행 중" },
   { id: "pausing", label: "멈추는 중" },
   { id: "stepping", label: "한 단계씩" },
   { id: "queued", label: "멈춤 중 입력 큐" },
   { id: "finished", label: "끝" },
-  { id: "cleared", label: "끝난 시험 지움" },
+  { id: "cleared", label: "끝난 테스트 지움" },
   { id: "disabled", label: "대상 자동 꺼짐" },
   { id: "narrow", label: "좁은 폭(390)" },
 ] as const;
@@ -73,8 +73,8 @@ const AT: Record<StateId, { script: string; n: number }> = {
 };
 
 const SCENARIOS = [
-  { id: "trial-pause-resume", label: "시험: 멈춤→한 단계→이어서→끝" },
-  { id: "trial-queue", label: "시험: 멈춘 동안 입력은 큐로" },
+  { id: "trial-pause-resume", label: "테스트: 멈춤→한 단계→이어서→끝" },
+  { id: "trial-queue", label: "테스트: 멈춘 동안 입력은 큐로" },
   { id: "trial-autodisable", label: "실패: 대상 자동 꺼짐" },
 ];
 
@@ -150,7 +150,7 @@ function runtimeData(s: S): RuntimeData {
         : s.phase === "stepping"
           ? `한 ${T.step}씩`
           : s.phase === "disabled"
-            ? `${T.autoDisabled}로 멈춤`
+            ? `${T.autoDisabled}으로 멈춤`
             : s.phase === "finished"
               ? "끝"
               : "실행 중";
@@ -189,7 +189,7 @@ function runtimeData(s: S): RuntimeData {
         layer: "L3",
         name: "learning",
         state: `빠짐 · ${T.trialThread}`,
-        points: ["session.end", "turn.end"],
+        points: ["thread.end", "turn.end"],
       },
       { layer: "L2", name: "web-exa", state: "켜짐", points: ["capability web.search"] },
     ],
@@ -258,7 +258,7 @@ export function App({ state }: { state: StateId }) {
   const listed = items.filter(
     (t) => !(t.trial?.state === "done" && (othersCleared || s.phase === "cleared")),
   );
-  // 띠의 "끝난 시험 지우기"는 이 시험까지, 목록 묶음의 것은 이미 끝난 다른 시험만(확인 대화 상자는 a00-nav-context).
+  // 띠의 "끝난 테스트 지우기"는 이 테스트까지, 목록 묶음의 것은 이미 끝난 다른 테스트만(확인 대화 상자는 a00-nav-context).
   const clear = () => {
     const n = items.filter((t) => t.trial?.state === "done").length;
     dispatch({ t: "clear" });
@@ -317,7 +317,7 @@ export function App({ state }: { state: StateId }) {
         <TrialBand
           tone="danger"
           icon={<CircleAlert />}
-          text={`${EXT.helm}이 ${T.autoDisabled}이라 ${T.trial}을 멈췄어요`}
+          text={`${EXT.helm}이 ${T.autoDisabled}이라 ${T.trial}를 멈췄어요`}
           meta="연속 실패 5"
           actions={actions([
             {
@@ -337,7 +337,7 @@ export function App({ state }: { state: StateId }) {
       <TrialBand
         tone="success"
         icon={<FlaskConical />}
-        text={`${T.trial}이 끝났어요`}
+        text={`${T.trial}가 끝났어요`}
         meta={`${T.step} ${TOTAL} · 실패 0`}
         actions={actions([
           {
@@ -394,7 +394,7 @@ export function App({ state }: { state: StateId }) {
       </div>
     ) : current !== TRIAL_ID ? (
       <div className="grid min-h-0 flex-1 place-items-center">
-        <EmptyState surface="none" title="이 목업은 시험 대화만 그려요" />
+        <EmptyState surface="none" title="이 목업은 테스트 대화만 그려요" />
       </div>
     ) : (
       <ChatStage

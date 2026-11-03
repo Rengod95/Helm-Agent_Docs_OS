@@ -1,7 +1,7 @@
-// 작업대 가운데 대역(stand-in): 보기 기준 네 값(전체·대화·프로필·시험)이 같은 화면을 어떻게 바꾸는지 보이는 확장 목록.
+// 크래프트 가운데 대역(stand-in): 보기 기준 네 값(전체·대화·프로필·테스트)이 같은 화면을 어떻게 바꾸는지 보이는 확장 목록.
 // P-16 개요(목록 + 캔버스)는 캔버스 v3 결정 대기라 여기서 그리지 않는다. 이 목록은 그 "목록 옆 패널"의 자리만 빌린다.
 // 표는 투명한 가운데 위에 바로(DP-26), 머리 tertiary, 행 사이 선 없음, 층은 mono 열(DP-31), 확장 id는 mono(DP-39).
-// 프로필 기준은 "적용했다면"이라 바뀌는 칸에만 "→" 표지를 붙이고(덮어쓴 것), 시험 기준은 시험이 덮어쓴 칸에 같은 표지를 붙인다.
+// 프로필 기준은 "적용했다면"이라 바뀌는 칸에만 "→" 표지를 붙이고(덮어쓴 것), 테스트 기준은 테스트가 덮어쓴 칸에 같은 표지를 붙인다.
 import { Alert, Badge, Button } from "@caustic/react";
 import {
   CircleAlert,
@@ -24,7 +24,7 @@ interface Row {
   name: string;
   state: string;
   tone?: Tone;
-  /** 이 기준이 덮어쓴 값(프로필·시험). */
+  /** 이 기준이 덮어쓴 값(프로필·테스트). */
   over?: string;
   note?: string;
 }
@@ -105,7 +105,7 @@ function sub(c: WorkbenchContext): string {
   if (c.kind === "thread") return `이 ${T.thread}에서 켜진 것 · ${T.turn} 3 기준 · 14:05`;
   if (c.kind === "profile")
     return `이 ${josa(T.profile, "을", "를")} 적용했다면의 모습 · 바뀌는 칸에만 → 표시`;
-  return `${T.trialThread}의 실제 상태 · ${T.trial}이 덮어쓴 칸에 → 표시`;
+  return `${T.trialThread}의 실제 상태 · ${T.trial}가 덮어쓴 칸에 → 표시`;
 }
 
 export function ContextView({ title }: { title: string }) {

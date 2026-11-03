@@ -26,17 +26,18 @@ export function ShadowedScopes({
           aria-hidden
           className={`size-icon-xs transition-transform duration-quick ${open ? "rotate-90" : ""}`}
         />
-        다른 범위 값 {rows.length}개가 가려져 있어요
+        다른 범위 값이 가려져 있어요
       </button>
       {open && (
         <div className="grid gap-1 ps-4">
           {rows.map((r) => (
-            <div key={r.scope} className="flex min-w-0 items-center gap-2 text-ui-sm">
+            <div
+              key={r.scope}
+              title={r.path}
+              className="flex min-w-0 items-center gap-2 text-ui-sm"
+            >
               <span className="w-14 flex-none text-text-tertiary">{r.scope}</span>
               <span className="font-mono text-mono-sm text-text-primary">{r.value}</span>
-              <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-                {r.path}
-              </span>
               <Button
                 size="xs"
                 tone="neutral"
@@ -54,13 +55,12 @@ export function ShadowedScopes({
   );
 }
 
-/** 관리 정책 잠금 문장(lockInfo). */
-export function LockNote({ path }: { path: string }) {
+/** 관리 정책 잠금 문장(lockInfo). 정책 파일 경로는 툴팁(title)으로만. */
+export function LockNote({ path = "/etc/fresnel/managed.json" }: { path?: string }) {
   return (
-    <p className="m-0 flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary">
+    <p title={path} className="m-0 flex min-w-0 items-center gap-1.5 text-ui-sm text-text-tertiary">
       <Lock aria-hidden className="size-icon-xs flex-none" />
-      <span className="flex-none">관리 정책으로 잠겨 있어요</span>
-      <span className="min-w-0 truncate font-mono text-mono-sm">{path}</span>
+      <span className="flex-none">관리 정책으로 잠김</span>
     </p>
   );
 }

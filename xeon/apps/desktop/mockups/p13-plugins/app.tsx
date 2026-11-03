@@ -1,12 +1,11 @@
-// P-13 플러그인과 그룹: 런타임 표면. Xeon은 층별 플러그인(F/X/L0~L3)과 L3 의도 그룹으로 조립되므로, 이 화면은
-//   1) 이 대화에서 켜진 그룹, drive 임대를 가진 그룹, 다음 단계 경계에 걸린 전환
-//   2) L3 의도 그룹(내장·사용자·프로젝트): 확장 지점(on·post·drive·scope), drive 상태, 자동 끄기·신뢰·안전 모드, 그룹 설정
+// P-13 플러그인과 그룹: 런타임 표면. Fresnel은 층별 플러그인(F/X/L0~L3)과 L3 플러그인 그룹으로 조립되므로, 이 화면은
+//   1) 이 대화에서 켜진 그룹, 주도를 가진 그룹, 다음 단계 경계에 걸린 전환
+//   2) L3 플러그인 그룹(내장·사용자·프로젝트): 훅(on·post·drive·scope), drive 상태, 자동 끄기·신뢰·안전 모드, 그룹 설정
 //   3) 층별 플러그인(L2·L1·L0)
 //   4) 핸들러 실패 기록(scope.handler_failed)
-// 과 그룹 만들기(xeon group new) · 다시 불러오기를 한곳에 둔다.
+// 과 그룹 만들기 · 다시 불러오기를 한곳에 둔다.
 import {
   Alert,
-  Badge,
   Button,
   Dialog,
   DialogClose,
@@ -24,17 +23,7 @@ import {
   Switch,
 } from "@caustic/react";
 import { useState } from "react";
-import {
-  CircleAlert,
-  Compass,
-  Copy,
-  Lightbulb,
-  Package,
-  Plus,
-  RotateCw,
-  Terminal,
-  useShell,
-} from "../_shell";
+import { CircleAlert, useShell } from "../_shell";
 import { SettingsFrame } from "../_settings/frame";
 import { SettingRow, SettingSection } from "../_settings/row";
 import { gotoTabPage, type TabId } from "../_settings/tabs";
@@ -60,13 +49,7 @@ function ThisThread({ safe }: { safe: boolean }) {
     <SettingSection
       title="이 대화 · 캐시 무효화 조사"
       end={
-        <Button
-          size="xs"
-          tone="neutral"
-          variant="ghost"
-          iconStart={<Compass />}
-          onClick={() => shell.openEnd("helm")}
-        >
+        <Button size="xs" tone="neutral" variant="ghost" onClick={() => shell.openEnd("helm")}>
           탐구 보기
         </Button>
       }
@@ -79,15 +62,13 @@ function ThisThread({ safe }: { safe: boolean }) {
             "Helm · 학습은 다음 단계 경계에 켜져요"
           )}
         </ListDescriptionRow>
-        <ListDescriptionRow term="drive 임대">
+        <ListDescriptionRow term="주도">
           {safe ? (
             <span className="text-text-tertiary">없음</span>
           ) : (
             <span className="flex flex-wrap items-center gap-x-2">
               <span className="font-medium">Helm</span>
-              <span className="text-text-tertiary">
-                임대 차수 3 · 턴 1/4 · spawn 2/8 · 렌즈 3 실행 중
-              </span>
+              <span className="text-text-tertiary">렌즈 3 실행 중</span>
             </span>
           )}
         </ListDescriptionRow>
@@ -104,9 +85,6 @@ function ThisThread({ safe }: { safe: boolean }) {
               <SelectOption value="group-helm">Helm</SelectOption>
               <SelectOption value="review">review</SelectOption>
             </Select>
-            <span className="font-mono text-mono-sm text-text-tertiary">
-              x.primitives.activeDriveGroup · 대화
-            </span>
           </span>
         </ListDescriptionRow>
       </ListDescription>
@@ -150,14 +128,14 @@ function HelmSettings({ error }: { error: boolean }) {
       >
         <Switch size="sm" aria-label="자식 쓰기 거부" defaultChecked />
       </SettingRow>
-      <SettingRow label="임대 상한" k="x.primitives.driveLimits" scope="default" apply="boundary">
+      <SettingRow label="주도 상한" k="x.primitives.driveLimits" scope="default" apply="boundary">
         <div className="flex items-center gap-3 text-ui-sm text-text-tertiary">
           턴
           <NumberField
             appearance="stepper"
             containerClassName="w-28"
             size="xs"
-            aria-label="임대 턴 상한"
+            aria-label="주도 턴 상한"
             defaultValue={4}
           />
           spawn
@@ -165,7 +143,7 @@ function HelmSettings({ error }: { error: boolean }) {
             appearance="stepper"
             containerClassName="w-28"
             size="xs"
-            aria-label="임대 spawn 상한"
+            aria-label="주도 spawn 상한"
             defaultValue={8}
           />
         </div>
@@ -195,20 +173,11 @@ function FailureDetail({ open }: { open: boolean }) {
         aria-label="실패 자세히"
         className={`${ld} [--cs-size-list-term:5.5rem]`}
       >
-        <ListDescriptionRow term="지점" mono>
-          tool.call.before
-        </ListDescriptionRow>
-        <ListDescriptionRow term="오류" mono>
-          handler_timeout · 2000ms
-        </ListDescriptionRow>
-        <ListDescriptionRow term="기준">연속 5번 (최근 50번 중 7번)</ListDescriptionRow>
-        <ListDescriptionRow term="위치" mono>
-          src/index.ts:42
-        </ListDescriptionRow>
+        <ListDescriptionRow term="기준">연속 5번</ListDescriptionRow>
         <ListDescriptionRow term="마지막">3분 전</ListDescriptionRow>
       </ListDescription>
       <div className="flex justify-end gap-1 pt-2">
-        <Button size="xs" tone="neutral" variant="ghost" iconStart={<Copy />}>
+        <Button size="xs" tone="neutral" variant="ghost">
           진단 복사
         </Button>
         <Button size="xs" tone="neutral" variant="outline">
@@ -233,7 +202,6 @@ function NewGroupDialog({
       open={open}
       onOpenChange={onOpenChange}
       title="그룹 만들기"
-      description="그룹은 루프에 on·post·drive·scope로 붙는 L3 확장이에요. 터미널에서 뼈대를 만들고 고친 뒤 다시 불러와요."
       closeLabel="닫기"
       footer={
         <>
@@ -242,36 +210,22 @@ function NewGroupDialog({
               닫기
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" variant="solid" iconStart={<Copy />}>
-            명령 복사
+          <Button size="sm" tone="neutral" variant="solid">
+            만들기
           </Button>
         </>
       }
     >
       <div className="grid gap-3">
-        <Field label="이름" hint="소문자, 숫자, 하이픈 2~32자">
+        <Field label="이름">
           <Input size="sm" value={name} onValueChange={setName} className="font-mono" />
         </Field>
         <Field label="위치" group>
           <RadioGroup defaultValue="project" orientation="horizontal" className="gap-5">
-            <RadioGroupItem value="user">사용자 · ~/.fresnel/groups</RadioGroupItem>
-            <RadioGroupItem value="project">프로젝트 · .fresnel/groups</RadioGroupItem>
+            <RadioGroupItem value="user">사용자</RadioGroupItem>
+            <RadioGroupItem value="project">프로젝트</RadioGroupItem>
           </RadioGroup>
         </Field>
-        <ol className="m-0 grid list-none gap-2 p-0 text-ui text-text-secondary">
-          <li className="grid gap-1">
-            <span>1. 터미널에서 뼈대를 만들어요</span>
-            <code className="flex items-center gap-1.5 rounded-md bg-neutral-soft px-2 py-1.5 font-mono text-mono-sm text-text-primary">
-              <Terminal aria-hidden className="size-icon-xs text-text-tertiary" />
-              xeon group new {name} --project --drive
-            </code>
-          </li>
-          <li>2. manifest.json의 usesDrive와 src/index.ts의 scope setup을 고쳐요</li>
-          <li>
-            3. 이 화면의 “다시 불러오기”를 누르면 다음 단계 경계에 실려요. 프로젝트 그룹은 처음에
-            신뢰를 물어요
-          </li>
-        </ol>
       </div>
     </Dialog>
   );
@@ -283,46 +237,18 @@ export function App({ state }: { state: State }) {
   const reloading = state === "S7";
   const [newOpen, setNewOpen] = useState(state === "S4");
   const list: Ext[] = state === "S5" ? groups.filter((g) => g.source === "builtin") : groups;
-  const icon = (g: Ext) =>
-    g.name === "group-helm" ? (
-      <Compass />
-    ) : g.name === "group-learning" ? (
-      <Lightbulb />
-    ) : g.name === "group-account-rotation" ? (
-      <RotateCw />
-    ) : (
-      <Package />
-    );
-  const layers = (["L2", "L1", "L0"] as const).map((l) => ({
-    l,
-    items: plugins.filter((p) => p.layer === l),
-  }));
-
   return (
     <>
       <SettingsFrame
         tab="plugins"
         onTabSelect={onTabSelect}
         modalOpen={newOpen}
-        meta={safe ? "안전 모드" : "확장 17개 · 안전 모드 꺼짐"}
         actions={
           <>
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="ghost"
-              iconStart={<RotateCw />}
-              disabled={reloading}
-            >
+            <Button size="xs" tone="neutral" variant="ghost" disabled={reloading}>
               {reloading ? "다시 불러오는 중" : "다시 불러오기"}
             </Button>
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="outline"
-              iconStart={<Plus />}
-              onClick={() => setNewOpen(true)}
-            >
+            <Button size="xs" tone="neutral" variant="outline" onClick={() => setNewOpen(true)}>
               그룹 만들기
             </Button>
           </>
@@ -338,7 +264,7 @@ export function App({ state }: { state: State }) {
                 </Button>
               }
             >
-              안전 모드로 시작했어요. 사용자·프로젝트 확장과 L3 내장 그룹을 싣지 않았어요.
+              안전 모드로 시작했어요. 사용자·프로젝트 확장과 내장 그룹을 싣지 않았어요.
             </Alert>
           ) : reloading ? (
             <Alert tone="info" layout="inline">
@@ -349,12 +275,11 @@ export function App({ state }: { state: State }) {
       >
         <ThisThread safe={safe} />
 
-        <SettingSection title={`의도 그룹 · L3 ${list.length}`}>
+        <SettingSection title="플러그인 그룹">
           {list.map((g) => (
             <GroupRow
               key={g.name}
               e={g}
-              icon={icon(g)}
               safe={safe}
               error={
                 state === "S6" && g.name === "group-learning"
@@ -369,56 +294,41 @@ export function App({ state }: { state: State }) {
                   </>
                 ) : g.state.kind === "untrusted" && !safe ? (
                   <InlineButton>신뢰…</InlineButton>
-                ) : g.name === "group-account-rotation" ? (
-                  <span className="pe-1 text-ui-sm text-text-tertiary">켜면 위험 안내</span>
                 ) : undefined
               }
               {...(g.name === "group-helm"
                 ? {
                     settings: <HelmSettings error={state === "S6"} />,
-                    settingsCount: 4,
                     defaultOpen: state === "S6",
                   }
                 : g.name === "group-learning"
                   ? {
                       settings: (
-                        <p className="m-0 text-ui-sm text-text-tertiary">
-                          리뷰 기준, 승인, 스캔 4개
-                        </p>
+                        <p className="m-0 text-ui-sm text-text-tertiary">리뷰 기준, 승인, 스캔</p>
                       ),
-                      settingsCount: 4,
                     }
                   : {})}
             />
           ))}
           {state === "S5" && (
-            <div className="flex items-center gap-2 py-2 ps-7.5 text-ui text-text-secondary">
+            <div className="flex items-center gap-2 py-2 text-ui text-text-secondary first:pt-1 last:pb-1">
               사용자 그룹이 없어요.
-              <code className="rounded-sm bg-neutral-soft px-1.5 py-0.5 font-mono text-mono-sm text-text-primary">
-                xeon group new
-              </code>
-              로 만들어요.
             </div>
           )}
         </SettingSection>
 
-        {layers.map(({ l, items }) => (
-          <SettingSection key={l} title={`플러그인 · ${l} ${items.length}`}>
-            {items.map((p) => (
-              <PluginRow key={p.name} e={p} safe={safe} />
-            ))}
-          </SettingSection>
-        ))}
+        <SettingSection title="플러그인">
+          {plugins.map((p) => (
+            <PluginRow key={p.name} e={p} safe={safe} />
+          ))}
+        </SettingSection>
 
-        <SettingSection title={`핸들러 실패 ${failures.length}`}>
+        <SettingSection title="핸들러 실패">
           <ul className="m-0 grid list-none gap-0.5 p-0">
             {failures.map((f) => (
-              <li key={f.ext + f.point} className="flex min-h-8 min-w-0 items-center gap-2 text-ui">
+              <li key={f.ext} className="flex min-h-8 min-w-0 items-center gap-2 text-ui">
                 <CircleAlert aria-hidden className="size-icon-sm flex-none text-danger-text" />
                 <span className="font-mono text-mono text-text-primary">{f.ext}</span>
-                <span className="min-w-0 truncate font-mono text-mono-sm text-text-secondary">
-                  {f.point} · {f.code}
-                </span>
                 <span className="ms-auto flex-none text-ui-sm text-text-tertiary">
                   {f.detail} · {f.count} · {f.at}
                 </span>
@@ -426,13 +336,6 @@ export function App({ state }: { state: State }) {
             ))}
           </ul>
         </SettingSection>
-        {safe && (
-          <p className="m-0 pt-2">
-            <Badge size="sm" tone="neutral">
-              관리·L0~L2 내장 확장만 실렸어요
-            </Badge>
-          </p>
-        )}
       </SettingsFrame>
       <NewGroupDialog open={newOpen} onOpenChange={setNewOpen} />
     </>

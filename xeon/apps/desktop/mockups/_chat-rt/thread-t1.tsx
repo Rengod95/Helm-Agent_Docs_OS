@@ -7,8 +7,8 @@ import { baseGroups, type RuntimeData } from "./runtime-panel";
 export const T1_TITLE = "캐시 무효화 조사";
 
 export const t1Base: ChatItem[] = [
-  { k: "user", text: "무효화 시험이 계속 실패해. 원인 찾아줘" },
-  { k: "agent", text: "먼저 실패하는 시험을 돌려 볼게요." },
+  { k: "user", text: "무효화 테스트가 계속 실패해. 원인 찾아줘" },
+  { k: "agent", text: "먼저 실패하는 테스트를 돌려 볼게요." },
   {
     k: "tool",
     name: "bash",
@@ -19,7 +19,7 @@ export const t1Base: ChatItem[] = [
   },
   {
     k: "row",
-    text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요 · ${T.inquiry} 시작 · ${T.lens} 3`,
+    text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요 · ${T.inquiry} 시작`,
     source: "grp:helm",
     icon: "lease",
   },
@@ -36,17 +36,17 @@ export function t1Runtime(over: Partial<RuntimeData> = {}): RuntimeData {
     holder: "helm",
     phase: `${T.inquiry} · 수렴`,
     since: `${T.turn} 1부터`,
-    gauges: { turns: [1, 4], spawns: [3, 8], tokens: "120k / 400k", tokenRatio: 0.3 },
-    queue: [{ group: "review", state: "waiting", note: "tool.call.after 뒤 진행 원함" }],
+    gauges: { turns: [1, 4], spawns: [3, 8] },
+    queue: [{ group: "review", state: "waiting", note: "" }],
     groups: baseGroups,
     switches: [
-      { at: "14:03", turn: 2, text: `${T.lens} 3개 띄움 · spawn 3/8` },
-      { at: "14:02", turn: 1, text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요` },
-      { at: "14:01", turn: 1, text: `${EXT.review} 켜짐 · 다음 ${T.stepBoundary}에 적용` },
+      { turn: 2, text: `${T.lens} 3개 띄움` },
+      { turn: 1, text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요` },
+      { turn: 1, text: `${EXT.review} 켜짐 · 다음 ${T.stepBoundary}에 적용` },
     ],
     ...over,
   };
 }
 
-/** 대화 머리 런타임 줄 기본(보유 · 단계 · 켜진 확장 수). */
-export const t1RuntimeLine = `${EXT.helm} ${T.drive} · ${T.inquiry} 수렴 · ${T.extension} 4`;
+/** 대화 머리 런타임 줄 기본(보유 · 단계). 켜진 확장 수는 내지 않는다(런타임 탭에 목록이 있다). */
+export const t1RuntimeLine = `${EXT.helm} ${T.drive} · ${T.inquiry} 수렴`;

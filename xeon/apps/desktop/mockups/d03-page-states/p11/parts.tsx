@@ -11,7 +11,7 @@ import {
   Select,
   SelectOption,
 } from "@caustic/react";
-import { Ellipsis, GripVertical, Trash2 } from "../../_shell";
+import { Ellipsis, GripVertical } from "../../_shell";
 
 export function Gauge({
   label,
@@ -28,7 +28,7 @@ export function Gauge({
     <div
       role="group"
       aria-label={`${label} ${value}, ${limit}`}
-      className="grid grid-cols-[9rem_minmax(0,14rem)_auto] items-center gap-3 py-1 text-ui @max-[30rem]:grid-cols-[7rem_minmax(0,1fr)]"
+      className="grid grid-cols-[9rem_minmax(0,14rem)_auto] items-center gap-3 py-1 text-ui first:pt-0.5 last:pb-0.5 @max-[30rem]:grid-cols-[7rem_minmax(0,1fr)]"
     >
       <span className="text-text-secondary">{label}</span>
       {ratio === null ? (
@@ -66,7 +66,7 @@ export function AccountGrid({
   disabled?: boolean | undefined;
 }) {
   return (
-    <div role="table" aria-label={`${provider} 계정`} className="grid">
+    <div role="table" aria-label={`${provider} 계정`} className="grid py-0.5">
       <div
         role="row"
         className={`grid ${COLS} items-center gap-2 pb-1 text-ui-sm text-text-tertiary`}
@@ -75,7 +75,7 @@ export function AccountGrid({
           <span className="sr-only">순서</span>
         </span>
         <span role="columnheader">계정</span>
-        <span role="columnheader">자격(비밀)</span>
+        <span role="columnheader">자격(시크릿)</span>
         <span role="columnheader">우선</span>
         <span role="columnheader">예비 %</span>
         <span role="columnheader">
@@ -107,7 +107,7 @@ export function AccountGrid({
               >
                 {SECRETS.map((s) => (
                   <SelectOption key={s} value={s}>
-                    <span className="font-mono text-mono-sm">secret://{s}</span>
+                    <span className="font-mono text-mono-sm">{s}</span>
                   </SelectOption>
                 ))}
               </Select>
@@ -151,9 +151,7 @@ export function AccountGrid({
               }
             >
               <MenuItem>이름 바꾸기</MenuItem>
-              <MenuItem icon={<Trash2 />} tone="danger">
-                지우기
-              </MenuItem>
+              <MenuItem tone="danger">지우기</MenuItem>
             </Menu>
           </div>
           {a.error !== undefined && (

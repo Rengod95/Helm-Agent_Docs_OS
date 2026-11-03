@@ -7,13 +7,13 @@ export const STATES = [
   { id: "detail", label: "지도 · 상세 + 검사" },
   { id: "tour-1", label: "구조 살펴보기 1/5" },
   { id: "tour-3", label: "구조 살펴보기 3/5" },
-  { id: "hull", label: "대화 맥락 · 실시간 임대" },
+  { id: "hull", label: "대화 맥락 · 실시간 주도" },
   { id: "diff", label: "프로필 ↔ 대화 차이" },
-  { id: "matrix", label: "층 × 지점 표" },
+  { id: "matrix", label: "층 × 훅 표" },
   { id: "failure", label: "실패" },
   { id: "compose", label: "구성 · Helm 부품" },
   { id: "flow", label: "구성 · Helm 흐름" },
-  { id: "trial", label: "구성 · 시험 실행" },
+  { id: "trial", label: "구성 · 테스트 실행" },
   { id: "profile", label: "구성 · 프로필 쌓기" },
 ] as const;
 export type StateId = (typeof STATES)[number]["id"];

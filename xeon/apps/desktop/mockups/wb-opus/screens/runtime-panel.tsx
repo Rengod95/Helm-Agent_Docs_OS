@@ -1,5 +1,5 @@
 // W5 대화 영역 오른쪽 "런타임" 탭(§4.9.8): 이 대화의 그룹 공통 정보의 정본 자리(DP-23).
-// 구역: drive 임대(보유, 상한 사용량, 대기열·거부) · 켜진 그룹과 확장(펼치면 지점) · 전환 기록 · 실패 · "작업대에서 보기".
+// 구역: 주도(보유, 상한 사용량, 대기열·거부) · 켜진 그룹과 확장(펼치면 훅) · 전환 기록 · 실패 · "크래프트에서 보기".
 // well 안이라 카드·테두리를 더하지 않고 간격으로만 묶는다(DP-10, DP-20). 머리에는 "런타임"만(DP-21), 대화 제목은 본문 첫 줄.
 import { Button, Progress } from "@caustic/react";
 import { useState } from "react";
@@ -43,15 +43,17 @@ function Lease() {
   const m = useMock();
   if (m.driveHolder === null)
     return (
-      <section aria-label="drive 임대" className="grid gap-1">
-        <H>drive 임대</H>
+      <section aria-label="주도" className="grid gap-1">
+        <H>주도</H>
         <p className="m-0 text-ui-dense text-text-secondary">지금 drive를 쥔 그룹이 없어요</p>
-        <p className="m-0 text-ui-xs text-text-tertiary">코어 루프가 턴을 그대로 돌려요 · 대기 0</p>
+        <p className="m-0 text-ui-xs text-text-tertiary">
+          기본 에이전트가 턴을 그대로 돌려요 · 대기 0
+        </p>
       </section>
     );
   return (
-    <section aria-label="drive 임대" className="grid gap-2">
-      <H end="턴 7부터">drive 임대</H>
+    <section aria-label="주도" className="grid gap-2">
+      <H end="턴 7부터">주도</H>
       <div className="flex items-baseline gap-2 text-ui-dense">
         <span className="font-medium text-text-primary">{m.driveHolder}</span>
         <span className="text-text-secondary">보유 · 탐색 단계</span>
@@ -82,7 +84,7 @@ function Lease() {
               <span className="text-text-primary">{q.group}</span>{" "}
               <span className="text-text-secondary">
                 {q.state === "waiting"
-                  ? "· 임대가 풀리면 다음 단계 경계에서"
+                  ? "· 주도가 풀리면 다음 단계 경계에서"
                   : "· helm이 보유 중이라 14:02에 거부"}
               </span>
             </span>
@@ -102,7 +104,7 @@ function ExtRow({ x }: { x: (typeof threadExts)[number] }) {
         <button
           type="button"
           aria-expanded={open}
-          aria-label={`${x.name} 지점 ${x.points.length}개 ${open ? "접기" : "펼치기"}`}
+          aria-label={`${x.name} 훅 ${x.points.length}개 ${open ? "접기" : "펼치기"}`}
           onClick={() => setOpen(!open)}
           className="inline-grid size-5 place-items-center rounded-sm text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
         >
@@ -118,7 +120,7 @@ function ExtRow({ x }: { x: (typeof threadExts)[number] }) {
           className="flex min-w-0 items-center gap-1.5 rounded-sm text-start outline-none hover:underline focus-visible:focus-ring"
         >
           <span className="truncate text-text-primary">{x.name}</span>
-          <span className="truncate text-ui-xs text-text-tertiary">지점 {x.points.length}</span>
+          <span className="truncate text-ui-xs text-text-tertiary">훅 {x.points.length}</span>
         </button>
         <span className="flex items-center gap-1 text-ui-xs text-text-secondary">
           {x.tone !== undefined && (
@@ -131,7 +133,7 @@ function ExtRow({ x }: { x: (typeof threadExts)[number] }) {
       </div>
       {open && (
         <ul
-          aria-label={`${x.name} 지점`}
+          aria-label={`${x.name} 훅`}
           className="m-0 grid list-none gap-0.5 py-1 ps-[4.5rem] text-ui-xs text-text-secondary"
         >
           {x.points.map((p) => (
@@ -151,7 +153,7 @@ export function RuntimePanel() {
           {
             at: "14:20",
             turn: 9,
-            text: "helm이 drive 임대를 놓았어요 (상한 턴 4/4)",
+            text: "helm이 주도를 놓았어요 (상한 턴 4/4)",
             reason: "release" as const,
           },
           ...[...switches].sort((a, b) => b.at.localeCompare(a.at)),
@@ -229,7 +231,7 @@ export function RuntimePanel() {
       </section>
       <div>
         <Button size="xs" tone="neutral" variant="outline" onClick={() => m.go("overview")}>
-          작업대에서 보기
+          크래프트에서 보기
         </Button>
       </div>
     </div>

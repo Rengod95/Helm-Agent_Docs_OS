@@ -1,4 +1,4 @@
-// W1 작업대 개요(P-16): 머리 요약 줄, (맥락 대화가 있으면) 이 대화 한 줄, 층 × 확장 지도, 주의, 최근 시험과 승격 후보.
+// W1 크래프트 개요(P-16): 머리 요약 줄, (맥락 대화가 있으면) 이 대화 한 줄, 층 × 확장 지도, 주의, 최근 테스트와 승격 후보.
 import { Alert, Badge, Button } from "@caustic/react";
 import {
   layerMap,
@@ -147,7 +147,7 @@ function Attention() {
           layer="plugin"
           name="provider-oauth"
           tone="neutral"
-          text="꺼짐 · 능력 대기 models.oauth"
+          text="꺼짐 · 기능 대기 models.oauth"
           onOpen={() => m.openDetail("provider-oauth")}
         />
       </ul>
@@ -158,19 +158,19 @@ function Attention() {
 function RecentTests() {
   const m = useMock();
   return (
-    <section aria-label="최근 시험" className="grid content-start gap-0.5">
+    <section aria-label="최근 테스트" className="grid content-start gap-0.5">
       <SectionTitle
         end={
           <button
             type="button"
-            onClick={() => m.go("other", "시험 실행", "tests")}
+            onClick={() => m.go("other", "테스트 실행", "tests")}
             className="rounded-sm outline-none hover:text-text-primary focus-visible:focus-ring"
           >
             모두 보기
           </button>
         }
       >
-        최근 시험
+        최근 테스트
       </SectionTitle>
       <ul className="m-0 grid list-none gap-1 p-0">
         {tests.slice(0, 4).map((t, i) => {
@@ -233,7 +233,7 @@ export function Overview() {
   return (
     <>
       <WorkbenchHead
-        title="작업대 개요"
+        title="크래프트 개요"
         actions={
           !m.safeMode && (
             <Button size="xs" tone="neutral" variant="ghost">

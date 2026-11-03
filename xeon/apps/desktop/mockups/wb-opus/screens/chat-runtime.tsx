@@ -8,7 +8,7 @@ import { useMock } from "../store";
 
 const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
 
-/** DP-19: 런타임 행은 한 줄, muted 아이콘, secondary 글자, 동작 0~1개, 출처는 tertiary 메타(DP-33). 누르면 작업대 P-17 기록. */
+/** DP-19: 런타임 행은 한 줄, muted 아이콘, secondary 글자, 동작 0~1개, 출처는 tertiary 메타(DP-33). 누르면 크래프트 P-17 기록. */
 function RuntimeRow({
   children,
   source,
@@ -86,7 +86,7 @@ function Head() {
           <h1 className="m-0 truncate font-ui text-ui-strong text-text-primary">
             캐시 무효화 조사
           </h1>
-          <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
+          <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/fresnel</span>
           <button
             type="button"
             onClick={() => m.openEnd("work")}
@@ -120,9 +120,9 @@ export function ChatRuntime() {
       <Head />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div role="log" aria-label="대화 기록" className={`${READ_WIDTH} grid gap-4 pt-1 pb-3`}>
-          <Message author="user">무효화 시험이 계속 실패해. 원인 찾아줘</Message>
+          <Message author="user">무효화 테스트가 계속 실패해. 원인 찾아줘</Message>
           <Message>
-            <p>먼저 실패하는 시험을 돌려 볼게요.</p>
+            <p>먼저 실패하는 테스트를 돌려 볼게요.</p>
           </Message>
           <ToolCall
             name="bash"
@@ -150,7 +150,7 @@ export function ChatRuntime() {
           </PluginCard>
           <div className="grid gap-1.5">
             <RuntimeRow source="grp:helm" onOpen={() => m.openDetail("helm", "lease")}>
-              helm이 drive 임대를 받았어요 · 턴 7 · 상한 턴 4
+              helm이 주도를 받았어요 · 턴 7 · 상한 턴 4
             </RuntimeRow>
             <RuntimeRow source="grp:work" onOpen={() => m.openDetail("helm", "log")}>
               work의 drive 요청을 거부했어요 · helm 보유 중
@@ -165,7 +165,7 @@ export function ChatRuntime() {
           {noDrive && (
             <>
               <RuntimeRow source="grp:helm" onOpen={() => m.openDetail("helm", "lease")}>
-                helm이 drive 임대를 놓았어요 · 턴 9 · 상한 턴 4/4
+                helm이 주도를 놓았어요 · 턴 9 · 상한 턴 4/4
               </RuntimeRow>
               <Message>
                 <p>탐구가 상한에 닿아 멈췄어요. 찾은 두 가지를 정리해 둘게요.</p>

@@ -66,7 +66,7 @@ export function ExtName({ name, strong = true }: { name: string; strong?: boolea
   );
 }
 
-/** 작업대 화면 안 구역 제목(h2). 굵기·글자색 단계로만 묶고 선을 더하지 않는다(DP-03). */
+/** 크래프트 화면 안 구역 제목(h2). 굵기·글자색 단계로만 묶고 선을 더하지 않는다(DP-03). */
 export function SectionTitle({ children, end }: { children: ReactNode; end?: ReactNode }) {
   return (
     <div className="flex min-w-0 items-baseline gap-2 pb-1">

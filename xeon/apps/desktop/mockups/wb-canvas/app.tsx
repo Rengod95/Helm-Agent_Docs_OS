@@ -1,5 +1,5 @@
-// 런타임 캔버스 시안 앱: 공용 셸(작업대 영역) 위에 캔버스 개요 하나. 왼쪽 패널 맥락 칸은 캔버스 맥락(넷)으로 바꿔 끼운다.
-// 오른쪽 well: 검사(고른 블록) · 받은 요청 · 기록 · 대화. 다른 작업대 화면은 1·2차 시안이 맡는다(알림 한 줄).
+// 런타임 캔버스 시안 앱: 공용 셸(크래프트 영역) 위에 캔버스 개요 하나. 왼쪽 패널 맥락 칸은 캔버스 맥락(넷)으로 바꿔 끼운다.
+// 오른쪽 well: 검사(고른 블록) · 받은 요청 · 기록 · 대화. 다른 크래프트 화면은 1·2차 시안이 맡는다(알림 한 줄).
 import {
   SlidersHorizontal,
   NoticeList,
@@ -46,7 +46,7 @@ function Page() {
           id={m.selected}
           ctx={m.ctx}
           offline={m.mode === "offline"}
-          onOpenDetail={() => m.notify("확장 상세(P-17)는 작업대 1차 시안에 있어요")}
+          onOpenDetail={() => m.notify("확장 상세(P-17)는 크래프트 1차 시안에 있어요")}
           onAction={m.notify}
         />
       ),
@@ -61,7 +61,7 @@ function Page() {
     <Shell
       activeNav="overview"
       onNavSelect={(id) => {
-        if (id !== "overview") m.notify("이 화면은 작업대 1·2차 시안에 있어요");
+        if (id !== "overview") m.notify("이 화면은 크래프트 1·2차 시안에 있어요");
       }}
       workbench={{
         onGoToThread: goThread,
@@ -85,7 +85,7 @@ function Page() {
           />
         ),
       }}
-      stageLabel="작업대 개요"
+      stageLabel="크래프트 개요"
       threads={{ currentId: "t1", onSelect: () => {}, onNew: () => {} }}
       rightTabs={tabs}
       status={defaultStatusCells({

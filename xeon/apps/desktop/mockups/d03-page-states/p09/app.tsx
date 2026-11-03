@@ -1,7 +1,7 @@
-// P-09 설정: 13탭 일반 폼. 모델 탭(기본), 개요, 고급(파일 전용), 그 밖의 일반 탭. 전용 탭(비밀, 계정, 도구, 플러그인)은 옆 시안으로 옮긴다.
+// P-09 설정: 13탭 일반 폼. 모델 탭(기본), 개요, 고급(파일 전용), 그 밖의 일반 탭. 전용 탭(시크릿, 계정, 도구, 플러그인)은 옆 시안으로 옮긴다.
 import { Alert, Button, Skeleton } from "@caustic/react";
 import { useState } from "react";
-import { FileText, RotateCcw } from "../../_shell";
+import { FileText } from "../../_shell";
 import { SettingsFrame } from "../../_settings/frame";
 import { initialTabParam } from "../../_settings/mount";
 import { gotoTabPage, TABS, type TabId } from "../../_settings/tabs";
@@ -63,7 +63,7 @@ export function App({ state }: { state: State }) {
   const searching = state === "S6";
 
   const fileAction = (
-    <Button size="xs" tone="neutral" variant="ghost" iconStart={<FileText />}>
+    <Button size="xs" tone="neutral" variant="ghost">
       파일로 보기
     </Button>
   );
@@ -73,13 +73,7 @@ export function App({ state }: { state: State }) {
         tone="warning"
         layout="inline"
         action={
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="outline"
-            iconStart={<RotateCcw />}
-            disabled={offline}
-          >
+          <Button size="xs" tone="neutral" variant="outline" disabled={offline}>
             엔진 재시작
           </Button>
         }
@@ -96,7 +90,6 @@ export function App({ state }: { state: State }) {
         query="timeout"
         tabCounts={SEARCH_COUNTS}
         title="‘timeout’ 찾은 항목"
-        meta="4개 탭에서 5개"
       >
         <SearchResults />
       </SettingsFrame>

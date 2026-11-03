@@ -133,7 +133,7 @@ export const SCENARIOS = [
   { id: "toast-well", label: "토스트 자리: well 열림·닫힘" },
 ];
 
-/** 진행 중 Popover 목록(host.status.liveTurns + 시험·예약·제작 대화). */
+/** 진행 중 Popover 목록(host.status.liveTurns + 테스트·예약·제작 대화). */
 function bgItems(fail: boolean): BgItem[] {
   return [
     { kind: "thread", id: "t1", title: "캐시 무효화 조사", note: `${T.turn} 3 · 2분` },
@@ -153,7 +153,7 @@ function bgItems(fail: boolean): BgItem[] {
 }
 
 const T2: ChatItem[] = [
-  { k: "user", text: "느린 시험 다섯 개만 골라줘" },
+  { k: "user", text: "느린 테스트 다섯 개만 골라줘" },
   { k: "agent", text: "시간 순으로 정렬했어요. cache, sync, migrate, index, render 순이에요." },
 ];
 const T3: ChatItem[] = [

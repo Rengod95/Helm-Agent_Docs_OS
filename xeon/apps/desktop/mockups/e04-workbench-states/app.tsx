@@ -1,6 +1,6 @@
-// e04 작업대 여섯 상태 빈칸(N-47)과 찾기·거르기 결과 없음(N-48). 묶음 E.
+// e04 크래프트 여섯 상태 빈칸(N-47)과 찾기·거르기 결과 없음(N-48). 묶음 E.
 // P-13 확장 목록(읽는 중·빈·거르기 결과 없음·읽기 실패), P-17 확장 상세(탭별 읽는 중·오프라인·빈·오류), P-20 측정(읽는 중·50개 넘음·빈·계측 꺼짐),
-// 팔레트 결과 없음(대화·작업대), P-06 제안 거르기 결과 없음, P-09 키 찾기 결과 없음.
+// 팔레트 결과 없음(대화·크래프트), P-06 제안 거르기 결과 없음, P-09 키 찾기 결과 없음.
 import { Button, toast } from "@caustic/react";
 import { useEffect } from "react";
 import {
@@ -28,7 +28,13 @@ import {
   type Screen,
   type TabMode,
 } from "./flow";
-import { DetailScreen, ExtListScreen, MetricsScreen, ProposalsFilterEmpty } from "./parts/screens";
+import {
+  DetailScreen,
+  ExtListScreen,
+  MetricsScreen,
+  NoMatch,
+  ProposalsFilterEmpty,
+} from "./parts/screens";
 
 interface Look {
   script: string;
@@ -56,7 +62,7 @@ export const STATES = [
   { id: "metrics-empty", label: "P-20 빈(기간)" },
   { id: "metrics-off", label: "P-20 계측 꺼짐" },
   { id: "palette-empty", label: "팔레트 결과 없음(대화)" },
-  { id: "palette-empty-wb", label: "팔레트 결과 없음(작업대)" },
+  { id: "palette-empty-wb", label: "팔레트 결과 없음(크래프트)" },
   { id: "proposals-empty", label: "P-06 거르기 결과 없음" },
   { id: "settings-empty", label: "P-09 키 찾기 결과 없음" },
 ] as const;
@@ -142,24 +148,17 @@ export function App({ state }: { state: StateId }) {
         query="zoomlevel"
         tabCounts={{}}
         title={L2(`"zoomlevel" 찾기`, `Search "zoomlevel"`)}
-        meta={L2("결과 0", "0 results")}
       >
-        <div className="grid justify-items-start gap-2 py-6">
-          <p className="m-0 text-ui-sm text-text-secondary">
-            {L2(
-              `"zoomlevel"와 맞는 설정 키나 이름이 없어요. 비슷한 키: l4.desktop.appearance.zoom`,
-              `No setting key or name matches "zoomlevel". Similar key: l4.desktop.appearance.zoom`,
-            )}
-          </p>
-          <div className="flex gap-1.5">
-            <Button size="xs" tone="neutral" variant="outline">
-              {L2("비슷한 키 열기", "Open similar key")}
+        <NoMatch
+          what={`"zoomlevel"`}
+          onClear={() => {}}
+          clearLabel={L2("찾기 지우기", "Clear search")}
+          extra={
+            <Button size="sm" tone="neutral" variant="ghost">
+              {L2("비슷한 설정 열기", "Open a similar setting")}
             </Button>
-            <Button size="xs" tone="neutral" variant="ghost">
-              {L2("찾기 지우기", "Clear search")}
-            </Button>
-          </div>
-        </div>
+          }
+        />
       </SettingsFrame>
     );
 
@@ -170,10 +169,8 @@ export function App({ state }: { state: StateId }) {
         text: L2("끊김", "Offline"),
         dot: "danger",
         title: T.connection,
-        description: L2(
-          "엔진에 연결되지 않았어요. 마지막 값만 보여요.",
-          "Not connected. Showing last values.",
-        ),
+        // _shell 상태 칸의 description은 필수(칸 설명을 항상 그린다). 한 줄만 남긴다.
+        description: L2("엔진에 연결되지 않았어요.", "Not connected."),
       }
     : undefined;
   const area = look.area ?? "workbench";
@@ -207,32 +204,16 @@ export function App({ state }: { state: StateId }) {
         {...(look.screen === "palette"
           ? {
               paletteQuery: area === "chat" ? "rollback" : "ext.helm.maxLenses",
-              paletteEmpty: (
-                <span className="grid gap-0.5">
-                  <span>
-                    {area === "chat"
-                      ? L2(
-                          `"rollback"와 맞는 명령·대화가 없어요`,
-                          `No command or conversation matches "rollback"`,
-                        )
-                      : L2(
-                          `"ext.helm.maxLenses"와 맞는 항목이 없어요`,
-                          `Nothing matches "ext.helm.maxLenses"`,
-                        )}
-                  </span>
-                  <span className="text-ui-xs text-text-tertiary">
-                    {area === "chat"
-                      ? L2(
-                          `버전 되돌리기는 ${T.workbench} 확장 상세의 ${T.version} 탭에 있어요`,
-                          `Version rollback lives in the Versions tab of an extension in the ${T.workbench.toLowerCase()}`,
-                        )
-                      : L2(
-                          "설정 키는 설정의 키 찾기에서 찾아요",
-                          "Find setting keys with Find a setting in Settings",
-                        )}
-                  </span>
-                </span>
-              ),
+              paletteEmpty:
+                area === "chat"
+                  ? L2(
+                      `"rollback"와 맞는 명령·대화가 없어요`,
+                      `No command or conversation matches "rollback"`,
+                    )
+                  : L2(
+                      `"ext.helm.maxLenses"와 맞는 항목이 없어요`,
+                      `Nothing matches "ext.helm.maxLenses"`,
+                    ),
             }
           : {})}
       >
@@ -254,9 +235,7 @@ export function App({ state }: { state: StateId }) {
             onTab={(v) => dispatch({ t: "tab", v })}
           />
         )}
-        {look.screen === "metrics" && (
-          <MetricsScreen mode={look.metrics ?? "ready"} layout={shell.layout} />
-        )}
+        {look.screen === "metrics" && <MetricsScreen mode={look.metrics ?? "ready"} />}
         {look.screen === "proposals" && <ProposalsFilterEmpty onClear={() => {}} />}
       </Shell>
       <ShellToaster />

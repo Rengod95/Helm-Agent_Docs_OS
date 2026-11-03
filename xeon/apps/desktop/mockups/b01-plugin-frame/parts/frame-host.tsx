@@ -37,7 +37,7 @@ export function FrameMarker({
           <span>{reason}</span>
           {!fallback && (
             <span className="font-mono text-mono-sm opacity-70">
-              xeon-view://{ext.name}/{ext.version}/{view.frame?.root.replace("./", "")}/
+              fresnel-view://{ext.name}/{ext.version}/{view.frame?.root.replace("./", "")}/
               {view.frame?.entry}
             </span>
           )}

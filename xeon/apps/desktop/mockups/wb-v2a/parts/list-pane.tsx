@@ -7,7 +7,7 @@ import { isOnIn } from "../screens/layer";
 import { hueVar } from "./kit";
 
 const GROUPS: { title: string; layer: string; match: (e: Ext) => boolean }[] = [
-  { title: "의도 그룹", layer: "L3", match: (e) => e.layer === "L3" },
+  { title: "플러그인 그룹", layer: "L3", match: (e) => e.layer === "L3" },
   { title: "외부", layer: "plugin", match: (e) => e.layer === "plugin" },
   { title: "서비스", layer: "L2", match: (e) => e.layer === "L2" },
 ];
@@ -37,7 +37,7 @@ export function ListPane({ wide = false }: { wide?: boolean }) {
                 <span className="grid leading-tight">
                   <span className="text-ui-sm text-text-primary">에이전트 루프</span>
                   <span className="text-ui-xs text-text-tertiary">
-                    위 블록은 소켓에 꽂고, 아래 서비스는 능력을 내줘요 · 쓰는 지점 7
+                    위 블록은 소켓에 꽂고, 아래 서비스는 기능을 내줘요 · 쓰는 훅 7
                   </span>
                 </span>
               </div>
@@ -92,7 +92,7 @@ export function ListPane({ wide = false }: { wide?: boolean }) {
                       {e.points !== undefined
                         ? `소켓 ${e.points.length}`
                         : e.provides !== undefined
-                          ? `능력 ${e.provides.length}`
+                          ? `기능 ${e.provides.length}`
                           : ""}
                     </span>
                   )}

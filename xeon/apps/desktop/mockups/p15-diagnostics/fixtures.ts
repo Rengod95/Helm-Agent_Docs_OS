@@ -7,7 +7,7 @@ export const versions = {
   contract: "3",
   runtime: "Bun 1.3.2",
   os: "macOS 15.1 · arm64",
-  link: "사이드카 (stdio)",
+  link: "앱 안 엔진 (stdio)",
   storeId: "st_01JC8Q4M7ZK2X9V3T6N",
 };
 
@@ -34,8 +34,8 @@ export const binaries: BinaryRow[] = [
     note: "14.1.1",
     impact: "파일 검색과 샌드박스 시작이 멈춰요",
   },
-  { name: "sops", need: "필수", ok: true, note: "3.10.2", impact: "비밀을 읽고 쓸 수 없어요" },
-  { name: "age", need: "필수", ok: true, note: "1.2.1", impact: "새 비밀 키를 만들 수 없어요" },
+  { name: "sops", need: "필수", ok: true, note: "3.10.2", impact: "시크릿을 읽고 쓸 수 없어요" },
+  { name: "age", need: "필수", ok: true, note: "1.2.1", impact: "새 시크릿 키를 만들 수 없어요" },
   {
     name: "security",
     need: "필수",
@@ -56,7 +56,7 @@ export type PluginState = "on" | "off" | "auto-off" | "needs-key" | "safe-off";
 export interface PluginRow {
   layer: "F" | "X" | "L0" | "L1" | "L2" | "L3";
   id: string;
-  /** 확장 지점(L3는 on·post·drive·scope 훅) */
+  /** 훅(L3는 on·post·drive·scope 훅) */
   hooks: string;
   version: string;
   source: string;
@@ -142,7 +142,7 @@ export const plugins: PluginRow[] = [
     source: "내장",
     trust: "기본",
     state: "on",
-    note: "임대 없음",
+    note: "주도 없음",
   },
   {
     layer: "L3",
@@ -158,7 +158,7 @@ export const plugins: PluginRow[] = [
     id: "grp.cache-debug",
     hooks: "on · post",
     version: "0.1.0",
-    source: "~/code/xeon/.fresnel/groups",
+    source: "~/code/fresnel/.fresnel/groups",
     trust: "이 폴더",
     state: "auto-off",
     note: "post 실패 3회",

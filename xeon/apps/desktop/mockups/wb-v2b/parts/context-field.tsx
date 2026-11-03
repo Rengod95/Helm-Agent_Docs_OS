@@ -1,16 +1,21 @@
-// 맥락 칸(왼쪽 패널, 결정 3: 맥락 칸 하나가 작업대 모든 화면을 움직인다). wb-canvas 것을 옮겨 왔다.
+// 맥락 칸(왼쪽 패널, 결정 3: 맥락 칸 하나가 크래프트 모든 화면을 움직인다). wb-canvas 것을 옮겨 왔다.
 // 맥락의 정본은 이 칸 하나다(§6.21). 캔버스 위에는 맥락 이름을 다시 쓰지 않고 그 맥락의 한 줄(턴, 실시간)과 비교만 둔다.
 import { IconButton, Select, SelectGroup, SelectHeading, SelectOption } from "@caustic/react";
 import { MessageSquare } from "../../_shell";
 import { CONTEXTS } from "../data";
 type CtxKind = "all" | "thread" | "profile" | "trial";
 
-const HEAD: Record<CtxKind, string> = { all: "", thread: "대화", profile: "프로필", trial: "시험" };
+const HEAD: Record<CtxKind, string> = {
+  all: "",
+  thread: "대화",
+  profile: "프로필",
+  trial: "테스트",
+};
 const PREFIX: Record<CtxKind, string> = {
   all: "맥락 · ",
   thread: "대화 · ",
   profile: "프로필 · ",
-  trial: "시험 · ",
+  trial: "테스트 · ",
 };
 
 export function ContextField({

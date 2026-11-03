@@ -4,9 +4,9 @@
 
 ## 배치
 
-- 머리: 제목 · 상태 `SegmentedControl`(대기 3·적용됨·모두) · 종류·출처 `Select`.
-- 무대 안 두 열(투명): 목록(listbox, 두 줄 행: 종류·대상 / **낸 쪽** · 근거나 충돌) · 상세(region). 좁은 폭은 상세만 보이고 돌아가기로 목록.
-- 상세 순서: 제목(종류·대상·rev) → 경고 `Alert`(untrusted·충돌) → `ListDescription` 한 목록(낸 쪽 + id + Helm 발견 경유, 이유, 근거 "대화에서 보기", 범위 `RadioGroup`) → 읽기 전용 `CodeDiff` → 결정 줄(거절 시작 쪽, 수정·승인 끝 쪽, 승인 버튼에 고른 범위).
+- 머리: 제목 · 상태 `SegmentedControl`(대기·적용됨·모두) · 종류·출처 `Select`. 개수는 없음.
+- 무대 안 두 열(투명): 목록(listbox, 두 줄 행: 종류·대상 / 상태 말이나 충돌) · 상세(region). 좁은 폭은 상세만 보이고 돌아가기로 목록.
+- 상세 순서: 제목(종류·대상) → 경고 `Alert`(untrusted·충돌) → `ListDescription` 한 목록(낸 쪽 + Helm 발견 경유, 이유, 근거 "대화에서 보기", 범위 `RadioGroup`). id·rev·근거 개수는 내지 않음 → 읽기 전용 `CodeDiff` → 결정 줄(거절 시작 쪽, 수정·승인 끝 쪽, 승인 버튼에 고른 범위).
 
 ## caustic
 

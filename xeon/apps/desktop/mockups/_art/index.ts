@@ -1,4 +1,4 @@
-// Xeon 런타임 일러스트 세트. SVG 원문을 ?raw로 읽어 인라인으로 그린다(CSS 변수로 테마가 바뀌려면 인라인이어야 한다).
+// Fresnel 런타임 일러스트 세트. SVG 원문을 ?raw로 읽어 인라인으로 그린다(CSS 변수로 테마가 바뀌려면 인라인이어야 한다).
 // 쓰는 법: import "../_art/art.css"; <Art name="hero-lifecycle" className="w-[640px]" />
 // 그라디언트 id는 인스턴스마다 접두어를 붙여 밝음·어두움 사본이 한 페이지에 있어도 섞이지 않는다.
 import { createElement, useId, useMemo } from "react";

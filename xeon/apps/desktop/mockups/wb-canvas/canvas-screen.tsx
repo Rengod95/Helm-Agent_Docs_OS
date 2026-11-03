@@ -1,6 +1,6 @@
-// 작업대 개요를 캔버스로(P-16 대체 제안): 층 띠 위에 확장 블록, 블록 사이 연결(능력·on·post·drive), X 띠의 지점 레일과 임대.
-// 맥락(왼쪽 패널)이 캔버스를 다시 그리고, 대화·시험 맥락은 실시간 덧그림(임대 흐름, 단계 경계 교대)을 얹는다.
-// 재생 막대는 한 턴의 지점 발화를 되짚어 그때 돈 핸들러와 예산 대비 시간을 블록 옆에 보인다.
+// 크래프트 개요를 캔버스로(P-16 대체 제안): 층 띠 위에 확장 블록, 블록 사이 연결(기능·on·post·drive), X 띠의 훅 레일과 주도.
+// 맥락(왼쪽 패널)이 캔버스를 다시 그리고, 대화·테스트 맥락은 실시간 덧그림(주도 흐름, 단계 경계 교대)을 얹는다.
+// 재생 막대는 한 턴의 훅 발화를 되짚어 그때 돈 핸들러와 예산 대비 시간을 블록 옆에 보인다.
 import {
   Alert,
   Button,
@@ -392,7 +392,7 @@ export function CanvasScreen() {
               onClick={() => m.set({ replay: m.replay === null ? 0 : null, selected: null })}
             >
               <History />
-              턴 재생
+              트레이스
             </Button>
           )}
           {!compact && (
@@ -517,7 +517,7 @@ export function CanvasScreen() {
             "tool.execution.after",
             "boundary.step.after",
             "boundary.settle.after",
-            "session.start",
+            "thread.start",
             "lifecycle.lease.rejected",
           ].map((p) => [
             p,
@@ -605,8 +605,8 @@ export function CanvasScreen() {
           >
             <span aria-hidden className="size-2 rotate-45 rounded-[1px] bg-text-secondary" />
             {m.ctx === "x:lens5"
-              ? "턴 2 · 단계 경계 · helm 임대 이어 받음"
-              : "턴 7 · 단계 경계 14:02:41 · helm 임대 받음"}
+              ? "턴 2 · 단계 경계 · helm 주도 이어 받음"
+              : "턴 7 · 단계 경계 14:02:41 · helm 주도 받음"}
           </span>
         </>
       )}
@@ -672,7 +672,7 @@ export function CanvasScreen() {
   );
 }
 
-/** 밀집 블록. 줌이 0.65보다 작으면 이름을 숨긴 막대가 되고, 주의할 블록(자동 꺼짐, 실패, 임대 보유)만 화면 크기 이름표를 단다(의미 줌). */
+/** 밀집 블록. 줌이 0.65보다 작으면 이름을 숨긴 막대가 되고, 주의할 블록(자동 꺼짐, 실패, 주도 보유)만 화면 크기 이름표를 단다(의미 줌). */
 function DensePill({
   d,
   k,
@@ -764,7 +764,7 @@ function Legend() {
       style={{ left: LABEL_GUTTER }}
       aria-label="범례"
     >
-      {item(line(undefined), "능력")}
+      {item(line(undefined), "기능")}
       {item(line("5 3"), "optional")}
       {item(line("2 3"), "제공자 없음")}
       {item(line(undefined, 1.25, "stroke-text-secondary"), "on")}

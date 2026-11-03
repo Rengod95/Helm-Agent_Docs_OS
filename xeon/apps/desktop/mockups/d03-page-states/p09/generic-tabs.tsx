@@ -1,4 +1,4 @@
-// 일반 폼 탭(권한, 샌드박스, 세션과 컨텍스트, 실행과 서비스, 외관, 고급). 고급은 모든 항목이 파일 전용이라 빈 탭(TabVM.emptyText).
+// 일반 폼 탭(권한, 샌드박스, 대화와 컨텍스트, 실행과 서비스, 외관, 고급). 고급은 모든 항목이 파일 전용이라 빈 탭(TabVM.emptyText).
 import {
   Button,
   EmptyState,
@@ -11,7 +11,6 @@ import {
   Switch,
   TagInput,
 } from "@caustic/react";
-import { FileText } from "../../_shell";
 import { SettingRow, SettingSection } from "../../_settings/row";
 import type { TabId } from "../../_settings/tabs";
 
@@ -85,7 +84,7 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
           >
             <TagInput
               aria-label="쓰기 허용 경로"
-              defaultValue={["~/code/xeon", "/tmp"]}
+              defaultValue={["~/code/fresnel", "/tmp"]}
               disabled={disabled}
               containerClassName="max-w-[28rem] font-mono"
             />
@@ -103,7 +102,6 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
             k="l1.context.compactAt"
             scope="default"
             apply="nextTurn"
-            hint="문맥 창에 대한 비율이에요."
           >
             <div className="flex items-center gap-2">
               <NumberField
@@ -147,7 +145,7 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
               disabled={disabled}
               className="min-h-7 gap-5"
             >
-              <RadioGroupItem value="sidecar">사이드카</RadioGroupItem>
+              <RadioGroupItem value="sidecar">앱 안 엔진</RadioGroupItem>
               <RadioGroupItem value="service">서비스</RadioGroupItem>
             </RadioGroup>
           </SettingRow>
@@ -209,11 +207,9 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
         <EmptyState
           size="sm"
           surface="none"
-          icon={<FileText />}
           title="이 탭 항목은 파일에서만 바꿔요"
-          description="x.loading-trust.*, x.operations.* 6개"
           actions={
-            <Button size="sm" tone="neutral" variant="outline" iconStart={<FileText />}>
+            <Button size="sm" tone="neutral" variant="outline">
               파일로 보기
             </Button>
           }

@@ -3,6 +3,10 @@
      @import "../_shell/shell.css";
      @source "./";
    색은 caustic 토큰만 쓴다. */
+@import "./line-grid.css";
+@import "./type-variants.css";
+@import "./radius.css";
+
 /* 셸 폴더의 Tailwind 유틸리티도 생성한다 */
 @source "./";
 

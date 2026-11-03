@@ -1,4 +1,4 @@
-// 목업 로컬 상태: 보기(그룹·흐름·프로필·코드), 고른 그룹, 고른 블록, 시험 실행, 포트 연결 중. 엔진·wire를 부르지 않는다.
+// 목업 로컬 상태: 보기(그룹·흐름·프로필·코드), 고른 그룹, 고른 블록, 테스트 실행, 포트 연결 중. 엔진·wire를 부르지 않는다.
 import {
   createContext,
   useCallback,
@@ -15,7 +15,7 @@ export const STATES = [
   { id: "S3", label: "S3 검사 실패" },
   { id: "S4", label: "S4 흐름(Helm)" },
   { id: "S5", label: "S5 흐름 편집 · 포트 연결" },
-  { id: "S6", label: "S6 시험 실행" },
+  { id: "S6", label: "S6 테스트 실행" },
   { id: "S7", label: "S7 프로필 쌓기" },
   { id: "S8", label: "S8 코드 보기" },
 ] as const;
@@ -31,7 +31,6 @@ interface Init {
   trial: boolean;
   draft: boolean;
   gateAdded: boolean;
-  nav: "compose" | "create";
   well: "palette" | "inspect" | null;
   closeStart: boolean;
 }
@@ -44,7 +43,6 @@ function initOf(s: StateId): Init {
     trial: false,
     draft: false,
     gateAdded: false,
-    nav: "compose",
     well: null,
     closeStart: false,
   };
@@ -52,9 +50,9 @@ function initOf(s: StateId): Init {
     case "S1":
       return base;
     case "S2":
-      return { ...base, group: "new", selected: null, nav: "create", well: "palette" };
+      return { ...base, group: "new", selected: null, well: "palette" };
     case "S3":
-      return { ...base, group: "lens-review", selected: "drive2", nav: "create" };
+      return { ...base, group: "lens-review", selected: "drive2" };
     case "S4":
       return { ...base, view: "flow", selected: "explore" };
     case "S5":
@@ -65,7 +63,6 @@ function initOf(s: StateId): Init {
         selected: "gate",
         draft: true,
         gateAdded: true,
-        nav: "create",
         well: "palette",
         closeStart: true,
       };
@@ -74,7 +71,7 @@ function initOf(s: StateId): Init {
     case "S7":
       return { ...base, view: "profile", selected: null };
     case "S8":
-      return { ...base, view: "code", group: "lens-review", selected: "drive", nav: "create" };
+      return { ...base, view: "code", group: "lens-review", selected: "drive" };
   }
 }
 

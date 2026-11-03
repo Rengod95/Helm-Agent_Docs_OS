@@ -99,13 +99,7 @@ export function ItemView({ item }: { item: ChatItem }) {
       );
     case "tool":
       return (
-        <ToolRow
-          name={item.name}
-          detail={item.detail}
-          status={item.status}
-          duration={item.duration}
-          output={item.output}
-        />
+        <ToolRow name={item.name} detail={item.detail} status={item.status} output={item.output} />
       );
     case "row":
       return (

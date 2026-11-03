@@ -201,7 +201,7 @@ const NOTES = [
   { id: "n2", x: 260, y: 130, title: "만료 비교 단위", size: 4 },
   { id: "n3", x: 420, y: 60, title: "무효화 이벤트", size: 2 },
   { id: "n4", x: 560, y: 170, title: "캐시 키 해시", size: 2 },
-  { id: "n5", x: 170, y: 220, title: "재현 시험", size: 3 },
+  { id: "n5", x: 170, y: 220, title: "재현 테스트", size: 3 },
 ];
 const LINKS: [string, string][] = [
   ["n1", "n2"],

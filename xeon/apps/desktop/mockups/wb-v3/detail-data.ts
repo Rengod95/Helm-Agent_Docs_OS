@@ -1,10 +1,13 @@
-// 플러그인 상세(무엇으로 되어 있나 + 어떻게 움직이나) 고정 데이터. 좌표는 상세 세계(1000 × 360) 기준이다.
-// Helm은 L3.helm.spec의 단계 머신과 group-kit 구성 선언(결정 7), 비용 라우터는 사용자 L1 플러그인 예시([제안]: 가상 모델
+// 플러그인 상세(무엇으로 되어 있나 + 어떻게 움직이나) 고정 데이터. 좌표는 상세 그림(900 폭) 기준이다.
+// Helm은 L3.helm.spec의 단계 머신과 group-sdk 구성 선언(결정 7), 비용 라우터는 사용자 L1 플러그인 예시([제안]: 가상 모델
 // 라우터는 L1.models.spec §3 미결 "registerVirtualModel" 2차라, 여기서는 registerProvider + request.provider.before chain으로 그렸다).
+import { T } from "../_shell/terms";
 import type { LayerId } from "./data";
 
 export interface InRow {
+  /** 기계 이름. 화면에 내지 않는다. */
   id: string;
+  label: string;
   /** 오른쪽 작은 글: 누가 주는지 */
   sub: string;
   to: string[];
@@ -21,7 +24,6 @@ export interface Comp {
   name: string;
   role: string;
   roleLabel: string;
-  line: string;
   x: number;
   y: number;
   h?: number;
@@ -29,7 +31,9 @@ export interface Comp {
   hero?: boolean;
 }
 export interface OutRow {
+  /** 기계 이름. 화면에 내지 않는다. */
   id: string;
+  label: string;
   sub?: string;
   from: string[];
   stage?: string;
@@ -43,24 +47,18 @@ export interface OutGroup {
 export interface Phase {
   id: string;
   label: string;
-  budget?: string;
   comps: string[];
-  /** 이 단계로 들어오는 경계 조건 */
-  cond?: string;
   fan?: string[];
-  note?: string;
 }
 export interface DetailSpec {
   id: string;
   inputs: InGroup[];
   comps: Comp[];
-  internal: [string, string, string][];
+  internal: [string, string][];
   outputs: OutGroup[];
   phases: Phase[];
   /** 흐름이 고리인가(단계 머신) */
   cyclic: boolean;
-  flowTitle: string;
-  flowMeta: string;
   activePhase: string;
   gateAfter?: string;
 }
@@ -70,27 +68,33 @@ export const HELM_DETAIL: DetailSpec = {
   inputs: [
     {
       layer: "L2",
-      title: "기능",
+      title: T.layerL2,
       rows: [
-        { id: "web.search", sub: "Exa 검색", to: ["knowledge-use"], user: true },
-        { id: "web.fetch", sub: "웹", to: ["knowledge-use"] },
-        { id: "knowledge.search", sub: "없음 · 선택", to: ["knowledge-use"], missing: true },
-        { id: "knowledge.skills", sub: "지식", to: ["knowledge-use"] },
-        { id: "work.tasks", sub: "작업", to: ["record"] },
+        { id: "web.search", label: "웹 검색", sub: "Exa 검색", to: ["knowledge-use"], user: true },
+        { id: "web.fetch", label: "페이지 읽기", sub: "웹", to: ["knowledge-use"] },
+        {
+          id: "knowledge.search",
+          label: "지식 검색",
+          sub: "없음 · 선택",
+          to: ["knowledge-use"],
+          missing: true,
+        },
+        { id: "knowledge.skills", label: "기술·기억", sub: "지식", to: ["knowledge-use"] },
+        { id: "work.tasks", label: "작업 목록", sub: "작업", to: ["record"] },
       ],
     },
     {
       layer: "L1",
-      title: "에이전트 핵심",
+      title: T.layerL1,
       rows: [
-        { id: "loop.spawn", sub: "보조 에이전트", to: ["drive"] },
-        { id: "loop.turn", sub: "턴 실행", to: ["drive"] },
+        { id: "loop.spawn", label: "에이전트 띄우기", sub: "보조 에이전트", to: ["drive"] },
+        { id: "loop.turn", label: "턴 돌리기", sub: "턴 실행", to: ["drive"] },
       ],
     },
     {
       layer: "L0",
-      title: "시스템 기반",
-      rows: [{ id: "ScopedStore", sub: "저장", to: ["restore", "record"] }],
+      title: T.layerL0,
+      rows: [{ id: "ScopedStore", label: "범위 저장소", sub: "저장", to: ["restore", "record"] }],
     },
   ],
   comps: [
@@ -99,8 +103,7 @@ export const HELM_DETAIL: DetailSpec = {
       name: "단계 머신",
       role: "drive",
       roleLabel: "주도",
-      line: "확산 → 탐색 → 수렴 → 적용",
-      x: 270,
+      x: 240,
       y: 26,
       h: 84,
       hero: true,
@@ -110,8 +113,7 @@ export const HELM_DETAIL: DetailSpec = {
       name: "지식 소비",
       role: "knowledge",
       roleLabel: "지식",
-      line: "수렴에서 읽기만 · 출처별 저하",
-      x: 270,
+      x: 240,
       y: 124,
     },
     {
@@ -119,8 +121,7 @@ export const HELM_DETAIL: DetailSpec = {
       name: "발견 기록",
       role: "record",
       roleLabel: "기록",
-      line: "발견을 그룹 기록으로 남겨요",
-      x: 270,
+      x: 240,
       y: 198,
     },
     {
@@ -128,8 +129,7 @@ export const HELM_DETAIL: DetailSpec = {
       name: "상태 복원",
       role: "restore",
       roleLabel: "복원",
-      line: "다시 열면 단계를 이어요",
-      x: 524,
+      x: 468,
       y: 26,
     },
     {
@@ -137,8 +137,7 @@ export const HELM_DETAIL: DetailSpec = {
       name: "신호 감지",
       role: "signal",
       roleLabel: "신호",
-      line: "막힘 3 · 반복 3 · 새 분야",
-      x: 524,
+      x: 468,
       y: 94,
     },
     {
@@ -146,8 +145,7 @@ export const HELM_DETAIL: DetailSpec = {
       name: "렌즈 주입",
       role: "lens",
       roleLabel: "렌즈",
-      line: "신호 순서로 렌즈 3개",
-      x: 524,
+      x: 468,
       y: 162,
     },
     {
@@ -155,74 +153,61 @@ export const HELM_DETAIL: DetailSpec = {
       name: "쓰기 막기",
       role: "guard",
       roleLabel: "막기",
-      line: "탐색 중 main·explorer 쓰기 거부",
-      x: 524,
+      x: 468,
       y: 230,
     },
   ],
   internal: [
-    ["signal", "drive", "막힘"],
-    ["drive", "lens", "렌즈 지시"],
-    ["drive", "guard", "단계"],
-    ["knowledge-use", "drive", "발견"],
-    ["drive", "record", "적용"],
-    ["restore", "drive", "단계 복원"],
+    ["signal", "drive"],
+    ["drive", "lens"],
+    ["drive", "guard"],
+    ["knowledge-use", "drive"],
+    ["drive", "record"],
+    ["restore", "drive"],
   ],
   outputs: [
     {
       layer: "X",
-      title: "연결 지점",
+      title: T.extensionPoint,
       rows: [
-        { id: "session.start", from: ["restore"], stage: "session" },
-        { id: "boundary.settle.after", from: ["signal"], stage: "boundary" },
-        { id: "input.agent.before", from: ["lens"], stage: "input" },
-        { id: "tool.call.before", from: ["guard"], stage: "tool" },
-        { id: "tool.execution.after", from: ["signal"], stage: "tool" },
-        { id: "lifecycle.lease.rejected", from: ["drive"], stage: "lifecycle" },
-        { id: "진행권 · 입력 넣기", from: ["drive"] },
+        { id: "thread.start", label: "대화 시작", from: ["restore"], stage: "thread" },
+        { id: "boundary.settle.after", label: "단계 끝난 뒤", from: ["signal"], stage: "boundary" },
+        { id: "input.agent.before", label: "입력 넣기 전", from: ["lens"], stage: "input" },
+        { id: "tool.call.before", label: "도구 부르기 전", from: ["guard"], stage: "tool" },
+        { id: "tool.execution.after", label: "도구 실행 뒤", from: ["signal"], stage: "tool" },
+        {
+          id: "lifecycle.lease.rejected",
+          label: "주도 거절",
+          from: ["drive"],
+          stage: "lifecycle",
+        },
+        { id: "주도 · 입력 넣기", label: "주도 · 입력 넣기", from: ["drive"] },
       ],
     },
     {
       layer: "L3",
       title: "내놓는 것",
       rows: [
-        { id: "grp.helm.discovery.recorded", sub: "학습이 읽어요", from: ["record"] },
-        { id: "화면 · Helm 탐구", from: ["record"] },
+        { id: "grp.helm.discovery.recorded", label: "발견 기록됨", from: ["record"] },
+        { id: "화면 · Helm 탐구", label: "화면 · Helm 탐구", from: ["record"] },
       ],
     },
   ],
   phases: [
     { id: "idle", label: "쉼", comps: ["signal", "restore"] },
-    {
-      id: "diverge",
-      label: "확산",
-      budget: "턴 1",
-      comps: ["drive", "lens"],
-      cond: "막힘 신호 · 진행권",
-    },
+    { id: "diverge", label: "확산", comps: ["drive", "lens"] },
     {
       id: "explore",
       label: "탐색",
-      budget: "보조 3",
       comps: ["drive", "lens", "guard"],
-      cond: "diverged",
       fan: ["실패 사례", "기본 원리", "다른 분야"],
     },
-    { id: "gather", label: "모으기", comps: ["drive"], cond: "렌즈 끝", note: "부분 결과 허용" },
-    {
-      id: "converge",
-      label: "수렴",
-      budget: "턴 0",
-      comps: ["drive", "knowledge-use"],
-      cond: "done ≥ 1",
-    },
-    { id: "apply", label: "적용", budget: "턴 1", comps: ["drive", "record"], cond: "발견 ≥ 1" },
-    { id: "end", label: "끝", comps: ["record"], cond: "applied" },
+    { id: "gather", label: "모으기", comps: ["drive"] },
+    { id: "converge", label: "수렴", comps: ["drive", "knowledge-use"] },
+    { id: "apply", label: "적용", comps: ["drive", "record"] },
+    { id: "end", label: "끝", comps: ["record"] },
   ],
   cyclic: true,
-  flowTitle: "어떻게 움직이나",
-  flowMeta:
-    "단계 머신 · 단계마다 커밋하고 다시 불려요 · 진행 한도 턴 4 · 보조 에이전트 8 · 토큰 400k",
   activePhase: "explore",
   gateAfter: "converge",
 };
@@ -232,22 +217,22 @@ export const ROUTER_DETAIL: DetailSpec = {
   inputs: [
     {
       layer: "L1",
-      title: "에이전트 핵심",
+      title: T.layerL1,
       rows: [
-        { id: "models.registerProvider", sub: "모델", to: ["provider"] },
-        { id: "models.roles", sub: "모델 · 역할 표", to: ["choose"] },
-        { id: "models.usage", sub: "모델 · 사용량", to: ["record"] },
+        { id: "models.registerProvider", label: "provider 등록", sub: "모델", to: ["provider"] },
+        { id: "models.roles", label: "역할 표", sub: "모델", to: ["choose"] },
+        { id: "models.usage", label: "사용량", sub: "모델", to: ["record"] },
       ],
     },
     {
       layer: "L0",
-      title: "시스템 기반",
-      rows: [{ id: "ScopedStore", sub: "저장 · 통계 표", to: ["record"] }],
+      title: T.layerL0,
+      rows: [{ id: "ScopedStore", label: "범위 저장소", sub: "저장", to: ["record"] }],
     },
     {
       layer: "F",
-      title: "공통 규약",
-      rows: [{ id: "ext.cost-router.rules", sub: "설정 키 · 선언", to: ["rules"] }],
+      title: T.layerF,
+      rows: [{ id: "ext.cost-router.rules", label: "규칙", sub: "설정 키", to: ["rules"] }],
     },
   ],
   comps: [
@@ -256,8 +241,7 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "provider 등록",
       role: "provider",
       roleLabel: "등록",
-      line: "route/auto 를 모델로 내놔요",
-      x: 270,
+      x: 240,
       y: 14,
     },
     {
@@ -265,8 +249,7 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "규칙 읽기",
       role: "rules",
       roleLabel: "설정",
-      line: "짧은 질문 · 긴 컨텍스트 · 계획",
-      x: 270,
+      x: 240,
       y: 92,
     },
     {
@@ -274,8 +257,7 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "모델 고르기",
       role: "choose",
       roleLabel: "고르기",
-      line: "haiku · sonnet · opus 중 하나",
-      x: 270,
+      x: 240,
       y: 170,
       h: 84,
       hero: true,
@@ -285,8 +267,7 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "요청 재기",
       role: "measure",
       roleLabel: "재기",
-      line: "입력 토큰 · 도구 수 · 첨부",
-      x: 524,
+      x: 468,
       y: 50,
     },
     {
@@ -294,8 +275,7 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "요청 고치기",
       role: "patch",
       roleLabel: "고치기",
-      line: "provider 본문의 model만 바꿔요",
-      x: 524,
+      x: 468,
       y: 140,
     },
     {
@@ -303,43 +283,42 @@ export const ROUTER_DETAIL: DetailSpec = {
       name: "비용 기록",
       role: "record",
       roleLabel: "기록",
-      line: "고른 모델과 아낀 비용",
-      x: 524,
+      x: 468,
       y: 222,
     },
   ],
   internal: [
-    ["rules", "choose", "규칙"],
-    ["measure", "choose", "크기"],
-    ["choose", "patch", "모델"],
-    ["patch", "record", "결과"],
+    ["rules", "choose"],
+    ["measure", "choose"],
+    ["choose", "patch"],
+    ["patch", "record"],
   ],
   outputs: [
     {
       layer: "X",
-      title: "연결 지점",
+      title: T.extensionPoint,
       rows: [
         {
           id: "request.provider.before",
-          sub: "chain",
+          label: "provider 요청 전",
           from: ["measure", "patch"],
           stage: "request",
         },
-        { id: "request.model.after", sub: "tap", from: ["record"], stage: "request" },
+        { id: "request.model.after", label: "모델 응답 뒤", from: ["record"], stage: "request" },
       ],
     },
     {
       layer: "L1",
       title: "내놓는 것",
       rows: [
-        { id: "provider route/auto", sub: "역할 표 main이 써요", from: ["provider"] },
-        { id: "x.cost-router.route.chosen", sub: "기록 종류", from: ["record"] },
+        { id: "provider route/auto", label: "provider route/auto", from: ["provider"] },
+        { id: "x.cost-router.route.chosen", label: "고른 모델", from: ["record"] },
       ],
     },
   ],
   phases: [
-    { id: "arrive", label: "요청 도착", comps: ["measure"], cond: "request.provider.before" },
-    { id: "measure", label: "재기", comps: ["measure"], note: "18k 토큰 · 도구 3" },
+    { id: "arrive", label: "요청 도착", comps: ["measure"] },
+    { id: "measure", label: "재기", comps: ["measure"] },
     { id: "match", label: "규칙 대조", comps: ["rules", "choose"] },
     {
       id: "choose",
@@ -347,11 +326,9 @@ export const ROUTER_DETAIL: DetailSpec = {
       comps: ["choose"],
       fan: ["haiku-5-5", "sonnet-5-5", "opus-5-5"],
     },
-    { id: "patch", label: "요청 고치기", comps: ["patch"], note: "model 필드만" },
-    { id: "after", label: "응답 뒤 기록", comps: ["record"], cond: "request.model.after" },
+    { id: "patch", label: "요청 고치기", comps: ["patch"] },
+    { id: "after", label: "응답 뒤 기록", comps: ["record"] },
   ],
   cyclic: false,
-  flowTitle: "어떻게 움직이나",
-  flowMeta: "요청마다 한 번 · 진행권을 쓰지 않아요 · 실패하면 고치지 않고 통과(skip)",
   activePhase: "choose",
 };

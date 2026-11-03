@@ -39,7 +39,7 @@ export function KindCard({
         id: "kind",
         header: `${T.kind}와 이름`,
         text: blocked
-          ? `관찰 ${T.group} audit-trail로 만들까요? ${T.targetFolder}는 ~/code/xeon-ext/audit-trail이에요.`
+          ? `관찰 ${T.group} audit-trail로 만들까요? ${T.targetFolder}는 ~/code/fresnel-ext/audit-trail이에요.`
           : `${DISPLAY}(${NAME})를 의도 ${T.group}으로 만들까요? ${T.targetFolder}는 ${DIR}예요.`,
         multiSelect: false,
         allowFreeText: true,
@@ -60,7 +60,7 @@ export function KindCard({
           : [
               {
                 id: "group.drive",
-                label: "의도 그룹 · group.drive",
+                label: "플러그인 그룹 · group.drive",
                 description: "정해진 시각에 턴을 직접 구동해요",
                 recommended: true,
               },
@@ -144,7 +144,7 @@ export function FixCard({
   );
 }
 
-/** 3. 시험 비용(trial 단계 전). */
+/** 3. 테스트 비용(trial 단계 전). */
 export function TrialCard({
   state,
   onYes,
@@ -159,7 +159,7 @@ export function TrialCard({
       <AgentRequest
         kind="permission"
         status={state === "done" ? "allowed" : "denied"}
-        title={state === "done" ? `${T.trial}하기로 했어요` : `${T.trial}을 건너뛰었어요`}
+        title={state === "done" ? `${T.trial}하기로 했어요` : `${T.trial}를 건너뛰었어요`}
         subtitle={`${T.trialThread} 1 · 예상 토큰 40k · ${SRC}`}
       />
     );
@@ -245,7 +245,9 @@ export function PackageCard({
             </span>
           </span>
         </ListDescriptionRow>
-        <ListDescriptionRow term="빼는 파일">.env 같은 비밀 파일은 넣지 않아요</ListDescriptionRow>
+        <ListDescriptionRow term="빼는 파일">
+          .env 같은 시크릿 파일은 넣지 않아요
+        </ListDescriptionRow>
         <ListDescriptionRow term={`파일 ${FILES.length} · SHA-256`}>
           <span className="grid gap-0.5 font-mono text-mono-sm">
             {FILES.map(([f, h]) => (
@@ -307,7 +309,7 @@ export function LinkCard({
         </ListDescriptionRow>
         <ListDescriptionRow term="켜짐">꺼진 채로 들어가요</ListDescriptionRow>
         <ListDescriptionRow term={T.extensionPoint}>
-          drive · session.start · turn.end
+          drive · thread.start · turn.end
         </ListDescriptionRow>
       </ListDescription>
     </AgentRequest>

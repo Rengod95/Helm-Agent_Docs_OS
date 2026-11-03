@@ -1,5 +1,5 @@
 // 지도 3단계 "상세": 고른 블록 하나를 펼친다. 왼쪽 = 루프를 세로로 편 소켓 줄(꽂힌 소켓만 진하게), 가운데 = 블록의 포트
-// (왼쪽 on 핀, 오른쪽 능력 받는 곳, 아래 post·drive), 오른쪽 = 능력을 내주는 서비스. 같은 높이 끼리 수평 엣지로 잇는다.
+// (왼쪽 on 핀, 오른쪽 기능 받는 곳, 아래 post·drive), 오른쪽 = 기능을 내주는 서비스. 같은 높이 끼리 수평 엣지로 잇는다.
 // 지도는 운영 화면이라 구조를 고치지 않는다(사용자 결정 2): 블록 머리에 "구성기에서 열기" 하나.
 import { Lock, Play, SquarePen } from "../../_shell";
 import { POINT_STATS, SOCKETS, T1_LEASE } from "../data";
@@ -164,7 +164,7 @@ export function Detail() {
               Helm
             </span>
             <span className="text-ui-xs text-text-tertiary">
-              <span className="font-mono">helm</span> · L3 의도 그룹 · user 0.1.0
+              <span className="font-mono">helm</span> · L3 플러그인 그룹 · user 0.1.0
             </span>
           </div>
           <Mark tone="accent" icon={<Play />}>
@@ -206,7 +206,7 @@ export function Detail() {
             </span>
           ) : null,
         )}
-        {/* 오른쪽 능력 포트 이름 */}
+        {/* 오른쪽 기능 포트 이름 */}
         {SERVICES.flatMap((svc) =>
           svc.caps.map((c, i) => (
             <span
@@ -270,7 +270,7 @@ export function Detail() {
         <span className="me-1.5 font-mono text-mono-micro" style={{ color: "var(--ink-l2)" }}>
           L2
         </span>
-        능력을 내주는 서비스
+        기능을 내주는 서비스
       </span>
       <span
         className="absolute flex flex-wrap items-center gap-x-3 gap-y-1 w-[190px] text-micro text-text-tertiary"

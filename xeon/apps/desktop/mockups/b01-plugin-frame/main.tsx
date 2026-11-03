@@ -14,7 +14,7 @@ if (root !== null)
     <StrictMode>
       <MockRoot states={STATES}>
         {(state) => (
-          // 작업대 화면이라 오른쪽 well은 닫힌 채 시작한다(DP-43). 승인 상태(F4)만 받은 요청을 연다.
+          // 크래프트 화면이라 오른쪽 well은 닫힌 채 시작한다(DP-43). 승인 상태(F4)만 받은 요청을 연다.
           <ShellStateProvider
             initialArea="workbench"
             initialWorkbenchTab="inbox"

@@ -28,8 +28,8 @@ function Page({ state }: { state: StateId }) {
         onOpenChange={setOpen}
         recent={state === "S2" ? [] : recentWorkspaces}
         {...(state === "S2" ? { initialPath: "" } : {})}
-        {...(state === "S3" ? { initialPath: "code/xeon" } : {})}
-        {...(state === "S4" ? { initialPath: "/Users/mina/code/xeon-old" } : {})}
+        {...(state === "S3" ? { initialPath: "code/fresnel" } : {})}
+        {...(state === "S4" ? { initialPath: "/Users/mina/code/fresnel-old" } : {})}
         rejected={state === "S4"}
         creating={state === "S5"}
       />

@@ -181,7 +181,7 @@ export function reduce(s: S, a: A): S {
           {
             k: "agent",
             live: true,
-            text: "만료 시각 비교를 밀리초로 맞추고 경계 시험을 돌려 볼게요.",
+            text: "만료 시각 비교를 밀리초로 맞추고 경계 테스트를 돌려 볼게요.",
           },
         ],
       };
@@ -214,7 +214,7 @@ export function reduce(s: S, a: A): S {
           {
             k: "agent",
             live: true,
-            text: "경계 시험 3개가 모두 통과했어요. set과 isExpired 모두 밀리초를 써요.",
+            text: "경계 테스트 3개가 모두 통과했어요. set과 isExpired 모두 밀리초를 써요.",
           },
         ],
       };
@@ -226,7 +226,7 @@ export function reduce(s: S, a: A): S {
         cards: { ...s.cards, tool: "none" },
         items: [
           ...s.items,
-          { k: "user", text: "만료 단위 고치고 시험 다시 돌려줘" },
+          { k: "user", text: "만료 단위 고치고 테스트 다시 돌려줘" },
           { k: "agent", text: "src/cache.ts의 비교를 밀리초로 바꿀게요." },
           { k: "tool", name: "edit", detail: "src/cache.ts", status: "done", duration: "60ms" },
         ],
@@ -254,7 +254,7 @@ export function reduce(s: S, a: A): S {
           items: [
             ...s.items,
             row(`${T.resume}했어요 · 마지막 단계 사이부터`, "play"),
-            { k: "agent", live: true, text: "멈춘 곳부터 이어서 시험을 돌릴게요." },
+            { k: "agent", live: true, text: "멈춘 곳부터 이어서 테스트를 돌릴게요." },
           ],
         };
       if (a.r === "closed")
@@ -443,7 +443,7 @@ export function effect(a: A, n: S, after: After<A>) {
   switch (a.t) {
     case "start":
       if (n.script === "turn-fail-retry")
-        after(900, { t: "send", text: "만료 단위 고치고 시험 돌려줘" });
+        after(900, { t: "send", text: "만료 단위 고치고 테스트 돌려줘" });
       else if (n.script.startsWith("resume-")) after(900, { t: "restart" });
       else if (n.script === "list-states") after(300, { t: "listLoad" });
       else if (n.script === "read-fail") after(500, { t: "openThread", id: "t3" });
@@ -511,7 +511,7 @@ export const SCRIPTS: Record<string, readonly A[]> = {
   base: [start],
   "turn-fail-retry": [
     start,
-    { t: "send", text: "만료 단위 고치고 시험 돌려줘" },
+    { t: "send", text: "만료 단위 고치고 테스트 돌려줘" },
     { t: "tool" },
     { t: "fail" },
     { t: "retry" },

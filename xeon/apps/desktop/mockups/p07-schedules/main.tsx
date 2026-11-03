@@ -20,14 +20,10 @@ import {
 import { StrictMode, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  BAR_INSET,
   CalendarClock,
-  Copy,
   Ellipsis,
-  MessageSquare,
   PanelLeft,
-  Play,
-  Plus,
-  Trash2,
   defaultStatusCells,
   Shell,
   standardRightTabs,
@@ -90,9 +86,6 @@ function LastRun({ s }: { s: Schedule }) {
       className="-mx-1 inline-flex min-w-0 items-baseline gap-1.5 rounded-sm px-1 text-left font-normal outline-none hover:underline focus-visible:focus-ring"
     >
       <span className={tone}>{word}</span>
-      {l.reason !== undefined && (
-        <span className="font-mono text-mono-sm text-danger-text">{l.reason}</span>
-      )}
       <span className="text-ui-xs text-text-tertiary">{l.at}</span>
     </button>
   );
@@ -103,12 +96,7 @@ function renderCell(row: TableRow, col: TableColumn): ReactNode {
   const dim = s.enabled ? "" : "opacity-60";
   switch (col.key) {
     case "title":
-      return (
-        <div className={`grid min-w-0 gap-0.5 ${dim}`}>
-          <span className="truncate font-medium text-text-primary">{s.title}</span>
-          <span className="truncate text-ui-xs font-normal text-text-tertiary">{s.prompt}</span>
-        </div>
-      );
+      return <span className={`truncate font-medium text-text-primary ${dim}`}>{s.title}</span>;
     case "trigger":
       return <span className={`font-normal text-text-secondary ${dim}`}>{s.triggerText}</span>;
     case "next":
@@ -126,7 +114,7 @@ function rowActions(row: TableRow) {
   return (
     <div className="flex items-center justify-end gap-0.5">
       {s.trigger === "remote" && s.enabled && (
-        <Button size="xs" tone="neutral" variant="ghost" iconStart={<Play />}>
+        <Button size="xs" tone="neutral" variant="ghost">
           지금 실행
         </Button>
       )}
@@ -139,15 +127,11 @@ function rowActions(row: TableRow) {
           </IconButton>
         }
       >
-        <MenuItem icon={<MessageSquare />} disabled={s.last.status === "none"}>
-          마지막 실행 대화 열기
-        </MenuItem>
-        <MenuItem icon={<Play />} disabled={s.trigger !== "remote"}>
-          지금 실행
-        </MenuItem>
-        <MenuItem icon={<Copy />}>복제</MenuItem>
+        <MenuItem disabled={s.last.status === "none"}>마지막 실행 대화 열기</MenuItem>
+        <MenuItem disabled={s.trigger !== "remote"}>지금 실행</MenuItem>
+        <MenuItem>복제</MenuItem>
         <MenuSeparator />
-        <MenuItem icon={<Trash2 />} tone="danger" disabled={!s.enabled}>
+        <MenuItem tone="danger" disabled={!s.enabled}>
           취소
         </MenuItem>
       </Menu>
@@ -182,7 +166,7 @@ function Page({ state }: { state: S }) {
           openEnd: shell.openEnd,
         })}
       >
-        <header className="flex h-10 flex-none items-center gap-2 px-3">
+        <header className={`flex h-10 flex-none items-center gap-2 px-3 ${BAR_INSET}`}>
           {!shell.startOpen && (
             <IconButton
               size="sm"
@@ -196,23 +180,12 @@ function Page({ state }: { state: S }) {
           )}
           <h1 className="m-0 flex min-w-0 flex-1 items-baseline gap-2 text-ui-strong text-text-primary">
             예약
-            {state !== "S10" && state !== "S11" && (
-              <span className="text-ui-sm font-normal tabular-nums text-text-tertiary">
-                {list.length}
-              </span>
-            )}
           </h1>
           <SegmentedControl size="xs" aria-label="보기" value={filter} onValueChange={setFilter}>
             <SegmentedControlItem value="enabled">켜진 것</SegmentedControlItem>
             <SegmentedControlItem value="all">모두</SegmentedControlItem>
           </SegmentedControl>
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="solid"
-            iconStart={<Plus />}
-            onClick={() => setSheetOpen(true)}
-          >
+          <Button size="sm" tone="neutral" variant="solid" onClick={() => setSheetOpen(true)}>
             새 예약
           </Button>
         </header>
@@ -241,7 +214,7 @@ function Page({ state }: { state: S }) {
                   </Button>
                 }
               >
-                예약 목록을 읽지 못했어요 (store_failed).
+                예약 목록을 읽지 못했어요.
               </Alert>
             )}
             {state === "S10" ? (
@@ -261,13 +234,11 @@ function Page({ state }: { state: S }) {
                 surface="none"
                 icon={<CalendarClock />}
                 title="예약이 없어요"
-                description="정한 때에 프롬프트를 실행해요. 앱을 닫아도 돌리려면 서비스 모드를 켜요."
                 actions={
                   <Button
                     size="sm"
                     tone="neutral"
                     variant="solid"
-                    iconStart={<Plus />}
                     onClick={() => setSheetOpen(true)}
                   >
                     새 예약

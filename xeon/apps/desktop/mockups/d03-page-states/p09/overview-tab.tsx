@@ -10,7 +10,7 @@ const DIAG = [
     tone: "warning",
     text: "프로젝트 파일에 모르는 키가 있어요",
     key: "l2.web.legacyProxy",
-    where: "~/code/xeon/.fresnel/settings.json",
+    where: "~/code/fresnel/.fresnel/settings.json",
   },
   {
     tone: "info",
@@ -34,11 +34,15 @@ export function OverviewTab({ onWipe, data = false }: { onWipe?: () => void; dat
           <ListDescriptionRow term="사용자" mono copyValue="~/.fresnel/settings.json">
             ~/.fresnel/settings.json
           </ListDescriptionRow>
-          <ListDescriptionRow term="프로젝트" mono copyValue="~/code/xeon/.fresnel/settings.json">
-            ~/code/xeon/.fresnel/settings.json
+          <ListDescriptionRow
+            term="프로젝트"
+            mono
+            copyValue="~/code/fresnel/.fresnel/settings.json"
+          >
+            ~/code/fresnel/.fresnel/settings.json
           </ListDescriptionRow>
           <ListDescriptionRow term="관리 정책" mono>
-            /etc/xeon/managed.json
+            /etc/fresnel/managed.json
           </ListDescriptionRow>
         </ListDescription>
       </SettingSection>
@@ -53,16 +57,13 @@ export function OverviewTab({ onWipe, data = false }: { onWipe?: () => void; dat
               <Badge size="sm" tone="warning">
                 1개
               </Badge>
-              <span className="font-mono text-mono-sm text-text-secondary">
-                l1.engine.maxConcurrentTurns
-              </span>
             </span>
           </ListDescriptionRow>
           <ListDescriptionRow term="안전 모드">꺼짐</ListDescriptionRow>
         </ListDescription>
       </SettingSection>
       <SettingSection
-        title="화면 진단 3"
+        title="화면 진단"
         end={
           <Button size="xs" tone="neutral" variant="ghost">
             진단 복사
@@ -85,7 +86,7 @@ export function OverviewTab({ onWipe, data = false }: { onWipe?: () => void; dat
                 <div className="grid min-w-0 gap-0.5">
                   <span className="text-ui text-text-primary">{d.text}</span>
                   <span className="truncate font-mono text-mono-sm text-text-tertiary">
-                    {d.key} · {d.where}
+                    {d.where}
                   </span>
                 </div>
               </li>
@@ -99,7 +100,7 @@ export function OverviewTab({ onWipe, data = false }: { onWipe?: () => void; dat
           <ListDescription variant="ghost" size="xs" aria-label="이 기기의 데이터" className={ld}>
             <ListDescriptionRow term="대화">42개 · 1.2 GB(첨부 포함)</ListDescriptionRow>
             <ListDescriptionRow term="위치" mono>
-              ~/.local/share/xeon
+              ~/.local/share/fresnel
             </ListDescriptionRow>
           </ListDescription>
           <div className="flex flex-wrap items-center gap-1.5 pt-2">

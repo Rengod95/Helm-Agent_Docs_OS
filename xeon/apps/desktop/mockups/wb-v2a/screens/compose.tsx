@@ -1,5 +1,5 @@
-// 구성기(작업대 "구성", 구성·만들기를 합침 — 사용자 결정 6): 부품 · 흐름 · 프로필 세 보기를 같은 시각 언어로. "새 그룹"은 머리 동작.
-// 시험 실행은 흐름 보기의 상태: 위에 임대 사용량과 "다음 경계에서 멈춤"(결정 9) · "한 경계씩".
+// 구성기(크래프트 "구성", 구성·만들기를 합침 — 사용자 결정 6): 부품 · 흐름 · 프로필 세 보기를 같은 시각 언어로. "새 그룹"은 머리 동작.
+// 테스트 실행은 흐름 보기의 상태: 위에 주도 사용량과 "다음 경계에서 멈춤"(결정 9) · "한 경계씩".
 import { Button, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { ChevronRight as SkipForward, Copy, Pause, Play, Plus } from "../../_shell";
 import { WorkbenchHead } from "../../_shell";
@@ -15,11 +15,11 @@ export function ComposeScreen() {
   const title = v === "profile" ? "프로필 · 탐구 중심" : "Helm";
   const meta =
     v === "parts"
-      ? "참고 구성 · 읽기 전용 · 부품 7 · 소켓 6 · 능력 6"
+      ? "참고 구성 · 읽기 전용 · 부품 7 · 소켓 6 · 기능 6"
       : v === "flow"
         ? m.trial
-          ? "시험 대화 helm 렌즈 5개 · 실행 중 1:12"
-          : "단계 머신 · 단계 4 · 임대 상한 턴 4 · spawn 8 · 토큰 400k"
+          ? "테스트 대화 helm 렌즈 5개 · 실행 중 1:12"
+          : "단계 머신 · 단계 4 · 주도 상한 턴 4 · spawn 8 · 토큰 400k"
         : "켜기 2 · 끄기 2 · 설정 1";
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -71,7 +71,7 @@ export function ComposeScreen() {
           {m.trial ? (
             <>
               <span className="inline-flex items-center gap-1.5 text-ui-sm text-text-primary">
-                <span className="size-1.5 rounded-full bg-success-solid" /> 시험 실행 중
+                <span className="size-1.5 rounded-full bg-success-solid" /> 테스트 실행 중
               </span>
               <Meter label="턴" used={1} max={4} />
               <Meter label="spawn" used={3} max={8} />
@@ -81,7 +81,7 @@ export function ComposeScreen() {
                   size="xs"
                   variant="soft"
                   iconStart={<Pause />}
-                  onClick={() => m.notify("다음 단계 경계에서 멈춰요 · 임대는 유지해요")}
+                  onClick={() => m.notify("다음 단계 경계에서 멈춰요 · 주도는 유지해요")}
                 >
                   다음 경계에서 멈춤
                 </Button>
@@ -101,7 +101,7 @@ export function ComposeScreen() {
           ) : (
             <>
               <span className="text-ui-sm text-text-secondary">
-                시험 대화에서 돌려 보면 같은 흐름 위에 진행이 보여요
+                테스트 대화에서 돌려 보면 같은 흐름 위에 진행이 보여요
               </span>
               <Button
                 size="xs"
@@ -110,7 +110,7 @@ export function ComposeScreen() {
                 className="ms-auto"
                 onClick={() => m.set({ trial: true, ctx: "x:lens5" })}
               >
-                시험 대화에서 돌려 보기
+                테스트 대화에서 돌려 보기
               </Button>
             </>
           )}

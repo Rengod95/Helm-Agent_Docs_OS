@@ -1,4 +1,4 @@
-// 작업대 시안 상태(로컬만, §14.7). ?state=S1..S11이 첫 화면과 조건을 정하고, 그 뒤는 누름으로 바뀐다.
+// 크래프트 시안 상태(로컬만, §14.7). ?state=S1..S11이 첫 화면과 조건을 정하고, 그 뒤는 누름으로 바뀐다.
 import { toast } from "@caustic/react";
 import {
   createContext,
@@ -16,7 +16,7 @@ export const STATES = [
   { id: "S2", label: "S2 W1 안전 모드" },
   { id: "S3", label: "S3 W2 확장 목록" },
   { id: "S4", label: "S4 W2 오프라인" },
-  { id: "S5", label: "S5 W3 helm 연결 지점" },
+  { id: "S5", label: "S5 W3 helm 훅" },
   { id: "S6", label: "S6 W3 review 기록" },
   { id: "S7", label: "S7 W4 Helm 탐구" },
   { id: "S8", label: "S8 W4 확장 꺼짐" },
@@ -97,7 +97,7 @@ export function useMock(): Mock {
 export function MockProvider({ state, children }: { state: StateId; children: ReactNode }) {
   const shell = useShell();
   const init = INITIAL[state];
-  // 영역마다 마지막 화면을 기억한다(§4.9.2): 작업대 화면은 wbScreen, 대화 영역이면 늘 "chat".
+  // 영역마다 마지막 화면을 기억한다(§4.9.2): 크래프트 화면은 wbScreen, 대화 영역이면 늘 "chat".
   const [wbScreen, setWbScreen] = useState<Screen>(
     init.screen === "chat" ? "overview" : init.screen,
   );

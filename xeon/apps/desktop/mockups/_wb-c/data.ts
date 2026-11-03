@@ -1,9 +1,9 @@
-// 묶음 C(작업대 시험·버전·설정) 공용 고정 데이터. 목업 전용이고 값은 spec §6.24~§6.26, §14.5, 결정 4·6·9를 따른다.
-// 확장 id는 _shell EXT의 표시 이름과 짝이다(결정 13). 기계 값(seq, 지점, 해시)은 mono로 그린다(DP-39).
+// 묶음 C(크래프트 테스트·버전·설정) 공용 고정 데이터. 목업 전용이고 값은 spec §6.24~§6.26, §14.5, 결정 4·6·9를 따른다.
+// 확장 id는 _shell EXT의 표시 이름과 짝이다(결정 13). 기계 값(seq, 훅, 해시)은 mono로 그린다(DP-39).
 
 import { extJ, josa, T } from "../_shell";
 
-// ── P-19 시험 실행 ─────────────────────────────────────────────
+// ── P-19 테스트 실행 ─────────────────────────────────────────────
 
 export type RunKind = "trial" | "replay" | "bench" | "diff";
 export type RunResult =
@@ -25,14 +25,14 @@ export interface Run {
   target: string;
   result: RunResult;
   at: string;
-  took: string;
-  /** 시험 대화: 대화 id, 프로필 id, 단계 */
+  /** 테스트 대화: 대화 id, 프로필 id, 단계 */
   thread?: string;
   title?: string;
   profile?: string;
   steps?: [number, number];
+  lenses?: number;
+  findings?: number;
   commits?: number;
-  diffCuts?: number[];
   protectedFiles?: number;
 }
 
@@ -43,11 +43,12 @@ export const runs: Run[] = [
     target: "helm",
     result: "paused",
     at: "14:21",
-    took: "3:10",
     thread: "t8",
     title: "렌즈 5개로 넓히기",
     profile: "explore",
     steps: [2, 6],
+    lenses: 5,
+    findings: 4,
   },
   {
     id: "r2",
@@ -55,11 +56,12 @@ export const runs: Run[] = [
     target: "helm",
     result: "done",
     at: "13:02",
-    took: "4:40",
     thread: "t10",
     title: "렌즈 3개와 비교",
     profile: "explore",
     steps: [6, 6],
+    lenses: 3,
+    findings: 3,
   },
   {
     id: "r3",
@@ -67,7 +69,6 @@ export const runs: Run[] = [
     target: "review",
     result: "stopped",
     at: "어제",
-    took: "1:55",
     thread: "t9",
     title: "리뷰 다시 켜기 확인",
     profile: "review-trial",
@@ -80,7 +81,6 @@ export const runs: Run[] = [
     result: "passed",
     commits: 41,
     at: "3분 전",
-    took: "18s",
   },
   {
     id: "r5",
@@ -88,11 +88,9 @@ export const runs: Run[] = [
     target: "review",
     result: "failed",
     commits: 41,
-    diffCuts: [17, 18],
     at: "어제",
-    took: "9s",
   },
-  { id: "r6", kind: "bench", target: "server", result: "budget_pending", at: "어제", took: "2m" },
+  { id: "r6", kind: "bench", target: "server", result: "budget_pending", at: "어제" },
   {
     id: "r7",
     kind: "diff",
@@ -100,7 +98,6 @@ export const runs: Run[] = [
     result: "clean",
     protectedFiles: 0,
     at: "어제",
-    took: "1s",
   },
 ];
 
@@ -141,11 +138,10 @@ export function replayJson(): string {
   );
 }
 
-/** 시험 대화 상세의 단계 사이 기록(W-48, W-50 trial.phase). */
+/** 테스트 대화 상세의 단계 사이 기록(W-48, W-50 trial.phase). */
 export interface Boundary {
   n: number;
   at: string;
-  seq: number;
   turn: number;
   text: string;
   /** 이 경계에서 멈췄는가 */
@@ -155,19 +151,17 @@ export const boundaries: Boundary[] = [
   {
     n: 1,
     at: "14:18:02",
-    seq: 1204,
     turn: 1,
     text: `${extJ("helm", "이", "가")} ${josa(T.lead, "을", "를")} 받음 · ${T.inquiry} 시작`,
   },
-  { n: 2, at: "14:19:40", seq: 1231, turn: 2, text: `${T.lens} 5개 띄움 · spawn 5/8`, stop: true },
+  { n: 2, at: "14:19:40", turn: 2, text: `${T.lens} 5개 띄움`, stop: true },
 ];
 
-/** 턴 다시 보기 눈금(X-15 계측 링 버퍼, trace.turn W-43). 눈금 하나 = 지점 하나의 발화. */
+/** 턴 다시 보기 눈금(X-15 계측 링 버퍼, trace.turn W-43). 눈금 하나 = 훅 하나의 발화. */
 export interface Tick {
   seq: number;
   point: string;
-  fold: "collect" | "first" | "tap";
-  handlers: { ext: string; ms: string; budget: string; result: "ok" | "deny" | "threw" }[];
+  handlers: { ext: string; result: "ok" | "deny" | "threw" }[];
   boundary?: boolean;
   failed?: boolean;
 }
@@ -175,45 +169,39 @@ export const ticks: Tick[] = [
   {
     seq: 1205,
     point: "input.agent.before",
-    fold: "collect",
-    handlers: [{ ext: "helm", ms: "12ms", budget: "10s", result: "ok" }],
+    handlers: [{ ext: "helm", result: "ok" }],
   },
   {
     seq: 1208,
     point: "tool.call.before",
-    fold: "first",
     handlers: [
-      { ext: "helm", ms: "3ms", budget: "30s", result: "ok" },
-      { ext: "acme-notes", ms: "8.1s", budget: "30s", result: "threw" },
+      { ext: "helm", result: "ok" },
+      { ext: "acme-notes", result: "threw" },
     ],
     failed: true,
   },
   {
     seq: 1212,
     point: "tool.execution.after",
-    fold: "tap",
-    handlers: [{ ext: "helm", ms: "1ms", budget: "5s", result: "ok" }],
+    handlers: [{ ext: "helm", result: "ok" }],
   },
   {
     seq: 1219,
     point: "tool.call.before",
-    fold: "first",
-    handlers: [{ ext: "helm", ms: "2ms", budget: "30s", result: "ok" }],
+    handlers: [{ ext: "helm", result: "ok" }],
   },
   {
     seq: 1224,
     point: "tool.execution.after",
-    fold: "tap",
     handlers: [
-      { ext: "helm", ms: "1ms", budget: "5s", result: "ok" },
-      { ext: "learning", ms: "4ms", budget: "5s", result: "ok" },
+      { ext: "helm", result: "ok" },
+      { ext: "learning", result: "ok" },
     ],
   },
   {
     seq: 1231,
     point: "boundary.settle.after",
-    fold: "tap",
-    handlers: [{ ext: "helm", ms: "20ms", budget: "5s", result: "ok" }],
+    handlers: [{ ext: "helm", result: "ok" }],
     boundary: true,
   },
 ];
@@ -355,13 +343,13 @@ export const acmeLog: LogRow[] = [
   {
     at: "13:58:40",
     kind: "loader.diagnostic",
-    text: "manifest.points[2] 알 수 없는 지점 tool.result.after",
+    text: "manifest.points[2] 알 수 없는 훅 tool.result.after",
     tone: "danger",
     loc: "fresnel.extension.json:18",
   },
-  { at: "13:58:40", kind: "x.reload", text: "다시 읽음 · 0.0.9 · 지점 3" },
+  { at: "13:58:40", kind: "x.reload", text: "다시 읽음 · 0.0.9 · 훅 3" },
 ];
-export const ACME_DIR = "~/code/xeon/.fresnel/extensions/acme-notes";
+export const ACME_DIR = "~/code/fresnel/.fresnel/extensions/acme-notes";
 
 // ── X 훅(hooks.list, W-36) ─────────────────────────────────────
 
@@ -388,7 +376,7 @@ export const hooks: HookRow[] = [
   },
   {
     id: "audit-log",
-    event: "session.end",
+    event: "thread.end",
     command: "~/bin/audit-append.sh",
     scope: "project",
     p50: "35ms",

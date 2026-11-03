@@ -28,7 +28,7 @@ export const PORT_VAR: Record<PortType | "record", string> = {
   record: "var(--port-record)",
 };
 
-/** 포트 타입 모양: 능력 원(속 빈 원 = optional), on 둥근 네모(소켓), post 삼각(보냄), drive 마름모(구동). 색과 모양이 겹쳐 뜻을 준다. */
+/** 포트 타입 모양: 기능 원(속 빈 원 = optional), on 둥근 네모(소켓), post 삼각(보냄), drive 마름모(구동). 색과 모양이 겹쳐 뜻을 준다. */
 export function PortGlyph({
   type,
   hollow = false,

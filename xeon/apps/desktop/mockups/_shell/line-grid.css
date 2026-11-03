@@ -1,0 +1,21 @@
+/* 선 격자 유틸리티(foundation caustic에 없어 목업이 지닌다). line-grid.tsx가 쓴다. shell.css가 가져온다.
+   색은 caustic 토큰만: 선은 border-subtle, 십자 표식은 text-tertiary. 따로 oklch를 두지 않는다. */
+@utility line-cell {
+  box-shadow:
+    inset 0 1px 0 0 var(--cs-color-border-subtle),
+    inset 1px 0 0 0 var(--cs-color-border-subtle);
+}
+@utility line-cell-hatch {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--cs-color-border-subtle) 0 1px,
+    transparent 1px 6px
+  );
+}
+@utility text-grid-mark {
+  color: var(--cs-color-text-tertiary);
+}
+/* 띠(LineGridFrame) 안에서는 가장자리에 걸치는 십자 표식을 감춘다: 띠가 영역 끝까지 닿아 표식 절반이 잘리기 때문. */
+[data-slot="line-grid-frame"] [data-slot="line-grid-mark"] {
+  display: none;
+}

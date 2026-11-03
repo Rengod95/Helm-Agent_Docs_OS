@@ -2,7 +2,6 @@
 // 입력창 자리에 같은 모서리(2xl)·높이 감의 띠를 두고, 이유 한 줄과 "쓰기 다시 시도" 버튼을 둔다.
 // 바탕은 neutral-well(잠긴 입력의 흐린 바탕), 헤어라인은 border-subtle, 버튼은 caustic Button이다.
 import { Button } from "@caustic/react";
-import { Eye } from "../../_shell";
 
 export function ObserveBand({ onRetry }: { onRetry: () => void }) {
   return (
@@ -10,7 +9,6 @@ export function ObserveBand({ onRetry }: { onRetry: () => void }) {
       data-slot="observe-band"
       className="flex min-h-14 items-center gap-3 rounded-2xl bg-neutral-well px-4 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
     >
-      <Eye aria-hidden emphasis="muted" className="size-icon-md shrink-0 text-text-tertiary" />
       <div className="min-w-0 flex-1">
         <p className="m-0 text-ui-strong text-text-primary">관찰 중이에요</p>
       </div>

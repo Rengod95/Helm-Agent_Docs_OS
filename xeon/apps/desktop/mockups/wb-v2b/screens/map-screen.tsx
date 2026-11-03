@@ -1,4 +1,4 @@
-// 작업대 개요 = 나눔 보기(결정 1): 왼쪽 목록 + 오른쪽 캔버스, 고름·올림이 양쪽으로 맞물린다. 오른쪽 well은 검사기.
+// 크래프트 개요 = 나눔 보기(결정 1): 왼쪽 목록 + 오른쪽 캔버스, 고름·올림이 양쪽으로 맞물린다. 오른쪽 well은 검사기.
 // 좁은 창: 1100 이하(medium)는 목록을 접고(머리 버튼으로 다시), 720 이하(compact)는 목록만 보인다.
 import { Alert, IconButton, SegmentedControl, SegmentedControlItem } from "@caustic/react";
 import { useEffect, useState } from "react";
@@ -69,7 +69,7 @@ export function MapScreen() {
           primary: true,
           onClick: () => m.notify("다음 단계 경계에 다시 켜져요"),
         },
-        { label: "replay", onClick: () => m.notify("시험 실행에서 replay를 열어요") },
+        { label: "replay", onClick: () => m.notify("테스트 실행에서 replay를 열어요") },
       ]}
     >
       <b>리뷰가 자동으로 꺼졌어요</b> boundary.settle.after 예산 5s를 연속 5번 넘겼어요 · acme 노트
@@ -154,7 +154,7 @@ export function MapScreen() {
                 className="glass glass-shadow-2"
               >
                 <SegmentedControlItem value="map" aria-label="지도" icon={<LayoutGrid />} />
-                <SegmentedControlItem value="table" aria-label="층 × 지점 표" icon={<Rows3 />} />
+                <SegmentedControlItem value="table" aria-label="층 × 훅 표" icon={<Rows3 />} />
               </SegmentedControl>
             </>
           }

@@ -3,7 +3,7 @@
 import { Button } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import { approvals, inbox } from "./fixtures";
-import { NoticeList, QuestionCard, Sparkles, ToolApprovalCard } from "../_shell";
+import { NoticeList, QuestionCard, ToolApprovalCard } from "../_shell";
 import { useMock } from "./store";
 
 function Section({
@@ -64,16 +64,10 @@ export function InboxContent() {
         </div>
       </Section>
       {proposal !== undefined && (
-        <Section title="제안" count={3}>
+        <Section title="제안">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Sparkles
-              aria-hidden
-              emphasis="muted"
-              className="size-icon-sm shrink-0 text-text-tertiary"
-            />
             <div className="min-w-0 flex-1 truncate text-ui-sm text-text-primary">
-              {proposal.kind} <span className="font-mono text-mono-sm">{proposal.target}</span>{" "}
-              <span className="text-text-tertiary">{proposal.extra}</span>
+              {proposal.kind} <span className="font-mono text-mono-sm">{proposal.target}</span>
             </div>
             <Button size="xs" tone="neutral" variant="ghost">
               열기
@@ -81,7 +75,7 @@ export function InboxContent() {
           </div>
         </Section>
       )}
-      <Section title="알림" count={inbox.notices.length}>
+      <Section title="알림">
         <NoticeList notices={inbox.notices} />
       </Section>
     </div>

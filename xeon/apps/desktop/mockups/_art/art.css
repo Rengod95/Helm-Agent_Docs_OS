@@ -1,4 +1,4 @@
-/* Xeon 런타임 일러스트 토큰. SVG 안에는 색 값이 없고 이 변수만 쓴다.
+/* Fresnel 런타임 일러스트 토큰. SVG 안에는 색 값이 없고 이 변수만 쓴다.
    - 색상은 caustic 정체 색(iris, coral, mint)을 종이색에 낮은 비율로 섞은 파스텔이다.
    - 밝음/어두움: 문서 테마(:root[data-theme])를 따르고, [data-art-theme]으로 부분만 바꿀 수 있다.
    - 선 굵기는 렌더 크기와 무관하게 약 1.4px(vector-effect). */

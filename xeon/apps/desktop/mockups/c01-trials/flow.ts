@@ -1,4 +1,4 @@
-// P-19 시험 실행 상태 기계(목업 전용). spec §6.26, §6.31 O-12, 결정 4(replay·bench·diff는 개발 모드에서만),
+// P-19 테스트 실행 상태 기계(목업 전용). spec §6.26, §6.31 O-12, 결정 4(replay·bench·diff는 개발 모드에서만),
 // 결정 9(ReplayDriveReport 그대로 + JSON 복사), 결정 캔버스 5(계측 끄면 턴 다시 보기 잠김), 캔버스 9(단계 사이 멈춤).
 // ?state=<id>는 대본의 앞 n개 동작을 바로 적용한 모습이고, ?scenario=<id>&step=<n>도 같다(_chat-rt useMachine).
 import { runs as baseRuns, type Run } from "../_wb-c/data";
@@ -25,6 +25,8 @@ export interface S {
   /** replay 다시 실행 진행(절단 수). null이면 돌지 않음 */
   rerun: number | null;
   traceOff: boolean;
+  /** 턴 기록이 버퍼 밖으로 밀려난 테스트 행 id(N-39, spec §6.22.5). 다른 행을 고르면 막대가 돌아온다 */
+  evictedRun: string | null;
   /** 토스트 한 번(id가 바뀌면 띄움) */
   note: {
     id: number;
@@ -60,8 +62,8 @@ export type A =
   | { t: "resume" };
 
 export const NEW_ID = "r0";
-export const REPO_OK = "~/code/xeon";
-export const REPO_BAD = "~/Downloads/xeon-app";
+export const REPO_OK = "~/code/fresnel";
+export const REPO_BAD = "~/Downloads/fresnel-app";
 
 export const init = (script: string): S => ({
   script,
@@ -78,6 +80,7 @@ export const init = (script: string): S => ({
   previewFail: false,
   rerun: null,
   traceOff: script === "trace-off",
+  evictedRun: script === "turn-evicted" ? "r2" : null,
   note: null,
 });
 
@@ -113,7 +116,7 @@ export function reduce(s: S, a: A): S {
         ...s,
         dev: true,
         devDialog: "closed",
-        note: note(s, "개발 모드를 켰어요", `저장소 ${s.repo} · 이 컴퓨터 사용자 설정`, "success"),
+        note: note(s, "개발 모드를 켰어요", undefined, "success"),
       };
     case "devFail":
       return { ...s, devDialog: "norepo" };
@@ -121,29 +124,23 @@ export function reduce(s: S, a: A): S {
       return { ...s, devDialog: "closed" };
     case "rerun":
       return s.dev
-        ? { ...s, rerun: 0, runs: setRun(s, "r5", { result: "running", at: "지금", took: "0s" }) }
+        ? { ...s, rerun: 0, runs: setRun(s, "r5", { result: "running", at: "지금" }) }
         : s;
     case "rerunTick": {
       if (s.rerun === null) return s;
       const n = Math.min(41, s.rerun + 8);
-      if (n < 41)
-        return { ...s, rerun: n, runs: setRun(s, "r5", { took: `${Math.round(n / 4.5)}s` }) };
+      if (n < 41) return { ...s, rerun: n };
       return {
         ...s,
         rerun: null,
-        runs: setRun(s, "r5", { result: "failed", at: "방금", took: "9s" }),
-        note: note(
-          s,
-          "다시 돌려 검사가 끝났어요",
-          "절단 41개 중 2개가 달라요 · 첫 차이 seq 212",
-          "neutral",
-        ),
+        runs: setRun(s, "r5", { result: "failed", at: "방금" }),
+        note: note(s, "다시 돌려 검사가 끝났어요", "절단 41개 중 2개가 달라요", "neutral"),
       };
     }
     case "copyJson":
       return {
         ...s,
-        note: note(s, "검사 보고 JSON을 복사했어요", "ReplayDriveReport · 41개 절단", "neutral"),
+        note: note(s, "검사 보고 JSON을 복사했어요", undefined, "neutral"),
       };
     case "openNew":
       return { ...s, sheet: "open", kind: "trial", previewFail: false };
@@ -165,7 +162,6 @@ export function reduce(s: S, a: A): S {
         target: "helm",
         result: "running",
         at: "지금",
-        took: "0:04",
         thread: "t11",
         title: "캐시 무효화 원인 넓게 보기",
         profile: s.profile,
@@ -176,12 +172,7 @@ export function reduce(s: S, a: A): S {
         sheet: "closed",
         sel: NEW_ID,
         runs: [row, ...s.runs],
-        note: note(
-          s,
-          "시험 대화를 만들었어요",
-          "프로필 탐구 중심 · 이 대화에만 적용했어요",
-          "success",
-        ),
+        note: note(s, "테스트 대화를 만들었어요", undefined, "success"),
       };
     }
     case "closeSheet":
@@ -228,7 +219,7 @@ export function effect(a: A, n: S, after: After<A>) {
 
 const sel = (id: string): A => ({ t: "select", id });
 export const SCRIPTS: Record<string, readonly A[]> = {
-  // 새 시험: O-12 → 비용 확인 → 프로필 적용 → 시험 대화 시작
+  // 새 테스트: O-12 → 비용 확인 → 프로필 적용 → 테스트 대화 시작
   "trial-new": [
     { t: "openNew" },
     { t: "start" },
@@ -254,7 +245,7 @@ export const SCRIPTS: Record<string, readonly A[]> = {
     { t: "rerunTick" },
     { t: "copyJson" },
   ],
-  // 실패: 저장소 경로에 시험 하니스가 없음 → 잠김 유지
+  // 실패: 저장소 경로에 테스트 하니스가 없음 → 잠김 유지
   "trial-dev-locked-norepo": [
     sel("r5"),
     { t: "tip", on: true },
@@ -262,7 +253,7 @@ export const SCRIPTS: Record<string, readonly A[]> = {
     { t: "checkDev" },
     { t: "devFail" },
   ],
-  // 시험 대화 상세: 멈춤 상태에서 한 단계씩 → 다시 멈춤 → 이어서
+  // 테스트 대화 상세: 멈춤 상태에서 한 단계씩 → 다시 멈춤 → 이어서
   "trial-step": [sel("r1"), { t: "stepOnce" }, { t: "boundary" }, { t: "resume" }],
   // 정적 상태 전용 대본
   base: [sel("r1")],
@@ -270,5 +261,7 @@ export const SCRIPTS: Record<string, readonly A[]> = {
   past: [sel("r5")],
   dev: [sel("r5"), { t: "openDev" }, { t: "checkDev" }, { t: "devOk" }],
   "trace-off": [sel("r1")],
+  // 끝난 지 오래된 테스트: 대화마다 남기는 턴 수를 넘어 이 턴의 기록이 밀려남(N-39)
+  "turn-evicted": [sel("r2")],
   web: [sel("r5")],
 };

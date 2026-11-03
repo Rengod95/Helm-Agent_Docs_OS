@@ -1,6 +1,6 @@
 // O-10 확장 신뢰 확인(spec §6.31, ADR-0021 §3.5 등급표, X.loading-trust §4.6)과 그 차이 모드(coverage §4-2),
 // N-38 지우기 확인(O-06 변형). 모두 Dialog kind="alert", 기본 초점은 "취소"(거절 쪽).
-// - 신뢰 확인: 요청한 수준, 위치 상한, 실제 수준, 쓰는 연산, 연결 지점, 자체 코드 화면이면 "자체 화면 코드 실행"과 frame.reason.
+// - 신뢰 확인: 요청한 수준, 위치 상한, 실제 수준, 쓰는 연산, 훅, 자체 코드 화면이면 "자체 화면 코드 실행"과 frame.reason.
 //   프로젝트 위치 확장은 프로젝트 신뢰(O-04 allow)가 먼저라, 아직이면 "켜기"를 잠그고 폴더 신뢰로 보낸다.
 // - 다시 확인: 업데이트나 권한 변경으로 늘어난 것만 강조한다. 줄어든 변경은 묻지 않는다(목록 행 한 줄로만 알림).
 import {
@@ -22,8 +22,15 @@ import {
   Trash2,
   TriangleAlert,
 } from "../../_shell";
-import { removal, taskflowDiff, type Manifest } from "../data";
+import { removal, taskflowDiff, type Manifest, type Trust } from "../data";
 import { ExtLabel, LD, opName, trustName } from "./bits";
+
+const RANK: Record<Trust, number> = { project: 0, user: 1, builtin: 2 };
+
+/** 실제 신뢰 수준 = min(위치 상한, 요청). X.loading-trust §4.6.1. */
+function effectiveTrust(m: Manifest): Trust {
+  return RANK[m.requested] < RANK[m.ceiling] ? m.requested : m.ceiling;
+}
 
 function Foot({
   cancel,
@@ -103,7 +110,7 @@ export function TrustDialog({
             ) : (
               <span>
                 허용함{" "}
-                <span className="font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
+                <span className="font-mono text-mono-sm text-text-tertiary">~/code/fresnel</span>
               </span>
             )}
           </ListDescriptionRow>
@@ -114,7 +121,7 @@ export function TrustDialog({
           <span className="font-mono text-mono-sm text-text-tertiary">{m.dest}</span>
         </ListDescriptionRow>
         <ListDescriptionRow term={T.trustEffective}>
-          <span className="font-medium">{trustName[m.ceiling]}</span>
+          <span className="font-medium">{trustName[effectiveTrust(m)]}</span>
         </ListDescriptionRow>
         <ListDescriptionRow term="쓰는 연산">
           <span className="inline-flex flex-wrap gap-x-3 gap-y-0.5">

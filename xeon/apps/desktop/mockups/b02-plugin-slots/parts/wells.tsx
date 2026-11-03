@@ -101,7 +101,7 @@ function TaskflowWell({ reason }: { reason: string }) {
           <div className="grid gap-1.5 rounded-xl bg-bg-inset p-2">
             <span className="text-ui-xs font-semibold text-text-secondary">진행 1</span>
             <div className="rounded-lg bg-surface-raised p-2 text-ui-xs text-text-primary shadow-1">
-              <span className="font-mono text-text-tertiary">t12</span> TTL 경계 시각 재현 시험
+              <span className="font-mono text-text-tertiary">t12</span> TTL 경계 시각 재현 테스트
             </div>
           </div>
         </div>
@@ -118,7 +118,7 @@ function ReviewWell() {
         {[
           ["캐시 키 해시 고정", "3일 전", "warning"],
           ["무효화 이벤트 순서", "어제", "neutral"],
-          ["시험 시계 주입", "오늘", "neutral"],
+          ["테스트 시계 주입", "오늘", "neutral"],
         ].map(([t, at, tone]) => (
           <li key={t} className="flex items-baseline gap-2 text-ui-dense">
             <Badge size="sm" tone={tone === "warning" ? "warning" : "neutral"}>
@@ -157,7 +157,7 @@ export function WellContent({ w }: { w: WellDecl }) {
         <SmallWell
           rows={[
             ["이번 대화", "규칙 후보 2"],
-            ["최근", "시험 시계는 주입"],
+            ["최근", "테스트 시계는 주입"],
           ]}
         />
       );

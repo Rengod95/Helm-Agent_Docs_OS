@@ -1,5 +1,5 @@
 // B01 P-18 플러그인 화면 호스트: 자체 코드 화면(frame) 틀·수명·확인 줄·막힘, 승인과 외부 링크, 기본 부품 화면 남은 상태.
-// 작업대 영역 하나. 왼쪽 "플러그인 화면" 목록으로 세 화면(작업 흐름판 frame, Helm 탐구 declarative, 노트 지도 project frame)을 오간다.
+// 크래프트 영역 하나. 왼쪽 "플러그인 화면" 목록으로 세 화면(작업 흐름판 frame, Helm 탐구 declarative, 노트 지도 project frame)을 오간다.
 import { Button, EmptyState, Skeleton, Toaster, toast } from "@caustic/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -622,7 +622,7 @@ export function App({ state }: { state: StateId }) {
           set({ projectTrust: "allow" });
           toast({
             title: "이 폴더를 신뢰했어요",
-            description: "~/code/xeon · 프로젝트 확장을 실어요",
+            description: "~/code/fresnel · 프로젝트 확장을 실어요",
           });
         }}
         onToggle={(v) => {

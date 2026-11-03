@@ -1,12 +1,11 @@
 // P-13 확장 목록: 켜는 범위와 대기(N-35), X 훅 행(N-36). spec §6.23, §6.21, 결정 12.
 // - 꺼진 확장의 스위치를 누르면 "켜는 범위" 팝오버(이 대화만·이 프로젝트·사용자 전체). 이 대화만은 session 범위라
 //   "이번 단계가 끝나면 적용" 대기 뒤 켜진다. requires 미충족이면 "필요한 기능 기다림", 관리 정책이면 잠김 + 이유 툴팁.
-// - 보기 기준이 프로필이면 스위치는 프로필 고치기, 시험이면 그 시험에만(session). 범위 팝오버를 띄우지 않는다.
+// - 보기 기준이 프로필이면 스위치는 프로필 고치기, 테스트이면 그 테스트에만(session). 범위 팝오버를 띄우지 않는다.
 // - X 훅은 층 묶음의 맨 아래 한 묶음(hooks.list): 훅 이벤트, p50, 실패. 안전 모드면 싣지 않음.
 // 표는 투명한 가운데 위 ghost 격자(DP-26), 층은 mono 열(DP-31), 확장 이름은 표시 이름 + 회색 mono id(결정 13).
 import {
   Alert,
-  Badge,
   Button,
   Input,
   Popover,
@@ -23,15 +22,10 @@ import {
 import { useEffect, useRef, type ReactNode } from "react";
 import {
   extName,
-  FlaskConical,
   Lock,
-  Plus,
   ScenarioDock,
-  Search,
   T,
   threads,
-  Upload,
-  User,
   useShell,
   WB_WIDTH,
   WorkbenchHead,
@@ -40,7 +34,7 @@ import {
 } from "../_shell";
 import { useMachine, usePrefill } from "../_chat-rt";
 import { goFolder, WbFrame } from "../_wb-c/frame";
-import { DotText, ExtName, LayerCell, Mono, SectionTitle } from "../_wb-c/parts";
+import { DotText, ExtName, SectionTitle } from "../_wb-c/parts";
 import {
   effect,
   init,
@@ -62,7 +56,7 @@ export const STATES = [
   { id: "managed", label: "실패: 관리 정책 잠김(이유)" },
   { id: "all", label: "보기 기준 전체(이 대화 범위 없음)" },
   { id: "profile", label: "보기 기준 프로필: 프로필 고치기" },
-  { id: "trial", label: "보기 기준 시험: 이 시험에만" },
+  { id: "trial", label: "보기 기준 테스트: 이 테스트에만" },
   { id: "hooks", label: "X 훅 행(hooks.list)" },
   { id: "safe", label: "안전 모드: 바깥 확장·X 훅 빠짐" },
   { id: "narrow", label: "좁은 폭(390)" },
@@ -100,7 +94,7 @@ const LAYER_WORD: Record<Row["layer"], string> = {
 };
 const ORDER: Row["layer"][] = ["L3", "L2", "plugin", "L1", "X"];
 const GRID =
-  "grid grid-cols-[minmax(0,1.4fr)_3.5rem_5rem_minmax(0,1fr)_minmax(0,1.3fr)_3rem] items-center gap-3 max-compact:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_3rem]";
+  "grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.3fr)_3rem] items-center gap-3 max-compact:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_3rem]";
 
 type Mode = "scope" | "profile" | "trial";
 
@@ -126,14 +120,9 @@ function StatusCell({ r, safe, changed = false }: { r: Row; safe: boolean; chang
     case "pending":
       return <DotText tone="info">{T.atBoundary}</DotText>;
     case "capwait":
-      return (
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <DotText tone="warning">{T.capabilityWait}</DotText>
-          <Mono>{r.needs}</Mono>
-        </span>
-      );
+      return <DotText tone="warning">{T.capabilityWait}</DotText>;
     case "managed":
-      return <DotText tone="neutral">꺼짐 · 관리 정책</DotText>;
+      return <DotText tone="neutral">꺼짐 · 관리 정책으로 잠김</DotText>;
     case "auto":
       return <DotText tone="danger">{`${T.autoDisabled} · 연속 ${r.failures ?? 0}`}</DotText>;
     case "exempt":
@@ -149,7 +138,6 @@ function ScopePicker({
   open,
   scope,
   hasThread,
-  threadTitle,
   onScope,
   onApply,
   onClose,
@@ -158,24 +146,17 @@ function ScopePicker({
   open: boolean;
   scope: Scope;
   hasThread: boolean;
-  threadTitle: string;
   onScope: (s: Scope) => void;
   onApply: () => void;
   onClose: () => void;
   anchor: ReactNode;
 }) {
-  const opts: { v: Scope; title: string; hint: string }[] = [
+  const opts: { v: Scope; title: string; hint?: string }[] = [
     ...(hasThread
-      ? [
-          {
-            v: "session" as Scope,
-            title: SCOPE_WORD.session,
-            hint: `${threadTitle} · ${T.atBoundary}`,
-          },
-        ]
+      ? [{ v: "session" as Scope, title: SCOPE_WORD.session, hint: T.atBoundary }]
       : []),
-    { v: "project", title: SCOPE_WORD.project, hint: "~/code/xeon/.fresnel/settings.json" },
-    { v: "user", title: SCOPE_WORD.user, hint: "모든 프로젝트 · ~/.fresnel/settings.json" },
+    { v: "project", title: SCOPE_WORD.project },
+    { v: "user", title: SCOPE_WORD.user },
   ];
   return (
     <Popover
@@ -202,7 +183,9 @@ function ScopePicker({
               >
                 {o.title}
               </span>
-              <span className="truncate text-ui-xs text-text-tertiary">{o.hint}</span>
+              {o.hint !== undefined && (
+                <span className="truncate text-ui-xs text-text-tertiary">{o.hint}</span>
+              )}
             </span>
           </RadioGroupItem>
         ))}
@@ -297,7 +280,7 @@ export function App({ state }: { state: StateId }) {
         <Tooltip
           content={
             <span className="block max-w-60 whitespace-normal">
-              관리 정책으로 꺼져 있어요. 바꾸려면 관리자에게 물어요 · /etc/xeon/managed.json
+              관리 정책으로 꺼져 있어요. 바꾸려면 관리자에게 물어요
             </span>
           }
           side="left"
@@ -360,7 +343,6 @@ export function App({ state }: { state: StateId }) {
           open={s.picking === r.id}
           scope={hasThread ? s.scope : s.scope === "session" ? "project" : s.scope}
           hasThread={hasThread}
-          threadTitle={threadTitle}
           onScope={(scope) => dispatch({ t: "scope", scope })}
           onApply={() => dispatch({ t: "apply" })}
           onClose={() => dispatch({ t: "closePick" })}
@@ -391,30 +373,15 @@ export function App({ state }: { state: StateId }) {
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
           <WorkbenchHead
             title={T.extension}
-            meta="20개 · 켜짐 17"
             actions={
               <>
-                <Button
-                  size="xs"
-                  tone="neutral"
-                  variant="ghost"
-                  iconStart={<Upload />}
-                  className="max-compact:hidden"
-                >
+                <Button size="xs" tone="neutral" variant="ghost" className="max-compact:hidden">
                   가져오기
                 </Button>
-                <Button size="xs" tone="neutral" variant="outline" iconStart={<Plus />}>
+                <Button size="xs" tone="neutral" variant="outline">
                   새 {T.group}
                 </Button>
               </>
-            }
-            sub={
-              <span>
-                {mode === "scope" && hasThread
-                  ? `이 ${T.thread}: 켜진 ${T.group} 2 · ${T.lead} ${extName("helm")} · `
-                  : ""}
-                14:24 기준
-              </span>
             }
           />
           <div className={`${WB_WIDTH} grid gap-4 pb-8`}>
@@ -422,7 +389,6 @@ export function App({ state }: { state: StateId }) {
               <Input
                 size="xs"
                 variant="soft"
-                prefix={<Search />}
                 placeholder="찾기"
                 aria-label={`${T.extension} 찾기`}
                 containerClassName="w-56 max-compact:w-full"
@@ -449,30 +415,16 @@ export function App({ state }: { state: StateId }) {
 
             {mode !== "scope" && (
               <div className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-neutral-well px-3 py-1.5 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
-                {mode === "profile" ? (
-                  <User aria-hidden emphasis="muted" className="size-icon-sm text-text-tertiary" />
-                ) : (
-                  <FlaskConical
-                    aria-hidden
-                    emphasis="muted"
-                    className="size-icon-sm text-text-tertiary"
-                  />
-                )}
                 <span className="text-ui-dense text-text-primary">
                   {mode === "profile"
                     ? `${T.editProfile} · ${profileTitle}`
                     : `${T.trialOnly} · ${threadTitle}`}
                 </span>
-                <span className="text-ui-xs text-text-tertiary">
-                  {mode === "profile"
-                    ? `스위치를 바꾸면 이 ${josa(T.profile, "을", "를")} 고쳐요. 보이는 값은 적용했다면의 모습이에요.`
-                    : `스위치를 바꾸면 이 ${T.trialThread}에만 저장해요(session). ${T.atBoundary}.`}
-                </span>
               </div>
             )}
             {safe && (
               <Alert tone="warning" layout="inline" size="sm">
-                {`${T.safeMode}예요. 내장 확장만 싣고 사용자·프로젝트 확장과 X ${josa(T.hook, "은", "는")} 싣지 않았어요.`}
+                {`${josa(T.safeMode, "이라", "라")} 내장 확장만 실었어요.`}
               </Alert>
             )}
             {!safe && (auto.length > 0 || capwait.length > 0) && (
@@ -495,15 +447,6 @@ export function App({ state }: { state: StateId }) {
             >
               <div role="row" className={`${GRID} h-7 px-2 text-ui-xs text-text-tertiary`}>
                 <span role="columnheader">이름</span>
-                <span role="columnheader" className="max-compact:hidden">
-                  {T.layer}
-                </span>
-                <span role="columnheader" className="max-compact:hidden">
-                  {T.kind}
-                </span>
-                <span role="columnheader" className="max-compact:hidden">
-                  연산
-                </span>
                 <span role="columnheader">상태</span>
                 <span role="columnheader" className="text-end">
                   켜기
@@ -513,18 +456,7 @@ export function App({ state }: { state: StateId }) {
                 const rows = shown.filter((r) => r.layer === layer);
                 return (
                   <div key={layer} id={`layer-${layer}`} role="rowgroup" className="grid gap-0.5">
-                    <SectionTitle
-                      end={
-                        layer === "X" ? (
-                          <span>{safe ? "싣지 않음" : "hooks.list · 14:24"}</span>
-                        ) : undefined
-                      }
-                    >
-                      <span className="inline-flex items-baseline gap-2">
-                        <LayerCell>{layer}</LayerCell>
-                        {LAYER_WORD[layer]}
-                      </span>
-                    </SectionTitle>
+                    <SectionTitle>{LAYER_WORD[layer]}</SectionTitle>
                     {rows.map((r) => (
                       <div
                         key={r.id}
@@ -541,27 +473,6 @@ export function App({ state }: { state: StateId }) {
                           >
                             <ExtName id={r.id} />
                           </button>
-                        </span>
-                        <span role="cell" className="max-compact:hidden">
-                          <LayerCell>{r.layer}</LayerCell>
-                        </span>
-                        <span
-                          role="cell"
-                          className="truncate text-text-secondary max-compact:hidden"
-                        >
-                          {r.kind}
-                        </span>
-                        <span role="cell" className="truncate max-compact:hidden">
-                          {r.hook !== undefined ? (
-                            <span className="text-text-secondary">
-                              {r.hook.event}{" "}
-                              <span className="text-text-tertiary">
-                                · {safe ? "-" : r.hook.p50}
-                              </span>
-                            </span>
-                          ) : (
-                            <Mono>{r.ops}</Mono>
-                          )}
                         </span>
                         <span role="cell" className="min-w-0">
                           {r.hook !== undefined && !safe && r.hook.failures > 0 ? (
@@ -582,13 +493,8 @@ export function App({ state }: { state: StateId }) {
                     {layer === "L1" && (
                       <div role="row" className={`${GRID} min-h-8 px-2`}>
                         <span role="cell" className="min-w-0 truncate text-text-secondary">
-                          {T.layerL0} <Mono>sqlite · exec · sandbox · secrets</Mono>
+                          {T.layerL0}
                         </span>
-                        <span role="cell" className="max-compact:hidden">
-                          <LayerCell>L0</LayerCell>
-                        </span>
-                        <span role="cell" className="max-compact:hidden" />
-                        <span role="cell" className="max-compact:hidden" />
                         <span role="cell">
                           <DotText tone="success">항상 켜짐</DotText>
                         </span>
@@ -599,12 +505,6 @@ export function App({ state }: { state: StateId }) {
                 );
               })}
             </div>
-            <p className="m-0 flex items-center gap-1.5 text-ui-xs text-text-tertiary">
-              <Badge size="xs" tone="neutral" variant="soft">
-                {SCOPE_WORD.session}
-              </Badge>
-              {`은 그 ${T.thread}에만 쓰고 ${T.atBoundary}돼요. 프로젝트·사용자 범위는 다음 단계부터 모든 ${T.thread}에 적용돼요.`}
-            </p>
           </div>
         </div>
       </WbFrame>

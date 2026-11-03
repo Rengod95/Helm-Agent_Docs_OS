@@ -140,9 +140,9 @@ export const FINISHED = [
   { conf: "med", claim: "TTL 경계 시각 버그", applied: true },
   { conf: "med", claim: "무효화 이벤트가 쓰기보다 먼저 옴" },
   { conf: "low", claim: "캐시 키 해시가 실행마다 다름" },
-  { conf: "low", claim: "시험 시계가 실제 시계를 씀" },
+  { conf: "low", claim: "테스트 시계가 실제 시계를 씀" },
   { conf: "med", claim: "재시도 뒤 만료 시각을 다시 계산하지 않음" },
   { conf: "low", claim: "로그 시각대가 UTC와 섞임" },
   { conf: "low", claim: "만료 이벤트 이름이 둘" },
-  { conf: "low", claim: "캐시 크기 상한이 시험마다 다름" },
+  { conf: "low", claim: "캐시 크기 상한이 테스트마다 다름" },
 ] as const;

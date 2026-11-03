@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Xeon runtime illustration set: writes the SVG files next to this script.
+"""Fresnel runtime illustration set: writes the SVG files next to this script.
 
 The SVGs are the deliverable; this script only keeps the isometric math exact (30 degree axes)
 and the markup uniform. Run: python3 gen.py

@@ -24,7 +24,7 @@ export interface RecentWorkspace {
 }
 
 export const recentWorkspaces: RecentWorkspace[] = [
-  { path: "/Users/mina/code/xeon", label: "~/code/xeon", meta: "대화 4" },
+  { path: "/Users/mina/code/fresnel", label: "~/code/fresnel", meta: "대화 4" },
   { path: "/Users/mina/notes", label: "~/notes", meta: "대화 3" },
   { path: "/Users/mina/code/caustic", label: "~/code/caustic", meta: "지난주" },
 ];

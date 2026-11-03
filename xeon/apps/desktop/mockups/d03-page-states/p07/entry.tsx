@@ -19,17 +19,9 @@ import {
 } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  CalendarClock,
-  Copy,
+  BAR_INSET,
   Ellipsis,
-  History,
-  MessageSquare,
   PanelLeft,
-  Pencil,
-  Play,
-  Plus,
-  Stop,
-  Trash2,
   defaultStatusCells,
   Shell,
   standardRightTabs,
@@ -113,9 +105,6 @@ function LastRun({ s }: { s: Schedule }) {
       className="-mx-1 inline-flex min-w-0 items-baseline gap-1.5 rounded-sm px-1 text-left font-normal outline-none hover:underline focus-visible:focus-ring"
     >
       <span className={tone}>{word}</span>
-      {l.reason !== undefined && (
-        <span className="font-mono text-mono-sm text-danger-text">{l.reason}</span>
-      )}
       <span className="text-ui-xs text-text-tertiary">{l.at}</span>
     </button>
   );
@@ -126,12 +115,7 @@ function renderCell(row: TableRow, col: TableColumn): ReactNode {
   const dim = s.enabled ? "" : "opacity-60";
   switch (col.key) {
     case "title":
-      return (
-        <div className={`grid min-w-0 gap-0.5 ${dim}`}>
-          <span className="truncate font-medium text-text-primary">{s.title}</span>
-          <span className="truncate text-ui-xs font-normal text-text-tertiary">{s.prompt}</span>
-        </div>
-      );
+      return <span className={`truncate font-medium text-text-primary ${dim}`}>{s.title}</span>;
     case "trigger":
       return <span className={`font-normal text-text-secondary ${dim}`}>{s.triggerText}</span>;
     case "next":
@@ -169,13 +153,7 @@ function rowActionsFor(o: {
           </Button>
         )}
         {s.trigger === "remote" && s.enabled && (
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="ghost"
-            iconStart={<Play />}
-            disabled={o.offline}
-          >
+          <Button size="xs" tone="neutral" variant="ghost" disabled={o.offline}>
             지금 실행
           </Button>
         )}
@@ -188,26 +166,16 @@ function rowActionsFor(o: {
             </IconButton>
           }
         >
-          <MenuItem icon={<MessageSquare />} disabled={s.last.status === "none"}>
-            마지막 실행 대화 열기
-          </MenuItem>
-          <MenuItem icon={<History />} onSelect={o.onRuns}>
-            실행 기록
-          </MenuItem>
-          <MenuItem icon={<Pencil />} disabled={o.offline} onSelect={o.onEdit}>
+          <MenuItem disabled={s.last.status === "none"}>마지막 실행 대화 열기</MenuItem>
+          <MenuItem onSelect={o.onRuns}>실행 기록</MenuItem>
+          <MenuItem disabled={o.offline} onSelect={o.onEdit}>
             고치기…
           </MenuItem>
-          <MenuItem icon={<Play />} disabled={s.trigger !== "remote" || o.offline}>
-            지금 실행
-          </MenuItem>
-          <MenuItem icon={<Copy />} disabled={o.offline}>
-            복제
-          </MenuItem>
+          <MenuItem disabled={s.trigger !== "remote" || o.offline}>지금 실행</MenuItem>
+          <MenuItem disabled={o.offline}>복제</MenuItem>
           <MenuSeparator />
-          <MenuItem icon={<Stop />} disabled={!s.enabled || o.offline}>
-            끄기
-          </MenuItem>
-          <MenuItem icon={<Trash2 />} tone="danger" disabled={o.offline} onSelect={o.onDelete}>
+          <MenuItem disabled={!s.enabled || o.offline}>끄기</MenuItem>
+          <MenuItem tone="danger" disabled={o.offline} onSelect={o.onDelete}>
             지우기…
           </MenuItem>
         </Menu>
@@ -222,36 +190,31 @@ function RunsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: bo
     {
       at: "오늘 09:00",
       status: "실패",
-      reason: "rate_limited",
-      dur: "12초",
+      reason: "",
       thread: "예약: 매일 정리",
     },
     {
       at: "어제 09:00",
       status: "완료",
       reason: "",
-      dur: "2분 4초",
       thread: "예약: 매일 정리 (10/31)",
     },
     {
       at: "10월 30일 09:00",
       status: "완료",
       reason: "",
-      dur: "1분 51초",
       thread: "예약: 매일 정리 (10/30)",
     },
     {
       at: "10월 29일 09:00",
       status: "건너뜀",
       reason: "앱 꺼짐 · 서비스 모드 꺼짐",
-      dur: "—",
       thread: "",
     },
     {
       at: "10월 28일 09:00",
       status: "완료",
       reason: "",
-      dur: "2분 12초",
       thread: "예약: 매일 정리 (10/28)",
     },
   ];
@@ -264,9 +227,6 @@ function RunsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: bo
       size="sm"
     >
       <div className="grid gap-1">
-        <p className="m-0 pb-2 text-ui-sm text-text-secondary">
-          최근 14번 · 성공 11 · 실패 2 · 건너뜀 1
-        </p>
         {runs.map((r) => (
           <div
             key={r.at}
@@ -287,7 +247,6 @@ function RunsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: bo
                 {r.status}
               </span>
               <span className="tabular-nums text-text-secondary">{r.at}</span>
-              <span className="ms-auto tabular-nums text-ui-xs text-text-tertiary">{r.dur}</span>
             </span>
             <span className="truncate text-ui-xs text-text-tertiary">
               {r.reason !== "" ? <span className="font-mono">{r.reason}</span> : null}
@@ -351,13 +310,13 @@ function Page({ state }: { state: S }) {
                   text: "끊김",
                   dot: "danger" as const,
                   title: "연결 끊김",
-                  description: "엔진에 연결되지 않았어요. 다시 연결되면 목록을 새로 읽어요.",
+                  description: "엔진에 연결되지 않았어요.",
                 },
               }
             : {}),
         })}
       >
-        <header className="flex h-10 flex-none items-center gap-2 px-3">
+        <header className={`flex h-10 flex-none items-center gap-2 ps-3 ${BAR_INSET}`}>
           {!shell.startOpen && (
             <IconButton
               size="sm"
@@ -371,11 +330,6 @@ function Page({ state }: { state: S }) {
           )}
           <h1 className="m-0 flex min-w-0 flex-1 items-baseline gap-2 text-ui-strong text-text-primary">
             예약
-            {state !== "S10" && state !== "S11" && (
-              <span className="text-ui-sm font-normal tabular-nums text-text-tertiary">
-                {list.length}
-              </span>
-            )}
           </h1>
           <SegmentedControl size="xs" aria-label="보기" value={filter} onValueChange={setFilter}>
             <SegmentedControlItem value="enabled">켜진 것</SegmentedControlItem>
@@ -385,7 +339,6 @@ function Page({ state }: { state: S }) {
             size="sm"
             tone="neutral"
             variant="solid"
-            iconStart={<Plus />}
             disabled={offline}
             onClick={() => setSheetOpen(true)}
           >
@@ -422,7 +375,7 @@ function Page({ state }: { state: S }) {
                   </Button>
                 }
               >
-                예약 목록을 읽지 못했어요 (store_failed).
+                예약 목록을 읽지 못했어요.
               </Alert>
             )}
             {state === "S10" ? (
@@ -440,15 +393,12 @@ function Page({ state }: { state: S }) {
               <EmptyState
                 size="sm"
                 surface="none"
-                icon={<CalendarClock />}
                 title="예약이 없어요"
-                description="정한 때에 프롬프트를 실행해요. 앱을 닫아도 돌리려면 서비스 모드를 켜요."
                 actions={
                   <Button
                     size="sm"
                     tone="neutral"
                     variant="solid"
-                    iconStart={<Plus />}
                     onClick={() => setSheetOpen(true)}
                   >
                     새 예약

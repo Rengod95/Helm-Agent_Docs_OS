@@ -114,7 +114,7 @@ export function Inspector({
       )}
 
       {e.consumes && (
-        <Sec title="입력 · 능력" count={e.consumes.length}>
+        <Sec title="입력 · 기능" count={e.consumes.length}>
           <ul className="flex flex-col">
             {e.consumes.map((c) => {
               const p = providerOf(c.id);
@@ -136,7 +136,7 @@ export function Inspector({
         </Sec>
       )}
       {e.provides && (
-        <Sec title="출력 · 능력" count={e.provides.length}>
+        <Sec title="출력 · 기능" count={e.provides.length}>
           <ul className="flex flex-col">
             {e.provides.map((c) => {
               const users = EXTS.filter((o) => o.consumes?.some((x) => x.id === c));
@@ -246,7 +246,7 @@ export function Inspector({
             variant="ghost"
             tone="neutral"
             iconStart={<RotateCcw />}
-            onClick={() => onAction("시험 실행에서 replay를 열어요")}
+            onClick={() => onAction("테스트 실행에서 replay를 열어요")}
           >
             replay로 되짚기
           </Button>

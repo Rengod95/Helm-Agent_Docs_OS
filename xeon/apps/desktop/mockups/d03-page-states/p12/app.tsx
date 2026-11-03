@@ -15,7 +15,6 @@ import {
   Tooltip,
 } from "@caustic/react";
 import type { ReactNode } from "react";
-import { Globe, Plug, RotateCw } from "../../_shell";
 import { SettingsFrame } from "../../_settings/frame";
 import { reorderLabels } from "../../_settings/parts";
 import { SavedMark, SettingRow, SettingSection } from "../../_settings/row";
@@ -37,7 +36,7 @@ interface Row {
   name: string;
   source: string;
   status: Status;
-  price: ReactNode;
+  price?: ReactNode;
   current?: boolean;
   notice?: boolean;
 }
@@ -52,7 +51,7 @@ const SEARCH: Row[] = [
   {
     id: "searxng",
     name: "SearXNG",
-    source: "로컬 · localhost:8888",
+    source: "로컬",
     status: "ready",
     price: "무료",
     current: true,
@@ -60,21 +59,20 @@ const SEARCH: Row[] = [
   {
     id: "builtin",
     name: "내장 검색",
-    source: "anthropic web_search",
+    source: "anthropic",
     status: "ready",
     price: "$10 / 1천 회",
   },
   {
     id: "exa",
     name: "Exa",
-    source: "플러그인 web-exa",
+    source: "플러그인",
     status: "needs-key",
-    price: "가격 2026-08 기준",
   },
   {
     id: "brave",
     name: "Brave",
-    source: "플러그인 web-brave",
+    source: "플러그인",
     status: "unreachable",
     price: (
       <Tooltip content="가격표가 90일 넘게 갱신되지 않았어요 (2026-07-12)">
@@ -132,6 +130,8 @@ function ProviderList({
       size="xs"
       aria-label={label}
       disabled={disabled === true}
+      variant="ghost"
+      className="rounded-none"
     >
       {rows.map((r) => (
         <ListRow
@@ -188,7 +188,7 @@ export function App({ state }: { state: State }) {
               tone="danger"
               layout="inline"
               action={
-                <Button size="xs" tone="neutral" variant="outline" iconStart={<RotateCw />}>
+                <Button size="xs" tone="neutral" variant="outline">
                   다시 읽기
                 </Button>
               }
@@ -251,7 +251,7 @@ export function App({ state }: { state: State }) {
         {loading ? (
           <SkeletonRows />
         ) : state === "S4" ? (
-          <p className="m-0 py-1 text-ui text-text-secondary">
+          <p className="m-0 py-0.5 text-ui text-text-secondary">
             브라우저 도구가 없어요. 아래 권장에서 playwright-mcp를 설치할 수 있어요.
           </p>
         ) : (
@@ -262,7 +262,7 @@ export function App({ state }: { state: State }) {
               {
                 id: "playwright",
                 name: "playwright-mcp",
-                source: "MCP · npx @playwright/mcp",
+                source: "MCP",
                 status: "ready",
                 price: "무료",
                 current: true,
@@ -270,7 +270,7 @@ export function App({ state }: { state: State }) {
               {
                 id: "cdp",
                 name: "chrome-devtools-mcp",
-                source: "MCP · 프로젝트 .mcp.json",
+                source: "MCP · 프로젝트",
                 status: "ready",
                 price: "무료",
               },
@@ -289,7 +289,7 @@ export function App({ state }: { state: State }) {
               {
                 id: "local",
                 name: "local",
-                source: "내장 · readability",
+                source: "내장",
                 status: "ready",
                 price: "무료",
                 current: true,
@@ -297,9 +297,8 @@ export function App({ state }: { state: State }) {
               {
                 id: "jina",
                 name: "Jina Reader",
-                source: "플러그인 web-jina",
+                source: "플러그인",
                 status: "needs-key",
-                price: "가격 2026-09 기준",
                 notice: state === "S4",
               },
             ]}
@@ -317,7 +316,6 @@ export function App({ state }: { state: State }) {
               : []),
           ].map((r) => (
             <li key={r.n} className="flex min-h-8 items-center gap-3">
-              <Globe aria-hidden className="size-icon-sm text-text-tertiary" />
               <span className="text-ui font-medium text-text-primary">{r.n}</span>
               <span className="min-w-0 flex-1 truncate text-ui-sm text-text-tertiary">
                 {r.d} · {r.s}
@@ -331,14 +329,14 @@ export function App({ state }: { state: State }) {
       </SettingSection>
 
       <SettingSection
-        title="MCP 서버 3"
+        title="MCP 서버"
         end={
-          <Button size="xs" tone="neutral" variant="ghost" iconStart={<Plug />}>
+          <Button size="xs" tone="neutral" variant="ghost">
             관리
           </Button>
         }
       >
-        <p className="m-0 py-1 font-mono text-mono-sm text-text-secondary">
+        <p className="m-0 py-0.5 font-mono text-mono-sm text-text-secondary">
           playwright · chrome-devtools · github
         </p>
       </SettingSection>
@@ -349,7 +347,6 @@ export function App({ state }: { state: State }) {
           k="l2.web.policy.allowDomains"
           scope="project"
           apply="nextTurn"
-          hint="비우면 모두 허용해요."
         >
           <TagInput
             size="sm"

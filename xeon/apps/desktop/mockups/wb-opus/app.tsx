@@ -1,4 +1,4 @@
-// 작업대 시안 앱: 공용 셸 하나에 두 영역을 꽂는다(§4.9, DP-18). 왼쪽 패널 내용·오른쪽 탭·가운데만 영역마다 바뀐다.
+// 크래프트 시안 앱: 공용 셸 하나에 두 영역을 꽂는다(§4.9, DP-18). 왼쪽 패널 내용·오른쪽 탭·가운데만 영역마다 바뀐다.
 import { EmptyState, Toaster } from "@caustic/react";
 import { useState } from "react";
 import {
@@ -107,7 +107,7 @@ export function App() {
       <Shell
         activeNav={activeNav}
         onNavSelect={onNavSelect}
-        stageLabel={wb ? "작업대" : "대화"}
+        stageLabel={wb ? "크래프트" : "대화"}
         workbench={{ nav, pages, onGoToThread: () => m.go("chat") }}
         threads={{ currentId: "t1", onSelect: () => m.go("chat"), onNew: () => {} }}
         rightTabs={
@@ -149,7 +149,7 @@ export function App() {
                   dot: "danger" as const,
                   title: "연결 끊김",
                   description:
-                    "엔진과 연결이 끊겼어요. 작업대의 쓰기 동작은 연결되면 다시 쓸 수 있어요.",
+                    "엔진과 연결이 끊겼어요. 크래프트의 쓰기 동작은 연결되면 다시 쓸 수 있어요.",
                 },
               }
             : {}),
@@ -161,7 +161,7 @@ export function App() {
         })}
         onPaletteRun={(group, label) => {
           if (group === "대화") m.go("chat");
-          else if (label === "작업대 개요") m.go("overview");
+          else if (label === "크래프트 개요") m.go("overview");
           else if (label === "확장") m.go("extensions");
           else if (label === "Helm 탐구") m.go("view");
         }}

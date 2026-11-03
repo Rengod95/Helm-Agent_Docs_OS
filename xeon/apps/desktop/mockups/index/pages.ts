@@ -12,20 +12,20 @@ export const pages: MockPage[] = [
   { id: "P-02", title: "대화", folder: "p02-opus", states: 7 },
   {
     id: "W1–W5",
-    title: "작업대 1차(개요, 확장, 확장 상세, Helm 탐구, 런타임 탭)",
+    title: "크래프트 1차(개요, 확장, 확장 상세, Helm 탐구, 런타임 탭)",
     folder: "wb-opus",
     states: 11,
   },
   {
     id: "P-19~P-22",
-    title: "작업대 2차: 시험 실행, 측정과 평가, 구성, 만들기 (W6–W9)",
+    title: "크래프트 2차: 테스트 실행, 측정과 평가, 구성, 만들기 (W6–W9)",
     folder: "wb2-opus",
     states: 14,
   },
   { id: "P-09", title: "설정", folder: "p09-settings", states: 9 },
   {
     id: "P-10",
-    title: "비밀 (O-05 재인증, O-06 삭제 확인 포함)",
+    title: "시크릿 (O-05 재인증, O-06 삭제 확인 포함)",
     folder: "p10-secrets",
     states: 9,
   },
@@ -53,14 +53,14 @@ export const pages: MockPage[] = [
   // 묶음 A(대화 영역 런타임, m4/pg-a)
   {
     id: "S-01·N-01·N-04",
-    title: "셸 내비 · 보기 기준 칸 · 시험 표지와 정리",
+    title: "셸 내비 · 보기 기준 칸 · 테스트 표지와 정리",
     folder: "a00-nav-context",
     states: 14,
   },
-  { id: "N-02·N-03", title: "시험 대화(머리, 멈춤 띠)", folder: "a01-trial-chat", states: 10 },
+  { id: "N-02·N-03", title: "테스트 대화(머리, 멈춤 띠)", folder: "a01-trial-chat", states: 10 },
   {
     id: "N-05~N-07·P-05",
-    title: "사람 확인 · 승인 출처 · 만료 · 진행권 충돌",
+    title: "사람 확인 · 승인 출처 · 만료 · 주도 충돌",
     folder: "a02-human-gate",
     states: 14,
   },
@@ -90,10 +90,10 @@ export const pages: MockPage[] = [
     folder: "b03-ext-trust",
     states: 13,
   },
-  // 묶음 C(작업대 시험·버전·설정, m4/pg-c)
+  // 묶음 C(크래프트 테스트·버전·설정, m4/pg-c)
   {
     id: "P-19·O-12·N-30",
-    title: "시험 실행 다시 그리기 · 새 시험 · 개발 모드",
+    title: "테스트 실행 다시 그리기 · 새 테스트 · 개발 모드",
     folder: "c01-trials",
     states: 18,
   },
@@ -150,49 +150,54 @@ export const pages: MockPage[] = [
   },
   {
     id: "N-47·N-48",
-    title: "작업대 여섯 상태 빈칸과 찾기·거르기 결과 없음",
+    title: "크래프트 여섯 상태 빈칸과 찾기·거르기 결과 없음",
     folder: "e04-workbench-states",
     states: 17,
   },
   {
     id: "N-59·N-60",
-    title: "웹 연결 · 좁은 폭(390·700) · 원격 대상 작업대",
+    title: "웹 연결 · 좁은 폭(390·700) · 원격 대상 크래프트",
     folder: "e05-web-narrow",
     states: 22,
   },
   {
     id: "P-16 캔버스",
-    title: "런타임 캔버스: 층 띠·블록·연결, 맥락 분리, 턴 재생, 검사기",
+    title: "런타임 캔버스: 층 띠·블록·연결, 맥락 분리, 트레이스, 검사기",
     folder: "wb-canvas",
     states: 13,
   },
   {
     id: "P-21·P-22",
-    title: "블록 구성기: 그룹 쌓기, 흐름, 프로필 쌓기, 시험, 코드",
+    title: "블록 구성기: 그룹 쌓기, 흐름, 프로필 쌓기, 테스트, 코드",
     folder: "wb-compose",
     states: 8,
   },
   {
     id: "캔버스 v2 · B",
     title:
-      "정교한 노드 편집기: 나눔 지도, 그룹 하위 캔버스, 구성(놓기·연결), 단계 머신·시험, 층 × 지점 열지도, 맥락 차이",
+      "정교한 노드 편집기: 나눔 지도, 그룹 하위 캔버스, 구성(놓기·연결), 단계 머신·테스트, 층 × 훅 열지도, 맥락 차이",
     folder: "wb-v2b",
     states: 14,
   },
   {
     id: "P-16·P-21 v2 A",
     title:
-      "런타임 지도·구성기 v2 A: 층 건물·루프 소켓, 줌 3단계, 구조 살펴보기, 맥락 테두리, 층×지점 표, Helm 부품·흐름·시험·프로필",
+      "런타임 지도·구성기 v2 A: 층 건물·루프 소켓, 줌 3단계, 구조 살펴보기, 맥락 테두리, 층×훅 표, Helm 부품·흐름·테스트·프로필",
     folder: "wb-v2a",
     states: 13,
   },
   {
     id: "캔버스 v3",
     title:
-      "작업대 캔버스 v3: 턴 흐름 그림, 층마다 내장·내 것·더하기, 관계 렌즈 포커스, 플러그인 상세(블록·흐름), 보는 대상·프리셋, 층×지점 표",
+      "크래프트 캔버스 v3: 턴 흐름 그림, 층마다 내장·내 것·더하기, 관계 렌즈 포커스, 플러그인 상세(블록·흐름), 보기 기준·프로필, 층×훅 표",
     folder: "wb-v3",
     states: 12,
   },
+  // 묶음 F(구성기 진입·테스트, 개요 상태, 프로필 적용). 상태 수는 redesign 사본의 STATES 개수.
+  { id: "F1", title: "구성기 진입", folder: "f01-compose-entry", states: 13 },
+  { id: "F2", title: "구성기 흐름 테스트", folder: "f02-compose-trial", states: 6 },
+  { id: "F3", title: "개요 화면 상태", folder: "f03-structure-states", states: 6 },
+  { id: "F4", title: "프로필 적용", folder: "f04-preset-apply", states: 5 },
   {
     id: "일러스트",
     title: "런타임 일러스트 세트: X 수명 고리, 층 쌓기, 개념 그림 8, 빈 상태 3 (밝음·어두움)",

@@ -1,6 +1,6 @@
-// 지도 2단계 "층": 건물 단면. 위에서 아래로 L3 의도 그룹(+ 외부 plugin 판) → X 루프(소켓·역) → L2 서비스 → L1·L0 기반 → F 계약.
-// 규칙: 위에서 꽂는 것(훅)은 루프 위에, 아래서 받치는 것(능력)은 루프 아래에 둔다. 엣지는 기본으로 그리지 않고 소켓 아래 색 점으로
-// 연결을 보인다. 고른 블록, 임대, 실패만 엣지로 그린다(SPEC §3).
+// 지도 2단계 "층": 건물 단면. 위에서 아래로 L3 플러그인 그룹(+ 외부 plugin 판) → X 루프(소켓·역) → L2 서비스 → L1·L0 기반 → F 계약.
+// 규칙: 위에서 꽂는 것(훅)은 루프 위에, 아래서 받치는 것(기능)은 루프 아래에 둔다. 엣지는 기본으로 그리지 않고 소켓 아래 색 점으로
+// 연결을 보인다. 고른 블록, 주도, 실패만 엣지로 그린다(SPEC §3).
 import { type ReactNode } from "react";
 import { Diamond } from "../../_shell";
 import {
@@ -141,7 +141,7 @@ export function LayerMap({ overlay }: { overlay?: ReactNode }) {
     );
     labels.push(
       <WireLabel key="wait" x={560} y={152} style={{ fontSize: 11 }}>
-        계획 먼저 · 임대 대기
+        계획 먼저 · 주도 대기
       </WireLabel>,
     );
   }
@@ -199,7 +199,7 @@ export function LayerMap({ overlay }: { overlay?: ReactNode }) {
   };
   const metaFor = (e: Ext) => {
     if (t1 && e.id === "helm") return `drive 보유 · 턴 ${T1_LEASE.turns[0]}/${T1_LEASE.turns[1]}`;
-    if (t1 && e.id === "plan-first") return "임대 대기 · 구성 정보 없음";
+    if (t1 && e.id === "plan-first") return "주도 대기 · 구성 정보 없음";
     if (t1 && e.id === "dialog") return "다음 경계에 켜짐";
     return undefined;
   };
@@ -211,7 +211,7 @@ export function LayerMap({ overlay }: { overlay?: ReactNode }) {
         h={FLOORS.L3.h}
         hue="l3"
         layer="L3"
-        title="의도 그룹"
+        title="플러그인 그룹"
         count="켜짐 3/4"
         w={624}
       />
@@ -238,10 +238,10 @@ export function LayerMap({ overlay }: { overlay?: ReactNode }) {
         h={FLOORS.X.h}
         hue="x"
         layer="X"
-        title="에이전트 루프 · 확장 지점"
+        title="에이전트 루프 · 훅"
         count="46개 · 쓰는 곳 7"
       />
-      <Plate y={FLOORS.L2.y} h={FLOORS.L2.h} hue="l2" layer="L2" title="서비스(능력)" count="5" />
+      <Plate y={FLOORS.L2.y} h={FLOORS.L2.h} hue="l2" layer="L2" title="서비스(기능)" count="5" />
       <Plate
         y={FLOORS.base.y}
         h={FLOORS.base.h}
@@ -263,8 +263,7 @@ export function LayerMap({ overlay }: { overlay?: ReactNode }) {
         <span className="font-mono text-mono-micro">F</span>
         <span className="text-text-secondary">계약</span>
         <span>
-          매니페스트 · 지점 표 46 · 연산 4(on · post · drive · scope) · 그룹 레코드 · 능력 계약 ·
-          wire
+          매니페스트 · 훅 표 46 · 연산 4(on · post · drive · scope) · 그룹 레코드 · 기능 계약 · wire
         </span>
       </div>
 
@@ -375,7 +374,7 @@ export function LayerMap({ overlay }: { overlay?: ReactNode }) {
       {sel !== undefined && !m.failure && sel.consumes !== undefined && (
         <span className="absolute" style={{ left: sel.x + 8, top: sel.y + sel.h + 18 }}>
           <WireLabel x={0} y={0} style={{ transform: "none" }}>
-            능력 {sel.consumes.length} · 아래 서비스에서
+            기능 {sel.consumes.length} · 아래 서비스에서
           </WireLabel>
         </span>
       )}

@@ -1,4 +1,4 @@
-// 도구 승인 카드: caustic AgentRequest(kind permission)에 명령 전문, 비밀 핸들, 위험도, 인자를 담는다.
+// 도구 승인 카드: caustic AgentRequest(kind permission)에 명령 전문, 시크릿 참조, 위험도, 인자를 담는다.
 // 트랜스크립트 끝과 끝 영역에 같은 부품으로 보인다. 카드에 초점이 있으면 Y(허용), ⇧Y(이 대화에서 항상), N(거부).
 import { AgentRequest, Badge, ListDescription, ListDescriptionRow } from "@caustic/react";
 import type { KeyboardEvent } from "react";
@@ -93,7 +93,7 @@ export function ToolApprovalCard({
         ]}
         onAction={(id) => onDecide(ACTION_TO_DECISION[id as keyof typeof ACTION_TO_DECISION])}
       >
-        {/* 승인에 필요한 사실은 한 목록(caustic ListDescription)으로: 명령 전문, 위험도, 비밀 핸들, 인자. 이름표는 목록이 맡는다(DP-12). */}
+        {/* 승인에 필요한 사실은 한 목록(caustic ListDescription)으로: 명령 전문, 위험도, 시크릿 참조, 인자. 이름표는 목록이 맡는다(DP-12). */}
         <ListDescription
           variant="ghost"
           size="xs"
@@ -110,7 +110,7 @@ export function ToolApprovalCard({
             </Badge>
           </ListDescriptionRow>
           {approval.secrets.map((sec) => (
-            <ListDescriptionRow key={sec.env} term={L2("비밀", "Secret")} mono>
+            <ListDescriptionRow key={sec.env} term={L2("시크릿", "Secret")} mono>
               <span className="break-all">
                 {sec.env} ← {sec.ref}
               </span>

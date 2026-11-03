@@ -17,7 +17,7 @@ import {
   Switch,
 } from "@caustic/react";
 import { useState } from "react";
-import { Plus, RotateCw, TriangleAlert, X } from "../../_shell";
+import { X } from "../../_shell";
 import { SettingsFrame } from "../../_settings/frame";
 import { initialTabParam } from "../../_settings/mount";
 import { SettingRow, SettingSection } from "../../_settings/row";
@@ -97,23 +97,16 @@ function ProvidersTab({ state }: { state: State }) {
             size="sm"
             surface="none"
             title="계정 풀이 비어 있어요"
-            description="기본 키 secret://anthropic-api-key 하나로 써요. 계정을 더하면 한도에 닿을 때 다음 계정으로 넘어가요."
             actions={<AddAccountButton disabled={false} />}
           />
         ) : (
           <>
             <AccountGrid provider="anthropic" accounts={accountsFor(state)} disabled={off} />
-            <p className="m-0 pt-1 text-ui-sm text-text-tertiary">
-              우선 값이 작은 계정부터 쓰고, 예비율만큼 남으면 다음 계정으로 넘어가요.
-            </p>
           </>
         )}
       </SettingSection>
       <SettingSection title="openai" end={<AddAccountButton disabled={off} />}>
-        <p className="m-0 py-1 text-ui text-text-secondary">
-          계정이 없어요. 기본 키{" "}
-          <span className="font-mono text-mono-sm">secret://openai-api-key</span>를 써요.
-        </p>
+        <p className="m-0 py-0.5 text-ui text-text-secondary">계정이 없어요.</p>
       </SettingSection>
       <SettingSection title="계정 회전">
         <SettingRow
@@ -126,16 +119,12 @@ function ProvidersTab({ state }: { state: State }) {
           extra={
             rotationOn ? (
               <p className="m-0 flex items-center gap-2 text-ui-sm text-text-tertiary">
-                <Badge size="sm" tone="warning" icon={<TriangleAlert />}>
+                <Badge size="sm" tone="warning">
                   위험 확인함
                 </Badge>
-                10월 30일 · 그룹 group-account-rotation
+                10월 30일
               </p>
-            ) : (
-              <p className="m-0 text-ui-sm text-text-tertiary">
-                한도에 닿으면 다음 계정으로 바꿔요. 켜기 전에 위험 안내를 확인해요.
-              </p>
-            )
+            ) : undefined
           }
         >
           <Switch size="sm" aria-label="계정 회전" defaultChecked={rotationOn} disabled={off} />
@@ -221,12 +210,16 @@ function BudgetsTab() {
       <SettingSection
         title="레이트 리밋"
         end={
-          <Button size="xs" tone="neutral" variant="ghost" iconStart={<Plus />}>
+          <Button size="xs" tone="neutral" variant="ghost">
             정책 추가
           </Button>
         }
       >
-        <div role="table" aria-label="provider별 레이트 리밋" className="grid overflow-x-auto">
+        <div
+          role="table"
+          aria-label="provider별 레이트 리밋"
+          className="grid overflow-x-auto py-0.5"
+        >
           <div
             role="row"
             className="grid grid-cols-[6rem_8rem_7rem_9rem_1.75rem] gap-2 pb-1 text-ui-sm text-text-tertiary"
@@ -242,9 +235,6 @@ function BudgetsTab() {
           <RateRow p="anthropic" gap={500} on="switch" wait={30000} />
           <RateRow p="openai" gap={0} on="wait" wait={60000} />
         </div>
-        <p className="m-0 pt-1 text-ui-sm text-text-tertiary">
-          정책 없는 provider는 간격 0, 전환, 대기 0이에요.
-        </p>
       </SettingSection>
     </>
   );
@@ -267,7 +257,6 @@ export function App({ state }: { state: State }) {
         onTabSelect={onTabSelect}
         offline={state === "S7"}
         modalOpen={riskOpen}
-        meta={tab === "providers" ? "사용자 설정 파일에 함께 저장" : undefined}
         draft={draftCount > 0 ? { count: draftCount } : undefined}
         banner={
           state === "S5" ? (
@@ -275,7 +264,7 @@ export function App({ state }: { state: State }) {
               tone="warning"
               layout="inline"
               action={
-                <Button size="xs" tone="neutral" variant="outline" iconStart={<RotateCw />}>
+                <Button size="xs" tone="neutral" variant="outline">
                   다시 읽기
                 </Button>
               }
@@ -293,9 +282,8 @@ export function App({ state }: { state: State }) {
         tone="warning"
         open={riskOpen}
         onOpenChange={setRiskOpen}
-        icon={<TriangleAlert />}
         title="구독 계정 회전은 약관 위험이 있어요"
-        description="여러 구독 계정을 번갈아 쓰면 provider 약관에 어긋날 수 있어요. 계정이 정지되면 Xeon이 되돌릴 수 없어요."
+        description="여러 구독 계정을 번갈아 쓰면 provider 약관에 어긋날 수 있어요. 계정이 정지되면 Fresnel이 되돌릴 수 없어요."
         footer={
           <>
             <DialogClose asChild>

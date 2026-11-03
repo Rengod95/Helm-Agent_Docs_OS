@@ -1,4 +1,4 @@
-// 라디오 목록: caustic RadioGroup의 행마다 이름 + 연한 설명 한 줄. ChoiceGroup "answer"는 고른 행을 통째로 반전(잉크 면)해
+// 라디오 목록: caustic RadioGroup의 행마다 이름 한 줄. ChoiceGroup "answer"는 고른 행을 통째로 반전(잉크 면)해
 // 한 화면에 묶음이 여럿이면(구성 탭 슬롯 넷) 너무 무겁다. 고른 것은 라디오 점과 이름 굵기만으로 보인다(DP-03, DP-29).
 import { RadioGroup, RadioGroupItem } from "@caustic/react";
 import type { ReactNode } from "react";
@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 export interface RadioRow {
   value: string;
   title: ReactNode;
-  hint?: ReactNode;
   disabled?: boolean;
 }
 
@@ -40,9 +39,6 @@ export function RadioList({
             >
               {r.title}
             </span>
-            {r.hint !== undefined && (
-              <span className="truncate text-ui-xs text-text-tertiary">{r.hint}</span>
-            )}
           </span>
         </RadioGroupItem>
       ))}

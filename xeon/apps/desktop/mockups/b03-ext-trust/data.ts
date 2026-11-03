@@ -114,8 +114,25 @@ export const acmeManifest: Manifest = {
   points: ["tool.call.before"],
   frames: [],
   views: 1,
-  source: "~/code/xeon/.fresnel/extensions/acme-notes/",
-  dest: "~/code/xeon/.fresnel/extensions/acme-notes/",
+  source: "~/code/fresnel/.fresnel/extensions/acme-notes/",
+  dest: "~/code/fresnel/.fresnel/extensions/acme-notes/",
+};
+
+/** 위치 상한보다 낮게 요청한 확장: 실제 수준은 요청을 따른다(min, X.loading-trust §4.6.1). 요청이 상한보다 높으면 검사에서 거부된다. */
+export const webClipManifest: Manifest = {
+  name: "web-clip",
+  display: "웹 스크랩",
+  version: "0.2.0",
+  layer: "plugin",
+  kind: "plugin",
+  requested: "project",
+  ceiling: "user",
+  ops: ["on", "resources"],
+  points: ["tool.execution.after"],
+  frames: [],
+  views: 0,
+  source: "~/Downloads/web-clip/",
+  dest: "~/.fresnel/extensions/web-clip/",
 };
 
 export type CheckState = "wait" | "run" | "ok" | "warn" | "fail";
@@ -144,7 +161,7 @@ export const CHECKS: Check[] = [
     fail: `${T.trustBuiltin} 수준을 요청했어요 · ${T.installUserDir} 상한은 ${T.trustUser}예요`,
     code: "trust_exceeds_source",
   },
-  { id: "points", label: T.extensionPoint, ok: "3개 · 모두 있는 지점" },
+  { id: "points", label: T.extensionPoint, ok: "3개 · 모두 있는 훅" },
   {
     id: "views",
     label: "화면 기여",

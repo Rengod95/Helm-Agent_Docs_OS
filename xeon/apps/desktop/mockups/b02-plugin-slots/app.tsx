@@ -201,7 +201,7 @@ export function App({ state }: { state: StateId }) {
       ? {
           expand: {
             label: `${T.inquiry} 화면 크게 열기`,
-            onSelect: () => toast({ title: `작업대 ${T.pluginView} Helm 탐구로 가요` }),
+            onSelect: () => toast({ title: `크래프트 ${T.pluginView} Helm 탐구로 가요` }),
           },
         }
       : {}),
@@ -221,7 +221,7 @@ export function App({ state }: { state: StateId }) {
       ? { runtime: { drive: "helm", extFailures: 1, onOpen: () => shell.openEnd("runtime") } }
       : {}),
   });
-  // 넓은 폭은 전부, 중간 폭(≤1100)은 진행권을 쥔 그룹의 칸 하나만, compact는 없음(대상·연결·승인만) [제안].
+  // 넓은 폭은 전부, 중간 폭(≤1100)은 주도를 쥔 그룹의 칸 하나만, compact는 없음(대상·연결·승인만) [제안].
   const statusDecls = STATUS.filter((d) => enabled(d.ext))
     .filter((d) => shell.layout === "wide" || d.ext === "helm")
     .map((d) => (d.ext === "helm" ? { ...d, text: s.helmStatus } : d));
@@ -337,7 +337,7 @@ export function App({ state }: { state: StateId }) {
                     캐시 무효화 조사
                   </h1>
                   <span className="truncate font-mono text-mono-sm text-text-tertiary">
-                    ~/code/xeon
+                    ~/code/fresnel
                   </span>
                   <span className="shrink-0 text-ui-dense tabular-nums text-text-tertiary">
                     목표 2/3
@@ -361,7 +361,7 @@ export function App({ state }: { state: StateId }) {
                 aria-label="대화 기록"
                 className={`${READ_WIDTH} grid gap-4 pt-1 pb-3`}
               >
-                <Message author="user">무효화 시험이 계속 실패해. 원인 찾아줘</Message>
+                <Message author="user">무효화 테스트가 계속 실패해. 원인 찾아줘</Message>
                 <ToolCall
                   name="bash"
                   detail="bun test cache"
@@ -412,7 +412,9 @@ export function App({ state }: { state: StateId }) {
                   >
                     <HelmFinishedTree
                       tall={s.finished === "tall"}
-                      onOpenPage={() => toast({ title: `작업대 ${T.pluginView} Helm 탐구로 가요` })}
+                      onOpenPage={() =>
+                        toast({ title: `크래프트 ${T.pluginView} Helm 탐구로 가요` })
+                      }
                     />
                   </PluginCard>
                 )}
@@ -421,7 +423,7 @@ export function App({ state }: { state: StateId }) {
                     kind="x.acme-notes.note.pinned"
                     summary="노트를 고정했어요: 만료 비교 단위"
                     diag="모르는 위젯 MapPin"
-                    onLog={() => toast({ title: "작업대 확장 상세 기록으로 가요" })}
+                    onLog={() => toast({ title: "크래프트 확장 상세 기록으로 가요" })}
                   />
                 )}
               </div>

@@ -1,9 +1,8 @@
 // O-02 셸 명령 확인 · O-03 명령 결과 · O-04 프로젝트 신뢰 카드. 셋 다 대화(P-02) 위에서 열리므로 한 목업의 상태로 둔다.
 // 바탕 대화는 P-02 시안(p02-opus)의 머리·읽기 열·입력창 치수를 그대로 따른 가벼운 복사본이다(그 폴더 store에 묶이지 않게).
-// 명령과 결과에는 그 명령을 가진 쪽(ext:release-kit 확장, Helm 그룹)을, 신뢰 카드에는 프로젝트가 싣는 그룹·훅까지 보인다.
+// 명령과 결과에는 그 명령을 가진 쪽(release-kit 확장, Helm 그룹)을, 신뢰 카드에는 프로젝트가 싣는 자원을 보인다.
 import {
   AgentRequest,
-  Badge,
   Button,
   Composer,
   Dialog,
@@ -19,12 +18,11 @@ import { useLayoutEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
-  Copy,
   defaultStatusCells,
   Ellipsis,
   Shell,
   standardRightTabs,
-  Terminal,
+  T,
   useShell,
 } from "../_shell";
 
@@ -45,15 +43,11 @@ const helmJson = `{
   "discoveries": 0
 }`;
 
-function Head({ title, draft }: { title: string; draft?: boolean }) {
+function Head({ title }: { title: string }) {
   return (
     <header className={`${READ_WIDTH} flex h-10 flex-none items-center gap-1`}>
       <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
         <h1 className="m-0 truncate font-ui text-ui-strong text-text-primary">{title}</h1>
-        <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
-        {draft !== true && (
-          <span className="shrink-0 text-ui-sm tabular-nums text-text-tertiary">목표 2/3</span>
-        )}
       </div>
       <IconButton size="sm" variant="ghost" label="대화 메뉴">
         <Ellipsis />
@@ -74,7 +68,7 @@ function ChatComposer({ value, disabled }: { value: string; disabled?: boolean }
       attachLabel="맥락 더하기"
       modelLabel="sonnet-5-5"
       usage={value === "" ? 0 : 41}
-      usageLabel={(p) => `문맥 ${p}% 사용`}
+      usageLabel={(p) => `문맥 ${p}%`}
       placeholder="메시지를 입력하세요"
       disabled={disabled === true}
       onAttach={() => {}}
@@ -91,14 +85,14 @@ function TrustCard() {
         kind="permission"
         status={done === "deny" ? "denied" : "allowed"}
         title={done === "deny" ? "프로젝트 설정 없이 시작해요" : "이 폴더를 신뢰했어요"}
-        subtitle="~/code/xeon · 설정 › 프로젝트 신뢰에서 바꿀 수 있어요"
+        subtitle="~/code/fresnel"
       />
     );
   return (
     <AgentRequest
       kind="permission"
       title="이 프로젝트의 설정을 신뢰할까요?"
-      subtitle="~/code/xeon · 처음 여는 폴더예요"
+      subtitle="~/code/fresnel · 처음 여는 폴더예요"
       shadow="none"
       className="shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]"
       actions={[
@@ -109,7 +103,7 @@ function TrustCard() {
       ]}
       onAction={setDone}
     >
-      {/* 불러오려는 자원을 종류별로 한 목록에(DP-12). 그룹은 대화 루프에 훅을 거는 L3 의도 그룹이라 따로 짚는다. */}
+      {/* 불러오려는 자원을 종류별로 한 목록에(DP-12). 그룹은 대화 루프에 훅을 거는 L3 플러그인 그룹이라 따로 짚는다. */}
       <ListDescription
         variant="ghost"
         size="xs"
@@ -117,12 +111,7 @@ function TrustCard() {
         className={`${LIST_DESC} [--cs-size-list-term:6rem]`}
       >
         <ListDescriptionRow term="그룹" mono>
-          <span className="flex min-w-0 flex-wrap items-center gap-2">
-            groups/cache-guard
-            <Badge size="xs" tone="warning">
-              on · post 훅
-            </Badge>
-          </span>
+          groups/cache-guard
         </ListDescriptionRow>
         <ListDescriptionRow term="MCP 서버" mono>
           .mcp.json · github, postgres
@@ -131,7 +120,7 @@ function TrustCard() {
           cache-debug, release
         </ListDescriptionRow>
         <ListDescriptionRow term="설정" mono>
-          .fresnel/settings.json · 키 3
+          .fresnel/settings.json
         </ListDescriptionRow>
       </ListDescription>
     </AgentRequest>
@@ -167,7 +156,7 @@ export function OverlayPage({ state }: { state: OverlayState }) {
           openEnd: shell.openEnd,
         })}
       >
-        <Head title={trust ? "새 대화" : "캐시 무효화 조사"} draft={trust} />
+        <Head title={trust ? "새 대화" : "캐시 무효화 조사"} />
         {trust ? (
           <div className="flex min-h-0 flex-1 flex-col justify-end overflow-auto">
             <div className={`${READ_WIDTH} grid gap-4 pb-3`}>
@@ -180,7 +169,7 @@ export function OverlayPage({ state }: { state: OverlayState }) {
             <div role="log" aria-label="대화 기록" className={`${READ_WIDTH} grid gap-4 pt-1 pb-3`}>
               <Message author="user">ttl 단위 수정 끝났으면 배포까지 해 줘</Message>
               <Message>
-                <p>시험이 모두 통과했어요. 배포는 /deploy 로 할 수 있어요.</p>
+                <p>테스트가 모두 통과했어요. 배포는 /deploy 로 할 수 있어요.</p>
               </Message>
               {state !== "S1" && (
                 <>
@@ -190,14 +179,8 @@ export function OverlayPage({ state }: { state: OverlayState }) {
                     onClick={() => setSheetOpen(true)}
                     className="flex min-w-0 items-center gap-2 justify-self-start rounded-lg px-2 py-1 text-ui-sm text-text-secondary outline-none hover:bg-fill-hover focus-visible:focus-ring"
                   >
-                    <Terminal
-                      aria-hidden
-                      emphasis="muted"
-                      className="size-icon-sm text-text-tertiary"
-                    />
                     <span className="font-mono text-mono-sm text-text-primary">/helm status</span>
-                    <span className="text-text-tertiary">Helm 그룹 · 탐구 중, 렌즈 3</span>
-                    <ChevronRight aria-hidden className="size-icon-sm text-text-tertiary" />
+                    <span className="text-text-tertiary">Helm 그룹</span>
                   </button>
                 </>
               )}
@@ -215,9 +198,8 @@ export function OverlayPage({ state }: { state: OverlayState }) {
         size="sm"
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        icon={<Terminal />}
         title="/deploy가 셸 명령을 실행해요"
-        description="release-kit 확장(ext:release-kit)의 명령이에요."
+        description="release-kit 확장의 명령이에요."
         footer={
           <>
             <span aria-hidden className="flex-1" />
@@ -246,9 +228,9 @@ export function OverlayPage({ state }: { state: OverlayState }) {
           className={`${LIST_DESC} mt-1 [--cs-size-list-term:4.5rem]`}
         >
           <ListDescriptionRow term="위치" mono>
-            ~/code/xeon
+            ~/code/fresnel
           </ListDescriptionRow>
-          <ListDescriptionRow term="대상">로컬 사이드카</ListDescriptionRow>
+          <ListDescriptionRow term="대상">로컬 앱 안 엔진</ListDescriptionRow>
         </ListDescription>
       </Dialog>
 
@@ -259,11 +241,11 @@ export function OverlayPage({ state }: { state: OverlayState }) {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         title="/helm status"
-        description="Helm 그룹(grp:helm) · 방금"
+        description="Helm 그룹"
         closeLabel="닫기"
         footer={
           <>
-            <Button size="sm" tone="neutral" variant="ghost" iconStart={<Copy />}>
+            <Button size="sm" tone="neutral" variant="ghost">
               복사
             </Button>
             <span aria-hidden className="flex-1" />
@@ -274,17 +256,14 @@ export function OverlayPage({ state }: { state: OverlayState }) {
         }
       >
         <div className="grid gap-3">
-          <p className="m-0 text-ui-sm text-text-primary">
-            탐구 중이에요. 렌즈 2개가 돌고 1개는 기다려요.
-          </p>
           <ListDescription
             variant="ghost"
             size="xs"
             aria-label="상태"
             className={`${LIST_DESC} [--cs-size-list-term:6rem]`}
           >
-            <ListDescriptionRow term="단계">explore</ListDescriptionRow>
-            <ListDescriptionRow term="드라이브 임대">Helm 그룹이 가짐 · 턴 1/4</ListDescriptionRow>
+            <ListDescriptionRow term="단계">탐색</ListDescriptionRow>
+            <ListDescriptionRow term={T.lead}>Helm 그룹이 가짐</ListDescriptionRow>
             <ListDescriptionRow term="렌즈">
               <span className="grid gap-0.5">
                 <span>
@@ -301,7 +280,6 @@ export function OverlayPage({ state }: { state: OverlayState }) {
                 </span>
               </span>
             </ListDescriptionRow>
-            <ListDescriptionRow term="발견">0</ListDescriptionRow>
           </ListDescription>
           <div className="grid gap-1.5">
             <Button

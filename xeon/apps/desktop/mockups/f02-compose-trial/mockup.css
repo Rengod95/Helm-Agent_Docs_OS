@@ -1,0 +1,7 @@
+/* N-40 구성기 테스트 실행 시안: caustic 스타일 + 공용 셸 CSS + 흐름 판(f01)·wb-compose 블록. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";
+@source "../f01-compose-entry/";
+@source "../wb-compose/";
+@source "../_wb-c/";

@@ -29,13 +29,13 @@
   /* 루프 궤도 */
   --track: color-mix(in oklab, var(--cs-color-text-primary) 9%, var(--cs-color-bg-app));
   --track-edge: color-mix(in oklab, var(--cs-color-text-primary) 16%, var(--cs-color-bg-app));
-  /* 맥락 테두리 색: 대화 = accent(잉크), 프로필 = agent, 시험 = warning */
+  /* 맥락 테두리 색: 대화 = accent(잉크), 프로필 = agent, 테스트 = warning */
   --hull-thread: var(--cs-color-accent-solid);
   --hull-profile: var(--cs-color-agent-solid);
   --hull-trial: var(--cs-color-warning-solid);
 }
 
-/* 임대 엣지 흐름 */
+/* 주도 엣지 흐름 */
 @keyframes wbv2-flow {
   to {
     stroke-dashoffset: -12;

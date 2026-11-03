@@ -1,15 +1,20 @@
-// 맥락 칸(왼쪽 패널, §4.9.3을 넓힘): 전체 · 대화 · 프로필 · 시험을 한 Select의 묶음으로. 고른 맥락이 캔버스를 다시 그린다.
+// 맥락 칸(왼쪽 패널, §4.9.3을 넓힘): 전체 · 대화 · 프로필 · 테스트를 한 Select의 묶음으로. 고른 맥락이 캔버스를 다시 그린다.
 // 맥락의 정본은 이 칸 하나다(§6.21). 캔버스 위에는 맥락 이름을 다시 쓰지 않고 그 맥락의 한 줄(턴, 실시간)과 비교만 둔다.
 import { IconButton, Select, SelectGroup, SelectHeading, SelectOption } from "@caustic/react";
 import { MessageSquare } from "../../_shell";
 import { CONTEXTS, type CtxKind } from "../data";
 
-const HEAD: Record<CtxKind, string> = { all: "", thread: "대화", profile: "프로필", trial: "시험" };
+const HEAD: Record<CtxKind, string> = {
+  all: "",
+  thread: "대화",
+  profile: "프로필",
+  trial: "테스트",
+};
 const PREFIX: Record<CtxKind, string> = {
   all: "맥락 · ",
   thread: "대화 · ",
   profile: "프로필 · ",
-  trial: "시험 · ",
+  trial: "테스트 · ",
 };
 
 export function ContextField({

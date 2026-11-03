@@ -1,5 +1,5 @@
-// N-12 "제작" well(authoring/panel)과 "제작" page(authoring/session, 작업대 플러그인 화면).
-// 둘 다 제작 확장의 선언형 기여라 caustic 부품(Stepper, ListDescription)으로만 그린다(DP-22). 진행권·전환은 런타임 탭에 두고 여기 두지 않는다(DP-23).
+// N-12 "제작" well(authoring/panel)과 "제작" page(authoring/session, 크래프트 플러그인 화면).
+// 둘 다 플러그인 빌더의 선언형 기여라 caustic 부품(Stepper, ListDescription)으로만 그린다(DP-22). 주도·전환은 런타임 탭에 두고 여기 두지 않는다(DP-23).
 // 페이지 머리 첫 줄(확장 이름, 등급, 버전)은 셸 몫이고 동작은 "대화로" 하나(DP-42).
 import {
   Button,
@@ -125,9 +125,9 @@ export function AuthoringPage({ s, onBack }: { s: S; onBack: () => void }) {
             {[
               ["AU-001", "이름 규칙과 예약 이름", "통과"],
               ["AU-003", "구성 초안과 매니페스트", "통과"],
-              ["AU-004", "drive 블록 하나 · 능력 제공자", "통과"],
+              ["AU-004", "drive 블록 하나 · 기능 제공자", "통과"],
               ["AU-005", "화면 slot과 방식", "통과"],
-              ["AU-009", "비밀처럼 보이는 키", "통과"],
+              ["AU-009", "시크릿처럼 보이는 키", "통과"],
               ["AU-010", `외부 쓰기 ${T.step}에 ${T.humanGate} 없음`, "경고"],
               ["AU-011", "상태 스키마 마이그레이션 없음", "경고"],
               ["AU-012", "재생 규율", "통과"],

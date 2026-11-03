@@ -1,5 +1,5 @@
 // B03 확장 가져오기와 신뢰: N-37 가져오기(폴더·묶음 파일, 검사, 위치) → O-10 신뢰 확인, coverage §4-2 업데이트 뒤 다시 확인(차이),
-// N-38 지우기 확인(O-06 변형), §4-12 URL 설치는 "다음 단계" 안내만. 작업대 "확장"(P-13) 화면 위에서 열린다.
+// N-38 지우기 확인(O-06 변형), §4-12 URL 설치는 "다음 단계" 안내만. 크래프트 "확장"(P-13) 화면 위에서 열린다.
 import { Alert, Button, Toaster, toast } from "@caustic/react";
 import { useEffect, useState } from "react";
 import {
@@ -19,7 +19,7 @@ import {
   workbenchRightTabs,
 } from "../_shell";
 import { useFlow } from "../b01-plugin-frame/flow";
-import { acmeManifest, CHECKS, EXTS, graphLens } from "./data";
+import { acmeManifest, CHECKS, EXTS, graphLens, webClipManifest } from "./data";
 import {
   BASE,
   FLOWS,
@@ -111,6 +111,8 @@ export function App({ state }: { state: StateId }) {
   };
   const ext = (name: string) => s.exts.find((e) => e.name === name) ?? EXTS[0];
   const removing = s.remove === null ? undefined : ext(s.remove);
+  const trustTarget =
+    s.trust === "web-clip" ? webClipManifest : s.trust === "acme-notes" ? acmeManifest : graphLens;
 
   const total = s.exts.length;
   const on = s.exts.filter((e) => e.state === "on").length;
@@ -208,20 +210,20 @@ export function App({ state }: { state: StateId }) {
       )}
       {s.trust !== null && (
         <TrustDialog
-          m={s.trust === "graph-lens" ? graphLens : acmeManifest}
+          m={trustTarget}
           projectTrust={s.projectTrust}
           onTrustFolder={() => {
             set({ projectTrust: "allow" });
             toast({
               title: "이 폴더를 신뢰했어요",
-              description: `~/code/xeon · ${T.projectTrust}`,
+              description: `~/code/fresnel · ${T.projectTrust}`,
             });
           }}
           onEnable={() => {
             if (s.trust === "graph-lens") enableGraph();
             else {
               set({ trust: null });
-              toast({ title: "Acme 노트를 켰어요" });
+              toast({ title: `${josa(trustTarget.display, "을", "를")} 켰어요` });
             }
           }}
           onCancel={cancelTrust}

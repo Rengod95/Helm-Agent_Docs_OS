@@ -9,7 +9,6 @@ export type TranscriptItem =
       name: string;
       detail: string;
       status: "failed" | "done";
-      duration: string;
       output?: string;
     }
   | { kind: "thinking"; text: string }
@@ -17,24 +16,23 @@ export type TranscriptItem =
   | { kind: "streaming"; text: string };
 
 export const transcript: TranscriptItem[] = [
-  { kind: "user", text: "무효화 시험이 계속 실패해. 원인 찾아줘" },
-  { kind: "agent", text: "먼저 실패하는 시험을 돌려 볼게요." },
+  { kind: "user", text: "무효화 테스트가 계속 실패해. 원인 찾아줘" },
+  { kind: "agent", text: "먼저 실패하는 테스트를 돌려 볼게요." },
   {
     kind: "tool",
     name: "bash",
     detail: "bun test cache",
     status: "failed",
-    duration: "1.2s",
     output: "FAIL test/cache.test.ts > expires after ttl\n  expected true, received false",
   },
-  { kind: "tool", name: "read", detail: "src/cache.ts", status: "done", duration: "40ms" },
+  { kind: "tool", name: "read", detail: "src/cache.ts", status: "done" },
   {
     kind: "thinking",
     text: "만료 시각 비교에 초와 밀리초가 섞여 있어요. set은 초, isExpired는 밀리초로 비교해요.",
   },
   {
     kind: "agent",
-    text: "원인을 찾았어요. `ttl`은 초 단위인데 `isExpired`가 밀리초로 비교해요. 캐시를 지우고 시험을 다시 돌려 확인할게요.",
+    text: "원인을 찾았어요. `ttl`은 초 단위인데 `isExpired`가 밀리초로 비교해요. 캐시를 지우고 테스트를 다시 돌려 확인할게요.",
   },
   { kind: "approval", id: "a1", approval: "tool" },
   { kind: "streaming", text: "승인을 기다리는 동안 수정안을 정리하고 있어요" },

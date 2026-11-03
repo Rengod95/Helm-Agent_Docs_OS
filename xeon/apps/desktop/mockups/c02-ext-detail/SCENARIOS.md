@@ -24,7 +24,7 @@ P-17 확장 상세의 버전·설정·화면·기록 탭과 O-11 되돌리기, X
 | `revert-confirm` · `revert-nomig` · `revert-progress` · `revert-done` · `revert-failed` | O-11 확인, 형식 변환 없음, 진행, 끝, 실패 원복 |
 | `settings` | 설정 탭: 행마다 이긴 범위 배지, "값 출처 · 프로젝트 범위가 이김 · 경로", 가려진 범위 값, 아래에 Helm이 그린 읽기 전용 부분(settings slot) |
 | `settings-profile` | 보기 기준 프로필: 머리 띠 "저장 위치 · 프로필 탐구 중심", maxLenses는 프로필이 이김 |
-| `settings-trial` | 보기 기준 시험: "저장 위치 · 시험 대화 렌즈 5개로 넓히기 · session", maxLenses 5는 시험이 이김 |
+| `settings-trial` | 보기 기준 테스트: "저장 위치 · 테스트 대화 렌즈 5개로 넓히기 · session", maxLenses 5는 테스트가 이김 |
 | `views` | 화면 탭: 자리, id, 화면 방식(기본 부품·자체 코드), 상태, 실패 n/5, "화면 다시 켜기", 진단(`render_threw`, `view_mode_not_allowed`) |
 | `log` · `log-web` | 기록 탭: 진단 위치 `file:line` + "파일 열기"(웹은 "경로 복사") |
 | `hook` · `hook-safe` | X 훅(감사 기록 훅) 상세: 훅 이벤트, 명령, 범위, 시간, 실패 / 안전 모드라 싣지 않음 |

@@ -1,9 +1,13 @@
 // 묶음 C 공용 작은 부품(caustic 토큰과 Tailwind만). 머리 주석마다 메운 빈틈을 적는다.
+// 옛 언어 이식(m4/redesign의 같은 이름 부품을 옛 토큰으로 옮김): 상태 점 tone은 옛 다섯 가지(success·info 포함)를 그대로 둔다.
+// ExtName은 기본으로 id를 숨긴다(내용 정리: id가 목적인 자리에서만 showId). SectionTitle은 옛 h2 그대로(새 구역 제목은 PageSection).
+// DottedRows·DottedRow는 점선 대신 얇은 실선(border-subtle)으로 행을 나눈다(점선 구분선은 가져오지 않는다).
 import { Badge, Tooltip } from "@caustic/react";
 import type { ReactNode } from "react";
 import { extName, EXT, Lock, T } from "../_shell";
 
-type Dot = "success" | "warning" | "danger" | "neutral" | "info";
+/** 상태 점 tone(옛 팔레트 다섯 가지). */
+export type Dot = "success" | "warning" | "danger" | "neutral" | "info";
 const dotBg: Record<Dot, string> = {
   success: "bg-success-graphic",
   warning: "bg-warning-graphic",
@@ -28,11 +32,46 @@ export function DotText({ tone, children }: { tone: Dot; children: ReactNode }) 
   );
 }
 
-/** 확장 이름: 표시 이름 + 회색 mono id(결정 13, DP-39). 표시 이름이 없으면 id만. */
+/** 줄을 얇은 실선으로 나눈 목록(옛 언어: 점선 대신 border-subtle). 기록·실패·묻지 않기처럼 상자 없이 읽는 줄에 쓴다. */
+export function DottedRows({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <ul aria-label={label} className="m-0 grid list-none p-0">
+      {children}
+    </ul>
+  );
+}
+
+/** 목록 한 줄: 앞 표식 + 제목 + 둘째 줄 + 끝(시각·동작). 줄 사이에만 실선, 마지막 줄 아래에는 선을 긋지 않는다. */
+export function DottedRow({
+  leading,
+  title,
+  description,
+  end,
+}: {
+  leading?: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  end?: ReactNode;
+}) {
+  return (
+    <li className="flex min-h-10 min-w-0 items-center gap-3 border-b border-border-subtle py-2 last:border-b-0">
+      {leading}
+      <span className="grid min-w-0 flex-1">
+        <span className="truncate text-ui-dense text-text-primary">{title}</span>
+        {description !== undefined && (
+          <span className="truncate text-ui-xs text-text-tertiary">{description}</span>
+        )}
+      </span>
+      {end !== undefined && <span className="flex flex-none items-center gap-2">{end}</span>}
+    </li>
+  );
+}
+
+/** 확장 이름: 표시 이름. showId면 회색 mono id를 덧붙인다. 표시 이름이 없으면 id만. */
 export function ExtName({
   id,
   strong = false,
-  showId = true,
+  showId = false,
 }: {
   id: string;
   strong?: boolean;
@@ -58,7 +97,7 @@ export function LayerCell({ children }: { children: ReactNode }) {
   return <span className="font-mono text-mono-sm text-text-tertiary">{children}</span>;
 }
 
-/** 작업대 화면 안 구역 제목(h2). 굵기·글자색 단계로만 묶는다(DP-03). */
+/** 크래프트 화면 안 구역 제목(h2). 굵기·글자색 단계로만 묶는다(DP-03). */
 export function SectionTitle({ children, end }: { children: ReactNode; end?: ReactNode }) {
   return (
     <div className="flex min-h-7 min-w-0 items-center gap-2">
@@ -108,15 +147,5 @@ export function DevLock({
         </Badge>
       </span>
     </Tooltip>
-  );
-}
-
-/** 읽기 전용 표지(배포 앱의 지난 replay·bench·diff 결과). */
-export function ReadOnlyNote({ children }: { children: ReactNode }) {
-  return (
-    <p className="m-0 inline-flex items-center gap-1.5 text-ui-xs text-text-tertiary">
-      <Lock aria-hidden emphasis="muted" className="size-icon-xs" />
-      {children}
-    </p>
   );
 }

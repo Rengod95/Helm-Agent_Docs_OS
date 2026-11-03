@@ -1,7 +1,7 @@
-// P-09 설정: 13탭 일반 폼. 모델 탭(기본), 개요, 고급(파일 전용), 그 밖의 일반 탭. 전용 탭(비밀, 계정, 도구, 플러그인)은 옆 시안으로 옮긴다.
+// P-09 설정: 13탭 일반 폼. 모델 탭(기본), 개요, 고급(파일 전용), 그 밖의 일반 탭. 전용 탭(시크릿, 계정, 도구, 플러그인)은 옆 시안으로 옮긴다.
 import { Alert, Button, Skeleton } from "@caustic/react";
 import { useState } from "react";
-import { FileText, RotateCcw } from "../_shell";
+import { FileText } from "../_shell";
 import { SettingsFrame } from "../_settings/frame";
 import { initialTabParam } from "../_settings/mount";
 import { gotoTabPage, TABS, type TabId } from "../_settings/tabs";
@@ -54,8 +54,9 @@ export function App({ state }: { state: State }) {
   const offline = state === "S5";
   const searching = state === "S6";
 
+  // 빈 탭(고급)은 본문의 빈 상태에 같은 "파일로 보기"가 있어 머리에는 두지 않는다.
   const fileAction = (
-    <Button size="xs" tone="neutral" variant="ghost" iconStart={<FileText />}>
+    <Button size="xs" tone="neutral" variant="ghost">
       파일로 보기
     </Button>
   );
@@ -65,13 +66,7 @@ export function App({ state }: { state: State }) {
         tone="warning"
         layout="inline"
         action={
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="outline"
-            iconStart={<RotateCcw />}
-            disabled={offline}
-          >
+          <Button size="xs" tone="neutral" variant="outline" disabled={offline}>
             엔진 재시작
           </Button>
         }
@@ -88,7 +83,6 @@ export function App({ state }: { state: State }) {
         query="timeout"
         tabCounts={SEARCH_COUNTS}
         title="‘timeout’ 찾은 항목"
-        meta="4개 탭에서 5개"
       >
         <SearchResults />
       </SettingsFrame>
@@ -98,7 +92,7 @@ export function App({ state }: { state: State }) {
     <SettingsFrame
       tab={tab}
       onTabSelect={onTabSelect}
-      actions={tab === "overview" ? undefined : fileAction}
+      actions={tab === "overview" || tab === "advanced" ? undefined : fileAction}
       banner={restartBanner}
       offline={offline}
       draft={state === "S2" ? { count: 1 } : undefined}

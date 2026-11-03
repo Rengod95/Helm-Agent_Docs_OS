@@ -1,5 +1,5 @@
 // 설정 화면 공용 틀(P-09~P-13). 공용 셸(../_shell) 가운데에 탭 열(키 찾기 + 탭 13개)과 폼 열(머리 + 띠 + 내용 + 초안 바닥)을 꽂는다.
-// 가운데는 투명하다(DP-01): 탭 열과 폼 열은 표면 없이 간격으로만 나뉜다. 좁은 폭(compact)에서는 탭 열을 접고 폼 머리의 Select가 탭을 맡는다.
+// 가운데는 투명하다(DP-01): 탭 열과 폼 열은 표면 없이 세로 선 하나(탭 열 오른쪽, 창 끝까지)로 나뉘고, 폼 머리 아래 선이 내용 영역 끝까지 닿는다(선 격자와 같은 border-subtle). 좁은 폭(compact)에서는 탭 열을 접고 폼 머리의 Select가 탭을 맡는다.
 // 오른쪽 well은 설정 화면에서 처음에 닫힌다(폼 폭이 먼저). 페이지가 extraTabs로 well 탭(예: 파일)을 더할 수 있다.
 import {
   Alert,
@@ -16,6 +16,7 @@ import {
 } from "@caustic/react";
 import { useEffect, useRef, type ReactNode } from "react";
 import {
+  BAR_INSET,
   defaultStatusCells,
   PanelLeft,
   Search,
@@ -26,6 +27,7 @@ import {
   type StatusCell,
   L,
 } from "../_shell";
+import "./stepper.css";
 import { TABS, tabLabel, type TabId } from "./tabs";
 
 export interface SettingsFrameProps {
@@ -51,7 +53,7 @@ export interface SettingsFrameProps {
   /** 처음에 열 well 탭. 없으면 well은 닫힌 채로 시작한다. */
   initialEnd?: string | undefined;
   modalOpen?: boolean | undefined;
-  /** 폼 열 최대 폭. 기본 44rem. */
+  /** 폼 열 최대 폭. 기본 64rem(그보다 좁은 창에서는 내용 영역을 가득 채운다), wide는 72rem. */
   wide?: boolean | undefined;
   children: ReactNode;
 }
@@ -74,9 +76,9 @@ function TabColumn({
   const m = useShell();
   const searching = query !== undefined && query !== "";
   return (
-    <div className="flex w-44 flex-none flex-col">
-      {/* 폼 머리(h-10)와 같은 줄에 키 찾기. 사이드바가 닫혔으면 그 앞에 여는 버튼. */}
-      <div className="flex h-10 flex-none items-center gap-1">
+    <div className="flex w-52 flex-none flex-col border-e border-border-subtle ps-3 pe-2">
+      {/* 폼 머리(h-16)와 같은 줄에 키 찾기. 사이드바가 닫혔으면 그 앞에 여는 버튼. 오른쪽 가장자리는 창 끝까지 닿는 세로 선(border-e, 선 격자와 같은 border-subtle). */}
+      <div className="flex h-16 flex-none items-center gap-1">
         {!m.startOpen && (
           <IconButton
             size="sm"
@@ -170,12 +172,15 @@ export function SettingsFrame({
         link: offline ? offlineLink : undefined,
       })}
     >
-      <div className="flex min-h-0 flex-1 gap-6">
+      {/* 창 여백(1.5)을 걷어 세로 선과 머리 아래 선이 창 끝까지 닿는다(크래프트 선 격자와 같은 방식). 아래는 원래 여백 없음. */}
+      <div className="-m-1.5 mb-0 flex min-h-0 flex-1">
         {!compact && (
           <TabColumn tab={tab} onTabSelect={onTabSelect} query={query} tabCounts={tabCounts} />
         )}
         <div className="flex min-w-0 flex-1 flex-col @container">
-          <header className="flex h-10 flex-none items-center gap-2">
+          <header
+            className={`flex h-16 flex-none items-center gap-2 border-b border-border-subtle ps-6 ${BAR_INSET}`}
+          >
             {compact && (
               <>
                 {!m.startOpen && (
@@ -208,7 +213,8 @@ export function SettingsFrame({
             )}
             <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
               <h1
-                className={`m-0 truncate font-ui text-ui-strong text-text-primary ${compact && title === undefined ? "sr-only" : ""}`}
+                data-title="page"
+                className={`m-0 truncate font-ui text-ui-strong font-bold text-text-primary ${compact && title === undefined ? "sr-only" : ""}`}
               >
                 {title ?? tabLabel(tab)}
               </h1>
@@ -221,12 +227,12 @@ export function SettingsFrame({
             )}
           </header>
           <ScrollArea label={`${tabLabel(tab)} 설정`} className="min-h-0 flex-1">
-            <div className={`${wide ? "max-w-[56rem]" : "max-w-[44rem]"} pe-1 pb-4`}>
+            <div className={`${wide ? "max-w-[72rem]" : "max-w-[64rem]"} px-6 py-12`}>
               {(offline || banner !== undefined) && (
                 <div className="grid gap-2 pb-3">
                   {offline && (
                     <Alert tone="warning" layout="inline">
-                      엔진에 연결되면 바꿀 수 있어요. 지금은 읽은 값만 보여요.
+                      엔진에 연결되면 바꿀 수 있어요.
                     </Alert>
                   )}
                   {banner}

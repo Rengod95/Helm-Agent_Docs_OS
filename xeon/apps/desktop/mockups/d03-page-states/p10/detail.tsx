@@ -1,5 +1,5 @@
-// 고른 비밀의 상세: 이름 줄(동작) + ListDescription 한 목록(DP-12). 값 행이 값 보기 상태기계(§7.6)를 그린다:
-//   hidden(가림 + 값 보기) · reauth(O-05 열림) · revealed(값 + 복사 + 지금 가리기 + 남은 시간) · not_started(이 연결에서는 못 봄 + CLI) · 실패
+// 고른 시크릿의 상세: 이름 줄(동작) + ListDescription 한 목록(DP-12). 값 행이 값 보기 상태기계(§7.6)를 그린다:
+//   hidden(가림 + 값 보기) · reauth(O-05 열림) · revealed(값 + 복사 + 지금 가리기 + 남은 시간) · not_started(이 연결에서는 못 봄) · 실패
 // 가린 값과 남은 시간 표시는 caustic에 없어(C-12) Progress와 글로 조합한다.
 import {
   Alert,
@@ -10,7 +10,6 @@ import {
   Progress,
 } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
-import { CircleCheck, Copy, Eye, EyeOff } from "../../_shell";
 import type { Secret } from "./fixtures";
 
 export type Reveal =
@@ -68,10 +67,10 @@ function ValueCell({
       <span className="grid gap-1.5 py-1">
         <span className="break-all font-mono text-mono text-text-primary">{FAKE}</span>
         <span className="flex flex-wrap items-center gap-1">
-          <Button size="xs" tone="neutral" variant="outline" iconStart={<Copy />}>
+          <Button size="xs" tone="neutral" variant="outline">
             복사
           </Button>
-          <Button size="xs" tone="neutral" variant="ghost" iconStart={<EyeOff />} onClick={onHide}>
+          <Button size="xs" tone="neutral" variant="ghost" onClick={onHide}>
             지금 가리기
           </Button>
           <span className="ms-2">
@@ -86,8 +85,8 @@ function ValueCell({
       <span className="grid gap-1.5 py-1">
         <span className="text-ui-sm text-text-secondary">
           {reveal === "web_blocked"
-            ? "웹에서는 OS 재인증을 할 수 없어 값을 볼 수 없어요. 값은 데스크톱 앱에서 봐요."
-            : "이 연결(사이드카)에서는 값 보기를 아직 쓸 수 없어요. 이름과 메타, 사용 기록만 보여요."}
+            ? "웹에서는 OS 재인증을 할 수 없어 값을 볼 수 없어요."
+            : "이 연결(앱 안 엔진)에서는 값 보기를 아직 쓸 수 없어요."}
         </span>
       </span>
     );
@@ -103,7 +102,6 @@ function ValueCell({
         size="xs"
         tone="neutral"
         variant="outline"
-        iconStart={<Eye />}
         onClick={onReveal}
         disabled={reveal === "reauth"}
       >
@@ -149,16 +147,6 @@ export function SecretDetail({
         <ListDescriptionRow term="허용 호스트" mono>
           {secret.hosts.join(", ")}
         </ListDescriptionRow>
-        <ListDescriptionRow term="참조">
-          {secret.refs.length === 0 ? (
-            <span className="text-text-tertiary">없음</span>
-          ) : (
-            <span className="font-mono text-mono-sm">{secret.refs.join(", ")}</span>
-          )}
-        </ListDescriptionRow>
-        <ListDescriptionRow term="사용 중">
-          활성 lease {secret.leases} · 최근 세션 {secret.sessions}
-        </ListDescriptionRow>
         <ListDescriptionRow term="승인">{secret.approval}</ListDescriptionRow>
         <ListDescriptionRow term="만료">
           {secret.status === "expiring" ? (
@@ -172,9 +160,6 @@ export function SecretDetail({
           ) : (
             secret.expires
           )}
-        </ListDescriptionRow>
-        <ListDescriptionRow term="보관" mono>
-          sops · ~/.fresnel/secrets.enc.yaml
         </ListDescriptionRow>
       </ListDescription>
       {reveal === "reauth_denied" && (
@@ -195,10 +180,7 @@ export function SecretDetail({
           role="status"
           className="m-0 flex items-center gap-1.5 pt-1 text-ui-sm text-text-secondary"
         >
-          <CircleCheck aria-hidden className="size-icon-sm text-success-text" />
-          시험: 복호화됨 · 길이 108 · sha256{" "}
-          <span className="font-mono text-mono-sm">1f3a9c0e</span>
-          <span className="text-text-tertiary">· 방금</span>
+          테스트: 복호화됨 <span className="text-text-tertiary">· 방금</span>
         </p>
       )}
     </section>

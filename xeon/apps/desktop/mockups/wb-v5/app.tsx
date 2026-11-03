@@ -1,0 +1,144 @@
+// 크래프트 v5: 에이전트가 무엇으로 이뤄졌나(지도), 무엇이 언제 어떤 순서로 도나(순서), 고른 것이 무엇인가(카드).
+// 범위 막대·표는 없다. 크래프트는 전역 켜짐·꺼짐만 다룬다. 대화마다 끄는 일은 대화 화면의 몫이다.
+import { useEffect } from "react";
+import { Button, Dialog } from "@caustic/react";
+import {
+  Shell,
+  defaultStatusCells,
+  inbox,
+  NoticeList,
+  useShell,
+  workbenchRightTabs,
+} from "../_shell";
+import { T } from "../_shell/terms";
+import { Builder } from "./builder";
+import { Canvas } from "./canvas";
+import { PluginDetail } from "./detail";
+import { DragGhost } from "./drag";
+import { Drawer } from "./lanes";
+import { MockProvider, useMock } from "./store";
+
+const NAV = [
+  { id: "craft", label: T.workbench },
+  { id: "tests", label: T.trials, badge: "1*", badgeLabel: "실행 중 1개" },
+  { id: "metrics", label: T.metrics },
+];
+
+function Notice() {
+  const m = useMock();
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none absolute inset-x-0 bottom-14 z-40 flex justify-center"
+    >
+      {m.notice !== null && (
+        <span className="animate-enter rounded-full bg-surface-raised px-4 py-2 text-body text-text-primary shadow-3">
+          {m.notice}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** 순서를 바꾸면 앞선 차단 핸들러가 먼저 답해 건너뛰어질 수 있는 핸들러가 생길 때 저장 전에 묻는다 */
+function OrderConfirm() {
+  const m = useMock();
+  const pm = m.pendingMove;
+  return (
+    <Dialog
+      open={pm !== null}
+      onOpenChange={(o) => {
+        if (!o) m.cancelMove();
+      }}
+      size="sm"
+      title="건너뛸 수 있어요"
+      description={`${pm?.skipped.join(", ") ?? ""}은(는) 앞선 ${T.handler}가 먼저 막으면 실행되지 않아요.`}
+      footer={
+        <>
+          <Button size="sm" variant="outline" onClick={m.cancelMove}>
+            취소
+          </Button>
+          <Button size="sm" variant="solid" onClick={m.confirmMove}>
+            그대로 저장
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+function Page() {
+  const m = useMock();
+  const shell = useShell();
+  const b = m.builder;
+  const { select } = m;
+  const idle = !m.drawer.open && b === null;
+  const { view, closeDetail, closeRing } = m;
+  // Esc: 자세히 보기에서는 돌아가고, 아니면 선택과 패널을 푼다(열린 서랍·빌더가 없을 때).
+  useEffect(() => {
+    if (!idle) return undefined;
+    const key = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape") return;
+      if (view === "detail") closeDetail();
+      else {
+        closeRing();
+        select({ k: "agent" }, false);
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [idle, select, view, closeDetail, closeRing]);
+  return (
+    <Shell
+      activeNav="craft"
+      onNavSelect={() => {}}
+      workbench={{ nav: NAV, onGoToThread: () => shell.setArea("chat"), contextField: <></> }}
+      stageLabel={T.workbench}
+      threads={{ currentId: "t1", onSelect: () => {}, onNew: () => {} }}
+      rightTabs={workbenchRightTabs({
+        inbox: <NoticeList notices={inbox.notices} />,
+        inboxBadge: 5,
+        onGoToThread: () => shell.setArea("chat"),
+      })}
+      status={defaultStatusCells({
+        layout: shell.layout,
+        thread: true,
+        pendingApprovals: 2,
+        openEnd: shell.openEnd,
+        runtime: { drive: "helm", extFailures: 3, onOpen: () => m.openDrawer(null) },
+      })}
+    >
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="relative min-h-0 flex-1">
+          {m.view === "detail" ? <PluginDetail /> : <Canvas />}
+        </div>
+        {m.drawer.open && <Drawer />}
+        {b !== null && (
+          <div className="absolute inset-0 z-20 border-t border-border-subtle bg-bg-app shadow-3">
+            <Builder
+              hook={b.hook}
+              templateId={b.template}
+              threadId={b.thread}
+              onTemplate={m.setTemplate}
+              onThread={m.setThread}
+              onClose={m.closeBuilder}
+              onCreate={({ name, template }) => m.create({ name, hook: b.hook, template })}
+            />
+          </div>
+        )}
+        <Notice />
+        <DragGhost />
+        <OrderConfirm />
+      </div>
+    </Shell>
+  );
+}
+
+export function App() {
+  return (
+    <MockProvider>
+      <Page />
+    </MockProvider>
+  );
+}

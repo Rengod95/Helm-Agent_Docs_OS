@@ -1,15 +1,20 @@
-// 블록 구성기 시안 앱: 공용 셸(작업대 영역) 위에 구성기 한 화면. 작업대 내비 "구성"(Helm 참고, 흐름, 시험, 프로필)과
-// "만들기"(빈 구성기, 작성 중 그룹, 코드)가 같은 구성기를 연다. 보기는 화면 머리의 SegmentedControl(그룹·흐름·프로필·코드).
-// 가운데는 투명한 캔버스(점 격자만), 왼쪽 패널은 내비, 블록 팔레트와 속성은 오른쪽 well 탭(§4.9.3, DP-01·DP-13).
-import { Button, SegmentedControl, SegmentedControlItem } from "@caustic/react";
-import { useEffect } from "react";
+// 블록 구성기 시안 앱: 공용 셸(크래프트 영역) 위에 구성기 한 화면. 크래프트 내비 "구성" 하나가 구성기를 연다(새 플러그인 그룹은 구성 안의 동작).
+// 보기는 화면 머리의 SegmentedControl(플러그인 그룹·흐름·프로필·코드). 머리 설명은 한 줄만(개수·명령·사용법 없음). 주요 동작 하나만 solid.
+// 블록 팔레트와 속성은 오른쪽 well 탭(§4.9.3). 캔버스 보기(그룹·흐름)는 머리와 캔버스 사이에 가로 경계선을 긋는다(parts/rail.tsx). 세로 레일은 두지 않는다.
 import {
-  Copy,
-  FlaskConical,
+  Button,
+  SegmentedControl,
+  SegmentedControlItem,
+  Select,
+  SelectOption,
+} from "@caustic/react";
+import { useEffect, type ReactNode } from "react";
+import {
   NoticeList,
   Shell,
   SlidersHorizontal,
   SquareStack,
+  T,
   WorkbenchHead,
   defaultStatusCells,
   inbox,
@@ -17,6 +22,7 @@ import {
   workbenchRightTabs,
   type RightTab,
 } from "../_shell";
+import { RailRule } from "./parts/rail";
 import { CodeView } from "./screens/code";
 import { FlowCanvas, TrialBar } from "./screens/flow";
 import { GroupCanvas } from "./screens/group";
@@ -24,6 +30,9 @@ import { FlowOutline, GroupOutline } from "./screens/outline";
 import { ProfileStack } from "./screens/profile";
 import { InspectTab, PaletteTab } from "./parts/well";
 import { useMock, type View } from "./store";
+
+const VIEWS: View[] = ["group", "flow", "profile", "code"];
+const isView = (v: string): v is View => VIEWS.some((x) => x === v);
 
 function Notice() {
   const m = useMock();
@@ -48,13 +57,15 @@ function ViewSwitch() {
     <SegmentedControl
       size="xs"
       value={m.view}
-      onValueChange={(v) => m.set({ view: v as View, trial: false, draft: false })}
+      onValueChange={(v) => {
+        if (isView(v)) m.set({ view: v, trial: false, draft: false });
+      }}
       aria-label="구성기 보기"
     >
-      <SegmentedControlItem value="group">그룹</SegmentedControlItem>
-      <SegmentedControlItem value="flow">흐름</SegmentedControlItem>
-      <SegmentedControlItem value="profile">프로필</SegmentedControlItem>
-      <SegmentedControlItem value="code">코드</SegmentedControlItem>
+      <SegmentedControlItem value="group">{T.group}</SegmentedControlItem>
+      <SegmentedControlItem value="flow">{T.composeFlow}</SegmentedControlItem>
+      <SegmentedControlItem value="profile">{T.profile}</SegmentedControlItem>
+      <SegmentedControlItem value="code">{T.composeCode}</SegmentedControlItem>
     </SegmentedControl>
   );
 }
@@ -64,84 +75,65 @@ function Head() {
   const shell = useShell();
   const compact = shell.layout === "compact";
   const draft = m.group === "lens-review";
-  const title = m.nav === "create" ? "만들기" : "구성";
-  let meta = "";
-  let sub: React.ReactNode;
-  let action: React.ReactNode = null;
+  let meta: string | undefined;
+  let sub: ReactNode;
+  let action: ReactNode = null;
   if (m.view === "group") {
     if (m.group === "new") {
-      meta = "새 그룹";
-      sub = "블록을 쌓으면 매니페스트와 drive·정책·관찰 템플릿 하나로 풀려요";
+      meta = `새 ${T.group}`;
     } else if (draft) {
-      meta = "lens-review · 작성 중";
-      sub = "블록 7 · 오류 3 · 경고 1 · 맥락 캐시 무효화 조사 · 프로필 조용히";
+      meta = "lens-review";
+      sub = "작성 중이에요";
       action = (
-        <Button size="xs" variant="soft" iconStart={<FlaskConical />} disabled>
-          시험 대화로
+        <Button size="xs" variant="outline" disabled>
+          {T.trialThread}로
         </Button>
       );
     } else {
-      meta = "helm · 참고 구성";
-      sub =
-        "설치본 매니페스트와 소스에서 읽었어요 · 블록 7 · 지점 6 · 능력 5(모두 optional) · 공개 기록 3";
+      meta = "helm";
+      sub = `설치된 ${T.group}이라 읽기 전용이에요`;
       action = (
         <Button
           size="xs"
-          variant="soft"
-          iconStart={<Copy />}
-          onClick={() => m.set({ group: "lens-review", nav: "create", selected: "drive2" })}
+          variant="solid"
+          onClick={() => m.set({ group: "lens-review", selected: "drive2" })}
         >
           복제해서 고치기
         </Button>
       );
     }
   } else if (m.view === "flow") {
-    meta = draft
-      ? "lens-review · 단계 머신 편집"
-      : m.trial
-        ? "helm · 시험 실행"
-        : "helm · 단계 머신";
-    sub = m.trial
-      ? undefined
-      : draft
-        ? "converge의 다음 포트를 사람 확인 노드로 끌고 있어요"
-        : "단계 5 · 자식 렌즈 3 · 상태 기반 재호출 · 읽기 전용";
+    meta = draft ? "lens-review" : "helm";
     if (!m.trial && !draft)
       action = (
-        <Button
-          size="xs"
-          variant="soft"
-          iconStart={<FlaskConical />}
-          onClick={() => m.set({ trial: true, selected: null })}
-        >
-          시험 대화에서 돌려 보기
+        <Button size="xs" variant="solid" onClick={() => m.set({ trial: true, selected: null })}>
+          {T.trialThread}에서 돌려 보기
         </Button>
       );
   } else if (m.view === "profile") {
-    meta = "프로필 · 탐구 중심";
-    sub = "층마다 켜기·끄기·그대로를 쌓고, 순서가 뜻을 가지는 곳만 끌어 옮겨요";
-  } else {
-    meta = "lens-review · 코드";
-    sub = (
-      <>
-        <span className="font-mono text-mono-sm">xeon group new lens-review --drive</span>
-        <span>· 파일 10개 · 블록 내용은 생성 뒤 패치로 들어가요</span>
-      </>
+    action = (
+      <Select size="xs" defaultValue="explore" aria-label={T.profile} className="w-40">
+        <SelectOption value="explore">탐구 중심</SelectOption>
+        <SelectOption value="quiet">조용히</SelectOption>
+        <SelectOption value="review-trial">review 테스트</SelectOption>
+      </Select>
     );
+  } else {
+    meta = "lens-review";
   }
   return (
     <WorkbenchHead
-      className="w-full px-3"
-      title={title}
+      className="w-full px-4"
+      title={T.compose}
       meta={meta}
       actions={
         compact ? (
           <ViewSwitch />
         ) : (
-          <>
+          <span className="flex items-center gap-2">
             {action}
             <ViewSwitch />
-          </>
+          </span>
         )
       }
       {...(sub !== undefined && !compact ? { sub } : {})}
@@ -160,10 +152,27 @@ function Body() {
     return (
       <>
         {m.trial && <TrialBar />}
+        {m.trial && <RailRule />}
         <FlowCanvas />
       </>
     );
   return <GroupCanvas />;
+}
+
+/** 가운데: 바깥 여백 없이 영역 양 끝까지 쓰고, 안쪽 여백 16(머리·보기 본문 px-4)만 둔다. 보기를 바꿔도 머리 자리가 같아 흔들리지 않는다.
+ *  캔버스 보기는 머리 아래에 가로 경계선을 긋고, 프로필 보기의 선 격자 띠는 가장자리까지 닿는다. */
+function Stage() {
+  const m = useMock();
+  const shell = useShell();
+  const canvas = shell.layout !== "compact" && (m.view === "group" || m.view === "flow");
+  return (
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <Head />
+      {canvas && <RailRule />}
+      <Body />
+      <Notice />
+    </div>
+  );
 }
 
 export function App() {
@@ -180,17 +189,17 @@ export function App() {
     onGoToThread: () => shell.setArea("chat"),
   });
   const mine: RightTab[] = [
-    { id: "palette", label: "블록", icon: <SquareStack />, content: <PaletteTab /> },
+    { id: "palette", label: T.block, icon: <SquareStack />, content: <PaletteTab /> },
     { id: "inspect", label: "속성", icon: <SlidersHorizontal />, content: <InspectTab /> },
   ];
-  const tabs = [base[0]!, ...mine, ...base.slice(1)];
+  const [first, ...rest] = base;
+  const tabs = first === undefined ? mine : [first, ...mine, ...rest];
   return (
     <Shell
-      activeNav={m.nav}
+      activeNav="compose"
       onNavSelect={(id) => {
         if (id === "compose")
           m.set({
-            nav: "compose",
             group: "helm",
             view: "group",
             trial: false,
@@ -198,19 +207,10 @@ export function App() {
             gateAdded: false,
             selected: "drive",
           });
-        else if (id === "create")
-          m.set({
-            nav: "create",
-            group: "new",
-            view: "group",
-            trial: false,
-            draft: false,
-            selected: null,
-          });
-        else m.notify("이 화면은 다른 작업대 시안에 있어요");
+        else m.notify("이 화면은 다른 크래프트 시안에 있어요");
       }}
       workbench={{ onGoToThread: () => shell.setArea("chat") }}
-      stageLabel="구성기"
+      stageLabel={T.compose}
       threads={{ currentId: "t1", onSelect: () => {}, onNew: () => {} }}
       rightTabs={tabs}
       status={defaultStatusCells({
@@ -218,14 +218,10 @@ export function App() {
         thread: false,
         pendingApprovals: 2,
         openEnd: shell.openEnd,
-        runtime: { drive: "helm", extFailures: 1, onOpen: () => m.notify("작업대 개요로 가요") },
+        runtime: { drive: "helm", extFailures: 1, onOpen: () => m.notify("크래프트 개요로 가요") },
       })}
     >
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <Head />
-        <Body />
-        <Notice />
-      </div>
+      <Stage />
     </Shell>
   );
 }

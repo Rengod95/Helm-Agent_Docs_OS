@@ -1,4 +1,4 @@
-// Helm well 기여(helm/panel). DP-23: 그룹 자기 내용만(주제, 단계, 렌즈, 발견 수). 임대·대기열·전환은 런타임 탭에만.
+// Helm well 기여(helm/panel). DP-23: 그룹 자기 내용만(주제, 단계, 렌즈, 발견 수). 주도·대기열·전환은 런타임 탭에만.
 // 머리 "크게"는 셸이 그린다(chatRightTabs의 expand, DP-24).
 import { Badge, Stepper } from "@caustic/react";
 import { helmInquiry } from "../../_shell";

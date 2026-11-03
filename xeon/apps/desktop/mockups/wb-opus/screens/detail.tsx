@@ -1,5 +1,5 @@
 // W3 확장 상세(P-17). 머리(라벨 + id, 층·종류·등급·버전, 상태, 켜기·끄기, 더보기)와 탭 여덟:
-// 개요, 연결 지점, 임대와 상한, 설정, 측정, 기록, 버전, 화면. 예는 helm(S5 연결 지점), review(S6 기록, 자동 꺼짐).
+// 개요, 훅, 주도와 상한, 설정, 측정, 기록, 버전, 화면. 예는 helm(S5 훅), review(S6 기록, 자동 꺼짐).
 import {
   Alert,
   Badge,
@@ -57,8 +57,8 @@ import { useMock, type DetailTab } from "../store";
 
 const TABS: { id: DetailTab; label: string }[] = [
   { id: "overview", label: "개요" },
-  { id: "points", label: "연결 지점" },
-  { id: "lease", label: "임대와 상한" },
+  { id: "points", label: "훅" },
+  { id: "lease", label: "주도와 상한" },
   { id: "settings", label: "설정" },
   { id: "metrics", label: "측정" },
   { id: "log", label: "기록" },
@@ -87,13 +87,13 @@ function OverviewTab({ name }: { name: string }) {
           ? "막힌 문제를 렌즈(자식 에이전트) 여러 개로 넓게 탐구하고, 발견을 모아 대화에 적용해요."
           : "변경을 단계마다 검토하고 위험한 편집을 막아요."}
       </ListDescriptionRow>
-      <ListDescriptionRow term="저자">xeon</ListDescriptionRow>
+      <ListDescriptionRow term="저자">fresnel</ListDescriptionRow>
       <ListDescriptionRow term="설치 위치" mono copyValue={`~/.fresnel/extensions/${name}`}>
         ~/.fresnel/extensions/{name}
       </ListDescriptionRow>
       <ListDescriptionRow term="등급">user · 요청 user</ListDescriptionRow>
       <ListDescriptionRow term="연산">on · post · drive · scope</ListDescriptionRow>
-      <ListDescriptionRow term="능력">
+      <ListDescriptionRow term="기능">
         {helm
           ? "필요 없음 · 선택 web.search 연결됨, knowledge.search 없음"
           : "필요 work.task 연결됨"}
@@ -121,10 +121,10 @@ function PointsTab() {
     <Table
       variant="ghost"
       size="xs"
-      aria-label="연결 지점"
+      aria-label="훅"
       className={PLAIN_TABLE}
       columns={[
-        { key: "point", header: "지점" },
+        { key: "point", header: "훅" },
         { key: "fold", header: "fold", width: 72 },
         { key: "budget", header: "예산", align: "end", width: 64 },
         { key: "p50", header: "p50", align: "end", width: 64 },
@@ -139,7 +139,7 @@ function PointsTab() {
         const r = ratio(p);
         switch (col.key) {
           case "point":
-            // DP-31: 지점 이름은 꾸밈 없는 글자.
+            // DP-31: 훅 이름은 꾸밈 없는 글자.
             return <span className="text-text-primary">{p.point}</span>;
           case "fold":
             return <span className="text-text-secondary">{p.fold}</span>;
@@ -203,9 +203,9 @@ function Meter({
 function LeaseTab() {
   return (
     <div className="grid gap-6">
-      <section aria-label="지금 임대" className="grid gap-1.5">
+      <section aria-label="지금 주도" className="grid gap-1.5">
         <SectionTitle end="캐시 무효화 조사 · 턴 7부터">지금 보유 중</SectionTitle>
-        {/* 임대 상한 게이지: caustic Meter 빈틈(C-05)이라 Progress로 대신. */}
+        {/* 주도 상한 게이지: caustic Meter 빈틈(C-05)이라 Progress로 대신. */}
         <Meter
           label="턴"
           used={lease.turns[0]}
@@ -235,12 +235,12 @@ function LeaseTab() {
           </ListDescriptionRow>
         </ListDescription>
       </section>
-      <section aria-label="최근 임대" className="grid gap-1">
-        <SectionTitle>최근 임대</SectionTitle>
+      <section aria-label="최근 주도" className="grid gap-1">
+        <SectionTitle>최근 주도</SectionTitle>
         <Table
           variant="ghost"
           size="xs"
-          aria-label="최근 임대"
+          aria-label="최근 주도"
           className={PLAIN_TABLE}
           columns={[
             { key: "start", header: "시작" },
@@ -332,7 +332,7 @@ function MetricsTab({ name }: { name: string }) {
           trendLabel="7일 토큰 추이"
         />
         <CardStat variant="ghost" size="sm" label="비용" value={`$${r.costUsd.toFixed(2)}`} />
-        <CardStat variant="ghost" size="sm" label="임대" value={r.leaseMin} unit="분" />
+        <CardStat variant="ghost" size="sm" label="주도" value={r.leaseMin} unit="분" />
         <CardStat variant="ghost" size="sm" label="실패" value={r.failures} />
         <CardStat variant="ghost" size="sm" label="거부" value={r.denies} />
       </div>
@@ -599,9 +599,9 @@ export function Detail() {
             >
               <MenuItem
                 icon={<FlaskConical />}
-                onSelect={() => m.go("other", "시험 실행", "tests")}
+                onSelect={() => m.go("other", "테스트 실행", "tests")}
               >
-                시험 시작
+                테스트 시작
               </MenuItem>
               <MenuItem icon={<RotateCw />}>다시 읽기</MenuItem>
               <MenuItem icon={<FolderOpen />}>폴더 열기</MenuItem>

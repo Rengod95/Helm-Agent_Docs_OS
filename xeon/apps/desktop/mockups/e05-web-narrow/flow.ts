@@ -1,4 +1,4 @@
-// e05 상태 기계(목업 전용): 웹 연결(계획에 없음 7), 좁은 폭·모바일(계획에 없음 8, N-59), 원격 작업대(N-60).
+// e05 상태 기계(목업 전용): 웹 연결(계획에 없음 7), 좁은 폭·모바일(계획에 없음 8, N-59), 원격 크래프트(N-60).
 // 웹은 데스크톱과 같은 연결 상태 기계를 쓴다: idle → connecting → live | authFailed | unreachable, live → reconnecting → live | offline.
 import { L2 } from "../_shell";
 import type { After } from "../_chat-rt";
@@ -25,7 +25,7 @@ export interface S {
   banner: boolean;
   badge: number;
   decision: "pending" | "allowed" | "denied" | "elsewhere";
-  /** 원격 작업대: 켜기 요청 중인 확장, 거부됨. */
+  /** 원격 크래프트: 켜기 요청 중인 확장, 거부됨. */
   pending: string | null;
   denied: boolean;
   menu: string | null;

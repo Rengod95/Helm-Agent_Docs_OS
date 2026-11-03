@@ -4,7 +4,16 @@ import { loadCausticFonts, MockRoot, ShellStateProvider } from "../_shell";
 import "./mockup.css";
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { defaultStatusCells, Shell, standardRightTabs, useShell, type StatusCell } from "../_shell";
+import {
+  defaultStatusCells,
+  EXT,
+  josa,
+  Shell,
+  standardRightTabs,
+  T,
+  useShell,
+  type StatusCell,
+} from "../_shell";
 import { InboxLite } from "../p07-schedules/parts/inbox-lite";
 import { ChatContext, type ContextItem } from "./parts/chat-context";
 import { HelmPage, HelmPanel, type HelmState } from "./helm";
@@ -16,7 +25,7 @@ const STATES = [
   { id: "S2", label: "S2 수렴 중(발견)" },
   { id: "S3", label: "S3 끝: 적용함" },
   { id: "S4", label: "S4 대기" },
-  { id: "S5", label: "S5 대기열(임대)" },
+  { id: "S5", label: "S5 대기열(주도)" },
   { id: "S6", label: "S6 상한 도달" },
   { id: "S7", label: "S7 멈추는 중" },
   { id: "S8", label: "S8 Helm 꺼짐" },
@@ -36,7 +45,7 @@ const failRun = (n: number): ContextItem => ({
 
 function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
   const base: ContextItem[] = [
-    { kind: "user", text: "무효화 시험이 계속 실패해. 원인 찾아줘" },
+    { kind: "user", text: "무효화 테스트가 계속 실패해. 원인 찾아줘" },
     failRun(1),
     { kind: "agent", text: "만료 비교를 고쳐 다시 돌려 볼게요." },
     failRun(2),
@@ -49,7 +58,6 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
         kind: "event",
         icon: "helm",
         text: "같은 오류가 세 번 났어요. 여러 관점으로 탐구해 볼까요?",
-        detail: "helm · 신호 stuck",
         action: { label: "탐구 시작", onClick: openHelm },
       },
     ];
@@ -58,8 +66,7 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
     {
       kind: "event",
       icon: "helm",
-      text: "helm이 drive를 받았어요 · 캐시 무효화",
-      detail: "턴 경계에서 그룹이 바뀌었어요 · 렌즈 3개",
+      text: `${EXT.helm}이 ${josa(T.lead, "을", "를")} 받았어요 · 캐시 무효화`,
       action: { label: "탐구 보기", onClick: openHelm },
     },
     {
@@ -69,7 +76,7 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
       status: "failed",
       duration: "0ms",
       failedLabel: "거부됨",
-      output: "탐색 단계에서는 쓰기 도구를 쓰지 않아요 (helm scope).",
+      output: "탐색 단계에서는 쓰기 도구를 쓰지 않아요.",
     },
   ];
   if (state === "S3")
@@ -78,15 +85,15 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
       { kind: "event", icon: "helm", text: "수렴 · 발견 4개를 남겼어요" },
       {
         kind: "agent",
-        text: "탐구 결과를 적용할게요. ttl을 저장할 때 밀리초로 바꾸고, 경계 시각 시험을 더했어요.",
+        text: "탐구 결과를 적용할게요. ttl을 저장할 때 밀리초로 바꾸고, 경계 시각 테스트를 더했어요.",
       },
       { kind: "tool", name: "edit", detail: "src/cache.ts", status: "done", duration: "12ms" },
       { kind: "tool", name: "bash", detail: "bun test cache", status: "done", duration: "1.3s" },
       {
         kind: "event",
         icon: "helm",
-        text: "탐구 끝 · 적용함. drive가 review로 넘어갔어요",
-        detail: "작업 #12, #13이 생겼어요",
+        text: "탐구 끝 · 적용함",
+        detail: "작업이 생겼어요",
       },
     ];
   if (state === "S2" || state === "S6")
@@ -97,7 +104,7 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
         icon: "helm",
         text:
           state === "S6"
-            ? "자식 에이전트 상한(8)에 걸려 멈췄어요"
+            ? "자식 에이전트 상한에 걸려 멈췄어요"
             : "탐색 끝 · 수렴 단계로 넘어갔어요",
       },
     ];
@@ -108,7 +115,6 @@ function transcript(state: HelmState, openHelm: () => void): ContextItem[] {
         kind: "event",
         icon: "helm",
         text: "탐구를 대기열에 넣었어요",
-        detail: "drive 임대를 review가 쥐고 있어요",
       },
     ];
   return started;
@@ -137,7 +143,8 @@ function Page({ state }: { state: HelmState }) {
               ? "Helm 탐색"
               : "Helm",
     title: "Helm",
-    description: "이 대화의 Helm 탐구 단계예요. 누르면 탐구 탭을 열어요.",
+    // 설명 글은 뺀다. StatusCell.description은 필수라 빈 글로 둔다(_shell 타입을 바꾸지 않으려고).
+    description: "",
     action: { label: "탐구 탭 열기", onSelect: () => shell.openEnd("helm") },
   };
   const status = defaultStatusCells({
@@ -179,7 +186,7 @@ function Page({ state }: { state: HelmState }) {
           }}
         />
       ) : (
-        <ChatContext items={transcript(state, openHelm)} goal="목표 2/3" running={running} />
+        <ChatContext items={transcript(state, openHelm)} running={running} />
       )}
     </Shell>
   );

@@ -9,7 +9,7 @@ export const displayName: Record<string, string> = {
   work: "작업",
   "web-exa": "Exa 웹 검색",
   "acme-notes": "Acme 노트",
-  "core-loop": "코어 루프",
+  "core-loop": "기본 에이전트",
   "provider-oauth": "OAuth 제공자",
   "pre-commit-lint": "커밋 전 검사",
 };
@@ -40,7 +40,7 @@ export function extInfo(name: string, list: Extension[] = extensions): Extension
   };
 }
 
-/** 확장별 연결 지점 수(W2 "지점" 열). */
+/** 확장별 훅 수(W2 "훅" 열). */
 export const pointCount: Record<string, number> = {
   helm: 6,
   learning: 3,
@@ -53,7 +53,7 @@ export const pointCount: Record<string, number> = {
   "pre-commit-lint": 1,
 };
 
-/** 이 대화(캐시 무효화 조사)에서 켜진 확장과 쓰는 지점(W5 런타임 탭). */
+/** 이 대화(캐시 무효화 조사)에서 켜진 확장과 쓰는 훅(W5 런타임 탭). */
 export const threadExts: {
   name: string;
   layer: Layer;
@@ -70,7 +70,7 @@ export const threadExts: {
       "tool.call.before",
       "tool.execution.after",
       "boundary.settle.after",
-      "session.start",
+      "thread.start",
       "lifecycle.lease.rejected",
     ],
   },
@@ -78,7 +78,7 @@ export const threadExts: {
     name: "learning",
     layer: "L3",
     state: "켜짐",
-    points: ["boundary.settle.after", "session.end", "tool.execution.after"],
+    points: ["boundary.settle.after", "thread.end", "tool.execution.after"],
   },
   { name: "web-exa", layer: "L2", state: "켜짐", points: ["web.search.provider"] },
   { name: "work", layer: "L2", state: "켜짐", points: ["tool.register", "boundary.settle.after"] },
@@ -87,7 +87,7 @@ export const threadExts: {
     layer: "plugin",
     state: "실패 2",
     tone: "warning",
-    points: ["tool.call.before", "session.start"],
+    points: ["tool.call.before", "thread.start"],
   },
   {
     name: "review",
@@ -156,7 +156,7 @@ export const helmLog = [
   { at: "09:00:01", kind: "loader", text: "helm 0.1.0 로드 · 진단 없음" },
 ];
 
-/** W3 임대와 상한 탭: 최근 임대. */
+/** W3 주도와 상한 탭: 최근 주도. */
 export const helmLeases = [
   {
     id: "l1",

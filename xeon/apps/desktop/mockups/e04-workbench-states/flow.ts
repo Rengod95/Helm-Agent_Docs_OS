@@ -1,4 +1,4 @@
-// e04 상태 기계(목업 전용): 작업대 여섯 상태 빈칸(N-47)과 찾기·거르기 결과 없음(N-48).
+// e04 상태 기계(목업 전용): 크래프트 여섯 상태 빈칸(N-47)과 찾기·거르기 결과 없음(N-48).
 import type { After } from "../_chat-rt";
 
 export type Screen = "ext" | "detail" | "metrics" | "proposals" | "settings" | "palette";

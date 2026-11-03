@@ -3,7 +3,7 @@
 // 트랜스크립트 항목은 페이지가 준다(Helm 알림, 거부된 쓰기 도구, 판정 행 등). P-14도 이 파일을 쓴다(p14-work/mockup.css의 @source).
 import { Button, Composer, IconButton, Message, ScrollArea, ToolCall } from "@caustic/react";
 import { useEffect, useRef, type ReactNode } from "react";
-import { ChevronRight, Compass, Ellipsis, PanelLeft, Target, useShell } from "../../_shell";
+import { ChevronRight, Ellipsis, PanelLeft, T, useShell } from "../../_shell";
 
 // P-02와 같은 읽기 열: 가운데 46rem, 좌우 여백 3을 한 번.
 export const READ_WIDTH = "mx-auto w-full max-w-[46rem] px-3";
@@ -30,10 +30,8 @@ export type ContextItem =
     };
 
 function EventRow({ item }: { item: Extract<ContextItem, { kind: "event" }> }) {
-  const I = item.icon === "helm" ? Compass : Target;
   return (
     <div className="flex min-w-0 items-start gap-2.5 text-ui-sm">
-      <I aria-hidden emphasis="muted" className="mt-0.5 size-icon-sm shrink-0 text-text-tertiary" />
       <div className="grid min-w-0 flex-1 gap-0.5">
         <span className="text-text-secondary">{item.text}</span>
         {item.detail !== undefined && <span className="text-text-tertiary">{item.detail}</span>}
@@ -69,9 +67,8 @@ function Item({ item }: { item: ContextItem }) {
           name={item.name}
           detail={item.detail}
           status={item.status}
-          duration={item.duration}
-          failedLabel={item.failedLabel ?? `실패 · ${item.duration}`}
-          icon={<ChevronRight className={item.output !== undefined ? "rotate-90" : ""} />}
+          failedLabel={item.failedLabel ?? "실패"}
+          icon={item.output !== undefined ? <ChevronRight className="rotate-90" /> : undefined}
         >
           {item.output !== undefined ? (
             <pre className="m-0 whitespace-pre-wrap break-words font-mono text-mono-sm">
@@ -87,11 +84,10 @@ function Item({ item }: { item: ContextItem }) {
 
 export function ChatContext({
   items,
-  goal,
   running = true,
 }: {
   items: ContextItem[];
-  /** 머리의 목표 칩 글(없으면 숨김). 누르면 작업 탭. */
+  /** @deprecated 머리의 목표 칩은 내지 않는다. 받기만 한다(d03·p14가 넘긴다). */
   goal?: string | undefined;
   running?: boolean;
 }) {
@@ -120,16 +116,6 @@ export function ChatContext({
           <h1 className="m-0 truncate font-ui text-ui-strong text-text-primary">
             캐시 무효화 조사
           </h1>
-          <span className="truncate font-mono text-mono-sm text-text-tertiary">~/code/xeon</span>
-          {goal !== undefined && (
-            <button
-              type="button"
-              onClick={() => shell.openEnd("work")}
-              className="shrink-0 rounded-sm text-ui-sm tabular-nums text-text-tertiary outline-none hover:text-text-primary focus-visible:focus-ring"
-            >
-              {goal}
-            </button>
-          )}
         </div>
         <IconButton size="sm" variant="ghost" label="대화 메뉴">
           <Ellipsis />
@@ -150,11 +136,11 @@ export function ChatContext({
           stopLabel="중단"
           attachLabel="맥락 더하기"
           modeLabel="실행 중 보낸 입력"
-          modes={["steer", "followUp"]}
-          defaultMode="steer"
+          modes={[T.modeSteer, T.modeFollowUp]}
+          defaultMode={T.modeSteer}
           modelLabel="sonnet-5-5"
           usage={41}
-          usageLabel={(p) => `문맥 ${p}% 사용`}
+          usageLabel={(p) => `문맥 ${p}%`}
           placeholder="메시지를 입력하세요"
           running={running}
           onAttach={() => {}}

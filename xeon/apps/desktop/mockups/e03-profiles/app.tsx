@@ -1,4 +1,4 @@
-// N-57 프로필 관리(묶음 E). 자리: 작업대 "구성"의 "프로필" 보기(P-21 §6.28.3). 캔버스(실효 스택 그림)는 이번 범위가 아니라
+// N-57 프로필 관리(묶음 E). 자리: 크래프트 "구성"의 "프로필" 보기(P-21 §6.28.3). 캔버스(실효 스택 그림)는 이번 범위가 아니라
 // 목록 + 상세로 그린다: 왼쪽 프로필 목록(만들기·이름 바꾸기·복제·지우기), 오른쪽 고른 프로필의 내용과 쓰는 곳.
 // 저장은 호스트(profile.list·get·put·delete, W-46)라 데스크톱·웹·앱이 같은 목록이다. baseRev 충돌은 상세 위 Alert 하나(DP-28).
 import {
@@ -264,7 +264,7 @@ function Detail({ s, go, offline }: { s: S; go: (a: A) => void; offline: boolean
         {!renaming && (
           <>
             <Button size="xs" tone="neutral" variant="ghost" disabled={offline}>
-              {L2("새 시험 대화로", "New trial conversation")}
+              {L2("새 테스트 대화로", "New trial conversation")}
             </Button>
             <Button size="xs" tone="neutral" variant="outline" disabled={offline}>
               {L2("이 대화에 적용", "Apply to this conversation")}
@@ -599,7 +599,7 @@ export function App({ state }: { state: StateId }) {
         <div className="grid gap-2 text-ui-sm text-text-secondary">
           <p className="m-0">
             {L2(
-              "이 프로필을 쓰는 곳이 있어요. 시험 대화는 이미 적용한 값을 그대로 갖고, 이 프로필을 보기 기준으로 쓰던 창은 전체로 돌아가요.",
+              "이 프로필을 쓰는 곳이 있어요. 테스트 대화는 이미 적용한 값을 그대로 갖고, 이 프로필을 보기 기준으로 쓰던 창은 전체로 돌아가요.",
               "Some places use this profile. Trial conversations keep the values already applied; windows viewing by it fall back to Everything.",
             )}
           </p>

@@ -1,5 +1,5 @@
 // 검사기(오른쪽 well "검사" 탭): 캔버스에서 고른 블록 하나. caustic InspectorPanel(ghost: well이 이미 표면이라 테두리·그림자 없음, DP-20)
-// 구역은 머리 · 연결 지점 · drive 임대 · 능력 · 설정 바인딩(InspectorBindings) · 슬롯 · 최근 실패. 같은 내용의 전체 화면은 P-17.
+// 구역은 머리 · 훅 · 주도 · 기능 · 설정 바인딩(InspectorBindings) · 슬롯 · 최근 실패. 같은 내용의 전체 화면은 P-17.
 import {
   Button,
   EmptyState,
@@ -81,7 +81,7 @@ export function Inspector({
         surface="none"
         icon={<MousePointer2 />}
         title="캔버스에서 블록을 고르세요"
-        description="지점, 임대, 능력, 설정을 여기서 봐요"
+        description="훅, 주도, 기능, 설정을 여기서 봐요"
         className="mt-10"
       />
     );
@@ -122,7 +122,7 @@ function ExtInspector({
       p95: null,
       failures: 0,
     }));
-  // 맥락이 덮어쓴 값이 있으면 그 값과 출처로 바꿔 보인다(프로필·시험).
+  // 맥락이 덮어쓴 값이 있으면 그 값과 출처로 바꿔 보인다(프로필·테스트).
   const binds = (BINDINGS[n.id] ?? []).map((b) => {
     const o = view.overrides.find((x) => x.key === b.key);
     return o === undefined ? b : { ...b, value: o.value, context: [o.from] };
@@ -203,7 +203,7 @@ function ExtInspector({
       >
         {points.length > 0 && (
           <InspectorSection>
-            <InspectorSectionHeader title={`연결 지점 ${points.length}`} />
+            <InspectorSectionHeader title={`훅 ${points.length}`} />
             <ul className="m-0 grid list-none gap-1 p-0">
               {points.map((p) => (
                 <li
@@ -237,8 +237,8 @@ function ExtInspector({
         )}
         {n.usesDrive === true && (
           <InspectorSection>
-            <InspectorSectionHeader title="drive 임대" />
-            <ListDescription variant="ghost" size="xs" aria-label="drive 임대">
+            <InspectorSectionHeader title="주도" />
+            <ListDescription variant="ghost" size="xs" aria-label="주도">
               <ListDescriptionRow term="역할">
                 {holder
                   ? `보유 · 차수 ${view.lease?.epoch ?? "–"}`
@@ -284,7 +284,7 @@ function ExtInspector({
         )}
         {((n.consumes ?? []).length > 0 || (n.provides ?? []).length > 0) && (
           <InspectorSection>
-            <InspectorSectionHeader title="능력" />
+            <InspectorSectionHeader title="기능" />
             <ul className="m-0 grid list-none gap-1 p-0 text-ui-xs">
               {(n.provides ?? []).map((cap) => (
                 <li key={cap} className="flex items-center gap-1.5">
@@ -351,7 +351,7 @@ function ExtInspector({
         )}
         {slots !== undefined && (
           <InspectorSection>
-            <InspectorSectionHeader title="group-kit 슬롯" />
+            <InspectorSectionHeader title="group-sdk 슬롯" />
             <ListDescription variant="ghost" size="xs" aria-label="슬롯">
               {slots.map((s) => (
                 <ListDescriptionRow key={s.slot} term={s.slot}>

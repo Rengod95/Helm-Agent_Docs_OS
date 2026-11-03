@@ -1,9 +1,10 @@
 // 오른쪽 맥락 패널(DP-10). 접으면 아이콘만 있는 세로 떠 있는 막대(caustic FloatingBar vertical).
 // 펼치면 누른 아이콘 옆에서 두 단계로 펼친다: 바깥 well(Card variant="well") 안에 내용 카드(CardPanel).
-// 넓은 폭에서는 대화 영역을 밀고(헤어라인), 1100px 이하에서는 대화 위에 떠서 그림자 하나만 가진다.
+// 어느 폭에서도 내용 위에 뜨는 면(popover)이다: 막대도 well도 stage 위에 absolute로 떠서 내용 폭을 차지하지 않는다(그림자 하나만).
+// 바깥을 누르거나 Esc를 누르면 닫히고, 열면 well로 초점이 가고 닫으면 눌렀던 아이콘으로 돌아온다.
 // 탭(아이콘, 이름, 배지, 내용)은 페이지가 준다. 탭 묶음은 영역마다(§4.9.4):
 //   대화: chatRightTabs(받은 요청, 런타임, 작업, 플러그인 well 탭들). 옛 standardRightTabs(받은 요청, 탐구, 작업)도 남긴다.
-//   작업대: workbenchRightTabs(받은 요청, 기록, 대화).
+//   크래프트: workbenchRightTabs(받은 요청, 기록, 대화).
 // well 머리는 짧은 이름 + 아이콘 둘까지("크게", 접기, DP-21). 플러그인 well이면 이름 옆에 확장 이름을 연하게(ADR-0021 슬롯 규칙).
 import {
   Card,
@@ -17,7 +18,7 @@ import {
   ResizeHandle,
   ScrollArea,
 } from "@caustic/react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Compass,
   Ellipsis,
@@ -45,7 +46,7 @@ export interface RightTab {
   content?: ReactNode;
   /** 플러그인 well이면 기여한 확장 이름(머리에 연한 mono 글자). */
   ext?: string | undefined;
-  /** 머리 "크게" 아이콘: 같은 확장의 page 기여를 작업대에서 연다(DP-24). */
+  /** 머리 "크게" 아이콘: 같은 확장의 page 기여를 크래프트에서 연다(DP-24). */
   expand?: { label: string; onSelect: () => void } | undefined;
   /** well 폭(px). 플러그인 well은 320~480(ADR-0021 §3.2). 없으면 352. */
   width?: number | undefined;
@@ -90,7 +91,7 @@ export function chatRightTabs(opts: {
   return opts.only === undefined ? tabs : tabs.filter((t) => opts.only?.includes(t.id));
 }
 
-/** 작업대 영역 탭(§4.9.4): 받은 요청, 기록(맥락 대화의 런타임 이벤트), 대화(맥락 대화의 끝 부분, 읽기 전용). */
+/** 크래프트 영역 탭(§4.9.4): 받은 요청, 기록(맥락 대화의 런타임 이벤트), 대화(맥락 대화의 끝 부분, 읽기 전용). */
 export function workbenchRightTabs(opts: {
   inbox?: ReactNode;
   inboxBadge?: number;
@@ -152,25 +153,54 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
   const wellWidth = Math.min(480, Math.max(320, widths[current.id] ?? current.width ?? 352));
   const fixedWidth = current.width === undefined && widths[current.id] === undefined;
   const tab = current.id;
-  const overlay = m.layout !== "wide";
   const open = m.endOpen;
+  const asideRef = useRef<HTMLElement>(null);
+  const wellRef = useRef<HTMLDivElement>(null);
+  const { setEndOpen } = m;
+  // 열리면 well로 초점을 옮기고, 닫히면 (초점이 well 안이었거나 갈 곳이 없으면) 눌렀던 막대 아이콘으로 돌려준다.
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) wellRef.current?.focus({ preventScroll: true });
+    if (!open && wasOpen.current) {
+      const active = document.activeElement;
+      if (active === null || active === document.body || wellRef.current?.contains(active) === true)
+        triggerRef.current?.focus({ preventScroll: true });
+    }
+    wasOpen.current = open;
+  }, [open]);
+  // 바깥 누름과 Esc로 닫는다(Esc는 팔레트·대화 상자가 열려 있으면 그쪽이 먼저).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target;
+      if (t instanceof Node && asideRef.current?.contains(t) !== true) setEndOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open, setEndOpen]);
   return (
-    <aside aria-label={L("맥락 패널")} className="relative flex flex-none items-start gap-1.5">
+    <aside
+      ref={asideRef}
+      aria-label={L("맥락 패널")}
+      className="pointer-events-none absolute end-1.5 top-1.5 bottom-0 z-20 flex items-start gap-1.5"
+    >
       {open && (
         <Card
           variant="well"
           size="sm"
+          ref={wellRef}
           role="region"
+          tabIndex={-1}
           aria-label={current.label}
           // 아이콘 쪽(위 오른쪽)에서 펼쳐지는 느낌: 그 모서리를 원점으로 커지며 나타난다.
           className={[
-            "relative flex max-w-[calc(100vw-4.5rem)] flex-col self-stretch origin-top-right animate-enter enter-scale",
+            "pointer-events-auto absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex max-w-[calc(100vw-4.5rem)] flex-col outline-none shadow-3 origin-top-right animate-enter enter-scale",
             fixedWidth ? "w-[352px]" : "",
-            overlay ? "absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 shadow-3" : "",
           ].join(" ")}
           style={fixedWidth ? undefined : { width: wellWidth }}
         >
-          {current.resizable === true && !overlay && (
+          {current.resizable === true && (
             <ResizeHandle
               orientation="vertical"
               min={320}
@@ -228,7 +258,13 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
           </CardPanel>
         </Card>
       )}
-      <FloatingBar label={L("맥락 패널")} orientation="vertical" size="sm" shadow="2">
+      <FloatingBar
+        label={L("맥락 패널")}
+        orientation="vertical"
+        size="sm"
+        shadow="2"
+        className="pointer-events-auto"
+      >
         {barTabs.map((t) => (
           <FloatingBarItem
             key={t.id}
@@ -237,7 +273,11 @@ export function RightPanel({ tabs }: { tabs: RightTab[] }) {
             aria-expanded={open && tab === t.id}
             active={open && tab === t.id}
             {...(t.badge !== undefined && !(open && tab === t.id) ? { badge: t.badge } : {})}
-            onClick={() => (open && tab === t.id ? m.setEndOpen(false) : m.openEnd(t.id))}
+            onClick={(e) => {
+              triggerRef.current = e.currentTarget;
+              if (open && tab === t.id) m.setEndOpen(false);
+              else m.openEnd(t.id);
+            }}
           />
         ))}
         {overflow.length > 0 && (

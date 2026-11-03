@@ -1,4 +1,4 @@
-// e05 웹·좁은 폭·원격 작업대(묶음 E): 웹 첫 화면과 연결 상태(계획에 없음 7), 720 미만 배치(계획에 없음 8, N-59), 원격 대상 작업대(N-60).
+// e05 웹·좁은 폭·원격 크래프트(묶음 E): 웹 첫 화면과 연결 상태(계획에 없음 7), 720 미만 배치(계획에 없음 8, N-59), 원격 대상 크래프트(N-60).
 // 웹 상태는 목업 전용 브라우저 틀 안에 그린다(데스크톱 셸 밖). 연결된 뒤에는 같은 셸이 브라우저 안에서 돈다.
 import { Alert, Button, IconButton, Menu, MenuItem, MenuSeparator, toast } from "@caustic/react";
 import { useEffect, useState } from "react";
@@ -68,9 +68,9 @@ export const STATES = [
   { id: "m-elsewhere", label: "좁은 폭 다른 곳에서 답함" },
   { id: "m-left-sheet", label: "좁은 폭 왼쪽 시트" },
   { id: "m-well-sheet", label: "좁은 폭 well 아래 시트" },
-  { id: "m-workbench", label: "좁은 폭 작업대(읽기 전용)" },
+  { id: "m-workbench", label: "좁은 폭 크래프트(읽기 전용)" },
   { id: "m-settings", label: "좁은 폭 설정(탭 → Select)" },
-  { id: "remote-ext", label: "원격 작업대 확장 목록" },
+  { id: "remote-ext", label: "원격 크래프트 확장 목록" },
   { id: "remote-denied", label: "원격 켜기 권한 없음" },
   { id: "remote-menu", label: "원격 행 메뉴(경로 복사)" },
   { id: "remote-views", label: "원격 화면 탭(프레임 파일)" },
@@ -233,7 +233,7 @@ function WebChat({ s, go }: { s: S; go: (a: A) => void }) {
                   {
                     k: "agent" as const,
                     text: L2(
-                      "ttl 비교를 초 단위로 고쳤어요. 시험 12개가 모두 통과해요.",
+                      "ttl 비교를 초 단위로 고쳤어요. 테스트 12개가 모두 통과해요.",
                       "Fixed the ttl comparison to seconds. All 12 tests pass.",
                     ),
                   },

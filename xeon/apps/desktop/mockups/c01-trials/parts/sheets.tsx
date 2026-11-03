@@ -1,7 +1,7 @@
-// O-12 새 시험(Sheet side="right", §6.31)과 N-30 개발 모드 켜기(Dialog).
-// - 새 시험: 종류(시험 대화가 기본, replay·bench·코어 변경 검사는 배포 앱에서 "개발 모드에서만" 잠금), 대상, 프로필과 미리 보기
+// O-12 새 테스트(Sheet side="right", §6.31)과 N-30 개발 모드 켜기(Dialog).
+// - 새 테스트: 종류(테스트 대화가 기본, replay·bench·코어 변경 검사는 배포 앱에서 "개발 모드에서만" 잠금), 대상, 프로필과 미리 보기
 //   (profile.preview W-44, 실패하면 시작 잠금), 작업 폴더, 첫 메시지. 바닥: 비용 문장 → 누르면 확인 문장으로 바뀜(종료 코드 3과 같은 뜻).
-// - 개발 모드: l3.authoring.devMode(범위 managed·user) + 저장소 경로. 켜기 전에 저장소의 시험 도구를 확인한다(authoring §6, §10 6번).
+// - 개발 모드: l3.authoring.devMode(범위 managed·user) + 저장소 경로. 켜기 전에 저장소의 테스트 도구를 확인한다(authoring §6, §10 6번).
 import {
   Alert,
   Button,
@@ -20,18 +20,7 @@ import {
   Textarea,
 } from "@caustic/react";
 import type { ReactNode } from "react";
-import {
-  CircleCheck,
-  CircleX,
-  extName,
-  FolderOpen,
-  LoaderCircle,
-  profiles,
-  T,
-  Terminal,
-  TriangleAlert,
-  josa,
-} from "../../_shell";
+import { extName, LoaderCircle, profiles, T, josa } from "../../_shell";
 import { DevLock, ExtName, Mono } from "../../_wb-c/parts";
 import { goFolder } from "../../_wb-c/frame";
 import type { DevDialog, NewKind, SheetStep } from "../flow";
@@ -42,13 +31,11 @@ const W = "w-[min(20rem,100%)]";
 function KindRow({
   value,
   title,
-  hint,
   locked,
   selected,
 }: {
   value: NewKind;
   title: string;
-  hint: string;
   locked: boolean;
   selected: boolean;
 }) {
@@ -59,7 +46,6 @@ function KindRow({
           <span className={`text-ui-dense text-text-primary ${selected ? "font-semibold" : ""}`}>
             {title}
           </span>
-          <span className="truncate text-ui-xs text-text-tertiary">{hint}</span>
         </span>
         {locked && (
           <DevLock
@@ -71,13 +57,9 @@ function KindRow({
   );
 }
 
-const PREVIEW: Record<string, { enable: string[]; settings: string; drive: string | null }> = {
-  explore: {
-    enable: ["helm", "learning", "web-exa"],
-    settings: "ext.helm.maxLenses 4",
-    drive: "helm",
-  },
-  quiet: { enable: ["learning"], settings: "없음", drive: null },
+const PREVIEW: Record<string, { enable: string[]; drive: string | null }> = {
+  explore: { enable: ["helm", "learning", "web-exa"], drive: "helm" },
+  quiet: { enable: ["learning"], drive: null },
 };
 
 export function NewTrialSheet({
@@ -131,9 +113,7 @@ export function NewTrialSheet({
         className="inline-flex min-w-0 flex-1 items-center gap-2 text-ui-sm text-text-secondary"
       >
         <LoaderCircle aria-hidden className="size-icon-sm animate-spin" />
-        {step === "starting"
-          ? `${T.profile} 적용 중 · 이 ${T.thread}에만`
-          : `${T.trialThread} 만드는 중`}
+        {step === "starting" ? `${T.profile} 적용 중` : `${T.trialThread} 만드는 중`}
       </span>
     );
   else
@@ -157,7 +137,7 @@ export function NewTrialSheet({
       size="sm"
       open={step !== "closed"}
       onOpenChange={(o: boolean) => (!o && !busy ? onClose() : undefined)}
-      title="새 시험"
+      title="새 테스트"
       closeLabel="닫기"
       footer={footer}
     >
@@ -170,43 +150,24 @@ export function NewTrialSheet({
             size="sm"
             value={kind}
             onValueChange={(v) => onKind(v as NewKind)}
-            aria-label="시험 종류"
+            aria-label="테스트 종류"
             className="gap-0"
           >
             <KindRow
               value="trial"
               title={T.trialThread}
-              hint={`${josa(T.profile, "을", "를")} 적용한 새 ${T.thread}에서 대상을 돌려요`}
               locked={false}
               selected={kind === "trial"}
             />
-            <KindRow
-              value="replay"
-              title={T.replay}
-              hint="기록한 대화를 커밋 지점마다 끊어 다시 돌려요"
-              locked={!dev}
-              selected={kind === "replay"}
-            />
-            <KindRow
-              value="bench"
-              title={T.bench}
-              hint="확장 디스패치와 진행권 교대 시간을 재요"
-              locked={!dev}
-              selected={kind === "bench"}
-            />
-            <KindRow
-              value="diff"
-              title={T.coreDiff}
-              hint="보호 경로의 바뀐 줄을 세요"
-              locked={!dev}
-              selected={kind === "diff"}
-            />
+            <KindRow value="replay" title={T.replay} locked={!dev} selected={kind === "replay"} />
+            <KindRow value="bench" title={T.benchmark} locked={!dev} selected={kind === "bench"} />
+            <KindRow value="diff" title={T.coreDiff} locked={!dev} selected={kind === "diff"} />
           </RadioGroup>
         </Field>
 
         {kind === "trial" && (
           <>
-            <Field label="대상" hint={`${josa(T.lead, "을", "를")} 쓰는 ${T.group}`}>
+            <Field label="대상">
               <Select size="xs" defaultValue="helm" className={W}>
                 {["helm", "review", "authoring"].map((id) => (
                   <SelectOption key={id} value={id}>
@@ -242,13 +203,11 @@ export function NewTrialSheet({
                 }
               >
                 <b>{`${josa(T.profile, "을", "를")} 미리 보지 못했어요.`}</b>{" "}
-                {`${josa(extName("review"), "이", "가")} ${josa(T.autoDisabled, "이라", "라")} 켤 수 없어요. 다시 켜거나 다른 ${josa(T.profile, "을", "를")} 골라요.`}{" "}
-                <Mono>profile.preview · ext_auto_disabled</Mono>
+                {`${josa(extName("review"), "이", "가")} ${josa(T.autoDisabled, "이라", "라")} 켤 수 없어요. 다시 켜거나 다른 ${josa(T.profile, "을", "를")} 골라요.`}
               </Alert>
             ) : (
               p !== undefined && (
                 <section aria-label="적용하면" className="grid gap-0.5">
-                  <p className="m-0 text-ui-xs text-text-tertiary">이 {T.thread}에 적용하면</p>
                   <ListDescription
                     variant="ghost"
                     size="xs"
@@ -262,9 +221,6 @@ export function NewTrialSheet({
                         ))}
                       </span>
                     </ListDescriptionRow>
-                    <ListDescriptionRow term="설정">
-                      <Mono dim={false}>{p.settings}</Mono>
-                    </ListDescriptionRow>
                     <ListDescriptionRow term={`${T.drive} ${T.group}`}>
                       {p.drive === null ? "자동" : extName(p.drive)}
                     </ListDescriptionRow>
@@ -275,7 +231,7 @@ export function NewTrialSheet({
             <Field label="작업 폴더">
               <Input
                 size="xs"
-                defaultValue="~/code/xeon"
+                defaultValue="~/code/fresnel"
                 className="font-mono"
                 containerClassName={W}
               />
@@ -284,7 +240,7 @@ export function NewTrialSheet({
               <Textarea
                 size="sm"
                 rows={3}
-                defaultValue="무효화 시험이 계속 실패해. 원인 후보를 렌즈 5개로 넓게 봐줘."
+                defaultValue="무효화 테스트가 계속 실패해. 원인 후보를 렌즈 5개로 넓게 봐줘."
               />
             </Field>
           </>
@@ -326,12 +282,6 @@ export function NewTrialSheet({
   );
 }
 
-const CHECKS = [
-  "scripts/bench-server.ts",
-  "scripts/core-diff-check.ts",
-  "packages/group-kit/src/testing/replay",
-];
-
 export function DevModeDialog({
   state,
   repo,
@@ -352,9 +302,7 @@ export function DevModeDialog({
       size="sm"
       open={state !== "closed"}
       onOpenChange={(o: boolean) => (!o && !checking ? onClose() : undefined)}
-      icon={<Terminal />}
       title={`${T.devMode} 켜기`}
-      description={`저장소의 시험 도구로 ${T.replay}, ${T.bench}, ${josa(T.coreDiff, "을", "를")} 돌려요. 모델 토큰은 쓰지 않아요.`}
       footer={
         <>
           <DialogClose asChild>
@@ -375,12 +323,7 @@ export function DevModeDialog({
       }
     >
       <div className="grid gap-3">
-        <Field
-          label={T.repoPath}
-          {...(bad
-            ? { error: "이 폴더에 시험 도구가 없어요 · scripts/core-diff-check.ts 없음" }
-            : { hint: "xeon 저장소를 내려받은 폴더예요" })}
-        >
+        <Field label={T.repoPath} {...(bad ? { error: "이 폴더에 테스트 도구가 없어요" } : {})}>
           <div className="flex items-center gap-1.5">
             <Input
               size="xs"
@@ -389,68 +332,19 @@ export function DevModeDialog({
               className="font-mono"
               containerClassName="min-w-0 flex-1"
             />
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="outline"
-              iconStart={<FolderOpen />}
-              disabled={checking}
-            >
+            <Button size="xs" tone="neutral" variant="outline" disabled={checking}>
               고르기
             </Button>
           </div>
         </Field>
         {bad && (
           <p className="m-0 flex items-center gap-2 text-ui-sm text-text-secondary">
-            <TriangleAlert aria-hidden emphasis="muted" className="size-icon-sm" />
             이 컴퓨터에서 찾은 저장소 <Mono dim={false}>{REPO_OK}</Mono>
             <Button size="xs" tone="neutral" variant="ghost" onClick={() => onRepo(REPO_OK)}>
               이걸로
             </Button>
           </p>
         )}
-        {checking && (
-          <ul aria-label="확인하는 파일" className="m-0 grid list-none gap-0.5 p-0">
-            {CHECKS.map((c, i) => (
-              <li key={c} className="flex items-center gap-2 text-ui-dense text-text-secondary">
-                {i < 2 ? (
-                  <CircleCheck aria-hidden emphasis="muted" className="size-icon-sm" />
-                ) : (
-                  <LoaderCircle
-                    aria-hidden
-                    className="size-icon-sm animate-spin text-text-tertiary"
-                  />
-                )}
-                <Mono dim={false}>{c}</Mono>
-              </li>
-            ))}
-          </ul>
-        )}
-        {bad && (
-          <ul aria-label="확인한 파일" className="m-0 grid list-none gap-0.5 p-0">
-            {CHECKS.map((c, i) => (
-              <li key={c} className="flex items-center gap-2 text-ui-dense text-text-secondary">
-                {i === 0 ? (
-                  <CircleCheck aria-hidden emphasis="muted" className="size-icon-sm" />
-                ) : (
-                  <CircleX aria-hidden emphasis="muted" className="size-icon-sm" />
-                )}
-                <Mono dim={false}>{c}</Mono>
-              </li>
-            ))}
-          </ul>
-        )}
-        <ListDescription
-          variant="ghost"
-          size="xs"
-          aria-label="설정"
-          className="rounded-none [--cs-size-list-term:5rem] [&_[data-slot=list-description-row]]:px-0"
-        >
-          <ListDescriptionRow term="설정 키">
-            <Mono>l3.authoring.devMode</Mono>
-          </ListDescriptionRow>
-          <ListDescriptionRow term="범위">이 컴퓨터 사용자 · 바로 적용</ListDescriptionRow>
-        </ListDescription>
       </div>
     </Dialog>
   );

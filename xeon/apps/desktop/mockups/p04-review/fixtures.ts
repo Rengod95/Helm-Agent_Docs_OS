@@ -43,9 +43,6 @@ export const meta = {
   title: "캐시 만료 수정",
   round: 1,
   thread: "캐시 무효화 조사",
-  /** 이 리뷰를 낸 쪽: review 도구(L2 artifacts)를 코어 루프의 모델이 불렀다 */
-  source: "review 도구 · L2 artifacts",
-  caller: "코어 루프",
 };
 
 export const files: ReviewFile[] = [
@@ -203,21 +200,19 @@ export const deliveredComments: Comment[] = [
 ];
 
 export const submitResult = {
-  requestId: "rv-01JC8Q4M2T",
-  deliverAs: "followUp",
   rows: [
     {
       path: "src/cache.ts",
       hunk: "f0h2",
       outcome: "되돌림",
-      detail: "workspace_files",
+      detail: "",
       tone: "neutral",
     },
     {
       path: "docs/cache.md",
       hunk: "f2h0",
       outcome: "충돌",
-      detail: "새 줄이 맞지 않아요. 파일을 열어 직접 고쳐 주세요.",
+      detail: "새 줄이 맞지 않아요.",
       tone: "danger",
     },
   ],

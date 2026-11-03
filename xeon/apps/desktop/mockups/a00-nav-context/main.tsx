@@ -1,4 +1,4 @@
-// S-01·N-01·N-04·시험 정리 목업 진입점. ?state=<id>(기본 chat), ?scenario=<id>, ?theme=dark, ?dev=1(시나리오 막대와 다음 할 일).
+// S-01·N-01·N-04·테스트 정리 목업 진입점. ?state=<id>(기본 chat), ?scenario=<id>, ?theme=dark, ?dev=1(시나리오 막대와 다음 할 일).
 import { loadCausticFonts, MockRoot, ShellStateProvider, type WorkbenchContext } from "../_shell";
 import "./mockup.css";
 import { StrictMode } from "react";

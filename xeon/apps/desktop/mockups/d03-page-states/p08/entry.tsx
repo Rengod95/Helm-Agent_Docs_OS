@@ -1,5 +1,5 @@
-// P-08 연결 목업 진입점(무대 전체 화면). 대상(이 컴퓨터 사이드카, 이 컴퓨터 서비스, 원격 SSH) 고르기와 지금 대상의 엔진 상태.
-// ?state=S1..S7(기본 S1 사이드카에 붙음), ?theme=dark.
+// P-08 연결 목업 진입점(무대 전체 화면). 대상(이 컴퓨터 앱 안 엔진, 이 컴퓨터 서비스, 원격 SSH) 고르기와 지금 대상의 엔진 상태.
+// ?state=S1..S7(기본 S1 앱 안 엔진에 붙음), ?theme=dark.
 import { ShellStateProvider } from "../../_shell";
 import {
   Alert,
@@ -21,17 +21,14 @@ import {
 } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-  Copy,
   PanelLeft,
-  Plus,
-  RotateCw,
   defaultStatusCells,
   Shell,
   standardRightTabs,
   useShell,
   type StatusCell,
 } from "../../_shell";
-import { InboxLite } from "../../p07-schedules/parts/inbox-lite";
+import { InboxLite } from "../p07/parts/inbox-lite";
 
 type Base = "S1" | "S2" | "S3" | "S4" | "S5" | "S6" | "S7";
 type S = Base | "D-loading" | "D-stop" | "D-restarting" | "D-idle" | "D-target" | "D-web";
@@ -46,7 +43,7 @@ const BASE: Record<string, Base> = {
 };
 const toBase = (s: S): Base => (BASE[s] ?? s) as Base;
 export const STATES = [
-  { id: "S1", label: "S1 사이드카에 붙음" },
+  { id: "S1", label: "S1 앱 안 엔진에 붙음" },
   { id: "S2", label: "S2 로컬 서비스" },
   { id: "S3", label: "S3 원격에 붙는 중" },
   { id: "S4", label: "S4 원격에 붙음" },
@@ -70,7 +67,7 @@ interface Target {
 const targets: Target[] = [
   {
     id: "sidecar",
-    name: "이 컴퓨터 · 사이드카",
+    name: "이 컴퓨터 · 앱 안 엔진",
     kind: "sidecar",
     address: "앱과 함께 켜지고 꺼져요",
   },
@@ -142,7 +139,7 @@ function TargetList({
     <Section
       title="대상"
       end={
-        <Button size="xs" tone="neutral" variant="ghost" iconStart={<Plus />}>
+        <Button size="xs" tone="neutral" variant="ghost">
           원격 대상 추가
         </Button>
       }
@@ -159,7 +156,6 @@ function TargetList({
             <span className="grid min-w-0 flex-1 gap-0.5 py-1">
               <span className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-ui-sm font-medium text-text-primary">{t.name}</span>
-                {t.kind === "remote" && <span className="text-ui-xs text-text-tertiary">원격</span>}
                 <span className="flex-1" />
                 {t.id === current && (
                   <Badge
@@ -181,31 +177,24 @@ function TargetList({
                   </Badge>
                 )}
               </span>
-              <span
-                className={`truncate text-text-tertiary ${t.kind === "sidecar" ? "text-ui-xs" : "font-mono text-mono-sm"}`}
-              >
-                {t.address}
-              </span>
+              {t.kind === "remote" && (
+                <span className="truncate font-mono text-mono-sm text-text-tertiary">
+                  {t.address}
+                </span>
+              )}
             </span>
           </RadioGroupItem>
         ))}
       </RadioGroup>
       {state === "S7" && (
-        <p className="m-0 text-ui-sm font-normal text-text-tertiary">
-          원격 대상이 없어요. SSH로 접속할 수 있는 기기의 서비스 소켓 주소를 넣어요.
-        </p>
+        <p className="m-0 text-ui-sm font-normal text-text-tertiary">원격 대상이 없어요.</p>
       )}
       {state === "S6" && (
         <div className="grid gap-2.5 pt-2">
           <Field label="이름" size="sm">
             <Input size="sm" defaultValue="lab-server" />
           </Field>
-          <Field
-            label="주소"
-            size="sm"
-            error="루프백이 아닌 tcp 주소는 저장하지 않아요. SSH 터널이나 사설망을 써요."
-            hint="unix:/abs, ssh://[user@]host[:port]/abs/socket, tcp://127.0.0.1:port"
-          >
+          <Field label="주소" size="sm" error="루프백이 아닌 tcp 주소는 저장하지 않아요.">
             <Input size="sm" defaultValue="tcp://10.0.4.12:7300" invalid className="font-mono" />
           </Field>
           <div className="flex justify-end gap-1.5">
@@ -240,11 +229,7 @@ function AttachSteps({ failed = false }: { failed?: boolean }) {
       ...(failed ? { description: "거부됨" } : {}),
     },
     { label: "초기화", status: failed ? "todo" : "done" },
-    {
-      label: "동기화",
-      status: failed ? "todo" : "now",
-      ...(failed ? {} : { description: "1,200 / 1,840" }),
-    },
+    { label: "동기화", status: failed ? "todo" : "now" },
   ];
   return (
     <Stepper
@@ -281,14 +266,12 @@ function Detail({ state: full }: { state: S }) {
     <div className="grid content-start gap-5">
       {full === "D-idle" && (
         <Alert tone="neutral" size="sm" actions={[{ label: "계속 켜 두기", primary: true }]}>
-          연결·진행 중 턴·대기 예약이 모두 0이라 4분 뒤 서비스가 스스로 꺼져요. 앱을 다시 열면
-          켜져요.
+          연결·진행 중 턴·대기 예약이 모두 0이라 4분 뒤 서비스가 꺼져요.
         </Alert>
       )}
       {restarting && (
-        <Alert tone="warning" size="sm" icon={<RotateCw />}>
-          서비스를 다시 시작하는 중이에요. 진행 중 턴은 멈췄다가 &quot;이어서 실행&quot; 후보가
-          돼요.
+        <Alert tone="warning" size="sm">
+          서비스를 다시 시작하는 중이에요.
         </Alert>
       )}
       {state === "S3" && (
@@ -309,8 +292,8 @@ function Detail({ state: full }: { state: S }) {
             size="sm"
             actions={[{ label: "다시 시도", primary: true }, { label: "진단 복사" }]}
           >
-            SSH 터널을 열지 못했어요. build-box:22가 연결을 거부했어요 (tunnel_failed). 지금은 이
-            컴퓨터 사이드카에 그대로 붙어 있어요.
+            SSH 터널을 열지 못했어요. build-box:22가 연결을 거부했어요. 지금은 이 컴퓨터 앱 안
+            엔진에 그대로 붙어 있어요.
           </Alert>
         </Section>
       )}
@@ -322,7 +305,7 @@ function Detail({ state: full }: { state: S }) {
                 aria-hidden
                 className={`size-1.5 rounded-full ${restarting ? "bg-warning-graphic" : "bg-success-graphic"}`}
               />
-              {restarting ? "다시 시작 중" : "연결됨"} · {t.kind === "remote" ? "remote" : t.kind}
+              {restarting ? "다시 시작 중" : "연결됨"}
             </span>
           </ListDescriptionRow>
           {t.kind === "remote" && (
@@ -330,27 +313,10 @@ function Detail({ state: full }: { state: S }) {
               <span className="break-all">{t.address}</span>
             </ListDescriptionRow>
           )}
-          <ListDescriptionRow term="pid" mono>
-            {t.kind === "remote" ? "88120" : t.kind === "service" ? "4211" : "51907"}
-          </ListDescriptionRow>
-          <ListDescriptionRow term="시작">
-            {t.kind === "sidecar" ? "25분 전" : "3시간 전"}
-          </ListDescriptionRow>
           <ListDescriptionRow term="연결된 클라이언트">
-            {service ? "2 (이 앱, xeon CLI)" : "1 (이 앱)"}
+            {service ? "이 앱, 웹" : "이 앱"}
           </ListDescriptionRow>
-          <ListDescriptionRow term="진행 중 턴">{full === "D-idle" ? "0" : "1"}</ListDescriptionRow>
-          <ListDescriptionRow term="유휴 종료">
-            {full === "D-idle"
-              ? "4분 뒤 · 연결 0, 진행 0, 예약 0"
-              : service
-                ? "연결 0, 진행 0, 예약 0이 되면"
-                : "앱을 닫으면"}
-          </ListDescriptionRow>
-          <ListDescriptionRow term="대기 예약">
-            {full === "D-idle" ? "0" : service ? "5" : "5 · 앱을 닫으면 멈춰요"}
-          </ListDescriptionRow>
-          <ListDescriptionRow term="안전 모드">꺼짐 · 그룹 3개 불러옴</ListDescriptionRow>
+          <ListDescriptionRow term="안전 모드">꺼짐</ListDescriptionRow>
         </ListDescription>
       </Section>
       {t.kind !== "remote" && (
@@ -366,28 +332,15 @@ function Detail({ state: full }: { state: S }) {
                     </Badge>
                   )}
                 </span>
-                <span className="text-ui-xs font-normal text-text-tertiary">
-                  켜면 앱을 닫아도 예약과 대화가 이어져요.
-                </span>
               </span>
               <Switch size="sm" checked={svc} onCheckedChange={setSvc} aria-label="서비스 모드" />
             </label>
             <label className="flex items-center gap-2.5 text-ui-sm text-text-primary">
-              <span className="grid min-w-0 flex-1 gap-0.5">
-                원격 예약 허용
-                <span className="text-ui-xs font-normal text-text-tertiary">
-                  다른 기기가 원격 트리거 예약을 부를 수 있어요.
-                </span>
-              </span>
+              <span className="grid min-w-0 flex-1 gap-0.5">원격 예약 허용</span>
               <Switch size="sm" defaultChecked aria-label="원격 예약 허용" />
             </label>
             <label className="flex items-center gap-2.5 text-ui-sm text-text-primary">
-              <span className="grid min-w-0 flex-1 gap-0.5">
-                원격 응답 허용
-                <span className="text-ui-xs font-normal text-text-tertiary">
-                  다른 기기가 승인과 질문에 답할 수 있어요.
-                </span>
-              </span>
+              <span className="grid min-w-0 flex-1 gap-0.5">원격 응답 허용</span>
               <Switch size="sm" aria-label="원격 응답 허용" />
             </label>
           </div>
@@ -400,13 +353,7 @@ function Detail({ state: full }: { state: S }) {
           </Button>
         )}
         {service && t.kind !== "remote" && (
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="ghost"
-            iconStart={<RotateCw />}
-            loading={restarting}
-          >
+          <Button size="sm" tone="neutral" variant="ghost" loading={restarting}>
             서비스 다시 시작
           </Button>
         )}
@@ -416,10 +363,10 @@ function Detail({ state: full }: { state: S }) {
           </Button>
         )}
         <span className="flex-1" />
-        <Button size="sm" tone="neutral" variant="ghost" iconStart={<Copy />}>
+        <Button size="sm" tone="neutral" variant="ghost">
           진단 복사
         </Button>
-        <Button size="sm" tone="neutral" variant="soft" iconStart={<RotateCw />}>
+        <Button size="sm" tone="neutral" variant="soft">
           엔진 다시 시작
         </Button>
       </div>
@@ -431,7 +378,7 @@ function Detail({ state: full }: { state: S }) {
           tone="danger"
           onOpenChange={(o) => !o && setStop(false)}
           title="서비스를 멈출까요?"
-          description="멈추면 앱을 닫았을 때 예약이 돌지 않아요. 다시 켜려면 서비스 모드를 켜거나 앱을 다시 열어요."
+          description="멈추면 앱을 닫았을 때 예약이 돌지 않아요."
           footer={
             <>
               <DialogClose asChild>
@@ -468,13 +415,10 @@ function TargetSummary({ web }: { web: boolean }) {
   return (
     <ListDescription variant="ghost" size="xs" aria-label="대상 요약" className={rowsClass}>
       <ListDescriptionRow term="대상">
-        {web ? "build-box · 서비스" : "이 컴퓨터 · 사이드카"}
+        {web ? "build-box · 서비스" : "이 컴퓨터 · 앱 안 엔진"}
       </ListDescriptionRow>
-      <ListDescriptionRow term="엔진">실행 중 · 25분</ListDescriptionRow>
-      <ListDescriptionRow term="클라이언트">
-        {web ? "3 (이 탭, 앱 2)" : "1 (이 앱)"}
-      </ListDescriptionRow>
-      <ListDescriptionRow term="진행 중 턴">1</ListDescriptionRow>
+      <ListDescriptionRow term="엔진">실행 중</ListDescriptionRow>
+      <ListDescriptionRow term="클라이언트">{web ? "이 탭, 앱" : "이 앱"}</ListDescriptionRow>
     </ListDescription>
   );
 }
@@ -506,8 +450,8 @@ function Page({ state: full }: { state: S }) {
       : {}),
   });
   const targetText =
-    { sidecar: "사이드카", service: "서비스", "build-box": "원격 · build-box" }[CURRENT[state]] ??
-    "사이드카";
+    { sidecar: "앱 안 엔진", service: "서비스", "build-box": "원격 · build-box" }[CURRENT[state]] ??
+    "앱 안 엔진";
   const web = full === "D-web";
   status.start = status.start.map((c): StatusCell =>
     c.id === "target"
@@ -516,7 +460,7 @@ function Page({ state: full }: { state: S }) {
           text: web ? "웹 · build-box" : targetText,
           title: "대상",
           description: web
-            ? "이 탭은 build-box의 서비스에 붙어 있어요. 웹은 다른 대상으로 바꾸지 않아요. 다른 서비스는 그 주소를 새 탭으로 열어요."
+            ? "이 탭은 build-box의 서비스에 붙어 있어요. 다른 서비스는 그 주소를 새 탭으로 열어요."
             : `이 창은 ${targetText}에 붙어 있어요.`,
           body: <TargetSummary web={web} />,
           ...(web ? {} : { action: { label: "대상 바꾸기", onSelect: () => {} } }),

@@ -15,7 +15,7 @@ if (root !== null)
     <StrictMode>
       <MockRoot states={STATES}>
         {(state) => (
-          // 작업대 표 화면이라 오른쪽 well은 닫힌 채 연다(DP-43).
+          // 크래프트 표 화면이라 오른쪽 well은 닫힌 채 연다(DP-43).
           <ShellStateProvider initialArea="workbench" initialEndOpen={false}>
             <App state={state} />
           </ShellStateProvider>

@@ -1,12 +1,12 @@
 // 방향 B "정교한 노드 편집기" 고정 데이터. 좌표는 세계 px(줌 1). 흐름은 왼쪽 → 오른쪽:
-// 능력 공급(L1·L2) → 의도 그룹(L3)·외부 plugin → X 확장 지점(에이전트 루프의 소켓)·post 큐·drive 임대.
-// 모델 근거: F.extensions §2·§3.4(지점·fold), X.primitives §4.4(임대), L3.group-kit·slots(부품), L3.helm §3(단계 머신).
+// 기능 공급(L1·L2) → 플러그인 그룹(L3)·외부 plugin → X 훅(에이전트 루프의 소켓)·post 큐·주도.
+// 모델 근거: F.extensions §2·§3.4(훅·fold), X.primitives §4.4(주도), L3.group-sdk·slots(부품), L3.helm §3(단계 머신).
 
 export type PortType = "cap" | "on" | "post" | "drive";
 export type Health = "ok" | "warn" | "danger" | "off";
 
 export const PORT_NAME: Record<PortType, string> = {
-  cap: "능력",
+  cap: "기능",
   on: "on",
   post: "post",
   drive: "drive",
@@ -14,9 +14,9 @@ export const PORT_NAME: Record<PortType, string> = {
 
 // ── 세계 격자
 export const COL = {
-  A: { x: 0, w: 180, title: "능력 공급", tag: "L1·L2" },
-  B: { x: 256, w: 210, title: "의도 그룹", tag: "L3" },
-  C: { x: 550, w: 184, title: "확장 지점", tag: "X" },
+  A: { x: 0, w: 180, title: "기능 공급", tag: "L1·L2" },
+  B: { x: 256, w: 210, title: "플러그인 그룹", tag: "L3" },
+  C: { x: 550, w: 184, title: "훅", tag: "X" },
 } as const;
 export const WORLD = { w: 734, h: 600 };
 export const LANE_TOP = 40;
@@ -163,7 +163,7 @@ export const EXTS: Ext[] = [
     health: "ok",
     failures: 1,
     points: [
-      "session.start",
+      "thread.start",
       "input.agent.before",
       "tool.call.before",
       "tool.execution.after",
@@ -277,7 +277,7 @@ export const EXTS: Ext[] = [
 ];
 export const extById = (id: string) => EXTS.find((e) => e.id === id)!;
 
-// ── X 확장 지점(에이전트 루프 순서). 46개 중 핸들러가 걸린 일곱만 소켓으로, 나머지는 "비어 있음" 한 줄.
+// ── X 훅(에이전트 루프 순서). 46개 중 핸들러가 걸린 일곱만 소켓으로, 나머지는 "비어 있음" 한 줄.
 export type Fold = "collect" | "first" | "chain" | "tap";
 export interface Socket {
   point: string;
@@ -295,7 +295,7 @@ export const FAMILIES = [
   { id: "lifecycle", label: "lifecycle", y: 312 },
 ];
 export const SOCKETS: Socket[] = [
-  { point: "session.start", family: "session", short: "start", fold: "tap", y: 58, budgetMs: 5000 },
+  { point: "thread.start", family: "session", short: "start", fold: "tap", y: 58, budgetMs: 5000 },
   {
     point: "input.agent.before",
     family: "input",
@@ -396,7 +396,7 @@ export const CONTEXTS = [
   { value: "t2", kind: "thread", label: "빌드 실패 원인" },
   { value: "p-explore", kind: "profile", label: "탐구 중심" },
   { value: "p-quiet", kind: "profile", label: "조용히" },
-  { value: "x-helm5", kind: "trial", label: "helm 시험 1" },
+  { value: "x-helm5", kind: "trial", label: "helm 테스트 1" },
 ] as const;
 
 /** 대화 "캐시 무효화 조사"(턴 7)에서 켜진 확장. 나머지는 프레임 밖. */
@@ -456,7 +456,7 @@ export const PROFILE_DIFF: {
   { id: "knowledge", lane: "L2", now: "on", next: "on", mark: "same" },
 ];
 
-// ── 층 × 지점 열지도(p95 ms, 실패, 호출 수/일)
+// ── 층 × 훅 열지도(p95 ms, 실패, 호출 수/일)
 export const HEAT_ROWS: { lane: string; id: string }[] = [
   { lane: "L3", id: "helm" },
   { lane: "L3", id: "plan-first" },
@@ -469,7 +469,7 @@ export const HEAT: Record<
   Record<string, { p95: number | null; fail: number; calls: number }>
 > = {
   helm: {
-    "session.start": { p95: 8, fail: 0, calls: 3 },
+    "thread.start": { p95: 8, fail: 0, calls: 3 },
     "input.agent.before": { p95: 40, fail: 0, calls: 41 },
     "tool.call.before": { p95: 9, fail: 0, calls: 212 },
     "tool.execution.after": { p95: 4, fail: 0, calls: 209 },

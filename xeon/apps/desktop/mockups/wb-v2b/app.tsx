@@ -1,4 +1,4 @@
-// 방향 B 앱: 공용 셸(작업대) 위에 화면 여섯(지도, 그룹 하위 캔버스, 흐름, 표, 차이, 빈). 오른쪽 well = 검사기 · 블록 · 받은 요청 · 기록 · 대화.
+// 방향 B 앱: 공용 셸(크래프트) 위에 화면 여섯(지도, 그룹 하위 캔버스, 흐름, 표, 차이, 빈). 오른쪽 well = 검사기 · 블록 · 받은 요청 · 기록 · 대화.
 import {
   NoticeList,
   Shell,
@@ -93,7 +93,7 @@ function Page() {
           m.set({ screen: "group", composer: true, edit: null, trial: false });
         else if (id === "tests")
           m.set({ screen: "flow", composer: false, trial: true, ctx: "x-helm5" });
-        else m.notify("이 화면은 작업대 1·2차 시안에 있어요");
+        else m.notify("이 화면은 크래프트 1·2차 시안에 있어요");
       }}
       workbench={{
         onGoToThread: goThread,
@@ -118,7 +118,7 @@ function Page() {
           />
         ),
       }}
-      stageLabel="작업대"
+      stageLabel="크래프트"
       threads={{ currentId: "t1", onSelect: () => {}, onNew: () => {} }}
       rightTabs={tabs}
       status={defaultStatusCells({

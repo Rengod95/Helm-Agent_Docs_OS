@@ -1,5 +1,5 @@
 // 목록 보기(700px 이하의 캔버스 대체, 머리 "목록"으로도): 띠마다 한 묶음, 블록은 Chip 같은 칸(상태 점 + 이름).
-// 엣지 대신 블록 옆에 연결 요약(지점 수 · post · drive · 능력)을 글자로 둔다. 고르면 같은 검사기를 연다.
+// 엣지 대신 블록 옆에 연결 요약(훅 수 · post · drive · 기능)을 글자로 둔다. 고르면 같은 검사기를 연다.
 import { CircleX, Play, TriangleAlert } from "../../_shell";
 import { BANDS, NODES, VIEWS, type CNode } from "../data";
 import { Mark } from "./node";
@@ -9,7 +9,7 @@ function summary(n: CNode) {
   if ((n.points ?? []).length > 0) parts.push(`on ${(n.points ?? []).length}`);
   if (n.usesPost === true) parts.push("post");
   if (n.usesDrive === true) parts.push("drive");
-  if ((n.provides ?? []).length > 0) parts.push(`능력 ${(n.provides ?? []).length}`);
+  if ((n.provides ?? []).length > 0) parts.push(`기능 ${(n.provides ?? []).length}`);
   return parts.join(" · ");
 }
 

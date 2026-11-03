@@ -1,8 +1,10 @@
 // 목업 전용: 화면 상태와 테마를 바꾸는 개발용 띠(창 위쪽, 앱 화면 밖)와 그 상태를 URL과 맞추는 뿌리.
 // URL ?state=<id>&theme=light|dark. 상태를 바꾸면 페이지 상태를 처음부터 다시 만든다(key).
+// ?chrome=0이면 띠를 그리지 않는다(실제 앱처럼 보이게). 뿌리가 뜰 때 부모 창에 지금 시안을 알린다(postRoute).
 import { Select, SelectOption } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { LANG, switchLang, type Lang } from "./i18n";
+import { postRoute } from "./routes";
 
 export type Theme = "light" | "dark";
 export interface MockStateDef<S extends string> {
@@ -95,6 +97,10 @@ export function MockRoot<S extends string>({
     };
   };
   const [{ state, theme }, setParams] = useState(read);
+  // 모든 시안이 이 뿌리를 거치므로 여기서 한 번 알린다(부모 창이 없으면 아무 일도 없다).
+  useEffect(() => {
+    postRoute();
+  }, []);
   useEffect(() => {
     document.documentElement.dataset["theme"] = theme;
     const url = new URL(window.location.href);
@@ -103,18 +109,22 @@ export function MockRoot<S extends string>({
     else url.searchParams.delete("theme");
     window.history.replaceState(null, "", url);
   }, [state, theme]);
+  // ?chrome=0: 띠를 아예 그리지 않는다. 띠가 없으니 가운데가 높이 전부를 쓴다. theme·lang은 URL에서 그대로 읽는다.
+  const chrome = new URLSearchParams(window.location.search).get("chrome") !== "0";
   return (
     <div className="flex h-full min-h-0 flex-col bg-bg-app">
       <div key={state} className="flex min-h-0 flex-1 flex-col">
         {children(state)}
       </div>
-      <DevSwitcher
-        states={states}
-        state={state}
-        theme={theme}
-        onState={(s) => setParams((p) => ({ ...p, state: s }))}
-        onTheme={(t) => setParams((p) => ({ ...p, theme: t }))}
-      />
+      {chrome && (
+        <DevSwitcher
+          states={states}
+          state={state}
+          theme={theme}
+          onState={(s) => setParams((p) => ({ ...p, state: s }))}
+          onTheme={(t) => setParams((p) => ({ ...p, theme: t }))}
+        />
+      )}
     </div>
   );
 }

@@ -32,10 +32,11 @@ export function App() {
   const link: StatusCell | undefined = m.reconnecting
     ? {
         id: "link",
-        text: "다시 맞추는 중 (2/3)",
+        text: "다시 맞추는 중",
         dot: "warning",
         title: "다시 맞추는 중",
-        description: "연결이 끊겨 엔진과 상태를 다시 맞추고 있어요 (3번 중 2번째).",
+        // 설명 글은 뺀다. StatusCell.description은 필수라 빈 글로 둔다(_shell 타입을 바꾸지 않으려고).
+        description: "",
         action: { label: "다시 연결", onSelect: m.reconnect },
       }
     : undefined;

@@ -1,6 +1,5 @@
 // P-05 탐구(Helm). 오른쪽 well 탭 내용(HelmPanel)과 전체 화면 보기(HelmPage, S12).
-// 런타임 관점(브리프 "Framing correction"): 맨 위에 이 대화의 L3 그룹과 drive 임대 보유자를 늘 보이고,
-// Helm의 자식 에이전트(렌즈)는 caustic ActivityTree 나무(렌즈 = step, 자식의 도구 호출 = call)로 그린다.
+// 맨 위는 이 대화의 그룹과 탐구 머리(주제, 단계, 상한)다. Helm의 보조 에이전트(렌즈)는 caustic ActivityTree 나무(렌즈 = step, 도구 호출 = call)로 그린다.
 import {
   ActivityTree,
   Alert,
@@ -9,7 +8,6 @@ import {
   Input,
   ListDescription,
   ListDescriptionRow,
-  Progress,
   Skeleton,
   Stepper,
   Timeline,
@@ -18,7 +16,7 @@ import {
   type StepperStep,
 } from "@caustic/react";
 import type { ReactNode } from "react";
-import { ArrowRight, Maximize2, Minimize2, Settings, useShell } from "../_shell";
+import { BAR_INSET, extJ, extName, T, useShell } from "../_shell";
 import {
   findings,
   groups,
@@ -72,25 +70,25 @@ export function Section({
   );
 }
 
-// ── 그룹과 drive 임대 ─────────────────────────────────────────────
+// ── 그룹과 주도 ─────────────────────────────────────────────
 
 function LeaseBadge({ lease }: { lease: ActiveGroup["lease"] }) {
   if (lease === "held")
     return (
       <Badge size="xs" tone="agent">
-        drive 보유
+        {T.lead} 보유
       </Badge>
     );
   if (lease === "waiting")
     return (
       <Badge size="xs" tone="neutral">
-        drive 대기
+        {T.lead} 대기
       </Badge>
     );
   return null;
 }
 
-/** 이 대화에 걸린 L3 그룹. 줄마다 이름, 거는 훅, 지금 상태, drive 임대. */
+/** 이 대화에 걸린 그룹. 줄마다 이름, 지금 상태, 주도. */
 export function GroupsSection({
   helmLease = "held",
   helmState,
@@ -110,9 +108,8 @@ export function GroupsSection({
   return (
     <Section
       title="이 대화의 그룹"
-      count={rows.length}
       end={
-        <Button size="xs" tone="neutral" variant="ghost" iconStart={<Settings />}>
+        <Button size="xs" tone="neutral" variant="ghost">
           그룹
         </Button>
       }
@@ -120,11 +117,10 @@ export function GroupsSection({
       <ul className="m-0 grid list-none gap-1 p-0">
         {rows.map((g) => (
           <li key={g.id} className="flex min-w-0 items-center gap-2 text-ui-sm">
-            <span className="w-16 shrink-0 font-mono text-mono-sm text-text-primary">{g.name}</span>
-            <span className="min-w-0 flex-1 truncate text-text-tertiary">
-              {g.state}
-              <span className="font-mono text-mono-sm"> · {g.hooks.join(" ")}</span>
+            <span className="w-16 shrink-0 font-mono text-mono-sm text-text-primary">
+              {extName(g.name)}
             </span>
+            <span className="min-w-0 flex-1 truncate text-text-tertiary">{g.state}</span>
             <LeaseBadge lease={g.lease} />
           </li>
         ))}
@@ -152,26 +148,19 @@ function PhaseStepper({ at, failed = false }: { at: number; failed?: boolean }) 
   );
 }
 
-function Budget({ turn, spawn, tokens }: { turn: string; spawn: string; tokens: number }) {
+function Budget({ turn, spawn }: { turn: string; spawn: string }) {
   return (
     <ListDescription
       variant="ghost"
       size="xs"
-      aria-label="임대와 상한"
+      aria-label="상한"
       className="rounded-none [--cs-size-list-term:6rem] [&_[data-slot=list-description-row]]:px-0"
     >
-      <ListDescriptionRow term="drive 임대">helm 보유 · 턴 경계에서 돌려줘요</ListDescriptionRow>
       <ListDescriptionRow term="턴">
         <span className="tabular-nums">{turn}</span>
       </ListDescriptionRow>
       <ListDescriptionRow term="자식 에이전트">
         <span className="tabular-nums">{spawn}</span>
-      </ListDescriptionRow>
-      <ListDescriptionRow term="토큰">
-        <span className="flex w-full items-center gap-2">
-          <Progress size="xs" value={tokens * 100} label="토큰 사용" className="w-24" />
-          <span className="tabular-nums">{Math.round(tokens * 400)}k / 400k</span>
-        </span>
       </ListDescriptionRow>
     </ListDescription>
   );
@@ -191,18 +180,13 @@ export function LensTree({ lenses }: { lenses: Lens[] }) {
       id: l.id,
       kind: "step" as const,
       status: lensStatus[l.status],
-      label: (
-        <>
-          {l.title} <span className="font-mono text-mono-sm text-text-tertiary">{l.agent}</span>
-        </>
-      ),
-      meta: l.meta,
+      label: l.title,
+      ...(l.meta !== undefined ? { meta: l.meta } : {}),
     },
     ...l.calls.map((c) => ({
       id: c.id,
       kind: "call" as const,
       label: c.label,
-      ...(c.meta !== undefined ? { meta: c.meta } : {}),
       ...(c.running ? { running: true } : {}),
       ...(c.failed ? { failed: true } : {}),
     })),
@@ -236,17 +220,13 @@ function FindingRow({ f }: { f: Finding }) {
         <Badge size="xs" tone={c.tone}>
           신뢰 {c.word}
         </Badge>
-        <span className="truncate">
-          출처 {f.sources.length} ·{" "}
-          <span className="font-mono">{f.sources.slice(0, 4).join(", ")}</span>
-        </span>
         {f.task !== undefined && (
           <button
             type="button"
             onClick={() => shell.openEnd("work")}
             className="rounded-sm text-text-secondary underline-offset-2 outline-none hover:underline focus-visible:focus-ring"
           >
-            작업 #{f.task}
+            작업
           </button>
         )}
       </div>
@@ -283,7 +263,7 @@ function InquiryHead({
   full = false,
   onFull,
 }: {
-  meta: ReactNode;
+  meta?: ReactNode;
   action?: ReactNode;
   badge?: ReactNode;
   full?: boolean;
@@ -297,20 +277,13 @@ function InquiryHead({
         </h3>
         {action}
         {onFull !== undefined && (
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="ghost"
-            iconStart={full ? <Minimize2 /> : <Maximize2 />}
-            onClick={onFull}
-          >
+          <Button size="xs" tone="neutral" variant="ghost" onClick={onFull}>
             {full ? "대화로" : "크게"}
           </Button>
         )}
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui-xs text-text-tertiary">
-        <span className="font-mono">h3k9</span>
-        <span>{meta}</span>
+        {meta !== undefined && <span>{meta}</span>}
         {badge}
       </div>
     </div>
@@ -337,16 +310,11 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
         <div className="grid gap-5" aria-live="polite">
           <GroupsSection />
           <div className="grid gap-3">
-            <InquiryHead
-              meta="신호 stuck · 같은 오류 3번"
-              badge={writeDenied}
-              action={stop}
-              onFull={onFull}
-            />
+            <InquiryHead meta="같은 오류 3번" badge={writeDenied} action={stop} onFull={onFull} />
             <PhaseStepper at={2} />
-            <Budget turn="1 / 4" spawn="3 / 8" tokens={0.3} />
+            <Budget turn="1 / 4" spawn="3 / 8" />
           </div>
-          <Section title="렌즈" count="3 · 실패 1">
+          <Section title="렌즈">
             <LensTree lenses={lensesExplore} />
           </Section>
         </div>
@@ -356,14 +324,14 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
         <div className="grid gap-5">
           <GroupsSection helmState="수렴 단계" />
           <div className="grid gap-3">
-            <InquiryHead meta="신호 stuck · 같은 오류 3번" action={stop} onFull={onFull} />
+            <InquiryHead meta="같은 오류 3번" action={stop} onFull={onFull} />
             <PhaseStepper at={3} />
-            <Budget turn="2 / 4" spawn="3 / 8" tokens={0.46} />
+            <Budget turn="2 / 4" spawn="3 / 8" />
           </div>
-          <Section title="발견" count={findings.length}>
+          <Section title="발견">
             <FindingList items={findings} />
           </Section>
-          <Section title="렌즈" count="3 · 실패 1">
+          <Section title="렌즈">
             <LensTree lenses={lensesDone} />
           </Section>
         </div>
@@ -374,7 +342,6 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
           <GroupsSection helmLease="none" helmState="쉬는 중" reviewLease="held" />
           <div className="grid gap-3">
             <InquiryHead
-              meta="18분 · 렌즈 3 (실패 1) · 발견 4"
               badge={
                 <Badge size="xs" tone="success">
                   적용함
@@ -384,28 +351,25 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
             />
             <PhaseStepper at={5} />
             <p className="m-0 text-ui-sm font-normal text-text-secondary">
-              ttl을 저장할 때 밀리초로 바꾸고 경계 시각 시험을 더했어요. drive는 review로
-              넘어갔어요.
+              ttl을 저장할 때 밀리초로 바꾸고 경계 시각 테스트를 더했어요.
             </p>
             <div className="flex flex-wrap gap-1.5">
-              <Button size="xs" tone="neutral" variant="soft" iconEnd={<ArrowRight />}>
+              <Button size="xs" tone="neutral" variant="soft">
                 적용 턴으로
               </Button>
             </div>
           </div>
-          <Section title="생긴 작업" count={2}>
+          <Section title="생긴 작업">
             <ul className="m-0 grid list-none gap-1 p-0 text-ui-sm">
               <li className="flex gap-2">
-                <span className="tabular-nums text-text-tertiary">#12</span>
-                <span className="text-text-primary">TTL 경계 시각 시험 추가</span>
+                <span className="text-text-primary">TTL 경계 시각 테스트 추가</span>
               </li>
               <li className="flex gap-2">
-                <span className="tabular-nums text-text-tertiary">#13</span>
-                <span className="text-text-primary">시험 시계를 가짜 시계로 바꾸기</span>
+                <span className="text-text-primary">테스트 시계를 가짜 시계로 바꾸기</span>
               </li>
             </ul>
           </Section>
-          <Section title="발견" count={findings.length}>
+          <Section title="발견">
             <FindingList items={findings} />
           </Section>
         </div>
@@ -421,7 +385,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
                 <Input
                   size="sm"
                   aria-label="주제"
-                  placeholder="주제 (비우면 마지막 신호로 정해요)"
+                  placeholder="주제"
                   containerClassName="min-w-0 flex-1"
                   invalid={state === "S11"}
                 />
@@ -431,12 +395,12 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
               </div>
               {state === "S11" && (
                 <p role="alert" className="m-0 text-ui-xs text-danger-text">
-                  탐구 상태를 저장하지 못했어요 (state_write). 다시 시도해 주세요.
+                  탐구 상태를 저장하지 못했어요. 다시 시도해 주세요.
                 </p>
               )}
             </div>
           </Section>
-          <Section title="최근 탐구" count={recent.length}>
+          <Section title="최근 탐구">
             <ul className="m-0 -mx-1.5 grid list-none gap-0.5 p-0">
               {recent.map((r) => (
                 <li key={r.topic}>
@@ -459,11 +423,11 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
     case "S5":
       return (
         <div className="grid gap-5">
-          <GroupsSection helmLease="waiting" helmState="임대 대기" reviewLease="held" />
+          <GroupsSection helmLease="waiting" helmState="주도 대기" reviewLease="held" />
           <div className="grid gap-3">
             <InquiryHead meta="대기열 1번째" onFull={onFull} />
             <p className="m-0 text-ui-sm font-normal text-text-secondary">
-              drive 임대를 review가 쥐고 있어요. review가 단계 경계에서 놓으면 바로 시작해요.
+              주도를 {extJ("review", "이", "가")} 쥐고 있어요.
             </p>
             <div>
               <Button size="xs" tone="neutral" variant="soft">
@@ -478,21 +442,13 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
         <div className="grid gap-5">
           <GroupsSection helmLease="none" helmState="상한에서 멈춤" />
           <div className="grid gap-3">
-            <InquiryHead
-              meta="렌즈 3 · 발견 2"
-              badge={
-                <Badge size="xs" tone="warning">
-                  상한 도달
-                </Badge>
-              }
-              onFull={onFull}
-            />
+            <InquiryHead onFull={onFull} />
             <PhaseStepper at={3} failed />
             <Alert tone="warning" size="sm">
-              자식 에이전트 상한(8/8)에 걸려 멈췄어요. 수렴과 적용은 하지 않았어요.
+              자식 에이전트 상한에 걸려 멈췄어요. 수렴과 적용은 하지 않았어요.
             </Alert>
           </div>
-          <Section title="발견" count={2}>
+          <Section title="발견">
             <FindingList items={findings.slice(0, 2)} />
           </Section>
         </div>
@@ -503,7 +459,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
           <GroupsSection helmState="멈추는 중" />
           <div className="grid gap-3">
             <InquiryHead
-              meta="신호 stuck · 같은 오류 3번"
+              meta="같은 오류 3번"
               badge={writeDenied}
               action={
                 <Button size="xs" tone="neutral" variant="ghost" disabled>
@@ -514,10 +470,10 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
             />
             <PhaseStepper at={2} />
             <p className="m-0 text-ui-sm font-normal text-text-secondary">
-              다음 drive 경계에서 멈춰요. 실행 중인 렌즈 1개가 끝나길 기다려요.
+              다음 경계에서 멈춰요. 실행 중인 렌즈 1개가 끝나길 기다려요.
             </p>
           </div>
-          <Section title="렌즈" count="3 · 실패 1">
+          <Section title="렌즈">
             <LensTree lenses={lensesExplore} />
           </Section>
         </div>
@@ -525,23 +481,18 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
     case "S8":
       return (
         <div className="grid gap-5">
-          <Section title="이 대화의 그룹" count={1}>
+          <Section title="이 대화의 그룹">
             <div className="flex items-center gap-2 text-ui-sm">
               <span className="w-16 shrink-0 font-mono text-mono-sm text-text-primary">
-                learning
+                {extName("learning")}
               </span>
-              <span className="flex-1 text-text-tertiary">
-                세션 관찰 중<span className="font-mono text-mono-sm"> · post</span>
-              </span>
+              <span className="flex-1 text-text-tertiary">대화 관찰 중</span>
             </div>
           </Section>
           <div className="grid gap-2">
             <h3 className="m-0 text-ui-strong text-text-primary">Helm이 꺼져 있어요</h3>
-            <p className="m-0 text-ui-sm font-normal text-text-secondary">
-              켜면 같은 오류가 반복될 때 탐구를 제안해요.
-            </p>
             <div>
-              <Button size="xs" tone="neutral" variant="soft" iconEnd={<ArrowRight />}>
+              <Button size="xs" tone="neutral" variant="soft">
                 플러그인과 그룹에서 켜기
               </Button>
             </div>
@@ -578,7 +529,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
             <GroupsSection />
             <div className="grid gap-3">
               <InquiryHead
-                meta="신호 stuck · 같은 오류 3번"
+                meta="같은 오류 3번"
                 action={
                   <Button size="xs" tone="neutral" variant="ghost" disabled>
                     멈춤
@@ -587,7 +538,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
               />
               <PhaseStepper at={2} />
             </div>
-            <Section title="렌즈" count="3 · 실패 1">
+            <Section title="렌즈">
               <LensTree lenses={lensesExplore} />
             </Section>
           </div>
@@ -599,22 +550,21 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
 }
 
 // ── 전체 화면(S12) ──────────────────────────────────────────────
-// 스펙은 탐구를 끝 영역 탭으로만 둔다. Helm은 자식 에이전트를 여럿 띄우는 그룹이라 나무·발견·그룹 전환을 한눈에 보는 넓은 보기를 더한다.
+// 스펙은 탐구를 끝 영역 탭으로만 둔다. Helm은 자식 에이전트를 여럿 띄우는 그룹이라 나무·발견·단계 기록을 한눈에 보는 넓은 보기를 더한다.
 
 export function HelmPage({ onBack }: { onBack: () => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-10 flex-none items-center gap-2 px-3">
+      <header className={`flex h-10 flex-none items-center gap-2 px-3 ${BAR_INSET}`}>
         <h1 className="m-0 min-w-0 truncate text-ui-strong text-text-primary">
           탐구 · 캐시 무효화
         </h1>
-        <span className="truncate text-ui-sm text-text-tertiary">캐시 무효화 조사</span>
         <span className="flex-1" />
         {writeDenied}
         <Button size="xs" tone="neutral" variant="ghost">
           멈춤
         </Button>
-        <Button size="xs" tone="neutral" variant="ghost" iconStart={<Minimize2 />} onClick={onBack}>
+        <Button size="xs" tone="neutral" variant="ghost" onClick={onBack}>
           대화로
         </Button>
       </header>
@@ -623,22 +573,20 @@ export function HelmPage({ onBack }: { onBack: () => void }) {
           <div className="grid content-start gap-5">
             <div className="grid gap-3">
               <div className="flex flex-wrap items-center gap-x-2 text-ui-xs text-text-tertiary">
-                <span className="font-mono">h3k9</span>
-                <span>신호 stuck · 같은 오류 3번 · 수렴 단계</span>
+                <span>같은 오류 3번 · 수렴 단계</span>
               </div>
               <PhaseStepper at={3} />
-              <Budget turn="2 / 4" spawn="3 / 8" tokens={0.46} />
+              <Budget turn="2 / 4" spawn="3 / 8" />
             </div>
-            <Section title="렌즈와 자식 에이전트" count="3 · 실패 1">
+            <Section title="렌즈와 자식 에이전트">
               <LensTree lenses={lensesDone} />
             </Section>
-            <Section title="그룹 전환" count={switches.length + 1}>
+            <Section title="그룹 전환">
               <Timeline aria-label="단계 경계의 그룹 전환" size="sm">
                 <TimelineItem
                   author="agent"
                   running
                   title="수렴 · 발견 4개를 모으는 중"
-                  detail="helm"
                   time="지금"
                 />
                 {[...switches].reverse().map((s, i) => (
@@ -646,16 +594,15 @@ export function HelmPage({ onBack }: { onBack: () => void }) {
                     key={i}
                     author="system"
                     title={`${s.step} · ${s.text}`}
-                    detail={s.detail ?? "helm"}
                     time={s.at}
                   />
                 ))}
               </Timeline>
             </Section>
           </div>
-          <div className="grid content-start gap-5">
+          <div className={`grid content-start gap-5 ${BAR_INSET}`}>
             <GroupsSection helmState="수렴 단계" />
-            <Section title="발견" count={findings.length}>
+            <Section title="발견">
               <FindingList items={findings} />
             </Section>
           </div>

@@ -1,8 +1,8 @@
-// P-13 부품. caustic List 행은 48px 고정 높이 상자라, 두 줄(이름·출처·상태 / 패키지·확장 지점·drive) + 스위치 + 펼친 그룹 설정을 담는
+// P-13 부품. caustic List 행은 48px 고정 높이 상자라, 두 줄(이름·출처·상태 / 패키지·훅·drive) + 스위치 + 펼친 그룹 설정을 담는
 // 런타임 행을 토큰으로 만든다(빈틈: List에 행 아래 펼침 내용과 두 줄 메타 슬롯이 없음).
 import { Badge, Button, Switch } from "@caustic/react";
 import { useState, type ReactNode } from "react";
-import { ChevronRight, Clock } from "../_shell";
+import { ChevronRight, Clock, Lock } from "../_shell";
 import type { Ext, Source } from "./fixtures";
 
 const SOURCE: Record<Source, string> = {
@@ -11,15 +11,6 @@ const SOURCE: Record<Source, string> = {
   user: "사용자",
   project: "프로젝트",
 };
-
-export function points(p: Ext["points"]): string {
-  const out: string[] = [];
-  if (p.on) out.push(`on ${p.on}`);
-  if (p.post) out.push(`post ${p.post}`);
-  if (p.drive) out.push("drive");
-  if (p.scope) out.push(`scope ${p.scope}`);
-  return out.join(" · ");
-}
 
 function StateMark({ e, safe }: { e: Ext; safe: boolean }) {
   if (safe && e.source !== "managed" && (e.source !== "builtin" || e.layer === "L3"))
@@ -64,27 +55,23 @@ function DriveMark({ d }: { d: Ext["drive"] }) {
 
 export interface ExtRowProps {
   e: Ext;
-  icon?: ReactNode;
   safe?: boolean;
   disabled?: boolean;
   /** 이름 줄 끝, 스위치 앞 동작(자세히, 다시 켜기, 신뢰). */
   actions?: ReactNode;
   /** 그룹 설정(펼침). */
   settings?: ReactNode;
-  settingsCount?: number;
   defaultOpen?: boolean;
   error?: ReactNode;
 }
 
-/** 그룹 행(두 줄). */
+/** 그룹 행. 경로와 훅 목록은 화면에 두지 않는다. */
 export function GroupRow({
   e,
-  icon,
   safe = false,
   disabled,
   actions,
   settings,
-  settingsCount,
   defaultOpen = false,
   error,
 }: ExtRowProps) {
@@ -92,26 +79,18 @@ export function GroupRow({
   const on = !safe && (e.state.kind === "on" || e.state.kind === "pending");
   const locked = safe || e.state.kind === "untrusted" || disabled === true;
   return (
-    <div role="group" aria-label={e.label ?? e.name} className="grid gap-1 py-2">
+    <div
+      role="group"
+      aria-label={e.label ?? e.name}
+      className="grid gap-1 py-2 first:pt-1 last:pb-1"
+    >
       <div className="flex min-w-0 items-start gap-2.5">
-        <span
-          aria-hidden
-          className="mt-0.5 flex size-5 flex-none items-center justify-center text-text-secondary [&_svg]:size-icon-md"
-        >
-          {icon}
-        </span>
         <div className="grid min-w-0 flex-1 gap-0.5">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-ui font-medium text-text-primary">{e.label ?? e.name}</span>
             <span className="text-ui-sm text-text-tertiary">{SOURCE[e.source]}</span>
             <DriveMark d={safe ? "none" : e.drive} />
             <StateMark e={e} safe={safe} />
-          </div>
-          <div className="flex min-w-0 items-baseline gap-2 font-mono text-mono-sm text-text-tertiary">
-            <span className="min-w-0 truncate">{e.path ?? e.name}</span>
-            <span aria-label={`확장 지점 ${points(e.points)}`} className="flex-none">
-              {points(e.points)}
-            </span>
           </div>
           {e.desc !== undefined && <p className="m-0 text-ui-sm text-text-secondary">{e.desc}</p>}
         </div>
@@ -126,12 +105,12 @@ export function GroupRow({
         </div>
       </div>
       {error !== undefined && (
-        <p role="alert" className="m-0 ps-7.5 text-ui-sm text-danger-text">
+        <p role="alert" className="m-0 text-ui-sm text-danger-text">
           {error}
         </p>
       )}
       {settings !== undefined && (
-        <div className="grid gap-1 ps-7.5">
+        <div className="grid gap-1">
           <button
             type="button"
             aria-expanded={open}
@@ -142,7 +121,7 @@ export function GroupRow({
               aria-hidden
               className={`size-icon-xs transition-transform duration-quick ${open ? "rotate-90" : ""}`}
             />
-            그룹 설정 {settingsCount}
+            그룹 설정
           </button>
           {open && <div className="grid">{settings}</div>}
         </div>
@@ -155,14 +134,18 @@ export function GroupRow({
 export function PluginRow({ e, safe = false }: { e: Ext; safe?: boolean }) {
   const safeOff = safe && (e.source === "user" || e.source === "project");
   return (
-    <div className="flex min-h-8 min-w-0 items-center gap-3">
-      <span className="min-w-0 truncate font-mono text-mono text-text-primary">{e.name}</span>
-      <span className="flex-none text-ui-sm text-text-tertiary">{SOURCE[e.source]}</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-mono-sm text-text-tertiary @max-[30rem]:hidden">
-        {points(e.points)}
+    <div className="flex min-h-8 min-w-0 items-center gap-3 first:-mt-1 last:-mb-1">
+      <span className="min-w-0 flex-1 truncate font-mono text-mono text-text-primary">
+        {e.name}
       </span>
+      <span className="flex-none text-ui-sm text-text-tertiary">{SOURCE[e.source]}</span>
       {safeOff ? (
         <span className="text-ui-sm text-text-tertiary">안전 모드라 꺼짐</span>
+      ) : e.source === "managed" ? (
+        <span className="inline-flex items-center gap-1 text-ui-sm text-text-tertiary">
+          <Lock aria-hidden className="size-icon-xs flex-none" />
+          관리 정책으로 잠김
+        </span>
       ) : (
         <StateMark e={e} safe={false} />
       )}

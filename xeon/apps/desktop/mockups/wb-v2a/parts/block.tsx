@@ -1,6 +1,6 @@
 // 블록 해부(SPEC §2): 층 색 아이콘 면 → 이름(라벨 + mono id) → 한 줄 메타 → 오른쪽 위 상태 면. 면은 올린 surface와
-// 그림자로만 깊이를 주고 테두리를 긋지 않는다. 의도 그룹은 뒤에 얇은 판 둘(부품을 쌓은 묶음)을, 훅 블록은 아래 가장자리에
-// 핀(on = 층 색 막대, post = 마름모, drive = 네모)을, 서비스 블록은 위 가장자리에 콘센트(능력 하나에 반원 하나)를 둔다.
+// 그림자로만 깊이를 주고 테두리를 긋지 않는다. 플러그인 그룹은 뒤에 얇은 판 둘(부품을 쌓은 묶음)을, 훅 블록은 아래 가장자리에
+// 핀(on = 층 색 막대, post = 마름모, drive = 네모)을, 서비스 블록은 위 가장자리에 콘센트(기능 하나에 반원 하나)를 둔다.
 import type { ReactNode } from "react";
 import {
   CircleX,
@@ -79,7 +79,7 @@ export interface BlockProps {
 
 export function defaultMeta(e: Ext): string {
   if (e.health === "auto_disabled") return `자동 꺼짐 · 실패 ${e.failures ?? 0}`;
-  if (e.health === "disabled") return "꺼짐 · 모델 능력 없음";
+  if (e.health === "disabled") return "꺼짐 · 모델 기능 없음";
   if (e.health === "failing") return `실패 ${e.failures ?? 0} · ${e.trust} ${e.version}`;
   if (e.layer === "L3")
     return e.parts !== undefined

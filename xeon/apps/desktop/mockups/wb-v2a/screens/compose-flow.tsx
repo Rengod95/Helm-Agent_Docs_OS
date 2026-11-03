@@ -1,7 +1,7 @@
 // 구성기 "흐름": Helm 단계 머신(L3.helm §4.2)을 위 줄(오른쪽으로) · 아래 줄(왼쪽으로) 뱀 모양 흐름으로. 노드 = 커밋된 단계,
 // 선 위 ◇ = 단계 경계(drive가 단계 하나를 커밋하고 돌아가면 X가 마지막 상태로 다시 부름). explore는 렌즈 자식으로 부채꼴로 펼친다.
 // 쓰기 거부 구간은 회색 테두리 하나. 사람 확인(gate)은 drive 원시(사용자 결정 8)라 넣을 수 있는 자리로 보인다.
-// 시험(trial): 지난 단계 체크, 지금 단계 숨쉬는 고리, 렌즈 상태, 선 위 움직이는 점, 아래 경계 기록 띠.
+// 테스트(trial): 지난 단계 체크, 지금 단계 숨쉬는 고리, 렌즈 상태, 선 위 움직이는 점, 아래 경계 기록 띠.
 import type { ReactNode } from "react";
 import {
   Check,
@@ -111,7 +111,7 @@ function PhaseNode({ n, phase }: { n: NodeDef; phase: Phase }) {
       <div className="mt-auto flex items-center gap-1.5">
         {n.cost !== undefined && (
           <span className="flex-none whitespace-nowrap rounded-md bg-neutral-well px-1.5 py-0.5 text-micro text-text-secondary tabular-nums">
-            임대 {n.cost}
+            주도 {n.cost}
           </span>
         )}
         {n.extra}
@@ -243,7 +243,7 @@ export function ComposeFlow({ trial }: { trial: boolean }) {
       >
         idle
       </span>
-      <Boundary x={112} y={148} label="임대 받음" active={trial} above />
+      <Boundary x={112} y={148} label="주도 받음" active={trial} above />
       <PhaseNode n={N.diverge!} phase={ph("diverge")} />
       <Boundary x={322} y={148} label="diverged" active={trial} above />
       <PhaseNode n={N.explore!} phase={ph("explore")} />
@@ -318,7 +318,7 @@ export function ComposeFlow({ trial }: { trial: boolean }) {
           </span>
         </span>
         <span className="text-micro leading-snug text-text-tertiary">
-          기다리는 동안 임대를 놓고, 답하면 다시 받아요
+          기다리는 동안 주도를 놓고, 답하면 다시 받아요
         </span>
       </div>
       <PhaseNode n={N.apply!} phase={ph("apply")} />
@@ -337,10 +337,10 @@ export function ComposeFlow({ trial }: { trial: boolean }) {
         </span>
       </div>
       <span className="absolute text-micro text-text-tertiary" style={{ left: 24, top: 270 }}>
-        임대 반납
+        주도 반납
       </span>
 
-      {/* 경계 기록(시험) */}
+      {/* 경계 기록(테스트) */}
       {trial && (
         <div className="absolute flex items-start" style={{ left: 20, top: 488, width: 1000 }}>
           <span className="absolute top-[7px] right-4 left-2 h-px bg-border-default" />

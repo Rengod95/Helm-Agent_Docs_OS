@@ -24,6 +24,62 @@ export { NoticeList } from "./parts/notice-list";
 export { ShellToaster } from "./parts/shell-toaster";
 export { QuestionCard, type QuestionCardProps } from "./parts/question-card";
 export { ToolApprovalCard, type Decision, type ToolApprovalCardProps } from "./parts/tool-approval";
+export {
+  LineGrid,
+  LineGridBlock,
+  LineGridCell,
+  LineGridEmpty,
+  GRID_BODY,
+  GRID_BODY_COMPACT,
+  GRID_INSET,
+  GRID_INSET_COMPACT,
+  LineGridFrame,
+  LineGridMark,
+  LineGridMetric,
+  type LineGridBlockProps,
+  type LineGridCellData,
+  type LineGridCellProps,
+  type LineGridColumn,
+  type LineGridDot,
+  type LineGridEmptyProps,
+  type LineGridItem,
+  type LineGridMarkProps,
+  type LineGridMetricProps,
+  type LineGridProps,
+  type LineGridRow,
+  type LineGridSelection,
+} from "./line-grid";
+export {
+  BAR_INSET,
+  HEAD_GAP,
+  ITEM_GAP,
+  PAGE_HEAD_GAP,
+  PAGE_PAD,
+  PAGE_PAD_GRID,
+  PageBody,
+  PageHead,
+  PageSection,
+  SECTION_GAP,
+  SoftAlert,
+  StageHead,
+  WELL_SECTION_GAP,
+  type PageHeadProps,
+  type PageSectionProps,
+  type StageHeadProps,
+} from "./page";
+export {
+  currentFolder,
+  navigateToArea,
+  navigateToNav,
+  navigateToPage,
+  navigateToPaletteItem,
+  PAGE_ROUTES,
+  PALETTE_NAV,
+  pageHref,
+  postRoute,
+  routeForNav,
+  type PageRoute,
+} from "./routes";
 export * from "./fixtures";
 export * from "./workbench-fixtures";
 export { T, josa, type TermKey } from "./terms";

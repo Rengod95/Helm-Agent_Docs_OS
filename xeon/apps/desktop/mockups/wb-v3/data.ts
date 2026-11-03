@@ -1,5 +1,6 @@
-// 캔버스 v3 고정 데이터. 문서(F.extensions §3.1·§3.4, X.operations §3.7, L0/L1 README, L3 helm·group-kit)에 맞춘 가짜 값이다.
-// 층 이름은 SPEC §1 용어 추천안(그룹 · 기능 · 에이전트 핵심 · 시스템 기반 · 확장 연결부 · 공통 규약)을 쓴다. 기계 이름은 그대로 둔다.
+// 캔버스 v3 고정 데이터. 문서(F.extensions §3.1·§3.4, X.operations §3.7, L0/L1 README, L3 helm·group-sdk)에 맞춘 가짜 값이다.
+// 층 이름은 용어 표(_shell/terms)를 거친다(layerName). 기계 이름은 그대로 둔다.
+import { T } from "../_shell/terms";
 
 export type LayerId = "L3" | "L2" | "L1" | "L0" | "X" | "F";
 export type Origin = "builtin" | "user" | "project";
@@ -22,7 +23,7 @@ export const LAYERS: Layer[] = [
     name: "그룹",
     does: "대화를 어떤 방식으로 풀지 정해요",
     addNoun: "그룹",
-    how: "훅 · 입력 넣기 · 진행권",
+    how: "훅 · 입력 넣기 · 주도",
   },
   {
     id: "L2",
@@ -33,34 +34,48 @@ export const LAYERS: Layer[] = [
   },
   {
     id: "L1",
-    name: "에이전트 핵심",
+    name: "에이전트 코어",
     does: "매 턴 모델을 부르고 도구를 돌려요",
     addNoun: "플러그인",
     how: "모델 등록 · 요청 훅 · 도구",
   },
   {
     id: "L0",
-    name: "시스템 기반",
-    does: "명령·저장·비밀이 실제로 도는 곳이에요",
+    name: "시스템",
+    does: "명령·저장·시크릿이 실제로 도는 곳이에요",
     addNoun: "어댑터",
     how: "구현 교체 · 시작할 때 적용",
   },
   {
     id: "X",
-    name: "확장 연결부",
-    does: "턴 흐름에 끼어들 지점을 열어 줘요",
+    name: "확장 런타임",
+    does: "턴 흐름에 끼어들 훅을 열어 줘요",
     addNoun: "훅",
-    how: "외부 훅 · 지점 하나에 참여",
+    how: "외부 훅 · 훅 하나에 참여",
   },
   {
     id: "F",
-    name: "공통 규약",
+    name: "계약",
     does: "모든 층이 같은 이름으로 말하게 해요",
     addNoun: "",
     how: "플러그인이 선언하면 생겨요",
   },
 ];
-export const layerById = (id: LayerId) => LAYERS.find((l) => l.id === id)!;
+export function layerById(id: LayerId): Layer {
+  const l = LAYERS.find((x) => x.id === id);
+  if (l === undefined) throw new Error(`층 없음: ${id}`);
+  return l;
+}
+/** 층 이름은 용어 표(_shell/terms)에서. */
+const LAYER_TERM: Record<LayerId, string> = {
+  L3: T.layerL3,
+  L2: T.layerL2,
+  L1: T.layerL1,
+  L0: T.layerL0,
+  X: T.layerX,
+  F: T.layerF,
+};
+export const layerName = (id: LayerId) => LAYER_TERM[id];
 
 export interface Plugin {
   id: string;
@@ -104,7 +119,7 @@ export const PLUGINS: Plugin[] = [
       "tool.call.before",
       "tool.execution.after",
       "boundary.settle.after",
-      "session.start",
+      "thread.start",
       "lifecycle.lease.rejected",
     ],
     usesPost: true,
@@ -141,7 +156,7 @@ export const PLUGINS: Plugin[] = [
     icon: "sparkles",
     health: "ok",
     version: "0.4.0",
-    points: ["boundary.settle.after", "session.shutdown"],
+    points: ["boundary.settle.after", "thread.shutdown"],
     blurb: "대화가 끝나면 쓸 만한 기술을 제안해요",
     parts: 3,
   },
@@ -170,7 +185,7 @@ export const PLUGINS: Plugin[] = [
     blurb: "Helm을 복제해 리뷰 렌즈만 남겼어요",
     parts: 5,
   },
-  // L2 능력
+  // L2 기능
   {
     id: "web",
     name: "웹",
@@ -191,7 +206,7 @@ export const PLUGINS: Plugin[] = [
     health: "ok",
     version: "1.0.3",
     provides: ["web.search"],
-    blurb: "web.search를 Exa로 바꿔 줘요",
+    blurb: "웹 검색을 Exa로 바꿔 줘요",
   },
   {
     id: "knowledge",
@@ -338,7 +353,7 @@ export const PLUGINS: Plugin[] = [
   },
   {
     id: "secrets",
-    name: "비밀",
+    name: "시크릿",
     layer: "L0",
     origin: "builtin",
     icon: "key",
@@ -352,7 +367,7 @@ export const PLUGINS: Plugin[] = [
     origin: "builtin",
     icon: "cpu",
     health: "ok",
-    blurb: "사이드카·자식 수명",
+    blurb: "이 컴퓨터(앱 안)·자식 수명",
   },
   {
     id: "store",
@@ -384,16 +399,16 @@ export const PLUGINS: Plugin[] = [
     blurb: "셸을 build-box에서 돌려요",
     proposal: true,
   },
-  // X 확장 연결부: 내장은 네 연산(아래 OPS), 사용자 것은 외부 훅
+  // X 확장 런타임: 내장은 네 연산(아래 OPS), 사용자 것은 외부 훅
   {
     id: "hook:secret-scan",
-    name: "비밀 검사",
+    name: "시크릿 검사",
     layer: "X",
     origin: "user",
     icon: "shieldcheck",
     health: "ok",
     points: ["tool.call.before"],
-    blurb: "명령에 비밀 값이 보이면 막아요(exit 2)",
+    blurb: "명령에 시크릿 값이 보이면 막아요",
   },
   {
     id: "hook:notify-done",
@@ -406,15 +421,19 @@ export const PLUGINS: Plugin[] = [
     blurb: "턴이 끝나면 휴대폰에 알려요",
   },
 ];
-export const pluginById = (id: string) => PLUGINS.find((p) => p.id === id)!;
+export function pluginById(id: string): Plugin {
+  const p = PLUGINS.find((x) => x.id === id);
+  if (p === undefined) throw new Error(`플러그인 없음: ${id}`);
+  return p;
+}
 export const pluginsOf = (l: LayerId) => PLUGINS.filter((p) => p.layer === l);
 
-/** X 내장: 네 연산과 두 자리. 플러그인이 아니라 확장 연결부 자체의 블록다. */
+/** X 내장: 네 연산과 두 자리. 플러그인이 아니라 확장 런타임 자체의 블록다. */
 export const OPS = [
-  { id: "on", label: "훅", gloss: "지점에서 끼어들기" },
+  { id: "on", label: "훅", gloss: "훅에서 끼어들기" },
   { id: "post", label: "입력 넣기", gloss: "입력 대기열에 보내기" },
-  { id: "drive", label: "진행권", gloss: "한 번에 한 그룹만" },
-  { id: "scope", label: "켜고 끄기", gloss: "단계가 끝나면 적용" },
+  { id: "drive", label: "주도", gloss: "drive lock · 대화마다 하나" },
+  { id: "register", label: "켜고 끄기", gloss: "등록 · 단계가 끝나면 적용" },
 ] as const;
 
 /** F 내장 규약 다섯과, 플러그인이 접두로 선언해 생긴 것. */
@@ -431,25 +450,27 @@ export const DECLARED = [
   { id: "ext.cost-router.*", kind: "설정 키", by: "cost-router" },
 ];
 
-// ── 턴 흐름(확장 연결부의 지점 일곱 종류) ─────────────────────────────
-export type StageId = "session" | "input" | "request" | "guard" | "tool" | "boundary" | "lifecycle";
+// ── 턴 흐름(확장 런타임의 훅 일곱 종류) ─────────────────────────────
+export type StageId = "thread" | "input" | "request" | "guard" | "tool" | "boundary" | "lifecycle";
 export interface Stage {
   id: StageId;
   label: string;
-  /** 지점 수(F.extensions §3.4 집계) */
+  /** 훅 수(F.extensions §3.4 집계) */
   total: number;
   when: string;
 }
 export const STAGES: Stage[] = [
-  { id: "session", label: "세션", total: 15, when: "대화를 열고 닫을 때" },
+  { id: "thread", label: "대화", total: 15, when: "대화를 열고 닫을 때" },
   { id: "input", label: "입력", total: 3, when: "사용자 말이 들어올 때" },
   { id: "request", label: "모델 요청", total: 9, when: "모델에 보내기 직전·직후" },
   { id: "guard", label: "안전 검사", total: 3, when: "보내기·실행 직전 마지막 확인" },
   { id: "tool", label: "도구", total: 5, when: "도구를 부르고 결과를 받을 때" },
   { id: "boundary", label: "단계", total: 9, when: "단계와 턴이 끝날 때" },
-  { id: "lifecycle", label: "수명", total: 2, when: "보조 에이전트·진행권 사건" },
+  { id: "lifecycle", label: "수명", total: 2, when: "보조 에이전트·주도 사건" },
 ];
-export const stageOf = (point: string): StageId => point.split(".")[0] as StageId;
+const STAGE_IDS: readonly StageId[] = STAGES.map((s) => s.id);
+export const stageOf = (point: string): StageId =>
+  STAGE_IDS.find((id) => point.startsWith(`${id}.`)) ?? "thread";
 
 export interface Hook {
   plugin: string;
@@ -464,12 +485,12 @@ export const HOOKS: Hook[] = [
   { plugin: "helm", point: "tool.call.before", fold: "first", p95: 1, budget: 20 },
   { plugin: "helm", point: "tool.execution.after", fold: "tap", p95: 2, budget: 50 },
   { plugin: "helm", point: "boundary.settle.after", fold: "tap", p95: 9, budget: 100 },
-  { plugin: "helm", point: "session.start", fold: "tap", p95: 12, budget: 200 },
+  { plugin: "helm", point: "thread.start", fold: "tap", p95: 12, budget: 200 },
   { plugin: "helm", point: "lifecycle.lease.rejected", fold: "tap", p95: 1, budget: 50 },
   { plugin: "plan-first", point: "input.user.before", fold: "chain", p95: 3, budget: 50 },
   { plugin: "plan-first", point: "boundary.step.after", fold: "chain", p95: 6, budget: 100 },
   { plugin: "learning", point: "boundary.settle.after", fold: "tap", p95: 22, budget: 100 },
-  { plugin: "learning", point: "session.shutdown", fold: "tap", p95: 40, budget: 200 },
+  { plugin: "learning", point: "thread.shutdown", fold: "tap", p95: 40, budget: 200 },
   {
     plugin: "review",
     point: "boundary.settle.after",
@@ -494,17 +515,23 @@ export const HOOKS: Hook[] = [
 ];
 export const hooksAt = (s: StageId) => HOOKS.filter((h) => stageOf(h.point) === s);
 
-// ── 보는 대상(맥락)과 프리셋(프로필) ─────────────────────────────
+// ── 보기 기준(맥락)과 프로필(프로필) ─────────────────────────────
 export type ViewKind = "all" | "thread" | "trial" | "preset";
 export const VIEWS: { value: string; kind: ViewKind; label: string; meta: string }[] = [
   { value: "all", kind: "all", label: "설치 전체", meta: "이 기기에 깔린 것" },
   { value: "t1", kind: "thread", label: "캐시 무효화 조사", meta: "실시간 · 턴 7" },
   { value: "t2", kind: "thread", label: "릴리스 노트 초안", meta: "쉬는 중" },
-  { value: "x-helm5", kind: "trial", label: "helm 렌즈 5개", meta: "시험 · 멈춤" },
+  { value: "x-helm5", kind: "trial", label: "helm 렌즈 5개", meta: "테스트 · 멈춤" },
   { value: "p-explore", kind: "preset", label: "탐구 중심", meta: "저장된 스위치 묶음" },
   { value: "p-quiet", kind: "preset", label: "조용히", meta: "저장된 스위치 묶음" },
 ];
-export const viewOf = (v: string) => VIEWS.find((x) => x.value === v) ?? VIEWS[0]!;
+const ALL_VIEW = {
+  value: "all",
+  kind: "all",
+  label: "설치 전체",
+  meta: "이 기기에 깔린 것",
+} as const;
+export const viewOf = (v: string) => VIEWS.find((x) => x.value === v) ?? ALL_VIEW;
 
 /** 대화 "캐시 무효화 조사"에서 켜진 것 */
 export const THREAD_ON = new Set([
@@ -534,7 +561,7 @@ export const THREAD_ON = new Set([
 export const THREAD_PENDING = new Set(["dialog"]);
 
 export type DiffMark = "add" | "remove" | "override";
-/** 프리셋 "탐구 중심"을 대화에 적용하면 */
+/** 프로필 "탐구 중심"을 대화에 적용하면 */
 export const PRESET_DIFF: Record<string, { mark: DiffMark; note: string }> = {
   "plan-first": { mark: "remove", note: "꺼져요" },
   dialog: { mark: "add", note: "켜져요" },
@@ -581,7 +608,7 @@ export const HELM_RELATIONS: Relation[] = [
     target: "agents",
     kind: "uses",
   },
-  { layer: "L1", label: "진행권으로 턴 잇기", id: "loop.turn", target: "loop", kind: "uses" },
+  { layer: "L1", label: "주도로 턴 잇기", id: "loop.turn", target: "loop", kind: "uses" },
   { layer: "L1", label: "렌즈 모델 역할", id: "models.role", target: "models", kind: "uses" },
   { layer: "L0", label: "상태·발견 저장", id: "ScopedStore", target: "store", kind: "uses" },
   {
@@ -607,14 +634,14 @@ export const HELM_RELATIONS: Relation[] = [
   },
   {
     layer: "X",
-    label: "세션 · 상태 복원",
-    id: "session.start",
+    label: "대화 · 상태 복원",
+    id: "thread.start",
     target: "stage:session",
     kind: "hooks",
   },
   {
     layer: "X",
-    label: "수명 · 진행권 거절",
+    label: "수명 · 주도 거절",
     id: "lifecycle.lease.rejected",
     target: "stage:lifecycle",
     kind: "hooks",

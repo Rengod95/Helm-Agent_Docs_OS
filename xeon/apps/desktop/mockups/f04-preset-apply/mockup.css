@@ -1,0 +1,4 @@
+/* N-41 프로필 적용: caustic 스타일 + 공용 셸 CSS. 앞뒤 비교는 _shell의 선 격자(LineGrid)를 쓴다. 색은 caustic 토큰만 쓴다. */
+@import "@caustic/react/styles.css";
+@import "../_shell/shell.css";
+@source "./";

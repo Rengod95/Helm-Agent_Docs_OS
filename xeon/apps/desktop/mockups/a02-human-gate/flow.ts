@@ -1,6 +1,6 @@
-// 사람 확인 관문·승인 출처·진행권 충돌 상태 기계(목업 전용).
-// spec §6.30(사람 확인 관문), X-17(loop.ask, 기다리는 동안 진행권 반납), 결정 캔버스 8, 결정 7(자식 승인 출처),
-// §6.7 expiresAt(만료 뒤 자동 거부·자동 답), 계획에 없음 3(진행권 충돌은 고르는 창 없이 "이 그룹 먼저"), §4.9.8(P-05 정리).
+// 사람 확인 관문·승인 출처·주도 충돌 상태 기계(목업 전용).
+// spec §6.30(사람 확인 관문), X-17(loop.ask, 기다리는 동안 주도 반납), 결정 캔버스 8, 결정 7(자식 승인 출처),
+// §6.7 expiresAt(만료 뒤 자동 거부·자동 답), 계획에 없음 3(주도 충돌은 고르는 창 없이 "이 그룹 먼저"), §4.9.8(P-05 정리).
 import { EXT, T, josa } from "../_shell";
 import type { After, ChatItem } from "../_chat-rt";
 
@@ -47,7 +47,7 @@ export type A =
 export const PICKS: Record<string, string> = {
   f1: "발견 1 · 단위 섞임",
   f2: "발견 2 · 저장 때 한 번만 바꾸기",
-  f3: "발견 3 · 시계 경계 시험",
+  f3: "발견 3 · 시계 경계 테스트",
 };
 
 const LEAD_O = josa(T.lead, "을", "를");
@@ -148,7 +148,7 @@ export function reduce(s: S, a: A): S {
           {
             k: "agent",
             live: true,
-            text: `${PICKS[s.pick] ?? ""}부터 적용할게요. ttl을 저장할 때 밀리초로 바꾸고 경계 시각 시험을 더해요.`,
+            text: `${PICKS[s.pick] ?? ""}부터 적용할게요. ttl을 저장할 때 밀리초로 바꾸고 경계 시각 테스트를 더해요.`,
           },
           { k: "tool", name: "edit", detail: "src/cache.ts", status: "done", duration: "120ms" },
         ],

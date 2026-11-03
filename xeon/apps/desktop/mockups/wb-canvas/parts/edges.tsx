@@ -1,6 +1,6 @@
 // 엣지 층(세계 좌표 svg). 연산마다 선 모양이 다르고 색은 neutral 단계만 쓴다(DP-29: tone은 아이콘 면에만).
-//   능력 provides→consumes: 실선(optional은 긴 점선), 제공자 없음: 짧은 점선 + 끝 글자
-//   on → 지점: 가는 실선, post → 큐: 둥근 점선, drive → 임대: 굵은 실선(보유 중이면 흐름 움직임), 등록: 짧은 점선
+//   기능 provides→consumes: 실선(optional은 긴 점선), 제공자 없음: 짧은 점선 + 끝 글자
+//   on → 훅: 가는 실선, post → 큐: 둥근 점선, drive → 주도: 굵은 실선(보유 중이면 흐름 움직임), 등록: 짧은 점선
 // caustic 빈틈 [gap:C-36 제안]: 노드 그래프 엣지(`GraphEdge`: 경로, kind별 dash, traced·dimmed, 흐름 움직임)가 없다.
 // TokenGraph의 wire는 DOM을 재서 그리는 가로 곡선 하나뿐이다.
 import type { Edge } from "../data";
@@ -23,7 +23,7 @@ export interface EdgeLayerProps {
   ghost?: (e: Edge) => boolean;
   edges: Edge[];
   lookOf: (e: Edge) => EdgeLook;
-  /** 흐름 움직임을 줄 엣지(보유 임대, 재생 중 핸들러). */
+  /** 흐름 움직임을 줄 엣지(보유 주도, 재생 중 핸들러). */
   flowing?: (e: Edge) => boolean;
   w: number;
   h: number;
@@ -106,7 +106,7 @@ export function EdgeLayer({ edges, lookOf, flowing, ghost, w, h }: EdgeLayerProp
   );
 }
 
-/** 엣지를 따라 한 번 움직이는 점: 단계 경계의 임대 교대·켜기를 보인다(CSS offset-path). */
+/** 엣지를 따라 한 번 움직이는 점: 단계 경계의 주도 교대·켜기를 보인다(CSS offset-path). */
 export function Pulse({ edge, reverse }: { edge: Edge; reverse?: boolean }) {
   return (
     <span

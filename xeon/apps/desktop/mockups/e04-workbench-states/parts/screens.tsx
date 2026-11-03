@@ -1,15 +1,18 @@
 // e04 화면 조각: P-13 확장 목록, P-17 확장 상세(탭별 상태), P-20 측정, P-06 제안 거르기, P-09 키 찾기 결과 없음.
-// 공통 규칙: 실패는 그 목록 바로 위 Alert 하나(DP-28), 오프라인은 머리 아래 warning inline + 쓰기 잠금(§6.0),
+// 공통 규칙: 실패는 그 목록 자리에 soft Alert 하나(DP-28), 오프라인은 머리 아래 soft warning 한 줄 + 쓰기 잠금(§6.0),
 // 결과 없음은 찾은 말을 되풀이하고 "거르기 지우기" 하나(N-48), 읽는 중은 실제 행 모양의 Skeleton(같은 높이라 자리가 튀지 않음).
+// 빈 화면 그림(EmptyState 아이콘)은 화면마다 하나까지. 원인 코드(wire 메서드, 설정 키)는 화면에 내지 않는다(디자인 언어 §6).
+// 표·지표 칸은 _shell의 선 격자(LineGrid·LineGridBlock·LineGridMetric, 옛 언어 이식). 색·글자는 옛 토큰만 쓴다.
 import {
   Alert,
   Button,
   EmptyState,
   IconButton,
   Input,
+  List,
   ListDescription,
   ListDescriptionRow,
-  Progress,
+  ListRow,
   SegmentedControl,
   SegmentedControlItem,
   Select,
@@ -24,38 +27,52 @@ import {
   Ellipsis,
   extName,
   extensions,
+  josa,
   L2,
-  Search,
-  SearchX,
+  GRID_BODY,
+  GRID_INSET,
+  LineGrid,
+  LineGridBlock,
+  LineGridFrame,
+  LineGridMetric,
+  StageHead,
   T,
-  WB_WIDTH,
   WorkbenchHead,
   type Layout,
+  type LineGridCellData,
+  type LineGridColumn,
 } from "../../_shell";
 import type { ListMode, MetricsMode, S, TabMode } from "../flow";
-import { ExtTable } from "./ext-table";
+import { ExtList, layerName } from "./ext-list";
+
+/** 머리 아래 본문: 폭 하나. 간격은 화면마다(거르기와 표 12, 구역 32). */
+const BODY = `${GRID_BODY} pb-8`;
+/** 띠가 있는 화면의 머리: 칸 글자와 같은 안쪽 여백(px-4)으로 첫 열 글자와 줄을 맞춘다. */
+const HEAD = `w-full ${GRID_INSET}`;
+const LAYERS = ["L0", "L1", "L2", "L3", "plugin", "X"] as const;
 
 /** 결과 없음(N-48): 찾은 말 + 거르기 지우기 하나. 안내 문장을 늘이지 않는다(DP-03). */
 export function NoMatch({
   what,
   onClear,
+  clearLabel,
   extra,
 }: {
   what: string;
   onClear?: () => void;
+  clearLabel?: string;
   extra?: ReactNode;
 }) {
   return (
     <EmptyState
       size="sm"
       surface="none"
-      icon={<SearchX />}
-      title={L2(`${what}와 맞는 것이 없어요`, `Nothing matches ${what}`)}
+      title={L2(`${josa(what, "과", "와")} 맞는 것이 없어요`, `Nothing matches ${what}`)}
       actions={
         <>
           {onClear !== undefined && (
-            <Button size="xs" tone="neutral" variant="outline" onClick={onClear}>
-              {L2("거르기 지우기", "Clear filters")}
+            <Button size="sm" tone="neutral" variant="outline" onClick={onClear}>
+              {clearLabel ?? L2("거르기 지우기", "Clear filters")}
             </Button>
           )}
           {extra}
@@ -92,98 +109,85 @@ export function ExtListScreen({
       (s.layer === "all" || e.layer === s.layer) &&
       (!userOnly || e.trust === "user"),
   );
-  const what = [s.q !== "" ? `"${s.q}"` : null, s.layer !== "all" ? `${T.layer} ${s.layer}` : null]
+  const layerWord = LAYERS.find((l) => l === s.layer);
+  const what = [
+    s.q !== "" ? `"${s.q}"` : null,
+    layerWord !== undefined ? layerName[layerWord] : null,
+  ]
     .filter((x) => x !== null)
     .join(" · ");
+  const ready = mode === "ready";
   return (
     <>
       <WorkbenchHead
+        className={HEAD}
         title={T.extension}
         actions={
           <>
-            <Button size="xs" tone="neutral" variant="ghost" disabled={mode !== "ready"}>
+            <Button size="sm" tone="neutral" variant="ghost" disabled={!ready}>
               {L2("가져오기", "Import")}
             </Button>
-            <Button size="xs" tone="neutral" variant="outline" disabled={mode !== "ready"}>
+            <Button size="sm" tone="neutral" variant="outline" disabled={!ready}>
               {L2(`새 ${T.group}`, `New ${T.group.toLowerCase()}`)}
             </Button>
           </>
         }
-        sub={
-          mode === "loading" ? (
-            <span>{L2("읽는 중…", "Loading…")}</span>
-          ) : mode === "error" ? (
-            <span>{L2("목록 없음", "No list")}</span>
-          ) : (
-            <span>
-              {L2(`${T.extension} ${extensions.length}`, `${extensions.length} extensions`)}
-              {(s.q !== "" || s.layer !== "all") &&
-                L2(` · 보이는 것 ${rows.length}`, ` · showing ${rows.length}`)}
-            </span>
-          )
-        }
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={`${WB_WIDTH} grid gap-3 pt-1 pb-6`}>
-          <div
-            role="search"
-            aria-label={L2("확장 거르기", "Filter extensions")}
-            className="flex flex-wrap items-center gap-1.5"
-          >
-            <Input
-              size="xs"
-              variant="soft"
-              prefix={<Search />}
-              placeholder={L2("이름으로 찾기", "Find by name")}
-              aria-label={L2("확장 이름으로 찾기", "Find extensions by name")}
-              value={s.q}
-              disabled={mode !== "ready"}
-              onChange={(e) => onQ(e.target.value)}
-              containerClassName="w-56"
-            />
-            <Select
-              size="xs"
-              variant="soft"
-              aria-label={T.layer}
-              value={s.layer}
-              disabled={mode !== "ready"}
-              onValueChange={onLayer}
-              className="w-28"
+        <div className={`${BODY} gap-3`}>
+          {!userOnly && (
+            <div
+              role="search"
+              aria-label={L2("확장 거르기", "Filter extensions")}
+              className="flex flex-wrap items-center gap-2"
             >
-              <SelectOption value="all">{L2(`${T.layer} 전체`, "All layers")}</SelectOption>
-              {["L0", "L1", "L2", "L3", "plugin", "X"].map((l) => (
-                <SelectOption key={l} value={l}>
-                  {l}
-                </SelectOption>
-              ))}
-            </Select>
-          </div>
+              <Input
+                size="sm"
+                variant="soft"
+                placeholder={L2("이름으로 찾기", "Find by name")}
+                aria-label={L2("확장 이름으로 찾기", "Find extensions by name")}
+                value={s.q}
+                disabled={!ready}
+                onChange={(e) => onQ(e.target.value)}
+                containerClassName="w-60"
+              />
+              <Select
+                size="sm"
+                variant="soft"
+                aria-label={T.layer}
+                value={s.layer}
+                disabled={!ready}
+                onValueChange={onLayer}
+                className="w-36"
+              >
+                <SelectOption value="all">{L2(`${T.layer} 전체`, "All layers")}</SelectOption>
+                {LAYERS.map((l) => (
+                  <SelectOption key={l} value={l}>
+                    {layerName[l]}
+                  </SelectOption>
+                ))}
+              </Select>
+            </div>
+          )}
           {mode === "error" ? (
             <Alert
               tone="danger"
               actions={[{ label: L2("다시 읽기", "Reload"), onClick: onRetry, primary: true }]}
             >
-              {L2(
-                `${T.extension} 목록을 읽지 못했어요 · ext.list 시간 초과(5초)`,
-                "Couldn't load the extension list · ext.list timed out (5s)",
-              )}
+              {L2(`${T.extension} 목록을 읽지 못했어요`, "Couldn't load the extension list")}
             </Alert>
           ) : mode === "loading" ? (
-            <ExtTable rows={[]} layout={layout} loading />
+            <ExtList rows={[]} layout={layout} loading />
           ) : userOnly ? (
             <EmptyState
-              size="sm"
+              size="md"
               surface="none"
               title={L2(
                 `직접 설치하거나 만든 ${T.extension}이 없어요`,
                 "No extensions you installed or built",
               )}
-              description={L2(
-                `내장 ${T.extension} 6개는 그대로 돌아요. ${T.group}을 만들려면 ${T.compose}에서 새 ${T.group}.`,
-                `The 6 built-in extensions still run. To build a group, use New group in the composer.`,
-              )}
               actions={
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="sm" tone="neutral" variant="solid">
                   {L2(`새 ${T.group}`, `New ${T.group.toLowerCase()}`)}
                 </Button>
               }
@@ -191,7 +195,7 @@ export function ExtListScreen({
           ) : rows.length === 0 ? (
             <NoMatch what={what} onClear={onClear} />
           ) : (
-            <ExtTable rows={rows} layout={layout} />
+            <ExtList rows={rows} layout={layout} />
           )}
         </div>
       </div>
@@ -202,7 +206,7 @@ export function ExtListScreen({
 const TABS = [
   ["overview", L2("개요", "Overview")],
   ["points", T.extensionPoint],
-  ["lease", L2(`임대와 상한`, "Lease and limits")],
+  ["lease", L2(`주도와 상한`, "Lead and limits")],
   ["settings", L2("설정", "Settings")],
   ["metrics", T.metrics],
   ["log", L2("기록", "Log")],
@@ -210,56 +214,87 @@ const TABS = [
   ["views", L2("화면", "Views")],
 ] as const;
 
+// 훅 표: 훅 이름(행 머리)과 실패 수. 시간 예산·합치는 방식(fold)과 p50·p95는 내지 않는다(디자인 언어 §6).
 const POINTS = [
-  ["input.agent.before", "collect", "10s", "12ms", "40ms", "0"],
-  ["tool.call.before", "first", "30s", "3ms", "9ms", "0"],
-  ["tool.execution.after", "tap", "5s", "1ms", "4ms", "0"],
-  ["boundary.settle.after", "tap", "5s", "20ms", "1.2s", "1"],
-  ["session.start", "tap", "5s", "8ms", "8ms", "0"],
+  ["input.agent.before", "0"],
+  ["tool.call.before", "0"],
+  ["tool.execution.after", "0"],
+  ["boundary.settle.after", "1"],
+  ["thread.start", "0"],
 ] as const;
 
+const POINT_COLS: LineGridColumn[] = [{ id: "fails", label: L2("실패", "Fails"), width: "7rem" }];
+
+/** 왼쪽 위 칸 제목. caustic corner는 footnote라 옆 머리 칸(title-3)과 맞춘다. */
+const HeadText = ({ children }: { children: ReactNode }) => (
+  <span className="text-title-3 text-text-primary">{children}</span>
+);
+
+/** 값 하나짜리 칸. 읽는 중은 같은 자리의 Skeleton, 실패가 있으면 6px 점. */
+const valueCell = (value: string, loading: boolean, warn = false): LineGridCellData => ({
+  items: [
+    {
+      id: "v",
+      label: loading ? (
+        <Skeleton className="h-4 w-10" />
+      ) : (
+        <span className="tabular-nums">{value}</span>
+      ),
+      ...(warn && !loading ? { dot: "warning" as const } : {}),
+    },
+  ],
+});
+
 function PointsTable({ loading }: { loading: boolean }) {
-  const grid =
-    "grid grid-cols-[minmax(10rem,1fr)_4.5rem_3.5rem_3.5rem_3.5rem_3rem] items-center gap-x-3";
   return (
-    <div
-      role="table"
-      aria-label={T.extensionPoint}
-      aria-busy={loading}
-      className="grid text-ui-dense"
-    >
-      <div role="row" className={`${grid} h-7 text-ui-xs text-text-tertiary`}>
-        <span>{T.extensionPoint}</span>
-        <span>fold</span>
-        <span className="text-end">{L2("예산", "Budget")}</span>
-        <span className="text-end">p50</span>
-        <span className="text-end">p95</span>
-        <span className="text-end">{L2("실패", "Fails")}</span>
-      </div>
-      {POINTS.map((r, i) => (
-        <div key={r[0]} role="row" className={`${grid} h-8`}>
-          {loading ? (
-            <>
-              <Skeleton className="h-3.5" style={{ width: `${[70, 55, 80, 62, 48][i]}%` }} />
-              <Skeleton className="h-3.5 w-12" />
-              <Skeleton className="ms-auto h-3.5 w-8" />
-              <Skeleton className="ms-auto h-3.5 w-8" />
-              <Skeleton className="ms-auto h-3.5 w-8" />
-              <Skeleton className="ms-auto h-3.5 w-4" />
-            </>
+    <LineGridFrame>
+      <LineGrid
+        label={T.extensionPoint}
+        aria-busy={loading}
+        columns={POINT_COLS}
+        rowHeadWidth="minmax(0, 1fr)"
+        corner={<HeadText>{T.extensionPoint}</HeadText>}
+        rows={POINTS.map((p, i) => ({
+          id: p[0],
+          label: loading ? (
+            <Skeleton
+              className="h-4"
+              style={{ width: `${[176, 136, 200, 152, 120][i] ?? 150}px` }}
+            />
           ) : (
-            <>
-              <span className="truncate text-text-primary">{r[0]}</span>
-              <span className="font-mono text-mono-sm text-text-tertiary">{r[1]}</span>
-              <span className="text-end tabular-nums text-text-secondary">{r[2]}</span>
-              <span className="text-end tabular-nums text-text-secondary">{r[3]}</span>
-              <span className="text-end tabular-nums text-text-secondary">{r[4]}</span>
-              <span className="text-end tabular-nums text-text-secondary">{r[5]}</span>
-            </>
-          )}
-        </div>
-      ))}
-    </div>
+            p[0]
+          ),
+        }))}
+        cell={(r) => {
+          const p = POINTS.find((x) => x[0] === r) ?? POINTS[0];
+          return valueCell(p[1], loading, p[1] !== "0");
+        }}
+      />
+    </LineGridFrame>
+  );
+}
+
+/** 측정 요약: 값이 주인공인 칸 셋. */
+function MetricBlock({
+  tokens,
+  cost,
+  fails,
+  loading = false,
+}: {
+  tokens: string;
+  cost: string;
+  fails: string;
+  loading?: boolean;
+}) {
+  const v = (x: string) => (loading ? <Skeleton className="h-7 w-16" /> : x);
+  return (
+    <LineGridFrame>
+      <LineGridBlock columns={3} aria-busy={loading}>
+        <LineGridMetric value={v(tokens)} metricLabel={L2("토큰", "Tokens")} />
+        <LineGridMetric value={v(cost)} metricLabel={L2("비용", "Cost")} />
+        <LineGridMetric value={v(fails)} metricLabel={L2("실패", "Fails")} />
+      </LineGridBlock>
+    </LineGridFrame>
   );
 }
 
@@ -268,49 +303,83 @@ function TabBody({ tab, mode }: { tab: string; mode: TabMode }) {
   if (mode === "error")
     return (
       <Alert tone="danger" actions={[{ label: L2("다시 읽기", "Reload"), primary: true }]}>
-        {L2(
-          "이 탭을 읽지 못했어요 · ext.get 거부(권한 없음)",
-          "Couldn't load this tab · ext.get refused (no permission)",
-        )}
+        {L2("이 탭을 읽지 못했어요", "Couldn't load this tab")}
       </Alert>
     );
   if (mode === "empty") {
     const text: Record<string, string> = {
       views: L2(`이 ${T.extension}이 기여한 화면이 없어요`, "This extension contributes no views"),
-      log: L2(
-        "최근 기록이 없어요 · 실패나 켜짐 바뀜이 생기면 여기 쌓여요",
-        "No recent log · failures and on/off changes land here",
-      ),
+      log: L2("최근 기록이 없어요", "No recent log"),
       versions: L2("보관한 이전 버전이 없어요", "No earlier versions kept"),
       lease: L2(
-        `${T.lead}을 쓰지 않는 ${T.extension}이에요`,
+        `${T.lead}를 쓰지 않는 ${T.extension}이에요`,
         "This extension doesn't use the drive lease",
       ),
-      points: L2(`연결한 ${T.extensionPoint}이 없어요`, "No extension points connected"),
+      points: L2(`연결한 ${T.extensionPoint}이 없어요`, "No hooks connected"),
     };
     return (
       <EmptyState size="sm" surface="none" title={text[tab] ?? L2("자료가 없어요", "No data")} />
     );
   }
   if (tab === "points") return <PointsTable loading={mode === "loading"} />;
+  if (tab === "settings" && mode !== "loading")
+    return (
+      <ListDescription variant="ghost" size="sm" aria-label={L2("설정", "Settings")}>
+        <ListDescriptionRow term={L2(`${T.lens} 최대`, "Most lenses")}>
+          {L2("4개", "4")}
+        </ListDescriptionRow>
+      </ListDescription>
+    );
+  if (tab === "lease" && mode !== "loading")
+    return (
+      <ListDescription variant="ghost" size="sm" aria-label={L2("주도와 상한", "Lead and limits")}>
+        <ListDescriptionRow term={T.lead}>{L2("쓰고 있어요", "In use")}</ListDescriptionRow>
+        <ListDescriptionRow term={L2(`${T.lens} 상한`, "Lens limit")}>
+          {L2("4개", "4")}
+        </ListDescriptionRow>
+      </ListDescription>
+    );
+  if (tab === "versions" && mode !== "loading")
+    return (
+      <List size="xs" aria-label={T.version}>
+        <ListRow
+          title="0.1.0"
+          end={<span className="text-ui-xs text-text-tertiary">{L2("지금", "Current")}</span>}
+        />
+        <ListRow title="0.0.9" />
+      </List>
+    );
+  if (tab === "views" && mode !== "loading")
+    return (
+      <List size="xs" aria-label={L2("화면", "Views")}>
+        <ListRow
+          title={L2("Helm 탐구", "Helm inquiry")}
+          end={<span className="text-ui-xs text-text-tertiary">{T.slotPage}</span>}
+        />
+      </List>
+    );
+  if (tab === "metrics")
+    return <MetricBlock tokens="1.2M" cost="$3.10" fails="1" loading={mode === "loading"} />;
   if (tab === "log")
     return mode === "loading" ? (
-      <div className="grid gap-2">
+      <div className="grid gap-3">
         {[80, 64, 72].map((w) => (
-          <Skeleton key={w} className="h-4" style={{ width: `${w}%` }} />
+          <Skeleton key={w} className="h-5" style={{ width: `${w}%` }} />
         ))}
       </div>
     ) : (
-      <p className="m-0 text-ui-sm text-text-secondary">
-        scope.handler_failed · boundary.settle.after · 14:03
-      </p>
+      <List size="xs" aria-label={L2("기록", "Log")}>
+        <ListRow
+          title={L2(
+            "단계 마무리에서 핸들러가 실패했어요",
+            "A handler failed while the step was settling",
+          )}
+          end={<span className="text-ui-xs text-text-tertiary">14:03</span>}
+        />
+      </List>
     );
   return (
-    <ListDescription
-      variant="ghost"
-      size="xs"
-      className="rounded-none [&_[data-slot=list-description-row]]:px-0"
-    >
+    <ListDescription variant="ghost" size="sm">
       <ListDescriptionRow term={L2("설명", "Description")}>
         {mode === "loading" ? (
           <Skeleton className="h-4 w-60" />
@@ -318,8 +387,14 @@ function TabBody({ tab, mode }: { tab: string; mode: TabMode }) {
           L2("렌즈 여러 개로 원인을 넓게 찾는 그룹", "Finds causes widely with several lenses")
         )}
       </ListDescriptionRow>
-      <ListDescriptionRow term={L2("설치 위치", "Location")} mono>
-        {mode === "loading" ? <Skeleton className="h-4 w-48" /> : "~/.fresnel/extensions/helm"}
+      <ListDescriptionRow term={T.layer}>
+        {mode === "loading" ? <Skeleton className="h-4 w-24" /> : T.layerL3}
+      </ListDescriptionRow>
+      <ListDescriptionRow term={T.trust}>
+        {mode === "loading" ? <Skeleton className="h-4 w-24" /> : T.trustUser}
+      </ListDescriptionRow>
+      <ListDescriptionRow term={T.version}>
+        {mode === "loading" ? <Skeleton className="h-4 w-12" /> : "0.1.0"}
       </ListDescriptionRow>
     </ListDescription>
   );
@@ -338,32 +413,29 @@ export function DetailScreen({
   return (
     <>
       <WorkbenchHead
+        className={HEAD}
         title={extName("helm")}
-        meta={`helm · L3 · ${T.group} · ${T.trustUser} · 0.1.0`}
         actions={
           <>
             <Button
-              size="xs"
+              size="sm"
               tone="neutral"
               variant="outline"
               disabled={offline || mode === "loading"}
             >
               {L2("끄기", "Turn off")}
             </Button>
-            <IconButton size="xs" variant="ghost" label={L2("더 보기", "More")}>
+            <IconButton size="sm" variant="ghost" label={L2("더 보기", "More")}>
               <Ellipsis />
             </IconButton>
           </>
         }
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={`${WB_WIDTH} grid gap-3 pt-1 pb-6`}>
+        <div className={`${BODY} gap-6`}>
           {offline && (
-            <Alert tone="warning" layout="inline">
-              {L2(
-                "엔진에 연결되면 바꿀 수 있어요 · 마지막 값 14:03",
-                "You can change this once the engine is connected · last values 14:03",
-              )}
+            <Alert tone="warning">
+              {L2("오프라인이라 바꿀 수 없어요", "Offline: changes are paused")}
             </Alert>
           )}
           <Tabs value={s.tab} onValueChange={onTab} size="sm" variant="underline">
@@ -382,163 +454,129 @@ export function DetailScreen({
   );
 }
 
-const METRIC_ROWS = [
-  ["helm", "1.2M", "$3.10", "41m", "1", "12"],
-  ["learning", "300k", "$0.40", "—", "0", "0"],
-  ["review", "80k", "$0.20", "6m", "7", "3"],
-  ["web-exa", "42k", "$0.08", "—", "0", "0"],
-  ["acme-notes", "12k", "$0.02", "—", "2", "0"],
-] as const;
+/** 확장 · 토큰 · 비용 · 실패. 요약 칸은 이 값을 더해 그린다. */
+type MetricRow = readonly [name: string, tokens: number, cost: number, fails: number];
+const METRIC_ROWS: readonly MetricRow[] = [
+  ["helm", 1_200_000, 3.1, 1],
+  ["learning", 300_000, 0.4, 0],
+  ["review", 80_000, 0.2, 7],
+  ["web-exa", 42_000, 0.08, 0],
+  ["acme-notes", 12_000, 0.02, 2],
+];
 
-export function MetricsScreen({ mode, layout }: { mode: MetricsMode; layout: Layout }) {
+const fmtTokens = (n: number): string =>
+  n >= 1_000_000 ? `${Number((n / 1_000_000).toFixed(2))}M` : `${Math.round(n / 1000)}k`;
+const fmtCost = (n: number): string => `$${n.toFixed(2)}`;
+
+const METRIC_COLS: LineGridColumn[] = [
+  { id: "tokens", label: L2("토큰", "Tokens"), width: "8rem" },
+  { id: "cost", label: L2("비용", "Cost"), width: "8rem" },
+  { id: "fails", label: L2("실패", "Fails"), width: "6rem" },
+];
+
+export function MetricsScreen({ mode }: { mode: MetricsMode }) {
   const many = mode === "many";
-  const rows = many
-    ? Array.from({ length: 64 }, (_, i) => {
-        const base = METRIC_ROWS[i % METRIC_ROWS.length] ?? METRIC_ROWS[0];
-        return i < METRIC_ROWS.length
-          ? base
-          : ([
-              `ext-${String(i).padStart(2, "0")}`,
-              `${(i * 7) % 90}k`,
-              `$0.${String((i * 3) % 90).padStart(2, "0")}`,
-              "—",
-              `${i % 4 === 0 ? 1 : 0}`,
-              "0",
-            ] as const);
+  const rows: readonly MetricRow[] = many
+    ? Array.from({ length: 50 }, (_, i): MetricRow => {
+        const base = METRIC_ROWS[i];
+        return (
+          base ?? [
+            `ext-${String(i).padStart(2, "0")}`,
+            ((i * 7) % 90) * 1000,
+            ((i * 3) % 90) / 100,
+            i % 4 === 0 ? 1 : 0,
+          ]
+        );
       })
     : METRIC_ROWS;
-  const compact = layout === "compact";
-  const grid = compact
-    ? "grid grid-cols-[minmax(0,1fr)_4rem_4rem_3rem] items-center gap-x-3"
-    : "grid grid-cols-[minmax(9rem,1fr)_5rem_5rem_5rem_3.5rem_3.5rem] items-center gap-x-3";
+  const loading = mode === "loading";
+  const sum = (f: (r: MetricRow) => number) => rows.reduce((a, r) => a + f(r), 0);
   return (
     <>
       <WorkbenchHead
-        title={L2("측정과 평가", "Measurements and evaluation")}
+        className={HEAD}
+        title={L2("성능 측정과 평가", "Benchmark and evaluation")}
         actions={
-          <SegmentedControl aria-label={L2("기간", "Period")} size="xs" defaultValue="7">
+          <SegmentedControl aria-label={L2("기간", "Period")} size="sm" defaultValue="7">
             <SegmentedControlItem value="1">{L2("1일", "1d")}</SegmentedControlItem>
             <SegmentedControlItem value="7">{L2("7일", "7d")}</SegmentedControlItem>
             <SegmentedControlItem value="30">{L2("30일", "30d")}</SegmentedControlItem>
           </SegmentedControl>
         }
-        sub={
-          many ? (
-            <span>
-              {L2(
-                `${T.extension} 64 · 위 50개만 그리고 스크롤하면 이어서`,
-                "64 extensions · first 50 drawn, more on scroll",
-              )}
-            </span>
-          ) : mode === "loading" ? (
-            <span>{L2("읽는 중…", "Loading…")}</span>
-          ) : undefined
-        }
       />
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={`${WB_WIDTH} grid gap-3 pt-1 pb-6`}>
+      <div className="-mt-2 min-h-0 flex-1 overflow-y-auto pt-2">
+        <div className={`${BODY} gap-8`}>
           {mode === "off" ? (
-            <Alert
-              tone="neutral"
-              actions={[{ label: L2("계측 켜기", "Turn on instrumentation"), primary: true }]}
-            >
-              {L2(
-                `${T.instrumentation}이 꺼져 있어 기록이 없어요 · l3.group-kit.instrumentation`,
-                "Instrumentation is off, so there's nothing recorded · l3.group-kit.instrumentation",
-              )}
-            </Alert>
+            <EmptyState
+              size="md"
+              surface="none"
+              title={L2(`${T.instrumentation}이 꺼져 있어요`, "Instrumentation is off")}
+              actions={
+                <Button size="sm" tone="neutral" variant="outline">
+                  {L2(`${T.instrumentation} 켜기`, "Turn on instrumentation")}
+                </Button>
+              }
+            />
           ) : mode === "empty" ? (
             <EmptyState
-              size="sm"
+              size="md"
               surface="none"
               title={L2("이 기간에 기록이 없어요", "Nothing recorded in this period")}
-              description={L2(
-                `대화에서 ${T.group}이 돌면 쌓여요. 기간을 30일로 넓혀 볼 수 있어요.`,
-                "Records appear once groups run in conversations. Try 30 days.",
-              )}
+              actions={
+                <Button size="sm" tone="neutral" variant="outline">
+                  {L2("30일로 넓히기", "Widen to 30 days")}
+                </Button>
+              }
             />
           ) : (
             <>
-              {many && (
-                <Input
-                  size="xs"
-                  variant="soft"
-                  prefix={<Search />}
-                  placeholder={L2("확장 찾기", "Find an extension")}
-                  aria-label={L2("확장 찾기", "Find an extension")}
-                  containerClassName="w-56"
-                />
-              )}
-              <div
-                role="table"
-                aria-label={T.metrics}
-                aria-rowcount={rows.length + 1}
-                aria-busy={mode === "loading"}
-                className="grid text-ui-dense"
-              >
-                <div
-                  role="row"
-                  className={`${grid} sticky top-0 z-[1] h-7 bg-bg-app text-ui-xs text-text-tertiary`}
-                >
-                  <span>{T.extension}</span>
-                  <span className="text-end">{L2("토큰", "Tokens")}</span>
-                  <span className="text-end">{L2("비용", "Cost")}</span>
-                  {!compact && <span className="text-end">{L2("임대 시간", "Lease time")}</span>}
-                  {!compact && <span className="text-end">{L2("실패", "Fails")}</span>}
-                  <span className="text-end">{L2("거부", "Denies")}</span>
-                </div>
-                {(mode === "loading" ? METRIC_ROWS : rows.slice(0, 50)).map((r, i) => (
-                  <div
-                    key={`${r[0]}-${i}`}
-                    role="row"
-                    aria-rowindex={i + 2}
-                    className={`${grid} h-8`}
-                  >
-                    {mode === "loading" ? (
-                      <>
-                        <Skeleton
-                          className="h-3.5"
-                          style={{ width: `${[60, 45, 70, 50, 40][i]}%` }}
-                        />
-                        <Skeleton className="ms-auto h-3.5 w-10" />
-                        <Skeleton className="ms-auto h-3.5 w-10" />
-                        {!compact && <Skeleton className="ms-auto h-3.5 w-8" />}
-                        {!compact && <Skeleton className="ms-auto h-3.5 w-4" />}
-                        <Skeleton className="ms-auto h-3.5 w-4" />
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex min-w-0 items-baseline gap-1.5">
-                          <span className="truncate font-medium text-text-primary">
-                            {extName(r[0])}
-                          </span>
-                          {extName(r[0]) !== r[0] && (
-                            <span className="truncate font-mono text-mono-sm text-text-tertiary">
-                              {r[0]}
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-end tabular-nums text-text-secondary">{r[1]}</span>
-                        <span className="text-end tabular-nums text-text-secondary">{r[2]}</span>
-                        {!compact && (
-                          <span className="text-end tabular-nums text-text-secondary">{r[3]}</span>
-                        )}
-                        {!compact && (
-                          <span className="text-end tabular-nums text-text-secondary">{r[4]}</span>
-                        )}
-                        <span className="text-end tabular-nums text-text-secondary">{r[5]}</span>
-                      </>
-                    )}
-                  </div>
-                ))}
+              <MetricBlock
+                tokens={fmtTokens(sum((r) => r[1]))}
+                cost={fmtCost(sum((r) => r[2]))}
+                fails={String(sum((r) => r[3]))}
+                loading={loading}
+              />
+              <div data-bleed="" className={`${GRID_BODY} gap-3`}>
                 {many && (
-                  <div role="row" className="grid h-8 items-center">
-                    <span className="flex items-center gap-2 text-ui-xs text-text-tertiary">
-                      <Progress value={78} size="xs" decorative className="w-12" />
-                      {L2("14개 더 읽는 중…", "Loading 14 more…")}
-                    </span>
+                  <div>
+                    <Input
+                      size="sm"
+                      variant="soft"
+                      placeholder={L2("확장 찾기", "Find an extension")}
+                      aria-label={L2("확장 찾기", "Find an extension")}
+                      containerClassName="w-60"
+                    />
                   </div>
                 )}
+                <LineGridFrame>
+                  <LineGrid
+                    label={T.metrics}
+                    aria-busy={loading}
+                    columns={METRIC_COLS}
+                    rowHeadWidth="minmax(0, 1fr)"
+                    corner={<HeadText>{T.extension}</HeadText>}
+                    rows={rows.map((r, i) => ({
+                      id: r[0],
+                      label: loading ? (
+                        <Skeleton
+                          className="h-4"
+                          style={{ width: `${[150, 112, 176, 124, 100][i] ?? 124}px` }}
+                        />
+                      ) : (
+                        extName(r[0])
+                      ),
+                    }))}
+                    cell={(rowId, c) => {
+                      const r = rows.find((x) => x[0] === rowId) ?? METRIC_ROWS[0];
+                      if (r === undefined) return null;
+                      return c === "tokens"
+                        ? valueCell(fmtTokens(r[1]), loading)
+                        : c === "cost"
+                          ? valueCell(fmtCost(r[2]), loading)
+                          : valueCell(String(r[3]), loading, r[3] > 0);
+                    }}
+                  />
+                </LineGridFrame>
               </div>
             </>
           )}
@@ -551,48 +589,47 @@ export function MetricsScreen({ mode, layout }: { mode: MetricsMode; layout: Lay
 /** P-06 제안 거르기 결과 없음(N-48). 대화 영역 화면. */
 export function ProposalsFilterEmpty({ onClear }: { onClear: () => void }) {
   return (
-    <div className="mx-auto grid w-full max-w-[46rem] content-start gap-3 px-3">
-      <header className="flex h-10 items-center gap-2">
-        <h1 className="m-0 flex-1 text-ui-strong text-text-primary">{T.proposals}</h1>
-      </header>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Input
-          size="xs"
-          variant="soft"
-          prefix={<Search />}
-          aria-label={L2("제안 찾기", "Find proposals")}
-          value="rollback"
-          readOnly
-          containerClassName="w-56"
+    <div className="mx-auto grid w-full max-w-[46rem] content-start px-3 pb-8">
+      <StageHead title={T.proposals} />
+      <div className="grid gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            size="sm"
+            variant="soft"
+            aria-label={L2("제안 찾기", "Find proposals")}
+            value="rollback"
+            readOnly
+            containerClassName="w-60"
+          />
+          <Select
+            size="sm"
+            variant="soft"
+            aria-label={L2("종류", "Kind")}
+            value="skill"
+            className="w-36"
+          >
+            <SelectOption value="skill">{L2("스킬 생성", "Skill")}</SelectOption>
+          </Select>
+          <Select
+            size="sm"
+            variant="soft"
+            aria-label={L2("상태", "Status")}
+            value="open"
+            className="w-32"
+          >
+            <SelectOption value="open">{L2("대기", "Open")}</SelectOption>
+          </Select>
+        </div>
+        <NoMatch
+          what={`"rollback"`}
+          onClear={onClear}
+          extra={
+            <Button size="sm" tone="neutral" variant="ghost">
+              {L2("지난 제안까지 찾기", "Include past proposals")}
+            </Button>
+          }
         />
-        <Select
-          size="xs"
-          variant="soft"
-          aria-label={L2("종류", "Kind")}
-          value="skill"
-          className="w-32"
-        >
-          <SelectOption value="skill">{L2("스킬 생성", "Skill")}</SelectOption>
-        </Select>
-        <Select
-          size="xs"
-          variant="soft"
-          aria-label={L2("상태", "Status")}
-          value="open"
-          className="w-28"
-        >
-          <SelectOption value="open">{L2("대기", "Open")}</SelectOption>
-        </Select>
       </div>
-      <NoMatch
-        what={`"rollback" · ${L2("스킬 생성", "Skill")} · ${L2("대기", "Open")}`}
-        onClear={onClear}
-        extra={
-          <Button size="xs" tone="neutral" variant="ghost">
-            {L2("지난 제안까지 찾기", "Include past proposals")}
-          </Button>
-        }
-      />
     </div>
   );
 }

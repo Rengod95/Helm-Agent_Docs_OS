@@ -1,6 +1,6 @@
 // P-06 제안. 무대 안 두 열: 왼쪽 목록(listbox) · 오른쪽 상세(region). 둘 다 투명 면 위에 있고 간격으로만 나눈다(DP-01·03).
-// 상세: 제목(종류·대상·rev) → 경고(untrusted·충돌) → ListDescription 한 목록(낸 쪽, 이유, 근거, 범위) → 읽기 전용 CodeDiff → 결정 줄.
-// 낸 쪽은 L3 그룹(learning)이나 L2 능력(knowledge)이고, knowledge 제안이면 근거가 된 Helm 발견도 보인다.
+// 상세: 제목(종류·대상) → 경고(untrusted·충돌) → ListDescription 한 목록(낸 쪽, 이유, 근거, 범위) → 읽기 전용 CodeDiff → 결정 줄.
+// 낸 쪽은 L3 그룹(learning)이나 L2 기능(knowledge)이고, knowledge 제안이면 근거가 된 Helm 발견도 보인다.
 import {
   Alert,
   Badge,
@@ -23,13 +23,13 @@ import {
 } from "@caustic/react";
 import { useLayoutEffect, useState } from "react";
 import {
+  BAR_INSET,
   ChevronLeft,
   defaultStatusCells,
   PanelLeft,
   Shell,
   Sparkles,
   standardRightTabs,
-  TriangleAlert,
   useShell,
   type StatusCell,
 } from "../_shell";
@@ -41,6 +41,9 @@ const LIST_DESC =
   "rounded-none [--cs-size-list-term:6rem] [&_[data-slot=list-description-row]]:px-0";
 
 function Row({ p, selected, onSelect }: { p: Proposal; selected: boolean; onSelect: () => void }) {
+  // 둘째 줄은 상태 말만 둔다. 대기 중인 것은 겹치는 스킬이 있을 때만 "충돌"을 단다.
+  const note =
+    p.status !== "pending" ? STATUS_WORD[p.status] : p.conflictsWith !== undefined ? "충돌" : null;
   return (
     <li role="option" aria-selected={selected}>
       <button
@@ -53,12 +56,6 @@ function Row({ p, selected, onSelect }: { p: Proposal; selected: boolean; onSele
             : "hover:bg-fill-hover",
         ].join(" ")}
       >
-        <span
-          aria-hidden
-          className={`mt-px inline-flex shrink-0 [&_svg]:size-icon-sm ${p.conflictsWith !== undefined ? "text-warning-graphic" : "text-text-tertiary"}`}
-        >
-          {p.conflictsWith !== undefined ? <TriangleAlert /> : <Sparkles emphasis="muted" />}
-        </span>
         <span className="grid min-w-0 flex-1 gap-0.5">
           <span className="flex min-w-0 items-baseline gap-2">
             <span className="shrink-0 text-ui-sm text-text-secondary">{p.kind}</span>
@@ -66,16 +63,13 @@ function Row({ p, selected, onSelect }: { p: Proposal; selected: boolean; onSele
               {p.target}
             </span>
           </span>
-          <span className="flex min-w-0 gap-2.5 truncate text-ui-xs text-text-tertiary">
-            <span className="truncate">{p.source.name}</span>
-            {p.status !== "pending" ? (
-              <span>{STATUS_WORD[p.status]}</span>
-            ) : p.conflictsWith !== undefined ? (
-              <span className="text-warning-text">충돌 1</span>
-            ) : (
-              <span>근거 {p.evidence}</span>
-            )}
-          </span>
+          {note !== null && (
+            <span
+              className={`min-w-0 truncate text-ui-xs ${p.conflictsWith !== undefined && p.status === "pending" ? "text-warning-text" : "text-text-tertiary"}`}
+            >
+              {note}
+            </span>
+          )}
         </span>
         <span className="shrink-0 whitespace-nowrap text-ui-xs tabular-nums text-text-tertiary">
           {p.at}
@@ -110,7 +104,6 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
     .filter((p) => kind === "all" || p.kind === kind)
     .filter((p) => source === "all" || p.source.id === source)
     .filter((p) => !failed || p.source.id === "grp:learning");
-  const pendingCount = proposals.filter((p) => p.status === "pending").length;
   const p = rows.find((r) => r.id === selectedId) ?? rows[0];
   const compact = shell.layout === "compact";
   const listVisible = !compact || showList;
@@ -130,9 +123,6 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
     <div className="flex min-h-11 flex-none flex-wrap items-center gap-1.5 py-1">
       {mode === "edit" ? (
         <>
-          <span className="text-ui-sm text-text-tertiary">
-            저장하면 rev {p.revision + 1}이 되고 다시 검사해요
-          </span>
           <span aria-hidden className="flex-1" />
           <Button size="sm" tone="neutral" variant="ghost" onClick={() => setMode("view")}>
             취소
@@ -159,15 +149,12 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
         </>
       ) : p.status === "applied" ? (
         <>
-          <span className="text-ui-sm text-text-tertiary">적용됨 · 3일 전</span>
           <span aria-hidden className="flex-1" />
           <Button size="sm" tone="danger" variant="ghost" disabled={offline}>
             되돌리기
           </Button>
         </>
-      ) : p.status === "rejected" ? (
-        <span className="text-ui-sm text-text-tertiary">거절함 · 5일 전</span>
-      ) : (
+      ) : p.status === "rejected" ? null : (
         <>
           <Button
             size="sm"
@@ -189,9 +176,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
             수정
           </Button>
           <Button size="sm" tone="neutral" variant="solid" disabled={offline}>
-            {p.scopeChoice === true
-              ? `승인 · ${scope === "user" ? "사용자" : "프로젝트"} 범위`
-              : "승인"}
+            승인
           </Button>
         </>
       )}
@@ -212,7 +197,9 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
         link,
       })}
     >
-      <header className="flex min-h-10 flex-none flex-wrap items-center gap-x-2 gap-y-1 px-1.5 py-1">
+      <header
+        className={`flex min-h-10 flex-none flex-wrap items-center gap-x-2 gap-y-1 px-1.5 py-1 ${BAR_INSET}`}
+      >
         {!shell.startOpen && (
           <IconButton
             size="sm"
@@ -226,9 +213,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
         )}
         <h1 className="m-0 me-1 font-ui text-ui-strong text-text-primary">제안</h1>
         <SegmentedControl size="xs" aria-label="상태" value={filter} onValueChange={setFilter}>
-          <SegmentedControlItem value="pending" count={empty ? undefined : pendingCount}>
-            대기
-          </SegmentedControlItem>
+          <SegmentedControlItem value="pending">대기</SegmentedControlItem>
           <SegmentedControlItem value="applied">적용됨</SegmentedControlItem>
           <SegmentedControlItem value="all">모두</SegmentedControlItem>
         </SegmentedControl>
@@ -249,18 +234,13 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
         >
           <SelectOption value="all">모든 출처</SelectOption>
           <SelectOption value="grp:learning">learning 그룹</SelectOption>
-          <SelectOption value="L2 knowledge">knowledge 능력</SelectOption>
+          <SelectOption value="L2 knowledge">knowledge 기능</SelectOption>
         </Select>
       </header>
 
       {empty ? (
         <div className="grid min-h-0 flex-1 place-items-center">
-          <EmptyState
-            icon={<Sparkles />}
-            surface="none"
-            title="대기 중인 제안이 없어요"
-            description="learning 그룹이 검토를 마치면 후보가 여기에 와요."
-          />
+          <EmptyState icon={<Sparkles />} surface="none" title="대기 중인 제안이 없어요" />
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-4">
@@ -268,7 +248,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
             <div
               className={`flex min-h-0 flex-col gap-1.5 ${compact ? "flex-1" : "w-80 flex-none"}`}
             >
-              {failed && <Alert tone="warning">knowledge 능력의 제안을 읽지 못했어요</Alert>}
+              {failed && <Alert tone="warning">일부 제안을 읽지 못했어요</Alert>}
               <ScrollArea label="제안 목록" className="min-h-0 flex-1">
                 {loading ? (
                   <div className="grid gap-4 px-2.5 py-2">
@@ -336,9 +316,6 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                         {p.target}
                       </span>
                     </h2>
-                    <span className="text-ui-sm tabular-nums text-text-tertiary">
-                      rev {p.revision}
-                    </span>
                     {p.status !== "pending" && (
                       <Badge size="xs" tone={p.status === "applied" ? "success" : "neutral"}>
                         {STATUS_WORD[p.status]}
@@ -348,15 +325,11 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                   <ScrollArea label="제안 내용" className="min-h-0 flex-1">
                     <div className="grid gap-3 pt-1 pb-2">
                       {failed && (
-                        <Alert tone="danger">
-                          다른 곳에서 바뀌었어요. 목록을 다시 읽었어요(revision_mismatch).
-                        </Alert>
+                        <Alert tone="danger">다른 곳에서 바뀌었어요. 목록을 다시 읽었어요.</Alert>
                       )}
                       {offline && <Alert tone="warning">엔진에 연결되면 결정할 수 있어요</Alert>}
                       {p.afterUntrusted === true && (
-                        <Alert tone="warning">
-                          웹 결과를 읽은 뒤 만든 후보예요. 내용을 확인하고 승인해 주세요.
-                        </Alert>
+                        <Alert tone="warning">웹 결과를 읽은 뒤 만든 후보예요.</Alert>
                       )}
                       {p.conflictsWith !== undefined && (
                         <Alert tone="warning">
@@ -373,9 +346,6 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                         <ListDescriptionRow term="낸 쪽">
                           <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                             {p.source.name}
-                            <span className="font-mono text-mono-sm text-text-tertiary">
-                              {p.source.id}
-                            </span>
                             {p.source.via !== undefined && (
                               <span className="text-text-secondary">· {p.source.via}에서</span>
                             )}
@@ -384,7 +354,6 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                         <ListDescriptionRow term="이유">{p.rationale}</ListDescriptionRow>
                         <ListDescriptionRow term="근거">
                           <span className="flex items-center gap-2">
-                            이벤트 {p.evidence}개
                             <Button size="xs" tone="neutral" variant="ghost">
                               대화에서 보기
                             </Button>
@@ -401,7 +370,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                               disabled={offline}
                             >
                               <RadioGroupItem value="user">사용자</RadioGroupItem>
-                              <RadioGroupItem value="project">프로젝트(~/code/xeon)</RadioGroupItem>
+                              <RadioGroupItem value="project">프로젝트</RadioGroupItem>
                             </RadioGroup>
                           </ListDescriptionRow>
                         )}
@@ -438,7 +407,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                           rows={2}
                           autoFocus
                           aria-label="거절 메모"
-                          placeholder="거절 이유(선택, 500자). learning 그룹이 다음 검토에 참고해요."
+                          placeholder="거절 이유(선택, 500자)"
                         />
                       )}
                     </div>
