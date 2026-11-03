@@ -123,3 +123,32 @@ test("an unknown hash, a malformed hash, an offset past the end and an unrelated
   });
   expect(textOf(refused.result)).toContain("output_not_found");
 });
+
+test("read_tool_output_reads_byte_ranges_of_one_long_line", async () => {
+  const h = await createHarness({ layers: [ALLOW_BASH] });
+  const probe = registerWorkspace(h);
+  const full = `${"가".repeat(30_000)}\nend`;
+  probe.setShellOutput(full);
+  const first = await callTool(h.runtime.tools, h.run(), {
+    id: "long_1",
+    name: "bash",
+    args: { command: "cat long" },
+  });
+  expect(textOf(first.result)).toContain("가가가");
+  const stored = parse(
+    EffectResultSchema,
+    h.session.events.find((event) => event.kind === "effect.result")?.payload,
+  );
+  const sha = stored.ok ? (stored.value.blobRef?.sha256 ?? "") : "";
+  const page = await callTool(h.runtime.tools, h.run(), {
+    id: "long_2",
+    name: "read_tool_output",
+    args: { sha256: sha, offset: 1, byteOffset: 1000, byteLimit: 300 },
+  });
+  const lines = textOf(page.result).split("\n");
+  // 1000은 글자 중간(1000 % 3 = 1)이라 1002로 맞추고, 끝 1300은 글자 경계(1300 % 3 = 1)라 1299로 물린다
+  expect(lines[0]).toBe(
+    `[fresnel:output_page] Line 1 bytes 1002-1299 of 90000 of blob sha256:${sha}. Use byteOffset 1299 to continue.`,
+  );
+  expect(lines[1]).toBe("가".repeat(99));
+});

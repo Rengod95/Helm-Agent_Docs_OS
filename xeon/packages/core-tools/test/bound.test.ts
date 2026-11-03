@@ -260,3 +260,19 @@ test("a text over 50 MiB keeps only the head and tail in the blob", () => {
   expect(text.startsWith("aaa")).toBe(true);
   expect(text.endsWith("bbb")).toBe(true);
 });
+
+test("a first line longer than maxBytes still shows its head as the preview, cut on a character boundary", () => {
+  const store = fakeStore();
+  const line = "가".repeat(1000);
+  const bounded = boundResult(
+    { truncator: fakeTruncator(), store },
+    { content: [{ type: "text", text: `${line}\nsecond` }], details: null },
+    { maxLines: 100, maxBytes: 100 },
+  );
+  expect(bounded.bounded.truncated).toBe(true);
+  const [preview, notice] = bounded.bounded.content;
+  expect(preview).toEqual({ type: "text", text: "가".repeat(33) });
+  expect(notice).toMatchObject({ type: "text" });
+  expect(JSON.stringify(notice)).toContain("Showing the first 1 of 2 lines (99B of");
+  expect(bounded.bounded.blobRef).not.toBeNull();
+});

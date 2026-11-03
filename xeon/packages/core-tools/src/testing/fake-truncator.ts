@@ -26,6 +26,22 @@ export function fakeTruncator(): OutputTruncator {
           maxBytes,
         };
       }
+      // 실제 truncateHead와 같다: 첫 줄만으로 바이트 한도를 넘으면 내용이 비고 표지만 선다
+      if (utf8Bytes(lines[0] ?? "").length > maxBytes) {
+        return {
+          content: "",
+          truncated: true,
+          truncatedBy: "bytes",
+          totalLines: lines.length,
+          totalBytes,
+          outputLines: 0,
+          outputBytes: 0,
+          lastLinePartial: false,
+          firstLineExceedsLimit: true,
+          maxLines,
+          maxBytes,
+        };
+      }
       const kept: string[] = [];
       let bytes = 0;
       let by: "lines" | "bytes" = lines.length > maxLines ? "lines" : "bytes";
