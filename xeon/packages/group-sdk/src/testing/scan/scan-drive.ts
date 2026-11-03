@@ -100,18 +100,20 @@ function isNode(value: unknown): value is Node {
   );
 }
 
+/**
+ * 값 안의 노드들. 배열 원소와, swc가 호출 인자·배열 원소·객체 확산을 감싸는 래퍼 객체(`{ spread, expression }`) 안의 노드도 찾는다.
+ * 노드는 하위를 더 들어가지 않는다(`visit`가 노드마다 다시 부른다)
+ */
 function nodesOf(value: unknown): readonly Node[] {
   if (Array.isArray(value)) return value.flatMap((member) => nodesOf(member));
-  return isNode(value) ? [value] : [];
+  if (isNode(value)) return [value];
+  if (typeof value === "object" && value !== null) return nodesOf(Object.values(value));
+  return [];
 }
 
 /** 노드의 직접 자식 노드들. 배열과 래퍼 객체(`{ spread, expression }`) 안의 노드도 포함한다 */
 function childrenOf(node: Node): readonly Node[] {
-  return Object.values(node).flatMap((value) => {
-    if (isNode(value) || Array.isArray(value)) return nodesOf(value);
-    if (typeof value === "object" && value !== null) return nodesOf(Object.values(value));
-    return [];
-  });
+  return Object.values(node).flatMap((value) => nodesOf(value));
 }
 
 function visit(node: Node, enter: (node: Node, parent: Node | undefined) => void): void {
@@ -195,7 +197,7 @@ function functionsByName(module: Node): ReadonlyMap<string, Node> {
   return found;
 }
 
-/** `<식>.drive(첫 인자)`의 첫 인자가 함수 식이면 그 노드, 같은 파일의 함수 이름이면 선언 본문 */
+/** `<식>.drive(첫 인자)`의 첫 인자가 함수 식이면 그 노드, 같은 파일의 함수 이름이나 그 함수의 호출이면 선언 본문 */
 function driveTargets(module: Node, functions: ReadonlyMap<string, Node>): readonly Node[] {
   const targets: Node[] = [];
   visit(module, (node) => {
@@ -205,11 +207,13 @@ function driveTargets(module: Node, functions: ReadonlyMap<string, Node>): reado
       callee?.type === "MemberExpression" ? nodeField(callee, "property") : undefined;
     if (property === undefined || identifierName(property) !== "drive") return;
     const argument = argumentsOf(node).at(0);
+    // `g.drive(factory(...))`: 같은 파일의 팩토리 함수가 돌려주는 drive 함수도 대상이다. 팩토리 본문(중첩 함수 포함)을 본다
+    const called = argument?.type === "CallExpression" ? nodeField(argument, "callee") : undefined;
     if (isFunction(argument)) {
       targets.push(argument);
       return;
     }
-    const name = identifierName(argument);
+    const name = identifierName(called) ?? identifierName(argument);
     const declared = name === undefined ? undefined : functions.get(name);
     if (declared !== undefined) targets.push(declared);
   });

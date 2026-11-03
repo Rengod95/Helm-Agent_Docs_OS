@@ -494,7 +494,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       source: record.source,
       trust: record.trust,
       state: record.state,
-      isolation: record.manifest?.isolation ?? "none",
+      // 격리 실행은 없다. 격리를 요청한 확장은 isolation_unavailable로 거부되므로 실제 격리는 항상 none이다
+      isolation: "none",
       essential: record.essential,
       loadIndex: record.loadIndex,
       generation: record.generation,
@@ -686,6 +687,23 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return batch;
   }
 
+  /**
+   * 격리 설정 확장 거부. 2차 격리(§4.9)가 구현되기 전에는 `isolation: "process"`를 같은 프로세스에서 조용히 실행하지 않고
+   * `isolation_unavailable`로 거부한다(§5). 격리 포트가 주입돼 있어도 실행 경로가 없으므로 같다
+   */
+  function checkIsolation(record: ExtRecord): void {
+    if (record.manifest?.isolation !== "process") return;
+    fail(
+      record,
+      "error",
+      "isolation",
+      "isolation_unavailable",
+      deps.process === undefined
+        ? `${record.name} requires process isolation, but no fresnel.process service is available`
+        : `${record.name} requires process isolation, which this host does not run yet`,
+    );
+  }
+
   /** 5단계: userConfig 검증. 예약 키 충돌과 다른 네임스페이스 침범은 거부한다 */
   function checkSettings(record: ExtRecord): void {
     const manifest = record.manifest;
@@ -820,6 +838,40 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         }
       }
     }
+  }
+
+  /**
+   * 설치 순서. 로드 순서(디스패치의 두 번째 키, §4.2.3)는 그대로 두고, 공급자를 소비자보다 먼저 설치하도록 `requires`로만 안정 정렬한다.
+   * 소비자가 공급자보다 앞서 설치되면 `capability_unavailable`로 영구 실패하기 때문이다. 순환은 풀 수 없어 로드 순서대로 두고 둘 다 설치에서 실패한다
+   */
+  function installSequence(loadOrdered: readonly ExtRecord[]): readonly ExtRecord[] {
+    const providersOf = (record: ExtRecord): ExtRecord[] => {
+      const requirements =
+        record.manifest?.plugins.flatMap((plugin) => plugin.requires ?? []) ?? [];
+      return loadOrdered.filter(
+        (other) =>
+          other !== record &&
+          (other.manifest?.plugins.flatMap((plugin) => plugin.provides ?? []) ?? []).some(
+            (provision) =>
+              requirements.some(
+                (requirement) =>
+                  requirement.id === provision.id &&
+                  satisfiesRange(provision.version, requirement.range),
+              ),
+          ),
+      );
+    };
+    const sequence: ExtRecord[] = [];
+    const visiting = new Set<ExtRecord>();
+    const visit = (record: ExtRecord): void => {
+      if (sequence.includes(record) || visiting.has(record)) return;
+      visiting.add(record);
+      for (const provider of providersOf(record)) visit(provider);
+      visiting.delete(record);
+      sequence.push(record);
+    };
+    for (const record of loadOrdered) visit(record);
+    return sequence;
   }
 
   /** 요구한 기능을 공급하기로 한 확장이 모두 활성화되지 못했으면 그 기능 id를 돌려준다 */
@@ -1257,6 +1309,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
 
     throwIfCancelled(signal, "settings");
     for (const record of batch) if (record.state === "trusted") checkSettings(record);
+    for (const record of batch) if (record.state === "resolved") checkIsolation(record);
     for (const record of batch) assertNotEssentialFailure(record);
 
     throwIfCancelled(signal, "enable check");
@@ -1281,7 +1334,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     );
 
     await eachInOrder(
-      order.filter((record) => alive.includes(record)),
+      installSequence(order.filter((record) => alive.includes(record))),
       async (record) => {
         if (record.state !== "resolved") return "continue";
         throwIfCancelled(signal, `installing ${record.name}`);

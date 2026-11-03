@@ -152,6 +152,33 @@ test("third turn rejected at turns 2", async () => {
   expect(released?.payload).toMatchObject({ reason: "budget" });
 });
 
+test("turn is rejected once maxTokens is spent (default usage 10 tokens per turn)", async () => {
+  const { t, thread } = await setup();
+  const errors: unknown[] = [];
+  await t.host.install(
+    makeGroupUnit({ name: "drv-tokens" }, (g) => {
+      g.drive(
+        async (loop) => {
+          await loop.turn({ input: { kind: "user", content: "1" } });
+          await loop.turn({ input: { kind: "user", content: "2" } });
+          try {
+            await loop.turn({ input: { kind: "user", content: "3" } });
+          } catch (error) {
+            errors.push(error);
+          }
+        },
+        { limits: { maxTokens: 15 } },
+      );
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  expect(t.loop.turns.length).toBe(2);
+  expect(errors[0] instanceof PrimitiveError && errors[0].code).toBe("lease_budget");
+  const released = t.records.events(thread).find((event) => event.kind === "lease.released");
+  expect(released?.payload).toMatchObject({ reason: "budget" });
+});
+
 test("limits clamp to settings", async () => {
   const { t, thread } = await setup({ settings: { driveLimits: { maxTurns: 5 } } });
   await t.host.install(

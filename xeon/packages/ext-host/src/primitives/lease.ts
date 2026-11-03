@@ -138,7 +138,9 @@ function tokensOf(usage: Usage | null): number {
 function assertBudget(lease: LeaseRuntime, kind: "turns" | "spawns"): void {
   const limit = kind === "turns" ? lease.limits.maxTurns : lease.limits.maxSpawns;
   const left = remaining(limit, lease.used[kind]);
-  if (left !== null && left <= 0) {
+  // 토큰 상한도 turn·spawn 호출 직전에 검사한다(spec §4.4.2 5번). 소진이면 lease_budget으로 거부한다
+  const tokensLeft = remaining(lease.limits.maxTokens, lease.used.tokens);
+  if ((left !== null && left <= 0) || (tokensLeft !== null && tokensLeft <= 0)) {
     release(lease, "budget");
     throw leaseError(lease);
   }

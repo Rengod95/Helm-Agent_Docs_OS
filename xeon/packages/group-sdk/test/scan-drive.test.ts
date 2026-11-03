@@ -232,3 +232,29 @@ test("scan.reports-a-syntax-error-as-one-finding", () => {
   expect(found).toHaveLength(1);
   expect(found[0]).toMatchObject({ code: "SD-00", severity: "error", line: 1, column: 1 });
 });
+
+function codes(source: string): readonly string[] {
+  return scanDriveSource(source).map((finding) => finding.code);
+}
+
+test("scan.finds-forbidden-calls-in-real-group-shapes", () => {
+  // defineGroup 인자 안의 setup(메서드와 화살표), 호출 인자·배열 원소 안, 팩토리가 돌려주는 drive 함수
+  expect(
+    codes(`export default defineGroup({ setup(g) { g.drive(async () => { Date.now(); }); } });`),
+  ).toEqual(["SD-01"]);
+  expect(
+    codes(
+      `export default defineGroup({ setup: (g) => { g.drive(async () => { Math.random(); }); } });`,
+    ),
+  ).toEqual(["SD-03"]);
+  expect(codes(`g.drive(async () => { log(Date.now()); });`)).toEqual(["SD-01"]);
+  expect(codes(`g.drive(async () => { const a = [Date.now()]; return a; });`)).toEqual(["SD-01"]);
+  expect(
+    codes(
+      `function setup(g) { g.drive(make(g)); }\nfunction make() { return async () => { await fetch("x"); }; }`,
+    ),
+  ).toEqual(["SD-07"]);
+  expect(
+    codes(`defineGroup({ setup(g) { g.drive(async () => { await g.commit({ n: 1 }); }); } });`),
+  ).toEqual([]);
+});
