@@ -94,7 +94,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - `release.ts`는 파일을 복사하기 전에 `<이름> --version`의 출력에 고정 버전이 있는지 확인합니다. 없으면 `binary.version` 오류로 끝납니다.
 - `binaries.lock.json`은 이름순으로 정렬한 항목을 씁니다. 항목은 `name`, `platform`, `arch`, `path`(자원 디렉터리 기준 상대 경로), `sha256`, `version`입니다. 실행할 때 해석기가 이 목록을 읽고 해시를 맞춥니다(`L0.os.spec` §3.6).
 - Linux에서 `rg`, `bwrap`, `socat`은 시스템 패키지로 요구합니다. 아카이브는 세 바이너리를 싣지 않습니다. 목록은 `release-bundle.json`의 `systemRequired.linux`에 있고, 세 바이너리는 점검 표(`requirements.ts`)에서 모두 필수입니다. `fresnel doctor`가 설치 명령을 안내합니다(`installHint`, 예: `apt install bubblewrap`).
-- `THIRD-PARTY-NOTICES.txt`는 번들 바이너리마다 이름, 버전, 라이선스, 출처를 적고, Linux 아카이브에는 시스템 요구 목록을 적습니다. 그 뒤에 Bun 런타임 고지와 npm 의존 고지가 붙습니다(§6).
+- `THIRD-PARTY-NOTICES.txt`는 라이선스별로 묶어 번들 바이너리, Bun 런타임, npm 의존을 적고, Linux 아카이브에는 시스템 요구 목록을 앞에 적습니다([결정: 2026-11-04 사용자], §6).
 
 ### 3.4 대상
 
@@ -127,8 +127,8 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 
 - 산출물의 무결성은 `SHA256SUMS`(아카이브 안의 모든 파일)와 `binaries.lock.json`(번들 바이너리)이 맡습니다. 아카이브 옆의 `.sha256`은 내려받는 중의 깨짐을 잡습니다.
 - 이 해시들은 서명이 아닙니다. `.sha256`과 아카이브를 같은 곳에서 받으므로, 그 자체로는 변조를 막지 못합니다([미결] §8).
-- `THIRD-PARTY-NOTICES.txt`는 번들 바이너리 세 개의 이름, 버전, 라이선스, 출처를 적습니다. 라이선스 전문은 싣지 않고 출처 주소만 적습니다. 이 방식이 배포 조건을 충족하는지는 사용자 확인이 필요합니다([미결] §8).
-- 컴파일한 바이너리에 든 npm 의존의 고지는 `xeon/scripts/notices.ts`가 만듭니다. `apps/host`와 `apps/cli`의 `dependencies`를 `node_modules` 심볼릭 링크를 따라 훑고(devDependencies 제외), 제3자 패키지마다 이름, 버전, 라이선스와 LICENSE·COPYING·NOTICE 파일 전문을 적습니다. `vendor/cordis`도 포함합니다. 선택 가능한 이중 라이선스는 고른 쪽을 적습니다(node-forge는 BSD-3-Clause). 라이선스 파일이 없고 `NO_LICENSE_FILE` 허용 목록에도 없는 패키지가 있으면 `release.ts`가 `notices.failed`로 실패합니다. 허용 목록의 패키지는 package.json의 선언 라이선스, 저자, 저장소를 적습니다. Bun 런타임은 MIT와 출처 주소를 적고, 내장 JavaScriptCore 등의 고지는 Bun의 LICENSE.md를 가리킵니다.
+- [결정: 2026-11-04 사용자] `THIRD-PARTY-NOTICES.txt`는 라이선스별로 한 절씩 묶습니다(B19). 번들 바이너리 sops, age, rg, npm 의존, Bun 런타임이 같은 절에 들어갑니다. 각 절은 라이선스의 SPDX 텍스트 링크를 적고, 표준 라이선스 전문을 한 번만 싣고, 패키지마다 이름, 버전, 저작권 줄, 출처 또는 라이선스 링크를 적습니다. 아카이브에 라이선스 파일이 없는 번들 바이너리는 출처 링크와 SPDX 링크만 적습니다.
+- [결정: 2026-11-04 사용자] npm 의존의 고지는 `xeon/scripts/notices.ts`가 만듭니다. `apps/host`와 `apps/cli`의 `dependencies`를 `node_modules` 심볼릭 링크를 따라 훑고(devDependencies 제외), 제3자 패키지마다 이름, 버전, 라이선스, 링크를 적습니다. 링크는 package.json의 저장소나 홈페이지이고, `vendor/`의 패키지는 UPSTREAM.json의 `upstream`입니다. 저작권 줄은 라이선스 파일의 머리말(라이선스 본문이 시작하기 전)에서 읽고, 읽을 수 없으면 적지 않습니다. 패키지의 본문이 절의 표준 전문에 있는 단어 쌍만 가지면 표준 전문으로 갈음하고, 그렇지 않으면 본문 전문을 그 패키지 항목 아래에 싣습니다. 선택 가능한 이중 라이선스는 고른 쪽을 적습니다(node-forge는 BSD-3-Clause). 라이선스 파일이 없고 `NO_LICENSE_FILE` 허용 목록에도 없는 패키지가 있거나 라이선스 정보가 없는 패키지가 있으면 `release.ts`가 `notices.failed`로 실패합니다. 허용 목록의 패키지는 package.json의 선언 라이선스, 저자, 저장소를 적습니다. Bun 런타임은 MIT, 저작권 줄, 출처 주소를 적고, 내장 JavaScriptCore 등의 고지는 Bun의 LICENSE.md를 가리킵니다.
 - 워크플로의 액션은 커밋 SHA로 고정하고, 버전 주석을 붙입니다(M3-30). 주석의 버전이 SHA와 맞는지는 저장소 안에서 확인하지 않습니다([미결] §8).
 - 시크릿 검사(gitleaks) 단계는 fresnel 워크플로에 아직 없습니다([미결] §8).
 - npm 공개는 없습니다(D-M3-25 행 6).
@@ -138,6 +138,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 | 시험 | 종류 | 무엇을 확인하나 | 실행 위치 |
 |---|---|---|---|
 | `xeon/scripts/release.test.ts` | 단위 | 설정 파싱과 잘못된 설정, 잠금 파일, SHA256SUMS, 고지, 아카이브 이름, 버전 검사, 종료 코드, 스모크의 배치와 sums 파싱, 번들 버전과 mise 고정 값의 일치 | fresnel-ci `root` 층(Linux x86_64, `bun test scripts`) |
+| `xeon/scripts/notices.test.ts` | 단위 | 고지 수집의 링크(저장소 형식, UPSTREAM.json), 저작권 줄(머리말만), 라이선스 정보와 파일이 없을 때의 실패, 라이선스별 절의 표준 전문 한 번 싣기와 다른 본문의 전문, Bun 항목 | fresnel-ci `root` 층(Linux x86_64, `bun test scripts`) |
 | `xeon/scripts/workflow-pins.test.ts` | 단위 | 워크플로 `uses:`의 SHA 고정과 버전 주석(M3-30), 시크릿이 없을 때와 APPLE_ID만 있을 때의 UNSIGNED 상태, 태그에서의 실패, 값 미출력 | 같음 |
 | `xeon/apps/cli/test/group-templates-locate.test.ts` | 단위 | 템플릿 탐색 순서와 찾지 못했을 때 null | fresnel-ci `L4` 층 |
 | `xeon/packages/platform-os/test/binaries.test.ts` | 단위 | Linux에서 bwrap과 socat이 없을 때의 설치 안내 문구 | fresnel-ci `L0` 층, `fresnel-macos.yml`(`just test packages/platform-os`) |
@@ -157,12 +158,13 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - [결정: 오케스트레이터 기본값] M3b에는 자동 업데이트가 없습니다(§5).
 - [결정: 오케스트레이터 기본값] 개발 사이드카 보호(M3b B6-FIX). 릴리즈 빌드는 `build-sidecar.ts --out-dir <출력 폴더>/.sidecar-build`로 사이드카를 따로 만들고(`release.ts`의 `releaseSidecarDir`), 개발 사이드카 경로 `apps/desktop/src-tauri/binaries/fresnel-<triple>`에는 쓰지 않습니다. 그 경로는 e2e 시험과 `ensure-sidecar.sh`가 `0.0.0` 빌드로 다시 쓰기 때문입니다. `--no-build`만 개발 사이드카를 읽습니다. `ensure-sidecar.sh`는 실행되는 바이너리의 `version --json`이 `0.0.0`이 아닌 `cli` 값을 알리면 낡은 것으로 보고 다시 만듭니다. X11 시험(`release-smoke.test.ts`)은 스모크 전후로 개발 사이드카 파일이 같은지 확인합니다.
 - [결정: 오케스트레이터 기본값] 버전 주입(M3b B5-FIX2). `release.ts`가 `--version`을 `build-sidecar.ts`에 넘기고, 빌드가 `bun build --define FRESNEL_BUILD_VERSION="<버전>"`으로 문자열 상수를 넣습니다. `CLI_VERSION`(`xeon/apps/cli/src/commands/version.ts`)과 `ENGINE_VERSION`(`xeon/apps/host/src/assemble.ts`)은 `typeof FRESNEL_BUILD_VERSION`이 문자열이면 그 값을, 아니면(소스 실행, 개발 빌드) `"0.0.0"`을 씁니다. 버전은 `x.y.z` 또는 `x.y.z-<꼬리>` 모양만 받습니다. `fresnel-release.yml`은 `v<x.y.z>` 태그에서 태그의 버전을 `FRESNEL_RELEASE_VERSION`으로 넘기고, 그 밖에는 스모크 기본값 `0.0.0-smoke`입니다. 스모크는 `fresnel version` 출력에 아카이브 버전이 있는지 확인합니다(`run.version-injected`). 앱 번들(Tauri) 버전과의 정합은 M4 패키징 몫입니다.
+- [결정: 2026-11-04 사용자] 고지는 라이선스별로 묶습니다(§6, B19). 번들 바이너리의 라이선스 전문은 싣지 않고 출처 링크와 SPDX 링크를 적습니다.
 
 ### 8.2 미결
 
 1. [해소] 버전 값은 §8.1의 버전 주입으로 정했습니다.
 2. [미결] Tauri 자원 매핑. `xeon/apps/desktop/src-tauri/tauri.conf.json`에는 `externalBin`만 있습니다. 템플릿과 기본 플러그인을 `Contents/MacOS`에 두는 설정(`resources`와 macOS 파일 매핑)은 M4입니다.
-3. [미결] 번들 바이너리(sops, age, rg)의 라이선스 전문. npm 의존은 전문을 싣지만 번들 바이너리는 출처 주소만 적습니다. BSD-3-Clause(age)는 배포물과 함께 저작권 고지와 조건을 두라고 합니다. 전문을 넣을지 사용자가 정합니다. Bun의 LICENSE.md 전문(JavaScriptCore 등)을 싣는지도 사용자가 확인합니다.
+3. [해소] 번들 바이너리(sops, age, rg)의 라이선스 전문은 싣지 않고, 라이선스별 절의 출처 링크와 SPDX 링크로 적습니다([결정: 2026-11-04 사용자], §6). 아카이브에 라이선스 파일이 없으므로 이 세 바이너리의 저작권 줄은 적지 않습니다. [미결] Bun의 LICENSE.md 전문(JavaScriptCore 등)을 싣는지는 사용자가 정합니다. 지금은 주소만 적습니다.
 4. [미결] 체크섬의 출처. `.sha256`과 아카이브는 같은 곳에서 받습니다. 서명된 체크섬이나 별도 공개 키는 없습니다.
 5. [미결] CI의 gitleaks 단계. fresnel 워크플로에 없습니다(M3-30의 일부).
 6. [미결] 액션 주석 검증. 주석의 `v<버전>`과 SHA가 맞는지는 저장소 안에서 검사하지 않습니다. 사용자나 리뷰가 한 번 확인합니다.

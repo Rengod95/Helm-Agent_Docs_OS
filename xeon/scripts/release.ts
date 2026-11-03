@@ -29,7 +29,13 @@ import { parseArgs } from "node:util";
 import { Type } from "typebox";
 import { Check } from "typebox/value";
 import { hostTriple, outputFileName } from "./build-sidecar.ts";
-import { collectNotices, ENTRY_PACKAGES, noticesText } from "./notices.ts";
+import {
+  BUN_ITEM,
+  collectNotices,
+  ENTRY_PACKAGES,
+  groupedNoticesText,
+  type NoticeItem,
+} from "./notices.ts";
 
 const BundledBinarySchema = Type.Object(
   {
@@ -168,28 +174,47 @@ export function sumsBody(
     .join("");
 }
 
-/** The notices text: one block per bundled binary (name, version, license, source), then the system requirements. */
+/** A bundled program as a notice item. The archive does not ship its license file, so the item carries only the source link. */
+function binaryItem(binary: BundledBinary): NoticeItem {
+  return {
+    name: binary.name,
+    version: binary.version,
+    license: binary.license,
+    link: binary.source,
+    copyright: [],
+    texts: [],
+    notes: ["The archive does not ship this program's license file; see the source link."],
+  };
+}
+
+/**
+ * The notices text: a header, the system requirements, then one section per license for the bundled binaries and the
+ * packages (`packages` carries the Bun runtime and the npm packages).
+ */
 export function noticesBody(
   version: string,
   triple: string,
   bundled: readonly BundledBinary[],
   systemRequired: readonly string[],
-  npmNotices: string = "",
+  packages: readonly NoticeItem[] = [],
 ): string {
-  const lines = [`Fresnel ${version} (${triple}) third-party notices`, ""];
-  if (bundled.length === 0) lines.push("Bundled external binaries: none.");
-  for (const b of bundled) {
-    lines.push(`${b.name} ${b.version}`, `  license: ${b.license}`, `  source:  ${b.source}`, "");
-  }
+  const head = [
+    `Fresnel ${version} (${triple}) third-party notices`,
+    "",
+    "Grouped by license. Each section names the license and links its text, prints the standard text once, and lists its",
+    "packages with name, version, copyright line (from the package's license file) and source link.",
+    "",
+  ];
+  if (bundled.length === 0) head.push("Bundled external binaries: none.", "");
   if (systemRequired.length > 0) {
-    lines.push(
+    head.push(
       `Required from the system, not bundled: ${systemRequired.join(", ")}.`,
       "Install them with the package manager (`fresnel doctor` prints the command).",
+      "",
     );
   }
-  lines.push("", "The full license texts are in the sources above.", "");
-  if (npmNotices !== "") lines.push(npmNotices);
-  return lines.join("\n");
+  const grouped = groupedNoticesText([...bundled.map(binaryItem), ...packages]);
+  return `${head.join("\n")}${grouped === "" ? "" : `\n${grouped}`}`;
 }
 
 export function archiveName(version: string, triple: string): string {
@@ -387,13 +412,10 @@ export async function buildRelease(request: ReleaseRequest): Promise<Result<stri
   if (!npm.ok) return fail({ kind: "notices.failed", problems: npm.error });
   writeFileSync(
     join(stage, "THIRD-PARTY-NOTICES.txt"),
-    noticesBody(
-      version,
-      triple,
-      bundled,
-      config.value.systemRequired[platformKey] ?? [],
-      noticesText(npm.value),
-    ),
+    noticesBody(version, triple, bundled, config.value.systemRequired[platformKey] ?? [], [
+      BUN_ITEM,
+      ...npm.value,
+    ]),
   );
 
   const files = listFiles(stage).map((path) => ({
