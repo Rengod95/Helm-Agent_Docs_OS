@@ -196,6 +196,16 @@ describe("M4 ext read methods", () => {
     });
   });
 
+  test("ext.list carries the keep-off question for repeatedly auto-disabled extensions and rejects other shapes", () => {
+    roundTrip(WIRE_METHODS["ext.list"].result, {
+      extensions: [{ ...entry, autoDisabled: true, keepOffQuestion: { disabledStarts: 3 } }],
+    });
+    const bad = parse(WIRE_METHODS["ext.list"].result, {
+      extensions: [{ ...entry, keepOffQuestion: { disabledStarts: 3, extra: 1 } }],
+    });
+    expect(bad.ok).toBe(false);
+  });
+
   test("ext.ui.* replace ext.view.*", () => {
     const names = Object.keys(WIRE_METHODS);
     expect(names.filter((name) => name.startsWith("ext.ui."))).toEqual([
