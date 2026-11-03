@@ -179,3 +179,19 @@ test("capabilities: range arithmetic", () => {
     expect(satisfiesRange(version, range)).toBe(expected);
   }
 });
+
+test("isolation: a process-isolated extension is refused instead of running in process", async () => {
+  const harness = await createLoaderHarness();
+  let entryCalls = 0;
+  const isolated = moduleOf({ name: "iso-ext", extraManifest: { isolation: "process" } }, () => {
+    entryCalls += 1;
+  });
+  const report = await harness.loader.loadAll(harness.options([isolated]));
+  expect(entryCalls).toBe(0);
+  expect(report.extensions.map((info) => [info.name, info.state, info.isolation])).toEqual([
+    ["iso-ext", "error", "none"],
+  ]);
+  const diagnostic = report.diagnostics.find((entry) => entry.code === "isolation_unavailable");
+  expect(diagnostic?.stage).toBe("isolation");
+  expect(diagnostic?.severity).toBe("error");
+});

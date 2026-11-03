@@ -494,7 +494,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       source: record.source,
       trust: record.trust,
       state: record.state,
-      isolation: record.manifest?.isolation ?? "none",
+      // 격리 실행은 없다. 격리를 요청한 확장은 isolation_unavailable로 거부되므로 실제 격리는 항상 none이다
+      isolation: "none",
       essential: record.essential,
       loadIndex: record.loadIndex,
       generation: record.generation,
@@ -683,6 +684,23 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       record.state = "trusted";
     }
     return batch;
+  }
+
+  /**
+   * 격리 설정 확장 거부. 2차 격리(§4.9)가 구현되기 전에는 `isolation: "process"`를 같은 프로세스에서 조용히 실행하지 않고
+   * `isolation_unavailable`로 거부한다(§5). 격리 포트가 주입돼 있어도 실행 경로가 없으므로 같다
+   */
+  function checkIsolation(record: ExtRecord): void {
+    if (record.manifest?.isolation !== "process") return;
+    fail(
+      record,
+      "error",
+      "isolation",
+      "isolation_unavailable",
+      deps.process === undefined
+        ? `${record.name} requires process isolation, but no fresnel.process service is available`
+        : `${record.name} requires process isolation, which this host does not run yet`,
+    );
   }
 
   /** 5단계: userConfig 검증. 예약 키 충돌과 다른 네임스페이스 침범은 거부한다 */
@@ -1249,6 +1267,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
 
     throwIfCancelled(signal, "settings");
     for (const record of batch) if (record.state === "trusted") checkSettings(record);
+    for (const record of batch) if (record.state === "resolved") checkIsolation(record);
     for (const record of batch) assertNotEssentialFailure(record);
 
     throwIfCancelled(signal, "enable check");

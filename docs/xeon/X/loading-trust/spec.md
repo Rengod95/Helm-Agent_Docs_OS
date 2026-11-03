@@ -1391,7 +1391,7 @@ flowchart LR
 | userConfig `setting`이 `l1.loop.maxSteps` | `foreignNamespace` → `rejected`(`settings_rejected`) |
 | `requires: [{ id: "web.search", range: "^2.0.0" }]`인데 provider가 1.x | `error`(`capability_missing`). 진단에 기능 ID와 범위 |
 | provider 확장이 9단계에서 실패 | 그 기능을 `requires`한 확장도 `error`(`capability_provider_failed`) |
-| 격리 설정인데 `fresnel.process` 서비스 없음 | `error`(`isolation_unavailable`) |
+| 격리 설정인데 `fresnel.process` 서비스 없음 | `error`(`isolation_unavailable`). 2차 격리 실행이 구현되기 전에는 포트가 있어도 같다. 이때 `LoadedExtensionInfo.isolation`은 실제 격리가 없으므로 `none`으로 보고한다 |
 | 격리 확장의 first 핸들러가 예산 초과 | `FIRST_DENY` 적용, 취소 전송, 유예 뒤 강제 종료 |
 | 격리 프로세스 연결 끊김 | 진행 중 요청 예외 처리, 재시작 정책(§4.9.7) |
 | 화면 파일이 없거나 JSON이 아니거나 트리 검사에 실패함 | 그 항목만 `invalid`(`ui_file_missing`, `ui_invalid`, `ui_limit`). 확장은 `active`이고 훅이 실행된다(§4.3.4) |
