@@ -138,7 +138,7 @@ async function applyContextHook(
   threadId: ThreadId,
   opts: AssembleOptions,
   assembled: readonly Message[],
-): Promise<readonly Message[]> {
+): Promise<{ readonly messages: readonly Message[]; readonly appliers: readonly HookApplier[] }> {
   const visible = assembled.filter((message) => !isSystem(message));
   // 디스패치가 payload를 동결하고 핸들러가 current를 고칠 수 있으므로 저장소가 준 객체는 복사해서 넘긴다
   const outcome = await deps.ext.dispatch(
@@ -151,10 +151,45 @@ async function applyContextHook(
       ...(opts.signal === undefined ? {} : { signal: opts.signal }),
     },
   );
-  if (outcome.applied.length === 0) return assembled;
+  const appliers = outcome.applied.map(applierOf);
+  if (outcome.applied.length === 0) return { messages: assembled, appliers };
   const systemState = replaySystemMessages(assembled.filter(isSystem));
   const returned = convertToLlm(outcome.value.messages);
-  return systemState === undefined ? returned : [systemState, ...returned];
+  return { messages: systemState === undefined ? returned : [systemState, ...returned], appliers };
+}
+
+/** 합치기 훅에서 값을 적용한 핸들러. 캐시 사건의 원인 소유자다(T-MEAS-CACHE) */
+interface HookApplier {
+  readonly registrationId: string;
+  readonly plugin: string;
+}
+
+function applierOf(ref: { readonly scopeId: string; readonly extension: string }): HookApplier {
+  return { registrationId: ref.scopeId, plugin: ref.extension };
+}
+
+/** 접두 시스템 메시지의 바뀐 부분. 본문(`system`)과 절(`sections`)을 따로 비교한다 */
+function changedPartsOf(before: Message | undefined, after: Message | undefined): string[] {
+  if (before === undefined || after === undefined) return ["messages"];
+  if (before.role !== "system" || after.role !== "system") return ["messages"];
+  const parts: string[] = [];
+  if (before.content !== after.content) parts.push("system");
+  if (canonicalJson(before.sections ?? {}) !== canonicalJson(after.sections ?? {})) {
+    parts.push("sections");
+  }
+  return parts.length === 0 ? ["messages"] : parts;
+}
+
+/** 두 메시지 배열이 처음 달라지는 위치. 같으면 null */
+function firstDifference(before: readonly Message[], after: readonly Message[]): number | null {
+  const length = Math.max(before.length, after.length);
+  for (let index = 0; index < length; index += 1) {
+    const left = before[index];
+    const right = after[index];
+    if (left === undefined || right === undefined) return index;
+    if (canonicalJson(left) !== canonicalJson(right)) return index;
+  }
+  return null;
 }
 
 /** request.system.before 지점(chain)을 전체 배열로 발화한다(§4.1 5번). 결과가 최종 messages다 */
@@ -163,7 +198,11 @@ async function applyContextWithSystemHook(
   threadId: ThreadId,
   opts: AssembleOptions,
   assembled: readonly Message[],
-): Promise<{ readonly messages: readonly Message[]; readonly changed: boolean }> {
+): Promise<{
+  readonly messages: readonly Message[];
+  readonly changed: boolean;
+  readonly appliers: readonly HookApplier[];
+}> {
   const outcome = await deps.ext.dispatch(
     "request.system.before",
     { messages: structuredClone([...assembled]) },
@@ -174,8 +213,9 @@ async function applyContextWithSystemHook(
       ...(opts.signal === undefined ? {} : { signal: opts.signal }),
     },
   );
-  if (outcome.applied.length === 0) return { messages: assembled, changed: false };
-  return { messages: convertToLlm(outcome.value.messages), changed: true };
+  const appliers = outcome.applied.map(applierOf);
+  if (outcome.applied.length === 0) return { messages: assembled, changed: false, appliers };
+  return { messages: convertToLlm(outcome.value.messages), changed: true, appliers };
 }
 
 /** 글자 수 / 4 올림. pi-ai 추정과 같은 규칙이다 */
@@ -310,12 +350,20 @@ export async function assembleContext(
 
   const tokensBeforeHooks = deps.models.tokens.estimateContext(messages).tokens;
   const afterContext = await applyContextHook(deps, threadId, opts, messages);
-  const withSystem = await applyContextWithSystemHook(deps, threadId, opts, afterContext);
+  const withSystem = await applyContextWithSystemHook(deps, threadId, opts, afterContext.messages);
   const finalMessages: Message[] = [...withSystem.messages];
   if (withSystem.changed) {
     const first = finalMessages[0];
     if (first === undefined || canonicalJson(first) !== canonicalJson(prefixMessage)) {
-      warnings.push({ code: "cache_prefix_reset", at: 0 });
+      // 위치는 훅을 거치기 전 요청과 처음 달라지는 메시지, 원인은 값을 적용한 핸들러(두 합치기 훅 모두)다
+      const appliers = [...afterContext.appliers, ...withSystem.appliers];
+      warnings.push({
+        code: "cache_prefix_reset",
+        at: firstDifference(messages, finalMessages) ?? 0,
+        changed: changedPartsOf(messages[0], first),
+        owners: appliers.map((item) => item.registrationId),
+        plugins: [...new Set(appliers.map((item) => item.plugin))],
+      });
     }
   }
 

@@ -11,7 +11,7 @@ function run(
 }
 
 test("timings: one sample is every percentile and the maximum", () => {
-  expect(timingsOf([run("tool.call.before", "ext-a", 7, "ok")], {})).toEqual([
+  expect(timingsOf([run("tool.call.before", "ext-a", 7, "passed")], {})).toEqual([
     {
       hook: "tool.call.before",
       registrationId: "ext-a",
@@ -29,7 +29,7 @@ test("timings: nearest rank over twenty samples", () => {
   const samples = [13, 1, 20, 7, 2, 18, 9, 4, 16, 11, 5, 19, 3, 14, 8, 17, 6, 15, 10, 12];
   expect(
     timingsOf(
-      samples.map((ms) => run("h", "r", ms, "ok")),
+      samples.map((ms) => run("h", "r", ms, "passed")),
       {},
     ),
   ).toEqual([
@@ -41,7 +41,7 @@ test("timings: the rank rounds up for a small set", () => {
   // 정렬하면 1, 5, 9다. p50은 ceil(1.5)=2번째 값 5, p95는 ceil(2.85)=3번째 값 9다
   expect(
     timingsOf(
-      [5, 1, 9].map((ms) => run("h", "r", ms, "ok")),
+      [5, 1, 9].map((ms) => run("h", "r", ms, "passed")),
       {},
     ),
   ).toEqual([
@@ -49,26 +49,27 @@ test("timings: the rank rounds up for a small set", () => {
   ]);
 });
 
-test("timings: error, over_budget and denied count as failures and skipped does not", () => {
+test("timings: only failed counts as a failure; blocked and skipped do not", () => {
+  // 예전 error와 over_budget은 failed로, denied는 blocked로 옮겼다. blocked는 실패가 아니라서 failures는 2다
   const runs = [
-    run("h", "r", 1, "ok"),
-    run("h", "r", 2, "error"),
-    run("h", "r", 3, "over_budget"),
-    run("h", "r", 4, "denied"),
+    run("h", "r", 1, "passed"),
+    run("h", "r", 2, "failed"),
+    run("h", "r", 3, "failed"),
+    run("h", "r", 4, "blocked"),
     run("h", "r", 5, "skipped"),
   ];
   expect(timingsOf(runs, {})).toEqual([
-    { hook: "h", registrationId: "r", count: 5, p50Ms: 3, p95Ms: 5, maxMs: 5, failures: 3 },
+    { hook: "h", registrationId: "r", count: 5, p50Ms: 3, p95Ms: 5, maxMs: 5, failures: 2 },
   ]);
 });
 
 test("timings: groups sort by hook then registration and filters narrow them", () => {
   const runs = [
-    run("tool.call.before", "ext-b", 4, "ok"),
-    run("boundary.settle.after", "ext-b", 2, "ok"),
-    run("tool.call.before", "ext-a", 6, "error"),
-    run("boundary.settle.after", "ext-a", 1, "ok"),
-    run("tool.call.before", "ext-a", 8, "ok"),
+    run("tool.call.before", "ext-b", 4, "passed"),
+    run("boundary.settle.after", "ext-b", 2, "passed"),
+    run("tool.call.before", "ext-a", 6, "failed"),
+    run("boundary.settle.after", "ext-a", 1, "passed"),
+    run("tool.call.before", "ext-a", 8, "passed"),
   ];
   const boundaryA = {
     hook: "boundary.settle.after",

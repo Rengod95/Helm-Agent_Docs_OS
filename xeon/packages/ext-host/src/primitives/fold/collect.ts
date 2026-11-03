@@ -28,26 +28,44 @@ export async function foldCollect(
   const check = env.strict;
   const contributions: { readonly entry: HandlerEntry; readonly value: unknown }[] = [];
   const failures: HandlerFailure[] = [];
+  // 병합이 기여를 거부할 수 있어서 계측 기록은 병합 뒤에 실행 순서대로 한꺼번에 남긴다
+  const notes: (() => void)[] = [];
+  const rejected = new Set<HandlerEntry>();
 
   await eachInOrder(entries, async (entry) => {
     const result = await env.runOne(entry, [payload]);
-    if (result.kind === "aborted") return "continue";
+    if (result.kind === "aborted") {
+      notes.push(() => env.noteLost(entry, result));
+      return "continue";
+    }
     if (result.kind === "failed") {
+      notes.push(() => env.noteLost(entry, result));
       failures.push(result.failure);
       env.fail(result.failure);
       return "continue";
     }
     if (result.value === undefined) {
+      notes.push(() => env.noteOk(entry, result, { result: "passed" }));
       env.settled(entry, result.activeMs);
       return "continue";
     }
     if (check && (schema === undefined || !parse(schema, result.value).ok)) {
+      notes.push(() => env.noteOk(entry, result, { result: "failed", reason: "result_invalid" }));
       const failure = env.failureOf(entry, "result_invalid", undefined, result.activeMs);
       failures.push(failure);
       env.fail(failure);
       return "continue";
     }
     contributions.push({ entry, value: result.value });
+    notes.push(() =>
+      env.noteOk(
+        entry,
+        result,
+        rejected.has(entry)
+          ? { result: "failed", reason: "merge_rejected" }
+          : { result: "modified", value: result.value },
+      ),
+    );
     env.settled(entry, result.activeMs);
     return "continue";
   });
@@ -59,6 +77,7 @@ export async function foldCollect(
     ),
   );
   if (all.ok) {
+    for (const note of notes) note();
     return {
       fold: "collect",
       value: all.value,
@@ -80,7 +99,9 @@ export async function foldCollect(
       const failure = env.failureOf(item.entry, "merge_rejected", merged.error.cause, 0);
       failures.push(failure);
       env.fail(failure);
+      rejected.add(item.entry);
     }
   }
+  for (const note of notes) note();
   return { fold: "collect", value, contributed, failures };
 }

@@ -1393,18 +1393,25 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 단계 번호는 Turn 안에서 `stp_` 식별자를 처음 본 순서로 1부터 붙인다. 같은 단계의 디스패치는 같은 번호를 받는다.
 - 항목(entry)은 디스패치가 첫 핸들러 기록을 낼 때 만들어진다. 핸들러가 없는 디스패치(예: 스트림 조각마다의 탭)는 항목을 만들지 않는다.
 
-#### 4.8.2 핸들러 실행 결과와 기록의 대응
+#### 4.8.2 핸들러 결과 다섯과 기록 칸 [제안: 2026-11-04 T-MEAS-HOOK 기본값, 결과 다섯 이름은 기획서]
 
-| 실행 결과 (`HandlerRunOutcome`) | `result` | `durationMs` |
+핸들러 기록(`TraceHandlerEntry`)은 `{registrationId, ms, result, atMs, size, skippedBy, reason}`이다. `result`는 다섯 가지다. 결과는 핸들러가 값을 내고 끝난 뒤 fold가 그 값을 어떻게 받아들였는지로 정한다(실행 결과만 보던 이전 대응은 없다. 옛 이름 읽기 없음).
+
+| `result` | 뜻 | 만나는 곳 |
 |---|---|---|
-| `settled` | `ok` | 활성 시간 `activeMs` |
-| `threw` | `error` | 활성 시간 `activeMs` |
-| `timeout` | `over_budget` | 예산 값 `budgetMs` |
-| `aborted` | `skipped` | 시작부터 중단까지 흐른 시간 |
+| `modified`(고침) | 값을 냈고 결과에 반영됐다 | chain에서 패치가 합쳐짐, collect에서 기여가 병합됨 |
+| `passed`(지나감) | 일을 마쳤지만 결과를 바꾸지 않았다 | `undefined` 반환, tap 전부(반환값은 버려진다), first에서 막지 않는 결정 |
+| `blocked`(막음) | 요청을 막는 결정을 냈다 | first 결정이 거부 모양(`block`·`cancel`이 참, `type`이 `deny`, `trusted`가 `no`) |
+| `failed`(실패) | 실행이나 값 검사가 실패했다. `reason`이 이유다 | `threw`, `timeout`, `result_invalid`, `merge_rejected` |
+| `skipped`(건너뜀) | 실행하지 않았거나 중단됐다 | 앞 핸들러가 멈춰서 실행하지 못함(`skippedBy`가 그 핸들러), 외부 중단(`skippedBy`는 null) |
 
-- 값을 냈지만 뒤의 검사에서 걸러진 경우(`result_invalid`, `merge_rejected`, `value_from_tap`)는 실행이 끝났으므로 `ok`다. 기록은 실행 결과만 본다.
-- 사용자 응답 대기는 §4.2.3이 활성 시간에서 뺀다. 기록은 그 값을 그대로 쓴다.
-- `denied`는 이 대응표에 나오지 않는다. 지금은 어떤 실행 결과도 `denied`를 만들지 않는다(§10 25).
+- `ms`: 정책이 잰 활성 시간이다(사용자 응답 대기는 §4.2.3이 이미 뺀다). `timeout`은 예산 값, 중단은 시작부터 흐른 시간, 앞 핸들러 때문에 건너뛴 기록은 0이다.
+- `atMs`: 핸들러가 시작한 시점이다. 그 Turn의 첫 디스패치(`trn_` 키)가 시작된 때부터 잰 ms다. 앞 핸들러 때문에 건너뛴 기록은 건너뜀을 정한 시점이다.
+- `size`: 바뀐 크기다. `modified`일 때 낸 값의 JSON 문자 수이고 직렬화할 수 없으면 0이다. 그 밖의 결과는 0이다. 계측이 꺼져 있으면 세지 않는다.
+- `skippedBy`: chain의 `stop` 규칙이나 first의 결정(거부 대체 포함)이 뒤 핸들러를 멈췄을 때, 실행하지 못한 핸들러마다 멈춘 핸들러의 RegistrationId를 적는다. 이 기록의 수가 "앞 핸들러 때문에 건너뛴 횟수"다(측정 저장소는 Turn 요약 행의 `hookSkippedByEarlier`로 둔다). 훅별 순서에서 빠진(꺼진) 핸들러는 세지 않는다.
+- 값을 낸 뒤 검사에서 걸러진 경우(`result_invalid`, `merge_rejected`)는 `failed`다. tap이 값을 반환한 `value_from_tap`은 동작에 영향이 없어 `passed`다.
+- collect는 병합이 끝난 뒤에 기록을 남기고(병합 거부가 기여 하나를 `failed`로 바꿀 수 있다), 순서는 실행 순서를 유지한다.
+- 호출 경로 비용: 계측이 꺼져 있으면 `start`가 `undefined`라 기록은 비교 한 번이다. 켜져 있으면 핸들러 실행마다 `record` 한 번과 `modified`의 크기 계산(직렬화 한 번)이 든다. 저장소 쓰기는 하지 않는다(메모리 링 버퍼만).
 
 #### 4.8.3 보관 범위와 켜짐 시점
 
@@ -1418,7 +1425,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 #### 4.8.4 시간 분포 (`ExtHookTiming`)
 
 - 기록을 (`hook`, `registrationId`)별로 모은다. 결과는 `hook`의 문자 순서, 같으면 `registrationId`의 문자 순서다.
-- `count`는 기록 수다(`skipped` 포함). `failures`는 `error`, `over_budget`, `denied`의 수다. `skipped`는 실패가 아니다.
+- `count`는 기록 수다(`skipped` 포함). `failures`는 `failed`의 수다. `blocked`와 `skipped`는 실패가 아니다.
 - `p50Ms`, `p95Ms`는 최근접 순위다. 정렬한 `n`개 값에서 p%는 `ceil(p·n/100)`번째 값이다. 예: `n=1`이면 모두 그 값이고, `n=20`이면 p50은 10번째, p95는 19번째 값이다.
 - `maxMs`는 최댓값이다. 단위는 모두 ms다.
 - 분포는 요청할 때 버퍼를 훑어 계산한다. 누적 집계는 두지 않는다. 필터 `hook`, `registrationId`는 그 조건에 맞는 기록만 센다.
@@ -1469,6 +1476,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 1차 |
 | `x.operations.trace.enabled` | boolean | true | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.trace.turnsPerThread` | integer | 20 | 1~200 | nextTurn | managed, user | plugins | 1차 |
+| `x.operations.trace.retentionDays` | integer | 30 | 1~3650 | live | managed, user | plugins | 1차 |
+| `x.operations.trace.storeRequestBody` | boolean | false | | live | managed, user | plugins | 1차 |
 | `x.operations.hookOrder` | `Record<훅 이름, registrationId[]>` | {} | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 2차 |
 | `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
@@ -1477,6 +1486,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 예산과 자동 끄기 키는 `project` 범위를 받지 않는다 [제안]. 저장소에 든 설정이 예산을 늘려 루프를 오래 붙잡거나 자동 끄기를 꺼서 실패 확장을 남기지 못하게 한다.
 - `ui` 항목의 `label`과 `order`는 `L4.settings-ui.spec`이 정한다. 위젯은 boolean → `toggle`, integer·number → `number`다. 예산 키 단위는 `ms`다.
 - 계측 키 둘(`trace.*`, §3.9, §4.8.3)은 `runtimeChange: nextTurn`이다. 값은 Turn이 처음 보일 때 읽는다. 기본값 20은 [제안]이다. 계측 기본 켬은 사용자 결정이다(`review/m4-plan.md` §4 7번). 두 키는 "계측" 묶음 [제안]에 든다.
+- 측정 키 둘(`trace.retentionDays`, `trace.storeRequestBody`)은 `runtimeChange: live`이고 측정 저장소(`L4.host-service.spec` 측정 절)가 읽는다. 이름은 [제안: 2026-11-04 T-MEAS-STORE 기본값, `L4.desktop-ux` §12.1 34번]이고 값은 사용자 결정이다 [결정: 2026-11-03 사용자]: 원본 보관 기본 30일(1~3650, 일별 집계는 계속 둔다), 요청 본문 저장 기본 끔(설정에서 누구나 켬). 본문은 시크릿 값을 가린 뒤에만 저장하고 가릴 수단이 없으면 저장하지 않는다. 범위는 `trace.*`와 같이 `managed`, `user`다.
 - L4 노출:
   - 화면: 설정 화면 "플러그인과 그룹" 탭. 묶음은 "핸들러 시간 예산", "실패와 자동 끄기", "안전 모드", "외부 훅" 네 개 [제안]. 확장 목록에 실패 수, 자동 끄기 상태, 다시 켜기 버튼을 보인다.
   - 명령: `fresnel config get|set x.operations.…`(`L4.cli.spec`), `fresnel ext list`, `fresnel ext enable <name>`, `fresnel ext disable <name>`(X.primitives.spec §6과 같은 이름), `/safe-mode`, `fresnel --safe-mode`, `fresnel --disable-ext <name>`, `fresnel doctor`의 훅·확장 점검 [제안: 명령 이름은 `L4.cli.spec`이 확정].
@@ -1564,8 +1574,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 31. 디스패치 키 `trn_…`은 그 Turn을 현재 Turn으로 세우고 단계 0으로 기록된다. `stp_…`은 현재 Turn에 붙고 처음 본 순서대로 단계 번호를 받는다. 현재 Turn이 없으면 기록하지 않는다(`test/operations/trace-buffer.test.ts` "step ordinals follow the first sight of each stepId", "keys without a current turn are not recorded", "a turn key makes its turn current again").
 32. thread마다 `turnsPerThread`개 Turn만 남고 가장 오래된 Turn부터 빠진다. 값은 새 Turn이 처음 보일 때 읽는다(`trace-buffer.test.ts` "a thread keeps only its newest turnsPerThread turns", "turnsPerThread is read when a new turn appears").
 33. 계측이 꺼져 있으면 `start`와 `turn`은 `undefined`, `timings`는 `{traceEnabled: false, timings: []}`다. 꺼진 동안 처음 보인 Turn은 다시 켜도 기록하지 않는다(`trace-buffer.test.ts` "disabled records nothing and reads are empty", "the enabled value is read when a turn first appears").
-34. 시간 분포는 최근접 순위로 p50·p95를 정한다. `error`, `over_budget`, `denied`만 실패로 세고 `skipped`는 세지 않는다(`test/operations/handler-timings.test.ts`의 다섯 시험).
-35. 실제 디스패치의 처리기 결과가 `ok`, `error`, `over_budget`으로 기록되고 `traceReadOf(host)`로 읽힌다(`trace-buffer.test.ts` "trace: real dispatches through the host land in traceReadOf(host)").
+34. 시간 분포는 최근접 순위로 p50·p95를 정한다. `failed`만 실패로 세고 `blocked`와 `skipped`는 세지 않는다(`test/operations/handler-timings.test.ts`의 다섯 시험).
+35. 실제 디스패치의 처리기 결과가 `passed`, `modified`, `blocked`, `failed`, `skipped`로 구분되어 기록되고 `traceReadOf(host)`로 읽힌다(`trace-buffer.test.ts` "trace: real dispatches through the host land in traceReadOf(host)").
 36. Turn당 항목 5,000개, 항목당 핸들러 기록 256개, 버퍼의 thread 32개를 넘으면 넘는 것이 버려지거나 가장 오래된 thread가 빠진다(`trace-buffer.test.ts` "a turn keeps at most 5000 entries and an entry at most 256 handlers", "the least recently written thread is dropped past 32 threads").
 37. 계측 켜짐과 꺼짐의 핸들러당 디스패치 차이는 `dispatch-lease.benchmark.ts`의 `dispatch_overhead_trace_on_vs_off` 한 줄로 기록된다. 기준은 없고 값만 낸다(§4.8.5).
 38. 안전 모드에서 훅 후보는 tier와 상관없이 모두 빠지고 `safe_mode`가 사유이며, 일반 모드에서는 모두 실린다. `--disable-ext`는 훅에 적용되지 않고, 확장은 `--disable-ext`가 안전 모드보다 먼저 사유가 된다(`test/operations/safe-mode-x-hooks.test.ts`).
@@ -1615,6 +1625,6 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 22. (해소) `traceReadOf`와 `TraceSettings`는 `X.primitives.spec` §3.1 표에 행이 있고 루트(`src/index.ts`)에서 내보낸다.
 23. [미결: B18, 사용자 결정 대기] `x.operations.trace.turnsPerThread`의 기본값(20 또는 8)과 thread 상한 32는 [제안]이다. 계측 기본 켬은 닫혔다 [결정: 2026-11-04 사용자, 결정 목록 R9, m4-decisions Canvas 5]. 남은 것은 버퍼 크기와 비용 기준뿐이다. 2026-11-04 사용자 답: 먼저 실제 대화가 눈에 띄게 느려지는지 보고, 가능하면 제한 없는 전체 기록을 원한다. 8턴·20턴은 이 문서에서 정하지 않는다. 비용(`dispatch_overhead_trace_on_vs_off`)이 기준을 넘으면 기본값을 다시 정하도록 사용자에게 묻는다(`review/m4-plan.md` §5).
 24. [미결] `trace.turn`의 `traceEnabled`·`retained` 조립은 wire 처리기의 몫이다. `turn()`이 `undefined`를 돌려주므로 처리기가 `enabled()`로 `traceEnabled`를 채우고 `retained: false`를 만든다(§3.9). 현재 `apps/host/src/handlers/m4/profile-test-run.ts`는 `trace.turn`을 아직 구현하지 않았다.
-25. [미결] `denied` 실행 결과를 만드는 경로가 없다(§4.8.2). 실패 집계에는 들어가 있다.
+25. [해소: 2026-11-04 T-MEAS-HOOK] `denied`는 없어지고 first의 거부 결정이 `blocked`로 기록된다(§4.8.2).
 26. [미결] threadId가 없는 확장 메서드 호출은 ambient를 열지 않는다(명령과 같다). 그래서 그 호출 안의 `hostOf(g).awaitUser` 대기는 예산 시계를 멈추지 못하고 예산에 든다. 해결하려면 gate를 ambient와 분리한 문맥이 필요하다. M4 T-XV 뒤의 과제다.
 27. [미결] 확장 메서드 실패 알림의 페이로드 `point`는 `"ext.method"`다. 훅 이름이 아닌 이 값을 L4가 어떻게 그릴지(`L4.host-service` HS-92, desktop-ux)는 정하지 않았다.

@@ -94,8 +94,33 @@ const TRACE: Pick<TraceReadPort, "turn"> = {
         hook: "context",
         step: 1,
         handlers: [
-          { registrationId: "ext:a", ms: 7, result: "ok" },
-          { registrationId: "ext:b", ms: 2, result: "denied" },
+          {
+            registrationId: "ext:a",
+            ms: 7,
+            result: "modified",
+            atMs: 12,
+            size: 34,
+            skippedBy: null,
+            reason: null,
+          },
+          {
+            registrationId: "ext:b",
+            ms: 0,
+            result: "skipped",
+            atMs: 19,
+            size: 0,
+            skippedBy: "ext:a",
+            reason: null,
+          },
+          {
+            registrationId: "ext:c",
+            ms: 2,
+            result: "failed",
+            atMs: 20,
+            size: 0,
+            skippedBy: null,
+            reason: "threw",
+          },
         ],
       },
     ],
@@ -151,7 +176,13 @@ async function run(enabled: boolean) {
         assistantItemId: null,
         toolResultItemIds: [],
         contextWarnings: [
-          { code: "cache_prefix_reset", at: 0 },
+          {
+            code: "cache_prefix_reset",
+            at: 0,
+            changed: ["system", "sections"],
+            owners: ["ext:a", "ext:b"],
+            plugins: ["acme-notes", "helm"],
+          },
           { code: "cache_reset_model_switch", from: "a/x", to: "b/y" },
           { code: "near_window", tokens: 9, contextWindow: 10 },
         ],
@@ -207,21 +238,32 @@ test("a turn commit writes call, ctx, cache and hook rows next to the turn row, 
 
   // 캐시를 깬 경고만 남고 near_window는 남지 않는다
   expect(byKind("cache").map((row) => row.tags)).toEqual([
-    { code: "cache_prefix_reset", owner: "context-hook" },
+    {
+      code: "cache_prefix_reset",
+      owner: "acme-notes",
+      plugins: "acme-notes,helm",
+      registrations: "ext:a,ext:b",
+      changed: "system,sections",
+    },
     { code: "cache_reset_model_switch", owner: "model", from: "a/x", to: "b/y" },
   ]);
 
   expect(byKind("hook").map((row) => [row.metrics, row.tags])).toEqual([
     [
-      { ms: 7, seq: 1, step: 1 },
-      { hook: "context", registrationId: "ext:a", result: "ok" },
+      { ms: 7, seq: 1, step: 1, atMs: 12, size: 34 },
+      { hook: "context", registrationId: "ext:a", result: "modified" },
     ],
     [
-      { ms: 2, seq: 1, step: 1 },
-      { hook: "context", registrationId: "ext:b", result: "denied" },
+      { ms: 0, seq: 1, step: 1, atMs: 19, size: 0 },
+      { hook: "context", registrationId: "ext:b", result: "skipped", skippedBy: "ext:a" },
+    ],
+    [
+      { ms: 2, seq: 1, step: 1, atMs: 20, size: 0 },
+      { hook: "context", registrationId: "ext:c", result: "failed", reason: "threw" },
     ],
   ]);
-  expect(byKind("turn")).toHaveLength(1);
+  // 앞 핸들러 때문에 건너뛴 횟수는 Turn 요약 행에 있다
+  expect(byKind("turn").map((row) => row.metrics["hookSkippedByEarlier"])).toEqual([1]);
 });
 
 test("with measurement off no row of any kind is written", async () => {

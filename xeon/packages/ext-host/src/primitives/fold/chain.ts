@@ -41,19 +41,27 @@ export async function foldChain(
   const failures: HandlerFailure[] = [];
   let stopped = false;
 
+  let index = -1;
   await eachInOrder(entries, async (entry) => {
+    index += 1;
     const result = await env.runOne(entry, [payload, value]);
-    if (result.kind === "aborted") return "continue";
+    if (result.kind === "aborted") {
+      env.noteLost(entry, result);
+      return "continue";
+    }
     if (result.kind === "failed") {
+      env.noteLost(entry, result);
       failures.push(result.failure);
       env.fail(result.failure);
       return "continue";
     }
     if (result.value === undefined) {
+      env.noteOk(entry, result, { result: "passed" });
       env.settled(entry, result.activeMs);
       return "continue";
     }
     if (check && (schema === undefined || !parse(schema, result.value).ok)) {
+      env.noteOk(entry, result, { result: "failed", reason: "result_invalid" });
       const failure = env.failureOf(entry, "result_invalid", undefined, result.activeMs);
       failures.push(failure);
       env.fail(failure);
@@ -63,6 +71,7 @@ export async function foldChain(
     try {
       next = rule.merge(value, result.value);
     } catch (error) {
+      env.noteOk(entry, result, { result: "failed", reason: "merge_rejected" });
       const failure = env.failureOf(entry, "merge_rejected", error, result.activeMs);
       failures.push(failure);
       env.fail(failure);
@@ -70,9 +79,11 @@ export async function foldChain(
     }
     value = next;
     applied.push(env.refOf(entry));
+    env.noteOk(entry, result, { result: "modified", value: result.value });
     env.settled(entry, result.activeMs);
     if (rule.stop?.(value) === true) {
       stopped = true;
+      env.skip(entries.slice(index + 1), entry);
       return "stop";
     }
     return "continue";

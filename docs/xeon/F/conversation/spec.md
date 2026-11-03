@@ -537,7 +537,7 @@ export interface StepCompletedPayload {
   /** 선택. 이 단계 요청의 소유자별 토큰 추정(글자 수/4, 메시지 고정 몫은 추정기 값). `system`(절 뺀 기본 프롬프트), `tools`(요청의 도구 정의, `total`에 불포함), `sections`(절 이름 → 토큰, 절 이름이 소유자), `injected`(합치기 훅이 더한 몫), `volatile`, `history`(나머지), `total`. `system + sections 합 + injected + volatile + history = total`이다. 조립 대역과 옛 기록에는 없다 [T-MEAS-CTX] */
   composition?: StepComposition;
 }
-/** 코드마다 쓰는 필드만 있다: cache_reset_model_switch{from,to}, cache_prefix_reset{at}, tools_deferred{added,removed}, near_window{tokens,contextWindow}. 모델 바인딩은 `provider/modelId` 문자열이다 */
+/** 코드마다 쓰는 필드만 있다: cache_reset_model_switch{from,to}, cache_prefix_reset{at,changed,owners,plugins}, tools_deferred{added,removed}, near_window{tokens,contextWindow}. 모델 바인딩은 `provider/modelId` 문자열이다 */
 export interface StepContextWarning {
   code: "cache_reset_model_switch" | "cache_prefix_reset" | "tools_deferred" | "near_window";
   from?: string;
@@ -547,6 +547,12 @@ export interface StepContextWarning {
   removed?: string[];
   tokens?: number;
   contextWindow?: number;
+  /** cache_prefix_reset: 바뀐 부분("system" 본문, "sections" 절, "messages" 그 밖). 옛 기록에는 없다 [제안: 2026-11-04 T-MEAS-CACHE] */
+  changed?: string[];
+  /** cache_prefix_reset: 바꾼 핸들러의 RegistrationId(적용된 순서) */
+  owners?: string[];
+  /** cache_prefix_reset: owners가 속한 플러그인(확장) 이름 */
+  plugins?: string[];
 }
 export type StepStarted = Notification<"step.started", StepStartedPayload>;
 export type StepUpdated = Notification<"step.updated", StepUpdatedPayload>;

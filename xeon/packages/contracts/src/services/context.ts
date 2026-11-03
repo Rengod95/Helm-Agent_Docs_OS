@@ -69,7 +69,17 @@ export type ContextWarning =
       readonly from: ModelBinding;
       readonly to: ModelBinding;
     }
-  | { readonly code: "cache_prefix_reset"; readonly at: number | null }
+  | {
+      readonly code: "cache_prefix_reset";
+      /** 요청 메시지에서 처음 달라진 위치(0부터). 알 수 없으면 null */
+      readonly at: number | null;
+      /** 바뀐 부분: 접두 시스템 메시지의 `system`(본문), `sections`(절), 그 밖의 메시지 `messages` */
+      readonly changed: readonly string[];
+      /** 바꾼 핸들러의 RegistrationId(적용된 순서). 합치기 훅이 둘 다 바꾸면 둘 다 담긴다 */
+      readonly owners: readonly string[];
+      /** `owners`가 속한 플러그인(확장) 이름. 중복 없이 처음 나온 순서 */
+      readonly plugins: readonly string[];
+    }
   | {
       readonly code: "tools_deferred";
       readonly added: readonly string[];

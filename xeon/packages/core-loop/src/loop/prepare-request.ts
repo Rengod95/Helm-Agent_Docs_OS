@@ -145,7 +145,13 @@ function warningRecordOf(warning: ContextWarning): StepContextWarning {
         to: bindingText(warning.to),
       };
     case "cache_prefix_reset":
-      return { code: warning.code, at: warning.at };
+      return {
+        code: warning.code,
+        at: warning.at,
+        changed: [...warning.changed],
+        owners: [...warning.owners],
+        plugins: [...warning.plugins],
+      };
     case "tools_deferred":
       return { code: warning.code, added: [...warning.added], removed: [...warning.removed] };
     case "near_window":
