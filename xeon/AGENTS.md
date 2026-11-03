@@ -78,7 +78,7 @@ Fresnel(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이�
 | `just check <패키지 경로>`                                                | 패키지 하나의 lint, typecheck, test를 차례로, 각각 `guard.sh run` 1.5GB 아래에서. turbo는 Linux에서 `--concurrency=1`(macOS는 4)이라 의존이 많은 패키지도 빈 캐시에서 상한 안에 든다 |
 | `just check-layers`, `just check-ts-rules`, `just depcruise`, `just knip` | 층 순위, TS 작성 규칙 스캔, 의존 경계, 미사용 코드                                 |
 | `just docs-route --check [--allow-missing]`                               | 문서 프런트매터, id, depends_on, binds 검사                                        |
-| `just terms gen` / `just terms check`                                     | 용어 원본(`packages/client/src/i18n/terms.json`)에서 카탈로그 `term.*` 키 생성 / 용어 검사 1~2단계(T·C·S·D·M 규칙, 표식 `[[…]]`) |
+| `just terms gen` / `just terms check`                                     | 용어 원본(`packages/client/src/i18n/terms.json`)에서 카탈로그 `term.*` 키 생성 / 용어 검사 1~3단계(T·C·S·D·M 규칙, 표식 `[[…]]`) |
 | `just ci-layer <F\|X\|L0\|L1\|L2\|L3\|L4> [true]`                         | 한 층만 lint, typecheck, test (`true`는 turbo `--affected`)                        |
 | `just verify`                                                             | 위 전부 + `ws check`. 기기에서 한 번에 하나, 단계마다 따로 2G, 시험은 패키지마다 1.5G |
 | `just verify-full`                                                        | verify와 같되 캐시를 읽지 않고 type-aware lint까지. 마일스톤 마감과 CI만         |
