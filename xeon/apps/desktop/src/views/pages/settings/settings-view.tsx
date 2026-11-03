@@ -16,7 +16,6 @@ import { t } from "@fresnel/client/i18n";
 import { TAB_ORDER, TAB_SPECS, type FieldVM, type SettingsView } from "@fresnel/client/settings";
 import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import { useId, type KeyboardEvent, type ReactNode } from "react";
-import { GaugeSlotView } from "../providers/providers-view.tsx";
 import {
   panelOwnedOf,
   restartCountOf,
@@ -73,6 +72,10 @@ export interface SettingsPageProps {
   readonly editors: DedicatedEditors;
   /** 도구와 웹 탭의 패널(P-12). 탭이 `tools`일 때 항목 위에 보인다 */
   readonly toolsPanel: ReactNode;
+  /** 계정 회전 행(P-11). 탭이 `providers`일 때 게이지 아래, 항목 위에 보인다. 값이 없으면 `null`이다 */
+  readonly rotationPanel: ReactNode;
+  /** 사용량 (이 대화) 패널(P-11). 게이지 자리가 있는 탭(예산과 한도, 계정과 제공자) 맨 위에 보인다 */
+  readonly usagePanel: ReactNode;
   readonly handlers: SettingsPageHandlers;
 }
 
@@ -306,7 +309,8 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     <FormLayoutSection title={tabView.label}>
       {tab === "overview" ? <OverviewSummary view={view} /> : null}
       {tab === "tools" ? props.toolsPanel : null}
-      {tabView.gauge === null ? null : <GaugeSlotView gauge={tabView.gauge} />}
+      {tabView.gauge === null ? null : props.usagePanel}
+      {tab === "providers" ? props.rotationPanel : null}
       {fields.length === 0 && tabView.emptyText !== null && tab !== "tools" ? (
         <p className="text-ui-sm text-text-tertiary">{tabView.emptyText}</p>
       ) : null}

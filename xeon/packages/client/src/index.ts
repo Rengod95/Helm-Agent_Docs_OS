@@ -34,19 +34,26 @@ export {
 // 모델 계정과 레이트 리밋 view-model(P-11 계정과 제공자, 예산과 한도). 같은 이유로 `.`에서 다시 낸다.
 // 설정 파일 원문 읽기와 쓰기(`settings.readFile`·`writeFile`)는 파일 편집기(P-09)가 쓴다. `saveModelAccounts`는 내지 않는다.
 export {
+  ACCOUNTS_KEY,
   DEFAULT_RATE_LIMIT_POLICY,
+  RATE_LIMIT_KEY,
+  ROTATION_ACK_KEY,
   checkAccount,
   checkRateLimit,
+  modelAccountsView,
   readAccounts,
   readRateLimit,
   readSettingsFile,
+  rotationRiskNotice,
   withAccount,
   withRateLimit,
   withoutAccount,
   withoutRateLimit,
   writeSettingsFile,
   type AccountEntry,
+  type ModelAccountsView,
   type RateLimitEntry,
+  type RotationState,
   type SettingsFileError,
   type UsageLimitAction,
 } from "./accounts/index.ts";

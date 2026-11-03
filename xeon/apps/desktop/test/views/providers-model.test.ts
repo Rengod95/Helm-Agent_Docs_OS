@@ -1,15 +1,20 @@
 import { describe, expect, test } from "bun:test";
 import type { AccountEntry, RateLimitEntry } from "@fresnel/client";
+import type { UsageGauge } from "@fresnel/contracts/wire";
 import {
   ACCOUNT_FOLD_MAX,
   FALLBACK_MAX,
   chainsOf,
+  fieldOfKey,
   foldOf,
   isProviderId,
   poolsOf,
   rateRowsOf,
   reprioritizedOf,
   roleRefsOf,
+  rotationConfirmOf,
+  rotationStepOf,
+  usageFractionOf,
   withChain,
   withRoleRef,
 } from "../../src/views/pages/providers/providers-model.ts";
@@ -116,5 +121,87 @@ describe("isProviderId", () => {
     expect(isProviderId("Anthropic")).toBe(false);
     expect(isProviderId("a b")).toBe(false);
     expect(isProviderId("")).toBe(false);
+  });
+});
+
+// 계정 회전 행의 쓰기 모양. 값은 설정 키 이름과 `true`/`false` 그대로 비교한다.
+describe("rotationStepOf", () => {
+  const ENABLED = "ext.account-rotation.enabled";
+
+  test("turning off writes only the enabled key, and only when the plugin is on", () => {
+    expect(rotationStepOf({ pluginEnabled: true, acknowledged: true }, false)).toEqual({
+      kind: "write",
+      writes: [{ key: ENABLED, value: false }],
+    });
+    expect(rotationStepOf({ pluginEnabled: false, acknowledged: true }, false)).toEqual({
+      kind: "write",
+      writes: [],
+    });
+  });
+
+  test("turning on without the acknowledgement asks first, from off and from needs-notice alike", () => {
+    expect(rotationStepOf({ pluginEnabled: false, acknowledged: false }, true)).toEqual({
+      kind: "ask",
+    });
+    expect(rotationStepOf({ pluginEnabled: true, acknowledged: false }, true)).toEqual({
+      kind: "ask",
+    });
+  });
+
+  test("turning on with the acknowledgement writes the enabled key only when it was off", () => {
+    expect(rotationStepOf({ pluginEnabled: false, acknowledged: true }, true)).toEqual({
+      kind: "write",
+      writes: [{ key: ENABLED, value: true }],
+    });
+    expect(rotationStepOf({ pluginEnabled: true, acknowledged: true }, true)).toEqual({
+      kind: "write",
+      writes: [],
+    });
+  });
+
+  test("the confirm dialog writes the acknowledgement first and the enabled key after it when it was off", () => {
+    expect(rotationConfirmOf({ pluginEnabled: false })).toEqual([
+      { key: "ext.account-rotation.acknowledgeRisk", value: true },
+      { key: ENABLED, value: true },
+    ]);
+    expect(rotationConfirmOf({ pluginEnabled: true })).toEqual([
+      { key: "ext.account-rotation.acknowledgeRisk", value: true },
+    ]);
+  });
+});
+
+function sessionGauge(used: number, limit: number | null): UsageGauge {
+  return {
+    id: "anthropic::session:tokens",
+    providerId: "anthropic",
+    account: null,
+    window: "session",
+    unit: "tokens",
+    used,
+    limit,
+    resetsAt: null,
+  };
+}
+
+describe("usageFractionOf", () => {
+  test("a known limit gives the fraction, capped at 100", () => {
+    expect(usageFractionOf(sessionGauge(41_000, 100_000))).toBe(41);
+    expect(usageFractionOf(sessionGauge(200, 100))).toBe(100);
+  });
+
+  test("an unknown or zero limit gives no fraction, so no number is made up", () => {
+    expect(usageFractionOf(sessionGauge(41_000, null))).toBeNull();
+    expect(usageFractionOf(sessionGauge(41_000, 0))).toBeNull();
+  });
+});
+
+describe("fieldOfKey", () => {
+  test("finds a field by its exact key and says so when it is not on the tab", () => {
+    const fields = [
+      { key: "ext.account-rotation.enabled", value: true },
+      { key: "ext.account-rotation.acknowledgeRisk", value: false },
+    ];
+    expect(fieldOfKey(fields, "ext.account-rotation.enabled")).toEqual(fields[0]);
+    expect(fieldOfKey(fields, "ext.account-rotation")).toBeUndefined();
   });
 });

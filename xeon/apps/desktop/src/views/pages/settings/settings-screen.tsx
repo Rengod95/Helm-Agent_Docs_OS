@@ -27,7 +27,8 @@ import {
   type SettingsJump,
 } from "../../../state/ui/index.ts";
 import { useCommands, type SettingsFileTarget, type SettingsFileWrite } from "../../commands.ts";
-import { PROVIDER_EDITORS } from "../providers/providers-screen.tsx";
+import { PROVIDER_EDITORS, RotationPanel, useUsageState } from "../providers/providers-screen.tsx";
+import { UsagePanelView } from "../providers/providers-view.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
 import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
 import {
@@ -158,6 +159,7 @@ export function SettingsPage(): ReactNode {
   });
   const view = useMemo(() => (status === "ready" ? settingsViewOf(state) : null), [status, state]);
   const toolsWeb = useToolsWebState(live);
+  const usage = useUsageState(live, threadId);
   const jump = useSettingsJump();
   const dirtyKeys = view === null ? [] : dirtyKeysOf(view.tabs);
 
@@ -426,6 +428,17 @@ export function SettingsPage(): ReactNode {
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
+      rotationPanel={
+        view === null ? null : <RotationPanel view={view} live={live} handlers={fields} />
+      }
+      usagePanel={
+        <UsagePanelView
+          load={usage.load}
+          offline={!live}
+          hasThread={threadId !== null}
+          onRetry={usage.reload}
+        />
+      }
       handlers={handlers}
     />
   );

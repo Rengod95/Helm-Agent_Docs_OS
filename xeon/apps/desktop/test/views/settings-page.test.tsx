@@ -87,6 +87,8 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     fileOpen: false,
     editors: {},
     toolsPanel: <p>TOOLS PANEL</p>,
+    rotationPanel: null,
+    usagePanel: null,
     handlers,
     ...over,
   };

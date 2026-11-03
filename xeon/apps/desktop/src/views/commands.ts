@@ -164,6 +164,14 @@ export interface ReviewCommands {
 }
 
 /**
+ * 사용량 게이지(P-11 "사용량 (이 대화)"). 게이지는 요청 결과라 거울에 넣지 않는다(FS-03). 읽기만 하고 연결과 host 실패만 `CommandError`다.
+ */
+export interface UsageCommands {
+  /** `usage.get`. `threadId`를 주면 그 대화의 게이지를 더한다. 한도와 재설정 시각은 host가 알 때만 준다 */
+  get(params: WireParams<"usage.get">): Promise<Result<WireResult<"usage.get">, CommandError>>;
+}
+
+/**
  * 목표와 작업(P-14). 목표와 작업 목록은 요청 결과라 거울에 넣지 않는다(FS-03). 목표를 걸고 해제하는 것은 `command.run`에 `/goal` 줄을
  * 그대로 보낸다. `done`이 아닌 결과와 실패는 화면이 문장으로 바꾼다.
  */
@@ -481,6 +489,7 @@ export interface Commands {
   readonly proposals: ProposalCommands;
   readonly work: WorkCommands;
   readonly review: ReviewCommands;
+  readonly usage: UsageCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */

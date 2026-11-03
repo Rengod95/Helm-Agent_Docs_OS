@@ -26,6 +26,7 @@ import { createProposalCommands } from "./proposals.ts";
 import { createWorkCommands } from "./work.ts";
 import { createReviewCommands } from "./review.ts";
 import { createSetupCommands } from "./setup.ts";
+import { createUsageCommands } from "./usage.ts";
 import { createTestCommands } from "./tests-commands.ts";
 import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
@@ -250,6 +251,7 @@ export function createCommands(deps: CommandDeps): Commands {
     proposals: createProposalCommands(withConnection, withWriteConnection),
     work: createWorkCommands(withConnection, withWriteConnection),
     review: createReviewCommands(withConnection),
+    usage: createUsageCommands(withConnection),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),

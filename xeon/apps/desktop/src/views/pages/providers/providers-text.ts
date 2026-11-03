@@ -1,5 +1,6 @@
-import type { MessageId } from "@fresnel/client/i18n";
-import type { UsageLimitAction } from "@fresnel/client";
+import type { Locale, MessageArgs, MessageId } from "@fresnel/client/i18n";
+import type { RotationState, UsageLimitAction } from "@fresnel/client";
+import type { UsageUnit, UsageWindow } from "@fresnel/contracts/wire";
 import type { RoleId } from "./providers-model.ts";
 
 // 계정과 제공자 화면(P-11)의 문장 고르기. 문장은 메시지 키로 들고 있다가 그릴 때 `t()`로 만든다.
@@ -53,4 +54,74 @@ const FIELD_ID: Readonly<Record<FieldName, MessageId>> = {
 
 export function fieldIdOf(field: FieldName): MessageId {
   return FIELD_ID[field];
+}
+
+const ROTATION_STATE_ID: Readonly<Record<RotationState, MessageId>> = {
+  off: "desktop.providers.rotation.state.off",
+  needsNotice: "desktop.providers.rotation.state.needsNotice",
+  on: "desktop.providers.rotation.state.on",
+};
+
+/** 회전 상태(off, needsNotice, on)의 글 이름 */
+export function rotationStateIdOf(state: RotationState): MessageId {
+  return ROTATION_STATE_ID[state];
+}
+
+const UNIT_ID: Readonly<Record<UsageUnit, MessageId>> = {
+  tokens: "desktop.providers.usage.unit.tokens",
+  usd: "desktop.providers.usage.unit.usd",
+  requests: "desktop.providers.usage.unit.requests",
+  cacheRead: "desktop.providers.usage.unit.cacheRead",
+  cacheWrite: "desktop.providers.usage.unit.cacheWrite",
+};
+
+export function unitIdOf(unit: UsageUnit): MessageId {
+  return UNIT_ID[unit];
+}
+
+/** 창 이름. `session`(이 대화)은 패널 제목이 이미 말하므로 글을 붙이지 않는다 */
+const WINDOW_ID: Readonly<Record<UsageWindow, MessageId | null>> = {
+  minute: "desktop.providers.usage.window.minute",
+  hour: "desktop.providers.usage.window.hour",
+  day: "desktop.providers.usage.window.day",
+  week: "desktop.providers.usage.window.week",
+  month: "desktop.providers.usage.window.month",
+  session: null,
+};
+
+export function windowIdOf(window: UsageWindow): MessageId | null {
+  return WINDOW_ID[window];
+}
+
+/** 메시지 키와 인자. `t(id, args)`로 푼다 */
+export interface MessageRef {
+  readonly id: MessageId;
+  readonly args: MessageArgs;
+}
+
+/** 토큰, 요청, 캐시 같은 개수. 1000 미만은 그대로, 그 이상은 천 단위로 줄인다(41,000은 41천) */
+function countRefOf(amount: number): MessageRef {
+  const count = Math.round(amount);
+  if (count < 1000) return { id: "desktop.providers.usage.count.plain", args: { count } };
+  return {
+    id: "desktop.providers.usage.count.thousand",
+    args: { count: Math.round(count / 1000) },
+  };
+}
+
+/** 비용. 달러 두 자리다 */
+function usdRefOf(amount: number): MessageRef {
+  return { id: "desktop.providers.usage.usd", args: { amount: amount.toFixed(2) } };
+}
+
+/** 게이지 값 하나의 키. 비용은 달러, 나머지는 개수다 */
+export function amountRefOf(unit: UsageUnit, amount: number): MessageRef {
+  return unit === "usd" ? usdRefOf(amount) : countRefOf(amount);
+}
+
+/** 재설정 시각의 지역 문장. 엔진이 준 값은 ISO 문자열이다 */
+export function resetTextOf(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(iso),
+  );
 }

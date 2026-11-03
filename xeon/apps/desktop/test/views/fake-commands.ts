@@ -140,6 +140,9 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     review: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
     },
+    usage: {
+      get: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
     observeThread: () => Promise.resolve(ok(null)),
     forkThread: () => Promise.resolve(ok(null)),
     dismissLocked: () => {},

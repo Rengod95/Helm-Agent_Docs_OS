@@ -1,9 +1,12 @@
 import {
   DEFAULT_RATE_LIMIT_POLICY,
+  ROTATION_ACK_KEY,
   type AccountEntry,
   type RateLimitEntry,
   type UsageLimitAction,
 } from "@fresnel/client";
+import type { FieldVM } from "@fresnel/client/settings";
+import type { UsageGauge } from "@fresnel/contracts/wire";
 
 // 계정과 제공자, 예산과 한도 화면(P-11)의 순수 모델. 계정 풀, 레이트 리밋, 모델 역할, 대체 사슬의 값을 읽고 고친다.
 // 값의 검사와 모양은 client(`accounts`, `settings`)가 맡고, 여기서는 화면이 쓰는 묶기와 순서만 한다.
@@ -131,4 +134,71 @@ export function withChain(chains: ChainMap, role: string, items: readonly string
   if (items.length === 0) delete next[role];
   else next[role] = items;
   return next;
+}
+
+// ── 계정 회전 행 ─────────────────────────────────────────────────────────
+
+/** 계정 회전 플러그인의 켜기 키(X 로더 예약 키 `enabled`, 기본 꺼짐). 고지 동의 키는 client `ROTATION_ACK_KEY`다 */
+export const ROTATION_ENABLED_KEY = "ext.account-rotation.enabled";
+
+/** 설정 키 하나에 쓸 값. 바뀌는 키만 담는다 */
+export interface RotationWrite {
+  readonly key: string;
+  readonly value: boolean;
+}
+
+/** 회전 스위치를 바꾼 결과: 위험 확인 대화 상자를 먼저 열거나, 바로 쓴다 */
+export type RotationStep =
+  | { readonly kind: "ask" }
+  | { readonly kind: "write"; readonly writes: readonly RotationWrite[] };
+
+/**
+ * 스위치를 `next`로 바꿨을 때의 행동(L4.desktop-ux §6.15). 끄면 켜기 키만 `false`로 쓴다.
+ * 켜는 쪽은 고지에 동의하지 않았으면 위험 확인 대화 상자를 먼저 연다. 동의했으면 켜기 키만 쓰고, 이미 켜져 있으면 아무것도 쓰지 않는다.
+ */
+export function rotationStepOf(
+  input: { readonly pluginEnabled: boolean; readonly acknowledged: boolean },
+  next: boolean,
+): RotationStep {
+  if (!next) {
+    return {
+      kind: "write",
+      writes: input.pluginEnabled ? [{ key: ROTATION_ENABLED_KEY, value: false }] : [],
+    };
+  }
+  if (!input.acknowledged) return { kind: "ask" };
+  return {
+    kind: "write",
+    writes: input.pluginEnabled ? [] : [{ key: ROTATION_ENABLED_KEY, value: true }],
+  };
+}
+
+/**
+ * 위험 확인 대화 상자의 "위험을 알고 켜기"가 쓰는 값. 동의 키를 먼저 쓰고, 플러그인이 꺼져 있었으면 켜기 키를 잇는다.
+ */
+export function rotationConfirmOf(input: {
+  readonly pluginEnabled: boolean;
+}): readonly RotationWrite[] {
+  return [
+    { key: ROTATION_ACK_KEY, value: true },
+    ...(input.pluginEnabled ? [] : [{ key: ROTATION_ENABLED_KEY, value: true }]),
+  ];
+}
+
+/** 키 이름으로 설정 항목을 찾는다. 탭에 없으면 `undefined`다 */
+export function fieldOfKey<F extends Pick<FieldVM, "key">>(
+  fields: readonly F[],
+  key: string,
+): F | undefined {
+  return fields.find((field) => field.key === key);
+}
+
+// ── 사용량 게이지 ────────────────────────────────────────────────────────
+
+/**
+ * 게이지의 채움 비율(0~100). 한도를 모르거나 한도가 0 이하이면 `null`이다. 비율을 지어내지 않는다(caustic `Progress`는 모르면 indeterminate).
+ */
+export function usageFractionOf(gauge: UsageGauge): number | null {
+  if (gauge.limit === null || gauge.limit <= 0) return null;
+  return Math.min(100, (gauge.used / gauge.limit) * 100);
 }
