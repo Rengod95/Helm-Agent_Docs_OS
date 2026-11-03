@@ -4,7 +4,7 @@ import { useThreadSummaries } from "../state/engine/index.ts";
 import { useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { LockedDialog } from "./locked-dialog.tsx";
-import { SettingsScreen } from "./settings.tsx";
+import { SettingsPage } from "./pages/settings/settings-screen.tsx";
 import { useShellActions } from "../state/shell/index.ts";
 import type { ShellRegistry } from "./shell/registry.ts";
 import { Shell } from "./shell/shell.tsx";
@@ -90,7 +90,7 @@ export function App(props: AppProps): ReactNode {
         onSettingsOpenChange={(open) => {
           commands.showScreen(open ? "settings" : "chat");
         }}
-        settingsScreen={<SettingsScreen />}
+        settingsScreen={<SettingsPage />}
         threadList={<ThreadList />}
         statusBar={<StatusBar />}
         onGoToThread={openThread}

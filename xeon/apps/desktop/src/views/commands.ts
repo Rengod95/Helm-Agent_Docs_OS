@@ -21,7 +21,12 @@ import type {
   WireParams,
   WireResult,
 } from "@fresnel/contracts/wire";
-import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
+import type {
+  CommandRowVM,
+  KeyRegisterError,
+  SettingsController,
+  SetupSnapshot,
+} from "@fresnel/client/settings";
 import type { AttachFailureKind, TargetEntry, ToolsWebView } from "@fresnel/client";
 import type { ToggleRequest } from "@fresnel/client/workbench";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
@@ -183,6 +188,14 @@ export interface SetupCommands {
 }
 
 /**
+ * 설정 화면(P-09)의 컨트롤러. 연결이 없으면 `null`이다. 컨트롤러는 연결마다 새로 만들고, 화면이 `dispose()`로 놓는다.
+ * 읽기·쓰기·알림의 판정은 `@fresnel/client/settings`가 하고, 이 명령은 연결과 현재 대화만 잇는다(`app/settings.ts`).
+ */
+export interface SettingsCommands {
+  open(): SettingsController | null;
+}
+
+/**
  * 시크릿 화면의 기대하지 않은 실패. `secret.*`의 몇 가지 오류 종류만 구분하고 나머지는 `failed`다.
  * 값은 이 오류에도 들어 있지 않다(wire의 details에 값이 없다).
  */
@@ -300,6 +313,7 @@ export interface Commands {
   readonly schedule: ScheduleCommands;
   readonly connection: ConnectionCommands;
   readonly secrets: SecretCommands;
+  readonly settings: SettingsCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */

@@ -1609,6 +1609,12 @@ compact 폭(720 이하)과 사이드바 시트:
 - 접근성: 탭 목록은 WAI-ARIA 탭 패턴(세로), 배지는 문장으로 읽힘("사용자 범위, 즉시 적용"), 잠긴 항목은 `aria-disabled`와 설명 연결.
 - caustic: `Tabs`(세로 배치는 앱 스타일 [가정]) 또는 `ListNavigation kind="pages"`, `FormLayout`, `FormLayoutSection`, `FormLayoutFooter`, `Field`, `Switch`, `RadioGroup`, `Select`, `NumberField`, `Input`, `TagInput`, `Table`, `Checkbox`("이번 대화에만 적용"), `Badge`, `Alert`, `Accordion`(가려진 범위), `Textarea`(파일 편집, 코드 편집기는 없음 `[gap:C-06]`).
 
+- 구현 메모(데스크톱 설정 트랙, 2026-11-04)
+  - 파일: 화면은 `xeon/apps/desktop/src/views/pages/settings/`에 있다. `settings-model.ts`(탭, 찾기, 초안 묻기, 칸 고르기, 바로 가기 키의 순수 함수), `settings-screen.tsx`(컨트롤러의 수명, 저장됨 2초, 열린 대화가 바뀔 때의 다시 읽기), `settings-view.tsx`와 `settings-field.tsx`(그림), `settings-text.ts`(문장과 배지 색 토큰). 연결은 `xeon/apps/desktop/src/app/settings.ts`가 맡고, 명령은 `commands.settings.open()`(`views/commands.ts`)이다. 셸의 설정 슬롯(`views/app.tsx`)이 이 화면을 연다.
+  - 시험: `test/views/settings-model.test.ts`, `test/views/settings-page.test.tsx`(서버 렌더), `test/app/settings-commands.test.ts`(가짜 엔진의 `settings.set` 인자와 대화 범위 알림 판정).
+  - 탭 목록은 `ListNavigation kind="pages"`다. 720 이하 폭(셸의 compact 단계)에서는 `Select`다. 시크릿 탭은 P-10 `SecretsPanel`을 그대로 넣는다. 옛 최소 설정 화면은 P-01 첫 실행 화면이 맡고, `views/settings.tsx`에는 두 화면이 쓰는 `errorText`만 남았다.
+  - 뒤로 미룬 것: 전용 편집기 여섯 가지의 그림은 P-11과 P-12 트랙이 붙인다(지금은 읽기 요약과 "파일로 보기" 안내). 표와 시크릿 위젯도 읽기 요약이다. 파일 편집기(`settings.readFile`·`settings.writeFile`)는 아직 없다. 데스크톱 로컬 설정과 엔진 값을 합치는 두 원천(L4.settings-ui §4.1.3)은 `localStore` 포트가 없어서 아직 합치지 않는다.
+
 ### 6.14 P-10 시크릿
 
 ```text

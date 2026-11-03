@@ -20,6 +20,7 @@ import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
 import { createScheduleCommands } from "./schedule.ts";
 import { createSecretCommands } from "./secrets.ts";
+import { createSettingsCommands } from "./settings.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createWorkbenchCommands } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
@@ -229,6 +230,7 @@ export function createCommands(deps: CommandDeps): Commands {
       run: withConnection,
     }),
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
+    settings: createSettingsCommands({ session, ui }),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),
