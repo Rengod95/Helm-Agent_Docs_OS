@@ -1116,7 +1116,7 @@ export type NotifyError =
   1. 명시 선언: 플러그인 매니페스트 `replaces: ["read"]`에 적은 이름만 대체한다. 선언 없이 이름이 겹치면 대체되지 않는다(`name_conflict`, 확장 이름 정책은 정식 이름으로 돌린다).
   2. 활성화 승인: 대체는 사용자가 승인하기 전까지 켜지지 않고 원본이 그대로 남는다. 승인 요청은 kind `tool`, 도구 이름 `tool_replace`, 규칙 id `tools.replace`이고 `remember`는 `once`뿐이다. 승인 화면은 별도 화면 트랙이 맡는다(L1.tools.spec §4.13).
   3. 위험 등급 하한: 대체 도구의 위험 등급은 원본보다 낮지 않다(선언과 원본 중 높은 쪽). 원본의 `classes`도 물려받는다.
-  4. 기본 자동 허용 배제: 내장 기본 규칙(`default` 티어)의 allow는 대체 도구에 적용하지 않는다. `read`·`ls`의 기본 허용(안전 1차가 기능 `workspace.files`와 위험 `read`로 묶은 것)도 마찬가지다. 사용자·managed 규칙은 그대로 적용된다.
+  4. 기본 자동 허용 배제: 대체 도구의 정책 판정이 내장 기본 규칙(`default` 티어)의 allow이거나 위험 등급 때문에 생기는 모드 기본 allow이면 ask로 낮춘다(`demoteReplacementAllow`). `read`·`ls`의 기본 허용(안전 1차가 기능 `workspace.files`와 위험 `read`로 묶은 것)도 마찬가지다. deny·ask 규칙, 사용자·managed 규칙의 allow, 사용자가 고른 bypass는 그대로 적용된다. 사람이 답할 수 없으면 ask는 deny다. 저장소 범위(`project`, `local`) 설정의 처리는 여기서 정하지 않고 `L1.tools.spec` §4.13 [제안]이 맡는다.
   5. 한 도구에 대체는 하나: 두 확장이 같은 내장 도구를 대체하면 오류다(`replace_conflict`, 매니페스트 집합과 등록 모두).
   6. 경로 보호: 경로 보호(쓰기 범위, 민감 경로 차단)는 내장 파일 도구 안에 있다. 대체 도구는 스스로 지켜야 하고, 승인 요청 본문과 매니페스트 문서가 그렇게 알린다.
   7. 도구 실행 틀은 대체할 수 없다: 정책, 승인, 효과 기록, 마스킹, 절단, 시크릿 검사는 대체 도구도 그대로 지난다. `tool_search`, `read_tool_output`, MCP 도구, 확장 도구는 대체할 수 없다(`replace_forbidden`). `tool.call.before`는 여전히 인자를 바꾸지 못한다(U-06).

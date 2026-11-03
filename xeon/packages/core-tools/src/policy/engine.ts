@@ -225,10 +225,7 @@ export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[])
  * 위험 등급이 낮아서 생기는 모드 기본 허용은 내장 파일 도구를 위한 것이라 같은 이름의 다른 코드에 넘기지 않는다.
  * 사용자·managed 규칙의 allow와 사용자가 고른 bypass는 그대로다. 사람이 답할 수 없으면 ask는 deny가 된다
  */
-export function demoteReplacementAllow(
-  decision: PolicyDecision,
-  input: PolicyInput,
-): PolicyDecision {
+function demoteReplacementAllow(decision: PolicyDecision, input: PolicyInput): PolicyDecision {
   if (decision.effect !== "allow") return decision;
   const fromDefault =
     decision.reason === "rule"
