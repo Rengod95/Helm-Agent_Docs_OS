@@ -162,7 +162,7 @@ export interface SwapPlan {
   readonly resetRefusedState: boolean;
 }
 
-export type SwapResult =
+type SwapResult =
   | {
       readonly ok: true;
       /** 이 교체가 `initial`로 다시 쓴 (thread, scope) 상태 수 */
