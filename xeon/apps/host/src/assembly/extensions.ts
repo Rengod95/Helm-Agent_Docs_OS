@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import type { Clock, Logger } from "@fresnel/contracts";
+import type { Clock, Logger, Scheduler } from "@fresnel/contracts";
 import {
   isId,
   type IdFactory,
@@ -94,6 +94,8 @@ import {
 export interface ExtensionDeps {
   readonly mode: HostMode;
   readonly clock: Clock;
+  /** 계정 회전의 간격·한도 대기가 쓰는 타이머. 시계를 따로 넘기면 core-models가 OS 타이머를 쓰지 않으므로 함께 넘긴다 */
+  readonly scheduler: Scheduler;
   readonly ids: IdFactory;
   /** `dialog.status`와 `scope.handler_failed`가 나누는 조각 번호 발급기(한 (thread, turn) 안에서 번호가 겹치지 않는다) */
   readonly chunkNumbering: ChunkNumbering;
@@ -257,6 +259,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           createModelsExtension({
             settings: modelsSource(settings),
             clock: deps.clock,
+            scheduler: deps.scheduler,
             ...(deps.buildModels === undefined ? {} : { buildModels: deps.buildModels }),
           }),
           loadIndex,

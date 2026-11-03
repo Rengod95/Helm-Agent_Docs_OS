@@ -1,3 +1,4 @@
+import type { JsonObject } from "@fresnel/contracts/conversation";
 import { t, tape, tapeBuildModels, tapePlayer, tapeProvider } from "@fresnel/core-models/testing";
 import { realTapeClock } from "./tape-host.ts";
 import type { AssembleOptions } from "../../src/types.ts";
@@ -15,7 +16,7 @@ export function skillViewingModels(
 export function toolCallingModels(
   id: string,
   toolName: string,
-  args: Readonly<Record<string, unknown>>,
+  args: JsonObject,
 ): NonNullable<AssembleOptions["buildModels"]> {
   return tapeBuildModels(
     tapeProvider(

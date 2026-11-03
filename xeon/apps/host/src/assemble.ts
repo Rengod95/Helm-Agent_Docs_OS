@@ -722,6 +722,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         web,
         mode: options.mode,
         clock,
+        scheduler: runtime.scheduler,
         ids,
         chunkNumbering,
         localIds,
