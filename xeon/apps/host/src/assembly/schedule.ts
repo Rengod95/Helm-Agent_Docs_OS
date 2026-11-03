@@ -31,6 +31,7 @@ import {
   type RunRequest,
   type RunnerFailure,
   type ScheduleIds,
+  type ScheduleLeader,
   type ScheduleRunner,
   type ScheduleService,
   type ScheduleTicker,
@@ -77,6 +78,8 @@ export interface HostScheduleDeps {
   readonly ids: IdFactory;
   readonly tasks: Pick<TaskService, "inputs">;
   readonly loop: Pick<LoopService, "whenIdle">;
+  /** 틱을 돌릴 프로세스를 정하는 Scheduler leader. 생략하면 이 서비스가 곧 유일한 틱이다(시험) */
+  readonly leader?: ScheduleLeader;
   /** 세션 쓰기 소유를 얻을 때 쓰는 소유 종류(HostMode에서 정한다) */
   readonly ownerKind: OwnerKind;
   readonly runnerPorts: () => ScheduleRunnerPorts;
@@ -97,6 +100,7 @@ export function createHostSchedule(deps: HostScheduleDeps): ScheduleService {
     ticker: overrides?.ticker ?? schedulerTickerOf(deps.os.time.scheduler),
     watcher: fileWatcherOf(deps.os, deps.logger),
     ids: scheduleIdsOf(deps.ids),
+    ...(deps.leader === undefined ? {} : { leader: deps.leader }),
     ...(overrides?.policy === undefined ? {} : { policy: overrides.policy }),
     report: (message, fields) => {
       deps.logger.error(message, toLogFields(fields));

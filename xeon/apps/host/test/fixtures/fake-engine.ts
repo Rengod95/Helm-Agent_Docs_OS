@@ -503,6 +503,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
 
   const engine: Engine = {
     mode: options.mode ?? "in-process",
+    scheduleRuns: () => (options.mode ?? "in-process") === "service",
     storeId,
     catalog: built.catalog,
     safeMode: false,

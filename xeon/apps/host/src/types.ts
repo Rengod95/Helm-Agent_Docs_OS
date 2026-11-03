@@ -201,6 +201,11 @@ export interface PendingSchedulesPort {
 
 export interface Engine {
   readonly mode: HostMode;
+  /**
+   * 지금 만드는 예약이 실제로 실행되는가: 이 프로세스가 틱을 돌리거나(서비스, 서비스를 쓰지 않는 앱), 살아 있는
+   * Scheduler leader가 다른 프로세스에 있다. 거짓이면 `schedule.create`가 `service_mode_off`를 싣는다
+   */
+  readonly scheduleRuns: () => boolean;
   /** 안전 모드로 열렸는가(`AssembleOptions.safeMode`). host.status.safeMode의 원천 */
   readonly safeMode: boolean;
   /** 연속 시작 실패 수와 안전 모드 제안. host.status.startupFailures·suggestSafeMode의 원천(W-39) */

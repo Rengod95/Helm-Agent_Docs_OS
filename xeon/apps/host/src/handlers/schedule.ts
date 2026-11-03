@@ -1,10 +1,11 @@
-import type {
-  CancelError,
-  CreateError,
-  FireError,
-  ScheduleEntry,
-  ScheduleService,
-  StoreFailure,
+import {
+  pageEntries,
+  type CancelError,
+  type CreateError,
+  type FireError,
+  type ScheduleEntry,
+  type ScheduleService,
+  type StoreFailure,
 } from "@fresnel/cap-schedule";
 import type { ScheduleEntryView, ScheduleTrigger } from "@fresnel/contracts/capabilities";
 import type { WireHandlers, WireResult } from "@fresnel/contracts/wire";
@@ -14,7 +15,7 @@ import type { Engine } from "../types.ts";
 // 예약 서비스(`EnginePorts.schedule`)를 그대로 부른다. 기대한 실패는 JSON-RPC 오류가 아니라 `ok: false`의 `error` 값이다.
 // 스레드를 건드리지 않으므로 쓰기 소유를 얻지 않는다. 네 처리기는 모두 `open()`을 먼저 부른다. 읽지 못하면(파일 손상 포함)
 // 어떤 호출도 서비스의 쓰기를 부르지 않고 `store_failed`를 돌려준다.
-// 틱은 서비스 모드에서만 돈다. 그 밖의 모드에서 만든 항목은 저장만 되고 실행되지 않으므로 `service_mode_off` 경고를 싣는다.
+// 틱은 서비스 프로세스나 서비스를 쓰지 않는 앱(stdio)이 Scheduler leader를 쥐고 돌린다. 만든 항목이 실행되지 않을 때만(`engine.scheduleRuns()`가 거짓) `service_mode_off` 경고를 싣는다.
 
 type WireError = Extract<WireResult<"schedule.list">, { readonly ok: false }>["error"];
 type ScheduleFailed = { readonly ok: false; readonly error: WireError };
@@ -59,22 +60,26 @@ export function createScheduleHandlers(
         ...(params.enabled === undefined ? {} : { enabled: params.enabled }),
       });
       if (!created.ok) return { ok: false, error: errorOf(created.error) };
-      const warnings: "service_mode_off"[] = engine.mode === "service" ? [] : ["service_mode_off"];
+      const warnings: "service_mode_off"[] = engine.scheduleRuns() ? [] : ["service_mode_off"];
       return { ok: true, entry: entryViewOf(created.value), warnings };
     },
 
     "schedule.list": async (params) => {
       const open = await opened(service);
       if (!open.ok) return open;
-      const items = open.service
-        .list()
-        .filter((entry) => params.enabled === undefined || entry.enabled === params.enabled)
-        .slice(-200)
-        .map((entry) => ({
-          entry: entryViewOf(entry),
-          lastRun: open.service.runs(entry.id, 1)[0] ?? null,
-        }));
-      return { ok: true, items };
+      // 쪽 나누기(l2/F-01): 기능 API와 같은 규칙이다
+      const { page, nextBefore } = pageEntries(
+        open.service
+          .list()
+          .filter((entry) => params.enabled === undefined || entry.enabled === params.enabled),
+        params.before,
+        params.limit,
+      );
+      const items = page.map((entry) => ({
+        entry: entryViewOf(entry),
+        lastRun: open.service.runs(entry.id, 1)[0] ?? null,
+      }));
+      return nextBefore === undefined ? { ok: true, items } : { ok: true, items, nextBefore };
     },
 
     "schedule.cancel": async (params) => {
