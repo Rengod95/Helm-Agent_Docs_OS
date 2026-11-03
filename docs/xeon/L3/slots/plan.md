@@ -200,6 +200,8 @@ S-01 구현에서 바뀐 점은 다음과 같다. 골격의 계약은 `L3.slots.
 - drive·observe의 `settings.ts`는 키가 없는 묶음이다. 키를 더하는 자리만 둔다.
 - 생성 `package.json`은 `name`, `version`, `private`, `type`, `exports`, `fresnel`과 종류별 의존을 둔다. `dependencies`는 `@fresnel/contracts`·`@fresnel/group-sdk`(`workspace:*`)와 `typebox`(`catalog:`)이고, drive·policy는 `devDependencies`에 `@fresnel/ext-host`를 더한다. 의존은 생성된 코드가 import하는 것과 같다(`templates.test.ts` `template.dependencies-match-imports`). 템플릿 파일은 종류별 폴더에 있다.
 
+- `L3.slots.spec` §3.3.5의 코드 목록은 위 변경과 실제 템플릿 파일에 맞춰 고쳤다(M4 T-RT2, 옛 목록의 `__ID__State`·`loop.budget.turns` 서술 제거).
+
 시험 지원 파일은 `xeon/packages/group-sdk/test/support/`에 있다.
 
 - `generate-template.ts`: 색인을 읽어 파일을 복사하고 `__ID__`, `__TITLE__`, `__VERSION__`을 치환한다. 대상은 `test/.generated/<무작위>/` 아래이고 시험이 끝나면 지운다. 생성 루트에는 `node_modules/@fresnel/group-sdk` 링크를 둔다(생성 그룹이 자기 패키지를 이름으로 import하므로).
