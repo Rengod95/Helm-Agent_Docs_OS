@@ -4,7 +4,7 @@
 # `just typecheck` belong to the final merge step only.
 # usage: check-pkg.sh <package-dir>   (e.g. packages/core-tools, apps/host, plugins/x; "scripts" is xeon/scripts itself)
 # env: FRESNEL_CHECK_MAX (default 1500M) memory cap of lint and typecheck; test runs through test-capped.sh (its own knobs).
-# turbo runs with --concurrency=1: a package with many dependencies has dozens of upstream tsc tasks on a cold cache, and turbo starts
+# turbo runs with --concurrency=1 on Linux (4 on macOS, see turbo_concurrency): a package with many dependencies has dozens of upstream tsc tasks on a cold cache, and turbo starts
 # them side by side (one tsc is several hundred MB), which went past the cap and got the run killed (137). One at a time stays under it.
 # exit: 0 passed, 1 a check failed (the first failure stops the run), 2 environment problem, 64 wrong call.
 set -euo pipefail
@@ -28,6 +28,10 @@ if [[ ! -x "$guard" ]]; then
   exit 2
 fi
 export TURBO_TELEMETRY_DISABLED=1
+# FRESNEL_CHECK_TURBO_CONCURRENCY: tasks at a time (default 1; 4 on macOS, where the memory cap is not a cgroup and 4 measured 86s against 99s for 2 under load).
+turbo_concurrency=1
+if [[ "$(uname -s)" == "Darwin" ]]; then turbo_concurrency=4; fi
+turbo_concurrency="${FRESNEL_CHECK_TURBO_CONCURRENCY:-$turbo_concurrency}"
 export WS_GUARD_RUN_MAX="${FRESNEL_CHECK_MAX:-1500M}"
 
 run() {
@@ -39,8 +43,8 @@ if [[ "$pkg" == "scripts" ]]; then
   run mise exec -- bun run lint:root
   run mise exec -- bun run typecheck:root
 else
-  run mise exec -- bun run turbo run lint --filter="./$pkg" --concurrency=1
-  run mise exec -- bun run turbo run typecheck --filter="./$pkg" --concurrency=1
+  run mise exec -- bun run turbo run lint --filter="./$pkg" --concurrency="$turbo_concurrency"
+  run mise exec -- bun run turbo run typecheck --filter="./$pkg" --concurrency="$turbo_concurrency"
 fi
 echo "== $pkg: test"
 env -u WS_GUARD_ACTIVE scripts/test-capped.sh "$pkg"

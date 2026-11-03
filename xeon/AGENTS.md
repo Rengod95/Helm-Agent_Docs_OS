@@ -75,7 +75,7 @@ Fresnel(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이�
 | `just lint`                                                               | oxlint type-aware, `--deny-warnings`                                               |
 | `just typecheck`                                                          | `tsc -b` (project references)                                                      |
 | `just test [패키지 경로…]`                                                | `bun test`를 scripts와 패키지마다 하나씩, `guard.sh run` 상한(1.5GB, 5분) 아래에서 |
-| `just check <패키지 경로>`                                                | 패키지 하나의 lint, typecheck, test를 차례로, 각각 `guard.sh run` 1.5GB 아래에서. turbo는 `--concurrency=1`이라 의존이 많은 패키지도 빈 캐시에서 상한 안에 든다 |
+| `just check <패키지 경로>`                                                | 패키지 하나의 lint, typecheck, test를 차례로, 각각 `guard.sh run` 1.5GB 아래에서. turbo는 Linux에서 `--concurrency=1`(macOS는 4)이라 의존이 많은 패키지도 빈 캐시에서 상한 안에 든다 |
 | `just check-layers`, `just check-ts-rules`, `just depcruise`, `just knip` | 층 순위, TS 작성 규칙 스캔, 의존 경계, 미사용 코드                                 |
 | `just docs-route --check [--allow-missing]`                               | 문서 프런트매터, id, depends_on, binds 검사                                        |
 | `just terms gen` / `just terms check`                                     | 용어 원본(`packages/client/src/i18n/terms.json`)에서 카탈로그 `term.*` 키 생성 / 용어 검사 1~2단계(T·C·S·D·M 규칙, 표식 `[[…]]`) |
