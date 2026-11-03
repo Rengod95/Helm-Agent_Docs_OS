@@ -555,6 +555,7 @@ export function createScheduleService(deps: ScheduleDeps): ScheduleService {
         lastStartedAt: null,
         iterations: 0,
         stoppedReason: null,
+        ...(input.createdBy === undefined ? {} : { createdBy: input.createdBy }),
       };
       const saved = await commitOrRevert({ ...state, entries: [...state.entries, entry] });
       if (!saved.ok) return saved;

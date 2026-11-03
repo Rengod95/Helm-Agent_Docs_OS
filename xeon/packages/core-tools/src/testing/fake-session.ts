@@ -197,6 +197,7 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
     pendingApprovals: (threadId) =>
       ok([...approvals.values()].filter((view) => view.threadId === threadId && !view.resolved)),
     childAgents: () => ok([]),
+    agentOfChild: () => ok(undefined),
     branchItems: () => ok([]),
     itemEvent: () => ok(undefined),
     // 활성 가지는 흉내 내지 않는다. 최상위 payload 필드(`/필드`) 일치만 본다

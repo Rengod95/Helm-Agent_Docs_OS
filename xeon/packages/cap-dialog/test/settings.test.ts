@@ -112,7 +112,7 @@ describe("설정 키 13개", () => {
     const settings = readDialogSettings(stack);
     expect(settings.ask.timeoutSec).toBe(5);
     expect(settings.commands.shellInjection).toBe("off");
-    expect(settings.commands.dirs).toEqual(["~/a"]);
+    expect(settings.commands.dirs).toEqual([{ path: "~/a", scope: "user" }]);
     expect(settings.attachments.maxBytes).toBe(DEFAULT_DIALOG_SETTINGS.attachments.maxBytes);
   });
 

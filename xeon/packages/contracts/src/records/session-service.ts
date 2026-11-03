@@ -122,6 +122,8 @@ export interface ProjectionQuery {
     parentThreadId: ThreadId,
     options?: { readonly unsettledOnly?: boolean },
   ): Result<readonly AgentView[], ReadFailure>;
+  /** 이 thread가 위임으로 만들어진 자식이면 부모와의 연결. 최상위 thread이면 undefined */
+  agentOfChild(childThreadId: ThreadId): Result<AgentView | undefined, ReadFailure>;
   /** 활성 가지의 item, 순서대로. 컨텍스트 조립과 화면이 쓴다 */
   branchItems(
     threadId: ThreadId,

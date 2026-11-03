@@ -85,6 +85,27 @@ export function memoryCommandFiles(
       }
       return Promise.resolve(ok(entries));
     },
+    canonicalPath(path) {
+      if (links.has(path)) {
+        return Promise.resolve(err(new FileError("not_found", `broken link: ${path}`, path)));
+      }
+      return Promise.resolve(ok(path));
+    },
+    fileInfo(path) {
+      const file = files.get(path);
+      if (file === undefined) {
+        return Promise.resolve(err(new FileError("not_found", `not found: ${path}`, path)));
+      }
+      return Promise.resolve(
+        ok({
+          name: path.slice(path.lastIndexOf("/") + 1),
+          path,
+          kind: "file",
+          size: file.content.length,
+          mtimeMs: file.mtimeMs,
+        }),
+      );
+    },
     readTextFile(path) {
       reads += 1;
       const file = files.get(path);

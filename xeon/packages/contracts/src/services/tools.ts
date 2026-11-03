@@ -584,6 +584,18 @@ export interface ToolService extends ToolsPort {
   /** 사용자 셸(`!명령`) 경로(M2). L1.loop의 runUserBash가 user_bash 지점 뒤에 부른다. 정책은 caller "main", 대화형으로 평가한다 */
   runUserShell(request: UserShellRequest, run: ToolRunContext): Promise<ToolResultRecord>;
 
+  /**
+   * 도구 호출이 아닌 자식 생성(drive·그룹 위임 경로)의 정책 판정. `PolicyInput{ tool: "agent", classes: ["spawn"], args: null }`로
+   * 같은 규칙을 평가한다(L1.agents.spec §4.3 생성 검사) [결정: 감사 l1/A-03]. 승인 요청은 올리지 않는다: 호출자가 그룹 코드라
+   * `ask`는 돌려줄 뿐이고, 막는 것은 `deny`뿐이다.
+   */
+  checkSpawn(input: {
+    readonly threadId: ThreadId;
+    readonly caller: CallerId;
+    readonly depth: number;
+    readonly interactive: boolean;
+  }): PolicyDecision;
+
   /** 대화의 권한 모드. 세션 범위 설정 l1.tools.permissionMode를 바꾸고 settings.changed로 남는다 */
   mode(threadId: ThreadId): PermissionMode;
   setMode(

@@ -254,8 +254,9 @@ function harness(): Harness {
   });
   const tasks = partial<TaskService>({
     find: () => scope,
-    abort: (_target, reason) => {
+    abort: (_target, reason, options) => {
       calls.push(`tasks.abort:${reason.code}`);
+      if (options?.background === true) calls.push(`tasks.abort.background:${reason.code}`);
       return Promise.resolve(ok(partial<AbortTicket>({})));
     },
     activity: () => ({ liveTurns: 1, liveTasks: 3, queuedInputs: 2 }),
@@ -356,6 +357,22 @@ function harness(): Harness {
   });
 }
 
+function markedRow(threadId: ThreadId): ThreadSummaryRow {
+  return partial<ThreadSummaryRow>({
+    threadId,
+    title: null,
+    status: "idle",
+    workspace: null,
+    createdAt: 1,
+    updatedAt: 1,
+    headSeq: 1,
+    forkedFrom: null,
+    marker: { turnId: TURN, runningSince: 1, resumeAttempts: 0 },
+    queuedInputs: 0,
+    pendingApprovals: 0,
+  });
+}
+
 describe("threads", () => {
   test("create forwards title and the canonical workspace, then reports the position in this store", async () => {
     const h = harness();
@@ -414,6 +431,45 @@ describe("threads", () => {
     expect(second.threadId).toBe(first.threadId);
     const listed = await ports.threads.list({});
     expect(listed.threads.map((thread) => thread.threadId)).toEqual([first.threadId]);
+  });
+
+  test("thread.list does not offer a delegated child's open turn as resumable", async () => {
+    const h = harness();
+    const topLevel = ids.next("thr");
+    const child = ids.next("thr");
+    const session = partial<SessionService>({
+      threads: partial<SessionService["threads"]>({
+        list: () => ({ threads: [markedRow(topLevel), markedRow(child)], nextCursor: "next" }),
+      }),
+      query: partial<SessionService["query"]>({
+        agentOfChild: (threadId) =>
+          ok(
+            threadId === child
+              ? {
+                  childThreadId: child,
+                  parentThreadId: topLevel,
+                  requestId: "req-1",
+                  ownerTurnId: null,
+                  background: false,
+                  depth: 1,
+                  settled: null,
+                }
+              : undefined,
+          ),
+      }),
+      feed: h.deps.session.feed,
+    });
+    const { ports } = createEnginePorts({ ...h.deps, session });
+    const listed = await ports.threads.list({});
+    expect(
+      listed.threads.map((thread) => ({
+        id: thread.threadId,
+        resumable: thread.resumable !== null,
+      })),
+    ).toEqual([
+      { id: topLevel, resumable: true },
+      { id: child, resumable: false },
+    ]);
   });
 
   test("a refused create is a store.* wire error, not a Bug", async () => {
@@ -774,6 +830,8 @@ describe("locks", () => {
     await flushMicrotasks();
     expect(ports.locks.holds(THREAD)).toBe(false);
     expect(h.calls).toContain("tasks.abort:lease_lost");
+    // 백그라운드 자식도 부모 임대를 잃으면 멈춘다(L1.agents.spec §4.3 3번)
+    expect(h.calls).toContain("tasks.abort.background:lease_lost");
     expect(h.errors).toContain("lease.lost");
   });
 

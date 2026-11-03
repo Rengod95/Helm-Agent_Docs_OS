@@ -57,6 +57,8 @@ export function createScheduleHandlers(
         ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
         ...(params.title === undefined ? {} : { title: params.title }),
         ...(params.enabled === undefined ? {} : { enabled: params.enabled }),
+        // 와이어 호출은 호스트가 직접 낸 호출이다. 직접 호출 설정(l2.schedule.entries.directCreate)은 받지 않는다
+        createdBy: "host",
       });
       if (!created.ok) return { ok: false, error: errorOf(created.error) };
       const warnings: "service_mode_off"[] = engine.mode === "service" ? [] : ["service_mode_off"];

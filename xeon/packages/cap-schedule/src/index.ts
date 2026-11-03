@@ -1,5 +1,12 @@
 export { upgradeScheduleState } from "./migrate.ts";
-export { createScheduleApi } from "./api.ts";
+export { createScheduleApi, type ScheduleApiOptions, type ScheduleApprovals } from "./api.ts";
+export {
+  DEFAULT_SCHEDULE_SETTINGS,
+  SCHEDULE_SETTING_DEFS,
+  readScheduleSettings,
+  type ScheduleSettings,
+  type ScheduleSettingsSource,
+} from "./settings.ts";
 export { scheduleManifest, SCHEDULE_EXTENSION_NAME } from "./manifest.ts";
 export { schedulePlugin, type SchedulePluginOptions } from "./plugin.ts";
 export { createScheduleService } from "./engine.ts";

@@ -466,6 +466,24 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     child: ChildTurnRequest | null = null,
   ): Promise<TurnRunResult | undefined> {
     const threadId = thread.threadId;
+    // 위임으로 만든 자식 thread의 열린 turn은 요청의 프롬프트·모델·도구 맥락 없이는 이어 끝낼 수 없다(L1.loop.spec §4.13).
+    // 맥락 없이 되살리면 주 대화 권한(caller main, 깊이 0, 천장 없음)으로 돈다. 부모가 같은 requestId로 다시 부를 때 이어진다
+    if (child === null) {
+      const link = deps.session.query.agentOfChild(threadId);
+      if (!link.ok) {
+        onBegin(err(link.error));
+        return undefined;
+      }
+      if (link.value !== undefined) {
+        onBegin(
+          err({
+            kind: "input_invalid",
+            message: `thread ${threadId} is a delegated child: its open turn resumes only when the parent calls again with the same requestId`,
+          }),
+        );
+        return undefined;
+      }
+    }
     const recovered = deps.session.recover(threadId, {
       toolReplay: (name) => deps.tools.meta(name)?.replay ?? null,
       cancelledByOwner: deps.cancelledByOwner,

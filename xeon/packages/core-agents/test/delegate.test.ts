@@ -489,3 +489,44 @@ describe("limits and tool policy", () => {
     expect(h.loop.calls[0]?.tools).not.toHaveProperty("denyHint");
   });
 });
+
+describe("spawn permission check outside the tool path", () => {
+  // 감사 l1/A-03: drive와 그룹 위임은 `agent` 도구 호출이 아니라서 정책을 지나지 않았다
+  test("a deny rule on agent refuses a group delegation and a drive spawn without creating a child", async () => {
+    const h = openHarness();
+    h.tools.denySpawn("Subagents are disabled by a user rule.");
+    const delegated = await h.service.delegate(
+      request("denied-1"),
+      scopeOrigin(h, "g", "scope:g:1"),
+    );
+    expect(delegated.ok).toBe(false);
+    expect(delegated.ok ? null : delegated.error).toEqual({
+      kind: "agents.denied",
+      message: "Subagents are disabled by a user rule.",
+    });
+    const spawned = await h.service.spawn(
+      { agent: "explorer", task: "t" },
+      {
+        ...scopeOrigin(h, "g", "drive:g:1"),
+        owner: {
+          kind: "drive",
+          turnId: null,
+          scopeId: "grp",
+          leaseId: "lease-1",
+        },
+      },
+    );
+    expect(spawned.status).toBe("error");
+    expect(spawned.answer).toContain("agents.denied");
+    expect(h.session.created).toEqual([h.parentThreadId]);
+  });
+
+  test("without a deny rule the same delegation goes through", async () => {
+    const h = openHarness();
+    const delegated = await h.service.delegate(
+      request("allowed-1"),
+      scopeOrigin(h, "g", "scope:g:2"),
+    );
+    expect(delegated.ok).toBe(true);
+  });
+});

@@ -54,6 +54,8 @@ describe("create", () => {
       lastStartedAt: null,
       iterations: 0,
       stoppedReason: null,
+      // 호출 문맥이 없으면 호스트가 낸 호출이다
+      createdBy: "host",
     });
     expect(parse(ScheduleEntries.service.methods.create.input, overTheWire(input))).toEqual({
       ok: true,

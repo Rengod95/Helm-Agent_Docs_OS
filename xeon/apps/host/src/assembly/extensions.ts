@@ -33,7 +33,11 @@ import {
   type AnyCapabilityDef,
 } from "@fresnel/contracts/capabilities";
 import { artifactsPlugin } from "@fresnel/cap-artifacts";
-import { schedulePlugin, type ScheduleService } from "@fresnel/cap-schedule";
+import {
+  schedulePlugin,
+  type ScheduleService,
+  type ScheduleSettingsSource,
+} from "@fresnel/cap-schedule";
 import { dialogPlugin, type ChunkNumbering } from "@fresnel/cap-dialog";
 import { knowledgePlugin } from "@fresnel/cap-knowledge";
 import { APPROVAL_SOURCE } from "@fresnel/group-learning";
@@ -43,6 +47,7 @@ import { readUnattendedTimeoutMs } from "@fresnel/platform-exec";
 import type { AgentDefinition } from "@fresnel/contracts/services";
 import { agentsPlugin } from "@fresnel/core-agents";
 import { contextSettingsOf, createContextExtension } from "@fresnel/core-context";
+import { cancelledByOwnerOf } from "./owner-cancel.ts";
 import { loopExtensionUnit } from "@fresnel/core-loop";
 import { createModelsExtension, type ModelsExtensionOptions } from "@fresnel/core-models";
 import { sessionPlugin } from "@fresnel/core-persistence";
@@ -203,9 +208,14 @@ function reservedToolNames(): ReadonlySet<string> {
 /**
  * 예약 플러그인(L2 cap-schedule)의 단위. 예약 서비스는 tasks·loop 포트로 만들어져 이 목록을 만드는 시점에는 없으므로
  * 조립 루트가 서비스를 만든 뒤 올린다. 도구를 올리는 core-tools는 그 앞에 올라와 있어야 한다(`L2_TOOL_CAPABILITIES`).
+ * `settings`는 직접 호출의 만들기 방식(`l2.schedule.entries.directCreate`)을 읽는 설정 층이다.
  */
-export function scheduleUnit(service: ScheduleService, loadIndex: number): ExtensionUnit {
-  return schedulePlugin({ service, loadIndex });
+export function scheduleUnit(
+  service: ScheduleService,
+  loadIndex: number,
+  settings: ScheduleSettingsSource,
+): ExtensionUnit {
+  return schedulePlugin({ service, settings, loadIndex });
 }
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
@@ -292,6 +302,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           workingDirectory: deps.workspaceOf,
           settings: loopSource(settings),
           kindLookup,
+          cancelledByOwnerOf,
           loadIndex,
         }),
     ],

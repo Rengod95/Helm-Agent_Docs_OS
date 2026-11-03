@@ -37,6 +37,7 @@ import {
   type TurnStartInput,
   type WireResult,
 } from "@fresnel/contracts/wire";
+import { cancelledByOwnerOf } from "./owner-cancel.ts";
 import { isAbsolute } from "node:path";
 import type { ScheduleService } from "@fresnel/cap-schedule";
 import { itemPagesOf } from "@fresnel/core-persistence";
@@ -281,7 +282,15 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const origins = scheduleLoaded.ok
         ? scheduleOriginsOf(deps.schedule)
         : new Map<string, string>();
-      for (const row of page.threads) {
+      for (const listed of page.threads) {
+        // 위임으로 만든 자식 thread의 열린 turn은 요청의 맥락 없이 이어 끝낼 수 없다. 부모가 같은 requestId로 다시 부를 때만 이어지므로
+        // 재개 후보(`resumable`)에서 뺀다(L1.loop.spec §4.13)
+        let row = listed;
+        if (row.marker !== null) {
+          const link = session.query.agentOfChild(row.threadId);
+          if (!link.ok) throw wireErrorOfStore(link.error, "thread.list child lookup");
+          if (link.value !== undefined) row = { ...row, marker: null };
+        }
         const summary = threadSummaryOf(row);
         if (!summary.ok) {
           throw wireError("internal", {
@@ -437,9 +446,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     log.error("lease.lost", { threadId });
     const scope = tasks.find("thread", threadId);
     if (scope !== undefined) {
-      tasks.abort(scope, { code: "lease_lost", message: null }).catch((caught: unknown) => {
-        log.error("lease.lost_abort_failed", { threadId, message: messageOf(caught) });
-      });
+      tasks
+        .abort(scope, { code: "lease_lost", message: null }, { background: true })
+        .catch((caught: unknown) => {
+          log.error("lease.lost_abort_failed", { threadId, message: messageOf(caught) });
+        });
     }
   }
 
@@ -539,7 +550,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     // 실행은 시작하지 않는다. 재실행 후보와 열린 turn은 그대로 두고 재개·새 입력이 이어받는다
     const recovered = session.recover(threadId, {
       toolReplay: (name) => deps.tools.meta(name)?.replay ?? null,
-      cancelledByOwner: () => false,
+      cancelledByOwner: cancelledByOwnerOf(session),
       hostMode: deps.mode,
     });
     if (!recovered.ok) {

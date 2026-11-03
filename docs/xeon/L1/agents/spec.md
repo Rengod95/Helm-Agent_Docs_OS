@@ -331,7 +331,7 @@ export type AgentJudgedPayload = JudgeRecord;
    - 부모 토큰 [미결]: `SpawnOrigin`에도 `SessionService`에도 부모의 `LeaseToken`이 없다. `AgentsOwnership.parentToken(threadId)`를 조립 루트가 넘긴다(F 요청: `SessionService`의 소유 토큰 조회 또는 `SpawnOrigin.parentToken`).
    - 자식 쓰기 소유 [제안]: 자식 thread의 쓰기 소유자는 부모 thread의 소유자(같은 엔진 인스턴스)다. 이 커밋 직전에 core-persistence가 부모 토큰의 holder로 `thread:<childThreadId>` 프로세스 락을 `fresnel.store.leases.acquire`로 얻는다(`L1.persistence.spec` §3.8 `ThreadCreateInput.inheritOwnerFrom`, §4.10.1). 새 id라 경합이 없고, 커밋이 실패하면 반납한다. 소유 확인 면제는 자식의 첫 이벤트 `thread.started` 하나뿐이다. 같은 커밋의 부모 `agent.spawned`와 이후 자식의 `turn.started`, 도구 효과, 부모의 `agent.settled`는 각 thread의 토큰으로 확인한다(`L1.persistence.spec` §4.1 2단계).
    - 하트비트는 core-persistence가 자식 토큰에 건다. 자식 프로세스 락은 자식 정착(6번) 뒤 `release`로 반납한다.
-   - 부모 프로세스 락 상실(`lease_lost`, `ownership_lost`)은 소유 트리 취소로 자식 전체에 전파한다. 부모 thread 노드에 `abort(…, { code: "lease_lost" }, { background: true })`를 걸어 백그라운드 자식도 멈춘다(`eng.transactions.design` §3.3 규칙 2 "임대를 잃으면 메모리 작업을 모두 취소", `L1.tasks.spec` `AbortCode`). 자식 프로세스 락 상실도 그 자식 노드를 같은 사유로 취소한다.
+   - 부모 프로세스 락 상실(`lease_lost`, `ownership_lost`)은 소유 트리 취소로 자식 전체에 전파한다. 부모 thread 노드에 `abort(…, { code: "lease_lost" }, { background: true })`를 걸어 백그라운드 자식도 멈춘다(`eng.transactions.design` §3.3 규칙 2 "임대를 잃으면 메모리 작업을 모두 취소", `L1.tasks.spec` `AbortCode`). 자식 프로세스 락 상실도 그 자식 노드를 같은 사유로 취소한다. 호스트의 `onLeaseLost`가 부모 thread 노드에 `{ background: true }`로 이를 건다 [결정: 감사 l1/A-02]. 자식 프로세스 락 상실의 노드 취소는 아직 없다(자식 락은 부모와 같은 holder라 부모 상실이 먼저 나간다).
    - 다른 프로세스(CLI와 데스크톱)가 자식 thread를 쓰기로 열려 하면 프로세스 락이 이미 있으므로 잠금 실패 경로(위임·관찰·분기)로 간다(`L1.persistence.spec` §4.9).
 4. 소유 간선: `fresnel.tasks.openScope(parent, { kind: "subagent", background })`로 자식 노드를 만든다. 포그라운드는 부모 `tool` 노드(모델 도구) 또는 `turn` 노드(drive) 아래 `background: false`, 백그라운드는 부모 `thread` 노드 아래 `background: true`다. 실행 중인 turn이 없는 drive(`owner.turnId`가 `null`)의 `loop.spawn`은 호출자가 결과를 기다리는 포그라운드이지만 노드는 부모 `thread` 노드 아래 `background: true`로 연다(thread 아래에는 그 값만 허용된다). 이 노드의 취소는 소유 트리가 잇지 못하므로 `origin.signal`(drive 락 신호)이 `abortChild`로 잇는다. thread 노드가 없으면 `agents.unavailable`이다(L1.tasks.spec §3 노드 표 374행, eng.transactions.design §6.1). 자식을 기다리는 도구 호출은 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 규칙 C2).
 5. 실행: `fresnel.loop`에 자식 대화를 열고 첫 turn을 시작한다. 입력은 `task` 텍스트 하나(사용자 item, `requestId` = 자식 requestId)다. 시스템 프롬프트는 정의 `prompt`, 모델은 정의 `model` 역할이다.
@@ -398,6 +398,8 @@ export type AgentJudgedPayload = JudgeRecord;
 - deny는 티어와 무관하게 확정되므로(L1.tools.spec §4.5 2단계) 사용자 규칙으로 풀 수 없다. 깊이 한도는 설정으로 바꾼다.
 - 도구 부류 표지는 도구 등록이 선언한다(L1.tools.spec §3.1 `ToolPolicyMeta.classes`). 표지가 없는 도구는 이 목록에 걸리지 않으므로 L2 spec이 자기 도구의 부류를 선언해야 한다(§8.4).
 - 생성 검사(drive·scope 경로): 도구 호출이 아닌 생성도 `PolicyInput{ tool: "agent", classes: ["spawn"], caller, depth }`로 평가한다. drive와 그룹 위임의 caller는 `main`, depth 0이다.
+  - [결정: 감사 l1/A-03] 구현은 `ToolService.checkSpawn`(L1.tools.spec)이 같은 규칙 평가기로 판정하고, `prepare`가 `owner.kind`가 `tool`이 아닐 때 부른다. `deny`는 `agents.denied`로 거부하고 자식 thread를 만들지 않는다. `ask`는 승인 요청을 올리지 않고 통과시킨다(호출자가 그룹 코드이고 막을 수 있는 것은 사용자의 명시적 deny뿐이다).
+- [결정: 감사 l1/A-01] 중첩 자식의 상한은 부모 자식의 상한 안에 든다. `ceilingOf`는 부모 자식이 받은 `ceiling`(실행 중인 자식의 `ChildMeta`)을 입력으로 받아 `allow`는 교집합, `deny`는 합집합으로 합치고 거부 안내는 이번 요청의 것이 없으면 부모 것을 잇는다.
 
 ### 4.4 깊이와 동시 상한
 

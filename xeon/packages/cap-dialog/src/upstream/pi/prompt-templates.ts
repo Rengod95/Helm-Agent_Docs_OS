@@ -1,5 +1,9 @@
-import type { CancelScope, FileError } from "@fresnel/contracts/services";
+import { err } from "@fresnel/contracts";
+import { FileError, type CancelScope, type FileInfo } from "@fresnel/contracts/services";
 import type { CommandFiles } from "../../ports/command-files.ts";
+
+/** 명령 파일 하나의 크기 상한(바이트). 텍스트 첨부 상한(spec §4.5, 256 KiB)과 같다 [제안] */
+export const MAX_COMMAND_FILE_BYTES: number = 256 * 1024;
 
 // FRESNEL-PATCH: P1
 /** 파일 하나를 읽거나 해석하지 못했다는 경고. pi의 `ResourceDiagnostic`에 해당한다 */
@@ -212,6 +216,52 @@ function warning(path: string, error: FileError): CommandDiagnostic {
   return { type: "warning", message: error.message, path };
 }
 
+type FileRead = Awaited<ReturnType<CommandFiles["readTextFile"]>>;
+
+// FRESNEL-PATCH: P7
+/**
+ * 명령 파일 하나를 읽는다. 일반 파일은 크기 상한을 확인하고 읽는다. 심볼릭 링크는 실제 경로가 명령 폴더 안이고
+ * 일반 파일일 때만 읽는다. 폴더 밖을 가리키는 링크는 저장소가 신뢰 판정을 지나 밖의 파일을 모델 입력으로 끌어오는 길이라
+ * 읽지 않고 진단을 남긴다. 끊어진 링크와 폴더를 가리키는 링크는 pi처럼 조용히 건너뛰어 `undefined`다.
+ */
+async function readCommandFile(
+  files: CommandFiles,
+  entry: FileInfo,
+  realDir: Awaited<ReturnType<CommandFiles["canonicalPath"]>> | undefined,
+  context: CancelScope,
+): Promise<FileRead | undefined> {
+  let path = entry.path;
+  let size = entry.size;
+  if (entry.kind === "symlink") {
+    const real = await files.canonicalPath(entry.path, context);
+    if (!real.ok) return undefined;
+    if (realDir === undefined || !realDir.ok) return undefined;
+    if (!real.value.startsWith(`${realDir.value}/`)) {
+      return err(
+        new FileError(
+          "permission_denied",
+          "the link points outside the commands folder",
+          entry.path,
+        ),
+      );
+    }
+    const target = await files.fileInfo(real.value, context);
+    if (!target.ok || target.value.kind !== "file") return undefined;
+    path = real.value;
+    size = target.value.size;
+  }
+  if (size > MAX_COMMAND_FILE_BYTES) {
+    return err(
+      new FileError(
+        "invalid",
+        `the file is larger than ${MAX_COMMAND_FILE_BYTES} bytes`,
+        entry.path,
+      ),
+    );
+  }
+  return files.readTextFile(path, context);
+}
+
 // FRESNEL-PATCH: P1
 /**
  * Scan a directory for .md files (non-recursive) and load them as prompt templates.
@@ -236,16 +286,19 @@ export async function loadTemplatesFromDir(
   const candidates = entries.value
     .filter((entry) => entry.kind !== "directory" && entry.name.endsWith(".md"))
     .toSorted((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+  // 링크는 폴더 안을 가리킬 때만 읽는다. 폴더의 실제 경로는 한 번만 구한다
+  const realDir = candidates.some((entry) => entry.kind === "symlink")
+    ? await files.canonicalPath(dir, context)
+    : undefined;
   const read = await Promise.all(
     candidates.map(async (entry) => ({
       entry,
-      content: await files.readTextFile(entry.path, context),
+      content: await readCommandFile(files, entry, realDir, context),
     })),
   );
   for (const { entry, content } of read) {
+    if (content === undefined) continue;
     if (!content.ok) {
-      // 끊어진 심볼릭 링크나 디렉터리를 가리키는 링크는 pi처럼 조용히 건너뛴다
-      if (entry.kind === "symlink") continue;
       diagnostics.push(warning(entry.path, content.error));
       continue;
     }

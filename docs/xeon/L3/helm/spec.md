@@ -619,8 +619,8 @@ M3 내장 렌즈 [제안] (H-IN-03):
 ### 3.7 drive (`src/drive.ts`)
 
 ```ts
-/** g.drive에 넘기는 함수. 클로저 지역 변수에 진행 상태를 두지 않는다(EV-09) */
-export function helmDrive(g: GroupApi<HelmState>): DriveFn<HelmState>;
+/** g.drive에 넘기는 함수. 클로저 지역 변수에 진행 상태를 두지 않는다(EV-09). marker는 그룹 전역 표지(§4.6)다 */
+export function helmDrive(g: GroupApi<HelmState>, marker: ExplorationMarker): DriveFn<HelmState>;
 
 /** 필드별 작은 값. undefined는 상한 없음 */
 export function minLimits(a: DriveLimits | undefined, b: DriveLimits | undefined): DriveLimits;
@@ -873,11 +873,11 @@ export const helmGroup: GroupModule = defineGroup<HelmState>({
   setup(g) {
     g.registerCommand("helm", helmCommand(g));     // §3.9
     g.on("input.agent.before", injectLens(g));      // §4.4
-    g.on("tool.call.before", guardWrite(g));               // §4.6
+    g.on("tool.call.before", guardWrite(g, marker));               // §4.6
     g.on("tool.execution.after", observeTool(g));     // §4.3
     g.on("boundary.settle.after", settle(g));               // §4.3
     g.on("thread.start", checkRestore(g));         // §4.9
-    g.drive(helmDrive(g), { limits: g.settings().driveLimits });   // §4.5
+    g.drive(helmDrive(g, marker), { limits: g.settings().driveLimits });   // §4.5, marker는 §4.6
   },
 });
 
@@ -1075,9 +1075,10 @@ export type HelmReaction =
 의사코드. 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양")를 상태 기반 재호출 함수로 다시 쓴 것이다. 한 번 호출은 현재 단계 하나만 처리하고 커밋한 뒤 돌아간다. 다음 단계는 X가 다시 호출할 때 처리한다(상태만 커밋하고 반환하면 X가 새 판으로 다시 부른다).
 
 ```ts
-export function helmDrive(g: GroupApi<HelmState>): DriveFn<HelmState> {
+export function helmDrive(g: GroupApi<HelmState>, marker: ExplorationMarker): DriveFn<HelmState> {
   return async (loop, st) => {
     // st는 마지막 커밋 상태. 지역 변수는 이 호출 안에서만 쓴다(EV-09)
+    // 호출 처음에 marker.phase = st.phase, 반환할 때(예외 포함) idle로 되돌린다(§4.6 구동 중인 탐구 표지)
     const s = g.settings();
     if (st.stopRequested) return settle(g, st, await step(g, { type: "stopRequested" }));
     if (st.phase === "idle") {
@@ -1180,14 +1181,24 @@ export function isWriteCall(meta: Readonly<ToolCallMetaView>): boolean;
 /** 순수 함수. 이 호출이 Helm 쓰기 거부의 대상 대화에서 왔는지 */
 export function isGuardedCaller(caller: CallerId | undefined): boolean;
 
-export function guardWrite(g: GroupApi<HelmState>): Handler<"tool.call.before", HelmState>;
+/** 그룹 전역 표지(프로세스 메모리) [제안]. 구동 중인 탐구의 단계다. drive 호출 밖에서는 idle이다 */
+export interface ExplorationMarker {
+  phase: HelmPhase;
+}
+
+/** 순수 함수 [제안]. 이 호출이 본 탐구 단계. `subagent:explorer`는 표지를, 그 밖의 호출은 호출한 대화의 커밋 상태를 본다 */
+export function phaseSeenBy(caller: CallerId | undefined, state: Pick<HelmState, "phase">, marker: ExplorationMarker): HelmPhase;
+
+export function guardWrite(g: GroupApi<HelmState>, marker: ExplorationMarker): Handler<"tool.call.before", HelmState>;
 // (call, ctx) => g.settings().writeGuard
-//   && (ctx.state.phase === "diverge" || ctx.state.phase === "explore")
 //   && isGuardedCaller(call.caller) && isWriteCall(call)
+//   && (phaseSeenBy(call.caller, ctx.state, marker) === "diverge"
+//       || phaseSeenBy(call.caller, ctx.state, marker) === "explore")
 //   ? { block: true, reason: WRITE_DENY_REASON } : undefined
 ```
 
-- 조건: `ext.helm.writeGuard`가 참이고 핸들러가 받은 커밋 상태(`ctx.state`)의 `phase`가 `diverge` 또는 `explore`일 때만 거부한다. `idle`(대기 요청 포함), `converge`, `apply`에서는 거부하지 않는다.
+- 조건: `ext.helm.writeGuard`가 참이고, 쓰기 호출이며, 대상 대화에서 왔고, 단계가 `diverge` 또는 `explore`일 때만 거부한다. 단계는 호출자에 따라 고른다. `main`(또는 caller 없음)은 핸들러가 받은 커밋 상태(`ctx.state`)의 `phase`를 본다. `subagent:explorer`는 아래 구동 중인 탐구 표지(`marker.phase`)를 본다. `idle`(대기 요청 포함), `converge`, `apply`에서는 거부하지 않는다.
+- 구동 중인 탐구 표지 [제안]: explorer 자식 대화의 커밋 상태는 그 대화 자신의 상태라 `idle`이므로(그룹 상태는 대화 가지마다 따로다. L3.group-sdk.spec §4.6) `ctx.state`로는 explorer 호출을 판정할 수 없다. 그래서 그룹 전역 표지를 둔다. `helmDrive`는 호출 처음에 커밋된 `st.phase`를 표지에 넣고, 반환할 때(예외 포함) `idle`로 되돌린다. explorer는 explore 분기가 `loop.spawn`으로 만들고 그 분기가 기다리는 동안만 돌므로 이 기간이 표지가 덮어야 할 전부다. 재시작 뒤에는 다음 drive 호출이 커밋 상태로 표지를 다시 채운다. drive 락은 한 번에 하나라서 표지도 하나다.
 - 결정 형태: F.extensions.spec §3.5의 `ToolCallDecision`(`{ block: true, reason }`)을 쓴다. 사용자 의사코드의 `{ deny: "…" }`는 이 형태에 대응한다. `terminate`는 두지 않는다.
 - 쓰기 판정 입력 [제안] (G1-05, M3-02, H-IN-07):
 

@@ -66,6 +66,21 @@ export function filterTool(def: McpServerDef, toolName: string): ToolFilterVerdi
   return { exposed: true };
 }
 
+/**
+ * 도구 하나의 유효 승인 모드(§4.4): 서버 정의 `tools.approval[도구]`가 `l2.mcp.approvalMode`보다 앞선다.
+ * `callToolImpl`이 `deny`를 거르는 데 쓴다. L1.tools 규칙은 도구 경로에서만 걸리므로 직접 호출 경로는 이 검사에 기댄다.
+ */
+export function effectiveApprovalMode(
+  def: McpServerDef,
+  toolName: string,
+  fallback: McpApprovalMode,
+): McpApprovalMode {
+  const approval = def.tools?.approval;
+  const own =
+    approval === undefined || !Object.hasOwn(approval, toolName) ? undefined : approval[toolName];
+  return own ?? fallback;
+}
+
 /** 권한 규칙 키(§4.4). 도구 기계 이름과 별개다 */
 export function toolRuleKey(server: string, tool: string): string {
   return `mcp__${server}__${tool}`;

@@ -5,7 +5,10 @@ import type { FileSystem } from "@fresnel/contracts/services";
  * 명령 파일을 읽는 포트. 실제 구현은 `fresnel.exec`의 파일 시스템 부분이다(L2.dialog.plan §4.2 포크 표 첫 행).
  * pi 원본은 `fs`를 직접 불렀다.
  */
-export type CommandFiles = Pick<FileSystem, "listDir" | "readTextFile">;
+export type CommandFiles = Pick<
+  FileSystem,
+  "listDir" | "readTextFile" | "fileInfo" | "canonicalPath"
+>;
 
 /**
  * 명령 파일을 찾을 디렉터리의 뿌리. 기본 디렉터리 이름 `.fresnel/commands`는 [가정]이고 L4.host-service.spec이 정한다

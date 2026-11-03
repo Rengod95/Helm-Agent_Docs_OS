@@ -421,6 +421,17 @@ export function readAgentByRequest(
   return row === undefined ? ok(undefined) : agentViewOf(row);
 }
 
+/** 자식 thread 하나의 연결. 자식이 아니면 undefined */
+export function readAgentByChild(
+  tx: SqlTx,
+  childThreadId: string,
+): Result<AgentView | undefined, RowFault> {
+  const row = tx.get(`SELECT ${AGENT_COLUMNS} FROM p_agents WHERE child_thread_id = ?`, [
+    childThreadId,
+  ]);
+  return row === undefined ? ok(undefined) : agentViewOf(row);
+}
+
 /** 부모의 자식 연결, 생성 순서. unsettledOnly면 정착하지 않은 것만 */
 export function readChildAgents(
   tx: SqlTx,

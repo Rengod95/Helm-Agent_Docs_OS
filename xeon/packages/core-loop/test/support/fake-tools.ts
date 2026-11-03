@@ -559,6 +559,7 @@ export function createFakeTools(options: {
       userShells.push({ request, run });
       return Promise.resolve(shell.result?.(request) ?? defaultShellRecord(request));
     },
+    checkSpawn: () => ({ effect: "allow", reason: "mode", ruleId: null, tier: null }),
     mode: () => "default",
     setMode: () => notImplemented("setMode"),
     suspendWhile: (_threadId, _toolCallId, wait) => wait,

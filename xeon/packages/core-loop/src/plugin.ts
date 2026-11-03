@@ -70,7 +70,8 @@ export interface LoopPluginOptions {
   /** `input.bash.before` 지점 페이로드의 작업 디렉터리를 대화별로 돌려준다 */
   readonly workingDirectory?: LoopDeps["workingDirectory"];
   readonly kindLookup?: LoopDeps["kindLookup"];
-  readonly cancelledByOwner?: LoopDeps["cancelledByOwner"];
+  /** 소유 사슬 취소 판정을 만든다. 세션 서비스는 확장이 올라올 때 정해지므로 받아서 돌려준다(L1.tasks.spec §4.8 3번). 없으면 거짓이다 */
+  readonly cancelledByOwnerOf?: (session: SessionService) => LoopDeps["cancelledByOwner"];
   readonly loadIndex?: number;
 }
 
@@ -84,12 +85,13 @@ export function loopExtensionUnit(options: LoopPluginOptions): ExtensionUnit {
       // 승인 서비스는 core-tools가 올린다. 있으면 `await_input` 재개 전에 미해결 승인 요청을 메모리 대기로 되살린다
       // (L1.tools.spec §4.7 재개 절차). 없는 구성(도구 없이 루프만 쓰는 시험)은 되살릴 것이 없다
       const approvals = ext.ports.get(APPROVALS_KEY);
+      const session = host.port(SESSION_KEY);
       const service = createLoopService({
         clock: os.time.clock,
         scheduler: os.time.scheduler,
         ids: options.ids,
         logger: os.logger(LOOP_EXTENSION_NAME),
-        session: host.port(SESSION_KEY),
+        session,
         tasks: host.port(TASKS_KEY),
         tools: host.port(TOOLS_KEY),
         context: host.port(CONTEXT_KEY),
@@ -107,7 +109,7 @@ export function loopExtensionUnit(options: LoopPluginOptions): ExtensionUnit {
         hostMode: options.hostMode,
         kindLookup:
           options.kindLookup ?? ((kind) => EVENT_CATALOG.find((catalog) => catalog.kind === kind)),
-        cancelledByOwner: options.cancelledByOwner ?? (() => false),
+        cancelledByOwner: options.cancelledByOwnerOf?.(session) ?? (() => false),
       });
       host.providePort(LOOP_SERVICE_KEY, service);
       g.onDispose(() => {

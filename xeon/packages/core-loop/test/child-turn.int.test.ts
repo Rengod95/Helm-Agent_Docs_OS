@@ -159,6 +159,40 @@ test("a cut after turn.started continues the same child turn on the second call 
   expect(h2.models.resolves.every((entry) => entry.role === "subagent")).toBe(true);
 });
 
+test("resume on a child thread refuses instead of reviving the turn with the main conversation's context", async () => {
+  const h = await createHarness({ script: [answer("lost")] });
+  const child = await newChild(h);
+  h.fake.markChild(child.threadId, h.threadId);
+  h.fake.crashAfter((key) => /^turn:.*:start$/.test(key));
+  await h.loop.runChildTurn(request(child)).then(
+    () => undefined,
+    () => undefined,
+  );
+  const h2 = await h.restart({ script: [answer("would run as main")] });
+  await h2.host.host.openThread(child.threadId);
+  const resumed = await h2.loop.resume(child.threadId);
+  expect(resumed.ok).toBe(false);
+  expect(resumed.ok ? null : resumed.error.kind).toBe("input_invalid");
+  // 모델도 부르지 않고 기록도 늘리지 않는다
+  expect(h2.models.requests).toEqual([]);
+  expect(countKind(h2.fake.events(child.threadId), "thread.resumed")).toBe(0);
+  expect(countKind(h2.fake.events(child.threadId), "turn.completed")).toBe(0);
+
+  // 부모가 같은 requestId로 다시 부르면 요청의 맥락으로 이어 끝낸다
+  const childAgain: Child = {
+    threadId: child.threadId,
+    scope: h2.tasks.service.openScope(h2.tasks.service.root, {
+      kind: "subagent",
+      id: child.threadId,
+    }),
+  };
+  const second = await h2.loop.runChildTurn(request(childAgain));
+  expect(second.ok && second.value.replayed).toBe(true);
+  expect(h2.models.requests[0]?.messages[0]).toMatchObject({
+    content: "You are the reviewer subagent.",
+  });
+});
+
 test("the child turn node hangs under the request's subagent node", async () => {
   const seen: string[] = [];
   const state: { child: Child | null } = { child: null };
