@@ -156,12 +156,25 @@ test("the providerId filter keeps only that provider's gauges on the thread", as
   expect(await source.gauges({ threadId: THREAD_A, providerId: "google" }, SIGNAL)).toEqual([]);
 });
 
-test("without a threadId there are no gauges, even when records exist", async () => {
+test("without a threadId the gauges sum every thread, and providerId still filters", async () => {
   const { meter, push } = fakeMeter();
   const source = createUsageSource(meter);
   push(record(THREAD_A, "anthropic", 10, 0.001));
+  push(record(THREAD_B, "anthropic", 100, 1));
+  push(record(THREAD_B, "openai", 7, 0.25));
+  expect(await source.gauges({}, SIGNAL)).toEqual([
+    ...sessionGauges("anthropic", { tokens: 110, usd: 1.001, requests: 2 }),
+    ...sessionGauges("openai", { tokens: 7, usd: 0.25, requests: 1 }),
+  ]);
+  expect(await source.gauges({ providerId: "openai" }, SIGNAL)).toEqual(
+    sessionGauges("openai", { tokens: 7, usd: 0.25, requests: 1 }),
+  );
+});
+
+test("without records there are no gauges for any scope", async () => {
+  const { meter } = fakeMeter();
+  const source = createUsageSource(meter);
   expect(await source.gauges({}, SIGNAL)).toEqual([]);
-  expect(await source.gauges({ providerId: "anthropic" }, SIGNAL)).toEqual([]);
 });
 
 test("an unknown thread has no gauges", async () => {
