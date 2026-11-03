@@ -105,6 +105,15 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): WebProviderC
         reject("secret_header_missing");
         return undefined;
       }
+      // 시크릿 설정은 그 확장 자신의 `ext.<이름>.` 키여야 한다. 다른 확장이나 코어 키의 시크릿 참조를 끌어쓰지 못하게 한다(F.wire-settings §3.8.3)
+      if (
+        manifest.value.auth.secrets.some(
+          (secret) => !secret.setting.startsWith(`ext.${extension}.`),
+        )
+      ) {
+        reject("secret_setting_foreign");
+        return undefined;
+      }
       bound.bind(manifest.value);
       const effective = effectiveCachePolicy(manifest.value);
       if (effective.downgraded) {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { err } from "@fresnel/contracts";
+import { err, type Result } from "@fresnel/contracts";
 import type { WebProviderManifest } from "@fresnel/contracts/capabilities";
+import type { WebFailure } from "../src/errors.ts";
 import { WebHttpError, createBoundProviderHttp } from "../src/policy/guarded-http.ts";
 import type { HeaderSecretSender } from "../src/ports/secrets.ts";
 import { fakeHeaderSecrets, fakeSecretGuard } from "../src/testing/fake-ports.ts";
@@ -29,6 +30,14 @@ function manifestOf(overrides: Partial<WebProviderManifest> = {}): WebProviderMa
 }
 
 const SIGNAL = new AbortController().signal;
+
+const KEY = "key-value-123";
+/** 에코로 거부한 결과. 본문과 헤더는 결과에 없다(L2.web.spec §3.6.1, §5 32행) */
+const SECRET_ECHOED: Result<never, WebFailure> = err({
+  code: "upstream_error",
+  message: "The provider response echoed a secret and was dropped.",
+  detail: { reason: "secret_echoed" },
+});
 
 function setup(
   options: {
@@ -199,6 +208,76 @@ describe("provider http", () => {
     expect(header.ok).toBe(false);
     if (!header.ok) expect(reasonOfFailure(header.error)).toBe("secret_echoed");
     expect(transport.requests.length).toBe(2);
+  });
+
+  test("a binary body that contains the key is returned unchanged, because only text bodies are echo-checked", async () => {
+    const { bound, transport } = setup({ key: KEY });
+    const body = Uint8Array.from([0x89, 0x00, 0xff, ...new TextEncoder().encode(KEY), 0x00]);
+    transport.route("https://api.vendor.example/v1/blob", {
+      body,
+      headers: { "Content-Type": "application/octet-stream" },
+    });
+    const outcome = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/blob" },
+      SIGNAL,
+    );
+    // 키는 실제로 전송에 실렸다. 그래서 응답 검사가 돌 조건은 갖춰졌다
+    expect(transport.requests.at(-1)?.headers["x-api-key"]).toBe(KEY);
+    expect(outcome).toEqual({
+      ok: true,
+      value: {
+        status: 200,
+        url: "https://api.vendor.example/v1/blob",
+        headers: { "content-type": "application/octet-stream" },
+        body,
+      },
+    });
+  });
+
+  test("a header that echoes the key is flagged even when the body is binary", async () => {
+    const { bound, transport } = setup({ key: KEY });
+    transport.route("https://api.vendor.example/v1/blob-echo", {
+      body: Uint8Array.from([0x00, 0x01, 0x02]),
+      headers: { "Content-Type": "application/octet-stream", "X-Echo": KEY },
+    });
+    const outcome = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/blob-echo" },
+      SIGNAL,
+    );
+    expect(outcome).toEqual(SECRET_ECHOED);
+    expect(transport.requests.length).toBe(1);
+  });
+
+  test("a text, JSON or XML body that echoes the key is flagged with exactly secret_echoed", async () => {
+    const { bound, transport } = setup({ key: KEY });
+    transport.route("https://api.vendor.example/v1/text", {
+      body: `plain ${KEY}`,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+    transport.route("https://api.vendor.example/v1/json", {
+      body: `{"you_sent":"${KEY}"}`,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+    });
+    transport.route("https://api.vendor.example/v1/xml", {
+      body: `<echo>${KEY}</echo>`,
+      headers: { "Content-Type": "application/xml" },
+    });
+    const text = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/text" },
+      SIGNAL,
+    );
+    const json = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/json" },
+      SIGNAL,
+    );
+    const xml = await bound.request(
+      { method: "GET", url: "https://api.vendor.example/v1/xml" },
+      SIGNAL,
+    );
+    expect(text).toEqual(SECRET_ECHOED);
+    expect(json).toEqual(SECRET_ECHOED);
+    expect(xml).toEqual(SECRET_ECHOED);
+    expect(transport.requests.length).toBe(3);
   });
 
   test("a provider header with the secret's name cannot replace the key", async () => {
