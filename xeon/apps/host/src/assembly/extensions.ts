@@ -22,6 +22,8 @@ import {
   ArtifactsReviews,
   ArtifactsSessions,
   DialogAsk,
+  KnowledgeMemory,
+  KnowledgeSearch,
   KnowledgeSkills,
   McpClient,
   ScheduleEntries,
@@ -176,11 +178,13 @@ function kindLookup(kind: string): CatalogEntry | undefined {
 }
 
 /** 도구를 올리는 L2 기능. core-tools가 호출 때 공급자를 찾으려면 이 기능이 매니페스트에 선언되어 있어야 한다 */
-const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
+export const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WebSearch,
   WebFetch,
   WebBrowse,
   KnowledgeSkills,
+  KnowledgeMemory,
+  KnowledgeSearch,
   WorkTasks,
   WorkPlans,
   DialogAsk,

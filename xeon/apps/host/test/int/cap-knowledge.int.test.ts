@@ -6,7 +6,7 @@ import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
-import { skillViewingModels } from "../fixtures/skill-tape.ts";
+import { skillViewingModels, toolCallingModels } from "../fixtures/skill-tape.ts";
 import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
@@ -124,4 +124,52 @@ describe("skill_view", () => {
       expect(text).not.toContain("project skill body marker");
     },
   );
+});
+
+/** 모델이 `tool`을 `args`로 한 번 부르는 turn을 돌리고 도구 결과 본문을 돌려준다 */
+async function callTool(tool: string, args: Readonly<Record<string, unknown>>): Promise<string> {
+  const home = useEngineHome();
+  writeUserSettings(home, TAPE_SETTINGS);
+  const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-kn-")));
+  mkdirSync(home.dataDir, { recursive: true, mode: 0o700 });
+  const previousCwd = process.cwd();
+  process.chdir(workspace);
+  try {
+    const host = await startInProcessHost({
+      devChecks: true,
+      defaultGroups: false,
+      buildModels: toolCallingModels("knowledge-tool", tool, args),
+    });
+    const connection = createHostConnection(host.client);
+    await connection.request("host.hello", HELLO_PARAMS);
+    const collector = collectEvents(connection);
+    await connection.request("events.subscribe", { from: "head" });
+    const created = await connection.request("thread.create", { workspace });
+    await connection.request("turn.start", { threadId: created.threadId, input: "use the tool" });
+    await collector.waitFor((event) => event.kind === "turn.completed");
+    const text = toolResultTexts(collector.events).join("\n");
+    await connection.close();
+    await host.close();
+    return text;
+  } finally {
+    process.chdir(previousCwd);
+    rmSync(workspace, { recursive: true, force: true });
+    home.dispose();
+  }
+}
+
+// cross/C-01: 두 기능이 core-tools 매니페스트에 선언되지 않아 도구가 항상 "no active provider"로 끝났다.
+describe("knowledge.search and knowledge.memory tools", () => {
+  for (const [tool, args] of [
+    ["knowledge_search", { query: "anything" }],
+    ["session_scroll", { threadId: "thr_none" }],
+    ["session_read", { threadId: "thr_none" }],
+    ["memory_manage", { action: "list" }],
+  ] as const) {
+    realTest(`${tool} reaches its provider`, async () => {
+      const text = await callTool(tool, args);
+      expect(text.length).toBeGreaterThan(0);
+      expect(text).not.toContain("has no active provider");
+    });
+  }
 });

@@ -8,22 +8,31 @@ export function skillViewingModels(
   id: string,
   skill: string,
 ): NonNullable<AssembleOptions["buildModels"]> {
+  return toolCallingModels(id, "skill_view", { name: skill });
+}
+
+/** 모델이 도구 하나를 한 번 부르고 끝내는 테이프 */
+export function toolCallingModels(
+  id: string,
+  toolName: string,
+  args: Readonly<Record<string, unknown>>,
+): NonNullable<AssembleOptions["buildModels"]> {
   return tapeBuildModels(
     tapeProvider(
       tapePlayer(
         tape(id, [
           {
             role: "main",
-            label: "reads a skill",
+            label: "calls the tool",
             response: {
               type: "message",
-              content: [t.toolCall("skill_view", { name: skill }, "call_1")],
+              content: [t.toolCall(toolName, args, "call_1")],
               stopReason: "toolUse",
             },
           },
           {
             role: "main",
-            label: "answers after the skill",
+            label: "answers after the tool",
             response: { type: "message", content: [t.text("read it.")], stopReason: "stop" },
           },
         ]),
