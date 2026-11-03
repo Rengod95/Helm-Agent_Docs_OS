@@ -210,8 +210,12 @@ function reservedToolNames(): ReadonlySet<string> {
  * 예약 플러그인(L2 cap-schedule)의 단위. 예약 서비스는 tasks·loop 포트로 만들어져 이 목록을 만드는 시점에는 없으므로
  * 조립 루트가 서비스를 만든 뒤 올린다. 도구를 올리는 core-tools는 그 앞에 올라와 있어야 한다(`L2_TOOL_CAPABILITIES`).
  */
-export function scheduleUnit(service: ScheduleService, loadIndex: number): ExtensionUnit {
-  return schedulePlugin({ service, loadIndex });
+export function scheduleUnit(
+  service: ScheduleService,
+  loadIndex: number,
+  serviceModeOff: () => boolean,
+): ExtensionUnit {
+  return schedulePlugin({ service, loadIndex, serviceModeOff });
 }
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
