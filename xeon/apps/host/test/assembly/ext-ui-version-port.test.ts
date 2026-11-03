@@ -205,6 +205,16 @@ function rigOf(options: RigOptions): Rig {
         if (options.disableFails === true) throw new Error("the registration refused to stop");
       },
     }),
+    ui: {
+      post: (input) => {
+        calls.push(`post ${input.threadId} ${input.extension}/${input.ui}/${input.name}`);
+        return Promise.resolve(ok({ duplicate: false }));
+      },
+      requestApproval: (input) => {
+        calls.push(`approve ${input.threadId} ${input.extension}/${input.ui}/${input.method}`);
+        return Promise.resolve(ok({ approvalId: "evt_approval" }));
+      },
+    },
     resetRegistrationState: (threadId, scopeId) => {
       calls.push(`reset ${threadId} ${scopeId}`);
       return (options.reset ?? (() => Promise.resolve(err({ kind: "not_refused" }))))(
@@ -574,4 +584,39 @@ describe("ext-ui-version port: ui list", () => {
       err({ kind: "unknown_extension", name: "helm" }),
     );
   });
+});
+
+// ext.ui.post와 ext.ui.requestApproval(HS-108). 포트는 params의 대화를 ExtHost.ui에 넘기고, 대화 id가 아니면 열린 대화가 아니라고 한다.
+
+test("uiPost passes the thread to ExtHost.ui and accepts", async () => {
+  const rig = rigOf({});
+  const result = await rig.port.uiPost({
+    extension: "helm",
+    ui: "panel",
+    threadId: "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ",
+    name: "refresh",
+  });
+  expect(result).toEqual({ ok: true, value: { accepted: true } });
+  expect(rig.calls).toEqual(["post thr_01HZZZZZZZZZZZZZZZZZZZZZZZ helm/panel/refresh"]);
+});
+
+test("uiRequestApproval returns the approval id and rejects a malformed thread id", async () => {
+  const rig = rigOf({});
+  expect(
+    await rig.port.uiRequestApproval({
+      extension: "helm",
+      ui: "panel",
+      threadId: "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ",
+      method: "apply",
+    }),
+  ).toEqual({ ok: true, value: { approvalId: "evt_approval" } });
+  expect(
+    await rig.port.uiRequestApproval({
+      extension: "helm",
+      ui: "panel",
+      threadId: "not-a-thread",
+      method: "apply",
+    }),
+  ).toEqual({ ok: false, error: { kind: "unknown_thread", threadId: "not-a-thread" } });
+  expect(rig.calls).toEqual(["approve thr_01HZZZZZZZZZZZZZZZZZZZZZZZ helm/panel/apply"]);
 });

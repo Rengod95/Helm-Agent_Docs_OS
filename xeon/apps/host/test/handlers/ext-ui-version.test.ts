@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import { WireError, type ExtUiEntry, type ExtVersionEntry } from "@fresnel/contracts/wire";
+import type { ExtUiRefusal } from "@fresnel/ext-host";
 import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
@@ -33,6 +34,8 @@ function portWith(parts: Partial<ExtUiVersionPort>): ExtUiVersionPort {
     versions: () => Promise.resolve(ok({ versions: [] })),
     rollback: () => Promise.resolve(ok({ appliesAt: "nextStepBoundary", stateCleared: false })),
     uiList: () => ({ items: [] }),
+    uiPost: () => Promise.resolve(ok({ accepted: true })),
+    uiRequestApproval: () => Promise.resolve(ok({ approvalId: "evt_1" })),
     ...parts,
   };
 }
@@ -256,25 +259,88 @@ test("a storage failure is store.io with the OS code in details", async () => {
   }
 });
 
-test("host.hello features list the three filled methods; ext.ui.post and ext.ui.requestApproval stay notImplemented", async () => {
+test("host.hello features list all five methods", async () => {
   const host = createFakeHost();
   const { connection } = host.connect();
   try {
     const hello = await connection.request("host.hello", HELLO_PARAMS);
     const featured = hello.features.map((feature) => feature.name);
-    for (const name of ["ext.versions", "ext.rollback", "ext.ui.list"]) {
+    for (const name of [
+      "ext.versions",
+      "ext.rollback",
+      "ext.ui.list",
+      "ext.ui.post",
+      "ext.ui.requestApproval",
+    ]) {
       expect(featured).toContain(name);
     }
-    expect(featured).not.toContain("ext.ui.post");
-    expect(featured).not.toContain("ext.ui.requestApproval");
-    const caught = await rejectionOf(
-      connection.request("ext.ui.post", { extension: "helm", ui: "panel", name: "open" }),
-    );
-    expect(wireOf(caught)).toMatchObject({
-      code: -32601,
-      data: { details: { method: "ext.ui.post" } },
-    });
   } finally {
     await connection.close();
   }
 });
+
+const THREAD = "thr_01HZZZZZZZZZZZZZZZZZZZZZZZ";
+const POST = { extension: "helm", ui: "panel", threadId: THREAD, name: "open" };
+const ASK = { extension: "helm", ui: "panel", threadId: THREAD, method: "apply" };
+
+test("ext.ui.post and ext.ui.requestApproval return the port's values", async () => {
+  const seen: unknown[] = [];
+  const host = createFakeHost({
+    extUi: portWith({
+      uiPost: (params) => {
+        seen.push(params);
+        return Promise.resolve(ok({ accepted: true }));
+      },
+      uiRequestApproval: (params) => {
+        seen.push(params);
+        return Promise.resolve(ok({ approvalId: "evt_9" }));
+      },
+    }),
+  });
+  const { connection } = host.connect();
+  try {
+    await connection.request("host.hello", HELLO_PARAMS);
+    expect(await connection.request("ext.ui.post", POST)).toEqual({ accepted: true });
+    expect(await connection.request("ext.ui.requestApproval", ASK)).toEqual({
+      approvalId: "evt_9",
+    });
+    expect(seen).toEqual([POST, ASK]);
+  } finally {
+    await connection.close();
+  }
+});
+
+const REFUSALS: readonly [ExtUiRefusal, number, string][] = [
+  [{ kind: "unknown_thread", threadId: THREAD }, 3001, "thread.notFound"],
+  [{ kind: "thread_closed", threadId: THREAD }, 3001, "thread.notFound"],
+  [{ kind: "unknown_extension", extension: "helm" }, 3401, "extension.notFound"],
+  [{ kind: "extension_off", extension: "helm" }, 10002, "ext.helm.off"],
+  [{ kind: "ui_not_declared", ui: "panel" }, -32602, "jsonrpc.invalidParams"],
+  [{ kind: "method_not_declared", method: "apply" }, -32602, "jsonrpc.invalidParams"],
+  [{ kind: "post_not_allowed", extension: "helm" }, -32602, "jsonrpc.invalidParams"],
+  [{ kind: "name_invalid", name: "Bad" }, -32602, "jsonrpc.invalidParams"],
+  [{ kind: "payload_invalid" }, -32602, "jsonrpc.invalidParams"],
+  [{ kind: "key_reused", requestId: "r" }, -32602, "jsonrpc.invalidParams"],
+  [{ kind: "port_unavailable", port: "approvals" }, -32603, "internal"],
+  [{ kind: "storage", reason: "io" }, -32603, "internal"],
+];
+for (const [refusal, code, kind] of REFUSALS) {
+  test(`ext.ui.post and ext.ui.requestApproval map ${refusal.kind} to ${kind}`, async () => {
+    const host = createFakeHost({
+      extUi: portWith({
+        uiPost: () => Promise.resolve(err(refusal)),
+        uiRequestApproval: () => Promise.resolve(err(refusal)),
+      }),
+    });
+    const { connection } = host.connect();
+    try {
+      await connection.request("host.hello", HELLO_PARAMS);
+      const post = wireOf(await rejectionOf(connection.request("ext.ui.post", POST)));
+      const ask = wireOf(await rejectionOf(connection.request("ext.ui.requestApproval", ASK)));
+      expect(post).toMatchObject({ code, data: { kind } });
+      expect(ask).toMatchObject({ code, data: { kind } });
+    } finally {
+      await connection.close();
+    }
+  });
+}

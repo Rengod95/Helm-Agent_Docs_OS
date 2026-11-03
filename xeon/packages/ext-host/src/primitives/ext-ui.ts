@@ -21,7 +21,7 @@ import type { HostCore, RegistrationRecord } from "./core.ts";
 
 export type ExtUiRefusal =
   /** 이 엔진에 열려 있는 대화가 아니다 */
-  | { readonly kind: "unknown_thread"; readonly threadId: ThreadId }
+  | { readonly kind: "unknown_thread"; readonly threadId: string }
   | { readonly kind: "unknown_extension"; readonly extension: string }
   /** 확장은 있으나 그 대화에서 호출을 받을 Registration이 꺼져 있다 */
   | { readonly kind: "extension_off"; readonly extension: string }
@@ -36,7 +36,7 @@ export type ExtUiRefusal =
   /** `payload`가 JSON 값이 아니다 */
   | { readonly kind: "payload_invalid" }
   | { readonly kind: "port_unavailable"; readonly port: "input_queue" | "approvals" }
-  | { readonly kind: "thread_closed"; readonly threadId: ThreadId }
+  | { readonly kind: "thread_closed"; readonly threadId: string }
   /** 같은 키가 다른 내용으로 다시 왔다 */
   | { readonly kind: "key_reused"; readonly requestId: string }
   /** 저장소 실패나 커밋 거부. `reason`은 원인의 종류다 */

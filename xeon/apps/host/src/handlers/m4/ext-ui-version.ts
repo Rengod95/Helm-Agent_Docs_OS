@@ -3,17 +3,22 @@ import {
   wireError,
   type ExtRollbackParams,
   type ExtRollbackResult,
+  type ExtUiApprovalParams,
+  type ExtUiApprovalResult,
   type ExtUiListParams,
   type ExtUiListResult,
+  type ExtUiPostParams,
+  type ExtUiPostResult,
   type ExtVersionsResult,
   type WireError,
   type WireHandlers,
 } from "@fresnel/contracts/wire";
-import { notImplemented } from "../not-implemented.ts";
+import type { ExtUiRefusal } from "@fresnel/ext-host";
+import { extensionError } from "./ext-method.ts";
 
 // 확장 메서드·Plugin UI·버전 기록 wire(L4.host-service.spec §3.3.3, HS-108). 처리기는 T-XV가 채운다.
-// `ext.versions`, `ext.rollback`, `ext.ui.list`는 포트로 채운다. `ext.ui.post`와 `ext.ui.requestApproval`은 대화(threadId)를 정할
-// 필드가 없어 입력 큐와 승인 카드를 고를 수 없으므로 `notImplemented`로 남긴다(HS-108 [미결]).
+// 다섯 메서드를 모두 포트로 채운다. `ext.ui.post`와 `ext.ui.requestApproval`은 params의 `threadId`(필수)가 가리키는 대화의
+// 입력 큐와 승인 카드로 간다(HS-108, §10 52 닫음).
 // 이 파일과 `assembly/m4/ext-ui-version-port.ts`를 T-XV가 고친다. `handlers/index.ts`, `types.ts`, `assemble.ts`, `assembly/m4/index.ts`는 고치지 않는다.
 
 /**
@@ -40,6 +45,12 @@ export interface ExtUiVersionPort {
   versions(name: string): Promise<Result<ExtVersionsResult, ExtUiVersionFailure>>;
   rollback(params: ExtRollbackParams): Promise<Result<ExtRollbackResult, ExtUiVersionFailure>>;
   uiList(params: ExtUiListParams): ExtUiListResult;
+  /** 화면이 대화 입력 큐에 넣는다. 거절은 값이다(`ExtUiRefusal`) */
+  uiPost(params: ExtUiPostParams): Promise<Result<ExtUiPostResult, ExtUiRefusal>>;
+  /** 화면이 승인 카드를 청한다. 기다리지 않고 승인 id를 돌려준다 */
+  uiRequestApproval(
+    params: ExtUiApprovalParams,
+  ): Promise<Result<ExtUiApprovalResult, ExtUiRefusal>>;
 }
 
 export type ExtUiVersionMethods =
@@ -56,8 +67,8 @@ export function createExtUiVersionHandlers(
     "ext.versions": async (params) => unwrap(await port.versions(params.name)),
     "ext.rollback": async (params) => unwrap(await port.rollback(params)),
     "ext.ui.list": (params) => Promise.resolve(port.uiList(params)),
-    "ext.ui.post": notImplemented("ext.ui.post"),
-    "ext.ui.requestApproval": notImplemented("ext.ui.requestApproval"),
+    "ext.ui.post": async (params) => unwrapUi(await port.uiPost(params)),
+    "ext.ui.requestApproval": async (params) => unwrapUi(await port.uiRequestApproval(params)),
   };
 }
 
@@ -65,6 +76,48 @@ export function createExtUiVersionHandlers(
 function unwrap<T>(result: Result<T, ExtUiVersionFailure>): T {
   if (result.ok) return result.value;
   throw wireErrorOfFailure(result.error);
+}
+
+function unwrapUi<T>(result: Result<T, ExtUiRefusal>): T {
+  if (result.ok) return result.value;
+  throw wireErrorOfRefusal(result.error);
+}
+
+/**
+ * 화면 post·승인 거절의 대응표(HS-108). 대화는 `thread.notFound`, 확장은 `extension.notFound`, 꺼진 확장은 `ext.<확장>.off`다.
+ * 매니페스트가 허용하지 않는 호출과 잘못된 값은 `jsonrpc.invalidParams`의 `issues`(경로와 `<종류>: <내용>`)로 알린다.
+ */
+function wireErrorOfRefusal(refusal: ExtUiRefusal): WireError {
+  switch (refusal.kind) {
+    case "unknown_thread":
+    case "thread_closed":
+      return wireError("thread.notFound", { details: { threadId: refusal.threadId } });
+    case "unknown_extension":
+      return wireError("extension.notFound", { details: { name: refusal.extension } });
+    case "extension_off":
+      return extensionError(refusal.extension, "off", "extension is off in this thread", {});
+    case "ui_not_declared":
+      return invalidParams("/ui", `ui_not_declared: ${refusal.ui}`);
+    case "method_not_declared":
+      return invalidParams("/method", `method_not_declared: ${refusal.method}`);
+    case "post_not_allowed":
+      return invalidParams(
+        "/extension",
+        `post_not_allowed: ${refusal.extension} declares no plugin with usesPost`,
+      );
+    case "name_invalid":
+      return invalidParams("/name", `name_invalid: ${refusal.name}`);
+    case "payload_invalid":
+      return invalidParams("/payload", "payload_invalid: not a JSON value");
+    case "key_reused":
+      return invalidParams("/requestId", `key_reused: ${refusal.requestId}`);
+    case "port_unavailable":
+      return wireError("internal", { message: `port_unavailable: ${refusal.port}` });
+    case "storage":
+      return wireError("internal", { message: `storage: ${refusal.reason}` });
+    default:
+      return assertNever(refusal, "ExtUiRefusal");
+  }
 }
 
 /**

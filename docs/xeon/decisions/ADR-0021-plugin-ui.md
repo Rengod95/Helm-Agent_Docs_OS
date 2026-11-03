@@ -304,11 +304,11 @@ interface ExtMethodDecl {
 
 1. [미결] Tauri iframe의 IPC 노출과 전용 URI 스킴 등록을 macOS·Linux에서 e2e로 확인하는 일. 확인 전에는 `x.views.frames`를 끈 빌드로 냅니다. 확인 시험은 `review.m4-plan` 트랙 T-VIEW의 끝 시험입니다.
 2. [결정: 2026-11-02 M4 T-F] 매니페스트 `ui`(옛 `views`), `UiContribution`, `AppDecl`(옛 `FrameDecl`), `UiNode`(옛 `ViewNode`), `ExtMethodDecl`(확장 수준 `methods`), 다리 메시지 스키마의 정본은 `F.extensions.spec` §3.1.1(`extensions/ui.ts`, `extensions/ext-method.ts`)입니다. 위젯 카탈로그 이름 목록은 F에 두지 않고 렌더러(`packages/client`)가 정합니다. F는 `type`의 문법만 봅니다. 이 문서 본문의 `views`, `frame`, `slot` 같은 옛 이름은 ADR-0022 §3.6 표가 새 이름을 정합니다.
-3. [미결] 확장 wire 메서드 열기(`F.wire-settings.spec` §4.2 [제안] 확정), `ext.view.post`·`ext.view.requestApproval`, `g.registerMethod`(L3). 확장 메서드 등록 API `hostOf(g).registerMethod`는 [결정: 2026-11-02 M4 T-XV] 정했고 구현했다(X.primitives.spec §3.8, §3.9.2, §4.12). `g.registerMethod`(L3 group-sdk)와 wire 디스패치 `ext.<확장>.<동사>`는 [결정: 2026-11-02 M4 T-GK] 닫았다(`F.wire-settings.spec` §4.2, `L4.host-service.spec` HS-109). `ext.view.post`·`ext.view.requestApproval`(이제 `ext.ui.post`·`ext.ui.requestApproval`)은 params에 `threadId`가 없어 아직 열지 않았다(Helm의 기여 일곱은 이 둘을 쓰지 않는다).
+3. [미결] 확장 wire 메서드 열기(`F.wire-settings.spec` §4.2 [제안] 확정), `ext.view.post`·`ext.view.requestApproval`, `g.registerMethod`(L3). 확장 메서드 등록 API `hostOf(g).registerMethod`는 [결정: 2026-11-02 M4 T-XV] 정했고 구현했다(X.primitives.spec §3.8, §3.9.2, §4.12). `g.registerMethod`(L3 group-sdk)와 wire 디스패치 `ext.<확장>.<동사>`는 [결정: 2026-11-02 M4 T-GK] 닫았다(`F.wire-settings.spec` §4.2, `L4.host-service.spec` HS-109). `ext.view.post`·`ext.view.requestApproval`(이제 `ext.ui.post`·`ext.ui.requestApproval`)은 [결정: 2026-11-03 M4 T-UIPOST] `threadId`를 필수로 더해 열었다(`F.wire-settings.spec` §4.2, `X.primitives.spec` §4.13, HS-108).
 4. [미결] `X.operations.spec` 예산 등급 `view`(기본 5,000ms)와 확장 메서드 실패의 장부 반영.
 5. [결정: 2026-11-02 M4 T-GK] Helm의 `ext.helm.status`, `ext.helm.inquiries`, `ext.helm.findings`와 화면 기여 일곱은 `L3.helm.spec` §3.9a에 닫았다. 위젯 카탈로그 v1로 그릴 수 있음을 구현에서 확인했다(§6 11번의 가정). 이 표의 `well` 기여는 `panel` 위치 이름이다.
 6. [미결] `architecture.security.spec` §4 T-16~T-18 행과 확장 메서드 결과의 마스킹 위치.
-7. [미결] `requestApproval`의 승인 kind. 새 kind를 둘지 `question` kind에 출처(`ApprovalOrigin.caller.extension`)를 실을지(ADR-0018 §3 2번).
+7. [제안 기본값, 2026-11-03 M4 T-UIPOST] `requestApproval`의 승인 kind는 새로 두지 않고 `question` kind에 출처 `origin.caller = ext:<확장>`을 싣는다. `loop.ask`와 같은 카드다. 사용자 확인 전에는 [제안]이다.
 8. [미결] `events`의 kind 거름 인자를 `events.subscribe`에 둘지 확장 화면 전용 구독을 둘지(`F.wire-settings.spec`, `L4.desktop-ux.spec` W-37).
 9. [미결] 설정 키 `x.views.frames`, `x.views.allowProjectFrames`의 소유 문서(`X.loading-trust.spec` 또는 `L4.settings-ui.spec`)와 프레임 `call` 확인 줄을 끄는 범위.
 10. [미결] 프레임 안에서 caustic을 쓸 배포물(웹 컴포넌트 빌드 또는 토큰 CSS만)을 caustic 저장소에서 낼지.

@@ -74,7 +74,7 @@ function splitThread(raw: Readonly<Record<string, unknown>>): {
   return { threadId: parsed.value, params: rest };
 }
 
-function extensionError(
+export function extensionError(
   extension: string,
   name: "failed" | "off",
   message: string,
