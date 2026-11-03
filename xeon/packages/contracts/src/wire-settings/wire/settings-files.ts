@@ -131,8 +131,21 @@ export const UsageWindowSchema: TUnion<
 ]);
 export type UsageWindow = Static<typeof UsageWindowSchema>;
 
-export const UsageUnitSchema: TUnion<[TLiteral<"tokens">, TLiteral<"usd">, TLiteral<"requests">]> =
-  Type.Union([Type.Literal("tokens"), Type.Literal("usd"), Type.Literal("requests")]);
+export const UsageUnitSchema: TUnion<
+  [
+    TLiteral<"tokens">,
+    TLiteral<"usd">,
+    TLiteral<"requests">,
+    TLiteral<"cacheRead">,
+    TLiteral<"cacheWrite">,
+  ]
+> = Type.Union([
+  Type.Literal("tokens"),
+  Type.Literal("usd"),
+  Type.Literal("requests"),
+  Type.Literal("cacheRead"),
+  Type.Literal("cacheWrite"),
+]);
 export type UsageUnit = Static<typeof UsageUnitSchema>;
 
 /** 게이지 한 줄. 데이터 원천은 L1.models의 사용량 투영이다(L4.settings-ui.spec §4.7) */

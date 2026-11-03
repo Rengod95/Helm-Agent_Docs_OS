@@ -135,18 +135,18 @@ test("metrics.status-merges-counters-with-thread-usage-after-the-status-command"
     report: () => {},
   });
   const counted = { denies: 0, posts: 1, spawns: 0, delegates: 0 };
-  // 명령을 치기 전에는 카운터 값만 보인다
+  // 명령을 치기 전에는 개수 카운터만 보인다. 비용은 이벤트 집계에서만 오므로 카운터 `addUsage`의 0.25는 들어가지 않는다
   expect(service.status("helm")).toMatchObject({
     ok: true,
-    value: { metrics: { ...counted, costUsd: 0.25, leaseMs: 0 } },
+    value: { metrics: { ...counted, costUsd: 0, leaseMs: 0 } },
   });
   expect((await runGroupCommand(service, { op: "status" })).ok).toBe(true);
-  // 명령이 현재 thread의 lease.*와 turn.* 이벤트를 읽어 임대 시간 600ms와 비용 0.5를 더한다.
+  // 명령이 현재 thread의 lease.*, turn.*, agent.* 이벤트를 읽어 임대 시간 600ms와 비용 0.5로 바꾼다(카운터 0.25는 더하지 않는다).
   // 승격 후보 줄을 정하려고 turn.started와 effect.intent도 읽는다(L3.group-sdk.spec §3.12)
-  expect(queried).toEqual(["lease.", "turn.", "turn.started", "effect.intent"]);
+  expect(queried).toEqual(["lease.", "turn.", "agent.", "turn.started", "effect.intent"]);
   expect(service.status("helm")).toMatchObject({
     ok: true,
-    value: { metrics: { ...counted, costUsd: 0.75, leaseMs: 600 } },
+    value: { metrics: { ...counted, costUsd: 0.5, leaseMs: 600 } },
   });
 });
 
@@ -171,14 +171,14 @@ test("metrics.status-keeps-the-last-usage-when-a-query-fails", async () => {
   await runGroupCommand(service, { op: "status" });
   expect(service.status("helm")).toMatchObject({
     ok: true,
-    value: { metrics: { costUsd: 0.75, leaseMs: 600 } },
+    value: { metrics: { costUsd: 0.5, leaseMs: 600 } },
   });
   // 조회가 실패하면 명령은 그대로 끝나고 이전 캐시가 남는다
   failing = true;
   expect((await runGroupCommand(service, { op: "status", id: "helm" })).ok).toBe(true);
   expect(service.status("helm")).toMatchObject({
     ok: true,
-    value: { metrics: { costUsd: 0.75, leaseMs: 600 } },
+    value: { metrics: { costUsd: 0.5, leaseMs: 600 } },
   });
 });
 
@@ -195,6 +195,6 @@ test("metrics.status-real-host-has-no-turn-usage", async () => {
   // 시험 호스트의 기록 저장소는 recordedAt을 0으로 돌려주고 turn.* 이벤트를 쓰지 않는다
   expect(service.status("helm")).toMatchObject({
     ok: true,
-    value: { metrics: { posts: 1, costUsd: 0.25, leaseMs: 0 } },
+    value: { metrics: { posts: 1, costUsd: 0, leaseMs: 0 } },
   });
 });

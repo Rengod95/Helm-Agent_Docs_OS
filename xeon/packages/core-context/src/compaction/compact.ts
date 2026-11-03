@@ -410,6 +410,17 @@ export async function compactThread(
   };
   const compactedId = deps.ids.next("evt");
   const stepId = request.stepId ?? null;
+  // 압축 뒤 추정: 요약으로 바뀐 메시지의 토큰을 빼고 요약 한 건을 더한다(추정기가 보는 값이라 실제 청구 토큰과 다를 수 있다)
+  const summarizedTokens = [...prep.messagesToSummarize, ...prep.turnPrefixMessages].reduce(
+    (sum, message) => sum + estimate(message),
+    0,
+  );
+  const summaryTokens = estimate({
+    role: "user",
+    content: summary,
+    timestamp: leafEvent.recordedAt,
+  });
+  const tokensAfter = Math.max(0, Math.round(prep.tokensBefore - summarizedTokens + summaryTokens));
   const drafts = [
     deps.producer.draft({
       id: compactedId,
@@ -426,6 +437,8 @@ export async function compactThread(
         details,
         usage: summaryUsage,
         fromExtension,
+        tokensAfter,
+        reason: request.reason,
       },
     }),
   ];

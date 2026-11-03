@@ -5,6 +5,7 @@ import type {
   EventId,
   ItemId,
   PartRecord,
+  StepContextWarning,
   StepId,
   ThreadId,
   TurnId,
@@ -52,6 +53,8 @@ interface RunState {
   pinned: ModelBinding | null;
   /** 응답과 같은 커밋(T3)에 넣을 system·custom item */
   prelude: PreludeItem[];
+  /** 이 단계의 마지막 조립이 낸 컨텍스트 경고. 단계 끝(`step.completed`)에 실어 내구 기록으로 남긴다 */
+  contextWarnings: StepContextWarning[];
   assistant: AssistantMessage | null;
   assistantItemId: ItemId | null;
   assistantParts: readonly PartRecord[];
@@ -154,6 +157,7 @@ export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
           ? spec.entry.resume.binding
           : null,
     prelude: [],
+    contextWarnings: [],
     assistant: null,
     assistantItemId: null,
     assistantParts: [],

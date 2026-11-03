@@ -1,10 +1,13 @@
+import type { Result } from "@fresnel/contracts";
+import { parse } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import { ItemRecordedPayloadSchema, type DurableEventEnvelope } from "@fresnel/contracts/records";
 import type { UsageMeter, UsageRecord } from "@fresnel/contracts/services";
 import type { UsageGauge, UsageUnit } from "@fresnel/contracts/wire";
 import type { UsagePort } from "../types.ts";
 
 // M3-REQ-15. 사용량 게이지 원천의 조립 기본이다. L1.models 합산기(`ModelService.usage`)의 기록을 구독해 thread와 provider별로 모은다.
-// `usage.get`이 `threadId`를 주면 그 thread의 `session` 게이지(tokens, usd, requests)를, 주지 않으면 모든 thread의 합을 돌려준다. 분에서 월까지의 창, 한도, 계정 행은
+// `usage.get`이 `threadId`를 주면 그 thread의 `session` 게이지(tokens, usd, requests, cacheRead, cacheWrite)를, 주지 않으면 모든 thread의 합을 돌려준다. 분에서 월까지의 창, 한도, 계정 행은
 // L1이 레이트 리밋과 계정 기록을 보관하지 않아 만들지 않는다(L4.host-service.spec §10 46번 [미결]).
 // 원천을 바꿔 끼우는 자리는 `EnginePorts.usage`다. 조립 루트 코드(DR-14 예외 2).
 
@@ -13,9 +16,17 @@ interface Tally {
   readonly tokens: number;
   readonly usd: number;
   readonly requests: number;
+  readonly cacheRead: number;
+  readonly cacheWrite: number;
 }
 
-const EMPTY_TALLY: Tally = { tokens: 0, usd: 0, requests: 0 };
+const EMPTY_TALLY: Tally = { tokens: 0, usd: 0, requests: 0, cacheRead: 0, cacheWrite: 0 };
+
+/** 내구 기록 읽기. 어시스턴트 `item.recorded`를 접두로 조회한다(`ExtHost.queryEvents`와 같은 모양). 읽지 못하면 오류 값이다 */
+export type UsageEventReader = (
+  threadId: ThreadId,
+  query: { readonly kindPrefix: string },
+) => Promise<Result<readonly DurableEventEnvelope[], unknown>>;
 
 /** 세션 게이지의 한 줄. 계정이 없으므로 id의 계정 자리는 빈 문자열이다 */
 function sessionGauge(providerId: string, unit: UsageUnit, used: number): UsageGauge {
@@ -31,12 +42,14 @@ function sessionGauge(providerId: string, unit: UsageUnit, used: number): UsageG
   };
 }
 
-/** provider 하나의 세션 게이지 세 줄을 tokens, usd, requests 순서로 낸다 */
+/** provider 하나의 세션 게이지 다섯 줄을 tokens, usd, requests, cacheRead, cacheWrite 순서로 낸다 */
 function sessionGauges(providerId: string, tally: Tally): readonly UsageGauge[] {
   return [
     sessionGauge(providerId, "tokens", tally.tokens),
     sessionGauge(providerId, "usd", tally.usd),
     sessionGauge(providerId, "requests", tally.requests),
+    sessionGauge(providerId, "cacheRead", tally.cacheRead),
+    sessionGauge(providerId, "cacheWrite", tally.cacheWrite),
   ];
 }
 
@@ -49,7 +62,7 @@ function compareNames(a: string, b: string): number {
  * `meter`의 모든 기록(중단된 호출 포함)을 한 번 구독해 thread와 provider별로 합산하는 원천을 만든다.
  * `gauges`는 `threadId`가 없으면 이 프로세스가 본 모든 thread의 합산이고, 모르는 thread는 빈 목록이다. 창 데이터는 없다.
  */
-export function createUsageSource(meter: UsageMeter): UsagePort {
+export function createUsageSource(meter: UsageMeter, readEvents?: UsageEventReader): UsagePort {
   const byThread = new Map<ThreadId, Map<string, Tally>>();
 
   meter.subscribe((record: UsageRecord) => {
@@ -59,14 +72,43 @@ export function createUsageSource(meter: UsageMeter): UsagePort {
       tokens: tally.tokens + record.usage.totalTokens,
       usd: tally.usd + record.usage.cost.total,
       requests: tally.requests + 1,
+      cacheRead: tally.cacheRead + record.usage.cacheRead,
+      cacheWrite: tally.cacheWrite + record.usage.cacheWrite,
     });
     byThread.set(record.threadId, providers);
   });
 
+  /** 내구 기록(어시스턴트 `item.recorded`의 `message.usage`)을 provider별로 접는다. 재시작해도 같은 값이 나온다. 읽지 못하면 undefined */
+  async function durableProviders(threadId: ThreadId): Promise<Map<string, Tally> | undefined> {
+    if (readEvents === undefined) return undefined;
+    const read = await readEvents(threadId, { kindPrefix: "item.recorded" });
+    if (!read.ok) return undefined;
+    const providers = new Map<string, Tally>();
+    for (const event of read.value) {
+      if (event.kind !== "item.recorded") continue;
+      const checked = parse(ItemRecordedPayloadSchema, event.payload);
+      if (!checked.ok || checked.value.item.kind !== "assistant") continue;
+      const message = checked.value.item.message;
+      const tally = providers.get(message.provider) ?? EMPTY_TALLY;
+      providers.set(message.provider, {
+        tokens: tally.tokens + message.usage.totalTokens,
+        usd: tally.usd + message.usage.cost.total,
+        requests: tally.requests + 1,
+        cacheRead: tally.cacheRead + message.usage.cacheRead,
+        cacheWrite: tally.cacheWrite + message.usage.cacheWrite,
+      });
+    }
+    return providers;
+  }
+
   return {
-    gauges: ({ providerId, threadId }) => {
-      // threadId가 없으면 이 프로세스가 본 모든 thread의 합이다(다중 thread 사용량). 있으면 그 thread의 것이다
-      const scoped = threadId === undefined ? [...byThread.values()] : [byThread.get(threadId)];
+    gauges: async ({ providerId, threadId }) => {
+      // 내구 기록이 있으면 그것이 원천이다. 읽지 못할 때만 이 프로세스의 합산기로 돌아간다.
+      // threadId가 없으면 내구 기록으로 thread 목록을 알 수 없어, 이 프로세스가 본 모든 thread의 합산기 합이다(다중 thread 사용량)
+      const scoped =
+        threadId === undefined
+          ? [...byThread.values()]
+          : [(await durableProviders(threadId)) ?? byThread.get(threadId)];
       const totals = new Map<string, Tally>();
       for (const providers of scoped) {
         if (providers === undefined) continue;
@@ -76,6 +118,8 @@ export function createUsageSource(meter: UsageMeter): UsagePort {
             tokens: sum.tokens + tally.tokens,
             usd: sum.usd + tally.usd,
             requests: sum.requests + tally.requests,
+            cacheRead: sum.cacheRead + tally.cacheRead,
+            cacheWrite: sum.cacheWrite + tally.cacheWrite,
           });
         }
       }
@@ -83,7 +127,7 @@ export function createUsageSource(meter: UsageMeter): UsagePort {
         .filter(([name]) => providerId === undefined || name === providerId)
         .toSorted(([a], [b]) => compareNames(a, b))
         .flatMap(([name, tally]) => sessionGauges(name, tally));
-      return Promise.resolve(gauges);
+      return gauges;
     },
   };
 }

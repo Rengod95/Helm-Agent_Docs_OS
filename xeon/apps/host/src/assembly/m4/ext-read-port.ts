@@ -774,15 +774,18 @@ export function createExtReadPort(
   return port;
 }
 
-/** 이벤트에서 접는 지표. `since`를 지킨다 */
-const EVENT_METRICS: readonly string[] = ["leases", "leaseMs"];
-/** 프로세스 메모리 카운터에서 오는 지표(`costUsd`는 카운터와 이벤트의 합). 프로세스가 뜬 뒤의 누계라 `since`를 지키지 못한다 */
-const COUNTER_METRICS: readonly string[] = [
+/** 이벤트에서 접는 지표(임대, drive 턴과 자식의 토큰·비용). `since`를 지킨다 */
+const EVENT_METRICS: readonly string[] = [
+  "leases",
+  "leaseMs",
   "inputTokens",
   "outputTokens",
   "cacheReadTokens",
   "cacheWriteTokens",
   "costUsd",
+];
+/** 프로세스 메모리 카운터에서 오는 개수 지표. 프로세스가 뜬 뒤의 누계라 `since`를 지키지 못한다 */
+const COUNTER_METRICS: readonly string[] = [
   "denies",
   "chainPatches",
   "handlerErrors",

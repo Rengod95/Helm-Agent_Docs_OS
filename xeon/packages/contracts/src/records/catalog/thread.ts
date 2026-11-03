@@ -5,6 +5,7 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TOptional,
   type TString,
   type TUnion,
   type TUnsafe,
@@ -42,6 +43,8 @@ export const CompactedPayloadSchema: TObject<{
   details: TUnsafe<JsonValue>;
   usage: TUnion<[TUnsafe<Usage>, TNull]>;
   fromExtension: TUnion<[TString, TNull]>;
+  tokensAfter: TOptional<TInteger>;
+  reason: TOptional<TUnion<[TLiteral<"manual">, TLiteral<"threshold">, TLiteral<"overflow">]>>;
 }> = Type.Object(
   {
     /** 비파괴 컴팩션 요약(F.records.spec §4.6). 모델 컨텍스트 조립 때 firstKeptEventId 앞 내용을 대체한다 */
@@ -55,6 +58,12 @@ export const CompactedPayloadSchema: TObject<{
     usage: Nullable(UsageSchema),
     /** 확장이 만든 요약이면 확장 id */
     fromExtension: Nullable(Type.String({ minLength: 1, maxLength: 64 })),
+    /** 압축 뒤 추정 토큰 수(요약과 남긴 메시지). 선택이라 옛 기록에는 없다. 측정이 `tokensBefore`와 함께 줄어든 양을 읽는다 */
+    tokensAfter: Type.Optional(Type.Integer({ minimum: 0 })),
+    /** 압축을 일으킨 이유. 선택이라 옛 기록에는 없다(그때는 `details.fresnel.reason`) */
+    reason: Type.Optional(
+      Type.Union([Type.Literal("manual"), Type.Literal("threshold"), Type.Literal("overflow")]),
+    ),
   },
   { additionalProperties: false },
 );

@@ -282,7 +282,8 @@ realTest(
       });
       expect(later.metrics?.leases).toBe(0);
       expect(later.metrics?.leaseMs).toBe(0);
-      expect(later.sinceIgnoredBy).toContain("inputTokens");
+      expect(later.sinceIgnoredBy).toContain("denies");
+      expect(later.sinceIgnoredBy).not.toContain("inputTokens");
       expect(later.sinceIgnoredBy).not.toContain("leases");
       expect(
         await connection.request("group.promotion", { threadIds: [created.threadId] }),

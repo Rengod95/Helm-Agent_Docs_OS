@@ -480,7 +480,7 @@ test("group.list, group.metrics, group.promotion pass the group service values t
     id: "team",
     metrics: full,
     since: "2026-11-01T00:00:00.000Z",
-    // 이벤트에서 접는 값(leases, leaseMs)만 since를 지킨다
+    // 이벤트에서 접는 값(임대, 토큰, 비용)만 since를 지킨다
     sinceIgnoredBy: expect.not.arrayContaining(["leases", "leaseMs"]),
   });
   const unfiltered = await connection.request("group.metrics", { id: "team" });

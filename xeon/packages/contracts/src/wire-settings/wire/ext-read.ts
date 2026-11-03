@@ -410,9 +410,9 @@ export interface GroupMetricsResult {
   readonly metrics: GroupMetricsFull | null;
   readonly since: string | null;
   /**
-   * `since`를 지킬 수 없는 지표 이름. `since`가 없으면 빈 배열이다. 이벤트에서 접는 값(`leases`, `leaseMs`)은 `since`를 지키고,
-   * 프로세스 메모리 카운터에서 오는 값(토큰, `denies`, `posts` 같은 개수)은 프로세스가 뜬 뒤의 누계라 지키지 않는다.
-   * `costUsd`는 둘의 합이라 지키지 않는다. 호스트는 항상 채운다
+   * `since`를 지킬 수 없는 지표 이름. `since`가 없으면 빈 배열이다. 이벤트에서 접는 값(`leases`, `leaseMs`, 토큰, `costUsd`)은 `since`를 지키고,
+   * 프로세스 메모리 카운터에서 오는 값(`denies`, `posts` 같은 개수)은 프로세스가 뜬 뒤의 누계라 지키지 않는다.
+   * 호스트는 항상 채운다
    */
   readonly sinceIgnoredBy?: readonly string[];
 }

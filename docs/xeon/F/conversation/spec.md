@@ -532,6 +532,19 @@ export interface StepCompletedPayload {
   stopReason: StopReason;
   assistantItemId: ItemId | null;
   toolResultItemIds: ItemId[];
+  /** 선택. 이 단계의 요청 조립이 낸 컨텍스트 경고(`cache_prefix_reset` 등). 없으면 경고가 없던 단계이고 옛 기록도 같다 [T-MEAS-EV] */
+  contextWarnings?: StepContextWarning[];
+}
+/** 코드마다 쓰는 필드만 있다: cache_reset_model_switch{from,to}, cache_prefix_reset{at}, tools_deferred{added,removed}, near_window{tokens,contextWindow}. 모델 바인딩은 `provider/modelId` 문자열이다 */
+export interface StepContextWarning {
+  code: "cache_reset_model_switch" | "cache_prefix_reset" | "tools_deferred" | "near_window";
+  from?: string;
+  to?: string;
+  at?: number | null;
+  added?: string[];
+  removed?: string[];
+  tokens?: number;
+  contextWindow?: number;
 }
 export type StepStarted = Notification<"step.started", StepStartedPayload>;
 export type StepUpdated = Notification<"step.updated", StepUpdatedPayload>;

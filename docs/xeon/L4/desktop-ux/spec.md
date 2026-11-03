@@ -2387,7 +2387,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 항목 | 출처 |
 |---|---|
-| 시험 목록(종류, 대상, 결과, 시각, 소요) | `ext.test.list` `[gap:W-29]` |
+| 시험 목록(종류 `replay`·`testRun`, 대상, 결과, 시각, 소요). benchmark와 코어 변경 검사는 이 목록에 없다(W-30은 wire가 아니다) | `ext.test.list` `[gap:W-29]` |
 | replay 결과(커밋 수, 절단마다 같음·다름(`cuts[].equal`), 처음 다른 위치 `firstDiff`, 효과 수 `EffectCounts`(turn, spawn, delegate, post), 실패 종류 `effects-doubled`·`effects-mismatch`·`max-commits-exceeded`·`no-commits`) | `ReplayDriveReport`(`group-sdk/src/testing/replay/replay-drive.ts`) `[gap:W-29]` |
 | benchmark 결과(지표, 값, 예산, 판정) | `scripts/benchmark-server.ts` 출력과 `benchmark-gate` 판정. 예산은 모두 미정("사용자 결정 대기") `[gap:W-30]` |
 | 코어 변경 검사(보호 경로 변경 파일) | `scripts/core-diff-check.ts` 종료 코드 0·1·2와 파일 목록 `[gap:W-30]` |
@@ -2446,7 +2446,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 요약 | `GroupStatus.metrics`(`GroupMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
 | 핸들러 시간과 예산 | `[gap:W-23]`. 예산 값은 `x.operations.budget.*` |
 | 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion` `[gap:W-26]`. 임시로 `/group status`의 "승격 후보" 줄 |
-| 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | `ext.test.list`의 마지막 `diff` 결과 `[gap:W-29]` `[gap:W-30]` |
+| 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | 개발 모드 셸 명령 `core-diff-check`의 마지막 결과. `ext.test.list`는 `replay`·`testRun`만 돌려주므로 읽는 wire가 없다 `[gap:W-30]` |
 | 대화별 사용량 | `usage.get { threadId }` |
 
 - 기능: 기간 고르기(1일, 7일, 30일), 행 누르기(P-17 측정 탭), CSV 복사 [제안]. 맥락은 왼쪽 패널 맥락 칸에서만 바꿉니다(§6.21). 머리에 맥락 `Select`를 두지 않습니다.
