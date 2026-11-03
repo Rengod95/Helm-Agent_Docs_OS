@@ -8,7 +8,7 @@
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b tsconfig.caustic.json && tsc -b",
     "test": "bash ../../scripts/test-pkg.sh",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test",
     "spike:engine": "bun build --compile spike/tests/engine.ts --outfile spike/out/engine",
