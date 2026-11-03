@@ -28,7 +28,13 @@ import type {
   QueuedInput,
   WithdrawReason,
 } from "@fresnel/contracts/services";
-import { findQueuedEvent, loadQueuedInput, queuedPayloadOf, stateOfInput } from "./input-events.ts";
+import {
+  findQueuedEvent,
+  loadQueuedInput,
+  queuedPayloadOf,
+  stateOfInput,
+  type BlobReader,
+} from "./input-events.ts";
 import { commitWithRetry, describeError, type TasksSession } from "./session-port.ts";
 import { inputCommitKey, sourceKeyOf } from "./source-key.ts";
 import type { TasksSettingsSource } from "./settings-source.ts";
@@ -43,6 +49,8 @@ export interface InputQueueDeps {
   readonly ids: IdFactory;
   readonly settings: TasksSettingsSource;
   readonly log: Logger;
+  /** blob 동기 읽기. 없으면 detached 필드가 있는 입력은 건너뛴다 */
+  readonly readBlob?: BlobReader;
   /** input.* 이벤트가 커밋된 뒤(queued·placed·withdrawn) 동기로 부른다. 활동 집계 알림에 쓴다 */
   readonly onChanged: () => void;
 }
@@ -245,7 +253,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     if (!queued.ok) return queued;
     for (const view of queued.value.toSorted((a, b) => a.seq - b.seq)) {
       if (modes !== undefined && !modes.includes(view.mode)) continue;
-      const loaded = loadQueuedInput(session, log, threadId, view);
+      const loaded = loadQueuedInput(session, log, threadId, view, deps.readBlob);
       if (!loaded.ok) return loaded;
       if (loaded.value !== undefined) out.push(loaded.value);
     }
@@ -311,11 +319,20 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
   ): Result<PlacementSelection, ReadFailure> {
     const queued = [...view.queuedInputs(threadId)].toSorted((a, b) => a.seq - b.seq);
     const consumedBefore = diagnoseCursor(view, threadId, queued);
-    const inputs: QueuedInput[] = [];
-    for (const chosen of selectViews(queued, at, options.continuing)) {
-      const loaded = loadQueuedInput(session, log, threadId, chosen);
+    // 읽을 수 없는 입력(blob 없음, 깨진 payload)은 선택에서 뺀다. 맨 앞에 있어도 뒤 입력과 turn 시작을 막지 않는다
+    const loadedById = new Map<EventId, QueuedInput>();
+    const readable: InputView[] = [];
+    for (const candidate of queued) {
+      const loaded = loadQueuedInput(session, log, threadId, candidate, deps.readBlob);
       if (!loaded.ok) return loaded;
-      if (loaded.value !== undefined) inputs.push(loaded.value);
+      if (loaded.value === undefined) continue;
+      loadedById.set(candidate.inputId, loaded.value);
+      readable.push(candidate);
+    }
+    const inputs: QueuedInput[] = [];
+    for (const chosen of selectViews(readable, at, options.continuing)) {
+      const loaded = loadedById.get(chosen.inputId);
+      if (loaded !== undefined) inputs.push(loaded);
     }
     return ok({
       inputs,

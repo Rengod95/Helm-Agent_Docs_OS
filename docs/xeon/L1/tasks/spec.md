@@ -508,6 +508,7 @@ abort(target, reason, { background }):
 | `stepEnd`, `continuing: true` | 같음 | 고르지 않는다 | 전부 |
 
 - `stepEnd`에서 steer가 하나라도 선택되면 호출자는 `continuing`을 다시 true로 보고 next·aside도 함께 고른다. `drain`은 이 재계산을 안에서 한 번 한다.
+- 큰 입력(envelope 상한을 넘는 문자열, 큰 이미지 `data`)은 커밋 때 blob으로 옮겨져 `detached`가 붙는다. `peek`와 `drain`은 `fresnel.store`의 동기 `readBlob`으로 되돌려 읽는다. 읽을 수 없는 입력(blob 없음·깨짐, 깨진 payload)은 큐에 남지만 선택에서 빼고 로그(`tasks.queued_input_blob_unreadable` 등)만 남긴다. 맨 앞 입력 하나가 뒤 입력과 turn 시작을 막지 않는다(audit cross/T-01, l1/TA-02).
 - 선택은 seq 순이고 결정적이다(durable spec 2318-2321 "Boundary selection is deterministic by item ID"). drain 모드는 훅마다 그때 설정을 읽는다.
 - `followUpMode`는 정착 뒤 새 turn을 열 때 쓴다. `one-at-a-time`이면 queued followUp 하나가 turn 하나를 연다. `all`이면 queued followUp 전부를 한 turn의 입력으로 묶는다(`TurnStartedPayload.inputItemIds`가 배열이다).
 - 배치 기록: 호출자 커밋에 `input.placed`(이 문서), `item.recorded`(user 또는 custom item, `L1.loop.spec`), 단계 체크포인트를 함께 넣는다. `StepCheckpoint.inputCursor.consumedSeq`는 `PlacementSelection.consumedSeq`다(`F.records.spec` §3.6).

@@ -7,6 +7,7 @@ import type {
   TaskScope,
   TaskService,
 } from "@fresnel/contracts/services";
+import type { BlobReader } from "../../src/input-events.ts";
 import {
   createStaticTasksSettings,
   type StaticTasksSettings,
@@ -34,6 +35,7 @@ export interface WorldOptions {
   readonly settingsSource?: TasksSettingsSource;
   readonly session?: MemorySession;
   readonly threadId?: ThreadId;
+  readonly readBlob?: BlobReader;
 }
 
 /** 열린 thread 하나와 메모리 세션 위의 실제 TaskService */
@@ -45,6 +47,7 @@ export function createWorld(options: WorldOptions = {}): World {
     log: log.logger,
     settings: options.settingsSource ?? createStaticTasksSettings(options.settings),
     ...(options.session === undefined ? {} : { session: options.session }),
+    ...(options.readBlob === undefined ? {} : { readBlob: options.readBlob }),
   });
   const threadId = options.threadId ?? ids.next("thr");
   if (options.session === undefined) made.session.openThread(threadId);
