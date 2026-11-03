@@ -582,13 +582,17 @@ impl<L: Launcher> Supervisor<L> {
         let live = {
             let mut state = shared(inner);
             state.stop_requested = true;
-            state.live.as_ref().map(|l| (l.generation, l.pid, l.pipe.clone()))
+            state
+                .live
+                .as_ref()
+                .map(|l| (l.generation, l.pid, l.pipe.clone(), l.remote))
         };
         inner.relay.begin_drain();
         inner.stop_wake.notify_one();
-        if let Some((generation, pid, pipe)) = live {
+        if let Some((generation, pid, pipe, remote)) = live {
             inner.relay.set_state(EngineState::Stopping);
-            self.stop_engine(generation, pid, &pipe, true).await;
+            // 원격 엔진에는 host.shutdown을 보내지 않는다(retarget과 같다). 브리지가 그 줄을 원격 서비스로 넘긴다.
+            self.stop_engine(generation, pid, &pipe, !remote).await;
         }
         let mut stopped = inner.stopped.subscribe();
         if timeout(KILL_SETTLE, stopped.wait_for(|done| *done)).await.is_err() {
@@ -1931,5 +1935,22 @@ mod tests {
             *rig.launcher.targets.lock().expect("lock"),
             [EngineTarget::Local, remote_target, EngineTarget::Local]
         );
+    }
+
+    /// 원격 엔진이 떠 있는 채 앱을 끝내도 `host.shutdown`을 보내지 않는다. 종료 순서(`shutdown`)는 떼어 낼 때와 같다.
+    #[tokio::test]
+    async fn quitting_with_a_remote_engine_only_closes_its_stdin() {
+        let rig = rig(EOF_EXIT, true, 3);
+        let remote_target = remote("tcp://host:1234");
+        assert_eq!(rig.supervisor.retarget(remote_target.clone()), Ok(()));
+        rig.supervisor.start();
+        until("remote running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        let engine = rig.launcher.handle(0);
+        assert_eq!(rig.supervisor.on_exit_requested(), ExitAction::PreventAndShutdown);
+        rig.supervisor.shutdown().await;
+        assert_eq!(engine.written(), "");
+        assert!(engine.stdin_closed.load(Ordering::SeqCst));
+        assert_eq!(kinds(&rig.sink).last().map(String::as_str), Some("stopped"));
+        assert_eq!(*rig.launcher.targets.lock().expect("lock"), [remote_target]);
     }
 }
