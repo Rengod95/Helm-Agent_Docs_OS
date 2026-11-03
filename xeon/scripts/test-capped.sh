@@ -8,6 +8,7 @@
 # `just verify` does not wrap the test step (xeon/scripts/verify-steps.sh): WS_GUARD_ACTIVE must be unset when this script is called.
 # usage: test-capped.sh [package-dir ...]   (default: scripts and all packages with a "test" script)
 # env: FRESNEL_TEST_CONCURRENCY packages at a time (default 2, 6 on macOS); FRESNEL_TEST_TIMEOUT_SEC (default 300) seconds per target; WS_GUARD_RUN_MAX (default 1500M) memory cap per target;
+#      FRESNEL_SCRIPTS_PARALLEL bun test workers for scripts (default 4 on macOS, serial elsewhere);
 #      TURBO_FORCE=true runs every package (no cache read); TURBO_CACHE_DIR cache location
 #      (see ../scripts/guard.sh for the other WS_GUARD_* knobs).
 # The summary line counts the tests bun reported as skipped, so a skip in CI is visible (just exit-tests fails on it). The count
@@ -22,7 +23,18 @@ timeout_sec="${FRESNEL_TEST_TIMEOUT_SEC:-300}"
 concurrency=2
 if [[ "$(uname -s)" == "Darwin" ]]; then concurrency=6; fi
 concurrency="${FRESNEL_TEST_CONCURRENCY:-$concurrency}"
+# bun test workers for scripts/: every scripts test keeps its state in its own temp dir (release-smoke alone writes a fixed dist/ dir, and it is one file),
+# so the files can run side by side. macOS only (4); elsewhere serial until measured under the guard memory cap. 0 or 1 = serial.
+scripts_parallel=0
+if [[ "$(uname -s)" == "Darwin" ]]; then scripts_parallel=4; fi
+scripts_parallel="${FRESNEL_SCRIPTS_PARALLEL:-$scripts_parallel}"
+scripts_args=()
+if [[ "$scripts_parallel" -gt 1 ]]; then scripts_args=("--parallel=$scripts_parallel"); fi
 export TURBO_TELEMETRY_DISABLED=1
+# The bun runtime version is an input of every package test (task env FRESNEL_BUN_VERSION in turbo.json), read from the bun mise runs,
+# not from the text of mise.toml: a version bump misses the cache, an edit that keeps the version replays it.
+FRESNEL_BUN_VERSION="$(mise exec -- bun --version)"
+export FRESNEL_BUN_VERSION
 export TURBO_CACHE_DIR="${TURBO_CACHE_DIR:-$HOME/.cache/fresnel/turbo}"
 
 if [[ ! -x "$guard" ]]; then
@@ -52,7 +64,7 @@ if [[ "$run_scripts" == true ]]; then
   started=$SECONDS
   limit=()
   if command -v timeout >/dev/null 2>&1; then limit=(timeout "$timeout_sec"); fi
-  (cd "$root" && "$guard" run -- ${limit[@]+"${limit[@]}"} mise exec -- bun test scripts) 2>&1 | tee "$log" || status=$?
+  (cd "$root" && "$guard" run -- ${limit[@]+"${limit[@]}"} mise exec -- bun test scripts ${scripts_args[@]+"${scripts_args[@]}"}) 2>&1 | tee "$log" || status=$?
   echo "test-capped: time $((SECONDS - started))s (scripts)" >&2
   count="$(sed -nE 's/^ *([0-9]+) skip$/\1/p' "$log" | tail -1)"
   skipped=$((skipped + ${count:-0}))

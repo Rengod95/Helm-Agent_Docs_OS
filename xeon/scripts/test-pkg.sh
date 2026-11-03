@@ -6,6 +6,7 @@
 # (the seconds are those of the run that filled the cache).
 # The heavy packages (apps/host, core-persistence) take a machine-wide lock so that two of them never run at once.
 # env: FRESNEL_TEST_TIMEOUT_SEC (default 300) seconds per package; WS_GUARD_RUN_MAX (default 1500M) memory cap
+#      FRESNEL_HOST_TEST_PARALLEL bun test workers of apps/host (default 4 on macOS, serial elsewhere);
 #      (see ../../scripts/guard.sh for the other WS_GUARD_* knobs); FRESNEL_HEAVY_LOCK lock file (default ~/.cache/fresnel/heavy.lock).
 # exit: bun's exit code (124: time limit; 137: memory cap, see journalctl --user -n 20), 2 when guard.sh is missing.
 set -euo pipefail
@@ -34,6 +35,17 @@ case "$(basename "$PWD")" in
     ;;
 esac
 
+# apps/host: its test files own their temp dirs and ephemeral ports (no fixed port, socket path or shared file; FRESNEL_HOME is per process),
+# so bun runs them in worker processes. Same tests, same bun default 5s timeout. macOS only (4 workers, measured 60s -> 36s under load);
+# elsewhere serial until measured under the guard memory cap. FRESNEL_HOST_TEST_PARALLEL overrides (0 or 1 = serial).
+bun_args=()
+if [[ "$(basename "$PWD")" == "host" ]]; then
+  workers=0
+  if [[ "$(uname -s)" == "Darwin" ]]; then workers=4; fi
+  workers="${FRESNEL_HOST_TEST_PARALLEL:-$workers}"
+  if [[ "$workers" -gt 1 ]]; then bun_args=("--parallel=$workers"); fi
+fi
+
 # runs inside the guard scope: the command, then the scope's peak memory (cgroup v2 memory.peak) when readable
 scope_cmd='"$@"; status=$?; f="/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)/memory.peak"
 [ -r "$f" ] && echo "test-pkg: peak $(( $(cat "$f") / 1048576 ))M"; exit $status'
@@ -42,7 +54,7 @@ log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
 status=0
 started=$SECONDS
-"$guard" run -- bash -c "$scope_cmd" scope ${lock[@]+"${lock[@]}"} ${limit[@]+"${limit[@]}"} mise exec -- bun test 2>&1 | tee "$log" || status=$?
+"$guard" run -- bash -c "$scope_cmd" scope ${lock[@]+"${lock[@]}"} ${limit[@]+"${limit[@]}"} mise exec -- bun test ${bun_args[@]+"${bun_args[@]}"} 2>&1 | tee "$log" || status=$?
 count="$(sed -nE 's/^ *([0-9]+) skip$/\1/p' "$log" | tail -1)"
 echo "test-pkg: ran $((SECONDS - started))s, ${count:-0} skipped"
 exit "$status"
