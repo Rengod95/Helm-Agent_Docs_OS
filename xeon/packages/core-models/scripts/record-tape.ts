@@ -69,12 +69,13 @@ function defaultDeps(): RecordDeps {
   };
 }
 
-function describeFailure(failure: RecordFailure): string {
+/** 사람에게 보이는 문구다. 2xx 스트림 안의 오류 문구가 키를 되풀이할 수 있어 `secrets`를 가린다 */
+function describeFailure(failure: RecordFailure, secrets: readonly string[]): string {
   switch (failure.kind) {
     case "no_turns":
       return "the scenario has no turns";
     case "turn_failed":
-      return `turn ${failure.turn} did not finish: ${failure.message}`;
+      return `turn ${failure.turn} did not finish: ${scrubSecrets(failure.message, secrets)}`;
     case "turn_exchange_count":
       return `turn ${failure.turn} made ${failure.count} HTTP request(s), expected exactly 1 (a retry is not recorded)`;
     case "http_status":
@@ -178,12 +179,12 @@ export async function main(argv: readonly string[], deps: RecordDeps): Promise<n
     secrets: [key],
   });
   if (!built.ok) {
-    deps.stderr(`recording failed: ${describeFailure(built.error)}\n`);
+    deps.stderr(`recording failed: ${describeFailure(built.error, [key])}\n`);
     return 1;
   }
   const rendered = renderRecordedTape(built.value, [key]);
   if (!rendered.ok) {
-    deps.stderr(`recording failed: ${describeFailure(rendered.error)}\n`);
+    deps.stderr(`recording failed: ${describeFailure(rendered.error, [key])}\n`);
     return 1;
   }
   await mkdir(dirname(target), { recursive: true });

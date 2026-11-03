@@ -168,6 +168,28 @@ describe("record_tape_entry", () => {
     expect(r.stderr.join("")).not.toContain(KEY);
   });
 
+  test("an error inside a 2xx stream is reported without the key (M-04)", async () => {
+    const r = await rig({ ANTHROPIC_API_KEY: KEY }, () => ({
+      body: [
+        "event: message_start",
+        'data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"m","content":[],"usage":{"input_tokens":1,"output_tokens":0}}}',
+        "",
+        "event: error",
+        `data: {"type":"error","error":{"type":"overloaded_error","message":"rejected key ${KEY}"}}`,
+        "",
+        "",
+      ].join("\n"),
+    }));
+    const code = await main(["hello-text", r.out], r.deps);
+    expect(code).toBe(1);
+    expect(await Bun.file(r.out).exists()).toBe(false);
+    const shown = r.stderr.join("");
+    expect(shown).toContain("did not finish");
+    expect(shown).toContain("rejected key");
+    expect(shown).not.toContain(KEY);
+    expect(shown).not.toContain(KEY.slice(0, 16));
+  });
+
   test("the tool scenario records the tool call and the declared tool names", async () => {
     expect(Object.keys(SCENARIOS).toSorted()).toEqual(["hello-text", "read-tool-call"]);
     const r = await rig({ ANTHROPIC_API_KEY: KEY }, () => ({
