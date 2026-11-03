@@ -290,7 +290,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 
 ## 10. 미결 사항
 
-1. [미결] `L3/README.md` 도메인 표에 `authoring`을 더하는 일(README 수정 금지라 사용자 몫).
+1. (결정) `L3/README.md` 도메인 표에 `authoring`을 더했다 [결정: 2026-11-04 사용자 B20].
 2. [미결] 서비스 `fresnel.devkit`의 정본 위치(F `services/devkit.ts` [제안])와 L4 구현 위치(`apps/host`).
 3. [결정: 2026-11-04 사용자, 결정 목록 R11, m4-decisions 2026-11-01 (2)] Plugin Builder는 기본 꺼짐입니다.
 4. [미결] 묶음 형식(폴더 사본, tar, 서명). 서명은 릴리즈 서명(`L4.release.spec`)과 함께 정합니다.
