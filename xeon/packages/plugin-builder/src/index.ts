@@ -24,3 +24,13 @@ export {
   type ReleaseDevkit,
   type ReplayRunner,
 } from "./release.ts";
+export { authoringManifest, createAuthoringGroup, type AuthoringDeps } from "./group.ts";
+export {
+  AUTHORING_PHASES,
+  AuthoringStateSchema,
+  INITIAL_AUTHORING_STATE,
+  sessionOpen,
+  type AuthoringPhase,
+  type AuthoringState,
+} from "./group-state.ts";
+export { AUTHORING_TOOL_NAMES } from "./group-tools.ts";

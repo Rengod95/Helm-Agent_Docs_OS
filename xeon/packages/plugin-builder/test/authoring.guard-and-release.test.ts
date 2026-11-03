@@ -125,10 +125,15 @@ test("authoring.package-requires-ask: nothing is written before a yes, and the q
   });
   expect(packed).toEqual(ok({ path: "/out", files: ["a"], sha256: "a".repeat(64) }));
   expect(yes.calls).toEqual(["pack:/work/demo"]);
-  expect(seen.map((request) => request.requestId)).toEqual([
-    "authoring:package:/work/demo",
-    "authoring:package:/work/demo",
-  ]);
+  const ids = seen.map((request) => request.requestId);
+  expect(ids).toHaveLength(2);
+  expect(ids[0]).toMatch(/^authoring:package:[0-9a-f]{12}:0$/);
+  expect(ids[1]).toBe(ids[0]);
+  // 거절 뒤 다시 묻는 질문은 다른 번호를 받는다
+  const again: AskRequest[] = [];
+  await packWithConfirmation(devkitSpy().devkit, answering("no", again), { dir: "/work/demo" }, 1);
+  expect(again[0]?.requestId).toMatch(/^authoring:package:[0-9a-f]{12}:1$/);
+  expect(again[0]?.requestId.slice(0, -1)).toBe(ids[0]?.slice(0, -1));
   expect(
     seen[0]?.card.questions.map((question) => [
       question.id,
@@ -147,7 +152,8 @@ test("authoring.install-requires-ask: link is called only after a yes", async ()
     ok({ name: "demo", version: "0.1.0", location: "/ext/demo" }),
   );
   expect(yes.calls).toEqual(["link:/out"]);
-  expect(seen[1]?.requestId).toBe("authoring:install:/out");
+  expect(seen[1]?.requestId).toMatch(/^authoring:install:[0-9a-f]{12}:0$/);
+  expect(seen[1]?.requestId.length).toBeLessThanOrEqual(64);
 });
 
 test("authoring.replay-dev-only: a shipped build gets dev_mode_required and the runner is not called (A-5)", async () => {

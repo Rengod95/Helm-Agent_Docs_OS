@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { err, type Result } from "@fresnel/contracts";
 import type { AskCard, AskRequest } from "@fresnel/contracts/extensions";
 import type {
@@ -42,6 +43,12 @@ function cardOf(text: string): AskCard {
   };
 }
 
+/** requestId는 64자 이하여야 한다. 경로는 짧은 지문으로 줄이고 `round`로 거절 뒤 다시 묻는 질문을 가른다 */
+function requestIdOf(action: "package" | "install", target: string, round: number): string {
+  const digest = createHash("sha256").update(target).digest("hex").slice(0, 12);
+  return `authoring:${action}:${digest}:${String(round)}`;
+}
+
 async function confirmed(ask: Ask, requestId: string, text: string): Promise<boolean> {
   const outcome = await ask({ requestId, card: cardOf(text) });
   return (
@@ -55,13 +62,18 @@ export interface ReleaseDevkit {
   link(input: { readonly source: string }): Promise<Result<LinkResult, DevkitError>>;
 }
 
-/** 묶기 전에 확인을 받는다. 거절이면 `denied`이고 `pack`을 부르지 않는다(파일 쓰기 0) */
+/** 묶기 전에 확인을 받는다. `round`는 거절 뒤 다시 묻는 질문의 번호다. 거절이면 `denied`이고 `pack`을 부르지 않는다(파일 쓰기 0) */
 export async function packWithConfirmation(
   devkit: ReleaseDevkit,
   ask: Ask,
   input: PackInput,
+  round = 0,
 ): Promise<Result<PackResult, DevkitError>> {
-  const yes = await confirmed(ask, `authoring:package:${input.dir}`, `Package ${input.dir}?`);
+  const yes = await confirmed(
+    ask,
+    requestIdOf("package", input.dir, round),
+    `Package ${input.dir}?`,
+  );
   if (!yes) return err({ kind: "denied", message: "packaging was not confirmed" });
   return devkit.pack(input);
 }
@@ -71,8 +83,9 @@ export async function installWithConfirmation(
   devkit: ReleaseDevkit,
   ask: Ask,
   source: string,
+  round = 0,
 ): Promise<Result<LinkResult, DevkitError>> {
-  const yes = await confirmed(ask, `authoring:install:${source}`, `Install ${source}?`);
+  const yes = await confirmed(ask, requestIdOf("install", source, round), `Install ${source}?`);
   if (!yes) return err({ kind: "denied", message: "installing was not confirmed" });
   return devkit.link({ source });
 }
