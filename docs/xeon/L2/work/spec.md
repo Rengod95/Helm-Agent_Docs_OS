@@ -1386,7 +1386,7 @@ export const manifest = defineManifest({
 - W-6 [미결] `goals.judge` 호출자 확인. `owner`와 `CallOptions.context.caller.extension`을 대조한다(§4.3.4). X의 capability 래퍼가 그룹 호출에 이 값을 채운다(`F.capabilities.spec` §3.2 주석). 채우는 값이 그룹 이름인지 scope id인지는 `X.primitives.spec`과 맞춘다.
 - W-7 닫힘 [결정: review.m3-design-inputs D-M3-15]: 판정 실패는 `stop`이다(§4.3.6). 설정 `l2.work.goal.onJudgeError`는 [결정: 키를 지운다. 게이트가 값을 읽지 않았고 정책이 `stop`으로 닫혔으므로 설정이 필요 없다. §6.1 표에서도 뺐다].
 - W-8 [미결] `l2.work.plans.requireApproval`, `exitOnApprove`의 탭(`permissions` 제안). `L2.readme` §7.2 표는 이 제안에 맞췄다. 최종 배치는 L4.settings-ui.spec이 정한다.
-- W-9 [미결] `work.reports` 마일스톤. 이 문서와 `L2.readme` §2는 목표 종결 보고 때문에 M3로 둔다. JSON의 2차 표기와 다른 배치이므로 `L2.readme` §10 미결 17에서 사용자가 확인한다.
+- W-9 [조사 완료 2026-11-04 B16] `work.reports` 마일스톤. 결정(D-M3-30 행 2)대로 M3에서 `work.goals`와 같은 커밋(d74e980c)으로 구현했다. 배치와 구현이 일치한다. 이 문서와 `L2.readme` §2는 목표 종결 보고 때문에 M3로 둔다. JSON의 2차 표기와 다른 배치이므로 `L2.readme` §10 미결 17에서 사용자가 확인한다.
 - W-10 [미결] work → `dialog.commands` 선택 의존. `L2.readme` §6 표에 [미결] 간선으로 올렸다(`L2.readme` §10 미결 16). 순환은 생기지 않는다(dialog는 work를 부르지 않고 등록된 처리기만 실행한다, `L2.dialog.spec` §4.3). 넣지 않으면 명령 등록을 L4 클라이언트가 직접 한다.
 - W-11 [미결] 작업 상태 5종의 확정(`failed` 포함 여부)과 `failed` 선행 작업이 막힘을 유지하는 규칙.
 - W-12 [결정: review.decisions-2 S-06] 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다. 이 기능은 판정 상한 키와 판정 역할 키를 두지 않는다(§6.1).
