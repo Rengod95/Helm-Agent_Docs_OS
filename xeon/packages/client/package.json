@@ -11,7 +11,9 @@
     "./settings": "./src/settings/index.ts",
     "./accounts": "./src/accounts/index.ts",
     "./web": "./src/web/index.ts",
-    "./i18n": "./src/i18n/index.ts"
+    "./i18n": "./src/i18n/index.ts",
+    "./schedule": "./src/schedule/index.ts",
+    "./connection-targets": "./src/connection-targets/index.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
