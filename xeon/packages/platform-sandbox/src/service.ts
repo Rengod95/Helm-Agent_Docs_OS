@@ -427,7 +427,9 @@ export async function createSandboxService(
   return {
     status: () => currentStatus(true),
     defaultPolicy,
-    protectedPaths: () => withGitEntries(baseProtectedEntries(), [...knownRoots]),
+    // 호출한 쪽이 넘긴 root도 git 항목을 받는다. knownRoots는 bash 정책을 만든 뒤에야 차므로 그것만 쓰면 첫 파일 쓰기가 열린다
+    protectedPaths: (roots) =>
+      withGitEntries(baseProtectedEntries(), [...knownRoots, ...(roots ?? [])]),
     wrapShell: (shell, policy) => wrapShellWith(wrapDeps(true), shell, policy),
     wrapArgv: (policy, request, context) => wrapArgvWith(wrapDeps(true), policy, request, context),
     autoAllow: (policy, request) =>
