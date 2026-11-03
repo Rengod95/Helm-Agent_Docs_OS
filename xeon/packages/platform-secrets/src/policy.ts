@@ -1,5 +1,5 @@
 import { assertNever, attempt } from "@fresnel/contracts";
-import type { SecretDenyReason, SecretMeta } from "@fresnel/contracts/capabilities";
+import type { SecretDenyReason, SecretHandle, SecretMeta } from "@fresnel/contracts/capabilities";
 import type { ApprovalEvidence, UseCtx } from "@fresnel/contracts/services";
 import { MCP_START_PURPOSE_PREFIX } from "./mcp-start.ts";
 
@@ -143,6 +143,25 @@ function approvalSufficient(
   if (evidence.expiresAt !== null && evidence.expiresAt <= now) return false;
   if (required === "per-use") return evidence.scope === "per-use";
   return true;
+}
+
+/**
+ * 증거가 이 핸들과 목적에 묶여 있는가(L0.secrets.spec §4.2 6번). per-use 증거는 핸들 목록과 목적이 모두 있어야 하고
+ * 둘 다 맞아야 한다. per-session 증거는 있는 필드만 대조한다.
+ */
+export function approvalBound(
+  evidence: ApprovalEvidence,
+  handle: SecretHandle,
+  purpose: string,
+): boolean {
+  if (
+    evidence.scope === "per-use" &&
+    (evidence.handles === undefined || evidence.purpose === undefined)
+  ) {
+    return false;
+  }
+  if (evidence.handles !== undefined && !evidence.handles.includes(handle)) return false;
+  return evidence.purpose === undefined || evidence.purpose === purpose;
 }
 
 function targetDenial(meta: SecretMeta, ctx: UseCtx): SecretDenyReason | null {

@@ -129,6 +129,10 @@ export interface ApprovalEvidence {
   readonly scope: "per-session" | "per-use";
   readonly grantedAt: number;
   readonly expiresAt: number | null;
+  /** 사람이 본 승인 프롬프트가 가리킨 핸들. 이 목록에 없는 핸들에는 쓸 수 없다. per-use 증거는 필수 */
+  readonly handles?: readonly SecretHandle[];
+  /** 승인한 사용 목적(`UseCtx.purpose`). 있으면 같은 목적에만 쓴다. per-use 증거는 필수 */
+  readonly purpose?: string;
 }
 
 export interface UseCtx {
@@ -508,7 +512,7 @@ export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "
 | 3 | `ctx.purpose`가 `use.tools`에 있다(`*` 접미 와일드카드만) | `tool_not_allowed` |
 | 4 | `scope`가 `project:<id>`면 `ctx.projectId`가 같다 | `scope_mismatch` |
 | 5 | 대상 바인딩: `runtime-http`·`sentinel`은 호스트가 `use.hosts`에 맞는다. `browser-input`은 origin이 `use.origins`와 정확히 같다. `env`는 명령줄이 `use.commands` 패턴에 맞는다 | `host_mismatch` / `origin_mismatch` / `command_mismatch` |
-| 6 | 승인: 메타 `approval`이 `none`이 아니면 `ctx.approval`이 있고 범위와 만료가 맞는다. `env` 모드는 메타가 `none`이어도 `per-use` 승인을 요구한다 | `approval_missing` |
+| 6 | 승인: 메타 `approval`이 `none`이 아니면 `ctx.approval`이 있고 범위와 만료가 맞는다. 증거는 이 핸들과 `ctx.purpose`에 묶여야 한다(`handles`에 핸들이 있고 `purpose`가 같다. `per-use` 증거는 두 필드가 모두 있어야 하고, `per-session` 증거는 있는 필드만 대조한다). 한 호출이 시크릿 둘을 쓰면 사람이 본 프롬프트가 가리킨 핸들만 열린다. `env` 모드는 메타가 `none`이어도 `per-use` 승인을 요구한다 | `approval_missing` |
 
 - 호스트 일치 [제안]: 소문자 비교, `*.example.com`은 한 단계 이상의 하위 도메인만 맞는다(`example.com` 자신은 아니다). IP 리터럴과 `localhost`는 메타에 그대로 적혀 있을 때만 맞는다. 포트가 메타에 없으면 443만 맞는다.
 - 모델 provider 키의 정책 [결정: M2 Mac 실기]: 새 시크릿의 정책은 비어 있어(`L4.host-service.spec` HS-45) 모델 호출 lease(`runtime-http`, `model.provider:<id>`, 호스트는 provider 주소)가 거부된다. 정책은 이 패키지가 정하지 않는다. 호스트가 사람의 provider 연결 행위를 근거로 `secret.meta`와 같은 경로(`SecretAdminService.meta`)로 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [provider 호스트]`만 더한다. 이 판정(§4.2)은 바꾸지 않는다.

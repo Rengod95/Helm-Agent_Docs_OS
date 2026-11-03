@@ -246,6 +246,46 @@ describe("env mode (spec §3.6 withEnv, 마일스톤 M1)", () => {
     );
   });
 
+  test("a per-use approval for one handle does not open another handle (SEC-05)", async () => {
+    const other = handleOf("other-token");
+    const clock = manualClock();
+    const service = memorySecrets({
+      clock,
+      scheduler: clock,
+      ids: fixedLocalIds(),
+      secrets: [
+        { meta: metaOf(ENV_META), value: fakeValue(seededRandom(81), 24, true) },
+        {
+          meta: metaOf({ ...ENV_META, name: "other-token", ref: "dev/OTHER_TOKEN" }),
+          value: fakeValue(seededRandom(82), 24, true),
+        },
+      ],
+    });
+    // 사람은 github-token의 프롬프트만 봤다
+    const seen = APPROVAL_PER_USE;
+    const second = await service.withEnv(other, envCtx("gh api user", { approval: seen }));
+    expect(second.ok).toBe(false);
+    if (!second.ok)
+      expect(second.error).toMatchObject({ kind: "denied", reason: "approval_missing" });
+    expect((await service.withEnv(HANDLE, envCtx("gh api user", { approval: seen }))).ok).toBe(
+      true,
+    );
+  });
+
+  test("a per-use approval does not open the same handle for another purpose or unbound", async () => {
+    const { service } = setup(ENV_META);
+    const otherPurpose = await service.withEnv(
+      HANDLE,
+      envCtx("gh api user", { purpose: "bash:kubectl" }),
+    );
+    expect(otherPurpose.ok).toBe(false);
+    const { handles: _handles, purpose: _purpose, ...unbound } = APPROVAL_PER_USE;
+    const loose = await service.withEnv(HANDLE, envCtx("gh api user", { approval: unbound }));
+    expect(loose.ok).toBe(false);
+    if (!loose.ok) expect(loose.error).toMatchObject({ reason: "approval_missing" });
+    expect(service.providerLeaseCalls()).toBe(0);
+  });
+
   test("registerKnown rejects short values: env lease is refused, http is allowed", async () => {
     const short = "1234567";
     const envSetup = setup(ENV_META, short);
@@ -304,7 +344,8 @@ describe("secret.approved and check", () => {
         },
       });
     }
-    const allow = await service.check(HANDLE, httpCtx({ approval: APPROVAL_PER_USE }));
+    const bound = { ...APPROVAL_PER_USE, purpose: "http.request" };
+    const allow = await service.check(HANDLE, httpCtx({ approval: bound }));
     expect(allow).toEqual({ ok: true, value: { kind: "allow" } });
     const deny = await service.check(
       HANDLE,
