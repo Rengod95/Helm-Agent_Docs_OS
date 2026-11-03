@@ -218,3 +218,21 @@ export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[])
       : { effect, reason, ruleId: null, tier: null };
   return finish(decision, input);
 }
+
+/**
+ * 내장 도구를 대체한 항목의 allow 판정을 ask로 낮춘다(L1.tools.spec §4.13). 내장 기본 규칙(`default` 티어)의 allow(`read`·`ls`의 기본 허용 포함)와
+ * 위험 등급이 낮아서 생기는 모드 기본 허용은 내장 파일 도구를 위한 것이라 같은 이름의 다른 코드에 넘기지 않는다.
+ * 사용자·managed 규칙의 allow와 사용자가 고른 bypass는 그대로다. 사람이 답할 수 없으면 ask는 deny가 된다
+ */
+export function demoteReplacementAllow(
+  decision: PolicyDecision,
+  input: PolicyInput,
+): PolicyDecision {
+  if (decision.effect !== "allow") return decision;
+  const fromDefault =
+    decision.reason === "rule"
+      ? decision.tier === "default"
+      : decision.reason === "mode" && input.mode !== "bypass";
+  if (!fromDefault) return decision;
+  return finish({ ...decision, effect: "ask" }, input);
+}

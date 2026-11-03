@@ -65,7 +65,7 @@ import {
   resultRequest,
   type EffectKit,
 } from "./effects.ts";
-import { evaluatePolicy } from "./policy/engine.ts";
+import { demoteReplacementAllow, evaluatePolicy } from "./policy/engine.ts";
 import { checkSecretUse, secretHandlesOf, secretUseTitle } from "./secret-gate.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
@@ -511,7 +511,8 @@ export function createPipeline(
         run.interactive || !unattendedPlan(run, config.unattended, deps.clock.now()).silent,
       bypassAllowed: config.bypassAllowed,
     };
-    const evaluated = evaluatePolicy(input, config.rules);
+    const plain = evaluatePolicy(input, config.rules);
+    const evaluated = entry.replacesBuiltin === true ? demoteReplacementAllow(plain, input) : plain;
     // 자식 대화는 부모 관점과 정의 제한을 합친 결정과 일반 평가 중 엄격한 쪽이다(L1.tools.spec §4.5 ceiling 단계, TL-13)
     const decision =
       run.ceiling === undefined

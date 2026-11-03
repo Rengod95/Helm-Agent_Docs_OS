@@ -92,6 +92,8 @@ export interface ToolEntry {
   readonly outputLimits: OutputLimits | "self";
   readonly raw: RawExecutor;
   readonly locks: LockDeclarer | undefined;
+  /** 내장 도구를 같은 이름으로 대체하는 항목이다(레지스트리가 승인된 대체에만 붙인다). 기본 허용 규칙을 적용하지 않는다(L1.tools.spec §4.13) */
+  readonly replacesBuiltin?: true;
 }
 
 /**
