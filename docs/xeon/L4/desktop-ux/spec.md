@@ -945,6 +945,8 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 
 - 기본 그룹 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 그룹" 단계를 둡니다. Helm과 학습 그룹은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm과 학습 그룹의 `Switch`와 한 줄 설명을 보이고 기본값은 둘 다 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1. 학습 그룹 `defaultEnabled: true`, `L3.learning.spec` §3.1 [결정: review.m3-design-inputs D-M3-02]). 값은 `ext.helm.enabled`, `ext.learning.enabled` 사용자 범위입니다. `fresnel group new` 안내는 두지 않고 "LightCraft에서 더 보기" 링크 하나만 둡니다(새 그룹은 LightCraft 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 그룹이 실리지 않았어요" 한 줄을 둡니다.
 
+- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "설정 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결]. (2) 검색 권장의 "설치"와 "키 등록"과 "설치 방법 보기"는 아직 없고 상태 문장과 "나중에"만 둡니다(`[gap:W-15]`). (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. (4) 첫 실행 자동 열기, ⌘Enter, 하단 앱 버전 줄은 아직 없습니다.
+
 ### 6.6 P-02 대화
 
 ```text

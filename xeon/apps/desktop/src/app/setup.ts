@@ -13,8 +13,16 @@ import {
   type SecretRow,
   type SetupSnapshot,
 } from "@fresnel/client/settings";
+import { toolsWebViewOf } from "@fresnel/client";
+import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { DesktopIpc, SecretRegisterError } from "../transport/ipc.ts";
-import type { CommandError, SetupCommands } from "../views/commands.ts";
+import type {
+  CommandError,
+  DefaultGroupId,
+  GroupsSnapshot,
+  SearchSnapshot,
+  SetupCommands,
+} from "../views/commands.ts";
 
 // 최소 설정 화면이 부르는 wire(G2-08). 모델 키는 값 없는 `secret.*`로만 다루고(L0.secrets.spec R4),
 // provider 설정에는 `secret://<이름>` 참조만 쓴다. 값은 이 화면, wire, 로그 어디에도 없다.
@@ -53,10 +61,22 @@ export function keyRegisterErrorOf(error: SecretRegisterError): KeyRegisterError
 /** 쓰기 범위는 사용자 설정 파일이다. 키 등록과 기본 모델은 대화마다 다르지 않다 */
 const SCOPE = "user";
 
+/** 기본 그룹의 켜기 키(X 로더 예약 키, F.extensions.spec §6). 첫 실행 화면만 쓴다 */
+const GROUP_KEY: Readonly<Record<DefaultGroupId, string>> = {
+  helm: "ext.helm.enabled",
+  learning: "ext.learning.enabled",
+};
+
+/** 설정 값이 참 또는 거짓이면 그 값, 아니면 null(쓴 적이 없다). 기본값은 화면 모델이 정한다 */
+function storedBoolOf(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
+}
+
 export function createSetupCommands(
   run: Run,
   onInvalidated: (listener: () => void) => () => void,
   ipc: Pick<DesktopIpc, "registerSecret">,
+  local: Pick<LocalSettings, "load" | "get" | "set">,
 ): SetupCommands {
   return {
     async load(options) {
@@ -125,6 +145,46 @@ export function createSetupCommands(
         c.request("settings.set", { key: DEFAULT_MODEL_KEY, value: ref, scope: SCOPE }),
       );
       return written.ok ? ok(null) : written;
+    },
+    async loadGroups() {
+      const settings = await run((c) =>
+        c.request("settings.get", { keys: [GROUP_KEY.helm, GROUP_KEY.learning] }),
+      );
+      if (!settings.ok) return settings;
+      const valueOf = (key: string): unknown =>
+        settings.value.settings.find((s) => s.key === key)?.value;
+      const status = await run((c) => c.request("host.status", {}));
+      if (!status.ok) return status;
+      const snapshot: GroupsSnapshot = {
+        enabled: {
+          helm: storedBoolOf(valueOf(GROUP_KEY.helm)),
+          learning: storedBoolOf(valueOf(GROUP_KEY.learning)),
+        },
+        safeMode: status.value.safeMode === true,
+      };
+      return ok(snapshot);
+    },
+    async setGroupEnabled(group, enabled) {
+      const written = await run((c) =>
+        c.request("settings.set", { key: GROUP_KEY[group], value: enabled, scope: SCOPE }),
+      );
+      return written.ok ? ok(null) : written;
+    },
+    async loadSearch() {
+      const providers = await run((c) => c.request("web.providers", {}));
+      if (!providers.ok) return providers;
+      // 로컬 설정은 읽은 뒤에 본다. 읽지 못하면 "나중에" 값을 모르므로 실패로 돌린다
+      const loaded = await local.load();
+      if (!loaded.ok) return err({ kind: "failed" });
+      const snapshot: SearchSnapshot = {
+        web: toolsWebViewOf(providers.value),
+        dismissed: local.get(LOCAL.searchHintDismissed) === true,
+      };
+      return ok(snapshot);
+    },
+    async dismissSearchHint() {
+      const written = await local.set(LOCAL.searchHintDismissed, true);
+      return written.ok ? ok(null) : err({ kind: "failed" });
     },
     onInvalidated,
   };

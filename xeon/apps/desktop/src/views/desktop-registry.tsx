@@ -4,6 +4,7 @@ import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
+import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
 import { Transcript } from "./transcript.tsx";
@@ -68,6 +69,14 @@ const SECRETS_SCREEN: ScreenDef = {
   render: () => <SecretsPanel />,
 };
 
+// 첫 실행 화면(P-01)은 내비 항목이 없다. "설정 필요" 띠의 "설정 열기"가 무대에 연다(setup-banner.tsx).
+const FIRST_RUN_SCREEN: ScreenDef = {
+  id: "first-run",
+  area: "both",
+  label: "desktop.firstRun.title",
+  render: () => <FirstRunScreen />,
+};
+
 const INBOX_TAB: EndTabDef = {
   id: "inbox",
   area: "both",
@@ -83,6 +92,7 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(SCHEDULES_SCREEN);
   registry.registerScreen(CONNECTION_SCREEN);
   registry.registerScreen(SECRETS_SCREEN);
+  registry.registerScreen(FIRST_RUN_SCREEN);
   registry.registerEndTab(INBOX_TAB);
   registerWorkbench(registry, createWorkbenchStore());
   return registry;

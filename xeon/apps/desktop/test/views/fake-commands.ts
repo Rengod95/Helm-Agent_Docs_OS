@@ -23,6 +23,10 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       registerKey: () => Promise.resolve(ok(null)),
       connectProviderKey: () => Promise.resolve(ok(null)),
       setDefaultModel: () => Promise.resolve(ok(null)),
+      loadGroups: () => Promise.resolve(err({ kind: "unsupported" })),
+      setGroupEnabled: () => Promise.resolve(ok(null)),
+      loadSearch: () => Promise.resolve(err({ kind: "unsupported" })),
+      dismissSearchHint: () => Promise.resolve(ok(null)),
       onInvalidated: () => () => {},
     },
     workbench: {

@@ -22,7 +22,7 @@ import type {
   WireResult,
 } from "@fresnel/contracts/wire";
 import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
-import type { AttachFailureKind, TargetEntry } from "@fresnel/client";
+import type { AttachFailureKind, TargetEntry, ToolsWebView } from "@fresnel/client";
 import type { ToggleRequest } from "@fresnel/client/workbench";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
 import type { EngineTarget } from "../transport/ipc.ts";
@@ -122,6 +122,22 @@ export interface ConnectionCommands {
   stopService(): Promise<Result<boolean, CommandError>>;
 }
 
+/** 첫 실행 화면의 기본 그룹(L4.desktop-ux §6.5). 켜기 키는 `ext.<그룹>.enabled`(X 로더 예약 키)다 */
+export type DefaultGroupId = "helm" | "learning";
+
+/** 기본 그룹의 켜짐 값과 안전 모드 여부. `enabled`의 null은 설정 값을 쓴 적이 없다는 뜻이다(기본값은 화면 모델이 정한다) */
+export interface GroupsSnapshot {
+  readonly enabled: Readonly<Record<DefaultGroupId, boolean | null>>;
+  /** 안전 모드로 떠 있으면 참(`host.status.safeMode`). 그룹은 실리지 않는다 */
+  readonly safeMode: boolean;
+}
+
+/** 검색 권장 단계의 값: 웹 provider 상태(`web.providers`)와 "나중에"를 이미 눌렀는지(데스크톱 로컬 설정) */
+export interface SearchSnapshot {
+  readonly web: ToolsWebView;
+  readonly dismissed: boolean;
+}
+
 /**
  * 최소 설정 화면(G2-08). 모두 요청 결과로 얻는 값이라 거울에 넣지 않는다. wire 메서드는 값을 받지 않는다:
  * 호스트가 값을 받을 수 있으면 값 없는 `secret.beginEntry`가 시작하고, 받을 수 없는 연결(사이드카)은 `registerKey`가
@@ -154,6 +170,14 @@ export interface SetupCommands {
     secretName: SecretName,
   ): Promise<Result<null, CommandError>>;
   setDefaultModel(ref: string): Promise<Result<null, CommandError>>;
+  /** 기본 그룹 두 개의 켜짐 값(`settings.get`)과 안전 모드(`host.status`)를 읽는다 */
+  loadGroups(): Promise<Result<GroupsSnapshot, CommandError>>;
+  /** 기본 그룹 하나를 켜거나 끈다(`settings.set { key: "ext.<그룹>.enabled", scope: "user" }`). 적용은 다음 단계 경계다 */
+  setGroupEnabled(group: DefaultGroupId, enabled: boolean): Promise<Result<null, CommandError>>;
+  /** 검색 권장을 읽는다(`web.providers`와 "나중에" 값) */
+  loadSearch(): Promise<Result<SearchSnapshot, CommandError>>;
+  /** 검색 권장을 "나중에"로 닫는다(데스크톱 로컬 설정 `l4.desktop.firstRun.searchHintDismissed`) */
+  dismissSearchHint(): Promise<Result<null, CommandError>>;
   /** `settings.invalidated`를 받으면 부른다. 반환값은 구독 해제 */
   onInvalidated(listener: () => void): () => void;
 }

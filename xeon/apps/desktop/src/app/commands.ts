@@ -218,6 +218,7 @@ export function createCommands(deps: CommandDeps): Commands {
             });
       },
       deps.ipc,
+      deps.local,
     ),
     schedule: createScheduleCommands(withConnection),
     connection: createConnectionCommands({
