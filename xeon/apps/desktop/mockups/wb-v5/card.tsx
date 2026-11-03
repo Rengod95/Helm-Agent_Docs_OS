@@ -363,9 +363,6 @@ function GroupCard({ g }: { g: Group }) {
           <>
             <MenuItem onSelect={() => setCode((v) => !v)}>{code ? "구성" : "코드"}</MenuItem>
             <MenuItem onSelect={() => m.notify("그룹 해제는 아직 모형이에요")}>그룹 해제</MenuItem>
-            <MenuItem onSelect={() => m.notify("하나씩 끄고 테스트는 아직 모형이에요")}>
-              하나씩 끄고 테스트
-            </MenuItem>
           </>
         }
       >

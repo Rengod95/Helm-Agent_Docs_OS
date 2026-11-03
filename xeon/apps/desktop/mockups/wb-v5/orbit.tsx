@@ -9,6 +9,7 @@ import {
   ZoomControl,
 } from "@caustic/react";
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -68,14 +69,119 @@ const pt = (deg: number, f: number): { x: number; y: number } => ({
 });
 /** 선 굵기(화면 px)를 세계 좌표로: 확대해도 굵기가 같다 */
 const sw = (px: number): string => `calc(${px}px / var(--k))`;
+/** 고리·호의 굵기: 화면 px에 판의 굵기 배율(--wb5-lw, 밝은 판은 조금 굵다)을 곱한다 */
+const swl = (px: number): string => `calc(${px}px * var(--wb5-lw, 1) / var(--k))`;
+/** 고리·호의 불투명도: 세기에 판의 배율(--wb5-line-gain)을 곱하고 1을 넘지 않게 한다(밝은 판은 진한 조각이 바탕과 3:1을 넘도록) */
+const lineAlpha = (a: number): string => `min(1, calc(${a.toFixed(3)} * var(--wb5-line-gain, 1)))`;
 const place = (x: number, y: number): string =>
   `translate(calc(var(--tx) + var(--k) * ${x.toFixed(1)}px), calc(var(--ty) + var(--k) * ${y.toFixed(1)}px))`;
 const safeId = (s: string): string => s.replace(/[^a-zA-Z0-9]/g, "_");
 
-function arcPath(from: number, to: number): string {
-  const a = pt(from, 1);
-  const b = pt(to, 1);
-  return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} A ${OUTER} ${OUTER} 0 ${to - from > 180 ? 1 : 0} 1 ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+/** 0~1로 자른다 */
+const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
+
+/** 둘레 위 한 호: 반지름 f × OUTER, 각도 from→to(위가 0, 시계 방향) */
+function arcAt(f: number, from: number, to: number): string {
+  const a = pt(from, f);
+  const b = pt(to, f);
+  const r = (f * OUTER).toFixed(1);
+  return `M ${a.x.toFixed(1)} ${a.y.toFixed(1)} A ${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+}
+const arcPath = (from: number, to: number): string => arcAt(1, from, to);
+
+/** 두 빛깔을 섞는다: w는 to 쪽 비율(0~1). CSS color-mix라서 밝은 판과 어두운 판이 토큰 값을 따른다. */
+const mixOf = (from: string, to: string, w: number): string =>
+  `color-mix(in oklab, ${to} ${Math.round(clamp01(w) * 100)}%, ${from})`;
+const HUE_BLUE = "var(--wb5-ring-blue)";
+const HUE_VIOLET = "var(--wb5-ring-violet)";
+const HUE_MAGENTA = "var(--wb5-ring-magenta)";
+/** 둘레의 빛깔: 0 파랑 → 0.5 보라 → 1 자홍 */
+const ringHue = (u: number): string =>
+  u <= 0.5 ? mixOf(HUE_BLUE, HUE_VIOLET, u * 2) : mixOf(HUE_VIOLET, HUE_MAGENTA, (u - 0.5) * 2);
+
+/** 둘레 한 점의 세기 원자료(0~1)와 빛깔 위치(0~1). 사인 셋의 합이라 부드럽고, 고리마다 위상이 다르다. */
+function ringSample(i: number, deg: number): { s: number; u: number } {
+  const t = rad(deg);
+  const s =
+    0.5 +
+    0.28 * Math.sin(2 * t + 0.4 + i * 1.9) +
+    0.14 * Math.sin(3 * t + 2.1 + i * 2.7) +
+    0.08 * Math.sin(5 * t + 4 + i * 1.3);
+  return { s: clamp01(s), u: 0.5 + 0.5 * Math.sin(t + i * 1.7) };
+}
+
+/** 고리·호를 이루는 짧은 조각 하나: 경로, 빛깔, 세기 */
+interface Seg {
+  d: string;
+  hue: string;
+  a: number;
+}
+/** 고리 조각 수: 한 고리에 30개. 이웃과 0.3도씩 겹쳐 이음매가 비지 않는다. */
+const RING_SEGS = 30;
+function ringArt(i: number, f: number): Seg[] {
+  const step = 360 / RING_SEGS;
+  const samples = Array.from({ length: RING_SEGS }, (_, j) => ringSample(i, j * step + step / 2));
+  // 세기는 고리마다 자기 최대에 맞춘다: 가장 밝은 조각은 0.835, 흐린 조각은 0.035 근처
+  const top = Math.max(...samples.map((v) => v.s));
+  const out: Seg[] = [];
+  for (let j = 0; j < RING_SEGS; j++) {
+    const v = samples[j];
+    if (v === undefined) continue;
+    out.push({
+      d: arcAt(f, j * step - 0.3, (j + 1) * step + 0.3),
+      hue: ringHue(v.u),
+      a: 0.035 + 0.8 * (v.s / top) ** 2.2,
+    });
+  }
+  return out;
+}
+
+/** 빛 토막의 반폭(도): 43° ≈ 둘레의 12% */
+const LIGHT_HALF = 21.5;
+/** 고리마다 빛의 시작 각도(도). 움직임 줄이기에서는 이 자리에 멈춘다. CSS 주기·지연과 맞춘다(orbit-lines.css). */
+const LIGHT_START: readonly number[] = [30, 150, 250, 320];
+/** 고리 넷: 반지름 비율, 조각, 빛 토막 경로, 시작 각도, 빛 번짐 색 */
+const RINGS = FRAC.map((f, i) => ({
+  f,
+  segs: ringArt(i, f),
+  light: arcAt(f, -LIGHT_HALF, LIGHT_HALF),
+  start: LIGHT_START[i] ?? 0,
+  glow: i % 2 === 0 ? HUE_BLUE : HUE_MAGENTA,
+}));
+
+/** 그룹 호의 두 끝 빛깔(처음 → 끝): 그룹마다 색조가 다르다 */
+const GROUP_TINT: Record<string, readonly [string, string]> = {
+  helm: [HUE_BLUE, HUE_VIOLET],
+  learning: [HUE_VIOLET, HUE_MAGENTA],
+  review: [HUE_MAGENTA, HUE_BLUE],
+};
+const DEFAULT_TINT: readonly [string, string] = [HUE_BLUE, HUE_VIOLET];
+/** 그룹 빛줄기: 호를 한 번 지나는 주기(초, 고리 빛보다 느리다)와 시작 지연(초, 음수로 흩는다) */
+const TRAVEL: Record<string, { sec: number; lag: number }> = {
+  helm: { sec: 84, lag: 30 },
+  learning: { sec: 96, lag: 58 },
+  review: { sec: 72, lag: 9 },
+};
+
+/** 그룹 호 조각: 양 끝 20%에서 0까지 스며들고, 둘레를 따라 세기가 조금씩 흔들리며, 빛깔은 처음 → 끝으로 옮아 간다 */
+function groupArt(id: string, from: number, to: number): Seg[] {
+  const [ca, cb] = GROUP_TINT[id] ?? DEFAULT_TINT;
+  const span = to - from;
+  const n = Math.max(8, Math.round(span / 5));
+  const out: Seg[] = [];
+  for (let j = 0; j < n; j++) {
+    const u = (j + 0.5) / n;
+    const deg = from + span * u;
+    const edge = clamp01(Math.min(1, u / 0.2, (1 - u) / 0.2));
+    const fade = edge * edge * (3 - 2 * edge);
+    const wave = 0.62 + 0.38 * Math.sin(4 * rad(deg) + from / 17);
+    out.push({
+      d: arcAt(1, from + span * (j / n) - 0.3, from + span * ((j + 1) / n) + 0.3),
+      hue: mixOf(ca, cb, u),
+      a: 0.92 * fade * wave,
+    });
+  }
+  return out;
 }
 
 const ringName = (k: LayerKey): string =>
@@ -272,37 +378,37 @@ export function Orbit({
     >
       <svg className="absolute inset-0 size-full text-text-primary" onClick={onBackground}>
         <defs>
-          <linearGradient
-            id="wb5-ring"
-            gradientUnits="userSpaceOnUse"
-            x1="140"
-            y1="80"
-            x2="860"
-            y2="920"
-          >
-            <stop offset="0" stopColor="currentColor" stopOpacity="0.46" />
-            <stop offset="1" stopColor="currentColor" stopOpacity="0.1" />
-          </linearGradient>
-          {GROUPS.map((gr) => {
-            const span = groupSpan(gr.id);
-            if (span === null) return null;
-            const a = pt(span.from, 1);
-            const b = pt(span.to, 1);
+          {/* 고리의 빛 토막: 가장자리에서 가운데로 밝아지는 띠 두 겹(번짐 색, 밝은 심). 호는 고리와 함께 돈다. */}
+          {RINGS.map(({ f, glow }, i) => {
+            const a = pt(-LIGHT_HALF, f);
+            const b = pt(LIGHT_HALF, f);
             return (
-              <linearGradient
-                key={gr.id}
-                id={`wb5-arc-${safeId(gr.id)}`}
-                gradientUnits="userSpaceOnUse"
-                x1={a.x}
-                y1={a.y}
-                x2={b.x}
-                y2={b.y}
-              >
-                <stop offset="0" style={{ stopColor: GRP.graphic }} stopOpacity="0" />
-                <stop offset="0.16" style={{ stopColor: GRP.graphic }} stopOpacity="1" />
-                <stop offset="0.84" style={{ stopColor: GRP.graphic }} stopOpacity="1" />
-                <stop offset="1" style={{ stopColor: GRP.graphic }} stopOpacity="0" />
-              </linearGradient>
+              <Fragment key={i}>
+                <linearGradient
+                  id={`wb5-lg-${i}`}
+                  gradientUnits="userSpaceOnUse"
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                >
+                  <stop offset={0} style={{ stopColor: glow }} stopOpacity={0} />
+                  <stop offset={0.5} style={{ stopColor: glow }} stopOpacity={0.5} />
+                  <stop offset={1} style={{ stopColor: glow }} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient
+                  id={`wb5-lc-${i}`}
+                  gradientUnits="userSpaceOnUse"
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                >
+                  <stop offset={0} style={{ stopColor: "var(--wb5-light)" }} stopOpacity={0} />
+                  <stop offset={0.5} style={{ stopColor: "var(--wb5-light)" }} stopOpacity={1} />
+                  <stop offset={1} style={{ stopColor: "var(--wb5-light)" }} stopOpacity={0} />
+                </linearGradient>
+              </Fragment>
             );
           })}
           {links.map((l) =>
@@ -323,7 +429,7 @@ export function Orbit({
           )}
         </defs>
         <g className="wb5-world">
-          {FRAC.map((f, i) => {
+          {RINGS.map(({ f, segs, light, start }, i) => {
             const layer = RING_LAYER[i] ?? "plugin";
             const open = m.ring === layer;
             const hot = hover === layer;
@@ -331,28 +437,47 @@ export function Orbit({
             const circ = 2 * Math.PI * r;
             return (
               <g key={layer} className="wb5-ring" style={{ animationDelay: `${i * 90}ms` }}>
-                <circle
-                  cx={CENTER}
-                  cy={CENTER}
-                  r={r}
-                  fill="none"
-                  stroke={open || hot ? "currentColor" : "url(#wb5-ring)"}
-                  style={{
-                    strokeWidth: sw(open ? 2.2 : hot ? 1.8 : 1),
-                    strokeOpacity: open ? 0.85 : hot ? 0.6 : 1,
-                    transition: "stroke-opacity .2s, stroke-width .2s",
-                  }}
-                />
+                {/* 고리 몸: 조각마다 빛깔과 세기가 다르다. 바깥에 아주 옅은 번짐 하나가 선 옆을 감싼다. */}
+                <g style={{ opacity: open ? 1 : hot ? 0.95 : 0.9, transition: "opacity .2s" }}>
+                  <circle
+                    cx={CENTER}
+                    cy={CENTER}
+                    r={r}
+                    fill="none"
+                    style={{
+                      stroke: "var(--wb5-ring-violet)",
+                      strokeOpacity: 0.07,
+                      strokeWidth: sw(6),
+                    }}
+                  />
+                  {segs.map((s, j) => (
+                    <path
+                      key={j}
+                      d={s.d}
+                      fill="none"
+                      data-a={s.a.toFixed(3)}
+                      style={{
+                        stroke: s.hue,
+                        strokeOpacity: lineAlpha(s.a),
+                        // 밝은 조각은 조금 굵고, 흐린 조각은 가늘다(세기가 굵기도 따른다)
+                        strokeWidth: swl(
+                          (open ? 2 : hot ? 1.6 : 1.25) * (0.75 + (0.5 * (s.a - 0.035)) / 0.8),
+                        ),
+                      }}
+                    />
+                  ))}
+                </g>
+                {/* 눈금: 가늘고 옅다 */}
                 <g className={i % 2 === 0 ? "wb5-drift" : "wb5-drift wb5-drift-rev"}>
                   <circle
                     cx={CENTER}
                     cy={CENTER}
                     r={r - 3.5}
                     fill="none"
-                    stroke="currentColor"
-                    strokeOpacity={0.3}
                     style={{
-                      strokeWidth: sw(4),
+                      stroke: "var(--wb5-tick)",
+                      strokeOpacity: 0.2,
+                      strokeWidth: sw(1.4),
                       strokeDasharray: `calc(1px / var(--k)) calc(${(circ / 120).toFixed(2)}px - 1px / var(--k))`,
                     }}
                   />
@@ -361,12 +486,28 @@ export function Orbit({
                     cy={CENTER}
                     r={r - 5}
                     fill="none"
-                    stroke="currentColor"
-                    strokeOpacity={0.4}
                     style={{
-                      strokeWidth: sw(7),
+                      stroke: "var(--wb5-tick)",
+                      strokeOpacity: 0.26,
+                      strokeWidth: sw(2.2),
                       strokeDasharray: `calc(1.4px / var(--k)) calc(${(circ / 12).toFixed(2)}px - 1.4px / var(--k))`,
                     }}
+                  />
+                </g>
+                {/* 빛 토막: 고리를 천천히 한 바퀴 돈다(주기는 orbit-lines.css). 움직임 줄이기에서는 start 각도에 머문다. */}
+                <g
+                  className={`wb5-light wb5-lr-${i}`}
+                  transform={`rotate(${start} ${CENTER} ${CENTER})`}
+                >
+                  <path
+                    d={light}
+                    fill="none"
+                    style={{ stroke: `url(#wb5-lg-${i})`, strokeWidth: sw(7) }}
+                  />
+                  <path
+                    d={light}
+                    fill="none"
+                    style={{ stroke: `url(#wb5-lc-${i})`, strokeWidth: sw(1.6) }}
                   />
                 </g>
                 <circle
@@ -397,6 +538,10 @@ export function Orbit({
               m.plugins.some((p) => p.id === id && m.matches(p)),
             );
             const d = arcPath(span.from, span.to);
+            const [ca, cb] = GROUP_TINT[gr.id] ?? DEFAULT_TINT;
+            const tr = TRAVEL[gr.id] ?? { sec: 90, lag: 0 };
+            const segs = groupArt(gr.id, span.from, span.to);
+            const delay = `${420 + gi * 140}ms`;
             return (
               <g
                 key={gr.id}
@@ -405,29 +550,75 @@ export function Orbit({
                   transition: "opacity .25s",
                 }}
               >
-                <path
-                  d={d}
-                  fill="none"
-                  stroke={`url(#wb5-arc-${safeId(gr.id)})`}
-                  strokeLinecap="round"
-                  className={allOff ? undefined : "wb5-sweep"}
-                  pathLength={allOff ? undefined : 1}
-                  style={{
-                    strokeWidth: sw(on ? 6 : 4.5),
-                    transition: "stroke-width .25s",
-                    animationDelay: `${420 + gi * 140}ms`,
-                    ...(allOff
-                      ? { strokeDasharray: `calc(2px / var(--k)) calc(10px / var(--k))` }
-                      : {}),
-                  }}
-                />
-                <path
-                  d={arcPath(span.from + 3, span.to - 3)}
-                  fill="none"
-                  stroke={`url(#wb5-arc-${safeId(gr.id)})`}
-                  style={{ strokeWidth: sw(1), opacity: 0.55 }}
-                  transform={`translate(${CENTER} ${CENTER}) scale(1.024) translate(${-CENTER} ${-CENTER})`}
-                />
+                {allOff ? (
+                  // 그룹이 꺼져 있으면 빛 없이 점선 한 줄
+                  <path
+                    d={d}
+                    fill="none"
+                    strokeLinecap="round"
+                    style={{
+                      stroke: mixOf(ca, cb, 0.5),
+                      strokeOpacity: 0.7,
+                      strokeWidth: sw(on ? 3 : 2.4),
+                      strokeDasharray: `calc(2px / var(--k)) calc(10px / var(--k))`,
+                    }}
+                  />
+                ) : (
+                  <>
+                    {/* 호 몸: 바깥 번짐 조각(넓고 옅다)과 본선 조각. 고리보다 굵고 밝다. */}
+                    <g className="wb5-fade" style={{ animationDelay: delay }}>
+                      {segs.map((s, j) => (
+                        <path
+                          key={`w${j}`}
+                          d={s.d}
+                          fill="none"
+                          style={{
+                            stroke: s.hue,
+                            strokeOpacity: s.a * 0.14,
+                            strokeWidth: sw(11),
+                          }}
+                        />
+                      ))}
+                      {segs.map((s, j) => (
+                        <path
+                          key={`c${j}`}
+                          d={s.d}
+                          fill="none"
+                          data-a={s.a.toFixed(3)}
+                          style={{
+                            stroke: s.hue,
+                            strokeOpacity: lineAlpha(s.a),
+                            strokeWidth: swl(on ? 5.2 : 3.6),
+                          }}
+                        />
+                      ))}
+                    </g>
+                    {/* 빛: 호 위를 점선 한 칸이 지난다(주기는 TRAVEL, 고리 빛보다 느리다). 두 겹이라 가장자리가 번진다. */}
+                    <path
+                      d={d}
+                      pathLength={1}
+                      className="wb5-travel wb5-travel-glow"
+                      style={{
+                        stroke: mixOf(ca, cb, 0.5),
+                        strokeWidth: sw(9),
+                        strokeOpacity: 0.32,
+                        animationDuration: `${tr.sec}s`,
+                        animationDelay: `-${tr.lag}s`,
+                      }}
+                    />
+                    <path
+                      d={d}
+                      pathLength={1}
+                      className="wb5-travel wb5-travel-core"
+                      style={{
+                        stroke: "var(--wb5-light)",
+                        strokeWidth: sw(2.2),
+                        animationDuration: `${tr.sec}s`,
+                        animationDelay: `-${tr.lag}s`,
+                      }}
+                    />
+                  </>
+                )}
               </g>
             );
           })}

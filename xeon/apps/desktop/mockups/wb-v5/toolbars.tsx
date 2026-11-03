@@ -56,6 +56,7 @@ function AddMenu() {
   return (
     <Menu
       size="sm"
+      className="wb5-glass-pop"
       trigger={
         <Button size="sm" variant="ghost" iconStart={<Plus />}>
           {T.plugin} 추가
@@ -134,6 +135,7 @@ export function CanvasBar() {
           arrow={false}
           side="bottom"
           align="start"
+          className="wb5-glass-pop"
           anchor={
             <Button
               size="sm"

@@ -90,7 +90,7 @@ export function Finder() {
         onFocus={() => setOpen(true)}
         placeholder="찾기"
         aria-label="찾기"
-        containerClassName="w-48"
+        containerClassName="w-48 wb5-glass"
       />
       {open && needle !== "" && (
         <Card
@@ -99,7 +99,7 @@ export function Finder() {
           shadow="4"
           role="listbox"
           aria-label="찾은 것"
-          className="absolute bottom-11 left-0 z-30 w-80"
+          className="wb5-glass absolute bottom-11 left-0 z-30 w-80"
         >
           {shown.length === 0 ? (
             <span className="px-2 py-1.5 text-body text-text-tertiary">없어요</span>

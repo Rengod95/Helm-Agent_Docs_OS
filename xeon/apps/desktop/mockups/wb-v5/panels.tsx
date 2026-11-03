@@ -35,7 +35,7 @@ export function SelectionPanel() {
       variant="surface"
       size="sm"
       shadow="4"
-      className="animate-enter absolute right-3 top-[108px] z-20 flex max-h-[calc(100%-120px)] flex-col gap-0 overflow-hidden"
+      className="wb5-glass animate-enter absolute right-3 top-[108px] z-20 flex max-h-[calc(100%-120px)] flex-col gap-0 overflow-hidden"
       style={{ width: PANEL_W }}
     >
       {g && (
@@ -285,7 +285,7 @@ export function RingPanel({ right }: { right: number }) {
       variant="surface"
       size="sm"
       shadow="4"
-      className="animate-enter absolute bottom-14 left-3 z-20 gap-2"
+      className="wb5-glass animate-enter absolute bottom-14 left-3 z-20 gap-2"
       style={{ right }}
     >
       <header className="flex items-center gap-2">

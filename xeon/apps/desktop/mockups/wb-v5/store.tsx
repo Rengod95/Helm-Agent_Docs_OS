@@ -19,6 +19,7 @@ import {
   PLUGINS,
   capSlot,
   groupById,
+  hookDef,
   hasContrib,
   matchesKind,
   type Contrib,
@@ -35,6 +36,22 @@ export interface BuilderState {
   template: string | null;
   /** "대화에서 만들기"로 시작한 지난 대화 */
   thread: string | null;
+}
+export interface PendingMove {
+  hook: string;
+  id: string;
+  to: number;
+  /** 새 순서에서 먼저 답할 수 있는 핸들러가 새로 생겨 건너뛰어질 수 있는 핸들러 이름 */
+  skipped: string[];
+}
+const nameOf = (plugins: readonly Plugin[], id: string): string =>
+  plugins.find((p) => p.id === id)?.name ?? id;
+/** 차단 줄에서 앞선 핸들러가 이전 순서에는 없던 핸들러가 새로 앞서게 된 것들 */
+function newlySkippable(before: readonly string[], after: readonly string[]): string[] {
+  return after.filter((id, i) => {
+    const was = new Set(before.slice(0, before.indexOf(id)));
+    return after.slice(0, i).some((x) => !was.has(x));
+  });
 }
 export interface DragState {
   id: string;
@@ -106,6 +123,10 @@ export interface Mock {
   resetHealth: (id: string) => void;
   order: Record<string, string[]>;
   move: (hook: string, id: string, to: number) => void;
+  /** 순서를 바꾸면 앞선 차단 핸들러가 먼저 답해 건너뛰어질 수 있는 핸들러가 생길 때, 저장 전에 묻는다 */
+  pendingMove: PendingMove | null;
+  confirmMove: () => void;
+  cancelMove: () => void;
   addToLane: (hook: string, id: string) => void;
   /** 슬롯(훅의 내장, 기능 줄) → 대체한 플러그인 */
   replaced: Record<string, string>;
@@ -209,7 +230,7 @@ export function MockProvider({ children }: { children: ReactNode }) {
     [notify],
   );
 
-  const move = useCallback((hook: string, id: string, to: number) => {
+  const applyMove = useCallback((hook: string, id: string, to: number) => {
     setOrder((prev) => {
       const lane = prev[hook] ?? [];
       const from = lane.indexOf(id);
@@ -219,6 +240,27 @@ export function MockProvider({ children }: { children: ReactNode }) {
       return { ...prev, [hook]: next };
     });
   }, []);
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
+  const move = useCallback(
+    (hook: string, id: string, to: number) => {
+      const lane = order[hook] ?? [];
+      if (lane.indexOf(id) < 0) return;
+      const next = lane.filter((x) => x !== id);
+      next.splice(Math.max(0, Math.min(to, next.length)), 0, id);
+      const skipped =
+        hookDef(hook)?.fold === "first"
+          ? newlySkippable(lane, next).map((x) => nameOf(plugins, x))
+          : [];
+      if (skipped.length === 0) applyMove(hook, id, to);
+      else setPendingMove({ hook, id, to, skipped });
+    },
+    [order, plugins, applyMove],
+  );
+  const confirmMove = useCallback(() => {
+    if (pendingMove !== null) applyMove(pendingMove.hook, pendingMove.id, pendingMove.to);
+    setPendingMove(null);
+  }, [pendingMove, applyMove]);
+  const cancelMove = useCallback(() => setPendingMove(null), []);
   const addToLane = useCallback(
     (hook: string, id: string) => {
       if ((order[hook] ?? []).includes(id)) {
@@ -415,6 +457,9 @@ export function MockProvider({ children }: { children: ReactNode }) {
       resetHealth,
       order,
       move,
+      pendingMove,
+      confirmMove,
+      cancelMove,
       addToLane,
       replaced,
       replace,
@@ -465,6 +510,9 @@ export function MockProvider({ children }: { children: ReactNode }) {
       resetHealth,
       order,
       move,
+      pendingMove,
+      confirmMove,
+      cancelMove,
       addToLane,
       replaced,
       replace,

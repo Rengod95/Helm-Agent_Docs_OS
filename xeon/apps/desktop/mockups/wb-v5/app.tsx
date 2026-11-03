@@ -1,6 +1,7 @@
 // 크래프트 v5: 에이전트가 무엇으로 이뤄졌나(지도), 무엇이 언제 어떤 순서로 도나(순서), 고른 것이 무엇인가(카드).
 // 범위 막대·표는 없다. 크래프트는 전역 켜짐·꺼짐만 다룬다. 대화마다 끄는 일은 대화 화면의 몫이다.
 import { useEffect } from "react";
+import { Button, Dialog } from "@caustic/react";
 import {
   Shell,
   defaultStatusCells,
@@ -37,6 +38,33 @@ function Notice() {
         </span>
       )}
     </div>
+  );
+}
+
+/** 순서를 바꾸면 앞선 차단 핸들러가 먼저 답해 건너뛰어질 수 있는 핸들러가 생길 때 저장 전에 묻는다 */
+function OrderConfirm() {
+  const m = useMock();
+  const pm = m.pendingMove;
+  return (
+    <Dialog
+      open={pm !== null}
+      onOpenChange={(o) => {
+        if (!o) m.cancelMove();
+      }}
+      size="sm"
+      title="건너뛸 수 있어요"
+      description={`${pm?.skipped.join(", ") ?? ""}은(는) 앞선 ${T.handler}가 먼저 막으면 실행되지 않아요.`}
+      footer={
+        <>
+          <Button size="sm" variant="outline" onClick={m.cancelMove}>
+            취소
+          </Button>
+          <Button size="sm" variant="solid" onClick={m.confirmMove}>
+            그대로 저장
+          </Button>
+        </>
+      }
+    />
   );
 }
 
@@ -101,6 +129,7 @@ function Page() {
         )}
         <Notice />
         <DragGhost />
+        <OrderConfirm />
       </div>
     </Shell>
   );

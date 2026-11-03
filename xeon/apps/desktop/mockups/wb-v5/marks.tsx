@@ -1,6 +1,7 @@
-// 점의 모양과 색. 층은 모양으로(L1 네모, L2 동그라미, L3 마름모, 외부 세모), 그룹은 색 하나(남보라)로 가른다.
-// 깊이는 없다: 면은 한 색이고 그림자와 번짐은 사방으로 같다. 위·아래를 가르는 빛은 쓰지 않는다.
-// 상태는 모양과 무관하게 같은 방식이다: 꺼짐 = 속이 빔, 실패 = 붉은 색(고리 없음), 고름 = 바깥 검은 선이 용수철로 앉는다.
+// 점의 모양과 빛깔. 층은 모양으로(L1 네모, L2 동그라미, L3 마름모, 외부 세모), 그룹은 정보 색(파랑)으로, 단일 플러그인은 얼음빛으로 가른다.
+// 점은 빛나는 몸이다: 방사형 번짐(같은 색의 원) 위에 색 있는 몸, 가운데 더 밝은 작은 심, 아주 가는 밝은 테두리.
+// 그림자·위아래 빛·번짐 필터는 없다. 색은 orbit-lines.css의 변수(판마다)에서 온다.
+import { useId, type CSSProperties } from "react";
 import type { LayerKey } from "./data";
 
 export type Shape = "square" | "circle" | "diamond" | "triangle";
@@ -19,10 +20,6 @@ export const GRP = {
   soft: "var(--cs-color-info-soft)",
   text: "var(--cs-color-info-text)",
 } as const;
-const INK = "var(--cs-color-text-primary)";
-const MUTE = "var(--cs-color-text-tertiary)";
-const BASE = "var(--cs-color-surface-base)";
-const DANGER = "var(--cs-color-danger-graphic)";
 
 export interface MarkProps {
   shape: Shape;
@@ -33,40 +30,48 @@ export interface MarkProps {
   failing?: boolean;
   autoOff?: boolean;
   picked?: boolean;
-  /** 마우스를 올렸나: 면이 조금 밝아진다 */
+  /** 마우스를 올렸나: 번짐이 조금 세진다 */
   hot?: boolean;
   /** 대체돼 가려진 것: 점선 */
   shadowed?: boolean;
   className?: string;
 }
 
-const lighten = (c: string, pct: number): string =>
-  `color-mix(in oklab, ${c} ${100 - pct}%, white)`;
+/** 점의 바탕 빛깔: 몸(body)과 번짐(halo). 값은 orbit-lines.css가 판마다 정한다. */
+type Tone = "group" | "single" | "danger";
+const TONE: Record<Tone, { body: string; halo: string }> = {
+  group: { body: "var(--wb5-mk-group)", halo: "var(--wb5-hl-group)" },
+  single: { body: "var(--wb5-mk-single)", halo: "var(--wb5-hl-single)" },
+  danger: { body: "var(--wb5-mk-danger)", halo: "var(--wb5-hl-danger)" },
+};
 
+/** 모양 하나. scale은 가운데를 기준으로 줄인다(심에 쓴다). */
 function Body({
   shape,
-  fill,
-  stroke,
+  scale = 1,
+  style,
+  sw = 0,
   dash,
-  sw = 1.2,
 }: {
   shape: Shape;
-  fill: string;
-  stroke: string;
-  dash?: string | undefined;
+  scale?: number;
+  style: CSSProperties;
   sw?: number;
+  dash?: string | undefined;
 }) {
+  // 세모는 무게중심을 아래로 조금 내려 두었다(원래 자리 그대로)
+  const dy = shape === "triangle" ? 0.9 : 0;
   const common = {
-    fill,
-    stroke,
+    style,
     strokeWidth: sw,
     strokeLinejoin: "round" as const,
     strokeDasharray: dash,
+    transform: `translate(0 ${dy}) scale(${scale})`,
   };
   if (shape === "square") return <rect x={-6} y={-6} width={12} height={12} rx={2.6} {...common} />;
   if (shape === "circle") return <circle r={6.8} {...common} />;
   if (shape === "diamond") return <path d="M0 -8.6 L8.6 0 L0 8.6 L-8.6 0 Z" {...common} />;
-  return <path d="M0 -8.8 L8.6 5.6 L-8.6 5.6 Z" transform="translate(0 0.9)" {...common} />;
+  return <path d="M0 -8.8 L8.6 5.6 L-8.6 5.6 Z" {...common} />;
 }
 
 export function Mark({
@@ -81,11 +86,14 @@ export function Mark({
   shadowed = false,
   className,
 }: MarkProps) {
-  const hue = failing ? DANGER : group ? GRP.graphic : INK;
+  // 같은 판에 점이 여럿이라 번짐 그라데이션 id는 점마다 달라야 한다
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const haloId = `wb5-halo-${uid}`;
+  const tone: Tone = failing ? "danger" : group ? "group" : "single";
+  const { body, halo } = TONE[tone];
   const hollow = !on || autoOff;
-  const rim = failing ? DANGER : hollow ? (group ? GRP.mark : MUTE) : hue;
-  // 가리키면 면 전체가 조금 밝아진다(방향 없이)
-  const face = hot ? lighten(hue, 14) : hue;
+  // 번짐의 세기: 꺼진 점은 옅고, 가리키면 세지고, 고르면 가장 세다
+  const glow = hollow ? 0.2 : picked ? 0.9 : hot ? 0.74 : 0.56;
   return (
     <svg
       width={size}
@@ -93,41 +101,52 @@ export function Mark({
       viewBox="-14 -14 28 28"
       aria-hidden
       className={className}
-      style={{
-        overflow: "visible",
-        filter: hollow
-          ? "drop-shadow(0 0 1.5px color-mix(in oklab, var(--cs-color-text-primary) 18%, transparent))"
-          : `drop-shadow(0 0 2px color-mix(in oklab, ${hue} 40%, transparent))`,
-      }}
+      style={{ overflow: "visible" }}
     >
+      <defs>
+        <radialGradient id={haloId} cx={0} cy={0} r={13} gradientUnits="userSpaceOnUse">
+          <stop offset={0} style={{ stopColor: halo }} stopOpacity={glow} />
+          <stop offset={0.42} style={{ stopColor: halo }} stopOpacity={glow * 0.38} />
+          <stop offset={1} style={{ stopColor: halo }} stopOpacity={0} />
+        </radialGradient>
+      </defs>
       {picked && (
         <g className="wb5-pop">
-          <circle r={12.8} fill="none" stroke={INK} strokeOpacity={0.9} strokeWidth={1.4} />
           <circle
-            r={12.8}
+            r={11.6}
             fill="none"
-            stroke={failing ? DANGER : group ? GRP.graphic : INK}
-            strokeOpacity={0.18}
-            strokeWidth={5}
+            style={{ stroke: body }}
+            strokeOpacity={0.95}
+            strokeWidth={1}
           />
         </g>
       )}
+      <circle r={13} fill={`url(#${haloId})`} style={{ opacity: "var(--wb5-halo-gain, 1)" }} />
       {hollow ? (
+        // 꺼짐·자동 꺼짐: 속이 옅게 비치고 테두리만 선다
         <Body
           shape={shape}
-          fill={BASE}
-          stroke={rim}
-          sw={1.5}
+          style={{ fill: body, fillOpacity: 0.14, stroke: body }}
+          sw={1.4}
           dash={shadowed || autoOff ? "2.4 2" : undefined}
         />
-      ) : (
+      ) : shadowed ? (
+        // 가려짐: 옅은 몸에 점선 테두리
         <Body
           shape={shape}
-          fill={face}
-          stroke={rim}
-          sw={0.9}
-          dash={shadowed ? "2.4 2" : undefined}
+          style={{ fill: body, fillOpacity: 0.35, stroke: body }}
+          sw={1.2}
+          dash="2.4 2"
         />
+      ) : (
+        <>
+          <Body shape={shape} style={{ fill: body, stroke: "var(--wb5-rim)" }} sw={0.5} />
+          <Body
+            shape={shape}
+            scale={0.46}
+            style={{ fill: `color-mix(in oklab, ${body} 55%, white)` }}
+          />
+        </>
       )}
     </svg>
   );

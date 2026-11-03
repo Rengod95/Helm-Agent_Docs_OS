@@ -503,8 +503,9 @@ export function CoreOrb({ size, selected, onSelect }: CoreOrbProps) {
     };
   }, [size]);
 
-  const box = Math.round(size * BOX_SCALE);
-  const inset = (size - box) / 2;
+  // 상자는 단추(확대에 따라 커지는 바깥 칸)의 비율로 잡는다: 확대해도 구체 중심이 고리 중심에서 어긋나지 않는다.
+  const box = `${BOX_SCALE * 100}%`;
+  const inset = `${-((BOX_SCALE - 1) / 2) * 100}%`;
   return (
     <>
       {!live && <span aria-hidden className="wb5-planet-glow absolute rounded-full" />}

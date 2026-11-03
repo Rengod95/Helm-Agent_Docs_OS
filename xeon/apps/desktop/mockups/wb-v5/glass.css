@@ -1,0 +1,93 @@
+/* 크래프트 v5 글래스: Orbit 캔버스 안의 떠 있는 면에만 적용한다. 살짝만 비치고 살짝만 번진다.
+   Strata와 Link는 data-wb5-view가 orbit이 아니므로 이 규칙을 받지 않는다. 왼쪽 메뉴와 위쪽 앱 막대는 ../_shell에 있어 캔버스 밖이다.
+   튜닝은 아래 변수 넷에서 한다. */
+
+:root {
+  /* 면 알파: 표면 토큰에 이 비율만큼 섞고 나머지는 뒤가 비친다.
+     다크의 세 번째 글자색(tertiary)이 4.5:1을 넘으려면 약 72% 이상이어야 해서 74%로 둔다. */
+  --wb5-glass-alpha: 74%;
+  --wb5-glass-fill: color-mix(in oklab, var(--cs-color-surface-raised) var(--wb5-glass-alpha), transparent);
+  /* 번짐 반경: 뒤의 점과 빛만 흐리게 한다 */
+  --wb5-glass-blur: 12px;
+  /* 사방이 같은 1px 선 하나(위만 밝은 선·방향 있는 테두리는 쓰지 않는다) */
+  --wb5-glass-line: color-mix(in oklab, var(--cs-color-text-primary) 10%, transparent);
+  /* 그림자: 위아래를 가르지 않는 부드러운 번짐 하나 */
+  --wb5-glass-shadow: 0 0 22px -10px color-mix(in oklab, var(--cs-color-shadow-ambient) 18%, transparent);
+}
+
+/* WebGL 번짐을 지원하지 않는 곳: 면을 더 불투명하게 */
+@supports not (backdrop-filter: blur(1px)) {
+  :root {
+    --wb5-glass-alpha: 94%;
+  }
+}
+
+/* 투명도를 줄이라는 설정: 번짐을 끄고 면을 불투명하게 */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --wb5-glass-alpha: 100%;
+    --wb5-glass-blur: 0px;
+  }
+}
+
+/* 떠 있는 면: 툴바와 확대 막대(caustic FloatingBar), 찾기 칸·목록, 선택 패널, 층 패널(.wb5-glass).
+   뒤의 점과 빛이 흐리게 비친다. 부모가 아니라 캔버스 루트 밑에서만 걸린다. */
+[data-wb5-view="orbit"] [data-slot="floating-bar"],
+[data-wb5-view="orbit"] .wb5-glass {
+  background: var(--wb5-glass-fill);
+  -webkit-backdrop-filter: blur(var(--wb5-glass-blur)) saturate(1);
+  backdrop-filter: blur(var(--wb5-glass-blur)) saturate(1);
+  box-shadow: inset 0 0 0 1px var(--wb5-glass-line), var(--wb5-glass-shadow);
+}
+
+/* 찾기 칸: 고른 것은 면을 조금 더 채운다(caustic은 여기서 면색을 바꾼다). 자리표시 글씨는 secondary로 올려 4.5:1을 지킨다. */
+[data-wb5-view="orbit"] .wb5-glass[data-slot="input"]:focus-within {
+  background: color-mix(in oklab, var(--cs-color-surface-raised) 88%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--cs-color-text-primary) 22%, transparent), var(--wb5-glass-shadow);
+}
+[data-wb5-view="orbit"] .wb5-glass [data-slot="input-control"]::placeholder {
+  color: var(--cs-color-text-secondary);
+}
+
+/* 툴바 옆에서 여는 메뉴와 필터 팝오버(toolbars.tsx가 wb5-glass-pop을 건다). 포털이라 캔버스 밖에 있어 루트 조건을 :has로 본다. */
+:root:has([data-wb5-view="orbit"]) .wb5-glass-pop {
+  background: var(--wb5-glass-fill);
+  -webkit-backdrop-filter: blur(var(--wb5-glass-blur)) saturate(1);
+  backdrop-filter: blur(var(--wb5-glass-blur)) saturate(1);
+  box-shadow: inset 0 0 0 1px var(--wb5-glass-line), var(--wb5-glass-shadow);
+}
+
+/* 노드 위에 뜨는 말풍선(caustic Tooltip, 포털). 같은 면을 받고 글자는 본문 색을 쓴다(solid 기본값은 잉크 면이라 어둡다). */
+:root:has([data-wb5-view="orbit"]) [data-slot="tooltip"] {
+  --tip-bg: var(--wb5-glass-fill);
+  color: var(--cs-color-text-primary);
+  background: var(--wb5-glass-fill);
+  -webkit-backdrop-filter: blur(var(--wb5-glass-blur)) saturate(1);
+  backdrop-filter: blur(var(--wb5-glass-blur)) saturate(1);
+  box-shadow: inset 0 0 0 1px var(--wb5-glass-line), var(--wb5-glass-shadow);
+}
+
+/* 이름표(.wb5-label): 면만 같은 알파로 비친다. 번짐은 주지 않는다: 이름표 스물 남짓이 매 프레임 흐려지면
+   Orbit 유휴 60fps가 46~50fps로, 이동이 60fps에서 45~55fps로 떨어졌다(glass8-fps-modes로 쟀다).
+   가장자리·번짐 빛·용수철·글자는 mockup.css가 그대로 쥔다. 고른 이름표는 흰 글씨 대비 때문에 불투명 잉크 면이다. */
+[data-wb5-view="orbit"] .wb5-label {
+  --wb5-chip-fill: color-mix(in oklab, var(--fill) var(--wb5-glass-alpha), transparent);
+  background:
+    radial-gradient(
+        72px circle at var(--mx, 50%) var(--my, 0%),
+        color-mix(in oklab, var(--tint) calc(var(--spot) * 16%), transparent),
+        transparent 72%
+      )
+      padding-box no-repeat,
+    linear-gradient(var(--wb5-chip-fill), var(--wb5-chip-fill)) border-box;
+}
+[data-wb5-view="orbit"] .wb5-label[data-picked] {
+  --wb5-chip-fill: var(--fill);
+}
+/* 고른 집단·실패 이름표: 흰 글씨가 4.5:1을 넘도록 면을 조금 어둡게 한다(82%는 밝은 층 라이트에서 4.0이었다). */
+[data-wb5-view="orbit"] .wb5-label[data-picked][data-group] {
+  --fill: color-mix(in oklab, var(--cs-color-info-graphic) 68%, black);
+}
+[data-wb5-view="orbit"] .wb5-label[data-picked][data-fail] {
+  --fill: color-mix(in oklab, var(--cs-color-danger-graphic) 68%, black);
+}

@@ -1,9 +1,10 @@
-// 캔버스 전체 배경: 큰 유기체 블롭 네 개가 느린 리사주 궤도로 떠다니며 붙었다 떨어진다.
-// 안쪽은 깊고, 빛은 가장자리에서 안쪽으로만 번진다. 빛의 색은 둘레를 따라 파랑 → 보라 → 자홍으로 흐른다.
-// 밝은 판은 진주빛 몸통에 periwinkle → 진주 → 복숭아 가장자리를 둔다. 날 WebGL 조각 셰이더 하나(의존 없음).
+// 캔버스 전체 배경: 깊은 우주. 거의 검은 바탕 위로 가장자리 없이 흐르는 성운(워프된 잡음 세 겹), 대각선 띠에 몰린 별,
+// 천천히 떠도는 먼지 입자, 넓은 띠로 지나가는 물결이 한 장의 조각 셰이더에서 그려진다. 코어 둘레만 조금 더 밝고 따뜻하다.
+// 밝은 판은 같은 구조를 옅은 페리윙클·진주 안개로 읽히게 하고, 별 대신 가는 어두운 먼지 점을 쓴다.
+// 층마다 이동 배수와 배율 지수가 달라 깊이가 생긴다. 날 WebGL 조각 셰이더 하나(의존 없음).
 // WebGL이 없거나 셰이더가 실패하면 onUnavailable로 CSS 그라디언트(.wb5-paper)로 돌아간다.
 // 문맥을 잃으면 그 위에 같은 CSS 바탕을 덮어 빈 화면을 막고, 되살아나면 프로그램을 다시 짠다.
-// 탭이 숨겨지면 멈추고, 움직임 줄이기를 켜면 한 장만 그린다.
+// 탭이 숨겨지면 멈추고, 움직임 줄이기를 켜면 시간을 멈추고 바뀔 때만 한 장 그린다.
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { reducedMotion, type View } from "./viewport";
 
@@ -16,8 +17,6 @@ interface Props {
 const DPR_CAP = 1.25;
 /** 가만히 있을 때 초당 그리는 횟수 상한 */
 const IDLE_FPS = 30;
-/** 블롭 칸 수(셰이더가 읽는 상한). 블롭이 이보다 적으면 나머지 칸은 0으로 둔다. */
-const N = 5;
 
 const VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
 const FRAG = `
@@ -26,124 +25,252 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform vec2 uRes; uniform float uDpr; uniform float uTime; uniform vec2 uPan;
-uniform float uDark;
-uniform vec3 uBase; uniform vec3 uA; uniform vec3 uB; uniform vec3 uC;
-// 블롭: (중심 x, 중심 y, 반지름 x, 반지름 y) / (회전, 색 위상, 0, 0). 단위는 캔버스 긴 변, 가운데가 0.
-uniform vec4 uBlobA[5];
-uniform vec4 uBlobB[5];
+uniform vec2 uRes; uniform float uDpr; uniform float uTime;
+uniform vec2 uPan; uniform float uK; uniform float uDark;
+uniform vec3 uBase; uniform vec3 uA; uniform vec3 uB; uniform vec3 uC; uniform vec3 uWarm;
 
 const float TAU = 6.2831853;
-// 안쪽 빛의 폭, 가장자리 실선의 두께, 바깥 번짐(긴 변 단위)
-const float RIM_W = 0.032;
-const float LINE_W = 0.0018;
-const float SPILL_W = 0.02;
-// 두 윤곽이 붙기 시작하는 거리
-const float SMIN_K = 0.1;
-// 어두운 판: 빛 피크의 상한(선형 휘도). 위의 글자(#f2f2f2)와 4.5:1 이상을 지킨다.
-const float CAP = 0.14;
+// 어두운 판: 빛 피크의 상한(선형 휘도). 위의 글자(#f2f2f2)와 4.5:1 이상을 지킨다(8비트 반올림 여유를 두고 0.137).
+const float CAP = 0.137;
+// 별 띠의 법선(화면 좌표, 아래가 +y). 띠는 오른쪽 위로 기운다.
+const vec2 BAND_N = vec2(0.4191, 0.9080);
+const mat2 ROT = mat2(0.8, 0.6, -0.6, 0.8);
 
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-
-// 타원까지의 거리(경계는 정확하고 바깥은 근사)
-float sdEllipse(vec2 p, vec2 r){
-  float k0 = length(p / r);
-  float k1 = length(p / (r * r));
-  return k0 * (k0 - 1.0) / max(k1, 1e-6);
+// 해시(사인 없이): 칸 번호마다 같은 값을 준다
+float hash12(vec2 p){
+  vec3 q = fract(vec3(p.xyx) * 0.1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y) * q.z);
+}
+vec2 hash22(vec2 p){
+  vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.xx + q.yz) * q.zy);
 }
 
-// 다항 smooth-min: 두 거리장을 k 폭으로 잇는다
-float smin(float a, float b, float k){
-  float h = max(k - abs(a - b), 0.0) / k;
-  return min(a, b) - h * h * k * 0.25;
+// 값 잡음: 격자 값을 부드럽게 잇는다
+float vnoise(vec2 p){
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash12(i);
+  float b = hash12(i + vec2(1.0, 0.0));
+  float c = hash12(i + vec2(0.0, 1.0));
+  float d = hash12(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-// 둘레 색환: 첫째 색 → 둘째 → 셋째 → 둘째 → 첫째. 셋째와 첫째를 바로 섞지 않아 회색이 생기지 않는다.
-vec3 rimPal(float x){
-  float f = fract(x) * 4.0;
-  float s = fract(f);
-  s = s * s * (3.0 - 2.0 * s);
-  vec3 c = uA;
-  vec3 e = uB;
-  if (f >= 1.0) { c = uB; e = uC; }
-  if (f >= 2.0) { c = uC; e = uB; }
-  if (f >= 3.0) { c = uB; e = uA; }
-  return mix(c, e, s);
+// 구름 결: 세 옥타브(워프의 안쪽 단계)
+float fbm3(vec2 p){
+  float s = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 3; i++) {
+    s += a * vnoise(p);
+    p = ROT * p * 2.03 + 1.7;
+    a *= 0.5;
+  }
+  return s / 0.875;
+}
+// 다섯 옥타브(마지막 구름 밀도)
+float fbm5(vec2 p){
+  float s = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    s += a * vnoise(p);
+    p = ROT * p * 2.03 + 1.7;
+    a *= 0.5;
+  }
+  return s / 0.96875;
 }
 
-// 두 겹 사인으로 샘플 점을 민다: 윤곽이 유기체처럼 흔들린다(느린 주기, 25초 이상)
-vec2 warp(vec2 q, float t){
-  return 0.040 * vec2(sin(q.y * 3.1 + 0.21 * t), cos(q.x * 2.7 - 0.17 * t))
-       + 0.013 * vec2(sin(q.y * 7.3 - 0.23 * t + 1.2), cos(q.x * 6.1 + 0.19 * t + 0.5));
+// 층 좌표: 이동은 층마다 다른 배수로 따라가고(패럴랙스), 배율은 k의 지수만큼 화면 가운데를 기준으로 키운다.
+vec2 layerUV(vec2 p, vec2 c, float m, float z){
+  return (p - c - m * uPan) / pow(uK, z);
 }
 
-// 피크 휘도를 cap 아래로 부드럽게 누른다. 색의 비율은 그대로다.
+// 별 띠의 모양(0..1): 완만한 대각선 둘레에 몰리고, 띠 안은 저주파 잡음으로 덩어리가 진다. 띠 빛과 별 밀도가 같이 쓴다.
+float bandShape(vec2 u, float S){
+  float dl = dot(u, BAND_N) - 0.04 * S;
+  float band = exp(-dl * dl / (2.0 * 0.09 * 0.09 * S * S));
+  float cl = vnoise(u / (0.4 * S) + vec2(3.1, 7.7));
+  return band * (0.35 + 0.65 * smoothstep(0.3, 0.75, cl));
+}
+// 칸 하나당 별이 있을 확률: 띠 밖은 아주 드물고, 띠 안은 촘촘하다
+float bandDensity(vec2 u, float S){
+  return 0.006 + 0.62 * bandShape(u, S);
+}
+
+// 별 칸 하나: 위치·밝기·반짝임·색을 해시로 정한다. 밝기는 역거듭제곱이라 거의 모두 아주 어둡고 드물게 밝다.
+// 반환: (밝기, 밝기 × 색 치우침). 반짝임은 1.8%의 별만 가진다.
+vec2 starCell(vec2 u, float cs, vec2 id, vec2 seed, float sig, float S, float t){
+  vec2 c = (id + 0.1 + 0.8 * hash22(id + seed)) * cs;
+  float keep = step(hash12(id + seed + 19.7), bandDensity(c, S));
+  float h = max(hash12(id + seed + 7.3), 0.0003);
+  float b = min(0.045 * pow(h, -0.667), 1.0);
+  float tw = step(0.982, hash12(id + seed + 31.1));
+  float rate = 0.2 + 0.4 * hash12(id + seed + 5.5);
+  float ph = TAU * hash12(id + seed + 2.9);
+  float amp = mix(1.0, 0.15 + 0.85 * (0.5 + 0.5 * sin(t * rate + ph)), tw);
+  float sg = sig * (0.9 + 0.5 * b);
+  vec2 d = u - c;
+  float v = keep * b * amp * exp(-dot(d, d) / (2.0 * sg * sg));
+  return vec2(v, v * hash12(id + seed + 13.3));
+}
+
+// 별 층 하나: 가까운 2×2 칸의 별을 더한다. 칸 폭의 0.9배 밖의 별은 이 픽셀에 닿지 않는다.
+vec2 starLayer(vec2 u, float cs, vec2 seed, float sig, float S, float t){
+  vec2 i0 = floor(u / cs - 0.5);
+  vec2 acc = vec2(0.0);
+  for (int j = 0; j < 2; j++) {
+    for (int i = 0; i < 2; i++) {
+      acc += starCell(u, cs, i0 + vec2(float(i), float(j)), seed, sig, S, t);
+    }
+  }
+  return acc;
+}
+
+// 먼지 칸 하나: 드물고 아주 흐린 큰 얼룩. 칸 가운데에서 6px 안쪽으로만 아주 천천히 떠돈다.
+float dustCell(vec2 u, float cs, vec2 id, float t){
+  vec2 hp = hash22(id + 3.3);
+  float on = step(hash12(id + 9.1), 0.08);
+  vec2 c = (id + 0.2 + 0.6 * hp) * cs + 6.0 * vec2(sin(0.08 * t + TAU * hp.x), cos(0.065 * t + TAU * hp.y));
+  float r = 5.0 + 6.0 * hash12(id + 4.4);
+  vec2 d = u - c;
+  return on * (0.35 + 0.65 * hash12(id + 11.2)) * exp(-dot(d, d) / (2.0 * r * r));
+}
+float dustLayer(vec2 u, float cs, float t){
+  vec2 i0 = floor(u / cs - 0.5);
+  float acc = 0.0;
+  for (int j = 0; j < 2; j++) {
+    for (int i = 0; i < 2; i++) {
+      acc += dustCell(u, cs, i0 + vec2(float(i), float(j)), t);
+    }
+  }
+  return acc;
+}
+
+// sRGB 곡선을 정확히 풀고 다시 감는다(측정과 같은 휘도를 쓰려고 2.2 근사를 쓰지 않는다)
+vec3 toLin(vec3 c){
+  c = max(c, 0.0);
+  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
+}
+vec3 toSrgb(vec3 l){
+  l = clamp(l, 0.0, 1.0);
+  return mix(l * 12.92, 1.055 * pow(l, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, l));
+}
+
+// 피크 휘도를 cap 아래로 부드럽게 누른다(선형 휘도 기준). 색의 비율은 그대로다.
 vec3 capPeak(vec3 c, float cap){
-  vec3 lin = pow(c, vec3(2.2));
+  vec3 lin = toLin(c);
   float y = dot(lin, vec3(0.2126, 0.7152, 0.0722));
   float knee = 0.6 * cap;
   float yo = y;
   if (y > knee) yo = knee + (cap - knee) * (1.0 - exp(-(y - knee) / (cap - knee)));
-  return c * pow(yo / max(y, 1e-6), 1.0 / 2.2);
+  return toSrgb(lin * (yo / max(y, 1e-6)));
 }
 
 void main(){
   vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y) / uDpr;
+  vec2 C = 0.5 * uRes / uDpr;
   float S = max(uRes.x, uRes.y) / uDpr;
   float t = uTime;
-  // 끌면 배경은 지도의 0.1배만 따라온다: 한 층 뒤에 있는 듯한 깊이
-  vec2 q = (p - 0.5 * uRes / uDpr - 0.1 * uPan) / S;
-  vec2 w = q + warp(q, t);
+  bool dark = uDark > 0.5;
 
-  float d = 1e3;
-  vec3 acc = vec3(0.0);
-  float wsum = 0.0;
-  for (int i = 0; i < 5; i++) {
-    vec4 ba = uBlobA[i];
-    vec4 bb = uBlobB[i];
-    // 반지름이 0인 빈 칸이면 그만둔다(블롭이 다섯보다 적을 때)
-    if (ba.z <= 0.0) break;
-    vec2 v = w - ba.xy;
-    float cs = cos(bb.x);
-    float sn = sin(bb.x);
-    vec2 lp = vec2(cs * v.x + sn * v.y, cs * v.y - sn * v.x);
-    float di = sdEllipse(lp, ba.zw);
-    d = smin(d, di, SMIN_K);
-    // 이 블롭 둘레의 각도로 색을 고르고, 시간에 따라 둘레를 따라 흐른다
-    float ci = atan(lp.y, lp.x) / TAU + 0.02 * t + bb.y;
-    // 가중치는 이 블롭 윤곽에 가까울수록 크다(안팎 모두)
-    float ri = exp(-abs(di) / RIM_W);
-    float wi = ri * ri;
-    acc += rimPal(ci) * wi;
-    wsum += wi;
-  }
+  // 1) 성운: 워프 세 겹(q → r → f). 가장자리 없이 흐르고, 색은 저주파 마스크가 모인 곳에만 짙다.
+  vec2 n = layerUV(p, C, 0.04, 0.10) / (0.35 * S);
 
-  float aa = 1.5 / S;
-  float inside = 1.0 - smoothstep(-aa, aa, d);
-  // 안쪽으로만 번지는 빛: 바깥은 마스크로 0이 된다. 밝은 판은 빛이 더 깊이 번진다.
-  float rw = mix(0.046, RIM_W, uDark);
-  float rim = inside * exp(min(d, 0.0) / rw);
-  float hair = exp(-abs(d) / LINE_W);
-  // 바깥으로 아주 약하게 새는 빛(안에서는 0)
-  float spill = (1.0 - inside) * exp(-max(d, 0.0) / SPILL_W);
-  vec3 rc = (acc + uA * 1e-4) / (wsum + 1e-4);
+  // 2) 물결: 아주 넓은 띠 두 줄이 기울어 천천히 지나간다(주기 46초·58초). 띠 간격은 화면 폭의 두세 배라
+  //    한 화면에 늘 한두 띠가 걸린다. 띠 세기와 앞면의 굽음은 저주파 잡음이 흔들어 같은 간격으로 반복되지 않는다.
+  vec2 d1 = vec2(0.87, -0.49);
+  vec2 d2 = vec2(0.30, 0.954);
+  float ph1 = dot(n, d1) / 2.9 - t / 46.0 + 0.15 * (vnoise(n * 0.6 + vec2(0.0, 0.02 * t)) - 0.5);
+  float x1 = fract(ph1) - 0.5;
+  float a1 = smoothstep(0.4, 0.7, fbm3(n * 0.6 + vec2(1.3, 0.0) + 0.006 * t));
+  float b1 = exp(-x1 * x1 / 0.0592) * a1;
+  float ph2 = dot(n, d2) / 3.7 + t / 58.0 + 0.15 * (vnoise(n * 0.5 + vec2(4.0, 1.0) - vec2(0.0, 0.015 * t)) - 0.5);
+  float x2 = fract(ph2) - 0.5;
+  float a2 = smoothstep(0.4, 0.75, fbm3(n * 0.5 + vec2(7.0, 3.0) - 0.005 * t));
+  float b2 = 0.7 * exp(-x2 * x2 / 0.0365) * a2;
+  float G = clamp(b1 + b2, 0.0, 1.0);
+  // 띠가 지나는 자리에서 구름 좌표가 살짝 밀린다
+  vec2 nw = n + 0.10 * (d1 * b1 + d2 * b2);
 
-  vec3 col = uBase;
-  if (uDark > 0.5) {
-    // 깊은 바탕: 속은 거의 검정, 빛은 가장자리에서만 안쪽으로 번진다
-    col += inside * 0.006 * rc;
-    col += rc * (0.7 * rim + 1.2 * hair + 0.08 * spill);
-    col = capPeak(col, CAP);
+  // 성운 워프: 안쪽 단계마다 다른 속도로 흘러 덩어리가 천천히 끓는다
+  vec2 base = nw + vec2(0.012, -0.008) * t;
+  vec2 q = vec2(fbm3(base), fbm3(base + vec2(5.2, 1.3)));
+  vec2 r = vec2(
+    fbm3(base + 2.2 * q + vec2(1.7, 9.2) + vec2(0.0, 0.010 * t)),
+    fbm3(base + 2.2 * q + vec2(8.3, 2.8) - vec2(0.008 * t, 0.0))
+  );
+  float f = fbm5(base + 2.4 * r);
+  // 구름 짙음: f를 넓게 펴서 기울기가 완만한 곡선(끝에서 기울기 0)으로 만든다. 경계가 선으로 읽히지 않는다.
+  // 색은 저주파 마스크가 모인 곳에 짙고, 나머지는 거의 검다.
+  // 색이 모이는 곳은 두세 덩어리뿐이다: 세 옥타브 잡음의 높은 쪽만 남긴다(나머지는 거의 검게).
+  // f는 실제로 0.45~0.85에 몰리므로 그 범위 안에서 짙음을 잡는다.
+  float reg = smoothstep(0.42, 0.74, fbm3(n * 0.75 + vec2(2.7, 5.1)));
+  // 짙음의 경사를 길게 잡아 덩어리 사이의 검은 골이 실루엣처럼 끊기지 않게 한다
+  float dn = clamp((f - 0.46) / 0.36, 0.0, 1.0);
+  float cloud = dn * dn * (3.0 - 2.0 * dn) * (0.03 + 0.97 * reg);
+  // 얇은 따뜻한 결: 구름이 짙은 곳의 가느다란 가로 방향 자리에만
+  float warm = smoothstep(0.7, 0.92, f) * smoothstep(0.5, 0.72, fbm3(vec2(n.x * 1.3, n.y * 3.7) + 9.0 + 0.004 * t));
+  // 색 상: 파랑 → 보라(r.x), 그리고 자홍이 짙은 덩어리(따로 잡은 저주파 마스크)
+  vec3 hue = mix(uA, uB, smoothstep(0.30, 0.75, r.x));
+  hue = mix(hue, uC, 0.8 * smoothstep(0.55, 0.8, fbm3(n * 0.6 + vec2(9.0, 1.0))));
+
+  // 3) 코어: 궤도의 중심은 지도 좌표 (500, 500)이고 화면에서는 pan + 500k다. 지도와 같이 움직인다.
+  vec2 O = uPan + 500.0 * uK;
+  float R = 300.0 * sqrt(uK);
+  vec2 dO = p - O;
+  float glow = exp(-dot(dO, dO) / (2.0 * R * R));
+
+  // 4) 별: 먼 층은 칸 둘(11px, 23px), 가까운 층은 칸 하나(53px). 층마다 이동·배율 배수가 다르다.
+  vec2 uFar = layerUV(p, C, 0.08, 0.18);
+  vec2 uNear = layerUV(p, C, 0.14, 0.30);
+  vec2 st = starLayer(uFar, 11.0, vec2(0.0), 0.42, S, t)
+          + starLayer(uFar, 23.0, vec2(17.3, 4.1), 0.45, S, t)
+          + starLayer(uNear, 53.0, vec2(41.0, 8.0), 0.6, S, t);
+  float tint = clamp(st.y / max(st.x, 1e-4), 0.0, 1.0);
+
+  // 5) 먼지: 가장 가까운 층. 이동 배수가 가장 크고(0.25), 배율도 가장 많이 받는다.
+  float dust = dustLayer(layerUV(p, C, 0.25, 0.45), 60.0, t);
+
+  vec3 col;
+  if (dark) {
+    col = uBase;
+    // 성운: 파랑 → 보라 → 자홍. 색이 모인 두세 곳이 1배율에서도 보이고, 나머지는 어둡다.
+    col += hue * cloud * 0.3;
+    // 오로라 같은 띠: 물결의 가운데는 제곱으로 좁혀 흐린 면이 아니라 흐르는 빛으로 읽히게 한다(최대 약 18/255)
+    col += mix(uA, uB, 0.5) * G * G * 0.08;
+    // 따뜻한 먼지: 얇은 곳에만 옅게
+    col += uWarm * warm * 0.05;
+    // 코어 둘레: 따뜻하고 조금 더 밝다(넓은 가우스, 가장자리 없음)
+    col += mix(hue, uWarm, 0.5) * glow * (0.06 + 0.05 * cloud);
+    // 먼지: 흐린 푸른 빛(얼룩처럼 번진 입자라 점으로 읽히지 않는다)
+    col += mix(uA, vec3(0.9), 0.2) * dust * 0.025;
+    // 별 띠의 흐린 빛: 너무 작아 점으로 보이지 않는 별들이 띠를 따라 내는 희뿌연 빛
+    col += vec3(0.55, 0.62, 0.95) * bandShape(uFar, S) * 0.065;
+    // 별: 대부분 희미하고 드물게 밝다. 색은 차갑거나 따뜻하다.
+    vec3 starC = mix(vec3(0.70, 0.80, 1.0), vec3(1.0, 0.88, 0.74), tint);
+    col += starC * st.x;
+    // 계조 띠 방지: 반 단계(0.5/255)의 정적 떨림. 상한을 넘지 않도록 상한 전에 넣는다.
+    col = capPeak(col + (hash12(gl_FragCoord.xy) - 0.5) / 255.0, CAP);
   } else {
-    // 밝은 바탕: 진주빛 몸통, 가장자리에 색이 스민다
-    vec3 body = mix(uBase, vec3(1.0), 0.6);
-    col = mix(uBase, body, inside * 0.85);
-    col = mix(col, rc, rim * 0.7);
-    col = mix(col, rc, hair * 0.8);
-    col = mix(col, rc, spill * 0.2);
+    col = uBase;
+    // 페리윙클 안개: 넓게 깔리고 구름이 짙은 곳에서 더 진하다. 가장자리는 없다.
+    // 넓고 완만한 경사로만 올린다: 좁은 경사는 소용돌이 윤곽으로 읽힌다.
+    float haze = clamp(0.8 * smoothstep(0.4, 0.95, f) * (0.35 + 0.65 * reg) + 0.2 * cloud, 0.0, 1.0);
+    col = mix(col, uA, haze * 0.32);
+    // 복숭아빛 결과 진주빛 코어 들림
+    col = mix(col, uC, warm * cloud * 0.12);
+    col = mix(col, uWarm, glow * 0.2);
+    // 물결: 페리윙클 띠가 옅게 지나간다(흰색 들림은 바탕이 이미 희어 보이지 않는다)
+    col = mix(col, uA, G * 0.08);
+    // 먼지 점: 별 자리에 놓이는 가는 어두운 점. 가장 짙은 점도 아래 글자와 4.5:1을 지키도록 불투명도를 누른다.
+    col = mix(col, vec3(0.14, 0.16, 0.26), min(st.x * 0.8, 0.5));
+    // 가까운 먼지: 흐린 어두운 빛깔 입자
+    col = mix(col, uA * 0.8, dust * 0.10);
+    col += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
   }
-  // 필름 결: 1/255 수준의 떨림(띠가 지지 않게)
-  col += (hash(gl_FragCoord.xy + fract(t)) - 0.5) / 255.0;
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -151,118 +278,32 @@ type Rgb = [number, number, number];
 
 interface Palette {
   dark: boolean;
+  /** 바탕 */
   base: Rgb;
+  /** 성운의 첫 색(어두운 판은 info 색이 파랑 닻이다) */
   a: Rgb;
   b: Rgb;
   c: Rgb;
+  /** 코어 둘레와 따뜻한 결의 색 */
+  warm: Rgb;
 }
 
-/** 밝은 판(고정): 바탕, periwinkle, 진주, 복숭아 */
+/** 밝은 판(고정): 바탕, periwinkle, 진주, 복숭아, 따뜻한 진주 */
 const LIGHT: Palette = {
   dark: false,
   base: [0.969, 0.965, 0.984],
   a: [0.557, 0.612, 0.941],
   b: [0.957, 0.945, 0.98],
   c: [0.965, 0.788, 0.706],
+  warm: [0.975, 0.905, 0.885],
 };
+/** 어두운 판의 바탕: .wb5-paper의 어두운 바탕(#05060b)과 같은 값이다. */
+const GROUND_DARK: Rgb = [5 / 255, 6 / 255, 11 / 255];
 /** 어두운 판의 고정 점: 보라, 자홍. info 색을 이쪽으로 섞어 셋을 만든다. */
 const VIOLET: Rgb = [0.49, 0.298, 1.0];
 const MAGENTA: Rgb = [0.757, 0.235, 0.839];
-/** 어두운 바탕: 거의 검정에 info 색을 조금 섞는다 */
-const DARK_INK: Rgb = [0.008, 0.009, 0.02];
-
-/** 블롭 하나. 위치와 반지름은 캔버스 긴 변 단위이고 가운데가 0이다. */
-interface Blob {
-  x: number;
-  y: number;
-  rx: number;
-  ry: number;
-  rot: number;
-  ax: number;
-  ay: number;
-  wx: number;
-  wy: number;
-  px: number;
-  py: number;
-  hue: number;
-}
-
-/** 네 블롭. 각속도는 0.16~0.24rad/s라 한 바퀴가 26~39초다(짧은 것도 25초를 넘는다). 작은 것은 반지름 0.1 이상. */
-const BLOBS: readonly Blob[] = [
-  {
-    x: 0.14,
-    y: -0.06,
-    rx: 0.25,
-    ry: 0.2,
-    rot: 0.5,
-    ax: 0.12,
-    ay: 0.09,
-    wx: 0.21,
-    wy: 0.17,
-    px: 0,
-    py: 1.3,
-    hue: 0.1,
-  },
-  {
-    x: -0.27,
-    y: 0.0,
-    rx: 0.18,
-    ry: 0.23,
-    rot: -0.3,
-    ax: 0.09,
-    ay: 0.11,
-    wx: 0.19,
-    wy: 0.23,
-    px: 2.1,
-    py: 0.4,
-    hue: 0.4,
-  },
-  {
-    x: 0.26,
-    y: 0.23,
-    rx: 0.2,
-    ry: 0.13,
-    rot: 0.6,
-    ax: 0.12,
-    ay: 0.07,
-    wx: 0.16,
-    wy: 0.24,
-    px: 4.0,
-    py: 2.2,
-    hue: 0.7,
-  },
-  {
-    x: -0.1,
-    y: -0.24,
-    rx: 0.12,
-    ry: 0.11,
-    rot: 0,
-    ax: 0.1,
-    ay: 0.07,
-    wx: 0.24,
-    wy: 0.2,
-    px: 1.0,
-    py: 5.0,
-    hue: 0.2,
-  },
-];
-
-/** t초의 블롭 상태를 uniform 배열 두 개에 채운다 */
-function blobState(t: number, pos: Float32Array, shape: Float32Array): void {
-  BLOBS.forEach((b, i) => {
-    const br = 1 + 0.05 * Math.sin(0.19 * t + b.px);
-    pos.set(
-      [
-        b.x + b.ax * Math.sin(b.wx * t + b.px),
-        b.y + b.ay * Math.cos(b.wy * t + b.py),
-        b.rx * br,
-        b.ry * br,
-      ],
-      i * 4,
-    );
-    shape.set([b.rot + 0.3 * Math.sin(0.12 * t + b.py), b.hue, 0, 0], i * 4);
-  });
-}
+/** 어두운 판의 따뜻한 먼지 색(호박·장미 사이) */
+const AMBER: Rgb = [0.86, 0.52, 0.36];
 
 /** CSS 변수의 색을 0..1 RGB로. 색 공간이 무엇이든 1×1 캔버스가 풀어 준다. */
 function readColor(host: HTMLElement, name: string, fallback: Rgb): Rgb {
@@ -293,10 +334,11 @@ const mixRgb = (x: Rgb, y: Rgb, t: number): Rgb => [
 function darkPalette(info: Rgb): Palette {
   return {
     dark: true,
-    base: mixRgb(DARK_INK, info, 0.035),
+    base: GROUND_DARK,
     a: info,
     b: mixRgb(info, VIOLET, 0.55),
     c: mixRgb(info, MAGENTA, 0.7),
+    warm: AMBER,
   };
 }
 
@@ -317,13 +359,13 @@ interface Uniforms {
   dpr: WebGLUniformLocation | null;
   time: WebGLUniformLocation | null;
   pan: WebGLUniformLocation | null;
+  k: WebGLUniformLocation | null;
   dark: WebGLUniformLocation | null;
   base: WebGLUniformLocation | null;
   a: WebGLUniformLocation | null;
   b: WebGLUniformLocation | null;
   c: WebGLUniformLocation | null;
-  blobA: WebGLUniformLocation | null;
-  blobB: WebGLUniformLocation | null;
+  warm: WebGLUniformLocation | null;
 }
 
 interface Gpu {
@@ -367,13 +409,13 @@ function build(gl: WebGLRenderingContext): Gpu | null {
       dpr: u("uDpr"),
       time: u("uTime"),
       pan: u("uPan"),
+      k: u("uK"),
       dark: u("uDark"),
       base: u("uBase"),
       a: u("uA"),
       b: u("uB"),
       c: u("uC"),
-      blobA: u("uBlobA"),
-      blobB: u("uBlobB"),
+      warm: u("uWarm"),
     },
   };
 }
@@ -404,8 +446,6 @@ export function Field({ view, onUnavailable }: Props) {
       return undefined;
     }
 
-    const blobA = new Float32Array(N * 4);
-    const blobB = new Float32Array(N * 4);
     let pal: Palette = LIGHT;
     const host = canvas.parentElement ?? document.body;
     const refreshColors = (): void => {
@@ -456,7 +496,8 @@ export function Field({ view, onUnavailable }: Props) {
       if (g === null || lost) return;
       const v = view.current;
       const motion = reducedMotion() ? 0 : 1;
-      const sig = `${v.x.toFixed(1)}|${v.y.toFixed(1)}`;
+      // 배율도 본다: 확대·축소만 해도 층마다 다르게 움직인다
+      const sig = `${v.x.toFixed(1)}|${v.y.toFixed(1)}|${v.k.toFixed(4)}`;
       if (sig !== last) {
         last = sig;
         dirty = true;
@@ -466,19 +507,18 @@ export function Field({ view, onUnavailable }: Props) {
       dirty = false;
       lastDraw = now;
       const t = ((now - t0) / 1000) * motion;
-      blobState(t, blobA, blobB);
       gl.useProgram(g.prog);
       gl.uniform2f(g.u.res, canvas.width, canvas.height);
       gl.uniform1f(g.u.dpr, dpr);
       gl.uniform1f(g.u.time, t);
       gl.uniform2f(g.u.pan, v.x, v.y);
+      gl.uniform1f(g.u.k, v.k);
       gl.uniform1f(g.u.dark, pal.dark ? 1 : 0);
       gl.uniform3f(g.u.base, ...pal.base);
       gl.uniform3f(g.u.a, ...pal.a);
       gl.uniform3f(g.u.b, ...pal.b);
       gl.uniform3f(g.u.c, ...pal.c);
-      gl.uniform4fv(g.u.blobA, blobA);
-      gl.uniform4fv(g.u.blobB, blobB);
+      gl.uniform3f(g.u.warm, ...pal.warm);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       fieldStats.draws += 1;
       if (now - fieldStats.since >= 1000) {

@@ -29,7 +29,10 @@ export function Canvas() {
     if (view !== "orbit") closeRing();
   }, [view, closeRing]);
   return (
-    <div className={`absolute inset-0 overflow-hidden bg-surface-base ${glOk ? "" : "wb5-paper"}`}>
+    <div
+      data-wb5-view={view}
+      className={`absolute inset-0 overflow-hidden bg-surface-base ${glOk ? "" : "wb5-paper"}`}
+    >
       {glOk && <Field view={bg} onUnavailable={noGl} />}
       {view === "orbit" ? (
         <Orbit

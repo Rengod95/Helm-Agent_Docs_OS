@@ -3,23 +3,43 @@
 @import "../_shell/shell.css";
 @import "./link.css";
 @import "./core.css";
+@import "./orbit-lines.css";
+@import "./glass.css";
 @source "./";
 
-/* WebGL을 못 쓸 때의 배경: 큰 원 두 개의 가장자리 빛만 CSS로 */
+/* WebGL을 못 쓸 때의 배경(field.tsx 셰이더 배경과 같은 바탕): 밝은 판은 페리윙클·진주 안개, 어두운 판은 깊은 우주.
+   안개는 아주 넓고 가장자리가 투명하게 사라진다(뚜렷한 단계 없음). 바탕 색은 field.tsx의 바탕과 같은 값이다. */
 .wb5-paper {
-  background-color: var(--cs-color-surface-base);
+  background-color: #f7f6fb;
   background-image:
     radial-gradient(
-      circle at 18% 6%,
-      transparent 52%,
-      color-mix(in oklab, var(--cs-color-info-graphic) 14%, transparent) 61%,
-      transparent 62%
+      ellipse 62% 50% at 22% 32%,
+      color-mix(in oklab, rgb(142 156 240) 14%, transparent),
+      transparent 100%
     ),
     radial-gradient(
-      circle at 96% 78%,
-      transparent 58%,
-      color-mix(in oklab, var(--cs-color-agent-graphic) 14%, transparent) 70%,
-      transparent 71%
+      ellipse 54% 46% at 82% 72%,
+      color-mix(in oklab, rgb(245 212 200) 22%, transparent),
+      transparent 100%
+    );
+}
+:root[data-theme="dark"] .wb5-paper {
+  background-color: #05060b;
+  background-image:
+    radial-gradient(
+      ellipse 62% 50% at 22% 32%,
+      color-mix(in oklab, rgb(70 110 230) 9%, transparent),
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 54% 46% at 82% 72%,
+      color-mix(in oklab, rgb(190 60 215) 7%, transparent),
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 46% 40% at 58% 8%,
+      color-mix(in oklab, rgb(124 76 255) 6%, transparent),
+      transparent 100%
     );
 }
 

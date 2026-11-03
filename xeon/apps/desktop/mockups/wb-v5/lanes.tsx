@@ -9,13 +9,11 @@ import {
   Card,
   Chip,
   IconButton,
-  Input,
   Popover,
   SectionHeader,
-  Separator,
   Tooltip,
 } from "@caustic/react";
-import { GripVertical, Lock, Plus, Terminal, X } from "../_shell";
+import { GripVertical, Lock, Plus, X } from "../_shell";
 import { T } from "../_shell/terms";
 import {
   CAPS,
@@ -23,7 +21,6 @@ import {
   FOLD_LABEL,
   FOLD_TIP,
   HOOKS,
-  LAYER_CODE,
   LEAD,
   OTHER_HOOKS,
   PHASES,
@@ -204,95 +201,16 @@ function Pop({
 
 function AddPop({ hook }: { hook: string }) {
   const m = useMock();
-  const [cmd, setCmd] = useState("");
-  const lane = m.order[hook] ?? [];
-  const rest = m.plugins.filter((p) => !lane.includes(p.id) && p.layer !== "L2");
   return (
-    <Pop
-      anchor={
-        <IconButton
-          size="sm"
-          variant="ghost"
-          label="추가"
-          className="border border-dashed border-border-strong"
-        >
-          <Plus />
-        </IconButton>
-      }
+    <IconButton
+      size="sm"
+      variant="ghost"
       label="추가"
+      className="border border-dashed border-border-strong"
+      onClick={() => m.openBuilder(hook)}
     >
-      {(close) => (
-        <>
-          {rest.length > 0 && (
-            <>
-              <div className="grid max-h-40 gap-0.5 overflow-y-auto">
-                {rest.map((p) => (
-                  <Button
-                    key={p.id}
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-between"
-                    onClick={() => {
-                      m.addToLane(hook, p.id);
-                      close();
-                    }}
-                  >
-                    <span className="truncate">{p.name}</span>
-                    <span className="flex-none text-footnote text-text-tertiary">
-                      {m.isOn(p.id) ? LAYER_CODE[p.layer] : "꺼짐"}
-                    </span>
-                  </Button>
-                ))}
-              </div>
-              <Separator variant="soft" />
-            </>
-          )}
-          <form
-            className="flex items-center gap-1.5"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const text = cmd.trim();
-              if (text === "") return;
-              m.create({ name: text, hook, template: null, command: text });
-              setCmd("");
-              close();
-            }}
-          >
-            <Input
-              size="xs"
-              prefix={<Terminal />}
-              aria-label="명령"
-              containerClassName="min-w-0 flex-1"
-              className="font-mono text-mono-sm"
-              value={cmd}
-              onValueChange={setCmd}
-            />
-            <Button
-              size="xs"
-              fieldHeight
-              variant="outline"
-              type="submit"
-              disabled={cmd.trim() === ""}
-            >
-              연결
-            </Button>
-          </form>
-          <Separator variant="soft" />
-          <Button
-            variant="ghost"
-            size="sm"
-            iconStart={<Plus />}
-            className="w-full justify-start"
-            onClick={() => {
-              m.openBuilder(hook);
-              close();
-            }}
-          >
-            새로 만들기
-          </Button>
-        </>
-      )}
-    </Pop>
+      <Plus />
+    </IconButton>
   );
 }
 
