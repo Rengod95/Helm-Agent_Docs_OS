@@ -267,6 +267,110 @@ test("the built-in read is still auto-allowed without a prompt (control for the 
   expect(probe.calls.map((call) => call.method)).toEqual(["read"]);
 });
 
+/** 활성화된 대체를 만든다. 승인은 사용자가 허용해 끝낸다 */
+async function activeReplacement(h: Harness, ran: string[]): Promise<void> {
+  expectOk(h.runtime.tools.register("acme-files/main", replacement("read", USER, ran)));
+  await advertiseNames(h);
+  await answer(h, "allow");
+  await until(() => h.runtime.tools.replacements()[0]?.status === "active");
+}
+
+// 저장소(project·local)가 적은 설정은 사용자가 쓴 것이 아니다. 그 설정으로 대체가 승인 없이 켜지면 안 된다(L1.tools.spec §4.13)
+test.each(["project", "local"] as const)(
+  "a %s-scope allow rule cannot auto-allow an active replacement",
+  async (scope) => {
+    const { h, probe } = await workspace();
+    const ran: string[] = [];
+    await activeReplacement(h, ran);
+    h.setLayers([
+      layer(
+        scope,
+        {
+          [TOOLS_SETTING_KEYS.rules]: [
+            {
+              id: "repo.allow-read",
+              action: "tool.call",
+              resource: { tool: "read" },
+              effect: "allow",
+            },
+          ],
+        },
+        `/repo/.fresnel/${scope === "local" ? "settings.local.json" : "settings.json"}`,
+      ),
+    ]);
+    const out = await callTool(h.runtime.tools, h.run({ interactive: false }), {
+      id: "r7",
+      name: "read",
+      args: { path: "a.txt" },
+    });
+    expect(out.blocked).toContain("noninteractive_ask_denied");
+    expect(ran).toEqual([]);
+    expect(probe.calls).toEqual([]);
+  },
+);
+
+test("the same repository allow still works for a built-in tool that is not replaced", async () => {
+  const { h, probe } = await workspace();
+  h.setLayers([
+    layer(
+      "project",
+      {
+        [TOOLS_SETTING_KEYS.rules]: [
+          {
+            id: "repo.allow-bash",
+            action: "tool.call",
+            resource: { tool: "bash" },
+            effect: "allow",
+          },
+        ],
+      },
+      "/repo/.fresnel/settings.json",
+    ),
+  ]);
+  const out = await callTool(h.runtime.tools, h.run({ interactive: false }), {
+    id: "r8",
+    name: "bash",
+    args: { command: "ls" },
+  });
+  expect(out.blocked).toBeUndefined();
+  expect(probe.calls.map((call) => call.method)).toEqual(["run"]);
+});
+
+test("a repository's bypass mode cannot auto-allow an active replacement", async () => {
+  const { h, probe } = await workspace();
+  const ran: string[] = [];
+  await activeReplacement(h, ran);
+  h.setLayers([
+    layer(
+      "project",
+      { [TOOLS_SETTING_KEYS.permissionMode]: "bypass" },
+      "/repo/.fresnel/settings.json",
+    ),
+  ]);
+  const out = await callTool(h.runtime.tools, h.run({ interactive: false }), {
+    id: "r9",
+    name: "read",
+    args: { path: "a.txt" },
+  });
+  expect(out.blocked).toContain("noninteractive_ask_denied");
+  expect(ran).toEqual([]);
+  expect(probe.calls).toEqual([]);
+});
+
+test("a bypass the user chose still lets an active replacement run", async () => {
+  const { h } = await workspace();
+  const ran: string[] = [];
+  await activeReplacement(h, ran);
+  h.setLayers([layer("user", { [TOOLS_SETTING_KEYS.permissionMode]: "bypass" })]);
+  const out = await callTool(h.runtime.tools, h.run({ interactive: false }), {
+    id: "r10",
+    name: "read",
+    args: { path: "a.txt" },
+  });
+  expect(out.blocked).toBeUndefined();
+  expect(ran).toEqual(["read"]);
+});
+
 test("a second extension replacing the same tool is a conflict error and the first is untouched", async () => {
   const { h } = await workspace();
   expectOk(h.runtime.tools.register("acme-files/main", replacement("read", USER, [])));

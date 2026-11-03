@@ -6,13 +6,23 @@ import {
   type TieredRule,
 } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
-import { layerValue, TOOLS_SETTING_KEYS } from "../settings.ts";
+import { layerValue, REPOSITORY_SCOPES, TOOLS_SETTING_KEYS } from "../settings.ts";
 import { builtinRules, loadableRules, validateRules } from "./rules.ts";
 
 // L1.tools.spec §4.5 티어와 규칙 출처. default는 내장 규칙과 registerRules(policy/core-rules.ts), user·managed는 설정이다.
 // extension 티어는 평가기가 순위로 다루지만 규칙을 넣는 경로(매니페스트 선언)는 2차다(§4.11).
 
 const BUILTIN_RULE_SOURCE = "core:tools";
+
+/**
+ * 저장소가 적을 수 있는 범위(project·local)에서 온 규칙 출처인가. 출처는 `settings:<범위>[:<경로>]`(아래 `collectRules`)다.
+ * 티어는 `user`로 같지만 이 출처의 allow는 대체 항목의 평가에서 빠진다(engine.ts `evaluateReplacement`)
+ */
+export function isRepositorySource(source: string): boolean {
+  return REPOSITORY_SCOPES.some(
+    (scope) => source === `settings:${scope}` || source.startsWith(`settings:${scope}:`),
+  );
+}
 
 interface RuleSourceIssue {
   /** 규칙이 나온 출처. 예: "settings:user" */

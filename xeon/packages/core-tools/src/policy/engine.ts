@@ -10,6 +10,7 @@ import {
   type TieredRule,
 } from "@fresnel/contracts/services";
 import { globMatches, isJsonObject, tryRegExp } from "../util.ts";
+import { isRepositorySource } from "./tiers.ts";
 import { DEFAULT_RULE_PRIORITY } from "./rules.ts";
 import { modeDefault } from "./modes.ts";
 
@@ -235,4 +236,23 @@ export function demoteReplacementAllow(
       : decision.reason === "mode" && input.mode !== "bypass";
   if (!fromDefault) return decision;
   return finish({ ...decision, effect: "ask" }, input);
+}
+
+/**
+ * 저장소(project·local)가 적은 allow 규칙을 뺀 목록. 저장소의 allow는 `user` 티어로 들어오지만 사용자가 쓴 것이 아니라서
+ * 대체 항목을 승인 없이 켜지 못한다. 사용자·managed의 allow와 저장소의 deny·ask는 그대로 남는다(L1.tools.spec §4.13)
+ */
+function withoutRepositoryAllow(rules: readonly TieredRule[]): readonly TieredRule[] {
+  return rules.filter((rule) => rule.effect !== "allow" || !isRepositorySource(rule.source));
+}
+
+/**
+ * 내장 도구를 대체한 항목의 정책 판정(L1.tools.spec §4.13). 저장소의 allow를 빼고 평가한 뒤 기본 허용 배제(`demoteReplacementAllow`)를 건다.
+ * 대체가 아닌 항목은 `evaluatePolicy`를 그대로 쓴다
+ */
+export function evaluateReplacement(
+  input: PolicyInput,
+  rules: readonly TieredRule[],
+): PolicyDecision {
+  return demoteReplacementAllow(evaluatePolicy(input, withoutRepositoryAllow(rules)), input);
 }
