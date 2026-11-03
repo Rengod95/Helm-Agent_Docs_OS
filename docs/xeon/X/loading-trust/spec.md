@@ -1083,6 +1083,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - [제안: X-8] 교체할 때 `history`가 있으면 이전 설치본을 교체 전에, 새 번들 버전을 교체 뒤에 버전 기록에 남긴다(§4.4.8). 첫 설치(`installed`)는 기록하지 않는다. `history`가 없으면 동작은 이전과 같다.
 - 임시 디렉터리는 확장 탐색 디렉터리 밖인 `<userDir>/.staging/<이름>.new`·`.old`다(대상과 같은 파일 시스템, `stagingRoot`로 바꿀 수 있다). 탐색은 점으로 시작하는 디렉터리를 건너뛰므로 남은 흔적이 `name_conflict`를 일으키지 않는다. 교체는 이전 설치본을 `.old`로 옮기고, 새 복사본을 대상으로 옮기고, `.old`를 지운다. 새 복사본을 옮기다 실패하면 `.old`를 되돌린다. 시작할 때 `.new`를 지우고, 대상이 없는데 `.old`가 있으면(교체 도중 끊김) 이전 설치본을 되돌린 뒤 버전을 비교한다. 번들 매니페스트가 없거나 잘못되면 `source_invalid`다(릴리즈 결함).
 - [결정: A5 T-H] 사용자가 설치본을 직접 지우면 다시 설치하지 않는다. "이미 설치한 적 있음" 표지는 조립 루트(L4 host)가 호스트 상태 디렉터리의 `default-plugins.json`(`{ schemaVersion: 1, installed: { <이름>: <버전> } }`)에 둔다. X의 `installDefaultPlugin`은 표지를 모르고 번들·설치본 버전만 비교한다. 조립 루트는 표지에 이름이 있고 대상 디렉터리가 없으면 `installDefaultPlugin`을 부르지 않는다(`removed_by_user`). 표지 파일까지 지우면 새로 설치한다. 표지는 설치나 갱신에 성공했을 때만 쓴다(`kept`는 설치본 버전을 적는다). 손상된 표지는 비운 것으로 보고 경고한다.
+- 번들 판 읽기: `readBundleManifest(fs, bundleDir)`는 위 설치와 같은 매니페스트 읽기와 검증으로 번들의 `{ version, manifestText }`를 돌려준다. 매니페스트가 없거나 검증에 실패하면 `null`이고, 읽기 실패만 `io` 오류다. L4 host가 버전 목록의 `bundledVersion`과 되돌리기 전 번들 판 기록에 쓴다(HS-108).
 
 #### 4.4.8 버전 기록과 되돌리기 [제안: X-8, M4 T-XV, 제품 결정 수락]
 
@@ -1443,7 +1444,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `ProjectTrustResult`, `TrustPrompter`·`TrustPromptRequest`·`TrustChoice`(F 이름 재export) | L4.cli.spec, L4.desktop.spec(프롬프트 구현) |
 | `TrustStoreBackend`, `LoaderFs`, `LoaderPaths`(F 이름 재export) | L0.os.spec(구현) |
 | `IsolationProcessPort`, `IsolatedChild`(F 이름 재export) | L0.process.spec(구현) |
-| `registerSdkModules`, `SDK_MODULE_SPECIFIERS`, `SdkModules`, `installDefaultPlugin`, `PluginInstallFs` | L4.host-service.spec(조립 루트가 `LoaderDeps.sdkModules`와 첫 실행 설치에 사용) |
+| `registerSdkModules`, `SDK_MODULE_SPECIFIERS`, `SdkModules`, `installDefaultPlugin`, `readBundleManifest`, `BundleManifest`, `PluginInstallFs` | L4.host-service.spec(조립 루트가 `LoaderDeps.sdkModules`와 첫 실행 설치에 사용, `readBundleManifest`는 버전 목록의 번들 판을 읽는 데 사용) |
 | `createVersionHistory`, `VersionHistory`, `VersionHistoryDeps`, `VersionHistoryFs`, `VersionHistoryError`, `VersionListing`, `VersionRecordOutcome`, `VersionSkipReason`, `VersionSource`, `RecordVersionInput`, `RollbackHooks`, `RollbackReloadOutcome`, `RollbackVersionInput` | L4.host-service.spec(조립 루트가 `VersionHistoryFs`를 node:fs로 구현해 `installDefaultPlugin`의 `history`와 `ext.versions`·`ext.rollback` 처리기에 넘긴다), L4.desktop-ux.spec(W-31, O-11, §6.24.1) |
 | 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, 키 `x.loading-trust.*` | F.wire-settings.spec, L4.settings-ui.spec, L3.readme |
 | 키 `x.ui.apps`, `x.ui.allowProjectApps`(`uiSettings`) | L4.settings-ui.spec(설정 화면 "플러그인" 탭), L4.host-service.spec(조립 루트가 카탈로그에 더하고 `LoadOptions.uiPolicy`에 넘긴다) |

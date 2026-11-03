@@ -13,6 +13,7 @@ import {
   type VersionHistoryFs,
   type VersionSource,
 } from "@fresnel/ext-host";
+import type { BundledPluginVersion } from "../../src/assembly/default-plugins.ts";
 import { createExtUiVersionPort } from "../../src/assembly/m4/ext-ui-version-port.ts";
 import type { ExtUiVersionSource } from "../../src/assembly/m4/ext-ui-version-source.ts";
 import type { ExtUiVersionPort } from "../../src/handlers/m4/ext-ui-version.ts";
@@ -179,6 +180,8 @@ interface RigOptions {
   readonly reset?: HostView["resetRegistrationState"];
   /** 참이면 끄기 요청이 던진다 */
   readonly disableFails?: boolean;
+  /** 앱에 든 기본 플러그인(helm)의 번들 판. 생략하면 번들이 없다 */
+  readonly bundled?: BundledPluginVersion;
   /** 로더의 다시 읽기. 생략하면 바로 적용되고 비운 상태가 없다 */
   readonly reload?: (
     name: string,
@@ -258,6 +261,7 @@ function rigOf(options: RigOptions): Rig {
     extensionsDir: EXT_DIR,
     heldThreads: () => options.threads ?? [],
     stateSchemaVersion: () => options.schema ?? null,
+    bundle: (name) => Promise.resolve(name === "helm" ? (options.bundled ?? null) : null),
   };
   return { port: createExtUiVersionPort({ extUi: source }), history, nodes, fs, faults, calls };
 }
@@ -855,4 +859,149 @@ test("uiRequestApproval returns the approval id and rejects a malformed thread i
     }),
   ).toEqual({ ok: false, error: { kind: "unknown_thread", threadId: "not-a-thread" } });
   expect(rig.calls).toEqual(["approve thr_01HZZZZZZZZZZZZZZZZZZZZZZZ helm/panel/apply"]);
+});
+
+describe("ext-ui-version port: bundled version", () => {
+  const BUNDLED_DIR = join(BUNDLE_DIR, "helm");
+  const bundledHelm = (version: string): BundledPluginVersion => ({
+    version,
+    manifestText: manifestOf("helm", version),
+    dir: BUNDLED_DIR,
+  });
+
+  test("versions carries the bundled version of a default plugin and no field for other extensions", async () => {
+    const rig = rigOf({
+      infos: [
+        loaded("helm", "active", "user", "0.2.0"),
+        loaded("notes", "active", "user", "0.1.0"),
+      ],
+      bundled: bundledHelm("0.1.0"),
+    });
+    await record(rig, "helm", "0.2.0", "user", null);
+    expect(await rig.port.versions("helm")).toEqual(
+      ok({
+        versions: [
+          {
+            version: "0.2.0",
+            installedAt: new Date(BASE_MS + 1000).toISOString(),
+            source: "user",
+            manifestHash: "hash",
+            stateSchemaVersion: null,
+            current: true,
+          },
+        ],
+        bundledVersion: "0.1.0",
+      }),
+    );
+    expect(await rig.port.versions("notes")).toEqual(ok({ versions: [] }));
+  });
+
+  test("rolling back to the bundled version records it as bundled, then swaps the files", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "error", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      bundled: bundledHelm("0.1.0"),
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await writeInstall(rig.fs, BUNDLED_DIR, "helm", "0.1.0");
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      ok({ appliesAt: "restart", stateCleared: false }),
+    );
+    expect(rig.calls).toEqual(["disable helm/main", "enable helm/main"]);
+    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
+      kind: "file",
+      text: 'export const version = "0.1.0";\n',
+    });
+    const listing = await rig.history.list("helm", "0.1.0");
+    expect(listing).toEqual(
+      ok({
+        versions: [
+          {
+            version: "0.2.0",
+            installedAt: new Date(BASE_MS + 2000).toISOString(),
+            source: "user",
+            manifestHash: "hash",
+            stateSchemaVersion: null,
+            current: false,
+          },
+          {
+            version: "0.1.0",
+            installedAt: new Date(BASE_MS + 1000).toISOString(),
+            source: "bundled",
+            manifestHash: "hash",
+            stateSchemaVersion: null,
+            current: true,
+          },
+        ],
+        skipped: [],
+      }),
+    );
+  });
+
+  test("a bundled version already in the history is not recorded again", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "error", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      bundled: bundledHelm("0.1.0"),
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await writeInstall(rig.fs, BUNDLED_DIR, "helm", "0.1.0");
+    await record(rig, "helm", "0.1.0", "bundled", null);
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      ok({ appliesAt: "restart", stateCleared: false }),
+    );
+    const listing = await rig.history.list("helm", "0.1.0");
+    expect(listing.ok ? listing.value.versions.map((entry) => entry.version) : null).toEqual([
+      "0.2.0",
+      "0.1.0",
+    ]);
+  });
+
+  test("rolling back to the bundled version that is already installed is unknown_version and changes nothing", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "error", "user", "0.1.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      bundled: bundledHelm("0.1.0"),
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.1.0");
+    await writeInstall(rig.fs, BUNDLED_DIR, "helm", "0.1.0");
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      err({ kind: "unknown_version", version: "0.1.0" }),
+    );
+    expect(rig.calls).toEqual([]);
+    const listing = await rig.history.list("helm", "0.1.0");
+    expect(listing.ok ? listing.value.versions : null).toEqual([]);
+  });
+
+  test("a builtin extension is still refused even when a bundled version is named", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "active", "builtin", "0.2.0")],
+      bundled: bundledHelm("0.1.0"),
+    });
+    expect(await rig.port.versions("helm")).toEqual(ok({ versions: [] }));
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      err({ kind: "history_unavailable", reason: "builtin extension has no version history" }),
+    );
+  });
+
+  test("a bundle that cannot be copied fails the record as io and leaves the install alone", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "error", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      bundled: bundledHelm("0.1.0"),
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      err({ kind: "io", code: "io" }),
+    );
+    expect(rig.calls).toEqual([]);
+    expect(rig.nodes.get(join(EXT_DIR, "helm", "dist", "index.js"))).toEqual({
+      kind: "file",
+      text: 'export const version = "0.2.0";\n',
+    });
+  });
 });

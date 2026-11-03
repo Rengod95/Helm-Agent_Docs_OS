@@ -116,7 +116,7 @@ import type {
 | `uiSettings` | `defineSettings` 결과 | X.loading-trust.spec §3.10, §6 |
 | `resolveAppFile`, `AppFileResult` | 함수, 타입 | X.loading-trust.spec §3.10 |
 | `UiItemReport`, `UiEntryReport`, `UiIssue` | 인터페이스 | X.loading-trust.spec §3.10 |
-| `installDefaultPlugin`, `DefaultPluginInstallInput`, `DefaultPluginInstallOutcome`, `DefaultPluginInstallError`, `PluginInstallFs`, `SDK_MODULE_SPECIFIERS`, `SdkModules` | 함수, 인터페이스, 타입, 상수 | X.loading-trust.spec §3.9 |
+| `installDefaultPlugin`, `readBundleManifest`, `DefaultPluginInstallInput`, `DefaultPluginInstallOutcome`, `DefaultPluginInstallError`, `BundleManifest`, `PluginInstallFs`, `SDK_MODULE_SPECIFIERS`, `SdkModules` | 함수, 인터페이스, 타입, 상수 | X.loading-trust.spec §3.9 |
 | `createVersionHistory`, `VersionHistory`, `VersionHistoryDeps`, `VersionHistoryFs`, `VersionHistoryError`, `VersionListing`, `VersionRecordOutcome`, `VersionSkipReason`, `VersionSource`, `RecordVersionInput`, `RollbackHooks`, `RollbackReloadOutcome`, `RollbackVersionInput` | 함수, 인터페이스, 타입 | X.loading-trust.spec §3.11 |
 | `StartupOptions`, `SafeModeSource`, `NO_STARTUP_OPTIONS`, `shouldSuggestSafeMode` | 인터페이스, 타입, 상수, 함수 | X.operations.spec §3.6 |
 | `ProjectTrustResult`, `ResolveProjectTrustInput`, `ProjectTrustStore`, `createProjectTrustStore`, `resolveProjectTrust`, `findTrustRequiringResources`, `TRUST_REQUIRING_PROJECT_RESOURCES`, `trustOptions`, `TrustLookup`, `TrustStoreError`, `TrustVerdict`, `TrustVia`, `LoaderMode` | 인터페이스, 함수, 상수, 타입 | X.loading-trust.spec §3.7 |

@@ -570,9 +570,15 @@ const VersionEntryShape = closed({
 });
 export interface ExtVersionsResult {
   readonly versions: readonly ExtVersionEntry[];
+  /**
+   * 이 확장의 판이 앱에 든 기본 플러그인 번들의 판(HS-108). 기본 플러그인이 아니거나 번들이 없거나 읽지 못하면 없다.
+   * 설치본 판과 다를 때 버전 탭이 "앱에 든 버전" 행으로 되돌리기를 보인다
+   */
+  readonly bundledVersion?: string;
 }
 const ExtVersionsResultShape2 = closed({
   versions: Type.Array(VersionEntryShape, { maxItems: 100 }),
+  bundledVersion: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
 });
 export const ExtVersionsResultSchema: TUnsafe<ExtVersionsResult> = Type.Unsafe<ExtVersionsResult>(
   ExtVersionsResultShape2 satisfies SchemaProof<ExtVersionsResult, typeof ExtVersionsResultShape2>,

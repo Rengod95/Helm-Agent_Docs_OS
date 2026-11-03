@@ -3,7 +3,12 @@ import { dirname, join } from "node:path";
 import { attemptAsync, parse, parseJson, type Logger } from "@fresnel/contracts";
 import type { AgentDefinition } from "@fresnel/contracts/services";
 import { parseDefinitionFile } from "@fresnel/core-agents";
-import { installDefaultPlugin, type PluginInstallFs, type VersionHistory } from "@fresnel/ext-host";
+import {
+  installDefaultPlugin,
+  readBundleManifest,
+  type PluginInstallFs,
+  type VersionHistory,
+} from "@fresnel/ext-host";
 import { Type } from "typebox";
 
 // X.loading-trust.spec §4.4.7. 릴리즈에 든 기본 플러그인(Helm)을 첫 실행에 사용자 확장 위치로 복사한다. 조립 루트 코드(DR-14 예외 2).
@@ -222,6 +227,32 @@ export async function installDefaultPlugins(
     }
   }
   return outcomes;
+}
+
+/** 앱에 든 기본 플러그인 번들 한 판. `dir`은 번들의 설치 원본 디렉터리다(버전 기록이 여기서 복사한다) */
+export interface BundledPluginVersion {
+  readonly version: string;
+  readonly manifestText: string;
+  readonly dir: string;
+}
+
+/**
+ * 앱에 든 기본 플러그인 번들의 판(`<bundleDir>/<이름>`, HS-108). 번들이 없거나 매니페스트가 없거나 검증에 실패하면 null이다.
+ * 읽기 실패는 null로 보되 경고를 남긴다(버전 탭은 번들 판이 없는 것과 같이 그린다)
+ */
+export async function bundledPluginVersionOf(
+  bundleDir: string,
+  name: string,
+  logger: Logger,
+): Promise<BundledPluginVersion | null> {
+  const dir = join(bundleDir, name);
+  const read = await readBundleManifest(nodeInstallFs, dir);
+  if (!read.ok) {
+    logger.warn("default_plugins.bundle_unreadable", { name, path: dir });
+    return null;
+  }
+  if (read.value === null) return null;
+  return { version: read.value.version, manifestText: read.value.manifestText, dir };
 }
 
 /**

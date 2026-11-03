@@ -140,6 +140,15 @@ describe("M4 ext read methods", () => {
       ],
     };
     roundTrip(WIRE_METHODS["ext.versions"].result, versions);
+    // 기본 플러그인의 번들 판은 선택 필드다. 있으면 그대로 오가고, 문자열이 아니면 거절한다
+    roundTrip(WIRE_METHODS["ext.versions"].result, { ...versions, bundledVersion: "1.0.1" });
+    roundTrip(WIRE_METHODS["ext.versions"].result, { versions: [], bundledVersion: "1.0.1" });
+    expect(
+      parse(WIRE_METHODS["ext.versions"].result, { versions: [], bundledVersion: 101 }).ok,
+    ).toBe(false);
+    expect(
+      parse(WIRE_METHODS["ext.versions"].result, { versions: [], bundledVersions: "1.0.1" }).ok,
+    ).toBe(false);
     expect(
       parse(WIRE_METHODS["group.metrics"].result, { id: "g", metrics: null, since: null }).ok,
     ).toBe(true);

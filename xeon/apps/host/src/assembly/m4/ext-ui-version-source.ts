@@ -1,6 +1,7 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { Clock } from "@fresnel/contracts";
 import type { ExtHost, ExtensionLoader, VersionHistory } from "@fresnel/ext-host";
+import type { BundledPluginVersion } from "../default-plugins.ts";
 import { createExtUiVersionHistory } from "./ext-ui-version-fs.ts";
 
 // 확장 버전과 화면 목록(T-XV, HS-108)이 읽는 원천. 조립 루트(assemble.ts)가 만들어 엔진 포트에 넘긴다.
@@ -19,6 +20,11 @@ export interface ExtUiVersionSource {
   readonly heldThreads: () => readonly ThreadId[];
   /** 지금 설치본의 상태 스키마 버전. 모르면 null이고, 그때 되돌리기는 스키마를 검사하지 않는다 */
   readonly stateSchemaVersion: (name: string) => number | null;
+  /**
+   * 앱에 든 기본 플러그인 번들의 판(HS-108). 기본 플러그인 이름만 번들이 있고, 그 밖의 이름이나 번들이 없으면 null이다.
+   * 버전 목록의 `bundledVersion`과 되돌리기의 "앱에 든 버전" 기록이 쓴다
+   */
+  readonly bundle: (name: string) => Promise<BundledPluginVersion | null>;
 }
 
 /** 조립 루트가 넘기는 재료. 버전 기록은 여기서 만든다 */
@@ -28,6 +34,7 @@ export function createExtUiVersionSource(input: {
   readonly clock: Clock;
   readonly loader: ExtUiVersionSource["loader"];
   readonly heldThreads: ExtUiVersionSource["heldThreads"];
+  readonly bundle: ExtUiVersionSource["bundle"];
 }): ExtUiVersionSource {
   return {
     host: input.host,
@@ -35,6 +42,7 @@ export function createExtUiVersionSource(input: {
     history: createExtUiVersionHistory({ extensionsDir: input.extensionsDir, clock: input.clock }),
     extensionsDir: input.extensionsDir,
     heldThreads: input.heldThreads,
+    bundle: input.bundle,
     // ext-host는 상태 스키마 버전을 밝히지 않는다(StateDecl.version은 등록 정의 안에만 있다). X.loading-trust §10 24번 [미결]
     stateSchemaVersion: () => null,
   };
