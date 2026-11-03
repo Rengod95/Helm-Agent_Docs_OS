@@ -18,7 +18,12 @@ if [[ ! -x "$guard" ]]; then
 fi
 timeout_sec="${FRESNEL_TEST_TIMEOUT_SEC:-300}"
 limit=()
-if command -v timeout >/dev/null 2>&1; then limit=(timeout "$timeout_sec"); fi
+if command -v timeout >/dev/null 2>&1; then
+  limit=(timeout "$timeout_sec")
+else
+  # macOS has no timeout(1): the guard's supervisor (scripts/guard-supervise.pl) holds the limit and ends the whole process group (exit 124)
+  export WS_GUARD_TIMEOUT_SEC="$timeout_sec"
+fi
 
 case "$(basename "$PWD")" in
   desktop) bash ../../scripts/ensure-sidecar.sh ;;

@@ -26,6 +26,11 @@ setup:
 caustic-update:
     cd xeon && just caustic-update
 
+# 부모가 사라진 시험·모니터 프로세스 목록(읽기 전용): 나이와 worktree. --reap은 이 저장소 worktree의 것만 멈추되 --yes 없이는 종료코드 3 (scripts/orphans.sh)
+[group('local')]
+orphans *flags:
+    scripts/orphans.sh {{flags}}
+
 # Fresnel 포매팅 적용 (oxfmt)
 [group('quality')]
 fmt:

@@ -63,8 +63,9 @@ if [[ "$run_scripts" == true ]]; then
   status=0
   started=$SECONDS
   limit=()
-  if command -v timeout >/dev/null 2>&1; then limit=(timeout "$timeout_sec"); fi
-  (cd "$root" && "$guard" run -- ${limit[@]+"${limit[@]}"} mise exec -- bun test scripts ${scripts_args[@]+"${scripts_args[@]}"}) 2>&1 | tee "$log" || status=$?
+  guard_env=()
+  if command -v timeout >/dev/null 2>&1; then limit=(timeout "$timeout_sec"); else guard_env=(WS_GUARD_TIMEOUT_SEC="$timeout_sec"); fi
+  (cd "$root" && env ${guard_env[@]+"${guard_env[@]}"} "$guard" run -- ${limit[@]+"${limit[@]}"} mise exec -- bun test scripts ${scripts_args[@]+"${scripts_args[@]}"}) 2>&1 | tee "$log" || status=$?
   echo "test-capped: time $((SECONDS - started))s (scripts)" >&2
   count="$(sed -nE 's/^ *([0-9]+) skip$/\1/p' "$log" | tail -1)"
   skipped=$((skipped + ${count:-0}))
@@ -78,7 +79,8 @@ if [[ ${#filters[@]} -gt 0 ]]; then
   echo "== packages (turbo, cache $TURBO_CACHE_DIR)"
   status=0
   started=$SECONDS
-  mise exec -- bun run turbo run test "${filters[@]}" --concurrency="$concurrency" --continue --log-prefix=task --output-logs=full 2>&1 | tee "$log" || status=$?
+  # guard.sh group: turbo and every test process below it are one supervised group, so a kill or the death of this script ends them all
+  "$guard" group -- mise exec -- bun run turbo run test "${filters[@]}" --concurrency="$concurrency" --continue --log-prefix=task --output-logs=full 2>&1 | tee "$log" || status=$?
   hit="$(grep -cE '^[^ ]+:test: cache hit' "$log" || true)"
   miss="$(grep -cE '^[^ ]+:test: cache (miss|bypass)' "$log" || true)"
   echo "test-capped: packages: $hit cached, $miss ran, $((SECONDS - started))s" >&2
