@@ -99,6 +99,10 @@ export {
   type ExtMethodResourceDef,
   type ExtMethodSettled,
   type ExtMethods,
+  type ExtUi,
+  type ExtUiApprovalInput,
+  type ExtUiPostInput,
+  type ExtUiRefusal,
   // primitives §3.9, §3.10, §6
   type RegistrationInfo,
   PrimitiveError,
