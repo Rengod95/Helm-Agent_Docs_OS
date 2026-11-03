@@ -619,6 +619,20 @@ describe("M2 method schemas are written out", () => {
     expect(parse(result, { ...base, suggestSafeMode: "yes" }).ok).toBe(false);
   });
 
+  test("host.status carries waitingApprovals only when at least one approval is pending", () => {
+    const { result } = WIRE_METHODS["host.status"];
+    const base = {
+      mode: "service",
+      pid: 10,
+      startedAt: "2026-10-21T00:00:00.000Z",
+      connections: 1,
+      liveTurns: 0,
+      idleShutdownAt: null,
+    };
+    expect(parse(result, { ...base, waitingApprovals: 2 }).ok).toBe(true);
+    expect(parse(result, { ...base, waitingApprovals: 0 }).ok).toBe(false);
+  });
+
   test("host.status asks for the external binary check only when includeBinaries is true", () => {
     const { params } = WIRE_METHODS["host.status"];
     expect(parse(params, {}).ok).toBe(true);
