@@ -111,7 +111,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   2. 외부 도구 점검 결과를 봅니다. 필수 도구가 없으면 설치 안내를 봅니다.
   3. provider를 고르고 키를 등록합니다. 값은 화면 안 등록 창으로 넣습니다(`L4.desktop.spec` §4.14.1).
   4. 기본 모델을 고릅니다.
-  5. 검색 권장 카드에서 SearXNG 주소를 넣거나 Exa·Brave 키 플러그인을 고르거나 "나중에"를 누릅니다.
+  5. 검색 권장 카드에서 Exa·Brave 키 플러그인을 고르거나 "나중에"를 누릅니다. [결정: 2026-11-04 사용자 B15] SearXNG 주소 입력은 없습니다.
   6. "대화 시작"을 누르면 새 대화 시트(O-07)가 열립니다.
 - 거치는 화면: P-01, O-07, P-02
 - 성공 기준: `readyToChat`이 참이 되고, 첫 대화가 열리고, 입력창 잠금이 풀립니다. "나중에"를 누르면 `l4.desktop.firstRun.searchHintDismissed`가 참으로 저장됩니다.
@@ -896,8 +896,6 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 ││                                                                                            │  │
 ││ 지금 쓰는 검색: 내장 검색(모델 provider)   비용: 검색마다 과금                             │  │
 ││                                                                                            │  │
-││ SearXNG 주소  [http://localhost:8888          ]  [확인]   상태: 연결 안 됨                 │  │
-││                                                                                            │  │
 ││ 권장 키 플러그인                                                                           │  │
 ││   Exa     plugin:web-exa     키 없음       [설치]  [키 등록]                               │  │
 ││   Brave   plugin:web-brave   설치 안 됨    [설치]                                          │  │
@@ -923,7 +921,6 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 키 등록 | `secret.beginEntry { name, action }` → `started: false`면 화면 안 등록 창, 저장은 셸 IPC `secret_register`(`submitKey`) |
 | provider에 연결 | `settings.set { key: "l1.models.providers", value: withProviderKey(...), scope: "user" }` |
 | 기본 모델 저장 | `settings.set { key: "l1.models.default", value, scope: "user" }`. 거절(3102)은 host 문장 그대로 |
-| SearXNG 주소 | `settings.set { key: "l2.web.search.searxng.url" }` 뒤 `web.providers` 다시 읽기 |
 | 권장 플러그인 설치 | `[gap:W-15]` 플러그인 설치 wire가 없습니다. M4는 "설치 방법 보기" 링크와 CLI 명령 복사로 둡니다 [제안] |
 | 나중에 | `l4.desktop.firstRun.searchHintDismissed = true` (데스크톱 로컬 설정 `[gap:V-14]`) |
 | 대화 시작 | O-07 새 대화 |
@@ -1755,11 +1752,11 @@ compact 폭(720 이하)과 사이드바 시트:
 │ 대화               2 │ 설정                 │ 도구와 웹 / 검색                          [저장] │
 │ 받은 요청          5 │ [키 찾기...     ]    │ provider [자동 v]  병렬 [1 v]  robots [안 따름 v]│
 │ 제안               3 │                      │ 순서 (끌거나 ⌥^ ⌥v)                              │
-│ 예약              !1 │ 개요                 │ 1 :: SearXNG     쓸 수 있음  무료    현재        │
-│ 연결                 │ 모델                 │ 2 :: 내장 검색   쓸 수 있음  유료                │
-│──────────────────────│ 예산과 한도          │ 3 :: Exa         키 없음     2026-08             │
-│ ~/code/fresnel      [+] │ 계정과 제공자        │ 4 :: Brave       연결 안 됨  가격 오래됨         │
-│>캐시 무효화 조사   * │ 시크릿                 │ SearXNG 주소 [http://localhost:8888  ]           │
+│ 예약              !1 │ 개요                 │ 1 :: 내장 검색   쓸 수 있음  유료    현재        │
+│ 연결                 │ 모델                 │ 2 :: Exa         키 없음     2026-08             │
+│──────────────────────│ 예산과 한도          │ 3 :: Brave       연결 안 됨  가격 오래됨         │
+│ ~/code/fresnel      [+] │ 계정과 제공자        │                                                  │
+│>캐시 무효화 조사   * │ 시크릿                 │                                                  │
 │  테스트 정리   승인1 │ 권한                 │──────────────────────────────────────────────────│
 │  빌드 실패 분석      │ 샌드박스             │ 브라우저                                         │
 │  예약: 매일 정리   ! │ 대화와 컨텍스트      │ 1 :: playwright-mcp  쓸 수 있음   현재           │
@@ -1790,7 +1787,6 @@ compact 폭(720 이하)과 사이드바 시트:
 |---|---|
 | 순서 바꾸기 | `moveInOrder(ids, from, to)` → `orderUpdateOf(capability, ids, known)` → `settings.set { key: "l2.web.search.order" | "l2.web.browse.order" }` |
 | provider 고정 | `settings.set { key: "l2.web.search.provider" }` |
-| SearXNG 주소 | `settings.set { key: "l2.web.search.searxng.url" }` 뒤 `web.providers` 다시 읽기 |
 | 키 등록 | P-10 추가(이름 `exa-api-key`, `brave-api-key`)로 이동 |
 
 - 상태
@@ -2538,7 +2534,7 @@ sequenceDiagram
   V->>H: settings.set(l1.models.default)
   H-->>V: settings.invalidated
   V->>H: settings.get (readyToChat 참)
-  U->>V: 검색 권장 "나중에" 또는 SearXNG 주소
+  U->>V: 검색 권장 "나중에" 또는 키 플러그인 등록
   U->>V: 대화 시작
   V->>U: O-07 새 대화 → P-02
 ```

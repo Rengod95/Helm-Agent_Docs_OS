@@ -102,7 +102,7 @@ xeon/packages/client/test/web/
 | U9 | `SecretsTab`: 목록, 추가, 값 보기, 메타 편집, 사용 이력, 정책 편집, 삭제(참조 표시). 값 입력·열람은 `openSecretFlow` 포트로만. M2는 명령 안내만 | `views/SecretsTab.*`, `index.ts` | U7, 시크릿 입력 경로 미결 해소(spec §10 미결 2, 3), `L0.secrets.plan`의 관리 흐름 | L | M3 |
 | U10 | 탭별 전용 편집기: 모델 역할 표, 폴백 체인, 권한 규칙 편집기, 샌드박스 경로·도메인 목록, 계정 풀(`_research/settings.md` §5 "UI 필요" 항목). 각 편집기는 일반 렌더러 위에 얹고 키 하나를 통째로 쓴다 | `views/editors/*` | U7, 소유 층의 키 정의(`L1.models.spec`, `L1.tools.spec`, `L0.sandbox.spec`) | L | M3 |
 | U11 | 게이지 자리: budgets·providers 탭의 `GaugeSlotVM`(`unavailable`)과 문구 | `model/group-by-tab.ts`, `views/TabPage.*` | U7 | S | M3 |
-| U13 | 첫 실행 권장 화면(spec §4.10): provider 상태, SearXNG 주소 입력, 권장 목록과 키 등록 버튼(C안). "다시 보지 않음"은 desktop 로컬 값 | `model/first-run.ts`, `views/FirstRun.*` | U7, U9(키 등록 경로), `L2.web.spec` provider 설정 키 | S | M3 |
+| U13 | 첫 실행 권장 화면(spec §4.10): provider 상태, SearXNG 주소 입력(삭제됨 2026-11-04, B15), 권장 목록과 키 등록 버튼(C안). "다시 보지 않음"은 desktop 로컬 값 | `model/first-run.ts`, `views/FirstRun.*` | U7, U9(키 등록 경로), `L2.web.spec` provider 설정 키 | S | M3 |
 | U12 | 접근성 점검: 탭 키보드 조작, 접근 이름(`ui.label`), 오류 설명 연결, 상태 영역, 대비 4.5:1·3:1, 잠긴 항목 읽기. 점검표를 완료 기준에 남긴다 | `views/**` | U7~U11 | M | M3 |
 | U14 | 도구와 웹 view-model(`@fresnel/client/web`): 행과 구획 만들기, 순위·현재·고정 표시, 추천 키 플러그인 상태, 첫 사용 고지 목록, `orderUpdateOf`, `moveInOrder`(spec §3.6, §4.11) | `src/web/*`, `test/web/tools-web.test.ts` | F `web.providers`(wire 완료, M3-REQ-96), `L2.web.spec` §4.8.2 | S | M3 |
 

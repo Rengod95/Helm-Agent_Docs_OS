@@ -50,7 +50,7 @@ L2 기능(capability)의 정의 형식을 정한다. 기능 하나는 서비스 
 |---|---|
 | 기능 (capability) | 서비스 API와 모델 도구를 한 쌍으로 묶은 기능 단위. 예: `web.search` |
 | definition (정의) | F에 있는 `CapabilityDef` 값. 타입과 스키마와 순수 어댑터 함수만 담는다. 실행 코드와 외부 의존이 없다 |
-| provider | 정의를 구현해 Cordis 서비스로 등록하는 L2 패키지나 플러그인. 한 기능에 provider가 여럿일 수 있다(예: `web.search`의 내장 검색 래퍼, SearXNG, Exa) |
+| provider | 정의를 구현해 Cordis 서비스로 등록하는 L2 패키지나 플러그인. 한 기능에 provider가 여럿일 수 있다(예: `web.search`의 내장 검색 래퍼, Exa 플러그인) |
 | consumer | 서비스 API를 호출하는 쪽. L3 그룹, 다른 L2 기능, L1 도구 실행(모델 도구 호출을 서비스 호출로 바꾸는 어댑터)이 해당한다 |
 | 서비스 메서드 (method) | 기능의 서비스 API를 이루는 비동기 함수 하나. 입력과 출력이 TypeBox 스키마로 정의된다 |
 | 모델 도구 (tool) | 모델에게 광고되는 도구 하나. 서비스 메서드 하나에 대응한다 |

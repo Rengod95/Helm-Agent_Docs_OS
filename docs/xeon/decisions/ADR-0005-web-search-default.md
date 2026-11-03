@@ -18,6 +18,7 @@ binds: [xeon/packages/cap-web/**]
 - [결정] 웹의 유료 API는 사용자가 플러그인으로 등록하고, 기본값은 로컬 도구로 둔다(`_research/decisions-log.md` 2026-10-21 결정(2차)).
 - 개정: 2026-10-25, 사용자 결정 H1(`review.m2-plan` §9). SearXNG 자동 감지를 없애고 사용자가 설정한 provider만 체인에 넣는다. 고친 절: §3.1 ③·④ 행, §3.3, §4.2, §5, §6 미결 1·3. ① 모델용 도구와 ② 내장 검색 래퍼 기본값은 그대로다.
 - 개정: 2026-10-26 `review.m3-design-inputs` D-M3-23(§6 선택 순서, Parallel, Jina). robots.txt는 기본 무시하고 옵션으로 지키게 하며, 키 플러그인 첫 사용 때 고지한다. 브라우저 자동화는 이 ADR 범위 밖이고 기본 provider는 Stagehand다(`L2.web.spec`).
+- 개정: 2026-11-04, [결정: 2026-11-04 사용자 B15]. SearXNG provider를 제품에서 없앤다. 설정 키 `l2.web.search.searxng.url`, 감지 설정, ③ 단계, 탐침과 endpoint 예외를 없앤다. 검색 플러그인이 없고 내장 래퍼도 쓸 수 없으면 `unavailable`(`detail.reason` `no_provider`)이다. 고친 절과 적용 범위는 §7이다. 본문의 원래 문장은 개정 전 결정의 기록으로 그대로 둔다.
 - 범위: 이 ADR은 웹 **검색**의 기본 provider와 선택 순서만 정한다. 브라우저 자동화(`web.browse`)와 본문 가져오기(`web.fetch`)는 범위 밖이다. 참고로 기본 `web.browse`는 Playwright(`playwright-core`)이고 agent-browser는 내장 선택 provider다(`_research/layer-plan-v2-notes.md` "질문에 대한 답" 웹 기본값 항목).
 
 ## 2. 맥락
@@ -189,3 +190,16 @@ export interface WebSearchProvider {
 - [가정] Serper 가입 시 2,500쿼리는 2차 출처이고 공식 가격 페이지는 404다(`§B-4`).
 - [미결] SearXNG 엔진 차단·레이트 리밋 세부와 메모리 요구(`§B-2`, `§B-6`).
 - [미결] DuckDuckGo 약관 전문, Mojeek 무료 한도, Marginalia 공식 페이지(`§B-6`).
+
+## 7. 개정 기록: 2026-11-04 사용자 B15
+
+[결정: 2026-11-04 사용자 B15] SearXNG를 제품에서 없앤다. 아래 항목은 2026-11-04부터 적용하지 않는다. 본문의 원래 문장은 개정 전 결정의 기록으로 둔다.
+
+- §2.3의 SearXNG 설명, §3.1의 ③ 단계(설정한 SearXNG), §4.2의 SearXNG 운영 부담, §6의 SearXNG 관련 [가정]과 [미결]: 적용하지 않는다.
+- §3.3의 순서 4번(SearXNG 단계)과 감지 설정 `l2.web.search.searxng.detect` 문장: 적용하지 않는다. 체인은 검색 플러그인과 내장 검색 래퍼다. 래퍼도 쓸 수 없고 플러그인이 없으면 `unavailable`이고 `detail.reason`은 `no_provider`다. 메시지는 검색 플러그인을 설치하거나 설정하라는 안내다.
+- §3.4의 `WebSearchProviderId`에서 `"searxng"` 리터럴을 뺀다. 남는 값은 `"builtin-wrapper"`와 `plugin:${string}`이다.
+- §3.5의 `l2.web.search.searxng.url` 키는 없다. 저장된 설정 파일에 이 키가 남아 있으면 알 수 없는 키로 두고 경고 진단만 낸다. 시작은 실패하지 않는다(`L4.host-service.spec` HS-75).
+- §5 대안 표의 "SearXNG만 기본"과 "SearXNG 자동 감지" 판정은 역사 기록이다.
+- SearXNG를 쓰려는 사용자는 검색 플러그인을 직접 등록한다. 플러그인은 `L2.web.spec` §3.6의 매니페스트 규칙을 따른다.
+
+적용 범위의 구현 결과와 상세 규칙은 `L2.web.spec` §4.8.2, §4.8.3, §5 1행이 정본이다.

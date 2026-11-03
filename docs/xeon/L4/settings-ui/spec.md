@@ -26,7 +26,7 @@ binds: [xeon/packages/client/src/settings/**]
 - 항목 공통 표시: 범위 배지, `runtimeChange` 배지와 `pendingUntil`, 잠금, 가려진 값, 저장 파일 경로, 기본값 복귀, 폐기 배지, 쓰기 범위 선택(§4.3).
 - 쓰기 흐름: 편집, 클라이언트 즉시 검사, `settings.set`, 오류 코드의 필드 문구 변환, 변경 수신, 재시작 안내(§4.4, §4.5).
 - 시크릿 화면: 참조와 상태 표시, 값 입력과 열람 경로의 비교와 제안(§4.6).
-- 첫 실행 권장 화면: 검색 provider 상태, SearXNG 주소, 무료 크레딧 API 플러그인 권장 목록(§4.10, ADR-0005 ④, `product.scope.spec` I10 M3).
+- 첫 실행 권장 화면: 검색 provider 상태, 무료 크레딧 API 플러그인 권장 목록(§4.10, ADR-0005 ④, `product.scope.spec` I10 M3). [결정: 2026-11-04 사용자 B15] SearXNG 주소 입력은 없앴다.
 - 도구와 웹 탭의 view-model(`@fresnel/client/web`): `web.providers` 결과에서 provider 행, 현재·고정 표시, 추천 키 플러그인 상태를 만들고, 끌어 옮긴 순서를 `settings.set` 값으로 바꾸는 규칙(§3.6, §4.11, M3-12 비시각 부분).
 - 상태 게이지 자리(§4.7), 접근성과 문구 규칙(§4.8), 코드 위치(§4.9).
 - 화면 로직을 DOM과 무관한 순수 TS view-model(`settings/model`)과 렌더링 부분(`settings/views`)으로 나누는 경계(§3).
@@ -946,11 +946,10 @@ sequenceDiagram
 | 항목 | 내용 | 원천 |
 |---|---|---|
 | 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 사용자가 끌어 옮겨 정한 순서(기본 웹 검색 도구 포함, 플러그인 기본 후순위) [결정: review.m3-design-inputs D-M3-23] | `settings.get`, `L2.web.spec` §4.8.2 선택 체인 |
-| SearXNG 주소 | `l2.web.search.searxng.url` 입력란. 비어 있으면 SearXNG는 체인에 들어가지 않는다 | `settings.get`·`settings.set`, `L2.web.spec` §4.8.3 설정한 SearXNG |
 | 권장 목록 | 무료 크레딧 API 플러그인(Exa, Brave)과 월 크레딧 안내, 키 등록 버튼 | ADR-0005 §3.1 ④, 키 등록은 §4.6 C안 경로, 상태는 `recommendations`(§4.11) |
 
 - 키 등록 버튼은 §4.6.4 C안(`secret.beginEntry`)을 쓰고, 값은 이 화면을 지나지 않는다. 호스트가 값을 받을 수 없는 사이드카 연결의 M2 최소 화면만 예외다: 그 화면의 등록 창이 값을 한 번 받는다(§4.6.4, `L4.desktop.spec` §4.14.1). 등록 뒤 provider 설정에는 `secret://<이름>` 참조만 쓴다.
-- [결정: review.m2-plan §9 H1] SearXNG 자동 감지는 없다. SearXNG는 사용자가 주소를 설정했을 때만 체인에 들어가므로 이 화면에 감지 결과 칸을 두지 않는다. provider 상태 행은 설정 값으로 계산한 체인만 보인다.
+- [결정: review.m2-plan §9 H1] SearXNG 자동 감지는 없다. [결정: 2026-11-04 사용자 B15] SearXNG 자체를 없앴으므로 이 화면에는 SearXNG 주소 입력란과 감지 결과 칸이 없다. SearXNG를 쓰려는 사용자는 검색 플러그인을 직접 등록한다. provider 상태 행은 설정 값으로 계산한 체인만 보인다.
 - [가정] 마지막 검색에서 실제로 쓴 provider와 탐침 결과(`unreachable`, `json-disabled`)를 읽는 wire 수단은 없다. 이 값을 화면에 보이려면 F 변경 요청이 필요하고 M3 첫 실행 화면 작업에서 정한다. 그 전까지 탐침 실패는 `meta.warnings`와 L4 진단으로만 보인다(`L2.web.spec` §4.8.3).
 - CLI는 같은 내용을 `fresnel doctor`의 검색 provider 묶음으로 보인다(`L4.cli.spec` §4.7.1).
 
@@ -1062,7 +1061,7 @@ sequenceDiagram
 - AC12. `deprecated` 정의에 사용자 값이 있으면 폐기 배지와 대체 키 라벨이 보이고, 값이 기본값이면 항목이 보이지 않는다.
 - AC13. `model/**` 파일은 DOM 전역과 `views/**`를 참조하지 않고 `bun test`로 돈다.
 - AC14. `l4.desktop.*` 정의는 로컬 저장소로, 나머지 정의는 `settings.*` 메서드로 읽고 쓴다. 엔진 연결이 없을 때도 desktop 원천 항목의 쓰기가 성공한다.
-- AC15. 키 플러그인이 없고 `l2.web.search.searxng.url`이 비어 있는 fixture로 첫 실행 권장 화면 view-model을 만들면 provider 상태 행, SearXNG 주소 입력란, Exa·Brave 권장 항목 셋이 있고, 어느 항목에도 시크릿 값 필드가 없다(§4.10).
+- AC15. [결정: 2026-11-04 사용자 B15] 키 플러그인이 없는 fixture로 첫 실행 권장 화면 view-model을 만들면 provider 상태 행과 Exa·Brave 권장 항목이 있고, SearXNG 주소 입력란은 없으며, 어느 항목에도 시크릿 값 필드가 없다(§4.10).
 - AC16. 테스트 카탈로그 fixture에서 `x.primitives.activeDriver`, `x.primitives.driveRequiresGroup`과 `ext.helm.enabled`는 plugins 탭, `l1.agents.judge.maxRuns`는 models 탭, `l2.dialog.notify.os`는 execution 탭, `l0.secrets.approval.default`는 permissions 탭에 나타난다(§4.1.1, 소유 층 `ui.tab`).
 - AC17. `web.providers` 결과 fixture로 `toolsWebViewOf`를 만들면 검색과 브라우즈 행은 `autoRank` 순서이고, 설정이 provider를 고정하면 그 행만 `current`다. `orderUpdateOf`는 보이지 않는 id와 중복 id를 값으로 거부한다. 추천 키 플러그인 상태는 없음, 키 없음, 준비됨, 그 밖의 사유 넷을 낸다(§3.6, §4.11, `test/web/tools-web.test.ts`).
 
