@@ -181,6 +181,9 @@ describe("approval card mounts", () => {
     });
     // 같은 카드 머리에 대화 이름과 만료가 함께 그려진다(한 줄 확인)
     expect(queue[0] ?? "").toContain("대화: Cache work");
+    // 검토 카드는 "검토 열기"를 낸다(P-04로 가는 단추)
+    expect(queue[3] ?? "").toContain(`data-action="open"`);
+    expect(queue[2] ?? "").not.toContain(`data-action="open"`);
 
     // approval.resolved(질문)가 오면 질문 카드만 세 자리에서 사라진다
     h.store.ingest({

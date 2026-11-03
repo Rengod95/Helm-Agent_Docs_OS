@@ -4,6 +4,7 @@ import { Alert, ChoiceGroup, ChoiceGroupItem, Input, MessageCode, Textarea } fro
 import type { ReactNode } from "react";
 import {
   QUESTION_TEXT_MAX,
+  REVIEW_CHANGE_ID,
   setPickText,
   toolApprovalView,
   toolReplaceView,
@@ -29,13 +30,6 @@ const TRUST_TEXT: Readonly<Record<NonNullable<ToolReplaceView["trust"]>, Message
   user: "desktop.approvals.replace.trust.user",
   project: "desktop.approvals.replace.trust.project",
   untrusted: "desktop.approvals.replace.trust.untrusted",
-};
-
-const CHANGE_TEXT: Readonly<Record<ReviewView["files"][number]["change"], MessageId>> = {
-  added: "desktop.approvals.review.change.added",
-  modified: "desktop.approvals.review.change.modified",
-  deleted: "desktop.approvals.review.change.deleted",
-  renamed: "desktop.approvals.review.change.renamed",
 };
 
 /** 내장 도구 대체 승인(`tool_replace`). 누가 어떤 도구를 어떤 신뢰로 대체하는지와 경로 보호가 빠진다는 안내를 먼저 보인다 */
@@ -301,7 +295,7 @@ export function ReviewBody(props: { readonly review: ReviewView }): ReactNode {
       >
         {review.files.map((file) => (
           <div key={file.path} role="listitem" className="flex flex-wrap items-baseline gap-2">
-            <span className="dim">{t(CHANGE_TEXT[file.change])}</span>
+            <span className="dim">{t(REVIEW_CHANGE_ID[file.change])}</span>
             <MessageCode>{file.path}</MessageCode>
             <span className="dim">
               {file.binary

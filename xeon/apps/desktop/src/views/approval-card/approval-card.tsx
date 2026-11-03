@@ -1,18 +1,20 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
-import type { ApprovalRequestedPayload, ReviewAnswerJson } from "@fresnel/contracts/records";
+import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import { AgentRequest, Button } from "@caustic/react";
 import { memo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { useApproval, useThread } from "../../state/engine/index.ts";
-import { useApprovalDetail, useApprovalSend, type ApprovalSend } from "../../state/ui/index.ts";
+import { useApprovalDetail, useApprovalSend } from "../../state/ui/index.ts";
 import {
+  APPROVAL_FAILURE_ID,
   answerOf,
   approvalOriginView,
   type ApprovalOriginView,
   type QuestionDraft,
 } from "../approval-form.ts";
 import { useCommands, type ApprovalDecision } from "../commands.ts";
+import { APPROVE_ALL_ANSWER } from "../review-model.ts";
 import { PlanBody, QuestionBody, ReviewBody, ToolBody } from "./bodies.tsx";
 import { useClockNow } from "./clock.ts";
 import {
@@ -31,14 +33,6 @@ import {
 
 type ApprovalBodyKind = ApprovalRequestedPayload["body"]["kind"];
 
-const FAILURE_ID: Readonly<Record<Exclude<ApprovalSend, "sending">, MessageId>> = {
-  failed: "desktop.approvals.failure.failed",
-  invalid: "desktop.approvals.failure.invalid",
-  closed: "desktop.approvals.failure.closed",
-  unapplied: "desktop.approvals.failure.unapplied",
-  switching: "desktop.approvals.failure.switching",
-};
-
 const KIND_LEAD: Readonly<Record<ApprovalBodyKind, MessageId>> = {
   tool: "desktop.approvals.kind.tool",
   question: "desktop.approvals.kind.question",
@@ -53,14 +47,6 @@ const AGENT_KIND = {
   plan: "proposal",
   review: "review",
 } as const;
-
-/** 검토 "모두 승인": 남은 hunk를 모두 승인하고 제출한다(ReviewAnswer, L2.artifacts §4.2.4) */
-const REVIEW_APPROVE_ALL: ReviewAnswerJson = {
-  decisions: [],
-  comments: [],
-  submit: true,
-  approveRemaining: true,
-};
 
 /** 입력 중인 칸에서 누른 글자는 바로 가기가 아니다 */
 function isTypingTarget(target: EventTarget): boolean {
@@ -156,6 +142,11 @@ function PendingCard(props: {
   const decisions: Decisions = decisionsOf(request, { draft, mode, feedback });
   const respond = (decision: ApprovalDecision): void => {
     detach(commands.respondApproval(id, decision), rethrow);
+  };
+  /** 검토 열기: 변경 검토 화면(P-04)을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
+  const openReview = (): void => {
+    if (body.kind === "review")
+      commands.openReview({ approvalId: id, reviewId: body.review.reviewId });
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
@@ -262,6 +253,17 @@ function PendingCard(props: {
           {leading.map((action) => (
             <ActionButton key={action.id} action={action} disabled={busy} onRespond={respond} />
           ))}
+          {body.kind === "review" ? (
+            <Button
+              type="button"
+              data-action="open"
+              variant="outline"
+              disabled={busy}
+              onClick={openReview}
+            >
+              {t("desktop.approvals.review.open.button")}
+            </Button>
+          ) : null}
           <span aria-hidden className="flex-1" />
           {trailing.map((action) => (
             <ActionButton key={action.id} action={action} disabled={busy} onRespond={respond} />
@@ -269,7 +271,7 @@ function PendingCard(props: {
           {busy ? <span className="dim">{t("desktop.approvals.sendingStatus")}</span> : null}
           {sendState === undefined || sendState === "sending" ? null : (
             <span className="error" role="alert" data-failure={sendState}>
-              {t(FAILURE_ID[sendState])}
+              {t(APPROVAL_FAILURE_ID[sendState])}
               {detail === undefined ? null : ` (${detail})`}
             </span>
           )}
@@ -333,7 +335,7 @@ function decisionsOf(
     };
   }
   return {
-    primary: { decision: "answer", answer: REVIEW_APPROVE_ALL },
+    primary: { decision: "answer", answer: APPROVE_ALL_ANSWER },
     always: null,
     deny,
     edit: null,

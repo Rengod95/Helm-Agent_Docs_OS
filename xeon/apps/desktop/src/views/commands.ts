@@ -32,7 +32,7 @@ import type {
 } from "@fresnel/client/settings";
 import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
 import type { ToggleRequest } from "@fresnel/client/workbench";
-import type { LockedOption, Screen, SettingsJump } from "../state/ui/index.ts";
+import type { LockedOption, ReviewTarget, Screen, SettingsJump } from "../state/ui/index.ts";
 import type { EngineTarget } from "../transport/ipc.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -111,6 +111,15 @@ export interface ScheduleCommands {
 export interface ProposalCommands {
   list(params: WireParams<"proposal.list">): Promise<Result<ProposalListVM, CommandError>>;
   decide(params: WireParams<"proposal.decide">): Promise<Result<DecisionOutcome, CommandError>>;
+}
+
+/**
+ * 변경 검토 화면(P-04). hunk 본문은 요청 결과라 거울에 넣지 않는다(FS-03). 승인 답은 `respondApproval`로 보낸다.
+ * 읽기 실패(연결 없음, 없는 리뷰)는 `CommandError`다.
+ */
+export interface ReviewCommands {
+  /** `review.get`. 리뷰의 파일과 hunk 본문을 읽는다 */
+  get(reviewId: string): Promise<Result<WireResult<"review.get">, CommandError>>;
 }
 
 /**
@@ -362,6 +371,7 @@ export interface Commands {
   readonly web: WebCommands;
   readonly proposals: ProposalCommands;
   readonly work: WorkCommands;
+  readonly review: ReviewCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */
@@ -379,6 +389,8 @@ export interface Commands {
   /** 설정 화면을 열고 그 탭과 항목으로 옮긴다(명령 팔레트). 화면이 받으면 `settleSettingsJump`를 부른다 */
   requestSettingsJump(jump: SettingsJump): void;
   settleSettingsJump(): void;
+  /** 변경 검토 화면(P-04)을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
+  openReview(target: ReviewTarget): void;
   reloadThreads(): void;
   retryTranscript(): void;
   reconnect(): void;

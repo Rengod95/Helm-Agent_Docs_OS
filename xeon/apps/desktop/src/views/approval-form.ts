@@ -1,10 +1,31 @@
+import type { MessageId } from "@fresnel/client/i18n";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { ApprovalRequestedPayload, BlobRef } from "@fresnel/contracts/records";
 import { TOOL_REPLACE_APPROVAL_TOOL } from "@fresnel/contracts/services";
+import type { ApprovalSend } from "../state/ui/index.ts";
 
 // 승인 카드의 순수 로직(L4.desktop.spec §4.13). 도구 승인 카드가 보이는 값과 질문 카드의 답 조립을 React 밖에서 시험한다.
 // 질문 응답은 core-tools `validateResponse`(L1.tools.spec §3.6)가 받는 모양으로만 만든다: 모든 질문에 답이 하나씩,
 // 선택은 선택지 안에서, 다중 선택이 아니면 하나, 자유 입력은 허용된 질문에만, 빈 답은 없다.
+
+/** 검토 파일의 변경 종류 문장. 승인 카드와 변경 검토 화면이 같이 쓴다 */
+export const REVIEW_CHANGE_ID: Readonly<
+  Record<"added" | "modified" | "deleted" | "renamed", MessageId>
+> = {
+  added: "desktop.approvals.review.change.added",
+  modified: "desktop.approvals.review.change.modified",
+  deleted: "desktop.approvals.review.change.deleted",
+  renamed: "desktop.approvals.review.change.renamed",
+};
+
+/** 응답을 보낸 뒤 실패로 남은 표시의 문장. 승인 카드와 변경 검토 화면이 같이 쓴다. `sending`은 문장이 없다 */
+export const APPROVAL_FAILURE_ID: Readonly<Record<Exclude<ApprovalSend, "sending">, MessageId>> = {
+  failed: "desktop.approvals.failure.failed",
+  invalid: "desktop.approvals.failure.invalid",
+  closed: "desktop.approvals.failure.closed",
+  unapplied: "desktop.approvals.failure.unapplied",
+  switching: "desktop.approvals.failure.switching",
+};
 
 // 거울이 쥔 승인은 wire payload 모양이다(ApprovalRequestedPayload). 서비스 쪽 타입은 브랜드 문자열을 써서 쓰지 않는다
 export type ToolApprovalBody = Extract<ApprovalRequestedPayload["body"], { kind: "tool" }>["tool"];

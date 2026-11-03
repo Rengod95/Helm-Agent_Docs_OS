@@ -13,6 +13,7 @@ import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
 import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
 import { ProposalsScreen } from "./pages/proposals/proposals-screen.tsx";
+import { ReviewScreen } from "./pages/review/review-screen.tsx";
 import { WorkScreen } from "./pages/work/work-screen.tsx";
 import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
@@ -94,6 +95,14 @@ const FIRST_RUN_SCREEN: ScreenDef = {
   render: () => <FirstRunScreen />,
 };
 
+// 변경 검토 화면(P-04)은 내비 항목이 없다. 승인 카드의 "검토 열기"가 UI 스토어에 검토 승인을 두고, App이 무대를 이 화면으로 옮긴다.
+const REVIEW_SCREEN: ScreenDef = {
+  id: "review",
+  area: "both",
+  label: "desktop.review.title",
+  render: () => <ReviewScreen />,
+};
+
 const INBOX_TAB: EndTabDef = {
   id: "inbox",
   area: "both",
@@ -120,6 +129,7 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(CONNECTION_SCREEN);
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerScreen(FIRST_RUN_SCREEN);
+  registry.registerScreen(REVIEW_SCREEN);
   registry.registerEndTab(INBOX_TAB);
   registry.registerEndTab(WORK_TAB);
   registerWorkbench(registry, createWorkbenchStore());

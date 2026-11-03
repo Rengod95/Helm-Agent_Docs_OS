@@ -1297,6 +1297,8 @@ compact 폭(720 이하)과 사이드바 시트:
 - 바로 가기 키: j·k 파일 이동, n·p hunk 이동, a 승인, r 거절, c 의견, ⇧A 파일 전체 승인, ⌘Enter 제출, Esc 의견 취소.
 - 접근성: 파일 목록은 `List` 단일 선택, hunk는 `article`과 제목(헤더 줄), 줄 앞 기호는 시각용이고 `aria-label`에 "추가된 줄 11" 같은 문장을 둡니다. 결정 상태는 색과 문자 둘 다로 보입니다.
 - caustic: `CodeDiff`, `CodeDiffLine`, `CodeDiffToken`, `ChangeDetail`, `List`, `ListRowIndicator`, `Textarea`(의견), `Checkbox`, `Button`, `Badge`, `ResizeHandle`. `CodeDiff`는 diff 하나에 수락·거절 하나라 hunk 단위 결정과 줄 의견이 없습니다 `[gap:C-08]`.
+- 구현 노트 [구현: 2026-11-04, P-04 트랙]: 화면은 `apps/desktop/src/views/pages/review/`(`review-screen.tsx` 동작, `review-view.tsx` 그림, `review-text.ts` 문장), 순수 값은 `apps/desktop/src/views/review-model.ts`(V-06)입니다. 승인 카드의 "검토 열기"(검토 승인에만 있음)는 UI 스토어의 `reviewTarget`(승인 id, 리뷰 id)을 두고, `App`이 무대를 내비 없는 `review` 화면(영역 `both`)으로 옮깁니다. 화면은 연 승인이 대기열에서 빠지면 같은 리뷰의 가장 높은 라운드 승인을 따라가고(초안은 비우고 다시 엽니다), 없으면 "이미 처리된 요청이에요"를 보입니다. 본문은 `review.get`(W-02, 계약과 host에 이미 있음)으로 읽고, 파일의 종류와 이진 여부는 승인 요청의 `files` 요약에서 옵니다(본문 wire는 이 둘을 싣지 않습니다). 결정과 의견과 "남은 것 모두 승인"은 화면 로컬 초안입니다(W-03은 [미결] 그대로). 제출은 `ReviewAnswer { decisions(결정한 hunk만), comments(hunk 대상), submit: true, approveRemaining }`이고, "모두 승인"은 `decisions: []`에 `approveRemaining: true`, "거부(검토 닫기)"는 `{ decision: "deny" }`입니다. 거부는 서버가 되돌릴 수 있는 hunk를 모두 거절하고 제출합니다. 대기 hunk가 있고 "남은 것 모두 승인"이 꺼져 있으면 제출이 잠기고 개수를 보입니다. 오프라인이면 결정은 남기고 제출·모두 승인·거부를 잠급니다. hunk 30개를 넘는 파일은 접어 둡니다. 단추는 caustic `CodeDiffHunk`·`CodeDiff`의 승인·거절 글자가 영어로 고정되어 있어 같은 자리에 현지화한 단추를 둡니다(`[gap:C-08]`의 글자 빈틈). 시험: `test/views/review-model.test.ts`(순수 값, 답의 정확한 모양), `test/views/review-view.test.tsx`(여섯 상태), `test/app/review-commands.test.ts`(wire params 정확 비교).
+  빠진 것: 제출 결과 표(되돌림·충돌·skipped는 승인 응답이 싣지 않아 `review_applied`를 구독해야 함), 줄 단위와 파일 단위와 리뷰 전체 의견(hunk 단위만), 지난 라운드 의견 "전달됨" 접기, 바로 가기 키(j·k·n·p·a·r·c·⇧A·⌘Enter·Esc), 이진 파일의 파일 단위 결정(wire에 hunk id가 없어 답으로 보낼 수 없으므로 읽기 전용), 파일 목록 가상 스크롤(`[gap:C-04]`), 파일 단위 읽기 실패(본문 전체 실패로 합침), 원격의 "권한 필요"(해당 없음).
 
 ### 6.9 P-05 탐구(Helm, 끝 영역)
 
@@ -3131,7 +3133,7 @@ export const palette = [
 | V-03 | 알림 행(`Notice` → 문장, 원인 링크) | 같은 곳 |
 | V-04 | 예약 행과 폼 검사, 오류 문장 | `packages/client/src/schedule` [제안] |
 | V-05 | 대상 목록, 주소 검사, 연결 단계, `AttachError` 문장 | `packages/client/src/connection` [제안] |
-| V-06 | 리뷰 초안과 `ReviewAnswer` 만들기 | `apps/desktop/src/views/review-model.ts` [제안] |
+| V-06 | 리뷰 초안과 `ReviewAnswer` 만들기 | `apps/desktop/src/views/review-model.ts` [구현됨: 2026-11-04, §6.8 구현 노트] |
 | V-07 | Helm 상태 보기 모델 | `packages/client/src/groups` [제안] |
 | V-08 | 목표·계획·작업 보기 모델 | 같은 곳 |
 | V-09 | `SettingsController`(초안, 저장 중, 오류, 외부 변경) | `packages/client/src/settings/controller.ts`, `state.ts`, `write-flow.ts`, `invalidation.ts`(구현됨. 차이는 `L4.settings-ui` §3.2) |

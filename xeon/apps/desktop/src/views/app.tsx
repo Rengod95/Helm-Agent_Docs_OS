@@ -2,7 +2,7 @@ import type { EventId } from "@fresnel/contracts/conversation";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useApprovalIds, useThreadIds, useThreadSummaries } from "../state/engine/index.ts";
-import { useScreen, useSelectedThreadId } from "../state/ui/index.ts";
+import { useReviewTarget, useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { CommandOutputSheet } from "./command-output-sheet.tsx";
 import { useCommands } from "./commands.ts";
 import { LockedDialog } from "./locked-dialog.tsx";
@@ -46,6 +46,7 @@ export function App(props: AppProps): ReactNode {
   const commands = useCommands();
   const screen = useScreen();
   const selected = useSelectedThreadId();
+  const reviewTarget = useReviewTarget();
   const shell = useShellActions();
   const threads = useThreadSummaries();
   const threadIds = useThreadIds();
@@ -54,6 +55,10 @@ export function App(props: AppProps): ReactNode {
   useEffect(() => {
     shell.selectChatThread(selected);
   }, [shell, selected]);
+  // 승인 카드의 "검토 열기"는 검토 승인을 UI 스토어에 두고, 무대는 여기서 변경 검토 화면(P-04)으로 옮긴다
+  useEffect(() => {
+    if (reviewTarget !== null) shell.updatePlace({ screen: "review", scroll: 0 });
+  }, [reviewTarget, shell]);
   const openThread = (threadId: string): void => {
     shell.switchArea("chat");
     commands.showScreen("chat");

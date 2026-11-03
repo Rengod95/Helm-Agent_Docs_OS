@@ -53,6 +53,9 @@ type ShellConfirm = {
  */
 export type ComposerRequest = { readonly insert: string | null };
 
+/** 변경 검토 화면(P-04)이 여는 검토 승인. 화면은 이 승인이 대기열에 있는 동안 보이고, 해결되면 같은 리뷰의 다음 라운드를 따라간다 */
+export type ReviewTarget = { readonly approvalId: EventId; readonly reviewId: string };
+
 /** 설정 화면이 열며 옮길 탭과 항목. `key`가 null이면 탭만 연다. 화면이 받으면 `settleSettingsJump`로 지운다 */
 export type SettingsJump = { readonly tab: SettingsTab; readonly key: SettingKey | null };
 
@@ -80,6 +83,8 @@ export type UiState = {
   readonly composerRequest: ComposerRequest | null;
   /** 설정 화면에 줄 탭과 항목. 화면이 받기 전까지 있다 */
   readonly settingsJump: SettingsJump | null;
+  /** 변경 검토 화면이 여는 검토 승인. 승인 카드의 "검토 열기"가 정한다 */
+  readonly reviewTarget: ReviewTarget | null;
 };
 
 interface UiActions {
@@ -105,6 +110,8 @@ interface UiActions {
   /** 설정 화면을 열고 그 탭과 항목으로 옮길 요청을 남긴다 */
   requestSettingsJump(jump: SettingsJump): void;
   settleSettingsJump(): void;
+  /** 변경 검토 화면을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
+  openReview(target: ReviewTarget): void;
 }
 
 const INITIAL_UI: UiState = {
@@ -121,6 +128,7 @@ const INITIAL_UI: UiState = {
   engineSwitching: false,
   composerRequest: null,
   settingsJump: null,
+  reviewTarget: null,
 };
 
 export type UiStore = { readonly read: ReadonlyStore<UiState>; readonly actions: UiActions };
@@ -167,6 +175,7 @@ export function createUiStore(): UiStore {
     settleComposerRequest: () => api.setState({ composerRequest: null }),
     requestSettingsJump: (settingsJump) => api.setState({ screen: "settings", settingsJump }),
     settleSettingsJump: () => api.setState({ settingsJump: null }),
+    openReview: (reviewTarget) => api.setState({ reviewTarget }),
     setObserving: (id, observing) =>
       api.setState((s) => {
         if ((s.observing[id] === true) === observing) return s;

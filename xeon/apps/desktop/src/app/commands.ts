@@ -24,6 +24,7 @@ import { createSettingsCommands } from "./settings.ts";
 import { createWebCommands } from "./web.ts";
 import { createProposalCommands } from "./proposals.ts";
 import { createWorkCommands } from "./work.ts";
+import { createReviewCommands } from "./review.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createWorkbenchCommands } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
@@ -242,6 +243,7 @@ export function createCommands(deps: CommandDeps): Commands {
     web: createWebCommands(withConnection),
     proposals: createProposalCommands(withConnection, withWriteConnection),
     work: createWorkCommands(withConnection, withWriteConnection),
+    review: createReviewCommands(withConnection),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),
@@ -268,6 +270,7 @@ export function createCommands(deps: CommandDeps): Commands {
     settleComposerRequest: () => ui.actions.settleComposerRequest(),
     requestSettingsJump: (jump) => ui.actions.requestSettingsJump(jump),
     settleSettingsJump: () => ui.actions.settleSettingsJump(),
+    openReview: (target) => ui.actions.openReview(target),
     reloadThreads: () => session.link()?.reloadThreads(),
     retryTranscript() {
       const id: ThreadId | null = ui.read.getState().selectedThreadId;
