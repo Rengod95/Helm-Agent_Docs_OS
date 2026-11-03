@@ -80,3 +80,8 @@ export const selectLatestTurnId = (s: EngineMirror, id: ThreadId | null): TurnId
 export const selectApprovalCount = (s: EngineMirror): number => s.approvals.ids.length;
 export const selectHandlerFailures = (s: EngineMirror): EngineMirror["handlerFailures"] =>
   s.handlerFailures;
+
+const NO_TURNS: readonly TurnId[] = Object.freeze([]);
+/** 이 거울이 본 대화의 최근 turn id(오래된 것부터). 없으면 빈 목록 */
+export const selectRecentTurnIds = (s: EngineMirror, id: string | null): readonly TurnId[] =>
+  id === null ? NO_TURNS : (s.recentTurnIds[id] ?? NO_TURNS);

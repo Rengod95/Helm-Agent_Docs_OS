@@ -26,6 +26,7 @@ import {
   type StreamingItem,
   type StreamingPart,
   type Transcript,
+  RECENT_TURN_CAP,
   SETTLED_CAP,
 } from "./state.ts";
 
@@ -37,6 +38,13 @@ type Reduced<S> = SharedReduced<S, ApplyNote>;
 export const MAX_SYNC_ATTEMPTS = 3;
 
 const keep = (state: EngineMirror, note: ApplyNote): Reduced<EngineMirror> => ({ state, note });
+/** 최근 turn id 목록에 하나를 더한다. 이미 있으면 그대로 두고, 상한을 넘으면 가장 오래된 것부터 버린다 */
+function withRecentTurn(list: readonly TurnId[] | undefined, id: TurnId): readonly TurnId[] {
+  const base = list ?? [];
+  if (base.includes(id)) return base;
+  return [...base, id].slice(-RECENT_TURN_CAP);
+}
+
 const turnKey = (threadId: ThreadId, turnId: TurnId | null): string =>
   `${threadId}:${turnId ?? ""}`;
 
@@ -119,10 +127,14 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       const byId: Record<string, ThreadSummary> = {};
       // 목록의 lastTurnId는 거울이 아직 turn을 모르는 thread에만 채운다. 이미 있는 값은 turn.started 사실이라 더 새것이다
       const latestTurnId: Record<string, TurnId> = { ...state.latestTurnId };
+      const recentTurnIds: Record<string, readonly TurnId[]> = { ...state.recentTurnIds };
       for (const t of input.threads) {
         byId[t.threadId] = t;
         if (t.lastTurnId !== undefined && latestTurnId[t.threadId] === undefined) {
           latestTurnId[t.threadId] = t.lastTurnId;
+        }
+        if (t.lastTurnId !== undefined) {
+          recentTurnIds[t.threadId] = withRecentTurn(recentTurnIds[t.threadId], t.lastTurnId);
         }
       }
       return keep(
@@ -130,6 +142,7 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
           ...state,
           threads: { status: "ready", ids: input.threads.map((t) => t.threadId), byId },
           latestTurnId,
+          recentTurnIds,
         },
         "applied",
       );
@@ -475,7 +488,14 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
         fact.turnId === null
           ? running.latestTurnId
           : { ...running.latestTurnId, [fact.threadId]: fact.turnId };
-      return withTurnFailure({ ...running, latestTurnId }, fact.threadId, null);
+      const recentTurnIds =
+        fact.turnId === null
+          ? running.recentTurnIds
+          : {
+              ...running.recentTurnIds,
+              [fact.threadId]: withRecentTurn(running.recentTurnIds[fact.threadId], fact.turnId),
+            };
+      return withTurnFailure({ ...running, latestTurnId, recentTurnIds }, fact.threadId, null);
     }
     case "turn.completed": {
       const done = patchThread(state, fact.threadId, (t) => ({ ...t, status: "idle" }));

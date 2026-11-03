@@ -26,6 +26,7 @@ import { createProposalCommands } from "./proposals.ts";
 import { createWorkCommands } from "./work.ts";
 import { createReviewCommands } from "./review.ts";
 import { createSetupCommands } from "./setup.ts";
+import { createMeasureCommands } from "./measure-commands.ts";
 import { createTestCommands } from "./tests-commands.ts";
 import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
@@ -235,6 +236,7 @@ export function createCommands(deps: CommandDeps): Commands {
       deps.local,
     ),
     tests: createTestCommands(withConnection, withWriteConnection),
+    measure: createMeasureCommands(withConnection),
     schedule: createScheduleCommands(withConnection),
     pluginUi: { withConnection, current: () => session.connection() },
     connection: createConnectionCommands({

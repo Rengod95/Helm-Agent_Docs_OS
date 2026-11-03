@@ -6,8 +6,9 @@ import { EngineScreen } from "./engine-screen.tsx";
 import { ExtensionsScreen } from "./extensions-screen.tsx";
 import type { EndTabDef, ShellRegistry } from "../shell/registry.ts";
 import { InspectTab } from "./inspect-tab.tsx";
+import { MetricsScreen } from "../measure/metrics-screen.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
-import { Eye, FlaskConical, Layers, Package, Settings } from "@caustic/react/icons";
+import { Clock, Eye, FlaskConical, Layers, Package, Settings } from "@caustic/react/icons";
 
 function scoped(store: WorkbenchStore, children: ReactNode): ReactNode {
   return <WorkbenchStoreContext value={store}>{children}</WorkbenchStoreContext>;
@@ -34,6 +35,13 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     label: "desktop.shell.nav.tests",
     icon: <FlaskConical />,
     render: () => <TestsScreen />,
+  });
+  registry.registerScreen({
+    id: "metrics",
+    area: "workbench",
+    label: "desktop.shell.nav.metrics",
+    icon: <Clock />,
+    render: () => <MetricsScreen />,
   });
   registry.registerScreen({
     id: "engine",

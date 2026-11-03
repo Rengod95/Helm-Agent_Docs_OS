@@ -75,6 +75,8 @@ export const useTurnFailure = (id: ThreadId | null): string | null =>
   useEngine((s) => sel.selectTurnFailure(s, id));
 export const useLatestTurnId = (id: ThreadId | null): TurnId | null =>
   useEngine((s) => sel.selectLatestTurnId(s, id));
+export const useRecentTurnIds = (id: string | null): readonly TurnId[] =>
+  useEngine((s) => sel.selectRecentTurnIds(s, id));
 export const useApprovalCount = (): number => useEngine(sel.selectApprovalCount);
 /** 받은 확장 핸들러 실패 기록(휘발, 최대 500행). 확장별로 거르는 일은 화면이 한다 */
 export const useHandlerFailures = (): EngineMirror["handlerFailures"] =>
