@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Signing and notarization of a macOS release stage (L4.release.spec 5). Skips with exit 0 when the secrets are absent, so
-# forks and pull requests stay green; the secrets are registered by the user, never by this repository. Values are never
-# printed: only whether a name is set.
+# Signing and notarization of a macOS release stage (L4.release.spec 5). Without the secrets it does not sign: the result is the
+# explicit state UNSIGNED (printed, a CI warning annotation and a job summary line). Forks, pull requests and manual runs stay
+# green with that state; a release tag (GITHUB_REF refs/tags/v*) fails instead, so an unsigned archive cannot come out of a
+# green tag release. The secrets are registered by the user, never by this repository. Values are never printed: only
+# whether a name is set.
 #   release-sign.sh <stage-dir>      the fresnel-<version>-aarch64-apple-darwin directory release.ts left (before tar)
 # env: APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY (codesign),
 #      APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD (notarytool)
-# exit: 0 signed and notarized, or skipped; 1 a step failed; 2 environment (not macOS, tools missing)
+# exit: 0 signed and notarized, or UNSIGNED outside a release tag; 1 a step failed or UNSIGNED on a release tag; 2 environment (not macOS, tools missing)
 set -euo pipefail
 
 stage="${1:-}"
@@ -19,7 +21,14 @@ for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNIN
   [[ -n "${!name:-}" ]] || missing+=("$name")
 done
 if ((${#missing[@]} > 0)); then
-  echo "release-sign: skipped, secrets not set: ${missing[*]}"
+  message="release-sign: UNSIGNED, secrets not set: ${missing[*]}"
+  echo "$message"
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then echo "::warning title=UNSIGNED macOS archive::$message"; fi
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then printf '**UNSIGNED** macOS archive: %s\n' "$message" >>"$GITHUB_STEP_SUMMARY"; fi
+  if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+    echo "release-sign: a release tag must be signed; register the secrets and run the release again" >&2
+    exit 1
+  fi
   exit 0
 fi
 if [[ "$(uname -s)" != "Darwin" ]] || ! command -v codesign >/dev/null || ! command -v xcrun >/dev/null; then

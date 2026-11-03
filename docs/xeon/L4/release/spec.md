@@ -17,7 +17,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 - 릴리즈 아카이브의 구성과 배치(§3.1). 실행 파일, 그룹 템플릿, 기본 플러그인, 번들 바이너리, 고지, 체크섬이 어디에 놓이는지 정합니다.
 - 자원 디렉터리 탐색과 소비처(§3.2). 실행 파일이 든 폴더를 자원 디렉터리로 보고, 세 소비처가 그 안에서 어떻게 찾는지 정합니다.
 - 번들 바이너리의 버전, 라이선스, 출처와 Linux의 시스템 요구(§3.3). 대상 플랫폼은 §3.4입니다.
-- 서명과 공증 단계, 시크릿이 없을 때의 건너뛰기(§4).
+- 서명과 공증 단계, 시크릿이 없을 때의 미서명 상태(§4).
 - M3b의 업데이트 방식과 사용자 절차(§5).
 - 공급망과 고지 파일(§6).
 - 릴리즈 스모크 X11과 단위 시험, 그 실행 위치(§7).
@@ -109,11 +109,11 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 ## 4. 서명과 공증
 
 - 서명은 macOS 아카이브에만 합니다(triple에 `-apple-`이 든 경우). `release.ts`는 스테이징 폴더를 `xeon/scripts/release-sign.sh`에 넘긴 뒤에 해시를 계산합니다. 서명이 파일을 바꾸므로 해시는 서명 뒤에 계산합니다.
-- `release-sign.sh`는 여섯 시크릿을 확인합니다. `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`입니다. 하나라도 비어 있으면 `release-sign: skipped, secrets not set: <빠진 이름>`을 출력하고 0으로 끝납니다. 값은 출력하지 않습니다. 포크와 pull request에는 시크릿이 없으므로 이 경로를 탑니다.
+- `release-sign.sh`는 여섯 시크릿을 확인합니다. `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`입니다. 하나라도 비어 있으면 서명하지 않고 `release-sign: UNSIGNED, secrets not set: <빠진 이름>`을 출력합니다. CI에서는 경고 주석(`::warning`)과 작업 요약(`GITHUB_STEP_SUMMARY`)에도 UNSIGNED를 적습니다. 값은 출력하지 않습니다. 포크, pull request, 수동 실행에는 시크릿이 없으므로 이 상태로 0으로 끝납니다. 릴리즈 태그(`GITHUB_REF`가 `refs/tags/v`로 시작)에서는 같은 상태가 종료 코드 1입니다. 서명 없는 아카이브가 초록 작업으로 나오지 않게 하려는 것입니다.
 - 시크릿이 모두 있으면 임시 키체인에 인증서를 가져오고, 번들 바이너리와 `fresnel`을 `codesign --force --options runtime --timestamp`로 서명한 뒤 `codesign --verify --strict`로 확인합니다. 공증은 아카이브 폴더를 zip으로 묶어 `xcrun notarytool submit --wait`로 보냅니다. 바이너리에는 스테이플할 수 없으므로 Gatekeeper가 온라인으로 공증 기록을 확인합니다. 임시 키체인은 끝날 때 지웁니다.
 - 실패는 종료 코드 1이고, 도구가 없는 환경은 2입니다.
 - 시크릿의 등록은 사용자가 합니다. 저장소는 시크릿을 등록하지 않고, `fresnel-release.yml`이 시크릿을 환경 변수로 넘길 뿐입니다.
-- 서명과 공증의 실제 실행은 Mac 실기와 시크릿 등록 뒤의 일입니다([미결] §8). 이 저장소의 시험은 시크릿이 없는 건너뛰기 경로만 확인합니다(§7).
+- 서명과 공증의 실제 실행은 Mac 실기와 시크릿 등록 뒤의 일입니다([미결] §8). 이 저장소의 시험은 시크릿이 없는 미서명 경로(0, 태그에서 1)만 확인합니다(§7).
 
 ## 5. 업데이트
 
@@ -137,7 +137,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 | 시험 | 종류 | 무엇을 확인하나 | 실행 위치 |
 |---|---|---|---|
 | `xeon/scripts/release.test.ts` | 단위 | 설정 파싱과 잘못된 설정, 잠금 파일, SHA256SUMS, 고지, 아카이브 이름, 버전 검사, 종료 코드, 스모크의 배치와 sums 파싱, 번들 버전과 mise 고정 값의 일치 | fresnel-ci `root` 층(Linux x86_64, `bun test scripts`) |
-| `xeon/scripts/workflow-pins.test.ts` | 단위 | 워크플로 `uses:`의 SHA 고정과 버전 주석(M3-30), 시크릿이 없을 때와 APPLE_ID만 있을 때의 서명 건너뛰기, 값 미출력 | 같음 |
+| `xeon/scripts/workflow-pins.test.ts` | 단위 | 워크플로 `uses:`의 SHA 고정과 버전 주석(M3-30), 시크릿이 없을 때와 APPLE_ID만 있을 때의 UNSIGNED 상태, 태그에서의 실패, 값 미출력 | 같음 |
 | `xeon/apps/cli/test/group-templates-locate.test.ts` | 단위 | 템플릿 탐색 순서와 찾지 못했을 때 null | fresnel-ci `L4` 층 |
 | `xeon/packages/platform-os/test/binaries.test.ts` | 단위 | Linux에서 bwrap과 socat이 없을 때의 설치 안내 문구 | fresnel-ci `L0` 층, `fresnel-macos.yml`(`just test packages/platform-os`) |
 | `xeon/scripts/release-smoke.test.ts`(X11) | 종단 | `release-smoke.sh`가 이 기기의 아카이브를 만들고, §3.1 배치, 해시, 잠금, 실행, 템플릿, doctor 줄, `@swc/core` 부재를 확인합니다 | fresnel-ci `exit-tests`(Linux x86_64), `fresnel-macos.yml`의 `exit-tests`와 `release smoke`(macOS arm64), `fresnel-release.yml`(두 OS) |

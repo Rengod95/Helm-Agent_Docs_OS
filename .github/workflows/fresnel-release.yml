@@ -4,7 +4,7 @@ name: Fresnel Release
 # same script (xeon/scripts/release-smoke.sh) with the same inputs. It runs on a release tag, by hand, and on a pull request
 # that touches the release files. The macOS job is also started by hand at milestone close.
 # Signing and notarization (macOS) need the repository secrets APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD,
-# APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD. Without them the step skips and the archive is unsigned.
+# APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD. Without them the archive is reported UNSIGNED (warning and job summary), and a v* tag run fails.
 on:
   workflow_dispatch:
   push:
