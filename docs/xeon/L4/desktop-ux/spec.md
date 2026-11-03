@@ -2904,7 +2904,7 @@ export const palette = [
 | W-05 | 목표 상태 읽기 | P-14, S-03 | `/goal status` 명령 결과 | `goal.status { threadId }` |
 | W-06 | 작업 목록 읽기 | P-14 | 없음(이벤트만) | `work.tasks.list { threadId }` |
 | W-07 | 예약 다시 켜기·고치기, 실행 기록 | P-07 | `cancel`은 끝, `lastRun`만 | `schedule.update`, `schedule.runs` |
-| W-08 | 대상 바꾸기와 원격 연결 단계 | P-08, S-03 | 셸 명령 없음 | Tauri 명령 `engine_retarget { target }`과 진행 이벤트 |
+| W-08 | 대상 바꾸기와 원격 연결 단계 | P-08, S-03 | 셸 명령 `engine_retarget { target }`(`target`은 `{ kind: "local" }` 또는 `{ kind: "remote", address }`)이 있음(T-SHELL). 사이드카를 `host --stdio [--remote <주소>]`로 다시 띄우고 상태는 기존 `EngineState` 전이(`restarting` → `running`)로 알림. 접속 토큰은 인자에 싣지 않고 환경 변수 `FRESNEL_REMOTE_TOKEN`으로만 줌. 연결 단계별 진행 이벤트는 없음 | 단계 이벤트는 P-08(T-CHAT2)이 필요할 때 더함 |
 | W-09 | 알림 읽음 상태 | P-03 | 없음 | 데스크톱 로컬 커서로 대신 [제안] |
 | W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식) [미결] |
 | W-11 | 사용량 한도·창·계정 게이지 | P-11, S-03 | `session` 게이지만 | L1.models 계정·창 데이터 연결(B2-MDL 이후) |
@@ -2915,7 +2915,7 @@ export const palette = [
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 없음 | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
 | W-17 | 큐에 넣은 입력 철회 | P-02 | `input.withdrawn` 이벤트만 | `turn.withdraw { requestId }` [미결] |
 | W-18 | 계획 버전 목록 | P-14 | 없음 | `work.plans.versions` wire |
-| W-19 | OS 폴더 고르기 | O-07 | Tauri dialog 플러그인 없음 | 셸 capability 추가(`L4.desktop.spec` §10 17번) |
+| W-19 | OS 폴더 고르기 | O-07 | Tauri dialog 플러그인 없음. M4 T-SHELL은 새 외부 의존 없음 규칙 때문에 넣지 못함 [미결: `tauri-plugin-dialog` 추가 승인] | 셸 capability 추가(`L4.desktop.spec` §10 17번). 승인 전에는 O-07이 폴더 경로를 입력란으로 받음 |
 | W-20 | 확장 하나의 상세(매니페스트, 유효 등급, tier, 기능 바인딩, 훅과 예산 등급, 진단) | P-17 | 없음 | `ext.get { name }` |
 | W-21 | 자동 꺼짐 확장 다시 켜기(장부 비우기) | P-13, P-17, P-16 | `AutoDisabler.reenable`은 시험만 부름. `/group on`은 scope만 켬 | `ext.reenable { name }` |
 | W-22 | 확장별 실패 장부(연속 수, 최근 창) | P-13, P-17 | 프로세스 메모리, 휘발 이벤트만 | `ext.health { name?, threadId? }` |

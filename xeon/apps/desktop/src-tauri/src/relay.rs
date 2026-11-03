@@ -19,7 +19,7 @@ use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request};
 use tauri::State;
 use tokio::sync::{mpsc, Notify};
 
-use crate::engine::{AppSupervisor, EngineState};
+use crate::engine::{AppSupervisor, EngineState, EngineTarget};
 
 /// 신용 창. 보낸 바이트에서 처리 확인된 바이트를 뺀 값이 이 값 이하일 때만 다음 묶음을 보낸다.
 pub const CREDIT_WINDOW_BYTES: u64 = 4 * 1024 * 1024;
@@ -51,6 +51,8 @@ pub enum CommandError {
     NotFailed,
     TooLarge,
     BadRequest,
+    /// 설정 파일을 읽거나 쓰지 못했다. 틀린 파일은 덮어쓰지 않으려고 이 오류를 돌려준다.
+    StorageFailed,
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -612,6 +614,15 @@ pub async fn engine_restart(
     supervisor: State<'_, Arc<AppSupervisor>>,
 ) -> Result<(), CommandError> {
     supervisor.restart_manually()
+}
+
+/// 엔진이 붙을 대상을 바꾼다(W-08). 같은 대상이면 아무 일도 없다. 살아 있는 엔진은 정상 종료 순서로 끝나고 새 대상으로 다시 뜬다.
+#[tauri::command]
+pub async fn engine_retarget(
+    supervisor: State<'_, Arc<AppSupervisor>>,
+    target: EngineTarget,
+) -> Result<(), CommandError> {
+    supervisor.retarget(target)
 }
 
 /// 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊는다.
