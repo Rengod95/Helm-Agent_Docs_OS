@@ -88,10 +88,27 @@ export async function folderHash(
   return ok(hash.digest("hex"));
 }
 
+/**
+ * 로더는 엔트리의 `extension`이나 default가 함수이기를 바란다. 그룹 템플릿은 `defineGroup`이 만든 모듈 객체를 default로 내므로
+ * (`GroupModule.entry`가 함수다) 묶을 때 그 둘을 함수로 맞추는 얇은 진입 파일을 앞에 둔다. 함수면 그대로 쓴다.
+ */
+function wrapperSource(entryPath: string): string {
+  return [
+    `import * as loaded from ${JSON.stringify(entryPath)};`,
+    "const picked = loaded.extension ?? loaded.default;",
+    'export const extension = typeof picked === "function" ? picked : picked?.entry;',
+    'if (typeof extension !== "function") throw new Error("the entry exports no extension function");',
+    "export default extension;",
+    "",
+  ].join("\n");
+}
+
 async function bundleEntry(entryPath: string, outdir: string): Promise<Result<void, DevkitError>> {
+  // 가상 진입 파일이라 임시 폴더 경로가 번들에 남지 않는다(같은 입력은 같은 묶음이다)
   const built = await io("bundle", () =>
     Bun.build({
-      entrypoints: [entryPath],
+      entrypoints: ["/fresnel-entry.ts"],
+      files: { "/fresnel-entry.ts": wrapperSource(entryPath) },
       outdir,
       target: "bun",
       format: "esm",
@@ -149,7 +166,7 @@ export async function packExtension(input: PackInput): Promise<Result<PackResult
   const scratch = await io("tmp", () => mkdtemp(join(tmpdir(), "fresnel-pack-")));
   if (!scratch.ok) return scratch;
   try {
-    const bundled = await bundleEntry(join(input.dir, manifest.entry), join(scratch.value));
+    const bundled = await bundleEntry(join(input.dir, manifest.entry), scratch.value);
     if (!bundled.ok) return bundled;
     const copied = await copyTree(input.dir, out, "");
     if (!copied.ok) return copied;
