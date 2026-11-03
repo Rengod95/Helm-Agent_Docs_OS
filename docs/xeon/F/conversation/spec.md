@@ -534,6 +534,8 @@ export interface StepCompletedPayload {
   toolResultItemIds: ItemId[];
   /** 선택. 이 단계의 요청 조립이 낸 컨텍스트 경고(`cache_prefix_reset` 등). 없으면 경고가 없던 단계이고 옛 기록도 같다 [T-MEAS-EV] */
   contextWarnings?: StepContextWarning[];
+  /** 선택. 이 단계 요청의 소유자별 토큰 추정(글자 수/4, 메시지 고정 몫은 추정기 값). `system`(절 뺀 기본 프롬프트), `tools`(요청의 도구 정의, `total`에 불포함), `sections`(절 이름 → 토큰, 절 이름이 소유자), `injected`(합치기 훅이 더한 몫), `volatile`, `history`(나머지), `total`. `system + sections 합 + injected + volatile + history = total`이다. 조립 대역과 옛 기록에는 없다 [T-MEAS-CTX] */
+  composition?: StepComposition;
 }
 /** 코드마다 쓰는 필드만 있다: cache_reset_model_switch{from,to}, cache_prefix_reset{at}, tools_deferred{added,removed}, near_window{tokens,contextWindow}. 모델 바인딩은 `provider/modelId` 문자열이다 */
 export interface StepContextWarning {

@@ -115,6 +115,8 @@ export interface AssembledContext {
   readonly toolChange: ToolChangeDecision | null;
   readonly cacheMarks: CacheMarks;
   readonly estimate: ContextUsageEstimate;
+  /** 요청 구성 토큰(소유자별). 절 이름이 소유자이고 합치기 훅이 더한 몫은 `injected`로 따로 센다. loop가 `step.completed.composition`으로 내구 기록한다 [T-MEAS-CTX] */
+  readonly composition?: ContextComposition;
   readonly compactionHead: { readonly eventId: EventId; readonly firstKeptEventId: EventId } | null;
   /** 이번 조립에서 새로 커밋해야 할 system item 초안(접두 고정, 도구 변경, 절 갱신). loop가 단계 커밋에 넣는다 */
   readonly pendingItems: readonly PendingSystemItem[];

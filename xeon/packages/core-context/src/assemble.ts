@@ -10,6 +10,7 @@ import type {
 import type {
   AssembleOptions,
   AssembledContext,
+  ContextComposition,
   ContextError,
   ContextWarning,
   ModelBinding,
@@ -177,6 +178,41 @@ async function applyContextWithSystemHook(
   return { messages: convertToLlm(outcome.value.messages), changed: true };
 }
 
+/** 글자 수 / 4 올림. pi-ai 추정과 같은 규칙이다 */
+function textTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/** 요청 구성 토큰(T-MEAS-CTX). 절은 이름이 소유자다. history는 total에서 나머지를 뺀 값이라 합이 항상 total과 같다(음수면 0) */
+function compositionOf(input: {
+  readonly prefix: SystemMessage;
+  readonly prefixTokens: number;
+  readonly tools: AssembleOptions["tools"];
+  readonly injected: number;
+  readonly volatile: number;
+  readonly total: number;
+}): ContextComposition {
+  const sections: Record<string, number> = {};
+  let sectionSum = 0;
+  for (const [name, text] of Object.entries(input.prefix.sections ?? {})) {
+    if (text === null) continue;
+    const tokens = textTokens(text);
+    sections[name] = tokens;
+    sectionSum += tokens;
+  }
+  const system = Math.max(0, input.prefixTokens - sectionSum);
+  const history = Math.max(0, input.total - system - sectionSum - input.injected - input.volatile);
+  return {
+    system,
+    tools: textTokens(canonicalJson(input.tools.map((tool) => tool.wire))),
+    sections,
+    injected: input.injected,
+    volatile: input.volatile,
+    history,
+    total: input.total,
+  };
+}
+
 /**
  * leaf까지의 가지로 모델 요청 컨텍스트를 만든다. 커밋하지 않는다. 접두가 아직 기록되지 않았으면
  * 이번에 만들어 pendingItems로 돌려준다(§4.2). 접두의 타임스탬프는 leaf 이벤트의 recordedAt이다
@@ -272,6 +308,7 @@ export async function assembleContext(
   );
   messages.push(...appended);
 
+  const tokensBeforeHooks = deps.models.tokens.estimateContext(messages).tokens;
   const afterContext = await applyContextHook(deps, threadId, opts, messages);
   const withSystem = await applyContextWithSystemHook(deps, threadId, opts, afterContext);
   const finalMessages: Message[] = [...withSystem.messages];
@@ -282,9 +319,11 @@ export async function assembleContext(
     }
   }
 
+  const tokensAfterHooks = deps.models.tokens.estimateContext(finalMessages).tokens;
   const cacheMarks = computeCacheMarks(opts.cachePolicy, finalMessages);
 
   // volatile 계층은 표식 뒤, 대화 끝에 둔다. 커밋하지 않는 조립 전용 메시지다(§4.1)
+  let volatileTokens = 0;
   if (Object.keys(opts.volatile).length > 0) {
     const text = volatileText(opts.volatile);
     if (opts.cachePolicy.midConversationSystem) {
@@ -293,6 +332,10 @@ export async function assembleContext(
       const note: UserMessage = { role: "user", content: text, timestamp };
       finalMessages.push(note);
     }
+    volatileTokens = Math.max(
+      0,
+      deps.models.tokens.estimateContext(finalMessages).tokens - tokensAfterHooks,
+    );
   }
 
   // 모델 입력 사후 가림. 표식은 위에서 인덱스로만 정해졌으므로 내용을 바꿔도 같다. 접두 판정(cache_prefix_reset, prefixHash)은 가리기 전 값으로 했다
@@ -307,6 +350,15 @@ export async function assembleContext(
     });
   }
 
+  const composition = compositionOf({
+    prefix: prefixMessage,
+    prefixTokens: deps.models.tokens.estimateMessage(prefixMessage),
+    tools: opts.tools,
+    injected: Math.max(0, tokensAfterHooks - tokensBeforeHooks),
+    volatile: volatileTokens,
+    total: estimate.tokens,
+  });
+
   const prefix: PrefixInfo = {
     prefixHash: prefixHash(prefixMessage),
     toolset: await prefixToolset(prefixMessage),
@@ -318,6 +370,7 @@ export async function assembleContext(
     toolChange,
     cacheMarks,
     estimate,
+    composition,
     compactionHead:
       head === null ? null : { eventId: head.eventId, firstKeptEventId: head.firstKeptEventId },
     pendingItems,

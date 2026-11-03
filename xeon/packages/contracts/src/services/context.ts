@@ -77,6 +77,25 @@ export type ContextWarning =
     }
   | { readonly code: "near_window"; readonly tokens: number; readonly contextWindow: number };
 
+/**
+ * 요청 구성 토큰(측정, T-MEAS-CTX). 글자 수 / 4 추정이고 `tools`만 `messages` 밖이다.
+ * `system + sections 합 + injected + volatile + history`는 `total`(= `estimate.tokens`)과 같다(history는 나머지)
+ */
+export interface ContextComposition {
+  /** 접두 시스템 메시지에서 절을 뺀 몫(기본 프롬프트) */
+  readonly system: number;
+  /** 도구 정의(요청의 `tools`). `total`에 들어가지 않는다 */
+  readonly tools: number;
+  /** 절 이름(소유자) → 토큰. 절 이름이 소유자 구분이다 */
+  readonly sections: Readonly<Record<string, number>>;
+  /** 합치기 훅(`context`, `request.system.before`)이 더한 몫. 줄인 경우는 0 */
+  readonly injected: number;
+  readonly volatile: number;
+  /** 나머지: 대화 기록 */
+  readonly history: number;
+  readonly total: number;
+}
+
 export interface AssembledContext {
   /** pi-ai Context.messages로 그대로 넘긴다. [0]은 고정 접두 SystemMessage */
   readonly messages: readonly Message[];
@@ -85,6 +104,8 @@ export interface AssembledContext {
   readonly toolChange: ToolChangeDecision | null;
   readonly cacheMarks: CacheMarks;
   readonly estimate: ContextUsageEstimate;
+  /** 요청 구성 토큰. 대역은 생략할 수 있다 */
+  readonly composition?: ContextComposition;
   readonly compactionHead: {
     readonly eventId: EventId;
     readonly firstKeptEventId: EventId;

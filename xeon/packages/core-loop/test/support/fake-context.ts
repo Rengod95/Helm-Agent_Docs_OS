@@ -13,6 +13,7 @@ import type {
   CompactCheck,
   CompactRequest,
   ContextService,
+  ContextComposition,
   ContextWarning,
   OverflowRecovery,
 } from "@fresnel/contracts/services";
@@ -38,6 +39,8 @@ export interface FakeContext {
   readonly compaction: FakeCompaction;
   /** `assemble`이 다음 조립부터 낼 경고. 시험이 채운다 */
   readonly warnings: ContextWarning[];
+  /** 시험이 값을 넣으면 다음 조립이 그 요청 구성 토큰을 낸다 */
+  readonly composition: { value: ContextComposition | undefined };
   /** assemble이 낸 요청별 메시지 수 */
   readonly assembled: readonly {
     readonly stepId: string;
@@ -76,6 +79,7 @@ export function createFakeContext(options: {
     overflowCalls: [],
   };
   const warnings: ContextWarning[] = [];
+  const composition: { value: ContextComposition | undefined } = { value: undefined };
   let compactions = 0;
   const ids = fixedIdFactory(9_500_000);
   const producer = options.session.producer("core.context");
@@ -186,6 +190,7 @@ export function createFakeContext(options: {
       toolChange: null,
       cacheMarks: { policy: opts.cachePolicy, marks: [] },
       estimate: { tokens: 0, usageTokens: 0, trailingTokens: 0, lastUsageIndex: null },
+      ...(composition.value === undefined ? {} : { composition: composition.value }),
       compactionHead: null,
       pendingItems,
       warnings: [...warnings],
@@ -226,5 +231,5 @@ export function createFakeContext(options: {
     },
     summarizeBranch: () => notImplemented("summarizeBranch"),
   };
-  return { service, assembled, compaction, warnings };
+  return { service, assembled, compaction, warnings, composition };
 }
