@@ -265,6 +265,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 7. 토큰 추정을 계산한다(`fresnel.models.tokens.estimateContext`).
 
 - volatile 정보 위치 [구현: M2, 표의 "끝"을 따른다]: 캐시 표식을 계산한 뒤 `messages` 맨 끝에 한 메시지로 붙인다. `cachePolicy.midConversationSystem`이 참이면 `SystemMessage`, 거짓이면 `UserMessage`이고 본문은 이름순 `<이름>\n값\n</이름>` 덩어리다. 어느 쪽이든 커밋하지 않는 조립 전용 메시지이고 `tail` 표식 뒤에 놓인다. 재개 뒤 다시 만들어도 값이 같도록 volatile 원천은 단계 시작 시각과 체크포인트 값에서만 계산한다 [제안]. 앞 문단의 "마지막 사용자 메시지 앞"은 이 위치로 고쳤다. 앞에 두면 단계마다 바뀌는 값이 이전 `tail` 표식 앞으로 들어가 캐시가 매 단계 깨진다.
+- 모델 입력 사후 가림 [구현: M4, L0.secrets.spec §3.5.1, M3-REQ-59]: `fresnel.secrets`가 있으면 volatile을 붙인 뒤 `messages`를 `Redactor`로 가려 돌려준다. 기록된 행은 바꾸지 않고(새 메시지), 나중에 등록된 값이 옛 도구 결과에 남아 있어도 요청에는 실리지 않는다. 대상은 user·assistant의 text, assistant 도구 호출의 `arguments`, 도구 결과의 text다. system 메시지(런타임이 쓴 접두), 이미지 바이트, thinking 블록(provider가 서명으로 검증한다), 서명과 id는 건드리지 않는다. 접두 판정(`cache_prefix_reset`, `prefixHash`)과 캐시 표식은 가리기 전 값으로 정하고, 가림은 문자열마다 등록부와 고정 표지만으로 정해지므로 등록부가 같으면 요청마다 같은 바이트다(캐시 접두가 깨지지 않는다). 등록부가 바뀌면 값이 든 자리에서만 바이트가 바뀌어 접두가 한 번 깨진다. 컴팩션·떠난 가지 요약이 요약 모델에 보내는 대화 원문(`prompt`)도 같은 `Redactor.mask`를 거친다. 시크릿 서비스가 없으면 가리지 않는다.
 - 접두 뒤 변경 처리 [구현: M2]: 도구 변경·절 갱신은 접두 뒤 system item을 모두 적용한 "현재 광고 상태"(`replaySystemMessages`)와 이번 `AssembleOptions`를 비교한다. 새 변경 item은 `pendingItems`로 내면서 같은 메시지를 이번 `messages` 끝(volatile 앞)에도 붙이므로, 단계 커밋 뒤 다시 조립해도 같은 순서가 된다. 변경이 없으면 아무것도 내지 않는다.
 - context 계층 절의 변경: 접두 고정 뒤 `sections` 값이 바뀌면 `midConversationSystem`이 참일 때만 `purpose: "sections"` system item으로 바뀐 절만 덧붙인다. 거짓이면 다음 컴팩션까지 미룬다.
 

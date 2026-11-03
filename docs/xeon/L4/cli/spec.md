@@ -106,7 +106,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 자기 바이너리를 detached로 띄울 때 붙이는 인자다(`L4.host-service.spec` §3.2, SV-06). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-run", safeMode, tcp? })`. `--safe-mode`·`--listen-tcp`를 받는다 | M3(구현됨) |
 | `fresnel host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 `bridgeStdioToService`로 원격 서비스에 중계한다(HS-89). 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표). 원격이면 `resolveRemoteEndpoint`, `bridgeStdioToService` | M2(컴파일 바이너리 서브커맨드, 구현됨) |
 | `fresnel doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 기능, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`, `web.providers`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
-| `fresnel db export <폴더> [--json]` | 저장소 파일(데이터 디렉터리의 `fresnel.db`)을 엔진을 띄우지 않고 읽기 전용으로 `<폴더>`에 내보낸다. 엔진이 떠 있어도 된다. 상대 경로는 작업 폴더(`-C`) 기준이다(§4.13). 종료코드: 성공 0, 폴더 인자 누락과 비어 있지 않은 대상 2, 저장소·디스크 오류와 데이터 디렉터리 위치 실패 3(§4.10) | 없음. `deps.exportDatabase`(`L0.store.spec` §4.10)와 `deps.resolveDataDir`(`resolveOsDirs`)를 부른다 | M3(구현됨, M3b B3-DATA) |
+| `fresnel db export <폴더> [--json] [--yes]` | 저장소 파일(데이터 디렉터리의 `fresnel.db`)을 엔진을 띄우지 않고 읽기 전용으로 `<폴더>`에 내보낸다. 엔진이 떠 있어도 된다. 사본에는 시크릿 값이 그대로 있을 수 있어 확인을 받는다(§4.13, [결정: 2026-11-03 사용자]). 상대 경로는 작업 폴더(`-C`) 기준이다(§4.13). 종료코드: 성공 0, 폴더 인자 누락과 비어 있지 않은 대상, `--yes` 없이 터미널이 아닌 실행 2, 확인에서 y가 아닌 답 1, 저장소·디스크 오류와 데이터 디렉터리 위치 실패 3(§4.10), 저장소·디스크 오류와 데이터 디렉터리 위치 실패 3(§4.10) | 없음. `deps.exportDatabase`(`L0.store.spec` §4.10)와 `deps.resolveDataDir`(`resolveOsDirs`)를 부른다 | M3(구현됨, M3b B3-DATA) |
 | `fresnel group new <이름> [--drive\|--policy] [--dir <폴더>] [--json]` | 그룹 골격을 만든다. 기본은 observe 템플릿, `--drive`는 drive, `--policy`는 policy 템플릿이다. 두 플래그를 함께 주면 사용법 오류(2)다. 대상 폴더는 비어 있어야 하고 기본은 작업 폴더의 `<이름>`이다. 엔진에 연결하지 않고 템플릿 파일만 읽는다(§3.8) | 없음. 파일 작업(`CliDeps.groupTemplates`) | M3b(구현됨, M3b B4-GRP) |
 | `fresnel version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
@@ -447,7 +447,7 @@ export const EXIT: {
 |---|---|---|
 | 0 | 정상 | turn이 `completed`로 끝났다. 명령이 성공했다 |
 | 1 | 일반 오류 | turn이 `failed`, wire 오류(`internal`, `settings.invalidValue` 등), 없는 대화, `EngineStartError`의 `catalogConflict`·`missingService`(설치본·확장 결함이라 환경을 고쳐도 풀리지 않는다), `runHostCommand`의 1, `schedule`의 기대한 실패(없는 예약, 원격 아님, 꺼진 예약, 간격 미달, 상한, 지난 시각) |
-| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`) |
+| 2 | 사용법 오류 | 모르는 플래그, 인자 누락, argv에 시크릿 값, `--json`을 대화형에 씀, `--remote` 주소 문법 오류(`EngineStartError`의 `invalidRemote`), `schedule`의 사용법 오류(트리거 없음이나 둘 이상, 값 형식, 예약 id 형식), `db export`의 폴더 인자 누락, `db export`의 대상 폴더가 비어 있음(`dest_not_empty`), `db export`를 `--yes` 없이 터미널이 아닌 곳에서 실행함(§4.13) |
 | 3 | 환경 문제 | `EngineStartError`의 나머지 kind(FTS5 없음, sops 없음, 데이터 디렉터리 권한, 저장소 열기 실패, 서비스 도달 불가, 계약 버전 불일치), `db export`의 저장소·디스크 오류(`foreign_database`, `not_a_database`, `io`, `busy`, `disk_full`)와 데이터 디렉터리 위치를 정하지 못함. `schedule`의 `store_failed`(예약 상태 파일) |
 | 4 | 대화 잠금 실패 후 사용자 거부 | `thread.locked`에서 관찰·분기·위임을 고르지 않았다. M1은 프롬프트 없이 바로 4다 |
 | 129 | SIGHUP | 터미널이 닫혔다(pi print 모드와 같은 값, `~/projects/_ref/pi-src/packages/coding-agent/src/modes/print-mode.ts:60`) |
@@ -902,13 +902,14 @@ export interface GroupTemplatesPort {
 - 사람용 출력(stdout): `exported <N> blobs to <절대 경로>` 한 줄입니다.
 - 누락 블롭: `missingBlobs`의 sha256마다 stderr에 `경고: 블롭 파일이 없어 빠졌다: <sha256>` 한 줄을 씁니다. 열 줄을 넘으면 앞의 열 줄만 쓰고, `경고: 나머지 <M>개도 빠졌다 (전체 <K>개, manifest.json의 missingBlobs)` 한 줄로 개수를 알립니다. 누락 블롭이 있어도 내보내기는 성공이고 종료 코드는 0입니다. 사본에는 복사된 블롭만 있습니다.
 - `--json`: `ExportReport`(`destDir`, `exportedAt`, `blobCount`, `missingBlobs`)를 JSON 문서 하나로 stdout에 씁니다. 이 경우 누락 블롭 경고는 stderr에 쓰지 않습니다.
+- [결정: 2026-11-03 사용자] 확인: 사본의 저장소 파일에는 시크릿 값이 그대로 있을 수 있습니다. 원본을 복사하므로 화면 가림(`L0.secrets` §3.5.1)을 적용하지 않습니다. 그래서 내보내기 전에 경고 한 줄을 stderr에 씁니다(사람용 출력). `--yes`가 없으면 터미널에서는 경고 뒤 `사본을 만들까? [y/N]`로 묻고, y가 아니면 아무것도 만들지 않고 종료 코드 1입니다. 터미널이 아니면 `--yes` 없이는 아무것도 만들지 않고 종료 코드 2입니다. 이 규칙은 `sessions rm`과 `secret rm`의 `--yes`와 같습니다. 제품 CLI의 3은 환경 문제이므로 확인 거부에 3을 쓰지 않습니다(`개발 레시피의 3`과 섞지 않는다, §3.6). `--json`이고 `--yes`가 있으면 stderr에 경고를 쓰지 않습니다. 묻는 경우에는 `--json`이어도 경고를 씁니다.
 - 오류: 문구와 종료 코드는 §4.10 표를 따릅니다. 실패하면 `exportDatabase`가 이 호출로 만든 파일과 디렉터리만 지웁니다.
 - 사본을 열 때는 `openStore`를 씁니다. 다른 Fresnel 버전이 만든 파일도 내보내집니다. 사본을 데이터 디렉터리로 되돌리는 절차는 이 명령이 하지 않고 M3 복구 런북(`review.m3-plan` M3-25)이 정합니다.
 
 예:
 
 ```
-$ fresnel db export ~/backup/fresnel-2026-10-29
+$ fresnel db export ~/backup/fresnel-2026-10-29 --yes
 exported 3 blobs to /home/user/backup/fresnel-2026-10-29
 $ fresnel db export ~/backup/fresnel-2026-10-29 --json
 {

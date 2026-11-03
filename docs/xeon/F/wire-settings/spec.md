@@ -795,6 +795,7 @@ export const StreamChunkParams = Obj({ event: VolatileEventWire });
 | `recordedAt` | ms 정수 | ISO 8601 UTC 문자열(`IsoTime`) |
 | `detached` | blob으로 옮긴 필드 목록. payload 자리에는 `blob:sha256:<hex>` 자리표시 | 그대로 싣는다. 클라이언트가 blob 내용을 받는 메서드는 M2 이후 [제안] |
 | `redactions` | 없음(`F.records.spec` §3.1.1이 wire로 이관) | 2차 방어로 가린 payload 필드 이름. 1차 방어는 "payload에 시크릿 값을 넣지 않는다"는 기록 규칙이다 |
+| `mask` | 없음 | `item.recorded`에만 붙는 화면 가림 표식(선택). §3.4.5a [결정: 2026-11-03 사용자] |
 | 그 밖의 필드(`id`, `kind`, `version`, `durable`, `seq`, `parentId`, `threadId`, `turnId`, `stepId`, `causationId`, `correlationId`, `payload`) | `F.records.spec` §3.1 | 이름과 값 그대로 |
 
 ```ts
@@ -824,6 +825,30 @@ export const EventWire = Obj({
 export declare function toEventWire(event: DurableEventEnvelope, redact?: (event: DurableEventEnvelope) => readonly string[]): EventWire;
 export declare function toVolatileEventWire(event: VolatileEventEnvelope): VolatileEventWire;
 ```
+
+#### 3.4.5a 화면 가림 표식 [결정: 2026-11-03 사용자]
+
+[결정: 2026-11-03 사용자] 값을 화면에 보이지 않게 하는 일은 클라이언트가 호스트가 준 구간을 적용하는 것으로 한다. 호스트는 `L0.secrets` §3.5의 `displayRanges`·`displayVisibleLength`·`displayLeafMasks`로 구간을 구하고, 구간·길이·표지 이름만 wire에 싣는다. 값도 값의 모양도 싣지 않는다. 이벤트의 payload와 저장 행은 바뀌지 않는다. 표식은 선택 필드다. 표식이 없는 이벤트는 그대로 그린다.
+
+| 위치 | 필드 | 내용 |
+|---|---|---|
+| `events.batch`의 `EventWire` | `mask?: LeafMask[]` | `item.recorded`와 `approval.requested`에 붙는다. `item.recorded`의 포인터는 payload의 `item` 기준(예: `/message/content`), `approval.requested`의 포인터는 payload 기준이다(`/title`, `/body/tool/args/command`). 가릴 것이 없으면 필드가 없다 |
+| `thread.read` 결과 | `masks?: ItemMaskEntry[]` | 가릴 잎이 있는 item만 `{ itemId, leaves }`로 싣는다. `items`는 바뀌지 않는다 |
+| `approval.list` 결과 | `masks?: ApprovalMaskEntry[]` | 출처(caller 등)와 본문의 문자열 전부(도구 인자, 계획, 질문, 검토)에 가릴 것이 있는 승인만 `{ approvalId, leaves }`로 싣는다. `approvals`는 바뀌지 않는다. 요청 키와 식별자는 가리지 않는다 |
+| `stream.chunk`의 `item.updated` `part_delta` | `delta.mask?: PartMask` | 진행 중 파트 조각의 누적 표식(아래 규칙 3) |
+
+`LeafMask` = `{ pointer, len, ranges }`. `len`은 호스트가 잰 잎 길이, `ranges`는 `{ start, end, label }`의 목록이다. `[start, end)`는 잎 문자열의 UTF-16 위치이고, 구간은 겹치지 않고 start 순서다. `label`은 표지 안쪽 말(`known:<이름>`, 패턴 kind, `kv`)이다.
+
+규칙:
+
+1. 판정은 호스트만 한다. 클라이언트는 패턴을 모르고 구간만 적용한다. 공용 적용기는 F 층의 `packages/contracts/src/conversation/display-mask-apply.ts`(DR-10: 앱끼리 import하지 않도록 가장 낮은 층에 둔다)의 `applyRanges`, `maskItemRecord`, `maskPartText`다. 데스크톱, 웹, 휴대폰이 같은 함수를 쓴다.
+2. 잎의 길이가 `len`과 다르면 그 잎은 `[REDACTED:unverified]`가 된다. 구간이 범위 밖이거나 겹치면 잎 전체를 가린다. 가리킨 자리가 문자열이 아니면 item을 읽지 못한 것으로 두고 거울에 넣지 않는다(닫힌 쪽으로 실패).
+3. 진행 중 파트(`part_delta`): 호스트는 파트마다 받은 조각을 이어 누적 원문을 든다(프로세스 메모리, 직렬화하지 않는다). 연결이 없는 thread의 조각도 셈한다. 보이는 앞부분(`visible`)은 마지막 공백까지다. 공백 뒤의 낱말은 값의 일부일 수 있으므로 뺀다. 알려진 값 변형의 앞부분과 닫히지 않은 PEM 블록도 뺀다. 구간(`ranges`)은 그 앞부분에서만 구한다. `end` 조각에서는 누적이 끝났으므로 꼬리를 빼지 않는다. `len`은 누적 전체 길이다.
+4. 클라이언트는 조각을 `delta` 단계만 이어 붙여 원문 길이를 본다. 길이가 `len`과 다르면 조각을 놓친 것이므로 파트를 비운다. 조각은 휘발이라 송신 큐가 찬 연결에서 버려질 수 있다(§3.4.4). 확정 item(`item.recorded`)이 오면 그 item을 그린다. 놓친 파트는 확정될 때까지 그리지 않는다.
+5. `verified: false`는 호스트가 누적을 믿을 수 없다는 뜻이다(시작 조각을 보지 못했거나 추적 상한 4096을 넘었다). 클라이언트는 그 파트를 그리지 않는다.
+6. 호스트는 `part_completed`를 받으면 그 파트의 누적을 버린다. 확정 item이 기록되면 그 item의 파트 누적을 버린다. 누적은 조각이 아니라 파트마다 하나다.
+7. 표식의 어떤 필드에도 값이 없다. 시험은 새 필드를 JSON으로 펼쳐 값이나 그 앞부분이 없는지 본다.
+8. 표식을 싣지 않는 호스트(이전 빌드)와 이 클라이언트가 섞이면 표식이 없어 그대로 그린다. 같은 빌드의 호스트와 클라이언트가 함께 쓰는 것이 전제다.
 
 #### 3.4.6 스냅샷과 이벤트 이어 붙이기 [결정: m2 F.2]
 

@@ -1083,6 +1083,9 @@ compact 폭(720 이하)과 사이드바 시트:
   - "이 대화에서 항상"은 `remember: "thread"`, "항상"은 `remember: "always"`이고 `request.remember`에 있는 값만 버튼으로 둡니다. M4의 승인 기억은 요청 단위뿐이고 그룹 단위 기억은 두지 않습니다 [결정: 2026-10-31 사용자]. 지금 코드는 `once`만 보냅니다.
   - 자식 에이전트가 낸 승인은 출처를 "렌즈 실패 사례 · grp:helm"처럼 보입니다(DP-33) [결정: 2026-10-31 사용자]. 데이터는 `ApprovalOrigin.caller`(`agentName`, `extension`)입니다(`L1.tools.spec` §3).
   - 입력창 위 큐 표시: 실행 중 보낸 입력은 "다음 도구 라운드 뒤 들어가요(steer)" 칩으로 보이고, `input.placed`가 오면 사라집니다. `input.withdrawn` 철회 동작은 [미결] `[gap:W-17]`.
+- 화면 가림 [결정: 2026-11-03 사용자]: 트랜스크립트는 값을 그리지 않습니다. 사용자 글, 어시스턴트 글, 생각, 도구 인자(JSON), 도구 결과, 스트리밍 행이 모두 같습니다. 호스트가 준 구간(`F.wire-settings.spec` §3.4.5a)을 F 층의 공용 적용기(`@fresnel/contracts/conversation`, DR-10)로 같은 문자열에 적용해 그리고, 가린 자리는 `[REDACTED:<표지>]`로 보입니다(표지: `known:<이름>`, 패턴 이름, `kv`). 값과 패턴의 판정은 호스트가 하고 화면은 구간만 적용합니다. 확정 item의 표식이 맞지 않으면 그 item은 그리지 않습니다. 스트리밍 행은 마지막 공백까지만 보이고(뒤 낱말은 확정 때까지 빠집니다), 조각을 놓쳐 길이가 맞지 않으면 그 파트를 확정 item이 올 때까지 비웁니다.
+- 복사: 화면에서 복사되는 글은 그려진 글이므로 값이 없습니다. 메시지 복사([제안], 위 표)를 만들면 그려진 텍스트를 써야 합니다. 지금은 트랜스크립트에 복사 동작이 없고 진단 복사(`copyDiagnostics`)만 있으며, 진단 묶음에는 대화 내용이 들어가지 않습니다(`FS-13`).
+- 범위 밖: 승인 카드(P-03)의 도구 인자와 설정 화면은 이 표식을 쓰지 않습니다 [미결]. 내보내기 `db export`는 가리지 않고 확인을 받습니다(`L4.cli.spec` §4.13).
 - 바로 가기 키: Enter 보내기, ⇧Enter 줄바꿈, ⌘. 중단, ⌘L 입력창 초점, `/` 자동 완성(↑↓ 이동, Tab 채우기), ⌘⇧A 다음 승인 카드, 카드 안 Y·N·⇧Y.
 - 접근성: 트랜스크립트는 `role="log"`, `aria-live="polite"`이며 스트리밍 조각은 문장 단위로만 알립니다 [제안]. 승인 카드가 생기면 "승인 요청: bash"를 한 번 알립니다. 입력창 `inputLabel="메시지"`, `sendLabel="보내기"`, `stopLabel="중단"`.
 - caustic: `Message`(user 버블, agent 세리프), `MessageCode`, `Thinking`, `ToolCall`, `ActivityTree`(서브에이전트와 Helm 렌즈 진행), `AgentRequest`(kind `permission`, `review`, `proposal`), `ChoiceGroup`(질문), `Plan`(계획 단계 미리보기), `Composer`, `Suggestions`, `Alert`, `Card`, `Dialog`, `EmptyState`, `Skeleton`, `ScrollArea`. Markdown 렌더는 caustic 밖입니다 `[gap:C-06]`.
@@ -1196,6 +1199,8 @@ compact 폭(720 이하)과 사이드바 시트:
 - 바로 가기 키: ↑↓ 행 이동, Enter 카드 펼치기, Y·N·⇧Y 응답, `o` 원인 대화 열기, ⌘⇧A 다음 대기 승인.
 - 접근성: 묶음은 `section`과 제목, 행은 `List`의 단일 선택. 새 승인이 오면 한 번 알리고 초점은 옮기지 않습니다.
 - caustic: `AgentRequest`(kind `permission`, `review`, `proposal`; status `pending`, `answered`, `allowed`, `denied`), `ChoiceGroup`, `Textarea`, `MessageCode`, `Plan`, `List`, `ListGroup`, `SegmentedControl`(거르기), `Select`, `Badge`, `EmptyState`, `Skeleton`. 알림함 전용 부품은 없습니다 `[gap:C-02]`.
+
+- 승인 카드 화면 가림 [결정: 2026-11-03 사용자]: 카드의 제목과 도구 인자(JSON)는 호스트가 준 표식(`F.wire-settings.spec` §3.4.5a, `approval.requested`의 `mask`와 `approval.list`의 `masks`)을 `@fresnel/contracts/records`의 `maskApprovalRequest`로 적용한 뒤에만 상태에 들어갑니다. 대화(P-02)와 같은 값 판정을 쓰므로 카드가 트랜스크립트가 가린 값을 보이지 않습니다. 계획, 질문, 검토 본문도 같은 방식으로 가립니다. 질문과 검토의 문자열 필드(질문 본문, 선택지 이름과 설명, 검토 제목과 파일 경로)는 필드마다 같은 자리의 표식을 적용합니다. 요청 키와 식별자는 화면 글이 아니므로 가리지 않습니다. 표식이 맞지 않는 승인은 목록에 넣지 않습니다(카드를 읽을 수 없는 것으로 둡니다).
 
 ### 6.8 P-04 변경 검토
 

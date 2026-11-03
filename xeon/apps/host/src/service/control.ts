@@ -70,6 +70,13 @@ export type ServiceStatusResult =
       readonly status: WireResult<"host.status">;
     };
 
+/** 화면과 `--json`에 내보내는 모양. 등록 파일의 접속 토큰은 뺀다(호스트 접속 권한이라 출력하지 않는다) */
+export function serviceStatusView(result: ServiceStatusResult): unknown {
+  if (!result.running) return result;
+  const { token: _token, ...registration } = result.registration;
+  return { running: true, registration, status: result.status };
+}
+
 export async function serviceStatus(
   options: ServiceControlOptions = {},
 ): Promise<Result<ServiceStatusResult, ServicePathError>> {

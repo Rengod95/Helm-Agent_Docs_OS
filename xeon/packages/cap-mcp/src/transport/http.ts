@@ -15,17 +15,22 @@ export interface HttpTransportInput {
   readonly url: string;
   /** 헤더 이름 → `secret://` 참조 */
   readonly headerRefs: Readonly<Record<string, string>>;
+  /** 헤더 이름 → 평문 값. 해석하지 않고 그대로 보낸다 */
+  readonly plainHeaders?: Readonly<Record<string, string>>;
   readonly secrets: McpHeaderSecrets | undefined;
   /** 시험에서 가짜 서버로 바꾼다. 없으면 전역 fetch */
   readonly fetch: FetchLike | undefined;
 }
+
+const SECRET_REF_PREFIX = "secret://";
 
 /** 시크릿 해석 실패. 메시지에는 참조 이름만 있고 값은 없다 */
 class HeaderSecretFailure extends Error {
   readonly reason: "secret_missing" | "secret_denied" | "secret_unavailable";
 
   constructor(reason: "secret_missing" | "secret_denied" | "secret_unavailable", ref: string) {
-    super(`${reason}: ${ref}`);
+    // 참조가 아닌 문자열(평문 헤더 값)은 이름이 아니라 값이므로 문구에 쓰지 않는다
+    super(`${reason}: ${ref.startsWith(SECRET_REF_PREFIX) ? ref : "headers"}`);
     this.reason = reason;
   }
 }
@@ -33,8 +38,12 @@ class HeaderSecretFailure extends Error {
 function secretFetch(input: HttpTransportInput, signalOf: () => AbortSignal): FetchLike {
   const base: FetchLike = input.fetch ?? ((url, init) => fetch(url, init));
   const refs = input.headerRefs;
-  if (Object.keys(refs).length === 0) return base;
+  const plain = Object.entries(input.plainHeaders ?? {});
+  if (Object.keys(refs).length === 0 && plain.length === 0) return base;
   return async (url, init) => {
+    const headers = new Headers(init?.headers);
+    for (const [name, value] of plain) headers.set(name, value);
+    if (Object.keys(refs).length === 0) return base(url, { ...init, headers });
     const secrets = input.secrets;
     if (secrets === undefined) throw new HeaderSecretFailure("secret_unavailable", "headers");
     const target = new URL(typeof url === "string" ? url : url.href);
@@ -45,7 +54,6 @@ function secretFetch(input: HttpTransportInput, signalOf: () => AbortSignal): Fe
       signal: init?.signal ?? signalOf(),
     });
     if (!resolved.ok) throw new HeaderSecretFailure(resolved.error.kind, resolved.error.ref);
-    const headers = new Headers(init?.headers);
     for (const [name, value] of Object.entries(resolved.value)) headers.set(name, value);
     return base(url, { ...init, headers });
   };

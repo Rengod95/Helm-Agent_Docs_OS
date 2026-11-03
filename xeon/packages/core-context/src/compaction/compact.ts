@@ -21,6 +21,7 @@ import type {
   CompactRequest,
   ContextError,
   ModelService,
+  Redactor,
   ResolvedModel,
 } from "@fresnel/contracts/services";
 import type { ExtHost } from "@fresnel/ext-host";
@@ -72,6 +73,8 @@ export interface CompactDeps {
   readonly settings: () => ContextSettings;
   /** thread의 가장 최근 조립 입력. 없으면 가지 위 기록된 광고 상태로 새 접두를 만든다 */
   readonly promptInputs: (threadId: ThreadId) => PromptInputs | undefined;
+  /** 요약 모델에 보내는 대화 원문의 사후 가림(L0.secrets.spec §3.5.1) */
+  readonly redactor?: Pick<Redactor, "mask">;
   readonly logger?: Logger;
 }
 
@@ -208,6 +211,8 @@ export function summarizeVia(
     readonly stepId: StepId | null;
     readonly timestamp: number;
   },
+  /** 요약 모델에 보내는 원문 가림. 없으면 그대로 보낸다 */
+  redactor?: Pick<Redactor, "mask">,
 ): SummarizeDeps {
   return {
     async summarize(req) {
@@ -223,7 +228,12 @@ export function summarizeVia(
           messages: [
             {
               role: "user",
-              content: [{ type: "text", text: req.prompt }],
+              content: [
+                {
+                  type: "text",
+                  text: redactor === undefined ? req.prompt : redactor.mask(req.prompt).text,
+                },
+              ],
               timestamp: scope.timestamp,
             },
           ],
@@ -354,11 +364,16 @@ export async function compactThread(
     }
     const ran = await runCompaction(
       prep,
-      summarizeVia(deps.models, resolved.value, {
-        threadId,
-        stepId: request.stepId ?? null,
-        timestamp: leafEvent.recordedAt,
-      }),
+      summarizeVia(
+        deps.models,
+        resolved.value,
+        {
+          threadId,
+          stepId: request.stepId ?? null,
+          timestamp: leafEvent.recordedAt,
+        },
+        deps.redactor,
+      ),
       SUMMARIZATION_SYSTEM_PROMPT,
       {
         reserveTokens: settings.reserveTokens,

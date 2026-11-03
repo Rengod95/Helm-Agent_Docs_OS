@@ -68,9 +68,10 @@ test("db export round trip: rows and blob bytes written by a store come back fro
   const ref = put.value;
 
   try {
-    expect(await h.run(["db", "export", dest])).toBe(EXIT.ok);
+    expect(await h.run(["db", "export", dest, "--yes"])).toBe(EXIT.ok);
     expect(h.stdoutText()).toBe(`exported 1 blobs to ${dest}\n`);
-    expect(h.stderrText()).toBe("");
+    // 사본 경고는 stderr에 한 줄 나간다(화면 가림은 사본 파일에 적용되지 않는다)
+    expect(h.stderrText()).toMatch(/^경고: 사본의 저장소 파일에는 시크릿 값이 그대로 있을 수 있다/);
     expect(h.startOptions).toEqual([]);
   } finally {
     h.dispose();

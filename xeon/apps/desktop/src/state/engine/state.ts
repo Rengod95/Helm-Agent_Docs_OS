@@ -62,6 +62,9 @@ export type StreamingPart = {
   readonly partId: PartId;
   readonly contentIndex: number;
   readonly kind: PartKind;
+  /** 조각을 이어 붙인 원문. 호스트의 누적 길이와 맞는지 보려고만 쓴다. 화면에는 `text`만 나간다 */
+  readonly raw: string;
+  /** 화면에 그릴 텍스트. 호스트의 화면 가림 표식을 적용한 것이다(L0.secrets.spec §3.5.1) */
   readonly text: string;
   readonly done: boolean;
 };

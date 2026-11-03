@@ -5,6 +5,8 @@ export type * from "./agent.ts";
 export * from "./agent-schema.ts";
 export * from "./message-schema.ts";
 export * from "./parts.ts";
+export * from "./display-mask.ts";
+export * from "./display-mask-apply.ts";
 export * from "./hierarchy.ts";
 export * from "./lifecycle.ts";
 export * from "./tool-result.ts";

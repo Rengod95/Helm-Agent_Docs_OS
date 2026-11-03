@@ -29,9 +29,11 @@ export function createSecretsPort(
   admin: SecretAdminService,
   config: () => SecretsConfig,
   linker: ProviderLinker,
+  display: SecretsPort["display"],
 ): SecretsPort {
   return {
     admin,
+    display,
     offers: createSecretOfferStore(),
     linkModelProviders: () => linker.link(),
     newMeta(name): SecretMeta | undefined {

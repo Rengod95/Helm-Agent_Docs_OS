@@ -9,6 +9,7 @@ import {
   ContextPortKey,
   ModelServicePortKey,
   OsPortKey,
+  SecretServicePortKey,
   SessionPortKey,
 } from "@fresnel/contracts/services";
 import { ExtHostPortKey, hostOf, type BuiltinExtensionModule } from "@fresnel/ext-host";
@@ -51,6 +52,8 @@ export function createContextExtension(
       const host = hostOf(g);
       const ext = host.port(ExtHostPortKey);
       const os = ext.ports.get(OsPortKey);
+      // 모델 입력 단계 사후 가림(L0.secrets.spec §3.5.1). 시크릿 서비스가 없으면 가리지 않는다
+      const secrets = ext.ports.get(SecretServicePortKey);
       const session = host.port(SessionPortKey);
       if (options.ids !== undefined) producer ??= session.producer("core.context");
       host.providePort(
@@ -63,6 +66,7 @@ export function createContextExtension(
           ...(options.ids === undefined || producer === undefined
             ? {}
             : { ids: options.ids, producer }),
+          ...(secrets === undefined ? {} : { redactor: secrets.redactor }),
           ...(os === undefined ? {} : { logger: os.logger(manifest.name) }),
         }),
       );

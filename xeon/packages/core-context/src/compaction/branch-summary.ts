@@ -1,6 +1,11 @@
 import { err, ok, type Result } from "@fresnel/contracts";
 import type { EventId, Message, ThreadId } from "@fresnel/contracts/conversation";
-import type { BranchSummaryDraft, ContextError, ModelService } from "@fresnel/contracts/services";
+import type {
+  BranchSummaryDraft,
+  ContextError,
+  ModelService,
+  Redactor,
+} from "@fresnel/contracts/services";
 import { projectBranch, readBranchEvents, type BranchReaderDeps } from "../branch.ts";
 import { branchSummaryMessage, compactionSummaryMessage, itemToMessage } from "../convert.ts";
 import type { ContextSettings } from "../settings.ts";
@@ -24,6 +29,8 @@ import {
 export interface BranchSummaryDeps extends BranchReaderDeps {
   readonly models: Pick<ModelService, "tokens" | "complete" | "resolve">;
   readonly settings: () => ContextSettings;
+  /** 요약 모델에 보내는 대화 원문의 사후 가림(L0.secrets.spec §3.5.1) */
+  readonly redactor?: Pick<Redactor, "mask">;
 }
 
 /** 요약 응답 토큰 상한(pi: 4096) */
@@ -95,11 +102,16 @@ export async function summarizeBranchDraft(
       : `${BRANCH_SUMMARY_PROMPT}\n\nAdditional focus: ${opts.instructions}`;
   const prompt = `<conversation>\n${serializeConversation(kept)}\n</conversation>\n\n${instructions}`;
   const leaf = abandoned.at(-1);
-  const reply = await summarizeVia(deps.models, resolved.value, {
-    threadId,
-    stepId: null,
-    timestamp: leaf === undefined ? 0 : leaf.recordedAt,
-  }).summarize({
+  const reply = await summarizeVia(
+    deps.models,
+    resolved.value,
+    {
+      threadId,
+      stepId: null,
+      timestamp: leaf === undefined ? 0 : leaf.recordedAt,
+    },
+    deps.redactor,
+  ).summarize({
     system: SUMMARIZATION_SYSTEM_PROMPT,
     prompt,
     maxTokens: Math.min(

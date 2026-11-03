@@ -114,7 +114,8 @@ function outline(asked: EventWire) {
   const payload = recordOf(asked.payload);
   const body = recordOf(payload["body"]);
   return {
-    envelope: keysOf(asked).filter((key) => key !== "payload"),
+    // mask는 화면 가림 표식(F wire §3.4.5a)이다. 가릴 것이 있는 기록에만 붙으므로 기록의 모양에서 뺀다
+    envelope: keysOf(asked).filter((key) => key !== "payload" && key !== "mask"),
     payload: keysOf(payload),
     origin: keysOf(payload["origin"]),
     remember: payload["remember"],

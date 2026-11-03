@@ -28,6 +28,9 @@ import {
 // eng.testing.guide TS-05, L0.secrets.plan §2. 다른 패키지의 테스트가 쓰는 가짜들이다(`./testing` 서브패스).
 // 정책 판정·lease·Redactor는 운영 구현을 그대로 쓴다. 진짜 sops와 age 키를 쓰지 않는다.
 
+/** 실제 Redactor. 화면 가림 구간(`displayRanges`)을 시험이 직접 확인할 때 쓴다(L0.secrets.spec §3.5.1) */
+export { createRedactor };
+
 // ── fakeSopsBinary ───────────────────────────────────────────────────────
 
 export interface FakeSopsOptions {

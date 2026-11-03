@@ -1,10 +1,14 @@
+import { handleOf } from "./names.ts";
 import type { ApprovalEvidence, UseCtx } from "@fresnel/contracts/services";
 
+/** 시크릿 `github-token`을 `bash:gh` 목적으로 쓰는 호출에 묶인 per-use 증거 */
 export const APPROVAL_PER_USE: ApprovalEvidence = {
   approvalId: "apr_test_1",
   scope: "per-use",
   grantedAt: 0,
   expiresAt: null,
+  handles: [handleOf("github-token")],
+  purpose: "bash:gh",
 };
 
 export const APPROVAL_PER_SESSION: ApprovalEvidence = {

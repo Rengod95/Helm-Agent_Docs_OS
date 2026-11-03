@@ -22,6 +22,7 @@ import { summarizeBranchDraft } from "./compaction/branch-summary.ts";
 import { compactThread, type CompactDeps, type PromptInputs } from "./compaction/compact.ts";
 import { shouldCompactTokens } from "./compaction/threshold.ts";
 import { convertToLlm } from "./convert.ts";
+import type { MessageMasker } from "./mask-messages.ts";
 import { disabledOverflowRecovery, recoverOverflow } from "./overflow.ts";
 import { DEFAULT_CONTEXT_SETTINGS, type ContextSettingsSource } from "./settings.ts";
 
@@ -44,6 +45,8 @@ export interface ContextServiceDeps {
    * 블록(`knowledge.context`)과 색인 변경 메모(`knowledge.index-delta`)다. 빈 배열이면 재주입하지 않는다
    */
   readonly reinjectCustomTypes?: readonly string[];
+  /** 모델 입력 단계 사후 가림(`fresnel.secrets`의 redactor, L0.secrets.spec §3.5.1). 없으면 가리지 않는다 */
+  readonly redactor?: MessageMasker;
   readonly logger?: Logger;
 }
 
@@ -71,6 +74,7 @@ export function createContextService(deps: ContextServiceDeps): ContextService {
           ext: deps.ext,
           settings,
           promptInputs: (threadId) => lastInputs.get(threadId),
+          ...(deps.redactor === undefined ? {} : { redactor: deps.redactor }),
           ...(deps.logger === undefined ? {} : { logger: deps.logger }),
         };
 

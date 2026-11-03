@@ -1,17 +1,33 @@
-import { detach, err, ok, type Result } from "@fresnel/contracts";
+import { detach, err, ok, parse, type Result } from "@fresnel/contracts";
+import { ItemUpdatedPayloadSchema } from "@fresnel/contracts/conversation";
 import {
   toEventWire,
   toVolatileEventWire,
   wireError,
   type EventFilter,
+  type EventWire,
+  type VolatileEventWire,
   type WireHandler,
 } from "@fresnel/contracts/wire";
-import type { DurableEventEnvelope, ReadFailure } from "@fresnel/contracts/records";
+import {
+  ApprovalRequestedPayloadSchema,
+  ItemRecordedPayloadSchema,
+  type DurableEventEnvelope,
+  type ReadFailure,
+  type VolatileEventEnvelope,
+} from "@fresnel/contracts/records";
 import type { ConnectionHub, ConnectionState, Subscription } from "../connection-types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 import type { CommitBatch, Engine } from "../types.ts";
 import { createObservePoller } from "./observe.ts";
 import { startNoticeDelivery } from "./notice-delivery.ts";
+import {
+  approvalLeafMasks,
+  createPartMasker,
+  itemLeafMasks,
+  type DisplayMaskPort,
+  type PartMasker,
+} from "../display-mask.ts";
 import { messageOf, toRecord } from "../util.ts";
 
 // L4.host-service.spec §4.4~§4.5, F.wire-settings.spec §3.4.3. 구독과 재전송, 실시간 전달, 휘발 스트림.
@@ -49,7 +65,28 @@ function filterIssue(filter: EventFilter | undefined): unknown {
   };
 }
 
+/**
+ * 내구 이벤트의 wire 모양. item.recorded에는 화면 가림 표식을 `mask`로 붙인다(L0.secrets.spec §3.5.1).
+ * payload와 저장 행은 그대로이고, 표식은 구간과 길이만 가진다.
+ */
+function recordWire(display: DisplayMaskPort, event: DurableEventEnvelope): EventWire {
+  const wire = toEventWire(event);
+  if (event.kind === "approval.requested") {
+    // 승인 카드의 제목과 도구 인자(L0.secrets.spec §3.5.1). payload는 그대로 둔다
+    const approval = parse(ApprovalRequestedPayloadSchema, event.payload);
+    if (!approval.ok) return wire;
+    const mask = approvalLeafMasks(display, approval.value);
+    return mask === undefined ? wire : { ...wire, mask: [...mask] };
+  }
+  if (event.kind !== "item.recorded") return wire;
+  const parsed = parse(ItemRecordedPayloadSchema, event.payload);
+  if (!parsed.ok) return wire;
+  const mask = itemLeafMasks(display, parsed.value.item);
+  return mask === undefined ? wire : { ...wire, mask: [...mask] };
+}
+
 function sendBatch(
+  engine: Engine,
   conn: ConnectionState,
   sub: Subscription,
   from: number,
@@ -57,6 +94,7 @@ function sendBatch(
   events: readonly DurableEventEnvelope[],
   caughtUp: boolean,
 ): void {
+  const display = engine.ports.secrets.display;
   conn.sender.push({
     jsonrpc: "2.0",
     method: "events.batch",
@@ -64,7 +102,7 @@ function sendBatch(
       sub: sub.id,
       from,
       to,
-      events: events.map((event) => toEventWire(event)),
+      events: events.map((event) => recordWire(display, event)),
       caughtUp,
     }),
   });
@@ -98,6 +136,7 @@ function fillGap(engine: Engine, conn: ConnectionState, sub: Subscription, upto:
     }
     const to = pageEnd(page.value, limit, sub.pos, upto);
     sendBatch(
+      engine,
       conn,
       sub,
       sub.pos,
@@ -123,7 +162,7 @@ function flushPending(
     const matching = batch.events.filter(
       (event) => event.seq > sub.pos && matchesFilter(event, sub.filter),
     );
-    sendBatch(conn, sub, sub.pos, batch.lastSeq, matching, index === effective.length - 1);
+    sendBatch(engine, conn, sub, sub.pos, batch.lastSeq, matching, index === effective.length - 1);
     sub.pos = batch.lastSeq;
   }
 }
@@ -162,13 +201,13 @@ async function replayStep(
   if (to >= upto) {
     // 마지막 묶음과 pending 비우기를 한 번에 한다: 여기까지 await가 없으므로 중간 커밋이 끼지 않는다
     const rest = sub.pending.splice(0);
-    sendBatch(conn, sub, sub.pos, to, events, rest.length === 0);
+    sendBatch(engine, conn, sub, sub.pos, to, events, rest.length === 0);
     sub.pos = to;
     flushPending(engine, conn, sub, rest);
     sub.state = "live";
     return ok(undefined);
   }
-  sendBatch(conn, sub, sub.pos, to, events, false);
+  sendBatch(engine, conn, sub, sub.pos, to, events, false);
   sub.pos = to;
   return await replayStep(engine, conn, sub, upto);
 }
@@ -303,7 +342,7 @@ function deliverCommit(
     (event) => event.seq > sub.pos && matchesFilter(event, sub.filter),
   );
   if (matching.length > 0) {
-    sendBatch(conn, sub, sub.pos, batch.lastSeq, matching, true);
+    sendBatch(engine, conn, sub, sub.pos, batch.lastSeq, matching, true);
     sub.pos = batch.lastSeq;
     sub.seenTo = Math.max(sub.seenTo, batch.lastSeq);
     return;
@@ -315,9 +354,46 @@ function deliverCommit(
   queueMicrotask(() => {
     sub.emptyTickScheduled = false;
     if (!sub.open || sub.state !== "live" || sub.seenTo <= sub.pos) return;
-    sendBatch(conn, sub, sub.pos, sub.seenTo, [], true);
+    sendBatch(engine, conn, sub, sub.pos, sub.seenTo, [], true);
     sub.pos = sub.seenTo;
   });
+}
+
+/**
+ * 휘발 조각의 wire 모양. 파트 조각에는 누적 표식(`mask`)을 붙이고, 파트가 끝나면 누적을 버린다.
+ * payload의 다른 부분과 저장은 그대로다. 파싱하지 못한 payload는 그대로 보낸다(클라이언트도 읽지 못하는 조각이다).
+ */
+function streamWire(masker: PartMasker, event: VolatileEventEnvelope): VolatileEventWire {
+  const wire = toVolatileEventWire(event);
+  if (event.kind !== "item.updated") return wire;
+  const parsed = parse(ItemUpdatedPayloadSchema, event.payload);
+  if (!parsed.ok) return wire;
+  const update = parsed.value.update;
+  if (update.kind === "part_completed") {
+    masker.completed(update.part.partId);
+    return wire;
+  }
+  if (update.kind !== "part_delta") return wire;
+  const delta = update.delta;
+  const mask = masker.delta(delta.partId, delta.phase, delta.delta);
+  return {
+    ...wire,
+    payload: {
+      ...parsed.value,
+      update: { kind: "part_delta", delta: { ...delta, mask } },
+    },
+  };
+}
+
+/** 확정된 assistant item의 파트 누적을 버린다. 확정 뒤에는 클라이언트가 확정 item을 그린다 */
+function forgetRecordedParts(masker: PartMasker, batch: CommitBatch): void {
+  for (const event of batch.events) {
+    if (event.kind !== "item.recorded") continue;
+    const parsed = parse(ItemRecordedPayloadSchema, event.payload);
+    if (parsed.ok && parsed.value.item.kind === "assistant") {
+      masker.recorded(parsed.value.item.partIds);
+    }
+  }
 }
 
 /**
@@ -340,18 +416,22 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
     }
   };
   const poller = createObservePoller(engine, hub, deliver);
+  // 진행 중 파트의 누적은 조각 전부를 봐야 한다. 연결이 없는 thread의 조각도 여기서 셈한다
+  const masker = createPartMasker(engine.ports.secrets.display);
   const offCommit = feed.onCommit((batch) => {
     poller.committed(batch.lastSeq);
+    forgetRecordedParts(masker, batch);
     deliver(batch);
   });
   const offVolatile = feed.onVolatile((event) => {
+    const wire = streamWire(masker, event);
     for (const conn of hub.connections()) {
       if (!conn.openThreads.has(event.threadId)) continue;
       if (conn.sender.bytes >= conn.limits.sendLowWaterBytes) continue;
       conn.sender.push({
         jsonrpc: "2.0",
         method: "stream.chunk",
-        params: { event: toVolatileEventWire(event) },
+        params: { event: wire },
       });
     }
   });

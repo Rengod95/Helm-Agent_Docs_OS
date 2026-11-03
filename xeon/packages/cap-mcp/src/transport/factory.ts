@@ -139,7 +139,17 @@ export function createTransportFactory(deps: DefaultTransportDeps): TransportFac
           server: server.id,
           kind: transport.type,
           url: transport.url,
-          headerRefs: transport.headers ?? {},
+          // 평문 값은 해석하지 않고 그대로 보낸다. `secret://`로 시작하는 값만 시크릿 서비스가 푼다(spec §3.1)
+          headerRefs: Object.fromEntries(
+            Object.entries(transport.headers ?? {}).filter(([, value]) =>
+              value.startsWith("secret://"),
+            ),
+          ),
+          plainHeaders: Object.fromEntries(
+            Object.entries(transport.headers ?? {}).filter(
+              ([, value]) => !value.startsWith("secret://"),
+            ),
+          ),
           secrets: deps.secrets,
           fetch: deps.fetch,
         }),

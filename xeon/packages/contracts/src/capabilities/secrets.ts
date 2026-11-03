@@ -27,6 +27,13 @@ export interface SecretApprovalEvidence {
   readonly scope: "per-session" | "per-use";
   readonly grantedAt: number;
   readonly expiresAt: number | null;
+  /**
+   * 사람이 본 승인 프롬프트가 가리킨 시크릿 핸들. 이 목록에 없는 핸들에는 쓸 수 없다.
+   * per-use 증거는 이 값이 있어야 한다(없으면 어느 핸들에도 맞지 않는다).
+   */
+  readonly handles?: readonly SecretHandle[];
+  /** 승인한 사용 목적(`UseCtx.purpose`). 있으면 같은 목적에만 쓸 수 있다. per-use 증거는 있어야 한다 */
+  readonly purpose?: string;
 }
 
 // ── 참조 형식 (F.capabilities.spec §3.10) ───────────────────────────────

@@ -18,7 +18,7 @@ import {
 } from "@fresnel/contracts/wire";
 import { watch } from "../shared/watch.ts";
 import { MAX_SYNC_ATTEMPTS } from "./reduce.ts";
-import { decodeDurable, decodeVolatile } from "./decode.ts";
+import { decodeDurable, decodePendingApprovals, decodeVolatile } from "./decode.ts";
 import type { EngineStore } from "./store.ts";
 
 /** 열린 thread 스냅샷이 반영한 위치와 item 목록 */
@@ -214,7 +214,7 @@ export function startLink(deps: LinkDeps): EngineLink {
         deps.logger.warn("desktop.link.approval_list_failed", { thread: id });
         return undefined;
       }
-      deps.store.ingest({ type: "approvals", approvals: listed.value.approvals });
+      deps.store.ingest({ type: "approvals", approvals: decodePendingApprovals(listed.value) });
       return undefined;
     });
   };

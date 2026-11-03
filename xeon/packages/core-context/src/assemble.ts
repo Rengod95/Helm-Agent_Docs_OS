@@ -31,6 +31,7 @@ import {
   type BranchReaderDeps,
 } from "./branch.ts";
 import { computeCacheMarks } from "./cache-marks.ts";
+import { maskMessages, type MessageMasker } from "./mask-messages.ts";
 import { convertToLlm } from "./convert.ts";
 import { buildPrefixMessage, prefixHash, prefixToolset, replaySystemMessages } from "./prefix.ts";
 import { DEFAULT_CONTEXT_SETTINGS, type ContextSettings } from "./settings.ts";
@@ -46,6 +47,8 @@ export interface AssembleDeps extends BranchReaderDeps {
   readonly settings?: () => ContextSettings;
   /** 컴팩션 머리 앞에 있어도 요약 뒤에 다시 넣는 custom 메시지의 customType. 없으면 재주입하지 않는다 */
   readonly reinject?: ReadonlySet<string>;
+  /** 모델 입력 사후 가림(L0.secrets.spec §3.5.1). 없으면 가리지 않는다 */
+  readonly redactor?: MessageMasker;
   readonly logger?: Logger;
 }
 
@@ -292,7 +295,10 @@ export async function assembleContext(
     }
   }
 
-  const estimate = deps.models.tokens.estimateContext(finalMessages);
+  // 모델 입력 사후 가림. 표식은 위에서 인덱스로만 정해졌으므로 내용을 바꿔도 같다. 접두 판정(cache_prefix_reset, prefixHash)은 가리기 전 값으로 했다
+  const outgoing =
+    deps.redactor === undefined ? finalMessages : maskMessages(deps.redactor, finalMessages);
+  const estimate = deps.models.tokens.estimateContext(outgoing);
   if (estimate.tokens > opts.contextWindow - settings.reserveTokens) {
     warnings.push({
       code: "near_window",
@@ -307,7 +313,7 @@ export async function assembleContext(
     recordedAt: prefixEventId,
   };
   return ok({
-    messages: finalMessages,
+    messages: outgoing,
     prefix,
     toolChange,
     cacheMarks,

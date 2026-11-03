@@ -5,11 +5,13 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TOptional,
   type TString,
   type TUnion,
   type TUnsafe,
 } from "typebox";
 import { Bug, Nullable } from "../base/index.ts";
+import { PartMaskSchema } from "./display-mask.ts";
 import { ItemIdSchema, PartIdSchema, type IdFactory, type ItemId, type PartId } from "./ids.ts";
 
 export const PartKindSchema: TUnion<
@@ -48,6 +50,8 @@ export const PartDeltaSchema: TObject<{
   kind: typeof PartKindSchema;
   phase: typeof PartPhaseSchema;
   delta: TString;
+  /** 호스트가 붙이는 화면 가림 표식(L0.secrets.spec §3.5.1). 엔진이 만든 조각에는 없다 */
+  mask: TOptional<typeof PartMaskSchema>;
 }> = Type.Object(
   {
     partId: PartIdSchema,
@@ -57,6 +61,7 @@ export const PartDeltaSchema: TObject<{
     phase: PartPhaseSchema,
     // start는 "", toolCall delta는 인자 JSON 조각. 휘발 경로라 길이 상한을 두지 않는다.
     delta: Type.String(),
+    mask: Type.Optional(PartMaskSchema),
   },
   { additionalProperties: false },
 );

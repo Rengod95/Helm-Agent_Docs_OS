@@ -24,6 +24,8 @@ export interface HandlerFailedPorts {
   readonly numbering: ChunkNumbering;
   /** 운영 로그 한 줄 */
   readonly log: (line: string) => void;
+  /** 시크릿 가림(L0.secrets 출력 마스킹). 실패 메시지는 핸들러 오류 문구라 값이 들어 있을 수 있다(X.operations.spec §4.3.4) */
+  readonly mask: (text: string) => string;
 }
 
 /**
@@ -35,7 +37,8 @@ export function createHandlerFailedEmitter(
   ports: HandlerFailedPorts,
 ): (payload: ScopeHandlerFailedPayload) => void {
   // n은 (threadId, turnId)마다 0부터 1씩 센다(F.records.spec §4.3). 세는 일은 발급기가 맡아 dialog.status와 번호가 겹치지 않는다
-  return (payload) => {
+  return (raw) => {
+    const payload: ScopeHandlerFailedPayload = { ...raw, message: ports.mask(raw.message) };
     const threads = [...new Set(ports.openThreads())];
     if (threads.length === 0) {
       ports.log(

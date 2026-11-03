@@ -397,6 +397,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     clock,
     numbering: chunkNumbering,
     log: logOperations,
+    mask: (text) => redact.current(text),
   });
   const operations = createOperationsPolicy({
     now: () => clock.now(),
@@ -410,7 +411,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     log: logOperations,
   });
   /** 확장 진단. 상한(256)을 넘으면 오래된 것부터 버린다(L0.os.spec §3.14, M3-REQ-52) */
-  const diagnostics = createExtDiagnosticSink();
+  const diagnostics = createExtDiagnosticSink(undefined, (text) => redact.current(text));
   const ext = createExtHost({
     ids,
     now: () => clock.now(),
@@ -916,6 +917,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           targetOf: (providerId) => models.providerTarget(providerId),
           logger: os.logger("secret-link"),
         }),
+        secrets.service.redactor,
       ),
       commands,
       dialogArea,

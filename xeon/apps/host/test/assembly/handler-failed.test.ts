@@ -37,6 +37,7 @@ function harness(options: {
   readonly open?: readonly ThreadId[];
   readonly afterSeq?: number;
   readonly emitFor?: (threadId: ThreadId) => boolean;
+  readonly mask?: (text: string) => string;
 }): {
   readonly emit: (payload: ScopeHandlerFailedPayload) => void;
   readonly sent: VolatileEventEnvelope[];
@@ -60,6 +61,7 @@ function harness(options: {
     log: (line) => {
       lines.push(line);
     },
+    mask: options.mask ?? ((text) => text),
   });
   return { emit, sent, lines };
 }
@@ -160,6 +162,7 @@ test("scope.handler_failed와 dialog.status가 한 발급기를 나누면 같은
     clock: { now: () => 1 },
     numbering,
     log: () => undefined,
+    mask: (text) => text,
   });
   const status = sessionStatusPublisher(
     volatileSession(sent),
@@ -205,6 +208,7 @@ test("when the head cannot be read nothing is sent and the reason is logged", ()
     log: (line) => {
       lines.push(line);
     },
+    mask: (text) => text,
   });
   emit(PAYLOAD);
   expect(sent).toEqual([]);
@@ -244,6 +248,22 @@ function createScenario(open: readonly ThreadId[]): {
     clock: { now: () => 0 },
     numbering: createChunkNumbering(),
     log: () => undefined,
+    mask: (text) => text,
   });
   return { emit, sent };
 }
+
+test("the failure message is masked before it is sent (OP-01)", () => {
+  const needle = ["fixture", "handler", "secret", "value"].join("-");
+  const { emit, sent } = harness({
+    open: [A],
+    mask: (text) => text.replaceAll(needle, "[REDACTED:known:fixture]"),
+  });
+  emit({ ...PAYLOAD, message: `request failed with ${needle}` });
+  expect(sent).toHaveLength(1);
+  expect(sent[0]?.payload).toEqual({
+    ...PAYLOAD,
+    message: "request failed with [REDACTED:known:fixture]",
+  });
+  expect(JSON.stringify(sent)).not.toContain(needle);
+});

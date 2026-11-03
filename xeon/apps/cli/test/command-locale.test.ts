@@ -63,8 +63,11 @@ test("db export warns about a skipped blob in English and still succeeds", async
       ),
   });
   harnesses.push(h);
-  expect(await h.run(["db", "export", "out"])).toBe(EXIT.ok);
-  expect(h.stderrText()).toBe("Warning: a blob file is missing and was left out: abc\n");
+  expect(await h.run(["db", "export", "out", "--yes"])).toBe(EXIT.ok);
+  expect(h.stderrText()).toBe(
+    "Warning: the copy's storage files may contain secret values in plain text. Screen masking does not apply to these files. Check them before sharing\n" +
+      "Warning: a blob file is missing and was left out: abc\n",
+  );
 });
 
 test("doctor's search lines name the missing engine answer in English", async () => {

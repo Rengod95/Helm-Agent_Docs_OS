@@ -129,6 +129,10 @@ export interface ApprovalEvidence {
   readonly scope: "per-session" | "per-use";
   readonly grantedAt: number;
   readonly expiresAt: number | null;
+  /** 사람이 본 승인 프롬프트가 가리킨 핸들. 이 목록에 없는 핸들에는 쓸 수 없다. per-use 증거는 필수 */
+  readonly handles?: readonly SecretHandle[];
+  /** 승인한 사용 목적(`UseCtx.purpose`). 있으면 같은 목적에만 쓴다. per-use 증거는 필수 */
+  readonly purpose?: string;
 }
 
 export interface UseCtx {
@@ -230,6 +234,12 @@ export interface Redactor {
   maskDeep<T>(value: T): { readonly value: T; readonly hits: readonly RedactionHit[] };
   /** 외부 전송 판정. 알려진 값이 들어 있으면 true. 값을 고치지 않는다 */
   containsKnown(text: string): boolean;
+  /** [결정: 2026-11-03 사용자] 화면 가림 구간. `mask`와 같은 규칙을 원문 위치에 적용한다. 겹치지 않고 start 순서다. 값을 돌려주지 않는다 */
+  displayRanges(text: string): readonly MaskRange[];
+  /** [결정: 2026-11-03 사용자] 진행 중 텍스트에서 보여도 되는 앞부분 길이. 끝난 텍스트에는 쓰지 않는다 */
+  displayVisibleLength(text: string): number;
+  /** [결정: 2026-11-03 사용자] 값 트리의 문자열 잎 가운데 가릴 것이 있는 잎의 표식. 포인터는 base 아래의 RFC 6901이다 */
+  displayLeafMasks(value: unknown, base: string): readonly LeafMask[];
 }
 ```
 
@@ -244,17 +254,33 @@ export interface Redactor {
 3. 키-값 문맥: 18 §3.10.4 규칙 3의 정규식(`api_key`, `token`, `password`, `authorization` 등 뒤의 8자 이상 값, 접속 문자열 사용자 정보) → 값 부분만 `[REDACTED:kv]`.
 4. 엔트로피 검사는 도구 출력에 쓰지 않는다(코드 해시와 UUID를 지나치게 지운다).
 
+- 키-값 문맥은 키 뒤에 닫는 따옴표가 와도 맞는다(`"password": "값"`, `'api_key':'값'`). JSON 설정 파일에 든 등록 안 된 시크릿이 대상이다.
+- `maskDeep`은 객체 키가 민감한 이름(규칙 3의 키 이름. 구분자와 대소문자는 무시하고, `pass`·`pwd`·`dsn`은 키 전체가 같을 때만)이고 값이 8자 이상 문자열이며 다른 규칙으로 가려지지 않았으면 값을 `[REDACTED:kv]`로 바꾼다.
+- `maskDeep`은 같은 객체를 두 번 만나거나 순환이어도 모든 자리를 가린 복사본을 돌려준다(복사본끼리도 같은 공유·순환 모양). `Error`(message, stack, cause와 자기 필드), 바이트 뷰(UTF-8로 풀어 가린 뒤 다시 바이트로. 가릴 것이 없으면 원본), `Map`, `Set`, 클래스 인스턴스(프로토타입 유지, 자기 필드)도 가린다. `Date`·`RegExp` 같은 내장 값은 그대로 둔다.
+- 스트림: `RedactorImpl.maskStream()`이 청크 경계에 걸친 값을 가린다. `push(청크)`는 마지막 줄바꿈까지만 내보내고(줄바꿈 없이 4096자가 쌓이면 마지막 256자를 남기고 내보낸다), 알려진 값 변형의 앞부분이 끝에 걸려 있으면 그 앞까지만 내보낸다. 스트림 끝에 `flush()`를 한 번 부른다. 한 청크씩 `mask`를 부르는 것으로는 조각난 값을 못 가린다. 누적 텍스트 전체나 줄 단위에는 `mask`로 충분하다.
+
 - 18과 다른 점 [제안]: 접두 패턴 표지에서 SHA-256 앞 8자를 뺀다. 감사 기록에 값의 해시를 남기지 않는 규칙(§3.9)과 같은 기준을 쓰기 위해서다. 같은 값이 여러 번 나왔는지는 `count`로만 안다.
 - 등록 시점: lease가 값을 처음 풀 때 `SecretService`가 `registerKnown`을 부른다. 등록부는 부모 프로세스 메모리에만 있고 직렬화하지 않는다. 변형 문자열도 값과 같은 수준으로 다룬다.
 - 8바이트 미만 값: `registerKnown`이 `value_too_short`를 돌려준다. 이런 시크릿은 `env` 모드 lease를 거부하고(`mode_not_allowed`), `runtime-http`·`browser-input`만 허용한다 [제안]. `env`는 출력에 값이 나올 수 있는데 가릴 수 없기 때문이다. `add`는 8바이트 미만 값을 받지 않는다.
 - 한계: 마스킹은 보조 수단이다. 값을 비인접 조각으로 나눈 출력, 등록하지 않은 인코딩(rot13, gzip 변환, 역순, 모델의 재인코딩)은 잡지 못한다(`_research/secrets.md` §2.3, [S28][S30]). 보장은 값이 모델과 셸에 들어오는 경로를 없애는 M3·M4 모드 설계에서 나온다. 문서와 화면은 마스킹을 "보조"로 표기한다.
 
+[결정: 2026-11-03 사용자] 화면 가림 구간은 세 메서드로 만든다. 같은 규칙(알려진 값, 접두 패턴, 키-값, 접속 문자열)을 쓰고 결과만 다르다.
+
+- `displayRanges(text)`: 규칙을 원문 위치에 적용해 `[start, end)` 구간과 표지 이름(`known:<이름>`, 패턴 kind, `kv`)을 돌려준다. 겹치는 구간은 합치고 우선순위가 높은 표지를 쓴다. 값을 돌려주지 않는다.
+- `displayVisibleLength(text)`: 진행 중 텍스트에서 보여도 되는 앞부분 길이다. 마지막 공백 뒤의 낱말은 값의 일부일 수 있으므로 뺀다. 알려진 값 변형의 앞부분(공백을 담은 변형 포함)과, 보이는 앞부분 안에서 닫히지 않은 PEM 블록도 뺀다. 접두 패턴, 키-값 값, 접속 문자열은 공백을 담지 않으므로 공백에서 자르면 일치가 잘리지 않는다.
+- `displayLeafMasks(value, base)`: 값 트리의 문자열 잎 가운데 가릴 것이 있는 잎마다 `{ pointer, len, ranges }`를 돌려준다. 포인터는 `base` 아래의 RFC 6901이고 `len`은 잎 길이다. 민감한 키 아래의 값은 `maskDeep`과 같이 통째로 가린다. 같은 객체가 여러 경로에 있으면 경로마다 셈하고, 순환은 지금 방문 중인 객체만 본다.
+
+호출은 호스트의 wire 송신뿐이다(`events.batch`의 `item.recorded`, `thread.read`, `stream.chunk`의 파트 조각). 구간은 `F.wire-settings.spec` §3.4.5a의 표식으로 나가고 클라이언트(`@fresnel/contracts/conversation`의 공용 적용기)가 같은 문자열에 적용한다. 값은 wire의 새 필드에 나가지 않는다. 시험은 새 필드를 펼쳐 값이 없는지 본다(`platform-secrets/test/display-mask.test.ts`, `apps/host/test/handlers/display-mask.test.ts`).
+
+[결정: 2026-11-03 사용자] 저장 이벤트와 event wire의 payload는 바꾸지 않는다. 표시 가림은 클라이언트가 구간을 적용하는 것이고, 호스트가 payload를 고쳐 보내지 않는다. 그래서 event 무결성(저장과 payload)은 그대로다. 한계는 같다: payload에는 기록된 원문이 그대로 있으므로 wire를 받는 쪽은 값을 본다(로컬 데스크톱 연결이 기본이다). 등록하지 않은 값은 패턴이 없으면 잡지 못한다.
+
 ### 3.5.1 사후 가림 적용 위치 (`post-redact.ts`) [결정: review.m3-design-inputs D-M3-20 b, M3-REQ-59]
 
-- 이미 기록된 이벤트 행은 바꾸지 않는다. 표시(`display`), 내보내기(`export`), 모델 입력(`model-input`) 세 단계가 행을 읽는 시점에 `createPostHocRedaction(redactor).apply(stage, value)`를 부른다. 결과 `PostHocResult`는 가려진 새 값(`value`), `hits`, 키 회전 안내(`advice`)를 가진다. 입력 객체는 바뀌지 않는다(`Redactor.maskDeep`은 새 값을 돌려준다).
+- 이미 기록된 이벤트 행은 바꾸지 않는다. [결정: 2026-11-03 사용자] 표시(`display`)는 `createPostHocRedaction`을 쓰지 않는다. 호스트가 wire 송신에서 §3.5의 `displayRanges`·`displayLeafMasks`·`displayVisibleLength`로 구간을 만들고, 클라이언트가 같은 문자열에 적용한다(`F.wire-settings.spec` §3.4.5a). 값은 클라이언트에 따로 보내지 않는다. 표시는 송신 시점에 등록된 값을 본다. 송신 뒤에 등록된 값은 이미 그려진 행을 바꾸지 않고, 다음 읽기(스냅샷, 재구독)에서 가려진다 [미결: 행을 다시 그리는 신호를 낼지]. 내보내기(`export`)는 원본 파일을 그대로 복사하므로 가리지 않는다. 대신 확인을 받는다(`L4.cli.spec` §4.13). 모델 입력(`model-input`)은 `createPostHocRedaction`이 아니라 L1 context의 `mask`·`maskDeep`으로 가린다(§4.1). 그래서 `createPostHocRedaction(redactor).apply(stage, value)`를 부르는 곳은 이 결정 뒤에 없다. 함수는 남기고 연결하지 않는다.
+- (이전 설계, 2026-11-03 결정으로 표시 단계에서는 쓰지 않는다) 표시(`display`), 내보내기(`export`), 모델 입력(`model-input`) 세 단계가 행을 읽는 시점에 `createPostHocRedaction(redactor).apply(stage, value)`를 부른다. 결과 `PostHocResult`는 가려진 새 값(`value`), `hits`, 키 회전 안내(`advice`)를 가진다. 입력 객체는 바뀌지 않는다(`Redactor.maskDeep`은 새 값을 돌려준다).
 - 값이 기록된 뒤에 등록된 시크릿(예: 기록 뒤 처음 lease가 풀린 값)도 이후 표시와 내보내기에서 가려진다. 반대로 등록 전에는 알 수 없어 가릴 수 없다. 프로세스가 다시 시작되면 등록부가 비므로, 단계 호출자는 필요할 때 목록(`list`)의 시크릿을 먼저 lease해 등록한다 [가정].
 - 키 회전 안내는 문장이 아니라 값이다. `advice`는 `{ kind: "rotate_key", names, patternHits }`이고 가려진 것이 없으면 null이다. `names`는 `known:<이름>`으로 가려진 시크릿 이름(중복 없음, 정렬), `patternHits`는 이름 없이 패턴으로 가려진 개수다. 문구는 L4가 이 값으로 만든다(i18n, `eng.context-map.design` 하위 층 문장 금지). 이미 모델이나 외부에 나간 값은 가려도 되돌릴 수 없으므로 안내는 "원본 키를 회전한다"(`fresnel secret rotate`)가 기본이다.
-- 호출 시점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. 이 문서는 호출 시점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
+- 호출 시점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. L1은 `platform-secrets`를 import하지 못하므로(DR-14) 모델 입력 단계는 F `Redactor`(`fresnel.secrets`의 `redactor`)를 받아 직접 가린다(`L1.context.spec` §4.1). 이 함수(`createPostHocRedaction`)는 `advice`가 필요한 표시·내보내기 호출자용이다. 이 문서는 호출 시점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
 
 ### 3.6 서비스 (`service.ts`)
 
@@ -503,7 +529,7 @@ export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "
 | 3 | `ctx.purpose`가 `use.tools`에 있다(`*` 접미 와일드카드만) | `tool_not_allowed` |
 | 4 | `scope`가 `project:<id>`면 `ctx.projectId`가 같다 | `scope_mismatch` |
 | 5 | 대상 바인딩: `runtime-http`·`sentinel`은 호스트가 `use.hosts`에 맞는다. `browser-input`은 origin이 `use.origins`와 정확히 같다. `env`는 명령줄이 `use.commands` 패턴에 맞는다 | `host_mismatch` / `origin_mismatch` / `command_mismatch` |
-| 6 | 승인: 메타 `approval`이 `none`이 아니면 `ctx.approval`이 있고 범위와 만료가 맞는다. `env` 모드는 메타가 `none`이어도 `per-use` 승인을 요구한다 | `approval_missing` |
+| 6 | 승인: 메타 `approval`이 `none`이 아니면 `ctx.approval`이 있고 범위와 만료가 맞는다. 증거는 이 핸들과 `ctx.purpose`에 묶여야 한다(`handles`에 핸들이 있고 `purpose`가 같다. `per-use` 증거는 두 필드가 모두 있어야 하고, `per-session` 증거는 있는 필드만 대조한다). 한 호출이 시크릿 둘을 쓰면 사람이 본 프롬프트가 가리킨 핸들만 열린다. `env` 모드는 메타가 `none`이어도 `per-use` 승인을 요구한다 | `approval_missing` |
 
 - 호스트 일치 [제안]: 소문자 비교, `*.example.com`은 한 단계 이상의 하위 도메인만 맞는다(`example.com` 자신은 아니다). IP 리터럴과 `localhost`는 메타에 그대로 적혀 있을 때만 맞는다. 포트가 메타에 없으면 443만 맞는다.
 - 모델 provider 키의 정책 [결정: M2 Mac 실기]: 새 시크릿의 정책은 비어 있어(`L4.host-service.spec` HS-45) 모델 호출 lease(`runtime-http`, `model.provider:<id>`, 호스트는 provider 주소)가 거부된다. 정책은 이 패키지가 정하지 않는다. 호스트가 사람의 provider 연결 행위를 근거로 `secret.meta`와 같은 경로(`SecretAdminService.meta`)로 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [provider 호스트]`만 더한다. 이 판정(§4.2)은 바꾸지 않는다.

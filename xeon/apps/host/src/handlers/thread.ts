@@ -8,6 +8,7 @@ import {
   type WireHandler,
 } from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
+import { itemMaskEntries } from "../display-mask.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
 import { wireErrorOfApply } from "./m4/profile-test-run.ts";
@@ -157,7 +158,9 @@ export function createThreadReadHandler(engine: Engine): WireHandler<"thread.rea
     if (params.around !== undefined && params.before !== undefined) throw aroundWithBefore();
     const read = await engine.ports.threads.read(params);
     if (!read.ok) throw readFailure(read.error, "thread.read");
-    return read.value;
+    // 화면 가림 표식은 items 옆에 붙인다. items와 position은 바뀌지 않는다(L0.secrets.spec §3.5.1)
+    const masks = itemMaskEntries(engine.ports.secrets.display, read.value.items);
+    return masks.length === 0 ? read.value : { ...read.value, masks };
   };
 }
 

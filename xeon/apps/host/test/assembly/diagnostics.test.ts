@@ -28,3 +28,12 @@ test("below the cap nothing is dropped and the order is kept", () => {
   ]);
   expect(sink.dropped()).toBe(0);
 });
+
+test("a diagnostic message is masked on the way in (OP-01)", () => {
+  const needle = ["fixture", "diag", "secret", "value"].join("-");
+  const sink = createExtDiagnosticSink(undefined, (text) => text.replaceAll(needle, "[REDACTED]"));
+  sink.push({ level: "error", code: "handler_failed", message: `entry threw: ${needle}` });
+  expect(sink.items()).toEqual([
+    { level: "error", code: "handler_failed", message: "entry threw: [REDACTED]" },
+  ]);
+});

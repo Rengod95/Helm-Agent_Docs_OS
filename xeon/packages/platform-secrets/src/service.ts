@@ -39,7 +39,13 @@ import { assembleDiagnostics, providerRow } from "./diagnose.ts";
 import { auditUnavailable, deniedError } from "./errors.ts";
 import { wrapLease } from "./lease.ts";
 import type { MetaStore } from "./meta.ts";
-import { evaluatePolicy, isMetaExpired, isMetaExpiring, type PolicyOutcome } from "./policy.ts";
+import {
+  approvalBound,
+  evaluatePolicy,
+  isMetaExpired,
+  isMetaExpiring,
+  type PolicyOutcome,
+} from "./policy.ts";
 import { findHandleTokens, parseHandle } from "./ref.ts";
 
 // L0.secrets.spec §3.6, §4.1~§4.4. 서비스 조립: resolve, list, check, lease(판정 → 제공자 → 등록 → 감사),
@@ -218,6 +224,14 @@ export function createSecretServiceCore(deps: SecretServiceCoreDeps): SecretServ
 
   function decide(handle: SecretHandle, meta: SecretMeta, ctx: UseCtx): PolicyOutcome {
     const outcome = evaluatePolicy(meta, ctx, clock.now());
+    if (
+      outcome.kind === "allow" &&
+      outcome.approval !== null &&
+      !approvalBound(outcome.approval, handle, ctx.purpose)
+    ) {
+      // 증거가 다른 핸들이나 목적에 대한 것이다. 이 핸들을 위해 다시 묻는다
+      return { kind: "needs_approval", approval: outcome.approval.scope };
+    }
     if (
       outcome.kind === "allow" &&
       outcome.approval !== null &&

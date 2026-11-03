@@ -137,6 +137,8 @@ test("the approval of the bash call itself is the per-use evidence: one request,
         scope: "per-use",
         grantedAt: expect.any(Number),
         expiresAt: null,
+        handles: [TOKEN_HANDLE],
+        purpose: "bash:gh",
       },
     },
   ]);

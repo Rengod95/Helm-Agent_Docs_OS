@@ -652,6 +652,9 @@ export function createPipeline(
       scope: "per-use",
       grantedAt: deps.clock.now(),
       expiresAt: null,
+      // 사람이 본 프롬프트(secretUseTitle)가 가리킨 핸들과 목적에만 쓴다(L0.secrets.spec §4.2 6번)
+      handles: verdict.handles,
+      purpose: verdict.purpose,
     };
     return undefined;
   }

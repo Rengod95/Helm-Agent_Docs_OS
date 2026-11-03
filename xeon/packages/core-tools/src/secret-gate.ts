@@ -98,6 +98,8 @@ export type SecretUseVerdict =
   | {
       readonly kind: "needs_approval";
       readonly handles: readonly SecretHandle[];
+      /** 승인 증거를 묶을 사용 목적. lease의 `UseCtx.purpose`와 같다 */
+      readonly purpose: string;
       readonly scope: "per-session" | "per-use";
     };
 
@@ -166,6 +168,7 @@ export async function checkSecretUse(
   return {
     kind: "needs_approval",
     handles: use.handles,
+    purpose: ctx.purpose,
     scope: tally.perUse ? "per-use" : "per-session",
   };
 }
