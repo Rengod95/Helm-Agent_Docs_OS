@@ -1,13 +1,22 @@
 import type { EventId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
-import type { TraceTurnResult } from "@fresnel/contracts/extensions";
+import type {
+  ExtTimingsResult,
+  TestRunPhaseResult,
+  TraceTurnResult,
+} from "@fresnel/contracts/extensions";
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
+import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 import type {
   ExtGetResult,
   ExtHealthEntry,
   ExtListEntry,
+  ExtUiEntry,
   ExtVersionsResult,
+  GroupDriveLockResult,
+  GroupMetricsResult,
+  GroupStatusWire,
   HookEntry,
   HostConnection,
   HooksOrderGetResult,
@@ -17,6 +26,10 @@ import type {
   SecretListEntry,
   SecretReferencesResult,
   SecretTestResult,
+  ExtTestListResult,
+  ExtTestRunParams,
+  ExtTestRunResult,
+  SettingsExplainResult,
   TrustChoice,
   TrustStatus,
   WireParams,
@@ -88,6 +101,29 @@ export interface ScheduleCommands {
   fire(scheduleId: string): Promise<Result<WireResult<"schedule.fire">, CommandError>>;
   /** 서비스 모드를 켠다(`settings.set`, 사용자 범위) */
   enableService(): Promise<Result<null, CommandError>>;
+}
+
+/**
+ * 테스트 화면(P-19, §6.26). 목록과 개발 모드 판정은 요청 결과라 거울에 넣지 않는다(FS-03). 실행과 Test run 제어는 host의 결과 값을
+ * 그대로 돌려준다. `devMode`는 `l3.authoring.devMode` 설정이고, 키를 읽지 못하면(호스트가 모르는 키) 개발 모드가 아니다.
+ */
+export interface TestCommands {
+  /** `ext.test.list`: replay와 Test run 기록 */
+  list(): Promise<Result<ExtTestListResult["tests"], CommandError>>;
+  /** 개발 모드인가. 연결이 없으면 `offline`, 그 밖의 읽기 실패는 개발 모드가 아닌 것으로 본다 */
+  devMode(): Promise<Result<boolean, CommandError>>;
+  /** `ext.test.run`: replay 시험을 돌린다 */
+  run(params: ExtTestRunParams): Promise<Result<ExtTestRunResult, CommandError>>;
+  /** `thread.create { testRun: true }`: Test run 대화를 만든다. 대화 id를 돌려준다 */
+  createTestRun(): Promise<Result<string, CommandError>>;
+  /** `testRun.pause`: 다음 단계 경계에서 멈춘다. 결과는 멈춘 채인가 */
+  pause(threadId: string): Promise<Result<boolean, CommandError>>;
+  /** `testRun.resume`: 멈춘 Test run을 다시 돌린다 */
+  resume(threadId: string): Promise<Result<boolean, CommandError>>;
+  /** `testRun.step`: 멈춘 채 경계 하나만 진행한다 */
+  step(threadId: string): Promise<Result<boolean, CommandError>>;
+  /** `testRun.phase`: 지금 단계 이름(Test run에서 `grp.<id>.state.committed`의 `phase`만) */
+  phase(threadId: string): Promise<Result<TestRunPhaseResult, CommandError>>;
 }
 
 /** 연결 화면이 고른 대상. `local`은 이 기기의 사이드카, `remote`는 서비스 주소다(W-08) */
@@ -203,10 +239,26 @@ export interface SecretCommands {
 }
 
 export interface WorkbenchCommands {
-  /** `ext.list`. 전역 값이라 `threadId`를 보내지 않는다 */
-  list(): Promise<Result<readonly ExtListEntry[], CommandError>>;
+  /**
+   * `ext.list`. `threadId`가 없으면 전역 값이다. 있으면 그 대화에서의 Registration 상태(`registration`, `plugins[].thread`)를 더한다
+   * (런타임 탭의 "이 대화의 그룹과 확장").
+   */
+  list(threadId?: ThreadId): Promise<Result<readonly ExtListEntry[], CommandError>>;
+  /**
+   * 확장 목록이 바뀌었을 수 있으면 부른다: 확장 설정 키(`ext.`)가 바뀐 `settings.invalidated`, 자동 끄기 기록(내구 `scope.changed`).
+   * 알림의 값은 싣지 않는다(다시 읽는 신호일 뿐). 반환값은 구독 해제
+   */
+  onChanged(listener: () => void): () => void;
   /** `ext.get`: 매니페스트 훅·기능 바인딩·진단 */
   get(name: string): Promise<Result<ExtGetResult, CommandError>>;
+  /** `group.list { threadId }`: 그룹마다 켜짐 요청 중인지(`pendingToggle`)와 drive 역할(`drive`) */
+  groups(threadId: ThreadId): Promise<Result<readonly GroupStatusWire[], CommandError>>;
+  /** `group.driveLock { threadId }`: 대화의 drive 락(보유, 차수, 상한과 사용량, 후보별 대기) */
+  driveLock(threadId: ThreadId): Promise<Result<GroupDriveLockResult, CommandError>>;
+  /** `ext.timings`: 훅마다 p50·p95와 실패 수. 계측이 꺼져 있으면 `traceEnabled`가 거짓이다 */
+  timings(name: string, threadId?: ThreadId): Promise<Result<ExtTimingsResult, CommandError>>;
+  /** `settings.explain { key, threadId }`: 설정 값, 이긴 범위, 그 값을 쓴 쪽(읽기만) */
+  explain(key: string, threadId: ThreadId): Promise<Result<SettingsExplainResult, CommandError>>;
   /** 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "user" }` */
   toggle(request: ToggleRequest): Promise<Result<null, CommandError>>;
   /** 자동 꺼짐 다시 켜기. 적용은 다음 단계 경계다 */
@@ -238,6 +290,21 @@ export interface WorkbenchCommands {
   ): Promise<Result<HooksOrderPreviewResult, CommandError>>;
   /** `trace.turn`: 한 턴의 훅별 핸들러 계측 */
   trace(threadId: ThreadId, turnId: TurnId): Promise<Result<TraceTurnResult, CommandError>>;
+  /**
+   * 확장 설정(P-17 설정 탭): `settings.list`를 확장 접두사마다 한 번씩 부르고, 정의가 있으면 `settings.get`으로 유효 값을 읽는다.
+   * `threadId`가 있으면 그 대화에서의 값이다(범위 `launch`는 이 대화만 덮는다). 줄 만들기와 범위 이름은 클라이언트가 한다.
+   */
+  settings(name: string, threadId?: ThreadId): Promise<Result<ExtSettingsRead, CommandError>>;
+  /** `group.metrics { id, threadId? }`: 그룹 하나의 계측. 계측이 꺼져 있으면 `metrics`가 null이다 */
+  metrics(id: string, threadId?: ThreadId): Promise<Result<GroupMetricsResult, CommandError>>;
+  /** `ext.ui.list`(옛 이름 `ext.view.list`): 확장이 기여한 화면 항목 전부. 확장마다 거르는 일은 화면이 한다 */
+  views(): Promise<Result<readonly ExtUiEntry[], CommandError>>;
+}
+
+/** 확장 설정 읽기 결과: 접두사별로 모은 정의와 유효 값 */
+interface ExtSettingsRead {
+  readonly defs: readonly SettingDefWire[];
+  readonly values: readonly EffectiveSetting[];
 }
 
 interface PluginUiCommands {
@@ -282,6 +349,8 @@ export interface Commands {
   readonly setup: SetupCommands;
   /** 크래프트(`workbench`)의 확장 읽기·켜기·되돌리기 */
   readonly workbench: WorkbenchCommands;
+  /** 테스트 화면(P-19)의 시험 목록, 실행, Test run 제어 */
+  readonly tests: TestCommands;
   readonly schedule: ScheduleCommands;
   /** 플러그인 화면 실행 맥락이 쓰는 연결 한 번. 연결이 없으면 `offline`이다 */
   readonly pluginUi: PluginUiCommands;

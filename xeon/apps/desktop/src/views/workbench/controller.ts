@@ -7,7 +7,7 @@ import { toast } from "@caustic/react";
 import { useCallback, useEffect, useMemo } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbenchActions } from "../../state/workbench/index.ts";
-import { useCommands } from "../commands.ts";
+import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
 
@@ -17,6 +17,19 @@ const DETAIL_IN_FLIGHT = 8;
 /** 기다리지 않는 호출. 실패는 컨트롤러가 이미 토스트로 알렸다 */
 export function detachVoid(work: Promise<void>): void {
   detach(work, rethrow);
+}
+
+/**
+ * 확장 목록이 바뀌었을 알림(`onChanged`)마다 `reload`로 다시 읽는다. 자동 꺼짐 배지와 개수는 스토어 값을 그대로 그리므로,
+ * 스토어가 다시 채워지면 화면은 다시 마운트하지 않아도 따라간다. 반환값은 구독 해제
+ */
+export function reloadOnExtChanges(
+  workbench: Pick<WorkbenchCommands, "onChanged">,
+  reload: () => Promise<void>,
+): () => void {
+  return workbench.onChanged(() => {
+    detachVoid(reload());
+  });
 }
 
 export interface WorkbenchController {
@@ -107,6 +120,12 @@ export function useWorkbenchController(): WorkbenchController {
   useEffect(() => {
     if (phase === "live") detach(reload(), rethrow);
   }, [phase, reload]);
+
+  // 열린 동안 바뀐 것(다른 창의 설정, 백그라운드 자동 끄기)도 목록에 든다. 연결이 새로 서면 구독을 다시 한다
+  useEffect(() => {
+    if (phase !== "live") return undefined;
+    return reloadOnExtChanges(commands.workbench, reload);
+  }, [commands, phase, reload]);
 
   // 원천이 identity로 다시 그릴지 정하므로 같은 객체를 돌려준다
   return useMemo(

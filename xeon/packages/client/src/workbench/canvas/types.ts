@@ -65,6 +65,8 @@ export interface CanvasPlugin {
   /** 켜져 있나(전역 하나). 자동 꺼짐 여부는 isOn이 본다 */
   readonly on: boolean;
   readonly health?: CanvasHealth;
+  /** 매니페스트를 읽지 못했다(`ext.get`이 없거나 검사에 실패). 넣어 주는 것을 모르므로 구성 요소 거르기가 숨기지 않는다 */
+  readonly unread?: boolean;
 }
 
 export interface CanvasGroup {
@@ -131,3 +133,10 @@ export const hasContrib = (p: CanvasPlugin, c: Contrib): boolean => {
   if (c === "hook") return p.hooks.length > 0;
   return p.pieces.some((x) => x.kind === c);
 };
+
+/**
+ * 구성 요소 거르기가 이 플러그인을 남기나. 고른 것이 없으면 전부 남고, 고른 것 가운데 하나라도 넣어 주면 남는다.
+ * 매니페스트를 읽지 못한 플러그인은 넣어 주는 것을 모르므로 숨기지 않는다(`unread`).
+ */
+export const keepsContrib = (p: CanvasPlugin, contrib: readonly Contrib[]): boolean =>
+  contrib.length === 0 || p.unread === true || contrib.some((c) => hasContrib(p, c));

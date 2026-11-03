@@ -21,7 +21,8 @@ import { createConnectionCommands } from "./connection.ts";
 import { createScheduleCommands } from "./schedule.ts";
 import { createSecretCommands } from "./secrets.ts";
 import { createSetupCommands } from "./setup.ts";
-import { createWorkbenchCommands } from "./workbench-commands.ts";
+import { createTestCommands } from "./tests-commands.ts";
+import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
 import type { LocalSettings } from "../settings-store/index.ts";
@@ -204,7 +205,10 @@ export function createCommands(deps: CommandDeps): Commands {
       decide: (workspace, choice) =>
         withWriteConnection((c) => c.request("trust.decide", { workspace, choice })),
     },
-    workbench: createWorkbenchCommands(withConnection),
+    workbench: createWorkbenchCommands(withConnection, (listener) => {
+      const connection = session.connection();
+      return connection === null ? () => {} : subscribeExtChanges(connection, listener);
+    }),
     setup: createSetupCommands(
       withConnection,
       (listener) => {
@@ -219,6 +223,7 @@ export function createCommands(deps: CommandDeps): Commands {
       },
       deps.ipc,
     ),
+    tests: createTestCommands(withConnection, withWriteConnection),
     schedule: createScheduleCommands(withConnection),
     pluginUi: { withConnection, current: () => session.connection() },
     connection: createConnectionCommands({

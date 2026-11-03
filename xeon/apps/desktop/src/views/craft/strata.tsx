@@ -35,7 +35,15 @@ import { DropBar, useRowDrag, type RowDrag } from "./drag.tsx";
 import { OrderWarningModal } from "./order-modal.tsx";
 import { useCraft } from "./craft-context.tsx";
 import { keyReorder, requestReorder, saveConfirmed, type ReorderConfirm } from "./strata-flow.ts";
-import { litFor, matchesFilter, overridesOf, type LaneMap, type Lit } from "./strata-model.ts";
+import {
+  litFor,
+  matchesFilter,
+  mergeVisibleLane,
+  overridesOf,
+  visibleLane,
+  type LaneMap,
+  type Lit,
+} from "./strata-model.ts";
 
 type PhaseId = (typeof PHASES)[number];
 type Fold = (typeof HOOKS)[number]["fold"];
@@ -147,7 +155,7 @@ export function Strata(): ReactNode {
   );
 
   const loadOrders = useCallback(async (): Promise<void> => {
-    const r = await attemptAsync(() => readOrders(port));
+    const r = await readOrders(port);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.load");
       return;
@@ -159,7 +167,7 @@ export function Strata(): ReactNode {
   useEffect(() => {
     let live = true;
     const load = async (): Promise<void> => {
-      const r = await attemptAsync(() => readOrders(port));
+      const r = await readOrders(port);
       if (!live) return;
       if (r.ok) setOrders(r.value);
       else setFailure("desktop.craft.strata.error.load");
@@ -175,7 +183,7 @@ export function Strata(): ReactNode {
     before: readonly string[],
     after: readonly string[],
   ): Promise<void> => {
-    const r = await attemptAsync(() => requestReorder(port, hook, before, after, nameOf));
+    const r = await requestReorder(port, hook, before, after, nameOf);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.save");
       return;
@@ -199,7 +207,7 @@ export function Strata(): ReactNode {
 
   const saveConfirm = async (c: ReorderConfirm): Promise<void> => {
     setConfirm(null);
-    const r = await attemptAsync(() => saveConfirmed(port, c));
+    const r = await saveConfirmed(port, c);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.save");
       return;
@@ -210,7 +218,7 @@ export function Strata(): ReactNode {
   };
 
   const resetHook = async (hook: string): Promise<void> => {
-    const r = await attemptAsync(() => resetOrder(port, hook));
+    const r = await resetOrder(port, hook);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.reset");
       return;
@@ -372,7 +380,11 @@ function HookRow({
   readonly ctx: StrataCtx;
 }): ReactNode {
   const lane = ctx.lanes[def.id] ?? [];
-  const drag = useRowDrag((id, index) => ctx.reorder(def.id, lane, moveHandler(lane, id, index)));
+  // 끌어 놓기의 자리는 보이는 핸들러 사이의 자리다. 가려진 핸들러는 제자리에 남긴다
+  const drag = useRowDrag((id, index) => {
+    const next = moveHandler(visibleLane(lane, ctx.snapshot, ctx.contrib), id, index);
+    ctx.reorder(def.id, lane, mergeVisibleLane(lane, ctx.snapshot, ctx.contrib, next));
+  });
   const picked = ctx.sel.k === "hook" && ctx.sel.id === def.id;
   const lit = ctx.lit.hooks.has(def.id);
   const label = HOOK_LABEL[def.id];
@@ -442,7 +454,8 @@ function LaneItems({
   const items: ReactNode[] = [];
   let shown = withBuiltin ? 1 : 0;
   let rest = 0;
-  for (const id of lane) {
+  // 구성 요소 거르기에 맞지 않는 핸들러는 줄에 그리지 않는다
+  for (const id of visibleLane(lane, ctx.snapshot, ctx.contrib)) {
     const p = ctx.snapshot.plugins.find((q) => q.id === id);
     if (p === undefined) continue;
     const dragging = drag.dragId === id;
@@ -500,10 +513,10 @@ function Pill({
         ? "border-info-border"
         : "border-border-strong";
   const onKey = (e: KeyboardEvent<HTMLButtonElement>): void => {
-    const next = keyReorder(e, lane, p.id);
+    const next = keyReorder(e, visibleLane(lane, ctx.snapshot, ctx.contrib), p.id);
     if (next === null) return;
     e.preventDefault();
-    ctx.reorder(hook, lane, next);
+    ctx.reorder(hook, lane, mergeVisibleLane(lane, ctx.snapshot, ctx.contrib, next));
   };
   const dim = !matchesFilter(p, ctx.kind, ctx.contrib);
   return (

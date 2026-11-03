@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { err, ok, type Result } from "@fresnel/contracts";
 import type {
   HooksOrderGetResult,
   HooksOrderPreviewParams,
@@ -14,15 +15,16 @@ import {
   readOrders,
   resetOrder,
   type HookOrderPort,
+  type OrderPortError,
 } from "../../../src/workbench/canvas/order-flow.ts";
 
 interface Replies {
-  readonly get?: HooksOrderGetResult;
-  readonly set?: HooksOrderSetResult;
-  readonly reset?: HooksOrderResetResult;
-  readonly preview?: HooksOrderPreviewResult;
-  /** 있으면 모든 호출이 이 오류로 거절된다 */
-  readonly fail?: Error;
+  readonly get?: Result<HooksOrderGetResult, OrderPortError>;
+  readonly set?: Result<HooksOrderSetResult, OrderPortError>;
+  readonly reset?: Result<HooksOrderResetResult, OrderPortError>;
+  readonly preview?: Result<HooksOrderPreviewResult, OrderPortError>;
+  /** 있으면 모든 호출이 이 오류 값으로 실패한다(던지지 않고 err를 돌려준다) */
+  readonly fail?: OrderPortError;
 }
 
 interface Calls {
@@ -32,13 +34,16 @@ interface Calls {
   preview: HooksOrderPreviewParams[];
 }
 
-/** 호출을 기록하는 가짜 포트. 응답이 없는 메서드를 부르면 거절한다 */
+/** 호출을 기록하는 가짜 포트. 응답이 없는 메서드를 부르면 시험 설정 오류로 거절한다 */
 function fakePort(replies: Replies): { port: HookOrderPort; calls: Calls } {
   const calls: Calls = { get: 0, set: [], reset: [], preview: [] };
-  const answer = <T>(value: T | undefined, name: string): Promise<T> => {
-    if (replies.fail !== undefined) return Promise.reject(replies.fail);
-    if (value === undefined) return Promise.reject(new Error(`no reply for ${name}`));
-    return Promise.resolve(value);
+  const answer = <T>(
+    reply: Result<T, OrderPortError> | undefined,
+    name: string,
+  ): Promise<Result<T, OrderPortError>> => {
+    if (replies.fail !== undefined) return Promise.resolve(err(replies.fail));
+    if (reply === undefined) return Promise.reject(new Error(`no reply for ${name}`));
+    return Promise.resolve(reply);
   };
   const port: HookOrderPort = {
     get: () => {
@@ -61,12 +66,11 @@ function fakePort(replies: Replies): { port: HookOrderPort; calls: Calls } {
   return { port, calls };
 }
 
-/** 거절된 값을 돌려준다. 이행되면 undefined라서 toBe가 실패한다 */
-const rejectionOf = (p: Promise<unknown>): Promise<unknown> =>
-  p.then(
-    () => undefined,
-    (e: unknown) => e,
-  );
+/** 성공 값을 꺼낸다. err면 시험을 실패시킨다(그 뒤 값 검사를 이어 하려고 쓴다) */
+function okValue<T>(r: Result<T, OrderPortError>): T {
+  if (!r.ok) throw new Error(`expected ok, got ${r.error.kind}`);
+  return r.value;
+}
 
 const NAMES = new Map([
   ["allow", "Allow"],
@@ -103,9 +107,9 @@ describe("proposeOrder", () => {
         },
       ],
     };
-    const { port, calls } = fakePort({ preview });
+    const { port, calls } = fakePort({ preview: ok(preview) });
 
-    const out = await proposeOrder(port, "pre", ["allow", "guard"], nameOf);
+    const out = okValue(await proposeOrder(port, "pre", ["allow", "guard"], nameOf));
 
     expect(calls.preview).toEqual([{ hook: "pre", order: ["allow", "guard"] }]);
     expect(calls.set).toEqual([]);
@@ -116,9 +120,9 @@ describe("proposeOrder", () => {
   });
 
   test("아무 노트도 없으면 severity none이다", async () => {
-    const { port, calls } = fakePort({ preview: CLEAN_PREVIEW });
+    const { port, calls } = fakePort({ preview: ok(CLEAN_PREVIEW) });
 
-    const out = await proposeOrder(port, "pre", ["allow", "guard"], nameOf);
+    const out = okValue(await proposeOrder(port, "pre", ["allow", "guard"], nameOf));
 
     expect(out.warning.severity).toBe("none");
     expect(out.warning.skipped).toEqual([]);
@@ -126,18 +130,19 @@ describe("proposeOrder", () => {
   });
 
   test("미리보기가 돌려준 순서를 그대로 싣는다", async () => {
-    const { port } = fakePort({ preview: { ...CLEAN_PREVIEW, order: ["guard", "allow"] } });
+    const { port } = fakePort({
+      preview: ok({ ...CLEAN_PREVIEW, order: ["guard", "allow"] }),
+    });
 
-    const out = await proposeOrder(port, "pre", ["allow", "guard"], nameOf);
+    const out = okValue(await proposeOrder(port, "pre", ["allow", "guard"], nameOf));
 
     expect(out.order).toEqual(["guard", "allow"]);
   });
 
-  test("포트의 오류는 그대로 올라온다", async () => {
-    const boom = new Error("preview failed");
-    const { port, calls } = fakePort({ fail: boom });
+  test("포트가 err를 돌려주면 그 값을 그대로 돌려주고 set은 부르지 않는다", async () => {
+    const { port, calls } = fakePort({ fail: { kind: "offline" } });
 
-    expect(await rejectionOf(proposeOrder(port, "pre", ["allow"], nameOf))).toBe(boom);
+    expect(await proposeOrder(port, "pre", ["allow"], nameOf)).toEqual(err({ kind: "offline" }));
     expect(calls.set).toEqual([]);
   });
 });
@@ -149,49 +154,52 @@ describe("commitOrder", () => {
       saved: ["guard", "allow"],
       appliesAt: "nextStepBoundary",
     };
-    const { port, calls } = fakePort({ set });
+    const { port, calls } = fakePort({ set: ok(set) });
 
     const out = await commitOrder(port, "pre", ["guard", "allow", "guard"]);
 
     expect(calls.set).toEqual([{ hook: "pre", order: ["guard", "allow", "guard"] }]);
     expect(calls.preview).toEqual([]);
-    expect(out).toEqual({ saved: ["guard", "allow"], appliesAt: "nextStepBoundary" });
+    expect(out).toEqual(ok({ saved: ["guard", "allow"], appliesAt: "nextStepBoundary" }));
   });
 
-  test("포트의 오류는 그대로 올라온다", async () => {
-    const boom = new Error("set failed");
-    const { port } = fakePort({ fail: boom });
+  test("포트가 err를 돌려주면 그 값을 그대로 돌려준다", async () => {
+    const { port, calls } = fakePort({
+      set: err({ kind: "rejected", code: 3102, detail: "bad order" }),
+    });
 
-    expect(await rejectionOf(commitOrder(port, "pre", ["allow"]))).toBe(boom);
+    expect(await commitOrder(port, "pre", ["allow"])).toEqual(
+      err({ kind: "rejected", code: 3102, detail: "bad order" }),
+    );
+    expect(calls.set).toEqual([{ hook: "pre", order: ["allow"] }]);
   });
 });
 
 describe("resetOrder", () => {
   test("hook을 생략하면 빈 인자로 reset을 부른다", async () => {
     const reset: HooksOrderResetResult = { hooks: ["pre", "post"], appliesAt: "nextStepBoundary" };
-    const { port, calls } = fakePort({ reset });
+    const { port, calls } = fakePort({ reset: ok(reset) });
 
     const out = await resetOrder(port);
 
     expect(calls.reset).toEqual([{}]);
-    expect(out).toEqual({ hooks: ["pre", "post"], appliesAt: "nextStepBoundary" });
+    expect(out).toEqual(ok({ hooks: ["pre", "post"], appliesAt: "nextStepBoundary" }));
   });
 
   test("hook을 주면 그 훅만 지운다", async () => {
     const reset: HooksOrderResetResult = { hooks: ["pre"], appliesAt: "nextStepBoundary" };
-    const { port, calls } = fakePort({ reset });
+    const { port, calls } = fakePort({ reset: ok(reset) });
 
     const out = await resetOrder(port, "pre");
 
     expect(calls.reset).toEqual([{ hook: "pre" }]);
-    expect(out.hooks).toEqual(["pre"]);
+    expect(out).toEqual(ok({ hooks: ["pre"], appliesAt: "nextStepBoundary" }));
   });
 
-  test("포트의 오류는 그대로 올라온다", async () => {
-    const boom = new Error("reset failed");
-    const { port } = fakePort({ fail: boom });
+  test("포트가 err를 돌려주면 그 값을 그대로 돌려준다", async () => {
+    const { port } = fakePort({ fail: { kind: "unsupported" } });
 
-    expect(await rejectionOf(resetOrder(port, "pre"))).toBe(boom);
+    expect(await resetOrder(port, "pre")).toEqual(err({ kind: "unsupported" }));
   });
 });
 
@@ -203,27 +211,28 @@ describe("readOrders", () => {
         { hook: "post", saved: [], applied: ["allow"], pending: false },
       ],
     };
-    const { port, calls } = fakePort({ get: got });
+    const { port, calls } = fakePort({ get: ok(got) });
 
     const out = await readOrders(port);
 
     expect(calls.get).toBe(1);
-    expect(out).toEqual({
-      pre: { applied: ["allow", "guard"], saved: ["guard", "allow"], pending: true },
-      post: { applied: ["allow"], saved: [], pending: false },
-    });
+    expect(out).toEqual(
+      ok({
+        pre: { applied: ["allow", "guard"], saved: ["guard", "allow"], pending: true },
+        post: { applied: ["allow"], saved: [], pending: false },
+      }),
+    );
   });
 
   test("훅이 없으면 빈 기록이다", async () => {
-    const { port } = fakePort({ get: { hooks: [] } });
+    const { port } = fakePort({ get: ok({ hooks: [] }) });
 
-    expect(await readOrders(port)).toEqual({});
+    expect(await readOrders(port)).toEqual(ok({}));
   });
 
-  test("포트의 오류는 그대로 올라온다", async () => {
-    const boom = new Error("get failed");
-    const { port } = fakePort({ fail: boom });
+  test("포트가 err를 돌려주면 그 값을 그대로 돌려준다", async () => {
+    const { port } = fakePort({ fail: { kind: "switching" } });
 
-    expect(await rejectionOf(readOrders(port))).toBe(boom);
+    expect(await readOrders(port)).toEqual(err({ kind: "switching" }));
   });
 });

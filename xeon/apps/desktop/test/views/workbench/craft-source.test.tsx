@@ -9,6 +9,7 @@ import {
 } from "@fresnel/client/workbench";
 import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
+import type { OrderPortError } from "@fresnel/client/workbench/canvas";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
@@ -225,21 +226,8 @@ describe("명령 실패의 글과 거부 값", () => {
   });
 });
 
-/** 거부된 값을 글과 cause로 바꾼다. 거부가 없으면 null */
-function failureOf(
-  run: Promise<unknown>,
-): Promise<{ readonly message: string; readonly cause: unknown } | null> {
-  return run.then(
-    () => null,
-    (reason: unknown) =>
-      reason instanceof Error
-        ? { message: reason.message, cause: reason.cause }
-        : { message: "not an Error", cause: reason },
-  );
-}
-
 describe("orderPortOf: 명령 결과를 포트 계약으로 옮긴다", () => {
-  test("읽기와 미리보기는 값을 그대로 돌려준다", async () => {
+  test("읽기와 미리보기는 성공 값을 ok로 돌려준다", async () => {
     const body = { hooks: [{ hook: "h", saved: [], applied: ["a"], pending: false }] };
     const preview = {
       hook: "h",
@@ -258,11 +246,11 @@ describe("orderPortOf: 명령 결과를 포트 계약으로 옮긴다", () => {
       },
     }).workbench;
     const port = orderPortOf(workbench, () => undefined);
-    expect(await port.get()).toEqual(body);
-    expect(await port.preview({ hook: "h", order: ["b", "a"] })).toEqual(preview);
+    expect(await port.get()).toEqual(ok(body));
+    expect(await port.preview({ hook: "h", order: ["b", "a"] })).toEqual(ok(preview));
   });
 
-  test("쓰기가 성공하면 afterWrite를 한 번 부르고, 실패하면 거부하며 afterWrite는 부르지 않는다", async () => {
+  test("쓰기가 성공하면 afterWrite를 부르고, 실패하면 err 값을 돌려주며 afterWrite는 부르지 않는다", async () => {
     const wrote: string[] = [];
     const workbench = fakeCommands({
       workbench: {
@@ -271,21 +259,57 @@ describe("orderPortOf: 명령 결과를 포트 계약으로 옮긴다", () => {
           hook === "fails"
             ? Promise.resolve(err({ kind: "locked", ownerKind: "cli", options: [] }))
             : Promise.resolve(ok({ hook, saved: [...order], appliesAt: "nextStepBoundary" })),
+        orderReset: (hook) =>
+          hook === "fails"
+            ? Promise.resolve(err({ kind: "failed" }))
+            : Promise.resolve(ok({ hooks: [], appliesAt: "nextStepBoundary" })),
       },
     }).workbench;
     const port = orderPortOf(workbench, () => {
       wrote.push("after");
     });
-    expect(await port.set({ hook: "h", order: ["a"] })).toEqual({
-      hook: "h",
-      saved: ["a"],
-      appliesAt: "nextStepBoundary",
-    });
-    expect(await failureOf(port.set({ hook: "fails", order: [] }))).toEqual({
-      message: "locked:cli",
-      cause: { kind: "locked", ownerKind: "cli", options: [] },
-    });
+    expect(await port.set({ hook: "h", order: ["a"] })).toEqual(
+      ok({ hook: "h", saved: ["a"], appliesAt: "nextStepBoundary" }),
+    );
     expect(wrote).toEqual(["after"]);
+    expect(await port.set({ hook: "fails", order: [] })).toEqual(
+      err({ kind: "locked", ownerKind: "cli" }),
+    );
+    expect(await port.reset({ hook: "fails" })).toEqual(err({ kind: "failed" }));
+    expect(wrote).toEqual(["after"]);
+  });
+
+  test("명령 실패의 종류와 값을 포트 오류로 옮긴다(locked의 선택지 목록만 뺀다)", async () => {
+    const cases: readonly (readonly [CommandError, OrderPortError])[] = [
+      [{ kind: "offline" }, { kind: "offline" }],
+      [{ kind: "unsupported" }, { kind: "unsupported" }],
+      [
+        { kind: "locked", ownerKind: "cli", options: [] },
+        { kind: "locked", ownerKind: "cli" },
+      ],
+      [
+        { kind: "rejected", code: 3102, detail: "bad value" },
+        { kind: "rejected", code: 3102, detail: "bad value" },
+      ],
+      [
+        { kind: "rejected", code: null },
+        { kind: "rejected", code: null },
+      ],
+      [{ kind: "failed" }, { kind: "failed" }],
+      [{ kind: "switching" }, { kind: "switching" }],
+    ];
+    const previews = await Promise.all(
+      cases.map(([failure]) => {
+        const workbench = fakeCommands({
+          workbench: {
+            ...fakeCommands().workbench,
+            orderPreview: () => Promise.resolve(err(failure)),
+          },
+        }).workbench;
+        return orderPortOf(workbench, () => undefined).preview({ hook: "h", order: [] });
+      }),
+    );
+    expect(previews).toStrictEqual(cases.map(([, expected]) => err(expected)));
   });
 
   test("reset은 hook을 생략하면 undefined를, 주면 그 훅을 명령에 넘긴다", async () => {

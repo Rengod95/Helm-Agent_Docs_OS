@@ -60,6 +60,7 @@ function rowOf(threadId: ThreadId, pendingApprovals: number): ThreadSummaryRow {
     marker: null,
     queuedInputs: 0,
     pendingApprovals,
+    lastTurnId: null,
   };
 }
 

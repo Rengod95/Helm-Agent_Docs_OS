@@ -10,7 +10,10 @@ import type {
   TurnCompletedPayload,
   TurnId,
 } from "@fresnel/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type {
+  ApprovalRequestedPayload,
+  ScopeHandlerFailedPayload,
+} from "@fresnel/contracts/records";
 import type {
   PendingApproval as WirePendingApproval,
   StoreId,
@@ -52,6 +55,12 @@ type VolatileBase = {
 export type VolatileFact =
   | (VolatileBase & { readonly type: "item.started"; readonly payload: ItemStartedPayload })
   | (VolatileBase & { readonly type: "item.updated"; readonly payload: ItemUpdatedPayload })
+  /** 확장 핸들러 실패. `afterSeq`는 발신 시점의 내구 head다(같은 실패는 열린 대화마다 한 번씩 온다) */
+  | (VolatileBase & {
+      readonly type: "scope.handler_failed";
+      readonly payload: ScopeHandlerFailedPayload;
+      readonly afterSeq: number;
+    })
   | (VolatileBase & { readonly type: "other" });
 
 /** 엔진 거울의 유일한 입력. 엔진 사실(알림, 요청 결과, 셸 상태)과 컨트롤러의 요청 표시만 담는다 */

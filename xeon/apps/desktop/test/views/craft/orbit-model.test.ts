@@ -128,7 +128,7 @@ describe("orbit model: layer panel order and counts", () => {
       plugins: [byId("secret-scan"), byId("web"), byId("exa"), byId("lint-on-edit")],
       groups: [],
     };
-    expect(layerPlugins(small, "plugin").map((p) => p.id)).toEqual([
+    expect(layerPlugins(small, "plugin", []).map((p) => p.id)).toEqual([
       "secret-scan",
       "exa",
       "lint-on-edit",

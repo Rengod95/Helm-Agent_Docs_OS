@@ -1,5 +1,11 @@
+import { extSettingPrefixes } from "@fresnel/client/workbench";
 import { err, ok, type Result } from "@fresnel/contracts";
-import type { HostConnection } from "@fresnel/contracts/wire";
+import type { SettingDefWire } from "@fresnel/contracts/settings";
+import type {
+  EventsBatchParams,
+  HostConnection,
+  SettingsInvalidatedParams,
+} from "@fresnel/contracts/wire";
 import type { CommandError, WorkbenchCommands } from "../views/commands.ts";
 
 // 크래프트 명령. 결과는 요청의 반환값이다(거울에 넣지 않는다). 상태 반영은 `views/workbench`의 컨트롤러가 스토어에 한다.
@@ -8,13 +14,57 @@ type WithConnection = <T>(
   run: (connection: HostConnection) => Promise<T>,
 ) => Promise<Result<T, CommandError>>;
 
-export function createWorkbenchCommands(withConnection: WithConnection): WorkbenchCommands {
+/** `settings.invalidated`가 확장 목록을 다시 읽을 까닭인가. 키 목록이 비면 전체 무효화로 보고, 확장 키(`ext.`)가 하나라도 있으면 맞다 */
+export function isExtSettingsChange(params: Pick<SettingsInvalidatedParams, "keys">): boolean {
+  return params.keys.length === 0 || params.keys.some((key) => key.startsWith("ext."));
+}
+
+/** 내구 이벤트 묶음에 `scope.changed`가 있나. 자동 끄기도 이 기록을 남기고, 목록의 `autoDisabled`가 그 뒤에 바뀐다 */
+export function hasScopeChange(params: Pick<EventsBatchParams, "events">): boolean {
+  return params.events.some((event) => event.kind === "scope.changed");
+}
+
+/** 목록을 다시 읽을 알림마다 `listener`를 부른다. 반환값은 구독 해제 */
+export function subscribeExtChanges(
+  connection: Pick<HostConnection, "onNotification">,
+  listener: () => void,
+): () => void {
+  const offSettings = connection.onNotification("settings.invalidated", (params) => {
+    if (isExtSettingsChange(params)) listener();
+  });
+  const offEvents = connection.onNotification("events.batch", (params) => {
+    if (hasScopeChange(params)) listener();
+  });
+  return () => {
+    offSettings();
+    offEvents();
+  };
+}
+
+export function createWorkbenchCommands(
+  withConnection: WithConnection,
+  subscribeChanges: (listener: () => void) => () => void,
+): WorkbenchCommands {
   return {
-    async list() {
-      const listed = await withConnection((c) => c.request("ext.list", {}));
+    async list(threadId) {
+      const listed = await withConnection((c) =>
+        c.request("ext.list", threadId === undefined ? {} : { threadId }),
+      );
       return listed.ok ? ok(listed.value.extensions) : err(listed.error);
     },
+    onChanged: subscribeChanges,
     get: (name) => withConnection((c) => c.request("ext.get", { name })),
+    async groups(threadId) {
+      const got = await withConnection((c) => c.request("group.list", { threadId }));
+      return got.ok ? ok(got.value.groups) : err(got.error);
+    },
+    driveLock: (threadId) => withConnection((c) => c.request("group.driveLock", { threadId })),
+    timings: (name, threadId) =>
+      withConnection((c) =>
+        c.request("ext.timings", threadId === undefined ? { name } : { name, threadId }),
+      ),
+    explain: (key, threadId) =>
+      withConnection((c) => c.request("settings.explain", { key, threadId })),
     async toggle(request) {
       const done = await withConnection((c) =>
         c.request("settings.set", {
@@ -52,5 +102,33 @@ export function createWorkbenchCommands(withConnection: WithConnection): Workben
       withConnection((c) => c.request("hooks.order.preview", { hook, order })),
     trace: (threadId, turnId) =>
       withConnection((c) => c.request("trace.turn", { threadId, turnId })),
+    async settings(name, threadId) {
+      const listed = await Promise.all(
+        extSettingPrefixes(name).map((prefix) =>
+          withConnection((c) => c.request("settings.list", { prefix })),
+        ),
+      );
+      const defs: SettingDefWire[] = [];
+      for (const result of listed) {
+        if (!result.ok) return err(result.error);
+        defs.push(...result.value.defs);
+      }
+      if (defs.length === 0) return ok({ defs, values: [] });
+      const got = await withConnection((c) =>
+        c.request("settings.get", {
+          keys: defs.map((def) => def.key),
+          ...(threadId === undefined ? {} : { threadId }),
+        }),
+      );
+      return got.ok ? ok({ defs, values: got.value.settings }) : err(got.error);
+    },
+    metrics: (id, threadId) =>
+      withConnection((c) =>
+        c.request("group.metrics", threadId === undefined ? { id } : { id, threadId }),
+      ),
+    async views() {
+      const got = await withConnection((c) => c.request("ext.ui.list", {}));
+      return got.ok ? ok(got.value.items) : err(got.error);
+    },
   };
 }

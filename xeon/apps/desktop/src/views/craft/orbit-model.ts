@@ -1,8 +1,8 @@
 // 지도와 층 패널이 같이 쓰는 순수 판단: 고른 것이 밝히는 점, 거르기, 찾기, 층 안의 카드 순서. 화면과 무관하다.
 import { assertNever } from "@fresnel/contracts";
 import {
-  hasContrib,
   isOn,
+  keepsContrib,
   matchesKind,
   type CanvasGroup,
   type CanvasPlugin,
@@ -68,13 +68,38 @@ function groupMembers(snapshot: CanvasSnapshot, gid: string | undefined): readon
   return groupOf(snapshot, gid)?.members ?? [];
 }
 
-/** 종류와 구성 요소 거르기. 구성 요소는 고른 것 중 하나라도 있으면 맞는다(빈 목록이면 전부) */
+/**
+ * 종류와 구성 요소 거르기. 구성 요소는 고른 것 중 하나라도 있으면 맞는다(빈 목록이면 전부).
+ * 지도가 구성 요소 거르기로 숨기는 것도 이 규칙을 따른다(`keepsContrib`).
+ */
 export function passesFilter(
   p: CanvasPlugin,
   kind: KindFilter,
   contrib: readonly Contrib[],
 ): boolean {
-  return matchesKind(p, kind) && (contrib.length === 0 || contrib.some((c) => hasContrib(p, c)));
+  return matchesKind(p, kind) && keepsContrib(p, contrib);
+}
+
+/**
+ * 지도에 그릴 점. 구성 요소 거르기는 맞지 않는 점을 그리지 않는다(숨긴다). 종류와 찾기는 흐리게 둔다(`isDimmed`).
+ * 위치는 스냅샷으로 정해져 있어 숨겨도 다른 점이 자리를 옮기지 않는다.
+ */
+export function shownOnMap(snapshot: CanvasSnapshot, contrib: readonly Contrib[]): CanvasPlugin[] {
+  return snapshot.plugins.filter((p) => keepsContrib(p, contrib));
+}
+
+/** 그룹 호와 이름표를 그릴지: 구성원 가운데 지도에 남는 것이 하나라도 있어야 한다 */
+export function groupShown(
+  snapshot: CanvasSnapshot,
+  gid: string,
+  contrib: readonly Contrib[],
+): boolean {
+  return (
+    groupOf(snapshot, gid)?.members.some((id) => {
+      const p = snapshot.plugins.find((x) => x.id === id);
+      return p !== undefined && keepsContrib(p, contrib);
+    }) === true
+  );
 }
 
 /** 찾기 글과 맞나. 이름, 한 줄 설명, 훅 id, 기능, 구성 요소 이름을 본다. 빈 글은 전부 맞는다 */
@@ -105,9 +130,13 @@ export function isDimmed(
   );
 }
 
-/** 층의 플러그인, 스냅샷 순서 그대로 */
-export function layerPlugins(snapshot: CanvasSnapshot, layer: LayerKey): CanvasPlugin[] {
-  return snapshot.plugins.filter((p) => p.layer === layer);
+/** 층 패널에 보일 플러그인, 스냅샷 순서 그대로. 구성 요소 거르기에 맞지 않는 것은 뺀다 */
+export function layerPlugins(
+  snapshot: CanvasSnapshot,
+  layer: LayerKey,
+  contrib: readonly Contrib[],
+): CanvasPlugin[] {
+  return snapshot.plugins.filter((p) => p.layer === layer && keepsContrib(p, contrib));
 }
 
 /**

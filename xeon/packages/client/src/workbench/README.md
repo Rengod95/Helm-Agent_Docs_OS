@@ -6,7 +6,7 @@
 
 - 전역만 다룹니다. 범위(이 대화·프로젝트)와 맥락 칸이 없습니다. 켜기·끄기는 `settings.set { key: "ext.<이름>.enabled", scope: "user" }` 하나입니다(`toggleRequestOf`).
 - 그룹은 스위치 하나입니다(15-1). 구성원을 따로 끄지 않습니다.
-- 면제 tier(`guard`, `core`), 안전 모드 제외, managed 켜짐은 스위치가 잠깁니다(`ExtRowVM.lock`).
+- 면제 tier(`guard`, `core`), 안전 모드 제외, managed 켜짐은 스위치가 잠깁니다(`ExtRowVM.lock`). 이유 글(`lockText`)은 앱이 스위치를 감싼 `Tooltip`과 `aria-description`으로 보입니다.
 
 ## 상태 `WorkbenchState`
 
@@ -31,9 +31,10 @@
 
 - `visibleRows(state)`: 찾기로 거른 확장 행(`ExtRowVM`: 표시 이름, 층, 종류 `group|plugin|core`, 등급, 상태, 잠금, 실패, 대기 목표).
 - `layerGroups(state)`: 층별 묶음(L1 → L2 → L3 → 그 밖). 지도 고리와 층 패널의 재료.
-- `countsOf`, `versionRows(ext.versions)`(버전 탭, 지금 판은 되돌리기 불가, 상태 스키마가 높으면 `needsClearState`).
+- `detail-tabs.ts`: 상세 탭(§6.24)의 순수 모델. `extSettingRowsOf`(설정 탭 줄: `buildSettingsView`의 `plugins` 탭에서 이 확장 키만, 시크릿은 참조 대신 "시크릿에 있어요"로만 보임), `groupMetricsOf`(측정 탭: 토큰 네 칸과 "정가 기준 추정" 비용, 계측이 꺼져 있으면 null, 그룹만 읽음), `screenRowsOf`(화면 탭: `ext.ui.list` 항목 가운데 이 확장의 것), `enabledScopeOf`·`settingScopeOf`(출처 배지 범위: user는 전역, project는 프로젝트, thread와 launch는 이 대화, 출처가 없으면 배지를 두지 않음), `tabReadOf`(읽는 중, 연결 중·끊김의 마지막 값(`stale`), 오프라인, 오류).
+- `countsOf`, `versionsViewOf(entry, load)`(버전 탭 그림, §6.24.1). 기록이 있으면 `history`(행: 지금 판은 되돌리기 불가, 상태 스키마가 높으면 `needsClearState`), 기록이 없거나 `unsupported`면 `fallback`(설치본, 기본 플러그인만 앱에 든 번들 버전), 읽기 실패는 `error`.
 - `selectedEntry(state)`: 자세히 보기가 있으면 그 확장, 없으면 고른 플러그인·그룹의 확장. `selectedName(state)`는 고른 것만 본다(자세히 보기는 안 봄). `openLayerOf(state)`는 층 선택이면 그 층.
-- 구성 요소 거르기(`contrib`)는 매니페스트(`ext.get`)가 있어야 걸 수 있어서 `visibleRows`는 걸지 않습니다. 지도·순서가 `snapshotOf`로 자기 데이터로 겁니다.
+- 구성 요소 거르기(`contrib`)는 매니페스트(`ext.get`)가 있어야 걸 수 있어서 `visibleRows`는 걸지 않습니다. 지도·순서·링크·층 패널이 `snapshotOf`의 자기 데이터로 `keepsContrib`를 써서 맞지 않는 플러그인을 숨깁니다. 매니페스트를 못 읽은 플러그인(`unread`)은 넣어 주는 것을 모르므로 숨기지 않습니다.
 
 ## 캔버스 스냅샷 (`snapshot.ts`)
 
@@ -45,10 +46,20 @@
 
 ## 앱 쪽 구현 (T-BENCH)
 
-`apps/desktop/src/state/workbench/`(스토어와 훅), `src/app/workbench-commands.ts`(`commands.workbench`: `list`, `get`, `toggle`, `reenable`, `versions`, `rollback`), `src/views/workbench/`(화면).
+`apps/desktop/src/state/workbench/`(스토어와 훅), `src/app/workbench-commands.ts`(`commands.workbench`: `list`, `get`, `toggle`, `reenable`, `versions`, `rollback`, `onChanged`, 그리고 상세 탭의 `settings`, `metrics`, `views`), `src/views/workbench/`(화면).
+
+### 목록을 다시 읽는 때
+
+`ext.list`, `ext.get`, `ext.health`, 훅 순서는 컨트롤러(`views/workbench/controller.ts`의 `reload`)가 스토어에 넣습니다. 다시 읽는 때는 다음과 같습니다.
+
+- 화면을 열 때와 엔진이 연결된(live) 때.
+- 자기 켜기·끄기(`toggle`)와 다시 켜기(`reenable`)가 성공한 뒤.
+- `onChanged`(`settings.invalidated`에 `ext.` 키가 있거나 키 목록이 빈 것, 또는 내구 이벤트 묶음의 `scope.changed`)를 받을 때. 다른 창의 설정 변경과 백그라운드 자동 끄기가 여기에 든다. 구독은 연결이 살아 있는 동안 유지된다.
+
+자동 꺼짐 띠, 개수, 캔버스의 점과 `autoOff` 표시는 스토어에서 읽으므로, 다시 읽은 값은 화면을 다시 마운트하지 않고 그대로 보인다.
 
 ### 개요 캔버스가 이 값을 읽는 법
 
 `views/desktop-registry.tsx`의 `createDesktopRegistry()`는 `registerWorkbench(registry, store)`만 부릅니다. 개요(`overview`)는 `views/workbench/craft-screen.tsx`가 목록 띠를 올린 뒤 `views/craft`의 캔버스(지도·순서·링크)를 그립니다. 캔버스는 `useCraft()`로 스토어 값을 읽고 `dispatch`로 바꾸며, 원천(`CraftSource`)은 `useCraftSource`가 `snapshotOf`와 `detailsLoaded`·`healthLoaded`·`ordersLoaded` 캐시로 만듭니다. 켜기·끄기는 상태를 직접 바꾸지 않고 컨트롤러(`views/workbench/controller.ts`의 `useWorkbenchController().toggle`, 확인 대화 상자는 `useToggleRequest`)를 거칩니다. 훅 줄의 `추가`(15-3)는 `requestBuilder(hook)`로 요청만 남깁니다(빌더 화면은 T-AUTH).
 
-확장 화면(`extensions`)은 같은 목록을 층별로 그리고, 고른 확장의 선택 패널(`SelectionPanel`)과 자세히 보기(`ExtDetail`, 버전 탭과 되돌리기 포함)를 그립니다. `sel`과 `detail`은 두 화면이 같이 씁니다.
+확장 화면(`extensions`)은 같은 목록을 층마다 caustic `Table` 하나로 그리고(열: 이름, 층, 종류, 등급, 상태, 버전, 켜짐; §6.23), 고른 확장의 선택 패널(`SelectionPanel`)과 자세히 보기(`ExtDetail`, 버전 탭과 되돌리기 포함)를 그립니다. 행을 고르는 것은 Table의 `selectionMode="single"`과 `onRowActivate`가 맡고, 고른 행은 `aria-selected`로 보입니다. `sel`과 `detail`은 두 화면이 같이 씁니다.

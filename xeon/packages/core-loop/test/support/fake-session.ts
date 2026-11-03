@@ -645,6 +645,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
                 marker: null,
                 queuedInputs: 0,
                 pendingApprovals: 0,
+                lastTurnId: null,
               },
         ),
       turn: (threadId, turnId) => read(turnsOf(threadId).get(turnId)),

@@ -413,6 +413,7 @@ export function memorySession(options: MemorySessionOptions): MemorySession {
           marker: null,
           queuedInputs: queuedViews(threadId).length,
           pendingApprovals: 0,
+          lastTurnId: null,
         }));
         return {
           threads: rows,

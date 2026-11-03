@@ -1,9 +1,11 @@
 // 링크 보기의 순수 값: 초점 플러그인, 주도 보유자, 상대 행 묶기, 보일 사실 거르기. 화면과 React를 모른다.
 import {
   isOn,
+  keepsContrib,
   REL_ORDER,
   type CanvasPlugin,
   type CanvasSnapshot,
+  type Contrib,
   type Relation,
   type RelationContext,
   type RelKind,
@@ -57,6 +59,14 @@ export function focusOf(sel: Sel, snapshot: CanvasSnapshot): CanvasPlugin | unde
     }
   }
   return driveHolderOf(snapshot) ?? snapshot.plugins[0];
+}
+
+/**
+ * 구성 요소 거르기에 맞는 상대와의 관계만 남긴다. 맞지 않는 상대는 줄도 실도 그리지 않는다(숨긴다).
+ * 초점 플러그인은 관계의 출발점이라 거르지 않는다.
+ */
+export function visibleRels(rels: readonly Relation[], contrib: readonly Contrib[]): Relation[] {
+  return rels.filter((rel) => keepsContrib(rel.other, contrib));
 }
 
 /** 상대 한 줄: 상대 플러그인과 그 상대와의 관계들(목록 순서) */

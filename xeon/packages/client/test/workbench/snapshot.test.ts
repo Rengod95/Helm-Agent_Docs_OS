@@ -16,6 +16,7 @@ import {
   snapshotOf,
   type WorkbenchState,
 } from "../../src/workbench/index.ts";
+import { keepsContrib } from "../../src/workbench/canvas/index.ts";
 
 // 검사를 통과하는 매니페스트 픽스처. 시험 맨 앞에서 검사 통과를 확인한다.
 const HELM_MANIFEST: Readonly<Record<string, unknown>> = {
@@ -353,6 +354,7 @@ describe("캔버스 스냅샷 어댑터", () => {
         provides: [],
         pieces: [],
         on: true,
+        unread: true,
       },
       {
         id: "acme/tap",
@@ -364,6 +366,7 @@ describe("캔버스 스냅샷 어댑터", () => {
         provides: [],
         pieces: [],
         on: false,
+        unread: true,
       },
     ]);
     expect(snap.groups).toEqual([]);
@@ -385,6 +388,7 @@ describe("캔버스 스냅샷 어댑터", () => {
         provides: [],
         pieces: [],
         on: true,
+        unread: true,
       },
     ]);
   });
@@ -430,5 +434,25 @@ describe("캔버스 스냅샷 어댑터", () => {
     );
     const root = snapshotOf(stateOf([helmEntry], [detail])).plugins[0];
     expect(root).toMatchObject({ provides: ["helm.plan"], requires: ["knowledge.memory"] });
+  });
+});
+
+describe("구성 요소 거르기와 매니페스트 읽기", () => {
+  test("매니페스트를 읽지 못한 플러그인만 unread이고, 구성 요소 거르기는 그것을 숨기지 않는다", () => {
+    const state = detailsLoaded(
+      listLoaded(INITIAL_WORKBENCH, [listEntry("news"), listEntry("web")]),
+      "web",
+      getResult(listEntry("web"), PLAIN_MANIFEST),
+    );
+    const plugins = snapshotOf(state).plugins;
+    expect(plugins.map((p) => [p.id, p.unread])).toEqual([
+      ["news", true],
+      ["web", undefined],
+    ]);
+    // 도구를 고르면 읽지 못한 news는 남고(모르므로 숨기지 않는다), 도구가 없다고 읽은 web은 빠진다
+    expect(plugins.map((p) => [p.id, keepsContrib(p, ["tool"])])).toEqual([
+      ["news", true],
+      ["web", false],
+    ]);
   });
 });

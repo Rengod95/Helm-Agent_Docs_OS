@@ -271,6 +271,7 @@ export function fakeSession(ids: IdFactory): FakeSession {
           marker: null,
           queuedInputs: 0,
           pendingApprovals: 0,
+          lastTurnId: null,
         })),
         nextCursor: null,
       }),

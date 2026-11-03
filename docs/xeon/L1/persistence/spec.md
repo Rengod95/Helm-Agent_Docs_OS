@@ -473,6 +473,7 @@ export interface ThreadSummaryRow {
   readonly marker: RecoveryMarker | null;  // 후보 표시
   readonly queuedInputs: number;
   readonly pendingApprovals: number;
+  readonly lastTurnId: TurnId | null;      // 가장 나중 seq 이벤트의 turn id(events.turn_id). turn이 없으면 null
 }
 
 export interface ProjectionQuery {

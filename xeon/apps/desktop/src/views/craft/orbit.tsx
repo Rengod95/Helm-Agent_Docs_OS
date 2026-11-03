@@ -28,7 +28,14 @@ import { CoreSphere } from "./core-sphere.tsx";
 import { Finder, ZoomBar } from "./finder.tsx";
 import { LayerPanel } from "./layer-panel.tsx";
 import { Mark, shapeOf } from "./marks.tsx";
-import { isDimmed, litOf, matchesQuery, passesFilter } from "./orbit-model.ts";
+import {
+  groupShown,
+  isDimmed,
+  litOf,
+  matchesQuery,
+  passesFilter,
+  shownOnMap,
+} from "./orbit-model.ts";
 import { RING_ORDER, layoutOrbit, pointAt, ringRadius, type OrbitArc } from "./orbit-layout.ts";
 import { layerTitle, stateText } from "./orbit-names.ts";
 import { PANEL_W, SelectionPanel } from "./selection-panel.tsx";
@@ -344,6 +351,8 @@ export function Orbit(): ReactNode {
     [snapshot],
   );
   const dotOf = useMemo(() => new Map(layout.dots.map((d) => [d.id, d] as const)), [layout]);
+  // 구성 요소 거르기에 맞지 않는 점과 호는 그리지 않는다(숨긴다). 위치는 전체 스냅샷으로 정해진 그대로다
+  const onMap = useMemo(() => shownOnMap(snapshot, state.contrib), [snapshot, state.contrib]);
   const lit = useMemo(
     () => litOf(state.sel, snapshot, source.order),
     [state.sel, snapshot, source.order],
@@ -629,6 +638,7 @@ export function Orbit(): ReactNode {
           {layout.arcs.map((arc) => {
             const group = snapshot.groups.find((g) => g.id === arc.groupId);
             if (group === undefined) return null;
+            if (!groupShown(snapshot, arc.groupId, state.contrib)) return null;
             const mid = pointAt(arc.radius + 16, (arc.from + arc.to) / 2);
             const row = groupRows.find((g) => g.arc.groupId === arc.groupId);
             const dim = row === undefined ? false : (lit.active && !row.inLit) || !row.passes;
@@ -660,7 +670,7 @@ export function Orbit(): ReactNode {
             );
           })}
 
-          {snapshot.plugins.map((p) => {
+          {onMap.map((p) => {
             const d = dotOf.get(p.id);
             if (d === undefined) return null;
             return (
