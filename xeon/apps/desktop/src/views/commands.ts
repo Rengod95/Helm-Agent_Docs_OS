@@ -1,8 +1,8 @@
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
-import type { SecretName } from "@fresnel/contracts/capabilities";
-import type { TrustChoice, TrustStatus } from "@fresnel/contracts/wire";
+import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
+import type { TrustChoice, TrustStatus, WireParams, WireResult } from "@fresnel/contracts/wire";
 import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
 
@@ -42,6 +42,28 @@ export type ApprovalDecision =
 interface TrustCommands {
   status(workspace: string): Promise<Result<TrustStatus, CommandError>>;
   decide(workspace: string, choice: TrustChoice): Promise<Result<TrustStatus, CommandError>>;
+}
+
+/** `schedule.list` 값 + 서비스 모드 꺼짐 여부(`settings.get`의 `l0.process.service.enabled`) */
+export interface ScheduleSnapshot {
+  readonly items: readonly ScheduleListItem[];
+  readonly serviceModeOff: boolean;
+}
+
+/**
+ * 예약 화면(P-07, O-08). 목록은 요청 결과라 거울에 넣지 않는다(FS-03). `create`, `cancel`, `fire`는 host의 결과 값을
+ * 그대로 돌려준다. 기대한 실패(`ok: false`의 `error`)는 transport 오류가 아니라 값이다. transport 오류(연결 없음,
+ * 구형 host의 `unsupported`, 그 밖)만 바깥 `Result`의 `error`가 된다.
+ */
+export interface ScheduleCommands {
+  list(): Promise<Result<ScheduleSnapshot, CommandError>>;
+  create(
+    params: WireParams<"schedule.create">,
+  ): Promise<Result<WireResult<"schedule.create">, CommandError>>;
+  cancel(scheduleId: string): Promise<Result<WireResult<"schedule.cancel">, CommandError>>;
+  fire(scheduleId: string): Promise<Result<WireResult<"schedule.fire">, CommandError>>;
+  /** 서비스 모드를 켠다(`settings.set`, 사용자 범위) */
+  enableService(): Promise<Result<null, CommandError>>;
 }
 
 /**
@@ -105,6 +127,7 @@ export interface Commands {
   respondApproval(approvalId: EventId, response: ApprovalDecision): Promise<void>;
   readonly trust: TrustCommands;
   readonly setup: SetupCommands;
+  readonly schedule: ScheduleCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */

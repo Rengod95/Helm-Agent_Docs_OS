@@ -17,6 +17,7 @@ import type { UiStore } from "../state/ui/index.ts";
 import type { ApprovalDecision, CommandError, Commands } from "../views/commands.ts";
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
+import { createScheduleCommands } from "./schedule.ts";
 import { createSetupCommands } from "./setup.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
@@ -198,6 +199,7 @@ export function createCommands(deps: CommandDeps): Commands {
       },
       deps.ipc,
     ),
+    schedule: createScheduleCommands(withConnection),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),

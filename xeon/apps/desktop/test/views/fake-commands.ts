@@ -25,6 +25,13 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       setDefaultModel: () => Promise.resolve(ok(null)),
       onInvalidated: () => () => {},
     },
+    schedule: {
+      list: () => Promise.resolve(err({ kind: "unsupported" })),
+      create: () => Promise.resolve(err({ kind: "unsupported" })),
+      cancel: () => Promise.resolve(err({ kind: "unsupported" })),
+      fire: () => Promise.resolve(err({ kind: "unsupported" })),
+      enableService: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
     observeThread: () => Promise.resolve(ok(null)),
     forkThread: () => Promise.resolve(ok(null)),
     dismissLocked: () => {},
