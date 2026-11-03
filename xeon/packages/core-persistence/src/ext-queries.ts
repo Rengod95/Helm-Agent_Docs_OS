@@ -148,8 +148,10 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
   const enabledAtSeq = new Map<string, number>();
   const leaseEpochs = new Map<string, number>();
   const states = new Map<string, StoredScopeState>();
+  let waitingLineage: ExtThreadSnapshot["waitingLineage"] = null;
   let open: {
     readonly leaseId: string;
+    readonly lineageId: string;
     readonly scopeId: string;
     readonly leaseEpoch: number;
     readonly limits: OpenLease["limits"];
@@ -174,11 +176,13 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     } else if (event.kind === "lease.acquired") {
       const payload = parse(LeaseAcquiredPayloadSchema, event.payload);
       if (!payload.ok) return err(rowInvalid("events.envelope lease.acquired payload"));
-      const { scopeId, leaseId, limits } = payload.value;
+      const { scopeId, leaseId, lineageId, limits } = payload.value;
+      waitingLineage = null;
       const epoch = (leaseEpochs.get(scopeId) ?? 0) + 1;
       leaseEpochs.set(scopeId, epoch);
       open = {
         leaseId,
+        lineageId,
         scopeId,
         leaseEpoch: epoch,
         limits: {
@@ -191,6 +195,10 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     } else if (event.kind === "lease.released") {
       const payload = parse(LeaseReleasedPayloadSchema, event.payload);
       if (!payload.ok) return err(rowInvalid("events.envelope lease.released payload"));
+      waitingLineage =
+        open?.leaseId === payload.value.leaseId && payload.value.reason === "waiting"
+          ? { scopeId: open.scopeId, lineageId: open.lineageId }
+          : null;
       if (open?.leaseId === payload.value.leaseId) open = null;
     } else {
       const state = storedStateOf(event);
@@ -205,6 +213,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     if (!used.ok) return used;
     openLease = {
       leaseId: open.leaseId,
+      lineageId: open.lineageId,
       scopeId: open.scopeId,
       leaseEpoch: open.leaseEpoch,
       limits: open.limits,
@@ -218,6 +227,7 @@ export function loadSnapshot(tx: SqlTx, threadId: ThreadId): Result<ExtThreadSna
     enabledAtSeq: Object.fromEntries(enabledAtSeq),
     states: [...states.values()],
     openLease,
+    waitingLineage,
     leaseEpochs: Object.fromEntries(leaseEpochs),
   });
 }
