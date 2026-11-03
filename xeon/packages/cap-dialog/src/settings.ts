@@ -158,10 +158,16 @@ export const DIALOG_SETTING_DEFS: readonly SettingDef[] = Object.values(dialogSe
 type ShellInjectionMode = (typeof SHELL_INJECTION_MODES)[number];
 
 /** 호출 한 번이 읽는 유효 설정. 이 패키지가 읽는 키만 담는다(styles.active는 2차 기능이 읽는다) */
+export interface CommandDirSetting {
+  readonly path: string;
+  readonly scope: "user" | "project" | "local";
+}
+
 export interface DialogSettings {
   readonly ask: { readonly timeoutSec: number };
   readonly commands: {
-    readonly dirs: readonly string[];
+    /** 설정에서 온 명령 디렉터리와 그 값이 나온 범위(spec §4.2.1a). 범위별 규칙은 `commands/service.ts`가 적용한다 */
+    readonly dirs: readonly CommandDirSetting[];
     readonly advertise: boolean;
     readonly shellInjection: ShellInjectionMode;
   };
@@ -233,6 +239,25 @@ function stringsOf(
   return strings;
 }
 
+/**
+ * 파일 범위마다 `commands.dirs`를 따로 읽는다. 값이 가장 높은 범위 하나가 이기지 않고 범위마다 더해진다.
+ * 범위가 있어야 저장소가 쓸 수 있는 범위(project, local)의 절대·홈 경로를 거를 수 있다
+ */
+function commandDirsOf(layers: ScopeStack): readonly CommandDirSetting[] {
+  const key = "l2.dialog.commands.dirs";
+  const dirs: CommandDirSetting[] = [];
+  for (const layer of layers) {
+    if (layer.scope !== "user" && layer.scope !== "project" && layer.scope !== "local") continue;
+    const value = layer.values.get(key);
+    if (!Array.isArray(value)) continue;
+    for (const item of value) {
+      if (typeof item === "string" && item.length > 0)
+        dirs.push({ path: item, scope: layer.scope });
+    }
+  }
+  return dirs;
+}
+
 function shellInjectionOf(layers: ScopeStack): ShellInjectionMode {
   const value = valueOf("commands.shellInjection", layers);
   return value === "off" ? "off" : "confirm";
@@ -261,7 +286,7 @@ export function readDialogSettings(layers: ScopeStack): DialogSettings {
   return {
     ask: { timeoutSec: integerOf("ask.timeoutSec", layers, fallback.ask.timeoutSec) },
     commands: {
-      dirs: stringsOf("commands.dirs", layers, fallback.commands.dirs),
+      dirs: commandDirsOf(layers),
       advertise: booleanOf("commands.advertise", layers, fallback.commands.advertise),
       shellInjection: shellInjectionOf(layers),
     },

@@ -85,6 +85,11 @@ function expandTemplate(candidate: Candidate, args: string[]): TemplateSegment[]
   return substituteSegments(candidate.segments ?? [], args);
 }
 
+/** 홈·절대 경로가 아닌 설정 경로. 프로젝트 폴더 기준이다 */
+function isRelativeDir(raw: string): boolean {
+  return !raw.startsWith("~/") && !raw.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(raw);
+}
+
 export function createCommandsService(deps: DialogDeps): CommandsService {
   const registry = createCommandRegistry();
   const loader = createCommandLoader(deps.commandFiles, deps.logger);
@@ -136,8 +141,11 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
     if (project !== null)
       dirs.push({ dir: `${project}/${PROJECT_COMMANDS_DIR}`, source: "project" });
     dirs.push({ dir: roots.userDir, source: "user" });
-    for (const raw of deps.settings(threadId).commands.dirs) {
-      const dir = resolveDir(raw, project);
+    for (const { path, scope } of deps.settings(threadId).commands.dirs) {
+      // 저장소가 쓸 수 있는 범위(project, local)는 상대 경로만 낸다. 절대·홈 경로는 저장소 밖 파일을 가리키므로 읽지 않는다
+      if (scope !== "user" && (!isRelativeDir(path) || path.split(/[\\/]/).includes("..")))
+        continue;
+      const dir = resolveDir(path, project);
       if (dir !== undefined) dirs.push({ dir, source: "user" });
     }
     return dirs;
