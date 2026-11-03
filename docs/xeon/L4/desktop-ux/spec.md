@@ -2407,7 +2407,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - replay 보고 형식 [결정: 2026-10-31 사용자]: `ReplayDriveReport` 그대로(절단 띠, `firstDiff`, `EffectCounts`)이고 "JSON 복사"를 둡니다. 새 형식을 만들지 않습니다.
 - Test run 멈춤 [결정: 2026-10-31 사용자]: 실행 중 Test run 행의 "멈춤"은 다음 단계 경계에서 실제로 멈추고 drive 락을 쥔 채 둡니다. "이어서", "한 경계씩"이 있습니다(W-48). 행을 고르면 아래 상세에 트레이스 막대(§6.22.5)와 경계 기록이 보입니다.
 - 맥락: 맥락 칸이 시험이면 그 Test run의 결과만, 대화면 그 대화를 대상으로 한 시험만 보입니다(§4.9.3).
-- replay 결과 읽기: `replayDrive`는 첫 실패에서 멈추지 않고 모든 커밋 시점을 끊어 다시 돌립니다. 그래서 상세는 절단 띠(커밋 수만큼 칸, 다른 칸 강조)로 보입니다. 이벤트열이 하나라도 다르면 `failure` 없이 `ok: false`이고 판정 배지는 "digest 다름"입니다. `effects-doubled`·`effects-mismatch`는 모든 절단이 같을 때만 나오므로 "digest 다름"과 함께 보이지 않습니다. 절단의 효과 수는 판정 없이 참고 값으로만 보입니다.
+- replay 결과 읽기: `replayDrive`는 첫 실패에서 멈추지 않고 모든 커밋 시점을 끊어 다시 돌립니다. 그래서 상세는 절단 띠(커밋 수만큼 칸, 다른 칸 강조)로 보입니다. 이벤트열이 하나라도 다르면 `failure` 없이 `ok: false`이고 판정 배지는 "digest 다름"입니다. `effects-doubled`·`effects-mismatch`는 모든 절단이 같을 때만 나오므로 "digest 다름"과 함께 보이지 않습니다. 절단의 효과 수는 판정 없이 참고 값으로만 보입니다. 지금 wire `ReplayReport`는 칸별 `cuts`를 싣지 않고 `passed`(같았던 수)만 줍니다. 그래서 칸은 커밋 수만큼 그리되 모든 절단이 같을 때만 칠하고, 칸별 "다름" 강조는 `cuts`가 wire에 들어온 뒤입니다 `[gap:W-29]`.
+- 개발 모드 판정: 호스트와 같은 `l3.authoring.devMode` 설정을 읽습니다(`settings.get`). 이 키가 아직 카탈로그에 없어 지금은 읽히지 않고 배포 앱은 늘 개발 모드가 아닌 것으로 잠급니다 `[gap:W-29]`.
 - 코어 변경 검사의 실행과 상세(보호 경로 변경 파일 목록)는 이 화면에만 둡니다. P-20은 마지막 결과 한 줄과 링크만 보입니다(DP-23).
 - 측정 기획서 반영 [결정: 2026-11-03 사용자, `reports/Fresnel 테스트와 측정 기획서.md` §6, §10, §15]: 화면 라벨은 "테스트"입니다(T-TRIAL). 아래는 이 화면에 더하는 것이고 트랙은 `review.m4-plan` §2.0.1(T-TEST-*, T-VIEW-TEST)입니다.
   - 켬/끔 비교: 새 시험(O-12)의 종류 하나입니다. 같은 케이스를 프로필 둘로 돌려 케이스별로 짝지어 비교합니다. 비교 단위는 플러그인 또는 플러그인 그룹입니다(그룹 구성원 하나씩이 아님, 15-1). 기본은 플러그인 하나씩 끄기이고, 상호작용을 놓칠 수 있다는 한계를 화면에 적습니다.
@@ -2430,7 +2431,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 기능 | wire |
 |---|---|
 | 새 시험(O-12) | `ext.test.run { kind, target, options }`과 진행 이벤트 `[gap:W-29]`. 켬/끔 비교는 `kind` 값 하나를 더합니다 [제안] |
-| Test run 만들기 | `thread.create { workspace?, trial: true }` + 프로필 적용 `settings.set { scope: "launch" }` `[gap:W-34]` |
+| Test run 만들기 | `thread.create { workspace?, testRun: true, profileId? }`(`profileId`는 `testRun`이 참일 때만, 만들면서 `thread` 층에 적용) `[gap:W-34]`. 새 시험(O-12)의 Test run 종류도 이 호출로 만듭니다. 이렇게 만든 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결] |
 | 이벤트 비교 열기 | 두 이벤트열을 나란히(`[gap:C-20]`) |
 | 다시 실행 | 같은 인자로 `ext.test.run` |
 
@@ -2530,7 +2531,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - drive 락 칸: `x.primitives.activeDriver`은 한 Registration(플러그인) 또는 자동입니다. 바꾸면 적용 뒤 다음 경계에 지금 drive 락을 회수합니다(`L3.group-sdk.spec` §3.5).
 - first·chain 훅 순서는 (tier, loadIndex, 등록 순번)으로 정해지고 런타임에 순서 입력이 없습니다. 그래서 보기만 하고 "런타임에 순서 입력 없음" 배지를 답니다(DP-56).
 - 오른쪽 "실효 스택": 맥락 대화의 지금 값과 프로필을 합친 결과(바뀌는 확장, drive, 덮어쓰는 설정, 켜지는 훅 수)이고 `profile.preview`(W-44)의 결과입니다.
-- 동작: 이 대화에 적용(`profile.apply { id, threadId }`, W-46. 엔진이 원자적으로 쓰고 하나라도 실패하면 모두 되돌림), 새 Test run으로(`thread.create { trial: true, profileId }`), 저장(`profile.put`).
+- 동작: 이 대화에 적용(`profile.apply { id, threadId }`, W-46. 엔진이 원자적으로 쓰고 하나라도 실패하면 모두 되돌림), 새 Test run으로(`thread.create { testRun: true, profileId }`), 저장(`profile.put`).
 - 프로필 저장 [결정: 2026-10-31 사용자, U-5]: 프로필은 데스크톱 로컬이 아니라 런타임 호스트 설정에 둡니다. 데스크톱·웹·앱과 서비스 모드가 같은 목록을 봅니다. 모양 [제안]: `{ id, title, enable: ExtensionName[], disable: ExtensionName[], settings: { key: value }[], driveGroup: string | null, updatedAt, rev }`. 저장소는 사용자 설정 폴더의 `profiles.json`이고 `settings.writeFile`처럼 `baseRev` 비교로 충돌을 막습니다. 키 검사는 F 설정 카탈로그로 하고, `allowedScopes`에 `session`이 없는 키는 프로필에 넣을 수 없습니다(F §4.7 4번).
 
 #### 6.28.4 흐름 보기의 시험 실행
@@ -2539,8 +2540,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 캔버스 위 한 줄: Test run 이름과 경과, drive 락 사용량 막대 셋, 멈춤·이어서, 한 경계씩, replay로(개발 모드만), 시험 결과.
 - 지금 단계 노드 강조, 지난 단계 흐림, 아직 안 온 단계 반투명. 돌고 있는 렌즈와 실패 렌즈를 상태로 구분. 렌즈 노드 둘째 줄은 그 자식의 마지막 도구 호출입니다.
 - 가드 발화: 쓰기 거부 구간 이름 아래 "거부 1 · bash · exec" 칩. 오른쪽 "경계 기록" 열이 커밋·drive 락·거부 이벤트를 시간순으로 보입니다.
-- 멈춤 [결정: 2026-10-31 사용자, C-9]: "멈춤"은 Test run을 다음 단계 경계에서 실제로 멈추고 drive 락은 쥔 채 둡니다. "이어서"는 다시 돌리고 "한 경계씩"은 경계 하나만 진행합니다(`trial.pause`·`trial.resume`·`trial.step`, W-48). 일반 대화에는 이 동작이 없습니다.
-- 단계 표시는 Test run에 한해 `grp.<id>.state.committed`의 `phase`만 노출하는 진단 투영으로 읽습니다(`trial.phase`, W-50). 상태 문서 본문은 비공개로 남습니다(`F.extensions.spec` §3.6).
+- 멈춤 [결정: 2026-10-31 사용자, C-9]: "멈춤"은 Test run을 다음 단계 경계에서 실제로 멈추고 drive 락은 쥔 채 둡니다. "이어서"는 다시 돌리고 "한 경계씩"은 경계 하나만 진행합니다(`testRun.pause`·`testRun.resume`·`testRun.step`, W-48). 일반 대화에는 이 동작이 없습니다. 멈춘 채인지는 명령 결과로만 알며, 화면을 다시 연 뒤의 표지는 `thread.list`의 `ThreadSummary.testRun.paused`를 읽어야 합니다 `[gap:W-34]`.
+- 단계 표시는 Test run에 한해 `grp.<id>.state.committed`의 `phase`만 노출하는 진단 투영으로 읽습니다(`testRun.phase`, W-50). 상태 문서 본문은 비공개로 남습니다(`F.extensions.spec` §3.6).
 
 #### 6.28.5 코드 보기(읽기 전용)
 
@@ -2574,7 +2575,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 맥락의 provider | `ext.list` + `ext.bindings` `[gap:W-15]` `[gap:W-40]` |
 | 단계 머신 노드·전이 | `composition.phases` X-16 |
 | 구성 검사 | `ext.validateComposition` `[gap:W-47]` |
-| 시험 실행 진행 | `lease.*`, `scope.changed`, `trial.phase` `[gap:W-50]`, 자식 `agent.*`, `tool.call` 결정 이벤트, 멈춤 `[gap:W-48]` |
+| 시험 실행 진행 | `lease.*`, `scope.changed`, `testRun.phase` `[gap:W-50]`, 자식 `agent.*`, `tool.call` 결정 이벤트, 멈춤 `[gap:W-48]` |
 | 프로필 | `profile.list`·`get`·`put`·`delete`·`apply` `[gap:W-46]` |
 | 실효 스택 | `profile.preview` `[gap:W-44]` |
 | 뼈대 파일 | Plugin Builder 종류 카탈로그와 `fresnel.devkit.scaffold` `[gap:W-27]` |
@@ -3020,12 +3021,12 @@ export const palette = [
 | W-26 | 승격 보고 | P-16, P-20 | `/group status` 부가 줄 | `group.promotion { threadIds? }` |
 | W-27 | 종류 목록과 뼈대 만들기 | P-21, Plugin Builder | CLI `fresnel group new`만 | `ext.kinds`(Plugin Builder 카탈로그), `ext.scaffold { kind, name, dir, composition?, views? }`. 구현은 서비스 `fresnel.devkit`(`L3.authoring.spec` §3.3) |
 | W-28 | 폴더의 매니페스트와 drive 소스 검사 | P-21, P-17, Plugin Builder | `validateManifest`, `scanDriveSource`는 라이브러리 | `ext.validate { dir }`(F 검사 + AU 규칙) |
-| W-29 | 시험 실행과 결과(replay, Test run 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10 |
+| W-29 | 시험 실행과 결과(replay, Test run 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10. wire `ReplayReport`는 칸별 `cuts`를 싣지 않습니다(§6.26). 개발 모드 판정 키 `l3.authoring.devMode`는 카탈로그에 아직 없습니다 |
 | W-30 | benchmark와 코어 변경 검사 실행 | P-19, P-20 | `just benchmark --server`, `bun scripts/core-diff-check.ts <base>`는 저장소 스크립트(배포 앱에 없음) | 개발 모드 전용 셸 명령 [결정: 2026-10-31 사용자]. 배포 앱은 결과 읽기만 |
 | W-31 | 확장 버전 기록과 되돌리기 | P-17, O-11 | 기본 플러그인은 번들 버전이 높을 때 디렉터리째 교체하고 이전 설치본을 기록한다(X-8). `ext.versions`·`ext.rollback` 처리기가 연결됐다(host-service HS-108). 되돌린 코드는 재시작 뒤에 돈다 [미결 host-service §10 54] | `ext.versions { name }`, `ext.rollback { name, version }`. M4에 되는 만큼, 대체 경로는 §6.24.1 [결정: 2026-10-31 사용자] |
 | W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, Plugin Builder | 디렉터리 복사 | `ext.install { source }`, `ext.remove { name }` [미결] |
 | W-33 | 화면 기여 목록, 확장 메서드, 화면용 post·승인 | P-18, 슬롯 전부 | `ext.ui.list` 처리기가 연결됐다(host-service HS-108). `ext.ui.post`·`ext.ui.requestApproval`은 `threadId`를 필수로 받아 M4 T-UIPOST에서 열었다(host-service §10 52, HS-108). `ext.<id>.<verb>`는 M4 T-GK에서 열었다(`F.wire-settings.spec` §4.2) | `ext.ui.list`, `ext.<id>.<verb>`, `ext.ui.post`, `ext.ui.requestApproval`(ADR-0021 §6) |
-| W-34 | Test run 표지와 프로필 적용 생성 | P-19, P-21, P-02 | 없음 | `thread.create { trial: true, profileId? }`, `ThreadSummary.trial`(`{ profileId, target, paused }`) |
+| W-34 | Test run 표지와 프로필 적용 생성 | P-19, P-21, P-02 | 없음 | `thread.create { testRun: true, profileId? }`, `ThreadSummary.testRun`(`{ profileId, target, paused }`) |
 | W-35 | 안전 모드 원인과 안전 모드 재시작 | P-16, P-13, P-08 | `host.status.safeMode` 불리언만, 데스크톱 재시작 명령 없음 | `host.status.safeModeCause`, 셸 명령 `engine_restart { safeMode }` |
 | W-36 | 외부 훅 목록(M4 N14) | P-16, P-13 | 없음 | `hooks.list` |
 | W-37 | 런타임 이벤트만 거르는 구독 | 기록 탭, 런타임 탭 | `events.subscribe`는 thread 단위 전체 | kind 접두 거름 인자 [미결] |
@@ -3039,9 +3040,9 @@ export const palette = [
 | W-45 | 설정 값의 출처(이긴 범위, 그 값을 쓴 쪽: 프로필, 시험, 사용자) | P-16 검사기, P-17 | `settings.get`은 범위만 | `settings.explain { key, threadId }` |
 | W-46 | 프로필 저장과 적용(런타임 호스트 저장, 데스크톱·웹·앱·서비스 공유) | P-21, P-16 | 없음 | `profile.list`, `profile.get`, `profile.put { profile, baseRev }`, `profile.delete`, `profile.apply { id, threadId }`(원자적 `session` 쓰기), 알림 `profile.changed` [결정: 2026-10-31 사용자] |
 | W-47 | 구성 검사 | P-21, Plugin Builder | F `validateManifest`·`validateUsage`에 구성 규칙 없음 | `ext.validateComposition { composition, threadId? }` → `ManifestIssue[]`(`drive_duplicate`, `on_capability_call`, `capability_missing` 포함) |
-| W-48 | Test run 단계 경계 멈춤 | P-19, P-21, P-02 | 없음 | `trial.pause { threadId }`, `trial.resume`, `trial.step`. Test run만, drive 락 유지 [결정: 2026-10-31 사용자] |
+| W-48 | Test run 단계 경계 멈춤 | P-19, P-21, P-02 | 없음 | `testRun.pause { threadId }`, `testRun.resume`, `testRun.step`. Test run만, drive 락 유지 [결정: 2026-10-31 사용자] |
 | W-49 | 확장 묶음 만들기 | Plugin Builder, P-21 | 없음 | `ext.package { dir, out? }` → 경로, 파일 목록, SHA-256. 설치는 W-32 |
-| W-50 | Test run의 단계 투영 | P-21 흐름 시험 | 상태 문서는 비공개(`F.extensions.spec` §3.6) | `trial.phase { threadId }`와 이벤트. Test run에서 `grp.<id>.state.committed`의 `phase`만 |
+| W-50 | Test run의 단계 투영 | P-21 흐름 시험 | 상태 문서는 비공개(`F.extensions.spec` §3.6) | `testRun.phase { threadId }`와 이벤트. Test run에서 `grp.<id>.state.committed`의 `phase`만 |
 
 ### 10.2 view-model 간극
 
@@ -3096,7 +3097,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-11 | 플러그인 화면의 승인 kind | ADR-0018 | 넷(tool, plan, question, review) |
 | X-12 | T-16 플러그인 화면 흉내 위협 행 | `architecture.security.spec` §4 | 없음 |
 | X-13 | `managed` 설치 위치가 tier `guard`가 되는 코드(`ext-host/src/operations/tier.ts` `assignTier`의 `case "managed"`)와 주석·문서의 상한 `user` 설명의 차이. LightCraft가 tier를 보이므로 먼저 맞춰야 함 | `X.operations.spec` §3.1, `X.loading-trust.spec` §3.1 | 코드 결함 확인(2026-10-31). 주석은 "사용자 등급 상한"인데 `ok("guard")`를 돌려줌 |
-| X-14 | Test run 표지(`ThreadSummary.trial`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 제외 [결정: 2026-11-04 사용자, B4 1안] |
+| X-14 | Test run 표지(`ThreadSummary.testRun`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 제외 [결정: 2026-11-04 사용자, B4 1안] |
 | X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), `x.operations.trace.turnsPerThread`(기본 8) [제안] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 대화마다 작은 버퍼] |
 | X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
 | X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 drive 락을 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 Registration을 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |

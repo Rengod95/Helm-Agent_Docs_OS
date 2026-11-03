@@ -21,6 +21,7 @@ import { createConnectionCommands } from "./connection.ts";
 import { createScheduleCommands } from "./schedule.ts";
 import { createSecretCommands } from "./secrets.ts";
 import { createSetupCommands } from "./setup.ts";
+import { createTestCommands } from "./tests-commands.ts";
 import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
@@ -222,6 +223,7 @@ export function createCommands(deps: CommandDeps): Commands {
       },
       deps.ipc,
     ),
+    tests: createTestCommands(withConnection, withWriteConnection),
     schedule: createScheduleCommands(withConnection),
     connection: createConnectionCommands({
       ipc: deps.ipc,

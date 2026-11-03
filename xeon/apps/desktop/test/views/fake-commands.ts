@@ -25,6 +25,16 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       setDefaultModel: () => Promise.resolve(ok(null)),
       onInvalidated: () => () => {},
     },
+    tests: {
+      list: () => Promise.resolve(ok([])),
+      devMode: () => Promise.resolve(ok(false)),
+      run: () => Promise.resolve(err({ kind: "unsupported" })),
+      createTestRun: () => Promise.resolve(err({ kind: "unsupported" })),
+      pause: () => Promise.resolve(err({ kind: "unsupported" })),
+      resume: () => Promise.resolve(err({ kind: "unsupported" })),
+      step: () => Promise.resolve(err({ kind: "unsupported" })),
+      phase: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
     workbench: {
       list: () => Promise.resolve(ok([])),
       onChanged: () => () => {},

@@ -1,5 +1,9 @@
 import type { EventId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
-import type { ExtTimingsResult, TraceTurnResult } from "@fresnel/contracts/extensions";
+import type {
+  ExtTimingsResult,
+  TestRunPhaseResult,
+  TraceTurnResult,
+} from "@fresnel/contracts/extensions";
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
@@ -21,6 +25,9 @@ import type {
   SecretListEntry,
   SecretReferencesResult,
   SecretTestResult,
+  ExtTestListResult,
+  ExtTestRunParams,
+  ExtTestRunResult,
   SettingsExplainResult,
   TrustChoice,
   TrustStatus,
@@ -93,6 +100,29 @@ export interface ScheduleCommands {
   fire(scheduleId: string): Promise<Result<WireResult<"schedule.fire">, CommandError>>;
   /** 서비스 모드를 켠다(`settings.set`, 사용자 범위) */
   enableService(): Promise<Result<null, CommandError>>;
+}
+
+/**
+ * 테스트 화면(P-19, §6.26). 목록과 개발 모드 판정은 요청 결과라 거울에 넣지 않는다(FS-03). 실행과 Test run 제어는 host의 결과 값을
+ * 그대로 돌려준다. `devMode`는 `l3.authoring.devMode` 설정이고, 키를 읽지 못하면(호스트가 모르는 키) 개발 모드가 아니다.
+ */
+export interface TestCommands {
+  /** `ext.test.list`: replay와 Test run 기록 */
+  list(): Promise<Result<ExtTestListResult["tests"], CommandError>>;
+  /** 개발 모드인가. 연결이 없으면 `offline`, 그 밖의 읽기 실패는 개발 모드가 아닌 것으로 본다 */
+  devMode(): Promise<Result<boolean, CommandError>>;
+  /** `ext.test.run`: replay 시험을 돌린다 */
+  run(params: ExtTestRunParams): Promise<Result<ExtTestRunResult, CommandError>>;
+  /** `thread.create { testRun: true }`: Test run 대화를 만든다. 대화 id를 돌려준다 */
+  createTestRun(): Promise<Result<string, CommandError>>;
+  /** `testRun.pause`: 다음 단계 경계에서 멈춘다. 결과는 멈춘 채인가 */
+  pause(threadId: string): Promise<Result<boolean, CommandError>>;
+  /** `testRun.resume`: 멈춘 Test run을 다시 돌린다 */
+  resume(threadId: string): Promise<Result<boolean, CommandError>>;
+  /** `testRun.step`: 멈춘 채 경계 하나만 진행한다 */
+  step(threadId: string): Promise<Result<boolean, CommandError>>;
+  /** `testRun.phase`: 지금 단계 이름(Test run에서 `grp.<id>.state.committed`의 `phase`만) */
+  phase(threadId: string): Promise<Result<TestRunPhaseResult, CommandError>>;
 }
 
 /** 연결 화면이 고른 대상. `local`은 이 기기의 사이드카, `remote`는 서비스 주소다(W-08) */
@@ -310,6 +340,8 @@ export interface Commands {
   readonly setup: SetupCommands;
   /** 크래프트(`workbench`)의 확장 읽기·켜기·되돌리기 */
   readonly workbench: WorkbenchCommands;
+  /** 테스트 화면(P-19)의 시험 목록, 실행, Test run 제어 */
+  readonly tests: TestCommands;
   readonly schedule: ScheduleCommands;
   readonly connection: ConnectionCommands;
   readonly secrets: SecretCommands;
