@@ -17,12 +17,8 @@ export interface TimingFilter {
   readonly registrationId?: string;
 }
 
-/** 실패로 세는 결과. skipped(중단)는 실패가 아니다(§4.8.4) */
-const FAILURE_RESULTS: ReadonlySet<TraceHandlerResult> = new Set<TraceHandlerResult>([
-  "error",
-  "over_budget",
-  "denied",
-]);
+/** 실패로 세는 결과. 막음(blocked)과 건너뜀(skipped)은 실패가 아니다(§4.8.4) */
+const FAILURE_RESULTS: ReadonlySet<TraceHandlerResult> = new Set<TraceHandlerResult>(["failed"]);
 
 interface Group {
   readonly hook: string;
@@ -67,7 +63,7 @@ function toTiming(group: Group): ExtHookTiming {
 
 /**
  * 실행 기록을 (hook, registrationId)별로 모아 분포를 만든다. 결과는 hook, 그다음 registrationId의 문자 순서다.
- * count는 기록 수(skipped 포함), p50Ms·p95Ms는 최근접 순위, maxMs는 최댓값, failures는 error·over_budget·denied의 수다.
+ * count는 기록 수(skipped 포함), p50Ms·p95Ms는 최근접 순위, maxMs는 최댓값, failures는 failed의 수다.
  */
 export function timingsOf(
   runs: Iterable<HandlerRun>,

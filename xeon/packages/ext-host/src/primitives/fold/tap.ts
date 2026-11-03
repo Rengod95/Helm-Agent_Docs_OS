@@ -12,8 +12,12 @@ export async function foldTap(
   const failures: HandlerFailure[] = [];
   await eachInOrder(entries, async (entry) => {
     const result = await env.runOne(entry, [payload]);
-    if (result.kind === "aborted") return "continue";
+    if (result.kind === "aborted") {
+      env.noteLost(entry, result);
+      return "continue";
+    }
     if (result.kind === "failed") {
+      env.noteLost(entry, result);
       failures.push(result.failure);
       env.fail(result.failure);
       return "continue";
@@ -22,6 +26,7 @@ export async function foldTap(
       // 동작에 영향 없다. 진단과 정책 기록만 남긴다
       env.fail(env.failureOf(entry, "value_from_tap", undefined, result.activeMs));
     }
+    env.noteOk(entry, result, { result: "passed" });
     env.settled(entry, result.activeMs);
     return "continue";
   });

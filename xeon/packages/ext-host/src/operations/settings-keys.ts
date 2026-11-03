@@ -84,6 +84,8 @@ export const operationsSettings: SettingGroup<
     readonly "safeMode.suggestAfter": SettingDefInput;
     readonly "trace.enabled": SettingDefInput;
     readonly "trace.turnsPerThread": SettingDefInput;
+    readonly "trace.retentionDays": SettingDefInput;
+    readonly "trace.storeRequestBody": SettingDefInput;
     readonly hookOrder: SettingDefInput;
   }
 > = defineSettings("x.operations", {
@@ -211,6 +213,37 @@ export const operationsSettings: SettingGroup<
     runtimeChange: "nextTurn",
     allowedScopes: TRACE_SCOPES,
     ui: { tab: "plugins", widget: "number", order: 510, label: "계측 보관 Turn 수(thread마다)" },
+    since: "0.1.0",
+  },
+  // 측정 저장소(T-MEAS-STORE)가 읽는다. 원본 보관 기본 30일, 요청 본문 저장 기본 끔 [결정: 2026-11-03 사용자]. 키 이름은 [제안]
+  "trace.retentionDays": {
+    type: Type.Integer(),
+    default: 30,
+    range: { min: 1, max: 3650 },
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "number",
+      order: 520,
+      label: "측정 원본 보관 기간",
+      help: "지난 원본은 지우고 일별 집계만 남긴다",
+      unit: "일",
+    },
+    since: "0.1.0",
+  },
+  "trace.storeRequestBody": {
+    type: Type.Boolean(),
+    default: false,
+    runtimeChange: "live",
+    allowedScopes: TRACE_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "toggle",
+      order: 530,
+      label: "모델 요청 본문 저장",
+      help: "켜면 모델로 나간 요청 본문을 시크릿 값을 가린 뒤 측정 원본 보관 기간만큼 저장한다",
+    },
     since: "0.1.0",
   },
   hookOrder: {

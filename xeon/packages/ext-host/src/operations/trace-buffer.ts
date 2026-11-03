@@ -5,6 +5,7 @@ import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   ExtTimingsResult,
   HookName,
+  TraceFailureReason,
   TraceHandlerEntry,
   TraceHandlerResult,
   TraceTurnEntry,
@@ -36,6 +37,8 @@ interface TraceStart {
   /** 디스패치 키. `<stepId 또는 turnId>:<접미>` 규칙을 따른다(§4.8.1) */
   readonly dispatchKey: string;
   readonly hook: HookName;
+  /** 디스패처 시계의 지금(ms). 처음 보이는 Turn의 시작 시각이 된다 */
+  readonly now: number;
 }
 
 /** 핸들러 실행 한 번의 기록 */
@@ -44,6 +47,13 @@ interface TraceRecord {
   /** 시간(ms). 정책이 잰 활성 시간, 예산 값, 중단까지 흐른 시간 가운데 하나다(§4.8.2) */
   readonly durationMs: number;
   readonly result: TraceHandlerResult;
+  /** 핸들러가 시작한 시각. 디스패처 시계(`TraceStart.now`와 같은 시계)의 값이다 */
+  readonly startedAt: number;
+  /** 바뀐 크기. 고침이 아니면 0 */
+  readonly size: number;
+  /** 앞 핸들러 때문에 건너뛴 경우 그 핸들러. 아니면 null */
+  readonly skippedBy: string | null;
+  readonly reason: TraceFailureReason | null;
 }
 
 /** 디스패치 하나의 기록기. 핸들러 기록은 첫 기록 때 항목 하나로 만들어진다 */
@@ -81,6 +91,8 @@ interface MutableEntry {
 interface TurnTrace {
   /** Turn이 처음 보일 때 읽은 계측 값. 이 Turn의 기록 여부를 정한다 */
   readonly enabled: boolean;
+  /** Turn이 처음 보인 시각(디스패처 시계). 핸들러의 `atMs`는 이 값부터 잰다 */
+  readonly openedAt: number;
   readonly entries: MutableEntry[];
   /** 단계 식별자 → 단계 번호(첫 발견 순서, 1부터) */
   readonly steps: Map<string, number>;
@@ -146,9 +158,14 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
   }
 
   /** 처음 보는 Turn을 연다. 계측 값을 여기서 한 번 읽고 보관 수를 넘는 가장 오래된 Turn을 뺀다 */
-  function openTurn(thread: ThreadTrace, turnId: string): TurnTrace {
+  function openTurn(thread: ThreadTrace, turnId: string, now: number): TurnTrace {
     const settings = deps.settings();
-    const turn: TurnTrace = { enabled: settings.enabled, entries: [], steps: new Map() };
+    const turn: TurnTrace = {
+      enabled: settings.enabled,
+      openedAt: now,
+      entries: [],
+      steps: new Map(),
+    };
     thread.turns.set(turnId, turn);
     // 설정 범위는 1~200이다. 그 밖의 값이 와도 방금 연 Turn은 남기고, 반복은 맵이 비기 전에 끝난다
     const keep = Math.max(1, settings.turnsPerThread);
@@ -177,6 +194,10 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
           registrationId: run.registrationId,
           ms: run.durationMs,
           result: run.result,
+          atMs: Math.max(0, run.startedAt - turn.openedAt),
+          size: run.size,
+          skippedBy: run.skippedBy,
+          reason: run.reason,
         });
       },
     };
@@ -200,11 +221,16 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
   }
 
   /** Turn 키: 그 Turn을 현재 Turn으로 세운다. 계측이 꺼진 Turn도 세워야 뒤의 stp_ 키가 엉뚱한 Turn에 붙지 않는다 */
-  function startTurn(threadId: string, turnId: string, hook: HookName): TraceDispatch | undefined {
+  function startTurn(
+    threadId: string,
+    turnId: string,
+    hook: HookName,
+    now: number,
+  ): TraceDispatch | undefined {
     const thread = threadOf(threadId);
     let turn = thread.turns.get(turnId);
     if (turn === undefined) {
-      turn = openTurn(thread, turnId);
+      turn = openTurn(thread, turnId, now);
       touch(threadId, thread);
     }
     thread.current = turnId;
@@ -226,9 +252,9 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
   }
 
   return {
-    start({ threadId, dispatchKey, hook }) {
+    start({ threadId, dispatchKey, hook, now }) {
       const prefix = prefixOf(dispatchKey);
-      if (prefix.startsWith("trn_")) return startTurn(threadId, prefix, hook);
+      if (prefix.startsWith("trn_")) return startTurn(threadId, prefix, hook, now);
       return startInCurrent(threadId, prefix, hook);
     },
 

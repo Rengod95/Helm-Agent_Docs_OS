@@ -44,12 +44,35 @@ export const ExtTimingsResultSchema: TUnsafe<ExtTimingsResult> = Type.Unsafe<Ext
   ExtTimingsResultShape satisfies SchemaProof<ExtTimingsResult, typeof ExtTimingsResultShape>,
 );
 
-export const TRACE_HANDLER_RESULTS = ["ok", "error", "over_budget", "denied", "skipped"] as const;
+/** 핸들러 결과 다섯. 고침(modified), 지나감(passed), 막음(blocked), 실패(failed), 건너뜀(skipped) */
+export const TRACE_HANDLER_RESULTS = [
+  "modified",
+  "passed",
+  "blocked",
+  "failed",
+  "skipped",
+] as const;
 export type TraceHandlerResult = (typeof TRACE_HANDLER_RESULTS)[number];
+/** `failed`의 이유. 다른 결과에서는 null */
+export const TRACE_FAILURE_REASONS = [
+  "threw",
+  "timeout",
+  "result_invalid",
+  "merge_rejected",
+] as const;
+export type TraceFailureReason = (typeof TRACE_FAILURE_REASONS)[number];
 export interface TraceHandlerEntry {
   readonly registrationId: string;
   readonly ms: number;
   readonly result: TraceHandlerResult;
+  /** 핸들러가 시작한 시점. Turn이 처음 보인 때부터 흐른 ms */
+  readonly atMs: number;
+  /** 바뀐 크기. `modified`일 때 핸들러가 낸 값의 JSON 문자 수, 그 밖에는 0 */
+  readonly size: number;
+  /** 앞 핸들러가 멈춰서 건너뛴 경우 그 핸들러의 RegistrationId. 중단으로 건너뛰었거나 건너뛰지 않았으면 null */
+  readonly skippedBy: string | null;
+  /** `failed`의 이유. 그 밖에는 null */
+  readonly reason: TraceFailureReason | null;
 }
 export interface TraceTurnEntry {
   readonly seq: number;
@@ -81,6 +104,13 @@ const TraceTurnResultShape = Type.Object(
                 registrationId: Name,
                 ms: Ms,
                 result: Type.Union(TRACE_HANDLER_RESULTS.map((name) => Type.Literal(name))),
+                atMs: Ms,
+                size: Count,
+                skippedBy: Type.Union([Name, Type.Null()]),
+                reason: Type.Union([
+                  ...TRACE_FAILURE_REASONS.map((name) => Type.Literal(name)),
+                  Type.Null(),
+                ]),
               },
               { additionalProperties: false },
             ),

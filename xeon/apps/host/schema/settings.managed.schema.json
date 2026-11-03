@@ -6164,6 +6164,51 @@
         }
       }
     },
+    "x.operations.trace.retentionDays": {
+      "default": 30,
+      "maximum": 3650,
+      "minimum": 1,
+      "type": "integer",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "지난 원본은 지우고 일별 집계만 남긴다",
+          "label": "측정 원본 보관 기간",
+          "order": 520,
+          "tab": "plugins",
+          "unit": "일",
+          "widget": "number"
+        }
+      }
+    },
+    "x.operations.trace.storeRequestBody": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "켜면 모델로 나간 요청 본문을 시크릿 값을 가린 뒤 측정 원본 보관 기간만큼 저장한다",
+          "label": "모델 요청 본문 저장",
+          "order": 530,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "x.operations.trace.turnsPerThread": {
       "default": 20,
       "maximum": 200,
