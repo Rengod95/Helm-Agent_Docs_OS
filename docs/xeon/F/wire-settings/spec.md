@@ -346,11 +346,11 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount`. 행의 `origin`은 실린 위치(`builtin`, `managed`, `user`, `project`)다. 프로젝트 확장은 신뢰된 작업 폴더에서 로더가 실은 것이 로더 목록에서 바로 나온다 | M4 (W-15, W-41) |
 | ext | `ext.get` | `{ name: string }` | `{ entry: ExtListEntry, manifest, hooks: ExtHookInfo[], bindings: ExtBindingEdge[] }` | M4 (W-20) |
 | ext | `ext.reenable` | `{ name: string }` | `{ appliesAt: "nextStepBoundary"\|"now", diagnostics: ExtDiagnostic[] }` | M4 (W-21) |
-| ext | `ext.reload` | `{ name: string }` | `ext.reenable`과 같음 | M4 (W-38) |
+| ext | `ext.reload` | `{ name: string }` | `ext.reenable`과 같음. `appliesAt`은 `now`(실행 중인 thread가 없어 이 응답 전에 적용을 끝냈다)이거나 `nextStepBoundary`(실행 중인 turn의 step이 끝난 경계에 적용한다)다. 새 버전의 검사나 적용이 실패하면 `diagnostics`에 `error`가 있고 옛 버전이 그대로 돈다 | M4 (W-38) |
 | ext | `ext.health` | `{ name?: string, threadId?: string }` | `{ health: ExtHealthEntry[] }`(Registration 단위). 실패 장부 창은 최근 호출 수라서 `windowMs`는 창 안 가장 오래된 호출부터 지금까지의 시간이고 `windowCalls`가 창 안 호출 수다. 호출이 없으면 둘 다 0 | M4 (W-22) |
 | ext | `ext.timings` | `{ name: string, threadId?: string }` | `{ traceEnabled: boolean, timings: ExtHookTiming[] }` | M4 (W-23) |
 | ext | `ext.versions` | `{ name: string }` | `{ versions: ExtVersionEntry[] }` | M4 (W-31) |
-| ext | `ext.rollback` | `{ name: string, version: string, clearState?: boolean }` | `{ appliesAt: "nextStepBoundary"\|"restart", stateCleared: boolean }` | M4 (W-31) |
+| ext | `ext.rollback` | `{ name: string, version: string, clearState?: boolean }` | `{ appliesAt: "nextStepBoundary"\|"restart", stateCleared: boolean }`. 실린 외부 확장은 열린 대화가 있어도 단계 경계에서 새 버전으로 바뀐다(`nextStepBoundary`). 실리지 않은 확장은 재시작 뒤(`restart`)다. 경계를 기다리는 동안은 `stateCleared`가 거짓이다 | M4 (W-31) |
 | ext | `ext.bindings` | `{ threadId?: string }` | `{ capabilities: CapabilityBinding[] }`(Registration 단위 엣지). `provider`는 ExtHost가 지금 실제로 바인딩한 공급자다(선언만 있고 바인딩되지 않았으면 null이고 `unmet`이 참) | M4 (W-40) |
 | ext | `ext.validateComposition` | `{ composition: CompositionDecl, plugins?: PluginDecl[], threadId?: string }` | `{ issues: ManifestIssue[] }` | M4 (W-47) |
 | ext | `ext.ui.list` | `{ threadId?: string }` | `{ items: ExtUiEntry[] }` | M4 (W-33) |

@@ -100,8 +100,17 @@ export interface ExtReadSources {
   autoDisabled(name: string): boolean;
   /** `AutoDisabler.reenable(ext:<이름>)`. 장부를 비우고 켜기를 요청한다 */
   reenable(name: string): void;
-  /** 로더 핫 리로드. 진단 위치(`file:line`)를 돌려준다 */
-  reload(name: string, signal: AbortSignal): Promise<readonly ExtDiagnostic[]>;
+  /**
+   * 로더 핫 리로드(X.loading-trust §4.4.4). 새 버전을 검사하고 단계 경계에서 바꾼다. 열린 thread가 실행 중이 아니면 이 호출이 돌아올 때 적용이 끝나 있다(`now`)
+   * 실행 중인 turn이 있으면 그 step이 끝난 경계에 적용한다(`nextStepBoundary`). 검사 실패와 `now`일 때의 적용 실패는 진단으로 돌려준다
+   */
+  reload(
+    name: string,
+    signal: AbortSignal,
+  ): Promise<{
+    readonly appliesAt: "now" | "nextStepBoundary";
+    readonly diagnostics: readonly ExtDiagnostic[];
+  }>;
   /** `GroupService.list()` */
   groups(): readonly GroupStatus[];
   /** 그룹 하나의 전체 지표. 모르는 그룹은 undefined, 계측이 꺼져 있으면 null */
@@ -152,7 +161,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   }),
   autoDisabled: () => false,
   reenable: () => {},
-  reload: () => Promise.resolve([]),
+  reload: () => Promise.resolve({ appliesAt: "nextStepBoundary", diagnostics: [] }),
   groups: () => [],
   groupMetrics: () => Promise.resolve(undefined),
   promotion: () => Promise.resolve({ throughSeq: 0, threads: 0, candidates: [] }),
@@ -416,10 +425,7 @@ export function createExtReadPort(
     async reload(params, signal) {
       if (sources.safeMode().active) return err({ kind: "safe_mode_active" });
       if (findRecord(params.name) === undefined) return unknownExtension(params.name);
-      return ok({
-        appliesAt: "nextStepBoundary",
-        diagnostics: await sources.reload(params.name, signal),
-      });
+      return ok(await sources.reload(params.name, signal));
     },
 
     async health(params, signal) {

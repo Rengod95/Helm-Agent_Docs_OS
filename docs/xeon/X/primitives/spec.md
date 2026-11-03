@@ -96,6 +96,7 @@ import type {
 | `PortKey`, `PortLookup`, `LoopPort`, `LoopPortKey`, `InputQueuePort`, `InputQueuePortKey`, `RecordCommitPort`, `RecordCommitPortKey`, `ProjectorRegistryPort`, `ProjectorRegistryPortKey`, `ScopedStorePort`, `ScopedStorePortKey`, `ProcessPort`, `ProcessPortKey`, `DriveLockArbiterPort`, `DriveLockArbiterPortKey` 및 부속 타입 | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.6) |
 | `ExtHostPortKey`, `SessionFeedPortKey`, `SessionBranchPortKey` | 상수 | 이 문서 §3.6, §4.11, §4.6.4 |
 | `EventPrefixQuery`, `EventQueryError`, `ResetRegistrationStateHostError` | 타입 | 이 문서 §3.2, §4.6.4 |
+| `ReplaceOptions`, `ReplaceResult`, `ReplaceStarted`, `ReplaceFailure`, `SwapOutcome` | 타입 | 이 문서 §4.4.10 |
 | `capabilityServiceName`, `providerServiceName`, `isReservedServiceName` | 함수 | 이 문서 §3.7 |
 | `capabilityDefTable`, `CapabilityDefLookup` | 함수, 타입 | 이 문서 §4.4.7 |
 | `hostOf`, `RegistrationHostApi`, `RegistrationCallContext`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
@@ -110,13 +111,13 @@ import type {
 | `BuiltinExtensionModule` | 인터페이스 | X.loading-trust.spec §3.2 |
 | `LoaderFs`, `LoaderPaths` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.2) |
 | `LoadState`, `LoadStage`, `LoadDiagnosticCode`, `LoadDiagnostic`, `LoadDiagnosticSchema`, `LoadedExtensionInfo` | 타입, 스키마 | X.loading-trust.spec §3.4 |
-| `createExtensionLoader`, `ExtensionLoader`, `LoaderMode`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `RemovalPreview`, `RemoveResult` | 함수, 인터페이스, 클래스 | X.loading-trust.spec §3.5 |
+| `createExtensionLoader`, `ExtensionLoader`, `LoaderMode`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `RemovalPreview`, `RemoveResult`, `ReloadOptions`, `ReloadStarted`, `ReloadApplied`, `ReloadFailure` | 함수, 인터페이스, 클래스 | X.loading-trust.spec §3.5, §4.4.4 |
 | `RESERVED_EXT_KEYS`, `reservedExtensionSettings`, `loadingTrustSettings` | 상수, 함수, `defineSettings` 결과 | X.loading-trust.spec §3.6 |
 | `uiSettings` | `defineSettings` 결과 | X.loading-trust.spec §3.10, §6 |
 | `resolveAppFile`, `AppFileResult` | 함수, 타입 | X.loading-trust.spec §3.10 |
 | `UiItemReport`, `UiEntryReport`, `UiIssue` | 인터페이스 | X.loading-trust.spec §3.10 |
 | `installDefaultPlugin`, `DefaultPluginInstallInput`, `DefaultPluginInstallOutcome`, `DefaultPluginInstallError`, `PluginInstallFs`, `SDK_MODULE_SPECIFIERS`, `SdkModules` | 함수, 인터페이스, 타입, 상수 | X.loading-trust.spec §3.9 |
-| `createVersionHistory`, `VersionHistory`, `VersionHistoryDeps`, `VersionHistoryFs`, `VersionHistoryError`, `VersionListing`, `VersionRecordOutcome`, `VersionSkipReason`, `VersionSource`, `RecordVersionInput`, `RollbackHooks`, `RollbackVersionInput` | 함수, 인터페이스, 타입 | X.loading-trust.spec §3.11 |
+| `createVersionHistory`, `VersionHistory`, `VersionHistoryDeps`, `VersionHistoryFs`, `VersionHistoryError`, `VersionListing`, `VersionRecordOutcome`, `VersionSkipReason`, `VersionSource`, `RecordVersionInput`, `RollbackHooks`, `RollbackReloadOutcome`, `RollbackVersionInput` | 함수, 인터페이스, 타입 | X.loading-trust.spec §3.11 |
 | `StartupOptions`, `SafeModeSource`, `NO_STARTUP_OPTIONS`, `shouldSuggestSafeMode` | 인터페이스, 타입, 상수, 함수 | X.operations.spec §3.6 |
 | `ProjectTrustResult`, `ResolveProjectTrustInput`, `ProjectTrustStore`, `createProjectTrustStore`, `resolveProjectTrust`, `findTrustRequiringResources`, `TRUST_REQUIRING_PROJECT_RESOURCES`, `trustOptions`, `TrustLookup`, `TrustStoreError`, `TrustVerdict`, `TrustVia`, `LoaderMode` | 인터페이스, 함수, 상수, 타입 | X.loading-trust.spec §3.7 |
 | `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustChoice`, `TrustChoiceKind`, `TrustOption`, `TrustUpdate` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.7) |
@@ -268,6 +269,8 @@ export interface ExtHost {
   install(unit: ExtensionUnit, options?: { readonly signal?: AbortSignal }): Promise<InstallResult>;   // signal이 중단되면 엔트리 실행을 기다리지 않고 entryError(registration_setup_failed)로 끝낸다
   /** 모든 scope를 끄기 요청하고, 적용이 끝나면 정의를 지운다 */
   uninstall(name: ExtensionName): Promise<void>;
+  /** 설치된 확장의 정의를 새 버전으로 바꾼다. 새 엔트리는 먼저 따로 실행해 검사하고, 적용은 단계 경계에서 한다(§4.4.10) */
+  replaceUnit(unit: ExtensionUnit, options?: ReplaceOptions): Promise<ReplaceResult>;
   /** 포트 조회. 같은 패키지의 loading-trust·operations와 조립 루트가 쓴다. 확장 코드는 hostOf(g).port를 쓴다 */
   readonly ports: PortLookup;
   registration(id: RegistrationId): RegistrationHandle | undefined;
@@ -1261,6 +1264,20 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 3. `handlers()`: 호스트 핸들러 레지스트리에 실제로 등록된 핸들러 전부를 `HookHandlerView`(`point`, `scopeId`, `extension`, `tier`, `loadIndex`, `seq`)로 돌려준다. 정렬은 훅 이름 오름차순, 안에서는 디스패치 순서(tier, 확장 로드 순서, 등록 순서, F.extensions.spec §4.2)다. `tier`는 디스패처가 쓰는 `DispatchPolicy.tierOf` 값이다. 디스패치는 닫힌 세대와 꺼진 thread의 항목을 스냅샷에서 빼지만 이 조회는 빼지 않는다: 켜는 중·끄는 중인 scope의 핸들러도 보이고, 상태는 `registrations()`의 `status`·`lastError`로 짝짓는다. scope를 끄는 일이 끝나면(세대가 닫히면) 그 핸들러는 레지스트리에서 지워지고, setup이 실패한 scope는 핸들러를 등록하지 못한다. 그래서 꺼졌거나 실패한 Registration은 이 조회에 행이 없고 `registrations()`에만 남는다(그 선언 Hook은 매니페스트에서 읽는다). 매니페스트 선언이 아니라 등록 결과다.
 4. `boundCapabilities()`: 지금 바인딩된 기능 공급자(`BoundCapabilityView`: 기능 id, 공급 확장 이름, 버전)를 기능 id 오름차순으로 돌려준다. 공급자가 선언만 있고 바인딩되지 않은 기능(후보 여럿에 선택이 없음, major 불일치)은 없다.
 5. `budgetClassOf`, `DEFAULT_BUDGETS_MS`(`BudgetClass`, `BudgetTable`)는 X.operations §4.2.2의 순수 함수와 기본값이다. 조립 루트가 `hooks.list`·`ext.get`의 훅 예산을 설정 값과 함께 계산할 때 쓴다.
+
+#### 4.4.10 단위 교체 (`replaceUnit`) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD]
+
+설치된 확장의 코드를 열린 대화가 있는 채로 새 버전으로 바꾼다. 플러그인 만들기에서 고친 확장을 바로 써 보는 길이고 버전 되돌리기가 적용되는 길이다. `uninstall`은 경계 없이 즉시 해제하므로 이 길에 쓰지 않는다.
+
+1. 검사 먼저. 새 `ExtensionUnit`의 엔트리를 호스트 상태를 건드리지 않고 실행해 scope 정의를 모은다(정의 검사는 `install`의 `register`와 같다: id 접두, 매니페스트 선언 플러그인, 같은 id 중복). 엔트리가 던지거나 시간 예산을 넘기면 `entry_failed`, 매니페스트에 선언한 플러그인을 엔트리가 `register`하지 않았으면 `plugins_unregistered`다. 두 경우 아무것도 바뀌지 않아 옛 버전이 그대로 돈다.
+2. 확장 이름마다 교체 하나가 경계를 기다린다. 더 새로운 교체가 들어오면 앞의 것은 `superseded`로 끝난다. 확장이 `uninstall`되거나 호스트가 해제되면 `cancelled`다.
+3. 적용 시점은 단계 경계(F.extensions.spec §4.5)다. 교체는 경계 적용(`applyToggles`)의 맨 앞에서 한다. 다음 중 하나라도 있으면 그 경계에서는 적용하지 않고 다음 경계로 미룬다: (가) 교체 대상 scope의 setup이 실행 중이다, (나) 다른 thread가 실행 중이거나 경계를 정산하는 중이다(그 thread의 step이 옛 세대의 핸들러를 쓰고 있을 수 있다), (다) 교체 대상 scope의 drive 함수가 호출 중이다. 지금 경계를 처리하는 thread는 실행 중이어도 막지 않는다(step이 이미 끝났다). 그래서 실행 중인 step과 `loop.turn()`은 끊기지 않고, 옛 세대의 핸들러가 그 step을 끝낸다. 열린 thread가 없으면 경계가 없으니 `replaceUnit` 안에서 바로 적용하고(`appliesAt: "now"`), 유휴 thread만 있으면 유휴 적용이 곧바로 적용한다(`now`). 실행 중인 thread가 있으면 `nextStepBoundary`다.
+4. 적용 순서: 열린 세대가 있던 scope의 옛 세대를 로드 순서 역순으로 닫는다(등록 해제기와 `onDispose` 실행) → 정의(매니페스트, 플러그인, `def`, `setup`, 로드 순번)를 바꾼다 → 새 세대를 로드 순서로 만든다 → 모든 setup이 끝나면 그 scope를 켜 둔 thread마다 저장된 상태를 맞춘다(`prepareStored`, 마이그레이션 포함). 같은 이름의 도구와 포트를 새 세대가 이어받으려면 옛 세대가 먼저 내려가야 해서 닫기가 앞선다.
+5. 새 세대가 어느 하나라도 열리지 못하면(setup 실패, 시간 초과, 상태 거부) 만든 세대를 모두 닫고 정의를 옛 것으로 되돌려 옛 세대를 다시 연다. 결과는 `failed`(`scopeId`, `code`, `message`, `restored`)다. 옛 정의도 다시 열리지 못하면(환경이 바뀜) `restored: false`이고 `failedToRestore`의 scope가 꺼진 채다. 실패한 새 버전은 `scope.changed` 같은 기록을 남기지 않는다: 교체는 메모리 안의 일이고 저장된 켜짐 기록은 바뀌지 않는다. 저장된 상태의 마이그레이션은 예외다: 새 세대가 열린 뒤 다른 scope가 실패하면 앞 scope의 마이그레이션 커밋은 남는다 [미결].
+6. 성공하면 새 버전에 없는 scope는 `uninstall`처럼 즉시 내리고(그 thread의 `scope.changed{disabled}`는 같은 경계가 남긴다), 새로 생긴 scope는 기본 켜짐대로 정의해 다음 경계가 켠다. 켜져 있던 scope의 thread별 켜짐과 상태 판은 그대로 이어진다.
+7. drive lock 규칙: 옛 세대가 drive 락을 쥐고 있으면 락을 반납하지 않고 다음 경계에서 새 세대의 drive 함수로 이어 간다. 공급자 재시작 때 쓰는 규칙(`lease.invoke`가 stale 세대를 만났을 때)과 같다. drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되는 규율(F.extensions.spec §4.6)이라 함수 교체가 끊김이 아니다. drive 함수가 호출 중이면 3번 (다)로 미룬다. 새 버전에서 그 scope가 없어지면 `teardown`이 `disabled` 사유로 반납한다. 반납은 기존 drive lock 규칙(`lease.released`)을 따른다.
+8. `resetRefusedState`가 참이면 새 버전이 저장된 상태를 받지 못할 때(`state_schema`, `state_future_version`, 마이그레이션 없음·실패) 그 상태를 선언의 `initial`로 다시 쓰고(`resetStored`) 이어 간다. 되돌리기의 `clearState`가 쓴다. 결과의 `statesCleared`는 다시 쓴 (thread, scope) 수다.
+9. 재시작 중간의 일관성: 교체는 메모리 안에서만 일어나고 저장소에는 적용 전후를 가르는 기록이 없다. 그래서 호스트가 교체 도중 끝나면 다시 시작한 호스트는 디스크의 확장을 한 번 설치한 하나의 세대로 시작한다. 되돌리기의 파일 교체는 버전 기록 모듈이 중간 흔적을 치운다(X.loading-trust §4.4.8).
 
 ### 4.5 scope
 

@@ -20,6 +20,7 @@ import {
   budgetClassOf,
   extReadViewOf,
   type ExtensionLoader,
+  type LoadDiagnostic,
   type ExtensionUnit,
   type ExtHost,
   type OperationsPolicy,
@@ -51,6 +52,8 @@ export interface ExtReadAssembly {
   readonly operations: Pick<OperationsPolicy, "ledger" | "autoDisabler">;
   readonly safeMode: ExtReadSafeMode;
   readonly extensions: () => readonly ExtensionRecord[];
+  /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다. `ext.reload`가 새 버전으로 바꾸는 데 쓴다 */
+  readonly loader: () => ExtensionLoader | undefined;
   /** 호스트 시계(ms). 실패 장부 창이 덮는 시간을 지금까지로 잰다 */
   readonly now: () => number;
   /** 그룹 서비스. `host-groups` 단위가 올라올 때 채워지고 그 전에는 없다 */
@@ -175,6 +178,69 @@ const NO_USAGE: ScopeUsage = {
   costUsd: 0,
 };
 
+/** `LoadDiagnostic` → wire 진단 */
+function wireDiagnosticOf(entry: LoadDiagnostic): ExtDiagnostic {
+  return {
+    severity: entry.severity === "warning" || entry.severity === "info" ? "warning" : "error",
+    code: entry.code,
+    message: entry.message,
+    ...(entry.path === undefined ? {} : { file: entry.path }),
+  };
+}
+
+/**
+ * `ext.reload`: 로더가 새 버전을 검사하고 `ExtHost.replaceUnit`이 단계 경계에서 바꾼다(X.loading-trust §4.4.4). 검사에 실패하면 옛 버전이
+ * 그대로 돌고 진단으로 알린다. 실행 중인 thread가 없으면(`now`) 적용 결과까지 기다려 진단에 싣고, 실행 중이면 경계를 기다리지 않는다:
+ * 그때의 적용 실패는 로더 진단(`reload_failed`)에 남는다
+ */
+async function reloadThroughLoader(
+  loader: ExtensionLoader | undefined,
+  name: string,
+  signal: AbortSignal,
+): Promise<{
+  readonly appliesAt: "now" | "nextStepBoundary";
+  readonly diagnostics: readonly ExtDiagnostic[];
+}> {
+  if (loader === undefined) {
+    return {
+      appliesAt: "nextStepBoundary",
+      diagnostics: [
+        {
+          severity: "error",
+          code: "reload_unavailable",
+          message: `the extension loader is not running; restart the host to reload ${name}`,
+        },
+      ],
+    };
+  }
+  const started = await loader.reload(name, signal);
+  if (!started.ok) {
+    const failure = started.error;
+    const diagnostics: readonly ExtDiagnostic[] =
+      failure.kind === "rejected"
+        ? failure.diagnostics.map(wireDiagnosticOf)
+        : [
+            {
+              severity: "error",
+              code: failure.kind === "unknown_extension" ? "extension_unknown" : "not_reloadable",
+              message:
+                failure.kind === "unknown_extension"
+                  ? `${name} is not loaded`
+                  : `${name} cannot be reloaded (${failure.reason}); restart the host`,
+            },
+          ];
+    return { appliesAt: "nextStepBoundary", diagnostics };
+  }
+  if (started.value.appliesAt === "nextStepBoundary") {
+    return { appliesAt: "nextStepBoundary", diagnostics: [] };
+  }
+  const applied = await started.value.applied;
+  return {
+    appliesAt: "now",
+    diagnostics: applied.status === "failed" ? applied.diagnostics.map(wireDiagnosticOf) : [],
+  };
+}
+
 export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv): ExtReadSources {
   const catalog = env.settings.catalog;
   const view = extReadViewOf(env.ext);
@@ -285,15 +351,7 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
     reenable: (name) => {
       assembly.operations.autoDisabler.reenable(`ext:${name}`);
     },
-    // 로더에 핫 리로드가 없다. §4.4.4의 순서(uninstall 뒤 재import)는 `ExtHost.uninstall`이 단계 경계 없이 즉시 해제해서 F.extensions.spec §4.5와 어긋난다 [미결]
-    reload: (name) =>
-      Promise.resolve([
-        {
-          severity: "error",
-          code: "reload_unavailable",
-          message: `the extension loader has no hot reload; restart the host to reload ${name}`,
-        },
-      ]),
+    reload: (name, signal) => reloadThroughLoader(assembly.loader(), name, signal),
     hookHandlers: () =>
       view.handlers().map((handler) => ({
         point: handler.point,

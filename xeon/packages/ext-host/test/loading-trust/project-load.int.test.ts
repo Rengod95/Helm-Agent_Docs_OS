@@ -158,6 +158,10 @@ test("a same-named extension from a second project is rejected with name_conflic
   });
   expect(second.diagnostics.map((entry) => entry.code)).toContain("name_conflict");
   expect(second.extensions.map((info) => info.state)).toEqual(["rejected"]);
+  // LT-01: 먼저 실린 프로젝트 A의 확장은 이름을 쥔 채 active로 남고 호스트에서도 돈다. 나중 것만 거부된다
+  expect(harness.loader.list().map((info) => info.state)).toEqual(["active", "rejected"]);
+  expect(harness.loader.list()[0]?.name).toBe("shared");
+  expect(harness.t.host.registration("shared")?.status).toBe("enabled");
 });
 
 test("safe mode makes loadProject a no-op with a safe_mode diagnostic", async () => {

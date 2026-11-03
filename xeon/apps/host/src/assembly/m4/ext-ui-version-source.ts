@@ -10,7 +10,7 @@ export interface ExtUiVersionSource {
   /** 확장 등록(scope) 목록과 켜기·끄기, 상태 비우기에 쓴다 */
   readonly host: Pick<ExtHost, "registrations" | "registration" | "resetRegistrationState" | "ui">;
   /** 외부 확장 로더. 로더가 없으면 undefined다 */
-  readonly loader: () => Pick<ExtensionLoader, "list" | "uiEntries"> | undefined;
+  readonly loader: () => Pick<ExtensionLoader, "list" | "uiEntries" | "reload"> | undefined;
   /** 버전 기록. 되돌리기와 기본 플러그인 교체가 같은 보관을 쓴다 */
   readonly history: VersionHistory;
   /** 사용자 확장 위치(`<config>/extensions`). 확장 하나의 설치본은 `<위치>/<이름>`이다 */

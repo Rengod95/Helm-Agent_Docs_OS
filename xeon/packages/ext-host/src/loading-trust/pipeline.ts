@@ -79,6 +79,8 @@ export type LoadDiagnosticCode =
   | "setup_threw"
   | "setup_timeout"
   | "setup_action"
+  | "reload_failed"
+  | "reload_rejected"
   | "usage_invalid"
   | "usage_warning"
   | "plugin_not_registered"

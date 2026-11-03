@@ -87,6 +87,8 @@ export interface RecordVersionInput {
   readonly extensionDir: string;
   readonly manifestText: string;
   readonly stateSchemaVersion: number | null;
+  /** 정리에서 지우지 않을 버전. 되돌리기가 지금 설치본을 기록하는 동안 대상 버전을 지키는 데 쓴다 */
+  readonly protectVersion?: string;
 }
 
 export interface VersionRecordOutcome {
@@ -116,6 +118,17 @@ export interface RollbackHooks {
   disable(name: string): Promise<void>;
   enable(name: string): Promise<void>;
   clearState(name: string): Promise<void>;
+  /**
+   * 있으면 끄기와 켜기 대신 쓴다(핫 리로드, §4.4.4). 대화가 열린 채로 교체된 파일을 새 버전으로 바꾼다. 적용은 단계 경계다.
+   * `clearState`가 참이면 새 버전이 받지 못하는 저장된 상태를 비우고 이어 간다. 새 버전이 열리지 못하면 던진다(옛 버전이 계속 돈다).
+   * 이 훅이 있고 `hotReload`가 거짓이 아니면 `disable`·`enable`·`clearState`는 부르지 않는다
+   */
+  reload?(name: string, options: { readonly clearState: boolean }): Promise<RollbackReloadOutcome>;
+}
+
+export interface RollbackReloadOutcome {
+  /** 실제로 상태를 비웠는가 */
+  readonly stateCleared: boolean;
 }
 
 export interface RollbackVersionInput {
@@ -168,7 +181,12 @@ export type VersionHistoryError =
   /** 교체는 끝났고 상태 비우기가 실패했다. 확장은 꺼진 채 남는다 */
   | { readonly kind: "clear_state_failed"; readonly cause: unknown }
   /** 교체와 상태 비우기는 끝났고 켜기가 실패했다. 확장은 꺼진 채 남는다 */
-  | { readonly kind: "enable_failed"; readonly cause: unknown };
+  | { readonly kind: "enable_failed"; readonly cause: unknown }
+  /**
+   * 교체한 파일을 새 버전으로 다시 읽지 못했다(`reload` 훅). 옛 버전은 계속 돌고 있고, `restored`는 파일을 되돌리기 전 설치본으로
+   * 되돌렸는지다. 거짓이면 디스크의 파일과 도는 코드가 다르다(재시작하면 보관한 버전이 돈다)
+   */
+  | { readonly kind: "reload_failed"; readonly cause: unknown; readonly restored: boolean };
 
 export interface VersionHistory {
   /** 설치본을 기록한다. 같은 버전은 바꿔 쓰고, 기록 뒤 보관 개수를 넘은 버전을 지운다 */
@@ -290,11 +308,13 @@ async function prune(
   nameRoot: string,
   keep: number,
   keepVersion: string,
+  protectVersion: string | undefined,
 ): Promise<Pick<VersionRecordOutcome, "pruned" | "pruneFailure">> {
   const read = await readAll(fs, nameRoot);
   if (!read.ok) return { pruned: [], pruneFailure: { cause: read.error } };
   const kept = new Set([
     keepVersion,
+    ...(protectVersion === undefined ? [] : [protectVersion]),
     ...read.value.stored.slice(0, keep).map((entry) => entry.version),
   ]);
   const outcome: { pruned: string[]; pruneFailure: { readonly cause: unknown } | null } = {
@@ -378,7 +398,7 @@ async function recordVersion(
     join(nameRoot, `.${input.version}.old`),
   );
   if (!placed.ok) return err({ kind: "io", cause: placed.error.cause });
-  return ok(await prune(fs, nameRoot, ctx.keep, input.version));
+  return ok(await prune(fs, nameRoot, ctx.keep, input.version, input.protectVersion));
 }
 
 async function listVersions(
@@ -419,6 +439,8 @@ async function recordCurrent(
     extensionDir: input.extensionDir,
     manifestText: manifest.value ?? "",
     stateSchemaVersion: input.currentStateSchemaVersion,
+    // 보관이 가득 차 있어도 되돌릴 대상은 이 기록의 정리가 지우지 않는다(LT-04)
+    protectVersion: input.version,
   });
 }
 
@@ -478,8 +500,10 @@ async function abortSwap(
   hooks: RollbackHooks,
   name: string,
   failure: SwapFailure,
+  hot: boolean,
 ): Promise<Result<never, VersionHistoryError>> {
-  const enabled = await attemptAsync(() => hooks.enable(name));
+  // 핫 리로드에서는 끄지 않았으므로 다시 켤 것이 없다
+  const enabled = hot ? ok(undefined) : await attemptAsync(() => hooks.enable(name));
   return err({
     kind: "swap_failed",
     step: failure.step,
@@ -489,6 +513,29 @@ async function abortSwap(
     followUps: enabled.ok
       ? failure.followUps
       : [...failure.followUps, { step: "enable", cause: enabled.error.cause }],
+  });
+}
+
+/** 되돌린 파일을 지우고 백업(되돌리기 전 설치본)을 설치 위치로 되돌린다. 백업이 없으면 실패다 */
+async function restoreInstalled(
+  fs: VersionHistoryFs,
+  extensionDir: string,
+  swapNew: string,
+  swapOld: string,
+): Promise<Result<void, Thrown>> {
+  return attemptAsync(async () => {
+    if (!(await fs.exists(swapOld)))
+      throw new Error("the backup of the previous install is missing");
+    await fs.removeDir(swapNew);
+    await fs.renameDir(extensionDir, swapNew);
+    try {
+      await fs.renameDir(swapOld, extensionDir);
+    } catch (cause) {
+      // 백업을 놓지 못했다. 방금 옮긴 설치본을 제자리에 돌려 두고 원인을 올린다
+      await fs.renameDir(swapNew, extensionDir);
+      throw new Error("the previous install could not be put back", { cause });
+    }
+    await fs.removeDir(swapNew);
   });
 }
 
@@ -533,19 +580,28 @@ async function rollbackVersion(
   const cleaned = await clearLeftovers(fs, input.extensionDir, swapNew, swapOld);
   if (!cleaned.ok) return err({ kind: "io", cause: cleaned.error.cause });
 
-  // 4. 끄기. 실패하면 파일을 건드리기 전이다
-  const disabled = await attemptAsync(() => hooks.disable(name));
-  if (!disabled.ok) return err({ kind: "disable_failed", cause: disabled.error.cause });
+  // 4. 끄기. 실패하면 파일을 건드리기 전이다. 핫 리로드(`reload` 훅)이면 끄지 않고 5~6 뒤에 새 버전으로 바꾼다
+  const reload = input.hotReload === false ? undefined : hooks.reload?.bind(hooks);
+  const hot = reload !== undefined;
+  if (!hot) {
+    const disabled = await attemptAsync(() => hooks.disable(name));
+    if (!disabled.ok) return err({ kind: "disable_failed", cause: disabled.error.cause });
+  }
 
   // 5. 지금 설치본을 기록한다. 되돌리기도 다시 되돌릴 수 있어야 한다
   const recorded = await recordCurrent(ctx, input, nameRoot);
   if (!recorded.ok) {
-    return abortSwap(hooks, name, {
-      step: "record",
-      cause: recorded.error,
-      restored: true,
-      followUps: [],
-    });
+    return abortSwap(
+      hooks,
+      name,
+      {
+        step: "record",
+        cause: recorded.error,
+        restored: true,
+        followUps: [],
+      },
+      hot,
+    );
   }
 
   // 6. 교체
@@ -556,7 +612,19 @@ async function rollbackVersion(
     swapNew,
     swapOld,
   );
-  if (!swapped.ok) return abortSwap(hooks, name, swapped.error);
+  if (!swapped.ok) return abortSwap(hooks, name, swapped.error, hot);
+
+  // 7. 핫 리로드: 새 버전으로 바꾼다. 열리지 못하면 파일을 되돌리기 전 설치본으로 되돌린다. 옛 버전은 계속 돌고 있다
+  if (reload !== undefined) {
+    const clearState = input.clearState === true;
+    const reloaded = await attemptAsync(() => reload(name, { clearState }));
+    if (!reloaded.ok) {
+      const restored = await restoreInstalled(fs, input.extensionDir, swapNew, swapOld);
+      return err({ kind: "reload_failed", cause: reloaded.error.cause, restored: restored.ok });
+    }
+    await attemptAsync(() => fs.removeDir(swapOld));
+    return ok({ appliesAt: "nextStepBoundary", stateCleared: reloaded.value.stateCleared });
+  }
 
   // 7. 상태 비우기, 켜기. 백업 삭제는 맨 뒤다. 삭제가 실패해도 되돌리기 결과는 같고 남은 백업은 다음 되돌리기가 지운다(§4.4.8)
   const clearState = input.clearState === true;

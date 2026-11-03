@@ -14,6 +14,7 @@ import type {
   PortLookup,
   RegistrationHandle,
   RegistrationId,
+  RegistrationStatus,
   TestRunControlPort,
   TraceReadPort,
   Unsubscribe,
@@ -75,6 +76,8 @@ import {
   type ResetRegistrationStateError,
   type RegistrationInfo,
   type RegistrationSetupOutcome,
+  type StagedScope,
+  type SwapPlan,
 } from "./registration.ts";
 import {
   createExtMethods,
@@ -193,6 +196,46 @@ interface InstallOptions {
   readonly signal?: AbortSignal;
 }
 
+/** replaceUnit의 선택 인자 */
+export interface ReplaceOptions {
+  readonly signal?: AbortSignal;
+  /** 참이면 새 버전이 저장된 상태를 받지 못할 때 그 상태를 `initial`로 다시 쓴다(되돌리기 `clearState`) */
+  readonly resetRefusedState?: boolean;
+}
+
+/** 교체를 시작하지 못한 이유. 이때 아무것도 바뀌지 않았다 */
+export type ReplaceFailure =
+  | { readonly kind: "not_installed" }
+  | { readonly kind: "entry_failed"; readonly error: unknown }
+  /** 매니페스트에 선언했지만 엔트리가 `register`하지 않은 플러그인이 있다 */
+  | { readonly kind: "plugins_unregistered"; readonly registrations: readonly RegistrationId[] };
+
+/** 단계 경계에서 적용한 교체의 끝 */
+export type SwapOutcome =
+  | { readonly status: "applied"; readonly statesCleared: number }
+  | {
+      readonly status: "failed";
+      readonly scopeId: RegistrationId;
+      readonly code: string;
+      readonly message: string;
+      readonly cause: unknown;
+      /** 옛 정의로 되돌려 다시 열었는가 */
+      readonly restored: boolean;
+      readonly failedToRestore: readonly RegistrationId[];
+    }
+  /** 적용되기 전에 더 새로운 교체가 들어왔다 */
+  | { readonly status: "superseded" }
+  /** 적용되기 전에 확장이 제거되었거나 호스트가 해제되었다 */
+  | { readonly status: "cancelled" };
+
+export interface ReplaceStarted {
+  /** now: 이 호출이 돌아오기 전에 적용이 끝났다(`applied`가 이미 정해졌다). nextStepBoundary: 실행 중인 step이 끝난 경계를 기다린다 */
+  readonly appliesAt: "now" | "nextStepBoundary";
+  readonly applied: Promise<SwapOutcome>;
+}
+
+export type ReplaceResult = Result<ReplaceStarted, ReplaceFailure>;
+
 export type ResetRegistrationStateHostError =
   | ResetRegistrationStateError
   | { readonly kind: "unknown_registration" }
@@ -208,6 +251,12 @@ export interface ExtHost {
   install(unit: ExtensionUnit, options?: InstallOptions): Promise<InstallResult>;
   /** 모든 scope를 내리고 정의를 지운다. 경계 없이 즉시 해제한다 */
   uninstall(name: ExtensionName): Promise<void>;
+  /**
+   * 설치된 확장의 정의를 새 버전으로 바꾼다(F.extensions.spec §4.5, X.primitives.spec §4.4.10). 새 엔트리는 호스트 상태를 건드리지 않고
+   * 먼저 실행해 검사한다. 실패하면 옛 버전이 그대로 돈다. 적용은 단계 경계에서 한다: 실행 중인 turn의 step은 끊지 않고 옛 세대의
+   * 핸들러가 끝낸다. 실행 중인 thread가 없으면 바로 적용한다
+   */
+  replaceUnit(unit: ExtensionUnit, options?: ReplaceOptions): Promise<ReplaceResult>;
   /** 포트 조회. 같은 패키지의 loading-trust·operations와 조립 루트가 쓴다 */
   readonly ports: PortLookup;
   registration(id: RegistrationId): RegistrationHandle | undefined;
@@ -641,6 +690,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       if (threadId === undefined) boundary.requestApply();
       else if (core.threads.has(threadId)) boundary.requestApply(threadId);
     },
+    drainSwaps: (current) => (pendingSwaps.size === 0 ? undefined : drainSwaps(current)),
   });
   const lifecycle = createLifecycle(core);
   const boundary = createBoundary(core, scope, lease, effects, lifecycle);
@@ -658,6 +708,130 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
   });
   const ready = selfFiber.settled;
+
+  // 단계 경계를 기다리는 단위 교체. 확장 이름마다 하나다(더 새로운 것이 앞의 것을 대신한다)
+  const pendingSwaps = new Map<
+    ExtensionName,
+    { readonly plan: SwapPlan; readonly resolve: (outcome: SwapOutcome) => void }
+  >();
+  let draining = false;
+
+  /** 끊을 일이 없는 교체를 적용한다. 경계 적용의 맨 앞과 `replaceUnit`이 부른다 */
+  async function drainSwaps(current: ThreadRuntime | undefined): Promise<void> {
+    if (draining) return;
+    draining = true;
+    try {
+      await eachInOrder(pendingSwaps, async ([name, waiting]) => {
+        if (scope.swapBlocked(current, waiting.plan.unit.scopeIds)) return "continue";
+        pendingSwaps.delete(name);
+        const result = await scope.applySwap(waiting.plan);
+        waiting.resolve(
+          result.ok
+            ? { status: "applied", statesCleared: result.statesCleared }
+            : {
+                status: "failed",
+                scopeId: result.scopeId,
+                code: result.code,
+                message: result.message,
+                cause: result.cause,
+                restored: result.restored,
+                failedToRestore: result.failedToRestore,
+              },
+        );
+        return "continue";
+      });
+    } finally {
+      draining = false;
+    }
+  }
+
+  function cancelSwap(name: ExtensionName, outcome: SwapOutcome): void {
+    const waiting = pendingSwaps.get(name);
+    if (waiting === undefined) return;
+    pendingSwaps.delete(name);
+    waiting.resolve(outcome);
+  }
+
+  async function replaceUnit(
+    unit: ExtensionUnit,
+    options?: ReplaceOptions,
+  ): Promise<ReplaceResult> {
+    await ready;
+    const name = unit.manifest.name;
+    const installed = core.units.get(name);
+    if (installed === undefined) return err({ kind: "not_installed" });
+    const manifest = deepFreeze(structuredClone(unit.manifest));
+    const view = { name, manifest };
+    // 1. 호스트 상태를 건드리지 않고 새 엔트리를 실행해 정의를 모은다
+    const staged: StagedScope[] = [];
+    try {
+      await withBudget(
+        Promise.resolve().then(() =>
+          unit.entry({
+            manifest,
+            register: (id, def, setup) => {
+              if (staged.some((item) => item.id === id)) {
+                throw new PrimitiveError(
+                  "registration_duplicate",
+                  `scope ${id} is already defined`,
+                  {
+                    scopeId: id,
+                  },
+                );
+              }
+              staged.push(scope.describe(view, id, def, setup));
+              return stagedHandle(id);
+            },
+          }),
+        ),
+        resolved.setupBudgetMs(),
+        resolved.setTimer,
+        options?.signal,
+      );
+    } catch (error) {
+      return err({ kind: "entry_failed", error });
+    }
+    const unregistered = pluginsOf(manifest)
+      .map((entry) => entry.registrationId)
+      .filter((id) => !staged.some((item) => item.id === id));
+    if (unregistered.length > 0)
+      return err({ kind: "plugins_unregistered", registrations: unregistered });
+    // 2. 경계를 기다리는 교체로 올린다
+    const settled = Promise.withResolvers<SwapOutcome>();
+    cancelSwap(name, { status: "superseded" });
+    pendingSwaps.set(name, {
+      plan: {
+        unit: installed,
+        manifest,
+        loadIndex: unit.loadIndex,
+        staged,
+        resetRefusedState: options?.resetRefusedState === true,
+      },
+      resolve: settled.resolve,
+    });
+    // 3. 끊을 일이 없으면 바로 적용한다. 열린 thread가 없으면 경계가 없으니 지금 하고, 있으면 유휴 thread의 적용을 시작한다
+    if (core.threads.size === 0) await drainSwaps(undefined);
+    else {
+      boundary.requestApply();
+      if (!scope.anyRunning()) await core.whenSettled();
+    }
+    return ok({
+      appliesAt: pendingSwaps.has(name) ? "nextStepBoundary" : "now",
+      applied: settled.promise,
+    });
+  }
+
+  /** replaceUnit 중 엔트리가 돌려받는 핸들. 교체가 적용되기 전에는 켜기·끄기를 받지 않는다 */
+  function stagedHandle(id: RegistrationId): RegistrationHandle {
+    return {
+      id,
+      get status(): RegistrationStatus {
+        return core.scopes.get(id)?.status ?? "disabled";
+      },
+      enable: () => {},
+      disable: () => {},
+    };
+  }
 
   async function install(unit: ExtensionUnit, options?: InstallOptions): Promise<InstallResult> {
     await ready;
@@ -814,7 +988,9 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       return ok(undefined);
     },
     install,
+    replaceUnit,
     async uninstall(name) {
+      cancelSwap(name, { status: "cancelled" });
       const unit = core.units.get(name);
       if (unit === undefined) return;
       await eachInOrder(unit.scopeIds, async (id) => {
@@ -885,6 +1061,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       };
     },
     async dispose() {
+      for (const name of pendingSwaps.keys()) cancelSwap(name, { status: "cancelled" });
       await eachInOrder([...core.threads.keys()], async (threadId) => {
         forgetTestRun(threadId);
         await boundary.closeThread(threadId);
