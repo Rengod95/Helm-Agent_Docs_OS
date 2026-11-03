@@ -99,15 +99,47 @@ const PREFIX_RULES: readonly PrefixRule[] = [
 
 // 18 §3.10.4 규칙 3. authorization 값 앞의 Bearer·Basic 같은 방식어는 값 밖에 둔다.
 const KV_PATTERN =
-  /(api[_-]?key|secret|client[_-]?secret|access[_-]?key|private[_-]?key|token|password|passwd|pass|pwd|dsn|authorization)(\s*[:=]\s*['"]?(?:(?:Bearer|Basic|Token)\s+)?)(?!\/\/)([^\s'"]{8,})/gi;
+  /(api[_-]?key|secret|client[_-]?secret|access[_-]?key|private[_-]?key|token|password|passwd|pass|pwd|dsn|authorization)(['"]?\s*[:=]\s*['"]?(?:(?:Bearer|Basic|Token)\s+)?)(?!\/\/)([^\s'"]{8,})/gi;
 const USERINFO_PATTERN = /([a-z][a-z0-9+.-]*:\/\/[^\s:@/]+:)([^\s@/]+)(@)/gi;
 
 const MARKER_START = "[REDACTED:";
+
+// 객체 키가 민감한지 판정한다. KV_PATTERN의 키 이름과 같은 집합이다. 구분자와 대소문자는 무시한다.
+// pass, pwd, dsn은 다른 낱말의 끝(bypass)에 우연히 맞으므로 키 전체가 같을 때만 본다.
+const SENSITIVE_KEY_SUFFIXES = [
+  "apikey",
+  "secret",
+  "clientsecret",
+  "accesskey",
+  "privatekey",
+  "token",
+  "password",
+  "passwd",
+  "authorization",
+];
+const SENSITIVE_KEY_EXACT = new Set(["pass", "pwd", "dsn"]);
+/** KV_PATTERN과 같은 최소 값 길이 */
+const MIN_KV_VALUE_CHARS = 8;
+/** 스트림 마스커가 줄바꿈 없이 이만큼 쌓이면 일부를 내보낸다 */
+const STREAM_FLUSH_LIMIT = 4096;
+/** 한도에서 내보낼 때 패턴(접두, 키-값)이 끊기지 않도록 남기는 꼬리 길이 */
+const STREAM_TAIL_KEEP = 256;
+
+function isSensitiveKey(key: string): boolean {
+  const normalized = key.toLowerCase().replaceAll(/[_-]/g, "");
+  if (SENSITIVE_KEY_EXACT.has(normalized)) return true;
+  return SENSITIVE_KEY_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) return false;
   const proto: unknown = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
+}
+
+function prototypeOf(value: object): object | null | undefined {
+  const proto: unknown = Object.getPrototypeOf(value);
+  return typeof proto === "object" ? proto : undefined;
 }
 
 function markKnown(name: string): string {
@@ -159,7 +191,15 @@ function maskKv(text: string, hits: Map<string, number>): string {
   );
 }
 
+/** 청크 경계에 걸친 값을 가리기 위한 이어 가는 상태. 호출자는 끝에 flush를 한 번 부른다 */
+export interface StreamMasker {
+  push(chunk: string): { readonly text: string; readonly hits: readonly RedactionHit[] };
+  flush(): { readonly text: string; readonly hits: readonly RedactionHit[] };
+}
+
 export interface RedactorImpl extends Redactor {
+  /** 스트림 하나당 마스커 하나. 값이 청크에 걸쳐도 가린다(SEC-03) */
+  maskStream(): StreamMasker;
   /** 등록된 시크릿 이름 수. 값은 돌려주지 않는다 */
   knownCount(): number;
 }
@@ -196,24 +236,149 @@ export function createRedactor(): RedactorImpl {
     return maskKv(maskPrefix(maskKnown(text, hits), hits), hits);
   }
 
-  function walk(value: unknown, hits: Map<string, number>, seen: WeakSet<object>): unknown {
+  function maskBytes(view: ArrayBufferView, hits: Map<string, number>): Uint8Array {
+    const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+    const text = new TextDecoder().decode(bytes);
+    const masked = maskString(text, hits);
+    return masked === text ? bytes : new TextEncoder().encode(masked);
+  }
+
+  function copyOwn(
+    source: object,
+    target: object,
+    hits: Map<string, number>,
+    memo: WeakMap<object, unknown>,
+  ): void {
+    for (const name of Object.getOwnPropertyNames(source)) {
+      const descriptor = Object.getOwnPropertyDescriptor(source, name);
+      if (descriptor === undefined || !("value" in descriptor)) continue;
+      const inner: unknown = descriptor.value;
+      Object.defineProperty(target, name, {
+        ...descriptor,
+        value: walkEntry(name, inner, hits, memo),
+      });
+    }
+  }
+
+  // 민감한 키 아래의 문자열은 값 모양과 상관없이 가린다(JSON 설정 파일의 등록 안 된 시크릿)
+  function walkEntry(
+    key: string,
+    value: unknown,
+    hits: Map<string, number>,
+    memo: WeakMap<object, unknown>,
+  ): unknown {
+    if (typeof value === "string") {
+      const masked = maskString(value, hits);
+      // 이미 알려진 값이나 패턴으로 가려졌으면 그 표지를 둔다. 아무것도 가려지지 않았을 때만 키로 판정한다
+      if (masked !== value || value.length < MIN_KV_VALUE_CHARS || !isSensitiveKey(key)) {
+        return masked;
+      }
+      bump(hits, "kv", 1);
+      return `${MARKER_START}kv]`;
+    }
+    return walk(value, hits, memo);
+  }
+
+  function walk(
+    value: unknown,
+    hits: Map<string, number>,
+    memo: WeakMap<object, unknown>,
+  ): unknown {
     if (typeof value === "string") return maskString(value, hits);
+    if (typeof value !== "object" || value === null) return value;
+    if (memo.has(value)) return memo.get(value);
     if (Array.isArray(value)) {
-      if (seen.has(value)) return value;
-      seen.add(value);
+      const out: unknown[] = [];
+      memo.set(value, out);
       const items: readonly unknown[] = value;
-      return items.map((item) => walk(item, hits, seen));
+      for (const item of items) out.push(walk(item, hits, memo));
+      return out;
+    }
+    if (ArrayBuffer.isView(value)) {
+      const out = maskBytes(value, hits);
+      memo.set(value, out);
+      return out;
+    }
+    if (value instanceof Error) {
+      const out = new Error();
+      const proto = prototypeOf(value);
+      if (proto !== undefined) Object.setPrototypeOf(out, proto);
+      memo.set(value, out);
+      copyOwn(value, out, hits, memo);
+      return out;
+    }
+    if (value instanceof Map) {
+      const out = new Map<unknown, unknown>();
+      memo.set(value, out);
+      for (const [k, v] of value) out.set(walk(k, hits, memo), walk(v, hits, memo));
+      return out;
+    }
+    if (value instanceof Set) {
+      const out = new Set<unknown>();
+      memo.set(value, out);
+      for (const v of value) out.add(walk(v, hits, memo));
+      return out;
     }
     if (isPlainObject(value)) {
-      if (seen.has(value)) return value;
-      seen.add(value);
       const out: Record<string, unknown> = {};
+      memo.set(value, out);
       for (const [key, inner] of Object.entries(value)) {
-        out[key] = walk(inner, hits, seen);
+        out[key] = walkEntry(key, inner, hits, memo);
       }
       return out;
     }
+    // 클래스 인스턴스: 프로토타입은 두고 자기 필드만 가린 복사본을 만든다. Date, RegExp, Promise 같은 내장은 그대로 둔다
+    if (Object.prototype.toString.call(value) === "[object Object]") {
+      const out: object = {};
+      Object.setPrototypeOf(out, prototypeOf(value) ?? Object.prototype);
+      memo.set(value, out);
+      copyOwn(value, out, hits, memo);
+      return out;
+    }
     return value;
+  }
+
+  /**
+   * 마스커가 아직 내보내면 안 되는 끝 위치를 구한다. 알려진 값 변형의 앞부분이 pending 끝까지 이어지면
+   * 그 변형이 시작하는 위치 앞까지만 내보낸다(변형의 나머지가 다음 청크에 올 수 있다).
+   */
+  function safeCut(pending: string, wanted: number): number {
+    let cut = wanted;
+    for (const { variant } of ordered) {
+      const from = Math.max(0, cut - variant.length + 1);
+      for (let i = from; i < cut; i += 1) {
+        const overlap = Math.min(variant.length, pending.length - i);
+        if (i + variant.length > cut && pending.startsWith(variant.slice(0, overlap), i)) {
+          cut = i;
+          break;
+        }
+      }
+    }
+    return cut;
+  }
+
+  function createStreamMasker(): StreamMasker {
+    let pending = "";
+    function release(cut: number): { text: string; hits: readonly RedactionHit[] } {
+      const hits = new Map<string, number>();
+      const text = maskString(pending.slice(0, cut), hits);
+      pending = pending.slice(cut);
+      return { text, hits: finishHits(hits) };
+    }
+    return {
+      push(chunk) {
+        pending += chunk;
+        const newline = pending.lastIndexOf("\n");
+        let wanted = newline === -1 ? 0 : newline + 1;
+        if (wanted === 0 && pending.length > STREAM_FLUSH_LIMIT) {
+          wanted = pending.length - STREAM_TAIL_KEEP;
+        }
+        return release(safeCut(pending, wanted));
+      },
+      flush() {
+        return release(pending.length);
+      },
+    };
   }
 
   return {
@@ -241,10 +406,11 @@ export function createRedactor(): RedactorImpl {
     },
     maskDeep<T>(value: T): { readonly value: T; readonly hits: readonly RedactionHit[] } {
       const hits = new Map<string, number>();
-      const walked = walk(value, hits, new WeakSet<object>());
+      const walked = walk(value, hits, new WeakMap<object, unknown>());
       // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A4 maskDeep: 문자열만 바꾸고 모양(키, 배열 길이, 비문자열 값)을 그대로 두므로 결과는 T와 같은 모양이다 (eng.typescript.guide TY-06)
       return { value: walked as T, hits: finishHits(hits) };
     },
+    maskStream: createStreamMasker,
     containsKnown(text: string): boolean {
       return ordered.some(({ variant }) => text.includes(variant));
     },
