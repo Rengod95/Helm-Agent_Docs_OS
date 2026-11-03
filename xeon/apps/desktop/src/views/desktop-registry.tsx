@@ -4,6 +4,7 @@ import { Composer } from "./composer.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
+import { SecretsPanel } from "./pages/secrets/secrets-screen.tsx";
 import { TrustCard } from "./trust.tsx";
 import { Transcript } from "./transcript.tsx";
 import {
@@ -59,6 +60,14 @@ const CONNECTION_SCREEN: ScreenDef = {
   render: () => <ConnectionScreen />,
 };
 
+// 시크릿 화면은 내비 항목이 없다(`nav.ts`에 없음). 설정 화면이 `SecretsPanel`을 넣어 연다.
+const SECRETS_SCREEN: ScreenDef = {
+  id: "secrets",
+  area: "both",
+  label: "desktop.secrets.title",
+  render: () => <SecretsPanel />,
+};
+
 const INBOX_TAB: EndTabDef = {
   id: "inbox",
   area: "both",
@@ -72,6 +81,7 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(CHAT_SCREEN);
   registry.registerScreen(SCHEDULES_SCREEN);
   registry.registerScreen(CONNECTION_SCREEN);
+  registry.registerScreen(SECRETS_SCREEN);
   registry.registerEndTab(INBOX_TAB);
   return registry;
 }

@@ -19,6 +19,7 @@ import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
 import { createScheduleCommands } from "./schedule.ts";
+import { createSecretCommands } from "./secrets.ts";
 import { createSetupCommands } from "./setup.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
@@ -211,6 +212,7 @@ export function createCommands(deps: CommandDeps): Commands {
       ui,
       run: withConnection,
     }),
+    secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),

@@ -2,7 +2,15 @@ import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
-import type { TrustChoice, TrustStatus, WireParams, WireResult } from "@fresnel/contracts/wire";
+import type {
+  SecretListEntry,
+  SecretReferencesResult,
+  SecretTestResult,
+  TrustChoice,
+  TrustStatus,
+  WireParams,
+  WireResult,
+} from "@fresnel/contracts/wire";
 import type { CommandRowVM, KeyRegisterError, SetupSnapshot } from "@fresnel/client/settings";
 import type { AttachFailureKind, TargetEntry } from "@fresnel/client";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
@@ -136,6 +144,49 @@ export interface SetupCommands {
   onInvalidated(listener: () => void): () => void;
 }
 
+/**
+ * 시크릿 화면의 기대하지 않은 실패. `secret.*`의 몇 가지 오류 종류만 구분하고 나머지는 `failed`다.
+ * 값은 이 오류에도 들어 있지 않다(wire의 details에 값이 없다).
+ */
+export type SecretCommandError =
+  | { readonly kind: "offline" }
+  /** 연결된 host에 그 메서드가 없다(-32601) */
+  | { readonly kind: "unsupported" }
+  /** `secret.reauthRequired`: 재인증이 필요하다 */
+  | { readonly kind: "reauthRequired" }
+  /** `secret.notFound`: 그 이름의 시크릿이 없다 */
+  | { readonly kind: "notFound" }
+  /** `secret.inUse`: 설정이나 대화가 쓰고 있어 지울 수 없다 */
+  | { readonly kind: "inUse" }
+  | { readonly kind: "failed" };
+
+/**
+ * 시크릿 화면(P-10). 목록과 메타는 요청 결과라 거울에 넣지 않는다(FS-03). 값은 wire를 지나지 않는다:
+ * 값 입력은 `registerKey`(셸 명령), 값 보기는 재인증 관문 뒤의 `beginReveal`(값 없이 호스트가 자기 창에 보인다)이다.
+ */
+export interface SecretCommands {
+  /** `secret.list { meta, usage }`의 시크릿 항목 */
+  list(): Promise<Result<readonly SecretListEntry[], SecretCommandError>>;
+  references(name: SecretName): Promise<Result<SecretReferencesResult, SecretCommandError>>;
+  test(name: SecretName): Promise<Result<SecretTestResult, SecretCommandError>>;
+  /** `secret.meta`. 바뀐 시크릿 항목을 돌려준다 */
+  editMeta(params: WireParams<"secret.meta">): Promise<Result<SecretListEntry, SecretCommandError>>;
+  /** `secret.remove`. 지웠으면 `true`다 */
+  remove(name: SecretName): Promise<Result<boolean, SecretCommandError>>;
+  /** `secret.beginEntry`. 호스트가 값을 받으면 `true`(호스트 창), 이 화면이 받으면 `false`다 */
+  beginEntry(name: SecretName, action: "add" | "set"): Promise<Result<boolean, SecretCommandError>>;
+  /** 셸의 `secret_register`로 값을 보낸다. 값은 호출자가 보낸 뒤 덮는다 */
+  registerKey(
+    name: SecretName,
+    action: "add" | "set",
+    value: Uint8Array,
+  ): Promise<Result<null, KeyRegisterError>>;
+  /** `secret.beginReveal`. 호스트가 자기 창에 값을 보였으면 `true`다. 값은 이 경로로 오지 않는다 */
+  beginReveal(name: SecretName): Promise<Result<boolean, SecretCommandError>>;
+  /** 클립보드에 글을 쓴다. 빈 글은 비우기다 */
+  writeClipboard(text: string): Promise<void>;
+}
+
 export interface Commands {
   selectThread(threadId: ThreadId): void;
   /** `workspace`는 작업 폴더(절대 경로)이고 `thread.create`로 그대로 보낸다. 없으면 폴더 없는 대화다(G2-02) */
@@ -163,6 +214,7 @@ export interface Commands {
   readonly setup: SetupCommands;
   readonly schedule: ScheduleCommands;
   readonly connection: ConnectionCommands;
+  readonly secrets: SecretCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */
