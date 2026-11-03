@@ -1,4 +1,6 @@
+import { extSettingPrefixes } from "@fresnel/client/workbench";
 import { err, ok, type Result } from "@fresnel/contracts";
+import type { SettingDefWire } from "@fresnel/contracts/settings";
 import type {
   EventsBatchParams,
   HostConnection,
@@ -100,5 +102,33 @@ export function createWorkbenchCommands(
       withConnection((c) => c.request("hooks.order.preview", { hook, order })),
     trace: (threadId, turnId) =>
       withConnection((c) => c.request("trace.turn", { threadId, turnId })),
+    async settings(name, threadId) {
+      const listed = await Promise.all(
+        extSettingPrefixes(name).map((prefix) =>
+          withConnection((c) => c.request("settings.list", { prefix })),
+        ),
+      );
+      const defs: SettingDefWire[] = [];
+      for (const result of listed) {
+        if (!result.ok) return err(result.error);
+        defs.push(...result.value.defs);
+      }
+      if (defs.length === 0) return ok({ defs, values: [] });
+      const got = await withConnection((c) =>
+        c.request("settings.get", {
+          keys: defs.map((def) => def.key),
+          ...(threadId === undefined ? {} : { threadId }),
+        }),
+      );
+      return got.ok ? ok({ defs, values: got.value.settings }) : err(got.error);
+    },
+    metrics: (id, threadId) =>
+      withConnection((c) =>
+        c.request("group.metrics", threadId === undefined ? { id } : { id, threadId }),
+      ),
+    async views() {
+      const got = await withConnection((c) => c.request("ext.ui.list", {}));
+      return got.ok ? ok(got.value.items) : err(got.error);
+    },
   };
 }

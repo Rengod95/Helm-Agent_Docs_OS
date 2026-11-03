@@ -31,6 +31,7 @@
 
 - `visibleRows(state)`: 찾기로 거른 확장 행(`ExtRowVM`: 표시 이름, 층, 종류 `group|plugin|core`, 등급, 상태, 잠금, 실패, 대기 목표).
 - `layerGroups(state)`: 층별 묶음(L1 → L2 → L3 → 그 밖). 지도 고리와 층 패널의 재료.
+- `detail-tabs.ts`: 상세 탭(§6.24)의 순수 모델. `extSettingRowsOf`(설정 탭 줄: `buildSettingsView`의 `plugins` 탭에서 이 확장 키만, 시크릿은 참조 대신 "시크릿에 있어요"로만 보임), `groupMetricsOf`(측정 탭: 토큰 네 칸과 "정가 기준 추정" 비용, 계측이 꺼져 있으면 null, 그룹만 읽음), `screenRowsOf`(화면 탭: `ext.ui.list` 항목 가운데 이 확장의 것), `enabledScopeOf`·`settingScopeOf`(출처 배지 범위: user는 전역, project는 프로젝트, thread와 launch는 이 대화, 출처가 없으면 배지를 두지 않음), `tabReadOf`(읽는 중, 연결 중·끊김의 마지막 값(`stale`), 오프라인, 오류).
 - `countsOf`, `versionsViewOf(entry, load)`(버전 탭 그림, §6.24.1). 기록이 있으면 `history`(행: 지금 판은 되돌리기 불가, 상태 스키마가 높으면 `needsClearState`), 기록이 없거나 `unsupported`면 `fallback`(설치본, 기본 플러그인만 앱에 든 번들 버전), 읽기 실패는 `error`.
 - `selectedEntry(state)`: 자세히 보기가 있으면 그 확장, 없으면 고른 플러그인·그룹의 확장. `selectedName(state)`는 고른 것만 본다(자세히 보기는 안 봄). `openLayerOf(state)`는 층 선택이면 그 층.
 - 구성 요소 거르기(`contrib`)는 매니페스트(`ext.get`)가 있어야 걸 수 있어서 `visibleRows`는 걸지 않습니다. 지도·순서·링크·층 패널이 `snapshotOf`의 자기 데이터로 `keepsContrib`를 써서 맞지 않는 플러그인을 숨깁니다. 매니페스트를 못 읽은 플러그인(`unread`)은 넣어 주는 것을 모르므로 숨기지 않습니다.
@@ -45,7 +46,7 @@
 
 ## 앱 쪽 구현 (T-BENCH)
 
-`apps/desktop/src/state/workbench/`(스토어와 훅), `src/app/workbench-commands.ts`(`commands.workbench`: `list`, `get`, `toggle`, `reenable`, `versions`, `rollback`, `onChanged`), `src/views/workbench/`(화면).
+`apps/desktop/src/state/workbench/`(스토어와 훅), `src/app/workbench-commands.ts`(`commands.workbench`: `list`, `get`, `toggle`, `reenable`, `versions`, `rollback`, `onChanged`, 그리고 상세 탭의 `settings`, `metrics`, `views`), `src/views/workbench/`(화면).
 
 ### 목록을 다시 읽는 때
 

@@ -56,6 +56,9 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
           }),
         ),
       trace: () => Promise.resolve(err({ kind: "unsupported" })),
+      settings: () => Promise.resolve(err({ kind: "unsupported" })),
+      metrics: () => Promise.resolve(err({ kind: "unsupported" })),
+      views: () => Promise.resolve(ok([])),
     },
     schedule: {
       list: () => Promise.resolve(err({ kind: "unsupported" })),

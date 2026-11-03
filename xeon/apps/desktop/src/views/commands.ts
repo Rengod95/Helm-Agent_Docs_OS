@@ -3,12 +3,15 @@ import type { ExtTimingsResult, TraceTurnResult } from "@fresnel/contracts/exten
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
+import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 import type {
   ExtGetResult,
   ExtHealthEntry,
   ExtListEntry,
+  ExtUiEntry,
   ExtVersionsResult,
   GroupDriveLockResult,
+  GroupMetricsResult,
   GroupStatusWire,
   HookEntry,
   HooksOrderGetResult,
@@ -256,6 +259,21 @@ export interface WorkbenchCommands {
   ): Promise<Result<HooksOrderPreviewResult, CommandError>>;
   /** `trace.turn`: 한 턴의 훅별 핸들러 계측 */
   trace(threadId: ThreadId, turnId: TurnId): Promise<Result<TraceTurnResult, CommandError>>;
+  /**
+   * 확장 설정(P-17 설정 탭): `settings.list`를 확장 접두사마다 한 번씩 부르고, 정의가 있으면 `settings.get`으로 유효 값을 읽는다.
+   * `threadId`가 있으면 그 대화에서의 값이다(범위 `launch`는 이 대화만 덮는다). 줄 만들기와 범위 이름은 클라이언트가 한다.
+   */
+  settings(name: string, threadId?: ThreadId): Promise<Result<ExtSettingsRead, CommandError>>;
+  /** `group.metrics { id, threadId? }`: 그룹 하나의 계측. 계측이 꺼져 있으면 `metrics`가 null이다 */
+  metrics(id: string, threadId?: ThreadId): Promise<Result<GroupMetricsResult, CommandError>>;
+  /** `ext.ui.list`(옛 이름 `ext.view.list`): 확장이 기여한 화면 항목 전부. 확장마다 거르는 일은 화면이 한다 */
+  views(): Promise<Result<readonly ExtUiEntry[], CommandError>>;
+}
+
+/** 확장 설정 읽기 결과: 접두사별로 모은 정의와 유효 값 */
+interface ExtSettingsRead {
+  readonly defs: readonly SettingDefWire[];
+  readonly values: readonly EffectiveSetting[];
 }
 
 export interface Commands {
