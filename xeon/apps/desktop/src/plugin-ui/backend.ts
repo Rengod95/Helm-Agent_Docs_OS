@@ -47,7 +47,8 @@ export interface BridgeBackendDeps {
   readonly policy: () => BridgePolicyContext;
   /** 고정 맥락 읽기(`host`)의 바탕. `threadId`는 `openThreadId`로 덮는다 */
   readonly snapshot: () => HostSnapshot;
-  readonly navigate: (target: ShellNavigateTarget) => void;
+  /** 셸이 열 수 있으면 참. 모르는 대상이면 거짓이고 다리는 `navigate_unsupported`로 답한다 */
+  readonly navigate: (target: ShellNavigateTarget) => boolean;
   /** OS 브라우저 열기. 호출자는 확인을 받은 링크의 `href`만 넘긴다 */
   readonly openExternal: (href: string) => Promise<void>;
   readonly confirmExternal: (link: ExternalLink) => Promise<boolean>;
@@ -258,7 +259,8 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     async navigate(target, shellConfirmed) {
       if (target.kind !== "external") {
         const moved = attempt(() => deps.navigate(target));
-        return moved.ok ? ok(null) : fail("failed", "navigate");
+        if (!moved.ok) return fail("failed", "navigate");
+        return moved.value ? ok(null) : fail("failed", "navigate_unsupported");
       }
       // 외부 링크는 판정 뒤 `confirmExternal`을 거친 것만 온다(브리지는 이때 `needsShellConfirm`을 참으로 보낸다)
       if (!shellConfirmed) return fail("denied", "not_confirmed");

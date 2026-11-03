@@ -49,6 +49,7 @@ function harness(
     snapshot: () => snapshot,
     navigate: (target) => {
       navigated.push(target);
+      return target.kind !== "extension";
     },
     openExternal: (href) => {
       opened.push(href);
@@ -381,6 +382,14 @@ describe("navigate, external links and the shell", () => {
     const target = { kind: "view", id: "detail" } as const;
     expect(await h.backend.navigate(target, false)).toEqual({ ok: true, value: null });
     expect(h.navigated).toEqual([target]);
+  });
+
+  test("a target the shell cannot open is answered as unsupported", async () => {
+    const h = harness({});
+    expect(await h.backend.navigate({ kind: "extension" }, false)).toEqual({
+      ok: false,
+      error: { kind: "failed", detail: "navigate_unsupported" },
+    });
   });
 
   test("an external link opens its normalized href, never the raw text", async () => {

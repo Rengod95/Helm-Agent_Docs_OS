@@ -11,6 +11,7 @@ import { Shell } from "./shell/shell.tsx";
 import { Palette } from "./palette/palette.tsx";
 import type { PaletteCommandId } from "./palette/palette-model.ts";
 import type { ActionId } from "./shell/keybindings.ts";
+import { PluginUiHost } from "./plugin/plugin-tabs.tsx";
 import { StatusBar } from "./status-bar.tsx";
 import { ThreadList } from "./thread-list.tsx";
 
@@ -96,6 +97,7 @@ export function App(props: AppProps): ReactNode {
         onGoToThread={openThread}
       />
       <LockedDialog />
+      <PluginUiHost />
     </>
   );
 }

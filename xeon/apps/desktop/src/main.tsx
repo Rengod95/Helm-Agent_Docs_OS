@@ -1,5 +1,6 @@
 import { activeLocale } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
+import { invoke } from "@tauri-apps/api/core";
 import { createRoot } from "react-dom/client";
 import pkg from "../package.json" with { type: "json" };
 import { createApp } from "./app/bootstrap.ts";
@@ -7,6 +8,9 @@ import { createLocalSettings, LOCAL } from "./settings-store/index.ts";
 import { createTauriIpc } from "./transport/ipc.ts";
 import { Providers } from "./views/providers.tsx";
 import { App } from "./views/app.tsx";
+import { createPluginUiRuntime } from "./plugin-ui/runtime.ts";
+import { createConfirmQueue } from "./views/plugin/confirm-host.tsx";
+import { PluginUiProvider } from "./views/plugin/plugin-context.tsx";
 import { createDesktopRegistry } from "./views/desktop-registry.tsx";
 import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
@@ -44,6 +48,16 @@ if (container === null) {
     appVersion: pkg.version,
     frameFallbackMs: 100,
   });
+  // 플러그인 화면 실행 맥락. Windows는 전용 스킴 주소가 달라 프레임 모드를 켜지 않는다(ADR-0021 §3.6.2)
+  const framesSupported = !navigator.platform.startsWith("Win");
+  const pluginUi = {
+    runtime: createPluginUiRuntime({
+      withConnection: (run) => app.commands.pluginUi.withConnection(run),
+      appRootsInvoke: framesSupported ? (command, args) => invoke(command, args) : undefined,
+      framesSupported,
+    }),
+    confirm: createConfirmQueue(),
+  };
   window.addEventListener("error", (event) => {
     app.log.logger.error("desktop.window.error", {
       name: event.error instanceof Error ? event.error.name : "unknown",
@@ -62,7 +76,13 @@ if (container === null) {
     root.render(
       <ShellStoreContext value={shell}>
         <Providers key={locale} engine={app.engine.read} ui={app.ui.read} commands={app.commands}>
-          <App registry={registry} keyOverrides={localSettings.get(LOCAL.keybindings)} mac={mac} />
+          <PluginUiProvider value={pluginUi}>
+            <App
+              registry={registry}
+              keyOverrides={localSettings.get(LOCAL.keybindings)}
+              mac={mac}
+            />
+          </PluginUiProvider>
         </Providers>
       </ShellStoreContext>,
     );
