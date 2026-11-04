@@ -73,9 +73,11 @@ async function startReal(options: {
   readonly safeMode?: boolean;
   /** 구동 그룹은 thread를 만들면 turn을 연다. 모델 테이프 답이 하나뿐인 시험은 그룹을 싣지 않는다 */
   readonly withGroup?: boolean;
+  /** 사용자 설정에 더할 값 */
+  readonly settings?: Readonly<Record<string, unknown>>;
 }) {
   const home = useEngineHome();
-  writeUserSettings(home, TAPE_SETTINGS);
+  writeUserSettings(home, { ...TAPE_SETTINGS, ...options.settings });
   writeProbe(home, options.fail);
   const group = testGroup(fixedIdFactory(9));
   const host = await startInProcessHost({
@@ -345,6 +347,52 @@ realTest(
         ["boundary.settle.after", PROBE],
       ]);
       expect(timings.timings[0]?.failures).toBeGreaterThanOrEqual(1);
+    } finally {
+      await connection.close();
+      await host.close();
+      home.dispose();
+    }
+  },
+  60_000,
+);
+
+realTest(
+  "a failing extension is asked, not disabled, while a client is connected; ext.disableConfirm then disables it with scope.changed auto_disable",
+  async () => {
+    const { home, host, connection } = await startReal({
+      fail: true,
+      withGroup: false,
+      settings: { "x.operations.autoDisable.consecutive": 1 },
+    });
+    const collector = collectEvents(connection);
+    await connection.request("events.subscribe", { from: "head" });
+    try {
+      const created = await connection.request("thread.create", {});
+      await connection.request("turn.start", { threadId: created.threadId, input: "질문" });
+      await collector.waitFor((event) => event.kind === "turn.completed");
+      const asked = await until(
+        async () => (await connection.request("ext.get", { name: PROBE })).entry,
+        (entry) => entry.keepOffQuestion !== undefined,
+      );
+      // 묻는 동안은 켜 둔 채다
+      expect(asked.autoDisabled).toBe(false);
+      expect(asked.keepOffQuestion).toEqual({
+        rule: "consecutive",
+        consecutive: 1,
+        windowFailures: 1,
+      });
+      expect(asked.status).toBe("enabled");
+
+      expect(await connection.request("ext.disableConfirm", { name: PROBE })).toEqual({
+        appliesAt: "nextStepBoundary",
+        diagnostics: [],
+      });
+      const after = await until(
+        async () => (await connection.request("ext.get", { name: PROBE })).entry,
+        (entry) => entry.autoDisabled,
+      );
+      expect(after.autoDisabled).toBe(true);
+      expect(after.keepOffQuestion).toBeUndefined();
     } finally {
       await connection.close();
       await host.close();

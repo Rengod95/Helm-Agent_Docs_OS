@@ -43,6 +43,7 @@ export interface ExtReadPort {
   readonly list: PortCall<"ext.list">;
   readonly get: PortCall<"ext.get">;
   readonly reenable: PortCall<"ext.reenable">;
+  readonly disableConfirm: PortCall<"ext.disableConfirm">;
   readonly reload: PortCall<"ext.reload">;
   readonly health: PortCall<"ext.health">;
   readonly timings: PortCall<"ext.timings">;
@@ -65,6 +66,7 @@ export type ExtReadMethods =
   | "ext.list"
   | "ext.get"
   | "ext.reenable"
+  | "ext.disableConfirm"
   | "ext.reload"
   | "ext.health"
   | "ext.timings"
@@ -127,6 +129,8 @@ export function createExtReadHandlers(port: ExtReadPort): Pick<WireHandlers, Ext
     "ext.get": (params, context) => settle("ext.get", port.get(params, context.signal)),
     "ext.reenable": (params, context) =>
       settle("ext.reenable", port.reenable(params, context.signal)),
+    "ext.disableConfirm": (params, context) =>
+      settle("ext.disableConfirm", port.disableConfirm(params, context.signal)),
     "ext.reload": (params, context) => settle("ext.reload", port.reload(params, context.signal)),
     "ext.health": (params, context) => settle("ext.health", port.health(params, context.signal)),
     "ext.timings": (params, context) => settle("ext.timings", port.timings(params, context.signal)),

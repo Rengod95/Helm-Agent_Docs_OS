@@ -90,11 +90,13 @@ export function layersOfTest(values: {
 export interface RecordedSources {
   readonly sources: ExtReadSources;
   readonly reenabled: string[];
+  readonly confirmed: string[];
   readonly reloaded: string[];
 }
 
 export function createRecordedSources(patch: Partial<ExtReadSources> = {}): RecordedSources {
   const reenabled: string[] = [];
+  const confirmed: string[] = [];
   const reloaded: string[] = [];
   const sources: ExtReadSources = {
     ...EMPTY_EXT_READ_SOURCES,
@@ -144,6 +146,9 @@ export function createRecordedSources(patch: Partial<ExtReadSources> = {}): Reco
     reenable: (name) => {
       reenabled.push(name);
     },
+    disableConfirm: (name) => {
+      confirmed.push(name);
+    },
     reload: (name) => {
       reloaded.push(name);
       return Promise.resolve({
@@ -161,5 +166,5 @@ export function createRecordedSources(patch: Partial<ExtReadSources> = {}): Reco
     },
     ...patch,
   };
-  return { sources, reenabled, reloaded };
+  return { sources, reenabled, confirmed, reloaded };
 }

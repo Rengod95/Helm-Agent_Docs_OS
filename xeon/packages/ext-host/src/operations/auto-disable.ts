@@ -28,7 +28,7 @@ export const DEFAULT_AUTO_DISABLE: AutoDisablePolicy = {
  * 끌까요 질문. 기준을 넘은 주체에 사용자의 답을 받을 때까지 켜 둔 채 묻는다
  * [결정: 2026-11-04 사용자, 연속 5회와 끄기 전 질문] 같은 주체에 겹쳐 내지 않는다 [제안]
  */
-export interface DisableQuestion {
+interface DisableQuestion {
   readonly key: HandlerOwnerKey;
   readonly rule: "consecutive" | "rate";
   /** 질문을 낸 시점의 연속 실패 수 */

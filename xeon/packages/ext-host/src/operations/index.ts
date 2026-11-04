@@ -120,7 +120,6 @@ export {
   DEFAULT_AUTO_DISABLE,
   judgeAutoDisable,
   type AutoDisablePolicy,
-  type DisableQuestion,
   type OperationsNotifier,
   type ScopeChangeReason,
   type RegistrationControl,

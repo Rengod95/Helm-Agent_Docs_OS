@@ -158,6 +158,11 @@ export interface AssembleOptions {
    * 연결 허브는 엔진을 만든 뒤에 생기므로 호스트 실행 루틴(`startHost`)이 늦게 읽는 함수를 넘긴다. 생략하면 열린 thread가 없어 운영 로그만 남는다
    */
   readonly openThreads?: () => readonly ThreadId[];
+  /**
+   * 지금 연결된 클라이언트(답할 화면)가 있나. 자동 끄기 "끌까요" 질문을 낼지 정한다(X.operations §4.3.3).
+   * 연결 허브는 엔진 뒤에 생기므로 `startHost`가 늦게 읽는 함수를 넘긴다. 생략하면 화면이 없는 것으로 보고 끄지도 묻지도 않는다
+   */
+  readonly hasClient?: () => boolean;
 }
 
 export type AssembleIssue =
