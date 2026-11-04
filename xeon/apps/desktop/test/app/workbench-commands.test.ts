@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { TraceTurnResult } from "@fresnel/contracts/extensions";
+import type { CompositionDecl, TraceTurnResult } from "@fresnel/contracts/extensions";
 import {
   WIRE_ERRORS,
   type EventWire,
@@ -14,7 +14,11 @@ import {
   type VolatileEventWire,
   type Profile,
   type ProfileApplyResult,
+  type ProfileGetResult,
+  type ProfileInput,
   type ProfileListResult,
+  type ProfilePreviewResult,
+  type ExtValidateResult,
 } from "@fresnel/contracts/wire";
 import {
   asksDisable,
@@ -385,6 +389,73 @@ describe("크래프트 명령의 wire 호출", () => {
     const { app, params } = await liveApp({ results: { "profile.list": listed } });
     expect(await app.commands.workbench.profiles()).toEqual({ ok: true, value: [QUIET] });
     expect(paramsOf(params, "profile.list")).toEqual([{}]);
+    await app.stop();
+  });
+
+  test("프로필 저장은 profile과 baseRev를 보내고 저장된 프로필을 돌려준다", async () => {
+    const input: ProfileInput = {
+      id: "quiet",
+      title: "조용히",
+      enable: ["helm"],
+      disable: ["web"],
+      settings: [],
+      driver: null,
+    };
+    const saved: ProfileGetResult = {
+      profile: { ...input, updatedAt: "2026-11-04T10:00:00Z", rev: 2 },
+    };
+    const { app, params } = await liveApp({ results: { "profile.put": saved } });
+    expect(await app.commands.workbench.putProfile(input, 1)).toEqual({ ok: true, value: saved });
+    expect(paramsOf(params, "profile.put")).toEqual([{ profile: input, baseRev: 1 }]);
+    await app.stop();
+  });
+
+  test("프로필 삭제는 id를 보내고 목록 개정을 돌려준다", async () => {
+    const { app, params } = await liveApp({ results: { "profile.delete": { rev: 5 } } });
+    expect(await app.commands.workbench.deleteProfile("quiet")).toEqual({ ok: true, value: 5 });
+    expect(paramsOf(params, "profile.delete")).toEqual([{ id: "quiet" }]);
+    await app.stop();
+  });
+
+  test("프로필 미리 보기는 id와 대화를 보내고 계산 결과를 돌려준다", async () => {
+    const preview: ProfilePreviewResult = {
+      enabled: ["helm"],
+      disabled: ["web"],
+      candidates: ["helm"],
+      expectedHolder: "helm",
+      overrides: [{ key: "ext.helm.maxLenses", value: 3 }],
+      hookCount: 4,
+      layer: "user",
+    };
+    const { app, params } = await liveApp({ results: { "profile.preview": preview } });
+    expect(await app.commands.workbench.previewProfile("quiet", thr(1))).toEqual({
+      ok: true,
+      value: preview,
+    });
+    expect(await app.commands.workbench.previewProfile("quiet")).toEqual({
+      ok: true,
+      value: preview,
+    });
+    expect(paramsOf(params, "profile.preview")).toEqual([
+      { id: "quiet", threadId: thr(1) },
+      { id: "quiet" },
+    ]);
+    await app.stop();
+  });
+
+  test("구성 검사는 composition을 보내고 이슈 목록을 그대로 돌려준다", async () => {
+    const composition: CompositionDecl = {
+      blocks: [{ id: "detect", stage: "detect", op: "on", hooks: ["tool.call.before"] }],
+    };
+    const result: ExtValidateResult = {
+      issues: [{ severity: "warning", code: "x", path: "blocks[0]", message: "경고" }],
+    };
+    const { app, params } = await liveApp({ results: { "ext.validateComposition": result } });
+    expect(await app.commands.workbench.validateComposition(composition)).toEqual({
+      ok: true,
+      value: result,
+    });
+    expect(paramsOf(params, "ext.validateComposition")).toEqual([{ composition }]);
     await app.stop();
   });
 
