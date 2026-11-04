@@ -473,12 +473,37 @@ describe("M2 method schemas are written out", () => {
     expect(parse(result, { ...report, value: "x" }).ok).toBe(false);
   });
 
+  test("secret.audit takes a name and an optional limit, and its entries have no value field", () => {
+    const { params, result } = WIRE_METHODS["secret.audit"];
+    expect(parse(params, { name: "github-token" }).ok).toBe(true);
+    expect(parse(params, { name: "github-token", limit: 50 }).ok).toBe(true);
+    // 기록 개수 상한은 없다: 큰 limit도 받는다
+    expect(parse(params, { name: "github-token", limit: 1_000_000 }).ok).toBe(true);
+    expect(parse(params, { name: "github-token", limit: 0 }).ok).toBe(false);
+    expect(parse(params, { name: "GitHub" }).ok).toBe(false);
+    const entry = {
+      at: "2026-11-03T01:00:00.000Z",
+      decision: "deny",
+      mode: "env",
+      threadId: THREAD,
+      toolCallId: null,
+      host: null,
+      reason: "host_mismatch",
+    };
+    expect(parse(result, { entries: [entry] }).ok).toBe(true);
+    expect(parse(result, { entries: [] }).ok).toBe(true);
+    expect(parse(result, { entries: [{ ...entry, reason: "because" }] }).ok).toBe(false);
+    expect(parse(result, { entries: [{ ...entry, value: "x" }] }).ok).toBe(false);
+    expect(parse(result, { entries: [{ ...entry, purpose: "x" }] }).ok).toBe(false);
+  });
+
   test("secret methods carry no value field", () => {
     for (const name of [
       "secret.meta",
       "secret.remove",
       "secret.test",
       "secret.references",
+      "secret.audit",
       "secret.beginEntry",
       "secret.beginReveal",
     ] as const) {

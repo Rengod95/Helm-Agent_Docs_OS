@@ -339,6 +339,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.remove` | `{ name: SecretName }` | `{ removed: boolean }` | M2 |
 | secret | `secret.test` | `{ name: SecretName }` | `{ state: "registered"\|"missing", decryptable: boolean, length: integer \| null, sha256Prefix: string \| null }` | M2 |
 | secret | `secret.references` | `{ name: SecretName }` | `{ settingKeys: SettingKey[], activeLeases: integer, sessions: ThreadId[] }` | M2 |
+| secret | `secret.audit` | `{ name: SecretName, limit?: integer }` | `{ entries: SecretAuditEntry[] }` | M2 |
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate", meta?: SecretEntryMeta }` | `{ started: boolean }` | M2 |
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 | proposal | `proposal.list` | `{ source?: "learning"\|"knowledge", status?: ProposalStatusWire[], limit?: integer(1..200), cursor?: string }` | `{ proposals: ProposalRow[], nextCursor: string \| null, unavailable: ProposalSource[] }` | M3 |
@@ -422,6 +423,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 - [결정: m2c G1-07] 시크릿 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
   - `secret.test`의 결과는 `state`에 `decryptable`, `length`, `sha256Prefix`를 더했다(`L0.secrets.spec`의 `SecretTestResult`). `length`는 값의 바이트 수, `sha256Prefix`는 SHA-256 hex 앞 8자(소문자)이고 값이 없거나 풀 수 없으면 둘 다 null이다. 값은 어디에도 싣지 않는다. 앞 8자는 사람이 같은 값인지 견주는 표시용이고 감사 기록과 로그에는 남기지 않는다. 필드는 모두 필수라 옛 모양(`state`만)은 거부한다.
   - `secret.references { name }`는 삭제 전에 이 시크릿을 가리키는 곳을 보인다(`L0.secrets.spec` `references`, `L4.cli.spec` §4.7 `secret rm`). 결과는 `{ settingKeys, activeLeases, sessions }`다. 메서드는 읽기 전용이다. 활성 drive 락이 있으면 `secret.remove`가 `secret.inUse`로 거부한다.
+  - [결정: 2026-11-04 사용자] `secret.audit { name, limit? }`는 시크릿 하나를 쓰려던 시도(사용 `allow`, 거절 `deny`)를 최근 순으로 돌려준다(`L0.secrets.spec` §3.9 감사 파일의 `secret.used`, `secret.denied`, W-13). 읽기 전용이고 알 수 없는 이름은 `secret.notFound`다. 항목은 `{ at, decision, mode, threadId \| null, toolCallId \| null, host \| null, reason \| null }`이다. 호스트가 필드를 하나씩 골라 항목을 만들므로 값, 값의 일부, 해시, 자유 문장(`purpose`), 명령줄 해시는 실리지 않는다. 기록 개수 상한은 없고 `limit`을 줄 때만 자른다. 오류 `secret.auditUnwritable`은 쓰기 실패 오류이며 이 메서드는 쓰지 않는다.
   - 시크릿 오류 kind를 3201~3212로 나눴다(§3.5.2). `SecretError`의 입력 오류(`invalid_ref`, `unsupported_ref_syntax`, `meta_invalid`, `value_too_short`)는 새 kind 없이 `jsonrpc.invalidParams`로 간다. 나머지 `SecretError.kind`는 camelCase로 바꾼 `secret.<kind>`로 1:1 대응한다(`secret_missing` → `secret.notFound`). `details`는 안전한 필드(이름이 아닌 제공자, 사유 코드, 종료 코드, 프로세스 락 수)만 싣고 `stderrMasked` 같은 외부 도구 출력은 싣지 않는다. 이전의 `internal` + `details.secret` 대용(`L4.host-service.spec` HS-47)은 이 kind로 바뀐다.
   - [결정: m2r sec] `secret.writeFailed`의 `target`에 `key_store`(OS 키 저장소에 age 키를 만들지 못함)와 `sops_file`(기본 SOPS 시크릿 파일을 만들지 못함)을 더했다. 첫 `secret add`가 키와 파일을 자동으로 준비하게 되면서(`L0.secrets.spec` §4.8) 준비 실패를 "sops와 age를 설치하라"가 아닌 실제 원인으로 알려야 하기 때문이다. `code`는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout` 같은 이름이다.
   - `thread.closed`(3007)는 닫힌 thread에 쓰기나 수명 주기 호출을 했을 때의 오류다. 이전에는 `thread.notFound`로 알렸다. 닫힌 thread의 읽기와 삭제는 허용한다.
@@ -597,6 +599,7 @@ export interface WireMethodMap {
   "secret.remove":     { params: SecretNameParams;       result: SecretRemoveResult };
   "secret.test":       { params: SecretNameParams;       result: SecretTestResult };
   "secret.references": { params: SecretNameParams;       result: SecretReferencesResult };
+  "secret.audit":      { params: SecretAuditParams;      result: SecretAuditResult };
   "trust.get":         { params: TrustGetParams;         result: TrustStatus };
   "trust.decide":      { params: TrustDecideParams;      result: TrustStatus };
   "secret.beginEntry": { params: SecretBeginEntryParams; result: SecretBeginEntryResult };
