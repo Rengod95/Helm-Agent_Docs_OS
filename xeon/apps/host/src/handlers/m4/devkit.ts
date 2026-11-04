@@ -1,6 +1,8 @@
 import { assertNever, type Result } from "@fresnel/contracts";
 import {
   wireError,
+  type ExtInstallPreviewParams,
+  type ExtInstallResult,
   type ExtRemoveResult,
   type ExtValidateCompositionParams,
   type ExtValidateResult,
@@ -9,9 +11,9 @@ import {
 } from "@fresnel/contracts/wire";
 import type {
   DevkitError,
+  InstallPreview,
   KindEntry,
   LinkInput,
-  LinkResult,
   PackInput,
   PackResult,
   ScaffoldInput,
@@ -31,7 +33,8 @@ export interface DevkitPort {
   validate(dir: string): Promise<Result<ValidationReport, DevkitError>>;
   validateComposition(params: ExtValidateCompositionParams): ExtValidateResult;
   pack(input: PackInput): Promise<Result<PackResult, DevkitError>>;
-  install(input: LinkInput): Promise<Result<LinkResult, DevkitError>>;
+  installPreview(input: ExtInstallPreviewParams): Promise<Result<InstallPreview, DevkitError>>;
+  install(input: LinkInput): Promise<Result<ExtInstallResult, DevkitError>>;
   remove(name: string): Promise<Result<ExtRemoveResult, DevkitError>>;
 }
 
@@ -40,6 +43,7 @@ export type DevkitMethods =
   | "ext.scaffold"
   | "ext.validate"
   | "ext.package"
+  | "ext.installPreview"
   | "ext.install"
   | "ext.remove"
   | "ext.test.run"
@@ -52,7 +56,13 @@ export function createDevkitHandlers(port: DevkitPort): Pick<WireHandlers, Devki
     "ext.scaffold": async (params) => unwrap(await port.scaffold(params), "/dir"),
     "ext.validate": async (params) => unwrap(await port.validate(params.dir), "/dir"),
     "ext.package": async (params) => unwrap(await port.pack(params), "/dir"),
-    "ext.install": async (params) => unwrap(await port.install(params), "/source"),
+    "ext.installPreview": async (params) =>
+      unwrap(await port.installPreview({ source: params.source }), "/source"),
+    "ext.install": async (params) =>
+      unwrap(
+        await port.install({ source: params.source, expectedSha256: params.sha256 }),
+        "/source",
+      ),
     "ext.remove": async (params) => unwrap(await port.remove(params.name), "/name"),
     "ext.test.run": notImplemented("ext.test.run"),
     "ext.test.list": notImplemented("ext.test.list"),
@@ -73,11 +83,15 @@ function wireErrorOf(error: DevkitError, path: string): WireError {
   const issue = (message: string): WireError =>
     wireError("jsonrpc.invalidParams", { details: { issues: [{ path, message }] } });
   switch (error.kind) {
+    case "safe_mode_active":
+      return wireError("extension.safeModeActive", { message: error.message });
     case "invalid_input":
     case "exists":
     case "blocked_kind":
     case "denied":
     case "dev_mode_required":
+    case "source_changed":
+    case "managed_locked":
       return issue(`${error.kind}: ${error.message}`);
     case "not_found":
       return path === "/name"

@@ -267,6 +267,7 @@ function rigOf(options: RigOptions): Rig {
     extensionsDir: EXT_DIR,
     heldThreads: () => options.threads ?? [],
     stateSchemaVersion: () => options.schema ?? null,
+    installGate: { safeMode: () => false, managedLocked: () => false },
     bundle: (name) => Promise.resolve(name === "helm" ? (options.bundled ?? null) : null),
     hash: hashOf,
   };

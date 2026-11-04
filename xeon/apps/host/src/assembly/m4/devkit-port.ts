@@ -2,9 +2,11 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { err, ok, parseJson, type Result } from "@fresnel/contracts";
 import { validateManifest } from "@fresnel/contracts/extensions";
-import type { DevkitError, LinkInput, LinkResult } from "@fresnel/contracts/services";
+import type { ExtInstallResult } from "@fresnel/contracts/wire";
+import type { DevkitError, LinkInput } from "@fresnel/contracts/services";
 import {
   installExtension,
+  previewInstall,
   KIND_CATALOG,
   locateTemplateDirs,
   MANIFEST_PATH,
@@ -82,10 +84,23 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       ),
     }),
     pack: (input) => packExtension(input),
+    installPreview: async (input) => {
+      const source = deps.extUi;
+      if (source === undefined) return noLocation();
+      return previewInstall(input, { extensionsDir: source.extensionsDir });
+    },
     install: async (input) => {
       const source = deps.extUi;
       if (source === undefined) return noLocation();
+      // 안전 모드와 managed 잠금은 신뢰 검사 앞에서 거절한다. 설치본은 평소 로더와 신뢰 경로로만 읽힌다
+      if (source.installGate.safeMode())
+        return err({ kind: "safe_mode_active", message: "install is refused in safe mode" });
       const incoming = await manifestIdentity(input.source);
+      if (incoming !== null && source.installGate.managedLocked(incoming.name))
+        return err({
+          kind: "managed_locked",
+          message: `${incoming.name} is locked by the managed scope`,
+        });
       // 같은 이름의 설치본이 있으면 지우기 전에 버전 기록에 남겨 되돌릴 수 있게 한다(HS-108). 첫 설치는 남기지 않는다
       if (incoming !== null) {
         const location = join(source.extensionsDir, incoming.name);
@@ -105,10 +120,18 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
         extensionsDir: source.extensionsDir,
       });
       if (!installed.ok) return installed;
-      const result: LinkResult = {
-        name: installed.value.name,
+      // 실행 중인 같은 이름은 호출자가 `ext.reload`로 단계 경계에서 바꾼다. 새 이름은 로더가 싣지 않으므로 다음 시작부터다
+      const name = installed.value.name;
+      const running =
+        source
+          .loader()
+          ?.list()
+          .some((info) => info.name === name) === true;
+      const result: ExtInstallResult = {
+        name,
         version: installed.value.version,
         location: installed.value.location,
+        appliesAt: running ? "nextStepBoundary" : "restart",
       };
       return ok(result);
     },

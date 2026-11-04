@@ -82,8 +82,14 @@ describe("확장 화면: 층별 목록과 찾기", () => {
   test("층 묶음은 L1, L2, L3 순서이고 층마다 켜짐 수를 보인다", () => {
     const html = render();
     expect(sectionLayers(html)).toEqual(["L1", "L2", "L3"]);
-    expect(html.indexOf("L1")).toBeLessThan(html.indexOf("L2"));
+    expect(html.indexOf(`aria-label="L1"`)).toBeLessThan(html.indexOf(`aria-label="L2"`));
     expect(html).toContain(t("desktop.workbench.layers.count", { on: 1, total: 1 }));
+  });
+
+  test("머리에 플러그인 가져오기 단추가 있고 닫힌 채로 시작한다", () => {
+    const html = render();
+    expect(html).toContain(t("desktop.install.open"));
+    expect(html).not.toContain(t("desktop.install.source.label"));
   });
 
   test("찾기는 같은 행만 남기고 나머지는 목록에서 빠진다", () => {

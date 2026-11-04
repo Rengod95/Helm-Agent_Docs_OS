@@ -96,7 +96,36 @@ describe("fresnel.devkit and its wire methods", () => {
     expect(
       parse(WIRE_METHODS["ext.package"].result, { path: "/o", files: [], sha256: "XYZ" }).ok,
     ).toBe(false);
-    roundTrip(WIRE_METHODS["ext.install"].result, { name: "n", version: "1.0.0", location: "/l" });
+    roundTrip(WIRE_METHODS["ext.install"].result, {
+      name: "n",
+      version: "1.0.0",
+      location: "/l",
+      appliesAt: "restart",
+    });
+    // 설치는 미리 보기의 해시를 함께 받는다
+    const install = WIRE_METHODS["ext.install"].params;
+    expect(parse(install, { source: "/s", sha256: "a".repeat(64) }).ok).toBe(true);
+    expect(parse(install, { source: "/s" }).ok).toBe(false);
+    expect(parse(install, { source: "/s", sha256: "XYZ" }).ok).toBe(false);
+    expect(parse(WIRE_METHODS["ext.installPreview"].params, { source: "/s" }).ok).toBe(true);
+    roundTrip(WIRE_METHODS["ext.installPreview"].result, {
+      name: "n",
+      version: "1.0.0",
+      displayName: null,
+      description: "d",
+      source: "/s",
+      sha256: "a".repeat(64),
+      trustRequest: "user",
+      installedVersion: "0.9.0",
+      hooks: ["turn.before"],
+      tools: [],
+      capabilities: [{ id: "web.fetch", optional: false }],
+      network: ["web.fetch"],
+      files: [],
+      shell: [],
+      drives: false,
+      warnings: [{ severity: "warning", code: "AU-006", path: "/ui", message: "m" }],
+    });
     roundTrip(WIRE_METHODS["ext.remove"].result, { name: "n", appliesAt: "restart" });
   });
 

@@ -22,6 +22,8 @@ const KIND: KindEntry = {
   security: [],
 };
 
+const SHA = "a".repeat(64);
+
 async function open(host: FakeHost) {
   const { connection } = host.connect();
   await connection.request("host.hello", HELLO_PARAMS);
@@ -67,7 +69,9 @@ test("ext.scaffold, ext.validate, ext.package and ext.install hand their params 
         },
         install: (input) => {
           seen.push(["install", input]);
-          return Promise.resolve(ok({ name: "demo", version: "0.1.0", location: "/ext/demo" }));
+          return Promise.resolve(
+            ok({ name: "demo", version: "0.1.0", location: "/ext/demo", appliesAt: "restart" }),
+          );
         },
       },
     },
@@ -85,16 +89,17 @@ test("ext.scaffold, ext.validate, ext.package and ext.install hand their params 
     files: ["a"],
     sha256: "a".repeat(64),
   });
-  expect(await connection.request("ext.install", { source: "/out" })).toEqual({
+  expect(await connection.request("ext.install", { source: "/out", sha256: SHA })).toEqual({
     name: "demo",
     version: "0.1.0",
     location: "/ext/demo",
+    appliesAt: "restart",
   });
   expect(seen).toEqual([
     ["scaffold", { kind: "single-plugin", name: "demo", dir: "/d" }],
     ["validate", "/d"],
     ["pack", { dir: "/d", out: "/o" }],
-    ["install", { source: "/out" }],
+    ["install", { source: "/out", expectedSha256: SHA }],
   ]);
   await connection.close();
 });
@@ -186,7 +191,9 @@ test("a port failure becomes the wire error of the table: input problems are inv
   });
   const io = await wireErrorOf(connection.request("ext.package", { dir: "/d" }));
   expect(io.data).toMatchObject({ kind: "store.io" });
-  const denied = await wireErrorOf(connection.request("ext.install", { source: "/s" }));
+  const denied = await wireErrorOf(
+    connection.request("ext.install", { source: "/s", sha256: SHA }),
+  );
   expect(denied.data).toMatchObject({
     details: { issues: [{ path: "/source", message: "denied: builtin" }] },
   });
@@ -211,4 +218,72 @@ test("host.hello lists the seven authoring methods as features and leaves ext.te
   expect(names).not.toContain("ext.test.run");
   expect(names).not.toContain("ext.test.list");
   await connection.close();
+});
+
+const PREVIEW = {
+  name: "demo",
+  version: "0.2.0",
+  displayName: null,
+  description: null,
+  source: "/out",
+  sha256: SHA,
+  trustRequest: "user",
+  installedVersion: "0.1.0",
+  hooks: ["boundary.settle.after"],
+  tools: [],
+  capabilities: [{ id: "web.fetch", optional: false }],
+  network: ["web.fetch"],
+  files: [],
+  shell: [],
+  drives: false,
+  warnings: [],
+} as const;
+
+test("ext.installPreview returns the port's preview values as they are", async () => {
+  const seen: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        installPreview: (input) => {
+          seen.push(input);
+          return Promise.resolve(ok(PREVIEW));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  expect(await connection.request("ext.installPreview", { source: "/out" })).toEqual(PREVIEW);
+  expect(seen).toEqual([{ source: "/out" }]);
+  await connection.close();
+});
+
+async function installFailure(kind: "source_changed" | "safe_mode_active" | "managed_locked") {
+  const host = createFakeHost({
+    overrides: {
+      devkit: { install: () => Promise.resolve(err({ kind, message: `${kind} message` })) },
+    },
+  });
+  const connection = await open(host);
+  const caught = await wireErrorOf(
+    connection.request("ext.install", { source: "/s", sha256: SHA }),
+  );
+  await connection.close();
+  return caught.data;
+}
+
+test("ext.install maps a changed source, safe mode and a managed lock to wire errors", async () => {
+  const [changed, safe, locked] = await Promise.all([
+    installFailure("source_changed"),
+    installFailure("safe_mode_active"),
+    installFailure("managed_locked"),
+  ]);
+  expect(safe).toMatchObject({ kind: "extension.safeModeActive" });
+  expect(changed).toMatchObject({
+    kind: "jsonrpc.invalidParams",
+    details: { issues: [{ path: "/source", message: "source_changed: source_changed message" }] },
+  });
+  expect(locked).toMatchObject({
+    kind: "jsonrpc.invalidParams",
+    details: { issues: [{ path: "/source", message: "managed_locked: managed_locked message" }] },
+  });
 });

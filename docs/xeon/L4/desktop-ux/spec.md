@@ -2346,7 +2346,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 다시 켜기(자동 꺼짐) | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable { name }` `[gap:W-21]` |
 | 주도 플러그인 바꾸기 | `settings.set { key: "x.primitives.activeDriver" }` |
 | drive는 플러그인 그룹만 바꾸기 | `settings.set { key: "x.primitives.driveRequiresGroup" }`. 끄기 전에 위 문장을 보인다 |
-| 새 그룹, 가져오기 | P-21 "새 그룹", 설치 `[gap:W-32]` |
+| 새 그룹, 가져오기 | P-21 "새 그룹", 설치(W-32. 확장 목록 머리의 "플러그인 가져오기", 아래 W-32 줄) |
 
 - 설정 시안 반영 [결정: 오케스트레이터 기본값]: 설정 시안(`m4/pages-settings`의 `p13-plugins`)이 P-13을 런타임 화면으로 다시 그렸습니다. 그 내용은 LightCraft에 이렇게 나눠 둡니다. P-13은 LightCraft의 최상위 내비 "확장"이고, 시안이 제안한 최상위 "그룹/런타임" 내비는 LightCraft 영역 자체가 맡습니다.
   - P-13에 둡니다: 층별 묶음(L3 그룹은 내장·사용자·프로젝트로, L2·L1·L0 플러그인), 행마다 쓰는 연산 수(on, post, drive, scope), "다음 단계 경계에 적용" 대기 표시, 자동 꺼짐과 "다시 켜기", 프로젝트 그룹의 "신뢰 필요", L0 "항상 켜짐", managed 위치 잠김, 필요한 기능이 없어 켜지지 못한 "기능 대기"(`requires` 미충족, `X.loading-trust.spec` §4.8), 행 메뉴 "다시 읽기"(`[gap:W-38]`), 머리 "새 그룹"(P-21 구성기로 감, 대화 상자로 두지 않음).
@@ -2384,7 +2384,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 ```
 
 - 목적: 확장 하나의 설계와 상태를 탭 여덟으로 봅니다(SC-17, SC-18, SC-20, SC-22).
-- 머리: 이름, 층, 종류, 등급(요청과 유효), 버전, 상태, "켜기·끄기", 더보기(`Menu`: 폴더 열기, 매니페스트 복사, 지우기 `[gap:W-32]`).
+- 머리: 이름, 층, 종류, 등급(요청과 유효), 버전, 상태, "켜기·끄기", 더보기(`Menu`: 폴더 열기, 매니페스트 복사, 지우기 [제안: 앱 안 지우기는 이번 범위 밖, `ext.remove`는 wire에 있음]).
 
 | 탭 | 항목 | 출처 |
 |---|---|---|
@@ -3154,7 +3154,7 @@ export const palette = [
 | W-29 | 시험 실행과 결과(replay, Test run 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10. wire `ReplayReport`는 칸별 `cuts`를 싣지 않습니다(§6.26). 개발 모드 판정 키 `l3.authoring.devMode`는 카탈로그에 아직 없습니다 |
 | W-30 | benchmark와 코어 변경 검사 실행 | P-19, P-20 | `just benchmark --server`, `bun scripts/core-diff-check.ts <base>`는 저장소 스크립트(배포 앱에 없음) | 개발 모드 전용 셸 명령 [결정: 2026-10-31 사용자]. 배포 앱은 결과 읽기만 |
 | W-31 | 확장 버전 기록과 되돌리기 | P-17, O-11 | 기본 플러그인은 번들 버전이 높을 때 디렉터리째 교체하고 이전 설치본을 기록한다(X-8). `ext.versions`·`ext.rollback` 처리기가 연결됐다(host-service HS-108). 버전 탭은 기본 플러그인의 앱에 든 번들 판을 "앱에 든 버전" 행으로 보이고 되돌릴 수 있다(`ext.versions`의 `bundledVersion`, 되돌리기 전에 번들 판을 기록한다). 되돌린 코드는 재시작 뒤에 돈다 [미결 host-service §10 54]. 되돌린 기본 플러그인은 다음 시작에 번들 판으로 돌아갈 수 있다 [미결 host-service §10 57] | `ext.versions { name }`, `ext.rollback { name, version }`. M4에 되는 만큼, 대체 경로는 §6.24.1 [결정: 2026-10-31 사용자] |
-| W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, Plugin Builder | 디렉터리 복사 | `ext.install { source }`, `ext.remove { name }` [미결] |
+| W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, Plugin Builder | 디렉터리 복사 | `ext.installPreview { source }`, `ext.install { source, sha256 }`, `ext.remove { name }` [결정: 2026-11-04 사용자, Q9: 플러그인은 앱 안에서 설치하고 설치 전에 권한을 확인받는다] |
 | W-33 | 화면 기여 목록, 확장 메서드, 화면용 post·승인 | P-18, 슬롯 전부 | `ext.ui.list` 처리기가 연결됐다(host-service HS-108). `ext.ui.post`·`ext.ui.requestApproval`은 `threadId`를 필수로 받아 M4 T-UIPOST에서 열었다(host-service §10 52, HS-108). `ext.<id>.<verb>`는 M4 T-GK에서 열었다(`F.wire-settings.spec` §4.2) | `ext.ui.list`, `ext.<id>.<verb>`, `ext.ui.post`, `ext.ui.requestApproval`(ADR-0021 §6) |
 | W-34 | Test run 표지와 프로필 적용 생성 | P-19, P-21, P-02 | 없음 | `thread.create { testRun: true, profileId? }`, `ThreadSummary.testRun`(`{ profileId, target, paused }`) |
 | W-35 | 안전 모드 원인과 안전 모드 재시작 | P-16, P-13, P-08 | `host.status.safeMode` 불리언만, 데스크톱 재시작 명령 없음 | `host.status.safeModeCause`, 셸 명령 `engine_restart { safeMode }` |
@@ -3173,6 +3173,13 @@ export const palette = [
 | W-48 | Test run 단계 경계 멈춤 | P-19, P-21, P-02 | 없음 | `testRun.pause { threadId }`, `testRun.resume`, `testRun.step`. Test run만, drive 락 유지 [결정: 2026-10-31 사용자] |
 | W-49 | 확장 묶음 만들기 | Plugin Builder, P-21 | 없음 | `ext.package { dir, out? }` → 경로, 파일 목록, SHA-256. 설치는 W-32 |
 | W-50 | Test run의 단계 투영 | P-21 흐름 시험 | 상태 문서는 비공개(`F.extensions.spec` §3.6) | `testRun.phase { threadId }`와 이벤트. Test run에서 `grp.<id>.state.committed`의 `phase`만 |
+
+- W-32 앱 안 설치 화면 [결정: 2026-11-04 사용자, Q9 A]. 자리는 확장 목록(P-13) 머리의 "플러그인 가져오기" 단추가 여는 대화 상자(`views/workbench/install-dialog.tsx`, 순수 부분 `install-model.ts`)다. 부품은 caustic `Dialog`, `Input`, `Alert`, `Button`이고 정보 설명은 `InfoTip`(DP-58)이다.
+  - 흐름: 출처 입력 → 확인하기(`ext.installPreview`, 디스크에 쓰지 않음) → 권한 확인(이름, 버전, 출처, 바꿀 설치본 버전, 요청 권한, 들어 있는 것) → "허용하고 설치"(`ext.install`에 미리 보기의 `sha256`을 돌려줌) → 결과. 확인 화면에서 "뒤로"는 출처 입력으로 돌아간다.
+  - 출처는 이 컴퓨터의 묶은 폴더 경로(절대 경로 글 입력)만 받는다. URL, 마켓플레이스, 원격 카탈로그, 자동 업데이트는 범위 밖이다. [제안] 폴더 고르기 창은 이번에 잇지 않았다(입력란만).
+  - 위험 경고는 평소 보이는 `Alert`다: 명령 실행(`workspace.shell`), 인터넷(`web.*`, `mcp.*`), 프로젝트 파일(`workspace.files`, `workspace.images`), 기본 도구 바꾸기(`replaces`), 신뢰할 수 없는 등급 요청, 검사 경고. 요청한 것이 없으면 "추가로 요청하는 권한이 없어요" 한 줄이다. 섹션 설명(권한이 무엇인지, 훅이 무엇인지)과 출처 설명은 정보 아이콘 뒤에 둔다.
+  - 실패 문구는 갈래마다 하나다: 안전 모드(`extension.safeModeActive`), 관리자 잠금(`managed_locked`), 확인 뒤 내용 바뀜(`source_changed`, 확인 화면에 남아 "뒤로"로 다시 확인), 설치할 수 없는 폴더(`invalid_input`), 폴더 없음(`not_found`), 거부(`denied`), 연결 없음, 엔진 미지원, 그 밖. 입력 거절의 `<종류>: ` 머리를 `errorOf`가 `issue`로 남기고 화면이 가른다.
+  - 결과 문구는 `appliesAt`을 따른다: `restart`이면 "앱을 다시 시작하면 목록에 나타나요"(로더에 새 이름을 싣는 길이 없다 [근거: `packages/ext-host/src/loading-trust/index.ts` `ExtensionLoader`]), 아니면 "다음 단계부터 적용돼요". 설치 뒤 확장 목록을 다시 읽는다.
 
 ### 10.2 view-model 간극
 

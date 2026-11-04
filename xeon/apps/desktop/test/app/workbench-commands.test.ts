@@ -449,6 +449,32 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
+  test("installPreview는 출처를, install은 출처와 미리 보기 해시를 그대로 보낸다", async () => {
+    const sha256 = "b".repeat(64);
+    const installed = {
+      name: "docs",
+      version: "1.0.0",
+      location: "/ext/docs",
+      appliesAt: "restart",
+    } as const;
+    const { app, params } = await liveApp({ results: { "ext.install": installed } });
+    expect(await app.commands.workbench.install("/plugins/docs", sha256)).toEqual({
+      ok: true,
+      value: installed,
+    });
+    expect(paramsOf(params, "ext.install")).toEqual([{ source: "/plugins/docs", sha256 }]);
+    await app.stop();
+  });
+
+  test("install이 안전 모드와 잠금으로 거절되면 화면이 가를 수 있는 오류로 돌아온다", async () => {
+    const { app } = await liveApp({
+      errors: { "ext.install": { code: 3403, kind: "extension.safeModeActive" } },
+    });
+    const refused = await app.commands.workbench.install("/plugins/docs", "b".repeat(64));
+    expect(refused).toEqual({ ok: false, error: { kind: "rejected", code: 3403 } });
+    await app.stop();
+  });
+
   test("rollback은 번들 판을 version으로 보내고 clearState는 참일 때만 싣는다", async () => {
     const result: ExtRollbackResult = { appliesAt: "restart", stateCleared: false };
     const { app, params } = await liveApp({ results: { "ext.rollback": result } });

@@ -122,6 +122,34 @@ export interface PackResult {
 export interface LinkInput {
   /** 묶음 또는 폴더 경로 */
   readonly source: string;
+  /** 미리 보기(`InstallPreview.sha256`)에서 본 내용 해시. 있으면 복사본의 해시가 같을 때만 놓는다(다르면 `source_changed`) */
+  readonly expectedSha256?: string;
+}
+/** 앱 안 설치의 미리 보기(`ext.installPreview`). 디스크에 아무것도 쓰지 않는다 */
+export interface InstallPreview {
+  readonly name: string;
+  readonly version: string;
+  readonly displayName: string | null;
+  readonly description: string | null;
+  /** 출처 폴더 경로 */
+  readonly source: string;
+  /** 폴더 내용 해시(`folderHash`). 설치 때 `LinkInput.expectedSha256`으로 돌려준다 */
+  readonly sha256: string;
+  /** 매니페스트가 요청한 신뢰 등급. 요청이 없으면 null */
+  readonly trustRequest: "user" | "project" | "untrusted" | null;
+  /** 같은 이름의 설치본이 있으면 그 버전(바꿔 놓게 된다) */
+  readonly installedVersion: string | null;
+  readonly hooks: readonly string[];
+  /** 같은 이름으로 바꿔 놓겠다고 선언한 내장 도구 */
+  readonly tools: readonly string[];
+  /** 요청한 기능. 선택이면 `optional` */
+  readonly capabilities: readonly { readonly id: string; readonly optional: boolean }[];
+  /** 요청한 기능 가운데 네트워크(`web.*`, `mcp.*`), 파일(`workspace.files`, `workspace.images`), 명령 실행(`workspace.shell`)에 닿는 것 */
+  readonly network: readonly string[];
+  readonly files: readonly string[];
+  readonly shell: readonly string[];
+  readonly drives: boolean;
+  readonly warnings: readonly DevkitIssue[];
 }
 export interface LinkResult {
   readonly name: string;
@@ -136,6 +164,12 @@ export const DEVKIT_ERROR_KINDS = [
   "exists",
   "blocked_kind",
   "denied",
+  /** 미리 보기 뒤 폴더 내용이 바뀌었다 */
+  "source_changed",
+  /** 안전 모드라 설치하지 않는다 */
+  "safe_mode_active",
+  /** `managed` 범위가 이 확장의 설정을 잠갔다 */
+  "managed_locked",
   "io",
 ] as const;
 export type DevkitErrorKind = (typeof DEVKIT_ERROR_KINDS)[number];

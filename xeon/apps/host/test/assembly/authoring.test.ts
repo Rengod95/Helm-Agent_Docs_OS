@@ -52,7 +52,7 @@ test("the service forwards to the wire port and maps install to link", async () 
     },
     install: async (input) => {
       calls.push(`install:${input.source}`);
-      return ok({ name: "demo", version: "0.1.0", location: "/ext/demo" });
+      return ok({ name: "demo", version: "0.1.0", location: "/ext/demo", appliesAt: "restart" });
     },
   });
   const service = devkitServiceOf(wiringOf(port));

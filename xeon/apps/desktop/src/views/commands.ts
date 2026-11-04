@@ -7,6 +7,7 @@ import type {
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
+import type { InstallPreview } from "@fresnel/contracts/services";
 import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 import type { DenyAnswerJson, PlanAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
 import type {
@@ -20,6 +21,7 @@ import type {
   GroupStatusWire,
   HookEntry,
   HostConnection,
+  ExtInstallResult,
   HooksOrderGetResult,
   HooksOrderPreviewResult,
   HooksOrderResetResult,
@@ -75,6 +77,8 @@ export type CommandError =
       readonly code: number | null;
       /** host가 값 검사 실패(`settings.invalidValue`, 3102)에서 준 첫 문제의 문장. 설정 화면이 그대로 보인다 */
       readonly detail?: string;
+      /** 입력 거절(`jsonrpc.invalidParams`)의 첫 문제 문장. `<종류>: <내용>` 꼴이면 화면이 종류를 가른다 */
+      readonly issue?: string;
     }
   | { readonly kind: "failed" }
   /** 엔진 대상을 바꾸는 중이라 쓰기를 보류했다(W-08). 새 엔진이 붙은 뒤 다시 보낸다 */
@@ -422,6 +426,10 @@ export interface WorkbenchCommands {
    * 알림의 값은 싣지 않는다(다시 읽는 신호일 뿐). 반환값은 구독 해제
    */
   onChanged(listener: () => void): () => void;
+  /** `ext.installPreview`: 폴더의 이름, 버전, 요청 권한을 디스크에 쓰지 않고 읽는다(Q9) */
+  installPreview(source: string): Promise<Result<InstallPreview, CommandError>>;
+  /** `ext.install`: 미리 보기에서 본 해시(`sha256`)와 같은 내용일 때만 설치한다 */
+  install(source: string, sha256: string): Promise<Result<ExtInstallResult, CommandError>>;
   /** `ext.get`: 매니페스트 훅·기능 바인딩·진단 */
   get(name: string): Promise<Result<ExtGetResult, CommandError>>;
   /** `group.list { threadId }`: 그룹마다 켜짐 요청 중인지(`pendingToggle`)와 drive 역할(`drive`) */

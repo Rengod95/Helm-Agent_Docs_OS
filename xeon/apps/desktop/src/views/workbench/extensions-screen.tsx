@@ -2,17 +2,20 @@
 // 고른 확장은 옆의 선택 패널이 보이고, "자세히 보기"가 열려 있으면 목록 대신 P-17 상세(버전 탭과 되돌리기 포함)를 그린다.
 import { t } from "@fresnel/client/i18n";
 import { selectedEntry, visibleRows } from "@fresnel/client/workbench";
-import { EmptyState } from "@caustic/react";
-import type { ReactNode } from "react";
+import { Button, EmptyState } from "@caustic/react";
+import { Plus } from "@caustic/react/icons";
+import { useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { CountsLine, ListStatusBand, SearchField, useToggleRequest } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { ExtDetail } from "./ext-detail.tsx";
+import { InstallDialog } from "./install-dialog.tsx";
 import { LayerList } from "./layer-list.tsx";
 import { SelectionPanel } from "./selection-panel.tsx";
 
 export function ExtensionsScreen(): ReactNode {
   const controller = useWorkbenchController();
+  const [installing, setInstalling] = useState(false);
   const toggle = useToggleRequest(controller);
   const actions = useWorkbenchActions();
   const state = useWorkbench((s) => s);
@@ -24,10 +27,33 @@ export function ExtensionsScreen(): ReactNode {
   const detailEntry = state.detail === null ? null : entry;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-6">
-      <header className="grid gap-0.5">
-        <h1 className="text-ui-strong text-text-primary">{t("desktop.workbench.list.title")}</h1>
-        <CountsLine />
+      <header className="flex items-start justify-between gap-2">
+        <div className="grid gap-0.5">
+          <h1 className="text-ui-strong text-text-primary">{t("desktop.workbench.list.title")}</h1>
+          <CountsLine />
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          iconStart={<Plus />}
+          onClick={() => {
+            setInstalling(true);
+          }}
+        >
+          {t("desktop.install.open")}
+        </Button>
       </header>
+      {installing && (
+        <InstallDialog
+          open
+          onClose={() => {
+            setInstalling(false);
+          }}
+          onInstalled={() => {
+            detachVoid(controller.reload());
+          }}
+        />
+      )}
       <SearchField />
       <ListStatusBand controller={controller} />
       {ready && detailEntry !== null && (

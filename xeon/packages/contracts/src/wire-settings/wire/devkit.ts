@@ -12,6 +12,7 @@ import {
 import type {
   DevkitIssue,
   ExtensionKind,
+  InstallPreview,
   KindEntry,
   LinkResult,
   PackResult,
@@ -170,14 +171,80 @@ export const ExtPackageResultSchema: TUnsafe<PackResult> = Type.Unsafe<PackResul
 /** `ext.install`(W-32). 설치는 사람 확인 뒤 호스트가 서비스 `link`로 한다 */
 export interface ExtInstallParams {
   readonly source: string;
+  /** `ext.installPreview`가 돌려준 `sha256`. 다르면 `source_changed`로 거부한다 */
+  readonly sha256: string;
 }
-const ExtInstallParamsShape = request({ source: Path });
+const Sha256 = Type.String({ pattern: "^[0-9a-f]{64}$" });
+const ExtInstallParamsShape = request({ source: Path, sha256: Sha256 });
 export const ExtInstallParamsSchema: TUnsafe<Req<ExtInstallParams>> = Type.Unsafe<
   Req<ExtInstallParams>
 >(ExtInstallParamsShape satisfies SchemaProof<Req<ExtInstallParams>, typeof ExtInstallParamsShape>);
-const ExtInstallResultShape = closed({ name: Name, version: Name, location: Path });
-export const ExtInstallResultSchema: TUnsafe<LinkResult> = Type.Unsafe<LinkResult>(
-  ExtInstallResultShape satisfies SchemaProof<LinkResult, typeof ExtInstallResultShape>,
+/** 설치한 확장이 켜지는 때. 같은 이름이 실행 중이면 호출자가 `ext.reload`로 단계 경계에서 바꾼다. 새 이름은 다음 시작부터다(`restart`) */
+export interface ExtInstallResult extends LinkResult {
+  readonly appliesAt: "now" | "nextStepBoundary" | "restart";
+}
+const ExtInstallResultShape = closed({
+  name: Name,
+  version: Name,
+  location: Path,
+  appliesAt: Type.Union([Type.Literal("nextStepBoundary"), Type.Literal("restart")]),
+});
+export const ExtInstallResultSchema: TUnsafe<ExtInstallResult> = Type.Unsafe<ExtInstallResult>(
+  ExtInstallResultShape satisfies SchemaProof<ExtInstallResult, typeof ExtInstallResultShape>,
+);
+
+/** `ext.installPreview`(W-32). 설치 전 확인 화면 값. 디스크에 쓰지 않는다 */
+export interface ExtInstallPreviewParams {
+  readonly source: string;
+}
+const ExtInstallPreviewParamsShape = request({ source: Path });
+export const ExtInstallPreviewParamsSchema: TUnsafe<Req<ExtInstallPreviewParams>> = Type.Unsafe<
+  Req<ExtInstallPreviewParams>
+>(
+  ExtInstallPreviewParamsShape satisfies SchemaProof<
+    Req<ExtInstallPreviewParams>,
+    typeof ExtInstallPreviewParamsShape
+  >,
+);
+const CapabilityRef = closed({ id: Name, optional: Type.Boolean() });
+const ExtInstallPreviewResultShape = closed({
+  name: Name,
+  version: Name,
+  displayName: Type.Union([Name, Type.Null()]),
+  description: Type.Union([Type.String({ maxLength: 1024 }), Type.Null()]),
+  source: Path,
+  sha256: Sha256,
+  trustRequest: Type.Union([
+    Type.Literal("user"),
+    Type.Literal("project"),
+    Type.Literal("untrusted"),
+    Type.Null(),
+  ]),
+  installedVersion: Type.Union([Name, Type.Null()]),
+  hooks: Type.Array(Name, { maxItems: 1024 }),
+  tools: Type.Array(Name, { maxItems: 256 }),
+  capabilities: Type.Array(CapabilityRef, { maxItems: 2048 }),
+  network: Type.Array(Name, { maxItems: 256 }),
+  files: Type.Array(Name, { maxItems: 256 }),
+  shell: Type.Array(Name, { maxItems: 256 }),
+  drives: Type.Boolean(),
+  warnings: Type.Array(
+    closed({
+      severity: Type.Union([Type.Literal("error"), Type.Literal("warning"), Type.Literal("info")]),
+      code: Name,
+      path: Type.String({ maxLength: 512 }),
+      message: Type.String({ maxLength: 2048 }),
+      file: Type.Optional(Path),
+      line: Type.Optional(Count),
+    }),
+    { maxItems: 500 },
+  ),
+});
+export const ExtInstallPreviewResultSchema: TUnsafe<InstallPreview> = Type.Unsafe<InstallPreview>(
+  ExtInstallPreviewResultShape satisfies SchemaProof<
+    InstallPreview,
+    typeof ExtInstallPreviewResultShape
+  >,
 );
 
 export interface ExtRemoveParams {
@@ -289,7 +356,8 @@ export interface DevkitWireSchemas {
   "ext.scaffold": Io<U<Req<ExtScaffoldParams>>, U<ScaffoldResult>>;
   "ext.validate": Io<U<Req<ExtDirParams>>, U<ExtValidateDirResult>>;
   "ext.package": Io<U<Req<ExtPackageParams>>, U<PackResult>>;
-  "ext.install": Io<U<Req<ExtInstallParams>>, U<LinkResult>>;
+  "ext.installPreview": Io<U<Req<ExtInstallPreviewParams>>, U<InstallPreview>>;
+  "ext.install": Io<U<Req<ExtInstallParams>>, U<ExtInstallResult>>;
   "ext.remove": Io<U<Req<ExtRemoveParams>>, U<ExtRemoveResult>>;
   "ext.test.run": Io<U<Req<ExtTestRunParams>>, U<ExtTestRunResult>>;
   "ext.test.list": Io<U<NoParams>, U<ExtTestListResult>>;
@@ -305,6 +373,7 @@ export const DEVKIT_WIRE_METHODS: Table = {
   "ext.scaffold": m4(ExtScaffoldParamsSchema, ExtScaffoldResultSchema),
   "ext.validate": m4(ExtDirParamsSchema, ExtValidateDirResultSchema),
   "ext.package": m4(ExtPackageParamsSchema, ExtPackageResultSchema),
+  "ext.installPreview": m4(ExtInstallPreviewParamsSchema, ExtInstallPreviewResultSchema),
   "ext.install": m4(ExtInstallParamsSchema, ExtInstallResultSchema),
   "ext.remove": m4(ExtRemoveParamsSchema, ExtRemoveResultSchema),
   "ext.test.run": m4(ExtTestRunParamsSchema, ExtTestRunResultSchema),
