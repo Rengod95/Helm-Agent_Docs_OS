@@ -4,7 +4,7 @@ import {
   slashStepOf,
   type SlashLine,
 } from "@fresnel/client/settings";
-import { assertNever, attemptAsync, err, ok, type Result } from "@fresnel/contracts";
+import { assertNever, attemptAsync, err, ok, type Logger, type Result } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import {
   buildDiagnostics,
@@ -49,6 +49,8 @@ export type CommandDeps = {
   readonly clipboard: { writeText(text: string): Promise<void> };
   /** 엔진 대상을 바꾸는 동안 쓰기를 보류한다(W-08) */
   readonly engineSwitch: EngineSwitch;
+  /** 안전 모드 상태 읽기가 실패하면 원인을 남긴다(`setup.loadSafeMode`) */
+  readonly logger: Pick<Logger, "warn">;
 };
 
 export function createCommands(deps: CommandDeps): Commands {
@@ -246,6 +248,7 @@ export function createCommands(deps: CommandDeps): Commands {
       },
       deps.ipc,
       deps.local,
+      deps.logger,
     ),
     tests: createTestCommands(withConnection, withWriteConnection),
     measure: createMeasureCommands(withConnection),

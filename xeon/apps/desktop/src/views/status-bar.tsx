@@ -16,6 +16,7 @@ import { useCommands } from "./commands.ts";
 import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
 import { usePluginUiState } from "./plugin/plugin-context.tsx";
 import { RestartLine } from "./restart-line.tsx";
+import { SafeModeChip } from "./safe-mode-chip.tsx";
 
 const LINK_TEXT: Readonly<Record<Link["phase"], MessageId>> = {
   offline: "desktop.status.link.offline",
@@ -115,6 +116,7 @@ export function StatusBar(): ReactNode {
           ? ` ${t("desktop.status.link.attempt", { attempt: banner.attempt })}`
           : ""}
       </span>
+      <SafeModeChip />
       <span>{t("desktop.status.running", { count: running })}</span>
       {approvals > 0 ? (
         <span className="warn">{t("desktop.status.approvals", { count: approvals })}</span>

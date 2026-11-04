@@ -41,6 +41,20 @@ describe("engine restart commands", () => {
     await app.stop();
   });
 
+  test("the safe mode choices reach the shell with exactly their options, in order", async () => {
+    const engine = engineFake();
+    const app = makeApp(engine.fake);
+    expect(await app.commands.restartEngine({ safeMode: true, confirmed: true })).toBe(true);
+    expect(await app.commands.restartEngine({ safeMode: false, confirmed: true })).toBe(true);
+    expect(await app.commands.restartEngine({ confirmed: true })).toBe(true);
+    expect(engine.fake.restarts).toEqual([
+      { safeMode: true, confirmed: true },
+      { safeMode: false, confirmed: true },
+      { confirmed: true },
+    ]);
+    await app.stop();
+  });
+
   test("noteRestartNeeded records each install or rollback once", async () => {
     const app = makeApp(engineFake().fake);
     app.commands.noteRestartNeeded({ kind: "install", name: "alpha" });

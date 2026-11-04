@@ -248,6 +248,20 @@ export interface GroupsSnapshot {
   readonly safeMode: boolean;
 }
 
+/** 안전 모드의 원인(`host.status.safeModeCause`). user: 사용자가 켰다, startupFailures: 연속 시작 실패, flag: 실행 인자 */
+export type SafeModeCause = "user" | "startupFailures" | "flag";
+
+/**
+ * 안전 모드 상태(`host.status`, W-35·W-39). 값이 없으면 거짓, null, 0이다. `suggest`는 연속 시작 실패가 제안 기준에 닿았다는 뜻이다.
+ * 엔진이 running이 되면 한 번 읽는다(`safe-mode-provider.tsx`). 읽지 못하면 화면은 아무것도 그리지 않는다.
+ */
+export interface SafeModeSnapshot {
+  readonly active: boolean;
+  readonly cause: SafeModeCause | null;
+  readonly startupFailures: number;
+  readonly suggest: boolean;
+}
+
 /** 검색 권장 단계의 값: 웹 provider 상태(`web.providers`)와 "나중에"를 이미 눌렀는지(데스크톱 로컬 설정) */
 export interface SearchSnapshot {
   readonly web: ToolsWebView;
@@ -288,6 +302,8 @@ export interface SetupCommands {
   setDefaultModel(ref: string): Promise<Result<null, CommandError>>;
   /** 기본 그룹 두 개의 켜짐 값(`settings.get`)과 안전 모드(`host.status`)를 읽는다 */
   loadGroups(): Promise<Result<GroupsSnapshot, CommandError>>;
+  /** 안전 모드 상태를 읽는다(`host.status`의 `safeMode`, `safeModeCause`, `startupFailures`, `suggestSafeMode`) */
+  loadSafeMode(): Promise<Result<SafeModeSnapshot, CommandError>>;
   /** 기본 그룹 하나를 켜거나 끈다(`settings.set { key: "ext.<그룹>.enabled", scope: "user" }`). 적용은 다음 단계 경계다 */
   setGroupEnabled(group: DefaultGroupId, enabled: boolean): Promise<Result<null, CommandError>>;
   /** 검색 권장을 읽는다(`web.providers`와 "나중에" 값) */

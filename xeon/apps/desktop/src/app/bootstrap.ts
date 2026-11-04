@@ -132,6 +132,7 @@ export function createApp(env: AppEnv): App {
     versions: () => ({ app: env.appVersion, engine: session.engineVersion() }),
     clipboard: env.clipboard,
     engineSwitch,
+    logger: log.logger,
   });
   return {
     engine,
