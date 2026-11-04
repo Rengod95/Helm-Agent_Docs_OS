@@ -1851,7 +1851,7 @@ export const WIRE_METHODS: {
   "secret.remove": spec(SecretNameRequestSchema, SecretRemoveResultSchema, "M2"),
   "secret.test": spec(SecretNameRequestSchema, SecretTestResultSchema, "M2"),
   "secret.references": spec(SecretNameRequestSchema, SecretReferencesResultSchema, "M2"),
-  "secret.audit": spec(SecretAuditRequestSchema, SecretAuditResultSchema, "M2"),
+  "secret.audit": spec(SecretAuditRequestSchema, SecretAuditResultSchema, "M4"),
   "secret.beginEntry": spec(
     withMeta(SecretBeginEntryParamsSchema),
     SecretBeginEntryResultSchema,

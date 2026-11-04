@@ -340,7 +340,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.remove` | `{ name: SecretName }` | `{ removed: boolean }` | M2 |
 | secret | `secret.test` | `{ name: SecretName }` | `{ state: "registered"\|"missing", decryptable: boolean, length: integer \| null, sha256Prefix: string \| null }` | M2 |
 | secret | `secret.references` | `{ name: SecretName }` | `{ settingKeys: SettingKey[], activeLeases: integer, sessions: ThreadId[] }` | M2 |
-| secret | `secret.audit` | `{ name: SecretName, limit?: integer }` | `{ entries: SecretAuditEntry[] }` | M2 |
+| secret | `secret.audit` | `{ name: SecretName, limit?: integer }` | `{ entries: SecretAuditEntry[] }` | M4 |
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate", meta?: SecretEntryMeta }` | `{ started: boolean }` | M2 |
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 | proposal | `proposal.list` | `{ source?: "learning"\|"knowledge", status?: ProposalStatusWire[], limit?: integer(1..200), cursor?: string }` | `{ proposals: ProposalRow[], nextCursor: string \| null, unavailable: ProposalSource[] }` | M3 |
