@@ -15,11 +15,11 @@ import {
 } from "./install-model.ts";
 
 const FAILURE_TEXT: Readonly<Record<InstallFailure, MessageId>> = {
-  safe_mode: "desktop.install.fail.safe_mode",
-  managed_locked: "desktop.install.fail.managed_locked",
-  source_changed: "desktop.install.fail.source_changed",
-  invalid_input: "desktop.install.fail.invalid_input",
-  not_found: "desktop.install.fail.not_found",
+  safe_mode: "desktop.install.fail.safeMode",
+  managed_locked: "desktop.install.fail.managedLocked",
+  source_changed: "desktop.install.fail.sourceChanged",
+  invalid_input: "desktop.install.fail.invalidInput",
+  not_found: "desktop.install.fail.notFound",
   denied: "desktop.install.fail.denied",
   offline: "desktop.install.fail.offline",
   unsupported: "desktop.install.fail.unsupported",
