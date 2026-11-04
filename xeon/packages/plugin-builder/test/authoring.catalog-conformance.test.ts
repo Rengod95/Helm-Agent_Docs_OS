@@ -1,6 +1,7 @@
 import { cpSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
+import { scanDriveSource } from "@fresnel/group-sdk/testing";
 import { catalogConformance, KIND_CATALOG } from "../src/index.ts";
 import { tempRoot, templateDirs } from "./support.ts";
 
@@ -11,7 +12,9 @@ test("authoring.catalog-conformance: every stable or preview entry scaffolds and
     "plugin-group:stable",
     "single-plugin:stable",
   ]);
-  expect(await catalogConformance(templateDirs())).toEqual([]);
+  expect(
+    await catalogConformance(templateDirs(), KIND_CATALOG, { scanDrive: scanDriveSource }),
+  ).toEqual([]);
 });
 
 test("authoring.catalog-conformance: a renamed hook in a template fails conformance and names the entry (A-7)", async () => {

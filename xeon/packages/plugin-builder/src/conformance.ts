@@ -6,10 +6,11 @@ import type { KindEntry, ScaffoldInput } from "@fresnel/contracts/services";
 import { KIND_CATALOG } from "./catalog.ts";
 import { scaffoldExtension } from "./scaffold.ts";
 import type { TemplateDirs } from "./templates-dir.ts";
-import { validateExtensionDir } from "./validate.ts";
+import { validateExtensionDir, type ValidateOptions } from "./validate.ts";
 
 // L3.authoring.spec §4.4 2번 카탈로그 적합성. `stable`·`preview` 항목마다 뼈대를 실제로 만들고 `validate`가 오류 0인지 본다.
 // F 훅 표, 매니페스트 스키마가 바뀌어 템플릿이 깨지면 문제 목록에 그 파일 이름이 나온다.
+// 재생 규율(AU-012)까지 보려면 `options.scanDrive`를 넘긴다(시험이 `scanDriveSource`를 넘긴다).
 
 const POLICY: CompositionDecl = {
   blocks: [{ id: "guard", stage: "guard", op: "on", hooks: ["tool.call.before"] }],
@@ -32,6 +33,7 @@ function inputsOf(entry: KindEntry, dir: string): readonly ScaffoldInput[] {
 export async function catalogConformance(
   templates: TemplateDirs,
   catalog: readonly KindEntry[] = KIND_CATALOG,
+  options: ValidateOptions = {},
 ): Promise<readonly string[]> {
   const problems: string[] = [];
   for (const entry of catalog) {
@@ -51,7 +53,7 @@ export async function catalogConformance(
           continue;
         }
         // oxlint-disable-next-line no-await-in-loop -- 위 뼈대를 검사하는 순차 단계다 (eng.typescript.guide TY-22)
-        const report = await validateExtensionDir(input.dir);
+        const report = await validateExtensionDir(input.dir, options);
         if (!report.ok) {
           problems.push(
             `${entry.id}/${input.name}: validate ${report.error.kind}: ${report.error.message}`,

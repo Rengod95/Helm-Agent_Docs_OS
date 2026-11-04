@@ -173,9 +173,9 @@ M4 첫 카탈로그 [제안]:
 | AU-009 | 시크릿: 설정에 시크릿처럼 보이는 키가 `secret: true` 없이 있음, 소스에 시크릿 리터럴 패턴 | 오류 |
 | AU-010 | 사람 확인이 필요한 단계(외부 쓰기, 비용)에 `loop.ask` 또는 `approval: true`가 없음 | 경고 |
 | AU-011 | 상태 스키마 `version`과 마이그레이션 훅(`L3.group-sdk.spec` §4.7) | 경고 |
-| AU-012 | 재생 규율: `scanDriveSource` 위반 | 오류 |
+| AU-012 | 재생 규율: `scanDriveSource` 위반 | 오류(검사기를 넘긴 호출). 릴리즈 바이너리에는 파서가 없어(`@swc/core`는 바이너리에 들어가면 안 됨) 검사가 돌지 않았다는 경고 |
 
-- [결정: M4 T-AUTH] 구현한 규칙: AU-001(이름 규칙과 예약 이름, 설치된 이름과 충돌), AU-002, AU-003(`validateManifest`·`validateComposition`의 구성 검사가 담당), AU-006, AU-007, AU-009(소스의 시크릿 리터럴 패턴), AU-012(`scanDriveSource`). AU-005는 F `validateUi`의 `ui_mode_not_allowed`·`ui_reason_empty`가 담당합니다. AU-004(`drive_duplicate`·`on_capability_call`은 F 구성 검사 결과를 `AU-004`로도 보이고, `capability_missing`은 `validateExtensionDir(dir, { providers })`로 제공자 목록을 받을 때만 경고한다. 호스트는 아직 목록을 주지 않는다), AU-008(Plugin App 화면에 같은 모양을 그린 `fallback` 트리가 있으면 정보. 트리 후보 판정을 그 하나로 둔다), AU-010(소스에 `loop.spawn(`이나 `.delegate(`가 있거나 단계 선언에 `spawn` 노드가 있는데 `.ask(`, `human` 노드, 메서드 `approval: true`가 모두 없으면 경고), AU-011(`g.commit(`·`g.state(`를 쓰는데 `state: { … version: N }` 선언이 없거나 N이 2 이상인데 `migrations`가 없으면 경고). AU-010과 AU-011은 소스 글자 휴리스틱이다. 아직 없는 규칙: AU-005의 `widgets`·`bridge` 범위 대조(T-VIEW 뒤).
+- [결정: M4 T-AUTH] 구현한 규칙: AU-001(이름 규칙과 예약 이름, 설치된 이름과 충돌), AU-002, AU-003(`validateManifest`·`validateComposition`의 구성 검사가 담당), AU-006, AU-007, AU-009(소스의 시크릿 리터럴 패턴), AU-012(`scanDriveSource`). 릴리즈 바이너리에는 파서가 없다(`@swc/core`는 바이너리에 들어가면 안 된다). 그래서 그 바이너리는 검사기를 넘기지 않고, AU-012는 검사가 돌지 않았다는 경고 하나만 낸다. 검사기를 넘긴 호출만 오류 규칙을 받는다. AU-005는 F `validateUi`의 `ui_mode_not_allowed`·`ui_reason_empty`가 담당합니다. AU-004(`drive_duplicate`·`on_capability_call`은 F 구성 검사 결과를 `AU-004`로도 보이고, `capability_missing`은 `validateExtensionDir(dir, { providers })`로 제공자 목록을 받을 때만 경고한다. 호스트는 아직 목록을 주지 않는다), AU-008(Plugin App 화면에 같은 모양을 그린 `fallback` 트리가 있으면 정보. 트리 후보 판정을 그 하나로 둔다), AU-010(소스에 `loop.spawn(`이나 `.delegate(`가 있거나 단계 선언에 `spawn` 노드가 있는데 `.ask(`, `human` 노드, 메서드 `approval: true`가 모두 없으면 경고), AU-011(`g.commit(`·`g.state(`를 쓰는데 `state: { … version: N }` 선언이 없거나 N이 2 이상인데 `migrations`가 없으면 경고). AU-010과 AU-011은 소스 글자 휴리스틱이다. 아직 없는 규칙: AU-005의 `widgets`·`bridge` 범위 대조(T-VIEW 뒤).
 
 ## 4. 동작 규칙
 

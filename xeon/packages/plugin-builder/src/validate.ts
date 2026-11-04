@@ -13,11 +13,11 @@ import {
 import type { DevkitError, DevkitIssue, ValidationReport } from "@fresnel/contracts/services";
 import { checkGroupName } from "@fresnel/group-sdk";
 import { au004, au008, au010, au011, type SourceText } from "./au-rules.ts";
-import { scanDriveSource } from "@fresnel/group-sdk/testing";
 import { arrayOf, invalid, io, mapAll } from "./errors.ts";
 
 // L3.authoring.spec §3.3 `validate`, §3.5 제작 검사. F 검사 함수(validateManifest, validateComposition)와
-// group-sdk 재생 규율 검사(scanDriveSource)를 차례로 돌리고 AU 규칙을 더한다. 규칙을 복사하지 않는다.
+// group-sdk 재생 규율 검사(검사기를 넘기면 scanDriveSource)를 차례로 돌리고 AU 규칙을 더한다. 규칙을 복사하지 않는다.
+// 릴리즈 바이너리는 검사기를 싣지 않는다(파서 `@swc/core`가 바이너리에 들어가면 안 된다). 그래서 이 모듈은 testing 진입점을 import하지 않는다.
 
 export const MANIFEST_PATH = ".fresnel-plugin/plugin.json";
 
@@ -127,9 +127,29 @@ function manifestOf(
   });
 }
 
+/** 재생 규율 검사 발견 한 건. `scanDriveSource`의 발견 중 이 모듈이 쓰는 필드만 적는다 */
+interface DriveFinding {
+  readonly severity: DevkitIssue["severity"];
+  readonly code: string;
+  readonly target: string;
+  readonly message: string;
+  readonly line: number;
+}
+
+/** 소스 한 파일을 재생 규율로 검사하는 함수. `scanDriveSource`(`@fresnel/group-sdk/testing`)와 같은 모양이다 */
+type DriveScanner = (
+  source: string,
+  options: { readonly fileName: string },
+) => readonly DriveFinding[];
+
 export interface ValidateOptions {
   /** 이 맥락에서 켜진 기능 제공자. 있으면 AU-004가 필수 기능의 제공자 없음을 경고한다 */
   readonly providers?: readonly CapabilityId[];
+  /**
+   * 재생 규율 검사기. 있으면 drive가 있는 확장의 위반마다 AU-012 오류를 낸다.
+   * 없으면 drive가 있을 때 검사가 돌지 않았다는 AU-012 경고를 폴더마다 한 번 낸다
+   */
+  readonly scanDrive?: DriveScanner;
 }
 
 /** 확장 폴더를 검사한다. 매니페스트가 없으면 `not_found`다 */
@@ -196,6 +216,7 @@ export async function validateExtensionDir(
   const files = await sourceFiles(dir);
   if (!files.ok) return files;
   const drives = manifest?.plugins.some((plugin) => plugin.drives === true) === true;
+  const scanDrive = options.scanDrive;
   const texts: SourceText[] = [];
   const sources = await mapAll(files.value, async (file) => {
     const source = await io(file, () => readFile(join(dir, file), "utf8"));
@@ -214,8 +235,8 @@ export async function validateExtensionDir(
           line: lineOf(source.value, match.index),
         });
     }
-    if (drives) {
-      for (const finding of scanDriveSource(source.value, { fileName: file }))
+    if (drives && scanDrive !== undefined) {
+      for (const finding of scanDrive(source.value, { fileName: file }))
         found.push({
           severity: finding.severity,
           code: "AU-012",
@@ -229,6 +250,14 @@ export async function validateExtensionDir(
   });
   if (!sources.ok) return sources;
   issues.push(...sources.value.flat());
+  if (drives && scanDrive === undefined)
+    issues.push({
+      severity: "warning",
+      code: "AU-012",
+      path: "",
+      message:
+        "the replay discipline scan did not run in this build; run scanDriveSource from @fresnel/group-sdk/testing to check the drive",
+    });
   issues.push(...au004(issues, manifest, options.providers));
   if (manifest !== undefined) {
     if (drives) issues.push(...au010(manifest, texts), ...au011(texts));

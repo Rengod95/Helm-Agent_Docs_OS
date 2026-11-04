@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
+import { scanDriveSource } from "@fresnel/group-sdk/testing";
 import {
   installExtension,
   looksSecret,
@@ -34,7 +35,7 @@ function editManifest(dir: string, edit: (manifest: Record<string, unknown>) => 
 
 test("authoring.validate: a fresh scaffold has no errors", async () => {
   const dir = await scaffolded("v-fresh");
-  const report = await validateExtensionDir(dir);
+  const report = await validateExtensionDir(dir, { scanDrive: scanDriveSource });
   expect(report).toEqual({ ok: true, value: { ok: true, issues: [] } });
 });
 
@@ -80,13 +81,39 @@ test("authoring.validate: AU-012 reports replay-discipline violations of the dri
     file,
     source.replace('if (st.phase === "done") return;', "if (Date.now() < 0) return;"),
   );
-  const report = await validateExtensionDir(dir);
+  const report = await validateExtensionDir(dir, { scanDrive: scanDriveSource });
   if (!report.ok) throw new Error(report.error.message);
   const found = report.value.issues.filter((entry) => entry.code === "AU-012");
   expect(found.length).toBe(1);
   expect(found[0]?.severity).toBe("error");
   expect(found[0]?.file).toBe("src/index.ts");
   expect(found[0]?.message).toContain("Date.now");
+});
+
+test("authoring.validate: without a drive scanner a driving extension gets one AU-012 warning for the folder and stays ok", async () => {
+  const dir = await scaffolded("v-no-scanner");
+  const report = await validateExtensionDir(dir);
+  expect(report).toEqual({
+    ok: true,
+    value: {
+      ok: true,
+      issues: [
+        {
+          severity: "warning",
+          code: "AU-012",
+          path: "",
+          message:
+            "the replay discipline scan did not run in this build; run scanDriveSource from @fresnel/group-sdk/testing to check the drive",
+        },
+      ],
+    },
+  });
+});
+
+test("authoring.validate: without a drive scanner a non-driving extension gets no AU-012 issue", async () => {
+  const dir = await scaffolded("v-single-no-scanner", "single-plugin");
+  const report = await validateExtensionDir(dir);
+  expect(report).toEqual({ ok: true, value: { ok: true, issues: [] } });
 });
 
 test("authoring.view-mode-checks: card with an app view, empty reason, project trust and no fallback", async () => {

@@ -12,6 +12,7 @@ import {
 } from "@fresnel/ext-host";
 import { createTestHost } from "@fresnel/ext-host/testing";
 import * as kit from "@fresnel/group-sdk";
+import { scanDriveSource } from "@fresnel/group-sdk/testing";
 import { packExtension, scaffoldExtension, validateExtensionDir } from "../src/index.ts";
 import { readManifest, tempRoot, templateDirs } from "./support.ts";
 
@@ -76,7 +77,10 @@ test("authoring.drive-bundle: a drive group packed as one file loads from the us
   const dir = root.path("src-group");
   const made = await scaffoldExtension({ kind: "plugin-group", name: NAME, dir }, { templates });
   if (!made.ok) throw new Error(made.error.message);
-  expect(await validateExtensionDir(dir)).toEqual({ ok: true, value: { ok: true, issues: [] } });
+  expect(await validateExtensionDir(dir, { scanDrive: scanDriveSource })).toEqual({
+    ok: true,
+    value: { ok: true, issues: [] },
+  });
   const packed = await packExtension({ dir });
   if (!packed.ok) throw new Error(packed.error.message);
   expect(packed.value.files).toEqual([".fresnel-plugin/plugin.json", "README.md", "dist/index.js"]);
