@@ -20,7 +20,7 @@ import type {
   TrustRequest,
   Unsubscribe,
 } from "@fresnel/contracts/extensions";
-import { isHookUnitName } from "../operations/hooks/index.ts";
+import { isHookUnitName } from "../operations/hooks/names.ts";
 import {
   createTraceBuffer,
   DEFAULT_TRACE_SETTINGS,

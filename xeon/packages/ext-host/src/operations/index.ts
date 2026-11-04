@@ -36,7 +36,7 @@ import {
   type FailureLedger,
 } from "./failure.ts";
 import { HOOK_SOURCE_TIER, HOOK_SOURCES } from "./hooks/config.ts";
-import { hookUnitName, isHookUnitName } from "./hooks/runner.ts";
+import { hookUnitName, isHookUnitName } from "./hooks/names.ts";
 import { createHookOrderState, type HookOrderState } from "./hook-order.ts";
 import { createResourcePolicy, NO_RESERVED_NAMES, type ReservedNames } from "./naming.ts";
 import type { OperationsSettingsSource } from "./settings-keys.ts";

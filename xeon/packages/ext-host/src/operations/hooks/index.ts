@@ -8,10 +8,5 @@ export {
 } from "./config.ts";
 export { hookEnv } from "./env.ts";
 export { interpretHookRun } from "./protocol.ts";
-export {
-  createHookRunner,
-  hookUnitName,
-  isHookUnitName,
-  type HookRunner,
-  type HookRunnerDeps,
-} from "./runner.ts";
+export { hookUnitName, isHookUnitName } from "./names.ts";
+export { createHookRunner, type HookRunner, type HookRunnerDeps } from "./runner.ts";
