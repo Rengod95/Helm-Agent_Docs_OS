@@ -2727,9 +2727,10 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 구현: 보기 셋. 그룹 보기는 설치 그룹의 `composition` 블록 목록과 `ext.validateComposition` 검사 띠를 읽기 전용으로 그리고, 선언이 없으면 "구성 정보 없음" 한 블록이다(S1, S3, S9). 흐름 보기는 `composition.phases`를 단계 목록과 전이 줄로 그리고 선언이 없으면 "단계 선언이 없어요"다(S4 일부). 프로필 보기는 `profile.list`·`put`·`delete`·`preview`·`apply`로 확장마다 켜기·끄기·그대로를 편집한다(S7 일부, 실효 스택은 `profile.preview` 결과 요약).
 - 이 단계에서는 `NodeGraph` 캔버스 대신 목록 모양으로 그린다. 좁은 폭의 개요 편집기가 같은 모양이다.
-- 아직 없음: 코드 보기(S8), "새 그룹" 빈 구성기(S2), 초안 편집(S5), 흐름 보기의 시험 실행(S6, W-48·W-50), 프로필 보기의 "새 Test run으로". 화면은 이 동작을 두지 않는다.
+- 아직 없음: 초안 편집(S5), 흐름 보기의 시험 실행(S6, W-48·W-50), 프로필 보기의 "새 Test run으로". 화면은 이 동작을 두지 않는다.
 - 구현 범위 추가(2026-11-04 comp2): 순수 모델 `workbench/compose.ts`가 새 그룹 초안(이름 규칙 `^[a-z][a-z0-9-]{1,31}$`, 시작점 = `ext.kinds` 종류, `stable`·`preview`만 고름, 대상 폴더 = 사용자가 고른 부모 + 이름, `ext.scaffold` 입력), 흐름 초안 편집(노드 더하기·지우기, 시작 지정, 전이 잇기·끊기, 제목·`askTitle`), 캔버스 자리(시작 노드에서의 깊이 = 열)와 개요 줄(`LayerTree`), Test run 지금 단계 강조, 프로필 `driver` 편집, 코어 확장 잠금(`tier: "core"` 또는 `origin: "builtin"`)을 계산한다. 예약 이름 23개는 호스트(`ext.scaffold`)가 `invalid_input`으로 거절하고 화면이 그 문장을 보인다. 아래 줄의 "아직 없음" 가운데 화면에 닿은 것은 각 화면 커밋이 이 줄을 고친다.
 - 명령(2026-11-04 comp2): `workbench.kinds`·`scaffold`·`validateDir`·`packDir`는 `ext.kinds`·`ext.scaffold`·`ext.validate`·`ext.package`를 그대로 부른다(wire는 W-27·W-28·W-49로 이미 있다). `tests.createTestRun(profileId?)`는 `thread.create { testRun: true, profileId? }`를 보낸다. 호스트 처리기(`handlers/thread.ts`)가 `profileId`를 이미 받으므로 wire 변경은 없다. `ext.test.run`·`ext.test.list`는 호스트가 아직 `notImplemented`다(`apps/host/src/handlers/m4/devkit.ts`).
+- 구현(2026-11-04 comp2, 새 그룹과 코드 보기): 새 그룹은 `ext.kinds`의 종류를 시작점 격자로 보이고, 만들기는 `ext.scaffold` 뒤에 같은 폴더를 `ext.validate`로 검사한다. 만든 뒤 검사 다시 돌리기와 설치 묶음 만들기(`ext.package`)를 두고, 코드 보기는 설치 그룹의 `composition` 블록을 읽기 전용으로 보이며 그 아래 "다음 길" 띠를 둔다. 플러그인 빌더 입구는 `authoring` 확장의 켜기·끄기이고, 켜져 있으면 "플러그인 빌더로 만들기"가 그 그룹 이름을 넘겨 새 그룹을 연다.
 
 ### 6.29 P-22 새 그룹(P-21에 합침)
 
