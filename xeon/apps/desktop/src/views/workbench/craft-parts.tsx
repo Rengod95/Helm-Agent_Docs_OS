@@ -108,7 +108,8 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
 }
 
 /**
- * "계속 꺼 둘까요?" 질문과 두 답. 호스트가 묻지 않은 확장이면 아무것도 그리지 않는다.
+ * "끌까요?" 질문과 두 답(끄기, 켜 두기). 호스트가 묻지 않은 확장이면 아무것도 그리지 않는다.
+ * 질문하는 동안 확장은 켜 둔 채다. 경고이므로 아이콘 뒤에 숨기지 않고 글로 그대로 보인다(DP-58).
  * 연결이 끊겼거나 확장이 잠겼으면 두 답을 누를 수 없다(`keepOffOf`).
  */
 export function KeepOffAlert(props: {
@@ -122,10 +123,15 @@ export function KeepOffAlert(props: {
   return (
     <Alert tone="danger">
       <p>
-        {t("desktop.workbench.keepOff.count", {
-          name: props.entry.displayName,
-          count: question.disabledStarts,
-        })}
+        {question.rule === "consecutive"
+          ? t("desktop.workbench.keepOff.consecutive", {
+              name: props.entry.displayName,
+              count: question.consecutive,
+            })
+          : t("desktop.workbench.keepOff.rate", {
+              name: props.entry.displayName,
+              count: question.windowFailures,
+            })}
       </p>
       <p className="text-ui-strong">{t("desktop.workbench.keepOff.question")}</p>
       <div className="mt-1 flex flex-wrap gap-2">

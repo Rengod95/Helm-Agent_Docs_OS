@@ -7,17 +7,17 @@ import { createWorkbenchStore, type WorkbenchStore } from "../../../src/state/wo
 import { ExtensionsScreen } from "../../../src/views/workbench/extensions-screen.tsx";
 import { entry, inContexts, liveEngine } from "./support.tsx";
 
-// 계속 꺼 둘까요(B5) 질문의 알림 상태. 목록 위 알림, 선택 패널, 자세히 보기에서 같은 질문을 그린다.
+// 끌까요(2026-11-04 사용자) 질문의 알림 상태. 목록 위 알림, 선택 패널, 자세히 보기에서 같은 질문을 그린다.
 // 두 답 단추는 연결이 살아 있고 확장이 잠기지 않았을 때만 누를 수 있다.
 
-/** 여러 번 시작하며 자동으로 꺼져 묻는 확장 하나 */
+/** 연속 5번 실패해 끌지 묻는 확장 하나. 답이 올 때까지 켜 둔 채다 */
 function asked(over: Partial<ExtListEntry> = {}): ExtListEntry {
   return entry("review", {
     layer: "L3",
     isGroup: true,
-    status: "disabled",
-    autoDisabled: true,
-    keepOffQuestion: { disabledStarts: 3 },
+    status: "enabled",
+    autoDisabled: false,
+    keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
     ...over,
   });
 }
@@ -55,10 +55,10 @@ function buttonState(html: string, label: string): "enabled" | "disabled" | "mis
 const KEEP_ON = t("desktop.workbench.keepOff.keepOn");
 const KEEP_OFF = t("desktop.workbench.keepOff.keepOff");
 const QUESTION = t("desktop.workbench.keepOff.question");
-const COUNT = t("desktop.workbench.keepOff.count", { name: "review", count: 3 });
+const COUNT = t("desktop.workbench.keepOff.consecutive", { name: "review", count: 5 });
 
-describe("계속 꺼 둘까요: 목록 위 알림", () => {
-  test("묻는 확장은 시작 횟수, 질문, 두 답 단추를 보이고 연결이 살아 있으면 누를 수 있다", () => {
+describe("끌까요: 목록 위 알림", () => {
+  test("묻는 확장은 실패 횟수, 질문, 두 답 단추를 보이고 연결이 살아 있으면 누를 수 있다", () => {
     const html = render(asked(), { live: true });
     expect(html).toContain(COUNT);
     expect(html).toContain(QUESTION);
@@ -95,7 +95,7 @@ describe("계속 꺼 둘까요: 목록 위 알림", () => {
   });
 });
 
-describe("계속 꺼 둘까요: 선택 패널과 자세히 보기", () => {
+describe("끌까요: 선택 패널과 자세히 보기", () => {
   test("고른 확장의 선택 패널은 다시 켜기 단추 대신 질문과 두 답을 보인다", () => {
     const html = render(asked(), {
       live: true,

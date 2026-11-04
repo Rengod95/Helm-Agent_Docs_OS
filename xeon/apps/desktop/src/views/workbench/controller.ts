@@ -44,7 +44,7 @@ export interface WorkbenchController {
   reloadOrders(): Promise<void>;
   toggle(name: string, target: boolean): Promise<void>;
   reenable(name: string): Promise<void>;
-  /** "계속 꺼 둘게요" 답. 끄고 목록을 다시 읽는다. "계속 켜 둘게요"는 `reenable`이다 */
+  /** "끄기" 답(`ext.disableConfirm`). 끄고 목록을 다시 읽는다. "켜 두기"는 `reenable`이다 */
   keepOff(name: string): Promise<void>;
   /** 이 대화에서 켜기·끄기. 실패는 토스트로 알리고 `false`다. 대기 표시와 다시 읽기는 호출자가 맡는다 */
   toggleForThread(name: string, target: boolean, threadId: ThreadId): Promise<boolean>;
