@@ -8,6 +8,7 @@ import {
   type HookDef,
   type LoadedHook,
 } from "../../src/operations/index.ts";
+import { traceReadOf } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { createOperationsHarness } from "./support/harness.ts";
 
@@ -136,12 +137,17 @@ async function rig(
   saved: string[] = [],
 ): Promise<Rig> {
   const specs: HookRunSpec[] = [];
-  const late: { policy?: Awaited<ReturnType<typeof createOperationsHarness>>["policy"] } = {};
+  const late: {
+    policy?: Awaited<ReturnType<typeof createOperationsHarness>>["policy"];
+    harness?: Awaited<ReturnType<typeof createOperationsHarness>>;
+  } = {};
   const runner = createHookRunner({
     process: () => ({
       run: (spec) => {
         specs.push(spec);
-        return Promise.resolve(respond(spec));
+        // 실행 한 번이 7ms 걸린다. 시계는 하네스의 가짜 시계를 쓴다(계측의 atMs와 같은 시계)
+        const advanced = late.harness?.t.timers.advance(7) ?? Promise.resolve();
+        return advanced.then(() => respond(spec));
       },
     }),
     hooks: () => hooks,
@@ -152,12 +158,13 @@ async function rig(
     envAllow: () => [],
     budgetMs: () => 30_000,
     setTimer: () => () => {},
-    now: () => 1,
+    now: () => late.harness?.t.timers.now() ?? 1,
     report: (record) => late.policy?.autoDisabler.onOutcome(record),
     log: () => {},
   });
   const harness = await createOperationsHarness({ hooks: runner });
   late.policy = harness.policy;
+  late.harness = harness;
   await eachInOrder(runner.units(), async (unit) => {
     await harness.t.host.install(unit);
     return "continue";
@@ -253,4 +260,112 @@ test("runner: a failing first hook is denied (fail closed) and five failures ask
   });
   expect(skipped).toMatchObject({ decision: undefined });
   expect(saved.specs).toHaveLength(0);
+});
+
+// 계측 행(X.operations §4.8.2). 훅이 맞지 않은 호출에는 단위 행도 항목도 없다. 맞은 훅은 `hook:<id>` 행으로 활성 시간과 결과를 남긴다.
+
+test("trace: a call no external hook matches leaves no unit row and no entry", async () => {
+  const hook = loaded(def({ id: "only-bash", point: "tool.call.before", tools: ["bash"] }));
+  const { harness, specs } = await rig([hook], () => rawOk);
+  const thread = harness.t.newThread();
+  await harness.t.host.openThread(thread);
+  const turn = harness.t.ids.next("trn");
+  await harness.t.host.dispatch("tool.call.before", toolPayload("read"), {
+    threadId: thread,
+    dispatchKey: `${turn}:tool`,
+  });
+  expect(traceReadOf(harness.t.host).turn(thread, turn)?.entries).toEqual([]);
+  expect(specs).toHaveLength(0);
+});
+
+test("trace: a matched external hook is listed as hook:<id> with its duration and result; hooks a stop skipped name the stopper", async () => {
+  const hooks = [
+    loaded(def({ id: "wrap", point: "input.user.before" })),
+    loaded(def({ id: "later", point: "input.user.before" })),
+  ];
+  const patch = { action: "transform", text: "[hi]" };
+  const { harness } = await rig(hooks, (spec) =>
+    spec.env["FRESNEL_HOOK_ID"] === "wrap"
+      ? { ...rawOk, stdout: JSON.stringify({ patch }) }
+      : rawOk,
+  );
+  const thread = harness.t.newThread();
+  await harness.t.host.openThread(thread);
+  const turn = harness.t.ids.next("trn");
+  await harness.t.host.dispatch(
+    "input.user.before",
+    { text: "hi", source: "interactive" },
+    {
+      threadId: thread,
+      dispatchKey: `${turn}:input.user.before`,
+      initial: { text: "hi", handled: false },
+    },
+  );
+  // 패치는 범위 안에서 멈춘다. 뒤 훅은 실행하지 않았고 멈춘 훅 `hook:wrap`을 가리키는 건너뜀 행이다
+  expect(traceReadOf(harness.t.host).turn(thread, turn)?.entries).toEqual([
+    {
+      seq: 0,
+      hook: "input.user.before",
+      step: 0,
+      handlers: [
+        {
+          registrationId: "hook:wrap",
+          ms: 7,
+          result: "modified",
+          atMs: 0,
+          size: JSON.stringify(patch).length,
+          skippedBy: null,
+          reason: null,
+        },
+        {
+          registrationId: "hook:later",
+          ms: 0,
+          result: "skipped",
+          atMs: 7,
+          size: 0,
+          skippedBy: "hook:wrap",
+          reason: null,
+        },
+      ],
+    },
+  ]);
+});
+
+test("trace: a first hook's denial is blocked, a crash is failed with threw, a timeout with timeout, and invalid stdout with result_invalid", async () => {
+  const hooks = [
+    loaded(def({ id: "deny-bash", point: "tool.call.before", tools: ["bash"] })),
+    loaded(def({ id: "slow-read", point: "tool.call.before", tools: ["read"] })),
+    loaded(def({ id: "garbled-grep", point: "tool.call.before", tools: ["grep"] })),
+    loaded(def({ id: "crash-ls", point: "tool.call.before", tools: ["ls"] })),
+  ];
+  const replies: { readonly [hookId: string]: HookRawRun } = {
+    "deny-bash": { ...rawOk, exitCode: 2, stderr: "no" },
+    "slow-read": { ...rawOk, timedOut: true, exitCode: null },
+    "garbled-grep": { ...rawOk, stdout: "not json" },
+    "crash-ls": { ...rawOk, exitCode: 7 },
+  };
+  const { harness } = await rig(
+    hooks,
+    (spec) => replies[spec.env["FRESNEL_HOOK_ID"] ?? ""] ?? rawOk,
+  );
+  const thread = harness.t.newThread();
+  await harness.t.host.openThread(thread);
+  const cases = [
+    ["bash", "deny-bash", "blocked", null],
+    ["read", "slow-read", "failed", "timeout"],
+    ["grep", "garbled-grep", "failed", "result_invalid"],
+    ["ls", "crash-ls", "failed", "threw"],
+  ] as const;
+  await eachInOrder(cases, async ([toolName, hookId, result, reason]) => {
+    const turn = harness.t.ids.next("trn");
+    await harness.t.host.dispatch("tool.call.before", toolPayload(toolName), {
+      threadId: thread,
+      dispatchKey: `${turn}:tool`,
+    });
+    const handlers = traceReadOf(harness.t.host).turn(thread, turn)?.entries[0]?.handlers;
+    expect(handlers?.map((row) => [row.registrationId, row.result, row.reason, row.ms])).toEqual([
+      [`hook:${hookId}`, result, reason, 7],
+    ]);
+    return "continue";
+  });
 });

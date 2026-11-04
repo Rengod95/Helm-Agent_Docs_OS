@@ -268,6 +268,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
               counter: 0,
               drive: null,
               handler: { signal, gate },
+              ...(trace === undefined ? {} : { trace }),
             },
             () =>
               entry.fn(...args, {

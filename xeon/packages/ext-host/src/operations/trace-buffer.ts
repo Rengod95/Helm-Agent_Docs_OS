@@ -62,6 +62,11 @@ export interface TraceDispatch {
 export interface TraceBufferDeps {
   /** 계측 설정 유효 값. 읽기 함수는 호출 때마다 현재 값을 돌려준다 */
   settings(): TraceSettings;
+  /**
+   * 기록하지 않을 등록 id인가. 외부 훅 단위(`fresnel-hooks-<범위>`)가 여기에 든다. 단위는 호출마다 자기 행을 내지 않고,
+   * 실행한 훅마다 `hook:<id>` 행을 실행기가 직접 넣는다(X.operations §4.8.2). 훅이 하나도 맞지 않은 호출에는 단위 행도 항목도 없다
+   */
+  hidden?(registrationId: string): boolean;
 }
 
 export interface TraceBuffer {
@@ -178,6 +183,8 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     let entry: MutableEntry | undefined;
     return {
       record(run) {
+        // 숨기는 등록의 행은 항목을 만들지도 않는다. 그래서 아무도 돌지 않은 디스패치에는 항목이 없다
+        if (deps.hidden?.(run.registrationId) === true) return;
         if (entry === undefined) {
           if (turn.entries.length >= MAX_ENTRIES_PER_TURN) return;
           entry = { seq: turn.entries.length, hook, step, handlers: [] };

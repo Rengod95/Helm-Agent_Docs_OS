@@ -4,9 +4,13 @@ import {
   type ExtensionManifest,
   type HookProcessPort,
   type HookSignatures,
+  type TraceFailureReason,
+  type TraceHandlerResult,
 } from "@fresnel/contracts/extensions";
-import { assertNever } from "@fresnel/contracts";
+import { assertNever, attempt } from "@fresnel/contracts";
 import { Value } from "typebox/value";
+import { ambient } from "../../primitives/ambient.ts";
+import { isBlocking } from "../../primitives/fold/first.ts";
 import type { ExtensionUnit } from "../../primitives/host.ts";
 import type { HandlerOutcomeRecord } from "../failure.ts";
 import {
@@ -39,6 +43,24 @@ export function hookUnitName(source: HookSource): string {
 
 export function isHookUnitName(name: string): boolean {
   return name.startsWith(HOOK_UNIT_PREFIX);
+}
+
+/** 외부 훅 하나의 계측 행 이름(X.operations §4.8.2). 실패 장부 키와 같은 `hook:<id>`다 */
+function hookRegistrationId(id: string): string {
+  return `hook:${id}`;
+}
+
+/** 훅 출력 실패의 계측 이유. 시간 초과, 출력 검사 실패, 그 밖의 비정상 종료와 시작 실패다 */
+function traceReasonOf(failure: string): TraceFailureReason {
+  if (failure === "timeout") return "timeout";
+  if (failure === "hook_output") return "result_invalid";
+  return "threw";
+}
+
+/** 값의 JSON 문자 수. 직렬화할 수 없으면 0이다(디스패처의 `sizeOfValue`와 같은 규칙) */
+function sizeOfPatch(value: unknown): number {
+  const size = attempt(() => JSON.stringify(value).length);
+  return size.ok ? size.value : 0;
 }
 
 export interface HookRunnerDeps {
@@ -187,21 +209,42 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
         ...(message === undefined ? {} : { message: message.slice(0, 500) }),
       });
     };
+    // 계측 행: 이 훅의 활성 시간과 결과를 디스패치 항목에 `hook:<id>`로 넣는다. 단위의 행은 숨겨진다(X.operations §4.8.2)
+    const traced = (
+      result: TraceHandlerResult,
+      reason: TraceFailureReason | null,
+      size: number,
+    ) => {
+      ambient()?.trace?.record({
+        registrationId: hookRegistrationId(hook.def.id),
+        durationMs: deps.now() - startedAt,
+        startedAt,
+        result,
+        size,
+        skippedBy: null,
+        reason,
+      });
+    };
     switch (verdict.kind) {
       case "pass":
         record("ok");
+        traced("passed", null, 0);
         return { kind: "none" };
       case "decision":
         record("ok");
+        traced(isBlocking(verdict.decision) ? "blocked" : "passed", null, 0);
         return { kind: "decision", value: verdict.decision };
       case "patch":
         record("ok");
+        traced("modified", null, sizeOfPatch(verdict.patch));
         return { kind: "patch", value: verdict.patch };
       case "deny":
         record("ok");
+        traced("blocked", null, 0);
         return { kind: "deny", reason: verdict.reason };
       case "failure":
         record(verdict.failure === "timeout" ? "timeout" : verdict.failure, verdict.detail);
+        traced("failed", traceReasonOf(verdict.failure), 0);
         deps.log(`hook ${hook.def.id} failed: ${verdict.failure} ${verdict.detail}`);
         return { kind: "failed" };
       default:
@@ -235,7 +278,20 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
       const hook = matching[position];
       if (hook === undefined) return { kind: "none" };
       const result = await runOne(hook, point, payload, current, ctx, process);
-      return result.kind === "none" ? runFrom(position + 1) : result;
+      if (result.kind === "none") return runFrom(position + 1);
+      // 멈춘 뒤의 매칭 훅은 실행하지 않았다. 계측에는 멈춘 훅을 가리키는 건너뜀 행으로 남긴다(X.operations §4.8.2)
+      for (const later of matching.slice(position + 1)) {
+        ambient()?.trace?.record({
+          registrationId: hookRegistrationId(later.def.id),
+          durationMs: 0,
+          startedAt: deps.now(),
+          result: "skipped",
+          size: 0,
+          skippedBy: hookRegistrationId(hook.def.id),
+          reason: null,
+        });
+      }
+      return result;
     };
     return runFrom(0);
   }

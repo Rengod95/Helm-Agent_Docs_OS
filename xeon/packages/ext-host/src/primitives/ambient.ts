@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { HookName, RegistrationId } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { TraceDispatch } from "../operations/trace-buffer.ts";
 import type { HandlerGate } from "./dispatch-types.ts";
 
 /** drive 호출 하나의 멱등 키 재료(X.primitives.spec §4.4.3, §4.6.1) */
@@ -36,6 +37,11 @@ export interface Ambient {
    * 기능 래퍼의 재실행 검사를 받지 않는다. on 핸들러와 drive 함수에서는 없다(X.primitives.spec §4.6.6, §4.12)
    */
   readonly invocation?: "tool" | "command" | "method";
+  /**
+   * 핸들러가 도는 디스패치의 계측 기록기. 외부 훅 실행기가 훅마다 자기 기록(`hook:<id>`)을 같은 항목에 넣을 때 쓴다(X.operations §4.8.2).
+   * 계측이 꺼졌거나 Turn을 정할 수 없으면 없다
+   */
+  readonly trace?: TraceDispatch;
 }
 
 const storage = new AsyncLocalStorage<Ambient>();
