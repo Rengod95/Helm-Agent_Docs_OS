@@ -154,6 +154,14 @@ export function createWorkbenchCommands(
       const got = await withConnection((c) => c.request("hooks.list", {}));
       return got.ok ? ok(got.value.hooks) : err(got.error);
     },
+    async hookKeepOff(hook) {
+      const done = await withConnection((c) => c.request("hooks.disableConfirm", { hook }));
+      return done.ok ? ok(null) : err(done.error);
+    },
+    async hookReenable(hook) {
+      const done = await withConnection((c) => c.request("hooks.reenable", { hook }));
+      return done.ok ? ok(null) : err(done.error);
+    },
     orderGet: () => withConnection((c) => c.request("hooks.order.get", {})),
     orderSet: (hook, order) => withConnection((c) => c.request("hooks.order.set", { hook, order })),
     orderReset: (hook) =>

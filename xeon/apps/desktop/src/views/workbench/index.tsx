@@ -1,5 +1,5 @@
 // 크래프트 화면 묶음(개요·확장·테스트·엔진). `desktop-registry.tsx`가 `registerWorkbench`를 부른다.
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   useWorkbench,
   WorkbenchStoreContext,
@@ -16,6 +16,7 @@ import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
+import { HookAnswersContext, HookNoticeList } from "./hook-notice.tsx";
 import { Clock, Eye, FlaskConical, Layers, Package, Plug, Settings } from "@caustic/react/icons";
 
 function scoped(store: WorkbenchStore, children: ReactNode): ReactNode {
@@ -74,7 +75,10 @@ export function inspectEndTab(store: WorkbenchStore): EndTabDef {
 /** 오른쪽 "플러그인" 탭의 칸 숫자: 알림이 있는 확장 수. 스토어가 바뀌면 칸도 다시 읽는다 */
 function noticeBadgeOf(store: WorkbenchStore): TabBadge {
   return {
-    read: () => noticeCountOf(store.read.getState().entries),
+    read: () => {
+      const state = store.read.getState();
+      return noticeCountOf(state.entries) + state.hookNotices.length;
+    },
     subscribe: (listener) => store.read.subscribe(listener),
   };
 }
@@ -95,6 +99,13 @@ function ListKeeper(): ReactNode {
 function PluginPagesEndTab(): ReactNode {
   const controller = useWorkbenchController();
   const entries = useWorkbench((s) => s.entries);
+  const hookAnswers = useMemo(
+    () => ({
+      keepOn: (hook: string) => controller.hookKeepOn(hook),
+      keepOff: (hook: string) => controller.hookKeepOff(hook),
+    }),
+    [controller],
+  );
   return (
     <>
       {/* 빈 칸은 숨긴다. 답한 결과 줄이 남도록 항목마다 부품은 그대로 둔다 */}
@@ -112,6 +123,9 @@ function PluginPagesEndTab(): ReactNode {
             }}
           />
         ))}
+        <HookAnswersContext value={hookAnswers}>
+          <HookNoticeList compact />
+        </HookAnswersContext>
       </div>
       <ThreadProfile />
       <PluginPagesTab />

@@ -11,6 +11,7 @@ import {
   extOf,
   failureRowsOf,
   healthLoaded,
+  hookNoticesOf,
   keepOffOf,
   layerGroups,
   listLoaded,
@@ -530,5 +531,23 @@ describe("기록 탭: 확장별 실패 묶음(scope.handler_failed)", () => {
     expect(failureRowsOf([rec("ext:other", "tool.call.before", "error", "x", 1)], "flaky")).toEqual(
       [],
     );
+  });
+});
+
+describe("hookNoticesOf", () => {
+  const row = { fold: "first", handlers: 1, registrations: ["a"], external: true } as const;
+  test("keeps only hooks with a question or an off state, sorted by name", () => {
+    const question = { rule: "rate", consecutive: 2, windowFailures: 12 } as const;
+    expect(
+      hookNoticesOf([
+        { ...row, hook: "zeta", autoDisabled: true },
+        { ...row, hook: "quiet" },
+        { ...row, hook: "alpha", keepOffQuestion: question },
+        { ...row, hook: "off-false", autoDisabled: false },
+      ]),
+    ).toEqual([
+      { hook: "alpha", question, off: false },
+      { hook: "zeta", question: null, off: true },
+    ]);
   });
 });

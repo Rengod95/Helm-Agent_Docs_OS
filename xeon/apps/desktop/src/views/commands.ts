@@ -465,6 +465,13 @@ export interface WorkbenchCommands {
   health(): Promise<Result<readonly ExtHealthEntry[], CommandError>>;
   /** `hooks.list`: 훅마다 핸들러의 기본 순서(`order` 행)를 포함한다 */
   hooks(): Promise<Result<readonly HookEntry[], CommandError>>;
+  /**
+   * 외부 훅 "끄기" 답: `hooks.disableConfirm { hook }`. 호스트가 꺼짐을 설정에 먼저 쓰므로 화면은 설정을 쓰지 않는다.
+   * 없는 훅이면 `hooks.notFound`로 거절된다
+   */
+  hookKeepOff(hook: string): Promise<Result<null, CommandError>>;
+  /** 외부 훅 "켜 두기"와 "다시 켜기" 답: `hooks.reenable { hook }` */
+  hookReenable(hook: string): Promise<Result<null, CommandError>>;
   /** `hooks.order.get`: 저장 값과 적용 중 순서 */
   orderGet(): Promise<Result<HooksOrderGetResult, CommandError>>;
   /** `hooks.order.set`: 저장만 한다. 적용은 다음 단계 경계다 */

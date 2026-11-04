@@ -4,6 +4,7 @@ import type {
   ExtHealthEntry,
   ExtListEntry,
   ExtVersionsResult,
+  HookEntry,
 } from "@fresnel/contracts/wire";
 import { clearSel, selectGroup, selectPlugin } from "./canvas/select.ts";
 import type { Contrib, KindFilter, LayerKey, Sel } from "./canvas/types.ts";
@@ -42,6 +43,8 @@ export interface WorkbenchState {
   readonly health: Readonly<Record<string, ExtHealthEntry>>;
   /** 훅 → 적용 중인 Registration id 순서(`hooks.order.get`의 applied) */
   readonly order: Readonly<Record<string, readonly string[]>>;
+  /** 외부 훅의 "끌까요" 질문이나 꺼짐이 있는 훅만(`hooks.list`의 `keepOffQuestion`, `autoDisabled`). 훅 이름 오름차순 */
+  readonly hookNotices: readonly HookNotice[];
   /** 켜기·끄기 요청이 아직 반영되지 않은 확장 이름과 목표 값 */
   readonly pending: Readonly<Record<string, boolean>>;
   /** 빌더를 열라는 요청(15-3). `hook`은 순서 보기 훅 줄의 `추가`가 고른 훅 이름, 없으면 훅 없이 연다. 빌더 화면(T-AUTH)이 읽고 `closeBuilder`로 비운다 */
@@ -60,9 +63,33 @@ export const INITIAL_WORKBENCH: WorkbenchState = {
   details: {},
   health: {},
   order: {},
+  hookNotices: [],
   pending: {},
   builder: null,
 };
+
+/** 질문이나 꺼짐이 있는 외부 훅 하나. `question`이 있으면 켜 둔 채 답을 기다리는 중이다 */
+export interface HookNotice {
+  readonly hook: string;
+  readonly question: NonNullable<HookEntry["keepOffQuestion"]> | null;
+  readonly off: boolean;
+}
+
+/** `hooks.list`에서 질문이나 꺼짐이 있는 훅만 골라 훅 이름 순으로 둔다 */
+export function hookNoticesOf(hooks: readonly HookEntry[]): readonly HookNotice[] {
+  return hooks
+    .filter((h) => h.keepOffQuestion !== undefined || h.autoDisabled === true)
+    .map((h): HookNotice => ({
+      hook: h.hook,
+      question: h.keepOffQuestion ?? null,
+      off: h.autoDisabled === true,
+    }))
+    .toSorted((a, b) => (a.hook < b.hook ? -1 : a.hook > b.hook ? 1 : 0));
+}
+
+export function hookNoticesLoaded(s: WorkbenchState, hooks: readonly HookEntry[]): WorkbenchState {
+  return { ...s, hookNotices: hookNoticesOf(hooks) };
+}
 
 /** 등록 id의 확장 이름. 루트 플러그인은 id가 곧 이름이고, 구성원은 "<확장>/<id>"다 */
 export function extOf(id: string): string {

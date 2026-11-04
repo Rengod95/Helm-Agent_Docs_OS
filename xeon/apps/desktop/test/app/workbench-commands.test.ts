@@ -135,6 +135,22 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
+  test("hookKeepOff와 hookReenable은 hook만 보내고 설정을 쓰지 않는다(저장은 호스트가 한다)", async () => {
+    const applied = { appliesAt: "nextStepBoundary", diagnostics: [] };
+    const { app, params } = await liveApp({
+      results: { "hooks.disableConfirm": applied, "hooks.reenable": applied },
+    });
+    expect(await app.commands.workbench.hookKeepOff("no-rm-rf")).toEqual({ ok: true, value: null });
+    expect(await app.commands.workbench.hookReenable("no-rm-rf")).toEqual({
+      ok: true,
+      value: null,
+    });
+    expect(paramsOf(params, "hooks.disableConfirm")).toEqual([{ hook: "no-rm-rf" }]);
+    expect(paramsOf(params, "hooks.reenable")).toEqual([{ hook: "no-rm-rf" }]);
+    expect(paramsOf(params, "settings.set")).toEqual([]);
+    await app.stop();
+  });
+
   test("orderSet은 hook과 order를 보내고, 저장 결과를 돌려준다", async () => {
     const result: HooksOrderSetResult = {
       hook: "tool.call.before",

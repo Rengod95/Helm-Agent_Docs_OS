@@ -76,6 +76,8 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       rollback: () => Promise.resolve(ok("nextStepBoundary")),
       health: () => Promise.resolve(ok([])),
       hooks: () => Promise.resolve(ok([])),
+      hookKeepOff: () => Promise.resolve(ok(null)),
+      hookReenable: () => Promise.resolve(ok(null)),
       orderGet: () => Promise.resolve(ok({ hooks: [] })),
       orderSet: (hook, order) =>
         Promise.resolve(ok({ hook, saved: [...order], appliesAt: "nextStepBoundary" })),
