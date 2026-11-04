@@ -80,6 +80,7 @@ describe("errorOf", () => {
       kind: "rejected",
       code: invalid.code,
       issue: "attachment_too_large: over the 20 byte limit.",
+      path: "source",
     });
   });
 });
