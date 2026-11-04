@@ -102,7 +102,8 @@ function ShellToaster(props: { readonly registry: ShellRegistry }): ReactNode {
   const open = useShell((s) => s.endOpen);
   const area = useShell((s) => s.area);
   const tabId = useShell((s) => s.places[s.area].endTab);
-  const tabs = props.registry.endTabs(area);
+  const screen = useShell((s) => s.places[s.area].screen);
+  const tabs = props.registry.endTabs(area, screen);
   const place = toastPlace(layout, open, wellWidthOf(tabs.find((x) => x.id === tabId) ?? tabs[0]));
   // 위치만 바꾼다. 토스트 규칙(4초, danger는 머묾)은 caustic 그대로다
   return (

@@ -31,8 +31,9 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
   const area = useShell((s) => s.area);
   const open = useShell((s) => s.endOpen);
   const tabId = useShell((s) => s.places[s.area].endTab);
+  const screen = useShell((s) => s.places[s.area].screen);
   const actions = useShellActions();
-  const tabs = props.registry.endTabs(area);
+  const tabs = props.registry.endTabs(area, screen);
   const current = tabs.find((x) => x.id === tabId) ?? tabs[0];
   const barTabs = tabs.slice(0, MAX_BAR_TABS);
   const overflow = tabs.slice(MAX_BAR_TABS);

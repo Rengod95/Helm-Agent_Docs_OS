@@ -145,6 +145,7 @@ const WORK_TAB: EndTabDef = {
   area: "chat",
   label: "desktop.work.tab",
   icon: <ListChecks />,
+  screens: ["chat"],
   render: () => <WorkScreen />,
 };
 
