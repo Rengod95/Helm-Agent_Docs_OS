@@ -263,9 +263,9 @@ describe("palette screen navigation", () => {
       "screen:chat:proposals",
       "screen:chat:schedules",
       "screen:chat:connection",
+      "screen:chat:plugins",
       "screen:workbench:overview",
       "screen:workbench:extensions",
-      "screen:workbench:plugins",
       "screen:workbench:tests",
       "screen:workbench:metrics",
       "screen:workbench:compose",
@@ -274,7 +274,6 @@ describe("palette screen navigation", () => {
     expect(screenTargetsOf("workbench").map((t) => t.screen)).toEqual([
       "overview",
       "extensions",
-      "plugins",
       "tests",
       "metrics",
       "compose",
@@ -284,7 +283,18 @@ describe("palette screen navigation", () => {
       "proposals",
       "schedules",
       "connection",
+      "plugins",
     ]);
+  });
+
+  test("the plugin pages row is the chat area's sixth screen and carries the nav.6 shortcut", () => {
+    expect(screenTargetsOf("chat").find((t) => t.screen === "plugins")).toEqual({
+      area: "chat",
+      screen: "plugins",
+      label: "desktop.shell.nav.plugins",
+      areaLabel: "desktop.shell.area.chat",
+      action: "nav.6",
+    });
   });
 
   test("a screen row carries the nav label keys and the shortcut of its nav item when it has one", () => {

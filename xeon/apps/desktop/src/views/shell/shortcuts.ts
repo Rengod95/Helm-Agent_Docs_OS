@@ -50,7 +50,8 @@ export function runShellAction(
     case "nav.2":
     case "nav.3":
     case "nav.4":
-    case "nav.5": {
+    case "nav.5":
+    case "nav.6": {
       const item = NAV_BY_AREA.chat.find((n) => n.action === id);
       if (item === undefined) return false;
       settingsOpen.set(false);

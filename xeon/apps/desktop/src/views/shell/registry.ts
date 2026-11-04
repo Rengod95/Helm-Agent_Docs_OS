@@ -21,13 +21,27 @@ export interface ScreenDef {
   readonly defaultEndTab?: string;
 }
 
+/**
+ * 막대 칸의 숫자 배지(알림 수). `read`는 그릴 때 부르고, `subscribe`가 알리면 다시 읽는다. 0이나 undefined면 안 보인다.
+ * 칸은 탭을 열지 않아도 보이므로 읽는 값이 바뀌면 칸도 따라 바뀌어야 한다.
+ */
+export interface TabBadge {
+  readonly read: () => number | undefined;
+  readonly subscribe: (listener: () => void) => () => void;
+}
+
 /** 오른쪽 막대의 탭 하나 */
 export interface EndTabDef {
   readonly id: string;
   readonly area: Area | "both";
   readonly label: MessageId;
   readonly icon: ReactNode;
-  readonly badge?: () => number | undefined;
+  readonly badge?: TabBadge;
+  /**
+   * 탭을 열지 않아도 막대와 함께 늘 그리는 부품(데이터를 읽어 두는 자리). 이 탭이 보이는 영역과 화면에서 그린다.
+   * 그리는 결과는 화면에 없다(null을 돌려주는 부품).
+   */
+  readonly alwaysMounted?: ReactNode;
   /** well 폭(px). 없으면 352. 320~480으로 자른다 */
   readonly width?: number;
   /** 이 탭을 보일 화면 id. 없으면 영역의 모든 화면에서 보인다 */

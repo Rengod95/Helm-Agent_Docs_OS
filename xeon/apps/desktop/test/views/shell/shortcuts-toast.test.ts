@@ -48,6 +48,18 @@ describe("shell shortcut actions", () => {
     expect(s.calls).toEqual([false]);
   });
 
+  test("nav.6 opens the plugin pages screen in the chat area", () => {
+    const store = createShellStore(1400);
+    store.actions.switchArea("workbench");
+    const s = settings();
+    expect(runShellAction("nav.6", store.read.getState(), store.actions, s)).toBe(true);
+    const state = store.read.getState();
+    expect(state.area).toBe("chat");
+    expect(state.places.chat.screen).toBe("plugins");
+    expect(state.places.chat.scroll).toBe(0);
+    expect(s.calls).toEqual([false]);
+  });
+
   test("panel keys open the named tab of the current area", () => {
     const store = createShellStore(1400);
     expect(runShellAction("panel.work", store.read.getState(), store.actions, settings())).toBe(

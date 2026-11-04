@@ -5,13 +5,7 @@ import { selectedEntry, visibleRows } from "@fresnel/client/workbench";
 import { EmptyState } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
-import {
-  AutoDisabledAlerts,
-  CountsLine,
-  ListStatusBand,
-  SearchField,
-  useToggleRequest,
-} from "./craft-parts.tsx";
+import { CountsLine, ListStatusBand, SearchField, useToggleRequest } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { ExtDetail } from "./ext-detail.tsx";
 import { LayerList } from "./layer-list.tsx";
@@ -36,7 +30,6 @@ export function ExtensionsScreen(): ReactNode {
       </header>
       <SearchField />
       <ListStatusBand controller={controller} />
-      {ready && <AutoDisabledAlerts controller={controller} />}
       {ready && detailEntry !== null && (
         <div className="min-h-0 flex-1 overflow-auto">
           <ExtDetail

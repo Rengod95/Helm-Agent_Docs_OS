@@ -167,10 +167,9 @@ describe("확장 화면: 고른 확장과 선택 패널", () => {
     expect(html).toContain("보안·기본 동작이라 끌 수 없어요");
   });
 
-  test("자동 꺼진 확장은 위 띠에 알림과 다시 켜기 단추를 보인다", () => {
-    const html = render();
-    expect(html).toContain(t("desktop.workbench.autoDisabled", { name: "review" }));
-    expect(html).toContain(t("desktop.workbench.reenable"));
+  test("자동 꺼진 확장은 위 띠에 알림을 두지 않고, 고른 선택 패널에 다시 켜기를 보인다", () => {
+    expect(render()).not.toContain(t("desktop.workbench.autoDisabled", { name: "review" }));
+    expect(render((s) => pickGroup(s, "review"))).toContain(t("desktop.workbench.reenable"));
   });
 });
 
@@ -221,17 +220,17 @@ describe("확장 화면: 잠긴 스위치의 이유는 Tooltip으로 보인다",
 });
 
 describe("확장 화면: 배지는 스토어를 따른다(목록을 다시 읽으면 같은 화면이 바뀐다)", () => {
-  test("목록이 새 값으로 바뀌면 그 값으로 그린 띠와 개수가 새 값을 보인다", () => {
+  test("목록이 새 값으로 바뀌면 그 값으로 그린 선택 패널과 개수가 새 값을 보인다", () => {
     const store = screenStore();
-    const autoOff = t("desktop.workbench.autoDisabled", { name: "review" });
-    const before = renderState(store.actions.snapshot());
-    expect(before).toContain(autoOff);
+    const reenable = t("desktop.workbench.reenable");
+    const before = renderState(pickGroup(store.actions.snapshot(), "review"));
+    expect(before).toContain(reenable);
     expect(before).toContain(t("desktop.workbench.counts", { total: 3, on: 2, auto: 1 }));
 
     store.actions.listLoaded(store.actions.snapshot().entries.map(reviewRecovered));
 
-    const after = renderState(store.actions.snapshot());
-    expect(after).not.toContain(autoOff);
+    const after = renderState(pickGroup(store.actions.snapshot(), "review"));
+    expect(after).not.toContain(reenable);
     expect(after).toContain(t("desktop.workbench.counts", { total: 3, on: 3, auto: 0 }));
   });
 });

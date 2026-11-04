@@ -1,4 +1,4 @@
-// 선택 패널(지도의 오른쪽). 위에서부터 이름과 표식, 켜짐 스위치 하나, 중요한 것(실패 알림, 구성), 하는 일 순서다.
+// 선택 패널(지도의 오른쪽). 위에서부터 이름과 표식, 켜짐 스위치 하나, 자동 꺼짐 알림(질문과 두 답), 중요한 것(실패 알림, 구성), 하는 일 순서다.
 // 스위치는 대상 하나다: 그룹 구성원이면 그룹 전체가, 그룹이면 그룹 전체가 함께 바뀐다(toggleTargets).
 import {
   Alert,
@@ -15,9 +15,11 @@ import {
 } from "@caustic/react";
 import { X } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
+import { extOf } from "@fresnel/client/workbench";
 import type { CanvasGroup, CanvasPlugin } from "@fresnel/client/workbench/canvas";
 import { isOn } from "@fresnel/client/workbench/canvas";
 import type { ReactNode } from "react";
+import { ExtNotice } from "../workbench/craft-parts.tsx";
 import { useCraft } from "./craft-context.tsx";
 import { groupOnCount } from "./orbit-model.ts";
 import { layerName } from "./orbit-names.ts";
@@ -156,6 +158,7 @@ function PluginBody({ plugin }: { readonly plugin: CanvasPlugin }): ReactNode {
         onChange={(next) => sw.set(plugin.id, next)}
       />
       {sw.failure !== null && <SwitchFailed />}
+      <ExtNotice name={extOf(plugin.id)} />
       {health !== undefined && (
         <Alert tone="danger" size="sm" radius="md">
           <span className="block">
@@ -237,6 +240,7 @@ function GroupBody({ group }: { readonly group: CanvasGroup }): ReactNode {
         onChange={(next) => sw.set(group.id, next)}
       />
       {sw.failure !== null && <SwitchFailed />}
+      <ExtNotice name={group.id} />
       {group.config !== undefined && (
         <div className="flex items-center gap-2">
           <span className="text-footnote text-text-tertiary">

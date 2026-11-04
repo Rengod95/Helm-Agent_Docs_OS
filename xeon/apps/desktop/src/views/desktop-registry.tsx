@@ -26,7 +26,7 @@ import {
   type ShellRegistry,
 } from "./shell/registry.ts";
 import { createWorkbenchStore } from "../state/workbench/index.ts";
-import { inspectEndTab, registerWorkbench } from "./workbench/index.tsx";
+import { inspectEndTab, pluginPagesEndTab, registerWorkbench } from "./workbench/index.tsx";
 import { RuntimeTab } from "./runtime/runtime-tab.tsx";
 import { HelmPanelTab, PluginPagesTab } from "./plugin/plugin-tabs.tsx";
 import type { ReactNode } from "react";
@@ -82,6 +82,15 @@ const CONNECTION_SCREEN: ScreenDef = {
   render: () => <ConnectionScreen />,
 };
 
+// 플러그인 화면(내비 항목 하나)은 대화 영역에 산다. 확장 상세의 "플러그인 화면 열기"도 여기로 간다(ext-detail.tsx)
+const PLUGINS_SCREEN: ScreenDef = {
+  id: "plugins",
+  area: "chat",
+  label: "desktop.shell.nav.plugins",
+  icon: <Plug />,
+  render: () => <PluginPagesTab />,
+};
+
 // 시크릿 화면은 내비 항목이 없다(`nav.ts`에 없음). 설정 화면이 `SecretsPanel`을 넣어 연다.
 const SECRETS_SCREEN: ScreenDef = {
   id: "secrets",
@@ -122,14 +131,6 @@ const HELM_TAB: EndTabDef = {
   render: () => <HelmPanelTab />,
 };
 
-const PLUGIN_PAGES_TAB: EndTabDef = {
-  id: "plugin-pages",
-  area: "both",
-  label: "desktop.plugin.tab.pages",
-  icon: <Plug />,
-  render: () => <PluginPagesTab />,
-};
-
 /** 대화 영역의 "런타임" 탭(§4.9.8): 이 대화의 주도 락, 켜진 그룹과 확장, 실패 */
 const RUNTIME_TAB: EndTabDef = {
   id: "runtime",
@@ -156,15 +157,17 @@ export function createDesktopRegistry(): ShellRegistry {
   registry.registerScreen(SCHEDULES_SCREEN);
   registry.registerScreen(PROPOSALS_SCREEN);
   registry.registerScreen(CONNECTION_SCREEN);
+  registry.registerScreen(PLUGINS_SCREEN);
   registry.registerScreen(SECRETS_SCREEN);
   registry.registerScreen(FIRST_RUN_SCREEN);
   registry.registerScreen(REVIEW_SCREEN);
   registry.registerEndTab(INBOX_TAB);
   registry.registerEndTab(WORK_TAB);
   registry.registerEndTab(HELM_TAB);
-  registry.registerEndTab(PLUGIN_PAGES_TAB);
-  registry.registerEndTab(RUNTIME_TAB);
+  // 워크벤치 스토어는 플러그인 탭과 크래프트 화면이 같이 읽으므로 탭 등록보다 먼저 만든다
   const workbench = createWorkbenchStore();
+  registry.registerEndTab(pluginPagesEndTab(workbench));
+  registry.registerEndTab(RUNTIME_TAB);
   registerWorkbench(registry, workbench);
   registry.registerEndTab(inspectEndTab(workbench));
   return registry;

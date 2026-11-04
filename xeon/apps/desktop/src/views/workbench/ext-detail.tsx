@@ -25,9 +25,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { nativeEntriesOf } from "../../plugin-ui/placements.ts";
 import { useCommands } from "../commands.ts";
 import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
+import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { EntrySurface } from "../plugin/plugin-view.tsx";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
-import { KeepOffAlert } from "./craft-parts.tsx";
+import { AutoOffNotice } from "./craft-parts.tsx";
 import { ExtName, ExtSwitch, kindText, lockText, stateText } from "./ext-row.tsx";
 import { MetricsTab } from "./metrics-tab.tsx";
 import { OriginBadge, ScopeBadge } from "./source-badge.tsx";
@@ -213,6 +214,39 @@ function SettingsSection(props: { readonly name: string }): ReactNode {
   );
 }
 
+/** 플러그인 화면으로 간다: 대화 영역의 `plugins` 화면(내비 항목 하나). 영역과 그 자리를 셸 행동으로 바꾼다 */
+export function openPluginScreens(shell: ShellActions): void {
+  shell.switchArea("chat");
+  shell.updatePlace({ screen: "plugins", scroll: 0 });
+}
+
+/**
+ * "플러그인 화면 열기" 단추. 이 확장이 플러그인 화면 항목(`page`, 또는 Helm이 아닌 확장의 `panel`)을 가졌을 때만 그린다.
+ * 기준은 `PluginPagesTab`이 그리는 항목과 같다(Helm 확장의 `panel`은 Helm 탭이 그린다)
+ */
+function PluginScreensLink(props: { readonly name: string }): ReactNode {
+  const plugin = usePluginUiState();
+  const shell = useShellActions();
+  const ownsPage = plugin.groups.page.some(({ entry }) => entry.extension === props.name);
+  const ownsPanel =
+    props.name !== "helm" &&
+    plugin.groups.panel.some(({ entry }) => entry.extension === props.name);
+  if (!ownsPage && !ownsPanel) return null;
+  return (
+    <div className="flex">
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => {
+          openPluginScreens(shell);
+        }}
+      >
+        {t("desktop.workbench.detail.openPluginScreens")}
+      </Button>
+    </div>
+  );
+}
+
 /** 기록 탭: 이 확장의 `scope.handler_failed`를 엔진 거울에서 읽어 묶는다. 안전 모드·자동 꺼짐 띠는 건드리지 않는다 */
 function RecordTab(props: { readonly name: string }): ReactNode {
   const records = useHandlerFailures();
@@ -258,7 +292,8 @@ export function ExtDetail(props: {
         <ExtSwitch row={row} onToggle={props.onToggle} />
       </header>
       {row.lock !== null && <p className="text-ui-sm text-text-tertiary">{lockText(row.lock)}</p>}
-      <KeepOffAlert entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />
+      <AutoOffNotice entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />
+      <PluginScreensLink name={entry.name} />
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">{t("desktop.workbench.detail.tab.overview")}</TabsTrigger>
