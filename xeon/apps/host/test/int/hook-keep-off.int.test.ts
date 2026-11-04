@@ -70,37 +70,83 @@ async function failureOf(call: Promise<unknown>): Promise<unknown> {
   );
 }
 
-test("hooks.list carries the question and the off state only for the hooks that have them", async () => {
+test("hooks.list shows each external hook as its own row by id, with the question and off state; hook points carry neither", async () => {
   const env = recordingEnv();
-  env.values.set(KEY, ["input.bash.before"]);
-  const { sources } = sourcesOf(env, ["tool.call.before"], {
+  env.values.set(KEY, ["log-start"]);
+  const { sources } = sourcesOf(env, ["no-rm"], {
+    externalHooks: () => [
+      {
+        id: "no-rm",
+        point: "tool.call.before",
+        source: "user",
+        tierRank: 1,
+        unit: "fresnel-hooks-user",
+      },
+      {
+        id: "log-start",
+        point: "thread.start",
+        source: "user",
+        tierRank: 1,
+        unit: "fresnel-hooks-user",
+      },
+    ],
     hookHandlers: () => [
+      {
+        point: "tool.call.before",
+        registrationId: "b",
+        extension: "b",
+        tier: 0,
+        loadIndex: 1,
+        seq: 1,
+      },
       {
         point: "tool.call.before",
         registrationId: "a",
         extension: "a",
-        tier: 1,
+        tier: 3,
         loadIndex: 0,
         seq: 0,
       },
-      {
-        point: "input.bash.before",
-        registrationId: "a",
-        extension: "a",
-        tier: 1,
-        loadIndex: 0,
-        seq: 1,
-      },
-      { point: "thread.start", registrationId: "a", extension: "a", tier: 1, loadIndex: 0, seq: 2 },
     ],
   });
   const connection = connect(sources, env);
   await connection.request("host.hello", HELLO_PARAMS);
   const listed = await connection.request("hooks.list", {});
-  expect(listed.hooks.map((row) => [row.hook, row.keepOffQuestion, row.autoDisabled])).toEqual([
-    ["input.bash.before", undefined, true],
-    ["thread.start", undefined, undefined],
-    ["tool.call.before", QUESTION, undefined],
+  expect(
+    listed.hooks.map((row) => [
+      row.hook,
+      row.point,
+      row.source,
+      row.external,
+      row.handlers,
+      row.keepOffQuestion,
+      row.autoDisabled,
+    ]),
+  ).toEqual([
+    ["log-start", "thread.start", "user", true, 0, undefined, true],
+    ["no-rm", "tool.call.before", "user", true, 1, QUESTION, undefined],
+    ["thread.start", undefined, undefined, false, 1, undefined, undefined],
+    ["tool.call.before", undefined, undefined, false, 3, undefined, undefined],
+  ]);
+  // 지점 줄의 순서에 외부 훅이 실제 id로, 디스패치와 같은 tier 순서로 낀다: tier 0, 외부(tier 1), tier 3
+  const point = listed.hooks.find((row) => row.hook === "tool.call.before");
+  expect(point?.order?.map((row) => [row.registrationId, row.tier])).toEqual([
+    ["b", 0],
+    ["no-rm", 1],
+    ["a", 3],
+  ]);
+  await connection.close();
+});
+
+test("hooks.list keeps a row for an off hook whose definition is not visible", async () => {
+  const env = recordingEnv();
+  env.values.set(KEY, ["gone-hook"]);
+  const { sources } = sourcesOf(env, []);
+  const connection = connect(sources, env);
+  await connection.request("host.hello", HELLO_PARAMS);
+  const listed = await connection.request("hooks.list", {});
+  expect(listed.hooks.map((row) => [row.hook, row.fold, row.handlers, row.autoDisabled])).toEqual([
+    ["gone-hook", "external", 0, true],
   ]);
   await connection.close();
 });

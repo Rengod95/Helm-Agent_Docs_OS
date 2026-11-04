@@ -19,6 +19,7 @@ import type {
 import {
   budgetClassOf,
   extReadViewOf,
+  isHookUnitName,
   type ExtensionLoader,
   type LoadDiagnostic,
   type ExtensionUnit,
@@ -36,7 +37,7 @@ import {
 import type { HostErrorMappers } from "../../handlers/m4/profile-test-run.ts";
 import type { SettingsEngine } from "../settings-engine.ts";
 import { operationsSource, primitivesSource } from "../settings-sources.ts";
-import type { ExtensionRecord, ExtReadSources } from "./ext-read-port.ts";
+import type { ExtensionRecord, ExternalHookView, ExtReadSources } from "./ext-read-port.ts";
 
 // 확장 읽기 원천의 실제 구현(`ExtReadSources`). 호스트 조립이 쥔 값(확장 단위 목록, 로더, 운영 정책, 그룹 서비스, 설정 엔진)과 ext-host의
 // 읽기 조회(`extReadViewOf`)를 얇게 감싸 넘긴다. 이 파일은 값을 새로 만들지 않고 원천이 가진 값을 읽는다. 조립 루트 코드(DR-14 예외 2).
@@ -50,6 +51,8 @@ interface ExtReadSafeMode {
 /** 조립 루트(`assemble.ts`)가 넘기는 것: 엔진 포트가 올라오기 전에 있는 값 */
 export interface ExtReadAssembly {
   readonly operations: Pick<OperationsPolicy, "ledger" | "autoDisabler" | "hookOrder">;
+  /** 외부 훅 정의 읽기(thread 없이 읽히는 범위만) */
+  readonly externalHooks: () => readonly ExternalHookView[];
   readonly safeMode: ExtReadSafeMode;
   readonly extensions: () => readonly ExtensionRecord[];
   /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다. `ext.reload`가 새 버전으로 바꾸는 데 쓴다 */
@@ -385,6 +388,12 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
         windowFailures: question.windowFailures,
       };
     },
+    externalHooks: () => assembly.externalHooks(),
+    hookAutoDisabledIds: () =>
+      assembly.operations.autoDisabler
+        .disabled()
+        .filter((key) => key.startsWith("hook:"))
+        .map((key) => key.slice("hook:".length)),
     hookAutoDisabled: (hook) =>
       assembly.operations.autoDisabler.disabled().includes(`hook:${hook}`),
     hookDisabledSaved: () => {
@@ -404,15 +413,19 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       assembly.operations.autoDisabler.answer(`hook:${hook}`, true);
     },
     reload: (name, signal) => reloadThroughLoader(assembly.loader(), name, signal),
+    // 외부 훅 단위는 순서 화면의 핸들러가 아니다. 외부 훅은 모든 확장 뒤에 범위 순서로 이어 붙고 옮길 수 없다(X.operations §4.7.4)
     hookHandlers: () =>
-      view.handlers().map((handler) => ({
-        point: handler.point,
-        registrationId: handler.scopeId,
-        extension: handler.extension,
-        tier: handler.tier,
-        loadIndex: handler.loadIndex,
-        seq: handler.seq,
-      })),
+      view
+        .handlers()
+        .filter((handler) => !isHookUnitName(handler.extension))
+        .map((handler) => ({
+          point: handler.point,
+          registrationId: handler.scopeId,
+          extension: handler.extension,
+          tier: handler.tier,
+          loadIndex: handler.loadIndex,
+          seq: handler.seq,
+        })),
     hookOrder: () => ({
       saved: () => order.saved(),
       applied: () => order.appliedMap(),

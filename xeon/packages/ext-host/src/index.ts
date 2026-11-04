@@ -244,6 +244,22 @@ export {
   type Tier,
 } from "./operations/index.ts";
 
+// 외부 훅 실행기(X.operations.spec §4.7)
+export {
+  createHookRunner,
+  HOOK_SOURCES,
+  hookUnitName,
+  isHookUnitName,
+  mergeHookDefs,
+  startupFilter,
+  type HookDef,
+  type HookRunner,
+  type HookRunnerDeps,
+  type HookSource,
+  type LoadedHook,
+  type MergedHooks,
+} from "./operations/index.ts";
+
 // 훅별 핸들러 순서 덮어쓰기(설정 값 읽기·쓰기, 제안 정리, 미리보기). guard tier도 덮어쓰기로 옮길 수 있고, 미리보기의 guardRisk가 위험을 알린다
 export {
   checkOrder,

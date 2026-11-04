@@ -29,9 +29,9 @@ import {
 // 외부 훅 실행기(X.operations.spec §4.7.4). 설정 범위마다 내장 단위 하나가 8개 지점에 핸들러를 달고,
 // 호출 때 그 범위의 훅을 읽어 하나씩 실행한다. 실패 장부 키는 단위가 아니라 `hook:<id>`다.
 
-export const HOOK_UNIT_PREFIX = "fresnel-hooks-";
+const HOOK_UNIT_PREFIX = "fresnel-hooks-";
 /** 외부 훅 단위의 loadIndex. 모든 확장 뒤에 범위 순서로 이어 붙인다(§4.7.4) */
-export const HOOK_UNIT_LOAD_INDEX_BASE = 1_000_000;
+const HOOK_UNIT_LOAD_INDEX_BASE = 1_000_000;
 
 export function hookUnitName(source: HookSource): string {
   return `${HOOK_UNIT_PREFIX}${source}`;

@@ -142,7 +142,8 @@ async function turnOrder(
     () => connection.request("trace.turn", { threadId, turnId: started.turnId }),
     (value) => settleOrdersOf(value).length > 0,
   );
-  return settleOrdersOf(trace)[0] ?? [];
+  // 외부 훅 단위(fresnel-hooks-*)는 모든 확장 둘레에 늘 달려 있다. 이 시험은 확장끼리의 순서를 본다
+  return (settleOrdersOf(trace)[0] ?? []).filter((id) => !id.startsWith("fresnel-hooks-"));
 }
 
 /** 사용자 위치 확장의 참조(미리보기 `by`, `affects`) */

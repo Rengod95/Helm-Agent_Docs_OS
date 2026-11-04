@@ -36,11 +36,14 @@ import {
   createOperationsPolicy,
   createRegistrationControl,
   createVolatileNotifier,
+  hookUnitName,
   registrationToggleSourceOf,
+  TIERS,
   traceReadOf,
   type ExtHost,
   type ExtensionLoader,
   type ExtensionUnit,
+  type OperationsPolicy,
   type RegistrationControl,
 } from "@fresnel/ext-host";
 import type { ScheduleService } from "@fresnel/cap-schedule";
@@ -141,6 +144,7 @@ import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
+import { createExternalHooks, stringsOf } from "./assembly/external-hooks.ts";
 import { messageOf, sequentially } from "./util.ts";
 
 export type {
@@ -430,9 +434,34 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       message: redact.current(payload.message),
     });
   };
+  // 외부 훅 실행기(X.operations.spec §4.7). 장부(operations)가 늦게 만들어지므로 보고는 늦게 연결한다
+  const hookHome: { dir: string } = { dir: "" };
+  const hookLedger: { policy: OperationsPolicy | undefined } = { policy: undefined };
+  const externalHooks = createExternalHooks({
+    layers: (threadId) => settings.layers(threadId),
+    ports: { get: (key) => late.host?.ports.get(key) },
+    workspaceOf: (threadId) =>
+      late.host === undefined || late.logger === undefined
+        ? undefined
+        : threadWorkspaceOf(late.host, late.logger)(threadId),
+    homeDir: () => hookHome.dir,
+    parentEnv: () => process.env,
+    savedDisabled: () => stringsOf(settings.value("x.operations.hookDisabled")),
+    envAllow: () => stringsOf(settings.value("x.operations.hookEnvAllow")),
+    budgetMs: () => operationsSource(settings).budgets().hook,
+    setTimer,
+    now: () => clock.now(),
+    report: (record) => {
+      hookLedger.policy?.autoDisabler.onOutcome(record);
+    },
+    log: (line) => {
+      late.logger?.warn("ext.operations", { line });
+    },
+  });
   const operations = createOperationsPolicy({
     now: () => clock.now(),
     setTimer,
+    hooks: externalHooks.runner,
     settings: operationsSource(settings),
     scopes: scopeControl,
     ports: {
@@ -443,6 +472,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 답할 화면(연결된 클라이언트)이 없으면 자동 끄기 기준을 넘어도 묻지도 끄지도 않는다(X.operations §4.3.3)
     canAsk: () => options.hasClient?.() === true,
   });
+  hookLedger.policy = operations;
   /** 확장 진단. 상한(256)을 넘으면 오래된 것부터 버린다(L0.os.spec §3.14, M3-REQ-52) */
   const diagnostics = createExtDiagnosticSink(undefined, (text) => redact.current(text));
   const ext = createExtHost({
@@ -587,6 +617,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ),
     );
     const os: OsService = requirePort(ext, OsPortKey, "fresnel.os");
+    hookHome.dir = os.dirs.home;
     const osHandle = osSlot.handle;
     // fresnel.os를 올린 setup이 핸들을 넘긴다. 없으면 조립 순서가 깨진 것이다
     // fresnel-disable-next-line fresnel/bug-for-expected -- osPlatform의 setup이 성공하면 핸들이 항상 채워진다 (eng.typescript.guide TY-24)
@@ -881,6 +912,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }
     });
 
+    // 3a. 외부 훅 단위. 안전 모드에서는 싣지 않는다(X.operations.spec §4.6.2)
+    await externalHooks.install(ext, safeMode);
+
     // 3b. 기본 플러그인으로 올린 외부 확장 적재(L4.host-service §4.1, X.loading-trust §4.4.7). 안전 모드는 외부 확장을 싣지 않는다
     if (defaultsEnabled) {
       const loaded = await loadExternalExtensions({
@@ -1070,6 +1104,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       dialogArea,
       extRead: {
         operations,
+        externalHooks: () =>
+          safeMode
+            ? []
+            : externalHooks.hooksFor(undefined).hooks.map((hook) => ({
+                id: hook.def.id,
+                point: hook.def.point,
+                source: hook.source,
+                tierRank: TIERS.indexOf(hook.tier),
+                unit: hookUnitName(hook.source),
+              })),
         // `host.status.safeMode`와 같은 원인이다: 시작 옵션은 `flag`, 설정 `x.operations.safeMode.default`는 `user`
         safeMode: {
           active: safeMode,

@@ -2,7 +2,7 @@ import type { HookDef, HookHookName } from "./config.ts";
 
 // 자식 프로세스 환경 정리(X.operations.spec §4.7.5)
 
-export const BASE_ENV_ALLOW: readonly string[] = [
+const BASE_ENV_ALLOW: readonly string[] = [
   "PATH",
   "HOME",
   "USER",
@@ -17,7 +17,7 @@ export const BASE_ENV_ALLOW: readonly string[] = [
 ];
 
 /** 이름에 이 단어가 있으면 허용 목록에 있어도 넘기지 않는다 */
-export const SECRET_ENV_PATTERN: RegExp = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)/i;
+const SECRET_ENV_PATTERN: RegExp = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)/i;
 
 export interface HookEnvInjected {
   readonly hookId: string;

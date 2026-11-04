@@ -9,7 +9,7 @@ import type { HookHookName } from "./config.ts";
 export const HOOK_SCHEMA_VERSION = "fresnel.hook.v1";
 export const HOOK_OUTPUT_MAX_CHARS = 10_000;
 export const HOOK_STDERR_MAX_CHARS = 10_000;
-export const HOOK_EXIT_DENY = 2;
+const HOOK_EXIT_DENY = 2;
 const DENY_REASON_CHARS = 500;
 
 export interface HookInput {
@@ -38,7 +38,7 @@ const HookOutputSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export type HookFailureKind = "hook_exit" | "hook_spawn" | "hook_output" | "timeout";
+type HookFailureKind = "hook_exit" | "hook_spawn" | "hook_output" | "timeout";
 
 export type HookVerdict =
   | { readonly kind: "pass" }
@@ -61,7 +61,8 @@ export function interpretHookRun(fold: "tap" | "first" | "chain", run: HookRawRu
   }
   if (run.timedOut) return { kind: "failure", failure: "timeout", detail: "hook timed out" };
   if (run.exitCode === HOOK_EXIT_DENY) {
-    if (fold === "first") return { kind: "deny", reason: run.stderr.slice(0, DENY_REASON_CHARS) };
+    if (fold === "first")
+      return { kind: "deny", reason: run.stderr.trim().slice(0, DENY_REASON_CHARS) };
     return { kind: "pass" };
   }
   if (run.exitCode !== 0) {

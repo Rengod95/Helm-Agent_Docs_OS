@@ -805,6 +805,13 @@ export interface HookEntry {
   readonly keepOffQuestion?: ExtKeepOffQuestion;
   /** 사용자가 끈 훅이거나 이번 실행에서 자동으로 꺼졌으면 참. 꺼짐은 설정 `x.operations.hookDisabled`에 남아 재시작 뒤에도 유지된다. 거짓이면 싣지 않아도 된다 */
   readonly autoDisabled?: boolean;
+  /**
+   * 외부 훅(설정 `x.operations.hookDefs`의 훅) 한 줄이면 있다. 이때 `hook`은 훅 id(실패 장부 키 `hook:<id>`와 같은 값)이고 이 필드가
+   * 걸린 Hook 이름이다. 지점 줄(`hook`이 Hook 이름)에는 없다. 질문과 꺼짐 표시는 외부 훅 줄에 붙는다 [제안: 2026-11-04 hookrun]
+   */
+  readonly point?: string;
+  /** 외부 훅이 적힌 설정 범위(`managed`, `user`, `project`, `local`). `point`와 함께 있다 */
+  readonly source?: string;
 }
 /** 훅 핸들러 하나. 순서는 배열 위치다 */
 export interface HookHandlerRow {
@@ -839,6 +846,8 @@ const HookEntryShape = closed({
     }),
   ),
   autoDisabled: Type.Optional(Type.Boolean()),
+  point: Type.Optional(Name),
+  source: Type.Optional(Name),
 });
 export interface HooksListResult {
   readonly hooks: readonly HookEntry[];

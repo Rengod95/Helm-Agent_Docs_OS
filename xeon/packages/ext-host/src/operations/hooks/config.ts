@@ -5,7 +5,7 @@ import type { Tier } from "../tier.ts";
 
 // 외부 훅 정의와 설정 범위 병합(X.operations.spec §3.7, §4.7.1, §4.7.6)
 
-export const HOOK_ID_PATTERN = "^[a-z][a-z0-9-]{1,63}$";
+const HOOK_ID_PATTERN = "^[a-z][a-z0-9-]{1,63}$";
 
 /** 외부 훅이 참여할 수 있는 지점. 고빈도 stream tap과 모델 요청 직전 chain은 뺀다(§4.7.2) */
 export const HOOK_HOOKS = [
@@ -19,10 +19,6 @@ export const HOOK_HOOKS = [
   "thread.shutdown",
 ] as const;
 export type HookHookName = (typeof HOOK_HOOKS)[number];
-
-export function isHookHookName(value: string): value is HookHookName {
-  return HOOK_HOOKS.some((name) => name === value);
-}
 
 const HookDefShape = Type.Object(
   {
@@ -56,7 +52,7 @@ export interface HookDef {
   readonly timeoutMs?: number;
   readonly env?: readonly string[];
 }
-export const HookDefSchema: TUnsafe<HookDef> = Type.Unsafe<HookDef>(
+const HookDefSchema: TUnsafe<HookDef> = Type.Unsafe<HookDef>(
   HookDefShape satisfies SchemaProof<HookDef, typeof HookDefShape>,
 );
 
@@ -86,7 +82,7 @@ export interface LoadedHook {
   readonly index: number;
 }
 
-export interface HookConfigIssue {
+interface HookConfigIssue {
   readonly source: HookSource;
   readonly message: string;
 }

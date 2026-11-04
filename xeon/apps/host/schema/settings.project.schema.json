@@ -4346,6 +4346,127 @@
         }
       }
     },
+    "x.operations.hookDefs": {
+      "default": [],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "items": {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "type": "array"
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "const": "project",
+                "type": "string"
+              },
+              {
+                "const": "home",
+                "type": "string"
+              }
+            ]
+          },
+          "env": {
+            "items": {
+              "pattern": "^[A-Z_][A-Z0-9_]{0,63}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "type": "array"
+          },
+          "id": {
+            "pattern": "^[a-z][a-z0-9-]{1,63}$",
+            "type": "string"
+          },
+          "point": {
+            "anyOf": [
+              {
+                "const": "input.user.before",
+                "type": "string"
+              },
+              {
+                "const": "input.bash.before",
+                "type": "string"
+              },
+              {
+                "const": "tool.call.before",
+                "type": "string"
+              },
+              {
+                "const": "tool.result",
+                "type": "string"
+              },
+              {
+                "const": "thread.start",
+                "type": "string"
+              },
+              {
+                "const": "thread.compact.before",
+                "type": "string"
+              },
+              {
+                "const": "boundary.settle.after",
+                "type": "string"
+              },
+              {
+                "const": "thread.shutdown",
+                "type": "string"
+              }
+            ]
+          },
+          "timeoutMs": {
+            "maximum": 600000,
+            "minimum": 100,
+            "type": "integer"
+          },
+          "tools": {
+            "items": {
+              "pattern": "^[a-zA-Z0-9_-]{1,64}$",
+              "type": "string"
+            },
+            "maxItems": 64,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "point",
+          "command"
+        ],
+        "type": "object"
+      },
+      "maxItems": 128,
+      "type": "array",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Each row runs a command on this computer when its hook fires. The command receives the event as JSON on stdin and runs with your user permissions. Only add commands you trust. Hooks written in a work folder run only after that folder is trusted.",
+          "helpKey": "settings.x.operations.hookDefs.help",
+          "label": "External hooks",
+          "labelKey": "settings.x.operations.hookDefs.label",
+          "order": 630,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
     "x.primitives.activeDriver": {
       "anyOf": [
         {

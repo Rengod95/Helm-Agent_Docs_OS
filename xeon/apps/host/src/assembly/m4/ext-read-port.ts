@@ -109,8 +109,21 @@ interface HookOrderSource {
   pending(): boolean;
 }
 
+/** 설정 `x.operations.hookDefs`에서 읽은 외부 훅 하나(X.operations §4.7). 화면에 실제 id로 보인다 */
+export interface ExternalHookView {
+  readonly id: string;
+  readonly point: HookName;
+  readonly source: string;
+  /** 정렬 순위(`TIERS`의 인덱스) */
+  readonly tierRank: number;
+  /** 실행하는 내장 단위의 Registration id */
+  readonly unit: string;
+}
+
 export interface ExtReadSources {
   safeMode(): SafeModeState;
+  /** 이 호스트에서 읽히는 외부 훅. 작업 폴더·로컬 범위는 thread 없이는 보이지 않는다 */
+  externalHooks(): readonly ExternalHookView[];
   /** Hook의 예산 등급과 유효 예산(ms). X.operations §4.2.2 표와 설정 `x.operations.budget.*`의 값 */
   budget(hook: HookName): { readonly budgetClass: string; readonly budgetMs: number };
   threadKnown(threadId: string, signal: AbortSignal): Promise<boolean>;
@@ -135,6 +148,8 @@ export interface ExtReadSources {
   hookKeepOffQuestion(hook: string): NonNullable<HookEntry["keepOffQuestion"]> | null;
   /** 외부 훅이 이번 실행에서 자동으로 꺼졌나 */
   hookAutoDisabled(hook: string): boolean;
+  /** 이번 실행에서 자동으로 꺼진 외부 훅 id들 */
+  hookAutoDisabledIds(): readonly string[];
   /** 설정 `x.operations.hookDisabled`에 저장된 꺼진 훅 id들 */
   hookDisabledSaved(): readonly string[];
   /** 훅 "켜 두기" 답. 질문이 있으면 `answer(hook:<id>, false)`, 없으면 `reenable(hook:<id>)`다 */
@@ -211,9 +226,11 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   disableConfirm: () => {},
   hookKeepOffQuestion: () => null,
   hookAutoDisabled: () => false,
+  hookAutoDisabledIds: () => [],
   hookDisabledSaved: () => [],
   hookReenable: () => {},
   hookDisableConfirm: () => {},
+  externalHooks: () => [],
   reload: () => Promise.resolve({ appliesAt: "nextStepBoundary", diagnostics: [] }),
   groups: () => [],
   groupMetrics: () => Promise.resolve(undefined),
@@ -767,6 +784,20 @@ export function createExtReadPort(
         rows.push(rowOf(handler.registrationId, handler.extension, handler.tier));
         live.set(handler.point, rows);
       }
+      // 외부 훅은 실행하는 단위의 자리에 훅 id로 끼운다: 디스패치와 같이 tier 순위 순이고 같은 순위에서는 확장 뒤에 이어 붙는다(X.operations §4.7.4)
+      const external = sources.externalHooks();
+      const disabledIds = new Set(sources.hookDisabledSaved());
+      for (const hook of external) {
+        const rows = live.get(hook.point) ?? [];
+        const at = rows.findIndex((row) => (row.tier ?? Number.MAX_SAFE_INTEGER) > hook.tierRank);
+        const row = {
+          ...rowOf(hook.id, hook.unit, hook.tierRank),
+          status:
+            disabledIds.has(hook.id) || sources.hookAutoDisabled(hook.id) ? "disabled" : "enabled",
+        } satisfies HookHandlerRow;
+        rows.splice(at === -1 ? rows.length : at, 0, row);
+        live.set(hook.point, rows);
+      }
       // 레지스트리에서 빠진 Registration(꺼졌거나 setup에 실패함)은 선언한 Hook을 뒤에 붙인다. Registration이 없는 확장은 없다
       const idle = new Map<HookName, HookHandlerRow[]>();
       for (const record of sources.extensions()) {
@@ -792,7 +823,39 @@ export function createExtReadPort(
             a.registrationId < b.registrationId ? -1 : a.registrationId > b.registrationId ? 1 : 0,
           ),
         ];
-        rows.push({ ...hookRow(hook, order), ...hookStateOf(hook) });
+        rows.push(hookRow(hook, order));
+      }
+      // 외부 훅 줄: `hook`이 훅 id다. 질문과 꺼짐 표시는 여기에 붙는다(실패 장부 키 `hook:<id>`와 같은 값)
+      const listed = new Set<string>();
+      for (const hook of external) {
+        listed.add(hook.id);
+        const off =
+          sources.hookDisabledSaved().includes(hook.id) || sources.hookAutoDisabled(hook.id);
+        rows.push({
+          hook: hook.id,
+          fold: HOOKS[hook.point].fold,
+          handlers: off ? 0 : 1,
+          registrations: off ? [] : [hook.id],
+          external: true,
+          point: hook.point,
+          source: hook.source,
+          ...hookStateOf(hook.id),
+        });
+      }
+      // 정의가 지금 보이지 않는 훅(다른 작업 폴더의 훅 등)도 질문이나 꺼짐이 있으면 줄을 남긴다
+      for (const id of new Set([
+        ...sources.hookDisabledSaved(),
+        ...sources.hookAutoDisabledIds(),
+      ])) {
+        if (listed.has(id)) continue;
+        rows.push({
+          hook: id,
+          fold: "external",
+          handlers: 0,
+          registrations: [],
+          external: true,
+          ...hookStateOf(id),
+        });
       }
       return Promise.resolve(ok({ hooks: rows.toSorted((a, b) => (a.hook < b.hook ? -1 : 1)) }));
     },
