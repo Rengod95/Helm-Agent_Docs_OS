@@ -16,7 +16,7 @@ import { printFailure, type CommandContext } from "./context.ts";
 /** 호스트가 끝날 때까지 기다린다. 읽기 끝(EOF), 신호, host.shutdown 요청이 끝내는 길이다 */
 export async function runHostStdio(
   ctx: CommandContext,
-  command: { readonly safeMode: boolean },
+  command: { readonly safeMode: boolean; readonly noSafeMode: boolean },
 ): Promise<ExitCode> {
   const { io, deps } = ctx;
   const remote = await deps.resolveRemote({
@@ -35,7 +35,8 @@ export async function runHostStdio(
     assemble: {
       settingGroups: cliSettingGroups,
       devChecks: deps.devWireRoundTrip,
-      ...(command.safeMode ? { safeMode: true } : {}),
+      // `--no-safe-mode`는 설정 `x.operations.safeMode.default`보다 앞서 끈다. 둘 다 없으면 옵션을 넘기지 않는다
+      ...(command.safeMode ? { safeMode: true } : command.noSafeMode ? { safeMode: false } : {}),
     },
   });
   if (exit.message !== undefined) await io.stderr(`fresnel: ${exit.message}\n`);

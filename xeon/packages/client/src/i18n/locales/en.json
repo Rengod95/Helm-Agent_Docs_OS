@@ -620,6 +620,7 @@
   "cli.usage.group.newUse.fix": "Use fresnel group new <name>",
   "cli.usage.group.reserved.message": "\"{text}\" is a reserved group name",
   "cli.usage.host.stdioMissing.message": "host needs --stdio",
+  "cli.usage.host.safeModeConflict.message": "host cannot take --safe-mode and --no-safe-mode together",
   "cli.usage.itemId.invalid.fix": "Check the id with fresnel sessions show (starts with itm_)",
   "cli.usage.itemId.invalid.message": "The item id has the wrong format",
   "cli.usage.jsonOnly.fix": "Only --json can be used",

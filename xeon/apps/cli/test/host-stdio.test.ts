@@ -51,6 +51,16 @@ test("--safe-mode is passed to the stdio host as assemble.safeMode and is absent
   expect(seen.map((options) => options.assemble?.safeMode)).toEqual([true, undefined]);
 });
 
+test("--no-safe-mode is passed as assemble.safeMode false, and it cannot be combined with --safe-mode", async () => {
+  const seen: StdioHostOptions[] = [];
+  const h = harness({ code: 0, reason: "eof" }, seen);
+  expect(await h.run(["host", "--stdio", "--no-safe-mode"])).toBe(EXIT.ok);
+  expect(seen.map((options) => options.assemble?.safeMode)).toEqual([false]);
+  expect(await h.run(["host", "--stdio", "--safe-mode", "--no-safe-mode"])).toBe(EXIT.usage);
+  expect(seen).toHaveLength(1);
+  expect(h.stderrText()).toContain("--safe-mode");
+});
+
 test("the contract stream is the byte stdout: nothing human-readable goes to stdout", async () => {
   const h = createHarness({
     startStdioHost: async (options) => {

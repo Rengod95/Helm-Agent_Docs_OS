@@ -186,6 +186,8 @@ interface CliHostCommand {
   readonly stdio: true;
   /** `--safe-mode`: 이번 엔진 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다. 데스크톱 셸이 "안전 모드로 시작"에 쓴다 */
   readonly safeMode: boolean;
+  /** `--no-safe-mode`: 설정 `x.operations.safeMode.default`가 켜져 있어도 이번 엔진 시작은 안전 모드로 열지 않는다. "안전 모드 끄고 다시 시작"이 쓴다 */
+  readonly noSafeMode: boolean;
 }
 export interface DoctorCommand {
   readonly kind: "doctor";
@@ -1704,8 +1706,18 @@ function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostComma
   const scanned = scanArgs(acc, rest, {
     "--stdio": { value: "none" },
     "--safe-mode": { value: "none" },
+    "--no-safe-mode": { value: "none" },
   });
   if (!scanned.ok) return scanned;
+  if (has(scanned.value, "--safe-mode") && has(scanned.value, "--no-safe-mode")) {
+    return err(
+      usage(
+        "conflictingFlags",
+        t("cli.usage.host.safeModeConflict.message"),
+        "fresnel host --stdio --no-safe-mode",
+      ),
+    );
+  }
   if (scanned.value.positionals.length > 0) {
     return err(
       usage(
@@ -1720,7 +1732,12 @@ function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostComma
       usage("missingArgument", t("cli.usage.host.stdioMissing.message"), "fresnel host --stdio"),
     );
   }
-  return ok({ kind: "host", stdio: true, safeMode: has(scanned.value, "--safe-mode") });
+  return ok({
+    kind: "host",
+    stdio: true,
+    safeMode: has(scanned.value, "--safe-mode"),
+    noSafeMode: has(scanned.value, "--no-safe-mode"),
+  });
 }
 
 function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, UsageError> {
