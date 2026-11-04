@@ -102,6 +102,22 @@ describe("fresnel.devkit and its wire methods", () => {
       location: "/l",
       appliesAt: "restart",
     });
+    roundTrip(WIRE_METHODS["ext.install"].result, {
+      name: "n",
+      version: "1.0.0",
+      location: "/l",
+      appliesAt: "nextStepBoundary",
+      needsReload: true,
+    });
+    expect(
+      parse(WIRE_METHODS["ext.install"].result, {
+        name: "n",
+        version: "1.0.0",
+        location: "/l",
+        appliesAt: "nextStepBoundary",
+        needsReload: false,
+      }).ok,
+    ).toBe(false);
     for (const appliesAt of ["now", "nextStepBoundary"]) {
       roundTrip(WIRE_METHODS["ext.install"].result, {
         name: "n",

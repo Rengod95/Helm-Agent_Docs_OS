@@ -206,6 +206,8 @@ const ExtLoadFailureShape = closed({
 export interface ExtInstallResult extends LinkResult {
   readonly appliesAt: "now" | "nextStepBoundary" | "restart";
   readonly loadFailure?: ExtLoadFailure;
+  /** 같은 이름이 이미 실행 중이라 호출자가 `ext.reload`로 새 판으로 바꿔야 한다. 새 이름이 단계 경계에서 켜지는 `nextStepBoundary`와 구별한다 */
+  readonly needsReload?: true;
 }
 const ExtInstallResultShape = closed({
   name: Name,
@@ -217,6 +219,7 @@ const ExtInstallResultShape = closed({
     Type.Literal("restart"),
   ]),
   loadFailure: Type.Optional(ExtLoadFailureShape),
+  needsReload: Type.Optional(Type.Literal(true)),
 });
 export const ExtInstallResultSchema: TUnsafe<ExtInstallResult> = Type.Unsafe<ExtInstallResult>(
   ExtInstallResultShape satisfies SchemaProof<ExtInstallResult, typeof ExtInstallResultShape>,
