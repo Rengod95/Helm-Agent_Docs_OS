@@ -553,6 +553,31 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
+  test("removePreview는 이름만 ext.removePreview로 보내고 저장 테이블 목록을 그대로 돌려준다", async () => {
+    const body = { name: "web", tables: [{ name: "ext_web_cache", rows: 3 }] };
+    const { app, params } = await liveApp({ results: { "ext.removePreview": body } });
+    expect(await app.commands.workbench.removePreview("web")).toEqual({ ok: true, value: body });
+    expect(paramsOf(params, "ext.removePreview")).toEqual([{ name: "web" }]);
+    await app.stop();
+  });
+
+  test("remove는 dropData를 참일 때만 싣는다(생략과 거짓은 이름만 보낸다)", async () => {
+    const result = { name: "web", appliesAt: "now", dataDropped: 1 } as const;
+    const { app, params } = await liveApp({ results: { "ext.remove": result } });
+    expect(await app.commands.workbench.remove("web", { dropData: true })).toEqual({
+      ok: true,
+      value: result,
+    });
+    await app.commands.workbench.remove("web");
+    await app.commands.workbench.remove("web", { dropData: false });
+    expect(paramsOf(params, "ext.remove")).toEqual([
+      { name: "web", dropData: true },
+      { name: "web" },
+      { name: "web" },
+    ]);
+    await app.stop();
+  });
+
   test("reload는 이름만 ext.reload로 보내고 거절은 오류 값으로 돌려준다", async () => {
     const { app, params } = await liveApp({
       results: { "ext.reload": { appliesAt: "nextStepBoundary", diagnostics: [] } },

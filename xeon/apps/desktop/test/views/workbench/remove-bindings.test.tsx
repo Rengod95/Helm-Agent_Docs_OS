@@ -136,6 +136,42 @@ describe("controller.remove", () => {
   });
 });
 
+describe("controller.remove의 저장 데이터 지우기", () => {
+  test("dropData를 참으로 그대로 넘기고, 지웠으면 true다", async () => {
+    const seen: { name: string; options: unknown }[] = [];
+    const commands = commandsWith({
+      remove: (name, options) => {
+        seen.push({ name, options });
+        return Promise.resolve(ok({ name, appliesAt: "now", dataDropped: 2 }));
+      },
+      list: () => Promise.resolve(ok([])),
+    });
+    const done = await controllerOf(createWorkbenchStore(), commands).remove("web", {
+      dropData: true,
+    });
+    expect(done).toBe(true);
+    expect(seen).toEqual([{ name: "web", options: { dropData: true } }]);
+  });
+
+  test("저장 데이터를 지우다 실패하면 false이고, 호스트가 확장을 먼저 내렸으니 목록을 다시 읽는다", async () => {
+    let listed = 0;
+    const commands = commandsWith({
+      remove: () => Promise.resolve(err({ kind: "rejected", code: 3405 })),
+      list: () => {
+        listed += 1;
+        return Promise.resolve(ok([]));
+      },
+      health: () => Promise.resolve(ok([])),
+      hooks: () => Promise.resolve(ok([])),
+      orderGet: () => Promise.resolve(ok({ hooks: [] })),
+    });
+    expect(
+      await controllerOf(createWorkbenchStore(), commands).remove("web", { dropData: true }),
+    ).toBe(false);
+    expect(listed).toBe(1);
+  });
+});
+
 function panelHtml(target: ExtListEntry): string {
   const store = screenStore();
   return renderToString(
