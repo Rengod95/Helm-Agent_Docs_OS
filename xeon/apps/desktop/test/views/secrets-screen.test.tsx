@@ -3,6 +3,8 @@ import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
 import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
+import { EngineStoreContext, type EngineMirror } from "../../src/state/engine/index.ts";
+import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import {
   initialSecretsState,
   secretsReducer,
@@ -13,6 +15,7 @@ import {
   SecretsScreenView,
   type SecretsScreenHandlers,
 } from "../../src/views/pages/secrets/secrets-view.tsx";
+import { harness, summary, thr } from "../state/helpers.ts";
 
 // 시크릿 화면의 서버 렌더. 상태는 reducer로 만들고 동작 핸들러는 아무것도 하지 않는 것으로 둔다.
 // 클릭과 키 입력은 DOM이 없어 시험하지 못한다(뜻은 secret-model.test.ts가 본다). 값은 상태에 없고, 그릴 때 props로만 들어온다.
@@ -72,6 +75,11 @@ const ROW: SecretListEntry = {
     maxUses: 50,
   },
 };
+
+/** 상태가 바뀌지 않는 스토어. 서버 렌더가 읽는 처음 상태가 곧 이 상태다 */
+function frozenStore(state: EngineMirror): ReadonlyStore<EngineMirror> {
+  return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
+}
 
 function html(state: SecretsState, shownText: string | null = null): string {
   return renderToString(
@@ -240,6 +248,52 @@ describe("secrets screen server render", () => {
       );
       expect(markup.match(/<li /g)?.length).toBe(50);
       expect(markup).toContain("더 보기 (70개 남음)");
+    });
+
+    test("a conversation row names the conversation by its title, 제목 없음 when it has none, and a short id when the list does not know it", () => {
+      const h = harness();
+      h.store.ingest({
+        type: "threads",
+        threads: [summary(thr(1), { title: "캐시 무효화 조사" }), summary(thr(2), { title: null })],
+      });
+      h.store.flush();
+      const state = withAudit({
+        type: "audit",
+        name: ROW.name,
+        load: {
+          kind: "ready",
+          value: {
+            entries: [1, 2, 3].map((n, index) => ({
+              at: new Date(NOW - (index + 1) * 1000).toISOString(),
+              decision: "allow",
+              mode: "env",
+              threadId: thr(n),
+              toolCallId: `call_${n}`,
+              host: "api.exa.ai",
+              reason: null,
+            })),
+          },
+        },
+      });
+      // 서버 렌더는 스토어의 처음 상태를 읽으므로(zustand getInitialState) 시드한 거울을 고정 스토어로 준다
+      const mirror = h.store.read.getState();
+      const markup = renderToString(
+        <EngineStoreContext value={frozenStore(mirror)}>
+          <SecretsScreenView
+            state={state}
+            shownText={null}
+            locale="ko"
+            nowMs={NOW}
+            handlers={handlers}
+          />
+        </EngineStoreContext>,
+      );
+      expect(markup).toContain("캐시 무효화 조사");
+      expect(markup).toContain("제목 없음");
+      expect(markup).toContain("thr_…000003");
+      expect(markup).not.toContain(thr(1));
+      expect(markup).not.toContain(thr(2));
+      expect(markup).not.toContain(thr(3));
     });
 
     test("a log for another name does not change the selected detail", () => {

@@ -64,6 +64,7 @@ function bodyHtml(over: {
   return renderToString(
     <RemoveDialogBody
       preview={over.preview}
+      impact={{ profiles: { kind: "ready", titles: [] }, views: [] }}
       checked={over.checked ?? false}
       busy={false}
       dataFailed={over.dataFailed ?? false}

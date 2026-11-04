@@ -1,6 +1,8 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
-import { detach, rethrow } from "@fresnel/contracts";
+import { assertNever, detach, rethrow } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { storeFailureOfExitCode, type StatusItemRecord } from "@fresnel/contracts/records";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import { useState, type ReactNode } from "react";
 import { nativeEntriesOf, originTitleOf } from "../plugin-ui/placements.ts";
 import {
@@ -9,6 +11,7 @@ import {
   useLinkBanner,
   useRunningCount,
   useStatusItems,
+  useThreadSummaries,
   type EngineState,
   type Link,
 } from "../state/engine/index.ts";
@@ -18,6 +21,8 @@ import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
 import { usePluginUiState } from "./plugin/plugin-context.tsx";
 import { RestartLine } from "./restart-line.tsx";
 import { SafeModeChip } from "./safe-mode-chip.tsx";
+import { StatusCell, type StatusDot } from "./status-cell.tsx";
+import { useGoToThread, type GoToThread } from "./thread-link.ts";
 
 const LINK_TEXT: Readonly<Record<Link["phase"], MessageId>> = {
   offline: "desktop.status.link.offline",
@@ -123,11 +128,203 @@ export function linkTextOf(phase: Link["phase"]): MessageId {
   return LINK_TEXT[phase];
 }
 
+/** 엔진 칸의 점. 돌고 있으면 초록, 시작·다시 시작·끄는 중이면 노랑, 실패면 빨강, 꺼짐과 확인 전은 회색이다 */
+export function engineDotOf(engine: EngineState | null | undefined): StatusDot {
+  if (engine === undefined || engine === null) return "neutral";
+  switch (engine.kind) {
+    case "running":
+      return "success";
+    case "starting":
+    case "restarting":
+    case "stopping":
+      return "warning";
+    case "failed":
+      return "danger";
+    case "stopped":
+      return "neutral";
+    default:
+      return assertNever(engine, "EngineState");
+  }
+}
+
+/** 엔진 Popover의 설명. 실패와 다시 시작 중에만 한 문장을 더한다. 나머지는 칸 글로 충분하다 */
+export function engineDescriptionOf(engine: EngineState | null | undefined): MessageId | undefined {
+  if (engine?.kind === "failed") return "desktop.status.cell.engine.failed";
+  if (engine?.kind === "restarting") return "desktop.status.cell.engine.restarting";
+  return undefined;
+}
+
+const LINK_DOT: Readonly<Record<Link["phase"], StatusDot>> = {
+  offline: "neutral",
+  connecting: "warning",
+  syncing: "warning",
+  live: "success",
+  resync: "warning",
+  reset: "warning",
+  failed: "danger",
+};
+
+/** 연결 Popover의 설명. 끊긴 동안은 읽기만 된다는 것을, 맞추는 중과 실패는 어떻게 되는지를 보인다 */
+const LINK_DESCRIPTION: Readonly<Record<Link["phase"], MessageId | undefined>> = {
+  offline: "desktop.status.cell.link.down",
+  connecting: undefined,
+  syncing: "desktop.status.cell.link.catchUp",
+  live: undefined,
+  resync: "desktop.status.cell.link.catchUp",
+  reset: "desktop.status.cell.link.catchUp",
+  failed: "desktop.status.cell.link.down",
+};
+
+/** 진행 중 Popover의 묶음 종류. 대화, 테스트 대화(testRun 표식), 예약(origin이 schedule) */
+type LiveKind = "thread" | "trial" | "schedule";
+
+export interface LiveRow {
+  readonly kind: LiveKind;
+  readonly threadId: ThreadId;
+  readonly title: string | null;
+}
+
+const LIVE_KINDS: readonly LiveKind[] = ["thread", "trial", "schedule"];
+
+const LIVE_HEAD: Readonly<Record<LiveKind, MessageId>> = {
+  thread: "desktop.status.cell.live.thread",
+  trial: "desktop.status.cell.live.trial",
+  schedule: "desktop.status.cell.live.schedule",
+};
+
+function liveKindOf(thread: ThreadSummary): LiveKind {
+  if (thread.testRun !== undefined) return "trial";
+  if (thread.origin?.kind === "schedule") return "schedule";
+  return "thread";
+}
+
+/** 실행 중인 대화를 종류별 행으로 바꾼다. 목록 순서(거울의 순서)를 따른다 */
+export function liveRowsOf(threads: readonly ThreadSummary[]): LiveRow[] {
+  return threads
+    .filter((thread) => thread.status === "running")
+    .map((thread) => ({
+      kind: liveKindOf(thread),
+      threadId: thread.threadId,
+      title: thread.title,
+    }));
+}
+
+function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: number }): ReactNode {
+  const { phase, attempt } = props;
+  const [open, setOpen] = useState(false);
+  const description = LINK_DESCRIPTION[phase];
+  return (
+    <StatusCell
+      cellId="link"
+      text={`${t(LINK_TEXT[phase])}${attempt > 0 ? ` ${t("desktop.status.link.attempt", { attempt })}` : ""}`}
+      dot={LINK_DOT[phase]}
+      title={t("desktop.status.cell.link.title")}
+      description={description === undefined ? undefined : t(description)}
+      open={open}
+      onOpenChange={setOpen}
+    />
+  );
+}
+
+function EngineCell(props: { readonly engine: EngineState | null }): ReactNode {
+  const [open, setOpen] = useState(false);
+  const description = engineDescriptionOf(props.engine);
+  return (
+    <StatusCell
+      cellId="engine"
+      text={engineLineOf(props.engine)}
+      dot={engineDotOf(props.engine)}
+      title={t("desktop.status.cell.engine.title")}
+      description={description === undefined ? undefined : t(description)}
+      open={open}
+      onOpenChange={setOpen}
+    />
+  );
+}
+
+/** 진행 중 목록의 묶음들. 묶음마다 머리 글과 행이 있다 */
+function LiveList(props: {
+  readonly rows: readonly LiveRow[];
+  readonly goTo: GoToThread | null;
+  readonly close: () => void;
+}): ReactNode {
+  const { rows, goTo, close } = props;
+  return (
+    <div className="grid gap-2">
+      {LIVE_KINDS.map((kind) => {
+        const items = rows.filter((row) => row.kind === kind);
+        if (items.length === 0) return null;
+        return (
+          <section key={kind} aria-label={t(LIVE_HEAD[kind])} className="grid gap-0.5">
+            <h3 className="m-0 text-ui-xs font-normal text-text-tertiary">{t(LIVE_HEAD[kind])}</h3>
+            {items.map((row) => (
+              <LiveRowLine key={row.threadId} row={row} goTo={goTo} close={close} />
+            ))}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function LiveRowLine(props: {
+  readonly row: LiveRow;
+  readonly goTo: GoToThread | null;
+  readonly close: () => void;
+}): ReactNode {
+  const { row, goTo, close } = props;
+  const name = row.title ?? t("desktop.threads.untitled");
+  if (goTo === null)
+    return <span className="min-w-0 truncate text-ui-sm text-text-primary">{name}</span>;
+  return (
+    <button
+      type="button"
+      className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-start text-ui-sm text-text-primary outline-none focus-visible:focus-ring"
+      onClick={() => {
+        goTo(row.threadId);
+        close();
+      }}
+    >
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+    </button>
+  );
+}
+
+/** "진행 중 n" 칸과 Popover(N-58). 목록이 비면 빈 글을 보인다. 행을 누르면 그 대화로 가고 Popover를 닫는다 */
+function LiveCell(): ReactNode {
+  const running = useRunningCount();
+  const rows = liveRowsOf(useThreadSummaries());
+  const goTo = useGoToThread();
+  const [open, setOpen] = useState(false);
+  return (
+    <StatusCell
+      cellId="live"
+      text={t("desktop.status.running", { count: running })}
+      title={t("desktop.status.cell.live.title")}
+      wide
+      open={open}
+      onOpenChange={setOpen}
+      body={
+        rows.length === 0 ? (
+          <p className="m-0 text-ui-sm text-text-tertiary">{t("desktop.status.cell.live.empty")}</p>
+        ) : (
+          <LiveList
+            rows={rows}
+            goTo={goTo}
+            close={() => {
+              setOpen(false);
+            }}
+          />
+        )
+      }
+    />
+  );
+}
+
 export function StatusBar(): ReactNode {
   const commands = useCommands();
   const engine = useEngineState();
   const banner = useLinkBanner();
-  const running = useRunningCount();
   const approvals = useApprovalCount();
   const connectError = useConnectError();
   const restartNeeded = useRestartNeeded();
@@ -137,15 +334,10 @@ export function StatusBar(): ReactNode {
   };
   return (
     <footer className="statusbar" role="status">
-      <span>{engineLineOf(engine)}</span>
-      <span>
-        {t(LINK_TEXT[banner.phase])}
-        {banner.attempt > 0
-          ? ` ${t("desktop.status.link.attempt", { attempt: banner.attempt })}`
-          : ""}
-      </span>
+      <EngineCell engine={engine} />
+      <LinkCell phase={banner.phase} attempt={banner.attempt} />
       <SafeModeChip />
-      <span>{t("desktop.status.running", { count: running })}</span>
+      <LiveCell />
       {approvals > 0 ? (
         <span className="warn">{t("desktop.status.approvals", { count: approvals })}</span>
       ) : null}

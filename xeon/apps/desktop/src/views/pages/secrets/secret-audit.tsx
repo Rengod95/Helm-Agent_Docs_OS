@@ -1,17 +1,25 @@
 import { t, type Locale } from "@fresnel/client/i18n";
 import type { SecretAuditEntry, SecretAuditResult } from "@fresnel/contracts/wire";
 import { assertNever } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { Badge, Button } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import { InfoTip } from "../../craft/info-tip.tsx";
+import { useThread } from "../../../state/engine/index.ts";
 import type { Load } from "./secret-model.ts";
 import { auditModeIdOf, auditReasonIdOf, commandErrorText, lastUsedTextOf } from "./secret-text.ts";
 
 // 시크릿 사용 기록(P-10, W-13 `secret.audit`). 언제, 어느 대화가, 어떤 모습으로 썼는지와 거절 사유를 보인다. 값은 와이어에 없다.
 // 행 사이에 선을 긋지 않고 간격으로 나눈다(DP-26). 기록 개수 상한은 없으므로 처음 PAGE_SIZE개만 그리고 "더 보기"로 늘린다.
+// 대화 칸은 id가 아니라 제목이다. 제목은 엔진 거울(thread.list)에서 찾는다. 목록에 없으면 id의 앞뒤 몇 글자를 보인다.
 
 /** 한 번에 그리는 행 수 */
 const AUDIT_PAGE_SIZE = 50;
+
+/** 목록에 없는 대화의 id를 줄여 보인다(앞 머리와 끝 여섯 글자) */
+function shortThreadIdOf(threadId: ThreadId): string {
+  return `${threadId.slice(0, 4)}…${threadId.slice(-6)}`;
+}
 
 /** 행의 key. 같은 시각·같은 내용의 행이 있으면 뒤에 몇 번째인지를 붙인다 */
 function keysOf(entries: readonly SecretAuditEntry[]): string[] {
@@ -24,9 +32,20 @@ function keysOf(entries: readonly SecretAuditEntry[]): string[] {
   });
 }
 
-/** 한 줄의 "대화" 칸. 대화가 없으면(예약, 터미널 실행) 문장으로 쓴다 */
-function threadTextOf(entry: SecretAuditEntry): string {
-  return entry.threadId ?? t("desktop.secrets.audit.noThread");
+/**
+ * 한 줄의 "대화" 칸. 제목이 있으면 제목, 제목이 없으면 "제목 없음", 목록에 없으면 줄인 id다.
+ * 대화가 없으면(예약, 터미널 실행) 문장으로 쓴다
+ */
+function ThreadCell(props: { readonly threadId: ThreadId }): ReactNode {
+  const thread = useThread(props.threadId);
+  if (thread === undefined) {
+    return (
+      <span className="font-mono text-mono-sm text-text-tertiary">
+        {shortThreadIdOf(props.threadId)}
+      </span>
+    );
+  }
+  return <span className="text-text-primary">{thread.title ?? t("desktop.threads.untitled")}</span>;
 }
 
 function AuditRow(props: {
@@ -42,8 +61,12 @@ function AuditRow(props: {
       <time dateTime={entry.at} title={entry.at} className="tabular-nums text-text-tertiary">
         {relative ?? entry.at}
       </time>
-      <span className="min-w-0 truncate font-mono text-mono-sm text-text-tertiary">
-        {threadTextOf(entry)}
+      <span className="min-w-0 truncate">
+        {entry.threadId === null ? (
+          <span className="text-text-tertiary">{t("desktop.secrets.audit.noThread")}</span>
+        ) : (
+          <ThreadCell threadId={entry.threadId} />
+        )}
       </span>
       <span className="min-w-0 truncate text-text-secondary">
         {entry.host === null

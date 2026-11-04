@@ -83,7 +83,7 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
         <InfoTip text={t("desktop.compose.flow.boundary")} />
         {draft === null ? null : <Badge size="xs">{t("desktop.compose.flow.draft.badge")}</Badge>}
       </p>
-      <TrialBar link={link} installed={installed} trial={trial} />
+      <TrialBar link={link} installed={installed} draft={draft !== null} trial={trial} />
       {draft === null ? (
         <ReadOnlyLine
           onStart={() => {

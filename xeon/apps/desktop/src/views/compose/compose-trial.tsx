@@ -279,13 +279,17 @@ function RunRow(props: { readonly trial: TrialController; readonly run: TrialRun
   );
 }
 
-/** 시작 줄: 프로필 고르기, "시험 대화에서 돌려 보기", 설명. 설치되지 않은 그룹은 잠기고 이유를 보인다 */
+/**
+ * 시작 줄: 프로필 고르기, "시험 대화에서 돌려 보기", 설명. 설치되지 않은 그룹은 잠기고 이유를 보인다.
+ * 초안을 고치는 중이면 시험이 설치된 그룹을 돌린다는 경고를 단추 아래에 바로 보인다(경고는 설명 아이콘 뒤에 두지 않는다, DP-58)
+ */
 function StartRow(props: {
   readonly trial: TrialController;
   readonly link: TabLink;
   readonly installed: boolean;
+  readonly draft: boolean;
 }): ReactNode {
-  const { trial, link, installed } = props;
+  const { trial, link, installed, draft } = props;
   const commands = useCommands();
   const load = useCallback(() => commands.workbench.profiles(), [commands]);
   const read = useTabRead(PROFILE_LIST_KEY, link, load);
@@ -329,6 +333,7 @@ function StartRow(props: {
           }
         />
       </div>
+      {draft ? <Alert tone="warning">{t("desktop.compose.trial.draftWarning")}</Alert> : null}
       {installed ? null : <p className={MUTED}>{t("desktop.compose.trial.notInstalled")}</p>}
       {read.kind === "error" ? (
         <p className={MUTED}>{t("desktop.compose.profile.loadFailed")}</p>
@@ -342,6 +347,8 @@ export interface TrialBarProps {
   readonly link: TabLink;
   /** 흐름을 낸 그룹이 설치되어 있나. 아니면 시험을 돌릴 수 없다 */
   readonly installed: boolean;
+  /** 초안을 고치는 중인가. 시험은 설치된 그룹을 돌리므로 초안은 돌지 않는다는 경고를 보인다 */
+  readonly draft: boolean;
   readonly trial: TrialController;
 }
 
@@ -351,7 +358,7 @@ export function TrialBar(props: TrialBarProps): ReactNode {
   return (
     <div className="grid gap-2">
       {trial.run === null ? (
-        <StartRow trial={trial} link={props.link} installed={props.installed} />
+        <StartRow trial={trial} link={props.link} installed={props.installed} draft={props.draft} />
       ) : (
         <RunRow trial={trial} run={trial.run} />
       )}

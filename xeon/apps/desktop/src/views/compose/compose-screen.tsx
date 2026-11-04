@@ -18,7 +18,7 @@ import { useWorkbench } from "../../state/workbench/index.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { useWorkbenchController } from "../workbench/controller.ts";
 import { tabLinkOf } from "../workbench/tab-read.ts";
-import { CodeSource, AUTHORING_EXT } from "./compose-code.tsx";
+import { AUTHORING_EXT, builderOf, CodeSource } from "./compose-code.tsx";
 import { GroupSource } from "./compose-group.tsx";
 import { NewGroupScreen, type NewGroupPrefill } from "./compose-new-group.tsx";
 import { ProfilePanel } from "./compose-profile.tsx";
@@ -36,8 +36,8 @@ export function ComposeScreen(): ReactNode {
   // 흐름 초안은 그룹 이름별로 이 화면에 든다. "새 그룹"을 열었다 돌아와도 고친 것이 남는다(화면을 떠나면 사라진다)
   const [flowDrafts, setFlowDrafts] = useState<Readonly<Record<string, FlowDraft>>>({});
   const group = groups.find((entry) => entry.name === picked) ?? groups[0] ?? null;
-  // 플러그인 빌더가 목록에 없으면 꺼진 것으로 본다(켜기는 목록이 있을 때만 의미가 있다)
-  const builder = entries.find((entry) => entry.name === AUTHORING_EXT)?.status ?? null;
+  // 플러그인 빌더가 목록에 없으면 null이다. 그때 켜기 단추는 잠기고 까닭을 코드 보기가 문장으로 보인다
+  const builder = builderOf(entries.find((entry) => entry.name === AUTHORING_EXT));
 
   const openNew = (next: NewGroupPrefill | null): void => {
     setPrefill(next);

@@ -8,13 +8,15 @@ import type {
 } from "@fresnel/contracts/services";
 import { renderToString } from "react-dom/server";
 import {
-  CheckNotice,
-  FailedNotice,
-  MadeResult,
   PlaceFields,
   StartGrid,
   StartPicker,
-} from "../../../src/views/compose/compose-new-group.tsx";
+} from "../../../src/views/compose/compose-new-group-form.tsx";
+import {
+  CheckNotice,
+  FailedNotice,
+  MadeResult,
+} from "../../../src/views/compose/compose-new-group-result.tsx";
 
 // "새 그룹" 시작 화면의 서버 렌더. 글, 상태 가르기, aria 속성만 본다(입력과 클릭은 DOM이 없어 시험하지 않는다).
 
