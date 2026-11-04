@@ -203,11 +203,70 @@ describe("turn context", () => {
       logger: world.deps.logger,
     });
     const starting = turns.start(THREAD, "new");
-    expect((await turns.beforeAgentStart(THREAD))?.customType).toBe(INDEX_MESSAGE_TYPE);
+    // 턴은 이 대화의 시작이 끝날 때까지 기다린다
+    const first = turns.beforeAgentStart(THREAD);
     finishReindex.resolve();
     await starting;
+    expect((await first)?.customType).toBe(INDEX_MESSAGE_TYPE);
     // 첫 블록은 이미 기록에 있다. 다음 turn은 블록을 다시 넣지 않고 변경도 없으니 아무것도 더하지 않는다
     expect(await turns.beforeAgentStart(THREAD)).toBeUndefined();
+  });
+
+  test("a first turn begun during a resume start waits for it: no second block, and a later change is one exact memo", async () => {
+    const world = await createWorld();
+    await created(world, "deploy", "Deploy steps.");
+    // 앞 실행: 첫 turn이 블록을 넣었고, 그 블록은 기록에 남아 있다
+    const earlier = contextOf(world);
+    await earlier.start(THREAD, "new");
+    expect((await earlier.beforeAgentStart(THREAD))?.customType).toBe(INDEX_MESSAGE_TYPE);
+    // 다시 연 대화: 재개 시작이 재색인 중인 동안 첫 turn이 시작한다
+    const finishReindex = Promise.withResolvers<void>();
+    const reopened = createTurnContext({
+      skills: {
+        ...world.runtime.skills,
+        reindex: async (threadId) => {
+          await finishReindex.promise;
+          return world.runtime.skills.reindex(threadId);
+        },
+      },
+      memory: world.runtime.memory,
+      logger: world.deps.logger,
+    });
+    const resuming = reopened.start(THREAD, "resume");
+    const firstTurn = reopened.beforeAgentStart(THREAD);
+    finishReindex.resolve();
+    await resuming;
+    // 재개한 대화는 현재 인덱스에서 시작한다. 시작 뒤로 바뀐 것이 없으니 첫 turn은 아무것도 더하지 않는다
+    expect(await firstTurn).toBeUndefined();
+    await created(world, "extra", "Extra.");
+    expect(await reopened.beforeAgentStart(THREAD)).toEqual({
+      customType: DELTA_MESSAGE_TYPE,
+      content: "스킬 인덱스 변경: 추가 extra(Extra.)",
+      display: false,
+    });
+  });
+
+  test("shutdown forgets a session whose start is still running, so a later turn does not wait for it", async () => {
+    const world = await createWorld();
+    await created(world, "deploy", "Deploy steps.");
+    const finishReindex = Promise.withResolvers<void>();
+    const turns = createTurnContext({
+      skills: {
+        ...world.runtime.skills,
+        reindex: async (threadId) => {
+          await finishReindex.promise;
+          return world.runtime.skills.reindex(threadId);
+        },
+      },
+      memory: world.runtime.memory,
+      logger: world.deps.logger,
+    });
+    const resuming = turns.start(THREAD, "resume");
+    turns.shutdown(THREAD);
+    // 재색인은 아직 끝나지 않았다. 잊힌 시작을 기다리면 이 줄에서 멈춘다
+    expect((await turns.beforeAgentStart(THREAD))?.customType).toBe(INDEX_MESSAGE_TYPE);
+    finishReindex.resolve();
+    await resuming;
   });
 
   test("a resumed session does not repeat the first-turn block and starts from the current index", async () => {
