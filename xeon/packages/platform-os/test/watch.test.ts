@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import type { FileChange, WatchError, WatchHandle } from "@fresnel/contracts/services";
+import { createRawClassifier } from "../src/watch/fs-watch.ts";
 import { createFileWatcher, type WatchBackend } from "../src/watch/watcher.ts";
 import { manualClock, memoryLogger } from "./support/clock.ts";
 
@@ -144,4 +145,31 @@ test("create then update stays create, delete then create becomes update", async
       { type: "update", path: "/app/config/b" },
     ],
   ]);
+});
+
+test("raw events are classified one at a time in arrival order, so a new file's rename stays create", async () => {
+  const stats: { finish: () => void }[] = [];
+  const delivered: (readonly FileChange[])[] = [];
+  const failures: unknown[] = [];
+  const classify = createRawClassifier({
+    stat: () => new Promise((resolve) => stats.push({ finish: () => resolve({}) })),
+    onRaw: (changes) => delivered.push(changes),
+    onFailure: (cause) => failures.push(cause),
+  });
+  // 새 파일을 쓰면 rename(만들기)과 change(고치기) 두 원시 이벤트가 온다
+  classify("rename", "/app/config/settings.json");
+  classify("change", "/app/config/settings.json");
+  await Bun.sleep(0);
+  // 두 번째 stat은 첫 분류가 끝난 뒤에 시작한다. stat이 끝나는 순서가 분류 순서를 바꾸지 못한다
+  expect(stats).toHaveLength(1);
+  stats[0]?.finish();
+  await Bun.sleep(0);
+  expect(stats).toHaveLength(2);
+  stats[1]?.finish();
+  await Bun.sleep(0);
+  expect(delivered).toEqual([
+    [{ type: "create", path: "/app/config/settings.json" }],
+    [{ type: "update", path: "/app/config/settings.json" }],
+  ]);
+  expect(failures).toEqual([]);
 });

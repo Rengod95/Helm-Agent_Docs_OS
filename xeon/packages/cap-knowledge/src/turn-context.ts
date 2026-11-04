@@ -1,4 +1,4 @@
-import type { Logger, Result } from "@fresnel/contracts";
+import { attemptAsync, type Logger, type Result } from "@fresnel/contracts";
 import type { KnowledgeFailure } from "./errors.ts";
 import { diffIndex, formatIndexDelta, isEmptyDelta, type IndexSnapshot } from "./skills/delta.ts";
 import type { SkillIndexBlock } from "./skills/prompt-block.ts";
@@ -36,9 +36,9 @@ type SessionStartReason = "startup" | "reload" | "new" | "resume" | "fork";
 export interface TurnContext {
   /** 세션 시작. 처음 시작하는 세션(`startup`, `new`)만 첫 turn에 블록을 넣는다 */
   start(threadId: string, reason: SessionStartReason): Promise<void>;
-  /** turn 시작. 더할 메시지가 없으면 undefined */
+  /** turn 시작. 이 대화의 시작이 진행 중이면 끝날 때까지 기다린 뒤 답한다. 더할 메시지가 없으면 undefined */
   beforeAgentStart(threadId: string): Promise<ContextMessage | undefined>;
-  /** 세션 정리 */
+  /** 세션 정리. 진행 중인 시작도 잊는다 */
   shutdown(threadId: string): void;
   /** 추적 중인 세션 수(시험용) */
   size(): number;
@@ -51,6 +51,8 @@ function joinBlocks(blocks: readonly string[]): string {
 export function createTurnContext(deps: TurnContextDeps): TurnContext {
   // 세션별로 마지막으로 모델에게 알린 인덱스. 항목이 있으면 첫 turn 블록을 이미 넣었다(재개한 세션은 기록에 있다고 본다)
   const states = new Map<string, IndexSnapshot>();
+  // 시작이 진행 중인 세션의 시작 작업. 거부가 없는 값이다. turn은 이것이 끝난 뒤에 상태를 읽는다
+  const starting = new Map<string, Promise<unknown>>();
 
   const warn = (event: string, threadId: string, failure: KnowledgeFailure): void => {
     deps.logger.warn(event, { threadId, kind: failure.kind, message: failure.message });
@@ -88,31 +90,47 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     return { customType: DELTA_MESSAGE_TYPE, content: formatIndexDelta(changes), display: false };
   };
 
+  const startSession = async (threadId: string, reason: SessionStartReason): Promise<void> => {
+    // 바깥에서 둔 스킬을 이 세션이 보게 한다. 시작 시 재색인은 `startup`이 이미 했다(spec §7)
+    if (reason !== "startup") {
+      const refreshed = await deps.skills.reindex(threadId);
+      if (!refreshed.ok) warn("knowledge.context.reindex_failed", threadId, refreshed.error);
+    } else {
+      // 시작 때 재색인은 대화를 모르고 했다. 이 대화의 작업 폴더로 맞춘다
+      const synced = await deps.skills.syncFor(threadId);
+      if (!synced.ok) warn("knowledge.context.reindex_failed", threadId, synced.error);
+    }
+    // 처음 시작하는 세션은 기록에 블록이 없어서 상태도 없어야 한다. 그래서 지우지 않고 돌아간다. 지우면 안 된다: 재색인이 끝나기 전에
+    // 첫 turn이 블록을 넣었을 수 있고, 그 뒤에 지우면 다음 turn이 같은 블록을 한 번 더 넣는다.
+    const fresh = reason === "startup" || reason === "new";
+    if (fresh) return;
+    const snapshot = deps.skills.indexSnapshot(threadId);
+    if (!snapshot.ok) {
+      warn("knowledge.context.index_failed", threadId, snapshot.error);
+      states.delete(threadId);
+      return;
+    }
+    states.set(threadId, snapshot.value);
+  };
+
+  // 시작 하나를 진행 중 목록에 넣는다. 등록은 이 함수를 부르는 즉시 일어나므로, 그 뒤에 온 turn은 이 시작을 기다린다.
+  // 목록에는 거부가 없는 값을 넣고, 거부는 돌려주는 값으로 호출자에게 간다. 끝나면 목록에서 뺀다(다른 시작이 넣은 것은 건드리지 않는다)
+  const track = async (threadId: string, work: Promise<void>): Promise<void> => {
+    const settled = attemptAsync(() => work);
+    starting.set(threadId, settled);
+    try {
+      await work;
+    } finally {
+      if (starting.get(threadId) === settled) starting.delete(threadId);
+    }
+  };
+
   return {
-    start: async (threadId, reason) => {
-      // 바깥에서 둔 스킬을 이 세션이 보게 한다. 시작 시 재색인은 `startup`이 이미 했다(spec §7)
-      if (reason !== "startup") {
-        const refreshed = await deps.skills.reindex(threadId);
-        if (!refreshed.ok) warn("knowledge.context.reindex_failed", threadId, refreshed.error);
-      } else {
-        // 시작 때 재색인은 대화를 모르고 했다. 이 대화의 작업 폴더로 맞춘다
-        const synced = await deps.skills.syncFor(threadId);
-        if (!synced.ok) warn("knowledge.context.reindex_failed", threadId, synced.error);
-      }
-      const fresh = reason === "startup" || reason === "new";
-      if (fresh) {
-        states.delete(threadId);
-        return;
-      }
-      const snapshot = deps.skills.indexSnapshot(threadId);
-      if (!snapshot.ok) {
-        warn("knowledge.context.index_failed", threadId, snapshot.error);
-        states.delete(threadId);
-        return;
-      }
-      states.set(threadId, snapshot.value);
-    },
+    start: (threadId, reason) => track(threadId, startSession(threadId, reason)),
     beforeAgentStart: async (threadId) => {
+      // 시작은 턴을 기다리지 않는다(재색인은 파일과 DB만 읽고 쓰고, turn을 기다리는 호출이 없다). 그래서 턴이 시작을 기다려도 교착이 없다
+      const pending = starting.get(threadId);
+      if (pending !== undefined) await pending;
       const synced = await deps.skills.syncFor(threadId);
       if (!synced.ok) warn("knowledge.context.reindex_failed", threadId, synced.error);
       const state = states.get(threadId);
@@ -121,6 +139,7 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     },
     shutdown: (threadId) => {
       states.delete(threadId);
+      starting.delete(threadId);
     },
     size: () => states.size,
   };
