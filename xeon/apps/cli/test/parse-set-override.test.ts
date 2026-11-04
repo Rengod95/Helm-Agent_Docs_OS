@@ -7,7 +7,7 @@ function parsed(argv: readonly string[]): ReturnType<typeof parseArgv> {
   return parseArgv(argv, TTY, {});
 }
 
-test("--set a.b.c=1 becomes a session override with the raw value", () => {
+test("--set a.b.c=1 becomes a conversation override with the raw value", () => {
   const result = parsed(["chat", "--set", "l1.loop.maxSteps=50"]);
   expect(result).toMatchObject({
     ok: true,
@@ -74,7 +74,7 @@ test("config set parses a key, a value and the file scope", () => {
   });
 });
 
-test("config set refuses the session and managed scopes", () => {
+test("config set refuses the conversation and managed scopes", () => {
   expect(parsed(["config", "set", "l4.cli.theme", "dark", "--scope", "launch"])).toMatchObject({
     ok: false,
     error: { code: "conflictingFlags" },

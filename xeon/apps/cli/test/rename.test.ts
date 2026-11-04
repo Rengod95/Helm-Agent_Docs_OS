@@ -113,11 +113,11 @@ test("sessions rename sends thread.rename and the list then shows the title inst
   expect(listed).not.toContain("(제목 없음)");
 });
 
-test("renaming a missing session is a readable error with exit 1", async () => {
+test("renaming a missing conversation is a readable error with exit 1", async () => {
   const host = titled();
   const h = harness(host.handlers);
   expect(await h.run(["sessions", "rename", threadId(9), "제목"])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain(`fresnel: 세션 ${threadId(9)}이(가) 없다`);
+  expect(h.stderrText()).toContain(`fresnel: 대화 ${threadId(9)}이(가) 없다`);
 });
 
 test("a host without thread.rename says it does not handle the request", async () => {
@@ -126,7 +126,7 @@ test("a host without thread.rename says it does not handle the request", async (
   expect(h.stderrText()).toContain("이 엔진은 아직 그 요청을 처리하지 않는다 (thread.rename)");
 });
 
-test("/rename in chat renames the current session", async () => {
+test("/rename in chat renames the current conversation", async () => {
   const host = titled();
   const h = harness(host.handlers, ["/rename 새 제목"]);
   expect(await h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
@@ -144,7 +144,7 @@ test("/rename without a title does not call the host", async () => {
 
 test("the /resume list shows titles", async () => {
   const host = titled();
-  const h = harness(host.handlers, ["/rename 나의 세션", "/resume", ""]);
+  const h = harness(host.handlers, ["/rename 나의 대화", "/resume", ""]);
   expect(await h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
-  expect(h.stdoutText()).toContain(`1) ${T1}  2026-01-05T00:10:00.000Z  나의 세션`);
+  expect(h.stdoutText()).toContain(`1) ${T1}  2026-01-05T00:10:00.000Z  나의 대화`);
 });

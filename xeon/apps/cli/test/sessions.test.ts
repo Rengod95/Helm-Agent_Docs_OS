@@ -20,7 +20,7 @@ function harness(options: Parameters<typeof createHarness>[0] = {}): Harness {
 const T1 = threadId(1);
 const T2 = threadId(2);
 
-test("sessions ls asks for the current working folder and prints one line per session", async () => {
+test("sessions ls asks for the current working folder and prints one line per conversation", async () => {
   const seen: unknown[] = [];
   const h = harness({
     server: {
@@ -30,7 +30,7 @@ test("sessions ls asks for the current working folder and prints one line per se
           return {
             threads: [
               summary(T1, {
-                title: "첫 세션",
+                title: "첫 대화",
                 resumable: {
                   turnId: turnId(1),
                   runningSince: "2026-01-05T00:00:00.000Z",
@@ -50,7 +50,7 @@ test("sessions ls asks for the current working folder and prints one line per se
   const lines = h.stdoutText().trimEnd().split("\n");
   expect(lines).toHaveLength(2);
   expect(lines[0]).toContain(T1);
-  expect(lines[0]).toContain("첫 세션");
+  expect(lines[0]).toContain("첫 대화");
   expect(lines[0]).toContain("이어서 실행 가능");
   expect(lines[1]).toContain("(제목 없음)");
   expect(lines[1]).toContain("승인 대기 2");
@@ -83,7 +83,7 @@ test("sessions ls says so on stderr when there is nothing", async () => {
   });
   expect(await h.run(["sessions", "ls"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toBe("");
-  expect(h.stderrText()).toContain("세션이 없다");
+  expect(h.stderrText()).toContain("대화가 없다");
 });
 
 test("sessions show draws the durable events as a transcript and unsubscribes", async () => {
@@ -113,7 +113,7 @@ test("sessions show --json prints the events as one JSON document", async () => 
 test("sessions show on an unknown id exits 1 with the not-found message", async () => {
   const h = harness();
   expect(await h.run(["sessions", "show", T2])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain(`세션 ${T2}이(가) 없다`);
+  expect(h.stderrText()).toContain(`대화 ${T2}이(가) 없다`);
   expect(h.stderrText()).toContain("fresnel sessions ls");
 });
 
@@ -155,7 +155,7 @@ test("sessions rm without --yes on a pipe exits 2 without touching the engine", 
   expect(h.closed()).toBe(false);
 });
 
-test("sessions rm --yes deletes; a session with forks reports it", async () => {
+test("sessions rm --yes deletes; a conversation with forks reports it", async () => {
   const deleted: unknown[] = [];
   const ok = harness({
     server: { handlers: { "thread.delete": (params) => (deleted.push(params), {}) } },
@@ -174,10 +174,10 @@ test("sessions rm --yes deletes; a session with forks reports it", async () => {
     },
   });
   expect(await blocked.run(["sessions", "rm", T1, "--yes"])).toBe(EXIT.error);
-  expect(blocked.stderrText()).toContain("분기한 세션이 있어 지울 수 없다");
+  expect(blocked.stderrText()).toContain("분기한 대화가 있어 지울 수 없다");
 });
 
-test("sessions rm on a terminal asks first: y deletes, anything else keeps the session", async () => {
+test("sessions rm on a terminal asks first: y deletes, anything else keeps the conversation", async () => {
   const asked: string[] = [];
   const yes = harness({
     terminal: { stdinIsTty: true, stdoutIsTty: true },
@@ -185,7 +185,7 @@ test("sessions rm on a terminal asks first: y deletes, anything else keeps the s
     server: { handlers: { "thread.delete": () => ({}) } },
   });
   expect(await yes.run(["sessions", "rm", T1])).toBe(EXIT.ok);
-  expect(asked[0]).toContain(`세션 ${T1}`);
+  expect(asked[0]).toContain(`대화 ${T1}`);
 
   const no = harness({
     terminal: { stdinIsTty: true, stdoutIsTty: true },

@@ -35,10 +35,10 @@ async function textOf(
   return out;
 }
 
-test("a missing session id names the command and the form to use", () => {
+test("a missing conversation id names the command and the form to use", () => {
   expect(usageOf(["sessions", "show"])).toEqual({
     code: "missingArgument",
-    message: "sessions show needs a session id",
+    message: "sessions show needs a conversation id",
     fix: "fresnel sessions show <id>",
   });
 });
@@ -131,14 +131,14 @@ Commands
   chat -p <input> --json    JSON mode: write the JSON-RPC messages exchanged with the engine, one per line
   chat -p <input> --auto-approve
                             Print mode: approve a tool call once. Questions, plans, and reviews are declined
-  chat --continue           Resume the last session in the current working folder
-  chat --resume <id>        Resume the given session
-  chat --set <key>=<value>  Override a setting for this session only (can be repeated)
+  chat --continue           Resume the last conversation in the current working folder
+  chat --resume <id>        Resume the given conversation
+  chat --set <key>=<value>  Override a setting for this conversation only (can be repeated)
   sessions ls [--all] [--limit n] [--json]
   sessions show <id> [--json]
   sessions fork <id> [--at <item id>]
-  sessions rm <id> [--yes]  List, show, fork, and delete sessions
-  sessions rename <id> <title>  Change the session title (200 characters or fewer)
+  sessions rm <id> [--yes]  List, show, fork, and delete conversations
+  sessions rename <id> <title>  Change the conversation title (200 characters or fewer)
   config get [<key>…]       Show the effective values and where they come from
   config schema --scope <managed|user|project|local> [--out <path>] [--core-only]
                             Write the JSON Schema for the settings files
@@ -148,7 +148,7 @@ Commands
                             Set, clear, and list settings
   secret ls|add|set|meta|rotate|rm|test|reveal
                             Manage secrets. Values are read only from a prompt or stdin. Use reveal only in a terminal
-  trust [status] [--json]   Show the project trust state for this working folder, and the choices
+  trust [status] [--json]   Show the work folder trust state for this working folder, and the choices
   trust allow|deny [--scope folder|parent|session]
                             Send a trust decision. When trusted, .mcp.json, project skills, and project commands are read
   db export <folder> [--json] [--yes] Export the storage files read-only, without the engine. The engine may be running
@@ -176,7 +176,7 @@ Common flags
                           unix:/abs, tcp://host:port, ssh://[user@]host[:port]/abs/socket
 
 Exit codes
-  0 ok   1 error   2 usage error   3 environment problem   4 session locked
+  0 ok   1 error   2 usage error   3 environment problem   4 conversation locked
   129 SIGHUP   130 interrupted (Ctrl+C)   143 SIGTERM
 `,
   );
@@ -190,13 +190,13 @@ test("the schedule help topic is English and says schedules run only in service 
        fresnel schedule cancel <id>
        fresnel schedule run <id>
 
-  --every <seconds>      Run the prompt in a new session every this many seconds. The minimum is 300 seconds
+  --every <seconds>      Run the prompt in a new conversation every this many seconds. The minimum is 300 seconds
   --at <time>            Run once at an RFC 3339 time
   --remote               Does not run on a schedule. Run it now with fresnel schedule run <id>
   --watch <path>[,…]     Run when a path changes. Waits for --debounce <ms> (default 1000) before running
   --loop <seconds>       Repeat the same prompt. Give --max-iterations and --expires-in with it
   --title <title>        Title shown in the list (200 characters or fewer)
-  --workspace <folder>   Working folder of the run session. If it is omitted, the default folder of the host is used
+  --workspace <folder>   Working folder of the run conversation. If it is omitted, the default folder of the host is used
   --disabled             Create it, but leave it turned off
   --remote is a trigger flag. Give the remote service address before the command (fresnel --remote <address> schedule list)
   Schedules run only in service mode. If it is off, they are only saved, and one warning line is shown

@@ -23,15 +23,15 @@ test("the failure block says Fix: and keeps the two-line shape", () => {
   expect(renderFailure({ message: "m", fix: "f" })).toBe("fresnel: m\n  Fix: f\n");
 });
 
-test("a missing session renders both lines in English", () => {
+test("a missing conversation renders both lines in English", () => {
   const failure = failureOfWire(wireError("thread.notFound", { details: { threadId: "thr_1" } }));
   expect(failure).toEqual({
-    message: "Session thr_1 does not exist",
-    fix: "Check the session id with fresnel sessions ls",
+    message: "Conversation thr_1 does not exist",
+    fix: "Check the conversation id with fresnel sessions ls",
     code: EXIT.error,
   });
   expect(renderFailure(failure)).toBe(
-    "fresnel: Session thr_1 does not exist\n  Fix: Check the session id with fresnel sessions ls\n",
+    "fresnel: Conversation thr_1 does not exist\n  Fix: Check the conversation id with fresnel sessions ls\n",
   );
 });
 

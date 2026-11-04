@@ -52,8 +52,8 @@ test("the legacy internal details.secret path still works", () => {
 
 test("thread.closed, settings.reserved and store.corrupt have their own phrases", () => {
   expect(failureOfWire(wireError("thread.closed", { details: { threadId: "thr_1" } }))).toEqual({
-    message: "닫힌 세션이라 쓸 수 없다: thr_1",
-    fix: "fresnel sessions fork로 분기하거나 새 세션을 연다",
+    message: "닫힌 대화가라 쓸 수 없다: thr_1",
+    fix: "fresnel sessions fork로 분기하거나 새 대화를 연다",
     code: EXIT.error,
   });
   expect(

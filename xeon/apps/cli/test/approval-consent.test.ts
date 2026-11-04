@@ -139,10 +139,10 @@ function resolved(
 
 test("a downgraded remember scope is announced, an honored one is silent", () => {
   expect(resolved("user", "thread", "always")).toBe(
-    "항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다\n",
+    "항상 허용을 골랐지만 이 대화 동안 허용으로 낮춰 적용했다\n",
   );
   expect(resolved("user", "once", "thread")).toBe(
-    "이 세션 동안 허용을 골랐지만 이번만 허용으로 낮춰 적용했다\n",
+    "이 대화 동안 허용을 골랐지만 이번만 허용으로 낮춰 적용했다\n",
   );
   expect(resolved("user", "thread", "thread")).toBeUndefined();
   expect(resolved("user", "once", null)).toBeUndefined();
@@ -154,7 +154,7 @@ test("a resolution that is not the user's answer says why", () => {
   expect(resolved("cancelled")).toBe("turn이 취소되어 승인 요청을 닫았다\n");
   expect(resolved("superseded")).toBe("다른 요청으로 대체되어 승인 요청을 닫았다\n");
   expect(resolved("expired", "thread", "always")).toBe(
-    "승인 요청이 만료되어 정해 둔 대로 처리했다\n항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다\n",
+    "승인 요청이 만료되어 정해 둔 대로 처리했다\n항상 허용을 골랐지만 이 대화 동안 허용으로 낮춰 적용했다\n",
   );
 });
 

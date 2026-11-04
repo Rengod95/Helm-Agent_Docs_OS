@@ -140,7 +140,7 @@ test("a secret is added, listed, tested and removed on the real store without it
     { method: "secret.references", params: { name: "github-token" } },
   ]);
   expect(text()).toContain(
-    "github-token: 참조하는 설정 키 없음 / 활성 lease 0개 / 최근 사용한 세션 없음\n",
+    "github-token: 참조하는 설정 키 없음 / 활성 lease 0개 / 최근 사용한 대화 없음\n",
   );
   expect(asked).toHaveLength(1);
   expect(cli.sent("secret.remove")).toEqual([]);

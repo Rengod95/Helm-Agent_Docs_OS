@@ -55,7 +55,7 @@ function blockedReadLine(): (prompt: string, signal: AbortSignal) => Promise<str
 test("a line becomes a turn: the user line, the answer, then the next prompt", async () => {
   const h = harness({ lines: ["hello", "/quit"], server: { onTurn: answer("world") } });
   expect(await h.run(["chat"])).toBe(0);
-  expect(h.stdoutText()).toContain("fresnel chat — 세션 thr_");
+  expect(h.stdoutText()).toContain("fresnel chat — 대화 thr_");
   // 방금 친 줄은 터미널이 보여 주므로 user 이벤트로 되풀이하지 않는다
   expect(h.stdoutText()).not.toContain("> hello");
   expect(h.stdoutText()).toContain("world\n");
@@ -85,7 +85,7 @@ test("slash commands: /help prints help, an unknown one says so, /exit ends", as
   expect(h.methods()).not.toContain("turn.start");
 });
 
-test("several turns share one session and one subscription", async () => {
+test("several turns share one conversation and one subscription", async () => {
   const h = harness({ lines: ["one", "two", "/quit"], server: { onTurn: answer("ok") } });
   await h.run(["chat"]);
   const methods = h.methods();
@@ -123,7 +123,7 @@ test("streaming text draws one overwritten progress line and clears it for the d
   expect(out.indexOf(`\r${ESC}[2K`)).toBeLessThan(out.indexOf("World\n"));
 });
 
-test("a lock denied on the first turn ends the session with 4", async () => {
+test("a lock denied on the first turn ends the conversation with 4", async () => {
   const h = harness({
     lines: ["hello", "never read"],
     server: {
@@ -135,7 +135,7 @@ test("a lock denied on the first turn ends the session with 4", async () => {
     },
   });
   expect(await h.run(["chat"])).toBe(EXIT.lockDenied);
-  expect(h.stderrText()).toContain("다른 프로세스(app)가 이 세션을 쓰고 있다");
+  expect(h.stderrText()).toContain("다른 프로세스(app)가 이 대화를 쓰고 있다");
 });
 
 test("turn.busy is reported and the prompt comes back", async () => {

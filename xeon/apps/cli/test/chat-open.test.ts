@@ -72,7 +72,7 @@ function lockedSession(replies: readonly Reply[], options?: readonly string[]): 
   return { h, opens, forks, input };
 }
 
-test("--resume opens the session for writing through thread.open", async () => {
+test("--resume opens the conversation for writing through thread.open", async () => {
   const h = createHarness({
     env: { NO_COLOR: "1" },
     server: {
@@ -98,7 +98,7 @@ test("--resume opens the session for writing through thread.open", async () => {
   });
 });
 
-test("--continue takes the newest session of the working folder from thread.list", async () => {
+test("--continue takes the newest conversation of the working folder from thread.list", async () => {
   const lists: unknown[] = [];
   const h = createHarness({
     env: { NO_COLOR: "1" },
@@ -126,30 +126,30 @@ test("--continue takes the newest session of the working folder from thread.list
   });
 });
 
-test("--continue with no session in thread.list says so and exits 1", async () => {
+test("--continue with no conversation in thread.list says so and exits 1", async () => {
   const h = createHarness({
     env: { NO_COLOR: "1" },
     server: { handlers: { "thread.list": () => ({ threads: [], nextCursor: null }) } },
   });
   harnesses.push(h);
   expect(await h.run(["chat", "-p", "x", "--continue"])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain("이어 열 세션이 없다");
+  expect(h.stderrText()).toContain("이어 열 대화가 없다");
 });
 
-test("a locked session in print mode exits 4 without asking anything", async () => {
+test("a locked conversation in print mode exits 4 without asking anything", async () => {
   const lock = lockedSession([]);
   expect(await lock.h.run(["chat", "-p", "x", "--resume", T1])).toBe(EXIT.lockDenied);
   expect(lock.input.prompts).toEqual([]);
-  expect(lock.h.stderrText()).toContain("다른 프로세스(app)가 이 세션을 쓰고 있다");
+  expect(lock.h.stderrText()).toContain("다른 프로세스(app)가 이 대화를 쓰고 있다");
 });
 
-test("a locked session on a terminal offers observe and fork; delegate stays hidden without a service", async () => {
+test("a locked conversation on a terminal offers observe and fork; delegate stays hidden without a service", async () => {
   const lock = lockedSession([""], ["observe", "fork", "delegate"]);
   expect(await lock.h.run(["chat", "--resume", T1])).toBe(EXIT.lockDenied);
   const shown = lock.h.stdoutText();
-  expect(shown).toContain("다른 프로세스(app)가 이 세션을 쓰고 있다.");
+  expect(shown).toContain("다른 프로세스(app)가 이 대화를 쓰고 있다.");
   expect(shown).toContain("[o] 관찰만 한다");
-  expect(shown).toContain("[f] 분기해서 새 세션으로 연다");
+  expect(shown).toContain("[f] 분기해서 새 대화로 연다");
   expect(shown).not.toContain("[d]");
   expect(lock.forks).toEqual([]);
 });
@@ -174,13 +174,13 @@ test("choosing fork opens a branch for writing and the next turn goes to the bra
   expect(lock.h.stdoutText()).toContain("forked answer");
 });
 
-test("a locked session whose host offers no options at all exits 4", async () => {
+test("a locked conversation whose host offers no options at all exits 4", async () => {
   const lock = lockedSession([], []);
   expect(await lock.h.run(["chat", "--resume", T1])).toBe(EXIT.lockDenied);
   expect(lock.input.prompts).toEqual([]);
 });
 
-test("--set applies each override to the session scope, in order, before the first turn", async () => {
+test("--set applies each override to the conversation scope, in order, before the first turn", async () => {
   const settings = fakeSettings([
     def("l4.cli.theme", { allowedScopes: ["user", "launch"] }),
     def("l4.cli.outputMode", { allowedScopes: ["user", "launch"], default: "text" }),

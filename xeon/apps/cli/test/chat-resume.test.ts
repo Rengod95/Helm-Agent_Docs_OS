@@ -41,7 +41,7 @@ function readState(path: string): unknown {
   return parsed;
 }
 
-test("a new session records its thread and the last seen position in the state file", async () => {
+test("a new conversation records its thread and the last seen position in the state file", async () => {
   const h = harness({ server: { onTurn: answer("first") } });
   expect(await h.run(["chat", "-p", "q"])).toBe(0);
   const state = readState(h.stateFile);
@@ -58,7 +58,7 @@ test("a new session records its thread and the last seen position in the state f
   expect(statSync(h.stateFile).mode & 0o777).toBe(0o600);
 });
 
-test("--continue reopens the last session of the working folder and prints only new events", async () => {
+test("--continue reopens the last conversation of the working folder and prints only new events", async () => {
   const h = harness({ server: { onTurn: answer("first") } });
   await h.run(["chat", "-p", "q"]);
   const before = h.server().headSeq();
@@ -86,7 +86,7 @@ test("--continue without a state entry exits 1 with a hint", async () => {
   const h = harness();
   expect(await h.run(["chat", "--continue", "-p", "x"])).toBe(EXIT.error);
   expect(h.stderrText()).toBe(
-    "fresnel: 이어 열 세션이 없다\n  해결: fresnel chat으로 새 세션을 시작한다\n",
+    "fresnel: 이어 열 대화가 없다\n  해결: fresnel chat으로 새 대화를 시작한다\n",
   );
   expect(h.closed()).toBe(true);
 });
@@ -108,7 +108,7 @@ test("without the FRESNEL_CLI_STATE_FILE override the state file lives at the ho
     },
   });
   expect(await h.run(["chat", "--continue", "-p", "next"])).toBe(0);
-  expect(h.stderrText()).not.toContain("이어 열 세션이 없다");
+  expect(h.stderrText()).not.toContain("이어 열 대화가 없다");
 });
 
 test("a state directory that cannot be prepared is a start error, not a silent skip", async () => {
@@ -128,7 +128,7 @@ test("a broken state file is discarded and --continue says so", async () => {
   writeFileSync(h.stateFile, "{ not json");
   expect(await h.run(["chat", "--continue", "-p", "x"])).toBe(EXIT.error);
   expect(h.stderrText()).toContain("버렸다");
-  expect(h.stderrText()).toContain("이어 열 세션이 없다");
+  expect(h.stderrText()).toContain("이어 열 대화가 없다");
 });
 
 test("--resume without a known position replays from seq 0", async () => {
@@ -157,7 +157,7 @@ test("--resume without a known position replays from seq 0", async () => {
 test("--resume of an unknown thread exits 1", async () => {
   const h = harness();
   expect(await h.run(["chat", "--resume", threadId(555), "-p", "x"])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain("세션");
+  expect(h.stderrText()).toContain("대화");
   expect(h.stderrText()).toContain("없다");
 });
 

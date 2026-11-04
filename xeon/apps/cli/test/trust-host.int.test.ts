@@ -35,7 +35,7 @@ test("fresnel trust shows the real card, and --json is the host's TrustStatus fo
   const cli = withResources();
   expect(await cli.harness.run(["trust"])).toBe(EXIT.ok);
   const card = cli.harness.stdoutText();
-  expect(card).toContain(`프로젝트: ${cli.home.work}\n`);
+  expect(card).toContain(`작업 폴더: ${cli.home.work}\n`);
   expect(card).toContain("불러오려는 자원: .fresnel/commands\n");
   expect(card).toContain("판정: 아직 정하지 않음");
   expect(card).toContain(`  1) 이 폴더를 신뢰한다 (저장: ${cli.home.work})\n`);
@@ -84,7 +84,7 @@ test("fresnel trust allow writes trust.json with the owner-only mode and the nex
   });
 }, 60_000);
 
-test("a session-only decision stores nothing; a deny is stored and shown", async () => {
+test("a conversation-only decision stores nothing; a deny is stored and shown", async () => {
   const cli = withResources();
   expect(await cli.harness.run(["trust", "allow", "--scope", "session"])).toBe(EXIT.ok);
   expect(existsSync(trustFile(cli))).toBe(false);
@@ -137,7 +137,7 @@ test("a folder with nothing to trust says so on stderr and the chat never asks",
   clis.push(cli);
   expect(await cli.harness.run(["trust"])).toBe(EXIT.ok);
   expect(cli.harness.stdoutText()).toBe("");
-  expect(cli.harness.stderrText()).toBe(`${cli.home.work}: 신뢰가 필요한 프로젝트 자원이 없다\n`);
+  expect(cli.harness.stderrText()).toBe(`${cli.home.work}: 신뢰가 필요한 작업 폴더 자원이 없다\n`);
   expect(await cli.harness.run(["chat"])).toBe(EXIT.ok);
   expect(cli.harness.stdoutText()).not.toContain("불러오려는 자원");
 }, 60_000);
