@@ -323,7 +323,7 @@ async function measureTrace(): Promise<void> {
     metric: "dispatch_overhead_trace_on_vs_off",
     unit: "ms",
     samples: on.map((perDispatch) => ms(perDispatch - baselineMs)),
-    note: `핸들러 하나짜리 탭 디스패치의 시간 차이(계측 켬 − 끔, 정책 없음, 보관 Turn ${String(DEFAULT_TRACE_SETTINGS.turnsPerThread)}개 기본값). 빼는 값 ${baselineMs.toFixed(4)} ms(계측 끔의 평균). 차이에는 시작 때 키 접두 해석, 항목 만들기, 기록 칸 쓰기가 같이 든다. 디스패치 ${String(DISPATCHES_PER_BATCH)}회씩`,
+    note: `핸들러 하나짜리 탭 디스패치의 시간 차이(계측 켬 − 끔, 정책 없음, Turn 수 상한 없음). 빼는 값 ${baselineMs.toFixed(4)} ms(계측 끔의 평균). 차이에는 시작 때 키 접두 해석, 항목 만들기, 기록 칸 쓰기가 같이 든다. 디스패치 ${String(DISPATCHES_PER_BATCH)}회씩`,
   });
 }
 

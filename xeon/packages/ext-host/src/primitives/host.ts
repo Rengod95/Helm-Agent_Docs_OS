@@ -123,7 +123,7 @@ export interface ExtHostDeps {
   /** 선언 없는 쓰기 요청 워커(ADR-0015 §3.5). 없으면 X의 기본 워커 */
   readonly effectWorker?: EffectWorkerPort;
   /**
-   * 계측 설정 읽기(x.operations.trace.*, X.operations §3.9). 없으면 기본값(켬, Turn 20개). 조립 루트가 OperationsPolicy.trace를 넘긴다.
+   * 계측 설정 읽기(x.operations.trace.*, X.operations §3.9). 없으면 기본값(켬). 조립 루트가 OperationsPolicy.trace를 넘긴다.
    * 값은 Turn이 처음 보일 때 읽는다
    */
   readonly trace?: () => TraceSettings;
@@ -1048,6 +1048,8 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     closeThread: async (threadId) => {
       forgetTestRun(threadId);
+      // 닫힌 대화의 계측 기록은 메모리에서 푼다. Turn 수 상한이 없으므로 닫기가 유일한 해제 경로다(X.operations §4.8.3)
+      traceBuffer.forgetThread(threadId);
       await boundary.closeThread(threadId);
     },
     leaseOf(threadId) {
@@ -1071,6 +1073,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       for (const name of pendingSwaps.keys()) cancelSwap(name, { status: "cancelled" });
       await eachInOrder([...core.threads.keys()], async (threadId) => {
         forgetTestRun(threadId);
+        traceBuffer.forgetThread(threadId);
         await boundary.closeThread(threadId);
         return "continue";
       });

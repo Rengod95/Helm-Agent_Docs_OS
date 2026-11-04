@@ -841,9 +841,8 @@ import type {
 /** x.operations.trace.* 유효 값(§6) */
 export interface TraceSettings {
   readonly enabled: boolean;
-  readonly turnsPerThread: number;
 }
-/** §6 기본값: 켬, thread마다 Turn 20개 [제안: turnsPerThread] */
+/** §6 기본값: 켬. thread의 Turn 수에는 상한이 없다 [결정: 2026-11-04 사용자] */
 export const DEFAULT_TRACE_SETTINGS: TraceSettings;
 
 /** 상한(§4.8.5). Turn당 항목 5,000개, 항목당 핸들러 기록 256개, 버퍼의 thread 32개 [제안] */
@@ -1415,11 +1414,11 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 #### 4.8.3 보관 범위와 켜짐 시점
 
-- 버퍼는 thread마다 가장 최근의 `turnsPerThread`개 Turn을 가진다. 넘치면 삽입 순서상 가장 오래된 Turn부터 뺀다.
-- `enabled`와 `turnsPerThread`는 Turn이 처음 보일 때 한 번 읽는다(`runtimeChange: "nextTurn"`, 다음 Turn부터 적용). 같은 Turn의 뒤 디스패치는 그 값을 따른다. 처음 보일 때 꺼져 있던 Turn은 나중에 켜도 기록하지 않는다.
+- 버퍼는 thread의 Turn 수를 제한하지 않는다. 열린 동안 본 Turn을 모두 가진다 [결정: 2026-11-04 사용자, "기록 개수 상한을 없애"]. 한 Turn의 항목은 `MAX_ENTRIES_PER_TURN`(5000)까지다. 이것은 Turn 수가 아니라 한 Turn 안의 폭주를 막는 값이다.
+- `enabled`는 Turn이 처음 보일 때 한 번 읽는다(`runtimeChange: "nextTurn"`, 다음 Turn부터 적용). 같은 Turn의 뒤 디스패치는 그 값을 따른다. 처음 보일 때 꺼져 있던 Turn은 나중에 켜도 기록하지 않는다.
 - 읽기(`timings`, `turn`, `enabled`)는 현재 `enabled` 값을 따른다. 꺼져 있으면 `timings`는 `{traceEnabled: false, timings: []}`, `turn`은 `undefined`다. 기록은 남아 있어서 다시 켜면 보인다.
 - thread는 `MAX_THREADS`(32)개까지 가진다 [제안]. 넘으면 가장 오래 쓰이지 않은 thread를 뺀다.
-- 닫기(`closeThread`)는 기록을 지우지 않는다. 끝난 대화의 Trace는 보관 범위에 밀려날 때까지 읽힌다. `forgetThread`는 버퍼 API에 있으나 호스트가 부르지 않는다 [제안].
+- 닫기(`closeThread`)와 호스트 정리(`dispose`)는 `forgetThread`로 그 thread의 기록을 메모리에서 푼다. Turn 수 상한이 없으므로 닫기가 메모리를 푸는 경로다 [제안]. 닫은 대화의 원본은 측정 저장소에 `trace.retentionDays`(기본 30일) 동안 남고 거기서 읽는다. 앱 종료는 프로세스와 함께 메모리가 사라진다.
 - 메모리에만 둔다. 저장하지 않으므로 프로세스를 다시 시작하면 비어 있다.
 
 #### 4.8.4 시간 분포 (`ExtHookTiming`)
@@ -1475,7 +1474,6 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.safeMode.default` | boolean | false | | restart | managed, user | plugins | 1차 |
 | `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 1차 |
 | `x.operations.trace.enabled` | boolean | true | | nextTurn | managed, user | plugins | 1차 |
-| `x.operations.trace.turnsPerThread` | integer | 20 | 1~200 | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.trace.retentionDays` | integer | 30 | 1~3650 | live | managed, user | plugins | 1차 |
 | `x.operations.trace.storeRequestBody` | boolean | false | | live | managed, user | plugins | 1차 |
 | `x.operations.hookOrder` | `Record<훅 이름, registrationId[]>` | {} | | nextTurn | managed, user | plugins | 1차 |
@@ -1485,7 +1483,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 - 예산과 자동 끄기 키는 `project` 범위를 받지 않는다 [제안]. 저장소에 든 설정이 예산을 늘려 루프를 오래 붙잡거나 자동 끄기를 꺼서 실패 확장을 남기지 못하게 한다.
 - `ui` 항목의 `label`과 `order`는 `L4.settings-ui.spec`이 정한다. 위젯은 boolean → `toggle`, integer·number → `number`다. 예산 키 단위는 `ms`다.
-- 계측 키 둘(`trace.*`, §3.9, §4.8.3)은 `runtimeChange: nextTurn`이다. 값은 Turn이 처음 보일 때 읽는다. 기본값 20은 [제안]이다. 계측 기본 켬은 사용자 결정이다(`review/m4-plan.md` §4 7번). 두 키는 "계측" 묶음 [제안]에 든다.
+- 계측 키 `trace.enabled`(§3.9, §4.8.3)는 `runtimeChange: nextTurn`이다. 값은 Turn이 처음 보일 때 읽는다. 계측 기본 켬은 사용자 결정이다(`review/m4-plan.md` §4 7번). 보관 Turn 수 키(`trace.turnsPerThread`)는 없앴다 [결정: 2026-11-04 사용자]. 이 키는 "계측" 묶음 [제안]에 든다.
 - 측정 키 둘(`trace.retentionDays`, `trace.storeRequestBody`)은 `runtimeChange: live`이고 측정 저장소(`L4.host-service.spec` 측정 절)가 읽는다. 이름은 [제안: 2026-11-04 T-MEAS-STORE 기본값, `L4.desktop-ux` §12.1 34번]이고 값은 사용자 결정이다 [결정: 2026-11-03 사용자]: 원본 보관 기본 30일(1~3650, 일별 집계는 계속 둔다), 요청 본문 저장 기본 끔(설정에서 누구나 켬). 본문은 시크릿 값을 가린 뒤에만 저장하고 가릴 수단이 없으면 저장하지 않는다. 범위는 `trace.*`와 같이 `managed`, `user`다.
 - L4 노출:
   - 화면: 설정 화면 "플러그인과 그룹" 탭. 묶음은 "핸들러 시간 예산", "실패와 자동 끄기", "안전 모드", "외부 훅" 네 개 [제안]. 확장 목록에 실패 수, 자동 끄기 상태, 다시 켜기 버튼을 보인다.
@@ -1572,7 +1570,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 29. 프로젝트 범위 외부 훅은 프로젝트 신뢰 승인 전에 실행되지 않는다.
 30. §6 표의 키는 `defineSettings("x.operations", …)`와 `buildCatalog`를 통과하고, 기본값은 `DEFAULT_BUDGETS_MS`, `DEFAULT_AUTO_DISABLE`와 같다.
 31. 디스패치 키 `trn_…`은 그 Turn을 현재 Turn으로 세우고 단계 0으로 기록된다. `stp_…`은 현재 Turn에 붙고 처음 본 순서대로 단계 번호를 받는다. 현재 Turn이 없으면 기록하지 않는다(`test/operations/trace-buffer.test.ts` "step ordinals follow the first sight of each stepId", "keys without a current turn are not recorded", "a turn key makes its turn current again").
-32. thread마다 `turnsPerThread`개 Turn만 남고 가장 오래된 Turn부터 빠진다. 값은 새 Turn이 처음 보일 때 읽는다(`trace-buffer.test.ts` "a thread keeps only its newest turnsPerThread turns", "turnsPerThread is read when a new turn appears").
+32. thread의 Turn은 수 제한 없이 남고, 대화를 닫으면 그 thread의 기록이 풀린다(`trace-buffer.test.ts` "a thread keeps every turn, there is no per-thread cap", "closeThread releases the thread's trace").
 33. 계측이 꺼져 있으면 `start`와 `turn`은 `undefined`, `timings`는 `{traceEnabled: false, timings: []}`다. 꺼진 동안 처음 보인 Turn은 다시 켜도 기록하지 않는다(`trace-buffer.test.ts` "disabled records nothing and reads are empty", "the enabled value is read when a turn first appears").
 34. 시간 분포는 최근접 순위로 p50·p95를 정한다. `failed`만 실패로 세고 `blocked`와 `skipped`는 세지 않는다(`test/operations/handler-timings.test.ts`의 다섯 시험).
 35. 실제 디스패치의 처리기 결과가 `passed`, `modified`, `blocked`, `failed`, `skipped`로 구분되어 기록되고 `traceReadOf(host)`로 읽힌다(`trace-buffer.test.ts` "trace: real dispatches through the host land in traceReadOf(host)").
@@ -1623,7 +1621,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 20. (해소, M3-REQ-32) 샌드박스 강제는 L0 실행 경로에서 하고 on 핸들러는 두지 않는다(§4.1.4). on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다.
 21. [결정: 2026-10-28 사용자] 외부 훅(§3.7, §4.7)은 M3 밖이고 M4로 옮긴다. D-M3-11 c안 원문("로더·안전 모드만")과 같은 판단이다. 이 항목은 닫았다.
 22. (해소) `traceReadOf`와 `TraceSettings`는 `X.primitives.spec` §3.1 표에 행이 있고 루트(`src/index.ts`)에서 내보낸다.
-23. `x.operations.trace.turnsPerThread`의 기본값은 20이고 thread 상한 200은 [제안]이다(코드 `DEFAULT_TRACE_SETTINGS`, `settings-keys.ts`; 8은 `L4.desktop-ux` §X-15의 옛 표기였고 2026-11-04 코드에 맞춰 고쳤다). 계측 기본 켬은 닫혔다 [결정: 2026-11-04 사용자, 결정 목록 R9, m4-decisions Canvas 5]. [결정: 2026-11-04 사용자, B18] 메모리가 문제 되지 않으면 항상 기록한다. 측정(`apps/host/test/benchmark/trace-conversation.benchmark.ts`, Bun.gc(true) 뒤 힙, 60 Turn x 3회, 테이프 모델): 힙 증가 끔 8.7MB, 8턴 5.5MB, 20턴 6.8MB, 200턴 6.3MB로 켬이 끔보다 크지 않았고 Turn 시간 p50 차이는 라운드 간 흩어짐(-32%~+8%)보다 작아 구분되지 않았다. 그래서 기본은 켬·20턴 그대로다. 남은 사용자 결정: 제한 없는 전체 기록(버퍼 상한을 없앨지)과 비용 기준 숫자(`review/m4-plan.md` §5).
+23. [결정: 2026-11-04 사용자] 트레이스 기록 개수 상한을 없앴다. 설정 키 `x.operations.trace.turnsPerThread`와 기본 20 Turn 버퍼를 지웠다. 계측 기본 켬은 닫혔다 [결정: 2026-11-04 사용자, 결정 목록 R9, m4-decisions Canvas 5]. 메모리는 대화를 닫을 때(`closeThread`)와 호스트 `dispose`에서 풀고(코드 확인: 이전에는 닫아도 풀리지 않아 `MAX_THREADS` 32개 LRU만 상한이었다), 앱 종료로 프로세스와 함께 사라진다. 디스크의 원본 보관 30일(`trace.retentionDays`)은 측정 저장소 기준이고 이 메모리 버퍼와 별개다. `MAX_THREADS`(32)는 닫히지 않은 thread가 쌓이는 경우를 막는 값으로 남겼다 [제안]. 측정(`apps/host/test/benchmark/trace-conversation.benchmark.ts`, Bun.gc(true) 뒤 힙, 60 Turn x 3회, 테이프 모델, 호스트 전체 힙): 짧은 픽스처 Turn당 끔 0.116MB, 켬 0.098MB. 긴 픽스처(응답 4000자, 입력 30000자, 도구 결과는 입력으로 흉내) Turn당 끔 0.506MB, 켬 0.463MB. 켬이 끔보다 크지 않았고 Turn 시간 p50 차이는 -3.2%(짧음), -0.9%(긴 것)로 흩어짐 안이다. 긴 대화 1000 Turn이면 켠 쪽 약 100MB(짧음)~460MB(긴 것)이고 대부분은 대화 자체의 메모리다. 숫자가 나빠도 상한은 되살리지 않고 사용자에게 보고한다. 남은 사용자 결정: 비용 기준 숫자(`review/m4-plan.md` §5).
 24. [미결] `trace.turn`의 `traceEnabled`·`retained` 조립은 wire 처리기의 몫이다. `turn()`이 `undefined`를 돌려주므로 처리기가 `enabled()`로 `traceEnabled`를 채우고 `retained: false`를 만든다(§3.9). 현재 `apps/host/src/handlers/m4/profile-test-run.ts`는 `trace.turn`을 아직 구현하지 않았다.
 25. [해소: 2026-11-04 T-MEAS-HOOK] `denied`는 없어지고 first의 거부 결정이 `blocked`로 기록된다(§4.8.2).
 26. [미결] threadId가 없는 확장 메서드 호출은 ambient를 열지 않는다(명령과 같다). 그래서 그 호출 안의 `hostOf(g).awaitUser` 대기는 예산 시계를 멈추지 못하고 예산에 든다. 해결하려면 gate를 ambient와 분리한 문맥이 필요하다. M4 T-XV 뒤의 과제다.

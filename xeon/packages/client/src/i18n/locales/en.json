@@ -2988,7 +2988,6 @@
   "settings.x.operations.trace.retentionDays.unit": "days",
   "settings.x.operations.trace.storeRequestBody.label": "Store model request bodies",
   "settings.x.operations.trace.storeRequestBody.help": "When on, requests sent to the model are stored with secret values masked, for the raw data retention period",
-  "settings.x.operations.trace.turnsPerThread.label": "Turns kept for tracing (per thread)",
   "settings.x.operations.hookOrder.label": "Handler order",
   "settings.x.operations.hookOrder.help": "Users set the order in which handlers (Registration id) run for each hook. The order applies when a new stage starts. Guard-tier handlers can also be moved, and moving one may skip safety checks.",
   "settings.x.primitives.driveDefaultLimits.label": "Default drive limits",

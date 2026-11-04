@@ -13,16 +13,14 @@ import type {
 } from "@fresnel/contracts/extensions";
 import { timingsOf, type HandlerRun, type TimingFilter } from "./handler-timings.ts";
 
-/** x.operations.trace.* 유효 값(§6). 계측을 켜는 값과 Turn 보관 수 */
+/** x.operations.trace.* 유효 값(§6). 계측을 켜는 값. Turn 보관 수 상한은 없다 [결정: 2026-11-04 사용자] */
 export interface TraceSettings {
   /** 계측을 켠다. Turn이 처음 보일 때 읽어 그 Turn의 기록 여부를 정한다(§4.8.3) */
   readonly enabled: boolean;
-  /** thread마다 남기는 최근 Turn 수(1~200). 새 Turn이 처음 보일 때 읽는다 */
-  readonly turnsPerThread: number;
 }
 
-/** §6 기본값. 켬, thread마다 Turn 20개 [제안: turnsPerThread] */
-export const DEFAULT_TRACE_SETTINGS: TraceSettings = { enabled: true, turnsPerThread: 20 };
+/** §6 기본값. 켬. thread의 Turn 수에는 상한이 없다(닫으면 풀린다, §4.8.3) */
+export const DEFAULT_TRACE_SETTINGS: TraceSettings = { enabled: true };
 
 /** Turn 하나에 쌓는 항목 수 상한(§4.8.5). 넘는 항목은 버린다 */
 export const MAX_ENTRIES_PER_TURN = 5000;
@@ -75,7 +73,7 @@ export interface TraceBuffer {
   enabled(): boolean;
   /** 남은 기록의 훅별 시간 분포. 계측이 꺼져 있으면 `{traceEnabled: false, timings: []}` */
   timings(filter: TimingFilter): ExtTimingsResult;
-  /** thread의 기록을 지운다. 닫기 경로는 이 함수를 부르지 않는다(§4.8.3) */
+  /** thread의 기록을 지운다. `closeThread`가 부른다(§4.8.3) */
   forgetThread(threadId: ThreadId): void;
 }
 
@@ -167,9 +165,6 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
       steps: new Map(),
     };
     thread.turns.set(turnId, turn);
-    // 설정 범위는 1~200이다. 그 밖의 값이 와도 방금 연 Turn은 남기고, 반복은 맵이 비기 전에 끝난다
-    const keep = Math.max(1, settings.turnsPerThread);
-    while (thread.turns.size > keep) dropOldest(thread.turns);
     return turn;
   }
 

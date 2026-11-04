@@ -3221,7 +3221,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-12 | T-16 플러그인 화면 흉내 위협 행 | `architecture.security.spec` §4 | 없음 |
 | X-13 | `managed` 설치 위치가 tier `guard`가 되는 코드(`ext-host/src/operations/tier.ts` `assignTier`의 `case "managed"`)와 주석·문서의 상한 `user` 설명의 차이. LightCraft가 tier를 보이므로 먼저 맞춰야 함 | `X.operations.spec` §3.1, `X.loading-trust.spec` §3.1 | 코드 결함 확인(2026-10-31). 주석은 "사용자 등급 상한"인데 `ok("guard")`를 돌려줌 |
 | X-14 | Test run 표지(`ThreadSummary.testRun`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 제외 [결정: 2026-11-04 사용자, B4 1안] |
-| X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), `x.operations.trace.turnsPerThread`(기본 20, 코드 `DEFAULT_TRACE_SETTINGS`와 `X.operations.spec` §6 표가 같다. 8은 옛 표기였다) [제안] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 대화마다 작은 버퍼] |
+| X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), 보관 Turn 수 상한과 그 설정 키는 없다. 대화를 닫으면 메모리에서 푼다 [결정: 2026-11-04 사용자, 기록 개수 상한을 없앰] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 상한 없음은 2026-11-04 결정으로 바뀜] |
 | X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
 | X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 drive 락을 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 Registration을 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
 | X-18 | 프로필 타입(`Profile`)과 호스트 저장소, `profile.*` 메서드 | `F.wire-settings.spec` §3.3·§3.9, `L4.host-service.spec` | 없음 [결정: 2026-10-31 사용자] |
@@ -3306,7 +3306,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | 26 | 프로젝트 안 그룹·훅(`.fresnel/` 아래 L3 그룹)의 신뢰 카드 표기. 이 문서는 카드의 "불러오려는 자원"에 `groups/<이름> (on·post·drive)`처럼 쓰는 연산을 함께 보이는 것을 기본값으로 둡니다(D-23). 신뢰한 폴더의 그룹도 `project` tier라 자동 끄기 대상입니다(`X.operations.spec` §4.3.3, 면제는 guard·core뿐) | `X.loading-trust.spec` §4.7.2 |
 | 27 | 닫음 [결정: 2026-11-04 사용자, B2 1안] 키 소유는 `X.loading-trust.spec`, 프레임 `call` 확인 줄은 끌 수 없음(항상 보임). 옛 문장: 프레임 모드 설정 키(`x.views.frames`, `x.views.allowProjectFrames`)의 소유 문서와, 프레임 `call` 확인 줄을 끌 수 있는 범위 | 사용자, ADR-0021 §6 9번 |
 | 28 | 닫음 [결정: 2026-11-04 사용자, B6 1안] M4에는 프로젝트 범위 프로필(저장소에 커밋되는 프로필)을 두지 않습니다. 저장 위치는 R13대로 호스트 쪽입니다. 옛 문장: 프로필 저장 파일(`profiles.json`)의 위치와, 프로젝트 범위 프로필을 둘지 | `F.wire-settings.spec`, `L4.host-service.spec` |
-| 29 | 트레이스 버퍼 크기 기본값(대화마다 20턴이 코드 기본값이다. 2026-11-04 측정에서 켬이 끔보다 느리거나 힙이 큰 신호가 없어 기본 켬을 유지한다. 제한 없는 전체 기록은 사용자 결정으로 남는다)과 계측 비용 기준(얼마를 넘으면 기본을 끌지) | 사용자, X-15, T-PERF 결과 |
+| 29 | 계측 비용 기준(얼마를 넘으면 기본을 끌지). 트레이스 버퍼 개수 상한은 없앴다 [결정: 2026-11-04 사용자]. Turn당 힙은 짧은 대화 0.1MB, 긴 응답 0.5MB쯤이고 켬이 끔보다 크지 않았다(`X.operations.spec` 미결 23) | 사용자, X-15, T-PERF 결과 |
 | 30 | 닫음 [결정: 2026-11-01 사용자] 기본 꺼짐(권장 수락) | 사용자, `L3.authoring.spec` §10 |
 | 31 | 닫음 [결정: 2026-11-01 사용자] 확장마다 5개, 사용자 데이터 폴더 아래. 상태 스키마가 바뀌었으면 코드만 되돌리기로 대체 | 사용자, X-8 |
 | 32 | 크래프트 8차 시안과 내비·맥락 칸: 시안 내비는 크래프트·테스트·성능 측정 셋이고 맥락 칸이 비었습니다. 엔진(P-15) 항목과 구성기(P-21) 네 보기를 여는 자리, 층 패널 순서가 불러오는 순서인지, 트레이스 재생 막대는 두지 않고 [결정: 2026-11-04 사용자, 시안 Q3 A], 자동 꺼짐 질문은 플러그인 카드와 오른쪽 패널 맨 위에 둔다 [결정: 2026-11-04 사용자, 시안 Q4 B+C]. 둘 다 아직 안 만듦. 남은 것: 층 패널 순서(Q2) | 사용자, 시안 `wb-v5/SPEC.md` |

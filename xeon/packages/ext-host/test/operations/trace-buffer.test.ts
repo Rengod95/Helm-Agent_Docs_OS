@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
   HookName,
   TraceFailureReason,
@@ -84,102 +84,17 @@ function turnPassed(
   ]);
 }
 
-test("trace buffer: a thread keeps only its newest turnsPerThread turns", () => {
+test("trace buffer: a thread keeps every turn, there is no per-thread cap", () => {
   const ids = fixedIdFactory();
-  const { buffer } = bufferWith({ enabled: true, turnsPerThread: 2 });
+  const { buffer } = bufferWith({ enabled: true });
   const thread = ids.next("thr");
-  const first = ids.next("trn");
-  const second = ids.next("trn");
-  const third = ids.next("trn");
-  turnPassed(buffer, thread, first, "ext-a", 1);
-  turnPassed(buffer, thread, second, "ext-b", 2);
-  turnPassed(buffer, thread, third, "ext-c", 3);
-  expect(buffer.turn(thread, first)).toBeUndefined();
-  expect(buffer.turn(thread, second)).toEqual({
-    traceEnabled: true,
-    retained: true,
-    entries: [
-      {
-        seq: 0,
-        hook: "boundary.settle.after",
-        step: 0,
-        handlers: [
-          {
-            registrationId: "ext-b",
-            ms: 2,
-            result: "passed",
-            atMs: 0,
-            size: 0,
-            skippedBy: null,
-            reason: null,
-          },
-        ],
-      },
-    ],
+  const turns = Array.from({ length: 300 }, () => ids.next("trn"));
+  turns.forEach((turn, index) => {
+    turnPassed(buffer, thread, turn, "ext-a", index + 1);
   });
-  expect(buffer.turn(thread, third)).toEqual({
-    traceEnabled: true,
-    retained: true,
-    entries: [
-      {
-        seq: 0,
-        hook: "boundary.settle.after",
-        step: 0,
-        handlers: [
-          {
-            registrationId: "ext-c",
-            ms: 3,
-            result: "passed",
-            atMs: 0,
-            size: 0,
-            skippedBy: null,
-            reason: null,
-          },
-        ],
-      },
-    ],
-  });
-});
-
-test("trace buffer: turnsPerThread is read when a new turn appears", () => {
-  const ids = fixedIdFactory();
-  const { buffer, set } = bufferWith({ enabled: true, turnsPerThread: 20 });
-  const thread = ids.next("thr");
-  const first = ids.next("trn");
-  const second = ids.next("trn");
-  const third = ids.next("trn");
-  for (const turn of [first, second, third]) turnPassed(buffer, thread, turn, "ext-a", 1);
-  expect(buffer.turn(thread, first)).toBeDefined();
-  // 줄인 값은 다음에 처음 보이는 Turn부터 적용된다
-  set({ enabled: true, turnsPerThread: 1 });
-  expect(buffer.turn(thread, first)).toBeDefined();
-  const fourth = ids.next("trn");
-  turnPassed(buffer, thread, fourth, "ext-a", 4);
-  expect(buffer.turn(thread, first)).toBeUndefined();
-  expect(buffer.turn(thread, second)).toBeUndefined();
-  expect(buffer.turn(thread, third)).toBeUndefined();
-  expect(buffer.turn(thread, fourth)).toEqual({
-    traceEnabled: true,
-    retained: true,
-    entries: [
-      {
-        seq: 0,
-        hook: "boundary.settle.after",
-        step: 0,
-        handlers: [
-          {
-            registrationId: "ext-a",
-            ms: 4,
-            result: "passed",
-            atMs: 0,
-            size: 0,
-            skippedBy: null,
-            reason: null,
-          },
-        ],
-      },
-    ],
-  });
+  for (const turn of turns) {
+    expect(buffer.turn(thread, turn)?.entries.length).toBe(1);
+  }
 });
 
 test("trace buffer: both registrations of one dispatch are recorded in order", () => {
@@ -505,7 +420,7 @@ test("trace buffer: a turn key makes its turn current again", () => {
 
 test("trace buffer: disabled records nothing and reads are empty", () => {
   const ids = fixedIdFactory();
-  const { buffer } = bufferWith({ enabled: false, turnsPerThread: 20 });
+  const { buffer } = bufferWith({ enabled: false });
   const thread = ids.next("thr");
   const turn = ids.next("trn");
   expect(
@@ -523,13 +438,13 @@ test("trace buffer: disabled records nothing and reads are empty", () => {
 
 test("trace buffer: the enabled value is read when a turn first appears", () => {
   const ids = fixedIdFactory();
-  const { buffer, set } = bufferWith({ enabled: true, turnsPerThread: 20 });
+  const { buffer, set } = bufferWith({ enabled: true });
   const thread = ids.next("thr");
   const first = ids.next("trn");
   const second = ids.next("trn");
   const third = ids.next("trn");
   turnPassed(buffer, thread, first, "ext-a", 1);
-  set({ enabled: false, turnsPerThread: 20 });
+  set({ enabled: false });
   // 같은 Turn의 뒤 디스패치는 Turn이 처음 보일 때 읽은 값(켬)을 따른다
   turnPassed(buffer, thread, first, "ext-a", 2);
   // 읽기는 현재 값을 따른다. 꺼진 동안에는 Turn도 분포도 보이지 않는다
@@ -538,7 +453,7 @@ test("trace buffer: the enabled value is read when a turn first appears", () => 
   expect(buffer.timings({})).toEqual({ traceEnabled: false, timings: [] });
   // 꺼진 동안 처음 보인 Turn은 다시 켜도 기록하지 않는다
   turnPassed(buffer, thread, second, "ext-a", 3);
-  set({ enabled: true, turnsPerThread: 20 });
+  set({ enabled: true });
   turnPassed(buffer, thread, second, "ext-a", 4);
   // 켜진 뒤 처음 보인 Turn부터 기록한다
   turnPassed(buffer, thread, third, "ext-a", 5);
@@ -701,7 +616,7 @@ test("trace buffer: forgetThread drops a thread's turns", () => {
 
 test("trace settings: the policy reads x.operations.trace.* with the documented defaults", async () => {
   const off = await createOperationsHarness({ settings: { trace: { enabled: false } } });
-  expect(off.policy.trace()).toEqual({ enabled: false, turnsPerThread: 20 });
+  expect(off.policy.trace()).toEqual({ enabled: false });
   const defaults = await createOperationsHarness();
   expect(defaults.policy.trace()).toEqual(DEFAULT_TRACE_SETTINGS);
   expect(createStaticOperationsSettings().trace?.()).toEqual(DEFAULT_TRACE_SETTINGS);
@@ -856,4 +771,31 @@ test("trace: real dispatches through the host land in traceReadOf(host)", async 
       failures: 1,
     },
   ]);
+});
+
+test("trace: closeThread releases the thread's trace, other threads keep theirs", async () => {
+  const { t } = await createOperationsHarness();
+  const closing = t.newThread();
+  const staying = t.newThread();
+  await t.host.openThread(closing);
+  await t.host.openThread(staying);
+  await t.host.install(
+    makeUnit({ name: "ext-tap", hooks: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", () => {});
+    }),
+  );
+  const closingTurn = t.ids.next("trn");
+  const stayingTurn = t.ids.next("trn");
+  const settle = (thread: ThreadId, turn: TurnId) =>
+    t.host.dispatch(
+      "boundary.settle.after",
+      { turnId: turn, aborted: false },
+      { threadId: thread, dispatchKey: `${turn}:boundary.settle.after` },
+    );
+  await Promise.all([settle(closing, closingTurn), settle(staying, stayingTurn)]);
+  const trace = traceReadOf(t.host);
+  expect(trace.turn(closing, closingTurn)?.entries.length).toBe(1);
+  await t.host.closeThread(closing);
+  expect(trace.turn(closing, closingTurn)).toBeUndefined();
+  expect(trace.turn(staying, stayingTurn)?.entries.length).toBe(1);
 });
