@@ -12,6 +12,7 @@ import {
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
+import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
 /** 폴더 후보로 보이는 기존 대화의 작업 폴더 수 */
@@ -24,7 +25,7 @@ const ThreadRow = memo(function ThreadRow(props: { readonly id: ThreadId }): Rea
   const unlisted = useUnlistedApprovals(props.id);
   if (thread === undefined) return null;
   return (
-    <li>
+    <li className="thread-row">
       <button
         type="button"
         className={selected ? "thread selected" : "thread"}
@@ -54,6 +55,11 @@ const ThreadRow = memo(function ThreadRow(props: { readonly id: ThreadId }): Rea
           ) : null}
         </span>
       </button>
+      <ThreadRowMenu
+        id={props.id}
+        title={thread.title ?? t("desktop.threads.untitled")}
+        status={thread.status}
+      />
     </li>
   );
 });

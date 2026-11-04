@@ -26,6 +26,7 @@ import { PluginUiHost } from "./plugin/plugin-tabs.tsx";
 import { StatusBar } from "./status-bar.tsx";
 import type { FolderPickInvoke } from "./folder-pick.ts";
 import { FolderPickContext } from "./folder-pick-context.ts";
+import { NoticeToasts } from "./notices.tsx";
 import { ThreadList } from "./thread-list.tsx";
 
 export interface AppProps {
@@ -248,6 +249,7 @@ export function App(props: AppProps): ReactNode {
         statusBar={<StatusBar />}
         onGoToThread={openThread}
       />
+      <NoticeToasts />
       <LockedDialog />
       <PluginUiHost />
       <CommandOutputSheet />

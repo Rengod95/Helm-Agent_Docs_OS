@@ -511,7 +511,7 @@ interface PluginUiCommands {
  * 알림(P-03 받은 요청의 알림 묶음). 목록은 요청 결과라 거울에 넣지 않는다(FS-03). `onDelivered`는 연결이 바뀌면 끊기므로
  * 부르는 부품이 연결 상태가 바뀔 때 다시 건다.
  */
-export interface NoticeCommands {
+interface NoticeCommands {
   /** `notify.list { afterSeq: 0 }`: 지금까지 쌓인 알림 */
   list(): Promise<Result<WireResult<"notify.list">, CommandError>>;
   /** `notify.delivered` 알림마다 `listener`를 부른다. 반환값은 구독 해제 */
