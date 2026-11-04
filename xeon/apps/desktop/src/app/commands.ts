@@ -21,6 +21,7 @@ import type {
   Commands,
 } from "../views/commands.ts";
 import { turnInputOf } from "../views/attachment-model.ts";
+import { collectExport } from "../views/export-model.ts";
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
@@ -248,6 +249,16 @@ export function createCommands(deps: CommandDeps): Commands {
       session.link()?.reloadThreads();
       return ok(null);
     },
+    // 읽기라 쓰기 소유를 얻지 않는다. 첫 쪽은 `after`가 없고 그다음 쪽은 앞 `next`를 `after`로 받는다
+    exportThread: (threadId, format) =>
+      collectExport((after) =>
+        withConnection((c) =>
+          c.request(
+            "thread.export",
+            after === undefined ? { threadId, format } : { threadId, format, after },
+          ),
+        ),
+      ),
     resumeTurn: (threadId) => withWriteConnection((c) => c.request("turn.resume", { threadId })),
     runCommandLine: (threadId, text) =>
       withWriteConnection((c) => c.request("command.run", { threadId, text })),

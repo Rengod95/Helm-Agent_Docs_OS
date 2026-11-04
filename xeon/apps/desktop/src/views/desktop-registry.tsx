@@ -7,6 +7,7 @@ import {
   Plug,
 } from "@caustic/react/icons";
 import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
+import { ChatHeader } from "./chat-header.tsx";
 import { Composer } from "./composer.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
@@ -41,6 +42,7 @@ import type { ReactNode } from "react";
 function ChatScreen(): ReactNode {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <ChatHeader />
       <SetupBanner />
       <Transcript />
       <TrustCard />

@@ -15,6 +15,7 @@ fn main() {
         "open_external",
         "pick_folder",
         "pick_file",
+        "save_file",
         "os_reauth",
     ]);
     if let Err(error) =

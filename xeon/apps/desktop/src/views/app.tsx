@@ -26,9 +26,12 @@ import { PluginUiHost } from "./plugin/plugin-tabs.tsx";
 import { StatusBar } from "./status-bar.tsx";
 import type { FolderPickInvoke } from "./folder-pick.ts";
 import { FolderPickContext } from "./folder-pick-context.ts";
+import type { FileSaveInvoke } from "./file-save.ts";
+import { FileSaveContext } from "./file-save-context.ts";
 import { NoticeToasts } from "./notices.tsx";
 import { SafeModeProvider } from "./safe-mode-provider.tsx";
 import { ThreadList } from "./thread-list.tsx";
+import { installFileDropGuard } from "./file-drop-guard.ts";
 
 export interface AppProps {
   readonly registry: ShellRegistry;
@@ -36,6 +39,8 @@ export interface AppProps {
   readonly mac: boolean;
   /** 새 대화 작업 폴더의 폴더 선택 창. 데스크톱 셸이 준다 */
   readonly folderPick?: FolderPickInvoke | undefined;
+  /** 대화 내보내기 파일의 저장 창. 데스크톱 셸이 준다. 없으면(웹) 대화 상자는 내려받기로 보낸다 */
+  readonly fileSave?: FileSaveInvoke | undefined;
 }
 
 /** 초점이 있는 승인 카드의 승인 id(대기 목록에 있는 것만). 카드 밖에 초점이 있으면 null */
@@ -93,6 +98,8 @@ export function App(props: AppProps): ReactNode {
     firstRunOpened.current = true;
     shell.updatePlace({ screen: "first-run", scroll: 0 });
   }, [setupNeeded, shell]);
+  // 놓을 곳이 아닌 데에 놓은 파일로 WebView가 이동하지 않게 한다(`dragDropEnabled: false`의 부작용)
+  useEffect(() => installFileDropGuard(window), []);
   // 대화 영역에서 열린 대화가 바뀌면 작업대 맥락이 (고정이 아니면) 따라간다
   useEffect(() => {
     shell.selectChatThread(selected);
@@ -235,22 +242,26 @@ export function App(props: AppProps): ReactNode {
   return (
     <FolderPickContext value={props.folderPick ?? null}>
       <SafeModeProvider>
-        <Shell
-          palette={<Palette mac={props.mac} keyOverrides={props.keyOverrides} onRun={runPalette} />}
-          onAction={onAction}
-          modalOpen={helpOpen}
-          registry={props.registry}
-          keyOverrides={props.keyOverrides}
-          mac={props.mac}
-          settingsOpen={screen === "settings"}
-          onSettingsOpenChange={(open) => {
-            commands.showScreen(open ? "settings" : "chat");
-          }}
-          settingsScreen={<SettingsPage folderPick={props.folderPick} />}
-          threadList={<ThreadList folderPick={props.folderPick} />}
-          statusBar={<StatusBar />}
-          onGoToThread={openThread}
-        />
+        <FileSaveContext value={props.fileSave ?? null}>
+          <Shell
+            palette={
+              <Palette mac={props.mac} keyOverrides={props.keyOverrides} onRun={runPalette} />
+            }
+            onAction={onAction}
+            modalOpen={helpOpen}
+            registry={props.registry}
+            keyOverrides={props.keyOverrides}
+            mac={props.mac}
+            settingsOpen={screen === "settings"}
+            onSettingsOpenChange={(open) => {
+              commands.showScreen(open ? "settings" : "chat");
+            }}
+            settingsScreen={<SettingsPage folderPick={props.folderPick} />}
+            threadList={<ThreadList folderPick={props.folderPick} />}
+            statusBar={<StatusBar />}
+            onGoToThread={openThread}
+          />
+        </FileSaveContext>
       </SafeModeProvider>
       <NoticeToasts />
       <LockedDialog />

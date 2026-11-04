@@ -174,6 +174,54 @@ describe("fresnel.devkit and its wire methods", () => {
     roundTrip(WIRE_METHODS["ext.remove"].result, { name: "n", appliesAt: "now" });
   });
 
+  test("ext.remove takes dropData and reports dataDropped only when data was dropped", () => {
+    const remove = WIRE_METHODS["ext.remove"].params;
+    expect(parse(remove, { name: "n" }).ok).toBe(true);
+    expect(parse(remove, { name: "n", dropData: true }).ok).toBe(true);
+    expect(parse(remove, { name: "n", dropData: "yes" }).ok).toBe(false);
+    roundTrip(WIRE_METHODS["ext.remove"].result, {
+      name: "n",
+      appliesAt: "now",
+      dataDropped: 2,
+    });
+    expect(
+      parse(WIRE_METHODS["ext.remove"].result, { name: "n", appliesAt: "now", dataDropped: -1 }).ok,
+    ).toBe(false);
+  });
+
+  test("ext.removePreview takes a name and lists the owned tables with row counts", () => {
+    const preview = WIRE_METHODS["ext.removePreview"].params;
+    expect(parse(preview, { name: "n" }).ok).toBe(true);
+    expect(parse(preview, {}).ok).toBe(false);
+    expect(parse(preview, { name: "n", dropData: true }).ok).toBe(false);
+    roundTrip(WIRE_METHODS["ext.removePreview"].result, {
+      name: "n",
+      tables: [
+        { name: "x_n_marks", rows: 0 },
+        { name: "x_n_pins", rows: 3 },
+      ],
+    });
+    roundTrip(WIRE_METHODS["ext.removePreview"].result, { name: "n", tables: [] });
+    expect(
+      parse(WIRE_METHODS["ext.removePreview"].result, {
+        name: "n",
+        tables: [{ name: "x_n_pins", rows: 1.5 }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parse(WIRE_METHODS["ext.removePreview"].result, {
+        name: "n",
+        tables: [{ name: "x_n_pins", rows: 1, extra: true }],
+      }).ok,
+    ).toBe(false);
+    expect(
+      parse(WIRE_METHODS["ext.removePreview"].result, {
+        name: "n",
+        tables: Array.from({ length: 65 }, (_, index) => ({ name: `x_n_t${index}`, rows: 0 })),
+      }).ok,
+    ).toBe(false);
+  });
+
   test("ext.test.run and ext.test.list round trip, testRun replaces trial", () => {
     const run = WIRE_METHODS["ext.test.run"].params;
     expect(parse(run, { kind: "replay", target: "helm", options: { maxCommits: 10 } }).ok).toBe(

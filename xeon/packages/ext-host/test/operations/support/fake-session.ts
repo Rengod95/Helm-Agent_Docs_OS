@@ -2,6 +2,7 @@
 // 트랜잭션 롤백, 장애 주입 지점(L0.store와 같은 문자열)을 갖는다(X.operations.plan O-15).
 import { err, ok, Bug } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ExtensionTablesPort } from "@fresnel/contracts/extensions";
 import type {
   DurableEventEnvelope,
   ProjectionTx,
@@ -21,6 +22,8 @@ type FaultPoint = "after_ext_projection:0";
 export interface FakeSession {
   readonly registry: Pick<ProjectorRegistry, "register" | "onFailure">;
   readonly store: { scoped(owner: string): StoreDb };
+  /** fresnel.store의 `extensions`. 접두 테이블 삭제(소유 판정은 접두와 지역 이름 규칙) */
+  readonly tables: ExtensionTablesPort;
   readonly sql: FakeSql;
   /** 이벤트 하나를 커밋한다. 투영기를 같은 트랜잭션에서 실행하고, 장애 지점이나 apply 예외면 되돌린다 */
   commit(
@@ -160,6 +163,26 @@ export function createFakeSession(): FakeSession {
     },
   };
 
+  const tables: ExtensionTablesPort = {
+    drop(name, names) {
+      const prefix = extTablePrefix(name);
+      for (const table of names) {
+        const local = table.startsWith(prefix) ? table.slice(prefix.length) : "";
+        if (!/^[a-z][a-z0-9]{0,31}$/.test(local)) {
+          return err({ kind: "table_not_owned", name, table });
+        }
+      }
+      const present = new Set(sql.tableNames());
+      const dropped: string[] = [];
+      for (const table of names) {
+        if (!present.has(table)) continue;
+        sql.run(`DROP TABLE "${table}"`);
+        dropped.push(table);
+      }
+      return ok({ dropped });
+    },
+  };
+
   const store: FakeSession["store"] = {
     scoped(owner) {
       const prefix = ownerPrefix(owner);
@@ -205,6 +228,7 @@ export function createFakeSession(): FakeSession {
   return {
     registry,
     store,
+    tables,
     sql,
     log,
     projectors: () => [...projectors.keys()],

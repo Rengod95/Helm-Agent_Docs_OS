@@ -311,6 +311,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       },
       compact: () => Promise.reject(new Error("compact is not part of the fake")),
       hasTitle: (threadId) => ok((titles.get(threadId) ?? "") !== ""),
+      title: (threadId) => ok(titles.get(threadId) ?? null),
       position: () => ok(position()),
       ...options.overrides?.threads,
     },

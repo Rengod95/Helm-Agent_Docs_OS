@@ -343,6 +343,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const title = found.value?.title ?? null;
       return ok(title !== null && title !== "");
     },
+    title(threadId) {
+      const found = session.query.thread(threadId);
+      if (!found.ok) return found;
+      return ok(found.value?.title ?? null);
+    },
     async remove(threadId) {
       const removed = session.threads.remove(threadId);
       if (!removed.ok) return removed;

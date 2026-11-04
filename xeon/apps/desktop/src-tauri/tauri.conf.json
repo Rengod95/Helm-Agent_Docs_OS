@@ -21,6 +21,7 @@
   "bundle": {
     "active": true,
     "icon": ["icons/icon.png"],
-    "externalBin": ["binaries/fresnel"]
+    "externalBin": ["binaries/fresnel"],
+    "resources": ["resources/THIRD-PARTY-NOTICES-RUST.txt"]
   }
 }

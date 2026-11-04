@@ -1,6 +1,11 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { Clock } from "@fresnel/contracts";
-import type { ExtHost, ExtensionLoader, VersionHistory } from "@fresnel/ext-host";
+import type {
+  ExtHost,
+  ExtStorageManager,
+  ExtensionLoader,
+  VersionHistory,
+} from "@fresnel/ext-host";
 import type { BundledPluginVersion } from "../default-plugins.ts";
 import { createExtUiVersionHistory, sha256Hex } from "./ext-ui-version-fs.ts";
 
@@ -37,6 +42,8 @@ export interface ExtUiVersionSource {
   readonly installGate: InstallGate;
   /** 매니페스트 텍스트의 해시. 버전 기록이 저장할 값과 같은 함수다(되돌리기가 보관 항목과 번들을 비교한다) */
   readonly hash: (text: string) => string;
+  /** 확장 저장 테이블의 미리 보기와 지우기(`ext.removePreview`, `ext.remove`의 `dropData`). 없으면 저장 영역이 없는 것으로 본다 */
+  readonly storage?: Pick<ExtStorageManager, "preview" | "drop"> | undefined;
 }
 
 /** 조립 루트가 넘기는 재료. 버전 기록은 여기서 만든다 */
@@ -48,6 +55,7 @@ export function createExtUiVersionSource(input: {
   readonly heldThreads: ExtUiVersionSource["heldThreads"];
   readonly bundle: ExtUiVersionSource["bundle"];
   readonly installGate: InstallGate;
+  readonly storage?: ExtUiVersionSource["storage"];
 }): ExtUiVersionSource {
   return {
     host: input.host,
@@ -58,6 +66,7 @@ export function createExtUiVersionSource(input: {
     bundle: input.bundle,
     installGate: input.installGate,
     hash: sha256Hex,
+    storage: input.storage,
     // ext-host는 상태 스키마 버전을 밝히지 않는다(StateDecl.version은 등록 정의 안에만 있다). X.loading-trust §10 24번 [미결]
     stateSchemaVersion: () => null,
   };

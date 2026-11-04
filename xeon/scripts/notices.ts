@@ -420,9 +420,10 @@ const RULE = "=".repeat(78);
 /**
  * The notice text grouped by license: per license a header with its SPDX text links, its standard text once, then its
  * packages with name, version, header copyright lines and source link. A package whose license text differs from the
- * standard text prints its own text under its entry.
+ * standard text prints its own text under its entry. `carrier` names the file that ships the notice, for the sentence about a
+ * license with no text in it (the release archive by default; rust-notices.ts names its own file).
  */
-export function groupedNoticesText(items: readonly NoticeItem[]): string {
+export function groupedNoticesText(items: readonly NoticeItem[], carrier = "The archive"): string {
   if (items.length === 0) return "";
   const licenses = [...new Set(items.map((item) => item.license))].toSorted((a, b) =>
     a.localeCompare(b),
@@ -440,7 +441,7 @@ export function groupedNoticesText(items: readonly NoticeItem[]): string {
     );
     if (standard === undefined) {
       parts.push(
-        "The archive ships no license text for this license. The license text link above has it.",
+        `${carrier} ships no license text for this license. The license text link above has it.`,
         "",
       );
     } else {

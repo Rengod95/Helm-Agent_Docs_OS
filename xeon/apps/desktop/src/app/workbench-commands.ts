@@ -72,7 +72,12 @@ export function createWorkbenchCommands(
     installPreview: (source) => withConnection((c) => c.request("ext.installPreview", { source })),
     install: (source, sha256) =>
       withConnection((c) => c.request("ext.install", { source, sha256 })),
-    remove: (name) => withConnection((c) => c.request("ext.remove", { name })),
+    // `dropData`는 참일 때만 싣는다. 생략하면 호스트가 저장 테이블을 남긴다
+    remove: (name, options) =>
+      withConnection((c) =>
+        c.request("ext.remove", options?.dropData === true ? { name, dropData: true } : { name }),
+      ),
+    removePreview: (name) => withConnection((c) => c.request("ext.removePreview", { name })),
     bindings: (threadId) =>
       withConnection((c) => c.request("ext.bindings", threadId === undefined ? {} : { threadId })),
     async reload(name) {

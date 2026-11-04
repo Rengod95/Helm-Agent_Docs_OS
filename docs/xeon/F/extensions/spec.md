@@ -696,6 +696,9 @@ export const ProjectorRegistryPortKey: PortKey<ProjectorRegistryPort>;  // { nam
 /** StoreService(F.records.spec §3.9)의 부분형. scoped(owner)는 그 소유자 접두 테이블만 쓰는 StoreDb를 돌려준다 */
 export type ScopedStorePort = Pick<StoreService, "scoped">;
 export const ScopedStorePortKey: PortKey<ScopedStorePort>;         // { name: "fresnel.store" }
+/** StoreService.extensions의 부분형. 확장 제거 때 접두 테이블을 지운다(X.operations.spec §4.4.7) [구현 2026-11-04] */
+export type ExtensionTablesPort = Pick<ExtensionTables, "drop">;
+export const ExtensionTablesPortKey: PortKey<ExtensionTablesPort>; // { name: "fresnel.store", member: "extensions" }
 
 // ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ────────
 /** 격리 확장 자식 프로세스(2차). 사용처: X.loading-trust.spec §3.8 */
@@ -861,6 +864,7 @@ export interface TrustPrompter {
 | `RecordCommitPort` | `fresnel.session`(`ext`) | core-persistence | `SessionService.ext`(`F.records.spec` §3.9) | `X.primitives.spec` §3.6 |
 | `ProjectorRegistryPort` | `fresnel.session`(`projectors`) | core-persistence | `SessionService.projectors` | `X.primitives.spec` §3.6 |
 | `ScopedStorePort` | `fresnel.store` | platform-store | `StoreService`(`F.records.spec` §3.9) | `X.primitives.spec` §3.6 |
+| `ExtensionTablesPort` | `fresnel.store`(member `extensions`) | platform-store | `ExtensionTables`(`F.records.spec` §3.9) | `X.operations.spec` §4.4.7 |
 | `ProcessPort` | `fresnel.process` | platform-process | `ProcessService extends ProcessPort` | `X.primitives.spec` §3.6, `X.loading-trust.spec` §3.8, `X.operations.spec` §3.7 |
 | `DriveLockArbiterPort` | `fresnel.groups` | group-sdk | `GroupService extends DriveLockArbiterPort`(`F.capabilities.spec` §3.12 `services/groups.ts`) | `X.primitives.spec` §3.6 |
 | `ToolsPort` | `fresnel.tools` | core-tools | `ToolService extends ToolsPort` | `X.primitives.spec` §3.9 |
@@ -1648,7 +1652,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 9. `CHAIN_RULES["tool.result"]`로 `content`만 바꾸면 `structuredContent`가 사라지고, 둘 다 주면 둘 다 유지된다.
 10. `CHAIN_RULES["input.user.before"]`에서 `handled` 패치 뒤 `stop`이 참이다.
 11. 스펙 §3.4 표의 훅 이름·kind·fold와 코드 `HOOKS`가 일치한다(문서 대조 스크립트, F.extensions.plan E9).
-12. `ports.ts`의 모든 `*PortKey` 상수의 `name`은 `fresnel.`으로 시작하고 §3.2.1 표의 서비스 이름과 같다. `RecordCommitPortKey.member`는 `"ext"`, `ProjectorRegistryPortKey.member`는 `"projectors"`이고 나머지 키에는 `member`가 없다(값 테스트).
+12. `ports.ts`의 모든 `*PortKey` 상수의 `name`은 `fresnel.`으로 시작하고 §3.2.1 표의 서비스 이름과 같다. `RecordCommitPortKey.member`는 `"ext"`, `ProjectorRegistryPortKey.member`는 `"projectors"`, `ExtensionTablesPortKey.member`는 `"extensions"`이고 나머지 키에는 `member`를 두지 않는다(값 테스트).
 13. `F.capabilities.spec` §3.12의 `LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`는 각각 `LoopPort`, `InputQueuePort`, `ProcessPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `DriveLockArbiterPort`에 대입 가능하다. `StoreService`는 `ScopedStorePort`에, `SessionService["ext"]`는 `RecordCommitPort`에, `SessionService["projectors"]`는 `ProjectorRegistryPort`에 대입 가능하다(타입 테스트).
 14. `ports.ts`가 import하는 F 소스는 base, conversation, capabilities, records와 extensions 안의 파일뿐이다(`F.readme` §3 순서 검사).
 

@@ -88,6 +88,16 @@ import type { PaletteUses } from "./palette/palette-model.ts";
 /** `attachments.add`가 돌려준 입력 파트 */
 export type AttachmentParts = WireResult<"attachments.add">["parts"];
 
+/** `thread.export`의 형식. `markdown`은 읽기용 문서, `json`은 item 원형 배열이다 */
+export type ExportFormat = WireParams<"thread.export">["format"];
+
+/** 쪽을 모두 이어 붙인 내보내기 결과. `filename`은 host가 준 이름(`제목.md` 꼴)이고 `itemCount`는 전체 item 수다 */
+export interface ExportDocument {
+  readonly filename: string;
+  readonly content: string;
+  readonly itemCount: number;
+}
+
 export type CommandError =
   | { readonly kind: "offline" }
   /** 연결된 host에 그 메서드가 없다(-32601). 아직 구현하지 않은 host나 오래된 엔진이다 */
@@ -506,8 +516,16 @@ export interface WorkbenchCommands {
   installPreview(source: string): Promise<Result<InstallPreview, CommandError>>;
   /** `ext.install`: 미리 보기에서 본 해시(`sha256`)와 같은 내용일 때만 설치한다 */
   install(source: string, sha256: string): Promise<Result<ExtInstallResult, CommandError>>;
-  /** `ext.remove { name }`: 설치본 폴더를 지우고 로더에서 내린다. `now`이면 목록에서 바로 빠진다 */
-  remove(name: string): Promise<Result<ExtRemoveResult, CommandError>>;
+  /**
+   * `ext.remove { name, dropData? }`: 설치본 폴더를 지우고 로더에서 내린다. `now`이면 목록에서 바로 빠진다.
+   * `dropData`는 참일 때만 싣는다(그 확장의 저장 테이블도 지운다)
+   */
+  remove(
+    name: string,
+    options?: { readonly dropData?: boolean },
+  ): Promise<Result<ExtRemoveResult, CommandError>>;
+  /** `ext.removePreview { name }`: 지우기 확인에 보일 저장 테이블과 행 수. 아무것도 바꾸지 않는다 */
+  removePreview(name: string): Promise<Result<WireResult<"ext.removePreview">, CommandError>>;
   /** `ext.bindings { threadId? }`: 기능 id마다 지금 바인딩된 공급자, 받는 확장, 미충족 */
   bindings(threadId?: ThreadId): Promise<Result<ExtBindingsResult, CommandError>>;
   /** `ext.reload { name }`: 설치한 판으로 실행 중인 확장을 다음 단계 경계에서 바꾼다. 거절이면 옛 판이 그대로 돈다 */
@@ -664,6 +682,14 @@ export interface Commands {
   closeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** `thread.delete`: 대화를 지운다. 성공하면 목록을 다시 읽고, 열려 있던 대화였다면 선택을 푼다 */
   deleteThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
+  /**
+   * `thread.export`를 쪽마다 끝까지 불러 한 문서로 이어 붙인다. 읽기라 쓰기 소유와 쓰기 보류(`switching`)와 무관하다.
+   * 파일로 쓰는 일은 대화 내보내기 대화 상자가 `saveExport`로 한다.
+   */
+  exportThread(
+    threadId: ThreadId,
+    format: ExportFormat,
+  ): Promise<Result<ExportDocument, CommandError>>;
   /** `turn.resume`: 멈춘 턴을 이어서 실행한다 */
   resumeTurn(threadId: ThreadId): Promise<Result<WireResult<"turn.resume">, CommandError>>;
   /**

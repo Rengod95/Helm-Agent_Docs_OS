@@ -151,6 +151,11 @@ desktop-test:
 desktop-ipc-probe:
     bash apps/desktop/scripts/cargo.sh probe
 
+# 데스크톱 Rust 셸 고지: 인자 없으면 apps/desktop/src-tauri/resources/THIRD-PARTY-NOTICES-RUST.txt를 다시 쓰고, --check면 그 파일이 Cargo.lock과 맞는지만 본다(다르면 종료코드 1, cargo가 없으면 2). just verify 밖 (scripts/rust-notices.ts)
+[group('local')]
+desktop-notices *flags:
+    {{bun}} scripts/rust-notices.ts {{flags}}
+
 # 실제 provider로 모델 테이프 녹화 <scenario>: 비용이 들어 --yes 없이는 계획만 보이고 종료코드 3 (scripts/tape-record.ts, D-e)
 [group('local')]
 tape-record scenario *flags:

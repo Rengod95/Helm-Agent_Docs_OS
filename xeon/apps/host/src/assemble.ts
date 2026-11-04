@@ -831,6 +831,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         defaultPluginNames.includes(name)
           ? bundledPluginVersionOf(bundleRoot, name, os.logger("default-plugins"))
           : Promise.resolve(null),
+      // 제거 미리 보기와 저장 테이블 지우기(`ext.removePreview`, `ext.remove`의 `dropData`)가 쓴다
+      storage: operations.storage,
     });
     if (defaultsEnabled) {
       await installDefaultPlugins(

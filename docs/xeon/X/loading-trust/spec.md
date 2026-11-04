@@ -1066,6 +1066,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 3. `remove`는 `ExtHost.uninstall(name)`을 await한다(scope 끄기 요청과 경계 적용, 등록 해제, 투영기 해제는 primitives·operations가 한다). 이어 `policy.forget(name)`을 부른다.
 4. `dropTables`가 참이면 `storageAdmin.dropExtension(name, true)`를 부른다. 지우는 대상은 소유 장부(`xh_ext_tables`)에 오른 테이블뿐이고 이벤트는 남긴다(X.operations.spec §4.4.7).
 5. 확장 상태를 목록에서 지우고 `RemoveResult`를 돌려준다. 설치 파일(확장 디렉터리)의 삭제는 로더 범위 밖이다 [가정: L4.cli.spec·L4.settings-ui.spec이 정한다].
+6. [구현 2026-11-04] 위 1~4단계의 `previewRemoval`·`remove({ dropTables })`는 구현하지 않았다. 실제로는 호스트 포트(`assembly/m4/devkit-port.ts`)가 `ext.removePreview`와 `ext.remove { dropData }`로 이 흐름을 맡는다. `dropData`가 참이면 내리기(`ExtensionLoader.unload`), 저장 테이블 지우기(`ExtStorageManager.drop`), 설치 폴더 지우기 순서이고, 데이터 지우기가 실패하면 폴더를 남긴다. 세부는 X.operations.spec §4.4.7이다.
 
 - 내장 확장은 제거할 수 없다. `remove`는 내장 확장 이름에 대해 오류를 던진다. 내장 확장은 `ext.<name>.enabled`로만 끈다.
 

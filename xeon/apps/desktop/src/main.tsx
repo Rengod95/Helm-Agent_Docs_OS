@@ -15,6 +15,7 @@ import { PluginUiProvider } from "./views/plugin/plugin-context.tsx";
 import { createDesktopRegistry } from "./views/desktop-registry.tsx";
 import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
+import type { FileSaveInvoke } from "./views/file-save.ts";
 import type { FolderPickInvoke } from "./views/folder-pick.ts";
 import type { OsReauthInvoke } from "./views/os-reauth.ts";
 import { createOsReauthGate, UNAVAILABLE_GATE } from "./app/secret-reveal-gate.ts";
@@ -25,6 +26,9 @@ const osReauth: OsReauthInvoke = (command, args) => invoke(command, args);
 
 // 폴더 선택 창은 모든 OS에서 Rust가 띄운다(플러그인 권한은 WebView에 주지 않는다)
 const folderPick: FolderPickInvoke = (command) => invoke(command);
+
+// 저장 창도 Rust가 띄운다. 내용을 넘기는 인자는 `save_file`의 `suggestedName`, `content`다(Tauri가 snake_case로 옮긴다)
+const fileSave: FileSaveInvoke = (command, args) => invoke(command, args);
 
 // WebView 진입점. 스토어와 연결은 createApp이 만들고 여기서는 화면에 붙이기만 한다.
 const container = document.getElementById("root");
@@ -105,6 +109,7 @@ if (container === null) {
                   keyOverrides={localSettings.get(LOCAL.keybindings)}
                   mac={mac}
                   folderPick={folderPick}
+                  fileSave={fileSave}
                 />
               </ShellRestartContext>
             </RevealGateContext>

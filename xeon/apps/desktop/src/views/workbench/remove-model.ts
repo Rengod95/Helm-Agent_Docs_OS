@@ -1,7 +1,11 @@
 // 확장 지우기(B-04, `ext.remove`)의 순수 판단: 어떤 행을 지울 수 있나, 결과를 어떤 문장으로 알리나.
 import { assertNever } from "@fresnel/contracts";
 import type { MessageId } from "@fresnel/client/i18n";
-import type { ExtListEntry, ExtRemoveResult } from "@fresnel/contracts/wire";
+import type {
+  ExtListEntry,
+  ExtRemovePreviewResult,
+  ExtRemoveResult,
+} from "@fresnel/contracts/wire";
 
 /**
  * 지울 수 있는 확장인가. `ext.remove`는 사용자 확장 위치의 설치본 폴더를 지우므로 `origin`이 `user`인 것만 지운다.
@@ -27,3 +31,56 @@ export function removeDoneText(appliesAt: ExtRemoveResult["appliesAt"]): Message
 
 /** 이미 없는 이름(`extension.notFound`, 3401)을 지우려 했나. 목록이 낡았다는 뜻이라 문장이 다르다 */
 export const REMOVE_NOT_FOUND_CODE = 3401;
+
+/** 확장이 소유한 저장 테이블 한 줄(`ext.removePreview`의 `tables`) */
+export type StorageTable = ExtRemovePreviewResult["tables"][number];
+
+/**
+ * 지우기 상자가 읽은 저장 데이터. `ready`에서 `tables`가 비었으면 "확인된 저장 데이터가 없어요"다.
+ * 장부가 비어 있어도 데이터가 없다는 뜻은 아니므로 문장도 그렇게 쓴다
+ */
+export type StoragePreview =
+  | { readonly kind: "loading" }
+  | { readonly kind: "failed" }
+  | { readonly kind: "ready"; readonly tables: readonly StorageTable[] };
+
+/** 저장 데이터 칸의 한 줄 문장. 표를 그릴 수 있을 때(`ready`이고 테이블이 있을 때)는 null이다 */
+export function storageNoteOf(preview: StoragePreview): MessageId | null {
+  switch (preview.kind) {
+    case "loading":
+      return "desktop.workbench.remove.storage.loading";
+    case "failed":
+      return "desktop.workbench.remove.storage.failed";
+    case "ready":
+      return preview.tables.length === 0 ? "desktop.workbench.remove.storage.none" : null;
+    default:
+      return assertNever(preview, "storageNoteOf");
+  }
+}
+
+/** 행 수의 합계 */
+export function totalRowsOf(tables: readonly StorageTable[]): number {
+  return tables.reduce((sum, table) => sum + table.rows, 0);
+}
+
+/**
+ * `ext.remove`에 `dropData`로 보낼 값. 칸을 켰고 지울 테이블이 실제로 보일 때만 참이다.
+ * 표가 비었으면 칸이 없으므로 체크 상태와 무관하게 거짓이다
+ */
+export function dropDataOf(checked: boolean, tables: readonly StorageTable[]): boolean {
+  return checked && tables.length > 0;
+}
+
+/**
+ * 지운 뒤 알림 문장. 제목은 적용 시점 문장이고(`removeDoneText`), 저장 테이블을 함께 지웠으면(`dataDropped` > 0)
+ * 그 수를 덧붙인 문장을 `data`로 준다. 적용 시점을 잃지 않으려고 제목을 바꾸지 않는다
+ */
+export function removeDoneCopyOf(
+  appliesAt: ExtRemoveResult["appliesAt"],
+  dataDropped: number | undefined,
+): { readonly title: MessageId; readonly data: number | null } {
+  return {
+    title: removeDoneText(appliesAt),
+    data: dataDropped !== undefined && dataDropped > 0 ? dataDropped : null,
+  };
+}

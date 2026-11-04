@@ -16,9 +16,11 @@ import {
 import { Ellipsis } from "@caustic/react/icons";
 import { useState, type ReactNode } from "react";
 import { useCommands, type CommandError } from "./commands.ts";
+import { ThreadExportDialog } from "./thread-export-dialog.tsx";
 
-// 대화 행 ⋯ 메뉴(d01-chat-gaps). 이름 바꾸기, 분기, 대화 요약, 닫기, 지우기. 지우기는 확인 창을 거친다.
-// 실행 중인 대화는 지우지 않고 이유만 보인다. 내보내기는 와이어가 없어 이 메뉴에 없다.
+// 대화 행 ⋯ 메뉴(d01-chat-gaps). 이름 바꾸기, 분기, 대화 요약, 내보내기, 닫기, 지우기. 지우기는 확인 창을 거친다.
+// 실행 중인 대화는 지우지 않고 이유만 보인다. 내보내기는 읽기라 실행 중이나 닫힌 대화에서도 된다(O-13 대화 상자).
+// 대화 머리의 ⋯(chat-header.tsx)도 이 메뉴를 그대로 쓴다.
 
 const HAS_FORKS = WIRE_ERRORS["thread.hasForks"].code;
 
@@ -53,6 +55,7 @@ export function ThreadRowMenu(props: {
   const commands = useCommands();
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const running = props.status === "running";
   const closed = props.status === "closed";
 
@@ -96,6 +99,13 @@ export function ThreadRowMenu(props: {
           >
             {t("desktop.threads.menu.compact")}
           </MenuItem>
+          <MenuItem
+            onSelect={() => {
+              setExporting(true);
+            }}
+          >
+            {t("desktop.threads.menu.export")}
+          </MenuItem>
           <MenuSeparator />
           <MenuItem
             disabled={running || closed}
@@ -131,6 +141,15 @@ export function ThreadRowMenu(props: {
           running={running}
           onDone={() => {
             setDeleting(false);
+          }}
+        />
+      ) : null}
+      {exporting ? (
+        <ThreadExportDialog
+          id={props.id}
+          title={props.title}
+          onDone={() => {
+            setExporting(false);
           }}
         />
       ) : null}

@@ -228,6 +228,7 @@ export {
   type ExtRowError,
   type ExtStorage,
   type ExtStorageError,
+  type ExtStorageManager,
   type ExtTableDef,
   type ExtTableDefs,
   type ExtTableReader,

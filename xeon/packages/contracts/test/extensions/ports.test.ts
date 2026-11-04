@@ -8,6 +8,7 @@ import {
   ProcessPortKey,
   ProjectorRegistryPortKey,
   RecordCommitPortKey,
+  ExtensionTablesPortKey,
   ScopedStorePortKey,
   ToolsPortKey,
   type DriveLockArbiterPort,
@@ -28,6 +29,7 @@ const KEYS: ReadonlyArray<
   ["RecordCommitPortKey", RecordCommitPortKey, "fresnel.session", "ext"],
   ["ProjectorRegistryPortKey", ProjectorRegistryPortKey, "fresnel.session", "projectors"],
   ["ScopedStorePortKey", ScopedStorePortKey, "fresnel.store", undefined],
+  ["ExtensionTablesPortKey", ExtensionTablesPortKey, "fresnel.store", "extensions"],
   ["ProcessPortKey", ProcessPortKey, "fresnel.process", undefined],
   ["DriveLockArbiterPortKey", DriveLockArbiterPortKey, "fresnel.groups", undefined],
   ["ToolsPortKey", ToolsPortKey, "fresnel.tools", undefined],
@@ -42,9 +44,13 @@ describe("port keys", () => {
     expect(key.member).toBe(member);
   });
 
-  test("only fresnel.session keys carry a member", () => {
+  test("only the session and store service keys carry a member", () => {
     const withMember = KEYS.filter(([, key]) => key.member !== undefined).map(([label]) => label);
-    expect(withMember).toEqual(["RecordCommitPortKey", "ProjectorRegistryPortKey"]);
+    expect(withMember).toEqual([
+      "RecordCommitPortKey",
+      "ProjectorRegistryPortKey",
+      "ExtensionTablesPortKey",
+    ]);
     expect(Object.keys(LoopPortKey)).toEqual(["name"]);
   });
 

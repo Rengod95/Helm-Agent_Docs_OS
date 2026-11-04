@@ -4,8 +4,9 @@ import { t } from "@fresnel/client/i18n";
 import { selectedEntry, visibleRows } from "@fresnel/client/workbench";
 import { Alert, Button, EmptyState } from "@caustic/react";
 import { Plus } from "@caustic/react/icons";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
+import { useCommands } from "../commands.ts";
 import {
   CountsLine,
   firstNoticeOf,
@@ -25,10 +26,17 @@ import { useSafeMode } from "../safe-mode-context.ts";
 
 export function ExtensionsScreen(): ReactNode {
   const controller = useWorkbenchController();
+  const commands = useCommands();
+  const loadPreview = useCallback(
+    (name: string) => commands.workbench.removePreview(name),
+    [commands],
+  );
   const [installing, setInstalling] = useState(false);
   // 지우기 확인 상자가 가리키는 이름과, 지우는 요청이 가는 중인지
   const [removing, setRemoving] = useState<string | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
+  // 저장 데이터까지 지우다 실패하면 상자를 열어 두고 다시 시도하게 한다
+  const [removeDataFailed, setRemoveDataFailed] = useState(false);
   const toggle = useToggleRequest(controller);
   const actions = useWorkbenchActions();
   const state = useWorkbench((s) => s);
@@ -164,15 +172,24 @@ export function ExtensionsScreen(): ReactNode {
       <RemoveDialog
         name={removing}
         busy={removeBusy}
+        dataFailed={removeDataFailed}
+        loadPreview={loadPreview}
         onCancel={() => {
-          if (!removeBusy) setRemoving(null);
+          if (!removeBusy) {
+            setRemoving(null);
+            setRemoveDataFailed(false);
+          }
         }}
-        onConfirm={(name) => {
+        onConfirm={(name, dropData) => {
           setRemoveBusy(true);
+          setRemoveDataFailed(false);
           detachVoid(
-            controller.remove(name).then(() => {
+            controller.remove(name, { dropData }).then((done) => {
               setRemoveBusy(false);
-              setRemoving(null);
+              // 저장 데이터를 함께 지우다 실패했으면 상자를 열어 두고 다시 시도하게 한다. 그 밖의 실패와 성공은 토스트로 알리고 닫는다
+              const stay = !done && dropData;
+              setRemoveDataFailed(stay);
+              if (!stay) setRemoving(null);
               return undefined;
             }),
           );

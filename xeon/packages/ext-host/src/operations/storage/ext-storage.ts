@@ -1,6 +1,7 @@
 import { assertNever, Bug, err, ok, parse, parseJson, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
+  ExtensionTablesPortKey,
   ProjectorRegistryPortKey,
   ScopedStorePortKey,
   type ExtensionName,
@@ -11,12 +12,14 @@ import {
   ownerOfKind,
   type DurableEventEnvelope,
   type EventKind,
+  type ExtensionTableError,
   type ProjectionTx,
   type Projector,
   type ProjectorFailure,
   type SqlRow,
   type SqlTx,
   type SqlValue,
+  type StoreReadError,
 } from "@fresnel/contracts/records";
 import { scopeInternalsOf } from "../../primitives/host-api.ts";
 import type { DispatchPolicy } from "../../primitives/dispatch-types.ts";
@@ -322,6 +325,49 @@ function readerFor(
   };
 }
 
+// ── 제거 미리 보기와 삭제 ─────────────────────────────────────────────────
+
+/** 저장소에 그 이름의 테이블이 있는가(`sqlite_schema`). 장부에 행만 남은 이름을 건너뛰려고 본다 */
+const TABLE_PRESENT_SQL = `SELECT 1 AS "present" FROM sqlite_schema WHERE type = 'table' AND name = ?`;
+
+/** 소유 장부에서 확장의 테이블 이름을 읽는다. 장부 테이블이 아직 없으면 빈 목록이다 */
+function ledgerTablesOf(tx: SqlTx, extension: ExtensionName): readonly string[] {
+  if (tx.get(TABLE_PRESENT_SQL, [LEDGER_TABLE]) === undefined) return [];
+  const rows = tx.all(`SELECT * FROM ${quote(LEDGER_TABLE)} WHERE "extension" = ?`, [extension]);
+  const names: string[] = [];
+  for (const row of rows) {
+    const table = row["table"];
+    if (typeof table === "string") names.push(table);
+  }
+  return names.toSorted();
+}
+
+function rowCountOf(tx: SqlTx, table: string): number {
+  const row = tx.get(`SELECT COUNT(*) AS "n" FROM ${quote(table)}`, []);
+  const n = row?.["n"];
+  if (typeof n === "number") return n;
+  if (typeof n === "bigint") return Number(n);
+  throw new Bug(`ext_storage.count_invalid: ${table}`);
+}
+
+/** 저장소 호출의 실패(삭제 포트, 읽기·쓰기 핸들)를 `ExtStorageError` 값으로 옮긴다 */
+function storageErrorOf(error: ExtensionTableError | StoreReadError): ExtStorageError {
+  switch (error.kind) {
+    case "ext_id_invalid":
+      return { kind: "identifier_invalid", name: error.name };
+    case "table_not_owned":
+      return { kind: "table_not_owned", table: error.table };
+    case "busy":
+      return { kind: "busy" };
+    case "disk_full":
+      return { kind: "io", code: "disk_full" };
+    case "io":
+      return { kind: "io", code: error.code };
+    default:
+      return assertNever(error, "ExtensionTableError");
+  }
+}
+
 // ── 관리자 ────────────────────────────────────────────────────────────────
 
 export interface ExtStorageDeps {
@@ -333,11 +379,30 @@ export interface ExtStorageDeps {
   readonly onProjectionFailure: (extension: ExtensionName, failure: ProjectorFailure) => void;
 }
 
+/** 제거 확인 화면이 보이는 테이블 하나와 그 행 수 */
+interface ExtStorageTableCount {
+  /** 실제 테이블 이름(`x_<확장>_<지역 이름>`) */
+  readonly name: string;
+  readonly rows: number;
+}
+
+interface ExtStoragePreview {
+  /** 소유 장부에 오르고 저장소에 실제로 있는 테이블. 이름 순이다 */
+  readonly tables: readonly ExtStorageTableCount[];
+}
+
 export interface ExtStorageManager {
   /** 확장마다 하나. isolated가 참이면 defineTables는 isolated 오류다 */
   storageFor(extension: ExtensionName, options: { readonly isolated: boolean }): ExtStorage;
   /** 확장 제거 때 투영기를 해제한다. 테이블은 남는다 */
   release(extension: ExtensionName): void;
+  /** 제거 확인용. 소유 장부에서 그 확장의 테이블과 행 수를 읽는다. 아무것도 쓰지 않는다. 장부가 없으면 빈 목록이다 */
+  preview(extension: ExtensionName): Result<ExtStoragePreview, ExtStorageError>;
+  /**
+   * 제거 때 그 확장의 소유 테이블을 지우고 장부 행을 뺀다(X.operations.spec §4.4.7). 먼저 투영기를 해제해 지워질
+   * 테이블에 아무도 쓰지 않게 한다. 이벤트는 남는다. 지운 테이블 이름을 돌려준다
+   */
+  drop(extension: ExtensionName): Result<{ readonly dropped: readonly string[] }, ExtStorageError>;
 }
 
 interface Defined {
@@ -499,6 +564,16 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
     };
   }
 
+  function releaseExtension(extension: ExtensionName): void {
+    const found = defined.get(extension);
+    if (found !== undefined) {
+      found.unsubscribe();
+      found.dispose();
+      defined.delete(extension);
+    }
+    storages.delete(extension);
+  }
+
   return {
     storageFor(extension, options) {
       let storage = storages.get(extension);
@@ -508,14 +583,47 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
       }
       return storage;
     },
-    release(extension) {
-      const found = defined.get(extension);
-      if (found !== undefined) {
-        found.unsubscribe();
-        found.dispose();
-        defined.delete(extension);
-      }
-      storages.delete(extension);
+    release: releaseExtension,
+    preview(extension) {
+      const store = deps.ports.get(ScopedStorePortKey);
+      if (store === undefined) return err({ kind: "port_unavailable", port: "fresnel.store" });
+      // 장부에 오르고 저장소에 남은 이름만 센다. 삭제가 중간에 끊겨 행만 남은 이름은 건너뛴다
+      const present = store
+        .scoped("xh")
+        .read((tx) =>
+          ledgerTablesOf(tx, extension).filter(
+            (table) => tx.get(TABLE_PRESENT_SQL, [table]) !== undefined,
+          ),
+        );
+      if (!present.ok) return err(storageErrorOf(present.error));
+      if (present.value.length === 0) return ok({ tables: [] });
+      // 행 수는 그 확장의 접두 핸들로 읽는다. 장부 핸들(`xh`)은 확장 테이블을 쓸 수 없다
+      const counted = store.scoped(`ext.${extension}`).read((tx) =>
+        present.value.map((table): ExtStorageTableCount => ({
+          name: table,
+          rows: rowCountOf(tx, table),
+        })),
+      );
+      if (!counted.ok) return err(storageErrorOf(counted.error));
+      return ok({ tables: counted.value });
+    },
+    drop(extension) {
+      const store = deps.ports.get(ScopedStorePortKey);
+      const tables = deps.ports.get(ExtensionTablesPortKey);
+      if (store === undefined) return err({ kind: "port_unavailable", port: "fresnel.store" });
+      if (tables === undefined) return err({ kind: "port_unavailable", port: "fresnel.store" });
+      const listed = store.scoped("xh").read((tx) => ledgerTablesOf(tx, extension));
+      if (!listed.ok) return err(storageErrorOf(listed.error));
+      // 지우기 전에 투영기를 내린다. 남은 투영기가 지워진 테이블에 쓰지 않게 한다. 다시 설치하면 새로 등록된다
+      releaseExtension(extension);
+      const dropped = tables.drop(extension, listed.value);
+      if (!dropped.ok) return err(storageErrorOf(dropped.error));
+      const cleared = store.scoped("xh").write((tx) => {
+        if (tx.get(TABLE_PRESENT_SQL, [LEDGER_TABLE]) === undefined) return;
+        tx.run(`DELETE FROM ${quote(LEDGER_TABLE)} WHERE "extension" = ?`, [extension]);
+      });
+      if (!cleared.ok) return err(storageErrorOf(cleared.error));
+      return ok({ dropped: dropped.value.dropped });
     },
   };
 }
