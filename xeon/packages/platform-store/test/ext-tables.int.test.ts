@@ -118,7 +118,7 @@ describe("extension tables", () => {
     expect(store.service.extensions.drop("ab", ["x_ab_cd_ef"]).ok).toBe(false);
 
     const dropped = store.service.extensions.drop("ab", ["x_ab_cd"]);
-    expect(dropped).toEqual({ ok: true, value: { dropped: ["x_ab_cd"] } });
+    expect(dropped).toEqual({ ok: true, value: { dropped: ["x_ab_cd"], headSeq: 1 } });
     const names = tableNames(store);
     expect(names).toContain("x_ab_cd_ef");
     expect(names).toContain("events");
@@ -140,7 +140,7 @@ describe("extension tables", () => {
     const store = own(await open());
     expect(store.service.extensions.drop("ab", ["x_ab_missing"])).toEqual({
       ok: true,
-      value: { dropped: [] },
+      value: { dropped: [], headSeq: 0 },
     });
     expect(store.service.extensions.drop("Bad", [])).toEqual({
       ok: false,

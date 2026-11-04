@@ -132,9 +132,9 @@ export interface ExtensionTables {
   register(
     name: string,
   ): Result<{ readonly owner: string; readonly tablePrefix: string }, ExtensionTableError>;
-  /** tables에 적힌 정확한 이름만 DROP하고, sys_migrations·sys_migration_cursors·sys_prefixes 행 삭제를 한 트랜잭션에서 한다 */
+  /** tables에 적힌 정확한 이름만 DROP하고, sys_migrations·sys_migration_cursors·sys_prefixes 행 삭제를 한 트랜잭션에서 한다. `headSeq`는 그 트랜잭션에서 본 마지막 이벤트 seq(없으면 0)로, 호출자가 지운 시점으로 기록한다 */
   drop(
     name: string,
     tables: readonly string[],
-  ): Result<{ readonly dropped: readonly string[] }, ExtensionTableError>;
+  ): Result<{ readonly dropped: readonly string[]; readonly headSeq: number }, ExtensionTableError>;
 }

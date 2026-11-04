@@ -111,7 +111,7 @@ describe("extension storage contract on bun:sqlite", () => {
     commit(store, 1);
     expect(store.service.extensions.drop("probe", ["x_probe_items"])).toEqual({
       ok: true,
-      value: { dropped: ["x_probe_items"] },
+      value: { dropped: ["x_probe_items"], headSeq: 1 },
     });
     const counts = await store.rowCounts();
     expect(counts["events"]).toBe(1);

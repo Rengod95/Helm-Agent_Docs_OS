@@ -58,7 +58,10 @@ export function createExtensionTables(deps: ExtensionTablesDeps): ExtensionTable
     drop(
       name: string,
       tables: readonly string[],
-    ): Result<{ readonly dropped: readonly string[] }, ExtensionTableError> {
+    ): Result<
+      { readonly dropped: readonly string[]; readonly headSeq: number },
+      ExtensionTableError
+    > {
       const checked = checkExtName(name);
       if (!checked.ok) return err({ kind: "ext_id_invalid", name, reason: checked.reason });
       assertNotInWrite(conn.state, "extensions.drop");
@@ -67,7 +70,7 @@ export function createExtensionTables(deps: ExtensionTablesDeps): ExtensionTable
         if (!isExtTableOf(name, table)) return err({ kind: "table_not_owned", name, table });
       }
       const owner = extOwnerId(name);
-      const written = db.write((tx): readonly string[] => {
+      const written = db.write((tx) => {
         const dropped: string[] = [];
         for (const table of tables) {
           const present = tx.get(
@@ -81,10 +84,19 @@ export function createExtensionTables(deps: ExtensionTablesDeps): ExtensionTable
         tx.run("DELETE FROM sys_migrations WHERE owner = ?", [owner]);
         tx.run("DELETE FROM sys_migration_cursors WHERE owner = ?", [owner]);
         tx.run("DELETE FROM sys_prefixes WHERE owner = ? AND kind = 'extension'", [owner]);
-        return dropped;
+        // 이벤트 표는 core-persistence가 만든다. 없는 저장소(L0만 연 경우)는 0이다
+        const hasEvents =
+          tx.get(
+            "SELECT 1 AS present FROM sqlite_schema WHERE type = 'table' AND name = 'events'",
+          ) !== undefined;
+        const head = hasEvents
+          ? tx.get("SELECT COALESCE(MAX(seq), 0) AS head FROM events")
+          : undefined;
+        const headValue = head?.["head"];
+        return { dropped, headSeq: typeof headValue === "number" ? headValue : 0 };
       });
       if (!written.ok) return err(mapWriteError(written.error));
-      return ok({ dropped: written.value });
+      return ok(written.value);
     },
   };
 }

@@ -282,8 +282,8 @@ export type ExtensionTableError =
 export interface ExtensionTables {
   /** name은 F ExtensionName(하이픈 허용). sys_prefixes에 owner "ext.<name>"과 접두 x_<하이픈→밑줄>_를 등록한다. 이미 있으면 ok */
   register(name: string): Result<{ readonly owner: string; readonly tablePrefix: string }, ExtensionTableError>;
-  /** tables에 적힌 정확한 이름만 DROP하고, sys_migrations·sys_migration_cursors·sys_prefixes 행 삭제를 한 트랜잭션에서 한다(§4.5) */
-  drop(name: string, tables: readonly string[]): Result<{ readonly dropped: readonly string[] }, ExtensionTableError>;
+  /** tables에 적힌 정확한 이름만 DROP하고, sys_migrations·sys_migration_cursors·sys_prefixes 행 삭제를 한 트랜잭션에서 한다(§4.5). headSeq는 그 트랜잭션에서 본 마지막 이벤트 seq(이벤트 표가 없거나 비면 0)로, 호출자(X)가 지운 시점으로 기록한다 [구현 2026-11-04] */
+  drop(name: string, tables: readonly string[]): Result<{ readonly dropped: readonly string[]; readonly headSeq: number }, ExtensionTableError>;
 }
 ```
 
