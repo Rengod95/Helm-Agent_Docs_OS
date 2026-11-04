@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { basename, dirname, join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { err, ok, parse } from "@fresnel/contracts";
@@ -115,6 +116,11 @@ function manifestOf(name: string, version: string): string {
   return JSON.stringify({ name, version });
 }
 
+/** 매니페스트 해시. 호스트가 버전 기록에 쓰는 것과 같은 sha256 16진수다 */
+function hashOf(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
+}
+
 /** 확장 설치본 하나: 매니페스트와 엔트리 파일 */
 async function writeInstall(
   fs: VersionHistoryFs,
@@ -210,7 +216,7 @@ function rigOf(options: RigOptions): Rig {
       tick += 1;
       return BASE_MS + tick * 1000;
     },
-    hash: () => "hash",
+    hash: hashOf,
   });
   const calls: string[] = [];
   const scopes = options.scopes ?? [];
@@ -262,6 +268,7 @@ function rigOf(options: RigOptions): Rig {
     heldThreads: () => options.threads ?? [],
     stateSchemaVersion: () => options.schema ?? null,
     bundle: (name) => Promise.resolve(name === "helm" ? (options.bundled ?? null) : null),
+    hash: hashOf,
   };
   return { port: createExtUiVersionPort({ extUi: source }), history, nodes, fs, faults, calls };
 }
@@ -320,7 +327,7 @@ describe("ext-ui-version port: versions", () => {
             version: "0.2.0",
             installedAt: new Date(BASE_MS + 2000).toISOString(),
             source: "user",
-            manifestHash: "hash",
+            manifestHash: hashOf(manifestOf("helm", "0.2.0")),
             stateSchemaVersion: null,
             current: true,
           },
@@ -328,7 +335,7 @@ describe("ext-ui-version port: versions", () => {
             version: "0.1.0",
             installedAt: new Date(BASE_MS + 1000).toISOString(),
             source: "bundled",
-            manifestHash: "hash",
+            manifestHash: hashOf(manifestOf("helm", "0.1.0")),
             stateSchemaVersion: null,
             current: false,
           },
@@ -885,7 +892,7 @@ describe("ext-ui-version port: bundled version", () => {
             version: "0.2.0",
             installedAt: new Date(BASE_MS + 1000).toISOString(),
             source: "user",
-            manifestHash: "hash",
+            manifestHash: hashOf(manifestOf("helm", "0.2.0")),
             stateSchemaVersion: null,
             current: true,
           },
@@ -921,7 +928,7 @@ describe("ext-ui-version port: bundled version", () => {
             version: "0.2.0",
             installedAt: new Date(BASE_MS + 2000).toISOString(),
             source: "user",
-            manifestHash: "hash",
+            manifestHash: hashOf(manifestOf("helm", "0.2.0")),
             stateSchemaVersion: null,
             current: false,
           },
@@ -929,7 +936,7 @@ describe("ext-ui-version port: bundled version", () => {
             version: "0.1.0",
             installedAt: new Date(BASE_MS + 1000).toISOString(),
             source: "bundled",
-            manifestHash: "hash",
+            manifestHash: hashOf(manifestOf("helm", "0.1.0")),
             stateSchemaVersion: null,
             current: true,
           },
@@ -952,11 +959,63 @@ describe("ext-ui-version port: bundled version", () => {
     expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
       ok({ appliesAt: "restart", stateCleared: false }),
     );
+    // 0.1.0의 기록 시각은 처음 기록 때(BASE+1000) 그대로다. 다시 기록했다면 BASE+2000이 된다
     const listing = await rig.history.list("helm", "0.1.0");
-    expect(listing.ok ? listing.value.versions.map((entry) => entry.version) : null).toEqual([
-      "0.2.0",
-      "0.1.0",
+    expect(
+      listing.ok ? listing.value.versions.map((entry) => [entry.version, entry.installedAt]) : null,
+    ).toEqual([
+      ["0.2.0", new Date(BASE_MS + 2000).toISOString()],
+      ["0.1.0", new Date(BASE_MS + 1000).toISOString()],
     ]);
+  });
+
+  test("a same-version entry whose manifest hash differs from the bundle is replaced by the bundle", async () => {
+    const rig = rigOf({
+      infos: [loaded("helm", "error", "user", "0.2.0")],
+      scopes: [scope("helm/main", "helm", "enabled")],
+      bundled: bundledHelm("0.1.0"),
+    });
+    await writeInstall(rig.fs, join(EXT_DIR, "helm"), "helm", "0.2.0");
+    await writeInstall(rig.fs, BUNDLED_DIR, "helm", "0.1.0");
+    // 판 글자는 같지만 매니페스트가 다른 보관 항목이다(번들과 다른 내용을 같은 판으로 적어 둔 것)
+    const edited = join(BUNDLE_DIR, "edited-helm-0.1.0");
+    await writeInstall(rig.fs, edited, "helm", "0.1.0");
+    const recorded = await rig.history.record({
+      name: "helm",
+      version: "0.1.0",
+      source: "user",
+      extensionDir: edited,
+      manifestText: '{"name":"helm","version":"0.1.0","edited":true}',
+      stateSchemaVersion: null,
+    });
+    expect(recorded.ok).toBe(true);
+
+    expect(await rig.port.rollback({ name: "helm", version: "0.1.0" })).toEqual(
+      ok({ appliesAt: "restart", stateCleared: false }),
+    );
+    expect(await rig.history.list("helm", "0.1.0")).toEqual(
+      ok({
+        versions: [
+          {
+            version: "0.2.0",
+            installedAt: new Date(BASE_MS + 3000).toISOString(),
+            source: "user",
+            manifestHash: hashOf(manifestOf("helm", "0.2.0")),
+            stateSchemaVersion: null,
+            current: false,
+          },
+          {
+            version: "0.1.0",
+            installedAt: new Date(BASE_MS + 2000).toISOString(),
+            source: "bundled",
+            manifestHash: hashOf(manifestOf("helm", "0.1.0")),
+            stateSchemaVersion: null,
+            current: true,
+          },
+        ],
+        skipped: [],
+      }),
+    );
   });
 
   test("rolling back to the bundled version that is already installed is unknown_version and changes nothing", async () => {

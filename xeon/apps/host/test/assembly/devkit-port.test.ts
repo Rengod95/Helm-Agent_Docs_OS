@@ -47,6 +47,7 @@ function fakes(name: string, running: readonly string[] = []): Fakes {
       stateSchemaVersion: () => null,
       loader: () => undefined,
       heldThreads: () => [],
+      hash: () => "hash",
       host: partial<ExtUiVersionSource["host"]>({
         registrations: () =>
           running.map((extension) => partial<RegistrationInfo>({ id: extension, extension })),

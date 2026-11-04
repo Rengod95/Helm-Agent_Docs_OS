@@ -74,7 +74,8 @@ export const nodeVersionHistoryFs: VersionHistoryFs = {
   },
 };
 
-function sha256Hex(text: string): string {
+/** 매니페스트 텍스트의 해시(sha256 16진수). 버전 기록과 되돌리기의 번들 판 확인이 같은 함수를 쓴다 */
+export function sha256Hex(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 

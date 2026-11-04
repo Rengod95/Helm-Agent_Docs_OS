@@ -121,7 +121,8 @@ async function versionsOf(
 
 /**
  * 되돌릴 판이 앱에 든 기본 플러그인 번들의 판이고 보관에 없으면 먼저 기록한다(HS-108, X.loading-trust §4.4.8). 기록의 출처는
- * `bundled`다. 설치본이 이미 그 판이면 되돌릴 곳이 없으므로 `unknown_version`이다
+ * `bundled`다. 설치본이 이미 그 판이면 되돌릴 곳이 없으므로 `unknown_version`이다. 보관에 같은 판 글자가 있어도 매니페스트
+ * 해시가 번들과 다르면 번들 원본으로 다시 쓴다(판 글자만 믿지 않는다). 기록은 같은 판의 자리를 원자적으로 바꾼다
  */
 async function recordBundledFirst(
   source: ExtUiVersionSource,
@@ -132,7 +133,8 @@ async function recordBundledFirst(
   if (bundled.version === installed) return err({ kind: "unknown_version", version: installed });
   const listing = await source.history.list(name, installed);
   if (!listing.ok) return err(failureOf(listing.error));
-  if (listing.value.versions.some((entry) => entry.version === bundled.version))
+  const stored = listing.value.versions.find((entry) => entry.version === bundled.version);
+  if (stored !== undefined && stored.manifestHash === source.hash(bundled.manifestText))
     return ok(undefined);
   const recorded = await source.history.record({
     name,
