@@ -2209,7 +2209,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - 최근 실패: 시각, 훅, 사유.
 - 자동 꺼짐 설명은 나눔 보기 위 `Alert` 하나에만 둡니다. 검사기에 같은 Alert를 다시 두지 않습니다(DP-23).
 
-검사기의 쓰기(켜기·끄기)는 확인 대화 상자를 거치고 적용은 다음 단계 경계입니다. "이 대화의 프로필" 구역과 "이 대화에서 끄기" 스위치는 검사기에 없고 대화 영역 오른쪽 "플러그인" 탭에 있습니다(SC-18 4번) [결정: 2026-11-04 사용자: A5, 크래프트는 전역만]. 프로필 구역은 고른 프로필을 `profile.apply`(층 `thread`)로 이 대화에 씁니다(`views/workbench/thread-profile.tsx`). 그 탭(`plugin-pages`)은 대화 영역에만 등록합니다. 작업 영역(크래프트) 오른쪽에는 없습니다. [미결: 대화 값 `true`를 쓰면 덮어쓰기가 남아 전역을 나중에 꺼도 이 대화는 켜진 채일 수 있음, 상속으로 되돌리기는 `settings.reset` 필요. 이 대화에 적용된 프로필을 읽는 wire는 없음 [근거: xeon/packages/contracts/src/wire-settings/wire/methods.ts]]
+검사기의 쓰기(켜기·끄기)는 확인 대화 상자를 거치고 적용은 다음 단계 경계입니다. "이 대화의 프로필" 구역과 "이 대화에서 끄기" 스위치는 검사기에 없고 대화 영역 오른쪽 "플러그인" 탭에 있습니다(SC-18 4번) [결정: 2026-11-04 사용자: A5, 크래프트는 전역만]. 프로필 구역은 고른 프로필을 `profile.apply`(층 `thread`)로 이 대화에 씁니다(`views/workbench/thread-profile.tsx`). 그 탭(`plugin-pages`)은 대화 영역에만 등록합니다. 작업 영역(크래프트) 오른쪽에는 없습니다. [미결: 대화 값 `true`를 쓰면 덮어쓰기가 남아 전역을 나중에 꺼도 이 대화는 켜진 채일 수 있음, 상속으로 되돌리기는 `settings.reset` 필요. 이 대화에 적용된 프로필을 읽는 wire는 없음 [근거: packages/contracts/src/wire-settings/wire/methods.ts]]
 
 #### 6.22.5 트레이스
 
