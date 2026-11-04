@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import type { TabRead } from "@fresnel/client/workbench";
 import type { CompositionDecl } from "@fresnel/contracts/extensions";
 import { renderToString } from "react-dom/server";
+import { CommandsContext } from "../../../src/views/commands.ts";
 import {
   FlowBody,
   GroupBlocks,
   NoComposition,
   ReadGate,
 } from "../../../src/views/compose/compose-group.tsx";
+import { fakeCommands } from "../fake-commands.ts";
 
 // 구성기 그림의 서버 렌더. 글과 상태 가르기만 본다(읽기와 클릭은 DOM이 없어 시험하지 않는다).
 
@@ -73,14 +75,39 @@ describe("NoComposition과 FlowBody", () => {
   test("구성 정보가 없으면 한 블록으로 알린다", () => {
     expect(renderToString(<NoComposition />)).toContain("구성 정보 없음");
   });
-  test("단계 선언이 있으면 단계와 전이를 그린다", () => {
-    const html = renderToString(<FlowBody composition={COMPOSITION} />);
+  test("단계 선언이 있으면 캔버스에 단계를 그리고 읽기 전용 문장을 보인다", () => {
+    const html = renderToString(
+      <CommandsContext.Provider value={fakeCommands()}>
+        <FlowBody
+          composition={COMPOSITION}
+          link="offline"
+          name="helm"
+          installed
+          draft={null}
+          onDraft={NOOP}
+          onMake={NOOP}
+        />
+      </CommandsContext.Provider>,
+    );
     expect(html).toContain("시작");
-    expect(html).toContain("→ done");
-    expect(html).toContain("finished");
+    expect(html).toContain("done");
+    expect(html).toContain("끝");
+    expect(html).toContain("설치된 그룹은 고칠 수 없어요. 복제해서 초안으로 고쳐요");
   });
   test("단계 선언이 없으면 안내 문장이다", () => {
-    const html = renderToString(<FlowBody composition={{ blocks: COMPOSITION.blocks }} />);
+    const html = renderToString(
+      <CommandsContext.Provider value={fakeCommands()}>
+        <FlowBody
+          composition={{ blocks: COMPOSITION.blocks }}
+          link="offline"
+          name="helm"
+          installed
+          draft={null}
+          onDraft={NOOP}
+          onMake={NOOP}
+        />
+      </CommandsContext.Provider>,
+    );
     expect(html).toContain("단계 선언이 없어요");
   });
 });

@@ -26,8 +26,13 @@ export function createTestCommands(read: Run, write: Run): TestCommands {
       const started = await write((c) => c.request("ext.test.run", params));
       return started.ok ? ok(started.value) : err(started.error);
     },
-    async createTestRun() {
-      const created = await write((c) => c.request("thread.create", { testRun: true }));
+    async createTestRun(profileId?: string) {
+      const created = await write((c) =>
+        c.request(
+          "thread.create",
+          profileId === undefined ? { testRun: true } : { testRun: true, profileId },
+        ),
+      );
       return created.ok ? ok(created.value.threadId) : err(created.error);
     },
     async pause(threadId: string) {

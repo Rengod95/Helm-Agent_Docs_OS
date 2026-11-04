@@ -1,15 +1,14 @@
-// 구성기의 그룹 보기와 흐름 보기(§6.28.1, §6.28.2). 설치 그룹의 매니페스트 `group.composition`을 읽기 전용으로 보인다.
-// 선언이 없으면 "구성 정보 없음" 블록 하나, 단계 선언이 없으면 "단계 선언이 없어요"다. 훅 이름으로 짐작하지 않는다.
+// 구성기의 그룹 보기와 흐름 보기의 입구(§6.28.1, §6.28.2). 설치 그룹의 매니페스트 `group.composition`을 읽기 전용으로 보인다.
+// 흐름 보기의 캔버스·개요·초안 편집은 `compose-flow.tsx`가 맡는다. 선언이 없으면 "구성 정보 없음" 블록 하나, 단계 선언이 없으면 "단계 선언이 없어요"다. 훅 이름으로 짐작하지 않는다.
 // 검사는 `ext.validateComposition`이고 막힌 곳이 있으면 목록 위에 Alert 하나로 보인다(DP-28).
 import { t } from "@fresnel/client/i18n";
 import {
   blockRowsOf,
   compositionOf,
-  issueSummaryOf,
+  flowDraftOf,
   issuesByBlockOf,
-  phaseRowsOf,
   type BlockRow,
-  type PhaseRow,
+  type FlowDraft,
   type TabLink,
   type TabRead,
 } from "@fresnel/client/workbench";
@@ -19,17 +18,12 @@ import type { WireManifestIssue } from "@fresnel/contracts/wire";
 import { Alert, Badge, Button, EmptyState, Skeleton } from "@caustic/react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
-import { InfoTip } from "../craft/info-tip.tsx";
 import { useTabRead } from "../workbench/tab-read.ts";
-import { NODE_TEXT, OP_TEXT, PRODUCT_TEXT } from "./compose-text.ts";
+import { CheckBanner, type CheckRead } from "./compose-check.tsx";
+import { FlowWorkspace } from "./compose-flow.tsx";
+import { OP_TEXT, PRODUCT_TEXT } from "./compose-text.ts";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
-
-/** 검사 읽기. 구성이 선언되어 있을 때만 부른다 */
-export type CheckRead =
-  | { readonly kind: "loading" }
-  | { readonly kind: "failed" }
-  | { readonly kind: "done"; readonly issues: readonly WireManifestIssue[] };
 
 function useCheck(composition: CompositionDecl | null, link: TabLink): CheckRead {
   const commands = useCommands();
@@ -96,22 +90,6 @@ export function ReadGate<T>(props: {
     default:
       return assertNever(read, "TabRead");
   }
-}
-
-function CheckBanner(props: { readonly check: CheckRead }): ReactNode {
-  const { check } = props;
-  if (check.kind === "loading") return null;
-  if (check.kind === "failed")
-    return <Alert tone="warning">{t("desktop.compose.check.failed")}</Alert>;
-  const { errors, warnings } = issueSummaryOf(check.issues);
-  if (errors === 0 && warnings === 0) return null;
-  return (
-    <Alert tone={errors > 0 ? "danger" : "warning"}>
-      {errors > 0 ? t("desktop.compose.check.errors", { count: errors }) : null}
-      {errors > 0 && warnings > 0 ? " " : null}
-      {warnings > 0 ? t("desktop.compose.check.warnings", { count: warnings }) : null}
-    </Alert>
-  );
 }
 
 function BlockCard(props: {
@@ -208,35 +186,22 @@ function GroupBody(props: {
   return <GroupBlocks composition={props.composition} check={check} />;
 }
 
-function PhaseCard(props: { readonly row: PhaseRow }): ReactNode {
-  const { row } = props;
-  return (
-    <li className="grid gap-1 rounded-lg border border-border-subtle p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="m-0 text-ui-sm font-semibold text-text-primary">{row.title}</h3>
-        <Badge size="xs" mono variant="outline">
-          {t(NODE_TEXT[row.kind])}
-        </Badge>
-        {row.initial ? (
-          <Badge size="xs" mono>
-            {t("desktop.compose.flow.initial")}
-          </Badge>
-        ) : null}
-      </div>
-      {row.out.map((out) => (
-        <p key={`${out.to}:${out.event ?? ""}`} className="m-0 ml-3 text-ui-sm text-text-secondary">
-          {t("desktop.compose.flow.to", { to: out.to })}
-          {out.event === null ? "" : ` · ${out.event}`}
-          {out.when === null ? "" : ` · ${out.when}`}
-        </p>
-      ))}
-    </li>
-  );
+/** 흐름 보기의 입력. `draft`가 없으면 설치된 선언을 읽기 전용으로 보인다. 고치기 시작과 되돌리기는 `onDraft`로 초안을 넘긴다 */
+export interface FlowBodyProps {
+  readonly composition: CompositionDecl;
+  readonly link: TabLink;
+  /** 그룹 이름과 설치 여부. 시험 실행이 이 그룹을 시험 대화에서 켠다 */
+  readonly name: string;
+  readonly installed: boolean;
+  readonly draft: FlowDraft | null;
+  readonly onDraft: (draft: FlowDraft) => void;
+  readonly onMake: (composition: CompositionDecl) => void;
 }
 
-export function FlowBody(props: { readonly composition: CompositionDecl }): ReactNode {
-  const rows = phaseRowsOf(props.composition);
-  if (rows === null) {
+/** 흐름 보기(§6.28.2). 단계 선언이 없으면 "단계 선언이 없어요"이고 고칠 것도 없다 */
+export function FlowBody(props: FlowBodyProps): ReactNode {
+  const phases = flowDraftOf(props.composition);
+  if (phases === null) {
     return (
       <EmptyState
         size="sm"
@@ -247,25 +212,29 @@ export function FlowBody(props: { readonly composition: CompositionDecl }): Reac
     );
   }
   return (
-    <>
-      <p className="m-0 flex items-center gap-1 text-ui-sm text-text-secondary">
-        {t("desktop.compose.flow.head")}
-        <InfoTip text={t("desktop.compose.flow.boundary")} />
-      </p>
-      <ol aria-label={t("desktop.compose.view.flow")} className="m-0 grid list-none gap-2 p-0">
-        {rows.map((row) => (
-          <PhaseCard key={row.id} row={row} />
-        ))}
-      </ol>
-    </>
+    <FlowWorkspace
+      composition={props.composition}
+      phases={phases}
+      link={props.link}
+      name={props.name}
+      installed={props.installed}
+      draft={props.draft}
+      onDraft={props.onDraft}
+      onMake={props.onMake}
+    />
   );
 }
 
-/** 고른 그룹 하나의 그룹 보기 또는 흐름 보기. 이름이 바뀌면 새로 읽는다 */
+/** 고른 그룹 하나의 그룹 보기 또는 흐름 보기. 이름이 바뀌면 새로 읽는다. 흐름 초안은 호출자가 든다 */
 export function GroupSource(props: {
   readonly name: string;
   readonly link: TabLink;
+  /** 고른 그룹이 설치 목록에 있나. 초안은 설치된 그룹에서만 나오므로 보통 참이다 */
+  readonly installed: boolean;
   readonly mode: "group" | "flow";
+  readonly flowDraft: FlowDraft | null;
+  readonly onFlowDraft: (draft: FlowDraft) => void;
+  readonly onMake: (composition: CompositionDecl) => void;
 }): ReactNode {
   const commands = useCommands();
   const [version, setVersion] = useState(0);
@@ -284,7 +253,15 @@ export function GroupSource(props: {
         return props.mode === "group" ? (
           <GroupBody composition={composition.composition} link={props.link} />
         ) : (
-          <FlowBody composition={composition.composition} />
+          <FlowBody
+            composition={composition.composition}
+            link={props.link}
+            name={props.name}
+            installed={props.installed}
+            draft={props.flowDraft}
+            onDraft={props.onFlowDraft}
+            onMake={props.onMake}
+          />
         );
       }}
     </ReadGate>

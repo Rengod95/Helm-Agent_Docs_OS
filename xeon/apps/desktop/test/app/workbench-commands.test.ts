@@ -27,7 +27,7 @@ import {
   subscribeExtChanges,
 } from "../../src/app/workbench-commands.ts";
 import { fakeConnection } from "../state/fake-connection.ts";
-import { evt, SUB, thr, trn } from "../state/helpers.ts";
+import { evt, STORE, SUB, thr, trn } from "../state/helpers.ts";
 import { engineFake, makeApp, tick, until } from "./support.ts";
 
 // 크래프트 명령이 보내는 wire 메서드와 params(W-22 ext.health, W-36 hooks.list, W-51 hooks.order.*, W-43 trace.turn).
@@ -472,6 +472,50 @@ describe("크래프트 명령의 wire 호출", () => {
       value: result,
     });
     expect(paramsOf(params, "ext.validateComposition")).toEqual([{ composition }]);
+    await app.stop();
+  });
+
+  test("제작 호출은 ext.kinds, scaffold, validate, package로 간다", async () => {
+    const scaffolded = { dir: "/w/lens-review", files: ["plugin.json"] };
+    const packed = { path: "/w/out.tgz", files: ["plugin.json"], sha256: "a".repeat(64) };
+    const { app, params } = await liveApp({
+      results: {
+        "ext.kinds": { kinds: [] },
+        "ext.scaffold": scaffolded,
+        "ext.validate": { ok: true, issues: [] },
+        "ext.package": packed,
+      },
+    });
+    expect(await app.commands.workbench.kinds()).toEqual({ ok: true, value: [] });
+    const input = {
+      kind: "plugin-group" as const,
+      name: "lens-review",
+      dir: "/w/lens-review",
+      group: {},
+    };
+    expect(await app.commands.workbench.scaffold(input)).toEqual({ ok: true, value: scaffolded });
+    expect(paramsOf(params, "ext.scaffold")).toEqual([input]);
+    const checked = await app.commands.workbench.validateDir("/w/lens-review");
+    expect(checked.ok && checked.value.ok).toBe(true);
+    expect(paramsOf(params, "ext.validate")).toEqual([{ dir: "/w/lens-review" }]);
+    expect(await app.commands.workbench.packDir("/w/lens-review")).toEqual({
+      ok: true,
+      value: packed,
+    });
+    expect(paramsOf(params, "ext.package")).toEqual([{ dir: "/w/lens-review" }]);
+    await app.stop();
+  });
+
+  test("Test run 대화 만들기는 프로필 id가 있을 때만 profileId를 보낸다", async () => {
+    const { app, params } = await liveApp({
+      results: { "thread.create": { threadId: thr(7), position: { storeId: STORE, seq: 6 } } },
+    });
+    expect(await app.commands.tests.createTestRun()).toEqual({ ok: true, value: thr(7) });
+    expect(await app.commands.tests.createTestRun("quiet")).toEqual({ ok: true, value: thr(7) });
+    expect(paramsOf(params, "thread.create")).toEqual([
+      { testRun: true },
+      { testRun: true, profileId: "quiet" },
+    ]);
     await app.stop();
   });
 

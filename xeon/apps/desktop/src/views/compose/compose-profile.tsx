@@ -4,10 +4,17 @@
 import { t } from "@fresnel/client/i18n";
 import {
   choiceOf,
+  AUTO_DRIVER_PICK,
+  coreLockedOf,
+  driverChoicesOf,
+  driverOfPick,
+  driverPicksOf,
   profileDraftOf,
   profileDraftProblemOf,
   profileInputOf,
+  profileUnsavedOf,
   withChoice,
+  withDriver,
   type ProfileChoice,
   type ProfileDraft,
   type TabLink,
@@ -30,7 +37,7 @@ import {
   SelectOption,
   Skeleton,
 } from "@caustic/react";
-import { Plus } from "@caustic/react/icons";
+import { Lock, Plus } from "@caustic/react/icons";
 import { useCallback, useState, type ReactNode } from "react";
 import { useOpenThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
@@ -38,7 +45,7 @@ import { InfoTip } from "../craft/info-tip.tsx";
 import { useTabRead } from "../workbench/tab-read.ts";
 import { useWorkbenchController } from "../workbench/controller.ts";
 import { CHOICE_TEXT, PROBLEM_TEXT, profileErrorText } from "./compose-text.ts";
-import type { MessageId } from "@fresnel/client/i18n";
+import type { MessageId, MessageArgs } from "@fresnel/client/i18n";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
 const CHOICES: readonly ProfileChoice[] = ["on", "off", "keep"];
@@ -48,33 +55,104 @@ function run(job: Promise<void>): void {
   detach(job, rethrow);
 }
 
-type Notice = { readonly tone: "success" | "danger"; readonly text: MessageId };
+type Notice = {
+  readonly tone: "success" | "danger";
+  readonly text: MessageId;
+  /** 글에 넣을 인자(예: 대화 id) */
+  readonly values?: MessageArgs;
+  /** 알림 옆 설명 한 줄(InfoTip) */
+  readonly info?: MessageId;
+};
 
-function ChoiceRow(props: {
+/** 확장 한 줄. 내장 코어(`locked`)는 켜기·끄기 자리 대신 잠금 표시만 보인다. 저장 값과 무관하게 잠긴다 */
+export function ChoiceRow(props: {
   readonly entry: ExtListEntry;
   readonly choice: ProfileChoice;
+  readonly locked: boolean;
   readonly onChange: (choice: ProfileChoice) => void;
 }): ReactNode {
   const { entry } = props;
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 py-1.5">
       <span className="text-ui-sm text-text-primary">{entry.displayName}</span>
-      <SegmentedControl
-        aria-label={entry.displayName}
-        size="xs"
-        value={props.choice}
-        onValueChange={(value) => {
-          const next = CHOICES.find((item) => item === value);
-          if (next !== undefined) props.onChange(next);
-        }}
-      >
-        {CHOICES.map((choice) => (
-          <SegmentedControlItem key={choice} value={choice}>
-            {t(CHOICE_TEXT[choice])}
-          </SegmentedControlItem>
-        ))}
-      </SegmentedControl>
+      {props.locked ? (
+        <span className="flex items-center gap-1 text-ui-sm text-text-tertiary">
+          <Lock aria-hidden className="size-icon-xs flex-none" />
+          {t("desktop.compose.profile.locked")}
+          <InfoTip text={t("desktop.compose.profile.locked.info")} />
+        </span>
+      ) : (
+        <SegmentedControl
+          aria-label={entry.displayName}
+          size="xs"
+          value={props.choice}
+          onValueChange={(value) => {
+            const next = CHOICES.find((item) => item === value);
+            if (next !== undefined) props.onChange(next);
+          }}
+        >
+          {CHOICES.map((choice) => (
+            <SegmentedControlItem key={choice} value={choice}>
+              {t(CHOICE_TEXT[choice])}
+            </SegmentedControlItem>
+          ))}
+        </SegmentedControl>
+      )}
     </li>
+  );
+}
+
+/**
+ * drive 그룹 고르기. "자동"은 null이고, 나머지는 설치된 그룹과 프로필이 가진 이름(설치 해제된 그룹 포함)이다.
+ * 바꾸면 적용 뒤 다음 경계에서 지금 drive 락을 회수한다(§6.28.3).
+ */
+export function DriverField(props: {
+  readonly driver: string | null;
+  readonly choices: readonly string[];
+  readonly onChange: (driver: string | null) => void;
+}): ReactNode {
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <Field label={t("desktop.compose.profile.driver")}>
+        <Select
+          value={props.driver ?? AUTO_DRIVER_PICK}
+          onValueChange={(value) => {
+            props.onChange(driverOfPick(value));
+          }}
+        >
+          {driverPicksOf(props.driver, props.choices).map((pick) => (
+            <SelectOption key={pick} value={pick}>
+              {pick === AUTO_DRIVER_PICK ? t("desktop.compose.profile.driver.auto") : pick}
+            </SelectOption>
+          ))}
+        </Select>
+      </Field>
+      <InfoTip text={t("desktop.compose.profile.driver.info")} />
+    </div>
+  );
+}
+
+/**
+ * "새 Test run으로": 저장된 프로필로 새 시험 대화를 만든다. 저장하지 않은 바꿈이 있으면 누를 수 없고, 그 까닭을 보인다.
+ */
+export function TestRunButton(props: {
+  readonly online: boolean;
+  readonly busy: boolean;
+  readonly saved: Profile | null;
+  readonly draft: ProfileDraft;
+  readonly onRun: () => void;
+}): ReactNode {
+  const { saved, draft } = props;
+  const unsaved = saved !== null && profileUnsavedOf(draft, saved);
+  const disabled = !props.online || props.busy || saved === null || unsaved;
+  return (
+    <>
+      <Button size="sm" variant="outline" disabled={disabled} onClick={props.onRun}>
+        {t("desktop.compose.profile.testRun")}
+      </Button>
+      <InfoTip text={t("desktop.compose.profile.testRun.info")} />
+      {unsaved ? <p className={MUTED}>{t("desktop.compose.profile.testRun.unsaved")}</p> : null}
+    </>
   );
 }
 
@@ -201,6 +279,22 @@ export function ProfilePanel(props: {
     setNotice({ tone: "success", text: "desktop.compose.profile.deleted" });
     reload();
   };
+  // "새 Test run으로": 저장된 프로필로 새 시험 대화를 만든다. 대화 목록에 열린다(목록은 이 화면이 다시 읽지 않는다)
+  const startTestRun = async (target: Profile): Promise<void> => {
+    setBusy(true);
+    const done = await commands.tests.createTestRun(target.id);
+    setBusy(false);
+    if (!done.ok) {
+      setNotice({ tone: "danger", text: profileErrorText(done.error) });
+      return;
+    }
+    setNotice({
+      tone: "success",
+      text: "desktop.compose.profile.testRun.created",
+      values: { id: done.value },
+      info: "desktop.compose.profile.testRun.listInfo",
+    });
+  };
   const showPreview = async (target: Profile): Promise<void> => {
     setBusy(true);
     const done = await commands.workbench.previewProfile(
@@ -250,7 +344,8 @@ export function ProfilePanel(props: {
           dismissLabel={t("desktop.compose.dismiss")}
           onDismiss={() => setNotice(null)}
         >
-          {t(notice.text)}
+          {t(notice.text, notice.values)}
+          {notice.info === undefined ? null : <InfoTip text={t(notice.info)} />}
         </Alert>
       )}
       <div className="flex flex-wrap items-end gap-2">
@@ -304,6 +399,11 @@ export function ProfilePanel(props: {
               {t(PROBLEM_TEXT[problem])}
             </p>
           )}
+          <DriverField
+            driver={draft.driver}
+            choices={driverChoicesOf(props.entries)}
+            onChange={(driver) => setDraft(withDriver(draft, driver))}
+          />
           <p className="m-0 flex items-center gap-1 text-ui-sm font-semibold text-text-primary">
             {t("desktop.compose.profile.extensions")}
             <InfoTip text={t("desktop.compose.profile.keepTip")} />
@@ -312,14 +412,21 @@ export function ProfilePanel(props: {
             aria-label={t("desktop.compose.profile.extensions")}
             className="m-0 grid list-none divide-y divide-border-subtle p-0"
           >
-            {props.entries.map((entry) => (
-              <ChoiceRow
-                key={entry.name}
-                entry={entry}
-                choice={choiceOf(draft, entry.name)}
-                onChange={(choice) => setDraft(withChoice(draft, entry.name, choice))}
-              />
-            ))}
+            {props.entries.map((entry) => {
+              // 내장 코어는 잠금 표시만 한다. 선택 값을 바꾸는 길을 열지 않는다
+              const locked = coreLockedOf(entry);
+              return (
+                <ChoiceRow
+                  key={entry.name}
+                  entry={entry}
+                  choice={choiceOf(draft, entry.name)}
+                  locked={locked}
+                  onChange={(choice) => {
+                    if (!locked) setDraft(withChoice(draft, entry.name, choice));
+                  }}
+                />
+              );
+            })}
           </ul>
           {preview === null ? null : <PreviewBlock preview={preview} />}
           <div className="flex flex-wrap items-center gap-2">
@@ -350,6 +457,15 @@ export function ProfilePanel(props: {
             >
               {t("desktop.compose.profile.apply")}
             </Button>
+            <TestRunButton
+              online={online}
+              busy={busy}
+              saved={saved}
+              draft={draft}
+              onRun={() => {
+                if (saved !== null) run(startTestRun(saved));
+              }}
+            />
             <Button
               size="sm"
               variant="outline"

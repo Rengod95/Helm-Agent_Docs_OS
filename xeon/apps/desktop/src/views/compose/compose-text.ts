@@ -6,14 +6,15 @@ import { assertNever } from "@fresnel/contracts";
 import { WIRE_ERRORS } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
 
-/** 화면 머리의 보기. 코드 보기는 이 묶음에 없다 */
-export type ComposeViewId = "group" | "flow" | "profile";
-export const COMPOSE_VIEWS: readonly ComposeViewId[] = ["group", "flow", "profile"];
+/** 화면 머리의 보기 넷. "새 그룹"은 보기가 아니라 머리의 동작이라 이 묶음에 없다 */
+export type ComposeViewId = "group" | "flow" | "profile" | "code";
+export const COMPOSE_VIEWS: readonly ComposeViewId[] = ["group", "flow", "profile", "code"];
 
 export const VIEW_TEXT: Readonly<Record<ComposeViewId, MessageId>> = {
   group: "desktop.compose.view.group",
   flow: "desktop.compose.view.flow",
   profile: "desktop.compose.view.profile",
+  code: "desktop.compose.view.code",
 };
 
 export const OP_TEXT: Readonly<Record<CompositionOp, MessageId>> = {
