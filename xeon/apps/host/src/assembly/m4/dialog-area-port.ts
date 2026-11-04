@@ -1,11 +1,14 @@
-import { assertNever, attemptAsync, err, ok } from "@fresnel/contracts";
+import { assertNever, attemptAsync, err, ok, parse } from "@fresnel/contracts";
 import type { ReviewText, ReviewTextFailure, ReviewTextReader } from "@fresnel/cap-artifacts";
 import type { ScheduleEntry, RunRecord, UpdateInput } from "@fresnel/cap-schedule";
 import {
   isCapabilityError,
+  PlanIdSchema,
   type CallContext,
   type CallOptions,
   type Goal,
+  type PlanVersionsOutputValue,
+  type SkillViewOutput,
   type WorkTaskView,
 } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -14,6 +17,7 @@ import type {
   ReviewGetResult,
   ScheduleRunRecord,
   ScheduleUpdateParams,
+  SkillViewResult,
   TaskView,
 } from "@fresnel/contracts/wire";
 import type {
@@ -23,13 +27,18 @@ import type {
 } from "../../handlers/m4/dialog-area.ts";
 import type { M4PortDeps } from "./deps.ts";
 
-// DialogArea 포트 구현(T-WC). 목표·작업은 L2.work 기능을 호스트 호출(사람이 연 화면)로 읽고, 예약은 예약 서비스를 부른다.
-// 조립 루트 코드(DR-14 예외 2). 기능이 돌려준 값만 옮기고 새 값을 만들지 않는다.
+// DialogArea 포트 구현(T-WC). 목표·작업·계획은 L2.work 기능을, 스킬 본문은 L2.knowledge 기능을 호스트 호출(사람이 연 화면)로 읽고,
+// 예약은 예약 서비스를 부른다. 조립 루트 코드(DR-14 예외 2). 기능이 돌려준 값만 옮기고 새 값을 만들지 않는다.
 
 const MESSAGE_MAX = 200;
 /** `WorkTasksListResult`의 상한 */
 const TASKS_MAX = 500;
 const BLOCKED_BY_MAX = 2000;
+
+/** `SkillViewResultSchema`의 상한. 본문은 앞부분만 싣고 `bodyTruncated`로 알린다 [제안] */
+const SKILL_BODY_MAX = 20000;
+const SKILL_DESCRIPTION_MAX = 1024;
+const SKILL_FILES_MAX = 500;
 
 /** `ReviewGetResultSchema`(F wire §3.3.5)의 상한. 넘는 파일, hunk, 줄은 뒤쪽부터 버리고 긴 글은 자른다 [결정: L4 W-02] */
 const REVIEW_FILES_MAX = 500;
@@ -145,6 +154,23 @@ export function goalViewOf(goal: Goal): GoalView {
 }
 
 /**
+ * 스킬 본문을 와이어 값으로 옮긴다. 기능이 준 이름, 범위, 설명, 해시, 파일 목록은 그대로 두고 와이어 상한만 적용한다.
+ * 본문이 잘리면 `bodyTruncated`가 참이다
+ */
+export function skillViewResultOf(view: SkillViewOutput): SkillViewResult {
+  const body = clip(view.content, SKILL_BODY_MAX);
+  return {
+    name: view.name,
+    scope: view.scope,
+    description: clip(view.description, SKILL_DESCRIPTION_MAX),
+    body,
+    bodyTruncated: body.length < view.content.length,
+    files: view.files.slice(0, SKILL_FILES_MAX),
+    treeHash: view.treeHash,
+  };
+}
+
+/**
  * 작업을 와이어 값으로 옮긴다. `completed`는 `done`, `failed`는 `cancelled`다 [제안: 와이어에 실패 값이 없다]. 막힘 사유는 끝나지 않은
  * 선행 작업의 id를 쉼표로 이은 글이고, 막히지 않았으면 null이다
  */
@@ -249,6 +275,49 @@ export function createDialogAreaPort(deps: M4PortDeps): DialogAreaPort {
       const listed = await attemptAsync(() => api.list({}, options));
       if (!listed.ok) return err(rejectedOf(listed.error.cause));
       return ok({ tasks: taskViewsOf(listed.value.tasks) });
+    },
+
+    async skillView(name, threadId, signal) {
+      if (threadId !== undefined) {
+        const missing = threadExists(threadId);
+        if (missing !== undefined) return err(missing);
+      }
+      const api = dialogArea.skills;
+      if (api === undefined) return err({ kind: "unavailable" });
+      // 작업 폴더가 없는 호출(thread 없이 부른 것)은 프로젝트 스킬을 찾지 않는다
+      const context: CallContext =
+        threadId === undefined ? { caller: { kind: "host" } } : hostContext(threadId);
+      const options: CallOptions = { signal, context };
+      const viewed = await attemptAsync(() => api.view({ name }, options));
+      if (!viewed.ok) {
+        const cause = viewed.error.cause;
+        if (isCapabilityError(cause) && cause.data.code === "not_found") {
+          return err({ kind: "unknown", path: "name", id: name });
+        }
+        return err(rejectedOf(cause));
+      }
+      return ok(skillViewResultOf(viewed.value));
+    },
+
+    async plansVersions(threadId, planId, signal) {
+      const missing = threadExists(threadId);
+      if (missing !== undefined) return err(missing);
+      const api = dialogArea.plans;
+      if (api === undefined) return ok({ versions: [] });
+      // 계획 id의 꼴이 맞지 않으면 그런 계획은 없다(기능을 부르지 않는다)
+      const parsed = parse(PlanIdSchema, planId);
+      if (!parsed.ok) return err({ kind: "unknown", path: "planId", id: planId });
+      const planKey = parsed.value;
+      const options: CallOptions = { signal, context: hostContext(threadId) };
+      const listed = await attemptAsync(() => api.versions({ planId: planKey }, options));
+      if (!listed.ok) {
+        const cause = listed.error.cause;
+        if (isCapabilityError(cause) && cause.data.code === "not_found") {
+          return err({ kind: "unknown", path: "planId", id: planId });
+        }
+        return err(rejectedOf(cause));
+      }
+      return ok<PlanVersionsOutputValue>(listed.value);
     },
 
     async scheduleUpdate(params: ScheduleUpdateParams) {

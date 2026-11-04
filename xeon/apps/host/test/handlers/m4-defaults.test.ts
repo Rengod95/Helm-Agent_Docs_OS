@@ -19,7 +19,7 @@ function m4Methods(): WireMethodName[] {
     .filter(isMethodName);
 }
 
-test("m4-defaults: the 51 M4 methods all have a handler and notImplemented matches their absence from hello features", async () => {
+test("m4-defaults: the 55 M4 methods all have a handler and notImplemented matches their absence from hello features", async () => {
   const slot: { table: WireHandlers | undefined } = { table: undefined };
   const host = createFakeHost({
     override: (table) => {
@@ -34,7 +34,7 @@ test("m4-defaults: the 51 M4 methods all have a handler and notImplemented match
   if (table === undefined) throw new Error("the handler table was not captured");
 
   const names = m4Methods();
-  expect(names).toHaveLength(51);
+  expect(names).toHaveLength(55);
   const actual = names.map((name) => ({
     name,
     hasHandler: typeof table[name] === "function",

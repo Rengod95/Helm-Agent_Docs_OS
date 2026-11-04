@@ -1,5 +1,5 @@
 import { assertNever } from "@fresnel/contracts";
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import { isId, type ThreadId } from "@fresnel/contracts/conversation";
 import type { LoopError } from "@fresnel/contracts/services";
 import {
   wireError,
@@ -8,7 +8,7 @@ import {
   type WireHandler,
 } from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
-import type { Engine } from "../types.ts";
+import type { Engine, WithdrawFailure } from "../types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 import { titleFromInput } from "../title.ts";
 import { claimWrite, threadLocked } from "./owner.ts";
@@ -115,5 +115,52 @@ export function createTurnInterruptHandler(engine: Engine): WireHandler<"turn.in
     if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
     requireOwned(engine, threadId);
     return { interrupted: await ports.turns.interrupt(threadId, params.turnId) };
+  };
+}
+
+/** 대기 입력을 거두는 실패를 와이어 오류로 옮긴다. 닫힌 thread에는 거둘 대기 입력이 없어 thread.notFound로 답한다 */
+function withdrawRejection(error: WithdrawFailure, threadId: ThreadId): WireError {
+  switch (error.kind) {
+    case "thread_closed":
+      return wireError("thread.notFound", { details: { threadId } });
+    case "invalid_request_id":
+      return wireError("jsonrpc.invalidParams", {
+        details: { issues: [{ path: "requestId", message: "invalid request id" }] },
+      });
+    case "mode_not_supported":
+      return wireError("internal", {
+        message: `turn.withdraw: input mode ${error.mode} cannot be withdrawn`,
+      });
+    case "busy":
+    case "disk_full":
+    case "io":
+    case "ownership_lost":
+    case "read_only":
+    case "thread_not_found":
+    case "row_invalid":
+      return wireErrorOfStore(error, "turn.withdraw");
+    default:
+      return assertNever(error, "WithdrawFailure");
+  }
+}
+
+/**
+ * 큐에 넣고 아직 배치되지 않은 입력을 거둔다(`turn.withdraw`, W-17). 쓰기 소유자만 한다(HS-28, `turn.interrupt`와 같다). 요청 키가 맞는
+ * 대기 입력이 없거나 이미 배치됐으면 `withdrawn: false`다. 입력의 철회는 이벤트(`input.withdrawn`)로 알린다
+ */
+export function createTurnWithdrawHandler(engine: Engine): WireHandler<"turn.withdraw"> {
+  const { ports } = engine;
+  return async (params) => {
+    const raw = params.threadId;
+    if (!isId("thr", raw))
+      throw wireError("thread.notFound", { details: { threadId: raw.slice(0, 64) } });
+    const threadId: ThreadId = raw;
+    const exists = ports.threads.exists(threadId);
+    if (!exists.ok) throw wireErrorOfStore(exists.error, "turn.withdraw thread lookup");
+    if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
+    requireOwned(engine, threadId);
+    const withdrawn = await ports.turns.withdraw(threadId, params.requestId);
+    if (!withdrawn.ok) throw withdrawRejection(withdrawn.error, threadId);
+    return { withdrawn: withdrawn.value };
   };
 }

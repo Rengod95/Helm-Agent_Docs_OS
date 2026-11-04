@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { Bug, err, ok, type Logger } from "@fresnel/contracts";
 import type { ThreadId, ThreadStatus } from "@fresnel/contracts/conversation";
 import type {
+  InputView,
   LeaseError,
   LeaseOwnerInfo,
   LeaseToken,
@@ -79,6 +80,10 @@ interface Harness {
     admit: Awaited<ReturnType<LoopService["admit"]>>;
     runningTurn: typeof TURN | null;
     existingTurn: { turnId: typeof TURN } | undefined;
+    /** 대기열에 있는 입력(`session.query.queuedInputs`)과 거두기 결과(`tasks.inputs.withdraw`) */
+    queued: InputView[];
+    queuedRead: ReturnType<SessionService["query"]["queuedInputs"]> | undefined;
+    withdrawn: Awaited<ReturnType<InputQueue["withdraw"]>>;
     threadsCreate: ReturnType<SessionService["threads"]["create"]>;
     threadExists: boolean;
     threadRowStatus: ThreadStatus;
@@ -134,6 +139,9 @@ function harness(): Harness {
     admit: ok({ status: "started", inputId: ids.next("evt"), turnId: TURN }),
     runningTurn: null,
     existingTurn: undefined,
+    queued: [],
+    queuedRead: undefined,
+    withdrawn: ok(1),
     threadsCreate: ok({ threadId: THREAD, headSeq: 1, replayed: false, token: null }),
     threadExists: true,
     threadRowStatus: "idle",
@@ -211,6 +219,7 @@ function harness(): Harness {
         ),
       turnByRequestId: () =>
         ok(state.existingTurn === undefined ? undefined : partial<TurnView>(state.existingTurn)),
+      queuedInputs: () => state.queuedRead ?? ok(state.queued),
     }),
     feed: partial<SessionService["feed"]>({
       headSeq: () => ok(5),
@@ -276,6 +285,10 @@ function harness(): Harness {
         return () => {
           result.unreadable.delete(listener);
         };
+      },
+      withdraw: (threadId, target, reason) => {
+        calls.push(`inputs.withdraw:${threadId}:${String(target)}:${reason}`);
+        return Promise.resolve(state.withdrawn);
       },
     }),
   });
@@ -690,7 +703,55 @@ describe("turns", () => {
     expect(await ports.turns.interrupt(THREAD, undefined)).toBe(true);
     expect(await ports.turns.stopAtSafeBoundary(1000)).toBe(true);
   });
+
+  test("withdraw takes back the queued input with the request key by its input id, and answers true", async () => {
+    const h = harness();
+    const inputId = ids.next("evt");
+    h.state.queued = [queuedInput(inputId, "req-1"), queuedInput(ids.next("evt"), "req-2")];
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.turns.withdraw(THREAD, "req-1")).toEqual({ ok: true, value: true });
+    expect(h.calls.filter((call) => call.startsWith("inputs.withdraw"))).toEqual([
+      `inputs.withdraw:${THREAD}:${inputId}:user`,
+    ]);
+  });
+
+  test("withdraw answers false and withdraws nothing when no queued input has the request key", async () => {
+    const h = harness();
+    h.state.queued = [queuedInput(ids.next("evt"), "req-2")];
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.turns.withdraw(THREAD, "req-1")).toEqual({ ok: true, value: false });
+    expect(h.calls.some((call) => call.startsWith("inputs.withdraw"))).toBe(false);
+  });
+
+  test("withdraw answers false when the input was placed before the withdraw reached the queue", async () => {
+    const h = harness();
+    h.state.queued = [queuedInput(ids.next("evt"), "req-1")];
+    h.state.withdrawn = ok(0);
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.turns.withdraw(THREAD, "req-1")).toEqual({ ok: true, value: false });
+  });
+
+  test("a failed queue read or withdraw is a value that keeps its kind, not a throw", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.queuedRead = err({ kind: "busy" });
+    expect(await ports.turns.withdraw(THREAD, "req-1")).toEqual({
+      ok: false,
+      error: { kind: "busy" },
+    });
+    h.state.queuedRead = undefined;
+    h.state.queued = [queuedInput(ids.next("evt"), "req-1")];
+    h.state.withdrawn = err({ kind: "io", code: "EIO" });
+    expect(await ports.turns.withdraw(THREAD, "req-1")).toEqual({
+      ok: false,
+      error: { kind: "io", code: "EIO" },
+    });
+  });
 });
+
+function queuedInput(inputId: InputView["inputId"], requestId: string): InputView {
+  return { inputId, seq: 1, mode: "steer", state: "queued", sourceKey: "user", requestId };
+}
 
 describe("locks", () => {
   test("acquiring leases the session, opens it for writing, keeps it alive and opens the thread for extensions", async () => {

@@ -1,15 +1,35 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../../base/index.ts";
-import { closed, m4, request, type Io, type M4Spec, type Req } from "./schema-kit.ts";
+import {
+  PlanVersionsOutput,
+  SkillFilePathSchema,
+  SkillScopeSchema,
+  type PlanVersionsOutputValue,
+  type SkillScope,
+} from "../../capabilities/index.ts";
+import {
+  closed,
+  m4,
+  NoParamsSchema,
+  request,
+  RequestKeySchema,
+  type Io,
+  type M4Spec,
+  type NoParams,
+  type Req,
+} from "./schema-kit.ts";
 
-// F.wire-settings.spec §3.3.5(M4 대화 영역). L4.desktop-ux.spec §10.1 W-02, W-05, W-06, W-07.
+// F.wire-settings.spec §3.3.5(M4 대화 영역). L4.desktop-ux.spec §10.1 W-02, W-05, W-06, W-07, W-12, W-14, W-17, W-18.
 // W-01(`approval.list`의 threadId 생략), W-16(`thread.read.around`, `ThreadSummary.origin`)은 methods.ts의 기존 스키마를 고쳤다.
+// W-12(`host.clients`)의 처리기는 host.ts, W-17(`turn.withdraw`)의 처리기는 turn.ts에 있다. 나머지 처리기는 대화 영역 포트를 거친다.
 
 const Id = Type.String({ minLength: 1, maxLength: 128 });
 const Iso = Type.String({ minLength: 1, maxLength: 40 });
 const Count = Type.Integer({ minimum: 0 });
 const Text = Type.String({ maxLength: 20000 });
 const ThreadRef = Type.String({ minLength: 1, maxLength: 64 });
+/** `host.clients`의 연결 수 상한. 넘는 연결은 싣지 않는다(자기 연결은 앞에 둔다) */
+export const HOST_CLIENTS_MAX = 256;
 
 /** `review.get`(W-02). 승인 페이로드에 없는 hunk 본문을 읽는다 */
 export interface ReviewGetParams {
@@ -240,6 +260,125 @@ export const ScheduleRunsResultSchema: TUnsafe<ScheduleRunsResult> =
     >,
   );
 
+/** `host.clients`(W-12). 열린 연결마다 한 행이다. 이름과 버전은 `host.hello`를 마친 연결만 싣는다 */
+export interface HostClientView {
+  readonly connectionId: string;
+  readonly transport: "in-process" | "stdio" | "socket";
+  /** `host.hello`의 `client.name`. hello 전이면 없다 */
+  readonly name?: string;
+  /** `host.hello`의 `client.version`. hello 전이면 없다 */
+  readonly version?: string;
+  /** 이 연결이 쓰기로 연 대화 수 */
+  readonly writeThreads: number;
+  /** 이 연결이 관찰로 연 대화 수 */
+  readonly observedThreads: number;
+  /** 요청을 보낸 연결 자신이면 참 */
+  readonly self: boolean;
+}
+export interface HostClientsResult {
+  readonly clients: readonly HostClientView[];
+}
+const HostClientsResultShape = closed({
+  clients: Type.Array(
+    closed({
+      connectionId: Id,
+      transport: Type.Union([
+        Type.Literal("in-process"),
+        Type.Literal("stdio"),
+        Type.Literal("socket"),
+      ]),
+      name: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+      version: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+      writeThreads: Count,
+      observedThreads: Count,
+      self: Type.Boolean(),
+    }),
+    { maxItems: HOST_CLIENTS_MAX },
+  ),
+});
+export const HostClientsResultSchema: TUnsafe<HostClientsResult> = Type.Unsafe<HostClientsResult>(
+  HostClientsResultShape satisfies SchemaProof<HostClientsResult, typeof HostClientsResultShape>,
+);
+
+/** `turn.withdraw`(W-17). 큐에 넣고 아직 배치되지 않은 입력을 요청 키로 거둔다 */
+export interface TurnWithdrawParams {
+  readonly threadId: string;
+  readonly requestId: string;
+}
+const TurnWithdrawParamsShape = request({ threadId: ThreadRef, requestId: RequestKeySchema });
+export const TurnWithdrawParamsSchema: TUnsafe<Req<TurnWithdrawParams>> = Type.Unsafe<
+  Req<TurnWithdrawParams>
+>(
+  TurnWithdrawParamsShape satisfies SchemaProof<
+    Req<TurnWithdrawParams>,
+    typeof TurnWithdrawParamsShape
+  >,
+);
+export interface TurnWithdrawResult {
+  /** 거둔 입력이 있으면 참. 입력을 찾지 못했거나 이미 배치됐으면 거짓 */
+  readonly withdrawn: boolean;
+}
+const TurnWithdrawResultShape = closed({ withdrawn: Type.Boolean() });
+export const TurnWithdrawResultSchema: TUnsafe<TurnWithdrawResult> =
+  Type.Unsafe<TurnWithdrawResult>(
+    TurnWithdrawResultShape satisfies SchemaProof<
+      TurnWithdrawResult,
+      typeof TurnWithdrawResultShape
+    >,
+  );
+
+/** `knowledge.skills.view`(W-14). 스킬 하나의 본문과 지원 파일 목록. `threadId`를 주면 그 대화의 작업 폴더 기준으로 프로젝트 스킬을 찾는다 */
+export interface SkillViewParams {
+  readonly name: string;
+  readonly threadId?: string;
+}
+const SkillViewParamsShape = request({
+  name: Id,
+  threadId: Type.Optional(ThreadRef),
+});
+export const SkillViewParamsSchema: TUnsafe<Req<SkillViewParams>> = Type.Unsafe<
+  Req<SkillViewParams>
+>(SkillViewParamsShape satisfies SchemaProof<Req<SkillViewParams>, typeof SkillViewParamsShape>);
+export interface SkillViewResult {
+  readonly name: string;
+  readonly scope: SkillScope;
+  readonly description: string;
+  /** SKILL.md 본문(머리말 제외). 상한을 넘으면 앞부분만 싣고 `bodyTruncated`가 참이다 */
+  readonly body: string;
+  readonly bodyTruncated: boolean;
+  /** 지원 파일 경로(스킬 폴더 안 상대 경로) */
+  readonly files: readonly string[];
+  /** 스킬 폴더 내용의 해시(64자 hex). 같은 해시면 같은 내용이다 */
+  readonly treeHash: string;
+}
+const SkillViewResultShape = closed({
+  name: Id,
+  scope: SkillScopeSchema,
+  description: Type.String({ maxLength: 1024 }),
+  body: Text,
+  bodyTruncated: Type.Boolean(),
+  files: Type.Array(SkillFilePathSchema, { maxItems: 500 }),
+  treeHash: Type.String({ pattern: "^[0-9a-f]{64}$" }),
+});
+export const SkillViewResultSchema: TUnsafe<SkillViewResult> = Type.Unsafe<SkillViewResult>(
+  SkillViewResultShape satisfies SchemaProof<SkillViewResult, typeof SkillViewResultShape>,
+);
+
+/** `work.plans.versions`(W-18). 계획 하나의 모든 판. 판의 모양은 `PlanVersionSchema`(capabilities/defs/work.ts)다 */
+export interface PlanVersionsParams {
+  readonly threadId: string;
+  readonly planId: string;
+}
+const PlanVersionsParamsShape = request({ threadId: ThreadRef, planId: Id });
+export const PlanVersionsParamsSchema: TUnsafe<Req<PlanVersionsParams>> = Type.Unsafe<
+  Req<PlanVersionsParams>
+>(
+  PlanVersionsParamsShape satisfies SchemaProof<
+    Req<PlanVersionsParams>,
+    typeof PlanVersionsParamsShape
+  >,
+);
+
 type U<T> = TUnsafe<T>;
 export interface DialogAreaSchemas {
   "review.get": Io<U<Req<ReviewGetParams>>, U<ReviewGetResult>>;
@@ -247,6 +386,10 @@ export interface DialogAreaSchemas {
   "work.tasks.list": Io<U<Req<ThreadScopedParams>>, U<WorkTasksListResult>>;
   "schedule.update": Io<U<Req<ScheduleUpdateParams>>, U<ScheduleUpdateResult>>;
   "schedule.runs": Io<U<Req<ScheduleRunsParams>>, U<ScheduleRunsResult>>;
+  "host.clients": Io<U<NoParams>, U<HostClientsResult>>;
+  "turn.withdraw": Io<U<Req<TurnWithdrawParams>>, U<TurnWithdrawResult>>;
+  "knowledge.skills.view": Io<U<Req<SkillViewParams>>, U<SkillViewResult>>;
+  "work.plans.versions": Io<U<Req<PlanVersionsParams>>, U<PlanVersionsOutputValue>>;
 }
 type Table = {
   readonly [M in keyof DialogAreaSchemas]: M4Spec<
@@ -260,4 +403,8 @@ export const DIALOG_AREA_METHODS: Table = {
   "work.tasks.list": m4(ThreadRefM4ParamsSchema, WorkTasksListResultSchema),
   "schedule.update": m4(ScheduleUpdateParamsSchema, ScheduleUpdateResultSchema),
   "schedule.runs": m4(ScheduleRunsParamsSchema, ScheduleRunsResultSchema),
+  "host.clients": m4(NoParamsSchema, HostClientsResultSchema),
+  "turn.withdraw": m4(TurnWithdrawParamsSchema, TurnWithdrawResultSchema),
+  "knowledge.skills.view": m4(SkillViewParamsSchema, SkillViewResultSchema),
+  "work.plans.versions": m4(PlanVersionsParamsSchema, PlanVersionsOutput),
 };

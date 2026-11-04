@@ -331,6 +331,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       resume: () => Promise.reject(new Error("resume is not part of the fake")),
       stopAtSafeBoundary: () => Promise.resolve(true),
       isLive: () => state.running !== undefined,
+      withdraw: () => Promise.resolve(ok(false)),
       ...options.overrides?.turns,
     },
     feed: {

@@ -1,8 +1,18 @@
-import { Type, type TObject, type TProperties, type TSchema, type TUnsafe } from "typebox";
+import {
+  Type,
+  type TObject,
+  type TProperties,
+  type TSchema,
+  type TString,
+  type TUnsafe,
+} from "typebox";
 import type { SchemaProof } from "../../base/index.ts";
 import { WireMetaSchema, type WireMeta } from "./jsonrpc.ts";
 
 // M4 wire 확장(W-15 ~ W-50)이 스키마를 짧게 쓰려는 도구다. 인터페이스를 정본으로 두고 스키마가 그것을 증명한다(SchemaProof).
+
+/** 브랜드 없는 멱등 키(1~64자). `turn.start`의 requestId와 `turn.withdraw`의 requestId가 같은 스키마다(F.conversation.spec §3.5) */
+export const RequestKeySchema: TString = Type.String({ minLength: 1, maxLength: 64 });
 
 /** 요청 params. 레지스트리가 모든 요청에 더하는 `_meta`(F.wire-settings.spec §3.6)를 포함한다 */
 export type Req<T> = T & { readonly _meta?: WireMeta };

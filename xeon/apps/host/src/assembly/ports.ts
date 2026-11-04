@@ -8,6 +8,7 @@ import {
   ok,
   parse,
   type Clock,
+  type Result,
   type Scheduler,
   type LogFields,
   type LogValue,
@@ -63,6 +64,7 @@ import type {
   TurnPort,
   SecretsPort,
   UserNotifyPort,
+  WithdrawFailure,
 } from "../types.ts";
 import { threadLocked } from "../handlers/owner.ts";
 import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-error.ts";
@@ -424,6 +426,23 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     }
   }
 
+  /**
+   * `turn.withdraw`(W-17). 요청 키가 맞는 대기 입력을 그 입력 id로 거둔다. 배치된 입력은 대기열에 없으므로 거두지 않는다(`false`).
+   * 같은 입력을 두 번 거두면 두 번째는 `false`다(철회 커밋이 입력 id에 묶여 있다)
+   */
+  async function withdrawByRequest(
+    threadId: ThreadId,
+    requestId: string,
+  ): Promise<Result<boolean, WithdrawFailure>> {
+    const queued = session.query.queuedInputs(threadId);
+    if (!queued.ok) return err(queued.error);
+    const input = queued.value.find((view) => view.requestId === requestId);
+    if (input === undefined) return ok(false);
+    const withdrawn = await tasks.inputs.withdraw(threadId, input.inputId, "user");
+    if (!withdrawn.ok) return err(withdrawn.error);
+    return ok(withdrawn.value > 0);
+  }
+
   const turns: TurnPort = {
     // 같은 thread의 수동 컴팩션이 도는 동안은 기다렸다가 제출한다(HS-77, §10 미결 31)
     submit: (threadId, input, requestId) =>
@@ -432,6 +451,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     resume: (threadId) => gate.run(threadId, () => loop.resume(threadId)),
     stopAtSafeBoundary: (deadlineMs) => loop.stopAtSafeBoundary(deadlineMs),
     isLive: (threadId) => loop.threadStatus(threadId).runningTurnId !== null,
+    withdraw: withdrawByRequest,
   };
 
   const feed: EventFeedPort = {

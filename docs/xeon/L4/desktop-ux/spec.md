@@ -1111,7 +1111,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 승인 카드는 트랜스크립트 끝(요청한 턴 아래)과 끝 영역 받은 요청에 같은 카드로 보입니다. 한쪽에서 답하면 `approval.resolved`로 양쪽에서 사라집니다(FS-02).
   - M4의 승인 기억은 요청 단위뿐입니다. 카드는 `remember: "once"`만 보내고 "이 대화에서 항상"·"항상" 단추와 `⇧Y`를 두지 않습니다. 엔진은 `once`만 제안하고 `thread`·`always` 응답을 `answer_invalid`로 거절합니다. 그룹 단위 기억도 두지 않습니다 [결정: 2026-10-31 사용자, 점검 2026-11-04].
   - 자식 에이전트가 낸 승인은 출처를 "렌즈 실패 사례 · grp:helm"처럼 보입니다(DP-33) [결정: 2026-10-31 사용자]. 데이터는 `ApprovalOrigin.caller`(`agentName`, `extension`)입니다(`L1.tools.spec` §3).
-  - 입력창 위 큐 표시: 실행 중 보낸 입력은 "다음 도구 라운드 뒤 들어가요(steer)" 칩으로 보이고, `input.placed`가 오면 사라집니다. `input.withdrawn` 철회 동작은 [미결] `[gap:W-17]`.
+  - 입력창 위 큐 표시: 실행 중 보낸 입력은 "다음 도구 라운드 뒤 들어가요(steer)" 칩으로 보이고, `input.placed`가 오면 사라집니다. `input.withdrawn` 철회 동작은 [미결]. 철회 wire는 `turn.withdraw`(W-17)다.
 - 화면 가림 [결정: 2026-11-03 사용자]: 트랜스크립트는 값을 그리지 않습니다. 사용자 글, 어시스턴트 글, 생각, 도구 인자(JSON), 도구 결과, 스트리밍 행이 모두 같습니다. 호스트가 준 구간(`F.wire-settings.spec` §3.4.5a)을 F 층의 공용 적용기(`@fresnel/contracts/conversation`, DR-10)로 같은 문자열에 적용해 그리고, 가린 자리는 `[REDACTED:<표지>]`로 보입니다(표지: `known:<이름>`, 패턴 이름, `kv`). 값과 패턴의 판정은 호스트가 하고 화면은 구간만 적용합니다. 안전 트랙 S-01(2026-11-03 "화면 쪽에서")의 "화면 쪽"은 이 적용을 가리키는 것으로 읽어 코드와 맞춥니다. 판정까지 화면으로 옮기면 알려진 시크릿 값을 wire에 실어야 해서 `F.wire-settings.spec` §3.4.5a "값은 클라이언트에 따로 보내지 않는다"와 어긋나므로 옮기지 않았습니다 [미결: 사용자가 S-01을 판정의 이동까지 뜻했는지 확인]. 확정 item의 표식이 맞지 않으면 그 item은 그리지 않습니다. 스트리밍 행은 마지막 공백까지만 보이고(뒤 낱말은 확정 때까지 빠집니다), 조각을 놓쳐 길이가 맞지 않으면 그 파트를 확정 item이 올 때까지 비웁니다.
 - 복사: 화면에서 복사되는 글은 그려진 글이므로 값이 없습니다. 메시지 복사([제안], 위 표)를 만들면 그려진 텍스트를 써야 합니다. 지금은 트랜스크립트에 복사 동작이 없고 진단 복사(`copyDiagnostics`)만 있으며, 진단 묶음에는 대화 내용이 들어가지 않습니다(`FS-13`).
 - 범위 밖: 승인 카드(P-03)의 도구 인자와 설정 화면은 이 표식을 쓰지 않습니다 [미결]. 내보내기 `db export`는 가리지 않고 확인을 받습니다(`L4.cli.spec` §4.13).
@@ -1418,7 +1418,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 행: 종류, op, 대상, 출처, 상태, 근거 수, 충돌, 시각 | `proposal.list { source?, status?, limit, cursor }` → `proposalListView` → `ProposalRowVM` |
 | 상세: diff, 이유, 근거 이벤트, 충돌 스킬, 범위 선택, untrusted 경고, revision | 같은 `ProposalRowVM`(`diff`, `rationale`, `evidenceCount`, `conflictsWith`, `scopeChoice`, `afterUntrusted`, `revision`) |
 | 근거 이벤트 본문 | `thread.read`의 `around` 인자로 읽을 수 있습니다 [근거: `apps/host/src/assembly/thread-read.ts`]. M4 화면은 대화 열기와 스크롤로 대신합니다 [제안] |
-| 충돌 스킬 본문(나란히 보기) | `[gap:W-14]` 스킬 본문 읽기 wire가 없습니다 |
+| 충돌 스킬 본문(나란히 보기) | `knowledge.skills.view`(W-14) wire가 있습니다 |
 
 | 기능 | wire 또는 view-model |
 |---|---|
@@ -1578,7 +1578,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 현재 대상 상태 | `host.status`(`mode`, `pid`, `startedAt`, `connections`, `liveTurns`, `idleShutdownAt`, `safeMode`) |
 | 서비스 설정 | `settings.get { keys: ["l0.process.service.enabled", "l2.schedule.remote.enabled", "l2.schedule.remote.allowRespond"] }` |
 | 원격 연결 단계 | 셸 IPC 진행 이벤트 `[gap:W-08]` |
-| 연결된 클라이언트 목록 | `[gap:W-12]` 수만 있습니다 |
+| 연결된 클라이언트 목록 | `host.clients`(W-12) wire가 있습니다. 화면에는 수만 있습니다 |
 
 | 기능 | 경로 |
 |---|---|
@@ -1982,7 +1982,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 항목 | 출처 |
 |---|---|
 | 목표(조건, 상태, "판정 2/3", 마지막 판정). 상태 표시줄 칩은 "목표 2/3", 칩 `Popover`와 이 탭은 "판정 2/3"으로 같은 숫자를 씁니다(DP-25, D-17) | `goal.status { threadId }`. 이전 임시 경로(`/goal status`, `work.goal_*` 이벤트 재구성)는 쓰지 않는다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] `[gap:V-08]` |
-| 계획(버전, 상태, 제목) | `work.plan_*` 이벤트, 버전 목록 `[gap:W-18]` |
+| 계획(버전, 상태, 제목) | `work.plan_*` 이벤트, 버전 목록 `work.plans.versions`(W-18) |
 | 작업(내용, 상태, 막힘) | `work.task_*` 이벤트로 재구성 [제안], 목록 읽기 `work.tasks.list` |
 
 - 기능: 목표 걸기(`command.run { text: "/goal <조건>" }`), 해제(`/goal clear`), 계획 보기(트랜스크립트의 계획 카드로 스크롤), 작업 행 누르기(만든 턴으로 스크롤).
@@ -1995,7 +1995,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 읽기는 wire 두 개다: `goal.status { threadId }`, `work.tasks.list { threadId }`(`contracts/wire-settings/wire/dialog-area.ts`, host `handlers/m4/dialog-area.ts`에 이미 있다). 그래서 위 표의,과 `/goal status` 임시 경로는 쓰지 않는다. 읽기는 대화가 바뀔 때, 연결이 살아날 때, 턴이 끝났을 때 한다.
 - 목표 걸기와 해제는 `command.run { threadId, text }`에 `/goal <조건>`과 `/goal clear` 줄을 그대로 보낸다(`commands.work.goalCommand`, 쓰기). 조건은 앞뒤 빈칸을 떼고 4000자 이하만 보낸다. `done`이 아니면 "목표 명령을 실행하지 못했어요"다. 시험 `test/app/work-commands.test.ts`가 wire params를 고정한다.
 - 끝난 상태: 호스트는 `limit_reached`와 `judge_failed`를 둘 다 `exhausted`로 준다(`goalViewOf`). 판정 횟수가 최대에 닿았으면 "N번 판정 뒤 멈췄어요", 아니면 "판정에 실패해 멈췄어요"로 문장만 가른다. 상태 값은 그대로 둔다.
-- 계획 [gap:W-18]: 계획 버전 목록 wire가 없어 계획 카드 자리와 "계획 보기"는 이번 변경에 없다. 작업 행 누르기(만든 턴으로 스크롤)도 `TaskView`에 턴 id가 없어 빠졌다. 작업 행은 누를 수 없다(`clickable: false`).
+- 계획 (W-18): 계획 버전 목록 wire(`work.plans.versions`)는 있지만 계획 카드 자리와 "계획 보기"는 이번 변경에 없다. 작업 행 누르기(만든 턴으로 스크롤)도 `TaskView`에 턴 id가 없어 빠졌다. 작업 행은 누를 수 없다(`clickable: false`).
 - 작업 목록: `Plan`을 `bare`로 써서 well 안에 테두리 없이 그린다(caustic C-19). 작업이 100개를 넘으면 완료 작업을 접는다(`DONE_FOLD_LIMIT`). 취소된 작업은 대기 칸에 "취소됨"으로 보인다.
 - 판정 2/3 자리: 목표 줄의 숫자와 "판정 2/3"은 `goal.status`의 `judged`와 `maxJudgments`다. 판정 모델을 고르는 select는 `/goal` 줄에 그 입력이 없어 넣지 않았다.
 - 빈 상태: 열린 대화가 없으면 "열린 대화가 없어요"만 보인다. 목표 칸은 진행 중인 목표가 있을 때 걸기 입력을 숨긴다. 권한 필요는 이 탭에 해당하지 않는다(목표와 작업은 승인을 묻지 않는다).
@@ -3134,13 +3134,13 @@ export const palette = [
 | W-09 | 알림 읽음 상태 | P-03 | 없음 | 데스크톱 로컬 커서로 대신 [제안] |
 | W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식). [결정: 2026-11-04 사용자, B8 2안] 재인증 명령 `os_reauth`(`L4.desktop.spec` §4.17)는 셸에 구현됐습니다. 값 보기 화면은 macOS에서 이 명령을 먼저 부르고, 그 뒤의 보기는 stdio·서비스에서 `not_started`입니다 |
 | W-11 | 사용량 한도·창·계정 게이지 | P-11, S-03 | `session` 게이지만 | L1.models 계정·창 데이터 연결(B2-MDL 이후) |
-| W-12 | 연결된 클라이언트 목록 | P-08 | 수만 | `host.clients` [미결] |
+| W-12 | 연결된 클라이언트 목록 | P-08 | 구현됨. `host.clients`가 있다 [근거: `apps/host/src/handlers/host.ts`]. 화면은 지금 수만 보인다 | `host.clients` |
 | W-13 | 시크릿 사용 기록 | P-10 | 없음 | `secret.audit { name, limit }` |
-| W-14 | 스킬 본문 읽기(충돌 비교) | P-06 | 없음 | `knowledge.skills.view` wire |
+| W-14 | 스킬 본문 읽기(충돌 비교) | P-06 | 구현됨. `knowledge.skills.view { name, threadId? }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `knowledge.skills.view { name, threadId? }` |
 | W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire(`mcp.servers`)는 없다 [근거: `apps/host/src`, `packages/contracts/src`에서 그 이름 grep 0건] | `ext.list { threadId? }`, `mcp.servers` [미결]. 설치는 W-32 |
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 구현됨. `thread.read`의 `around` 인자와 `ThreadSummary.origin`이 있다 [근거: `apps/host/src/assembly/thread-read.ts`, `packages/contracts/src/wire-settings/wire/methods.ts:443`] | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
-| W-17 | 큐에 넣은 입력 철회 | P-02 | `input.withdrawn` 이벤트만 | `turn.withdraw { requestId }` [미결] |
-| W-18 | 계획 버전 목록 | P-14 | 없음 | `work.plans.versions` wire |
+| W-17 | 큐에 넣은 입력 철회 | P-02 | 구현됨. `turn.withdraw { threadId, requestId }`가 있다 [근거: `apps/host/src/handlers/turn.ts`]. 철회 사실은 `input.withdrawn` 이벤트로 온다 | `turn.withdraw { threadId, requestId }` |
+| W-18 | 계획 버전 목록 | P-14 | 구현됨. `work.plans.versions { threadId, planId }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `work.plans.versions { threadId, planId }` |
 | W-19 | OS 폴더 고르기 | O-07 | 구현됨. `tauri-plugin-dialog` 2.8.4를 셸 명령 `pick_folder`로 감싸 쓴다(`L4.desktop.spec` §10 17번, [결정: 2026-11-04 사용자]). WebView에는 dialog 권한이 없다. 맥에서 창 동작은 아직 확인하지 않았다 | `pick_folder`. 입력란은 경로를 직접 적는 길로 남는다 |
 | W-20 | 확장 하나의 상세(매니페스트, 유효 등급, tier, 기능 바인딩, 훅과 예산 등급, 진단) | P-17 | 구현됨. `ext.get`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.get { name }` |
 | W-21 | 자동 꺼짐 확장 다시 켜기(장부 비우기) | P-13, P-17, P-16 | 구현됨. `ext.reenable`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.reenable { name }` |

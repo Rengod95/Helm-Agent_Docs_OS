@@ -1,6 +1,7 @@
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { ReadFailure } from "@fresnel/contracts/records";
 import { isId, type ThreadId } from "@fresnel/contracts/conversation";
+import type { PlanVersionsOutputValue } from "@fresnel/contracts/capabilities";
 import {
   wireError,
   type GoalStatusResult,
@@ -9,20 +10,22 @@ import {
   type ScheduleRunsResult,
   type ScheduleUpdateParams,
   type ScheduleUpdateResult,
+  type SkillViewResult,
   type WireError,
   type WireHandlers,
   type WorkTasksListResult,
 } from "@fresnel/contracts/wire";
 
-// 대화 영역 wire(`review.get` W-02, `goal.status` W-05, `work.tasks.list` W-06, `schedule.update`·`schedule.runs` W-07).
+// 대화 영역 wire(`review.get` W-02, `goal.status` W-05, `work.tasks.list` W-06, `schedule.update`·`schedule.runs` W-07,
+// `knowledge.skills.view` W-14, `work.plans.versions` W-18). `host.clients`(W-12)는 host.ts, `turn.withdraw`(W-17)는 turn.ts에 있다.
 // 처리기는 포트가 돌려준 오류 값을 와이어 오류로 옮길 뿐이다. 포트 구현은 `assembly/m4/dialog-area-port.ts`다.
 // 전용 와이어 오류 kind가 아직 없어서(F 갭) 모르는 id와 한도는 `jsonrpc.invalidParams`의 issue로 알린다.
 
 /** 포트가 읽지 못한 이유. 처리기가 와이어 오류로 옮긴다 */
 export type DialogAreaFailure =
   | { readonly kind: "thread_not_found"; readonly threadId: ThreadId }
-  /** 모르는 id: 리뷰, 예약 */
-  | { readonly kind: "unknown"; readonly path: "reviewId" | "scheduleId"; readonly id: string }
+  /** 모르는 id: 리뷰, 예약, 계획, 스킬 이름 */
+  | { readonly kind: "unknown"; readonly path: UnknownPath; readonly id: string }
   /** 켜진 예약 수 상한에 닿아 다시 켤 수 없다 */
   | { readonly kind: "limit_reached"; readonly max: number }
   /** 예약 저장소나 리뷰 본문을 읽거나 쓰지 못했다 */
@@ -35,6 +38,9 @@ export type DialogAreaFailure =
   | { readonly kind: "unavailable" };
 
 export type DialogAreaOutcome<T> = Result<T, DialogAreaFailure>;
+
+/** `unknown` 실패가 가리키는 params 이름. 와이어 issue의 path가 된다 */
+type UnknownPath = "reviewId" | "scheduleId" | "planId" | "name";
 
 /** 처리기가 쓰는 포트 */
 export interface DialogAreaPort {
@@ -51,6 +57,18 @@ export interface DialogAreaPort {
   scheduleUpdate(params: ScheduleUpdateParams): Promise<DialogAreaOutcome<ScheduleUpdateResult>>;
   /** 예약의 실행 기록(W-07), 새 것부터 */
   scheduleRuns(params: ScheduleRunsParams): Promise<DialogAreaOutcome<ScheduleRunsResult>>;
+  /** 스킬 하나의 본문과 지원 파일 목록(W-14). `threadId`가 있으면 그 대화의 작업 폴더를 본다 */
+  skillView(
+    name: string,
+    threadId: ThreadId | undefined,
+    signal: AbortSignal,
+  ): Promise<DialogAreaOutcome<SkillViewResult>>;
+  /** 계획의 모든 판(W-18). 기능이 꺼져 있으면 빈 목록 */
+  plansVersions(
+    threadId: ThreadId,
+    planId: string,
+    signal: AbortSignal,
+  ): Promise<DialogAreaOutcome<PlanVersionsOutputValue>>;
 }
 
 export type DialogAreaMethods =
@@ -58,9 +76,19 @@ export type DialogAreaMethods =
   | "goal.status"
   | "work.tasks.list"
   | "schedule.update"
-  | "schedule.runs";
+  | "schedule.runs"
+  | "knowledge.skills.view"
+  | "work.plans.versions";
 
 const MESSAGE_MAX = 200;
+
+/** `unknown` 실패의 이유 문구에 넣는 대상 이름(`unknown <이름>`) */
+const UNKNOWN_LABEL: Readonly<Record<UnknownPath, string>> = {
+  reviewId: "review",
+  scheduleId: "schedule",
+  planId: "plan",
+  name: "skill",
+};
 
 function invalid(path: string, message: string): WireError {
   return wireError("jsonrpc.invalidParams", { details: { issues: [{ path, message }] } });
@@ -91,10 +119,7 @@ function wireErrorOf(failure: DialogAreaFailure, method: DialogAreaMethods): Wir
     case "thread_not_found":
       return wireError("thread.notFound", { details: { threadId: failure.threadId } });
     case "unknown":
-      return invalid(
-        failure.path,
-        `unknown ${failure.path === "reviewId" ? "review" : "schedule"}`,
-      );
+      return invalid(failure.path, `unknown ${UNKNOWN_LABEL[failure.path]}`);
     case "limit_reached":
       return invalid("enabled", `active schedule limit reached (max ${String(failure.max)})`);
     case "store_failed":
@@ -145,5 +170,19 @@ export function createDialogAreaHandlers(
       unwrapped(port.tasksList(threadIdOf(params.threadId), context.signal), "work.tasks.list"),
     "schedule.update": (params) => unwrapped(port.scheduleUpdate(params), "schedule.update"),
     "schedule.runs": (params) => unwrapped(port.scheduleRuns(params), "schedule.runs"),
+    "knowledge.skills.view": (params, context) =>
+      unwrapped(
+        port.skillView(
+          params.name,
+          params.threadId === undefined ? undefined : threadIdOf(params.threadId),
+          context.signal,
+        ),
+        "knowledge.skills.view",
+      ),
+    "work.plans.versions": (params, context) =>
+      unwrapped(
+        port.plansVersions(threadIdOf(params.threadId), params.planId, context.signal),
+        "work.plans.versions",
+      ),
   };
 }

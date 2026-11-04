@@ -313,6 +313,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       transportKind: transport.kind,
       phase: "awaitingHello",
       experimental: [],
+      client: undefined,
       subs: new Map(),
       openThreads: new Set(),
       writeThreads: new Set(),
@@ -554,6 +555,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       state.openThreads.clear();
       state.observedThreads.clear();
       state.experimental = [];
+      state.client = undefined;
       state.phase = "awaitingHello";
       log.info("connection.reset", { connectionId });
     }

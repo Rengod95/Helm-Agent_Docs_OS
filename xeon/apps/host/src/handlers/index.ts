@@ -11,6 +11,7 @@ import { createExtUiVersionHandlers } from "./m4/ext-ui-version.ts";
 import { createProfileTestRunHandlers } from "./m4/profile-test-run.ts";
 import { createEventsSubscribeHandler, createEventsUnsubscribeHandler } from "./events.ts";
 import {
+  createHostClientsHandler,
   createHostHelloHandler,
   createHostShutdownHandler,
   createHostStatusHandler,
@@ -49,6 +50,7 @@ import {
   createTurnInterruptHandler,
   createTurnResumeHandler,
   createTurnStartHandler,
+  createTurnWithdrawHandler,
 } from "./turn.ts";
 
 export type { HostInfo, HostLifecycle } from "./host.ts";
@@ -66,6 +68,7 @@ export function createWireHandlers(
   const table: WireHandlers = {
     "host.hello": createHostHelloHandler(engine, hub, info, () => table),
     "host.status": createHostStatusHandler(engine, hub, info, lifecycle),
+    "host.clients": createHostClientsHandler(hub),
     // in-process 호스트는 CLI 프로세스 안에 있어 클라이언트가 호스트 종료를 요청하지 않는다: 수명 신호가 없으면 열지 않는다
     "host.shutdown":
       lifecycle === undefined
@@ -83,6 +86,7 @@ export function createWireHandlers(
     "thread.compact": createThreadCompactHandler(engine, hub),
     "turn.start": createTurnStartHandler(engine, hub),
     "turn.interrupt": createTurnInterruptHandler(engine),
+    "turn.withdraw": createTurnWithdrawHandler(engine),
     "turn.resume": createTurnResumeHandler(engine, hub),
     "events.subscribe": createEventsSubscribeHandler(engine, hub),
     "events.unsubscribe": createEventsUnsubscribeHandler(hub),
