@@ -98,13 +98,13 @@ describe("controller.remove", () => {
 
     const done = await controllerOf(store, commands).remove("web");
 
-    expect(done).toBe(true);
+    expect(done).toBe("removed");
     expect(sent).toEqual(["web"]);
     expect(listed).toBe(1);
     expect(store.actions.snapshot().detail).toBeNull();
   });
 
-  test("거절되면 false이고 목록을 다시 읽지 않는다", async () => {
+  test("거절되면 failed이고 목록을 다시 읽지 않는다", async () => {
     const store = createWorkbenchStore();
     let listed = 0;
     const commands = commandsWith({
@@ -114,11 +114,11 @@ describe("controller.remove", () => {
         return Promise.resolve(ok([]));
       },
     });
-    expect(await controllerOf(store, commands).remove("web")).toBe(false);
+    expect(await controllerOf(store, commands).remove("web")).toBe("failed");
     expect(listed).toBe(0);
   });
 
-  test("이미 없는 이름(3401)이면 false이고 낡은 목록을 다시 읽는다", async () => {
+  test("이미 없는 이름(3401)이면 gone이고 낡은 목록을 다시 읽는다", async () => {
     const store = createWorkbenchStore();
     let listed = 0;
     const commands = commandsWith({
@@ -131,13 +131,13 @@ describe("controller.remove", () => {
       hooks: () => Promise.resolve(ok([])),
       orderGet: () => Promise.resolve(ok({ hooks: [] })),
     });
-    expect(await controllerOf(store, commands).remove("web")).toBe(false);
+    expect(await controllerOf(store, commands).remove("web")).toBe("gone");
     expect(listed).toBe(1);
   });
 });
 
 describe("controller.remove의 저장 데이터 지우기", () => {
-  test("dropData를 참으로 그대로 넘기고, 지웠으면 true다", async () => {
+  test("dropData를 참으로 그대로 넘기고, 지웠으면 removed다", async () => {
     const seen: { name: string; options: unknown }[] = [];
     const commands = commandsWith({
       remove: (name, options) => {
@@ -149,11 +149,11 @@ describe("controller.remove의 저장 데이터 지우기", () => {
     const done = await controllerOf(createWorkbenchStore(), commands).remove("web", {
       dropData: true,
     });
-    expect(done).toBe(true);
+    expect(done).toBe("removed");
     expect(seen).toEqual([{ name: "web", options: { dropData: true } }]);
   });
 
-  test("저장 데이터를 지우다 실패하면 false이고, 호스트가 확장을 먼저 내렸으니 목록을 다시 읽는다", async () => {
+  test("저장 데이터를 지우다 실패하면 failed이고, 호스트가 확장을 먼저 내렸으니 목록을 다시 읽는다", async () => {
     let listed = 0;
     const commands = commandsWith({
       remove: () => Promise.resolve(err({ kind: "rejected", code: 3405 })),
@@ -167,7 +167,25 @@ describe("controller.remove의 저장 데이터 지우기", () => {
     });
     expect(
       await controllerOf(createWorkbenchStore(), commands).remove("web", { dropData: true }),
-    ).toBe(false);
+    ).toBe("failed");
+    expect(listed).toBe(1);
+  });
+
+  test("저장 데이터를 지우는데 이미 없는 이름(3401)이면 gone이고 목록을 다시 읽는다(폴더가 남았다는 경고를 띄우지 않는다)", async () => {
+    let listed = 0;
+    const commands = commandsWith({
+      remove: () => Promise.resolve(err({ kind: "rejected", code: 3401 })),
+      list: () => {
+        listed += 1;
+        return Promise.resolve(ok([]));
+      },
+      health: () => Promise.resolve(ok([])),
+      hooks: () => Promise.resolve(ok([])),
+      orderGet: () => Promise.resolve(ok({ hooks: [] })),
+    });
+    expect(
+      await controllerOf(createWorkbenchStore(), commands).remove("web", { dropData: true }),
+    ).toBe("gone");
     expect(listed).toBe(1);
   });
 });

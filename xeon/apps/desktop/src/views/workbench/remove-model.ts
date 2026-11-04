@@ -6,6 +6,7 @@ import type {
   ExtRemovePreviewResult,
   ExtRemoveResult,
 } from "@fresnel/contracts/wire";
+import type { CommandError } from "../commands.ts";
 
 /**
  * 지울 수 있는 확장인가. `ext.remove`는 사용자 확장 위치의 설치본 폴더를 지우므로 `origin`이 `user`인 것만 지운다.
@@ -30,7 +31,23 @@ export function removeDoneText(appliesAt: ExtRemoveResult["appliesAt"]): Message
 }
 
 /** 이미 없는 이름(`extension.notFound`, 3401)을 지우려 했나. 목록이 낡았다는 뜻이라 문장이 다르다 */
-export const REMOVE_NOT_FOUND_CODE = 3401;
+const REMOVE_NOT_FOUND_CODE = 3401;
+
+/**
+ * 지우기 요청의 결과. `gone`은 이미 없는 이름(3401)이라 지울 것이 남지 않았다: 폴더와 데이터가 없으므로 "폴더는 남아 있어요"
+ * 문구를 보이면 거짓이다. `failed`는 그 밖의 실패다
+ */
+export type RemoveOutcome = "removed" | "gone" | "failed";
+
+/** 실패한 `ext.remove`의 오류 값에서 결과를 가른다 */
+export function removeOutcomeOfError(error: CommandError): RemoveOutcome {
+  return error.kind === "rejected" && error.code === REMOVE_NOT_FOUND_CODE ? "gone" : "failed";
+}
+
+/** 저장 데이터까지 지우다 실패해 상자를 열어 두고 "설치 폴더는 그대로 남아 있어요" 경고를 보이는가. `gone`은 닫는다 */
+export function keepsDialogOpen(outcome: RemoveOutcome, dropData: boolean): boolean {
+  return outcome === "failed" && dropData;
+}
 
 /** 확장이 소유한 저장 테이블 한 줄(`ext.removePreview`의 `tables`) */
 export type StorageTable = ExtRemovePreviewResult["tables"][number];

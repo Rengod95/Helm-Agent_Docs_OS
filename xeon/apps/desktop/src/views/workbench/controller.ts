@@ -14,7 +14,7 @@ import { useSafeMode } from "../safe-mode-context.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
 import { profileAppliesText, profileFailureText } from "./profile-text.ts";
-import { REMOVE_NOT_FOUND_CODE, removeDoneCopyOf } from "./remove-model.ts";
+import { removeDoneCopyOf, removeOutcomeOfError, type RemoveOutcome } from "./remove-model.ts";
 
 /** `ext.get`을 동시에 보내는 상한. 확장이 많아도 엔진에 한꺼번에 몰리지 않는다 */
 const DETAIL_IN_FLIGHT = 8;
@@ -49,7 +49,7 @@ export interface WorkbenchController {
    * 설치본을 지운다(`ext.remove`). `dropData`가 참이면 저장 테이블도 지운다. 성공하면 토스트로 적용 시점을 알리고 목록을 다시 읽는다.
    * 지웠으면 true. 실패하면 토스트를 띄우고 false이며, 저장 데이터를 지우다 실패했을 때도 목록을 다시 읽는다(호스트가 확장을 먼저 내린다)
    */
-  remove(name: string, options?: { readonly dropData?: boolean }): Promise<boolean>;
+  remove(name: string, options?: { readonly dropData?: boolean }): Promise<RemoveOutcome>;
   /** 외부 훅 "끄기" 답(`hooks.disableConfirm`). 성공하면 목록을 다시 읽고 true, 실패하면 false(알림이 한 줄 오류와 "다시 시도"를 보인다) */
   hookKeepOff(hook: string): Promise<boolean>;
   /** 외부 훅 "켜 두기"와 "다시 켜기" 답(`hooks.reenable`). 결과는 `hookKeepOff`와 같다 */
@@ -155,11 +155,11 @@ export function useWorkbenchController(): WorkbenchController {
   );
 
   const remove = useCallback(
-    async (name: string, options?: { readonly dropData?: boolean }): Promise<boolean> => {
+    async (name: string, options?: { readonly dropData?: boolean }): Promise<RemoveOutcome> => {
       const done = await commands.workbench.remove(name, options);
       if (!done.ok) {
-        const notFound =
-          done.error.kind === "rejected" && done.error.code === REMOVE_NOT_FOUND_CODE;
+        const outcome = removeOutcomeOfError(done.error);
+        const notFound = outcome === "gone";
         toast({
           tone: "danger",
           title: t("desktop.workbench.remove.failed"),
@@ -167,7 +167,7 @@ export function useWorkbenchController(): WorkbenchController {
         });
         // 이미 없는 이름이면 목록이 낡은 것이다. 저장 데이터를 지우다 실패했으면 호스트가 확장을 먼저 내렸으니 목록을 다시 읽는다
         if (notFound || options?.dropData === true) await reload();
-        return false;
+        return outcome;
       }
       const copy = removeDoneCopyOf(done.value.appliesAt, done.value.dataDropped);
       toast({
@@ -180,7 +180,7 @@ export function useWorkbenchController(): WorkbenchController {
       actions.closeDetail();
       actions.clearPick();
       await reload();
-      return true;
+      return "removed";
     },
     [actions, commands, reload],
   );

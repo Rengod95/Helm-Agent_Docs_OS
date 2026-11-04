@@ -3,6 +3,8 @@ import { t } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
 import {
   dropDataOf,
+  keepsDialogOpen,
+  removeOutcomeOfError,
   removeDoneCopyOf,
   storageNoteOf,
   totalRowsOf,
@@ -53,6 +55,21 @@ describe("저장 데이터 판단", () => {
       title: "desktop.workbench.remove.done.boundary",
       data: null,
     });
+  });
+});
+
+describe("지우기 결과 판단", () => {
+  test("이미 없는 이름(3401)은 gone이고 그 밖의 거절과 오류는 failed다", () => {
+    expect(removeOutcomeOfError({ kind: "rejected", code: 3401 })).toBe("gone");
+    expect(removeOutcomeOfError({ kind: "rejected", code: 3402 })).toBe("failed");
+    expect(removeOutcomeOfError({ kind: "offline" })).toBe("failed");
+  });
+
+  test("저장 데이터 지우기가 실패했을 때만 상자를 열어 두고, 이미 없으면 닫는다", () => {
+    expect(keepsDialogOpen("failed", true)).toBe(true);
+    expect(keepsDialogOpen("failed", false)).toBe(false);
+    expect(keepsDialogOpen("gone", true)).toBe(false);
+    expect(keepsDialogOpen("removed", true)).toBe(false);
   });
 });
 

@@ -21,6 +21,7 @@ import { BindingsPanel } from "./bindings-panel.tsx";
 import { InstallDialog } from "./install-dialog.tsx";
 import { LayerList } from "./layer-list.tsx";
 import { RemoveDialog } from "./remove-dialog.tsx";
+import { keepsDialogOpen } from "./remove-model.ts";
 import { SelectionPanel } from "./selection-panel.tsx";
 import { useSafeMode } from "../safe-mode-context.ts";
 
@@ -184,10 +185,10 @@ export function ExtensionsScreen(): ReactNode {
           setRemoveBusy(true);
           setRemoveDataFailed(false);
           detachVoid(
-            controller.remove(name, { dropData }).then((done) => {
+            controller.remove(name, { dropData }).then((outcome) => {
               setRemoveBusy(false);
-              // 저장 데이터를 함께 지우다 실패했으면 상자를 열어 두고 다시 시도하게 한다. 그 밖의 실패와 성공은 토스트로 알리고 닫는다
-              const stay = !done && dropData;
+              // 저장 데이터를 함께 지우다 실패했으면 상자를 열어 두고 다시 시도하게 한다. 이미 없는 이름(3401)과 성공은 토스트로 알리고 닫는다
+              const stay = keepsDialogOpen(outcome, dropData);
               setRemoveDataFailed(stay);
               if (!stay) setRemoving(null);
               return undefined;
