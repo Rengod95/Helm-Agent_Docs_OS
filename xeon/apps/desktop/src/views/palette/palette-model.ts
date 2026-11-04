@@ -2,6 +2,7 @@ import type { MessageId } from "@fresnel/client/i18n";
 import { TAB_ORDER } from "@fresnel/client/settings";
 import type { SettingsTab } from "@fresnel/contracts/settings";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
+import { originTitleOf } from "../../plugin-ui/placements.ts";
 import type { ActionId } from "../shell/keybindings.ts";
 
 // S-02 명령 팔레트의 순수 부분(spec §4.5, §6.2). 묶음은 순서대로 "대화", "명령", "플러그인", "슬래시 명령", "설정"이다.
@@ -160,11 +161,14 @@ export function visibleGroupsOf(input: {
   });
 }
 
-/** 확장 명령 행. 글은 항목 제목이고 설명은 확장 이름이다. 입력은 `commandEntriesOf`가 거른 목록이다 */
+/**
+ * 확장 명령 행. 글은 `<확장> · <항목 제목>`(제목은 제어 글자를 뺀 것)이고 설명은 확장 이름이다. 확장 이름이 앞에 있어
+ * 셸의 명령처럼 읽히지 않는다(보고 3). 입력은 `commandEntriesOf`가 거른 목록이다
+ */
 export function pluginCommandItemsOf(entries: readonly ExtUiEntry[]): PaletteItem[] {
   return entries.map((entry) => ({
     value: pluginValue(entry.extension, entry.id),
-    label: entry.title,
+    label: originTitleOf(entry),
     description: entry.extension,
     meta: null,
   }));

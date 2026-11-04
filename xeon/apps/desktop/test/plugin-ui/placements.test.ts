@@ -6,6 +6,7 @@ import {
   commandEntriesOf,
   groupPlacements,
   nativeEntriesOf,
+  originTitleOf,
   provenanceOf,
   type PlacedEntry,
 } from "../../src/plugin-ui/placements.ts";
@@ -189,5 +190,64 @@ describe("cardOf and provenanceOf", () => {
     expect(provenanceOf(cardEntry("helm", "x.helm.note.saved"))).toBe("ext:helm");
     expect(provenanceOf(cardEntry("notes", "x.notes.k.v"))).toBe("ext:notes");
     expect(provenanceOf(cardEntry("notes", "grp.helm"))).toBe("ext:notes");
+  });
+
+  test("a card over another extension's group kind is labelled with that extension, never with the group", () => {
+    expect(provenanceOf(cardEntry("aaa", "grp.helm.inquiry.finished"))).toBe("ext:aaa");
+    expect(provenanceOf(cardEntry("helm", "grp.helm.inquiry.finished"))).toBe("grp:helm");
+  });
+
+  test("cardOf prefers the card of the kind's owner over name order", () => {
+    const groups = groupPlacements(
+      [
+        cardEntry("aaa", "grp.helm.inquiry.finished"),
+        cardEntry("helm", "grp.helm.inquiry.finished"),
+      ],
+      {},
+    );
+    const picked = cardOf(groups.card, new Set(), "grp.helm.inquiry.finished");
+    expect(picked?.extension).toBe("helm");
+    expect(picked === undefined ? null : provenanceOf(picked)).toBe("grp:helm");
+  });
+
+  test("with no owner among the cards, cardOf takes the first by name order", () => {
+    const groups = groupPlacements(
+      [
+        cardEntry("zeta", "grp.helm.inquiry.finished"),
+        cardEntry("aaa", "grp.helm.inquiry.finished"),
+      ],
+      {},
+    );
+    expect(cardOf(groups.card, new Set(), "grp.helm.inquiry.finished")?.extension).toBe("aaa");
+  });
+
+  test("cardOf ignores an owner card that is not ok and falls back to the other extension's card", () => {
+    const groups = groupPlacements(
+      [
+        uiEntryOf({
+          extension: "helm",
+          id: "off",
+          placement: "card",
+          forKind: "grp.helm.inquiry.finished",
+          state: "disabled",
+          tree: CARD_TREE,
+        }),
+        cardEntry("aaa", "grp.helm.inquiry.finished"),
+      ],
+      {},
+    );
+    expect(cardOf(groups.card, new Set(), "grp.helm.inquiry.finished")?.extension).toBe("aaa");
+  });
+});
+
+describe("originTitleOf", () => {
+  test("starts with the extension name, then the title without bidi and control characters", () => {
+    expect(originTitleOf(uiEntryOf({ extension: "aaa", title: "‮exe.‬ 실행\u0007" }))).toBe(
+      "aaa · exe. 실행",
+    );
+  });
+
+  test("a title that is empty after stripping shows the entry id", () => {
+    expect(originTitleOf(uiEntryOf({ extension: "aaa", id: "go", title: "​" }))).toBe("aaa · go");
   });
 });

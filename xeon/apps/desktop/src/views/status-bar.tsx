@@ -2,7 +2,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { storeFailureOfExitCode } from "@fresnel/contracts/records";
 import { useState, type ReactNode } from "react";
-import { nativeEntriesOf } from "../plugin-ui/placements.ts";
+import { nativeEntriesOf, originTitleOf } from "../plugin-ui/placements.ts";
 import {
   useApprovalCount,
   useEngineState,
@@ -61,7 +61,8 @@ export function engineTextOf(state: EngineState | null | undefined): MessageId {
 
 /**
  * 확장의 상태 칸. 열린 대화가 있을 때만 그린다(ADR-0021 §3.2). 꺼졌거나 안전 모드인 확장의 칸은 그리지 않는다.
- * 칸 하나는 선언형 트리를 좁은 자리에 담고 글이 넘치면 줄인다
+ * 칸 앞에 셸이 확장 이름을 그린다(보고 2). 칸 하나는 선언형 트리를 좁은 자리에 담고 글이 넘치면 줄인다.
+ * `NativeTree`에는 읽기 전용 모드가 없어 트리의 버튼과 입력은 그대로 대화형이다. 같은 실행기와 확인 줄을 거친다
  */
 function StatusCells(): ReactNode {
   const plugin = usePluginUiState();
@@ -70,10 +71,13 @@ function StatusCells(): ReactNode {
   return nativeEntriesOf(plugin.groups.status, plugin.inactive).map((entry) => (
     <div
       key={screenKeyOf(entry)}
-      className="min-w-0 max-w-[24ch] truncate"
-      title={entry.title}
+      className="flex min-w-0 max-w-[24ch] items-center gap-1 truncate"
+      title={originTitleOf(entry)}
       data-status-cell={screenKeyOf(entry)}
     >
+      <span className="shrink-0 text-xs text-muted-foreground" data-status-origin={entry.extension}>
+        {entry.extension}
+      </span>
       <EntrySurface entry={entry} dense />
     </div>
   ));

@@ -1,3 +1,4 @@
+import { stripUnsafeText } from "@fresnel/client/views/app";
 import type { Placement } from "@fresnel/contracts/extensions";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
 import { appsAllowed } from "./policy-context.ts";
@@ -86,22 +87,43 @@ export function commandEntriesOf(
 }
 
 /**
+ * 확장이 낸 글 하나의 표시 이름: `<확장> · <제목>`. 제목은 방향 제어 글자와 제어 문자를 뺀다. 제목이 비면 화면 id를 쓴다.
+ * 확장 이름이 앞에 와서 셸의 행동 이름으로 읽히지 않는다(보고 2, 3)
+ */
+export function originTitleOf(entry: ExtUiEntry): string {
+  const title = stripUnsafeText(entry.title, false).trim();
+  return `${entry.extension} · ${title === "" ? entry.id : title}`;
+}
+
+/**
+ * 확장이 이 kind의 주인인가: 자기 `x.<이름>.` 접두이거나 내장 그룹의 `grp.<이름>.` 접두다. 호스트가 주인이 아닌 카드를 막지만,
+ * 여기서도 주인을 먼저 고른다(보고 1)
+ */
+function ownsKind(extension: string, kind: string): boolean {
+  return kind.startsWith(`x.${extension}.`) || kind.startsWith(`grp.${extension}.`);
+}
+
+/**
  * 레코드 종류(`kind`)에 맞는 `card` 항목 하나. `nativeEntriesOf`와 같은 조건(상태 `ok`, 선언형, 트리 있음, 꺼지지 않음)을 거친다.
- * 여럿이면 자리 목록의 앞 것이다(확장 이름, 화면 id 순). 기록 하나에 카드 하나만 그린다
+ * 여럿이면 kind의 주인인 확장의 카드를 앞에 두고, 그다음은 자리 목록의 앞 것이다(확장 이름, 화면 id 순). 기록 하나에 카드 하나만 그린다
  */
 export function cardOf(
   items: readonly PlacedEntry[],
   inactive: ReadonlySet<string>,
   kind: string,
 ): ExtUiEntry | undefined {
-  return nativeEntriesOf(items, inactive).find((entry) => entry.forKind === kind);
+  const matches = nativeEntriesOf(items, inactive).filter((entry) => entry.forKind === kind);
+  return matches.find((entry) => ownsKind(entry.extension, kind)) ?? matches[0];
 }
 
 /**
- * 카드 아래 출처 줄(DP-33). `forKind`가 `grp.<그룹>.`으로 시작하면 `grp:<그룹>`, 아니면 `ext:<확장>`이다.
+ * 카드 아래 출처 줄(DP-33). `forKind`가 `grp.<그룹>.`이고 그 그룹이 카드를 낸 확장 자신일 때만 `grp:<그룹>`이다.
+ * 그 밖은 실제 확장이므로 `ext:<확장>`이다(다른 확장이 그룹 kind에 건 카드가 그룹의 출처로 보이지 않게 한다).
  * 와이어 항목과 `forKind`만 보고 기록의 내용(payload)은 보지 않는다
  */
 export function provenanceOf(entry: ExtUiEntry): string {
   const group = /^grp\.([^.]+)\./.exec(entry.forKind ?? "")?.[1];
-  return group === undefined ? `ext:${entry.extension}` : `grp:${group}`;
+  return group !== undefined && group === entry.extension
+    ? `grp:${group}`
+    : `ext:${entry.extension}`;
 }

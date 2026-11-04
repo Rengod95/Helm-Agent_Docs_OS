@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { LEDGER_DISABLE_AFTER } from "@fresnel/client/views/ledger";
 import type { ExtListResult, ExtUiEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
@@ -28,6 +29,8 @@ async function render(input: {
   readonly selected: boolean;
   readonly plugins?: readonly ExtUiEntry[];
   readonly extensions?: ExtListResult["extensions"];
+  /** 장부가 이 화면 키들을 `view_disabled`로 끈 상태로 그린다(연속 실패 다섯 번) */
+  readonly disabledViews?: readonly string[];
 }): Promise<string> {
   const h = harness();
   if (input.live) {
@@ -53,6 +56,11 @@ async function render(input: {
   const engine: EngineMirror = h.store.read.getState();
   const shell = createShellStore(1400);
   const plugin = await loadedPluginUi(input.plugins ?? [], input.extensions);
+  for (const key of input.disabledViews ?? []) {
+    for (let count = 0; count < LEDGER_DISABLE_AFTER; count += 1) {
+      plugin.runtime.ledger.fail(key, "query_failed");
+    }
+  }
   return renderToString(
     <Providers engine={frozen(engine)} ui={frozen(uiState)} commands={fakeCommands()}>
       <PluginUiProvider value={plugin}>
@@ -128,6 +136,24 @@ describe("palette plugin group (server render)", () => {
     });
     expect(html).not.toContain("플러그인");
     expect(html).not.toContain("탐구 시작…");
+  });
+
+  test("a command whose view the ledger turned off is left out, and its sibling stays", async () => {
+    const other = uiEntryOf({ id: "other", placement: "command", title: "다른 명령" });
+    const html = await render({
+      live: true,
+      titles: [],
+      selected: true,
+      plugins: [START, other],
+      disabledViews: ["helm/helm-start"],
+    });
+    expect(html).not.toContain("탐구 시작…");
+    expect(html).toContain("helm · 다른 명령");
+  });
+
+  test("a plugin command's row names its extension before its title", async () => {
+    const html = await render({ live: true, titles: [], selected: true, plugins: [START] });
+    expect(html).toContain("helm · 탐구 시작…");
   });
 
   test("a command whose state is not ok is left out", async () => {

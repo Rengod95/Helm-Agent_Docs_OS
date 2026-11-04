@@ -117,18 +117,26 @@ describe("plugin command values and rows", () => {
     expect(decodeValue("plugin:helm/")).toBeNull();
   });
 
-  test("a row shows the entry title and its extension name, with the title as its label", () => {
+  test("a row's label starts with the extension name, then the title, and the description is the extension", () => {
     const rows = pluginCommandItemsOf([
       uiEntryOf({ id: "helm-start", placement: "command", title: "탐구 시작…" }),
     ]);
     expect(rows).toEqual([
       {
         value: "plugin:helm/helm-start",
-        label: "탐구 시작…",
+        label: "helm · 탐구 시작…",
         description: "helm",
         meta: null,
       },
     ]);
+  });
+
+  test("the title in a label loses its bidi and control characters, and an empty title shows the id", () => {
+    const rows = pluginCommandItemsOf([
+      uiEntryOf({ extension: "aaa", id: "go", placement: "command", title: "‮탐구\u0007 시작" }),
+      uiEntryOf({ extension: "aaa", id: "blank", placement: "command", title: "​" }),
+    ]);
+    expect(rows.map((row) => row.label)).toEqual(["aaa · 탐구 시작", "aaa · blank"]);
   });
 });
 

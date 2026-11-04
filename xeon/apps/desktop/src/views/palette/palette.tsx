@@ -24,13 +24,12 @@ import {
 } from "@fresnel/client/settings";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { commandEntriesOf } from "../../plugin-ui/placements.ts";
 import { useLinkPhase, useThreadSummaries } from "../../state/engine/index.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
 import { useCommands } from "../commands.ts";
 import { formatKey, resolveKeymap } from "../shell/keybindings.ts";
-import { usePluginUiState } from "../plugin/plugin-context.tsx";
+import { usePaletteCommandEntries } from "../plugin/command-run.ts";
 import {
   availableCommands,
   commandValue,
@@ -148,7 +147,8 @@ export function PaletteBody(props: PaletteProps): ReactNode {
   const live = useLinkPhase() === "live";
   const selected = useSelectedThreadId();
   const threads = useThreadSummaries();
-  const pluginState = usePluginUiState();
+  // 확장 명령은 꺼진 확장, 상태가 `ok`가 아닌 항목, 장부가 끈 화면의 것을 뺀다(보고 4)
+  const pluginCommands = usePaletteCommandEntries();
   const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<PaletteGroupId>>(() => new Set());
@@ -222,10 +222,8 @@ export function PaletteBody(props: PaletteProps): ReactNode {
       meta: spec === null ? null : formatKey(spec, props.mac),
     };
   });
-  // 확장 명령은 꺼진 확장과 상태가 `ok`가 아닌 항목을 뺀다. 열린 대화가 없으면 묶음이 보이지 않는다(`visibleGroupsOf`)
-  const pluginItems: PaletteItem[] = pluginCommandItemsOf(
-    commandEntriesOf(pluginState.groups.command, pluginState.inactive),
-  );
+  // 열린 대화가 없으면 묶음이 보이지 않는다(`visibleGroupsOf`)
+  const pluginItems: PaletteItem[] = pluginCommandItemsOf(pluginCommands);
   const slashItems: PaletteItem[] =
     slash.status === "ready"
       ? slash.value.map((row) => ({

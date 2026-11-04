@@ -62,6 +62,19 @@ describe("status cells in the status bar", () => {
     expect(html).toContain(t("desktop.plugin.state.loading"));
   });
 
+  test("each cell draws its extension name before the tree, and its tooltip loses bidi and control characters", async () => {
+    const html = await barOf({
+      threadOpen: true,
+      entries: [
+        uiEntryOf({ id: "bidi", placement: "status", title: "단‮계\u0007", tree: TEXT_TREE }),
+      ],
+    });
+    expect(html).toContain('data-status-origin="helm"');
+    expect(html).toContain('title="helm · 단계"');
+    expect(html).not.toContain("‮");
+    expect(html).not.toContain("\u0007");
+  });
+
   test("no cell is drawn without an open thread", async () => {
     const html = await barOf({ threadOpen: false, entries: [PHASE] });
     expect(cellsOf(html)).toEqual([]);

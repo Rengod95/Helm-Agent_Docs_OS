@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { ok } from "@fresnel/contracts";
 import type { ExtUiEntry, HostConnection } from "@fresnel/contracts/wire";
+import { LEDGER_DISABLE_AFTER } from "@fresnel/client/views/ledger";
 import { createPluginUiRuntime, type PluginUiRuntime } from "../../../src/plugin-ui/runtime.ts";
 import { createConfirmQueue, type ConfirmQueue } from "../../../src/views/plugin/confirm-host.tsx";
 import { createEntryCommandRunner } from "../../../src/views/plugin/command-run.ts";
@@ -76,7 +77,7 @@ async function runnerOf(connection: ReturnType<typeof connectionOf>, queue: Conf
     clock: { now: () => 0 },
     scheduler: { setTimeout: () => 0, clearTimeout: () => {} },
   });
-  return { runner, context: built.value };
+  return { runner, context: built.value, runtime };
 }
 
 describe("a palette command waits for the confirm line", () => {
@@ -125,6 +126,19 @@ describe("a palette command waits for the confirm line", () => {
     const { runner, context } = await runnerOf(connection, queue);
 
     await runner.run(OPEN_THREAD, context, "someone-else");
+    expect(queue.current()).toBeUndefined();
+    expect(commandCallsOf(connection)).toEqual([]);
+  });
+
+  test("a command whose view the ledger turned off neither asks nor sends", async () => {
+    const connection = connectionOf();
+    const queue = createConfirmQueue();
+    const { runner, context, runtime } = await runnerOf(connection, queue);
+    for (let count = 0; count < LEDGER_DISABLE_AFTER; count += 1) {
+      runtime.ledger.fail("helm/helm-start", "query_failed");
+    }
+
+    await runner.run(OPEN_THREAD, context, "helm-start");
     expect(queue.current()).toBeUndefined();
     expect(commandCallsOf(connection)).toEqual([]);
   });
