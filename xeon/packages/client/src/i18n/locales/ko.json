@@ -2018,7 +2018,7 @@
   "desktop.workbench.remove.storage.rows": "{count}행",
   "desktop.workbench.remove.storage.total": "합계 {count}행",
   "desktop.workbench.remove.storage.drop": "저장된 데이터도 지우기",
-  "desktop.workbench.remove.storage.warning": "지운 저장 데이터는 되돌릴 수 없어요. 대화 기록은 남아요.",
+  "desktop.workbench.remove.storage.warning": "표에 저장된 데이터는 지워지고 되돌릴 수 없어요. 대화 기록의 원본 이벤트는 남아요. 다시 설치해도 지운 데이터는 돌아오지 않아요.",
   "desktop.workbench.bindings.title": "기능 연결",
   "desktop.workbench.bindings.show": "전체 보기 ({count})",
   "desktop.workbench.bindings.hide": "접기",

@@ -119,7 +119,7 @@ describe("지우기 상자 본문", () => {
     const out = bodyHtml({ preview: { kind: "ready", tables: TABLES }, checked: true });
     expect(out).toContain('aria-checked="true"');
     expect(out).toContain(WARNING);
-    expect(out).toContain("대화 기록은 남아요");
+    expect(out).toContain("대화 기록의 원본 이벤트는 남아요");
   });
 
   test("저장 테이블이 비었으면 확인된 데이터가 없다는 한 줄만 있고 칸은 없다", () => {

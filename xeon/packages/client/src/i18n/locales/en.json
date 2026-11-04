@@ -2018,7 +2018,7 @@
   "desktop.workbench.remove.storage.rows": "{count} rows",
   "desktop.workbench.remove.storage.total": "{count} rows in total",
   "desktop.workbench.remove.storage.drop": "Also delete stored data",
-  "desktop.workbench.remove.storage.warning": "Deleted stored data can't be restored. Conversation history stays.",
+  "desktop.workbench.remove.storage.warning": "Stored table data is deleted and can't be restored. The original events in conversation history are kept. Reinstalling won't bring the deleted data back.",
   "desktop.workbench.bindings.title": "Capability links",
   "desktop.workbench.bindings.show": "Show all ({count})",
   "desktop.workbench.bindings.hide": "Hide",
