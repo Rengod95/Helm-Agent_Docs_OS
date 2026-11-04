@@ -2,7 +2,7 @@ import { watch, type FSWatcher } from "node:fs";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { attemptAsync, detach, err, ok, type Logger } from "@fresnel/contracts";
+import { attemptAsync, err, ok, type Logger } from "@fresnel/contracts";
 import type { FileChange, WatchError } from "@fresnel/contracts/services";
 import type { WatchBackend } from "./watcher.ts";
 
@@ -55,11 +55,18 @@ export function createRawClassifier(deps: {
     }
     deps.onRaw([change]);
   };
+  // 앞 이벤트가 끝난 뒤 분류한다. 한 이벤트가 실패해도 뒤 이벤트는 이어서 분류한다. 실패는 onFailure로 넘기므로 거부되지 않는다
+  const classifyAfter = async (
+    previous: Promise<void>,
+    eventType: string,
+    path: string,
+  ): Promise<void> => {
+    await previous;
+    const done = await attemptAsync(() => classify(eventType, path));
+    if (!done.ok) deps.onFailure(done.error.cause);
+  };
   return (eventType, path) => {
-    const step = queue.then(() => classify(eventType, path));
-    // 한 이벤트가 실패해도 뒤 이벤트는 기다리지 않고 이어서 분류한다
-    queue = step.catch(() => undefined);
-    detach(step, deps.onFailure);
+    queue = classifyAfter(queue, eventType, path);
   };
 }
 
