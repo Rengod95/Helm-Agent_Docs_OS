@@ -294,6 +294,10 @@ export function createDialogAreaPort(deps: M4PortDeps): DialogAreaPort {
         if (isCapabilityError(cause) && cause.data.code === "not_found") {
           return err({ kind: "unknown", path: "name", id: name });
         }
+        // 스킬 설정(`l2.knowledge.skills.enabled`)이 꺼져 있으면 기능이 없는 것과 같은 답이다(-32601). 내부 오류로 내지 않는다
+        if (isCapabilityError(cause) && cause.data.code === "unavailable") {
+          return err({ kind: "unavailable" });
+        }
         return err(rejectedOf(cause));
       }
       return ok(skillViewResultOf(viewed.value));

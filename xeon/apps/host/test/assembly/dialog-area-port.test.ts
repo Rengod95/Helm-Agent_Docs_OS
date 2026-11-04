@@ -937,7 +937,7 @@ describe("skillView", () => {
     });
   });
 
-  test("any other capability rejection is a rejected failure with the capability's code and message", async () => {
+  test("a skills setting that is turned off answers unavailable, the same as a missing capability", async () => {
     const port = portFor({
       skills: {
         view: () =>
@@ -954,7 +954,28 @@ describe("skillView", () => {
     });
     expect(await port.skillView("deploy", THREAD, signal)).toEqual({
       ok: false,
-      error: { kind: "rejected", code: "unavailable", message: "skills are turned off" },
+      error: { kind: "unavailable" },
+    });
+  });
+
+  test("any other capability rejection is a rejected failure with the capability's code and message", async () => {
+    const port = portFor({
+      skills: {
+        view: () =>
+          Promise.reject(
+            new CapabilityError({
+              capability: "knowledge.skills",
+              method: "view",
+              code: "timeout",
+              message: "view timed out",
+              retryable: true,
+            }),
+          ),
+      },
+    });
+    expect(await port.skillView("deploy", THREAD, signal)).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: "timeout", message: "view timed out" },
     });
   });
 });

@@ -376,7 +376,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | goal | `goal.status` | `{ threadId: string }` | `{ goal: GoalView \| null }` | M4 (W-05) |
 | work | `work.tasks.list` | `{ threadId: string }` | `{ tasks: TaskView[] }` | M4 (W-06) |
 | work | `work.plans.versions` | `{ threadId: string, planId: string }` | `{ versions: PlanVersion[] }`. 계획 id의 꼴이 맞지 않거나 그 계획이 없으면 `jsonrpc.invalidParams`(path `planId`)다. 기능이 없으면 빈 목록이다 | M4 (W-18) |
-| knowledge | `knowledge.skills.view` | `{ name: string(1..128), threadId?: string }` | `{ name, scope: "user"\|"project"\|"extension"\|"path", description, body: string, bodyTruncated: boolean, files: string[], treeHash: string }`. 본문은 앞 20000자까지다(넘으면 `bodyTruncated`가 참). 없는 스킬이면 `jsonrpc.invalidParams`(path `name`), 기능이 없으면 `jsonrpc.methodNotFound`다 | M4 (W-14) |
+| knowledge | `knowledge.skills.view` | `{ name: string(1..128), threadId?: string }` | `{ name, scope: "user"\|"project"\|"extension"\|"path", description, body: string, bodyTruncated: boolean, files: string[], treeHash: string }`. 본문은 앞 20000자까지다(넘으면 `bodyTruncated`가 참). 없는 스킬이면 `jsonrpc.invalidParams`(path `name`), 기능이 없거나 스킬 설정이 꺼져 있으면 `jsonrpc.methodNotFound`다 | M4 (W-14) |
 | schedule | `schedule.update` | `{ scheduleId: string, enabled?: boolean, title?: string, prompt?: string }` | `{ scheduleId, enabled, nextRunAt: IsoTime \| null }` | M4 (W-07) |
 | schedule | `schedule.runs` | `{ scheduleId: string, limit?: integer(1..200) }` | `{ runs: ScheduleRunRecord[] }` | M4 (W-07) |
 | profile | `profile.list` | `{}` | `{ profiles: Profile[], rev: integer }` | M4 (W-46) |
