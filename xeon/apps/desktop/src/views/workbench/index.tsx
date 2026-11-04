@@ -12,6 +12,7 @@ import type { EndTabDef, ShellRegistry, TabBadge } from "../shell/registry.ts";
 import { InspectTab } from "./inspect-tab.tsx";
 import { MetricsScreen } from "../measure/metrics-screen.tsx";
 import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
+import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
@@ -88,7 +89,7 @@ function ListKeeper(): ReactNode {
 }
 
 /**
- * 오른쪽 "플러그인" 탭 안. 맨 위에 알림이 있는 확장마다 `AutoOffNotice`(질문과 두 답)를 두고, 그 아래는 `PluginPagesTab`이다.
+ * 오른쪽 "플러그인" 탭 안. 맨 위에 알림이 있는 확장마다 `AutoOffNotice`(질문과 두 답)를 두고, 그 아래에 이 대화의 프로필, 그 아래는 `PluginPagesTab`이다.
  * 알림은 이 탭만 쓰므로 `PluginPagesTab`(플러그인 화면도 쓴다) 안에 넣지 않는다.
  */
 function PluginPagesEndTab(): ReactNode {
@@ -112,19 +113,20 @@ function PluginPagesEndTab(): ReactNode {
           />
         ))}
       </div>
+      <ThreadProfile />
       <PluginPagesTab />
     </>
   );
 }
 
 /**
- * 오른쪽 "플러그인" 탭(`plugin-pages`, 대화·작업대 둘 다). 칸의 숫자는 알림 수이고, 탭 안 맨 위에 알림을 둔다.
+ * 오른쪽 "플러그인" 탭(`plugin-pages`, 대화 영역만: 이 대화에서 끄기와 이 대화의 프로필이 있다). 칸의 숫자는 알림 수이고, 탭 안 맨 위에 알림을 둔다.
  * `desktop-registry.tsx`가 등록한다. 워크벤치 스토어를 받아 같은 목록을 읽는다.
  */
 export function pluginPagesEndTab(store: WorkbenchStore): EndTabDef {
   return {
     id: "plugin-pages",
-    area: "both",
+    area: "chat",
     label: "desktop.plugin.tab.pages",
     icon: <Plug />,
     badge: noticeBadgeOf(store),

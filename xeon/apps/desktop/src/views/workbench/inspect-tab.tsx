@@ -1,9 +1,9 @@
 // 검사 탭(LightCraft 오른쪽 "검사", spec §6.22.4). 캔버스나 목록에서 고른 확장 하나를 읽는다. 고른 것이 없으면 빈 상태다.
 // 구역: 머리(이름, 층·종류·등급·버전·상태, 켜기·끄기, 다시 켜기, 확장 상세), 훅(예산과 p95), 주도 락(그룹이고 drive를 쓸 때),
-// 기능, 설정 바인딩(`settings.explain`, 읽기만), 구성(그룹만), 최근 실패, 이 대화의 프로필(프로필 하나를 이 대화에 적용).
-// 이 대화에서 끄기 스위치는 대화 영역 "플러그인" 탭(`views/plugin/thread-switches.tsx`)에 있다.
+// 기능, 설정 바인딩(`settings.explain`, 읽기만), 구성(그룹만), 최근 실패.
+// 이 대화에서 끄기 스위치(`views/plugin/thread-switches.tsx`)와 이 대화의 프로필(`thread-profile.tsx`)은 대화 영역 "플러그인" 탭에 있다.
 // 값은 `packages/client/src/workbench/inspect.ts`가 만든다.
-// 데이터: `ext.get`, `ext.timings`, `group.list`·`group.driveLock`(대화가 열렸을 때), `profile.list`, 엔진 거울의 실패 기록과 장부(`health`).
+// 데이터: `ext.get`, `ext.timings`, `group.list`·`group.driveLock`(대화가 열렸을 때), 엔진 거울의 실패 기록과 장부(`health`).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   failureRowsOf,
@@ -33,23 +33,8 @@ import type {
   ExtListEntry,
   GroupDriveLockResult,
   GroupStatusWire,
-  Profile,
 } from "@fresnel/contracts/wire";
-import {
-  Alert,
-  Badge,
-  Button,
-  Dialog,
-  DialogAction,
-  DialogClose,
-  EmptyState,
-  Field,
-  Meter,
-  Select,
-  SelectOption,
-  Skeleton,
-  StatusDot,
-} from "@caustic/react";
+import { Alert, Badge, Button, EmptyState, Meter, Skeleton, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
@@ -83,8 +68,6 @@ export interface InspectData {
   readonly timings: Load<ExtTimingsResult>;
   readonly drive: Load<DriveData>;
   readonly settings: Load<readonly InspectSettingVM[]>;
-  /** 저장된 프로필 목록. 대화와 상관없이 읽는다 */
-  readonly profiles: Load<readonly Profile[]>;
 }
 
 const INSPECT_LOADING: InspectData = {
@@ -92,7 +75,6 @@ const INSPECT_LOADING: InspectData = {
   timings: LOADING,
   drive: LOADING,
   settings: LOADING,
-  profiles: LOADING,
 };
 
 /** 주도 락 구역의 읽기. 대화가 없으면 읽을 것이 없다 */
@@ -136,41 +118,30 @@ async function loadSettings(
     : ERROR;
 }
 
-async function loadProfiles(workbench: WorkbenchCommands): Promise<Load<readonly Profile[]>> {
-  const got = await workbench.profiles();
-  return got.ok ? { kind: "ready", value: got.value } : ERROR;
-}
-
 /** 확장 하나의 검사 값 전부를 읽는다. 읽기들은 서로 기다리지 않는다(설정은 확장 읽기 뒤다) */
 async function loadInspect(
   workbench: WorkbenchCommands,
   name: string,
   threadId: ThreadId | null,
 ): Promise<InspectData> {
-  const [got, measured, drive, profiles] = await Promise.all([
+  const [got, measured, drive] = await Promise.all([
     workbench.get(name),
     workbench.timings(name, threadId ?? undefined),
     loadDrive(workbench, threadId),
-    loadProfiles(workbench),
   ]);
   const detail: Load<ExtGetResult> = got.ok ? { kind: "ready", value: got.value } : ERROR;
   const timings: Load<ExtTimingsResult> = measured.ok
     ? { kind: "ready", value: measured.value }
     : ERROR;
   const settings = await loadSettings(workbench, threadId, detail);
-  return { detail, timings, drive, settings, profiles };
+  return { detail, timings, drive, settings };
 }
 
 /**
  * 고른 확장의 검사 값을 읽는다. 확장을 바꾸거나 대화를 바꾸면 다시 읽고, 확장 목록 알림마다 다시 읽는다.
  * 읽은 값은 확장과 대화의 키와 함께 둔다. 키가 다르면 읽는 중으로 본다. 연결이 없으면 읽지 않는다.
- * `reload`는 쓰기가 끝난 뒤 바로 다시 읽을 때 쓴다(알림을 기다리지 않는다).
  */
-function useInspectData(
-  name: string,
-  threadId: ThreadId | null,
-  live: boolean,
-): { readonly data: InspectData; readonly reload: () => void } {
+function useInspectData(name: string, threadId: ThreadId | null, live: boolean): InspectData {
   const commands = useCommands();
   const [loaded, setLoaded] = useState<{ readonly key: string; readonly data: InspectData } | null>(
     null,
@@ -189,13 +160,7 @@ function useInspectData(
     detach(load(), rethrow);
     return reloadOnExtChanges(commands.workbench, load);
   }, [commands, live, load]);
-  const reload = useCallback(() => {
-    detach(load(), rethrow);
-  }, [load]);
-  return {
-    data: loaded !== null && loaded.key === key ? loaded.data : INSPECT_LOADING,
-    reload,
-  };
+  return loaded !== null && loaded.key === key ? loaded.data : INSPECT_LOADING;
 }
 
 function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
@@ -485,120 +450,9 @@ function FailuresSection(props: {
   );
 }
 
-/** 확인 대화 상자 하나. 취소는 닫기이고 실행 단추는 `onConfirm`을 부른다 */
-function ConfirmDialog(props: {
-  readonly open: boolean;
-  readonly heading: string;
-  readonly body: string;
-  readonly action: string;
-  readonly onCancel: () => void;
-  readonly onConfirm: () => void;
-}): ReactNode {
-  return (
-    <Dialog
-      kind="alert"
-      open={props.open}
-      onOpenChange={(open) => {
-        if (!open) props.onCancel();
-      }}
-      title={props.heading}
-      description={props.body}
-      footer={
-        <>
-          <DialogClose asChild>
-            <Button variant="outline" size="sm" autoFocus>
-              {t("desktop.workbench.cancel")}
-            </Button>
-          </DialogClose>
-          <DialogAction onClick={props.onConfirm}>{props.action}</DialogAction>
-        </>
-      }
-    />
-  );
-}
-
-/**
- * 이 대화의 프로필 구역: 저장된 프로필을 고르고 "적용"을 확인한 뒤 이 대화에 쓴다.
- * 대화가 없으면 고르기와 적용이 잠기고, 목록을 못 읽으면 오류 한 줄이다.
- */
-function ProfileSection(props: {
-  readonly profiles: Load<readonly Profile[]>;
-  readonly threadOpen: boolean;
-  readonly onApply: (id: string) => void;
-}): ReactNode {
-  const { profiles } = props;
-  const title = t("desktop.inspect.profile.title");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
-  if (profiles.kind !== "ready") {
-    return (
-      <Section title={title}>
-        {profiles.kind === "error" ? (
-          <Alert tone="danger">{t("desktop.inspect.profile.loadFailed")}</Alert>
-        ) : (
-          <Skeleton height={24} />
-        )}
-      </Section>
-    );
-  }
-  const chosen = profiles.value.find((profile) => profile.id === selected);
-  return (
-    <Section title={title}>
-      {profiles.value.length === 0 ? (
-        <p className={MUTED}>{t("desktop.inspect.profile.empty")}</p>
-      ) : (
-        <Field label={t("desktop.inspect.profile.select")}>
-          <Select
-            value={selected ?? ""}
-            placeholder={t("desktop.inspect.profile.pick")}
-            disabled={!props.threadOpen}
-            onValueChange={setSelected}
-          >
-            {profiles.value.map((profile) => (
-              <SelectOption key={profile.id} value={profile.id}>
-                {profile.title}
-              </SelectOption>
-            ))}
-          </Select>
-        </Field>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={!props.threadOpen || chosen === undefined}
-          onClick={() => {
-            setAsking(true);
-          }}
-        >
-          {t("desktop.inspect.profile.apply")}
-        </Button>
-      </div>
-      {!props.threadOpen && <p className={MUTED}>{t("desktop.inspect.profile.noThread")}</p>}
-      <ConfirmDialog
-        open={asking && chosen !== undefined}
-        heading={t("desktop.inspect.profile.confirm.heading")}
-        body={
-          chosen === undefined
-            ? ""
-            : t("desktop.inspect.profile.confirm.body", { title: chosen.title })
-        }
-        action={t("desktop.inspect.profile.apply")}
-        onCancel={() => {
-          setAsking(false);
-        }}
-        onConfirm={() => {
-          setAsking(false);
-          if (chosen !== undefined) props.onApply(chosen.id);
-        }}
-      />
-    </Section>
-  );
-}
-
 /**
  * 검사 탭 그림. 값과 연결 상태, 장부, 실패 기록을 받아 그린다(시험은 값을 넣어 그린다).
- * `onToggle`, `onReenable`, `onDetail`, `onApplyProfile`은 호출자가 잇는다.
+ * `onToggle`, `onReenable`, `onDetail`은 호출자가 잇는다.
  */
 export function InspectBody(props: {
   readonly entry: ExtListEntry;
@@ -607,10 +461,7 @@ export function InspectBody(props: {
   readonly data: InspectData;
   readonly health: readonly ExtHealthEntry[];
   readonly records: readonly HandlerFailureEntry[];
-  /** 열린 대화가 있나. 없으면 프로필 적용이 잠긴다 */
-  readonly threadOpen: boolean;
   readonly onToggle: (target: boolean) => void;
-  readonly onApplyProfile: (id: string) => void;
   readonly onReenable: () => void;
   readonly onDetail: () => void;
 }): ReactNode {
@@ -669,11 +520,6 @@ export function InspectBody(props: {
           <Section title={t("desktop.inspect.failures.title")}>
             <FailuresSection name={entry.name} health={props.health} records={props.records} />
           </Section>
-          <ProfileSection
-            profiles={data.profiles}
-            threadOpen={props.threadOpen}
-            onApply={props.onApplyProfile}
-          />
         </>
       )}
     </div>
@@ -700,8 +546,7 @@ function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
   const { entry } = props;
   const threadId = useOpenThreadId();
   const link = linkOf(useLinkPhase());
-  const inspect = useInspectData(entry.name, threadId, link === "live");
-  const { data } = inspect;
+  const data = useInspectData(entry.name, threadId, link === "live");
   const controller = useWorkbenchController();
   const toggle = useToggleRequest(controller);
   const actions = useWorkbenchActions();
@@ -709,11 +554,6 @@ function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
   const healthRecords = useWorkbench((s) => s.health);
   const records = useHandlerFailures();
   const health = Object.values(healthRecords).filter((h) => h.name === entry.name);
-  const applyProfile = async (id: string): Promise<void> => {
-    if (threadId === null) return;
-    const done = await controller.applyProfile(id, threadId);
-    if (done) inspect.reload();
-  };
   return (
     <>
       <InspectBody
@@ -723,12 +563,8 @@ function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
         data={data}
         health={health}
         records={records}
-        threadOpen={threadId !== null}
         onToggle={(target) => {
           toggle.request(entry.name, target);
-        }}
-        onApplyProfile={(id) => {
-          detachVoid(applyProfile(id));
         }}
         onReenable={() => {
           detachVoid(controller.reenable(entry.name));
