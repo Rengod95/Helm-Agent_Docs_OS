@@ -277,7 +277,7 @@ test("devkit port: replacing a running extension applies at the next step bounda
   });
   expect(await running.install({ source: packed.path })).toMatchObject({
     ok: true,
-    value: { appliesAt: "nextStepBoundary" },
+    value: { appliesAt: "nextStepBoundary", needsReload: true },
   });
   const loadedNames: string[] = [];
   const fresh = withLoader({
@@ -300,10 +300,9 @@ test("devkit port: replacing a running extension applies at the next step bounda
         ok({ appliesAt: "nextStepBoundary", info: partial<LoadedExtensionInfo>({ name }) }),
       ),
   });
-  expect(await deferred.install({ source: packed.path })).toMatchObject({
-    ok: true,
-    value: { appliesAt: "nextStepBoundary" },
-  });
+  const waiting = await deferred.install({ source: packed.path });
+  expect(waiting).toMatchObject({ ok: true, value: { appliesAt: "nextStepBoundary" } });
+  expect(waiting.ok && waiting.value.needsReload).toBeUndefined();
   const refusedLoad = withLoader({
     list: () => [],
     loadInstalled: () =>

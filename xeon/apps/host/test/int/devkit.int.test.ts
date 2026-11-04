@@ -171,7 +171,7 @@ realTest(
       });
       expect(reinstalled.version).toBe("0.2.0");
       // 같은 이름이 돌고 있으니 호출자가 ext.reload로 바꾼다
-      expect(reinstalled.appliesAt).toBe("nextStepBoundary");
+      expect(reinstalled).toMatchObject({ appliesAt: "nextStepBoundary", needsReload: true });
       const versions = await session.connection.request("ext.versions", { name: NAME });
       expect(versions.versions.map((entry) => `${entry.version}:${entry.source}`)).toContain(
         "0.1.0:authored",

@@ -160,7 +160,7 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       }
       const current = loader.list().find((info) => info.name === name);
       if (current?.state === "active") {
-        return ok({ ...placed, appliesAt: "nextStepBoundary" });
+        return ok({ ...placed, appliesAt: "nextStepBoundary", needsReload: true });
       }
       // 실려 있지 못한 옛 기록(거부, 오류, 꺼짐)은 새 설치본으로 다시 싣는다
       if (current !== undefined) await loader.unload(name);
@@ -169,7 +169,7 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       const failure = loaded.error;
       switch (failure.kind) {
         case "already_loaded":
-          return ok({ ...placed, appliesAt: "nextStepBoundary" });
+          return ok({ ...placed, appliesAt: "nextStepBoundary", needsReload: true });
         case "safe_mode":
           return ok(notLoaded(placed, "safe_mode", []));
         case "not_found":
