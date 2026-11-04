@@ -11,7 +11,7 @@ import { auditModeIdOf, auditReasonIdOf, commandErrorText, lastUsedTextOf } from
 // 행 사이에 선을 긋지 않고 간격으로 나눈다(DP-26). 기록 개수 상한은 없으므로 처음 PAGE_SIZE개만 그리고 "더 보기"로 늘린다.
 
 /** 한 번에 그리는 행 수 */
-export const AUDIT_PAGE_SIZE = 50;
+const AUDIT_PAGE_SIZE = 50;
 
 /** 행의 key. 같은 시각·같은 내용의 행이 있으면 뒤에 몇 번째인지를 붙인다 */
 function keysOf(entries: readonly SecretAuditEntry[]): string[] {

@@ -906,7 +906,7 @@
   "desktop.secrets.audit.reason.leaseExhausted": "Use count reached",
   "desktop.secrets.audit.reason.modeNotAllowed": "Method not allowed",
   "desktop.secrets.audit.reason.toolNotAllowed": "Tool not allowed",
-  "desktop.secrets.audit.reason.scopeMismatch": "Scope does not match",
+  "desktop.secrets.audit.reason.scopeMismatch": "Not allowed in this context",
   "desktop.secrets.test.button": "Test",
   "desktop.secrets.test.label": "Test result",
   "desktop.secrets.test.running": "Testing…",

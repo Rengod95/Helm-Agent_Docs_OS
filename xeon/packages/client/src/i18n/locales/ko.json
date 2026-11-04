@@ -906,7 +906,7 @@
   "desktop.secrets.audit.reason.leaseExhausted": "사용 횟수를 다 썼어요",
   "desktop.secrets.audit.reason.modeNotAllowed": "허용하지 않은 방식",
   "desktop.secrets.audit.reason.toolNotAllowed": "허용하지 않은 도구",
-  "desktop.secrets.audit.reason.scopeMismatch": "범위가 맞지 않아요",
+  "desktop.secrets.audit.reason.scopeMismatch": "이 자리에서는 쓸 수 없어요",
   "desktop.secrets.test.button": "시험",
   "desktop.secrets.test.label": "시험 결과",
   "desktop.secrets.test.running": "시험하는 중이에요.",
