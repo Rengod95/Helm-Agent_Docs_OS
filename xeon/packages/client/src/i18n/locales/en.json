@@ -3094,5 +3094,6 @@
   "desktop.install.fail.denied": "This plugin cannot be installed.",
   "desktop.install.fail.offline": "Not connected to the engine.",
   "desktop.install.fail.unsupported": "This engine does not support installing from the app.",
+  "desktop.install.fail.reload": "Installed, but the running version could not be replaced. It applies after the app restarts.",
   "desktop.install.fail.other": "Installation failed. Try again in a moment."
 }

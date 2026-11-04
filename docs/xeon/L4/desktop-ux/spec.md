@@ -3176,10 +3176,10 @@ export const palette = [
 
 - W-32 앱 안 설치 화면 [결정: 2026-11-04 사용자, Q9 A]. 자리는 확장 목록(P-13) 머리의 "플러그인 가져오기" 단추가 여는 대화 상자(`views/workbench/install-dialog.tsx`, 순수 부분 `install-model.ts`)다. 부품은 caustic `Dialog`, `Input`, `Alert`, `Button`이고 정보 설명은 `InfoTip`(DP-58)이다.
   - 흐름: 출처 입력 → 확인하기(`ext.installPreview`, 디스크에 쓰지 않음) → 권한 확인(이름, 버전, 출처, 바꿀 설치본 버전, 요청 권한, 들어 있는 것) → "허용하고 설치"(`ext.install`에 미리 보기의 `sha256`을 돌려줌) → 결과. 확인 화면에서 "뒤로"는 출처 입력으로 돌아간다.
-  - 출처는 이 컴퓨터의 묶은 폴더 경로(절대 경로 글 입력)만 받는다. URL, 마켓플레이스, 원격 카탈로그, 자동 업데이트는 범위 밖이다. [제안] 폴더 고르기 창은 이번에 잇지 않았다(입력란만).
+  - 출처는 이 컴퓨터의 묶은 폴더 경로(절대 경로 글 입력)만 받는다. URL, 마켓플레이스, 원격 카탈로그, 자동 업데이트는 범위 밖이다. 경로 칸 옆의 "폴더 고르기…" 단추가 셸 `pick_folder`를 불러 고른 경로를 칸에 넣는다(복원 화면과 같은 `pickWorkspaceFolder`, 문맥 `FolderPickContext`로 받는다). 취소는 칸을 그대로 두고, 창을 못 열면 한 줄로 알린다. 셸이 없으면(웹) 단추가 없고 붙여넣기 칸만 남는다.
   - 위험 경고는 평소 보이는 `Alert`다: 명령 실행(`workspace.shell`), 인터넷(`web.*`, `mcp.*`), 프로젝트 파일(`workspace.files`, `workspace.images`), 기본 도구 바꾸기(`replaces`), 신뢰할 수 없는 등급 요청, 검사 경고. 요청한 것이 없으면 "추가로 요청하는 권한이 없어요" 한 줄이다. 섹션 설명(권한이 무엇인지, 훅이 무엇인지)과 출처 설명은 정보 아이콘 뒤에 둔다.
   - 실패 문구는 갈래마다 하나다: 안전 모드(`extension.safeModeActive`), 관리자 잠금(`managed_locked`), 확인 뒤 내용 바뀜(`source_changed`, 확인 화면에 남아 "뒤로"로 다시 확인), 설치할 수 없는 폴더(`invalid_input`), 폴더 없음(`not_found`), 거부(`denied`), 연결 없음, 엔진 미지원, 그 밖. 입력 거절의 `<종류>: ` 머리를 `errorOf`가 `issue`로 남기고 화면이 가른다.
-  - 결과 문구는 `appliesAt`을 따른다: `restart`이면 "앱을 다시 시작하면 목록에 나타나요"(로더에 새 이름을 싣는 길이 없다 [근거: `packages/ext-host/src/loading-trust/index.ts` `ExtensionLoader`]), 아니면 "다음 단계부터 적용돼요". 설치 뒤 확장 목록을 다시 읽는다.
+  - 결과 문구는 `appliesAt`을 따른다: `restart`이면 "앱을 다시 시작하면 목록에 나타나요"(로더에 새 이름을 싣는 길이 없다 [근거: `packages/ext-host/src/loading-trust/index.ts` `ExtensionLoader`]), 아니면 "다음 단계부터 적용돼요". 결과가 `nextStepBoundary`(같은 이름이 이미 돌고 있다)일 때만 설치 성공 뒤 데스크톱이 `ext.reload { name }`을 불러 실행 중인 판을 바꾼다(`applyInstalled`). `reload`가 거절되면 "설치했지만 지금 돌고 있는 판을 바꾸지 못했어요" 경고를 보인다. 설치 뒤 확장 목록을 다시 읽는다. 새 이름을 재시작 없이 불러오는 일은 사용자 결정 대기다.
 
 ### 10.2 view-model 간극
 

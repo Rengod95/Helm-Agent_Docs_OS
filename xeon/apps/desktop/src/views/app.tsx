@@ -25,6 +25,7 @@ import { usePluginCommandRunner } from "./plugin/command-run.ts";
 import { PluginUiHost } from "./plugin/plugin-tabs.tsx";
 import { StatusBar } from "./status-bar.tsx";
 import type { FolderPickInvoke } from "./folder-pick.ts";
+import { FolderPickContext } from "./folder-pick-context.ts";
 import { ThreadList } from "./thread-list.tsx";
 
 export interface AppProps {
@@ -230,7 +231,7 @@ export function App(props: AppProps): ReactNode {
     }
   };
   return (
-    <>
+    <FolderPickContext value={props.folderPick ?? null}>
       <Shell
         palette={<Palette mac={props.mac} keyOverrides={props.keyOverrides} onRun={runPalette} />}
         onAction={onAction}
@@ -256,6 +257,6 @@ export function App(props: AppProps): ReactNode {
         keymap={keymap}
         mac={props.mac}
       />
-    </>
+    </FolderPickContext>
   );
 }

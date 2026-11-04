@@ -3094,5 +3094,6 @@
   "desktop.install.fail.denied": "이 플러그인은 설치할 수 없어요.",
   "desktop.install.fail.offline": "엔진에 연결되어 있지 않아요.",
   "desktop.install.fail.unsupported": "이 엔진은 앱 안 설치를 지원하지 않아요.",
+  "desktop.install.fail.reload": "설치했지만 지금 돌고 있는 판을 바꾸지 못했어요. 앱을 다시 시작하면 적용돼요.",
   "desktop.install.fail.other": "설치하지 못했어요. 잠시 뒤에 다시 시도해 주세요."
 }

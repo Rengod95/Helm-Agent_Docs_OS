@@ -430,6 +430,8 @@ export interface WorkbenchCommands {
   installPreview(source: string): Promise<Result<InstallPreview, CommandError>>;
   /** `ext.install`: 미리 보기에서 본 해시(`sha256`)와 같은 내용일 때만 설치한다 */
   install(source: string, sha256: string): Promise<Result<ExtInstallResult, CommandError>>;
+  /** `ext.reload { name }`: 설치한 판으로 실행 중인 확장을 다음 단계 경계에서 바꾼다. 거절이면 옛 판이 그대로 돈다 */
+  reload(name: string): Promise<Result<null, CommandError>>;
   /** `ext.get`: 매니페스트 훅·기능 바인딩·진단 */
   get(name: string): Promise<Result<ExtGetResult, CommandError>>;
   /** `group.list { threadId }`: 그룹마다 켜짐 요청 중인지(`pendingToggle`)와 drive 역할(`drive`) */

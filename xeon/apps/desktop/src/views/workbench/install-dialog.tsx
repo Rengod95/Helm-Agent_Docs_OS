@@ -2,12 +2,16 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import { Alert, Button, Dialog, Input } from "@caustic/react";
-import { useReducer, type ReactNode } from "react";
+import { useReducer, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
+import { pickWorkspaceFolder, type FolderPickInvoke } from "../folder-pick.ts";
+import { useFolderPick } from "../folder-pick-context.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import {
+  applyInstalled,
   INITIAL_INSTALL_FLOW,
   installFailureOf,
+  pickOutcomeOf,
   installReduce,
   warningsOf,
   type InstallFailure,
@@ -57,6 +61,20 @@ export function InstallDialog(props: {
 }): ReactNode {
   const commands = useCommands();
   const [flow, dispatch] = useReducer(installReduce, INITIAL_INSTALL_FLOW);
+  const folderPick = useFolderPick();
+  const [pickError, setPickError] = useState<string | null>(null);
+
+  // 취소는 입력란을 그대로 둔다. 창을 못 연 실패도 입력란은 그대로 두고 한 줄로만 알린다
+  const pick = async (invoke: FolderPickInvoke): Promise<void> => {
+    const outcome = pickOutcomeOf(await pickWorkspaceFolder(invoke));
+    if (outcome.kind === "failed") {
+      setPickError(t("desktop.workspace.pickFailed"));
+      return;
+    }
+    if (outcome.kind === "keep") return;
+    setPickError(null);
+    dispatch({ type: "source", source: outcome.source });
+  };
 
   const preview = async (source: string): Promise<void> => {
     dispatch({ type: "previewStart" });
@@ -71,7 +89,11 @@ export function InstallDialog(props: {
     dispatch({ type: "installStart" });
     const got = await commands.workbench.install(source, sha256);
     if (got.ok) {
-      dispatch({ type: "installed", result: got.value });
+      const reloadFailure = await applyInstalled(
+        (name) => commands.workbench.reload(name),
+        got.value,
+      );
+      dispatch({ type: "installed", result: got.value, reloadFailure });
       props.onInstalled();
     } else {
       dispatch({ type: "installFailed", failure: installFailureOf(got.error) });
@@ -151,14 +173,34 @@ export function InstallDialog(props: {
               {t("desktop.install.source.label")}
               <InfoTip text={t("desktop.install.source.info")} />
             </span>
-            <Input
-              size="sm"
-              value={flow.source}
-              disabled={flow.step === "previewing"}
-              placeholder={t("desktop.install.source.placeholder")}
-              aria-label={t("desktop.install.source.label")}
-              onValueChange={(value) => dispatch({ type: "source", source: value })}
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                size="sm"
+                value={flow.source}
+                disabled={flow.step === "previewing"}
+                placeholder={t("desktop.install.source.placeholder")}
+                aria-label={t("desktop.install.source.label")}
+                onValueChange={(value) => {
+                  setPickError(null);
+                  dispatch({ type: "source", source: value });
+                }}
+              />
+              {folderPick === null ? null : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={flow.step === "previewing"}
+                  onClick={() => run(pick(folderPick))}
+                >
+                  {t("desktop.workspace.pickFolderButton")}
+                </Button>
+              )}
+            </div>
+            {pickError === null ? null : (
+              <p role="alert" className="m-0 text-footnote text-text-secondary">
+                {pickError}
+              </p>
+            )}
           </div>
         )}
         {(flow.step === "confirm" || flow.step === "installing") && (
@@ -200,7 +242,7 @@ export function InstallDialog(props: {
             </div>
           </>
         )}
-        {flow.step === "done" && (
+        {flow.step === "done" && flow.reloadFailure === null && (
           <p role="status" className="m-0 text-ui-dense text-text-secondary">
             {t(
               flow.result.appliesAt === "restart"
@@ -208,6 +250,9 @@ export function InstallDialog(props: {
                 : "desktop.install.done.now",
             )}
           </p>
+        )}
+        {flow.step === "done" && flow.reloadFailure !== null && (
+          <Alert tone="danger">{t("desktop.install.fail.reload")}</Alert>
         )}
         {flow.step === "installing" && (
           <span className="text-footnote text-text-secondary">
