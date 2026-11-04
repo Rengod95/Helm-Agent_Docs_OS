@@ -893,7 +893,7 @@ export const HooksOrderGetResultSchema: TUnsafe<HooksOrderGetResult> =
     >,
   );
 
-/** `hooks.order.set`. 없는 훅이면 `hooks.notFound`다. 그 밖의 이름은 오류 없이 저장하고 디스패치에서 무시한다 */
+/** `hooks.order.set`. 없는 훅이면 `hooks.notFound`다. 외부 훅 단위 이름(`fresnel-hooks-<범위>`)이 순서에 들면 `jsonrpc.invalidParams`다(X.operations §4.7.4). 그 밖의 이름은 오류 없이 저장하고 디스패치에서 무시한다 */
 export interface HooksOrderSetParams {
   readonly hook: string;
   readonly order: readonly string[];
@@ -956,7 +956,7 @@ export const HooksOrderResetResultSchema: TUnsafe<HooksOrderResetResult> =
     >,
   );
 
-/** `hooks.order.preview`. 저장하기 전에 읽는다. `order`는 이 제안을 적용했을 때의 전체 순서다 */
+/** `hooks.order.preview`. 저장하기 전에 읽는다. `order`는 이 제안을 적용했을 때의 전체 순서다. 외부 훅 단위 이름이 들면 `jsonrpc.invalidParams`다(`set`과 같다) */
 export interface HooksOrderPreviewParams {
   readonly hook: string;
   readonly order: readonly string[];
