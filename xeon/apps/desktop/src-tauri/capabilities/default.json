@@ -19,6 +19,7 @@
     "allow-open-external",
     "allow-pick-folder",
     "allow-pick-file",
+    "allow-save-file",
     "allow-os-reauth"
   ]
 }

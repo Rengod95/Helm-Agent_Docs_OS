@@ -20,6 +20,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     renameThread: () => Promise.resolve(ok(null)),
     closeThread: () => Promise.resolve(ok(null)),
     deleteThread: () => Promise.resolve(ok(null)),
+    exportThread: () => Promise.resolve(err({ kind: "unsupported" })),
     notices: {
       list: () => Promise.resolve(ok({ notices: [], nextSeq: 0 })),
       onDelivered: () => () => {},

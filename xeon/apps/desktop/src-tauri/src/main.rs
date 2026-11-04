@@ -8,6 +8,7 @@ mod applog;
 mod desktop_settings;
 mod engine;
 mod env_path;
+mod file_save;
 mod folder_pick;
 #[cfg(debug_assertions)]
 mod inspect;
@@ -75,6 +76,7 @@ fn main() {
             open_external::open_external,
             folder_pick::pick_folder,
             folder_pick::pick_file,
+            file_save::save_file,
             os_reauth::os_reauth
         ])
         .setup(|app| {

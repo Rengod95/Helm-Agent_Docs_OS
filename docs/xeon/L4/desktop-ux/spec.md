@@ -793,8 +793,8 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 사이드바 대화 목록 | `thread.list { limit }` → 거울, `ThreadSummary.status`, `resumable`, `pendingApprovals`, `queuedInputs` |
 | 창·패널 상태 | UI 스토어(`sidebarOpen`, 끝 영역 탭과 폭) `[gap:V-14]` |
 
-- 기능: 사이드바·끝 영역 토글, 폭 끌기(`ResizeHandle`), 대화 고르기(`selectThread`), 새 대화(O-07), 대화 행 메뉴(이름 바꾸기 `thread.rename`, 분기 `thread.fork`, 컴팩션 `thread.compact`, 닫기 `thread.close`, 삭제 `thread.delete` + O-06).
-- 대화 행 메뉴 구현 [근거: `apps/desktop/src/views/thread-row-menu.tsx`]: 행 오른쪽 ⋯ 버튼(행에 마우스를 올리거나 초점이 있거나 메뉴가 열려 있을 때 보임)에 이름 바꾸기(1~200자, 앞뒤 공백 제거), 분기, 대화 요약, 닫기, 지우기를 둡니다. 실행 중인 대화는 분기와 닫기, 지우기를 막고 지우기 확인 창이 이유를 말합니다. 닫힌 대화는 요약과 닫기를 막습니다. 지우기는 확인 창(`kind=alert`)을 거치고, 분기한 대화가 가리키는 대화는 host가 `thread.hasForks`로 거절해 그 이유를 창 안에 보입니다. 지운 뒤에는 목록을 다시 읽고, 열려 있던 대화였다면 선택을 풉니다. 그 밖의 실패는 오류 토스트입니다. 내보내기와 예약 지우기는 이 구현에 없습니다(대화 내보내기 wire가 없어 [미결], 사용자 몫).
+- 기능: 사이드바·끝 영역 토글, 폭 끌기(`ResizeHandle`), 대화 고르기(`selectThread`), 새 대화(O-07), 대화 행 메뉴(이름 바꾸기 `thread.rename`, 분기 `thread.fork`, 컴팩션 `thread.compact`, 내보내기 `thread.export`(O-13), 닫기 `thread.close`, 삭제 `thread.delete` + O-06).
+- 대화 행 메뉴 구현 [근거: `apps/desktop/src/views/thread-row-menu.tsx`]: 행 오른쪽 ⋯ 버튼(행에 마우스를 올리거나 초점이 있거나 메뉴가 열려 있을 때 보임)에 이름 바꾸기(1~200자, 앞뒤 공백 제거), 분기, 대화 요약, 내보내기, 닫기, 지우기를 둡니다. 실행 중인 대화는 분기와 닫기, 지우기를 막고 지우기 확인 창이 이유를 말합니다. 닫힌 대화는 요약과 닫기를 막습니다. 지우기는 확인 창(`kind=alert`)을 거치고, 분기한 대화가 가리키는 대화는 host가 `thread.hasForks`로 거절해 그 이유를 창 안에 보입니다. 지운 뒤에는 목록을 다시 읽고, 열려 있던 대화였다면 선택을 풉니다. 그 밖의 실패는 오류 토스트입니다. 내보내기는 O-13 대화 상자를 엽니다(§6.31, 와이어 W-51). 예약 지우기는 이 구현에 없습니다(사용자 몫).
 - 상태: 대화 목록 빈 경우 "아직 대화가 없어요" + "새 대화" (`EmptyState variant="dashed"`), 읽는 중 `Skeleton` 5행, 읽기 실패 "대화 목록을 읽지 못했어요" + "다시 읽기", 오프라인은 목록 유지와 흐린 표시, 긴 목록은 폴더 묶음 접기와 50개 뒤 "더 보기"(`nextCursor`).
 - 대화 행: 제목(없으면 "제목 없음"), 배지 `실행 중`(running), `이어서 실행`(resumable), `승인 N`, `잠김`(다른 소유자, 알 수 있을 때), `예약`(schedule이 만든 대화) (출처는 `ThreadSummary.origin`) [근거: `packages/contracts/src/wire-settings/wire/methods.ts:443`].
 - 접근성: 시작 영역은 `SidePanel label="대화와 이동"`(aside 랜드마크), 무대는 `main`, 건너뛰기 링크 `skipLabel="본문으로"`. 대화 목록은 `ListNavigation`의 단일 선택 목록이고 화살표로 이동합니다.
@@ -1074,6 +1074,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 - 목적: 대화하고, 도구 실행을 보고, 인라인으로 승인하고, 실행 중에 입력을 큐에 넣습니다.
 - 진입: 주 내비 "대화", 대화 목록, 알림 행, 팔레트, 예약 실행 결과.
+- 대화 머리: 고른 대화의 제목 한 줄(없으면 "제목 없음")과 행 메뉴와 같은 ⋯ 메뉴입니다. 메뉴 항목과 대화 상자, 잠금은 행 메뉴와 같은 것을 씁니다. 대화를 고르지 않았으면 머리를 그리지 않습니다 [구현: 2026-11-04, 대화 내보내기 트랙, `apps/desktop/src/views/chat-header.tsx`].
 
 | 영역 | 항목 | 출처 |
 |---|---|---|
@@ -2758,6 +2759,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | O-10 | 확장 신뢰 확인 | `Dialog kind="alert"` | 요청 등급, 설치 위치 상한, 쓰는 연산(on, post, drive, 저장, 리소스 등록), 훅 목록 | 켜기, 취소 | 처음 켜는 `user`·`project` 위치 확장. 기본 초점 "취소" |
 | O-11 | 되돌리기 확인 | `Dialog kind="alert"` | 지금 버전, 되돌릴 버전, 상태 스키마 버전 차이 | 되돌리기 | 상태 마이그레이션이 없으면 경고. 대체 단계는 §6.24.1 |
 | O-12 | 새 시험 | `Sheet side="right"` | 종류(켬/끔 비교 포함), 대상, 프로필, 옵션(replay `maxCommits` 기본 200, benchmark `--runs` 1~50, 켬/끔 비교 케이스 묶음·반복 수) | `ext.test.run` `[gap:W-29]` | 비용 드는 시험과 켬/끔 비교는 예상 실행 수와 비용 범위 확인(§6.26). replay·benchmark·diff는 개발 모드만 |
+| O-13 | 대화 내보내기 | `Dialog` | 대화 제목, 형식(Markdown·JSON), 저장 창(데스크톱) 또는 내려받기(웹) | 저장…(데스크톱) · 내려받기(웹), 취소, 실패 뒤 다시 시도 | 행 메뉴 "내보내기…"와 대화 머리 ⋯가 연다. 읽기는 `thread.export`를 쪽마다 불러 `next`가 없을 때까지 이어 받는다(쪽 상한 5000, 앞 `next`와 같은 값이 다시 오면 실패). 읽는 동안과 저장 창이 떠 있는 동안은 닫지 못한다. 저장 창에서 취소하면 대화 상자를 그대로 둔다. 읽기 실패와 저장 실패는 문장을 가르고 한 줄로 보인다. 시크릿 값은 어느 형식에도 없고 이름만 남는다는 한 줄을 늘 보인다. 목업의 "도구 결과 포함"과 "런타임 행 포함" 칸은 와이어가 형식만 받으므로 두지 않는다. 웹은 저장 창이 없어 파일 위치를 고르지 않고 내려받는다 [구현: 2026-11-04, 대화 내보내기 트랙] |
 
 ## 7. 화면 사이 흐름
 
@@ -3191,6 +3193,7 @@ export const palette = [
 | W-48 | Test run 단계 경계 멈춤 | P-19, P-21, P-02 | 구현됨. `testRun.pause`·`resume`·`step`이 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts:124`] | `testRun.pause { threadId }`, `testRun.resume`, `testRun.step`. Test run만, drive 락 유지 [결정: 2026-10-31 사용자] |
 | W-49 | 확장 묶음 만들기 | Plugin Builder, P-21 | 구현됨. `ext.package`가 있다 [근거: `apps/host/src/handlers/m4/devkit.ts`] | `ext.package { dir, out? }` → 경로, 파일 목록, SHA-256. 설치는 W-32 |
 | W-50 | Test run의 단계 투영 | P-21 흐름 시험 | 구현됨. `testRun.phase`가 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts`] | `testRun.phase { threadId }`와 이벤트. Test run에서 `grp.<id>.state.committed`의 `phase`만 |
+| W-51 | 대화 내보내기 | P-02, 행 메뉴, 대화 머리 | 구현됨. `thread.export { threadId, format, after? }`가 있다 [근거: `F.wire-settings.spec` §3.4.7]. 데스크톱은 쪽을 `next`로 끝까지 이어 받아 한 문서로 만들고(`views/export-model.ts`), 저장은 셸 명령 `save_file`(`L4.desktop.spec` §3.3)이 한다 | `thread.export` |
 
 - W-32 앱 안 설치 화면 [결정: 2026-11-04 사용자, Q9 A]. 자리는 확장 목록(P-13) 머리의 "플러그인 가져오기" 단추가 여는 대화 상자(`views/workbench/install-dialog.tsx`, 순수 부분 `install-model.ts`)다. 부품은 caustic `Dialog`, `Input`, `Alert`, `Button`이고 정보 설명은 `InfoTip`(DP-58)이다.
   - 흐름: 출처 입력 → 확인하기(`ext.installPreview`, 디스크에 쓰지 않음) → 권한 확인(이름, 버전, 출처, 바꿀 설치본 버전, 요청 권한, 들어 있는 것) → "허용하고 설치"(`ext.install`에 미리 보기의 `sha256`을 돌려줌) → 결과. 확인 화면에서 "뒤로"는 출처 입력으로 돌아간다.

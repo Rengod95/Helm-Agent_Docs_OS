@@ -132,6 +132,27 @@ input[type="text"] {
 .thread-menu:has([aria-expanded="true"]) {
   opacity: 1;
 }
+/* 대화 머리 ⋯(chat-header.tsx)는 행처럼 떠 있지 않고 늘 보인다 */
+.chat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.chat-header h1 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-header .thread-menu {
+  position: static;
+  opacity: 1;
+}
 .thread.selected {
   background: var(--bg);
   border-color: var(--border);
