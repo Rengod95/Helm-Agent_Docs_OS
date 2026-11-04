@@ -889,7 +889,8 @@ export type PrimitiveErrorCode =
   | "storage_unavailable"
   | "record_kind_undeclared" | "record_invalid" | "read_kind_undeclared" | "record_private_invalid"
   | "capability_undeclared" | "capability_unavailable" | "capability_ambiguous"
-  | "service_reserved" | "tool_risk_reserved" | "resource_conflict" | "resource_name_invalid" | "method_schema_invalid";
+  | "service_reserved" | "tool_risk_reserved" | "resource_conflict" | "resource_name_invalid" | "method_schema_invalid"
+  | "read_only_method";
 
 export class PrimitiveError extends Error {
   readonly code: PrimitiveErrorCode;
@@ -1636,7 +1637,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - 등록 검사(`registerMethod`는 던진다). 아래 순서로 본다. (1) 매니페스트 확장 수준 `methods`에 `verb`가 없으면 `resource_name_invalid`다. (2) `verb`가 `EXT_VERB_PATTERN`을 어기면 `resource_name_invalid`다. (3) `params`나 `result`를 `typebox/schema`로 컴파일할 수 없으면(예: 잘못된 정규식) `method_schema_invalid`다. 원인은 `cause`에 싣는다. (4) 같은 확장 안에 같은 동사가 이미 있으면(다른 Registration이어도) `resource_conflict`다.
 - 이름 정책(`ResourcePolicy`)은 거치지 않는다. 다른 확장의 같은 동사는 wire 이름이 달라 둘 다 남는다. 포트를 쓰지 않으므로 `port_unavailable`이 없다. 기록은 `ExtHost.resources`에 kind `ext_method`, 이름 `verb`로 남는다(§3.9).
 - 처리기는 `ambient`(`invocation: "method"`, 디스패치 키 `method:<callId>`, 재실행 검사 제외, 예산 없음)에서 돈다. `threadId`가 `null`이면 ambient를 열지 않는다(명령과 같다).
-- `readOnly: true`로 선언한 메서드의 처리기는 읽기 전용으로 선언된 기능 메서드(`capability.readOnly`)만 부를 수 있다. 쓰기·멱등·선언 없음 기능 메서드는 `effect_not_allowed`로 거부하고 공급자를 부르지 않는다. 화면의 `query`가 확인 줄 없이 지나가므로 `readOnly`가 플러그인의 주장에 그치지 않게 엔진이 지킨다. 이 검사는 ambient를 연 호출(`threadId`가 있는 호출)에만 걸린다. `threadId`가 `null`인 호출은 ambient가 없어 기능 래퍼가 문맥을 모르고, 이 경우와 기능 호출 밖의 쓰기(`commit`, `record`, `post`)는 아직 막지 않는다 [미결].
+- `readOnly: true`로 선언한 메서드의 처리기는 읽기 전용으로 선언된 기능 메서드(`capability.readOnly`)만 부를 수 있다. 쓰기·멱등·선언 없음 기능 메서드는 `effect_not_allowed`로 거부하고 공급자를 부르지 않는다. 화면의 `query`가 확인 줄 없이 지나가므로 `readOnly`가 플러그인의 주장에 그치지 않게 엔진이 지킨다. 이 표지는 ambient와 따로 처리기의 비동기 흐름 전체에 달리므로 `threadId`가 `null`인 호출에도 같이 걸린다. 처리기 안에서 `commit`, `commitWith`, `updateState`, `record`, `recordPrivate`, `post`, `requestEffect`를 부르면 `read_only_method`(`PrimitiveError`)로 던지고 아무것도 쓰지 않는다. 쓰려면 메서드를 `readOnly: false`로 선언하고 화면은 `call`(확인 줄)로 부른다. 이유: `query`는 사용자 조작과 확인 줄 없이 지나가므로 `readOnly`가 선언에 그치지 않게 엔진이 지킨다 [제안: 2026-11-04 사용자 14번이 "권고대로 막는 쪽"으로 기울었다고 답했다. 확정 결정은 아니다].
 - 등록은 fiber effect다. scope 세대가 닫히면 기록과 검사기가 함께 해제된다. 다시 켜면 setup이 다시 등록하면서 검사기를 새로 만든다.
 - `list()`는 지금 등록된 메서드를 `{ extension, verb, decl, scopeId }`로 돌려준다.
 - `call(input)`는 아래 순서로 보고, 판정이 나오면 그 값을 돌려준다. 처리기에 닿지 않은 결과(`not_found`, `extension_off`, 호출 전에 이미 abort된 `aborted`)는 보고하지 않는다.

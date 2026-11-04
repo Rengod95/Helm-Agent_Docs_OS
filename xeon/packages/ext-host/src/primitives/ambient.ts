@@ -36,8 +36,6 @@ export interface Ambient {
    * 기능 래퍼의 재실행 검사를 받지 않는다. on 핸들러와 drive 함수에서는 없다(X.primitives.spec §4.6.6, §4.12)
    */
   readonly invocation?: "tool" | "command" | "method";
-  /** `readOnly: true`로 선언한 확장 메서드 처리기가 연 문맥. 기능 래퍼가 읽기 전용 기능 호출만 통과시킨다(ADR-0021 §3.4.2) */
-  readonly readOnlyMethod?: true;
 }
 
 const storage = new AsyncLocalStorage<Ambient>();
@@ -54,4 +52,16 @@ export function withoutAmbient<T>(fn: () => T): T {
 /** 맥락이 없으면 undefined */
 export function ambient(): Ambient | undefined {
   return storage.getStore();
+}
+
+// `readOnly: true`로 선언한 확장 메서드 처리기의 비동기 흐름 표지(ADR-0021 §3.4.2). `threadId`가 없어 ambient를 열지 않는 호출에도 걸리도록
+// ambient와 따로 둔다. 기능 래퍼는 읽기 전용 기능 호출만 통과시키고, 상태 커밋, 레코드, post는 `read_only_method`로 거부한다
+const readOnlyStorage = new AsyncLocalStorage<true>();
+
+export function withReadOnlyMethod<T>(fn: () => T): T {
+  return readOnlyStorage.run(true, fn);
+}
+
+export function inReadOnlyMethod(): boolean {
+  return readOnlyStorage.getStore() === true;
 }

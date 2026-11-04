@@ -16,7 +16,7 @@ import {
   type RegistrationId,
 } from "@fresnel/contracts/extensions";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { ambient, withoutAmbient, type Ambient } from "./ambient.ts";
+import { ambient, inReadOnlyMethod, withoutAmbient, type Ambient } from "./ambient.ts";
 
 /**
  * 기능 id로 정의를 찾는다. `g.capability`가 돌려주는 서비스는 호출 때 메서드의 효과 분류(`idempotent`, `readOnly`)를 알아야 하는데
@@ -132,7 +132,7 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
         const context = replayContextOf(amb);
         const requestId = given?.requestId;
         // `readOnly: true` 메서드는 `query`로 확인 없이 지나가므로 읽기 전용으로 선언된 기능 메서드만 부를 수 있다
-        if (amb?.readOnlyMethod === true && effect !== "capability.readOnly") {
+        if (inReadOnlyMethod() && effect !== "capability.readOnly") {
           return refuse(
             id,
             name,

@@ -32,6 +32,15 @@ function declOf(
   return { verb, params, result, readOnly: true };
 }
 
+/** 상태를 바꾸는 메서드 선언. `readOnly` 메서드는 커밋하지 못한다(X.primitives.spec §4.12) */
+function writableDeclOf(
+  verb: string,
+  params: Readonly<Record<string, unknown>> = {},
+  result: Readonly<Record<string, unknown>> = {},
+): ExtMethodDecl {
+  return { verb, params, result, readOnly: false };
+}
+
 const sumParams = {
   type: "object",
   properties: { n: { type: "integer", minimum: 1 } },
@@ -478,7 +487,7 @@ test("with a thread open the handler runs in the thread's ambient, so commit wor
         name: "counter",
         def: { state: { schema: CountSchema, initial: { n: 0 }, version: 1 } },
         methods: [
-          declOf(
+          writableDeclOf(
             "bump",
             {},
             { type: "object", properties: { n: { type: "integer" } }, required: ["n"] },
@@ -515,7 +524,7 @@ test("without a thread the handler has no ambient, so commit fails with no_threa
       {
         name: "counter",
         def: { state: { schema: CountSchema, initial: { n: 0 }, version: 1 } },
-        methods: [declOf("probe", {}, { type: "string" })],
+        methods: [writableDeclOf("probe", {}, { type: "string" })],
       },
       (g) => {
         hostOf(g).registerMethod("probe", {
