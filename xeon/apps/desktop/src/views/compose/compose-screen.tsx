@@ -133,6 +133,7 @@ export function ComposeScreen(): ReactNode {
               key={group.name}
               name={group.name}
               link={link}
+              installed={groups.some((entry) => entry.name === group.name)}
               mode={view}
               flowDraft={flowDrafts[group.name] ?? null}
               onFlowDraft={(draft) => {

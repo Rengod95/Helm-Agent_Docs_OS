@@ -190,6 +190,9 @@ function GroupBody(props: {
 export interface FlowBodyProps {
   readonly composition: CompositionDecl;
   readonly link: TabLink;
+  /** 그룹 이름과 설치 여부. 시험 실행이 이 그룹을 시험 대화에서 켠다 */
+  readonly name: string;
+  readonly installed: boolean;
   readonly draft: FlowDraft | null;
   readonly onDraft: (draft: FlowDraft) => void;
   readonly onMake: (composition: CompositionDecl) => void;
@@ -213,6 +216,8 @@ export function FlowBody(props: FlowBodyProps): ReactNode {
       composition={props.composition}
       phases={phases}
       link={props.link}
+      name={props.name}
+      installed={props.installed}
       draft={props.draft}
       onDraft={props.onDraft}
       onMake={props.onMake}
@@ -224,6 +229,8 @@ export function FlowBody(props: FlowBodyProps): ReactNode {
 export function GroupSource(props: {
   readonly name: string;
   readonly link: TabLink;
+  /** 고른 그룹이 설치 목록에 있나. 초안은 설치된 그룹에서만 나오므로 보통 참이다 */
+  readonly installed: boolean;
   readonly mode: "group" | "flow";
   readonly flowDraft: FlowDraft | null;
   readonly onFlowDraft: (draft: FlowDraft) => void;
@@ -249,6 +256,8 @@ export function GroupSource(props: {
           <FlowBody
             composition={composition.composition}
             link={props.link}
+            name={props.name}
+            installed={props.installed}
             draft={props.flowDraft}
             onDraft={props.onFlowDraft}
             onMake={props.onMake}

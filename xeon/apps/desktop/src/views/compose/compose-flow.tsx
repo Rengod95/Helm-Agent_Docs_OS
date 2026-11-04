@@ -9,8 +9,10 @@ import {
   GRAPH_NODE_WIDTH,
   issuesByPhaseNodeOf,
   issueSummaryOf,
+  runStatesOf,
   type FlowDraft,
   type GraphPlacement,
+  type NodeRunState,
   type TabLink,
 } from "@fresnel/client/workbench";
 import type { CompositionDecl, PhaseNodeDecl } from "@fresnel/contracts/extensions";
@@ -22,6 +24,7 @@ import {
   NodeGraphNode,
   NodeGraphPort,
   type GraphEdge,
+  type GraphNodeState,
 } from "@caustic/react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { InfoTip } from "../craft/info-tip.tsx";
@@ -29,6 +32,7 @@ import { CheckBanner, IssueList, useDraftCheck, type CheckRead } from "./compose
 import { FlowEditor } from "./compose-flow-edit.tsx";
 import { FlowOutline } from "./compose-outline.tsx";
 import { NODE_TEXT } from "./compose-text.ts";
+import { TrialBar, trialPhaseOf, useTrialRun } from "./compose-trial.tsx";
 import { isCompactWidth, useContainerWidth } from "./compose-width.ts";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
@@ -39,6 +43,10 @@ export interface FlowWorkspaceProps {
   /** 설치된 단계 선언(null이 아니다). 고치기를 시작하면 이 값이 초안이 된다 */
   readonly phases: FlowDraft;
   readonly link: TabLink;
+  /** 흐름을 낸 그룹의 이름. 시험 실행은 이 그룹을 시험 대화에서 켠다 */
+  readonly name: string;
+  /** 설치된 그룹인가. 아니면 시험 실행이 잠긴다 */
+  readonly installed: boolean;
   /** 고치는 초안. null이면 설치된 선언을 읽기 전용으로 본다 */
   readonly draft: FlowDraft | null;
   readonly onDraft: (draft: FlowDraft) => void;
@@ -47,12 +55,16 @@ export interface FlowWorkspaceProps {
 
 /** 흐름 보기 한 장. 선택한 노드는 캔버스·개요·속성이 같이 쓴다 */
 export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
-  const { composition, phases, link, draft, onDraft, onMake } = props;
+  const { composition, phases, link, name, installed, draft, onDraft, onMake } = props;
   const ref = useRef<HTMLDivElement>(null);
   const width = useContainerWidth(ref);
   const compact = width !== undefined && isCompactWidth(width);
   const [selected, setSelected] = useState<string | null>(null);
   const shown = draft ?? phases;
+  const trial = useTrialRun(name, link);
+  // 시험 실행 중에만 지금 단계를 강조한다. 단계를 모르면 강조하지 않는다
+  const runStates =
+    trial.run === null ? undefined : runStatesOf(shown, trialPhaseOf(trial.run.phase));
   // 후보는 초안이 바뀔 때만 새 객체여야 검사가 한 번씩 돈다
   const candidate = useMemo(
     () => (draft === null ? null : compositionWithPhases(composition, draft)),
@@ -71,6 +83,7 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
         <InfoTip text={t("desktop.compose.flow.boundary")} />
         {draft === null ? null : <Badge size="xs">{t("desktop.compose.flow.draft.badge")}</Badge>}
       </p>
+      <TrialBar link={link} installed={installed} trial={trial} />
       {draft === null ? (
         <ReadOnlyLine
           onStart={() => {
@@ -85,7 +98,13 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
           {compact ? (
             <FlowOutline draft={shown} selected={selected} onSelect={setSelected} />
           ) : (
-            <FlowCanvas draft={shown} selected={selected} issues={byNode} onSelect={setSelected} />
+            <FlowCanvas
+              draft={shown}
+              selected={selected}
+              issues={byNode}
+              runStates={runStates}
+              onSelect={setSelected}
+            />
           )}
         </div>
         {draft === null ? null : (
@@ -174,6 +193,23 @@ function DraftActions(props: {
   );
 }
 
+/**
+ * 노드의 그림 상태. 검사 오류가 먼저다. 시험 실행 중이면 지금 단계는 active, 지난 단계는 done(글이 흐려짐),
+ * 아직 안 온 단계는 dimmed(반투명)다. 강조할 단계가 없으면(run이 없거나 아무도 active가 아니면) 모두 idle이다.
+ */
+function nodeStateOf(
+  run: ReadonlyMap<string, NodeRunState> | undefined,
+  id: string,
+  invalid: boolean,
+): GraphNodeState {
+  if (invalid) return "invalid";
+  if (run === undefined) return "idle";
+  const mark = run.get(id) ?? "idle";
+  if (mark === "active") return "active";
+  if (![...run.values()].includes("active")) return "idle";
+  return mark === "done" ? "done" : "dimmed";
+}
+
 /** 노드 하나의 캔버스 자리: 제목, 종류, 시작 표지, 사람 확인 질문, 검사 상태. 포트는 입력(시작 쪽)과 출력(끝 쪽) 둘이다 */
 function FlowNode(props: {
   readonly node: PhaseNodeDecl;
@@ -182,6 +218,7 @@ function FlowNode(props: {
   readonly initial: boolean;
   readonly selected: boolean;
   readonly issues: readonly WireManifestIssue[];
+  readonly runStates: ReadonlyMap<string, NodeRunState> | undefined;
   readonly onSelect: (id: string) => void;
 }): ReactNode {
   const { node } = props;
@@ -194,7 +231,7 @@ function FlowNode(props: {
       width={GRAPH_NODE_WIDTH}
       title={node.title ?? node.id}
       meta={t(NODE_TEXT[node.kind])}
-      state={invalid ? "invalid" : "idle"}
+      state={nodeStateOf(props.runStates, node.id, invalid)}
       selected={props.selected}
       aria-current={props.selected ? "true" : undefined}
       onClick={() => {
@@ -229,11 +266,12 @@ function FlowNode(props: {
   );
 }
 
-/** 흐름 캔버스. 자리는 `graphPlacementsOf`(시작에서 전이를 따른 깊이가 열), 선은 전이 하나에 하나다 */
+/** 흐름 캔버스. 자리는 `graphPlacementsOf`(시작에서 전이를 따른 깊이가 열), 선은 전이 하나에 하나다. `runStates`가 있으면 시험 실행의 단계 강조를 그린다 */
 export function FlowCanvas(props: {
   readonly draft: FlowDraft;
   readonly selected: string | null;
   readonly issues: ReadonlyMap<string, readonly WireManifestIssue[]>;
+  readonly runStates?: ReadonlyMap<string, NodeRunState> | undefined;
   readonly onSelect: (id: string) => void;
 }): ReactNode {
   const { draft } = props;
@@ -266,6 +304,7 @@ export function FlowCanvas(props: {
             initial={node.id === draft.initial}
             selected={props.selected === node.id}
             issues={props.issues.get(node.id) ?? []}
+            runStates={props.runStates}
             onSelect={props.onSelect}
           />,
         ];

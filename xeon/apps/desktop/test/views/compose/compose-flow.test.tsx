@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { FlowDraft } from "@fresnel/client/workbench";
+import { runStatesOf, type FlowDraft } from "@fresnel/client/workbench";
 import type { CompositionDecl } from "@fresnel/contracts/extensions";
 import type { WireManifestIssue } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
@@ -37,7 +37,15 @@ const COMPOSITION: CompositionDecl = {
 function flowHtml(draft: FlowDraft | null): string {
   return renderToString(
     <CommandsContext.Provider value={fakeCommands()}>
-      <FlowBody composition={COMPOSITION} link="live" draft={draft} onDraft={NOOP} onMake={NOOP} />
+      <FlowBody
+        composition={COMPOSITION}
+        link="live"
+        name="helm"
+        installed
+        draft={draft}
+        onDraft={NOOP}
+        onMake={NOOP}
+      />
     </CommandsContext.Provider>,
   );
 }
@@ -68,6 +76,8 @@ describe("설치 그룹의 흐름 보기(읽기 전용)", () => {
         <FlowBody
           composition={{ blocks: COMPOSITION.blocks }}
           link="live"
+          name="helm"
+          installed
           draft={null}
           onDraft={NOOP}
           onMake={NOOP}
@@ -96,6 +106,8 @@ describe("초안의 흐름 보기(편집)", () => {
         <FlowBody
           composition={COMPOSITION}
           link="offline"
+          name="helm"
+          installed
           draft={PHASES}
           onDraft={NOOP}
           onMake={NOOP}
@@ -198,5 +210,93 @@ describe("좁은 폭의 개요", () => {
     expect(announceOf({ type: "moved", names: ["분류"], position: "after", target: "검토" })).toBe(
       "",
     );
+  });
+});
+
+/** 노드 제목마다 그림 상태. 노드의 aria-label은 제목이다 */
+function statesOf(html: string): Map<string, string> {
+  return new Map(
+    [
+      ...html.matchAll(
+        /data-slot="node-graph-node" data-state="([a-z]+)"[^>]*aria-label="([^"]*)"/g,
+      ),
+    ].map((match): [string, string] => [match[2] ?? "", match[1] ?? ""]),
+  );
+}
+
+describe("시험 실행의 노드 상태", () => {
+  test("지금 단계는 active, 지난 단계는 done, 아직 안 온 단계는 dimmed다", () => {
+    const html = renderToString(
+      <FlowCanvas
+        draft={PHASES}
+        selected={null}
+        issues={new Map()}
+        runStates={runStatesOf(PHASES, "review")}
+        onSelect={NOOP}
+      />,
+    );
+    expect([...statesOf(html)]).toEqual([
+      ["분류", "done"],
+      ["검토", "active"],
+      ["done", "dimmed"],
+    ]);
+  });
+
+  test("강조할 단계를 모르면 모든 노드가 idle이다", () => {
+    const html = renderToString(
+      <FlowCanvas
+        draft={PHASES}
+        selected={null}
+        issues={new Map()}
+        runStates={runStatesOf(PHASES, null)}
+        onSelect={NOOP}
+      />,
+    );
+    expect([...statesOf(html).values()]).toEqual(["idle", "idle", "idle"]);
+  });
+
+  test("시험 실행 값이 없으면(보기 밖) 노드 상태는 idle이다", () => {
+    const html = renderToString(
+      <FlowCanvas draft={PHASES} selected={null} issues={new Map()} onSelect={NOOP} />,
+    );
+    expect([...statesOf(html).values()]).toEqual(["idle", "idle", "idle"]);
+  });
+
+  test("검사 오류가 있는 노드는 지금 단계여도 invalid가 먼저다", () => {
+    const issue: WireManifestIssue = {
+      severity: "error",
+      code: "phase_invalid",
+      path: "/phases/nodes/1",
+      message: "검토 단계가 도달하지 않아요",
+    };
+    const html = renderToString(
+      <FlowCanvas
+        draft={PHASES}
+        selected={null}
+        issues={new Map([["review", [issue]]])}
+        runStates={runStatesOf(PHASES, "review")}
+        onSelect={NOOP}
+      />,
+    );
+    expect(statesOf(html).get("검토")).toBe("invalid");
+  });
+
+  test("설치되지 않은 그룹의 흐름 보기는 시험 시작이 잠긴다", () => {
+    const html = renderToString(
+      <CommandsContext.Provider value={fakeCommands()}>
+        <FlowBody
+          composition={COMPOSITION}
+          link="live"
+          name="helm"
+          installed={false}
+          draft={PHASES}
+          onDraft={NOOP}
+          onMake={NOOP}
+        />
+      </CommandsContext.Provider>,
+    );
+    const start = html.split("<button").find((part) => part.includes("시험 대화에서 돌려 보기"));
+    expect(start).toContain("disabled");
+    expect(html).toContain("설치되지 않은 그룹이라 지금은 돌릴 수 없어요.");
   });
 });

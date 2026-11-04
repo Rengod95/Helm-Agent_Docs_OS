@@ -8,7 +8,11 @@ import {
   compositionWithPhases,
   coreLockedOf,
   devkitSummaryOf,
+  AUTO_DRIVER_PICK,
   driverChoicesOf,
+  driverOfPick,
+  driverOptionsOf,
+  driverPicksOf,
   flowDraftOf,
   graphPlacementsOf,
   graphSizeOf,
@@ -36,6 +40,7 @@ import {
   profileDraftOf,
   profileDraftProblemOf,
   profileInputOf,
+  profileUnsavedOf,
   scaffoldInputWithComposition,
   withChoice,
 } from "../../src/workbench/index.ts";
@@ -494,5 +499,46 @@ describe("블록 이슈의 경로 모양", () => {
       message: "m",
     };
     expect([...issuesByBlockOf(COMPOSITION, [issue])]).toEqual([["drive", [issue]]]);
+  });
+});
+
+describe("저장하지 않은 프로필 바꿈과 drive 그룹 고르기 목록", () => {
+  test("저장된 값과 같으면 저장하지 않은 바꿈이 없고, 이름 앞뒤 공백은 바꿈이 아니다", () => {
+    const draft = profileDraftOf(PROFILE);
+    expect(profileUnsavedOf(draft, PROFILE)).toBe(false);
+    expect(profileUnsavedOf({ ...draft, title: "  조용히 " }, PROFILE)).toBe(false);
+  });
+
+  test("이름, drive 그룹, 켜기·끄기 중 하나라도 다르면 바꿈이다", () => {
+    const draft = profileDraftOf(PROFILE);
+    expect(profileUnsavedOf({ ...draft, title: "다른 이름" }, PROFILE)).toBe(true);
+    expect(profileUnsavedOf(withDriver(draft, null), PROFILE)).toBe(true);
+    expect(profileUnsavedOf(withChoice(draft, "web", "keep"), PROFILE)).toBe(true);
+    expect(profileUnsavedOf(withChoice(draft, "zeta", "on"), PROFILE)).toBe(true);
+  });
+
+  test("목록의 순서만 다르면 바꿈이 아니다", () => {
+    const draft = profileDraftOf({ ...PROFILE, enable: ["b", "a"] });
+    expect(profileUnsavedOf(draft, { ...PROFILE, enable: ["a", "b"] })).toBe(false);
+  });
+
+  test("drive 고르기 목록은 설치된 그룹 뒤에 저장된 이름을 더하고, 있으면 더하지 않는다", () => {
+    expect(driverOptionsOf(["a", "z"], null)).toEqual(["a", "z"]);
+    expect(driverOptionsOf(["a", "z"], "z")).toEqual(["a", "z"]);
+    expect(driverOptionsOf(["a", "z"], "gone")).toEqual(["a", "z", "gone"]);
+    expect(driverOptionsOf([], "gone")).toEqual(["gone"]);
+  });
+});
+
+describe("drive 그룹 고르기 값", () => {
+  test("자동이 첫 값이고 그 뒤에 설치된 그룹과 저장된 이름이 온다", () => {
+    expect(driverPicksOf(null, ["helm", "lens"])).toEqual([AUTO_DRIVER_PICK, "helm", "lens"]);
+    expect(driverPicksOf("gone", ["helm"])).toEqual([AUTO_DRIVER_PICK, "helm", "gone"]);
+  });
+
+  test("자동 값은 null로 바뀌고, 그룹 이름은 그대로다", () => {
+    expect(driverOfPick(AUTO_DRIVER_PICK)).toBeNull();
+    expect(driverOfPick("helm")).toBe("helm");
+    expect(withDriver(profileDraftOf(null), driverOfPick(AUTO_DRIVER_PICK)).driver).toBeNull();
   });
 });

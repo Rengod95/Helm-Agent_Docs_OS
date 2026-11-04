@@ -81,6 +81,8 @@ describe("NoComposition과 FlowBody", () => {
         <FlowBody
           composition={COMPOSITION}
           link="offline"
+          name="helm"
+          installed
           draft={null}
           onDraft={NOOP}
           onMake={NOOP}
@@ -98,6 +100,8 @@ describe("NoComposition과 FlowBody", () => {
         <FlowBody
           composition={{ blocks: COMPOSITION.blocks }}
           link="offline"
+          name="helm"
+          installed
           draft={null}
           onDraft={NOOP}
           onMake={NOOP}

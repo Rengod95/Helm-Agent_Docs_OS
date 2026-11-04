@@ -519,3 +519,50 @@ export function driverChoicesOf(
     .map((entry) => entry.name)
     .toSorted();
 }
+
+/**
+ * 저장된 프로필과 화면의 값이 다른가. 이름, drive 그룹, 켜기·끄기 목록, 설정을 저장 입력으로 맞춰 비교한다.
+ * 저장하지 않은 바꿈이 있으면 "새 Test run으로"는 저장 뒤에만 연다.
+ */
+export function profileUnsavedOf(draft: ProfileDraft, saved: Profile): boolean {
+  return savedKeyOf(profileInputOf(draft)) !== savedKeyOf(profileInputOf(profileDraftOf(saved)));
+}
+
+/** 저장 입력을 비교하는 값. 목록은 `profileInputOf`가 이미 정렬했다 */
+function savedKeyOf(input: ProfileInput): string {
+  return JSON.stringify([
+    input.id,
+    input.title,
+    input.driver,
+    input.enable,
+    input.disable,
+    input.settings,
+  ]);
+}
+
+/**
+ * drive 그룹 고르기의 이름 목록. 설치된 그룹 뒤에, 프로필이 가진 이름이 그 목록에 없으면(설치 해제된 그룹) 그 이름을 더한다.
+ */
+export function driverOptionsOf(
+  choices: readonly string[],
+  driver: string | null,
+): readonly string[] {
+  if (driver === null || choices.includes(driver)) return choices;
+  return [...choices, driver];
+}
+
+/** drive 그룹 고르기의 "자동" 값. 빈 문자열은 고르기 목록의 값으로 쓸 수 없어(Radix Select) 따로 둔다 */
+export const AUTO_DRIVER_PICK = "\u0000auto";
+
+/** drive 그룹 고르기 목록의 값: 자동, 그 뒤에 `driverOptionsOf`의 이름들 */
+export function driverPicksOf(
+  driver: string | null,
+  choices: readonly string[],
+): readonly string[] {
+  return [AUTO_DRIVER_PICK, ...driverOptionsOf(choices, driver)];
+}
+
+/** 고른 값을 drive 그룹으로 바꾼다. "자동"은 null이다(`withDriver`의 빈 값과 같다) */
+export function driverOfPick(pick: string): string | null {
+  return pick === AUTO_DRIVER_PICK ? null : pick;
+}
