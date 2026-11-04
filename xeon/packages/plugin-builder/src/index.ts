@@ -26,6 +26,7 @@ export {
   type ReplayRunner,
 } from "./release.ts";
 export { authoringManifest, createAuthoringGroup, type AuthoringDeps } from "./group.ts";
+export { authoringSettings } from "./settings.ts";
 export {
   AUTHORING_PHASES,
   AuthoringStateSchema,

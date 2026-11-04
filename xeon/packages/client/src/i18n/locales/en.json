@@ -3230,6 +3230,8 @@
   "settings.l3.groupSdk.instrumentation.help": "Records how much time the group spends on rejections, publishing, delegation, and leases. When off, there are no records and no /group status instrumentation values.",
   "settings.l3.groupSdk.statusLine.label": "Show groups in status line",
   "settings.l3.groupSdk.statusLine.help": "Shows the enabled groups and the active driver group in the status line.",
+  "settings.l3.authoring.devMode.label": "Plugin development mode",
+  "settings.l3.authoring.devMode.help": "When on, this computer can run plugin replay checks and benchmarks.",
   "settings.x.operations.budget.firstMs.label": "first handler time budget",
   "settings.x.operations.budget.chainMs.label": "chain handler time budget",
   "settings.x.operations.budget.tapMs.label": "tap handler time budget",

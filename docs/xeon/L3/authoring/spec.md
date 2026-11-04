@@ -214,8 +214,8 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 - [결정: M4 T-AUTH] 묶기·설치 앞 사람 확인은 `packWithConfirmation`, `installWithConfirmation`(`release.ts`)이다. 질문 `confirm`의 선택지 `yes`·`no`, `requestId`는 `authoring:package:<경로 sha256 앞 12자>:<번호>`·`authoring:install:<…>:<번호>`(64자 이하)이고, `yes`가 아니면 `pack`·`link`를 부르지 않는다. 번호는 거절 뒤 다시 묻는 질문을 가른다(같은 `requestId`는 기록된 답을 돌려주므로). `ask`는 drive의 `loop.ask`를 그대로 넘긴다. replay는 `replayInDevMode`가 개발 모드가 아니면 `dev_mode_required`를 돌려준다.
 - [결정: M4 T-AUTH] 그룹 `authoring`은 `createAuthoringGroup({ devkit, devMode?, fixLoopLimit? })`(`group.ts`)이다. `fresnel.devkit` 서비스(`DevkitService`)를 주입받고, 매니페스트는 내장(`trust.level: "builtin"`)·`defaultEnabled: false`·루트 L3 플러그인 `drives: true`, `usesPost: true`, 훅 `tool.call.before`·`thread.start`다. 상태 문서(`group-state.ts`, version 1)는 단계(`idle`·`intent`·`compose`·`scaffold`·`validate`·`fix`·`trial`·`replay`·`package`·`done`), 대상 폴더, 구성 초안, 검사 오류 지문, 사람 확인을 기다리는 요청(`pending`), 시험·묶음·설치 결과를 가진다.
 - [결정: M4 T-AUTH] 도구 아홉(`group-tools.ts`)은 `authoring_` 접두이고 입력 검사, 상태 커밋, 결과 요약만 한다. 사람 확인이 필요한 단계(시험, 묶기, 설치, 고치기 한도)는 도구가 `pending`만 커밋하고 `status: "awaiting_confirmation"`을 돌려주며, drive가 `loop.ask`로 확인한 뒤 서비스를 부르고 결과를 커밋한다(A-4: 확인 전에는 파일을 쓰지 않고 기다리는 동안 drive lock이 `waiting`으로 반납된다). 거절하면 `denied`가 상태에 남고 같은 도구를 다시 부르면 한 번 거절을 알린 뒤 그다음 호출이 다시 묻는다. `authoring_start`는 종류·이름 확인(`loop.ask`) 전에는 다른 도구가 `awaiting_confirmation`으로 거절하게 한다. `authoring_replay`는 `replayInDevMode`로 판정하고(A-5) 배포 형태면 상태에 `dev_mode_required`를 남긴다. `authoring_trial`은 서비스 `testRun`을 부르며 호스트가 아직 채우지 않아 오류 값을 돌려준다. 같은 검사 오류가 `fixLoopLimit`(기본 3)번 남으면 `pending: "fix_limit"`로 사용자에게 계속할지 묻는다.
-- [결정: M4 T-AUTH] 쓰기 범위 가드는 `tool.call.before`가 `authoringWriteGuard`를 부르고, 제작 대화가 열려 있는 동안(`idle`·`done`이 아닌 단계)에만 켜진다. 이 그룹의 도구(`authoring_*`)는 가드에서 뺀다. `thread.start`는 열린 대화가 있으면 알림을 하나 낸다(대화 복원). 화면 기여(`page`, `well`, `card`, `command`)와 `authoring_scaffold`의 `views` 인자, A-6은 T-VIEW 뒤로 미룬다. 설정 `l3.authoring.*`는 만들지 않고 값은 주입한다(`devMode`, `fixLoopLimit`).
-- [결정: M4 T-AUTH] 호스트는 `assembly/authoring.ts`의 `authoringUnit`으로 그룹을 내장 단위로 싣는다(기본 그룹을 끄거나 안전 모드면 싣지 않고, 싣더라도 기본 꺼짐). 서비스는 wire 제작 포트(`m4.devkit`)를 어댑터(`devkitServiceOf`)로 감싼 것이라 에이전트와 화면이 같은 검사와 뼈대를 얻는다. 포트는 엔진 포트가 만들어진 뒤에야 있어 쓸 때 읽고, 없으면 `io` 오류다. 개발 모드 판정은 호스트가 한 곳에서 주며 지금은 항상 거짓이라 `authoring_replay`는 `dev_mode_required`이고, `testRun`도 측정 계획이 wire를 더하기 전까지 `io` 오류다.
+- [결정: M4 T-AUTH] 쓰기 범위 가드는 `tool.call.before`가 `authoringWriteGuard`를 부르고, 제작 대화가 열려 있는 동안(`idle`·`done`이 아닌 단계)에만 켜진다. 이 그룹의 도구(`authoring_*`)는 가드에서 뺀다. `thread.start`는 열린 대화가 있으면 알림을 하나 낸다(대화 복원). 화면 기여(`page`, `well`, `card`, `command`)와 `authoring_scaffold`의 `views` 인자, A-6은 T-VIEW 뒤로 미룬다. 설정 `l3.authoring.fixLoopLimit`는 만들지 않고 값은 주입한다. `l3.authoring.devMode`는 카탈로그에 있고(§6) 호스트가 그 값을 읽어 준다.
+- [결정: M4 T-AUTH] 호스트는 `assembly/authoring.ts`의 `authoringUnit`으로 그룹을 내장 단위로 싣는다(기본 그룹을 끄거나 안전 모드면 싣지 않고, 싣더라도 기본 꺼짐). 서비스는 wire 제작 포트(`m4.devkit`)를 어댑터(`devkitServiceOf`)로 감싼 것이라 에이전트와 화면이 같은 검사와 뼈대를 얻는다. 포트는 엔진 포트가 만들어진 뒤에야 있어 쓸 때 읽고, 없으면 `io` 오류다. 개발 모드 판정은 호스트가 한 곳에서 주며 `l3.authoring.devMode` 설정의 현재 값을 도구를 부를 때마다 읽는다(기본 거짓). 거짓이면 `authoring_replay`는 `dev_mode_required`이고, 참이어도 replay 본체가 아직 wire에 없어 같은 오류를 돌려준다. `testRun`도 측정 계획이 wire를 더하기 전까지 `io` 오류다.
 
 ### 4.3 구성기와 화면 모드와의 관계
 
@@ -256,7 +256,7 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 | 키 | 기본 | 범위 | 뜻 |
 |---|---|---|---|
 | `l3.authoring.enabled` | `false` | user, project, launch | Plugin Builder 켜기(일반 `ext.<id>.enabled` 규칙과 같음) [제안] |
-| `l3.authoring.devMode` | 앱 형태에 따름 | managed, user | 개발 모드 동작(replay, benchmark) 허용. 배포 앱에서는 저장소 경로가 있어야 켜짐 |
+| `l3.authoring.devMode` | `false` | managed, user | 개발 모드 동작(replay, benchmark) 허용. 배포 앱에서는 저장소 경로가 있어야 켜짐 |
 | `l3.authoring.fixLoopLimit` | `3` | user, launch | 같은 검사 오류가 남는 고치기 반복 한도 |
 | `l3.authoring.localCatalog` | `true` | user | 사용자 로컬 카탈로그 읽기 |
 
@@ -299,3 +299,4 @@ idle → intent → compose → scaffold → validate ⇄ fix → trial → (rep
 4. [미결] 묶음 형식(폴더 사본, tar, 서명). 서명은 릴리즈 서명(`L4.release.spec`)과 함께 정합니다.
 5. [결정: 2026-11-04 사용자, 결정 목록 R16] 로컬 카탈로그 공유와 묶음 서명은 M4 밖입니다(`review.m4-plan` §1.2). 로컬 카탈로그 경로는 구현 세부로 남깁니다.
 6. [결정: 2026-11-04 사용자, 결정 목록 R16] replay·benchmark·코어 변경 검사는 개발 모드에서만 돕니다(`L4.desktop-ux.spec` §12.3 U-4, m4-decisions Desktop UX 4). 배포 앱에서 개발 모드를 켜는 조건은 M4 밖입니다. 켬/끔 비교(Test run 묶음 실행)는 배포 앱에도 엽니다(2026-11-03 결정).
+7. [결정: 2026-11-04 사용자 지시에 따른 기본값] 개발 모드 설정 `l3.authoring.devMode`가 카탈로그에 있습니다(소유 `plugin-builder`, 기본 `false`, 범위 managed·user). 기본은 꺼짐이라 배포 앱의 replay와 benchmark는 열리지 않습니다.

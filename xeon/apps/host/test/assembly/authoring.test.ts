@@ -2,17 +2,23 @@ import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import {
+  authoringDepsOf,
   authoringLoaded,
   authoringUnit,
   devkitServiceOf,
   type AuthoringWiring,
 } from "../../src/assembly/authoring.ts";
+import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
+import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
 // 제작 그룹의 내장 등록(`assembly/authoring.ts`). 기본 꺼짐, 안전 모드와 기본 그룹 끄기에서는 싣지 않음, wire 포트를 서비스 계약으로 맞춤.
 
-function wiringOf(port: DevkitPort | undefined): AuthoringWiring {
-  return { devkit: () => port };
+function wiringOf(
+  port: DevkitPort | undefined,
+  devMode: () => boolean = () => false,
+): AuthoringWiring {
+  return { devkit: () => port, devMode };
 }
 
 test("authoring unit: a builtin L3 group that stays off by default", () => {
@@ -22,6 +28,22 @@ test("authoring unit: a builtin L3 group that stays off by default", () => {
   expect(unit.manifest.trust).toEqual({ level: "builtin" });
   expect(unit.builtin).toBe(true);
   expect(unit.loadIndex).toBe(7);
+});
+
+test("the group's devMode follows the live l3.authoring.devMode value of the catalog, and is off when the value is not true", () => {
+  const built = buildEngineCatalog();
+  if (!built.ok) throw new Error("the core catalog must build");
+  const settings = createSettingsEngine(built.catalog);
+  const deps = authoringDepsOf(
+    wiringOf(undefined, () => settings.value("l3.authoring.devMode") === true),
+  );
+  expect(deps.devMode?.()).toBe(false);
+  settings.setUserValue("l3.authoring.devMode", true);
+  expect(deps.devMode?.()).toBe(true);
+  settings.setUserValue("l3.authoring.devMode", "true");
+  expect(deps.devMode?.()).toBe(false);
+  settings.setUserValue("l3.authoring.devMode", undefined);
+  expect(deps.devMode?.()).toBe(false);
 });
 
 test("authoring is loaded unless default groups are off or the engine is in safe mode", () => {
