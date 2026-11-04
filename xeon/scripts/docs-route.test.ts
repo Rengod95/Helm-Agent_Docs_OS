@@ -2,7 +2,14 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { checkDocs, countUnresolved, parseFrontmatter, routeDocs } from "./docs-route.ts";
+import {
+  checkDocs,
+  countUnresolved,
+  parseAddedLines,
+  parseFrontmatter,
+  routeDocs,
+  uncitedClaims,
+} from "./docs-route.ts";
 
 let root = "";
 beforeEach(() => {
@@ -284,4 +291,42 @@ test("countUnresolved counts [미결 markers per document and skips _research an
     { file: "docs/xeon/L0/os/spec.md", count: 2 },
     { file: "docs/xeon/review/m3-plan.md", count: 1 },
   ]);
+});
+
+test("uncitedClaims flags only added claim lines without a citation on the same or next line", () => {
+  const lines = [
+    "이 값은 아직 없다.",
+    "메서드가 없다 [근거: xeon/packages/a/src/b.ts]",
+    "입력이 없다.",
+    "[근거: 질문 12]",
+    "[미결] 정하지 않았다.",
+    "할 수 없다. 필요 없다. 관계없다.",
+    "이 줄은 없다.",
+    "[근거: ]",
+  ];
+  const all = new Set([1, 2, 3, 4, 5, 6, 7, 8]);
+  expect(uncitedClaims(lines, all)).toEqual([5, 7]);
+  expect(uncitedClaims(lines, new Set([2, 3, 6]))).toEqual([]);
+  expect(uncitedClaims(lines, new Set([5]))).toEqual([5]);
+});
+
+test("parseAddedLines reads new-side line numbers per file and skips deletions", () => {
+  const diff = [
+    "diff --git a/docs/xeon/a.md b/docs/xeon/a.md",
+    "--- a/docs/xeon/a.md",
+    "+++ b/docs/xeon/a.md",
+    "@@ -3,0 +4,2 @@ x",
+    "+a",
+    "+b",
+    "@@ -10,2 +12 @@",
+    "-c",
+    "+d",
+    "@@ -20,1 +21,0 @@",
+    "-e",
+    "diff --git a/docs/xeon/gone.md b/docs/xeon/gone.md",
+    "--- a/docs/xeon/gone.md",
+    "+++ /dev/null",
+    "@@ -1,3 +0,0 @@",
+  ].join("\n");
+  expect([...parseAddedLines(diff)]).toEqual([["docs/xeon/a.md", new Set([4, 5, 12])]]);
 });

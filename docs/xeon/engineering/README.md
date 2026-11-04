@@ -101,3 +101,4 @@ binds: []
 - 문서를 추가·이동·삭제하면 같은 변경에서 `routes.yaml`의 `manifest.engineering`과 `by_task`를 고친다.
 - 규칙을 바꾸면 같은 변경에서 그 규칙의 강제 수단을 고친다. 대상은 `xeon/.oxlintrc.json`, `xeon/.oxfmtrc.json`, `xeon/scripts/check-layers.ts`, `.dependency-cruiser.cjs`, `knip.json`, `lefthook.yml`, `justfile` 중 해당하는 것이다.
 - 고친 뒤 `just docs-route --check`와 `just verify`로 확인한다.
+- 없음이나 열림을 말하는 줄에는 근거를 붙인다. `origin/xeon/foundation`과 비교해 더한 줄이 "없다", "아직 없", "입력이 없" 또는 `[미결]`을 말하면 같은 줄이나 다음 줄에 `[근거: <코드 경로 | 질문 번호 | 결정 날짜>]`을 적는다. "할 수 없다", "필요 없다", "상관없다", "관계없다", "틀림없다"는 세지 않는다. `just docs-route --check`가 새 줄에만, 경고 수준으로 알린다(`xeon/scripts/docs-route.ts`의 `citationWarnings`). 문서가 "없다"고 적은 것만으로는 근거가 아니다. 코드와 결정 기록을 확인한 뒤 적는다. [결정: 2026-11-04 사용자]

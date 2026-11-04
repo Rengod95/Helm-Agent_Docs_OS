@@ -2,11 +2,78 @@
 // Docs router and validator.
 //   docs-route --task <t[,t]> [paths|ids|L1/loop ...]   print the docs to read (repo-relative paths)
 //   docs-route --check [--allow-missing]                validate front matter, ids, links and binds
+//   docs-route --check also warns about lines added against origin/xeon/foundation that say "없다", "아직 없", "입력이 없" or `[미결]` without `[근거: ...]`
 //   docs-route --unresolved                              count `[미결` markers per document (review.unresolved)
 // Inputs: docs/xeon/_routing/routes.yaml and the front matter of docs/xeon/**/*.md (except _research).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
+
+/** A claim of absence or an open question: needs a `[근거: ...]` on the same or the next line. */
+const CLAIM = /(?<!수 )(?<!필요 )(?<!상관)(?<!관계)(?<!틀림)없다|아직 없|입력이 없|\[미결/;
+const CITATION = /\[근거: [^\]\s][^\]]*\]/;
+
+/** 1-based line numbers (in `lines`) of claims without a citation on the same or the next line. Only `added` lines are looked at. */
+export function uncitedClaims(lines: readonly string[], added: ReadonlySet<number>): number[] {
+  const hits: number[] = [];
+  for (const number of [...added].toSorted((a, b) => a - b)) {
+    const text = lines[number - 1];
+    if (text === undefined || !CLAIM.test(text)) continue;
+    if (CITATION.test(text) || CITATION.test(lines[number] ?? "")) continue;
+    hits.push(number);
+  }
+  return hits;
+}
+
+/** Added line numbers per file from `git diff -U0` output. Deleted files and pure deletions give nothing. */
+export function parseAddedLines(diff: string): Map<string, Set<number>> {
+  const result = new Map<string, Set<number>>();
+  let file: string | undefined;
+  for (const line of diff.split("\n")) {
+    const header = /^\+\+\+ b\/(.+)$/.exec(line);
+    if (header?.[1] !== undefined) {
+      file = header[1];
+      continue;
+    }
+    if (line.startsWith("+++ ")) file = undefined;
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (file === undefined || hunk?.[1] === undefined) continue;
+    const start = Number(hunk[1]);
+    const count = hunk[2] === undefined ? 1 : Number(hunk[2]);
+    const set = result.get(file) ?? new Set<number>();
+    for (let n = start; n < start + count; n++) set.add(n);
+    result.set(file, set);
+  }
+  return result;
+}
+
+const CITATION_BASE = "origin/xeon/foundation";
+
+/** Warnings for lines of docs/xeon added against `base` that claim absence or an open question without a citation. Empty when git or the base is unavailable. */
+export function citationWarnings(repoRoot: string, base: string = CITATION_BASE): string[] {
+  const mergeBase = Bun.spawnSync(["git", "merge-base", base, "HEAD"], { cwd: repoRoot });
+  if (mergeBase.exitCode !== 0) return [];
+  // Against the merge base, working tree included: committed and uncommitted additions both count.
+  const tree = Bun.spawnSync(
+    ["git", "diff", "-U0", "--no-color", mergeBase.stdout.toString().trim(), "--", "docs/xeon"],
+    { cwd: repoRoot },
+  );
+  if (tree.exitCode !== 0) return [];
+  const added = parseAddedLines(tree.stdout.toString());
+  const warnings: string[] = [];
+  for (const [file, numbers] of [...added].toSorted(([a], [b]) => a.localeCompare(b))) {
+    if (!file.endsWith(".md") || file.startsWith("docs/xeon/_research/")) continue;
+    const path = join(repoRoot, file);
+    if (!existsSync(path)) continue;
+    const lines = readFileSync(path, "utf8").split("\n");
+    for (const number of uncitedClaims(lines, numbers)) {
+      warnings.push(
+        `${file}:${number}: 없다/아직 없/입력이 없/[미결] needs [근거: <코드 경로 | 질문 번호 | 결정 날짜>]`,
+      );
+    }
+  }
+  return warnings;
+}
 
 export const LAYERS = ["F", "X", "L0", "L1", "L2", "L3", "L4"] as const;
 const DOC_LAYERS = [...LAYERS, "product", "architecture", "eng", "adr", "meta"];
@@ -440,6 +507,8 @@ if (import.meta.main) {
   const repoRoot = resolve(values["repo-root"] ?? join(import.meta.dir, "..", ".."));
   if (values.check) {
     const report = checkDocs(repoRoot, { allowMissing: values["allow-missing"] });
+    const citations = citationWarnings(repoRoot);
+    report.warnings.push(...citations);
     const shown = values.verbose
       ? report.warnings
       : report.warnings.filter((message) => !notYet(message));
