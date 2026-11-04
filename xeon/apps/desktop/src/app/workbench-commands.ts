@@ -154,6 +154,13 @@ export function createWorkbenchCommands(
       ),
     validateComposition: (composition) =>
       withConnection((c) => c.request("ext.validateComposition", { composition })),
+    async kinds() {
+      const got = await withConnection((c) => c.request("ext.kinds", {}));
+      return got.ok ? ok(got.value.kinds) : err(got.error);
+    },
+    scaffold: (input) => withConnection((c) => c.request("ext.scaffold", input)),
+    validateDir: (dir) => withConnection((c) => c.request("ext.validate", { dir })),
+    packDir: (dir) => withConnection((c) => c.request("ext.package", { dir })),
     versions: (name) => withConnection((c) => c.request("ext.versions", { name })),
     async rollback(name, version, clearState) {
       const done = await withConnection((c) =>

@@ -52,6 +52,9 @@ export async function startReplay(
 }
 
 /** Test run 대화 만들기. 성공하면 대화 id를 돌려준다 */
-export async function createTestRunThread(tests: TestCommands): Promise<ActionOutcome<string>> {
-  return outcomeOf(await tests.createTestRun());
+export async function createTestRunThread(
+  tests: TestCommands,
+  profileId?: string,
+): Promise<ActionOutcome<string>> {
+  return outcomeOf(await tests.createTestRun(profileId));
 }

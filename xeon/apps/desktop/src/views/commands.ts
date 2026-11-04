@@ -8,7 +8,13 @@ import type {
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@fresnel/contracts";
 import type { ScheduleListItem, SecretName } from "@fresnel/contracts/capabilities";
-import type { InstallPreview } from "@fresnel/contracts/services";
+import type {
+  InstallPreview,
+  KindEntry,
+  PackResult,
+  ScaffoldInput,
+  ScaffoldResult,
+} from "@fresnel/contracts/services";
 import type { EffectiveSetting, SettingDefWire } from "@fresnel/contracts/settings";
 import type { DenyAnswerJson, PlanAnswerJson, ReviewAnswerJson } from "@fresnel/contracts/records";
 import type {
@@ -36,6 +42,7 @@ import type {
   ProfileGetResult,
   ProfileInput,
   ProfilePreviewResult,
+  ExtValidateDirResult,
   ExtValidateResult,
   SecretListEntry,
   SecretReferencesResult,
@@ -168,8 +175,8 @@ export interface TestCommands {
   devMode(): Promise<Result<boolean, CommandError>>;
   /** `ext.test.run`: replay 시험을 돌린다 */
   run(params: ExtTestRunParams): Promise<Result<ExtTestRunResult, CommandError>>;
-  /** `thread.create { testRun: true }`: Test run 대화를 만든다. 대화 id를 돌려준다 */
-  createTestRun(): Promise<Result<string, CommandError>>;
+  /** `thread.create { testRun: true, profileId? }`: Test run 대화를 만든다(프로필은 만들면서 `thread` 층에 적용). 대화 id를 돌려준다 */
+  createTestRun(profileId?: string): Promise<Result<string, CommandError>>;
   /** `testRun.pause`: 다음 단계 경계에서 멈춘다. 결과는 멈춘 채인가 */
   pause(threadId: string): Promise<Result<boolean, CommandError>>;
   /** `testRun.resume`: 멈춘 Test run을 다시 돌린다 */
@@ -540,6 +547,14 @@ export interface WorkbenchCommands {
   validateComposition(
     composition: CompositionDecl,
   ): Promise<Result<ExtValidateResult, CommandError>>;
+  /** `ext.kinds`: 새 그룹의 시작점이 되는 종류 카탈로그 */
+  kinds(): Promise<Result<readonly KindEntry[], CommandError>>;
+  /** `ext.scaffold`: 대상 폴더에 뼈대를 만든다. 이름·폴더 거절은 `rejected`다 */
+  scaffold(input: ScaffoldInput): Promise<Result<ScaffoldResult, CommandError>>;
+  /** `ext.validate { dir }`: 폴더의 매니페스트와 AU 규칙 검사. 오류가 없으면 `ok`가 참이다 */
+  validateDir(dir: string): Promise<Result<ExtValidateDirResult, CommandError>>;
+  /** `ext.package { dir }`: 설치 묶음을 만든다 */
+  packDir(dir: string): Promise<Result<PackResult, CommandError>>;
   versions(name: string): Promise<Result<ExtVersionsResult, CommandError>>;
   /** 되돌리기. `restart`면 다음 시작에 적용된다(HS-108) */
   rollback(
