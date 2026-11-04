@@ -21,7 +21,13 @@ import {
   ReviewAppliedPayloadSchema,
   ReviewSubmittedPayloadSchema,
   ScopeHandlerFailedPayloadSchema,
+  InputPlacedPayloadSchema,
+  InputQueuedPayloadSchema,
+  InputWithdrawnPayloadSchema,
+  WorkPlanSubmittedSchema,
+  WorkPlanWithdrawnSchema,
   maskApprovalRequest,
+  type InputQueuedPayload,
 } from "@fresnel/contracts/records";
 
 import type {
@@ -29,10 +35,43 @@ import type {
   PendingApproval as WirePendingApproval,
   VolatileEventWire,
 } from "@fresnel/contracts/wire";
-import type { DurableFact, VolatileFact } from "./input.ts";
+import type { DurableFact, QueuedPreview, VolatileFact } from "./input.ts";
 
 type DurableBase = Omit<Extract<DurableFact, { type: "other" }>, "type">;
 type VolatileBase = Omit<Extract<VolatileFact, { type: "other" }>, "type">;
+
+/** 대기 입력 미리보기의 글자 수 상한(코드 점 기준). 넘는 글은 "…"을 붙여 자른다 */
+const PREVIEW_CHARS = 120;
+
+/** 글을 앞뒤 공백 없이 다듬고 `PREVIEW_CHARS`자까지만 남긴다. 긴 글은 끝에 "…"을 붙인다 */
+function previewText(text: string): string {
+  const trimmed = text.trim();
+  let end = 0;
+  let count = 0;
+  for (const ch of trimmed) {
+    if (count === PREVIEW_CHARS) return `${trimmed.slice(0, end)}…`;
+    end += ch.length;
+    count += 1;
+  }
+  return trimmed;
+}
+
+/**
+ * 큐 항목의 미리보기. 맥락 항목은 이름표만 준다. 사용자 항목은 글이 있으면 글을, 글이 없으면 이미지가 있는지에 따라 이름표를 준다.
+ * 확장의 맥락 항목과 이미지 항목은 본문을 싣지 않는다.
+ */
+function queuedPreviewOf(item: InputQueuedPayload["item"]): QueuedPreview {
+  if (item.kind === "context") return { kind: "label", labelKey: "context" };
+  const { content } = item;
+  const raw =
+    typeof content === "string"
+      ? content
+      : content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("");
+  const text = previewText(raw);
+  if (text !== "") return { kind: "text", text };
+  const hasImage = typeof content !== "string" && content.some((part) => part.type === "image");
+  return { kind: "label", labelKey: hasImage ? "image" : "empty" };
+}
 
 /**
  * 거울이 읽는 내구 kind와 payload 검증. 표에 없는 kind는 other로 위치만 넘긴다.
@@ -124,6 +163,65 @@ const DURABLE: Readonly<
     const p = parse(ReviewSubmittedPayloadSchema, payload);
     return p.ok
       ? { ...base, type: "review.submitted", payload: p.value }
+      : { ...base, type: "unreadable" };
+  },
+  // 계획 사건(P-14 계획 카드): 계획 id, 판 번호, 제목과 상태만 싣는다. 본문과 산출물은 거울에 들어가지 않는다
+  "work.plan_submitted": (base, payload) => {
+    const p = parse(WorkPlanSubmittedSchema, payload);
+    return p.ok
+      ? {
+          ...base,
+          type: "plan.event",
+          plan: {
+            planId: p.value.planId,
+            version: p.value.version,
+            title: p.value.title,
+            status: "submitted",
+          },
+        }
+      : { ...base, type: "unreadable" };
+  },
+  "work.plan_withdrawn": (base, payload) => {
+    const p = parse(WorkPlanWithdrawnSchema, payload);
+    return p.ok
+      ? {
+          ...base,
+          type: "plan.event",
+          plan: {
+            planId: p.value.planId,
+            version: p.value.version,
+            title: null,
+            status: "withdrawn",
+          },
+        }
+      : { ...base, type: "unreadable" };
+  },
+  // 대기 입력(내구): 큐에 든 입력은 칩으로, 배치·철회는 칩을 지운다. 입력 id는 `input.queued`의 이벤트 id다
+  "input.queued": (base, payload) => {
+    const p = parse(InputQueuedPayloadSchema, payload);
+    return p.ok
+      ? {
+          ...base,
+          type: "input.queued",
+          input: {
+            mode: p.value.mode,
+            requestId: p.value.requestId,
+            sourceType: p.value.source.type,
+            preview: queuedPreviewOf(p.value.item),
+          },
+        }
+      : { ...base, type: "unreadable" };
+  },
+  "input.placed": (base, payload) => {
+    const p = parse(InputPlacedPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "input.placed", inputId: p.value.inputId }
+      : { ...base, type: "unreadable" };
+  },
+  "input.withdrawn": (base, payload) => {
+    const p = parse(InputWithdrawnPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "input.withdrawn", inputId: p.value.inputId }
       : { ...base, type: "unreadable" };
   },
 };

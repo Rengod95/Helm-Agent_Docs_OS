@@ -63,6 +63,7 @@ import {
   type StreamPosition,
 } from "./cursor.ts";
 import { WireMetaSchema } from "./jsonrpc.ts";
+import { RequestKeySchema } from "./schema-kit.ts";
 import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
 import { DEVKIT_WIRE_METHODS, type DevkitWireSchemas } from "./devkit.ts";
@@ -130,10 +131,7 @@ export type TransportKind = Static<typeof TransportKindSchema>;
 export const EmptyResultSchema: typeof EmptyParamsSchema = EmptyParamsSchema;
 export type EmptyResult = EmptyParams;
 
-/** 브랜드 없는 멱등 키(1~64자). F.conversation.spec §3.5의 requestId와 같은 뜻이다 */
-const RequestKeySchema: TString = Type.String({ minLength: 1, maxLength: 64 });
-
-// ── host.* ───────────────────────────────────────────────────────────────
+// ── host.*───────────────────────────────────────────────────────────────
 
 export const HostHelloParamsSchema: TObject<{
   protocolVersion: typeof SemVerSchema;

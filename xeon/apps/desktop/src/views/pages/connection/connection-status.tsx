@@ -18,9 +18,10 @@ import {
   type TargetChoice,
 } from "./connection-model.ts";
 import { engineMessageOf, modeMessageOf, timeTextOf } from "./connection-text.ts";
+import { ConnectedClients } from "./connection-clients.tsx";
 
-// 연결 화면의 상태 카드(P-08 오른쪽). 현재 대상과 host.status 값을 키-값 목록으로, 서비스 모드 설정, 엔진 다시 시작,
-// 서비스 멈추기(서비스로 붙어 있을 때만), 확장 상태 링크 한 줄, 맨 아래 업데이트 확인 줄을 둔다.
+// 연결 화면의 상태 카드(P-08 오른쪽). 현재 대상과 host.status 값을 키-값 목록으로, 그 아래 연결된 클라이언트 목록(W-12),
+// 서비스 모드 설정, 엔진 다시 시작, 서비스 멈추기(서비스로 붙어 있을 때만), 확장 상태 링크 한 줄, 맨 아래 업데이트 확인 줄을 둔다.
 // 업데이트 확인은 데이터 원천이 없어 항상 "확인 전" 줄이다(결정 A2: 내려받기와 교체는 하지 않는다).
 
 /** 상태 카드가 내는 동작. 화면 핸들러의 일부다 */
@@ -30,6 +31,8 @@ export interface StatusHandlers {
   readonly setRemoteRespond: (enabled: boolean) => void;
   readonly setStopConfirm: (open: boolean) => void;
   readonly openExtensions: () => void;
+  /** 연결된 클라이언트 목록만 다시 읽는다(목록 읽기 실패의 다시 시도) */
+  readonly retryClients: () => void;
 }
 
 export interface ConnectionStatusCardProps {
@@ -107,6 +110,7 @@ export function ConnectionStatusCard(props: ConnectionStatusCardProps): ReactNod
           </>
         )}
       </ListDescription>
+      <ConnectedClients state={state.clients} onRetry={handlers.retryClients} />
       <Button
         variant="ghost"
         size="xs"

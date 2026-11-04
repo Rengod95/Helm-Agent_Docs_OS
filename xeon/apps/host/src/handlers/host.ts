@@ -1,4 +1,5 @@
 import {
+  HOST_CLIENTS_MAX,
   isCompatible,
   wireError,
   WIRE_CLIENT_NOTIFICATIONS,
@@ -6,11 +7,12 @@ import {
   WIRE_NOTIFICATIONS,
   WIRE_PROTOCOL_VERSION,
   type FeatureInfo,
+  type HostClientView,
   type WireHandler,
   type WireHandlers,
   type WireMethodName,
 } from "@fresnel/contracts/wire";
-import type { ConnectionHub } from "../connection-types.ts";
+import type { ConnectionHub, ConnectionState } from "../connection-types.ts";
 import { hostBinaryReportOf } from "../binary-report.ts";
 import type { Engine } from "../types.ts";
 import { isNotImplemented } from "./not-implemented.ts";
@@ -106,6 +108,7 @@ export function createHostHelloHandler(
     // 응답 전에 동기로 바꾼다: 같은 연결에서 곧바로 오는 다음 요청이 hello 완료를 본다
     state.phase = "ready";
     state.experimental = experimental;
+    state.client = { name: params.client.name, version: params.client.version };
     return Promise.resolve({
       protocolVersion: WIRE_PROTOCOL_VERSION,
       server: { name: info.serverName, version: info.serverVersion },
@@ -174,4 +177,34 @@ export function createHostStatusHandler(
     if (!diagnosed.binaries.ok) throw wireError("request.cancelled");
     return { ...status, binaries: hostBinaryReportOf(diagnosed.binaries.value) };
   };
+}
+
+/**
+ * 열린 연결의 목록(`host.clients`, W-12). 연결마다 전송 종류, 이름과 버전(hello를 마친 연결만), 쓰기·관찰로 연 대화 수를 싣는다.
+ * 요청을 보낸 연결은 `self`가 참이고 목록 맨 앞에 온다. 인증 토큰과 연결의 내부 상태는 싣지 않는다. 상한을 넘는 연결은 뒤쪽을 버린다.
+ */
+export function createHostClientsHandler(hub: () => ConnectionHub): WireHandler<"host.clients"> {
+  return (_params, context) => {
+    const connections = hub().connections();
+    const own = connections.filter((state) => state.id === context.connectionId);
+    const others = connections.filter((state) => state.id !== context.connectionId);
+    const clients = [...own, ...others]
+      .slice(0, HOST_CLIENTS_MAX)
+      .map((state) => clientViewOf(state, context.connectionId));
+    return Promise.resolve({ clients });
+  };
+}
+
+/** 연결 하나를 `host.clients`의 한 행으로 옮긴다. 이름과 버전은 hello를 마친 연결만 싣는다 */
+function clientViewOf(state: ConnectionState, callerId: string): HostClientView {
+  const view: HostClientView = {
+    connectionId: state.id,
+    transport: state.transportKind,
+    writeThreads: state.writeThreads.size,
+    observedThreads: state.observedThreads.size,
+    self: state.id === callerId,
+  };
+  return state.client === undefined
+    ? view
+    : { ...view, name: state.client.name, version: state.client.version };
 }

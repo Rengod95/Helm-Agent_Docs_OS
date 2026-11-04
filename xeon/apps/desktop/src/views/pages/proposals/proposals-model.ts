@@ -1,6 +1,7 @@
 import type { ProposalAction, ProposalRowVM, ProposalScope } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
-import type { ProposalListParams, ProposalSource } from "@fresnel/contracts/wire";
+import type { ProposalListParams, ProposalSource, WireResult } from "@fresnel/contracts/wire";
+import type { SkillViewError } from "../../commands.ts";
 
 // 제안 화면(P-06)의 순수 모델. 거르기, 목록 상태, 상세의 편집기·확인·범위, 바로 가기 키 뜻을 다룬다.
 // 값은 `toEqual`로 비교한다. 서버 호출과 문장 만들기는 `proposals-screen.tsx`가 한다.
@@ -59,6 +60,25 @@ interface Notice {
   readonly text: string;
 }
 
+/** 충돌 스킬 본문을 읽는 요청. `threadId`는 프로젝트 스킬을 찾을 작업 폴더를 정하는 근거 대화다(없으면 null) */
+export interface SkillRequest {
+  readonly name: string;
+  readonly threadId: string | null;
+}
+
+/** 본문을 읽지 못한 이유. `offline`은 연결이 없다, `failed`는 그 밖의 읽기 실패다 */
+export type SkillPeekFailure = "notFound" | "unsupported" | "offline" | "failed";
+
+/** 충돌 스킬 대화 상자. `closed`가 아니면 `request`의 스킬을 본다. 연 뒤에만 읽는다 */
+export type SkillPeek =
+  | { readonly status: "closed" }
+  | ({ readonly status: "loading" } & SkillRequest)
+  | ({
+      readonly status: "ready";
+      readonly skill: WireResult<"knowledge.skills.view">;
+    } & SkillRequest)
+  | ({ readonly status: SkillPeekFailure } & SkillRequest);
+
 export interface ProposalsState {
   readonly filter: ProposalFilter;
   readonly list: ListState;
@@ -71,6 +91,7 @@ export interface ProposalsState {
   readonly confirm: Confirm;
   readonly busy: boolean;
   readonly notice: Notice | null;
+  readonly skill: SkillPeek;
 }
 
 export const INITIAL_PROPOSALS_STATE: ProposalsState = {
@@ -83,6 +104,7 @@ export const INITIAL_PROPOSALS_STATE: ProposalsState = {
   confirm: null,
   busy: false,
   notice: null,
+  skill: { status: "closed" },
 };
 
 export type ProposalsAction =
@@ -104,7 +126,27 @@ export type ProposalsAction =
   | { readonly type: "confirmOpened"; readonly key: string; readonly action: "approve" | "revert" }
   | { readonly type: "confirmClosed" }
   | { readonly type: "busyChanged"; readonly busy: boolean }
-  | { readonly type: "noticeSet"; readonly notice: Notice | null };
+  | { readonly type: "noticeSet"; readonly notice: Notice | null }
+  /** 충돌 스킬 대화 상자를 열거나 다시 읽는다. 읽기는 이 동작 뒤에 화면이 부른다 */
+  | { readonly type: "skillOpened"; readonly request: SkillRequest }
+  | {
+      readonly type: "skillLoaded";
+      readonly request: SkillRequest;
+      readonly skill: WireResult<"knowledge.skills.view">;
+    }
+  | {
+      readonly type: "skillFailed";
+      readonly request: SkillRequest;
+      readonly failure: SkillPeekFailure;
+    }
+  | { readonly type: "skillClosed" };
+
+/** 읽기 응답이 지금 대화 상자가 기다리는 요청의 것인가. 닫았거나 다른 스킬을 연 뒤의 늦은 응답은 버린다 */
+function isPendingFor(peek: SkillPeek, request: SkillRequest): boolean {
+  return (
+    peek.status === "loading" && peek.name === request.name && peek.threadId === request.threadId
+  );
+}
 
 export function proposalsReducer(state: ProposalsState, action: ProposalsAction): ProposalsState {
   switch (action.type) {
@@ -183,9 +225,26 @@ export function proposalsReducer(state: ProposalsState, action: ProposalsAction)
       return { ...state, busy: action.busy };
     case "noticeSet":
       return { ...state, notice: action.notice };
+    case "skillOpened":
+      return { ...state, skill: { status: "loading", ...action.request } };
+    case "skillLoaded":
+      return isPendingFor(state.skill, action.request)
+        ? { ...state, skill: { status: "ready", skill: action.skill, ...action.request } }
+        : state;
+    case "skillFailed":
+      return isPendingFor(state.skill, action.request)
+        ? { ...state, skill: { status: action.failure, ...action.request } }
+        : state;
+    case "skillClosed":
+      return { ...state, skill: { status: "closed" } };
     default:
       return assertNever(action, "ProposalsAction");
   }
+}
+
+/** 대화 상자나 편집기가 열려 있는가. 열려 있으면 목록의 바로 가기 키는 쉰다(포털 대화 상자의 키 입력도 화면까지 올라온다) */
+export function overlayOpenOf(state: ProposalsState): boolean {
+  return state.confirm !== null || state.editor.mode !== "none" || state.skill.status !== "closed";
 }
 
 /** 종류 거름을 적용한 행. "모두"면 그대로다 */
@@ -223,6 +282,25 @@ export function confirmActionOf(
   if (action === "revert") return "revert";
   if (action === "approve" && row.destructive) return "approve";
   return null;
+}
+
+/** 본문 읽기 오류를 대화 상자의 상태로 바꾼다. 연결이 없으면 offline, 이름이 없으면 notFound, 기능이 꺼져 있으면 unsupported다 */
+export function skillFailureOf(error: SkillViewError): SkillPeekFailure {
+  switch (error.kind) {
+    case "not_found":
+      return "notFound";
+    case "unsupported":
+      return "unsupported";
+    case "offline":
+      return "offline";
+    case "locked":
+    case "rejected":
+    case "switching":
+    case "failed":
+      return "failed";
+    default:
+      return assertNever(error, "SkillViewError");
+  }
 }
 
 /** 변경 보기가 한 번에 보이는 줄 수. 넘으면 나머지는 접어 둔다(spec §6.10 긴 내용) */

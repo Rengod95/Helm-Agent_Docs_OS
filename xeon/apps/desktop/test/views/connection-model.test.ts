@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { attachErrorKey, TARGET_SEARCH_THRESHOLD, type TargetEntry } from "@fresnel/client";
 import { catalogOf } from "@fresnel/client/i18n";
 import { updateLineKey } from "@fresnel/client/settings";
+import type { HostClientView } from "@fresnel/contracts/wire";
 import type { EngineState, Link } from "../../src/state/engine/index.ts";
 import {
   attachFailureOf,
@@ -9,6 +10,9 @@ import {
   canSetRemoteRespond,
   checkForm,
   choiceOfValue,
+  clientRowOf,
+  clientsReasonOf,
+  clientsShown,
   connectionReducer,
   INITIAL_CONNECTION_STATE,
   LOCAL_CHOICE,
@@ -22,7 +26,10 @@ import {
   type ConnectionState,
   type TargetChoice,
 } from "../../src/views/pages/connection/connection-model.ts";
-import { addressMessageOf } from "../../src/views/pages/connection/connection-text.ts";
+import {
+  addressMessageOf,
+  transportMessageOf,
+} from "../../src/views/pages/connection/connection-text.ts";
 
 // 연결 화면(P-08)의 상태 기계. 대상 고르기, 추가 칸 검사, 진행 단계, 실패 종류, 셸 거절 되돌리기를 값으로 비교한다.
 
@@ -468,5 +475,97 @@ describe("the remote answer setting", () => {
     const offline = run(statusWith(true), { type: "statusFailed", reason: "offline" });
     expect(canSetRemoteRespond(offline)).toBe(false);
     expect(offline.remoteAllowRespond).toBe(true);
+  });
+});
+
+describe("the connected clients list", () => {
+  const NAMED: HostClientView = {
+    connectionId: "c-1",
+    transport: "stdio",
+    name: "fresnel-cli",
+    version: "1.2.0",
+    writeThreads: 2,
+    observedThreads: 1,
+    self: false,
+  };
+  const BARE: HostClientView = {
+    connectionId: "c-2",
+    transport: "socket",
+    writeThreads: 0,
+    observedThreads: 3,
+    self: true,
+  };
+
+  test("a named client keeps its name and version, and a client that has not said hello has neither", () => {
+    expect(clientRowOf(NAMED)).toEqual({
+      id: "c-1",
+      name: "fresnel-cli",
+      transport: "stdio",
+      version: "1.2.0",
+      self: false,
+      writeThreads: 2,
+      observedThreads: 1,
+    });
+    expect(clientRowOf(BARE)).toEqual({
+      id: "c-2",
+      name: null,
+      transport: "socket",
+      version: null,
+      self: true,
+      writeThreads: 0,
+      observedThreads: 3,
+    });
+  });
+
+  test("the transport label that stands in for a missing name is the Korean catalog's", () => {
+    const ko = catalogOf("ko");
+    expect(ko[transportMessageOf("in-process")]).toBe("같은 프로세스");
+    expect(ko[transportMessageOf("stdio")]).toBe("표준 입출력(stdio)");
+    expect(ko[transportMessageOf("socket")]).toBe("서비스 연결");
+  });
+
+  test("a loaded list is kept in the order the engine gave, and a later read replaces it", () => {
+    const loaded = run(INITIAL_CONNECTION_STATE, {
+      type: "clientsLoaded",
+      clients: [BARE, NAMED],
+    });
+    expect(loaded.clients).toEqual({ kind: "ready", clients: [BARE, NAMED] });
+    const again = run(loaded, { type: "clientsLoaded", clients: [] });
+    expect(again.clients).toEqual({ kind: "ready", clients: [] });
+  });
+
+  test("a failed read keeps its reason, and a new read starts loading again", () => {
+    const failed = run(INITIAL_CONNECTION_STATE, { type: "clientsFailed", reason: "failed" });
+    expect(failed.clients).toEqual({ kind: "failed" });
+    const retried = run(failed, { type: "clientsLoading" });
+    expect(retried.clients).toEqual({ kind: "loading" });
+  });
+
+  test("the client list and the status card move independently", () => {
+    const statusFailed = run(INITIAL_CONNECTION_STATE, { type: "statusFailed", reason: "failed" });
+    const withClients = run(statusFailed, { type: "clientsLoaded", clients: [NAMED] });
+    expect(withClients.status).toEqual({ kind: "failed" });
+    expect(withClients.clients).toEqual({ kind: "ready", clients: [NAMED] });
+    const clientsFailed = run(INITIAL_CONNECTION_STATE, {
+      type: "clientsFailed",
+      reason: "failed",
+    });
+    expect(clientsFailed.status).toEqual({ kind: "loading" });
+  });
+
+  test("no connection and an old engine each keep their own reason, and any other failure is failed", () => {
+    expect(clientsReasonOf({ kind: "offline" })).toBe("offline");
+    expect(clientsReasonOf({ kind: "unsupported" })).toBe("unsupported");
+    expect(clientsReasonOf({ kind: "failed" })).toBe("failed");
+    expect(clientsReasonOf({ kind: "rejected", code: 3102 })).toBe("failed");
+    expect(clientsReasonOf({ kind: "locked", ownerKind: "unknown", options: [] })).toBe("failed");
+  });
+
+  test("the section is drawn while loading, ready or failed, and hidden for offline and unsupported", () => {
+    expect(clientsShown({ kind: "loading" })).toBe(true);
+    expect(clientsShown({ kind: "ready", clients: [] })).toBe(true);
+    expect(clientsShown({ kind: "failed" })).toBe(true);
+    expect(clientsShown({ kind: "offline" })).toBe(false);
+    expect(clientsShown({ kind: "unsupported" })).toBe(false);
   });
 });

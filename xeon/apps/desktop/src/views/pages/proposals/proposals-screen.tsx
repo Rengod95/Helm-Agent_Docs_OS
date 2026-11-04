@@ -24,13 +24,16 @@ import {
   INITIAL_PROPOSALS_STATE,
   listParamsOf,
   moveSelectionOf,
+  overlayOpenOf,
   proposalKeyIntentOf,
   proposalsReducer,
   selectedRowOf,
+  skillFailureOf,
   visibleRowsOf,
   type ProposalFilter,
   type ProposalPage,
   type ProposalsState,
+  type SkillRequest,
 } from "./proposals-model.ts";
 import { commandErrorIdOf, decisionErrorIdOf, doneNoticeIdOf } from "./proposals-text.ts";
 import { ProposalsView, type ProposalsHandlers } from "./proposals-view.tsx";
@@ -125,8 +128,8 @@ export function ProposalsScreen(): ReactNode {
   };
 
   const onKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
-    // 확인 대화 상자나 편집기가 열려 있으면 목록 바로 가기 키는 쉰다(대화 상자는 포털이라 이벤트가 이 자리로 올라온다)
-    if (state.confirm !== null || state.editor.mode !== "none") return;
+    // 대화 상자나 편집기가 열려 있으면 목록 바로 가기 키는 쉰다(대화 상자는 포털이라 이벤트가 이 자리로 올라온다)
+    if (overlayOpenOf(state)) return;
     const target = event.target instanceof HTMLElement ? event.target : null;
     const intent = proposalKeyIntentOf({
       key: event.key,
@@ -148,6 +151,17 @@ export function ProposalsScreen(): ReactNode {
     const row = selectedRowOf(shownRowsOf(state), state.selectedKey);
     if (row === null || !live || state.busy || !row.actions.includes(intent.action)) return;
     act(row, intent.action);
+  };
+
+  /** 충돌 스킬 본문을 한 번 읽는다(다시 읽기도 같다). 늦은 응답은 리듀서가 대화 상자의 요청과 맞는지 보고 버린다 */
+  const readSkill = async (request: SkillRequest): Promise<void> => {
+    dispatch({ type: "skillOpened", request });
+    const viewed = await commands.skills.view(request.name, request.threadId ?? undefined);
+    if (viewed.ok) {
+      dispatch({ type: "skillLoaded", request, skill: viewed.value });
+      return;
+    }
+    dispatch({ type: "skillFailed", request, failure: skillFailureOf(viewed.error) });
   };
 
   const openThread = (threadId: string): void => {
@@ -207,6 +221,12 @@ export function ProposalsScreen(): ReactNode {
       detach(read(state.filter, null, false), rethrow);
     },
     openThread,
+    skillOpen: (request) => {
+      detach(readSkill(request), rethrow);
+    },
+    skillClose: () => {
+      dispatch({ type: "skillClosed" });
+    },
     dismissNotice: () => {
       dispatch({ type: "noticeSet", notice: null });
     },

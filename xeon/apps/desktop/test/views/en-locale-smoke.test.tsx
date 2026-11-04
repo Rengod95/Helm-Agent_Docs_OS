@@ -34,6 +34,7 @@ const handlers: ConnectionScreenHandlers = {
   setRemoteRespond: NOOP,
   setStopConfirm: NOOP,
   openExtensions: NOOP,
+  retryClients: NOOP,
 };
 
 function connectionHtml(locale: Locale): string {
@@ -65,6 +66,56 @@ describe("desktop render with ui.locale=en", () => {
     expect(markup).toContain(
       "No remote targets yet. Add the service socket address of a machine you can reach over SSH.",
     );
+    expect(markup).not.toMatch(HANGUL);
+  });
+
+  test("the connected clients list renders English sentences and no Hangul", () => {
+    const withClients = connectionReducer(
+      connectionReducer(INITIAL_CONNECTION_STATE, {
+        type: "statusLoaded",
+        snapshot: {
+          host: {
+            mode: "service",
+            pid: 4211,
+            startedAt: "2026-11-04T01:00:00.000Z",
+            connections: 2,
+            liveTurns: 0,
+            idleShutdownAt: null,
+          },
+          serviceEnabled: true,
+          remoteAllowRespond: true,
+        },
+      }),
+      {
+        type: "clientsLoaded",
+        clients: [
+          {
+            connectionId: "c-1",
+            transport: "stdio",
+            name: "fresnel-cli",
+            version: "1.2.0",
+            writeThreads: 2,
+            observedThreads: 1,
+            self: true,
+          },
+          {
+            connectionId: "c-2",
+            transport: "socket",
+            writeThreads: 0,
+            observedThreads: 3,
+            self: false,
+          },
+        ],
+      },
+    );
+    const markup = renderToString(
+      <ConnectionScreenView state={withClients} engine={null} locale="en" handlers={handlers} />,
+    );
+    expect(markup).toContain("Connected clients");
+    expect(markup).toContain("Standard I/O (stdio) · 1.2.0");
+    expect(markup).toContain("Conversations: writing 2 · viewing 1");
+    expect(markup).toContain("This app");
+    expect(markup).toContain("Service connection");
     expect(markup).not.toMatch(HANGUL);
   });
 

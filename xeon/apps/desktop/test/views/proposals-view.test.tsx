@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import { proposalListView, type ProposalRowVM } from "@fresnel/client/settings";
-import type { ProposalRow } from "@fresnel/contracts/wire";
+import type { ProposalRow, WireResult } from "@fresnel/contracts/wire";
 import { parse } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import { renderToString } from "react-dom/server";
@@ -10,9 +10,11 @@ import {
   proposalsReducer,
   type ProposalPage,
   type ProposalsState,
+  type SkillPeek,
 } from "../../src/views/pages/proposals/proposals-model.ts";
 import {
   ProposalsView,
+  SkillCompare,
   type ProposalsHandlers,
   type ProposalsViewProps,
 } from "../../src/views/pages/proposals/proposals-view.tsx";
@@ -34,6 +36,8 @@ const HANDLERS: ProposalsHandlers = {
   loadMore: NOOP,
   retry: NOOP,
   openThread: NOOP,
+  skillOpen: NOOP,
+  skillClose: NOOP,
   dismissNotice: NOOP,
   onKey: NOOP,
 };
@@ -197,5 +201,164 @@ describe("ProposalsView states", () => {
     const markup = html(selectFirst(ready(page), page.rows));
     expect(markup).toContain(t("desktop.proposals.detail.untrusted"));
     expect(markup).toContain(t("desktop.proposals.detail.conflict", { target: "skills/other.md" }));
+  });
+});
+
+/** 충돌 행 하나를 고른 상태. 대화 상자 상태는 `peek`으로 정한다 */
+function conflicted(peek: SkillPeek = { status: "closed" }): ProposalsState {
+  const page = rowsOf(wire({ conflictsWith: "cache-debug-old" }));
+  return { ...selectFirst(ready(page), page.rows), skill: peek };
+}
+
+describe("ProposalsView conflicting skill", () => {
+  const SKILL: WireResult<"knowledge.skills.view"> = {
+    name: "cache-debug-old",
+    scope: "project",
+    description: "캐시 만료를 디버깅한다",
+    body: "1. 단위를 확인한다\n2. 로그를 본다",
+    bodyTruncated: false,
+    files: [],
+    treeHash: "b".repeat(64),
+  };
+
+  test("a conflict offers the view button inside its alert, and the button is off while offline", () => {
+    const state = conflicted();
+    const connected = html(state);
+    expect(connected).toContain(
+      t("desktop.proposals.detail.conflict", { target: "cache-debug-old" }),
+    );
+    expect(buttonOf(connected, t("desktop.proposals.skill.open"))).not.toContain('disabled=""');
+    const offline = html(state, { live: false });
+    expect(buttonOf(offline, t("desktop.proposals.skill.open"))).toContain('disabled=""');
+  });
+
+  test("a proposal without a conflict offers no skill button", () => {
+    const page = rowsOf(wire({}));
+    const markup = html(selectFirst(ready(page), page.rows));
+    expect(markup).not.toContain(t("desktop.proposals.skill.open"));
+  });
+
+  test("a closed dialog draws none of the skill columns", () => {
+    const markup = html(conflicted());
+    expect(markup).not.toContain(t("desktop.proposals.skill.current"));
+    expect(markup).not.toContain(t("desktop.proposals.skill.proposed"));
+  });
+
+  test("loading: the current column shows a status line and skeleton rows, and the proposed text is already there", () => {
+    const markup = renderToString(
+      <SkillCompare
+        peek={{ status: "loading", name: "cache-debug-old", threadId: null }}
+        proposed="# 새 스킬"
+        live={true}
+        handlers={HANDLERS}
+      />,
+    );
+    expect(markup).toContain(t("desktop.proposals.skill.loading"));
+    expect(markup).toContain('data-slot="skeleton"');
+    expect(markup).toContain("# 새 스킬");
+  });
+
+  test("ready: the scope and description head the body, and the proposed text sits beside it", () => {
+    const markup = renderToString(
+      <SkillCompare
+        peek={{ status: "ready", name: "cache-debug-old", threadId: null, skill: SKILL }}
+        proposed="# 새 스킬"
+        live={true}
+        handlers={HANDLERS}
+      />,
+    );
+    expect(markup).toContain(t("desktop.proposals.scope.project"));
+    expect(markup).toContain("캐시 만료를 디버깅한다");
+    expect(markup).toContain("2. 로그를 본다");
+    expect(markup).toContain("# 새 스킬");
+    expect(markup).not.toContain(t("desktop.proposals.skill.truncated"));
+    expect(markup).toContain(t("desktop.proposals.skill.info"));
+  });
+
+  test("ready with a truncated body shows the warning above the text", () => {
+    const markup = renderToString(
+      <SkillCompare
+        peek={{
+          status: "ready",
+          name: "cache-debug-old",
+          threadId: null,
+          skill: { ...SKILL, bodyTruncated: true },
+        }}
+        proposed="# 새 스킬"
+        live={true}
+        handlers={HANDLERS}
+      />,
+    );
+    expect(markup).toContain(t("desktop.proposals.skill.truncated"));
+    expect(markup).toContain("2. 로그를 본다");
+  });
+
+  test("ready with an empty body says so, and an extension skill names its origin", () => {
+    const markup = renderToString(
+      <SkillCompare
+        peek={{
+          status: "ready",
+          name: "cache-debug-old",
+          threadId: null,
+          skill: { ...SKILL, body: "", scope: "extension" },
+        }}
+        proposed={null}
+        live={true}
+        handlers={HANDLERS}
+      />,
+    );
+    expect(markup).toContain(t("desktop.proposals.skill.empty"));
+    expect(markup).toContain(t("desktop.proposals.skill.scope.extension"));
+    expect(markup).toContain(t("desktop.proposals.skill.noProposed"));
+  });
+
+  test("not found and feature off are plain sentences with no retry", () => {
+    const notFound = renderToString(
+      <SkillCompare
+        peek={{ status: "notFound", name: "cache-debug-old", threadId: null }}
+        proposed="# 새 스킬"
+        live={true}
+        handlers={HANDLERS}
+      />,
+    );
+    expect(notFound).toContain(t("desktop.proposals.skill.notFound"));
+    expect(notFound).not.toContain(t("desktop.proposals.retry"));
+
+    const unsupported = renderToString(
+      <SkillCompare
+        peek={{ status: "unsupported", name: "cache-debug-old", threadId: null }}
+        proposed="# 새 스킬"
+        live={true}
+        handlers={HANDLERS}
+      />,
+    );
+    expect(unsupported).toContain("스킬 기능이 꺼져 있어요");
+    expect(unsupported).not.toContain(t("desktop.proposals.retry"));
+  });
+
+  test("a read error offers a retry that is on while connected", () => {
+    const markup = renderToString(
+      <SkillCompare
+        peek={{ status: "failed", name: "cache-debug-old", threadId: null }}
+        proposed="# 새 스킬"
+        live={true}
+        handlers={HANDLERS}
+      />,
+    );
+    expect(markup).toContain(t("desktop.proposals.skill.failed"));
+    expect(buttonOf(markup, t("desktop.proposals.retry"))).not.toContain('disabled=""');
+  });
+
+  test("offline: the sentence says to reconnect, and the retry is off", () => {
+    const markup = renderToString(
+      <SkillCompare
+        peek={{ status: "offline", name: "cache-debug-old", threadId: null }}
+        proposed="# 새 스킬"
+        live={false}
+        handlers={HANDLERS}
+      />,
+    );
+    expect(markup).toContain(t("desktop.proposals.skill.offline"));
+    expect(buttonOf(markup, t("desktop.proposals.retry"))).toContain('disabled=""');
   });
 });

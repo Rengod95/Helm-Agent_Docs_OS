@@ -64,9 +64,10 @@ describe("review.get", () => {
         },
       },
     });
+    // 입력 거절은 그 입력 이름(`path`)을 함께 싣는다(계획 카드가 모르는 계획 id를 가려 쓴다)
     expect(await app.commands.review.get(REVIEW_ID)).toEqual({
       ok: false,
-      error: { kind: "rejected", code: -32602 },
+      error: { kind: "rejected", code: -32602, path: "reviewId" },
     });
     await app.stop();
   });

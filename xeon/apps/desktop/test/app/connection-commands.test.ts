@@ -345,3 +345,54 @@ describe("session.restartEngine passes its options to the shell and reports the 
     await app.stop();
   });
 });
+
+describe("the connected clients list reads host.clients", () => {
+  const HOST_CLIENTS: WireResult<"host.clients"> = {
+    clients: [
+      {
+        connectionId: "c-1",
+        transport: "stdio",
+        name: "fresnel-cli",
+        version: "1.2.0",
+        writeThreads: 2,
+        observedThreads: 1,
+        self: false,
+      },
+      { connectionId: "c-2", transport: "socket", writeThreads: 0, observedThreads: 3, self: true },
+    ],
+  };
+
+  test("clients returns the list as the engine gave it, and sends no params", async () => {
+    const { app, params } = await liveApp({ results: { "host.clients": HOST_CLIENTS } });
+    const listed = await app.commands.connection.clients();
+    expect(listed).toEqual({ ok: true, value: HOST_CLIENTS.clients });
+    expect(paramsOf(params, "host.clients")).toEqual({});
+    await app.stop();
+  });
+
+  test("an engine without host.clients answers unsupported, so the screen shows no list", async () => {
+    const missing = WIRE_ERRORS["jsonrpc.methodNotFound"];
+    const { app } = await liveApp({
+      errors: { "host.clients": { code: missing.code, kind: missing.kind } },
+    });
+    const listed = await app.commands.connection.clients();
+    expect(listed).toEqual({ ok: false, error: { kind: "unsupported" } });
+    await app.stop();
+  });
+
+  test("with no connection, clients is the offline command error", async () => {
+    const base = fakeIpc();
+    const ipc: DesktopIpc = {
+      ...base.ipc,
+      attach: () =>
+        Promise.resolve({
+          ok: false,
+          error: { kind: "command", command: "engine_attach", code: "engine-not-running" },
+        }),
+    };
+    const app = makeAppOver(ipc);
+    const listed = await app.commands.connection.clients();
+    expect(listed).toEqual({ ok: false, error: { kind: "offline" } });
+    await app.stop();
+  });
+});

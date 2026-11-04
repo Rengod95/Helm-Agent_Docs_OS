@@ -64,6 +64,11 @@ export type ProposalRowVM = {
   /** 거절·실패 사유 코드(출처가 정한 값) */
   readonly reason: string | null;
   readonly diff: string;
+  /**
+   * 제안이 새로 쓰는 본문. wire는 본문을 따로 싣지 않아 diff의 추가 줄에서 되살린다. 새 본문 전체를 싣는 연산(create, add,
+   * add_file, replace)만 값이 있고, 바뀌는 부분만 있는 연산(patch, remove, archive)은 null이다. 잘린 diff면 끝 줄이 잘린 글이다
+   */
+  readonly proposedText: string | null;
   readonly rationale: string | null;
   readonly evidenceCount: number;
   /** 근거 이벤트가 든 대화 id(중복 없이, 등장 순서). "대화 열기"가 쓴다. 본문은 wire가 없어 읽지 않는다 */
@@ -96,6 +101,18 @@ function actionsOf(row: ProposalRow): readonly ProposalAction[] {
   return [];
 }
 
+/** 새 본문 전체를 싣는 연산. 그 밖(patch, remove, archive)은 바뀌는 부분만 있다 */
+const FULL_BODY_OPS: ReadonlySet<string> = new Set(["create", "add", "add_file", "replace"]);
+
+/** diff의 추가 줄(`+ `)을 이어 새 본문을 되살린다. 머리 줄(`@@`)과 삭제 줄(`- `)은 뺀다 */
+function addedTextOf(diff: string): string {
+  return diff
+    .split("\n")
+    .filter((line) => line.startsWith("+"))
+    .map((line) => line.slice(1).replace(/^ /, ""))
+    .join("\n");
+}
+
 function rowOf(row: ProposalRow): ProposalRowVM {
   return {
     key: `${row.source}:${row.id}`,
@@ -114,6 +131,7 @@ function rowOf(row: ProposalRow): ProposalRowVM {
     conflictsWith: row.conflictsWith,
     reason: row.reason,
     diff: row.diff,
+    proposedText: FULL_BODY_OPS.has(row.op) ? addedTextOf(row.diff) : null,
     rationale: row.rationale,
     evidenceCount: row.evidence.length,
     evidenceThreadIds: [...new Set(row.evidence.map((item) => item.threadId))],

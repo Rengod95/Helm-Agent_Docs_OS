@@ -1,20 +1,56 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@fresnel/contracts";
+import { err, ok, parse } from "@fresnel/contracts";
+import { PlanVersionsOutput, type PlanVersionsOutputValue } from "@fresnel/contracts/capabilities";
 import {
   WireError,
   wireError,
   type GoalView,
   type ScheduleRunRecord,
+  type SkillViewResult,
   type TaskView,
   type WireParams,
 } from "@fresnel/contracts/wire";
+import { threadLocked } from "../../src/handlers/owner.ts";
 import { createFakeHost, type FakeHost } from "../fixtures/fake-host.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// 대화 영역 처리기(W-05 `goal.status`, W-06 `work.tasks.list`, W-07 `schedule.update`·`schedule.runs`)를 가짜 포트 위에서 본다.
+// 대화 영역 처리기(W-05 `goal.status`, W-06 `work.tasks.list`, W-07 `schedule.update`·`schedule.runs`, W-14 `knowledge.skills.view`,
+// W-18 `work.plans.versions`)와 `host.clients`(W-12), `turn.withdraw`(W-17)를 가짜 포트 위에서 본다.
 // 처리기는 포트가 돌려준 값을 옮기고 실패를 와이어 오류로 바꾼다. 포트 구현은 test/assembly/dialog-area-port.test.ts,
 // 실제 엔진 위의 시험은 test/int/dialog-area.int.test.ts다. `review.get`은 다른 트랙이 채우므로 여기서 다루지 않는다.
+
+const SKILL: SkillViewResult = {
+  name: "deploy",
+  scope: "project",
+  description: "Ships the build.",
+  body: "# Deploy\n",
+  bodyTruncated: false,
+  files: ["scripts/run.sh"],
+  treeHash: "a".repeat(64),
+};
+
+/** 계획 판 목록. 계획 id는 브랜드 값이라 스키마로 만든다(`PlanVersionsOutput`이 받는 모양) */
+const VERSIONS: PlanVersionsOutputValue = versionsFixture();
+
+function versionsFixture(): PlanVersionsOutputValue {
+  const parsed = parse(PlanVersionsOutput, {
+    versions: [
+      {
+        planId: "p1",
+        version: 1,
+        title: "Migrate the store",
+        body: "1. Back up",
+        status: "approved",
+        artifact: null,
+        approvalId: null,
+        feedback: null,
+      },
+    ],
+  });
+  if (!parsed.ok) throw new Error("the plan version fixture does not match its schema");
+  return parsed.value;
+}
 
 const GOAL: GoalView = {
   condition: "the report section is written",
@@ -321,7 +357,7 @@ test("a port that reports its method unavailable answers method not found, namin
   await connection.close();
 });
 
-test("host.hello lists the four dialog-area methods the host now implements", async () => {
+test("host.hello lists the dialog-area methods the host now implements", async () => {
   const host = createFakeHost();
   const { connection } = host.connect();
   const hello = await connection.request("host.hello", HELLO_PARAMS);
@@ -330,5 +366,318 @@ test("host.hello lists the four dialog-area methods the host now implements", as
   expect(names).toContain("work.tasks.list");
   expect(names).toContain("schedule.update");
   expect(names).toContain("schedule.runs");
+  expect(names).toContain("host.clients");
+  expect(names).toContain("turn.withdraw");
+  expect(names).toContain("knowledge.skills.view");
+  expect(names).toContain("work.plans.versions");
+  await connection.close();
+});
+
+test("knowledge.skills.view hands the name, the thread and the request's signal to the port and returns the skill it reports", async () => {
+  const asked: { name: string; threadId: string | undefined; signal: AbortSignal }[] = [];
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: {
+        skillView: (name, threadId, signal) => {
+          asked.push({ name, threadId, signal });
+          return Promise.resolve(ok(SKILL));
+        },
+      },
+    },
+  });
+  const threadId = host.fake.ids.next("thr");
+  const connection = await open(host);
+  expect(await connection.request("knowledge.skills.view", { name: "deploy", threadId })).toEqual(
+    SKILL,
+  );
+  expect(asked.map((call) => ({ name: call.name, threadId: call.threadId }))).toEqual([
+    { name: "deploy", threadId },
+  ]);
+  expect(asked[0]?.signal).toBeInstanceOf(AbortSignal);
+  await connection.close();
+});
+
+test("knowledge.skills.view without a thread asks the port with no thread", async () => {
+  const asked: (string | undefined)[] = [];
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: {
+        skillView: (_name, threadId) => {
+          asked.push(threadId);
+          return Promise.resolve(ok(SKILL));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  expect(await connection.request("knowledge.skills.view", { name: "deploy" })).toEqual(SKILL);
+  expect(asked).toEqual([undefined]);
+  await connection.close();
+});
+
+test("knowledge.skills.view answers an unknown skill with invalid params on name", async () => {
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: {
+        skillView: () => Promise.resolve(err({ kind: "unknown", path: "name", id: "missing" })),
+      },
+    },
+  });
+  const connection = await open(host);
+  const error = await wireErrorOf(connection.request("knowledge.skills.view", { name: "missing" }));
+  expect(error.code).toBe(-32602);
+  expect(error.data.details).toEqual({ issues: [{ path: "name", message: "unknown skill" }] });
+  await connection.close();
+});
+
+test("knowledge.skills.view answers method not found when the knowledge capability is absent", async () => {
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: { skillView: () => Promise.resolve(err({ kind: "unavailable" })) },
+    },
+  });
+  const connection = await open(host);
+  const error = await wireErrorOf(connection.request("knowledge.skills.view", { name: "deploy" }));
+  expect(error.code).toBe(wireError("jsonrpc.methodNotFound").code);
+  expect(error.data.details).toEqual({ method: "knowledge.skills.view" });
+  await connection.close();
+});
+
+test("work.plans.versions hands the thread and the plan to the port and returns the versions it reports", async () => {
+  const asked: { threadId: string; planId: string; signal: AbortSignal }[] = [];
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: {
+        plansVersions: (threadId, planId, signal) => {
+          asked.push({ threadId, planId, signal });
+          return Promise.resolve(ok(VERSIONS));
+        },
+      },
+    },
+  });
+  const threadId = host.fake.ids.next("thr");
+  const connection = await open(host);
+  expect(await connection.request("work.plans.versions", { threadId, planId: "p1" })).toEqual(
+    VERSIONS,
+  );
+  expect(asked.map((call) => ({ threadId: call.threadId, planId: call.planId }))).toEqual([
+    { threadId, planId: "p1" },
+  ]);
+  expect(asked[0]?.signal).toBeInstanceOf(AbortSignal);
+  await connection.close();
+});
+
+test("work.plans.versions answers an unknown plan with invalid params on planId, and a missing thread with thread.notFound", async () => {
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: {
+        plansVersions: (threadId, planId) =>
+          planId === "p9"
+            ? Promise.resolve(err({ kind: "unknown", path: "planId", id: planId }))
+            : Promise.resolve(err({ kind: "thread_not_found", threadId })),
+      },
+    },
+  });
+  const connection = await open(host);
+  const threadId = host.fake.ids.next("thr");
+  const unknown = await wireErrorOf(
+    connection.request("work.plans.versions", { threadId, planId: "p9" }),
+  );
+  expect(unknown.code).toBe(-32602);
+  expect(unknown.data.details).toEqual({ issues: [{ path: "planId", message: "unknown plan" }] });
+  const missing = await wireErrorOf(
+    connection.request("work.plans.versions", { threadId, planId: "p1" }),
+  );
+  expect(missing.code).toBe(wireError("thread.notFound").code);
+  expect(missing.data.details).toEqual({ threadId });
+  await connection.close();
+});
+
+test("knowledge.skills.view and work.plans.versions answer a threadId that is not a thread id with thread.notFound, without asking the port", async () => {
+  const asked: string[] = [];
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: {
+        skillView: () => {
+          asked.push("knowledge.skills.view");
+          return Promise.resolve(ok(SKILL));
+        },
+        plansVersions: () => {
+          asked.push("work.plans.versions");
+          return Promise.resolve(ok(VERSIONS));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  const skill = await wireErrorOf(
+    connection.request("knowledge.skills.view", { name: "deploy", threadId: "not-a-thread" }),
+  );
+  const plans = await wireErrorOf(
+    connection.request("work.plans.versions", { threadId: "not-a-thread", planId: "p1" }),
+  );
+  expect(skill.code).toBe(wireError("thread.notFound").code);
+  expect(skill.data.details).toEqual({ threadId: "not-a-thread" });
+  expect(plans.code).toBe(wireError("thread.notFound").code);
+  expect(plans.data.details).toEqual({ threadId: "not-a-thread" });
+  expect(asked).toEqual([]);
+  await connection.close();
+});
+
+/** 이름과 버전을 가진 클라이언트로 hello를 마친다 */
+async function openAs(host: FakeHost, name: string, version: string) {
+  const { connection, served } = host.connect();
+  await connection.request("host.hello", {
+    ...HELLO_PARAMS,
+    client: { name, version, kind: "desktop" },
+  });
+  return { connection, served };
+}
+
+test("host.clients lists each connection with its client name, version and thread counts, and the caller's own connection first", async () => {
+  const host = createFakeHost();
+  const writing = host.fake.seedThread();
+  const observed = host.fake.seedThread();
+  const alpha = await openAs(host, "alpha", "1.0.0");
+  const beta = await openAs(host, "beta", "2.0.0");
+  // alpha는 turn.start로 쓰기를 얻고, beta는 관찰로 연다
+  await alpha.connection.request("turn.start", { threadId: writing, input: "hi" });
+  await beta.connection.request("thread.open", { threadId: observed, mode: "observe" });
+  expect(await alpha.connection.request("host.clients", {})).toStrictEqual({
+    clients: [
+      {
+        connectionId: alpha.served.id,
+        transport: "in-process",
+        name: "alpha",
+        version: "1.0.0",
+        writeThreads: 1,
+        observedThreads: 0,
+        self: true,
+      },
+      {
+        connectionId: beta.served.id,
+        transport: "in-process",
+        name: "beta",
+        version: "2.0.0",
+        writeThreads: 0,
+        observedThreads: 1,
+        self: false,
+      },
+    ],
+  });
+  await alpha.connection.close();
+  await beta.connection.close();
+});
+
+test("host.clients lists a connection that has not said hello without a name or version", async () => {
+  const host = createFakeHost();
+  const alpha = await openAs(host, "alpha", "1.0.0");
+  const silent = host.connect();
+  expect(await alpha.connection.request("host.clients", {})).toStrictEqual({
+    clients: [
+      {
+        connectionId: alpha.served.id,
+        transport: "in-process",
+        name: "alpha",
+        version: "1.0.0",
+        writeThreads: 0,
+        observedThreads: 0,
+        self: true,
+      },
+      {
+        connectionId: silent.served.id,
+        transport: "in-process",
+        writeThreads: 0,
+        observedThreads: 0,
+        self: false,
+      },
+    ],
+  });
+  await alpha.connection.close();
+  await silent.connection.close();
+});
+
+test("turn.withdraw hands the thread and the request key to the port and answers what the port withdrew", async () => {
+  const asked: { threadId: string; requestId: string }[] = [];
+  const answers = [ok(true), ok(false)];
+  const host = createFakeHost({
+    overrides: {
+      turns: {
+        withdraw: (threadId, requestId) => {
+          asked.push({ threadId, requestId });
+          return Promise.resolve(answers.shift() ?? ok(false));
+        },
+      },
+    },
+  });
+  const threadId = host.fake.seedThread();
+  const connection = await open(host);
+  // 쓰기 소유는 turn.start로 얻는다(turn.interrupt와 같은 규칙)
+  await connection.request("turn.start", { threadId, input: "hi" });
+  expect(await connection.request("turn.withdraw", { threadId, requestId: "req-1" })).toEqual({
+    withdrawn: true,
+  });
+  expect(await connection.request("turn.withdraw", { threadId, requestId: "req-1" })).toEqual({
+    withdrawn: false,
+  });
+  expect(asked).toEqual([
+    { threadId, requestId: "req-1" },
+    { threadId, requestId: "req-1" },
+  ]);
+  await connection.close();
+});
+
+test("turn.withdraw needs the thread's write ownership, as turn.interrupt does", async () => {
+  const host = createFakeHost({
+    overrides: { turns: { withdraw: () => Promise.resolve(ok(true)) } },
+  });
+  const threadId = host.fake.seedThread();
+  const connection = await open(host);
+  const error = await wireErrorOf(
+    connection.request("turn.withdraw", { threadId, requestId: "r" }),
+  );
+  expect(error.code).toBe(threadLocked(null).code);
+  await connection.close();
+});
+
+test("turn.withdraw answers an unknown thread with thread.notFound, and a non-thread id without asking the port", async () => {
+  const asked: string[] = [];
+  const host = createFakeHost({
+    overrides: {
+      turns: {
+        withdraw: () => {
+          asked.push("withdraw");
+          return Promise.resolve(ok(true));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  const unknown = host.fake.ids.next("thr");
+  const missing = await wireErrorOf(
+    connection.request("turn.withdraw", { threadId: unknown, requestId: "r" }),
+  );
+  const malformed = await wireErrorOf(
+    connection.request("turn.withdraw", { threadId: "not-a-thread", requestId: "r" }),
+  );
+  expect(missing.code).toBe(wireError("thread.notFound").code);
+  expect(missing.data.details).toEqual({ threadId: unknown });
+  expect(malformed.code).toBe(wireError("thread.notFound").code);
+  expect(malformed.data.details).toEqual({ threadId: "not-a-thread" });
+  expect(asked).toEqual([]);
+  await connection.close();
+});
+
+test("turn.withdraw keeps the store kind of a queue failure", async () => {
+  const host = createFakeHost({
+    overrides: { turns: { withdraw: () => Promise.resolve(err({ kind: "busy" })) } },
+  });
+  const threadId = host.fake.seedThread();
+  const connection = await open(host);
+  await connection.request("turn.start", { threadId, input: "hi" });
+  const error = await wireErrorOf(
+    connection.request("turn.withdraw", { threadId, requestId: "r" }),
+  );
+  expect(error.code).toBe(wireError("store.busy").code);
   await connection.close();
 });

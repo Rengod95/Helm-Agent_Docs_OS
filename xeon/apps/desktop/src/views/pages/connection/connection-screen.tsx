@@ -10,6 +10,7 @@ import {
   canConnect,
   checkForm,
   choiceOfValue,
+  clientsReasonOf,
   connectionReducer,
   INITIAL_CONNECTION_STATE,
   LOCAL_CHOICE,
@@ -42,10 +43,28 @@ export function ConnectionScreen(): ReactNode {
     );
   }, [commands]);
 
+  // 연결된 클라이언트 목록은 상태 카드와 따로 읽는다. 목록 읽기가 실패하거나 늦어도 상태 카드는 그대로 그려진다
+  const latestClients = useRef(0);
+
+  const loadClients = useCallback(async (): Promise<void> => {
+    latestClients.current += 1;
+    const seq = latestClients.current;
+    dispatch({ type: "clientsLoading" });
+    const listed = await commands.connection.clients();
+    if (seq !== latestClients.current) return;
+    dispatch(
+      listed.ok
+        ? { type: "clientsLoaded", clients: listed.value }
+        : { type: "clientsFailed", reason: clientsReasonOf(listed.error) },
+    );
+  }, [commands]);
+
   const loadStatus = useCallback(async (): Promise<void> => {
     latest.current += 1;
     const seq = latest.current;
     dispatch({ type: "statusLoading" });
+    // 목록은 상태를 읽을 때 같이 다시 읽는다(기다리지 않는다)
+    detach(loadClients(), rethrow);
     const loaded = await commands.connection.load();
     if (seq !== latest.current) return;
     if (loaded.ok) {
@@ -56,17 +75,21 @@ export function ConnectionScreen(): ReactNode {
         reason: loaded.error.kind === "offline" ? "offline" : "failed",
       });
     }
-  }, [commands]);
+  }, [commands, loadClients]);
 
   // 화면이 열릴 때 대상 목록을 읽는다
   useEffect(() => {
     detach(loadTargets(), rethrow);
   }, [loadTargets]);
 
-  // 연결이 살아날 때마다 상태를 다시 읽는다. 연결이 없으면 오프라인으로 바꾼다
+  // 연결이 살아날 때마다 상태와 클라이언트 목록을 다시 읽는다. 연결이 없으면 둘 다 오프라인으로 바꾼다
   useEffect(() => {
-    if (live) detach(loadStatus(), rethrow);
-    else dispatch({ type: "statusFailed", reason: "offline" });
+    if (live) {
+      detach(loadStatus(), rethrow);
+    } else {
+      dispatch({ type: "statusFailed", reason: "offline" });
+      dispatch({ type: "clientsFailed", reason: "offline" });
+    }
   }, [live, loadStatus]);
 
   // 엔진 상태, 연결 상태, 연결 실패 코드가 바뀔 때마다 진행을 맞춘다. 진행 중이 아니면 아무 일도 없다
@@ -224,6 +247,9 @@ export function ConnectionScreen(): ReactNode {
     restart: () => {
       // 엔진 다시 시작은 진행 단계를 따로 잡지 않는다. 멈춘 엔진이 아니면 셸이 거절하고 세션이 다시 잇는다
       detach(commands.restartEngine(), rethrow);
+    },
+    retryClients: () => {
+      detach(loadClients(), rethrow);
     },
     setServiceMode: (enabled) => {
       detach(writeServiceMode(enabled), rethrow);

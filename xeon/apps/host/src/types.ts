@@ -21,6 +21,7 @@ import type {
   CompactOutcome,
   ContextError,
   HostedSearchPort,
+  InputQueueError,
   LoopError,
   ResumeResult,
   Redactor,
@@ -388,7 +389,15 @@ export interface TurnPort {
   stopAtSafeBoundary(deadlineMs: number): Promise<boolean>;
   /** 그 thread에 진행 중인 turn이 있는가. 서비스 모드의 잠금 해제 판정(HS-27)이 쓴다 */
   isLive(threadId: ThreadId): boolean;
+  /**
+   * 큐에 넣고 아직 배치되지 않은 입력을 요청 키로 거둔다(`turn.withdraw`, W-17). 요청 키가 맞는 대기 입력이 없거나 이미 배치됐으면
+   * `false`다. 거둔 입력이 있으면 `true`다
+   */
+  withdraw(threadId: ThreadId, requestId: string): Promise<Result<boolean, WithdrawFailure>>;
 }
+
+/** 입력 철회가 실패한 이유. 대기열 읽기 실패(`ReadFailure`)와 대기열 쓰기 실패(`InputQueueError`)다 */
+export type WithdrawFailure = ReadFailure | InputQueueError;
 
 /** 슬래시 명령 질의·실행이 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.3.1 command.*) */
 export type CommandFailure =

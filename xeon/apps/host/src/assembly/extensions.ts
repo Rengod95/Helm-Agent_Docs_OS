@@ -408,7 +408,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           loadIndex,
         }),
     ],
-    ["host-dialog-area-bridge", (loadIndex) => dialogAreaBridgePlugin(deps.dialogArea, loadIndex)],
     [
       "cap-mcp",
       (loadIndex) =>
@@ -460,6 +459,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           loadIndex,
         }),
     ],
+    // 대화 영역 브리지는 목표·작업·계획(cap-work)과 스킬(cap-knowledge) 뒤에 올라와야 그 기능 API를 얻는다
+    ["host-dialog-area-bridge", (loadIndex) => dialogAreaBridgePlugin(deps.dialogArea, loadIndex)],
     [
       "host-proposals-bridge",
       (loadIndex) => proposalsBridgePlugin(deps.learning.knowledge, loadIndex),

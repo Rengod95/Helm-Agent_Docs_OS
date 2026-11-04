@@ -225,3 +225,39 @@ describe("proposal row keeps the raw kind and the distinct evidence threads", ()
     expect(shaped.evidenceThreadIds).toEqual([THREAD, other]);
   });
 });
+
+describe("proposal row carries the new text its diff adds", () => {
+  test("a full-body proposal gets its new text back from the added lines, without the diff marks", () => {
+    const created = vm({
+      op: "create",
+      diff: "+ # cache-debug\n+ \n+  들여쓴 줄",
+    });
+    expect(created.proposedText).toBe("# cache-debug\n\n 들여쓴 줄");
+    expect(vm({ kind: "memory", op: "add", diff: "+ 새 항목" }).proposedText).toBe("새 항목");
+    expect(vm({ kind: "memory", op: "add_file", diff: "+ 파일 본문" }).proposedText).toBe(
+      "파일 본문",
+    );
+  });
+
+  test("a replace takes the new entry body and skips its header line", () => {
+    const replaced = vm({
+      kind: "memory",
+      op: "replace",
+      target: "project",
+      diff: "@@ replace project\n+ 새 본문",
+    });
+    expect(replaced.proposedText).toBe("새 본문");
+  });
+
+  test("an op that only changes part of the text has no new text, and so do its removed lines", () => {
+    expect(vm({ op: "patch", diff: "@@ edit 1\n- 옛 글\n+ 새 글" }).proposedText).toBeNull();
+    expect(vm({ kind: "memory", op: "remove", diff: "@@ remove x\n- 지울 글" }).proposedText).toBe(
+      null,
+    );
+    expect(vm({ op: "archive", diff: "@@ archive skills/old.md" }).proposedText).toBeNull();
+  });
+
+  test("an empty diff (a candidate the scan refused) gives an empty text, not a missing one", () => {
+    expect(vm({ op: "create", diff: "" }).proposedText).toBe("");
+  });
+});

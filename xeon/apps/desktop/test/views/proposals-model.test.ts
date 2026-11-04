@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { ThreadIdSchema } from "@fresnel/contracts/conversation";
 import { proposalListView, type ProposalRowVM } from "@fresnel/client/settings";
-import type { ProposalRow } from "@fresnel/contracts/wire";
+import type { ProposalRow, WireResult } from "@fresnel/contracts/wire";
 import {
   confirmActionOf,
   DIFF_FOLD_LINES,
@@ -12,12 +12,15 @@ import {
   INITIAL_PROPOSALS_STATE,
   listParamsOf,
   moveSelectionOf,
+  overlayOpenOf,
   proposalKeyIntentOf,
   proposalsReducer,
   selectedRowOf,
+  skillFailureOf,
   visibleRowsOf,
   type ProposalPage,
   type ProposalsState,
+  type SkillRequest,
 } from "../../src/views/pages/proposals/proposals-model.ts";
 
 // 제안 화면(P-06)의 순수 모델. 값은 `toEqual`로 비교한다. 행은 client의 `proposalListView`로 만든다(타입 단언 없이).
@@ -282,5 +285,125 @@ describe("diffLinesOf", () => {
   test("the fold limit is 500 lines", () => {
     expect(DIFF_FOLD_LINES).toBe(500);
     expect(diffLinesOf(Array.from({ length: 501 }, () => "x").join("\n")).length).toBe(501);
+  });
+});
+
+describe("충돌 스킬 대화 상자 상태", () => {
+  const VIEW: WireResult<"knowledge.skills.view"> = {
+    name: "cache-debug",
+    scope: "user",
+    description: "캐시 만료를 디버깅한다",
+    body: "1. 단위를 확인한다",
+    bodyTruncated: false,
+    files: ["references/notes.md"],
+    treeHash: "a".repeat(64),
+  };
+  const USER_REQUEST: SkillRequest = { name: "cache-debug", threadId: null };
+  const PROJECT_REQUEST: SkillRequest = {
+    name: "cache-debug",
+    threadId: "thr_00000000000000000000000001",
+  };
+
+  test("opening sets loading with its request, and the reply for that request becomes ready", () => {
+    const opened = proposalsReducer(INITIAL_PROPOSALS_STATE, {
+      type: "skillOpened",
+      request: USER_REQUEST,
+    });
+    expect(opened.skill).toEqual({ status: "loading", name: "cache-debug", threadId: null });
+    const loaded = proposalsReducer(opened, {
+      type: "skillLoaded",
+      request: USER_REQUEST,
+      skill: VIEW,
+    });
+    expect(loaded.skill).toEqual({
+      status: "ready",
+      name: "cache-debug",
+      threadId: null,
+      skill: VIEW,
+    });
+  });
+
+  test("a failure keeps its request, so a retry asks for the same skill and project workspace", () => {
+    const failed = proposalsReducer(
+      proposalsReducer(INITIAL_PROPOSALS_STATE, { type: "skillOpened", request: PROJECT_REQUEST }),
+      { type: "skillFailed", request: PROJECT_REQUEST, failure: "notFound" },
+    );
+    expect(failed.skill).toEqual({
+      status: "notFound",
+      name: "cache-debug",
+      threadId: "thr_00000000000000000000000001",
+    });
+    const retried = proposalsReducer(failed, { type: "skillOpened", request: PROJECT_REQUEST });
+    expect(retried.skill).toEqual({
+      status: "loading",
+      name: "cache-debug",
+      threadId: "thr_00000000000000000000000001",
+    });
+  });
+
+  test("a reply after the dialog closed, or for another skill, is dropped", () => {
+    const open = proposalsReducer(INITIAL_PROPOSALS_STATE, {
+      type: "skillOpened",
+      request: USER_REQUEST,
+    });
+    const closed = proposalsReducer(open, { type: "skillClosed" });
+    expect(closed.skill).toEqual({ status: "closed" });
+    expect(
+      proposalsReducer(closed, { type: "skillLoaded", request: USER_REQUEST, skill: VIEW }).skill,
+    ).toEqual({ status: "closed" });
+
+    const other = proposalsReducer(open, {
+      type: "skillOpened",
+      request: { name: "other-skill", threadId: null },
+    });
+    expect(
+      proposalsReducer(other, { type: "skillLoaded", request: USER_REQUEST, skill: VIEW }).skill,
+    ).toEqual({ status: "loading", name: "other-skill", threadId: null });
+    expect(
+      proposalsReducer(other, { type: "skillFailed", request: USER_REQUEST, failure: "failed" })
+        .skill,
+    ).toEqual({ status: "loading", name: "other-skill", threadId: null });
+  });
+
+  test("the host's errors map to the four reasons the dialog shows; a missing connection is offline", () => {
+    expect([
+      skillFailureOf({ kind: "not_found" }),
+      skillFailureOf({ kind: "unsupported" }),
+      skillFailureOf({ kind: "offline" }),
+      skillFailureOf({ kind: "failed" }),
+      skillFailureOf({ kind: "rejected", code: -32603 }),
+      skillFailureOf({ kind: "locked", ownerKind: "tui", options: [] }),
+      skillFailureOf({ kind: "switching" }),
+    ]).toEqual(["notFound", "unsupported", "offline", "failed", "failed", "failed", "failed"]);
+  });
+});
+
+describe("overlayOpenOf", () => {
+  test("a confirm, an editor or the skill dialog holds the list keys; a closed screen does not", () => {
+    expect(overlayOpenOf(INITIAL_PROPOSALS_STATE)).toBe(false);
+    expect(
+      overlayOpenOf(
+        proposalsReducer(INITIAL_PROPOSALS_STATE, {
+          type: "confirmOpened",
+          key: "learning:p1",
+          action: "revert",
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      overlayOpenOf(
+        proposalsReducer(INITIAL_PROPOSALS_STATE, {
+          type: "editorOpened",
+          mode: "reject",
+          key: "learning:p1",
+        }),
+      ),
+    ).toBe(true);
+    const skillOpen = proposalsReducer(INITIAL_PROPOSALS_STATE, {
+      type: "skillOpened",
+      request: { name: "cache-debug", threadId: null },
+    });
+    expect(overlayOpenOf(skillOpen)).toBe(true);
+    expect(overlayOpenOf(proposalsReducer(skillOpen, { type: "skillClosed" }))).toBe(false);
   });
 });

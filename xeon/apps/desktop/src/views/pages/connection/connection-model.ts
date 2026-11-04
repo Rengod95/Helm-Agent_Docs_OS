@@ -8,9 +8,9 @@ import {
 } from "@fresnel/client";
 import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
-import { WIRE_ERRORS } from "@fresnel/contracts/wire";
+import { WIRE_ERRORS, type HostClientView } from "@fresnel/contracts/wire";
 import type { EngineState, Link } from "../../../state/engine/index.ts";
-import type { ConnectionSnapshot, ConnectTarget } from "../../commands.ts";
+import type { CommandError, ConnectionSnapshot, ConnectTarget } from "../../commands.ts";
 
 // 연결 화면(P-08)의 상태 기계. 순수 함수만 둔다: 명령을 부르는 일은 화면이 맡고, 결과와 엔진·연결 관찰을 이 모델의 동작으로 옮긴다.
 // 대상 목록은 로컬 설정이 주는 값이고 거울에 넣지 않는다. 진행은 엔진 상태 전이와 연결 상태로 본다(셸 명령은 값만 준다).
@@ -61,6 +61,17 @@ type StatusState =
   | { readonly kind: "failed" };
 
 /**
+ * 연결된 클라이언트 목록(`host.clients`)의 읽기 상태. 상태 카드와 따로 읽어서 목록이 실패해도 카드는 그대로 둔다.
+ * `offline`(연결이 없다)과 `unsupported`(엔진이 이 메서드를 모른다)는 목록 자리를 숨긴다. 뒤쪽은 연결 수 줄만 남는다.
+ */
+export type ClientsState =
+  | { readonly kind: "loading" }
+  | { readonly kind: "ready"; readonly clients: readonly HostClientView[] }
+  | { readonly kind: "offline" }
+  | { readonly kind: "unsupported" }
+  | { readonly kind: "failed" };
+
+/**
  * 원격 응답 허용 줄을 바꿀 수 있는가: 연결이 있고(상태를 읽었고), 값을 알고 있고, 다른 명령이나 연결 진행이 없을 때다.
  * 연결이 없으면 값을 보이고 잠근다.
  */
@@ -107,6 +118,8 @@ export interface ConnectionState {
   readonly pending: PendingConnect | null;
   readonly failure: ConnectFailure | null;
   readonly status: StatusState;
+  /** 연결된 클라이언트 목록. 상태 카드와 따로 읽는다(목록 실패가 카드를 막지 않는다) */
+  readonly clients: ClientsState;
   /** 서비스 모드 설정 값. 읽기 전에는 null */
   readonly serviceEnabled: boolean | null;
   /** 서비스 모드를 바꾼 뒤부터 참이다. 설정은 엔진을 다시 띄워야 적용된다 */
@@ -130,6 +143,7 @@ export const INITIAL_CONNECTION_STATE: ConnectionState = {
   pending: null,
   failure: null,
   status: { kind: "loading" },
+  clients: { kind: "loading" },
   serviceEnabled: null,
   restartNeeded: false,
   remoteAllowRespond: null,
@@ -164,6 +178,9 @@ export type ConnectionAction =
   | { readonly type: "statusLoading" }
   | { readonly type: "statusLoaded"; readonly snapshot: ConnectionSnapshot }
   | { readonly type: "statusFailed"; readonly reason: "offline" | "failed" }
+  | { readonly type: "clientsLoading" }
+  | { readonly type: "clientsLoaded"; readonly clients: readonly HostClientView[] }
+  | { readonly type: "clientsFailed"; readonly reason: "offline" | "unsupported" | "failed" }
   | {
       readonly type: "connectStarted";
       readonly target: TargetChoice;
@@ -270,6 +287,43 @@ export function attachFailureOf(connectError: string | null): AttachFailureKind 
   if (code === WIRE_ERRORS["host.authFailed"].code) return "auth";
   if (PROTOCOL_CODES.has(code)) return "protocol";
   return "other";
+}
+
+// ── 연결된 클라이언트 ──────────────────────────────────────────────────
+
+/** 목록 한 줄. 이름은 `hello`를 마친 연결만 있다(없으면 `null`이고 화면이 전송 종류로 부른다) */
+export interface ClientRow {
+  readonly id: string;
+  readonly name: string | null;
+  readonly transport: HostClientView["transport"];
+  readonly version: string | null;
+  readonly self: boolean;
+  readonly writeThreads: number;
+  readonly observedThreads: number;
+}
+
+export function clientRowOf(client: HostClientView): ClientRow {
+  return {
+    id: client.connectionId,
+    name: client.name ?? null,
+    transport: client.transport,
+    version: client.version ?? null,
+    self: client.self,
+    writeThreads: client.writeThreads,
+    observedThreads: client.observedThreads,
+  };
+}
+
+/** 목록 읽기 실패를 화면 상태로 바꾼다. 연결이 없음과 오래된 엔진은 목록을 숨기고, 그 밖은 실패로 보여 다시 시도를 준다 */
+export function clientsReasonOf(error: CommandError): "offline" | "unsupported" | "failed" {
+  if (error.kind === "offline") return "offline";
+  if (error.kind === "unsupported") return "unsupported";
+  return "failed";
+}
+
+/** 목록 자리를 그리는가. 연결이 없거나 오래된 엔진이면 숨긴다 */
+export function clientsShown(clients: ClientsState): boolean {
+  return clients.kind !== "offline" && clients.kind !== "unsupported";
 }
 
 // ── 진행 단계 ──────────────────────────────────────────────────────────
@@ -439,6 +493,12 @@ export function connectionReducer(
       };
     case "statusFailed":
       return { ...state, status: { kind: action.reason === "offline" ? "offline" : "failed" } };
+    case "clientsLoading":
+      return { ...state, clients: { kind: "loading" } };
+    case "clientsLoaded":
+      return { ...state, clients: { kind: "ready", clients: action.clients } };
+    case "clientsFailed":
+      return { ...state, clients: { kind: action.reason } };
     case "connectStarted":
       // 진행 중에는 새 요청을 받지 않는다. 실패 뒤 다시 시도도 이 동작으로 시작한다
       if (state.pending !== null) return state;

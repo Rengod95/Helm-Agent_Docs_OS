@@ -1,5 +1,7 @@
 import { t } from "@fresnel/client/i18n";
 import type { ProposalAction, ProposalRowVM, ProposalScope } from "@fresnel/client/settings";
+import { assertNever } from "@fresnel/contracts";
+import type { WireResult } from "@fresnel/contracts/wire";
 import {
   Alert,
   Badge,
@@ -25,6 +27,7 @@ import {
 } from "@caustic/react";
 import { TriangleAlert } from "@caustic/react/icons";
 import { useId, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { InfoTip } from "../../craft/info-tip.tsx";
 import { relativeAgeOf } from "../shared/relative-age.ts";
 import {
   DIFF_FOLD_LINES,
@@ -37,6 +40,8 @@ import {
   type ListState,
   type ProposalFilter,
   type ProposalsState,
+  type SkillPeek,
+  type SkillRequest,
   type SourceFilter,
   type StatusFilter,
 } from "./proposals-model.ts";
@@ -44,6 +49,8 @@ import {
   actionLabelIdOf,
   kindFilterIdOf,
   scopeIdOf,
+  skillFailureIdOf,
+  skillScopeIdOf,
   sourceFilterIdOf,
   statusFilterIdOf,
 } from "./proposals-text.ts";
@@ -65,6 +72,9 @@ export interface ProposalsHandlers {
   readonly loadMore: () => void;
   readonly retry: () => void;
   readonly openThread: (threadId: string) => void;
+  /** 충돌 스킬 대화 상자를 연다(다시 읽기도 같다). 읽기는 화면이 부른다 */
+  readonly skillOpen: (request: SkillRequest) => void;
+  readonly skillClose: () => void;
   readonly dismissNotice: () => void;
   readonly onKey: (event: ReactKeyboardEvent<HTMLElement>) => void;
 }
@@ -125,6 +135,12 @@ export function ProposalsView(props: ProposalsViewProps): ReactNode {
       <ConfirmDialog
         state={state}
         rows={state.list.status === "ready" ? state.list.rows : []}
+        handlers={handlers}
+      />
+      <SkillDialog
+        peek={state.skill}
+        proposed={selected?.proposedText ?? null}
+        live={live}
         handlers={handlers}
       />
     </section>
@@ -300,6 +316,7 @@ function DetailPane(props: {
   const editing = state.editor.mode !== "none" && state.editor.key === selected.key;
   const actionsEnabled = live && !state.busy;
   const threadId = selected.evidenceThreadIds.find((id) => openable(id));
+  const conflict = selected.conflictsWith;
   return (
     <section
       aria-labelledby={headingId}
@@ -320,9 +337,23 @@ function DetailPane(props: {
           {t("desktop.proposals.detail.untrusted")}
         </Alert>
       ) : null}
-      {selected.conflictsWith === null ? null : (
-        <Alert tone="info">
-          {t("desktop.proposals.detail.conflict", { target: selected.conflictsWith })}
+      {conflict === null ? null : (
+        <Alert
+          tone="info"
+          action={
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={!live}
+              onClick={() => {
+                handlers.skillOpen({ name: conflict, threadId: threadId ?? null });
+              }}
+            >
+              {t("desktop.proposals.skill.open")}
+            </Button>
+          }
+        >
+          {t("desktop.proposals.detail.conflict", { target: conflict })}
         </Alert>
       )}
       {selected.rationale === null ? null : (
@@ -524,5 +555,172 @@ function ConfirmDialog(props: {
         </>
       }
     />
+  );
+}
+
+/** 충돌 스킬 대화 상자(W-14). 왼쪽은 제안 내용, 오른쪽은 지금 스킬의 본문이다. 열린 뒤에 한 번 읽는다 */
+function SkillDialog(props: {
+  readonly peek: SkillPeek;
+  readonly proposed: string | null;
+  readonly live: boolean;
+  readonly handlers: ProposalsHandlers;
+}): ReactNode {
+  const { peek, proposed, live, handlers } = props;
+  return (
+    <Dialog
+      size="lg"
+      open={peek.status !== "closed"}
+      onOpenChange={(next) => {
+        if (!next) handlers.skillClose();
+      }}
+      title={t("desktop.proposals.skill.title")}
+      description={
+        peek.status === "closed"
+          ? undefined
+          : t("desktop.proposals.skill.name", { name: peek.name })
+      }
+      footer={
+        <DialogClose asChild>
+          <Button variant="outline" size="sm">
+            {t("desktop.proposals.dismiss")}
+          </Button>
+        </DialogClose>
+      }
+    >
+      <SkillCompare peek={peek} proposed={proposed} live={live} handlers={handlers} />
+    </Dialog>
+  );
+}
+
+/** 두 열(제안 내용, 지금 스킬). 대화 상자 안에서만 쓰지만 서버 렌더 시험이 이 부품을 직접 그린다 */
+export function SkillCompare(props: {
+  readonly peek: SkillPeek;
+  readonly proposed: string | null;
+  readonly live: boolean;
+  readonly handlers: ProposalsHandlers;
+}): ReactNode {
+  const { peek, proposed, live, handlers } = props;
+  if (peek.status === "closed") return null;
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <section className="flex min-w-0 flex-col gap-2">
+        <h3 className="text-ui-sm font-semibold text-text-primary">
+          {t("desktop.proposals.skill.proposed")}
+        </h3>
+        <ProposedText proposed={proposed} />
+      </section>
+      <section className="flex min-w-0 flex-col gap-2">
+        <div className="flex items-center gap-1">
+          <h3 className="text-ui-sm font-semibold text-text-primary">
+            {t("desktop.proposals.skill.current")}
+          </h3>
+          <InfoTip text={t("desktop.proposals.skill.info")} />
+        </div>
+        <CurrentSkill peek={peek} live={live} handlers={handlers} />
+      </section>
+    </div>
+  );
+}
+
+/** 제안 쪽 글. 새 본문이 없으면(바뀌는 부분만 있는 연산, 빈 diff) 그렇다고 말한다 */
+function ProposedText(props: { readonly proposed: string | null }): ReactNode {
+  const { proposed } = props;
+  if (proposed === null || proposed === "") {
+    return <EmptyState size="sm" title={t("desktop.proposals.skill.noProposed")} />;
+  }
+  return <TextBlock text={proposed} kind="add" label={t("desktop.proposals.skill.proposed")} />;
+}
+
+/** 지금 스킬 쪽. 읽는 중, 찾지 못함, 기능 꺼짐, 오프라인, 읽기 실패, 본문을 그린다 */
+function CurrentSkill(props: {
+  readonly peek: Exclude<SkillPeek, { readonly status: "closed" }>;
+  readonly live: boolean;
+  readonly handlers: ProposalsHandlers;
+}): ReactNode {
+  const { peek, live, handlers } = props;
+  switch (peek.status) {
+    case "loading":
+      return (
+        <div role="status" aria-busy="true" className="grid content-start gap-2">
+          <span className="sr-only">{t("desktop.proposals.skill.loading")}</span>
+          {[0, 1, 2, 3].map((line) => (
+            <Skeleton key={line} height={28} />
+          ))}
+        </div>
+      );
+    case "ready":
+      return <SkillBody skill={peek.skill} />;
+    case "notFound":
+      return <Alert tone="warning">{t(skillFailureIdOf(peek.status))}</Alert>;
+    case "unsupported":
+      return <Alert tone="info">{t(skillFailureIdOf(peek.status))}</Alert>;
+    case "offline":
+    case "failed":
+      return (
+        <Alert
+          tone={peek.status === "offline" ? "warning" : "danger"}
+          action={
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={!live}
+              onClick={() => {
+                handlers.skillOpen({ name: peek.name, threadId: peek.threadId });
+              }}
+            >
+              {t("desktop.proposals.retry")}
+            </Button>
+          }
+        >
+          {t(skillFailureIdOf(peek.status))}
+        </Alert>
+      );
+    default:
+      return assertNever(peek, "SkillPeek");
+  }
+}
+
+/** 읽은 스킬: 범위와 설명을 머리에, 본문을 아래에 둔다. 본문이 상한을 넘었으면 경고를 보인다 */
+function SkillBody(props: { readonly skill: WireResult<"knowledge.skills.view"> }): ReactNode {
+  const { skill } = props;
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex flex-col gap-1">
+        <div>
+          <Badge>{t(skillScopeIdOf(skill.scope))}</Badge>
+        </div>
+        {skill.description === "" ? null : (
+          <p className="whitespace-pre-wrap text-body text-text-secondary">{skill.description}</p>
+        )}
+      </div>
+      {skill.bodyTruncated ? (
+        <Alert tone="warning" layout="inline" icon={<TriangleAlert />}>
+          {t("desktop.proposals.skill.truncated")}
+        </Alert>
+      ) : null}
+      {skill.body === "" ? (
+        <EmptyState size="sm" title={t("desktop.proposals.skill.empty")} />
+      ) : (
+        <TextBlock text={skill.body} kind="context" label={t("desktop.proposals.skill.current")} />
+      )}
+    </div>
+  );
+}
+
+/** 글을 줄 번호가 붙은 코드 칸으로 보인다. 제안 쪽은 추가 줄, 지금 스킬 쪽은 문맥 줄이다 */
+function TextBlock(props: {
+  readonly text: string;
+  readonly kind: "add" | "context";
+  readonly label: string;
+}): ReactNode {
+  const numbered = props.text.split("\n").map((text, index) => ({ number: index + 1, text }));
+  return (
+    <CodeDiff aria-label={props.label} filename={props.label} actions={false}>
+      {numbered.map((line) => (
+        <CodeDiffLine key={line.number} kind={props.kind} number={line.number}>
+          {line.text}
+        </CodeDiffLine>
+      ))}
+    </CodeDiff>
   );
 }

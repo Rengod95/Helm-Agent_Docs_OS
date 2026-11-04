@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { Bug, parse } from "@fresnel/contracts";
+import { PlanVersionsOutput } from "@fresnel/contracts/capabilities";
 import type { GoalStatusResult, WorkTasksListResult } from "@fresnel/contracts/wire";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until, type EngineExtra } from "./support.ts";
@@ -57,6 +59,50 @@ describe("goal.status and work.tasks.list read by thread", () => {
     expect(await app.commands.work.goal(thr(1))).toEqual({
       ok: false,
       error: { kind: "unsupported" },
+    });
+    await app.stop();
+  });
+});
+
+describe("work.plans.versions by thread and plan id", () => {
+  test("the versions come back as the host sent them, with the thread and plan id as the params", async () => {
+    const parsed = parse(PlanVersionsOutput, {
+      versions: [
+        {
+          planId: "p1",
+          version: 1,
+          title: "캐시 만료 수정",
+          body: "1. 만료 시각을 읽는다",
+          status: "approved",
+          artifact: null,
+          approvalId: null,
+          feedback: null,
+        },
+      ],
+    });
+    if (!parsed.ok) throw new Bug("the plan versions fixture does not match its schema");
+    const { app, params } = await liveApp({
+      results: { "work.plans.versions": parsed.value },
+    });
+    const listed = await app.commands.work.planVersions(thr(1), "p1");
+    expect(paramsOf(params, "work.plans.versions")).toEqual({ threadId: thr(1), planId: "p1" });
+    expect(listed).toEqual({ ok: true, value: parsed.value });
+    await app.stop();
+  });
+
+  test("an unknown plan id is a rejection whose path names planId", async () => {
+    const { app } = await liveApp({
+      errors: {
+        "work.plans.versions": {
+          code: -32602,
+          kind: "jsonrpc.invalidParams",
+          details: { issues: [{ path: "planId", message: "unknown plan" }] },
+        },
+      },
+    });
+    expect(await app.commands.work.planVersions(thr(1), "p9")).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: -32602, path: "planId" },
     });
     await app.stop();
   });

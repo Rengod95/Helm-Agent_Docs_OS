@@ -22,8 +22,8 @@ import { answeringModels, sequencedModels } from "../fixtures/tape-host.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
-// M4 대화 영역 wire(W-05 `goal.status`, W-06 `work.tasks.list`, W-07 `schedule.update`·`schedule.runs`)와 `ThreadSummary.origin`(W-16)을
-// 실제 엔진에서 본다. 목표와 작업은 인-프로세스 호스트에서, 예약 실행은 틱을 돌리는 서비스 모드에서 시험한다(in-process는 틱이 돌지 않는다, HS-40).
+// M4 대화 영역 wire(W-05 `goal.status`, W-06 `work.tasks.list`, W-07 `schedule.update`·`schedule.runs`)와 `ThreadSummary.origin`(W-16),
+// `host.clients`(W-12), `turn.withdraw`(W-17), `knowledge.skills.view`(W-14), `work.plans.versions`(W-18)의 연결을 실제 엔진에서 본다. 목표와 작업은 인-프로세스 호스트에서, 예약 실행은 틱을 돌리는 서비스 모드에서 시험한다(in-process는 틱이 돌지 않는다, HS-40).
 // 모델은 테이프가 답하고, 목표 설정은 시험용 확장이 `work.goals`의 `set`으로 건다(goal-judge.int.test.ts와 같은 방식).
 
 const gate = await realEngineGate();
@@ -477,5 +477,58 @@ describe("dialog area over the wire, on the real engine", () => {
       }
     },
     60_000,
+  );
+
+  realTest(
+    "host.clients names this client and its write thread, turn.withdraw answers false for a key that is not queued, and an unknown skill and an unknown plan reach their capabilities as invalid params",
+    async () => {
+      const home = useEngineHome();
+      writeUserSettings(home, TAPE_SETTINGS);
+      const host = await startInProcessHost({
+        devChecks: true,
+        defaultGroups: false,
+        buildModels: answeringModels("dialog-area-new-wire", "unused"),
+      });
+      const connection = createHostConnection(host.client);
+      await connection.request("host.hello", {
+        ...HELLO_PARAMS,
+        client: { name: "dialog-area-probe", version: "9.9.9", kind: "other" },
+      });
+      const created = await connection.request("thread.create", {});
+      expect(await connection.request("host.clients", {})).toEqual({
+        clients: [
+          {
+            connectionId: expect.any(String),
+            transport: "in-process",
+            name: "dialog-area-probe",
+            version: "9.9.9",
+            writeThreads: 1,
+            observedThreads: 0,
+            self: true,
+          },
+        ],
+      });
+      expect(
+        await connection.request("turn.withdraw", {
+          threadId: created.threadId,
+          requestId: "never-queued",
+        }),
+      ).toEqual({ withdrawn: false });
+      // 없는 스킬과 없는 계획은 기능까지 가서 받는 것이라 -32602(path)로 답한다. 기능이 올라와 있지 않으면 -32601이다
+      const skill = await wireErrorOf(
+        connection.request("knowledge.skills.view", { name: "no-such-skill" }),
+      );
+      expect(skill.code).toBe(-32602);
+      expect(skill.data.details).toEqual({ issues: [{ path: "name", message: "unknown skill" }] });
+      const plan = await wireErrorOf(
+        connection.request("work.plans.versions", { threadId: created.threadId, planId: "p1" }),
+      );
+      expect(plan.code).toBe(-32602);
+      expect(plan.data.details).toEqual({ issues: [{ path: "planId", message: "unknown plan" }] });
+      await connection.close();
+      await host.close();
+      home.dispose();
+    },
+    30_000,
   );
 });
