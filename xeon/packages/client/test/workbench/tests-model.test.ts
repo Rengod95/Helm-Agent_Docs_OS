@@ -142,15 +142,32 @@ describe("P-19 테스트 모델", () => {
     });
   });
 
-  test("cutStripOf paints a cell as same only when every cut matched and caps the drawn cells", () => {
-    const all = cutStripOf(report({ commits: 3, passed: 3 }));
-    expect(all.cells.map((cell) => cell.cell)).toEqual(["same", "same", "same"]);
-    expect(all.hidden).toBe(0);
-    const partial = cutStripOf(report({ commits: 3, passed: 2, ok: false }));
-    expect(partial.cells.map((cell) => cell.cell)).toEqual(["unknown", "unknown", "unknown"]);
-    const long = cutStripOf(report({ commits: CUT_STRIP_LIMIT + 5, passed: CUT_STRIP_LIMIT + 5 }));
+  test("cutStripOf paints each commit by its own cut, same or differs, in commit order", () => {
+    const strip = cutStripOf(report({ commits: 3, passed: 2, ok: false, cuts: cutsOf(3, [2]) }));
+    expect(strip.cells).toEqual([
+      { commitIndex: 1, cell: "same" },
+      { commitIndex: 2, cell: "differs" },
+      { commitIndex: 3, cell: "same" },
+    ]);
+    expect(strip.hidden).toBe(0);
+  });
+
+  test("cutStripOf caps the drawn cells and counts the rest as hidden", () => {
+    const commits = CUT_STRIP_LIMIT + 5;
+    const long = cutStripOf(report({ commits, passed: commits, cuts: cutsOf(commits) }));
     expect(long.cells).toHaveLength(CUT_STRIP_LIMIT);
+    expect(long.cells.at(-1)).toEqual({ commitIndex: CUT_STRIP_LIMIT, cell: "same" });
     expect(long.hidden).toBe(5);
+  });
+
+  test("cutStripOf counts commits without a cut as hidden and draws nothing for a report with no commits", () => {
+    const short = cutStripOf(report({ commits: 10, passed: 4, cuts: cutsOf(4, [3]) }));
+    expect(short.cells.map((cell) => cell.cell)).toEqual(["same", "same", "differs", "same"]);
+    expect(short.hidden).toBe(6);
+    const none = cutStripOf(
+      report({ commits: 0, passed: 0, ok: false, cuts: [], failure: "no-commits" }),
+    );
+    expect(none).toEqual({ commits: 0, passed: 0, cells: [], hidden: 0 });
   });
 
   test("effectRowsOf keeps the wire order turn, spawn, delegate, post", () => {
