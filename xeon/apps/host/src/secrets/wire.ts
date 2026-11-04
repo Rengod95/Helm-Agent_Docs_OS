@@ -2,12 +2,19 @@ import { assertNever, attempt, parse } from "@fresnel/contracts";
 import {
   parseSecretRef,
   SecretNameSchema,
+  type SecretAuditRecord,
   type SecretHandle,
   type SecretMeta,
   type SecretName,
 } from "@fresnel/contracts/capabilities";
 import type { SecretError, SecretListing } from "@fresnel/contracts/services";
-import { wireError, type SecretListEntry, type WireError } from "@fresnel/contracts/wire";
+import { isId } from "@fresnel/contracts/conversation";
+import {
+  wireError,
+  type SecretAuditEntry,
+  type SecretListEntry,
+  type WireError,
+} from "@fresnel/contracts/wire";
 
 // F.wire-settings.spec §3.3.1 secret.*. L0.secrets의 목록·오류를 값 없는 와이어 모양으로 옮기는 순수 함수들.
 // 어느 필드에도 값을 싣지 않는다. 오류는 종류와 안전한 필드(이름, 제공자, 사유 코드)만 details에 싣는다.
@@ -172,3 +179,45 @@ export function wireErrorOfSecret(error: SecretError, where: string): WireError 
 
 /** 오류 details 문자열 상한(F wire §3.5.2 시크릿 오류) */
 const DETAIL_MAX = 64;
+
+/**
+ * 감사 기록 → `secret.audit` 항목. 사용(`secret.used`)과 거절(`secret.denied`)만 옮긴다. 항목은 필드를 하나씩 골라 새로 만든다:
+ * 레코드를 펼쳐 복사하지 않으므로 자유 문장(`purpose`)이나 앞으로 레코드에 생길 필드가 와이어로 새지 않는다.
+ * thread id 모양이 아닌 값은 null이다. 최근 것이 앞이고, `limit`이 있으면 그만큼만 돌려준다.
+ */
+export function auditEntriesOf(
+  records: readonly SecretAuditRecord[],
+  limit: number | undefined,
+): SecretAuditEntry[] {
+  const entries: SecretAuditEntry[] = [];
+  for (const record of records.toSorted((a, b) => b.at - a.at)) {
+    if (limit !== undefined && entries.length >= limit) break;
+    if (record.type !== "secret.used" && record.type !== "secret.denied") continue;
+    const at = isoOf(record.at);
+    if (at === undefined) continue;
+    const threadId =
+      record.threadId !== null && isId("thr", record.threadId) ? record.threadId : null;
+    if (record.type === "secret.used") {
+      entries.push({
+        at,
+        decision: "allow",
+        mode: record.mode,
+        threadId,
+        toolCallId: record.toolCallId,
+        host: record.host,
+        reason: null,
+      });
+    } else {
+      entries.push({
+        at,
+        decision: "deny",
+        mode: record.mode,
+        threadId,
+        toolCallId: record.toolCallId,
+        host: null,
+        reason: record.reason,
+      });
+    }
+  }
+  return entries;
+}

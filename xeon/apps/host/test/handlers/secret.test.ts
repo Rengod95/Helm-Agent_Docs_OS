@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
-import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
+import { SecretNameSchema, secretRef, type SecretName } from "@fresnel/contracts/capabilities";
 import { WireError } from "@fresnel/contracts/wire";
 import { createSecretsPort } from "../../src/assembly/secrets.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
@@ -493,5 +493,119 @@ test("secret.references on a name without metadata is secret.notFound, and no va
     expect(unknown.data.kind).toBe("secret.notFound");
     expect(JSON.stringify(unknown)).not.toContain(VALUE);
   }
+  await connection.close();
+});
+
+// ── B-03: secret.audit ──────────────────────────────────────────────────────────────────
+
+test("secret.audit lists uses and denials newest first and never carries the value or the free-text purpose", async () => {
+  const host = seeded();
+  const thread = host.fake.seedThread();
+  const record = host.fake.secrets.records.get(EXA);
+  if (record === undefined) throw new Error("the seeded secret is missing");
+  const handle = secretRef(EXA);
+  const at1 = Date.UTC(2026, 10, 3, 1, 0, 0);
+  const at2 = Date.UTC(2026, 10, 3, 2, 0, 0);
+  const at3 = Date.UTC(2026, 10, 3, 3, 0, 0);
+  record.audit = [
+    {
+      type: "secret.used",
+      handle,
+      mode: "env",
+      toolCallId: "call_1",
+      threadId: thread,
+      host: "api.exa.ai",
+      commandHash: "0123456789abcdef",
+      decision: "allow",
+      leaseId: "lease_1",
+      at: at1,
+    },
+    {
+      type: "secret.denied",
+      handle,
+      mode: "runtime-http",
+      reason: "host_mismatch",
+      // 도구가 목적 문장에 값을 적어도 와이어로 나가지 않는다
+      purpose: `call the API with ${VALUE}`,
+      toolCallId: null,
+      threadId: "not-a-thread-id",
+      at: at2,
+    },
+    {
+      type: "secret.revealed",
+      handle,
+      reauth: "os-auth",
+      actor: "human",
+      at: at3,
+    },
+  ];
+  const connection = await open(host);
+  const result = await connection.request("secret.audit", { name: EXA });
+  expect(result).toEqual({
+    entries: [
+      {
+        at: "2026-11-03T02:00:00.000Z",
+        decision: "deny",
+        mode: "runtime-http",
+        threadId: null,
+        toolCallId: null,
+        host: null,
+        reason: "host_mismatch",
+      },
+      {
+        at: "2026-11-03T01:00:00.000Z",
+        decision: "allow",
+        mode: "env",
+        threadId: thread,
+        toolCallId: "call_1",
+        host: "api.exa.ai",
+        reason: null,
+      },
+    ],
+  });
+  expect(JSON.stringify(result)).not.toContain(VALUE);
+  expect(JSON.stringify(result)).not.toContain("0123456789abcdef");
+  // 읽기 전용: 시크릿과 기록은 그대로다
+  expect(record.audit.length).toBe(3);
+  await connection.close();
+});
+
+test("secret.audit has no count cap unless limit is given", async () => {
+  const host = seeded();
+  const record = host.fake.secrets.records.get(EXA);
+  if (record === undefined) throw new Error("the seeded secret is missing");
+  const handle = secretRef(EXA);
+  record.audit = Array.from({ length: 1200 }, (_, index) => ({
+    type: "secret.used" as const,
+    handle,
+    mode: "env" as const,
+    toolCallId: null,
+    threadId: null,
+    host: null,
+    commandHash: null,
+    decision: "allow" as const,
+    leaseId: `lease_${index}`,
+    at: Date.UTC(2026, 10, 3) + index * 1000,
+  }));
+  const connection = await open(host);
+  const all = await connection.request("secret.audit", { name: EXA });
+  expect(all.entries.length).toBe(1200);
+  expect(all.entries[0]?.at).toBe("2026-11-03T00:19:59.000Z");
+  const few = await connection.request("secret.audit", { name: EXA, limit: 2 });
+  expect(few.entries.map((entry) => entry.at)).toEqual([
+    "2026-11-03T00:19:59.000Z",
+    "2026-11-03T00:19:58.000Z",
+  ]);
+  await connection.close();
+});
+
+test("secret.audit on a name without metadata is secret.notFound", async () => {
+  const host = seeded();
+  const connection = await open(host);
+  const unknown = await rejectionOf(
+    connection.request("secret.audit", { name: nameOf("nope-key") }),
+  );
+  expect(unknown).toBeInstanceOf(WireError);
+  if (unknown instanceof WireError) expect(unknown.data.kind).toBe("secret.notFound");
   await connection.close();
 });
