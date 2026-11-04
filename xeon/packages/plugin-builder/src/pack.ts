@@ -60,7 +60,7 @@ async function copyTree(
   return ok(nested.value.flat());
 }
 
-async function listAll(root: string, prefix = ""): Promise<Result<string[], DevkitError>> {
+export async function listAll(root: string, prefix = ""): Promise<Result<string[], DevkitError>> {
   const entries = await io(root, () => readdir(join(root, prefix), { withFileTypes: true }));
   if (!entries.ok) return entries;
   const nested = await mapAll(entries.value, async (entry) => {

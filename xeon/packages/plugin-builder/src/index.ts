@@ -1,6 +1,7 @@
 export { CATALOG_VERSION, KIND_CATALOG, kindEntryOf } from "./catalog.ts";
 export {
   installExtension,
+  previewInstall,
   removeExtension,
   type InstallOptions,
   type InstallOutcome,
