@@ -78,6 +78,10 @@ export interface TraceBuffer {
   enabled(): boolean;
   /** 남은 기록의 훅별 시간 분포. 계측이 꺼져 있으면 `{traceEnabled: false, timings: []}` */
   timings(filter: TimingFilter): ExtTimingsResult;
+  /**
+   * thread의 남은 Turn 전체에서 핸들러 결과가 `blocked`인 기록 수(`testRun.phase`의 guardHits). 계측이 꺼져 있거나 thread를 모르면 0이다
+   */
+  blockedCount(threadId: ThreadId): number;
   /** thread의 기록을 지운다. `closeThread`가 부른다(§4.8.3) */
   forgetThread(threadId: ThreadId): void;
 }
@@ -274,6 +278,23 @@ export function createTraceBuffer(deps: TraceBufferDeps): TraceBuffer {
     timings(filter) {
       if (!deps.settings().enabled) return { traceEnabled: false, timings: [] };
       return { traceEnabled: true, timings: timingsOf(runsOf(), filter) };
+    },
+
+    blockedCount(threadId) {
+      if (!deps.settings().enabled) return 0;
+      const thread = threads.get(threadId);
+      if (thread === undefined) return 0;
+      let count = 0;
+      for (const turn of thread.turns.values()) {
+        if (!turn.enabled) continue;
+        for (const entry of turn.entries) {
+          // 숨기는 등록의 행은 record에서 이미 빠져 있어 여기서 다시 거르지 않는다
+          for (const handler of entry.handlers) {
+            if (handler.result === "blocked") count += 1;
+          }
+        }
+      }
+      return count;
     },
 
     forgetThread(threadId) {

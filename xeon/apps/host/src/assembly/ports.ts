@@ -779,6 +779,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         schedule: deps.schedule,
         threads,
         dialogArea: deps.dialogArea,
+        log,
       },
       {
         catalog: deps.settings.catalog,

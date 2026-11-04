@@ -73,6 +73,10 @@ export interface DispatcherDeps {
    * Test run 단계 경계 멈춤(X-19). `boundary.step.after`의 처리가 끝난 뒤 멈춘 thread를 기다린다. 없으면 멈추지 않는다
    */
   readonly stepPause?: Pick<StepPause, "hold">;
+  /**
+   * Test run 단계 경계 기록(X-19). `boundary.step.after`에서 기다리기 직전에 부른다. host.ts가 Test run thread만 적는다
+   */
+  readonly onBoundary?: (threadId: ThreadId) => void;
 }
 
 export interface Dispatcher {
@@ -442,6 +446,8 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
           // X-19: 단계 경계 처리가 끝난 뒤에 멈춘다. 그래서 단계 끝 커밋과 다음 단계(새 turn, drive 재호출)가 멈춘 동안 시작되지 않는다.
           // 이 훅 이름만 검사하므로 다른 디스패치는 Map 조회도 하지 않는다
           if (point === "boundary.step.after" && deps.stepPause !== undefined) {
+            // 기록은 기다리기 전의 멈춤 요청을 읽는다(paused). 기다리기는 요청을 바꾸지 않는다
+            deps.onBoundary?.(options.threadId);
             await deps.stepPause.hold(options.threadId, options.signal);
           }
           return outcome;

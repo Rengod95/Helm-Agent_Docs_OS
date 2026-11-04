@@ -88,6 +88,24 @@ test("l2.schedule.entries.directCreate is listed for managed and user only, so a
   }
 });
 
+test("l3.authoring.devMode is in the catalog with default false, live changes, and managed and user scopes only", () => {
+  const catalog = coreCatalog();
+  const key = "l3.authoring.devMode";
+  const def = catalog.get(key);
+  expect(def?.key).toBe(key);
+  expect(def?.layer).toBe("L3");
+  expect(def?.default).toBe(false);
+  expect(def?.runtimeChange).toBe("live");
+  expect(def?.allowedScopes).toEqual(["managed", "user"]);
+  expect(def?.ui?.labelKey).toBe("settings.l3.authoring.devMode.label");
+  for (const scope of ["managed", "user"] as const) {
+    expect(keysOf(JSON.parse(renderSettingsSchema(catalog, scope)))).toContain(key);
+  }
+  for (const scope of ["project", "local"] as const) {
+    expect(keysOf(JSON.parse(renderSettingsSchema(catalog, scope)))).not.toContain(key);
+  }
+});
+
 test("hostSettings declares the two l4.host-service keys with the documented defaults and ranges", () => {
   const { maxReplayEvents, maxSubscriptionsPerConnection } = hostSettings.defs;
   expect(maxReplayEvents.key).toBe("l4.host-service.maxReplayEvents");

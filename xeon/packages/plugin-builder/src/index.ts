@@ -15,6 +15,11 @@ export {
 } from "./scaffold.ts";
 export { locateTemplateDirs, type TemplateDirs } from "./templates-dir.ts";
 export { MANIFEST_PATH, validateCompositionReport, validateExtensionDir } from "./validate.ts";
+export {
+  runInstalledReplay,
+  type InstalledReplayInput,
+  type InstalledReplayReport,
+} from "./replay.ts";
 export { catalogConformance } from "./conformance.ts";
 export { authoringWriteGuard } from "./guard.ts";
 export {
@@ -26,6 +31,7 @@ export {
   type ReplayRunner,
 } from "./release.ts";
 export { authoringManifest, createAuthoringGroup, type AuthoringDeps } from "./group.ts";
+export { authoringSettings } from "./settings.ts";
 export {
   AUTHORING_PHASES,
   AuthoringStateSchema,

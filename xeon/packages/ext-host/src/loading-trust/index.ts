@@ -107,7 +107,12 @@ export {
   type VersionSkipReason,
   type VersionSource,
 } from "./version-history.ts";
-export { registerSdkModules, SDK_MODULE_SPECIFIERS, type SdkModules } from "./virtual-modules.ts";
+export {
+  registerSdkModules,
+  SDK_MODULE_SPECIFIERS,
+  X_SDK_MODULES,
+  type SdkModules,
+} from "./virtual-modules.ts";
 export { compareVersions } from "./semver.ts";
 export {
   LoadDiagnosticSchema,

@@ -5939,6 +5939,29 @@
         }
       }
     },
+    "l3.authoring.devMode": {
+      "default": false,
+      "type": "boolean",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "When on, this computer can run plugin replay checks and benchmarks.",
+          "helpKey": "settings.l3.authoring.devMode.help",
+          "label": "Plugin development mode",
+          "labelKey": "settings.l3.authoring.devMode.label",
+          "order": 240,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "l3.group-sdk.instrumentation": {
       "default": true,
       "type": "boolean",

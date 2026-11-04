@@ -882,7 +882,11 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         ext,
         learning,
         // 제작 그룹의 devkit 포트: 엔진 포트가 만들어진 뒤에 읽는다
-        authoring: { devkit: () => portsHandle?.ports.m4.devkit },
+        // 개발 모드는 설정 값을 그때그때 읽는다(`l3.authoring.devMode`, 라이브). 키가 없으면 꺼짐이다
+        authoring: {
+          devkit: () => portsHandle?.ports.m4.devkit,
+          devMode: () => settings.value("l3.authoring.devMode") === true,
+        },
         ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
         safeMode,
         groups: {

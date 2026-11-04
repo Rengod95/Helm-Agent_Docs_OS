@@ -43,6 +43,7 @@ import { PROCESS_SETTING_DEFS } from "@fresnel/platform-process";
 import { SANDBOX_SETTING_DEFS } from "@fresnel/platform-sandbox";
 import { SECRETS_SETTING_DEFS } from "@fresnel/platform-secrets";
 import { STORE_SETTING_DEFS } from "@fresnel/platform-store";
+import { authoringSettings } from "@fresnel/plugin-builder";
 import { hostSettings } from "../settings.ts";
 
 // L4.host-service.spec §4.1 5단계. 모든 패키지의 설정 그룹을 한 카탈로그로 합친다. 이 파일은 assemble.ts의 일부다:
@@ -110,6 +111,8 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
       "ext.provider-anthropic-oauth",
       reservedExtensionSettings(providerAnthropicOauthManifest, "user").defs,
     ),
+    // 제작 그룹의 설정(개발 모드, 기본 꺼짐). 소유는 plugin-builder다(L3.authoring.spec §6)
+    ofGroup("plugin-builder", authoringSettings),
     ofGroup("host", hostSettings),
   ];
 }

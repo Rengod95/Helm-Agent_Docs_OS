@@ -1,6 +1,6 @@
 // 테스트 화면(P-19)의 그림. 상태와 명령은 없고 props와 핸들러만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 목록 상태(읽는 중, 빈 목록, 오프라인, 오류)를 먼저 가리고, 값이 있으면 caustic `Table`로 그린다. 고른 행의 상세는 목록 아래에 펼친다.
-import { activeLocale, t } from "@fresnel/client/i18n";
+import { t } from "@fresnel/client/i18n";
 import {
   replayVerdictOf,
   type TabRead,
@@ -34,6 +34,7 @@ import {
   noticeTextOf,
   STATE_TEXT,
   STATUS_FILTER_TEXT,
+  timeTextOf,
 } from "./tests-text.ts";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
@@ -296,12 +297,4 @@ function resultTextOf(row: TestRowVM): string {
         ? "desktop.tests.result.replayDiffers"
         : "desktop.tests.result.replayFailed";
   return t(key, { passed: row.replay.passed, commits: row.replay.commits });
-}
-
-function timeTextOf(ms: number | null): string {
-  if (ms === null) return "—";
-  return new Intl.DateTimeFormat(activeLocale(), {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(ms));
 }

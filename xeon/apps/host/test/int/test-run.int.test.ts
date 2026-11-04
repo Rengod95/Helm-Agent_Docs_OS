@@ -39,7 +39,16 @@ function fakeControl(): { readonly port: TestRunControlPort; readonly calls: str
       },
       phase(threadId) {
         calls.push(`phase ${threadId}`);
-        return ok({ phase: "plan", group: "helm", seq: 12 });
+        return ok({
+          phase: "plan",
+          group: "helm",
+          seq: 12,
+          paused: state.paused,
+          lock: { holder: "helm", status: "active", epoch: 1 },
+          guardHits: 0,
+          traceEnabled: true,
+          boundaries: [{ seq: 12, phase: "plan", paused: true }],
+        });
       },
     },
   };
@@ -100,6 +109,11 @@ test("pause, step and resume go through the control port in order and the mark f
     phase: "plan",
     group: "helm",
     seq: 12,
+    paused: true,
+    lock: { holder: "helm", status: "active", epoch: 1 },
+    guardHits: 0,
+    traceEnabled: true,
+    boundaries: [{ seq: 12, phase: "plan", paused: true }],
   });
   expect(await connection.request("testRun.resume", { threadId })).toEqual({ paused: false });
   expect(await pausedOf()).toBe(false);

@@ -13,6 +13,24 @@ function roundTrip(schema: TSchema, value: unknown): void {
   expect(result.ok ? result.value : result.error).toEqual(value);
 }
 
+/** 기록 한 건을 감싼다. replay 값은 통째로 넘긴다(일부만 덮으면 빠뜨린 필드가 되살아난다) */
+function listOf(replayValue: unknown): unknown {
+  return {
+    tests: [
+      {
+        testId: "t2",
+        kind: "replay",
+        target: "helm",
+        state: "failed",
+        startedAt: "2026-10-31T00:00:00.000Z",
+        durationMs: 10,
+        threadId: null,
+        replay: replayValue,
+      },
+    ],
+  };
+}
+
 const kind = {
   id: "plugin-group",
   title: "kinds.plugin-group",
@@ -246,11 +264,60 @@ describe("fresnel.devkit and its wire methods", () => {
             commits: 4,
             passed: 3,
             firstDiff: 2,
+            cuts: [
+              { commitIndex: 1, equal: true, firstDiff: null },
+              { commitIndex: 2, equal: false, firstDiff: 2 },
+              { commitIndex: 3, equal: true, firstDiff: null },
+              { commitIndex: 4, equal: true, firstDiff: null },
+            ],
             effects: { turn: 1, spawn: 0, delegate: 0, post: 2 },
-            failure: "effects-mismatch",
+            failure: null,
           },
         },
       ],
     });
+  });
+
+  test("ext.test.list replay carries one cut per commit and rejects a malformed cut", () => {
+    const list = WIRE_METHODS["ext.test.list"].result;
+    const cut = { commitIndex: 2, equal: false, firstDiff: 2 };
+    const replay = {
+      ok: false,
+      commits: 2,
+      passed: 1,
+      firstDiff: 2,
+      cuts: [{ commitIndex: 1, equal: true, firstDiff: null }, cut],
+      effects: { turn: 0, spawn: 0, delegate: 0, post: 0 },
+      failure: null,
+    };
+    roundTrip(list, listOf(replay));
+    // 칸이 없으면 거절한다
+    const { cuts: _cuts, ...noCuts } = replay;
+    expect(parse(list, listOf(noCuts)).ok).toBe(false);
+    // 커밋이 없는 실행은 칸도 없다
+    roundTrip(list, listOf({ ...replay, cuts: [] }));
+    // 커밋 번호는 1부터, 다른 위치는 0 이상이다
+    expect(parse(list, listOf({ ...replay, cuts: [{ ...cut, commitIndex: 0 }] })).ok).toBe(false);
+    expect(parse(list, listOf({ ...replay, cuts: [{ ...cut, commitIndex: 1.5 }] })).ok).toBe(false);
+    expect(parse(list, listOf({ ...replay, cuts: [{ ...cut, firstDiff: -1 }] })).ok).toBe(false);
+    expect(parse(list, listOf({ ...replay, cuts: [{ ...cut, extra: true }] })).ok).toBe(false);
+    const { equal: _equal, ...noEqual } = cut;
+    expect(parse(list, listOf({ ...replay, cuts: [noEqual] })).ok).toBe(false);
+    // 칸은 최대 1000개다
+    const atCap = Array.from({ length: 1000 }, (_, index) => ({
+      commitIndex: index + 1,
+      equal: true,
+      firstDiff: null,
+    }));
+    roundTrip(list, listOf({ ...replay, commits: 1000, passed: 1000, cuts: atCap }));
+    expect(
+      parse(
+        list,
+        listOf({
+          ...replay,
+          cuts: [...atCap, { commitIndex: 1001, equal: true, firstDiff: null }],
+        }),
+      ).ok,
+    ).toBe(false);
   });
 });

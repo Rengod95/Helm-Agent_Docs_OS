@@ -11,6 +11,7 @@ import type { DispatchPolicy } from "../dispatch-types.ts";
 import { SessionBranchPortKey } from "../event-query.ts";
 import type { ExtMethodSettled, MethodRun } from "../ext-method.ts";
 import type { ResourcePolicy } from "../resources.ts";
+import type { TraceSettings } from "../../operations/trace-buffer.ts";
 import type { ExtDiagnostic } from "../errors.ts";
 import { createExtHost, hostInternalsOf, type ExtHost } from "../host.ts";
 import type { PrimitivesSettingsSource } from "../core.ts";
@@ -38,6 +39,8 @@ export interface TestHostOptions {
   /** setup 예산을 호출 때마다 읽는다. 정책(OperationsPolicy.setupBudgetMs)을 그대로 넘길 때 쓴다 */
   readonly setupBudget?: () => number | null;
   readonly settings?: StaticPrimitivesSettings;
+  /** 계측 설정 읽기(`ExtHostDeps.trace`). 없으면 기본값(켬)이다. 조립 루트가 OperationsPolicy.trace를 넘기는 자리를 흉내 낸다 */
+  readonly trace?: () => TraceSettings;
   /** thread마다 다른 값을 돌려주는 설정 읽기. 있으면 settings 대신 쓴다(session 범위 값을 시험한다) */
   readonly settingsSource?: PrimitivesSettingsSource;
   readonly loop?: MemoryLoopOptions;
@@ -125,6 +128,7 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     ...(options.capabilityDefs === undefined ? {} : { capabilityDefs: options.capabilityDefs }),
     ...(options.onMethodSettled === undefined ? {} : { onMethodSettled: options.onMethodSettled }),
     ...(options.methodRun === undefined ? {} : { methodRun: options.methodRun }),
+    ...(options.trace === undefined ? {} : { trace: options.trace }),
   });
   const without = new Set(options.without ?? []);
   await host.registerPlatform({

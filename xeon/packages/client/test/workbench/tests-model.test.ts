@@ -20,11 +20,20 @@ import {
   type TestRowVM,
 } from "../../src/workbench/index.ts";
 
+/** 커밋 `commits`개의 절단 칸. `diffs`에 든 커밋 번호(1부터)의 칸만 다르다 */
+const cutsOf = (commits: number, diffs: readonly number[] = []): ReplayReport["cuts"] =>
+  Array.from({ length: commits }, (_, index) => {
+    const commitIndex = index + 1;
+    const equal = !diffs.includes(commitIndex);
+    return { commitIndex, equal, firstDiff: equal ? null : 212 };
+  });
+
 const report = (over: Partial<ReplayReport> = {}): ReplayReport => ({
   ok: true,
   commits: 41,
   passed: 41,
   firstDiff: null,
+  cuts: cutsOf(41),
   effects: { turn: 0, spawn: 0, delegate: 0, post: 1 },
   failure: null,
   ...over,
@@ -120,7 +129,11 @@ describe("P-19 테스트 모델", () => {
 
   test("replayVerdictOf reads the failure kind first, then digest differs when the cuts do not all match", () => {
     expect(replayVerdictOf(report())).toEqual({ kind: "same" });
-    expect(replayVerdictOf(report({ ok: false, passed: 39, firstDiff: 212 }))).toEqual({
+    expect(
+      replayVerdictOf(
+        report({ ok: false, passed: 39, firstDiff: 212, cuts: cutsOf(41, [40, 41]) }),
+      ),
+    ).toEqual({
       kind: "digest-differs",
     });
     expect(replayVerdictOf(report({ ok: false, failure: "effects-doubled" }))).toEqual({
@@ -129,15 +142,32 @@ describe("P-19 테스트 모델", () => {
     });
   });
 
-  test("cutStripOf paints a cell as same only when every cut matched and caps the drawn cells", () => {
-    const all = cutStripOf(report({ commits: 3, passed: 3 }));
-    expect(all.cells.map((cell) => cell.cell)).toEqual(["same", "same", "same"]);
-    expect(all.hidden).toBe(0);
-    const partial = cutStripOf(report({ commits: 3, passed: 2, ok: false }));
-    expect(partial.cells.map((cell) => cell.cell)).toEqual(["unknown", "unknown", "unknown"]);
-    const long = cutStripOf(report({ commits: CUT_STRIP_LIMIT + 5, passed: CUT_STRIP_LIMIT + 5 }));
+  test("cutStripOf paints each commit by its own cut, same or differs, in commit order", () => {
+    const strip = cutStripOf(report({ commits: 3, passed: 2, ok: false, cuts: cutsOf(3, [2]) }));
+    expect(strip.cells).toEqual([
+      { commitIndex: 1, cell: "same" },
+      { commitIndex: 2, cell: "differs" },
+      { commitIndex: 3, cell: "same" },
+    ]);
+    expect(strip.hidden).toBe(0);
+  });
+
+  test("cutStripOf caps the drawn cells and counts the rest as hidden", () => {
+    const commits = CUT_STRIP_LIMIT + 5;
+    const long = cutStripOf(report({ commits, passed: commits, cuts: cutsOf(commits) }));
     expect(long.cells).toHaveLength(CUT_STRIP_LIMIT);
+    expect(long.cells.at(-1)).toEqual({ commitIndex: CUT_STRIP_LIMIT, cell: "same" });
     expect(long.hidden).toBe(5);
+  });
+
+  test("cutStripOf counts commits without a cut as hidden and draws nothing for a report with no commits", () => {
+    const short = cutStripOf(report({ commits: 10, passed: 4, cuts: cutsOf(4, [3]) }));
+    expect(short.cells.map((cell) => cell.cell)).toEqual(["same", "same", "differs", "same"]);
+    expect(short.hidden).toBe(6);
+    const none = cutStripOf(
+      report({ commits: 0, passed: 0, ok: false, cuts: [], failure: "no-commits" }),
+    );
+    expect(none).toEqual({ commits: 0, passed: 0, cells: [], hidden: 0 });
   });
 
   test("effectRowsOf keeps the wire order turn, spawn, delegate, post", () => {
@@ -150,7 +180,7 @@ describe("P-19 테스트 모델", () => {
   });
 
   test("reportJsonOf copies the report as it is, pretty printed", () => {
-    const value = report({ ok: false, passed: 39, firstDiff: 212 });
+    const value = report({ ok: false, passed: 39, firstDiff: 212, cuts: cutsOf(41, [40, 41]) });
     expect(reportJsonOf(value)).toBe(JSON.stringify(value, null, 2));
     expect(JSON.parse(reportJsonOf(value))).toEqual(value);
   });

@@ -31,11 +31,19 @@ const handlers: TestsViewHandlers = {
   copy: NOOP,
 };
 
+/** 커밋 41개 가운데 40, 41번 절단이 다르다(통과 39) */
+const CUTS: ReplayReport["cuts"] = Array.from({ length: 41 }, (_, index) => {
+  const commitIndex = index + 1;
+  const equal = commitIndex < 40;
+  return { commitIndex, equal, firstDiff: equal ? null : 212 };
+});
+
 const report = (over: Partial<ReplayReport> = {}): ReplayReport => ({
   ok: false,
   commits: 41,
   passed: 39,
   firstDiff: 212,
+  cuts: CUTS,
   effects: { turn: 0, spawn: 0, delegate: 0, post: 1 },
   failure: null,
   ...over,

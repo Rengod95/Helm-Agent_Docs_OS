@@ -17,8 +17,8 @@ import {
   MAX_HANDLERS_PER_ENTRY,
   MAX_THREADS,
 } from "../../src/operations/trace-buffer.ts";
-import { traceReadOf } from "../../src/primitives/index.ts";
-import { fixedIdFactory, flushMicrotasks } from "../../src/testing/index.ts";
+import { testRunControlOf, traceReadOf } from "../../src/primitives/index.ts";
+import { fixedIdFactory, flushMicrotasks, type TestHost } from "../../src/testing/index.ts";
 import { makeUnit } from "../primitives/fixtures/support.ts";
 import { createOperationsHarness } from "./support/harness.ts";
 
@@ -614,6 +614,73 @@ test("trace buffer: forgetThread drops a thread's turns", () => {
   expect(buffer.turn(thread, turn)).toBeUndefined();
 });
 
+test("trace buffer: blockedCount counts blocked records over every retained turn of one thread", () => {
+  const ids = fixedIdFactory();
+  const { buffer, set } = bufferWith(DEFAULT_TRACE_SETTINGS);
+  const thread = ids.next("thr");
+  const other = ids.next("thr");
+  const first = ids.next("trn");
+  const second = ids.next("trn");
+  const blocked: Hit = {
+    registrationId: "ext-guard",
+    durationMs: 1,
+    result: "blocked",
+    startedAt: T0,
+    size: 0,
+    skippedBy: null,
+    reason: null,
+  };
+  const passed: Hit = { ...blocked, registrationId: "ext-pass", result: "passed" };
+  // 같은 디스패치의 처리기 둘 가운데 막은 것만 센다
+  dispatchHits(buffer, thread, `${first}:tool.call.before:call_1`, "tool.call.before", T0, [
+    blocked,
+    passed,
+  ]);
+  dispatchHits(buffer, thread, `${second}:tool.call.before:call_2`, "tool.call.before", T0, [
+    blocked,
+  ]);
+  dispatchHits(
+    buffer,
+    other,
+    `${ids.next("trn")}:tool.call.before:call_3`,
+    "tool.call.before",
+    T0,
+    [blocked],
+  );
+  expect(buffer.blockedCount(thread)).toBe(2);
+  expect(buffer.blockedCount(other)).toBe(1);
+  expect(buffer.blockedCount(ids.next("thr"))).toBe(0);
+  // 계측이 꺼져 있으면 기록이 남아 있어도 0이다. 다시 켜면 그대로 보인다
+  set({ enabled: false });
+  expect(buffer.blockedCount(thread)).toBe(0);
+  set({ enabled: true });
+  expect(buffer.blockedCount(thread)).toBe(2);
+});
+
+test("trace buffer: blockedCount does not see a hidden registration's row", () => {
+  const ids = fixedIdFactory();
+  const buffer = createTraceBuffer({
+    settings: () => DEFAULT_TRACE_SETTINGS,
+    hidden: (registrationId) => registrationId === "fresnel-hooks-ext",
+  });
+  const thread = ids.next("thr");
+  const turn = ids.next("trn");
+  const hit: Hit = {
+    registrationId: "fresnel-hooks-ext",
+    durationMs: 1,
+    result: "blocked",
+    startedAt: T0,
+    size: 0,
+    skippedBy: null,
+    reason: null,
+  };
+  dispatchHits(buffer, thread, `${turn}:tool.call.before:call_1`, "tool.call.before", T0, [
+    hit,
+    { ...hit, registrationId: "ext-guard" },
+  ]);
+  expect(buffer.blockedCount(thread)).toBe(1);
+});
+
 test("trace settings: the policy reads x.operations.trace.* with the documented defaults", async () => {
   const off = await createOperationsHarness({ settings: { trace: { enabled: false } } });
   expect(off.policy.trace()).toEqual({ enabled: false });
@@ -799,3 +866,58 @@ test("trace: closeThread releases the thread's trace, other threads keep theirs"
   expect(trace.turn(closing, closingTurn)).toBeUndefined();
   expect(trace.turn(staying, stayingTurn)?.entries.length).toBe(1);
 });
+
+test("trace: testRun.phase guardHits is the blocked tool.call.before count of the Test run", async () => {
+  const harness = await createOperationsHarness();
+  const thread = harness.t.newThread();
+  await harness.t.host.openThread(thread, { testRun: true });
+  await harness.t.host.install(
+    makeUnit({ name: "ext-guard", hooks: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", (payload) =>
+        payload.toolName === "write" ? { block: true, reason: "write is off" } : undefined,
+      );
+    }),
+  );
+  const turn = harness.t.ids.next("trn");
+  await harness.t.host.dispatch(
+    "boundary.settle.after",
+    { turnId: turn, aborted: false },
+    { threadId: thread, dispatchKey: `${turn}:boundary.settle.after` },
+  );
+  await dispatchToolCalls(harness.t, thread);
+  expect(testRunControlOf(harness.t.host).phase(thread)).toMatchObject({
+    ok: true,
+    value: { guardHits: 2, traceEnabled: true },
+  });
+
+  // 계측을 끈 호스트는 같은 호출에서 0을 보이고 측정 꺼짐을 알린다
+  const off = await createOperationsHarness({ host: { trace: () => ({ enabled: false }) } });
+  const offThread = off.t.newThread();
+  await off.t.host.openThread(offThread, { testRun: true });
+  await off.t.host.install(
+    makeUnit({ name: "ext-guard", hooks: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", (payload) =>
+        payload.toolName === "write" ? { block: true, reason: "write is off" } : undefined,
+      );
+    }),
+  );
+  await dispatchToolCalls(off.t, offThread);
+  expect(testRunControlOf(off.t.host).phase(offThread)).toMatchObject({
+    ok: true,
+    value: { guardHits: 0, traceEnabled: false },
+  });
+});
+
+/** 읽기 한 번과 쓰기 두 번을 같은 Turn에서 낸다. 쓰기만 처리기가 막는다 */
+async function dispatchToolCalls(t: TestHost, thread: ThreadId): Promise<void> {
+  const step = t.ids.next("stp");
+  const call = (toolCallId: string, toolName: string) =>
+    t.host.dispatch(
+      "tool.call.before",
+      { toolCallId, toolName, input: {} },
+      { threadId: thread, dispatchKey: `${step}:tool.call.before:${toolCallId}` },
+    );
+  await call("call_1", "read");
+  await call("call_2", "write");
+  await call("call_3", "write");
+}

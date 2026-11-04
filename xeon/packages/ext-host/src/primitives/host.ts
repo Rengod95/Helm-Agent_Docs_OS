@@ -10,12 +10,14 @@ import type {
   ExtensionName,
   ManifestIssue,
   HookName,
+  PhasesDecl,
   PortKey,
   PortLookup,
   RegistrationHandle,
   RegistrationId,
   RegistrationStatus,
   TestRunControlPort,
+  TestRunPhaseResult,
   TraceReadPort,
   TrustRequest,
   Unsubscribe,
@@ -27,6 +29,7 @@ import {
   type TraceBuffer,
   type TraceSettings,
 } from "../operations/trace-buffer.ts";
+import { createBoundaryLog, type BoundaryLog } from "./boundary-log.ts";
 import { createCapabilityBindings, type CapabilityBindings } from "./bindings.ts";
 import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
 import {
@@ -354,6 +357,8 @@ export interface ExtHostInternals {
   readonly isTestRun: (threadId: ThreadId) => boolean;
   /** Test run 단계 경계 멈춤 상태(X-19). dispatch가 `boundary.step.after` 뒤에 기다리고 testRunControlOf가 요청을 바꾼다 */
   readonly stepPause: StepPause;
+  /** Test run 단계 경계 기록(X-19). `boundary.step.after`마다 한 건씩 붙고 testRunControlOf의 phase가 읽는다 */
+  readonly boundaryLog: BoundaryLog;
   /** 상태 판 읽기(커밋된 판). testRunControlOf의 phase가 쓴다 */
   readonly state: Pick<StateService, "docOf" | "revOf">;
 }
@@ -415,6 +420,12 @@ function phaseValueOf(doc: unknown): string | null {
   return typeof doc.phase === "string" ? doc.phase : null;
 }
 
+/** 상태 문서의 `phase`가 선언된 노드 id일 때만 그 값이고 아니면 null이다(X-19, §4.4.8 9) */
+function declaredPhaseOf(phases: PhasesDecl, doc: unknown): string | null {
+  const value = phaseValueOf(doc);
+  return value !== null && phases.nodes.some((node) => node.id === value) ? value : null;
+}
+
 /**
  * Test run 단계 경계 멈춤 제어 포트(X-19, X.primitives.spec §4.4.8). wire `testRun.*`이 쓴다.
  * pause는 요청만 남기고 다음 `boundary.step.after` 처리 뒤에 적용한다. 멈춘 동안 drive 락은 그대로 있다.
@@ -442,18 +453,31 @@ export function testRunControlOf(host: ExtHost): TestRunControlPort {
       return ok({ paused: true });
     },
     phase(threadId) {
-      const { core, isTestRun, state } = hostInternalsOf(host);
+      const { core, isTestRun, state, stepPause, trace, boundaryLog } = hostInternalsOf(host);
       if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
       // 보유자는 `leaseOf`가 보는 자료와 같다. 커밋되지 않았거나 반납이 커밋된 임대는 보유자가 아니다
       const lease = host.leaseOf(threadId);
       const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
+      const base: Omit<TestRunPhaseResult, "phase" | "group" | "seq"> = {
+        paused: stepPause.requested(threadId),
+        lock:
+          lease === null
+            ? { holder: null, status: "none", epoch: null }
+            : { holder: record?.extension ?? null, status: lease.status, epoch: lease.leaseEpoch },
+        guardHits: trace.blockedCount(threadId),
+        traceEnabled: trace.enabled(),
+        boundaries: boundaryLog.entriesOf(threadId),
+      };
       const phases = record?.manifest.group?.composition?.phases;
       if (record === undefined || phases === undefined) {
-        return ok({ phase: null, group: null, seq: null });
+        return ok({ ...base, phase: null, group: null, seq: null });
       }
-      const value = phaseValueOf(state.docOf(threadId, record.id));
-      const phase = value !== null && phases.nodes.some((node) => node.id === value) ? value : null;
-      return ok({ phase, group: record.extension, seq: state.revOf(threadId, record.id) });
+      return ok({
+        ...base,
+        phase: declaredPhaseOf(phases, state.docOf(threadId, record.id)),
+        group: record.extension,
+        seq: state.revOf(threadId, record.id),
+      });
     },
   };
 }
@@ -556,12 +580,33 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   });
   // Test run 단계 경계 멈춤(X-19). 멈춤 상태와 Test run 표지는 호스트마다 하나다
   const stepPause = createStepPause();
+  const boundaryLog = createBoundaryLog();
   const testRunThreads = new Set<ThreadId>();
-  /** Test run 표지와 멈춤 상태를 함께 지운다. 멈춘 경계가 있으면 풀려서 기다리던 dispatch가 끝난다 */
+  /** Test run 표지와 멈춤 상태, 경계 기록을 함께 지운다. 멈춘 경계가 있으면 풀려서 기다리던 dispatch가 끝난다 */
   const forgetTestRun = (threadId: ThreadId): void => {
     testRunThreads.delete(threadId);
     stepPause.release(threadId);
+    boundaryLog.forget(threadId);
   };
+  /**
+   * Test run 단계 경계 하나를 적는다(X-19). dispatch가 `boundary.step.after`에서 기다리기 직전에 부른다.
+   * 멈춤 요청은 기다리기 전의 값이고, 단계와 revision은 testRunControlOf.phase와 같은 자료에서 읽는다
+   */
+  function noteBoundary(threadId: ThreadId): void {
+    if (!testRunThreads.has(threadId)) return;
+    const lease = host.leaseOf(threadId);
+    const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
+    const phases = record?.manifest.group?.composition?.phases;
+    boundaryLog.note(threadId, {
+      // 보유자 기록이 없으면 읽을 상태 판이 없어 revision은 0이고 단계는 null이다
+      seq: record === undefined ? 0 : state.revOf(threadId, record.id),
+      phase:
+        record === undefined || phases === undefined
+          ? null
+          : declaredPhaseOf(phases, state.docOf(threadId, record.id)),
+      paused: stepPause.requested(threadId),
+    });
+  }
 
   const ports: PortLookup = {
     get<Api>(key: PortKey<Api>): Api | undefined {
@@ -597,6 +642,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       threadSignal: (threadId) => core.threads.get(threadId)?.abort.signal,
       trace: traceBuffer,
       stepPause,
+      onBoundary: noteBoundary,
     }),
     ports,
     scopes: new Map(),
@@ -1118,6 +1164,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     isTestRun: (threadId) => testRunThreads.has(threadId),
     stepPause,
+    boundaryLog,
     state,
   });
   return host;

@@ -1,5 +1,5 @@
 // P-19 테스트 화면(§6.26)의 순수 모델. 목록 행과 거르기, replay 판정과 절단 띠, Test run 제어, O-12 새 시험 항목과 제출 계획을 만든다.
-// 엔진이 준 값만 쓴다. 절단마다의 같음·다름은 wire `ReplayReport`에 없으므로 칸을 지어내지 않는다(전부 같을 때만 "같음").
+// 엔진이 준 값만 쓴다. 절단 띠의 칸은 `ReplayReport.cuts`의 커밋마다 같음·다름을 그대로 옮긴다.
 import { assertNever } from "@fresnel/contracts";
 import type { ReplayFailure, ReplayReport } from "@fresnel/contracts/services";
 import type { ExtTestKind, ExtTestRecord, ExtTestRunParams } from "@fresnel/contracts/wire";
@@ -89,8 +89,8 @@ export function replayVerdictOf(report: ReplayReport): ReplayVerdict {
   return report.ok ? { kind: "same" } : { kind: "digest-differs" };
 }
 
-/** 절단 띠의 한 칸. `same`은 모든 절단이 같았을 때만 쓴다. 그 밖의 칸은 wire가 칸별 값을 주지 않아 `unknown`이다 */
-export type CutCell = "same" | "unknown";
+/** 절단 띠의 한 칸. 커밋 하나의 절단이 기준 실행과 같았는가(`ReplayReport.cuts`의 `equal`) */
+export type CutCell = "same" | "differs";
 
 /** 한 칸은 커밋 하나의 절단이다. 칸이 너무 많으면 앞쪽 `CUT_STRIP_LIMIT`칸만 그리고 나머지는 수로 센다 */
 export const CUT_STRIP_LIMIT = 200;
@@ -102,14 +102,17 @@ export interface CutStripVM {
   readonly hidden: number;
 }
 
+/** `cuts`의 앞쪽 칸만 그린다. 그리지 않은 수가 `hidden`이다(`cuts`가 커밋 수보다 짧으면 빠진 칸도 여기 든다) */
 export function cutStripOf(report: ReplayReport): CutStripVM {
-  const shown = Math.min(report.commits, CUT_STRIP_LIMIT);
-  const cell: CutCell = report.passed === report.commits ? "same" : "unknown";
+  const drawn = report.cuts.slice(0, CUT_STRIP_LIMIT);
   return {
     commits: report.commits,
     passed: report.passed,
-    cells: Array.from({ length: shown }, (_, index) => ({ commitIndex: index + 1, cell })),
-    hidden: report.commits - shown,
+    cells: drawn.map((cut) => ({
+      commitIndex: cut.commitIndex,
+      cell: cut.equal ? "same" : "differs",
+    })),
+    hidden: report.commits - drawn.length,
   };
 }
 

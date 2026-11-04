@@ -360,7 +360,7 @@ const ExtTestRunParamsShape = request({
   target: Name,
   options: Type.Optional(
     closed({
-      maxCommits: Type.Optional(Type.Integer({ minimum: 1, maximum: 100000 })),
+      maxCommits: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })),
       profileId: Type.Optional(Id),
       workspace: Type.Optional(Path),
     }),
@@ -382,11 +382,17 @@ export const ExtTestRunResultSchema: TUnsafe<ExtTestRunResult> = Type.Unsafe<Ext
   ExtTestRunResultShape satisfies SchemaProof<ExtTestRunResult, typeof ExtTestRunResultShape>,
 );
 
+const ReplayCutShape = closed({
+  commitIndex: Type.Integer({ minimum: 1 }),
+  equal: Type.Boolean(),
+  firstDiff: Type.Union([Count, Type.Null()]),
+});
 const ReplayReportShape = closed({
   ok: Type.Boolean(),
   commits: Count,
   passed: Count,
   firstDiff: Type.Union([Count, Type.Null()]),
+  cuts: Type.Array(ReplayCutShape, { maxItems: 1000 }),
   effects: closed({ turn: Count, spawn: Count, delegate: Count, post: Count }),
   failure: Type.Union([
     Type.Literal("effects-doubled"),

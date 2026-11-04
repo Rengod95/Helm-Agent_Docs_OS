@@ -1,4 +1,4 @@
-import { assertNever, type Result } from "@fresnel/contracts";
+import { assertNever, err, ok, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type {
   TestRunControlError,
@@ -201,6 +201,42 @@ export function wireErrorOfWrite(
     default:
       return assertNever(failure, "ProfileWriteFailure");
   }
+}
+
+/**
+ * Test run 대화에 프로필을 붙이고 표지를 단다(W-34). `thread.create`(testRun)와 `ext.test.run`(testRun)이 같이 쓴다.
+ * 프로필이 있으면 `thread` 층에 적용한다(`profile.apply { layer: "thread" }`와 같은 쓰기). 적용이 실패하면 이미 쓴 키는 되돌려져 있고
+ * 이 대화는 지운다. 지우지 못하면 `where.cleanup_failed`를 남긴다. 표지는 적용이 성공한 뒤에만 단다.
+ * 구조 타입을 쓰는 것은 이 파일이 `types.ts`를 import하지 않기 위해서다(위의 순환 금지 주석).
+ */
+export async function markTestRun(
+  ports: {
+    readonly threads: {
+      remove(
+        threadId: ThreadId,
+      ): Promise<
+        { readonly ok: true } | { readonly ok: false; readonly error: { readonly kind: string } }
+      >;
+    };
+    readonly profiles: Pick<ProfileTestRunPort, "applyProfile" | "registerTestRun">;
+    readonly log: { error(message: string, fields: Readonly<Record<string, unknown>>): void };
+  },
+  threadId: ThreadId,
+  profileId: string | undefined,
+  where: string,
+): Promise<Result<void, ProfileApplyFailure>> {
+  if (profileId !== undefined) {
+    const applied = await ports.profiles.applyProfile({ id: profileId, layer: "thread", threadId });
+    if (!applied.ok) {
+      const removed = await ports.threads.remove(threadId);
+      if (!removed.ok) {
+        ports.log.error(`${where}.cleanup_failed`, { threadId, kind: removed.error.kind });
+      }
+      return err(applied.error);
+    }
+  }
+  ports.profiles.registerTestRun(threadId, profileId ?? null);
+  return ok(undefined);
 }
 
 /** 적용 실패를 와이어 오류로 옮긴다. `ProfileStoreFailure`는 같은 옮김을 쓴다 */

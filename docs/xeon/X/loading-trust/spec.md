@@ -1454,7 +1454,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `ProjectTrustResult`, `TrustPrompter`·`TrustPromptRequest`·`TrustChoice`(F 이름 재export) | L4.cli.spec, L4.desktop.spec(프롬프트 구현) |
 | `TrustStoreBackend`, `LoaderFs`, `LoaderPaths`(F 이름 재export) | L0.os.spec(구현) |
 | `IsolationProcessPort`, `IsolatedChild`(F 이름 재export) | L0.process.spec(구현) |
-| `registerSdkModules`, `SDK_MODULE_SPECIFIERS`, `SdkModules`, `installDefaultPlugin`, `readBundleManifest`, `BundleManifest`, `PluginInstallFs` | L4.host-service.spec(조립 루트가 `LoaderDeps.sdkModules`와 첫 실행 설치에 사용, `readBundleManifest`는 버전 목록의 번들 판을 읽는 데 사용) |
+| `registerSdkModules`, `X_SDK_MODULES`, `SDK_MODULE_SPECIFIERS`, `SdkModules`, `installDefaultPlugin`, `readBundleManifest`, `BundleManifest`, `PluginInstallFs` | L4.host-service.spec(조립 루트가 `LoaderDeps.sdkModules`와 첫 실행 설치에 사용, `registerSdkModules`·`X_SDK_MODULES`는 L3 `plugin-builder`의 설치본 replay가 로더와 같은 목록을 등록하는 데도 사용 [결정: 2026-11-04 사용자 지시에 따른 기본값], `readBundleManifest`는 버전 목록의 번들 판을 읽는 데 사용) |
 | `createVersionHistory`, `VersionHistory`, `VersionHistoryDeps`, `VersionHistoryFs`, `VersionHistoryError`, `VersionListing`, `VersionRecordOutcome`, `VersionSkipReason`, `VersionSource`, `RecordVersionInput`, `RollbackHooks`, `RollbackReloadOutcome`, `RollbackVersionInput` | L4.host-service.spec(조립 루트가 `VersionHistoryFs`를 node:fs로 구현해 `installDefaultPlugin`의 `history`와 `ext.versions`·`ext.rollback` 처리기에 넘긴다), L4.desktop-ux.spec(W-31, O-11, §6.24.1) |
 | 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, 키 `x.loading-trust.*` | F.wire-settings.spec, L4.settings-ui.spec, L3.readme |
 | 키 `x.ui.apps`, `x.ui.allowProjectApps`(`uiSettings`) | L4.settings-ui.spec(설정 화면 "플러그인" 탭), L4.host-service.spec(조립 루트가 카탈로그에 더하고 `LoadOptions.uiPolicy`에 넘긴다) |

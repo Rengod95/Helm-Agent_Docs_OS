@@ -5,6 +5,9 @@ import {
   type ExtInstallResult,
   type ExtRemovePreviewResult,
   type ExtRemoveResult,
+  type ExtTestListResult,
+  type ExtTestRunParams,
+  type ExtTestRunResult,
   type ExtValidateCompositionParams,
   type ExtValidateResult,
   type WireError,
@@ -21,10 +24,8 @@ import type {
   ScaffoldResult,
   ValidationReport,
 } from "@fresnel/contracts/services";
-import { notImplemented } from "../not-implemented.ts";
 
-// 제작 wire(서비스 `fresnel.devkit`, L3.authoring.spec §3.3). 처리기는 T-AUTH가 채운다. 일곱 메서드를 포트로 채운다.
-// `ext.test.run`, `ext.test.list`는 측정 계획이 바꿀 자리라 `notImplemented`로 남긴다.
+// 제작 wire(서비스 `fresnel.devkit`, L3.authoring.spec §3.3). 처리기는 T-AUTH가 채운다. 아홉 메서드를 포트로 채운다(시험 실행 두 개 포함, W-29).
 // 이 파일과 `assembly/m4/devkit-port.ts`만 고친다. `handlers/index.ts`, `types.ts`, `assemble.ts`, `assembly/m4/index.ts`는 고치지 않는다.
 
 /** 처리기가 쓰는 포트. 실패는 던지지 않고 `DevkitError` 값으로 알린다(TY-11) */
@@ -43,6 +44,13 @@ export interface DevkitPort {
     name: string,
     options?: { readonly dropData?: boolean },
   ): Promise<Result<ExtRemoveResult, DevkitError>>;
+  /**
+   * `ext.test.run`. `replay`는 개발 모드에서만 돌고 끝까지 기다린 뒤 결과를 돌려준다(통과든 실패든 값이다). 재생이 실행되지 못하면 `io`다.
+   * `testRun`은 Test run 대화를 열고 그 대화를 돌려준다. 끝내는 것은 사용자가 한다.
+   */
+  testRun(params: ExtTestRunParams): Promise<Result<ExtTestRunResult, DevkitError>>;
+  /** `ext.test.list`. 저장된 시험 기록을 시작 순서대로 돌려준다 */
+  testList(): Promise<Result<ExtTestListResult, DevkitError>>;
 }
 
 export type DevkitMethods =
@@ -74,8 +82,8 @@ export function createDevkitHandlers(port: DevkitPort): Pick<WireHandlers, Devki
     "ext.removePreview": async (params) => unwrap(await port.removePreview(params.name), "/name"),
     "ext.remove": async (params) =>
       unwrap(await port.remove(params.name, { dropData: params.dropData === true }), "/name"),
-    "ext.test.run": notImplemented("ext.test.run"),
-    "ext.test.list": notImplemented("ext.test.list"),
+    "ext.test.run": async (params) => unwrap(await port.testRun(params), "/target"),
+    "ext.test.list": async () => unwrap(await port.testList(), "/"),
     "ext.validateComposition": (params) => Promise.resolve(port.validateComposition(params)),
   };
 }

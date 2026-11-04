@@ -108,6 +108,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "platform-sandbox",
     "platform-secrets",
     "platform-store",
+    "plugin-builder",
   ]);
   for (const key of [
     "x.primitives.driveDefaultLimits",
@@ -135,6 +136,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "l2.work.plans.requireApproval",
     "l2.dialog.ask.timeoutSec",
     "l3.group-sdk.instrumentation",
+    "l3.authoring.devMode",
     "l4.host-service.maxReplayEvents",
   ]) {
     expect(built.catalog.has(key)).toBe(true);

@@ -19,7 +19,7 @@ import {
 import { renderMarkdownHeader } from "../export/thread-markdown.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
-import { wireErrorOfApply } from "./m4/profile-test-run.ts";
+import { markTestRun, wireErrorOfApply } from "./m4/profile-test-run.ts";
 import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 
 // L4.host-service.spec §3.4 M1 표. thread.create: thread를 만들고 쓰기 소유를 함께 얻는다(M1에서는 create가 소유를 얻는다).
@@ -50,25 +50,14 @@ export function createThreadCreateHandler(
     });
     await claimWrite(engine, hub(), context.connectionId, created.threadId);
     if (params.testRun === true) {
-      if (params.profileId !== undefined) {
-        // `thread` 층에 쓴다(`profile.apply { layer: "thread" }`와 같은 쓰기). 실패하면 이미 쓴 키는 되돌려져 있고 이 대화는 지운다
-        const applied = await profiles.applyProfile({
-          id: params.profileId,
-          layer: "thread",
-          threadId: created.threadId,
-        });
-        if (!applied.ok) {
-          const removed = await ports.threads.remove(created.threadId);
-          if (!removed.ok) {
-            ports.log.error("thread.create.cleanup_failed", {
-              threadId: created.threadId,
-              kind: removed.error.kind,
-            });
-          }
-          throw wireErrorOfApply(applied.error, profiles.errors);
-        }
-      }
-      profiles.registerTestRun(created.threadId, params.profileId ?? null);
+      // 프로필 적용과 표지 달기는 `ext.test.run`(testRun)과 같은 함수다(`markTestRun`)
+      const marked = await markTestRun(
+        { threads: ports.threads, profiles, log: ports.log },
+        created.threadId,
+        params.profileId,
+        "thread.create",
+      );
+      if (!marked.ok) throw wireErrorOfApply(marked.error, profiles.errors);
     }
     // 위치는 소유를 얻은 뒤에 읽는다: 열기가 이벤트를 커밋했을 수 있다
     const position = ports.threads.position(created.threadId);

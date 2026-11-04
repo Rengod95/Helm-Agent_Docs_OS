@@ -1,15 +1,24 @@
+import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { assertNever, err, ok, parseJson, type Result } from "@fresnel/contracts";
-import { EXTENSION_NAME_PATTERN, validateManifest } from "@fresnel/contracts/extensions";
+import { assertNever, attemptAsync, err, ok, parseJson, type Result } from "@fresnel/contracts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import {
+  EXTENSION_NAME_PATTERN,
+  isGroupExtension,
+  validateManifest,
+  type ExtensionManifest,
+} from "@fresnel/contracts/extensions";
 import type {
   ExtDiagnostic,
   ExtInstallResult,
   ExtLoadFailureReason,
   ExtRemoveResult,
+  ExtTestRunParams,
+  ExtTestRunResult,
 } from "@fresnel/contracts/wire";
 import type { LoadDiagnostic } from "@fresnel/ext-host";
-import type { DevkitError, LinkInput } from "@fresnel/contracts/services";
+import type { DevkitError, LinkInput, ReplayReport } from "@fresnel/contracts/services";
 import {
   installExtension,
   previewInstall,
@@ -24,17 +33,46 @@ import {
   type TemplateDirs,
 } from "@fresnel/plugin-builder";
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
+import {
+  markTestRun,
+  type ProfileApplyFailure,
+  type ProfileTestRunPort,
+} from "../../handlers/m4/profile-test-run.ts";
 import { hostResourceDir } from "../../state-paths.ts";
+import { messageOf } from "../../util.ts";
 import type { M4PortDeps } from "./deps.ts";
 import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
+import {
+  installedReplayRunner,
+  replayReportOf,
+  type ReplayRunInput,
+  type ReplayRunner,
+} from "./replay-run.ts";
+import { isDevMode } from "./profile-test-run-port.ts";
+import {
+  createExtTestRecordStore,
+  EXT_TEST_FILE_NAME,
+  type ExtTestRecordStore,
+  type ExtTestStoreFailure,
+} from "./test-record-store.ts";
 
 // Devkit 포트 구현(L3.authoring.spec §3.3). 파일 작업은 `@fresnel/plugin-builder`가 하고 이 파일은 호스트 상태(설치된 확장 이름,
 // 사용자 확장 위치, 버전 기록, 등록 끄기)와 이어 준다. 사용자 확장 위치가 없으면(`extUi` 없음) 설치와 지우기는 `io`로 거절한다.
+// 시험 실행(W-29, `ext.test.run`·`ext.test.list`)도 여기서 한다: replay는 개발 모드에서 실행기로 돌리고, testRun은 Test run 대화를 연다.
 
 export interface DevkitPortOptions {
   /** 템플릿 폴더. 생략하면 환경 변수와 자원 폴더, 소스 저장소 순으로 찾는다. 못 찾으면 null */
   readonly templates?: TemplateDirs | null;
+  /** Test run 대화의 프로필 적용과 표지(W-34). 생략하면 testRun은 `io`로 거절한다. 명령 포트와 한 인스턴스여야 표지가 맞는다 */
+  readonly profiles?: ProfileTestRunPort;
+  /** 설치된 그룹 재생기(`replay-run.ts`). 생략하면 `installedReplayRunner`(`@fresnel/plugin-builder`의 `runInstalledReplay`)를 쓴다. 시험이 가짜를 넘긴다 */
+  readonly replay?: ReplayRunner;
+  /** 시험 기록 ID 만들기. 생략하면 무작위 ID다(시험이 고정 값을 넣는다) */
+  readonly newTestId?: () => string;
 }
+
+const DEFAULT_MAX_COMMITS = 200;
+const MAX_COMMITS_LIMIT = 1000;
 
 function noLocation(): Result<never, DevkitError> {
   return err({ kind: "io", message: "the user extensions location is not available" });
@@ -107,6 +145,72 @@ async function manifestIdentity(
   return manifest === undefined ? null : { name: manifest.name, version: manifest.version, text };
 }
 
+/** 설치 폴더의 매니페스트 전체. 읽지 못하거나 규칙에 맞지 않으면 null (replay가 그룹인지 보려고 쓴다) */
+async function installedManifest(root: string): Promise<ExtensionManifest | null> {
+  const text = await readFile(join(root, MANIFEST_PATH), "utf8").then(
+    (value) => value,
+    () => null,
+  );
+  if (text === null) return null;
+  const json = parseJson(text);
+  if (!json.ok) return null;
+  return validateManifest(json.value).manifest ?? null;
+}
+
+/** 시험 기록 저장소의 실패를 포트 오류로 옮긴다. 파일 경로는 싣지 않는다(설정 폴더 위치를 메시지에 내지 않는다) */
+function storeFailureOf(failure: ExtTestStoreFailure): DevkitError {
+  switch (failure.kind) {
+    case "corrupt":
+      return {
+        kind: "io",
+        message: `${EXT_TEST_FILE_NAME} is damaged (${failure.reason}); it is kept as it is`,
+      };
+    case "io":
+      return {
+        kind: "io",
+        message: `${EXT_TEST_FILE_NAME} could not be read or written (${failure.code})`,
+      };
+    case "not_found":
+      return { kind: "io", message: `the test record ${failure.testId} is no longer kept` };
+    default:
+      return assertNever(failure, "ExtTestStoreFailure");
+  }
+}
+
+/** 프로필 적용과 읽기의 실패를 포트 오류로 옮긴다. 값 검사 거절과 없는 프로필은 입력 문제(`not_found`, `invalid_input`), 저장과 쓰기 실패는 `io`다 */
+function devkitErrorOfProfile(failure: ProfileApplyFailure): DevkitError {
+  switch (failure.kind) {
+    case "not_found":
+      return { kind: "not_found", message: `profile ${failure.id} is not found` };
+    case "setting_rejected":
+      return {
+        kind: "invalid_input",
+        message: `a setting of the profile was refused (${failure.rejected.kind})`,
+      };
+    case "unknown_extension":
+      return { kind: "invalid_input", message: `${failure.name} is not installed` };
+    case "thread_required":
+      return { kind: "invalid_input", message: `layer ${failure.layer} needs a thread` };
+    case "write_failed":
+      return { kind: "io", message: `could not write ${failure.key}` };
+    case "apply_partial":
+      return {
+        kind: "io",
+        message: `the profile was only partly applied (${String(failure.written.length)} keys stay written)`,
+      };
+    case "corrupt":
+      return { kind: "io", message: "the profiles file is damaged; it is kept as it is" };
+    case "io":
+      return { kind: "io", message: `the profiles file could not be read (${failure.code})` };
+    case "conflict":
+      return { kind: "io", message: `the profile ${failure.id} changed while it was read` };
+    case "limit":
+      return { kind: "io", message: `the profiles file is full (at most ${String(failure.max)})` };
+    default:
+      return assertNever(failure, "ProfileApplyFailure");
+  }
+}
+
 function wireDiagnosticOf(entry: LoadDiagnostic): ExtDiagnostic {
   return {
     severity: entry.severity === "warning" || entry.severity === "info" ? "warning" : "error",
@@ -139,6 +243,183 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       ?.loader()
       ?.list()
       .map((info) => info.name) ?? [];
+
+  // 시험 기록 저장소는 처음 쓸 때 만든다: 포트를 만드는 시점에는 환경이 없을 수 있다(시험이 빈 환경으로 만든다)
+  let records: ExtTestRecordStore | undefined;
+  const recordStore = (): ExtTestRecordStore => {
+    records ??= createExtTestRecordStore({
+      path: join(deps.env.configDir, EXT_TEST_FILE_NAME),
+      fileLock: deps.env.fileLock,
+      signal: deps.env.signal,
+    });
+    return records;
+  };
+  const newTestId = options.newTestId ?? (() => `ext-test-${randomUUID()}`);
+  const isoNow = (): string => new Date(deps.env.clock.now()).toISOString();
+  // 재생은 한 번에 하나다(끝날 때까지 기다리는 동기 호출이라 둘이 겹치면 같은 실행기를 두 번 쓴다). Test run 대화는 제한하지 않는다
+  let replaying = false;
+
+  /**
+   * `ext.test.run`의 replay. 값과 개발 모드를 본 뒤 한 번에 하나를 잡고(표시는 첫 `await` 앞에 둔다: 겹친 두 번째 호출이 통과하지 않게 한다),
+   * 설치된 그룹을 실행기로 재생하고 기록을 끝낸다
+   */
+  async function replay(params: ExtTestRunParams): Promise<Result<ExtTestRunResult, DevkitError>> {
+    const maxCommits = params.options?.maxCommits ?? DEFAULT_MAX_COMMITS;
+    if (!Number.isInteger(maxCommits) || maxCommits < 1 || maxCommits > MAX_COMMITS_LIMIT) {
+      return err({
+        kind: "invalid_input",
+        message: `maxCommits must be an integer from 1 to ${String(MAX_COMMITS_LIMIT)}`,
+      });
+    }
+    if (!isDevMode((key) => deps.env.settingValue(key))) {
+      return err({ kind: "dev_mode_required", message: "replay runs only in development mode" });
+    }
+    if (replaying) {
+      return err({
+        kind: "denied",
+        message: "another replay is running; replays run one at a time",
+      });
+    }
+    replaying = true;
+    try {
+      return await replayInstalled(params.target, maxCommits);
+    } finally {
+      replaying = false;
+    }
+  }
+
+  /** 설치된 확장이 재생할 수 있는 그룹인지 본 뒤 실행기로 재생한다. `replay`가 한 번에 하나를 잡은 채 부른다 */
+  async function replayInstalled(
+    target: string,
+    maxCommits: number,
+  ): Promise<Result<ExtTestRunResult, DevkitError>> {
+    const source = deps.extUi;
+    if (source === undefined) return noLocation();
+    if (!(await hasInstalledFolder(source.extensionsDir, target))) return notInstalled(target);
+    const dir = join(source.extensionsDir, target);
+    const manifest = await installedManifest(dir);
+    if (manifest === null) {
+      return err({ kind: "invalid_input", message: `${target} has no readable manifest` });
+    }
+    if (!isGroupExtension(manifest)) {
+      return err({
+        kind: "invalid_input",
+        message: `${target} is not a plugin group (its manifest has no group)`,
+      });
+    }
+    const runner = options.replay ?? installedReplayRunner;
+    return runReplay(runner, { target, dir, manifest, maxCommits });
+  }
+
+  /** 기록을 실행 중으로 남기고 실행기를 기다린다. 실행이 던지면 기록은 `failed`(보고 없음)이고 `io`를 돌려준다 */
+  async function runReplay(
+    runner: ReplayRunner,
+    input: ReplayRunInput,
+  ): Promise<Result<ExtTestRunResult, DevkitError>> {
+    const store = recordStore();
+    const testId = newTestId();
+    const begun = await store.begin({
+      testId,
+      kind: "replay",
+      target: input.target,
+      state: "running",
+      startedAt: isoNow(),
+      durationMs: null,
+      threadId: null,
+      replay: null,
+    });
+    if (!begun.ok) return err(storeFailureOf(begun.error));
+    const started = deps.env.clock.now();
+    const ran = await attemptAsync(() => runner.run(input));
+    const durationMs = Math.max(0, deps.env.clock.now() - started);
+    let report: Result<ReplayReport, DevkitError>;
+    if (!ran.ok) {
+      report = err({
+        kind: "io",
+        message: `the replay of ${input.target} threw: ${messageOf(ran.error.cause)}`,
+      });
+    } else if (!ran.value.ok) {
+      report = err(ran.value.error);
+    } else {
+      report = ok(replayReportOf(ran.value.value));
+    }
+    const replayed = report.ok ? report.value : null;
+    const finished = await store.finish(testId, {
+      state: replayed?.ok === true ? "passed" : "failed",
+      durationMs,
+      replay: replayed,
+    });
+    if (!finished.ok) return err(storeFailureOf(finished.error));
+    if (!report.ok) return err(report.error);
+    return ok({ testId, threadId: null });
+  }
+
+  /** `ext.test.run`의 testRun. 확장을 실을 수 있는지 보고 Test run 대화를 만들어 그 확장을 켜고 표지를 단 뒤 기록을 남긴다 */
+  async function testRunThread(
+    params: ExtTestRunParams,
+  ): Promise<Result<ExtTestRunResult, DevkitError>> {
+    const source = deps.extUi;
+    if (source === undefined) return noLocation();
+    if (!(await hasInstalledFolder(source.extensionsDir, params.target))) {
+      return notInstalled(params.target);
+    }
+    const profiles = options.profiles;
+    if (profiles === undefined) {
+      return err({ kind: "io", message: "test runs are not connected in this host build" });
+    }
+    const profileId = params.options?.profileId;
+    if (profileId !== undefined) {
+      const found = await profiles.getProfile(profileId);
+      if (!found.ok) return err(devkitErrorOfProfile(found.error));
+    }
+    // 켜짐 요청은 이 확장의 등록에 건다(프로필의 thread 층과 같은 통로다). 실리지 않은 확장은 등록이 없어 거절한다
+    const infos = deps.env.registrations().filter((info) => info.extension === params.target);
+    if (infos.length === 0) {
+      return err({
+        kind: "invalid_input",
+        message: `${params.target} is not loaded, so it cannot run in a test run thread`,
+      });
+    }
+    const workspace = params.options?.workspace;
+    const created = await deps.threads.create({
+      ...(workspace === undefined ? {} : { workspace }),
+      testRun: true,
+    });
+    const marked = await markTestRun(
+      { threads: deps.threads, profiles, log: deps.log },
+      created.threadId,
+      profileId,
+      "ext.test.run",
+    );
+    if (!marked.ok) return err(devkitErrorOfProfile(marked.error));
+    for (const info of infos) {
+      deps.env.toggles.request(info.id, true, "request", created.threadId);
+    }
+    const testId = newTestId();
+    const begun = await recordStore().begin({
+      testId,
+      kind: "testRun",
+      target: params.target,
+      state: "running",
+      startedAt: isoNow(),
+      durationMs: null,
+      threadId: created.threadId,
+      replay: null,
+    });
+    if (!begun.ok) {
+      await discardThread(created.threadId);
+      return err(storeFailureOf(begun.error));
+    }
+    return ok({ testId, threadId: created.threadId });
+  }
+
+  /** 기록을 남기지 못해 만든 대화를 지운다. 지우지 못하면 로그만 남긴다(호출자는 원래 실패를 돌려준다) */
+  async function discardThread(threadId: ThreadId): Promise<void> {
+    const removed = await deps.threads.remove(threadId);
+    if (!removed.ok) {
+      deps.log.error("ext.test.run.cleanup_failed", { threadId, kind: removed.error.kind });
+    }
+  }
 
   return {
     kinds: () => Promise.resolve(KIND_CATALOG),
@@ -256,6 +537,11 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
       const removed = await removeExtension(name, { extensionsDir: source.extensionsDir });
       if (!removed.ok) return removed;
       return ok({ name, appliesAt: await stopExtension(source, name) });
+    },
+    testRun: (params) => (params.kind === "replay" ? replay(params) : testRunThread(params)),
+    testList: async () => {
+      const listed = await recordStore().list();
+      return listed.ok ? ok({ tests: listed.value }) : err(storeFailureOf(listed.error));
     },
   };
 }
