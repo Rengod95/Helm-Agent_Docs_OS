@@ -171,6 +171,11 @@ desktop-build:
 desktop-test:
     cd xeon && just desktop-test
 
+# 데스크톱 Rust 셸 고지(resources/THIRD-PARTY-NOTICES-RUST.txt): 인자 없으면 파일을 다시 쓰고, --check면 커밋된 파일이 Cargo.lock과 맞는지만 본다(다르면 종료코드 1). cargo가 필요하다 (xeon/scripts/rust-notices.ts)
+[group('local')]
+desktop-notices *flags:
+    cd xeon && just desktop-notices {{flags}}
+
 # 실제 provider로 모델 테이프 녹화 <scenario>: 비용이 들어 사람 확인 뒤 --yes, 없으면 종료코드 3 (xeon/scripts/tape-record.ts)
 [group('local')]
 tape-record scenario *flags:

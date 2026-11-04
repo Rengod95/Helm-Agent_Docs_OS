@@ -245,6 +245,7 @@ export declare function resubscribe(
 
 - 이름, 인자, triple 목록은 한 곳(`xeon/apps/desktop/sidecar.json`, `L4.desktop.plan` §2)에 모은다. `tauri.conf.json`의 `bundle.externalBin`, capabilities, Rust 상수는 이 파일과 같아야 하고 테스트가 대조한다. 이름이 바뀌면 이 파일 하나와 그 파생물만 고친다.
 - 파일 위치는 `src-tauri/binaries/fresnel-<target-triple>`(Windows는 `.exe`)다(adr.0008 §3.2).
+- 번들 리소스 `resources/THIRD-PARTY-NOTICES-RUST.txt`(Rust 크레이트 고지)는 `just desktop-notices`가 만들고, `--check`가 `Cargo.lock`과 맞는지 검사한다(`L4.release.spec` §6).
 - [제안] (a)안에서는 WebView가 spawn하지 않으므로 capabilities에 `shell:allow-spawn`을 WebView용으로 두지 않는다. adr.0008 §3.2의 capabilities 발췌(`args: ["host", "--stdio"]` 고정)는 (b)안으로 되돌릴 때의 형식으로 남긴다. [가정] Rust API(`app.shell().sidecar()`)는 capabilities 검사를 받지 않는다. S1 spike에서 확인한다.
 - [제안] 셸 플러그인의 JS API(`@tauri-apps/plugin-shell`)는 앱에 넣지 않는다.
 
