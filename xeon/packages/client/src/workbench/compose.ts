@@ -87,15 +87,16 @@ export function issueSummaryOf(issues: readonly WireManifestIssue[]): IssueSumma
   return { errors, warnings };
 }
 
-/** 블록 id → 그 블록의 이슈. `path`가 `blocks[<번호>]`로 시작하면 그 번호의 블록에 붙이고, 아니면 어느 블록에도 붙이지 않는다 */
+/** 블록 id → 그 블록의 이슈. `path`에 `blocks[<번호>]` 또는 `/blocks/<번호>`가 있으면 그 번호의 블록에 붙이고, 아니면 어느 블록에도 붙이지 않는다 */
 export function issuesByBlockOf(
   composition: CompositionDecl,
   issues: readonly WireManifestIssue[],
 ): ReadonlyMap<string, readonly WireManifestIssue[]> {
   const byBlock = new Map<string, WireManifestIssue[]>();
   for (const issue of issues) {
-    const match = /(?:^|\.)blocks\[(\d+)\]/.exec(issue.path);
-    const index = match?.[1] === undefined ? -1 : Number(match[1]);
+    const match = /(?:^|[./])blocks(?:\[(\d+)\]|\/(\d+))/.exec(issue.path);
+    const digits = match?.[1] ?? match?.[2];
+    const index = digits === undefined ? -1 : Number(digits);
     const block = composition.blocks[index];
     if (block === undefined) continue;
     byBlock.set(block.id, [...(byBlock.get(block.id) ?? []), issue]);
@@ -268,6 +269,16 @@ export function scaffoldInputOf(draft: NewGroupDraft): ScaffoldInput | null {
   return draft.kind === "plugin-group" ? { ...base, group: {} } : base;
 }
 
+/** `ext.scaffold` 입력에 고친 구성 선언을 싣는다. 시작점이 플러그인 그룹일 때만 `group.composition`이 들어간다 */
+export function scaffoldInputWithComposition(
+  draft: NewGroupDraft,
+  composition: CompositionDecl,
+): ScaffoldInput | null {
+  const input = scaffoldInputOf(draft);
+  if (input === null || input.kind !== "plugin-group") return input;
+  return { ...input, group: { composition } };
+}
+
 /** 검사 이슈의 개수. 만든 뒤와 코드 보기의 `ext.validate` 결과에 쓴다 */
 export function devkitSummaryOf(issues: readonly DevkitIssue[]): IssueSummary {
   let errors = 0;
@@ -350,6 +361,30 @@ export function withoutTransition(draft: FlowDraft, from: string, to: string): F
     ...draft,
     transitions: draft.transitions.filter((edge) => !(edge.from === from && edge.to === to)),
   };
+}
+
+/**
+ * 검사 이슈 경로에서 단계 노드 번호를 읽는다. `/phases/nodes/<번호>`(뒤에 `/id`가 붙을 수 있다)만 노드이고,
+ * 전이나 시작 단계 같은 나머지 경로는 null이다
+ */
+export function phaseNodeIndexOf(path: string): number | null {
+  const match = /(?:^|\/)phases\/nodes\/(\d+)(?:\/|$)/.exec(path);
+  return match?.[1] === undefined ? null : Number(match[1]);
+}
+
+/** 노드 id → 그 노드의 이슈. 번호가 노드 목록 밖이면 어느 노드에도 붙이지 않는다 */
+export function issuesByPhaseNodeOf(
+  draft: FlowDraft,
+  issues: readonly WireManifestIssue[],
+): ReadonlyMap<string, readonly WireManifestIssue[]> {
+  const byNode = new Map<string, WireManifestIssue[]>();
+  for (const issue of issues) {
+    const index = phaseNodeIndexOf(issue.path);
+    const node = index === null ? undefined : draft.nodes[index];
+    if (node === undefined) continue;
+    byNode.set(node.id, [...(byNode.get(node.id) ?? []), issue]);
+  }
+  return byNode;
 }
 
 /** 초안을 `CompositionDecl`로 되돌린다. 검사(`ext.validateComposition`)에 그대로 넣는다 */

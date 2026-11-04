@@ -30,10 +30,13 @@ import {
   withoutTransition,
   issueSummaryOf,
   issuesByBlockOf,
+  issuesByPhaseNodeOf,
+  phaseNodeIndexOf,
   phaseRowsOf,
   profileDraftOf,
   profileDraftProblemOf,
   profileInputOf,
+  scaffoldInputWithComposition,
   withChoice,
 } from "../../src/workbench/index.ts";
 
@@ -413,5 +416,83 @@ describe("프로필의 drive 그룹과 코어 잠금", () => {
         { name: "a", isGroup: true },
       ]),
     ).toEqual(["a", "z"]);
+  });
+});
+
+/** 단계 선언 검사 이슈 한 건 */
+function phaseIssueAt(path: string, message: string): WireManifestIssue {
+  return { severity: "error", code: "phase_invalid", path, message };
+}
+
+describe("구성 초안의 scaffold 입력과 단계 노드 이슈", () => {
+  const draft = {
+    name: "lens-review",
+    kind: "plugin-group" as const,
+    parentDir: "/work/code",
+  };
+
+  test("플러그인 그룹이면 고친 구성 선언을 group.composition으로 싣는다", () => {
+    expect(scaffoldInputWithComposition(draft, COMPOSITION)).toEqual({
+      kind: "plugin-group",
+      name: "lens-review",
+      dir: "/work/code/lens-review",
+      group: { composition: COMPOSITION },
+    });
+  });
+
+  test("다른 종류는 구성을 싣지 않고, 이름이나 폴더가 비면 null이다", () => {
+    expect(scaffoldInputWithComposition({ ...draft, kind: "single-plugin" }, COMPOSITION)).toEqual({
+      kind: "single-plugin",
+      name: "lens-review",
+      dir: "/work/code/lens-review",
+    });
+    expect(scaffoldInputWithComposition({ ...draft, name: "X" }, COMPOSITION)).toBeNull();
+    expect(scaffoldInputWithComposition({ ...draft, parentDir: "" }, COMPOSITION)).toBeNull();
+  });
+
+  test("단계 노드 번호는 /phases/nodes/<번호>에서만 읽는다", () => {
+    expect(phaseNodeIndexOf("/phases/nodes/2")).toBe(2);
+    expect(phaseNodeIndexOf("/phases/nodes/0/id")).toBe(0);
+    expect(phaseNodeIndexOf("/phases/nodes/12/kind")).toBe(12);
+    expect(phaseNodeIndexOf("/phases/transitions/0/from")).toBeNull();
+    expect(phaseNodeIndexOf("/phases/initial")).toBeNull();
+    expect(phaseNodeIndexOf("/phases")).toBeNull();
+    expect(phaseNodeIndexOf("/blocks/0")).toBeNull();
+    expect(phaseNodeIndexOf("/phases/nodesX/1")).toBeNull();
+  });
+
+  test("노드 이슈는 번호가 가리키는 노드 id에 붙고, 목록 밖 번호는 버린다", () => {
+    const flow = {
+      initial: "start",
+      nodes: [
+        { id: "start", kind: "phase" as const },
+        { id: "gate", kind: "human" as const },
+      ],
+      transitions: [],
+    };
+    const byNode = issuesByPhaseNodeOf(flow, [
+      phaseIssueAt("/phases/nodes/1/id", "중복"),
+      phaseIssueAt("/phases/nodes/1", "도달 못 함"),
+      phaseIssueAt("/phases/nodes/9", "목록 밖"),
+      phaseIssueAt("/phases/initial", "시작 없음"),
+    ]);
+    expect(byNode.get("gate")).toEqual([
+      phaseIssueAt("/phases/nodes/1/id", "중복"),
+      phaseIssueAt("/phases/nodes/1", "도달 못 함"),
+    ]);
+    expect(byNode.get("start")).toBeUndefined();
+    expect(byNode.size).toBe(1);
+  });
+});
+
+describe("블록 이슈의 경로 모양", () => {
+  test("검사기의 JSON Pointer 경로(/blocks/1)도 블록에 붙는다", () => {
+    const issue: WireManifestIssue = {
+      severity: "error",
+      code: "drive_duplicate",
+      path: "/group/composition/blocks/1",
+      message: "m",
+    };
+    expect([...issuesByBlockOf(COMPOSITION, [issue])]).toEqual([["drive", [issue]]]);
   });
 });

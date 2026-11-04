@@ -8,6 +8,7 @@ import {
   newGroupNameErrorOf,
   newGroupProblemOf,
   scaffoldInputOf,
+  scaffoldInputWithComposition,
   startPointsOf,
   targetDirOf,
   type NewGroupDraft,
@@ -16,11 +17,13 @@ import {
   type TabRead,
 } from "@fresnel/client/workbench";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
+import type { CompositionDecl } from "@fresnel/contracts/extensions";
 import type {
   DevkitIssue,
   ExtensionKind,
   KindEntry,
   PackResult,
+  ScaffoldInput,
 } from "@fresnel/contracts/services";
 import { Alert, Button, EmptyState, Field, Input, Skeleton } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
@@ -33,10 +36,22 @@ import { useTabRead } from "../workbench/tab-read.ts";
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
 const MONO = "m-0 break-all font-mono text-mono-sm text-text-secondary";
 
-/** 새 그룹을 열 때 미리 채우는 값. 코드 보기의 "플러그인 빌더로 만들기"가 그룹 이름과 종류를 넘긴다 */
+/** 새 그룹을 열 때 미리 채우는 값. 코드 보기의 "플러그인 빌더로 만들기"가 그룹 이름과 종류를 넘기고, 흐름 초안의 "새 그룹 만들기"는 구성 선언을 함께 넘긴다 */
 export interface NewGroupPrefill {
   readonly name: string;
   readonly kind: ExtensionKind;
+  /** 있으면 만들 때 `group.composition`으로 싣는다(플러그인 그룹일 때만) */
+  readonly composition?: CompositionDecl;
+}
+
+/** 만들기 입력. 구성 선언이 있으면 그것을 싣고, 없으면 시작점만 본 입력이다 */
+function createInputOf(
+  draft: NewGroupDraft,
+  composition: CompositionDecl | undefined,
+): ScaffoldInput | null {
+  return composition === undefined
+    ? scaffoldInputOf(draft)
+    : scaffoldInputWithComposition(draft, composition);
 }
 
 type DirCheck =
@@ -403,7 +418,7 @@ export function NewGroupScreen(props: {
   };
 
   const create = async (): Promise<void> => {
-    const input = scaffoldInputOf(draft);
+    const input = createInputOf(draft, props.prefill?.composition);
     if (input === null) return;
     setWorking("create");
     setResult(null);
@@ -463,6 +478,9 @@ export function NewGroupScreen(props: {
           {t("desktop.compose.newGroup.back")}
         </Button>
       </div>
+      {props.prefill?.composition === undefined ? null : (
+        <p className={MUTED}>{t("desktop.compose.flow.draft.newGroupNote")}</p>
+      )}
       <div className="grid gap-2">
         <p className="m-0 flex items-center gap-1 text-ui-sm font-semibold text-text-primary">
           {t("desktop.compose.newGroup.place.head")}

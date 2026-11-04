@@ -1,6 +1,7 @@
 // 구성 화면(P-21, `compose`): 보기 넷(그룹·흐름·프로필·코드), 고른 그룹, "새 그룹"(§6.28, §6.29). 설치 그룹은 읽기 전용이다.
 // 확장 목록은 크래프트 컨트롤러가 읽어 둔 것을 쓴다. 머리는 모든 상태에서 보인다. "새 그룹"을 열면 본문이 시작 화면으로 바뀌고 "뒤로"로 돌아온다.
 import { t } from "@fresnel/client/i18n";
+import type { FlowDraft } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import {
   Button,
@@ -32,6 +33,8 @@ export function ComposeScreen(): ReactNode {
   const [picked, setPicked] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [prefill, setPrefill] = useState<NewGroupPrefill | null>(null);
+  // 흐름 초안은 그룹 이름별로 이 화면에 든다. "새 그룹"을 열었다 돌아와도 고친 것이 남는다(화면을 떠나면 사라진다)
+  const [flowDrafts, setFlowDrafts] = useState<Readonly<Record<string, FlowDraft>>>({});
   const group = groups.find((entry) => entry.name === picked) ?? groups[0] ?? null;
   // 플러그인 빌더가 목록에 없으면 꺼진 것으로 본다(켜기는 목록이 있을 때만 의미가 있다)
   const builder = entries.find((entry) => entry.name === AUTHORING_EXT)?.status ?? null;
@@ -126,7 +129,19 @@ export function ComposeScreen(): ReactNode {
               onEnable={enableBuilder}
             />
           ) : (
-            <GroupSource key={group.name} name={group.name} link={link} mode={view} />
+            <GroupSource
+              key={group.name}
+              name={group.name}
+              link={link}
+              mode={view}
+              flowDraft={flowDrafts[group.name] ?? null}
+              onFlowDraft={(draft) => {
+                setFlowDrafts((current) => ({ ...current, [group.name]: draft }));
+              }}
+              onMake={(composition) => {
+                openNew({ name: "", kind: "plugin-group", composition });
+              }}
+            />
           )}
         </>
       )}
