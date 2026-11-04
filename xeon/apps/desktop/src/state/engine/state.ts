@@ -15,6 +15,7 @@ import type {
   ApprovalRequestedPayload,
   ReviewAppliedPayload,
   ReviewSubmittedPayload,
+  StatusItemRecord,
 } from "@fresnel/contracts/records";
 import type { StoreId, SubId, ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
@@ -165,6 +166,9 @@ export type QueuedInput = QueuedInputFact & {
 /** 대기 입력 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 입력부터 버린다 */
 export const QUEUED_INPUT_CAP = 20;
 
+/** 상태줄 칸 수 상한(`DialogStatusData`의 `items` 상한과 같다) */
+export const STATUS_ITEM_CAP = 32;
+
 export type EngineMirror = {
   readonly engine: EngineState | null;
   readonly link: Link;
@@ -196,6 +200,11 @@ export type EngineMirror = {
    * `input.placed`·`input.withdrawn`이 오면 뺀다. 연결 전에 든 입력은 읽어 오지 않는다. 거울을 head부터 다시 맞추면 비운다
    */
   readonly queuedInputs: readonly QueuedInput[];
+  /**
+   * thread별 상태줄 칸(B-09). 열 때 `status.list` 스냅숏으로 처음 채우고, 이후 휘발 `dialog.status`(전체 스냅숏)가 통째로 덮는다.
+   * 스냅숏을 요청하는 동안 이벤트가 왔으면 링크가 스냅숏을 버린다(늦게 온 응답이 더 새 이벤트를 덮지 않게). 거울을 head부터 다시 맞추면 비운다
+   */
+  readonly statusItems: Readonly<Record<string, readonly StatusItemRecord[]>>;
   /** 변경 검토 결과(리뷰마다 가장 최근 라운드 하나). 받은 순서대로 가장 새 것이 뒤에 오고 `REVIEW_RESULT_CAP`개까지 둔다 */
   readonly reviewResults: readonly ReviewResult[];
 };
@@ -223,5 +232,6 @@ export const INITIAL_MIRROR: EngineMirror = {
   transitions: [],
   plans: [],
   queuedInputs: [],
+  statusItems: {},
   reviewResults: [],
 };

@@ -510,6 +510,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 사용량 | 상태 표시줄 게이지 | `usage.get { threadId }` | 누르면 `Popover`에 게이지 목록 |
 | 목표 | 상태 표시줄 칩 "목표 2/3"(판정 횟수/최대, DP-25) | `goal.status` | 누르면 `Popover`(첫 줄 "판정 2/3"), 거기서 끝 영역 작업 탭 |
 | Helm 단계 | 상태 표시줄 칩 | `[gap:W-04]` | 누르면 끝 영역 탐구 탭 |
+| 대화 상태 칸 | 상태 표시줄, 확장 칸 앞(열린 대화 것만) | `status.list { threadId }` 스냅숏으로 시작하고(대화를 열 때와 처음부터 다시 맞춘 뒤), 휘발 `dialog.status`(전체 스냅숏)가 그 대화의 칸을 통째로 바꿉니다. 스냅숏을 요청하는 동안 이벤트가 왔으면 스냅숏을 버립니다. 요청이 실패하면 칸 없이 나머지 칸으로 돌아갑니다 | 글은 칸 소유자가 정한 한 줄(최대 32칸, `order` 순), `tone`이 `warn`·`error`면 색, `busy`면 `aria-busy` |
 | 토스트 | 오른쪽 아래 `Toaster` | 알림 `notify.delivered`, 앱 동작 결과 | 오류 토스트는 자동으로 닫히지 않습니다 |
 
 ### 4.7 사이트맵
@@ -1743,7 +1744,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 참조(설정 키, 활성 lease, 대화) | `secret.references { name }` |
 | 시험 결과 | `secret.test { name }` → 상태, 복호화, 길이, sha256 앞부분 |
 | 값 보기 상태 | `createSecretReveal({ port, scheduler })` → hidden, reauth, revealed, failed |
-| 사용 기록 | `[gap:W-13]` 감사 기록 읽기 wire가 없습니다 |
+| 사용 기록 | `secret.audit { name }` → 사용·거절 항목(시각, 대화, 도구 호출, 모습, 거절 사유). 값은 없습니다 [결정: 2026-11-04 사용자] 개수 상한 없음 |
 
 | 기능 | wire 또는 경로 |
 |---|---|
@@ -3152,7 +3153,7 @@ export const palette = [
 | W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식). [결정: 2026-11-04 사용자, B8 2안] 재인증 명령 `os_reauth`(`L4.desktop.spec` §4.17)는 셸에 구현됐습니다. 값 보기 화면은 macOS에서 이 명령을 먼저 부르고, 그 뒤의 보기는 stdio·서비스에서 `not_started`입니다 |
 | W-11 | 사용량 한도·창·계정 게이지 | P-11, S-03 | `session` 게이지만 | L1.models 계정·창 데이터 연결(B2-MDL 이후) |
 | W-12 | 연결된 클라이언트 목록 | P-08 | 구현됨. `host.clients`가 있다 [근거: `apps/host/src/handlers/host.ts`]. 화면은 상태 카드 아래에 목록으로 보인다 | `host.clients` |
-| W-13 | 시크릿 사용 기록 | P-10 | 없음 | `secret.audit { name, limit }` |
+| W-13 | 시크릿 사용 기록 | P-10 | 구현됨. `secret.audit`가 있다 [근거: `apps/host/src/handlers/secret.ts`]. 기록 개수 상한은 없다 [결정: 2026-11-04 사용자] | `secret.audit { name, limit? }` |
 | W-14 | 스킬 본문 읽기(충돌 비교) | P-06 | 구현됨. `knowledge.skills.view { name, threadId? }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. P-06 화면이 쓴다: 충돌하는 스킬 보기 대화 상자가 `commands.skills.view`로 한 번 읽는다 | `knowledge.skills.view { name, threadId? }` |
 | W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire(`mcp.servers`)는 없다 [근거: `apps/host/src`, `packages/contracts/src`에서 그 이름 grep 0건] | `ext.list { threadId? }`, `mcp.servers` [미결]. 설치는 W-32 |
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 구현됨. `thread.read`의 `around` 인자와 `ThreadSummary.origin`이 있다 [근거: `apps/host/src/assembly/thread-read.ts`, `packages/contracts/src/wire-settings/wire/methods.ts:443`] | `thread.read`에 `around` 인자, `ThreadSummary.origin` |

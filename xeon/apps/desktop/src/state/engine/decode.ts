@@ -20,6 +20,7 @@ import {
   ScopeChangedPayloadSchema,
   ReviewAppliedPayloadSchema,
   ReviewSubmittedPayloadSchema,
+  DialogStatusDataSchema,
   ScopeHandlerFailedPayloadSchema,
   InputPlacedPayloadSchema,
   InputQueuedPayloadSchema,
@@ -230,6 +231,10 @@ const VOLATILE: Readonly<Record<string, (base: VolatileBase, payload: unknown) =
   "item.updated": (base, payload) => {
     const p = parse(ItemUpdatedPayloadSchema, payload);
     return p.ok ? { ...base, type: "item.updated", payload: p.value } : { ...base, type: "other" };
+  },
+  "dialog.status": (base, payload) => {
+    const p = parse(DialogStatusDataSchema, payload);
+    return p.ok ? { ...base, type: "dialog.status", payload: p.value } : { ...base, type: "other" };
   },
   "item.started": (base, payload) => {
     const p = parse(ItemStartedPayloadSchema, payload);

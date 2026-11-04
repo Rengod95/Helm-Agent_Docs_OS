@@ -1,6 +1,7 @@
 import { err, ok } from "@fresnel/contracts";
 import {
   secretRef,
+  type SecretAuditRecord,
   type SecretHandle,
   type SecretMeta,
   type SecretName,
@@ -49,6 +50,8 @@ interface FakeSecretRecord {
   lastUsedAt: number | null;
   activeLeases: number;
   /** `references`가 돌려줄 참조(설정 키와 최근 사용 thread). 없으면 빈 목록이다 */
+  /** `usage`가 돌려줄 감사 기록(오래된 것이 앞) */
+  audit?: readonly SecretAuditRecord[];
   references?: { readonly settingKeys: readonly string[]; readonly sessions: readonly string[] };
 }
 
@@ -143,7 +146,13 @@ export function createFakeSecrets(config: SecretsConfig = FAKE_SECRETS_CONFIG): 
       }
       return Promise.resolve(ok(listings));
     },
-    usage: () => Promise.reject(new Error("usage is not part of the fake")),
+    usage(handle) {
+      const name = nameOf(handle);
+      calls.push(`usage ${name ?? "?"}`);
+      const record = name === undefined ? undefined : records.get(name);
+      if (record === undefined) return Promise.resolve(err(missing(handle)));
+      return Promise.resolve(ok(record.audit ?? []));
+    },
     async add(meta, source) {
       calls.push(`add ${meta.name}`);
       const handle = secretRef(meta.name);

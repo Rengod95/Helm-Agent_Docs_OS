@@ -157,6 +157,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       list: () => Promise.resolve(err({ kind: "unsupported" })),
       references: () => Promise.resolve(err({ kind: "unsupported" })),
       test: () => Promise.resolve(err({ kind: "unsupported" })),
+      audit: () => Promise.resolve(err({ kind: "unsupported" })),
       editMeta: () => Promise.resolve(err({ kind: "unsupported" })),
       remove: () => Promise.resolve(err({ kind: "unsupported" })),
       beginEntry: () => Promise.resolve(err({ kind: "unsupported" })),

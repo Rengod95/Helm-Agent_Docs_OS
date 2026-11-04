@@ -18,6 +18,7 @@ import { Nullable, type SchemaProof, type SchemaSound } from "../../base/index.t
 import {
   CommandInfoSchema,
   CommandRunOutput,
+  InjectionModeSchema,
   SecretApprovalSchema,
   SecretEntryMetaSchema,
   SecretMetaSchema,
@@ -1214,6 +1215,74 @@ export const SecretReferencesResultSchema: TObject<{
 );
 export type SecretReferencesResult = Static<typeof SecretReferencesResultSchema>;
 
+/** secret.audit params. `limit`을 생략하면 전부 돌려준다(기록 개수 상한 없음, [결정: 2026-11-04 사용자]) */
+export const SecretAuditParamsSchema: TObject<{
+  name: typeof SecretNameSchema;
+  limit: TOptional<TInteger>;
+}> = Type.Object(
+  { name: SecretNameSchema, limit: Type.Optional(Type.Integer({ minimum: 1 })) },
+  { additionalProperties: false },
+);
+export type SecretAuditParams = Static<typeof SecretAuditParamsSchema>;
+
+/** 거절 사유 코드. `SecretDenyReason`(capabilities)과 같은 목록이다. 호스트 쪽 변환이 같은 목록임을 타입으로 확인한다 */
+export const SecretAuditReasonSchema: TUnion<
+  [
+    TLiteral<"host_mismatch">,
+    TLiteral<"origin_mismatch">,
+    TLiteral<"command_mismatch">,
+    TLiteral<"approval_missing">,
+    TLiteral<"expired">,
+    TLiteral<"lease_expired">,
+    TLiteral<"lease_exhausted">,
+    TLiteral<"mode_not_allowed">,
+    TLiteral<"tool_not_allowed">,
+    TLiteral<"scope_mismatch">,
+  ]
+> = Type.Union([
+  Type.Literal("host_mismatch"),
+  Type.Literal("origin_mismatch"),
+  Type.Literal("command_mismatch"),
+  Type.Literal("approval_missing"),
+  Type.Literal("expired"),
+  Type.Literal("lease_expired"),
+  Type.Literal("lease_exhausted"),
+  Type.Literal("mode_not_allowed"),
+  Type.Literal("tool_not_allowed"),
+  Type.Literal("scope_mismatch"),
+]);
+
+/**
+ * secret.audit 항목 하나: 시크릿을 쓰려던 시도 한 번. 값, 값의 일부, 값의 해시, 자유 문장(`purpose`)은 싣지 않는다.
+ * `decision`은 썼는가(`allow`)와 거절됐는가(`deny`, 이때만 `reason`)다. `threadId`는 thread id 모양일 때만 있다(예약·CLI 실행은 null).
+ */
+export const SecretAuditEntrySchema: TObject<{
+  at: typeof IsoTimeSchema;
+  decision: TUnion<[TLiteral<"allow">, TLiteral<"deny">]>;
+  mode: typeof InjectionModeSchema;
+  threadId: TUnion<[typeof ThreadIdSchema, TNull]>;
+  toolCallId: TUnion<[TString, TNull]>;
+  host: TUnion<[TString, TNull]>;
+  reason: TUnion<[typeof SecretAuditReasonSchema, TNull]>;
+}> = Type.Object(
+  {
+    at: IsoTimeSchema,
+    decision: Type.Union([Type.Literal("allow"), Type.Literal("deny")]),
+    mode: InjectionModeSchema,
+    threadId: Nullable(ThreadIdSchema),
+    toolCallId: Nullable(Type.String()),
+    host: Nullable(Type.String()),
+    reason: Nullable(SecretAuditReasonSchema),
+  },
+  { additionalProperties: false },
+);
+export type SecretAuditEntry = Static<typeof SecretAuditEntrySchema>;
+
+/** secret.audit result. 최근 것이 앞이다 */
+export const SecretAuditResultSchema: TObject<{ entries: TArray<typeof SecretAuditEntrySchema> }> =
+  Type.Object({ entries: Type.Array(SecretAuditEntrySchema) }, { additionalProperties: false });
+export type SecretAuditResult = Static<typeof SecretAuditResultSchema>;
+
 export const SecretBeginEntryParamsSchema: TObject<{
   name: typeof SecretNameSchema;
   action: TUnion<[TLiteral<"add">, TLiteral<"set">, TLiteral<"rotate">]>;
@@ -1369,6 +1438,8 @@ const ThreadRefRequestSchema: WithMeta<typeof ThreadRefParamsSchema> =
   withMeta(ThreadRefParamsSchema);
 const SecretNameRequestSchema: WithMeta<typeof SecretNameParamsSchema> =
   withMeta(SecretNameParamsSchema);
+const SecretAuditRequestSchema: WithMeta<typeof SecretAuditParamsSchema> =
+  withMeta(SecretAuditParamsSchema);
 /** `proposal.decide`는 변형마다 `_meta`를 더한 합집합이다 */
 const ProposalDecideRequestSchema: TUnion<
   [
@@ -1546,6 +1617,10 @@ interface WireSchemas
     params: typeof SecretNameRequestSchema;
     result: typeof SecretReferencesResultSchema;
   };
+  "secret.audit": {
+    params: typeof SecretAuditRequestSchema;
+    result: typeof SecretAuditResultSchema;
+  };
   "secret.beginEntry": {
     params: WithMeta<typeof SecretBeginEntryParamsSchema>;
     result: typeof SecretBeginEntryResultSchema;
@@ -1708,6 +1783,7 @@ export const WIRE_METHODS: {
   "secret.remove": spec(SecretNameRequestSchema, SecretRemoveResultSchema, "M2"),
   "secret.test": spec(SecretNameRequestSchema, SecretTestResultSchema, "M2"),
   "secret.references": spec(SecretNameRequestSchema, SecretReferencesResultSchema, "M2"),
+  "secret.audit": spec(SecretAuditRequestSchema, SecretAuditResultSchema, "M2"),
   "secret.beginEntry": spec(
     withMeta(SecretBeginEntryParamsSchema),
     SecretBeginEntryResultSchema,

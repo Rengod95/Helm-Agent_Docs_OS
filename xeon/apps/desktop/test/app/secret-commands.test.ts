@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
-import type { SecretListEntry } from "@fresnel/contracts/wire";
+import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until, type EngineExtra } from "./support.ts";
 
@@ -109,6 +109,25 @@ describe("the other secret methods return the host's values", () => {
       value: { state: "registered", decryptable: true, length: 108, sha256Prefix: "1f3a9c0e" },
     });
     expect(paramsOf(params, "secret.test")).toEqual({ name: NAME });
+    await app.stop();
+  });
+
+  test("audit sends secret.audit with the name only and returns the entries", async () => {
+    const entry: SecretAuditEntry = {
+      at: "2026-11-03T01:00:00.000Z",
+      decision: "allow",
+      mode: "env",
+      threadId: null,
+      toolCallId: "call_1",
+      host: null,
+      reason: null,
+    };
+    const { app, params } = await liveApp({ results: { "secret.audit": { entries: [entry] } } });
+    expect(await app.commands.secrets.audit(NAME)).toEqual({
+      ok: true,
+      value: { entries: [entry] },
+    });
+    expect(paramsOf(params, "secret.audit")).toEqual({ name: NAME });
     await app.stop();
   });
 

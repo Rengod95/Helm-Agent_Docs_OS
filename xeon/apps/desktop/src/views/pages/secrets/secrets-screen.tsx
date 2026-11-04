@@ -94,6 +94,21 @@ export function SecretsPanel(): ReactNode {
     [commands],
   );
 
+  const loadAudit = useCallback(
+    async (name: SecretName): Promise<void> => {
+      dispatch({ type: "audit", name, load: { kind: "loading" } });
+      const found = await commands.secrets.audit(name);
+      dispatch({
+        type: "audit",
+        name,
+        load: found.ok
+          ? { kind: "ready", value: found.value }
+          : { kind: "failed", error: found.error },
+      });
+    },
+    [commands],
+  );
+
   const runTest = useCallback(
     async (name: SecretName): Promise<void> => {
       dispatch({ type: "test", name, load: { kind: "loading" } });
@@ -132,6 +147,12 @@ export function SecretsPanel(): ReactNode {
   useEffect(() => {
     if (live && detailName !== null && refsIdle) detach(loadRefs(detailName), rethrow);
   }, [live, detailName, refsIdle, loadRefs]);
+
+  // 사용 기록도 고를 때마다 한 번 읽는다
+  const auditIdle = state.detail?.audit.kind === "idle";
+  useEffect(() => {
+    if (live && detailName !== null && auditIdle) detach(loadAudit(detailName), rethrow);
+  }, [live, detailName, auditIdle, loadAudit]);
 
   // 값 보기 상태가 바뀌면 화면 상태에 옮긴다(값은 옮기지 않는다)
   useEffect(

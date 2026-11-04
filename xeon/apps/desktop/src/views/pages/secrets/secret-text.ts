@@ -1,7 +1,7 @@
 import type { Locale, MessageArgs, MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { SecretApproval } from "@fresnel/contracts/capabilities";
-import type { SecretListEntry } from "@fresnel/contracts/wire";
+import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
 import type { RevealFailure } from "@fresnel/client/settings";
 import type { SecretCommandError } from "../../commands.ts";
 import type { MetaProblem } from "./secret-draft.ts";
@@ -126,4 +126,34 @@ export function lastUsedTextOf(
   if (iso === undefined) return null;
   const epoch = Date.parse(iso);
   return Number.isNaN(epoch) ? null : relativeTextOf(epoch, nowMs, locale);
+}
+
+const AUDIT_MODE_ID: Readonly<Record<SecretAuditEntry["mode"], MessageId>> = {
+  env: "desktop.secrets.audit.mode.env",
+  sentinel: "desktop.secrets.audit.mode.sentinel",
+  "runtime-http": "desktop.secrets.audit.mode.runtimeHttp",
+  "browser-input": "desktop.secrets.audit.mode.browserInput",
+};
+
+/** 사용 기록의 "어떤 모습으로 썼나" 문장 키 */
+export function auditModeIdOf(mode: SecretAuditEntry["mode"]): MessageId {
+  return AUDIT_MODE_ID[mode];
+}
+
+const AUDIT_REASON_ID: Readonly<Record<NonNullable<SecretAuditEntry["reason"]>, MessageId>> = {
+  host_mismatch: "desktop.secrets.audit.reason.hostMismatch",
+  origin_mismatch: "desktop.secrets.audit.reason.originMismatch",
+  command_mismatch: "desktop.secrets.audit.reason.commandMismatch",
+  approval_missing: "desktop.secrets.audit.reason.approvalMissing",
+  expired: "desktop.secrets.audit.reason.expired",
+  lease_expired: "desktop.secrets.audit.reason.leaseExpired",
+  lease_exhausted: "desktop.secrets.audit.reason.leaseExhausted",
+  mode_not_allowed: "desktop.secrets.audit.reason.modeNotAllowed",
+  tool_not_allowed: "desktop.secrets.audit.reason.toolNotAllowed",
+  scope_mismatch: "desktop.secrets.audit.reason.scopeMismatch",
+};
+
+/** 거절 사유 문장 키 */
+export function auditReasonIdOf(reason: NonNullable<SecretAuditEntry["reason"]>): MessageId {
+  return AUDIT_REASON_ID[reason];
 }

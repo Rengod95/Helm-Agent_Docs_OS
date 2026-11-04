@@ -35,6 +35,7 @@ export function describeInput(input: MirrorInput): InputLabel {
     case "transcript_closed":
     case "approvals":
     case "threads_failed":
+    case "status":
     case "transcript_failed":
       return { input: input.type, seq: null };
     default:

@@ -8,7 +8,7 @@ import {
   type WireHandler,
   type WireHandlers,
 } from "@fresnel/contracts/wire";
-import { handleOf, listEntryOf, wireErrorOfSecret } from "../secrets/wire.ts";
+import { auditEntriesOf, handleOf, listEntryOf, wireErrorOfSecret } from "../secrets/wire.ts";
 import type { Engine } from "../types.ts";
 
 // F.wire-settings.spec §3.3.1 secret.*, L4.host-service.spec §3.4 M2 표. 요청·응답·이벤트·오류 어디에도 값이 없다.
@@ -21,6 +21,7 @@ type SecretMethod =
   | "secret.remove"
   | "secret.test"
   | "secret.references"
+  | "secret.audit"
   | "secret.beginEntry"
   | "secret.beginReveal";
 
@@ -123,6 +124,18 @@ function createReferencesHandler(engine: Engine): WireHandler<"secret.references
 }
 
 /**
+ * 시크릿 하나의 사용·거절 기록(`L0.secrets` `usage`, F.wire-settings.spec §3.3.1 `secret.audit`). 읽기 전용이다.
+ * 알 수 없는 이름은 `secret.notFound`다. 기록 개수 상한은 없고 `limit`을 줄 때만 자른다
+ */
+function createAuditHandler(engine: Engine): WireHandler<"secret.audit"> {
+  const { admin } = engine.ports.secrets;
+  return async (params) => {
+    const records = orThrow(await admin.usage(handleOf(params.name), {}), "secret.audit");
+    return { entries: auditEntriesOf(records, params.limit) };
+  };
+}
+
+/**
  * `secret.beginEntry`가 보낸 메타(`SecretEntryMeta`, M3-REQ-17)의 필드만 기본 메타 위에 덮는다. 보내지 않은 필드는 기본값이다.
  * 메타에는 값이 없다. 값은 맡긴 입력 수단으로 따로 들어온다
  */
@@ -202,6 +215,7 @@ export function createSecretHandlers(engine: Engine): Pick<WireHandlers, SecretM
     "secret.remove": createRemoveHandler(engine),
     "secret.test": createTestHandler(engine),
     "secret.references": createReferencesHandler(engine),
+    "secret.audit": createAuditHandler(engine),
     "secret.beginEntry": createBeginEntryHandler(engine),
     "secret.beginReveal": createBeginRevealHandler(engine),
   };

@@ -1,6 +1,6 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
-import { storeFailureOfExitCode } from "@fresnel/contracts/records";
+import { storeFailureOfExitCode, type StatusItemRecord } from "@fresnel/contracts/records";
 import { useState, type ReactNode } from "react";
 import { nativeEntriesOf, originTitleOf } from "../plugin-ui/placements.ts";
 import {
@@ -8,6 +8,7 @@ import {
   useEngineState,
   useLinkBanner,
   useRunningCount,
+  useStatusItems,
   type EngineState,
   type Link,
 } from "../state/engine/index.ts";
@@ -85,6 +86,33 @@ function StatusCells(): ReactNode {
   ));
 }
 
+const STATUS_TONE_CLASS: Readonly<Record<NonNullable<StatusItemRecord["tone"]>, string>> = {
+  normal: "",
+  busy: "",
+  warn: "warn",
+  error: "error",
+};
+
+/**
+ * 열린 대화의 상태줄 칸(B-09). 열 때 `status.list` 스냅숏으로 시작하고 `dialog.status`가 바꾼다. 글은 칸 소유자가 정한 한 줄이고
+ * 길면 줄인다. `busy`는 `aria-busy`로 알린다
+ */
+function StatusItems(): ReactNode {
+  const threadId = useSelectedThreadId();
+  const items = useStatusItems(threadId);
+  return items.map((item) => (
+    <span
+      key={item.id}
+      className={`min-w-0 max-w-[32ch] truncate ${STATUS_TONE_CLASS[item.tone ?? "normal"]}`}
+      title={item.text}
+      data-status-item={item.id}
+      aria-busy={item.tone === "busy" ? true : undefined}
+    >
+      {item.text}
+    </span>
+  ));
+}
+
 /** 엔진 한 줄: 상태와, 실행 중이면 어디서 도는지. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다 */
 export function engineLineOf(engine: EngineState | null | undefined): string {
   return `${t(engineTextOf(engine))}${engine?.kind === "running" ? ` (${t(SOURCE_TEXT[engine.source])})` : ""}`;
@@ -125,6 +153,7 @@ export function StatusBar(): ReactNode {
       {connectError === null ? null : (
         <span className="error">{t("desktop.status.connectFailed", { error: connectError })}</span>
       )}
+      <StatusItems />
       <StatusCells />
       <span className="grow" />
       <button

@@ -21,6 +21,8 @@ import type {
   ReviewAppliedPayload,
   ReviewSubmittedPayload,
   ScopeHandlerFailedPayload,
+  DialogStatusData,
+  StatusItemRecord,
 } from "@fresnel/contracts/records";
 import type {
   PendingApproval as WirePendingApproval,
@@ -111,6 +113,8 @@ export type VolatileFact =
       readonly payload: ScopeHandlerFailedPayload;
       readonly afterSeq: number;
     })
+  /** 상태줄 칸 전체 스냅숏. 그 thread의 칸을 통째로 바꾼다 */
+  | (VolatileBase & { readonly type: "dialog.status"; readonly payload: DialogStatusData })
   | (VolatileBase & { readonly type: "other" });
 
 /** 엔진 거울의 유일한 입력. 엔진 사실(알림, 요청 결과, 셸 상태)과 컨트롤러의 요청 표시만 담는다 */
@@ -134,6 +138,12 @@ export type MirrorInput =
       readonly facts: readonly DurableFact[];
     }
   | { readonly type: "chunk"; readonly fact: VolatileFact }
+  /** `status.list` 결과(열 때와 다시 맞춘 뒤). 그 thread의 칸을 통째로 바꾼다 */
+  | {
+      readonly type: "status";
+      readonly threadId: ThreadId;
+      readonly items: readonly StatusItemRecord[];
+    }
   | { readonly type: "ended"; readonly sub: SubId }
   | { readonly type: "out_of_range" }
   | { readonly type: "subscribe_failed" }

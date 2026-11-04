@@ -10,6 +10,7 @@ import { Badge, Button, Card, ListDescription, ListDescriptionRow, Progress } fr
 import { Copy, Eye, EyeOff, FlaskConical, KeyRound, Pencil, Trash2 } from "@caustic/react/icons";
 import { useId, type ReactNode, type RefObject } from "react";
 import type { DetailState, Load } from "./secret-model.ts";
+import { UsageLog } from "./secret-audit.tsx";
 import type { RevealView } from "./secret-reveal.ts";
 import {
   commandErrorText,
@@ -139,6 +140,7 @@ export function SecretDetail(props: SecretDetailProps): ReactNode {
         </Button>
       </div>
       <RefsLine refs={detail.refs} />
+      <UsageLog audit={detail.audit} nowMs={nowMs} locale={locale} />
       <TestLine test={detail.test} />
     </Card>
   );

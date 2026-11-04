@@ -44,6 +44,7 @@ export function createSecretCommands(deps: SecretDeps): SecretCommands {
     },
     references: (name) => run((c) => c.request("secret.references", { name })),
     test: (name) => run((c) => c.request("secret.test", { name })),
+    audit: (name) => run((c) => c.request("secret.audit", { name })),
     async editMeta(params) {
       const edited = await run((c) => c.request("secret.meta", params));
       return edited.ok ? ok(edited.value.secret) : edited;

@@ -7,6 +7,7 @@ import type {
   ThreadId,
   TurnId,
 } from "@fresnel/contracts/conversation";
+import type { StatusItemRecord } from "@fresnel/contracts/records";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
@@ -101,3 +102,6 @@ export const useQueuedInputs = (threadId: ThreadId | null): readonly QueuedInput
 /** 변경 검토 결과(리뷰마다 가장 최근 라운드 하나). 제출 결과 표가 리뷰 id로 찾는다 */
 export const useReviewResults = (): EngineMirror["reviewResults"] =>
   useEngine((s) => s.reviewResults);
+/** 이 대화의 상태줄 칸(B-09). 열 때 `status.list`로 채우고 `dialog.status`가 바꾼다 */
+export const useStatusItems = (threadId: ThreadId | null): readonly StatusItemRecord[] =>
+  useEngine(useShallow((s: EngineMirror) => sel.selectStatusItems(s, threadId)));
