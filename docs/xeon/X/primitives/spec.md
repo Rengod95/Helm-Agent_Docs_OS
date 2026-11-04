@@ -1262,7 +1262,9 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
    - drive 락 보유자가 없으면(drive 락이 없거나, 커밋되지 않았거나, 반납이 커밋되었으면) `{ phase: null, group: null, seq: null }`이다.
    - 보유자 그룹의 매니페스트 `group.composition.phases`가 없으면 같은 값이다. 그룹 이름만 알리는 안은 [미결]로 남긴다 [제안].
    - 있으면 `group`은 보유자의 확장 이름이고, `seq`는 그 scope의 커밋된 상태 판 `rev`다 [제안: 캐시에 이벤트 seq가 없으므로 판 `rev`를 쓴다]. `phase`는 상태 문서의 `phase` 문자열이 `phases.nodes[].id` 가운데 하나일 때만 그 값이고, 아니면 null이다. 상태 문서의 나머지는 내보내지 않는다(F.extensions.spec §3.6).
+   - [결정: 2026-11-04 사용자 지시에 따른 기본값] 칸은 모두 실제 값이다. `paused`는 이 대화에 멈춤 요청이 걸려 있는가다. `lock`은 드라이브 락(`holder`, `status`, `epoch`)이고 `traceEnabled`는 `x.operations.trace.enabled`의 현재 값이다. `guardHits`는 thread의 남은 Turn 전체에서 핸들러 결과가 `blocked`인 기록 수다(`TraceBuffer.blockedCount`). 계측이 꺼져 있거나 thread를 모르면 0이다. 숨기는 훅 단위 행은 기록에 들지 않으므로 세지 않는다. `boundaries`는 11의 기록이다.
 10. `not_available`은 이 구현에 없다. 포트를 제공하지 않는 조립이 쓰는 값이다.
+11. [결정: 2026-11-04 사용자 지시에 따른 기본값] 단계 경계 기록(`boundaries`, `primitives/boundary-log.ts`). Test run thread에서 `boundary.step.after` 디스패치 하나마다 멈춤을 기다리기 직전에 기록 한 건을 붙인다. dispatch는 `onBoundary(threadId)`만 부르고 기록은 호스트(`host.ts`의 `noteBoundary`)가 적는다. 칸은 `paused`(기다리기 전에 멈춤 요청이 걸려 있었는가), `seq`(드라이브 락 보유자 scope의 커밋된 상태 판 `rev`, 보유자가 없으면 0), `phase`(9와 같은 규칙으로 읽은 값, 없으면 null)다. thread마다 최근 200건(`MAX_BOUNDARIES`)만 두고 가장 오래된 것부터 뺀다. Test run 표지를 지우는 자리(다시 열기, 닫기, dispose)에서 함께 지운다. Test run이 아닌 thread는 아무것도 적지 않는다. `phase`는 기록의 복사본을 오래된 것부터 새것 순으로 돌려준다.
 
 #### 4.4.9 확장 읽기 조회 (wire `ext.*`, `group.driveLock`)
 
@@ -1809,7 +1811,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 45. (M2, X.3, M3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 그룹 사이 격리는 kind 접두 필터(자기 접두, `readsRecordKinds`)다. 이벤트 버스는 없다(§4.9).
 54. (M3b, B2-WEB, M3-REQ-37) `hostOf(g).registerWebProvider({ capability: "web.search", create })`는 `ExtHost.resources`에 kind `web_provider`, 이름 `web.search`로 기록되고, `webProviderRegistrationOf`가 같은 등록 객체를 돌려준다. 한 scope가 같은 기능을 두 번 등록하면 `resource_conflict`이고, `web.search`와 `web.fetch`는 한 scope에 함께 등록된다. 다른 확장이 같은 기능을 등록하면 둘 다 남는다(§3.9.1). scope를 끄면 기록이 사라지고 구독자가 `removed`를 받는다. 다른 종류의 기록이나 `create`가 없는 등록 값은 `webProviderRegistrationOf`가 `undefined`를 돌려준다.
 58. (M4, X-17) drive 함수가 `loop.ask`를 부르면 question 승인이 하나 열리고(`origin.caller`는 `ext:<확장 이름>`), drive 락이 사유 `waiting`으로 반납되며, 호출은 `lease_revoked`로 거부된다. 답이 오면 그 Registration이 차수가 오른 새 drive 락을 받되 계통 id를 이어받고, 같은 `requestId`의 재호출이 `answered`를 돌려주며, 승인은 한 번만 열린다. 거부와 만료는 `denied`와 `resolvedBy`로 돌려준다. 답을 기다리는 Registration은 `x.primitives.leaseWaitLimit`의 대기 계수에 들지 않는다. 끈 Registration의 승인은 닫히지 않고 남는다. 승인 포트가 없으면 `port_unavailable`이다. 확인: `packages/ext-host/test/primitives/drive-ask.test.ts`.
-59. (M4, X-19) Test run 대화에서 `pause`를 부르면 다음 `boundary.step.after` 디스패치가 처리 뒤에 멈추고, `resume`이 풀면 같은 결과로 끝난다. 멈춘 동안 drive 함수는 한 번만 불렸고 drive 락은 같으며 `lease.released`가 없고 `loop.turn`은 하나뿐이다. `step`은 경계 하나만 지나가게 하고 요청이 없으면 `not_paused`, Test run이 아니면 `not_a_test_run`이다. 중단과 thread 닫기도 멈춘 디스패치를 푼다. `phase`는 drive 락 보유자의 `composition.phases`와 커밋된 `phase`를 읽고 쓰지 않는다. 확인: `packages/ext-host/test/primitives/test-run-pause.test.ts`.
+59. (M4, X-19) Test run 대화에서 `pause`를 부르면 다음 `boundary.step.after` 디스패치가 처리 뒤에 멈추고, `resume`이 풀면 같은 결과로 끝난다. 멈춘 동안 drive 함수는 한 번만 불렸고 drive 락은 같으며 `lease.released`가 없고 `loop.turn`은 하나뿐이다. `step`은 경계 하나만 지나가게 하고 요청이 없으면 `not_paused`, Test run이 아니면 `not_a_test_run`이다. 중단과 thread 닫기도 멈춘 디스패치를 푼다. `phase`는 drive 락 보유자의 `composition.phases`와 커밋된 `phase`를 읽고 쓰지 않는다. 확인: `packages/ext-host/test/primitives/test-run-pause.test.ts`(단계 경계 기록과 200건 상한 포함), `packages/ext-host/test/operations/trace-buffer.test.ts`(`guardHits`).
 
 ## 10. 미결 사항
 

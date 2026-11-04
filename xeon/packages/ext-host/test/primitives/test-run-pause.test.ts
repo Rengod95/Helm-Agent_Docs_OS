@@ -2,14 +2,17 @@
 // 멈춘 디스패치는 flushMicrotasks로 확인하고 멈춘 동안에는 t.settled()를 부르지 않는다. drive 호출은 추적 작업이라 멈춘 동안 settled가 막히기 때문이다.
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { PhasesDecl } from "@fresnel/contracts/extensions";
+import type { PhasesDecl, TestRunControlPort } from "@fresnel/contracts/extensions";
 import { Type } from "typebox";
 import {
+  hostInternalsOf,
   testRunControlOf,
   type DispatchOutcome,
   type ExtensionUnit,
   type PayloadOf,
 } from "../../src/primitives/index.ts";
+import { MAX_BOUNDARIES } from "../../src/primitives/boundary-log.ts";
+import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { createTestHost, flushMicrotasks, type TestHost } from "../../src/testing/index.ts";
 import { createOperationsHarness } from "../operations/support/harness.ts";
 import {
@@ -506,4 +509,152 @@ test("a Test run without a drive-lock holder answers all null and lock none", as
       boundaries: [],
     },
   });
+});
+
+// ── 단계 경계 기록(X-19, X.primitives.spec §4.4.8 10): boundary.step.after마다 한 건, 최근 200건 ──
+
+test("a Test run logs one boundary per boundary.step.after, with the rev and committed phase at that point and paused where the request held it", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.install(phaseGroupUnit("pause-bounds", PHASES, "build"));
+  await t.host.openThread(thread, { testRun: true });
+  await t.settled();
+  const control = testRunControlOf(t.host);
+
+  await stepEnd(t, thread);
+  expect(control.pause(thread)).toEqual(paused);
+  const held = watch(stepEnd(t, thread));
+  await flushMicrotasks(100);
+  expect(held.seen.outcome).toBeNull();
+  expect(control.resume(thread)).toEqual(resumed);
+  await held.done;
+  await stepEnd(t, thread);
+
+  expect(control.phase(thread)).toEqual({
+    ok: true,
+    value: {
+      phase: "build",
+      group: "pause-bounds",
+      seq: 1,
+      paused: false,
+      lock: { holder: "pause-bounds", status: "active", epoch: 1 },
+      guardHits: 0,
+      traceEnabled: true,
+      boundaries: [
+        { seq: 1, phase: "build", paused: false },
+        { seq: 1, phase: "build", paused: true },
+        { seq: 1, phase: "build", paused: false },
+      ],
+    },
+  });
+});
+
+test("a group without composition phases logs phase null and still the committed rev", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.install(phaseGroupUnit("pause-bounds-plain", undefined, "build"));
+  await t.host.openThread(thread, { testRun: true });
+  await t.settled();
+  await stepEnd(t, thread);
+  expect(testRunControlOf(t.host).phase(thread)).toEqual({
+    ok: true,
+    value: {
+      phase: null,
+      group: null,
+      seq: null,
+      paused: false,
+      lock: { holder: "pause-bounds-plain", status: "active", epoch: 1 },
+      guardHits: 0,
+      traceEnabled: true,
+      boundaries: [{ seq: 1, phase: null, paused: false }],
+    },
+  });
+});
+
+test("a Test run without a drive-lock holder logs seq 0 and phase null", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.install(stepGroupUnit("pause-bounds-free", { step: 0 }));
+  await t.host.openThread(thread, { testRun: true });
+  await stepEnd(t, thread);
+  expect(testRunControlOf(t.host).phase(thread)).toEqual({
+    ok: true,
+    value: {
+      phase: null,
+      group: null,
+      seq: null,
+      paused: false,
+      lock: { holder: null, status: "none", epoch: null },
+      guardHits: 0,
+      traceEnabled: true,
+      boundaries: [{ seq: 0, phase: null, paused: false }],
+    },
+  });
+});
+
+/** 홀수 번째(0부터 셈) 경계마다 멈춘다. 남은 기록의 멈춤 칸 순서로 어느 경계가 남았는지 드러난다 */
+function pausedAtCapIndex(index: number): boolean {
+  return index % 2 === 1;
+}
+
+/** 경계 하나를 낸다. 멈춰야 하면 기다리게 한 뒤 바로 푼다 */
+async function passOneBoundary(
+  t: TestHost,
+  thread: ThreadId,
+  control: TestRunControlPort,
+  holding: boolean,
+): Promise<void> {
+  if (!holding) {
+    await stepEnd(t, thread);
+    return;
+  }
+  expect(control.pause(thread)).toEqual(paused);
+  const held = watch(stepEnd(t, thread));
+  await flushMicrotasks(100);
+  expect(control.resume(thread)).toEqual(resumed);
+  await held.done;
+}
+
+test("the boundary log keeps the newest 200 entries, oldest first", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.install(phaseGroupUnit("pause-bounds-cap", PHASES, "build"));
+  await t.host.openThread(thread, { testRun: true });
+  await t.settled();
+  const control = testRunControlOf(t.host);
+  const total = MAX_BOUNDARIES + 5;
+  const indexes = Array.from({ length: total }, (_, index) => index);
+  await eachInOrder(indexes, async (index) => {
+    await passOneBoundary(t, thread, control, pausedAtCapIndex(index));
+    return "continue";
+  });
+  const kept = indexes
+    .map((index) => ({ seq: 1, phase: "build", paused: pausedAtCapIndex(index) }))
+    .slice(-MAX_BOUNDARIES);
+  expect(control.phase(thread)).toEqual({
+    ok: true,
+    value: {
+      phase: "build",
+      group: "pause-bounds-cap",
+      seq: 1,
+      paused: false,
+      lock: { holder: "pause-bounds-cap", status: "active", epoch: 1 },
+      guardHits: 0,
+      traceEnabled: true,
+      boundaries: kept,
+    },
+  });
+});
+
+test("a thread that is not a Test run logs no boundaries and phase still answers not_a_test_run", async () => {
+  const counts = { step: 0 };
+  const t = await createTestHost();
+  const plain = t.newThread();
+  await t.host.install(stepGroupUnit("pause-bounds-plain-thread", counts));
+  await t.host.openThread(plain);
+  await stepEnd(t, plain);
+  await stepEnd(t, plain);
+  expect(counts.step).toBe(2);
+  expect(hostInternalsOf(t.host).boundaryLog.entriesOf(plain)).toEqual([]);
+  expect(testRunControlOf(t.host).phase(plain)).toEqual(notTestRun);
 });
