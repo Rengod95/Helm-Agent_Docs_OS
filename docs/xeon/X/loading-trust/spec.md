@@ -359,6 +359,10 @@ export interface ExtensionLoader {
   uiEntries(): readonly UiEntryReport[];
   /** 설치된 외부 확장을 새 버전으로 바꾼다. 적용은 단계 경계다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */
   reload(name: ExtensionName, signal: AbortSignal, options?: ReloadOptions): Promise<Result<ReloadStarted, ReloadFailure>>;
+  /** 설치한 새 이름 하나를 사용자 위치에서 시작 때와 같은 파이프라인으로 싣는다. 켜기는 단계 경계 규칙을 따른다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */
+  loadInstalled(name: ExtensionName, signal: AbortSignal): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>>;
+  /** 지운 외부 확장을 호스트와 로더 기록에서 내린다. 재시작이 필요 없다(§4.4.4). 내장이거나 모르는 이름이면 false */
+  unload(name: ExtensionName): Promise<boolean>;
   /** 제거 1단계. 아무것도 바꾸지 않고 지울 테이블 목록만 돌려준다(§4.4.5). M2 */
   previewRemoval(name: ExtensionName): Promise<RemovalPreview>;
   /** 제거 2단계. 실행 중 호스트에서 내리고, dropTables가 참이면 확장 전용 테이블을 지운다(§4.4.5). M2 */
@@ -1042,6 +1046,10 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 - `ExtensionLoader.reload(name, signal, options?)` 순서: (1) 매니페스트를 다시 읽고 검증한다. (2) 이름이 같아야 한다(이름이 바뀌면 재시작). (3) 집합 검사를 다시 한다(다른 확장과 이름·기능 충돌). (4) 신뢰 상한을 다시 계산한다. 설치 위치가 줄 수 있는 등급이어야 하고 지금 등급과 같아야 한다(바뀌면 재시작). (5) 엔트리를 새 세대로 import한다. (6) `replaceUnit`이 새 엔트리를 호스트 상태 밖에서 실행해 검사한다. 여기까지 하나라도 실패하면 `rejected`(진단 `reload_rejected` 또는 `entry_import_failed`, `entry_not_function`, `entry_threw`, `plugin_not_registered`)이고 옛 버전이 그대로 돈다. 로더 기록(`manifest`, `generation`)도 바뀌지 않는다.
 - 통과하면 `ReloadStarted`를 돌려준다. `appliesAt`은 `now`(실행 중인 thread가 없어 이 호출이 돌아오기 전에 적용을 끝냈다)이거나 `nextStepBoundary`(실행 중인 turn의 step이 끝난 경계를 기다린다)다. `applied`는 적용이 끝나면 정해진다. `applied`(`status: "applied"`)가 되면 그때 로더 기록의 `manifest`와 `generation`이 새 것으로 바뀐다. 경계에서 새 세대가 열리지 못하면 `failed`다: 옛 정의로 되돌려 다시 열었고(`restored`), 진단 `reload_failed`가 확장의 진단과 로더 진단에 남는다. 이 실패는 `nextStepBoundary`로 돌려준 호출에서는 나중에 `applied`로만 알 수 있다.
+- 새 이름 싣기 [결정: 2026-11-03 사용자 (a), M4 T-RELOAD; 2026-11-04 사용자: 새 이름 플러그인도 재시작 없이 바로 불러온다]: `ExtensionLoader.loadInstalled(name, signal)`가 앱 안 설치(`ext.install`, HS-111)와 제작 그룹의 `link`가 방금 복사한 `<userDir>/extensions/<name>` 하나를 싣는다. 시작 때(`loadAll`)와 같은 묶음 처리(`processBatch`)를 한 후보로 돌리므로 매니페스트 검증, 집합 검사, 신뢰 상한(사용자 위치의 `user`), 켜짐 확인, `assignTier`와 운영 정책 `admit`, 엔트리 import, `ExtHost.install`을 모두 거친다. 우회하는 길은 없다. 사용자 위치만 대상이라 프로젝트와 관리 위치의 확장은 싣지 않는다.
+  - 결과 `Ok`는 `appliesAt`과 `info`다. 실행 중인 turn이 없으면 `now`, 있으면 켜기가 `ExtHost`의 시작 적용 규칙(`deferred`, X.primitives.spec §4.5.6)대로 다음 단계 경계로 미뤄져 `nextStepBoundary`다. 단계 경계 규칙은 이 로더가 바꾸지 않는다.
+  - 실패는 `already_loaded`(같은 이름이 이미 실려 있다. 새 판은 `reload`), `safe_mode`(안전 모드는 사용자 위치를 싣지 않는다), `not_found`, `not_active`(`state`는 `rejected`, `error`, `disabled`와 진단)다. 실패하면 호스트에 아무것도 남지 않는다. `rejected`와 `error` 기록은 지워 같은 이름을 고쳐 다시 설치할 수 있고, `disabled`(설정으로 꺼졌거나 필수 설정이 비어 있음)는 기록을 남겨 설정으로 켤 때 `ensureLoaded`가 싣는다.
+  - `unload(name)`은 지운 외부 확장을 `ExtHost.uninstall`로 내리고 정책 표와 로더 기록에서 뺀다. 목록에서 바로 빠지고 같은 이름을 다시 싣을 수 있다. 이 해제는 §4.4.5처럼 경계 없이 즉시다.
 - `active`인 외부 확장만 다시 읽는다. 내장 확장(`builtin`), 루트가 없는 확장, `active`가 아닌 확장(`error`, `disabled`, `rejected`)은 `not_reloadable`이다. 이런 확장은 재시작하거나 `ensureLoaded`로 싣는다.
 - 재import는 Bun 모듈 캐시를 피하려고 엔트리를 `<절대 경로>?fresnel-gen=<세대>`로 import한다. [결정] `file://` URL 형태로는 안 된다: Bun 1.4.3은 `file://` URL의 질의를 무시하고 처음 평가한 모듈을 돌려준다(시험으로 확인). 절대 경로 문자열에 질의를 붙이면 새 모듈로 평가한다. 이전 세대 모듈은 메모리에 남는다. 개발용이라 이 누수를 받아들인다. 엔트리가 상대 경로로 import하는 다른 파일은 처음 평가한 것이 캐시되어 다시 평가되지 않는다. 그래서 번들된 엔트리(`dist/index.js` 하나)만 다시 읽기로 바뀐다 [미결: 하위 파일을 다시 읽으려면 번들하거나 재시작한다].
 - `options.resetRefusedState`는 새 버전이 저장된 상태를 받지 못할 때 그 상태를 비우고 이어 가게 한다(되돌리기 `clearState`, X.primitives.spec §4.4.10 8번).
@@ -1439,7 +1447,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 | 이름 | 쓰는 문서 |
 |---|---|
-| `createExtensionLoader`, `ExtensionLoader`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `BuiltinExtensionModule`, `RemovalPreview`, `RemoveResult`, `ReloadOptions`, `ReloadStarted`, `ReloadApplied`, `ReloadFailure` | L4.host-service.spec(조립 3·5단계, 로더를 직접 보유), L4.settings-ui.spec·L4.cli.spec(제거 확인) |
+| `createExtensionLoader`, `ExtensionLoader`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `BuiltinExtensionModule`, `RemovalPreview`, `RemoveResult`, `ReloadOptions`, `ReloadStarted`, `ReloadApplied`, `ReloadFailure`, `LoadInstalledStarted`, `LoadInstalledFailure` | L4.host-service.spec(조립 3·5단계, 로더를 직접 보유), L4.settings-ui.spec·L4.cli.spec(제거 확인) |
 | `LoadedExtensionInfo`, `LoadDiagnostic`, `LoadDiagnosticSchema`, `LoadState` | L4.settings-ui.spec, L4.host-service.spec(`host.status`), X.operations.spec |
 | `TrustLevel`, `TRUST_LEVELS`, `TRUST_MATRIX`, `SOURCE_TRUST` | F.extensions.spec(`TrustRequestSchema` 값 확정), X.primitives.spec(연산 허용 검사), X.operations.spec |
 | `ProjectTrustResult`, `TrustPrompter`·`TrustPromptRequest`·`TrustChoice`(F 이름 재export) | L4.cli.spec, L4.desktop.spec(프롬프트 구현) |
