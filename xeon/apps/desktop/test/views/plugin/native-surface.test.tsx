@@ -73,7 +73,6 @@ function backendOf(
     }),
     navigate: () => false,
     openExternal: () => Promise.resolve(),
-    confirmExternal: () => Promise.resolve(false),
     resize: () => {},
     diagnostic: () => {},
   });
@@ -145,6 +144,7 @@ describe("a command button waits for the confirm line", () => {
     actions.runCommand("helm-start", {});
     await settle();
     expect(queue.current()?.request).toEqual({
+      kind: "command",
       extension: "helm",
       trust: "user",
       action: "/helm-start",

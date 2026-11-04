@@ -71,6 +71,7 @@ async function runnerOf(connection: ReturnType<typeof connectionOf>, queue: Conf
     threadId: OPEN_THREAD,
     runtime,
     confirm: queue,
+    openExternal: () => Promise.resolve(),
     current: () => connection.connection,
     showScreen: () => {},
     // 시험은 시계와 타이머를 멈춰 둔다(확인은 답을 받을 때까지 기다린다)
@@ -89,6 +90,7 @@ describe("a palette command waits for the confirm line", () => {
     const pending = runner.run(OPEN_THREAD, context, "helm-start");
     await settle();
     expect(queue.current()?.request).toEqual({
+      kind: "command",
       extension: "helm",
       trust: "user",
       action: "/helm-start",

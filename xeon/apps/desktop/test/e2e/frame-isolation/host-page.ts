@@ -59,13 +59,12 @@ const backend: BridgeBackend = {
   },
   command: () => Promise.resolve(ok(null)),
   post: () => Promise.resolve(ok(null)),
-  requestApproval(threadId, title) {
+  requestApproval(threadId, verb) {
     // 표준 승인 카드는 셸이 그리고 사람이 답한다. 여기서는 대기 목록에만 넣고 결정하지 않는다
-    pendingApprovals.push({ threadId, title });
+    pendingApprovals.push({ threadId, title: verb });
     return Promise.resolve(ok({ outcome: "pending" }));
   },
   navigate: () => Promise.resolve(ok(null)),
-  confirmExternal: () => Promise.resolve(false),
   resize: () => {},
   diagnostic: () => {},
 };

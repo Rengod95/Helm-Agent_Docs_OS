@@ -10,6 +10,7 @@ mod engine;
 mod env_path;
 #[cfg(debug_assertions)]
 mod inspect;
+mod open_external;
 mod relay;
 mod secret_entry;
 mod time;
@@ -65,7 +66,8 @@ fn main() {
             desktop_settings::desktop_settings_read,
             desktop_settings::desktop_settings_write,
             secret_entry::secret_register,
-            view_scheme::app_roots_set
+            view_scheme::app_roots_set,
+            open_external::open_external
         ])
         .setup(|app| {
             let log = Arc::new(AppLog::open(app.path().app_log_dir().ok().as_deref()));

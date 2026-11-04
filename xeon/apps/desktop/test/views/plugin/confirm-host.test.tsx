@@ -14,6 +14,7 @@ const noop = (): void => {};
 
 function request(patch: Partial<ConfirmRequest>): ConfirmRequest {
   return {
+    kind: "call",
     extension: "helm",
     trust: "builtin",
     action: "runTask",

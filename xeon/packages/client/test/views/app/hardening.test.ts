@@ -111,16 +111,12 @@ describe("post and requestApproval text", () => {
       ok: true,
       action: { op: "post", threadId: "thr_1", text: "hi there" },
     });
-    const approval = decide(
-      req("requestApproval", { threadId: "thr_1", title: "‮Delete\n", detail: "x\u0000y" }),
-      policyContext(),
-    );
-    expect(approval).toEqual({
-      ok: true,
-      action: { op: "requestApproval", threadId: "thr_1", title: "Delete", detail: "xy" },
-    });
+    // 승인 요청은 글을 받지 않으므로 프레임이 글을 넣으면 인자 오류다
     expect(
-      decide(req("requestApproval", { threadId: "thr_1", title: "‮\u0000" }), policyContext()).ok,
+      decide(
+        req("requestApproval", { threadId: "thr_1", verb: "wipe", title: "‮Delete" }),
+        policyContext(),
+      ).ok,
     ).toBe(false);
   });
 
@@ -263,6 +259,7 @@ describe("confirm line failures", () => {
     await flush();
     expect(confirm.asked).toEqual([
       {
+        kind: "call",
         extension: "helm",
         trust: "user",
         action: "start",
@@ -384,16 +381,16 @@ describe("settings, budgets and limits", () => {
   });
 
   test("post and requestApproval are limited to one per 5 s", async () => {
-    const { pair, time, ledger } = build(["deny"]);
+    const { pair, time, ledger } = build(["allow"]);
     pair.frame.send(request(1, "post", { threadId: "thr_1", text: "a" }));
-    pair.frame.send(request(2, "requestApproval", { threadId: "thr_1", title: "b" }));
+    pair.frame.send(request(2, "requestApproval", { threadId: "thr_1", verb: "wipe" }));
     await flush();
     expect(pair.toFrame).toEqual([
-      { v: 1, id: 2, ok: false, error: { kind: "rate_limited" } },
       { v: 1, id: 1, ok: true, value: null },
+      { v: 1, id: 2, ok: false, error: { kind: "rate_limited" } },
     ]);
-    // 거절은 한 번 셌지만 뒤이어 끝난 post가 일을 한 성공이라 연속 횟수를 되돌렸다
-    expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 0 });
+    // post가 먼저 일을 했고, 확인 줄을 거친 승인 요청이 예산에 걸려 실패 한 번을 셌다
+    expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 1 });
     time.advance(POST_MIN_INTERVAL_MS);
     pair.frame.send(request(3, "post", { threadId: "thr_1", text: "c" }));
     await flush();
@@ -420,11 +417,11 @@ describe("settings, budgets and limits", () => {
       ledger: createScreenLedger(),
       clock: time,
       scheduler: time,
-      confirm: () => Promise.resolve("deny"),
+      confirm: () => Promise.resolve("allow"),
       onClosed: () => {},
     });
     await inOrder([1, 2, 3, 4, 5, 6, 7], async (index) => {
-      pair.frame.send(request(index, "requestApproval", { threadId: "thr_1", title: "t" }));
+      pair.frame.send(request(index, "requestApproval", { threadId: "thr_1", verb: "wipe" }));
       await flush();
       time.advance(POST_MIN_INTERVAL_MS);
     });

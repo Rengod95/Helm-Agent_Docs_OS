@@ -215,31 +215,39 @@ describe("Plugin App frame isolation (Y5, Linux e2e)", () => {
         JSON.stringify(message) !== JSON.stringify({ approve: true, id: "approval-1" }),
     );
     expect(stray).toEqual([]);
-    // 다리로는 모르는 op가 막히고, requestApproval은 셸이 그리는 대기 카드가 될 뿐 결정은 사람 몫이다
+    // 다리로는 모르는 op가 막힌다. requestApproval도 셸의 확인 줄을 먼저 거치고, 줄에서 거부되면 카드가 뜨지 않는다
     expect(run?.frame.answers["fakeOp"]).toMatchObject({
       v: 1,
       ok: false,
       error: { kind: "args_invalid", detail: "request" },
     });
-    expect(run?.report.pendingApprovals).toEqual([
-      { threadId: "thr_1", title: "Allow deleting everything?" },
-    ]);
+    expect(run?.report.pendingApprovals).toEqual([]);
     expect(run?.frame.answers["requestApproval"]).toMatchObject({
-      ok: true,
-      value: { outcome: "pending" },
+      ok: false,
+      error: { kind: "denied", detail: "not_confirmed" },
     });
   });
 
   e2e("a write call waits for the shell's confirmation line and was not run", () => {
-    expect(run?.report.confirmAsked).toEqual([
-      {
-        extension: "helm",
-        trust: "user",
-        action: "start",
-        paramsSummary: "",
-        approval: false,
-      },
-    ]);
+    // 승인 요청과 쓰기 호출 둘 다 줄을 거쳤다. 도착 순서는 다르게 올 수 있어 둘 다 있는지만 본다
+    const asked = run?.report.confirmAsked ?? [];
+    expect(asked).toHaveLength(2);
+    expect(asked).toContainEqual({
+      kind: "call",
+      extension: "helm",
+      trust: "user",
+      action: "start",
+      paramsSummary: "",
+      approval: false,
+    });
+    expect(asked).toContainEqual({
+      kind: "approval",
+      extension: "helm",
+      trust: "user",
+      action: "start",
+      paramsSummary: "",
+      approval: true,
+    });
     expect(run?.report.executedCalls).toEqual([]);
     expect(run?.frame.answers["call"]).toMatchObject({
       ok: false,

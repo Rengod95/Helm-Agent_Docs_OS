@@ -216,12 +216,12 @@ test("x.ui.apps off turns a user app view into its fallback, or into a disabled 
   await putFile(join(root, "ui", "fallback.json"), TEXT_TREE);
 
   const harness = await harnessOf();
-  // 정책을 주지 않은 기본값도 같다: 실기 확인 전 빌드는 앱을 끈다(ADR-0021 §6 미결 1)
+  // 정책을 주지 않은 기본값은 앱을 켠다(2026-11-04 사용자, 프레임 격리 시험 통과 뒤)
   const byDefault = await harnessOf();
   await byDefault.loader.loadAll(loadOptions(byDefault, {}));
   expect(byDefault.loader.uiEntries().map((entry) => [entry.id, entry.mode, entry.state])).toEqual([
-    ["graph", "native", "ok"],
-    ["plain", "app", "disabled"],
+    ["graph", "app", "ok"],
+    ["plain", "app", "ok"],
   ]);
   await harness.loader.loadAll(loadOptions(harness, { uiPolicy: { apps: false } }));
   expect(

@@ -8,6 +8,8 @@ import type { ConfirmQueue } from "./confirm-host.tsx";
 export interface PluginUiContextValue {
   readonly runtime: PluginUiRuntime;
   readonly confirm: ConfirmQueue;
+  /** 확인 줄을 거친 `http(s)` 주소를 OS 브라우저로 연다. 운영은 Tauri 명령 `open_external`이다 */
+  readonly openExternal: (href: string) => Promise<void>;
 }
 
 const PluginUiContext = createContext<PluginUiContextValue | null>(null);

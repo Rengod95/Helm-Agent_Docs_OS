@@ -47,7 +47,12 @@ function setup(
 }
 
 /** 확인 줄이 받는 요청. 신뢰 등급은 fakeBackend의 host 값(user)이다 */
-const asked = (action: string, paramsSummary = ""): ConfirmRequest => ({
+const asked = (
+  action: string,
+  paramsSummary = "",
+  kind: ConfirmRequest["kind"] = "call",
+): ConfirmRequest => ({
+  kind,
   extension: "helm",
   trust: "user",
   action,
@@ -157,7 +162,7 @@ describe("bridge host", () => {
     pair.frame.send(request(1, "command", { name: "helm-start", args: "go" }));
     await flush();
     // 실행될 인자를 줄에 그대로 보인다(숨은 args로 다른 일을 시킬 수 없다)
-    expect(confirm.asked).toEqual([asked("/helm-start", 'args="go"')]);
+    expect(confirm.asked).toEqual([asked("/helm-start", 'args="go"', "command")]);
     expect(calls.names).toEqual(["command:helm-start:go"]);
   });
 
@@ -243,7 +248,7 @@ describe("bridge host", () => {
   });
 
   test("external links need the shell's own confirmation", async () => {
-    const blocked = setup({ backend: { externalAllowed: false } });
+    const blocked = setup({ answers: ["deny"] });
     blocked.pair.frame.send(
       request(1, "navigate", { target: { kind: "external", url: "https://example.com" } }),
     );
@@ -252,6 +257,9 @@ describe("bridge host", () => {
       { v: 1, id: 1, ok: false, error: { kind: "denied", detail: "not_confirmed" } },
     ]);
     expect(blocked.calls.navigations).toEqual([]);
+    expect(blocked.confirm.asked).toEqual([
+      { ...asked("https://example.com/", "", "external"), approval: false },
+    ]);
     const allowed = setup();
     allowed.pair.frame.send(
       request(1, "navigate", { target: { kind: "external", url: "https://example.com" } }),
@@ -270,6 +278,38 @@ describe("bridge host", () => {
         },
         shellConfirmed: true,
       },
+    ]);
+  });
+
+  test("an external link with an internationalised host shows the real host on the confirm line", async () => {
+    const { pair, confirm } = setup();
+    pair.frame.send(
+      request(1, "navigate", { target: { kind: "external", url: "https://bücher.example/" } }),
+    );
+    await flush();
+    expect(confirm.asked).toEqual([
+      {
+        ...asked("https://xn--bcher-kva.example/", "", "external"),
+        punycodeHost: "xn--bcher-kva.example",
+      },
+    ]);
+  });
+
+  test("requestApproval goes through the confirm line before the approval card opens", async () => {
+    const denied = setup({ answers: ["deny"] });
+    denied.pair.frame.send(request(1, "requestApproval", { threadId: "thr_1", verb: "wipe" }));
+    await flush();
+    expect(denied.confirm.asked).toEqual([{ ...asked("wipe", "", "approval"), approval: true }]);
+    expect(denied.calls.names).toEqual([]);
+    expect(denied.pair.toFrame).toEqual([
+      { v: 1, id: 1, ok: false, error: { kind: "denied", detail: "not_confirmed" } },
+    ]);
+    const allowed = setup();
+    allowed.pair.frame.send(request(1, "requestApproval", { threadId: "thr_1", verb: "wipe" }));
+    await flush();
+    expect(allowed.calls.names).toEqual(["requestApproval:thr_1:wipe"]);
+    expect(allowed.pair.toFrame).toEqual([
+      { v: 1, id: 1, ok: true, value: { approvalId: "evt_1" } },
     ]);
   });
 

@@ -84,13 +84,13 @@ describe("groupPlacements", () => {
     ]);
   });
 
-  test("with no settings every app entry is blocked (x.ui.apps defaults off) and a native entry is not", () => {
+  test("with no settings app entries are shown (x.ui.apps defaults on) and so is a native entry", () => {
     const groups = groupPlacements(
       [appEntryOf({ id: "app", trust: "user" }), uiEntryOf({ id: "native", trust: "user" })],
       {},
     );
     expect(groups.page.map((row) => [row.entry.id, row.blocked])).toEqual([
-      ["app", "frame_blocked"],
+      ["app", null],
       ["native", null],
     ]);
   });

@@ -19,8 +19,9 @@ export const uiSettings: SettingGroup<
 > = defineSettings("x.ui", {
   apps: {
     type: Type.Boolean(),
-    // 실기 확인(ADR-0021 §3.6.2 3번, §6 미결 1) 전 빌드는 프레임 모드를 끈다. 켜는 시점은 사용자가 정한다
-    default: false,
+    // 기본 켜짐 [결정: 2026-11-04 사용자]: 프레임 격리 시험이 이 Mac에서 통과한 뒤 켠다(ADR-0021 §6 1번).
+    // Windows는 전용 스킴 주소가 달라 클라이언트가 값과 상관없이 끈다(ADR-0021 §3.6.2)
+    default: true,
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
     ui: { tab: "plugins", widget: "toggle", order: 450, label: "Allow plugin app screens" },

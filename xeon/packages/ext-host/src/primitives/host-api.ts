@@ -44,7 +44,13 @@ import { createPortProvider } from "./port-provider.ts";
 import type { PostQueue } from "./post.ts";
 import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
-import { ambient, withAmbient, type Ambient } from "./ambient.ts";
+import {
+  ambient,
+  inReadOnlyMethod,
+  withAmbient,
+  withReadOnlyMethod,
+  type Ambient,
+} from "./ambient.ts";
 import type { HandlerGate } from "./dispatch-types.ts";
 import {
   methodEntryOf,
@@ -219,6 +225,16 @@ export interface RegistrationApiDeps {
   readonly effects: EffectWorkerPort;
 }
 
+/** `readOnly: true` 확장 메서드 처리기 안에서는 상태 커밋, 레코드, post, 효과 요청을 하지 못한다(ADR-0021 §3.4.2, X.primitives.spec §4.12) */
+function assertWritable(record: RegistrationRecord): void {
+  if (!inReadOnlyMethod()) return;
+  throw new PrimitiveError(
+    "read_only_method",
+    `a readOnly method of ${record.extension} cannot commit state, record, or post`,
+    { scopeId: record.id },
+  );
+}
+
 function assertOpen(record: RegistrationRecord, generation: Generation): void {
   if (generation.closed) {
     throw new PrimitiveError("registration_inactive", `scope ${record.id} generation is closed`, {
@@ -278,6 +294,7 @@ export function createRegistrationApi(
       return fiberOf(generation).effect(() => core.registry.add(entry), `on(${point})`);
     },
     post(item: PostItem, options: PostOptions) {
+      assertWritable(record);
       return deps.post.post(record, generation, item, options);
     },
     drive(fn, options?: DriveOptions) {
@@ -322,15 +339,18 @@ export function createRegistrationApi(
       return stateAs(deps.state.state(record, generation));
     },
     async commit(next) {
+      assertWritable(record);
       return stateAs(await deps.state.commit(record, generation, next));
     },
     record(kind: RecordKind, subject: RecordSubject, payload: JsonValue) {
+      assertWritable(record);
       return deps.state.record(record, generation, kind, subject, payload);
     },
     readRecords(query: RecordQuery) {
       return deps.state.readRecords(record, generation, query);
     },
     recordPrivate(kind: RecordKind, payload: JsonValue) {
+      assertWritable(record);
       return deps.state.recordPrivate(record, generation, kind, payload);
     },
     capability<Api>(key: ServiceKey<Api>): Api {
@@ -429,6 +449,7 @@ export function createRegistrationApi(
       generation.migration = fn;
     },
     async requestEffect(request) {
+      assertWritable(record);
       assertOpen(record, generation);
       const declared =
         (plugin.decl.requires ?? []).some((entry) => entry.id === request.capability) ||
@@ -484,9 +505,11 @@ export function createRegistrationApi(
       return undefined;
     },
     async commitWith(next, records) {
+      assertWritable(record);
       return stateAs(await deps.state.commitWith(record, generation, next, records));
     },
     async updateState(fn, records) {
+      assertWritable(record);
       const done = await deps.state.update(
         record,
         generation,
@@ -574,7 +597,7 @@ export function createRegistrationApi(
       }
       // threadId가 없는 호출은 쓸 thread가 없으므로 ambient를 열지 않는다(명령과 같다). 있으면 처리기 신호와 예산 장치를
       // ambient의 handler에 싣는다. hostOf(g).awaitUser가 그 gate로 예산 시계를 멈춘다(X.operations.spec §4.2.3)
-      const handler = (
+      const open = (
         params: unknown,
         ctx: ExtMethodCallContext,
         gate: HandlerGate,
@@ -584,11 +607,15 @@ export function createRegistrationApi(
           : withAmbient(
               {
                 ...directAmbient(record.id, ctx.threadId, "method", ctx.callId),
-                ...(declared.readOnly ? { readOnlyMethod: true as const } : {}),
                 handler: { signal: ctx.signal, gate },
               },
               () => def.handler(params, ctx),
             );
+      // readOnly 선언은 threadId 유무와 상관없이 처리기 흐름 전체에 표지를 단다
+      const handler = declared.readOnly
+        ? (params: unknown, ctx: ExtMethodCallContext, gate: HandlerGate): Promise<unknown> =>
+            withReadOnlyMethod(() => open(params, ctx, gate))
+        : open;
       const entry = methodEntryOf(declared, handler);
       if (!entry.ok) {
         throw new PrimitiveError(

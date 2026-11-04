@@ -56,7 +56,6 @@ function harness(
       opened.push(href);
       return Promise.resolve();
     },
-    confirmExternal: () => Promise.resolve(true),
     resize: (height) => {
       resized.push(height);
     },
@@ -172,11 +171,34 @@ describe("extension methods and approvals", () => {
     expect(h.calls).toEqual([]);
   });
 
-  test("requestApproval is refused without any wire call", async () => {
+  test("requestApproval opens the standard card through ext.ui.requestApproval with the open thread only", async () => {
+    const h = harness({
+      "ext.ui.requestApproval": () => Promise.resolve({ approvalId: "evt_1" }),
+    });
+    expect(await h.backend.requestApproval(OPEN, "reset", { force: true })).toEqual({
+      ok: true,
+      value: { approvalId: "evt_1" },
+    });
+    expect(h.calls).toEqual([
+      {
+        method: "ext.ui.requestApproval",
+        params: {
+          extension: "helm",
+          ui: "status",
+          threadId: OPEN,
+          method: "reset",
+          params: { force: true },
+        },
+      },
+    ]);
+  });
+
+  test("requestApproval for a thread that is not the open one sends nothing", async () => {
     const h = harness({});
-    expect(await h.backend.requestApproval(OPEN, "제목", "본문")).toEqual(
-      refused("wire_unavailable"),
-    );
+    expect(await h.backend.requestApproval(thr(9), "reset", {})).toEqual({
+      ok: false,
+      error: { kind: "denied", detail: "thread_not_open" },
+    });
     expect(h.calls).toEqual([]);
   });
 });

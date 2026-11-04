@@ -135,7 +135,6 @@ export interface BackendCalls {
 export interface FakeBackendOptions {
   readonly queryResult?: BackendResult<unknown>;
   readonly settings?: readonly SettingRead[];
-  readonly externalAllowed?: boolean;
   readonly eventRows?: readonly unknown[];
 }
 
@@ -173,16 +172,13 @@ export function fakeBackend(options: FakeBackendOptions = {}): {
       calls.names.push(`post:${threadId}:${text}`);
       return Promise.resolve(okValue(null));
     },
-    requestApproval(threadId, title) {
-      calls.names.push(`requestApproval:${threadId}:${title}`);
-      return Promise.resolve(okValue({ outcome: "allow" }));
+    requestApproval(threadId, verb) {
+      calls.names.push(`requestApproval:${threadId}:${verb}`);
+      return Promise.resolve(okValue({ approvalId: "evt_1" }));
     },
     navigate(target, shellConfirmed) {
       calls.navigations.push({ target, shellConfirmed });
       return Promise.resolve(okValue(null));
-    },
-    confirmExternal() {
-      return Promise.resolve(options.externalAllowed ?? true);
     },
     resize(height) {
       calls.resizes.push(height);

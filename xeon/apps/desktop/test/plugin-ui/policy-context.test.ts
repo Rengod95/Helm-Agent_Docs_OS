@@ -184,9 +184,9 @@ describe("policyContextOf", () => {
 });
 
 describe("appsAllowed", () => {
-  test("apps and project apps are both off by default", () => {
-    expect(appsAllowed("user", {})).toBe(false);
-    expect(appsAllowed("builtin", {})).toBe(false);
+  test("apps are on by default and project apps are off", () => {
+    expect(appsAllowed("user", {})).toBe(true);
+    expect(appsAllowed("builtin", {})).toBe(true);
     expect(appsAllowed("project", {})).toBe(false);
   });
 
@@ -205,7 +205,7 @@ describe("appsAllowed", () => {
   });
 
   test("a value that is not a boolean falls back to the default", () => {
-    expect(appsAllowed("user", { [UI_APPS_KEY]: "no" })).toBe(false);
+    expect(appsAllowed("user", { [UI_APPS_KEY]: "no" })).toBe(true);
     expect(appsAllowed("project", { [UI_ALLOW_PROJECT_APPS_KEY]: 1 })).toBe(false);
   });
 });

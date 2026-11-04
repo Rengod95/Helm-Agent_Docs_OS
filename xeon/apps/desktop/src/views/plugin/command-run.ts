@@ -67,6 +67,7 @@ export function createEntryCommandRunner(options: {
   readonly threadId: string | null;
   readonly runtime: PluginUiRuntime;
   readonly confirm: ConfirmQueue;
+  readonly openExternal: (href: string) => Promise<void>;
   readonly current: () => HostConnection | null;
   readonly showScreen: (screen: "chat" | "settings") => void;
   /** 시계와 타이머. 생략하면 브라우저 것이다(시험은 고정 값을 넣는다) */
@@ -82,6 +83,7 @@ export function createEntryCommandRunner(options: {
     options.showScreen,
     options.current,
     runtime,
+    options.openExternal,
   );
   const runner: ActionRunner = createActionRunner({
     screenKey: key,
@@ -115,7 +117,7 @@ export function createEntryCommandRunner(options: {
  * 장부가 화면을 `view_disabled`로 껐으면 아무 일도 없다. 열린 대화가 없으면 보내지 않는다. 판정 맥락을 못 읽어도 보내지 않는다
  */
 export function usePluginCommandRunner(): (extension: string, id: string) => void {
-  const { runtime, confirm } = usePluginUi();
+  const { runtime, confirm, openExternal } = usePluginUi();
   const commands = useCommands();
   const threadId = useSelectedThreadId();
   const [runners] = useState(() => new Map<string, EntryCommandRunner>());
@@ -145,6 +147,7 @@ export function usePluginCommandRunner(): (extension: string, id: string) => voi
           threadId,
           runtime,
           confirm,
+          openExternal,
           current: () => commands.pluginUi.current(),
           showScreen: (screen) => {
             commands.showScreen(screen);
