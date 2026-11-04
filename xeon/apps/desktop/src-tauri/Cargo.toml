@@ -11,6 +11,8 @@ tauri-build = { version = "=2.7.4", features = [] }
 [dependencies]
 tauri = { version = "=2.12.3", features = [] }
 tauri-plugin-shell = "=2.5.0"
+# 폴더 선택 창(folder_pick.rs). WebView에는 dialog 권한을 주지 않고 Rust의 pick_folder 명령이 부른다.
+tauri-plugin-dialog = "=2.8.4"
 tauri-plugin-single-instance = "=2.5.4"
 tauri-plugin-log = "=2.10.1"
 serde = { version = "1", features = ["derive"] }

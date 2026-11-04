@@ -11,8 +11,11 @@ fn main() {
         "desktop_settings_write",
         "secret_register",
         "app_roots_set",
+        "pick_folder",
     ]);
-    if let Err(error) = tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest)) {
+    if let Err(error) =
+        tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))
+    {
         eprintln!("{error:#}");
         std::process::exit(1);
     }

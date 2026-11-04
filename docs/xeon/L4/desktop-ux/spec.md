@@ -2043,7 +2043,7 @@ compact 폭(720 이하)과 사이드바 시트:
 │ │ github-token을 지울까요?                   │  │ 작업 폴더 (선택)                           │ │
 │ │ 참조: l2.web.policy (설정 1)               │  │ [~/code/fresnel                    v]         │ │
 │ │ 활성 lease 0 | 최근 세션 2                 │  │  최근: ~/code/fresnel, ~/notes                │ │
-│ │ 되돌릴 수 없어요.                          │  │  [폴더 고르기...] (gap: dialog 플러그인)   │ │
+│ │ 되돌릴 수 없어요.                          │  │  [폴더 고르기…]                            │ │
 │ │          [취소]  [삭제]                    │  │ ! 절대 경로여야 해요                       │ │
 │ │ 사용 중이면: 지울 수 없어요(사용 중)       │  │          [취소]  [만들기]                  │ │
 │ └────────────────────────────────────────────┘  └────────────────────────────────────────────┘ │
@@ -2066,7 +2066,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | O-04 | `trust.get` → `trustCardOf` | `trust.decide { choice }` | 입력창 위 카드, 대화 상자 아님 |
 | O-05 | 시크릿 이름 | `SecretRevealPort.reveal` | 기본 초점 "취소", 실패 사유 문장 |
 | O-06 | 참조와 영향 | 삭제 동작 | `tone="danger"`, 기본 초점 "취소" |
-| O-07 | 최근 작업 폴더 `selectRecentWorkspaces` | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `[gap:W-19]` |
+| O-07 | 최근 작업 폴더 `selectRecentWorkspaces` | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 입력란은 경로를 직접 적는 길로 남는다 |
 | O-08 | §6.11 | `schedule.create` | 닫을 때 초안 확인 |
 | O-09 | §4.8 표 | 없음 | `[gap:C-11]` |
 
@@ -3134,7 +3134,7 @@ export const palette = [
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 없음 | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
 | W-17 | 큐에 넣은 입력 철회 | P-02 | `input.withdrawn` 이벤트만 | `turn.withdraw { requestId }` [미결] |
 | W-18 | 계획 버전 목록 | P-14 | 없음 | `work.plans.versions` wire |
-| W-19 | OS 폴더 고르기 | O-07 | Tauri dialog 플러그인 없음. M4 T-SHELL은 새 외부 의존 없음 규칙 때문에 넣지 못함 [미결: `tauri-plugin-dialog` 추가 승인] | 셸 capability 추가(`L4.desktop.spec` §10 17번). 승인 전에는 O-07이 폴더 경로를 입력란으로 받음 |
+| W-19 | OS 폴더 고르기 | O-07 | 구현됨. `tauri-plugin-dialog` 2.8.4를 셸 명령 `pick_folder`로 감싸 쓴다(`L4.desktop.spec` §10 17번, [결정: 2026-11-04 사용자]). WebView에는 dialog 권한이 없다. 맥에서 창 동작은 아직 확인하지 않았다 | `pick_folder`. 입력란은 경로를 직접 적는 길로 남는다 |
 | W-20 | 확장 하나의 상세(매니페스트, 유효 등급, tier, 기능 바인딩, 훅과 예산 등급, 진단) | P-17 | 없음 | `ext.get { name }` |
 | W-21 | 자동 꺼짐 확장 다시 켜기(장부 비우기) | P-13, P-17, P-16 | `AutoDisabler.reenable`은 시험만 부름. `/group on`은 scope만 켬 | `ext.reenable { name }` |
 | W-22 | 확장별 실패 장부(연속 수, 최근 창) | P-13, P-17 | 프로세스 메모리, 휘발 이벤트만 | `ext.health { name?, threadId? }` |

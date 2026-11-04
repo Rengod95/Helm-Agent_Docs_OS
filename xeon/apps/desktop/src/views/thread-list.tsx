@@ -11,6 +11,7 @@ import {
 } from "../state/engine/index.ts";
 import { useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
+import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
 /** 폴더 후보로 보이는 기존 대화의 작업 폴더 수 */
@@ -57,7 +58,10 @@ const ThreadRow = memo(function ThreadRow(props: { readonly id: ThreadId }): Rea
   );
 });
 
-export function ThreadList(): ReactNode {
+export function ThreadList(props: {
+  /** 폴더 선택 창을 부르는 invoke. 없으면(웹 등) 고르기 단추를 보이지 않는다 */
+  readonly folderPick?: FolderPickInvoke | undefined;
+}): ReactNode {
   const commands = useCommands();
   const ids = useThreadIds();
   const status = useThreadsStatus();
@@ -68,6 +72,7 @@ export function ThreadList(): ReactNode {
   const [workspaceText, setWorkspaceText] = useState("");
   const workspace = checkWorkspaceInput(workspaceText);
   const hint = workspaceHint(workspace);
+  const folderPick = props.folderPick;
 
   const create = async (): Promise<void> => {
     if (workspace.kind === "invalid") return;
@@ -77,6 +82,18 @@ export function ThreadList(): ReactNode {
     const result = await commands.createThread(path);
     setCreating(false);
     if (!result.ok) setError(createFailureText(result.error, path !== undefined));
+  };
+
+  // 취소는 입력란을 그대로 둔다. 창을 못 연 실패도 입력란은 그대로 두고 한 줄로만 알린다
+  const pick = async (invoke: FolderPickInvoke): Promise<void> => {
+    const picked = await pickWorkspaceFolder(invoke);
+    if (!picked.ok) {
+      setError(t("desktop.workspace.pickFailed"));
+      return;
+    }
+    if (picked.value === undefined) return;
+    setWorkspaceText(picked.value);
+    setError(null);
   };
 
   return (
@@ -99,6 +116,11 @@ export function ThreadList(): ReactNode {
           ))}
         </datalist>
       </label>
+      {folderPick === undefined ? null : (
+        <button type="button" disabled={creating} onClick={() => detach(pick(folderPick), rethrow)}>
+          {t("desktop.workspace.pickFolderButton")}
+        </button>
+      )}
       {hint === null ? null : <div className="error">{hint}</div>}
       <button
         type="button"

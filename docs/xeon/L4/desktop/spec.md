@@ -102,7 +102,7 @@ flowchart LR
 
 ### 3.3 셸과 WebView 사이 IPC
 
-[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래)만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
+[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래), 폴더 선택 명령 하나(`pick_folder`, 이 표 아래)만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
 
 | 명령 | 인자 | 결과 | 뜻 |
 |---|---|---|---|
@@ -113,6 +113,7 @@ flowchart LR
 | `engine_detach` | `epoch: number` | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊으므로 새로고침 뒤 늦게 온 이전 페이지의 호출이 새 연결을 끊지 못한다 |
 
 - 키 등록 명령 `secret_register`는 엔진 중계가 아니다. 원시 바이트 본문 `<동작> <이름>\n<값>`(동작은 `add` 또는 `set`)을 받아 번들된 사이드카를 `fresnel secret <동작> <이름>`으로 한 번 실행하고, 값을 그 stdin에 한 번 쓴 뒤 닫고, 끝나기를 기다려 `null`을 돌려준다. 거부는 `{ kind, ... }` 객체다: `bad-request`, `empty`, `too-large`(값 8 KiB 초과), `busy`(이미 진행 중), `timeout`(30초), `unavailable { detail }`(사이드카를 띄우지 못함), `rejected { exitCode, detail }`(자식이 0이 아닌 코드로 끝남). 규칙과 약점은 §4.14.1이다.
+- 폴더 선택 명령 `pick_folder`는 엔진 중계가 아니다. 인자가 없고, 고른 절대 경로를 문자열로, 취소하면 `null`을 돌려준다. Rust가 `tauri-plugin-dialog`의 `pick_folder` 콜백을 부르고 그 답을 비동기로 기다린다(`src-tauri/src/folder_pick.rs`). 창을 열지 못하면 `Err("dialog_unavailable")`로 거부한다. `file://` 주소와 UTF-8이 아닌 경로는 취소와 같이 `null`이다. WebView에는 `dialog:*` 권한을 주지 않는다. Rust의 플러그인 API는 capability 검사를 받지 않는다([가정], §3.5와 같다). §4.16과 §10 17번이다.
 - 오류 값은 kebab-case 문자열 코드다: `epoch-stale`, `engine-not-running`, `engine-stopping`, `not-failed`, `too-large`, `bad-request`.
 - `onBytes`의 메시지는 엔진 stdout 바이트 그대로이고 완성된 줄(`\n`으로 끝나는 바이트열)만 담는다. 종류 표지나 세대 접두사는 없다. attach마다 `Channel`이 따로이므로 세대는 `AttachResult.epoch`로 안다. 셸은 줄 끝이 오지 않은 꼬리를 쥐고 있다가 줄이 완성되면 보낸다.
 - 신용 기반 역압 [결정: `L4.desktop.plan` §3.1.1 S3 조건 1]: 셸은 보낸 바이트에서 `engine_ack`로 돌려받은 바이트를 뺀 값이 4 MiB를 넘으면 더 보내지 않는다. 이 동안 엔진 stdout 읽기가 멈추고 엔진의 stdout 쓰기가 막힌다. WebView는 처리한 바이트가 256 KiB 쌓일 때마다 `engine_ack(epoch, bytes)`를 부른다(창은 확인 단위의 16배라 확인이 늦어도 송신이 멎지 않는다). 미확인 바이트가 창 이하이면 다음 묶음을 보낸다(묶음 하나가 창을 넘을 수 있어 큰 프레임도 멈추지 않는다).
@@ -615,7 +616,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - 스레드 목록 위에 "작업 폴더 (선택)" 입력란을 둔다(`src/views/thread-list.tsx`). 후보는 목록에 있는 대화의 `workspace` 중 서로 다른 값 최대 8개다(목록 순서, `selectRecentWorkspaces`). 새 대화를 만든 뒤에도 입력란은 그대로 두어 같은 프로젝트에서 대화를 이어서 여는 일이 쉽다.
 - 보내기 전 검사는 `src/views/workspace-model.ts`가 한다. 앞뒤 공백을 지우고, 빈 값은 `workspace`를 생략한다(작업 폴더 없는 대화). 값이 있으면 절대 경로(POSIX `/…`, 드라이브 `C:\…`·`C:/…`, UNC `\\…`)여야 하고 4096자를 넘지 않아야 한다. 아니면 안내 문구를 보이고 "새 대화"를 막는다. `~`와 상대 경로는 호스트가 풀지 않으므로 보내지 않는다.
 - 폴더가 있는 폴더인지는 호스트가 확인한다. 호스트가 거부하면(`-32602`, `path: "workspace"`, `L4.host-service.spec` HS-76) "작업 폴더를 열 수 없습니다" 문구를 보이고 대화를 열지 않는다. 받아들이면 호스트가 심볼릭 링크를 푼 정규 경로로 저장한다. 그래서 열린 대화의 `ThreadSummary.workspace`와 신뢰 카드가 부르는 `trust.get`의 `projectRoot`가 같은 문자열이다(§4.13).
-- 운영체제의 폴더 선택 창은 아직 없다. Tauri dialog 플러그인과 capability가 필요하다(§10 17번).
+- 입력란 옆 "폴더 고르기…" 단추는 운영체제 폴더 선택 창을 연다(`pick_folder`, §3.3, §10 17번). 고르면 입력란을 그 절대 경로로 바꾸고, 취소하거나 창을 열지 못하면 입력란을 그대로 둔다(창을 열지 못하면 한 줄을 보인다). 경로를 입력란에 직접 적는 길은 그대로 남는다.
 
 ## 5. 실패와 경계 사례
 
@@ -724,5 +725,5 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
 15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `fresnel secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.
 16. (닫힘, M2 마감 G2-07) 외부 바이너리 점검 결과를 전하는 길은 `host.status`의 `includeBinaries` 요청과 결과의 `binaries`다(F 변경, `L4.host-service.spec` HS-69). 앱이 보고서를 주입하던 방식은 없앴다(§4.14).
-17. [미결] 새 대화의 작업 폴더를 고르는 운영체제 폴더 선택 창. 지금은 경로를 입력한다(§4.16). `tauri-plugin-dialog`를 더하면 Cargo 의존과 capability(`dialog:allow-open`, 디렉터리만)가 늘고 `Cargo.lock`이 바뀐다. V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따르고 macOS에서 확인한다. [가정] capability 이름은 플러그인 문서로 확인하지 않았다.
+17. (닫힘) [결정: 2026-11-04 사용자] 새 대화의 작업 폴더를 운영체제 폴더 선택 창으로 고른다(§4.16). V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따른다. `src-tauri/Cargo.toml`에 `tauri-plugin-dialog = "=2.8.4"`를 더했다(tauri 2.12.3과 맞는 최신 2.x). 셸 명령 `pick_folder`(§3.3)가 Rust에서 부른다. WebView에는 dialog 권한을 주지 않는다. `capabilities/default.json`에는 `allow-pick-folder` 하나만 더했다. `Cargo.lock`은 패키지 세 개가 늘었다: `rfd` 0.17.2, `tauri-plugin-dialog` 2.8.4, `tauri-plugin-fs` 2.7.1(파일 1.3 KB 증가). 맥에서 창이 뜨고 고른 경로가 입력란에 들어가는 동작은 이 변경으로 확인하지 않았다. 맥 확인이 남아 있다.
 18. [결정: adr.0016] 화면 문자열은 `packages/client`의 ko·en 카탈로그 id(ICU MessageFormat 부분집합)로 만들고 `Intl` 기반 포트(`packages/client/src/i18n/format.ts`)로 풉니다. ADR-0016 §3.1의 react-intl은 승인 전이라 쓰지 않습니다 [결정: 오케스트레이터 기본값]. 로케일은 `l4.ui.locale`(기본 auto: OS 로케일, 없으면 영어)을 따르고, 날짜·숫자는 `Intl`로 표시합니다. 엔진 오류는 `kind`와 인자로 받아 화면이 문장을 만듭니다. 비-`.tsx` 문장은 카탈로그 id입니다(M3b B4-I18N). 설정 정의(`settings-store/defs.ts`)의 `labelKey`·`helpKey`는 `settings.l4.desktop.<키>.label|help`이고, `views/*-model.ts`와 `views/setup-needed.ts`는 `desktop.*` id이며, 턴 실패 기본 문장(`state/engine/failure-text.ts`)은 `desktop.engine.turnFailureUnknown`입니다. `fresnel/hardcoded-korean` 규칙이 L4 `src`의 한국어 리터럴을 막습니다. [미결] `.tsx` 뷰(`views/*.tsx`, `main.tsx`)의 한국어 리터럴은 M4 화면 재작성에서 옮깁니다. 로케일은 `app/locale.ts`가 정합니다. 연결 전에는 설정을 읽을 수 없으므로 첫 렌더 전에 WebView 언어 단서(`navigator.languages`의 첫 항목)로 `setActiveLocale`을 부르고(지원하지 않는 언어와 단서 없음은 `en`), 엔진에 연결되면 `settings.get`으로 `l4.ui.locale`을 읽어 바로잡습니다. `settings.invalidated`가 이 키(또는 빈 키 목록)를 알리면 다시 읽고, 로케일이 바뀌면 `main.tsx`가 `key`가 로케일인 트리를 다시 그립니다. 턴 실패 기본 문장은 reduce 시점의 로케일로 풀려 거울(`turnFailures`)에 저장되므로, 나중에 로케일을 바꿔도 저장된 문장은 다시 풀리지 않습니다.

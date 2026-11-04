@@ -24,12 +24,15 @@ import { ShortcutHelpDialog } from "./shortcut-help-dialog.tsx";
 import { usePluginCommandRunner } from "./plugin/command-run.ts";
 import { PluginUiHost } from "./plugin/plugin-tabs.tsx";
 import { StatusBar } from "./status-bar.tsx";
+import type { FolderPickInvoke } from "./folder-pick.ts";
 import { ThreadList } from "./thread-list.tsx";
 
 export interface AppProps {
   readonly registry: ShellRegistry;
   readonly keyOverrides?: Readonly<Record<string, string>> | undefined;
   readonly mac: boolean;
+  /** 새 대화 작업 폴더의 폴더 선택 창. 데스크톱 셸이 준다 */
+  readonly folderPick?: FolderPickInvoke | undefined;
 }
 
 /** 초점이 있는 승인 카드의 승인 id(대기 목록에 있는 것만). 카드 밖에 초점이 있으면 null */
@@ -240,7 +243,7 @@ export function App(props: AppProps): ReactNode {
           commands.showScreen(open ? "settings" : "chat");
         }}
         settingsScreen={<SettingsPage />}
-        threadList={<ThreadList />}
+        threadList={<ThreadList folderPick={props.folderPick} />}
         statusBar={<StatusBar />}
         onGoToThread={openThread}
       />

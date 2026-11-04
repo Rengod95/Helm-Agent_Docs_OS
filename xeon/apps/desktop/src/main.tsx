@@ -14,6 +14,10 @@ import { PluginUiProvider } from "./views/plugin/plugin-context.tsx";
 import { createDesktopRegistry } from "./views/desktop-registry.tsx";
 import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
+import type { FolderPickInvoke } from "./views/folder-pick.ts";
+
+// 폴더 선택 창은 모든 OS에서 Rust가 띄운다(플러그인 권한은 WebView에 주지 않는다)
+const folderPick: FolderPickInvoke = (command) => invoke(command);
 
 // WebView 진입점. 스토어와 연결은 createApp이 만들고 여기서는 화면에 붙이기만 한다.
 const container = document.getElementById("root");
@@ -81,6 +85,7 @@ if (container === null) {
               registry={registry}
               keyOverrides={localSettings.get(LOCAL.keybindings)}
               mac={mac}
+              folderPick={folderPick}
             />
           </PluginUiProvider>
         </Providers>
