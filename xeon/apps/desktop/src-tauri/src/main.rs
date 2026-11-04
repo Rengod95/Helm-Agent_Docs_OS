@@ -137,6 +137,15 @@ fn main() {
             match supervisor.on_exit_requested() {
                 ExitAction::Allow => {}
                 ExitAction::Prevent => api.prevent_exit(),
+                ExitAction::PreventUntilRestore => {
+                    // 복원이 도는 동안은 끝내지 않는다. 끝나면 같은 종료 요청을 한 번 더 보낸다.
+                    api.prevent_exit();
+                    let handle = handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        supervisor.wait_restore_end().await;
+                        handle.exit(0);
+                    });
+                }
                 ExitAction::PreventAndShutdown => {
                     api.prevent_exit();
                     let handle = handle.clone();

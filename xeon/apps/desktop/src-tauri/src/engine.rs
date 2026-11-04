@@ -442,6 +442,8 @@ struct Shared {
     hold: bool,
     /// 실행 루프가 대상을 읽고 띄워 등록하기까지의 창이 열려 있다. 복원은 이 창이 닫힌 뒤에 보류를 건다.
     launching: bool,
+    /// 복원 중에 종료 요청이 와서 끝나기를 기다리는 과제가 이미 있다. 두 번째 요청은 그냥 막는다.
+    exit_waits_for_restore: bool,
 }
 
 struct Inner<L: Launcher> {
@@ -457,6 +459,8 @@ struct Inner<L: Launcher> {
     hold_wake: Notify,
     /// 띄우는 창이 닫혔다(등록 또는 실패). 복원이 창이 닫히기를 기다린다.
     launch_settled: Notify,
+    /// 복원 보류가 걸려 있는 동안 참이다. 종료 요청이 복원이 끝나기를 기다릴 때 쓴다.
+    held: watch::Sender<bool>,
     /// 마지막으로 끝난 엔진 세대.
     exited: watch::Sender<u64>,
     /// 실행 루프가 끝났다.
@@ -478,6 +482,8 @@ pub enum ExitAction {
     PreventAndShutdown,
     /// 종료를 미룬다. 정상 종료 순서가 이미 진행 중이다.
     Prevent,
+    /// 데이터베이스 복원 중이다. 종료를 미루고 `wait_restore_end` 뒤에 다시 종료를 요청한다.
+    PreventUntilRestore,
 }
 
 pub struct Supervisor<L: Launcher> {
@@ -514,6 +520,7 @@ impl<L: Launcher> Supervisor<L> {
                 restart_wake: Notify::new(),
                 hold_wake: Notify::new(),
                 launch_settled: Notify::new(),
+                held: watch::channel(false).0,
                 exited: watch::channel(0).0,
                 stopped: watch::channel(false).0,
                 retargeted: watch::channel(0).0,
@@ -605,6 +612,15 @@ impl<L: Launcher> Supervisor<L> {
         if state.exit_allowed {
             return ExitAction::Allow;
         }
+        if state.hold {
+            // 복원 중에는 엔진이 내려가 있어 `live`가 없다. 그대로 허용하면 CLI가 도는 채로 앱이 끝나 결과를 잃는다.
+            return if state.exit_waits_for_restore {
+                ExitAction::Prevent
+            } else {
+                state.exit_waits_for_restore = true;
+                ExitAction::PreventUntilRestore
+            };
+        }
         if state.live.is_none() {
             // 살아 있는 엔진이 없다. 대기 중인 재기동도 취소한다.
             state.stop_requested = true;
@@ -618,6 +634,14 @@ impl<L: Launcher> Supervisor<L> {
             state.shutdown_started = true;
             ExitAction::PreventAndShutdown
         }
+    }
+
+    /// 복원 보류가 풀릴 때까지 기다린다. 보류가 없으면 바로 돌아온다. 기다린 뒤에는 종료 요청을 다시 받는다.
+    pub async fn wait_restore_end(&self) {
+        let mut held = self.inner.held.subscribe();
+        // 송신자는 `Inner`가 쥐고 있어 닫히지 않는다. 닫혀도 기다림을 끝내면 된다.
+        let _ = held.wait_for(|held| !*held).await;
+        shared(&self.inner).exit_waits_for_restore = false;
     }
 
     /// 두 번째 `ExitRequested`를 막지 않게 한다.
@@ -901,6 +925,7 @@ struct HoldGuard<L: Launcher> {
 impl<L: Launcher> Drop for HoldGuard<L> {
     fn drop(&mut self) {
         shared(&self.inner).hold = false;
+        self.inner.held.send_replace(false);
         self.inner.hold_wake.notify_one();
     }
 }
@@ -924,6 +949,7 @@ async fn begin_hold<L: Launcher>(inner: &Arc<Inner<L>>) -> Result<Option<Live>, 
             }
             if !state.launching {
                 state.hold = true;
+                inner.held.send_replace(true);
                 return Ok(state.live.clone());
             }
         }
@@ -2291,6 +2317,30 @@ mod tests {
         let supervisor = supervisor.clone();
         let dir = dir.to_string();
         tokio::spawn(async move { supervisor.restore_database(dir).await })
+    }
+
+    /// 복원 중에는 엔진이 내려가 `live`가 없어도 종료를 막는다. 첫 요청은 복원이 끝나기를 기다리는 과제를 시키고,
+    /// 두 번째부터는 그냥 막는다. 복원이 끝나면 다시 요청한 종료는 통과한다.
+    #[tokio::test]
+    async fn an_exit_request_during_the_restore_waits_for_it_to_end() {
+        let rig = rig(EOF_EXIT, true, 0);
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        rig.launcher.close_once_gate();
+        let restore = spawn_restore(&rig.supervisor, "/backups/a");
+        until("cli ran", || rig.launcher.calls().contains(&restore_call("/backups/a"))).await;
+        assert_eq!(rig.supervisor.on_exit_requested(), ExitAction::PreventUntilRestore);
+        assert_eq!(rig.supervisor.on_exit_requested(), ExitAction::Prevent);
+        let waiter = {
+            let supervisor = rig.supervisor.clone();
+            tokio::spawn(async move { supervisor.wait_restore_end().await })
+        };
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(!waiter.is_finished());
+        rig.launcher.open_once_gate();
+        assert_eq!(restore.await.expect("join"), Ok(empty_output()));
+        timeout(Duration::from_secs(5), waiter).await.expect("waiter ends").expect("join");
+        assert!(!shared(&rig.supervisor.inner).exit_waits_for_restore);
     }
 
     /// 복원 중에는 엔진을 다시 띄우지 않고, 끝나면 다시 띄운다. 복원 때문에 끝난 엔진은 자동 재기동 횟수에 세지 않는다(한도 0으로 본다).
