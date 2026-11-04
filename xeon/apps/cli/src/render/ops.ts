@@ -20,7 +20,7 @@ export interface ToolResultView {
   readonly lines: readonly string[];
 }
 
-export type RememberChoice = "once" | "thread" | "always";
+type RememberChoice = "once" | "thread" | "always";
 
 interface QuestionOptionView {
   readonly id: string;

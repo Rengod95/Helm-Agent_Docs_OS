@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  alwaysRememberOf,
   approvalAgeOf,
   approvalExpiryOf,
   approvalKeyOf,
@@ -79,9 +78,9 @@ const key = (value: string, flags: KeyFlags = {}) => ({
 });
 
 describe("approval keys", () => {
-  test("Y is the primary answer, Shift+Y the always answer, N the refusal", () => {
+  test("Y is the primary answer, N the refusal, and Shift+Y is no card key (memory is request-level only)", () => {
     expect(approvalKeyOf(key("y"))).toBe("primary");
-    expect(approvalKeyOf(key("Y", { shiftKey: true }))).toBe("always");
+    expect(approvalKeyOf(key("Y", { shiftKey: true }))).toBeNull();
     expect(approvalKeyOf(key("n"))).toBe("deny");
     expect(approvalKeyOf(key("N"))).toBe("deny");
   });
@@ -120,18 +119,6 @@ describe("review totals", () => {
       hunks: 7,
     });
     expect(reviewTotalsOf([])).toEqual({ files: 0, hunks: 0 });
-  });
-});
-
-describe("always-in-this-conversation memory", () => {
-  test("offered when the request lists thread, or always (which the core stores as thread)", () => {
-    expect(alwaysRememberOf(["once", "thread"])).toBe("thread");
-    expect(alwaysRememberOf(["always"])).toBe("always");
-  });
-
-  test("not offered for a once-only request", () => {
-    expect(alwaysRememberOf(["once"])).toBeNull();
-    expect(alwaysRememberOf([])).toBeNull();
   });
 });
 

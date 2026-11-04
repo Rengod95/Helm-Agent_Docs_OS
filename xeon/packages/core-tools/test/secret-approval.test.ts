@@ -210,30 +210,6 @@ test("a denied secret use blocks the call with the fixed sentence and writes no 
   expect(h.session.events.some((event) => event.kind === "effect.intent")).toBe(false);
 });
 
-test("a thread-remembered tool approval is not a fresh user approval: the secret use is asked again", async () => {
-  const checker = fakeSecretChecker({ [TOKEN]: NEEDS });
-  const h = await createHarness({ secretChecker: checker });
-  const { probe, call } = pipelineFor(h);
-  const first = call(h.run(), "sec_4a", ARGS);
-  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
-  const [one] = h.runtime.approvals.pending(h.thread);
-  await h.runtime.approvals.respond(one?.approvalId ?? "", {
-    decision: "allow",
-    remember: "thread",
-  });
-  await first;
-  const second = call(h.run(), "sec_4b", ARGS);
-  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
-  const [two] = h.runtime.approvals.pending(h.thread);
-  expect(two?.body).toMatchObject({ tool: { ruleId: "secret.use" } });
-  await h.runtime.approvals.respond(two?.approvalId ?? "", { decision: "allow" });
-  await second;
-  expect(probe.runs.map((run) => run.evidence?.approvalId)).toEqual([
-    one?.approvalId,
-    two?.approvalId,
-  ]);
-});
-
 test("check refusals, missing secrets, foreign syntax and a missing secrets service block the call before any approval", async () => {
   const checker = fakeSecretChecker({
     [TOKEN]: { kind: "deny", reason: "command_mismatch" },

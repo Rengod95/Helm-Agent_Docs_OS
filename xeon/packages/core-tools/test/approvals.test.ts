@@ -40,8 +40,8 @@ test("bash asks: an allow response runs the tool and every step is recorded in o
       args: { command: "echo hi" },
     },
   });
-  // `always`는 제안하지 않는다(L1.tools.spec §4.7 6번)
-  expect(request?.remember).toEqual(["once", "thread"]);
+  // M4의 승인 기억은 요청 단위뿐이라 once만 제안한다(L1.tools.spec §4.7 6번)
+  expect(request?.remember).toEqual(["once"]);
   const applied = await h.runtime.approvals.respond(request?.approvalId ?? "", {
     decision: "allow",
   });
@@ -136,37 +136,27 @@ test("an unknown approval id and an invalid response are not applied", async () 
   await done;
 });
 
-test("approval_remember_thread_skips_next_ask, and restore rebuilds the allow list", async () => {
+test("approval memory is request-level: a thread response is refused and the next ask asks again", async () => {
   const h = await createHarness();
   const probe = registerWorkspace(h);
   const first = await startBash(h, "call_6");
   const [request] = h.runtime.approvals.pending(h.thread);
-  await h.runtime.approvals.respond(request?.approvalId ?? "", {
+  const refused = await h.runtime.approvals.respond(request?.approvalId ?? "", {
     decision: "allow",
     remember: "thread",
   });
+  expect(refused).toMatchObject({ applied: false, reason: "answer_invalid" });
+  expect(h.runtime.approvals.pending(h.thread)).toHaveLength(1);
+  await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
   await first.done;
-  // 같은 도구의 다음 ask는 승인 없이 allow다
-  const second = await callTool(h.runtime.tools, h.run(), {
-    id: "call_7",
-    name: "bash",
-    args: { command: "echo again" },
-  });
-  expect(second.blocked).toBeUndefined();
-  expect(h.session.events.filter((event) => event.kind === "approval.requested")).toHaveLength(1);
+  // 같은 도구의 다음 ask도 다시 묻는다
+  const second = await startBash(h, "call_7");
+  expect(h.runtime.approvals.pending(h.thread)).toHaveLength(1);
+  expect(h.session.events.filter((event) => event.kind === "approval.requested")).toHaveLength(2);
+  const [again] = h.runtime.approvals.pending(h.thread);
+  await h.runtime.approvals.respond(again?.approvalId ?? "", { decision: "allow" });
+  await second.done;
   expect(probe.calls).toHaveLength(2);
-
-  // 재개 뒤에도 같다: 새 서비스가 이벤트에서 허용 목록을 다시 만든다
-  const restarted = createToolRuntime(h.deps);
-  registerWorkspace({ ...h, runtime: restarted });
-  await restarted.approvals.restore(h.thread);
-  const third = await callTool(restarted.tools, h.run(), {
-    id: "call_8",
-    name: "bash",
-    args: { command: "echo after restart" },
-  });
-  expect(third.blocked).toBeUndefined();
-  expect(h.session.events.filter((event) => event.kind === "approval.requested")).toHaveLength(1);
 });
 
 test("a client that asks for always on a bash request is refused, because always is not offered", async () => {
@@ -180,10 +170,15 @@ test("a client that asks for always on a bash request is refused, because always
   });
   expect(refused).toMatchObject({ applied: false, reason: "answer_invalid" });
   expect(refused.applied ? "" : (refused.detail ?? "")).toContain("always");
-  // 요청은 그대로 대기 중이라 고쳐 보낼 수 있다
-  const retried = await h.runtime.approvals.respond(request?.approvalId ?? "", {
+  // 요청은 그대로 대기 중이라 고쳐 보낼 수 있다. thread도 제안하지 않으므로 once만 받는다
+  const thread = await h.runtime.approvals.respond(request?.approvalId ?? "", {
     decision: "allow",
     remember: "thread",
+  });
+  expect(thread).toMatchObject({ applied: false, reason: "answer_invalid" });
+  const retried = await h.runtime.approvals.respond(request?.approvalId ?? "", {
+    decision: "allow",
+    remember: "once",
   });
   expect(retried).toEqual({ applied: true });
   await done;
@@ -215,7 +210,7 @@ test("a decision that does not fit the request kind says which part is wrong and
   await done;
 });
 
-test("an adapter request that offers always is applied as thread and records what was asked", async () => {
+test("an adapter request that offers thread or always is rejected and records nothing", async () => {
   const h = await createHarness();
   const run = h.run();
   const input: ApprovalRequestInput = {
@@ -234,22 +229,12 @@ test("an adapter request that offers always is applied as thread and records wha
     },
     remember: ["once", "thread", "always"],
   };
-  const opened = expectOk(await h.runtime.approvals.open(input));
-  await h.runtime.approvals.respond(opened.request.approvalId, {
-    decision: "allow",
-    remember: "always",
+  const opened = await h.runtime.approvals.open(input);
+  expect(opened.ok ? null : opened.error).toMatchObject({
+    kind: "rejected",
+    code: "approvals.request_invalid",
   });
-  const resolved = h.session.events.find((event) => event.kind === "approval.resolved");
-  const payload = parse(ApprovalResolvedPayloadSchema, resolved?.payload);
-  expect(payload.ok).toBe(true);
-  if (!payload.ok) return;
-  // 낮춘 사실은 기록에 남는다: 적용한 범위와 요청한 범위가 다르다
-  expect(payload.value).toMatchObject({
-    decision: "allow",
-    remember: "thread",
-    requestedRemember: "always",
-    resolvedBy: "user",
-  });
+  expect(h.session.events).toEqual([]);
 });
 
 test("approval_turn_abort_cancels_pending: the request is closed as cancelled and nothing runs", async () => {

@@ -66,12 +66,8 @@ function reviewIssue(body: ReviewBody): string | undefined {
 }
 
 function rememberIssue(input: ApprovalRequestInput): string | undefined {
+  // M4의 승인 기억은 요청 단위뿐이다 [결정: 2026-10-31 사용자, 2026-11-04 B5 점검]. 어떤 종류도 once만 제안한다
   const { remember } = input;
-  if (new Set(remember).size !== remember.length) return "remember lists a scope more than once";
-  if (input.body.kind === "tool") {
-    return remember.includes("once") ? undefined : 'remember must offer "once"';
-  }
-  // 질문과 계획은 매번 다르므로 기억 범위가 없다(§3.6 표)
   return remember.length === 1 && remember[0] === "once"
     ? undefined
     : `${input.body.kind} requests offer only "once"`;
@@ -127,7 +123,7 @@ export function invalidDetail(error: ResponseError): string {
 export interface AppliedResponse {
   readonly decision: ApprovalDecision;
   readonly answer: JsonValue | null;
-  /** 실제 적용한 기억 범위. always는 2차 전까지 thread로 낮춘다 */
+  /** 실제 적용한 기억 범위. M4는 once뿐이다 */
   readonly remember: ApprovalRemember;
   readonly requestedRemember: ApprovalRemember | null;
 }
@@ -273,7 +269,7 @@ export function validateResponse(
     ok({
       decision,
       answer,
-      remember: asked === "always" ? "thread" : asked,
+      remember: asked,
       requestedRemember: response.remember ?? null,
     });
 

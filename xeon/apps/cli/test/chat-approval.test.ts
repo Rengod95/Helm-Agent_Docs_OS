@@ -84,33 +84,22 @@ function scenario(options: {
   return { h, responds, input };
 }
 
-test("a tool approval is asked with the remember choices the request allows; y allows once", async () => {
+test("a tool approval is asked with y and n only; y allows once", async () => {
   const s = scenario({ replies: ["y"] });
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
-  expect(s.input.prompts[1]).toBe(
-    "[y] 이번만 허용  [t] 이 세션 동안 허용  [a] 항상 허용  [n] 거부 > ",
-  );
+  expect(s.input.prompts[1]).toBe("[y] 이번만 허용  [n] 거부 > ");
   expect(s.responds).toHaveLength(1);
   expect(s.responds[0]).toMatchObject({ decision: "allow", remember: "once" });
   expect(s.h.stdoutText()).toContain("done");
 });
 
-test("t and a pick the wider remember scopes only when the request offers them", async () => {
-  const thread = scenario({ replies: ["t"] });
-  await thread.h.run(["chat"]);
-  expect(thread.responds[0]).toMatchObject({ decision: "allow", remember: "thread" });
-
-  const always = scenario({ replies: ["a"] });
-  await always.h.run(["chat"]);
-  expect(always.responds[0]).toMatchObject({ decision: "allow", remember: "always" });
-
-  // once만 허용하는 요청에서는 a가 선택지가 아니다: 다시 묻는다
-  const narrow = scenario({ remember: ["once"], replies: ["a", "y"] });
-  await narrow.h.run(["chat"]);
-  expect(narrow.input.prompts[1]).toBe("[y] 이번만 허용  [n] 거부 > ");
-  expect(narrow.h.stdoutText()).toContain("y, t, a, n 중 하나를 입력한다");
-  expect(narrow.responds).toHaveLength(1);
-  expect(narrow.responds[0]).toMatchObject({ decision: "allow", remember: "once" });
+test("t and a are not choices: approval memory is request-level, so the card asks again", async () => {
+  const s = scenario({ replies: ["t", "a", "y"] });
+  await s.h.run(["chat"]);
+  expect(s.input.prompts[1]).toBe("[y] 이번만 허용  [n] 거부 > ");
+  expect(s.h.stdoutText()).toContain("y, n 중 하나를 입력한다");
+  expect(s.responds).toHaveLength(1);
+  expect(s.responds[0]).toMatchObject({ decision: "allow", remember: "once" });
 });
 
 test("n asks for a reason and sends it as the deny answer; an empty reason sends a plain deny", async () => {

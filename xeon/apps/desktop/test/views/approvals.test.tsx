@@ -310,13 +310,13 @@ describe("review approval card", () => {
     expect(out).toContain("hunk 4");
     expect(out).toContain("추가");
     expect(out).toMatch(/data-action="primary"[^>]*>모두 승인</);
-    expect(out).toMatch(/data-action="deny"[^>]*>거부</);
+    expect(out).toMatch(/data-action="deny"[^>]*>모두 거절</);
   });
 });
 
-describe("always-in-this-conversation choice", () => {
-  test("a tool request that may be remembered for the thread offers it, a once-only request does not", () => {
-    expect(html({ ...toolRequest({ command: "ls" }), remember: ["once", "thread"] })).toContain(
+describe("approval memory", () => {
+  test("a tool card never offers a remember choice, even if a stored request lists thread", () => {
+    expect(html({ ...toolRequest({ command: "ls" }), remember: ["once", "thread"] })).not.toContain(
       "이 대화에서 항상",
     );
     expect(html(toolRequest({ command: "ls" }))).not.toContain("이 대화에서 항상");

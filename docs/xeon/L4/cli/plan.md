@@ -278,7 +278,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | `trust-host.int.test.ts` | 실제 `trust.get`의 카드와 `--json`, `trust allow --scope parent`가 `trust.json`(0600)에 남고 다음 실행의 판정이 `allow`(`store`)가 된다. `session` 범위 결정은 파일을 쓰지 않는다. 시작 카드는 `thread.create`보다 앞서고 번호로 고른 선택지를 보내며 두 번째 실행은 묻지 않는다. 엔터는 아무것도 저장하지 않는다. 자원이 없는 폴더는 stderr 한 줄이다 | 저장 실패(`store.io`)와 `trust.get` 실패 문구, print·JSON 모드 |
 | `secret-host.int.test.ts` | 실제 sops·age로 `secret add`, `ls`, `test`(길이와 해시 앞 8자), `rm`(참조 한 줄과 `[y/N]`), `rm --yes`를 한 저장소에서 잇는다. 값, base64, hex가 stdout·stderr·보낸 요청·홈 아래 모든 파일에 없다 | 설정 키와 활성 lease가 있는 참조 표시, `reveal`, 제공자·키 오류 종료 코드 |
 | `rename-host.int.test.ts` | 호스트가 첫 입력(공백 정리, 앞 80자)으로 제목을 정하고 `sessions rename`이 그것을 바꾸며 `sessions ls`가 보인다. `/rename`이 정한 제목을 첫 입력이 덮지 않는다. 없는 대화는 `thread.notFound` 문구와 1이다 | 호스트가 `thread.rename`을 모르는 경우 |
-| `approval-consent-host.int.test.ts` | 실제 bash 승인 카드가 명령 전체를 보인다. `t`는 `remember: "thread"`로 가고 같은 대화의 다음 호출은 묻지 않는다. 거부 이유가 `answer.feedback`으로 간다. print 모드는 거부로 답한다 | `secretEnv` 카드(운영 `bash` 도구는 모델에 `secretEnv`를 내지 않는다), 요청 주체, 만료, `resolvedBy`, 낮춤 알림, `answer_invalid`·`commit_failed` 재질문 |
+| `approval-consent-host.int.test.ts` | 실제 bash 승인 카드가 명령 전체를 보인다. `y`는 `remember: "once"`로 가고 같은 대화의 다음 호출도 다시 묻는다. 거부 이유가 `answer.feedback`으로 간다. print 모드는 거부로 답한다 | `secretEnv` 카드(운영 `bash` 도구는 모델에 `secretEnv`를 내지 않는다), 요청 주체, 만료, `resolvedBy`, 낮춤 알림, `answer_invalid`·`commit_failed` 재질문 |
 | `doctor-host.int.test.ts` | 실제 `host.status { includeBinaries: true }`의 보고서가 `--json`의 `binaries`가 되고 종료 코드가 `ready`를 따른다. 바이너리마다 한 줄이 있다. 주소가 없으면 탐침이 0번이고 설정한 주소만 탐침한다. 실제 카탈로그에 `searxng.detect`가 없다 (SearXNG 시험 부분 삭제됨 2026-11-04) | `ready: false`인 보고서 |
 
 이 시험들에서 알게 된 동작:

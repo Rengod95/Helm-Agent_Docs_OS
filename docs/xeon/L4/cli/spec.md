@@ -852,7 +852,7 @@ export interface GroupTemplatesPort {
      - 도구 카드는 인자 요약(120자) 아래에 실행할 `command` 전체(40줄까지, 넘으면 "…(n줄 생략)")와 `secretEnv`의 시크릿 참조(`이름=secret://…`)을 보인다. 승인이 시크릿 사용의 증거라서 명령과 핸들을 보고 허용해야 한다. `secret://` 참조 모양이 아닌 값은 값을 보이지 않고 "(참조 형식이 올바르지 않음)"만 쓴다. 인자가 BlobRef면 상세 줄이 없다.
      - 요청 주체(`origin.caller`)가 `main`이 아니면 첫 줄에 보인다: `background`는 백그라운드 작업, `host`는 호스트, `subagent:<이름>`은 서브에이전트, `ext:<이름>`은 확장이다.
      - `expiresAt`이 있으면 "만료: <ISO 시각> (그때까지 답하지 않으면 거부로 처리한다)"를 보인다. `onExpire`가 `answer`면 "정해 둔 답으로 처리한다"다.
-     - `approval.resolved`의 `requestedRemember`와 적용한 `remember`가 다르면(2차 전에는 `always`가 `thread`로 낮춰진다) "항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다"를 보인다. `resolvedBy`가 `user`가 아니면(`expired`, `noninteractive`, `cancelled`, `superseded`) 이유를 한 줄로 보인다. 사용자가 직접 답했고 요청한 범위 그대로면 아무것도 보이지 않는다.
+     - `approval.resolved`의 `requestedRemember`와 적용한 `remember`가 다르면 "항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다"를 보인다(M4 엔진은 낮추지 않고 `once`만 받으므로 이전에 기록된 사건을 읽을 때만 나온다). 도구 승인 질문은 `[y] 이번만 허용  [n] 거부`뿐이다 [결정: 2026-10-31 사용자, 점검 2026-11-04]. `resolvedBy`가 `user`가 아니면(`expired`, `noninteractive`, `cancelled`, `superseded`) 이유를 한 줄로 보인다. 사용자가 직접 답했고 요청한 범위 그대로면 아무것도 보이지 않는다.
 - 프로젝트 신뢰(M2) [결정: m2c G1-03. wire 이름은 F wire §3.3.1 trust를 따른다]
   1. 대화형 `chat`은 대화를 만들거나 열기 전에 `trust.get { workspace }`를 부른다. `required`가 참이고 `verdict`가 `undecided`일 때만 카드를 보인다. 이미 정한 폴더나 신뢰할 자원이 없는 폴더(`notRequired`)는 묻지 않는다.
   2. 카드는 프로젝트 폴더, 불러오려는 자원(`resources`), 판정과 출처(`via`), 신뢰하면 자원의 지시문·명령·MCP 서버가 사용자 권한으로 쓰인다는 경고, 번호가 붙은 선택지다. 선택지 글은 CLI가 `choice`(`kind` × `verdict`)로 만든다. `label`은 현지화 식별자라 글로 쓰지 않는다. 저장되는 폴더(`savedPath`)가 있으면 함께 보인다.

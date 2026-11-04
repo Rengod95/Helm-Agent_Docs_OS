@@ -18,7 +18,6 @@ import { APPROVE_ALL_ANSWER } from "../review-model.ts";
 import { PlanBody, QuestionBody, ReviewBody, ToolBody } from "./bodies.tsx";
 import { useClockNow } from "./clock.ts";
 import {
-  alwaysRememberOf,
   approvalAgeOf,
   approvalExpiryOf,
   approvalKeyOf,
@@ -88,10 +87,9 @@ function ageTextOf(age: ApprovalAge): string {
   }
 }
 
-/** 카드가 보내는 답들. primary는 Y, always는 ⇧Y, deny는 N, edit는 계획의 수정 요청이다. null이면 그 동작을 끈다 */
+/** 카드가 보내는 답들. primary는 Y, deny는 N, edit는 계획의 수정 요청이다. null이면 그 동작을 끈다 */
 type Decisions = {
   readonly primary: ApprovalDecision | null;
-  readonly always: ApprovalDecision | null;
   readonly deny: ApprovalDecision;
   readonly edit: ApprovalDecision | null;
 };
@@ -159,12 +157,7 @@ function PendingCard(props: {
     if (busy || isTypingTarget(event.target)) return;
     const action = approvalKeyOf(event);
     if (action === null) return;
-    const decision =
-      action === "primary"
-        ? decisions.primary
-        : action === "always"
-          ? decisions.always
-          : decisions.deny;
+    const decision = action === "primary" ? decisions.primary : decisions.deny;
     if (decision === null) return;
     event.preventDefault();
     respond(decision);
@@ -219,7 +212,7 @@ function PendingCard(props: {
     );
 
   const leading: Action[] = [
-    { id: "deny", label: "desktop.approvals.deny.button", decision: decisions.deny, look: "ghost" },
+    { id: "deny", label: denyLabelOf(body.kind), decision: decisions.deny, look: "ghost" },
   ];
   if (body.kind === "plan") {
     leading.push({
@@ -230,14 +223,6 @@ function PendingCard(props: {
     });
   }
   const trailing: Action[] = [];
-  if (decisions.always !== null) {
-    trailing.push({
-      id: "always",
-      label: "desktop.approvals.alwaysThread.button",
-      decision: decisions.always,
-      look: "ghost",
-    });
-  }
   trailing.push({
     id: "primary",
     label: primaryLabelOf(body.kind),
@@ -314,6 +299,13 @@ function PendingCard(props: {
   );
 }
 
+/** 검토 카드의 거부는 파일 전체를 거절하는 뜻이라 "모두 거절"이다 [결정: 2026-11-04 사용자 Q8] */
+function denyLabelOf(kind: ApprovalBodyKind): MessageId {
+  return kind === "review"
+    ? "desktop.approvals.review.denyAll.button"
+    : "desktop.approvals.deny.button";
+}
+
 function primaryLabelOf(kind: ApprovalBodyKind): MessageId {
   switch (kind) {
     case "tool":
@@ -337,10 +329,8 @@ function decisionsOf(
   const { body } = request;
   const deny: ApprovalDecision = { decision: "deny" };
   if (body.kind === "tool") {
-    const remember = alwaysRememberOf(request.remember);
     return {
       primary: { decision: "allow", remember: "once" },
-      always: remember === null ? null : { decision: "allow", remember },
       deny,
       edit: null,
     };
@@ -349,7 +339,6 @@ function decisionsOf(
     const answer = answerOf(body.question.questions, state.draft);
     return {
       primary: answer === null ? null : { decision: "answer", answer },
-      always: null,
       deny,
       edit: null,
     };
@@ -362,14 +351,12 @@ function decisionsOf(
         remember: "once",
         ...(state.mode === "" ? {} : { answer: { mode: state.mode } }),
       },
-      always: null,
       deny,
       edit: text === null ? null : { decision: "deny", answer: { feedback: text } },
     };
   }
   return {
     primary: { decision: "answer", answer: APPROVE_ALL_ANSWER },
-    always: null,
     deny,
     edit: null,
   };

@@ -57,7 +57,7 @@ xeon/packages/core-tools/
     approvals/
       service.ts               # ApprovalService 구현, 메모리 대기 목록 (TL-5)
       protocol.ts              # kind별 응답 검사, remember 처리, 거부 문장 (TL-5)
-      pending.ts               # 대기 내구화(checkpoint 초안), restore, 세션 허용 목록 재구성 (TL-5)
+      pending.ts               # 대기 내구화(checkpoint 초안), restore (TL-5)
     builtin/
       tool-search.ts           # tool_search 도구 (M2, TL-10)
       read-tool-output.ts      # read_tool_output 도구 (M2, TL-11)
@@ -161,7 +161,7 @@ xeon/packages/core-tools/
 | `approval_pending_restored_after_restart` | 승인 대기 중 강제 종료(fault 테스트) 뒤 `restore` → `pending`에 같은 `approvalId` 하나, core-loop 대역이 같은 `prepare`·`execute`로 다시 돌린 뒤 새 `approval.requested` 0건 | TL-5 |
 | `approval_respond_twice_not_applied` | 두 번째 `respond`는 `applied: false`이고 이벤트가 늘지 않는다 | TL-5 |
 | `the oldest resolved requests leave memory first...` | `resolvedKept`를 넘기면 가장 먼저 해결된 요청이 메모리 표에서 빠지고(`get`이 `undefined`, `respond`는 적용 안 함) 대기 중인 요청은 남는다. 빠진 요청의 `requestKey`로 `open`하면 새 이벤트 없이 같은 `approvalId`와 저장된 해결(`answer` 값 포함)을 돌려준다 (`approvals-eviction.test.ts`) | L7 |
-| `approval_remember_thread_skips_next_ask` | `remember: "thread"` 뒤 같은 도구 ask가 승인 없이 allow. 재개 뒤에도 같다 | TL-5 |
+| `approval memory is request-level: a thread response is refused ...` | `remember: "thread"` 응답은 `answer_invalid`이고 같은 도구의 다음 ask도 다시 묻는다(승인 기억은 요청 단위뿐, 2026-11-04 점검) | TL-5 |
 | `approval_turn_abort_cancels_pending` | 턴 취소가 대기 요청을 `resolvedBy: "cancelled"`로 닫고 도구는 실행되지 않는다 | TL-5 |
 | `question_and_plan_approval_share_request_shape` | 질문 요청과 계획 요청이 모두 `approval.requested`이고 `ApprovalRequestSchema`를 통과하며 `body.kind`만 다르다 | TL-12 |
 | `tool_search_activates_for_next_step` (core-tools) | 지연 도구를 찾으면 활성화가 기록되고 다음 `advertise`가 그 도구를 싣는다. 재시작 뒤에도 같다 | TL-10 |
@@ -194,7 +194,7 @@ xeon/packages/core-tools/
 | `tool_result_masked_before_commit_and_points` | 가짜 `Redactor`에 등록한 값이 `effect.result`, toolResult item, blob, `tool.result`·`tool.execution.update` 페이로드에 없고 `secret.masked` 1건이 남는다 | TL-18 |
 | `capability_tool_subagent_name_reaches_the_approval_caller`, `direct_tool_subagent_name_reaches_the_approval_caller` | 서브에이전트 호출의 `CallContext.caller`가 `agentName`을 싣고 `approvalCallerOf`가 `subagent:<이름>`을 낸다. 기능 도구와 직접 등록 도구가 같다(`test/call-context.test.ts`, M2 마감 G1-09) | TL-12 |
 | `after-untrusted.test.ts`: `afterUntrusted is false for an extension tool when the turn read no untrusted result`, `afterUntrusted is true for an extension tool after an MCP tool result in the same turn`, `afterUntrusted is true after a web capability tool result`, `afterUntrusted does not carry over to the next turn`, `a subagent caller keeps its name next to afterUntrusted` | 확장 도구 `execute`의 `ctx.caller`와 `ctx.toolCallId`. 웹·MCP 결과 뒤에서만 `afterUntrusted: true`(M3-REQ-100, 명세 §9 38) |
-| `a client that asks for always on a bash request is refused, because always is not offered` | 도구 승인이 `always`를 제안하지 않고, 보낸 응답은 `answer_invalid`이며 요청은 대기 그대로다. `an adapter request that offers always ...`는 `thread`로 낮추고 `requestedRemember`를 남긴다(`test/approvals.test.ts`, M2 마감 G2-10) | TL-12 |
+| `a client that asks for always on a bash request is refused, because always is not offered` | 도구 승인이 `always`를 제안하지 않고, 보낸 응답은 `answer_invalid`이며 요청은 대기 그대로다. `an adapter request that offers thread or always is rejected ...`는 `approvals.request_invalid`로 열리지 않고 사건을 남기지 않는다(`test/approvals.test.ts`) | TL-12 |
 | `an origin without stepId gets the active call's step ...` | `origin.stepId`가 없는 요청이 활성 호출의 단계로 채워져 payload와 이벤트 봉투가 일치한다. 서브에이전트 정책 승인의 `origin.caller`는 `subagent:<이름>`이다(`test/approval-origin.test.ts`, M2 마감 G1-09) | TL-12 |
 | `the approval title names the secrets of a call and shortens a long list by count` | `secretEnv` 호출의 정책 승인 제목이 `Allow "bash" to use secret://…?`이고 120자를 넘으면 `(+N more)`로 줄인다(`test/secret-approval.test.ts`, M2 마감 G2-10) | TL-18 |
 

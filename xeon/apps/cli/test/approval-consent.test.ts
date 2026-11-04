@@ -188,21 +188,21 @@ function chatWith(replies: readonly Reply[], resolve: (context: TurnContext, id:
   return { h, responds };
 }
 
-test("picking always shows the downgrade the host reports on the resolved event", async () => {
-  const s = chatWith(["a"], (context, id) => {
+test("a subagent request shows who asked, and y allows once", async () => {
+  const s = chatWith(["y"], (context, id) => {
     context.server.commit(context.threadId, [
       approvalResolved(context.turnId, id, "allow", "user", {
-        applied: "thread",
-        requested: "always",
+        applied: "once",
+        requested: "once",
       }),
       assistantItem(context.turnId, 3, { text: "done" }),
       turnCompleted(context.turnId),
     ]);
   });
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
-  expect(s.responds[0]).toMatchObject({ decision: "allow", remember: "always" });
+  expect(s.responds[0]).toMatchObject({ decision: "allow", remember: "once" });
   expect(s.h.stderrText()).toContain("요청 주체: 서브에이전트 explorer");
-  expect(s.h.stderrText()).toContain("항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다");
+  expect(s.h.stderrText()).not.toContain("낮춰 적용했다");
 });
 
 // ── approval.respond가 적용하지 못한 이유 ──────────────────────────────
@@ -237,12 +237,12 @@ function prompter(results: readonly ApprovalRespondResult[], lines: readonly str
 test("answer_invalid shows the detail and asks again; the second answer is sent", async () => {
   const p = prompter(
     [{ applied: false, reason: "answer_invalid", detail: "mode가 목록에 없다" }],
-    ["y", "t"],
+    ["y", "y"],
   );
   await p.sink.idle();
   expect(p.sent).toEqual([
     { decision: "allow", remember: "once" },
-    { decision: "allow", remember: "thread" },
+    { decision: "allow", remember: "once" },
   ]);
   expect(p.out).toContain("응답이 요청과 맞지 않다: mode가 목록에 없다. 다시 입력한다\n");
   expect(p.superseded).toEqual([]);
