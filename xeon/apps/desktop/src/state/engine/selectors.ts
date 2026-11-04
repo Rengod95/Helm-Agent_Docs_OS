@@ -6,6 +6,7 @@ import type {
   ThreadId,
   TurnId,
 } from "@fresnel/contracts/conversation";
+import type { StatusItemRecord } from "@fresnel/contracts/records";
 import type { ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 import type {
@@ -23,6 +24,7 @@ const NO_ITEMS: readonly ItemId[] = Object.freeze([]);
 const NO_TRANSITIONS: readonly TransitionRecord[] = Object.freeze([]);
 const NO_PLANS: readonly PlanRecord[] = Object.freeze([]);
 const NO_QUEUED: readonly QueuedInput[] = Object.freeze([]);
+const NO_STATUS: readonly StatusItemRecord[] = Object.freeze([]);
 
 export const selectThreadIds = (s: EngineMirror): readonly ThreadId[] => s.threads.ids;
 export const selectThread = (s: EngineMirror, id: ThreadId): ThreadSummary | undefined =>
@@ -111,3 +113,13 @@ export const selectPlans = (s: EngineMirror, id: ThreadId | null): readonly Plan
 /** 이 대화의 아직 배치되지 않은 대기 입력(받은 순서, 가장 최근 것이 뒤). 대화가 없으면 빈 목록이다. 배열을 새로 만들므로 훅에서 useShallow로 감싼다 */
 export const selectQueuedInputs = (s: EngineMirror, id: ThreadId | null): readonly QueuedInput[] =>
   id === null ? NO_QUEUED : s.queuedInputs.filter((record) => record.threadId === id);
+
+/** 이 대화의 상태줄 칸(`order` 작은 것이 앞, 같으면 받은 순서). 대화가 없거나 칸이 없으면 빈 목록이다. 배열을 새로 만들므로 훅에서 useShallow로 감싼다 */
+export const selectStatusItems = (
+  s: EngineMirror,
+  id: ThreadId | null,
+): readonly StatusItemRecord[] => {
+  const items = id === null ? undefined : s.statusItems[id];
+  if (items === undefined || items.length === 0) return NO_STATUS;
+  return items.toSorted((a, b) => (a.order ?? 500) - (b.order ?? 500));
+};

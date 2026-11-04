@@ -136,6 +136,22 @@ export function startLink(deps: LinkDeps): EngineLink {
     if (position === "head") await reload(r.sub);
   };
 
+  /**
+   * 상태줄 칸 스냅숏(B-09). 열 때와 처음부터 다시 맞춘 뒤에 읽는다. 요청하는 동안 `dialog.status` 이벤트가 왔으면 그쪽이 더 새 것이라
+   * 스냅숏은 버린다. 실패하면 칸이 없는 채로 둔다(상태줄은 나머지 칸으로 돌아간다)
+   */
+  const statusEvents = new Map<ThreadId, number>();
+  const loadStatus = async (threadId: ThreadId): Promise<void> => {
+    const before = statusEvents.get(threadId) ?? 0;
+    const listed = await attemptAsync(() => deps.connection.request("status.list", { threadId }));
+    if (!listed.ok) {
+      deps.logger.warn("desktop.link.status_list_failed", { thread: threadId });
+      return;
+    }
+    if ((statusEvents.get(threadId) ?? 0) !== before) return;
+    deps.store.ingest({ type: "status", threadId, items: listed.value.items });
+  };
+
   const loadTranscript = async (threadId: ThreadId): Promise<void> => {
     deps.store.ingest({ type: "transcript_opening", threadId });
     let round = 0;
@@ -224,7 +240,10 @@ export function startLink(deps: LinkDeps): EngineLink {
     await loadApprovals();
     const open = deps.openThreadId();
     deps.logger.debug("desktop.link.reloaded", { sub, transcript: open !== null });
-    if (open !== null) await loadTranscript(open);
+    if (open !== null) {
+      await loadTranscript(open);
+      await loadStatus(open);
+    }
   };
 
   const offs = [
@@ -233,7 +252,11 @@ export function startLink(deps: LinkDeps): EngineLink {
       else ingestBatch(p);
     }),
     deps.connection.onNotification("stream.chunk", (p) => {
-      deps.store.ingest({ type: "chunk", fact: decodeVolatile(p.event) });
+      const fact = decodeVolatile(p.event);
+      if (fact.type === "dialog.status") {
+        statusEvents.set(fact.payload.threadId, (statusEvents.get(fact.payload.threadId) ?? 0) + 1);
+      }
+      deps.store.ingest({ type: "chunk", fact });
     }),
     deps.connection.onNotification("events.ended", (p) => {
       deps.store.ingest({ type: "ended", sub: p.sub });
@@ -252,7 +275,10 @@ export function startLink(deps: LinkDeps): EngineLink {
   deps.store.ingest({ type: "connecting" });
   detach(subscribe("cursor"), report);
   return {
-    openThread: (threadId) => detach(loadTranscript(threadId), report),
+    openThread: (threadId) => {
+      detach(loadTranscript(threadId), report);
+      detach(loadStatus(threadId), report);
+    },
     closeThread: () => deps.store.ingest({ type: "transcript_closed" }),
     reloadThreads: () => detach(loadThreads(), report),
     stop: () => {

@@ -37,6 +37,7 @@ import {
   QUEUED_INPUT_CAP,
   type QueuedInput,
   SETTLED_CAP,
+  STATUS_ITEM_CAP,
 } from "./state.ts";
 
 /** 이 입력이 거울에 한 일. journal이 기록한다 */
@@ -119,6 +120,18 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       return applyBatch(state, input);
     case "chunk":
       return applyChunk(state, input.fact);
+    case "status":
+      // 스냅숏은 그 thread의 칸을 통째로 바꾼다. 요청하는 동안 이벤트가 왔으면 링크가 이 입력을 보내지 않는다
+      return keep(
+        {
+          ...state,
+          statusItems: {
+            ...state.statusItems,
+            [input.threadId]: input.items.slice(0, STATUS_ITEM_CAP),
+          },
+        },
+        "applied",
+      );
     case "out_of_range":
       return keep(enterReset(state, "out_of_range"), "reset");
     case "subscribe_failed":
@@ -305,6 +318,18 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
       const handlerFailures = [...state.handlerFailures, record].slice(-HANDLER_FAILURE_CAP);
       return keep({ ...state, streaming: counted, handlerFailures }, "applied");
     }
+    case "dialog.status":
+      return keep(
+        {
+          ...state,
+          streaming: counted,
+          statusItems: {
+            ...state.statusItems,
+            [fact.payload.threadId]: fact.payload.items.slice(0, STATUS_ITEM_CAP),
+          },
+        },
+        "applied",
+      );
     case "other":
       return keep({ ...state, streaming: counted }, "applied");
     default:
