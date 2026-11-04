@@ -81,7 +81,7 @@ binds: []
 | T-12 | 두 엔진이 같은 DB·상태 파일을 동시에 씀 | B-10 | 대화 OS 잠금과 `sys_leases.epoch` 펜싱, `thread.locked` 대안 | ADR-0004, `L0.store.spec` | 실측(Linux 두 프로세스 시험) | G1-10 `fileLock`(T3), G2-09 single-instance(T7) |
 | T-13 | 상태 파일과 임시 파일이 평문으로 남음 | A-3, A-4 | spill 파일을 상태 디렉터리로 옮김(M2), `secretEnv` 호출은 spill 끔 | `L0.exec.plan` §7 R-9, `L0.exec.spec` §10 미결 4 | 미구현(현재 OS 임시 폴더) | G2-05(T3), GC·회전·상한은 M3 |
 | T-14 | 업데이트·마이그레이션이 사용자 DB를 손상 | A-3 | 마이그레이션 전 `VACUUM INTO` 스냅샷, 손상과 미래 버전 오류 구분 | `L0.store.spec` | 미구현 | G2-06(T1, T3, T2) |
-| T-15 | 공급망: 의존성, CI 액션, 배포 바이너리 변조 | 전체 | catalog 정확 고정, `bun install --frozen-lockfile`, `binaries.lock.json`, 로컬 gitleaks 훅 | `eng.toolchain.guide`, ADR-0001 | 부분. CI 액션 SHA 고정 없음, CI gitleaks 없음, 서명은 ad hoc | G4-07 일부(Z), 서명·공증 M3(D3) |
+| T-15 | 공급망: 의존성, CI 액션, 배포 바이너리 변조 | 전체 | catalog 정확 고정, `bun install --frozen-lockfile`, `binaries.lock.json`, 로컬 gitleaks 훅 | `eng.toolchain.guide`, ADR-0001 | 부분. CI 액션 SHA 고정 없음, 서명은 ad hoc | G4-07 일부(Z), 서명·공증 M3(D3) |
 
 ## 5. 실패와 경계 사례
 

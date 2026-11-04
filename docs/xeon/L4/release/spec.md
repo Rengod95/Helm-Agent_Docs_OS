@@ -129,7 +129,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - [결정: 2026-11-04 사용자] `THIRD-PARTY-NOTICES.txt`는 라이선스별로 한 절씩 묶습니다(B19). 번들 바이너리 sops, age, rg, npm 의존, Bun 런타임이 같은 절에 들어갑니다. 각 절은 라이선스의 SPDX 텍스트 링크를 적고, 표준 라이선스 전문을 한 번만 싣고, 패키지마다 이름, 버전, 저작권 줄, 출처 또는 라이선스 링크를 적습니다. 아카이브에 라이선스 파일이 없는 번들 바이너리는 출처 링크와 SPDX 링크만 적습니다.
 - [결정: 2026-11-04 사용자] npm 의존의 고지는 `xeon/scripts/notices.ts`가 만듭니다. `apps/host`와 `apps/cli`의 `dependencies`를 `node_modules` 심볼릭 링크를 따라 훑고(devDependencies 제외), 제3자 패키지마다 이름, 버전, 라이선스, 링크를 적습니다. 링크는 package.json의 저장소나 홈페이지이고, `vendor/`의 패키지는 UPSTREAM.json의 `upstream`입니다. 저작권 줄은 라이선스 파일의 머리말(라이선스 본문이 시작하기 전)에서 읽고, 읽을 수 없으면 적지 않습니다. 패키지의 본문이 절의 표준 전문에 있는 단어 쌍만 가지면 표준 전문으로 갈음하고, 그렇지 않으면 본문 전문을 그 패키지 항목 아래에 싣습니다. 선택 가능한 이중 라이선스는 고른 쪽을 적습니다(node-forge는 BSD-3-Clause). 라이선스 파일이 없고 `NO_LICENSE_FILE` 허용 목록에도 없는 패키지가 있거나 라이선스 정보가 없는 패키지가 있으면 `release.ts`가 `notices.failed`로 실패합니다. 허용 목록의 패키지는 package.json의 선언 라이선스, 저자, 저장소를 적습니다. Bun 런타임은 MIT, 저작권 줄, 출처 주소를 적고, 내장 JavaScriptCore 등의 고지는 Bun의 LICENSE.md를 가리킵니다.
 - 워크플로의 액션은 커밋 SHA로 고정하고, 버전 주석을 붙입니다(M3-30). 주석의 버전이 SHA와 맞는지는 저장소 안에서 확인하지 않습니다([미결] §8).
-- 시크릿 검사(gitleaks) 단계는 fresnel 워크플로에 아직 없습니다([미결] §8).
+- 시크릿 검사: `fresnel-ci.yml`의 `secrets` 작업이 전체 이력에 `gitleaks git --redact`를 돌립니다. 버전은 로컬 훅과 같은 8.30.1이고 mise로 설치합니다 [결정: 2026-11-04 사용자]. 오탐은 `.gitleaksignore`에 지문으로 적습니다.
 - npm 공개는 없습니다(D-M3-25 행 6).
 
 ## 7. 시험
@@ -166,7 +166,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 2. [미결] Tauri 자원 매핑. `xeon/apps/desktop/src-tauri/tauri.conf.json`에는 `externalBin`만 있습니다. 템플릿과 기본 플러그인을 `Contents/MacOS`에 두는 설정(`resources`와 macOS 파일 매핑)은 M4입니다.
 3. [해소] 번들 바이너리(sops, age, rg)의 라이선스 전문은 싣지 않고, 라이선스별 절의 출처 링크와 SPDX 링크로 적습니다([결정: 2026-11-04 사용자], §6). 아카이브에 라이선스 파일이 없으므로 이 세 바이너리의 저작권 줄은 적지 않습니다. [미결] Bun의 LICENSE.md 전문(JavaScriptCore 등)을 싣는지는 사용자가 정합니다. 지금은 주소만 적습니다.
 4. [미결] 체크섬의 출처. `.sha256`과 아카이브는 같은 곳에서 받습니다. 서명된 체크섬이나 별도 공개 키는 없습니다.
-5. [미결] CI의 gitleaks 단계. fresnel 워크플로에 없습니다(M3-30의 일부).
+5. [해소] CI의 gitleaks 단계는 `secrets` 작업으로 들어갔습니다(§6) [결정: 2026-11-04 사용자].
 6. [미결] 액션 주석 검증. 주석의 `v<버전>`과 SHA가 맞는지는 저장소 안에서 검사하지 않습니다. 사용자나 리뷰가 한 번 확인합니다.
 7. [미결] Linux arm64 스모크. X11은 x86_64에서만 돕니다. aarch64 Linux 아카이브는 빌드 대상이지만 검증하지 않습니다.
 8. [미결] Intel macOS. `release.ts`는 `bundledBinaries`에 없는 triple도 번들 없이 아카이브로 만듭니다. 지원하지 않는 triple을 막는 검사는 없습니다.
