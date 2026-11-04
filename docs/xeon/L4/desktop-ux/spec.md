@@ -503,7 +503,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 요소 | 위치 | 데이터 | 동작 |
 |---|---|---|---|
 | 받은 요청 | 제목 띠 `IconButton`(수 배지), 주 내비 2번, 끝 영역 탭 | `ThreadSummary.pendingApprovals` 합, 열린 대화 `approval.list`, `proposal.list { status: "pending" }`, `notify.list` | 누르면 끝 영역 받은 요청 탭 |
-| 알림 | 받은 요청 안 "알림" 구역, 토스트 | `notify.list { afterSeq }`, 알림 `notify.delivered` | 알림 행을 누르면 원인 대화나 화면으로 |
+| 알림 | 받은 요청 안 "알림" 구역, 토스트 | `notify.list { afterSeq }`, 알림 `notify.delivered` | 알림 행을 누르면 원인 대화나 화면으로 앱 안 알림만 하고 OS 알림은 플러그인 승인 전이라 하지 않습니다. 구현: 받은 요청 탭 "알림" 구역(`notices.tsx`)이 `notify.list { afterSeq: 0 }`과 `notify.delivered`를 받아 새것이 위로 오게 100건까지 보이고, 전달된 알림은 토스트로도 보입니다(오류는 자동으로 닫히지 않음). 빈 상태, 읽는 중, 읽기 실패(다시 읽기), 연결 끊김 줄을 둡니다 |
 | 연결·서비스 상태 | 상태 표시줄 왼쪽 | 셸 IPC 엔진 상태(`EngineState`), 연결 상태 기계, `host.status` | 실패 시 "다시 연결", "엔진 다시 시작", "진단 복사" |
 | 원격 대상 | 제목 띠 경로 첫 항목, 상태 표시줄 첫 칸 | 데스크톱 설정 `l0.process.service.remote` [가정], `host.hello` 결과 `transport` | 누르면 대상 팝오버(P-08 요약과 "대상 바꾸기") |
 | 모델 | 상태 표시줄, 입력창 모델 칸 | `settings.get { keys: ["l1.models.default"], threadId }` | 누르면 모델 고르기 `Combobox mode="popup"`. 대화 범위 저장은 `settings.set { scope: "launch" }` |
@@ -794,6 +794,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 창·패널 상태 | UI 스토어(`sidebarOpen`, 끝 영역 탭과 폭) `[gap:V-14]` |
 
 - 기능: 사이드바·끝 영역 토글, 폭 끌기(`ResizeHandle`), 대화 고르기(`selectThread`), 새 대화(O-07), 대화 행 메뉴(이름 바꾸기 `thread.rename`, 분기 `thread.fork`, 컴팩션 `thread.compact`, 닫기 `thread.close`, 삭제 `thread.delete` + O-06).
+- 대화 행 메뉴 구현 [근거: `apps/desktop/src/views/thread-row-menu.tsx`]: 행 오른쪽 ⋯ 버튼(행에 마우스를 올리거나 초점이 있거나 메뉴가 열려 있을 때 보임)에 이름 바꾸기(1~200자, 앞뒤 공백 제거), 분기, 대화 요약, 닫기, 지우기를 둡니다. 실행 중인 대화는 분기와 닫기, 지우기를 막고 지우기 확인 창이 이유를 말합니다. 닫힌 대화는 요약과 닫기를 막습니다. 지우기는 확인 창(`kind=alert`)을 거치고, 분기한 대화가 가리키는 대화는 host가 `thread.hasForks`로 거절해 그 이유를 창 안에 보입니다. 지운 뒤에는 목록을 다시 읽고, 열려 있던 대화였다면 선택을 풉니다. 그 밖의 실패는 오류 토스트입니다. 내보내기와 예약 지우기는 이 구현에 없습니다(대화 내보내기 wire가 없어 [미결], 사용자 몫).
 - 상태: 대화 목록 빈 경우 "아직 대화가 없어요" + "새 대화" (`EmptyState variant="dashed"`), 읽는 중 `Skeleton` 5행, 읽기 실패 "대화 목록을 읽지 못했어요" + "다시 읽기", 오프라인은 목록 유지와 흐린 표시, 긴 목록은 폴더 묶음 접기와 50개 뒤 "더 보기"(`nextCursor`).
 - 대화 행: 제목(없으면 "제목 없음"), 배지 `실행 중`(running), `이어서 실행`(resumable), `승인 N`, `잠김`(다른 소유자, 알 수 있을 때), `예약`(schedule이 만든 대화) (출처는 `ThreadSummary.origin`) [근거: `packages/contracts/src/wire-settings/wire/methods.ts:443`].
 - 접근성: 시작 영역은 `SidePanel label="대화와 이동"`(aside 랜드마크), 무대는 `main`, 건너뛰기 링크 `skipLabel="본문으로"`. 대화 목록은 `ListNavigation`의 단일 선택 목록이고 화살표로 이동합니다.
@@ -3139,7 +3140,7 @@ export const palette = [
 | W-06 | 작업 목록 읽기 | P-14 | 구현됨. `work.tasks.list { threadId }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `work.tasks.list { threadId }` |
 | W-07 | 예약 다시 켜기·고치기, 실행 기록 | P-07 | `schedule.update`와 `schedule.runs`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `schedule.update`, `schedule.runs` |
 | W-08 | 대상 바꾸기와 원격 연결 단계 | P-08, S-03 | 셸 명령 `engine_retarget { target }`(`target`은 `{ kind: "local" }` 또는 `{ kind: "remote", address }`)이 있음(T-SHELL). 사이드카를 `host --stdio [--remote <주소>]`로 다시 띄우고 상태는 기존 `EngineState` 전이(`restarting` → `running`)로 알림. 접속 토큰은 인자에 싣지 않고 환경 변수 `FRESNEL_REMOTE_TOKEN`으로만 줌. 연결 단계별 진행 이벤트는 없음. 바꾸는 동안 쓰기 명령(턴 시작·중단, 승인 응답, 대화 만들기·분기, 신뢰 결정)은 앱이 `switching`으로 거절한다: 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어 새 엔진에 남지 않는 쓰기를 막는다. 상태가 running을 벗어났다 돌아오면 풀리고, `shutdownGraceMs` + 15초 안에 돌아오지 않아도 푼다. 연결 화면(P-08)의 대상 바꾸기도 같은 보류를 거치며, `shutdownGraceMs`는 `desktop-settings.json`에서 읽고 없으면 기본값 7000이다 | 단계 이벤트는 P-08(T-CHAT2)이 필요할 때 더함 |
-| W-09 | 알림 읽음 상태 | P-03 | 없음 | 데스크톱 로컬 커서로 대신 [제안] |
+| W-09 | 알림 읽음 상태 | P-03 | 없음. 앱 구현은 읽음 없이 받은 요청 탭의 "모두 지우기"로 화면 목록만 비웁니다(저장하지 않음, 다시 열면 `notify.list`가 다시 채움) [근거: `apps/desktop/src/views/notices.tsx`] | 데스크톱 로컬 커서로 대신 [제안] |
 | W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식). [결정: 2026-11-04 사용자, B8 2안] 재인증 명령 `os_reauth`(`L4.desktop.spec` §4.17)는 셸에 구현됐습니다. 값 보기 화면은 macOS에서 이 명령을 먼저 부르고, 그 뒤의 보기는 stdio·서비스에서 `not_started`입니다 |
 | W-11 | 사용량 한도·창·계정 게이지 | P-11, S-03 | `session` 게이지만 | L1.models 계정·창 데이터 연결(B2-MDL 이후) |
 | W-12 | 연결된 클라이언트 목록 | P-08 | 수만 | `host.clients` [미결] |

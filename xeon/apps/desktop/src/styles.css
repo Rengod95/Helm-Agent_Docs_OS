@@ -118,6 +118,20 @@ input[type="text"] {
   background: transparent;
   border-color: transparent;
 }
+.thread-row {
+  position: relative;
+}
+.thread-menu {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+}
+.thread-row:hover .thread-menu,
+.thread-row:focus-within .thread-menu,
+.thread-menu:has([aria-expanded="true"]) {
+  opacity: 1;
+}
 .thread.selected {
   background: var(--bg);
   border-color: var(--border);

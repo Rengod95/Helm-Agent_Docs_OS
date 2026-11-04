@@ -16,6 +16,13 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     attachmentLimit: () => Promise.resolve(null),
     interrupt: () => Promise.resolve(ok(null)),
     compactThread: () => Promise.resolve(err({ kind: "unsupported" })),
+    renameThread: () => Promise.resolve(ok(null)),
+    closeThread: () => Promise.resolve(ok(null)),
+    deleteThread: () => Promise.resolve(ok(null)),
+    notices: {
+      list: () => Promise.resolve(ok({ notices: [], nextSeq: 0 })),
+      onDelivered: () => () => {},
+    },
     resumeTurn: () => Promise.resolve(err({ kind: "unsupported" })),
     runCommandLine: () => Promise.resolve(err({ kind: "unsupported" })),
     paletteUses: () => ({}),
