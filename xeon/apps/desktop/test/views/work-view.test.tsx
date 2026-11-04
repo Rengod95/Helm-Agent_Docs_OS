@@ -27,6 +27,7 @@ const HANDLERS: WorkHandlers = {
   retryGoal: NOOP,
   retryTasks: NOOP,
   retryPlan: NOOP,
+  viewPlan: NOOP,
   openVersions: NOOP,
   closeVersions: NOOP,
   toggleDone: NOOP,
@@ -185,6 +186,8 @@ describe("WorkView plan card (W-18)", () => {
     expect(markup).toContain(t("desktop.work.plan.version", { version: 2 }));
     expect(markup).toContain(t("desktop.work.plan.status.submitted"));
     expect(buttonOf(markup, t("desktop.work.plan.versions.open"))).not.toBe("");
+    expect(buttonOf(markup, t("desktop.work.plan.view"))).not.toBe("");
+    expect(markup).toContain(t("desktop.work.plan.view.info"));
     // 정보 아이콘의 설명 글은 숨은 글로 늘 나간다
     expect(markup).toContain(t("desktop.work.plan.info"));
   });

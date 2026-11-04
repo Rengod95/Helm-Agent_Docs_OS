@@ -38,6 +38,7 @@ import {
   type QueuedInput,
   SETTLED_CAP,
   STATUS_ITEM_CAP,
+  SETTLED_INPUT_CAP,
 } from "./state.ts";
 
 /** 이 입력이 거울에 한 일. journal이 기록한다 */
@@ -132,6 +133,24 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
         },
         "applied",
       );
+    case "backfill": {
+      // 연결 전에 생긴 계획과 대기 입력(`work.plan_*`, `input.*`)을 처음부터 다시 받은 것이다. 거울의 위치와 연결 상태는 건드리지 않는다.
+      // 다른 저장소의 재생이면 버린다. 계획과 대기 입력 사실만 같은 규칙으로 넣는다(이미 있는 것은 그대로다)
+      const cursor = state.cursor;
+      if (cursor === null || cursor.storeId !== input.storeId) return keep(state, "foreign");
+      let next = state;
+      for (const fact of input.facts) {
+        if (
+          fact.type === "plan.event" ||
+          fact.type === "input.queued" ||
+          fact.type === "input.placed" ||
+          fact.type === "input.withdrawn"
+        ) {
+          next = applyFact(next, fact);
+        }
+      }
+      return keep(next, "applied");
+    }
     case "out_of_range":
       return keep(enterReset(state, "out_of_range"), "reset");
     case "subscribe_failed":
@@ -714,6 +733,7 @@ function recordQueued(
   fact: Extract<DurableFact, { readonly type: "input.queued" }>,
 ): EngineMirror {
   if (state.queuedInputs.some((r) => r.inputId === fact.eventId)) return state;
+  if (state.settledInputs.includes(fact.eventId)) return state;
   const record: QueuedInput = {
     ...fact.input,
     inputId: fact.eventId,
@@ -727,8 +747,17 @@ function recordQueued(
 
 /** 배치되거나 거둬진 입력을 뺀다. 거울이 모르는 입력이면 그대로 둔다(연결 전에 든 입력) */
 function dropQueued(state: EngineMirror, inputId: EventId): EngineMirror {
-  if (!state.queuedInputs.some((r) => r.inputId === inputId)) return state;
-  return { ...state, queuedInputs: state.queuedInputs.filter((r) => r.inputId !== inputId) };
+  const settledInputs = state.settledInputs.includes(inputId)
+    ? state.settledInputs
+    : [...state.settledInputs, inputId].slice(-SETTLED_INPUT_CAP);
+  const present = state.queuedInputs.some((r) => r.inputId === inputId);
+  return {
+    ...state,
+    settledInputs,
+    queuedInputs: present
+      ? state.queuedInputs.filter((r) => r.inputId !== inputId)
+      : state.queuedInputs,
+  };
 }
 
 /** thread마다 `QUEUED_INPUT_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 입력을 버린다 */

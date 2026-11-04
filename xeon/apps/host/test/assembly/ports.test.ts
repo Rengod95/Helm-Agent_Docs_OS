@@ -78,6 +78,7 @@ interface Harness {
     recover: ReturnType<SessionService["recover"]>;
     openThreadError: Error | undefined;
     admit: Awaited<ReturnType<LoopService["admit"]>>;
+    admitted: Parameters<LoopService["admit"]>[0][];
     runningTurn: typeof TURN | null;
     existingTurn: { turnId: typeof TURN } | undefined;
     /** 대기열에 있는 입력(`session.query.queuedInputs`)과 거두기 결과(`tasks.inputs.withdraw`) */
@@ -137,6 +138,7 @@ function harness(): Harness {
     recover: ok(partial<ResumePlan>({})),
     openThreadError: undefined,
     admit: ok({ status: "started", inputId: ids.next("evt"), turnId: TURN }),
+    admitted: [],
     runningTurn: null,
     existingTurn: undefined,
     queued: [],
@@ -263,7 +265,8 @@ function harness(): Harness {
   });
   const loop = partial<LoopService>({
     threadStatus: () => partial<ThreadLoopStatus>({ runningTurnId: state.runningTurn }),
-    admit: () => {
+    admit: (request) => {
+      state.admitted.push(request);
       calls.push("loop.admit");
       return Promise.resolve(state.admit);
     },
@@ -653,6 +656,27 @@ describe("turns", () => {
       ok: false,
       reason: "busy",
       turnId: TURN,
+    });
+  });
+
+  test("with whenBusy a running turn gets the input queued behind it and the loop is told the mode", async () => {
+    const h = harness();
+    h.state.runningTurn = TURN;
+    const inputId = ids.next("evt");
+    h.state.admit = ok({ status: "queued", inputId, mode: "steer", runningTurnId: TURN });
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.turns.submit(THREAD, "hi", "r", "steer")).toEqual({
+      ok: true,
+      turnId: TURN,
+      queued: true,
+    });
+    expect(h.state.admitted.map((request) => request.whenBusy)).toEqual(["steer"]);
+    // 같은 requestId를 다시 보내면 이미 든 입력이라 turn 없이 duplicate가 오고, 실행 중인 turn 뒤로 답한다
+    h.state.admit = ok({ status: "duplicate", inputId, turnId: null });
+    expect(await ports.turns.submit(THREAD, "hi", "r", "steer")).toEqual({
+      ok: true,
+      turnId: TURN,
+      queued: true,
     });
   });
 

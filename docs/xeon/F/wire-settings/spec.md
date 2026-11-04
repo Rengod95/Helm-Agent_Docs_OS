@@ -311,7 +311,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.revert` | `{ threadId: ThreadId, to: ItemId }` | `{ position: StreamPosition }` | M2 |
 | thread | `thread.rename` | `{ threadId: ThreadId, title: string(1..200) }` | `{ position: StreamPosition }` | M2 |
 | thread | `thread.compact` | `{ threadId: ThreadId, instructions?: string(1..20000) }` | `{ status: "compacted", eventId: EventId, tokensBefore: integer, fromExtension: string \| null, position: StreamPosition }`, `{ status: "skipped", why: "nothing_to_summarize"\|"last_entry_is_compaction"\|"disabled" }` | M2 |
-| turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64) }` | `{ turnId: TurnId }` | M1 |
+| turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64), whenBusy?: "steer"\|"followUp"\|"aside" }` | `{ turnId: TurnId, queued?: true }`. `whenBusy`와 `queued`는 §3.3.1 0a | M1 |
 | turn | `turn.interrupt` | `{ threadId: ThreadId, turnId?: TurnId }` | `{ interrupted: boolean }` | M2 |
 | turn | `turn.resume` | `{ threadId: ThreadId }` | `{ status: "resumed", turnId: TurnId, from: ResumeFrom }`, `{ status: "closed", turnId: TurnId, reason: "abort_requested"\|"owner_cancelled" }`, `{ status: "nothing" }` | M2 |
 | turn | `turn.withdraw` | `{ threadId: string, requestId: string(1..64) }` | `{ withdrawn: boolean }`. 큐에 넣고 아직 배치되지 않은 입력을 요청 키로 거둔다. 쓰기 소유자만 한다(`turn.interrupt`와 같다). 요청 키가 맞는 대기 입력을 찾지 못했거나 이미 배치됐으면 거짓이다 | M4 (W-17) |
@@ -377,7 +377,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | goal | `goal.status` | `{ threadId: string }` | `{ goal: GoalView \| null }` | M4 (W-05) |
 | work | `work.tasks.list` | `{ threadId: string }` | `{ tasks: TaskView[] }` | M4 (W-06) |
 | work | `work.plans.versions` | `{ threadId: string, planId: string }` | `{ versions: PlanVersion[] }`. 계획 id의 꼴이 맞지 않거나 그 계획이 없으면 `jsonrpc.invalidParams`(path `planId`)다. 기능이 없으면 빈 목록이다 | M4 (W-18) |
-| knowledge | `knowledge.skills.view` | `{ name: string(1..128), threadId?: string }` | `{ name, scope: "user"\|"project"\|"extension"\|"path", description, body: string, bodyTruncated: boolean, files: string[], treeHash: string }`. 본문은 앞 20000자까지다(넘으면 `bodyTruncated`가 참). 없는 스킬이면 `jsonrpc.invalidParams`(path `name`), 기능이 없으면 `jsonrpc.methodNotFound`다 | M4 (W-14) |
+| knowledge | `knowledge.skills.view` | `{ name: string(1..128), threadId?: string }` | `{ name, scope: "user"\|"project"\|"extension"\|"path", description, body: string, bodyTruncated: boolean, files: string[], treeHash: string }`. 본문은 앞 20000자까지다(넘으면 `bodyTruncated`가 참). 없는 스킬이면 `jsonrpc.invalidParams`(path `name`), 기능이 없거나 스킬 설정이 꺼져 있으면 `jsonrpc.methodNotFound`다 | M4 (W-14) |
 | schedule | `schedule.update` | `{ scheduleId: string, enabled?: boolean, title?: string, prompt?: string }` | `{ scheduleId, enabled, nextRunAt: IsoTime \| null }` | M4 (W-07) |
 | schedule | `schedule.runs` | `{ scheduleId: string, limit?: integer(1..200) }` | `{ runs: ScheduleRunRecord[] }` | M4 (W-07) |
 | profile | `profile.list` | `{}` | `{ profiles: Profile[], rev: integer }` | M4 (W-46) |
@@ -403,6 +403,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | ext | `ext.remove` | `{ name: string }` | `{ name: string, appliesAt: "now"\|"nextStepBoundary"\|"restart" }` | M4 (W-32) |
 | ext | `ext.test.run` | `{ kind: "replay"\|"testRun", target: string, options?: { maxCommits?, profileId?, workspace? } }` | `{ testId: string, threadId: string \| null }` | M4 (W-29) |
 | ext | `ext.test.list` | `{}` | `{ tests: ExtTestRecord[] }` | M4 (W-29) |
+
+- 0a. [결정: 2026-11-04 오케스트레이터 기본값] `turn.start`의 `whenBusy`는 실행 중 사용자 입력의 큐 자리다(`L1.loop.spec` `admit`의 `whenBusy`와 같다). 이 문서와 호스트 스펙은 사용자 입력에 `turn.busy`를 쓰라고 정한 적이 없고(3003은 컴팩션·재개 같은 turn 사이 연산의 거절이다), `turn.busy`가 남은 것은 큐를 연결하지 않았기 때문이다. `whenBusy`가 있고 열린 turn이 있으면 호스트는 `loop.admit`으로 그 자리의 큐에 넣고 `{ turnId: <실행 중인 turn>, queued: true }`를 돌려준다(새 turn이 아니다). 입력은 `input.queued`로 보이고 `turn.withdraw { requestId }`로 거둔다. 같은 `requestId`를 다시 보내면 같은 답이다. `whenBusy`가 없으면 전과 같이 `turn.busy`(3003)다: `whenBusy`를 모르는 클라이언트(CLI의 재시도 방식)는 바뀌지 않는다. 열린 turn이 없으면 `whenBusy`는 무시하고 turn을 시작한다.
 
 - [결정: review.m3-design-inputs D-M3-32 a, M3-REQ-18] 지식 제안 대기열 wire(`proposal.*`, `wire/proposals.ts`). 대기열은 둘이다: 학습 그룹의 `x_learning_proposals`(`source: "learning"`)와 L2.knowledge의 쓰기 승인 대기열 `cap_knowledge_proposals`(`source: "knowledge"`). 이 wire는 두 출처를 한 목록으로 보이는 조회와 결정이고, 대기열을 하나로 합치지 않는다.
   - `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 `(source, id)` 오름차순)으로 합친다. `ProposalRow`는 두 출처가 같은 모양이다: `source`, `id`, `kind`(`skill`, `memory`, `feedback`, `script`), `op`, `target`, `status`(두 대기열 상태의 합집합: `pending`, `approved`, `applied`, `rejected`, `stale`, `expired`, `reverted`), `destructive`, `diff`, `rationale`, `evidence`, `conflictsWith`, `reason`, `revision`, `scope`, `afterUntrusted`, `createdAt`. 출처에 없는 필드는 빈 값(null, false, 빈 배열, `revision` 1)이다. 한 출처를 읽지 못하면(지식 저장소 없음 등) 그 출처만 `unavailable`에 올리고 나머지 행은 돌려준다. `source`와 `status` 필터는 서버가 건다.
@@ -848,7 +850,7 @@ export declare function toVolatileEventWire(event: VolatileEventEnvelope): Volat
 
 | 위치 | 필드 | 내용 |
 |---|---|---|
-| `events.batch`의 `EventWire` | `mask?: LeafMask[]` | `item.recorded`와 `approval.requested`에 붙는다. `item.recorded`의 포인터는 payload의 `item` 기준(예: `/message/content`), `approval.requested`의 포인터는 payload 기준이다(`/title`, `/body/tool/args/command`). 가릴 것이 없으면 필드가 없다 |
+| `events.batch`의 `EventWire` | `mask?: LeafMask[]` | `item.recorded`, `approval.requested`, `input.queued`에 붙는다. `item.recorded`의 포인터는 payload의 `item` 기준(예: `/message/content`), `approval.requested`와 `input.queued`의 포인터는 payload 기준이다(`/title`, `/body/tool/args/command`, `/item/content`, `/item/content/0/text`). `input.queued`는 대기 입력 칩이 보이는 글(`/item` 아래 문자열)만 가리고 요청 키와 모드는 가리지 않는다. 클라이언트는 `maskQueuedInput`으로 적용하고, 맞지 않으면 읽을 수 없는 사실로 둔다. 가릴 것이 없으면 필드가 없다 |
 | `thread.read` 결과 | `masks?: ItemMaskEntry[]` | 가릴 잎이 있는 item만 `{ itemId, leaves }`로 싣는다. `items`는 바뀌지 않는다 |
 | `approval.list` 결과 | `masks?: ApprovalMaskEntry[]` | 출처(caller 등)와 본문의 문자열 전부(도구 인자, 계획, 질문, 검토)에 가릴 것이 있는 승인만 `{ approvalId, leaves }`로 싣는다. `approvals`는 바뀌지 않는다. 요청 키와 식별자는 가리지 않는다 |
 | `stream.chunk`의 `item.updated` `part_delta` | `delta.mask?: PartMask` | 진행 중 파트 조각의 누적 표식(아래 규칙 3) |

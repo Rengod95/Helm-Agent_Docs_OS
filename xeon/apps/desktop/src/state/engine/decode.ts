@@ -28,6 +28,7 @@ import {
   WorkPlanSubmittedSchema,
   WorkPlanWithdrawnSchema,
   maskApprovalRequest,
+  maskQueuedInput,
   type InputQueuedPayload,
 } from "@fresnel/contracts/records";
 
@@ -76,7 +77,7 @@ function queuedPreviewOf(item: InputQueuedPayload["item"]): QueuedPreview {
 
 /**
  * 거울이 읽는 내구 kind와 payload 검증. 표에 없는 kind는 other로 위치만 넘긴다.
- * `mask`는 호스트가 준 화면 가림 표식이다(item.recorded에만 있다). 확정 item은 표식을 적용한 복사본으로 거울에 들어간다.
+ * `mask`는 호스트가 준 화면 가림 표식이다(item.recorded, approval.requested, input.queued에 있다). 확정 item과 대기 입력은 표식을 적용한 복사본으로 거울에 들어간다.
  */
 const DURABLE: Readonly<
   Record<
@@ -198,20 +199,22 @@ const DURABLE: Readonly<
       : { ...base, type: "unreadable" };
   },
   // 대기 입력(내구): 큐에 든 입력은 칩으로, 배치·철회는 칩을 지운다. 입력 id는 `input.queued`의 이벤트 id다
-  "input.queued": (base, payload) => {
+  "input.queued": (base, payload, mask) => {
     const p = parse(InputQueuedPayloadSchema, payload);
-    return p.ok
-      ? {
-          ...base,
-          type: "input.queued",
-          input: {
-            mode: p.value.mode,
-            requestId: p.value.requestId,
-            sourceType: p.value.source.type,
-            preview: queuedPreviewOf(p.value.item),
-          },
-        }
-      : { ...base, type: "unreadable" };
+    if (!p.ok) return { ...base, type: "unreadable" };
+    // 칩의 글은 호스트가 준 표식을 적용한 복사본에서 만든다. 적용하지 못하면 읽을 수 없는 사실로 둔다(원문은 거울에 들어가지 않는다)
+    const masked = maskQueuedInput(p.value, mask);
+    if (masked === null) return { ...base, type: "unreadable" };
+    return {
+      ...base,
+      type: "input.queued",
+      input: {
+        mode: masked.mode,
+        requestId: masked.requestId,
+        sourceType: masked.source.type,
+        preview: queuedPreviewOf(masked.item),
+      },
+    };
   },
   "input.placed": (base, payload) => {
     const p = parse(InputPlacedPayloadSchema, payload);

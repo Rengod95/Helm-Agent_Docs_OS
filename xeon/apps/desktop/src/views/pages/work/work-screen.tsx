@@ -5,6 +5,7 @@ import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "reac
 import { useLinkPhase, usePlans, useThreadRunning } from "../../../state/engine/index.ts";
 import { useSelectedThreadId } from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
+import { jumpToPlanCard } from "../../plan-card-jump.ts";
 import { commandErrorIdOf } from "./work-text.ts";
 import { goalCommandTextOf, INITIAL_WORK_STATE, planActionOf, workReducer } from "./work-model.ts";
 import { WorkView, type WorkHandlers } from "./work-view.tsx";
@@ -21,6 +22,7 @@ const NO_HANDLERS: WorkHandlers = {
   retryGoal: () => {},
   retryTasks: () => {},
   retryPlan: () => {},
+  viewPlan: () => {},
   openVersions: () => {},
   closeVersions: () => {},
   toggleDone: () => {},
@@ -81,7 +83,7 @@ function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
     if (live && !running) detach(read(), rethrow);
   }, [live, running, read]);
 
-  const notify = (tone: "success" | "danger", text: string): void => {
+  const notify = (tone: "success" | "danger" | "info", text: string): void => {
     dispatch({ type: "noticeSet", notice: { tone, text } });
   };
 
@@ -134,6 +136,11 @@ function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
     },
     retryPlan: () => {
       detach(readPlan(latestPlanId), rethrow);
+    },
+    viewPlan: () => {
+      // 대화의 계획 카드는 승인을 기다리는 동안만 있다. 없으면 이유를 알린다
+      if (jumpToPlanCard(document)) return;
+      notify("info", t("desktop.work.plan.view.none"));
     },
     openVersions: () => {
       dispatch({ type: "versionsOpened" });

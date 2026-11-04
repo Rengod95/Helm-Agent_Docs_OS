@@ -11,9 +11,11 @@ describe("app session over a fake shell and fake engine", () => {
     await until(() => app.engine.read.getState().link.phase === "live", "live link");
     await until(() => app.engine.read.getState().threads.status === "ready", "threads ready");
     // 새 연결의 첫 메시지는 $/connectionReset이다(WebView 새로고침 뒤 hello 중복 방지, spec 4.5)
-    expect(methods.slice(0, 4)).toEqual([
+    // head 구독 뒤에 연결 전 계획과 대기 입력을 채우는 보조 구독이 이어진다
+    expect(methods.slice(0, 5)).toEqual([
       "$/connectionReset",
       "host.hello",
+      "events.subscribe",
       "events.subscribe",
       "thread.list",
     ]);

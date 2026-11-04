@@ -100,6 +100,40 @@ describe("input.* events: decode", () => {
     });
   });
 
+  test("the chip text is the masked text: the host's marks are applied, and marks that do not fit hide the input", () => {
+    const text = "key sk-probe-123 now";
+    const start = text.indexOf("sk-probe-123");
+    const marked: EventWire = {
+      ...queuedEvent(1, { content: text }),
+      mask: [
+        {
+          pointer: "/item/content",
+          len: text.length,
+          ranges: [{ start, end: start + 12, label: "token" }],
+        },
+      ],
+    };
+    const fact = decodeDurable(marked);
+    expect(fact.type === "input.queued" ? fact.input.preview : null).toEqual({
+      kind: "text",
+      text: "key [REDACTED:token] now",
+    });
+    const stale: EventWire = {
+      ...queuedEvent(2, { content: text }),
+      mask: [{ pointer: "/item/content", len: 3, ranges: [] }],
+    };
+    const hidden = decodeDurable(stale);
+    expect(hidden.type === "input.queued" ? hidden.input.preview : null).toEqual({
+      kind: "text",
+      text: "[REDACTED:unverified]",
+    });
+    const broken: EventWire = {
+      ...queuedEvent(3),
+      mask: [{ pointer: "/item", len: 1, ranges: [] }],
+    };
+    expect(decodeDurable(broken).type).toBe("unreadable");
+  });
+
   test("a long text keeps its first 120 characters and ends with an ellipsis; surrounding spaces go", () => {
     const fact = queued(1, { content: `  ${"가".repeat(130)}  ` });
     expect(fact.type === "input.queued" ? fact.input.preview : null).toEqual({

@@ -46,6 +46,7 @@ import type {
   StoreId,
   StreamPosition,
   TurnStartInput,
+  WhenBusy,
   Unsubscribe,
   UsageGauge,
   WireParams,
@@ -367,8 +368,8 @@ export interface ThreadPort {
 }
 
 export type SubmitOutcome =
-  /** 같은 requestId 재제출이면 처음 turnId */
-  | { readonly ok: true; readonly turnId: TurnId }
+  /** 같은 requestId 재제출이면 처음 turnId. `queued`가 참이면 입력은 실행 중인 turn 뒤의 큐에 들어갔고 `turnId`는 그 실행 중인 turn이다 */
+  | { readonly ok: true; readonly turnId: TurnId; readonly queued?: true }
   | { readonly ok: false; readonly reason: "busy"; readonly turnId: TurnId }
   /** 루프가 입력을 받지 않았다(저장소 부족·읽기 전용, 소유 상실, 잘못된 입력 등 예상 가능한 실패). 와이어 오류로 옮기는 것은 처리기 몫이다 */
   | { readonly ok: false; readonly reason: "rejected"; readonly error: LoopError };
@@ -378,6 +379,8 @@ export interface TurnPort {
     threadId: ThreadId,
     input: TurnStartInput,
     requestId: string | undefined,
+    /** 실행 중인 turn이 있을 때 입력이 들어갈 자리. 없으면 `busy`로 거절한다 */
+    whenBusy?: WhenBusy,
   ): Promise<SubmitOutcome>;
   interrupt(threadId: ThreadId, turnId: TurnId | undefined): Promise<boolean>;
   /**

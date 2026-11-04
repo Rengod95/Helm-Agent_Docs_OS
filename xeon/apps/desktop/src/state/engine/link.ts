@@ -12,6 +12,7 @@ import {
   WireError,
   type EventsBatchParams,
   type HostConnection,
+  type StoreId,
   type StreamPosition,
   type SubId,
   type ThreadSummary,
@@ -19,6 +20,7 @@ import {
 import { watch } from "../shared/watch.ts";
 import { MAX_SYNC_ATTEMPTS } from "./reduce.ts";
 import { decodeDurable, decodePendingApprovals, decodeVolatile } from "./decode.ts";
+import type { DurableFact } from "./input.ts";
 import type { EngineStore } from "./store.ts";
 
 /** 열린 thread 스냅샷이 반영한 위치와 item 목록 */
@@ -42,6 +44,9 @@ export type LinkDeps = {
   /** UI 스토어의 선택 thread. 재설정 뒤 다시 열 thread를 알려 준다 */
   readonly openThreadId: () => ThreadId | null;
 };
+
+/** 연결 전 사건을 채우는 보조 구독이 거르는 종류: 계획(`work.plan_submitted`·`work.plan_withdrawn`)과 대기 입력(`input.queued`·`placed`·`withdrawn`) */
+const BACKFILL_PREFIXES: string[] = ["work.plan_", "input."];
 
 /** thread.list 페이지 상한(200개씩). 넘으면 앞쪽 페이지만 보인다 */
 const MAX_LIST_PAGES = 10;
@@ -69,6 +74,9 @@ export function startLink(deps: LinkDeps): EngineLink {
   // 엔진은 연결당 구독 수를 제한한다(F.wire-settings.spec §3.4.3, 기본 16). 새 구독이 서면 이전 구독을 닫는다
   let current: SubId | null = null;
   let generation = 0;
+  // 연결 전에 생긴 계획과 대기 입력을 처음부터 다시 받는 보조 구독(`backfill`). 끝나면 닫는다. 같은 때에 하나만 있다
+  let backfilling: { sub: SubId | null; facts: DurableFact[]; early: EventsBatchParams[] } | null =
+    null;
 
   const unsubscribe = async (sub: SubId): Promise<void> => {
     const closed = await attemptAsync(() => deps.connection.request("events.unsubscribe", { sub }));
@@ -90,12 +98,64 @@ export function startLink(deps: LinkDeps): EngineLink {
     });
   };
 
+  const finishBackfill = (sub: SubId, storeId: StoreId, facts: readonly DurableFact[]): void => {
+    backfilling = null;
+    deps.store.ingest({ type: "backfill", storeId, facts });
+    detach(unsubscribe(sub), report);
+  };
+
+  /**
+   * head부터 맞춘 뒤에 연결 전의 계획과 대기 입력을 채운다. 거울은 head 뒤의 사건만 받으므로 앞선 `work.plan_*`와 `input.*`는 처음부터 다시
+   * 읽어야 한다. 이 두 종류만 거른 구독을 0부터 열어 따라잡히면 거울에 넣고 닫는다. 재생 한도를 넘으면(`replay.outOfRange`) 채우지 않는다.
+   * 기다리지 않는다: 끝나지 않아도 화면은 head부터의 사건으로 계속 맞는다
+   */
+  const backfill = async (storeId: StoreId): Promise<void> => {
+    const mine: { sub: SubId | null; facts: DurableFact[]; early: EventsBatchParams[] } = {
+      sub: null,
+      facts: [],
+      early: [],
+    };
+    backfilling = mine;
+    const result = await attemptAsync(() =>
+      deps.connection.request("events.subscribe", {
+        from: { storeId, seq: 0 },
+        filter: { kindPrefixes: BACKFILL_PREFIXES },
+      }),
+    );
+    if (backfilling !== mine) {
+      if (result.ok) await unsubscribe(result.value.sub);
+      return;
+    }
+    if (!result.ok) {
+      backfilling = null;
+      deps.logger.warn("desktop.link.backfill_failed", {
+        error: result.error.cause instanceof Error ? result.error.cause.name : "unknown",
+      });
+      return;
+    }
+    mine.sub = result.value.sub;
+    let done = false;
+    for (const p of mine.early) {
+      if (p.sub !== mine.sub) continue;
+      mine.facts.push(...p.events.map(decodeDurable));
+      if (p.caughtUp) done = true;
+    }
+    mine.early = [];
+    if (done) finishBackfill(result.value.sub, storeId, mine.facts);
+  };
+
   const subscribe = async (from: "cursor" | "head"): Promise<void> => {
     const cursor = deps.store.read.getState().cursor;
     const position: StreamPosition | "head" =
       from === "cursor" && cursor !== null ? cursor : "head";
     generation += 1;
     const mine = generation;
+    // 보조 구독은 새 구독이 서면 버린다(위치가 바뀌었다)
+    if (backfilling !== null) {
+      const stale = backfilling;
+      backfilling = null;
+      if (stale.sub !== null) detach(unsubscribe(stale.sub), report);
+    }
     inFlight = true;
     const result = await attemptAsync(() =>
       deps.connection.request("events.subscribe", { from: position }),
@@ -133,7 +193,10 @@ export function startLink(deps: LinkDeps): EngineLink {
       from: position === "head" ? "head" : "cursor",
     });
     for (const p of waiting) if (p.sub === r.sub) ingestBatch(p);
-    if (position === "head") await reload(r.sub);
+    if (position === "head") {
+      detach(backfill(r.storeId), report);
+      await reload(r.sub);
+    }
   };
 
   /**
@@ -248,6 +311,21 @@ export function startLink(deps: LinkDeps): EngineLink {
 
   const offs = [
     deps.connection.onNotification("events.batch", (p) => {
+      const pending = backfilling;
+      if (pending !== null && p.sub !== current) {
+        // 보조 구독의 사건이다(응답보다 먼저 올 수도 있다). 거울의 위치와 이어지지 않으므로 따로 모은다
+        if (pending.sub === null) {
+          pending.early.push(p);
+          return;
+        }
+        if (p.sub === pending.sub) {
+          pending.facts.push(...p.events.map(decodeDurable));
+          const cursor = deps.store.read.getState().cursor;
+          if (p.caughtUp && cursor !== null)
+            finishBackfill(pending.sub, cursor.storeId, pending.facts);
+          return;
+        }
+      }
       if (inFlight) held.push(p);
       else ingestBatch(p);
     }),

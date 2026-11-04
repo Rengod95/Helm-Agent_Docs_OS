@@ -11,6 +11,7 @@ import {
 } from "@fresnel/contracts/wire";
 import {
   ApprovalRequestedPayloadSchema,
+  InputQueuedPayloadSchema,
   ItemRecordedPayloadSchema,
   type DurableEventEnvelope,
   type ReadFailure,
@@ -25,6 +26,7 @@ import {
   approvalLeafMasks,
   createPartMasker,
   itemLeafMasks,
+  queuedInputLeafMasks,
   type DisplayMaskPort,
   type PartMasker,
 } from "../display-mask.ts";
@@ -66,7 +68,7 @@ function filterIssue(filter: EventFilter | undefined): unknown {
 }
 
 /**
- * 내구 이벤트의 wire 모양. item.recorded에는 화면 가림 표식을 `mask`로 붙인다(L0.secrets.spec §3.5.1).
+ * 내구 이벤트의 wire 모양. item.recorded, approval.requested, input.queued에는 화면 가림 표식을 `mask`로 붙인다(L0.secrets.spec §3.5.1).
  * payload와 저장 행은 그대로이고, 표식은 구간과 길이만 가진다.
  */
 function recordWire(display: DisplayMaskPort, event: DurableEventEnvelope): EventWire {
@@ -76,6 +78,13 @@ function recordWire(display: DisplayMaskPort, event: DurableEventEnvelope): Even
     const approval = parse(ApprovalRequestedPayloadSchema, event.payload);
     if (!approval.ok) return wire;
     const mask = approvalLeafMasks(display, approval.value);
+    return mask === undefined ? wire : { ...wire, mask: [...mask] };
+  }
+  if (event.kind === "input.queued") {
+    // 칩에 보이는 입력 글(L0.secrets.spec §3.5.1). payload는 그대로 둔다
+    const queued = parse(InputQueuedPayloadSchema, event.payload);
+    if (!queued.ok) return wire;
+    const mask = queuedInputLeafMasks(display, queued.value);
     return mask === undefined ? wire : { ...wire, mask: [...mask] };
   }
   if (event.kind !== "item.recorded") return wire;

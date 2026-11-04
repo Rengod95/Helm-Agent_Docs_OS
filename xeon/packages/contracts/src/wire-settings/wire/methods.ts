@@ -741,24 +741,38 @@ export const TurnStartInputSchema: TUnsafe<TurnStartInput> = Type.Unsafe<TurnSta
   turnStartInputShape satisfies SchemaSound<TurnStartInput, typeof turnStartInputShape>,
 );
 
+/** 실행 중인 turn이 있을 때 입력이 들어갈 자리(L1.loop.spec `whenBusy`). steer는 다음 도구 라운드 뒤, followUp은 turn이 끝난 뒤, aside는 다음 모델 요청과 함께다 */
+export const WhenBusySchema: TUnion<[TLiteral<"steer">, TLiteral<"followUp">, TLiteral<"aside">]> =
+  Type.Union([Type.Literal("steer"), Type.Literal("followUp"), Type.Literal("aside")]);
+export type WhenBusy = Static<typeof WhenBusySchema>;
+
 export const TurnStartParamsSchema: TObject<{
   threadId: typeof ThreadIdSchema;
   input: typeof TurnStartInputSchema;
   requestId: TOptional<typeof RequestKeySchema>;
+  whenBusy: TOptional<typeof WhenBusySchema>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
     input: TurnStartInputSchema,
     /** 같은 연결 재시도의 중복 제출을 막는 멱등 키. 같은 키는 처음 발급한 turnId를 돌려준다 */
     requestId: Type.Optional(RequestKeySchema),
+    /** 실행 중인 turn이 있으면 입력을 이 자리의 큐에 넣는다. 생략하면 큐에 넣지 않고 `turn.busy`(3003)로 거절한다 */
+    whenBusy: Type.Optional(WhenBusySchema),
   },
   { additionalProperties: false },
 );
 export type TurnStartParams = Static<typeof TurnStartParamsSchema>;
 
-/** turn 접수만 뜻한다. 접수된 turn을 멈추려면 turn.interrupt를 쓴다 */
-export const TurnStartResultSchema: TObject<{ turnId: typeof TurnIdSchema }> = Type.Object(
-  { turnId: TurnIdSchema },
+/**
+ * turn 접수만 뜻한다. 접수된 turn을 멈추려면 turn.interrupt를 쓴다. `queued`가 참이면 입력은 새 turn이 아니라 큐에 들어갔고
+ * `turnId`는 실행 중인 turn이다(입력은 `input.queued` 이벤트로 보이고 `turn.withdraw { requestId }`로 거둔다)
+ */
+export const TurnStartResultSchema: TObject<{
+  turnId: typeof TurnIdSchema;
+  queued: TOptional<TLiteral<true>>;
+}> = Type.Object(
+  { turnId: TurnIdSchema, queued: Type.Optional(Type.Literal(true)) },
   { additionalProperties: false },
 );
 export type TurnStartResult = Static<typeof TurnStartResultSchema>;

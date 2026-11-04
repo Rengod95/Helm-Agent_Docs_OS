@@ -140,6 +140,23 @@ test("turn.start refused by the loop is a typed wire error, not a bare internal 
   await connection.close();
 });
 
+test("turn.start with whenBusy while a turn runs queues the input and answers the running turn", async () => {
+  const host = createFakeHost();
+  const threadId = host.fake.seedThread();
+  const running = host.fake.ids.next("trn");
+  host.fake.setRunningTurn(running);
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const result = await connection.request("turn.start", {
+    threadId,
+    input: "hi",
+    requestId: "q1",
+    whenBusy: "steer",
+  });
+  expect(result).toEqual({ turnId: running, queued: true });
+  await connection.close();
+});
+
 test("turn.start while a turn runs is turn.busy with the running turn id", async () => {
   const host = createFakeHost();
   const threadId = host.fake.seedThread();

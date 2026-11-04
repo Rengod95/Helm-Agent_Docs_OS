@@ -315,12 +315,15 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       ...options.overrides?.threads,
     },
     turns: {
-      submit(threadId, _input, requestId): Promise<SubmitOutcome> {
+      submit(threadId, _input, requestId, whenBusy): Promise<SubmitOutcome> {
         submitted.push({ threadId, requestId });
         if (state.rejection !== undefined) {
           return Promise.resolve({ ok: false, reason: "rejected", error: state.rejection });
         }
         if (state.running !== undefined) {
+          if (whenBusy !== undefined) {
+            return Promise.resolve({ ok: true, turnId: state.running, queued: true });
+          }
           return Promise.resolve({ ok: false, reason: "busy", turnId: state.running });
         }
         const turnId = ids.next("trn");

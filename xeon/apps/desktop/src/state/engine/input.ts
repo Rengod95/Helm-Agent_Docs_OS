@@ -137,6 +137,11 @@ export type MirrorInput =
       readonly caughtUp: boolean;
       readonly facts: readonly DurableFact[];
     }
+  | {
+      readonly type: "backfill";
+      readonly storeId: StoreId;
+      readonly facts: readonly DurableFact[];
+    }
   | { readonly type: "chunk"; readonly fact: VolatileFact }
   /** `status.list` 결과(열 때와 다시 맞춘 뒤). 그 thread의 칸을 통째로 바꾼다 */
   | {

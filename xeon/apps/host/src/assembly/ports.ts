@@ -37,6 +37,7 @@ import {
   type StoreId,
   type ThreadSummary,
   type TurnStartInput,
+  type WhenBusy,
   type WireResult,
 } from "@fresnel/contracts/wire";
 import { cancelledByOwnerOf } from "./owner-cancel.ts";
@@ -389,6 +390,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     threadId: ThreadId,
     input: TurnStartInput,
     requestId: string | undefined,
+    whenBusy: WhenBusy | undefined,
   ): Promise<SubmitOutcome> {
     // 같은 requestId의 재제출은 처음 turnId를 돌려준다(HS-22, F wire turn.start)
     if (requestId !== undefined) {
@@ -397,12 +399,16 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (existing.value !== undefined) return { ok: true, turnId: existing.value.turnId };
     }
     const running = loop.threadStatus(threadId).runningTurnId;
-    if (running !== null) return { ok: false, reason: "busy", turnId: running };
+    // whenBusy가 없으면 큐에 넣지 않고 거절한다(호환). 있으면 루프가 그 자리의 큐에 넣는다(L1.loop.spec §4 admit)
+    if (running !== null && whenBusy === undefined) {
+      return { ok: false, reason: "busy", turnId: running };
+    }
     const admitted = await loop.admit({
       threadId,
       content: input,
       ...(requestId === undefined ? {} : { requestId }),
       via: "interactive",
+      ...(whenBusy === undefined ? {} : { whenBusy }),
     });
     // 저장소 부족·소유 상실 같은 실패는 예상 가능하다. 결함(Bug)으로 올리지 않고 처리기가 와이어 오류로 옮기게 돌려준다
     if (!admitted.ok) return { ok: false, reason: "rejected", error: admitted.error };
@@ -412,10 +418,16 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         return { ok: true, turnId: outcome.turnId };
       case "duplicate":
         if (outcome.turnId !== null) return { ok: true, turnId: outcome.turnId };
+        // 같은 requestId로 이미 큐에 든 입력의 재제출이다. 아직 turn이 없으므로 지금 실행 중인 turn 뒤에 있다고 답한다
+        if (whenBusy !== undefined && running !== null) {
+          return { ok: true, turnId: running, queued: true };
+        }
         throw new Bug("loop.admit returned a duplicate without a turn");
       case "queued":
         // 유휴 thread에서 queued가 나오는 것은 input 훅이 입력을 보류했을 때다. 접수된 turn이 없다
         if (outcome.runningTurnId !== null) {
+          if (whenBusy !== undefined)
+            return { ok: true, turnId: outcome.runningTurnId, queued: true };
           return { ok: false, reason: "busy", turnId: outcome.runningTurnId };
         }
         throw new Bug("loop.admit queued the input without a running turn");
@@ -445,8 +457,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   const turns: TurnPort = {
     // 같은 thread의 수동 컴팩션이 도는 동안은 기다렸다가 제출한다(HS-77, §10 미결 31)
-    submit: (threadId, input, requestId) =>
-      gate.run(threadId, () => submitInput(threadId, input, requestId)),
+    submit: (threadId, input, requestId, whenBusy) =>
+      gate.run(threadId, () => submitInput(threadId, input, requestId, whenBusy)),
     interrupt: (threadId, turnId) => loop.interrupt(threadId, turnId),
     resume: (threadId) => gate.run(threadId, () => loop.resume(threadId)),
     stopAtSafeBoundary: (deadlineMs) => loop.stopAtSafeBoundary(deadlineMs),

@@ -40,6 +40,7 @@ export interface WorkHandlers {
   readonly retryGoal: () => void;
   readonly retryTasks: () => void;
   readonly retryPlan: () => void;
+  readonly viewPlan: () => void;
   readonly openVersions: () => void;
   readonly closeVersions: () => void;
   readonly toggleDone: () => void;
@@ -114,6 +115,10 @@ function PlanPanel(props: {
           <div className="flex flex-wrap items-center gap-2 text-caption text-text-secondary">
             <span>{t("desktop.work.plan.version", { version: card.version })}</span>
             <Badge>{t(card.statusRef.id)}</Badge>
+            <Button size="xs" variant="outline" onClick={handlers.viewPlan}>
+              {t("desktop.work.plan.view")}
+            </Button>
+            <InfoTip text={t("desktop.work.plan.view.info")} />
           </div>
         </div>
       )}
@@ -252,7 +257,7 @@ function NoticeLine(props: {
 }): ReactNode {
   return (
     <Alert
-      tone={props.notice.tone === "danger" ? "danger" : "success"}
+      tone={props.notice.tone}
       dismissible
       dismissLabel={t("desktop.work.dismiss")}
       onDismiss={props.onDismiss}

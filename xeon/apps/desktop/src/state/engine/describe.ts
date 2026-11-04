@@ -27,6 +27,7 @@ export function describeInput(input: MirrorInput): InputLabel {
     case "engine":
       return { input: `engine:${input.state.kind}`, seq: null };
     case "connecting":
+    case "backfill":
     case "ended":
     case "out_of_range":
     case "subscribe_failed":

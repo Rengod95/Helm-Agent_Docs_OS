@@ -4,6 +4,7 @@ import { SecretNameSchema } from "@fresnel/contracts/capabilities";
 import { EventIdSchema, type EventId } from "@fresnel/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
+  InputQueuedPayloadSchema,
   type ApprovalRequestedPayload,
 } from "@fresnel/contracts/records";
 import {
@@ -127,4 +128,32 @@ test("the approval.list entries carry masks by approval id and leave clean appro
   const entries = approvalMaskEntries(redactor, [dirty, clean]);
   expect(entries.map((entry) => entry.approvalId)).toEqual([dirty.approvalId]);
   expect(JSON.stringify(entries)).not.toContain(SECRET);
+});
+
+test("input.queued carries a leaf mask for the queued text; payload and stored event are unchanged", async () => {
+  const host = createFakeHost({ display: redactorWithSecret() });
+  const threadId = host.fake.ids.next("thr");
+  host.fake.commit([{ kind: "thread.started", threadId }]);
+  const { client, connection } = host.connect();
+  const raw = rawClient(client);
+  await connection.request("host.hello", HELLO_PARAMS);
+  await connection.request("events.subscribe", { from: "head" });
+
+  const parsed = parse(InputQueuedPayloadSchema, {
+    mode: "followUp",
+    item: { kind: "user", content: `use ${SECRET} please` },
+    requestId: "q-1",
+    source: { type: "user", via: "interactive" },
+  });
+  if (!parsed.ok) throw new Error("the test queued payload must be valid");
+  host.fake.commit([{ kind: "input.queued", threadId, payload: parsed.value }]);
+  await flushMicrotasks();
+  const stored = JSON.stringify(host.fake.events);
+
+  const event = eventsOf(raw.received).find((e) => e.kind === "input.queued");
+  expect(event?.payload).toEqual(parsed.value);
+  expect(event?.mask?.map((leaf) => leaf.pointer)).toEqual(["/item/content"]);
+  expect(JSON.stringify(event?.mask)).not.toContain(SECRET);
+  expect(JSON.stringify(host.fake.events)).toBe(stored);
+  await connection.close();
 });

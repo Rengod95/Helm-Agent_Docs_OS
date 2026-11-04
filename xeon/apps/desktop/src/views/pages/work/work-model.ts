@@ -317,7 +317,7 @@ type WorkLoad<T> =
   | { readonly status: "ready"; readonly value: T };
 
 export interface WorkNotice {
-  readonly tone: "success" | "danger";
+  readonly tone: "success" | "danger" | "info";
   readonly text: string;
 }
 
