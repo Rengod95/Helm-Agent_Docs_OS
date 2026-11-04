@@ -27,6 +27,7 @@ function detailOf(name: string, plugin: PluginUiContextValue): string {
         onToggle={() => undefined}
         onKeepOn={() => undefined}
         onKeepOff={() => undefined}
+        onRemove={() => undefined}
       />,
       createWorkbenchStore(() => state),
       undefined,

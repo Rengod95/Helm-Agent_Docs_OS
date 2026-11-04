@@ -22,6 +22,7 @@ function html(target: ExtListEntry): string {
         onClear={noop}
         onReenable={noop}
         onKeepOff={noop}
+        onRemove={noop}
       />,
       store,
       liveEngine(),

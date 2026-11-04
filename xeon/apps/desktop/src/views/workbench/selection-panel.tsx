@@ -5,7 +5,15 @@ import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { Badge, Button, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { AutoOffNotice } from "./craft-parts.tsx";
-import { ExtName, ExtSwitch, kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
+import {
+  ExtName,
+  ExtSwitch,
+  RemoveButton,
+  kindText,
+  lockText,
+  stateText,
+  stateTone,
+} from "./ext-row.tsx";
 
 export function SelectionPanel(props: {
   readonly state: WorkbenchState;
@@ -15,6 +23,7 @@ export function SelectionPanel(props: {
   readonly onClear: () => void;
   readonly onReenable: () => void;
   readonly onKeepOff: () => void;
+  readonly onRemove: () => void;
 }): ReactNode {
   const { entry } = props;
   const row = rowOf(entry, props.state.pending);
@@ -57,6 +66,7 @@ export function SelectionPanel(props: {
       <Button size="sm" onClick={props.onDetail}>
         {t("desktop.workbench.selection.detail")}
       </Button>
+      <RemoveButton entry={entry} onRemove={props.onRemove} />
     </aside>
   );
 }

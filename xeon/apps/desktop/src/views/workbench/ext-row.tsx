@@ -1,10 +1,12 @@
 // 확장 행 부품(V-16, §6.21, §6.23): 표 칸 하나의 내용. 표 틀과 고르기·키보드는 `layer-list.tsx`의 caustic `Table`이 맡는다.
 // 칸: 표시 이름과 id mono, 층 mono, 종류, 등급, 상태 점 + 글, 버전, 켜짐 스위치(그룹은 하나, 15-1).
 import { t, type MessageId } from "@fresnel/client/i18n";
+import type { ExtListEntry } from "@fresnel/contracts/wire";
 import type { ExtKind, ExtRowVM, ExtState, ToggleLock } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
-import { Badge, StatusDot, Switch, Tooltip } from "@caustic/react";
+import { Badge, Button, StatusDot, Switch, Tooltip } from "@caustic/react";
 import type { ReactNode } from "react";
+import { removableOf } from "./remove-model.ts";
 
 type DotTone = "neutral" | "success" | "warning" | "danger" | "info";
 
@@ -130,4 +132,30 @@ export function ExtCell(props: {
     default:
       return assertNever(props.column, "ExtCell");
   }
+}
+
+/**
+ * "지우기" 단추(B-04). 사용자 위치의 설치본만 지운다. 지울 수 없는 확장은 단추가 꺼져 포커스를 받지 못하므로
+ * 감싼 span에 `Tooltip`으로 이유를 보인다
+ */
+export function RemoveButton(props: {
+  readonly entry: Pick<ExtListEntry, "origin">;
+  readonly onRemove: () => void;
+}): ReactNode {
+  if (removableOf(props.entry)) {
+    return (
+      <Button size="sm" variant="outline" onClick={props.onRemove}>
+        {t("desktop.workbench.remove.open")}
+      </Button>
+    );
+  }
+  return (
+    <Tooltip content={t("desktop.workbench.remove.locked")}>
+      <span tabIndex={0} className="inline-flex rounded-md outline-none focus-visible:shadow-focus">
+        <Button size="sm" variant="outline" disabled>
+          {t("desktop.workbench.remove.open")}
+        </Button>
+      </span>
+    </Tooltip>
+  );
 }

@@ -102,6 +102,50 @@ describe("fresnel.devkit and its wire methods", () => {
       location: "/l",
       appliesAt: "restart",
     });
+    roundTrip(WIRE_METHODS["ext.install"].result, {
+      name: "n",
+      version: "1.0.0",
+      location: "/l",
+      appliesAt: "nextStepBoundary",
+      needsReload: true,
+    });
+    expect(
+      parse(WIRE_METHODS["ext.install"].result, {
+        name: "n",
+        version: "1.0.0",
+        location: "/l",
+        appliesAt: "nextStepBoundary",
+        needsReload: false,
+      }).ok,
+    ).toBe(false);
+    for (const appliesAt of ["now", "nextStepBoundary"]) {
+      roundTrip(WIRE_METHODS["ext.install"].result, {
+        name: "n",
+        version: "1.0.0",
+        location: "/l",
+        appliesAt,
+      });
+    }
+    // 복사는 됐지만 싣지 못했으면 이유와 진단이 함께 간다
+    roundTrip(WIRE_METHODS["ext.install"].result, {
+      name: "n",
+      version: "1.0.0",
+      location: "/l",
+      appliesAt: "restart",
+      loadFailure: {
+        reason: "error",
+        diagnostics: [{ severity: "error", code: "entry_import_failed", message: "m" }],
+      },
+    });
+    expect(
+      parse(WIRE_METHODS["ext.install"].result, {
+        name: "n",
+        version: "1.0.0",
+        location: "/l",
+        appliesAt: "restart",
+        loadFailure: { reason: "other", diagnostics: [] },
+      }).ok,
+    ).toBe(false);
     // 설치는 미리 보기의 해시를 함께 받는다
     const install = WIRE_METHODS["ext.install"].params;
     expect(parse(install, { source: "/s", sha256: "a".repeat(64) }).ok).toBe(true);
@@ -127,6 +171,7 @@ describe("fresnel.devkit and its wire methods", () => {
       warnings: [{ severity: "warning", code: "AU-006", path: "/ui", message: "m" }],
     });
     roundTrip(WIRE_METHODS["ext.remove"].result, { name: "n", appliesAt: "restart" });
+    roundTrip(WIRE_METHODS["ext.remove"].result, { name: "n", appliesAt: "now" });
   });
 
   test("ext.test.run and ext.test.list round trip, testRun replaces trial", () => {

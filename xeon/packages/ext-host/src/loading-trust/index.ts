@@ -303,6 +303,28 @@ export interface ReloadStarted {
   readonly applied: Promise<ReloadApplied>;
 }
 
+/** 설치한 새 이름을 싣지 못한 이유. 이때 호스트에는 아무것도 남지 않는다(`disabled`는 로더 기록만 남아 `ensureLoaded`로 켠다) */
+export type LoadInstalledFailure =
+  /** 이미 실려 있다(같은 이름의 새 판은 `reload`가 싣는다) */
+  | { readonly kind: "already_loaded" }
+  /** 안전 모드라 사용자 위치의 확장을 싣지 않는다 */
+  | { readonly kind: "safe_mode" }
+  /** 사용자 위치에 그 이름의 설치본이 없다 */
+  | { readonly kind: "not_found"; readonly diagnostics: readonly LoadDiagnostic[] }
+  /** 파이프라인이 거부했거나(`rejected`, `error`) 꺼진 채로 두었다(`disabled`) */
+  | {
+      readonly kind: "not_active";
+      readonly state: "rejected" | "disabled" | "error";
+      readonly diagnostics: readonly LoadDiagnostic[];
+    };
+
+/** 새 이름을 실었다 */
+export interface LoadInstalledStarted {
+  /** now: 이 호출이 돌아오기 전에 켜졌다. nextStepBoundary: 실행 중인 turn이 있어 켜기가 단계 경계를 기다린다 */
+  readonly appliesAt: "now" | "nextStepBoundary";
+  readonly info: LoadedExtensionInfo;
+}
+
 export interface ExtensionLoader {
   /** 시작 때 한 번. 파이프라인 전체를 실행한다 */
   loadAll(options: LoadOptions): Promise<LoadReport>;
@@ -333,6 +355,20 @@ export interface ExtensionLoader {
     signal: AbortSignal,
     options?: ReloadOptions,
   ): Promise<Result<ReloadStarted, ReloadFailure>>;
+  /**
+   * 설치 뒤에 시작 때와 같은 파이프라인(검증, 집합 검사, 신뢰 상한, 켜짐 확인, `assignTier`, 엔트리 import, `ExtHost.install`)으로
+   * 사용자 위치(`<userDir>/extensions/<name>`)의 새 이름 하나를 싣는다(§4.4.4). 우회하는 길은 없다. 실행 중인 turn이 있으면 켜기는
+   * `ExtHost`의 시작 적용 규칙대로 다음 단계 경계에서 일어난다(`nextStepBoundary`). 실패하면 기록을 남기지 않아 같은 이름을 다시 설치해 싣을 수 있다
+   */
+  loadInstalled(
+    name: ExtensionName,
+    signal: AbortSignal,
+  ): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>>;
+  /**
+   * 지운 외부 확장을 호스트와 로더 기록에서 내린다(§4.4.5). 재시작 없이 목록에서 빠지고 같은 이름을 다시 설치해 실을 수 있다.
+   * 내장 확장이거나 로더가 모르는 이름이면 false다
+   */
+  unload(name: ExtensionName): Promise<boolean>;
   list(): readonly LoadedExtensionInfo[];
   diagnostics(): readonly LoadDiagnostic[];
   /**
@@ -357,6 +393,8 @@ interface ExtRecord {
   readonly diagnostics: LoadDiagnostic[];
   /** Plugin UI 검사 결과(§4.3.4). 매니페스트에 `ui`가 없거나 내장 확장이면 빈 배열이다 */
   ui: readonly UiItemReport[];
+  /** 마지막 설치에서 켜기가 실행 중인 turn 때문에 단계 경계로 미뤄졌는가 */
+  deferred: boolean;
 }
 
 function versionOf(manifest: ExtensionManifest | undefined): SemVer {
@@ -454,6 +492,11 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   const sessionTrust = new Map<string, "allow" | "deny">();
   /** `loadProject`가 이미 실은 프로젝트 루트(정규화한 경로) */
   const loadedProjects = new Set<string>();
+  /**
+   * 내려갔거나 싣지 못한 이름이 다음에 쓸 로드 세대. Bun은 한 번 평가한 경로(실패한 것 포함)의 모듈을 캐시하므로
+   * 같은 이름을 다시 설치해 싣을 때 세대를 올려 새 모듈로 import한다(§4.4.4)
+   */
+  const nextGeneration = new Map<ExtensionName, number>();
 
   function missingDependency(): string | undefined {
     const required: readonly (readonly [string, unknown])[] = [
@@ -586,10 +629,11 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         trust: "untrusted",
         state: "discovered",
         loadIndex: null,
-        generation: 0,
+        generation: nextGeneration.get(name) ?? 0,
         essential: candidate.builtin?.essential === true,
         diagnostics: [],
         ui: [],
+        deferred: false,
       };
       const first = records.get(name);
       if (first !== undefined) {
@@ -923,7 +967,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       );
       return undefined;
     }
-    const loaded = await importExternalEntry(deps.fs, root, manifest);
+    const loaded = await importExternalEntry(deps.fs, root, manifest, record.generation);
     if (!loaded.ok) {
       fail(record, "error", "entry", loaded.error.code, loaded.error.message);
       return undefined;
@@ -988,6 +1032,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         deps.policy.forget(record.name);
         return;
       }
+      record.deferred = result.setups.some((setup) => setup.status === "deferred");
       record.state = "active";
     } catch (error) {
       fail(
@@ -1292,6 +1337,67 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return infoOf(record);
   }
 
+  async function loadInstalled(
+    name: ExtensionName,
+    signal: AbortSignal,
+  ): Promise<Result<LoadInstalledStarted, LoadInstalledFailure>> {
+    if (records.has(name)) return err({ kind: "already_loaded" });
+    if (startup.safeMode.active) return err({ kind: "safe_mode" });
+    throwIfCancelled(signal, `loading ${name}`);
+    const mark = diagnosticLog.mark();
+    const found = await discoverExternal(
+      deps.fs,
+      externalLocations({
+        paths: deps.paths,
+        extraPaths: [],
+        projectRoot: null,
+        sources: ["user"],
+      }),
+    );
+    // 위치는 사용자 확장 위치 하나뿐이라 디렉터리 이름이 곧 설치 이름이다
+    const target = found.candidates.find(
+      (candidate) => candidate.root !== null && basename(candidate.root) === name,
+    );
+    if (target === undefined) {
+      return err({ kind: "not_found", diagnostics: diagnosticLog.since(mark) });
+    }
+    const before = new Set(records.values());
+    await processBatch([target], signal);
+    const added = [...records.values()].filter((record) => !before.has(record));
+    const record = added.find((item) => item.candidate === target) ?? added[0];
+    if (record === undefined) throw new Bug(`loader.install_without_record: ${name}`);
+    if (record.state === "active") {
+      return ok({ appliesAt: record.deferred ? "nextStepBoundary" : "now", info: infoOf(record) });
+    }
+    const state = record.state;
+    const failure = {
+      kind: "not_active",
+      state: state === "disabled" || state === "error" ? state : "rejected",
+      diagnostics: [...record.diagnostics],
+    } as const;
+    // 꺼진 채로 둔 것만 기록을 남겨 `ensureLoaded`가 켤 수 있게 한다. 그 밖은 지워 같은 이름을 다시 설치할 수 있게 한다
+    if (state !== "disabled") {
+      nextGeneration.set(name, record.generation + 1);
+      records.delete(record.name);
+      order = order.filter((item) => item !== record);
+    }
+    return err(failure);
+  }
+
+  async function unload(name: ExtensionName): Promise<boolean> {
+    const record = records.get(name);
+    if (record === undefined || record.candidate.builtin !== null) return false;
+    nextGeneration.set(name, record.generation + 1);
+    records.delete(name);
+    order = order.filter((item) => item !== record);
+    if (record.state === "active" || record.state === "loading") {
+      await deps.host.uninstall(name);
+      deps.policy.forget(name);
+    }
+    await cascadeProviderFailures();
+    return true;
+  }
+
   /** 로드 순서 index가 있는 것부터, 같거나 없으면 이름 순. 목록과 화면 기여 목록이 같은 순서를 쓴다 */
   function inLoadOrder(): ExtRecord[] {
     return [...records.values()].toSorted(
@@ -1478,6 +1584,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       if (missing !== undefined) throw new Bug(`loader.missing_dependency: ${missing}`);
       throwIfCancelled(options.signal, "validation");
       records.clear();
+      nextGeneration.clear();
       diagnosticLog.clear();
       order = [];
       anonymous = 0;
@@ -1536,6 +1643,8 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     loadProject,
     ensureLoaded,
     reload,
+    loadInstalled,
+    unload,
     async settingChanged(name, signal) {
       const record = records.get(name);
       if (record === undefined) return undefined;

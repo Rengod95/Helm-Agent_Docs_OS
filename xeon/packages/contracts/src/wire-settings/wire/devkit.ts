@@ -19,6 +19,7 @@ import type {
   ReplayReport,
   ScaffoldResult,
 } from "../../services/devkit.ts";
+import { ExtDiagnosticSchema, type ExtDiagnostic } from "./ext-read.ts";
 import {
   closed,
   m4,
@@ -179,15 +180,46 @@ const ExtInstallParamsShape = request({ source: Path, sha256: Sha256 });
 export const ExtInstallParamsSchema: TUnsafe<Req<ExtInstallParams>> = Type.Unsafe<
   Req<ExtInstallParams>
 >(ExtInstallParamsShape satisfies SchemaProof<Req<ExtInstallParams>, typeof ExtInstallParamsShape>);
-/** 설치한 확장이 켜지는 때. 같은 이름이 실행 중이면 호출자가 `ext.reload`로 단계 경계에서 바꾼다. 새 이름은 다음 시작부터다(`restart`) */
+/**
+ * 설치한 확장이 켜지는 때. 새 이름은 설치 뒤 로더가 곧바로 싣는다: 실행 중인 turn이 없으면 `now`, 있으면 켜기가 다음 단계 경계로 미뤄져 `nextStepBoundary`다.
+ * 같은 이름이 이미 실행 중이면 `nextStepBoundary`이고 호출자가 `ext.reload`로 바꾼다. `restart`는 싣지 못했을 때(`loadFailure`)나 로더가 없을 때만 남는다
+ * [결정: 2026-11-03 사용자 (a), M4 T-RELOAD]
+ */
+export const EXT_LOAD_FAILURE_REASONS = [
+  "safe_mode",
+  "not_found",
+  "rejected",
+  "error",
+  "disabled",
+  "loader_unavailable",
+] as const;
+export type ExtLoadFailureReason = (typeof EXT_LOAD_FAILURE_REASONS)[number];
+/** 파일은 복사됐지만 싣지 못한 이유. 화면이 "설치했지만 켜지 못했어요"와 진단을 보인다 */
+export interface ExtLoadFailure {
+  readonly reason: ExtLoadFailureReason;
+  readonly diagnostics: readonly ExtDiagnostic[];
+}
+const ExtLoadFailureShape = closed({
+  reason: Type.Union(EXT_LOAD_FAILURE_REASONS.map((name) => Type.Literal(name))),
+  diagnostics: Type.Array(ExtDiagnosticSchema, { maxItems: 64 }),
+});
 export interface ExtInstallResult extends LinkResult {
   readonly appliesAt: "now" | "nextStepBoundary" | "restart";
+  readonly loadFailure?: ExtLoadFailure;
+  /** 같은 이름이 이미 실행 중이라 호출자가 `ext.reload`로 새 판으로 바꿔야 한다. 새 이름이 단계 경계에서 켜지는 `nextStepBoundary`와 구별한다 */
+  readonly needsReload?: true;
 }
 const ExtInstallResultShape = closed({
   name: Name,
   version: Name,
   location: Path,
-  appliesAt: Type.Union([Type.Literal("nextStepBoundary"), Type.Literal("restart")]),
+  appliesAt: Type.Union([
+    Type.Literal("now"),
+    Type.Literal("nextStepBoundary"),
+    Type.Literal("restart"),
+  ]),
+  loadFailure: Type.Optional(ExtLoadFailureShape),
+  needsReload: Type.Optional(Type.Literal(true)),
 });
 export const ExtInstallResultSchema: TUnsafe<ExtInstallResult> = Type.Unsafe<ExtInstallResult>(
   ExtInstallResultShape satisfies SchemaProof<ExtInstallResult, typeof ExtInstallResultShape>,
@@ -254,13 +286,18 @@ const ExtRemoveParamsShape = request({ name: Name });
 export const ExtRemoveParamsSchema: TUnsafe<Req<ExtRemoveParams>> = Type.Unsafe<
   Req<ExtRemoveParams>
 >(ExtRemoveParamsShape satisfies SchemaProof<Req<ExtRemoveParams>, typeof ExtRemoveParamsShape>);
+/** 지운 확장이 내려가는 때. 로더가 내리면 `now`(목록에서 바로 빠진다), 로더가 없으면 `restart`다 */
 export interface ExtRemoveResult {
   readonly name: string;
-  readonly appliesAt: "nextStepBoundary" | "restart";
+  readonly appliesAt: "now" | "nextStepBoundary" | "restart";
 }
 const ExtRemoveResultShape = closed({
   name: Name,
-  appliesAt: Type.Union([Type.Literal("nextStepBoundary"), Type.Literal("restart")]),
+  appliesAt: Type.Union([
+    Type.Literal("now"),
+    Type.Literal("nextStepBoundary"),
+    Type.Literal("restart"),
+  ]),
 });
 export const ExtRemoveResultSchema: TUnsafe<ExtRemoveResult> = Type.Unsafe<ExtRemoveResult>(
   ExtRemoveResultShape satisfies SchemaProof<ExtRemoveResult, typeof ExtRemoveResultShape>,

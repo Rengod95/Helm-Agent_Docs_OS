@@ -22,6 +22,8 @@ import type {
   HookEntry,
   HostConnection,
   ExtInstallResult,
+  ExtRemoveResult,
+  ExtBindingsResult,
   HooksOrderGetResult,
   HooksOrderPreviewResult,
   HooksOrderResetResult,
@@ -430,6 +432,10 @@ export interface WorkbenchCommands {
   installPreview(source: string): Promise<Result<InstallPreview, CommandError>>;
   /** `ext.install`: 미리 보기에서 본 해시(`sha256`)와 같은 내용일 때만 설치한다 */
   install(source: string, sha256: string): Promise<Result<ExtInstallResult, CommandError>>;
+  /** `ext.remove { name }`: 설치본 폴더를 지우고 로더에서 내린다. `now`이면 목록에서 바로 빠진다 */
+  remove(name: string): Promise<Result<ExtRemoveResult, CommandError>>;
+  /** `ext.bindings { threadId? }`: 기능 id마다 지금 바인딩된 공급자, 받는 확장, 미충족 */
+  bindings(threadId?: ThreadId): Promise<Result<ExtBindingsResult, CommandError>>;
   /** `ext.reload { name }`: 설치한 판으로 실행 중인 확장을 다음 단계 경계에서 바꾼다. 거절이면 옛 판이 그대로 돈다 */
   reload(name: string): Promise<Result<null, CommandError>>;
   /** `ext.get`: 매니페스트 훅·기능 바인딩·진단 */
