@@ -1,6 +1,6 @@
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { WIRE_ERRORS, type ExtListEntry, type ProfileApplyParams } from "@fresnel/contracts/wire";
-import { isExemptTier, isOn, lockOf, type WorkbenchState } from "./model.ts";
+import { isExemptTier, isOn, lockOf } from "./model.ts";
 
 // 검사 탭의 "이 대화에서" 구역(spec §6.22.4)의 순수 모델. 값과 잠금, 요청 모양, 프로필 실패 갈래만 만든다.
 // 대화 범위 상태는 `ext.list`에 `threadId`를 준 행의 `registration`이고, 없으면 전역 `status`다(호스트 `ext-read-port`).
@@ -53,24 +53,21 @@ export interface ThreadToggleRequest {
   readonly threadId: ThreadId;
 }
 
-export type ThreadToggleRefusal = "unknown" | "no_thread" | "locked";
+export type ThreadToggleRefusal = "no_thread" | "locked";
 
-/** 이 대화에서 `target`으로 돌리는 요청. 잠긴 스위치와 대화가 없는 경우는 보내지 않는다 */
+/** 이 대화에서 `target`으로 돌리는 요청. 대화가 없거나 스위치가 잠긴 행은 보내지 않는다 */
 export function threadToggleRequestOf(
-  s: WorkbenchState,
-  name: string,
+  entry: ExtListEntry,
   threadId: ThreadId | null,
   target: boolean,
 ):
   | { readonly ok: true; readonly request: ThreadToggleRequest }
   | { readonly ok: false; readonly reason: ThreadToggleRefusal } {
-  const entry = s.entries.find((e) => e.name === name);
-  if (entry === undefined) return { ok: false, reason: "unknown" };
   if (threadId === null) return { ok: false, reason: "no_thread" };
   if (threadSwitchOf(entry, true).kind !== "open") return { ok: false, reason: "locked" };
   return {
     ok: true,
-    request: { key: `ext.${name}.enabled`, value: target, scope: "launch", threadId },
+    request: { key: `ext.${entry.name}.enabled`, value: target, scope: "launch", threadId },
   };
 }
 

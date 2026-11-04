@@ -11,6 +11,7 @@ import { useCommands } from "../commands.ts";
 import { ConfirmHost } from "./confirm-host.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin-context.tsx";
 import { PluginView, screenKeyOf } from "./plugin-view.tsx";
+import { ThreadSwitches } from "./thread-switches.tsx";
 
 // Placement `panel`과 `page`를 오른쪽 탭에 잇는 부품과, 엔진이 붙을 때 화면 목록을 읽는 부품.
 
@@ -64,14 +65,21 @@ export function HelmPanelTab(): ReactNode {
   return <EntryList items={items} />;
 }
 
-/** 모든 확장의 `page` 항목과 Helm이 아닌 확장의 `panel` 항목 */
+/** 맨 위에 이 대화에서 끄기 구역을 두고, 그 아래에 모든 확장의 `page` 항목과 Helm이 아닌 확장의 `panel` 항목을 잇는다 */
 export function PluginPagesTab(): ReactNode {
   const state = usePluginUiState();
   const items = [
     ...state.groups.page,
     ...state.groups.panel.filter(({ entry }) => entry.extension !== HELM_EXTENSION),
   ];
-  return <EntryList items={items} />;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="max-h-72 shrink-0 overflow-y-auto">
+        <ThreadSwitches />
+      </div>
+      <EntryList items={items} />
+    </div>
+  );
 }
 
 /**

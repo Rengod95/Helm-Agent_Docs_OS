@@ -1,10 +1,6 @@
 // 크래프트 컨트롤러: 목록 읽기와 켜기·끄기. 상태는 스토어에, 요청은 `commands.workbench`에 있고 여기서 둘을 잇는다.
 // 목록 뒤의 자세히(`ext.get`), 실패 장부(`ext.health`), 훅 순서는 보조 읽기다. 실패해도 목록 상태는 그대로이고 이전 값을 둔다(알림 없음).
-import {
-  profileFailureOf,
-  threadToggleRequestOf,
-  toggleRequestOf,
-} from "@fresnel/client/workbench";
+import { profileFailureOf, toggleRequestOf } from "@fresnel/client/workbench";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -46,8 +42,6 @@ export interface WorkbenchController {
   reenable(name: string): Promise<void>;
   /** "계속 꺼 둘게요" 답. 끄고 목록을 다시 읽는다. "계속 켜 둘게요"는 `reenable`이다 */
   keepOff(name: string): Promise<void>;
-  /** 이 대화에서 켜기·끄기. 실패는 토스트로 알리고 `false`다. 대기 표시와 다시 읽기는 호출자가 맡는다 */
-  toggleForThread(name: string, target: boolean, threadId: ThreadId): Promise<boolean>;
   /** 프로필을 이 대화에 쓴다. 성공은 쓴 설정 수와 적용 시점을, 실패는 실패 갈래를 토스트로 알린다 */
   applyProfile(id: string, threadId: ThreadId): Promise<boolean>;
 }
@@ -151,20 +145,6 @@ export function useWorkbenchController(): WorkbenchController {
     return reloadOnExtChanges(commands.workbench, reload);
   }, [commands, phase, reload]);
 
-  const toggleForThread = useCallback(
-    async (name: string, target: boolean, threadId: ThreadId): Promise<boolean> => {
-      const plan = threadToggleRequestOf(actions.snapshot(), name, threadId, target);
-      if (!plan.ok) return false;
-      const done = await commands.workbench.toggleForThread(plan.request);
-      if (!done.ok) {
-        toast({ tone: "danger", title: t("desktop.workbench.toggle.failed") });
-        return false;
-      }
-      return true;
-    },
-    [actions, commands],
-  );
-
   const applyProfile = useCallback(
     async (id: string, threadId: ThreadId): Promise<boolean> => {
       const done = await commands.workbench.applyProfile(id, threadId);
@@ -185,7 +165,7 @@ export function useWorkbenchController(): WorkbenchController {
 
   // 원천이 identity로 다시 그릴지 정하므로 같은 객체를 돌려준다
   return useMemo(
-    () => ({ reload, reloadOrders, toggle, reenable, keepOff, toggleForThread, applyProfile }),
-    [reload, reloadOrders, toggle, reenable, keepOff, toggleForThread, applyProfile],
+    () => ({ reload, reloadOrders, toggle, reenable, keepOff, applyProfile }),
+    [reload, reloadOrders, toggle, reenable, keepOff, applyProfile],
   );
 }
