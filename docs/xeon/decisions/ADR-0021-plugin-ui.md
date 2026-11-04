@@ -19,7 +19,7 @@ binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/c
 - [결정: 2026-10-30 사용자] 플러그인마다 클라이언트 안에서 자기 화면을 구성할 수 있어야 합니다. 원문: "플러그인 별로 우리 클라이언트 안에서 자기만의 ui 화면을 구성할 수 있는 시스템을 지원했으면 해, 단순 특정 파일을 렌더링 한다기 보다는, 어떤 플러그인을 어댑팅 했을 때, 이 플러그인이 만약 l3고 자기만의 워크플로우나 에이전틱한 흐름에서 대화창이 아닌 커스텀한 화면을 요구한다면 이를 지원할 수 있어야 해."
 - [결정: 2026-10-31 사용자] 두 모드를 모두 지원합니다. 선언형 모드(클라이언트가 caustic으로 그림)와 격리 iframe·웹 컴포넌트 모드입니다. 에이전트가 플러그인을 만들 때 어느 모드가 필요한지는 에이전트가 판단합니다(`L4.desktop-ux.spec` §12.3 U-1).
 - 2026-10-30 초안의 "(d) 혼합, 선언형만, iframe은 이름만 예약"은 이 개정으로 바뀝니다.
-- [결정: 2026-11-04 사용자] 프레임 `call`·`command`의 확인 줄은 끌 수 없고 호출마다 뜹니다. "이 화면에서 묻지 않기"와 확장별 허용 기억은 두지 않습니다(B2 1안, §3.4). 설정 키 `x.views.frames`, `x.views.allowProjectFrames`는 X가 소유합니다(§6 9번).
+- [결정: 2026-11-04 사용자] 프레임 `call`·`command`의 확인 줄은 끌 수 없고 호출마다 뜹니다. "이 화면에서 묻지 않기"와 확장별 허용 기억은 두지 않습니다(B2 1안, §3.4). 설정 키 `x.ui.apps`, `x.ui.allowProjectApps`는 X가 소유합니다(§6 9번).
 
 ## 2. 맥락
 
@@ -171,7 +171,7 @@ interface ExtMethodDecl {
 |---|---|---|---|
 | `builtin` | 허용 | 허용 | 확인 없음 |
 | `user` | 허용 | 허용 | 확장 신뢰 확인(O-10)에 "자체 화면 코드 실행"과 `frame.reason`을 보임 |
-| `project` | 허용 | 기본 금지. `x.views.allowProjectFrames`(기본 `false`, `allowedScopes: ["managed", "user"]`) [제안]가 참일 때만 | 프로젝트 신뢰(O-04) `allow` + O-10 |
+| `project` | 허용 | 기본 금지. `x.ui.allowProjectApps`(기본 `false`, `allowedScopes: ["managed", "user"]`) [제안]가 참일 때만 | 프로젝트 신뢰(O-04) `allow` + O-10 |
 | `untrusted` | 로드 안 함 | 로드 안 함 | 해당 없음 |
 
 ### 3.6 보안과 신뢰
@@ -185,7 +185,7 @@ interface ExtMethodDecl {
 
 1. [제안] 프레임은 `<iframe sandbox="allow-scripts">`입니다. `allow-same-origin`, `allow-popups`, `allow-modals`, `allow-forms`, `allow-top-navigation`, `allow-downloads`를 주지 않습니다. 그래서 프레임 문서의 origin은 불투명이고, 앱 문서의 DOM, 저장소, 쿠키에 닿지 못하며 창을 열거나 앱을 다른 곳으로 이동시키지 못합니다.
 2. [제안] 프레임 파일은 셸이 등록한 전용 URI 스킴(`fresnel-view://<확장이름>/<버전>/<경로>`)으로만 제공합니다. 셸은 확장 패키지의 `frame.root` 아래 파일만 읽고, `..`, 폴더 밖을 가리키는 심볼릭 링크, 절대 경로를 거부합니다. 앱 자원과 다른 확장 파일은 이 스킴으로 나오지 않습니다.
-3. [결정: 2026-11-04 사용자] Tauri IPC는 프레임에 닿지 않아야 하지만, 이를 막는 것은 capability 허용 목록이 아닙니다. Tauri는 `register_uri_scheme_protocol`로 등록한 스킴을 로컬 출처로 봅니다(`Webview::is_local_url`). 그래서 `fresnel-view://` 프레임의 호출도 메인 창 capability(`capabilities/default.json`)의 ACL 대상이고, "허용 목록에 `fresnel-view:`를 넣지 않는다"는 통제는 존재하지 않습니다. 실제로 막는 것은 (a) 호출 본문에 든 invoke 키(`__TAURI_INVOKE_KEY__`)를 프레임이 알 수 없다는 점입니다. 키는 메인 프레임에만 주입되고(`for_main_frame_only: true`), 프레임 origin은 불투명이라 부모 문서를 읽지 못합니다. (b) sandbox 프레임이 `ipc://` fetch를 보내면 `Origin: null`이라 Tauri가 요청을 구문 분석 단계에서 버립니다. 남는 길은 wry의 IPC 메시지 핸들러입니다. macOS 실기(2026-11-04, `just desktop-ipc-probe`, WKWebView)에서 프레임에 `window.ipc`는 없고 `webkit.messageHandlers.ipc`는 있으며, 키 없이 흉내 낸 호출은 Tauri에 도달해 `__TAURI_INVOKE_KEY__ expected … but received …`로 거부됐습니다. 즉 프레임은 IPC에 "닿지만" 키가 없어 아무것도 못 합니다. `__TAURI__`, `__TAURI_INTERNALS__`, 부모의 키와 `__TAURI_INTERNALS__` 읽기(SecurityError), 프레임 `localStorage`(SecurityError), `window.origin`(`null`)은 시험이 확인합니다. Linux(WebKitGTK)는 같은 시험을 그 기기에서 돌려야 합니다. 명령 안에서 호출한 프레임을 알아보는 길은 Tauri가 주지 않으므로(`tauri::ipc::Request`는 본문과 헤더만 가진다) 명령 쪽 "메인 프레임만" 보호는 두지 못합니다. 대신 민감한 명령이 스스로 입력을 좁힙니다(`app_roots_set`은 확장 설치 폴더 밖과 `/`, 홈을 거부). Windows는 wry가 초기화 스크립트를 하위 프레임에도 넣으므로(`for_main_frame_only`가 무시됨) 이 통제가 성립하지 않습니다. 그래서 Windows 빌드는 프레임 모드를 켜지 않습니다. 이 동작은 데스크톱 빌드 e2e(`just desktop-ipc-probe`)로 확인한 뒤에만 프레임 모드를 켭니다(§6 미결 1). 확인 전 빌드는 `x.views.frames`(기본 `true`) [제안]를 `false`로 고정합니다.
+3. [결정: 2026-11-04 사용자] Tauri IPC는 프레임에 닿지 않아야 하지만, 이를 막는 것은 capability 허용 목록이 아닙니다. Tauri는 `register_uri_scheme_protocol`로 등록한 스킴을 로컬 출처로 봅니다(`Webview::is_local_url`). 그래서 `fresnel-view://` 프레임의 호출도 메인 창 capability(`capabilities/default.json`)의 ACL 대상이고, "허용 목록에 `fresnel-view:`를 넣지 않는다"는 통제는 존재하지 않습니다. 실제로 막는 것은 (a) 호출 본문에 든 invoke 키(`__TAURI_INVOKE_KEY__`)를 프레임이 알 수 없다는 점입니다. 키는 메인 프레임에만 주입되고(`for_main_frame_only: true`), 프레임 origin은 불투명이라 부모 문서를 읽지 못합니다. (b) sandbox 프레임이 `ipc://` fetch를 보내면 `Origin: null`이라 Tauri가 요청을 구문 분석 단계에서 버립니다. 남는 길은 wry의 IPC 메시지 핸들러입니다. macOS 실기(2026-11-04, `just desktop-ipc-probe`, WKWebView)에서 프레임에 `window.ipc`는 없고 `webkit.messageHandlers.ipc`는 있으며, 키 없이 흉내 낸 호출은 Tauri에 도달해 `__TAURI_INVOKE_KEY__ expected … but received …`로 거부됐습니다. 즉 프레임은 IPC에 "닿지만" 키가 없어 아무것도 못 합니다. `__TAURI__`, `__TAURI_INTERNALS__`, 부모의 키와 `__TAURI_INTERNALS__` 읽기(SecurityError), 프레임 `localStorage`(SecurityError), `window.origin`(`null`)은 시험이 확인합니다. Linux(WebKitGTK)는 같은 시험을 그 기기에서 돌려야 합니다. 명령 안에서 호출한 프레임을 알아보는 길은 Tauri가 주지 않으므로(`tauri::ipc::Request`는 본문과 헤더만 가진다) 명령 쪽 "메인 프레임만" 보호는 두지 못합니다. 대신 민감한 명령이 스스로 입력을 좁힙니다(`app_roots_set`은 확장 설치 폴더 밖과 `/`, 홈을 거부). Windows는 wry가 초기화 스크립트를 하위 프레임에도 넣으므로(`for_main_frame_only`가 무시됨) 이 통제가 성립하지 않습니다. 그래서 Windows 빌드는 프레임 모드를 켜지 않습니다. 이 동작은 데스크톱 빌드 e2e(`just desktop-ipc-probe`)로 확인한 뒤에만 프레임 모드를 켭니다(§6 미결 1). 확인 전 빌드는 `x.ui.apps`(기본 `true`) [제안]를 `false`로 고정합니다.
 
 #### 3.6.3 CSP
 
@@ -210,7 +210,7 @@ interface ExtMethodDecl {
 #### 3.6.7 등급과 사용자 제한
 
 - 화면 기여는 그 확장이 로드됐을 때만 보입니다. `untrusted`는 로드하지 않으므로 화면도 없습니다.
-- 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.views.frames = false`로 모든 프레임을 끌 수 있습니다(키는 X가 소유합니다, §6 9번). 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
+- 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.ui.apps = false`로 모든 프레임을 끌 수 있습니다(키는 X가 소유합니다, §6 9번). 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
 - 안전 모드에서 빠진 확장의 화면은 자리표시 상태로 보입니다(§3.7).
 
 #### 3.6.7.1 다리 판정 보강 [결정: 2026-11-04 사용자]
@@ -317,7 +317,7 @@ interface ExtMethodDecl {
 
 ## 6. 미결 사항
 
-1. [미결] Tauri iframe의 IPC 노출과 전용 URI 스킴 등록을 macOS·Linux에서 e2e로 확인하는 일. 확인 전에는 `x.views.frames`를 끈 빌드로 냅니다. 확인 시험은 `review.m4-plan` 트랙 T-VIEW의 끝 시험입니다.
+1. [미결] Tauri iframe의 IPC 노출과 전용 URI 스킴 등록을 macOS·Linux에서 e2e로 확인하는 일. 확인 전에는 `x.ui.apps`를 끈 빌드로 냅니다. 확인 시험은 `review.m4-plan` 트랙 T-VIEW의 끝 시험입니다. [근거: 결정 2026-11-04 m4-decisions 11번]
 2. [결정: 2026-11-02 M4 T-F] 매니페스트 `ui`(옛 `views`), `UiContribution`, `AppDecl`(옛 `FrameDecl`), `UiNode`(옛 `ViewNode`), `ExtMethodDecl`(확장 수준 `methods`), 다리 메시지 스키마의 정본은 `F.extensions.spec` §3.1.1(`extensions/ui.ts`, `extensions/ext-method.ts`)입니다. 위젯 카탈로그 이름 목록은 F에 두지 않고 렌더러(`packages/client`)가 정합니다. F는 `type`의 문법만 봅니다. 이 문서 본문의 `views`, `frame`, `slot` 같은 옛 이름은 ADR-0022 §3.6 표가 새 이름을 정합니다.
 3. [결정: 2026-11-04 사용자, R15 닫음. 아래 각 항목은 이미 닫혔다] 확장 wire 메서드 열기(`F.wire-settings.spec` §4.2 [제안] 확정), `ext.view.post`·`ext.view.requestApproval`, `g.registerMethod`(L3). 확장 메서드 등록 API `hostOf(g).registerMethod`는 [결정: 2026-11-02 M4 T-XV] 정했고 구현했다(X.primitives.spec §3.8, §3.9.2, §4.12). `g.registerMethod`(L3 group-sdk)와 wire 디스패치 `ext.<확장>.<동사>`는 [결정: 2026-11-02 M4 T-GK] 닫았다(`F.wire-settings.spec` §4.2, `L4.host-service.spec` HS-109). `ext.view.post`·`ext.view.requestApproval`(이제 `ext.ui.post`·`ext.ui.requestApproval`)은 [결정: 2026-11-03 M4 T-UIPOST] `threadId`를 필수로 더해 열었다(`F.wire-settings.spec` §4.2, `X.primitives.spec` §4.13, HS-108).
 4. [미결] `X.operations.spec` 예산 등급 `view`(기본 5,000ms)와 확장 메서드 실패의 장부 반영.
@@ -325,6 +325,6 @@ interface ExtMethodDecl {
 6. [미결] `architecture.security.spec` §4 T-16~T-18 행과 확장 메서드 결과의 마스킹 위치.
 7. [제안 기본값, 2026-11-03 M4 T-UIPOST] `requestApproval`의 승인 kind는 새로 두지 않고 `question` kind에 출처 `origin.caller = ext:<확장>`을 싣는다. `loop.ask`와 같은 카드다. [결정: 2026-11-04 사용자, B3 1안] 사용자가 승인했습니다. 새 승인 kind는 두지 않고 기존 `question` 카드에 출처(확장 이름)를 붙입니다.
 8. [미결] `events`의 kind 거름 인자를 `events.subscribe`에 둘지 확장 화면 전용 구독을 둘지(`F.wire-settings.spec`, `L4.desktop-ux.spec` W-37).
-9. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.views.frames`, `x.views.allowProjectFrames`의 소유 문서는 `X.loading-trust.spec`(확장 로딩과 신뢰)입니다. 프레임 `call` 확인 줄은 끌 수 없습니다(항상 보임). 끄는 기능은 필요해질 때 더합니다. 기본값은 격리 화면 끔입니다.
+9. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.ui.apps`, `x.ui.allowProjectApps`의 소유 문서는 `X.loading-trust.spec`(확장 로딩과 신뢰)입니다. 프레임 `call` 확인 줄은 끌 수 없습니다(항상 보임). 끄는 기능은 필요해질 때 더합니다. 기본값은 격리 화면 끔입니다.
 10. [미결] 프레임 안에서 caustic을 쓸 배포물(웹 컴포넌트 빌드 또는 토큰 CSS만)을 caustic 저장소에서 낼지.
 11. [가정] 위젯 카탈로그 v1로 Helm 탐구 화면을 그릴 수 있습니다. 작업대 시안(`L4.desktop-ux.spec` §14 W4)에서 확인했고 구현에서 다시 확인합니다.
