@@ -1,6 +1,7 @@
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import type {
+  SecretAuditResult,
   SecretListEntry,
   SecretReferencesResult,
   SecretTestResult,
@@ -36,6 +37,8 @@ type ListState =
 export interface DetailState {
   readonly name: SecretName;
   readonly refs: Load<SecretReferencesResult>;
+  /** 사용 기록(W-13). 고를 때 한 번 읽는다 */
+  readonly audit: Load<SecretAuditResult>;
   readonly test: Load<SecretTestResult>;
 }
 
@@ -124,6 +127,7 @@ export type SecretsAction =
       readonly name: SecretName;
       readonly load: Load<SecretReferencesResult>;
     }
+  | { readonly type: "audit"; readonly name: SecretName; readonly load: Load<SecretAuditResult> }
   | { readonly type: "test"; readonly name: SecretName; readonly load: Load<SecretTestResult> }
   | { readonly type: "confirmRemove"; readonly open: boolean }
   | { readonly type: "entryAdd" }
@@ -222,7 +226,7 @@ function detailFor(
 }
 
 function freshDetail(name: SecretName): DetailState {
-  return { name, refs: { kind: "idle" }, test: { kind: "idle" } };
+  return { name, refs: { kind: "idle" }, audit: { kind: "idle" }, test: { kind: "idle" } };
 }
 
 // ── 리듀서 ───────────────────────────────────────────────────────────────
@@ -275,6 +279,10 @@ export function secretsReducer(state: SecretsState, action: SecretsAction): Secr
     case "refs":
       return state.detail?.name === action.name
         ? { ...state, detail: { ...state.detail, refs: action.load } }
+        : state;
+    case "audit":
+      return state.detail?.name === action.name
+        ? { ...state, detail: { ...state.detail, audit: action.load } }
         : state;
     case "test":
       return state.detail?.name === action.name

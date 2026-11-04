@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
-import type { SecretListEntry } from "@fresnel/contracts/wire";
+import type { SecretAuditEntry, SecretListEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import {
   initialSecretsState,
@@ -89,6 +89,11 @@ function loadedWith(rows: readonly SecretListEntry[]): SecretsState {
   return secretsReducer(initialSecretsState(false), { type: "listLoaded", rows });
 }
 
+function withAudit(load: Parameters<typeof secretsReducer>[1] | null): SecretsState {
+  const base = loadedWith([ROW]);
+  return load === null ? base : secretsReducer(base, load);
+}
+
 describe("secrets screen server render", () => {
   test("an empty list that has loaded says there are no secrets and offers adding one", () => {
     const markup = html(loadedWith([]));
@@ -153,5 +158,98 @@ describe("secrets screen server render", () => {
     expect(markup).toContain("정렬");
     const short = html(loadedWith([ROW]));
     expect(short).not.toContain("정렬");
+  });
+
+  describe("usage log (W-13)", () => {
+    const AUDIT_ENTRIES: readonly SecretAuditEntry[] = [
+      {
+        at: new Date(NOW - 60 * 1000).toISOString(),
+        decision: "deny",
+        mode: "runtime-http",
+        threadId: null,
+        toolCallId: null,
+        host: null,
+        reason: "host_mismatch",
+      },
+      {
+        at: new Date(NOW - 3 * 60 * 60 * 1000).toISOString(),
+        decision: "allow",
+        mode: "env",
+        threadId: null,
+        toolCallId: "call_1",
+        host: "api.exa.ai",
+        reason: null,
+      },
+    ];
+
+    test("a loaded log shows when, how, the host and the refusal reason, and no value", () => {
+      const markup = html(
+        withAudit({
+          type: "audit",
+          name: ROW.name,
+          load: { kind: "ready", value: { entries: [...AUDIT_ENTRIES] } },
+        }),
+      );
+      expect(markup).toContain("사용 기록");
+      expect(markup).toContain("요청 헤더");
+      expect(markup).toContain("허용하지 않은 호스트");
+      expect(markup).toContain("거절");
+      expect(markup).toContain("환경 변수 · api.exa.ai");
+      expect(markup).toContain("썼어요");
+      expect(markup).toContain("대화 없음");
+      expect(markup).not.toContain(SECRET_TEXT);
+    });
+
+    test("an empty log, a loading log and a failed log each say what they are", () => {
+      const empty = html(
+        withAudit({
+          type: "audit",
+          name: ROW.name,
+          load: { kind: "ready", value: { entries: [] } },
+        }),
+      );
+      expect(empty).toContain("아직 쓴 기록이 없어요.");
+      const loading = html(withAudit({ type: "audit", name: ROW.name, load: { kind: "loading" } }));
+      expect(loading).toContain("사용 기록을 불러오는 중이에요.");
+      const failed = html(
+        withAudit({
+          type: "audit",
+          name: ROW.name,
+          load: { kind: "failed", error: { kind: "unsupported" } },
+        }),
+      );
+      expect(failed).toContain("연결한 엔진이 시크릿을 아직 지원하지 않아요.");
+    });
+
+    test("a log longer than one page draws the first 50 rows and offers the rest", () => {
+      const many: SecretAuditEntry[] = Array.from({ length: 120 }, (_, index) => ({
+        at: new Date(NOW - (index + 1) * 1000).toISOString(),
+        decision: "allow",
+        mode: "env",
+        threadId: null,
+        toolCallId: `call_${index}`,
+        host: null,
+        reason: null,
+      }));
+      const markup = html(
+        withAudit({
+          type: "audit",
+          name: ROW.name,
+          load: { kind: "ready", value: { entries: many } },
+        }),
+      );
+      expect(markup.match(/<li /g)?.length).toBe(50);
+      expect(markup).toContain("더 보기 (70개 남음)");
+    });
+
+    test("a log for another name does not change the selected detail", () => {
+      const state = withAudit({
+        type: "audit",
+        name: nameOf("other-key"),
+        load: { kind: "ready", value: { entries: [...AUDIT_ENTRIES] } },
+      });
+      expect(state.detail?.audit.kind).toBe("idle");
+      expect(html(state)).not.toContain("사용 기록");
+    });
   });
 });

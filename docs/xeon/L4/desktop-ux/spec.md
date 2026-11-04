@@ -1743,7 +1743,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 참조(설정 키, 활성 lease, 대화) | `secret.references { name }` |
 | 시험 결과 | `secret.test { name }` → 상태, 복호화, 길이, sha256 앞부분 |
 | 값 보기 상태 | `createSecretReveal({ port, scheduler })` → hidden, reauth, revealed, failed |
-| 사용 기록 | `[gap:W-13]` 감사 기록 읽기 wire가 없습니다 |
+| 사용 기록 | `secret.audit { name }` → 사용·거절 항목(시각, 대화, 도구 호출, 모습, 거절 사유). 값은 없습니다 [결정: 2026-11-04 사용자] 개수 상한 없음 |
 
 | 기능 | wire 또는 경로 |
 |---|---|

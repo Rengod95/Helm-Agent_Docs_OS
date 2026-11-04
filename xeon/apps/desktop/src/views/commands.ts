@@ -38,6 +38,7 @@ import type {
   ProfilePreviewResult,
   ExtValidateResult,
   SecretListEntry,
+  SecretAuditResult,
   SecretReferencesResult,
   SecretTestResult,
   ExtTestListResult,
@@ -417,6 +418,8 @@ export interface SecretCommands {
   list(): Promise<Result<readonly SecretListEntry[], SecretCommandError>>;
   references(name: SecretName): Promise<Result<SecretReferencesResult, SecretCommandError>>;
   test(name: SecretName): Promise<Result<SecretTestResult, SecretCommandError>>;
+  /** `secret.audit`. 사용·거절 기록을 최근 순으로 전부 읽는다(개수 상한 없음). 값은 오지 않는다 */
+  audit(name: SecretName): Promise<Result<SecretAuditResult, SecretCommandError>>;
   /** `secret.meta`. 바뀐 시크릿 항목을 돌려준다 */
   editMeta(params: WireParams<"secret.meta">): Promise<Result<SecretListEntry, SecretCommandError>>;
   /** `secret.remove`. 지웠으면 `true`다 */
