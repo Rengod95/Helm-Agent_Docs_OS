@@ -16,6 +16,9 @@ import? '~/.config/ws/ws.just'
 
 envs := "dev"
 
+# verify가 한꺼번에 잡는 기기 슬롯: Linux(WSL)는 1, macOS(32G)는 2. WS_GUARD_SLOTS로 바꾼다
+guard_slots := env("WS_GUARD_SLOTS", if os() == "macos" { "2" } else { "1" })
+
 # Fresnel 의존성 설치: 잠금 파일 기준 (xeon/bun.lock, bun install --frozen-lockfile)
 [group('setup')]
 setup:
@@ -111,16 +114,16 @@ ci-layer layer affected="false":
 exit-tests:
     cd xeon && just exit-tests
 
-# 완료 기준, 빠른 길: 병합과 push 전에 돈다. 검사 전부와 ws check. 시험·lint·타입 검사는 turbo 캐시(모든 worktree 공용)를 쓰고 lint는 type-aware 없이 돈다. 마일스톤 마감과 CI는 verify-full. 기기에서 한 번에 하나(슬롯 1), 단계마다 따로 메모리 상한 2G(FRESNEL_VERIFY_STEP_MAX), 시험은 패키지마다 1.5G, 공용 예산 ws-dev.slice (scripts/guard.sh)
+# 완료 기준, 빠른 길: 병합과 push 전에 돈다. 검사 전부와 ws check. 시험·lint·타입 검사는 turbo 캐시(모든 worktree 공용)를 쓰고 lint는 type-aware 없이 돈다. 마일스톤 마감과 CI는 verify-full. 기기에서 한 번에 하나(슬롯 1, macOS는 2: WS_GUARD_SLOTS로 바꾼다), 단계마다 따로 메모리 상한 2G(FRESNEL_VERIFY_STEP_MAX), 시험은 패키지마다 1.5G, 공용 예산 ws-dev.slice (scripts/guard.sh)
 [group('quality')]
 verify:
-    WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps fast
+    WS_GUARD_SLOTS={{guard_slots}} scripts/guard.sh verify -- just _verify-steps fast
     ws check
 
 # 완료 기준, 전체: TURBO_FORCE로 캐시를 읽지 않고 type-aware lint까지 모든 검사를 새로 돈다(결과 캐시는 새로 채운다). 마일스톤 마감과 CI만 쓴다. 나머지는 verify와 같다
 [group('quality')]
 verify-full:
-    WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps full
+    WS_GUARD_SLOTS={{guard_slots}} scripts/guard.sh verify -- just _verify-steps full
     ws check
 
 # verify 단계 묶음: setup, 가벼운 검사(fmt-check check-layers check-ts-rules docs-route terms knip, 같이), lint typecheck depcruise test를 차례로, 단계마다 guard.sh run scope 하나. mode fast|full. 처음 실패에서 멈추고 종료코드를 그대로 낸다 (xeon/scripts/verify-steps.sh)

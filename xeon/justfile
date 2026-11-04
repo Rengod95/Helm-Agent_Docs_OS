@@ -3,6 +3,10 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 bun := "mise exec -- bun"
 
+# turbo가 한 번에 돌리는 패키지 수: macOS(10코어, 32G, 메모리 상한 없음)는 lint 4, typecheck 4, Linux는 package.json 값(1, 2). FRESNEL_TURBO_LINT·FRESNEL_TURBO_TYPECHECK로 바꾼다
+turbo_lint := env("FRESNEL_TURBO_LINT", if os() == "macos" { "4" } else { "1" })
+turbo_typecheck := env("FRESNEL_TURBO_TYPECHECK", if os() == "macos" { "4" } else { "2" })
+
 export TURBO_TELEMETRY_DISABLED := "1"
 # turbo 캐시는 모든 worktree가 함께 쓴다: 에이전트 worktree의 결과를 메인 체크아웃이 다시 쓴다 (scripts/test-capped.sh도 같은 기본값)
 export TURBO_CACHE_DIR := env("TURBO_CACHE_DIR", env("HOME") + "/.cache/fresnel/turbo")
@@ -34,13 +38,13 @@ fmt-check:
 # 정적 검사: mode=full은 type-aware(scripts와 각 패키지, turbo 캐시), mode=fast는 type-aware 없이 한 번에(.oxlintrc.fast.json, 1초 안쪽)
 [group('quality')]
 lint mode="full":
-    {{ if mode == "fast" { bun + " run lint:fast" } else { bun + " run lint:root && " + bun + " run lint" } }}
+    {{ if mode == "fast" { bun + " run lint:fast" } else { bun + " run lint:root && " + bun + " run turbo run lint --concurrency=" + turbo_lint } }}
 
 # 타입 검사: scripts, 각 패키지 (tsc -b)
 [group('quality')]
 typecheck:
     {{bun}} run typecheck:root
-    {{bun}} run typecheck
+    {{bun}} run turbo run typecheck --concurrency={{turbo_typecheck}}
 
 # 단위 테스트: scripts는 매번, 패키지는 turbo 캐시에 맞으면 재생하고 아니면 메모리 상한 아래에서 (scripts/test-capped.sh)
 [group('quality')]
