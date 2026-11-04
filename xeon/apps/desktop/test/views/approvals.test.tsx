@@ -310,7 +310,7 @@ describe("review approval card", () => {
     expect(out).toContain("hunk 4");
     expect(out).toContain("추가");
     expect(out).toMatch(/data-action="primary"[^>]*>모두 승인</);
-    expect(out).toMatch(/data-action="deny"[^>]*>거부</);
+    expect(out).toMatch(/data-action="deny"[^>]*>모두 거절</);
   });
 });
 

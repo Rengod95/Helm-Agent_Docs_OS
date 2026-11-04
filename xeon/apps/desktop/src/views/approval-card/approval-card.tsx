@@ -212,7 +212,7 @@ function PendingCard(props: {
     );
 
   const leading: Action[] = [
-    { id: "deny", label: "desktop.approvals.deny.button", decision: decisions.deny, look: "ghost" },
+    { id: "deny", label: denyLabelOf(body.kind), decision: decisions.deny, look: "ghost" },
   ];
   if (body.kind === "plan") {
     leading.push({
@@ -297,6 +297,13 @@ function PendingCard(props: {
       </AgentRequest>
     </li>
   );
+}
+
+/** 검토 카드의 거부는 파일 전체를 거절하는 뜻이라 "모두 거절"이다 [결정: 2026-11-04 사용자 Q8] */
+function denyLabelOf(kind: ApprovalBodyKind): MessageId {
+  return kind === "review"
+    ? "desktop.approvals.review.denyAll.button"
+    : "desktop.approvals.deny.button";
 }
 
 function primaryLabelOf(kind: ApprovalBodyKind): MessageId {

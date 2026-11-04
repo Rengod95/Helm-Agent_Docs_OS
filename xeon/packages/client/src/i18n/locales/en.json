@@ -1225,6 +1225,7 @@
   "desktop.approvals.review.binary": "binary",
   "desktop.approvals.review.hunks": "{count} hunks",
   "desktop.approvals.review.approveAll.button": "Approve all",
+  "desktop.approvals.review.denyAll.button": "Reject all",
   "desktop.approvals.review.open.button": "Open review",
   "desktop.review.title": "Review changes",
   "desktop.review.back": "Back to requests",

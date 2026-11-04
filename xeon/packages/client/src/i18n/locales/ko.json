@@ -1225,6 +1225,7 @@
   "desktop.approvals.review.binary": "이진 파일",
   "desktop.approvals.review.hunks": "hunk {count}",
   "desktop.approvals.review.approveAll.button": "모두 승인",
+  "desktop.approvals.review.denyAll.button": "모두 거절",
   "desktop.approvals.review.open.button": "검토 열기",
   "desktop.review.title": "변경 검토",
   "desktop.review.back": "받은 요청으로",
