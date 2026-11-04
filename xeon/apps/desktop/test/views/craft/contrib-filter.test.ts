@@ -8,6 +8,8 @@ import {
   hooksInOrder,
   relationsOf,
   type CanvasPlugin,
+  type CanvasSnapshot,
+  type Contrib,
 } from "@fresnel/client/workbench/canvas";
 import { groupShown, layerPlugins, shownOnMap } from "../../../src/views/craft/orbit-model.ts";
 import { relationContext, rowsOf, visibleRels } from "../../../src/views/craft/link-model.ts";
@@ -20,6 +22,22 @@ const byId = (id: string): CanvasPlugin => {
   return p;
 };
 const idsOf = (plugins: readonly CanvasPlugin[]): string[] => plugins.map((p) => p.id);
+/** 루트가 없는 그룹 docs-pack의 구성원 하나. 구성 요소만 다르고 나머지는 같다 */
+const docsPlugin = (
+  id: string,
+  layer: "L2" | "L3",
+  pieces: CanvasPlugin["pieces"],
+): CanvasPlugin => ({
+  id,
+  name: id,
+  layer,
+  group: "docs-pack",
+  origin: "user",
+  hooks: [],
+  provides: [],
+  pieces,
+  on: true,
+});
 
 describe("구성 요소 거르기: 토글 값", () => {
   test("토글하면 고른 구성 요소가 들고, 다시 누르면 빠진다", () => {
@@ -136,5 +154,71 @@ describe("링크: 맞지 않는 상대는 줄과 실에서 뺀다", () => {
     const lanes = hooksInOrder(fixture.plugins, FIXTURE_ORDER);
     const rels = relationsOf(byId("helm"), fixture, relationContext(fixture, lanes));
     expect(visibleRels(rels, [])).toEqual(rels);
+  });
+});
+
+describe("대표 플러그인이 없는 그룹: 구성원 가운데 맞는 것이 있으면 그룹과 그 조각을 남긴다", () => {
+  // 루트 플러그인(그룹 이름과 같은 id)이 없는 그룹 docs-pack. 구성원마다 넣어 주는 것이 다르다.
+  const withDocs: CanvasSnapshot = {
+    plugins: [
+      ...fixture.plugins,
+      docsPlugin("docs-pack/search", "L2", [
+        { kind: "tool", name: "note_search" },
+        { kind: "skill", name: "note-style" },
+      ]),
+      docsPlugin("docs-pack/notes", "L3", [{ kind: "mcp", name: "docs-server" }]),
+      docsPlugin("docs-pack/index", "L3", [{ kind: "command", name: "index-docs" }]),
+    ],
+    groups: [
+      ...fixture.groups,
+      {
+        id: "docs-pack",
+        name: "Docs pack",
+        version: "1.0.0",
+        origin: "user",
+        members: ["docs-pack/search", "docs-pack/notes", "docs-pack/index"],
+      },
+    ],
+  };
+  /** 스냅샷 순서대로 보이는 그룹 id들(지도는 이 순서로 호를 그린다) */
+  const groupsShown = (contrib: readonly Contrib[]): string[] =>
+    withDocs.groups.map((g) => g.id).filter((gid) => groupShown(withDocs, gid, contrib));
+  /** 그룹의 구성원 가운데 지도에 남는 것(구성원 순서대로) */
+  const membersShown = (gid: string, contrib: readonly Contrib[]): string[] => {
+    const onMap = new Set(shownOnMap(withDocs, contrib).map((p) => p.id));
+    const members = withDocs.groups.find((g) => g.id === gid)?.members ?? [];
+    return members.filter((id) => onMap.has(id));
+  };
+
+  test("구성 요소를 고르지 않으면 그룹과 구성원이 전부 남는다", () => {
+    expect(groupsShown([])).toEqual(["helm", "learning", "review", "docs-pack"]);
+    expect(membersShown("docs-pack", [])).toEqual([
+      "docs-pack/search",
+      "docs-pack/notes",
+      "docs-pack/index",
+    ]);
+  });
+
+  test("도구를 고르면 대표가 없어도 그룹이 남고, 도구를 넣어 주는 구성원만 남는다", () => {
+    expect(groupsShown(["tool"])).toEqual(["helm", "learning", "docs-pack"]);
+    expect(membersShown("docs-pack", ["tool"])).toEqual(["docs-pack/search"]);
+  });
+
+  test("맞는 구성 요소가 없는 그룹은 호와 구성원을 모두 숨긴다", () => {
+    expect(groupShown(withDocs, "docs-pack", ["view"])).toBe(false);
+    expect(groupsShown(["view"])).toEqual(["helm"]);
+    expect(membersShown("docs-pack", ["view"])).toEqual([]);
+  });
+
+  test("층 패널도 대표가 없는 그룹의 맞는 구성원을 보인다", () => {
+    expect(idsOf(layerPlugins(withDocs, "L2", ["tool"]))).toEqual([
+      "helm/explore",
+      "learning/ledger",
+      "web",
+      "knowledge",
+      "work",
+      "docs-pack/search",
+    ]);
+    expect(idsOf(layerPlugins(withDocs, "L3", ["mcp"]))).toEqual(["docs-pack/notes"]);
   });
 });

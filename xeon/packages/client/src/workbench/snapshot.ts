@@ -61,7 +61,7 @@ function baseName(path: string): string {
   return dot > 0 ? base.slice(0, dot) : base;
 }
 
-/** 루트 플러그인이 넣어 주는 것: 구성 요소 경로, MCP 서버, 화면 */
+/** 확장이 넣어 주는 것: 구성 요소 경로, MCP 서버, 화면. 이것을 싣는 플러그인은 `piecesCarrierOf`가 정한다 */
 function piecesOf(manifest: ExtensionManifest | undefined): CanvasPiece[] {
   if (manifest === undefined) return [];
   const components = manifest.components;
@@ -124,12 +124,25 @@ function healthOf(entry: ExtHealthEntry | undefined): CanvasHealth | undefined {
   };
 }
 
+/**
+ * 확장 수준 구성 요소(구성 요소 경로, MCP 서버, 화면)를 싣는 플러그인의 Registration id.
+ * 루트 플러그인이 있으면 루트다. 없으면 대표 자리인 첫 구성원(그룹)이나 첫 플러그인(그룹이 아니면)이 싣는다.
+ * 그룹의 대표는 `link-model`의 `focusOf`가 쓰는 자리와 같다. 플러그인이 하나도 없으면 undefined다.
+ */
+function piecesCarrierOf(entry: ExtListEntry): string | undefined {
+  const root = entry.plugins.find((p) => p.id === undefined);
+  if (root !== undefined) return root.registrationId;
+  const first = entry.isGroup ? entry.plugins.find((p) => p.inGroup) : entry.plugins[0];
+  return first?.registrationId;
+}
+
 function pluginOf(
   entry: ExtListEntry,
   plugin: ExtListPlugin,
   detail: ExtGetResult | undefined,
   manifest: ExtensionManifest | undefined,
   health: WorkbenchState["health"],
+  carriesPieces: boolean,
 ): CanvasPlugin {
   // 루트 플러그인은 id가 없고, 그 선언도 id가 없다
   const decl = manifest?.plugins.find((d) => d.id === plugin.id);
@@ -150,7 +163,7 @@ function pluginOf(
     version: entry.version,
     hooks: hooksOf(detail, plugin.registrationId),
     provides: capabilityNames(detail, plugin.registrationId, decl, "provides"),
-    pieces: root ? piecesOf(manifest) : [],
+    pieces: carriesPieces ? piecesOf(manifest) : [],
     on,
     ...(role === undefined ? {} : { role }),
     ...(plugin.inGroup ? { group: entry.name } : {}),
@@ -186,8 +199,10 @@ export function snapshotOf(
   for (const entry of s.entries) {
     const detail = s.details[entry.name];
     const manifest = manifestOf(detail);
+    const carrier = piecesCarrierOf(entry);
     for (const plugin of entry.plugins) {
-      plugins.push(pluginOf(entry, plugin, detail, manifest, s.health));
+      const carriesPieces = plugin.registrationId === carrier;
+      plugins.push(pluginOf(entry, plugin, detail, manifest, s.health, carriesPieces));
     }
     if (entry.isGroup) groups.push(groupOf(entry, manifest));
   }
