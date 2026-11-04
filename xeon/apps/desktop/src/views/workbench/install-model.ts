@@ -128,16 +128,46 @@ export function warningsOf(preview: InstallPreview): readonly InstallWarning[] {
 }
 
 /**
- * 설치가 끝난 뒤 실행 중인 판을 바꾼다. 같은 이름이 이미 돌아 결과가 `nextStepBoundary`일 때만 `ext.reload`를 부른다
- * (`restart`는 새 이름이라 다음 시작부터이고 `now`는 바꿀 것이 없다). 거절은 삼키지 않고 갈래로 돌려줘 화면이 보인다.
+ * 설치가 끝난 뒤 실행 중인 판을 바꾼다. 같은 이름이 이미 돌아 호스트가 `needsReload`를 알릴 때만 `ext.reload`를 부른다.
+ * 새 이름은 호스트가 설치 뒤 곧바로 싣는다(`now`, 켜기가 미뤄지면 `nextStepBoundary`이지만 `needsReload`는 없다).
+ * 거절은 삼키지 않고 갈래로 돌려줘 화면이 보인다.
  */
 export async function applyInstalled(
   reload: (name: string) => Promise<Result<null, CommandError>>,
   result: ExtInstallResult,
 ): Promise<InstallFailure | null> {
-  if (result.appliesAt !== "nextStepBoundary") return null;
+  if (result.needsReload !== true) return null;
   const done = await reload(result.name);
   return done.ok ? null : installFailureOf(done.error);
+}
+
+/** 설치 결과를 화면이 말하는 갈래. 파일은 복사됐는데 싣지 못한 상태(`notLoaded`)를 따로 보인다 */
+export type InstallDone =
+  /** 재시작 없이 목록에 올랐다 */
+  | { readonly kind: "listed" }
+  /** 실행 중인 turn이 있어 다음 단계 경계에서 켜지거나, 같은 이름의 판이 바뀐다 */
+  | { readonly kind: "boundary" }
+  /** 로더가 없어 다음 시작에 불러온다 */
+  | { readonly kind: "restart" }
+  /** 복사는 됐지만 싣지 못했다. `detail`은 첫 오류 진단의 문장이고 없으면 `null` */
+  | {
+      readonly kind: "notLoaded";
+      readonly reason: "safe_mode" | "disabled" | "error";
+      readonly detail: string | null;
+    };
+
+export function installDoneOf(result: ExtInstallResult): InstallDone {
+  const failure = result.loadFailure;
+  if (failure !== undefined) {
+    if (failure.reason === "loader_unavailable") return { kind: "restart" };
+    const reason =
+      failure.reason === "safe_mode" || failure.reason === "disabled" ? failure.reason : "error";
+    const first =
+      failure.diagnostics.find((entry) => entry.severity === "error") ?? failure.diagnostics[0];
+    return { kind: "notLoaded", reason, detail: first?.message ?? null };
+  }
+  if (result.appliesAt === "now") return { kind: "listed" };
+  return result.appliesAt === "restart" ? { kind: "restart" } : { kind: "boundary" };
 }
 
 /** 폴더 선택 창의 답이 입력란에 하는 일. 취소는 입력란을 그대로 두고, 창을 못 연 실패는 한 줄로 알린다 */

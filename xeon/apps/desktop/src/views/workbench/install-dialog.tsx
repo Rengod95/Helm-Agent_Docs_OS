@@ -9,6 +9,8 @@ import { useFolderPick } from "../folder-pick-context.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
 import {
   applyInstalled,
+  installDoneOf,
+  type InstallDone,
   INITIAL_INSTALL_FLOW,
   installFailureOf,
   pickOutcomeOf,
@@ -243,13 +245,7 @@ export function InstallDialog(props: {
           </>
         )}
         {flow.step === "done" && flow.reloadFailure === null && (
-          <p role="status" className="m-0 text-ui-dense text-text-secondary">
-            {t(
-              flow.result.appliesAt === "restart"
-                ? "desktop.install.done.restart"
-                : "desktop.install.done.now",
-            )}
-          </p>
+          <InstallDoneNote done={installDoneOf(flow.result)} />
         )}
         {flow.step === "done" && flow.reloadFailure !== null && (
           <Alert tone="danger">{t("desktop.install.fail.reload")}</Alert>
@@ -262,5 +258,35 @@ export function InstallDialog(props: {
         {failure !== null && <Alert tone="danger">{t(FAILURE_TEXT[failure])}</Alert>}
       </div>
     </Dialog>
+  );
+}
+
+const DONE_TEXT: Readonly<Record<"listed" | "boundary" | "restart", MessageId>> = {
+  listed: "desktop.install.done.listed",
+  boundary: "desktop.install.done.boundary",
+  restart: "desktop.install.done.restart",
+};
+
+const NOT_LOADED_TEXT: Readonly<Record<"safe_mode" | "disabled" | "error", MessageId>> = {
+  safe_mode: "desktop.install.done.notLoaded.safeMode",
+  disabled: "desktop.install.done.notLoaded.disabled",
+  error: "desktop.install.done.notLoaded.error",
+};
+
+/** 설치 결과 한 줄. 싣지 못했으면 경고로 복사된 상태와 첫 진단 문장을 함께 보인다 */
+function InstallDoneNote(props: { readonly done: InstallDone }): ReactNode {
+  const done = props.done;
+  if (done.kind !== "notLoaded") {
+    return (
+      <p role="status" className="m-0 text-ui-dense text-text-secondary">
+        {t(DONE_TEXT[done.kind])}
+      </p>
+    );
+  }
+  return (
+    <Alert tone="warning">
+      {t(NOT_LOADED_TEXT[done.reason])}
+      {done.detail === null ? "" : ` ${done.detail}`}
+    </Alert>
   );
 }

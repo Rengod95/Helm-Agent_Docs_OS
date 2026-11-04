@@ -9,6 +9,7 @@ import {
   applyInstalled,
   INITIAL_INSTALL_FLOW,
   pickOutcomeOf,
+  installDoneOf,
   installFailureOf,
   installReduce,
   warningsOf,
@@ -140,6 +141,7 @@ const INSTALLED: ExtInstallResult = {
   version: "1.2.0",
   location: "/ext/docs-bundle",
   appliesAt: "nextStepBoundary",
+  needsReload: true,
 };
 
 describe("설치 뒤 교체 적용", () => {
@@ -153,14 +155,16 @@ describe("설치 뒤 교체 적용", () => {
     expect(failure).toBeNull();
   });
 
-  test("restart와 now이면 reload를 부르지 않는다", async () => {
+  test("새 이름의 경계 대기(needsReload 없음)와 restart와 now이면 reload를 부르지 않는다", async () => {
     const calls: string[] = [];
     const reload = (name: string): Promise<ReturnType<typeof ok<null>>> => {
       calls.push(name);
       return Promise.resolve(ok(null));
     };
-    expect(await applyInstalled(reload, { ...INSTALLED, appliesAt: "restart" })).toBeNull();
-    expect(await applyInstalled(reload, { ...INSTALLED, appliesAt: "now" })).toBeNull();
+    const { needsReload: _drop, ...waiting } = INSTALLED;
+    expect(await applyInstalled(reload, { ...waiting, appliesAt: "restart" })).toBeNull();
+    expect(await applyInstalled(reload, { ...waiting, appliesAt: "now" })).toBeNull();
+    expect(await applyInstalled(reload, waiting)).toBeNull();
     expect(calls).toEqual([]);
   });
 
@@ -175,6 +179,48 @@ describe("설치 뒤 교체 적용", () => {
       { type: "installed", result: INSTALLED, reloadFailure: failure },
     );
     expect(flow).toEqual({ step: "done", result: INSTALLED, reloadFailure: "offline" });
+  });
+});
+
+describe("설치 결과의 갈래", () => {
+  const base: ExtInstallResult = { ...INSTALLED };
+  test("now는 목록에 바로 올랐고 경계 대기는 다음 단계부터다", () => {
+    expect(installDoneOf({ ...base, appliesAt: "now" })).toEqual({ kind: "listed" });
+    expect(installDoneOf(base)).toEqual({ kind: "boundary" });
+    expect(installDoneOf({ ...base, appliesAt: "restart" })).toEqual({ kind: "restart" });
+  });
+
+  test("싣기에 실패하면 이유와 첫 오류 진단 문장을 보인다", () => {
+    const failed = (reason: "safe_mode" | "disabled" | "rejected" | "loader_unavailable") => ({
+      ...base,
+      appliesAt: "restart" as const,
+      loadFailure: {
+        reason,
+        diagnostics: [
+          { severity: "warning" as const, code: "w", message: "warned" },
+          { severity: "error" as const, code: "entry_import_failed", message: "cannot import" },
+        ],
+      },
+    });
+    expect(installDoneOf(failed("rejected"))).toEqual({
+      kind: "notLoaded",
+      reason: "error",
+      detail: "cannot import",
+    });
+    expect(installDoneOf(failed("safe_mode"))).toEqual({
+      kind: "notLoaded",
+      reason: "safe_mode",
+      detail: "cannot import",
+    });
+    expect(installDoneOf(failed("disabled"))).toMatchObject({ reason: "disabled" });
+    expect(installDoneOf(failed("loader_unavailable"))).toEqual({ kind: "restart" });
+    expect(
+      installDoneOf({
+        ...base,
+        appliesAt: "restart",
+        loadFailure: { reason: "error", diagnostics: [] },
+      }),
+    ).toEqual({ kind: "notLoaded", reason: "error", detail: null });
   });
 });
 
