@@ -118,6 +118,7 @@ import {
   installedAgentDefinitions,
 } from "./assembly/default-plugins.ts";
 import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
+import { followExtEnabled } from "./assembly/ext-enabled.ts";
 import { loadExternalExtensions } from "./assembly/external.ts";
 import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts";
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
@@ -506,9 +507,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const autoTitleSlot: { title: AutoTitle | undefined } = { title: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
   /** 외부 확장 로더(기본 플러그인 포함). 닫을 때 먼저 내린다 */
-  const external: { loader: ExtensionLoader | undefined; unbridge: (() => void) | undefined } = {
+  const external: {
+    loader: ExtensionLoader | undefined;
+    unbridge: (() => void) | undefined;
+    unfollowEnabled: (() => void) | undefined;
+  } = {
     loader: undefined,
     unbridge: undefined,
+    unfollowEnabled: undefined,
   };
 
   const settingsWatchSlot: { watch: SettingsWatch | undefined } = { watch: undefined };
@@ -524,6 +530,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       // 예약을 먼저 멈춘다: 틱과 감시를 끊고 진행 중인 저장을 기다린다. 저장소를 닫기 전이어야 한다
       await scheduleSlot.service?.close();
       await portsHandle?.releaseAll();
+      external.unfollowEnabled?.();
       external.unbridge?.();
       await external.loader?.dispose();
       await ext.dispose();
@@ -889,6 +896,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           : { startup: { safeMode: { active: true, source: safeModeSource }, disabled: [] } }),
       });
       external.loader = loaded.loader;
+      // 일반 켜기 스위치도 "다시 켜기"와 같은 결과를 낸다(싣지 않은 확장을 싣고, 자동 꺼짐 표시를 지운다)
+      external.unfollowEnabled = followExtEnabled({
+        onChange: (listener) => settings.onChange(listener),
+        value: (key) => settings.value(key),
+        loader: () => external.loader,
+        autoDisabler: operations.autoDisabler,
+        logger: os.logger("ext-enabled"),
+        signal: lifetime.signal,
+      });
       externalGroups.push(...loaded.manifests);
       external.unbridge = bridgeExtensionCommands(ext, commands, os.logger("ext-commands"));
     }
