@@ -706,7 +706,7 @@
   "client.settings.field.invalidValue": "이 값은 저장할 수 없어요",
   "client.settings.field.locked": "관리 정책으로 잠겨 있어 바꿀 수 없어요",
   "client.settings.field.noWritableScope": "이 설정은 지금 저장할 수 있는 범위가 없어요",
-  "client.settings.field.scopeNoWorkspace": "열린 작업 폴더가 없어 {scope} 범위에는 저장할 수 없어요",
+  "client.settings.field.scopeNoWorkspace": "작업 폴더가 열려 있지 않아 {scope}에는 저장할 수 없어요",
   "client.settings.field.scopeNotAllowed": "{scope} 범위에는 저장할 수 없어요",
   "client.settings.field.secretValue": "시크릿 값은 여기에 넣을 수 없어요. 시크릿 탭에서 등록한 뒤 참조를 골라 주세요",
   "client.settings.field.transient": "엔진과 연결이 끊겼어요. 다시 연결되면 저장해 주세요",

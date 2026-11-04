@@ -706,7 +706,7 @@
   "client.settings.field.invalidValue": "This value cannot be saved.",
   "client.settings.field.locked": "A managed policy locks this setting, so it cannot be changed.",
   "client.settings.field.noWritableScope": "This setting has no scope to save to right now.",
-  "client.settings.field.scopeNoWorkspace": "No work folder is open, so {scope} cannot be saved to.",
+  "client.settings.field.scopeNoWorkspace": "No work folder is open, so this can't be saved to {scope}.",
   "client.settings.field.scopeNotAllowed": "The {scope} scope cannot be saved to.",
   "client.settings.field.secretValue": "A secret value cannot be entered here. Register it in the Secrets tab and pick its reference.",
   "client.settings.field.transient": "The engine connection was lost. Save again after reconnecting.",
