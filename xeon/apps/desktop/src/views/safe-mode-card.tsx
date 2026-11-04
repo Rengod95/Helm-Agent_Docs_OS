@@ -4,10 +4,15 @@ import { t } from "@fresnel/client/i18n";
 import { Card, ListDescription, ListDescriptionRow } from "@caustic/react";
 import { useId, type ReactNode } from "react";
 import { useEngineState } from "../state/engine/index.ts";
+import { useCommands } from "./commands.ts";
 import { InfoTip } from "./craft/info-tip.tsx";
 import { RestartButtons, type RestartChoice } from "./restart-confirm-dialog.tsx";
 import { useSafeMode } from "./safe-mode-context.ts";
-import { canSwitchSafeModeOf, safeModeSurfaceOf } from "./safe-mode-model.ts";
+import {
+  canSwitchSafeModeOf,
+  safeModeStartOfferedOf,
+  safeModeSurfaceOf,
+} from "./safe-mode-model.ts";
 import { useShellRestart } from "./shell-restart-context.ts";
 
 const RETRY: RestartChoice = {
@@ -28,6 +33,8 @@ export function SafeModeCard(): ReactNode {
   const snapshot = useSafeMode();
   const shellRestart = useShellRestart();
   const engine = useEngineState();
+  const commands = useCommands();
+  const startOffered = safeModeStartOfferedOf(commands.restore.engineTarget()?.kind === "remote");
   const headingId = useId();
   if (snapshot === null || safeModeSurfaceOf(snapshot, shellRestart) !== "card") return null;
   return (
@@ -37,8 +44,10 @@ export function SafeModeCard(): ReactNode {
           {t("desktop.safe.suggest.title", { count: snapshot.startupFailures })}
         </h2>
         <div className="flex min-w-0 items-start gap-1">
-          <p className="m-0 text-ui-sm text-text-secondary">{t("desktop.safe.suggest.body")}</p>
-          <InfoTip text={t("desktop.safe.suggest.info")} />
+          <p className="m-0 text-ui-sm text-text-secondary">
+            {t(startOffered ? "desktop.safe.suggest.body" : "desktop.safe.suggest.remote")}
+          </p>
+          {startOffered ? <InfoTip text={t("desktop.safe.suggest.info")} /> : null}
         </div>
       </div>
       <ListDescription aria-label={t("desktop.safe.failures")}>
@@ -48,7 +57,7 @@ export function SafeModeCard(): ReactNode {
       </ListDescription>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <RestartButtons
-          choices={[RETRY, START]}
+          choices={startOffered ? [RETRY, START] : [RETRY]}
           size="sm"
           allowed={canSwitchSafeModeOf(engine?.kind ?? null)}
         />

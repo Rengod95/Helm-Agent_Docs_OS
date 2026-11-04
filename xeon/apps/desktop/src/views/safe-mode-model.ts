@@ -34,6 +34,22 @@ export function canSwitchSafeModeOf(engine: EngineState["kind"] | null): boolean
   return engine === "running" || engine === "failed";
 }
 
+/**
+ * 카드의 단추 자리: 원격 대상에서는 "안전 모드로 시작"을 보이지 않는다. 셸이 원격에는 안전 모드를 켜지 않고(`bad-request`),
+ * 원격 서비스의 안전 모드는 서비스가 있는 기기에서 정한다. 그래서 눌러야 실패하는 단추를 두지 않는다.
+ */
+export function safeModeStartOfferedOf(remote: boolean): boolean {
+  return !remote;
+}
+
+/**
+ * 칩의 "끄고 다시 시작" 옆 안내가 필요한지. 설정 `x.operations.safeMode.default`가 켠 안전 모드(원인 `user`)만 해당한다:
+ * 다시 시작은 이번 실행에서만 끄고 설정 값은 그대로라서 앱을 다시 켜면 안전 모드가 돌아온다.
+ */
+export function safeModeExitNoteOf(snapshot: SafeModeSnapshot): boolean {
+  return snapshot.cause === "user";
+}
+
 const CAUSE_TEXT: Readonly<Record<SafeModeCause, MessageId>> = {
   user: "desktop.safe.cause.user",
   startupFailures: "desktop.safe.cause.startupFailures",

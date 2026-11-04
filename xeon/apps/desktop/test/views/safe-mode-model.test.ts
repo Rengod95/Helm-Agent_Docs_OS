@@ -4,7 +4,9 @@ import type { SafeModeCause, SafeModeSnapshot } from "../../src/views/commands.t
 import type { EngineState } from "../../src/transport/ipc.ts";
 import {
   canSwitchSafeModeOf,
+  safeModeExitNoteOf,
   safeModeReadDueOf,
+  safeModeStartOfferedOf,
   safeModeSurfaceOf,
   safeModeTipOf,
 } from "../../src/views/safe-mode-model.ts";
@@ -78,14 +80,14 @@ describe("the chip tip names what is off and the cause", () => {
 
   test("a user-started safe mode gives the off list and the user cause", () => {
     expect(safeModeTipOf(SAFE)).toBe(
-      "꺼진 것: 그룹, 사용자·프로젝트 확장, X 훅. 원인: 직접 켰어요",
+      "꺼진 것: 그룹, 사용자·프로젝트 확장, X 훅. 원인: 설정에서 기본으로 켜 뒀어요",
     );
   });
 
   test("each cause has its own sentence", () => {
     const causes: readonly SafeModeCause[] = ["user", "startupFailures", "flag"];
     expect(causes.map((cause) => safeModeTipOf({ ...SAFE, cause }).split(". ")[1])).toEqual([
-      "원인: 직접 켰어요",
+      "원인: 설정에서 기본으로 켜 뒀어요",
       "원인: 연속 시작 실패",
       "원인: 실행 옵션",
     ]);
@@ -95,5 +97,22 @@ describe("the chip tip names what is off and the cause", () => {
     expect(safeModeTipOf({ ...SAFE, cause: null })).toBe(
       "꺼진 것: 그룹, 사용자·프로젝트 확장, X 훅",
     );
+  });
+});
+
+describe("the card and chip choices that depend on the target and the cause", () => {
+  test("a remote target is not offered the start-in-safe-mode button, a local one is", () => {
+    expect(safeModeStartOfferedOf(true)).toBe(false);
+    expect(safeModeStartOfferedOf(false)).toBe(true);
+  });
+
+  test("only a safe mode turned on by the setting gets the note that the setting stays on", () => {
+    const causes: readonly (SafeModeCause | null)[] = ["user", "startupFailures", "flag", null];
+    expect(causes.map((cause) => safeModeExitNoteOf({ ...SAFE, cause }))).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
   });
 });
