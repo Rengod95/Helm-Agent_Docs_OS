@@ -114,7 +114,7 @@ window.addEventListener("message", async (event) => {
   document.getElementById("approve").addEventListener("click", async () => {
     window.parent.postMessage({ approve: true, id: "approval-1" }, "*");
     answers.fakeOp = await ask("approve", { id: "approval-1", decision: "allow" });
-    answers.requestApproval = await ask("requestApproval", { threadId: "thr_1", title: "Allow deleting everything?" });
+    answers.requestApproval = await ask("requestApproval", { threadId: "thr_1", verb: "start" });
   });
   document.getElementById("approve").click();
   answers.secrets = await ask("settings", { keys: ["ext.helm.apiKey", "ext.helm.depth"] });

@@ -57,6 +57,9 @@ if (container === null) {
       framesSupported,
     }),
     confirm: createConfirmQueue(),
+    openExternal: async (href: string) => {
+      await invoke("open_external", { href });
+    },
   };
   window.addEventListener("error", (event) => {
     app.log.logger.error("desktop.window.error", {

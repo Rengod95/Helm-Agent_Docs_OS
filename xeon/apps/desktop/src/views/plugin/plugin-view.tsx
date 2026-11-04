@@ -195,6 +195,7 @@ export function createSession(
   showScreen: (screen: "chat" | "settings") => void,
   current: () => HostConnection | null,
   runtime: PluginUiRuntime,
+  openExternal: (href: string) => Promise<void>,
 ): Session {
   const box: SessionBox = { thread: threadId, context };
   return {
@@ -241,9 +242,8 @@ export function createSession(
           }
           return false;
         },
-        // 외부 링크는 확인 줄이 아직 없어 열지 않는다([미결]). 확인 없이 OS 브라우저를 여는 길은 두지 않는다
-        openExternal: () => Promise.resolve(),
-        confirmExternal: () => Promise.resolve(false),
+        // 실행기가 확인 줄을 거친 주소만 여기까지 온다. 확인 없이 OS 브라우저를 여는 길은 없다
+        openExternal,
         resize,
         diagnostic: () => {},
       }),
@@ -255,6 +255,7 @@ function useSession(
   context: BridgePolicyContext,
   threadId: string | null,
   runtime: PluginUiRuntime,
+  openExternal: (href: string) => Promise<void>,
 ): Session {
   const commands = useCommands();
   const [session] = useState(() =>
@@ -265,6 +266,7 @@ function useSession(
       (screen) => commands.showScreen(screen),
       () => commands.pluginUi.current(),
       runtime,
+      openExternal,
     ),
   );
   useEffect(() => {
@@ -281,7 +283,7 @@ function FrameBody(props: {
   const { entry, loaded, runtime } = props;
   const plugin = usePluginUi();
   const threadId = useSelectedThreadId();
-  const session = useSession(entry, loaded.context, threadId, runtime);
+  const session = useSession(entry, loaded.context, threadId, runtime, plugin.openExternal);
   const app = entry.app;
   const url =
     app === undefined
@@ -355,10 +357,10 @@ export function NativeSurface(props: {
   readonly dense?: boolean;
 }): ReactNode {
   const { entry, loaded, doc, dense = false } = props;
-  const { runtime } = usePluginUi();
+  const { runtime, openExternal } = usePluginUi();
   const commands = useCommands();
   const threadId = useSelectedThreadId();
-  const session = useSession(entry, loaded.context, threadId, runtime);
+  const session = useSession(entry, loaded.context, threadId, runtime, openExternal);
   const [backend] = useState(() => session.makeBackend(() => {}));
   const key = screenKeyOf(entry);
   const runner = useRunner(session, backend, runtime, key);

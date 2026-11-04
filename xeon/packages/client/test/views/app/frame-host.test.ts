@@ -346,6 +346,7 @@ describe("theme tokens and confirm line", () => {
 
   test("the confirmation line is built only from manifest values", () => {
     const base = {
+      kind: "call",
       extension: "helm",
       trust: "user",
       action: "start",
@@ -364,6 +365,22 @@ describe("theme tokens and confirm line", () => {
     );
     expect(confirmLineText({ ...base, label: "\u202e\u0007" })).toBe(
       '"helm" 확장이 "start" 동작을 하려고 해요',
+    );
+    expect(confirmLineText({ ...base, kind: "approval", approval: true })).toBe(
+      '"helm" 확장이 "start" 동작의 승인 카드를 띄우려고 해요',
+    );
+    expect(confirmLineText({ ...base, kind: "external", action: "https://example.com/a" })).toBe(
+      '"helm" 확장이 브라우저에서 "https://example.com/a" 주소를 열려고 해요',
+    );
+    expect(
+      confirmLineText({
+        ...base,
+        kind: "external",
+        action: "https://xn--bcher-kva.example/",
+        punycodeHost: "xn--bcher-kva.example",
+      }),
+    ).toBe(
+      '"helm" 확장이 브라우저에서 "https://xn--bcher-kva.example/" 주소를 열려고 해요 (실제 호스트: xn--bcher-kva.example)',
     );
     expect(confirmBadges(base)).toEqual(["직접 설치"]);
     expect(confirmBadges({ ...base, trust: "project" })).toEqual([

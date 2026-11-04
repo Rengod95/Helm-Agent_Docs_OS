@@ -130,14 +130,27 @@ describe("bridge policy", () => {
       ok: false,
       error: { kind: "denied", detail: "thread_not_open" },
     });
-    expect(decide(req("requestApproval", { threadId: "thr_9", title: "t" }), context)).toEqual({
+    expect(decide(req("requestApproval", { threadId: "thr_9", verb: "wipe" }), context)).toEqual({
       ok: false,
       error: { kind: "denied", detail: "thread_not_open" },
     });
-    expect(decide(req("requestApproval", { threadId: "thr_1", title: "t" }), context)).toEqual({
+    expect(decide(req("requestApproval", { threadId: "thr_1", verb: "wipe" }), context)).toEqual({
       ok: true,
-      action: { op: "requestApproval", threadId: "thr_1", title: "t", detail: "" },
+      action: { op: "requestApproval", threadId: "thr_1", verb: "wipe", params: {} },
     });
+    // 선언 없는 동사와 읽기 메서드는 승인 카드를 청할 수 없다
+    expect(decide(req("requestApproval", { threadId: "thr_1", verb: "nope" }), context)).toEqual({
+      ok: false,
+      error: { kind: "not_declared" },
+    });
+    expect(decide(req("requestApproval", { threadId: "thr_1", verb: "status" }), context)).toEqual({
+      ok: false,
+      error: { kind: "denied", detail: "approval_needs_write_method" },
+    });
+    // 프레임이 쓴 글(title, detail)은 받지 않는다
+    expect(decide(req("requestApproval", { threadId: "thr_1", title: "t" }), context).ok).toBe(
+      false,
+    );
   });
 
   test("navigate: app targets pass, external needs http(s) without credentials and a shell confirm", () => {

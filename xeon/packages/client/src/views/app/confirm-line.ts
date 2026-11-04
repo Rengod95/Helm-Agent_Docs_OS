@@ -1,3 +1,4 @@
+import { assertNever } from "@fresnel/contracts";
 import { t } from "../../i18n/index.ts";
 import type { ConfirmRequest } from "./bridge-host.ts";
 import { stripUnsafeText } from "./policy.ts";
@@ -29,12 +30,26 @@ function shownAction(request: ConfirmRequest): string {
   return label === "" ? request.action : `${label} (${request.action})`;
 }
 
-/** 확인 줄 문장. 매니페스트 라벨이 있으면 라벨과 실제 동사를 함께 보인다 */
+/** 확인 줄 문장. 종류마다 문장이 다르다. 매니페스트 라벨이 있으면 라벨과 실제 동사를 함께 보이고, 외부 링크는 정규화한 주소를 보인다 */
 export function confirmLineText(request: ConfirmRequest): string {
-  return t("client.view.confirm.line", {
-    extension: request.extension,
-    action: shownAction(request),
-  });
+  const extension = request.extension;
+  switch (request.kind) {
+    case "external":
+      return request.punycodeHost === undefined
+        ? t("client.view.confirm.external", { extension, url: request.action })
+        : t("client.view.confirm.externalPunycode", {
+            extension,
+            url: request.action,
+            host: request.punycodeHost,
+          });
+    case "approval":
+      return t("client.view.confirm.approval", { extension, action: shownAction(request) });
+    case "call":
+    case "command":
+      return t("client.view.confirm.line", { extension, action: shownAction(request) });
+    default:
+      return assertNever(request.kind, "ConfirmKind");
+  }
 }
 
 export function confirmButtons(): readonly ConfirmButton[] {

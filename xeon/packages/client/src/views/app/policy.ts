@@ -90,12 +90,9 @@ const PostArgs = Type.Object(
   { threadId: ThreadIdSchema, text: Type.String({ minLength: 1, maxLength: 20000 }) },
   { additionalProperties: false },
 );
+// 승인 요청은 글을 받지 않는다. 카드 글은 엔진이 확장 이름과 선언된 동사로 만든다(`ext.ui.requestApproval`, ADR-0021 §3.4)
 const ApprovalArgs = Type.Object(
-  {
-    threadId: ThreadIdSchema,
-    title: Type.String({ minLength: 1, maxLength: 120 }),
-    detail: Type.Optional(Type.String({ maxLength: 1000 })),
-  },
+  { threadId: ThreadIdSchema, verb: VerbSchema, params: ParamsSchema },
   { additionalProperties: false },
 );
 const NavigateArgs = Type.Object(
@@ -173,8 +170,8 @@ export type BridgeAction =
   | {
       readonly op: "requestApproval";
       readonly threadId: string;
-      readonly title: string;
-      readonly detail: string;
+      readonly verb: string;
+      readonly params: Readonly<Record<string, unknown>>;
     }
   | {
       readonly op: "navigate";
@@ -370,15 +367,17 @@ export function decide(request: BridgeRequest, context: BridgePolicyContext): De
       if (context.openThreadId === undefined || parsed.value.threadId !== context.openThreadId) {
         return deny("denied", "thread_not_open");
       }
-      const title = stripUnsafeText(parsed.value.title, false).trim();
-      if (title === "") return deny("args_invalid", "/title empty");
+      const grant = context.methods.get(parsed.value.verb);
+      if (grant === undefined) return deny("not_declared");
+      // 읽기 메서드는 승인이 필요 없다(매니페스트 검사도 readOnly와 approval을 함께 막는다)
+      if (grant.readOnly) return deny("denied", "approval_needs_write_method");
       return {
         ok: true,
         action: {
           op: "requestApproval",
           threadId: parsed.value.threadId,
-          title,
-          detail: stripUnsafeText(parsed.value.detail ?? "", true),
+          verb: parsed.value.verb,
+          params: parsed.value.params ?? {},
         },
       };
     }

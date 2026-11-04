@@ -13,7 +13,7 @@ export function emptyPluginUi(): PluginUiContextValue {
     appRootsInvoke: undefined,
     framesSupported: false,
   });
-  return { runtime, confirm: createConfirmQueue() };
+  return { runtime, confirm: createConfirmQueue(), openExternal: () => Promise.resolve() };
 }
 
 /** `ext.ui.list`, `ext.list`, `settings.get`에 답하는 연결로 목록을 한 번 읽은 플러그인 문맥 */
@@ -33,5 +33,5 @@ export async function loadedPluginUi(
     framesSupported: true,
   });
   await runtime.refresh();
-  return { runtime, confirm: createConfirmQueue() };
+  return { runtime, confirm: createConfirmQueue(), openExternal: () => Promise.resolve() };
 }

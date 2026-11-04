@@ -22,7 +22,6 @@ import {
   type BackendResult,
   type BridgeBackend,
   type BridgePolicyContext,
-  type ExternalLink,
   type HostSnapshot,
   type NavigateTarget,
   type SettingRead,
@@ -52,7 +51,6 @@ export interface BridgeBackendDeps {
   readonly navigate: (target: ShellNavigateTarget) => boolean;
   /** OS 브라우저 열기. 호출자는 확인을 받은 링크의 `href`만 넘긴다 */
   readonly openExternal: (href: string) => Promise<void>;
-  readonly confirmExternal: (link: ExternalLink) => Promise<boolean>;
   readonly resize: (height: number) => void;
   readonly diagnostic: (line: { readonly op: string; readonly size: number }) => void;
 }
@@ -64,15 +62,6 @@ const EVENT_ROWS_MAX = UI_LIMITS.eventRows;
 
 function fail(kind: BridgeError["kind"], detail?: string): BackendResult<never> {
   return err(detail === undefined ? { kind } : { kind, detail });
-}
-
-/**
- * 프레임이 글을 준 승인 요청(`requestApproval`)은 wire로 잇지 않는다. `ext.ui.requestApproval`은 매니페스트에 선언된 `method`를 요구하는데
- * 다리 `requestApproval`은 제목과 설명만 주고, 프레임이 쓴 글이 표준 승인 카드가 되는 길은 사용자 결정 전에 열지 않는다(작업 보고 [미결]).
- * 승인이 필요한 메서드(`approval: true`) 호출도 승인 뒤 실행하는 길이 정해지지 않아 닫는다
- */
-function unavailable(): Promise<BackendResult<never>> {
-  return Promise.resolve(fail("failed", "wire_unavailable"));
 }
 
 /** 확장 메서드 params의 예약 키. 프레임이 준 값은 버리고 열린 대화로만 채운다 */
@@ -194,14 +183,29 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
   }
 
   return {
-    requestApproval: unavailable,
+    requestApproval(threadId, verb, params) {
+      // 카드 글은 엔진이 확장 이름과 선언된 동사로 만든다. 프레임이 준 글은 없다. 대화는 열린 대화로만 싣는다
+      const open = threadOf(deps.openThreadId());
+      if (!open.ok || open.value !== threadId)
+        return Promise.resolve(fail("denied", "thread_not_open"));
+      return onWire((connection) =>
+        connection.request("ext.ui.requestApproval", {
+          extension: deps.extension,
+          ui: deps.screen,
+          threadId: open.value,
+          method: verb,
+          params,
+        }),
+      );
+    },
 
     query(verb, params) {
       return extension(verb, params);
     },
 
     call(verb, params) {
-      // 승인이 필요한 메서드는 승인 뒤 실행하는 길이 없어 닫는다. 판정은 `decide`가 이미 했고 여기서 다시 선언을 본다
+      // 승인이 필요한 메서드는 승인 결과를 받아 실행하는 길이 아직 없어 닫는다(ADR-0021 §6, 2026-11-04 13번 미결). 화면은 `requestApproval`로 카드를 띄울 수 있다.
+      // 판정은 `decide`가 이미 했고 여기서 다시 선언을 본다
       if (deps.policy().methods.get(verb)?.approval === true) {
         return Promise.resolve(fail("denied", "approval_required"));
       }
@@ -268,15 +272,11 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
         if (!moved.ok) return fail("failed", "navigate");
         return moved.value ? ok(null) : fail("failed", "navigate_unsupported");
       }
-      // 외부 링크는 판정 뒤 `confirmExternal`을 거친 것만 온다(브리지는 이때 `needsShellConfirm`을 참으로 보낸다)
+      // 외부 링크는 실행기가 확인 줄을 거친 것만 온다(브리지는 이때 `needsShellConfirm`을 참으로 보낸다)
       if (!shellConfirmed) return fail("denied", "not_confirmed");
       const href = target.link.href;
       const opened = await attemptAsync(() => deps.openExternal(href));
       return opened.ok ? ok(null) : fail("failed", "open_external");
-    },
-
-    confirmExternal(link) {
-      return deps.confirmExternal(link);
     },
 
     resize(height) {

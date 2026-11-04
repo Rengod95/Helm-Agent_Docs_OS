@@ -24,7 +24,6 @@ import {
   stripUnsafeText,
   type BridgeAction,
   type BridgePolicyContext,
-  type ExternalLink,
   type NavigateTarget,
 } from "./policy.ts";
 
@@ -71,10 +70,14 @@ export interface BridgeBackend {
   call(verb: string, params: Readonly<Record<string, unknown>>): Promise<BackendResult<unknown>>;
   command(name: string, args: string): Promise<BackendResult<unknown>>;
   post(threadId: string, text: string): Promise<BackendResult<unknown>>;
-  requestApproval(threadId: string, title: string, detail: string): Promise<BackendResult<unknown>>;
+  /** 선언된 동사의 표준 승인 카드를 연다. 글은 엔진이 확장 이름과 동사로 만든다. 승인 id만 돌려주고 기다리지 않는다 */
+  requestApproval(
+    threadId: string,
+    verb: string,
+    params: Readonly<Record<string, unknown>>,
+  ): Promise<BackendResult<unknown>>;
+  /** 외부 링크는 실행기가 확인 줄(`ConfirmRequest` 종류 `external`)을 거친 뒤에만 `shellConfirmed`를 참으로 넘긴다. OS 브라우저 열기는 `link.href`만 쓴다 */
   navigate(target: NavigateTarget, shellConfirmed: boolean): Promise<BackendResult<unknown>>;
-  /** 외부 링크는 셸이 먼저 확인한다. 확인 글과 OS 브라우저 열기 모두 `link.href`만 쓴다 */
-  confirmExternal(link: ExternalLink): Promise<boolean>;
   resize(height: number): void;
   /** 진단 줄. op와 크기만 온다 */
   diagnostic(line: { readonly op: string; readonly size: number }): void;
@@ -82,13 +85,19 @@ export interface BridgeBackend {
 
 export type ConfirmAnswer = "allow" | "deny";
 
-/** 프레임 `call`·`command` 앞의 확인 줄(§3.4). 글은 매니페스트에서 온 값(확장 이름, 동사)으로만 만든다. 프레임이 준 글은 쓰지 않는다 */
+/** 확인 줄이 묻는 동작의 종류 */
+type ConfirmKind = "call" | "command" | "approval" | "external";
+
+/** 프레임 `call`·`command`·`requestApproval`·외부 링크 앞의 확인 줄(§3.4). 글은 매니페스트에서 온 값(확장 이름, 동사)과 정규화한 주소로만 만든다. 프레임이 준 글은 쓰지 않는다 */
 export interface ConfirmRequest {
+  readonly kind: ConfirmKind;
   readonly extension: string;
   /** 확장의 신뢰 등급. `project`이면 줄에 프로젝트 배지를 단다 */
   readonly trust: "builtin" | "user" | "project";
-  /** `call`이면 동사, `command`이면 `/이름` */
+  /** `call`이면 동사, `command`이면 `/이름`, `approval`이면 승인을 청할 동사, `external`이면 정규화한 주소(방향 제어 글자 제거) */
   readonly action: string;
+  /** `external`이고 사용자가 쓴 호스트와 정규화된 호스트가 다르면 퓨니코드 호스트. 그 밖에는 undefined */
+  readonly punycodeHost?: string;
   /** 매니페스트 라벨. 있으면 줄이 동사 대신 이것을 보인다 */
   readonly label: string | undefined;
   /** 실제로 실행될 params의 요약(키=값, 제어·방향 제어 글자 제거, 길이 제한). 빈 객체면 빈 글이다. 확인한 값과 실행하는 값은 같은 객체다 */
@@ -285,10 +294,12 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
    * 허용이면 undefined, 아니면 돌려줄 오류다
    */
   async function confirmGate(
+    kind: ConfirmKind,
     action: string,
     label: string | undefined,
     params: Readonly<Record<string, unknown>>,
     approval: boolean,
+    punycodeHost?: string,
   ): Promise<BridgeError | undefined> {
     if (options.clock.now() < cooldownUntil) {
       count("confirm_denied");
@@ -300,9 +311,11 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       return { kind: "denied", detail: "params_too_long_to_confirm" };
     }
     const outcome = await askConfirm({
+      kind,
       extension: options.context().extension,
       trust: options.context().trust,
       action,
+      ...(punycodeHost === undefined ? {} : { punycodeHost }),
       label,
       paramsSummary: summarizeParams(params),
       approval,
@@ -373,13 +386,21 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
   async function runPosted(
     action: Extract<RunnableAction, { op: "post" | "requestApproval" }>,
   ): Promise<BackendResult<unknown>> {
+    // 승인 요청은 프레임이 사용자 앞에 카드를 띄우는 일이라 확인 줄을 먼저 거친다. 예산은 확인을 받은 뒤에 쓴다
+    if (action.op === "requestApproval") {
+      const grant = options.context().methods.get(action.verb);
+      const refused = await confirmGate("approval", action.verb, grant?.label, action.params, true);
+      if (refused !== undefined) return { ok: false, error: refused };
+      const off = await gone();
+      if (off !== undefined) return { ok: false, error: off };
+    }
     const over = budgetError(postBudget);
     if (over !== undefined) return { ok: false, error: over };
     postBudget.begin();
     const result = await attemptAsync(() =>
       action.op === "post"
         ? backend.post(action.threadId, action.text)
-        : backend.requestApproval(action.threadId, action.title, action.detail),
+        : backend.requestApproval(action.threadId, action.verb, action.params),
     );
     postBudget.end();
     return result.ok ? result.value : failed("failed");
@@ -393,8 +414,21 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
     navigateBudget.begin();
     const result = await attemptAsync(async () => {
       if (action.target.kind === "external") {
-        const allowed = await backend.confirmExternal(action.target.link);
-        if (!allowed) return failed("denied", "not_confirmed");
+        // 주소는 정규화한 `href`만 보이고 연다. 확인한 값과 여는 값이 같다
+        const link = action.target.link;
+        const refused = await confirmGate(
+          "external",
+          link.display,
+          undefined,
+          {},
+          false,
+          link.punycodeHost,
+        );
+        if (refused !== undefined)
+          return { ok: false, error: refused } satisfies BackendResult<never>;
+        const off = await gone();
+        if (off !== undefined) return { ok: false, error: off } satisfies BackendResult<never>;
+        return backend.navigate(action.target, true);
       }
       return backend.navigate(action.target, action.needsShellConfirm);
     });
@@ -458,6 +492,7 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       case "call": {
         const grant = options.context().methods.get(action.verb);
         const refused = await confirmGate(
+          "call",
           action.verb,
           grant?.label,
           action.params,
@@ -471,6 +506,7 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       case "command": {
         // 실행될 인자(`args`)를 줄에 그대로 보인다. 확인한 값과 실행하는 값은 같다
         const refused = await confirmGate(
+          "command",
           `/${action.name}`,
           undefined,
           { args: action.args },

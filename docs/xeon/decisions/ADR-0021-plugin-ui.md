@@ -19,7 +19,8 @@ binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/c
 - [결정: 2026-10-30 사용자] 플러그인마다 클라이언트 안에서 자기 화면을 구성할 수 있어야 합니다. 원문: "플러그인 별로 우리 클라이언트 안에서 자기만의 ui 화면을 구성할 수 있는 시스템을 지원했으면 해, 단순 특정 파일을 렌더링 한다기 보다는, 어떤 플러그인을 어댑팅 했을 때, 이 플러그인이 만약 l3고 자기만의 워크플로우나 에이전틱한 흐름에서 대화창이 아닌 커스텀한 화면을 요구한다면 이를 지원할 수 있어야 해."
 - [결정: 2026-10-31 사용자] 두 모드를 모두 지원합니다. 선언형 모드(클라이언트가 caustic으로 그림)와 격리 iframe·웹 컴포넌트 모드입니다. 에이전트가 플러그인을 만들 때 어느 모드가 필요한지는 에이전트가 판단합니다(`L4.desktop-ux.spec` §12.3 U-1).
 - 2026-10-30 초안의 "(d) 혼합, 선언형만, iframe은 이름만 예약"은 이 개정으로 바뀝니다.
-- [결정: 2026-11-04 사용자] 프레임 `call`·`command`의 확인 줄은 끌 수 없고 호출마다 뜹니다. "이 화면에서 묻지 않기"와 확장별 허용 기억은 두지 않습니다(B2 1안, §3.4). 설정 키 `x.views.frames`, `x.views.allowProjectFrames`는 X가 소유합니다(§6 9번).
+- [결정: 2026-11-04 사용자 13번] `requestApproval`, 승인이 필요한 `call`, 외부 링크는 가능한 만큼 열되 셸 확인 줄을 거칩니다(§3.4, §3.6.6). 승인이 필요한 `call`은 승인 결과를 받는 길이 없어 아직 닫혀 있습니다.
+- [결정: 2026-11-04 사용자] 프레임 `call`·`command`의 확인 줄은 끌 수 없고 호출마다 뜹니다. "이 화면에서 묻지 않기"와 확장별 허용 기억은 두지 않습니다(B2 1안, §3.4). 설정 키 `x.ui.apps`, `x.ui.allowProjectApps`(옛 이름 `x.views.frames`, `x.views.allowProjectFrames`)는 X가 소유합니다(§6 9번).
 
 ## 2. 맥락
 
@@ -124,8 +125,8 @@ interface ExtMethodDecl {
 | 동작 | `call` | 자기 쓰기 메서드 호출 | `readOnly: false` 메서드, 사용자 조작 뒤에만. `approval: true`면 승인 카드를 먼저 | `ext.<id>.<verb>` |
 | 동작 | `command` | 자기 슬래시 명령 실행 | 자기 확장이 등록한 명령만 | `command.run` |
 | 동작 | `post` | 열린 대화 입력 큐에 넣기 | 신뢰 등급의 `post` 허용, scope 켜짐 | `ext.view.post` (닫음: 아래 2026-11-04 R15) |
-| 동작 | `requestApproval` | 사용자 승인 요청 | 앱이 그리는 표준 승인 카드로만 보임(ADR-0018). 화면은 결과만 받음 | `ext.view.requestApproval` (닫음: 아래 2026-11-04 R15) |
-| 동작 | `navigate` | 자기 다른 화면, 대화·턴, 확장 상세(P-17), 자기 설정 구역, 비밀 화면(P-10) 열기, 외부 링크 | 앱 화면은 정해진 목록만. 외부 링크는 셸 확인 뒤 OS 브라우저 | 클라이언트 |
+| 동작 | `requestApproval` | 선언된 쓰기 메서드의 사용자 승인 요청. 인자는 `{ threadId, verb, params? }`이고 화면이 쓴 제목·설명은 받지 않는다(카드 글은 엔진이 확장 이름과 동사로 만든다) | 셸 확인 줄(`kind: approval`)을 먼저 거친 뒤 앱이 그리는 표준 승인 카드로만 보임(ADR-0018). 화면은 승인 id만 받음 | `ext.ui.requestApproval` |
+| 동작 | `navigate` | 자기 다른 화면, 대화·턴, 확장 상세(P-17), 자기 설정 구역, 비밀 화면(P-10) 열기, 외부 링크 | 앱 화면은 정해진 목록만. 외부 링크는 셸 확인 줄(`kind: external`)을 거친 뒤 OS 브라우저(Tauri 명령 `open_external`, `http(s)`만) | 클라이언트 |
 
 - "사용자 조작 뒤에만"의 판정: 선언형은 렌더러가 누름 이벤트를 압니다. 프레임은 셸이 프레임 안 입력을 볼 수 없으므로, 프레임의 `call`과 `command`는 셸이 띄우는 확인 줄("<확장>이 <동작 라벨>을 하려고 해요")을 거칩니다(`command`까지 거치는 것은 표보다 엄격한 [제안]입니다). 확인 줄은 끌 수 없고 호출마다 뜹니다. 허용한 뒤에도 같은 확장의 다음 호출은 다시 묻고, "이 화면에서 묻지 않기" 같은 선택과 확장별 허용 기억은 두지 않습니다(B2 1안) [결정: 2026-11-04 사용자]. `approval: true` 메서드의 표준 승인 카드는 이 줄과 따로 뜨며 끌 수 없습니다 [제안].
 - `query` 갱신: `invalidateOn`(자기 kind 목록) 이벤트가 오면 다시 부릅니다. 주기 갱신은 5초 이상만 허용합니다 [제안].
@@ -171,7 +172,7 @@ interface ExtMethodDecl {
 |---|---|---|---|
 | `builtin` | 허용 | 허용 | 확인 없음 |
 | `user` | 허용 | 허용 | 확장 신뢰 확인(O-10)에 "자체 화면 코드 실행"과 `frame.reason`을 보임 |
-| `project` | 허용 | 기본 금지. `x.views.allowProjectFrames`(기본 `false`, `allowedScopes: ["managed", "user"]`) [제안]가 참일 때만 | 프로젝트 신뢰(O-04) `allow` + O-10 |
+| `project` | 허용 | 기본 금지. `x.ui.allowProjectApps`(기본 `false`, `allowedScopes: ["managed", "user"]`) [제안]가 참일 때만 | 프로젝트 신뢰(O-04) `allow` + O-10 |
 | `untrusted` | 로드 안 함 | 로드 안 함 | 해당 없음 |
 
 ### 3.6 보안과 신뢰
@@ -204,13 +205,14 @@ interface ExtMethodDecl {
 
 #### 3.6.6 승인은 언제나 셸이 그림
 
-- `requestApproval`과 `approval: true` 메서드는 엔진이 `fresnel.approvals`로 승인을 만들고, 셸이 표준 승인 카드(트랜스크립트, 받은 요청)로 그립니다. 화면은 결과(`allow`, `deny`, 만료)만 받습니다.
+- `requestApproval`은 셸 확인 줄을 먼저 거친 뒤(허용하면) 엔진이 `fresnel.approvals`로 승인을 만들고, 셸이 표준 승인 카드(트랜스크립트, 받은 요청)로 그립니다. 화면은 승인 id만 받고 결정은 사람이 합니다. [결정: 2026-11-04 사용자 13번: 가능한 만큼 연다]
+- `approval: true` 메서드의 `call`은 아직 닫혀 있습니다(`approval_required`). 확인 줄 뒤에 승인 카드를 띄우고, 사람이 `allow`한 뒤에만 메서드를 실행하려면 승인 결과(`approval.resolved`)를 화면 쪽이 받아야 하는데 그 읽기 길이 정해지지 않았습니다 [미결: 2026-11-04 13번 후속. 설계안: 호출 id를 키로 엔진이 승인 뒤 실행하는 `ext.ui.callWithApproval`].
 - 프레임은 자기 slot 상자 밖에 그릴 수 없고 전체 화면, 팝업, 모달을 열 수 없습니다(§3.6.2). 셸 머리(확장 이름, 등급, 버전, `project` 배지)와 승인 카드는 프레임 밖 셸 층에 있습니다. 프레임 안에 "허용" 버튼을 그려도 승인이 되지 않습니다.
 
 #### 3.6.7 등급과 사용자 제한
 
 - 화면 기여는 그 확장이 로드됐을 때만 보입니다. `untrusted`는 로드하지 않으므로 화면도 없습니다.
-- 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.views.frames = false`로 모든 프레임을 끌 수 있습니다(키는 X가 소유합니다, §6 9번). 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
+- 프레임 허용은 §3.5 등급표를 따릅니다. 사용자는 `x.ui.apps = false`로 모든 프레임을 끌 수 있습니다(키는 X가 소유합니다, §6 9번). 그러면 `fallback`이 있는 화면은 선언형으로, 없는 화면은 "이 화면은 자체 코드가 필요해요" 자리표시로 보입니다.
 - 안전 모드에서 빠진 확장의 화면은 자리표시 상태로 보입니다(§3.7).
 
 #### 3.6.7.1 다리 판정 보강 [결정: 2026-11-04 사용자]
@@ -218,6 +220,7 @@ interface ExtMethodDecl {
 보안 검토 결과를 다리에 넣습니다. 확인 줄은 항상 켜져 있습니다(B2 1안).
 
 - 외부 링크: 원문에 제어 문자(탭, 줄바꿈 포함), 공백, 방향 제어 글자가 있으면 거부합니다. 통과한 글은 `new URL`로 정규화하고 확인 줄과 OS 브라우저 열기에 둘 다 `href`를 씁니다. 보일 글에서 방향 제어 글자를 빼고, 사용자가 쓴 호스트와 정규화된 호스트가 다르면(국제화 도메인) 퓨니코드 호스트를 함께 보입니다.
+- 확인 줄은 `call`, `command`, `requestApproval`, 외부 링크에 뜹니다(`ConfirmRequest.kind`). 외부 링크 줄은 정규화한 주소(`href`)를 보이고, 승인 요청 줄은 승인을 청할 동사를 보입니다. 허용 뒤 `recheck`로 확장이 꺼지지 않았는지 다시 봅니다.
 - 확인 줄: 허용·거부는 장부에 센다(거부 `confirm_denied`, 시간 초과 `confirm_timeout`). 연속 3번 거부하면 5초 동안 줄을 띄우지 않고 거부합니다(그 거부도 셉니다). 줄은 확장 신뢰 등급 배지와, `project`이면 프로젝트 배지, 매니페스트 라벨과 실제로 실행될 동사(라벨 옆에 함께, 라벨이 없으면 동사만), 실제로 실행될 params의 요약을 보입니다. `command`는 실행될 `args`를 `args="…"`로 보입니다. 요약에서 제어·방향 제어 글자와 보이지 않는 글자(U+200B, 200C, 200D, 2060, FEFF, 00AD)를 뺍니다. 요약이 400자를 넘으면 앞쪽 키만 보이고 빠진 키 수를 `…(+N)`으로 붙입니다. 값 하나가 400자를 넘어 다 보일 수 없으면 줄을 띄우지 않고 거부합니다(`params_too_long_to_confirm`, 장부에 `confirm_denied`). 시간 초과와 프레임 닫힘 때는 줄에 남은 요청을 `ConfirmQueue.cancel`로 뺍니다. 화면은 줄이 나타난 뒤 500 ms 동안 누름을 무시하고 거부에 처음 초점을 둡니다(UI가 지킬 계약, `confirmButtons().defaultFocus`, `CONFIRM_CLICK_GUARD_MS`).
 - `post`, `requestApproval`, `navigate`: 화면마다 5초에 1번, 미결 5개까지입니다(`navigate`는 같은 한도의 따로 센 예산이고 넘으면 `rate_limited`와 장부 `limit_exceeded`). 제어·방향 제어 글자를 빼고, 카드는 확장 이름과 등급을 보입니다(B3 1안: 기존 질문 카드 + 출처). `post`는 `allowPost`가 참일 때만이고 기본은 `builtin`만 참입니다. 사용자·프로젝트 확장은 `requestApproval`로만 묻습니다.
 - `settings`: 매니페스트에 선언한 키만 값을 돌려줍니다. 선언하지 않은 키와 `secret` 키는 `status`만 줍니다.
@@ -317,7 +320,7 @@ interface ExtMethodDecl {
 
 ## 6. 미결 사항
 
-1. [미결] Tauri iframe의 IPC 노출과 전용 URI 스킴 등록을 macOS·Linux에서 e2e로 확인하는 일. 확인 전에는 `x.views.frames`를 끈 빌드로 냅니다. 확인 시험은 `review.m4-plan` 트랙 T-VIEW의 끝 시험입니다.
+1. [해소: 2026-11-04] Tauri iframe의 IPC 노출과 전용 URI 스킴 등록을 macOS·Linux에서 e2e로 확인하는 일. [결정: 2026-11-04 사용자] `x.ui.apps`는 격리 시험이 이 Mac에서 통과한 뒤 기본을 켠다. 통과했다: `frame-isolation.e2e.test.ts`가 macOS WKWebView에서 9개 모두 통과했고(`FRESNEL_E2E_WEBVIEW_BACKEND=webkit`), 실제 Tauri 창 시험(`just desktop-ipc-probe`)에서 프레임이 `__TAURI__`, invoke 키, IPC에 닿지 못했다(추측한 키의 호출은 거부). 그래서 `x.ui.apps` 기본은 켬이다. `x.ui.allowProjectApps`는 기본 끔을 유지하고 Windows는 클라이언트가 값과 상관없이 끈다. Linux 데스크톱 빌드의 실기 확인은 남았다.
 2. [결정: 2026-11-02 M4 T-F] 매니페스트 `ui`(옛 `views`), `UiContribution`, `AppDecl`(옛 `FrameDecl`), `UiNode`(옛 `ViewNode`), `ExtMethodDecl`(확장 수준 `methods`), 다리 메시지 스키마의 정본은 `F.extensions.spec` §3.1.1(`extensions/ui.ts`, `extensions/ext-method.ts`)입니다. 위젯 카탈로그 이름 목록은 F에 두지 않고 렌더러(`packages/client`)가 정합니다. F는 `type`의 문법만 봅니다. 이 문서 본문의 `views`, `frame`, `slot` 같은 옛 이름은 ADR-0022 §3.6 표가 새 이름을 정합니다.
 3. [결정: 2026-11-04 사용자, R15 닫음. 아래 각 항목은 이미 닫혔다] 확장 wire 메서드 열기(`F.wire-settings.spec` §4.2 [제안] 확정), `ext.view.post`·`ext.view.requestApproval`, `g.registerMethod`(L3). 확장 메서드 등록 API `hostOf(g).registerMethod`는 [결정: 2026-11-02 M4 T-XV] 정했고 구현했다(X.primitives.spec §3.8, §3.9.2, §4.12). `g.registerMethod`(L3 group-sdk)와 wire 디스패치 `ext.<확장>.<동사>`는 [결정: 2026-11-02 M4 T-GK] 닫았다(`F.wire-settings.spec` §4.2, `L4.host-service.spec` HS-109). `ext.view.post`·`ext.view.requestApproval`(이제 `ext.ui.post`·`ext.ui.requestApproval`)은 [결정: 2026-11-03 M4 T-UIPOST] `threadId`를 필수로 더해 열었다(`F.wire-settings.spec` §4.2, `X.primitives.spec` §4.13, HS-108).
 4. [미결] `X.operations.spec` 예산 등급 `view`(기본 5,000ms)와 확장 메서드 실패의 장부 반영.
@@ -325,6 +328,6 @@ interface ExtMethodDecl {
 6. [미결] `architecture.security.spec` §4 T-16~T-18 행과 확장 메서드 결과의 마스킹 위치.
 7. [제안 기본값, 2026-11-03 M4 T-UIPOST] `requestApproval`의 승인 kind는 새로 두지 않고 `question` kind에 출처 `origin.caller = ext:<확장>`을 싣는다. `loop.ask`와 같은 카드다. [결정: 2026-11-04 사용자, B3 1안] 사용자가 승인했습니다. 새 승인 kind는 두지 않고 기존 `question` 카드에 출처(확장 이름)를 붙입니다.
 8. [미결] `events`의 kind 거름 인자를 `events.subscribe`에 둘지 확장 화면 전용 구독을 둘지(`F.wire-settings.spec`, `L4.desktop-ux.spec` W-37).
-9. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.views.frames`, `x.views.allowProjectFrames`의 소유 문서는 `X.loading-trust.spec`(확장 로딩과 신뢰)입니다. 프레임 `call` 확인 줄은 끌 수 없습니다(항상 보임). 끄는 기능은 필요해질 때 더합니다. 기본값은 격리 화면 끔입니다.
+9. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.ui.apps`, `x.ui.allowProjectApps`의 소유 문서는 `X.loading-trust.spec`(확장 로딩과 신뢰)입니다. 프레임 `call` 확인 줄은 끌 수 없습니다(항상 보임). 끄는 기능은 필요해질 때 더합니다. `x.ui.apps` 기본값은 켬이고(위 1번), `x.ui.allowProjectApps` 기본값은 끔입니다.
 10. [미결] 프레임 안에서 caustic을 쓸 배포물(웹 컴포넌트 빌드 또는 토큰 CSS만)을 caustic 저장소에서 낼지.
 11. [가정] 위젯 카탈로그 v1로 Helm 탐구 화면을 그릴 수 있습니다. 작업대 시안(`L4.desktop-ux.spec` §14 W4)에서 확인했고 구현에서 다시 확인합니다.

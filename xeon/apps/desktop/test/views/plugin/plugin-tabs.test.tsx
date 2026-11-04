@@ -31,7 +31,9 @@ async function render(entries: readonly ExtUiEntry[], tab: "helm" | "pages"): Pr
   const harness = openedHarness();
   return renderToString(
     <Providers engine={harness.store.read} ui={createUiStore().read} commands={fakeCommands()}>
-      <PluginUiProvider value={{ runtime, confirm: createConfirmQueue() }}>
+      <PluginUiProvider
+        value={{ runtime, confirm: createConfirmQueue(), openExternal: () => Promise.resolve() }}
+      >
         {tab === "helm" ? <HelmPanelTab /> : <PluginPagesTab />}
       </PluginUiProvider>
     </Providers>,
