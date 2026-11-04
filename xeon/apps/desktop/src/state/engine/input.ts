@@ -133,6 +133,11 @@ export type MirrorInput =
       readonly caughtUp: boolean;
       readonly facts: readonly DurableFact[];
     }
+  | {
+      readonly type: "backfill";
+      readonly storeId: StoreId;
+      readonly facts: readonly DurableFact[];
+    }
   | { readonly type: "chunk"; readonly fact: VolatileFact }
   | { readonly type: "ended"; readonly sub: SubId }
   | { readonly type: "out_of_range" }

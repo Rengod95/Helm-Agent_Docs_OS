@@ -48,6 +48,7 @@ describe("slash input goes to command.run", () => {
       threadId: thr(1),
       input: "검토해 줘",
       requestId: "req-7",
+      whenBusy: "followUp",
     });
     await app.stop();
   });
@@ -62,6 +63,7 @@ describe("slash input goes to command.run", () => {
       threadId: thr(1),
       input: "/nothing here",
       requestId: "req-2",
+      whenBusy: "followUp",
     });
     await app.stop();
   });
@@ -188,6 +190,7 @@ describe("attachments", () => {
       threadId: thr(1),
       input: [{ type: "text", text: "/helm start" }, PART],
       requestId: "req-9",
+      whenBusy: "followUp",
     });
     await app.stop();
   });

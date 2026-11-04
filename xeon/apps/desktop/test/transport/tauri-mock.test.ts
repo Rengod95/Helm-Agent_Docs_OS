@@ -186,9 +186,10 @@ describe("the whole app over mockIPC", () => {
     });
     await until(() => app.engine.read.getState().link.phase === "live", "live link");
     await until(() => app.engine.read.getState().threads.status === "ready", "threads ready");
-    expect(methods.slice(0, 4)).toEqual([
+    expect(methods.slice(0, 5)).toEqual([
       "$/connectionReset",
       "host.hello",
+      "events.subscribe",
       "events.subscribe",
       "thread.list",
     ]);

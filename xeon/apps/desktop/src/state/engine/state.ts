@@ -164,6 +164,8 @@ export type QueuedInput = QueuedInputFact & {
 
 /** 대기 입력 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 입력부터 버린다 */
 export const QUEUED_INPUT_CAP = 20;
+/** 끝난 입력 id를 기억하는 수 */
+export const SETTLED_INPUT_CAP = 256;
 
 export type EngineMirror = {
   readonly engine: EngineState | null;
@@ -193,9 +195,12 @@ export type EngineMirror = {
   readonly plans: readonly PlanRecord[];
   /**
    * 아직 배치되지 않은 대기 입력(내구, `input.queued`). 받은 순서이고 thread마다 `QUEUED_INPUT_CAP`개까지 둔다.
-   * `input.placed`·`input.withdrawn`이 오면 뺀다. 연결 전에 든 입력은 읽어 오지 않는다. 거울을 head부터 다시 맞추면 비운다
+   * `input.placed`·`input.withdrawn`이 오면 뺀다. 연결 전에 든 입력과 계획은 head부터 맞춘 뒤 `work.plan_`·`input.`만 거르는 처음부터의 재생(`backfill`)으로 채운다.
+   * 거울을 head부터 다시 맞추면 비운다
    */
   readonly queuedInputs: readonly QueuedInput[];
+  /** 이미 배치되거나 거둬진 입력 id(최근 `SETTLED_INPUT_CAP`개). 늦게 온 재생이 끝난 입력을 칩으로 되살리지 않게 한다 */
+  readonly settledInputs: readonly EventId[];
   /** 변경 검토 결과(리뷰마다 가장 최근 라운드 하나). 받은 순서대로 가장 새 것이 뒤에 오고 `REVIEW_RESULT_CAP`개까지 둔다 */
   readonly reviewResults: readonly ReviewResult[];
 };
@@ -223,5 +228,6 @@ export const INITIAL_MIRROR: EngineMirror = {
   transitions: [],
   plans: [],
   queuedInputs: [],
+  settledInputs: [],
   reviewResults: [],
 };

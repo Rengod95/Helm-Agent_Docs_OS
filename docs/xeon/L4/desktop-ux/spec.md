@@ -1114,7 +1114,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 승인 카드는 트랜스크립트 끝(요청한 턴 아래)과 끝 영역 받은 요청에 같은 카드로 보입니다. 한쪽에서 답하면 `approval.resolved`로 양쪽에서 사라집니다(FS-02).
   - M4의 승인 기억은 요청 단위뿐입니다. 카드는 `remember: "once"`만 보내고 "이 대화에서 항상"·"항상" 단추와 `⇧Y`를 두지 않습니다. 엔진은 `once`만 제안하고 `thread`·`always` 응답을 `answer_invalid`로 거절합니다. 그룹 단위 기억도 두지 않습니다 [결정: 2026-10-31 사용자, 점검 2026-11-04].
   - 자식 에이전트가 낸 승인은 출처를 "렌즈 실패 사례 · grp:helm"처럼 보입니다(DP-33) [결정: 2026-10-31 사용자]. 데이터는 `ApprovalOrigin.caller`(`agentName`, `extension`)입니다(`L1.tools.spec` §3).
-  - 입력창 위 큐 표시: 대기 중인 입력은 칩으로 입력창 위에 보입니다. 칩에는 입력 글 앞부분, 모드 말("다음 도구 라운드 뒤 들어가요"(steer), "이번 턴이 끝나면 들어가요"(followUp·next), "다음 모델 요청과 함께 들어가요"(aside))과 "철회" 단추가 있습니다. 칩은 `input.queued`(사용자·확장 출처)로 생기고 `input.placed`나 `input.withdrawn`이 오면 사라집니다. "철회"는 `turn.withdraw { threadId, requestId }`를 부릅니다. 결과가 거짓이면(이미 배치됨) "이미 들어갔어요"를 보입니다. 잠기면 잠김 대화 상자를 띄우고, 실패하면 칩 안에 이유와 "다시 시도"를 둡니다. 연결이 없으면 단추를 끕니다. 정보 아이콘은 "아직 모델에 전달되지 않은 입력만 철회할 수 있어요."를 보입니다. [미결: §12.1 12번. 호스트의 `turn.start`는 실행 중 사용자 글을 큐에 넣지 않고 `turn.busy`로 답하므로, 지금은 확장이 넣은 입력만 칩으로 보입니다]
+  - 입력창 위 큐 표시: 대기 중인 입력은 칩으로 입력창 위에 보입니다. 칩에는 입력 글 앞부분, 모드 말("다음 도구 라운드 뒤 들어가요"(steer), "이번 턴이 끝나면 들어가요"(followUp·next), "다음 모델 요청과 함께 들어가요"(aside))과 "철회" 단추가 있습니다. 칩은 `input.queued`(사용자·확장 출처)로 생기고 `input.placed`나 `input.withdrawn`이 오면 사라집니다. "철회"는 `turn.withdraw { threadId, requestId }`를 부릅니다. 결과가 거짓이면(이미 배치됨) "이미 들어갔어요"를 보입니다. 잠기면 잠김 대화 상자를 띄우고, 실패하면 칩 안에 이유와 "다시 시도"를 둡니다. 연결이 없으면 단추를 끕니다. 정보 아이콘은 "아직 모델에 전달되지 않은 입력만 철회할 수 있어요."를 보입니다. 실행 중에 보낸 글은 `turn.start { whenBusy: "followUp" }`로 큐에 들어가 칩이 됩니다(F.wire-settings §3.3.1 0a, §12.1 12번). 칩의 글은 호스트가 보낸 화면 가림 표식(`mask`)을 적용한 것입니다
 - 화면 가림 [결정: 2026-11-03 사용자]: 트랜스크립트는 값을 그리지 않습니다. 사용자 글, 어시스턴트 글, 생각, 도구 인자(JSON), 도구 결과, 스트리밍 행이 모두 같습니다. 호스트가 준 구간(`F.wire-settings.spec` §3.4.5a)을 F 층의 공용 적용기(`@fresnel/contracts/conversation`, DR-10)로 같은 문자열에 적용해 그리고, 가린 자리는 `[REDACTED:<표지>]`로 보입니다(표지: `known:<이름>`, 패턴 이름, `kv`). 값과 패턴의 판정은 호스트가 하고 화면은 구간만 적용합니다. 안전 트랙 S-01(2026-11-03 "화면 쪽에서")의 "화면 쪽"은 이 적용을 가리키는 것으로 읽어 코드와 맞춥니다. 판정까지 화면으로 옮기면 알려진 시크릿 값을 wire에 실어야 해서 `F.wire-settings.spec` §3.4.5a "값은 클라이언트에 따로 보내지 않는다"와 어긋나므로 옮기지 않았습니다 [미결: 사용자가 S-01을 판정의 이동까지 뜻했는지 확인]. 확정 item의 표식이 맞지 않으면 그 item은 그리지 않습니다. 스트리밍 행은 마지막 공백까지만 보이고(뒤 낱말은 확정 때까지 빠집니다), 조각을 놓쳐 길이가 맞지 않으면 그 파트를 확정 item이 올 때까지 비웁니다.
 - 복사: 화면에서 복사되는 글은 그려진 글이므로 값이 없습니다. 메시지 복사([제안], 위 표)를 만들면 그려진 텍스트를 써야 합니다. 지금은 트랜스크립트에 복사 동작이 없고 진단 복사(`copyDiagnostics`)만 있으며, 진단 묶음에는 대화 내용이 들어가지 않습니다(`FS-13`).
 - 범위 밖: 승인 카드(P-03)의 도구 인자와 설정 화면은 이 표식을 쓰지 않습니다 [미결]. 내보내기 `db export`는 가리지 않고 확인을 받습니다(`L4.cli.spec` §4.13).
@@ -1987,7 +1987,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 항목 | 출처 |
 |---|---|
 | 목표(조건, 상태, "판정 2/3", 마지막 판정). 상태 표시줄 칩은 "목표 2/3", 칩 `Popover`와 이 탭은 "판정 2/3"으로 같은 숫자를 씁니다(DP-25, D-17) | `goal.status { threadId }`. 이전 임시 경로(`/goal status`, `work.goal_*` 이벤트 재구성)는 쓰지 않는다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] `[gap:V-08]` |
-| 계획(최신 판의 번호, 상태, 제목). 계획 카드와 "버전 보기" 목록 | 계획 id는 `work.plan_*` 이벤트(거울의 `plans`, 연결 뒤에 받은 것만)에서 얻고, 판 목록 `work.plans.versions { threadId, planId }`(W-18)로 읽는다 |
+| 계획(최신 판의 번호, 상태, 제목). 계획 카드와 "버전 보기" 목록 | 계획 id는 `work.plan_*` 이벤트(거울의 `plans`. 앱을 켠 뒤 head부터 받는 것에 더해, 연결 전에 낸 것은 `work.plan_`·`input.`만 거른 보조 구독을 seq 0부터 열어 채운다 [결정: 2026-11-04 오케스트레이터 기본값]. 재생 한도를 넘으면(`replay.outOfRange`) 채우지 않고 연결 뒤 것만 보인다)에서 얻고, 판 목록 `work.plans.versions { threadId, planId }`(W-18)로 읽는다 |
 | 작업(내용, 상태, 막힘) | `work.task_*` 이벤트로 재구성 [제안], 목록 읽기 `work.tasks.list` |
 
 - 기능: 목표 걸기(`command.run { text: "/goal <조건>" }`), 해제(`/goal clear`), 계획 보기(트랜스크립트의 계획 카드로 스크롤), 작업 행 누르기(만든 턴으로 스크롤).
@@ -3156,7 +3156,7 @@ export const palette = [
 | W-14 | 스킬 본문 읽기(충돌 비교) | P-06 | 구현됨. `knowledge.skills.view { name, threadId? }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. P-06 화면이 쓴다: 충돌하는 스킬 보기 대화 상자가 `commands.skills.view`로 한 번 읽는다 | `knowledge.skills.view { name, threadId? }` |
 | W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire(`mcp.servers`)는 없다 [근거: `apps/host/src`, `packages/contracts/src`에서 그 이름 grep 0건] | `ext.list { threadId? }`, `mcp.servers` [미결]. 설치는 W-32 |
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 구현됨. `thread.read`의 `around` 인자와 `ThreadSummary.origin`이 있다 [근거: `apps/host/src/assembly/thread-read.ts`, `packages/contracts/src/wire-settings/wire/methods.ts:443`] | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
-| W-17 | 큐에 넣은 입력 철회 | P-02 | 구현됨. `turn.withdraw { threadId, requestId }`가 있다 [근거: `apps/host/src/handlers/turn.ts`]. 데스크톱은 입력창 위 칩의 "철회" 단추로 부르고, 칩은 `input.queued`로 생겨 `input.placed`·`input.withdrawn`으로 사라진다. 호스트의 `turn.start`는 실행 중 사용자 글을 큐에 넣지 않으므로(`turn.busy`) 지금은 확장이 넣은 입력만 칩으로 보인다 [미결: §12.1 12번] | `turn.withdraw { threadId, requestId }` |
+| W-17 | 큐에 넣은 입력 철회 | P-02 | 구현됨. `turn.withdraw { threadId, requestId }`가 있다 [근거: `apps/host/src/handlers/turn.ts`]. 데스크톱은 입력창 위 칩의 "철회" 단추로 부르고, 칩은 `input.queued`로 생겨 `input.placed`·`input.withdrawn`으로 사라진다. 실행 중 보낸 사용자 글은 `turn.start { whenBusy: "followUp" }`로 큐에 들어가 칩이 된다(F.wire-settings §3.3.1 0a) | `turn.withdraw { threadId, requestId }` |
 | W-18 | 계획 버전 목록 | P-14 | 구현됨. `work.plans.versions { threadId, planId }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `work.plans.versions { threadId, planId }` |
 | W-19 | OS 폴더 고르기 | O-07 | 구현됨. `tauri-plugin-dialog` 2.8.4를 셸 명령 `pick_folder`로 감싸 쓴다(`L4.desktop.spec` §10 17번, [결정: 2026-11-04 사용자]). WebView에는 dialog 권한이 없다. 맥에서 창 동작은 아직 확인하지 않았다 | `pick_folder`. 입력란은 경로를 직접 적는 길로 남는다 |
 | W-20 | 확장 하나의 상세(매니페스트, 유효 등급, tier, 기능 바인딩, 훅과 예산 등급, 진단) | P-17 | 구현됨. `ext.get`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.get { name }` |
@@ -3323,7 +3323,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | 9 | Helm·목표·작업을 명령 결과로 읽을지 구조화 wire를 만들지(W-04~W-06) | `L3.helm.spec`, `L2.work.spec` |
 | 10 | Helm·학습 기록을 알림 kind에 넣을지(L2 dialog 분류표에 없음) | `L2.dialog.spec`, `L3.helm.spec` §4.13 |
 | 11 | 클립보드 비우기(시크릿 복사 30초 뒤) 지원 범위 | `L4.desktop.spec` |
-| 12 | 큐 입력 철회(W-17) | ADR-0007, `L1.tasks.spec` |
+| 12 | 닫음 [결정: 2026-11-04 오케스트레이터 기본값] 실행 중 사용자 글은 `turn.start`의 `whenBusy`(데스크톱은 followUp)로 큐에 넣는다. 옛 문장: 큐 입력 철회(W-17) | ADR-0007, `L1.tasks.spec` |
 | 13 | 닫음 [결정: 2026-11-04 사용자, 결정 목록 R10] 이름은 Fresnel로 확정, 개명 완료. 옛 문장: 제품 이름. M4 전에 바꾸므로 화면 문구의 "Fresnel"과 `fresnel` 명령 안내가 바뀝니다 | 사용자(`product.scope.spec` 미결 2) |
 | 15 | 닫음 [결정: 2026-10-31 사용자] LightCraft 전부 M4. P-16·P-13·P-17 P0, 나머지 P1(§5). 옛 문장: LightCraft를 P0로 올릴지. 이 문서는 P-16·P-17·P-18을 P1, 나머지를 P2로 둡니다. "둘 다 1급"을 M4 종료 필수로 읽으면 P-16·P-13·P-17을 P0로 올리고 W-15·W-20·W-24를 먼저 만들어야 합니다 | 사용자 |
 | 16 | 닫음 [결정: 2026-10-31 사용자] 두 모드(선언형, 격리 프레임), 모드는 에이전트가 고름(ADR-0021 개정) | 사용자, ADR-0021 §6 |

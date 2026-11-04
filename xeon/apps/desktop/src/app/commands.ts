@@ -96,7 +96,8 @@ export function createCommands(deps: CommandDeps): Commands {
   ): Promise<Result<null, CommandError>> => {
     const input = attachments.length === 0 ? text : turnInputOf(text, attachments);
     const started = await withWriteConnection((c) =>
-      c.request("turn.start", { threadId, input, requestId }),
+      // 실행 중이면 입력은 turn 뒤의 큐에 들어가 칩이 된다(F.wire-settings §3.3.1 0a). 이미 도는 turn이 없으면 whenBusy는 무시된다
+      c.request("turn.start", { threadId, input, requestId, whenBusy: "followUp" }),
     );
     if (!started.ok) {
       showLockedIfLocked(threadId, started.error);

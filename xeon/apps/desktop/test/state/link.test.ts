@@ -85,12 +85,41 @@ const good = (text: string): unknown => ({
 });
 const listEmpty = { threads: [summary(thr(1))], nextCursor: null };
 
+const queuedPayload = (requestId: string): unknown => ({
+  mode: "followUp",
+  item: { kind: "user", content: "이어서 해 줘" },
+  requestId,
+  source: { type: "user", via: "interactive" },
+});
+const wire = (
+  seq: number,
+  kind: string,
+  payload: unknown,
+): EventsBatchParams["events"][number] => ({
+  id: evt(seq),
+  kind,
+  version: 1,
+  durable: true,
+  seq,
+  parentId: null,
+  threadId: thr(1),
+  turnId: null,
+  stepId: null,
+  recordedAt: "2026-11-04T00:00:00.000Z",
+  causationId: null,
+  correlationId: null,
+  payload,
+  redactions: [],
+});
+
 describe("link: resync with a gap", () => {
   test("gap batch -> resubscribe from the cursor -> replay fills the hole -> live", async () => {
     const h = harness();
     const subscribeParams: unknown[] = [];
     const fake = fakeConnection({
       "events.subscribe": (params) => {
+        // 연결 전 사건을 채우는 보조 구독은 이 시험의 관심이 아니다
+        if (params.filter !== undefined) return Promise.reject(new Error("backfill is off"));
         subscribeParams.push(params.from);
         return Promise.resolve(
           subscribeParams.length === 1
@@ -135,7 +164,11 @@ describe("link: resync with a gap", () => {
     const h = harness();
     const resolvers: ((r: WireResult<"events.subscribe">) => void)[] = [];
     const fake = fakeConnection({
-      "events.subscribe": () => new Promise((resolve) => void resolvers.push(resolve)),
+      "events.subscribe": (params) => {
+        // 연결 전 사건을 채우는 보조 구독은 이 시험의 관심이 아니다
+        if (params.filter !== undefined) return Promise.reject(new Error("backfill is off"));
+        return new Promise((resolve) => void resolvers.push(resolve));
+      },
       "events.unsubscribe": () => Promise.resolve({}),
       "thread.list": () => Promise.resolve(listEmpty),
     });
@@ -201,6 +234,8 @@ describe("link: resync with a gap", () => {
     const loads: unknown[] = [];
     const fake = fakeConnection({
       "events.subscribe": (params) => {
+        // 연결 전 사건을 채우는 보조 구독은 이 시험의 관심이 아니다
+        if (params.filter !== undefined) return Promise.reject(new Error("backfill is off"));
         subscribes += 1;
         if (subscribes === 2) {
           expect(params.from).toEqual({ storeId: STORE, seq: 5 });
@@ -244,6 +279,79 @@ describe("link: resync with a gap", () => {
     expect(s.link.phase).toBe("live");
     expect(s.transcript?.status === "ready" ? s.transcript.itemIds : []).toEqual([itm(1)]);
     expect(loads).toHaveLength(2);
+  });
+
+  test("after a head subscribe the plans and queued inputs from before the connection are replayed from seq 0 and filled in", async () => {
+    const h = harness();
+    const asked: unknown[] = [];
+    const fake = fakeConnection({
+      "events.subscribe": (params) => {
+        asked.push(params);
+        if (params.filter === undefined) {
+          return Promise.resolve({
+            sub: "main",
+            start: 50,
+            headSeq: 50,
+            storeId: STORE,
+            mode: "live",
+          });
+        }
+        return Promise.resolve({
+          sub: "back",
+          start: 0,
+          headSeq: 50,
+          storeId: STORE,
+          mode: "replaying",
+        });
+      },
+      "events.unsubscribe": () => Promise.resolve({}),
+      "thread.list": () => Promise.resolve(listEmpty),
+    });
+    startLink({
+      connection: fake.connection,
+      store: h.store,
+      transcripts: noTranscripts,
+      logger: silent,
+      openThreadId: () => null,
+    });
+    await pump(h);
+    expect(asked).toEqual([
+      { from: "head" },
+      { from: { storeId: STORE, seq: 0 }, filter: { kindPrefixes: ["work.plan_", "input."] } },
+    ]);
+    // 두 대기 입력 중 하나는 이미 배치됐다. 계획 하나는 연결 전에 제출됐다
+    fake.emit("events.batch", {
+      sub: "back",
+      from: 0,
+      to: 50,
+      caughtUp: true,
+      events: [
+        wire(3, "input.queued", queuedPayload("q-1")),
+        wire(4, "input.queued", queuedPayload("q-2")),
+        wire(5, "input.placed", { inputId: evt(3), itemId: itm(9) }),
+        wire(7, "work.plan_submitted", {
+          planId: "p1",
+          version: 2,
+          title: "이전 계획",
+          body: "1. 읽기",
+          artifact: null,
+          supersedes: 1,
+        }),
+      ],
+    });
+    await pump(h);
+    const s = h.store.read.getState();
+    expect(s.queuedInputs.map((r) => [r.requestId, r.preview])).toEqual([
+      ["q-2", { kind: "text", text: "이어서 해 줘" }],
+    ]);
+    expect(s.plans.map((r) => [String(r.planId), r.version, r.title, r.status])).toEqual([
+      ["p1", 2, "이전 계획", "submitted"],
+    ]);
+    expect(s.cursor).toEqual({ storeId: STORE, seq: 50 });
+    expect(s.link).toEqual({ phase: "live", sub: "main" });
+    expect(
+      fake.calls.filter((c) => c.method === "events.unsubscribe").map((c) => c.params),
+    ).toEqual([{ sub: "back" }]);
   });
 
   test("stream.chunk is decoded into a chunk input; an undecodable payload becomes 'other' and only advances n", async () => {
