@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The steps of `just verify`, in order, one machine-guarded scope per step (../scripts/guard.sh run). The root justfile's
-# verify takes the machine slot (WS_GUARD_SLOTS=1: one helm verify at a time) and calls this script inside it; the slot's
+# verify takes the machine slot (WS_GUARD_SLOTS=1: one fresnel verify at a time) and calls this script inside it; the slot's
 # scope only holds this light orchestrator, so every step gets its own memory cap and a failed step ends only itself.
 # A step that fails stops the run and its exit code is this script's exit code (1 fix, 2 environment, 3 human confirm).
 # The light checks (fmt-check, check-layers, check-ts-rules, docs-route, terms, knip) run side by side, each in its own scope; their output
