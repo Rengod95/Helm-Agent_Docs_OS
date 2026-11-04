@@ -9,6 +9,7 @@ import {
 } from "@caustic/react/icons";
 import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
 import { Composer } from "./composer.tsx";
+import { SafeModeCard } from "./safe-mode-card.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
@@ -41,6 +42,7 @@ function ChatScreen(): ReactNode {
       <Transcript />
       <TrustCard />
       <ApprovalQueue />
+      <SafeModeCard />
       <Composer />
     </div>
   );

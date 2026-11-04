@@ -149,6 +149,25 @@ pub fn target_args(target: &EngineTarget) -> Vec<String> {
     }
 }
 
+/// 호스트 인자 뒤에 붙는 것: 안전 모드(로컬 대상에만 `--safe-mode`), 그다음 대상 인자다.
+fn engine_flags(target: &EngineTarget, safe_mode: bool) -> Vec<String> {
+    let mut flags = Vec::new();
+    if safe_mode && !target.is_remote() {
+        flags.push("--safe-mode".to_string());
+    }
+    flags.extend(target_args(target));
+    flags
+}
+
+/// 사이드카를 띄우는 전체 인자: `host --stdio`, 그다음 `engine_flags`다.
+pub fn sidecar_args(target: &EngineTarget, safe_mode: bool) -> Vec<String> {
+    SIDECAR_ARGS
+        .iter()
+        .map(|arg| arg.to_string())
+        .chain(engine_flags(target, safe_mode))
+        .collect()
+}
+
 // ---------------------------------------------------------------------------------------------
 // 설정
 
@@ -407,7 +426,8 @@ pub struct RestoreOutput {
 
 /// 엔진 프로세스를 띄우고 그룹을 끝내는 수단. 운영은 `TauriLauncher`, 시험은 가짜다.
 pub trait Launcher: Send + Sync + 'static {
-    fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError>;
+    /// 엔진을 띄운다. `safe_mode`면 안전 모드로 띄운다(로컬 대상에만 붙는다, `sidecar_args`).
+    fn launch(&self, target: &EngineTarget, safe_mode: bool) -> Result<Launched, LaunchError>;
     /// 엔진 프로그램을 `args`로 한 번 돌리고 끝나기를 기다린다. 호스트 인자(`host --stdio`)는 붙이지 않는다.
     /// 호출 스레드를 막으므로 실행 루프 밖(blocking 스레드)에서만 부른다.
     fn run_once(&self, args: &[String]) -> Result<OnceOutput, LaunchError>;
@@ -438,6 +458,8 @@ struct Shared {
     target: EngineTarget,
     /// 대상을 바꿀 때마다 1씩 오른다. 실행 루프는 띄울 때의 값과 비교해 대상이 바뀌었는지 안다.
     target_epoch: u64,
+    /// 안전 모드로 띄운다. 앱을 켜 둔 동안 남고 자동 재기동에도 쓴다. 원격 대상에는 붙지 않는다(`sidecar_args`).
+    safe_mode: bool,
     /// 데이터베이스 복원 중이다. 참인 동안 실행 루프는 엔진을 띄우지 않는다. 복원만 켜고 끈다.
     hold: bool,
     /// 실행 루프가 대상을 읽고 띄워 등록하기까지의 창이 열려 있다. 복원은 이 창이 닫힌 뒤에 보류를 건다.
@@ -549,15 +571,46 @@ impl<L: Launcher> Supervisor<L> {
             .map_err(|_| CommandError::EngineNotRunning)
     }
 
-    /// `failed` 상태에서 사용자가 고른 수동 재기동.
-    pub fn restart_manually(&self) -> Result<(), CommandError> {
-        {
-            let state = shared(&self.inner);
-            if !state.failed || state.stop_requested {
-                return Err(CommandError::NotFailed);
+    /// 재기동(W-35, `engine_restart`). `failed`면 확인 없이 다시 띄운다. 살아 있는 엔진은 `confirmed`가 참일 때만
+    /// 대상 바꾸기와 같은 길(정상 종료 뒤 재기동, 재기동 횟수에 세지 않음)로 다시 띄운다. 엔진이 없으면 거부한다.
+    /// `safe_mode`가 있으면 그 값을 앱을 켜 둔 동안 쓴다. 원격 대상에서 안전 모드를 켜려 하면 확인 여부와 관계없이 `BadRequest`다.
+    pub fn restart_manually(
+        &self,
+        safe_mode: Option<bool>,
+        confirmed: bool,
+    ) -> Result<(), CommandError> {
+        let (epoch, live, safe) = {
+            let mut state = shared(&self.inner);
+            if state.stop_requested {
+                return Err(CommandError::EngineStopping);
             }
-        }
-        self.inner.restart_wake.notify_one();
+            if safe_mode == Some(true) && state.target.is_remote() {
+                return Err(CommandError::BadRequest);
+            }
+            if state.failed {
+                if let Some(on) = safe_mode {
+                    state.safe_mode = on;
+                }
+                drop(state);
+                self.inner.restart_wake.notify_one();
+                return Ok(());
+            }
+            let Some(live) = state.live.clone() else {
+                return Err(CommandError::EngineNotRunning);
+            };
+            if !confirmed {
+                return Err(CommandError::NotConfirmed);
+            }
+            if let Some(on) = safe_mode {
+                state.safe_mode = on;
+            }
+            state.target_epoch += 1;
+            (state.target_epoch, live, state.safe_mode)
+        };
+        self.inner.log.line(&format!(
+            "restart: the live engine restarts, safe mode={safe}"
+        ));
+        self.end_for_new_epoch(epoch, Some(live));
         Ok(())
     }
 
@@ -576,24 +629,26 @@ impl<L: Launcher> Supervisor<L> {
             }
             state.target = target;
             state.target_epoch += 1;
-            let live = state
-                .live
-                .as_ref()
-                .map(|live| (live.generation, live.pid, live.pipe.clone(), live.remote));
-            (state.target_epoch, live)
+            (state.target_epoch, state.live.clone())
         };
         self.inner.log.line("retarget: the engine target changed");
+        self.end_for_new_epoch(epoch, live);
+        Ok(())
+    }
+
+    /// 대상이나 안전 모드가 바뀌었을 때 할 일. 실패 대기와 백오프 대기를 깨우고, 살아 있는 엔진은 정상 종료 순서로 끝낸다.
+    /// 실행 루프가 새 세대로 다시 띄운다. 이 재기동은 자동 재기동 횟수에 세지 않는다.
+    fn end_for_new_epoch(&self, epoch: u64, live: Option<Live>) {
         // 실패 대기나 백오프 대기 중이면 실행 루프가 깬다. 살아 있는 엔진은 아래 종료 순서가 끝낸다.
         self.inner.retargeted.send_replace(epoch);
-        if let Some((generation, pid, pipe, remote)) = live {
+        if let Some(live) = live {
             let supervisor = self.clone();
             self.inner.runtime.spawn(async move {
                 supervisor
-                    .stop_engine(generation, pid, &pipe, !remote)
+                    .stop_engine(live.generation, live.pid, &live.pipe, !live.remote)
                     .await;
             });
         }
-        Ok(())
     }
 
     /// 데이터베이스를 백업 폴더에서 되돌린다(`fresnel db restore <dir> --json`). 살아 있는 엔진은 정상 종료 순서로
@@ -739,7 +794,7 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
         }
         // 대상과 세대는 같은 락에서 읽는다. 종료 요청이 있으면 띄우지 않는다. 보류가 다시 걸렸으면 기다리러 돌아간다.
         // 띄우는 창(`launching`)은 아래에서 등록이나 실패로 닫는다. 복원은 이 창이 닫힌 뒤에 보류를 건다.
-        let (target, epoch) = {
+        let (target, epoch, safe_mode) = {
             let mut state = shared(&inner);
             if state.stop_requested {
                 break;
@@ -748,7 +803,7 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
                 continue;
             }
             state.launching = true;
-            (state.target.clone(), state.target_epoch)
+            (state.target.clone(), state.target_epoch, state.safe_mode)
         };
         if epoch != policy_epoch {
             policy.reset();
@@ -759,7 +814,7 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
             source: EngineSource::Sidecar,
             attempt,
         });
-        let launched = match inner.launcher.launch(&target) {
+        let launched = match inner.launcher.launch(&target, safe_mode) {
             Ok(launched) => launched,
             Err(LaunchError(message)) => {
                 // 바이너리 없음, 실행 권한 없음, triple 불일치는 되풀이해도 같다. 재기동하지 않는다(spec 5).
@@ -1224,12 +1279,18 @@ fn push_capped(buffer: &mut Vec<u8>, chunk: &[u8]) {
 }
 
 impl Launcher for TauriLauncher {
-    fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError> {
-        // 원격 인자는 사이드카 인자 뒤에 붙인다. 개발 덮어쓰기 명령에도 같은 인자를 붙인다.
-        let remote = target_args(target);
+    fn launch(&self, target: &EngineTarget, safe_mode: bool) -> Result<Launched, LaunchError> {
+        // 개발 덮어쓰기 인자(`FRESNEL_DESKTOP_ENGINE_ARGS`)는 이미 `host --stdio`로 끝나므로 그 뒤에 플래그만 붙인다.
         let command = match Self::dev_override() {
-            Some((bin, args)) => self.app.shell().command(bin).args(args).args(remote),
-            None => self.sidecar_command()?.args(SIDECAR_ARGS).args(remote),
+            Some((bin, args)) => self
+                .app
+                .shell()
+                .command(bin)
+                .args(args)
+                .args(engine_flags(target, safe_mode)),
+            None => self
+                .sidecar_command()?
+                .args(sidecar_args(target, safe_mode)),
         };
         self.spawn_child(command)
     }
@@ -1579,6 +1640,8 @@ mod tests {
         handles: Mutex<Vec<EngineHandle>>,
         /// 띄울 때 받은 대상을 순서대로 남긴다.
         targets: Mutex<Vec<EngineTarget>>,
+        /// 띄울 때 받은 안전 모드를 순서대로 남긴다.
+        safe_modes: Mutex<Vec<bool>>,
         killed: Mutex<Vec<u32>>,
         /// `launch`가 한 번 불리기 전에 실행한다(띄우는 사이의 대상 바꾸기를 재현한다).
         on_launch: Mutex<Option<Box<dyn FnOnce() + Send>>>,
@@ -1600,6 +1663,7 @@ mod tests {
                 fail_launch: AtomicBool::new(false),
                 handles: Mutex::new(Vec::new()),
                 targets: Mutex::new(Vec::new()),
+                safe_modes: Mutex::new(Vec::new()),
                 killed: Mutex::new(Vec::new()),
                 on_launch: Mutex::new(None),
                 die_on_kill,
@@ -1624,7 +1688,7 @@ mod tests {
     }
 
     impl Launcher for Arc<FakeLauncher> {
-        fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError> {
+        fn launch(&self, target: &EngineTarget, safe_mode: bool) -> Result<Launched, LaunchError> {
             let hook = self.on_launch.lock().expect("lock").take();
             if let Some(hook) = hook {
                 hook();
@@ -1633,6 +1697,7 @@ mod tests {
                 return Err(LaunchError("no such binary".into()));
             }
             self.targets.lock().expect("lock").push(target.clone());
+            self.safe_modes.lock().expect("lock").push(safe_mode);
             let n = self.launches.fetch_add(1, Ordering::SeqCst) + 1;
             let pid = 1000 + n;
             self.calls.lock().expect("lock").push(format!("launch:{pid}"));
@@ -1792,10 +1857,17 @@ mod tests {
             ["starting", "running", "restarting", "starting", "running", "restarting", "starting", "running", "failed"]
         );
         assert!(matches!(rig.relay.state(), EngineState::Failed { attempts: 2, .. }));
-        // 수동 재기동.
-        assert_eq!(rig.supervisor.restart_manually(), Ok(()));
+        // 수동 재기동. 확인 없이도 failed에서는 다시 뜬다.
+        assert_eq!(rig.supervisor.restart_manually(None, false), Ok(()));
         until("relaunch", || rig.launcher.launches.load(Ordering::SeqCst) == 4).await;
-        assert_eq!(rig.supervisor.restart_manually(), Err(CommandError::NotFailed));
+        until("running again", || {
+            kinds(&rig.sink).last().map(String::as_str) == Some("running")
+        })
+        .await;
+        assert_eq!(
+            rig.supervisor.restart_manually(None, false),
+            Err(CommandError::NotConfirmed)
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -1974,18 +2046,23 @@ mod tests {
     }
 
     #[test]
-    fn launch_args_add_remote_only_for_a_remote_target() {
+    fn sidecar_args_add_safe_mode_to_a_local_engine_and_the_remote_address_to_a_remote_one() {
         assert_eq!(target_args(&EngineTarget::Local), Vec::<String>::new());
-        let argv = |target: &EngineTarget| -> Vec<String> {
-            SIDECAR_ARGS
-                .iter()
-                .map(|arg| arg.to_string())
-                .chain(target_args(target))
-                .collect()
-        };
-        assert_eq!(argv(&EngineTarget::Local), ["host", "--stdio"]);
         assert_eq!(
-            argv(&remote("tcp://host:1234")),
+            sidecar_args(&EngineTarget::Local, false),
+            ["host", "--stdio"]
+        );
+        assert_eq!(
+            sidecar_args(&EngineTarget::Local, true),
+            ["host", "--stdio", "--safe-mode"]
+        );
+        assert_eq!(
+            sidecar_args(&remote("tcp://host:1234"), false),
+            ["host", "--stdio", "--remote", "tcp://host:1234"]
+        );
+        // 안전 모드는 로컬 엔진에만 붙는다. 원격 대상에서 켜져 있어도 플래그는 빠진다.
+        assert_eq!(
+            sidecar_args(&remote("tcp://host:1234"), true),
             ["host", "--stdio", "--remote", "tcp://host:1234"]
         );
     }
@@ -2294,6 +2371,174 @@ mod tests {
         assert!(engine.stdin_closed.load(Ordering::SeqCst));
         assert_eq!(kinds(&rig.sink).last().map(String::as_str), Some("stopped"));
         assert_eq!(*rig.launcher.targets.lock().expect("lock"), [remote_target]);
+    }
+
+    // ----- 재기동과 안전 모드 (W-35) -----
+
+    fn running_count(sink: &NullSink) -> usize {
+        kinds(sink).iter().filter(|k| *k == "running").count()
+    }
+
+    /// 살아 있는 엔진은 확인 없이 다시 띄우지 않는다. 확인 없이 안전 모드를 켜지도 않는다.
+    #[tokio::test(start_paused = true)]
+    async fn a_running_engine_is_not_restarted_without_confirmation() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || running_count(&rig.sink) == 1).await;
+        assert_eq!(
+            rig.supervisor.restart_manually(None, false),
+            Err(CommandError::NotConfirmed)
+        );
+        assert_eq!(
+            rig.supervisor.restart_manually(Some(true), false),
+            Err(CommandError::NotConfirmed)
+        );
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 1);
+        assert!(rig.launcher.killed.lock().expect("lock").is_empty());
+        assert!(!shared(&rig.supervisor.inner).safe_mode);
+        assert_eq!(kinds(&rig.sink), ["starting", "running"]);
+    }
+
+    /// 확인을 받은 재기동은 대상 바꾸기와 같은 길로 간다. 새 엔진은 안전 모드로 뜨고, 재기동은 자동 재기동 횟수를 쓰지 않는다.
+    #[tokio::test(start_paused = true)]
+    async fn a_confirmed_restart_relaunches_in_safe_mode_without_using_a_restart() {
+        // 한도 1: 재기동이 횟수를 먹었다면 아래 충돌은 자동 재기동 없이 failed가 된다.
+        let rig = rig(EOF_EXIT, true, 1);
+        rig.supervisor.start();
+        until("running", || running_count(&rig.sink) == 1).await;
+        assert_eq!(rig.supervisor.restart_manually(Some(true), true), Ok(()));
+        until("second running", || running_count(&rig.sink) == 2).await;
+        assert_eq!(
+            *rig.launcher.targets.lock().expect("lock"),
+            [EngineTarget::Local, EngineTarget::Local]
+        );
+        assert_eq!(
+            *rig.launcher.safe_modes.lock().expect("lock"),
+            [false, true]
+        );
+        assert_eq!(*rig.launcher.killed.lock().expect("lock"), [1001]);
+        assert!(rig
+            .launcher
+            .handle(0)
+            .written()
+            .contains("\"method\":\"host.shutdown\""));
+        assert_eq!(
+            kinds(&rig.sink),
+            ["starting", "running", "restarting", "starting", "running"]
+        );
+        // 새 엔진이 죽으면 한도 1을 그대로 쓴 자동 재기동이 한 번 뜬다. 안전 모드는 그대로 남는다.
+        rig.launcher.handle(1).crash(1).await;
+        until("third launch", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 3
+        })
+        .await;
+        until("third running", || running_count(&rig.sink) == 3).await;
+        assert_eq!(
+            *rig.launcher.safe_modes.lock().expect("lock"),
+            [false, true, true]
+        );
+        assert!(matches!(
+            rig.relay.state(),
+            EngineState::Running {
+                pid: Some(1003),
+                ..
+            }
+        ));
+    }
+
+    /// 안전 모드는 앱을 켜 두는 동안 남는다. `safeMode`를 생략하면 그대로 두고, `false`로 부르면 끈다.
+    #[tokio::test(start_paused = true)]
+    async fn safe_mode_lasts_until_it_is_turned_off() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || running_count(&rig.sink) == 1).await;
+        assert_eq!(rig.supervisor.restart_manually(Some(true), true), Ok(()));
+        until("running 2", || running_count(&rig.sink) == 2).await;
+        assert_eq!(rig.supervisor.restart_manually(None, true), Ok(()));
+        until("running 3", || running_count(&rig.sink) == 3).await;
+        assert_eq!(rig.supervisor.restart_manually(Some(false), true), Ok(()));
+        until("running 4", || running_count(&rig.sink) == 4).await;
+        assert_eq!(
+            *rig.launcher.safe_modes.lock().expect("lock"),
+            [false, true, true, false]
+        );
+    }
+
+    /// 원격 대상에는 안전 모드를 켜지 않는다. 그 요청은 확인 여부와 관계없이 `bad-request`이고, 엔진은 그대로 둔다.
+    #[tokio::test(start_paused = true)]
+    async fn safe_mode_is_refused_for_a_remote_target() {
+        let rig = rig(EOF_EXIT, true, 3);
+        assert_eq!(rig.supervisor.retarget(remote("tcp://host:1234")), Ok(()));
+        rig.supervisor.start();
+        until("running", || running_count(&rig.sink) == 1).await;
+        assert_eq!(
+            rig.supervisor.restart_manually(Some(true), true),
+            Err(CommandError::BadRequest)
+        );
+        assert_eq!(
+            rig.supervisor.restart_manually(Some(true), false),
+            Err(CommandError::BadRequest)
+        );
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 1);
+        assert!(!shared(&rig.supervisor.inner).safe_mode);
+        assert_eq!(kinds(&rig.sink), ["starting", "running"]);
+    }
+
+    /// `failed`에서는 확인 없이 다시 띄운다. 안전 모드를 함께 주면 다음 엔진이 안전 모드로 뜬다.
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_engine_restarts_without_confirmation_and_takes_safe_mode() {
+        let rig = rig(EOF_EXIT, true, 0);
+        rig.supervisor.start();
+        until("running", || running_count(&rig.sink) == 1).await;
+        rig.launcher.handle(0).crash(1).await;
+        until("failed", || {
+            kinds(&rig.sink).last().map(String::as_str) == Some("failed")
+        })
+        .await;
+        assert_eq!(rig.supervisor.restart_manually(Some(true), false), Ok(()));
+        until("relaunch", || {
+            rig.launcher.launches.load(Ordering::SeqCst) == 2
+        })
+        .await;
+        until("running again", || running_count(&rig.sink) == 2).await;
+        assert_eq!(
+            *rig.launcher.safe_modes.lock().expect("lock"),
+            [false, true]
+        );
+        assert_eq!(
+            kinds(&rig.sink),
+            ["starting", "running", "failed", "starting", "running"]
+        );
+    }
+
+    /// 엔진이 없고 `failed`도 아니면 재기동을 거부한다. 이때 안전 모드도 저장하지 않는다.
+    #[tokio::test]
+    async fn a_restart_with_no_engine_to_restart_is_not_running() {
+        let rig = rig(EOF_EXIT, true, 3);
+        assert_eq!(
+            rig.supervisor.restart_manually(Some(true), true),
+            Err(CommandError::EngineNotRunning)
+        );
+        assert_eq!(
+            rig.supervisor.restart_manually(None, false),
+            Err(CommandError::EngineNotRunning)
+        );
+        assert!(!shared(&rig.supervisor.inner).safe_mode);
+        assert!(rig.launcher.calls().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_restart_is_refused_once_the_shutdown_has_started() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || running_count(&rig.sink) == 1).await;
+        rig.supervisor.shutdown().await;
+        assert_eq!(
+            rig.supervisor.restart_manually(None, true),
+            Err(CommandError::EngineStopping)
+        );
     }
 
     // ----- 데이터베이스 복원 -----

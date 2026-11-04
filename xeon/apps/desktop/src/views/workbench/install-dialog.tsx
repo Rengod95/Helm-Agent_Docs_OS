@@ -7,6 +7,7 @@ import { useCommands } from "../commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "../folder-pick.ts";
 import { useFolderPick } from "../folder-pick-context.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
+import { RestartNowButton } from "../restart-confirm-dialog.tsx";
 import {
   applyInstalled,
   installDoneOf,
@@ -91,6 +92,10 @@ export function InstallDialog(props: {
     dispatch({ type: "installStart" });
     const got = await commands.workbench.install(source, sha256);
     if (got.ok) {
+      // 새 이름은 다시 시작한 뒤에 목록에 나타난다. 상태 표시줄의 다시 시작 줄에 모은다(U-02)
+      if (got.value.appliesAt === "restart") {
+        commands.noteRestartNeeded({ kind: "install", name: got.value.name });
+      }
       const reloadFailure = await applyInstalled(
         (name) => commands.workbench.reload(name),
         got.value,
@@ -246,6 +251,9 @@ export function InstallDialog(props: {
         )}
         {flow.step === "done" && flow.reloadFailure === null && (
           <InstallDoneNote done={installDoneOf(flow.result)} />
+        )}
+        {flow.step === "done" && flow.result.appliesAt === "restart" && (
+          <RestartNowButton size="sm" info={t("desktop.restart.info")} />
         )}
         {flow.step === "done" && flow.reloadFailure !== null && (
           <Alert tone="danger">{t("desktop.install.fail.reload")}</Alert>

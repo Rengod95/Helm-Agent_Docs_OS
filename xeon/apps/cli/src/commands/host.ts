@@ -14,7 +14,10 @@ import { printFailure, type CommandContext } from "./context.ts";
 // 원격 주소(`--remote` 또는 설정)가 있으면 엔진을 열지 않고 원격 서비스에 중계한다(HS-89).
 
 /** 호스트가 끝날 때까지 기다린다. 읽기 끝(EOF), 신호, host.shutdown 요청이 끝내는 길이다 */
-export async function runHostStdio(ctx: CommandContext): Promise<ExitCode> {
+export async function runHostStdio(
+  ctx: CommandContext,
+  command: { readonly safeMode: boolean },
+): Promise<ExitCode> {
   const { io, deps } = ctx;
   const remote = await deps.resolveRemote({
     ...(ctx.global.remote === null ? {} : { flag: ctx.global.remote }),
@@ -29,7 +32,11 @@ export async function runHostStdio(ctx: CommandContext): Promise<ExitCode> {
   const exit = await deps.startStdioHost({
     readable: io.stdin,
     writable: io.stdoutStream,
-    assemble: { settingGroups: cliSettingGroups, devChecks: deps.devWireRoundTrip },
+    assemble: {
+      settingGroups: cliSettingGroups,
+      devChecks: deps.devWireRoundTrip,
+      ...(command.safeMode ? { safeMode: true } : {}),
+    },
   });
   if (exit.message !== undefined) await io.stderr(`fresnel: ${exit.message}\n`);
   return exit.code === 0 ? EXIT.ok : EXIT.error;

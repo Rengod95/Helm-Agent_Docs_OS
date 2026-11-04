@@ -69,6 +69,29 @@ describe("createTauriIpc over mockIPC", () => {
     expect(fake.detached).toEqual([1]);
   });
 
+  test("restart sends only the options it was given as the engine_restart arguments", async () => {
+    const fake = fakeIpc();
+    const shell = mocked(fake);
+    await shell.ipc.attach(
+      () => {},
+      () => {},
+    );
+    expect((await shell.ipc.restart({ safeMode: true, confirmed: true })).ok).toBe(true);
+    expect((await shell.ipc.restart()).ok).toBe(true);
+    // 빠진 키는 인자에 없다(undefined 값도 두지 않는다)
+    expect((await shell.ipc.restart({ confirmed: false })).ok).toBe(true);
+    expect(shell.calls.slice(1).map((c) => [c.cmd, c.args])).toStrictEqual([
+      ["engine_restart", { safeMode: true, confirmed: true }],
+      ["engine_restart", {}],
+      ["engine_restart", { confirmed: false }],
+    ]);
+    expect(fake.restarts).toStrictEqual([
+      { safeMode: true, confirmed: true },
+      {},
+      { confirmed: false },
+    ]);
+  });
+
   test("a string rejection from the shell becomes the command error code; anything else is unknown", async () => {
     const fake = fakeIpc({
       writeError: { kind: "command", command: "engine_write", code: "epoch-stale" },

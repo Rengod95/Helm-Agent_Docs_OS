@@ -26,6 +26,7 @@ import { PluginUiHost } from "./plugin/plugin-tabs.tsx";
 import { StatusBar } from "./status-bar.tsx";
 import type { FolderPickInvoke } from "./folder-pick.ts";
 import { FolderPickContext } from "./folder-pick-context.ts";
+import { SafeModeProvider } from "./safe-mode-provider.tsx";
 import { ThreadList } from "./thread-list.tsx";
 
 export interface AppProps {
@@ -232,22 +233,24 @@ export function App(props: AppProps): ReactNode {
   };
   return (
     <FolderPickContext value={props.folderPick ?? null}>
-      <Shell
-        palette={<Palette mac={props.mac} keyOverrides={props.keyOverrides} onRun={runPalette} />}
-        onAction={onAction}
-        modalOpen={helpOpen}
-        registry={props.registry}
-        keyOverrides={props.keyOverrides}
-        mac={props.mac}
-        settingsOpen={screen === "settings"}
-        onSettingsOpenChange={(open) => {
-          commands.showScreen(open ? "settings" : "chat");
-        }}
-        settingsScreen={<SettingsPage folderPick={props.folderPick} />}
-        threadList={<ThreadList folderPick={props.folderPick} />}
-        statusBar={<StatusBar />}
-        onGoToThread={openThread}
-      />
+      <SafeModeProvider>
+        <Shell
+          palette={<Palette mac={props.mac} keyOverrides={props.keyOverrides} onRun={runPalette} />}
+          onAction={onAction}
+          modalOpen={helpOpen}
+          registry={props.registry}
+          keyOverrides={props.keyOverrides}
+          mac={props.mac}
+          settingsOpen={screen === "settings"}
+          onSettingsOpenChange={(open) => {
+            commands.showScreen(open ? "settings" : "chat");
+          }}
+          settingsScreen={<SettingsPage folderPick={props.folderPick} />}
+          threadList={<ThreadList folderPick={props.folderPick} />}
+          statusBar={<StatusBar />}
+          onGoToThread={openThread}
+        />
+      </SafeModeProvider>
       <LockedDialog />
       <PluginUiHost />
       <CommandOutputSheet />

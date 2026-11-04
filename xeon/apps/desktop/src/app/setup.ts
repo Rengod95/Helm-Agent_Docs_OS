@@ -1,5 +1,5 @@
-import { assertNever, err, ok, type Result } from "@fresnel/contracts";
-import type { HostConnection } from "@fresnel/contracts/wire";
+import { assertNever, err, ok, type Logger, type Result } from "@fresnel/contracts";
+import type { HostConnection, WireResult } from "@fresnel/contracts/wire";
 import {
   binaryViewOf,
   DEFAULT_MODEL_KEY,
@@ -20,6 +20,7 @@ import type {
   CommandError,
   DefaultGroupId,
   GroupsSnapshot,
+  SafeModeSnapshot,
   SearchSnapshot,
   SetupCommands,
 } from "../views/commands.ts";
@@ -72,11 +73,22 @@ function storedBoolOf(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
 
+/** `host.status`의 안전 모드 칸을 화면 값으로 바꾼다. 칸이 없으면(구형 호스트) 거짓, null, 0이다 */
+export function safeModeOf(status: WireResult<"host.status">): SafeModeSnapshot {
+  return {
+    active: status.safeMode === true,
+    cause: status.safeModeCause ?? null,
+    startupFailures: status.startupFailures ?? 0,
+    suggest: status.suggestSafeMode === true,
+  };
+}
+
 export function createSetupCommands(
   run: Run,
   onInvalidated: (listener: () => void) => () => void,
   ipc: Pick<DesktopIpc, "registerSecret">,
   local: Pick<LocalSettings, "load" | "get" | "set">,
+  logger: Pick<Logger, "warn">,
 ): SetupCommands {
   return {
     async load(options) {
@@ -163,6 +175,15 @@ export function createSetupCommands(
         safeMode: status.value.safeMode === true,
       };
       return ok(snapshot);
+    },
+    async loadSafeMode() {
+      const status = await run((c) => c.request("host.status", {}));
+      if (!status.ok) {
+        // 화면은 이 실패를 아무것도 그리지 않는 것으로 받는다(안전 모드 안내는 화면을 막지 않는 부가 정보다). 원인만 남긴다
+        logger.warn("desktop.safeMode.read_failed", { reason: status.error.kind });
+        return status;
+      }
+      return ok(safeModeOf(status.value));
     },
     async setGroupEnabled(group, enabled) {
       const written = await run((c) =>

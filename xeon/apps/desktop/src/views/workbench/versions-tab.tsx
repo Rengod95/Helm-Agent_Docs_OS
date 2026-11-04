@@ -74,6 +74,8 @@ function VersionsBody(props: {
           toast({ tone: "danger", title: t("desktop.workbench.rollback.failed") });
           return undefined;
         }
+        // 재시작 뒤에 도는 되돌리기는 상태 표시줄의 다시 시작 줄에 모은다(U-02)
+        if (r.value === "restart") commands.noteRestartNeeded({ kind: "rollback", name });
         toast({
           tone: "success",
           title: t("desktop.workbench.rollback.done"),

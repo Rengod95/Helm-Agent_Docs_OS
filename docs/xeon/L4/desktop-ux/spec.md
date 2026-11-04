@@ -874,6 +874,8 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 승인, 알림 | §4.6 | 끝 영역 받은 요청 탭 |
 
 - 상태: 연결 전에는 "엔진 상태 확인 중"만, 원격이면 첫 칸에 "원격 · 이름"과 경고 색 테두리 없이 `Badge tone="info"`, compact 폭에서는 대상·연결·승인만 남깁니다.
+- 다시 시작 대기(U-02): 설치 결과가 `appliesAt: restart`이거나 되돌리기가 `restart`이면 승인 칸 뒤에 "다시 시작 대기"와 개수를 보이고, 이유 목록은 정보 아이콘 뒤에 둡니다. 엔진이 running일 때만 "지금 다시 시작"(셸 `engine_restart { confirmed: true }`)을 보이고, 진행 중 턴이나 대기 승인이 있으면 확인 대화 상자를 먼저 띄웁니다(기본 초점 "나중에"). 목록은 이 실행에서 running을 본 엔진이 다른 상태를 거쳐 running으로 돌아오면 비우고 "다시 시작했어요" 토스트를 띄웁니다(앱을 켠 첫 시작은 돌아온 것이 아닙니다). 웹에는 단추가 없고 "서비스를 다시 시작해야 해요" 한 줄만 둡니다.
+- 안전 모드 제안과 칩(U-06): 연속 시작 실패가 제안 기준에 닿았고 안전 모드가 아니면 대화 화면의 입력창 바로 위에 카드 하나를 두고, 글은 "엔진 연속 시작 실패 n회"와 "안전 모드로 시작하면 기본 에이전트만 띄워요."이며, 꺼지는 것의 긴 설명은 정보 아이콘 뒤에 둡니다(`apps/desktop/src/views/safe-mode-card.tsx:27`). 단추는 "안전 모드로 시작"과 outline "그대로 다시 시작"이고, 엔진이 running이거나 failed일 때만 누를 수 있습니다. 안전 모드로 떠 있으면 상태 표시줄에 "안전 모드" 칩을 두고(`apps/desktop/src/views/safe-mode-chip.tsx:19`), 정보 아이콘에 꺼진 것과 원인을 보입니다. 셸에서만 "안전 모드 끄고 다시 시작" 단추를 두고, 설정에서 안전 모드를 기본으로 켰으면 설정을 먼저 바꾸라는 글을 정보 아이콘 뒤에 둡니다. 웹에는 카드가 없고 칩만 있습니다. 상태 읽기는 엔진이 running이고 연결이 열렸을 때 한 번이고 폴링하지 않습니다.
 - 접근성: `role="status"` 하나이고 바뀐 칸만 읽힙니다. 개수 배지는 `aria-label="승인 대기 2개"`처럼 문장으로 둡니다.
 - caustic: 상태 표시줄 부품 없음 `[gap:C-03]`. `Badge`, `Button size="xs" variant="ghost"`, `Popover`, `Progress shape="bar"`(게이지 대용 `[gap:C-05]`), `Tooltip`으로 만듭니다.
 
@@ -2027,7 +2029,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 - 크래프트 8차 시안 [결정: 2026-11-03 사용자]: 시안 내비(크래프트, 테스트, 성능 측정)에 엔진 화면이 없고 P-15는 그려지지 않았습니다. P-15의 내용(엔진 상태, 외부 도구, 버전, 안전 모드, 진단 복사)은 바뀌지 않습니다. 진입은 설정 > 개요, 상태 표시줄, 시안의 실패·주도 서랍입니다. LightCraft 내비의 "엔진" 항목을 둘지는 [미결 32]입니다. 시안의 실패 서랍과 이 화면의 자동 꺼짐 `Alert`가 같은 것을 보이므로 한 곳에만 둡니다(DP-23).
 - 확장 요약과 LightCraft [결정: 오케스트레이터 기본값]: P-15는 LightCraft "엔진"의 본문입니다. 맨 위에 엔진 상태(`EngineState`, 대상, 안전 모드)와 "연결 화면 열기"(P-08) 한 줄을 둡니다. 층별 확장 수(층 mono 열, 실림·꺼짐·자동 꺼짐 수)와, 자동 꺼짐·핸들러 실패가 있으면 그 표 바로 위 `Alert tone="danger"`(확장 이름, 오류 한 줄, 진단 `file:line`)만 둡니다. 행과 Alert의 확장 이름은 LightCraft P-17로 갑니다. "파일 열기", "다시 켜기", "다시 읽기"는 P-17 기록 탭의 동작이고 P-15에는 "확장 상세 열기"만 둡니다. 데이터는 `ext.list`, `ext.health`, 진단 위치입니다.
-- 안전 모드 들어가기 [결정: 오케스트레이터 기본값]: 두 길을 모두 둡니다. 앱 안에서는 P-16·P-13·P-15의 "안전 모드로 다시 시작"(셸 `engine_restart { safeMode: true }` `[gap:W-35]`). 시작 때는 연속 시작 실패가 `x.operations.safeMode.suggestAfter`(기본 3) 이상이면 첫 화면에 제안 카드를 보입니다. 앱을 켤 때 누르는 키(예: ⌥)로 들어가는 길은 [제안]이고 셸 쪽 확인이 필요합니다.
+- 안전 모드 들어가기 [결정: 오케스트레이터 기본값]: 두 길을 모두 둡니다. 앱 안에서는 P-16·P-13·P-15의 "안전 모드로 다시 시작"(셸 `engine_restart { safeMode: true }`). 시작 때는 연속 시작 실패가 `x.operations.safeMode.suggestAfter`(기본 3) 이상이면 첫 화면에 제안 카드를 보입니다. 앱을 켤 때 누르는 키(예: ⌥)로 들어가는 길은 [제안]이고 셸 쪽 확인이 필요합니다.
 
 ### 6.20 대화 상자와 시트(O-01~O-09)
 
@@ -2293,7 +2295,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 설정 바인딩과 출처 | `settings.explain { key, threadId }` | |
 | 그룹 구성 | 매니페스트 `composition` | X-16 |
 | X 훅 | `hooks.list` | |
-| 안전 모드 | `host.status.safeMode`, 원인 | `[gap:W-35]` |
+| 안전 모드 | `host.status.safeMode`, 원인 | 셸 `engine_restart { safeMode, confirmed }`(W-35) |
 | 배치 순서 | 데스크톱 로컬 | `[gap:V-14]` |
 
 #### 6.22.10 고정 데이터 정정
@@ -3163,12 +3165,12 @@ export const palette = [
 | W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, Plugin Builder | 구현됨 [근거: `apps/host/src/handlers/m4/devkit.ts`] | `ext.installPreview { source }`, `ext.install { source, sha256 }`, `ext.remove { name }` [결정: 2026-11-04 사용자, Q9: 플러그인은 앱 안에서 설치하고 설치 전에 권한을 확인받는다] |
 | W-33 | 화면 기여 목록, 확장 메서드, 화면용 post·승인 | P-18, 슬롯 전부 | `ext.ui.list` 처리기가 연결됐다(host-service HS-108). `ext.ui.post`·`ext.ui.requestApproval`은 `threadId`를 필수로 받아 M4 T-UIPOST에서 열었다(host-service §10 52, HS-108). `ext.<id>.<verb>`는 M4 T-GK에서 열었다(`F.wire-settings.spec` §4.2) | `ext.ui.list`, `ext.<id>.<verb>`, `ext.ui.post`, `ext.ui.requestApproval`(ADR-0021 §6) |
 | W-34 | Test run 표지와 프로필 적용 생성 | P-19, P-21, P-02 | 구현됨. `thread.create`가 `testRun`과 `profileId`를 받는다 [근거: `apps/host/src/handlers/thread.ts:28-41`] | `thread.create { testRun: true, profileId? }`, `ThreadSummary.testRun`(`{ profileId, target, paused }`) |
-| W-35 | 안전 모드 원인과 안전 모드 재시작 | P-16, P-13, P-08 | `host.status.safeModeCause`가 있다. 셸 `engine_restart`는 인자가 없어 안전 모드로 다시 시작하는 길은 아직 없다 [근거: `packages/contracts/src/wire-settings/wire/methods.ts:320`, `apps/desktop/src-tauri/src/relay.rs:619`] | `host.status.safeModeCause`, 셸 명령 `engine_restart { safeMode }` |
+| W-35 | 안전 모드 원인과 안전 모드 재시작 | P-16, P-13, P-08 | `host.status.safeModeCause`가 있다. 셸 명령 `engine_restart`가 `safeMode`와 `confirmed`를 받는다. `failed`면 확인 없이, 살아 있는 엔진은 `confirmed: true`일 때만 다시 띄우고, 원격 대상에서 안전 모드를 켜면 거부한다. 데스크톱은 `host.status`의 `safeMode`, `safeModeCause`, `startupFailures`, `suggestSafeMode`를 엔진이 running이고 연결이 열린 뒤 한 번 읽고(`apps/desktop/src/app/setup.ts:179`의 `loadSafeMode`, `apps/desktop/src/views/safe-mode-provider.tsx:12`), 제안 카드의 "안전 모드로 시작"은 `engine_restart { safeMode: true, confirmed: true }`를, 칩의 "안전 모드 끄고 다시 시작"은 `{ safeMode: false, confirmed: true }`를 보냅니다(`apps/desktop/src/views/safe-mode-card.tsx:20`, `apps/desktop/src/views/safe-mode-chip.tsx:12`). 원격 대상에서 카드의 안전 모드 단추는 셸이 거부해 실패 토스트로 끝납니다 [미결: 원격 대상에서 카드를 숨기는 길은 정하지 않았습니다] [근거: `packages/contracts/src/wire-settings/wire/methods.ts:320`, `apps/desktop/src-tauri/src/engine.rs:577`의 `restart_manually`, `apps/desktop/src-tauri/src/relay.rs:620`의 `engine_restart`] | `host.status.safeModeCause`, `host.status.startupFailures`, `host.status.suggestSafeMode`, 셸 명령 `engine_restart { safeMode, confirmed }` |
 | W-36 | 외부 훅 목록(M4 N14) | P-16, P-13 | 구현됨. `hooks.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts:146`] | `hooks.list` |
 | W-36a | 외부 훅 "끌까요" 질문 읽기와 답(U-01, U-05) | P-16 크래프트 선택 패널, 오른쪽 "플러그인" 탭 | 구현됨. `hooks.list`의 외부 훅 줄(`hook`이 훅 id, `point`가 걸린 훅 이름)의 `keepOffQuestion`·`autoDisabled`로 읽고 크래프트 선택 패널은 훅 이름 칩에 그 훅에 걸린 외부 훅의 알림을 보이며 `hooks.disableConfirm`(끄기), `hooks.reenable`(켜 두기·다시 켜기)로 답한다. 호스트가 꺼짐을 설정 `x.operations.hookDisabled`에 먼저 써서 재시작 뒤에도 유지된다 [결정: 2026-11-04 사용자] [근거: `apps/host/src/assembly/m4/ext-read-port.ts`의 `hookDisableConfirm`, `apps/desktop/src/app/workbench-commands.ts`의 `hookKeepOff`] | `hooks.disableConfirm { hook }`, `hooks.reenable { hook }` |
 | W-37 | 런타임 이벤트만 거르는 구독 | 기록 탭, 런타임 탭 | `events.subscribe`는 thread 단위 전체 | kind 접두 거름 인자 [미결] |
 | W-38 | 확장 다시 읽기(핫 리로드 요청)와 로더 진단 위치(파일:줄) | P-17, P-15 | 구현됨. `ext.reload`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.reload { name }`, 진단에 `file`, `line` |
-| W-39 | 연속 시작 실패 수와 안전 모드 제안 | P-01, 시작 화면 | `host.status.startupFailures`·`suggestSafeMode`가 있다 [근거: `packages/contracts/src/wire-settings/wire/methods.ts:323-324`] | `host.status.startupFailures`, `host.status.suggestSafeMode` |
+| W-39 | 연속 시작 실패 수와 안전 모드 제안 | P-01, 대화 화면 입력창 위 카드 | `host.status.startupFailures`·`suggestSafeMode`가 있고 데스크톱이 읽는다(`app/setup.ts` `loadSafeMode`, 카드 `views/safe-mode-card.tsx`) [근거: `packages/contracts/src/wire-settings/wire/methods.ts:323-324`] | `host.status.startupFailures`, `host.status.suggestSafeMode` |
 | W-40 | 기능 바인딩(기능 id마다 제공 확장과 버전, 받는 확장과 requires·optional, 미충족) | P-16, P-21 | 구현됨. `ext.bindings`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.bindings { threadId? }` |
 | W-41 | 그룹이 아닌 확장의 대화별 scope 상태 | P-16, P-13 | `ext.list`의 `threadId` 인자로 대화별 scope 상태를 싣는지는 이 감사에서 확인하지 않았다 [근거: `packages/contracts/src/wire-settings/wire/ext-read-methods.ts:10`] | `ext.list { threadId }`가 대화별 scope 상태를 실음 |
 | W-42 | drive 락 읽기(holder, `leaseEpoch`, limits, used, 후보별 대기 계수) | P-16, 런타임 탭 | `group.driveLock`이 있다(제안의 `group.lease`와 이름이 다르다). 후보별 대기 계수가 있는지는 확인하지 않았다 [근거: `apps/host/src/handlers/m4/ext-read.ts:144`] | `group.lease { threadId }` |

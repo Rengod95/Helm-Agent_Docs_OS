@@ -59,6 +59,12 @@ export type ReviewTarget = { readonly approvalId: EventId; readonly reviewId: st
 /** 설정 화면이 열며 옮길 탭과 항목. `key`가 null이면 탭만 연다. 화면이 받으면 `settleSettingsJump`로 지운다 */
 export type SettingsJump = { readonly tab: SettingsTab; readonly key: SettingKey | null };
 
+/**
+ * 다시 시작해야 적용되는 일 하나. 설치 결과(`appliesAt: restart`)와 되돌리기(`restart`)가 만든다.
+ * 같은 종류와 이름은 한 번만 든다(`noteRestartNeeded`가 거른다).
+ */
+export type RestartReason = { readonly kind: "install" | "rollback"; readonly name: string };
+
 export type UiState = {
   readonly selectedThreadId: ThreadId | null;
   /** 응답을 보냈지만 approval.resolved를 아직 받지 못한 승인. 낙관적 표시는 이 스토어에 두고 엔진 거울에는 두지 않는다 */
@@ -85,6 +91,8 @@ export type UiState = {
   readonly settingsJump: SettingsJump | null;
   /** 변경 검토 화면이 여는 검토 승인. 승인 카드의 "검토 열기"가 정한다 */
   readonly reviewTarget: ReviewTarget | null;
+  /** 다시 시작해야 적용되는 일. 엔진이 다시 running으로 돌아오면 비운다(app/restart-needed.ts) */
+  readonly restartNeeded: readonly RestartReason[];
 };
 
 interface UiActions {
@@ -112,6 +120,10 @@ interface UiActions {
   settleSettingsJump(): void;
   /** 변경 검토 화면을 이 승인으로 연다. 화면 자리는 App이 옮긴다 */
   openReview(target: ReviewTarget): void;
+  /** 다시 시작이 필요한 일을 더한다. 같은 종류와 이름이 있으면 상태를 바꾸지 않는다 */
+  noteRestartNeeded(reason: RestartReason): void;
+  /** 다시 시작이 필요한 일을 모두 지운다. 같은 상태(빈 목록)면 상태를 바꾸지 않는다 */
+  clearRestartNeeded(): void;
 }
 
 const INITIAL_UI: UiState = {
@@ -129,6 +141,7 @@ const INITIAL_UI: UiState = {
   composerRequest: null,
   settingsJump: null,
   reviewTarget: null,
+  restartNeeded: [],
 };
 
 export type UiStore = { readonly read: ReadonlyStore<UiState>; readonly actions: UiActions };
@@ -176,6 +189,14 @@ export function createUiStore(): UiStore {
     requestSettingsJump: (settingsJump) => api.setState({ screen: "settings", settingsJump }),
     settleSettingsJump: () => api.setState({ settingsJump: null }),
     openReview: (reviewTarget) => api.setState({ reviewTarget }),
+    noteRestartNeeded: (reason) =>
+      api.setState((s) =>
+        s.restartNeeded.some((r) => r.kind === reason.kind && r.name === reason.name)
+          ? s
+          : { restartNeeded: [...s.restartNeeded, reason] },
+      ),
+    clearRestartNeeded: () =>
+      api.setState((s) => (s.restartNeeded.length === 0 ? s : { restartNeeded: [] })),
     setObserving: (id, observing) =>
       api.setState((s) => {
         if ((s.observing[id] === true) === observing) return s;

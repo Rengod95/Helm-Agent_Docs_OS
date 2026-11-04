@@ -49,8 +49,8 @@ pub enum CommandError {
     EpochStale,
     EngineNotRunning,
     EngineStopping,
-    /// `failed`가 아닐 때 `engine_restart`를 불렀다.
-    NotFailed,
+    /// 살아 있는 엔진을 `engine_restart`로 다시 띄우는데 `confirmed`가 참이 아니었다.
+    NotConfirmed,
     TooLarge,
     BadRequest,
     /// 설정 파일을 읽거나 쓰지 못했다. 틀린 파일은 덮어쓰지 않으려고 이 오류를 돌려준다.
@@ -614,12 +614,15 @@ pub async fn engine_ack(
     Ok(())
 }
 
-/// `failed` 상태에서 사용자가 수동 재기동을 고를 때 부른다.
+/// 사용자가 재기동을 고를 때 부른다. `failed`면 확인 없이 다시 띄우고, 살아 있는 엔진은 `confirmed`가 참일 때만 다시 띄운다.
+/// `safe_mode`(JS `safeMode`)가 있으면 안전 모드 값을 정한다. 없으면 지금 값을 그대로 쓴다.
 #[tauri::command]
 pub async fn engine_restart(
     supervisor: State<'_, Arc<AppSupervisor>>,
+    safe_mode: Option<bool>,
+    confirmed: Option<bool>,
 ) -> Result<(), CommandError> {
-    supervisor.restart_manually()
+    supervisor.restart_manually(safe_mode, confirmed.unwrap_or(false))
 }
 
 /// 엔진이 붙을 대상을 바꾼다(W-08). 같은 대상이면 아무 일도 없다. 살아 있는 엔진은 정상 종료 순서로 끝나고 새 대상으로 다시 뜬다.
@@ -1233,5 +1236,13 @@ mod tests {
             "\"remote-target\""
         );
         assert_eq!(serde_json::to_string(&CommandError::Busy).expect("json"), "\"busy\"");
+    }
+
+    #[test]
+    fn the_restart_refusal_serializes_to_its_kebab_case_code() {
+        assert_eq!(
+            serde_json::to_string(&CommandError::NotConfirmed).expect("json"),
+            "\"not-confirmed\""
+        );
     }
 }

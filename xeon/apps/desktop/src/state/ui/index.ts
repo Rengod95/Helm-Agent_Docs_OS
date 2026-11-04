@@ -6,6 +6,7 @@ export {
   type ApprovalSend,
   type LockedOption,
   type LockedThread,
+  type RestartReason,
   type ReviewTarget,
   type Screen,
   type SettingsJump,

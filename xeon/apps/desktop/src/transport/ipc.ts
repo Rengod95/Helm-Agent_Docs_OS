@@ -226,6 +226,12 @@ export type EngineTarget =
   | { readonly kind: "local" }
   | { readonly kind: "remote"; readonly address: string };
 
+/** `engine_restart` 옵션. `safeMode`를 생략하면 지금 안전 모드 값을 그대로 쓴다. 살아 있는 엔진은 `confirmed: true`여야 다시 뜬다 */
+export type RestartOptions = {
+  readonly safeMode?: boolean;
+  readonly confirmed?: boolean;
+};
+
 export interface DesktopIpc {
   /** 현재 페이지에 릴레이를 붙인다. 이전 세대는 끊긴다. 바이트는 완성된 줄 단위로 온다 */
   attach(
@@ -236,7 +242,8 @@ export interface DesktopIpc {
   write(epoch: number, chunk: Uint8Array): Promise<Result<null, IpcError>>;
   /** 처리를 끝낸 바이트 수를 알려 신용을 돌려준다 */
   ack(epoch: number, bytes: number): Promise<Result<null, IpcError>>;
-  restart(): Promise<Result<null, IpcError>>;
+  /** 엔진을 다시 띄운다. `failed`면 확인 없이, 살아 있는 엔진은 `confirmed: true`일 때만 다시 뜬다(W-35). 거절은 `not-confirmed` 등의 코드로 온다 */
+  restart(options?: RestartOptions): Promise<Result<null, IpcError>>;
   /** 대상을 바꾸고 엔진을 새 대상으로 다시 띄운다(W-08). 같은 대상이면 아무 일도 없다 */
   retarget(target: EngineTarget): Promise<Result<null, IpcError>>;
   /**
@@ -282,6 +289,15 @@ function bytesOf(message: unknown): Uint8Array | null {
 
 const SettingsFileSchema: TRecord<string, TUnknown> = Type.Record(Type.String(), Type.Unknown());
 
+/** `engine_restart` 인자. 정해지지 않은 키는 보내지 않는다(셸은 빠진 키를 `None`으로 읽는다) */
+function restartArgs(options: RestartOptions = {}): RestartOptions {
+  const { safeMode, confirmed } = options;
+  return {
+    ...(safeMode === undefined ? {} : { safeMode }),
+    ...(confirmed === undefined ? {} : { confirmed }),
+  };
+}
+
 /** @tauri-apps/api의 invoke와 Channel로 DesktopIpc를 만든다 */
 export function createTauriIpc(): DesktopIpc {
   return {
@@ -317,9 +333,9 @@ export function createTauriIpc(): DesktopIpc {
         await invoke("engine_ack", { epoch, bytes });
         return null;
       }),
-    restart: () =>
+    restart: (options) =>
       call("engine_restart", async () => {
-        await invoke("engine_restart");
+        await invoke("engine_restart", restartArgs(options));
         return null;
       }),
     retarget: (target) =>
