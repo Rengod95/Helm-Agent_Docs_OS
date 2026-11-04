@@ -38,7 +38,7 @@ binds: []
 | M-02 | 한글 NFD 파일 이름과 경로 정규화 | FK-07 | CI `platform-os` 단계 | 시험 통과 | 통과(실기, 2026-10-25, `m2c/mac` 기준, 작업 20261025-223149-7bc2). `platform-os` 219 통과, 0 실패. 같은 작업의 `platform-exec`는 218 통과, 1 건너뜀, 0 실패입니다(`pwd -P` 기대 경로를 realpath로 비교하도록 `9d15a06`에서 고친 뒤) CI 통과(2026-10-28, `fresnel-macos.yml` 실행 40634847311, `91b8df8`). |
 | M-03 | Seatbelt 샌드박스에서 작업 폴더 밖 쓰기 거부, 자가 시험 6항목 | M1, FK-01, FK-02, T-02 | CI `platform-sandbox`와 `exit-tests` 단계 | int 시험 통과, 건너뜀 0 | 실기 통과, CI 미실행(2026-10-25, 작업 20261025-202916-7042, 메인 checkout, 커밋 미기록). `just test packages/platform-sandbox` 131 통과, 0 건너뜀입니다. 그중 `sandbox.int.test.ts`의 `real sandbox (srt)` 8건이 실제 srt(macOS Seatbelt)로 돌았습니다: 작업 폴더 밖 쓰기 거부, `.git/hooks` 쓰기 거부, 보호 파일 읽기 거부, 네트워크 거부, 자가 시험 6항목. `exit-tests`의 건너뜀 0 검사와 CI 단계는 돌지 않았습니다 CI 통과(2026-10-28, `fresnel-macos.yml` 실행 40634847311, `91b8df8`). `exit-tests` 10/10줄, 건너뜀 0 |
 | M-04 | 실제 sops로 비밀 관리 명령(E7) | E7, FK-05 | CI `platform-secrets`와 `exit-tests` 단계 | 시험 통과, 건너뜀 0 | 통과. CI 통과(2026-10-28, `fresnel-macos.yml` 실행 40634847311, `91b8df8`). `platform-secrets`와 `exit-tests` E7 줄 14 통과, 건너뜀 0 |
-| M-05 | 키체인 age 키, `reveal`의 `os-auth`(Touch ID·암호) | E7, FK-04, T-06 | 실기만(CI 러너는 사람 인증 불가) | 재인증 성공 뒤에만 값 표시, 취소하면 값 없음 | 미실행 |
+| M-05 | 키체인 age 키, `reveal`의 `os-auth`(Touch ID·암호) | E7, FK-04, T-06 | 실기만(CI 러너는 사람 인증 불가) | 재인증 성공 뒤에만 값 표시, 취소하면 값 없음 | 미실행. 재인증 명령 `os_reauth`(`L4.desktop.spec` §4.17)는 있으나 Touch ID가 있는 Mac에서 한 번도 돌리지 않았습니다. 값 보기 화면은 아직 이 명령을 쓰지 않습니다 |
 | M-06 | FTS5 검색(cap-knowledge) | FK-06 | CI `cap-knowledge` 단계 | 시험 통과 | 통과. CI 통과(2026-10-28, `fresnel-macos.yml` 실행 40634847311, `91b8df8`). |
 | M-07 | 사이드카 `aarch64-apple-darwin` 빌드와 크기, 콜드 스타트 | ADR-0012, FK-14 | CI 사이드카 단계, 실기 `just bench` | 빌드 성공, 500 MiB 이하, 콜드 스타트 기록 | 부분(실기, 2026-10-25, 작업 20261025-224508-0141, 병합 전 `m2c/t7` 워크트리). `just desktop-sidecar host` 성공, 91.0 MiB(95,432,306바이트) / 500 MiB. 이 바이너리로 `just test apps/desktop`이 178 통과, 0 건너뜀입니다. 사이드카 e2e 3건(E2 응답열 동등, E3 stdin EOF 종료, E3 `host.shutdown`)이 macOS 컴파일 바이너리에서 돌았습니다. 콜드 스타트(`just bench`)와 CI 사이드카 단계는 미측정입니다 사이드카 빌드는 CI 통과(2026-10-28, `fresnel-macos.yml` 실행 40634847311, `91b8df8`). 콜드 스타트는 미측정 |
 | M-08 | Tauri 셸 Rust 시험 | E3, FK-15 | CI `desktop-test` 단계 | 시험 통과 | 통과(실기, 2026-10-25, 작업 20261025-224508-0141, `m2c/t7` 워크트리). `just desktop-test` 65 통과, 0 실패. CI 단계는 미실행입니다 CI 통과(2026-10-28, `fresnel-macos.yml` 실행 40634847311, `91b8df8`). |
@@ -76,6 +76,6 @@ binds: []
 
 ## 5. 미결 사항
 
-- [미결] M-05는 사람이 직접 해야 합니다. macOS `os-auth`(Touch ID)는 구현되지 않았습니다(`osAuthAvailable` 기본값 false). E7의 macOS 부분과 함께 M3로 옮깁니다(`review.m3-plan` M3-m2c-01). M-10, M-11, M-13은 2026-10-27에 끝났습니다.
+- [미결] M-05는 사람이 직접 해야 합니다. macOS `os-auth`(Touch ID)는 셸 명령 `os_reauth`까지만 구현됐고 reveal에는 연결되지 않았습니다(`osAuthAvailable` 기본값 false). E7의 macOS 부분과 함께 M3로 옮깁니다(`review.m3-plan` M3-m2c-01). M-10, M-11, M-13은 2026-10-27에 끝났습니다.
 - [미결] M-10의 승인 카드는 확인하지 못했습니다. 도구 호출이 있는 턴으로 다시 봅니다.
 - [미결] M-07은 macOS 콜드 스타트 기록을 요구합니다. 2026-10-27의 `just bench` 기준선(`eng.performance.guide` §2)은 서버(WSL2)에서 잰 값이라 M-07을 채우지 않습니다. Mac에서 `just bench`를 한 번 돌려야 합니다.

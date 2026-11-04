@@ -29,8 +29,10 @@ libc = "0.2"
 block2 = "0.6"
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSImage", "NSImageRep", "NSBitmapImageRep"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSError"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSError", "NSString"] }
 objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-app-kit", "WKWebView", "WKSnapshotConfiguration"] }
+# 사람 재인증 명령 os_reauth(os_reauth.rs). LAContext.evaluatePolicy만 쓴다. 기본 기능(objc2-security 등)은 끈다
+objc2-local-authentication = { version = "=0.3.2", default-features = false, features = ["LAContext", "block2"] }
 
 [dev-dependencies]
 tauri = { version = "=2.12.3", features = ["test"] }

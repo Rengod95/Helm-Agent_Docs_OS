@@ -12,6 +12,7 @@ fn main() {
         "secret_register",
         "app_roots_set",
         "pick_folder",
+        "os_reauth",
     ]);
     if let Err(error) =
         tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

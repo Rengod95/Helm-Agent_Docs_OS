@@ -11,6 +11,7 @@ mod env_path;
 mod folder_pick;
 #[cfg(debug_assertions)]
 mod inspect;
+mod os_reauth;
 mod relay;
 mod secret_entry;
 mod time;
@@ -69,7 +70,8 @@ fn main() {
             desktop_settings::desktop_settings_write,
             secret_entry::secret_register,
             view_scheme::app_roots_set,
-            folder_pick::pick_folder
+            folder_pick::pick_folder,
+            os_reauth::os_reauth
         ])
         .setup(|app| {
             let log = Arc::new(AppLog::open(app.path().app_log_dir().ok().as_deref()));
