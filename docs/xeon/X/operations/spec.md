@@ -1136,8 +1136,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
 - 기준과 무관한 `disableNow` 중 투영기 실패(§5 6번)만 같은 면제를 받는다. 격리 재시작 한도 초과(`isolation_restart_limit`)는 면제 없이 끈다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
 - 외부 훅은 같은 기준으로 그 훅만 끈다. 훅 끄기는 다음 디스패치부터 적용한다(훅은 scope가 없다).
-- 외부 훅 질문의 답 경로 [결정: 2026-11-04 사용자, "사용자가 끈 외부 훅은 재시작 뒤에도 꺼져 있다"; wire 이름과 키 이름은 제안]: 화면은 `hooks.list`의 `HookEntry.keepOffQuestion`을 읽고 "끄기"는 `hooks.disableConfirm { hook }`, "켜 두기"와 "다시 켜기"는 `hooks.reenable { hook }`로 답한다. 호스트는 끄기에서 먼저 설정 `x.operations.hookDisabled`(문자열 배열, 범위 managed, user, 기본 `[]`, live)에 훅 id를 user 범위로 쓰고(쓰기가 실패하면 끄지 않는다), `answer(hook:<id>, true)`를 부른다. 다시 켜기는 저장된 id를 지우고 질문이 있으면 `answer(…, false)`, 없으면 `reenable(hook:<id>)`를 부른다. 질문도 꺼짐 기록도 없는 id는 `hooks.notFound`다. 외부 훅 실행기(§4.7)가 시작할 때 `hookDisabled`에 든 id는 싣지 않는다. 실행기는 아직 없어(`hooks` 연결이 빈 구현) 질문을 내는 주체도 아직 없다 [미결] [근거: `xeon/apps/host/src/assemble.ts`의 `createOperationsPolicy` 호출에 `hooks`가 없고, `hookDefs` 키가 코드에 없다].
-- 확장의 자동 끄기 상태는 설정 파일에 쓰지 않는다 [제안]. `ext.<name>.enabled` 값은 바뀌지 않고, 다음 시작에서 다시 실린다. 시작을 넘어 세는 원장은 두지 않는다(§10 미결 7).
+- 외부 훅 질문의 답 경로 [결정: 2026-11-04 사용자, "사용자가 끈 외부 훅은 재시작 뒤에도 꺼져 있다"; wire 이름과 키 이름은 제안]: 화면은 `hooks.list`의 `HookEntry.keepOffQuestion`을 읽고 "끄기"는 `hooks.disableConfirm { hook }`, "켜 두기"와 "다시 켜기"는 `hooks.reenable { hook }`로 답한다. 호스트는 끄기에서 먼저 설정 `x.operations.hookDisabled`(문자열 배열, 범위 managed, user, 기본 `[]`, live)에 훅 id를 user 범위로 쓰고(쓰기가 실패하면 끄지 않는다), `answer(hook:<id>, true)`를 부른다. 다시 켜기는 저장된 id를 지우고 질문이 있으면 `answer(…, false)`, 없으면 `reenable(hook:<id>)`를 부른다. 질문도 꺼짐 기록도 없는 id는 `hooks.notFound`다. 외부 훅 실행기(§4.7)가 시작할 때 `hookDisabled`에 든 id는 싣지 않는다. 실행기(§4.7.4)는 `OperationsDeps.hooks`로 연결되어 `hook:<id>`로 실패를 장부에 넣고, 끄기 답이 오면 그 id를 이번 실행에서 건너뛴다.
 
 #### 4.3.4 알림과 기록
 
@@ -1370,7 +1369,10 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 작업 폴더: `cwd: "project"`(기본)는 작업 폴더 루트, `"home"`은 사용자 홈이다.
 - 예산: 훅 정의의 `timeoutMs`, 없으면 `x.operations.budget.hookMs`. 예산이 끝나면 signal을 abort하고 `ProcessService`가 프로세스 그룹을 종료한다(종료 방식은 `L0.process.spec`).
 - 같은 훅에 건 외부 훅은 순서대로 하나씩 실행한다. 정렬은 §4.1의 정렬 키를 따른다.
-- 디스패처 등록 [제안]: primitives 레지스트리는 확장·scope 단위로 핸들러를 받는다. 그래서 operations는 설정 범위마다 내부 내장 확장 단위 하나(`fresnel-hooks-managed`, `fresnel-hooks-user`, `fresnel-hooks-project`, `fresnel-hooks-local`)를 만들어 `ExtHost.install`로 싣고, 그 scope에서 훅마다 on 핸들러 하나를 등록한다. 이 단위들은 모든 확장 뒤의 `loadIndex`를 받고, `TierTable`에는 §4.7.6 표의 tier로 들어간다. 실패 장부 키는 단위 이름이 아닌 `hook:<id>`이고, operations가 (단위, 등록 순번) → 훅 id 표로 바꾼다.
+- 디스패처 등록 [제안]: primitives 레지스트리는 확장·scope 단위로 핸들러를 받는다. 그래서 operations는 설정 범위마다 내부 내장 확장 단위 하나(`fresnel-hooks-managed`, `fresnel-hooks-user`, `fresnel-hooks-project`, `fresnel-hooks-local`)를 만들어 `ExtHost.install`로 싣고, 그 scope에서 지점마다 on 핸들러 하나를 등록한다(아래 구현 방식). 이 단위들은 모든 확장 뒤의 `loadIndex`를 받고, `TierTable`에는 §4.7.6 표의 tier로 들어간다. 실패 장부 키는 단위 이름이 아닌 `hook:<id>`이고, 실행기가 훅 id로 직접 넣는다.
+- 구현 방식 [제안: 2026-11-04 hookrun 기본값]: 훅마다 핸들러를 등록하지 않는다. 범위마다 단위 하나(`fresnel-hooks-<managed|user|project|local>`, Registration id는 단위 이름과 같다)가 8개 지점에 핸들러 하나씩을 달고, 호출 때 그 범위의 훅 목록을 현재 설정에서 읽어 매칭되는 훅을 설정 순서로 하나씩 실행한다. 그래서 `hookDefs`를 고쳐도 다시 등록하지 않고(live), 작업 폴더·로컬 훅은 thread의 폴더 신뢰에 따라 그 호출에서 정해진다. 단위의 `tier`는 §4.7.6 표, `loadIndex`는 모든 확장 뒤(`1_000_000 +` 범위 순번)다. 단위 핸들러에는 바깥 시간 예산을 걸지 않고(`budgetMs`가 null) 훅마다 `timeoutMs`(없으면 `x.operations.budget.hookMs`)를 건다. 단위의 실패·성공 보고는 `ext:` 장부에 넣지 않고 실행기가 훅 id 단위로 직접 넣는다.
+- 지점별 결과 [제안: 2026-11-04 hookrun 기본값]: first 훅은 첫 결정·거부·실패에서 멈춘다. 실패는 그 지점의 `FIRST_DENY`로 거부한다. `thread.compact.before`는 fail-open 지점이라 거부값이 없어 실패와 exit 2가 모두 결정 없음이다. chain 훅은 한 범위 안에서 첫 패치에서 멈추고 뒤 훅은 그 호출에서 실행하지 않는다(패치 병합을 훅 프로세스 사이에서 하지 않는다). 결정·패치는 `HOOKS[point].result` 스키마로 다시 검사하고 틀리면 `hook_output` 실패다.
+- 안전 모드와 시작 [제안]: 안전 모드(§4.6.2)면 외부 훅 단위 넷을 싣지 않는다. `fresnel.process` 포트가 없으면 훅은 실행하지 않는다. 설정 `x.operations.hookDisabled`의 id는 매 호출에서 건너뛴다.
 - 재생: 훅도 on 핸들러이므로 "다시 실행해도 되는 질의" 계약을 따른다(`F.extensions.spec` §4.3). 크래시 뒤 같은 페이로드로 다시 실행될 수 있다. 사용자 문서에 적는다.
 
 #### 4.7.5 환경 변수 정리
@@ -1506,9 +1508,9 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.trace.storeRequestBody` | boolean | false | | live | managed, user | plugins | 1차 |
 | `x.operations.hookOrder` | `Record<훅 이름, registrationId[]>` | {} | | nextTurn | managed, user | plugins | 1차 |
 | `x.operations.hookDisabled` | string[] (꺼진 외부 훅 id) | [] | | live | managed, user | plugins | 1차 |
-| `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 2차 |
-| `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
-| `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins(widget `list`) | 2차 |
+| `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 1차 |
+| `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins | 1차 |
+| `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins | 1차 |
 
 - 예산과 자동 끄기 키는 `project` 범위를 받지 않는다 [제안]. 저장소에 든 설정이 예산을 늘려 루프를 오래 붙잡거나 자동 끄기를 꺼서 실패 확장을 남기지 못하게 한다.
 - `ui` 항목의 `label`과 `order`는 `L4.settings-ui.spec`이 정한다. 위젯은 boolean → `toggle`, integer·number → `number`다. 예산 키 단위는 `ms`다.

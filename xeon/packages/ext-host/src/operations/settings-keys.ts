@@ -7,6 +7,7 @@ import { Type } from "typebox";
 import { DEFAULT_AUTO_DISABLE, type AutoDisablePolicy } from "./auto-disable.ts";
 import { DEFAULT_BUDGETS_MS, type BudgetTable } from "./budget.ts";
 import { DEFAULT_TRACE_SETTINGS, type TraceSettings } from "./trace-buffer.ts";
+import { HookDefListSchema } from "./hooks/config.ts";
 import type { HookOrderMap } from "./hook-order.ts";
 
 const BUDGET_SCOPES = ["managed", "user", "local", "launch"] as const;
@@ -87,6 +88,9 @@ export const operationsSettings: SettingGroup<
     readonly "trace.storeRequestBody": SettingDefInput;
     readonly hookOrder: SettingDefInput;
     readonly hookDisabled: SettingDefInput;
+    readonly "budget.hookMs": SettingDefInput;
+    readonly hookDefs: SettingDefInput;
+    readonly hookEnvAllow: SettingDefInput;
   }
 > = defineSettings("x.operations", {
   "budget.firstMs": budgetKey(
@@ -267,6 +271,43 @@ export const operationsSettings: SettingGroup<
       order: 610,
       label: "Turned-off external hooks",
       help: "Ids of external hooks that were turned off, by you or after repeated failures. They stay off after a restart until you turn them back on.",
+    },
+    since: "0.1.0",
+  },
+  "budget.hookMs": budgetKey(
+    "external hook time budget",
+    DEFAULT_BUDGETS_MS.hook,
+    100,
+    600_000,
+    620,
+    true,
+    BUDGET_SCOPES,
+  ),
+  hookDefs: {
+    type: HookDefListSchema,
+    default: [],
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user", "project", "local"],
+    ui: {
+      tab: "plugins",
+      widget: "table",
+      order: 630,
+      label: "External hooks",
+      help: "Each row runs a command on this computer when its hook fires. The command receives the event as JSON on stdin and runs with your user permissions. Only add commands you trust. Hooks written in a work folder run only after that folder is trusted.",
+    },
+    since: "0.1.0",
+  },
+  hookEnvAllow: {
+    type: Type.Array(Type.String()),
+    default: [],
+    runtimeChange: "live",
+    allowedScopes: HOOK_ORDER_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "list",
+      order: 640,
+      label: "Environment variables external hooks may receive",
+      help: "A hook can receive a variable only if its definition asks for it and it is listed here. Names containing KEY, TOKEN, SECRET, PASSWORD, CREDENTIAL or AUTH are never passed.",
     },
     since: "0.1.0",
   },
