@@ -5,6 +5,29 @@ import {
   blockRowsOf,
   choiceOf,
   compositionOf,
+  compositionWithPhases,
+  coreLockedOf,
+  devkitSummaryOf,
+  driverChoicesOf,
+  flowDraftOf,
+  graphPlacementsOf,
+  graphSizeOf,
+  newGroupDraftOf,
+  newGroupNameErrorOf,
+  newGroupProblemOf,
+  nextNodeIdOf,
+  outlineOf,
+  runStatesOf,
+  scaffoldInputOf,
+  startPointsOf,
+  targetDirOf,
+  withDriver,
+  withInitial,
+  withNode,
+  withNodeText,
+  withTransition,
+  withoutNode,
+  withoutTransition,
   issueSummaryOf,
   issuesByBlockOf,
   phaseRowsOf,
@@ -185,5 +208,210 @@ describe("프로필 편집", () => {
     expect(profileDraftProblemOf({ ...fresh, id: "quiet", title: "조용히" })).toBeNull();
     expect(profileDraftProblemOf({ ...profileDraftOf(PROFILE), title: " " })).toBe("title");
     expect(profileDraftProblemOf(profileDraftOf(PROFILE))).toBeNull();
+  });
+});
+
+const FLOW = {
+  initial: "a",
+  nodes: [
+    { id: "a", kind: "phase" as const, title: "시작" },
+    { id: "b", kind: "human" as const },
+    { id: "c", kind: "end" as const },
+  ],
+  transitions: [
+    { from: "a", to: "b", event: "ask" },
+    { from: "b", to: "c" },
+  ],
+};
+
+describe("새 그룹 초안", () => {
+  const draft = { name: "lens-review", kind: "plugin-group" as const, parentDir: "/work/code/" };
+
+  test("이름 규칙: 빈 값은 오류 없음, 대문자와 한 글자는 pattern", () => {
+    expect(newGroupNameErrorOf("")).toBeNull();
+    expect(newGroupNameErrorOf("lens-review")).toBeNull();
+    expect(newGroupNameErrorOf("Lens")).toBe("pattern");
+    expect(newGroupNameErrorOf("a")).toBe("pattern");
+    expect(newGroupNameErrorOf("1abc")).toBe("pattern");
+  });
+
+  test("막는 까닭은 이름, 종류, 폴더 순이다", () => {
+    expect(newGroupProblemOf(newGroupDraftOf())).toBe("name");
+    expect(newGroupProblemOf({ ...draft, kind: null })).toBe("kind");
+    expect(newGroupProblemOf({ ...draft, parentDir: " " })).toBe("dir");
+    expect(newGroupProblemOf(draft)).toBeNull();
+  });
+
+  test("대상 폴더는 구분자를 하나만 둔다", () => {
+    expect(targetDirOf(draft)).toBe("/work/code/lens-review");
+    expect(targetDirOf({ ...draft, parentDir: "" })).toBe("");
+  });
+
+  test("scaffold 입력: 그룹 종류는 빈 group 선언을 싣고 단일 플러그인은 싣지 않는다", () => {
+    expect(scaffoldInputOf(draft)).toEqual({
+      kind: "plugin-group",
+      name: "lens-review",
+      dir: "/work/code/lens-review",
+      group: {},
+    });
+    expect(scaffoldInputOf({ ...draft, kind: "single-plugin" })).toEqual({
+      kind: "single-plugin",
+      name: "lens-review",
+      dir: "/work/code/lens-review",
+    });
+    expect(scaffoldInputOf({ ...draft, name: "X" })).toBeNull();
+  });
+
+  test("시작점은 stable과 preview만 고를 수 있다", () => {
+    const base = {
+      layers: [],
+      since: "1",
+      requires: { contracts: "1" },
+      checks: [],
+      decisions: [],
+      security: [],
+    };
+    const rows = startPointsOf([
+      { ...base, id: "plugin-group", title: "그룹", status: "stable" },
+      { ...base, id: "single-plugin", title: "플러그인", status: "blocked" },
+    ]);
+    expect(rows.map((row) => [row.id, row.selectable])).toEqual([
+      ["plugin-group", true],
+      ["single-plugin", false],
+    ]);
+  });
+
+  test("검사 개수는 info를 세지 않는다", () => {
+    expect(
+      devkitSummaryOf([
+        { severity: "error", code: "a", path: "", message: "" },
+        { severity: "warning", code: "b", path: "", message: "" },
+        { severity: "info", code: "c", path: "", message: "" },
+      ]),
+    ).toEqual({ errors: 1, warnings: 1 });
+  });
+});
+
+describe("흐름 초안 편집", () => {
+  test("선언이 없으면 초안도 없다", () => {
+    expect(flowDraftOf(COMPOSITION)).toEqual(COMPOSITION.phases ?? null);
+    expect(flowDraftOf({ blocks: [] })).toBeNull();
+  });
+
+  test("노드 id는 겹치지 않는다", () => {
+    expect(nextNodeIdOf(FLOW, "turn")).toBe("turn-1");
+    const next = withNode(FLOW, "turn");
+    expect(next.nodes.at(-1)).toEqual({ id: "turn-1", kind: "turn" });
+    expect(nextNodeIdOf(next, "turn")).toBe("turn-2");
+  });
+
+  test("노드를 지우면 전이도 지우고, 시작 노드를 지우면 첫 노드가 시작이 된다", () => {
+    const next = withoutNode(FLOW, "a");
+    expect(next.initial).toBe("b");
+    expect(next.nodes.map((node) => node.id)).toEqual(["b", "c"]);
+    expect(next.transitions).toEqual([{ from: "b", to: "c" }]);
+  });
+
+  test("마지막 노드는 지우지 않는다", () => {
+    const one = { initial: "a", nodes: [{ id: "a", kind: "end" as const }], transitions: [] };
+    expect(withoutNode(one, "a")).toBe(one);
+  });
+
+  test("시작 노드는 있는 노드로만 바꾼다", () => {
+    expect(withInitial(FLOW, "c").initial).toBe("c");
+    expect(withInitial(FLOW, "zz")).toBe(FLOW);
+  });
+
+  test("제목은 비우면 사라지고 askTitle은 사람 확인 노드에만 남는다", () => {
+    const a = withNodeText(FLOW, "a", { title: "  " });
+    expect(a.nodes[0]).toEqual({ id: "a", kind: "phase" });
+    const b = withNodeText(FLOW, "b", { askTitle: " 적용할까요? " });
+    expect(b.nodes[1]).toEqual({ id: "b", kind: "human", askTitle: "적용할까요?" });
+    const notHuman = withNodeText(FLOW, "a", { askTitle: "x" });
+    expect(notHuman.nodes[0]).toEqual({ id: "a", kind: "phase", title: "시작" });
+  });
+
+  test("전이: 자기 자신, 없는 노드, 중복은 그대로", () => {
+    expect(withTransition(FLOW, "a", "a")).toBe(FLOW);
+    expect(withTransition(FLOW, "a", "zz")).toBe(FLOW);
+    expect(withTransition(FLOW, "a", "b")).toBe(FLOW);
+    expect(withTransition(FLOW, "a", "c").transitions.at(-1)).toEqual({ from: "a", to: "c" });
+    expect(withoutTransition(FLOW, "a", "b").transitions).toEqual([{ from: "b", to: "c" }]);
+  });
+
+  test("초안을 구성에 되돌린다", () => {
+    expect(compositionWithPhases(COMPOSITION, FLOW).phases).toBe(FLOW);
+    expect(compositionWithPhases(COMPOSITION, FLOW).blocks).toBe(COMPOSITION.blocks);
+  });
+});
+
+describe("캔버스 자리와 개요", () => {
+  test("깊이는 열, 같은 열의 순서는 행이다. 닿지 않는 노드는 오른쪽 끝 뒤", () => {
+    const flow = {
+      ...FLOW,
+      nodes: [...FLOW.nodes, { id: "d", kind: "turn" as const }, { id: "e", kind: "end" as const }],
+      transitions: [...FLOW.transitions, { from: "a", to: "d" }],
+    };
+    expect(graphPlacementsOf(flow)).toEqual([
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 232, y: 0 },
+      { id: "c", x: 464, y: 0 },
+      { id: "d", x: 232, y: 96 },
+      { id: "e", x: 696, y: 0 },
+    ]);
+  });
+
+  test("캔버스 크기는 가장 먼 노드를 감싼다", () => {
+    expect(graphSizeOf(graphPlacementsOf(FLOW))).toEqual({ width: 464 + 168 + 32, height: 112 });
+  });
+
+  test("개요: 노드 다음에 나가는 전이가 들여 쓰인다", () => {
+    expect(outlineOf(FLOW).map((row) => [row.id, row.depth, row.label, row.target])).toEqual([
+      ["node:a", 0, "시작", null],
+      ["edge:a>b", 1, "ask", "b"],
+      ["node:b", 0, "b", null],
+      ["edge:b>c", 1, "c", "c"],
+      ["node:c", 0, "c", null],
+    ]);
+  });
+
+  test("지금 단계: 앞 열은 done, 뒤 열은 idle, 모르면 모두 idle", () => {
+    expect([...runStatesOf(FLOW, "b")]).toEqual([
+      ["a", "done"],
+      ["b", "active"],
+      ["c", "idle"],
+    ]);
+    expect([...runStatesOf(FLOW, null).values()]).toEqual(["idle", "idle", "idle"]);
+    expect([...runStatesOf(FLOW, "nope").values()]).toEqual(["idle", "idle", "idle"]);
+  });
+});
+
+describe("프로필의 drive 그룹과 코어 잠금", () => {
+  test("빈 값은 자동(null)", () => {
+    const draft = profileDraftOf(null);
+    expect(withDriver(draft, "helm").driver).toBe("helm");
+    expect(withDriver({ ...draft, driver: "helm" }, "  ").driver).toBeNull();
+    expect(withDriver(draft, null).driver).toBeNull();
+  });
+
+  test("저장 입력에 driver가 실린다", () => {
+    const draft = withDriver({ ...profileDraftOf(null), id: "p1", title: "t" }, "helm");
+    expect(profileInputOf(draft).driver).toBe("helm");
+  });
+
+  test("코어 잠금은 core tier나 내장이다", () => {
+    expect(coreLockedOf({ tier: "core" })).toBe(true);
+    expect(coreLockedOf({ tier: null, origin: "builtin" })).toBe(true);
+    expect(coreLockedOf({ tier: null, origin: "user" })).toBe(false);
+  });
+
+  test("drive 후보는 그룹만, 이름 순", () => {
+    expect(
+      driverChoicesOf([
+        { name: "z", isGroup: true },
+        { name: "p", isGroup: false },
+        { name: "a", isGroup: true },
+      ]),
+    ).toEqual(["a", "z"]);
   });
 });
