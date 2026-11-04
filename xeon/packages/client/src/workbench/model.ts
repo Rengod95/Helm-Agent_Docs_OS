@@ -392,22 +392,28 @@ export function toggleRequestOf(
   return { ok: true, request: { key: `ext.${name}.enabled`, value: target, scope: "user" } };
 }
 
-// ───────── 계속 꺼 둘까요 질문(결정 2026-11-04 B5) ─────────
+// ───────── 끌까요 질문(결정 2026-11-04 사용자) ─────────
 
-/** 여러 번 시작하며 자동으로 꺼진 확장에 묻는 질문. 호스트가 `keepOffQuestion`을 실은 확장에만 있다 */
+/** 자동 끄기 기준을 넘어 사용자에게 묻는 질문. 호스트가 `keepOffQuestion`을 실은 확장에만 있다. 질문 동안 확장은 켜 둔 채다 */
 export interface KeepOffVM {
-  /** 자동으로 꺼진 시작 횟수 */
-  readonly disabledStarts: number;
-  /** 두 답 단추를 누를 수 있나. 연결이 살아 있고 확장이 잠기지 않았을 때만(다시 켜기와 설정 쓰기 모두 잠긴 확장을 거절한다) */
+  /** 넘은 기준: 연속 실패 또는 실패율 */
+  readonly rule: "consecutive" | "rate";
+  /** 질문 시점의 연속 실패 수 */
+  readonly consecutive: number;
+  /** 질문 시점의 창 안 실패 수 */
+  readonly windowFailures: number;
+  /** 두 답 단추를 누를 수 있나. 연결이 살아 있고 확장이 잠기지 않았을 때만(다시 켜기와 끄기 모두 잠긴 확장을 거절한다) */
   readonly answerable: boolean;
 }
 
-/** 확장의 "계속 꺼 둘까요?" 질문. 묻지 않는 확장은 null이다 */
+/** 확장의 "끌까요?" 질문. 묻지 않는 확장은 null이다 */
 export function keepOffOf(e: ExtListEntry, online: boolean): KeepOffVM | null {
   const question = e.keepOffQuestion;
   if (question === undefined) return null;
   return {
-    disabledStarts: question.disabledStarts,
+    rule: question.rule,
+    consecutive: question.consecutive,
+    windowFailures: question.windowFailures,
     answerable: online && lockOf(e) === null,
   };
 }

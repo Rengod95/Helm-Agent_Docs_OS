@@ -98,9 +98,14 @@ const ExtListPluginShape = closed({
  * `ext.list` 한 행(W-15, W-41). 행은 확장 하나이고 Registration은 `plugins` 아래에 있다.
  * `status`는 대표 Registration(루트 플러그인, 없으면 첫 플러그인)의 상태이고 `registration`은 `threadId`를 줬을 때 그 Registration의 대화 상태다
  */
-/** 반복 자동 끄기 질문. `disabledStarts`는 자동으로 꺼진 시작 횟수 */
+/**
+ * "끌까요" 질문. 핸들러 실패가 자동 끄기 기준을 넘었으나 사용자에게 묻는 동안 켜 둔다 [결정: 2026-11-04 사용자].
+ * `rule`은 넘은 기준(연속 실패 또는 실패율), `consecutive`는 질문 시점의 연속 실패 수, `windowFailures`는 창 안 실패 수
+ */
 export interface ExtKeepOffQuestion {
-  readonly disabledStarts: number;
+  readonly rule: "consecutive" | "rate";
+  readonly consecutive: number;
+  readonly windowFailures: number;
 }
 
 export interface ExtListEntry {
@@ -128,8 +133,8 @@ export interface ExtListEntry {
   readonly diagnostics: readonly ExtDiagnostic[];
   readonly autoDisabled: boolean;
   /**
-   * 여러 번의 시작에서 반복해 자동으로 꺼져 사용자에게 계속 꺼 둘지 묻는 중이면 있다(결정 2026-11-04 B5).
-   * 답은 "계속 켠다" = `ext.reenable`, "계속 끈다" = 설정 `ext.<이름>.enabled=false` 저장이다. 없으면 호스트가 아직 채우지 않거나 묻지 않는다
+   * 자동 끄기 기준을 넘어 사용자에게 "끌까요"를 묻는 중이면 있다(결정 2026-11-04 사용자). 켜 둔 채 답을 기다린다.
+   * 답은 "끄기" = `ext.disableConfirm`, "켜 두기" = `ext.reenable`이다. 없으면 호스트가 아직 채우지 않거나 묻지 않는다
    */
   readonly keepOffQuestion?: ExtKeepOffQuestion;
   /** 안전 모드에서 실리지 않은 이유. 실렸으면 null */
@@ -154,7 +159,13 @@ const ExtListEntryShape = closed({
   plugins: Type.Array(ExtListPluginShape, { minItems: 1, maxItems: 16 }),
   diagnostics: Type.Array(DiagnosticShape, { maxItems: 200 }),
   autoDisabled: Type.Boolean(),
-  keepOffQuestion: Type.Optional(closed({ disabledStarts: Count })),
+  keepOffQuestion: Type.Optional(
+    closed({
+      rule: Type.Union([Type.Literal("consecutive"), Type.Literal("rate")]),
+      consecutive: Count,
+      windowFailures: Count,
+    }),
+  ),
   safeModeExcluded: Type.Union([Line, Type.Null()]),
   hookCount: Count,
 });
@@ -232,7 +243,7 @@ export const ExtGetResultSchema: TUnsafe<ExtGetResult> = Type.Unsafe<ExtGetResul
   ExtGetResultShape2 satisfies SchemaProof<ExtGetResult, typeof ExtGetResultShape2>,
 );
 
-/** `ext.reenable`(W-21), `ext.reload`(W-38) 공통 result */
+/** `ext.reenable`(W-21), `ext.disableConfirm`, `ext.reload`(W-38) 공통 result */
 export interface ExtAppliedResult {
   readonly appliesAt: "nextStepBoundary" | "now";
   readonly diagnostics: readonly ExtDiagnostic[];

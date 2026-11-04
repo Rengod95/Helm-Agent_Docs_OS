@@ -138,7 +138,6 @@ export function operationsSource(settings: SettingsEngine): OperationsSettingsSo
     // 새 Turn이 처음 보일 때 읽는다(X.operations §4.8.3): 호출 때마다 현재 유효 값을 읽는다
     trace: () => ({
       enabled: boolOr(settings.value("x.operations.trace.enabled"), DEFAULT_TRACE_SETTINGS.enabled),
-      turnsPerThread: int("trace.turnsPerThread", DEFAULT_TRACE_SETTINGS.turnsPerThread),
     }),
     // 훅별 순서 덮어쓰기(X.operations §4.1.5). 손상된 값은 `hookOrderOf`가 버리고 디스패치를 막지 않는다
     hookOrder: () => hookOrderOf(settings.value("x.operations.hookOrder")),

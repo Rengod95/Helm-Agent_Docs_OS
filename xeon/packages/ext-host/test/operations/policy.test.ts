@@ -17,7 +17,7 @@ test("settings: x.operations keys pass catalog", () => {
   const defs = Object.values(operationsSettings.defs);
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.operations", defs }]);
   expect(catalog.ok).toBe(true);
-  expect(defs).toHaveLength(19);
+  expect(defs).toHaveLength(18);
   // 훅 순서는 저장소 설정이 바꾸지 못한다(managed·user만)
   expect(operationsSettings.defs.hookOrder).toMatchObject({
     key: "x.operations.hookOrder",

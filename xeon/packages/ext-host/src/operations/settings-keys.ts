@@ -83,7 +83,6 @@ export const operationsSettings: SettingGroup<
     readonly "safeMode.default": SettingDefInput;
     readonly "safeMode.suggestAfter": SettingDefInput;
     readonly "trace.enabled": SettingDefInput;
-    readonly "trace.turnsPerThread": SettingDefInput;
     readonly "trace.retentionDays": SettingDefInput;
     readonly "trace.storeRequestBody": SettingDefInput;
     readonly hookOrder: SettingDefInput;
@@ -209,20 +208,6 @@ export const operationsSettings: SettingGroup<
     runtimeChange: "nextTurn",
     allowedScopes: TRACE_SCOPES,
     ui: { tab: "plugins", widget: "toggle", order: 500, label: "Enable handler tracing" },
-    since: "0.1.0",
-  },
-  "trace.turnsPerThread": {
-    type: Type.Integer(),
-    default: DEFAULT_TRACE_SETTINGS.turnsPerThread,
-    range: { min: 1, max: 200 },
-    runtimeChange: "nextTurn",
-    allowedScopes: TRACE_SCOPES,
-    ui: {
-      tab: "plugins",
-      widget: "number",
-      order: 510,
-      label: "Turns kept for tracing (per thread)",
-    },
     since: "0.1.0",
   },
   // 측정 저장소(T-MEAS-STORE)가 읽는다. 원본 보관 기본 30일, 요청 본문 저장 기본 끔 [결정: 2026-11-03 사용자]. 키 이름은 [제안]

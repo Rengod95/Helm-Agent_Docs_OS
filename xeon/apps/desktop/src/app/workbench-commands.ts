@@ -1,10 +1,12 @@
 import { extSettingPrefixes, profileApplyRequestOf } from "@fresnel/client/workbench";
-import { err, ok, type Result } from "@fresnel/contracts";
+import { err, ok, parse, type Result } from "@fresnel/contracts";
+import { ScopeHandlerFailedPayloadSchema } from "@fresnel/contracts/records";
 import type { SettingDefWire } from "@fresnel/contracts/settings";
 import type {
   EventsBatchParams,
   HostConnection,
   SettingsInvalidatedParams,
+  StreamChunkParams,
 } from "@fresnel/contracts/wire";
 import type { CommandError, WorkbenchCommands } from "../views/commands.ts";
 
@@ -24,6 +26,16 @@ export function hasScopeChange(params: Pick<EventsBatchParams, "events">): boole
   return params.events.some((event) => event.kind === "scope.changed");
 }
 
+/**
+ * 휘발 조각이 새 "끌까요" 질문을 알리나(`scope.handler_failed`의 `asksDisable`). 질문은 켜 둔 채라 내구 `scope.changed`가 없으므로
+ * 이 조각이 목록을 다시 읽을 유일한 신호다
+ */
+export function asksDisable(params: Pick<StreamChunkParams, "event">): boolean {
+  if (params.event.kind !== "scope.handler_failed") return false;
+  const payload = parse(ScopeHandlerFailedPayloadSchema, params.event.payload);
+  return payload.ok && payload.value.asksDisable === true;
+}
+
 /** 목록을 다시 읽을 알림마다 `listener`를 부른다. 반환값은 구독 해제 */
 export function subscribeExtChanges(
   connection: Pick<HostConnection, "onNotification">,
@@ -35,9 +47,13 @@ export function subscribeExtChanges(
   const offEvents = connection.onNotification("events.batch", (params) => {
     if (hasScopeChange(params)) listener();
   });
+  const offChunks = connection.onNotification("stream.chunk", (params) => {
+    if (asksDisable(params)) listener();
+  });
   return () => {
     offSettings();
     offEvents();
+    offChunks();
   };
 }
 
@@ -75,14 +91,23 @@ export function createWorkbenchCommands(
       );
       return done.ok ? ok(null) : err(done.error);
     },
+    // "다시 켜기"와 "켜 두기" 답. 켜짐을 설정에 먼저 써야 다음 시작에도 켜진 채다(끄기의 짝). 쓰기가 실패하면 켜기를 요청하지 않는다
     async reenable(name) {
+      const saved = await withConnection((c) =>
+        c.request("settings.set", { key: `ext.${name}.enabled`, value: true, scope: "user" }),
+      );
+      if (!saved.ok) return err(saved.error);
       const done = await withConnection((c) => c.request("ext.reenable", { name }));
       return done.ok ? ok(null) : err(done.error);
     },
+    // "끄기" 답. 먼저 설정에 꺼짐을 써서 다음 시작에도 꺼진 채로 두고, 그다음 호스트가 auto_disable로 끈다(`ext.disableConfirm`).
+    // 쓰기가 실패하면 끄기를 요청하지 않는다
     async keepOff(name) {
-      const done = await withConnection((c) =>
+      const saved = await withConnection((c) =>
         c.request("settings.set", { key: `ext.${name}.enabled`, value: false, scope: "user" }),
       );
+      if (!saved.ok) return err(saved.error);
+      const done = await withConnection((c) => c.request("ext.disableConfirm", { name }));
       return done.ok ? ok(null) : err(done.error);
     },
     async toggleForThread(request) {

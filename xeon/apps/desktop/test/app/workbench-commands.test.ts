@@ -11,11 +11,13 @@ import {
   type HooksOrderPreviewResult,
   type HooksOrderResetResult,
   type HooksOrderSetResult,
+  type VolatileEventWire,
   type Profile,
   type ProfileApplyResult,
   type ProfileListResult,
 } from "@fresnel/contracts/wire";
 import {
+  asksDisable,
   hasScopeChange,
   isExtSettingsChange,
   subscribeExtChanges,
@@ -42,6 +44,24 @@ const paramsOf = (
   method: string,
 ): unknown[] => calls.filter((call) => call.method === method).map((call) => call.params);
 
+/** 보낸 메서드 이름 가운데 `names`에 든 것만 보낸 순서대로 모은다(두 호출의 순서를 본다) */
+const orderOf = (methods: readonly string[], ...names: readonly string[]): string[] =>
+  methods.filter((method) => names.includes(method));
+
+/** `settings.set`이 돌려주는 저장 결과. 답 명령은 이 결과를 받아야 다음 호출로 넘어간다 */
+const SETTING_WRITTEN = {
+  setting: {
+    key: "ext.review.enabled",
+    value: false,
+    source: { scope: "user" },
+    locked: false,
+    shadowed: [],
+    runtimeChange: "live",
+    pendingUntil: null,
+    deprecated: false,
+  },
+};
+
 const HEALTH: ExtHealthEntry = {
   name: "web",
   registrationId: "web",
@@ -51,6 +71,33 @@ const HEALTH: ExtHealthEntry = {
   autoDisabled: false,
   lastFailureAt: "2026-11-04T10:00:00Z",
   lastError: "timeout",
+};
+
+/** 휘발 scope.handler_failed 조각. 열린 대화마다 온다 */
+function failedChunk(payload: unknown): { readonly event: VolatileEventWire } {
+  return {
+    event: {
+      id: evt(1),
+      kind: "scope.handler_failed",
+      version: 1,
+      durable: false,
+      threadId: thr(1),
+      turnId: null,
+      stepId: null,
+      recordedAt: "2026-11-04T00:00:00.000Z",
+      causationId: null,
+      correlationId: "c",
+      n: 0,
+      afterSeq: 3,
+      payload,
+    },
+  };
+}
+const failurePayload = {
+  owner: "ext:review",
+  point: "tool.result",
+  result: "threw",
+  message: "boom",
 };
 
 describe("크래프트 명령의 wire 호출", () => {
@@ -168,53 +215,88 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("계속 켜 둘게요는 ext.reenable을 name만 담아 보내고 값 null을 돌려준다", async () => {
+  test("켜 두기와 다시 켜기 답은 설정에 켜짐을 쓰고 그다음 ext.reenable을 name만 담아 보내며 값 null을 돌려준다", async () => {
     const applied = { appliesAt: "nextStepBoundary", diagnostics: [] };
-    const { app, params } = await liveApp({ results: { "ext.reenable": applied } });
+    const { app, params, methods } = await liveApp({
+      results: { "settings.set": SETTING_WRITTEN, "ext.reenable": applied },
+    });
     expect(await app.commands.workbench.reenable("review")).toEqual({ ok: true, value: null });
-    expect(paramsOf(params, "ext.reenable")).toEqual([{ name: "review" }]);
-    await app.stop();
-  });
-
-  test("계속 꺼 둘게요는 settings.set으로 ext.<이름>.enabled를 false, 사용자 범위에 쓰고 값 null을 돌려준다", async () => {
-    const saved = {
-      setting: {
-        key: "ext.review.enabled",
-        value: false,
-        source: { scope: "user" },
-        locked: false,
-        shadowed: [],
-        runtimeChange: "live",
-        pendingUntil: null,
-        deprecated: false,
-      },
-    };
-    const { app, params } = await liveApp({ results: { "settings.set": saved } });
-    expect(await app.commands.workbench.keepOff("review")).toEqual({ ok: true, value: null });
     expect(paramsOf(params, "settings.set")).toEqual([
-      { key: "ext.review.enabled", value: false, scope: "user" },
+      { key: "ext.review.enabled", value: true, scope: "user" },
+    ]);
+    expect(paramsOf(params, "ext.reenable")).toEqual([{ name: "review" }]);
+    expect(orderOf(methods, "settings.set", "ext.reenable")).toEqual([
+      "settings.set",
+      "ext.reenable",
     ]);
     await app.stop();
   });
 
-  test("계속 꺼 둘게요가 잠긴 설정으로 거절되면 코드를 담은 오류 값이다", async () => {
-    const { app } = await liveApp({
+  test("다시 켜기의 설정 쓰기가 거절되면 ext.reenable을 보내지 않고 코드를 담은 오류 값이다", async () => {
+    const { app, params } = await liveApp({
       errors: {
-        "settings.set": {
-          code: WIRE_ERRORS["settings.locked"].code,
-          kind: "settings.locked",
-        },
+        "settings.set": { code: WIRE_ERRORS["settings.locked"].code, kind: "settings.locked" },
+      },
+    });
+    expect(await app.commands.workbench.reenable("review")).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: WIRE_ERRORS["settings.locked"].code },
+    });
+    expect(paramsOf(params, "ext.reenable")).toEqual([]);
+    await app.stop();
+  });
+
+  test("끄기 답은 설정에 끄기를 user 범위로 쓴 뒤 ext.disableConfirm을 name만 담아 보내고 값 null을 돌려준다", async () => {
+    const applied = { appliesAt: "nextStepBoundary", diagnostics: [] };
+    const { app, params, methods } = await liveApp({
+      results: { "settings.set": SETTING_WRITTEN, "ext.disableConfirm": applied },
+    });
+    expect(await app.commands.workbench.keepOff("review")).toEqual({ ok: true, value: null });
+    expect(paramsOf(params, "settings.set")).toEqual([
+      { key: "ext.review.enabled", value: false, scope: "user" },
+    ]);
+    expect(paramsOf(params, "ext.disableConfirm")).toEqual([{ name: "review" }]);
+    expect(orderOf(methods, "settings.set", "ext.disableConfirm")).toEqual([
+      "settings.set",
+      "ext.disableConfirm",
+    ]);
+    await app.stop();
+  });
+
+  test("끄기 답의 설정 쓰기가 관리 위치 잠금으로 거절되면 ext.disableConfirm을 보내지 않고 코드를 담은 오류 값이다", async () => {
+    const { app, params } = await liveApp({
+      errors: {
+        "settings.set": { code: WIRE_ERRORS["settings.locked"].code, kind: "settings.locked" },
       },
     });
     expect(await app.commands.workbench.keepOff("review")).toEqual({
       ok: false,
       error: { kind: "rejected", code: WIRE_ERRORS["settings.locked"].code },
     });
+    expect(paramsOf(params, "ext.disableConfirm")).toEqual([]);
     await app.stop();
   });
 
-  test("계속 켜 둘게요가 안전 모드로 거절되면 코드를 담은 오류 값이다", async () => {
+  test("설정에는 꺼졌는데 ext.disableConfirm이 거절되면 그 코드를 담은 오류 값이다", async () => {
     const { app } = await liveApp({
+      results: { "settings.set": SETTING_WRITTEN },
+      errors: {
+        "ext.disableConfirm": {
+          code: WIRE_ERRORS["extension.safeModeActive"].code,
+          kind: "extension.safeModeActive",
+        },
+      },
+    });
+    expect(await app.commands.workbench.keepOff("review")).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: WIRE_ERRORS["extension.safeModeActive"].code },
+    });
+    await app.stop();
+  });
+
+  test("켜 두기 답이 안전 모드로 거절되면 코드를 담은 오류 값이다", async () => {
+    const { app } = await liveApp({
+      results: { "settings.set": SETTING_WRITTEN },
       errors: {
         "ext.reenable": {
           code: WIRE_ERRORS["extension.safeModeActive"].code,
@@ -407,6 +489,33 @@ describe("확장 목록을 다시 읽을 알림", () => {
     expect(hasScopeChange({ events: [durable("scope.changed", 6)] })).toBe(true);
     expect(hasScopeChange({ events: [durable("turn.started", 6)] })).toBe(false);
     expect(hasScopeChange({ events: [] })).toBe(false);
+  });
+
+  test("새 끌까요 질문을 알리는 조각(asksDisable)에서만 목록을 다시 읽는다", () => {
+    expect(asksDisable(failedChunk({ ...failurePayload, consecutive: 5, asksDisable: true }))).toBe(
+      true,
+    );
+    expect(asksDisable(failedChunk({ ...failurePayload, consecutive: 4 }))).toBe(false);
+    expect(
+      asksDisable(failedChunk({ ...failurePayload, consecutive: 5, asksDisable: false })),
+    ).toBe(false);
+    expect(asksDisable(failedChunk({ owner: "ext:review" }))).toBe(false);
+    const fake = fakeConnection({});
+    let woke = 0;
+    const stop = subscribeExtChanges(fake.connection, () => void (woke += 1));
+    fake.emit("stream.chunk", failedChunk({ ...failurePayload, consecutive: 4 }));
+    expect(woke).toBe(0);
+    fake.emit(
+      "stream.chunk",
+      failedChunk({ ...failurePayload, consecutive: 5, asksDisable: true }),
+    );
+    expect(woke).toBe(1);
+    stop();
+    fake.emit(
+      "stream.chunk",
+      failedChunk({ ...failurePayload, consecutive: 5, asksDisable: true }),
+    );
+    expect(woke).toBe(1);
   });
 
   test("구독은 맞는 알림마다 한 번 부르고, 구독을 풀면 더 부르지 않는다", () => {

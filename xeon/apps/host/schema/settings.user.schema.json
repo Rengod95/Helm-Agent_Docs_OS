@@ -7148,29 +7148,6 @@
         }
       }
     },
-    "x.operations.trace.turnsPerThread": {
-      "default": 20,
-      "maximum": 200,
-      "minimum": 1,
-      "type": "integer",
-      "x-fresnel": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "X",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "Turns kept for tracing (per thread)",
-          "labelKey": "settings.x.operations.trace.turnsPerThread.label",
-          "order": 510,
-          "tab": "plugins",
-          "widget": "number"
-        }
-      }
-    },
     "x.primitives.activeDriver": {
       "anyOf": [
         {

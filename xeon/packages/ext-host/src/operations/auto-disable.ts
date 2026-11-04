@@ -24,6 +24,19 @@ export const DEFAULT_AUTO_DISABLE: AutoDisablePolicy = {
   failureRate: 0.5,
 };
 
+/**
+ * 끌까요 질문. 기준을 넘은 주체에 사용자의 답을 받을 때까지 켜 둔 채 묻는다
+ * [결정: 2026-11-04 사용자, 연속 5회와 끄기 전 질문] 같은 주체에 겹쳐 내지 않는다 [제안]
+ */
+interface DisableQuestion {
+  readonly key: HandlerOwnerKey;
+  readonly rule: "consecutive" | "rate";
+  /** 질문을 낸 시점의 연속 실패 수 */
+  readonly consecutive: number;
+  /** 질문을 낸 시점의 창 안 실패 수 */
+  readonly windowFailures: number;
+}
+
 /** 자동 끄기 대상에서 빼는 tier. essential 확장도 뺀다(X.loading-trust.spec §4.3.2) */
 const AUTO_DISABLE_EXEMPT_TIERS: ReadonlySet<Tier> = new Set<Tier>(["guard", "core"]);
 
@@ -89,7 +102,13 @@ export function createRegistrationControl(source: RegistrationToggleSource): Reg
 
 /** 사용자 알림 포트. 구현은 휘발 이벤트 발신이다(X.operations.spec §4.3.4) */
 export interface OperationsNotifier {
-  handlerFailed(outcome: HandlerOutcomeRecord, stats: FailureStats): void;
+  /** `asksDisable`이 참이면 이 실패가 "끌까요" 질문을 새로 낸 실패다(휘발 이벤트에 실린다) */
+  handlerFailed(outcome: HandlerOutcomeRecord, stats: FailureStats, asksDisable?: boolean): void;
+  /** 기준을 넘었으나 답할 화면이 없어 끄지 않았다. 로그만 남는다 [제안] */
+  disableUnasked(
+    key: HandlerOwnerKey,
+    verdict: Extract<AutoDisableVerdict, { readonly disable: true }>,
+  ): void;
   autoDisabled(
     key: HandlerOwnerKey,
     verdict: Extract<AutoDisableVerdict, { readonly disable: true }>,
@@ -113,6 +132,9 @@ export function createLogNotifier(log: (line: string) => void): OperationsNotifi
       log(
         `handler failed: ${ownerKey(outcome.owner)} ${point} ${outcome.result} (consecutive ${stats.consecutive})`,
       );
+    },
+    disableUnasked(key, verdict) {
+      log(`auto-disable not applied: ${key} by ${verdict.rule} (no screen to ask)`);
     },
     autoDisabled(key, verdict) {
       log(`auto-disabled: ${key} by ${verdict.rule}`);
@@ -151,7 +173,7 @@ function payloadMessageOf(outcome: HandlerOutcomeRecord): string {
 export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNotifier {
   const logOnly = createLogNotifier(deps.log);
   return {
-    handlerFailed(outcome, stats) {
+    handlerFailed(outcome, stats, asksDisable) {
       logOnly.handlerFailed(outcome, stats);
       const payload: ScopeHandlerFailedPayload = {
         owner: ownerKey(outcome.owner),
@@ -159,6 +181,7 @@ export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNo
         result: outcome.result,
         message: payloadMessageOf(outcome).slice(0, HANDLER_FAILED_MESSAGE_MAX),
         consecutive: Math.max(1, stats.consecutive),
+        ...(asksDisable === true ? { asksDisable: true } : {}),
       };
       const sent = attempt(() => {
         deps.emit(payload);
@@ -168,6 +191,9 @@ export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNo
           `scope.handler_failed not emitted: ${payload.owner} ${payload.point} (${reasonOf(sent.error.cause)})`,
         );
       }
+    },
+    disableUnasked(key, verdict) {
+      logOnly.disableUnasked(key, verdict);
     },
     autoDisabled(key, verdict) {
       logOnly.autoDisabled(key, verdict);
@@ -181,8 +207,15 @@ export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNo
 export interface AutoDisabler {
   /** 장부에 기록하고 판정한다. 기준을 넘으면 RegistrationControl.requestDisable(…, "auto_disable")을 부른다 */
   onOutcome(outcome: HandlerOutcomeRecord): void;
-  /** 사용자가 다시 켤 때. 장부를 비우고 requestEnable을 부른다 */
+  /** 사용자가 다시 켤 때(또는 질문에 "켜 두기"). 장부와 질문을 비우고 requestEnable을 부른다 */
   reenable(key: HandlerOwnerKey): void;
+  /** 답을 기다리는 "끌까요" 질문 */
+  questions(): readonly DisableQuestion[];
+  /**
+   * 질문에 답한다. `disable`이 참이면 끄고(`scope.changed` reason auto_disable), 거짓이면 켜 둔 채 장부를 비운다(다시 기준에 닿으면 또 묻는다).
+   * 질문이 없으면 false다
+   */
+  answer(key: HandlerOwnerKey, disable: boolean): boolean;
   /**
    * 장부와 자동으로 꺼진 주체 표만 비운다. 켜기 요청은 부르지 않는다. 켜기를 다른 경로(`RegistrationHandle.enable()`)로 이미 하는
    * `/group on`과 설정 토글이 부른다. 이것을 빼먹으면 다시 켠 확장이 재시작 전까지 자동 끄기 대상이 되지 못한다
@@ -211,16 +244,19 @@ export interface AutoDisablerDeps {
    * 표에 없으면(undefined) tier 면제는 적용되지 않고 isExempt만 본다
    */
   readonly tierOf?: (key: HandlerOwnerKey) => Tier | undefined;
-  /** 자동 끄기를 요청한 직후 부른다(기준 판정으로 끈 경우와 `disableNow` 모두). 반복 끄기 원장이 쓴다 */
-  readonly onDisabled?: (key: HandlerOwnerKey) => void;
+  /** 답할 화면이 있나(연결된 클라이언트). 없거나 생략하면 기준을 넘어도 묻지도 끄지도 않고 로그만 남긴다 [제안] */
+  readonly canAsk?: () => boolean;
 }
 
 export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
   const disabled = new Set<HandlerOwnerKey>();
+  const asked = new Map<HandlerOwnerKey, DisableQuestion>();
+  /** 화면이 없어 끄지 못했다고 이미 로그에 남긴 주체. 실패마다 되풀이해 쓰지 않는다 */
+  const unasked = new Set<HandlerOwnerKey>();
 
   function applyDisable(key: HandlerOwnerKey): void {
     disabled.add(key);
-    deps.onDisabled?.(key);
+    asked.delete(key);
     if (key.startsWith("ext:")) {
       for (const scopeId of deps.scopes.scopesOf(key.slice("ext:".length))) {
         deps.scopes.requestDisable(scopeId, "auto_disable");
@@ -233,6 +269,7 @@ export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
   return {
     onOutcome(outcome) {
       const stats = deps.ledger.record(outcome);
+      if (outcome.result === "ok") unasked.delete(ownerKey(outcome.owner));
       if (
         outcome.result === "ok" ||
         outcome.result === "aborted" ||
@@ -240,19 +277,41 @@ export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
       ) {
         return;
       }
-      deps.notifier.handlerFailed(outcome, stats);
       const key = ownerKey(outcome.owner);
       // 이미 끄기를 요청했으면 두 번째 요청을 만들지 않는다
-      if (disabled.has(key)) return;
+      if (disabled.has(key)) {
+        deps.notifier.handlerFailed(outcome, stats);
+        return;
+      }
       const exempt = AUTO_DISABLE_EXEMPT_TIERS.has(outcome.tier) || deps.isExempt?.(key) === true;
       const verdict = judgeAutoDisable(stats, deps.policy(), exempt);
-      if (!verdict.disable) return;
-      applyDisable(key);
-      deps.notifier.autoDisabled(key, verdict);
+      if (!verdict.disable || asked.has(key)) {
+        deps.notifier.handlerFailed(outcome, stats);
+        return;
+      }
+      if (deps.canAsk?.() !== true) {
+        deps.notifier.handlerFailed(outcome, stats);
+        if (!unasked.has(key)) {
+          unasked.add(key);
+          deps.notifier.disableUnasked(key, verdict);
+        }
+        return;
+      }
+      // 끄지 않고 묻는다. 답이 올 때까지 켜 둔다
+      unasked.delete(key);
+      asked.set(key, {
+        key,
+        rule: verdict.rule,
+        consecutive: stats.consecutive,
+        windowFailures: stats.windowFailures,
+      });
+      deps.notifier.handlerFailed(outcome, stats, true);
     },
     reenable(key) {
       deps.ledger.reset(key);
       disabled.delete(key);
+      asked.delete(key);
+      unasked.delete(key);
       if (key.startsWith("ext:")) {
         for (const scopeId of deps.scopes.scopesOf(key.slice("ext:".length))) {
           deps.scopes.requestEnable(scopeId, "request");
@@ -264,6 +323,23 @@ export function createAutoDisabler(deps: AutoDisablerDeps): AutoDisabler {
     clearLedger(key) {
       deps.ledger.reset(key);
       disabled.delete(key);
+      asked.delete(key);
+      unasked.delete(key);
+    },
+    questions: () => [...asked.values()],
+    answer(key, disable) {
+      const question = asked.get(key);
+      if (question === undefined) return false;
+      asked.delete(key);
+      if (!disable) {
+        // 아니오: 켜 둔다. 카운터를 비워 다시 기준에 닿으면 또 묻는다
+        deps.ledger.reset(key);
+        return true;
+      }
+      applyDisable(key);
+      const stats = deps.ledger.stats(key);
+      deps.notifier.autoDisabled(key, { disable: true, rule: question.rule, stats });
+      return true;
     },
     disableNow(key, cause) {
       // 격리 재시작 한도 초과는 이전처럼 면제 없이 끈다. 면제와 알림은 투영기 실패에만 적용한다

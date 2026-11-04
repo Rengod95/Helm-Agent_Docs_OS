@@ -125,10 +125,12 @@ export interface ExtReadSources {
   managedLocked(name: string): boolean;
   health(name: string): ExtHealthStats;
   autoDisabled(name: string): boolean;
-  /** 반복 자동 끄기 질문(결정 2026-11-04 B5). 묻는 중이 아니면 null */
-  keepOffQuestion(name: string): { readonly disabledStarts: number } | null;
-  /** `AutoDisabler.reenable(ext:<이름>)`. 장부를 비우고 켜기를 요청한다 */
+  /** "끌까요" 질문(결정 2026-11-04 사용자). 묻는 중이 아니면 null */
+  keepOffQuestion(name: string): NonNullable<ExtListEntry["keepOffQuestion"]> | null;
+  /** `AutoDisabler.reenable(ext:<이름>)`. 장부와 질문을 비우고 켜기를 요청한다("켜 두기" 답) */
   reenable(name: string): void;
+  /** "끄기" 답. `AutoDisabler.answer(ext:<이름>, true)`가 auto_disable로 끈다 */
+  disableConfirm(name: string): void;
   /**
    * 로더 핫 리로드(X.loading-trust §4.4.4). 새 버전을 검사하고 단계 경계에서 바꾼다. 열린 thread가 실행 중이 아니면 이 호출이 돌아올 때 적용이 끝나 있다(`now`)
    * 실행 중인 turn이 있으면 그 step이 끝난 경계에 적용한다(`nextStepBoundary`). 검사 실패와 `now`일 때의 적용 실패는 진단으로 돌려준다
@@ -196,6 +198,7 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   autoDisabled: () => false,
   keepOffQuestion: () => null,
   reenable: () => {},
+  disableConfirm: () => {},
   reload: () => Promise.resolve({ appliesAt: "nextStepBoundary", diagnostics: [] }),
   groups: () => [],
   groupMetrics: () => Promise.resolve(undefined),
@@ -352,7 +355,7 @@ export function createExtReadPort(
 
   /** 묻는 중이면 `keepOffQuestion` 필드를 더한다. 아니면 필드를 싣지 않는다 */
   function keepOffOf(name: string): {
-    readonly keepOffQuestion?: { readonly disabledStarts: number };
+    readonly keepOffQuestion?: NonNullable<ExtListEntry["keepOffQuestion"]>;
   } {
     const question = sources.keepOffQuestion(name);
     return question === null ? {} : { keepOffQuestion: question };
@@ -556,6 +559,18 @@ export function createExtReadPort(
         return Promise.resolve(err({ kind: "managed_locked", name: params.name }));
       }
       sources.reenable(params.name);
+      return Promise.resolve(ok({ appliesAt: "nextStepBoundary", diagnostics: [] }));
+    },
+
+    disableConfirm(params) {
+      if (sources.safeMode().active) return Promise.resolve(err({ kind: "safe_mode_active" }));
+      if (findRecord(params.name) === undefined) {
+        return Promise.resolve(unknownExtension(params.name));
+      }
+      if (sources.managedLocked(params.name)) {
+        return Promise.resolve(err({ kind: "managed_locked", name: params.name }));
+      }
+      sources.disableConfirm(params.name);
       return Promise.resolve(ok({ appliesAt: "nextStepBoundary", diagnostics: [] }));
     },
 

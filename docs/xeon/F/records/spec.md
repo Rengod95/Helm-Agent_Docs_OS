@@ -285,7 +285,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `effect.result` | 예 | `EffectResultSchema` | 결과 상태, 구조화 출력, blob |
 | `checkpoint.step` | 예 | `StepCheckpointSchema` | 단계 체크포인트(§3.6) |
 | `scope.changed` | 예 | `ScopeChangedPayloadSchema` | Registration 켜기·끄기 적용 |
-| `scope.handler_failed` | 아니오 | `ScopeHandlerFailedPayloadSchema` | 확장 핸들러 실패 알림(`X.operations.spec` §4.3.4) |
+| `scope.handler_failed` | 아니오 | `ScopeHandlerFailedPayloadSchema` | 확장 핸들러 실패 알림. 선택 필드 `asksDisable`은 이 실패로 "끌까요" 질문이 새로 생겼음을 뜻한다(`X.operations.spec` §4.3.3·§4.3.4) [결정: 2026-11-04 사용자, 필드 모양은 제안] |
 | `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | 배타 drive 락 획득 |
 | `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 락 해제 |
 | `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 락 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 훅 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |

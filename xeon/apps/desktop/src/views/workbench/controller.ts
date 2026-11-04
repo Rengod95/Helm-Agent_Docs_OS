@@ -41,7 +41,7 @@ export interface WorkbenchController {
   reloadOrders(): Promise<void>;
   toggle(name: string, target: boolean): Promise<void>;
   reenable(name: string): Promise<void>;
-  /** "계속 꺼 둘게요" 답. 끄고 목록을 다시 읽는다. "계속 켜 둘게요"는 `reenable`이다 */
+  /** "끄기" 답(설정에 끄고 `ext.disableConfirm`). 실패하면 토스트를 띄우고, 성공하면 목록을 다시 읽는다. "켜 두기"는 `reenable`이다 */
   keepOff(name: string): Promise<void>;
   /** 프로필을 이 대화에 쓴다. 성공은 쓴 설정 수와 적용 시점을, 실패는 실패 갈래를 토스트로 알린다 */
   applyProfile(id: string, threadId: ThreadId): Promise<boolean>;

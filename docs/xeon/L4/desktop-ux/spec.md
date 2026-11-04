@@ -2118,7 +2118,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 훅 줄 끝의 `추가` [결정: 2026-11-03 사용자, 15-3] | 그 훅을 고른 채로 만들기(빌더)를 엽니다. 선언을 바로 고치지 않습니다. §3.1 `hooks[]`는 정적 선언이라 빌더가 만든 플러그인이 선언을 갖습니다 |
 | 켜기·끄기: 선택 패널·자세히 보기의 스위치, 순서 항목의 점, 층 패널 카드 단추. 모두 전역 | [결정: 2026-11-03 사용자, 15-1] 그룹 단위 끄기를 유지합니다(`F.extensions` §4.5). 시안의 그룹 구성원 하나씩 끄기와 "하나씩 끄고 테스트"는 뺍니다. 구현은 그룹 하나의 스위치만 둡니다 |
 | 구성 요소 필터 [결정: 2026-11-04 사용자, 시안 Q6 A] | 구성 요소로 거를 때 대표 플러그인이 없는 그룹도 목록에 남고, 맞는 조각만 보입니다. 대표가 없으면 첫 구성원이 조각을 맡습니다(`snapshot.ts` `piecesCarrierOf`) | 거르기가 구성원의 조각으로 판정하는데 대표 없는 그룹은 조각이 모두 비어 그룹이 사라졌습니다 |
-| 자동 꺼짐 질문 [결정: 2026-11-04 사용자, 시안 Q4 B+C] | "계속 꺼 둘까요?"는 플러그인 카드 안과 오른쪽 패널 "플러그인" 탭 맨 위에 보입니다. 화면 맨 위 띠는 없앴습니다. 탭 글자 옆에 알릴 것의 수가 붙습니다(`플러그인 2`) | 질문이나 자동 꺼짐이 있는 플러그인 수입니다 |
+| 끌까요 질문 [결정: 2026-11-04 사용자, 시안 Q4 B+C] | "끌까요?"는 플러그인 카드 안(선택 패널, 자세히 보기)과 오른쪽 패널 "플러그인" 탭 맨 위에 보입니다. 화면 맨 위 띠는 없앴습니다. 탭 글자 옆에 알릴 것의 수가 붙습니다(`플러그인 2`) | 질문이나 자동 꺼짐이 있는 플러그인 수입니다 |
 | 안내 문장은 정보 아이콘 뒤 [결정: 2026-11-04 사용자, DP-58] | 규칙 이름표(차단·수정 …)의 설명, 내장 칩 설명, 층 패널 힌트, 동작 칩 설명은 정보 아이콘(`InfoTip`)에 두고 올리기·키보드 초점·터치로 엽니다. 경고와 실패는 그대로 보입니다 | 열림 동작은 이 문서 쓸 때 앱에서 확인하지 못했습니다 |
 | 실패: 지도 점과 순서 항목에서 그 자리에 보이고 눌러 서랍을 엽니다. 실패·주도 서랍은 상태 표시줄에서도 엶 | S-03(§6.3) 칸과 같은 서랍입니다. 자동 꺼짐 `Alert`(§6.22 머리)는 이 서랍과 겹치지 않게 서랍 안으로 옮깁니다 [제안] |
 | 만들기(빌더): 에이전트 대화가 화면을 채우고 접힌 줄 둘("템플릿", "플러그인 정보 plugin.json"), "대화에서 만들기"(지난 대화 요약이 대화에 채워짐). 범위·저장 위치·스킬 고르기·실행 테스트 없음. "+"는 설치한 플러그인에서 고르기, 명령 하나 연결, 새로 만들기 | SC-16의 제작 대화(`L3.authoring`)로 들어가는 화면입니다. 템플릿은 고정하지 않습니다(결정 8, 템플릿 목록은 구현과 안전 항목이 들어오는 대로 갱신). 구성기(P-21)의 그룹·흐름·프로필·코드 보기는 시안에 없습니다. 이 보기들을 어디서 여는지(도구 막대 "플러그인 수정") [미결] |
@@ -2242,9 +2242,9 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 맥락 칸 | 캔버스 다시 그리기, 비교·재생 닫기 |
 | 비교 `Select` | 차이 그리기 |
 | "턴 재생" | 재생 막대 |
-| Alert·검사기 "다시 켜기" | `ext.reenable`(W-21) → "다음 단계 경계에 적용" 토스트 |
-| 자동 꺼짐 질문 "계속 켜 둘게요" | `ext.reenable`(W-21), 목록 다시 읽기, "다음 단계 경계에 적용" 토스트 [제안] |
-| 자동 꺼짐 질문 "계속 꺼 둘게요" | `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }`, 목록 다시 읽기 [제안] |
+| Alert·검사기 "다시 켜기" | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable`(W-21) → "다음 단계 경계에 적용" 토스트 |
+| 끌까요 질문 "켜 두기" | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안], 그다음 `ext.reenable`(W-21), 목록 다시 읽기, "다음 단계 경계에 적용" 토스트 [제안] |
+| 끌까요 질문 "끄기" | `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` [제안], 그다음 `ext.disableConfirm { name }`, 목록 다시 읽기 [제안]. 설정 쓰기가 거절되면 `ext.disableConfirm`을 보내지 않고 "바꾸지 못했어요"를 띄웁니다 |
 | 플러그인 탭 "이 대화에서 끄기" (SC-18 4번) | `settings.set { key: "ext.<이름>.enabled", scope: "launch", threadId }`. 목록은 `ext.list { threadId }` |
 | 검사기 "<맥락>에서 덮어쓰기" | 대화·시험: `settings.set { scope: "launch" }`. 프로필: `profile.put`(W-46) |
 
@@ -2343,14 +2343,14 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 기능 | wire |
 |---|---|
 | 켜기·끄기(범위 고르기) | `settings.set { key: "ext.<이름>.enabled", scope }`. 이 대화만은 `scope: "launch"` |
-| 다시 켜기(자동 꺼짐) | `ext.reenable { name }` `[gap:W-21]` |
+| 다시 켜기(자동 꺼짐) | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable { name }` `[gap:W-21]` |
 | 주도 플러그인 바꾸기 | `settings.set { key: "x.primitives.activeDriver" }` |
 | drive는 플러그인 그룹만 바꾸기 | `settings.set { key: "x.primitives.driveRequiresGroup" }`. 끄기 전에 위 문장을 보인다 |
 | 새 그룹, 가져오기 | P-21 "새 그룹", 설치 `[gap:W-32]` |
 
 - 설정 시안 반영 [결정: 오케스트레이터 기본값]: 설정 시안(`m4/pages-settings`의 `p13-plugins`)이 P-13을 런타임 화면으로 다시 그렸습니다. 그 내용은 LightCraft에 이렇게 나눠 둡니다. P-13은 LightCraft의 최상위 내비 "확장"이고, 시안이 제안한 최상위 "그룹/런타임" 내비는 LightCraft 영역 자체가 맡습니다.
   - P-13에 둡니다: 층별 묶음(L3 그룹은 내장·사용자·프로젝트로, L2·L1·L0 플러그인), 행마다 쓰는 연산 수(on, post, drive, scope), "다음 단계 경계에 적용" 대기 표시, 자동 꺼짐과 "다시 켜기", 프로젝트 그룹의 "신뢰 필요", L0 "항상 켜짐", managed 위치 잠김, 필요한 기능이 없어 켜지지 못한 "기능 대기"(`requires` 미충족, `X.loading-trust.spec` §4.8), 행 메뉴 "다시 읽기"(`[gap:W-38]`), 머리 "새 그룹"(P-21 구성기로 감, 대화 상자로 두지 않음).
-  - 자동 꺼짐 질문(결정 2026-11-04 사용자 B5, [제안: 기본값, 사용자 확인 전]): 호스트가 `ext.list`의 `keepOffQuestion { disabledStarts }`를 실은 확장에만 묻습니다. 자리는 세 곳입니다. 목록 위 `Alert tone="danger"`(자동 꺼짐 알림을 이 질문으로 바꿈), 선택 패널의 "다시 켜기" 단추 자리, P-17 머리 아래입니다. 목록 행에는 두지 않고 행의 상태 글 "자동 꺼짐"만 둡니다. 글은 "{확장} · 시작 {n}번에서 자동으로 꺼졌어요", 질문은 "계속 꺼 둘까요?"이고, 두 단추는 "계속 켜 둘게요"(`ext.reenable`, 다시 켜기와 같은 호출)와 "계속 꺼 둘게요"(`settings.set`, 사용자 범위 `false`)입니다. 두 단추는 연결이 끊기거나 확장이 잠겼으면(관리 위치, 안전 모드 제외) 누를 수 없습니다. 답하면 목록을 다시 읽고, 실패하면 "바꾸지 못했어요" 토스트를 띄웁니다.
+  - 끌까요 질문 [결정: 2026-11-04 사용자, "자동꺼짐은 5회 및 끄기 전에 사용자에게 끌까요 물어보고 꺼". 앞선 B5의 시작 3회 질문을 대체. 문구, 자리, 단추 이름은 [제안]]: 연속 5회 실패(또는 실패율 규칙)에서 호스트는 끄지 않고 `ext.list`의 `keepOffQuestion { rule, consecutive, windowFailures }`로 묻습니다. 답이 올 때까지 확장은 켜 둔 채입니다. 자리는 세 곳입니다. 선택 패널(플러그인 카드)의 "다시 켜기" 단추 자리, 자세히 보기(P-17) 머리 아래, 오른쪽 "플러그인" 탭 맨 위입니다. 목록 위 띠는 두지 않고(묻는 확장이어도 목록 위에는 글이 없습니다), 목록 행에도 두지 않습니다. 경고이므로 아이콘 뒤에 숨기지 않고 글로 보입니다(DP-58). 새 질문은 휘발 `scope.handler_failed`의 `asksDisable`이 알리면 목록을 다시 읽어 나타납니다(열린 대화가 없으면 이 조각이 가지 않으므로 다음에 목록을 읽을 때 나타납니다). 글은 "{확장} · {n}번 연달아 실패했어요"(실패율 규칙은 "{확장} · 최근 호출 중 {n}번 실패했어요"), 질문은 "끌까요?", 두 단추는 "끄기"와 "켜 두기"입니다. "끄기"는 설정에 `ext.<이름>.enabled` 꺼짐을 user 범위로 쓴 뒤 `ext.disableConfirm`을 보냅니다(다음 시작에도 꺼진 채로 둡니다) [제안]. "켜 두기"와 "다시 켜기"는 설정에 켜짐을 user 범위로 쓴 뒤 `ext.reenable`을 보냅니다(장부를 비웁니다. 아니오 뒤에 다시 5번 실패하면 또 묻습니다) [제안]. 두 단추는 연결이 끊기거나 확장이 잠겼으면(관리 위치, 안전 모드 제외) 누를 수 없습니다. 답하면 목록을 다시 읽고 질문 자리에 결과 한 줄을 남깁니다. 끈 뒤에는 "껐어요. 다시 켜려면 '다시 켜기'를 누르세요.", 켠 채 두었으면 "켜 두었어요. 다시 5번 실패하면 또 물어요."입니다(영어: "Turned off. Press 'Turn back on' to turn it on again.", "Kept on. It asks again after 5 more failures."). 설정 쓰기가 거절되면 끄기를 보내지 않고 "바꾸지 못했어요" 토스트를 띄웁니다. 설정 쓰기는 됐는데 `ext.disableConfirm`이 거절되면 설정만 꺼진 채 남습니다(되돌리지 않음) [미결] [근거: `apps/desktop/src/app/workbench-commands.ts`의 `keepOff`, `apps/host/src/assembly/m4/ext-read-port.ts`의 `disableConfirm`].
   - 런타임 탭(§4.9.8)과 맥락이 대화 하나인 P-16에 둡니다: 시안의 "이 대화" 구역(켜진 그룹, drive 락 보유와 epoch·턴·spawn·렌즈, `x.primitives.activeDriver` 고르기). P-13 머리에는 맥락이 대화 하나일 때 한 줄 요약과 런타임 탭 링크만 둡니다(DP-23).
   - P-17 기록 탭과 LightCraft 오른쪽 "기록" 탭에 둡니다: `scope.handler_failed` 기록.
   - 데이터: 메타·훅·등급 `[gap:W-15]`, 대화별 켜진 그룹과 drive 락 읽기 모델 `[gap:W-24]`, 다시 읽기 `[gap:W-38]`.
@@ -2400,8 +2400,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 기능 | wire |
 |---|---|
 | 켜기·끄기 | `settings.set { key: "ext.<이름>.enabled" }` |
-| 다시 켜기 | `ext.reenable` `[gap:W-21]` |
-| 계속 꺼 둘게요(자동 꺼짐 질문) | `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` [제안] |
+| 다시 켜기 | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable` `[gap:W-21]` |
+| 끄기(끌까요 질문) | `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` [제안] 뒤 `ext.disableConfirm { name }` [제안] |
 | 설정 저장 | `settings.set`(P-09 규칙) |
 | 되돌리기 | `ext.rollback { name, version }` `[gap:W-31]`, 확인 O-11 |
 | 화면 다시 켜기 | 클라이언트 화면 장부 비우기 |
@@ -3228,7 +3228,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | X-12 | T-16 플러그인 화면 흉내 위협 행 | `architecture.security.spec` §4 | 없음 |
 | X-13 | `managed` 설치 위치가 tier `guard`가 되는 코드(`ext-host/src/operations/tier.ts` `assignTier`의 `case "managed"`)와 주석·문서의 상한 `user` 설명의 차이. LightCraft가 tier를 보이므로 먼저 맞춰야 함 | `X.operations.spec` §3.1, `X.loading-trust.spec` §3.1 | 코드 결함 확인(2026-10-31). 주석은 "사용자 등급 상한"인데 `ok("guard")`를 돌려줌 |
 | X-14 | Test run 표지(`ThreadSummary.testRun`)와 학습 리뷰 제외 여부 | `F.wire-settings.spec`, `L3.learning.spec` | 없음. 제외 [결정: 2026-11-04 사용자, B4 1안] |
-| X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), `x.operations.trace.turnsPerThread`(기본 20, 코드 `DEFAULT_TRACE_SETTINGS`와 `X.operations.spec` §6 표가 같다. 8은 옛 표기였다) [제안] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 대화마다 작은 버퍼] |
+| X-15 | 핸들러 계측 링 버퍼: 훅 발화 순서, 핸들러별 시간·결과, 단계 경계. 내구 이벤트가 아닌 메모리 기록. 설정 `x.operations.trace.enabled`(기본 `true`), 보관 Turn 수 상한과 그 설정 키는 없다. 대화를 닫으면 메모리에서 푼다 [결정: 2026-11-04 사용자, 기록 개수 상한을 없앰] | `X.operations.spec` §4.2 | 없음 [결정: 2026-10-31 사용자, 설정으로 켜고 끄며 기본 켬, 상한 없음은 2026-11-04 결정으로 바뀜] |
 | X-16 | 매니페스트 `composition`(블록: `slot`, `points`, `op`, `consumes`, `produces`)과 선택 `phases`(단계, 전이, 사람 확인 노드), `validateComposition`, group-sdk `defineGroup({ composition })`이 채움 | `F.extensions.spec` §3.1, `L3.group-sdk.spec` §3.2 | 없음 [결정: 2026-10-31 사용자, 작성자 선언, 없으면 블록 하나] |
 | X-17 | drive 사람 확인 원시 `loop.ask({ requestId, card })`: ADR-0018 승인(question kind, 출처 `grp:<그룹>`)을 만들고 drive 락을 새 사유 `waiting`으로 반납. `approval.resolved`가 오면 그 Registration을 다시 후보로 올리고, 같은 `requestId`의 재호출은 기록된 답을 돌려줌 | `X.primitives.spec` §4.4, `F.extensions.spec` §3.2 `LoopHandle`, `F.records.spec` `lease.released.reason` | 없음 [결정: 2026-10-31 사용자] |
 | X-18 | 프로필 타입(`Profile`)과 호스트 저장소, `profile.*` 메서드 | `F.wire-settings.spec` §3.3·§3.9, `L4.host-service.spec` | 없음 [결정: 2026-10-31 사용자] |
@@ -3313,7 +3313,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | 26 | 프로젝트 안 그룹·훅(`.fresnel/` 아래 L3 그룹)의 신뢰 카드 표기. 이 문서는 카드의 "불러오려는 자원"에 `groups/<이름> (on·post·drive)`처럼 쓰는 연산을 함께 보이는 것을 기본값으로 둡니다(D-23). 신뢰한 폴더의 그룹도 `project` tier라 자동 끄기 대상입니다(`X.operations.spec` §4.3.3, 면제는 guard·core뿐) | `X.loading-trust.spec` §4.7.2 |
 | 27 | 닫음 [결정: 2026-11-04 사용자, B2 1안] 키 소유는 `X.loading-trust.spec`, 프레임 `call` 확인 줄은 끌 수 없음(항상 보임). 옛 문장: 프레임 모드 설정 키(`x.views.frames`, `x.views.allowProjectFrames`)의 소유 문서와, 프레임 `call` 확인 줄을 끌 수 있는 범위 | 사용자, ADR-0021 §6 9번 |
 | 28 | 닫음 [결정: 2026-11-04 사용자, B6 1안] M4에는 프로젝트 범위 프로필(저장소에 커밋되는 프로필)을 두지 않습니다. 저장 위치는 R13대로 호스트 쪽입니다. 옛 문장: 프로필 저장 파일(`profiles.json`)의 위치와, 프로젝트 범위 프로필을 둘지 | `F.wire-settings.spec`, `L4.host-service.spec` |
-| 29 | 트레이스 버퍼 크기 기본값(대화마다 20턴이 코드 기본값이다. 2026-11-04 측정에서 켬이 끔보다 느리거나 힙이 큰 신호가 없어 기본 켬을 유지한다. 제한 없는 전체 기록은 사용자 결정으로 남는다)과 계측 비용 기준(얼마를 넘으면 기본을 끌지) | 사용자, X-15, T-PERF 결과 |
+| 29 | 계측 비용 기준(얼마를 넘으면 기본을 끌지). 트레이스 버퍼 개수 상한은 없앴다 [결정: 2026-11-04 사용자]. Turn당 힙은 짧은 대화 0.1MB, 긴 응답 0.5MB쯤이고 켬이 끔보다 크지 않았다(`X.operations.spec` 미결 23) | 사용자, X-15, T-PERF 결과 |
 | 30 | 닫음 [결정: 2026-11-01 사용자] 기본 꺼짐(권장 수락) | 사용자, `L3.authoring.spec` §10 |
 | 31 | 닫음 [결정: 2026-11-01 사용자] 확장마다 5개, 사용자 데이터 폴더 아래. 상태 스키마가 바뀌었으면 코드만 되돌리기로 대체 | 사용자, X-8 |
 | 32 | 크래프트 8차 시안과 내비·맥락 칸: 시안 내비는 크래프트·테스트·성능 측정 셋이고 맥락 칸이 비었습니다. 엔진(P-15) 항목과 구성기(P-21) 네 보기를 여는 자리, 층 패널 순서가 불러오는 순서인지, 트레이스 재생 막대는 두지 않고 [결정: 2026-11-04 사용자, 시안 Q3 A], 자동 꺼짐 질문은 플러그인 카드와 오른쪽 패널 맨 위에 둔다 [결정: 2026-11-04 사용자, 시안 Q4 B+C]. 둘 다 아직 안 만듦. 남은 것: 층 패널 순서(Q2) | 사용자, 시안 `wb-v5/SPEC.md` |
@@ -3348,7 +3348,7 @@ LightCraft와 플러그인 화면에 필요하지만 wire 밖(F 타입, X 동작
 | D-22 | [결정: 오케스트레이터 기본값] 그룹 작성(새 그룹, 다시 읽기, 핸들러 기록)은 LightCraft 소유(P-21 구성기, P-17). 만들기는 구성에 합침 [결정: 2026-10-31 사용자] | §4.9, §6.24 |
 | D-23 | [결정: 오케스트레이터 기본값] 신뢰 카드(O-04)는 프로젝트 확장마다 쓰는 연산(on, post, drive)을 보임. 신뢰한 폴더의 그룹도 자동 끄기 대상 | §12.1 26번, `X.operations.spec` §4.3.3 |
 | D-24 | [결정: 오케스트레이터 기본값] 설정 시안의 런타임형 P-13은 LightCraft "확장"(최상위 LightCraft 내비)으로 접고, "이 대화" 구역은 런타임 탭, 실패 기록은 P-17로 나눔 | §6.23 |
-| D-25 | [제안: 기본값, 사용자 확인 전] 자동 꺼짐 질문(결정 2026-11-04 사용자 B5)의 자리는 목록 위 Alert, 선택 패널의 다시 켜기 자리, P-17 머리 아래. 목록 행에는 두지 않음. 두 답은 Alert 안의 단추 두 개이고 연결이 끊기거나 잠기면 잠금 | §6.22.7, §6.23, §6.24 |
+| D-25 | [제안: 기본값] 끌까요 질문(결정 2026-11-04 사용자, 앞선 B5 대체)의 자리는 선택 패널(플러그인 카드)의 "다시 켜기" 자리, 자세히 보기 머리 아래, 오른쪽 "플러그인" 탭 맨 위다. 목록 위 띠는 없앴다 [결정: 2026-11-04 사용자, 시안 Q4 B+C]. 두 답은 단추 두 개이고 연결이 끊기거나 잠기면 잠근다. "끄기"는 설정에 끔을 쓴 뒤 `ext.disableConfirm`을 보내며, 다시 켜기는 설정에 켬을 쓴 뒤 `ext.reenable`을 보낸다 | §6.22.7, §6.23, §6.24 |
 
 ### 12.3 사용자 결정(데스크톱 UX 15건)
 

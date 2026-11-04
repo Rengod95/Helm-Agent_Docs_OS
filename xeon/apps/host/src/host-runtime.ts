@@ -41,6 +41,7 @@ export async function startHost(
     ...options,
     openThreads: () =>
       (slot.hub?.connections() ?? []).flatMap((conn) => Array.from(conn.openThreads)),
+    hasClient: () => (slot.hub?.connections() ?? []).length > 0,
   });
   const handlers = createWireHandlers(
     engine,

@@ -27,6 +27,7 @@ const EXT_READ_METHODS: readonly WireMethodName[] = [
   "ext.list",
   "ext.get",
   "ext.reenable",
+  "ext.disableConfirm",
   "ext.reload",
   "ext.health",
   "ext.timings",
@@ -298,16 +299,43 @@ test("ext.reload: returns the diagnostic position; refused in safe mode", async 
 
 test("ext.list reports the keep-off question only for the extension the port is asking about", async () => {
   const { sources } = createRecordedSources({
-    keepOffQuestion: (name) => (name === "team" ? { disabledStarts: 3 } : null),
+    keepOffQuestion: (name) =>
+      name === "team" ? { rule: "consecutive", consecutive: 5, windowFailures: 5 } : null,
   });
   const connection = connect(sources);
   await connection.request("host.hello", HELLO_PARAMS);
   const listed = await connection.request("ext.list", {});
   expect(listed.extensions.map((row) => [row.name, row.keepOffQuestion])).toEqual([
     ["alpha", undefined],
-    ["team", { disabledStarts: 3 }],
+    ["team", { rule: "consecutive", consecutive: 5, windowFailures: 5 }],
   ]);
   await connection.close();
+});
+
+test("ext.disableConfirm: answers yes through the source; managed lock, unknown name and safe mode are refused", async () => {
+  const recorded = createRecordedSources({ managedLocked: (name) => name === "team" });
+  const connection = connect(recorded.sources);
+  await connection.request("host.hello", HELLO_PARAMS);
+  expect(await connection.request("ext.disableConfirm", { name: "alpha" })).toEqual({
+    appliesAt: "nextStepBoundary",
+    diagnostics: [],
+  });
+  expect(recorded.confirmed).toEqual(["alpha"]);
+  expect(recorded.reenabled).toEqual([]);
+  const locked = await failureOf(connection.request("ext.disableConfirm", { name: "team" }));
+  expect(locked).toMatchObject({ code: 3104, data: { details: { key: "ext.team.enabled" } } });
+  const unknown = await failureOf(connection.request("ext.disableConfirm", { name: "nope" }));
+  expect(unknown).toMatchObject({ code: 3401, data: { kind: "extension.notFound" } });
+  expect(recorded.confirmed).toEqual(["alpha"]);
+  await connection.close();
+
+  const safe = createRecordedSources({ safeMode: () => ({ active: true, cause: "user" }) });
+  const safeConnection = connect(safe.sources);
+  await safeConnection.request("host.hello", HELLO_PARAMS);
+  const refused = await failureOf(safeConnection.request("ext.disableConfirm", { name: "alpha" }));
+  expect(refused).toMatchObject({ code: 3403, data: { kind: "extension.safeModeActive" } });
+  expect(safe.confirmed).toEqual([]);
+  await safeConnection.close();
 });
 
 test("ext.health: ledger numbers per extension, filtered by name", async () => {

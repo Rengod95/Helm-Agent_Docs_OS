@@ -1,6 +1,7 @@
 import {
   Type,
   type Static,
+  type TBoolean,
   type TInteger,
   type TLiteral,
   type TNull,
@@ -64,6 +65,7 @@ export const ScopeHandlerFailedPayloadSchema: TObject<{
   result: TString;
   message: TString;
   consecutive: TInteger;
+  asksDisable: TOptional<TBoolean>;
 }> = Type.Object(
   {
     /** X.operations.spec HandlerOwnerKey: "ext:<이름>" | "hook:<이름>" */
@@ -75,6 +77,8 @@ export const ScopeHandlerFailedPayloadSchema: TObject<{
     message: Type.String({ maxLength: 4000 }),
     /** 같은 owner의 연속 실패 수 */
     consecutive: Type.Integer({ minimum: 1 }),
+    /** 참이면 이 실패로 자동 끄기 기준을 넘어 "끌까요" 질문이 새로 생겼다. 답을 받을 때까지 켜 둔다 [결정: 2026-11-04 사용자] */
+    asksDisable: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );

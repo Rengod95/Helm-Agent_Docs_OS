@@ -14,7 +14,7 @@ export function CraftScreen(): ReactNode {
   const toggle = useToggleRequest(controller);
   const source = useCraftSource(controller, toggle.request);
   const ready = useWorkbench((s) => s.list === "ready");
-  // 자동 꺼짐 알림의 두 답: 다시 켜기와 계속 꺼 둘게요(둘 다 컨트롤러가 목록을 다시 읽는다)
+  // 자동 꺼짐 알림의 두 답: 다시 켜기(켜 두기)와 끄기(둘 다 컨트롤러가 설정을 쓰고 목록을 다시 읽는다)
   const answers = useMemo(
     () => ({
       keepOn: (name: string) => {

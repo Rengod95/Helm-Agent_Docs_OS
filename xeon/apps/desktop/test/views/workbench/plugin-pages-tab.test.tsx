@@ -9,14 +9,14 @@ import { tabTitleOf } from "../../../src/views/shell/end-panel.tsx";
 import { createShellRegistry } from "../../../src/views/shell/registry.ts";
 import { Shell } from "../../../src/views/shell/shell.tsx";
 import { pluginPagesEndTab } from "../../../src/views/workbench/index.tsx";
-import { askingEntry, entry, inContexts } from "./support.tsx";
+import { asked, entry, inContexts } from "./support.tsx";
 
 // 오른쪽 "플러그인" 탭(`plugin-pages`): 칸의 숫자는 알림 수, 탭 안 맨 위는 알림(질문과 두 답)이다.
 
 const QUESTION = t("desktop.workbench.keepOff.question");
 const KEEP_ON = t("desktop.workbench.keepOff.keepOn");
 const KEEP_OFF = t("desktop.workbench.keepOff.keepOff");
-const COUNT = t("desktop.workbench.keepOff.count", { name: "review", count: 3 });
+const COUNT = t("desktop.workbench.keepOff.consecutive", { name: "review", count: 5 });
 const EMPTY = t("desktop.plugin.state.empty");
 const LABEL = t("desktop.plugin.tab.pages");
 
@@ -58,7 +58,7 @@ function shellHtml(store: WorkbenchStore, open: boolean): string {
 /** 알림이 둘인 목록: 질문이 떠 있는 review와 질문 없이 자동으로 꺼진 lint */
 const TWO_NOTICES = [
   entry("web"),
-  askingEntry(),
+  asked(),
   entry("lint", { displayName: "린트", autoDisabled: true }),
 ];
 
@@ -87,7 +87,7 @@ describe("플러그인 탭의 칸 숫자와 이름표", () => {
 
 describe("플러그인 탭 맨 위의 알림", () => {
   test("질문이 있는 확장은 알림 줄, 질문, 두 답을 탭 맨 위에 보인다", () => {
-    const html = tabHtml(storeOf([entry("web"), askingEntry()]));
+    const html = tabHtml(storeOf([entry("web"), asked()]));
     expect(html).toContain(COUNT);
     expect(html).toContain(QUESTION);
     expect(html).toContain(KEEP_ON);
@@ -99,7 +99,8 @@ describe("플러그인 탭 맨 위의 알림", () => {
   test("질문이 없고 알림도 없으면 질문 글을 보이지 않는다", () => {
     const html = tabHtml(storeOf([entry("web")]));
     expect(html).not.toContain(QUESTION);
-    expect(html).not.toContain(KEEP_OFF);
+    // "끄기"는 탭의 "이 대화에서 끄기" 글에도 든다. 답 단추는 "켜 두기"와 함께 없어야 한다
+    expect(html).not.toContain(KEEP_ON);
     expect(html).toContain(EMPTY);
   });
 

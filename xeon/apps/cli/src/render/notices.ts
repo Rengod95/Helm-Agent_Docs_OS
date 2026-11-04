@@ -74,6 +74,18 @@ export function handlerFailedText(payload: ScopeHandlerFailedPayload): string | 
 }
 
 /**
+ * 자동 끄기 "끌까요" 질문 알림 문구. 새 질문을 낸 실패(`asksDisable`)에만 있다. 입력을 가로채지 않고 알리기만 한다:
+ * 답은 데스크톱 화면에서 받고, 답할 때까지 확장은 켜 둔 채다 [제안, X.operations.spec §4.3.3]
+ */
+export function disableQuestionText(payload: ScopeHandlerFailedPayload): string | undefined {
+  if (payload.asksDisable !== true) return undefined;
+  return t("cli.render.notices.asksDisable", {
+    owner: ownerLabel(payload.owner),
+    count: String(payload.consecutive),
+  });
+}
+
+/**
  * `stream.chunk` 한 조각을 알림 그리기 명령으로 바꾼다. `scope.handler_failed`가 아니거나, 이 세션의 thread가 아니거나,
  * 페이로드가 검증에 못 미치거나, 묶음 밖의 실패면 빈 목록이다.
  * thread 확인: 호스트는 thread를 연 연결마다 한 번씩 보내므로 이 세션 것만 그리면 같은 실패가 두 번 나오지 않는다(HS-80).
@@ -86,8 +98,8 @@ export function handlerFailedOpsOf(
   if (event.kind !== "scope.handler_failed" || event.threadId !== current) return [];
   const parsed = parse(ScopeHandlerFailedPayloadSchema, event.payload);
   if (!parsed.ok) return [];
-  const text = handlerFailedText(parsed.value);
-  return text === undefined ? [] : [{ kind: "notice", text }];
+  const texts = [handlerFailedText(parsed.value), disableQuestionText(parsed.value)];
+  return texts.flatMap((text) => (text === undefined ? [] : [{ kind: "notice" as const, text }]));
 }
 
 /**

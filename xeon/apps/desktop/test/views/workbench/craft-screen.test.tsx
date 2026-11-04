@@ -16,7 +16,7 @@ import { createWorkbenchStore, type WorkbenchStore } from "../../../src/state/wo
 import { createDesktopRegistry } from "../../../src/views/desktop-registry.tsx";
 import { CraftScreen } from "../../../src/views/workbench/craft-screen.tsx";
 import { renderWithWindowStub } from "../craft/render-support.tsx";
-import { askingEntry, entry, inContexts, liveEngine, screenStore } from "./support.tsx";
+import { asked, entry, inContexts, liveEngine, screenStore } from "./support.tsx";
 
 /**
  * 개요 화면을 그린다. 캔버스가 첫 그리기 때 창 값을 읽으므로 창 흉내를 씌운다.
@@ -82,9 +82,9 @@ describe("크래프트 개요: 캔버스가 화면을 쓰고 목록 띠가 위�
     expect(html).toContain(t("desktop.workbench.reenable"));
   });
 
-  test("계속 꺼 둘까요 질문은 고른 카드에 질문과 두 답을 보인다", () => {
+  test("끌까요 질문은 고른 카드에 질문과 두 답을 보인다", () => {
     const store = createWorkbenchStore((initial) =>
-      pickGroup(listLoaded(initial, [entry("web"), askingEntry()]), "review"),
+      pickGroup(listLoaded(initial, [entry("web"), asked()]), "review"),
     );
     const html = overview(store, true);
     expect(html).toContain(t("desktop.workbench.keepOff.question"));

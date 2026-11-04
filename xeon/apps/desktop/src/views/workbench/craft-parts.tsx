@@ -110,7 +110,8 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
 }
 
 /**
- * "계속 꺼 둘까요?" 질문과 두 답. 호스트가 묻지 않은 확장이면 아무것도 그리지 않는다.
+ * "끌까요?" 질문과 두 답(끄기, 켜 두기). 호스트가 묻지 않은 확장이면 아무것도 그리지 않는다.
+ * 질문하는 동안 확장은 켜 둔 채다. 경고이므로 아이콘 뒤에 숨기지 않고 글로 그대로 보인다(DP-58).
  * 연결이 끊겼거나 확장이 잠겼으면 두 답을 누를 수 없다(`keepOffOf`). `compact`면 오른쪽 탭처럼 좁은 자리용이다.
  */
 export function KeepOffAlert(props: {
@@ -125,10 +126,15 @@ export function KeepOffAlert(props: {
   return (
     <Alert tone="danger" size={props.compact === true ? "sm" : undefined}>
       <p>
-        {t("desktop.workbench.keepOff.count", {
-          name: props.entry.displayName,
-          count: question.disabledStarts,
-        })}
+        {question.rule === "consecutive"
+          ? t("desktop.workbench.keepOff.consecutive", {
+              name: props.entry.displayName,
+              count: question.consecutive,
+            })
+          : t("desktop.workbench.keepOff.rate", {
+              name: props.entry.displayName,
+              count: question.windowFailures,
+            })}
       </p>
       <p className="text-ui-strong">{t("desktop.workbench.keepOff.question")}</p>
       <div className="mt-1 flex flex-wrap gap-2">
@@ -164,7 +170,7 @@ export interface NoticeMemo {
 }
 
 /**
- * 새로 읽은 값으로 기억을 고친다. 질문이 떠 있다가 사라지면 답한 것이다: 자동 꺼짐이 남았으면 "계속 꺼 둠", 아니면 "계속 켜 둠".
+ * 새로 읽은 값으로 기억을 고친다. 질문이 떠 있다가 사라지면 답한 것이다: 자동 꺼짐이 남았으면 "껐어요", 아니면 "켜 두었어요".
  * 그 밖의 바뀜(다시 질문이 뜸, 다시 켜짐, 꺼짐)은 답 줄을 거둔다. 바뀐 것이 없으면 같은 기억을 돌려준다.
  */
 export function noticeAfter(memo: NoticeMemo, asking: boolean, off: boolean): NoticeMemo {
@@ -177,7 +183,7 @@ export function noticeAfter(memo: NoticeMemo, asking: boolean, off: boolean): No
  * 자동 꺼진 확장 하나의 알림(플러그인 카드와 오른쪽 "플러그인" 탭). 질문이 있으면 `KeepOffAlert`, 질문 없이 자동으로 꺼졌으면
  * "자동으로 꺼졌어요"와 다시 켜기를 보인다. 답하면 질문은 목록이 다시 읽히며 사라지고, 결과 한 줄이 이 부품에 남는다.
  * 그래서 부모는 항목마다 이 부품을 빼지 말고 두어야 한다(빼면 결과 줄도 사라진다). 알림도 답도 없으면 아무것도 그리지 않는다.
- * `onKeepOn`은 다시 켜기(`reenable`)다. "계속 켜 둘게요"도 같은 호출이다.
+ * `onKeepOn`은 다시 켜기(`reenable`)다. "켜 두기"도 같은 호출이다.
  */
 export function AutoOffNotice(props: {
   readonly entry: ExtListEntry;

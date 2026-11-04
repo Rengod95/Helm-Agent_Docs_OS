@@ -618,6 +618,7 @@ export interface GroupTemplatesPort {
 - 확장 핸들러 실패(`stream.chunk`의 `scope.handler_failed`, `L4.host-service.spec` HS-92, `X.operations.spec` §4.3.4):
   - 문구: 카탈로그 id `cli.render.notices.handlerFailed`에서 현재 로케일로 만듭니다. 한국어 값은 `확장 <이름>의 <point> 핸들러가 실패했다 (연속 <n>회): <message>`입니다. `owner`의 `ext:` 접두어는 `cli.render.notices.owner.extension`(확장), `hook:`은 `cli.render.notices.owner.hook`(훅)으로 바꾸고 이름만 보입니다. `message`는 줄바꿈과 제어 문자를 칸으로 바꾸고 앞 120자(코드 포인트)만 보인다. 잘리면 `…`를 붙인다. 비어 있으면 `: <message>`를 붙이지 않는다.
   - 묶음: `consecutive`가 1이거나 5의 배수인 실패만 그리고 나머지는 버린다. 세는 일은 호스트가 한 `consecutive`를 그대로 쓰므로 CLI 대화는 상태를 두지 않는다. 5는 `X.operations.spec` §4.3.3의 자동 끄기 기본 기준(연속 5회)과 맞춘 값이다.
+  - 끌까요 질문 [결정: 2026-11-04 사용자, 세부는 [제안]]: 페이로드에 `asksDisable: true`가 있으면(자동 끄기 기준을 넘어 호스트가 끄지 않고 물음, `X.operations.spec` §4.3.3) 실패 줄 뒤에 한 줄을 더 그린다. 카탈로그 id `cli.render.notices.asksDisable`, 한국어 값은 `<owner>에서 <n>번 연달아 실패했어요. 끌까요? 답할 때까지 켜 둔 채예요. 데스크톱 앱에서 답해요`입니다. 5의 배수 묶음 규칙과 무관하게 질문을 낸 실패에만 있으므로 한 번만 나옵니다. 입력을 가로채지 않고 알리기만 하며 CLI에서 답하는 명령은 두지 않는다.
   - thread: 이 대화의 thread(`event.threadId`)가 보낸 것만 그린다. 호스트는 thread를 연 연결마다 한 번씩 보내므로, 다른 thread의 것은 같은 실패의 중복이거나 이 화면 밖의 일이다.
   - 순서: 진행 줄 조각과 달리 `afterSeq`가 앞서도 기다리지 않고 도착 순서대로 그린다 [제안].
 - 알림 전달(`notify.delivered`, `L4.host-service.spec` HS-94):

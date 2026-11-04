@@ -434,9 +434,9 @@ export interface WorkbenchCommands {
   explain(key: string, threadId: ThreadId): Promise<Result<SettingsExplainResult, CommandError>>;
   /** 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "user" }` */
   toggle(request: ToggleRequest): Promise<Result<null, CommandError>>;
-  /** 자동 꺼짐 다시 켜기. 적용은 다음 단계 경계다. "계속 켜 둘게요" 답도 이 명령이다 */
+  /** 자동 꺼짐 다시 켜기와 "켜 두기" 답: `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` 뒤 `ext.reenable { name }`. 적용은 다음 단계 경계다 */
   reenable(name: string): Promise<Result<null, CommandError>>;
-  /** "계속 꺼 둘게요" 답: `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` */
+  /** "끄기" 답: `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` 뒤 `ext.disableConfirm { name }`. 설정 쓰기가 실패하면 끄기를 보내지 않는다 */
   keepOff(name: string): Promise<Result<null, CommandError>>;
   /** 이 대화에서 켜기·끄기: `settings.set { key: "ext.<이름>.enabled", scope: "launch", threadId }`. 적용은 다음 단계 경계다 */
   toggleForThread(request: ThreadToggleRequest): Promise<Result<null, CommandError>>;

@@ -43,14 +43,14 @@ export function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEn
   };
 }
 
-/** 여러 번 시작하며 자동으로 꺼져 "계속 꺼 둘까요?"를 묻는 확장(기본은 그룹 review, 시작 3번) */
-export function askingEntry(over: Partial<ExtListEntry> = {}): ExtListEntry {
+/** 연속 5번 실패해 "끌까요?"를 묻는 확장(기본은 그룹 review). 답이 올 때까지 켜 둔 채다 */
+export function asked(over: Partial<ExtListEntry> = {}): ExtListEntry {
   return entry("review", {
     layer: "L3",
     isGroup: true,
-    status: "disabled",
-    autoDisabled: true,
-    keepOffQuestion: { disabledStarts: 3 },
+    status: "enabled",
+    autoDisabled: false,
+    keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
     ...over,
   });
 }
