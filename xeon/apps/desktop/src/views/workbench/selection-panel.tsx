@@ -4,7 +4,7 @@ import { rowOf, type WorkbenchState } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { Badge, Button, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
-import { KeepOffAlert } from "./craft-parts.tsx";
+import { AutoOffNotice } from "./craft-parts.tsx";
 import { ExtName, ExtSwitch, kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 
 export function SelectionPanel(props: {
@@ -25,13 +25,7 @@ export function SelectionPanel(props: {
     >
       <div className="flex items-center gap-2">
         <ExtName row={row} />
-        <Button
-          size="xs"
-
-          variant="ghost"
-          className="ms-auto"
-          onClick={props.onClear}
-        >
+        <Button size="xs" variant="ghost" className="ms-auto" onClick={props.onClear}>
           {t("desktop.workbench.selection.close")}
         </Button>
       </div>
@@ -50,15 +44,13 @@ export function SelectionPanel(props: {
         )}
       </div>
       {row.lock !== null && <p className="text-ui-sm text-text-tertiary">{lockText(row.lock)}</p>}
-      {entry.keepOffQuestion === undefined ? (
-        row.state === "auto_disabled" && (
-          <Button size="sm" variant="outline" onClick={props.onReenable}>
-            {t("desktop.workbench.reenable")}
-          </Button>
-        )
-      ) : (
-        <KeepOffAlert entry={entry} onKeepOn={props.onReenable} onKeepOff={props.onKeepOff} />
-      )}
+      {/* 크래프트 선택 패널(`craft/selection-panel.tsx`)과 같은 부품이다: 질문, 자동 꺼짐 줄, 답한 뒤의 결과 줄. 확장이 바뀌면 기억을 새로 한다 */}
+      <AutoOffNotice
+        key={entry.name}
+        entry={entry}
+        onKeepOn={props.onReenable}
+        onKeepOff={props.onKeepOff}
+      />
       <p className="text-ui-sm text-text-secondary">
         {t("desktop.workbench.selection.hooks", { count: row.hookCount })}
       </p>
