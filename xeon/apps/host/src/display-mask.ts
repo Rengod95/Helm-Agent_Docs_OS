@@ -5,7 +5,7 @@ import type {
   LeafMask,
   PartMask,
 } from "@fresnel/contracts/conversation";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type { ApprovalRequestedPayload, InputQueuedPayload } from "@fresnel/contracts/records";
 import type { PendingApproval } from "@fresnel/contracts/wire";
 import type { SecretsPort } from "./types.ts";
 
@@ -52,6 +52,18 @@ export function approvalLeafMasks(
     ...display.displayLeafMasks(request.origin, "/origin"),
     ...display.displayLeafMasks(request.body, "/body"),
   ];
+  return leaves.length === 0 ? undefined : leaves;
+}
+
+/**
+ * 대기 입력(`input.queued`)의 잎 표식. 칩이 보이는 글은 `/item` 아래 문자열(글 파트, 맥락 항목의 글)이다. 포인터는 payload 기준이다.
+ * 요청 키, 모드, 출처 같은 자리는 화면 글이 아니라 가리지 않는다.
+ */
+export function queuedInputLeafMasks(
+  display: DisplayMaskPort,
+  payload: InputQueuedPayload,
+): readonly LeafMask[] | undefined {
+  const leaves = display.displayLeafMasks(payload.item, "/item");
   return leaves.length === 0 ? undefined : leaves;
 }
 

@@ -77,7 +77,7 @@ export const EventWireSchema: TObject<{
     /** RFC 6901 포인터, payload 기준. 2차 방어로 가린 필드 */
     redactions: Type.Array(Type.String({ maxLength: 128 }), { maxItems: 64 }),
     /**
-     * 화면 가림 표식(L0.secrets.spec §3.5.1, [결정: 2026-11-03 사용자]). item.recorded와 approval.requested에 붙는다. item.recorded의 포인터는 payload.item 기준이고, approval.requested의 포인터는 payload 기준이다.
+     * 화면 가림 표식(L0.secrets.spec §3.5.1, [결정: 2026-11-03 사용자]). item.recorded, approval.requested, input.queued에 붙는다. item.recorded의 포인터는 payload.item 기준이고, approval.requested와 input.queued의 포인터는 payload 기준이다.
      * 가릴 것이 없으면 없다. payload와 저장 행은 바뀌지 않는다.
      */
     mask: Type.Optional(Type.Array(LeafMaskSchema, { maxItems: 4096 })),

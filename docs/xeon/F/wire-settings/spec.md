@@ -847,7 +847,7 @@ export declare function toVolatileEventWire(event: VolatileEventEnvelope): Volat
 
 | 위치 | 필드 | 내용 |
 |---|---|---|
-| `events.batch`의 `EventWire` | `mask?: LeafMask[]` | `item.recorded`와 `approval.requested`에 붙는다. `item.recorded`의 포인터는 payload의 `item` 기준(예: `/message/content`), `approval.requested`의 포인터는 payload 기준이다(`/title`, `/body/tool/args/command`). 가릴 것이 없으면 필드가 없다 |
+| `events.batch`의 `EventWire` | `mask?: LeafMask[]` | `item.recorded`, `approval.requested`, `input.queued`에 붙는다. `item.recorded`의 포인터는 payload의 `item` 기준(예: `/message/content`), `approval.requested`와 `input.queued`의 포인터는 payload 기준이다(`/title`, `/body/tool/args/command`, `/item/content`, `/item/content/0/text`). `input.queued`는 대기 입력 칩이 보이는 글(`/item` 아래 문자열)만 가리고 요청 키와 모드는 가리지 않는다. 클라이언트는 `maskQueuedInput`으로 적용하고, 맞지 않으면 읽을 수 없는 사실로 둔다. 가릴 것이 없으면 필드가 없다 |
 | `thread.read` 결과 | `masks?: ItemMaskEntry[]` | 가릴 잎이 있는 item만 `{ itemId, leaves }`로 싣는다. `items`는 바뀌지 않는다 |
 | `approval.list` 결과 | `masks?: ApprovalMaskEntry[]` | 출처(caller 등)와 본문의 문자열 전부(도구 인자, 계획, 질문, 검토)에 가릴 것이 있는 승인만 `{ approvalId, leaves }`로 싣는다. `approvals`는 바뀌지 않는다. 요청 키와 식별자는 가리지 않는다 |
 | `stream.chunk`의 `item.updated` `part_delta` | `delta.mask?: PartMask` | 진행 중 파트 조각의 누적 표식(아래 규칙 3) |
