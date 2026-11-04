@@ -1121,10 +1121,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       dialogArea,
       extRead: {
         operations,
-        externalHooks: () =>
+        externalHooks: (threadId) =>
           safeMode
             ? []
-            : externalHooks.hooksFor(undefined).hooks.map((hook) => ({
+            : externalHooks.hooksFor(threadId).hooks.map((hook) => ({
                 id: hook.def.id,
                 point: hook.def.point,
                 source: hook.source,

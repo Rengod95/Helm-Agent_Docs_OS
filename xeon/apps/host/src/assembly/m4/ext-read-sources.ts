@@ -50,8 +50,8 @@ interface ExtReadSafeMode {
 /** 조립 루트(`assemble.ts`)가 넘기는 것: 엔진 포트가 올라오기 전에 있는 값 */
 export interface ExtReadAssembly {
   readonly operations: Pick<OperationsPolicy, "ledger" | "autoDisabler" | "hookOrder">;
-  /** 외부 훅 정의 읽기(thread 없이 읽히는 범위만) */
-  readonly externalHooks: () => readonly ExternalHookView[];
+  /** 외부 훅 정의 읽기. thread가 있으면 그 thread의 작업 폴더·로컬 훅(폴더를 신뢰한 경우만)도 든다 */
+  readonly externalHooks: (threadId: ThreadId | undefined) => readonly ExternalHookView[];
   readonly safeMode: ExtReadSafeMode;
   readonly extensions: () => readonly ExtensionRecord[];
   /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다. `ext.reload`가 새 버전으로 바꾸는 데 쓴다 */
@@ -70,6 +70,8 @@ export interface ExtReadEnv {
   readonly errors: Pick<HostErrorMappers, "ofStore">;
   readonly heldThreads: () => readonly ThreadId[];
   readonly activeThread: () => ThreadId | null;
+  /** thread의 작업 폴더 설정을 읽어 둔다(신뢰한 폴더만 층이 선다). 쥐지 않은 thread의 훅을 읽기 전에 부른다 */
+  readonly prepareThread?: ((threadId: ThreadId) => Promise<void>) | undefined;
 }
 
 function threadIdOf(value: string | undefined): ThreadId | undefined {
@@ -387,7 +389,11 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
         windowFailures: question.windowFailures,
       };
     },
-    externalHooks: () => assembly.externalHooks(),
+    externalHooks: (threadId) => assembly.externalHooks(threadIdOf(threadId)),
+    prepareThread: async (threadId) => {
+      const id = threadIdOf(threadId);
+      if (id !== undefined) await env.prepareThread?.(id);
+    },
     hookAutoDisabledIds: () =>
       assembly.operations.autoDisabler
         .disabled()

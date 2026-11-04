@@ -254,3 +254,43 @@ test("hooks.reenable: turning the last saved hook back on clears the setting", a
   ]);
   await connection.close();
 });
+
+test("hooks.list with a threadId lists that thread's work-folder hooks; an untrusted folder contributes none; an unknown thread is refused", async () => {
+  const env = recordingEnv();
+  const user = { id: "user-hook", point: "thread.start", source: "user", tierRank: 1 } as const;
+  const project = { id: "ws-hook", point: "thread.start", source: "project", tierRank: 2 } as const;
+  const asked: (string | undefined)[] = [];
+  const prepared: string[] = [];
+  const { sources } = sourcesOf(env, [], {
+    // 신뢰한 폴더의 thread만 작업 폴더 훅이 보인다. 신뢰하지 않은 폴더(thr_open)는 층이 서지 않아 전역 훅만 보인다
+    externalHooks: (threadId) => {
+      asked.push(threadId);
+      const base = [{ ...user, unit: "fresnel-hooks-user-hook" }];
+      return threadId === "thr_trusted"
+        ? [...base, { ...project, unit: "fresnel-hooks-ws-hook" }]
+        : base;
+    },
+    prepareThread: (threadId) => {
+      prepared.push(threadId);
+      return Promise.resolve();
+    },
+    threadKnown: (threadId) => Promise.resolve(threadId !== "thr_gone"),
+  });
+  const connection = connect(sources, env);
+  await connection.request("host.hello", HELLO_PARAMS);
+  const ids = async (params: { readonly threadId?: string }) =>
+    (await connection.request("hooks.list", params)).hooks
+      .filter((row) => row.external)
+      .map((row) => [row.hook, row.source]);
+  expect(await ids({})).toEqual([["user-hook", "user"]]);
+  expect(await ids({ threadId: "thr_open" })).toEqual([["user-hook", "user"]]);
+  expect(await ids({ threadId: "thr_trusted" })).toEqual([
+    ["user-hook", "user"],
+    ["ws-hook", "project"],
+  ]);
+  expect(asked).toEqual([undefined, "thr_open", "thr_trusted"]);
+  expect(prepared).toEqual(["thr_open", "thr_trusted"]);
+  const gone = await failureOf(connection.request("hooks.list", { threadId: "thr_gone" }));
+  expect(gone).toMatchObject({ data: { kind: "thread.notFound" } });
+  await connection.close();
+});

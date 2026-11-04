@@ -849,6 +849,17 @@ const HookEntryShape = closed({
   point: Type.Optional(Name),
   source: Type.Optional(Name),
 });
+/**
+ * `hooks.list`의 입력. `threadId`를 주면 그 thread의 작업 폴더·로컬 훅(폴더를 신뢰한 경우만)도 외부 훅 줄에 든다.
+ * 생략하면 관리·사용자 범위 훅만 보인다. 없는 thread면 `thread.notFound`다
+ */
+export interface HooksListParams {
+  readonly threadId?: string;
+}
+const HooksListParamsShape2 = request({ threadId: Type.Optional(ThreadRef) });
+export const HooksListParamsSchema: TUnsafe<Req<HooksListParams>> = Type.Unsafe<
+  Req<HooksListParams>
+>(HooksListParamsShape2 satisfies SchemaProof<Req<HooksListParams>, typeof HooksListParamsShape2>);
 export interface HooksListResult {
   readonly hooks: readonly HookEntry[];
 }

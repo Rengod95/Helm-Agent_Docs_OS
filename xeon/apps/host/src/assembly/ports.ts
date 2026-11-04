@@ -789,6 +789,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         errors: { ofStore: wireErrorOfStore },
         heldThreads: () => Array.from(held.keys()),
         activeThread: () => Array.from(held.keys()).at(-1) ?? null,
+        prepareThread: (threadId) => settings.prepare(threadId),
       }),
       deps.extUi,
     ),

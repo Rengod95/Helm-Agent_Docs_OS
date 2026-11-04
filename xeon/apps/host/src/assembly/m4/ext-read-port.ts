@@ -124,7 +124,9 @@ export interface ExternalHookView {
 export interface ExtReadSources {
   safeMode(): SafeModeState;
   /** 이 호스트에서 읽히는 외부 훅. 작업 폴더·로컬 범위는 thread 없이는 보이지 않는다 */
-  externalHooks(): readonly ExternalHookView[];
+  externalHooks(threadId?: string): readonly ExternalHookView[];
+  /** thread의 작업 폴더 설정을 읽어 둔다. 없으면 이미 읽힌 층만 쓴다 */
+  prepareThread?(threadId: string): Promise<void>;
   /** Hook의 예산 등급과 유효 예산(ms). X.operations §4.2.2 표와 설정 `x.operations.budget.*`의 값 */
   budget(hook: HookName): { readonly budgetClass: string; readonly budgetMs: number };
   threadKnown(threadId: string, signal: AbortSignal): Promise<boolean>;
@@ -769,7 +771,10 @@ export function createExtReadPort(
       return ok(await sources.driveLock(params.threadId));
     },
 
-    hooks() {
+    async hooks(params, signal) {
+      const thread = await checkThread(params.threadId, signal);
+      if (!thread.ok) return thread;
+      if (params.threadId !== undefined) await sources.prepareThread?.(params.threadId);
       const infos = statusMap();
       const errors = sources.registrationErrors();
       const rowOf = (registrationId: string, extension: string, tier: number | null) => ({
@@ -786,7 +791,7 @@ export function createExtReadPort(
         live.set(handler.point, rows);
       }
       // 외부 훅은 훅마다 단위(Registration)라서 위 `live`에 이미 있다(X.operations §4.7.4). 꺼진 훅은 꺼짐으로 보인다
-      const external = sources.externalHooks();
+      const external = sources.externalHooks(params.threadId);
       const disabledIds = new Set(sources.hookDisabledSaved());
       for (const rows of live.values()) {
         for (const [index, row] of rows.entries()) {
@@ -856,7 +861,7 @@ export function createExtReadPort(
           ...hookStateOf(id),
         });
       }
-      return Promise.resolve(ok({ hooks: rows.toSorted((a, b) => (a.hook < b.hook ? -1 : 1)) }));
+      return ok({ hooks: rows.toSorted((a, b) => (a.hook < b.hook ? -1 : 1)) });
     },
 
     async settingExplain(params, signal) {
