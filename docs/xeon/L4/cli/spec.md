@@ -94,7 +94,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel secret rm <name> [--yes]` | 삭제. 참조하는 정책과 참조(설정 키, 활성 lease, 최근 사용한 대화)를 보인 뒤 확인한다. 활성 lease가 있으면 묻지 않고 거부한다 | `secret.references`, `secret.list { meta: true }`, `secret.remove` | M2 |
 | `fresnel secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다. 복호화할 수 없거나 없으면 1이다 | `secret.test` | M2 |
 | `fresnel secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
-| `fresnel trust [status] [--json]` | 이 작업 폴더의 프로젝트 신뢰 상태(폴더, 불러오려는 자원, 판정과 출처, 선택지)를 보인다. 신뢰할 자원이 없으면 stderr에 한 줄이다 | `trust.get { workspace }` | M2 |
+| `fresnel trust [status] [--json]` | 이 작업 폴더의 신뢰 상태(폴더, 불러오려는 자원, 판정과 출처, 선택지)를 보인다. 신뢰할 자원이 없으면 stderr에 한 줄이다 | `trust.get { workspace }` | M2 |
 | `fresnel trust allow\|deny [--scope folder\|parent\|session]` | 선택지 하나를 host에 보낸다. 범위 기본값은 `folder`. host가 낸 선택지에 없는 조합이면 2다 | `trust.get`, `trust.decide { workspace, choice }` | M2 |
 | `fresnel schedule add <프롬프트…> (--every <초> \| --at <시각> \| --remote \| --watch <경로>[,<경로>…] \| --loop <초> --max-iterations <n> --expires-in <초>) [--title <제목>] [--workspace <폴더>] [--disabled]` | 예약을 만든다. 트리거 플래그는 정확히 하나다(§4.14). 예약은 서비스 모드에서만 실행된다("Schedules run only in service mode."). 서비스 모드가 꺼져 있으면 저장만 되고 실행되지 않는다는 경고를 stderr에 쓴다. 이 문장은 `fresnel help schedule`과 `fresnel --help`의 서비스 줄에 있다 | `schedule.create { trigger, prompt, workspace?, title?, enabled? }` | M3(구현됨, M3b B1-SCH2) |
 | `fresnel schedule list [--all] [--json]` | 예약 목록. 기본은 켜진 항목이고 `--all`은 끈 항목까지 본다. 한 항목이 한 줄이고 `--json`은 항목 배열이다(§4.14) | `schedule.list { enabled? }` | M3(구현됨, M3b B1-SCH2) |
@@ -484,7 +484,7 @@ export type CliState = Static<typeof CliStateSchema>;
 
 - 위치는 `EngineHandle.paths.cliStateFile`이다. 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13).
 - 쓰기는 임시 파일에 쓴 뒤 이름 바꾸기로 한다. 권한은 0600 [제안].
-- 이 파일은 캐시다. 깨졌거나 스키마가 맞지 않으면 버리고 `--continue`는 "이어 열 세션이 없다"로 처리한다. M2부터 `--continue`는 `thread.list`를 정본으로 쓰고 이 파일은 위치(`position`)만 제공한다.
+- 이 파일은 캐시다. 깨졌거나 스키마가 맞지 않으면 버리고 `--continue`는 "이어 열 대화이 없다"로 처리한다. M2부터 `--continue`는 `thread.list`를 정본으로 쓰고 이 파일은 위치(`position`)만 제공한다. [근거: `xeon/packages/client/src/i18n/locales/ko.json`의 `cli.errors.chat.noThread.message`]
 
 ### 3.8 그룹 생성 명령 `fresnel group new` [M3b]
 
@@ -559,7 +559,7 @@ export interface GroupTemplatesPort {
 | 대상 | M1 | M2 이후 |
 |---|---|---|
 | 새 대화 | `thread.create { workspace }` → `position`부터 구독 | 같음 |
-| `--continue` | CLI 상태 파일에서 작업 폴더의 항목을 찾는다. 없으면 "이어 열 세션이 없다" + 해결 한 줄, 1로 끝낸다 | `thread.list { workspace, limit: 1 }`의 첫 항목 → `thread.open { mode: "write" }`. 호스트가 `thread.list`를 -32601로 거절하면(아직 구현하지 않은 호스트) 상태 파일로 대신하고, `thread.open`은 `features`에 없으면 건너뛰어 M1처럼 `turn.start`가 소유를 얻게 한다 |
+| `--continue` | CLI 상태 파일에서 작업 폴더의 항목을 찾는다. 없으면 "이어 열 대화이 없다" + 해결 한 줄, 1로 끝낸다 [근거: `cli.errors.chat.noThread.message`] | `thread.list { workspace, limit: 1 }`의 첫 항목 → `thread.open { mode: "write" }`. 호스트가 `thread.list`를 -32601로 거절하면(아직 구현하지 않은 호스트) 상태 파일로 대신하고, `thread.open`은 `features`에 없으면 건너뛰어 M1처럼 `turn.start`가 소유를 얻게 한다 |
 | `--resume <id>` | 상태 파일에 그 id의 위치가 있으면 그 위치부터, 없으면 `{ storeId, seq: 0 }`부터 구독 | `thread.open { threadId, mode: "write" }`의 `position` 사용 |
 
 - 재개 구독 [제안]:
@@ -573,7 +573,7 @@ export interface GroupTemplatesPort {
 
 - 끊긴 turn 이어 실행 [결정: m2c G1-02]:
   - 대화형이 기존 대화(`--continue`, `--resume <id>`, `/resume`)을 열면 이전 기록을 다 그린 뒤, 입력을 받기 전에 `thread.list`에서 그 대화의 요약을 찾는다. 작업 폴더 범위에서 먼저 찾고 없으면 전체에서 찾는다. 쪽은 각 범위 최대 3쪽까지 넘겨 본다.
-  - 요약의 `resumable`이 `null`이 아니면 "이 세션에 끊긴 turn이 있다 (시작 <시각>, 이어 실행을 <n>번 시도했다)"를 보이고 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`를 보낸다. 호스트는 자동 재개를 하지 않으므로 CLI도 묻지 않고 부르지 않는다. 호스트가 쓰기 소유를 얻으면서 되살린 미해결 승인(HS-52)이 있으면 그 승인 카드가 이 질문보다 먼저 서고, 카드에 답한 뒤에 이 질문을 한다 [미결 §10 15번].
+  - 요약의 `resumable`이 `null`이 아니면 "이 대화에 끊긴 turn이 있다 (시작 <시각>, 이어 실행을 <n>번 시도했다)"를 보이고 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`를 보낸다. 호스트는 자동 재개를 하지 않으므로 CLI도 묻지 않고 부르지 않는다. 호스트가 쓰기 소유를 얻으면서 되살린 미해결 승인(HS-52)이 있으면 그 승인 카드가 이 질문보다 먼저 서고, 카드에 답한 뒤에 이 질문을 한다 [미결 §10 15번] [근거: 이 문서 §10 15번].
   - 결과는 `resumed`(이어서 실행한다, 단계 `from`을 보이고 그 turn이 끝날 때까지 기다린다. 진행은 이벤트로 그려진다), `closed`(중단 요청 또는 소유자 취소라 이어 실행하지 않고 닫았다), `nothing`(이어서 실행할 turn이 없다)이다. 실패는 두 줄 오류로 알리고 입력을 이어 받는다.
   - 새 대화, 관찰 전용으로 연 대화, print 모드, `host.hello`의 `features`에 `turn.resume`이 없는 호스트에서는 묻지 않는다. 목록을 읽지 못해도 대화를 막지 않는다.
   - `fresnel sessions ls`는 `resumable`이 있는 대화에 `[이어서 실행 가능]`을 붙인다(구현됨).
@@ -662,7 +662,7 @@ export interface GroupTemplatesPort {
   - 값을 읽는 때는 호스트가 맡긴 수단의 `read()`를 부르는 순간이다. 읽은 바이트 배열은 `secret.beginEntry`가 끝나면 성공·실패와 관계없이 0으로 덮는다.
   - `add`의 `--desc`, `--scope`, `--expires`, `--hosts`는 값을 저장한 뒤 `secret.meta`로 적용한다. `--hosts`는 기존 사용 정책을 `secret.list { meta: true }`로 읽어 `hosts`만 바꾼다. 메타 적용이 실패하면 값은 저장된 상태라고 알린다. `--provider`는 `sops`만 받는다(wire에 제공자 선택이 없다). `secret meta`는 플래그가 하나도 없으면 2다.
   - `rm`은 먼저 `secret.references { name }`로 이 시크릿을 가리키는 곳을 읽는다 [결정: m2c G1-07]. `--yes` 없이 비TTY면 2다.
-    - `--yes`가 없으면 `secret.list { meta: true }`의 사용 정책(허용 도구·호스트)과 `<이름>: 참조하는 설정 키 <키…> / 활성 lease <n>개 / 최근 사용한 세션 <id…>` 한 줄(없으면 `없음`, 대화는 5개까지, 나머지는 `외 <n>개`)을 보인 뒤 `[y/N]`로 묻는다.
+    - `--yes`가 없으면 `secret.list { meta: true }`의 사용 정책(허용 도구·호스트)과 `<이름>: 참조하는 설정 키 <키…> / 활성 lease <n>개 / 최근 사용한 대화 <id…>` 한 줄(없으면 `없음`, 대화는 5개까지, 나머지는 `외 <n>개`)을 보인 뒤 `[y/N]`로 묻는다.
     - 활성 lease가 하나라도 있으면 묻지 않고 "사용 중인 시크릿이라 지울 수 없다 (활성 lease <n>개)"로 1로 끝낸다. `secret.remove`는 보내지 않는다.
     - `--yes`는 묻지 않고 지우되, 참조가 하나라도 있으면 같은 한 줄을 stderr에 남긴다. 활성 lease는 호스트가 거부하고(`secret.inUse`) CLI는 활성 lease 수를 보인다.
     - `host.hello`의 `features`에 `secret.references`가 없는 호스트에서는 사용 정책만 보인다.
@@ -706,7 +706,7 @@ export interface GroupTemplatesPort {
   ```text
   fresnel doctor (fresnel 0.0.0)
   진단
-    [ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다
+    [ok]   엔진을 열었다 (in-process). 대화 저장소와 FTS5를 쓸 수 있다
     [ok]   상태 디렉터리: <경로>
     [ok]   시크릿 저장소: 사용할 수 있어요 (등록 0개)
     [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 시크릿 저장소
@@ -853,13 +853,13 @@ export interface GroupTemplatesPort {
      - 도구 카드는 인자 요약(120자) 아래에 실행할 `command` 전체(40줄까지, 넘으면 "…(n줄 생략)")와 `secretEnv`의 시크릿 참조(`이름=secret://…`)을 보인다. 승인이 시크릿 사용의 증거라서 명령과 핸들을 보고 허용해야 한다. `secret://` 참조 모양이 아닌 값은 값을 보이지 않고 "(참조 형식이 올바르지 않음)"만 쓴다. 인자가 BlobRef면 상세 줄이 없다.
      - 요청 주체(`origin.caller`)가 `main`이 아니면 첫 줄에 보인다: `background`는 백그라운드 작업, `host`는 호스트, `subagent:<이름>`은 서브에이전트, `ext:<이름>`은 확장이다.
      - `expiresAt`이 있으면 "만료: <ISO 시각> (그때까지 답하지 않으면 거부로 처리한다)"를 보인다. `onExpire`가 `answer`면 "정해 둔 답으로 처리한다"다.
-     - `approval.resolved`의 `requestedRemember`와 적용한 `remember`가 다르면 "항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다"를 보인다(M4 엔진은 낮추지 않고 `once`만 받으므로 이전에 기록된 사건을 읽을 때만 나온다). 도구 승인 질문은 `[y] 이번만 허용  [n] 거부`뿐이다 [결정: 2026-10-31 사용자, 점검 2026-11-04]. `resolvedBy`가 `user`가 아니면(`expired`, `noninteractive`, `cancelled`, `superseded`) 이유를 한 줄로 보인다. 사용자가 직접 답했고 요청한 범위 그대로면 아무것도 보이지 않는다.
-- 프로젝트 신뢰(M2) [결정: m2c G1-03. wire 이름은 F wire §3.3.1 trust를 따른다]
+     - `approval.resolved`의 `requestedRemember`와 적용한 `remember`가 다르면 "항상 허용을 골랐지만 이 대화 동안 허용으로 낮춰 적용했다"를 보인다(M4 엔진은 낮추지 않고 `once`만 받으므로 이전에 기록된 사건을 읽을 때만 나온다). 도구 승인 질문은 `[y] 이번만 허용  [n] 거부`뿐이다 [결정: 2026-10-31 사용자, 점검 2026-11-04]. `resolvedBy`가 `user`가 아니면(`expired`, `noninteractive`, `cancelled`, `superseded`) 이유를 한 줄로 보인다. 사용자가 직접 답했고 요청한 범위 그대로면 아무것도 보이지 않는다.
+- 작업 폴더 신뢰(M2) [결정: m2c G1-03. wire 이름은 F wire §3.3.1 trust를 따른다]
   1. 대화형 `chat`은 대화를 만들거나 열기 전에 `trust.get { workspace }`를 부른다. `required`가 참이고 `verdict`가 `undecided`일 때만 카드를 보인다. 이미 정한 폴더나 신뢰할 자원이 없는 폴더(`notRequired`)는 묻지 않는다.
-  2. 카드는 프로젝트 폴더, 불러오려는 자원(`resources`), 판정과 출처(`via`), 신뢰하면 자원의 지시문·명령·MCP 서버가 사용자 권한으로 쓰인다는 경고, 번호가 붙은 선택지다. 선택지 글은 CLI가 `choice`(`kind` × `verdict`)로 만든다. `label`은 현지화 식별자라 글로 쓰지 않는다. 저장되는 폴더(`savedPath`)가 있으면 함께 보인다.
-  3. 번호를 입력하면 `trust.decide { workspace, choice }`를 보낸다. 엔터나 EOF는 "나중에"라서 아무것도 보내지 않고, 이 프로젝트의 자원은 읽지 않는다는 한 줄을 stderr에 남긴다(fail-closed). 잘못된 번호는 다시 묻는다.
-  4. `trust.get`이나 `trust.decide`가 실패하면 한 줄로 알리고 대화는 계속한다. 프로젝트는 신뢰하지 않은 채로 열린다. 저장 실패(`store.io`, `details.code: "trust_store"`)는 전용 문구와 종료 코드 3 문구를 쓴다. `trust.json` 쓰기의 프로세스 간 잠금은 host가 맡는다(`fileLock`).
-  5. print 모드는 물을 수 없다. 결정이 없으면 stderr에 "프로젝트 신뢰가 정해지지 않아 <자원>을(를) 읽지 않는다 (fresnel trust로 정한다)"를 한 줄 남긴다. JSON 모드는 메시지 열이 출력 전부라서(AC4) `trust.get`을 부르지 않는다.
+  2. 카드는 작업 폴더, 불러오려는 자원(`resources`), 판정과 출처(`via`), 신뢰하면 자원의 지시문·명령·MCP 서버가 사용자 권한으로 쓰인다는 경고, 번호가 붙은 선택지다. 선택지 글은 CLI가 `choice`(`kind` × `verdict`)로 만든다. `label`은 현지화 식별자라 글로 쓰지 않는다. 저장되는 폴더(`savedPath`)가 있으면 함께 보인다.
+  3. 번호를 입력하면 `trust.decide { workspace, choice }`를 보낸다. 엔터나 EOF는 "나중에"라서 아무것도 보내지 않고, 이 작업 폴더의 자원은 읽지 않는다는 한 줄을 stderr에 남긴다(fail-closed). 잘못된 번호는 다시 묻는다.
+  4. `trust.get`이나 `trust.decide`가 실패하면 한 줄로 알리고 대화는 계속한다. 작업 폴더는 신뢰하지 않은 채로 열린다. 저장 실패(`store.io`, `details.code: "trust_store"`)는 전용 문구와 종료 코드 3 문구를 쓴다. `trust.json` 쓰기의 프로세스 간 잠금은 host가 맡는다(`fileLock`).
+  5. print 모드는 물을 수 없다. 결정이 없으면 stderr에 "작업 폴더 신뢰가 정해지지 않아 <자원>을(를) 읽지 않는다 (fresnel trust로 정한다)"를 한 줄 남긴다. JSON 모드는 메시지 열이 출력 전부라서(AC4) `trust.get`을 부르지 않는다.
   6. `host.hello`의 `features`에 `trust.get`과 `trust.decide`가 없는 호스트에서 `chat`은 조용히 지나가고, `fresnel trust`는 환경 문제(3)로 알린다.
 - 잠금(M2): `thread.locked` 오류의 `details.options`(`observe`, `fork`, `delegate`) 중 가능한 것만 보인다.
   - 관찰: `thread.open { mode: "observe" }` 뒤 구독만 한다. 입력란을 잠근다.

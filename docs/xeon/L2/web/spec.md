@@ -1563,10 +1563,10 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 | 격리 실행 + 넓은 도메인 제한 | agent-browser `--allowed-domains` | `agent-browser`, 1차는 `playwright-local` + 필터 프록시 | 1차/2차 |
 | 성능·메모리·콘솔 진단 | Chrome DevTools MCP | `L2.mcp` 어댑터(통계 전송 끄기 플래그 강제, `_research/web-tools.md` §5.2) | MCP 경로 |
 | 로그인된 내 Chrome 일회성 작업 | Playwright attach `--extension`, browser-harness | `named` 프로필(기본 비활성) | 보류 |
-| 제품 안 자연어 act/extract | Stagehand, browser-use | 선택 엔진 플러그인 | 보류 |
+| 제품 안 자연어 act/extract | Stagehand의 act/extract, browser-use | 선택 엔진 플러그인 | 보류 (Stagehand 자체는 기본 엔진 provider로 들어왔다) |
 | 대량 페이지 텍스트 수집 | Lightpanda | 배포판 제외(AGPL) | 제외 |
 
-선택 엔진 플러그인: Stagehand(로컬 캐시 없음)와 moli(대량 읽기, 프리뷰 단계)는 보류한다. 필요해지면 `web.browse` provider 플러그인으로 이 문서의 `WebBrowseProvider`를 구현해 붙인다(`_research/layer-plan-v2.json` L2-c "선택 엔진 플러그인" 보류). Lightpanda는 AGPL이라 배포판에서 뺀다. 사용자가 별도로 설치해 CDP 주소로 연결하는 방식도 1차 범위 밖이다.
+Stagehand는 기본 엔진 provider로 이미 들어왔다(§4.10.4a) [근거: `xeon/apps/host/package.json`의 `@browserbasehq/stagehand`, `apps/host/src/assembly/web-stagehand.ts`]. 선택 엔진 플러그인으로 남는 것은 moli(대량 읽기, 프리뷰 단계)와 제품 안 자연어 act/extract로, 둘 다 보류한다. 필요해지면 `web.browse` provider 플러그인으로 이 문서의 `WebBrowseProvider`를 구현해 붙인다(`_research/layer-plan-v2.json` L2-c "선택 엔진 플러그인" 보류). Lightpanda는 AGPL이라 배포판에서 뺀다. 사용자가 별도로 설치해 CDP 주소로 연결하는 방식도 1차 범위 밖이다.
 
 ### 4.11 `web.research` (2차)
 
@@ -1869,7 +1869,7 @@ export const webSettings = defineSettings("l2.web", {
 6. 닫힘. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7, 기본값 `never`). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
 7. [미결] 대화당 호출 상한 카운터의 영속화. 제안은 프로세스 메모리다(§4.4.4).
 8. [미결] 브라우저 트래픽 필터를 `cap-web` 로컬 프록시로 할지 `L0.sandbox`의 네트워크 필터로 할지(§4.10.2). playwright-local에서 `allowedDomains`를 강제하는 방법은 선행 조사에서도 확인되지 않았다(`_research/notes/L2-2.md` §6).
-9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다. [결정: 오케스트레이터 기본값] Stagehand 추가는 2026-11-04에 승인됐지만 [결정: 2026-11-04 사용자] 엔진 어댑터(apps/host)는 `assembly/web-stagehand.ts`로 붙었다. cap-web은 엔진 provider `stagehand`를 첫 내장 후보로, `playwright-mcp`를 폴백으로 둔다(§4.10.4a). Chrome이 없는 기기에서는 실제 기본 경로가 `playwright-mcp`다.
+9. [해소: 2026-11-04] 기본 브라우저 provider는 Stagehand로 정해졌고 어댑터가 붙었다. 아래 [미결]은 Playwright Node 우회 범위뿐이다 [근거: `xeon/apps/host/package.json`]. 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다. [결정: 오케스트레이터 기본값] Stagehand 추가는 2026-11-04에 승인됐지만 [결정: 2026-11-04 사용자] 엔진 어댑터(apps/host)는 `assembly/web-stagehand.ts`로 붙었다. cap-web은 엔진 provider `stagehand`를 첫 내장 후보로, `playwright-mcp`를 폴백으로 둔다(§4.10.4a). Chrome이 없는 기기에서는 실제 기본 경로가 `playwright-mcp`다.
 10. [미결] `web.research` 실행 기록의 영속화와 재개(2차, §4.11.4).
 11. [미결] provider 선택 키의 값 목록 표시. 플러그인 설치 상태에 따라 바뀌는 선택지를 `SettingDef`로 표현하는 방법(`L4.settings-ui.spec`과 함께, §6).
 12. [미결] 기본 추출기. 제안은 readability 0.6.0 + linkedom 0.18.13이고 defuddle 0.19.5는 설정으로 고른다. 우리 샘플 페이지로 비교 측정한 뒤 정한다(`_research/web-tools.md` §2.3 "측정마다 순위가 뒤집힌다").
