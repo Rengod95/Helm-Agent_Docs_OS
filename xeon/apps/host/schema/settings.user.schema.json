@@ -4907,7 +4907,10 @@
       }
     },
     "l2.web.browse.order": {
-      "default": [],
+      "default": [
+        "stagehand",
+        "playwright-mcp"
+      ],
       "items": {
         "maxLength": 96,
         "pattern": "^(plugin:[a-z][a-z0-9-]{1,31}|[a-z][a-z0-9-]{0,63})$",

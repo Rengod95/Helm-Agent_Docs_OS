@@ -373,7 +373,7 @@ describe("web settings view", () => {
       searchOrder: [],
       searchParallel: 1,
       browseProvider: "auto",
-      browseOrder: [],
+      browseOrder: ["stagehand", "playwright-mcp"],
       robots: "never",
     });
     const custom = describeWebSettings({
