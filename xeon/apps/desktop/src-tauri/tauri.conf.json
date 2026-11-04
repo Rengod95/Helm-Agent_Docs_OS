@@ -5,7 +5,15 @@
   "identifier": "dev.fresnel.desktop",
   "build": { "frontendDist": "./ui" },
   "app": {
-    "windows": [{ "label": "main", "title": "Fresnel", "width": 1100, "height": 760 }],
+    "windows": [
+      {
+        "label": "main",
+        "title": "Fresnel",
+        "width": 1100,
+        "height": 760,
+        "dragDropEnabled": false
+      }
+    ],
     "security": {
       "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; frame-src fresnel-view:"
     }

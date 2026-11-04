@@ -1,7 +1,17 @@
 import { t } from "@fresnel/client/i18n";
+import { IconButton } from "@caustic/react";
+import { Paperclip } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import {
   useEngineState,
   useLinkPhase,
@@ -9,6 +19,22 @@ import {
   useThreadRunning,
 } from "../state/engine/index.ts";
 import { useComposerRequest, useObserving } from "../state/ui/index.ts";
+import {
+  attachDisabledReason,
+  baseNameOf,
+  chipsReady,
+  exceedsLimit,
+  failureOf,
+  readyParts,
+  replaceChip,
+  sourceOfFile,
+  type AttachChip,
+  type AttachmentSource,
+} from "./attachment-model.ts";
+import { AttachmentRow } from "./composer-attachments.tsx";
+import { InfoTip } from "./craft/info-tip.tsx";
+import { pickAttachmentFile } from "./folder-pick.ts";
+import { useFolderPick } from "./folder-pick-context.ts";
 import { useCommands, type CommandError } from "./commands.ts";
 import { composerDisabledReason, createEnterGuard, createSendLatch } from "./composer-model.ts";
 import { useSetupNeeded } from "./setup-needed.ts";
@@ -44,6 +70,117 @@ function ComposerFor(props: {
   const requestId = useRef<string>(newRequestId());
   const textarea = useRef<HTMLTextAreaElement>(null);
   const request = useComposerRequest();
+  const folderPick = useFolderPick();
+  const [chips, setChips] = useState<readonly AttachChip[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const [attachNote, setAttachNote] = useState<string | null>(null);
+  const limit = useRef<number | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const attachBlocked = attachDisabledReason({
+    composerReason: props.disabledReason,
+    running,
+  });
+  // 경로로 올리는 길은 이 기기의 엔진일 때만 맞다. 원격 엔진이면 파일을 바이트로 보낸다
+  const picker = commands.restore.engineTarget()?.kind === "remote" ? null : folderPick;
+
+  useEffect(() => {
+    detach(
+      commands.attachmentLimit().then((value) => {
+        limit.current = value;
+        return null;
+      }),
+      rethrow,
+    );
+  }, [commands]);
+
+  const upload = async (id: string, source: AttachmentSource): Promise<void> => {
+    const added = await commands.addAttachment(props.threadId, source);
+    setChips((current) =>
+      replaceChip(current, id, (chip) =>
+        added.ok
+          ? { ...chip, status: "ready", failure: null, parts: added.value.parts }
+          : { ...chip, status: "failed", failure: failureOf(added.error, limit.current) },
+      ),
+    );
+  };
+
+  const addChip = (name: string, size: number | null, source: AttachmentSource): string => {
+    const id = newRequestId();
+    setChips((current) => [
+      ...current,
+      { id, name, size, source, status: "uploading", failure: null, parts: null },
+    ]);
+    return id;
+  };
+
+  const addFile = async (file: File): Promise<void> => {
+    const name = file.name === "" ? t("desktop.composer.attach.pasted") : file.name;
+    if (exceedsLimit(file.size, limit.current)) {
+      // 큰 파일은 읽지 않고 바로 실패 칩을 보인다(다시 시도 없음)
+      setChips((current) => [
+        ...current,
+        {
+          id: newRequestId(),
+          name,
+          size: file.size,
+          source: { kind: "data", data: "-", mime: "application/octet-stream" },
+          status: "failed",
+          failure: { kind: "tooLarge", limit: limit.current },
+          parts: null,
+        },
+      ]);
+      return;
+    }
+    const source = await sourceOfFile(file);
+    const id = addChip(name, file.size, source);
+    await upload(id, source);
+  };
+
+  const addFiles = async (files: readonly File[]): Promise<void> => {
+    setAttachNote(null);
+    await Promise.all(files.map(addFile));
+  };
+
+  const pickFile = async (): Promise<void> => {
+    if (picker === null) {
+      fileInput.current?.click();
+      return;
+    }
+    const picked = await pickAttachmentFile(picker);
+    if (!picked.ok) {
+      setAttachNote(t("desktop.composer.attach.error.pickFailed"));
+      return;
+    }
+    if (picked.value === undefined) return;
+    setAttachNote(null);
+    const source: AttachmentSource = { kind: "path", path: picked.value };
+    const id = addChip(baseNameOf(picked.value), null, source);
+    detach(upload(id, source), rethrow);
+  };
+
+  const retry = (id: string): void => {
+    const chip = chips.find((c) => c.id === id);
+    if (chip === undefined) return;
+    setChips((current) =>
+      replaceChip(current, id, (c) => ({ ...c, status: "uploading", failure: null })),
+    );
+    detach(upload(id, chip.source), rethrow);
+  };
+
+  const onDrop = (event: DragEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    setDragging(false);
+    if (attachBlocked !== null) return;
+    detach(addFiles([...event.dataTransfer.files]), rethrow);
+  };
+
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>): void => {
+    const files = [...event.clipboardData.files];
+    // 글만 붙이는 보통의 붙여넣기는 건드리지 않는다
+    if (files.length === 0 || attachBlocked !== null) return;
+    event.preventDefault();
+    detach(addFiles(files), rethrow);
+  };
   // 최신 입력. 한글 조합이 끝난 직후의 keydown은 React 상태가 아직 갱신되기 전일 수 있다
   const draftRef = useRef("");
   const guard = useRef(createEnterGuard());
@@ -52,18 +189,26 @@ function ComposerFor(props: {
 
   const send = async (): Promise<void> => {
     const text = draftRef.current.trim();
-    if (text === "" || props.disabledReason !== null) return;
+    const parts = readyParts(chips);
+    if ((text === "" && parts.length === 0) || !chipsReady(chips)) return;
+    if (props.disabledReason !== null) return;
     if (!latch.current.tryAcquire()) return;
     setSending(true);
     setError(null);
     // 보내는 즉시 비운다. 남은 조합 글자가 두 번째 메시지가 되지 않게 한다
     draftRef.current = "";
     setDraft("");
-    const result = await commands.sendTurn(props.threadId, text, requestId.current);
+    const result = await commands.sendTurn(
+      props.threadId,
+      text,
+      requestId.current,
+      parts.length === 0 ? undefined : parts,
+    );
     latch.current.release();
     setSending(false);
     if (result.ok) {
       requestId.current = newRequestId();
+      setChips([]);
       return;
     }
     // 실패하면 입력을 돌려주고(그 사이 새로 쓴 것이 없을 때만) 오류를 보인다
@@ -106,12 +251,33 @@ function ComposerFor(props: {
 
   return (
     <form
-      className="composer"
+      className={dragging ? "composer composer-dragging" : "composer"}
+      onDragOver={(event) => {
+        if (attachBlocked !== null) return;
+        event.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => {
+        setDragging(false);
+      }}
+      onDrop={onDrop}
       onSubmit={(event) => {
         event.preventDefault();
         detach(send(), rethrow);
       }}
     >
+      <AttachmentRow
+        chips={chips}
+        onRemove={(id) => {
+          setChips((current) => current.filter((c) => c.id !== id));
+        }}
+        onRetry={retry}
+      />
+      {dragging ? (
+        <div className="composer-drop-hint" role="status">
+          {t("desktop.composer.attach.dropHint")}
+        </div>
+      ) : null}
       <textarea
         ref={textarea}
         aria-label={t("desktop.composer.input.label")}
@@ -124,6 +290,7 @@ function ComposerFor(props: {
           setDraft(event.currentTarget.value);
         }}
         onKeyDown={onKeyDown}
+        onPaste={onPaste}
         onCompositionStart={() => {
           guard.current.compositionStart();
         }}
@@ -132,6 +299,36 @@ function ComposerFor(props: {
         }}
       />
       <div className="composer-actions">
+        <input
+          ref={fileInput}
+          type="file"
+          multiple
+          hidden
+          aria-label={t("desktop.composer.attach.button")}
+          onChange={(event) => {
+            const picked = [...(event.currentTarget.files ?? [])];
+            event.currentTarget.value = "";
+            detach(addFiles(picked), rethrow);
+          }}
+        />
+        <IconButton
+          label={attachBlocked ?? t("desktop.composer.attach.button")}
+          size="sm"
+          variant="ghost"
+          disabled={attachBlocked !== null}
+          onClick={() => {
+            detach(pickFile(), rethrow);
+          }}
+        >
+          <Paperclip aria-hidden />
+        </IconButton>
+        <InfoTip text={t("desktop.composer.attach.info")} />
+        {attachNote === null ? null : (
+          <span className="error" role="alert">
+            {attachNote}
+          </span>
+        )}
+        <span className="composer-actions-spacer" />
         {error === null ? null : (
           <span className="error" role="alert">
             {error}
@@ -149,7 +346,12 @@ function ComposerFor(props: {
         ) : null}
         <button
           type="submit"
-          disabled={props.disabledReason !== null || sending || draft.trim() === ""}
+          disabled={
+            props.disabledReason !== null ||
+            sending ||
+            !chipsReady(chips) ||
+            (draft.trim() === "" && chips.length === 0)
+          }
         >
           {t("desktop.composer.send.button")}
         </button>

@@ -53,4 +53,17 @@ describe("errorOf", () => {
     expect(errorOf(wireError("thread.notFound"))).toEqual({ kind: "rejected", code: 3001 });
     expect(errorOf(new Error("boom"))).toEqual({ kind: "failed" });
   });
+
+  test("attachment rejections keep their code head as the issue", () => {
+    const invalid = wireError("jsonrpc.invalidParams", {
+      details: {
+        issues: [{ path: "source", message: "attachment_too_large: over the 20 byte limit." }],
+      },
+    });
+    expect(errorOf(invalid)).toEqual({
+      kind: "rejected",
+      code: invalid.code,
+      issue: "attachment_too_large: over the 20 byte limit.",
+    });
+  });
 });
