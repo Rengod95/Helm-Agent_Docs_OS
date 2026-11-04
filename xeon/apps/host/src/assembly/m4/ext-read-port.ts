@@ -131,6 +131,16 @@ export interface ExtReadSources {
   reenable(name: string): void;
   /** "끄기" 답. `AutoDisabler.answer(ext:<이름>, true)`가 auto_disable로 끈다 */
   disableConfirm(name: string): void;
+  /** 외부 훅(`hook:<id>`)의 "끌까요" 질문. 묻는 중이 아니면 null */
+  hookKeepOffQuestion(hook: string): NonNullable<HookEntry["keepOffQuestion"]> | null;
+  /** 외부 훅이 이번 실행에서 자동으로 꺼졌나 */
+  hookAutoDisabled(hook: string): boolean;
+  /** 설정 `x.operations.hookDisabled`에 저장된 꺼진 훅 id들 */
+  hookDisabledSaved(): readonly string[];
+  /** 훅 "켜 두기" 답. 질문이 있으면 `answer(hook:<id>, false)`, 없으면 `reenable(hook:<id>)`다 */
+  hookReenable(hook: string): void;
+  /** 훅 "끄기" 답. `AutoDisabler.answer(hook:<id>, true)`다 */
+  hookDisableConfirm(hook: string): void;
   /**
    * 로더 핫 리로드(X.loading-trust §4.4.4). 새 버전을 검사하고 단계 경계에서 바꾼다. 열린 thread가 실행 중이 아니면 이 호출이 돌아올 때 적용이 끝나 있다(`now`)
    * 실행 중인 turn이 있으면 그 step이 끝난 경계에 적용한다(`nextStepBoundary`). 검사 실패와 `now`일 때의 적용 실패는 진단으로 돌려준다
@@ -199,6 +209,11 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   keepOffQuestion: () => null,
   reenable: () => {},
   disableConfirm: () => {},
+  hookKeepOffQuestion: () => null,
+  hookAutoDisabled: () => false,
+  hookDisabledSaved: () => [],
+  hookReenable: () => {},
+  hookDisableConfirm: () => {},
   reload: () => Promise.resolve({ appliesAt: "nextStepBoundary", diagnostics: [] }),
   groups: () => [],
   groupMetrics: () => Promise.resolve(undefined),
@@ -228,6 +243,9 @@ interface HookOrderEnv {
 
 /** 순서 덮어쓰기를 저장하는 설정 키. 범위는 `user`다(X.operations §4.1.5) */
 const HOOK_ORDER_KEY = "x.operations.hookOrder";
+
+/** 꺼진 외부 훅 id를 저장하는 설정 키. 범위는 `user`이고 재시작 뒤에도 꺼진 채다(결정 2026-11-04 사용자) */
+const HOOK_DISABLED_KEY = "x.operations.hookDisabled";
 
 /** 같은 순서인가(둘 다 같은 자리에 같은 Registration id) */
 function sameOrder(a: readonly string[], b: readonly string[]): boolean {
@@ -351,6 +369,32 @@ export function createExtReadPort(
     return map.size === 0
       ? deps.env.settings.reset("user", HOOK_ORDER_KEY, undefined)
       : deps.env.settings.write("user", HOOK_ORDER_KEY, hookOrderValue(map), undefined);
+  }
+
+  /** 훅의 "끌까요" 질문과 꺼짐 표시. 해당하지 않는 필드는 싣지 않는다 */
+  function hookStateOf(hook: string): Pick<HookEntry, "keepOffQuestion" | "autoDisabled"> {
+    const question = sources.hookKeepOffQuestion(hook);
+    const off = sources.hookAutoDisabled(hook) || sources.hookDisabledSaved().includes(hook);
+    return {
+      ...(question === null ? {} : { keepOffQuestion: question }),
+      ...(off ? { autoDisabled: true } : {}),
+    };
+  }
+
+  /** 꺼진 훅 id 목록을 설정 값으로 쓴다. 비면 설정을 지워 기본값(`[]`)으로 돌린다 */
+  function writeHookDisabled(ids: readonly string[]): Promise<Result<void, ProfileWriteFailure>> {
+    return ids.length === 0
+      ? deps.env.settings.reset("user", HOOK_DISABLED_KEY, undefined)
+      : deps.env.settings.write("user", HOOK_DISABLED_KEY, [...ids], undefined);
+  }
+
+  /** 질문이 있거나 꺼져 있거나 꺼짐이 저장된 훅인가. 아니면 답할 대상이 없다 */
+  function hookKnown(hook: string): boolean {
+    return (
+      sources.hookKeepOffQuestion(hook) !== null ||
+      sources.hookAutoDisabled(hook) ||
+      sources.hookDisabledSaved().includes(hook)
+    );
   }
 
   /** 묻는 중이면 `keepOffQuestion` 필드를 더한다. 아니면 필드를 싣지 않는다 */
@@ -574,6 +618,37 @@ export function createExtReadPort(
       return Promise.resolve(ok({ appliesAt: "nextStepBoundary", diagnostics: [] }));
     },
 
+    async hookDisableConfirm(params) {
+      if (sources.safeMode().active) return err({ kind: "safe_mode_active" });
+      const hook = params.hook;
+      if (!hookKnown(hook)) return err({ kind: "unknown_hook", hook });
+      // 먼저 꺼짐을 설정에 쓴다. 쓰기가 실패하면 끄기를 요청하지 않는다(재시작 뒤에도 꺼진 채여야 한다)
+      const saved = sources.hookDisabledSaved();
+      if (!saved.includes(hook)) {
+        const written = await writeHookDisabled([...saved, hook].toSorted(byText));
+        if (!written.ok) {
+          return err({ kind: "write_failed", key: HOOK_DISABLED_KEY, failure: written.error });
+        }
+      }
+      sources.hookDisableConfirm(hook);
+      return ok({ appliesAt: "nextStepBoundary", diagnostics: [] });
+    },
+
+    async hookReenable(params) {
+      if (sources.safeMode().active) return err({ kind: "safe_mode_active" });
+      const hook = params.hook;
+      if (!hookKnown(hook)) return err({ kind: "unknown_hook", hook });
+      const saved = sources.hookDisabledSaved();
+      if (saved.includes(hook)) {
+        const written = await writeHookDisabled(saved.filter((id) => id !== hook));
+        if (!written.ok) {
+          return err({ kind: "write_failed", key: HOOK_DISABLED_KEY, failure: written.error });
+        }
+      }
+      sources.hookReenable(hook);
+      return ok({ appliesAt: "nextStepBoundary", diagnostics: [] });
+    },
+
     async reload(params, signal) {
       if (sources.safeMode().active) return err({ kind: "safe_mode_active" });
       if (findRecord(params.name) === undefined) return unknownExtension(params.name);
@@ -717,7 +792,7 @@ export function createExtReadPort(
             a.registrationId < b.registrationId ? -1 : a.registrationId > b.registrationId ? 1 : 0,
           ),
         ];
-        rows.push(hookRow(hook, order));
+        rows.push({ ...hookRow(hook, order), ...hookStateOf(hook) });
       }
       return Promise.resolve(ok({ hooks: rows.toSorted((a, b) => (a.hook < b.hook ? -1 : 1)) }));
     },

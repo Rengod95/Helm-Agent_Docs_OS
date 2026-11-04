@@ -17,13 +17,20 @@ test("settings: x.operations keys pass catalog", () => {
   const defs = Object.values(operationsSettings.defs);
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.operations", defs }]);
   expect(catalog.ok).toBe(true);
-  expect(defs).toHaveLength(18);
+  expect(defs).toHaveLength(19);
   // 훅 순서는 저장소 설정이 바꾸지 못한다(managed·user만)
   expect(operationsSettings.defs.hookOrder).toMatchObject({
     key: "x.operations.hookOrder",
     runtimeChange: "nextTurn",
     allowedScopes: ["managed", "user"],
     default: {},
+  });
+  // 꺼진 외부 훅 id는 재시작 뒤에도 남는다(user 파일). 저장소 설정이 바꾸지 못한다
+  expect(operationsSettings.defs.hookDisabled).toMatchObject({
+    key: "x.operations.hookDisabled",
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user"],
+    default: [],
   });
   for (const def of defs) {
     expect(def.layer).toBe("X");

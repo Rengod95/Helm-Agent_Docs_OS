@@ -374,6 +374,35 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
     disableConfirm: (name) => {
       assembly.operations.autoDisabler.answer(`ext:${name}`, true);
     },
+    hookKeepOffQuestion: (hook) => {
+      const question = assembly.operations.autoDisabler
+        .questions()
+        .find((q) => q.key === `hook:${hook}`);
+      if (question === undefined) return null;
+      return {
+        rule: question.rule,
+        consecutive: question.consecutive,
+        windowFailures: question.windowFailures,
+      };
+    },
+    hookAutoDisabled: (hook) =>
+      assembly.operations.autoDisabler.disabled().includes(`hook:${hook}`),
+    hookDisabledSaved: () => {
+      const value = env.settings.value("x.operations.hookDisabled");
+      if (!Array.isArray(value)) return [];
+      const ids: string[] = [];
+      for (const id of value) if (typeof id === "string") ids.push(id);
+      return ids;
+    },
+    // "켜 두기"(질문에 아니오)와 "다시 켜기". 질문이 있으면 켜 둔 채 장부를 비우고, 없으면 꺼진 훅을 다시 켠다
+    hookReenable: (hook) => {
+      const key = `hook:${hook}` as const;
+      const { autoDisabler } = assembly.operations;
+      if (!autoDisabler.answer(key, false)) autoDisabler.reenable(key);
+    },
+    hookDisableConfirm: (hook) => {
+      assembly.operations.autoDisabler.answer(`hook:${hook}`, true);
+    },
     reload: (name, signal) => reloadThroughLoader(assembly.loader(), name, signal),
     hookHandlers: () =>
       view.handlers().map((handler) => ({

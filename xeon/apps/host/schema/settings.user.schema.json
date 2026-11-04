@@ -7002,6 +7002,32 @@
         }
       }
     },
+    "x.operations.hookDisabled": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-fresnel": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Ids of external hooks that were turned off, by you or after repeated failures. They stay off after a restart until you turn them back on.",
+          "helpKey": "settings.x.operations.hookDisabled.help",
+          "label": "Turned-off external hooks",
+          "labelKey": "settings.x.operations.hookDisabled.label",
+          "order": 610,
+          "tab": "plugins",
+          "widget": "list"
+        }
+      }
+    },
     "x.operations.hookOrder": {
       "default": {},
       "patternProperties": {

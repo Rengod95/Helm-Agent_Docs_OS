@@ -86,6 +86,7 @@ export const operationsSettings: SettingGroup<
     readonly "trace.retentionDays": SettingDefInput;
     readonly "trace.storeRequestBody": SettingDefInput;
     readonly hookOrder: SettingDefInput;
+    readonly hookDisabled: SettingDefInput;
   }
 > = defineSettings("x.operations", {
   "budget.firstMs": budgetKey(
@@ -252,6 +253,20 @@ export const operationsSettings: SettingGroup<
       order: 600,
       label: "Handler order",
       help: "Users set the order in which handlers (Registration id) run for each hook. The order applies when a new stage starts. Guard-tier handlers can also be moved, and moving one may let it be skipped. Permission checks and the sandbox always run regardless of order.",
+    },
+    since: "0.1.0",
+  },
+  hookDisabled: {
+    type: Type.Array(Type.String()),
+    default: [],
+    runtimeChange: "live",
+    allowedScopes: HOOK_ORDER_SCOPES,
+    ui: {
+      tab: "plugins",
+      widget: "list",
+      order: 610,
+      label: "Turned-off external hooks",
+      help: "Ids of external hooks that were turned off, by you or after repeated failures. They stay off after a restart until you turn them back on.",
     },
     since: "0.1.0",
   },

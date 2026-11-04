@@ -37,6 +37,8 @@ const EXT_READ_METHODS: readonly WireMethodName[] = [
   "group.promotion",
   "group.driveLock",
   "hooks.list",
+  "hooks.disableConfirm",
+  "hooks.reenable",
   "settings.explain",
   "hooks.order.get",
   "hooks.order.set",

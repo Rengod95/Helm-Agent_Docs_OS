@@ -1136,7 +1136,8 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
 - 기준과 무관한 `disableNow` 중 투영기 실패(§5 6번)만 같은 면제를 받는다. 격리 재시작 한도 초과(`isolation_restart_limit`)는 면제 없이 끈다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
 - 외부 훅은 같은 기준으로 그 훅만 끈다. 훅 끄기는 다음 디스패치부터 적용한다(훅은 scope가 없다).
-- 자동 끄기 상태는 설정 파일에 쓰지 않는다 [제안]. `ext.<name>.enabled` 값은 바뀌지 않고, 다음 시작에서 다시 실린다. 시작을 넘어 세는 원장은 두지 않는다(§10 미결 7).
+- 외부 훅 질문의 답 경로 [결정: 2026-11-04 사용자, "사용자가 끈 외부 훅은 재시작 뒤에도 꺼져 있다"; wire 이름과 키 이름은 제안]: 화면은 `hooks.list`의 `HookEntry.keepOffQuestion`을 읽고 "끄기"는 `hooks.disableConfirm { hook }`, "켜 두기"와 "다시 켜기"는 `hooks.reenable { hook }`로 답한다. 호스트는 끄기에서 먼저 설정 `x.operations.hookDisabled`(문자열 배열, 범위 managed, user, 기본 `[]`, live)에 훅 id를 user 범위로 쓰고(쓰기가 실패하면 끄지 않는다), `answer(hook:<id>, true)`를 부른다. 다시 켜기는 저장된 id를 지우고 질문이 있으면 `answer(…, false)`, 없으면 `reenable(hook:<id>)`를 부른다. 질문도 꺼짐 기록도 없는 id는 `hooks.notFound`다. 외부 훅 실행기(§4.7)가 시작할 때 `hookDisabled`에 든 id는 싣지 않는다. 실행기는 아직 없어(`hooks` 연결이 빈 구현) 질문을 내는 주체도 아직 없다 [미결] [근거: `xeon/apps/host/src/assemble.ts`의 `createOperationsPolicy` 호출에 `hooks`가 없고, `hookDefs` 키가 코드에 없다].
+- 확장의 자동 끄기 상태는 설정 파일에 쓰지 않는다 [제안]. `ext.<name>.enabled` 값은 바뀌지 않고, 다음 시작에서 다시 실린다. 시작을 넘어 세는 원장은 두지 않는다(§10 미결 7).
 
 #### 4.3.4 알림과 기록
 
@@ -1504,6 +1505,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.trace.retentionDays` | integer | 30 | 1~3650 | live | managed, user | plugins | 1차 |
 | `x.operations.trace.storeRequestBody` | boolean | false | | live | managed, user | plugins | 1차 |
 | `x.operations.hookOrder` | `Record<훅 이름, registrationId[]>` | {} | | nextTurn | managed, user | plugins | 1차 |
+| `x.operations.hookDisabled` | string[] (꺼진 외부 훅 id) | [] | | live | managed, user | plugins | 1차 |
 | `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 2차 |
 | `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
 | `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins(widget `list`) | 2차 |

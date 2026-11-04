@@ -256,6 +256,18 @@ export const ExtAppliedResultSchema: TUnsafe<ExtAppliedResult> = Type.Unsafe<Ext
   ExtAppliedResultShape2 satisfies SchemaProof<ExtAppliedResult, typeof ExtAppliedResultShape2>,
 );
 
+/**
+ * `hooks.disableConfirm`(끄기)와 `hooks.reenable`(켜 두기·다시 켜기)의 params. 결과는 `ExtAppliedResult`다.
+ * 질문도 꺼짐 기록도 없는 훅이면 `hooks.notFound`다
+ */
+export interface HookNameParams {
+  readonly hook: string;
+}
+const HookNameParamsShape2 = request({ hook: Name });
+export const HookNameParamsSchema: TUnsafe<Req<HookNameParams>> = Type.Unsafe<Req<HookNameParams>>(
+  HookNameParamsShape2 satisfies SchemaProof<Req<HookNameParams>, typeof HookNameParamsShape2>,
+);
+
 /** `ext.health`(W-22) */
 export interface ExtHealthParams {
   readonly name?: string;
@@ -786,6 +798,13 @@ export interface HookEntry {
    * 호스트는 항상 채운다(없으면 옛 호스트)
    */
   readonly order?: readonly HookHandlerRow[];
+  /**
+   * 이 훅(실패 장부 키 `hook:<hook>`)이 자동 끄기 기준을 넘어 "끌까요"를 묻는 중이면 있다. 켜 둔 채 답을 기다린다 [결정: 2026-11-04 사용자].
+   * 답은 "끄기" = `hooks.disableConfirm`, "켜 두기"와 "다시 켜기" = `hooks.reenable`이다. 없으면 묻지 않는다
+   */
+  readonly keepOffQuestion?: ExtKeepOffQuestion;
+  /** 사용자가 끈 훅이거나 이번 실행에서 자동으로 꺼졌으면 참. 꺼짐은 설정 `x.operations.hookDisabled`에 남아 재시작 뒤에도 유지된다. 거짓이면 싣지 않아도 된다 */
+  readonly autoDisabled?: boolean;
 }
 /** 훅 핸들러 하나. 순서는 배열 위치다 */
 export interface HookHandlerRow {
@@ -812,6 +831,14 @@ const HookEntryShape = closed({
   registrations: Type.Array(Name, { maxItems: 256 }),
   external: Type.Boolean(),
   order: Type.Optional(Type.Array(HookHandlerRowShape, { maxItems: 256 })),
+  keepOffQuestion: Type.Optional(
+    closed({
+      rule: Type.Union([Type.Literal("consecutive"), Type.Literal("rate")]),
+      consecutive: Count,
+      windowFailures: Count,
+    }),
+  ),
+  autoDisabled: Type.Optional(Type.Boolean()),
 });
 export interface HooksListResult {
   readonly hooks: readonly HookEntry[];
