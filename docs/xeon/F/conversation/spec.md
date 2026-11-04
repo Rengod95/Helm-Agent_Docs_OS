@@ -230,7 +230,7 @@ export interface IdFactory {
 - [제안] `Brand`는 `eng.typescript.guide` §1.2가 정한 루트 진입점의 것을 쓴다. 정의 위치는 `src/base/`(`eng.domain-types.guide` DT-12 순서 0, `F.readme` §3)다. 같은 패키지 안이라 `../base/index.ts`를 상대 경로로 import한다.
 - [제안] 발급 인터페이스 이름은 `IdFactory`다. `eng.typescript.guide` TY-06·TY-09가 이 이름과 `next(prefix)` 모양을 인용한다. 조정 브리프의 `IdGenerator`는 `IdFactory`로 확정한다.
 - [제안] 소문자 ULID, 접두 대문자, 접두 없는 ULID, 다른 접두는 모두 스키마 검증에서 거부된다.
-- ULID 단조성(같은 밀리초 안 증가 보장)을 어느 층이 소유할지는 [미결]이다(§10 미결 3). 이벤트 순서는 `seq`(`F.records.spec`)로 정하므로 ULID 단조성은 ID 정렬의 편의 문제다.
+- ULID 단조성(같은 밀리초 안 증가 보장)은 L0 `createIdFactory`가 지킨다(§10 미결 3, [결정: M2 마감 G5-03]). 이벤트 순서는 `seq`(`F.records.spec`)로 정하므로 ULID 단조성은 ID 정렬의 편의 문제다.
 
 #### 3.2.1 `IdPrefix` 밖의 ID 정책 [제안]
 

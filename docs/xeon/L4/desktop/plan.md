@@ -322,7 +322,7 @@ S1에서 spec에 반영할 내용:
 | D11 | e2e: 앱 실행 → 한 턴 → 종료 → 프로세스 잔존 확인, CLI와 메시지 열 비교. `*.e2e.test.ts` | D6, D10 | M | M2 |
 | D12 | 서비스 모드 연동: `SocketPipe`, `ensure` 호출, 서비스 소실 처리 | D5, `L4.host-service.plan` 서비스 모드 | M | M3 |
 | D13 | 알림: `tauri-plugin-notification` 연결. 켜기·종류는 `l2.dialog.notify.*`를 따른다(review.decisions-2 S-04) | D12, 내구 이벤트 kind 기반 대상 선택(spec §4.8), 알림 전용 wire는 M2 계획에서 정한다(spec §10 미결 5) | S | M3 |
-| D14 | 자동 업데이트 검토 | D10 | S | M3 [미결] |
+| D14 | 자동 업데이트 검토 | D10 | S | M4 확인 줄과 상태, 내려받기·교체는 M5 [결정: 2026-11-04 사용자, A2 2안] |
 
 - 규모: S는 하루 안, M은 2~4일, L은 1주 이상 [가정].
 - D1의 `Bun.spawn` [결정: review.decisions-2 B-06]: `eng.dependency-rules.guide` DR-07의 테스트 한정 행으로 푼다. 허용 목록 `DR-07/desktop-test-spawn`(from `apps/desktop`, to `Bun.spawn`, `scope: "test"`)을 쓰고, 운영 소스에서는 여전히 금지다. `L4.host-service.plan`과 `L4.cli.plan`의 자식 프로세스 테스트도 같은 방식이다(`DR-07/cli-test-spawn`).

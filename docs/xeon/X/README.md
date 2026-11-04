@@ -57,7 +57,7 @@ X가 정하지 않는 것:
 
 | 대상 | 규칙 | 정본 |
 |---|---|---|
-| 확장 이름 `ExtensionName` | `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음, [결정: review.decisions-2 U-18]). 매니페스트 `kind`는 `plugin` 또는 `group` | `F.extensions.spec` §3.1 |
+| 확장 이름 `ExtensionName` | `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음, [결정: review.decisions-2 U-18]). 매니페스트는 `plugins[]` 목록을 두고 `group` 선언이 있으면 플러그인 그룹이다 | `F.extensions.spec` §3.1 |
 | `RegistrationId` | `<확장 이름>` 또는 `<확장 이름>/<하위 이름>`(`REGISTRATION_ID_PATTERN`). 주 scope id는 확장 이름 | `F.extensions.spec` §3.2 |
 | 이벤트·레코드 kind | 플러그인 `x.<확장 이름>.<영역>.<이름>`, 그룹 `grp.<그룹 이름>.<영역>.<이름>`. scope 상태 커밋은 `<x\|grp>.<이름>.state.committed`이고 영역 `state`는 X 예약 | `F.records.spec` §3.2, `X.primitives.spec` §4.6.1 |
 | X가 쓰는 코어 kind | `scope.changed`, `lease.acquired`, `lease.released`. post는 core-tasks가 쓰는 `input.queued`로 남는다(`post.accepted` retire, [결정: review.decisions-2 U-05]). 추가 요청: `scope.handler_failed`(휘발), `ScopeChangedPayload.reason` | `F.records.spec` §3.3, `X.operations.spec` §10 |
@@ -129,7 +129,7 @@ X가 정하지 않는 것:
 5. [미결] 비협조적 확장 코드의 한계. 같은 프로세스에서는 시간 예산과 drive 락 회수가 코드 실행을 멈추지 못한다. 자동 끄기와 격리(2차)로 보완하는 범위를 받아들일지, 그룹별 격리를 1차로 올릴지(adr.0007 §6, `X.operations.spec` §5 1번).
 6. [미결] 그룹 간 이벤트 격리. Cordis 일반 `emit`의 전역 전달을 그룹 접두 필터로 막을지(`X.primitives.spec` §4.9, adr.0007 §6).
 7. [결정: review.decisions-2 U-06] `tool.call.before` 훅에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 chain 훅을 따로 더한다. pi 호환은 두지 않는다(adr.0017 §3.7).
-8. [미결] 훅 이름 표기. pi snake_case 정본과 조사 자료의 점 표기 별칭 허용 여부(`F.extensions.spec` §4.10).
+8. (닫음) 훅 이름은 점 표기 자체 규칙이고 별칭은 두지 않는다(`F.extensions.spec` §4.10, [결정: 2026-11-04 사용자, R4]).
 9. [미결] `ResourcePolicy`의 리소스 집합 판정 메서드(`X.operations.spec` §10 미결 17). `DispatchPolicy`의 성공 보고(`onHandlerSettled`)와 예산 실행 위임(`run`, 사용자 응답 대기 제외)은 `X.primitives.spec` §3.4에 선택 메서드로 넣어 해소했다 [제안]. 마일스톤은 두 plan 모두 M0다(P-06, P-20, O-03, O-06).
 10. (해소) [결정: review.decisions-2 U-14, D-04] 포트 타입의 정본은 F다(§6 조건 2). 호스트 포트, 리소스 등록 포트, 로더 포트와 키는 `F.extensions.spec` §3.2.1 `ports.ts`에, `RecordCommitPort`는 `F.records.spec` §3.9에 있다. X 세 도메인은 F 이름을 다시 export만 하고(`X.primitives.spec` §3.6·§3.9, `X.loading-trust.spec` §3.2·§3.7·§3.8, `X.operations.spec` §3.7), ext-host 고유 키는 `ExtHostPortKey`뿐이다.
 11. [미결] F 추가 요청 모음: 상태 영역 예약 오류 코드(`record_kind_reserved`, `X.primitives.spec` §10). `ScopeChangedPayload.reason`과 휘발 kind `scope.handler_failed`는 `F.records.spec` §3.3에 들어갔다(`X.operations.spec` §10 미결 4). 매니페스트 `storage`·`hooks` 필드와 `HandlerContext.ui`는 M1에 넣지 않는다([결정: review.decisions-2 U-07], `X.operations.spec` §10 미결 2·5).

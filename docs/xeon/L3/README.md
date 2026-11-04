@@ -217,7 +217,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 | 핸들러 순서 | tier, 확장 로드 순서, 등록 순서의 사전식 순서. tier 정의는 L3가 정하지 않는다 | `X.operations.spec`으로 위임, `F.extensions.spec` §4.2 |
 | delegate 동시 실행 | Helm의 `loop.spawn`(drive 락 안)과 학습 그룹의 `delegate`(drive 락 밖 백그라운드 위임)가 함께 돈다. 학습 쪽 상한은 `l3.learning.review.*` 설정이 건다 | [결정] 층 사이 규칙 4 "백그라운드 위임은 여러 그룹이 함께 쓴다", 상한 귀속은 [미결](`_research/notes/L3-2.md` §6 8) |
 | 레코드 읽기 | 서로의 레코드를 선택적으로 읽는다(5절). 한쪽이 꺼져 있어도 다른 쪽은 빈 결과로 동작한다 | [제안] |
-| 제3의 drive 그룹 | `x.primitives.activeDriver`이 `null`(auto)이면 `DriveArbiter`가 요청 순서로 정한다. 대기 또는 거부 기본값은 [미결] | `L3.group-sdk.spec`, `product.vision.spec` §5 |
+| 제3의 drive 그룹 | `x.primitives.activeDriver`이 `null`(auto)이면 `DriveArbiter`가 요청 순서로 정한다. 기본은 대기이고 대기 상한을 넘으면 거부한다(D-M3-05, 2026-10-26 사용자 결정) | `L3.group-sdk.spec`, `product.vision.spec` §5 |
 
 기본 켬 상태 요약:
 

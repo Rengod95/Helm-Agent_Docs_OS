@@ -29,7 +29,7 @@ L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용
 | cli | `fresnel` 명령 체계, 대화형·print·JSON 모드, TUI, 시크릿·설정·대화·서비스 명령. 기본 in-process | `xeon/apps/cli/**` | `L4.cli.spec`, `L4.cli.plan` | M1 |
 | desktop | Tauri 2 셸, Rust 바이트 릴레이, WebView TS UI, 엔진 사이드카 수명 | `xeon/apps/desktop/**` | `L4.desktop.spec`, `L4.desktop.plan` | M1(스캐폴드와 TS 쪽 stdio 적합성), 본체 M2 |
 | host-service | 엔진 조립 루트(`assemble`), Runtime API의 서버 쪽 처리기, 전송 3종, 서비스 모드 수명 | `xeon/apps/host/**` | `L4.host-service.spec`, `L4.host-service.plan` | M1 |
-| settings-ui | `SettingDefWire`·`EffectiveSetting`에서 12탭 화면을 만드는 view-model과 렌더러 | `xeon/apps/desktop/src/settings/**` | `L4.settings-ui.spec`, `L4.settings-ui.plan` | M2(얇은 화면), 전체 M3 |
+| settings-ui | `SettingDefWire`·`EffectiveSetting`에서 13탭 화면을 만드는 view-model과 렌더러 | `xeon/apps/desktop/src/settings/**` | `L4.settings-ui.spec`, `L4.settings-ui.plan` | M2(얇은 화면), 전체 M3 |
 | desktop-ux | 데스크톱 화면 스펙과 크래프트 | `xeon/apps/desktop/src/views/**` | `L4.desktop-ux.spec` | M4 |
 | release | 릴리즈 아카이브 구성, 자원 디렉터리, 번들 바이너리, 서명과 공증 단계, 스모크(X11) | `xeon/scripts/release*`, `.github/workflows/fresnel-release.yml` | `L4.release.spec`, `L4.release.plan` | M3b(B5-REL) |
 
@@ -94,7 +94,7 @@ flowchart LR
 
 ## 4. 이름 규칙과 공통 규칙
 
-코드 식별자는 F 문서와 같은 문자열을 쓴다: `Transport`, `TransportKind`, `HostConnection`, `WireHandlers`, `WireRequestContext`, `SettingDefWire`, `EffectiveSetting`, `SettingsTab`(12값), `checkSettingWrite`. 새 공용 이름이 필요하면 F 변경 요청으로 올린다(§8).
+코드 식별자는 F 문서와 같은 문자열을 쓴다: `Transport`, `TransportKind`, `HostConnection`, `WireHandlers`, `WireRequestContext`, `SettingDefWire`, `EffectiveSetting`, `SettingsTab`(13값), `checkSettingWrite`. 새 공용 이름이 필요하면 F 변경 요청으로 올린다(§8).
 
 | 대상 | 규칙 | 정본 |
 |---|---|---|
@@ -192,7 +192,7 @@ L4가 정하지 않는 것:
 | 29 | TUI 설정 화면과 view-model 공유 위치(DR-10) | `L4.cli.spec` §10-10, `L4.settings-ui.spec` §10-12 | 사용자 확인 |
 | 30 | stdout EPIPE 종료 코드(0 제안)와 129·143 추가 | `L4.cli.spec` §10-11 | 작성자 결정 |
 | 31 | 데스크톱 메모리 예산 수치(B1~B4) | `L4.desktop.spec` §10-8 | 사용자 확인(S5 측정 뒤) |
-| 32 | 데스크톱 자동 업데이트 채택(M3 이후) | `L4.desktop.spec` §10-12 | 사용자 확인 |
+| 32 | 데스크톱 자동 업데이트: M4는 확인 줄과 상태만, 내려받기와 교체는 M5 [결정: 2026-11-04 사용자, A2 2안] | `L4.desktop.spec` §10-12 | 사용자 확인 |
 | 33 | 장수명 엔진의 stdio 유지와 로컬 소켓 전환 | `L4.desktop.spec` §10-13, ADR-0008 §6 | 작성자 결정(S3 spike 뒤) |
 | 34 | secrets 탭(M3)과 시크릿 관리 명령(M2)의 순서 | `L4.settings-ui.spec` §10-4 | 작성자 결정 |
 | 35 | 사용량 wire 메서드와 게이지 채우기 시점. 레이트 리밋·계정 회전 설정은 M3 화면에 넣는다(review.decisions-2 U-21). 판정: 보류(M3) | `L4.settings-ui.spec` §10-5 | M3 계획 |

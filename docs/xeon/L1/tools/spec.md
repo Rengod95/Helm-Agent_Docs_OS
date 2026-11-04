@@ -245,7 +245,7 @@ export interface ToolService extends ToolsPort {
   /** 사용자 셸(`!명령`) 경로(M2). L1.loop의 runUserBash가 user_bash 지점 뒤에 부른다. 정책은 caller "main", 대화형으로 평가한다 */
   runUserShell(request: UserShellRequest, run: ToolRunContext): Promise<ToolResultRecord>;
 
-  /** 대화의 권한 모드. 세션 범위 설정 l1.tools.permissionMode를 바꾸고 settings.changed로 남는다 */
+  /** 대화의 권한 모드. 이번 실행(launch) 범위 설정 l1.tools.permissionMode를 바꾸고 settings.changed로 남는다 */
   mode(threadId: ThreadId): PermissionMode;
   setMode(threadId: ThreadId, mode: PermissionMode, source: "user" | "plan_approval"): Promise<ModeChangeResult>;
 }
@@ -829,7 +829,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 |---|---|---|
 | `default` | core-tools 내장 규칙, L1 패키지가 `registerRules("core:<도메인>", …)`로 넣은 규칙(L1.agents.spec의 자식 차단 규칙) | `default.read-allow`, `subagent.no-spawn` |
 | `extension` | 확장이 등록한 규칙(2차: 매니페스트 선언). M2까지는 내장 그룹만 | Helm이 쓰기 금지를 규칙으로 표현할 때 |
-| `user` | 설정 `l1.tools.rules`의 `user`, `project`, `local`, `session` 범위 값 | `{ tool: "bash", args: [{ pointer: "/command", pattern: "^git status( |$)" }], effect: "allow" }`(접두 일치라 `git status && rm x`도 정규식은 통과하지만, 아래 연쇄 규칙이 ask로 낮춘다) |
+| `user` | 설정 `l1.tools.rules`의 `user`, `project`, `local`, `launch` 범위 값 | `{ tool: "bash", args: [{ pointer: "/command", pattern: "^git status( |$)" }], effect: "allow" }`(접두 일치라 `git status && rm x`도 정규식은 통과하지만, 아래 연쇄 규칙이 ask로 낮춘다) |
 | `managed` | 설정 `l1.tools.rules`의 `managed` 범위 값 | `{ tool: "*", mcpServer: "untrusted-*", effect: "deny" }` |
 
 - 설정 범위별 규칙 수집 [제안]: F.wire-settings.spec §4.7 규칙 2는 키 하나의 값을 통째로 바꾼다. 정책 규칙은 범위마다 모아야 한다. 그래서 core-tools는 `l1.tools.rules`를 유효 값 하나로 읽지 않고 범위별 층(`ScopeStack`)에서 각각 읽어 티어를 붙인다. 이 읽기 방식을 SettingDef에 표시하는 필드(예: `merge: "collect"`)를 F.wire-settings.spec에 요청한다(§8.3 F 요청 5).

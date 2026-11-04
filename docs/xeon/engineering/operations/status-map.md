@@ -115,7 +115,7 @@ binds: []
 | L2/schedule | 타이머, 파일 감시, 원격 트리거, 루프 | 부분 (B1-SCH) | 93 |
 | L2/workspace | `write`, `edit`, `grep`, `find`, 원자적 쓰기, 동시 변경 감지 | 부분 (B1-WS) | 94 |
 | L2/artifacts | 리뷰·diff 승인, 제목·라벨 메타, 레코드 카탈로그 | 부분 (B2-ART) | 95 |
-| L2/web | `web.browse`의 브라우저 provider | 부분 (B2-WEB). Stagehand 의존 승인 대기 | 96 |
+| L2/web | `web.browse`의 브라우저 provider | 부분 (B2-WEB). Stagehand 의존은 2026-11-04 승인됨(설치 약 30 MB), 구현 전 | 96 |
 | L2/web | 검색 provider 체인과 키 플러그인 첫 사용 고지 | 부분 (B2-WEB). 고지는 호출 뒤 경고로 나감 | — |
 | L2/mcp | 정의 `env`·`headers` 평문 허용 거부와 시크릿 이름 패턴 | 부분 (B3-SEC) | 97 |
 | L2/knowledge | 인덱스 예산과 `LIKE` 탐색 범위 | 부분 (B5-PERF). 측정 완료, 예산 수치 대기 | 98 |

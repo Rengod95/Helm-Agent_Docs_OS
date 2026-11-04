@@ -65,6 +65,28 @@ binds: []
 - 새 트랙 T-REN, T-REG, T-TERM, T-LANG은 §2.0 표로 선언합니다. 표 행은 장부 검사의 트랙 목록에 들어가지 않으므로 장부 상태에서 이 id를 가리킬 수 없습니다. 가리킬 일이 생기면 `scripts/req-ledger.test.ts`의 26을 함께 고치는 별도 커밋이 필요합니다 [미결: 오케스트레이터 확인].
 - 종료 조건 Y1~Y17은 번호를 바꾸지 않습니다. 조건 내용을 바꾼 Y 줄(§1.3)은 `product.scope.spec` §4.4 M4 행과 `xeon/scripts/exit-tests.txt`(Y10의 `apps/cli` 줄, Y7·Y15의 새 시험 줄)도 같은 정리에서 고칩니다. 둘은 이 문서 변경과 다른 파일이라 이번 커밋에서 고치지 않았습니다. 정리는 T-CLN이 합니다.
 
+## 0a. 진행 상태 (2026-11-04 문서 감사)
+
+기준은 `origin/xeon/foundation` = `origin/m4/land9` `9f5ea860`입니다. 근거는 git 기록과 코드 grep이고, 확인하지 못한 항목은 "확인 필요"로 둡니다. 전체 표와 근거는 `doc-audit-2026-11-04.md` §5입니다.
+
+| 트랙 | 상태 | 근거 |
+|---|---|---|
+| T-REN, T-REG, T-TERM(1~3단계), T-I18N | 완료 (용어 경고 51건 남음) | `a152f8b2`, `6870bd5a`, `74d1ea5d`, `6f6c44b7` |
+| T-CAU1 | 병합됨. 서브모듈 위치가 caustic main보다 뒤 | `854c3c43` |
+| T-LANG | 취소 [취소: 2026-11-02 (15)]. 아래 본문의 T-LANG 선행·위험 참조는 옛 모양 | caustic main에 PR #13 없음 |
+| T-F, T-XV, T-XD, T-WA, T-WB, T-WC, T-AUTH, T-SHELL, T-CHAT1, T-CHAT2, T-BENCH | 병합됨 | `f37bdec7`, `c4881421`, `bf9d89a4`, `5044467d`, `f465c9a1`, `bb92c95c`, `93fea3d8`, `19091351` |
+| T-CANVAS, T-TRIAL, T-VIEW, T-GK | 부분 | 개요·Test run 화면 병합. selection-sync, order-persists, view-host 시험, Helm 메서드 3개는 확인 필요 |
+| T-COMPOSE, T-A11Y, T-CLN, T-QUAL, T-JUDGE, T-SENSOR, T-CONV, T-EXPORT | 미착수 | 코드 없음. T-QUAL은 단계 0 결과 뒤 |
+| T-MEAS-*, T-VIEW-TURN/PERF, T-TEST-* | 대부분 부분 | 저장·호출·훅·읽기는 병합. `ext.test.run`·`ext.test.list`는 아직 `notImplemented`. 단계 0 실험은 dry run만 했고 현재 계정 API 실행 대기 |
+| T-RT1, T-RT2, T-CAU2 | 분류 완료, 구현은 확인 필요. T-CAU2는 C-34·C-37·C-38이 caustic main에 없음 | `5d37ce32`, `48a50681` |
+
+종료 조건: Y10, Y11, Y16은 완료. Y8, Y9, Y12, Y15, Y17은 대체로 완료(시험 줄 활성화 남음). Y1, Y2, Y4, Y5, Y6, Y7, Y13은 부분. Y14는 미착수. Y3는 아래 메모를 봅니다.
+
+- Y3의 "모든 크래프트 화면" 맥락 칸과 프로젝트 출처 배지는 2026-11-03 크래프트 8차 시안(전역만)과 프로젝트 층 M5 이월(2026-11-04)과 어긋납니다. 둘 중 무엇이 현행인지 사용자 확인이 필요합니다(감사 보고서 §3).
+- Y4의 재생 막대는 2026-11-04 시안 Q3 A로 두지 않습니다(아직 안 만듦). 층 패널 순서의 뜻은 시안 Q2가 답 없이 열려 있습니다. 훅 순서 입력(`hooks.order.*`)은 병합되어 있습니다.
+- 본문 15행 "어려운 부분은 max로"와 17행 "병합과 push 전에는 `just verify`"는 현행 규칙(Haiku xhigh, `just verify`는 병합 직전에 메인 세션만)과 다릅니다. 현행은 `agent-routing`과 Fresnel `CLAUDE.md`입니다.
+- 196행의 `.github/workflows/xeon-ci.yml`은 지금 `fresnel-ci.yml`입니다.
+
 ## 1. 범위 요약
 
 ### 1.1 범위

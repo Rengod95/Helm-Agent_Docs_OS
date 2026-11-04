@@ -181,8 +181,8 @@ export interface ExtHostDeps {
 }
 
 export interface PrimitivesSettingsSource {
-  driveDefaultLimits(threadId: ThreadId): DriveLimits; // x.primitives.driveDefaultLimits (review.decisions-2 U-12). session 범위까지 합친 값, 빠진 필드는 내장 기본값으로 채움
-  driveLimits(threadId: ThreadId): DriveLimits;        // x.primitives.driveLimits (천장). session 범위까지 합친 값
+  driveDefaultLimits(threadId: ThreadId): DriveLimits; // x.primitives.driveDefaultLimits (review.decisions-2 U-12). launch 범위까지 합친 값, 빠진 필드는 내장 기본값으로 채움
+  driveLimits(threadId: ThreadId): DriveLimits;        // x.primitives.driveLimits (천장). launch 범위까지 합친 값
   activeDriver(threadId: ThreadId): RegistrationId | null; // x.primitives.activeDriver
   driveRequiresGroup(): boolean;                       // x.primitives.driveRequiresGroup (기본 true). 등록 시점(setup)에 읽는다
   capabilityProviders(): Readonly<Record<CapabilityId, ExtensionName>>; // x.primitives.capabilityProviders
@@ -991,7 +991,7 @@ first:
 
 ```text
 first(entries, payload):
-  closed = decl.failure == "closed"      // adr.0017. open인 지점은 session.compact.before뿐이고 FIRST_DENY 항목이 없다
+  closed = decl.failure == "closed"      // adr.0017. open인 훅은 thread.compact.before뿐이고 FIRST_DENY 항목이 없다
   for e in entries:
     r = await runOne(e, [payload])
     if !r.ok:                            // 예외·시간 초과

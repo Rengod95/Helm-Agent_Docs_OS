@@ -941,7 +941,7 @@ export interface HookDecl<N extends HookName = HookName> {
   readonly result?: TSchema;
   /** boundary 훅의 최종 검증 여부(§4.1) */
   readonly finalize?: "boundary";
-  /** 참이면 thread 없이 호스트 수준에서 발화한다(§7). 지금은 session.trust.before뿐이다 */
+  /** 참이면 thread 없이 호스트 수준에서 발화한다(§7). 지금은 thread.trust.before뿐이다 */
   readonly threadless?: true;
   /** M1 스모크에서 페이로드를 정확화한 지점 */
   readonly m1: boolean;
@@ -956,7 +956,7 @@ export const GUARD_HOOKS: { readonly request: "guard.model.before"; readonly too
 /** lifecycle 훅과 내구 이벤트 kind의 대응. 레코드 kind에서 훅 이름으로 가는 길은 이 표 하나다 */
 export const LIFECYCLE_HOOKS: { readonly "agent.settled": "lifecycle.agent.settled"; readonly "lease.rejected": "lifecycle.lease.rejected" };
 
-/** fail-closed first 훅의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open first 훅(session.compact.before)은 없다 */
+/** fail-closed first 훅의 거부값. 핸들러 예외는 이 값으로 바뀐다. fail-open first 훅(thread.compact.before)은 없다 */
 export const FIRST_DENY: { readonly [N in Exclude<FirstHookName, "thread.compact.before">]: HookSignatures[N]["decision"] };
 
 /** chain 훅의 병합·중단 규칙. 순수 함수 */
@@ -1261,7 +1261,7 @@ export interface SessionBeforeCompactPayload {
 export type SessionBeforeCompactDecision =
   | { readonly cancel: true; readonly reason: string }
   | { readonly cancel: false; readonly compaction: { readonly summary: string; readonly firstKeptEventId: EventId; readonly details: JsonValue | null } };
-// session.compact.before는 fail-open이라 FIRST_DENY 항목이 없다(§4.1)
+// thread.compact.before는 fail-open이라 FIRST_DENY 항목이 없다(§4.1)
 
 export interface SessionCompactPayload {
   readonly threadId: ThreadId;
@@ -1586,7 +1586,7 @@ X 설치 시점과 로더가 내는 코드(정적 검사 밖): `drive_requires_g
 | 연결 | 내용 | L4 노출 |
 |---|---|---|
 | 매니페스트 `userConfig` | 항목마다 F.wire-settings 설정 키 하나(`ext.<name>.<userConfig 키>`)를 가리킨다. `sensitive`면 시크릿 참조로 저장한다 | 설정 화면 "플러그인과 그룹" 탭의 확장별 설정 |
-| 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 플러그인 그룹이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `session`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
+| 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 플러그인 그룹이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `launch`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
 | drive lock 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
 | 주도 플러그인 | 키 `x.primitives.activeDriver` 하나(소유 X.primitives.spec, 옛 키 `x.primitives.activeDriveGroup`은 읽지 않는다) [결정: review.decisions-2 S-15] | 같은 탭 "주도 플러그인" 선택 |
 | drive 정책 | 키 `x.primitives.driveRequiresGroup`(boolean, 기본 `true`, 범위 `user`·`managed`, 소유 X.primitives.spec) [결정: 2026-11-01 사용자, 키 이름과 범위는 제안]. 참이면 플러그인 그룹의 구성원만 drive를 등록한다. 설정 화면은 켜기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다 | 같은 탭 |

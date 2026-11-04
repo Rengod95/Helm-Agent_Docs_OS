@@ -74,7 +74,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel chat -p … --auto-approve` | print 모드에서 도구 승인 요청을 `{ decision: "allow" }`로 한 번 허용한다(`remember`를 보내지 않는다). 질문·계획·검토 승인은 거부한다. 승인마다 stderr에 한 줄을 쓴다(§4.11 4번). 대화형과 함께 쓰면 사용법 오류 2(`autoApproveRequiresPrint`) | `approval.respond`(`decision: "allow"`) | M3(구현됨, M3b B1-SCH) |
 | `fresnel chat --continue` | 현재 작업 폴더의 마지막 대화를 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list`. 대화형이고 그 대화에 끊긴 turn이 있으면 묻고 `turn.resume`을 부른다(§4.4) | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
 | `fresnel chat --resume <id>` | 지정 대화를 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
-| `fresnel chat --set <key>=<value>` | 이 대화에만 설정을 덮어쓴다(session 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `session`, `threadId`) | M2 |
+| `fresnel chat --set <key>=<value>` | 이 대화에만 설정을 덮어쓴다(launch 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `launch`, `threadId`) | M2 |
 | `fresnel chat --safe-mode`, `fresnel --safe-mode` | 이번 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다(`X.operations.spec` §4.6). `AssembleOptions.safeMode`로 넘긴다. 설정 `x.operations.safeMode.default`가 켜져 있어도 같고, 호스트가 `host.status.safeMode`로 알린다. 서비스 모드의 안전 모드는 서비스를 새로 띄울 때 `service start --safe-mode`로 정한다 | 없음(조립 옵션). `host.status`가 `safeMode: true`를 돌려준다 | M3(구현됨, M3b B1-SVC) |
 | `fresnel sessions ls [--all] [--limit n] [--json]` | 대화 목록. 기본은 현재 작업 폴더 | `thread.list` | M2 |
 | `fresnel sessions show <id> [--json]` | 대화의 내구 이벤트를 트랜스크립트로 출력한다 | `events.subscribe`(filter `threadIds`), `events.unsubscribe` | M2 |
@@ -748,7 +748,7 @@ export interface GroupTemplatesPort {
   ```
 
   `--json`이면 `EffectiveSetting[]`를 그대로 한 JSON 문서로 쓴다. 텍스트와 JSON 모두 `settings.get` 결과의 `source`를 그대로 옮긴다(F wire §4.7 5번).
-- `config set`의 `--scope session`은 받지 않는다. 대화 범위는 `--set`과 `/set`만 쓴다.
+- `config set`의 `--scope launch`은 받지 않는다. 대화 범위는 `--set`과 `/set`만 쓴다.
 - `--set key=value`(M2): 대상 대화가 정해진 뒤 첫 `turn.start` 전에 `settings.set { key, value, scope: "launch", threadId }`를 순서대로 부른다. 하나라도 실패하면 turn을 시작하지 않고 2로 끝낸다.
 
 ### 4.9 화면(TUI)
@@ -870,7 +870,7 @@ export interface GroupTemplatesPort {
 ### 4.12 슬래시 명령
 
 - 슬래시 명령은 설정 정의에서 만든다 [제안].
-  - `/set <key> <value>`: `settings.list` 결과 중 `allowedScopes`에 `session`이 있는 키만 자동 완성에 넣는다. 실행은 `settings.set { scope: "launch", threadId }`.
+  - `/set <key> <value>`: `settings.list` 결과 중 `allowedScopes`에 `launch`가 있는 키만 자동 완성에 넣는다. 실행은 `settings.set { scope: "launch", threadId }`.
   - `/model [<값>]`: 모델 선택 키의 별칭이다. 값이 없으면 그 키의 `range.enum`으로 목록을 보인다. 키 이름은 `L1.models.spec`이 정한다 [가정: 아직 이름이 정해지지 않았다].
   - `/resume [<번호|id>]`: `thread.list`로 이 작업 폴더의 목록을 보이고 고른 대화로 바꾼다(M2). 바꿀 때 이전 대화의 구독을 해제하고(`events.unsubscribe`) 새 대화를 같은 연결에서 연다. 잠금이면 §4.11의 프롬프트가 뜬다. 바꾸지 못하면 이전 대화를 다시 연다.
   - `/rename <제목>`: 지금 대화의 제목을 `thread.rename { threadId, title }`로 바꾼다 [결정: m2c G2-12]. 제목이 비었거나 200자를 넘으면 보내지 않고 사용법을 알린다.
@@ -890,7 +890,7 @@ export interface GroupTemplatesPort {
     - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.fresnel/commands`)을 그 대화의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 대화를 바꾸면 새 대화의 id로 다시 읽는다.
     - `host.hello`의 `features`에 `command.run`이 없는 호스트에서는 부르지 않고 모르는 명령으로 처리한다.
 - 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
-- Tab 완성: `/set ` 뒤는 session 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
+- Tab 완성: `/set ` 뒤는 launch 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
 - 실패한 슬래시 명령(없는 키, 허용되지 않은 범위)은 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다.
 - 확장이 슬래시 명령을 더하는 경로(L2-e 프롬프트 템플릿)는 등록 쪽이 엔진 안이라 이 문서에 두지 않는다. 클라이언트는 위의 `command.list`와 `command.run`만 부른다.
 
@@ -1016,10 +1016,10 @@ $ fresnel db restore ~/backup/fresnel-2026-10-29
 
 - [제안] 네 키 모두 탭은 `appearance`다. 표시 설정의 소유자가 L4이기 때문이다(F wire §3.8.1 마지막 항목, `_research/settings.md` §2.13).
 - `l4.cli.outputMode`는 print 모드의 기본 출력이다. `--json` 플래그가 이 값보다 앞선다. 대화형에는 적용하지 않는다.
-- `l4.cli.keybindingsFile`: 키 바인딩 내용은 파일로만 정한다(`_research/settings.md` §2.13 "파일만"). 파일 형식은 pi `keybindings.json`을 따른다 [가정: pi-tui `src/keybindings.ts`의 형식, 채택 뒤 확정]. CLI는 시작할 때 파일을 읽고 같은 키에 동작이 둘 이상이면 충돌 목록을 stderr에 쓴다. 충돌한 키는 기본 바인딩을 쓴다. `restart`이므로 `session` 범위가 없다(F wire D7).
+- `l4.cli.keybindingsFile`: 키 바인딩 내용은 파일로만 정한다(`_research/settings.md` §2.13 "파일만"). 파일 형식은 pi `keybindings.json`을 따른다 [가정: pi-tui `src/keybindings.ts`의 형식, 채택 뒤 확정]. CLI는 시작할 때 파일을 읽고 같은 키에 동작이 둘 이상이면 충돌 목록을 stderr에 쓴다. 충돌한 키는 기본 바인딩을 쓴다. `restart`이므로 `launch` 범위가 없다(F wire D7).
 - `l4.cli.statusLine`은 배열 원소 열거를 `type`에 둔다. `range.enum`은 string·number에만 쓰기 때문이다(F wire D5).
 - 서비스 사용 설정은 `l0.process.service.enabled`다(`L0.process.spec` §6 소유). 설정 화면에서는 "실행" 탭(`SettingsTab` `"execution"`)이다(adr.0006 §3.4 마지막 항목).
-- 노출 경로: 설정 파일(`L4.host-service.spec`의 파일 위치), `fresnel config`, `/set`(session 허용 키만), 데스크톱 설정 화면(`L4.settings-ui.spec`).
+- 노출 경로: 설정 파일(`L4.host-service.spec`의 파일 위치), `fresnel config`, `/set`(launch 허용 키만), 데스크톱 설정 화면(`L4.settings-ui.spec`).
 
 ## 7. 훅
 

@@ -732,7 +732,7 @@ M2 설계(후속 구현):
 | `l0.secrets.audit.retentionDays` | integer, 1~3650 | `90` [제안] | managed, user | live | secrets 탭 number |
 
 - `ui.tab`은 `l0.secrets.sops.binary`만 `advanced`이고 나머지 키는 `secrets` 또는 `permissions`다(`F.wire-settings.spec` §3.8.2 `SettingsTab`).
-- `project`, `local`, `session` 범위는 받지 않는다. 저장소 안 파일이 시크릿 정책을 넓히지 못하게 한다(§3.2 범위 규칙).
+- `project`, `local`, `launch` 범위는 받지 않는다. 저장소 안 파일이 시크릿 정책을 넓히지 못하게 한다(§3.2 범위 규칙).
 - `l0.secrets.redaction.enabled`는 끄는 값을 거부한다. [제안] 키를 두는 이유는 화면이 "마스킹 켜짐(보조 수단)"을 보이게 하기 위해서다.
 - 읽기·쓰기 호스트 구분: 메타에 `approval`이 비어 있을 때 `use.hosts`가 쓰기 호스트로 분류되면 `writeHosts`, 아니면 `default`를 쓴다. 분류는 메타를 만들 때 사람이 체크한다 [제안]. 자동 분류(HTTP 메서드 기반)는 하지 않는다.
 
