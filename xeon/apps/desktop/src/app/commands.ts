@@ -31,7 +31,7 @@ import { createTestCommands } from "./tests-commands.ts";
 import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
-import type { LocalSettings } from "../settings-store/index.ts";
+import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { EngineSwitch } from "./engine-switch.ts";
 
 export type CommandDeps = {
@@ -187,6 +187,16 @@ export function createCommands(deps: CommandDeps): Commands {
     async interrupt(threadId) {
       const done = await withWriteConnection((c) => c.request("turn.interrupt", { threadId }));
       return done.ok ? ok(null) : done;
+    },
+    compactThread: (threadId) =>
+      withWriteConnection((c) => c.request("thread.compact", { threadId })),
+    resumeTurn: (threadId) => withWriteConnection((c) => c.request("turn.resume", { threadId })),
+    runCommandLine: (threadId, text) =>
+      withWriteConnection((c) => c.request("command.run", { threadId, text })),
+    paletteUses: () => deps.local.get(LOCAL.paletteUses) ?? {},
+    async savePaletteUses(uses) {
+      const written = await deps.local.set(LOCAL.paletteUses, uses);
+      return written.ok;
     },
     async respondApproval(approvalId: EventId, response: ApprovalDecision) {
       if (deps.engineSwitch.held()) {

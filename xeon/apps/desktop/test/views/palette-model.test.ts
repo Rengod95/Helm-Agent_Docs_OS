@@ -2,12 +2,16 @@ import { describe, expect, test } from "bun:test";
 import {
   availableCommands,
   commandValue,
+  countedUse,
   decodeValue,
   groupCellsOf,
   matchesQuery,
   moreValue,
   PALETTE_COMMAND_IDS,
   PALETTE_GROUP_LIMIT,
+  PALETTE_USE_MAX,
+  screenTargetsOf,
+  screenValue,
   settingValue,
   slashValue,
   threadValue,
@@ -75,21 +79,123 @@ describe("palette values", () => {
       id: "firstRun.open",
     });
   });
+
+  test("the command ids are exactly the first eight and the seven actions added from spec §4.5", () => {
+    expect([...PALETTE_COMMAND_IDS]).toEqual([
+      "thread.new",
+      "turn.interrupt",
+      "inbox.open",
+      "settings.open",
+      "firstRun.open",
+      "area.toggle",
+      "engine.restart",
+      "diagnostics.copy",
+      "thread.fork",
+      "thread.compact",
+      "turn.resume",
+      "explore.start",
+      "explore.stop",
+      "goal.clear",
+      "connection.open",
+    ]);
+    for (const id of PALETTE_COMMAND_IDS) {
+      expect(decodeValue(commandValue(id))).toEqual({ kind: "command", id });
+    }
+  });
+
+  test("without an open thread the actions on a thread are left out and the connection action stays", () => {
+    expect(availableCommands(false).map((c) => c.id)).toEqual([
+      "thread.new",
+      "inbox.open",
+      "settings.open",
+      "firstRun.open",
+      "area.toggle",
+      "engine.restart",
+      "diagnostics.copy",
+      "connection.open",
+    ]);
+  });
+});
+
+describe("palette command order", () => {
+  test("with no counts the commands keep the table order", () => {
+    expect(availableCommands(true, {}).map((c) => c.id)).toEqual([...PALETTE_COMMAND_IDS]);
+  });
+
+  test("the most used commands come first, and a tie keeps the table order", () => {
+    const uses = { "engine.restart": 3, "thread.new": 1, "diagnostics.copy": 3 };
+    expect(availableCommands(true, uses).map((c) => c.id)).toEqual([
+      "engine.restart",
+      "diagnostics.copy",
+      "thread.new",
+      "turn.interrupt",
+      "inbox.open",
+      "settings.open",
+      "firstRun.open",
+      "area.toggle",
+      "thread.fork",
+      "thread.compact",
+      "turn.resume",
+      "explore.start",
+      "explore.stop",
+      "goal.clear",
+      "connection.open",
+    ]);
+  });
+
+  test("the first five of the ranked list are the five most used actions", () => {
+    const uses = {
+      "goal.clear": 5,
+      "connection.open": 4,
+      "explore.start": 3,
+      "turn.resume": 2,
+      "thread.fork": 1,
+    };
+    expect(
+      availableCommands(true, uses)
+        .slice(0, 5)
+        .map((c) => c.id),
+    ).toEqual(["goal.clear", "connection.open", "explore.start", "turn.resume", "thread.fork"]);
+  });
+
+  test("counts for ids that are not in the table are dropped", () => {
+    const ranked = availableCommands(true, { "rm.rf": 99, "thread.new": 1 }).map((c) => c.id);
+    expect(ranked).not.toContain("rm.rf");
+    expect(ranked).toHaveLength(PALETTE_COMMAND_IDS.length);
+    expect(ranked[0]).toBe("thread.new");
+  });
+
+  test("a counted command still needs an open thread to be offered", () => {
+    const ranked = availableCommands(false, { "thread.fork": 9, "thread.new": 1 }).map((c) => c.id);
+    expect(ranked).not.toContain("thread.fork");
+    expect(ranked[0]).toBe("thread.new");
+  });
+
+  test("a counted use adds one, starts from zero, stops at the maximum, and leaves the input alone", () => {
+    expect(countedUse({}, "thread.new")).toEqual({ "thread.new": 1 });
+    const before = { "thread.new": 4 };
+    expect(countedUse(before, "thread.new")).toEqual({ "thread.new": 5 });
+    expect(before).toEqual({ "thread.new": 4 });
+    expect(countedUse({ "thread.new": PALETTE_USE_MAX }, "thread.new")).toEqual({
+      "thread.new": PALETTE_USE_MAX,
+    });
+  });
 });
 
 describe("palette groups", () => {
-  test("a connected palette with an open thread shows the four groups in spec order", () => {
+  test("a connected palette with an open thread shows the five groups in spec order, screens last", () => {
     expect(visibleGroupsOf({ live: true, hasThread: true })).toEqual([
       "thread",
       "command",
       "slash",
       "setting",
+      "screen",
     ]);
   });
 
-  test("offline the palette keeps only the app actions", () => {
-    expect(visibleGroupsOf({ live: false, hasThread: true })).toEqual(["command"]);
-    expect(visibleGroupsOf({ live: false, hasThread: false })).toEqual(["command"]);
+  test("offline the palette keeps the app actions and the screen navigation only", () => {
+    expect(visibleGroupsOf({ live: false, hasThread: true })).toEqual(["command", "screen"]);
+    expect(visibleGroupsOf({ live: false, hasThread: false })).toEqual(["command", "screen"]);
   });
 
   test("without an open thread the slash group is not shown", () => {
@@ -97,7 +203,68 @@ describe("palette groups", () => {
       "thread",
       "command",
       "setting",
+      "screen",
     ]);
+  });
+});
+
+describe("palette screen navigation", () => {
+  test("the current area's nav screens come first, then the other area's", () => {
+    expect(screenTargetsOf("chat").map((t) => screenValue(t.area, t.screen))).toEqual([
+      "screen:chat:chat",
+      "screen:chat:inbox",
+      "screen:chat:proposals",
+      "screen:chat:schedules",
+      "screen:chat:connection",
+      "screen:workbench:overview",
+      "screen:workbench:extensions",
+      "screen:workbench:tests",
+      "screen:workbench:metrics",
+      "screen:workbench:compose",
+      "screen:workbench:engine",
+    ]);
+    expect(screenTargetsOf("workbench").map((t) => t.screen)).toEqual([
+      "overview",
+      "extensions",
+      "tests",
+      "metrics",
+      "compose",
+      "engine",
+      "chat",
+      "inbox",
+      "proposals",
+      "schedules",
+      "connection",
+    ]);
+  });
+
+  test("a screen row carries the nav label keys and the shortcut of its nav item when it has one", () => {
+    const inbox = screenTargetsOf("chat").find((t) => t.screen === "inbox");
+    expect(inbox).toEqual({
+      area: "chat",
+      screen: "inbox",
+      label: "desktop.shell.nav.inbox",
+      areaLabel: "desktop.shell.area.chat",
+      action: "nav.2",
+    });
+    expect(screenTargetsOf("chat").find((t) => t.screen === "overview")?.action).toBeUndefined();
+  });
+
+  test("a screen value reads back as its area and screen, and an unknown area or a screen of the other area is not a value", () => {
+    expect(decodeValue(screenValue("chat", "inbox"))).toEqual({
+      kind: "screen",
+      area: "chat",
+      screen: "inbox",
+    });
+    expect(decodeValue(screenValue("workbench", "metrics"))).toEqual({
+      kind: "screen",
+      area: "workbench",
+      screen: "metrics",
+    });
+    expect(decodeValue("screen:chat:overview")).toBeNull();
+    expect(decodeValue("screen:nowhere:chat")).toBeNull();
+    expect(decodeValue("screen:chat")).toBeNull();
+    expect(decodeValue("screen:")).toBeNull();
   });
 });
 

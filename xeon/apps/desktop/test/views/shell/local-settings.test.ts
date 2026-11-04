@@ -32,6 +32,26 @@ describe("local settings store (V-14)", () => {
     expect(fake.settingsFile).toEqual({});
   });
 
+  test("palette command counts are kept under the window prefix and read back after a reload", async () => {
+    const fake = fakeIpc();
+    const a = createLocalSettings(fake.ipc);
+    await a.load();
+    const counts = { "thread.new": 3, "diagnostics.copy": 1 };
+    expect((await a.set(LOCAL.paletteUses, counts)).ok).toBe(true);
+    expect(fake.settingsFile["l4.desktop.window.paletteUses"]).toEqual(counts);
+    const b = createLocalSettings(fake.ipc);
+    await b.load();
+    expect(b.get(LOCAL.paletteUses)).toEqual(counts);
+  });
+
+  test("a palette count that is negative or not a whole number is refused", async () => {
+    const fake = fakeIpc();
+    const s = createLocalSettings(fake.ipc);
+    expect((await s.set(LOCAL.paletteUses, { "thread.new": -1 })).ok).toBe(false);
+    expect((await s.set(LOCAL.paletteUses, { "thread.new": 1.5 })).ok).toBe(false);
+    expect(fake.settingsFile).toEqual({});
+  });
+
   test("a stored value of the wrong shape reads as absent", async () => {
     const fake = fakeIpc();
     fake.settingsFile["l4.desktop.window.area.current"] = "elsewhere";

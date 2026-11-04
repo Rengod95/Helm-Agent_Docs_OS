@@ -6,7 +6,14 @@ import {
   type ComboboxGroupData,
   type ComboboxOptionData,
 } from "@caustic/react";
-import { ChevronRight, Ellipsis, MessageSquare, Play, Settings } from "@caustic/react/icons";
+import {
+  ChevronRight,
+  Ellipsis,
+  LayoutGrid,
+  MessageSquare,
+  Play,
+  Settings,
+} from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   settingsViewOf,
@@ -27,6 +34,8 @@ import {
   commandValue,
   decodeValue,
   groupCellsOf,
+  screenTargetsOf,
+  screenValue,
   settingValue,
   slashValue,
   threadValue,
@@ -37,11 +46,13 @@ import {
   type PaletteGroupId,
   type PaletteItem,
   type PaletteRun,
+  type PaletteUses,
 } from "./palette-model.ts";
 
 // S-02 명령 팔레트. Dialog 안 인라인 Combobox 하나(caustic에 전용 팔레트가 없다). 찾기 글과 묶음 걸러내기는 모델이 하고,
 // Combobox의 자체 걸러내기는 끈다(`matchAll`). 고른 항목은 `onRun`으로 가고, 팔레트는 먼저 닫힌다. 실제 동작은 App이 맡는다.
 // 슬래시 명령과 설정 항목은 열 때 읽는다(연결이 있을 때만). "더 보기"는 팔레트 안에서 묶음을 펼친다.
+// 명령은 실행 횟수가 많은 순서로 보인다(빈 입력이면 앞의 다섯 개가 자주 쓴 동작이다). 화면 이동은 현재 영역이 먼저다.
 
 export interface PaletteProps {
   readonly mac: boolean;
@@ -60,6 +71,7 @@ const GROUP_HEADING: Readonly<Record<PaletteGroupId, MessageId>> = {
   command: "desktop.palette.group.commands",
   slash: "desktop.palette.group.slash",
   setting: "desktop.palette.group.settings",
+  screen: "desktop.palette.group.screens",
 };
 
 /** 묶음마다 행 앞에 두는 아이콘. 구성 요소를 고르고 그릴 때 `<Icon />`으로 쓴다 */
@@ -68,9 +80,10 @@ const GROUP_ICON: Readonly<Record<PaletteGroupId, ComponentType>> = {
   command: Play,
   slash: ChevronRight,
   setting: Settings,
+  screen: LayoutGrid,
 };
 
-/** 상태 칸의 문장. 대화와 명령 묶음은 읽기를 따로 하지 않아 일반 문장을 쓴다 */
+/** 상태 칸의 문장. 대화, 명령, 화면 이동 묶음은 읽기를 따로 하지 않아 일반 문장을 쓴다 */
 function statusTextOf(group: PaletteGroupId, status: Exclude<GroupStatus, "ready">): MessageId {
   const failed = status === "failed";
   switch (group) {
@@ -82,6 +95,7 @@ function statusTextOf(group: PaletteGroupId, status: Exclude<GroupStatus, "ready
         : "desktop.palette.status.settingsLoading";
     case "thread":
     case "command":
+    case "screen":
       return failed ? "desktop.palette.status.failed" : "desktop.palette.status.loading";
     default:
       return assertNever(group, "palette group");
@@ -135,7 +149,10 @@ export function PaletteBody(props: PaletteProps): ReactNode {
   const live = useLinkPhase() === "live";
   const selected = useSelectedThreadId();
   const threads = useThreadSummaries();
+  const area = useShell((s) => s.area);
   const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
+  // 실행 횟수는 열 때 한 번 읽는다. 팔레트는 열 때마다 새로 마운트되므로 실행 뒤 다음 열기에 새 값이 보인다
+  const [uses] = useState<PaletteUses>(() => commands.paletteUses());
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<PaletteGroupId>>(() => new Set());
   // "더 보기"를 고르면 Combobox가 입력란 글을 그 항목의 라벨로 바꾼다. 그 한 번의 바꿈은 찾는 글로 받지 않는다
@@ -195,12 +212,21 @@ export function PaletteBody(props: PaletteProps): ReactNode {
     description: thread.workspace ?? null,
     meta: null,
   }));
-  const commandItems: PaletteItem[] = availableCommands(selected !== null).map((command) => {
+  const commandItems: PaletteItem[] = availableCommands(selected !== null, uses).map((command) => {
     const spec = command.action === null ? null : keymap[command.action];
     return {
       value: commandValue(command.id),
       label: t(command.label),
       description: null,
+      meta: spec === null ? null : formatKey(spec, props.mac),
+    };
+  });
+  const screenItems: PaletteItem[] = screenTargetsOf(area).map((target) => {
+    const spec = target.action === undefined ? null : keymap[target.action];
+    return {
+      value: screenValue(target.area, target.screen),
+      label: t(target.label),
+      description: t(target.areaLabel),
       meta: spec === null ? null : formatKey(spec, props.mac),
     };
   });
@@ -238,6 +264,7 @@ export function PaletteBody(props: PaletteProps): ReactNode {
     command: { items: commandItems, status: "ready" },
     slash: { items: slashItems, status: slash.status },
     setting: { items: settingItems, status: fields.status },
+    screen: { items: screenItems, status: "ready" },
   };
   const groups: ComboboxGroupData[] = visibleGroupsOf({
     live,

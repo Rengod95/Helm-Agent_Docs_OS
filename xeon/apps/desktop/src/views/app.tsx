@@ -1,21 +1,24 @@
 import type { EventId } from "@fresnel/contracts/conversation";
-import { assertNever, detach, rethrow } from "@fresnel/contracts";
+import { assertNever, detach, rethrow, type Result } from "@fresnel/contracts";
+import type { WireResult } from "@fresnel/contracts/wire";
+import { t } from "@fresnel/client/i18n";
+import { toast } from "@caustic/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useApprovalIds, useThreadIds, useThreadSummaries } from "../state/engine/index.ts";
 import { useReviewTarget, useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { CommandOutputSheet } from "./command-output-sheet.tsx";
-import { useCommands } from "./commands.ts";
+import { useCommands, type CommandError } from "./commands.ts";
 import { LockedDialog } from "./locked-dialog.tsx";
 import { SettingsPage } from "./pages/settings/settings-screen.tsx";
 import { firstRunAutoOpenDue } from "./pages/first-run/first-run-model.ts";
-import { useShellActions } from "../state/shell/index.ts";
+import { useShellActions, type Area } from "../state/shell/index.ts";
 import { nextApprovalId } from "./approval-focus-model.ts";
 import { stepThreadId } from "./thread-step-model.ts";
 import { useSetupNeeded } from "./setup-needed.ts";
 import type { ShellRegistry } from "./shell/registry.ts";
 import { Shell } from "./shell/shell.tsx";
 import { Palette } from "./palette/palette.tsx";
-import type { PaletteCommandId, PaletteRun } from "./palette/palette-model.ts";
+import { countedUse, type PaletteCommandId, type PaletteRun } from "./palette/palette-model.ts";
 import { resolveKeymap, type ActionId } from "./shell/keybindings.ts";
 import { ShortcutHelpDialog } from "./shortcut-help-dialog.tsx";
 import { PluginUiHost } from "./plugin/plugin-tabs.tsx";
@@ -43,6 +46,25 @@ function focusApprovalCard(id: EventId): void {
   );
   const card = cards.find((element) => element.dataset.approvalId === id);
   card?.querySelector<HTMLElement>("[data-approval-kind]")?.focus();
+}
+
+/** 앱 동작이 실패했음을 토스트로 알린다. 오류 토스트는 자동으로 닫히지 않는다(§4.6) */
+function notifyActionFailed(): void {
+  toast({ tone: "danger", title: t("desktop.palette.action.failed") });
+}
+
+/** 결과가 오류면 토스트로 알린다. 성공한 동작은 화면이 바뀐 것으로 보인다 */
+async function notifyIfFailed(action: Promise<{ readonly ok: boolean }>): Promise<void> {
+  const result = await action;
+  if (!result.ok) notifyActionFailed();
+}
+
+/** `command.run` 줄은 `done`일 때만 적용된 것이다(작업 화면의 목표 명령과 같다). 그 밖의 결과는 실패로 알린다 */
+async function notifyIfCommandLineNotDone(
+  action: Promise<Result<WireResult<"command.run">, CommandError>>,
+): Promise<void> {
+  const ran = await action;
+  if (!ran.ok || ran.value.status !== "done") notifyActionFailed();
 }
 
 export function App(props: AppProps): ReactNode {
@@ -85,6 +107,12 @@ export function App(props: AppProps): ReactNode {
     commands.showScreen("chat");
     if (model.places.chat.screen !== "chat") shell.updatePlace({ screen: "chat", scroll: 0 });
   };
+  /** 영역과 화면으로 옮긴다. 설정 화면이 열려 있으면 닫는다(내비 항목을 누르는 것과 같은 순서다) */
+  const showPlace = (area: Area, place: string): void => {
+    shell.switchArea(area);
+    commands.showScreen("chat");
+    shell.updatePlace({ screen: place, scroll: 0 });
+  };
   const runPalette = (run: PaletteRun): void => {
     switch (run.kind) {
       case "thread":
@@ -101,11 +129,16 @@ export function App(props: AppProps): ReactNode {
       case "setting":
         commands.requestSettingsJump({ tab: run.tab, key: run.key });
         return;
+      case "screen":
+        showPlace(run.area, run.screen);
+        return;
       default:
         return assertNever(run, "PaletteRun");
     }
   };
   const runCommand = (id: PaletteCommandId): void => {
+    // 실행 횟수는 팔레트 밖의 바로 가기로 실행한 것도 센다. 저장하지 못하면 이번 실행만 세지 않는다
+    detach(commands.savePaletteUses(countedUse(commands.paletteUses(), id)), rethrow);
     switch (id) {
       case "thread.new":
         detach(commands.createThread(), rethrow);
@@ -130,6 +163,39 @@ export function App(props: AppProps): ReactNode {
         return;
       case "diagnostics.copy":
         detach(commands.copyDiagnostics(), rethrow);
+        return;
+      case "thread.fork":
+        if (selected !== null) detach(notifyIfFailed(commands.forkThread(selected)), rethrow);
+        return;
+      case "thread.compact":
+        if (selected !== null) detach(notifyIfFailed(commands.compactThread(selected)), rethrow);
+        return;
+      case "turn.resume":
+        if (selected !== null) detach(notifyIfFailed(commands.resumeTurn(selected)), rethrow);
+        return;
+      case "explore.start":
+        if (selected !== null)
+          detach(
+            notifyIfCommandLineNotDone(commands.runCommandLine(selected, "/helm start")),
+            rethrow,
+          );
+        return;
+      case "explore.stop":
+        if (selected !== null)
+          detach(
+            notifyIfCommandLineNotDone(commands.runCommandLine(selected, "/helm stop")),
+            rethrow,
+          );
+        return;
+      case "goal.clear":
+        if (selected !== null)
+          detach(
+            notifyIfCommandLineNotDone(commands.work.goalCommand(selected, "/goal clear")),
+            rethrow,
+          );
+        return;
+      case "connection.open":
+        showPlace("chat", "connection");
         return;
       default:
         return assertNever(id, "PaletteCommandId");

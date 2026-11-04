@@ -51,6 +51,7 @@ import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "
 import type { ToggleRequest } from "@fresnel/client/workbench";
 import type { LockedOption, ReviewTarget, Screen, SettingsJump } from "../state/ui/index.ts";
 import type { EngineTarget } from "../transport/ipc.ts";
+import type { PaletteUses } from "./palette/palette-model.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
 // 보낸 직후의 표시(보내는 중, 실패)는 UI 스토어가, 결과는 엔진 이벤트가 거울에 넣는다.
@@ -452,6 +453,22 @@ export interface Commands {
     requestId: string,
   ): Promise<Result<null, CommandError>>;
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
+  /** `thread.compact`: 지금 대화를 요약한다(수동 컴팩션). 요약할 것이 없으면 결과가 `skipped`로 와서 오류가 아니다 */
+  compactThread(threadId: ThreadId): Promise<Result<WireResult<"thread.compact">, CommandError>>;
+  /** `turn.resume`: 멈춘 턴을 이어서 실행한다 */
+  resumeTurn(threadId: ThreadId): Promise<Result<WireResult<"turn.resume">, CommandError>>;
+  /**
+   * 슬래시 명령 줄 하나를 `command.run`으로 보낸다. 대화 입력으로는 보내지 않는다(명령이 없으면 `not_command`로 온다).
+   * 명령이 적용됐는지는 결과의 `status`가 `done`인지로 본다. 명령 팔레트의 탐구 시작·멈춤이 쓴다.
+   */
+  runCommandLine(
+    threadId: ThreadId,
+    text: string,
+  ): Promise<Result<WireResult<"command.run">, CommandError>>;
+  /** 명령 팔레트의 명령별 실행 횟수(로컬 설정). 저장한 적이 없으면 빈 객체다 */
+  paletteUses(): PaletteUses;
+  /** 명령 팔레트의 실행 횟수를 저장한다. 저장하지 못하면 `false`다 */
+  savePaletteUses(uses: PaletteUses): Promise<boolean>;
   /**
    * 입력창이 `/`로 시작하는 줄을 슬래시 명령으로 보냈을 때(`sendTurn`) 호스트가 셸 주입 실행에 사람 확인을 요구했다. 이 호출이 같은 줄을
    * `confirmShell: true`로 다시 보낸다. 확인 대기가 없으면 아무 일도 하지 않는다.
