@@ -69,6 +69,9 @@ export function createWorkbenchCommands(
       return listed.ok ? ok(listed.value.extensions) : err(listed.error);
     },
     onChanged: subscribeChanges,
+    installPreview: (source) => withConnection((c) => c.request("ext.installPreview", { source })),
+    install: (source, sha256) =>
+      withConnection((c) => c.request("ext.install", { source, sha256 })),
     get: (name) => withConnection((c) => c.request("ext.get", { name })),
     async groups(threadId) {
       const got = await withConnection((c) => c.request("group.list", { threadId }));

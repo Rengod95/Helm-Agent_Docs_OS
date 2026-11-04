@@ -13,6 +13,10 @@ import type { CommandError } from "../views/commands.ts";
 const METHOD_NOT_FOUND = WIRE_ERRORS["jsonrpc.methodNotFound"].code;
 const LOCKED_CODE = WIRE_ERRORS["thread.locked"].code;
 const INVALID_VALUE_CODE = WIRE_ERRORS["settings.invalidValue"].code;
+/** 제작 wire(`ext.*`)가 입력 문제를 알리는 `<DevkitError 종류>: ` 머리. 다른 메서드의 입력 거절 문장은 건드리지 않는다 */
+const DEVKIT_ISSUE =
+  /^(invalid_input|not_found|exists|blocked_kind|denied|dev_mode_required|source_changed|managed_locked): /;
+const INVALID_PARAMS_CODE = WIRE_ERRORS["jsonrpc.invalidParams"].code;
 /** 값 검사 실패의 details(wire/errors.ts `settings.invalidValue`). 첫 문제의 문장만 쓴다 */
 const InvalidValueDetailsSchema = Type.Object({
   issues: Type.Array(Type.Object({ message: Type.String({ maxLength: 512 }) }), { minItems: 1 }),
@@ -50,6 +54,13 @@ export function errorOf(cause: unknown): CommandError {
     const details = parse(InvalidValueDetailsSchema, cause.data.details);
     const detail = details.ok ? details.value.issues[0]?.message : undefined;
     if (detail !== undefined) return { kind: "rejected", code: cause.code, detail };
+  }
+  if (cause.code === INVALID_PARAMS_CODE) {
+    // 설치처럼 입력 문제를 `<종류>: <내용>` 문장으로 알리는 메서드가 있다. 첫 문장을 `issue`에 남긴다(화면이 종류를 가른다)
+    const details = parse(InvalidValueDetailsSchema, cause.data.details);
+    const issue = details.ok ? details.value.issues[0]?.message : undefined;
+    if (issue !== undefined && DEVKIT_ISSUE.test(issue))
+      return { kind: "rejected", code: cause.code, issue };
   }
   return { kind: "rejected", code: cause.code };
 }
