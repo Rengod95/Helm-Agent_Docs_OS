@@ -206,6 +206,21 @@ export interface TransitionRowVM {
 
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
+/** 지역 시각 HH:MM:SS(두 자리씩). 전환 기록 줄과 실패 기록 줄이 같이 쓴다 */
+export function clockTextOf(when: Date): string {
+  return [when.getHours(), when.getMinutes(), when.getSeconds()].map(pad2).join(":");
+}
+
+/**
+ * 실패 기록 한 건의 시각(지역 HH:MM:SS). 시각이 없거나 날짜로 읽히지 않으면 null이라 화면은 시각을 보이지 않는다.
+ * 같은 시각이면 같은 글이다. 시간대에 따라 글이 달라지므로 시험은 지역 시각으로 만든 값을 쓴다.
+ */
+export function failureClockOf(at: string | undefined): string | null {
+  if (at === undefined) return null;
+  const when = new Date(at);
+  return Number.isNaN(when.getTime()) ? null : clockTextOf(when);
+}
+
 /**
  * 한 대화의 전환 기록을 줄로 바꾼다. 최근 것이 먼저다. 상한(대화마다 20개)은 거울이 둔다. 여기서는 자르지 않는다.
  * 시각은 `at`을 지역 시각으로 읽는다.
@@ -217,7 +232,7 @@ export function transitionRowsOf(records: readonly TransitionEntry[]): readonly 
       const when = new Date(record.at);
       return {
         seq: record.seq,
-        time: [when.getHours(), when.getMinutes(), when.getSeconds()].map(pad2).join(":"),
+        time: clockTextOf(when),
         turn: record.turnId === null ? null : record.turnId.slice(-6),
         subject: record.subject,
         change: record.change,

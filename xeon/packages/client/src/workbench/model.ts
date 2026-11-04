@@ -90,8 +90,23 @@ export function hookNoticesOf(hooks: readonly HookEntry[]): readonly HookNotice[
     .toSorted((a, b) => (a.hook < b.hook ? -1 : a.hook > b.hook ? 1 : 0));
 }
 
-export function hookNoticesLoaded(s: WorkbenchState, hooks: readonly HookEntry[]): WorkbenchState {
-  return { ...s, hookNotices: hookNoticesOf(hooks) };
+/**
+ * 화면에 보일 외부 훅 알림. 안전 모드(`safe`)면 질문도 꺼짐도 보이지 않으므로 빈 목록이다. 아니면 `hookNoticesOf`와 같다.
+ * 스토어가 이 값을 담으므로 탭 칸과 확장 화면의 개수도 안전 모드에서 0이 된다.
+ */
+export function visibleHookNotices(
+  hooks: readonly HookEntry[],
+  safe: boolean,
+): readonly HookNotice[] {
+  return safe ? [] : hookNoticesOf(hooks);
+}
+
+export function hookNoticesLoaded(
+  s: WorkbenchState,
+  hooks: readonly HookEntry[],
+  safe: boolean,
+): WorkbenchState {
+  return { ...s, hookNotices: visibleHookNotices(hooks, safe) };
 }
 
 /** 등록 id의 확장 이름. 루트 플러그인은 id가 곧 이름이고, 구성원은 "<확장>/<id>"다 */
@@ -569,6 +584,8 @@ export interface HandlerFailureEntry {
   readonly result: string;
   readonly message: string;
   readonly consecutive: number;
+  /** 기록된 시각(ISO 문자열). 없거나 날짜로 읽히지 않으면 화면은 시각을 보이지 않는다 */
+  readonly at?: string;
 }
 
 /** 기록 탭의 한 행: 같은 훅·결과·메시지의 실패 묶음 */

@@ -1,7 +1,7 @@
 // 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인)와 켜기 요청, 자동 꺼짐 알림(플러그인 카드와 오른쪽 "플러그인" 탭).
 // 찾기 막대와 개수 줄은 확장 화면이 쓴다.
 import { t } from "@fresnel/client/i18n";
-import { countsOf, keepOffOf } from "@fresnel/client/workbench";
+import { countsOf, keepOffOf, type HookNotice } from "@fresnel/client/workbench";
 import { Alert, Button, Input, Skeleton } from "@caustic/react";
 import { Bug } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
@@ -179,6 +179,36 @@ export function noticeAfter(memo: NoticeMemo, asking: boolean, off: boolean): No
   return { asking, off, answer: answered ? (off ? "kept-off" : "kept-on") : null };
 }
 
+/** 외부 훅 알림의 답: 이 자리에서 켜 두거나 끈 결과, 또는 질문이 다른 곳에서 답해져 사라진 것 */
+type HookAnswer = "kept-on" | "kept-off" | "elsewhere";
+
+/** 외부 훅 알림이 지금까지 본 것. `sent`는 이 질문에 대해 이 자리의 답이 성공했다는 표다(질문이 새로 뜨면 지운다) */
+export interface HookNoticeMemo {
+  readonly asking: boolean;
+  readonly off: boolean;
+  readonly sent: boolean;
+  readonly answer: HookAnswer | null;
+}
+
+/**
+ * 외부 훅 알림의 기억을 새 값으로 고친다. `noticeAfter`와 같은 자리에서 쓰되, 질문이 사라졌을 때 이 자리의 답이 성공했는지를 본다.
+ * 성공했으면 끈·켜 둔 결과, 아니면 "다른 곳에서 답했어요"다. 답을 보내는 중(`busy`)에 질문이 사라지면 기다린다:
+ * 저장소는 답을 보낸 뒤 목록을 다시 읽고 나서야 성공을 돌려주므로 질문이 성공 표보다 먼저 사라질 수 있다.
+ * 바뀐 것이 없으면 같은 기억을 돌려준다(그리는 중에 고치지 않는다).
+ */
+export function hookNoticeAfter(
+  memo: HookNoticeMemo,
+  next: { readonly asking: boolean; readonly off: boolean; readonly busy: boolean },
+): HookNoticeMemo {
+  const answered = memo.asking && !next.asking;
+  if (answered && next.busy) return memo;
+  if (memo.asking === next.asking && memo.off === next.off) return memo;
+  const base = { asking: next.asking, off: next.off, sent: false } as const;
+  if (!answered) return { ...base, answer: null };
+  if (!memo.sent) return { ...base, answer: "elsewhere" };
+  return { ...base, answer: next.off ? "kept-off" : "kept-on" };
+}
+
 /**
  * 자동 꺼진 확장 하나의 알림(플러그인 카드와 오른쪽 "플러그인" 탭). 질문이 있으면 `KeepOffAlert`, 질문 없이 자동으로 꺼졌으면
  * "자동으로 꺼졌어요"와 다시 켜기를 보인다. 답하면 질문은 목록이 다시 읽히며 사라지고, 결과 한 줄이 이 부품에 남는다.
@@ -273,7 +303,28 @@ export function ExtNotice(props: { readonly name: string }): ReactNode {
   );
 }
 
+/** 알림이 있는 확장인가: 질문이 떠 있거나 자동으로 꺼졌다 */
+function hasNotice(entry: ExtListEntry): boolean {
+  return entry.keepOffQuestion !== undefined || entry.autoDisabled;
+}
+
 /** 알림이 있는 확장 수(질문이 떠 있거나 자동으로 꺼진 확장). 오른쪽 "플러그인" 탭 칸의 숫자다 */
 export function noticeCountOf(entries: readonly ExtListEntry[]): number {
-  return entries.filter((e) => e.keepOffQuestion !== undefined || e.autoDisabled).length;
+  return entries.filter(hasNotice).length;
+}
+
+/** 알림이 있는 첫 확장(목록의 순서). 없으면 null. 확장 화면 경고 줄의 "보기"가 고른다 */
+export function firstNoticeOf(entries: readonly ExtListEntry[]): ExtListEntry | null {
+  return entries.find(hasNotice) ?? null;
+}
+
+/**
+ * 확장 화면 위 경고 줄의 수: 알림이 있는 확장과 외부 훅 알림. 안전 모드(`safe`)면 훅은 세지 않는다(0).
+ */
+export function noticeTotalOf(
+  entries: readonly ExtListEntry[],
+  hooks: readonly HookNotice[],
+  safe: boolean,
+): number {
+  return noticeCountOf(entries) + (safe ? 0 : hooks.length);
 }

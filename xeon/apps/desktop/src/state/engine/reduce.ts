@@ -297,6 +297,7 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
         message: p.message,
         consecutive: p.consecutive,
         afterSeq: fact.afterSeq,
+        at: fact.at,
       };
       // 같은 실패는 열린 대화마다 한 번씩 온다. 발신 시점(afterSeq)과 내용이 같으면 한 번만 넣는다
       if (state.handlerFailures.some((r) => sameFailure(r, record))) {

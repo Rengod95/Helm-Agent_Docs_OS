@@ -267,11 +267,19 @@ export function decodePendingApprovals(result: {
   });
 }
 
-/** 휘발 `scope.handler_failed`: 검증을 통과하면 실패 기록이고 `afterSeq`를 같이 싣는다. 모양이 맞지 않으면 other다 */
+/**
+ * 휘발 `scope.handler_failed`: 검증을 통과하면 실패 기록이고 `afterSeq`와 기록 시각 `at`을 같이 싣는다. 모양이 맞지 않으면 other다.
+ */
 function decodeHandlerFailed(base: VolatileBase, event: VolatileEventWire): VolatileFact {
   const p = parse(ScopeHandlerFailedPayloadSchema, event.payload);
   return p.ok
-    ? { ...base, type: "scope.handler_failed", payload: p.value, afterSeq: event.afterSeq }
+    ? {
+        ...base,
+        type: "scope.handler_failed",
+        payload: p.value,
+        afterSeq: event.afterSeq,
+        at: event.recordedAt,
+      }
     : { ...base, type: "other" };
 }
 

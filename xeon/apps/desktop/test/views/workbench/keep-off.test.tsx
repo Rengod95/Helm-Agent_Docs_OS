@@ -1,12 +1,24 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import { listLoaded, openDetail, pickGroup, type WorkbenchState } from "@fresnel/client/workbench";
-import type { ExtListEntry } from "@fresnel/contracts/wire";
+import {
+  hookNoticesLoaded,
+  hookNoticesOf,
+  listLoaded,
+  openDetail,
+  pickGroup,
+  type WorkbenchState,
+} from "@fresnel/client/workbench";
+import type { ExtListEntry, HookEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createWorkbenchStore, type WorkbenchStore } from "../../../src/state/workbench/index.ts";
+import { SafeModeContext } from "../../../src/views/safe-mode-context.ts";
 import {
+  firstNoticeOf,
+  hookNoticeAfter,
   noticeAfter,
   noticeCountOf,
+  noticeTotalOf,
+  type HookNoticeMemo,
   type NoticeMemo,
 } from "../../../src/views/workbench/craft-parts.tsx";
 import { ExtensionsScreen } from "../../../src/views/workbench/extensions-screen.tsx";
@@ -191,5 +203,172 @@ describe("끌까요: 답한 결과는 질문 대신 한 줄로 남는다", () =>
       off: false,
       answer: null,
     });
+  });
+});
+
+/** 외부 훅 알림 기억의 질문 동안 값(확장과 달리 성공 표 `sent`를 따로 든다) */
+const HOOK_ASKING: HookNoticeMemo = { asking: true, off: false, sent: false, answer: null };
+
+describe("외부 훅 알림의 기억: 질문이 사라진 결과는 이 자리의 답이면 끈·켜 둔 결과, 아니면 다른 곳에서 답한 것이다", () => {
+  test("이 자리의 답이 성공했고 자동 꺼짐이 남았으면 끈 결과다", () => {
+    expect(
+      hookNoticeAfter({ ...HOOK_ASKING, sent: true }, { asking: false, off: true, busy: false }),
+    ).toEqual({ asking: false, off: true, sent: false, answer: "kept-off" });
+  });
+
+  test("이 자리의 답이 성공했고 켜진 채면 켜 둔 결과다", () => {
+    expect(
+      hookNoticeAfter({ ...HOOK_ASKING, sent: true }, { asking: false, off: false, busy: false }),
+    ).toEqual({ asking: false, off: false, sent: false, answer: "kept-on" });
+  });
+
+  test("이 자리의 답 없이 질문이 사라지면 다른 곳에서 답한 것이고, 꺼졌는지는 그대로 본다", () => {
+    expect(hookNoticeAfter(HOOK_ASKING, { asking: false, off: true, busy: false })).toEqual({
+      asking: false,
+      off: true,
+      sent: false,
+      answer: "elsewhere",
+    });
+    expect(hookNoticeAfter(HOOK_ASKING, { asking: false, off: false, busy: false })).toEqual({
+      asking: false,
+      off: false,
+      sent: false,
+      answer: "elsewhere",
+    });
+  });
+
+  test("답을 보내는 중에 질문이 사라지면 기다린다(같은 기억을 돌려준다)", () => {
+    expect(hookNoticeAfter(HOOK_ASKING, { asking: false, off: true, busy: true })).toBe(
+      HOOK_ASKING,
+    );
+  });
+
+  test("기다리던 답이 성공하면 성공 표가 서고, 그다음 결과는 끈 결과다", () => {
+    const waiting = hookNoticeAfter(HOOK_ASKING, { asking: false, off: true, busy: true });
+    const sent = { ...waiting, sent: true };
+    expect(hookNoticeAfter(sent, { asking: false, off: true, busy: false })).toEqual({
+      asking: false,
+      off: true,
+      sent: false,
+      answer: "kept-off",
+    });
+  });
+
+  test("바뀐 것이 없으면 같은 기억이다", () => {
+    expect(hookNoticeAfter(HOOK_ASKING, { asking: true, off: false, busy: false })).toBe(
+      HOOK_ASKING,
+    );
+  });
+
+  test("결과 뒤에 질문이 다시 뜨면 답 줄을 거두고 성공 표도 지운다", () => {
+    const done = hookNoticeAfter(
+      { ...HOOK_ASKING, sent: true },
+      { asking: false, off: false, busy: false },
+    );
+    expect(done.answer).toBe("kept-on");
+    expect(hookNoticeAfter(done, { asking: true, off: false, busy: false })).toEqual({
+      asking: true,
+      off: false,
+      sent: false,
+      answer: null,
+    });
+  });
+
+  test("다른 곳에서 답한 결과 뒤 다시 켜기로 자동 꺼짐이 풀리면 결과 줄도 사라진다", () => {
+    const elsewhere: HookNoticeMemo = {
+      asking: false,
+      off: true,
+      sent: false,
+      answer: "elsewhere",
+    };
+    expect(hookNoticeAfter(elsewhere, { asking: false, off: false, busy: false })).toEqual({
+      asking: false,
+      off: false,
+      sent: false,
+      answer: null,
+    });
+  });
+});
+
+/** 훅 하나의 질문(연속 5번 실패). 알림 개수 시험에 쓴다 */
+const HOOK_ASKED: HookEntry = {
+  hook: "no-rm-rf",
+  fold: "first",
+  handlers: 1,
+  registrations: ["a"],
+  external: true,
+  keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
+};
+
+describe("확장 화면 위 경고 줄: 개수는 알림 있는 확장과 훅을 합치고, 안전 모드면 훅은 빠진다", () => {
+  const hooks = hookNoticesOf([HOOK_ASKED]);
+
+  test("확장 알림과 훅 알림을 합친 수다", () => {
+    expect(noticeTotalOf([asked(), entry("lint", { autoDisabled: true })], hooks, false)).toBe(3);
+  });
+
+  test("안전 모드면 훅은 세지 않는다", () => {
+    expect(noticeTotalOf([asked(), entry("lint", { autoDisabled: true })], hooks, true)).toBe(2);
+    expect(noticeTotalOf([], hooks, true)).toBe(0);
+  });
+
+  test("알림이 없으면 0이다", () => {
+    expect(noticeTotalOf([entry("web")], [], false)).toBe(0);
+  });
+
+  test("알림이 있는 첫 확장은 목록 순서로 고른다. 알림이 없으면 null이다", () => {
+    expect(
+      firstNoticeOf([entry("web"), asked(), entry("lint", { autoDisabled: true })])?.name,
+    ).toBe("review");
+    expect(firstNoticeOf([entry("lint", { autoDisabled: true }), asked()])?.name).toBe("lint");
+    expect(firstNoticeOf([entry("web")])).toBeNull();
+  });
+});
+
+/** 확장 화면을 그린 글. 훅 알림과 안전 모드 값을 받는다 */
+function screenHtml(
+  entries: readonly ExtListEntry[],
+  hooks: readonly HookEntry[],
+  safe: boolean,
+): string {
+  const store = createWorkbenchStore((initial) =>
+    hookNoticesLoaded(listLoaded(initial, entries), hooks, safe),
+  );
+  const safeMode = safe ? { active: true, cause: null, startupFailures: 1, suggest: false } : null;
+  return renderToString(
+    <SafeModeContext value={safeMode}>
+      {inContexts(<ExtensionsScreen />, store, liveEngine())}
+    </SafeModeContext>,
+  );
+}
+
+/** 경고 줄의 글(개수를 넣은 것) */
+const countText = (count: number): string => t("desktop.workbench.notices.count", { count });
+
+describe("확장 화면 위 경고 줄의 글과 '보기'", () => {
+  const VIEW = t("desktop.workbench.notices.view");
+
+  test("알림이 있으면 개수를 적은 위험 경고와 '보기'를 보인다", () => {
+    const html = screenHtml([entry("web"), asked()], [], false);
+    expect(html).toContain(countText(1));
+    expect(html).toContain(VIEW);
+  });
+
+  test("훅 알림만 있으면 개수는 훅 수이고 '보기'는 없다(고를 확장이 없다)", () => {
+    const html = screenHtml([entry("web")], [HOOK_ASKED], false);
+    expect(html).toContain(countText(1));
+    expect(html).not.toContain(VIEW);
+  });
+
+  test("알림이 없으면 경고 줄도 없다", () => {
+    const html = screenHtml([entry("web")], [], false);
+    expect(html).not.toContain(countText(0));
+    expect(html).not.toContain(VIEW);
+  });
+
+  test("안전 모드면 훅은 개수에서 빠진다(훅만 있으면 경고 줄도 없다)", () => {
+    expect(screenHtml([entry("web")], [HOOK_ASKED], true)).not.toContain(countText(1));
+    expect(screenHtml([asked()], [HOOK_ASKED], true)).toContain(countText(1));
+    expect(screenHtml([asked()], [HOOK_ASKED], true)).not.toContain(countText(2));
   });
 });

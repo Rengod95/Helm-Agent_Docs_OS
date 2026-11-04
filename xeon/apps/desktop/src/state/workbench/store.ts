@@ -54,7 +54,8 @@ export interface WorkbenchActions {
   detailsLoaded(name: string, result: ExtGetResult): void;
   healthLoaded(entries: readonly ExtHealthEntry[]): void;
   ordersLoaded(order: Readonly<Record<string, readonly string[]>>): void;
-  hookNoticesLoaded(hooks: readonly HookEntry[]): void;
+  /** 외부 훅 알림을 담는다. `safe`면 질문도 꺼짐도 담지 않는다(안전 모드) */
+  hookNoticesLoaded(hooks: readonly HookEntry[], safe: boolean): void;
   markPending(name: string, target: boolean): void;
   clearPending(name: string): void;
   requestBuilder(hook: string | null): void;
@@ -106,7 +107,7 @@ export function createWorkbenchStore(
     detailsLoaded: (name, result) => apply((s) => detailsLoaded(s, name, result)),
     healthLoaded: (entries) => apply((s) => healthLoaded(s, entries)),
     ordersLoaded: (order) => apply((s) => ordersLoaded(s, order)),
-    hookNoticesLoaded: (hooks) => apply((s) => hookNoticesLoaded(s, hooks)),
+    hookNoticesLoaded: (hooks, safe) => apply((s) => hookNoticesLoaded(s, hooks, safe)),
     markPending: (name, target) => apply((s) => markPending(s, name, target)),
     clearPending: (name) => apply((s) => clearPending(s, name)),
     requestBuilder: (hook) => apply((s) => requestBuilder(s, hook)),

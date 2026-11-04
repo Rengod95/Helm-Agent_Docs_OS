@@ -139,6 +139,8 @@ export type HandlerFailureRecord = {
   readonly consecutive: number;
   /** 발신 시점의 내구 head. 같은 실패가 열린 대화마다 올 때 한 번만 넣으려고 쓴다 */
   readonly afterSeq: number;
+  /** 기록된 시각(ISO 문자열, 이벤트의 `recordedAt`). 화면은 지역 시각으로 읽는다 */
+  readonly at: string;
 };
 
 /** 실패 기록 상한(행). 넘으면 가장 오래된 것부터 버린다(§6.24 기록 500행) */

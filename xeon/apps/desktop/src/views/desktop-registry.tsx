@@ -1,6 +1,5 @@
 import {
   CalendarClock,
-  Clock,
   Inbox,
   Lightbulb,
   ListChecks,
@@ -27,8 +26,12 @@ import {
   type ShellRegistry,
 } from "./shell/registry.ts";
 import { createWorkbenchStore } from "../state/workbench/index.ts";
-import { inspectEndTab, pluginPagesEndTab, registerWorkbench } from "./workbench/index.tsx";
-import { RuntimeTab } from "./runtime/runtime-tab.tsx";
+import {
+  inspectEndTab,
+  pluginPagesEndTab,
+  registerWorkbench,
+  runtimeEndTab,
+} from "./workbench/index.tsx";
 import { HelmPanelTab, PluginPagesTab } from "./plugin/plugin-tabs.tsx";
 import type { ReactNode } from "react";
 
@@ -133,15 +136,6 @@ const HELM_TAB: EndTabDef = {
   render: () => <HelmPanelTab />,
 };
 
-/** 대화 영역의 "런타임" 탭(§4.9.8): 이 대화의 주도 락, 켜진 그룹과 확장, 실패 */
-const RUNTIME_TAB: EndTabDef = {
-  id: "runtime",
-  area: "chat",
-  label: "desktop.shell.tab.runtime",
-  icon: <Clock />,
-  render: () => <RuntimeTab />,
-};
-
 // 목표와 작업 탭(P-14). 대화 영역의 끝 영역이고 열린 대화의 목표와 작업을 보인다(`panel.work`, ⌘⇧T)
 const WORK_TAB: EndTabDef = {
   id: "work",
@@ -169,7 +163,8 @@ export function createDesktopRegistry(): ShellRegistry {
   // 워크벤치 스토어는 플러그인 탭과 크래프트 화면이 같이 읽으므로 탭 등록보다 먼저 만든다
   const workbench = createWorkbenchStore();
   registry.registerEndTab(pluginPagesEndTab(workbench));
-  registry.registerEndTab(RUNTIME_TAB);
+  // 런타임 탭(§4.9.8): 이 대화의 주도 락, 켜진 그룹과 확장, 실패. 훅 알림을 위해 같은 워크벤치 스토어를 받는다
+  registry.registerEndTab(runtimeEndTab(workbench));
   registerWorkbench(registry, workbench);
   registry.registerEndTab(inspectEndTab(workbench));
   return registry;
