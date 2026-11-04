@@ -116,7 +116,7 @@ const mcpSettings = defineSettings("l2.mcp", {
       tab: "tools",
       widget: "toggle",
       order: 314,
-      label: "Sandbox stdio servers from project and extension sources",
+      label: "Sandbox stdio servers from work folder and extension sources",
     },
     since: "0.1.0",
   },

@@ -27,7 +27,7 @@ const knowledgeSettings = defineSettings("l2.knowledge", {
     default: true,
     runtimeChange: "restart",
     allowedScopes: OWNER_ONLY,
-    ui: { tab: "tools", widget: "toggle", order: 301, label: "Use project skills" },
+    ui: { tab: "tools", widget: "toggle", order: 301, label: "Use work folder skills" },
     since: "0.1.0",
   },
   "skills.paths": {

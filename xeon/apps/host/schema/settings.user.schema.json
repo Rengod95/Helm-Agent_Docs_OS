@@ -4023,7 +4023,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Use project skills",
+          "label": "Use work folder skills",
           "labelKey": "settings.l2.knowledge.skills.projectSkills.label",
           "order": 301,
           "tab": "tools",
@@ -4407,7 +4407,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Sandbox stdio servers from project and extension sources",
+          "label": "Sandbox stdio servers from work folder and extension sources",
           "labelKey": "settings.l2.mcp.sandbox.projectSource.label",
           "order": 314,
           "tab": "tools",
@@ -5948,7 +5948,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Leave empty to use the bundled rg. Project settings cannot change it",
+          "help": "Leave empty to use the bundled rg. Work folder settings cannot change it",
           "helpKey": "settings.l2.workspace.grep.rgPath.help",
           "label": "ripgrep executable path",
           "labelKey": "settings.l2.workspace.grep.rgPath.label",
@@ -6617,7 +6617,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Default project trust",
+          "label": "Default work folder trust",
           "labelKey": "settings.x.loadingTrust.defaultProjectTrust.label",
           "order": 400,
           "tab": "plugins",

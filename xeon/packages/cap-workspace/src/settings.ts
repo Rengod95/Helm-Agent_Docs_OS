@@ -195,7 +195,7 @@ const workspaceSettings = defineSettings("l2.workspace", {
       widget: "text",
       order: 214,
       label: "ripgrep executable path",
-      help: "Leave empty to use the bundled rg. Project settings cannot change it",
+      help: "Leave empty to use the bundled rg. Work folder settings cannot change it",
     },
     since: "0.1.0",
   },

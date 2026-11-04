@@ -75,7 +75,7 @@ export const loadingTrustSettings: SettingGroup<
     range: { enum: ["ask", "always", "never"] },
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
-    ui: { tab: "plugins", widget: "select", order: 400, label: "Default project trust" },
+    ui: { tab: "plugins", widget: "select", order: 400, label: "Default work folder trust" },
     since: "0.1.0",
   },
   paths: {
