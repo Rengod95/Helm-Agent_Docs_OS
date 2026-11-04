@@ -1,4 +1,4 @@
-import { assertNever } from "@fresnel/contracts";
+import { assertNever, type Result, type Thrown } from "@fresnel/contracts";
 import type { InstallPreview } from "@fresnel/contracts/services";
 import { WIRE_ERRORS, type ExtInstallResult } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
@@ -15,7 +15,12 @@ export type InstallFlow =
       readonly failure: InstallFailure | null;
     }
   | { readonly step: "installing"; readonly preview: InstallPreview }
-  | { readonly step: "done"; readonly result: ExtInstallResult };
+  | {
+      readonly step: "done";
+      readonly result: ExtInstallResult;
+      /** 실행 중인 판을 바꾸는 `ext.reload`가 거절됐을 때의 갈래. 바꿀 일이 없었거나 바꿨으면 `null` */
+      readonly reloadFailure: InstallFailure | null;
+    };
 
 export type InstallFailure =
   | "safe_mode"
@@ -55,7 +60,11 @@ export type InstallAction =
   | { readonly type: "previewed"; readonly preview: InstallPreview }
   | { readonly type: "previewFailed"; readonly failure: InstallFailure }
   | { readonly type: "installStart" }
-  | { readonly type: "installed"; readonly result: ExtInstallResult }
+  | {
+      readonly type: "installed";
+      readonly result: ExtInstallResult;
+      readonly reloadFailure: InstallFailure | null;
+    }
   | { readonly type: "installFailed"; readonly failure: InstallFailure }
   | { readonly type: "back" };
 
@@ -81,7 +90,9 @@ export function installReduce(flow: InstallFlow, action: InstallAction): Install
     case "installStart":
       return flow.step === "confirm" ? { step: "installing", preview: flow.preview } : flow;
     case "installed":
-      return flow.step === "installing" ? { step: "done", result: action.result } : flow;
+      return flow.step === "installing"
+        ? { step: "done", result: action.result, reloadFailure: action.reloadFailure }
+        : flow;
     case "installFailed":
       return flow.step === "installing"
         ? { step: "confirm", preview: flow.preview, failure: action.failure }
@@ -114,4 +125,28 @@ export function warningsOf(preview: InstallPreview): readonly InstallWarning[] {
   const checks = preview.warnings.filter((issue) => issue.severity === "warning").length;
   if (checks > 0) found.push({ kind: "checks", count: checks });
   return found;
+}
+
+/**
+ * 설치가 끝난 뒤 실행 중인 판을 바꾼다. 같은 이름이 이미 돌아 결과가 `nextStepBoundary`일 때만 `ext.reload`를 부른다
+ * (`restart`는 새 이름이라 다음 시작부터이고 `now`는 바꿀 것이 없다). 거절은 삼키지 않고 갈래로 돌려줘 화면이 보인다.
+ */
+export async function applyInstalled(
+  reload: (name: string) => Promise<Result<null, CommandError>>,
+  result: ExtInstallResult,
+): Promise<InstallFailure | null> {
+  if (result.appliesAt !== "nextStepBoundary") return null;
+  const done = await reload(result.name);
+  return done.ok ? null : installFailureOf(done.error);
+}
+
+/** 폴더 선택 창의 답이 입력란에 하는 일. 취소는 입력란을 그대로 두고, 창을 못 연 실패는 한 줄로 알린다 */
+export type PickOutcome =
+  | { readonly kind: "source"; readonly source: string }
+  | { readonly kind: "keep" }
+  | { readonly kind: "failed" };
+
+export function pickOutcomeOf(picked: Result<string | undefined, Thrown>): PickOutcome {
+  if (!picked.ok) return { kind: "failed" };
+  return picked.value === undefined ? { kind: "keep" } : { kind: "source", source: picked.value };
 }

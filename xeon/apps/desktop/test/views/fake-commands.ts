@@ -59,6 +59,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       onChanged: () => () => {},
       installPreview: () => Promise.resolve(err({ kind: "unsupported" })),
       install: () => Promise.resolve(err({ kind: "unsupported" })),
+      reload: () => Promise.resolve(ok(null)),
       get: () => Promise.resolve(err({ kind: "unsupported" })),
       groups: () => Promise.resolve(err({ kind: "unsupported" })),
       driveLock: () => Promise.resolve(err({ kind: "unsupported" })),

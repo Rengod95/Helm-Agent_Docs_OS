@@ -466,6 +466,23 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
+  test("reload는 이름만 ext.reload로 보내고 거절은 오류 값으로 돌려준다", async () => {
+    const { app, params } = await liveApp({
+      results: { "ext.reload": { appliesAt: "nextStepBoundary", diagnostics: [] } },
+    });
+    expect(await app.commands.workbench.reload("docs")).toEqual({ ok: true, value: null });
+    expect(paramsOf(params, "ext.reload")).toEqual([{ name: "docs" }]);
+    await app.stop();
+    const refused = await liveApp({
+      errors: { "ext.reload": { code: 3403, kind: "extension.safeModeActive" } },
+    });
+    expect(await refused.app.commands.workbench.reload("docs")).toEqual({
+      ok: false,
+      error: { kind: "rejected", code: 3403 },
+    });
+    await refused.app.stop();
+  });
+
   test("install이 안전 모드와 잠금으로 거절되면 화면이 가를 수 있는 오류로 돌아온다", async () => {
     const { app } = await liveApp({
       errors: { "ext.install": { code: 3403, kind: "extension.safeModeActive" } },

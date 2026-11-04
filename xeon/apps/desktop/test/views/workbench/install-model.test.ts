@@ -3,8 +3,12 @@ import type { InstallPreview } from "@fresnel/contracts/services";
 import type { CommandError } from "../../../src/views/commands.ts";
 import { errorOf } from "../../../src/app/command-error.ts";
 import { wireError } from "@fresnel/contracts/wire";
+import { err, ok } from "@fresnel/contracts";
+import type { ExtInstallResult } from "@fresnel/contracts/wire";
 import {
+  applyInstalled,
   INITIAL_INSTALL_FLOW,
+  pickOutcomeOf,
   installFailureOf,
   installReduce,
   warningsOf,
@@ -54,7 +58,11 @@ describe("설치 흐름", () => {
       location: "/ext/docs-bundle",
       appliesAt: "restart",
     } as const;
-    expect(installReduce(flow, { type: "installed", result })).toEqual({ step: "done", result });
+    expect(installReduce(flow, { type: "installed", result, reloadFailure: null })).toEqual({
+      step: "done",
+      result,
+      reloadFailure: null,
+    });
   });
 
   test("빈 출처는 읽지 않고, 읽기 실패는 출처 입력으로 돌아가 이유를 남긴다", () => {
@@ -124,5 +132,58 @@ describe("미리 보기 경고", () => {
       { kind: "untrusted" },
       { kind: "checks", count: 1 },
     ]);
+  });
+});
+
+const INSTALLED: ExtInstallResult = {
+  name: "docs-bundle",
+  version: "1.2.0",
+  location: "/ext/docs-bundle",
+  appliesAt: "nextStepBoundary",
+};
+
+describe("설치 뒤 교체 적용", () => {
+  test("nextStepBoundary이면 그 이름으로 ext.reload를 한 번 부르고 성공이면 실패 없음이다", async () => {
+    const calls: string[] = [];
+    const failure = await applyInstalled((name) => {
+      calls.push(name);
+      return Promise.resolve(ok(null));
+    }, INSTALLED);
+    expect(calls).toEqual(["docs-bundle"]);
+    expect(failure).toBeNull();
+  });
+
+  test("restart와 now이면 reload를 부르지 않는다", async () => {
+    const calls: string[] = [];
+    const reload = (name: string): Promise<ReturnType<typeof ok<null>>> => {
+      calls.push(name);
+      return Promise.resolve(ok(null));
+    };
+    expect(await applyInstalled(reload, { ...INSTALLED, appliesAt: "restart" })).toBeNull();
+    expect(await applyInstalled(reload, { ...INSTALLED, appliesAt: "now" })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  test("reload가 거절되면 오류 갈래를 돌려주고 흐름 끝에 남는다", async () => {
+    const failure = await applyInstalled(
+      () => Promise.resolve(err<CommandError>({ kind: "offline" })),
+      INSTALLED,
+    );
+    expect(failure).toBe("offline");
+    const flow = installReduce(
+      { step: "installing", preview: PREVIEW },
+      { type: "installed", result: INSTALLED, reloadFailure: failure },
+    );
+    expect(flow).toEqual({ step: "done", result: INSTALLED, reloadFailure: "offline" });
+  });
+});
+
+describe("폴더 고르기", () => {
+  test("고른 경로는 출처가 되고 취소는 그대로 두며 창 실패는 알린다", () => {
+    expect(pickOutcomeOf(ok("/plugins/docs"))).toEqual({ kind: "source", source: "/plugins/docs" });
+    expect(pickOutcomeOf(ok(undefined))).toEqual({ kind: "keep" });
+    expect(pickOutcomeOf(err({ kind: "threw", cause: new Error("x") }))).toEqual({
+      kind: "failed",
+    });
   });
 });
