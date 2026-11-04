@@ -13,6 +13,7 @@ import { scopeArg } from "../craft/craft-scope.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
 import { profileAppliesText, profileFailureText } from "./profile-text.ts";
+import { REMOVE_NOT_FOUND_CODE, removeDoneText } from "./remove-model.ts";
 
 /** `ext.get`을 동시에 보내는 상한. 확장이 많아도 엔진에 한꺼번에 몰리지 않는다 */
 const DETAIL_IN_FLIGHT = 8;
@@ -43,6 +44,8 @@ export interface WorkbenchController {
   reenable(name: string): Promise<void>;
   /** "끄기" 답(설정에 끄고 `ext.disableConfirm`). 실패하면 토스트를 띄우고, 성공하면 목록을 다시 읽는다. "켜 두기"는 `reenable`이다 */
   keepOff(name: string): Promise<void>;
+  /** 설치본을 지운다(`ext.remove`). 성공하면 토스트로 적용 시점을 알리고 목록을 다시 읽는다. 지웠으면 true */
+  remove(name: string): Promise<boolean>;
   /** 프로필을 이 대화에 쓴다. 성공은 쓴 설정 수와 적용 시점을, 실패는 실패 갈래를 토스트로 알린다 */
   applyProfile(id: string, threadId: ThreadId): Promise<boolean>;
 }
@@ -139,6 +142,30 @@ export function useWorkbenchController(): WorkbenchController {
     [commands, reload],
   );
 
+  const remove = useCallback(
+    async (name: string): Promise<boolean> => {
+      const done = await commands.workbench.remove(name);
+      if (!done.ok) {
+        const notFound =
+          done.error.kind === "rejected" && done.error.code === REMOVE_NOT_FOUND_CODE;
+        toast({
+          tone: "danger",
+          title: t("desktop.workbench.remove.failed"),
+          ...(notFound ? { description: t("desktop.workbench.remove.failed.notFound") } : {}),
+        });
+        // 이미 없는 이름이면 목록이 낡은 것이다
+        if (notFound) await reload();
+        return false;
+      }
+      toast({ tone: "success", title: t(removeDoneText(done.value.appliesAt)) });
+      actions.closeDetail();
+      actions.clearPick();
+      await reload();
+      return true;
+    },
+    [actions, commands, reload],
+  );
+
   // 화면을 열 때와 엔진이 (다시) 살아날 때 읽는다
   useEffect(() => {
     if (phase === "live") detach(reload(), rethrow);
@@ -170,7 +197,7 @@ export function useWorkbenchController(): WorkbenchController {
 
   // 원천이 identity로 다시 그릴지 정하므로 같은 객체를 돌려준다
   return useMemo(
-    () => ({ reload, reloadOrders, toggle, reenable, keepOff, applyProfile }),
-    [reload, reloadOrders, toggle, reenable, keepOff, applyProfile],
+    () => ({ reload, reloadOrders, toggle, reenable, keepOff, remove, applyProfile }),
+    [reload, reloadOrders, toggle, reenable, keepOff, remove, applyProfile],
   );
 }

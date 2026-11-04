@@ -29,7 +29,7 @@ import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { EntrySurface } from "../plugin/plugin-view.tsx";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
-import { ExtName, ExtSwitch, kindText, lockText, stateText } from "./ext-row.tsx";
+import { ExtName, ExtSwitch, RemoveButton, kindText, lockText, stateText } from "./ext-row.tsx";
 import { MetricsTab } from "./metrics-tab.tsx";
 import { OriginBadge, ScopeBadge } from "./source-badge.tsx";
 import { ScreensTab } from "./screens-tab.tsx";
@@ -261,6 +261,7 @@ export function ExtDetail(props: {
   readonly onToggle: (target: boolean) => void;
   readonly onKeepOn: () => void;
   readonly onKeepOff: () => void;
+  readonly onRemove: () => void;
 }): ReactNode {
   const commands = useCommands();
   const { entry } = props;
@@ -290,6 +291,7 @@ export function ExtDetail(props: {
         {scope !== null && <ScopeBadge scope={scope} />}
         <span className="ms-auto text-ui-sm text-text-secondary">{stateText(row.state)}</span>
         <ExtSwitch row={row} onToggle={props.onToggle} />
+        <RemoveButton entry={entry} onRemove={props.onRemove} />
       </header>
       {row.lock !== null && <p className="text-ui-sm text-text-tertiary">{lockText(row.lock)}</p>}
       <AutoOffNotice entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />

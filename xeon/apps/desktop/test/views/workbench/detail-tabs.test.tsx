@@ -240,6 +240,7 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
         onToggle={() => undefined}
         onKeepOn={() => undefined}
         onKeepOff={() => undefined}
+        onRemove={() => undefined}
       />,
       createWorkbenchStore(() => state),
     ),

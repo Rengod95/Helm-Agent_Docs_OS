@@ -58,6 +58,8 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       list: () => Promise.resolve(ok([])),
       onChanged: () => () => {},
       installPreview: () => Promise.resolve(err({ kind: "unsupported" })),
+      remove: () => Promise.resolve(err({ kind: "unsupported" })),
+      bindings: () => Promise.resolve(err({ kind: "unsupported" })),
       install: () => Promise.resolve(err({ kind: "unsupported" })),
       reload: () => Promise.resolve(ok(null)),
       get: () => Promise.resolve(err({ kind: "unsupported" })),

@@ -9,13 +9,18 @@ import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.t
 import { CountsLine, ListStatusBand, SearchField, useToggleRequest } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { ExtDetail } from "./ext-detail.tsx";
+import { BindingsPanel } from "./bindings-panel.tsx";
 import { InstallDialog } from "./install-dialog.tsx";
 import { LayerList } from "./layer-list.tsx";
+import { RemoveDialog } from "./remove-dialog.tsx";
 import { SelectionPanel } from "./selection-panel.tsx";
 
 export function ExtensionsScreen(): ReactNode {
   const controller = useWorkbenchController();
   const [installing, setInstalling] = useState(false);
+  // 지우기 확인 상자가 가리키는 이름과, 지우는 요청이 가는 중인지
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
   const toggle = useToggleRequest(controller);
   const actions = useWorkbenchActions();
   const state = useWorkbench((s) => s);
@@ -54,6 +59,7 @@ export function ExtensionsScreen(): ReactNode {
           }}
         />
       )}
+      <BindingsPanel />
       <SearchField />
       <ListStatusBand controller={controller} />
       {ready && detailEntry !== null && (
@@ -73,6 +79,9 @@ export function ExtensionsScreen(): ReactNode {
             }}
             onKeepOff={() => {
               detachVoid(controller.keepOff(detailEntry.name));
+            }}
+            onRemove={() => {
+              setRemoving(detailEntry.name);
             }}
           />
         </div>
@@ -110,11 +119,31 @@ export function ExtensionsScreen(): ReactNode {
               onKeepOff={() => {
                 detachVoid(controller.keepOff(entry.name));
               }}
+              onRemove={() => {
+                setRemoving(entry.name);
+              }}
             />
           )}
         </div>
       )}
       {toggle.dialog}
+      <RemoveDialog
+        name={removing}
+        busy={removeBusy}
+        onCancel={() => {
+          if (!removeBusy) setRemoving(null);
+        }}
+        onConfirm={(name) => {
+          setRemoveBusy(true);
+          detachVoid(
+            controller.remove(name).then(() => {
+              setRemoveBusy(false);
+              setRemoving(null);
+              return undefined;
+            }),
+          );
+        }}
+      />
     </div>
   );
 }

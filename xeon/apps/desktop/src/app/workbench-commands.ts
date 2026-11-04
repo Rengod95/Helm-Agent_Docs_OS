@@ -72,6 +72,9 @@ export function createWorkbenchCommands(
     installPreview: (source) => withConnection((c) => c.request("ext.installPreview", { source })),
     install: (source, sha256) =>
       withConnection((c) => c.request("ext.install", { source, sha256 })),
+    remove: (name) => withConnection((c) => c.request("ext.remove", { name })),
+    bindings: (threadId) =>
+      withConnection((c) => c.request("ext.bindings", threadId === undefined ? {} : { threadId })),
     async reload(name) {
       const done = await withConnection((c) => c.request("ext.reload", { name }));
       return done.ok ? ok(null) : err(done.error);
