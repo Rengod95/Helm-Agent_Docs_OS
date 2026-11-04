@@ -2612,7 +2612,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 확장별 지표(토큰 input·output·cacheRead·cacheWrite, `costUsd`, `leaseMs`, `leases`, `denies`, `chainPatches`, `handlerErrors`, `posts`, `spawns`, `delegates`, `commits`, `records`) | `group.metrics`. 기간 합은 `grp.<id>.metrics.recorded` 증가분. 계측이 꺼지면(`l3.group-sdk.instrumentation = false`) "계측 꺼짐" |
 | 요약 | `GroupStatus.metrics`(`GroupMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
 | 핸들러 시간과 예산 | `ext.timings`. 예산 값은 `x.operations.budget.*` |
-| 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion`. 임시로 `/group status`의 "승격 후보" 줄 |
+| 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion { threadIds? }`. P-20 측정 화면의 "승격 보고" 구역이 읽기 전용 표로 보인다(열: 도구, 제공, 쓰는 곳, 직접 호출. 대화가 있으면 그 대화 하나, 없으면 인자 없이 호스트가 고른 최근 대화). 빈 후보, 읽는 중, 오프라인, 읽기 실패는 다른 측정 구역과 같은 `TabBody`다. 설명은 정보 아이콘 뒤(DP-58) [근거: `apps/desktop/src/views/measure/promotion-view.tsx`] |
 | 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | 개발 모드 셸 명령 `core-diff-check`의 마지막 결과. `ext.test.list`는 `replay`·`testRun`만 돌려주므로 읽는 wire가 없다 `[gap:W-30]` |
 | 대화별 사용량 | `usage.get { threadId }` |
 

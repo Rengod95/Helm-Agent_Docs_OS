@@ -419,6 +419,8 @@ export interface MeasureCommands {
   turn(threadId: string, turnId: string): Promise<Result<MeasureTurnResult, CommandError>>;
   /** `measure.daily`: 종류와 지표 하나의 일별 집계 */
   daily(kind: string, metric: string): Promise<Result<MeasureDailyResult, CommandError>>;
+  /** `group.promotion`: 승격 보고(읽기 전용). 대화가 없으면 인자 없이 보내 호스트가 가장 최근 대화를 고른다 */
+  promotion(threadId: string | null): Promise<Result<WireResult<"group.promotion">, CommandError>>;
 }
 
 export interface WorkbenchCommands {

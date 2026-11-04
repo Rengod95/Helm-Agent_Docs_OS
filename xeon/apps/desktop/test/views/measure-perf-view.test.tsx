@@ -80,6 +80,7 @@ describe("loadPerf", () => {
           Promise.resolve(
             metric === "usd" ? err({ kind: "offline" }) : ok({ enabled: true, days: [] }),
           ),
+        promotion: () => Promise.resolve(err({ kind: "offline" })),
       },
     });
     const ids = Array.from({ length: 25 }, (_, i) => `t${i}`);
