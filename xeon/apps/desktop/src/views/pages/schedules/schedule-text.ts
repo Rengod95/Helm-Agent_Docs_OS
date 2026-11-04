@@ -76,10 +76,13 @@ export function lastRunAtOf(run: RunView): number {
 }
 
 /** 행 메뉴의 항목 문장 */
-export type RowAction = "openThread" | "fire" | "cancel" | "copy";
+export type RowAction = "openThread" | "reenable" | "fire" | "runs" | "edit" | "cancel" | "copy";
 
 export const ROW_ACTION_ID: Readonly<Record<RowAction, MessageId>> = {
   openThread: "desktop.schedules.openThread",
+  reenable: "desktop.schedules.reenable",
+  runs: "desktop.schedules.runs.action",
+  edit: "desktop.schedules.edit.action",
   fire: "desktop.schedules.fire",
   cancel: "desktop.schedules.cancel",
   copy: "desktop.schedules.copy",
@@ -236,3 +239,13 @@ export function commandErrorOf(error: CommandError): MessageRef {
       return assertNever(error, "CommandError");
   }
 }
+
+/** 실행 기록 한 줄의 결과 배지. `running`은 진행 중이다 */
+export const RUN_OUTCOME_VIEW: Readonly<
+  Record<"running" | "ok" | "failed" | "skipped", StatusView>
+> = {
+  running: { label: message("desktop.schedules.status.running"), tone: "info" },
+  ok: { label: message("desktop.schedules.status.completed"), tone: "success" },
+  failed: { label: message("desktop.schedules.status.failed"), tone: "danger" },
+  skipped: { label: message("desktop.schedules.status.skipped"), tone: "neutral" },
+};

@@ -1,10 +1,11 @@
 import { assertNever } from "@fresnel/contracts";
 import type { ScheduleListItem } from "@fresnel/contracts/capabilities";
 import { scheduleListView, type ScheduleRow } from "@fresnel/client";
-import type { WireParams } from "@fresnel/contracts/wire";
+import type { WireParams, WireResult } from "@fresnel/contracts/wire";
 import type { CommandError } from "../../commands.ts";
 import {
   draftOfEntry,
+  editDraftOfEntry,
   emptyDraft,
   NO_ERRORS,
   type ScheduleDraft,
@@ -28,8 +29,19 @@ export interface Notice {
   readonly text: MessageRef;
 }
 
+/** 실행 기록 한 줄 */
+export type RunRecord = WireResult<"schedule.runs">["runs"][number];
+
+/** 실행 기록 시트의 읽기 상태. `scheduleId`는 늦게 온 응답을 거르는 열쇠다 */
+export type RunsState =
+  | { readonly kind: "loading"; readonly scheduleId: string }
+  | { readonly kind: "ready"; readonly scheduleId: string; readonly runs: readonly RunRecord[] }
+  | { readonly kind: "failed"; readonly scheduleId: string; readonly reason: ListFailure };
+
 export interface SheetState {
-  readonly mode: "new" | "copy";
+  readonly mode: "new" | "copy" | "edit";
+  /** 고치기일 때 고치는 예약 id */
+  readonly scheduleId: string | null;
   readonly draft: ScheduleDraft;
   readonly errors: SheetErrors;
   readonly sending: boolean;
@@ -53,6 +65,8 @@ export interface ScheduleState {
   /** 프롬프트를 펼친 항목 id */
   readonly expanded: readonly string[];
   readonly sheet: SheetState | null;
+  /** 실행 기록 시트. 닫혀 있으면 null */
+  readonly runs: RunsState | null;
   /** 취소 확인 대화 상자가 가리키는 예약 id */
   readonly cancelId: string | null;
   /** 명령이 가는 중이다. 같은 동작을 두 번 보내지 않도록 버튼을 잠근다 */
@@ -69,6 +83,7 @@ export const INITIAL_SCHEDULE_STATE: ScheduleState = {
   selectedId: null,
   expanded: [],
   sheet: null,
+  runs: null,
   cancelId: null,
   busy: false,
   notice: null,
@@ -89,6 +104,15 @@ export type ScheduleAction =
   | { readonly type: "toggleExpanded"; readonly id: string }
   | { readonly type: "openNew"; readonly nowMs: number }
   | { readonly type: "openCopy"; readonly id: string; readonly nowMs: number }
+  | { readonly type: "openEdit"; readonly id: string; readonly nowMs: number }
+  | { readonly type: "runsStarted"; readonly scheduleId: string }
+  | {
+      readonly type: "runsLoaded";
+      readonly scheduleId: string;
+      readonly runs: readonly RunRecord[];
+    }
+  | { readonly type: "runsFailed"; readonly scheduleId: string; readonly reason: ListFailure }
+  | { readonly type: "runsClosed" }
   | { readonly type: "sheetChanged"; readonly draft: ScheduleDraft }
   | { readonly type: "sheetSending"; readonly sending: boolean }
   | { readonly type: "sheetFailed"; readonly errors: SheetErrors }
@@ -186,7 +210,10 @@ export function rowMenuOf(
   const items: RowMenuItem[] = [];
   const threadId = row.lastRun?.threadId ?? null;
   if (threadId !== null) items.push({ action: "openThread", disabled: !acting || !openable });
+  if (!row.enabled) items.push({ action: "reenable", disabled: !acting });
   if (row.triggerKind === "remote") items.push({ action: "fire", disabled: !acting });
+  items.push({ action: "runs", disabled: !acting });
+  items.push({ action: "edit", disabled: !acting });
   if (row.enabled) items.push({ action: "cancel", disabled: !acting });
   items.push({ action: "copy", disabled: !acting });
   return items;
@@ -232,7 +259,13 @@ export function scheduleReducer(state: ScheduleState, action: ScheduleAction): S
     case "openNew":
       return {
         ...state,
-        sheet: { mode: "new", draft: emptyDraft(action.nowMs), errors: NO_ERRORS, sending: false },
+        sheet: {
+          mode: "new",
+          scheduleId: null,
+          draft: emptyDraft(action.nowMs),
+          errors: NO_ERRORS,
+          sending: false,
+        },
       };
     case "openCopy": {
       const item = state.items.find((candidate) => candidate.entry.id === action.id);
@@ -241,12 +274,42 @@ export function scheduleReducer(state: ScheduleState, action: ScheduleAction): S
         ...state,
         sheet: {
           mode: "copy",
+          scheduleId: null,
           draft: draftOfEntry(item.entry, action.nowMs),
           errors: NO_ERRORS,
           sending: false,
         },
       };
     }
+    case "openEdit": {
+      const item = state.items.find((candidate) => candidate.entry.id === action.id);
+      if (item === undefined) return state;
+      return {
+        ...state,
+        sheet: {
+          mode: "edit",
+          scheduleId: item.entry.id,
+          draft: editDraftOfEntry(item.entry, action.nowMs),
+          errors: NO_ERRORS,
+          sending: false,
+        },
+      };
+    }
+    case "runsStarted":
+      return { ...state, runs: { kind: "loading", scheduleId: action.scheduleId } };
+    case "runsLoaded":
+      return state.runs?.scheduleId === action.scheduleId
+        ? { ...state, runs: { kind: "ready", scheduleId: action.scheduleId, runs: action.runs } }
+        : state;
+    case "runsFailed":
+      return state.runs?.scheduleId === action.scheduleId
+        ? {
+            ...state,
+            runs: { kind: "failed", scheduleId: action.scheduleId, reason: action.reason },
+          }
+        : state;
+    case "runsClosed":
+      return { ...state, runs: null };
     case "sheetChanged":
       return state.sheet === null
         ? state

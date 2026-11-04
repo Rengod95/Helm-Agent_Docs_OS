@@ -21,6 +21,7 @@ import {
   type ScheduleFilter,
   type ScheduleState,
 } from "./schedule-model.ts";
+import { ScheduleRunsSheet } from "./schedule-runs-sheet.tsx";
 import { ScheduleSheet } from "./schedule-sheet.tsx";
 import { ScheduleTable, type RowHandlers } from "./schedule-table.tsx";
 import { FILTER_ID } from "./schedule-text.ts";
@@ -45,6 +46,7 @@ export interface ScheduleScreenHandlers extends RowHandlers {
   readonly sheetChange: (draft: ScheduleDraft) => void;
   readonly sheetSubmit: () => void;
   readonly sheetClose: () => void;
+  readonly runsClose: () => void;
   readonly onKey: (event: ReactKeyboardEvent<HTMLElement>) => void;
 }
 
@@ -142,6 +144,16 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
         onChange={handlers.sheetChange}
         onSubmit={handlers.sheetSubmit}
         onClose={handlers.sheetClose}
+      />
+      <ScheduleRunsSheet
+        runs={state.runs}
+        title={rows.find((row) => row.id === state.runs?.scheduleId)?.title ?? ""}
+        locale={locale}
+        openable={openable}
+        offline={isOffline(state)}
+        onOpenThread={handlers.openThread}
+        onRetry={handlers.showRuns}
+        onClose={handlers.runsClose}
       />
     </section>
   );

@@ -179,3 +179,34 @@ export function expiresTextOf(local: string): string {
   const ms = msOfLocalInput(local);
   return ms === null ? "" : String(ms);
 }
+
+/** 고치기 시트의 처음 값. 제목과 프롬프트만 고친다(트리거와 작업 폴더는 `schedule.update`가 받지 않는다) */
+export function editDraftOfEntry(entry: ScheduleEntryView, nowMs: number): ScheduleDraft {
+  return { ...draftOfEntry(entry, nowMs), enabled: entry.enabled };
+}
+
+export type EditCheck =
+  | { readonly ok: true; readonly params: WireParams<"schedule.update"> }
+  | { readonly ok: false; readonly errors: SheetErrors };
+
+/**
+ * 고치기 입력을 `schedule.update` 입력으로 바꾼다. 제목은 비우면 보내지 않는다(와이어가 빈 제목을 받지 않으므로
+ * 비워서 지우는 길은 없다). 프롬프트는 새 예약과 같은 규칙으로 거른다.
+ */
+export function checkEditDraft(draft: ScheduleDraft, scheduleId: string): EditCheck {
+  const fields: Partial<Record<SheetField, MessageRef>> = {};
+  if (draft.prompt.trim() === "") {
+    fields.prompt = message("desktop.schedules.promptRequired");
+  } else if (draft.prompt.length > PROMPT_MAX) {
+    fields.prompt = message("desktop.schedules.promptTooLong", { max: PROMPT_MAX });
+  }
+  const title = draft.title.trim();
+  if (title.length > TITLE_MAX) {
+    fields.title = message("desktop.schedules.titleTooLong", { max: TITLE_MAX });
+  }
+  if (Object.keys(fields).length > 0) return { ok: false, errors: { fields, form: null } };
+  return {
+    ok: true,
+    params: { scheduleId, prompt: draft.prompt, ...(title === "" ? {} : { title }) },
+  };
+}

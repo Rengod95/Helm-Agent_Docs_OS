@@ -1516,6 +1516,7 @@ compact 폭(720 이하)과 사이드바 시트:
 |---|---|
 | 새 예약 | `schedule.create { trigger, prompt, workspace?, title?, enabled? }` → `ok: true { entry, warnings }` 또는 `ok: false { error }` |
 | 취소 | `schedule.cancel { scheduleId }` + O-06 확인. 다시 켜기는 `schedule.update` |
+| 다시 켜기·고치기 | `schedule.update { scheduleId, enabled?, title?, prompt? }` → `{ scheduleId, enabled, nextRunAt }` |
 | 지금 실행 | `schedule.fire { scheduleId }`(원격 트리거만) |
 | 마지막 실행 대화 열기 | `lastRun.threadId` → P-02 |
 | 복제 | 시트를 같은 값으로 열기(로컬) |
@@ -1537,6 +1538,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 - 파일: `xeon/apps/desktop/src/views/pages/schedules/`(모델 `schedule-model.ts`: 거르기, 목록 시각, 행 메뉴 `rowMenuOf`, 상태 기계. 문장 `schedule-text.ts`. 표 `schedule-table.tsx`. 그림 `schedules-view.tsx`. 동작 `schedules-screen.tsx`. 시트와 복제는 `schedule-sheet.tsx`, `schedule-draft.ts`가 맡는다). 명령은 `app/schedule.ts`(`list(params)`). 상대 시각은 `views/pages/shared/relative-age.ts`(앞으로의 시각 `dueAgeOf`, 지난 시각 `relativeAgeOf`).
 - 거르기: `[켜진 것 | 모두]`는 wire 인자다. 켜진 것은 `schedule.list { enabled: true }`, 모두는 `schedule.list {}`다(CLI §4.14와 같다). 기본은 켜진 것이다. 거르기를 바꾸면 선택, 열린 프롬프트, 취소 확인을 비우고 목록을 다시 읽는다.
+- 행 메뉴(W-07, 트랙 h7sched로 일곱 항목): 행 끝의 `[...]`(`IconButton`, `Menu`)에 항목을 둔다. 꺼진 행은 "다시 켜기"(`schedule.update { scheduleId, enabled: true }`), 모든 행은 "실행 기록"(`schedule.runs { scheduleId }`, 읽기 전용 `Sheet`: 읽는 중, 비었음, 읽기 실패 Alert와 다시 읽기, 결과 배지·시작 시각·호스트가 준 오류 글·그 실행의 대화 열기)과 "고치기…"(O-08 시트를 제목·프롬프트만 남겨 열고 `schedule.update`로 저장. 트리거와 작업 폴더는 와이어가 받지 않아 "복제해서 새로 만들라"고 안내, 제목은 비워 지울 수 없다)를 둔다. 다시 켜기 응답의 `enabled`가 거짓이면(지난 `at`, 끝난 반복: L2.schedule §4.4.9 [미결] 14) 성공으로 보이지 않고 "다시 켤 수 없어요" 오류를 띄운다. 아래 네 항목의 설명은 그대로다. [근거: `apps/desktop/src/views/pages/schedules/schedule-model.ts` `rowMenuOf`, `schedules-screen.tsx` `reenableSchedule`]
 - 행 메뉴: 행 끝의 `[...]`(`IconButton`, `Menu`)에 네 항목을 둔다. 항목과 잠금은 `rowMenuOf`가 정한다: 마지막 실행 대화 열기(대화 id가 있을 때만, 목록에 없으면 잠금), 지금 실행(원격 트리거 행만, `schedule.fire { scheduleId }`), 취소(켜진 행만, 기존 O-06 확인), 복제(늘, O-08 시트를 같은 값으로 연다). 표의 "대화 열기" 단추는 메뉴로 옮겼다. Enter로 대화를 여는 키는 그대로다.
 - 상대 시각: 다음 실행은 `dueAgeOf`가 "곧", "N분 뒤", "14:20", "내일 09:00"을 만들고, 그 밖은 절대 시각이다. 마지막 실행은 끝난 때(없으면 시작한 때, 그도 없으면 잡은 때)를 "N분 전"으로 쓴다. 절대 시각은 `Tooltip`에 둔다. 기준 시각은 목록을 마지막으로 읽은 때(`state.nowMs`)다. "완료 어제"의 "어제"는 아직 없어 "1일 전"으로 쓴다 [미결].
 - 경고: 서비스 모드 꺼짐 띠와 "서비스 켜기"는 이미 있던 그대로다. 행의 멈춘 이유는 `stoppedReason` 칸이다. `l2.schedule.timers.whenServiceOff`와 `host.status.mode`는 읽지 않는다(L2 schedule §4.4.6에서 자동 기동은 M4에 구현하지 않기로 했다).
@@ -2619,7 +2621,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | 확장별 지표(토큰 input·output·cacheRead·cacheWrite, `costUsd`, `leaseMs`, `leases`, `denies`, `chainPatches`, `handlerErrors`, `posts`, `spawns`, `delegates`, `commits`, `records`) | `group.metrics`. 기간 합은 `grp.<id>.metrics.recorded` 증가분. 계측이 꺼지면(`l3.group-sdk.instrumentation = false`) "계측 꺼짐" |
 | 요약 | `GroupStatus.metrics`(`GroupMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
 | 핸들러 시간과 예산 | `ext.timings`. 예산 값은 `x.operations.budget.*` |
-| 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion`. 임시로 `/group status`의 "승격 후보" 줄 |
+| 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion { threadIds? }`. P-20 측정 화면의 "승격 보고" 구역이 읽기 전용 표로 보인다(열: 도구, 제공, 쓰는 곳, 직접 호출. 대화가 있으면 그 대화 하나, 없으면 인자 없이 호스트가 고른 최근 대화). 빈 후보, 읽는 중, 오프라인, 읽기 실패는 다른 측정 구역과 같은 `TabBody`다. 설명은 정보 아이콘 뒤(DP-58) [근거: `apps/desktop/src/views/measure/promotion-view.tsx`] |
 | 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | 개발 모드 셸 명령 `core-diff-check`의 마지막 결과. `ext.test.list`는 `replay`·`testRun`만 돌려주므로 읽는 wire가 없다 `[gap:W-30]` |
 | 대화별 사용량 | `usage.get { threadId }` |
 

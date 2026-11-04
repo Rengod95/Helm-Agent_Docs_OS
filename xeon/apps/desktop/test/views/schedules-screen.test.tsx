@@ -4,8 +4,10 @@ import {
   ScheduleScreenView,
   type ScheduleScreenHandlers,
 } from "../../src/views/pages/schedules/schedules-view.tsx";
+import { RunsBody } from "../../src/views/pages/schedules/schedule-runs-sheet.tsx";
 import {
   INITIAL_SCHEDULE_STATE,
+  type RunsState,
   scheduleReducer,
   type ScheduleState,
 } from "../../src/views/pages/schedules/schedule-model.ts";
@@ -26,6 +28,10 @@ const handlers: ScheduleScreenHandlers = {
   sheetChange: NOOP,
   sheetSubmit: NOOP,
   sheetClose: NOOP,
+  runsClose: NOOP,
+  reenable: NOOP,
+  edit: NOOP,
+  showRuns: NOOP,
   onKey: NOOP,
   select: NOOP,
   toggleExpanded: NOOP,
@@ -124,5 +130,49 @@ describe("schedules screen server render", () => {
     expect(markup).toContain("완료");
     expect(markup).toContain("3분 전");
     expect(markup).toContain('aria-label="예약 메뉴"');
+  });
+});
+
+const body = (runs: RunsState): string =>
+  renderToString(
+    <RunsBody
+      runs={runs}
+      title="캐시 정리"
+      locale="ko"
+      openable={() => false}
+      offline={false}
+      onOpenThread={NOOP}
+      onRetry={NOOP}
+      onClose={NOOP}
+    />,
+  );
+
+describe("schedule run history body", () => {
+  test("each run shows its outcome and the host's error text", () => {
+    const out = body({
+      kind: "ready",
+      scheduleId: "sch_aa1",
+      runs: [
+        {
+          runId: "run_1",
+          startedAt: "2026-11-04T00:00:00.000Z",
+          endedAt: null,
+          outcome: "failed",
+          threadId: null,
+          error: "디스크가 가득 찼어요",
+        },
+      ],
+    });
+    expect(out).toContain("실패");
+    expect(out).toContain("디스크가 가득 찼어요");
+  });
+
+  test("an empty history and a failed read say so", () => {
+    expect(body({ kind: "ready", scheduleId: "sch_aa1", runs: [] })).toContain(
+      "아직 실행한 기록이 없어요",
+    );
+    expect(body({ kind: "failed", scheduleId: "sch_aa1", reason: "failed" })).toContain(
+      "실행 기록을 읽지 못했어요.",
+    );
   });
 });

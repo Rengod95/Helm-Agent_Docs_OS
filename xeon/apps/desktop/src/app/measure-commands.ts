@@ -12,5 +12,7 @@ export function createMeasureCommands(read: Run): MeasureCommands {
   return {
     turn: (threadId, turnId) => read((c) => c.request("measure.turn", { threadId, turnId })),
     daily: (kind, metric) => read((c) => c.request("measure.daily", { kind, metric })),
+    promotion: (threadId) =>
+      read((c) => c.request("group.promotion", threadId === null ? {} : { threadIds: [threadId] })),
   };
 }

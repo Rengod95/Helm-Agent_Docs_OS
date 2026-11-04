@@ -144,6 +144,12 @@ export interface ScheduleCommands {
   ): Promise<Result<WireResult<"schedule.create">, CommandError>>;
   cancel(scheduleId: string): Promise<Result<WireResult<"schedule.cancel">, CommandError>>;
   fire(scheduleId: string): Promise<Result<WireResult<"schedule.fire">, CommandError>>;
+  /** `schedule.update`: 다시 켜기와 제목·프롬프트 고치기. 실패(없는 예약, 켠 예약 상한)는 호스트 오류라 `CommandError`다 */
+  update(
+    params: WireParams<"schedule.update">,
+  ): Promise<Result<WireResult<"schedule.update">, CommandError>>;
+  /** `schedule.runs`: 한 예약의 실행 기록(최근 것부터) */
+  runs(scheduleId: string): Promise<Result<WireResult<"schedule.runs">, CommandError>>;
   /** 서비스 모드를 켠다(`settings.set`, 사용자 범위) */
   enableService(): Promise<Result<null, CommandError>>;
 }
@@ -446,6 +452,8 @@ export interface MeasureCommands {
   turn(threadId: string, turnId: string): Promise<Result<MeasureTurnResult, CommandError>>;
   /** `measure.daily`: 종류와 지표 하나의 일별 집계 */
   daily(kind: string, metric: string): Promise<Result<MeasureDailyResult, CommandError>>;
+  /** `group.promotion`: 승격 보고(읽기 전용). 대화가 없으면 인자 없이 보내 호스트가 가장 최근 대화를 고른다 */
+  promotion(threadId: string | null): Promise<Result<WireResult<"group.promotion">, CommandError>>;
 }
 
 export interface WorkbenchCommands {

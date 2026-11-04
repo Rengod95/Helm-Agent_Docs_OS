@@ -12,7 +12,7 @@ import {
 import { useLinkPhase, useThreadSummaries } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
 import { useCommands } from "../../commands.ts";
-import { checkDraft, sheetErrorsOf } from "./schedule-draft.ts";
+import { checkDraft, checkEditDraft, sheetErrorsOf } from "./schedule-draft.ts";
 import {
   canAct,
   INITIAL_SCHEDULE_STATE,
@@ -97,6 +97,38 @@ export function SchedulesScreen(): ReactNode {
     await load();
   };
 
+  const reenableSchedule = async (scheduleId: string): Promise<void> => {
+    dispatch({ type: "busy", busy: true });
+    const done = await commands.schedule.update({ scheduleId, enabled: true });
+    dispatch({ type: "busy", busy: false });
+    if (!done.ok) return failNotice(commandErrorOf(done.error));
+    // 지난 시각의 `at`이나 상한에 이른 반복은 호스트가 꺼진 채로 돌려준다(L2.schedule §4.4.9 [미결] 14)
+    if (!done.value.enabled) return failNotice(message("desktop.schedules.reenableRefused"));
+    dispatch({
+      type: "notice",
+      notice: noticeOf(message("desktop.schedules.reenabled"), "success"),
+    });
+    await load();
+  };
+
+  const showRuns = async (scheduleId: string): Promise<void> => {
+    dispatch({ type: "runsStarted", scheduleId });
+    const got = await commands.schedule.runs(scheduleId);
+    if (got.ok) dispatch({ type: "runsLoaded", scheduleId, runs: got.value.runs });
+    else dispatch({ type: "runsFailed", scheduleId, reason: listFailureOf(got.error) });
+  };
+
+  const updateSchedule = async (params: WireParams<"schedule.update">): Promise<void> => {
+    const done = await commands.schedule.update(params);
+    if (!done.ok) {
+      dispatch({ type: "sheetFailed", errors: { fields: {}, form: commandErrorOf(done.error) } });
+      return;
+    }
+    dispatch({ type: "sheetClosed" });
+    dispatch({ type: "notice", notice: noticeOf(message("desktop.schedules.edited"), "success") });
+    await load();
+  };
+
   const enableService = async (): Promise<void> => {
     dispatch({ type: "busy", busy: true });
     const written = await commands.schedule.enableService();
@@ -142,6 +174,17 @@ export function SchedulesScreen(): ReactNode {
   const submitSheet = (): void => {
     const sheet = state.sheet;
     if (sheet === null || sheet.sending) return;
+    if (sheet.mode === "edit") {
+      const edit = sheet.scheduleId === null ? null : checkEditDraft(sheet.draft, sheet.scheduleId);
+      if (edit === null) return;
+      if (!edit.ok) {
+        dispatch({ type: "sheetFailed", errors: edit.errors });
+        return;
+      }
+      dispatch({ type: "sheetSending", sending: true });
+      detach(updateSchedule(edit.params), rethrow);
+      return;
+    }
     const check = checkDraft(sheet.draft, Date.now());
     if (!check.ok) {
       dispatch({ type: "sheetFailed", errors: check.errors });
@@ -230,6 +273,18 @@ export function SchedulesScreen(): ReactNode {
     },
     copy: (id) => {
       dispatch({ type: "openCopy", id, nowMs: Date.now() });
+    },
+    reenable: (id) => {
+      detach(reenableSchedule(id), rethrow);
+    },
+    edit: (id) => {
+      dispatch({ type: "openEdit", id, nowMs: Date.now() });
+    },
+    showRuns: (id) => {
+      detach(showRuns(id), rethrow);
+    },
+    runsClose: () => {
+      dispatch({ type: "runsClosed" });
     },
     askCancel: (id) => {
       dispatch({ type: "askCancel", id });

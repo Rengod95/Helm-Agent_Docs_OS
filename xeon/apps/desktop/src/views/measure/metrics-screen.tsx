@@ -9,6 +9,7 @@ import { tabLinkOf } from "../workbench/tab-read.ts";
 import { loadPerf } from "./perf-read.ts";
 import { PerfView } from "./perf-view.tsx";
 import { useMeasureRead } from "./measure-read.ts";
+import { PromotionView } from "./promotion-view.tsx";
 import { TurnReview } from "./turn-screen.tsx";
 
 function threadOfContext(context: WorkbenchContext): string | null {
@@ -37,10 +38,14 @@ export function MetricsScreen(): ReactNode {
   const perf = useMeasureRead(`perf:${threadId ?? ""}:${turns.join(",")}`, link, (commands) =>
     loadPerf(commands, threadId, turns),
   );
+  const promotion = useMeasureRead(`promotion:${threadId ?? ""}`, link, (commands) =>
+    commands.measure.promotion(threadId),
+  );
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-6">
       <h1 className="text-ui-strong text-text-primary">{t("desktop.measure.title")}</h1>
       <PerfView read={perf} onOpenTurn={setPicked} />
+      <PromotionView read={promotion} />
       {threadId === null || turnId === null ? (
         <EmptyState title={t("desktop.measure.noTurns")} />
       ) : (
