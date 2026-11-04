@@ -153,7 +153,7 @@ export type TransitionRecord = TransitionEntry & { readonly threadId: ThreadId }
 /** 전환 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 것부터 버린다(spec §4.9.8 최근 20개) */
 export const TRANSITION_CAP = 20;
 
-/** 받은 계획 기록 한 건. 계획마다 가장 최근에 받은 판 하나다. 계획 카드가 계획 id를 찾는 데 쓴다 */
+/** 받은 계획 기록 한 건. 계획마다 가장 최근에 받은 판 하나다. 철회만 받은 판은 제목이 null이고 뒤에 온 제출이 채운다. 계획 카드가 계획 id를 찾는 데 쓴다 */
 export type PlanRecord = PlanEventFact & { readonly threadId: ThreadId };
 
 /** 계획 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 계획부터 버린다 */
