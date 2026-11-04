@@ -109,7 +109,7 @@ flowchart LR
 | `engine_attach` | `onBytes: Channel<ArrayBuffer>`, `onState: Channel<EngineState>` | `AttachResult` | 현재 페이지에 릴레이를 붙인다. 이전 세대 릴레이는 끊는다 |
 | `engine_write` | 원시 바이트 본문(`Uint8Array`), 헤더 `x-fresnel-epoch` | `null` | 엔진 stdin(또는 소켓)에 쓴다. 세대가 다르면 거부한다. 본문은 줄(프레임) 단위이고 2 MiB 이하다 |
 | `engine_ack` | `epoch: number`, `bytes: number` | `null` | `onBytes`로 받은 바이트 중 처리를 끝낸 양을 알린다(신용 반환). 세대가 다르면 무시한다 |
-| `engine_restart` | `safeMode?: boolean`, `confirmed?: boolean` | `null` | 사용자가 재기동을 고를 때 부른다. `failed`면 확인 없이 다시 띄운다. 엔진이 살아 있으면 `confirmed: true`일 때만 `engine_retarget`과 같은 길(정상 종료 뒤 재기동, 자동 재기동 횟수에 세지 않음)로 다시 띄우고, 아니면 `not-confirmed`로 거부한다. 엔진이 없으면(시작 중, 재기동 대기 중) `engine-not-running`이다. `safeMode`를 참으로 주면 안전 모드(`host --stdio --safe-mode`)로 띄운다. 값은 앱을 켜 둔 동안 남아 자동 재기동에도 쓰고, 생략하면 지금 값을 그대로 쓰며, `false`로 주면 끈다. 원격 대상에서 참으로 주면 확인 여부와 관계없이 `bad-request`다 |
+| `engine_restart` | `safeMode?: boolean`, `confirmed?: boolean` | `null` | 사용자가 재기동을 고를 때 부른다. `failed`면 확인 없이 다시 띄운다. 엔진이 살아 있으면 `confirmed: true`일 때만 `engine_retarget`과 같은 길(정상 종료 뒤 재기동, 자동 재기동 횟수에 세지 않음)로 다시 띄우고, 아니면 `not-confirmed`로 거부한다. 엔진이 없으면(시작 중, 재기동 대기 중) `engine-not-running`이다. `safeMode`를 참으로 주면 안전 모드(`host --stdio --safe-mode`)로 띄운다. 값은 앱을 켜 둔 동안 남아 자동 재기동에도 쓰고, 생략하면 지금 값을 그대로 쓴다(고른 적이 없으면 플래그를 붙이지 않아 호스트가 설정 `x.operations.safeMode.default`를 따른다). `false`로 주면 `host --stdio --no-safe-mode`로 띄워 설정으로 켠 안전 모드도 이번에 끈다(설정 값은 그대로다). 원격 대상에는 어느 플래그도 붙지 않고, 참으로 주면 확인 여부와 관계없이 `bad-request`다 |
 | `engine_detach` | `epoch: number` | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊으므로 새로고침 뒤 늦게 온 이전 페이지의 호출이 새 연결을 끊지 못한다 |
 
 - 키 등록 명령 `secret_register`는 엔진 중계가 아니다. 원시 바이트 본문 `<동작> <이름>\n<값>`(동작은 `add` 또는 `set`)을 받아 번들된 사이드카를 `fresnel secret <동작> <이름>`으로 한 번 실행하고, 값을 그 stdin에 한 번 쓴 뒤 닫고, 끝나기를 기다려 `null`을 돌려준다. 거부는 `{ kind, ... }` 객체다: `bad-request`, `empty`, `too-large`(값 8 KiB 초과), `busy`(이미 진행 중), `timeout`(30초), `unavailable { detail }`(사이드카를 띄우지 못함), `rejected { exitCode, detail }`(자식이 0이 아닌 코드로 끝남). 규칙과 약점은 §4.14.1이다.
@@ -582,7 +582,7 @@ M2 첫 실행에서 깨끗한 Mac에는 `fresnel` 명령이 설치되어 있지 
 - 한 번에 하나만 등록한다. 진행 중에 또 오면 `busy`다.
 - 자식의 인자와 환경 변수에 값이 없다. 셸 로그(`applog`)에는 `secret entry <동작> <이름>: <결과 종류>`만 쓴다. 요청 구조체의 `Debug` 출력에는 값 길이만 있다.
 - `secret rotate`는 CLI가 비TTY를 거부하므로(`L4.cli.spec` §4.7) 이 경로는 `add`와 `set`만 쓴다.
-- 개발 빌드에서 `FRESNEL_DESKTOP_ENGINE_BIN`과 `FRESNEL_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다.
+- 개발 빌드에서 `FRESNEL_DESKTOP_ENGINE_BIN`과 `FRESNEL_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다. 덮어쓴 엔진에도 안전 모드 플래그와 대상 인자가 `host --stdio` 뒤에 같은 규칙으로 붙는다(`engine.rs`의 `dev_override_argv`, 단위 시험이 있다).
 - 사이드카를 띄우지 못하면(`unavailable`) 화면은 기존 터미널 명령 안내로 돌아간다.
 
 약점(받아들인 것):
