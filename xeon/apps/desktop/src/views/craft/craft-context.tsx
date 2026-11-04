@@ -16,6 +16,7 @@ import { useShallow } from "zustand/react/shallow";
 import {
   useWorkbench,
   useWorkbenchActions,
+  type CraftScope,
   type WorkbenchActions,
 } from "../../state/workbench/index.ts";
 
@@ -43,6 +44,8 @@ export interface CraftSource {
   readonly openBuilder: (hook: string | null) => void;
   /** 최근 실행. 계측이 꺼져 있으면 `null`(자세히 보기에서 잠김) */
   readonly recentRuns: (pluginId: string) => Promise<readonly CraftRunEntry[] | null>;
+  /** 데이터 범위. 지금은 전역뿐이고 스토어가 정한다(`craft-scope.ts`의 `scopeArg`가 호출 인자로 옮긴다) */
+  readonly scope: CraftScope;
 }
 
 /**

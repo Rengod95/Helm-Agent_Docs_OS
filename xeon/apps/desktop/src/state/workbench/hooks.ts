@@ -3,7 +3,7 @@ import { Bug } from "@fresnel/contracts";
 import type { WorkbenchState } from "@fresnel/client/workbench";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
-import type { WorkbenchActions, WorkbenchStore } from "./store.ts";
+import type { CraftScope, WorkbenchActions, WorkbenchStore } from "./store.ts";
 
 export const WorkbenchStoreContext: React.Context<WorkbenchStore | null> =
   createContext<WorkbenchStore | null>(null);
@@ -21,4 +21,9 @@ export function useWorkbench<U>(selector: (state: WorkbenchState) => U): U {
 
 export function useWorkbenchActions(): WorkbenchActions {
   return useWorkbenchStore().actions;
+}
+
+/** 크래프트가 읽는 데이터 범위. 지금은 전역뿐이다 */
+export function useWorkbenchScope(): CraftScope {
+  return useWorkbenchStore().scope;
 }

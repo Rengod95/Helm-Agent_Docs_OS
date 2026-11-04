@@ -259,3 +259,26 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
     expect(seen.listener).toBeNull();
   });
 });
+
+describe("scope: 전역 범위의 호출 인자는 범위를 붙이기 전과 같다", () => {
+  test("목록은 대화 없이(threadId 없이) 읽고, 켜기·끄기는 사용자 범위로 쓴다", async () => {
+    const store = createWorkbenchStore((s) => listLoaded(s, ENTRIES));
+    const listed: (string | undefined)[] = [];
+    const written: unknown[] = [];
+    const commands = commandsWith({
+      list: (threadId) => {
+        listed.push(threadId);
+        return Promise.resolve(ok(ENTRIES));
+      },
+      toggle: (request) => {
+        written.push(request);
+        return Promise.resolve(ok(null));
+      },
+    });
+
+    await controllerOf(store, commands).toggle("web", false);
+
+    expect(listed).toStrictEqual([undefined]);
+    expect(written).toStrictEqual([{ key: "ext.web.enabled", value: false, scope: "user" }]);
+  });
+});

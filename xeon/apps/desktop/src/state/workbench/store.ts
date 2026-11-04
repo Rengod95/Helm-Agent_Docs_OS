@@ -55,9 +55,20 @@ export interface WorkbenchActions {
   snapshot(): WorkbenchState;
 }
 
+/**
+ * 크래프트 화면이 읽고 쓰는 데이터 범위. 지금은 전역만 있다. 프로젝트·대화 범위는 변형을 더한다(판별 유니온이라
+ * 이 값을 가르는 `switch`가 모두 컴파일 오류로 알려 준다). 화면에서 고르지 않는다.
+ */
+export type CraftScope = { readonly kind: "global" };
+
+/** 전역 범위: 범위가 없던 때와 같은 데이터를 읽고 쓴다 */
+export const GLOBAL_SCOPE: CraftScope = { kind: "global" };
+
 export interface WorkbenchStore {
   readonly read: ReadonlyStore<WorkbenchState>;
   readonly actions: WorkbenchActions;
+  /** 데이터 범위. 지금은 `GLOBAL_SCOPE`로 고정이다. 호출 인자로 옮기는 자리는 `views/craft/craft-scope.ts`다 */
+  readonly scope: CraftScope;
 }
 
 /** `start`는 처음 상태를 바꾼다(시험). 서버 렌더는 처음 상태만 읽는다 */
@@ -94,5 +105,5 @@ export function createWorkbenchStore(
     closeBuilder: () => apply(closeBuilder),
     snapshot: () => api.getState(),
   };
-  return { read: readonlyView(api), actions };
+  return { read: readonlyView(api), actions, scope: GLOBAL_SCOPE };
 }

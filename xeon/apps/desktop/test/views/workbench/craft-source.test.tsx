@@ -482,4 +482,9 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
     ]);
     expect(calls).toEqual([{ threadId: thr(1), turnId: trn(2) }]);
   });
+
+  test("원천의 데이터 범위는 스토어가 정한 전역 범위다", () => {
+    const store = createWorkbenchStore();
+    expect(sourceOf(store, () => undefined, controller).scope).toStrictEqual({ kind: "global" });
+  });
 });

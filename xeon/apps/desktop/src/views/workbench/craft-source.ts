@@ -11,7 +11,11 @@ import type { ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type { TraceTurnResult } from "@fresnel/contracts/extensions";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useLatestTurnId, useOpenThreadId } from "../../state/engine/index.ts";
-import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
+import {
+  useWorkbench,
+  useWorkbenchActions,
+  useWorkbenchScope,
+} from "../../state/workbench/index.ts";
 import { useCommands, type CommandError, type WorkbenchCommands } from "../commands.ts";
 import type { CraftRunEntry, CraftSource } from "../craft/craft-context.tsx";
 import { detachVoid, type WorkbenchController } from "./controller.ts";
@@ -29,6 +33,7 @@ export function useCraftSource(
 ): CraftSource {
   const commands = useCommands();
   const actions = useWorkbenchActions();
+  const scope = useWorkbenchScope();
   const entries = useWorkbench((s) => s.entries);
   const details = useWorkbench((s) => s.details);
   const health = useWorkbench((s) => s.health);
@@ -81,8 +86,8 @@ export function useCraftSource(
   );
 
   return useMemo(
-    (): CraftSource => ({ snapshot, order, setOn, orderPort, openBuilder, recentRuns }),
-    [snapshot, order, setOn, orderPort, openBuilder, recentRuns],
+    (): CraftSource => ({ snapshot, order, setOn, orderPort, openBuilder, recentRuns, scope }),
+    [snapshot, order, setOn, orderPort, openBuilder, recentRuns, scope],
   );
 }
 
