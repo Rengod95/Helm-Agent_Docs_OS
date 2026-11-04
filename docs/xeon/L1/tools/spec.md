@@ -938,7 +938,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 ### 4.11 2차 항목
 
-- 항상 허용 캐시: `remember: "always"`를 저장하는 테이블 `core_tools_approvals`(eng.context-map.design §5.2 `core_tools_` 접두). 키는 (범위: 프로젝트 경로 또는 사용자, 도구, 규칙 또는 인자 지문), 값은 허용 시각과 출처 `approvalId`. omp `approval-cache.db`(`_research/refs/oh-my-pi.md` 173행)를 참고한다. 목록 조회·철회 명령과 설정 화면을 함께 둔다(`_research/settings.md` §2.6 "승인 캐시"). 캐시 결과는 `user` 티어 allow 규칙으로 평가기에 들어간다.
+- 항상 허용 캐시: `remember: "always"`를 저장하는 테이블 `core_tools_approvals`(eng.context-map.design §5.2 `core_tools_` 접두). 키는 (범위: 작업 폴더 경로 또는 사용자, 도구, 규칙 또는 인자 지문), 값은 허용 시각과 출처 `approvalId`. omp `approval-cache.db`(`_research/refs/oh-my-pi.md` 173행)를 참고한다. 목록 조회·철회 명령과 설정 화면을 함께 둔다(`_research/settings.md` §2.6 "승인 캐시"). 캐시 결과는 `user` 티어 allow 규칙으로 평가기에 들어간다.
 - 셸 명령 접두 규칙: `PolicyAction`에 `"shell.command"`를 더하고 resource에 명령 접두 목록과 리다이렉션 조건을 둔다. 허용된 명령이라도 리다이렉션은 기본 ask다(`_research/item-catalog.md` L1-d "셸 명령 규칙"). 명령 파싱은 tree-sitter-bash를 쓸 수 있다 [가정: npm 패키지 동작 미검증, `_research/packages.md` §4.3].
 
 ### 4.12 실행 환경·샌드박스·시크릿의 책임 경계
@@ -966,7 +966,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 #### 4.12.1 MCP 서버 기동 승인 [결정: M3-05, M3-REQ-75]
 
-시크릿 env(`secret://` 참조)를 쓰는 stdio MCP 서버는 도구 호출이 아니라 연결 때 뜬다. 시크릿이 없어도 프로젝트 출처(`.mcp.json` 등) 명령은 같은 게이트로 묻는다 [결정: 2026-11-04 사용자 A3]. 이때는 시크릿 정책 판정(②)을 건너뛰고 제목이 `Run MCP server "<id>" (<명령>)?`다. 기동 승인은 서버 정의 해시마다 한 번이고 정의가 바뀌면 다시 받는다(`L2.mcp.spec` §4.3, `L0.secrets.spec` §4.3.1).
+시크릿 env(`secret://` 참조)를 쓰는 stdio MCP 서버는 도구 호출이 아니라 연결 때 뜬다. 시크릿이 없어도 작업 폴더 출처(`.mcp.json` 등) 명령은 같은 게이트로 묻는다 [결정: 2026-11-04 사용자 A3]. 이때는 시크릿 정책 판정(②)을 건너뛰고 제목이 `Run MCP server "<id>" (<명령>)?`다. 기동 승인은 서버 정의 해시마다 한 번이고 정의가 바뀌면 다시 받는다(`L2.mcp.spec` §4.3, `L0.secrets.spec` §4.3.1).
 
 - 승인 레코드: kind `tool`의 비차단 요청이다. 본문은 `toolName: "mcp_start"`, `risk: "exec"`, `ruleId: "mcp.start"`, `argsHash`는 정의 해시, `args`는 `{ server, source, command, args, cwd, envNames, secretEnv, definitionHash }`다. 평문 env 값은 싣지 않고 이름만 싣는다(해시가 값을 덮는다). 제목은 `Start MCP server "<id>" with <시크릿 참조>?`다. 요청 키는 `mcpstart:<서버 id>:<해시 앞 24자>`라 같은 정의는 같은 요청이다.
 - `createMcpStartGate`가 흐름을 맡는다: ① 해시와 같은 정의에 받은 증거가 있으면 `approved`. ② `fresnel.secrets.check`를 `mcp.start:<서버 id>` 맥락(대상 `mcp:<서버 id>`)으로 시크릿마다 부르고 거부가 있으면 `denied`(요청을 올리지 않는다). ③ 대화가 없으면 `pending`이다(올릴 곳이 없다). ④ `open`으로 요청을 올리고 응답이 없으면 `pending`, 허용이면 `approved`, 거부면 `denied`다.

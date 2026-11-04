@@ -190,7 +190,7 @@ export type BadgeScope = SettingScope | "default";
 
 export interface ScopeBadge {
   readonly scope: BadgeScope;
-  readonly text: string;            // "관리", "사용자", "프로젝트", "로컬", "대화", "기본값"
+  readonly text: string;            // "관리", "사용자", "작업 폴더", "로컬", "대화", "기본값"
   readonly tone: BadgeScope;        // 렌더러가 색 토큰으로 바꾼다(§4.3.1)
 }
 
@@ -700,7 +700,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 |---|---|---|---|
 | `managed` | 관리 | `--badge-managed`(적갈색 계열) | 자물쇠 |
 | `user` | 사용자 | `--badge-user`(파랑 계열) | 없음 |
-| `project` | 프로젝트 | `--badge-project`(초록 계열) | 없음 |
+| `project` | 작업 폴더 | `--badge-project`(초록 계열) | 없음 |
 | `local` | 로컬 | `--badge-local`(보라 계열) | 없음 |
 | `launch` | 대화 | `--badge-launch`(주황 계열) | 없음 |
 | `default` | 기본값 | `--badge-default`(회색) | 없음 |
@@ -813,7 +813,7 @@ sequenceDiagram
 |---|---|---|---|
 | `settings.invalidValue` | `invalidValue` | 숫자 범위: "{min}에서 {max} 사이 값만 넣을 수 있어요". enum: "목록에 있는 값만 고를 수 있어요". pattern: "형식이 맞지 않아요". 그 밖: "이 값은 저장할 수 없어요" | 초안 유지 |
 | `settings.scopeNotAllowed` | `scopeNotAllowed` | "{범위} 범위에는 저장할 수 없어요" | `details.allowedScopes`로 후보를 다시 계산하고 `settings.list`를 다시 읽는다(`reloadCatalog`) |
-| `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"` | `scopeNotAllowed` | "열린 프로젝트가 없어 {범위} 범위에는 저장할 수 없어요" | 초안 유지, `followUp: "none"`. 카탈로그를 다시 읽지 않는다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]) |
+| `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"` | `scopeNotAllowed` | "열린 작업 폴더가 없어 {범위} 범위에는 저장할 수 없어요" | 초안 유지, `followUp: "none"`. 카탈로그를 다시 읽지 않는다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]) |
 | `settings.locked` | `locked` | "관리 정책으로 잠겨 있어 바꿀 수 없어요" | `settings.get`으로 그 키를 다시 읽는다(`refreshValue`) |
 | `settings.secretValue` | `secretValue` | "시크릿 값은 여기에 넣을 수 없어요. 시크릿 탭에서 등록한 뒤 참조를 골라 주세요" | 초안을 버린다. 오류에 값을 남기지 않는다 |
 | `settings.unknownKey` | `unknownKey` | "이 설정을 찾을 수 없어요. 목록을 새로 불러왔어요" | `reloadCatalog` |
@@ -1032,7 +1032,7 @@ sequenceDiagram
 | secret 위젯에 참조 아닌 문자열 입력 | 초안에 남기지 않고 버린다. 전송하지 않는다 |
 | 서버가 `settings.secretValue`를 돌려줌 | 초안을 버리고 §4.4.4 문구. 오류 객체에 값 없음 |
 | thread가 없는데 launch 쓰기 | 선택지에 launch가 없다(§4.3.6 3번) |
-| project·local 범위인데 열린 프로젝트가 없다 | 호스트가 3103 `settings.scopeNotAllowed`에 `details.reason: "workspaceRequired"`를 돌려준다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]). 화면은 §4.4.4 표의 workspaceRequired 행 문구를 보이고 초안을 지킨다 |
+| project·local 범위인데 열린 작업 폴더가 없다 | 호스트가 3103 `settings.scopeNotAllowed`에 `details.reason: "workspaceRequired"`를 돌려준다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]). 화면은 §4.4.4 표의 workspaceRequired 행 문구를 보이고 초안을 지킨다 |
 | 연결이 끊긴 상태에서 저장 | `transient` 문구, 초안 유지. 재연결 뒤 desktop이 `load()`를 다시 부른다 |
 | 구독이 `replay.outOfRange` | `from: "head"`로 다시 구독하고 전체를 다시 읽는다(§4.5.1 6번) |
 | 재시작 버튼을 눌렀는데 진행 중 turn이 있다 | desktop이 확인을 받는다 [가정](§4.4.5) |
@@ -1062,7 +1062,7 @@ sequenceDiagram
 | 요구 | `F.wire-settings.spec` | `HostConnection`, `WireParams`, `WireResult`, `WireError`, `WireErrorData`, `EventWire`, `Unsubscribe`, 메서드 `settings.list/get/set/reset`, `events.subscribe/unsubscribe`, `SettingDefWire`, `EffectiveSetting`, `SettingsTab`, `SettingWidget`, `SettingScope`, `RuntimeChange`, `SecretRef`, 오류 kind 3101~3105, §4.10 병합 규칙 |
 | 요구(변경 요청) | `F.wire-settings.spec` | 알림 `settings.invalidated`(§4.5.2), 검사용 병합 함수 `toValueJsonSchema(def: SettingDefWire)`(L4-3 P1), 파일 메서드 `settings.readFile`·`settings.writeFile`(§4.2.3), 값 없는 시크릿 메서드(§4.6.4), 사용량 메서드(§4.7), 잠금 사유 필드(§4.8.3), `SettingUi` 편집기 힌트(§4.2.4). 모두 §10 미결 |
 | 요구 | `F.records.spec` | `settings.changed` kind와 `SettingsChangedPayload { key, scope, value }` |
-| 요구 | `L4.host-service.spec` | 설정 처리기(`L4.host-service.plan` H8 `settings.get`, H17 `settings.set/reset/list`), 쓰기 때 `settings.changed` 기록 범위, 재시작 의미, project·local 범위의 프로젝트 해석(`workspaceRequired`). 이 문서와 어긋나면 host-service가 우선한다(`L4.readme` §8) |
+| 요구 | `L4.host-service.spec` | 설정 처리기(`L4.host-service.plan` H8 `settings.get`, H17 `settings.set/reset/list`), 쓰기 때 `settings.changed` 기록 범위, 재시작 의미, project·local 범위의 작업 폴더 해석(`workspaceRequired`). 이 문서와 어긋나면 host-service가 우선한다(`L4.readme` §8) |
 | 요구 | `L4.desktop.spec` | D6 UI 셸: `SettingsHostPort` 구현(연결, `DesktopSettingsStore`, 현재 thread, `requestHostRestart`, `openSecretFlow`), 화면 프레임워크(React 19, adr.0010), 색 토큰, CSP, 모듈 경계 W3·W4 |
 | 제공 | `L4.desktop.spec` | `createSettingsController`, `SettingsController`, `SettingsHostPort`, `SecretFlowRequest`, `SecretFlowOutcome`, `SecretStatus` |
 | 요구 | `L0.secrets.spec` | 시크릿 목록·메타·정책·감사 이력·등록·회전·열람 흐름과 값 없는 상태 조회(§4.6). 값 입력은 L0.secrets가 직접 받는다(C안 제안) |
@@ -1107,7 +1107,7 @@ sequenceDiagram
 11. [결정: adr.0020] 설정 화면 렌더러는 `apps/desktop/src/views`에 두고, view-model은 `packages/client`로 옮긴다(§4.9).
 12. [결정: adr.0020] CLI와 view-model 공유 위치는 `packages/client`다(`DR-10/cli-client`, `DR-10/desktop-client`). CLI의 TUI 설정 화면은 M3에 만들지 않는다 [결정: review.m3-design-inputs D-M3-30 행 3].
 13. [미결] 확장의 맞춤 설정 패널 허용 여부와 시점(§7).
-14. 닫음: project·local 범위 쓰기에서 열린 프로젝트가 없을 때의 오류는 3103 `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"`다(`L4.host-service.spec` §3.4 `settings.set` 행). §4.4.4 표와 §5에 반영했다.
+14. 닫음: project·local 범위 쓰기에서 열린 작업 폴더가 없을 때의 오류는 3103 `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"`다(`L4.host-service.spec` §3.4 `settings.set` 행). §4.4.4 표와 §5에 반영했다.
 15. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다(`F.wire-settings.spec` §10 6번). 클라이언트 `Check`와 서버 검사가 catalog의 같은 사본을 써서 AC11이 성립한다.
 16. [미결] 화면 프레임워크와 렌더러 형식, 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`) 도입 여부. `eng.testing.guide` TS-01에서 보류이고 `L4.desktop.spec`이 정한다. AC4의 "렌더러가 8종 모두를 그린다"와 AC6의 DOM 확인은 이 결정 뒤에 테스트 형식이 정해진다. 프레임워크는 React 19 + Zustand 5로 정해졌다(adr.0010, `L4.desktop.spec` §10 미결 11 닫힘). 렌더러 형식과 `ui`·`visual` 시험 도입은 남는다.
 17. [미결] `L4.desktop.spec` §4.9 규칙 W3의 허용 목록에 `@fresnel/contracts/{wire,settings,conversation}`와 `typebox/schema`를 넣을지(§3.1). W3을 문자 그대로 읽으면 F 서브패스 import가 빠진다.

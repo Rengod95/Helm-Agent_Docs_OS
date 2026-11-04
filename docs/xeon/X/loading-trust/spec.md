@@ -14,15 +14,15 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 ## 1. 목적과 범위
 
-확장이 발견되고 검증되어 로드되는 흐름, 프로젝트 신뢰, 선택적 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치를 정한다. pi 확장 어댑터는 두지 않는다(adr.0017 §3.7).
+확장이 발견되고 검증되어 로드되는 흐름, 작업 폴더 신뢰, 선택적 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치를 정한다. pi 확장 어댑터는 두지 않는다(adr.0017 §3.7).
 
 근거:
 
 - [결정] 훅은 on(fold tap/first/chain), post, drive(배타 drive 락), Registration 4연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 §3).
 - [결정] DI는 Cordis 하나다. `cordis`를 import하는 패키지는 `ext-host` 하나다(adr.0002 §3, eng.dependency-rules.guide DR-11). vendored Cordis에는 `@cordisjs/plugin-loader`가 없다(`xeon/vendor/cordis/UPSTREAM.json` `notCopied`). 설정 파일 기반 로딩은 ext-host가 직접 구현한다(adr.0002 §4.2).
 - [결정] 확장 프로세스 격리는 사용자가 확장마다 켜는 2차 선택 기능이고 기본값은 꺼짐이다(`_research/layer-plan-v2-notes.md` "확장 프로세스 격리는 기본값이 아니어도 된다", `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0006 §4.2).
-- 층 구성 계획 v2 X-a 행: 확장 로딩(그대로, Cordis), 기능 선언 정적 검증(설계), 프로젝트 신뢰(포크, pi `trust-manager.ts`·`project-trust.ts`), 프로세스 격리(자체, vscode-jsonrpc 9.0.3)(`_research/packages.md` §4.5, §2.5).
-- 항목 카탈로그 X절의 확장 로딩 방식, 프로젝트 신뢰, 프로세스 격리, 기능 선언 행(`_research/item-catalog.md` X절).
+- 층 구성 계획 v2 X-a 행: 확장 로딩(그대로, Cordis), 기능 선언 정적 검증(설계), 작업 폴더 신뢰(포크, pi `trust-manager.ts`·`project-trust.ts`), 프로세스 격리(자체, vscode-jsonrpc 9.0.3)(`_research/packages.md` §4.5, §2.5).
+- 항목 카탈로그 X절의 확장 로딩 방식, 작업 폴더 신뢰, 프로세스 격리, 기능 선언 행(`_research/item-catalog.md` X절).
 
 정하는 것:
 
@@ -30,7 +30,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 로드 파이프라인 단계와 단계별 실패 상태, 진단 레코드
 - TS 엔트리 로딩 방식, `ExtHost.install` 위임과 오류 변환, 핫 리로드 범위, 제거 흐름
 - 확장 설정 연결과 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, X 층 키 `x.loading-trust.*`
-- 신뢰 등급 4값의 뜻과 허용 연산 표, 프로젝트 신뢰 판정과 저장
+- 신뢰 등급 4값의 뜻과 허용 연산 표, 작업 폴더 신뢰 판정과 저장
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
 - SDK 가상 모듈(`@fresnel/contracts`, `@fresnel/group-sdk`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
 - `thread.trust.before`, `thread.resources` 훅의 발화 시점(F.extensions.spec §7)
@@ -51,8 +51,8 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 후보 (candidate) | 탐색이 찾은 확장 하나. 매니페스트 위치와 설치 위치를 가진다. 아직 코드를 실행하지 않은 상태다 |
 | 설치 위치 (source) | `builtin`, `managed`, `user`, `project` 넷. 후보를 어디서 찾았는지 나타낸다 |
 | 신뢰 등급 (trust level) | `builtin`, `user`, `project`, `untrusted` 넷. 확장이 할 수 있는 일을 정한다(§4.6) |
-| 프로젝트 루트 | 신뢰 판정 대상 폴더. 현재 작업 디렉터리(cwd)를 정규화한 경로다 [제안] |
-| 신뢰 필요 자원 | 신뢰 판정 전에 읽거나 실행하면 안 되는 프로젝트 파일 묶음(§4.7.2) |
+| 작업 폴더 루트 | 신뢰 판정 대상 폴더. 현재 작업 디렉터리(cwd)를 정규화한 경로다 [제안] |
+| 신뢰 필요 자원 | 신뢰 판정 전에 읽거나 실행하면 안 되는 작업 폴더 파일 묶음(§4.7.2) |
 | 로드 세대 (generation) | 한 확장의 엔트리를 한 번 실행한 단위. 핫 리로드나 격리 재시작마다 1씩 오른다 |
 | 진단 레코드 | 로드 중 생긴 문제 하나를 적은 `LoadDiagnostic` 값 |
 | 내장 필수 확장 | `essential: true`로 등록된 내장 확장. 이 확장의 실패는 시작 실패다 |
@@ -255,7 +255,7 @@ export interface LoadedExtensionInfo {
   /** 로드 순서 index. 디스패치 순서의 두 번째 키(F.extensions.spec §4.2). 로드되지 않았으면 null */
   readonly loadIndex: number | null;
   readonly generation: number;
-  /** 읽은 매니페스트. 읽거나 검증하지 못한 후보는 없다. 조립 루트의 `ext.list`가 위치와 상관없이(사용자, 관리, 프로젝트) 이 값으로 행을 만든다 */
+  /** 읽은 매니페스트. 읽거나 검증하지 못한 후보는 없다. 조립 루트의 `ext.list`가 위치와 상관없이(사용자, 관리, 작업 폴더) 이 값으로 행을 만든다 */
   readonly manifest?: ExtensionManifest;
   /** 확장 루트 디렉터리(절대 경로). 내장 확장은 없다 */
   readonly root?: string;
@@ -279,18 +279,18 @@ export interface LoadOptions {
   /** x.loading-trust.paths 유효 값. 각 경로는 `extensions/`와 같은 모양의 디렉터리이고 user 위치로 본다(§4.2.1) [제안] */
   readonly extraPaths?: readonly string[];
   /**
-   * 프로젝트 확장을 어떻게 싣는가. 기본 "cwd"는 cwd의 프로젝트를 이 호출에서 판정하고 싣는다(in-process·stdio 호스트).
+   * 작업 폴더 확장을 어떻게 싣는가. 기본 "cwd"는 cwd의 작업 폴더를 이 호출에서 판정하고 싣는다(in-process·stdio 호스트).
    * "on_demand"는 판정도 적재도 하지 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 loadProject를 부른다(§4.7.8)
    */
   readonly projects?: "cwd" | "on_demand";
-  /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 켬, 프로젝트 앱 끔이다(ADR-0021 §6 1번: 프레임 격리 시험이 macOS에서 통과해 [결정: 2026-11-04 사용자] 켰다). `loadProject`도 이 값을 쓴다 */
+  /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 켬, 작업 폴더 앱 끔이다(ADR-0021 §6 1번: 프레임 격리 시험이 macOS에서 통과해 [결정: 2026-11-04 사용자] 켰다). `loadProject`도 이 값을 쓴다 */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   readonly signal: AbortSignal;
 }
 
 /** loadProject 입력(§4.7.8) */
 export interface LoadProjectOptions {
-  /** 작업 폴더. 판정은 이 폴더의 프로젝트 루트(정규화한 경로)에 대해 한다 */
+  /** 작업 폴더. 판정은 이 폴더의 작업 폴더 루트(정규화한 경로)에 대해 한다 */
   readonly projectRoot: string;
   readonly mode: LoaderMode;
   /** 이 호출 전용 프롬프트 수단. 없으면 LoaderDeps.prompter */
@@ -301,12 +301,12 @@ export interface LoadProjectOptions {
 }
 
 export interface ProjectLoadReport {
-  /** 정규화한 프로젝트 루트. 판정이 실패했거나 안전 모드이면 null */
+  /** 정규화한 작업 폴더 루트. 판정이 실패했거나 안전 모드이면 null */
   readonly projectRoot: string | null;
   readonly projectTrust: ProjectTrustResult | null;
   /** 이 루트의 확장을 앞선 호출에서 이미 실었다. 다시 싣지 않았다 */
   readonly alreadyLoaded: boolean;
-  /** 이 호출이 새로 시도한 프로젝트 확장 */
+  /** 이 호출이 새로 시도한 작업 폴더 확장 */
   readonly extensions: readonly LoadedExtensionInfo[];
   /** 이 호출이 남긴 진단 */
   readonly diagnostics: readonly LoadDiagnostic[];
@@ -315,7 +315,7 @@ export interface ProjectLoadReport {
 export interface LoadReport {
   readonly extensions: readonly LoadedExtensionInfo[];
   readonly diagnostics: readonly LoadDiagnostic[];
-  /** 프로젝트 신뢰 판정. 안전 모드라 판정하지 않았으면 null */
+  /** 작업 폴더 신뢰 판정. 안전 모드라 판정하지 않았으면 null */
   readonly projectTrust: ProjectTrustResult | null;
   /** 거부된 확장을 뺀 설정 그룹. 조립 루트가 buildCatalog에 넣는다(§4.5.4) */
   readonly settingGroups: readonly {
@@ -347,7 +347,7 @@ export interface RemoveResult {
 export interface ExtensionLoader {
   /** 시작 때 한 번. 파이프라인 전체를 실행한다 */
   loadAll(options: LoadOptions): Promise<LoadReport>;
-  /** 프로젝트 하나를 판정하고 신뢰되면 그 프로젝트의 확장을 싣는다(서비스 모드, §4.7.8). loadAll 뒤에 부른다 */
+  /** 작업 폴더 하나를 판정하고 신뢰되면 그 작업 폴더의 확장을 싣는다(서비스 모드, §4.7.8). loadAll 뒤에 부른다 */
   loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport>;
   /** ext.<name>.enabled가 거짓에서 참이 되면 부른다. 아직 로드되지 않은 확장을 로드한다 */
   ensureLoaded(name: ExtensionName, signal: AbortSignal): Promise<LoadedExtensionInfo>;
@@ -500,7 +500,7 @@ export interface ProjectTrustResult {
   readonly trusted: boolean;
   readonly verdict: TrustVerdict;
   readonly via: TrustVia;
-  /** 찾은 신뢰 필요 자원(프로젝트 루트 기준 상대 경로) */
+  /** 찾은 신뢰 필요 자원(작업 폴더 루트 기준 상대 경로) */
   readonly resources: readonly string[];
   /** 결정을 저장하려다 실패했다(손상된 저장 파일 등). 결정은 유효하다. 호출자가 trust_store_corrupt 진단을 남긴다 */
   readonly storeError?: TrustStoreError;
@@ -876,12 +876,12 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 - 내장 패키지는 엔트리 모듈이 `manifest` 상수와 `extension` 엔트리를 named export한다. 로더는 같은 `validateManifest`로 검사한다. 내장 매니페스트도 JSON 파싱 결과와 같은 검사를 받는다.
 - 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.fresnel-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.
 - 매니페스트 파일이 없는 디렉터리는 `manifest_missing` 경고만 남기고 건너뛴다. Claude Code의 "매니페스트 없이 표준 레이아웃 자동 탐색"(`_research/refs/claude-code.md` 96행)은 채택하지 않는다 [제안]. 엔트리와 훅 선언이 없으면 정적 검사를 할 수 없기 때문이다.
-- 심볼릭 링크는 `realpath`로 풀고, 같은 실제 경로는 한 번만 후보로 둔다. 점으로 시작하는 디렉터리는 확장이 아니므로 건너뛴다. 프로젝트 위치의 확장이 `.fresnel/extensions` 밖으로 풀리면 후보로 두지 않고 경고(`manifest_missing`)만 남긴다. 저장소가 심볼릭 링크로 밖의 코드를 끌어오지 못하게 하기 위해서다.
+- 심볼릭 링크는 `realpath`로 풀고, 같은 실제 경로는 한 번만 후보로 둔다. 점으로 시작하는 디렉터리는 확장이 아니므로 건너뛴다. 작업 폴더 위치의 확장이 `.fresnel/extensions` 밖으로 풀리면 후보로 두지 않고 경고(`manifest_missing`)만 남긴다. 저장소가 심볼릭 링크로 밖의 코드를 끌어오지 못하게 하기 위해서다.
 
 #### 4.2.2 우선순위와 이름 충돌
 
 - [제안] 같은 `name`이 여러 위치에 있으면 `builtin` > `managed` > `user` > `project` 순서로 앞의 것을 쓴다. 뒤의 것은 `rejected`(`name_conflict`)다. `validateManifestSet`의 `name_conflict`는 같은 위치 안의 충돌에서도 나오며, 이때는 둘 다 `rejected`다.
-- 이 순서는 프로젝트 폴더가 내장이나 사용자 확장을 같은 이름으로 대체하지 못하게 한다. 관리 위치는 사용자 위치보다 앞이다(관리 정책).
+- 이 순서는 작업 폴더가 내장이나 사용자 확장을 같은 이름으로 대체하지 못하게 한다. 관리 위치는 사용자 위치보다 앞이다(관리 정책).
 
 #### 4.2.3 로드 순서
 
@@ -901,7 +901,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 | 1 | 탐색 | 위치 → `ExtensionCandidate` | (후보 없음) | `manifest_missing` |
 | 2 | `validateManifest` | JSON 파싱 결과 → 정규화 매니페스트 | `rejected` | `manifest_parse`, `manifest_invalid`(issues 포함) |
 | 3 | `validateManifestSet` | 통과한 매니페스트 집합 → 집합 이슈 | `rejected`(오류만) | `name_conflict`, `manifest_invalid` |
-| 4 | 신뢰 판정 | 설치 위치, `trust.level`, 프로젝트 신뢰 → `TrustLevel` | `rejected` | `trust_exceeds_source`, `trust_denied`, `trust_undecided`, `trust_store_corrupt` |
+| 4 | 신뢰 판정 | 설치 위치, `trust.level`, 작업 폴더 신뢰 → `TrustLevel` | `rejected` | `trust_exceeds_source`, `trust_denied`, `trust_undecided`, `trust_store_corrupt` |
 | 5 | 설정 연결 | `settingsFromManifest` + 예약 키 → 설정 그룹 | `rejected` | `settings_rejected`, `settings_reserved_key` |
 | 5a | 켜짐 확인 | `ext.<name>.enabled`, 필수 userConfig, `LoadOptions.startup`(`policy.startupFilter`, 2차) | `disabled` | `disabled_by_setting`, `config_required`, `safe_mode`, `disabled_flag` |
 | 5b | 화면 검사 | `checkUiDecl`(§4.3.4): 거부되지 않은 확장의 `ui`를 파일과 정책으로 본다 | 확장 상태는 그대로다. 항목만 `invalid`나 `disabled`가 된다 | `ui_file_missing`, `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `widgets_unsupported`, `bridge_unsupported` |
@@ -913,9 +913,9 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 
 - 2단계의 `unknown_key` 경고는 진단에 남기고 계속한다(F.extensions.spec §4.7).
 - `ui`의 모양 오류(`validateUi`의 `ui_invalid`, `ui_limit`, `ui_path_invalid`, `ui_mode_not_allowed`, `ui_duplicate`, `ui_reason_empty`, `widgets_required`)는 2단계에서 매니페스트 거부(`manifest_invalid`)가 된다. 5b단계의 `ui_*` 진단은 파일과 정책을 본 결과이고 확장을 거부하지 않는다(§4.3.4).
-- 5a단계의 안전 모드 판정은 `assignTier`로 tier를 구한 뒤 `startupFilter`(X.operations.spec §3.6)를 부른다. 안전 모드에서는 `user`·`project` tier(기본 플러그인 Helm 포함)와 L3 내장 그룹이 `disabled`(`safe_mode`)이고, `--disable-ext`로 지정한 이름은 `disabled`(`disabled_flag`)다. 빠진 외부 확장은 매니페스트만 읽고 엔트리는 import하지 않는다. 안전 모드에서는 프로젝트 위치를 탐색하지도, 프로젝트 신뢰를 묻지도 않는다(`LoadReport.projectTrust`는 null이고 진단 `safe_mode` 하나가 남는다).
+- 5a단계의 안전 모드 판정은 `assignTier`로 tier를 구한 뒤 `startupFilter`(X.operations.spec §3.6)를 부른다. 안전 모드에서는 `user`·`project` tier(기본 플러그인 Helm 포함)와 L3 내장 그룹이 `disabled`(`safe_mode`)이고, `--disable-ext`로 지정한 이름은 `disabled`(`disabled_flag`)다. 빠진 외부 확장은 매니페스트만 읽고 엔트리는 import하지 않는다. 안전 모드에서는 작업 폴더 위치를 탐색하지도, 작업 폴더 신뢰를 묻지도 않는다(`LoadReport.projectTrust`는 null이고 진단 `safe_mode` 하나가 남는다).
 - 같은 이름이 여러 위치에 있을 때 위치가 다르면 낮은 순위의 것만 `rejected`이고, 같은 위치 안이면 둘 다 `rejected`다(§4.2.2).
-- 3단계는 두 번 실행한다. 첫 번째는 프로젝트 신뢰 전 집합(내장, 관리, 사용자), 두 번째는 프로젝트 후보를 더한 집합이다. 두 번째에서 새로 생긴 오류는 프로젝트 확장만 `rejected`로 만든다.
+- 3단계는 두 번 실행한다. 첫 번째는 작업 폴더 신뢰 전 집합(내장, 관리, 사용자), 두 번째는 작업 폴더 후보를 더한 집합이다. 두 번째에서 새로 생긴 오류는 작업 폴더 확장만 `rejected`로 만든다.
 - `drive_conflict`, `capability_unprovided` 경고는 진단만 남긴다. 실행 중 drive 락은 X.primitives가 하나만 준다.
 - 7단계에서 scope setup이 던지거나 시간 예산을 넘으면 primitives가 그 scope의 fiber를 해제해 setup 동안의 등록(on, drive, 리소스, onDispose)을 모두 되돌린다(X.primitives.spec §4.5.3).  시간 예산 값은 X.operations.spec의 `x.operations.budget.setupMs`이고, `ExtHostDeps.setupBudgetMs`로 primitives에 들어간다.
 - 7·8단계에서 실패한 확장은 로더가 `ExtHost.uninstall`과 `policy.forget`을 불러 남은 정의와 tier 표 항목을 지운다.
@@ -927,7 +927,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 - [제안] 내장 필수가 아닌 확장 하나의 실패는 그 확장만 멈춘다. 다른 확장의 단계 진행과 엔진 시작은 계속한다. 이 규칙은 모든 단계에 적용된다(항목 카탈로그 X절 실패 격리 행, .
 - 예외 1: `essential: true` 내장 확장이 `rejected`, `disabled`, `error` 중 하나가 되면 `loadAll`은 `essential_failed` 진단과 함께 `LoadAbortError`를 던진다. 조립 루트는 연 자원을 닫고 시작을 거부한다(L4.host-service.spec §4.1). [제안] L1 코어 패키지(`core-*`)의 확장 모듈은 필수다. L2 기능과 L3 그룹은 필수가 아니다.
 - 예외 2: 로더 자신이 쓰는 주입 의존이 없으면 시작 실패다(architecture.layers.spec §4.3.3 1번). 대상은 `host`, `policy`, `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`다. `TrustPrompter`가 없으면 headless로 보고, `IsolationProcessPort`가 없으면 격리 설정 확장만 `error`(`isolation_unavailable`)다.
-- 기능 연쇄: 6단계는 매니페스트의 `provides`로 정적으로 판정한다. 9단계 뒤 실제로 활성화되지 못한 provider가 있으면, 그 기능을 `requires`로 선언한 확장도 `error`(`capability_provider_failed`)로 바꾼다. `optional`은 영향이 없다. 프로젝트 신뢰 전 집합의 확장이 프로젝트 확장만 제공하는 기능을 `requires`하면 `capability_missing`이다 [제안].
+- 기능 연쇄: 6단계는 매니페스트의 `provides`로 정적으로 판정한다. 9단계 뒤 실제로 활성화되지 못한 provider가 있으면, 그 기능을 `requires`로 선언한 확장도 `error`(`capability_provider_failed`)로 바꾼다. `optional`은 영향이 없다. 작업 폴더 신뢰 전 집합의 확장이 작업 폴더 확장만 제공하는 기능을 `requires`하면 `capability_missing`이다 [제안].
 - 같은 이유로 확장 A의 실패가 B의 setup을 막지 않도록 각 단계는 확장마다 `try`로 감싸고, 진단 레코드만 모은다.
 
 #### 4.3.3 진단 레코드
@@ -940,7 +940,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 
 #### 4.3.4 Plugin UI 검사 (5b단계) [결정: 2026-10-31 사용자, ADR-0021 §3.2~§3.6]
 
-- 대상은 거부되지 않은 확장 전부다. 꺼진 확장도 검사한다. 설정 화면이 깨진 화면을 보일 수 있게 하려는 것이다. 내장 확장은 확장 루트가 없어 건너뛴다([미결] §10 18번). 프로젝트 확장은 신뢰된 뒤에만 여기 온다(§4.7).
+- 대상은 거부되지 않은 확장 전부다. 꺼진 확장도 검사한다. 설정 화면이 깨진 화면을 보일 수 있게 하려는 것이다. 내장 확장은 확장 루트가 없어 건너뛴다([미결] §10 18번). 작업 폴더 확장은 신뢰된 뒤에만 여기 온다(§4.7).
 - 시점은 5a단계 뒤, 7단계 설치 앞이다. 확장의 상태는 바꾸지 않고, 엔트리를 import하지 않는다.
 - 입력은 매니페스트 `ui`, 확장 루트, `LoaderFs`, 설치 위치, 앱 정책(`LoadOptions.uiPolicy`), 호스트 위젯 버전 `1.0.0`, 다리 버전 `1.0.0`이다.
 
@@ -948,7 +948,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 
 1. `placement`가 `card`이면 먼저 `forKind`의 주인을 본다(ADR-0021 §3.3, 보고 1). 주인은 자기 kind 접두(그룹은 `grp.<확장 이름>.`, 그 밖은 `x.<확장 이름>.`)의 kind와 매니페스트 `readsRecordKinds`가 덮는 kind(끝의 `*`는 접두 일치)입니다. 어느 것도 아니면 항목은 `invalid`이고 `ui_invalid`(위치 `/ui/items/<i>/forKind`)가 붙으며, 파일과 앱을 보지 않고 항목은 `forKind`를 싣지 않는다. 매니페스트 검사(F)는 kind의 주인을 보지 않으므로 이 검사가 맡는다. `placement`가 `command`면 화면이 없으므로 파일과 앱을 보지 않는다. 상태는 `ok`다.
 2. `native`(`mode` 생략 포함)는 `file`을 확장 루트 안에서 찾는다. 없거나 종류가 다르면 `ui_file_missing`, 밖을 가리키면 `ui_path_invalid`다. 본문이 1 MiB(`UI_FILE_MAX_BYTES`)를 넘으면 `ui_limit`이다. LoaderFs에 크기를 묻는 함수가 없어 다 읽은 뒤에 잰다. JSON이 아니면 `ui_invalid`다(파서 원문은 싣지 않는다). 앞의 BOM은 건너뛴다. `validateUiTree`가 실패하면 그 이슈를 옮긴다(`ui_invalid`, `ui_limit`, 위치는 `#` 뒤 JSON Pointer). 통과하면 `tree`를 붙인다.
-3. `app`은 정책을 먼저 본다. `x.ui.apps`가 거짓이면 전체가 막힌다. 설치 위치가 `project`이고 `x.ui.allowProjectApps`가 거짓이면 프로젝트 확장이 막힌다. 막히면 앱 파일은 보지 않는다. `fallback`이 있으면 그 파일을 2번처럼 native 화면으로 읽고 검사한다. 모드는 `native`가 되고 정보 진단 `ui_mode_not_allowed`(severity `info`)가 붙는다. `fallback`이 없으면 상태는 `disabled`이고 경고 진단 `ui_mode_not_allowed`(severity `warning`)가 붙는다.
+3. `app`은 정책을 먼저 본다. `x.ui.apps`가 거짓이면 전체가 막힌다. 설치 위치가 `project`이고 `x.ui.allowProjectApps`가 거짓이면 작업 폴더 확장이 막힌다. 막히면 앱 파일은 보지 않는다. `fallback`이 있으면 그 파일을 2번처럼 native 화면으로 읽고 검사한다. 모드는 `native`가 되고 정보 진단 `ui_mode_not_allowed`(severity `info`)가 붙는다. `fallback`이 없으면 상태는 `disabled`이고 경고 진단 `ui_mode_not_allowed`(severity `warning`)가 붙는다.
 4. 정책이 허용하면 `app.root`가 확장 안의 폴더인지 보고(없으면 `ui_file_missing`, 밖이면 `ui_path_invalid`), `app.entry`가 `app.root` 안의 파일인지 본다. 그다음 `app.bridge`가 다리 버전 `1.0.0`을 포함하는지 본다(아니면 `bridge_unsupported`, 위치 `/ui/items/<i>/app/bridge`).
 5. `ui.widgets` 범위가 `1.0.0`을 포함하지 않으면 native로 그리는 항목 모두(fallback으로 바뀐 항목 포함)에 `widgets_unsupported`(위치 `/ui/widgets`)를 붙이고 `invalid`로 둔다.
 
@@ -1121,7 +1121,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 - `enabled`의 대화 중 변경: 가능하다. 값이 바뀌면 로더는 바로 요청을 기록하고, 실제 켜짐·꺼짐은 다음 단계 경계에서 적용된다(F.extensions.spec §4.5). 거짓이었다가 참이 된 확장이 아직 로드되지 않았으면 `ensureLoaded`로 5a~9단계를 실행한 뒤 경계에서 켠다. 참에서 거짓이 되면 scope 끄기만 하고 모듈은 남긴다.
 - `enabled`가 거짓이면 엔트리를 import하지 않고 실행하지 않는다(5a단계 `disabled`). 내장 확장은 모듈이 이미 import되어 있지만 엔트리를 부르지 않는다.
-- `isolation`의 대화 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 프로젝트 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 매니페스트 `isolation`은 요청이고 실제 값은 이 설정이 정한다(F.extensions.spec §6).
+- `isolation`의 대화 중 변경: 하지 않는다(`restart`). 범위를 `managed`, `user`로 한정하는 이유는 작업 폴더 파일이 격리를 끄지 못하게 하기 위해서다 [제안]. 매니페스트 `isolation`은 요청이고 실제 값은 이 설정이 정한다(F.extensions.spec §6).
 - 내장 확장에는 `isolation` 키를 만들지 않는다. 내장 확장의 격리는 금지다(§4.6).
 - 예약 키의 `layer`는 확장의 유효 층(`effectiveLayer`, 플러그인 `layer` 가운데 가장 높은 층, F.extensions.spec §3.1)을 따른다. `plugin`이면 `L2`로 본다. 켜기 키는 확장 단위 하나이고 플러그인 단위 키는 만들지 않는다. `group.members` 밖의 플러그인을 따로 끄는 길은 두지 않는다(M4 밖) [제안](F.wire-settings.spec §3.8.3 [가정]을 따른다).
 - `ui`: 두 키 모두 `tab: "plugins"`. `enabled`는 `toggle`, `isolation`은 `select`다.
@@ -1146,7 +1146,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - [제안] F.extensions.spec이 [가정]으로 둔 값 `builtin`, `user`, `project`, `untrusted`를 그대로 확정한다.
 - 유효 등급 = min(설치 위치 상한 `SOURCE_TRUST`, 매니페스트 `trust.level` 요청). 매니페스트가 요청을 생략하면 상한을 쓴다.
 - 매니페스트가 상한보다 높은 등급을 요청하면 `rejected`(`trust_exceeds_source`)다. 외부 확장이 `builtin`을 요청해 예약 이름 검사(`name_reserved`)를 피하는 경로를 막는다. F의 `validateManifest`는 `trust.level`만 보고 예약 이름을 허용하므로, 로더는 2단계 전에 설치 위치가 `builtin`이 아닌 매니페스트의 `trust.level: "builtin"`을 거부한다(§10 미결 3).
-- `project` 위치의 확장은 프로젝트 신뢰가 `allow`일 때만 `project`이고, 그 밖에는 `untrusted`다.
+- `project` 위치의 확장은 작업 폴더 신뢰가 `allow`일 때만 `project`이고, 그 밖에는 `untrusted`다.
 
 #### 4.6.2 등급 × 허용 연산 표
 
@@ -1158,7 +1158,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 | `untrusted` | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | none | notLoaded |
 
 - `drive`는 그 위에 F 규칙(`plugins[].drives: true`와 정책 `x.primitives.driveRequiresGroup`, F.extensions.spec §4.6)을 함께 만족해야 한다. 정책을 풀어도 `untrusted`는 로드되지 않으므로 `drive`를 못 쓴다.
-- `project` 등급의 `thread.trust.before` 금지는 순서 때문이기도 하다. 프로젝트 확장은 신뢰 판정 뒤에 로드된다(§4.7.4). 로더는 `plugins[].hooks`에 `thread.trust.before`가 있는 프로젝트 매니페스트를 `usage_invalid`로 거부한다.
+- `project` 등급의 `thread.trust.before` 금지는 순서 때문이기도 하다. 작업 폴더 확장은 신뢰 판정 뒤에 로드된다(§4.7.4). 로더는 `plugins[].hooks`에 `thread.trust.before`가 있는 작업 폴더 매니페스트를 `usage_invalid`로 거부한다.
 - 격리 `forbidden`: 내장 확장은 L0~L2 서비스를 같은 프로세스에서 제공하므로 격리하지 않는다.
 - 저장 `prefix`는 X.operations.spec의 확장 접두 테이블 API를 쓸 수 있다는 뜻이다. 격리 확장은 등급과 무관하게 직접 접근이 없다(§4.9.6).
 - 이 표는 `TRUST_MATRIX` 상수와 같아야 한다(§9 수용 기준 14).
@@ -1167,7 +1167,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 | 안 | 내용 | 장점 | 단점 |
 |---|---|---|---|
-| A. 로드하지 않음 [제안] | `untrusted` 확장은 import도 하지 않는다. 진단(`trust_denied` 또는 `trust_undecided`)만 남긴다 | 신뢰하지 않은 코드가 한 줄도 실행되지 않는다. 격리(2차)가 없는 M0~M2에서도 같은 규칙이다 | 사용자가 프로젝트 확장을 쓰려면 폴더 신뢰를 해야 한다 |
+| A. 로드하지 않음 [제안] | `untrusted` 확장은 import도 하지 않는다. 진단(`trust_denied` 또는 `trust_undecided`)만 남긴다 | 신뢰하지 않은 코드가 한 줄도 실행되지 않는다. 격리(2차)가 없는 M0~M2에서도 같은 규칙이다 | 사용자가 작업 폴더 확장을 쓰려면 폴더 신뢰를 해야 한다 |
 | B. 격리 강제 | `untrusted` 확장을 자식 프로세스에서만 실행한다 | 신뢰 없이도 일부 기능을 쓴다 | 자식 프로세스도 같은 OS 사용자 권한으로 실행된다. 샌드박스 없는 프로세스 격리는 보안 경계가 아니다(pi `docs/security.md` "Extensions, package installers… run with those same permissions unless an operating-system or virtualization boundary restricts them"). 격리가 2차라 M2 전에는 실행 경로가 없다 |
 
 - [제안] A로 확정한다. 프로세스 격리와 L0 샌드박스를 함께 적용하는 실행 경로가 생기면 B를 다시 검토한다(§10 미결 4).
@@ -1175,18 +1175,18 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 #### 4.6.4 외부 확장이 공급하는 기능의 `idempotent` 선언 [결정: M3-REQ-31]
 
 - 값 집합: `trust.level`은 `builtin`, `user`, `project`, `untrusted` 넷이다(§4.6.1). 새 값을 더하지 않는다.
-- 외부 플러그인 그룹(`group` 선언이 있는 확장)의 등급은 설치 위치가 정한다. `user`·`managed` 위치는 `user`, `project` 위치는 프로젝트 신뢰가 `allow`일 때만 `project`다. `drive`는 두 등급 모두 허용이고 F 규칙(`usesDrive: true`)을 함께 만족해야 한다(§4.6.2).
+- 외부 플러그인 그룹(`group` 선언이 있는 확장)의 등급은 설치 위치가 정한다. `user`·`managed` 위치는 `user`, `project` 위치는 작업 폴더 신뢰가 `allow`일 때만 `project`다. `drive`는 두 등급 모두 허용이고 F 규칙(`usesDrive: true`)을 함께 만족해야 한다(§4.6.2).
 - `idempotent` 선언은 F 기능 정의(`MethodDef.idempotent`)에 있고 공급자가 그 약속을 지키는지는 적합성 시험(ADR-0015 §3.6)으로만 확인된다. 외부 확장은 시험을 강제할 수 없다.
 - 그래서 기능의 현재 공급자가 내장 확장(`builtin: true`, 저장소의 적합성 시험을 통과한 코드)일 때만 `idempotent` 선언을 믿는다. 공급자가 외부 확장(`user`, `project`)이면 X 기능 래퍼는 그 기능의 `idempotent` 메서드를 선언 없음으로 본다. on 핸들러와 drive 함수처럼 재실행되는 문맥에서는 `effect_not_allowed`이고 공급자를 부르지 않는다. 재실행되지 않는 문맥(도구 `execute`, 명령 처리기)에는 영향이 없다.
 - 판정은 호출마다 현재 바인딩된 공급자로 한다. 공급자가 바뀌면 다음 호출부터 새 공급자의 등급을 쓴다. 바인딩이 없으면 믿지 않는다(닫힌 쪽).
-- [결정: 오케스트레이터 기본값] 외부 공급자에게 신뢰를 열어 주는 설정(허용 확장 목록)은 두지 않는다. 같은 일은 요청 레코드와 워커(ADR-0015 §3.5)로 할 수 있다. 필요가 생기면 사용자 범위 설정으로만 열고 프로젝트 범위는 열지 않는다.
+- [결정: 오케스트레이터 기본값] 외부 공급자에게 신뢰를 열어 주는 설정(허용 확장 목록)은 두지 않는다. 같은 일은 요청 레코드와 워커(ADR-0015 §3.5)로 할 수 있다. 필요가 생기면 사용자 범위 설정으로만 열고 작업 폴더 범위는 열지 않는다.
 - `readOnly` 선언은 같은 신뢰 조건을 적용하지 않는다. 읽기가 재실행되어 해로운 경우는 공급자 오선언 때뿐이고 비용 문제이지 중복 효과가 아니기 때문이다 [제안].
 
-### 4.7 프로젝트 신뢰
+### 4.7 작업 폴더 신뢰
 
 #### 4.7.1 포크 범위
 
-[제안] pi `trust-manager.ts`(246줄)와 `project-trust.ts`(97줄)를 포크한다(`_research/packages.md` §4.5 X-a 프로젝트 신뢰 행). 원본: `~/projects/_ref/pi-src/packages/coding-agent/src/core/trust-manager.ts`, `project-trust.ts`.
+[제안] pi `trust-manager.ts`(246줄)와 `project-trust.ts`(97줄)를 포크한다(`_research/packages.md` §4.5 X-a 작업 폴더 신뢰 행). 원본: `~/projects/_ref/pi-src/packages/coding-agent/src/core/trust-manager.ts`, `project-trust.ts`.
 
 | 원본 요소 | 원본 동작 | Fresnel에서 바꿀 점 | 이유 |
 |---|---|---|---|
@@ -1211,20 +1211,20 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 #### 4.7.2 신뢰 필요 자원
 
-[제안] 프로젝트 루트에 아래 중 하나라도 있으면 신뢰 판정이 필요하다. 하나도 없으면 판정 없이 `trusted: true`(`via: "notRequired"`)다(pi `project-trust.ts:51-53`과 같다).
+[제안] 작업 폴더 루트에 아래 중 하나라도 있으면 신뢰 판정이 필요하다. 하나도 없으면 판정 없이 `trusted: true`(`via: "notRequired"`)다(pi `project-trust.ts:51-53`과 같다).
 
-| 경로(프로젝트 루트 기준) | 대상 |
+| 경로(작업 폴더 루트 기준) | 대상 |
 |---|---|
-| `.fresnel/extensions/` | 프로젝트 확장 |
-| `.fresnel/settings.json`, `.fresnel/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 프로젝트·로컬 설정 |
-| `.fresnel/mcp.json`, `.mcp.json` | 프로젝트 MCP 서버(`.mcp.json`은 프로젝트 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
+| `.fresnel/extensions/` | 작업 폴더 확장 |
+| `.fresnel/settings.json`, `.fresnel/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 작업 폴더·로컬 설정 |
+| `.fresnel/mcp.json`, `.mcp.json` | 작업 폴더 MCP 서버(`.mcp.json`은 작업 폴더 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
 | `.fresnel/hooks/` [가정: 외부 훅 위치는 X.operations.spec, M4] | 외부 훅 |
-| `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/` | 프로젝트 자원. `.fresnel/commands/`는 `L2.dialog` 슬래시 명령 파일이다(셸 주입을 담을 수 있다. `L2.dialog.spec` §4.2.1a) |
+| `.fresnel/skills/`, `.fresnel/commands/`, `.fresnel/prompts/`, `.fresnel/agents/` | 작업 폴더 자원. `.fresnel/commands/`는 `L2.dialog` 슬래시 명령 파일이다(셸 주입을 담을 수 있다. `L2.dialog.spec` §4.2.1a) |
 | `.fresnel/SYSTEM.md`, `.fresnel/APPEND_SYSTEM.md` | 시스템 프롬프트 파일 |
-| `.agents/skills/`(프로젝트 루트와 상위 디렉터리, 사용자 홈의 것은 제외) | pi와 같은 공유 스킬 위치(`trust-manager.ts:186-208`) |
+| `.agents/skills/`(작업 폴더 루트와 상위 디렉터리, 사용자 홈의 것은 제외) | pi와 같은 공유 스킬 위치(`trust-manager.ts:186-208`) |
 
 - 빈 `.fresnel` 디렉터리는 신뢰를 요구하지 않는다(pi `docs/security.md` "A bare `.pi` directory does not require project trust").
-- `AGENTS.md`, `CLAUDE.md` 같은 컨텍스트 파일은 이 목록에 없다. pi처럼 신뢰와 무관하게 읽힌다. 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않는다. 그래도 신뢰되지 않은 입력으로 본다(pi `docs/security.md` 프로젝트 신뢰 절).
+- `AGENTS.md`, `CLAUDE.md` 같은 컨텍스트 파일은 이 목록에 없다. pi처럼 신뢰와 무관하게 읽힌다. 내용은 모델 입력으로만 쓰이고 코드로 실행되지 않는다. 그래도 신뢰되지 않은 입력으로 본다(pi `docs/security.md` 작업 폴더 신뢰 절).
 
 #### 4.7.3 판정 순서와 선택지
 
@@ -1241,10 +1241,10 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 
 | 선택지 | `TrustChoice` | 저장 갱신 |
 |---|---|---|
-| 이 폴더를 신뢰 | `{ kind: "folder", verdict: "allow" }` | 프로젝트 루트 `allow` |
-| 상위 폴더를 신뢰 | `{ kind: "parent", verdict: "allow" }` | 상위 폴더 `allow`, 프로젝트 루트 항목 삭제 |
+| 이 폴더를 신뢰 | `{ kind: "folder", verdict: "allow" }` | 작업 폴더 루트 `allow` |
+| 상위 폴더를 신뢰 | `{ kind: "parent", verdict: "allow" }` | 상위 폴더 `allow`, 작업 폴더 루트 항목 삭제 |
 | 이번 "세션"만 신뢰 | `{ kind: "session", verdict: "allow" }` | 없음. `sessionMemory`에 둔다 |
-| 이 폴더를 신뢰하지 않음 | `{ kind: "folder", verdict: "deny" }` | 프로젝트 루트 `deny` |
+| 이 폴더를 신뢰하지 않음 | `{ kind: "folder", verdict: "deny" }` | 작업 폴더 루트 `deny` |
 | 이번 "세션"만 신뢰하지 않음 | `{ kind: "session", verdict: "deny" }` | 없음. `sessionMemory`에 둔다 |
 
 - 결정 3값: 저장소와 결과는 `allow`, `deny`, `undecided`를 쓴다. `undecided`는 저장되지 않는다.
@@ -1258,24 +1258,24 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 시작 순서 [제안]:
 
 1. L0 플랫폼 패키지 등록(조립 루트, `ExtHost.registerPlatform`).
-2. 내장, 관리, 사용자 확장의 파이프라인 1~9단계. 프로젝트 위치는 탐색하지 않는다.
-3. `findTrustRequiringResources`로 프로젝트 루트를 검사한다. 파일 존재만 확인하고 내용은 읽지 않는다.
+2. 내장, 관리, 사용자 확장의 파이프라인 1~9단계. 작업 폴더 위치는 탐색하지 않는다.
+3. `findTrustRequiringResources`로 작업 폴더 루트를 검사한다. 파일 존재만 확인하고 내용은 읽지 않는다.
 4. 자원이 있고 `trustOverride`가 없으면 `thread.trust.before`를 발화한다(§4.7.3 4번). 이 시점의 핸들러는 2번에서 활성화된 `builtin`, `user` 등급 확장의 것뿐이다. 발화는 신뢰 판정 한 번에 한 번이다.
-5. 신뢰가 `allow`면 프로젝트 위치를 탐색하고 프로젝트 후보에 1~9단계를 실행한다. 3단계 집합 검사는 두 번째 실행이다(§4.3.1).
+5. 신뢰가 `allow`면 작업 폴더 위치를 탐색하고 작업 폴더 후보에 1~9단계를 실행한다. 3단계 집합 검사는 두 번째 실행이다(§4.3.1).
 6. `thread.resources`를 발화한다(§7).
 
 신뢰 판정 전에 실행하거나 적용하지 않는 것:
 
 | 대상 | 처리 | 소유 문서 |
 |---|---|---|
-| 프로젝트 확장 | 매니페스트 읽기, import, 엔트리 실행을 하지 않는다. 판정 전에는 매니페스트 JSON도 파싱하지 않는다 | 이 문서 |
-| 프로젝트 훅(외부 훅 프로토콜, M4) | 실행하지 않는다 | X.operations.spec |
-| 프로젝트·로컬 설정 파일의 `ext.*` 키와 `x.loading-trust.*` 키 | 유효 값 계산에서 뺀다. 파일에서 지우지 않는다 | 이 문서(규칙), L1.persistence.spec(적용) |
-| 프로젝트 MCP 서버(`.fresnel/mcp.json`, `.mcp.json`) | 기동하지 않는다 | L2.mcp.spec |
-| 프로젝트 스킬·프롬프트·에이전트·시스템 프롬프트 파일 | 자원 목록에 넣지 않는다 | L2.knowledge.spec, L1.context.spec |
+| 작업 폴더 확장 | 매니페스트 읽기, import, 엔트리 실행을 하지 않는다. 판정 전에는 매니페스트 JSON도 파싱하지 않는다 | 이 문서 |
+| 작업 폴더 훅(외부 훅 프로토콜, M4) | 실행하지 않는다 | X.operations.spec |
+| 작업 폴더·로컬 설정 파일의 `ext.*` 키와 `x.loading-trust.*` 키 | 유효 값 계산에서 뺀다. 파일에서 지우지 않는다 | 이 문서(규칙), L1.persistence.spec(적용) |
+| 작업 폴더 MCP 서버(`.fresnel/mcp.json`, `.mcp.json`) | 기동하지 않는다 | L2.mcp.spec |
+| 작업 폴더 스킬·프롬프트·에이전트·시스템 프롬프트 파일 | 자원 목록에 넣지 않는다 | L2.knowledge.spec, L1.context.spec |
 
-- 불신(`deny`, `undecided`)이면 위 표의 대상은 이 실행 동안 계속 제외된다. 프로젝트 후보는 `rejected`(`trust_denied` 또는 `trust_undecided`)로 진단에 남는다. 탐색은 존재 확인만 한 상태이므로 후보 이름은 디렉터리 이름으로 적는다.
-- 프로젝트 설정 파일의 나머지 키(예: `l1.loop.maxSteps`)를 신뢰 전에 적용할지는 §10 미결 5다. pi는 프로젝트 설정 전체를 막는다(pi `docs/security.md` "Granting project trust allows Pi to load: project settings").
+- 불신(`deny`, `undecided`)이면 위 표의 대상은 이 실행 동안 계속 제외된다. 작업 폴더 후보는 `rejected`(`trust_denied` 또는 `trust_undecided`)로 진단에 남는다. 탐색은 존재 확인만 한 상태이므로 후보 이름은 디렉터리 이름으로 적는다.
+- 작업 폴더 설정 파일의 나머지 키(예: `l1.loop.maxSteps`)를 신뢰 전에 적용할지는 §10 미결 5다. pi는 작업 폴더 설정 전체를 막는다(pi `docs/security.md` "Granting project trust allows Pi to load: project settings").
 
 #### 4.7.5 저장 파일 손상
 
@@ -1284,16 +1284,16 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 - 손상 상태에서 `setMany`는 쓰지 않고 `err({ kind: "corrupt", reason })`를 돌려준다. `resolveProjectTrust`는 저장에 실패해도 결정을 유지하고 결과의 `storeError`로 알린다. 진단 `trust_store_corrupt`를 남기고, L4는 파일 경로와 복구 방법(직접 수정, 초기화 명령)을 보인다.
 - pi 형식(`Record<path, boolean | null>`) 파일을 읽으면 [제안] 손상으로 보지 않고 버전 0으로 읽어 같은 의미로 변환한다. 다음 쓰기 때 버전 1로 바꾼다.
 
-#### 4.7.8 서비스 모드의 프로젝트 확장 [결정: review.m3-lower-requirements M3-REQ-38, 오케스트레이터 기본값]
+#### 4.7.8 서비스 모드의 작업 폴더 확장 [결정: review.m3-lower-requirements M3-REQ-38, 오케스트레이터 기본값]
 
-여러 작업 폴더를 동시에 여는 서비스 프로세스(adr.0006)에서 프로젝트 확장을 싣는 규칙이다. 시작 때는 프로젝트를 싣지 않고(`loadAll({ projects: "on_demand" })`), 작업 폴더를 여는 때 `loadProject`가 싣는다.
+여러 작업 폴더를 동시에 여는 서비스 프로세스(adr.0006)에서 작업 폴더 확장을 싣는 규칙이다. 시작 때는 작업 폴더를 싣지 않고(`loadAll({ projects: "on_demand" })`), 작업 폴더를 여는 때 `loadProject`가 싣는다.
 
-1. 단위: 프로젝트 루트(정규화한 경로) 하나다. 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 적재가 중단되거나 실패하면 그 루트를 기억하지 않아 다음 호출이 다시 싣는다. 서비스 프로세스 안의 확장 이름은 하나뿐이라(§4.2.2) 먼저 실린 프로젝트의 확장이 이름을 쥐고, 다른 프로젝트의 같은 이름은 `name_conflict`로 거부된다. 나중 것만 거부하고 먼저 실린 것은 `active`로 두어 실행과 상태 표시가 어긋나지 않는다 [결정: 감사 LT-01]. 같은 묶음 안의 같은 위치 충돌(§4.2.2)만 둘 다 거부한다. 서비스를 다시 띄우면 처음부터 다시 정한다.
+1. 단위: 작업 폴더 루트(정규화한 경로) 하나다. 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 적재가 중단되거나 실패하면 그 루트를 기억하지 않아 다음 호출이 다시 싣는다. 서비스 프로세스 안의 확장 이름은 하나뿐이라(§4.2.2) 먼저 실린 작업 폴더의 확장이 이름을 쥐고, 다른 작업 폴더의 같은 이름은 `name_conflict`로 거부된다. 나중 것만 거부하고 먼저 실린 것은 `active`로 두어 실행과 상태 표시가 어긋나지 않는다 [결정: 감사 LT-01]. 같은 묶음 안의 같은 위치 충돌(§4.2.2)만 둘 다 거부한다. 서비스를 다시 띄우면 처음부터 다시 정한다.
 2. 시점: thread를 만들거나 여는 작업 폴더에 대해 호스트가 부른다. 신뢰가 아직 정해지지 않은 폴더는 아무것도 싣지 않고(`trust_undecided`) 결정은 기억하지 않는다. 결정이 나온 뒤 다음 호출이 싣는다.
 3. 프롬프트를 받을 클라이언트: 그 폴더를 연 연결이다. thread가 없는 시점이므로 `thread.trust.before` 훅(thread 필요)은 이 경로에서 발화하지 않는다. 호스트는 wire `trust.get`(선택지)과 `trust.decide`(결정)를 쓰고 `approval.requested`와 같은 A안 모양(F wire, review.decisions-2 U-02)이다. `trust.decide`가 `allow`를 반환하면 호스트가 그 결과를 `trustOverride`로 `loadProject`에 넘긴다. 로더에 직접 프롬프트를 연결하는 구현(`LoadProjectOptions.prompter`)도 같은 규칙을 따르되 그 호출의 `prompter`로만 간다.
 4. "이번 세션만" 결정은 서비스 프로세스 수명 동안 유지한다(§10 7번).
 5. 안전 모드이면 판정하지 않고 `safe_mode` 진단만 남긴다.
-6. 프로젝트 확장이 선언한 설정 그룹(`ext.<name>`)은 시작 때 만든 카탈로그에 없다. 서비스 모드에서 프로젝트 확장의 설정 키는 카탈로그에 추가되지 않는다 [미결].
+6. 작업 폴더 확장이 선언한 설정 그룹(`ext.<name>`)은 시작 때 만든 카탈로그에 없다. 서비스 모드에서 작업 폴더 확장의 설정 키는 카탈로그에 추가되지 않는다 [미결].
 
 ### 4.8 기능 요구 충족
 
@@ -1381,12 +1381,12 @@ flowchart LR
 | scope setup 본문에서 `post`·`state()` 호출 | `PrimitiveError("no_thread")` → `error`(`setup_action`) |
 | 안전 모드 또는 `--disable-ext`로 빠진 확장 | `disabled`(`safe_mode`, `disabled_flag`). 외부 확장은 import하지 않고 내장 확장은 install하지 않는다 |
 | 내장 필수 확장이 throw | `LoadAbortError`, 시작 거부 |
-| 같은 이름이 사용자와 프로젝트 위치에 모두 있음 | 사용자 것을 쓰고 프로젝트 것은 `rejected`(`name_conflict`) |
+| 같은 이름이 사용자와 작업 폴더 위치에 모두 있음 | 사용자 것을 쓰고 작업 폴더 것은 `rejected`(`name_conflict`) |
 | 외부 확장이 `trust.level: "builtin"` | `rejected`(`trust_exceeds_source`) |
 | 매니페스트 디렉터리에 `plugin.json`이 없음 | 진단 `manifest_missing`(경고)만 남기고 건너뛴다 |
 | `entry`가 가리키는 파일이 없음, 함수 export가 없음, import 중 예외, 확장 루트 밖으로 풀림 | `error`(각각 `entry_not_found`, `entry_not_function`, `entry_import_failed`). 다른 확장은 계속 |
 | 취소 신호가 설치 중에 켜짐 | `ExtHost.install`이 엔트리를 기다리지 않고 끝내고 `loadAll`은 `LoadAbortError`를 던진다 |
-| 비대화형 실행, 프로젝트에 `.fresnel/extensions/` 있음, 저장 결정 없음 | 불신. 프로젝트 확장은 import되지 않고 `rejected`(`trust_undecided`) |
+| 비대화형 실행, 작업 폴더에 `.fresnel/extensions/` 있음, 저장 결정 없음 | 불신. 작업 폴더 확장은 import되지 않고 `rejected`(`trust_undecided`) |
 | `thread.trust.before` 핸들러가 throw | `FIRST_DENY.project_trust`(불신). 저장하지 않는다 |
 | 신뢰 저장 파일 손상 | 불신(`corruptStore`), 프롬프트 없음, 쓰기 거부, 진단 |
 | 프롬프트 중 사용자가 창을 닫음 | 불신(`undecided`), 저장 없음 |
@@ -1399,7 +1399,7 @@ flowchart LR
 | 격리 프로세스 연결 끊김 | 진행 중 요청 예외 처리, 재시작 정책(§4.9.7) |
 | 화면 파일이 없거나 JSON이 아니거나 트리 검사에 실패함 | 그 항목만 `invalid`(`ui_file_missing`, `ui_invalid`, `ui_limit`). 확장은 `active`이고 훅이 실행된다(§4.3.4) |
 | 화면 파일이나 app root가 확장 밖을 가리키는 심볼릭 링크 | `ui_path_invalid`. 링크 대상은 읽지 않는다 |
-| 프로젝트 확장의 앱 화면, 또는 `x.ui.apps` 거짓 | 앱 파일을 보지 않는다. `fallback`이 있으면 native로 그리고 정보 진단 `ui_mode_not_allowed`, 없으면 `disabled` |
+| 작업 폴더 확장의 앱 화면, 또는 `x.ui.apps` 거짓 | 앱 파일을 보지 않는다. `fallback`이 있으면 native로 그리고 정보 진단 `ui_mode_not_allowed`, 없으면 `disabled` |
 | `ui.widgets` 또는 `app.bridge` 범위가 호스트 버전 `1.0.0`을 포함하지 않음 | `widgets_unsupported`(native 항목 모두) 또는 `bridge_unsupported`. 그 항목은 `invalid` |
 | 매니페스트 `ui`의 모양 오류(`validateUi`) | 매니페스트 거부(`manifest_invalid`). 화면 파일은 읽지 않는다 |
 
@@ -1418,8 +1418,8 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `x.ui.apps` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
 | `x.ui.allowProjectApps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 
-- `x.loading-trust.*` 키는 프로젝트 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
-- `x.ui.*` 키도 같은 이유로 `project` 범위를 허용하지 않는다. F.wire-settings.spec 범위 표 3번의 `local`(프로젝트의 개인 파일)도 프로젝트가 쓴 값이라 빼며, `launch`는 `restart` 키에 D7 규칙으로 막힌다. 앱 정책은 시작 때 읽으므로 바뀐 값은 다음 시작에 적용된다. `x.ui.apps`를 끄면 프로젝트가 `local`로 다시 켤 수 없다.
+- `x.loading-trust.*` 키는 작업 폴더 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
+- `x.ui.*` 키도 같은 이유로 `project` 범위를 허용하지 않는다. F.wire-settings.spec 범위 표 3번의 `local`(작업 폴더의 개인 파일)도 작업 폴더가 쓴 값이라 빼며, `launch`는 `restart` 키에 D7 규칙으로 막힌다. 앱 정책은 시작 때 읽으므로 바뀐 값은 다음 시작에 적용된다. `x.ui.apps`를 끄면 작업 폴더가 `local`로 다시 켤 수 없다.
 - 안전 모드 키(`x.operations.safeMode.default`, `x.operations.safeMode.suggestAfter`)는 X.operations.spec 소유다. L4.settings-ui.spec §표가 `x.loading-trust.*`에 안전 모드를 넣은 표기는 정합성 단계에서 `x.operations.*`로 고친다 [제안].
 - L4 노출: 설정 화면 "플러그인과 그룹" 탭에 확장 목록(상태, 등급, 위치, 진단 수), 토글(`enabled`), 격리 선택(`isolation`), 신뢰 결정 목록(저장 파일 내용)을 둔다. CLI는 `fresnel config`로 같은 키를 다룬다.
 
@@ -1427,8 +1427,8 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 | 훅 | 이 문서의 역할 | 발화 시점 |
 |---|---|---|
-| `thread.trust.before`(session, first) | 발화한다 | 프로젝트 신뢰 판정 4번(§4.7.3). 내장·관리·사용자 확장 활성화 뒤, 프로젝트 탐색 전. 판정 한 번에 한 번 |
-| `thread.resources`(session, chain) | 발화한다 | `loadAll` 끝(모든 단계 뒤) `reason: "startup"`, `reload` 끝 `reason: "reload"`. 로더 수명에 맞춘다 [제안]. 프로젝트 불신이면 프로젝트 확장의 핸들러는 없다 |
+| `thread.trust.before`(session, first) | 발화한다 | 작업 폴더 신뢰 판정 4번(§4.7.3). 내장·관리·사용자 확장 활성화 뒤, 작업 폴더 탐색 전. 판정 한 번에 한 번 |
+| `thread.resources`(session, chain) | 발화한다 | `loadAll` 끝(모든 단계 뒤) `reason: "startup"`, `reload` 끝 `reason: "reload"`. 로더 수명에 맞춘다 [제안]. 작업 폴더 불신이면 작업 폴더 확장의 핸들러는 없다 |
 
 - post, drive와의 관계: 로더는 post와 drive를 직접 쓰지 않는다. 격리 확장의 post는 `OutboxAgent`가 그 확장 scope로 대신 실행한다(§4.9.6). drive는 격리 확장에 허용하지 않는다(§4.9.5).
 - 4연산 사용과 매니페스트의 대조(`validateUsage`)는 primitives가 `install` 안에서 하고, 로더는 그 결과를 진단으로 옮긴다(§4.4.3). 연산 실행 자체도 X.primitives.spec이다.
@@ -1475,8 +1475,8 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 1. `hooks`에 `tool.call.before`만 선언한 플러그인이 Registration setup에서 `on("boundary.step.after", …)`을 호출하면 그 확장은 `error`이고 진단 코드는 `usage_invalid`, `issues`에 `hook_undeclared`가 있다. 그 확장의 다른 등록도 남지 않는다.
 2. 내장 필수가 아닌 확장 셋 중 가운데 확장의 엔트리가 throw해도 나머지 둘은 `active`이고 `loadAll`은 성공한다.
 3. `essential: true` 내장 확장의 엔트리가 throw하면 `loadAll`이 `LoadAbortError`를 던지고 진단에 `essential_failed`가 있다.
-4. 프로젝트 신뢰 판정 전에는 프로젝트 확장의 엔트리 모듈이 import되지 않는다(가짜 `LoaderFs`와 import 기록기로 확인). `thread.trust.before` 핸들러가 `no`를 돌려주면 끝까지 import되지 않는다.
-5. `mode: "headless"`, 저장 결정 없음, `defaultProjectTrust: "ask"`이면 프로젝트 확장이 로드되지 않고 `ProjectTrustResult.via`가 `headless`, 진단 코드가 `trust_undecided`다.
+4. 작업 폴더 신뢰 판정 전에는 작업 폴더 확장의 엔트리 모듈이 import되지 않는다(가짜 `LoaderFs`와 import 기록기로 확인). `thread.trust.before` 핸들러가 `no`를 돌려주면 끝까지 import되지 않는다.
+5. `mode: "headless"`, 저장 결정 없음, `defaultProjectTrust: "ask"`이면 작업 폴더 확장이 로드되지 않고 `ProjectTrustResult.via`가 `headless`, 진단 코드가 `trust_undecided`다.
 6. `ext.<name>.enabled`의 유효 값이 `false`인 확장은 엔트리가 한 번도 호출되지 않고 상태가 `disabled`다. 대화 범위에서 `true`로 바꾸면 `ensureLoaded`가 엔트리를 한 번 부른다.
 7. 격리 확장 프록시의 `tool.call.before` 핸들러가 시간 예산을 넘기면 결정은 `FIRST_DENY.tool_call`이고 자식에게 취소가 전송된다(가짜 `IsolationProcessPort`).
 8. (삭제) pi 어댑터는 두지 않는다.
@@ -1484,7 +1484,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 10. 같은 후보 집합을 섞은 순서로 넣어도 `orderManifests` 결과와 `loadIndex`가 같다.
 11. 신뢰 저장 파일이 JSON이 아니면 판정은 불신(`via: "corruptStore"`)이고, 프롬프트가 호출되지 않으며 `setMany`가 `TrustStoreCorruptError`를 던진다. 파일 내용은 바뀌지 않는다.
 12. userConfig의 `setting`이 `l1.loop.maxSteps`인 확장은 `rejected`(`settings_rejected`)이고 `LoadReport.settingGroups`에 그 확장 그룹이 없다.
-13. 사용자 위치와 프로젝트 위치에 같은 이름이 있으면 사용자 것이 `active`, 프로젝트 것이 `rejected`(`name_conflict`)다.
+13. 사용자 위치와 작업 폴더 위치에 같은 이름이 있으면 사용자 것이 `active`, 작업 폴더 것이 `rejected`(`name_conflict`)다.
 14. 이 문서 §4.6.2 표의 각 행·열과 `TRUST_MATRIX` 상수가 같다(문서 대조 테스트).
 15. 외부 확장 매니페스트의 `trust.level: "builtin"`은 `trust_exceeds_source`로 거부된다.
 16. 외부 확장의 `entry`가 없는 파일이거나 함수 export가 없거나 import 중 던지면 그 확장만 `error`(`entry_not_found`, `entry_not_function`, `entry_import_failed`)이고 다른 확장의 로드는 계속된다.
@@ -1494,14 +1494,14 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 20. `policy.admit`이 `TierError`를 내면 그 확장은 install되지 않고 진단이 `tier_rejected`다.
 21. `previewRemoval`은 아무것도 바꾸지 않고 테이블 목록만 돌려준다. `remove(name, { dropTables: true })`는 `uninstall`, `forget`, `dropExtension(name, true)`를 이 순서로 부른다. `dropTables: false`면 테이블이 남는다.
 22. `LoadOptions.startup`의 `disabled`에 든 외부 확장은 엔트리가 import되지 않고 상태가 `disabled`, 진단이 `disabled_flag`다. 내장 확장이면 `install`이 불리지 않는다.
-23. 안전 모드에서는 사용자 위치 외부 확장이 `disabled`(`safe_mode`)이고 엔트리가 import되지 않으며, L3 내장 그룹이 `disabled`이고 L1·L2 내장은 `active`다. 프로젝트 위치는 탐색하지 않고 `LoadReport.projectTrust`는 null이다.
+23. 안전 모드에서는 사용자 위치 외부 확장이 `disabled`(`safe_mode`)이고 엔트리가 import되지 않으며, L3 내장 그룹이 `disabled`이고 L1·L2 내장은 `active`다. 작업 폴더 위치는 탐색하지 않고 `LoadReport.projectTrust`는 null이다.
 24. 깨진 `plugin.json`(JSON 아님, 스키마 위반, 파일 없음)은 진단(`manifest_parse`, `manifest_invalid`, `manifest_missing`)만 남기고 다른 확장은 로드된다.
 25. `installDefaultPlugin`은 없는 대상에 복사하고(`installed`), 같은 버전은 그대로 두며(`kept`), 번들이 더 높은 버전이거나 설치본 매니페스트가 손상이면 교체한다(`replaced`). 번들 매니페스트가 잘못되면 `source_invalid`이고 대상은 바뀌지 않는다.
 26. 화면 파일이 없거나 JSON이 아니거나 트리 검사에 실패한 항목은 그 항목만 `invalid`(`ui_file_missing`, `ui_invalid`)이고, 확장은 `active`이며 훅이 실행된다. 진단의 `stage`는 `ui`, `path`는 `/ui/items/0/file`이다(`ui-loader.int.test.ts`).
 27. 1 MiB를 넘는 화면 파일은 `ui_limit`이고, 정확히 1 MiB인 파일은 읽힌다(`ui-check.test.ts`).
 28. 확장 밖을 가리키는 심볼릭 링크인 화면 파일과 app root는 `ui_path_invalid`이고, 링크 대상은 읽히지 않는다.
 29. `app.bridge` 범위가 `1.0.0`을 포함하지 않으면 `bridge_unsupported`다. `ui.widgets`가 `1.0.0`을 포함하지 않으면 native 항목 모두 `widgets_unsupported`이고 `invalid`다.
-30. `x.ui.apps`가 거짓이거나 프로젝트 확장에서 `allowProjectApps`가 거짓이면 앱 파일을 보지 않고 `fallback`을 native로 그린다(정보 진단 `ui_mode_not_allowed`). `fallback`이 없으면 `disabled`다. 프로젝트 확장에서 `allowProjectApps`를 켜면 같은 항목이 앱으로 검사된다(`ui-loader.int.test.ts`).
+30. `x.ui.apps`가 거짓이거나 작업 폴더 확장에서 `allowProjectApps`가 거짓이면 앱 파일을 보지 않고 `fallback`을 native로 그린다(정보 진단 `ui_mode_not_allowed`). `fallback`이 없으면 `disabled`다. 작업 폴더 확장에서 `allowProjectApps`를 켜면 같은 항목이 앱으로 검사된다(`ui-loader.int.test.ts`).
 31. 꺼진 확장의 깨진 화면도 검사되어 `uiEntries()`에 `invalid`로 나온다. 내장 확장의 화면은 검사하지 않는다. 확장이 목록에서 빠지면 `uiEntries()`에서도 빠진다.
 32. `resolveAppFile`의 적대적 요청 표 25개(`../secret.txt`, `%2e%2e/`, `..%5c`, NUL, 드라이브 문자, 심볼릭 링크 탈출 등)가 정확한 `outside_root`, `not_found`, `not_a_file`, `forbidden_type` 또는 성공 값을 낸다. 퍼센트 디코딩은 한 번만 한다(`%252e%252e`는 문자 그대로의 이름이다). 파일 본문은 읽지 않는다(`app-files.test.ts`).
 33. `uiSettings`의 두 키는 카탈로그 규칙을 통과하고, 허용 범위는 `managed`, `user`뿐이다(`project`, `local`, `launch` 없음). `ui-settings.test.ts`.
@@ -1515,14 +1515,14 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 2. [미결] 엔트리 export 형태. F.extensions.spec §3.2는 `ExtensionEntry`를 default export로 적었고, Fresnel lint는 default export를 막는다. [제안] 내장은 named `extension`, 외부는 `default` 또는 `extension`을 허용한다. F 주석 수정 요청.
 3. [미결] F `validateManifest`의 `name_reserved` 판정이 매니페스트 `trust.level`에만 의존한다. [제안] F가 설치 위치를 인자로 받거나, 로더의 `trust_exceeds_source` 검사를 정본으로 둔다. F 수정 요청.
 4. [미결] `untrusted` 처리(§4.6.3). [제안] 로드하지 않음. 격리와 샌드박스를 함께 쓰는 경로가 생기면 격리 강제를 다시 검토한다.
-5. [결정: review.m3-design-inputs D-M3-31 행 3] 프로젝트 설정 파일의 키는 `ext.*`, `x.loading-trust.*` 밖의 것도 신뢰 뒤에만 적용한다(§4.7.4).
+5. [결정: review.m3-design-inputs D-M3-31 행 3] 작업 폴더 설정 파일의 키는 `ext.*`, `x.loading-trust.*` 밖의 것도 신뢰 뒤에만 적용한다(§4.7.4).
 6. [미결] 로드 진단을 내구·휘발 이벤트로 낼지와 type 접두(`ext.`/`extension.`). F.records.spec과 eng.context-map.design 변경이 필요하다.
 7. [결정: review.m3-design-inputs D-M3-31 행 3] "이번 세션만" 신뢰의 범위는 호스트 프로세스 수명이다. 서비스 모드에서도 thread·클라이언트 단위로 좁히지 않는다.
 8. [미결] 격리 확장의 drive 허용(§4.9.5). [제안] 1차 격리에서는 금지.
 9. (닫힘) pi `pi-coding-agent` 도구 팩토리 15종의 대응. pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c].
 10. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다. 가상 모듈 `typebox`가 플러그인 번들에 워크스페이스와 같은 판을 준다.
 11. [미결] eng.context-map.design §4.1이 ext-host 소유 데이터로 `xh_*`(신뢰 결정, 설치·신뢰 등급)를 적었다. 이 문서는 신뢰 결정을 사용자 영역 파일(`<userDir>/trust.json`)에 둔다 [제안]. DB 테이블을 둘지, context-map 표를 고칠지 정해야 한다.
-12. [결정: review.m3-lower-requirements M3-REQ-38, 오케스트레이터 기본값] 서비스 모드에서 프로젝트 확장의 단위는 프로젝트 루트다. 작업 폴더를 여는 때 `loadProject`로 판정하고 싣고, 프롬프트는 그 폴더를 연 연결에 `trust.get`·`trust.decide`로 보낸다(§4.7.8). 프로젝트 확장의 설정 키 추가는 [미결]이다.
+12. [결정: review.m3-lower-requirements M3-REQ-38, 오케스트레이터 기본값] 서비스 모드에서 작업 폴더 확장의 단위는 작업 폴더 루트다. 작업 폴더를 여는 때 `loadProject`로 판정하고 싣고, 프롬프트는 그 폴더를 연 연결에 `trust.get`·`trust.decide`로 보낸다(§4.7.8). 작업 폴더 확장의 설정 키 추가는 [미결]이다.
 13. (해소) 이벤트 kind 접두는 F 규칙 `x.<name>.`/`grp.<name>.`이다([결정: review.decisions-2 T-21]).
 14. [미결] eng.dependency-rules.guide DR-07 표에 `vscode-jsonrpc` → `ext-host` 행 추가 요청.
 15. (해소, 일부) Bun 직접 `import()`와 `Bun.plugin` 모듈 등록은 스파이크로 확인했다(§4.4.1). `bun build --compile` 바이너리에서 외부 `.ts`를 불러오는지, 질의 접미로 캐시를 피할 수 있는지는 확인 전이다 [가정].

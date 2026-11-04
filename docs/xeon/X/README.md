@@ -34,7 +34,7 @@ X가 정하지 않는 것:
 
 | 도메인 | 계획 v2 | 한 줄 책임 | 소유 설정 키 | 문서 | 1차 / 2차 |
 |---|---|---|---|---|---|
-| loading-trust | X-a 로딩과 신뢰 | 탐색, 로드 순서, 매니페스트 검증 흐름(로드 파이프라인), 신뢰 등급과 프로젝트 신뢰, 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치 | `ext.<name>.enabled`, `ext.<name>.isolation`, `x.loading-trust.*` | `X.loading-trust.spec`, `X.loading-trust.plan` | 1차: 로딩, 정적 검증, 프로젝트 신뢰. 2차: 프로세스 격리. M3a: 외부 확장 로더, 안전 모드, SDK 가상 모듈, 기본 플러그인 설치 |
+| loading-trust | X-a 로딩과 신뢰 | 탐색, 로드 순서, 매니페스트 검증 흐름(로드 파이프라인), 신뢰 등급과 작업 폴더 신뢰, 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치 | `ext.<name>.enabled`, `ext.<name>.isolation`, `x.loading-trust.*` | `X.loading-trust.spec`, `X.loading-trust.plan` | 1차: 로딩, 정적 검증, 작업 폴더 신뢰. 2차: 프로세스 격리. M3a: 외부 확장 로더, 안전 모드, SDK 가상 모듈, 기본 플러그인 설치 |
 | primitives | X-b 원시 연산 네 개 | 4연산 실행, 디스패처, post 큐, drive 락 중재, Registration 토글·상태, 리소스 등록, `@fresnel/ext-host` 공개 API, `DispatchPolicy`·`ResourcePolicy` 인터페이스 | `x.primitives.*`(`driveLimits`, `activeDriver`, `capabilityProviders`) | `X.primitives.spec`, `X.primitives.plan` | 1차 전부 |
 | operations | X-c 운영 규칙 | tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(`ExtStorage`), 이름 충돌, 안전 모드, 외부 훅 프로토콜. `DispatchPolicy`·`ResourcePolicy` 구현 | `x.operations.*` | `X.operations.spec`, `X.operations.plan` | 1차: tier, 예산·실패 격리, 저장 영역. 2차: 이름 충돌, 안전 모드, 외부 훅 |
 
@@ -97,8 +97,8 @@ X가 정하지 않는 것:
   1. 조립 루트가 operations 정책과 `ExtHost`를 만들고 L0 플랫폼 패키지를 `ExtHost.registerPlatform`으로 등록한다.
   2. 로더가 쓰는 주입 서비스(파일, 경로, 신뢰 저장소)가 있는지 확인한다. 없으면 시작 실패다.
   3. 내장 확장(L1 → L2 → L3)을 싣는다. 필수(`essential`) 내장이 실패하면 시작을 거부한다.
-  4. 관리·사용자 확장을 싣고 프로젝트 신뢰를 판정한다. 안전 모드면 외부 확장, 외부 훅, L3 내장 그룹([제안], `X.operations.spec` §4.6.2)을 건너뛴다.
-  5. 신뢰된 프로젝트 확장과 외부 훅을 싣는다.
+  4. 관리·사용자 확장을 싣고 작업 폴더 신뢰를 판정한다. 안전 모드면 외부 확장, 외부 훅, L3 내장 그룹([제안], `X.operations.spec` §4.6.2)을 건너뛴다.
+  5. 신뢰된 작업 폴더 확장과 외부 훅을 싣는다.
   세부는 `X.loading-trust.spec` §4.3과 `L4.host-service.spec`이다.
 - 주입 서비스로 받을 수 없는 L0 기능이 X 구성요소에서 나오면 위 조건 1을 지킬 수 없으므로 순위 변경(X를 L0 위로)을 ADR로 다시 정한다. 현재 세 도메인 문서에는 그런 경로가 없다.
 - [결정: review.decisions-2 D-05] X 테스트도 L0를 import하지 않는다. 저장·프로세스 대역은 X `test/`와 `@fresnel/ext-host/testing` 안에 F 인터페이스로 만든다.

@@ -255,7 +255,7 @@ describe("머리 출처 배지", () => {
     ]);
   });
 
-  test("프로젝트 등급과 이 대화 출처를 보이고, 출처가 없으면 범위 배지를 두지 않는다", () => {
+  test("작업 폴더 등급과 이 대화 출처를 보이고, 출처가 없으면 범위 배지를 두지 않는다", () => {
     const withThread = headerOf({ origin: "project", enabledSource: "thread" });
     expect(badgesOf(withThread)).toEqual([
       t("desktop.workbench.origin.project"),
@@ -265,7 +265,7 @@ describe("머리 출처 배지", () => {
     expect(badgesOf(withoutSource)).toEqual([t("desktop.workbench.origin.builtin")]);
   });
 
-  test("프로젝트 범위는 wire가 준 출처가 project일 때만 보인다", () => {
+  test("작업 폴더 범위는 wire가 준 출처가 project일 때만 보인다", () => {
     const html = headerOf({ origin: "user", enabledSource: "project" });
     expect(badgesOf(html)).toEqual([
       t("desktop.workbench.origin.user"),

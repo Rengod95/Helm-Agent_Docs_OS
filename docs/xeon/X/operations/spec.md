@@ -932,7 +932,7 @@ export function timingsOf(runs: Iterable<HandlerRun>, filter: TimingFilter): rea
 - tier 순위: `guard`(0) → `user`(1) → `project`(2) → `builtin`(3) → `core`(4). 바깥에서 안쪽 순서다.
 - Claude Code mods의 tier 순서(① 내장 가드 `sec-default` + 조직 prepend, ② 사용자 설치, ③ 조직 append, ④ 기타 내장, ⑤ core)를 따른다(`_research/refs/claude-code.md` mods "순서" 항목). 다른 점은 둘이다.
   - 조직 append tier는 두지 않는다. 관리(managed) 범위 확장은 2차이고, 들어오면 신뢰 상한(`user`)과 같은 `user` tier에 둔다 [결정: 오케스트레이터 기본값, M4 X-13].
-  - 사용자 tier와 내장 tier 사이에 `project`를 둔다. 프로젝트 폴더 확장은 사용자가 직접 설치한 확장보다 신뢰가 낮으므로 사용자 확장 안쪽에 둔다.
+  - 사용자 tier와 내장 tier 사이에 `project`를 둔다. 작업 폴더 확장은 사용자가 직접 설치한 확장보다 신뢰가 낮으므로 사용자 확장 안쪽에 둔다.
 - 정렬 키는 디스패치 시작 때 스냅샷한 핸들러 목록에 한 번 적용한다(`F.extensions.spec` §4.2 스냅샷 규칙).
 - [결정: 2026-11-03 사용자] 위 정렬 키는 기본 순서다. 기본 순서는 `guard` tier 핸들러가 맨 앞이다. 사용자는 훅별 순서 덮어쓰기(§4.1.5)로 이 순서를 포기하고 `guard` 핸들러도 옮길 수 있다. §4.1.3 예 1·2와 수용 기준 1·2는 기본 순서를 전제로 한다.
 
@@ -947,7 +947,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `builtin` | `builtin` | `layer`가 `L2`, `L3`, `plugin` | `builtin` |
 | `managed` | `user` | 2차. 신뢰 상한이 `user`다 | `user` |
 | `user` | `user` | | `user` |
-| `project` | `project` | 프로젝트 신뢰 `allow` 뒤(X.loading-trust.spec §4.6.1) | `project` |
+| `project` | `project` | 작업 폴더 신뢰 `allow` 뒤(X.loading-trust.spec §4.6.1) | `project` |
 | 아무 출처 | `untrusted` | | 싣지 않음(`TierError.untrusted`). 로더도 import하지 않는다(`X.loading-trust.spec` §4.6.3) |
 | `user`·`project`·`managed` | `builtin` | 로더가 먼저 `trust_exceeds_source`로 거부한다 | `TierError.source_trust_mismatch`(방어 검사) |
 
@@ -1000,7 +1000,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 [결정: 2026-11-03 사용자] 기본 순서에서 `guard` tier 핸들러는 맨 앞이다. 사용자는 훅마다 핸들러 순서를 바꿀 수 있고, tier를 넘는 이동(`user`, `project`, `builtin`, `core` 사이)도 자유롭다. **`guard` tier 핸들러도 옮길 수 있다. 고정은 없다.** 옮기면 안전 검사(§4.1.3 예 2, 수용 기준 1·2의 보안 판정)가 건너뛰어지거나 맨 앞을 잃을 수 있다. 그래서 저장은 막지 않고, 미리보기가 `guardRisk`로 알리며 설정 화면은 건너뛰어질 수 있는 플러그인의 이름을 보이는 강한 경고를 띄운다. 권한 판정(고정 단계 5b·5c)과 샌드박스는 순서와 무관하게 항상 돌므로 "건너뛰어진다"고 쓰지 않는다. 고정 상수와 `isPinnedTier`는 없다.
 
-- 저장소: 설정 `x.operations.hookOrder`(`{ "<훅 이름>": ["<registrationId>", …] }`, 범위 `managed`, `user`, 기본 `{}`, `nextTurn`). 설정 저장소를 쓰는 이유는 재시작 뒤에도 남고, 쓰기 검증과 `settings.explain`이 그대로 적용되며, 프로젝트 범위가 사용자의 순서를 바꾸지 못하도록 범위를 좁힐 수 있어서다. 따로 확장 상태를 두지 않는다. 읽을 때 훅 이름이 아닌 키, 배열이 아닌 값, 문자열이 아닌 원소, 중복은 버린다(`hookOrderOf`). 손상된 값이 디스패치를 막지 않는다.
+- 저장소: 설정 `x.operations.hookOrder`(`{ "<훅 이름>": ["<registrationId>", …] }`, 범위 `managed`, `user`, 기본 `{}`, `nextTurn`). 설정 저장소를 쓰는 이유는 재시작 뒤에도 남고, 쓰기 검증과 `settings.explain`이 그대로 적용되며, 작업 폴더 범위가 사용자의 순서를 바꾸지 못하도록 범위를 좁힐 수 있어서다. 따로 확장 상태를 두지 않는다. 읽을 때 훅 이름이 아닌 키, 배열이 아닌 값, 문자열이 아닌 원소, 중복은 버린다(`hookOrderOf`). 손상된 값이 디스패치를 막지 않는다.
 - 적용 시점: 저장은 즉시이고 디스패처가 쓰는 값은 새 단계가 시작될 때 바뀐다(`boundary.turn.before`와 `boundary.step.before`의 디스패치 시작에서 `DispatchPolicy.onStepBoundary`). 한 단계 안에서는 순서가 바뀌지 않는다. `hooks.order.get`의 `applied`가 그 차이를 말한다. 적용 중인 값은 처음 읽을 때가 아니라 시작 때 정한다. 정책을 만들 때 원천을 한 번 읽고, 조립이 설정 파일을 읽은 뒤 `start`로 저장된 순서를 다시 든다. 그래서 재시작하면 저장된 순서가 첫 단계부터 적용되고, 시작 뒤에 저장한 순서는 `hooks.order.get`이나 디스패치가 한 번도 없었더라도 다음 단계 경계까지 보류다(`pending: true`).
 - 의미: 덮어쓰기에 이름이 있는 핸들러는, 기본 순서에서 그 핸들러들이 차지한 자리에 덮어쓰기 순서대로 놓인다. 이름이 없는 핸들러는 자리를 지킨다. 한 Registration이 한 훅에 핸들러를 여럿 걸었으면 Registration 단위로 하나의 이름이고 서로의 상대 순서를 지킨다. 지워졌거나, 안전 모드로 싣지 않았거나, 꺼진 핸들러의 이름은 무시한다(오류가 아니다).
 - 범위: 설정 키는 `managed`와 `user`만 받는다(`allowedScopes`). 저장소 파일(`project` 범위)의 같은 키는 무시되고 `project` 쓰기는 `settings.scopeNotAllowed`(3103)다. 그래서 저장소 파일의 내용은 guard의 위치를 바꿀 수 없다(`settings-sources.test.ts`, `settings-write.int.test.ts`). [결정: 2026-11-03 사용자]
@@ -1309,8 +1309,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 #### 4.7.1 설정 위치와 형식
 
-- [제안] 외부 훅은 설정 키 `x.operations.hookDefs`(값 `HookDef[]`)에 적는다. 별도 파일을 두지 않고 설정 단일 원천(`F.wire-settings.spec` §3.8)을 쓴다. 그래서 위치는 설정 범위별 파일(관리, 사용자, 프로젝트, 로컬)이고 경로는 `L4.host-service.spec`이 정한다.
-- 범위별 목록은 덮어쓰지 않고 이어 붙인다. 순서는 관리 → 사용자 → 프로젝트 → 로컬이다. 같은 `id`가 두 범위에 있으면 바깥 범위의 것만 쓰고 진단을 남긴다 [제안]. 설정 해석 규칙(배열 병합)은 `F.wire-settings.spec` §4.7 우선순위와 다르므로 확인이 필요하다(§10 미결 13).
+- [제안] 외부 훅은 설정 키 `x.operations.hookDefs`(값 `HookDef[]`)에 적는다. 별도 파일을 두지 않고 설정 단일 원천(`F.wire-settings.spec` §3.8)을 쓴다. 그래서 위치는 설정 범위별 파일(관리, 사용자, 작업 폴더, 로컬)이고 경로는 `L4.host-service.spec`이 정한다.
+- 범위별 목록은 덮어쓰지 않고 이어 붙인다. 순서는 관리 → 사용자 → 작업 폴더 → 로컬이다. 같은 `id`가 두 범위에 있으면 바깥 범위의 것만 쓰고 진단을 남긴다 [제안]. 설정 해석 규칙(배열 병합)은 `F.wire-settings.spec` §4.7 우선순위와 다르므로 확인이 필요하다(§10 미결 13).
 - 확장 패키지가 훅을 함께 내는 경로(매니페스트 필드)는 F 추가 요청이다(§10 미결 2).
 
 예:
@@ -1366,7 +1366,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 
 - 프로세스 실행은 `fresnel.process` 서비스(`ProcessService`, `platform-process`)를 Cordis로 주입받아 한다(`eng.context-map.design` §5.3, `architecture.layers.spec` §4.3.3 1번). X는 L0를 import하지 않는다. 주입받은 서비스가 없으면 외부 훅을 끄고 시작 진단을 남긴다.
 - 셸을 거치지 않는다. `command`는 argv 그대로 실행한다. 셸 기능이 필요하면 사용자가 `["sh", "-c", "…"]`로 적는다.
-- 작업 폴더: `cwd: "project"`(기본)는 프로젝트 루트, `"home"`은 사용자 홈이다.
+- 작업 폴더: `cwd: "project"`(기본)는 작업 폴더 루트, `"home"`은 사용자 홈이다.
 - 예산: 훅 정의의 `timeoutMs`, 없으면 `x.operations.budget.hookMs`. 예산이 끝나면 signal을 abort하고 `ProcessService`가 프로세스 그룹을 종료한다(종료 방식은 `L0.process.spec`).
 - 같은 훅에 건 외부 훅은 순서대로 하나씩 실행한다. 정렬은 §4.1의 정렬 키를 따른다.
 - 디스패처 등록 [제안]: primitives 레지스트리는 확장·scope 단위로 핸들러를 받는다. 그래서 operations는 설정 범위마다 내부 내장 확장 단위 하나(`fresnel-hooks-managed`, `fresnel-hooks-user`, `fresnel-hooks-project`, `fresnel-hooks-local`)를 만들어 `ExtHost.install`로 싣고, 그 scope에서 훅마다 on 핸들러 하나를 등록한다. 이 단위들은 모든 확장 뒤의 `loadIndex`를 받고, `TierTable`에는 §4.7.6 표의 tier로 들어간다. 실패 장부 키는 단위 이름이 아닌 `hook:<id>`이고, operations가 (단위, 등록 순번) → 훅 id 표로 바꾼다.
@@ -1379,7 +1379,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
   2. 훅 정의 `env`의 이름 중 `x.operations.hookEnvAllow`(관리·사용자 범위)에도 있는 것
   3. Fresnel이 넣는 값: `FRESNEL_HOOK_ID`, `FRESNEL_HOOK_HOOK`, `FRESNEL_THREAD_ID`, `FRESNEL_PROJECT_DIR`
 - 1·2의 이름이 `SECRET_ENV_PATTERN`에 맞으면 넘기지 않는다. 시크릿 참조(`secret://`)는 풀지 않는다([결정] 에이전트는 값을 모른 채 참조로 사용, `_research/decisions-log.md` 2026-10-21 2차).
-- 프로젝트 범위 설정은 `x.operations.hookEnvAllow`를 바꿀 수 없다. 저장소에 든 설정이 시크릿 변수를 꺼내지 못하게 하기 위해서다.
+- 작업 폴더 범위 설정은 `x.operations.hookEnvAllow`를 바꿀 수 없다. 저장소에 든 설정이 시크릿 변수를 꺼내지 못하게 하기 위해서다.
 
 #### 4.7.6 신뢰와 tier
 
@@ -1387,8 +1387,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 |---|---|---|
 | 관리 | `guard` | 항상 |
 | 사용자 | `user` | 항상 |
-| 로컬 | `project` | 프로젝트 신뢰 승인 뒤 |
-| 프로젝트 | `project` | 프로젝트 신뢰 승인 뒤(`X.loading-trust.spec`). 승인 전에는 목록만 읽고 실행하지 않는다 |
+| 로컬 | `project` | 작업 폴더 신뢰 승인 뒤 |
+| 작업 폴더 | `project` | 작업 폴더 신뢰 승인 뒤(`X.loading-trust.spec`). 승인 전에는 목록만 읽고 실행하지 않는다 |
 
 - 안전 모드에서는 모든 범위의 외부 훅이 꺼진다(§4.6.2).
 
@@ -1474,7 +1474,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 8. `xh_ext_tables`에 없는 `x_` 테이블이 DB에 있음: 이전 버전이나 수동 생성의 흔적이다. 건드리지 않고 진단에 보인다.
 9. 안전 모드에서 사용자가 외부 확장을 켬: 설정 값은 저장하되 이번 실행에는 적용하지 않고 "안전 모드라 다음 정상 시작에 적용"을 알린다.
 10. 외부 훅이 stdout에 JSON 앞뒤로 다른 글을 씀: JSON 하나로 파싱되지 않으면 `hook_output` 실패다.
-11. 외부 훅 실행 파일이 프로젝트 폴더 안에 있고 프로젝트 신뢰가 철회됨: 다음 디스패치부터 실행하지 않는다.
+11. 외부 훅 실행 파일이 작업 폴더 안에 있고 작업 폴더 신뢰가 철회됨: 다음 디스패치부터 실행하지 않는다.
 12. 이름 충돌로 짧은 이름을 잃은 도구를 모델이 짧은 이름으로 부름: 도구 목록에 없는 이름이므로 L1 도구 디스패치의 "알 수 없는 도구" 처리가 적용된다(`L1.tools.spec`).
 13. 계측 한도 초과: Turn의 항목이 5,000개를 넘거나 한 항목의 핸들러 기록이 256개를 넘으면 넘는 기록을 버린다. 진단은 남기지 않는다. 분포는 남은 기록만 센다(§4.8.5).
 
@@ -1556,7 +1556,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `SettingDef`, `defineSettings`, 키 문법, 범위 | F.wire-settings.spec |
 | 도구 이름 허용 문자, 도구 순서 키 | F.capabilities.spec |
 | `DispatchPolicy`(`onHandlerSettled`·`run` 포함, §3.4), `HandlerGate`, `HandlerRunOutcome`, `ExtHost.scope`·`scopes`·`install`·`ports`(RegistrationControl과 포트의 바탕), `ExtHostDeps.now`·`setTimer`·`setupBudgetMs`·`methodRun`·`onMethodSettled`, `ExtMethodSettled`, `MethodRun`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord`, `hostOf`, `ExtHost.ports`로 꺼내는 포트 키(F 이름 재export), UI 포트 | X.primitives.spec §3.2~§3.9, §4.12 |
-| `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 프로젝트 신뢰, 제거 흐름, 격리 확장의 outbox | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9 |
+| `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 작업 폴더 신뢰, 제거 흐름, 격리 확장의 outbox | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9 |
 | `Projector`, `ProjectionTx`, 투영 규칙 | eng.events.design §5.1 |
 | 커밋 순서, `SessionWriter`, `StoreService.scoped`, outbox 표 | eng.transactions.design §4, §7 |
 | 테이블·type 접두 소유표, 서비스 이름(`fresnel.session`, `fresnel.store`, `fresnel.process`) | eng.context-map.design §5 |
@@ -1593,8 +1593,8 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 25. `tool.call.before` 외부 훅이 exit 1로 끝나면 결정은 거부이고 실패(`hook_exit`)로 남는다. `tool.result` 외부 훅이 exit 1로 끝나면 패치를 버리고 다음 핸들러로 간다.
 26. 외부 훅 stdout이 10,000자를 넘으면 10,000자에서 잘리고 실패(`hook_output`)로 처리된다(`first`면 거부).
 27. 외부 훅 stdin JSON에는 `schemaVersion: "fresnel.hook.v1"`, `point`, `fold`, `payload`가 있다.
-28. `hookEnv`는 허용 목록 밖 변수와 `SECRET_ENV_PATTERN`에 맞는 변수를 넘기지 않는다. 프로젝트 범위 `x.operations.hookEnvAllow` 값은 무시된다.
-29. 프로젝트 범위 외부 훅은 프로젝트 신뢰 승인 전에 실행되지 않는다.
+28. `hookEnv`는 허용 목록 밖 변수와 `SECRET_ENV_PATTERN`에 맞는 변수를 넘기지 않는다. 작업 폴더 범위 `x.operations.hookEnvAllow` 값은 무시된다.
+29. 작업 폴더 범위 외부 훅은 작업 폴더 신뢰 승인 전에 실행되지 않는다.
 30. §6 표의 키는 `defineSettings("x.operations", …)`와 `buildCatalog`를 통과하고, 기본값은 `DEFAULT_BUDGETS_MS`, `DEFAULT_AUTO_DISABLE`와 같다.
 31. 디스패치 키 `trn_…`은 그 Turn을 현재 Turn으로 세우고 단계 0으로 기록된다. `stp_…`은 현재 Turn에 붙고 처음 본 순서대로 단계 번호를 받는다. 현재 Turn이 없으면 기록하지 않는다(`test/operations/trace-buffer.test.ts` "step ordinals follow the first sight of each stepId", "keys without a current turn are not recorded", "a turn key makes its turn current again").
 32. thread의 Turn은 수 제한 없이 남고, 대화를 닫으면 그 thread의 기록이 풀린다(`trace-buffer.test.ts` "a thread keeps every turn, there is no per-thread cap", "closeThread releases the thread's trace").
@@ -1612,7 +1612,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 44. [결정: 2026-11-03 사용자] 순서 덮어쓰기는 tier를 넘어 실제 디스패치 순서를 바꾸고, 이름 없는 핸들러는 자리를 지키며, 지워진 핸들러의 이름은 무시한다. `guard` tier 핸들러도 덮어쓰기로 옮길 수 있다. 덮어쓰기가 없으면 guard가 맨 앞이다(`test/primitives/order.test.ts`, `test/primitives/dispatch-order.test.ts`). 실제 `OperationsPolicy`와 `ExtHost`로 저장한 순서가 guard를 앞선 핸들러 뒤로 보내 실행 순서를 바꾸는 것, 덮어쓰기가 없으면 guard가 먼저인 것, 기본 순서의 first 훅에서 guard가 실패하면 그 자리와 무관하게 거부인 것을 보이는 시험은 `test/operations/hook-order-guard.test.ts`다. 실제 호스트에는 guard tier 핸들러가 아직 없어서(내장 단위가 `admit`을 거치지 않고 `core-tools`는 훅을 걸지 않는다) 호스트 조립 시험(`apps/host/test/int/hook-order-real.int.test.ts`)은 tier를 넘는 재정렬, 재시작 유지, 없어진 핸들러 무시, 미리보기, 초기화만 보인다 [M4 T-ORDER].
 45. 순서 덮어쓰기는 저장 직후가 아니라 다음 단계 경계(`boundary.turn.before`, `boundary.step.before`)에서 적용된다. `onStepBoundary`는 다른 훅의 디스패치에서는 불리지 않는다(`dispatch-order.test.ts`, `policy.test.ts`) [M4 T-ORDER].
 46. [결정: 2026-11-03 사용자] `checkOrder`는 제안을 거부하지 않고 중복만 뺀다. guard 핸들러를 옮기는 제안도, 알 수 없는 id도 그대로 저장한다. `previewOrder`는 `first` 답(`first_answer`), `closed` first의 실패(`first_failure_deny`), `chain`의 멈춤과 값 변경, 자동 끄기를 구분해 돌려주고 `open` first와 `tap`에는 해당 항목을 내지 않는다(`test/operations/hook-order.test.ts`). guard의 건너뜀과 맨 앞 상실은 `guardRisk`에 따로 낸다(`test/operations/hook-order.test.ts`, `apps/host/test/int/hook-order.int.test.ts`) [M4 T-ORDER].
-47. [결정: 2026-11-03 사용자] 설정 `x.operations.hookOrder`는 `managed`와 `user` 범위만 받는다. 신뢰한 작업 폴더의 프로젝트 파일에 든 같은 키는 무시되고(`settings-sources.test.ts`), `project` 범위로 쓰면 `settings.scopeNotAllowed`(3103)로 거절된다(`settings-write.int.test.ts`). 저장소 파일은 guard의 위치를 바꿀 수 없다.
+47. [결정: 2026-11-03 사용자] 설정 `x.operations.hookOrder`는 `managed`와 `user` 범위만 받는다. 신뢰한 작업 폴더의 작업 폴더 파일에 든 같은 키는 무시되고(`settings-sources.test.ts`), `project` 범위로 쓰면 `settings.scopeNotAllowed`(3103)로 거절된다(`settings-write.int.test.ts`). 저장소 파일은 guard의 위치를 바꿀 수 없다.
 48. [결정: 2026-11-03 사용자] `hooks.order.preview`의 `guardRisk`는 제안이 guard 핸들러를 앞선 핸들러 뒤에 둬 건너뛰어질 수 있을 때(`mayBeSkipped`)와, 기본 순서에서 맨 앞이던 guard가 맨 앞을 잃을 때(`losesFirstPosition`) 노트를 남긴다. 기본 순서에서 이미 뒤에 있던 guard에는 노트가 없다. `saveable`은 항상 참이다(`test/operations/hook-order-guard.test.ts`, `apps/host/test/int/hook-order.int.test.ts`).
 
 ## 10. 미결 사항

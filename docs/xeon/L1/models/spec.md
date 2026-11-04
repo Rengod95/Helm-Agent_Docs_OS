@@ -582,7 +582,7 @@ export function resolveRole(input: {
 - 토큰 예산: 레벨이 `off`가 아니면 `table.thinkingBudgets[level]`. 호출 때 pi-ai `thinkingBudgets`로 넘기는 것은 `minimal`~`high` 네 키뿐이다(§3.1 포크 판정).
 - 그룹 덮어쓰기가 꺼진 scope의 값인지는 서비스 의존 `scopeEnabled(scopeId)`로 판정한다. 플러그인은 `ext.scopes()`의 상태가 `enabled`인 scope만 켜진 것으로 연결한다. 의존이 없으면 모든 scope가 켜진 것으로 본다 [구현: M2].
 - `rebind`는 카탈로그 부재 외에 허용·차단 목록에 걸린 고정 모델도 `model_denied`로 거부한다. 고정 레벨은 clamp하지 않는다 [구현: M2].
-- 설정 스냅샷은 호출 시점의 유효 값(`F.wire-settings.spec` §3.9 `resolveSetting`)이다. 범위 우선순위(관리 > launch > 로컬 > 프로젝트 > 사용자)는 설정 계층이 처리하므로 이 순서에는 넣지 않는다. 대화 중 `/model` 변경은 `l1.models.default`의 launch 범위 값이다.
+- 설정 스냅샷은 호출 시점의 유효 값(`F.wire-settings.spec` §3.9 `resolveSetting`)이다. 범위 우선순위(관리 > launch > 로컬 > 작업 폴더 > 사용자)는 설정 계층이 처리하므로 이 순서에는 넣지 않는다. 대화 중 `/model` 변경은 `l1.models.default`의 launch 범위 값이다.
 
 ### 4.2 추론 레벨과 체크포인트 고정
 
@@ -773,7 +773,7 @@ export function resolveRole(input: {
 
 ## 6. 설정 노출
 
-키 문법과 `SettingDef` 규칙은 `F.wire-settings.spec` §3.8이다. 탭 배치는 `L4.settings-ui.spec` §4.1.1 표를 따른다. 모든 키의 `layer`는 `"L1"`이다. 범위 약어: M 관리, U 사용자, P 프로젝트, Lo 로컬, S launch.
+키 문법과 `SettingDef` 규칙은 `F.wire-settings.spec` §3.8이다. 탭 배치는 `L4.settings-ui.spec` §4.1.1 표를 따른다. 모든 키의 `layer`는 `"L1"`이다. 범위 약어: M 관리, U 사용자, P 작업 폴더, Lo 로컬, S launch.
 
 | 키 | 타입 | 기본값 | 범위 | 변경 적용 | 탭 / 위젯 | 단계 |
 |---|---|---|---|---|---|---|

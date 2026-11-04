@@ -290,7 +290,7 @@ flowchart TB
 `_research/foundation-plan.md` §3은 문서 단계에서 이 순위가 타당한지 정합성 검사로 확인하라고 지시한다. 다음 세 질문으로 확인했고, 결론은 질문 아래에 둔다.
 
 1. X가 L0 구현을 import해야 하는 경로가 있는가.
-   - 후보 경로는 셋이다. `scope` 상태 레코드와 확장 전용 테이블(X-c)의 저장, 프로젝트 신뢰(X-a)의 파일 읽기, 선택적 프로세스 격리(X-a, 2차)다.
+   - 후보 경로는 셋이다. `scope` 상태 레코드와 확장 전용 테이블(X-c)의 저장, 작업 폴더 신뢰(X-a)의 파일 읽기, 선택적 프로세스 격리(X-a, 2차)다.
    - 저장은 포트(`ScopedStorePort`)로, 프로세스 격리는 포트(`ProcessPort`)로 받는다. L0가 `ExtHost.registerPlatform`(`PlatformModule`)으로 포트를 제공한다(`X.primitives.spec` §3.2, §3.6).
    - 탐색과 신뢰 판정용 파일 접근은 `X.loading-trust.spec`의 `LoaderFs`·`LoaderPaths`·`TrustStoreBackend` 포트로 받는다. L0.os가 구현하고 조립 루트가 `LoaderDeps`로 주입한다. 그래서 OS 분기는 L0 안에만 남는다(DR-13).
    - 판단: import 경로는 필요 없다. 주입받는 포트가 없으면 X가 시작 단계에서 실패한다. 이 순서는 `X.loading-trust.spec`이 정한다.
@@ -320,7 +320,7 @@ flowchart TB
   - 요구: 없음. pi-ai 타입과 TypeBox만 외부 의존이다.
   - Cordis 서비스: 없음.
 - X 확장 체계
-  - 제공: `on`, `post`, `drive`, `scope`, 리소스 등록, 확장 로딩·매니페스트 검증·프로젝트 신뢰, 실행 순서와 실패 격리.
+  - 제공: `on`, `post`, `drive`, `scope`, 리소스 등록, 확장 로딩·매니페스트 검증·작업 폴더 신뢰, 실행 순서와 실패 격리.
   - 요구: F4 훅 선언, 저장소와 루프는 서비스 주입.
   - Cordis 서비스: `ext`.
 - L0 플랫폼

@@ -114,7 +114,7 @@ import {
   - `approval`의 `never`를 `none`(승인 필요 없음)으로 바꾼다. `never`는 "항상 거부"로도 읽히기 때문이다.
   - `use.origins`를 더한다. M4는 호스트가 아닌 origin으로 바인딩한다(§4.3).
 - 메타 파일 형식과 위치 [제안]: 시크릿 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `fresnel.os`가 정하고 이미 `fresnel`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/fresnel/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치, 수신자 기록, 기본 SOPS 파일)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
-- 범위 규칙 [제안]: 1차는 사용자 범위 메타만 읽는다. 프로젝트 저장소 안의 메타는 읽지 않는다. 저장소를 받는 것만으로 사용자 시크릿의 허용 호스트가 넓어지지 않게 하기 위해서다(`F.wire-settings.spec` §4.7 규칙 4의 "범위 제한 키"와 같은 이유). `scope: project:<id>`는 "그 프로젝트의 세션에서만 쓸 수 있다"는 제한으로만 작동한다.
+- 범위 규칙 [제안]: 1차는 사용자 범위 메타만 읽는다. 작업 폴더 저장소 안의 메타는 읽지 않는다. 저장소를 받는 것만으로 사용자 시크릿의 허용 호스트가 넓어지지 않게 하기 위해서다(`F.wire-settings.spec` §4.7 규칙 4의 "범위 제한 키"와 같은 이유). `scope: project:<id>`는 "그 프로젝트의 세션에서만 쓸 수 있다"는 제한으로만 작동한다.
 
 ### 3.3 사용 맥락과 lease (`lease.ts`)
 

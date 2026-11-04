@@ -259,12 +259,12 @@ L2 도메인의 내구·휘발 이벤트 카탈로그 형식은 `F.records.spec`
 - 소유 생산자: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행이 있다. 커밋 때 접두사 소유 검사는 이 표로 한다.
 - payload 스키마를 records 쪽에 둘지 capabilities 정의 파일에서 import할지는 F 안의 도메인 순서(`F.readme` §3)를 따르고 `F.records.plan`이 정한다.
 
-### 5.10 프로젝트 자원의 기준 폴더
+### 5.10 작업 폴더 자원의 기준 폴더
 
-- [결정: m2c G2-02] 프로젝트 자원(`.mcp.json`, `.fresnel/mcp.json`, `.fresnel/skills/`, `.fresnel/commands/`, 프로젝트·로컬 설정 층)은 호출이 속한 대화의 작업 폴더(`thread.workspace`)를 기준으로 읽는다. 엔진 프로세스의 cwd로 대신하지 않는다. 데스크톱 사이드카의 cwd는 홈이라 사용자가 고른 폴더의 자원이 읽히지 않기 때문이다.
+- [결정: m2c G2-02] 작업 폴더 자원(`.mcp.json`, `.fresnel/mcp.json`, `.fresnel/skills/`, `.fresnel/commands/`, 작업 폴더·로컬 설정 층)은 호출이 속한 대화의 작업 폴더(`thread.workspace`)를 기준으로 읽는다. 엔진 프로세스의 cwd로 대신하지 않는다. 데스크톱 사이드카의 cwd는 홈이라 사용자가 고른 폴더의 자원이 읽히지 않기 때문이다.
 - 공급: 조립 루트가 `(threadId) => string | undefined`(그 대화의 작업 폴더, 없으면 `undefined`)를 각 `cap-*`에 넘긴다. 이 함수는 `L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값을 낸다. `cap-*` 패키지끼리 import하지 않으므로 같은 모양의 옵션을 각자 둔다: `cap-mcp`의 `McpDeps.workspaceOf`, `cap-knowledge`의 `KnowledgePluginOptions.workspaceOf`, `cap-dialog`의 `CommandRoots.projectRoot(threadId)`. `cap-workspace`는 처음부터 대화의 작업 폴더를 쓴다.
-- 작업 폴더가 없는 대화와 모르는 thread에는 프로젝트 자원이 없다. 엔진 cwd로 내려가지 않는다. 대화를 지정하지 않는 읽기(엔진을 열 때의 첫 읽기)만 조립 루트가 넘긴 기본 루트를 쓴다.
-- 프로젝트 신뢰(`X.loading-trust.spec` §4.7)도 같은 폴더로 묻는다. 신뢰하지 않은 폴더의 프로젝트 자원은 읽지 않는다(fail-closed).
+- 작업 폴더가 없는 대화와 모르는 thread에는 작업 폴더 자원이 없다. 엔진 cwd로 내려가지 않는다. 대화를 지정하지 않는 읽기(엔진을 열 때의 첫 읽기)만 조립 루트가 넘긴 기본 루트를 쓴다.
+- 작업 폴더 신뢰(`X.loading-trust.spec` §4.7)도 같은 폴더로 묻는다. 신뢰하지 않은 폴더의 작업 폴더 자원은 읽지 않는다(fail-closed).
 - 한계 [미결]: MCP 서버 연결과 스킬 색인은 엔진 단위 상태이고 마지막으로 읽은 작업 폴더를 따른다. 작업 폴더가 다른 대화가 번갈아 단계를 열면 다시 맞추는 일이 잦다(`L2.mcp.spec` §10 미결 13, `L2.knowledge.spec` §10). 작업 폴더별로 상태를 나누는 안은 M3 이후로 둔다.
 
 ## 6. L2 사이 의존
@@ -308,7 +308,7 @@ flowchart LR
 - 각 spec의 "설정 노출" 절은 다음 열로 표를 쓴다: 키, 타입, 기본값, range, runtimeChange, allowedScopes, ui.tab, secret. L4 노출(화면, 파일, 명령)이나 단위 같은 설명이 필요하면 마지막에 "비고" 열 하나를 더할 수 있다.
 - 표 값 표기 [제안]: allowedScopes는 범위 이름 전체를 쉼표로 늘어놓는다(`managed, user, project, local, launch`). 약어를 쓰지 않는다. secret은 `true`/`false`다. range는 수 범위면 `min <최소>, max <최대>`(한쪽만 있으면 그쪽만), 열거형이면 `enum <값>, <값>`, 없으면 `—`다.
 - `since` [제안]: 첫 사용 버전(M3 종료)까지 만드는 L2 키는 모두 `since: "0.1.0"`이다. 그 뒤에 더하는 키만 더한 버전을 적는다.
-- 범위 제한 규칙 [제안]: project 범위 값은 저장소에 들어 있는 파일이라 저장소를 여는 것만으로 적용된다. 그래서 보안 경계를 넓히는 키는 allowedScopes에 `project`를 넣지 않는다. 해당하는 키는 실행 파일·바이너리 경로, 사설망·루프백 접근 같은 네트워크 방어 해제, 검색어·내용을 보내는 외부 호스트 주소, 원격 기능 켜기, 브라우저 JS 실행·파일 업로드·로그인 프로필 사용, 쓰기 승인·스캔 끄기다(`L2.workspace.spec` §6 `grep.rgPath`, `L2.web.spec` §6, `L2.schedule.spec` §4.5.3, `L2.knowledge.spec` §6). 프로젝트가 정의하는 실행 대상(MCP stdio 서버)은 `project` 범위를 허용하되 프로젝트가 신뢰된 상태(`thread.trust.before` 훅, `F.extensions.spec` §3.4)에서만 적용한다(`L2.mcp.spec` §6).
+- 범위 제한 규칙 [제안]: project 범위 값은 저장소에 들어 있는 파일이라 저장소를 여는 것만으로 적용된다. 그래서 보안 경계를 넓히는 키는 allowedScopes에 `project`를 넣지 않는다. 해당하는 키는 실행 파일·바이너리 경로, 사설망·루프백 접근 같은 네트워크 방어 해제, 검색어·내용을 보내는 외부 호스트 주소, 원격 기능 켜기, 브라우저 JS 실행·파일 업로드·로그인 프로필 사용, 쓰기 승인·스캔 끄기다(`L2.workspace.spec` §6 `grep.rgPath`, `L2.web.spec` §6, `L2.schedule.spec` §4.5.3, `L2.knowledge.spec` §6). 작업 폴더가 정의하는 실행 대상(MCP stdio 서버)은 `project` 범위를 허용하되 작업 폴더가 신뢰된 상태(`thread.trust.before` 훅, `F.extensions.spec` §3.4)에서만 적용한다(`L2.mcp.spec` §6).
 
 ### 7.2 L4 탭
 

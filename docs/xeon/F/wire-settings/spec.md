@@ -30,7 +30,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 - 오류 객체 모양과 오류 코드 구간, `_meta`와 추적 컨텍스트 전파 규약.
 - 계약 버전 정책과 기능 수명주기(Active, Deprecated, Removed, 실험 opt-in, 기능 탐지).
 - 설정 정의 스키마 `SettingDef`와 선언 함수 `defineSettings`, 키 네임스페이스 규칙.
-- 설정 계층(관리, 사용자, 프로젝트, 로컬, 이번 실행)의 우선순위, 잠금, 유효 값과 출처의 모양.
+- 설정 계층(관리, 사용자, 작업 폴더, 로컬, 이번 실행)의 우선순위, 잠금, 유효 값과 출처의 모양.
 - 같은 `SettingDef`에서 L4 화면, 설정 파일, 명령을 만들 때 F가 보장하는 출력 규약(JSON Schema 출력).
 
 ### 1.2 다루지 않는 것
@@ -345,14 +345,14 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | schedule | `schedule.list` | `{ enabled?: boolean, before?: ScheduleId, limit?: 1..200 }` | `{ ok: true, items: ScheduleListItem[](최대 200), nextBefore?: ScheduleId }`, `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.cancel` | `{ scheduleId: ScheduleId }` | `{ ok: true, entry: ScheduleEntryView }`, `{ ok: false, error: ScheduleError }` | M3 |
 | schedule | `schedule.fire` | `{ scheduleId: ScheduleId }` | `{ ok: true, run: RunView }`, `{ ok: false, error: ScheduleError }` | M3 |
-| ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount`. 행의 `origin`은 실린 위치(`builtin`, `managed`, `user`, `project`)다. 프로젝트 확장은 신뢰된 작업 폴더에서 로더가 실은 것이 로더 목록에서 바로 나온다. 선택 필드 `keepOffQuestion: { rule: "consecutive"\|"rate", consecutive, windowFailures }`가 있으면 그 확장이 자동 끄기 기준을 넘어 사용자에게 "끌까요"를 묻는 중이고 아직 켜 둔 채다 [결정: 2026-11-04 사용자, 앞선 B5의 시작 3회 질문을 대체]. "끄기"는 `ext.disableConfirm`, "켜 두기"는 `ext.reenable`이다 | M4 (W-15, W-41) |
+| ext | `ext.list` | `{ threadId?: string }` | `{ extensions: ExtListEntry[] }`. 행은 확장 하나: `isGroup`, 유효 층 `layer`, 대표 Registration의 `status`·`registration?`(대화 상태)·`enabledSource?`, Registration마다 `plugins: { registrationId, id?, layer, status, thread?, inGroup, enabledSource? }[]`, `hookCount`. 행의 `origin`은 실린 위치(`builtin`, `managed`, `user`, `project`)다. 작업 폴더 확장은 신뢰된 작업 폴더에서 로더가 실은 것이 로더 목록에서 바로 나온다. 선택 필드 `keepOffQuestion: { rule: "consecutive"\|"rate", consecutive, windowFailures }`가 있으면 그 확장이 자동 끄기 기준을 넘어 사용자에게 "끌까요"를 묻는 중이고 아직 켜 둔 채다 [결정: 2026-11-04 사용자, 앞선 B5의 시작 3회 질문을 대체]. "끄기"는 `ext.disableConfirm`, "켜 두기"는 `ext.reenable`이다 | M4 (W-15, W-41) |
 | ext | `ext.get` | `{ name: string }` | `{ entry: ExtListEntry, manifest, hooks: ExtHookInfo[], bindings: ExtBindingEdge[] }` | M4 (W-20) |
 | ext | `ext.reenable` | `{ name: string }` | `{ appliesAt: "nextStepBoundary"\|"now", diagnostics: ExtDiagnostic[] }` | M4 (W-21) |
 | ext | `ext.disableConfirm` | `{ name: string }` | `ext.reenable`과 같음. "끌까요" 질문(`ExtListEntry.keepOffQuestion`)에 "끄기"로 답한다. 호스트가 `AutoDisabler.answer(ext:<이름>, true)`로 끄고 내구 `scope.changed`(reason `auto_disable`)를 남긴다. 질문이 없으면 아무 일도 하지 않고 같은 결과를 돌려준다 [제안]. "켜 두기"는 `ext.reenable`이다 [결정: 2026-11-04 사용자, 질문과 답은 사용자 결정, 메서드 이름과 이 모양은 제안] | M4 |
 | ext | `ext.reload` | `{ name: string }` | `ext.reenable`과 같음. `appliesAt`은 `now`(실행 중인 thread가 없어 이 응답 전에 적용을 끝냈다)이거나 `nextStepBoundary`(실행 중인 turn의 step이 끝난 경계에 적용한다)다. 새 버전의 검사나 적용이 실패하면 `diagnostics`에 `error`가 있고 옛 버전이 그대로 돈다 | M4 (W-38) |
 | ext | `ext.health` | `{ name?: string, threadId?: string }` | `{ health: ExtHealthEntry[] }`(Registration 단위). 실패 장부 창은 최근 호출 수라서 `windowMs`는 창 안 가장 오래된 호출부터 지금까지의 시간이고 `windowCalls`가 창 안 호출 수다. 호출이 없으면 둘 다 0 | M4 (W-22) |
 | ext | `ext.timings` | `{ name: string, threadId?: string }` | `{ traceEnabled: boolean, timings: ExtHookTiming[] }` | M4 (W-23) |
-| ext | `ext.versions` | `{ name: string }` | `{ versions: ExtVersionEntry[], bundledVersion?: string }`. `bundledVersion`은 기본 플러그인의 앱에 든 번들 판이고 `version`과 같은 문자열 규칙을 따른다. 확장이 기본 플러그인이 아니거나 번들이 없거나 매니페스트를 읽지 못하면 없다. 번들과 프로젝트 위치의 확장은 `versions`가 빈 목록이고 `bundledVersion`도 없다 | M4 (W-31) |
+| ext | `ext.versions` | `{ name: string }` | `{ versions: ExtVersionEntry[], bundledVersion?: string }`. `bundledVersion`은 기본 플러그인의 앱에 든 번들 판이고 `version`과 같은 문자열 규칙을 따른다. 확장이 기본 플러그인이 아니거나 번들이 없거나 매니페스트를 읽지 못하면 없다. 번들과 작업 폴더 위치의 확장은 `versions`가 빈 목록이고 `bundledVersion`도 없다 | M4 (W-31) |
 | ext | `ext.rollback` | `{ name: string, version: string, clearState?: boolean }` | `{ appliesAt: "nextStepBoundary"\|"restart", stateCleared: boolean }`. 실린 외부 확장은 열린 대화가 있어도 단계 경계에서 새 버전으로 바뀐다(`nextStepBoundary`). 실리지 않은 확장은 재시작 뒤(`restart`)다. 경계를 기다리는 동안은 `stateCleared`가 거짓이다 | M4 (W-31) |
 | ext | `ext.bindings` | `{ threadId?: string }` | `{ capabilities: CapabilityBinding[] }`(Registration 단위 엣지). `provider`는 ExtHost가 지금 실제로 바인딩한 공급자다(선언만 있고 바인딩되지 않았으면 null이고 `unmet`이 참) | M4 (W-40) |
 | ext | `ext.validateComposition` | `{ composition: CompositionDecl, plugins?: PluginDecl[], threadId?: string }` | `{ issues: ManifestIssue[] }` | M4 (W-47) |
@@ -420,10 +420,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - [결정: m2r sec] `secret.writeFailed`의 `target`에 `key_store`(OS 키 저장소에 age 키를 만들지 못함)와 `sops_file`(기본 SOPS 시크릿 파일을 만들지 못함)을 더했다. 첫 `secret add`가 키와 파일을 자동으로 준비하게 되면서(`L0.secrets.spec` §4.8) 준비 실패를 "sops와 age를 설치하라"가 아닌 실제 원인으로 알려야 하기 때문이다. `code`는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout` 같은 이름이다.
   - `thread.closed`(3007)는 닫힌 thread에 쓰기나 수명 주기 호출을 했을 때의 오류다. 이전에는 `thread.notFound`로 알렸다. 닫힌 thread의 읽기와 삭제는 허용한다.
   - [결정: M3-REQ-17] `SecretEntryOffer`의 `add`용 메타를 받았다. `SecretEntryMeta`(`capabilities/secrets.ts`)는 `SecretMetaParams`에서 `name`을 뺀 값 없는 메타(`desc`, `scope`, `expiresAt`, `use`, `approval`, `ttlSeconds`, `maxUses`, 모두 선택)이고 `SecretEntryOffer.meta`와 `secret.beginEntry`의 `meta`가 같은 모양으로 싣는다. 생략하면 호스트의 기본 메타다. `secret.test`의 길이·해시 앞 8자 확장은 위 첫 항목대로 이미 있고, 값 열람 경로는 `secret.beginReveal`과 `SecretRevealOffer`(wire 밖 전달)로 정해져 있어 더 두지 않는다.
-- [결정: m2c G1-03] `trust.get`·`trust.decide`는 프로젝트 신뢰(`X.loading-trust.spec` §4.7)를 클라이언트가 묻고 정하는 메서드다. 이름과 모양은 `m2/fx-host`의 구현을 정본으로 하고 `m2/fx-apps`의 `trust.pending`·`trust.decide { projectRoot, choice }` 가정은 버린다. 이유는 둘이다. 첫째, wire에는 서버가 클라이언트에 보내는 요청이 없어서 대기 목록(`trust.pending`)은 호스트가 프롬프트를 쥐고 기다리는 구조를 전제한다. 둘째, 폴더는 클라이언트가 먼저 알고 있다(`workspace`). 호스트는 프롬프트를 띄울 화면이 없고(`headless`), 결정이 없는 폴더는 `undecided`라 불신으로 다룬다(fail-closed). 그래서 `.mcp.json`, 프로젝트 스킬, `.fresnel/settings.json`, `.fresnel/commands`는 사람이 정하기 전에는 적용되지 않는다. 클라이언트는 폴더에서 thread를 만들거나 열기 전에 `trust.get { workspace }`를 부르고, `verdict`가 `undecided`이고 `required`가 참이면 `options`로 선택지를 보여 준 뒤 `trust.decide`로 보낸다.
-  - `TrustStatus`는 `{ projectRoot, required, verdict: "allow"|"deny"|"undecided", via, resources, options }`다. `projectRoot`는 심볼릭 링크를 푼 경로, `resources`는 신뢰가 필요한 자원의 프로젝트 루트 기준 상대 경로, `via`는 판정의 출처(`override`·`notRequired`·`point`·`store`·`sessionMemory`·`default`·`prompt`·`headless`·`corruptStore`, `X.loading-trust`의 `TrustVia`와 같은 집합)다. `options`는 `{ choice, label, savedPath }`이고 `label`은 현지화 식별자(`trust-folder`, `trust-parent`, `trust-session`, `deny-folder`, `deny-session`)이며 `savedPath`는 결정을 저장하는 폴더(`session`은 null)다.
+- [결정: m2c G1-03] `trust.get`·`trust.decide`는 작업 폴더 신뢰(`X.loading-trust.spec` §4.7)를 클라이언트가 묻고 정하는 메서드다. 이름과 모양은 `m2/fx-host`의 구현을 정본으로 하고 `m2/fx-apps`의 `trust.pending`·`trust.decide { projectRoot, choice }` 가정은 버린다. 이유는 둘이다. 첫째, wire에는 서버가 클라이언트에 보내는 요청이 없어서 대기 목록(`trust.pending`)은 호스트가 프롬프트를 쥐고 기다리는 구조를 전제한다. 둘째, 폴더는 클라이언트가 먼저 알고 있다(`workspace`). 호스트는 프롬프트를 띄울 화면이 없고(`headless`), 결정이 없는 폴더는 `undecided`라 불신으로 다룬다(fail-closed). 그래서 `.mcp.json`, 작업 폴더 스킬, `.fresnel/settings.json`, `.fresnel/commands`는 사람이 정하기 전에는 적용되지 않는다. 클라이언트는 폴더에서 thread를 만들거나 열기 전에 `trust.get { workspace }`를 부르고, `verdict`가 `undecided`이고 `required`가 참이면 `options`로 선택지를 보여 준 뒤 `trust.decide`로 보낸다.
+  - `TrustStatus`는 `{ projectRoot, required, verdict: "allow"|"deny"|"undecided", via, resources, options }`다. `projectRoot`는 심볼릭 링크를 푼 경로, `resources`는 신뢰가 필요한 자원의 작업 폴더 루트 기준 상대 경로, `via`는 판정의 출처(`override`·`notRequired`·`point`·`store`·`sessionMemory`·`default`·`prompt`·`headless`·`corruptStore`, `X.loading-trust`의 `TrustVia`와 같은 집합)다. `options`는 `{ choice, label, savedPath }`이고 `label`은 현지화 식별자(`trust-folder`, `trust-parent`, `trust-session`, `deny-folder`, `deny-session`)이며 `savedPath`는 결정을 저장하는 폴더(`session`은 null)다.
   - `trust.decide`의 `choice`가 그 폴더의 `options`에 없으면 `jsonrpc.invalidParams`(`path: "choice"`)다. `session`은 저장하지 않고 그 호스트 프로세스 동안만 유지한다. `workspace`가 절대 경로가 아니면 `jsonrpc.invalidParams`(`path: "workspace"`)이고, 결정을 저장하지 못하면(손상된 저장 파일, 쓰기 실패) `store.io`(`details.code: "trust_store"`)다. `trust.get`은 아무것도 바꾸지 않는다. 신뢰 필요 자원이 없는 폴더도 `trust.decide`로 미리 정할 수 있다.
-  - 결정 뒤 호스트는 그 폴더의 project·local 설정 파일 층을 다시 읽고 `settings.invalidated`(§3.3.2)를 보낸다. 프로젝트 스킬은 다음 thread를 열 때, MCP 서버 정의는 다음 서버 로드 때 반영된다. 이미 열린 thread가 새 결정을 모두 받게 하려면 결정을 thread 열기 전에 한다.
+  - 결정 뒤 호스트는 그 폴더의 project·local 설정 파일 층을 다시 읽고 `settings.invalidated`(§3.3.2)를 보낸다. 작업 폴더 스킬은 다음 thread를 열 때, MCP 서버 정의는 다음 서버 로드 때 반영된다. 이미 열린 thread가 새 결정을 모두 받게 하려면 결정을 thread 열기 전에 한다.
   - 저장 파일 `trust.json`은 두 클라이언트(CLI의 `fresnel trust`, 데스크톱 카드)가 같은 호스트를 거쳐 쓴다. 프로세스 사이 쓰기 충돌은 L0.os의 `fileLock`이 막는다(`review.m2-plan` G1-10). wire는 이 잠금을 드러내지 않는다.
   - `thread.trust.before` 훅은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 훅에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
 - [결정: m2c G1-02] `turn.resume`은 프로세스 종료로 끊긴 turn을 이어 실행하는 메서드다(`L1.loop.spec` §4.6 `LoopService.resume`, `L4.host-service.spec` §10 21번). `thread.list`가 `ThreadSummary.resumable`로 후보를 알리고(§3.3.1 아래 코드), 클라이언트가 사용자 확인 뒤 이 메서드를 부른다. 호스트는 자동 재개를 하지 않는다. 한 thread에 열린 turn은 하나라서 `turnId`를 받지 않는다.
@@ -439,7 +439,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - [결정: M3-REQ-16, M3-20] `status.list`·`attachments.add`·`notify.list`를 코어 표에 둔다(`L2.dialog.spec` §10 D-2의 선택). 값 모양은 기능 정의(`dialog.status.list`, `dialog.attachments.add`, `dialog.notify.list`)의 스키마를 그대로 쓰고 wire는 `threadId`를 더한다. `status.list`는 재접속 뒤 상태줄을 다시 그리는 스냅숏이고 변경은 휘발 이벤트 `dialog.status`로 온다. `attachments.add`의 결과 `parts`를 `turn.start`의 `input`에 넣고, 상대 경로는 `threadId`의 작업 폴더 기준이다. `notify.list`는 `afterSeq` 뒤의 알림을 당겨 읽는다.
   - [결정: M3-REQ-16, review.m3-design-inputs D-M3-17] 알림 전달: 호스트는 `notify.delivered`를 연결된 클라이언트 모두에 보낸다. 클라이언트 창이 앞에 있어도 기본으로 보내고, 보낼지는 호스트의 설정 키로 조정한다. OS 토스트와 앱 안 표시는 클라이언트가 한다. 웹·모바일 푸시는 후순위다. 알림은 내구 이벤트 `dialog.notified`에서 나오므로 놓친 클라이언트는 `notify.list`로 따라잡는다.
   - [결정: M3-REQ-19] 재접속용 목록: `thread.open`에 `includeItems: true`를 주면 결과에 현재 가지의 item 목록(`items`, `hasMore`)과 그것이 반영한 `asOfSeq`를 싣는다. `asOfSeq` 뒤의 이벤트는 `events.subscribe`로 이어 받는다(§3.4.6). 대기 승인은 `approval.list`(`position`)가 같은 규칙으로 준다. 안전 모드로 떠 있으면 `host.status`의 `safeMode`가 참이라 화면이 표시한다.
-- [결정: m2c G1-01 후속] `command.list`의 `threadId`는 선택이다. 주면 프로젝트 명령(`.fresnel/commands`)을 그 thread의 작업 폴더 기준으로 읽고(신뢰 게이트 포함), 생략하면 thread 문맥 없이 읽는다. 작업 폴더가 없는 thread는 프로젝트 명령 없이 나온다. 없는 thread는 `thread.notFound`(3001)다. 목록만 읽으므로 `command.run`과 달리 쓰기 소유를 얻지 않는다. `dialog.commands.list`의 입력 스키마는 바뀌지 않고, 호스트가 `threadId`를 입력에서 떼어 호출 문맥에 싣는다. 근거: `L4.host-service.spec` §10 29.
+- [결정: m2c G1-01 후속] `command.list`의 `threadId`는 선택이다. 주면 작업 폴더 명령(`.fresnel/commands`)을 그 thread의 작업 폴더 기준으로 읽고(신뢰 게이트 포함), 생략하면 thread 문맥 없이 읽는다. 작업 폴더가 없는 thread는 작업 폴더 명령 없이 나온다. 없는 thread는 `thread.notFound`(3001)다. 목록만 읽으므로 `command.run`과 달리 쓰기 소유를 얻지 않는다. `dialog.commands.list`의 입력 스키마는 바뀌지 않고, 호스트가 `threadId`를 입력에서 떼어 호출 문맥에 싣는다. 근거: `L4.host-service.spec` §10 29.
 - [결정: M3-REQ-96] `web.providers`는 웹 provider 상태와 웹 설정의 유효 값을 읽는 메서드다(`wire/web-providers.ts`). 읽기 전용이고 시크릿 값을 싣지 않는다. 키 값, 주입 위치, 헤더 이름은 결과 어디에도 없다. 호스트는 `cap-web`의 provider 카탈로그와 탐침 캐시에서 값을 채운다(`L4.host-service.spec`).
   - `providers`는 provider마다 한 항목이고 최대 64개다. 항목은 `id`(`ProviderId`, 최대 96자), `capability`(`web.search`, `web.fetch`, `web.browse`), `origin`(`plugin`, `detected`, `builtin`), `displayName`(1~64자), `auth`(`none`, `header`, `bearer`, `query`), `status`, `pricingAsOf`, `pricingStale`, `firstUseNoticed`, `autoRank`를 싣는다.
   - `autoRank`는 자동 선택(`auto`)이 provider를 시도하는 순서에서의 0부터 센 자리다. 설정 provider가 `auto`가 아니어도 이 값은 자동 순서 기준이고, `search.parallel`과 설정 provider 값에 따라 바뀌지 않는다. `web.search`와 `web.browse` 행에만 값이 있고, `web.fetch` 행은 사용자 순서가 없어서 `null`이다. 자동 순서의 규칙은 `L2.web.spec` §4.8.2다. 클라이언트는 이 값으로 순서를 다시 계산하지 않는다.
@@ -1373,17 +1373,17 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 
 자료마다 서술이 다르다.
 
-- `_research/layer-plan-v2.json` F5 "설정 계층": "관리, 사용자, 프로젝트, 로컬, 세션 순서로 덮어씁니다. 관리 잠금을 표시합니다." 나열 순서대로 뒤가 앞을 덮어쓴다고 읽으면 이번 실행이 최상위이고 관리가 최하위다.
+- `_research/layer-plan-v2.json` F5 "설정 계층": "관리, 사용자, 작업 폴더, 로컬, 세션 순서로 덮어씁니다. 관리 잠금을 표시합니다." 나열 순서대로 뒤가 앞을 덮어쓴다고 읽으면 이번 실행이 최상위이고 관리가 최하위다.
 - `_research/settings.md` §2.1, `_research/item-catalog.md` F절: Claude Code는 관리 > `--settings`(플래그) > local > project > user이고 관리 설정이 최상위다.
 
-두 서술은 "관리 잠금"을 함께 놓고 보면 하나로 맞출 수 있다. 관리를 뺀 나머지는 layer-plan의 덮어쓰기 순서(사용자 → 프로젝트 → 로컬 → 이번 실행)를 따르고, 관리는 잠금으로서 맨 위에 둔다. 이번 실행은 Claude Code의 플래그 자리에 해당한다.
+두 서술은 "관리 잠금"을 함께 놓고 보면 하나로 맞출 수 있다. 관리를 뺀 나머지는 layer-plan의 덮어쓰기 순서(사용자 → 작업 폴더 → 로컬 → 이번 실행)를 따르고, 관리는 잠금으로서 맨 위에 둔다. 이번 실행은 Claude Code의 플래그 자리에 해당한다.
 
 | 순위(높음 → 낮음) | 범위 | 저장 위치 [가정: 경로는 L0.os·L4가 정한다] | 쓰는 쪽 | 잠금 |
 |---|---|---|---|---|
 | 1 | `managed` | OS별 관리 정책 파일 | 관리자(사용자 앱에서는 읽기 전용) | 이 범위가 정한 키는 잠긴다 |
 | 2 | `launch` | 저장하지 않음 또는 thread 기록. CLI 플래그, "이번만 적용" | 사용자, CLI 플래그 | - |
-| 3 | `local` | 프로젝트의 개인 파일(버전 관리 제외) | 사용자 | - |
-| 4 | `project` | 프로젝트 공유 파일(버전 관리 대상) | 사용자, 팀 | - |
+| 3 | `local` | 작업 폴더의 개인 파일(버전 관리 제외) | 사용자 | - |
+| 4 | `project` | 작업 폴더 공유 파일(버전 관리 대상) | 사용자, 팀 | - |
 | 5 | `user` | 사용자 홈의 설정 파일 | 사용자 | - |
 | 6 | `default` | `SettingDef.default` | 코드 | - |
 
@@ -1392,7 +1392,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 1. 유효 값은 순위가 가장 높은, 그 키를 정한 범위의 값이다. 값을 정하지 않은 범위는 건너뛴다.
 2. 값의 병합 단위는 키 하나다. 값이 객체나 배열이어도 깊은 병합을 하지 않고 통째로 바꾼다 [제안]. 깊은 병합은 출처 표시를 흐리게 하기 때문이다. 목록을 더해야 하는 키는 그 층 spec이 별도 키(예: `...additional`)로 정의한다.
 3. `managed`가 정한 키는 `locked: true`다. 다른 범위의 쓰기는 `settings.locked`(3104)로 거부한다. 다른 범위 파일에 남은 값은 `shadowed`로 보인다.
-4. 키의 `allowedScopes`에 없는 범위에 있는 값은 무시하고 경고를 남긴다(§4.8). 쓰기는 `settings.scopeNotAllowed`(3103)로 거부한다. 예: pi `defaultProjectTrust`처럼 사용자 파일 전용인 키는 `allowedScopes: ["managed", "user"]`다(`_research/settings.md` §2.1 "범위 제한 키"). 이런 키를 프로젝트 파일에 적어도 적용하지 않는다. 저장소를 받는 것만으로 신뢰 설정이 바뀌지 않게 하기 위해서다.
+4. 키의 `allowedScopes`에 없는 범위에 있는 값은 무시하고 경고를 남긴다(§4.8). 쓰기는 `settings.scopeNotAllowed`(3103)로 거부한다. 예: pi `defaultProjectTrust`처럼 사용자 파일 전용인 키는 `allowedScopes: ["managed", "user"]`다(`_research/settings.md` §2.1 "범위 제한 키"). 이런 키를 작업 폴더 파일에 적어도 적용하지 않는다. 저장소를 받는 것만으로 신뢰 설정이 바뀌지 않게 하기 위해서다.
 5. 잠금 표시 규칙: L4 화면은 `locked: true`인 항목에 잠금 배지와 출처 경로를 보이고 편집을 막는다. `shadowed`가 비어 있지 않으면 "다른 범위의 값이 가려짐"을 보인다. CLI `config get`은 같은 정보를 `source`와 함께 출력한다.
 6. `runtimeChange`: `live`는 즉시, `nextTurn`은 다음 turn 시작 때, `restart`는 호스트 재시작 때 적용한다. 적용 전까지 `pendingUntil`에 그 시점을 둔다.
 

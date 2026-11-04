@@ -495,7 +495,7 @@ export function selectSandboxProvider(input: {
 | `l0.sandbox.network.allowedDomains` | `string[]`(`host` 또는 `host:port`) | 정의하지 않음 | | | 후속 | 기본 허용 방식이라 허용 목록 키는 두지 않는다(§10 1번) |
 
 - 키 문법은 `F.wire-settings.spec` §3.8.1을 따른다. 정의는 `src/settings.ts`의 `defineSettings("l0.sandbox", …)`다.
-- 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `escapeRetry`, `credentialFiles`, `nestedNamespaces`)는 `project` 범위를 받지 않는다. 좁히는 키(`protectedPaths.extra`, `network.blockedDomains`)만 프로젝트 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
+- 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `escapeRetry`, `credentialFiles`, `nestedNamespaces`)는 `project` 범위를 받지 않는다. 좁히는 키(`protectedPaths.extra`, `network.blockedDomains`)만 작업 폴더 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
 - 네트워크 키는 srt가 프로세스당 정책 하나라 `restart`다(`_research/notes/L0-1.md` §8). 실행 중 변경(`updateConfig`)은 2차에서 다시 본다.
 - 탭: `_research/settings.md` §4의 5번 탭 '샌드박스와 네트워크'에 둔다. F `SettingsTab`(`F.wire-settings.spec` §3.8.2)에 해당 값이 없어 `"sandbox"` 추가를 F에 요청한다(8.2절). 추가 전까지는 `"permissions"`에 둔다 [제안].
 - 시크릿 값 키는 없다.
@@ -561,7 +561,7 @@ export function selectSandboxProvider(input: {
 
 1. [결정: review.m3-design-inputs D-M3-18 행 1] 샌드박스 안 네트워크는 기본 허용이다. 사용자가 차단 도메인 목록 `l0.sandbox.network.blockedDomains`를 관리한다. 패키지 설치가 샌드박스 안에서 그대로 돈다. 차단은 srt 프록시의 `deniedDomains`와 질의 콜백(항상 허용)으로 한다. 시험은 `sandbox-network.int.test.ts`가 실제 bwrap으로 같은 요청이 목록 밖이면 200, 목록 안이면 403인 것을 값으로 확인한다. 프록시를 거치지 않는 직접 소켓은 네트워크 네임스페이스가 막으므로 그대로 거부된다(§4.4 `network_denied`). 환경 변수 `NO_PROXY`의 루프백·사설 대역은 프록시를 거치지 않으므로 샌드박스 안에서 닿지 못한다.
 2. [결정: 오케스트레이터 기본값] 격리 없이 실행한 호출(`tool.sandbox_bypassed`)과 자가 시험 실패의 감사 이벤트 소유자는 L1 tools(`tool.` 접두)다(§4.8). `platform-sandbox`는 이벤트 type을 소유하지 않는다(`eng.context-map.design` §4.1). 이벤트를 만드는 구현은 B3-SEC가 한다.
-3. [결정: review.m3-design-inputs D-M3-19 행 1] MCP stdio 서버는 출처별 기본값을 쓴다. 프로젝트 출처 서버는 샌드박스에 넣고, 사용자 출처 서버는 넣지 않는다. 서버별 설정으로 바꿀 수 있다(`L2.mcp.spec`, M3-REQ-57).
+3. [결정: review.m3-design-inputs D-M3-19 행 1] MCP stdio 서버는 출처별 기본값을 쓴다. 작업 폴더 출처 서버는 샌드박스에 넣고, 사용자 출처 서버는 넣지 않는다. 서버별 설정으로 바꿀 수 있다(`L2.mcp.spec`, M3-REQ-57).
 4. [결정: review.m3-design-inputs D-M3-18 행 3] 샌드박스 밖 재시도(`l0.sandbox.escapeRetry`)를 둔다. 기본은 끔이고, 켜도 재시도마다 승인을 받는다(`_research/notes/L0-1.md` §9).
 5. [미결] x64·arm64 밖 Linux 지원. seccomp 필터가 번들되지 않아 `select.ts`는 `unsupported_os`를 돌려준다. 지금은 `fresnel.os`가 해당 arch를 등록 실패로 처리하므로 운영 경로가 없다(3.5절). 지원을 넓히면 두 문서를 함께 고친다.
 6. [결정: 오케스트레이터 기본값] 중첩 사용자 네임스페이스. 기본 브라우저 provider는 Stagehand다([결정: review.m3-design-inputs D-M3-23]). srt 0.0.79에는 `allowNestedUserNamespaces`가 없어 `enableWeakerNestedSandbox`로 허용하고 설정 `l0.sandbox.nestedNamespaces`(기본 거짓, `restart`)로 켠다(§4.8). 쓰기 거부가 약해질 수 있다(`_research/notes/L0-1.md` §6). 켠 상태에서 브라우저가 실제로 뜨는지는 실기 확인이 필요하다.

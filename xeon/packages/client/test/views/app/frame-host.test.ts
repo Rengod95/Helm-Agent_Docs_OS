@@ -384,8 +384,8 @@ describe("theme tokens and confirm line", () => {
     );
     expect(confirmBadges(base)).toEqual(["직접 설치"]);
     expect(confirmBadges({ ...base, trust: "project" })).toEqual([
-      "이 프로젝트에서 옴",
-      "프로젝트",
+      "이 작업 폴더에서 옴",
+      "작업 폴더",
     ]);
     // 클릭 보호와 기본 초점은 화면이 지킬 계약이다
     expect(CONFIRM_CLICK_GUARD_MS).toBe(500);

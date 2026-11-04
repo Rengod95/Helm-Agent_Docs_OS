@@ -174,7 +174,7 @@ describe("toFieldError", () => {
     expect(toFieldError(budgetDef, error)).toEqual({
       error: {
         kind: "scopeNotAllowed",
-        message: "프로젝트 범위에는 저장할 수 없어요",
+        message: "작업 폴더 범위에는 저장할 수 없어요",
         allowed: ["user", "local"],
       },
       followUp: "reloadCatalog",
@@ -193,7 +193,7 @@ describe("toFieldError", () => {
     expect(toFieldError(budgetDef, error)).toEqual({
       error: {
         kind: "scopeNotAllowed",
-        message: "열린 프로젝트가 없어 프로젝트 범위에는 저장할 수 없어요",
+        message: "열린 작업 폴더가 없어 작업 폴더 범위에는 저장할 수 없어요",
         allowed: ["user"],
       },
       followUp: "none",

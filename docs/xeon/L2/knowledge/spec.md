@@ -45,7 +45,7 @@ L2-d "지식과 기억(저장소)"의 서비스 API, 모델 도구, 저장 규�
 | 승인 프로토콜 자체, 승인 화면 | `L1.tools.spec`, `L4.cli.spec`, `L4.desktop.spec` | `L2.readme` §5.7 |
 | 프롬프트 조립 위치(스냅샷과 인덱스를 어디에 넣는지) | `L1.context.spec` | 이 문서는 넣을 내용과 시점만 정한다(§4.2.5, §4.3.4) |
 | 대화 이벤트와 투영 저장 | `L1.persistence.spec` | `eng.transactions.design` |
-| 데이터 디렉터리와 프로젝트 설정 디렉터리 경로 | `L0.os.spec` | `_research/decisions-log.md` 2026-10-19 설계 규칙 |
+| 데이터 디렉터리와 작업 폴더 설정 디렉터리 경로 | `L0.os.spec` | `_research/decisions-log.md` 2026-10-19 설계 규칙 |
 | 공유 메모리 저장소 | 보류 | `_research/packages.md` §4.4 L2-d, `_research/item-catalog.md` L2 공유 메모리 행 |
 
 L3 그룹은 이 기능의 서비스 API로만 읽고 쓴다. `cap-knowledge`를 import하지 않고 `g.capability(<ServiceKey>)`로 API를 얻는다(`eng.context-map.design` CM-05, CM-06). 학습 정책을 가진 L3 그룹은 스킬·메모리 파일을 파일 도구로 직접 쓰지 않는다(L3 문서 소관).
@@ -55,7 +55,7 @@ L3 그룹은 이 기능의 서비스 API로만 읽고 쓴다. `cap-knowledge`를
 | 용어 | 뜻 |
 |---|---|
 | 스킬 | `SKILL.md` 하나와 지원 파일(`references/`, `templates/`, `scripts/`, `assets/`)을 담은 디렉터리. Agent Skills 규격 |
-| 스킬 루트 | 스킬 디렉터리를 찾는 상위 디렉터리. 사용자, 프로젝트, 확장 제공, 설정 경로 넷 |
+| 스킬 루트 | 스킬 디렉터리를 찾는 상위 디렉터리. 사용자, 작업 폴더, 확장 제공, 설정 경로 넷 |
 | 인덱스 | 스킬 이름과 설명 목록. 모델 컨텍스트에 상시 둔다 |
 | 본문 | `SKILL.md`의 frontmatter 뒤 내용. 요청할 때만 읽는다 |
 | 메모리 저장소 | 한도가 있는 상주 텍스트 파일 하나. `user`(사용자 정보)와 `env`(환경 사실) 둘 |
@@ -334,7 +334,7 @@ export const KnowledgeSkillsKey = serviceKey(KnowledgeSkills);
 
 - [결정: M3-REQ-88] 쓰기 메서드(`create`·`edit`·`patch`·`writeFile`·`remove`·`manage`, 메모리 쓰기, `ledger.rollback`)는 `replay: "safe"`와 `idempotent: true`를 선언한다. 같은 `requestId`의 두 번째 호출은 원장(`request_id`)과 대기열이 저장한 첫 결과를 돌려주므로(§4.4.5) 재실행되는 코드(on 핸들러, drive)가 불러도 효과가 한 번이다. 결과 불명인 모델 도구 호출을 다시 실행하면 승인 요청이 다시 뜰 수 있어 도구 `skill_manage`·`memory_manage`의 `replay`는 `"unsafe"`로 둔다(도구가 메서드보다 좁아도 된다). `decide`와 `reindex`는 `requestId` 멱등이 없어 선언 없음(`replay: "unsafe"`)이다.
 - `manage`는 다른 쓰기 메서드와 같은 경로로 보내는 분배기다. 모델 도구가 메서드 하나에 대응해야 하므로(`F.capabilities.spec` §4.2) 둔다. `action`별 필수 필드 검사(예: `patch`는 `baseHash`, `edits`)는 런타임에서 하고 실패하면 `invalid_input`이다.
-- `skill_manage`의 `scope`는 모델 파라미터에 없다. 모델 쓰기는 `user` 범위로 간다. 프로젝트 스킬(`.fresnel/skills`)은 사용자나 확장(증거 있음)만 쓴다 [제안]. 저장소에 커밋되는 파일을 에이전트가 승인 없이 바꾸지 않게 하기 위해서다.
+- `skill_manage`의 `scope`는 모델 파라미터에 없다. 모델 쓰기는 `user` 범위로 간다. 작업 폴더 스킬(`.fresnel/skills`)은 사용자나 확장(증거 있음)만 쓴다 [제안]. 저장소에 커밋되는 파일을 에이전트가 승인 없이 바꾸지 않게 하기 위해서다.
 
 ### 3.3 `knowledge.memory`
 
@@ -436,7 +436,7 @@ export const KnowledgeMemoryKey = serviceKey(KnowledgeMemory);
 ```
 
 - 메모리 읽기 도구는 두지 않는다. 메모리는 대화 시작 스냅샷으로 컨텍스트에 이미 있다(§4.3.4). 스냅샷에는 항목 ID와 `fileHash`가 함께 실린다.
-- 저장소 두 개의 쓰임은 Hermes 메모리 검토 프롬프트의 구분을 따른다: `user`는 페르소나·선호·작업 방식, `env`는 도구 특이점·프로젝트 규약·경로(`_research/refs/hermes.md` §3.10.1 (다)).
+- 저장소 두 개의 쓰임은 Hermes 메모리 검토 프롬프트의 구분을 따른다: `user`는 페르소나·선호·작업 방식, `env`는 도구 특이점·작업 폴더 규약·경로(`_research/refs/hermes.md` §3.10.1 (다)).
 
 ### 3.4 `knowledge.search`
 
@@ -470,7 +470,7 @@ export const KnowledgeQueryInputSchema = Type.Object({
   /** 크론·서브에이전트·백그라운드 세션 포함. 기본 false */
   includeHidden: Type.Optional(Type.Boolean()),
   sessionIds: Type.Optional(Type.Array(Type.String({ maxLength: 64 }), { maxItems: 50 })),
-  /** "all" 또는 "project"(현재 프로젝트 세션만). 생략하면 설정 l2.knowledge.search.defaultScope */
+  /** "all" 또는 "project"(현재 작업 폴더 세션만). 생략하면 설정 l2.knowledge.search.defaultScope */
   scope: Type.Optional(Type.Union([Type.Literal("all"), Type.Literal("project")])),
 });
 export const KnowledgeQueryToolParamsSchema = Type.Object(searchQueryFields);
@@ -793,7 +793,7 @@ CREATE TABLE cap_knowledge_proposals (
 CREATE TABLE cap_knowledge_sessions (
   session_id   TEXT PRIMARY KEY,
   kind         TEXT NOT NULL CHECK (kind IN ('main','subagent','background','cron')),
-  project      TEXT,                      -- 프로젝트 식별(작업 디렉터리 해시)
+  project      TEXT,                      -- 작업 폴더 식별(작업 디렉터리 해시)
   title        TEXT,
   created_at   INTEGER NOT NULL,
   last_at      INTEGER NOT NULL,
@@ -878,12 +878,12 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 - 근거: `_research/item-catalog.md` L2 메모리 파일 행은 "파일은 git으로 추적해 사람이 diff로 검토하고 되돌린다"고 적었고, Agent Skills 규격은 디렉터리 형식이다. 반면 `eng.context-map.design` §4.1 표는 `cap_knowledge_*`의 소유 데이터에 "메모리"를 적었다. 두 문서가 어긋나므로 이 제안을 [미결]에도 올린다(§10 미결 1). 이 안을 받으면 context-map 표의 "메모리"는 "메모리 색인과 원장"으로 고친다.
 - 파일과 DB가 어긋나는 경우(바깥 편집, 크래시)는 드리프트 검사(§4.3.5)와 재색인(`skills.reindex`, 시작 시 검사)으로 맞춘다.
 
-경로 [제안]. 실제 디렉터리는 `L0.os.spec`의 데이터 디렉터리와 프로젝트 설정 디렉터리를 따른다 [가정: `fresnel.os`가 두 경로를 준다].
+경로 [제안]. 실제 디렉터리는 `L0.os.spec`의 데이터 디렉터리와 작업 폴더 설정 디렉터리를 따른다 [가정: `fresnel.os`가 두 경로를 준다].
 
 | 대상 | 경로 |
 |---|---|
 | 사용자 스킬 | `<사용자 데이터>/skills/<이름>/SKILL.md` |
-| 프로젝트 스킬 | `<프로젝트>/.fresnel/skills/<이름>/SKILL.md` |
+| 작업 폴더 스킬 | `<작업 폴더>/.fresnel/skills/<이름>/SKILL.md` |
 | 보관함 | 같은 루트의 `.archive/<이름>-<UTC 시각>/` |
 | 사용자 정보 메모리 | `<사용자 데이터>/memory/USER.md` |
 | 환경 사실 메모리 | `<사용자 데이터>/memory/MEMORY.md` |
@@ -898,19 +898,19 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 디렉터리에 `SKILL.md`가 있으면 그 디렉터리를 스킬 루트로 보고 더 들어가지 않는다.
 - 없으면 루트 바로 아래의 `.md`는 루트 수준에서만 스킬 후보로 보고, 하위 디렉터리로 내려가 `SKILL.md`를 찾는다.
 - 점으로 시작하는 항목과 `node_modules`는 건너뛴다. 심볼릭 링크는 따라가고, 같은 실제 경로는 한 번만 싣는다.
-- 루트 순서는 프로젝트 → 사용자 → 확장 제공 → 설정 경로(`l2.knowledge.skills.paths`)다 [제안]. 같은 이름이 두 루트에 있으면 앞 루트가 이기고 진단(`collision`)을 남긴다. pi는 사용자 → 프로젝트 순이지만, 프로젝트 규약이 사용자 일반 절차보다 구체적이라 앞에 둔다.
+- 루트 순서는 작업 폴더 → 사용자 → 확장 제공 → 설정 경로(`l2.knowledge.skills.paths`)다 [제안]. 같은 이름이 두 루트에 있으면 앞 루트가 이기고 진단(`collision`)을 남긴다. pi는 사용자 → 작업 폴더 순이지만, 작업 폴더 규약이 사용자 일반 절차보다 구체적이라 앞에 둔다.
 - `.gitignore` 계열 무시 규칙은 1차에 적용하지 않는다 [제안]. 포크 원본의 `ignore` 패키지 결합을 풀기 위해서다(§10 미결 10).
 - 확장 제공 루트와 설정 경로 루트의 스킬은 읽기 전용(`extension`, `path` 범위)이다.
-- 프로젝트 루트(`.fresnel/skills`)는 프로젝트가 신뢰된 뒤에만 싣는다 [결정: M2 검토 4]. 저장소가 낸 스킬의 설명이 첫 turn 인덱스에 들어가고 `skill_view`가 본문을 돌려주므로, 신뢰하지 않은 저장소를 열기만 해도 모델 지시문을 쓸 수 있기 때문이다(`X.loading-trust.spec` §4.7.2 표가 `.fresnel/skills`를 신뢰 필요 자원으로 든다). 신뢰 여부는 조립 루트가 `resolveProjectTrust`의 `trusted`로 넘기고(`projectTrust` 옵션), 없거나 거짓이거나 실패하면 싣지 않는다. 싣지 못한 `.fresnel/skills`가 있으면 `skill_list`의 진단(`warning`)에 남긴다.
+- 작업 폴더 루트(`.fresnel/skills`)는 작업 폴더가 신뢰된 뒤에만 싣는다 [결정: M2 검토 4]. 저장소가 낸 스킬의 설명이 첫 turn 인덱스에 들어가고 `skill_view`가 본문을 돌려주므로, 신뢰하지 않은 저장소를 열기만 해도 모델 지시문을 쓸 수 있기 때문이다(`X.loading-trust.spec` §4.7.2 표가 `.fresnel/skills`를 신뢰 필요 자원으로 든다). 신뢰 여부는 조립 루트가 `resolveProjectTrust`의 `trusted`로 넘기고(`projectTrust` 옵션), 없거나 거짓이거나 실패하면 싣지 않는다. 싣지 못한 `.fresnel/skills`가 있으면 `skill_list`의 진단(`warning`)에 남긴다.
 - 구현(KN.1, 포크 패치 KN-01~KN-09, `cap-knowledge/PATCHES.md`):
   - 파일 접근은 `KnowledgeFs` 비동기 포트로 한다. 같은 디렉터리의 항목은 이름 바이트 순으로 처리해 같은 스킬 집합이 같은 순서와 같은 인덱스 블록을 만든다.
   - 설정 경로(`l2.knowledge.skills.paths`)는 절대 경로만 받는다. 상대 경로는 경고 진단이다. 디렉터리나 `.md` 파일을 줄 수 있다.
   - 심볼릭 링크가 조상 디렉터리를 가리키는 순환은 경고 진단과 함께 건너뛴다. 재귀 깊이 상한은 16이다.
   - 루트 바로 아래의 단일 `.md` 파일 스킬(`layout: "file"`)은 읽기만 한다. 쓰기 연산은 디렉터리 스킬(`layout: "dir"`)만 대상으로 한다.
-  - 프로젝트 폴더는 대화의 작업 폴더(`thread.workspace`)다 [결정: m2c G2-02, `L2.readme` §5.10]. 조립 루트가 `KnowledgePluginOptions.workspaceOf`(`(threadId) => string | undefined`, `L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값)를 넘기면 프로젝트 스킬 루트와 신뢰 판정(`projectTrust`)이 그 대화의 작업 폴더를 따른다. 작업 폴더가 없는 대화에는 프로젝트 스킬이 없고 엔진 cwd로 내려가지 않는다. `workspaceOf`가 없으면 옛 동작(`fresnel.exec`의 cwd 하나)이다.
-  - 프로젝트 스킬 색인은 한 번에 작업 폴더 하나만 담는다. 색인은 마지막으로 맞춘 작업 폴더를 기억하고(`SkillsRuntime.syncFor(threadId)`), 대화 시작·turn 시작·`list`·`view`·쓰기 연산이 부를 때 그 대화의 작업 폴더가 다르면 그 폴더로 다시 색인한다. 같으면 아무것도 하지 않는다.
-  - 작업 폴더를 오갈 때 이전 작업 폴더의 프로젝트 행은 지워진 것이 아니라 색인에서 내려간 것이므로 원장에 `external` 삭제를 남기지 않는다. 파일 상태(경로, 내용 해시)는 남겨 두어서, 그 작업 폴더로 돌아왔을 때 내용이 그대로면 `external` 추가를 다시 적지 않고 색인 행만 되살린다. 그 사이 파일이 바뀌었으면 바뀐 내용으로 `external` 항목을 남긴다. 색인 버전은 이 오가기로 바뀌지 않는다.
-  - 대화를 지정하지 않는 읽기(시작 때 재색인, 대기열에서 승인된 제안의 재실행)는 마지막으로 읽은 대화의 작업 폴더를 따른다. 엔진을 처음 열 때는 아직 읽은 대화가 없어 프로젝트 스킬이 없다.
+  - 작업 폴더는 대화의 작업 폴더(`thread.workspace`)다 [결정: m2c G2-02, `L2.readme` §5.10]. 조립 루트가 `KnowledgePluginOptions.workspaceOf`(`(threadId) => string | undefined`, `L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값)를 넘기면 작업 폴더 스킬 루트와 신뢰 판정(`projectTrust`)이 그 대화의 작업 폴더를 따른다. 작업 폴더가 없는 대화에는 작업 폴더 스킬이 없고 엔진 cwd로 내려가지 않는다. `workspaceOf`가 없으면 옛 동작(`fresnel.exec`의 cwd 하나)이다.
+  - 작업 폴더 스킬 색인은 한 번에 작업 폴더 하나만 담는다. 색인은 마지막으로 맞춘 작업 폴더를 기억하고(`SkillsRuntime.syncFor(threadId)`), 대화 시작·turn 시작·`list`·`view`·쓰기 연산이 부를 때 그 대화의 작업 폴더가 다르면 그 폴더로 다시 색인한다. 같으면 아무것도 하지 않는다.
+  - 작업 폴더를 오갈 때 이전 작업 폴더의 작업 폴더 행은 지워진 것이 아니라 색인에서 내려간 것이므로 원장에 `external` 삭제를 남기지 않는다. 파일 상태(경로, 내용 해시)는 남겨 두어서, 그 작업 폴더로 돌아왔을 때 내용이 그대로면 `external` 추가를 다시 적지 않고 색인 행만 되살린다. 그 사이 파일이 바뀌었으면 바뀐 내용으로 `external` 항목을 남긴다. 색인 버전은 이 오가기로 바뀌지 않는다.
+  - 대화를 지정하지 않는 읽기(시작 때 재색인, 대기열에서 승인된 제안의 재실행)는 마지막으로 읽은 대화의 작업 폴더를 따른다. 엔진을 처음 열 때는 아직 읽은 대화가 없어 작업 폴더 스킬이 없다.
   - 작업 폴더가 다른 대화가 번갈아 돌면 그때마다 색인을 다시 맞춘다. 작업 폴더별로 색인을 나누는 구성은 [미결]이다(§10 미결 17).
 
 #### 4.2.2 형식과 구조 검증
@@ -935,7 +935,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
   - 바뀌는 내용이 없는 `edit`과 같은 내용의 `writeFile`은 `invalid_input`이다. 원장에 빈 변경을 남기지 않는다.
   - `writeFile`의 `baseHash`는 스킬의 트리 해시다(파일 하나의 해시가 아니다). 새 파일이면 생략할 수 있고 기존 파일을 덮어쓰면 필수다. 스킬 안에 이름만 대소문자(또는 NFC/NFD)가 다른 파일이 이미 있으면 `baseHash`와 무관하게 `invalid_input`이다. 대소문자를 구분하지 않는 파일 시스템(macOS APFS)에서는 둘이 한 파일이라 기록 없이 덮어쓰고 되돌림이 깨지기 때문이다. 기존 이름으로 쓰면 된다.
   - `remove`에 `file`을 주면 그 지원 파일만 지운다(원장 연산 `skill.write_file`). `mode: "delete"`는 행위자가 `user`일 때만이다.
-  - 쓰기 대상 범위는 `scope`가 있으면 그 범위, 없으면 모델이 보는 이름 해석(프로젝트 → 사용자 → 확장 → 경로)의 승자다. 승자가 확장·경로 범위이거나 단일 파일 스킬이면 `read_only_scope`다. 프로젝트 범위 쓰기는 사용자나 유효한 증거를 가진 확장만 한다. 그 밖(에이전트, 증거 없는 확장)은 `denied`다. 승인된 제안을 다시 실행하는 경우는 사람이 이미 봤으므로 이 검사를 건너뛴다.
+  - 쓰기 대상 범위는 `scope`가 있으면 그 범위, 없으면 모델이 보는 이름 해석(작업 폴더 → 사용자 → 확장 → 경로)의 승자다. 승자가 확장·경로 범위이거나 단일 파일 스킬이면 `read_only_scope`다. 작업 폴더 범위 쓰기는 사용자나 유효한 증거를 가진 확장만 한다. 그 밖(에이전트, 증거 없는 확장)은 `denied`다. 승인된 제안을 다시 실행하는 경우는 사람이 이미 봤으므로 이 검사를 건너뛴다.
   - 위협 검사(§4.6)는 바뀌거나 새로 쓰이는 파일의 전체 텍스트에 건다. 바뀐 조각만 검사하면 `Do not ignore…`에서 `Do not `을 지워 위험한 구절을 완성하는 치환을 놓친다. `scripts/` 아래 파일은 엄격 범위다. 설정 `l2.knowledge.write.scan`이 꺼져 있으면 검사하지 않는다(요약은 비어 있다).
 
 #### 4.2.3 트리 해시
@@ -965,7 +965,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 ```
 
 - 예산: `l2.knowledge.skills.indexBudgetChars`(기본 8,000자 [가정]). 항목 설명은 `l2.knowledge.skills.indexDescriptionChars`(기본 160자 [가정])에서 자르고 끝에 `…`을 붙인다. Hermes는 60자, Claude Code는 1,536자 상한이다(`_research/refs/hermes.md` §3.10.1 (라)·(바), `_research/item-catalog.md` L2 스킬 행). 기본값은 측정 뒤 정한다.
-- 예산을 넘으면 범위 순(프로젝트 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
+- 예산을 넘으면 범위 순(작업 폴더 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
 - 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). 연결은 `turn-context.ts`가 한다(KN.5). `input.agent.before`에서 대화의 첫 turn이면 인덱스 블록과 메모리 스냅샷(§4.3.4)을 이어 붙여 `customType: "knowledge.context"`, `display: false`인 기록 메시지 하나로 더한다. 시스템 프롬프트는 건드리지 않는다. 더한 메시지가 대화 기록에 남는다는 것은 [가정]이다.
 - 첫 turn은 대화별 상태가 없는 turn이다. `thread.start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 대화의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨질 수 있어 접힌 블록은 L1이 다시 놓는다(§4.2.8).
 - 블록과 인덱스 스냅샷은 같은 시점의 색인에서 만든다. 스킬을 끄면(`l2.knowledge.skills.enabled`) 블록은 비고, 메모리를 끄면 스냅샷이 빈다. 둘 다 비면 메시지를 더하지 않는다.
@@ -1097,7 +1097,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 #### 4.4.3 시작 시 복구
 
 - 시작할 때 `status = 'prepared'`인 원장 행을 찾는다. 대상의 현재 해시가 `after_hash`와 같으면 `applied`로 마감하고(색인과 파일 상태도 같은 트랜잭션에서 맞춘다), 그 밖에는 `aborted`로 바꾼다. `before_hash`와 같으면 쓰기 전에 죽은 것이고, 둘 다 아니면 바깥 편집이라 이어지는 재색인이 `external` 항목으로 남긴다(§4.3.5). 행의 행위자는 원래 값을 유지한다. 복구는 새 행을 만들지 않는다.
-- 그 뒤 스킬 루트를 재색인한다(`skills.reindex`와 같은 동작). 재색인은 사용자·프로젝트 범위의 추가, 변경, 삭제를 행위자 `external`, 연산 `external`의 `applied` 항목으로 원장에 남긴다. 처음 본 스킬도 마찬가지다(`created_by`는 처음 만든 `skill.create` 항목이 있으면 그 행위자, 없으면 `unknown`). 변경 항목의 `before_manifest`는 그 해시를 `after_hash`로 가진 이전 항목의 목록 blob이다. 없으면 비어 있어 그 항목은 롤백할 수 없다. 확장·경로 범위는 읽기 전용이라 원장에 남기지 않는다.
+- 그 뒤 스킬 루트를 재색인한다(`skills.reindex`와 같은 동작). 재색인은 사용자·작업 폴더 범위의 추가, 변경, 삭제를 행위자 `external`, 연산 `external`의 `applied` 항목으로 원장에 남긴다. 처음 본 스킬도 마찬가지다(`created_by`는 처음 만든 `skill.create` 항목이 있으면 그 행위자, 없으면 `unknown`). 변경 항목의 `before_manifest`는 그 해시를 `after_hash`로 가진 이전 항목의 목록 blob이다. 없으면 비어 있어 그 항목은 롤백할 수 없다. 확장·경로 범위는 읽기 전용이라 원장에 남기지 않는다.
 - 구현(KN.1)은 재색인마다 모든 스킬의 트리를 읽고 해시한다. mtime·크기로 후보를 줄이는 최적화는 하지 않았다(§10 미결 19).
 
 #### 4.4.4 행위자 표시
@@ -1134,7 +1134,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 승인 대기는 루프의 승인 대기 상태로 커밋되고 멈춘다. 재개 때 결과 이벤트로 이어진다(`L2.readme` §5.7). 승인 결과 "항상"은 이 기능에 적용하지 않는다 [제안]. 스킬·메모리 쓰기는 매번 내용이 달라서다.
 - `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다. 첫 마디가 아니라 `<확장 이름>.` 접두로 맞춘다. 신뢰하는 출처의 확장은 `ApprovalEvidence`의 `ref`와 `decidedAt`을 스스로 증언한다. L2는 그 내용을 대기열 원본과 대조하지 않으므로 신뢰 목록에 올리는 것은 그 확장을 사람 승인의 대리인으로 믿는 일이다 [결정: 2026-10-28 리뷰, 문서화].
   - [제안: M3-REQ-104] 내장 그룹이 채우는 길은 조립 루트가 플러그인 옵션 `KnowledgePluginOptions.trustedEvidenceSources`(`<확장 이름>.<대기열 이름>` 목록)로 넘기는 것이다. 효과가 있는 신뢰 목록은 설정 값과 이 옵션의 합집합(`withTrustedEvidence`)이다. 학습 그룹을 내장으로 올리는 조립 루트가 `["learning.queue"]`를 넘기면 학습 대기열의 사람 승인이 증거가 되어 L2는 승인 요청을 내지 않는다(승인이 한 번이다). 이 패키지는 그룹 이름을 기본값으로 갖지 않고 옵션을 비우면 신뢰 목록은 설정 값 그대로다. 합쳐도 위 유효성 규칙(첫 마디가 호출 확장 이름과 같음)은 그대로라 다른 확장이 `learning.queue`를 빌려 쓸 수 없다.
-  - [결정: M3-REQ-104, D-M3-09] 스킬 쓰기 입력의 `scope: "project"`는 행위자가 `user`이거나 유효한 승인 증거가 있는 확장일 때만 받는다. 모델 도구 경로는 범위를 고를 수 없다(`skill_manage` 파라미터에 `scope`가 없고 모델 행위자는 `denied`다). 학습 승인 화면에서 사용자가 프로젝트 범위를 고르면 학습 그룹이 증거와 함께 `scope: "project"`로 부른다.
+  - [결정: M3-REQ-104, D-M3-09] 스킬 쓰기 입력의 `scope: "project"`는 행위자가 `user`이거나 유효한 승인 증거가 있는 확장일 때만 받는다. 모델 도구 경로는 범위를 고를 수 없다(`skill_manage` 파라미터에 `scope`가 없고 모델 행위자는 `denied`다). 학습 승인 화면에서 사용자가 작업 폴더 범위를 고르면 학습 그룹이 증거와 함께 `scope: "project"`로 부른다.
 
 #### 4.5.2 제안 대기열
 
@@ -1230,7 +1230,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.8.2 대화 종류와 숨김
 
-- 투영기 `cap.knowledge`가 대화 종류와 프로젝트를 기록한다 [결정: KN.4]. 프로젝트는 `thread.started.workspace`의 sha256 앞 16자다(워크스페이스가 없으면 null). 종류는 `thread.started` payload에 없어서 부모의 `agent.spawned`가 가리키는 자식 thread에 `background: true`면 `background`, 아니면 `subagent`를 쓰고 나머지는 `main`이다. 자식의 `thread.started`가 `agent.spawned`보다 늦게 와도 종류를 덮어쓰지 않는다. `cron`은 M3 `cap-schedule`부터다.
+- 투영기 `cap.knowledge`가 대화 종류와 작업 폴더를 기록한다 [결정: KN.4]. 작업 폴더는 `thread.started.workspace`의 sha256 앞 16자다(워크스페이스가 없으면 null). 종류는 `thread.started` payload에 없어서 부모의 `agent.spawned`가 가리키는 자식 thread에 `background: true`면 `background`, 아니면 `subagent`를 쓰고 나머지는 `main`이다. 자식의 `thread.started`가 `agent.spawned`보다 늦게 와도 종류를 덮어쓰지 않는다. `cron`은 M3 `cap-schedule`부터다.
 - 크론·서브에이전트·백그라운드 대화는 기본 검색과 목록에서 숨긴다. 크론 잡의 반복 어휘가 사용자 대화를 밀어내는 "회상 맹점"을 막기 위해서다(`_research/refs/hermes.md` §3.10.2). 서비스 입력 `includeHidden: true`로 포함한다.
 - 크론 대화는 M3 `cap-schedule`부터 생긴다.
 
@@ -1249,9 +1249,9 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 4. 하나라도 3 코드 포인트 미만이면 LIKE 경로: `text LIKE '%' || ? || '%' ESCAPE '\'`로 모든 토큰을 AND한다. 최근 문서부터 `l2.knowledge.search.likeScanLimit`(기본 20,000)개 안에서만 찾는다. `path: "like"`. trigram MATCH는 3글자 미만에서 오류 없이 0건을 내므로 빈 결과를 그대로 돌려주지 않기 위한 경로다(`_research/notes/L2-3.md` §3.2, §6).
 5. `kinds` 기본은 셋 모두다. 스킬·메모리는 `cap_knowledge_docsfts`에서, 대화는 `cap_knowledge_sessionfts`에서 같은 규칙으로 찾고, 종류별 결과를 점수 순으로 섞지 않고 종류 순(skill → memory → session)으로 이어 붙인다 [제안]. 종류 사이 bm25 값은 비교할 수 없기 때문이다.
 6. 스니펫은 `snippet()` 함수로 만들고 600자에서 자른다. LIKE 경로는 첫 일치 위치 앞뒤 120자다.
-7. `scope: "project"`는 현재 대화의 프로젝트와 같은 대화만 찾는다. 기본은 `l2.knowledge.search.defaultScope`(`"all"`)다. 현재 대화를 모르거나 그 대화에 프로젝트가 없으면 대화 결과는 비어 있다 [제안: 모를 때 전체로 넓히지 않는다].
+7. `scope: "project"`는 현재 대화의 작업 폴더와 같은 대화만 찾는다. 기본은 `l2.knowledge.search.defaultScope`(`"all"`)다. 현재 대화를 모르거나 그 대화에 작업 폴더가 없으면 대화 결과는 비어 있다 [제안: 모를 때 전체로 넓히지 않는다].
 8. 결과는 원문이다. LLM 요약을 하지 않는다(`_research/refs/hermes.md` §3.10.2).
-9. 구현(KN.4): 한 호출의 `limit`는 종류 전체의 합이다. 앞 종류가 한도를 채우면 뒤 종류는 찾지 않는다. 스킬·메모리 검색에는 `includeHidden`이 `disable-model-invocation` 스킬을 포함할지를 뜻하고, 같은 이름의 스킬은 모델이 보는 이름 해석의 승자만 낸다. 스킬·메모리 FTS 표가 없으면 `path`는 `like`다. `scroll`·`read`는 대화 종류와 상관없이 ID로 읽고(숨긴 대화 포함) 메시지 하나가 100,000자를 넘으면 자르고 `truncated`를 켠다. `list`는 `last_at` 내림차순이고 `before`는 `last_at` 기준이다. LIKE 경로의 스캔 범위는 FTS 필터 조건(종류·프로젝트·시각)을 적용한 최근 문서 `likeScanLimit`개다.
+9. 구현(KN.4): 한 호출의 `limit`는 종류 전체의 합이다. 앞 종류가 한도를 채우면 뒤 종류는 찾지 않는다. 스킬·메모리 검색에는 `includeHidden`이 `disable-model-invocation` 스킬을 포함할지를 뜻하고, 같은 이름의 스킬은 모델이 보는 이름 해석의 승자만 낸다. 스킬·메모리 FTS 표가 없으면 `path`는 `like`다. `scroll`·`read`는 대화 종류와 상관없이 ID로 읽고(숨긴 대화 포함) 메시지 하나가 100,000자를 넘으면 자르고 `truncated`를 켠다. `list`는 `last_at` 내림차순이고 `before`는 `last_at` 기준이다. LIKE 경로의 스캔 범위는 FTS 필터 조건(종류·작업 폴더·시각)을 적용한 최근 문서 `likeScanLimit`개다.
 
 모델 렌더링: 대화 메시지는 `<untrusted_session_content session="…" seq="…" role="…">`로 감싼다. 지난 대화에도 웹 결과에서 옮겨 적은 지시문이 있을 수 있기 때문이다(`L2.readme` §5.3 표지 명명 규칙).
 
@@ -1304,7 +1304,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 17 | 프로세스가 8단계와 10단계 사이에 죽음 | 시작 시 복구가 해시로 `applied`/`aborted` 판정 | — |
 | 18 | 확장 제공 스킬에 쓰기 | 거부 | `read_only_scope` |
 | 19 | `patch`의 `oldText`가 두 번 나옴 | 거부 | `patch_mismatch` |
-| 20 | 사용자·프로젝트에 같은 이름 스킬 | 프로젝트가 이김, `collision` 진단 | — |
+| 20 | 사용자·작업 폴더에 같은 이름 스킬 | 작업 폴더가 이김, `collision` 진단 | — |
 | 21 | FTS5·trigram 프로브 실패 | 대화 검색 끔, 스킬·메모리는 LIKE | `unavailable`(대화만 요청 시) |
 | 22 | 2글자 한국어 질의 | LIKE 경로, `path: "like"` | — |
 | 23 | 같은 이벤트 배치가 두 번 전달됨 | 이벤트 `seq`·`event_id`로 건너뜀 | — |
@@ -1337,8 +1337,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `l2.knowledge.search.includeHiddenDefault` | boolean | `false` | — | nextTurn | managed, user | sessions | false |
 | `l2.knowledge.search.likeScanLimit` | integer | `20000` | min 1000, max 1000000 | live | managed, user | advanced | false |
 
-- 쓰기 승인·스캔·증거 출처 키는 관리·사용자 범위만 허용한다. 프로젝트 파일(저장소에 커밋되는 설정)로 승인을 끄는 경로를 막기 위해서다.
-- `l2.knowledge.skills.paths`도 같은 이유로 프로젝트 범위를 허용하지 않는다. 프로젝트 스킬은 `.fresnel/skills` 한 곳이고 `projectSkills`로 끈다.
+- 쓰기 승인·스캔·증거 출처 키는 관리·사용자 범위만 허용한다. 작업 폴더 파일(저장소에 커밋되는 설정)로 승인을 끄는 경로를 막기 위해서다.
+- `l2.knowledge.skills.paths`도 같은 이유로 작업 폴더 범위를 허용하지 않는다. 작업 폴더 스킬은 `.fresnel/skills` 한 곳이고 `projectSkills`로 끈다.
 - 탭 배치: 스킬과 쓰기 정책은 `tools`, 메모리와 대화 검색은 `sessions`다(`L4.settings-ui.spec` 탭 표 "sessions: L2-d `l2.knowledge.*`(메모리)", "tools: `l2.knowledge.*`(스킬)").
 - 화면 기능(L4): 메모리 열람·편집·삭제(행위자 `user` 쓰기), 스킬 목록 켜기·끄기와 인덱스 예산 표시, 제안 대기열 결정, 원장 열람과 되돌리기, 드리프트 상태와 "현재 파일 받아들이기". 화면 구현은 `L4.settings-ui.spec`, `L4.desktop.spec`이 정한다.
 - 공유 메모리 저장소는 보류다(`_research/packages.md` §4.4 L2-d). 키를 두지 않는다.
@@ -1391,7 +1391,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로 | `L1.context.spec` | 요청 |
 | 컴팩션 뒤 다시 넣기 | `L1.context.spec` §4.9a | L1이 한다. 이 패키지는 상태를 그대로 둔다(§4.2.8) |
 | 데이터 디렉터리 | `L0.os.spec`(`OsDirs.data`) | 있음 |
-| 프로젝트 디렉터리 | 대화의 작업 폴더(`workspaceOf`, 조립 루트가 `threadWorkspaceOf`를 넘긴다). 옵션이 없으면 `fresnel.exec`의 `cwd` | 있음(`L2.readme` §5.10) |
+| 작업 폴더 디렉터리 | 대화의 작업 폴더(`workspaceOf`, 조립 루트가 `threadWorkspaceOf`를 넘긴다). 옵션이 없으면 `fresnel.exec`의 `cwd` | 있음(`L2.readme` §5.10) |
 | 프로세스 사이 파일 락 | `L0.os.spec` | 없음. 프로세스 락과 해시 재확인으로 대신한다(§4.3.3, §10 미결 18) |
 | `SkillFilePathSchema`를 점으로 시작하거나 끝나는 마디를 거부하도록 좁히기, `isSkillFilePath`도 같은 규칙 | `F.capabilities.spec` §3.9 | 요청(KN.1, §3.1) |
 | 마스킹 등록부 판정(값 노출 없음) | `L0.secrets.spec`(`Redactor.containsKnown`) | 있음. `fresnel.secrets`가 없으면 이 판정만 건너뛴다 |
@@ -1428,12 +1428,12 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 10. [미결] 스킬 루트에 `.gitignore` 계열 무시 규칙을 적용할지. 적용하면 `ignore` 7.0.8 의존을 다시 들인다(§4.2.1).
 11. [미결] 2글자 질의 LIKE 경로의 탐색 범위(`likeScanLimit`)와 성능 목표(`_research/notes/L2-3.md` §5).
 12. [미결] L3 학습 정책의 `kind: "script"(반복 작업 스크립트) 저장 위치. 2차(§3.9).
-13. [미결] 프로젝트 스킬(`.fresnel/skills`)에 대한 에이전트 쓰기 허용. 제안은 모델 도구 경로에서 금지다(§3.2).
+13. [미결] 작업 폴더 스킬(`.fresnel/skills`)에 대한 에이전트 쓰기 허용. 제안은 모델 도구 경로에서 금지다(§3.2).
 14. [미결] 고정 이전에 쓴 원장 행과 제안 행의 블롭. 이 변경 전 행에는 `pinBlob`이 없다. 채우는 방법(재고정 작업)과 재색인 `external` 행의 고정 실패를 되돌리는 방법을 정하기 전에는 `l0.store.blobGcEnabled`를 켜지 않는다(`L0.store` §3.4 opt-in 목록).
 14. [미결] 되감긴 가지의 메시지를 대화 검색에서 숨길지(§4.8.1).
 15. [가정] macOS 시스템 SQLite의 FTS5·trigram 포함(`_research/notes/L2-3.md` §2.2). 사용자 Mac에서 `pragma compile_options` 확인이 필요하다.
 16. [가정] Hermes 한도 1,375자·2,200자를 한국어 사용에 그대로 쓴다(§4.3.2).
-17. [미결] 프로젝트 스킬 색인의 범위. 색인(`cap_knowledge_skills`의 기본 키가 (범위, 이름)이다)은 한 번에 작업 폴더 하나의 프로젝트 스킬만 담고, 대화의 작업 폴더가 다르면 그 폴더로 다시 색인한다(§4.2.1). 작업 폴더가 다른 대화가 번갈아 돌면 재색인이 잦다. 여러 작업 폴더를 동시에 담으려면 프로젝트 식별 열(작업 폴더)을 기본 키에 더해야 한다. 데스크톱 다중 창에서 필요해지면 M3 이후에 정한다.
+17. [미결] 작업 폴더 스킬 색인의 범위. 색인(`cap_knowledge_skills`의 기본 키가 (범위, 이름)이다)은 한 번에 작업 폴더 하나의 작업 폴더 스킬만 담고, 대화의 작업 폴더가 다르면 그 폴더로 다시 색인한다(§4.2.1). 작업 폴더가 다른 대화가 번갈아 돌면 재색인이 잦다. 여러 작업 폴더를 동시에 담으려면 작업 폴더 식별 열(작업 폴더)을 기본 키에 더해야 한다. 데스크톱 다중 창에서 필요해지면 M3 이후에 정한다.
 18. [미결] 프로세스 사이 파일 락. `OsService`에 락 API가 없어 프로세스 락과 해시 재확인으로 대신한다(§4.3.3). 데이터 디렉터리를 엔진 밖의 도구가 쓰는 경우의 보장은 해시 재확인까지다.
 19. [미결] 재색인 비용. 모든 스킬 트리를 읽고 해시한다. 스킬 수와 크기가 커지면 mtime·크기로 후보를 줄인다(`cap_knowledge_files.mtime_ms`가 그 자리다).
 20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.

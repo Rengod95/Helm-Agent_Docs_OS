@@ -597,7 +597,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록,
 | 보호 경로 목록 | 조회해 파일 도구에도 적용 | 관여 없음 | 소유 |
 
 - 허용 root를 얻는 API는 `L1.tools.spec`이 정한다 [가정]. 그 API가 생기기 전에는 읽기 root와 쓰기 root 모두 대화의 작업 폴더 하나로 둔다 [제안].
-- [결정: review.m2-plan DG.4, open-issues M-06] 대화의 작업 폴더는 `thread.started`의 `workspace`(`ThreadSummaryRow.workspace`)다. 호출 문맥(`CallOptions.context.threadId`)으로 `fresnel.session`의 대화 투영을 읽고(`ThreadWorkspaces.workspaceOf`), 값이 있으면 그 폴더가 다음 셋의 기준이 된다. (1) 상대 경로를 푸는 cwd, (2) 읽기·쓰기 root 하나, (3) `bash`의 기본 cwd와 샌드박스 쓰기 root. 실행 환경은 `fresnel.exec`의 `withCwd`로 만든다. 값이 없거나(옛 행) 대화 문맥이 없으면 엔진의 cwd를 쓴다(M1 동작). 작업 폴더가 없는 경로를 가리키면 `not_found`이고 엔진 cwd로 물러나지 않는다. 한 엔진이 여러 프로젝트의 대화를 동시에 열어도 대화마다 root가 다르다.
+- [결정: review.m2-plan DG.4, open-issues M-06] 대화의 작업 폴더는 `thread.started`의 `workspace`(`ThreadSummaryRow.workspace`)다. 호출 문맥(`CallOptions.context.threadId`)으로 `fresnel.session`의 대화 투영을 읽고(`ThreadWorkspaces.workspaceOf`), 값이 있으면 그 폴더가 다음 셋의 기준이 된다. (1) 상대 경로를 푸는 cwd, (2) 읽기·쓰기 root 하나, (3) `bash`의 기본 cwd와 샌드박스 쓰기 root. 실행 환경은 `fresnel.exec`의 `withCwd`로 만든다. 값이 없거나(옛 행) 대화 문맥이 없으면 엔진의 cwd를 쓴다(M1 동작). 작업 폴더가 없는 경로를 가리키면 `not_found`이고 엔진 cwd로 물러나지 않는다. 한 엔진이 여러 작업 폴더의 대화를 동시에 열어도 대화마다 root가 다르다.
 - 같은 쓰기를 파일 도구는 L2에서 거부하고, bash는 L0 샌드박스가 거부한다. 파일 도구는 샌드박스를 거치지 않으므로 L2 검사가 유일한 경로 방어다.
 
 ### 4.4 편집 방식
@@ -734,7 +734,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | `l2.workspace.grep.rgPath` | string | `""` | — | restart | managed, user | tools | false |
 
 - `shell.defaultTimeoutSec`의 0은 제한 없음이다(pi durable `bash`의 기본값과 같다).
-- `grep.rgPath`가 빈 문자열이면 `fresnel.os`의 `resolveBinary("rg")`가 돌려주는 경로를 쓴다. `@vscode/ripgrep`은 `platform-os`가 번들하고 이 패키지는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`) [결정: review.m2-plan §8]. 범위를 관리·사용자로 제한한다. 프로젝트 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안]. `find`도 같은 바이너리(`rg --files --glob`)를 쓴다(§10 미결 6).
+- `grep.rgPath`가 빈 문자열이면 `fresnel.os`의 `resolveBinary("rg")`가 돌려주는 경로를 쓴다. `@vscode/ripgrep`은 `platform-os`가 번들하고 이 패키지는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`) [결정: review.m2-plan §8]. 범위를 관리·사용자로 제한한다. 작업 폴더 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안]. `find`도 같은 바이너리(`rg --files --glob`)를 쓴다(§10 미결 6).
 - 이미지 한도의 기본값은 durable `DEFAULT_IMAGE_LIMITS`와 같다. 모델 provider별 한도가 더 작으면 L1.models가 요청 조립 때 다시 줄인다 [가정].
 - UI 위젯: integer 키는 `number`, boolean은 `toggle`, string은 `text`. `ui.label`은 한국어로 둔다(예: `read.maxLines` → "읽기 최대 줄 수").
 

@@ -1443,7 +1443,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 - 토큰은 설정에 값으로 두지 않고 `secret://` 참조로만 둔다(`l2.schedule.remote.tokenRef`, `F.wire-settings.spec` §3.8.1 `SecretRef`, D2·D3 규칙).
 - 토큰 없는 원격 접속은 초기화(`host.hello`) 전에 끊긴다. 거부는 운영 로그에 남긴다.
 - `l2.schedule.remote.enabled`의 기본은 거짓이다. 켜도 서비스 모드가 꺼져 있으면 `status.transport`는 `unavailable`이다. 터널·사설망 설정은 사용자 몫이고 이 기능은 열지 않는다.
-- 이 설정의 `allowedScopes`는 `managed`, `user`다. 저장소의 프로젝트 파일이 원격 접속을 켜지 못하게 하려는 것이다(`F.wire-settings.spec` §4.7 4번의 범위 제한 키 예와 같은 이유).
+- 이 설정의 `allowedScopes`는 `managed`, `user`다. 저장소의 작업 폴더 파일이 원격 접속을 켜지 못하게 하려는 것이다(`F.wire-settings.spec` §4.7 4번의 범위 제한 키 예와 같은 이유).
 
 #### 4.5.4 알림과 푸시 [미결]
 

@@ -669,7 +669,7 @@ export type GroupCommandError =
   | { readonly kind: "group.unknown"; readonly id: string; readonly known: readonly GroupId[] }
   | { readonly kind: "group.noDrive"; readonly id: GroupId }
   | { readonly kind: "group.settingLocked"; readonly key: string }
-  /** 잠금은 아니지만 쓸 수 없었다. 쓸 thread를 정하지 못했거나(no_thread, ambiguous_thread), 소유가 없거나(not_owner), 프로젝트 파일을 쓸 수 없거나(project_unavailable), 값이 정의에 맞지 않거나(invalid_value), 저장소가 실패했다(storage) */
+  /** 잠금은 아니지만 쓸 수 없었다. 쓸 thread를 정하지 못했거나(no_thread, ambiguous_thread), 소유가 없거나(not_owner), 작업 폴더 파일을 쓸 수 없거나(project_unavailable), 값이 정의에 맞지 않거나(invalid_value), 저장소가 실패했다(storage) */
   | { readonly kind: "group.settingUnwritable"; readonly key: string; readonly reason: GroupSettingUnwritableReason };
 
 export type GroupResult<T> =
@@ -771,7 +771,7 @@ export function groupCommand(service: GroupService): GroupCommandRegistration;
 | 알 수 없는 이름 | `알 수 없는 그룹: xyz. 설치된 그룹: helm, learning` |
 | drive 미사용 그룹을 holder로 지정 | `learning 그룹은 drive를 쓰지 않아 구동 그룹으로 지정할 수 없다` |
 | 잠긴 설정 | `x.primitives.activeDriver은 상위 범위 설정이 잠가 바꿀 수 없다` |
-| 쓸 수 없는 설정 | `x.primitives.activeDriver을 쓸 수 없다: <이유>`. 이유 문구: `no_thread` 쓸 대화가 없다 / `ambiguous_thread` 열린 대화가 여럿이라 어느 대화에 쓸지 정할 수 없다 / `not_owner` 그 대화의 쓰기 소유를 이 프로세스가 쥐고 있지 않다 / `project_unavailable` 프로젝트 설정 파일을 쓸 수 없다(작업 폴더가 없거나 신뢰하지 않는다) / `invalid_value` 값이 설정 정의에 맞지 않는다 / `storage` 저장소나 설정 파일 쓰기에 실패했다 |
+| 쓸 수 없는 설정 | `x.primitives.activeDriver을 쓸 수 없다: <이유>`. 이유 문구: `no_thread` 쓸 대화가 없다 / `ambiguous_thread` 열린 대화가 여럿이라 어느 대화에 쓸지 정할 수 없다 / `not_owner` 그 대화의 쓰기 소유를 이 프로세스가 쥐고 있지 않다 / `project_unavailable` 작업 폴더 설정 파일을 쓸 수 없다(작업 폴더가 없거나 신뢰하지 않는다) / `invalid_value` 값이 설정 정의에 맞지 않는다 / `storage` 저장소나 설정 파일 쓰기에 실패했다 |
 | 켜기 요청(실행 중) | `helm 켜기 요청을 기록했다. 다음 단계 경계에 적용한다` |
 | 켜기 적용(유휴) | `helm 그룹을 켰다` |
 | 끄기 요청(실행 중) | `helm 끄기 요청을 기록했다. 다음 단계 경계에 적용한다` |

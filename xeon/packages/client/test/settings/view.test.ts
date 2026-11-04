@@ -185,7 +185,7 @@ describe("field facts", () => {
       shadowed: [{ scope: "user", path: "/home/user/.fresnel/settings.json" }],
     });
     const field = fieldOf(viewOf([def], valuesOf(setting)), "l1.models.review");
-    expect(field?.scope).toEqual({ scope: "project", text: "프로젝트", tone: "project" });
+    expect(field?.scope).toEqual({ scope: "project", text: "작업 폴더", tone: "project" });
     expect(field?.filePath).toBe("/work/.fresnel/settings.json");
     expect(field?.shadowed).toEqual([{ scope: "user", path: "/home/user/.fresnel/settings.json" }]);
     expect(field?.selectedScope).toBe("user");

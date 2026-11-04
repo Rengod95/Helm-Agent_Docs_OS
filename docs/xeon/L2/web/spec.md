@@ -1220,7 +1220,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 #### 4.5.2 평가 순서와 계층
 
 - 판정 값은 `deny`, `ask`, `allow`, 그리고 어느 규칙에도 맞지 않을 때의 기본 `ask`다. 평가 순서는 `deny` > `ask` > `allow`다(`_research/web-tools.md` §4.9).
-- 계층은 기본(코드 상수) → 관리(managed) → 사용자 → 프로젝트 → 로컬 → 대화 → 에이전트(서브에이전트)다. 설정 범위는 `F.wire-settings.spec` §3.9 `SCOPE_PRECEDENCE`를 쓴다.
+- 계층은 기본(코드 상수) → 관리(managed) → 사용자 → 작업 폴더 → 로컬 → 대화 → 에이전트(서브에이전트)다. 설정 범위는 `F.wire-settings.spec` §3.9 `SCOPE_PRECEDENCE`를 쓴다.
 - [제안] 도메인 목록 설정(`l2.web.policy.deny`, `ask`, `allow`)은 우선순위로 하나를 고르지 않고 모든 범위의 값을 합친다. 합친 뒤 deny > ask > allow로 평가하므로, 어느 계층의 deny도 다른 계층의 allow로 풀리지 않는다. "하위 계층은 상위 deny를 풀 수 없다"(`_research/web-tools.md` §4.9)는 이 합집합 규칙으로 성립한다. 범위별 값은 `ScopeStack`(`F.wire-settings.spec` §3.9)에서 읽는다. 합치는 함수 `resolveDomainPolicy(stack, agentRules)`는 순수 함수다.
 - 에이전트 계층: L1.agents가 서브에이전트를 만들 때 넘기는 웹 규칙을 마지막에 합친다 [가정: `L1.agents.spec`의 위임 옵션에 웹 규칙 필드가 생긴다]. 같은 합집합 규칙이라 서브에이전트는 부모 규칙을 좁힐 수만 있다.
 - 기본 계층(코드 상수, 설정으로 풀 수 없음): `file:`, `data:`, `javascript:`, `ftp:` 등 http·https 밖 스킴, 클라우드 메타데이터 호스트(§4.6.2). 사설망은 §4.6.3의 별도 설정으로만 연다.
@@ -1712,7 +1712,7 @@ stateDiagram-v2
 - 플러그인 키는 `ext.<확장 이름>.*`이다. 예: `ext.web-exa.apiKey`(string, `secret://` 참조, `secret: true`, 기본값 없음, ui.tab `plugins`)(`F.wire-settings.spec` §3.8.3). L2 키에는 시크릿이 없다.
 - `l2.web.search.provider`, `l2.web.browse.provider`, `order`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `fresnel.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
 - 도메인 목록 세 키는 범위별 값을 합친다(§4.5.2). 다른 키는 `F.wire-settings.spec` §3.9 일반 규칙(높은 범위 하나)을 따른다.
-- `l2.web.browse.allowNamedProfiles`는 관리·사용자 범위만 허용한다. 프로젝트 파일로 로그인 프로필을 켜는 경로를 막기 위해서다.
+- `l2.web.browse.allowNamedProfiles`는 관리·사용자 범위만 허용한다. 작업 폴더 파일로 로그인 프로필을 켜는 경로를 막기 위해서다.
 - `l2.web.policy.allow`(허용 목록)와 `l2.web.policy.unseenUrl`(대화에 없던 URL 확인)은 project 범위를 허용하지 않는다 [제안]. 저장소 설정 파일이 `allow: ["*"]`와 `unseenUrl: "allow"`를 넣으면 기본 `ask`가 모든 도메인에서 꺼지고 대화 내용을 쿼리에 실어 내보내는 경로를 막는 검사도 꺼진다. project 범위는 `ask`와 `deny`처럼 막는 쪽 목록에만 더할 수 있다.
 - `l2.web.policy.allowPrivateNetwork`(사설망·루프백 방어 해제), `l2.web.browse.allowJavascriptExec`, `l2.web.browse.allowFileUpload`는 project 범위를 허용하지 않는다 [제안]. 저장소를 여는 것만으로 SSRF 방어가 풀리거나 브라우저 위험 동작이 켜지지 않게 하려는 것이다(`L2.readme` §7.1 범위 제한 규칙). 사용자가 직접 만드는 local 범위는 허용한다. [결정: 2026-11-04 사용자 B15] 검색 서버 주소 키 `l2.web.search.searxng.url`은 없어졌으므로 이 목록에서 뺐다.
 - provider 체인 키의 기본값은 모두 `"auto"`다(`L2.readme` §5.2, §7.1). `browse`의 auto 체인은 등록 플러그인이 없으면 내장 `playwright-local`을, `research`(2차)는 내장 `native`를 고른다. fetch는 `l2.web.fetch.provider`를 두지 않는다. 로컬 파이프라인이 항상 먼저 돌고 플러그인 후보는 승격 경로(§4.9.1)에서 `pluginOrder` 순으로만 쓰기 때문이다(`L2.readme` §7.1 예외).
@@ -1823,7 +1823,7 @@ export const webSettings = defineSettings("l2.web", {
 5. `defs/web.ts`의 `WebSearch`, `WebFetch`, `WebBrowse`, `WebResearch` 정의는 각각 `validateCapability` 이슈 0건이고, 네 정의를 함께 넣은 `validateCapabilitySet` 이슈도 0건이다.
 6. 모든 웹 메서드 결과의 `meta.untrusted`는 `true`이고, 모든 `toContent` 결과에서 웹 유래 텍스트(제목, URL, 발췌, 본문, 탭 제목, 콘솔, 스냅샷)는 `<untrusted_web_content>` 경계 안에 있다. 본문에 `</untrusted_web_content>`가 든 픽스처에서도 경계가 하나로 유지된다.
 7. 대화당 상한: 기본 설정에서 같은 대화의 101번째 `search`와 301번째 `fetch`는 `session_limit`이다.
-8. 도메인 정책: 사용자 범위 `deny: ["*.example.com"]`과 프로젝트 범위 `allow: ["a.example.com"]`이 함께 있으면 `https://a.example.com/`은 `denied`다. `*.example.com`은 `example.com`과 `badexample.com`에 맞지 않는다.
+8. 도메인 정책: 사용자 범위 `deny: ["*.example.com"]`과 작업 폴더 범위 `allow: ["a.example.com"]`이 함께 있으면 `https://a.example.com/`은 `denied`다. `*.example.com`은 `example.com`과 `badexample.com`에 맞지 않는다.
 9. 협상 Markdown: `Content-Type: text/markdown` 픽스처 응답은 변환을 거치지 않고 `method: "negotiated-md"`다. HTML 픽스처는 `method: "readability"`이고, 추출 결과가 빈 SPA 픽스처는 승격 provider가 있으면 그 provider의 `method`, 없으면 `empty_content` 경고다.
 10. `fetch({ rawRef, range: { offset } })`는 네트워크 요청 없이 이어진 본문을 돌려준다.
 11. 래퍼가 `pause_turn`을 4번 연속 받으면(테이프) 재요청은 3번에서 멈추고 `wrapper_continuation_limit` 경고가 있다. 결과에 `encrypted_content`가 없다.

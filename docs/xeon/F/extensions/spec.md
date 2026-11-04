@@ -844,7 +844,7 @@ export interface TrustOption {
 export interface TrustPromptRequest {
   readonly projectRoot: string;
   readonly parent: string | null;
-  /** 찾은 신뢰 필요 자원(프로젝트 루트 기준 상대 경로) */
+  /** 찾은 신뢰 필요 자원(작업 폴더 루트 기준 상대 경로) */
   readonly resources: readonly string[];
   readonly options: readonly TrustOption[];
 }

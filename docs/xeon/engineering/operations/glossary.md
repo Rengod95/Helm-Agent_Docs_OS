@@ -42,7 +42,9 @@ binds: []
 | 목표 (goal) | 완료 조건 문장과 판정 방식입니다. thread마다 활성 목표는 하나입니다 | L2.work.spec §2 |
 | 미결 (`[미결]`) | 사용자 확인이 필요한 항목입니다. 문서 끝 "미결 사항"에도 모읍니다 | fresnel.templates §문체 규칙 |
 | 번들 바이너리 | 앱과 함께 배포되는 실행 파일입니다(예: 번들 `rg`). 시스템 바이너리는 사용자가 OS에 설치해 `PATH`에서 찾습니다 | L0.os.spec §2 |
-| 범위 (설정 scope) | 설정 값이 저장되는 계층입니다. 순위는 `managed`(관리 정책, 잠금), `launch`(이번 실행만), `local`(프로젝트 개인 파일), `project`(프로젝트 공유 파일), `user`(사용자 홈 파일), `default`(코드 기본값) 순입니다 | F.wire-settings.spec §2 |
+| 범위 (설정 scope) | 설정 값이 저장되는 계층입니다. 순위는 `managed`(관리 정책, 잠금), `launch`(이번 실행만), `local`(작업 폴더 개인 파일), `project`(작업 폴더 공유 파일), `user`(사용자 홈 파일), `default`(코드 기본값) 순입니다 | F.wire-settings.spec §2 |
+| 작업 폴더 (코드 id `project`) | 대화가 여는 폴더이고 그 안의 `.fresnel/`, `.mcp.json`을 가리킵니다. 화면 말은 "작업 폴더"이고 범위 id, 설치 위치 `project`, 신뢰 등급 `project`, 설정 키(`x.ui.allowProjectApps` 등)는 이름을 바꾸지 않습니다. "프로젝트 확장"은 "작업 폴더 확장"으로 씁니다 [결정: 2026-11-04 사용자] | X.loading-trust.spec §4.7 |
+| 프로젝트 (M5) | 대화 여러 개를 묶은 이름 있는 묶음이고 공통 지침, 파일, 플러그인 설정을 함께 씁니다. 작업 폴더와 다릅니다. M4에는 구현이 없습니다 [결정: 2026-11-04 사용자] | X.primitives.spec §4.5.7 |
 | 보호 경로 | 샌드박스 쓰기 루트 안에 있어도 쓰기를 거부하는 경로입니다. 설정으로 더할 수만 있습니다 | L0.sandbox.spec §2 |
 | 블롭 (blob) | 내용 주소(SHA-256) 파일입니다. 이벤트에는 `BlobRef`만 남습니다. 참조가 없고 유예 시간이 지난 블롭은 GC 대상입니다 | L0.store.spec §2, §4.9 |
 | 시크릿 (secret) | 모델 키, API 키처럼 값이 노출되면 안 되는 자격 증명입니다. 값은 제공자(기본 SOPS)에 있고, 이벤트·설정·로그에는 참조만 남습니다 | L0.secrets.spec §1, adr.0019 |
@@ -55,7 +57,7 @@ binds: []
 | 스킬 | `SKILL.md` 하나와 지원 파일(`references/`, `templates/`, `scripts/`, `assets/`)을 담은 디렉터리입니다. Agent Skills 규격입니다 | L2.knowledge.spec §2 |
 | 스텝 (step) | 모델 응답 한 번과 그 응답이 부른 도구 결과 묶음입니다. 체크포인트 단위입니다 | F.conversation.spec §2 |
 | 승인 (approval) | 사람의 응답을 기다리는 단일 대기 레코드입니다. 종류는 도구(`tool`), 계획(`plan`), 질문(`question`), 검토(`review`)입니다. 한 프로토콜로 처리합니다 | adr.0018, L1.tools.spec §2 |
-| 신뢰 (trust) | 프로젝트 폴더의 확장과 프로젝트 자원을 쓸지 정하는 판정입니다. 신뢰 등급은 `builtin`, `user`, `project`, `untrusted` 넷이고 확장이 할 수 있는 일을 정합니다 | X.loading-trust.spec §4.6, §4.7 |
+| 신뢰 (trust) | 작업 폴더의 확장과 작업 폴더 자원을 쓸지 정하는 판정입니다. 신뢰 등급은 `builtin`, `user`, `project`, `untrusted` 넷이고 확장이 할 수 있는 일을 정합니다 | X.loading-trust.spec §4.6, §4.7 |
 | `실행권` (Scheduler leader) | 옛 이름입니다. `sys_leases`의 `scheduler` 자원을 쥔 프로세스 하나, 곧 Scheduler leader가 예약 틱을 돌립니다. 아직 아무도 잡지 않습니다 | L2.schedule.spec §2, L4.host-service.spec HS-102 |
 | 아이템 (item) | 입출력 단위입니다. 사용자 메시지, 어시스턴트 메시지, 시스템 메시지, 도구 호출, 도구 결과, 확장 커스텀 메시지가 있습니다 | F.conversation.spec §2 |
 | 안전 모드 | 외부 확장(`user`·`project` 등급), 외부 훅, L3 내장 플러그인 그룹을 싣지 않고 시작하는 모드입니다 | X.operations.spec §2, §4.6.2 |
@@ -178,7 +180,7 @@ binds: []
 | 예약 종류 `loop` | `repeat` | 예약 상태 파일은 version 2입니다 |
 | bench (측정) | benchmark | `just benchmark`, `just benchmark-gate` |
 | 작업대 표시 이름 | LightCraft (화면 ko 크래프트) | 코드 id `workbench`는 그대로입니다 |
-| `Xeon` / `xeon` | Fresnel / fresnel | 패키지 범위 `@fresnel/*`, 서비스 이름 `fresnel.*`, 환경 변수 `FRESNEL_*`, 프로젝트 폴더 `.fresnel/` |
+| `Xeon` / `xeon` | Fresnel / fresnel | 패키지 범위 `@fresnel/*`, 서비스 이름 `fresnel.*`, 환경 변수 `FRESNEL_*`, 작업 폴더 `.fresnel/` |
 
 ## 5. 미결 사항
 

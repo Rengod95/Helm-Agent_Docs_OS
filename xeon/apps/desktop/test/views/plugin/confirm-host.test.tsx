@@ -162,8 +162,8 @@ describe("ConfirmDialogView", () => {
       ),
     );
     expect(html).toContain('"helm" 확장이 "runTask" 동작을 하려고 해요');
-    expect(html).toContain("이 프로젝트에서 옴");
-    expect(html).toContain(">프로젝트<");
+    expect(html).toContain("이 작업 폴더에서 옴");
+    expect(html).toContain(">작업 폴더<");
     expect(html).toContain('path=/work/a, mode="read"');
   });
 

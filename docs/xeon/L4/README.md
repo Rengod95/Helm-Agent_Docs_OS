@@ -214,7 +214,7 @@ L4가 정하지 않는 것:
 | D | `L4.cli.spec` §3.1이 `fresnel host --stdio`를 M2로 둔다. `L4.desktop.plan` D1은 M1에 엔진 프로세스를 띄워 적합성을 돌린다 | M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(H5). 컴파일 바이너리 서브커맨드는 M2 | `L4.cli.spec` §3.1, `L4.cli.plan` §1, `L4.host-service.plan` §1.2, `L4.desktop.plan` D1(실행 명령 명시) |
 | E | `L4.desktop.spec` §4.8이 `ensure` 명령 모양을 host-service에 맡긴다 | `fresnel service ensure --json`(HS-38) | `L4.desktop.spec` §4.8 |
 | F | `L4.desktop.spec` §4.1 E5의 EOF 뒤 종료 시한 N(가정 5초) | `l0.process.shutdown.timeoutMs` 기본 3000ms(`L0.process.spec` §6) | `L4.desktop.spec` §4.1 |
-| G | `L4.settings-ui.spec` §10-14: 열린 프로젝트 없이 project·local 범위에 쓸 때의 오류 kind | 3103 `settings.scopeNotAllowed`, `details.reason: "workspaceRequired"` [제안] | `L4.settings-ui.spec` §4.4.4, §5, §10-14 |
+| G | `L4.settings-ui.spec` §10-14: 열린 작업 폴더 없이 project·local 범위에 쓸 때의 오류 kind | 3103 `settings.scopeNotAllowed`, `details.reason: "workspaceRequired"` [제안] | `L4.settings-ui.spec` §4.4.4, §5, §10-14 |
 | H | `L4.desktop.spec` §4.2가 엔진 없이 서비스 사용 설정(`l0.process.service.enabled`)을 읽는 경로를 정하지 않았다 | `fresnel service launch-mode --json`(`resolveLaunchMode`) [제안] | `L4.desktop.spec` §4.2, `L4.cli.spec` §3.1 |
 | I | CLI와 host의 시작 거부 종료코드(`catalog`, `missingService`) | `runHostCommand` 0·1·2 그대로, 조립 결함은 1 | `L4.cli.spec` §3.3, §3.6, §4.10 |
 

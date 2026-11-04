@@ -324,7 +324,7 @@ export type ProposeRefusal =
 - 같은 도구를 주 대화의 모델도 볼 수 있다. 캐시 접두를 위해 부모와 포크의 도구 배열을 같게 두기 때문이다(§4.3). 주 대화에서 부른 제안도 같은 대기열로 들어가고 같은 승인 규칙을 따른다 [제안].
 - 읽기 선행 가드: `patch`, `replace`, `archive`, `remove`는 `baseHash`가 필수이고, 도구 실행 시점에 L2-d 읽기로 구한 현재 해시와 같아야 한다. 다르면 `base_stale`을 돌려준다. Hermes의 "패치 전 같은 검토 안에서 다시 읽기" 가드(`hermes.md` §3.10.1 (다), `tools/skill_manager_guards.py:211-221`)를 해시 비교로 옮긴 것이다 [제안].
 - 한 검토에서 받을 후보 수 상한은 8개다 [제안]. 넘으면 `limit`.
-- 대상 범위: 입력에 범위 필드가 없다. 도구로 만든 후보는 모두 사용자 범위(`user`) 스킬이다. 프로젝트 범위는 승인 화면에서 사용자가 고를 때만 쓴다 [결정: review.m3-design-inputs D-M3-09](§4.5 규칙 8).
+- 대상 범위: 입력에 범위 필드가 없다. 도구로 만든 후보는 모두 사용자 범위(`user`) 스킬이다. 작업 폴더 범위는 승인 화면에서 사용자가 고를 때만 쓴다 [결정: review.m3-design-inputs D-M3-09](§4.5 규칙 8).
 - 신뢰 표지: 도구 실행 문맥의 `caller.afterUntrusted`(L2.knowledge.spec §4.6.3, M3-REQ-100, 요구 REQ-LN-01)가 참이면 후보에 `afterUntrusted: true`를 적는다. 값은 L1.tools가 채우고 X는 그대로 넘긴다(X.primitives.spec §4.6.6). 검토 포크는 부모 스냅샷을 복제하므로 부모가 웹·MCP 결과를 읽은 뒤면 참이다. 승인 화면은 이 후보에 경고를 보인다 [제안].
 - 실행 문맥: 이 도구는 재실행되는 코드가 아니다. 도구 `execute` 안의 기능 호출(`knowledge.skills.view`, `knowledge.memory.read`, `knowledge.ledger.scan`, `knowledge.search.query`)은 ADR-0015 대상이 아니고 L1.tools의 효과 3단 커밋을 따른다(ADR-0015 §3.1 1번). 비공개 기록은 `tool:<toolCallId>`를 디스패치 키로 쓰고(X.primitives.spec §4.6.6) 후보 id도 호출 id에서 정한다(`prop_` + 호출 id 해시 26자). 같은 호출의 재실행은 같은 후보다. 위임 자식 대화에서 실행되면 기록은 그 자식 대화에 쓰이고 투영은 대화 단위로 모은다(REQ-LN-04).
 
@@ -585,7 +585,7 @@ export interface ProposalView {
 1. 목록: `/learning queue --json` 명령 결과(`readonly ProposalView[]`). [가정] 데스크톱은 명령 결과를 wire 명령 호출로 받는다. wire 메서드 이름은 F.wire-settings.spec과 L4.desktop.spec이 정한다.
 2. 결정: `/learning queue approve|reject|edit|revert <id>` 명령(§6.2). 명령 인자는 `ProposalDecision`과 1:1이다.
 3. 알림: `grp.learning.skill.proposed`, `grp.learning.memory.proposed`, `grp.learning.feedback.proposed`, `grp.learning.review.finished` 레코드가 생기면 L4가 배지를 갱신한다. [가정] L4는 대화 피드 구독으로 레코드 이벤트를 받는다. 검토 결과는 부모 대화의 모델 입력에 들어가지 않으므로 대화 밖에서 결과를 보는 경로는 이 배지, 대기열, 알림이다 [결정: review.m3-design-inputs D-M3-03]. 승인 대기 후보가 생기면 L4 알림 경로가 연결된 클라이언트와 OS 알림으로 알린다. 클라이언트 창이 앞에 있어도 기본으로 보내고, 사용자가 설정에서 이 종류의 알림을 끌 수 있다 [결정: review.m3-design-inputs D-M3-17]. 알림 종류 이름과 설정 키는 L4가 정한다.
-4. 범위 선택: 스킬 후보의 승인 단추 옆에 범위(사용자, 프로젝트) 선택을 둔다. 기본은 사용자다. 결정 명령은 `--scope project`로 같은 값을 넘긴다 [결정: review.m3-design-inputs D-M3-09].
+4. 범위 선택: 스킬 후보의 승인 단추 옆에 범위(사용자, 작업 폴더) 선택을 둔다. 기본은 사용자다. 결정 명령은 `--scope project`로 같은 값을 넘긴다 [결정: review.m3-design-inputs D-M3-09].
 
 ### 3.9 Result 종류 (`results.ts`)
 
@@ -770,7 +770,7 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
    - 다시 시도해도 풀리지 않는 L2-d 실패(`not_found`, `read_only_scope`, `limit_exceeded`, `effect_not_allowed`)는 `invalid`로 보고 `rejected/apply_failed`로 닫는다. 표에 없는 나머지 코드(`unavailable`, `timeout`, `upstream_error`, `rate_limited`, `internal`)만 `io`로 보고 `approved`에 둔다 [제안].
 6. 결정 경로: 결정은 사용자 명령(§6.2) 처리기 안에서 한다. 명령 처리기는 재실행되는 코드가 아니므로 ADR-0015 표의 대상이 아니고 L2-d 호출을 직접 할 수 있다. 결정 이벤트(`grp.learning.proposal.decided`)를 먼저 커밋하고 적용을 부른다. 적용 호출은 `ApprovalEvidence{ source: "learning.queue", proposalId, revision, decidedAt }`를 싣는다. L2-d는 이 증거를 믿을 때 자기 승인 요청을 내지 않으므로 승인이 한 번이다(L-IN-16). 증거를 믿는 조건(`l2.knowledge.write.trustedEvidenceSources`에 `learning.queue`가 있음)은 요구 REQ-LN-09다. 믿지 않으면 L2-d가 승인 요청을 한 번 더 내고, 학습 그룹은 그 결과를 `approval_required`로 받아 `approved`에 둔다.
 7. 지연 정리 [제안]: `/learning` 명령 처리기는 진입 때마다 먼저 `sweepQueue`를 돌린다. (1) `approved`이고 `applied`가 아닌 행의 적용을 같은 `idempotencyKey`로 다시 부른다. (2) 만료 시각이 지난 `pending` 행을 `expired`로 바꾼다. (3) `inFlightReviewId`가 있고 구독 경로가 없으면 §4.3 대체 조회를 한다. 시각은 명령 문맥의 주입 시계를 쓴다. L4 승인 화면은 목록을 `/learning queue --json`으로 받으므로 화면을 열 때도 정리가 돈다. 옛 `thread.start` 복원은 on 핸들러 안의 읽기와 기능 쓰기라 ADR-0015 §3.2에서 허용되지 않는다(기능 쓰기는 `idempotent: true` 선언이 있으면 허용되지만 대상 행을 고르는 읽기가 막힌다). `approved` 미적용 행은 결정 명령 도중 프로세스가 끝날 때만 생기므로 다음 명령까지 미뤄도 사용자가 보는 상태와 어긋나지 않는다.
-8. 범위 선택 [결정: review.m3-design-inputs D-M3-09]: 스킬 후보의 기본 범위는 `user`다. `approve`에 `scope: "project"`가 있으면 적용 어댑터가 `KnowledgeChange.scope = "project"`로 부른다. 메모리·피드백 후보에 `project`를 주면 `learning.scopeNotAllowed`다. 모델 도구 경로(`learning_propose`, `skill_manage`)는 프로젝트 범위를 고를 수 없다.
+8. 범위 선택 [결정: review.m3-design-inputs D-M3-09]: 스킬 후보의 기본 범위는 `user`다. `approve`에 `scope: "project"`가 있으면 적용 어댑터가 `KnowledgeChange.scope = "project"`로 부른다. 메모리·피드백 후보에 `project`를 주면 `learning.scopeNotAllowed`다. 모델 도구 경로(`learning_propose`, `skill_manage`)는 작업 폴더 범위를 고를 수 없다.
 
 ### 4.6 사전 스캔 (`proposals/scan.ts`)
 
@@ -857,7 +857,7 @@ M3 1차 범위 밖이고 M4 이후에 둔다(`product/scope/spec.md` 4.5, `_rese
 | 15 | `agent.settled` 구독 경로가 없음(REQ-LN-02 미반영) | `inFlightReviewId`가 남아 새 검토가 시작되지 않는다. `/learning` 명령 진입 때 `g.delegateStatus`로 조회해 비운다(§4.3 대체). 명령을 쓰지 않으면 검토가 한 번만 돈다. 그래서 REQ-LN-02는 M3 학습 그룹 착수의 선행 조건이다(L3.learning.plan §3) |
 | 16 | 위임 자식이 정착했는데 부모 대화가 삭제됨 | L1-g는 `agent.settled`를 남기지 않을 수 있다(L1.agents.spec §5 7번). 부모 대화가 없으므로 그 대화의 학습 상태도 없다. 대기열의 그 검토 후보는 대화 단위로 남는다 |
 | 17 | `AgentSettledPayload.lastItemId` 없음 | 검토를 시작하지 않고 카운터를 유지한다(`skip/excluded`로 기록하지 않는다). REQ-LN-01이 들어오기 전에는 학습 그룹이 검토를 시작할 수 없다 |
-| 18 | 승인 때 `scope: "project"`인데 L2-d가 프로젝트 쓰기를 거부 | 적용 결과가 `approval_required`(증거를 믿지 않는 구성)이면 후보는 `approved`에 남고 사용자에게 사유를 보인다. 다음 지연 정리가 다시 적용한다. 결과가 `invalid`이면 `apply_failed` 기록과 함께 `rejected/apply_failed`로 닫는다. 범위를 `user`로 바꾼 새 제안이 필요하다 |
+| 18 | 승인 때 `scope: "project"`인데 L2-d가 작업 폴더 쓰기를 거부 | 적용 결과가 `approval_required`(증거를 믿지 않는 구성)이면 후보는 `approved`에 남고 사용자에게 사유를 보인다. 다음 지연 정리가 다시 적용한다. 결과가 `invalid`이면 `apply_failed` 기록과 함께 `rejected/apply_failed`로 닫는다. 범위를 `user`로 바꾼 새 제안이 필요하다 |
 
 ## 6. 설정 노출
 
@@ -1010,7 +1010,7 @@ M3 설계 개정(2026-10-26)에서 옛 번호를 정리했다. 닫은 항목은 
 4. (닫힘) [결정: review.m3-design-inputs D-M3-06] Helm의 유휴 자율 turn은 허용된다. 학습 그룹은 `origin = "drive"` turn을 사용자 turn으로 세지 않는다(§4.9).
 5. (닫힘) [결정: review.m3-design-inputs D-M3-07] 안전 모드에서 L3 그룹을 싣지 않는다(§4.9).
 6. (닫힘) [결정: review.m3-design-inputs D-M3-08] 메모리 정본은 마크다운 파일이고 DB는 색인이다. 학습 그룹은 L2-d 쓰기 API만 쓰므로 설계 변경은 없다.
-7. (닫힘) [결정: review.m3-design-inputs D-M3-09] 모델 도구 경로는 프로젝트 스킬에 쓰지 못하고, 승인 화면에서 사용자가 프로젝트 범위를 고를 때만 쓴다(§4.5 규칙 8, §3.8 4번).
+7. (닫힘) [결정: review.m3-design-inputs D-M3-09] 모델 도구 경로는 작업 폴더 스킬에 쓰지 못하고, 승인 화면에서 사용자가 작업 폴더 범위를 고를 때만 쓴다(§4.5 규칙 8, §3.8 4번).
 8. (닫힘) [결정: review.m3-design-inputs D-M3-32] 대기열 둘을 유지한다. 학습 그룹 소유(`x_learning_proposals`)와 L2.knowledge 소유를 L4가 한 목록으로 합쳐 보인다(§3.7.1, REQ-LN-10).
 
 설계 질문:

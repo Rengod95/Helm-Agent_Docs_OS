@@ -1257,7 +1257,7 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 5. 풀림. 멈춘 디스패치는 `resume`이나 `step`이 풀거나, 그 디스패치의 `options.signal`(turn의 취소 신호)이 중단되거나, thread를 닫거나 다시 열 때 끝난다. 중단으로 풀린 뒤에도 요청은 남으므로 다음 경계는 다시 멈춘다.
 6. `resume(threadId)`: Test run이 아니면 `not_a_test_run`, 요청이 없으면 `{ kind: "not_paused" }`다. 그 밖에는 요청을 거두고 멈춘 경계를 풀어 `{ paused: false }`를 돌려준다.
 7. `step(threadId)`: Test run이 아니면 `not_a_test_run`, 요청이 없으면 `not_paused`다. 멈춘 중이면 그 경계를 풀고 요청은 남긴다(다음 경계에서 다시 멈춘다). 아직 멈추지 않았으면 다음 경계 하나를 지나가게 표하고, 그 뒤 경계부터 멈춘다. 두 경우 모두 `{ paused: true }`를 돌려준다.
-8. 설정과 안전 모드에서 독립이다. 멈춤 게이트는 `x.operations.*` 설정과 안전 모드를 읽지 않는다. 안전 모드는 로더가 L3 그룹과 사용자·프로젝트 tier를 싣지 않는 것(`startupFilter`)이고, 호스트는 그 값을 보지 않는다. 게이트의 판단 재료는 thread의 멈춤 요청과 디스패치의 훅 이름뿐이다. 그래서 설정을 끄거나 안전 모드를 켜도 Test run의 멈춤은 같다.
+8. 설정과 안전 모드에서 독립이다. 멈춤 게이트는 `x.operations.*` 설정과 안전 모드를 읽지 않는다. 안전 모드는 로더가 L3 그룹과 사용자·작업 폴더 tier를 싣지 않는 것(`startupFilter`)이고, 호스트는 그 값을 보지 않는다. 게이트의 판단 재료는 thread의 멈춤 요청과 디스패치의 훅 이름뿐이다. 그래서 설정을 끄거나 안전 모드를 켜도 Test run의 멈춤은 같다.
 9. `phase(threadId)`는 읽기만 한다. 아무것도 커밋하지 않는다(와이어 `testRun.phase`, W-50).
    - drive 락 보유자가 없으면(drive 락이 없거나, 커밋되지 않았거나, 반납이 커밋되었으면) `{ phase: null, group: null, seq: null }`이다.
    - 보유자 그룹의 매니페스트 `group.composition.phases`가 없으면 같은 값이다. 그룹 이름만 알리는 안은 [미결]로 남긴다 [제안].
@@ -1703,7 +1703,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - [결정: review.decisions-2 S-15] drive 보유 그룹 설정은 `x.primitives.activeDriver` 하나다. L3 문서는 별도 키를 두지 않고 이 키를 쓴다. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
 - [결정: review.decisions-2 U-12] 상한을 명시하지 않은 drive 락의 기본값은 `driveDefaultLimits` `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. 값 근거는 Helm 기본값과 같다(`L3.helm.spec` §6) [제안]. 그룹 덮어쓰기(예: `ext.helm.driveLimits`)는 각 그룹이 소유하고 `DriveOptions.limits`로 넘긴다. `driveLimits`는 천장이고 기본값 `{}`다(§4.4.2).
 - 명령 [가정: L4.cli.spec이 이름을 정한다]: `fresnel ext drive <registrationId>`가 `activeDriver`를 `launch` 범위로 바꾸고, `fresnel ext enable|disable <registrationId>`가 `RegistrationHandle.enable/disable`을 부른다.
-- 파일: 사용자·프로젝트 설정 파일의 같은 키(F.wire-settings.spec).
+- 파일: 사용자·작업 폴더 설정 파일의 같은 키(F.wire-settings.spec).
 
 ## 7. 훅
 

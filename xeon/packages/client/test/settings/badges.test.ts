@@ -21,7 +21,7 @@ describe("scope badge", () => {
     expect(scopeBadge({ scope: "user" })).toEqual({ scope: "user", text: "사용자", tone: "user" });
     expect(scopeBadge({ scope: "project" })).toEqual({
       scope: "project",
-      text: "프로젝트",
+      text: "작업 폴더",
       tone: "project",
     });
     expect(scopeBadge({ scope: "local" })).toEqual({ scope: "local", text: "로컬", tone: "local" });

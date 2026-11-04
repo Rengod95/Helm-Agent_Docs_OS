@@ -880,7 +880,7 @@ CREATE TABLE cap_work_meta (
 - [결정: WK.1] 간선 행의 읽기 순서는 삽입 순서(`rowid`)다. `blockedBy` 배열의 순서가 재생성 뒤에도 같다.
 - [결정: WK.3 통합] 작업 의존 간선 테이블 이름은 `cap_work_edges`다. 투영기 등록부(F.records.spec §3.4)가 접두 뒤 지역 이름에 밑줄을 허용하지 않아 `cap_work_task_edges`를 바꿨다. 투영 대역이 이 검사를 하지 않아 실제 등록부로 바꾸기 전에는 드러나지 않았다.
 - 투영기 `cap.work` 버전 3은 `cap_work_tasks`, `cap_work_edges`, `cap_work_plans`, `cap_work_meta`와 목표·보고의 `cap_work_goals`, `cap_work_judgments`, `cap_work_reports`를 만든다(버전 1은 작업 셋, 버전 2는 계획 추가, 버전 3은 목표·보고 추가).
-- [결정: WK.2] 권한 모드 추적은 `settings.changed`가 `launch` 범위에서 나온 변경만 본다. 파일 설정(사용자·프로젝트 범위)이 정한 모드는 이벤트가 없으므로 `mode_before_plan`은 `launch` 범위 이력의 직전 값이고, 그런 이력이 없으면 default다. 이 프로세스가 직접 계획 모드에 넣은 스레드는 메모리에 실제 직전 모드를 두고 우선한다(재시작 뒤에는 투영 값). L1.tools가 직전 모드를 이벤트로 남기면 이 한계가 사라진다(§10 W-16).
+- [결정: WK.2] 권한 모드 추적은 `settings.changed`가 `launch` 범위에서 나온 변경만 본다. 파일 설정(사용자·작업 폴더 범위)이 정한 모드는 이벤트가 없으므로 `mode_before_plan`은 `launch` 범위 이력의 직전 값이고, 그런 이력이 없으면 default다. 이 프로세스가 직접 계획 모드에 넣은 스레드는 메모리에 실제 직전 모드를 두고 우선한다(재시작 뒤에는 투영 값). L1.tools가 직전 모드를 이벤트로 남기면 이 한계가 사라진다(§10 W-16).
 - `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다. 투영기는 F에 있는 그 payload 스키마만 import한다(§10 W-2).
 
 ### 3.9 효과 분류 [결정: M3-REQ-88]
