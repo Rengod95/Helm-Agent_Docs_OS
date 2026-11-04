@@ -20,6 +20,7 @@ import type {
   GroupMetricsResult,
   GroupStatusWire,
   HookEntry,
+  NotifyDeliveredParams,
   HostConnection,
   ExtInstallResult,
   HooksOrderGetResult,
@@ -506,6 +507,17 @@ interface PluginUiCommands {
   current(): HostConnection | null;
 }
 
+/**
+ * 알림(P-03 받은 요청의 알림 묶음). 목록은 요청 결과라 거울에 넣지 않는다(FS-03). `onDelivered`는 연결이 바뀌면 끊기므로
+ * 부르는 부품이 연결 상태가 바뀔 때 다시 건다.
+ */
+export interface NoticeCommands {
+  /** `notify.list { afterSeq: 0 }`: 지금까지 쌓인 알림 */
+  list(): Promise<Result<WireResult<"notify.list">, CommandError>>;
+  /** `notify.delivered` 알림마다 `listener`를 부른다. 반환값은 구독 해제 */
+  onDelivered(listener: (delivered: NotifyDeliveredParams) => void): () => void;
+}
+
 export interface Commands {
   selectThread(threadId: ThreadId): void;
   /** `workspace`는 작업 폴더(절대 경로)이고 `thread.create`로 그대로 보낸다. 없으면 폴더 없는 대화다(G2-02) */
@@ -519,6 +531,12 @@ export interface Commands {
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** `thread.compact`: 지금 대화를 요약한다(수동 컴팩션). 요약할 것이 없으면 결과가 `skipped`로 와서 오류가 아니다 */
   compactThread(threadId: ThreadId): Promise<Result<WireResult<"thread.compact">, CommandError>>;
+  /** `thread.rename`: 대화 제목을 바꾼다. 목록 제목은 `thread.updated` 이벤트가 거울에 넣는다 */
+  renameThread(threadId: ThreadId, title: string): Promise<Result<null, CommandError>>;
+  /** `thread.close`: 대화를 닫는다(열린 turn이 있으면 host가 `turn_running`으로 거절한다). 닫힘 표시는 `thread.closed` 이벤트가 한다 */
+  closeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
+  /** `thread.delete`: 대화를 지운다. 성공하면 목록을 다시 읽고, 열려 있던 대화였다면 선택을 푼다 */
+  deleteThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** `turn.resume`: 멈춘 턴을 이어서 실행한다 */
   resumeTurn(threadId: ThreadId): Promise<Result<WireResult<"turn.resume">, CommandError>>;
   /**
@@ -575,6 +593,7 @@ export interface Commands {
   readonly work: WorkCommands;
   readonly review: ReviewCommands;
   readonly usage: UsageCommands;
+  readonly notices: NoticeCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */

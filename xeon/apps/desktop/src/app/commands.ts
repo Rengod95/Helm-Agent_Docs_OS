@@ -192,6 +192,27 @@ export function createCommands(deps: CommandDeps): Commands {
     },
     compactThread: (threadId) =>
       withWriteConnection((c) => c.request("thread.compact", { threadId })),
+    async renameThread(threadId, title) {
+      const done = await withWriteConnection((c) =>
+        c.request("thread.rename", { threadId, title }),
+      );
+      return done.ok ? ok(null) : done;
+    },
+    async closeThread(threadId) {
+      const done = await withWriteConnection((c) => c.request("thread.close", { threadId }));
+      return done.ok ? ok(null) : done;
+    },
+    async deleteThread(threadId) {
+      const done = await withWriteConnection((c) => c.request("thread.delete", { threadId }));
+      if (!done.ok) return done;
+      // 지운 thread에는 이벤트가 오지 않는다. 열려 있었다면 선택을 풀고 목록을 다시 읽는다
+      if (ui.read.getState().selectedThreadId === threadId) {
+        ui.actions.selectThread(null);
+        session.link()?.closeThread();
+      }
+      session.link()?.reloadThreads();
+      return ok(null);
+    },
     resumeTurn: (threadId) => withWriteConnection((c) => c.request("turn.resume", { threadId })),
     runCommandLine: (threadId, text) =>
       withWriteConnection((c) => c.request("command.run", { threadId, text })),
@@ -266,6 +287,15 @@ export function createCommands(deps: CommandDeps): Commands {
     work: createWorkCommands(withConnection, withWriteConnection),
     review: createReviewCommands(withConnection),
     usage: createUsageCommands(withConnection),
+    notices: {
+      list: () => withConnection((c) => c.request("notify.list", { afterSeq: 0 })),
+      onDelivered(listener) {
+        const connection = session.connection();
+        return connection === null
+          ? () => {}
+          : connection.onNotification("notify.delivered", listener);
+      },
+    },
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),
