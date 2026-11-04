@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { parseAttachResult, parseEngineState } from "../../src/transport/ipc.ts";
+import {
+  parseAttachResult,
+  parseEngineState,
+  parseRestoreReport,
+  type RestoreReport,
+} from "../../src/transport/ipc.ts";
 
 const exit = { code: 1, signal: null, at: "2026-10-24T00:00:00.000Z" };
 
@@ -27,5 +32,40 @@ describe("engine-state-schema", () => {
     expect(parseAttachResult({ epoch: 1, state: { kind: "stopped" } }).ok).toBe(true);
     expect(parseAttachResult({ epoch: 0, state: { kind: "stopped" } }).ok).toBe(false);
     expect(parseAttachResult({ epoch: 1, state: { kind: "nope" } }).ok).toBe(false);
+  });
+});
+
+describe("restore-report-schema", () => {
+  const report: RestoreReport = {
+    dbPath: "/data/fresnel.db",
+    backupDir: "/backups/export-1",
+    blobsAdded: 3,
+    missingBlobs: ["3f1a"],
+    previousDir: "/data/restore-previous/20261104T000000",
+    recovered: "rolled_back",
+  };
+
+  test("reads the report the CLI printed as it came", () => {
+    expect(parseRestoreReport(JSON.stringify(report))).toEqual({ ok: true, value: report });
+  });
+
+  test("a null previous folder and no recovery are valid", () => {
+    const fresh = { ...report, previousDir: null, recovered: null, missingBlobs: [] };
+    expect(parseRestoreReport(JSON.stringify(fresh))).toEqual({ ok: true, value: fresh });
+  });
+
+  test("text that is not JSON, an unknown recovery, a missing field, and an extra field are rejected", () => {
+    expect(parseRestoreReport("not json").ok).toBe(false);
+    expect(parseRestoreReport(JSON.stringify({ ...report, recovered: "sideways" })).ok).toBe(false);
+    expect(parseRestoreReport(JSON.stringify({ ...report, blobsAdded: -1 })).ok).toBe(false);
+    expect(parseRestoreReport(JSON.stringify({ ...report, extra: true })).ok).toBe(false);
+    const missing = {
+      dbPath: report.dbPath,
+      backupDir: report.backupDir,
+      blobsAdded: 0,
+      missingBlobs: [],
+      previousDir: null,
+    };
+    expect(parseRestoreReport(JSON.stringify(missing)).ok).toBe(false);
   });
 });

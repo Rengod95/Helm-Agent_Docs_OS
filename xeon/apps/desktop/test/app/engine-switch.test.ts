@@ -91,3 +91,14 @@ describe("engine retarget holds writes", () => {
     await app.stop();
   });
 });
+
+describe("the switch remembers the target it sent", () => {
+  test("the restore section reads no target before a retarget, then the target that was sent", async () => {
+    const { app } = await ready();
+    expect(app.commands.restore.engineTarget()).toBeNull();
+    const target = { kind: "remote", address: "10.0.0.2:7000" } as const;
+    expect(await app.commands.retargetEngine(target, 7000)).toEqual({ ok: true, value: null });
+    expect(app.commands.restore.engineTarget()).toEqual(target);
+    await app.stop();
+  });
+});

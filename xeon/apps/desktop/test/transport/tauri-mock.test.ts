@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createApp } from "../../src/app/bootstrap.ts";
+import { err, ok } from "@fresnel/contracts";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
 import { createTauriIpc } from "../../src/transport/ipc.ts";
 import { summary, thr } from "../state/helpers.ts";
@@ -95,6 +96,47 @@ describe("createTauriIpc over mockIPC", () => {
       () => {},
     );
     expect(attached).toEqual({ ok: false, error: { kind: "invalid", command: "engine_attach" } });
+  });
+});
+
+describe("db_restore over mockIPC", () => {
+  test("sends the backup folder as backupDir and hands back the exit code and both outputs", async () => {
+    const reply = {
+      exitCode: 3,
+      stdout: "",
+      stderr: "fresnel: 실행 중인 엔진이 데이터베이스를 쓰고 있다\n",
+    };
+    const fake = fakeIpc({ dbRestoreResult: ok(reply) });
+    const shell = mocked(fake);
+    expect(await shell.ipc.dbRestore("/backups/export-1")).toEqual({ ok: true, value: reply });
+    expect(shell.calls.map((call) => [call.cmd, call.args])).toEqual([
+      ["db_restore", { backupDir: "/backups/export-1" }],
+    ]);
+    expect(fake.restored).toEqual(["/backups/export-1"]);
+  });
+
+  test("a string rejection from the shell becomes the command code", async () => {
+    const fake = fakeIpc({
+      dbRestoreResult: err({ kind: "command", command: "db_restore", code: "busy" }),
+    });
+    const shell = mocked(fake);
+    expect(await shell.ipc.dbRestore("/backups/export-1")).toEqual({
+      ok: false,
+      error: { kind: "command", command: "db_restore", code: "busy" },
+    });
+  });
+
+  test("a reply that does not match the schema is an invalid error", async () => {
+    tauriMockIpc(fakeIpc());
+    // 종료 코드가 정수가 아니면 셸이 보낸 값이 아니다(TY-10)
+    mockIPC(() => ({ exitCode: "3", stdout: "", stderr: "" }));
+    disposers.push(() => {
+      clearMocks();
+    });
+    expect(await createTauriIpc().dbRestore("/backups/export-1")).toEqual({
+      ok: false,
+      error: { kind: "invalid", command: "db_restore" },
+    });
   });
 });
 

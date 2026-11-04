@@ -17,6 +17,11 @@ export interface EngineSwitch {
   /** 쓰기 명령을 지금 거절해야 하면 true */
   held(): boolean;
   /**
+   * 이 앱이 셸에 마지막으로 성공하게 보낸 대상. 이 앱 실행에서 대상을 바꾼 적이 없으면 `null`이다(셸의 대상을 모른다).
+   * 셸이 대상을 따로 알려 주지 않으므로 데이터 복원 화면이 이 값으로 원격 대상을 막는다. 셸은 같은 판정을 다시 한다.
+   */
+  current(): EngineTarget | null;
+  /**
    * 대상을 바꾼다. `graceMs`는 `l4.desktop.engine.shutdownGraceMs`다. 이미 같은 대상으로 바꾼 적이 있으면 셸이 아무 일도 하지 않으므로 보류하지 않는다.
    * 이미 바꾸는 중이면 `switching`이다.
    */
@@ -60,6 +65,7 @@ export function createEngineSwitch(deps: EngineSwitchDeps): EngineSwitch {
 
   return {
     held: () => state.holding,
+    current: () => state.last,
     async retarget(target, graceMs) {
       if (state.holding) return err({ kind: "switching" });
       if (state.last !== null && sameTarget(state.last, target)) return ok(null);

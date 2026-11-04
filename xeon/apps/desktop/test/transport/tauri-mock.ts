@@ -138,6 +138,15 @@ export function tauriMockIpc(fake: FakeIpc): {
       // 셸은 오류를 `{kind, ...}` 객체로 거부한다
       return registered.ok ? null : rejectLikeShell(registered.error);
     }
+    if (cmd === "db_restore") {
+      const backupDir = field(args, "backupDir");
+      if (typeof backupDir !== "string") throw new Error("db_restore expects a backupDir string");
+      const restored = await fake.ipc.dbRestore(backupDir);
+      if (!restored.ok) {
+        return rejectWith(restored.error.kind === "command" ? restored.error.code : "invalid");
+      }
+      return restored.value;
+    }
     if (cmd === "engine_detach") {
       await fake.ipc.detach(Number(field(args, "epoch")));
       return null;

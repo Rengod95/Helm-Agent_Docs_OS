@@ -87,6 +87,7 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     fileOpen: false,
     editors: {},
     toolsPanel: <p>TOOLS PANEL</p>,
+    restorePanel: <p>RESTORE PANEL</p>,
     rotationPanel: null,
     usagePanel: null,
     handlers,
@@ -387,5 +388,18 @@ describe("offline with desktop settings (L4.settings-ui §4.1.3)", () => {
     expect(rowOf(models, MODEL.key)).toContain(MODEL.ui?.label ?? "");
     expect(rowOf(models, MODEL.key)).toContain('disabled=""');
     expect(rowOf(models, MODEL.key)).toContain(t("client.settings.origin.engineOffline"));
+  });
+});
+
+describe("restore section", () => {
+  test("the advanced tab shows the restore panel, and the other tabs do not", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    expect(html(propsOf({ view, tab: "advanced" }))).toContain("RESTORE PANEL");
+    expect(html(propsOf({ view, tab: "models" }))).not.toContain("RESTORE PANEL");
+  });
+
+  test("a search lists fields instead, so the panel hides", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    expect(html(propsOf({ view, tab: "advanced", query: "기본" }))).not.toContain("RESTORE PANEL");
   });
 });

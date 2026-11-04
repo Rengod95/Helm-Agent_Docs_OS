@@ -930,7 +930,7 @@ $ echo $?
 
 #### 4.13.1 DB 되돌리기 (`db restore`) [결정: 2026-11-04 사용자]
 
-`fresnel db restore <폴더>`는 `db export` 사본을 데이터 디렉터리로 되돌립니다. 되돌리기는 `L0.store.spec` §4.10.1의 `restoreDatabase`가 합니다. 같은 함수를 나중의 설정 화면이 부를 수 있도록 CLI는 인자 해석과 출력만 맡고, 제품 화면은 이 명령에 더하지 않습니다.
+`fresnel db restore <폴더>`는 `db export` 사본을 데이터 디렉터리로 되돌립니다. 되돌리기는 `L0.store.spec` §4.10.1의 `restoreDatabase`가 합니다. CLI는 인자 해석과 출력만 맡습니다. 데스크톱 설정 화면(P-09 고급 탭, `L4.desktop-ux` §6.13)은 셸 명령 `db_restore`가 엔진을 내리고 사이드카에 `db restore <폴더> --json`을 한 번 시키는 방식으로 같은 명령을 부릅니다.
 
 - 순서(엔진 정지 순서 포함): 사용자가 Fresnel 앱과 chat을 닫고 `fresnel service stop`을 실행한 뒤 이 명령을 부릅니다. 엔진이 DB를 열고 있으면 `engine_running`으로 거절하고 아무것도 바꾸지 않습니다. 이 명령은 엔진을 멈추지 않습니다.
 - 사본은 먼저 검증합니다(무결성, 블롭 해시, 버전). 더 새 버전이 만든 사본은 `future_version`으로 거절하고 데이터베이스 버전 두 값을 문구에 씁니다. 검증이 끝나기 전에는 현재 DB를 건드리지 않습니다.

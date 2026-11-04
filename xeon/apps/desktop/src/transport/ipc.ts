@@ -1,9 +1,18 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { attemptAsync, parse, type ParseError, type Result } from "@fresnel/contracts";
+import {
+  attemptAsync,
+  err,
+  parse,
+  parseJson,
+  type JsonParseError,
+  type ParseError,
+  type Result,
+} from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import {
   Type,
   type Static,
+  type TArray,
   type TInteger,
   type TLiteral,
   type TNull,
@@ -113,6 +122,55 @@ export function parseAttachResult(value: unknown): Result<AttachResult, ParseErr
 }
 
 /**
+ * 데이터 복원 보고서(`fresnel db restore --json`의 stdout, platform-store `RestoreReport`와 같은 모양).
+ * 이 화면이 셸이 보낸 글을 읽으므로 스키마로 검사한다(TY-10). 모르는 필드는 거절한다.
+ */
+const RestoreReportSchema: TObject<{
+  dbPath: TString;
+  backupDir: TString;
+  blobsAdded: TInteger;
+  missingBlobs: TArray<TString>;
+  previousDir: TUnion<[TString, TNull]>;
+  recovered: TUnion<[TLiteral<"rolled_back">, TLiteral<"rolled_forward">, TNull]>;
+}> = Type.Object(
+  {
+    dbPath: Type.String({ maxLength: 4096 }),
+    backupDir: Type.String({ maxLength: 4096 }),
+    blobsAdded: Type.Integer({ minimum: 0 }),
+    missingBlobs: Type.Array(Type.String({ maxLength: 128 })),
+    previousDir: Type.Union([Type.String({ maxLength: 4096 }), Type.Null()]),
+    recovered: Type.Union([
+      Type.Literal("rolled_back"),
+      Type.Literal("rolled_forward"),
+      Type.Null(),
+    ]),
+  },
+  { additionalProperties: false },
+);
+export type RestoreReport = Static<typeof RestoreReportSchema>;
+
+/** 셸 `db_restore`의 stdout을 읽는다. 종료 코드 0일 때만 이것으로 읽는다(app/restore.ts) */
+export function parseRestoreReport(
+  text: string,
+): Result<RestoreReport, JsonParseError | ParseError> {
+  const json = parseJson(text);
+  if (!json.ok) return err(json.error);
+  return parse(RestoreReportSchema, json.value);
+}
+
+/** 셸 `db_restore`가 돌려준 실행 결과. 종료 코드와 두 출력을 그대로 싣는다. 뜻은 app/restore.ts가 정한다 */
+const DbRestoreReplySchema: TObject<{ exitCode: TInteger; stdout: TString; stderr: TString }> =
+  Type.Object(
+    {
+      exitCode: Type.Integer(),
+      stdout: Type.String(),
+      stderr: Type.String(),
+    },
+    { additionalProperties: false },
+  );
+export type DbRestoreReply = Static<typeof DbRestoreReplySchema>;
+
+/**
  * 키 등록 명령(`secret_register`)의 오류. 셸이 `{kind, ...}` 객체로 거부한다(src-tauri/src/secret_entry.rs).
  * `unknown`은 IPC 자체가 실패했거나 셸이 모르는 모양을 돌려준 경우다.
  */
@@ -181,6 +239,11 @@ export interface DesktopIpc {
   restart(): Promise<Result<null, IpcError>>;
   /** 대상을 바꾸고 엔진을 새 대상으로 다시 띄운다(W-08). 같은 대상이면 아무 일도 없다 */
   retarget(target: EngineTarget): Promise<Result<null, IpcError>>;
+  /**
+   * 데이터 복원(`db_restore`). 셸이 `fresnel db restore <폴더> --json`을 엔진을 띄우지 않고 실행해 종료 코드와 두 출력을 돌려준다.
+   * 셸이 거절하면(원격 대상, 이미 진행 중 등) 오류 코드가 `IpcError`로 온다. 종료 코드의 뜻은 app/restore.ts가 나눈다.
+   */
+  dbRestore(backupDir: string): Promise<Result<DbRestoreReply, IpcError>>;
   /** 데스크톱 로컬 설정 파일의 내용(V-14). 파일이 없으면 빈 객체 */
   readSettings(): Promise<Result<Readonly<Record<string, unknown>>, IpcError>>;
   /** 로컬 설정 한 키를 쓴다. 모르는 키나 범위 밖 값은 셸이 거부한다 */
@@ -264,6 +327,14 @@ export function createTauriIpc(): DesktopIpc {
         await invoke("engine_retarget", { target });
         return null;
       }),
+    async dbRestore(backupDir) {
+      const raw = await call<unknown>("db_restore", () =>
+        invoke<unknown>("db_restore", { backupDir }),
+      );
+      if (!raw.ok) return raw;
+      const parsed = parse(DbRestoreReplySchema, raw.value);
+      return parsed.ok ? parsed : { ok: false, error: { kind: "invalid", command: "db_restore" } };
+    },
     async readSettings() {
       const raw = await call<unknown>("desktop_settings_read", () =>
         invoke<unknown>("desktop_settings_read"),
