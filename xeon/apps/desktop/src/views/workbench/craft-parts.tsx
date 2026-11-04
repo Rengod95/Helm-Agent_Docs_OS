@@ -114,7 +114,7 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
  * 질문하는 동안 확장은 켜 둔 채다. 경고이므로 아이콘 뒤에 숨기지 않고 글로 그대로 보인다(DP-58).
  * 연결이 끊겼거나 확장이 잠겼으면 두 답을 누를 수 없다(`keepOffOf`). `compact`면 오른쪽 탭처럼 좁은 자리용이다.
  */
-export function KeepOffAlert(props: {
+function KeepOffAlert(props: {
   readonly entry: ExtListEntry;
   readonly compact?: boolean | undefined;
   readonly onKeepOn: () => void;
