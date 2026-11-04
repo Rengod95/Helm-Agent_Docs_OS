@@ -225,6 +225,17 @@ test("a user extension cannot ask for the builtin trust level", async () => {
   expect(fakeGroupSdk.seen).toEqual([]);
 });
 
+test("a user extension named like a guard package gets the user tier, never guard", async () => {
+  // guard tier는 내장 위치의 허용 목록(GUARD_EXTENSIONS)만 받는다. 설치로 놓인 확장은 이름이 같아도 user tier다(X.operations.spec §4.1.2)
+  await writePlugin(userExtensions, "core-tools", { name: "core-tools" });
+  const harness = await harnessOf();
+  const report = await harness.loader.loadAll(loadOptions(harness));
+  expect(report.extensions.map((info) => [info.name, info.source, info.trust, info.state])).toEqual(
+    [["core-tools", "user", "user", "active"]],
+  );
+  expect(harness.policy.tiers.get("core-tools")).toBe("user");
+});
+
 test("built-in names win over user extensions and user wins over project", async () => {
   await writePlugin(userExtensions, "dup", { name: "dup" });
   await writePlugin(userExtensions, "clash", { name: "clash" });
