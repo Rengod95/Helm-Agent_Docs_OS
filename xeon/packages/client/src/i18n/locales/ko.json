@@ -1184,6 +1184,8 @@
   "desktop.workspace.folderRefused": "작업 폴더를 열 수 없어요. 있는 폴더의 절대 경로인지 확인해 주세요.",
   "desktop.workspace.hint.relative": "작업 폴더는 절대 경로로 적어야 해요. 예: /Users/me/project",
   "desktop.workspace.hint.tooLong": "작업 폴더 경로가 너무 길어요.",
+  "desktop.workspace.pickFailed": "폴더 고르는 창을 열지 못했어요. 경로를 직접 적어도 돼요.",
+  "desktop.workspace.pickFolderButton": "폴더 고르기…",
   "settings.l4.cli.keybindingsFile.label": "CLI 키 바인딩 파일",
   "settings.l4.cli.outputMode.label": "print 모드 기본 출력",
   "settings.l4.cli.statusLine.label": "CLI 상태 줄 항목",

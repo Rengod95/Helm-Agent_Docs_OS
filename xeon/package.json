@@ -65,6 +65,7 @@
     "turndown": "7.2.4",
     "@types/turndown": "5.0.6",
     "defuddle": "0.19.5",
+    "@browserbasehq/stagehand": "4.3.0",
     "age-encryption": "0.3.1",
     "@vscode/ripgrep": "1.18.0",
     "@opentelemetry/api": "1.10.0",

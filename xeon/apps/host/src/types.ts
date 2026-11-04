@@ -50,7 +50,7 @@ import type {
   WireParams,
   WireResult,
 } from "@fresnel/contracts/wire";
-import type { DnsResolver, HttpTransport } from "@fresnel/cap-web";
+import type { BrowserEnginePort, DnsResolver, HttpTransport } from "@fresnel/cap-web";
 import type {
   ScheduleClock,
   ScheduleService,
@@ -104,6 +104,8 @@ export interface AssembleOptions {
     readonly transport?: HttpTransport;
     /** 모델 provider의 hosted 검색 대역(내장 검색 래퍼). 생략하면 `fresnel.models`의 포트를 쓴다 */
     readonly hostedSearch?: HostedSearchPort;
+    /** 브라우저 엔진(`web.browse`의 `stagehand` 후보). 생략하면 Stagehand 어댑터다. 시험은 실제 Chrome을 띄우지 않도록 가짜를 넣는다 */
+    readonly browserEngine?: BrowserEnginePort;
   };
   /**
    * 테스트 주입: 시크릿 서비스(와 관리 서비스)를 만드는 함수. 운영은 생략하고 그러면 sops 제공자를 가진 `createSecretsRuntime`을 쓴다.

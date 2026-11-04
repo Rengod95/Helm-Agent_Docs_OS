@@ -955,7 +955,8 @@ export const registrations: readonly WebProviderRegistration[] = [
 | `builtin-wrapper` | search | builtin | `session` | 검색 수수료 + 토큰. `_research/durable-and-search-facts.md` §B-1 값으로 asOf 2026-10-21 | Anthropic 약관 미확인이라 `session`(`_research/web-tools.md` §4.7) |
 | `local` | fetch | builtin | `persist` | `free` | 로컬 파이프라인(§4.9) |
 | `playwright-local` | browse | builtin | `persist` | `browser_minutes` 0달러(로컬) | §4.10 |
-| `playwright-mcp` | browse | builtin | `none` | 가격표 단위 없음(0달러) | §4.10.4a. 기본 경로. `browserMcp` 포트가 있을 때만 후보다 |
+| `stagehand` | browse | builtin | `none` | 가격표 단위 없음(0달러, 로컬 Chrome) | §4.10.4a. 첫 내장 후보. `browserEngine` 포트가 있을 때만 후보다 |
+| `playwright-mcp` | browse | builtin | `none` | 가격표 단위 없음(0달러) | §4.10.4a. 폴백. `browserMcp` 포트가 있을 때만 후보다 |
 | `agent-browser` | browse | builtin(2차) | `persist` | 0달러(로컬) | 2차, §4.10.5 |
 | `native` | research | builtin(2차) | 하위 호출을 따른다 | 하위 호출 합산 | §4.11 |
 
@@ -1507,7 +1508,8 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 
 #### 4.10.4a MCP stdio provider와 기본 경로
 
-- [결정: 오케스트레이터 기본값] Stagehand 추가는 2026-11-04에 승인됐다(설치 약 30 MB 검토) [결정: 2026-11-04 사용자]. 구현 전이라 기본 경로는 MCP stdio provider다. 기본 경로는 MCP stdio provider다. 도구는 Playwright MCP(`playwright-mcp`)이고 origin은 `builtin`, cachePolicy는 `none`이다. 구현은 `browse/mcp-provider.ts`의 `createMcpBrowseProvider`다. 시험은 가짜 포트(`testing/fake-browser-mcp.ts`)로 한다.
+- [결정: 오케스트레이터 기본값] Stagehand 추가는 2026-11-04에 승인됐다(설치 약 30 MB 검토) [결정: 2026-11-04 사용자]. 기본 경로는 엔진 provider `stagehand`다. 엔진은 Stagehand 4.3.0 로컬 Chrome이고 origin은 `builtin`, cachePolicy는 `none`이다. 포트 `BrowserEnginePort`(`ports/browser-engine.ts`)는 평평한 데이터만 주고받고 cap-web은 `@browserbasehq/stagehand`를 import하지 않는다. provider는 `browse/engine-provider.ts`의 `createEngineBrowseProvider`다. 실제 어댑터는 `apps/host/src/assembly/web-stagehand.ts`의 `createStagehandEnginePort`이고 `assembly/cap-web.ts`가 `createWebRuntime`의 `browserEngine` 옵션으로 넘긴다. Stagehand는 `open`이나 `available`을 처음 부를 때만 동적 import로 읽는다(시작 시간을 내지 않는다). Chrome은 `CHROME_PATH`가 있으면 그 경로로 띄우고, 없으면 Stagehand의 표준 위치에서 찾는다. Chrome이 없으면 `available`은 거짓이고 `open`은 `unavailable`이라 엔진 후보는 건너뛰며 아래의 MCP 폴백이 쓰인다. 임시 프로필은 `os.dirs.tmp` 아래에 만들어 닫을 때 지우고, 명명 프로필은 `os.dirs.data/browser-profiles/<이름>`에 두어 남긴다. 폴백은 Playwright MCP(`playwright-mcp`)이고 origin은 `builtin`, cachePolicy는 `none`이다. 구현은 `browse/mcp-provider.ts`의 `createMcpBrowseProvider`다. 시험은 가짜 포트(`testing/fake-browser-engine.ts`, `testing/fake-browser-mcp.ts`)로 하고 `test/engine-browse-provider.test.ts`, `test/mcp-browse-provider.test.ts`가 본다.
+- 엔진 provider 매핑: 엔진 스냅샷의 `formattedTree` 줄마다 `e<N>` ref를 줄 순서대로 붙인다. 역할은 줄의 `:` 앞이고 이름은 뒤다(`:`이 없으면 줄의 나머지 전부가 역할이다). ref → XPath 표는 스냅샷마다 새로 만들고, 마지막 스냅샷에 없는 ref는 `ref_invalid`다. 스냅샷 텍스트는 `- 역할 "이름" [ref=eN]` 꼴이고 링크 주소는 그 아래 `- /url: 주소` 줄로 싣는다. `click`, `fill`, `select`는 XPath로 가고, `type`에 대상 ref가 없으면 초점이 있는 요소에 친다. `scroll`은 한 번에 500픽셀, 상한은 20번이다 [가정]. `hover`, `back`, `forward`, `upload`, `evaluate`는 `unsupported`다. `read`의 `text`는 엔진의 페이지 본문이고, `describe`의 폼 action은 폼을 제출할 수 있는 요소에만 엔진에 묻는다. 한 번에 열린 "세션"은 하나다(`stagehand supports one session`).
 - 포트 `BrowserMcpPort`(`ports/browser-mcp.ts`)가 서버와의 경계다. `available(signal)`은 서버가 설정되어 연결되었는지를 `{ ok: true }` 또는 `{ ok: false, detail }`로 답한다. 연결이 없으면 탐침 사유는 `unreachable`이다. `callTool(tool, args, signal)`은 도구 하나를 부르고 `text`, `images`, `isError`를 담은 `Result`를 돌려준다. 포트 실패는 `unavailable`(재시도 가능)이나 `aborted`다. cap-web은 cap-mcp를 import하지 않는다. 조립(`createWebRuntime`의 `browserMcp` 옵션)이 `McpService`를 이 포트에 맞춘다.
 - 도구 매핑. Playwright MCP의 도구 이름과 인자는 이 저장소에서 검증하지 않았다 [가정]. 아래 표가 이 구현의 매핑이다.
 
@@ -1539,8 +1541,8 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 - 트래픽 필터: 필터 프록시를 띄우지 않는 조립(MCP stdio 경로)에서는 `BrowserOpenOptions.proxy`가 없다. 브라우저의 하위 요청 트래픽은 샌드박스 네트워크 필터가 맡는다(§10 미결 8). 앞단은 이동 URL만 검사한다. 검사하는 곳은 `open`의 `url`, `navigate` 동작, 동작 뒤의 모든 최상위 문서 이동이다(§4.10.2).
 - 브라우저 "세션" 상한은 구현되어 있다(§4.10.1). 기본값은 대화마다 동시 브라우저 "세션" 3개(`maxSessions`), 30분(`maxMinutes`), 200회(`maxActions`), 0.5달러(`maxUsd`)다. 동시 브라우저 "세션" 수를 넘으면 새 "세션"을 거부한다. 시간, 동작 수, 비용을 넘으면 `session_budget`을 내고 "세션"을 닫는다.
 - 비활성 동작과 사람 확인도 구현되어 있다(§4.10.3). `evaluate`와 `upload`는 설정이 꺼져 있으면 `action_disabled`다. 명명 프로필은 설정이 켜져 있고 호출마다 확인을 받아야 열린다. 확인 포트 `BrowseConfirmPort`(`src/ports/confirm.ts`)가 없거나 `unavailable`이면 확인이 필요한 동작은 `confirmation_denied`다. 어휘는 `browse/confirm.ts`의 상수이고 보수적이다. "Order history"처럼 탐색용 이름도 `order` 어휘에 걸려 확인을 받는다.
-- 후보: `catalog.browseCandidates()`는 `createWebRuntime({ builtin: { browse } })`로 받은 내장 후보와 플러그인 등록을 낸다. 플러그인 등록은 기능 `web.browse`이고 provider ID는 `plugin:<확장 이름>`, origin은 `plugin`이다. 매니페스트의 `services`에 `browse`가 없으면 `service_not_declared`로 거부한다. `browserMcp` 포트로 만든 `playwright-mcp` 후보는 `builtin.browse` 뒤에 붙는다.
-- 순서는 검색과 같은 `planSelection`(`src/select/order.ts`)이 정한다(§4.8.2). 사용자가 `l2.web.browse.order`에 올린 순서가 먼저이고, 목록에 없는 후보는 내장 다음 플러그인 순이다.
+- 후보: `catalog.browseCandidates()`는 `createWebRuntime({ builtin: { browse } })`로 받은 내장 후보와 플러그인 등록을 낸다. 플러그인 등록은 기능 `web.browse`이고 provider ID는 `plugin:<확장 이름>`, origin은 `plugin`이다. 매니페스트의 `services`에 `browse`가 없으면 `service_not_declared`로 거부한다. `browserEngine` 포트로 만든 `stagehand` 후보는 `builtin.browse` 뒤에, `browserMcp` 포트로 만든 `playwright-mcp` 후보는 그 뒤에 붙는다.
+- 순서는 검색과 같은 `planSelection`(`src/select/order.ts`)이 정한다(§4.8.2). 사용자가 `l2.web.browse.order`에 올린 순서가 먼저이고, 목록에 없는 후보는 내장 다음 플러그인 순이다. 목록에 없는 내장 후보끼리는 id 순이라 `playwright-mcp`가 `stagehand`보다 앞선다. 그래서 기본 순서를 `l2.web.browse.order`의 기본값 `["stagehand", "playwright-mcp"]`로 정한다.
 
 #### 4.10.5 `agent-browser` provider (2차, 미구현)
 
@@ -1692,7 +1694,7 @@ stateDiagram-v2
 | `l2.web.limits.searchPerSession` | integer | `100` | min 0, max 100000 | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.limits.fetchPerSession` | integer | `300` | min 0, max 100000 | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.browse.provider` | string(`"auto"` 또는 ProviderId) | `"auto"` | — | nextTurn | managed, user, project, local, launch | tools | false |
-| `l2.web.browse.order` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
+| `l2.web.browse.order` | string[](ProviderId) | `["stagehand", "playwright-mcp"]` | — | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.browse.headless` | boolean | `true` | — | nextTurn | managed, user, project, local, launch | tools | false |
 | `l2.web.browse.runtime` | string | `"auto"` | enum auto, bun, node | restart | managed, user | tools | false |
 | `l2.web.browse.executablePath` | string | `""` | — | restart | managed, user, local | tools | false |
@@ -1867,7 +1869,7 @@ export const webSettings = defineSettings("l2.web", {
 6. 닫힘. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7, 기본값 `never`). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
 7. [미결] 대화당 호출 상한 카운터의 영속화. 제안은 프로세스 메모리다(§4.4.4).
 8. [미결] 브라우저 트래픽 필터를 `cap-web` 로컬 프록시로 할지 `L0.sandbox`의 네트워크 필터로 할지(§4.10.2). playwright-local에서 `allowedDomains`를 강제하는 방법은 선행 조사에서도 확인되지 않았다(`_research/notes/L2-2.md` §6).
-9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다. [결정: 오케스트레이터 기본값] Stagehand 추가는 2026-11-04에 승인됐지만 [결정: 2026-11-04 사용자] 아직 구현 전이라 기본 경로가 아니다. 기본 경로는 §4.10.4a의 MCP stdio provider다.
+9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다. [결정: 오케스트레이터 기본값] Stagehand 추가는 2026-11-04에 승인됐지만 [결정: 2026-11-04 사용자] 엔진 어댑터(apps/host)는 `assembly/web-stagehand.ts`로 붙었다. cap-web은 엔진 provider `stagehand`를 첫 내장 후보로, `playwright-mcp`를 폴백으로 둔다(§4.10.4a). Chrome이 없는 기기에서는 실제 기본 경로가 `playwright-mcp`다.
 10. [미결] `web.research` 실행 기록의 영속화와 재개(2차, §4.11.4).
 11. [미결] provider 선택 키의 값 목록 표시. 플러그인 설치 상태에 따라 바뀌는 선택지를 `SettingDef`로 표현하는 방법(`L4.settings-ui.spec`과 함께, §6).
 12. [미결] 기본 추출기. 제안은 readability 0.6.0 + linkedom 0.18.13이고 defuddle 0.19.5는 설정으로 고른다. 우리 샘플 페이지로 비교 측정한 뒤 정한다(`_research/web-tools.md` §2.3 "측정마다 순위가 뒤집힌다").

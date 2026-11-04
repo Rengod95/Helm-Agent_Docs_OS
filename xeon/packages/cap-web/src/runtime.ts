@@ -31,7 +31,9 @@ import { createProbeCache, type ProbeCache } from "./search/probe-cache.ts";
 import { createBuiltinSearchCandidates } from "./search/providers/builtin.ts";
 import { createProviderRegistry, type RegistrationSource } from "./search/registry.ts";
 import { createBrowseApi, type BrowseController } from "./browse/service.ts";
+import { createEngineBrowseProvider } from "./browse/engine-provider.ts";
 import { createMcpBrowseProvider } from "./browse/mcp-provider.ts";
+import type { BrowserEnginePort } from "./ports/browser-engine.ts";
 import type { BrowserMcpPort } from "./ports/browser-mcp.ts";
 import type { BrowseConfirmPort } from "./ports/confirm.ts";
 import { createWebService } from "./service.ts";
@@ -73,7 +75,12 @@ export interface WebRuntimeOptions {
   /** false면 내장 검색 provider(builtin-wrapper)를 후보에 넣지 않는다. 기본 true. 체인을 직접 짜는 시험이 쓴다 */
   readonly builtinSearch?: boolean;
   /**
-   * 브라우저 MCP 포트(L2.web.spec §4.10.4a). 있으면 `playwright-mcp` 후보가 내장 `web.browse` 후보 뒤에 붙는다.
+   * 브라우저 엔진 포트(L2.web.spec §4.10.4a). 있으면 `stagehand` 후보가 내장 `web.browse` 후보의 맨 앞에 붙는다.
+   * 엔진 어댑터(Stagehand)는 조립 쪽이 맞춘다
+   */
+  readonly browserEngine?: BrowserEnginePort;
+  /**
+   * 브라우저 MCP 포트(L2.web.spec §4.10.4a). 있으면 `playwright-mcp` 후보가 `stagehand` 뒤에 붙는다(폴백).
    * 서버 연결은 조립 쪽이 맡는다
    */
   readonly browserMcp?: BrowserMcpPort;
@@ -147,17 +154,33 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
           logger: options.logger,
           hosted: options.hostedSearch,
         });
-  const browseBuiltin: readonly BrowseCandidate[] =
-    options.browserMcp === undefined
-      ? (options.builtin?.browse ?? [])
+  // 자동 선택 순서는 `planSelection`이 정한다. 목록에 없는 내장 후보는 id 순이라(playwright-mcp가 stagehand보다 앞) 기본 순서는
+  // 설정 `browse.order`의 기본값이 정한다
+  const engineBrowse: readonly BrowseCandidate[] =
+    options.browserEngine === undefined
+      ? []
       : [
-          ...(options.builtin?.browse ?? []),
+          {
+            provider: createEngineBrowseProvider(options.browserEngine),
+            origin: "builtin",
+            cachePolicy: "none",
+          },
+        ];
+  const mcpBrowse: readonly BrowseCandidate[] =
+    options.browserMcp === undefined
+      ? []
+      : [
           {
             provider: createMcpBrowseProvider(options.browserMcp),
             origin: "builtin",
             cachePolicy: "none",
           },
         ];
+  const browseBuiltin: readonly BrowseCandidate[] = [
+    ...(options.builtin?.browse ?? []),
+    ...engineBrowse,
+    ...mcpBrowse,
+  ];
   const catalog = createProviderRegistry({
     source: options.registrations ?? EMPTY_SOURCE,
     builtin: {

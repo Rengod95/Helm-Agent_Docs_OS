@@ -1184,6 +1184,8 @@
   "desktop.workspace.folderRefused": "Could not open the working folder. Check that it is the absolute path of an existing folder.",
   "desktop.workspace.hint.relative": "Enter the working folder as an absolute path. Example: /Users/me/project",
   "desktop.workspace.hint.tooLong": "The working folder path is too long.",
+  "desktop.workspace.pickFailed": "Could not open the folder picker. You can type the path instead.",
+  "desktop.workspace.pickFolderButton": "Choose folder…",
   "settings.l4.cli.keybindingsFile.label": "CLI key bindings file",
   "settings.l4.cli.outputMode.label": "Default output for print mode",
   "settings.l4.cli.statusLine.label": "CLI status line items",

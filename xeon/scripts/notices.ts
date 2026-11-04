@@ -50,6 +50,8 @@ export const NO_LICENSE_FILE: ReadonlySet<string> = new Set([
   "data-uri-to-buffer",
   "proxy-agent-negotiate",
   "standardwebhooks",
+  "tr46",
+  "undici-types",
 ]);
 
 /** License fields that a vendored package keeps in UPSTREAM.json instead of package.json. */

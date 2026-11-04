@@ -16,6 +16,8 @@
     "allow-desktop-settings-write",
     "allow-secret-register",
     "allow-app-roots-set",
-    "allow-open-external"
+    "allow-open-external",
+    "allow-pick-folder",
+    "allow-os-reauth"
   ]
 }

@@ -439,6 +439,9 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ...(deps.webPorts?.hostedSearch === undefined
             ? {}
             : { hostedSearch: deps.webPorts.hostedSearch }),
+          ...(deps.webPorts?.browserEngine === undefined
+            ? {}
+            : { browserEngine: deps.webPorts.browserEngine }),
           loadIndex,
         }),
     ],

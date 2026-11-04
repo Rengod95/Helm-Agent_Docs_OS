@@ -119,6 +119,15 @@ export type {
   BrowserMcpPort,
   BrowserMcpResult,
 } from "./ports/browser-mcp.ts";
+export type {
+  BrowserEnginePort,
+  EngineError,
+  EngineOpenOptions,
+  EngineScreenshot,
+  EngineSession,
+  EngineSnapshot,
+} from "./ports/browser-engine.ts";
+export { createEngineBrowseProvider } from "./browse/engine-provider.ts";
 export type { WebDeps } from "./deps.ts";
 export { failureOfThrown } from "./provider-errors.ts";
 export { createWebRuntime } from "./runtime.ts";

@@ -292,7 +292,8 @@ const webSettings = defineSettings("l2.web", {
   },
   "browse.order": {
     type: Type.Array(ProviderChoiceType, { maxItems: 32 }),
-    default: [],
+    // 엔진(stagehand)이 먼저, mcp가 폴백이다. 엔진 포트가 없으면 이 목록에서 건너뛴다(L2.web.spec §4.10.4a)
+    default: ["stagehand", "playwright-mcp"],
     runtimeChange: "nextTurn",
     allowedScopes: NO_SESSION,
     ui: {
@@ -498,7 +499,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   },
   browse: {
     provider: "auto",
-    order: [],
+    order: ["stagehand", "playwright-mcp"],
     headless: true,
     maxMinutes: 30,
     maxActions: 200,

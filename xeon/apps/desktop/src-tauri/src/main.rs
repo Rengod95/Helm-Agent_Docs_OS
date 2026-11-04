@@ -8,9 +8,11 @@ mod applog;
 mod desktop_settings;
 mod engine;
 mod env_path;
+mod folder_pick;
 #[cfg(debug_assertions)]
 mod inspect;
 mod open_external;
+mod os_reauth;
 mod relay;
 mod secret_entry;
 mod time;
@@ -37,6 +39,8 @@ fn main() {
             reopen_main(app);
         }))
         .plugin(tauri_plugin_shell::init())
+        // 폴더 선택 창. WebView에는 dialog 권한을 주지 않는다. 창은 folder_pick::pick_folder가 Rust에서 연다
+        .plugin(tauri_plugin_dialog::init())
         // Plugin App 전용 스킴. 프레임 파일은 이 스킴으로만 나온다(view_scheme.rs, ADR-0021 §3.6.2)
         .register_uri_scheme_protocol(view_scheme::SCHEME, |ctx, request| {
             match ctx.app_handle().try_state::<Arc<view_scheme::AppRoots>>() {
@@ -68,7 +72,9 @@ fn main() {
             desktop_settings::desktop_settings_write,
             secret_entry::secret_register,
             view_scheme::app_roots_set,
-            open_external::open_external
+            open_external::open_external,
+            folder_pick::pick_folder,
+            os_reauth::os_reauth
         ])
         .setup(|app| {
             let log = Arc::new(AppLog::open(app.path().app_log_dir().ok().as_deref()));

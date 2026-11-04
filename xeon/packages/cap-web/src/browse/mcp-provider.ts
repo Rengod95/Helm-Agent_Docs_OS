@@ -2,8 +2,7 @@ import { assertNever, err, ok, parse, type Result } from "@fresnel/contracts";
 import {
   BrowsePageSchema,
   BrowseSnapshotSchema,
-  CapabilityError,
-  WebBrowse,
+  type CapabilityError,
   type BrowsePage,
   type BrowseSnapshot,
   type BrowserSessionHandle,
@@ -12,8 +11,26 @@ import {
   type WebBrowseProvider,
   type WebProviderManifest,
 } from "@fresnel/contracts/capabilities";
-import { Type, type Static } from "typebox";
 import type { BrowserMcpError, BrowserMcpPort, BrowserMcpResult } from "../ports/browser-mcp.ts";
+import {
+  checkedScreenshot,
+  clip,
+  DEFAULT_WAIT_MS,
+  FORM_ROLES,
+  invalidInput,
+  linesOfMatches,
+  MAX_FAILURE_TEXT,
+  MAX_NAME,
+  MAX_REFS,
+  MAX_ROLE,
+  MAX_SCROLL_PRESSES,
+  MAX_TITLE,
+  MAX_URL,
+  neverAborted,
+  providerError,
+  type Screenshot,
+  TAB_ID,
+} from "./shared.ts";
 
 // L2.web.spec §4.10.4a. 기본 브라우저 경로. Playwright MCP 서버의 도구를 `WebBrowseProvider`의 좁은 세션 핸들로 옮긴다.
 // 도구 이름과 인자는 이 저장소에서 검증하지 않은 가정이다 [가정: Playwright MCP 도구 스키마]. 응답은 Markdown이라
@@ -24,20 +41,8 @@ import type { BrowserMcpError, BrowserMcpPort, BrowserMcpResult } from "../ports
 // 그 값을 `WebFailure`로 바꾼다. 그래서 이 파일의 `method` 값은 자리표시다.
 
 const PROVIDER_ID = "playwright-mcp";
-const TAB_ID = "t1";
-/** 스크롤 한 번이 누르는 키 수의 상한. `amount`가 이보다 커도 이만큼만 누른다 [가정] */
-const MAX_SCROLL_PRESSES = 20;
-/** 스냅샷 ref 상한(`BrowseSnapshot.refs`의 maxItems) */
-const MAX_REFS = 4000;
-/** 도구 실패 문구를 오류 메시지에 싣는 길이 */
-const MAX_FAILURE_TEXT = 500;
-const MAX_TITLE = 512;
-const MAX_ROLE = 64;
-const MAX_NAME = 256;
-const MAX_SCREENSHOT_DATA = 2_000_000;
 /** 스크린샷의 픽셀 크기는 도구 응답에 없다. 1×1로 둔다 [가정] */
 const UNKNOWN_SIZE = 1;
-const DEFAULT_WAIT_MS = 1000;
 
 const SCROLL_KEYS: Readonly<Record<"up" | "down" | "left" | "right", string>> = {
   up: "PageUp",
@@ -51,44 +56,12 @@ const PAGE_TITLE = /^- Page Title: (.*)$/m;
 const SNAPSHOT_BLOCK = /```yaml\n([\s\S]*?)\n?```/;
 /** 스냅샷 줄: `- button "Pay now" [ref=e3]`. 역할과 이름(있으면)과 ref를 잡는다 */
 const REF_LINE = /^\s*- (\w[\w-]*)(?: "([^"]*)")?.*\[ref=(e\d{1,6})\]/;
-const REF_MARK = /\[ref=(e\d{1,6})\]/;
-
-const ScreenshotSchema = Type.Object({
-  mediaType: Type.Union([Type.Literal("image/png"), Type.Literal("image/jpeg")]),
-  data: Type.String({ maxLength: MAX_SCREENSHOT_DATA }),
-  width: Type.Integer({ minimum: 1 }),
-  height: Type.Integer({ minimum: 1 }),
-});
-
 type ToolArgs = Readonly<Record<string, string | number | boolean | readonly string[]>>;
 type RefEntry = BrowseSnapshot["refs"][number];
 
 interface Captured {
   readonly page: BrowsePage;
   readonly snapshot: BrowseSnapshot;
-}
-
-function clip(text: string, max: number): string {
-  return text.length <= max ? text : text.slice(0, max);
-}
-
-function neverAborted(): AbortSignal {
-  return new AbortController().signal;
-}
-
-/** 제공자 오류 값. `retryable`은 호출 쪽이 다시 시도해도 되는지다 */
-function providerError(code: string, retryable: boolean, message: string): CapabilityError {
-  return new CapabilityError({
-    capability: WebBrowse.id,
-    method: "browse",
-    code,
-    message,
-    retryable,
-  });
-}
-
-function invalidInput(message: string): CapabilityError {
-  return providerError("invalid_input", false, message);
 }
 
 function portError(error: BrowserMcpError): CapabilityError {
@@ -102,22 +75,12 @@ function portError(error: BrowserMcpError): CapabilityError {
   }
 }
 
-/** 도구 한 번 호출. 포트 실패와 `isError` 응답은 오류로 던진다 */
-/** 폼을 제출할 수 있는 요소의 역할 */
-const FORM_ROLES: ReadonlySet<string> = new Set([
-  "button",
-  "textbox",
-  "searchbox",
-  "combobox",
-  "checkbox",
-  "radio",
-]);
 /** 요소가 속한 폼의 action 주소. 폼이 없으면 null이다 [가정: browser_evaluate가 element와 ref를 받는다] */
 const FORM_ACTION_SCRIPT = "(element) => (element.form ? element.form.action : null)";
 /** 응답 본문의 첫 따옴표 친 http(s) 주소 */
 const FORM_ACTION_REPLY = /"(https?:\/\/[^"\s]+)"/;
-const MAX_URL = 2048;
 
+/** 도구 한 번 호출. 포트 실패와 `isError` 응답은 오류로 던진다 */
 async function callTool(
   port: BrowserMcpPort,
   tool: string,
@@ -195,27 +158,6 @@ function stepOf(captured: Captured): BrowserStep {
   };
 }
 
-/** `find`: 질의가 역할이나 이름에 든(대소문자 무시) ref의 줄만 남긴다 */
-function linesOfMatches(snapshot: BrowseSnapshot, query: string): string {
-  const needle = query.toLowerCase();
-  const hits = new Set(
-    snapshot.refs
-      .filter(
-        (entry) =>
-          entry.role.toLowerCase().includes(needle) ||
-          (entry.name ?? "").toLowerCase().includes(needle),
-      )
-      .map((entry) => entry.ref),
-  );
-  return snapshot.text
-    .split("\n")
-    .filter((line) => {
-      const ref = REF_MARK.exec(line)?.[1];
-      return ref !== undefined && hits.has(ref);
-    })
-    .join("\n");
-}
-
 async function pressTimes(
   port: BrowserMcpPort,
   key: string,
@@ -227,29 +169,26 @@ async function pressTimes(
   await pressTimes(port, key, times - 1, signal);
 }
 
-async function screenshotOf(
-  port: BrowserMcpPort,
-  signal: AbortSignal,
-): Promise<Static<typeof ScreenshotSchema>> {
+async function screenshotOf(port: BrowserMcpPort, signal: AbortSignal): Promise<Screenshot> {
   const reply = await callTool(port, "browser_take_screenshot", {}, signal);
   const [image] = reply.images;
   if (image === undefined) {
     throw providerError("upstream_error", true, "playwright-mcp returned no screenshot.");
   }
-  const shot = parse(ScreenshotSchema, {
+  const shot = checkedScreenshot({
     mediaType: image.mediaType,
     data: image.data,
     width: UNKNOWN_SIZE,
     height: UNKNOWN_SIZE,
   });
-  if (!shot.ok) {
+  if (shot === undefined) {
     throw providerError(
       "upstream_error",
       true,
       "playwright-mcp returned a screenshot that is not PNG or JPEG within the size limit.",
     );
   }
-  return shot.value;
+  return shot;
 }
 
 function manifestOf(): WebProviderManifest {
