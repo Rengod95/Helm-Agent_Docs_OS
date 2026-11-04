@@ -176,7 +176,7 @@ export const GUARD_EXTENSIONS: ReadonlySet<ExtensionName>;
 export function assignTier(input: TierInput, guards?: ReadonlySet<ExtensionName>): Result<Tier, TierError>;
 ```
 
-- `GUARD_EXTENSIONS`의 첫 값 [제안]: `core-tools`(권한 판정 핸들러). 이름은 해당 패키지의 매니페스트 `name`이고 `L1.tools.spec`이 확정한다 [가정]. L0 패키지(`platform-sandbox` 포함)는 on을 쓰지 않으므로 이 목록에 넣지 않는다(§4.1.2, §10 미결 20).
+- `GUARD_EXTENSIONS`의 첫 값 [제안]: `core-tools`(`guard` tier 자리. 지금 등록된 핸들러는 없고 권한 판정은 고정 단계다). 이름은 해당 패키지의 매니페스트 `name`이고 `L1.tools.spec`이 확정한다 [가정]. L0 패키지(`platform-sandbox` 포함)는 on을 쓰지 않으므로 이 목록에 넣지 않는다(§4.1.2, §10 미결 20).
 - `HandlerEntryInfo`(X.primitives.spec §3.4)에는 tier가 없다. 그래서 operations는 확장 이름 → tier 표(`TierTable`)를 두고, 로더가 `LoadedExtensionInfo`(source, trust)로 `assignTier`를 부른 결과를 실을 때 넣는다. `tierOf`는 `entry.extension`으로 표를 읽는다.
 - 외부 훅의 tier는 훅이 적힌 설정 범위로 정한다(§4.7.6).
 
@@ -944,7 +944,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `first` | 바깥 tier의 결정이 우선한다. 바깥 핸들러가 `undefined`가 아닌 값을 내면 안쪽 핸들러는 실행되지 않는다 |
 | `chain` | 바깥에서 안쪽으로 적용한다. 안쪽 핸들러는 바깥 핸들러들이 만든 `current`를 받는다. 교체 규칙의 훅에서는 안쪽 패치가 바깥 패치를 덮어쓸 수 있다 |
 
-예 1 (`first`, `tool.call.before`): 기본 순서에서 `guard`의 권한 핸들러, `user` 확장 A, `builtin`의 Helm이 모두 `tool.call.before`에 걸려 있다. 권한 핸들러가 `{ block: true, reason: "denied by rule" }`을 내면 A와 Helm은 실행되지 않는다. 권한 핸들러가 `undefined`를 내고 A가 거부를 내면 Helm은 실행되지 않는다. `ToolCallDecision`에는 허용 변형이 없으므로(`F.extensions.spec` §3.5) 안쪽 확장이 바깥의 거부를 허용으로 바꾸는 경로가 없다. [결정: 2026-11-03 사용자] 사용자가 덮어쓰기로 권한 핸들러를 A 뒤로 보내면 A가 먼저 결정할 수 있고, 그때 권한 핸들러는 건너뛰어진다(§4.1.5 `first_answer`, 미리보기의 `guardRisk`가 알린다). 권한 핸들러가 실행되어 실패하면 그 자리와 무관하게 거부다.
+예 1 (`first`, `tool.call.before`): `guard` tier에 핸들러 G, `user` 확장 A, `builtin`의 Helm이 모두 `tool.call.before`에 걸려 있다고 하자. 권한 판정은 이 핸들러가 아니라 도구 파이프라인의 고정 단계 5b·5c이고(§4.1.4, `packages/core-tools/src/pipeline.ts`), 지금 호스트에는 `guard` tier에 등록된 핸들러가 없다. 그래서 G는 가정이다. 기본 순서에서 G가 `{ block: true, reason: "denied by rule" }`을 내면 A와 Helm은 실행되지 않는다. G가 `undefined`를 내고 A가 거부를 내면 Helm은 실행되지 않는다. `ToolCallDecision`에는 허용 변형이 없으므로(`F.extensions.spec` §3.5) 안쪽 확장이 바깥의 거부를 허용으로 바꾸는 경로가 없다. [결정: 2026-11-03 사용자] 사용자가 덮어쓰기로 G를 A 뒤로 보내면 A가 먼저 결정할 수 있고, 그때 G는 건너뛰어진다(§4.1.5 `first_answer`, 미리보기의 `guardRisk`가 알린다). G가 실행되어 실패하면 그 자리와 무관하게 거부다. 고정 단계 5b·5c의 권한 판정은 순서 덮어쓰기와 무관하게 `tool.call.before` 뒤에 항상 돈다.
 
 예 2 (`first`, `thread.trust.before`): 결정에 "신뢰함"이 있는 훅이다. 기본 순서에서는 가드가 가장 바깥 tier라 사용자 확장의 "신뢰함"이 가드를 건너뛰지 못한다. [결정: 2026-11-03 사용자] 사용자가 덮어쓰기로 사용자 확장을 가드 앞에 두면 그 확장의 "신뢰함"이 가드를 건너뛸 수 있다. 이 설정은 막지 않고 미리보기의 `guardRisk`로 경고한다(§4.1.5).
 
@@ -954,7 +954,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 #### 4.1.4 샌드박스 강제 위치와 `tool_call` 처리 순서 [결정: M3-REQ-32]
 
-샌드박스는 on 핸들러가 아니라 L0 실행 경로에서 강제합니다. X는 샌드박스를 알지 못하고, `GUARD_EXTENSIONS`에는 L1 권한 판정 핸들러(`core-tools`)만 있습니다(§10 미결 20 닫음).
+샌드박스는 on 핸들러가 아니라 L0 실행 경로에서 강제합니다. X는 샌드박스를 알지 못하고, `GUARD_EXTENSIONS`에는 이름 `core-tools`만 있습니다. `core-tools`는 훅 핸들러를 등록하지 않고 권한 판정은 파이프라인 고정 단계(§4.1.4)입니다(§10 미결 20 닫음).
 
 | 구분 | 위치 | 하는 일 |
 |---|---|---|
