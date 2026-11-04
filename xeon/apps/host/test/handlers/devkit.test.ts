@@ -259,7 +259,7 @@ test("a port failure becomes the wire error of the table: input problems are inv
   await connection.close();
 });
 
-test("host.hello lists the seven authoring methods as features and leaves ext.test.run and ext.test.list out", async () => {
+test("host.hello lists the authoring methods, the test run pair included, as features", async () => {
   const host = createFakeHost({});
   const { connection } = host.connect();
   const hello = await connection.request("host.hello", HELLO_PARAMS);
@@ -272,10 +272,115 @@ test("host.hello lists the seven authoring methods as features and leaves ext.te
     "ext.install",
     "ext.remove",
     "ext.validateComposition",
+    "ext.test.run",
+    "ext.test.list",
   ])
     expect(names).toContain(name);
-  expect(names).not.toContain("ext.test.run");
-  expect(names).not.toContain("ext.test.list");
+  await connection.close();
+});
+
+const RECORD = {
+  testId: "t-1",
+  kind: "replay",
+  target: "demo",
+  state: "passed",
+  startedAt: "2026-11-04T00:00:00.000Z",
+  durationMs: 3,
+  threadId: null,
+  replay: {
+    ok: true,
+    commits: 1,
+    passed: 1,
+    firstDiff: null,
+    cuts: [{ commitIndex: 1, equal: true, firstDiff: null }],
+    effects: { turn: 1, spawn: 0, delegate: 0, post: 0 },
+    failure: null,
+  },
+} as const;
+
+test("ext.test.run hands its params to the port and returns the port's value; ext.test.list returns the port's records", async () => {
+  const seen: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        testRun: (params) => {
+          seen.push(params);
+          return Promise.resolve(ok({ testId: "t-1", threadId: null }));
+        },
+        testList: () => Promise.resolve(ok({ tests: [RECORD] })),
+      },
+    },
+  });
+  const connection = await open(host);
+  expect(
+    await connection.request("ext.test.run", {
+      kind: "replay",
+      target: "demo",
+      options: { maxCommits: 50 },
+    }),
+  ).toEqual({ testId: "t-1", threadId: null });
+  expect(seen).toEqual([{ kind: "replay", target: "demo", options: { maxCommits: 50 } }]);
+  expect(await connection.request("ext.test.list", {})).toEqual({ tests: [RECORD] });
+  await connection.close();
+});
+
+test("ext.test.run maps the dev gate, an unknown target and a busy replay to invalidParams at /target, and a store failure to store.io", async () => {
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        testRun: (params) => {
+          if (params.target === "gated") {
+            return Promise.resolve(
+              err({ kind: "dev_mode_required", message: "replay runs only in development mode" }),
+            );
+          }
+          if (params.target === "missing") {
+            return Promise.resolve(err({ kind: "not_found", message: "missing is not installed" }));
+          }
+          return Promise.resolve(
+            err({
+              kind: "denied",
+              message: "another replay is running; replays run one at a time",
+            }),
+          );
+        },
+        testList: () => Promise.resolve(err({ kind: "io", message: "ext-tests.json is damaged" })),
+      },
+    },
+  });
+  const connection = await open(host);
+  const gated = await wireErrorOf(
+    connection.request("ext.test.run", { kind: "replay", target: "gated" }),
+  );
+  expect(gated.data).toMatchObject({
+    kind: "jsonrpc.invalidParams",
+    details: {
+      issues: [
+        { path: "/target", message: "dev_mode_required: replay runs only in development mode" },
+      ],
+    },
+  });
+  const unknown = await wireErrorOf(
+    connection.request("ext.test.run", { kind: "replay", target: "missing" }),
+  );
+  expect(unknown.data).toMatchObject({
+    details: { issues: [{ path: "/target", message: "not_found: missing is not installed" }] },
+  });
+  const busy = await wireErrorOf(
+    connection.request("ext.test.run", { kind: "replay", target: "demo" }),
+  );
+  expect(busy.data).toMatchObject({
+    details: {
+      issues: [
+        {
+          path: "/target",
+          message: "denied: another replay is running; replays run one at a time",
+        },
+      ],
+    },
+  });
+  const io = await wireErrorOf(connection.request("ext.test.list", {}));
+  expect(io.data).toMatchObject({ kind: "store.io" });
   await connection.close();
 });
 

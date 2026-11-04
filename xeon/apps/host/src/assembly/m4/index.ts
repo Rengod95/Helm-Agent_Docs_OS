@@ -44,6 +44,8 @@ export function createM4Ports(
     env,
     extUi,
   };
+  // 프로필·Test run 포트는 표지 장부를 쥐므로 제작 포트와 한 인스턴스를 나눠 쓴다(`ext.test.run`의 testRun이 표지를 단다)
+  const profileTestRun = createProfileTestRunPort(deps);
   return {
     extRead: createExtReadPort(deps, extReadSources),
     extUi: createExtUiVersionPort(deps),
@@ -59,8 +61,8 @@ export function createM4Ports(
         });
       },
     },
-    profileTestRun: createProfileTestRunPort(deps),
+    profileTestRun,
     dialogArea: createDialogAreaPort(deps),
-    devkit: createDevkitPort(deps),
+    devkit: createDevkitPort(deps, { profiles: profileTestRun }),
   };
 }

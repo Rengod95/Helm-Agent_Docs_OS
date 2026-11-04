@@ -25,7 +25,10 @@ export interface AuthoringWiring {
 
 const NOT_READY = { kind: "io", message: "the devkit is not ready yet" } as const;
 
-/** wire 포트를 서비스 계약으로 맞춘다. 시험 실행과 replay는 측정 계획이 wire를 더하기 전까지 거절한다 */
+/**
+ * wire 포트를 서비스 계약으로 맞춘다. `replay`와 `testRun`은 wire `ext.test.run`과 같은 포트 호출이다.
+ * `replay`의 보고는 와이어 기록(`ext.test.list`)에서 이 실행의 ID로 찾아 돌려준다(`ext.test.run`은 ID만 돌려준다).
+ */
 export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
   const port = () => wiring.devkit();
   return {
@@ -37,14 +40,39 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
       const issues = found?.issues ?? [];
       return { ok: !issues.some((issue) => issue.severity === "error"), issues };
     },
-    testRun: () =>
-      Promise.resolve(
-        err({ kind: "io", message: "Test runs are not available from the authoring group yet" }),
-      ),
-    replay: () =>
-      Promise.resolve(
-        err({ kind: "dev_mode_required", message: "replay runs only in development mode" }),
-      ),
+    testRun: async (input) => {
+      const found = port();
+      if (found === undefined) return err(NOT_READY);
+      const run = await found.testRun({
+        kind: "testRun",
+        target: input.target,
+        options: {
+          ...(input.profileId === undefined ? {} : { profileId: input.profileId }),
+          ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+        },
+      });
+      if (!run.ok) return run;
+      if (run.value.threadId === null) {
+        return err({ kind: "io", message: "the test run did not open a thread" });
+      }
+      return ok({ threadId: run.value.threadId });
+    },
+    replay: async (input) => {
+      const found = port();
+      if (found === undefined) return err(NOT_READY);
+      const run = await found.testRun({
+        kind: "replay",
+        target: input.target,
+        ...(input.maxCommits === undefined ? {} : { options: { maxCommits: input.maxCommits } }),
+      });
+      if (!run.ok) return run;
+      const listed = await found.testList();
+      if (!listed.ok) return listed;
+      const report =
+        listed.value.tests.find((record) => record.testId === run.value.testId)?.replay ?? null;
+      if (report === null) return err({ kind: "io", message: "the replay report is missing" });
+      return ok(report);
+    },
     pack: async (input) => (await port()?.pack(input)) ?? err(NOT_READY),
     link: async (input) => {
       const installed = await port()?.install(input);

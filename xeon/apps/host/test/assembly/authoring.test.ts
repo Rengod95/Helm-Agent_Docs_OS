@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
+import type { DevkitError } from "@fresnel/contracts/services";
 import type { DevkitPort } from "../../src/handlers/m4/devkit.ts";
 import {
   authoringDepsOf,
@@ -97,16 +98,82 @@ test("the service forwards to the wire port and maps install to link", async () 
   expect(calls).toEqual(["scaffold:/w/demo", "validate:/w/demo", "pack:/w/demo", "install:/out"]);
 });
 
-test("replay is refused as dev_mode_required, test runs are not available, and a missing port is an io error", async () => {
+test("a missing port is an io error for replay, test runs and the other calls", async () => {
   const service = devkitServiceOf(wiringOf(undefined));
-  expect(await service.replay({ target: "/w/demo" })).toEqual(
+  const notReady: DevkitError = { kind: "io", message: "the devkit is not ready yet" };
+  expect(await service.replay({ target: "/w/demo" })).toEqual(err(notReady));
+  expect(await service.testRun({ target: "/w/demo" })).toEqual(err(notReady));
+  expect(await service.validate("/w/demo")).toEqual(err(notReady));
+  expect(await service.kinds()).toEqual([]);
+});
+
+test("replay runs ext.test.run of kind replay and returns the report its record holds; testRun returns the thread it opened", async () => {
+  const seen: unknown[] = [];
+  const report = {
+    ok: true,
+    commits: 1,
+    passed: 1,
+    firstDiff: null,
+    cuts: [{ commitIndex: 1, equal: true, firstDiff: null }],
+    effects: { turn: 1, spawn: 0, delegate: 0, post: 0 },
+    failure: null,
+  } as const;
+  const port = partial<DevkitPort>({
+    testRun: (params) => {
+      seen.push(params);
+      return Promise.resolve(
+        ok(
+          params.kind === "replay"
+            ? { testId: "t-9", threadId: null }
+            : { testId: "t-10", threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" },
+        ),
+      );
+    },
+    testList: () =>
+      Promise.resolve(
+        ok({
+          tests: [
+            {
+              testId: "t-9",
+              kind: "replay",
+              target: "demo",
+              state: "passed",
+              startedAt: "2026-11-04T00:00:00.000Z",
+              durationMs: 3,
+              threadId: null,
+              replay: report,
+            },
+          ],
+        }),
+      ),
+  });
+  const service = devkitServiceOf(wiringOf(port));
+  expect(await service.replay({ target: "demo", maxCommits: 20 })).toEqual(ok(report));
+  expect(await service.replay({ target: "demo" })).toEqual(ok(report));
+  expect(await service.testRun({ target: "demo", profileId: "p-1", workspace: "/w" })).toEqual(
+    ok({ threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }),
+  );
+  expect(seen).toEqual([
+    { kind: "replay", target: "demo", options: { maxCommits: 20 } },
+    { kind: "replay", target: "demo" },
+    { kind: "testRun", target: "demo", options: { profileId: "p-1", workspace: "/w" } },
+  ]);
+});
+
+test("the port's refusals reach the service unchanged: dev_mode_required for replay, and a test run that opened no thread is io", async () => {
+  const port = partial<DevkitPort>({
+    testRun: (params) =>
+      Promise.resolve(
+        params.kind === "replay"
+          ? err({ kind: "dev_mode_required", message: "replay runs only in development mode" })
+          : ok({ testId: "t-11", threadId: null }),
+      ),
+  });
+  const service = devkitServiceOf(wiringOf(port));
+  expect(await service.replay({ target: "demo" })).toEqual(
     err({ kind: "dev_mode_required", message: "replay runs only in development mode" }),
   );
-  expect(await service.testRun({ target: "/w/demo" })).toEqual(
-    err({ kind: "io", message: "Test runs are not available from the authoring group yet" }),
+  expect(await service.testRun({ target: "demo" })).toEqual(
+    err({ kind: "io", message: "the test run did not open a thread" }),
   );
-  expect(await service.validate("/w/demo")).toEqual(
-    err({ kind: "io", message: "the devkit is not ready yet" }),
-  );
-  expect(await service.kinds()).toEqual([]);
 });

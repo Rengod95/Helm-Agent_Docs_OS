@@ -17,12 +17,19 @@ import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 export interface M4EngineDeps {
   /** T-WC: 예약 서비스(`schedule.update`, `schedule.runs`) */
   readonly schedule: Pick<ScheduleService, "open" | "list" | "runs" | "update">;
-  /** T-WC: thread 존재 확인(`goal.status`, `work.tasks.list`) */
+  /** T-WC: thread 존재 확인(`goal.status`, `work.tasks.list`). `ext.test.run`의 testRun이 Test run 대화를 만들고 지우는 데도 쓴다 */
   readonly threads: {
     exists(threadId: ThreadId): Result<boolean, ReadFailure>;
+    create(input: {
+      readonly workspace?: string;
+      readonly testRun?: boolean;
+    }): Promise<{ readonly threadId: ThreadId }>;
+    remove(threadId: ThreadId): Promise<Result<void, { readonly kind: string }>>;
   };
   /** T-WC: 목표·작업 기능 API 자리(조립 확장이 채운다) */
   readonly dialogArea: DialogAreaHolder;
+  /** 호스트 로그. Test run 대화를 지우지 못했을 때 남긴다. 구조 타입이다(`types.ts`의 `HostLogPort`가 대입된다) */
+  readonly log: { error(message: string, fields: Readonly<Record<string, unknown>>): void };
 }
 
 /** 프로필 적용이 쓰는 설정 저장소의 부분형(`types.ts`의 `SettingsStorePort`가 그대로 대입된다. 순환을 피하려고 거기서 가져오지 않는다) */
