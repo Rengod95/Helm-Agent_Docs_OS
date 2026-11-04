@@ -1,6 +1,6 @@
 import { targetsStorageOf, type AttachFailureKind, type TargetEntry } from "@fresnel/client";
 import { err, ok, type Result } from "@fresnel/contracts";
-import { WIRE_ERRORS, type HostConnection } from "@fresnel/contracts/wire";
+import { WIRE_ERRORS, type HostClientView, type HostConnection } from "@fresnel/contracts/wire";
 import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
 import type {
@@ -93,6 +93,11 @@ export function createConnectionCommands(deps: ConnectionDeps): ConnectionComman
       const allow = remote.value.settings.find((item) => item.key === REMOTE_RESPOND_KEY);
       const remoteAllowRespond = typeof allow?.value === "boolean" ? allow.value : null;
       return ok({ host: host.value, serviceEnabled: setting?.value === true, remoteAllowRespond });
+    },
+    async clients(): Promise<Result<readonly HostClientView[], CommandError>> {
+      // 목록은 상태 카드와 따로 읽는다. 이 읽기가 실패해도 `load`의 값은 그대로 쓴다(화면이 두 읽기를 따로 가진다)
+      const listed = await run((c) => c.request("host.clients", {}));
+      return listed.ok ? ok(listed.value.clients) : listed;
     },
     async setServiceMode(enabled: boolean): Promise<Result<null, CommandError>> {
       const written = await run((c) =>

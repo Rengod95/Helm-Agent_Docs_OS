@@ -1,5 +1,7 @@
 import { t } from "@fresnel/client/i18n";
-import type { Link } from "../state/engine/index.ts";
+import { assertNever, type Result } from "@fresnel/contracts";
+import type { Link, QueuedInput } from "../state/engine/index.ts";
+import type { CommandError } from "./commands.ts";
 import { setupRequiredText } from "./setup-needed.ts";
 
 // 입력창의 Enter 판정과 중복 전송 방지. 화면 부품에서 떼어 순수하게 시험한다.
@@ -74,4 +76,77 @@ export function composerDisabledReason(input: {
   if (input.observing) return t("desktop.composer.disabled.observing");
   if (input.setupNeeded) return setupRequiredText();
   return null;
+}
+
+/** 입력창 위 대기 입력 칩 하나의 철회 상태. `withdrawn`과 `placed`는 결과 값이고, 칩은 `input.placed`·`input.withdrawn` 사실로 사라진다 */
+export type WithdrawState =
+  | { readonly status: "idle" }
+  | { readonly status: "withdrawing" }
+  | { readonly status: "withdrawn" }
+  | { readonly status: "placed" }
+  | { readonly status: "failed"; readonly message: string };
+
+/** 칩에 보이는 대기 입력: 사용자와 확장의 입력만 칩이 된다. 위임 완료 보고와 예약 입력은 칩으로 보이지 않는다 */
+export function chipInputs(list: readonly QueuedInput[]): readonly QueuedInput[] {
+  return list.filter((input) => input.sourceType === "user" || input.sourceType === "extension");
+}
+
+/** 대기 입력의 모드를 칩의 짧은 말로 옮긴다. 다음 턴 경계 뒤 들어가는 followUp과 next는 같은 말이다 */
+export function queuedModeText(mode: QueuedInput["mode"]): string {
+  switch (mode) {
+    case "steer":
+      return t("desktop.composer.queue.mode.steer");
+    case "followUp":
+    case "next":
+      return t("desktop.composer.queue.mode.followUp");
+    case "aside":
+      return t("desktop.composer.queue.mode.aside");
+    default:
+      return assertNever(mode, "QueuedInput.mode");
+  }
+}
+
+/** 칩의 입력 미리보기. 글이면 글을, 글이 없는 항목이면 이름표를 쓴다 */
+export function queuedPreviewText(preview: QueuedInput["preview"]): string {
+  if (preview.kind === "text") return preview.text;
+  switch (preview.labelKey) {
+    case "image":
+      return t("desktop.composer.queue.preview.image");
+    case "context":
+      return t("desktop.composer.queue.preview.context");
+    case "empty":
+      return t("desktop.composer.queue.preview.empty");
+    default:
+      return assertNever(preview.labelKey, "QueuedPreview.labelKey");
+  }
+}
+
+/**
+ * `turn.withdraw` 결과를 칩의 상태로 옮긴다. 잠김은 대화 상자(`showLocked`)가 맡으므로 칩은 처음 상태로 돌아가 다시 누를 수 있다.
+ * 그 밖의 실패는 칩 안에 글과 다시 시도 단추를 둔다.
+ */
+export function withdrawStateOf(result: Result<boolean, CommandError>): WithdrawState {
+  if (result.ok) return result.value ? { status: "withdrawn" } : { status: "placed" };
+  const error = result.error;
+  if (error.kind === "locked") return { status: "idle" };
+  return { status: "failed", message: withdrawFailureText(error) };
+}
+
+function withdrawFailureText(error: Exclude<CommandError, { readonly kind: "locked" }>): string {
+  switch (error.kind) {
+    case "offline":
+      return t("desktop.composer.error.offline");
+    case "switching":
+      return t("desktop.composer.error.switching");
+    case "unsupported":
+      return t("desktop.composer.error.unsupported");
+    case "rejected":
+      return error.code === null
+        ? t("desktop.composer.queue.withdraw.failed")
+        : t("desktop.composer.error.rejected", { code: error.code });
+    case "failed":
+      return t("desktop.composer.queue.withdraw.failed");
+    default:
+      return assertNever(error, "CommandError");
+  }
 }

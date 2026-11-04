@@ -10,6 +10,7 @@ import type {
   TurnId,
 } from "@fresnel/contracts/conversation";
 import type { TransitionEntry } from "@fresnel/client/workbench";
+import type { PlanEventFact, QueuedInputFact } from "./input.ts";
 import type {
   ApprovalRequestedPayload,
   ReviewAppliedPayload,
@@ -149,6 +150,21 @@ export type TransitionRecord = TransitionEntry & { readonly threadId: ThreadId }
 /** 전환 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 것부터 버린다(spec §4.9.8 최근 20개) */
 export const TRANSITION_CAP = 20;
 
+/** 받은 계획 기록 한 건. 계획마다 가장 최근에 받은 판 하나다. 계획 카드가 계획 id를 찾는 데 쓴다 */
+export type PlanRecord = PlanEventFact & { readonly threadId: ThreadId };
+
+/** 계획 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 계획부터 버린다 */
+export const PLAN_CAP = 20;
+
+/** 아직 배치되지 않은 대기 입력 한 건. 입력 id는 `input.queued` 이벤트 id다. 철회 칩이 쓴다 */
+export type QueuedInput = QueuedInputFact & {
+  readonly inputId: EventId;
+  readonly threadId: ThreadId;
+};
+
+/** 대기 입력 기록 상한(thread마다). 넘으면 그 thread의 가장 오래된 입력부터 버린다 */
+export const QUEUED_INPUT_CAP = 20;
+
 export type EngineMirror = {
   readonly engine: EngineState | null;
   readonly link: Link;
@@ -170,6 +186,16 @@ export type EngineMirror = {
    * 거울을 head부터 다시 맞추면 비운다(실패 기록과 같다)
    */
   readonly transitions: readonly TransitionRecord[];
+  /**
+   * 받은 계획 기록(내구, `work.plan_*`). 계획마다 한 줄이고 가장 최근에 받은 사건이 뒤에 온다. thread마다 `PLAN_CAP`개까지 둔다.
+   * 연결 전에 낸 계획은 읽어 오지 않는다. 거울을 head부터 다시 맞추면 비운다(전환 기록과 같다)
+   */
+  readonly plans: readonly PlanRecord[];
+  /**
+   * 아직 배치되지 않은 대기 입력(내구, `input.queued`). 받은 순서이고 thread마다 `QUEUED_INPUT_CAP`개까지 둔다.
+   * `input.placed`·`input.withdrawn`이 오면 뺀다. 연결 전에 든 입력은 읽어 오지 않는다. 거울을 head부터 다시 맞추면 비운다
+   */
+  readonly queuedInputs: readonly QueuedInput[];
   /** 변경 검토 결과(리뷰마다 가장 최근 라운드 하나). 받은 순서대로 가장 새 것이 뒤에 오고 `REVIEW_RESULT_CAP`개까지 둔다 */
   readonly reviewResults: readonly ReviewResult[];
 };
@@ -195,5 +221,7 @@ export const INITIAL_MIRROR: EngineMirror = {
   recentTurnIds: {},
   handlerFailures: [],
   transitions: [],
+  plans: [],
+  queuedInputs: [],
   reviewResults: [],
 };

@@ -49,6 +49,22 @@ describe("errorOf", () => {
     expect(errorOf(bare)).toEqual({ kind: "rejected", code: 3102 });
   });
 
+  test("an invalid-params rejection keeps the name of the first bad input, so an unknown plan id can be told apart", () => {
+    const unknownPlan = wireError("jsonrpc.invalidParams", {
+      details: { issues: [{ path: "planId", message: "unknown plan" }] },
+    });
+    expect(errorOf(unknownPlan)).toEqual({ kind: "rejected", code: -32602, path: "planId" });
+    const devkit = wireError("jsonrpc.invalidParams", {
+      details: { issues: [{ path: "name", message: "not_found: skill demo" }] },
+    });
+    expect(errorOf(devkit)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "not_found: skill demo",
+      path: "name",
+    });
+  });
+
   test("other wire errors keep their code and a foreign throw is a plain failure", () => {
     expect(errorOf(wireError("thread.notFound"))).toEqual({ kind: "rejected", code: 3001 });
     expect(errorOf(new Error("boom"))).toEqual({ kind: "failed" });

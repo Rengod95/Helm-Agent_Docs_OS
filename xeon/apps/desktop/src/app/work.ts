@@ -17,5 +17,7 @@ export function createWorkCommands(
     goal: (threadId) => withConnection((c) => c.request("goal.status", { threadId })),
     tasks: (threadId) => withConnection((c) => c.request("work.tasks.list", { threadId })),
     goalCommand: (threadId, text) => withWrite((c) => c.request("command.run", { threadId, text })),
+    planVersions: (threadId, planId) =>
+      withConnection((c) => c.request("work.plans.versions", { threadId, planId })),
   };
 }

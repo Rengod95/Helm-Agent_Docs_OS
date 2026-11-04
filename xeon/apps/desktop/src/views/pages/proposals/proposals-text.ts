@@ -1,8 +1,14 @@
 import { assertNever } from "@fresnel/contracts";
 import type { MessageId } from "@fresnel/client/i18n";
 import type { ProposalAction, ProposalScope, DecisionError } from "@fresnel/client/settings";
+import type { SkillScope } from "@fresnel/contracts/capabilities";
 import type { CommandError } from "../../commands.ts";
-import type { KindFilter, SourceFilter, StatusFilter } from "./proposals-model.ts";
+import type {
+  KindFilter,
+  SkillPeekFailure,
+  SourceFilter,
+  StatusFilter,
+} from "./proposals-model.ts";
 
 // 제안 화면의 문장 고르기. 문장은 메시지 id로 들고 있다가 그릴 때 `t()`로 만든다.
 // 결정 결과의 문장(`DecisionOutcome`)과 출처·종류·상태 이름은 `@fresnel/client/settings`가 이미 만든 것을 그대로 쓴다.
@@ -85,6 +91,38 @@ export function doneNoticeIdOf(action: ProposalAction, applied: boolean): Messag
 
 export function scopeIdOf(scope: ProposalScope): MessageId {
   return scope === "user" ? "desktop.proposals.scope.user" : "desktop.proposals.scope.project";
+}
+
+/** 스킬의 출처(범위)의 문장. 사용자와 작업 폴더는 적용 범위와 같은 글을 쓴다 */
+export function skillScopeIdOf(scope: SkillScope): MessageId {
+  switch (scope) {
+    case "user":
+      return "desktop.proposals.scope.user";
+    case "project":
+      return "desktop.proposals.scope.project";
+    case "extension":
+      return "desktop.proposals.skill.scope.extension";
+    case "path":
+      return "desktop.proposals.skill.scope.path";
+    default:
+      return assertNever(scope, "SkillScope");
+  }
+}
+
+/** 충돌 스킬 본문을 읽지 못했을 때의 문장 */
+export function skillFailureIdOf(failure: SkillPeekFailure): MessageId {
+  switch (failure) {
+    case "notFound":
+      return "desktop.proposals.skill.notFound";
+    case "unsupported":
+      return "desktop.proposals.skill.unsupported";
+    case "offline":
+      return "desktop.proposals.skill.offline";
+    case "failed":
+      return "desktop.proposals.skill.failed";
+    default:
+      return assertNever(failure, "SkillPeekFailure");
+  }
 }
 
 /** 결정 params를 만들지 못한 이유의 문장 */

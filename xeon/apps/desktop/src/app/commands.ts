@@ -26,6 +26,7 @@ import { createWebCommands } from "./web.ts";
 import { createProposalCommands } from "./proposals.ts";
 import { createWorkCommands } from "./work.ts";
 import { createReviewCommands } from "./review.ts";
+import { createSkillCommands } from "./skills.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createMeasureCommands } from "./measure-commands.ts";
 import { createUsageCommands } from "./usage.ts";
@@ -190,6 +191,13 @@ export function createCommands(deps: CommandDeps): Commands {
       const done = await withWriteConnection((c) => c.request("turn.interrupt", { threadId }));
       return done.ok ? ok(null) : done;
     },
+    async withdrawInput(threadId, requestId) {
+      const done = await withWriteConnection((c) =>
+        c.request("turn.withdraw", { threadId, requestId }),
+      );
+      if (!done.ok) showLockedIfLocked(threadId, done.error);
+      return done.ok ? ok(done.value.withdrawn) : done;
+    },
     compactThread: (threadId) =>
       withWriteConnection((c) => c.request("thread.compact", { threadId })),
     resumeTurn: (threadId) => withWriteConnection((c) => c.request("turn.resume", { threadId })),
@@ -265,6 +273,7 @@ export function createCommands(deps: CommandDeps): Commands {
     proposals: createProposalCommands(withConnection, withWriteConnection),
     work: createWorkCommands(withConnection, withWriteConnection),
     review: createReviewCommands(withConnection),
+    skills: createSkillCommands(withConnection),
     usage: createUsageCommands(withConnection),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>

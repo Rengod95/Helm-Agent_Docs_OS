@@ -10,8 +10,10 @@ import type {
   TurnCompletedPayload,
   TurnId,
 } from "@fresnel/contracts/conversation";
+import type { PlanId } from "@fresnel/contracts/capabilities";
 import type {
   ApprovalRequestedPayload,
+  InputQueuedPayload,
   LeaseAcquiredPayload,
   LeaseRejectedPayload,
   LeaseReleasedPayload,
@@ -36,6 +38,35 @@ type DurableBase = {
   readonly at: string;
 };
 
+/**
+ * 계획 사건의 내용(내구, `work.plan_submitted`·`work.plan_withdrawn`). 본문과 산출물은 싣지 않는다.
+ * 제출은 "submitted", 승인 없이 나가기는 "withdrawn"이다. 철회 사건은 제목이 없어 title이 null이다.
+ */
+export type PlanEventFact = {
+  readonly planId: PlanId;
+  readonly version: number;
+  readonly title: string | null;
+  readonly status: "submitted" | "withdrawn";
+};
+
+/**
+ * 큐에 든 입력의 화면 미리보기. 글은 앞 120자(넘으면 "…")만 싣고, 글이 없는 항목(이미지만, 맥락 항목, 빈 글)은 짧은 이름표 키다.
+ */
+export type QueuedPreview =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "label"; readonly labelKey: "image" | "context" | "empty" };
+
+/**
+ * 큐에 든 입력 하나의 사실(내구, `input.queued`). 입력 id는 이벤트 id(`DurableBase.eventId`)다.
+ * 입력 본문은 미리보기로 줄이고, 출처는 종류만 싣는다.
+ */
+export type QueuedInputFact = {
+  readonly mode: InputQueuedPayload["mode"];
+  readonly requestId: string;
+  readonly sourceType: InputQueuedPayload["source"]["type"];
+  readonly preview: QueuedPreview;
+};
+
 /** 경계에서 payload를 검증한 내구 이벤트. 거울이 쓰지 않는 kind는 other로 위치만 넘긴다 */
 export type DurableFact =
   | (DurableBase & { readonly type: "thread.started"; readonly payload: ThreadStartedPayload })
@@ -55,6 +86,13 @@ export type DurableFact =
   | (DurableBase & { readonly type: "scope.changed"; readonly payload: ScopeChangedPayload })
   | (DurableBase & { readonly type: "review.applied"; readonly payload: ReviewAppliedPayload })
   | (DurableBase & { readonly type: "review.submitted"; readonly payload: ReviewSubmittedPayload })
+  | (DurableBase & { readonly type: "plan.event"; readonly plan: PlanEventFact })
+  /** 큐에 든 입력. 입력 id는 이 사실의 `eventId`다 */
+  | (DurableBase & { readonly type: "input.queued"; readonly input: QueuedInputFact })
+  /** 입력이 turn에 배치됐다. `inputId`는 `input.queued`의 이벤트 id다 */
+  | (DurableBase & { readonly type: "input.placed"; readonly inputId: EventId })
+  /** 입력이 거둬졌다(사용자 철회, 중단, 대체). `inputId`는 `input.queued`의 이벤트 id다 */
+  | (DurableBase & { readonly type: "input.withdrawn"; readonly inputId: EventId })
   | (DurableBase & { readonly type: "other" })
   | (DurableBase & { readonly type: "unreadable" });
 

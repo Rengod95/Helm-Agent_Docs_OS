@@ -13,6 +13,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     createThread: () => Promise.resolve(ok(null)),
     sendTurn: () => Promise.resolve(ok(null)),
     interrupt: () => Promise.resolve(ok(null)),
+    withdrawInput: () => Promise.resolve(ok(true)),
     compactThread: () => Promise.resolve(err({ kind: "unsupported" })),
     resumeTurn: () => Promise.resolve(err({ kind: "unsupported" })),
     runCommandLine: () => Promise.resolve(err({ kind: "unsupported" })),
@@ -114,6 +115,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       retarget: () => Promise.resolve(ok(null)),
       retry: () => Promise.resolve(),
       load: () => Promise.resolve(err({ kind: "unsupported" })),
+      clients: () => Promise.resolve(err({ kind: "unsupported" })),
       setServiceMode: () => Promise.resolve(err({ kind: "unsupported" })),
       setRemoteRespond: () => Promise.resolve(err({ kind: "unsupported" })),
       stopService: () => Promise.resolve(err({ kind: "unsupported" })),
@@ -152,9 +154,13 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       goal: () => Promise.resolve(err({ kind: "unsupported" })),
       tasks: () => Promise.resolve(err({ kind: "unsupported" })),
       goalCommand: () => Promise.resolve(err({ kind: "unsupported" })),
+      planVersions: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     review: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
+    skills: {
+      view: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     usage: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),

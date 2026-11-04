@@ -178,6 +178,7 @@ function expectedAppliedVM(): ProposalRowVM {
     conflictsWith: null,
     reason: null,
     diff: "+ line",
+    proposedText: "line",
     rationale: null,
     evidenceCount: 1,
     evidenceThreadIds: [THREAD],

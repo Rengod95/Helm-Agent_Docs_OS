@@ -21,6 +21,15 @@ const INVALID_PARAMS_CODE = WIRE_ERRORS["jsonrpc.invalidParams"].code;
 const InvalidValueDetailsSchema = Type.Object({
   issues: Type.Array(Type.Object({ message: Type.String({ maxLength: 512 }) }), { minItems: 1 }),
 });
+/** 입력 거절의 details. 첫 문제의 문장과 그 입력 이름(`path`, 예: `planId`)을 읽는다 */
+const InvalidParamsDetailsSchema = Type.Object({
+  issues: Type.Array(
+    Type.Object({
+      path: Type.Optional(Type.String({ maxLength: 128 })),
+      message: Type.String({ maxLength: 512 }),
+    }),
+  ),
+});
 /** 계약의 details 스키마(wire/errors.ts)와 같은 모양. 대안 이름은 모르는 값을 버리려고 문자열로 읽는다 */
 const LockedDetailsSchema = Type.Object({
   ownerKind: Type.String({ maxLength: 32 }),
@@ -56,11 +65,18 @@ export function errorOf(cause: unknown): CommandError {
     if (detail !== undefined) return { kind: "rejected", code: cause.code, detail };
   }
   if (cause.code === INVALID_PARAMS_CODE) {
-    // 설치처럼 입력 문제를 `<종류>: <내용>` 문장으로 알리는 메서드가 있다. 첫 문장을 `issue`에 남긴다(화면이 종류를 가른다)
-    const details = parse(InvalidValueDetailsSchema, cause.data.details);
-    const issue = details.ok ? details.value.issues[0]?.message : undefined;
-    if (issue !== undefined && DEVKIT_ISSUE.test(issue))
-      return { kind: "rejected", code: cause.code, issue };
+    // 설치처럼 입력 문제를 `<종류>: <내용>` 문장으로 알리는 메서드가 있다. 첫 문장을 `issue`에 남긴다(화면이 종류를 가른다).
+    // 입력 이름은 `path`에 남긴다(예: 모르는 계획 id는 `planId`다)
+    const details = parse(InvalidParamsDetailsSchema, cause.data.details);
+    const first = details.ok ? details.value.issues[0] : undefined;
+    if (first !== undefined) {
+      return {
+        kind: "rejected",
+        code: cause.code,
+        ...(DEVKIT_ISSUE.test(first.message) ? { issue: first.message } : {}),
+        ...(first.path === undefined ? {} : { path: first.path }),
+      };
+    }
   }
   return { kind: "rejected", code: cause.code };
 }

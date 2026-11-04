@@ -2,15 +2,16 @@ import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { useCallback, useEffect, useReducer, useRef, type ReactNode } from "react";
-import { useLinkPhase, useThreadRunning } from "../../../state/engine/index.ts";
+import { useLinkPhase, usePlans, useThreadRunning } from "../../../state/engine/index.ts";
 import { useSelectedThreadId } from "../../../state/ui/index.ts";
 import { useCommands } from "../../commands.ts";
 import { commandErrorIdOf } from "./work-text.ts";
-import { goalCommandTextOf, INITIAL_WORK_STATE, workReducer } from "./work-model.ts";
+import { goalCommandTextOf, INITIAL_WORK_STATE, planActionOf, workReducer } from "./work-model.ts";
 import { WorkView, type WorkHandlers } from "./work-view.tsx";
 
 // 목표와 작업 탭(P-14)의 동작. 열린 대화의 목표와 작업 목록은 `commands.work`로 읽고, 목표 걸기·해제는 `/goal` 줄을
-// `command.run`으로 보낸다. 상태는 `workReducer`가 들고 그림은 `work-view.tsx`가 그린다.
+// `command.run`으로 보낸다. 계획 카드(W-18)는 거울이 받은 계획 기록의 마지막 계획 id로 판 목록을 읽는다.
+// 상태는 `workReducer`가 들고 그림은 `work-view.tsx`가 그린다.
 
 /** 열린 대화가 없을 때 쓰는 빈 상태 */
 const NO_HANDLERS: WorkHandlers = {
@@ -19,6 +20,9 @@ const NO_HANDLERS: WorkHandlers = {
   clearGoal: () => {},
   retryGoal: () => {},
   retryTasks: () => {},
+  retryPlan: () => {},
+  openVersions: () => {},
+  closeVersions: () => {},
   toggleDone: () => {},
   dismissNotice: () => {},
 };
@@ -39,9 +43,22 @@ function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
   const running = useThreadRunning(threadId);
+  // 최근 계획은 거울이 받은 계획 기록의 마지막 것이다. 계획이 새로 생기면 id가 바뀌어 다시 읽는다
+  const latestPlanId = usePlans(threadId).at(-1)?.planId ?? null;
   const [state, dispatch] = useReducer(workReducer, INITIAL_WORK_STATE);
   // 늦게 온 읽기가 새 읽기를 덮지 않도록 읽기마다 번호를 매긴다
   const latestRead = useRef(0);
+
+  // 판 목록을 읽는다. 늦게 온 결과는 reducer가 계획 id로 거른다
+  const readPlan = useCallback(
+    async (planId: string | null): Promise<void> => {
+      dispatch({ type: "planLoadStarted", planId });
+      if (planId === null) return;
+      const listed = await commands.work.planVersions(threadId, planId);
+      dispatch(planActionOf(planId, listed));
+    },
+    [commands, threadId],
+  );
 
   const read = useCallback(async (): Promise<void> => {
     latestRead.current += 1;
@@ -56,7 +73,8 @@ function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
     dispatch(
       tasks.ok ? { type: "tasksLoaded", tasks: tasks.value.tasks } : { type: "tasksFailed" },
     );
-  }, [commands, threadId]);
+    await readPlan(latestPlanId);
+  }, [commands, threadId, latestPlanId, readPlan]);
 
   // 연결이 살아 있고 턴이 돌고 있지 않을 때 읽는다. 턴이 끝나면 판정과 작업이 바뀌었을 수 있어 다시 읽는다
   useEffect(() => {
@@ -113,6 +131,17 @@ function OpenThreadWork(props: { readonly threadId: ThreadId }): ReactNode {
     },
     retryTasks: () => {
       detach(read(), rethrow);
+    },
+    retryPlan: () => {
+      detach(readPlan(latestPlanId), rethrow);
+    },
+    openVersions: () => {
+      dispatch({ type: "versionsOpened" });
+      // 연결이 없으면 마지막으로 읽은 판 목록을 보인다(다시 읽지 않는다)
+      if (live) detach(readPlan(latestPlanId), rethrow);
+    },
+    closeVersions: () => {
+      dispatch({ type: "versionsClosed" });
     },
     toggleDone: () => {
       dispatch({ type: "doneToggled" });

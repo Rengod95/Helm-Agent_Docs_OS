@@ -12,6 +12,8 @@ import type {
   EngineMirror,
   Link,
   PendingApproval,
+  PlanRecord,
+  QueuedInput,
   StreamingItem,
   TransitionRecord,
 } from "./state.ts";
@@ -19,6 +21,8 @@ import type {
 // 빈 값은 모듈 상수다. 선택자가 [] 리터럴을 돌려주면 매번 새 참조라 재렌더가 끝나지 않는다
 const NO_ITEMS: readonly ItemId[] = Object.freeze([]);
 const NO_TRANSITIONS: readonly TransitionRecord[] = Object.freeze([]);
+const NO_PLANS: readonly PlanRecord[] = Object.freeze([]);
+const NO_QUEUED: readonly QueuedInput[] = Object.freeze([]);
 
 export const selectThreadIds = (s: EngineMirror): readonly ThreadId[] => s.threads.ids;
 export const selectThread = (s: EngineMirror, id: ThreadId): ThreadSummary | undefined =>
@@ -99,3 +103,11 @@ export const selectTransitions = (
   id: ThreadId | null,
 ): readonly TransitionRecord[] =>
   id === null ? NO_TRANSITIONS : s.transitions.filter((record) => record.threadId === id);
+
+/** 이 대화의 계획 기록(받은 순서, 가장 최근 것이 뒤). 대화가 없으면 빈 목록이다. 배열을 새로 만들므로 훅에서 useShallow로 감싼다 */
+export const selectPlans = (s: EngineMirror, id: ThreadId | null): readonly PlanRecord[] =>
+  id === null ? NO_PLANS : s.plans.filter((record) => record.threadId === id);
+
+/** 이 대화의 아직 배치되지 않은 대기 입력(받은 순서, 가장 최근 것이 뒤). 대화가 없으면 빈 목록이다. 배열을 새로 만들므로 훅에서 useShallow로 감싼다 */
+export const selectQueuedInputs = (s: EngineMirror, id: ThreadId | null): readonly QueuedInput[] =>
+  id === null ? NO_QUEUED : s.queuedInputs.filter((record) => record.threadId === id);

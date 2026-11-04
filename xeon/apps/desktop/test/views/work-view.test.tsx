@@ -5,11 +5,18 @@ import { renderToString } from "react-dom/server";
 import {
   INITIAL_WORK_STATE,
   workReducer,
+  type PlanVersionWire,
   type WorkState,
 } from "../../src/views/pages/work/work-model.ts";
-import { WorkView, type WorkHandlers } from "../../src/views/pages/work/work-view.tsx";
+import {
+  PlanVersionsBody,
+  WorkView,
+  type WorkHandlers,
+} from "../../src/views/pages/work/work-view.tsx";
+import { version, versionsUpTo } from "./plan-fixtures.ts";
 
 // 목표와 작업 탭(P-14)의 서버 렌더. 빈(목표 없음, 대화 없음), 읽는 중, 오류, 오프라인, 권한 필요(해당 없음), 긴 내용을 그린다.
+// 계획 카드(W-18)와 판 목록 본문도 그린다. 대화상자는 열린 때만 포털로 나가므로 본문은 `PlanVersionsBody`를 직접 그린다.
 // 클릭과 입력은 DOM이 없어 시험하지 못한다(뜻은 work-model 시험이 본다).
 
 const NOOP = (): void => {};
@@ -19,6 +26,9 @@ const HANDLERS: WorkHandlers = {
   clearGoal: NOOP,
   retryGoal: NOOP,
   retryTasks: NOOP,
+  retryPlan: NOOP,
+  openVersions: NOOP,
+  closeVersions: NOOP,
   toggleDone: NOOP,
   dismissNotice: NOOP,
 };
@@ -137,5 +147,135 @@ describe("WorkView states", () => {
     expect(markup).toContain(t("desktop.work.tasks.expandDone", { count: 60 }));
     expect(markup).not.toContain("작업 1<");
     expect(markup).toContain("작업 101");
+  });
+});
+
+/** 계획 p1을 읽는 중인 상태(판 목록은 아직 없다) */
+function startedPlan(): WorkState {
+  return workReducer(withTasks(withGoal(null), []), { type: "planLoadStarted", planId: "p1" });
+}
+
+/** 계획 p1의 판 목록을 읽어 온 상태 */
+function withPlanLoaded(versions: readonly PlanVersionWire[]): WorkState {
+  return workReducer(startedPlan(), { type: "planLoaded", planId: "p1", versions });
+}
+
+/** 그려진 스켈레톤 수 */
+function skeletonsOf(markup: string): number {
+  return markup.split('data-slot="skeleton"').length - 1;
+}
+
+describe("WorkView plan card (W-18)", () => {
+  test("no plan: the card is not drawn at all, its heading and info are absent", () => {
+    const markup = html(withTasks(withGoal(null), []));
+    expect(markup).not.toContain(t("desktop.work.plan.heading"));
+    expect(markup).not.toContain(t("desktop.work.plan.info"));
+    expect(markup).not.toContain(t("desktop.work.plan.versions.open"));
+  });
+
+  test("a plan shows its latest version's title, number and status, and the view button", () => {
+    const markup = html(
+      withPlanLoaded([
+        version(1, { title: "첫 계획", status: "approved" }),
+        version(2, { title: "캐시 만료 수정", status: "submitted" }),
+      ]),
+    );
+    expect(markup).toContain("캐시 만료 수정");
+    expect(markup).not.toContain("첫 계획");
+    expect(markup).toContain(t("desktop.work.plan.version", { version: 2 }));
+    expect(markup).toContain(t("desktop.work.plan.status.submitted"));
+    expect(buttonOf(markup, t("desktop.work.plan.versions.open"))).not.toBe("");
+    // 정보 아이콘의 설명 글은 숨은 글로 늘 나간다
+    expect(markup).toContain(t("desktop.work.plan.info"));
+  });
+
+  test("loading: the card waits with one skeleton, and offline while loading says so instead", () => {
+    const loading = workReducer(withTasks(withGoal(null), []), {
+      type: "planLoadStarted",
+      planId: "p1",
+    });
+    expect(skeletonsOf(html(loading))).toBe(1);
+    const offline = html(loading, { live: false });
+    expect(skeletonsOf(offline)).toBe(0);
+    expect(offline).toContain(t("desktop.work.offline"));
+  });
+
+  test("not found: an alert says the plan is gone and no view button is drawn", () => {
+    const missing = workReducer(startedPlan(), {
+      type: "planFailed",
+      planId: "p1",
+      reason: "notFound",
+    });
+    const markup = html(missing);
+    expect(markup).toContain(t("desktop.work.plan.notFound"));
+    expect(markup).not.toContain(t("desktop.work.plan.versions.open"));
+  });
+
+  test("read error: the card says the plan could not be read, with a retry", () => {
+    const failed = workReducer(startedPlan(), {
+      type: "planFailed",
+      planId: "p1",
+      reason: "failed",
+    });
+    const markup = html(failed);
+    expect(markup).toContain(t("desktop.work.plan.load.failed"));
+    expect(buttonOf(markup, t("desktop.work.retry"))).not.toBe("");
+  });
+
+  test("a plan read with no versions reads as not found", () => {
+    const markup = html(withPlanLoaded([]));
+    expect(markup).toContain(t("desktop.work.plan.notFound"));
+    expect(markup).not.toContain(t("desktop.work.plan.versions.open"));
+  });
+});
+
+describe("PlanVersionsBody (the version list)", () => {
+  test("the newest 50 versions show, the older ones are counted as hidden", () => {
+    const markup = renderToString(
+      <PlanVersionsBody view="ready" versions={versionsUpTo(52)} onRetry={NOOP} />,
+    );
+    expect(markup).toContain(">버전 52<");
+    expect(markup).toContain(">버전 3<");
+    expect(markup).not.toContain(">버전 2<");
+    expect(markup).not.toContain(">버전 1<");
+    expect(markup.indexOf(">버전 52<")).toBeLessThan(markup.indexOf(">버전 3<"));
+    expect(markup).toContain(t("desktop.work.plan.versions.hidden", { count: 2 }));
+  });
+
+  test("a long body is cut to a preview with an expand button, and a short one has none", () => {
+    const markup = renderToString(
+      <PlanVersionsBody
+        view="ready"
+        versions={[version(1, { body: "가".repeat(300) }), version(2, { body: "짧은 본문" })]}
+        onRetry={NOOP}
+      />,
+    );
+    expect(markup).toContain(`${"가".repeat(200)}…`);
+    expect(markup).not.toContain("가".repeat(201));
+    expect(markup).toContain("짧은 본문");
+    // 펼치기는 긴 본문 하나에만 있다
+    expect(markup.split(t("desktop.work.plan.versions.expand")).length - 1).toBe(1);
+  });
+
+  test("a rejected version's feedback waits behind the expand button", () => {
+    const markup = renderToString(
+      <PlanVersionsBody
+        view="ready"
+        versions={[version(1, { status: "rejected", feedback: "범위를 줄여 주세요" })]}
+        onRetry={NOOP}
+      />,
+    );
+    expect(markup).toContain(t("desktop.work.plan.status.rejected"));
+    expect(markup).not.toContain("범위를 줄여 주세요");
+    expect(markup.split(t("desktop.work.plan.versions.expand")).length - 1).toBe(1);
+  });
+
+  test("a loading list is a skeleton, a failed list is an alert with a retry", () => {
+    expect(
+      skeletonsOf(renderToString(<PlanVersionsBody view="loading" versions={[]} onRetry={NOOP} />)),
+    ).toBe(1);
+    const failed = renderToString(<PlanVersionsBody view="failed" versions={[]} onRetry={NOOP} />);
+    expect(failed).toContain(t("desktop.work.plan.load.failed"));
+    expect(buttonOf(failed, t("desktop.work.retry"))).not.toBe("");
   });
 });

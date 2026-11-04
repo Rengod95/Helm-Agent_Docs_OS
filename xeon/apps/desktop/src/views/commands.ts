@@ -20,6 +20,7 @@ import type {
   GroupMetricsResult,
   GroupStatusWire,
   HookEntry,
+  HostClientView,
   HostConnection,
   ExtInstallResult,
   HooksOrderGetResult,
@@ -79,6 +80,8 @@ export type CommandError =
       readonly detail?: string;
       /** 입력 거절(`jsonrpc.invalidParams`)의 첫 문제 문장. `<종류>: <내용>` 꼴이면 화면이 종류를 가른다 */
       readonly issue?: string;
+      /** 입력 거절의 첫 문제가 가리는 입력 이름(예: `planId`). 없으면 없다 */
+      readonly path?: string;
     }
   | { readonly kind: "failed" }
   /** 엔진 대상을 바꾸는 중이라 쓰기를 보류했다(W-08). 새 엔진이 붙은 뒤 다시 보낸다 */
@@ -164,6 +167,21 @@ export interface ProposalCommands {
 }
 
 /**
+ * 충돌하는 스킬 본문(W-14, 제안 화면). 본문은 요청 결과라 거울에 넣지 않는다(FS-03). 이름을 모르면 `not_found`다. host는 이것을
+ * 입력 거절(`jsonrpc.invalidParams`)로 알리고, 명령이 화면 값으로 바꾼다. 스킬 기능이 꺼져 있으면 `unsupported`다.
+ */
+export interface SkillCommands {
+  /** `knowledge.skills.view`. `threadId`를 주면 그 대화의 작업 폴더 기준으로 프로젝트 스킬을 찾는다 */
+  view(
+    name: string,
+    threadId?: string,
+  ): Promise<Result<WireResult<"knowledge.skills.view">, SkillViewError>>;
+}
+
+/** 스킬 본문 읽기가 기대한 실패는 `not_found`뿐이고, 나머지는 연결과 host 실패다 */
+export type SkillViewError = CommandError | { readonly kind: "not_found" };
+
+/**
  * 변경 검토 화면(P-04). hunk 본문은 요청 결과라 거울에 넣지 않는다(FS-03). 승인 답은 `respondApproval`로 보낸다.
  * 읽기 실패(연결 없음, 없는 리뷰)는 `CommandError`다.
  */
@@ -191,6 +209,11 @@ export interface WorkCommands {
     threadId: ThreadId,
     text: string,
   ): Promise<Result<WireResult<"command.run">, CommandError>>;
+  /** 계획의 모든 판(W-18). 모르는 계획 id는 `rejected`이고 `path`가 `planId`다 */
+  planVersions(
+    threadId: ThreadId,
+    planId: string,
+  ): Promise<Result<WireResult<"work.plans.versions">, CommandError>>;
 }
 
 /** 연결 화면이 고른 대상. `local`은 이 기기의 사이드카, `remote`는 서비스 주소다(W-08) */
@@ -224,6 +247,8 @@ export interface ConnectionCommands {
   retry(): Promise<void>;
   /** `host.status`와 서비스 모드 설정. 연결이 없으면 `offline`이다 */
   load(): Promise<Result<ConnectionSnapshot, CommandError>>;
+  /** `host.clients`(W-12): 열린 연결의 목록. 연결이 없으면 `offline`, 엔진이 이 메서드를 모르면 `unsupported`다 */
+  clients(): Promise<Result<readonly HostClientView[], CommandError>>;
   /** 서비스 모드를 켜거나 끈다(`settings.set`, 사용자 범위). 적용은 엔진 재시작 뒤다 */
   setServiceMode(enabled: boolean): Promise<Result<null, CommandError>>;
   /** 원격 연결에서 승인 요청에 답하는 것을 허락할지 바꾼다(`settings.set`, 사용자 범위). 바로 적용된다 */
@@ -517,6 +542,11 @@ export interface Commands {
     requestId: string,
   ): Promise<Result<null, CommandError>>;
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
+  /**
+   * `turn.withdraw`(W-17): 큐에 넣고 아직 배치되지 않은 입력을 요청 키로 거둔다. 거둬졌으면 `true`, 찾지 못했거나 이미 배치됐으면 `false`다.
+   * 쓰기 소유자만 한다(`interrupt`와 같다). 잠겨 있으면 `locked`이고 잠김 대화 상자를 띄운다.
+   */
+  withdrawInput(threadId: ThreadId, requestId: string): Promise<Result<boolean, CommandError>>;
   /** `thread.compact`: 지금 대화를 요약한다(수동 컴팩션). 요약할 것이 없으면 결과가 `skipped`로 와서 오류가 아니다 */
   compactThread(threadId: ThreadId): Promise<Result<WireResult<"thread.compact">, CommandError>>;
   /** `turn.resume`: 멈춘 턴을 이어서 실행한다 */
@@ -549,7 +579,7 @@ export interface Commands {
   /** 보류 중이면 응답을 보내지 않고 카드에 `switching` 실패 표시를 둔다(보내는 중 표시는 켜지 않는다) */
   respondApproval(approvalId: EventId, response: ApprovalDecision): Promise<void>;
   /**
-   * 엔진 대상을 바꾼다(W-08, `engine_retarget`). 바꾸는 동안 쓰기 명령(`sendTurn`, `interrupt`, `respondApproval`, `createThread`,
+   * 엔진 대상을 바꾼다(W-08, `engine_retarget`). 바꾸는 동안 쓰기 명령(`sendTurn`, `interrupt`, `withdrawInput`, `respondApproval`, `createThread`,
    * `forkThread`, `trust.decide`)은 `switching`으로 거절한다. 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어서다.
    * `graceMs`는 `l4.desktop.engine.shutdownGraceMs`.
    */
@@ -574,6 +604,8 @@ export interface Commands {
   readonly proposals: ProposalCommands;
   readonly work: WorkCommands;
   readonly review: ReviewCommands;
+  /** 제안 화면의 충돌 스킬 본문(W-14). 읽기 한 번이다 */
+  readonly skills: SkillCommands;
   readonly usage: UsageCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;

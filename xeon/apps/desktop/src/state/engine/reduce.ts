@@ -2,6 +2,7 @@
 import { assertNever, Bug } from "@fresnel/contracts";
 import {
   maskPartText,
+  type EventId,
   type ItemId,
   type ItemRecord,
   type PartDelta,
@@ -31,6 +32,10 @@ import {
   type Transcript,
   RECENT_TURN_CAP,
   type TransitionRecord,
+  PLAN_CAP,
+  type PlanRecord,
+  QUEUED_INPUT_CAP,
+  type QueuedInput,
   SETTLED_CAP,
 } from "./state.ts";
 
@@ -590,6 +595,13 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
         submitted: true,
         delivery: fact.payload.delivery,
       }));
+    case "plan.event":
+      return recordPlan(state, fact);
+    case "input.queued":
+      return recordQueued(state, fact);
+    case "input.placed":
+    case "input.withdrawn":
+      return dropQueued(state, fact.inputId);
     case "other":
     case "unreadable":
       return state;
@@ -630,6 +642,75 @@ function appendTransition(
   if (next.filter((r) => r.threadId === record.threadId).length <= TRANSITION_CAP) return next;
   const oldest = next.findIndex((r) => r.threadId === record.threadId);
   return next.filter((_, i) => i !== oldest);
+}
+
+/**
+ * 계획 사건 하나를 거울에 넣는다. 계획마다 한 줄이고 가장 최근에 받은 것이 뒤에 온다.
+ * 옛 판의 제출은 무시하고(판 번호가 줄어들면 안 된다), 철회는 기록된 판과 같은 판일 때만 바꾼다.
+ * 철회 사건은 제목이 없으므로 기록의 제목을 그대로 둔다.
+ */
+function recordPlan(
+  state: EngineMirror,
+  fact: Extract<DurableFact, { readonly type: "plan.event" }>,
+): EngineMirror {
+  const { plan, threadId } = fact;
+  const found = state.plans.find((r) => r.threadId === threadId && r.planId === plan.planId);
+  let record: PlanRecord;
+  if (plan.status === "submitted") {
+    if (found !== undefined && found.version > plan.version) return state;
+    record = {
+      threadId,
+      planId: plan.planId,
+      version: plan.version,
+      title: plan.title,
+      status: "submitted",
+    };
+  } else {
+    if (found === undefined || found.version !== plan.version) return state;
+    record = { ...found, status: "withdrawn" };
+  }
+  const others = state.plans.filter((r) => r !== found);
+  return { ...state, plans: capPlans([...others, record], threadId) };
+}
+
+/** thread마다 `PLAN_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 계획을 버린다 */
+function capPlans(list: readonly PlanRecord[], threadId: ThreadId): readonly PlanRecord[] {
+  if (list.filter((r) => r.threadId === threadId).length <= PLAN_CAP) return list;
+  const oldest = list.findIndex((r) => r.threadId === threadId);
+  return list.filter((_, i) => i !== oldest);
+}
+
+/**
+ * 큐에 든 입력 하나를 거울에 넣는다. 입력 id(이벤트 id)가 같으면 한 번만 넣는다. 가장 최근 입력이 뒤에 온다.
+ * 상한을 넘으면 그 thread의 가장 오래된 입력을 버린다.
+ */
+function recordQueued(
+  state: EngineMirror,
+  fact: Extract<DurableFact, { readonly type: "input.queued" }>,
+): EngineMirror {
+  if (state.queuedInputs.some((r) => r.inputId === fact.eventId)) return state;
+  const record: QueuedInput = {
+    ...fact.input,
+    inputId: fact.eventId,
+    threadId: fact.threadId,
+  };
+  return {
+    ...state,
+    queuedInputs: capQueued([...state.queuedInputs, record], fact.threadId),
+  };
+}
+
+/** 배치되거나 거둬진 입력을 뺀다. 거울이 모르는 입력이면 그대로 둔다(연결 전에 든 입력) */
+function dropQueued(state: EngineMirror, inputId: EventId): EngineMirror {
+  if (!state.queuedInputs.some((r) => r.inputId === inputId)) return state;
+  return { ...state, queuedInputs: state.queuedInputs.filter((r) => r.inputId !== inputId) };
+}
+
+/** thread마다 `QUEUED_INPUT_CAP`개만 두고, 넘으면 그 thread의 가장 오래된 입력을 버린다 */
+function capQueued(list: readonly QueuedInput[], threadId: ThreadId): readonly QueuedInput[] {
+  if (list.filter((r) => r.threadId === threadId).length <= QUEUED_INPUT_CAP) return list;
+  const oldest = list.findIndex((r) => r.threadId === threadId);
+  return list.filter((_, i) => i !== oldest);
 }
 
 /**

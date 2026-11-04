@@ -11,6 +11,7 @@ import {
 import { useComposerRequest, useObserving } from "../state/ui/index.ts";
 import { useCommands, type CommandError } from "./commands.ts";
 import { composerDisabledReason, createEnterGuard, createSendLatch } from "./composer-model.ts";
+import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 
 // 입력창. 입력 중인 글자는 이 부품만 쓰므로 로컬 상태다(FS-04).
@@ -112,6 +113,7 @@ function ComposerFor(props: {
         detach(send(), rethrow);
       }}
     >
+      <QueuedInputs threadId={props.threadId} disabledReason={props.disabledReason} />
       <textarea
         ref={textarea}
         aria-label={t("desktop.composer.input.label")}
