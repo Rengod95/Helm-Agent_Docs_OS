@@ -9,6 +9,7 @@ import {
   type UiCheckInput,
   type UiIssue,
   type UiItemReport,
+  type UiOwner,
   type UiPolicy,
 } from "../../src/loading-trust/index.ts";
 import {
@@ -18,6 +19,8 @@ import {
 } from "./support/memory-loader-fs.ts";
 
 const ROOT = "/ext/demo";
+/** 시험의 확장 `demo`. 자기 kind는 `x.demo.`이고 기록을 읽지 않는다 */
+const DEMO: UiOwner = { name: "demo", readsRecordKinds: [] };
 const POLICY_ON: UiPolicy = { apps: true, allowProjectApps: false };
 const TEXT_TREE = '{"type":"Text","props":{"text":"hi"}}';
 const APP: AppDecl = {
@@ -36,7 +39,7 @@ function uiOf(items: readonly UiContribution[], widgets = "^1.0.0"): UiDecl {
 async function checkWith(
   ui: UiDecl,
   tree: MemoryTree,
-  extra: Partial<Pick<UiCheckInput, "source" | "policy" | "hostWidgetsVersion">> = {},
+  extra: Partial<Pick<UiCheckInput, "source" | "policy" | "hostWidgetsVersion" | "owner">> = {},
 ): Promise<{ readonly reports: readonly UiItemReport[]; readonly fs: MemoryLoaderFs }> {
   const fs = memoryLoaderFs(tree);
   const reports = await checkUiDecl({
@@ -44,6 +47,7 @@ async function checkWith(
     root: ROOT,
     fs,
     source: extra.source ?? "user",
+    owner: extra.owner ?? DEMO,
     policy: extra.policy ?? POLICY_ON,
     hostWidgetsVersion: extra.hostWidgetsVersion ?? HOST_WIDGETS_VERSION,
     hostBridgeVersion: HOST_BRIDGE_VERSION,
@@ -217,7 +221,12 @@ test("ui: a lexical escape is ui_path_invalid even though the manifest check nor
 });
 
 test("ui: a native item without file is ui_invalid", async () => {
-  const bare: UiContribution = { id: "bare", placement: "card", title: "Bare", forKind: "k" };
+  const bare: UiContribution = {
+    id: "bare",
+    placement: "card",
+    title: "Bare",
+    forKind: "x.demo.k",
+  };
   const { reports } = await checkWith(uiOf([bare]), {});
   expect(reports.map((report) => [report.state, report.issues])).toEqual([
     [
@@ -240,7 +249,7 @@ test("ui: a card item carries its forKind into the report, and a page item has n
     placement: "card",
     title: "Inquiry",
     file: "ui/page.json",
-    forKind: "grp.helm.inquiry.finished",
+    forKind: "x.demo.inquiry.finished",
   };
   const { reports } = await checkWith(uiOf([card, PAGE]), nativeTree(TEXT_TREE));
   expect(reports).toEqual([
@@ -251,7 +260,7 @@ test("ui: a card item carries its forKind into the report, and a page item has n
       title: "Inquiry",
       state: "ok",
       tree: { type: "Text", props: { text: "hi" } },
-      forKind: "grp.helm.inquiry.finished",
+      forKind: "x.demo.inquiry.finished",
       issues: [],
     },
     {
@@ -263,6 +272,97 @@ test("ui: a card item carries its forKind into the report, and a page item has n
       tree: { type: "Text", props: { text: "hi" } },
       issues: [],
     },
+  ]);
+});
+
+/** 카드 항목 하나. 화면 파일은 공용 트리다 */
+function cardOf(id: string, forKind: string): UiContribution {
+  return { id, placement: "card", title: id, file: "ui/page.json", forKind };
+}
+
+/** 카드들을 검사해 항목 id, 상태, 보고에 실린 kind를 값으로 돌려준다 */
+async function cardKindsOf(
+  cards: readonly UiContribution[],
+  owner: UiOwner,
+): Promise<readonly { readonly id: string; readonly state: string; readonly forKind?: string }[]> {
+  const { reports } = await checkWith(uiOf(cards), nativeTree(TEXT_TREE), { owner });
+  return reports.map((report) =>
+    report.forKind === undefined
+      ? { id: report.id, state: report.state }
+      : { id: report.id, state: report.state, forKind: report.forKind },
+  );
+}
+
+test("ui: a card cannot draw over another extension's record kind, and the kind is not carried", async () => {
+  const claim = cardOf("claim", "grp.helm.inquiry.finished");
+  const { reports } = await checkWith(uiOf([claim]), nativeTree(TEXT_TREE), {
+    owner: { name: "aaa", readsRecordKinds: [] },
+  });
+  expect(reports).toEqual([
+    {
+      id: "claim",
+      placement: "card",
+      mode: "native",
+      title: "claim",
+      state: "invalid",
+      issues: [
+        {
+          severity: "error",
+          code: "ui_invalid",
+          path: "/ui/items/0/forKind",
+          message: "card forKind must be a record kind this extension owns or reads",
+        },
+      ],
+    },
+  ]);
+});
+
+test("ui: an own kind is x.<name>. with its dot, so a name that only starts the same way does not pass", async () => {
+  const aaa: UiOwner = { name: "aaa", readsRecordKinds: [] };
+  expect(
+    await cardKindsOf(
+      [cardOf("own", "x.aaa.note"), cardOf("longer", "x.aaaa.note"), cardOf("bare", "x.aaa")],
+      aaa,
+    ),
+  ).toEqual([
+    { id: "own", state: "ok", forKind: "x.aaa.note" },
+    { id: "longer", state: "invalid" },
+    { id: "bare", state: "invalid" },
+  ]);
+});
+
+test("ui: a kind the manifest reads (exact or by prefix) can be carded, another group's kind cannot", async () => {
+  const reader: UiOwner = {
+    name: "aaa",
+    readsRecordKinds: ["grp.helm.*", "grp.web.page.fetched"],
+  };
+  expect(
+    await cardKindsOf(
+      [
+        cardOf("signal", "grp.helm.signal.detected"),
+        cardOf("exact", "grp.web.page.fetched"),
+        cardOf("other", "grp.web.page.opened"),
+      ],
+      reader,
+    ),
+  ).toEqual([
+    { id: "signal", state: "ok", forKind: "grp.helm.signal.detected" },
+    { id: "exact", state: "ok", forKind: "grp.web.page.fetched" },
+    { id: "other", state: "invalid" },
+  ]);
+});
+
+test("ui: a group cards its own grp.<name>. kind, a plugin of the same name does not", async () => {
+  const cards = [cardOf("finished", "grp.helm.inquiry.finished"), cardOf("web", "grp.web.x")];
+  const group: UiOwner = { name: "helm", group: {}, readsRecordKinds: [] };
+  expect(await cardKindsOf(cards, group)).toEqual([
+    { id: "finished", state: "ok", forKind: "grp.helm.inquiry.finished" },
+    { id: "web", state: "invalid" },
+  ]);
+  const plugin: UiOwner = { name: "helm", readsRecordKinds: [] };
+  expect(await cardKindsOf(cards, plugin)).toEqual([
+    { id: "finished", state: "invalid" },
+    { id: "web", state: "invalid" },
   ]);
 });
 

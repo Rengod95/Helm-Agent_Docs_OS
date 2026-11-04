@@ -354,7 +354,7 @@ export interface ExtensionLoader {
   list(): readonly LoadedExtensionInfo[];
   diagnostics(): readonly LoadDiagnostic[];
   /**
-   * 화면 기여 항목의 검사 결과(§4.3.4). 로드 순서, 선언 순서다. `ext.ui.list`가 쓴다. 확장이 목록에서 빠지면 그 확장의 항목도 빠진다. 항목마다 확장 `version`, 설치 등급 `trust`(managed·user·project·builtin)가 붙고, 앱 모드이며 `ok`이고 `builtin`이 아니면 `appRoot`(확장 루트 + `app.root`의 절대 경로)가 붙는다 [결정: 2026-11-04 사용자]. 셸은 이 값으로 `app_roots_set`을 부른다. card 항목은 `forKind`(레코드 kind)를 싣는다
+   * 화면 기여 항목의 검사 결과(§4.3.4). 로드 순서, 선언 순서다. `ext.ui.list`가 쓴다. 확장이 목록에서 빠지면 그 확장의 항목도 빠진다. 항목마다 확장 `version`, 설치 등급 `trust`(managed·user·project·builtin)가 붙고, 앱 모드이며 `ok`이고 `builtin`이 아니면 `appRoot`(확장 루트 + `app.root`의 절대 경로)가 붙는다 [결정: 2026-11-04 사용자]. 셸은 이 값으로 `app_roots_set`을 부른다. 주인을 확인한 card 항목만 `forKind`(레코드 kind)를 싣는다(§4.3.4 1번)
    */
   uiEntries(): readonly UiEntryReport[];
   /** 설치된 외부 확장을 새 버전으로 바꾼다. 적용은 단계 경계다(§4.4.4) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD] */
@@ -946,7 +946,7 @@ export function createVersionHistory(deps: VersionHistoryDeps): VersionHistory;
 
 항목마다 아래 순서로 본다(`checkUiDecl`).
 
-1. `placement`가 `command`면 화면이 없으므로 파일과 앱을 보지 않는다. 상태는 `ok`다.
+1. `placement`가 `card`이면 먼저 `forKind`의 주인을 본다(ADR-0021 §3.3, 보고 1). 주인은 자기 kind 접두(그룹은 `grp.<확장 이름>.`, 그 밖은 `x.<확장 이름>.`)의 kind와 매니페스트 `readsRecordKinds`가 덮는 kind(끝의 `*`는 접두 일치)입니다. 어느 것도 아니면 항목은 `invalid`이고 `ui_invalid`(위치 `/ui/items/<i>/forKind`)가 붙으며, 파일과 앱을 보지 않고 항목은 `forKind`를 싣지 않는다. 매니페스트 검사(F)는 kind의 주인을 보지 않으므로 이 검사가 맡는다. `placement`가 `command`면 화면이 없으므로 파일과 앱을 보지 않는다. 상태는 `ok`다.
 2. `native`(`mode` 생략 포함)는 `file`을 확장 루트 안에서 찾는다. 없거나 종류가 다르면 `ui_file_missing`, 밖을 가리키면 `ui_path_invalid`다. 본문이 1 MiB(`UI_FILE_MAX_BYTES`)를 넘으면 `ui_limit`이다. LoaderFs에 크기를 묻는 함수가 없어 다 읽은 뒤에 잰다. JSON이 아니면 `ui_invalid`다(파서 원문은 싣지 않는다). 앞의 BOM은 건너뛴다. `validateUiTree`가 실패하면 그 이슈를 옮긴다(`ui_invalid`, `ui_limit`, 위치는 `#` 뒤 JSON Pointer). 통과하면 `tree`를 붙인다.
 3. `app`은 정책을 먼저 본다. `x.ui.apps`가 거짓이면 전체가 막힌다. 설치 위치가 `project`이고 `x.ui.allowProjectApps`가 거짓이면 프로젝트 확장이 막힌다. 막히면 앱 파일은 보지 않는다. `fallback`이 있으면 그 파일을 2번처럼 native 화면으로 읽고 검사한다. 모드는 `native`가 되고 정보 진단 `ui_mode_not_allowed`(severity `info`)가 붙는다. `fallback`이 없으면 상태는 `disabled`이고 경고 진단 `ui_mode_not_allowed`(severity `warning`)가 붙는다.
 4. 정책이 허용하면 `app.root`가 확장 안의 폴더인지 보고(없으면 `ui_file_missing`, 밖이면 `ui_path_invalid`), `app.entry`가 `app.root` 안의 파일인지 본다. 그다음 `app.bridge`가 다리 버전 `1.0.0`을 포함하는지 본다(아니면 `bridge_unsupported`, 위치 `/ui/items/<i>/app/bridge`).

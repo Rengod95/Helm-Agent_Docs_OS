@@ -133,6 +133,7 @@ export {
   type UiEntryReport,
   type UiIssue,
   type UiItemReport,
+  type UiOwner,
   type UiPolicy,
 } from "./ui-check.ts";
 export { satisfiesRange } from "./semver.ts";
@@ -1091,6 +1092,11 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       root,
       fs: deps.fs,
       source: record.source,
+      owner: {
+        name: manifest.name,
+        ...(manifest.group === undefined ? {} : { group: manifest.group }),
+        readsRecordKinds: manifest.plugins.flatMap((decl) => decl.readsRecordKinds ?? []),
+      },
       policy: uiPolicy,
       hostWidgetsVersion: HOST_WIDGETS_VERSION,
       hostBridgeVersion: HOST_BRIDGE_VERSION,

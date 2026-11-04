@@ -15,15 +15,32 @@ const GRAPH_APP = {
   reason: "canvas graph",
 };
 
-/** 깨진 페이지 하나와 맞는 카드 하나 */
-const PAGE_AND_CARD = {
-  schemaVersion: 1,
-  widgets: "^1.0.0",
-  items: [
-    { id: "page", placement: "page", title: "Page", file: "ui/page.json" },
-    { id: "card", placement: "card", title: "Card", forKind: "demo.note", file: "ui/card.json" },
-  ],
-};
+/** 페이지 하나와 카드 하나. 카드의 kind는 확장 자기 것(`x.<이름>.note`)이어야 검사를 통과한다 */
+function pageAndCardOf(name: string): object {
+  return {
+    schemaVersion: 1,
+    widgets: "^1.0.0",
+    items: [
+      { id: "page", placement: "page", title: "Page", file: "ui/page.json" },
+      {
+        id: "card",
+        placement: "card",
+        title: "Card",
+        forKind: `x.${name}.note`,
+        file: "ui/card.json",
+      },
+    ],
+  };
+}
+
+/** 카드 하나만 있는 화면 */
+function cardOnly(forKind: string): object {
+  return {
+    schemaVersion: 1,
+    widgets: "^1.0.0",
+    items: [{ id: "card", placement: "card", title: "Card", forKind, file: "ui/card.json" }],
+  };
+}
 
 let temp: Awaited<ReturnType<typeof makeTempDir>>;
 let paths: LoaderPaths;
@@ -62,7 +79,10 @@ async function fire(harness: LoaderHarness): Promise<void> {
 }
 
 test("a broken screen file leaves the extension active: its hook runs and only that item is invalid", async () => {
-  const root = await writePlugin(userExtensions, "demo", { name: "demo", ui: PAGE_AND_CARD });
+  const root = await writePlugin(userExtensions, "demo", {
+    name: "demo",
+    ui: pageAndCardOf("demo"),
+  });
   await putFile(join(root, "ui", "page.json"), "{");
   await putFile(join(root, "ui", "card.json"), '{"type":"Text"}');
   const harness = await harnessOf();
@@ -98,7 +118,7 @@ test("uiEntries carries the manifest version and the install tier", async () => 
   const root = await writePlugin(userExtensions, "demo", {
     name: "demo",
     version: "1.2.3",
-    ui: PAGE_AND_CARD,
+    ui: pageAndCardOf("demo"),
   });
   await putFile(join(root, "ui", "page.json"), TEXT_TREE);
   await putFile(join(root, "ui", "card.json"), TEXT_TREE);
@@ -113,7 +133,10 @@ test("uiEntries carries the manifest version and the install tier", async () => 
 });
 
 test("a disabled extension's broken screen is still checked, and the extension stays disabled", async () => {
-  const root = await writePlugin(userExtensions, "demo", { name: "demo", ui: PAGE_AND_CARD });
+  const root = await writePlugin(userExtensions, "demo", {
+    name: "demo",
+    ui: pageAndCardOf("demo"),
+  });
   await putFile(join(root, "ui", "page.json"), "{");
   await putFile(join(root, "ui", "card.json"), TEXT_TREE);
   const harness = await harnessOf();
@@ -220,17 +243,27 @@ test("a built-in module's screen is not checked, since it has no extension folde
   const harness = await harnessOf();
   await harness.loader.loadAll(
     harness.options([
-      moduleOf({ name: "core-screen", layer: "L1", extraManifest: { ui: PAGE_AND_CARD } }),
+      moduleOf({
+        name: "core-screen",
+        layer: "L1",
+        extraManifest: { ui: pageAndCardOf("core-screen") },
+      }),
     ]),
   );
   expect(harness.loader.uiEntries()).toEqual([]);
 });
 
 test("uiEntries follows the last load: an extension removed from disk drops its entries", async () => {
-  const keep = await writePlugin(userExtensions, "keep", { name: "keep", ui: PAGE_AND_CARD });
+  const keep = await writePlugin(userExtensions, "keep", {
+    name: "keep",
+    ui: pageAndCardOf("keep"),
+  });
   await putFile(join(keep, "ui", "page.json"), TEXT_TREE);
   await putFile(join(keep, "ui", "card.json"), TEXT_TREE);
-  const gone = await writePlugin(userExtensions, "gone", { name: "gone", ui: PAGE_AND_CARD });
+  const gone = await writePlugin(userExtensions, "gone", {
+    name: "gone",
+    ui: pageAndCardOf("gone"),
+  });
   await putFile(join(gone, "ui", "page.json"), TEXT_TREE);
   await putFile(join(gone, "ui", "card.json"), TEXT_TREE);
   const harness = await harnessOf();
@@ -247,6 +280,34 @@ test("uiEntries follows the last load: an extension removed from disk drops its 
     ["keep", "page"],
     ["keep", "card"],
   ]);
+});
+
+test("a group cards its own kind from the user folder, a plain plugin with that name is invalid", async () => {
+  const group = await writePlugin(userExtensions, "helm", {
+    name: "helm",
+    group: true,
+    ui: cardOnly("grp.helm.inquiry.finished"),
+  });
+  await putFile(join(group, "ui", "card.json"), TEXT_TREE);
+  const owned = await harnessOf();
+  await owned.loader.loadAll(loadOptions(owned));
+  expect(owned.loader.uiEntries().map((entry) => [entry.state, entry.forKind])).toEqual([
+    ["ok", "grp.helm.inquiry.finished"],
+  ]);
+
+  await rm(group, { recursive: true, force: true });
+  const plain = await writePlugin(userExtensions, "helm", {
+    name: "helm",
+    ui: cardOnly("grp.helm.inquiry.finished"),
+  });
+  await putFile(join(plain, "ui", "card.json"), TEXT_TREE);
+  const foreign = await harnessOf();
+  await foreign.loader.loadAll(loadOptions(foreign));
+  expect(
+    foreign.loader
+      .uiEntries()
+      .map((entry) => [entry.state, entry.issues.map((issue) => issue.code)]),
+  ).toEqual([["invalid", ["ui_invalid"]]]);
 });
 
 test("a rejected extension contributes no screen entries", async () => {

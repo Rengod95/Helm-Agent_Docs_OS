@@ -9,6 +9,7 @@ import {
   isEntryInsideRoot,
   validateUiTree,
   type AppDecl,
+  type ExtensionManifest,
   type ExtensionName,
   type LoaderFs,
   type Placement,
@@ -17,6 +18,7 @@ import {
   type UiMode,
   type UiNode,
 } from "@fresnel/contracts/extensions";
+import { isKindReadable } from "../primitives/read-scope.ts";
 import { eachInOrder } from "../primitives/sequence.ts";
 import { kindOf, within } from "./app-files.ts";
 import type { UiDiagnosticCode } from "./pipeline.ts";
@@ -94,6 +96,12 @@ export interface UiEntryReport extends UiItemReport {
   readonly trust: InstallSource;
 }
 
+/** 화면 항목을 낸 확장. 카드의 `forKind`가 이 확장의 기록 kind인지 보는 데 쓴다(ADR-0021 §3.2, 보고 1) */
+export interface UiOwner extends Pick<ExtensionManifest, "group" | "name"> {
+  /** 매니페스트 플러그인들의 `readsRecordKinds`를 모은 것. 여기 덮인 kind는 카드로 그릴 수 있다 */
+  readonly readsRecordKinds: readonly string[];
+}
+
 export interface UiCheckInput {
   /** 검사할 매니페스트의 `ui`. 매니페스트 검사를 통과한 값이다 */
   readonly ui: UiDecl;
@@ -102,6 +110,7 @@ export interface UiCheckInput {
   readonly fs: LoaderFs;
   /** 설치 위치. `project`이면 프로젝트 확장이라 앱 정책의 `allowProjectApps`를 본다 */
   readonly source: InstallSource;
+  readonly owner: UiOwner;
   readonly policy: UiPolicy;
   readonly hostWidgetsVersion: string;
   readonly hostBridgeVersion: string;
@@ -113,6 +122,7 @@ interface Ctx {
   readonly rootReal: string | null;
   readonly fs: LoaderFs;
   readonly source: InstallSource;
+  readonly owner: UiOwner;
   readonly policy: UiPolicy;
   readonly widgets: string | undefined;
   readonly widgetsOk: boolean;
@@ -348,13 +358,33 @@ async function appItem(
 function checkItem(ctx: Ctx, item: UiContribution, index: number): Promise<UiItemReport> {
   const at = `/ui/items/${index}`;
   // forKind는 card 항목만 싣는다(매니페스트 검사도 card에만 허용한다)
-  const forKind = item.placement === "card" ? item.forKind : undefined;
+  const claimed = item.placement === "card" ? item.forKind : undefined;
+  // 남의 kind를 내세운 카드는 무효이고 kind를 싣지 않는다. 그래야 화면 목록이 그 kind의 카드를 내지 않는다
+  // 매니페스트 검사는 kind의 주인을 보지 않으므로 여기서 본다(보고 1)
+  const foreign =
+    claimed !== undefined && !isKindReadable(ctx.owner, ctx.owner.readsRecordKinds, claimed);
+  const forKind = foreign ? undefined : claimed;
   const head: Head = {
     id: item.id,
     placement: item.placement,
     title: item.title,
     ...(forKind === undefined ? {} : { forKind }),
   };
+  if (foreign) {
+    return Promise.resolve({
+      ...head,
+      mode: item.mode ?? "native",
+      state: "invalid",
+      issues: [
+        issueOf(
+          "error",
+          "ui_invalid",
+          `${at}/forKind`,
+          "card forKind must be a record kind this extension owns or reads",
+        ),
+      ],
+    });
+  }
   // command는 화면이 없어 파일과 앱을 보지 않는다
   if (item.placement === "command") {
     return Promise.resolve({ ...head, mode: item.mode ?? "native", state: "ok", issues: [] });
@@ -431,6 +461,7 @@ export async function checkUiDecl(input: UiCheckInput): Promise<readonly UiItemR
     rootReal: rootReal.ok ? rootReal.value : null,
     fs: input.fs,
     source: input.source,
+    owner: input.owner,
     policy: input.policy,
     widgets: input.ui.widgets,
     widgetsOk,
