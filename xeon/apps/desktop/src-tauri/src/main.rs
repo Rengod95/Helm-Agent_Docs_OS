@@ -63,6 +63,7 @@ fn main() {
             relay::engine_restart,
             relay::engine_detach,
             relay::engine_retarget,
+            relay::db_restore,
             desktop_settings::desktop_settings_read,
             desktop_settings::desktop_settings_write,
             secret_entry::secret_register,

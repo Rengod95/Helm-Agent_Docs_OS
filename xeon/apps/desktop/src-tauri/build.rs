@@ -7,6 +7,7 @@ fn main() {
         "engine_restart",
         "engine_detach",
         "engine_retarget",
+        "db_restore",
         "desktop_settings_read",
         "desktop_settings_write",
         "secret_register",

@@ -28,6 +28,7 @@ use crate::env_path::augment_path;
 use crate::relay::{
     spawn_pipe_writer, CommandError, PipeHandle, Relay, StdinSink, WRITE_QUEUE_FRAMES,
 };
+use crate::secret_entry::override_prefix;
 use crate::time::{now_ms, rfc3339_utc};
 
 /// `xeon/apps/desktop/sidecar.json`의 `name`과 같아야 한다(test/sidecar-config.test.ts가 대조한다).
@@ -39,6 +40,12 @@ pub const SIDECAR_ARGS: [&str; 2] = ["host", "--stdio"];
 const STDERR_LINE_MAX: usize = 8 * 1024;
 /// 그룹 SIGKILL 뒤 프로세스 종료 확인을 기다리는 시간.
 const KILL_SETTLE: Duration = Duration::from_secs(2);
+/// `run_once` 명령이 끝나기를 기다리는 시간. 넘으면 그룹을 죽이고 오류를 돌려준다.
+const ONCE_TIMEOUT: Duration = Duration::from_secs(120);
+/// `run_once`가 모으는 stdout, stderr 각각의 상한. 넘는 바이트는 버리되 끝까지 읽어 자식이 막히지 않게 한다.
+pub const ONCE_OUTPUT_MAX_BYTES: usize = 256 * 1024;
+/// 복원 때 엔진이 끝나기를 기다리는 시한은 종료 시한에 이만큼을 더한 값이다.
+const RESTORE_SLACK: Duration = Duration::from_secs(5);
 
 // ---------------------------------------------------------------------------------------------
 // 공개 상태 (ipc.ts의 EngineStateSchema와 같은 모양)
@@ -381,15 +388,36 @@ pub struct Launched {
 #[derive(Debug)]
 pub struct LaunchError(pub String);
 
+/// `run_once`의 결과. 출력은 앞쪽 `ONCE_OUTPUT_MAX_BYTES`까지만 남는다. 내용은 해석하지 않는다.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OnceOutput {
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// `db_restore`가 WebView에 돌려주는 결과(`{exitCode, stdout, stderr}`). `OnceOutput`을 그대로 옮긴다.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreOutput {
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+}
+
 /// 엔진 프로세스를 띄우고 그룹을 끝내는 수단. 운영은 `TauriLauncher`, 시험은 가짜다.
 pub trait Launcher: Send + Sync + 'static {
     fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError>;
+    /// 엔진 프로그램을 `args`로 한 번 돌리고 끝나기를 기다린다. 호스트 인자(`host --stdio`)는 붙이지 않는다.
+    /// 호출 스레드를 막으므로 실행 루프 밖(blocking 스레드)에서만 부른다.
+    fn run_once(&self, args: &[String]) -> Result<OnceOutput, LaunchError>;
     fn kill_group(&self, pid: u32) -> io::Result<()>;
 }
 
 // ---------------------------------------------------------------------------------------------
 // 감독자
 
+#[derive(Clone)]
 struct Live {
     generation: u64,
     pid: u32,
@@ -410,6 +438,10 @@ struct Shared {
     target: EngineTarget,
     /// 대상을 바꿀 때마다 1씩 오른다. 실행 루프는 띄울 때의 값과 비교해 대상이 바뀌었는지 안다.
     target_epoch: u64,
+    /// 데이터베이스 복원 중이다. 참인 동안 실행 루프는 엔진을 띄우지 않는다. 복원만 켜고 끈다.
+    hold: bool,
+    /// 실행 루프가 대상을 읽고 띄워 등록하기까지의 창이 열려 있다. 복원은 이 창이 닫힌 뒤에 보류를 건다.
+    launching: bool,
 }
 
 struct Inner<L: Launcher> {
@@ -421,6 +453,10 @@ struct Inner<L: Launcher> {
     shared: Mutex<Shared>,
     stop_wake: Notify,
     restart_wake: Notify,
+    /// 보류가 바뀌었다. 보류 중 기다리는 실행 루프를 깨운다.
+    hold_wake: Notify,
+    /// 띄우는 창이 닫혔다(등록 또는 실패). 복원이 창이 닫히기를 기다린다.
+    launch_settled: Notify,
     /// 마지막으로 끝난 엔진 세대.
     exited: watch::Sender<u64>,
     /// 실행 루프가 끝났다.
@@ -476,6 +512,8 @@ impl<L: Launcher> Supervisor<L> {
                 shared: Mutex::new(Shared::default()),
                 stop_wake: Notify::new(),
                 restart_wake: Notify::new(),
+                hold_wake: Notify::new(),
+                launch_settled: Notify::new(),
                 exited: watch::channel(0).0,
                 stopped: watch::channel(false).0,
                 retargeted: watch::channel(0).0,
@@ -549,6 +587,17 @@ impl<L: Launcher> Supervisor<L> {
             });
         }
         Ok(())
+    }
+
+    /// 데이터베이스를 백업 폴더에서 되돌린다(`fresnel db restore <dir> --json`). 살아 있는 엔진은 정상 종료 순서로
+    /// 끄고, CLI를 한 번 돌리고, 끝나면 엔진을 다시 띄운다. 종료 코드와 출력은 해석하지 않고 그대로 돌려준다.
+    pub async fn restore_database(&self, backup_dir: String) -> Result<RestoreOutput, CommandError> {
+        // 과제로 띄워 두면 호출한 쪽이 기다리기를 그만둬도 보류는 CLI가 끝날 때까지 남는다.
+        let task = self.inner.runtime.spawn(restore(self.inner.clone(), backup_dir));
+        match task.await {
+            Ok(result) => result,
+            Err(_) => Err(CommandError::StorageFailed),
+        }
     }
 
     pub fn on_exit_requested(&self) -> ExitAction {
@@ -660,12 +709,21 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
     // 재기동 정책을 맞춘 대상 세대. 대상이 바뀌면(W-08) 재기동 횟수를 0으로 되돌린다.
     let mut policy_epoch: u64 = 0;
     loop {
-        // 대상과 세대는 같은 락에서 읽는다. 종료 요청이 있으면 띄우지 않는다.
+        // 복원 중이면 띄우지 않고 기다린다. 기다리다 종료 요청이 오면 나간다.
+        if !wait_while_held(&inner).await {
+            break;
+        }
+        // 대상과 세대는 같은 락에서 읽는다. 종료 요청이 있으면 띄우지 않는다. 보류가 다시 걸렸으면 기다리러 돌아간다.
+        // 띄우는 창(`launching`)은 아래에서 등록이나 실패로 닫는다. 복원은 이 창이 닫힌 뒤에 보류를 건다.
         let (target, epoch) = {
-            let state = shared(&inner);
+            let mut state = shared(&inner);
             if state.stop_requested {
                 break;
             }
+            if state.hold {
+                continue;
+            }
+            state.launching = true;
             (state.target.clone(), state.target_epoch)
         };
         if epoch != policy_epoch {
@@ -681,6 +739,7 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
             Ok(launched) => launched,
             Err(LaunchError(message)) => {
                 // 바이너리 없음, 실행 권한 없음, triple 불일치는 되풀이해도 같다. 재기동하지 않는다(spec 5).
+                end_launch(&inner);
                 inner.log.line(&format!("launch failed: {message}"));
                 if !fail_and_wait(&inner, attempt, EngineExit::new(None, None), epoch).await {
                     break;
@@ -698,6 +757,7 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
                 if let Err(kill) = inner.launcher.kill_group(pid) {
                     inner.log.line(&format!("kill_group failed: {kill}"));
                 }
+                end_launch(&inner);
                 if !fail_and_wait(&inner, attempt, EngineExit::new(None, None), epoch).await {
                     break;
                 }
@@ -708,6 +768,8 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
         };
         let (generation, stale) = {
             let mut state = shared(&inner);
+            // 등록과 창 닫기를 같은 락에서 한다. 복원은 창이 닫힌 뒤의 `live`를 보고 이 엔진을 끈다.
+            state.launching = false;
             state.generation += 1;
             state.failed = false;
             let generation = state.generation;
@@ -721,6 +783,7 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
             });
             (generation, stale)
         };
+        inner.launch_settled.notify_one();
         inner.log.line(&format!("engine[{generation}] started pid={pid}"));
         inner.relay.set_state(EngineState::Running {
             source: EngineSource::Sidecar,
@@ -747,9 +810,9 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
             "engine[{generation}] exited code={:?} signal={:?}",
             exit.code, exit.signal
         ));
-        let (stopping, current) = {
+        let (stopping, current, held) = {
             let state = shared(&inner);
-            (state.stop_requested, state.target_epoch)
+            (state.stop_requested, state.target_epoch, state.hold)
         };
         if stopping {
             break;
@@ -764,6 +827,10 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
                 retry_at: rfc3339_utc(now_ms()),
                 last_exit: exit,
             });
+            continue;
+        }
+        if held {
+            // 복원 때문에 끝낸 엔진이다. 자동 재기동 횟수에 세지 않는다. 보류가 풀리면 맨 위에서 다시 띄운다.
             continue;
         }
         match policy.on_exit(Instant::now()) {
@@ -798,6 +865,126 @@ async fn run_loop<L: Launcher>(inner: Arc<Inner<L>>) {
     }
     inner.relay.set_state(EngineState::Stopped);
     inner.stopped.send_replace(true);
+}
+
+/// 복원 보류가 풀릴 때까지 기다린다. 기다리는 동안 상태는 `stopped`다. 종료 요청이 오면 거짓을 돌려준다.
+async fn wait_while_held<L: Launcher>(inner: &Arc<Inner<L>>) -> bool {
+    loop {
+        {
+            let state = shared(inner);
+            if state.stop_requested {
+                return false;
+            }
+            if !state.hold {
+                return true;
+            }
+        }
+        inner.relay.set_state(EngineState::Stopped);
+        tokio::select! {
+            () = inner.hold_wake.notified() => {}
+            () = inner.stop_wake.notified() => {}
+        }
+    }
+}
+
+/// 띄우는 창을 닫는다. 복원이 창이 닫히기를 기다리고 있으면 깨운다.
+fn end_launch<L: Launcher>(inner: &Inner<L>) {
+    shared(inner).launching = false;
+    inner.launch_settled.notify_one();
+}
+
+/// 복원 보류의 손잡이. 떨어지면(정상, 오류, 취소 모두) 보류를 풀고 실행 루프를 깨운다.
+struct HoldGuard<L: Launcher> {
+    inner: Arc<Inner<L>>,
+}
+
+impl<L: Launcher> Drop for HoldGuard<L> {
+    fn drop(&mut self) {
+        shared(&self.inner).hold = false;
+        self.inner.hold_wake.notify_one();
+    }
+}
+
+/// 복원 보류를 건다. 띄우는 창이 닫힐 때까지 기다린 뒤에 건다. 그래서 보류가 걸린 뒤에는 새 엔진이 생기지 않는다.
+/// 걸린 순간의 살아 있는 엔진을 돌려준다.
+async fn begin_hold<L: Launcher>(inner: &Arc<Inner<L>>) -> Result<Option<Live>, CommandError> {
+    let deadline = Instant::now() + inner.config.shutdown_grace + RESTORE_SLACK;
+    loop {
+        let settled = inner.launch_settled.notified();
+        {
+            let mut state = shared(inner);
+            if state.stop_requested {
+                return Err(CommandError::EngineStopping);
+            }
+            if state.target.is_remote() {
+                return Err(CommandError::RemoteTarget);
+            }
+            if state.hold {
+                return Err(CommandError::Busy);
+            }
+            if !state.launching {
+                state.hold = true;
+                return Ok(state.live.clone());
+            }
+        }
+        if timeout_at(deadline, settled).await.is_err() {
+            return Err(CommandError::EngineStopping);
+        }
+    }
+}
+
+/// 복원 본체. `Supervisor::restore_database`가 따로 띄운 과제에서 돈다.
+async fn restore<L: Launcher>(
+    inner: Arc<Inner<L>>,
+    backup_dir: String,
+) -> Result<RestoreOutput, CommandError> {
+    let live = begin_hold(&inner).await?;
+    // 여기서부터는 어떤 경로로 끝나도 보류가 풀린다.
+    let _hold = HoldGuard {
+        inner: inner.clone(),
+    };
+    if let Some(live) = live {
+        inner.relay.set_state(EngineState::Stopping);
+        let deadline = Instant::now() + inner.config.shutdown_grace + RESTORE_SLACK;
+        let mut exited = inner.exited.subscribe();
+        // 원격 엔진에는 host.shutdown을 보내지 않는다(stop_engine과 같다).
+        Supervisor {
+            inner: inner.clone(),
+        }
+        .stop_engine(live.generation, live.pid, &live.pipe, !live.remote)
+        .await;
+        if timeout_at(deadline, exited.wait_for(|last| *last >= live.generation))
+            .await
+            .is_err()
+        {
+            inner.log.line("db restore: the engine did not exit in time");
+            return Err(CommandError::EngineStopping);
+        }
+    }
+    let worker = inner.clone();
+    let args = vec![
+        "db".to_string(),
+        "restore".to_string(),
+        backup_dir,
+        "--json".to_string(),
+    ];
+    let ran = tokio::task::spawn_blocking(move || worker.launcher.run_once(&args)).await;
+    let output = match ran {
+        Ok(Ok(output)) => output,
+        Ok(Err(LaunchError(message))) => {
+            inner.log.line(&format!("db restore could not run: {message}"));
+            return Err(CommandError::StorageFailed);
+        }
+        Err(_) => return Err(CommandError::StorageFailed),
+    };
+    inner
+        .log
+        .line(&format!("db restore finished exit={}", output.exit_code));
+    Ok(RestoreOutput {
+        exit_code: output.exit_code,
+        stdout: output.stdout,
+        stderr: output.stderr,
+    })
 }
 
 /// `failed`로 두고 수동 재기동, 종료, 대상 바꾸기를 기다린다. 다시 띄울 때면 참이다.
@@ -946,20 +1133,21 @@ impl TauriLauncher {
     }
 }
 
-impl Launcher for TauriLauncher {
-    fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError> {
+impl TauriLauncher {
+    /// 사이드카 명령을 만든다. 이름이 없으면 오류다.
+    fn sidecar_command(&self) -> Result<tauri_plugin_shell::process::Command, LaunchError> {
+        self.app
+            .shell()
+            .sidecar(SIDECAR_NAME)
+            .map_err(|e| LaunchError(format!("sidecar `{SIDECAR_NAME}` is not available: {e}")))
+    }
+
+    /// 명령을 엔진과 같은 작업 폴더와 환경으로 띄운다(E6, E7). 그룹으로 묶고 stdout은 원시 바이트로 받는다.
+    fn spawn_child(
+        &self,
+        command: tauri_plugin_shell::process::Command,
+    ) -> Result<Launched, LaunchError> {
         let cwd = self.working_dir()?;
-        let shell = self.app.shell();
-        // 원격 인자는 사이드카 인자 뒤에 붙인다. 개발 덮어쓰기 명령에도 같은 인자를 붙인다.
-        let remote = target_args(target);
-        let command = match Self::dev_override() {
-            Some((bin, args)) => shell.command(bin).args(args).args(remote),
-            None => shell
-                .sidecar(SIDECAR_NAME)
-                .map_err(|e| LaunchError(format!("sidecar `{SIDECAR_NAME}` is not available: {e}")))?
-                .args(SIDECAR_ARGS)
-                .args(remote),
-        };
         // cwd는 홈 디렉터리다(E6). PATH 보강에도 이 값을 쓴다.
         let env = engine_env(std::env::vars_os(), Some(cwd.as_path()));
         let (rx, child) = command
@@ -977,6 +1165,78 @@ impl Launcher for TauriLauncher {
             events,
             stdin: Box::new(ChildStdin(child)),
         })
+    }
+}
+
+/// `run_once`의 이벤트를 모은다. 출력은 상한까지만 남기고 끝까지 읽는다. 종료 코드가 없으면(신호로 끝남) -1이다.
+async fn collect_once(events: &mut mpsc::Receiver<EngineEvent>) -> Result<OnceOutput, LaunchError> {
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    while let Some(event) = events.recv().await {
+        match event {
+            EngineEvent::Stdout(bytes) => push_capped(&mut stdout, &bytes),
+            EngineEvent::Stderr(bytes) => push_capped(&mut stderr, &bytes),
+            EngineEvent::Terminated { code, .. } => {
+                return Ok(OnceOutput {
+                    exit_code: code.unwrap_or(-1),
+                    stdout: String::from_utf8_lossy(&stdout).into_owned(),
+                    stderr: String::from_utf8_lossy(&stderr).into_owned(),
+                });
+            }
+            EngineEvent::Error(_) => {}
+        }
+    }
+    Err(LaunchError(
+        "the command ended without an exit event".into(),
+    ))
+}
+
+/// 상한까지만 덧붙인다. 넘는 바이트는 버린다.
+fn push_capped(buffer: &mut Vec<u8>, chunk: &[u8]) {
+    let room = ONCE_OUTPUT_MAX_BYTES.saturating_sub(buffer.len());
+    buffer.extend_from_slice(&chunk[..chunk.len().min(room)]);
+}
+
+impl Launcher for TauriLauncher {
+    fn launch(&self, target: &EngineTarget) -> Result<Launched, LaunchError> {
+        // 원격 인자는 사이드카 인자 뒤에 붙인다. 개발 덮어쓰기 명령에도 같은 인자를 붙인다.
+        let remote = target_args(target);
+        let command = match Self::dev_override() {
+            Some((bin, args)) => self.app.shell().command(bin).args(args).args(remote),
+            None => self.sidecar_command()?.args(SIDECAR_ARGS).args(remote),
+        };
+        self.spawn_child(command)
+    }
+
+    /// 호스트 인자 없이 같은 프로그램을 `args`로 돌린다. 개발 덮어쓰기는 `host --stdio` 앞부분만 쓴다(secret_entry와 같다).
+    fn run_once(&self, args: &[String]) -> Result<OnceOutput, LaunchError> {
+        let command = match Self::dev_override() {
+            Some((bin, override_args)) => match override_prefix(&override_args) {
+                Some(prefix) => self.app.shell().command(bin).args(prefix).args(args),
+                None => self.sidecar_command()?.args(args),
+            },
+            None => self.sidecar_command()?.args(args),
+        };
+        let Launched {
+            pid,
+            mut events,
+            stdin,
+        } = self.spawn_child(command)?;
+        // 입력은 없다. stdin을 떨어뜨려 닫는다.
+        drop(stdin);
+        match self
+            .runtime
+            .block_on(timeout(ONCE_TIMEOUT, collect_once(&mut events)))
+        {
+            Ok(output) => output,
+            Err(_) => {
+                let killed = self.kill_group(pid);
+                Err(LaunchError(format!(
+                    "the command did not finish in {} s and was killed (group kill: {killed:?})",
+                    ONCE_TIMEOUT.as_secs()
+                )))
+            }
+        }
     }
 
     fn kill_group(&self, pid: u32) -> io::Result<()> {
@@ -1221,6 +1481,8 @@ mod tests {
         written: Arc<Mutex<Vec<u8>>>,
         stdin_closed: Arc<AtomicBool>,
         gate: Arc<(Mutex<bool>, Condvar)>,
+        /// 사건 순서를 남긴다(`FakeLauncher::calls`와 같은 줄).
+        calls: Arc<Mutex<Vec<String>>>,
     }
 
     impl EngineHandle {
@@ -1250,6 +1512,13 @@ mod tests {
             while !*open {
                 open = cv.wait(open).expect("wait");
             }
+            if String::from_utf8_lossy(bytes).contains("host.shutdown") {
+                self.handle
+                    .calls
+                    .lock()
+                    .expect("lock")
+                    .push(format!("shutdown:{}", self.handle.pid));
+            }
             self.handle.written.lock().expect("lock").extend_from_slice(bytes);
             Ok(())
         }
@@ -1258,6 +1527,11 @@ mod tests {
     impl Drop for FakeStdin {
         fn drop(&mut self) {
             self.handle.stdin_closed.store(true, Ordering::SeqCst);
+            self.handle
+                .calls
+                .lock()
+                .expect("lock")
+                .push(format!("stdin-closed:{}", self.handle.pid));
             if self.exit_on_eof {
                 // EOF를 읽은 엔진이 체크포인트하고 끝난다.
                 let _ = self.handle.events.try_send(EngineEvent::Terminated { code: Some(0), signal: None });
@@ -1284,6 +1558,12 @@ mod tests {
         on_launch: Mutex<Option<Box<dyn FnOnce() + Send>>>,
         /// kill_group이 불렸을 때 엔진을 종료시킨다.
         die_on_kill: bool,
+        /// 사건 순서: `launch:<pid>`, `shutdown:<pid>`, `stdin-closed:<pid>`, `kill:<pid>`, `run-once:<인자>`.
+        calls: Arc<Mutex<Vec<String>>>,
+        /// `run_once`의 결과. 한 번 쓰고 나면 기본값(종료 코드 0, 빈 출력)으로 돌아간다.
+        once: Mutex<Option<Result<OnceOutput, LaunchError>>>,
+        /// 닫혀 있으면 `run_once`가 열릴 때까지 기다린다. 처음에는 열려 있다.
+        once_gate: Arc<(Mutex<bool>, Condvar)>,
     }
 
     impl FakeLauncher {
@@ -1297,10 +1577,23 @@ mod tests {
                 killed: Mutex::new(Vec::new()),
                 on_launch: Mutex::new(None),
                 die_on_kill,
+                calls: Arc::new(Mutex::new(Vec::new())),
+                once: Mutex::new(None),
+                once_gate: Arc::new((Mutex::new(true), Condvar::new())),
             })
         }
         fn handle(&self, n: usize) -> EngineHandle {
             self.handles.lock().expect("lock")[n].clone()
+        }
+        fn calls(&self) -> Vec<String> {
+            self.calls.lock().expect("lock").clone()
+        }
+        fn close_once_gate(&self) {
+            *self.once_gate.0.lock().expect("lock") = false;
+        }
+        fn open_once_gate(&self) {
+            *self.once_gate.0.lock().expect("lock") = true;
+            self.once_gate.1.notify_all();
         }
     }
 
@@ -1316,6 +1609,7 @@ mod tests {
             self.targets.lock().expect("lock").push(target.clone());
             let n = self.launches.fetch_add(1, Ordering::SeqCst) + 1;
             let pid = 1000 + n;
+            self.calls.lock().expect("lock").push(format!("launch:{pid}"));
             let (tx, rx) = mpsc::channel(8);
             let handle = EngineHandle {
                 pid,
@@ -1323,6 +1617,7 @@ mod tests {
                 written: Arc::new(Mutex::new(Vec::new())),
                 stdin_closed: Arc::new(AtomicBool::new(false)),
                 gate: Arc::new((Mutex::new(!self.behavior.block_writes), Condvar::new())),
+                calls: self.calls.clone(),
             };
             self.handles.lock().expect("lock").push(handle.clone());
             Ok(Launched {
@@ -1332,8 +1627,29 @@ mod tests {
             })
         }
 
+        fn run_once(&self, args: &[String]) -> Result<OnceOutput, LaunchError> {
+            self.calls
+                .lock()
+                .expect("lock")
+                .push(format!("run-once:{}", args.join(" ")));
+            {
+                let (lock, cv) = &*self.once_gate;
+                let mut open = lock.lock().expect("lock");
+                while !*open {
+                    open = cv.wait(open).expect("wait");
+                }
+            }
+            let scripted = self.once.lock().expect("lock").take();
+            scripted.unwrap_or(Ok(OnceOutput {
+                exit_code: 0,
+                stdout: String::new(),
+                stderr: String::new(),
+            }))
+        }
+
         fn kill_group(&self, pid: u32) -> io::Result<()> {
             self.killed.lock().expect("lock").push(pid);
+            self.calls.lock().expect("lock").push(format!("kill:{pid}"));
             if self.die_on_kill {
                 // 그룹의 pid로 엔진을 찾는다. 나중에 뜬 엔진을 잘못 끝내지 않도록 마지막 것을 고르지 않는다.
                 let found = self
@@ -1952,5 +2268,224 @@ mod tests {
         assert!(engine.stdin_closed.load(Ordering::SeqCst));
         assert_eq!(kinds(&rig.sink).last().map(String::as_str), Some("stopped"));
         assert_eq!(*rig.launcher.targets.lock().expect("lock"), [remote_target]);
+    }
+
+    // ----- 데이터베이스 복원 -----
+
+    fn restore_call(dir: &str) -> String {
+        format!("run-once:db restore {dir} --json")
+    }
+
+    fn empty_output() -> RestoreOutput {
+        RestoreOutput {
+            exit_code: 0,
+            stdout: String::new(),
+            stderr: String::new(),
+        }
+    }
+
+    fn spawn_restore(
+        supervisor: &Supervisor<Arc<FakeLauncher>>,
+        dir: &str,
+    ) -> tokio::task::JoinHandle<Result<RestoreOutput, CommandError>> {
+        let supervisor = supervisor.clone();
+        let dir = dir.to_string();
+        tokio::spawn(async move { supervisor.restore_database(dir).await })
+    }
+
+    /// 복원 중에는 엔진을 다시 띄우지 않고, 끝나면 다시 띄운다. 복원 때문에 끝난 엔진은 자동 재기동 횟수에 세지 않는다(한도 0으로 본다).
+    #[tokio::test]
+    async fn the_hold_keeps_the_engine_down_during_the_restore_and_does_not_count_as_a_crash() {
+        let rig = rig(EOF_EXIT, true, 0);
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        rig.launcher.close_once_gate();
+        let restore = spawn_restore(&rig.supervisor, "/backups/a");
+        until("cli ran", || rig.launcher.calls().contains(&restore_call("/backups/a"))).await;
+        // CLI가 도는 동안 엔진은 내려가 있고 다시 뜨지 않는다.
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 1);
+        assert_eq!(rig.relay.state(), EngineState::Stopped);
+        rig.launcher.open_once_gate();
+        assert_eq!(restore.await.expect("join"), Ok(empty_output()));
+        until("relaunch", || rig.launcher.launches.load(Ordering::SeqCst) == 2).await;
+        until("running again", || {
+            kinds(&rig.sink).last().map(String::as_str) == Some("running")
+        })
+        .await;
+        assert_eq!(
+            kinds(&rig.sink),
+            ["starting", "running", "stopping", "stopped", "starting", "running"]
+        );
+    }
+
+    /// 살아 있는 엔진은 종료 요청, stdin 닫기, 종료, 그룹 정리가 끝난 뒤에 CLI가 돈다. 다시 띄우는 것은 CLI가 끝난 뒤다.
+    #[tokio::test]
+    async fn the_live_engine_is_stopped_before_the_cli_runs() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        let output = rig.supervisor.restore_database("/backups/a".into()).await;
+        assert_eq!(output, Ok(empty_output()));
+        until("relaunch", || rig.launcher.launches.load(Ordering::SeqCst) == 2).await;
+        assert_eq!(
+            rig.launcher.calls(),
+            [
+                "launch:1001",
+                "shutdown:1001",
+                "stdin-closed:1001",
+                "kill:1001",
+                "run-once:db restore /backups/a --json",
+                "launch:1002",
+            ]
+        );
+    }
+
+    /// CLI를 돌리지 못하면 오류를 돌려주고, 보류를 풀고, 엔진을 다시 띄운다.
+    #[tokio::test]
+    async fn a_command_that_cannot_run_clears_the_hold_and_the_engine_starts_again() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        *rig.launcher.once.lock().expect("lock") = Some(Err(LaunchError("spawn failed".into())));
+        assert_eq!(
+            rig.supervisor.restore_database("/backups/a".into()).await,
+            Err(CommandError::StorageFailed)
+        );
+        assert!(!shared(&rig.supervisor.inner).hold);
+        until("relaunch", || rig.launcher.launches.load(Ordering::SeqCst) == 2).await;
+        until("running again", || {
+            kinds(&rig.sink).last().map(String::as_str) == Some("running")
+        })
+        .await;
+    }
+
+    /// CLI의 종료 코드와 출력은 해석하지 않고 그대로 돌려준다. 종료 코드 3(엔진이 쥐고 있음)도 명령 오류가 아니다.
+    #[tokio::test]
+    async fn the_exit_code_and_the_output_come_back_unchanged() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        let stdout = "{\"ok\":false,\"error\":\"engine_running\"}\n";
+        let stderr = "refused\n";
+        *rig.launcher.once.lock().expect("lock") = Some(Ok(OnceOutput {
+            exit_code: 3,
+            stdout: stdout.into(),
+            stderr: stderr.into(),
+        }));
+        let output = rig.supervisor.restore_database("/backups/a".into()).await;
+        assert_eq!(
+            output,
+            Ok(RestoreOutput {
+                exit_code: 3,
+                stdout: stdout.into(),
+                stderr: stderr.into(),
+            })
+        );
+        assert!(rig.launcher.calls().contains(&restore_call("/backups/a")));
+        until("relaunch", || rig.launcher.launches.load(Ordering::SeqCst) == 2).await;
+    }
+
+    #[test]
+    fn the_restore_output_serializes_to_the_camel_case_shape() {
+        let output = RestoreOutput {
+            exit_code: 3,
+            stdout: "o".into(),
+            stderr: "e".into(),
+        };
+        assert_eq!(
+            serde_json::to_value(output).expect("json"),
+            serde_json::json!({"exitCode": 3, "stdout": "o", "stderr": "e"})
+        );
+    }
+
+    /// 원격 대상이면 복원을 거부하고 엔진은 건드리지 않는다. 복원은 이 컴퓨터의 데이터 폴더에만 적용된다.
+    #[tokio::test]
+    async fn a_remote_target_is_refused_without_stopping_the_engine() {
+        let rig = rig(EOF_EXIT, true, 3);
+        assert_eq!(rig.supervisor.retarget(remote("tcp://host:1234")), Ok(()));
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        assert_eq!(
+            rig.supervisor.restore_database("/backups/a".into()).await,
+            Err(CommandError::RemoteTarget)
+        );
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_eq!(rig.launcher.calls(), ["launch:1001"]);
+        assert!(!shared(&rig.supervisor.inner).hold);
+        assert_eq!(kinds(&rig.sink), ["starting", "running"]);
+    }
+
+    /// 복원이 도는 동안 다른 복원은 거부한다. 첫 복원은 끝까지 간다.
+    #[tokio::test]
+    async fn a_second_restore_while_one_runs_is_busy() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        rig.launcher.close_once_gate();
+        let first = spawn_restore(&rig.supervisor, "/backups/a");
+        until("cli ran", || rig.launcher.calls().contains(&restore_call("/backups/a"))).await;
+        assert_eq!(
+            rig.supervisor.restore_database("/backups/b".into()).await,
+            Err(CommandError::Busy)
+        );
+        rig.launcher.open_once_gate();
+        assert_eq!(first.await.expect("join"), Ok(empty_output()));
+    }
+
+    #[tokio::test]
+    async fn a_restore_after_the_shutdown_started_is_refused() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        rig.supervisor.shutdown().await;
+        assert_eq!(
+            rig.supervisor.restore_database("/backups/a".into()).await,
+            Err(CommandError::EngineStopping)
+        );
+        assert!(!rig.launcher.calls().iter().any(|c| c.starts_with("run-once")));
+    }
+
+    /// 엔진이 끝나지 않으면 시한이 지난 뒤 복원을 포기한다. CLI는 돌리지 않고 보류는 풀린다.
+    #[tokio::test(start_paused = true)]
+    async fn a_restore_gives_up_when_the_engine_never_exits() {
+        let rig = rig(Behavior { exit_on_eof: false, block_writes: false }, false, 3);
+        rig.supervisor.start();
+        until("running", || kinds(&rig.sink).contains(&"running".to_string())).await;
+        assert_eq!(
+            rig.supervisor.restore_database("/backups/a".into()).await,
+            Err(CommandError::EngineStopping)
+        );
+        assert!(!shared(&rig.supervisor.inner).hold);
+        assert!(!rig.launcher.calls().iter().any(|c| c.starts_with("run-once")));
+    }
+
+    /// CLI 출력은 앞쪽 256 KiB까지만 남고, 끝까지 읽는다. 종료 신호로 끝나면 종료 코드는 -1이다.
+    #[tokio::test]
+    async fn the_command_output_is_capped_and_the_exit_code_is_kept() {
+        let (tx, mut rx) = mpsc::channel(8);
+        tx.send(EngineEvent::Stdout(vec![b'a'; ONCE_OUTPUT_MAX_BYTES + 10]))
+            .await
+            .expect("send");
+        tx.send(EngineEvent::Stderr(b"warn".to_vec())).await.expect("send");
+        tx.send(EngineEvent::Terminated { code: Some(0), signal: None })
+            .await
+            .expect("send");
+        let output = collect_once(&mut rx).await.expect("output");
+        assert_eq!(output.stdout.len(), ONCE_OUTPUT_MAX_BYTES);
+        assert_eq!(output.stderr, "warn");
+        assert_eq!(output.exit_code, 0);
+    }
+
+    #[tokio::test]
+    async fn a_signal_exit_is_minus_one_and_a_missing_exit_event_is_an_error() {
+        let (tx, mut rx) = mpsc::channel(8);
+        tx.send(EngineEvent::Terminated { code: None, signal: Some(9) })
+            .await
+            .expect("send");
+        assert_eq!(collect_once(&mut rx).await.expect("output").exit_code, -1);
+        let (tx, mut rx) = mpsc::channel::<EngineEvent>(8);
+        drop(tx);
+        assert!(collect_once(&mut rx).await.is_err());
     }
 }

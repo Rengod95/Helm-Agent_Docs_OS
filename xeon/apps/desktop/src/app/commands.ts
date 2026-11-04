@@ -19,6 +19,7 @@ import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
 import { createScheduleCommands } from "./schedule.ts";
+import { createRestoreCommands } from "./restore.ts";
 import { createSecretCommands } from "./secrets.ts";
 import { createSettingsCommands } from "./settings.ts";
 import { createWebCommands } from "./web.ts";
@@ -37,8 +38,8 @@ import type { EngineSwitch } from "./engine-switch.ts";
 
 export type CommandDeps = {
   readonly session: Session;
-  /** 키 등록(`registerSecret`)과 엔진 대상 바꾸기(`retarget`)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
-  readonly ipc: Pick<DesktopIpc, "registerSecret" | "retarget">;
+  /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
+  readonly ipc: Pick<DesktopIpc, "registerSecret" | "retarget" | "dbRestore">;
   /** 데스크톱 로컬 설정. 원격 대상 목록을 읽고 쓴다(연결 화면) */
   readonly local: Pick<LocalSettings, "load" | "get" | "set">;
   readonly engine: EngineStore;
@@ -258,6 +259,7 @@ export function createCommands(deps: CommandDeps): Commands {
       run: withConnection,
     }),
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
+    restore: createRestoreCommands({ ipc: deps.ipc, engineSwitch: deps.engineSwitch }),
     settings: createSettingsCommands({ session, ui, local: deps.local }),
     web: createWebCommands(withConnection),
     proposals: createProposalCommands(withConnection, withWriteConnection),

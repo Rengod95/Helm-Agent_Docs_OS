@@ -3,8 +3,6 @@ import { parse } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
 import { WIRE_ERRORS, type ExtListEntry } from "@fresnel/contracts/wire";
 import {
-  INITIAL_WORKBENCH,
-  listLoaded,
   profileApplyRequestOf,
   profileFailureOf,
   threadOnOf,
@@ -49,8 +47,6 @@ const HELM = entry("helm", { layer: "L3", isGroup: true });
 const CORE = entry("core-loop", { layer: "L1", tier: "core", origin: "builtin" });
 const GUARD = entry("guard", { tier: "guard", origin: "builtin" });
 const OFF = entry("review", { status: "disabled" });
-
-const state = listLoaded(INITIAL_WORKBENCH, [HELM, CORE, GUARD, OFF]);
 
 describe("이 대화에서 켜짐 값: 대화가 덮어 쓴 상태가 있으면 그것, 없으면 전역", () => {
   test("대화 상태가 없으면 전역 상태를 쓴다", () => {
@@ -116,40 +112,33 @@ describe("이 대화에서 끄기 스위치의 그림", () => {
 
 describe("이 대화에서 끄기 요청: settings.set, 범위 launch, 대화 id", () => {
   test("열린 대화의 확장을 끄면 정확한 params다", () => {
-    const helm = listLoaded(INITIAL_WORKBENCH, [entry("helm")]);
-    expect(threadToggleRequestOf(helm, "helm", THREAD, false)).toEqual({
+    expect(threadToggleRequestOf(HELM, THREAD, false)).toEqual({
       ok: true,
       request: { key: "ext.helm.enabled", value: false, scope: "launch", threadId: THREAD },
     });
   });
 
   test("이 대화에서 다시 켜는 요청은 값 true, 같은 범위다(전역은 켜져 있어야 한다)", () => {
-    const helm = listLoaded(INITIAL_WORKBENCH, [entry("helm")]);
-    expect(threadToggleRequestOf(helm, "helm", THREAD, true)).toEqual({
+    expect(threadToggleRequestOf(HELM, THREAD, true)).toEqual({
       ok: true,
       request: { key: "ext.helm.enabled", value: true, scope: "launch", threadId: THREAD },
     });
   });
 
   test("대화가 없으면 보내지 않는다", () => {
-    expect(threadToggleRequestOf(state, "helm", null, false)).toEqual({
+    expect(threadToggleRequestOf(HELM, null, false)).toEqual({
       ok: false,
       reason: "no_thread",
     });
   });
 
-  test("잠긴 확장과 모르는 확장은 보내지 않는다", () => {
-    expect(threadToggleRequestOf(state, "core-loop", THREAD, false)).toEqual({
+  test("잠긴 확장은 보내지 않는다: 면제 tier, 전역에서 꺼짐, 관리 정책", () => {
+    expect(threadToggleRequestOf(CORE, THREAD, false)).toEqual({ ok: false, reason: "locked" });
+    expect(threadToggleRequestOf(OFF, THREAD, true)).toEqual({ ok: false, reason: "locked" });
+    const managed = entry("policy", { enabledSource: "managed" });
+    expect(threadToggleRequestOf(managed, THREAD, true)).toEqual({
       ok: false,
       reason: "locked",
-    });
-    expect(threadToggleRequestOf(state, "review", THREAD, true)).toEqual({
-      ok: false,
-      reason: "locked",
-    });
-    expect(threadToggleRequestOf(state, "nope", THREAD, true)).toEqual({
-      ok: false,
-      reason: "unknown",
     });
   });
 });

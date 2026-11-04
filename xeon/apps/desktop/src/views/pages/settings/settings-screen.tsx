@@ -30,6 +30,7 @@ import { useCommands, type SettingsFileTarget, type SettingsFileWrite } from "..
 import { PROVIDER_EDITORS, RotationPanel, useUsageState } from "../providers/providers-screen.tsx";
 import { UsagePanelView } from "../providers/providers-view.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
+import { RestorePanel } from "./settings-restore-screen.tsx";
 import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
 import {
   fileDirtyOf,
@@ -428,6 +429,7 @@ export function SettingsPage(): ReactNode {
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
+      restorePanel={<RestorePanel />}
       rotationPanel={
         view === null ? null : <RotationPanel view={view} live={live} handlers={fields} />
       }

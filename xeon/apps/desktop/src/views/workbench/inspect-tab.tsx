@@ -1,8 +1,9 @@
 // 검사 탭(LightCraft 오른쪽 "검사", spec §6.22.4). 캔버스나 목록에서 고른 확장 하나를 읽는다. 고른 것이 없으면 빈 상태다.
-// 구역: 머리(이름, 층·종류·등급·버전·상태, 켜기·끄기, 다시 켜기, 확장 상세), 이 대화에서 끄기(대화가 열렸을 때, 면제 tier는 없음),
-// 훅(예산과 p95), 주도 락(그룹이고 drive를 쓸 때), 기능, 설정 바인딩(`settings.explain`, 읽기만), 구성(그룹만), 최근 실패,
-// 이 대화의 프로필(프로필 하나를 이 대화에 적용). 값은 `packages/client/src/workbench/inspect.ts`와 `thread.ts`가 만든다.
-// 데이터: `ext.get`, `ext.timings`, `group.list`·`group.driveLock`·`ext.list`(대화가 열렸을 때), `profile.list`, 엔진 거울의 실패 기록과 장부(`health`).
+// 구역: 머리(이름, 층·종류·등급·버전·상태, 켜기·끄기, 다시 켜기, 확장 상세), 훅(예산과 p95), 주도 락(그룹이고 drive를 쓸 때),
+// 기능, 설정 바인딩(`settings.explain`, 읽기만), 구성(그룹만), 최근 실패, 이 대화의 프로필(프로필 하나를 이 대화에 적용).
+// 이 대화에서 끄기 스위치는 대화 영역 "플러그인" 탭(`views/plugin/thread-switches.tsx`)에 있다.
+// 값은 `packages/client/src/workbench/inspect.ts`가 만든다.
+// 데이터: `ext.get`, `ext.timings`, `group.list`·`group.driveLock`(대화가 열렸을 때), `profile.list`, 엔진 거울의 실패 기록과 장부(`health`).
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   failureRowsOf,
@@ -15,15 +16,12 @@ import {
   rowOf,
   runtimeViewOf,
   selectedEntry,
-  threadPendingOf,
-  threadSwitchOf,
   userConfigOf,
   type InspectFeatureVM,
   type InspectHookVM,
   type HandlerFailureEntry,
   type InspectSettingVM,
   type RuntimeDriveView,
-  type ThreadLock,
   type WorkbenchState,
 } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
@@ -51,7 +49,6 @@ import {
   SelectOption,
   Skeleton,
   StatusDot,
-  Switch,
 } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -60,12 +57,7 @@ import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.t
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { FailureRecords } from "./ext-detail.tsx";
 import { ExtName, ExtSwitch, kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
-import {
-  detachVoid,
-  reloadOnExtChanges,
-  useWorkbenchController,
-  type WorkbenchController,
-} from "./controller.ts";
+import { detachVoid, reloadOnExtChanges, useWorkbenchController } from "./controller.ts";
 import { useToggleRequest } from "./craft-parts.tsx";
 import { driveUsageText, linkOf, RoleText, type LinkState } from "../runtime/runtime-tab.tsx";
 
@@ -91,8 +83,6 @@ export interface InspectData {
   readonly timings: Load<ExtTimingsResult>;
   readonly drive: Load<DriveData>;
   readonly settings: Load<readonly InspectSettingVM[]>;
-  /** 이 대화에서 본 확장 한 줄(`ext.list`에 `threadId`). 대화가 없으면 읽지 않는다 */
-  readonly thread: Load<ExtListEntry>;
   /** 저장된 프로필 목록. 대화와 상관없이 읽는다 */
   readonly profiles: Load<readonly Profile[]>;
 }
@@ -102,7 +92,6 @@ const INSPECT_LOADING: InspectData = {
   timings: LOADING,
   drive: LOADING,
   settings: LOADING,
-  thread: LOADING,
   profiles: LOADING,
 };
 
@@ -147,19 +136,6 @@ async function loadSettings(
     : ERROR;
 }
 
-/** 이 대화에서 본 확장 한 줄. 목록에 그 확장이 없으면 읽기 오류로 본다. 대화가 없으면 읽지 않는다 */
-async function loadThread(
-  workbench: WorkbenchCommands,
-  name: string,
-  threadId: ThreadId | null,
-): Promise<Load<ExtListEntry>> {
-  if (threadId === null) return IDLE;
-  const listed = await workbench.list(threadId);
-  if (!listed.ok) return ERROR;
-  const found = listed.value.find((entry) => entry.name === name);
-  return found === undefined ? ERROR : { kind: "ready", value: found };
-}
-
 async function loadProfiles(workbench: WorkbenchCommands): Promise<Load<readonly Profile[]>> {
   const got = await workbench.profiles();
   return got.ok ? { kind: "ready", value: got.value } : ERROR;
@@ -171,11 +147,10 @@ async function loadInspect(
   name: string,
   threadId: ThreadId | null,
 ): Promise<InspectData> {
-  const [got, measured, drive, thread, profiles] = await Promise.all([
+  const [got, measured, drive, profiles] = await Promise.all([
     workbench.get(name),
     workbench.timings(name, threadId ?? undefined),
     loadDrive(workbench, threadId),
-    loadThread(workbench, name, threadId),
     loadProfiles(workbench),
   ]);
   const detail: Load<ExtGetResult> = got.ok ? { kind: "ready", value: got.value } : ERROR;
@@ -183,7 +158,7 @@ async function loadInspect(
     ? { kind: "ready", value: measured.value }
     : ERROR;
   const settings = await loadSettings(workbench, threadId, detail);
-  return { detail, timings, drive, settings, thread, profiles };
+  return { detail, timings, drive, settings, profiles };
 }
 
 /**
@@ -510,13 +485,6 @@ function FailuresSection(props: {
   );
 }
 
-const THREAD_LOCK_TEXT: Readonly<Record<ThreadLock, MessageId>> = {
-  no_thread: "desktop.inspect.thread.noThread",
-  global_off: "desktop.inspect.thread.globalOff",
-  safe_mode: "desktop.workbench.lock.safeMode",
-  managed: "desktop.workbench.lock.managed",
-};
-
 /** 확인 대화 상자 하나. 취소는 닫기이고 실행 단추는 `onConfirm`을 부른다 */
 function ConfirmDialog(props: {
   readonly open: boolean;
@@ -546,50 +514,6 @@ function ConfirmDialog(props: {
         </>
       }
     />
-  );
-}
-
-/** 이 대화에서 끄기 구역: 스위치 하나, 잠긴 이유 한 줄, 적용 대기 표시. 면제 tier는 구역을 그리지 않는다 */
-function ThreadSection(props: {
-  readonly entry: ExtListEntry;
-  readonly threadOpen: boolean;
-  readonly thread: Load<ExtListEntry>;
-  readonly onToggle: (target: boolean) => void;
-}): ReactNode {
-  const { thread } = props;
-  if (threadSwitchOf(props.entry, props.threadOpen).kind === "hidden") return null;
-  const title = t("desktop.inspect.thread.title");
-  if (props.threadOpen && thread.kind !== "ready") {
-    return (
-      <Section title={title}>
-        {thread.kind === "error" ? (
-          <Alert tone="danger">{t("desktop.inspect.thread.loadFailed")}</Alert>
-        ) : (
-          <Skeleton height={24} />
-        )}
-      </Section>
-    );
-  }
-  const source = thread.kind === "ready" ? thread.value : props.entry;
-  const view = threadSwitchOf(source, props.threadOpen);
-  if (view.kind === "hidden") return null;
-  // 켜짐은 대화 상태 그대로다. 경계를 기다리는 동안은 `enabling`·`disabling`이라 배지가 그 사실을 보인다
-  const waiting = threadPendingOf(source) !== null;
-  return (
-    <Section title={title}>
-      <div className="flex flex-wrap items-center gap-2 text-ui-sm">
-        <Switch
-          size="sm"
-          checked={view.on}
-          disabled={view.kind === "locked"}
-          aria-label={t("desktop.inspect.thread.switch.label", { name: props.entry.displayName })}
-          onCheckedChange={props.onToggle}
-        />
-        <span className="text-text-primary">{stateText(view.on ? "on" : "off")}</span>
-        {waiting && <Badge size="sm">{t("desktop.inspect.thread.appliesAt")}</Badge>}
-      </div>
-      {view.kind === "locked" && <p className={MUTED}>{t(THREAD_LOCK_TEXT[view.lock])}</p>}
-    </Section>
   );
 }
 
@@ -673,69 +597,8 @@ function ProfileSection(props: {
 }
 
 /**
- * 이 대화에서 켜기·끄기. 스위치를 누르면 확인 대화 상자를 보이고, 확인하면 `controller.toggleForThread`를 부른다.
- * 쓴 뒤에는 다시 읽는다. 경계를 기다리는 표시는 대화 상태(`enabling`·`disabling`)에서 온다.
- */
-function useThreadToggle(props: {
-  readonly controller: WorkbenchController;
-  readonly name: string;
-  readonly displayName: string;
-  readonly threadId: ThreadId | null;
-  readonly reload: () => void;
-}): {
-  readonly request: (target: boolean) => void;
-  readonly dialog: ReactNode;
-} {
-  const { controller, name, displayName, threadId, reload } = props;
-  const [asking, setAsking] = useState<boolean | null>(null);
-  const write = async (target: boolean): Promise<void> => {
-    if (threadId === null) return;
-    const done = await controller.toggleForThread(name, target, threadId);
-    if (done) reload();
-  };
-  return {
-    request: (target) => {
-      setAsking(target);
-    },
-    dialog: (
-      <ConfirmDialog
-        open={asking !== null}
-        heading={
-          asking === true
-            ? t("desktop.inspect.thread.confirm.on.heading")
-            : t("desktop.inspect.thread.confirm.off.heading")
-        }
-        body={
-          asking === null
-            ? ""
-            : t(
-                asking
-                  ? "desktop.inspect.thread.confirm.on.body"
-                  : "desktop.inspect.thread.confirm.off.body",
-                { name: displayName },
-              )
-        }
-        action={
-          asking === true
-            ? t("desktop.inspect.thread.confirm.on")
-            : t("desktop.inspect.thread.confirm.off")
-        }
-        onCancel={() => {
-          setAsking(null);
-        }}
-        onConfirm={() => {
-          const target = asking;
-          setAsking(null);
-          if (target !== null) detachVoid(write(target));
-        }}
-      />
-    ),
-  };
-}
-
-/**
  * 검사 탭 그림. 값과 연결 상태, 장부, 실패 기록을 받아 그린다(시험은 값을 넣어 그린다).
- * `onToggle`, `onReenable`, `onDetail`, `onThreadToggle`, `onApplyProfile`은 호출자가 잇는다.
+ * `onToggle`, `onReenable`, `onDetail`, `onApplyProfile`은 호출자가 잇는다.
  */
 export function InspectBody(props: {
   readonly entry: ExtListEntry;
@@ -744,10 +607,9 @@ export function InspectBody(props: {
   readonly data: InspectData;
   readonly health: readonly ExtHealthEntry[];
   readonly records: readonly HandlerFailureEntry[];
-  /** 열린 대화가 있나. 없으면 대화 범위 스위치와 프로필 적용이 잠긴다 */
+  /** 열린 대화가 있나. 없으면 프로필 적용이 잠긴다 */
   readonly threadOpen: boolean;
   readonly onToggle: (target: boolean) => void;
-  readonly onThreadToggle: (target: boolean) => void;
   readonly onApplyProfile: (id: string) => void;
   readonly onReenable: () => void;
   readonly onDetail: () => void;
@@ -785,12 +647,6 @@ export function InspectBody(props: {
         <p className={MUTED}>{t("desktop.runtime.offline")}</p>
       ) : (
         <>
-          <ThreadSection
-            entry={entry}
-            threadOpen={props.threadOpen}
-            thread={data.thread}
-            onToggle={props.onThreadToggle}
-          />
           <Section title={`${t("desktop.inspect.section.hooks")} ${entry.hookCount}`}>
             <HooksSection load={data.detail} timings={data.timings} />
           </Section>
@@ -848,13 +704,6 @@ function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
   const { data } = inspect;
   const controller = useWorkbenchController();
   const toggle = useToggleRequest(controller);
-  const threadToggle = useThreadToggle({
-    controller,
-    name: entry.name,
-    displayName: entry.displayName,
-    threadId,
-    reload: inspect.reload,
-  });
   const actions = useWorkbenchActions();
   const pending = useWorkbench((s) => s.pending);
   const healthRecords = useWorkbench((s) => s.health);
@@ -878,7 +727,6 @@ function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
         onToggle={(target) => {
           toggle.request(entry.name, target);
         }}
-        onThreadToggle={threadToggle.request}
         onApplyProfile={(id) => {
           detachVoid(applyProfile(id));
         }}
@@ -890,7 +738,6 @@ function InspectPanel(props: { readonly entry: ExtListEntry }): ReactNode {
         }}
       />
       {toggle.dialog}
-      {threadToggle.dialog}
     </>
   );
 }

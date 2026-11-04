@@ -54,7 +54,7 @@ import type {
 import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
 import type { ThreadToggleRequest, ToggleRequest } from "@fresnel/client/workbench";
 import type { LockedOption, ReviewTarget, Screen, SettingsJump } from "../state/ui/index.ts";
-import type { EngineTarget } from "../transport/ipc.ts";
+import type { EngineTarget, RestoreReport } from "../transport/ipc.ts";
 import type { PaletteUses } from "./palette/palette-model.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -367,6 +367,42 @@ export interface SecretCommands {
   writeClipboard(text: string): Promise<void>;
 }
 
+/**
+ * 데이터 복원이 되돌리지 못한 까닭. `kind`로 화면이 대응을 고르고, `message`는 화면에 보일 문장이다.
+ * `fix`는 해결 한 줄이고, 셸이 그 문장을 주지 않으면 `null`이다.
+ */
+export type RestoreRefusalKind =
+  /** 고른 폴더가 `fresnel db export`의 백업 폴더가 아니다(종료 코드 2) */
+  | "not_a_backup"
+  /** 백업이 이 빌드보다 새 버전이 만든 것이다 */
+  | "future_version"
+  /** 실행 중인 엔진이 데이터베이스를 쓰고 있다 */
+  | "engine_running"
+  /** 백업이 깨졌거나 Fresnel 데이터베이스가 아니다 */
+  | "invalid"
+  /** 입출력 오류, 디스크 가득 참, 그 밖의 실패 */
+  | "io"
+  /** 엔진 대상이 이 기기가 아니어서 셸이 거절했다 */
+  | "remote"
+  /** 다른 복원이 이미 진행 중이다 */
+  | "busy";
+
+export interface RestoreRefusal {
+  readonly kind: RestoreRefusalKind;
+  readonly message: string;
+  readonly fix: string | null;
+}
+
+/**
+ * 데이터 복원(P-09 고급 탭, `db_restore`). 되돌렸으면 `ok`이고 보고서를 준다. 되돌리지 못했으면 이유를 `error`로 준다.
+ * 이 명령은 wire를 지나지 않으므로 연결 여부와 관계없이 셸을 바로 부른다. 복원 중에도 대화 쓰기는 셸 쪽에서 막힌다.
+ */
+export interface RestoreCommands {
+  /** 이 앱이 셸에 마지막으로 보낸 엔진 대상. 바꾼 적이 없으면 `null`이다(모름). 원격이면 복원을 막는다 */
+  engineTarget(): EngineTarget | null;
+  run(backupDir: string): Promise<Result<RestoreReport, RestoreRefusal>>;
+}
+
 /** 성능 측정 화면(P-20, §6.27). 측정 저장소 읽기만 한다. 측정이 꺼져 있으면 `enabled`가 거짓이다 */
 export interface MeasureCommands {
   /** `measure.turn`: 한 Turn의 측정 행(Turn, 호출, 훅, 요청 구성, 캐시 사건) */
@@ -521,6 +557,8 @@ export interface Commands {
   readonly pluginUi: PluginUiCommands;
   readonly connection: ConnectionCommands;
   readonly secrets: SecretCommands;
+  /** 설정 고급 탭의 데이터 복원(`db_restore`) */
+  readonly restore: RestoreCommands;
   readonly settings: SettingsCommands;
   readonly web: WebCommands;
   readonly proposals: ProposalCommands;

@@ -156,6 +156,10 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     usage: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
     },
+    restore: {
+      engineTarget: () => null,
+      run: () => Promise.resolve(err({ kind: "io", message: "fake", fix: null })),
+    },
     observeThread: () => Promise.resolve(ok(null)),
     forkThread: () => Promise.resolve(ok(null)),
     dismissLocked: () => {},
