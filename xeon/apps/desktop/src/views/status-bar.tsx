@@ -11,10 +11,11 @@ import {
   type EngineState,
   type Link,
 } from "../state/engine/index.ts";
-import { useConnectError, useSelectedThreadId } from "../state/ui/index.ts";
+import { useConnectError, useRestartNeeded, useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
 import { usePluginUiState } from "./plugin/plugin-context.tsx";
+import { RestartLine } from "./restart-line.tsx";
 
 const LINK_TEXT: Readonly<Record<Link["phase"], MessageId>> = {
   offline: "desktop.status.link.offline",
@@ -100,6 +101,7 @@ export function StatusBar(): ReactNode {
   const running = useRunningCount();
   const approvals = useApprovalCount();
   const connectError = useConnectError();
+  const restartNeeded = useRestartNeeded();
   const [copied, setCopied] = useState<boolean | null>(null);
   const copy = async (): Promise<void> => {
     setCopied(await commands.copyDiagnostics());
@@ -117,6 +119,7 @@ export function StatusBar(): ReactNode {
       {approvals > 0 ? (
         <span className="warn">{t("desktop.status.approvals", { count: approvals })}</span>
       ) : null}
+      <RestartLine reasons={restartNeeded} />
       {connectError === null ? null : (
         <span className="error">{t("desktop.status.connectFailed", { error: connectError })}</span>
       )}

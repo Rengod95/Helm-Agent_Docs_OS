@@ -9,6 +9,7 @@ import type {
   CommandOutput,
   ComposerRequest,
   LockedThread,
+  RestartReason,
   ReviewTarget,
   Screen,
   SettingsJump,
@@ -43,3 +44,4 @@ export const useObserving = (id: ThreadId | null): boolean =>
 export const useComposerRequest = (): ComposerRequest | null => useUi((s) => s.composerRequest);
 export const useSettingsJump = (): SettingsJump | null => useUi((s) => s.settingsJump);
 export const useReviewTarget = (): ReviewTarget | null => useUi((s) => s.reviewTarget);
+export const useRestartNeeded = (): readonly RestartReason[] => useUi((s) => s.restartNeeded);

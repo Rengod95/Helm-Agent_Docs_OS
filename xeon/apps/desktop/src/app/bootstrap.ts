@@ -8,6 +8,7 @@ import { createUiStore, type UiStore } from "../state/ui/index.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
 import { createCommands } from "./commands.ts";
 import { createEngineSwitch } from "./engine-switch.ts";
+import { watchEngineReturn } from "./restart-needed.ts";
 import { BUILD_CHECKS } from "./build.ts";
 import { startLocale } from "./locale.ts";
 import { createWebViewLogger, type LogLine, type LogRing } from "./logger.ts";
@@ -33,6 +34,8 @@ export type AppEnv = {
   readonly languages?: readonly string[];
   /** 연결 뒤 `l4.ui.locale`로 로케일이 바뀌었을 때 부른다. 호출자가 다시 그린다 */
   readonly onLocaleChange?: (locale: Locale) => void;
+  /** 엔진이 다시 running으로 돌아왔을 때 한 번 부른다(다시 시작 완료 알림). 호출자가 토스트를 띄운다 */
+  readonly onEngineRestarted?: () => void;
   /** 데스크톱 로컬 설정. 주면 호출자와 같은 저장소를 쓴다. 없으면 여기서 만든다 */
   readonly localSettings?: LocalSettings;
 };
@@ -94,6 +97,19 @@ export function createApp(env: AppEnv): App {
       });
     },
   );
+  // 엔진이 다시 돌아오면 다시 시작이 필요한 목록을 비우고 완료를 알린다(U-02)
+  const stopRestartWatch = watchEngineReturn({
+    engine: engine.read,
+    ui,
+    onReturned: () => {
+      env.onEngineRestarted?.();
+    },
+    report: (cause) => {
+      log.logger.error("desktop.ui.restart_watch_failed", {
+        error: cause instanceof Error ? cause.name : "unknown",
+      });
+    },
+  });
   const engineSwitch = createEngineSwitch({
     ipc: env.ipc,
     engine: engine.read,
@@ -125,6 +141,7 @@ export function createApp(env: AppEnv): App {
     log,
     async stop() {
       stopCleanup();
+      stopRestartWatch();
       engineSwitch.dispose();
       await session.stop();
     },

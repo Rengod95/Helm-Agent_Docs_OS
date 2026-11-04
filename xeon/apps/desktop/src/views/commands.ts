@@ -55,8 +55,14 @@ import type {
 } from "@fresnel/client/settings";
 import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "@fresnel/client";
 import type { ThreadToggleRequest, ToggleRequest } from "@fresnel/client/workbench";
-import type { LockedOption, ReviewTarget, Screen, SettingsJump } from "../state/ui/index.ts";
-import type { EngineTarget, RestoreReport } from "../transport/ipc.ts";
+import type {
+  LockedOption,
+  RestartReason,
+  ReviewTarget,
+  Screen,
+  SettingsJump,
+} from "../state/ui/index.ts";
+import type { EngineTarget, RestartOptions, RestoreReport } from "../transport/ipc.ts";
 import type { PaletteUses } from "./palette/palette-model.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -597,7 +603,13 @@ export interface Commands {
   reloadThreads(): void;
   retryTranscript(): void;
   reconnect(): void;
-  restartEngine(): Promise<void>;
+  /**
+   * 엔진을 다시 띄운다. `options`를 생략하면 실패 상태의 "엔진 다시 시작"이다. 살아 있는 엔진은 `confirmed: true`를 줘야 한다.
+   * 셸이 받으면 true, 거절하면 false다.
+   */
+  restartEngine(options?: RestartOptions): Promise<boolean>;
+  /** 설치나 되돌리기처럼 다시 시작해야 적용되는 일을 상태 표시줄에 모은다 */
+  noteRestartNeeded(reason: RestartReason): void;
   /** 진단 묶음을 클립보드에 쓴다 */
   copyDiagnostics(): Promise<boolean>;
 }

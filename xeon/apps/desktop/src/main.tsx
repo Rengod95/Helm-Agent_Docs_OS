@@ -1,5 +1,6 @@
-import { activeLocale } from "@fresnel/client/i18n";
+import { activeLocale, t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
+import { toast } from "@caustic/react";
 import { invoke } from "@tauri-apps/api/core";
 import { createRoot } from "react-dom/client";
 import pkg from "../package.json" with { type: "json" };
@@ -18,6 +19,7 @@ import type { FolderPickInvoke } from "./views/folder-pick.ts";
 import type { OsReauthInvoke } from "./views/os-reauth.ts";
 import { createOsReauthGate, UNAVAILABLE_GATE } from "./app/secret-reveal-gate.ts";
 import { RevealGateContext } from "./views/pages/secrets/reveal-gate-context.ts";
+import { ShellRestartContext } from "./views/shell-restart-context.ts";
 
 const osReauth: OsReauthInvoke = (command, args) => invoke(command, args);
 
@@ -44,6 +46,10 @@ if (container === null) {
     languages: navigator.languages.length > 0 ? navigator.languages : [navigator.language],
     onLocaleChange: (locale) => {
       rerender.current?.(locale);
+    },
+    // 엔진이 다시 돌아오면 완료를 알린다(다시 시작 필요 목록은 bootstrap이 비운다)
+    onEngineRestarted: () => {
+      toast({ tone: "success", title: t("desktop.restart.done") });
     },
     ipc,
     clock: { now: () => Date.now() },
@@ -92,12 +98,15 @@ if (container === null) {
         <Providers key={locale} engine={app.engine.read} ui={app.ui.read} commands={app.commands}>
           <PluginUiProvider value={pluginUi}>
             <RevealGateContext value={revealGate}>
-              <App
-                registry={registry}
-                keyOverrides={localSettings.get(LOCAL.keybindings)}
-                mac={mac}
-                folderPick={folderPick}
-              />
+              {/* 셸이 엔진을 다시 띄울 수 있다. 웹 진입점은 이 문맥을 주지 않아 단추 대신 한 줄만 보인다(U-02) */}
+              <ShellRestartContext value>
+                <App
+                  registry={registry}
+                  keyOverrides={localSettings.get(LOCAL.keybindings)}
+                  mac={mac}
+                  folderPick={folderPick}
+                />
+              </ShellRestartContext>
             </RevealGateContext>
           </PluginUiProvider>
         </Providers>

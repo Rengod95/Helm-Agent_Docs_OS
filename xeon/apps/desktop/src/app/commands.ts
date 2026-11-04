@@ -300,10 +300,14 @@ export function createCommands(deps: CommandDeps): Commands {
     },
     reconnect: () => session.reconnect(),
     retargetEngine: (target, graceMs) => deps.engineSwitch.retarget(target, graceMs),
-    async restartEngine() {
-      const restarted = await session.restartEngine();
-      if (!restarted) session.reconnect();
+    async restartEngine(options) {
+      const restarted = await session.restartEngine(options);
+      // 옵션 없는 재기동(실패 상태의 "엔진 다시 시작")이 거절되면 연결 루프를 깨운다(이전 동작). 확인을 받은 재기동이 거절되면
+      // 연결은 그대로 두고 호출한 화면이 실패 토스트를 띄운다(`restart-confirm-dialog.tsx`)
+      if (!restarted && options?.confirmed !== true) session.reconnect();
+      return restarted;
     },
+    noteRestartNeeded: (reason) => ui.actions.noteRestartNeeded(reason),
     async copyDiagnostics() {
       engine.flush();
       const bundle = buildDiagnostics(
