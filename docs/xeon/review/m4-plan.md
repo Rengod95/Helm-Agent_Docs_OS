@@ -67,11 +67,15 @@ binds: []
 
 ## 0a. 진행 상태 (2026-11-04 문서 감사)
 
-기준은 `origin/xeon/foundation` = `origin/m4/land9` `9f5ea860`입니다. 근거는 git 기록과 코드 grep이고, 확인하지 못한 항목은 "확인 필요"로 둡니다. 전체 표와 근거는 `doc-audit-2026-11-04.md` §5입니다.
+기준은 `origin/xeon/foundation`입니다. 1차 감사는 `9f5ea860`, 2차(2026-11-04)는 `d68389d6`에서 봤습니다. 근거는 git 기록과 코드 grep이고, 확인하지 못한 항목은 "확인 필요"로 둡니다. 전체 표와 근거는 `doc-audit-2026-11-04.md` §5입니다.
 
 | 트랙 | 상태 | 근거 |
 |---|---|---|
 | T-REN, T-REG, T-TERM(1~3단계), T-I18N | 완료 (용어 경고 51건 남음) | `a152f8b2`, `6870bd5a`, `74d1ea5d`, `6f6c44b7` |
+| T-ORDER(훅 순서 `hooks.order.*`, `x.operations.hookOrder`) | 병합됨 | `host-service` spec 469행, `apps/host/test/int/hook-order.int.test.ts` |
+| 자동 끄기 "끌까요" 질문(연속 5회, 끄기 전에 사용자에게 묻기) | 병합됨. 화면·CLI 알림 포함 | `ec3e21ad`, `7bc21cb0`, `ddd575f5`, `9002e9eb`, `7f62b7c0` |
+| Stagehand 엔진(승인됨 2026-11-04) | 병합됨. Chrome이 없으면 `playwright-mcp` 폴백 | `75409b92`, `fa1af52f`, `0c185831` |
+| 셸 명령 `os_reauth`, `pick_folder` | 셸에 구현됨. 맥 실기 확인은 남음(`review.macos-checklist` M-05) | `apps/desktop/src-tauri/src/os_reauth.rs`, `folder_pick.rs` |
 | T-CAU1 | 병합됨. 서브모듈 위치가 caustic main보다 뒤 | `854c3c43` |
 | T-LANG | 취소 [취소: 2026-11-02 (15)]. 아래 본문의 T-LANG 선행·위험 참조는 옛 모양 | caustic main에 PR #13 없음 |
 | T-F, T-XV, T-XD, T-WA, T-WB, T-WC, T-AUTH, T-SHELL, T-CHAT1, T-CHAT2, T-BENCH | 병합됨 | `f37bdec7`, `c4881421`, `bf9d89a4`, `5044467d`, `f465c9a1`, `bb92c95c`, `93fea3d8`, `19091351` |
@@ -82,8 +86,8 @@ binds: []
 
 종료 조건: Y10, Y11, Y16은 완료. Y8, Y9, Y12, Y15, Y17은 대체로 완료(시험 줄 활성화 남음). Y1, Y2, Y4, Y5, Y6, Y7, Y13은 부분. Y14는 미착수. Y3는 아래 메모를 봅니다.
 
-- Y3의 "모든 크래프트 화면" 맥락 칸과 프로젝트 출처 배지는 2026-11-03 크래프트 8차 시안(전역만)과 프로젝트 층 M5 이월(2026-11-04)과 어긋납니다. 둘 중 무엇이 현행인지 사용자 확인이 필요합니다(감사 보고서 §3).
-- Y4의 재생 막대는 2026-11-04 시안 Q3 A로 두지 않습니다(아직 안 만듦). 층 패널 순서의 뜻은 시안 Q2가 답 없이 열려 있습니다. 훅 순서 입력(`hooks.order.*`)은 병합되어 있습니다.
+- Y3: 2026-11-04 사용자 답은 "크래프트는 지금 전역, 코드는 나중에 프로젝트·대화 범위로 넓힐 수 있어야 한다"입니다(`m4-decisions` 2026-11-04 "answers to the audit questions"). 프로젝트 출처 배지는 M5입니다.
+- Y4의 재생 막대는 2026-11-04 시안 Q3 A로 두지 않습니다(아직 안 만듦). 층 패널은 보기 전용입니다(시안 Q2 A, 같은 블록). 훅 순서 입력(`hooks.order.*`)은 병합되어 있습니다.
 - 본문 15행 "어려운 부분은 max로"와 17행 "병합과 push 전에는 `just verify`"는 현행 규칙(Haiku xhigh, `just verify`는 병합 직전에 메인 세션만)과 다릅니다. 현행은 `agent-routing`과 Fresnel `CLAUDE.md`입니다.
 - 196행의 `.github/workflows/xeon-ci.yml`은 지금 `fresnel-ci.yml`입니다.
 

@@ -155,7 +155,7 @@ test("store open failures that need different advice map to their own kinds", ()
   const corrupt = startErrorOf(
     new AssembleError([{ code: "store", message: "storeCorrupt", failure: "corrupt" }]),
   );
-  expect(corrupt.message).toBe("세션 저장소가 손상됐다");
+  expect(corrupt.message).toBe("대화 저장소가 손상됐다");
 });
 
 test("catalog, missing service and plugin issues map to their own kinds", () => {

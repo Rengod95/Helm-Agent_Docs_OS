@@ -158,7 +158,7 @@ test("-C sets the working folder: absolute as given, relative against the curren
   });
 });
 
-test("--continue looks the session up under the -C folder", async () => {
+test("--continue looks the conversation up under the -C folder", async () => {
   const h = harness({
     server: {
       onTurn: (context) => {
@@ -171,7 +171,7 @@ test("--continue looks the session up under the -C folder", async () => {
   });
   await h.run(["-C", "/one", "chat", "-p", "x"]);
   expect(await h.run(["-C", "/two", "chat", "--continue", "-p", "x"])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain("이어 열 세션이 없다");
+  expect(h.stderrText()).toContain("이어 열 대화가 없다");
   h.stderr.length = 0;
   expect(await h.run(["-C", "/one", "chat", "--continue", "-p", "x"])).toBe(0);
   const turn = h.server().requests.findLast((request) => request.method === "turn.start");

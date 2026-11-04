@@ -288,7 +288,7 @@ test("secret rm --yes removes; without --yes a pipe is refused; a terminal asks 
   // 참조하는 정책을 먼저 보인 뒤 묻는다
   expect(tty.h.stdoutText()).toContain("허용 도구 http.request / 허용 호스트 api.example.com");
   expect(tty.h.stdoutText()).toContain(
-    "api-key: 참조하는 설정 키 없음 / 활성 lease 0개 / 최근 사용한 세션 없음\n",
+    "api-key: 참조하는 설정 키 없음 / 활성 lease 0개 / 최근 사용한 대화 없음\n",
   );
   expect(asked[0]).toContain("시크릿 api-key을(를) 지울까요?");
 
@@ -317,7 +317,7 @@ test("secret rm shows what points at the secret from secret.references before it
   expect(await s.h.run(["secret", "rm", "api-key"])).toBe(EXIT.error);
   expect(s.secrets.referenceCalls).toEqual(["api-key"]);
   expect(s.h.stdoutText()).toContain(
-    `api-key: 참조하는 설정 키 l2.web.search.apiKey, l1.models.apiKey / 활성 lease 0개 / 최근 사용한 세션 ${[1, 2, 3, 4, 5].map((n) => threadId(n)).join(", ")} 외 2개\n`,
+    `api-key: 참조하는 설정 키 l2.web.search.apiKey, l1.models.apiKey / 활성 lease 0개 / 최근 사용한 대화 ${[1, 2, 3, 4, 5].map((n) => threadId(n)).join(", ")} 외 2개\n`,
   );
   expect(asked).toHaveLength(1);
   expect(s.h.server().requests.some((r) => r.method === "secret.remove")).toBe(false);
@@ -349,7 +349,7 @@ test("secret rm --yes removes without asking and leaves the references on stderr
   expect(await s.h.run(["secret", "rm", "api-key", "--yes"])).toBe(EXIT.ok);
   expect(s.h.stdoutText()).toBe("api-key: 지웠다\n");
   expect(s.h.stderrText()).toBe(
-    "api-key: 참조하는 설정 키 l2.web.search.apiKey / 활성 lease 0개 / 최근 사용한 세션 없음\n",
+    "api-key: 참조하는 설정 키 l2.web.search.apiKey / 활성 lease 0개 / 최근 사용한 대화 없음\n",
   );
 });
 

@@ -35,7 +35,7 @@ test("trust against a host without trust methods gives the two-line failure in E
   harnesses.push(h);
   expect(await h.run(["trust"])).toBe(EXIT.environment);
   expect(h.stderrText()).toBe(
-    "fresnel: The connected host does not support project trust decisions yet\n  Fix: Update the host, or edit the trust file (trust.json) by hand\n",
+    "fresnel: The connected host does not support work folder trust decisions yet\n  Fix: Update the host, or edit the trust file (trust.json) by hand\n",
   );
 });
 

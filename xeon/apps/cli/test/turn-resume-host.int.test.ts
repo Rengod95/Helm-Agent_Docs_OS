@@ -82,7 +82,7 @@ test("y at both questions asks the restored approval, then calls turn.resume onc
   const { cli, prompts } = second(owner, ["finished."], ["y", "y"]);
   expect(await cli.harness.run(["chat", "--continue"])).toBe(EXIT.ok);
   const out = cli.harness.stdoutText();
-  expect(out).toContain("이 세션에 끊긴 turn이 있다");
+  expect(out).toContain("이 대화에 끊긴 turn이 있다");
   expect(prompts.filter((prompt) => prompt.startsWith("이어서 실행할까요?"))).toHaveLength(1);
   expect(cli.sent("turn.resume")).toEqual([
     { method: "turn.resume", params: { threadId: killed.threadId } },
@@ -124,7 +124,7 @@ test("n at the resume question never calls turn.resume and leaves the turn resum
   ]);
 }, 90_000);
 
-test("a new session and print mode never look for a resumable turn", async () => {
+test("a new conversation and print mode never look for a resumable turn", async () => {
   const owner = createRealCli({ models: answeringModels("turn-resume-new", ["답"]) });
   clis.push(owner);
   expect(await owner.harness.run(["chat", "-p", "안녕"])).toBe(EXIT.ok);

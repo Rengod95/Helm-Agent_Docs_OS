@@ -56,7 +56,7 @@ function interruptsTheTurn(server: FakeServer, context: TurnContext): unknown {
   return { interrupted: true };
 }
 
-test("the first ctrl+c during a turn sends exactly one turn.interrupt and the session goes on", async () => {
+test("the first ctrl+c during a turn sends exactly one turn.interrupt and the conversation goes on", async () => {
   const run = interactive({ interrupt: interruptsTheTurn });
   const done = run.h.run(["chat"]);
   await waitFor(() => run.h.methods().includes("turn.start"));

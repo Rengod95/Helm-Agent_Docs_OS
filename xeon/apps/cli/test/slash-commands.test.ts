@@ -147,7 +147,7 @@ test("needs_confirmation shows the shell commands and runs again with confirmShe
   expect(no.h.methods()).not.toContain("turn.start");
 });
 
-test("not_command reports an unknown slash command and keeps the session", async () => {
+test("not_command reports an unknown slash command and keeps the conversation", async () => {
   const s = chat(["/frob", "hello"], { "command.run": () => ({ status: "not_command" }) });
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   expect(s.h.stderrText()).toContain("모르는 슬래시 명령: /frob");
@@ -164,7 +164,7 @@ test("a host without command.run never gets the call and answers unknown", async
   expect(s.h.stderrText()).toContain("모르는 슬래시 명령: /plan");
 });
 
-test("command failures are mapped to two-line phrases and the session goes on", async () => {
+test("command failures are mapped to two-line phrases and the conversation goes on", async () => {
   const s = chat(["/plan x", "hello"], {
     "command.run": () => {
       throw new WireError(4000, "developer text", {
@@ -209,7 +209,7 @@ function requestsOf(h: Harness, method: string): readonly Record<string, unknown
     .map((request) => Object.fromEntries(Object.entries(request.params ?? {})));
 }
 
-test("command.list is asked with the id of the session the chat opened (G1-01)", async () => {
+test("command.list is asked with the id of the conversation the chat opened (G1-01)", async () => {
   const s = chat(["/plan on"], {
     "command.list": () => ({ commands: [PLAN] }),
     "command.run": () => ({ status: "done", name: "plan", message: "ok", result: null }),
@@ -221,7 +221,7 @@ test("command.list is asked with the id of the session the chat opened (G1-01)",
   expect(listed[0]?.["threadId"]).toBe(runParams(s.h)[0]?.["threadId"]);
 });
 
-test("switching sessions with /resume reads the command list again for the new session", async () => {
+test("switching conversations with /resume reads the command list again for the new conversation", async () => {
   const T1 = threadId(1);
   const T2 = threadId(2);
   const input = scriptedInput(["/resume 2", "/help", "/quit"]);
@@ -264,7 +264,7 @@ test("parseSlash reads /compact with and without summary instructions", () => {
   });
 });
 
-test("/compact sends thread.compact for this session and prints the token count", async () => {
+test("/compact sends thread.compact for this conversation and prints the token count", async () => {
   const s = chat(["/compact"], {
     "thread.compact": () => ({
       status: "compacted",
@@ -313,7 +313,7 @@ test("a skipped compaction prints its reason and is not an error", async () => {
   }
 });
 
-test("compaction failures are two-line phrases and the session goes on", async () => {
+test("compaction failures are two-line phrases and the conversation goes on", async () => {
   const failures: readonly [ReturnType<typeof wireError>, string, string][] = [
     [
       wireError("thread.cancelledByExtension", {
@@ -330,8 +330,8 @@ test("compaction failures are two-line phrases and the session goes on", async (
     [wireError("turn.busy"), "fresnel: 진행 중인 turn이 있다", "  해결: 끝난 뒤 다시 보낸다"],
     [
       wireError("thread.closed", { details: { threadId: "thr_1" } }),
-      "fresnel: 닫힌 세션이라 쓸 수 없다: thr_1",
-      "  해결: fresnel sessions fork로 분기하거나 새 세션을 연다",
+      "fresnel: 닫힌 대화가라 쓸 수 없다: thr_1",
+      "  해결: fresnel sessions fork로 분기하거나 새 대화를 연다",
     ],
     [
       wireError("request.cancelled"),

@@ -56,7 +56,7 @@ test("the model alias points at the models default key", () => {
   expect(SLASH_ALIASES).toEqual([{ name: "model", key: "l1.models.default" }]);
 });
 
-test("completionsOf completes /set keys from the session-scoped list and slash names", () => {
+test("completionsOf completes /set keys from the conversation-scoped list and slash names", () => {
   const keys = ["l4.cli.theme", "l4.cli.outputMode", "l1.loop.maxSteps"];
   expect(completionsOf("/set l4.cli.", keys)).toEqual([
     "/set l4.cli.theme",
@@ -132,7 +132,7 @@ function session(replies: readonly Reply[], extra: Parameters<typeof createHarne
   return { h, settings, input, unsubscribed };
 }
 
-test("/set writes the session scope of the current thread and prints the effective value", async () => {
+test("/set writes the conversation scope of the current thread and prints the effective value", async () => {
   const s = session(["/set l4.cli.theme dark"]);
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   expect(s.settings.writes).toHaveLength(1);
@@ -145,7 +145,7 @@ test("/set writes the session scope of the current thread and prints the effecti
   expect(s.h.stdoutText()).toContain('l4.cli.theme = "dark"  (launch)');
 });
 
-test("/set on a key that has no session scope shows the host's scope error and keeps the session", async () => {
+test("/set on a key that has no conversation scope shows the host's scope error and keeps the conversation", async () => {
   const s = session(["/set l1.loop.maxSteps 80", "/set l4.cli.theme light"]);
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   expect(s.h.stderrText()).toContain("허용 범위: user");
@@ -164,7 +164,7 @@ test("/model without a value shows the current value and the choices; with a val
   });
 });
 
-test("the completer gets the keys that allow the session scope", async () => {
+test("the completer gets the keys that allow the conversation scope", async () => {
   const s = session([]);
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   const complete = s.h.completer();
@@ -173,13 +173,13 @@ test("the completer gets the keys that allow the session scope", async () => {
   expect(complete?.("/res")).toEqual(["/resume"]);
 });
 
-test("/resume lists the sessions of the folder and switches to the chosen one", async () => {
+test("/resume lists the conversations of the folder and switches to the chosen one", async () => {
   const s = session(["/resume", "2", "hello"]);
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
   const shown = s.h.stdoutText();
   expect(shown).toContain(`1) ${T1}`);
   expect(shown).toContain("둘");
-  expect(shown).toContain(`세션 ${T2}으로 바꿨다`);
+  expect(shown).toContain(`대화 ${T2}으로 바꿨다`);
   expect(s.h.server().requests.find((r) => r.method === "turn.start")?.params).toMatchObject({
     threadId: T2,
   });
@@ -187,10 +187,10 @@ test("/resume lists the sessions of the folder and switches to the chosen one", 
   expect(s.unsubscribed.length).toBeGreaterThanOrEqual(1);
 });
 
-test("/resume with an unknown choice says so and stays on the current session", async () => {
+test("/resume with an unknown choice says so and stays on the current conversation", async () => {
   const s = session(["/resume 99", "hello"]);
   expect(await s.h.run(["chat"])).toBe(EXIT.ok);
-  expect(s.h.stderrText()).toContain("세션을 고를 수 없다: 99");
+  expect(s.h.stderrText()).toContain("대화를 고를 수 없다: 99");
   const turn = s.h.server().requests.find((r) => r.method === "turn.start");
   expect(turn?.params).toMatchObject({ threadId: expect.not.stringMatching(String(T2)) });
 });

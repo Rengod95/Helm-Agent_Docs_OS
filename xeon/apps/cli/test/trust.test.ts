@@ -102,7 +102,7 @@ function harness(handlers: FakeHandlers, replies: readonly Reply[] = []) {
   return { h, input };
 }
 
-const CARD = `프로젝트: /work/project
+const CARD = `작업 폴더: /work/project
 불러오려는 자원: .mcp.json, .fresnel/commands
 판정: 아직 정하지 않음 (신뢰하지 않은 것으로 다룬다) - 묻는 화면이 없어 정하지 못했다
 신뢰하면 이 자원의 지시문, 명령, MCP 서버가 사용자 권한으로 쓰인다. 신뢰하지 않으면 읽지 않는다
@@ -170,7 +170,7 @@ test("a workspace with nothing to trust says so on stderr", async () => {
   const { h } = harness(trust.handlers);
   expect(await h.run(["trust"])).toBe(EXIT.ok);
   expect(h.stdoutText()).toBe("");
-  expect(h.stderrText()).toBe("/work/project: 신뢰가 필요한 프로젝트 자원이 없다\n");
+  expect(h.stderrText()).toBe("/work/project: 신뢰가 필요한 작업 폴더 자원이 없다\n");
 });
 
 test("fresnel trust allow --scope parent sends exactly that choice for this workspace", async () => {
@@ -195,14 +195,14 @@ test("a scope the host did not offer is a usage error and nothing is sent", asyn
 test("a host without trust methods is an environment problem for fresnel trust", async () => {
   const { h } = harness({});
   expect(await h.run(["trust"])).toBe(EXIT.environment);
-  expect(h.stderrText()).toContain("연결한 host가 프로젝트 신뢰 결정을 아직 지원하지 않는다");
+  expect(h.stderrText()).toContain("연결한 host가 작업 폴더 신뢰 결정을 아직 지원하지 않는다");
   expect(h.methods()).not.toContain("trust.get");
 });
 
 test("a save failure of the trust file is reported with its own phrase", () => {
   const failure = failureOfWire(wireError("store.io", { details: { code: "trust_store" } }));
   expect(failure).toEqual({
-    message: "프로젝트 신뢰 결정을 저장하지 못했다",
+    message: "작업 폴더 신뢰 결정을 저장하지 못했다",
     fix: "신뢰 저장 파일(trust.json)의 권한과 내용을 확인한다",
     code: EXIT.environment,
   });
@@ -228,7 +228,7 @@ test("a wrong number asks again; enter postpones and nothing is stored", async (
   expect(h.stdoutText()).toContain("목록의 번호를 입력한다\n");
   expect(input.prompts.slice(0, 2)).toEqual(["번호 (엔터는 나중에) > ", "번호 (엔터는 나중에) > "]);
   expect(trust.decided).toEqual([]);
-  expect(h.stderrText()).toContain("정하지 않았다. 이 프로젝트의 자원은 읽지 않는다");
+  expect(h.stderrText()).toContain("정하지 않았다. 이 작업 폴더의 자원은 읽지 않는다");
   expect(h.methods()).toContain("thread.create");
 });
 
@@ -248,7 +248,7 @@ test("a failed trust.get or trust.decide never blocks the chat and keeps the pro
   const unreadable = fakeTrust(status(), { get: wireError("internal") });
   const a = harness(unreadable.handlers);
   expect(await a.h.run(["chat"])).toBe(EXIT.ok);
-  expect(a.h.stderrText()).toContain("프로젝트 신뢰 상태를 읽지 못해 확인을 건너뛴다");
+  expect(a.h.stderrText()).toContain("작업 폴더 신뢰 상태를 읽지 못해 확인을 건너뛴다");
 
   const unsaved = fakeTrust(status(), {
     decide: new WireError(5006, "x", {
@@ -259,8 +259,8 @@ test("a failed trust.get or trust.decide never blocks the chat and keeps the pro
   });
   const b = harness(unsaved.handlers, ["1"]);
   expect(await b.h.run(["chat"])).toBe(EXIT.ok);
-  expect(b.h.stderrText()).toContain("fresnel: 프로젝트 신뢰 결정을 저장하지 못했다");
-  expect(b.h.stderrText()).toContain("이 프로젝트는 신뢰하지 않은 채로 연다");
+  expect(b.h.stderrText()).toContain("fresnel: 작업 폴더 신뢰 결정을 저장하지 못했다");
+  expect(b.h.stderrText()).toContain("이 작업 폴더는 신뢰하지 않은 채로 연다");
   expect(b.h.methods()).toContain("thread.create");
 });
 
@@ -269,7 +269,7 @@ test("print mode notes an undecided trust on stderr without asking; json mode do
   const text = harness(trust.handlers);
   expect(await text.h.run(["chat", "-p", "hello"])).toBe(EXIT.ok);
   expect(text.h.stderrText()).toBe(
-    "프로젝트 신뢰가 정해지지 않아 .mcp.json, .fresnel/commands을(를) 읽지 않는다 (fresnel trust로 정한다)\n",
+    "작업 폴더 신뢰가 정해지지 않아 .mcp.json, .fresnel/commands을(를) 읽지 않는다 (fresnel trust로 정한다)\n",
   );
   expect(text.input.prompts).toEqual([]);
   expect(trust.decided).toEqual([]);

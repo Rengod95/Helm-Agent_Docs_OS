@@ -377,7 +377,7 @@ test("print mode answers every approval with deny and says so", async () => {
   expect(h.stderrText()).toContain('승인 요청 "bash 실행"에 비대화 모드라 거부로 답했다');
 });
 
-test("pending approvals are asked again when a session is resumed (approval.list)", async () => {
+test("pending approvals are asked again when a conversation is resumed (approval.list)", async () => {
   const responds: Record<string, unknown>[] = [];
   const input = scriptedInput(["y", "/quit"]);
   const thread = (await import("./support/ids.ts")).threadId(1);

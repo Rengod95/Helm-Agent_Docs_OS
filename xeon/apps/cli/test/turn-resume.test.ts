@@ -71,10 +71,10 @@ function resumingHandlers(listed: readonly ReturnType<typeof summary>[]): {
 
 test("describeResumable and resumeResultText phrase each outcome", () => {
   expect(describeResumable(RESUMABLE)).toBe(
-    "이 세션에 끊긴 turn이 있다 (시작 2026-01-05T00:05:00.000Z)\n",
+    "이 대화에 끊긴 turn이 있다 (시작 2026-01-05T00:05:00.000Z)\n",
   );
   expect(describeResumable({ ...RESUMABLE, resumeAttempts: 2 })).toBe(
-    "이 세션에 끊긴 turn이 있다 (시작 2026-01-05T00:05:00.000Z, 이어 실행을 2번 시도했다)\n",
+    "이 대화에 끊긴 turn이 있다 (시작 2026-01-05T00:05:00.000Z, 이어 실행을 2번 시도했다)\n",
   );
   expect(resumeResultText({ status: "resumed", turnId: CUT, from: "tools" })).toBe(
     "이어서 실행한다 (tools 단계부터)\n",
@@ -88,11 +88,11 @@ test("describeResumable and resumeResultText phrase each outcome", () => {
   expect(resumeResultText({ status: "nothing" })).toBe("이어서 실행할 turn이 없다\n");
 });
 
-test("opening a resumable session asks, and y sends turn.resume for that thread and shows the rest of the turn", async () => {
+test("opening a resumable conversation asks, and y sends turn.resume for that thread and shows the rest of the turn", async () => {
   const host = resumingHandlers([summary(T1, { resumable: RESUMABLE })]);
   const s = chat(["y"], host.handlers);
   expect(await s.h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
-  expect(s.h.stdoutText()).toContain("이 세션에 끊긴 turn이 있다 (시작 2026-01-05T00:05:00.000Z)");
+  expect(s.h.stdoutText()).toContain("이 대화에 끊긴 turn이 있다 (시작 2026-01-05T00:05:00.000Z)");
   expect(s.input.prompts[0]).toBe("이어서 실행할까요? [y/N] ");
   expect(host.calls).toEqual([{ threadId: T1 }]);
   expect(s.h.stdoutText()).toContain("이어서 실행한다 (request 단계부터)");
@@ -110,7 +110,7 @@ test("answering n (or just enter) does not call turn.resume", async () => {
   expect(s.h.stdoutText()).toContain("이어서 실행하지 않았다");
 });
 
-test("a closed result is reported and the session stays usable", async () => {
+test("a closed result is reported and the conversation stays usable", async () => {
   const s = chat(["y", "hello"], {
     "thread.list": () => ({ threads: [summary(T1, { resumable: RESUMABLE })], nextCursor: null }),
     "turn.resume": () => ({ status: "closed", turnId: CUT, reason: "abort_requested" }),
@@ -130,10 +130,10 @@ test("a turn.resume failure is shown as a two-line phrase", async () => {
     },
   });
   expect(await s.h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
-  expect(s.h.stderrText()).toContain(`fresnel: 닫힌 세션이라 쓸 수 없다: ${T1}`);
+  expect(s.h.stderrText()).toContain(`fresnel: 닫힌 대화가라 쓸 수 없다: ${T1}`);
 });
 
-test("a session without the resumable mark never asks", async () => {
+test("a conversation without the resumable mark never asks", async () => {
   const host = resumingHandlers([summary(T1)]);
   const s = chat([], host.handlers);
   expect(await s.h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
@@ -141,7 +141,7 @@ test("a session without the resumable mark never asks", async () => {
   expect(host.calls).toEqual([]);
 });
 
-test("a new session and print mode never look for a resumable turn", async () => {
+test("a new conversation and print mode never look for a resumable turn", async () => {
   const host = resumingHandlers([summary(T1, { resumable: RESUMABLE })]);
   const fresh = chat([], host.handlers);
   expect(await fresh.h.run(["chat"])).toBe(EXIT.ok);
@@ -161,7 +161,7 @@ test("a host without turn.resume is not asked", async () => {
   expect(s.input.prompts.some((prompt) => prompt.includes("이어서 실행할까요?"))).toBe(false);
 });
 
-test("a resumable session found by id outside the folder is still offered", async () => {
+test("a resumable conversation found by id outside the folder is still offered", async () => {
   const listed = [summary(T1, { workspace: "/elsewhere", resumable: RESUMABLE })];
   const host = resumingHandlers(listed);
   const s = chat(["y"], {
@@ -175,7 +175,7 @@ test("a resumable session found by id outside the folder is still offered", asyn
   expect(host.calls).toEqual([{ threadId: T1 }]);
 });
 
-test("/resume switching to a resumable session asks too", async () => {
+test("/resume switching to a resumable conversation asks too", async () => {
   const host = resumingHandlers([
     summary(T1, { title: "하나" }),
     summary(T2, { title: "둘", resumable: RESUMABLE }),

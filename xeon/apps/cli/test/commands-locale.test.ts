@@ -51,10 +51,10 @@ test("sessions ls in an empty folder says so in English and names --all", async 
   });
   harnesses.push(h);
   expect(await h.run(["sessions", "ls"])).toBe(EXIT.ok);
-  expect(h.stderrText()).toBe("There are no sessions in this folder (use --all to see all)\n");
+  expect(h.stderrText()).toBe("There are no conversations in this folder (use --all to see all)\n");
 });
 
-test("sessions ls marks each session with its flags in English", async () => {
+test("sessions ls marks each conversation with its flags in English", async () => {
   const h = createHarness({
     env: { NO_COLOR: "1" },
     server: {
@@ -153,13 +153,13 @@ test("the resumable question counts attempts in English, with the plural form", 
     resumeAttempts: 0,
   };
   expect(describeResumable(resumable)).toBe(
-    "This session has an interrupted turn (started 2026-01-05T00:05:00.000Z)\n",
+    "This conversation has an interrupted turn (started 2026-01-05T00:05:00.000Z)\n",
   );
   expect(describeResumable({ ...resumable, resumeAttempts: 1 })).toBe(
-    "This session has an interrupted turn (started 2026-01-05T00:05:00.000Z, tried to resume 1 time)\n",
+    "This conversation has an interrupted turn (started 2026-01-05T00:05:00.000Z, tried to resume 1 time)\n",
   );
   expect(describeResumable({ ...resumable, resumeAttempts: 2 })).toBe(
-    "This session has an interrupted turn (started 2026-01-05T00:05:00.000Z, tried to resume 2 times)\n",
+    "This conversation has an interrupted turn (started 2026-01-05T00:05:00.000Z, tried to resume 2 times)\n",
   );
   expect(resumeResultText({ status: "closed", turnId: turnId(7), reason: "owner_cancelled" })).toBe(
     "The owner cancelled the turn, so it was closed without resuming\n",

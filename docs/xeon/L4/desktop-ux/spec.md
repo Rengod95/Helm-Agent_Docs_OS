@@ -302,7 +302,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   4. "제작 확장으로 만들기"를 누르면 이 대화(또는 새 대화)에서 제작 대화가 열리고 초안이 넘어갑니다. 에이전트가 뼈대를 만들고, 검사하고, 고칩니다. 화면 기여가 있으면 에이전트가 화면마다 모드를 고릅니다(ADR-0021 §3.5).
   5. 결과 단계에서 "replay 시험"(자동으로 돌지 않음 [결정: 2026-10-31 사용자]), "시험 대화에서 켜기", "편집기에서 열기", "사용자 확장 위치에 연결"(사람 확인)로 이어집니다.
 - 거치는 화면: P-21, P-02(제작 대화), P-19, P-13, P-17
-- 성공 기준: `group.*` 종류의 생성물이 CLI `fresnel group new`와 같은 파일이고 `core-diff-check`에서 보호 경로 변경 0줄입니다. 지금은 wire가 없어 `[gap:W-27]`, `[gap:W-47]`입니다.
+- 성공 기준: `group.*` 종류의 생성물이 CLI `fresnel group new`와 같은 파일이고 `core-diff-check`에서 보호 경로 변경 0줄입니다. wire `ext.scaffold`와 `ext.validateComposition`이 있습니다 [근거: `apps/host/src/handlers/m4/devkit.ts`].
 
 ### SC-17 플러그인 설계: 훅, drive 락과 상한, 설정
 
@@ -339,7 +339,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
      - Test run: 프로필(P-21)을 적용한 새 대화를 "시험" 표지로 만들고 프롬프트를 보냅니다.
      - 켬/끔 비교: 케이스 묶음을 프로필 둘(켠 쪽, 끈 쪽)로 돌리는 Test run의 묶음 실행입니다. 배포 앱에도 열립니다. 시작 전에 예상 실행 수와 비용 범위를 보이고 사용자 확인을 한 번 받습니다 [결정: 2026-11-03 사용자, 측정 기획서].
      - replay, benchmark, 코어 변경 검사는 개발 모드에서만 실행합니다. 배포 앱은 Test run, 켬/끔 비교, 지난 결과 읽기를 합니다 [결정: 2026-10-31 사용자, 2026-11-03 사용자로 켬/끔 비교 추가].
-  1a. Test run은 "멈춤"으로 다음 단계 경계에서 멈춥니다. drive 락은 쥔 채로 두고, "이어서"나 "한 경계씩"으로 다시 갑니다. 멈춤은 Test run에만 있습니다 [결정: 2026-10-31 사용자] `[gap:W-48]`.
+  1a. Test run은 "멈춤"으로 다음 단계 경계에서 멈춥니다. drive 락은 쥔 채로 두고, "이어서"나 "한 경계씩"으로 다시 갑니다. 멈춤은 Test run에만 있습니다 [결정: 2026-10-31 사용자].
   2. 실행 중인 시험은 왼쪽 패널 "시험 실행"에 `*`로 보입니다. Test run은 대화 목록에 "시험" 표지로 보입니다.
   3. 결과에서 replay 실패는 처음 달라진 위치(`firstDiff`)와 그 이벤트 kind를 보이고, "이벤트 비교"로 두 이벤트열을 나란히 봅니다.
 - 거치는 화면: P-19, P-21, P-02
@@ -368,7 +368,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
   2. "이 대화에 적용"은 엔진이 프로필의 키를 그 대화의 `session` 범위로 한 번에 씁니다(`profile.apply`, W-46). "새 시험 대화로"는 Test run을 만들며 적용합니다.
   3. "그룹" 보기는 블록을 쌓아 그룹 구조를 만듭니다. 결과는 SC-16 제작 흐름으로 이어집니다.
 - 거치는 화면: P-21, P-02
-- 성공 기준: 적용 뒤 이 대화의 `settings.get` 결과가 프로필 값과 같습니다. 프로필은 데스크톱 로컬이 아니라 런타임 호스트에 저장되어 데스크톱·웹·앱과 서비스가 같은 목록을 봅니다 [결정: 2026-10-31 사용자] `[gap:W-46]`.
+- 성공 기준: 적용 뒤 이 대화의 `settings.get` 결과가 프로필 값과 같습니다. 프로필은 데스크톱 로컬이 아니라 런타임 호스트에 저장되어 데스크톱·웹·앱과 서비스가 같은 목록을 봅니다 [결정: 2026-10-31 사용자].
 
 ### SC-22 제어: 켜기·끄기, 안전 모드, 자동 끄기 복구, 버전과 되돌리기
 
@@ -508,7 +508,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 원격 대상 | 제목 띠 경로 첫 항목, 상태 표시줄 첫 칸 | 데스크톱 설정 `l0.process.service.remote` [가정], `host.hello` 결과 `transport` | 누르면 대상 팝오버(P-08 요약과 "대상 바꾸기") |
 | 모델 | 상태 표시줄, 입력창 모델 칸 | `settings.get { keys: ["l1.models.default"], threadId }` | 누르면 모델 고르기 `Combobox mode="popup"`. 대화 범위 저장은 `settings.set { scope: "launch" }` |
 | 사용량 | 상태 표시줄 게이지 | `usage.get { threadId }` | 누르면 `Popover`에 게이지 목록 |
-| 목표 | 상태 표시줄 칩 "목표 2/3"(판정 횟수/최대, DP-25) | `[gap:W-05]` | 누르면 `Popover`(첫 줄 "판정 2/3"), 거기서 끝 영역 작업 탭 |
+| 목표 | 상태 표시줄 칩 "목표 2/3"(판정 횟수/최대, DP-25) | `goal.status` | 누르면 `Popover`(첫 줄 "판정 2/3"), 거기서 끝 영역 작업 탭 |
 | Helm 단계 | 상태 표시줄 칩 | `[gap:W-04]` | 누르면 끝 영역 탐구 탭 |
 | 토스트 | 오른쪽 아래 `Toaster` | 알림 `notify.delivered`, 앱 동작 결과 | 오류 토스트는 자동으로 닫히지 않습니다 |
 
@@ -712,8 +712,8 @@ Fresnel 데스크톱
 
 | 구역 | 항목 | 출처 |
 |---|---|---|
-| drive 락 | 보유 그룹, 상한 사용량(턴, spawn, 토큰), 대기열(대기 그룹과 순서, 거부된 그룹) | `group.list` `[gap:W-24]`의 `GroupStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
-| 켜진 그룹과 확장 | 층, 이름, 상태(켜짐, 켜는 중, 끄는 중, 자동 꺼짐), 쓰는 훅 수와 펼치면 훅 목록 | `ext.list` `[gap:W-15]`, 매니페스트 `plugins[].hooks`, `GroupStatus.pendingToggle` |
+| drive 락 | 보유 그룹, 상한 사용량(턴, spawn, 토큰), 대기열(대기 그룹과 순서, 거부된 그룹) | `group.list`의 `GroupStatus.drive`(`holder`, `waiting`, `rejected`), `lease.acquired`·`lease.released`·`lease.rejected` |
+| 켜진 그룹과 확장 | 층, 이름, 상태(켜짐, 켜는 중, 끄는 중, 자동 꺼짐), 쓰는 훅 수와 펼치면 훅 목록 | `ext.list`, 매니페스트 `plugins[].hooks`, `GroupStatus.pendingToggle` |
 | 전환 기록 | 단계 경계마다의 drive 락 교대, 켜기·끄기 적용(시각, 턴, 사유) 최근 20개 | `lease.*`, `scope.changed` 이벤트 |
 | 실패 | 확장별 `scope.handler_failed` 묶음(훅, 연속 수) | 이벤트 |
 
@@ -795,7 +795,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 
 - 기능: 사이드바·끝 영역 토글, 폭 끌기(`ResizeHandle`), 대화 고르기(`selectThread`), 새 대화(O-07), 대화 행 메뉴(이름 바꾸기 `thread.rename`, 분기 `thread.fork`, 컴팩션 `thread.compact`, 닫기 `thread.close`, 삭제 `thread.delete` + O-06).
 - 상태: 대화 목록 빈 경우 "아직 대화가 없어요" + "새 대화" (`EmptyState variant="dashed"`), 읽는 중 `Skeleton` 5행, 읽기 실패 "대화 목록을 읽지 못했어요" + "다시 읽기", 오프라인은 목록 유지와 흐린 표시, 긴 목록은 폴더 묶음 접기와 50개 뒤 "더 보기"(`nextCursor`).
-- 대화 행: 제목(없으면 "제목 없음"), 배지 `실행 중`(running), `이어서 실행`(resumable), `승인 N`, `잠김`(다른 소유자, 알 수 있을 때), `예약`(schedule이 만든 대화) [가정: `ThreadSummary`에 출처 필드 없음 `[gap:W-16]`].
+- 대화 행: 제목(없으면 "제목 없음"), 배지 `실행 중`(running), `이어서 실행`(resumable), `승인 N`, `잠김`(다른 소유자, 알 수 있을 때), `예약`(schedule이 만든 대화) (출처는 `ThreadSummary.origin`) [근거: `packages/contracts/src/wire-settings/wire/methods.ts:443`].
 - 접근성: 시작 영역은 `SidePanel label="대화와 이동"`(aside 랜드마크), 무대는 `main`, 건너뛰기 링크 `skipLabel="본문으로"`. 대화 목록은 `ListNavigation`의 단일 선택 목록이고 화살표로 이동합니다.
 - caustic: `AppShell`, `AppShellTitlebar`, `AppShellStart`, `AppShellStage`, `AppShellEnd`, `AppShellOverlay`, `SidePanel`, `ListNavigation`(kind `navigation`, `sessions`), `ResizeHandle`, `Breadcrumb`, `IconButton`, `Badge`, `Menu`, `Tabs`, `EmptyState`, `Skeleton`.
 
@@ -869,7 +869,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 진행 중 | `host.status.liveTurns` | 실행 중 대화로 이동 |
 | 모델 | `settings.get { keys: ["l1.models.default"], threadId }` | 모델 `Combobox mode="popup"` |
 | 사용량 | `usage.get { threadId }` → 게이지 `[gap:V-11]` | 사용량 `Popover`(게이지 목록, P-11 링크) |
-| 목표 | "목표 2/3"(판정 횟수/최대, DP-25). `[gap:W-05]`, 임시로 `agent.judged`·`work.goal_*` 이벤트 | `Popover` 첫 줄 "판정 2/3", 끝 영역 작업 탭 링크 |
+| 목표 | "목표 2/3"(판정 횟수/최대, DP-25). `goal.status` [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. 이벤트 `agent.judged`·`work.goal_*`는 갱신 알림에만 씁니다 | `Popover` 첫 줄 "판정 2/3", 끝 영역 작업 탭 링크 |
 | Helm | `[gap:W-04]`, 임시로 `grp.helm.*` 이벤트 | 끝 영역 탐구 탭 |
 | 승인, 알림 | §4.6 | 끝 영역 받은 요청 탭 |
 
@@ -950,7 +950,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 키 등록 | `secret.beginEntry { name, action }` → `started: false`면 화면 안 등록 창, 저장은 셸 IPC `secret_register`(`submitKey`) |
 | provider에 연결 | `settings.set { key: "l1.models.providers", value: withProviderKey(...), scope: "user" }` |
 | 기본 모델 저장 | `settings.set { key: "l1.models.default", value, scope: "user" }`. 거절(3102)은 host 문장 그대로 |
-| 권장 플러그인 설치 | `[gap:W-15]` 플러그인 설치 wire가 없습니다. M4는 "설치 방법 보기" 링크로 둡니다 [제안]. CLI 명령 복사는 두지 않습니다(CLI 표면 없음, 2026-11-01) |
+| 권장 플러그인 설치 | 플러그인 설치 wire `ext.install`은 있습니다 [근거: `apps/host/src/handlers/m4/devkit.ts`]. M4 화면은 "설치 방법 보기" 링크로 둡니다 [제안]. CLI 명령 복사는 두지 않습니다(CLI 표면 없음, 2026-11-01) |
 | 플러그인 키 등록 | 키가 없는 권장 플러그인 행의 "키 등록"은 그 행의 시크릿 이름(`secretName`)으로 `secret.beginEntry`를 보내고, 저장은 `submitKey`입니다. 제공자에 잇지 않고 `web.providers`를 다시 읽습니다 |
 | 나중에 | `l4.desktop.firstRun.searchHintDismissed = true` (데스크톱 로컬 설정 `[gap:V-14]`) |
 | 대화 시작 | O-07 새 대화 |
@@ -969,7 +969,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 
 - 기본 그룹 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 그룹" 단계를 둡니다. Helm과 학습 그룹은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm과 학습 그룹의 `Switch`와 한 줄 설명을 보이고 기본값은 둘 다 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1. 학습 그룹 `defaultEnabled: true`, `L3.learning.spec` §3.1 [결정: review.m3-design-inputs D-M3-02]). 값은 `ext.helm.enabled`, `ext.learning.enabled` 사용자 범위입니다. `fresnel group new` 안내는 두지 않고 "LightCraft에서 더 보기" 링크 하나만 둡니다(새 그룹은 LightCraft 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 그룹이 실리지 않았어요" 한 줄을 둡니다.
 
-- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "설정 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결]. (2) 검색 권장에는 "설치" 단추가 없고(`[gap:W-15]`), "설치 방법 보기" 링크가 설치 안 됨이나 키 없음 행에 있습니다. 링크는 설치를 이 화면에서 할 수 없다는 한 줄을 펼칩니다. 키 없는 플러그인의 "키 등록"은 행의 시크릿 이름으로 키 값 칸을 엽니다. (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. 플러그인 키는 연결하지 않고 저장만 합니다. (4) 구현됨: 첫 실행 자동 열기, 팔레트 "시작하기", ⌘Enter, 바닥글의 앱 버전과 엔진 한 줄. 바닥글의 "모델 없음" 칸은 아직 없습니다.
+- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "설정 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결] [근거: `m4-decisions` 2026-11-04 블록까지 review 켜기 키 결정 없음]. (2) 검색 권장에는 "설치" 단추가 없고(설치 wire `ext.install`은 있다), "설치 방법 보기" 링크가 설치 안 됨이나 키 없음 행에 있습니다. 링크는 설치를 이 화면에서 할 수 없다는 한 줄을 펼칩니다. 키 없는 플러그인의 "키 등록"은 행의 시크릿 이름으로 키 값 칸을 엽니다. (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. 플러그인 키는 연결하지 않고 저장만 합니다. (4) 구현됨: 첫 실행 자동 열기, 팔레트 "시작하기", ⌘Enter, 바닥글의 앱 버전과 엔진 한 줄. 바닥글의 "모델 없음" 칸은 아직 없습니다.
 
 ### 6.6 P-02 대화
 
@@ -1074,7 +1074,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 영역 | 항목 | 출처 |
 |---|---|---|
-| 화면 머리 | 제목, 작업 폴더, 목표 칩, 탐구·작업 버튼, 행 메뉴 | `engine:threadById`, 목표 `[gap:W-05]` |
+| 화면 머리 | 제목, 작업 폴더, 목표 칩, 탐구·작업 버튼, 행 메뉴 | `engine:threadById`, 목표 `goal.status` |
 | 트랜스크립트 | 사용자·어시스턴트 메시지, 생각, 도구 호출·결과, 이미지, 확장 item(`display: true`만), 판정 행, Helm 알림 | `thread.open { threadId, mode: "write", includeItems }`, `events.subscribe`/`events.batch`, `stream.chunk`. 렌더 규칙은 `L4.desktop.spec` §4.13 |
 | 스트리밍 행 | 작성 중 텍스트, 도구 진행 | `stream.chunk`(`item.updated` part_delta, tool_progress) |
 | 인라인 승인 카드 | 이 대화의 대기 승인 | `approval.requested` 내구 이벤트, 재접속 뒤 `approval.list { threadId }` |
@@ -1196,7 +1196,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 묶음 | 항목 | 출처 |
 |---|---|---|
-| 승인 대기 | kind, 대화, 요약(title), 요청 시각, 만료, 출처(`origin.caller`, 원격 여부) | 열린 대화는 거울 `approvals`, 나머지는 `ThreadSummary.pendingApprovals` 수만. 전 대화 목록은 `[gap:W-01]` |
+| 승인 대기 | kind, 대화, 요약(title), 요청 시각, 만료, 출처(`origin.caller`, 원격 여부) | 열린 대화는 거울 `approvals`, 나머지는 `ThreadSummary.pendingApprovals` 수만. 전 대화 목록은 `approval.list`의 `threadId` 생략 |
 | 제안 대기 | 종류, 대상, 출처(학습, 지식), 충돌 | `proposal.list { status: "pending", limit: 20 }` → `proposalListView` |
 | 알림 | kind, 제목, 본문, 시각, 원인 대화 | `notify.list { afterSeq, limit: 100 }`, `notify.delivered` `[gap:V-03]` |
 | 개수 | 탭 배지 | 위 셋 합 `[gap:V-02]` |
@@ -1280,7 +1280,7 @@ compact 폭(720 이하)과 사이드바 시트:
 |---|---|
 | 리뷰 머리(제목, 라운드, 출처 대화) | `approval.requested` 페이로드 `review`(`reviewId`, `artifactId`, `title`, `round`) |
 | 파일 목록(경로, 변경 종류, binary, hunk 수) | 같은 페이로드 `files[]` |
-| hunk 본문(헤더, 줄) | `[gap:W-02]` 승인 페이로드에는 hunk 본문이 없습니다. L2 `artifacts.reviews.get`의 `HunkView`가 필요합니다 |
+| hunk 본문(헤더, 줄) | 승인 페이로드에는 hunk 본문이 없습니다. `review.get`이 읽습니다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] |
 | hunk 결정(대기, 승인, 거절)과 의견 | 화면 로컬 초안 `[gap:V-06]` |
 | 제출 결과(reverted, conflict, skipped) | `review_submitted`·`review_applied` 이벤트 [가정: 이벤트 페이로드에 hunk별 결과가 있음] |
 
@@ -1316,7 +1316,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 ### 6.9 P-05 탐구(Helm, 끝 영역)
 
-> 2026-10-30: 이 화면은 Helm의 화면 기여(ADR-0021 §3.9)로 바뀝니다. 아래 A~D는 `well` 기여 `helm/panel`의 상태이고, 임대·대기열·전환은 런타임 탭(§4.9.8)으로 옮깁니다. well 머리 "크게"는 P-18 `helm/inquiry`를 엽니다(DP-24). 데이터 출처 `[gap:W-04]`는 `ext.helm.status`(`[gap:W-33]`, §10.3 X-9)로 닫힙니다.
+> 2026-10-30: 이 화면은 Helm의 화면 기여(ADR-0021 §3.9)로 바뀝니다. 아래 A~D는 `well` 기여 `helm/panel`의 상태이고, 임대·대기열·전환은 런타임 탭(§4.9.8)으로 옮깁니다. well 머리 "크게"는 P-18 `helm/inquiry`를 엽니다(DP-24). 데이터 출처 `[gap:W-04]`는 `ext.helm.status`(§10.3 X-9)로 닫힙니다.
 
 ```text
 ┌─ A 대기 ─────────────────────┐┌─ B 실행 중 ──────────────────┐┌─ C 끝 ───────────────────────┐
@@ -1417,7 +1417,7 @@ compact 폭(720 이하)과 사이드바 시트:
 |---|---|
 | 행: 종류, op, 대상, 출처, 상태, 근거 수, 충돌, 시각 | `proposal.list { source?, status?, limit, cursor }` → `proposalListView` → `ProposalRowVM` |
 | 상세: diff, 이유, 근거 이벤트, 충돌 스킬, 범위 선택, untrusted 경고, revision | 같은 `ProposalRowVM`(`diff`, `rationale`, `evidenceCount`, `conflictsWith`, `scopeChoice`, `afterUntrusted`, `revision`) |
-| 근거 이벤트 본문 | `[gap:W-16]` 이벤트 id로 item을 읽는 wire가 없습니다. M4는 대화 열기와 스크롤로 대신합니다 [제안] |
+| 근거 이벤트 본문 | `thread.read`의 `around` 인자로 읽을 수 있습니다 [근거: `apps/host/src/assembly/thread-read.ts`]. M4 화면은 대화 열기와 스크롤로 대신합니다 [제안] |
 | 충돌 스킬 본문(나란히 보기) | `[gap:W-14]` 스킬 본문 읽기 wire가 없습니다 |
 
 | 기능 | wire 또는 view-model |
@@ -1445,7 +1445,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 파일: `xeon/apps/desktop/src/views/pages/proposals/`(모델 `proposals-model.ts`: 거르기, 목록 리듀서, 편집기·확인 상태, 바로 가기 키 뜻, 변경 줄 나누기 `diffLinesOf`. 문장 `proposals-text.ts`. 그림 `proposals-view.tsx`. 동작 `proposals-screen.tsx`). 내비 id `proposals`는 `registerScreen`으로 붙는다(`desktop-registry.tsx`).
 - 명령: `commands.proposals.list(params)`(`proposal.list`, `proposalListView`), `commands.proposals.decide(params)`(`proposal.decide`, `decisionOutcomeOf`). 결정 params는 `decisionParams`가 만든다. 결정은 쓰기라 엔진 대상을 바꾸는 중이면 `switching`으로 거절한다. 시험 `test/app/proposal-commands.test.ts`가 wire params를 고정한다.
 - 거르기: 상태(대기, 적용됨, 모두)와 출처는 wire로 보낸다. 종류는 wire에 거름이 없어 읽은 행에서 거른다. 거르기를 바꾸면 목록을 다시 읽고 선택과 열린 입력을 비운다. 더 보기는 `nextCursor`다.
-- 상세: `ProposalRowVM`에 종류 원래 값(`kind`)과 근거 대화 id(`evidenceThreadIds`, 중복 없이)를 더했다(`packages/client/src/settings/proposals.ts`). "대화 열기"는 근거 대화가 대화 목록에 있을 때만 보인다. 근거 이벤트 본문과 충돌 스킬 본문은 여전히 읽지 않는다([gap:W-16], [gap:W-14]).
+- 상세: `ProposalRowVM`에 종류 원래 값(`kind`)과 근거 대화 id(`evidenceThreadIds`, 중복 없이)를 더했다(`packages/client/src/settings/proposals.ts`). "대화 열기"는 근거 대화가 대화 목록에 있을 때만 보인다. 근거 이벤트 본문과 충돌 스킬 본문은 여전히 읽지 않는다(`thread.read`의 `around`는 있지만 화면이 쓰는지는 확인하지 않았다. 충돌 스킬 본문은 [gap:W-14]).
 - 파괴 동작: 되돌리기는 늘, 지우거나 덮어쓰는 제안(`destructive`)의 승인은 확인 대화 상자(`Dialog kind="alert"`)를 먼저 연다. 버튼은 `tone`을 쓰지 않는다(caustic `Button`의 `tone`은 옛 값이 섞여 lint가 막는다). 위험 색은 확인의 `DialogAction`이 낸다.
 - 바로 가기 키: ↑↓(행), `a` 승인, `e` 수정, `x` 거절, `u` 되돌리기. 입력 칸에 초점이 있으면 받지 않는다. Enter로 상세에 초점을 옮기는 동작은 아직 없다.
 - 상태 여섯 가지는 `proposals-view.test.tsx`가 서버 렌더로 본다(빈, 읽는 중, 오류, 오프라인, 권한 필요, 긴 내용). 긴 내용은 줄 500개를 넘으면 나머지를 접는다(`DIFF_FOLD_LINES`).
@@ -1507,12 +1507,12 @@ compact 폭(720 이하)과 사이드바 시트:
 |---|---|
 | 행: 제목, 트리거, 다음 실행, 마지막 실행(상태, 결과, 이유), 켜짐, 반복 수, 멈춘 이유 | `schedule.list { enabled? }` → `{ entry, lastRun }` `[gap:V-04]` |
 | 서비스 모드 경고 | `settings.get { keys: ["l0.process.service.enabled", "l2.schedule.timers.whenServiceOff"] }`, `host.status.mode` |
-| 실행 기록 | `[gap:W-07]` `lastRun`만 있습니다 |
+| 실행 기록 | `schedule.runs` |
 
 | 기능 | wire |
 |---|---|
 | 새 예약 | `schedule.create { trigger, prompt, workspace?, title?, enabled? }` → `ok: true { entry, warnings }` 또는 `ok: false { error }` |
-| 취소 | `schedule.cancel { scheduleId }` + O-06 확인. 다시 켜기는 없습니다 `[gap:W-07]` |
+| 취소 | `schedule.cancel { scheduleId }` + O-06 확인. 다시 켜기는 `schedule.update` |
 | 지금 실행 | `schedule.fire { scheduleId }`(원격 트리거만) |
 | 마지막 실행 대화 열기 | `lastRun.threadId` → P-02 |
 | 복제 | 시트를 같은 값으로 열기(로컬) |
@@ -1538,7 +1538,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 상대 시각: 다음 실행은 `dueAgeOf`가 "곧", "N분 뒤", "14:20", "내일 09:00"을 만들고, 그 밖은 절대 시각이다. 마지막 실행은 끝난 때(없으면 시작한 때, 그도 없으면 잡은 때)를 "N분 전"으로 쓴다. 절대 시각은 `Tooltip`에 둔다. 기준 시각은 목록을 마지막으로 읽은 때(`state.nowMs`)다. "완료 어제"의 "어제"는 아직 없어 "1일 전"으로 쓴다 [미결].
 - 경고: 서비스 모드 꺼짐 띠와 "서비스 켜기"는 이미 있던 그대로다. 행의 멈춘 이유는 `stoppedReason` 칸이다. `l2.schedule.timers.whenServiceOff`와 `host.status.mode`는 읽지 않는다(L2 schedule §4.4.6에서 자동 기동은 M4에 구현하지 않기로 했다).
 - 시험: `test/views/schedule-model.test.ts`(거르기 인자, 정렬과 갱신, 행 메뉴 항목과 잠금, 다음 실행과 마지막 실행 문장, 카탈로그 키), `test/views/relative-age.test.ts`(`dueAgeOf`), `test/views/schedules-screen.test.tsx`(서버 렌더: 거르기 칸, 상대 시각, 메뉴 단추), `test/app/schedule-commands.test.ts`(가짜 엔진: list 인자, fire 인자와 결과, 복제한 시트의 create 인자).
-- 빠진 것: 메뉴 항목은 열어야 그려지므로 서버 렌더에서는 보이지 않는다(뜻은 모델 시험이 본다). 실행 기록은 `lastRun`만 있다 [gap:W-07]. `schedule.list`의 `before` 쪽 나누기는 쓰지 않는다(200개 상한).
+- 빠진 것: 메뉴 항목은 열어야 그려지므로 서버 렌더에서는 보이지 않는다(뜻은 모델 시험이 본다). 실행 기록은 `lastRun`만 쓴다(`schedule.runs` wire는 있다). `schedule.list`의 `before` 쪽 나누기는 쓰지 않는다(200개 상한).
 
 ### 6.12 P-08 연결
 
@@ -1945,7 +1945,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 항목 | 출처 |
 |---|---|
-| 그룹·확장 목록(이름, 패키지, 켜짐, drive 사용, 외부 여부, 신뢰) | 켜짐은 설정 키 `ext.<id>.enabled`, 나머지 메타는 `[gap:W-15]` |
+| 그룹·확장 목록(이름, 패키지, 켜짐, drive 사용, 외부 여부, 신뢰) | 켜짐은 설정 키 `ext.<id>.enabled`, 나머지 메타는 `ext.list` |
 | 주도 플러그인 | `x.primitives.activeDriver`(빈 값 = 자동) |
 | drive는 플러그인 그룹만 | `x.primitives.driveRequiresGroup`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
 | 그룹 설정 | `ext.helm.*`, `l3.learning.*`, `ext.account-rotation.acknowledgeRisk` 필드(`buildSettingsView` plugins 탭) |
@@ -1981,9 +1981,9 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 항목 | 출처 |
 |---|---|
-| 목표(조건, 상태, "판정 2/3", 마지막 판정). 상태 표시줄 칩은 "목표 2/3", 칩 `Popover`와 이 탭은 "판정 2/3"으로 같은 숫자를 씁니다(DP-25, D-17) | `[gap:W-05]`. 임시로 `command.run { text: "/goal status" }`와 `work.goal_set`, `work.goal_judged`, `work.goal_settled`, `agent.judged` 이벤트 `[gap:V-08]` |
+| 목표(조건, 상태, "판정 2/3", 마지막 판정). 상태 표시줄 칩은 "목표 2/3", 칩 `Popover`와 이 탭은 "판정 2/3"으로 같은 숫자를 씁니다(DP-25, D-17) | `goal.status { threadId }`. 이전 임시 경로(`/goal status`, `work.goal_*` 이벤트 재구성)는 쓰지 않는다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] `[gap:V-08]` |
 | 계획(버전, 상태, 제목) | `work.plan_*` 이벤트, 버전 목록 `[gap:W-18]` |
-| 작업(내용, 상태, 막힘) | `work.task_*` 이벤트로 재구성 [제안], 목록 읽기 `[gap:W-06]` |
+| 작업(내용, 상태, 막힘) | `work.task_*` 이벤트로 재구성 [제안], 목록 읽기 `work.tasks.list` |
 
 - 기능: 목표 걸기(`command.run { text: "/goal <조건>" }`), 해제(`/goal clear`), 계획 보기(트랜스크립트의 계획 카드로 스크롤), 작업 행 누르기(만든 턴으로 스크롤).
 - 상태: 빈(B), 읽는 중 `Skeleton`, 오류 명령 오류 문장, 오프라인 잠금, 권한 필요 해당 없음, 긴 내용(작업 100개 넘으면 완료 접기).
@@ -1992,7 +1992,7 @@ compact 폭(720 이하)과 사이드바 시트:
 #### 구현 노트 (P-14, 트랙 chat3)
 
 - 파일: `xeon/apps/desktop/src/views/pages/work/`(모델 `work-model.ts`: 목표 값 `goalVMOf`, 작업 목록 접기 `taskListOf`, 목표 명령 줄 `goalCommandTextOf`, 읽기 리듀서. 문장 `work-text.ts`. 그림 `work-view.tsx`. 동작 `work-screen.tsx`). 끝 영역 탭 id `work`(`desktop-registry.tsx`, ⌘⇧T는 `panel.work`).
-- 읽기는 wire 두 개다: `goal.status { threadId }`, `work.tasks.list { threadId }`(`contracts/wire-settings/wire/dialog-area.ts`, host `handlers/m4/dialog-area.ts`에 이미 있다). 그래서 위 표의 [gap:W-05], [gap:W-06]과 `/goal status` 임시 경로는 쓰지 않는다. 읽기는 대화가 바뀔 때, 연결이 살아날 때, 턴이 끝났을 때 한다.
+- 읽기는 wire 두 개다: `goal.status { threadId }`, `work.tasks.list { threadId }`(`contracts/wire-settings/wire/dialog-area.ts`, host `handlers/m4/dialog-area.ts`에 이미 있다). 그래서 위 표의,과 `/goal status` 임시 경로는 쓰지 않는다. 읽기는 대화가 바뀔 때, 연결이 살아날 때, 턴이 끝났을 때 한다.
 - 목표 걸기와 해제는 `command.run { threadId, text }`에 `/goal <조건>`과 `/goal clear` 줄을 그대로 보낸다(`commands.work.goalCommand`, 쓰기). 조건은 앞뒤 빈칸을 떼고 4000자 이하만 보낸다. `done`이 아니면 "목표 명령을 실행하지 못했어요"다. 시험 `test/app/work-commands.test.ts`가 wire params를 고정한다.
 - 끝난 상태: 호스트는 `limit_reached`와 `judge_failed`를 둘 다 `exhausted`로 준다(`goalViewOf`). 판정 횟수가 최대에 닿았으면 "N번 판정 뒤 멈췄어요", 아니면 "판정에 실패해 멈췄어요"로 문장만 가른다. 상태 값은 그대로 둔다.
 - 계획 [gap:W-18]: 계획 버전 목록 wire가 없어 계획 카드 자리와 "계획 보기"는 이번 변경에 없다. 작업 행 누르기(만든 턴으로 스크롤)도 `TaskView`에 턴 id가 없어 빠졌다. 작업 행은 누를 수 없다(`clickable: false`).
@@ -2026,8 +2026,8 @@ compact 폭(720 이하)과 사이드바 시트:
 - caustic: `ListDescription`, `Table`, `Button`, `CardStat`.
 
 - 크래프트 8차 시안 [결정: 2026-11-03 사용자]: 시안 내비(크래프트, 테스트, 성능 측정)에 엔진 화면이 없고 P-15는 그려지지 않았습니다. P-15의 내용(엔진 상태, 외부 도구, 버전, 안전 모드, 진단 복사)은 바뀌지 않습니다. 진입은 설정 > 개요, 상태 표시줄, 시안의 실패·주도 서랍입니다. LightCraft 내비의 "엔진" 항목을 둘지는 [미결 32]입니다. 시안의 실패 서랍과 이 화면의 자동 꺼짐 `Alert`가 같은 것을 보이므로 한 곳에만 둡니다(DP-23).
-- 확장 요약과 LightCraft [결정: 오케스트레이터 기본값]: P-15는 LightCraft "엔진"의 본문입니다. 맨 위에 엔진 상태(`EngineState`, 대상, 안전 모드)와 "연결 화면 열기"(P-08) 한 줄을 둡니다. 층별 확장 수(층 mono 열, 실림·꺼짐·자동 꺼짐 수)와, 자동 꺼짐·핸들러 실패가 있으면 그 표 바로 위 `Alert tone="danger"`(확장 이름, 오류 한 줄, 진단 `file:line`)만 둡니다. 행과 Alert의 확장 이름은 LightCraft P-17로 갑니다. "파일 열기", "다시 켜기", "다시 읽기"는 P-17 기록 탭의 동작이고 P-15에는 "확장 상세 열기"만 둡니다. 데이터는 `ext.list` `[gap:W-15]`, `ext.health` `[gap:W-22]`, 진단 위치 `[gap:W-38]`입니다.
-- 안전 모드 들어가기 [결정: 오케스트레이터 기본값]: 두 길을 모두 둡니다. 앱 안에서는 P-16·P-13·P-15의 "안전 모드로 다시 시작"(셸 `engine_restart { safeMode: true }` `[gap:W-35]`). 시작 때는 연속 시작 실패가 `x.operations.safeMode.suggestAfter`(기본 3) 이상이면 첫 화면에 제안 카드를 보입니다 `[gap:W-39]`. 앱을 켤 때 누르는 키(예: ⌥)로 들어가는 길은 [제안]이고 셸 쪽 확인이 필요합니다.
+- 확장 요약과 LightCraft [결정: 오케스트레이터 기본값]: P-15는 LightCraft "엔진"의 본문입니다. 맨 위에 엔진 상태(`EngineState`, 대상, 안전 모드)와 "연결 화면 열기"(P-08) 한 줄을 둡니다. 층별 확장 수(층 mono 열, 실림·꺼짐·자동 꺼짐 수)와, 자동 꺼짐·핸들러 실패가 있으면 그 표 바로 위 `Alert tone="danger"`(확장 이름, 오류 한 줄, 진단 `file:line`)만 둡니다. 행과 Alert의 확장 이름은 LightCraft P-17로 갑니다. "파일 열기", "다시 켜기", "다시 읽기"는 P-17 기록 탭의 동작이고 P-15에는 "확장 상세 열기"만 둡니다. 데이터는 `ext.list`, `ext.health`, 진단 위치입니다.
+- 안전 모드 들어가기 [결정: 오케스트레이터 기본값]: 두 길을 모두 둡니다. 앱 안에서는 P-16·P-13·P-15의 "안전 모드로 다시 시작"(셸 `engine_restart { safeMode: true }` `[gap:W-35]`). 시작 때는 연속 시작 실패가 `x.operations.safeMode.suggestAfter`(기본 3) 이상이면 첫 화면에 제안 카드를 보입니다. 앱을 켤 때 누르는 키(예: ⌥)로 들어가는 길은 [제안]이고 셸 쪽 확인이 필요합니다.
 
 ### 6.20 대화 상자와 시트(O-01~O-09)
 
@@ -2276,18 +2276,18 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 요소 | 출처 | 상태 |
 |---|---|---|
-| 블록(층, 종류, 등급, 버전, 상태, 실패, 표시 이름) | `ext.list { threadId? }` | `[gap:W-15]`, 대화별 scope 상태 `[gap:W-41]` |
-| 포트 | 매니페스트 → `ext.get` | `[gap:W-20]` |
-| 기능 엣지의 실제 바인딩 | `ext.bindings { threadId? }` | `[gap:W-40]` |
-| 맥락별 켜짐·대기 | `group.list`(`GroupStatus.scope`, `pendingToggle`, `drive`) | `[gap:W-24]` |
+| 블록(층, 종류, 등급, 버전, 상태, 실패, 표시 이름) | `ext.list { threadId? }` | 대화별 scope 상태 `[gap:W-41]` |
+| 포트 | 매니페스트 → `ext.get` | |
+| 기능 엣지의 실제 바인딩 | `ext.bindings { threadId? }` | |
+| 맥락별 켜짐·대기 | `group.list`(`GroupStatus.scope`, `pendingToggle`, `drive`) | |
 | drive 락(보유, 차수, 사용량, 후보별 대기 계수) | `group.lease { threadId }`, `lease.*` 이벤트 | `[gap:W-42]` |
 | 훅 레일 | F `HOOKS` 상수 | 정적(앱이 contracts를 읽음) |
-| 트레이스 | `trace.turn { threadId, turnId }` | `[gap:W-43]`, X-15 |
-| 프로필 맥락 | `profile.preview { id }` | `[gap:W-44]` |
-| 시험 맥락 | `thread.list`의 시험 표지 | `[gap:W-34]` |
-| 설정 바인딩과 출처 | `settings.explain { key, threadId }` | `[gap:W-45]` |
+| 트레이스 | `trace.turn { threadId, turnId }` | X-15 |
+| 프로필 맥락 | `profile.preview { id }` | |
+| 시험 맥락 | `thread.list`의 시험 표지 | |
+| 설정 바인딩과 출처 | `settings.explain { key, threadId }` | |
 | 그룹 구성 | 매니페스트 `composition` | X-16 |
-| X 훅 | `hooks.list` | `[gap:W-36]` |
+| X 훅 | `hooks.list` | |
 | 안전 모드 | `host.status.safeMode`, 원인 | `[gap:W-35]` |
 | 배치 순서 | 데스크톱 로컬 | `[gap:V-14]` |
 
@@ -2334,26 +2334,26 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 항목 | 출처 |
 |---|---|
-| 이름, 표시 이름, 층, 종류, 버전, 설치 위치, 유효 등급, tier, 상태(`ScopeStatus`), 진단, 자동 꺼짐 여부, 안전 모드 제외 사유 | `ext.list` `[gap:W-15]` |
+| 이름, 표시 이름, 층, 종류, 버전, 설치 위치, 유효 등급, tier, 상태(`ScopeStatus`), 진단, 자동 꺼짐 여부, 안전 모드 제외 사유 | `ext.list` |
 | 켜짐 값과 범위 | `settings.get { keys: ["ext.<이름>.enabled"] }` |
 | 주도 플러그인 | `x.primitives.activeDriver`(빈 값 = 자동) |
 | drive는 플러그인 그룹만 | `x.primitives.driveRequiresGroup`(기본 켜짐. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다) |
-| 실패 수 | `scope.handler_failed` 이벤트 묶음, 장부 `[gap:W-22]` |
+| 실패 수 | `scope.handler_failed` 이벤트 묶음, 장부 |
 
 | 기능 | wire |
 |---|---|
 | 켜기·끄기(범위 고르기) | `settings.set { key: "ext.<이름>.enabled", scope }`. 이 대화만은 `scope: "launch"` |
-| 다시 켜기(자동 꺼짐) | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable { name }` `[gap:W-21]` |
+| 다시 켜기(자동 꺼짐) | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable { name }` |
 | 주도 플러그인 바꾸기 | `settings.set { key: "x.primitives.activeDriver" }` |
 | drive는 플러그인 그룹만 바꾸기 | `settings.set { key: "x.primitives.driveRequiresGroup" }`. 끄기 전에 위 문장을 보인다 |
 | 새 그룹, 가져오기 | P-21 "새 그룹", 설치(W-32. 확장 목록 머리의 "플러그인 가져오기", 아래 W-32 줄) |
 
 - 설정 시안 반영 [결정: 오케스트레이터 기본값]: 설정 시안(`m4/pages-settings`의 `p13-plugins`)이 P-13을 런타임 화면으로 다시 그렸습니다. 그 내용은 LightCraft에 이렇게 나눠 둡니다. P-13은 LightCraft의 최상위 내비 "확장"이고, 시안이 제안한 최상위 "그룹/런타임" 내비는 LightCraft 영역 자체가 맡습니다.
-  - P-13에 둡니다: 층별 묶음(L3 그룹은 내장·사용자·프로젝트로, L2·L1·L0 플러그인), 행마다 쓰는 연산 수(on, post, drive, scope), "다음 단계 경계에 적용" 대기 표시, 자동 꺼짐과 "다시 켜기", 프로젝트 그룹의 "신뢰 필요", L0 "항상 켜짐", managed 위치 잠김, 필요한 기능이 없어 켜지지 못한 "기능 대기"(`requires` 미충족, `X.loading-trust.spec` §4.8), 행 메뉴 "다시 읽기"(`[gap:W-38]`), 머리 "새 그룹"(P-21 구성기로 감, 대화 상자로 두지 않음).
+  - P-13에 둡니다: 층별 묶음(L3 그룹은 내장·사용자·프로젝트로, L2·L1·L0 플러그인), 행마다 쓰는 연산 수(on, post, drive, scope), "다음 단계 경계에 적용" 대기 표시, 자동 꺼짐과 "다시 켜기", 프로젝트 그룹의 "신뢰 필요", L0 "항상 켜짐", managed 위치 잠김, 필요한 기능이 없어 켜지지 못한 "기능 대기"(`requires` 미충족, `X.loading-trust.spec` §4.8), 행 메뉴 "다시 읽기"(`ext.reload`), 머리 "새 그룹"(P-21 구성기로 감, 대화 상자로 두지 않음).
   - 끌까요 질문 [결정: 2026-11-04 사용자, "자동꺼짐은 5회 및 끄기 전에 사용자에게 끌까요 물어보고 꺼". 앞선 B5의 시작 3회 질문을 대체. 문구, 자리, 단추 이름은 [제안]]: 연속 5회 실패(또는 실패율 규칙)에서 호스트는 끄지 않고 `ext.list`의 `keepOffQuestion { rule, consecutive, windowFailures }`로 묻습니다. 답이 올 때까지 확장은 켜 둔 채입니다. 자리는 세 곳입니다. 선택 패널(플러그인 카드)의 "다시 켜기" 단추 자리, 자세히 보기(P-17) 머리 아래, 오른쪽 "플러그인" 탭 맨 위입니다. 목록 위 띠는 두지 않고(묻는 확장이어도 목록 위에는 글이 없습니다), 목록 행에도 두지 않습니다. 경고이므로 아이콘 뒤에 숨기지 않고 글로 보입니다(DP-58). 새 질문은 휘발 `scope.handler_failed`의 `asksDisable`이 알리면 목록을 다시 읽어 나타납니다(열린 대화가 없으면 이 조각이 가지 않으므로 다음에 목록을 읽을 때 나타납니다). 글은 "{확장} · {n}번 연달아 실패했어요"(실패율 규칙은 "{확장} · 최근 호출 중 {n}번 실패했어요"), 질문은 "끌까요?", 두 단추는 "끄기"와 "켜 두기"입니다. "끄기"는 설정에 `ext.<이름>.enabled` 꺼짐을 user 범위로 쓴 뒤 `ext.disableConfirm`을 보냅니다(다음 시작에도 꺼진 채로 둡니다) [제안]. "켜 두기"와 "다시 켜기"는 설정에 켜짐을 user 범위로 쓴 뒤 `ext.reenable`을 보냅니다(장부를 비웁니다. 아니오 뒤에 다시 5번 실패하면 또 묻습니다) [제안]. 두 단추는 연결이 끊기거나 확장이 잠겼으면(관리 위치, 안전 모드 제외) 누를 수 없습니다. 답하면 목록을 다시 읽고 질문 자리에 결과 한 줄을 남깁니다. 끈 뒤에는 "껐어요. 다시 켜려면 '다시 켜기'를 누르세요.", 켠 채 두었으면 "켜 두었어요. 다시 5번 실패하면 또 물어요."입니다(영어: "Turned off. Press 'Turn back on' to turn it on again.", "Kept on. It asks again after 5 more failures."). 설정 쓰기가 거절되면 끄기를 보내지 않고 "바꾸지 못했어요" 토스트를 띄웁니다. 설정 쓰기는 됐는데 `ext.disableConfirm`이 거절되면 설정만 꺼진 채 남습니다(되돌리지 않음) [미결] [근거: `apps/desktop/src/app/workbench-commands.ts`의 `keepOff`, `apps/host/src/assembly/m4/ext-read-port.ts`의 `disableConfirm`].
   - 런타임 탭(§4.9.8)과 맥락이 대화 하나인 P-16에 둡니다: 시안의 "이 대화" 구역(켜진 그룹, drive 락 보유와 epoch·턴·spawn·렌즈, `x.primitives.activeDriver` 고르기). P-13 머리에는 맥락이 대화 하나일 때 한 줄 요약과 런타임 탭 링크만 둡니다(DP-23).
   - P-17 기록 탭과 LightCraft 오른쪽 "기록" 탭에 둡니다: `scope.handler_failed` 기록.
-  - 데이터: 메타·훅·등급 `[gap:W-15]`, 대화별 켜진 그룹과 drive 락 읽기 모델 `[gap:W-24]`, 다시 읽기 `[gap:W-38]`.
+  - 데이터: 메타·훅·등급 `ext.list`, 대화별 켜진 그룹과 drive 락 읽기 `group.list`, 다시 읽기 `ext.reload`.
 - 상태: 빈(사용자 확장 없음 "그룹을 만들려면 [새 그룹]"), 읽는 중 `Skeleton` 행, 오류 저장 실패 `FieldError`, 오프라인 잠금, 권한 필요(안전 모드에서 외부 확장 행은 "안전 모드라 빠짐", `project` 위치는 "프로젝트 신뢰 필요"), 긴 내용(가상 목록 `[gap:C-04]`, 거르기 유지).
 - 상호작용: 열 정렬, 층·종류·상태 거르기(`Select`), 행의 켜짐 `Switch`. 면제 tier(guard, core)의 `Switch`는 잠그고 이유 `Tooltip` "보안·기본 동작이라 끌 수 없어요".
 - caustic: `Table`, `Switch`, `Select`, `Badge`, `Input`(찾기), `Menu`(행 메뉴), `Alert`.
@@ -2388,24 +2388,24 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 탭 | 항목 | 출처 |
 |---|---|---|
-| 개요 | 설명, 저자, 설치 위치, `provides`·`requires`·`optional`과 바인딩 상태, `recordKinds`, `components`, 진단 | `ext.get { name }` `[gap:W-20]` |
-| 훅 | 이름, fold, 예산 등급과 값, tier, p50·p95·최대, 실패 수 | 매니페스트 `plugins[].hooks`, `DEFAULT_BUDGETS_MS`와 `x.operations.budget.*`, 시간 `[gap:W-23]` |
+| 개요 | 설명, 저자, 설치 위치, `provides`·`requires`·`optional`과 바인딩 상태, `recordKinds`, `components`, 진단 | `ext.get { name }` |
+| 훅 | 이름, fold, 예산 등급과 값, tier, p50·p95·최대, 실패 수 | 매니페스트 `plugins[].hooks`, `DEFAULT_BUDGETS_MS`와 `x.operations.budget.*`, 시간 |
 | drive 락과 상한 | `drives`, 상한 설정, 최근 drive 락(시작, 끝, 사유, 사용 턴·spawn·토큰) | `settings.get`, `lease.*` 이벤트 |
 | 설정 | 확장 설정 필드 | `settings.list` → `buildSettingsView`(plugins 탭에서 이 확장 키만) |
-| 측정 | `GroupMetrics` | `group.metrics { id, threadId? }` `[gap:W-25]`. 임시로 `/group status` 결과 |
-| 기록 | `scope.handler_failed`, `scope.changed`, 로더 진단, 운영 로그 줄 | 이벤트 구독, 진단 `[gap:W-20]` |
-| 버전 | 설치본, 번들 버전, 이전 버전, 바뀐 날(§6.24.1) | `ext.versions` `[gap:W-31]` |
-| 화면 | 기여한 화면(slot, id, 상태), 화면 장부 | `ext.view.list` `[gap:W-33]`, 클라이언트 화면 장부 |
+| 측정 | `GroupMetrics` | `group.metrics { id, threadId? }`. 임시로 `/group status` 결과 |
+| 기록 | `scope.handler_failed`, `scope.changed`, 로더 진단, 운영 로그 줄 | 이벤트 구독, 진단 |
+| 버전 | 설치본, 번들 버전, 이전 버전, 바뀐 날(§6.24.1) | `ext.versions` |
+| 화면 | 기여한 화면(slot, id, 상태), 화면 장부 | `ext.view.list`, 클라이언트 화면 장부 |
 
 | 기능 | wire |
 |---|---|
 | 켜기·끄기 | `settings.set { key: "ext.<이름>.enabled" }` |
-| 다시 켜기 | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable` `[gap:W-21]` |
+| 다시 켜기 | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable` |
 | 끄기(끌까요 질문) | `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` [제안] 뒤 `ext.disableConfirm { name }` [제안] |
 | 설정 저장 | `settings.set`(P-09 규칙) |
-| 되돌리기 | `ext.rollback { name, version }` `[gap:W-31]`, 확인 O-11 |
+| 되돌리기 | `ext.rollback { name, version }`, 확인 O-11 |
 | 화면 다시 켜기 | 클라이언트 화면 장부 비우기 |
-| 다시 읽기(작성 중 확장) | `ext.reload { name }` `[gap:W-38]`. 진단은 `file:line`과 "파일 열기"(OS 기본 편집기, 셸 명령) |
+| 다시 읽기(작성 중 확장) | `ext.reload { name }`. 진단은 `file:line`과 "파일 열기"(OS 기본 편집기, 셸 명령) |
 | 시험 시작 | P-19 새 시험(대상 = 이 확장) |
 
 - 상태: 빈(해당 탭 자료 없음 문장), 읽는 중 탭별 `Skeleton`, 오류 탭별 한 줄, 오프라인 마지막 값, 권한 필요(면제 tier는 끄기 잠금, 안전 모드 제외는 머리 `Alert`), 긴 내용(기록 500행 상한과 "더 읽기").
@@ -2469,14 +2469,14 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 항목 | 출처 |
 |---|---|
-| 기여 목록과 트리 | `ext.view.list` `[gap:W-33]`(엔진이 검사한 트리와 진단, 모드, 프레임 선언) |
-| 프레임 파일 | 셸 전용 스킴 `fresnel-view://`(ADR-0021 §3.6.2) `[gap:W-33]` |
+| 기여 목록과 트리 | `ext.view.list`(엔진이 검사한 트리와 진단, 모드, 프레임 선언) |
+| 프레임 파일 | 셸 전용 스킴 `fresnel-view://`(ADR-0021 §3.6.2) |
 | 트리 데이터 | ADR-0021 §3.4 `query`(`ext.<id>.<verb>`), `events`, `settings`, `host` |
 | Helm 예 | `ext.helm.status`, `ext.helm.inquiries`, `ext.helm.findings`, `grp.helm.*` 이벤트 |
 
 | 기능 | wire |
 |---|---|
-| 트리의 `call`, `command`, `post`, `requestApproval`, `navigate` | ADR-0021 §3.4 표. `post`·`requestApproval`은 `[gap:W-33]` |
+| 트리의 `call`, `command`, `post`, `requestApproval`, `navigate` | ADR-0021 §3.4 표. `post`·`requestApproval`은 `ext.ui.post`·`ext.ui.requestApproval` |
 
 - 상태: 빈(기여 없음 "이 확장은 화면을 내지 않아요"), 읽는 중 `loading`, 오류 `invalid`(진단 한 줄, 모르는 위젯만 자리표시), 오프라인 `offline`, 권한 필요 `extension_disabled`·안전 모드, 긴 내용(ADR-0021 §3.4 크기 상한에서 자름). 화면만 꺼진 `view_disabled`는 "다시 켜기".
 - 접근성: 셸이 머리에 `h1`, 트리의 `Heading`은 `h2`부터입니다. 트리 위젯은 caustic 부품의 접근성을 그대로 갖습니다. 플러그인은 `aria-*`를 직접 주지 않고 `label` prop만 줍니다.
@@ -2554,12 +2554,12 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | replay 결과(커밋 수, 절단마다 같음·다름(`cuts[].equal`), 처음 다른 위치 `firstDiff`, 효과 수 `EffectCounts`(turn, spawn, delegate, post), 실패 종류 `effects-doubled`·`effects-mismatch`·`max-commits-exceeded`·`no-commits`) | `ReplayDriveReport`(`group-sdk/src/testing/replay/replay-drive.ts`) `[gap:W-29]` |
 | benchmark 결과(지표, 값, 예산, 판정) | `scripts/benchmark-server.ts` 출력과 `benchmark-gate` 판정. 예산은 모두 미정("사용자 결정 대기") `[gap:W-30]` |
 | 코어 변경 검사(보호 경로 변경 파일) | `scripts/core-diff-check.ts` 종료 코드 0·1·2와 파일 목록 `[gap:W-30]` |
-| Test run | `thread.list`의 시험 표지 `[gap:W-34]` |
+| Test run | `thread.list`의 시험 표지 |
 
 | 기능 | wire |
 |---|---|
 | 새 시험(O-12) | `ext.test.run { kind, target, options }`과 진행 이벤트 `[gap:W-29]`. 켬/끔 비교는 `kind` 값 하나를 더합니다 [제안] [불일치: 2026-11-04 T-MEAS-TERM, wire 표의 `kind`는 `replay`·`testRun` 둘뿐이고 진행 이벤트 이름도 아직 없다. 이름 `ext.test.*`는 그대로 둔다 [결정: 2026-11-03 제안 기본값 자동 승인]] |
-| Test run 만들기 | `thread.create { workspace?, testRun: true, profileId? }`(`profileId`는 `testRun`이 참일 때만, 만들면서 `thread` 층에 적용) `[gap:W-34]`. 새 시험(O-12)의 Test run 종류도 이 호출로 만듭니다. 이렇게 만든 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결] |
+| Test run 만들기 | `thread.create { workspace?, testRun: true, profileId? }`(`profileId`는 `testRun`이 참일 때만, 만들면서 `thread` 층에 적용). 새 시험(O-12)의 Test run 종류도 이 호출로 만듭니다. 이렇게 만든 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결] [근거: `apps/host/src/handlers/m4/devkit.ts:58`, `ext.test.list`는 `notImplemented`] |
 | 이벤트 비교 열기 | 두 이벤트열을 나란히(`[gap:C-20]`) |
 | 다시 실행 | 같은 인자로 `ext.test.run` |
 
@@ -2607,10 +2607,10 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 항목 | 출처 |
 |---|---|
-| 확장별 지표(토큰 input·output·cacheRead·cacheWrite, `costUsd`, `leaseMs`, `leases`, `denies`, `chainPatches`, `handlerErrors`, `posts`, `spawns`, `delegates`, `commits`, `records`) | `group.metrics` `[gap:W-25]`. 기간 합은 `grp.<id>.metrics.recorded` 증가분. 계측이 꺼지면(`l3.group-sdk.instrumentation = false`) "계측 꺼짐" |
+| 확장별 지표(토큰 input·output·cacheRead·cacheWrite, `costUsd`, `leaseMs`, `leases`, `denies`, `chainPatches`, `handlerErrors`, `posts`, `spawns`, `delegates`, `commits`, `records`) | `group.metrics`. 기간 합은 `grp.<id>.metrics.recorded` 증가분. 계측이 꺼지면(`l3.group-sdk.instrumentation = false`) "계측 꺼짐" |
 | 요약 | `GroupStatus.metrics`(`GroupMetricsSummary`: denies, posts, spawns, delegates, costUsd, leaseMs) |
-| 핸들러 시간과 예산 | `[gap:W-23]`. 예산 값은 `x.operations.budget.*` |
-| 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion` `[gap:W-26]`. 임시로 `/group status`의 "승격 후보" 줄 |
+| 핸들러 시간과 예산 | `ext.timings`. 예산 값은 `x.operations.budget.*` |
+| 승격 보고(`throughSeq`, `threads`, 후보: 도구, 소유, 소비자, `userCalls`) | `group.promotion`. 임시로 `/group status`의 "승격 후보" 줄 |
 | 코어 변경 검사 요약(마지막 결과 한 줄, 시각, "시험 실행에서 보기"). 실행과 파일 목록은 P-19만 | 개발 모드 셸 명령 `core-diff-check`의 마지막 결과. `ext.test.list`는 `replay`·`testRun`만 돌려주므로 읽는 wire가 없다 `[gap:W-30]` |
 | 대화별 사용량 | `usage.get { threadId }` |
 
@@ -2670,7 +2670,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 캔버스 위 한 줄: Test run 이름과 경과, drive 락 사용량 막대 셋, 멈춤·이어서, 한 경계씩, replay로(개발 모드만), 시험 결과.
 - 지금 단계 노드 강조, 지난 단계 흐림, 아직 안 온 단계 반투명. 돌고 있는 렌즈와 실패 렌즈를 상태로 구분. 렌즈 노드 둘째 줄은 그 자식의 마지막 도구 호출입니다.
 - 가드 발화: 쓰기 거부 구간 이름 아래 "거부 1 · bash · exec" 칩. 오른쪽 "경계 기록" 열이 커밋·drive 락·거부 이벤트를 시간순으로 보입니다.
-- 멈춤 [결정: 2026-10-31 사용자, C-9]: "멈춤"은 Test run을 다음 단계 경계에서 실제로 멈추고 drive 락은 쥔 채 둡니다. "이어서"는 다시 돌리고 "한 경계씩"은 경계 하나만 진행합니다(`testRun.pause`·`testRun.resume`·`testRun.step`, W-48). 일반 대화에는 이 동작이 없습니다. 멈춘 채인지는 명령 결과로만 알며, 화면을 다시 연 뒤의 표지는 `thread.list`의 `ThreadSummary.testRun.paused`를 읽어야 합니다 `[gap:W-34]`.
+- 멈춤 [결정: 2026-10-31 사용자, C-9]: "멈춤"은 Test run을 다음 단계 경계에서 실제로 멈추고 drive 락은 쥔 채 둡니다. "이어서"는 다시 돌리고 "한 경계씩"은 경계 하나만 진행합니다(`testRun.pause`·`testRun.resume`·`testRun.step`, W-48). 일반 대화에는 이 동작이 없습니다. 멈춘 채인지는 명령 결과로만 알며, 화면을 다시 연 뒤의 표지는 `thread.list`의 `ThreadSummary.testRun.paused`를 읽어야 합니다.
 - 단계 표시는 Test run에 한해 `grp.<id>.state.committed`의 `phase`만 노출하는 진단 투영으로 읽습니다(`testRun.phase`, W-50). 상태 문서 본문은 비공개로 남습니다(`F.extensions.spec` §3.6).
 
 #### 6.28.5 코드 보기(읽기 전용)
@@ -2700,15 +2700,15 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 항목 | 출처 |
 |---|---|
-| 설치 그룹의 블록 | 매니페스트 `composition` → `ext.get` `[gap:W-20]`, X-16 |
+| 설치 그룹의 블록 | 매니페스트 `composition` → `ext.get`, X-16 |
 | 훅 fold·실패 규칙 | F `HOOKS` 상수(클라이언트) |
-| 맥락의 provider | `ext.list` + `ext.bindings` `[gap:W-15]` `[gap:W-40]` |
+| 맥락의 provider | `ext.list` + `ext.bindings` |
 | 단계 머신 노드·전이 | `composition.phases` X-16 |
-| 구성 검사 | `ext.validateComposition` `[gap:W-47]` |
-| 시험 실행 진행 | `lease.*`, `scope.changed`, `testRun.phase` `[gap:W-50]`, 자식 `agent.*`, `tool.call` 결정 이벤트, 멈춤 `[gap:W-48]` |
-| 프로필 | `profile.list`·`get`·`put`·`delete`·`apply` `[gap:W-46]` |
-| 실효 스택 | `profile.preview` `[gap:W-44]` |
-| 뼈대 파일 | Plugin Builder 종류 카탈로그와 `fresnel.devkit.scaffold` `[gap:W-27]` |
+| 구성 검사 | `ext.validateComposition` |
+| 시험 실행 진행 | `lease.*`, `scope.changed`, `testRun.phase`, 자식 `agent.*`, `tool.call` 결정 이벤트, 멈춤 |
+| 프로필 | `profile.list`·`get`·`put`·`delete`·`apply` |
+| 실효 스택 | `profile.preview` |
+| 뼈대 파일 | Plugin Builder 종류 카탈로그와 `fresnel.devkit.scaffold` |
 
 - caustic: `NodeGraph`·`GraphNode`·`GraphPort`·`GraphEdge`·`GraphDraft`(caustic `xeon/m4-design`, `[gap:C-35]` `[gap:C-36]`), `ZoomControl`, `LayerTree`, `CodeRealization`, `SegmentedControl`, `Select`, `Button`, `Badge`, `Alert`, `Progress`, `ListDescription`, `Input`. 캔버스 호스트 `[gap:C-34]`.
 
@@ -2728,7 +2728,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 ### 6.30 대화 영역의 런타임 표시
 
-- 대화 머리 런타임 줄: drive 보유 그룹과 단계(플러그인 `status` 기여가 있으면 그 글자), 켜진 확장 수, 이 대화의 확장 실패 수. 누르면 런타임 탭. 데이터는 `lease.*`, `scope.changed`, `scope.handler_failed` 이벤트와 `group.list` `[gap:W-24]` `[gap:V-24]`.
+- 대화 머리 런타임 줄: drive 보유 그룹과 단계(플러그인 `status` 기여가 있으면 그 글자), 켜진 확장 수, 이 대화의 확장 실패 수. 누르면 런타임 탭. 데이터는 `lease.*`, `scope.changed`, `scope.handler_failed` 이벤트와 `group.list` `[gap:V-24]`.
 - 트랜스크립트 런타임 행: `lease.acquired`·`lease.released`·`lease.rejected`, `scope.changed`, 같은 턴 안 같은 확장의 `scope.handler_failed` 묶음을 흐린 한 줄로 보입니다(DP-19). 누르면 LightCraft P-17 기록 탭입니다.
 - 런타임 탭(오른쪽): §4.9.4 표.
 - Test run: 머리에 "시험" `Badge`, 적용한 프로필 이름, 멈춤 상태면 "단계 경계에서 멈춤 · 임대 helm 유지"와 "이어서". 학습 그룹은 Test run을 리뷰 대상에서 뺍니다 [결정: 2026-11-04 사용자, B4 1안](§12.1 20번, X-14).
@@ -2739,7 +2739,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | id | 이름 | 부품 | 데이터 | 동작 | 규칙 |
 |---|---|---|---|---|---|
 | O-10 | 확장 신뢰 확인 | `Dialog kind="alert"` | 요청 등급, 설치 위치 상한, 쓰는 연산(on, post, drive, 저장, 리소스 등록), 훅 목록 | 켜기, 취소 | 처음 켜는 `user`·`project` 위치 확장. 기본 초점 "취소" |
-| O-11 | 되돌리기 확인 | `Dialog kind="alert"` | 지금 버전, 되돌릴 버전, 상태 스키마 버전 차이 | 되돌리기 `[gap:W-31]` | 상태 마이그레이션이 없으면 경고. 대체 단계는 §6.24.1 |
+| O-11 | 되돌리기 확인 | `Dialog kind="alert"` | 지금 버전, 되돌릴 버전, 상태 스키마 버전 차이 | 되돌리기 | 상태 마이그레이션이 없으면 경고. 대체 단계는 §6.24.1 |
 | O-12 | 새 시험 | `Sheet side="right"` | 종류(켬/끔 비교 포함), 대상, 프로필, 옵션(replay `maxCommits` 기본 200, benchmark `--runs` 1~50, 켬/끔 비교 케이스 묶음·반복 수) | `ext.test.run` `[gap:W-29]` | 비용 드는 시험과 켬/끔 비교는 예상 실행 수와 비용 범위 확인(§6.26). replay·benchmark·diff는 개발 모드만 |
 
 ## 7. 화면 사이 흐름
@@ -2779,7 +2779,7 @@ sequenceDiagram
 3. 사용자가 트랜스크립트, 끝 영역, P-03, 원격 기기 중 한 곳에서 답합니다. UI 스토어가 `sending`이 됩니다.
 4. `approval.respond` 결과가 `applied: true`면 `approval.resolved`를 기다립니다. 카드는 `resolved`가 올 때 사라집니다.
 5. `applied: false`면 이유 문장을 카드에 보입니다. `already_resolved`(다른 곳에서 먼저 답함)는 "이미 처리된 요청이에요"로 보이고 2초 뒤 카드를 지웁니다 [제안].
-6. 재접속 뒤에는 열린 대화마다 `approval.list { threadId }`로 대기열을 다시 채웁니다. 열지 않은 대화는 `pendingApprovals` 수만 보입니다 `[gap:W-01]`.
+6. 재접속 뒤에는 열린 대화마다 `approval.list { threadId }`로 대기열을 다시 채웁니다. 열지 않은 대화는 `pendingApprovals` 수만 보입니다.
 
 ### 7.3 변경 검토
 
@@ -3123,13 +3123,13 @@ export const palette = [
 
 | id | 필요 | 쓰는 화면 | 지금 | 제안 |
 |---|---|---|---|---|
-| W-01 | 모든 대화의 대기 승인 목록 | P-03, S-03 | `approval.list`는 대화 하나만 | `approval.list`의 `threadId` 생략 허용 또는 `approval.pending` |
-| W-02 | 리뷰 hunk 본문 읽기 | P-04 | 승인 페이로드는 파일 요약만, `artifacts.reviews.get`은 L2 기능 | `review.get { reviewId }` wire |
+| W-01 | 모든 대화의 대기 승인 목록 | P-03, S-03 | 구현됨. `approval.list`는 `threadId`를 생략하면 닫히지 않은 모든 대화의 대기 승인을 돌려준다 [근거: `apps/host/src/handlers/approval.ts:42`] | `approval.list`의 `threadId` 생략 허용 또는 `approval.pending` |
+| W-02 | 리뷰 hunk 본문 읽기 | P-04 | 구현됨. `review.get`이 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `review.get { reviewId }` wire |
 | W-03 | 리뷰 중간 저장(제출 없이 결정·의견) | P-04 | `approval.respond`는 한 번에 끝남 | M4는 화면 로컬 초안으로 대신 [제안]. wire는 [미결] |
-| W-04 | Helm 상태 읽기 | P-05, S-03 | `/helm status` 명령 결과 | `command.run` 결과로 시작, 구조화 wire는 [미결] |
-| W-05 | 목표 상태 읽기 | P-14, S-03 | `/goal status` 명령 결과 | `goal.status { threadId }` |
-| W-06 | 작업 목록 읽기 | P-14 | 없음(이벤트만) | `work.tasks.list { threadId }` |
-| W-07 | 예약 다시 켜기·고치기, 실행 기록 | P-07 | `cancel`은 끝, `lastRun`만 | `schedule.update`, `schedule.runs` |
+| W-04 | Helm 상태 읽기 | P-05, S-03 | `ext.helm.status` 확장 메서드(`ext.<id>.<verb>`)가 group-helm에 등록돼 있다 [근거: `packages/group-helm/src/methods.ts:85`]. 데스크톱 화면은 아직 쓰지 않는다 [근거: `apps/desktop/src`에서 `helm.status` grep 0건] | `command.run` 결과로 시작, 구조화 wire는 [미결] |
+| W-05 | 목표 상태 읽기 | P-14, S-03 | 구현됨. `goal.status { threadId }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `goal.status { threadId }` |
+| W-06 | 작업 목록 읽기 | P-14 | 구현됨. `work.tasks.list { threadId }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `work.tasks.list { threadId }` |
+| W-07 | 예약 다시 켜기·고치기, 실행 기록 | P-07 | `schedule.update`와 `schedule.runs`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] | `schedule.update`, `schedule.runs` |
 | W-08 | 대상 바꾸기와 원격 연결 단계 | P-08, S-03 | 셸 명령 `engine_retarget { target }`(`target`은 `{ kind: "local" }` 또는 `{ kind: "remote", address }`)이 있음(T-SHELL). 사이드카를 `host --stdio [--remote <주소>]`로 다시 띄우고 상태는 기존 `EngineState` 전이(`restarting` → `running`)로 알림. 접속 토큰은 인자에 싣지 않고 환경 변수 `FRESNEL_REMOTE_TOKEN`으로만 줌. 연결 단계별 진행 이벤트는 없음. 바꾸는 동안 쓰기 명령(턴 시작·중단, 승인 응답, 대화 만들기·분기, 신뢰 결정)은 앱이 `switching`으로 거절한다: 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어 새 엔진에 남지 않는 쓰기를 막는다. 상태가 running을 벗어났다 돌아오면 풀리고, `shutdownGraceMs` + 15초 안에 돌아오지 않아도 푼다. 연결 화면(P-08)의 대상 바꾸기도 같은 보류를 거치며, `shutdownGraceMs`는 `desktop-settings.json`에서 읽고 없으면 기본값 7000이다 | 단계 이벤트는 P-08(T-CHAT2)이 필요할 때 더함 |
 | W-09 | 알림 읽음 상태 | P-03 | 없음 | 데스크톱 로컬 커서로 대신 [제안] |
 | W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식). [결정: 2026-11-04 사용자, B8 2안] 재인증 명령 `os_reauth`(`L4.desktop.spec` §4.17)는 셸에 구현됐습니다. 값 보기 화면은 macOS에서 이 명령을 먼저 부르고, 그 뒤의 보기는 stdio·서비스에서 `not_started`입니다 |
@@ -3137,42 +3137,42 @@ export const palette = [
 | W-12 | 연결된 클라이언트 목록 | P-08 | 수만 | `host.clients` [미결] |
 | W-13 | 시크릿 사용 기록 | P-10 | 없음 | `secret.audit { name, limit }` |
 | W-14 | 스킬 본문 읽기(충돌 비교) | P-06 | 없음 | `knowledge.skills.view` wire |
-| W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | 설정 키만. `WIRE_METHODS` 48개에 확장·그룹 메서드 없음 | `ext.list { threadId? }`, `mcp.servers` [미결]. 설치는 W-32 |
-| W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 없음 | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
+| W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire(`mcp.servers`)는 없다 [근거: `apps/host/src`, `packages/contracts/src`에서 그 이름 grep 0건] | `ext.list { threadId? }`, `mcp.servers` [미결]. 설치는 W-32 |
+| W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 구현됨. `thread.read`의 `around` 인자와 `ThreadSummary.origin`이 있다 [근거: `apps/host/src/assembly/thread-read.ts`, `packages/contracts/src/wire-settings/wire/methods.ts:443`] | `thread.read`에 `around` 인자, `ThreadSummary.origin` |
 | W-17 | 큐에 넣은 입력 철회 | P-02 | `input.withdrawn` 이벤트만 | `turn.withdraw { requestId }` [미결] |
 | W-18 | 계획 버전 목록 | P-14 | 없음 | `work.plans.versions` wire |
 | W-19 | OS 폴더 고르기 | O-07 | 구현됨. `tauri-plugin-dialog` 2.8.4를 셸 명령 `pick_folder`로 감싸 쓴다(`L4.desktop.spec` §10 17번, [결정: 2026-11-04 사용자]). WebView에는 dialog 권한이 없다. 맥에서 창 동작은 아직 확인하지 않았다 | `pick_folder`. 입력란은 경로를 직접 적는 길로 남는다 |
-| W-20 | 확장 하나의 상세(매니페스트, 유효 등급, tier, 기능 바인딩, 훅과 예산 등급, 진단) | P-17 | 없음 | `ext.get { name }` |
-| W-21 | 자동 꺼짐 확장 다시 켜기(장부 비우기) | P-13, P-17, P-16 | `AutoDisabler.reenable`은 시험만 부름. `/group on`은 scope만 켬 | `ext.reenable { name }` |
-| W-22 | 확장별 실패 장부(연속 수, 최근 창) | P-13, P-17 | 프로세스 메모리, 휘발 이벤트만 | `ext.health { name?, threadId? }` |
-| W-23 | 훅별 핸들러 시간(p50, p95, 최대) | P-16, P-17, P-20 | 기록하는 곳 없음(예산 초과만 실패로 셈) | X 운영이 시간을 모으고 `ext.timings { name, threadId? }` [미결] |
-| W-24 | 그룹 상태 목록(`GroupStatus`: drive 역할, 대기, 거부, `pendingToggle`, `lastError`, 요약 지표) | 런타임 탭, P-16 | `GroupService.list`는 엔진 안에만 | `group.list { threadId? }`, 바뀜 알림 |
-| W-25 | 그룹 지표 전체와 기간 합 | P-17, P-20 | `/group status` 글 | `group.metrics { id, threadId?, since? }` |
-| W-26 | 승격 보고 | P-16, P-20 | `/group status` 부가 줄 | `group.promotion { threadIds? }` |
-| W-27 | 종류 목록과 뼈대 만들기 | P-21, Plugin Builder | CLI `fresnel group new`만 | `ext.kinds`(Plugin Builder 카탈로그), `ext.scaffold { kind, name, dir, composition?, views? }`. 구현은 서비스 `fresnel.devkit`(`L3.authoring.spec` §3.3) |
-| W-28 | 폴더의 매니페스트와 drive 소스 검사 | P-21, P-17, Plugin Builder | `validateManifest`, `scanDriveSource`는 라이브러리 | `ext.validate { dir }`(F 검사 + AU 규칙) |
+| W-20 | 확장 하나의 상세(매니페스트, 유효 등급, tier, 기능 바인딩, 훅과 예산 등급, 진단) | P-17 | 구현됨. `ext.get`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.get { name }` |
+| W-21 | 자동 꺼짐 확장 다시 켜기(장부 비우기) | P-13, P-17, P-16 | 구현됨. `ext.reenable`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.reenable { name }` |
+| W-22 | 확장별 실패 장부(연속 수, 최근 창) | P-13, P-17 | 구현됨. `ext.health`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.health { name?, threadId? }` |
+| W-23 | 훅별 핸들러 시간(p50, p95, 최대) | P-16, P-17, P-20 | 구현됨. `ext.timings`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | X 운영이 시간을 모으고 `ext.timings { name, threadId? }` [미결] |
+| W-24 | 그룹 상태 목록(`GroupStatus`: drive 역할, 대기, 거부, `pendingToggle`, `lastError`, 요약 지표) | 런타임 탭, P-16 | 구현됨. `group.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `group.list { threadId? }`, 바뀜 알림 |
+| W-25 | 그룹 지표 전체와 기간 합 | P-17, P-20 | 구현됨. `group.metrics`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `group.metrics { id, threadId?, since? }` |
+| W-26 | 승격 보고 | P-16, P-20 | 구현됨. `group.promotion`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `group.promotion { threadIds? }` |
+| W-27 | 종류 목록과 뼈대 만들기 | P-21, Plugin Builder | 구현됨. `ext.kinds`와 `ext.scaffold`가 있다. CLI `fresnel group new`도 남아 있다 [근거: `apps/host/src/handlers/m4/devkit.ts`, `apps/cli/src/group/rules.ts`] | `ext.kinds`(Plugin Builder 카탈로그), `ext.scaffold { kind, name, dir, composition?, views? }`. 구현은 서비스 `fresnel.devkit`(`L3.authoring.spec` §3.3) |
+| W-28 | 폴더의 매니페스트와 drive 소스 검사 | P-21, P-17, Plugin Builder | 구현됨. `ext.validate { dir }`가 있다 [근거: `apps/host/src/handlers/m4/devkit.ts`] | `ext.validate { dir }`(F 검사 + AU 규칙) |
 | W-29 | 시험 실행과 결과(replay, Test run 묶음) | P-19, P-16 | `replayDrive`는 시험 파일의 하니스로만 실행 | `ext.test.run`, `ext.test.list`, 진행 이벤트. replay 실행은 개발 모드만 [결정: 2026-10-31 사용자]. 런타임 하니스는 X-10. wire `ReplayReport`는 칸별 `cuts`를 싣지 않습니다(§6.26). 개발 모드 판정 키 `l3.authoring.devMode`는 카탈로그에 아직 없습니다 |
 | W-30 | benchmark와 코어 변경 검사 실행 | P-19, P-20 | `just benchmark --server`, `bun scripts/core-diff-check.ts <base>`는 저장소 스크립트(배포 앱에 없음) | 개발 모드 전용 셸 명령 [결정: 2026-10-31 사용자]. 배포 앱은 결과 읽기만 |
 | W-31 | 확장 버전 기록과 되돌리기 | P-17, O-11 | 기본 플러그인은 번들 버전이 높을 때 디렉터리째 교체하고 이전 설치본을 기록한다(X-8). `ext.versions`·`ext.rollback` 처리기가 연결됐다(host-service HS-108). 버전 탭은 기본 플러그인의 앱에 든 번들 판을 "앱에 든 버전" 행으로 보이고 되돌릴 수 있다(`ext.versions`의 `bundledVersion`, 되돌리기 전에 번들 판을 기록한다). 되돌린 코드는 재시작 뒤에 돈다 [미결 host-service §10 54]. 되돌린 기본 플러그인은 다음 시작에 번들 판으로 돌아갈 수 있다 [미결 host-service §10 57] | `ext.versions { name }`, `ext.rollback { name, version }`. M4에 되는 만큼, 대체 경로는 §6.24.1 [결정: 2026-10-31 사용자] |
-| W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, Plugin Builder | 디렉터리 복사 | `ext.installPreview { source }`, `ext.install { source, sha256 }`, `ext.remove { name }` [결정: 2026-11-04 사용자, Q9: 플러그인은 앱 안에서 설치하고 설치 전에 권한을 확인받는다] |
+| W-32 | 확장 설치·지우기·사용자 위치 연결(W-15의 설치 부분) | P-13, P-21, Plugin Builder | 구현됨 [근거: `apps/host/src/handlers/m4/devkit.ts`] | `ext.installPreview { source }`, `ext.install { source, sha256 }`, `ext.remove { name }` [결정: 2026-11-04 사용자, Q9: 플러그인은 앱 안에서 설치하고 설치 전에 권한을 확인받는다] |
 | W-33 | 화면 기여 목록, 확장 메서드, 화면용 post·승인 | P-18, 슬롯 전부 | `ext.ui.list` 처리기가 연결됐다(host-service HS-108). `ext.ui.post`·`ext.ui.requestApproval`은 `threadId`를 필수로 받아 M4 T-UIPOST에서 열었다(host-service §10 52, HS-108). `ext.<id>.<verb>`는 M4 T-GK에서 열었다(`F.wire-settings.spec` §4.2) | `ext.ui.list`, `ext.<id>.<verb>`, `ext.ui.post`, `ext.ui.requestApproval`(ADR-0021 §6) |
-| W-34 | Test run 표지와 프로필 적용 생성 | P-19, P-21, P-02 | 없음 | `thread.create { testRun: true, profileId? }`, `ThreadSummary.testRun`(`{ profileId, target, paused }`) |
-| W-35 | 안전 모드 원인과 안전 모드 재시작 | P-16, P-13, P-08 | `host.status.safeMode` 불리언만, 데스크톱 재시작 명령 없음 | `host.status.safeModeCause`, 셸 명령 `engine_restart { safeMode }` |
-| W-36 | 외부 훅 목록(M4 N14) | P-16, P-13 | 없음 | `hooks.list` |
+| W-34 | Test run 표지와 프로필 적용 생성 | P-19, P-21, P-02 | 구현됨. `thread.create`가 `testRun`과 `profileId`를 받는다 [근거: `apps/host/src/handlers/thread.ts:28-41`] | `thread.create { testRun: true, profileId? }`, `ThreadSummary.testRun`(`{ profileId, target, paused }`) |
+| W-35 | 안전 모드 원인과 안전 모드 재시작 | P-16, P-13, P-08 | `host.status.safeModeCause`가 있다. 셸 `engine_restart`는 인자가 없어 안전 모드로 다시 시작하는 길은 아직 없다 [근거: `packages/contracts/src/wire-settings/wire/methods.ts:320`, `apps/desktop/src-tauri/src/relay.rs:619`] | `host.status.safeModeCause`, 셸 명령 `engine_restart { safeMode }` |
+| W-36 | 외부 훅 목록(M4 N14) | P-16, P-13 | 구현됨. `hooks.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts:146`] | `hooks.list` |
 | W-37 | 런타임 이벤트만 거르는 구독 | 기록 탭, 런타임 탭 | `events.subscribe`는 thread 단위 전체 | kind 접두 거름 인자 [미결] |
-| W-38 | 확장 다시 읽기(핫 리로드 요청)와 로더 진단 위치(파일:줄) | P-17, P-15 | 파일 감시 핫 리로드만(`X.loading-trust.spec` §4.4.4) | `ext.reload { name }`, 진단에 `file`, `line` |
-| W-39 | 연속 시작 실패 수와 안전 모드 제안 | P-01, 시작 화면 | `StartupHealthStore`, `shouldSuggestSafeMode`는 M4 T-FIX에서 `apps/host`가 부름(필드는 선택 값으로 이미 있음) | `host.status.startupFailures`, `host.status.suggestSafeMode` |
-| W-40 | 기능 바인딩(기능 id마다 제공 확장과 버전, 받는 확장과 requires·optional, 미충족) | P-16, P-21 | 없음 | `ext.bindings { threadId? }` |
-| W-41 | 그룹이 아닌 확장의 대화별 scope 상태 | P-16, P-13 | `GroupStatus`는 그룹만 | `ext.list { threadId }`가 대화별 scope 상태를 실음 |
-| W-42 | drive 락 읽기(holder, `leaseEpoch`, limits, used, 후보별 대기 계수) | P-16, 런타임 탭 | 대기 계수(`leaseWaitLimit` 대비)는 이벤트에 없음 | `group.lease { threadId }` |
-| W-43 | 트레이스 기록(훅 발화 순서, 핸들러별 시간·결과, 단계 경계) | P-16, P-19, P-21 | `scope.handler_failed`만 내구 이벤트 | `trace.turn { threadId, turnId }` → `{ seq, point, step, handlers: { ext, ms, result }[] }[]`. 원천은 X-15. W-23(`ext.timings`)의 원천도 같음 |
-| W-44 | 프로필 미리 보기(켜질 scope, 후보, 예상 holder) | P-16, P-21 | 대화 없이 "적용했다면"을 계산하는 함수 없음 | `profile.preview { id, threadId? }`(중재 규칙 `X.primitives.spec` §4.4.1 4번) |
-| W-45 | 설정 값의 출처(이긴 범위, 그 값을 쓴 쪽: 프로필, 시험, 사용자) | P-16 검사기, P-17 | `settings.get`은 범위만 | `settings.explain { key, threadId }` |
-| W-46 | 프로필 저장과 적용(런타임 호스트 저장, 데스크톱·웹·앱·서비스 공유) | P-21, P-16 | 없음 | `profile.list`, `profile.get`, `profile.put { profile, baseRev }`, `profile.delete`, `profile.apply { id, threadId }`(원자적 `session` 쓰기), 알림 `profile.changed` [결정: 2026-10-31 사용자] |
-| W-47 | 구성 검사 | P-21, Plugin Builder | F `validateManifest`·`validateUsage`에 구성 규칙 없음 | `ext.validateComposition { composition, threadId? }` → `ManifestIssue[]`(`drive_duplicate`, `on_capability_call`, `capability_missing` 포함) |
-| W-48 | Test run 단계 경계 멈춤 | P-19, P-21, P-02 | 없음 | `testRun.pause { threadId }`, `testRun.resume`, `testRun.step`. Test run만, drive 락 유지 [결정: 2026-10-31 사용자] |
-| W-49 | 확장 묶음 만들기 | Plugin Builder, P-21 | 없음 | `ext.package { dir, out? }` → 경로, 파일 목록, SHA-256. 설치는 W-32 |
-| W-50 | Test run의 단계 투영 | P-21 흐름 시험 | 상태 문서는 비공개(`F.extensions.spec` §3.6) | `testRun.phase { threadId }`와 이벤트. Test run에서 `grp.<id>.state.committed`의 `phase`만 |
+| W-38 | 확장 다시 읽기(핫 리로드 요청)와 로더 진단 위치(파일:줄) | P-17, P-15 | 구현됨. `ext.reload`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.reload { name }`, 진단에 `file`, `line` |
+| W-39 | 연속 시작 실패 수와 안전 모드 제안 | P-01, 시작 화면 | `host.status.startupFailures`·`suggestSafeMode`가 있다 [근거: `packages/contracts/src/wire-settings/wire/methods.ts:323-324`] | `host.status.startupFailures`, `host.status.suggestSafeMode` |
+| W-40 | 기능 바인딩(기능 id마다 제공 확장과 버전, 받는 확장과 requires·optional, 미충족) | P-16, P-21 | 구현됨. `ext.bindings`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `ext.bindings { threadId? }` |
+| W-41 | 그룹이 아닌 확장의 대화별 scope 상태 | P-16, P-13 | `ext.list`의 `threadId` 인자로 대화별 scope 상태를 싣는지는 이 감사에서 확인하지 않았다 [근거: `packages/contracts/src/wire-settings/wire/ext-read-methods.ts:10`] | `ext.list { threadId }`가 대화별 scope 상태를 실음 |
+| W-42 | drive 락 읽기(holder, `leaseEpoch`, limits, used, 후보별 대기 계수) | P-16, 런타임 탭 | `group.driveLock`이 있다(제안의 `group.lease`와 이름이 다르다). 후보별 대기 계수가 있는지는 확인하지 않았다 [근거: `apps/host/src/handlers/m4/ext-read.ts:144`] | `group.lease { threadId }` |
+| W-43 | 트레이스 기록(훅 발화 순서, 핸들러별 시간·결과, 단계 경계) | P-16, P-19, P-21 | 구현됨. `trace.turn`이 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts:122`] | `trace.turn { threadId, turnId }` → `{ seq, point, step, handlers: { ext, ms, result }[] }[]`. 원천은 X-15. W-23(`ext.timings`)의 원천도 같음 |
+| W-44 | 프로필 미리 보기(켜질 scope, 후보, 예상 holder) | P-16, P-21 | 구현됨. `profile.preview`가 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts`] | `profile.preview { id, threadId? }`(중재 규칙 `X.primitives.spec` §4.4.1 4번) |
+| W-45 | 설정 값의 출처(이긴 범위, 그 값을 쓴 쪽: 프로필, 시험, 사용자) | P-16 검사기, P-17 | 구현됨. `settings.explain`이 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`] | `settings.explain { key, threadId }` |
+| W-46 | 프로필 저장과 적용(런타임 호스트 저장, 데스크톱·웹·앱·서비스 공유) | P-21, P-16 | 구현됨. `profile.list`·`get`·`put`·`delete`·`apply`가 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts`] | `profile.list`, `profile.get`, `profile.put { profile, baseRev }`, `profile.delete`, `profile.apply { id, threadId }`(원자적 `session` 쓰기), 알림 `profile.changed` [결정: 2026-10-31 사용자] |
+| W-47 | 구성 검사 | P-21, Plugin Builder | 구현됨. `ext.validateComposition`이 있다 [근거: `apps/host/src/handlers/m4/devkit.ts`] | `ext.validateComposition { composition, threadId? }` → `ManifestIssue[]`(`drive_duplicate`, `on_capability_call`, `capability_missing` 포함) |
+| W-48 | Test run 단계 경계 멈춤 | P-19, P-21, P-02 | 구현됨. `testRun.pause`·`resume`·`step`이 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts:124`] | `testRun.pause { threadId }`, `testRun.resume`, `testRun.step`. Test run만, drive 락 유지 [결정: 2026-10-31 사용자] |
+| W-49 | 확장 묶음 만들기 | Plugin Builder, P-21 | 구현됨. `ext.package`가 있다 [근거: `apps/host/src/handlers/m4/devkit.ts`] | `ext.package { dir, out? }` → 경로, 파일 목록, SHA-256. 설치는 W-32 |
+| W-50 | Test run의 단계 투영 | P-21 흐름 시험 | 구현됨. `testRun.phase`가 있다 [근거: `apps/host/src/handlers/m4/profile-test-run.ts`] | `testRun.phase { threadId }`와 이벤트. Test run에서 `grp.<id>.state.committed`의 `phase`만 |
 
 - W-32 앱 안 설치 화면 [결정: 2026-11-04 사용자, Q9 A]. 자리는 확장 목록(P-13) 머리의 "플러그인 가져오기" 단추가 여는 대화 상자(`views/workbench/install-dialog.tsx`, 순수 부분 `install-model.ts`)다. 부품은 caustic `Dialog`, `Input`, `Alert`, `Button`이고 정보 설명은 `InfoTip`(DP-58)이다.
   - 흐름: 출처 입력 → 확인하기(`ext.installPreview`, 디스크에 쓰지 않음) → 권한 확인(이름, 버전, 출처, 바꿀 설치본 버전, 요청 권한, 들어 있는 것) → "허용하고 설치"(`ext.install`에 미리 보기의 `sha256`을 돌려줌) → 결과. 확인 화면에서 "뒤로"는 출처 입력으로 돌아간다.

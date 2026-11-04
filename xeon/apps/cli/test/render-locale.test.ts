@@ -43,7 +43,7 @@ test("the lock prompt names the owner and the options in English", async () => {
   );
   expect(choice).toBe("cancel");
   expect(shown).toEqual([
-    "Another process (cli) is using this session.\n  [o] Watch only\n  [f] Fork into a new session\n  [Enter] Cancel\n",
+    "Another process (cli) is using this conversation.\n  [o] Watch only\n  [f] Fork into a new conversation\n  [Enter] Cancel\n",
     "Enter one of the letters shown\n",
   ]);
 });
@@ -62,7 +62,7 @@ test("the trust card is written in English and numbers its options", () => {
   };
   expect(describeTrust(status)).toBe(
     [
-      "Project: /work/project",
+      "Work folder: /work/project",
       "Resources to load: AGENTS.md",
       "Verdict: Trusted - Decided just now by asking",
       "If trusted, this resource's instructions, commands and MCP servers run with your permissions. If not trusted, it is not read",
@@ -110,7 +110,7 @@ test("the approval downgrade notice says what was asked and what was applied", (
   );
   expect(piece).toEqual({
     target: "stderr",
-    text: "You chose always allow, but it was applied as allow for this session\n",
+    text: "You chose always allow, but it was applied as allow for this conversation\n",
   });
 });
 

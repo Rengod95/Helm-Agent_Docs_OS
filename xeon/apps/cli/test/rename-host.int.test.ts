@@ -43,7 +43,7 @@ async function listed(cli: RealCli): Promise<readonly Listed[]> {
   });
 }
 
-test("the host names a session after its first input, and sessions rename replaces that title", async () => {
+test("the host names a conversation after its first input, and sessions rename replaces that title", async () => {
   const cli = start(["답"]);
   const input = "  릴리즈 준비를\n  점검해 줘  ";
   expect(await cli.harness.run(["chat", "-p", input])).toBe(EXIT.ok);
@@ -74,14 +74,14 @@ test("a first input longer than 80 characters is cut to its first 80", async () 
   expect((await listed(cli))[0]?.title).toBe("가".repeat(80));
 }, 60_000);
 
-test("/rename in chat sets the title of the current session and the first input does not override it", async () => {
-  const cli = start(["답"], ["/rename 나의 세션", "첫 입력"]);
+test("/rename in chat sets the title of the current conversation and the first input does not override it", async () => {
+  const cli = start(["답"], ["/rename 나의 대화", "첫 입력"]);
   expect(await cli.harness.run(["chat"])).toBe(EXIT.ok);
-  expect(cli.harness.stdoutText()).toContain("제목을 바꿨다: 나의 세션\n");
-  expect((await listed(cli))[0]?.title).toBe("나의 세션");
+  expect(cli.harness.stdoutText()).toContain("제목을 바꿨다: 나의 대화\n");
+  expect((await listed(cli))[0]?.title).toBe("나의 대화");
 }, 60_000);
 
-test("/rename without a title never reaches the host, and renaming a missing session is a readable error", async () => {
+test("/rename without a title never reaches the host, and renaming a missing conversation is a readable error", async () => {
   const cli = start([], ["/rename"]);
   expect(await cli.harness.run(["chat"])).toBe(EXIT.ok);
   expect(cli.harness.stderrText()).toContain("사용법: /rename <제목> (제목이 비어 있다)");
@@ -90,5 +90,5 @@ test("/rename without a title never reaches the host, and renaming a missing ses
   const missing = "thr_00000000000000000000000009";
   cli.harness.stderr.length = 0;
   expect(await cli.harness.run(["sessions", "rename", missing, "제목"])).toBe(EXIT.error);
-  expect(cli.harness.stderrText()).toContain(`fresnel: 세션 ${missing}이(가) 없다`);
+  expect(cli.harness.stderrText()).toContain(`fresnel: 대화 ${missing}이(가) 없다`);
 }, 60_000);

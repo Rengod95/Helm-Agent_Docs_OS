@@ -147,7 +147,7 @@ test("thread.locked on turn.start exits 4 with the two-line message", async () =
   });
   expect(await h.run(["chat", "-p", "hello"])).toBe(EXIT.lockDenied);
   expect(h.stderrText()).toBe(
-    "fresnel: 다른 프로세스(service)가 이 세션을 쓰고 있다\n  해결: 끝날 때까지 두거나 새 세션을 연다\n",
+    "fresnel: 다른 프로세스(service)가 이 대화를 쓰고 있다\n  해결: 끝날 때까지 두거나 새 대화를 연다\n",
   );
   expect(h.closed()).toBe(true);
 });

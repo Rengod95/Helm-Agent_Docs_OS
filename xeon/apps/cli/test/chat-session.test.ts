@@ -145,7 +145,7 @@ test("a print run draws only this thread's first handler failure, and no deliver
   expect(h.stderrText()).toBe("확장 acme-notes의 tool.before 핸들러가 실패했다 (연속 1회): boom\n");
 });
 
-test("an interactive session draws the failure and the delivered notices in arrival order", async () => {
+test("an interactive conversation draws the failure and the delivered notices in arrival order", async () => {
   const input = scriptedInput(["go", "/quit"]);
   const h = noticeScenario({
     terminal: { stdinIsTty: true, stdoutIsTty: true, columns: 80 },

@@ -45,7 +45,7 @@ test("doctor prints the engine checks and the two search provider lines (AC14)",
   const h = harness();
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
   const text = h.stdoutText();
-  expect(text).toContain("[ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다");
+  expect(text).toContain("[ok]   엔진을 열었다 (in-process). 대화 저장소와 FTS5를 쓸 수 있다");
   expect(text).toContain("[ok]   시크릿 저장소: 사용할 수 있다 (등록 0개)");
   expect(text).toContain("[참고] 서비스 모드: 사용 안 함 (in-process)");
   const block = text.slice(text.indexOf("검색 provider\n")).split("\n");

@@ -91,7 +91,7 @@ test("--continue together with --resume is conflictingFlags", () => {
   expect(code(["chat", "--continue", "--resume", threadId(7)])).toBe("conflictingFlags");
 });
 
-test("a malformed session id is invalidThreadId", () => {
+test("a malformed conversation id is invalidThreadId", () => {
   expect(code(["chat", "--resume", "thr_nope"])).toBe("invalidThreadId");
 });
 
