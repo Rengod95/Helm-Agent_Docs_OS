@@ -41,6 +41,7 @@ import type {
 import {
   checkOrder,
   hookOrderValue,
+  isHookUnitName,
   previewOrder,
   TIERS,
   type GuardRiskNote,
@@ -326,6 +327,25 @@ function previewResultOf(preview: OrderPreview): HooksOrderPreviewResult {
 
 function isHookName(name: string): name is HookName {
   return Object.hasOwn(HOOKS, name);
+}
+
+/**
+ * 순서에 외부 훅 단위 이름(`fresnel-hooks-<범위>`)이 들었는지 본다. 읽기 원천은 단위 행을 숨기므로(X.operations §4.7.4)
+ * 저장하면 화면에 안 보이는 채 범위 블록이 옮겨진다. 그래서 `set`과 `preview`는 거절한다. 같은 이름은 처음 자리만 적는다
+ */
+function hookUnitIn(order: readonly string[]): ExtReadResult<never> | undefined {
+  const seen = new Set<string>();
+  const issues = order.flatMap((id, index) => {
+    if (!isHookUnitName(id) || seen.has(id)) return [];
+    seen.add(id);
+    return [
+      {
+        path: `/order/${index}`,
+        message: `hook_unit: ${id} is a host hook unit and cannot be ordered`,
+      },
+    ];
+  });
+  return issues.length === 0 ? undefined : err({ kind: "hook_unit_in_order", issues });
 }
 
 function unknownExtension(name: string): ExtReadResult<never> {
@@ -900,6 +920,8 @@ export function createExtReadPort(
     async orderSet(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return err({ kind: "unknown_hook", hook });
+      const units = hookUnitIn(params.order);
+      if (units !== undefined) return units;
       const order = checkOrder(params.order);
       const next = new Map<HookName, readonly string[]>(sources.hookOrder().saved());
       if (order.length === 0) next.delete(hook);
@@ -931,6 +953,8 @@ export function createExtReadPort(
     orderPreview(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return Promise.resolve(err({ kind: "unknown_hook", hook }));
+      const units = hookUnitIn(params.order);
+      if (units !== undefined) return Promise.resolve(units);
       const rows = defaultRowsOf(hook).map(previewRowOf);
       const preview = previewOrder(hook, params.order, rows);
       return Promise.resolve(ok(previewResultOf(preview)));

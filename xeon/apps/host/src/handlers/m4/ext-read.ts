@@ -28,6 +28,11 @@ type ExtReadError =
   | { readonly kind: "managed_locked"; readonly name: string }
   /** 그런 이름의 훅이 없다 */
   | { readonly kind: "unknown_hook"; readonly hook: string }
+  /** 순서에 외부 훅 단위 이름이 들었다. 입력 문제라 `jsonrpc.invalidParams`의 `issues`로 알린다(X.operations §4.7.4) */
+  | {
+      readonly kind: "hook_unit_in_order";
+      readonly issues: readonly { readonly path: string; readonly message: string }[];
+    }
   /** 설정 쓰기가 실패했다. 키는 `x.operations.hookOrder` 또는 `x.operations.hookDisabled`다 */
   | { readonly kind: "write_failed"; readonly key: string; readonly failure: ProfileWriteFailure };
 
@@ -108,6 +113,8 @@ function wireErrorOf(
       });
     case "unknown_hook":
       return wireError("hooks.notFound", { details: { hook: error.hook } });
+    case "hook_unit_in_order":
+      return wireError("jsonrpc.invalidParams", { details: { issues: [...error.issues] } });
     case "write_failed":
       return wireErrorOfWrite(error.key, error.failure, errors, where);
     default:
