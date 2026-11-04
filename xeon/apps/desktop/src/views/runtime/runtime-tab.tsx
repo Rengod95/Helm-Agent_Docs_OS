@@ -23,7 +23,7 @@ import type { LeaseReleasedPayload, ScopeChangedPayload } from "@fresnel/contrac
 import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
 import { Alert, Badge, Skeleton, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useHandlerFailures,
   useLinkPhase,
@@ -31,9 +31,10 @@ import {
   useTransitions,
 } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
-import { reloadOnExtChanges } from "../workbench/controller.ts";
+import { reloadOnExtChanges, useWorkbenchController } from "../workbench/controller.ts";
 import { FailureRecords } from "../workbench/ext-detail.tsx";
 import { kindText, stateText, stateTone } from "../workbench/ext-row.tsx";
+import { HookAnswersContext, HookNoticeList } from "../workbench/hook-notice.tsx";
 
 /** 한 묶음의 읽기 상태 */
 export type Load<T> =
@@ -334,6 +335,7 @@ function ExtRow(props: { readonly row: RuntimeExtRowVM }): ReactNode {
 /**
  * 런타임 탭 그림. 값 없이 그릴 수 있도록 데이터와 연결 상태, 실패 기록을 받는다.
  * 연결이 없으면 읽지 않은 구역은 끊김 글을, 대화가 없으면 빈 글을 보인다. 실패 구역은 연결과 무관하게 엔진 거울의 기록을 보인다.
+ * `notices`는 맨 위(첫 구역 위)에 그대로 놓는다. 훅 알림처럼 스토어가 필요한 부품은 `RuntimeTab`이 넘긴다.
  */
 export function RuntimeBody(props: {
   readonly threadId: ThreadId | null;
@@ -341,6 +343,7 @@ export function RuntimeBody(props: {
   readonly data: RuntimeData;
   readonly failures: readonly HandlerFailureEntry[];
   readonly transitions: readonly TransitionEntry[];
+  readonly notices?: ReactNode;
 }): ReactNode {
   const { data, link } = props;
   const noThread = props.threadId === null;
@@ -399,6 +402,7 @@ export function RuntimeBody(props: {
   const groups = failureGroupsOf(props.failures);
   return (
     <div className="grid content-start gap-5">
+      {props.notices}
       <Section title={t("desktop.runtime.section.lock")}>{driveBody()}</Section>
       <Section title={t("desktop.runtime.section.exts")}>{extsBody()}</Section>
       <Section title={t("desktop.runtime.section.transitions")}>{transitionsBody()}</Section>
@@ -422,7 +426,29 @@ export function RuntimeBody(props: {
   );
 }
 
-/** 런타임 탭. 열린 대화와 엔진 연결을 읽어 `RuntimeBody`에 넘긴다 */
+/**
+ * 런타임 탭 맨 위의 외부 훅 알림(질문과 두 답). 답은 컨트롤러로 보낸다. 워크벤치 스토어가 필요하므로 `RuntimeTab`만 마운트한다.
+ * 스토어가 비어 있으면(안전 모드 포함) 아무것도 그리지 않는다.
+ */
+function RuntimeHookNotices(): ReactNode {
+  const controller = useWorkbenchController();
+  const hookAnswers = useMemo(
+    () => ({
+      keepOn: (hook: string) => controller.hookKeepOn(hook),
+      keepOff: (hook: string) => controller.hookKeepOff(hook),
+    }),
+    [controller],
+  );
+  return (
+    <div className="grid gap-2 [&:empty]:hidden">
+      <HookAnswersContext value={hookAnswers}>
+        <HookNoticeList compact />
+      </HookAnswersContext>
+    </div>
+  );
+}
+
+/** 런타임 탭. 열린 대화와 엔진 연결을 읽어 `RuntimeBody`에 넘긴다. 맨 위 훅 알림은 워크벤치 스토어를 읽는 `RuntimeHookNotices`다 */
 export function RuntimeTab(): ReactNode {
   const threadId = useOpenThreadId();
   const link = linkOf(useLinkPhase());
@@ -436,6 +462,7 @@ export function RuntimeTab(): ReactNode {
       data={data}
       failures={failures}
       transitions={transitions}
+      notices={<RuntimeHookNotices />}
     />
   );
 }

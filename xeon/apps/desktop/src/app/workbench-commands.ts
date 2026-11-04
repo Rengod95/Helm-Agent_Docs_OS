@@ -165,8 +165,10 @@ export function createWorkbenchCommands(
       const got = await withConnection((c) => c.request("ext.health", {}));
       return got.ok ? ok(got.value.health) : err(got.error);
     },
-    async hooks() {
-      const got = await withConnection((c) => c.request("hooks.list", {}));
+    async hooks(threadId) {
+      const got = await withConnection((c) =>
+        c.request("hooks.list", threadId === undefined ? {} : { threadId }),
+      );
       return got.ok ? ok(got.value.hooks) : err(got.error);
     },
     async hookKeepOff(hook) {

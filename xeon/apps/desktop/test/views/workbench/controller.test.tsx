@@ -10,6 +10,7 @@ import type {
 import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { EngineStoreContext } from "../../../src/state/engine/index.ts";
+import { SafeModeContext } from "../../../src/views/safe-mode-context.ts";
 import {
   createWorkbenchStore,
   WorkbenchStoreContext,
@@ -281,5 +282,60 @@ describe("scope: 전역 범위의 호출 인자는 범위를 붙이기 전과 �
 
     expect(listed).toStrictEqual([undefined]);
     expect(written).toStrictEqual([{ key: "ext.web.enabled", value: false, scope: "user" }]);
+  });
+});
+
+/** 안전 모드 값을 씌운 상태에서 컨트롤러를 받는다(서버 렌더라 효과는 돌지 않는다) */
+function controllerInSafeMode(
+  store: WorkbenchStore,
+  commands: Commands,
+  safe: boolean,
+): WorkbenchController {
+  const seen: { controller: WorkbenchController | null } = { controller: null };
+  function Probe(): ReactNode {
+    seen.controller = useWorkbenchController();
+    return null;
+  }
+  const snapshot = safe ? { active: true, cause: null, startupFailures: 1, suggest: false } : null;
+  renderToString(
+    <EngineStoreContext value={harness().store.read}>
+      <CommandsContext value={commands}>
+        <WorkbenchStoreContext value={store}>
+          <SafeModeContext value={snapshot}>
+            <Probe />
+          </SafeModeContext>
+        </WorkbenchStoreContext>
+      </CommandsContext>
+    </EngineStoreContext>,
+  );
+  if (seen.controller === null) throw new Error("probe did not render");
+  return seen.controller;
+}
+
+describe("안전 모드: 훅 질문은 스토어에 담기지 않는다", () => {
+  const ASKED_HOOK: HookEntry = {
+    hook: "no-rm-rf",
+    fold: "first",
+    handlers: 1,
+    registrations: ["a"],
+    external: true,
+    keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
+  };
+
+  test("안전 모드면 훅 질문을 읽어도 알림이 비고, 아니면 질문이 담긴다", async () => {
+    const commands = commandsWith({ hooks: () => Promise.resolve(ok([ASKED_HOOK])) });
+    const inSafe = createWorkbenchStore();
+    const normal = createWorkbenchStore();
+    await controllerInSafeMode(inSafe, commands, true).reloadOrders();
+    await controllerInSafeMode(normal, commands, false).reloadOrders();
+    expect(inSafe.read.getState().hookNotices).toEqual([]);
+    expect(normal.read.getState().hookNotices).toEqual([
+      {
+        hook: "no-rm-rf",
+        question: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
+        off: false,
+        point: null,
+      },
+    ]);
   });
 });

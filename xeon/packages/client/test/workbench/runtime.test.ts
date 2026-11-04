@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { ExtListEntry, GroupDriveLockResult, GroupStatusWire } from "@fresnel/contracts/wire";
 import {
+  clockTextOf,
+  failureClockOf,
   failureGroupsOf,
   runtimeRowsOf,
   runtimeViewOf,
@@ -214,5 +216,23 @@ describe("transitionRowsOf: 전환 기록 줄", () => {
 
   test("기록이 없으면 빈 목록이다", () => {
     expect(transitionRowsOf([])).toEqual([]);
+  });
+});
+
+describe("clockTextOf와 failureClockOf: 지역 HH:MM:SS 글", () => {
+  test("시·분·초를 두 자리씩 채운다", () => {
+    expect(clockTextOf(new Date(2026, 10, 4, 9, 8, 7))).toBe("09:08:07");
+    expect(clockTextOf(new Date(2026, 10, 4, 23, 59, 59))).toBe("23:59:59");
+  });
+
+  test("실패 기록 시각은 지역 HH:MM:SS 글이다", () => {
+    expect(failureClockOf(at(14, 3, 22))).toBe("14:03:22");
+    expect(failureClockOf(at(0, 5, 9))).toBe("00:05:09");
+  });
+
+  test("시각이 없거나 날짜로 읽히지 않으면 null이다", () => {
+    expect(failureClockOf(undefined)).toBeNull();
+    expect(failureClockOf("")).toBeNull();
+    expect(failureClockOf("not-a-date")).toBeNull();
   });
 });

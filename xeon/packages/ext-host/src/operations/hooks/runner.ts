@@ -13,13 +13,7 @@ import { ambient } from "../../primitives/ambient.ts";
 import { isBlocking } from "../../primitives/fold/first.ts";
 import type { ExtensionUnit } from "../../primitives/host.ts";
 import type { HandlerOutcomeRecord } from "../failure.ts";
-import {
-  HOOK_HOOKS,
-  HOOK_SOURCES,
-  type HookHookName,
-  type HookSource,
-  type LoadedHook,
-} from "./config.ts";
+import type { HookHookName, LoadedHook } from "./config.ts";
 import { hookEnv } from "./env.ts";
 import { hookUnitName } from "./names.ts";
 import {
@@ -31,11 +25,12 @@ import {
   type HookInput,
 } from "./protocol.ts";
 
-// 외부 훅 실행기(X.operations.spec §4.7.4). 설정 범위마다 내장 단위 하나가 8개 지점에 핸들러를 달고,
-// 호출 때 그 범위의 훅을 읽어 하나씩 실행한다. 실패 장부 키는 단위가 아니라 `hook:<id>`다.
+// 외부 훅 실행기(X.operations.spec §4.7.4). 훅마다 내장 단위 하나가 그 훅의 지점에 핸들러 하나를 단다. 그래서 사용자가
+// `hooks.order.*`로 외부 훅을 다른 핸들러 사이로 옮길 수 있다. 호출 때 그 thread에 적용되는 훅 정의를 읽어 실행한다.
+// 실패 장부 키는 단위가 아니라 `hook:<id>`다.
 
-/** 외부 훅 단위의 loadIndex. 모든 확장 뒤에 범위 순서로 이어 붙인다(§4.7.4) */
-const HOOK_UNIT_LOAD_INDEX_BASE = 1_000_000;
+/** 외부 훅 단위의 loadIndex 밑값. 모든 확장 뒤에 범위 순서, 설정 순서로 이어 붙인다(§4.7.4) */
+export const HOOK_UNIT_LOAD_INDEX_BASE = 1_000_000;
 
 /** 외부 훅 하나의 계측 행 이름(X.operations §4.8.2). 실패 장부 키와 같은 `hook:<id>`다 */
 function hookRegistrationId(id: string): string {
@@ -77,9 +72,16 @@ export interface HookRunnerDeps {
   readonly log: (line: string) => void;
 }
 
+/** 훅 단위를 만드는 입력. `loadIndex`는 모든 확장 뒤에 이어 붙이는 순번이다(§4.7.4) */
+export interface HookUnitSpec {
+  readonly id: string;
+  readonly point: HookHookName;
+  readonly loadIndex: number;
+}
+
 export interface HookRunner {
-  /** 범위마다 하나, 관리 → 사용자 → 작업 폴더 → 로컬 순서 */
-  units(): readonly ExtensionUnit[];
+  /** 훅 하나의 단위. 그 훅의 지점에 핸들러 하나를 단다 */
+  unitOf(spec: HookUnitSpec): ExtensionUnit;
   /** 자동 끄기·질문 답이 부른다. 이번 실행에서 건너뛴다 */
   disable(id: string): void;
   enable(id: string): void;
@@ -108,18 +110,6 @@ const FOLD_OF: { readonly [N in HookHookName]: "tap" | "first" | "chain" } = {
   "boundary.settle.after": "tap",
   "thread.shutdown": "tap",
 };
-
-/**
- * 이 결과가 같은 범위의 뒤 훅을 멈추는가(X.operations §4.7.4 훅별 결과). first는 결정·거부·실패에서 멈추고,
- * chain은 첫 패치에서 멈춘다. tap은 멈추지 않는다. tap과 chain의 실패는 기록만 남기고 뒤 훅을 돈다
- */
-function stopsScope(fold: "tap" | "first" | "chain", result: ExecResult): boolean {
-  if (fold === "first") {
-    return result.kind === "decision" || result.kind === "deny" || result.kind === "failed";
-  }
-  if (fold === "chain") return result.kind === "patch";
-  return false;
-}
 
 function isDecisionOf<N extends "tool.call.before" | "input.bash.before" | "thread.compact.before">(
   point: N,
@@ -256,8 +246,9 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
     }
   }
 
+  /** 훅 하나를 실행한다. thread에 적용되지 않는 훅(다른 작업 폴더의 것, 꺼진 것, 도구가 안 맞는 것)은 아무것도 하지 않는다 */
   async function exec(
-    source: HookSource,
+    id: string,
     point: HookHookName,
     payload: unknown,
     current: unknown,
@@ -266,131 +257,129 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
   ): Promise<ExecResult> {
     const process = deps.process();
     if (process === undefined) return { kind: "none" };
-    const matching = deps
+    const hook = deps
       .hooks(ctx.threadId)
-      .filter(
-        (hook) =>
-          hook.source === source &&
-          hook.def.point === point &&
-          !isDisabled(hook.def.id) &&
-          (toolName === undefined ||
-            hook.def.tools === undefined ||
-            hook.def.tools.includes(toolName)),
-      );
-    // 같은 지점의 훅은 하나씩 순서대로 실행한다. 멈추는 결과(stopsScope)가 나오면 거기서 멈춘다
-    const fold = FOLD_OF[point];
-    const runFrom = async (position: number): Promise<ExecResult> => {
-      const hook = matching[position];
-      if (hook === undefined) return { kind: "none" };
-      const result = await runOne(hook, point, payload, current, ctx, process);
-      if (!stopsScope(fold, result)) return runFrom(position + 1);
-      // 멈춘 뒤의 매칭 훅은 실행하지 않았다. 계측에는 멈춘 훅을 가리키는 건너뜀 행으로 남긴다(X.operations §4.8.2)
-      for (const later of matching.slice(position + 1)) {
-        ambient()?.trace?.record({
-          registrationId: hookRegistrationId(later.def.id),
-          durationMs: 0,
-          startedAt: deps.now(),
-          result: "skipped",
-          size: 0,
-          skippedBy: hookRegistrationId(hook.def.id),
-          reason: null,
-        });
-      }
-      return result;
-    };
-    return runFrom(0);
+      .find((candidate) => candidate.def.id === id && candidate.def.point === point);
+    if (hook === undefined || isDisabled(id)) return { kind: "none" };
+    if (
+      toolName !== undefined &&
+      hook.def.tools !== undefined &&
+      !hook.def.tools.includes(toolName)
+    ) {
+      return { kind: "none" };
+    }
+    return runOne(hook, point, payload, current, ctx, process);
   }
 
-  function makeUnit(source: HookSource, index: number): ExtensionUnit {
-    const name = hookUnitName(source);
+  function makeUnit(spec: HookUnitSpec): ExtensionUnit {
+    const name = hookUnitName(spec.id);
+    const id = spec.id;
     const manifest: ExtensionManifest = {
       schemaVersion: 2,
       name,
       version: "0.1.0",
       entry: "./src/index.ts",
-      plugins: [{ layer: "plugin", hooks: [...HOOK_HOOKS] }],
+      plugins: [{ layer: "plugin", hooks: [spec.point] }],
     };
     return {
       manifest,
       entry: ({ register }) => {
         register(name, {}, (g) => {
-          const tap = (point: "thread.start" | "boundary.settle.after" | "thread.shutdown") =>
-            g.on(point, async (payload, ctx) => {
-              await exec(source, point, payload, undefined, ctx);
-            });
-          tap("thread.start");
-          tap("boundary.settle.after");
-          tap("thread.shutdown");
-          g.on("tool.call.before", async (payload, ctx) => {
-            const result = await exec(
-              source,
-              "tool.call.before",
-              payload,
-              undefined,
-              ctx,
-              payload.toolName,
-            );
-            if (result.kind === "decision") {
-              return isDecisionOf("tool.call.before", result.value) ? result.value : undefined;
+          switch (spec.point) {
+            case "thread.start":
+            case "boundary.settle.after":
+            case "thread.shutdown": {
+              const point = spec.point;
+              g.on(point, async (payload, ctx) => {
+                await exec(id, point, payload, undefined, ctx);
+              });
+              break;
             }
-            if (result.kind === "deny") {
-              return {
-                block: true,
-                reason: result.reason === "" ? "denied by an external hook" : result.reason,
-                terminate: false,
-              };
-            }
-            return result.kind === "failed" ? FIRST_DENY["tool.call.before"] : undefined;
-          });
-          g.on("input.bash.before", async (payload, ctx) => {
-            const result = await exec(source, "input.bash.before", payload, undefined, ctx);
-            if (result.kind === "decision") {
-              return isDecisionOf("input.bash.before", result.value) ? result.value : undefined;
-            }
-            if (result.kind === "deny") {
-              return {
-                type: "deny",
-                reason: result.reason === "" ? "denied by an external hook" : result.reason,
-              };
-            }
-            return result.kind === "failed" ? FIRST_DENY["input.bash.before"] : undefined;
-          });
-          // thread.compact.before는 실패해도 막지 않는 지점(fail-open)이라 거부값이 없다
-          g.on("thread.compact.before", async (payload, ctx) => {
-            const result = await exec(source, "thread.compact.before", payload, undefined, ctx);
-            if (result.kind === "decision") {
-              return isDecisionOf("thread.compact.before", result.value) ? result.value : undefined;
-            }
-            return undefined;
-          });
-          g.on("input.user.before", async (payload, current, ctx) => {
-            const result = await exec(source, "input.user.before", payload, current, ctx);
-            return result.kind === "patch" && isPatchOf("input.user.before", result.value)
-              ? result.value
-              : undefined;
-          });
-          g.on("tool.result", async (payload, current, ctx) => {
-            const result = await exec(
-              source,
-              "tool.result",
-              payload,
-              current,
-              ctx,
-              payload.toolName,
-            );
-            return result.kind === "patch" && isPatchOf("tool.result", result.value)
-              ? result.value
-              : undefined;
-          });
+            case "tool.call.before":
+              g.on("tool.call.before", async (payload, ctx) => {
+                const result = await exec(
+                  id,
+                  "tool.call.before",
+                  payload,
+                  undefined,
+                  ctx,
+                  payload.toolName,
+                );
+                if (result.kind === "decision") {
+                  return isDecisionOf("tool.call.before", result.value) ? result.value : undefined;
+                }
+                if (result.kind === "deny") {
+                  return {
+                    block: true,
+                    reason: result.reason === "" ? "denied by an external hook" : result.reason,
+                    terminate: false,
+                  };
+                }
+                return result.kind === "failed" ? FIRST_DENY["tool.call.before"] : undefined;
+              });
+              break;
+            case "input.bash.before":
+              g.on("input.bash.before", async (payload, ctx) => {
+                const result = await exec(id, "input.bash.before", payload, undefined, ctx);
+                if (result.kind === "decision") {
+                  return isDecisionOf("input.bash.before", result.value) ? result.value : undefined;
+                }
+                if (result.kind === "deny") {
+                  return {
+                    type: "deny",
+                    reason: result.reason === "" ? "denied by an external hook" : result.reason,
+                  };
+                }
+                return result.kind === "failed" ? FIRST_DENY["input.bash.before"] : undefined;
+              });
+              break;
+            case "thread.compact.before":
+              // 실패해도 막지 않는 지점(fail-open)이라 거부값이 없다
+              g.on("thread.compact.before", async (payload, ctx) => {
+                const result = await exec(id, "thread.compact.before", payload, undefined, ctx);
+                if (result.kind === "decision") {
+                  return isDecisionOf("thread.compact.before", result.value)
+                    ? result.value
+                    : undefined;
+                }
+                return undefined;
+              });
+              break;
+            case "input.user.before":
+              g.on("input.user.before", async (payload, current, ctx) => {
+                const result = await exec(id, "input.user.before", payload, current, ctx);
+                return result.kind === "patch" && isPatchOf("input.user.before", result.value)
+                  ? result.value
+                  : undefined;
+              });
+              break;
+            case "tool.result":
+              g.on("tool.result", async (payload, current, ctx) => {
+                const result = await exec(
+                  id,
+                  "tool.result",
+                  payload,
+                  current,
+                  ctx,
+                  payload.toolName,
+                );
+                return result.kind === "patch" && isPatchOf("tool.result", result.value)
+                  ? result.value
+                  : undefined;
+              });
+              break;
+            default:
+              assertNever(spec.point, "HookHookName");
+          }
         });
       },
-      loadIndex: HOOK_UNIT_LOAD_INDEX_BASE + index,
+      loadIndex: spec.loadIndex,
       builtin: true,
     };
   }
 
   return {
-    units: () => HOOK_SOURCES.map((source, index) => makeUnit(source, index)),
+    unitOf: makeUnit,
     disable(id) {
       autoOff.add(id);
     },

@@ -511,6 +511,9 @@ describe("latest turn id per thread", () => {
   });
 });
 
+/** 실패 기록 봉투의 기록 시각. 디코드와 거울이 이 값을 `at`으로 싣는다 */
+const FAILED_AT = "2026-11-04T00:00:00.000Z";
+
 /** 휘발 `scope.handler_failed` 봉투. 열린 대화 하나당 한 번씩 같은 내용이 온다 */
 function failedEvent(
   n: number,
@@ -526,7 +529,7 @@ function failedEvent(
     threadId,
     turnId: null,
     stepId: null,
-    recordedAt: "2026-11-04T00:00:00.000Z",
+    recordedAt: FAILED_AT,
     causationId: null,
     correlationId: "c",
     n,
@@ -547,16 +550,23 @@ const chunkOf = (event: VolatileEventWire): MirrorInput => ({
 });
 
 describe("scope.handler_failed: 디코드와 거울의 실패 기록", () => {
-  test("디코드: 검증을 통과한 실패는 payload와 afterSeq를 싣고, 모양이 틀리면 other다", () => {
+  test("디코드: 검증을 통과한 실패는 payload와 afterSeq, 기록 시각 at을 싣고, 모양이 틀리면 other다", () => {
     expect(decodeVolatile(failedEvent(0, 7, failure("ext:flaky", "tool.call.before", 1)))).toEqual({
       type: "scope.handler_failed",
       n: 0,
       threadId: T,
       turnId: null,
       afterSeq: 7,
+      at: FAILED_AT,
       payload: failure("ext:flaky", "tool.call.before", 1),
     });
     expect(decodeVolatile(failedEvent(1, 7, { owner: 1 })).type).toBe("other");
+  });
+
+  test("디코드: 기록 시각은 봉투의 recordedAt을 그대로 옮긴다", () => {
+    const at = "2026-11-04T09:15:30.000Z";
+    const fact = decodeVolatile({ ...failedEvent(0, 7, failure("ext:a", "p", 1)), recordedAt: at });
+    expect(fact).toMatchObject({ type: "scope.handler_failed", at });
   });
 
   test("거울은 받은 실패를 순서대로 넣고 같은 실패의 두 번째 사본(다른 대화)은 한 번만 넣는다", () => {
@@ -573,6 +583,7 @@ describe("scope.handler_failed: 디코드와 거울의 실패 기록", () => {
         message: "boom",
         consecutive: 1,
         afterSeq: 7,
+        at: FAILED_AT,
       },
       {
         owner: "ext:flaky",
@@ -581,7 +592,22 @@ describe("scope.handler_failed: 디코드와 거울의 실패 기록", () => {
         message: "boom",
         consecutive: 2,
         afterSeq: 9,
+        at: FAILED_AT,
       },
+    ]);
+  });
+
+  test("거울은 실패마다 받은 기록 시각을 싣고, 시각만 다른 같은 실패의 사본은 넣지 않는다(중복 판단은 시각을 보지 않는다)", () => {
+    const first = "2026-11-04T09:15:30.000Z";
+    const later = "2026-11-04T09:16:00.000Z";
+    const state = run([
+      chunkOf({ ...failedEvent(0, 7, failure("ext:a", "p", 1)), recordedAt: first }),
+      chunkOf({ ...failedEvent(0, 7, failure("ext:a", "p", 1), thr(2)), recordedAt: later }),
+      chunkOf({ ...failedEvent(1, 8, failure("ext:a", "p", 2)), recordedAt: later }),
+    ]);
+    expect(state.handlerFailures.map((r) => [r.afterSeq, r.consecutive, r.at])).toEqual([
+      [7, 1, first],
+      [8, 2, later],
     ]);
   });
 

@@ -17,6 +17,9 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   // 외부 훅 실행기(X.operations.spec §3.7, §4.7): 조립 루트가 연결한다
   "createHookRunner",
   "HOOK_SOURCES",
+  "HOOK_SOURCE_TIER",
+  "HOOK_UNIT_LOAD_INDEX_BASE",
+  "hookIdOfUnit",
   "hookUnitName",
   "isHookUnitName",
   "mergeHookDefs",
@@ -24,6 +27,7 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "HookDef",
   "HookRunner",
   "HookRunnerDeps",
+  "HookUnitSpec",
   "HookSource",
   "LoadedHook",
   "MergedHooks",

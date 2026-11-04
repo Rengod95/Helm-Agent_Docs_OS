@@ -13,6 +13,7 @@ import type { EndTabDef, ShellRegistry, TabBadge } from "../shell/registry.ts";
 import { InspectTab } from "./inspect-tab.tsx";
 import { MetricsScreen } from "../measure/metrics-screen.tsx";
 import { PluginPagesTab } from "../plugin/plugin-tabs.tsx";
+import { RuntimeTab } from "../runtime/runtime-tab.tsx";
 import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
@@ -100,6 +101,14 @@ function noticeBadgeOf(store: WorkbenchStore): TabBadge {
   };
 }
 
+/** 오른쪽 "런타임" 탭 칸의 숫자: 외부 훅 알림 수. 안전 모드면 스토어가 훅을 담지 않아 0이다 */
+function hookBadgeOf(store: WorkbenchStore): TabBadge {
+  return {
+    read: () => store.read.getState().hookNotices.length,
+    subscribe: (listener) => store.read.subscribe(listener),
+  };
+}
+
 /**
  * 막대와 함께 늘 있는 부품: 탭을 열지 않아도 확장 목록을 읽어 두어 칸의 숫자가 맞는다.
  * 목록은 연결이 살아 있을 때 읽고, 확장이 바뀌면 다시 읽는다(컨트롤러가 맡는다).
@@ -107,6 +116,21 @@ function noticeBadgeOf(store: WorkbenchStore): TabBadge {
 function ListKeeper(): ReactNode {
   useWorkbenchController();
   return null;
+}
+
+/**
+ * 대화 영역의 "런타임" 탭(§4.9.8). 탭 안 맨 위에 외부 훅 알림을 두고(`RuntimeTab`), 칸의 숫자는 훅 알림 수다.
+ * 워크벤치 스토어를 받아 플러그인 탭과 같은 목록을 읽는다. `desktop-registry.tsx`가 등록한다.
+ */
+export function runtimeEndTab(store: WorkbenchStore): EndTabDef {
+  return {
+    id: "runtime",
+    area: "chat",
+    label: "desktop.shell.tab.runtime",
+    icon: <Clock />,
+    badge: hookBadgeOf(store),
+    render: () => scoped(store, <RuntimeTab />),
+  };
 }
 
 /**

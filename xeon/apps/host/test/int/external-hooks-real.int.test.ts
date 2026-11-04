@@ -60,6 +60,8 @@ interface Rig {
   readonly thread: ThreadId;
   readonly installed: readonly string[];
   readonly hooks: ReturnType<typeof createExternalHooks>;
+  /** 층에 든 `hookDefs` 값. 바꾸고 `hooks.sync()`를 부르면 설정 변경을 흉내 낸다 */
+  readonly state: { defs: readonly unknown[] };
 }
 
 interface RigOptions {
@@ -76,6 +78,7 @@ interface RigOptions {
 async function rig(options: RigOptions): Promise<Rig> {
   const dir = tmp();
   const late: { policy?: OperationsPolicy; t?: TestHost } = {};
+  const state: { defs: readonly unknown[] } = { defs: options.defs };
   const processRunner = createHookRunner({
     platform: platform.ok ? platform.value : undefined,
     scheduler: systemScheduler(),
@@ -86,7 +89,7 @@ async function rig(options: RigOptions): Promise<Rig> {
   const port: HookProcessPort = processRunner;
   const hooks = createExternalHooks({
     layers: () => [
-      { scope: "user", values: new Map([[HOOK_DEFS_KEY, options.defs]]) },
+      { scope: "user", values: new Map([[HOOK_DEFS_KEY, state.defs]]) },
       ...(options.projectDefs === undefined
         ? []
         : [{ scope: "project" as const, values: new Map([[HOOK_DEFS_KEY, options.projectDefs]]) }]),
@@ -139,10 +142,10 @@ async function rig(options: RigOptions): Promise<Rig> {
   });
   late.t = t;
   hosts.push(t);
-  const installed = await hooks.install(t.host, options.safeMode === true);
+  const installed = await hooks.install(t.host, options.safeMode === true, policy.tiers);
   const thread = t.newThread();
   await t.host.openThread(thread);
-  return { t, policy, dir, thread, installed, hooks };
+  return { t, policy, dir, thread, installed, hooks, state };
 }
 
 /** 스크립트를 임시 폴더에 쓰고 argv를 돌려준다 */
@@ -229,12 +232,7 @@ console.log(JSON.stringify({ decision: { block: true, reason: "no bash today", t
   const r = await rig({
     defs: [{ id: "no-bash", point: "tool.call.before", tools: ["bash"], command: [...argv, seen] }],
   });
-  expect(r.installed).toEqual([
-    "fresnel-hooks-managed",
-    "fresnel-hooks-user",
-    "fresnel-hooks-project",
-    "fresnel-hooks-local",
-  ]);
+  expect(r.installed).toEqual(["fresnel-hooks-no-bash"]);
   const outcome = await callTool(r, "k1");
   expect(outcome).toMatchObject({
     fold: "first",
@@ -417,4 +415,46 @@ console.log(JSON.stringify({ decision: { block: true, reason: "x", terminate: fa
   expect(r.installed).toEqual([]);
   expect(await callTool(r, "k")).toMatchObject({ decision: undefined });
   expect(existsSync(marker)).toBe(false);
+});
+
+/** 싣은 단위는 단계 경계에서 켜진다. 모두 켜질 때까지 기한을 두고 기다린다 */
+async function settled(r: Rig): Promise<void> {
+  expect(
+    await until(() => r.t.host.registrations().every((info) => info.status === "enabled")),
+  ).toBe(true);
+}
+
+test("a hookDefs change adds and removes the hook's unit at the next sync; a changed point loads the unit again", async () => {
+  const dir0 = tmp();
+  const deny = (name: string) =>
+    script(
+      dir0,
+      name,
+      `console.log(JSON.stringify({ decision: { block: true, reason: "${name}", terminate: false } }));`,
+    );
+  const first = { id: "first-hook", point: "tool.call.before", command: deny("first") };
+  const second = { id: "second-hook", point: "tool.call.before", command: deny("second") };
+  const r = await rig({ defs: [first] });
+  expect(r.installed).toEqual(["fresnel-hooks-first-hook"]);
+  expect(await callTool(r, "k1")).toMatchObject({ decision: { reason: "first" } });
+
+  // 훅을 하나 더하면 그 훅의 단위가 실린다. 순서 덮어쓰기가 없으면 설정 순서(first, second)다
+  r.state.defs = [second, first];
+  await r.hooks.sync();
+  await settled(r);
+  expect(r.t.host.registration("fresnel-hooks-second-hook")).toBeDefined();
+  expect(await callTool(r, "k2")).toMatchObject({ decision: { reason: "second" } });
+
+  // 훅을 빼면 단위도 빠진다
+  r.state.defs = [first];
+  await r.hooks.sync();
+  await settled(r);
+  expect(r.t.host.registration("fresnel-hooks-second-hook")).toBeUndefined();
+  expect(await callTool(r, "k3")).toMatchObject({ decision: { reason: "first" } });
+
+  // 지점이 바뀐 훅은 새 지점에 달린다
+  r.state.defs = [{ ...first, point: "thread.start" }];
+  await r.hooks.sync();
+  await settled(r);
+  expect(await callTool(r, "k4")).toMatchObject({ decision: undefined });
 });

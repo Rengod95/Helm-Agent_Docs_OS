@@ -849,6 +849,17 @@ const HookEntryShape = closed({
   point: Type.Optional(Name),
   source: Type.Optional(Name),
 });
+/**
+ * `hooks.list`의 입력. `threadId`를 주면 그 thread의 작업 폴더·로컬 훅(폴더를 신뢰한 경우만)도 외부 훅 줄에 든다.
+ * 생략하면 관리·사용자 범위 훅만 보인다. 없는 thread면 `thread.notFound`다
+ */
+export interface HooksListParams {
+  readonly threadId?: string;
+}
+const HooksListParamsShape2 = request({ threadId: Type.Optional(ThreadRef) });
+export const HooksListParamsSchema: TUnsafe<Req<HooksListParams>> = Type.Unsafe<
+  Req<HooksListParams>
+>(HooksListParamsShape2 satisfies SchemaProof<Req<HooksListParams>, typeof HooksListParamsShape2>);
 export interface HooksListResult {
   readonly hooks: readonly HookEntry[];
 }
@@ -893,7 +904,7 @@ export const HooksOrderGetResultSchema: TUnsafe<HooksOrderGetResult> =
     >,
   );
 
-/** `hooks.order.set`. 없는 훅이면 `hooks.notFound`다. 외부 훅 단위 이름(`fresnel-hooks-<범위>`)이 순서에 들면 `jsonrpc.invalidParams`다(X.operations §4.7.4). 그 밖의 이름은 오류 없이 저장하고 디스패치에서 무시한다 */
+/** `hooks.order.set`. 없는 훅이면 `hooks.notFound`다. 외부 훅도 훅마다 Registration(`fresnel-hooks-<훅 id>`)이라 다른 핸들러처럼 순서에 넣을 수 있다(X.operations §4.7.4). 알 수 없는 이름은 오류 없이 저장하고 디스패치에서 무시한다 */
 export interface HooksOrderSetParams {
   readonly hook: string;
   readonly order: readonly string[];

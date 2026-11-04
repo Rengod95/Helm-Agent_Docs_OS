@@ -35,8 +35,7 @@ import {
   fromMethodSettled,
   type FailureLedger,
 } from "./failure.ts";
-import { HOOK_SOURCE_TIER, HOOK_SOURCES } from "./hooks/config.ts";
-import { hookUnitName, isHookUnitName } from "./hooks/names.ts";
+import { isHookUnitName } from "./hooks/names.ts";
 import { createHookOrderState, type HookOrderState } from "./hook-order.ts";
 import { createResourcePolicy, NO_RESERVED_NAMES, type ReservedNames } from "./naming.ts";
 import type { OperationsSettingsSource } from "./settings-keys.ts";
@@ -238,8 +237,7 @@ const NOOP_HOOKS = { disable: () => {}, enable: () => {} };
 
 export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
   const tiers = createTierTable();
-  // 외부 훅 단위의 tier는 훅이 적힌 범위가 정한다(X.operations.spec §4.7.6)
-  for (const source of HOOK_SOURCES) tiers.set(hookUnitName(source), HOOK_SOURCE_TIER[source]);
+  // 외부 훅 단위의 tier는 훅이 적힌 범위가 정한다(X.operations.spec §4.7.6). 단위를 싣을 때 조립이 `tiers`에 넣는다
   const essentials = new Set<ExtensionName>();
   const budgetOf = budgetMsFrom(() => deps.settings.budgets());
   const budgetDeps: BudgetDeps = { now: deps.now, setTimer: deps.setTimer };

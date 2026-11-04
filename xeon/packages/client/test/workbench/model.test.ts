@@ -11,6 +11,7 @@ import {
   extOf,
   failureRowsOf,
   healthLoaded,
+  hookNoticesLoaded,
   hookNoticesOf,
   keepOffOf,
   layerGroups,
@@ -34,6 +35,7 @@ import {
   toggleRequestOf,
   versionRows,
   versionsViewOf,
+  visibleHookNotices,
   visibleRows,
   type HandlerFailureEntry,
 } from "../../src/workbench/index.ts";
@@ -549,5 +551,31 @@ describe("hookNoticesOf", () => {
       { hook: "alpha", question, off: false, point: "tool.call.before" },
       { hook: "zeta", question: null, off: true, point: null },
     ]);
+  });
+});
+
+describe("안전 모드의 훅 알림: 질문도 꺼짐도 담지 않는다", () => {
+  const row = { fold: "first", handlers: 1, registrations: ["a"], external: true } as const;
+  const question = { rule: "consecutive", consecutive: 5, windowFailures: 5 } as const;
+  const hooks = [
+    { ...row, hook: "no-rm-rf", point: "tool.call.before", keepOffQuestion: question },
+    { ...row, hook: "log-start", autoDisabled: true },
+    { ...row, hook: "quiet" },
+  ] as const;
+
+  test("안전 모드가 아니면 `hookNoticesOf`와 같은 목록이다", () => {
+    expect(visibleHookNotices(hooks, false)).toEqual(hookNoticesOf(hooks));
+    expect(visibleHookNotices(hooks, false).map((n) => n.hook)).toEqual(["log-start", "no-rm-rf"]);
+  });
+
+  test("안전 모드면 빈 목록이다(질문과 꺼짐 모두)", () => {
+    expect(visibleHookNotices(hooks, true)).toEqual([]);
+  });
+
+  test("스토어에 담을 때도 안전 모드면 비우고, 아니면 목록을 담는다", () => {
+    expect(hookNoticesLoaded(INITIAL_WORKBENCH, hooks, true).hookNotices).toEqual([]);
+    expect(
+      hookNoticesLoaded(INITIAL_WORKBENCH, hooks, false).hookNotices.map((n) => n.hook),
+    ).toEqual(["log-start", "no-rm-rf"]);
   });
 });

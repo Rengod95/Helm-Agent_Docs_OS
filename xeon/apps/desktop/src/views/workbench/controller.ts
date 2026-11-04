@@ -10,6 +10,7 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbenchActions, useWorkbenchScope } from "../../state/workbench/index.ts";
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { scopeArg } from "../craft/craft-scope.ts";
+import { useSafeMode } from "../safe-mode-context.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
 import { profileAppliesText, profileFailureText } from "./profile-text.ts";
@@ -59,19 +60,21 @@ export function useWorkbenchController(): WorkbenchController {
   const actions = useWorkbenchActions();
   const scope = useWorkbenchScope();
   const phase = useLinkPhase();
+  // 안전 모드면 훅 질문과 꺼짐을 스토어에 담지 않는다(탭 칸과 개수도 0이 된다). 값이 바뀌면 목록을 다시 읽는다
+  const safe = useSafeMode()?.active === true;
 
   // 두 호출이 모두 성공했을 때만 표를 바꾼다. 하나라도 실패하면 이전 표를 그대로 둔다
   const reloadOrders = useCallback(async (): Promise<void> => {
     const [hooks, applied] = await Promise.all([
-      commands.workbench.hooks(),
+      commands.workbench.hooks(scopeArg(scope).listThreadId),
       commands.workbench.orderGet(),
     ]);
     // 훅 질문과 꺼짐은 순서와 따로 읽은 값이라 `hooks.list`만 성공해도 반영한다
-    if (hooks.ok) actions.hookNoticesLoaded(hooks.value);
+    if (hooks.ok) actions.hookNoticesLoaded(hooks.value, safe);
     if (hooks.ok && applied.ok) {
       actions.ordersLoaded(orderTableOf(hooks.value, applied.value.hooks));
     }
-  }, [actions, commands]);
+  }, [actions, commands, scope, safe]);
 
   // 항목마다 따로 읽는다. 실패한 확장은 이전 자세히 값을 그대로 둔다
   const reloadDetails = useCallback(

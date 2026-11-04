@@ -814,7 +814,7 @@ sequenceDiagram
 |---|---|---|---|
 | `settings.invalidValue` | `invalidValue` | 숫자 범위: "{min}에서 {max} 사이 값만 넣을 수 있어요". enum: "목록에 있는 값만 고를 수 있어요". pattern: "형식이 맞지 않아요". 그 밖: "이 값은 저장할 수 없어요" | 초안 유지 |
 | `settings.scopeNotAllowed` | `scopeNotAllowed` | "{범위} 범위에는 저장할 수 없어요" | `details.allowedScopes`로 후보를 다시 계산하고 `settings.list`를 다시 읽는다(`reloadCatalog`) |
-| `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"` | `scopeNotAllowed` | "열린 작업 폴더가 없어 {범위} 범위에는 저장할 수 없어요" | 초안 유지, `followUp: "none"`. 카탈로그를 다시 읽지 않는다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]) |
+| `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"` | `scopeNotAllowed` | "작업 폴더가 열려 있지 않아 {범위}에는 저장할 수 없어요" | 초안 유지, `followUp: "none"`. 카탈로그를 다시 읽지 않는다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]) |
 | `settings.locked` | `locked` | "관리 정책으로 잠겨 있어 바꿀 수 없어요" | `settings.get`으로 그 키를 다시 읽는다(`refreshValue`) |
 | `settings.secretValue` | `secretValue` | "시크릿 값은 여기에 넣을 수 없어요. 시크릿 탭에서 등록한 뒤 참조를 골라 주세요" | 초안을 버린다. 오류에 값을 남기지 않는다 |
 | `settings.unknownKey` | `unknownKey` | "이 설정을 찾을 수 없어요. 목록을 새로 불러왔어요" | `reloadCatalog` |

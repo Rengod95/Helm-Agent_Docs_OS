@@ -328,3 +328,30 @@ describe("runtime-tab.transitions: 전환 기록 줄", () => {
     expect(listTextOf(sectionOf(html, t("desktop.runtime.section.transitions")))).toHaveLength(4);
   });
 });
+
+describe("런타임 탭 맨 위: 알림 자리는 첫 구역 위에 온다", () => {
+  test("notices를 주면 그 그림이 첫 구역(주도 락)보다 앞에 한 번 나온다", () => {
+    const html = renderToString(
+      <RuntimeBody
+        threadId={THREAD}
+        link="live"
+        data={HELM_HOLDER}
+        failures={[]}
+        transitions={[]}
+        notices={<p>NOTICE-SLOT</p>}
+      />,
+    );
+    const notice = html.indexOf("NOTICE-SLOT");
+    const first = html.indexOf(`aria-label="${t("desktop.runtime.section.lock")}"`);
+    expect(notice).toBeGreaterThan(-1);
+    expect(notice).toBeLessThan(first);
+    expect(html.indexOf("NOTICE-SLOT", notice + 1)).toBe(-1);
+  });
+
+  test("notices가 없으면 첫 구역이 그림의 맨 앞이다", () => {
+    const html = body(HELM_HOLDER);
+    expect(html.indexOf("<section")).toBe(
+      html.indexOf(`<section aria-label="${t("desktop.runtime.section.lock")}"`),
+    );
+  });
+});

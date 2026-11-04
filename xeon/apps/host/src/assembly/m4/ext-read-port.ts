@@ -41,7 +41,7 @@ import type {
 import {
   checkOrder,
   hookOrderValue,
-  isHookUnitName,
+  hookIdOfUnit,
   previewOrder,
   TIERS,
   type GuardRiskNote,
@@ -124,7 +124,9 @@ export interface ExternalHookView {
 export interface ExtReadSources {
   safeMode(): SafeModeState;
   /** 이 호스트에서 읽히는 외부 훅. 작업 폴더·로컬 범위는 thread 없이는 보이지 않는다 */
-  externalHooks(): readonly ExternalHookView[];
+  externalHooks(threadId?: string): readonly ExternalHookView[];
+  /** thread의 작업 폴더 설정을 읽어 둔다. 없으면 이미 읽힌 층만 쓴다 */
+  prepareThread?(threadId: string): Promise<void>;
   /** Hook의 예산 등급과 유효 예산(ms). X.operations §4.2.2 표와 설정 `x.operations.budget.*`의 값 */
   budget(hook: HookName): { readonly budgetClass: string; readonly budgetMs: number };
   threadKnown(threadId: string, signal: AbortSignal): Promise<boolean>;
@@ -327,25 +329,6 @@ function previewResultOf(preview: OrderPreview): HooksOrderPreviewResult {
 
 function isHookName(name: string): name is HookName {
   return Object.hasOwn(HOOKS, name);
-}
-
-/**
- * 순서에 외부 훅 단위 이름(`fresnel-hooks-<범위>`)이 들었는지 본다. 읽기 원천은 단위 행을 숨기므로(X.operations §4.7.4)
- * 저장하면 화면에 안 보이는 채 범위 블록이 옮겨진다. 그래서 `set`과 `preview`는 거절한다. 같은 이름은 처음 자리만 적는다
- */
-function hookUnitIn(order: readonly string[]): ExtReadResult<never> | undefined {
-  const seen = new Set<string>();
-  const issues = order.flatMap((id, index) => {
-    if (!isHookUnitName(id) || seen.has(id)) return [];
-    seen.add(id);
-    return [
-      {
-        path: `/order/${index}`,
-        message: `hook_unit: ${id} is a host hook unit and cannot be ordered`,
-      },
-    ];
-  });
-  return issues.length === 0 ? undefined : err({ kind: "hook_unit_in_order", issues });
 }
 
 function unknownExtension(name: string): ExtReadResult<never> {
@@ -788,7 +771,10 @@ export function createExtReadPort(
       return ok(await sources.driveLock(params.threadId));
     },
 
-    hooks() {
+    async hooks(params, signal) {
+      const thread = await checkThread(params.threadId, signal);
+      if (!thread.ok) return thread;
+      if (params.threadId !== undefined) await sources.prepareThread?.(params.threadId);
       const infos = statusMap();
       const errors = sources.registrationErrors();
       const rowOf = (registrationId: string, extension: string, tier: number | null) => ({
@@ -804,19 +790,17 @@ export function createExtReadPort(
         rows.push(rowOf(handler.registrationId, handler.extension, handler.tier));
         live.set(handler.point, rows);
       }
-      // 외부 훅은 실행하는 단위의 자리에 훅 id로 끼운다: 디스패치와 같이 tier 순위 순이고 같은 순위에서는 확장 뒤에 이어 붙는다(X.operations §4.7.4)
-      const external = sources.externalHooks();
+      // 외부 훅은 훅마다 단위(Registration)라서 위 `live`에 이미 있다(X.operations §4.7.4). 꺼진 훅은 꺼짐으로 보인다
+      const external = sources.externalHooks(params.threadId);
       const disabledIds = new Set(sources.hookDisabledSaved());
-      for (const hook of external) {
-        const rows = live.get(hook.point) ?? [];
-        const at = rows.findIndex((row) => (row.tier ?? Number.MAX_SAFE_INTEGER) > hook.tierRank);
-        const row = {
-          ...rowOf(hook.id, hook.unit, hook.tierRank),
-          status:
-            disabledIds.has(hook.id) || sources.hookAutoDisabled(hook.id) ? "disabled" : "enabled",
-        } satisfies HookHandlerRow;
-        rows.splice(at === -1 ? rows.length : at, 0, row);
-        live.set(hook.point, rows);
+      for (const rows of live.values()) {
+        for (const [index, row] of rows.entries()) {
+          const id = hookIdOfUnit(row.registrationId);
+          if (id === undefined) continue;
+          if (disabledIds.has(id) || sources.hookAutoDisabled(id)) {
+            rows[index] = { ...row, status: "disabled" };
+          }
+        }
       }
       // 레지스트리에서 빠진 Registration(꺼졌거나 setup에 실패함)은 선언한 Hook을 뒤에 붙인다. Registration이 없는 확장은 없다
       const idle = new Map<HookName, HookHandlerRow[]>();
@@ -855,7 +839,7 @@ export function createExtReadPort(
           hook: hook.id,
           fold: HOOKS[hook.point].fold,
           handlers: off ? 0 : 1,
-          registrations: off ? [] : [hook.id],
+          registrations: off ? [] : [hook.unit],
           external: true,
           point: hook.point,
           source: hook.source,
@@ -877,7 +861,7 @@ export function createExtReadPort(
           ...hookStateOf(id),
         });
       }
-      return Promise.resolve(ok({ hooks: rows.toSorted((a, b) => (a.hook < b.hook ? -1 : 1)) }));
+      return ok({ hooks: rows.toSorted((a, b) => (a.hook < b.hook ? -1 : 1)) });
     },
 
     async settingExplain(params, signal) {
@@ -920,8 +904,6 @@ export function createExtReadPort(
     async orderSet(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return err({ kind: "unknown_hook", hook });
-      const units = hookUnitIn(params.order);
-      if (units !== undefined) return units;
       const order = checkOrder(params.order);
       const next = new Map<HookName, readonly string[]>(sources.hookOrder().saved());
       if (order.length === 0) next.delete(hook);
@@ -953,8 +935,6 @@ export function createExtReadPort(
     orderPreview(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return Promise.resolve(err({ kind: "unknown_hook", hook }));
-      const units = hookUnitIn(params.order);
-      if (units !== undefined) return Promise.resolve(units);
       const rows = defaultRowsOf(hook).map(previewRowOf);
       const preview = previewOrder(hook, params.order, rows);
       return Promise.resolve(ok(previewResultOf(preview)));

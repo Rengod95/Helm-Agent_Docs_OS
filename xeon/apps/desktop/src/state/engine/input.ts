@@ -107,11 +107,12 @@ type VolatileBase = {
 export type VolatileFact =
   | (VolatileBase & { readonly type: "item.started"; readonly payload: ItemStartedPayload })
   | (VolatileBase & { readonly type: "item.updated"; readonly payload: ItemUpdatedPayload })
-  /** 확장 핸들러 실패. `afterSeq`는 발신 시점의 내구 head다(같은 실패는 열린 대화마다 한 번씩 온다) */
+  /** 확장 핸들러 실패. `afterSeq`는 발신 시점의 내구 head다(같은 실패는 열린 대화마다 한 번씩 온다). `at`은 기록된 시각(ISO)이다 */
   | (VolatileBase & {
       readonly type: "scope.handler_failed";
       readonly payload: ScopeHandlerFailedPayload;
       readonly afterSeq: number;
+      readonly at: string;
     })
   /** 상태줄 칸 전체 스냅숏. 그 thread의 칸을 통째로 바꾼다 */
   | (VolatileBase & { readonly type: "dialog.status"; readonly payload: DialogStatusData })

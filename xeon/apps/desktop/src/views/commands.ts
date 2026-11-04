@@ -552,8 +552,11 @@ export interface WorkbenchCommands {
   ): Promise<Result<"nextStepBoundary" | "restart", CommandError>>;
   /** `ext.health`(모든 확장). 실패 장부 배열 */
   health(): Promise<Result<readonly ExtHealthEntry[], CommandError>>;
-  /** `hooks.list`: 훅마다 핸들러의 기본 순서(`order` 행)를 포함한다 */
-  hooks(): Promise<Result<readonly HookEntry[], CommandError>>;
+  /**
+   * `hooks.list`: 훅마다 핸들러의 기본 순서(`order` 행)를 포함한다. `threadId`를 주면 그 대화의 작업 폴더·로컬 훅도 든다
+   * (폴더를 신뢰하지 않았으면 그 훅은 목록에 없다). 생략하면 사용자·관리 범위만이다
+   */
+  hooks(threadId?: string): Promise<Result<readonly HookEntry[], CommandError>>;
   /**
    * 외부 훅 "끄기" 답: `hooks.disableConfirm { hook }`. 호스트가 꺼짐을 설정에 먼저 쓰므로 화면은 설정을 쓰지 않는다.
    * 없는 훅이면 `hooks.notFound`로 거절된다

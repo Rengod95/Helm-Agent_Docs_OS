@@ -19,7 +19,6 @@ import type {
 import {
   budgetClassOf,
   extReadViewOf,
-  isHookUnitName,
   type ExtensionLoader,
   type LoadDiagnostic,
   type ExtensionUnit,
@@ -51,8 +50,8 @@ interface ExtReadSafeMode {
 /** 조립 루트(`assemble.ts`)가 넘기는 것: 엔진 포트가 올라오기 전에 있는 값 */
 export interface ExtReadAssembly {
   readonly operations: Pick<OperationsPolicy, "ledger" | "autoDisabler" | "hookOrder">;
-  /** 외부 훅 정의 읽기(thread 없이 읽히는 범위만) */
-  readonly externalHooks: () => readonly ExternalHookView[];
+  /** 외부 훅 정의 읽기. thread가 있으면 그 thread의 작업 폴더·로컬 훅(폴더를 신뢰한 경우만)도 든다 */
+  readonly externalHooks: (threadId: ThreadId | undefined) => readonly ExternalHookView[];
   readonly safeMode: ExtReadSafeMode;
   readonly extensions: () => readonly ExtensionRecord[];
   /** 외부 확장 로더. 기본 그룹이 꺼져 있으면 없다. `ext.reload`가 새 버전으로 바꾸는 데 쓴다 */
@@ -71,6 +70,8 @@ export interface ExtReadEnv {
   readonly errors: Pick<HostErrorMappers, "ofStore">;
   readonly heldThreads: () => readonly ThreadId[];
   readonly activeThread: () => ThreadId | null;
+  /** thread의 작업 폴더 설정을 읽어 둔다(신뢰한 폴더만 층이 선다). 쥐지 않은 thread의 훅을 읽기 전에 부른다 */
+  readonly prepareThread?: ((threadId: ThreadId) => Promise<void>) | undefined;
 }
 
 function threadIdOf(value: string | undefined): ThreadId | undefined {
@@ -388,7 +389,11 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
         windowFailures: question.windowFailures,
       };
     },
-    externalHooks: () => assembly.externalHooks(),
+    externalHooks: (threadId) => assembly.externalHooks(threadIdOf(threadId)),
+    prepareThread: async (threadId) => {
+      const id = threadIdOf(threadId);
+      if (id !== undefined) await env.prepareThread?.(id);
+    },
     hookAutoDisabledIds: () =>
       assembly.operations.autoDisabler
         .disabled()
@@ -413,19 +418,16 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       assembly.operations.autoDisabler.answer(`hook:${hook}`, true);
     },
     reload: (name, signal) => reloadThroughLoader(assembly.loader(), name, signal),
-    // 외부 훅 단위는 순서 화면의 핸들러가 아니다. 외부 훅은 모든 확장 뒤에 범위 순서로 이어 붙고 옮길 수 없다(X.operations §4.7.4)
+    // 외부 훅은 훅마다 단위라서 다른 핸들러처럼 순서 화면에 나오고 옮길 수 있다(X.operations §4.7.4)
     hookHandlers: () =>
-      view
-        .handlers()
-        .filter((handler) => !isHookUnitName(handler.extension))
-        .map((handler) => ({
-          point: handler.point,
-          registrationId: handler.scopeId,
-          extension: handler.extension,
-          tier: handler.tier,
-          loadIndex: handler.loadIndex,
-          seq: handler.seq,
-        })),
+      view.handlers().map((handler) => ({
+        point: handler.point,
+        registrationId: handler.scopeId,
+        extension: handler.extension,
+        tier: handler.tier,
+        loadIndex: handler.loadIndex,
+        seq: handler.seq,
+      })),
     hookOrder: () => ({
       saved: () => order.saved(),
       applied: () => order.appliedMap(),
