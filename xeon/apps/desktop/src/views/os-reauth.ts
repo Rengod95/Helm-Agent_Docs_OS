@@ -2,7 +2,7 @@ import { attemptAsync, err, ok, type Result } from "@fresnel/contracts";
 import type { HumanReauth } from "@fresnel/contracts/services";
 
 // 사람 재인증(L4.desktop.spec §4.17). 창은 Rust `os_reauth`가 띄운다(macOS Touch ID나 기기 암호).
-// 성공하면 reveal이 받는 `HumanReauth`(`os-auth`) 증거를 돌려준다. 값 보기 화면은 아직 이 함수를 쓰지 않는다.
+// 성공하면 reveal이 받는 `HumanReauth`(`os-auth`) 증거를 돌려준다. 값 보기 관문(`createOsReauthGate`, `src/app/secret-reveal-gate.ts`)이 이 함수를 쓴다.
 // 운영은 main.tsx가 `@tauri-apps/api/core`의 `invoke`를 넘기고, 시험은 가짜를 넣는다(folder-pick.ts와 같은 방식).
 
 /** `os_reauth`의 invoke 모양. 인자는 시스템 창에 보일 한 줄 사유다 */

@@ -15,6 +15,11 @@ import { createDesktopRegistry } from "./views/desktop-registry.tsx";
 import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
 import type { FolderPickInvoke } from "./views/folder-pick.ts";
+import type { OsReauthInvoke } from "./views/os-reauth.ts";
+import { createOsReauthGate, UNAVAILABLE_GATE } from "./app/secret-reveal-gate.ts";
+import { RevealGateContext } from "./views/pages/secrets/reveal-gate-context.ts";
+
+const osReauth: OsReauthInvoke = (command, args) => invoke(command, args);
 
 // 폴더 선택 창은 모든 OS에서 Rust가 띄운다(플러그인 권한은 WebView에 주지 않는다)
 const folderPick: FolderPickInvoke = (command) => invoke(command);
@@ -32,6 +37,8 @@ if (container === null) {
   const shell = createShellStore(window.innerWidth);
   const registry = createDesktopRegistry();
   const mac = navigator.platform.startsWith("Mac");
+  // 사람 재인증 창은 macOS에서만 있다(Rust `os_reauth`는 다른 OS에서 항상 unavailable). 그 밖은 값 보기가 잠긴다
+  const revealGate = mac ? createOsReauthGate(osReauth) : UNAVAILABLE_GATE;
   const app = createApp({
     localSettings,
     languages: navigator.languages.length > 0 ? navigator.languages : [navigator.language],
@@ -84,12 +91,14 @@ if (container === null) {
       <ShellStoreContext value={shell}>
         <Providers key={locale} engine={app.engine.read} ui={app.ui.read} commands={app.commands}>
           <PluginUiProvider value={pluginUi}>
-            <App
-              registry={registry}
-              keyOverrides={localSettings.get(LOCAL.keybindings)}
-              mac={mac}
-              folderPick={folderPick}
-            />
+            <RevealGateContext value={revealGate}>
+              <App
+                registry={registry}
+                keyOverrides={localSettings.get(LOCAL.keybindings)}
+                mac={mac}
+                folderPick={folderPick}
+              />
+            </RevealGateContext>
           </PluginUiProvider>
         </Providers>
       </ShellStoreContext>,

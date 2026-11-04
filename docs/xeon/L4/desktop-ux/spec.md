@@ -1750,7 +1750,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 삭제 | `secret.references` → O-06 → `secret.remove { name }`. 사용 중이면 거부 문장 |
 
 - 값 보기 규칙: 값은 30초(`REVEAL_VISIBLE_MS`) 보인 뒤 가려집니다. 다른 이름을 열거나 "지금 가리기"를 누르면 즉시 0으로 덮습니다. 창이 뒤로 가거나 화면을 떠나도 가립니다 [제안]. 복사는 클립보드에 넣고 30초 뒤 비우기를 시도합니다 [제안, 미결: OS 지원].
-- 현재 제약: 사이드카(stdio)와 서비스 연결의 `secret.beginReveal`은 `started: false`라 데스크톱에서 값을 볼 수 없습니다. M4는 이 경우 `not_started` 문장을 보입니다. 값 보기 경로(셸 쪽 OS 인증과 표시)는 [결정: 2026-11-04 사용자, B8 2안] 재인증을 먼저 만들고 그 위에 엽니다 `[gap:W-10]`. 재인증 명령은 셸에 있습니다(`os_reauth`, `L4.desktop.spec` §4.17). 값 보기 화면은 아직 이 명령을 부르지 않으므로 값 보기는 열리지 않았고, 그때까지 `not_started` 문장을 보입니다. 화면 연결은 다음 변경입니다.
+- 현재 제약: 사이드카(stdio)와 서비스 연결의 `secret.beginReveal`은 `started: false`라 데스크톱에서 값을 볼 수 없습니다. M4는 이 경우 `not_started` 문장을 보입니다. 값 보기 경로(셸 쪽 OS 인증과 표시)는 [결정: 2026-11-04 사용자, B8 2안] 재인증을 먼저 만들고 그 위에 엽니다 `[gap:W-10]`. 재인증 명령은 셸에 있습니다(`os_reauth`, `L4.desktop.spec` §4.17). 값 보기 화면은 macOS에서 값 경로보다 먼저 이 명령을 부릅니다(`createOsReauthGate`). 재인증을 통과해도 stdio·서비스 연결은 `secret.beginReveal`이 `started: false`라 값은 열리지 않고 `not_started` 문장을 보입니다. 다른 OS와 웹은 값 보기가 잠깁니다.
 - 상태
   - 빈: "등록된 시크릿이 없어요" + "추가".
   - 읽는 중: 표 `Skeleton`.
@@ -3132,7 +3132,7 @@ export const palette = [
 | W-07 | 예약 다시 켜기·고치기, 실행 기록 | P-07 | `cancel`은 끝, `lastRun`만 | `schedule.update`, `schedule.runs` |
 | W-08 | 대상 바꾸기와 원격 연결 단계 | P-08, S-03 | 셸 명령 `engine_retarget { target }`(`target`은 `{ kind: "local" }` 또는 `{ kind: "remote", address }`)이 있음(T-SHELL). 사이드카를 `host --stdio [--remote <주소>]`로 다시 띄우고 상태는 기존 `EngineState` 전이(`restarting` → `running`)로 알림. 접속 토큰은 인자에 싣지 않고 환경 변수 `FRESNEL_REMOTE_TOKEN`으로만 줌. 연결 단계별 진행 이벤트는 없음. 바꾸는 동안 쓰기 명령(턴 시작·중단, 승인 응답, 대화 만들기·분기, 신뢰 결정)은 앱이 `switching`으로 거절한다: 옛 엔진이 `shutdownGraceMs`까지 쓰기를 받을 수 있어 새 엔진에 남지 않는 쓰기를 막는다. 상태가 running을 벗어났다 돌아오면 풀리고, `shutdownGraceMs` + 15초 안에 돌아오지 않아도 푼다. 연결 화면(P-08)의 대상 바꾸기도 같은 보류를 거치며, `shutdownGraceMs`는 `desktop-settings.json`에서 읽고 없으면 기본값 7000이다 | 단계 이벤트는 P-08(T-CHAT2)이 필요할 때 더함 |
 | W-09 | 알림 읽음 상태 | P-03 | 없음 | 데스크톱 로컬 커서로 대신 [제안] |
-| W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식). [결정: 2026-11-04 사용자, B8 2안] 재인증 명령 `os_reauth`(`L4.desktop.spec` §4.17)는 셸에 구현됐습니다. 값 보기 화면은 아직 이 명령을 쓰지 않아 보기는 `not_started`입니다 |
+| W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식). [결정: 2026-11-04 사용자, B8 2안] 재인증 명령 `os_reauth`(`L4.desktop.spec` §4.17)는 셸에 구현됐습니다. 값 보기 화면은 macOS에서 이 명령을 먼저 부르고, 그 뒤의 보기는 stdio·서비스에서 `not_started`입니다 |
 | W-11 | 사용량 한도·창·계정 게이지 | P-11, S-03 | `session` 게이지만 | L1.models 계정·창 데이터 연결(B2-MDL 이후) |
 | W-12 | 연결된 클라이언트 목록 | P-08 | 수만 | `host.clients` [미결] |
 | W-13 | 시크릿 사용 기록 | P-10 | 없음 | `secret.audit { name, limit }` |

@@ -2,10 +2,18 @@ import { activeLocale, t } from "@fresnel/client/i18n";
 import { CLIPBOARD_CLEAR_MS, submitKey, type KeyField } from "@fresnel/client/settings";
 import { assertNever, detach, rethrow, type Scheduler } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
-import { useCallback, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
-import { UNAVAILABLE_GATE } from "../../../app/secret-reveal-gate.ts";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useLinkPhase } from "../../../state/engine/index.ts";
 import { useCommands } from "../../commands.ts";
+import { RevealGateContext } from "./reveal-gate-context.ts";
 import { draftOf, entryNameOf, metaParamsOf, type MetaDraft } from "./secret-draft.ts";
 import {
   COUNTDOWN_REFRESH_MS,
@@ -43,17 +51,14 @@ function messageOf(ref: MessageRef): string {
 export function SecretsPanel(): ReactNode {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
-  const [state, dispatch] = useReducer(
-    secretsReducer,
-    UNAVAILABLE_GATE.available,
-    initialSecretsState,
-  );
+  const gate = useContext(RevealGateContext);
+  const [state, dispatch] = useReducer(secretsReducer, gate.available, initialSecretsState);
   const latest = useRef(0);
 
-  // 값 보기 세션은 화면 하나에 하나다. 재인증 관문은 출하 구현(잠김)이다
+  // 값 보기 세션은 화면 하나에 하나다. 재인증 관문은 앱 진입점이 넣는다(macOS는 `os_reauth`, 그 밖은 잠김)
   const [session] = useState<RevealSession>(() =>
     createRevealSession({
-      gate: UNAVAILABLE_GATE,
+      gate,
       valuePort: revealPortOf(commands.secrets),
       scheduler: WINDOW_SCHEDULER,
       clock: { now: () => Date.now() },

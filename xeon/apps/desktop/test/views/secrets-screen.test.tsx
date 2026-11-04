@@ -126,7 +126,9 @@ describe("secrets screen server render", () => {
   test("the selected value is masked and screen readers hear 값 가려짐, and the shipped gate says why it is locked", () => {
     const markup = html(loadedWith([ROW]));
     expect(markup).toContain("값 가려짐");
-    expect(markup).toContain("값 보기는 아직 쓸 수 없어요: 기기 인증이 필요해요");
+    expect(markup).toContain(
+      "이 기기에서는 값 보기를 쓸 수 없어요: 기기 인증(Touch ID나 암호)이 필요해요",
+    );
     expect(markup).not.toContain(SECRET_TEXT);
   });
 
