@@ -1990,7 +1990,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 계획(최신 판의 번호, 상태, 제목). 계획 카드와 "버전 보기" 목록 | 계획 id는 `work.plan_*` 이벤트(거울의 `plans`. 앱을 켠 뒤 head부터 받는 것에 더해, 연결 전에 낸 것은 `work.plan_`·`input.`만 거른 보조 구독을 seq 0부터 열어 채운다 [결정: 2026-11-04 오케스트레이터 기본값]. 재생 한도를 넘으면(`replay.outOfRange`) 채우지 않고 연결 뒤 것만 보인다)에서 얻고, 판 목록 `work.plans.versions { threadId, planId }`(W-18)로 읽는다 |
 | 작업(내용, 상태, 막힘) | `work.task_*` 이벤트로 재구성 [제안], 목록 읽기 `work.tasks.list` |
 
-- 기능: 목표 걸기(`command.run { text: "/goal <조건>" }`), 해제(`/goal clear`), 계획 보기(트랜스크립트의 계획 카드로 스크롤), 작업 행 누르기(만든 턴으로 스크롤).
+- 기능: 목표 걸기(`command.run { text: "/goal <조건>" }`), 해제(`/goal clear`), 계획 보기(트랜스크립트의 계획 카드로 스크롤. 계획 카드는 승인을 기다리는 계획의 승인 카드(`data-approval-kind="plan"`)라 그 카드를 화면 가운데로 스크롤하고 초점을 준다. 이미 처리돼 카드가 없으면 "대화에 보이는 계획 카드가 없어요"를 알리고, 정보 아이콘은 "계획 카드는 승인을 기다리는 동안 대화에 보여요"를 보인다 [결정: 2026-11-04 오케스트레이터 기본값]. 구현: `views/plan-card-jump.ts`), 작업 행 누르기(만든 턴으로 스크롤).
 - 상태: 빈(B), 읽는 중 `Skeleton`, 오류 명령 오류 문장, 오프라인 잠금, 권한 필요 해당 없음, 긴 내용(작업 100개 넘으면 완료 접기).
 - caustic: `Card`, `Plan`(작업 체크리스트. well 안에서는 테두리 없는 변형이 필요하고 행을 누를 수 없음 `[gap:C-19]`), `Stepper variant="checklist"`, `Badge`, `Button`, `Input`, `EmptyState`.
 
@@ -2000,7 +2000,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 읽기는 wire 두 개다: `goal.status { threadId }`, `work.tasks.list { threadId }`(`contracts/wire-settings/wire/dialog-area.ts`, host `handlers/m4/dialog-area.ts`에 이미 있다). 그래서 위 표의,과 `/goal status` 임시 경로는 쓰지 않는다. 읽기는 대화가 바뀔 때, 연결이 살아날 때, 턴이 끝났을 때 한다.
 - 목표 걸기와 해제는 `command.run { threadId, text }`에 `/goal <조건>`과 `/goal clear` 줄을 그대로 보낸다(`commands.work.goalCommand`, 쓰기). 조건은 앞뒤 빈칸을 떼고 4000자 이하만 보낸다. `done`이 아니면 "목표 명령을 실행하지 못했어요"다. 시험 `test/app/work-commands.test.ts`가 wire params를 고정한다.
 - 끝난 상태: 호스트는 `limit_reached`와 `judge_failed`를 둘 다 `exhausted`로 준다(`goalViewOf`). 판정 횟수가 최대에 닿았으면 "N번 판정 뒤 멈췄어요", 아니면 "판정에 실패해 멈췄어요"로 문장만 가른다. 상태 값은 그대로 둔다.
-- 계획 (W-18): 계획 카드(최근 계획의 최신 판 제목, 번호, 상태 `Badge`)와 "버전 보기"(판 목록 `Dialog`, 최신 50개, 본문은 접어 둠)가 있다. 계획 id는 `work.plan_*` 이벤트로 얻는다. 작업 행 누르기(만든 턴으로 스크롤)도 `TaskView`에 턴 id가 없어 빠졌다. 작업 행은 누를 수 없다(`clickable: false`).
+- 계획 (W-18): 계획 카드(최근 계획의 최신 판 제목, 번호, 상태 `Badge`)와 "계획 보기"(대화의 계획 카드로 스크롤), "버전 보기"(판 목록 `Dialog`, 최신 50개, 본문은 접어 둠)가 있다. 계획 id는 `work.plan_*` 이벤트로 얻는다. 작업 행 누르기(만든 턴으로 스크롤)도 `TaskView`에 턴 id가 없어 빠졌다. 작업 행은 누를 수 없다(`clickable: false`).
 - 작업 목록: `Plan`을 `bare`로 써서 well 안에 테두리 없이 그린다(caustic C-19). 작업이 100개를 넘으면 완료 작업을 접는다(`DONE_FOLD_LIMIT`). 취소된 작업은 대기 칸에 "취소됨"으로 보인다.
 - 판정 2/3 자리: 목표 줄의 숫자와 "판정 2/3"은 `goal.status`의 `judged`와 `maxJudgments`다. 판정 모델을 고르는 select는 `/goal` 줄에 그 입력이 없어 넣지 않았다.
 - 빈 상태: 열린 대화가 없으면 "열린 대화가 없어요"만 보인다. 목표 칸은 진행 중인 목표가 있을 때 걸기 입력을 숨긴다. 권한 필요는 이 탭에 해당하지 않는다(목표와 작업은 승인을 묻지 않는다).

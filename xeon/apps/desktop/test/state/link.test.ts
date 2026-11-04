@@ -93,7 +93,7 @@ const queuedPayload = (requestId: string): unknown => ({
 });
 const wire = (
   seq: number,
-  kind: string,
+  kind: EventsBatchParams["events"][number]["kind"],
   payload: unknown,
 ): EventsBatchParams["events"][number] => ({
   id: evt(seq),
