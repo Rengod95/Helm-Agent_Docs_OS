@@ -88,12 +88,9 @@ const EXPIRE_RETRY_MS = 5_000;
 
 /**
  * 파이프라인과 L2 어댑터가 쓰는 확장. 비차단 `open`·`wait`·`get`은 F `ApprovalService`로 올라갔다(L1.tools.spec §8.3 F 요청 11).
- * 여기에 남은 것은 세션 허용 목록 조회뿐이다
+ * M4의 승인 기억은 요청 단위뿐이라 세션 허용 목록은 없다 [결정: 2026-10-31 사용자]
  */
-export interface ApprovalsInternal extends ApprovalService {
-  /** remember "thread"로 허용된 (도구, 규칙)인가 */
-  isRemembered(surfaceThreadId: ThreadId, toolName: string, ruleId: string | null): boolean;
-}
+export type ApprovalsInternal = ApprovalService;
 
 type EntryState = "pending" | "settling" | "resolved";
 
@@ -105,10 +102,6 @@ interface Entry {
   readonly waiters: Set<(resolution: ApprovalResolution) => void>;
   /** 만료 타이머. 해결되면 지운다 */
   timer: TimerHandle | undefined;
-}
-
-function rememberKey(surfaceThreadId: string, toolName: string, ruleId: string | null): string {
-  return `${surfaceThreadId}\0${toolName}\0${ruleId ?? ""}`;
 }
 
 function cancelledResolution(request: ApprovalRequest): ApprovalResolution {
@@ -212,7 +205,6 @@ function invalidRequest(detail: string): CommitFailure {
 export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   const byId = new Map<string, Entry>();
   const byKey = new Map<string, string>();
-  const remembered = new Set<string>();
   /** 해결된 요청의 approvalId, 해결된 순서(Set은 넣은 순서를 지킨다). 상한을 넘으면 앞에서부터 표에서 뺀다 */
   const resolvedOrder = new Set<string>();
   const resolvedKept = deps.resolvedKept ?? RESOLVED_KEPT;
@@ -298,19 +290,6 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
   }
 
-  function applyRemember(entry: Entry, resolution: ApprovalResolution): void {
-    const { body } = entry.request;
-    if (
-      body.kind === "tool" &&
-      resolution.decision === "allow" &&
-      resolution.remember === "thread"
-    ) {
-      remembered.add(
-        rememberKey(entry.request.surfaceThreadId, body.tool.toolName, body.tool.ruleId),
-      );
-    }
-  }
-
   async function prompt(entry: Entry, phase: "start" | "end"): Promise<void> {
     const { request } = entry;
     const payload = {
@@ -351,7 +330,6 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
     entry.state = "resolved";
     entry.resolution = resolution;
-    applyRemember(entry, resolution);
     for (const waiter of entry.waiters) waiter(resolution);
     entry.waiters.clear();
     resolvedOrder.add(entry.request.approvalId);
@@ -711,8 +689,5 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     pending,
     restore,
     cancel,
-    isRemembered(surfaceThreadId, toolName, ruleId) {
-      return remembered.has(rememberKey(surfaceThreadId, toolName, ruleId));
-    },
   };
 }

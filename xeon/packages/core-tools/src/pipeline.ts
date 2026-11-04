@@ -539,7 +539,6 @@ export function createPipeline(
     if (decision.effect === "allow") return undefined;
     // 사용자가 직접 친 명령이다. deny 규칙은 막지만 ask는 사용자 본인이 낸 명령이라 허용으로 본다
     if (state.userShell) return undefined;
-    if (approvals.isRemembered(run.surfaceThreadId, entry.name, decision.ruleId)) return undefined;
 
     const asked = await askUser(
       state,
@@ -549,9 +548,8 @@ export function createPipeline(
         ruleId: decision.ruleId,
         title: policyTitle(entry.name, state.args),
         requestKey: requestKeyFor(toolCallId, sha256HexSync),
-        // `always`는 저장소(`core_tools_approvals`)가 들어오기 전까지 제안하지 않는다. 고르게 두면 새 대화마다 다시 묻는데
-        // 사용자는 항상 허용된 줄 안다(감사 L1-04, M2 마감 G2-10). 영구 허용은 사용자 규칙(`l1.tools.rules`)이다
-        remember: ["once", "thread"],
+        // M4의 승인 기억은 요청 단위뿐이다 [결정: 2026-10-31 사용자]. 영구 허용은 사용자 규칙(`l1.tools.rules`)이다
+        remember: ["once"],
       },
       signal,
     );

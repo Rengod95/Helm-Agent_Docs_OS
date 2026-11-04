@@ -278,7 +278,7 @@ realTest(
         expect(other.payload).toEqual(questionOutline.payload);
         expect(other.origin).toEqual(questionOutline.origin);
       }
-      expect(toolOutline.remember).toEqual(["once", "thread"]);
+      expect(toolOutline.remember).toEqual(["once"]);
       expect(secretOutline.remember).toEqual(["once"]);
       expect(recordOf(recordOf(secret.asked.payload)["body"])["tool"]).toMatchObject({
         toolName: SECRET_TOOL,
