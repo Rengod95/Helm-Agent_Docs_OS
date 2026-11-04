@@ -16,6 +16,7 @@ import type {
   RegistrationId,
   RegistrationStatus,
   TestRunControlPort,
+  TestRunPhaseResult,
   TraceReadPort,
   TrustRequest,
   Unsubscribe,
@@ -442,18 +443,29 @@ export function testRunControlOf(host: ExtHost): TestRunControlPort {
       return ok({ paused: true });
     },
     phase(threadId) {
-      const { core, isTestRun, state } = hostInternalsOf(host);
+      const { core, isTestRun, state, stepPause, trace } = hostInternalsOf(host);
       if (!isTestRun(threadId)) return err({ kind: "not_a_test_run" });
       // 보유자는 `leaseOf`가 보는 자료와 같다. 커밋되지 않았거나 반납이 커밋된 임대는 보유자가 아니다
       const lease = host.leaseOf(threadId);
       const record = lease === null ? undefined : core.scopes.get(lease.scopeId);
+      // 가드 계수(`guardHits`)와 단계 경계 기록(`boundaries`)은 아직 모으지 않는다(호스트 다음 커밋). 지금은 0과 빈 목록이다
+      const base: Omit<TestRunPhaseResult, "phase" | "group" | "seq"> = {
+        paused: stepPause.requested(threadId),
+        lock:
+          lease === null
+            ? { holder: null, status: "none", epoch: null }
+            : { holder: record?.extension ?? null, status: lease.status, epoch: lease.leaseEpoch },
+        guardHits: 0,
+        traceEnabled: trace.enabled(),
+        boundaries: [],
+      };
       const phases = record?.manifest.group?.composition?.phases;
       if (record === undefined || phases === undefined) {
-        return ok({ phase: null, group: null, seq: null });
+        return ok({ ...base, phase: null, group: null, seq: null });
       }
       const value = phaseValueOf(state.docOf(threadId, record.id));
       const phase = value !== null && phases.nodes.some((node) => node.id === value) ? value : null;
-      return ok({ phase, group: record.extension, seq: state.revOf(threadId, record.id) });
+      return ok({ ...base, phase, group: record.extension, seq: state.revOf(threadId, record.id) });
     },
   };
 }

@@ -293,7 +293,19 @@ describe("명령 순서(시작)", () => {
     const reading = fakeCommands({
       tests: {
         ...base.tests,
-        phase: () => Promise.resolve(ok({ phase: "review", group: "helm", seq: 3 })),
+        phase: () =>
+          Promise.resolve(
+            ok({
+              phase: "review",
+              group: "helm",
+              seq: 3,
+              paused: false,
+              lock: { holder: "helm", status: "active", epoch: 1 },
+              guardHits: 0,
+              traceEnabled: true,
+              boundaries: [],
+            }),
+          ),
       },
     });
     const failing = fakeCommands({

@@ -99,7 +99,19 @@ describe("profile storage and Test run marker", () => {
       "testRun.phase",
     ]);
     roundTrip(WIRE_METHODS["testRun.pause"].result, { paused: true });
-    roundTrip(WIRE_METHODS["testRun.phase"].result, { phase: "plan", group: "helm", seq: 9 });
+    roundTrip(WIRE_METHODS["testRun.phase"].result, {
+      phase: "plan",
+      group: "helm",
+      seq: 9,
+      paused: true,
+      lock: { holder: "helm", status: "releasing", epoch: 4 },
+      guardHits: 3,
+      traceEnabled: true,
+      boundaries: [
+        { seq: 8, phase: "plan", paused: false },
+        { seq: 9, phase: "plan", paused: true },
+      ],
+    });
     roundTrip(WIRE_METHODS["trace.turn"].result, {
       traceEnabled: true,
       retained: true,
@@ -174,5 +186,63 @@ describe("profile storage and Test run marker", () => {
       profileId: "p",
     });
     expect(SETTING_WRITERS).toEqual(["default", "user", "profile", "testRun", "session"]);
+  });
+
+  test("testRun.phase carries pause, lock, guard hits and boundaries, all required", () => {
+    const phase = WIRE_METHODS["testRun.phase"].result;
+    const full = {
+      phase: "plan",
+      group: "helm",
+      seq: 9,
+      paused: true,
+      lock: { holder: "helm", status: "active", epoch: 2 },
+      guardHits: 1,
+      traceEnabled: true,
+      boundaries: [{ seq: 9, phase: "plan", paused: true }],
+    };
+    roundTrip(phase, full);
+    // 커밋된 임대가 없으면 lock은 none이고 holder와 epoch는 null이다. 계측이 꺼져 있으면 traceEnabled가 거짓이다
+    const none = {
+      phase: null,
+      group: null,
+      seq: null,
+      paused: false,
+      lock: { holder: null, status: "none", epoch: null },
+      guardHits: 0,
+      traceEnabled: false,
+      boundaries: [],
+    };
+    roundTrip(phase, none);
+    // 경계 기록은 최대 200개다
+    const atCap = Array.from({ length: 200 }, (_, index) => ({
+      seq: index,
+      phase: null,
+      paused: false,
+    }));
+    roundTrip(phase, { ...none, boundaries: atCap });
+    expect(
+      parse(phase, { ...none, boundaries: [...atCap, { seq: 200, phase: null, paused: false }] })
+        .ok,
+    ).toBe(false);
+
+    // 필드가 빠지거나 더 있으면 거절한다
+    const { guardHits: _guardHits, ...missing } = full;
+    expect(parse(phase, missing).ok).toBe(false);
+    expect(parse(phase, { ...full, extra: 1 }).ok).toBe(false);
+    expect(parse(phase, { ...full, lock: { ...full.lock, extra: 1 } }).ok).toBe(false);
+    const { epoch: _epoch, ...lockWithoutEpoch } = full.lock;
+    expect(parse(phase, { ...full, lock: lockWithoutEpoch }).ok).toBe(false);
+    expect(
+      parse(phase, { ...full, boundaries: [{ seq: 9, phase: null, paused: false, extra: 1 }] }).ok,
+    ).toBe(false);
+    // 임대 상태는 세 값만 받는다. drive lock의 released는 wire에 없다
+    expect(parse(phase, { ...full, lock: { ...full.lock, status: "released" } }).ok).toBe(false);
+    expect(parse(phase, { ...full, lock: { ...full.lock, status: "idle" } }).ok).toBe(false);
+    for (const status of ["active", "releasing", "none"]) {
+      expect(parse(phase, { ...full, lock: { ...full.lock, status } }).ok).toBe(true);
+    }
+    // 가드 계수는 0 이상의 정수다
+    expect(parse(phase, { ...full, guardHits: -1 }).ok).toBe(false);
+    expect(parse(phase, { ...full, guardHits: 1.5 }).ok).toBe(false);
   });
 });

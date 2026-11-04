@@ -420,7 +420,16 @@ test("phase reads the committed phase of the drive-lock holder's group", async (
   await t.settled();
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
     ok: true,
-    value: { phase: "build", group: "pause-phase", seq: 1 },
+    value: {
+      phase: "build",
+      group: "pause-phase",
+      seq: 1,
+      paused: false,
+      lock: { holder: "pause-phase", status: "active", epoch: 1 },
+      guardHits: 0,
+      traceEnabled: true,
+      boundaries: [],
+    },
   });
 });
 
@@ -432,11 +441,20 @@ test("a committed phase outside the declared nodes reads as null, with the group
   await t.settled();
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
     ok: true,
-    value: { phase: null, group: "pause-phase-x", seq: 1 },
+    value: {
+      phase: null,
+      group: "pause-phase-x",
+      seq: 1,
+      paused: false,
+      lock: { holder: "pause-phase-x", status: "active", epoch: 1 },
+      guardHits: 0,
+      traceEnabled: true,
+      boundaries: [],
+    },
   });
 });
 
-test("a drive-lock holder without a phases declaration answers all null", async () => {
+test("a drive-lock holder without a phases declaration answers the phase fields null and still shows the lock", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.install(phaseGroupUnit("pause-plain", undefined, "build"));
@@ -444,17 +462,48 @@ test("a drive-lock holder without a phases declaration answers all null", async 
   await t.settled();
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
     ok: true,
-    value: { phase: null, group: null, seq: null },
+    value: {
+      phase: null,
+      group: null,
+      seq: null,
+      paused: false,
+      lock: { holder: "pause-plain", status: "active", epoch: 1 },
+      guardHits: 0,
+      traceEnabled: true,
+      boundaries: [],
+    },
   });
 });
 
-test("a Test run without a drive-lock holder answers all null", async () => {
+test("phase shows the pause request while it is held and clears it on resume", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  await t.host.install(phaseGroupUnit("pause-phase-held", PHASES, "build"));
+  await t.host.openThread(thread, { testRun: true });
+  await t.settled();
+  const control = testRunControlOf(t.host);
+  expect(control.pause(thread)).toEqual(paused);
+  expect(control.phase(thread)).toMatchObject({ ok: true, value: { paused: true } });
+  expect(control.resume(thread)).toEqual(resumed);
+  expect(control.phase(thread)).toMatchObject({ ok: true, value: { paused: false } });
+});
+
+test("a Test run without a drive-lock holder answers all null and lock none", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
   await t.host.openThread(thread, { testRun: true });
   await t.settled();
   expect(testRunControlOf(t.host).phase(thread)).toEqual({
     ok: true,
-    value: { phase: null, group: null, seq: null },
+    value: {
+      phase: null,
+      group: null,
+      seq: null,
+      paused: false,
+      lock: { holder: null, status: "none", epoch: null },
+      guardHits: 0,
+      traceEnabled: true,
+      boundaries: [],
+    },
   });
 });

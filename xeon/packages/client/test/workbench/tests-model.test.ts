@@ -20,11 +20,20 @@ import {
   type TestRowVM,
 } from "../../src/workbench/index.ts";
 
+/** 커밋 `commits`개의 절단 칸. `diffs`에 든 커밋 번호(1부터)의 칸만 다르다 */
+const cutsOf = (commits: number, diffs: readonly number[] = []): ReplayReport["cuts"] =>
+  Array.from({ length: commits }, (_, index) => {
+    const commitIndex = index + 1;
+    const equal = !diffs.includes(commitIndex);
+    return { commitIndex, equal, firstDiff: equal ? null : 212 };
+  });
+
 const report = (over: Partial<ReplayReport> = {}): ReplayReport => ({
   ok: true,
   commits: 41,
   passed: 41,
   firstDiff: null,
+  cuts: cutsOf(41),
   effects: { turn: 0, spawn: 0, delegate: 0, post: 1 },
   failure: null,
   ...over,
@@ -120,7 +129,11 @@ describe("P-19 테스트 모델", () => {
 
   test("replayVerdictOf reads the failure kind first, then digest differs when the cuts do not all match", () => {
     expect(replayVerdictOf(report())).toEqual({ kind: "same" });
-    expect(replayVerdictOf(report({ ok: false, passed: 39, firstDiff: 212 }))).toEqual({
+    expect(
+      replayVerdictOf(
+        report({ ok: false, passed: 39, firstDiff: 212, cuts: cutsOf(41, [40, 41]) }),
+      ),
+    ).toEqual({
       kind: "digest-differs",
     });
     expect(replayVerdictOf(report({ ok: false, failure: "effects-doubled" }))).toEqual({
@@ -150,7 +163,7 @@ describe("P-19 테스트 모델", () => {
   });
 
   test("reportJsonOf copies the report as it is, pretty printed", () => {
-    const value = report({ ok: false, passed: 39, firstDiff: 212 });
+    const value = report({ ok: false, passed: 39, firstDiff: 212, cuts: cutsOf(41, [40, 41]) });
     expect(reportJsonOf(value)).toBe(JSON.stringify(value, null, 2));
     expect(JSON.parse(reportJsonOf(value))).toEqual(value);
   });

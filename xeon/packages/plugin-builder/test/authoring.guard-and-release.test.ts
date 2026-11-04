@@ -163,6 +163,10 @@ test("authoring.replay-dev-only: a shipped build gets dev_mode_required and the 
     commits: 2,
     passed: 2,
     firstDiff: null,
+    cuts: [
+      { commitIndex: 1, equal: true, firstDiff: null },
+      { commitIndex: 2, equal: true, firstDiff: null },
+    ],
     effects: { turn: 2, spawn: 0, delegate: 0, post: 0 },
     failure: null,
   };

@@ -92,13 +92,25 @@ export const REPLAY_FAILURES = [
   "no-commits",
 ] as const;
 export type ReplayFailure = (typeof REPLAY_FAILURES)[number];
+/** 절단 한 칸: 앞에서 `commitIndex`개의 커밋을 복원해 다시 돌린 결과. group-sdk `ReplayCut`의 wire 모양 */
+export interface ReplayCut {
+  /** 앞에서 몇 개의 커밋을 복원했는가(1부터) */
+  readonly commitIndex: number;
+  /** 기준 실행과 정규화 이벤트열이 같았는가 */
+  readonly equal: boolean;
+  /** 정규화 이벤트열에서 처음 달라진 위치. 같으면 null */
+  readonly firstDiff: number | null;
+}
+
 /** group-sdk `ReplayDriveReport`의 wire 모양 */
 export interface ReplayReport {
   readonly ok: boolean;
   readonly commits: number;
-  /** 절단마다 같았던 수 */
+  /** 절단마다 같았던 수. `cuts`에서 `equal`인 칸의 수다 */
   readonly passed: number;
   readonly firstDiff: number | null;
+  /** 커밋 시점마다 한 칸, 커밋 순. 칸별 같음·다름을 싣는다(절단 띠 그림에 쓴다) */
+  readonly cuts: readonly ReplayCut[];
   readonly effects: {
     readonly turn: number;
     readonly spawn: number;

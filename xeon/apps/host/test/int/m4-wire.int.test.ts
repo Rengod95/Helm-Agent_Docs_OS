@@ -128,6 +128,11 @@ realTest(
         phase: null,
         group: null,
         seq: null,
+        paused: false,
+        lock: { holder: null, status: "none", epoch: null },
+        guardHits: 0,
+        traceEnabled: true,
+        boundaries: [],
       });
       // 멈춘 적 없는 Test run에 resume은 notPaused
       expect(

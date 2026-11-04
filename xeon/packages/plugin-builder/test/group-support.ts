@@ -167,6 +167,10 @@ function devkitProbe(): DevkitProbe {
           commits: 2,
           passed: 2,
           firstDiff: null,
+          cuts: [
+            { commitIndex: 1, equal: true, firstDiff: null },
+            { commitIndex: 2, equal: true, firstDiff: null },
+          ],
           effects: { turn: 0, spawn: 0, delegate: 0, post: 0 },
           failure: null,
         });

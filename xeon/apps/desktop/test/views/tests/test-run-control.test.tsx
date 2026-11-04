@@ -84,7 +84,18 @@ describe("Y9 test-run pause", () => {
         },
         phase: (threadId) => {
           calls.push(`phase:${threadId}`);
-          return Promise.resolve(ok({ phase: "tool", group: "review", seq: 3 }));
+          return Promise.resolve(
+            ok({
+              phase: "tool",
+              group: "review",
+              seq: 3,
+              paused: true,
+              lock: { holder: "review", status: "active", epoch: 1 },
+              guardHits: 0,
+              traceEnabled: true,
+              boundaries: [{ seq: 3, phase: "tool", paused: true }],
+            }),
+          );
         },
         run: () => {
           calls.push("run");

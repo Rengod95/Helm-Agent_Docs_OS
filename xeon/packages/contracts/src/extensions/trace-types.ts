@@ -144,18 +144,70 @@ export const TestRunControlResultSchema: TUnsafe<TestRunControlResult> =
     >,
   );
 
-/** `testRun.phase`의 결과(W-50) */
+/** `testRun.phase`의 drive lock(임대) 칸. 쥔 그룹, 임대 상태, 임대 차수 */
+export interface TestRunLock {
+  /** 임대를 가진 그룹 확장 이름. 커밋된 임대가 없으면 null */
+  readonly holder: string | null;
+  /** `active`: 쓰는 중. `releasing`: 반납이 정해져 다음 경계에서 커밋된다. `none`: 커밋된 임대가 없다 */
+  readonly status: "active" | "releasing" | "none";
+  /** 임대 차수(`leaseEpoch`). 커밋된 임대가 없으면 null */
+  readonly epoch: number | null;
+}
+const TestRunLockShape = Type.Object(
+  {
+    holder: Type.Union([Name, Type.Null()]),
+    status: Type.Union([Type.Literal("active"), Type.Literal("releasing"), Type.Literal("none")]),
+    epoch: Type.Union([Count, Type.Null()]),
+  },
+  { additionalProperties: false },
+);
+
+/** 단계 경계 기록 한 건. 호스트가 thread마다 최근 것만 남긴다 */
+export interface TestRunBoundary {
+  /** 그 경계의 상태 revision */
+  readonly seq: number;
+  /** 그 경계에서 커밋된 `phase`. 없으면 null */
+  readonly phase: string | null;
+  /** 그 경계에서 멈춰 기다렸는가(멈춤 요청이 걸려 있었는가) */
+  readonly paused: boolean;
+}
+const TestRunBoundaryShape = Type.Object(
+  {
+    seq: Count,
+    phase: Type.Union([Name, Type.Null()]),
+    paused: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
+/** `testRun.phase`의 결과(W-50). 단계 이름, 멈춤, drive lock, 가드 계수, 단계 경계 기록을 함께 준다 */
 export interface TestRunPhaseResult {
   /** Test run 대화에서 `grp.<id>.state.committed`의 `phase`만. 없으면 null */
   readonly phase: string | null;
+  /** `phase`를 읽은 그룹 확장 이름. `phase`가 없으면 null */
   readonly group: string | null;
   readonly seq: number | null;
+  /** 이 대화에 멈춤 요청이 걸려 있는가. 참이면 다음 단계 경계에서 멈춘다 */
+  readonly paused: boolean;
+  /** drive lock. 멈춘 동안에도 보유자가 쥐고 있다 */
+  readonly lock: TestRunLock;
+  /** 이 대화의 계측 기록에서 핸들러 결과가 `blocked`인 수. 계측이 꺼져 있으면 0 */
+  readonly guardHits: number;
+  /** `guardHits`가 측정된 값인가(`x.operations.trace.enabled`). 거짓이면 화면은 "측정 꺼짐"을 보인다 */
+  readonly traceEnabled: boolean;
+  /** 호스트가 남긴 최근 단계 경계 기록. 오래된 것부터 새것 순이라 마지막이 가장 최근이다. 최대 200개 */
+  readonly boundaries: readonly TestRunBoundary[];
 }
 const TestRunPhaseResultShape = Type.Object(
   {
     phase: Type.Union([Name, Type.Null()]),
     group: Type.Union([Name, Type.Null()]),
     seq: Type.Union([Count, Type.Null()]),
+    paused: Type.Boolean(),
+    lock: TestRunLockShape,
+    guardHits: Count,
+    traceEnabled: Type.Boolean(),
+    boundaries: Type.Array(TestRunBoundaryShape, { maxItems: 200 }),
   },
   { additionalProperties: false },
 );
