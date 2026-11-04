@@ -37,6 +37,11 @@ function issuePathOf(method: DialogMethod): string {
   }
 }
 
+/** 첨부는 입력 문제 종류(한도 초과, 형식 못 읽음)를 화면이 가르도록 `<코드>: ` 머리를 붙인다. 다른 메서드는 문장 그대로다 */
+function issueMessageOf(method: DialogMethod, failure: { code: string; message: string }): string {
+  return method === "attachments.add" ? `${failure.code}: ${failure.message}` : failure.message;
+}
+
 function dialogFailure(failure: DialogWireFailure, method: DialogMethod): WireError {
   switch (failure.kind) {
     case "unavailable":
@@ -46,7 +51,7 @@ function dialogFailure(failure: DialogWireFailure, method: DialogMethod): WireEr
       return INPUT_CODES.has(failure.code)
         ? wireError("jsonrpc.invalidParams", {
             details: {
-              issues: [{ path: issuePathOf(method), message: failure.message }],
+              issues: [{ path: issuePathOf(method), message: issueMessageOf(method, failure) }],
             },
           })
         : wireError("internal", { message: `${method}: ${failure.code}: ${failure.message}` });

@@ -175,3 +175,68 @@ describe("slash input goes to command.run", () => {
     await app.stop();
   });
 });
+
+describe("attachments", () => {
+  const PART = { type: "text", text: "<attachment>hi</attachment>" } as const;
+
+  test("a turn with attachments is sent as text plus parts and never as a slash command", async () => {
+    const { app, params } = await liveApp({});
+    const sent = await app.commands.sendTurn(thr(1), "/helm start", "req-9", [PART]);
+    expect(sent.ok).toBe(true);
+    expect(methodsOf(params, "command.run")).toBe(0);
+    expect(params.find((entry) => entry.method === "turn.start")?.params).toEqual({
+      threadId: thr(1),
+      input: [{ type: "text", text: "/helm start" }, PART],
+      requestId: "req-9",
+    });
+    await app.stop();
+  });
+
+  test("addAttachment sends the thread and source to attachments.add and returns its parts", async () => {
+    const added = {
+      attachment: {
+        kind: "text" as const,
+        name: "a.txt",
+        mime: "text/plain",
+        size: 2,
+        blob: null,
+        path: null,
+        url: null,
+        image: null,
+      },
+      parts: [PART],
+    };
+    const { app, params } = await liveApp({ results: { "attachments.add": added } });
+    const source = { kind: "data", data: "aGk=", mime: "text/plain", name: "a.txt" } as const;
+    const result = await app.commands.addAttachment(thr(1), source);
+    expect(result).toEqual({ ok: true, value: added });
+    expect(params.find((entry) => entry.method === "attachments.add")?.params).toEqual({
+      threadId: thr(1),
+      source,
+    });
+    await app.stop();
+  });
+
+  test("attachmentLimit reads the host setting and is null when it is not a number", async () => {
+    const { app } = await liveApp({
+      results: {
+        "settings.get": {
+          settings: [
+            {
+              key: "l2.dialog.attachments.maxBytes",
+              value: 1048576,
+              source: { scope: "user" },
+              locked: false,
+              shadowed: [],
+              runtimeChange: "nextTurn",
+              pendingUntil: null,
+              deprecated: false,
+            },
+          ],
+        },
+      },
+    });
+    expect(await app.commands.attachmentLimit()).toBe(1048576);
+    await app.stop();
+  });
+});

@@ -14,7 +14,13 @@ import {
 } from "../state/engine/index.ts";
 import type { Journal } from "../state/shared/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
-import type { ApprovalDecision, CommandError, Commands } from "../views/commands.ts";
+import type {
+  ApprovalDecision,
+  AttachmentParts,
+  CommandError,
+  Commands,
+} from "../views/commands.ts";
+import { turnInputOf } from "../views/attachment-model.ts";
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createConnectionCommands } from "./connection.ts";
@@ -53,6 +59,9 @@ export type CommandDeps = {
   readonly logger: Pick<Logger, "warn">;
 };
 
+/** 첨부 크기 상한 설정 키(L2.dialog, 호스트 값) */
+const ATTACHMENT_LIMIT_KEY = "l2.dialog.attachments.maxBytes";
+
 export function createCommands(deps: CommandDeps): Commands {
   const { session, engine, ui } = deps;
 
@@ -82,9 +91,11 @@ export function createCommands(deps: CommandDeps): Commands {
     threadId: ThreadId,
     text: string,
     requestId: string,
+    attachments: AttachmentParts = [],
   ): Promise<Result<null, CommandError>> => {
+    const input = attachments.length === 0 ? text : turnInputOf(text, attachments);
     const started = await withWriteConnection((c) =>
-      c.request("turn.start", { threadId, input: text, requestId }),
+      c.request("turn.start", { threadId, input, requestId }),
     );
     if (!started.ok) {
       showLockedIfLocked(threadId, started.error);
@@ -162,7 +173,10 @@ export function createCommands(deps: CommandDeps): Commands {
       session.link()?.openThread(created.value.threadId);
       return ok(null);
     },
-    async sendTurn(threadId, text, requestId) {
+    async sendTurn(threadId, text, requestId, attachments) {
+      // 첨부가 있으면 슬래시 명령으로 풀지 않는다(첨부 파트가 명령 인자로 흘러가지 않게)
+      if (attachments !== undefined && attachments.length > 0)
+        return startTurn(threadId, text, requestId, attachments);
       // `/`로 시작하는 줄은 엔진에 등록한 슬래시 명령일 수 있다(`/helm`, `/learning`): 대화 입력이 아니라 `command.run`으로 먼저 보낸다
       const line = slashLineOf(text);
       if (line === null) return startTurn(threadId, text, requestId);
@@ -187,6 +201,16 @@ export function createCommands(deps: CommandDeps): Commands {
         c.request("command.list", threadId === null ? {} : { threadId }),
       );
       return listed.ok ? ok(commandListView(listed.value)) : listed;
+    },
+    addAttachment: (threadId, source) =>
+      withWriteConnection((c) => c.request("attachments.add", { threadId, source })),
+    async attachmentLimit() {
+      const got = await withConnection((c) =>
+        c.request("settings.get", { keys: [ATTACHMENT_LIMIT_KEY] }),
+      );
+      if (!got.ok) return null;
+      const value = got.value.settings.find((s) => s.key === ATTACHMENT_LIMIT_KEY)?.value;
+      return typeof value === "number" && value > 0 ? value : null;
     },
     async interrupt(threadId) {
       const done = await withWriteConnection((c) => c.request("turn.interrupt", { threadId }));

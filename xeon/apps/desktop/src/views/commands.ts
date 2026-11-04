@@ -70,6 +70,9 @@ import type { PaletteUses } from "./palette/palette-model.ts";
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
 // 보낸 직후의 표시(보내는 중, 실패)는 UI 스토어가, 결과는 엔진 이벤트가 거울에 넣는다.
 
+/** `attachments.add`가 돌려준 입력 파트 */
+export type AttachmentParts = WireResult<"attachments.add">["parts"];
+
 export type CommandError =
   | { readonly kind: "offline" }
   /** 연결된 host에 그 메서드가 없다(-32601). 아직 구현하지 않은 host나 오래된 엔진이다 */
@@ -546,11 +549,20 @@ export interface Commands {
   /** `workspace`는 작업 폴더(절대 경로)이고 `thread.create`로 그대로 보낸다. 없으면 폴더 없는 대화다(G2-02) */
   createThread(workspace?: string): Promise<Result<null, CommandError>>;
   /** requestId는 같은 입력의 재시도가 같은 값을 쓰도록 호출자가 만든다(spec 4.13) */
+  /** `attachments`는 `addAttachment`가 돌려준 입력 파트다. 있으면 슬래시 명령으로 풀지 않고 글과 함께 대화 입력으로 보낸다 */
   sendTurn(
     threadId: ThreadId,
     text: string,
     requestId: string,
+    attachments?: AttachmentParts,
   ): Promise<Result<null, CommandError>>;
+  /** `attachments.add`: 첨부 하나를 엔진에 올리고 입력 파트를 받는다. 쓰기 소유를 얻지 않는다 */
+  addAttachment(
+    threadId: ThreadId,
+    source: WireParams<"attachments.add">["source"],
+  ): Promise<Result<WireResult<"attachments.add">, CommandError>>;
+  /** 첨부 하나의 크기 상한(`l2.dialog.attachments.maxBytes`, 호스트 값). 읽지 못하면 `null`이고 엔진이 올릴 때 판정한다 */
+  attachmentLimit(): Promise<number | null>;
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** `thread.compact`: 지금 대화를 요약한다(수동 컴팩션). 요약할 것이 없으면 결과가 `skipped`로 와서 오류가 아니다 */
   compactThread(threadId: ThreadId): Promise<Result<WireResult<"thread.compact">, CommandError>>;

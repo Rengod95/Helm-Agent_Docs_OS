@@ -217,6 +217,25 @@ input[type="text"] {
   flex-direction: column;
   gap: 6px;
 }
+.composer-dragging {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+.composer-drop-hint {
+  color: var(--dim);
+  text-align: center;
+}
+.composer-attachments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.composer-actions-spacer {
+  flex: 1;
+}
 .composer-actions {
   display: flex;
   justify-content: flex-end;

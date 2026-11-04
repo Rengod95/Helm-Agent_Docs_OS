@@ -229,10 +229,10 @@ test("attachments.add rejections about the source are invalid params on the sour
     "jsonrpc.invalidParams",
   ]);
   expect(first.data.details).toEqual({
-    issues: [{ path: "source", message: "attachment_too_large happened" }],
+    issues: [{ path: "source", message: "attachment_too_large: attachment_too_large happened" }],
   });
   expect(fourth.data.details).toEqual({
-    issues: [{ path: "source", message: "denied happened" }],
+    issues: [{ path: "source", message: "denied: denied happened" }],
   });
   expect(fifth.data.kind).toBe("internal");
   expect(fifth.message).toContain("attachments.add: unavailable: unavailable happened");
