@@ -125,6 +125,8 @@ export {
   readBundleManifest,
   type BundleManifest,
   SDK_MODULE_SPECIFIERS,
+  registerSdkModules,
+  X_SDK_MODULES,
   findTrustRequiringResources,
   LoadAbortError,
   loadingTrustSettings,

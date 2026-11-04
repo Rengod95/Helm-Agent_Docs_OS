@@ -15,6 +15,9 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "LoaderSettingsSource",
   "ExtDiagnostic", // §3.2에 정의되어 있으나 §3.1 표에는 빠져 있다
   "ExtStorageManager", // 조립 루트가 확장 제거의 미리 보기와 저장 테이블 지우기(extUi.storage)의 타입으로 쓴다
+  // SDK 가상 모듈 등록: 설치본 재생기(`@fresnel/plugin-builder`의 runInstalledReplay)가 로더와 같은 목록을 같은 방식으로 등록한다 [제안]
+  "registerSdkModules",
+  "X_SDK_MODULES",
   // 외부 훅 실행기(X.operations.spec §3.7, §4.7): 조립 루트가 연결한다
   "createHookRunner",
   "HOOK_SOURCES",
