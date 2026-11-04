@@ -10,6 +10,7 @@ export interface ExtReadSchemas {
   "ext.list": Io<U<Req<r.ExtListParams>>, U<r.ExtListResult>>;
   "ext.get": Io<U<Req<r.ExtNameParams>>, U<r.ExtGetResult>>;
   "ext.reenable": Io<U<Req<r.ExtNameParams>>, U<r.ExtAppliedResult>>;
+  "ext.disableConfirm": Io<U<Req<r.ExtNameParams>>, U<r.ExtAppliedResult>>;
   "ext.reload": Io<U<Req<r.ExtNameParams>>, U<r.ExtAppliedResult>>;
   "ext.health": Io<U<Req<r.ExtHealthParams>>, U<r.ExtHealthResult>>;
   "ext.timings": Io<U<Req<r.ExtTimingsParams>>, U<ExtTimingsResult>>;
@@ -42,6 +43,7 @@ export const EXT_READ_METHODS: Table = {
   "ext.list": m4(r.ExtListParamsSchema, r.ExtListResultSchema),
   "ext.get": m4(r.ExtNameParamsSchema, r.ExtGetResultSchema),
   "ext.reenable": m4(r.ExtNameParamsSchema, r.ExtAppliedResultSchema),
+  "ext.disableConfirm": m4(r.ExtNameParamsSchema, r.ExtAppliedResultSchema),
   "ext.reload": m4(r.ExtNameParamsSchema, r.ExtAppliedResultSchema),
   "ext.health": m4(r.ExtHealthParamsSchema, r.ExtHealthResultSchema),
   "ext.timings": m4(r.ExtTimingsParamsSchema, ExtTimingsResultSchema),

@@ -205,12 +205,34 @@ describe("M4 ext read methods", () => {
     });
   });
 
-  test("ext.list carries the keep-off question for repeatedly auto-disabled extensions and rejects other shapes", () => {
+  test("ext.disableConfirm takes a name and answers with the applied result", () => {
+    expect(parse(WIRE_METHODS["ext.disableConfirm"].params, { name: "alpha" }).ok).toBe(true);
+    expect(parse(WIRE_METHODS["ext.disableConfirm"].params, { name: "alpha", x: 1 }).ok).toBe(
+      false,
+    );
+    roundTrip(WIRE_METHODS["ext.disableConfirm"].result, {
+      appliesAt: "nextStepBoundary",
+      diagnostics: [],
+    });
+  });
+
+  test("ext.list carries the disable question while the extension is still on and rejects other shapes", () => {
     roundTrip(WIRE_METHODS["ext.list"].result, {
-      extensions: [{ ...entry, autoDisabled: true, keepOffQuestion: { disabledStarts: 3 } }],
+      extensions: [
+        {
+          ...entry,
+          autoDisabled: true,
+          keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
+        },
+      ],
     });
     const bad = parse(WIRE_METHODS["ext.list"].result, {
-      extensions: [{ ...entry, keepOffQuestion: { disabledStarts: 3, extra: 1 } }],
+      extensions: [
+        {
+          ...entry,
+          keepOffQuestion: { rule: "rate", consecutive: 1, windowFailures: 10, extra: 1 },
+        },
+      ],
     });
     expect(bad.ok).toBe(false);
   });
