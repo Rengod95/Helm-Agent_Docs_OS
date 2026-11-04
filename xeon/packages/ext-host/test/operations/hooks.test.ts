@@ -2,14 +2,16 @@ import { expect, test } from "bun:test";
 import type { HookRawRun, HookRunSpec, TraceReadPort } from "@fresnel/contracts/extensions";
 import {
   createHookRunner,
+  HOOK_UNIT_LOAD_INDEX_BASE,
   hookEnv,
+  hookOrderOf,
   interpretHookRun,
   mergeHookDefs,
   type HookDef,
   type LoadedHook,
+  type StaticOperationsSettings,
 } from "../../src/operations/index.ts";
-import { HOOK_SOURCES } from "../../src/operations/hooks/config.ts";
-import { hookUnitName, isHookUnitName } from "../../src/operations/hooks/names.ts";
+import { hookIdOfUnit, hookUnitName, isHookUnitName } from "../../src/operations/hooks/names.ts";
 import { traceReadOf } from "../../src/primitives/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
 import { createOperationsHarness } from "./support/harness.ts";
@@ -137,6 +139,7 @@ async function rig(
   hooks: readonly LoadedHook[],
   respond: (spec: HookRunSpec) => HookRawRun,
   saved: string[] = [],
+  settings?: StaticOperationsSettings,
 ): Promise<Rig> {
   const specs: HookRunSpec[] = [];
   const late: {
@@ -164,13 +167,27 @@ async function rig(
     report: (record) => late.policy?.autoDisabler.onOutcome(record),
     log: () => {},
   });
-  const harness = await createOperationsHarness({ hooks: runner });
+  const harness = await createOperationsHarness({
+    hooks: runner,
+    ...(settings === undefined ? {} : { settings }),
+  });
   late.policy = harness.policy;
   late.harness = harness;
-  await eachInOrder(runner.units(), async (unit) => {
-    await harness.t.host.install(unit);
-    return "continue";
-  });
+  // 훅마다 단위 하나. 순서는 목록 순서(loadIndex)다
+  await eachInOrder(
+    hooks.map((hook, index) => ({ hook, index })),
+    async ({ hook, index }) => {
+      harness.policy.tiers.set(hookUnitName(hook.def.id), hook.tier);
+      await harness.t.host.install(
+        runner.unitOf({
+          id: hook.def.id,
+          point: hook.def.point,
+          loadIndex: HOOK_UNIT_LOAD_INDEX_BASE + index,
+        }),
+      );
+      return "continue";
+    },
+  );
   return { specs, harness, runner };
 }
 
@@ -280,7 +297,7 @@ test("trace: a call no external hook matches leaves no unit row and no entry", a
   expect(specs).toHaveLength(0);
 });
 
-test("trace: a matched external hook is listed as hook:<id> with its duration and result; hooks a stop skipped name the stopper", async () => {
+test("trace: a matched external hook is listed as hook:<id> with its duration and result; a chain hook after a patch still runs", async () => {
   const hooks = [
     loaded(def({ id: "wrap", point: "input.user.before" })),
     loaded(def({ id: "later", point: "input.user.before" })),
@@ -303,7 +320,7 @@ test("trace: a matched external hook is listed as hook:<id> with its duration an
       initial: { text: "hi", handled: false },
     },
   );
-  // 패치는 범위 안에서 멈춘다. 뒤 훅은 실행하지 않았고 멈춘 훅 `hook:wrap`을 가리키는 건너뜀 행이다
+  // chain은 디스패처의 stop 규칙(`handled`)에서만 멈춘다. 패치만으로는 멈추지 않아 뒤 훅도 돈다
   expect(traceReadOf(harness.t.host).turn(thread, turn)?.entries).toEqual([
     {
       seq: 0,
@@ -321,11 +338,11 @@ test("trace: a matched external hook is listed as hook:<id> with its duration an
         },
         {
           registrationId: "hook:later",
-          ms: 0,
-          result: "skipped",
+          ms: 7,
+          result: "passed",
           atMs: 7,
           size: 0,
-          skippedBy: "hook:wrap",
+          skippedBy: null,
           reason: null,
         },
       ],
@@ -444,7 +461,7 @@ test("stop rule: a failing chain hook drops its patch and does not stop the next
   ]);
 });
 
-test("stop rule: a first hook that fails stops the scope, and the next first hook is skipped by it", async () => {
+test("stop rule: a first hook that fails stops the dispatch, and the next first hook does not run", async () => {
   const hooks = [
     loaded(def({ id: "first-bad", point: "tool.call.before" })),
     loaded(def({ id: "first-next", point: "tool.call.before" })),
@@ -464,11 +481,10 @@ test("stop rule: a first hook that fails stops the scope, and the next first hoo
   expect(hookIdsOf(specs)).toEqual(["first-bad"]);
   expect(rowsOf(traceReadOf(harness.t.host).turn(thread, turn))).toEqual([
     ["hook:first-bad", "failed", "threw", null],
-    ["hook:first-next", "skipped", null, "hook:first-bad"],
   ]);
 });
 
-test("stop rule: a first hook that blocks with exit 2 stops the scope, and the next first hook is skipped by it", async () => {
+test("stop rule: a first hook that blocks with exit 2 stops the dispatch, and the next first hook does not run", async () => {
   const hooks = [
     loaded(def({ id: "first-deny", point: "tool.call.before" })),
     loaded(def({ id: "first-after", point: "tool.call.before" })),
@@ -487,7 +503,6 @@ test("stop rule: a first hook that blocks with exit 2 stops the scope, and the n
   expect(hookIdsOf(specs)).toEqual(["first-deny"]);
   expect(rowsOf(traceReadOf(harness.t.host).turn(thread, turn))).toEqual([
     ["hook:first-deny", "blocked", null, null],
-    ["hook:first-after", "skipped", null, "hook:first-deny"],
   ]);
 });
 
@@ -511,15 +526,71 @@ test("stop rule: a first hook that passes with no decision does not stop the nex
   ]);
 });
 
-test("unit names: isHookUnitName matches exactly the four built-in unit names, no other fresnel-hooks- name", () => {
-  for (const source of HOOK_SOURCES) expect(isHookUnitName(hookUnitName(source))).toBe(true);
+function twoToolHooks(): LoadedHook[] {
+  return [
+    loaded(def({ id: "alpha-hook", point: "tool.call.before" })),
+    loaded(def({ id: "beta-hook", point: "tool.call.before" })),
+  ];
+}
+
+const betaDenies = (spec: HookRunSpec): HookRawRun =>
+  spec.env["FRESNEL_HOOK_ID"] === "beta-hook"
+    ? { ...rawOk, exitCode: 2, stderr: "beta says no" }
+    : rawOk;
+
+test("order: without an override the hooks run in configuration order, alpha first, and beta's denial ends the dispatch", async () => {
+  const { harness, specs } = await rig(twoToolHooks(), betaDenies);
+  const thread = harness.t.newThread();
+  await harness.t.host.openThread(thread);
+  const outcome = await harness.t.host.dispatch("tool.call.before", toolPayload("bash"), {
+    threadId: thread,
+    dispatchKey: "k1",
+  });
+  expect(outcome).toMatchObject({ decision: { block: true, reason: "beta says no" } });
+  expect(hookIdsOf(specs)).toEqual(["alpha-hook", "beta-hook"]);
+});
+
+test("order: a saved hooks.order moves one external hook ahead of another, so the denying hook runs first and the other never runs", async () => {
+  const { harness, specs } = await rig(twoToolHooks(), betaDenies, [], {
+    hookOrder: new Map([
+      ["tool.call.before", [hookUnitName("beta-hook"), hookUnitName("alpha-hook")]],
+    ]),
+  });
+  const thread = harness.t.newThread();
+  await harness.t.host.openThread(thread);
+  const outcome = await harness.t.host.dispatch("tool.call.before", toolPayload("bash"), {
+    threadId: thread,
+    dispatchKey: "k1",
+  });
+  expect(outcome).toMatchObject({ decision: { block: true, reason: "beta says no" } });
+  expect(hookIdsOf(specs)).toEqual(["beta-hook"]);
+});
+
+test("unit names: a hook unit is the reserved prefix plus the hook id, and only that prefix is a hook unit", () => {
+  expect(hookUnitName("no-rm")).toBe("fresnel-hooks-no-rm");
+  expect(hookIdOfUnit("fresnel-hooks-no-rm")).toBe("no-rm");
   expect(
-    [
-      "fresnel-hooks-x",
-      "fresnel-hooks-",
-      "fresnel-hooks-user-2",
-      "fresnel-hooks-User",
-      "hooks-user",
-    ].map((name) => isHookUnitName(name)),
-  ).toEqual([false, false, false, false, false]);
+    ["fresnel-hooks-x", "fresnel-hooks-user", "acme-notes", "hooks-user", "hook:x"].map((name) =>
+      isHookUnitName(name),
+    ),
+  ).toEqual([true, true, false, false, false]);
+  expect(hookIdOfUnit("acme-notes")).toBeUndefined();
+});
+
+test("hookOrderOf: a stored hook unit name stays in its place; only broken keys, values and duplicates are dropped", () => {
+  const stored = hookOrderOf({
+    "tool.call.before": [
+      hookUnitName("no-rm"),
+      "alpha",
+      7,
+      hookUnitName("no-rm"),
+      hookUnitName("log"),
+    ],
+    "not.a.hook": ["x"],
+    "thread.start": "oops",
+    "tool.result": [],
+  });
+  expect([...stored]).toEqual([
+    ["tool.call.before", ["fresnel-hooks-no-rm", "alpha", "fresnel-hooks-log"]],
+  ]);
 });

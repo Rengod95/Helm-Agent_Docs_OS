@@ -132,6 +132,8 @@ export interface PortsDeps {
   readonly trust: ProjectTrust;
   /** 서비스 모드의 프로젝트 확장 적재(M3-REQ-38). 쓰기 소유를 얻은 thread의 작업 폴더와 신뢰 결정 뒤에 부른다 */
   readonly projectExtensions: ProjectExtensions;
+  /** thread의 작업 폴더 설정을 읽은 뒤 부른다. 외부 훅 단위를 그 thread에 맞춘다 */
+  readonly afterSettingsPrepare?: ((threadId: ThreadId) => Promise<void>) | undefined;
   /** 확장 버전과 화면 목록의 원천(T-XV, HS-108). 없으면 확장이 없는 것으로 본다 */
   readonly extUi?: ExtUiVersionSource | undefined;
   /** thread의 작업 디렉터리(없으면 undefined) */
@@ -550,6 +552,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     }
     // 신뢰한 작업 폴더의 project·local 설정을 읽어 둔다. 자원(임대)을 쥐기 전에 해서 실패해도 정리할 것이 없다
     await settings.prepare(threadId);
+    await deps.afterSettingsPrepare?.(threadId);
     // 서비스 모드: 이 thread의 작업 폴더가 신뢰되어 있으면 그 프로젝트의 확장을 싣는다(결정이 없으면 클라이언트가 trust.decide로 정한 뒤 싣는다)
     await deps.projectExtensions.ensure(deps.workspaceOf(threadId), deps.signal);
     const acquired = store.leases.acquire(`thread:${threadId}`, { ...deps.holder, kind });
@@ -646,7 +649,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (!decided.ok) return decided;
       // 신뢰가 바뀌었으므로 작업 폴더의 project·local 층을 다시 판정해 읽는다. 쥔 thread는 지금 바로 다시 읽는다
       deps.settings.clearWorkspaceFiles();
-      await sequentially(Array.from(held.keys()), (threadId) => settings.prepare(threadId));
+      await sequentially(Array.from(held.keys()), async (threadId) => {
+        await settings.prepare(threadId);
+        await deps.afterSettingsPrepare?.(threadId);
+      });
       // 어느 키가 바뀌었는지 모르는 변경이다(keys가 빈 알림, F wire §3.3.2)
       deps.settings.notifyChanged({ keys: [], scopes: ["project", "local"], threadId: null });
       // 서비스 모드: 허용된 작업 폴더의 프로젝트 확장을 지금 싣는다

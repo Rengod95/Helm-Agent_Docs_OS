@@ -80,17 +80,26 @@ test("hooks.list shows each external hook as its own row by id, with the questio
         point: "tool.call.before",
         source: "user",
         tierRank: 1,
-        unit: "fresnel-hooks-user",
+        unit: "fresnel-hooks-no-rm",
       },
       {
         id: "log-start",
         point: "thread.start",
         source: "user",
         tierRank: 1,
-        unit: "fresnel-hooks-user",
+        unit: "fresnel-hooks-log-start",
       },
     ],
+    // 외부 훅은 훅마다 단위라서 다른 핸들러처럼 레지스트리 행에 든다(X.operations §4.7.4). 호스트의 `handlers()`처럼 디스패치 순서로 준다
     hookHandlers: () => [
+      {
+        point: "thread.start",
+        registrationId: "fresnel-hooks-log-start",
+        extension: "fresnel-hooks-log-start",
+        tier: 1,
+        loadIndex: 1_000_001,
+        seq: 3,
+      },
       {
         point: "tool.call.before",
         registrationId: "b",
@@ -98,6 +107,14 @@ test("hooks.list shows each external hook as its own row by id, with the questio
         tier: 0,
         loadIndex: 1,
         seq: 1,
+      },
+      {
+        point: "tool.call.before",
+        registrationId: "fresnel-hooks-no-rm",
+        extension: "fresnel-hooks-no-rm",
+        tier: 1,
+        loadIndex: 1_000_000,
+        seq: 2,
       },
       {
         point: "tool.call.before",
@@ -132,7 +149,7 @@ test("hooks.list shows each external hook as its own row by id, with the questio
   const point = listed.hooks.find((row) => row.hook === "tool.call.before");
   expect(point?.order?.map((row) => [row.registrationId, row.tier])).toEqual([
     ["b", 0],
-    ["no-rm", 1],
+    ["fresnel-hooks-no-rm", 1],
     ["a", 3],
   ]);
   await connection.close();

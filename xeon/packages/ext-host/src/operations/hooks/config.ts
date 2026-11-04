@@ -8,7 +8,7 @@ import type { Tier } from "../tier.ts";
 const HOOK_ID_PATTERN = "^[a-z][a-z0-9-]{1,63}$";
 
 /** 외부 훅이 참여할 수 있는 지점. 고빈도 stream tap과 모델 요청 직전 chain은 뺀다(§4.7.2) */
-export const HOOK_HOOKS = [
+const HOOK_HOOKS = [
   "input.user.before",
   "input.bash.before",
   "tool.call.before",

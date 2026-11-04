@@ -281,58 +281,23 @@ test("hooks.order.set and hooks.order.reset: an unknown hook is hooks.notFound, 
   await connection.close();
 });
 
-/** 외부 훅 단위 이름을 순서에서 거절한 issue 한 줄 */
-function unitIssue(name: string, index: number) {
-  return {
-    path: `/order/${index}`,
-    message: `hook_unit: ${name} is a host hook unit and cannot be ordered`,
-  };
-}
-
-test("hooks.order.set and hooks.order.preview: a host hook unit name in the order is refused as invalid params, once per name, and nothing is stored", async () => {
+test("hooks.order.set: a hook unit (an external hook's Registration) is orderable like any other handler and is stored as given", async () => {
   const env = recordingEnv();
   const connection = connect(sourcesOf(env.values), env);
   await connection.request("host.hello", HELLO_PARAMS);
-  const order = ["fresnel-hooks-user", "alpha", "fresnel-hooks-local", "fresnel-hooks-user"];
-  const refused = {
-    code: -32602,
-    data: {
-      kind: "jsonrpc.invalidParams",
-      details: {
-        issues: [unitIssue("fresnel-hooks-user", 0), unitIssue("fresnel-hooks-local", 2)],
-      },
-    },
-  };
-  expect(
-    await failureOf(connection.request("hooks.order.set", { hook: "tool.call.before", order })),
-  ).toMatchObject(refused);
-  expect(
-    await failureOf(connection.request("hooks.order.preview", { hook: "tool.call.before", order })),
-  ).toMatchObject(refused);
-  // 이름이 하나라도 들면 저장하지 않는다
-  expect(env.calls).toEqual([]);
-  expect(env.values.has(KEY)).toBe(false);
-  // 단위 이름 하나만 든 제안도 거절한다. 단위가 아닌 이름(`fresnel-hooks-x`)은 여전히 받는다
-  expect(
-    await failureOf(
-      connection.request("hooks.order.set", {
-        hook: "tool.call.before",
-        order: ["fresnel-hooks-managed"],
-      }),
-    ),
-  ).toMatchObject({
-    code: -32602,
-    data: { details: { issues: [unitIssue("fresnel-hooks-managed", 0)] } },
-  });
+  // 외부 훅은 훅마다 단위(`fresnel-hooks-<훅 id>`)라서 거절하지 않는다. 같은 이름은 처음 자리만 남는다
   expect(
     await connection.request("hooks.order.set", {
       hook: "tool.call.before",
-      order: ["fresnel-hooks-x", "alpha"],
+      order: ["fresnel-hooks-no-rm", "alpha", "fresnel-hooks-no-rm"],
     }),
   ).toEqual({
     hook: "tool.call.before",
-    saved: ["fresnel-hooks-x", "alpha"],
+    saved: ["fresnel-hooks-no-rm", "alpha"],
     appliesAt: "nextStepBoundary",
+  });
+  expect(env.values.get(KEY)).toEqual({
+    "tool.call.before": ["fresnel-hooks-no-rm", "alpha"],
   });
   await connection.close();
 });

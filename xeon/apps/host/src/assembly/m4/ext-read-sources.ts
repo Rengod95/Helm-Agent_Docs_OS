@@ -19,7 +19,6 @@ import type {
 import {
   budgetClassOf,
   extReadViewOf,
-  isHookUnitName,
   type ExtensionLoader,
   type LoadDiagnostic,
   type ExtensionUnit,
@@ -413,19 +412,16 @@ export function createExtReadSources(assembly: ExtReadAssembly, env: ExtReadEnv)
       assembly.operations.autoDisabler.answer(`hook:${hook}`, true);
     },
     reload: (name, signal) => reloadThroughLoader(assembly.loader(), name, signal),
-    // 외부 훅 단위는 순서 화면의 핸들러가 아니다. 외부 훅은 모든 확장 뒤에 범위 순서로 이어 붙고 옮길 수 없다(X.operations §4.7.4)
+    // 외부 훅은 훅마다 단위라서 다른 핸들러처럼 순서 화면에 나오고 옮길 수 있다(X.operations §4.7.4)
     hookHandlers: () =>
-      view
-        .handlers()
-        .filter((handler) => !isHookUnitName(handler.extension))
-        .map((handler) => ({
-          point: handler.point,
-          registrationId: handler.scopeId,
-          extension: handler.extension,
-          tier: handler.tier,
-          loadIndex: handler.loadIndex,
-          seq: handler.seq,
-        })),
+      view.handlers().map((handler) => ({
+        point: handler.point,
+        registrationId: handler.scopeId,
+        extension: handler.extension,
+        tier: handler.tier,
+        loadIndex: handler.loadIndex,
+        seq: handler.seq,
+      })),
     hookOrder: () => ({
       saved: () => order.saved(),
       applied: () => order.appliedMap(),

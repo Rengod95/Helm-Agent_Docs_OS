@@ -250,6 +250,9 @@ export {
 export {
   createHookRunner,
   HOOK_SOURCES,
+  HOOK_SOURCE_TIER,
+  HOOK_UNIT_LOAD_INDEX_BASE,
+  hookIdOfUnit,
   hookUnitName,
   isHookUnitName,
   mergeHookDefs,
@@ -257,6 +260,7 @@ export {
   type HookDef,
   type HookRunner,
   type HookRunnerDeps,
+  type HookUnitSpec,
   type HookSource,
   type LoadedHook,
   type MergedHooks,

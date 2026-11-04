@@ -1,7 +1,15 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { createChunkNumbering } from "@fresnel/cap-dialog";
-import { assertNever, attemptAsync, Bug, err, parse, type Logger } from "@fresnel/contracts";
+import {
+  assertNever,
+  attemptAsync,
+  Bug,
+  detach,
+  err,
+  parse,
+  type Logger,
+} from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ExtensionManifest, PortKey } from "@fresnel/contracts/extensions";
 import {
@@ -144,7 +152,7 @@ import { ownerKindOf } from "./handlers/owner.ts";
 import { createFileStartupHealth, startupHealthOf } from "./assembly/startup-health.ts";
 import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
-import { createExternalHooks, stringsOf } from "./assembly/external-hooks.ts";
+import { createExternalHooks, HOOK_DEFS_KEY, stringsOf } from "./assembly/external-hooks.ts";
 import { messageOf, sequentially } from "./util.ts";
 
 export type {
@@ -457,6 +465,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     log: (line) => {
       late.logger?.warn("ext.operations", { line });
     },
+  });
+  // 훅 정의나 폴더 신뢰가 바뀌면 훅마다 단위를 넣고 뺀다. `keys`가 빈 알림은 어느 키인지 모르는 변경(신뢰 결정)이다
+  settings.onChange((change) => {
+    if (change.keys.length > 0 && !change.keys.includes(HOOK_DEFS_KEY)) return;
+    detach(externalHooks.sync(), (caught) => {
+      late.logger?.warn("ext.operations", {
+        line: `external hooks sync failed: ${String(caught)}`,
+      });
+    });
   });
   const operations = createOperationsPolicy({
     now: () => clock.now(),
@@ -913,7 +930,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
 
     // 3a. 외부 훅 단위. 안전 모드에서는 싣지 않는다(X.operations.spec §4.6.2)
-    await externalHooks.install(ext, safeMode);
+    await externalHooks.install(ext, safeMode, operations.tiers);
 
     // 3b. 기본 플러그인으로 올린 외부 확장 적재(L4.host-service §4.1, X.loading-trust §4.4.7). 안전 모드는 외부 확장을 싣지 않는다
     if (defaultsEnabled) {
@@ -1112,7 +1129,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
                 point: hook.def.point,
                 source: hook.source,
                 tierRank: TIERS.indexOf(hook.tier),
-                unit: hookUnitName(hook.source),
+                unit: hookUnitName(hook.def.id),
               })),
         // `host.status.safeMode`와 같은 원인이다: 시작 옵션은 `flag`, 설정 `x.operations.safeMode.default`는 `user`
         safeMode: {
@@ -1141,6 +1158,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       configDir: os.dirs.config,
       fileLock: osHandle.fileLock,
       trust: projectTrust,
+      afterSettingsPrepare: (threadId) => externalHooks.sync(threadId),
       projectExtensions: createProjectExtensions({
         mode: options.mode,
         loader: () => external.loader,
