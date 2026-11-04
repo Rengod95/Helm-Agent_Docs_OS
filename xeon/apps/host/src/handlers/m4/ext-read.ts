@@ -28,7 +28,12 @@ type ExtReadError =
   | { readonly kind: "managed_locked"; readonly name: string }
   /** 그런 이름의 훅이 없다 */
   | { readonly kind: "unknown_hook"; readonly hook: string }
-  /** 순서 설정 쓰기가 실패했다. 키는 `x.operations.hookOrder`다 */
+  /** 순서에 외부 훅 단위 이름이 들었다. 입력 문제라 `jsonrpc.invalidParams`의 `issues`로 알린다(X.operations §4.7.4) */
+  | {
+      readonly kind: "hook_unit_in_order";
+      readonly issues: readonly { readonly path: string; readonly message: string }[];
+    }
+  /** 설정 쓰기가 실패했다. 키는 `x.operations.hookOrder` 또는 `x.operations.hookDisabled`다 */
   | { readonly kind: "write_failed"; readonly key: string; readonly failure: ProfileWriteFailure };
 
 export type ExtReadResult<T> = Result<T, ExtReadError>;
@@ -54,6 +59,8 @@ export interface ExtReadPort {
   readonly groupDriveLock: PortCall<"group.driveLock">;
   readonly hooks: PortCall<"hooks.list">;
   readonly settingExplain: PortCall<"settings.explain">;
+  readonly hookDisableConfirm: PortCall<"hooks.disableConfirm">;
+  readonly hookReenable: PortCall<"hooks.reenable">;
   readonly orderGet: PortCall<"hooks.order.get">;
   readonly orderSet: PortCall<"hooks.order.set">;
   readonly orderReset: PortCall<"hooks.order.reset">;
@@ -77,6 +84,8 @@ export type ExtReadMethods =
   | "group.driveLock"
   | "hooks.list"
   | "settings.explain"
+  | "hooks.disableConfirm"
+  | "hooks.reenable"
   | "hooks.order.get"
   | "hooks.order.set"
   | "hooks.order.reset"
@@ -104,6 +113,8 @@ function wireErrorOf(
       });
     case "unknown_hook":
       return wireError("hooks.notFound", { details: { hook: error.hook } });
+    case "hook_unit_in_order":
+      return wireError("jsonrpc.invalidParams", { details: { issues: [...error.issues] } });
     case "write_failed":
       return wireErrorOfWrite(error.key, error.failure, errors, where);
     default:
@@ -146,6 +157,10 @@ export function createExtReadHandlers(port: ExtReadPort): Pick<WireHandlers, Ext
     "hooks.list": (params, context) => settle("hooks.list", port.hooks(params, context.signal)),
     "settings.explain": (params, context) =>
       settle("settings.explain", port.settingExplain(params, context.signal)),
+    "hooks.disableConfirm": (params, context) =>
+      settle("hooks.disableConfirm", port.hookDisableConfirm(params, context.signal)),
+    "hooks.reenable": (params, context) =>
+      settle("hooks.reenable", port.hookReenable(params, context.signal)),
     "hooks.order.get": (params, context) =>
       settle("hooks.order.get", port.orderGet(params, context.signal)),
     "hooks.order.set": (params, context) =>

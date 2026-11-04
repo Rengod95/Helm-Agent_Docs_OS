@@ -114,7 +114,20 @@ export interface ManifestResult {
 }
 
 /**
+ * 호스트가 내부 단위의 이름에 쓰는 접두(X.operations §4.7.4 외부 훅 단위 `fresnel-hooks-<범위>`).
+ * 실행기와 이름 판정(`isHookUnitName`)이 이 값을 쓴다.
+ */
+export const HOOK_UNIT_NAME_PREFIX = "fresnel-hooks-";
+
+/**
+ * 외부 확장(`trust.level`이 `builtin`이 아님)이 이 접두로 시작하는 이름을 쓰면 `name_reserved`다.
+ * 내장 확장은 면제다. 예약 이름 목록과 같은 규칙이다 [제안]
+ */
+export const RESERVED_EXTENSION_NAME_PREFIXES: readonly string[] = [HOOK_UNIT_NAME_PREFIX];
+
+/**
  * 외부 확장이 쓸 수 없는 이름. core, ext, grp, x, fresnel과 내장 L2 도메인 이름이다.
+ * 이 목록 말고 예약 접두(`RESERVED_EXTENSION_NAME_PREFIXES`)로 시작하는 이름도 쓸 수 없다.
  * 정확한 목록은 F.capabilities.spec §10 미결(기능·확장 이름 네임스페이스)이 풀린 뒤 확정한다 [가정]
  */
 export const RESERVED_EXTENSION_NAMES: readonly string[] = [
@@ -711,9 +724,22 @@ export function validateComposition(
 function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   const issues: ManifestIssue[] = [];
 
-  if (manifest.trust?.level !== "builtin" && RESERVED_EXTENSION_NAMES.includes(manifest.name)) {
+  const reservedPrefix = RESERVED_EXTENSION_NAME_PREFIXES.find((prefix) =>
+    manifest.name.startsWith(prefix),
+  );
+  if (
+    manifest.trust?.level !== "builtin" &&
+    (RESERVED_EXTENSION_NAMES.includes(manifest.name) || reservedPrefix !== undefined)
+  ) {
     issues.push(
-      issue("error", "name_reserved", "/name", `extension name "${manifest.name}" is reserved`),
+      issue(
+        "error",
+        "name_reserved",
+        "/name",
+        reservedPrefix === undefined
+          ? `extension name "${manifest.name}" is reserved`
+          : `extension name "${manifest.name}" starts with "${reservedPrefix}", a prefix the host reserves for its own units`,
+      ),
     );
   } else if (isReservedSourceKey(manifest.name)) {
     // 입력 출처 키는 신뢰 등급과 무관하게 모든 확장에 금지한다(U-13). 외부 확장의 이름 예약과 겹치면 한 번만 알린다

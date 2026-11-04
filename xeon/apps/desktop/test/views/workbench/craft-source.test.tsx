@@ -417,6 +417,8 @@ describe("useCraftSource: 스토어와 명령에서 원천을 만든다", () => 
     reenable: noop,
     keepOff: noop,
     remove: refuse,
+    hookKeepOff: refuse,
+    hookKeepOn: refuse,
     applyProfile: refuse,
   };
 

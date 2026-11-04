@@ -8,6 +8,7 @@ import { CraftBody } from "../craft/craft-screen.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
 import { useCraftSource } from "./craft-source.ts";
 import { AutoOffActionsContext, ListStatusBand, useToggleRequest } from "./craft-parts.tsx";
+import { HookAnswersContext } from "./hook-notice.tsx";
 
 export function CraftScreen(): ReactNode {
   const controller = useWorkbenchController();
@@ -26,14 +27,23 @@ export function CraftScreen(): ReactNode {
     }),
     [controller],
   );
+  const hookAnswers = useMemo(
+    () => ({
+      keepOn: (hook: string) => controller.hookKeepOn(hook),
+      keepOff: (hook: string) => controller.hookKeepOff(hook),
+    }),
+    [controller],
+  );
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ListStatusBand controller={controller} />
       {ready && (
         <AutoOffActionsContext value={answers}>
-          <CraftProvider source={source}>
-            <CraftBody />
-          </CraftProvider>
+          <HookAnswersContext value={hookAnswers}>
+            <CraftProvider source={source}>
+              <CraftBody />
+            </CraftProvider>
+          </HookAnswersContext>
         </AutoOffActionsContext>
       )}
       {toggle.dialog}

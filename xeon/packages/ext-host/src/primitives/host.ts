@@ -20,6 +20,7 @@ import type {
   TrustRequest,
   Unsubscribe,
 } from "@fresnel/contracts/extensions";
+import { isHookUnitName } from "../operations/hooks/names.ts";
 import {
   createTraceBuffer,
   DEFAULT_TRACE_SETTINGS,
@@ -548,9 +549,10 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   const bindings = createCapabilityBindings(bridge, report, () =>
     deps.settings.capabilityProviders(),
   );
-  // 계측 링 버퍼는 호스트마다 하나다. 설정이 없으면 기본값(켬)을 쓴다
+  // 계측 링 버퍼는 호스트마다 하나다. 설정이 없으면 기본값(켬)을 쓴다. 외부 훅 단위의 행은 숨기고 훅마다 `hook:<id>` 행을 실행기가 넣는다
   const traceBuffer = createTraceBuffer({
     settings: deps.trace ?? (() => DEFAULT_TRACE_SETTINGS),
+    hidden: isHookUnitName,
   });
   // Test run 단계 경계 멈춤(X-19). 멈춤 상태와 Test run 표지는 호스트마다 하나다
   const stepPause = createStepPause();

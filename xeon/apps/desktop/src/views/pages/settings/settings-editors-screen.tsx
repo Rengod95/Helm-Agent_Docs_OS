@@ -3,6 +3,7 @@ import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { PolicyRule } from "@fresnel/contracts/services";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../../commands.ts";
+import { HookDefsEditor } from "./settings-hook-defs.tsx";
 import type { DedicatedEditorProps, DedicatedEditors } from "./settings-field.tsx";
 import {
   checkId,
@@ -284,5 +285,6 @@ export const SETTINGS_EDITORS: DedicatedEditors = {
   permissionRules: PermissionRulesEditor,
   sandboxLists: SandboxListEditor,
   secretRef: SecretRefEditor,
+  hookDefs: HookDefsEditor,
   table: TableEditor,
 };

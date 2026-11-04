@@ -46,6 +46,10 @@ export interface WorkbenchController {
   keepOff(name: string): Promise<void>;
   /** 설치본을 지운다(`ext.remove`). 성공하면 토스트로 적용 시점을 알리고 목록을 다시 읽는다. 지웠으면 true */
   remove(name: string): Promise<boolean>;
+  /** 외부 훅 "끄기" 답(`hooks.disableConfirm`). 성공하면 목록을 다시 읽고 true, 실패하면 false(알림이 한 줄 오류와 "다시 시도"를 보인다) */
+  hookKeepOff(hook: string): Promise<boolean>;
+  /** 외부 훅 "켜 두기"와 "다시 켜기" 답(`hooks.reenable`). 결과는 `hookKeepOff`와 같다 */
+  hookKeepOn(hook: string): Promise<boolean>;
   /** 프로필을 이 대화에 쓴다. 성공은 쓴 설정 수와 적용 시점을, 실패는 실패 갈래를 토스트로 알린다 */
   applyProfile(id: string, threadId: ThreadId): Promise<boolean>;
 }
@@ -62,6 +66,8 @@ export function useWorkbenchController(): WorkbenchController {
       commands.workbench.hooks(),
       commands.workbench.orderGet(),
     ]);
+    // 훅 질문과 꺼짐은 순서와 따로 읽은 값이라 `hooks.list`만 성공해도 반영한다
+    if (hooks.ok) actions.hookNoticesLoaded(hooks.value);
     if (hooks.ok && applied.ok) {
       actions.ordersLoaded(orderTableOf(hooks.value, applied.value.hooks));
     }
@@ -165,6 +171,23 @@ export function useWorkbenchController(): WorkbenchController {
     },
     [actions, commands, reload],
   );
+  const hookAnswer = useCallback(
+    async (call: Promise<{ readonly ok: boolean }>): Promise<boolean> => {
+      const done = await call;
+      if (!done.ok) return false;
+      await reloadOrders();
+      return true;
+    },
+    [reloadOrders],
+  );
+  const hookKeepOff = useCallback(
+    (hook: string): Promise<boolean> => hookAnswer(commands.workbench.hookKeepOff(hook)),
+    [commands, hookAnswer],
+  );
+  const hookKeepOn = useCallback(
+    (hook: string): Promise<boolean> => hookAnswer(commands.workbench.hookReenable(hook)),
+    [commands, hookAnswer],
+  );
 
   // 화면을 열 때와 엔진이 (다시) 살아날 때 읽는다
   useEffect(() => {
@@ -197,7 +220,27 @@ export function useWorkbenchController(): WorkbenchController {
 
   // 원천이 identity로 다시 그릴지 정하므로 같은 객체를 돌려준다
   return useMemo(
-    () => ({ reload, reloadOrders, toggle, reenable, keepOff, remove, applyProfile }),
-    [reload, reloadOrders, toggle, reenable, keepOff, remove, applyProfile],
+    () => ({
+      reload,
+      reloadOrders,
+      toggle,
+      reenable,
+      keepOff,
+      hookKeepOff,
+      hookKeepOn,
+      remove,
+      applyProfile,
+    }),
+    [
+      reload,
+      reloadOrders,
+      toggle,
+      reenable,
+      keepOff,
+      hookKeepOff,
+      hookKeepOn,
+      remove,
+      applyProfile,
+    ],
   );
 }

@@ -9,6 +9,7 @@ import {
   createOperationsPolicy,
   createRegistrationControl,
   createStaticOperationsSettings,
+  type OperationsDeps,
   type OperationsNotifier,
   type ReservedNames,
   type OperationsPolicy,
@@ -44,6 +45,8 @@ export interface HarnessOptions {
   readonly host?: Omit<TestHostOptions, "timers" | "policy" | "setupBudget">;
   readonly guardStatements?: boolean;
   readonly reservedNames?: ReservedNames;
+  /** 외부 훅 실행기를 정책의 hooks 자리에 연결한다 */
+  readonly hooks?: OperationsDeps["hooks"];
 }
 
 /** 정책이 ExtHost보다 먼저 만들어지므로 RegistrationControl·포트를 늦게 연결한다(조립 순서, X.operations.spec §3.8) */
@@ -92,6 +95,7 @@ export async function createOperationsHarness(
     notifier,
     ports,
     canAsk: () => true,
+    ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
     ...(options.guardStatements === undefined ? {} : { guardStatements: options.guardStatements }),
     ...(options.reservedNames === undefined ? {} : { reservedNames: options.reservedNames }),
   });

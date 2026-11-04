@@ -673,8 +673,9 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 샌드박스 경로·도메인 목록 | permissions | 쓰기 경로, 차단 도메인(`L0.sandbox.spec`. 네트워크 기본 허용 + 차단 목록, [결정: review.m3-design-inputs D-M3-18]) | 차단 우선 표시, 경로 형식 검사 |
 | 검색 도구 순서 | tools | 자동 선택 순서(`L2.web.spec`) | 등록된 검색 도구 목록(기본 웹 검색 도구 포함)을 끌어 옮겨 순서를 정한다. 플러그인은 기본 후순위다 [결정: review.m3-design-inputs D-M3-23]. 끌어 옮긴 결과는 `@fresnel/client/web`의 `orderUpdateOf`가 `settings.set` 값으로 바꾼다(§4.11) |
 | 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`). API 키 계정과 구독 계정 모두. 회전은 기본 꺼짐이고 켤 때 첫 사용 고지(약관 위험)를 보인다 [결정: review.m3-design-inputs D-M3-22] | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
+| 외부 훅 표 | plugins | 외부 훅 정의 `x.operations.hookDefs`(`X.operations.spec` §4.7) [제안: 2026-11-04 hookrun] | 명령 실행 경고를 늘 보임(DP-58), 훅 한 줄마다 아이디·훅·명령 요약, 명령은 한 줄에 인자 하나, 새 훅과 고친 훅은 명령을 보여 주는 확인을 거쳐야 초안에 들어감(지우기는 확인 없음) |
 
-- 구현 상태(P-09): 권한 규칙(`l1.tools.rules`), 샌드박스 목록 두 개(`l0.sandbox.writeRoots.extra`, `l0.sandbox.network.blockedDomains`), 시크릿 참조는 `pages/settings/settings-editors-screen.tsx`의 전용 편집기로 그린다. 표(`table`의 세 모양)는 같은 파일의 표 편집기로 그린다(§4.2.1). 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11(`pages/providers`)이, 검색 순서는 P-12 패널이 맡는다. 위의 세 키는 키 이름 목록에 더했다. 값은 모두 `settings.set` 한 번으로 키 하나를 통째로 쓴다. 상세는 L4.desktop-ux §6.13.
+- 구현 상태(P-09): 권한 규칙(`l1.tools.rules`), 샌드박스 목록 두 개(`l0.sandbox.writeRoots.extra`, `l0.sandbox.network.blockedDomains`), 외부 훅 표(`x.operations.hookDefs`, `pages/settings/settings-hook-defs.tsx`), 시크릿 참조는 `pages/settings/settings-editors-screen.tsx`의 전용 편집기로 그린다. 표(`table`의 세 모양)는 같은 파일의 표 편집기로 그린다(§4.2.1). 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11(`pages/providers`)이, 검색 순서는 P-12 패널이 맡는다. 위의 세 키는 키 이름 목록에 더했다. 값은 모두 `settings.set` 한 번으로 키 하나를 통째로 쓴다. 상세는 L4.desktop-ux §6.13.
 - 전용 편집기를 고르는 기준은 키 이름이다(예: 정의 키가 정해진 목록에 있음). [미결] 키 이름에 묶는 대신 F `SettingUi`에 편집기 힌트 필드를 더할지(§10 미결 8).
 
 ### 4.3 항목 공통 표시

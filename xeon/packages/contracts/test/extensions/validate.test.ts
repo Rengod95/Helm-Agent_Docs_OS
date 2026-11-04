@@ -165,6 +165,28 @@ describe("validateManifest rules", () => {
     expect(validateManifest(builtin).issues).toEqual([]);
   });
 
+  test("the host's hook unit prefix is reserved for external extensions, built-in ones are exempt", () => {
+    const refused = validateManifest(pluginJson({ name: "fresnel-hooks-x" }));
+    expect(refused.manifest).toBeUndefined();
+    expect(refused.issues).toEqual([
+      {
+        severity: "error",
+        code: "name_reserved",
+        path: "/name",
+        message:
+          'extension name "fresnel-hooks-x" starts with "fresnel-hooks-", a prefix the host reserves for its own units',
+      },
+    ]);
+    expect(codesOf(validateManifest(pluginJson({ name: "fresnel-hooks-user" })).issues)).toEqual([
+      "name_reserved",
+    ]);
+    expect(
+      validateManifest(pluginJson({ name: "fresnel-hooks-x", trust: { level: "builtin" } })).issues,
+    ).toEqual([]);
+    // 접두가 아니면 막지 않는다
+    expect(validateManifest(pluginJson({ name: "fresnel-hook" })).issues).toEqual([]);
+  });
+
   test("input source keys are reserved for every trust level (U-13)", () => {
     for (const name of RESERVED_SOURCE_KEYS) {
       expect(codesOf(validateManifest(pluginJson({ name })).issues)).toEqual(["name_reserved"]);

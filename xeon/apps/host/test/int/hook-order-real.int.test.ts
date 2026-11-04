@@ -142,6 +142,7 @@ async function turnOrder(
     () => connection.request("trace.turn", { threadId, turnId: started.turnId }),
     (value) => settleOrdersOf(value).length > 0,
   );
+  // 외부 훅 단위(fresnel-hooks-*)의 행은 계측에 나오지 않는다(X.operations §4.8.2). 그래서 이 목록은 확장끼리의 순서만 든다
   return settleOrdersOf(trace)[0] ?? [];
 }
 

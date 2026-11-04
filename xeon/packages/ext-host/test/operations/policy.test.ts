@@ -17,7 +17,7 @@ test("settings: x.operations keys pass catalog", () => {
   const defs = Object.values(operationsSettings.defs);
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.operations", defs }]);
   expect(catalog.ok).toBe(true);
-  expect(defs).toHaveLength(18);
+  expect(defs).toHaveLength(22);
   // 훅 순서는 저장소 설정이 바꾸지 못한다(managed·user만)
   expect(operationsSettings.defs.hookOrder).toMatchObject({
     key: "x.operations.hookOrder",
@@ -25,10 +25,18 @@ test("settings: x.operations keys pass catalog", () => {
     allowedScopes: ["managed", "user"],
     default: {},
   });
+  // 꺼진 외부 훅 id는 재시작 뒤에도 남는다(user 파일). 저장소 설정이 바꾸지 못한다
+  expect(operationsSettings.defs.hookDisabled).toMatchObject({
+    key: "x.operations.hookDisabled",
+    runtimeChange: "live",
+    allowedScopes: ["managed", "user"],
+    default: [],
+  });
   for (const def of defs) {
     expect(def.layer).toBe("X");
     // 저장소에 든 설정이 예산·자동 끄기를 바꾸지 못한다
-    expect(def.allowedScopes).not.toContain("project");
+    // 예외: 외부 훅 정의는 작업 폴더 설정에도 적는다(신뢰된 폴더에서만 실행, X.operations.spec §4.7.6)
+    if (def.key !== "x.operations.hookDefs") expect(def.allowedScopes).not.toContain("project");
     expect(def.secret).toBeUndefined();
   }
   expect(operationsSettings.defs["budget.setupMs"].runtimeChange).toBe("restart");

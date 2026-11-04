@@ -17,8 +17,8 @@ function isClosed(point: FirstHookName): point is ClosedFirstHookName {
   return HOOKS[point].failure === "closed";
 }
 
-/** 결정이 요청을 막는가. 거부 결정(`FIRST_DENY`)의 모양과 같은 값만 센다: `block`·`cancel`이 참, `type`이 deny, `trusted`가 no */
-function isBlocking(decision: unknown): boolean {
+/** 결정이 요청을 막는가. 거부 결정(`FIRST_DENY`)의 모양과 같은 값만 센다: `block`·`cancel`이 참, `type`이 deny, `trusted`가 no. 외부 훅 실행기의 계측 결과(`blocked`)도 이 기준을 쓴다 */
+export function isBlocking(decision: unknown): boolean {
   if (typeof decision !== "object" || decision === null) return false;
   return (
     ("block" in decision && decision.block === true) ||

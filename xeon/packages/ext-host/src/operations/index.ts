@@ -35,6 +35,8 @@ import {
   fromMethodSettled,
   type FailureLedger,
 } from "./failure.ts";
+import { HOOK_SOURCE_TIER, HOOK_SOURCES } from "./hooks/config.ts";
+import { hookUnitName, isHookUnitName } from "./hooks/names.ts";
 import { createHookOrderState, type HookOrderState } from "./hook-order.ts";
 import { createResourcePolicy, NO_RESERVED_NAMES, type ReservedNames } from "./naming.ts";
 import type { OperationsSettingsSource } from "./settings-keys.ts";
@@ -163,6 +165,8 @@ export {
 } from "./storage/tables.ts";
 export { checkStatement } from "./storage/guard.ts";
 
+export * from "./hooks/index.ts";
+
 export interface OperationsDeps {
   readonly now: () => number;
   readonly setTimer: (ms: number, fn: () => void) => () => void;
@@ -234,6 +238,8 @@ const NOOP_HOOKS = { disable: () => {}, enable: () => {} };
 
 export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
   const tiers = createTierTable();
+  // 외부 훅 단위의 tier는 훅이 적힌 범위가 정한다(X.operations.spec §4.7.6)
+  for (const source of HOOK_SOURCES) tiers.set(hookUnitName(source), HOOK_SOURCE_TIER[source]);
   const essentials = new Set<ExtensionName>();
   const budgetOf = budgetMsFrom(() => deps.settings.budgets());
   const budgetDeps: BudgetDeps = { now: deps.now, setTimer: deps.setTimer };
@@ -270,18 +276,22 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
 
   return {
     tierOf: tierOfFrom(tiers),
-    budgetMs: budgetOf,
+    // 외부 훅 단위는 훅마다 자기 예산을 쓴다(실행기가 건다). 단위 핸들러에는 바깥 예산을 걸지 않는다
+    budgetMs: (entry) => (isHookUnitName(entry.extension) ? null : budgetOf(entry)),
     handlerOrder: (point) => hookOrder.applied(point),
     onStepBoundary() {
       hookOrder.applyPending();
     },
     hookOrder,
     onHandlerFailure(failure: HandlerFailure) {
+      // 외부 훅의 실패는 실행기가 `hook:<id>`로 직접 장부에 넣는다
+      if (isHookUnitName(failure.handler.extension)) return;
       autoDisabler.onOutcome(
         fromHandlerFailure(failure, tierFor(failure.handler.extension), deps.now()),
       );
     },
     onHandlerSettled(entry, activeMs) {
+      if (isHookUnitName(entry.extension)) return;
       autoDisabler.onOutcome({
         owner: { type: "extension", name: entry.extension, scopeId: entry.scopeId },
         tier: tierFor(entry.extension),

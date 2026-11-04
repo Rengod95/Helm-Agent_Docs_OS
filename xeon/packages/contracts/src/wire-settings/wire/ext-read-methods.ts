@@ -26,6 +26,8 @@ export interface ExtReadSchemas {
   "group.promotion": Io<U<Req<r.GroupPromotionParams>>, U<r.GroupPromotionResult>>;
   "group.driveLock": Io<U<Req<r.GroupDriveLockParams>>, U<r.GroupDriveLockResult>>;
   "hooks.list": Io<U<NoParams>, U<r.HooksListResult>>;
+  "hooks.disableConfirm": Io<U<Req<r.HookNameParams>>, U<r.ExtAppliedResult>>;
+  "hooks.reenable": Io<U<Req<r.HookNameParams>>, U<r.ExtAppliedResult>>;
   "hooks.order.get": Io<U<NoParams>, U<r.HooksOrderGetResult>>;
   "hooks.order.set": Io<U<Req<r.HooksOrderSetParams>>, U<r.HooksOrderSetResult>>;
   "hooks.order.reset": Io<U<Req<r.HooksOrderResetParams>>, U<r.HooksOrderResetResult>>;
@@ -59,6 +61,8 @@ export const EXT_READ_METHODS: Table = {
   "group.promotion": m4(r.GroupPromotionParamsSchema, r.GroupPromotionResultSchema),
   "group.driveLock": m4(r.GroupDriveLockParamsSchema, r.GroupDriveLockResultSchema),
   "hooks.list": m4(NoParamsSchema, r.HooksListResultSchema),
+  "hooks.disableConfirm": m4(r.HookNameParamsSchema, r.ExtAppliedResultSchema),
+  "hooks.reenable": m4(r.HookNameParamsSchema, r.ExtAppliedResultSchema),
   "hooks.order.get": m4(NoParamsSchema, r.HooksOrderGetResultSchema),
   "hooks.order.set": m4(r.HooksOrderSetParamsSchema, r.HooksOrderSetResultSchema),
   "hooks.order.reset": m4(r.HooksOrderResetParamsSchema, r.HooksOrderResetResultSchema),

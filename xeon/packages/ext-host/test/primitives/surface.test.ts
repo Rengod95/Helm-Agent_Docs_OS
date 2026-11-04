@@ -14,6 +14,19 @@ const ADDITIONS: ReadonlySet<string> = new Set([
   "AdmitInfo",
   "LoaderSettingsSource",
   "ExtDiagnostic", // §3.2에 정의되어 있으나 §3.1 표에는 빠져 있다
+  // 외부 훅 실행기(X.operations.spec §3.7, §4.7): 조립 루트가 연결한다
+  "createHookRunner",
+  "HOOK_SOURCES",
+  "hookUnitName",
+  "isHookUnitName",
+  "mergeHookDefs",
+  "startupFilter",
+  "HookDef",
+  "HookRunner",
+  "HookRunnerDeps",
+  "HookSource",
+  "LoadedHook",
+  "MergedHooks",
 ]);
 
 /** 이번 마일스톤(M0·M1)에 있어야 하는 값 이름 */

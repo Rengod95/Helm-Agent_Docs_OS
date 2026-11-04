@@ -216,6 +216,36 @@ describe("M4 ext read methods", () => {
     });
   });
 
+  test("hooks.disableConfirm and hooks.reenable take a hook and answer with the applied result", () => {
+    for (const method of ["hooks.disableConfirm", "hooks.reenable"] as const) {
+      expect(parse(WIRE_METHODS[method].params, { hook: "no-rm-rf" }).ok).toBe(true);
+      expect(parse(WIRE_METHODS[method].params, {}).ok).toBe(false);
+      expect(parse(WIRE_METHODS[method].params, { hook: "no-rm-rf", x: 1 }).ok).toBe(false);
+      roundTrip(WIRE_METHODS[method].result, { appliesAt: "nextStepBoundary", diagnostics: [] });
+    }
+  });
+
+  test("hooks.list carries the disable question and the off state of a hook", () => {
+    const row = {
+      hook: "no-rm-rf",
+      fold: "first",
+      handlers: 1,
+      registrations: ["no-rm-rf"],
+      external: true,
+    };
+    roundTrip(WIRE_METHODS["hooks.list"].result, {
+      hooks: [
+        { ...row, keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 } },
+        { ...row, autoDisabled: true },
+      ],
+    });
+    expect(
+      parse(WIRE_METHODS["hooks.list"].result, {
+        hooks: [{ ...row, keepOffQuestion: { rule: "other", consecutive: 5, windowFailures: 5 } }],
+      }).ok,
+    ).toBe(false);
+  });
+
   test("ext.list carries the disable question while the extension is still on and rejects other shapes", () => {
     roundTrip(WIRE_METHODS["ext.list"].result, {
       extensions: [

@@ -205,3 +205,10 @@ describe("settingOf fixture", () => {
     );
   });
 });
+
+describe("dedicatedEditorOf for external hooks", () => {
+  test("x.operations.hookDefs gets the external hook editor by key, not the plain table", () => {
+    const field = fieldWith("x.operations.hookDefs", "plugins", "table", ROWS);
+    expect(dedicatedEditorOf(field)).toBe("hookDefs");
+  });
+});

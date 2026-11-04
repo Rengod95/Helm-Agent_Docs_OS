@@ -41,6 +41,7 @@ import type {
 import {
   checkOrder,
   hookOrderValue,
+  isHookUnitName,
   previewOrder,
   TIERS,
   type GuardRiskNote,
@@ -109,8 +110,21 @@ interface HookOrderSource {
   pending(): boolean;
 }
 
+/** 설정 `x.operations.hookDefs`에서 읽은 외부 훅 하나(X.operations §4.7). 화면에 실제 id로 보인다 */
+export interface ExternalHookView {
+  readonly id: string;
+  readonly point: HookName;
+  readonly source: string;
+  /** 정렬 순위(`TIERS`의 인덱스) */
+  readonly tierRank: number;
+  /** 실행하는 내장 단위의 Registration id */
+  readonly unit: string;
+}
+
 export interface ExtReadSources {
   safeMode(): SafeModeState;
+  /** 이 호스트에서 읽히는 외부 훅. 작업 폴더·로컬 범위는 thread 없이는 보이지 않는다 */
+  externalHooks(): readonly ExternalHookView[];
   /** Hook의 예산 등급과 유효 예산(ms). X.operations §4.2.2 표와 설정 `x.operations.budget.*`의 값 */
   budget(hook: HookName): { readonly budgetClass: string; readonly budgetMs: number };
   threadKnown(threadId: string, signal: AbortSignal): Promise<boolean>;
@@ -131,6 +145,18 @@ export interface ExtReadSources {
   reenable(name: string): void;
   /** "끄기" 답. `AutoDisabler.answer(ext:<이름>, true)`가 auto_disable로 끈다 */
   disableConfirm(name: string): void;
+  /** 외부 훅(`hook:<id>`)의 "끌까요" 질문. 묻는 중이 아니면 null */
+  hookKeepOffQuestion(hook: string): NonNullable<HookEntry["keepOffQuestion"]> | null;
+  /** 외부 훅이 이번 실행에서 자동으로 꺼졌나 */
+  hookAutoDisabled(hook: string): boolean;
+  /** 이번 실행에서 자동으로 꺼진 외부 훅 id들 */
+  hookAutoDisabledIds(): readonly string[];
+  /** 설정 `x.operations.hookDisabled`에 저장된 꺼진 훅 id들 */
+  hookDisabledSaved(): readonly string[];
+  /** 훅 "켜 두기" 답. 질문이 있으면 `answer(hook:<id>, false)`, 없으면 `reenable(hook:<id>)`다 */
+  hookReenable(hook: string): void;
+  /** 훅 "끄기" 답. `AutoDisabler.answer(hook:<id>, true)`다 */
+  hookDisableConfirm(hook: string): void;
   /**
    * 로더 핫 리로드(X.loading-trust §4.4.4). 새 버전을 검사하고 단계 경계에서 바꾼다. 열린 thread가 실행 중이 아니면 이 호출이 돌아올 때 적용이 끝나 있다(`now`)
    * 실행 중인 turn이 있으면 그 step이 끝난 경계에 적용한다(`nextStepBoundary`). 검사 실패와 `now`일 때의 적용 실패는 진단으로 돌려준다
@@ -199,6 +225,13 @@ export const EMPTY_EXT_READ_SOURCES: ExtReadSources = {
   keepOffQuestion: () => null,
   reenable: () => {},
   disableConfirm: () => {},
+  hookKeepOffQuestion: () => null,
+  hookAutoDisabled: () => false,
+  hookAutoDisabledIds: () => [],
+  hookDisabledSaved: () => [],
+  hookReenable: () => {},
+  hookDisableConfirm: () => {},
+  externalHooks: () => [],
   reload: () => Promise.resolve({ appliesAt: "nextStepBoundary", diagnostics: [] }),
   groups: () => [],
   groupMetrics: () => Promise.resolve(undefined),
@@ -228,6 +261,9 @@ interface HookOrderEnv {
 
 /** 순서 덮어쓰기를 저장하는 설정 키. 범위는 `user`다(X.operations §4.1.5) */
 const HOOK_ORDER_KEY = "x.operations.hookOrder";
+
+/** 꺼진 외부 훅 id를 저장하는 설정 키. 범위는 `user`이고 재시작 뒤에도 꺼진 채다(결정 2026-11-04 사용자) */
+const HOOK_DISABLED_KEY = "x.operations.hookDisabled";
 
 /** 같은 순서인가(둘 다 같은 자리에 같은 Registration id) */
 function sameOrder(a: readonly string[], b: readonly string[]): boolean {
@@ -293,6 +329,25 @@ function isHookName(name: string): name is HookName {
   return Object.hasOwn(HOOKS, name);
 }
 
+/**
+ * 순서에 외부 훅 단위 이름(`fresnel-hooks-<범위>`)이 들었는지 본다. 읽기 원천은 단위 행을 숨기므로(X.operations §4.7.4)
+ * 저장하면 화면에 안 보이는 채 범위 블록이 옮겨진다. 그래서 `set`과 `preview`는 거절한다. 같은 이름은 처음 자리만 적는다
+ */
+function hookUnitIn(order: readonly string[]): ExtReadResult<never> | undefined {
+  const seen = new Set<string>();
+  const issues = order.flatMap((id, index) => {
+    if (!isHookUnitName(id) || seen.has(id)) return [];
+    seen.add(id);
+    return [
+      {
+        path: `/order/${index}`,
+        message: `hook_unit: ${id} is a host hook unit and cannot be ordered`,
+      },
+    ];
+  });
+  return issues.length === 0 ? undefined : err({ kind: "hook_unit_in_order", issues });
+}
+
 function unknownExtension(name: string): ExtReadResult<never> {
   return err({ kind: "unknown_extension", name });
 }
@@ -351,6 +406,32 @@ export function createExtReadPort(
     return map.size === 0
       ? deps.env.settings.reset("user", HOOK_ORDER_KEY, undefined)
       : deps.env.settings.write("user", HOOK_ORDER_KEY, hookOrderValue(map), undefined);
+  }
+
+  /** 훅의 "끌까요" 질문과 꺼짐 표시. 해당하지 않는 필드는 싣지 않는다 */
+  function hookStateOf(hook: string): Pick<HookEntry, "keepOffQuestion" | "autoDisabled"> {
+    const question = sources.hookKeepOffQuestion(hook);
+    const off = sources.hookAutoDisabled(hook) || sources.hookDisabledSaved().includes(hook);
+    return {
+      ...(question === null ? {} : { keepOffQuestion: question }),
+      ...(off ? { autoDisabled: true } : {}),
+    };
+  }
+
+  /** 꺼진 훅 id 목록을 설정 값으로 쓴다. 비면 설정을 지워 기본값(`[]`)으로 돌린다 */
+  function writeHookDisabled(ids: readonly string[]): Promise<Result<void, ProfileWriteFailure>> {
+    return ids.length === 0
+      ? deps.env.settings.reset("user", HOOK_DISABLED_KEY, undefined)
+      : deps.env.settings.write("user", HOOK_DISABLED_KEY, [...ids], undefined);
+  }
+
+  /** 질문이 있거나 꺼져 있거나 꺼짐이 저장된 훅인가. 아니면 답할 대상이 없다 */
+  function hookKnown(hook: string): boolean {
+    return (
+      sources.hookKeepOffQuestion(hook) !== null ||
+      sources.hookAutoDisabled(hook) ||
+      sources.hookDisabledSaved().includes(hook)
+    );
   }
 
   /** 묻는 중이면 `keepOffQuestion` 필드를 더한다. 아니면 필드를 싣지 않는다 */
@@ -574,6 +655,37 @@ export function createExtReadPort(
       return Promise.resolve(ok({ appliesAt: "nextStepBoundary", diagnostics: [] }));
     },
 
+    async hookDisableConfirm(params) {
+      if (sources.safeMode().active) return err({ kind: "safe_mode_active" });
+      const hook = params.hook;
+      if (!hookKnown(hook)) return err({ kind: "unknown_hook", hook });
+      // 먼저 꺼짐을 설정에 쓴다. 쓰기가 실패하면 끄기를 요청하지 않는다(재시작 뒤에도 꺼진 채여야 한다)
+      const saved = sources.hookDisabledSaved();
+      if (!saved.includes(hook)) {
+        const written = await writeHookDisabled([...saved, hook].toSorted(byText));
+        if (!written.ok) {
+          return err({ kind: "write_failed", key: HOOK_DISABLED_KEY, failure: written.error });
+        }
+      }
+      sources.hookDisableConfirm(hook);
+      return ok({ appliesAt: "nextStepBoundary", diagnostics: [] });
+    },
+
+    async hookReenable(params) {
+      if (sources.safeMode().active) return err({ kind: "safe_mode_active" });
+      const hook = params.hook;
+      if (!hookKnown(hook)) return err({ kind: "unknown_hook", hook });
+      const saved = sources.hookDisabledSaved();
+      if (saved.includes(hook)) {
+        const written = await writeHookDisabled(saved.filter((id) => id !== hook));
+        if (!written.ok) {
+          return err({ kind: "write_failed", key: HOOK_DISABLED_KEY, failure: written.error });
+        }
+      }
+      sources.hookReenable(hook);
+      return ok({ appliesAt: "nextStepBoundary", diagnostics: [] });
+    },
+
     async reload(params, signal) {
       if (sources.safeMode().active) return err({ kind: "safe_mode_active" });
       if (findRecord(params.name) === undefined) return unknownExtension(params.name);
@@ -692,6 +804,20 @@ export function createExtReadPort(
         rows.push(rowOf(handler.registrationId, handler.extension, handler.tier));
         live.set(handler.point, rows);
       }
+      // 외부 훅은 실행하는 단위의 자리에 훅 id로 끼운다: 디스패치와 같이 tier 순위 순이고 같은 순위에서는 확장 뒤에 이어 붙는다(X.operations §4.7.4)
+      const external = sources.externalHooks();
+      const disabledIds = new Set(sources.hookDisabledSaved());
+      for (const hook of external) {
+        const rows = live.get(hook.point) ?? [];
+        const at = rows.findIndex((row) => (row.tier ?? Number.MAX_SAFE_INTEGER) > hook.tierRank);
+        const row = {
+          ...rowOf(hook.id, hook.unit, hook.tierRank),
+          status:
+            disabledIds.has(hook.id) || sources.hookAutoDisabled(hook.id) ? "disabled" : "enabled",
+        } satisfies HookHandlerRow;
+        rows.splice(at === -1 ? rows.length : at, 0, row);
+        live.set(hook.point, rows);
+      }
       // 레지스트리에서 빠진 Registration(꺼졌거나 setup에 실패함)은 선언한 Hook을 뒤에 붙인다. Registration이 없는 확장은 없다
       const idle = new Map<HookName, HookHandlerRow[]>();
       for (const record of sources.extensions()) {
@@ -718,6 +844,38 @@ export function createExtReadPort(
           ),
         ];
         rows.push(hookRow(hook, order));
+      }
+      // 외부 훅 줄: `hook`이 훅 id다. 질문과 꺼짐 표시는 여기에 붙는다(실패 장부 키 `hook:<id>`와 같은 값)
+      const listed = new Set<string>();
+      for (const hook of external) {
+        listed.add(hook.id);
+        const off =
+          sources.hookDisabledSaved().includes(hook.id) || sources.hookAutoDisabled(hook.id);
+        rows.push({
+          hook: hook.id,
+          fold: HOOKS[hook.point].fold,
+          handlers: off ? 0 : 1,
+          registrations: off ? [] : [hook.id],
+          external: true,
+          point: hook.point,
+          source: hook.source,
+          ...hookStateOf(hook.id),
+        });
+      }
+      // 정의가 지금 보이지 않는 훅(다른 작업 폴더의 훅 등)도 질문이나 꺼짐이 있으면 줄을 남긴다
+      for (const id of new Set([
+        ...sources.hookDisabledSaved(),
+        ...sources.hookAutoDisabledIds(),
+      ])) {
+        if (listed.has(id)) continue;
+        rows.push({
+          hook: id,
+          fold: "external",
+          handlers: 0,
+          registrations: [],
+          external: true,
+          ...hookStateOf(id),
+        });
       }
       return Promise.resolve(ok({ hooks: rows.toSorted((a, b) => (a.hook < b.hook ? -1 : 1)) }));
     },
@@ -762,6 +920,8 @@ export function createExtReadPort(
     async orderSet(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return err({ kind: "unknown_hook", hook });
+      const units = hookUnitIn(params.order);
+      if (units !== undefined) return units;
       const order = checkOrder(params.order);
       const next = new Map<HookName, readonly string[]>(sources.hookOrder().saved());
       if (order.length === 0) next.delete(hook);
@@ -793,6 +953,8 @@ export function createExtReadPort(
     orderPreview(params) {
       const hook = params.hook;
       if (!isHookName(hook)) return Promise.resolve(err({ kind: "unknown_hook", hook }));
+      const units = hookUnitIn(params.order);
+      if (units !== undefined) return Promise.resolve(units);
       const rows = defaultRowsOf(hook).map(previewRowOf);
       const preview = previewOrder(hook, params.order, rows);
       return Promise.resolve(ok(previewResultOf(preview)));

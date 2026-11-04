@@ -7,6 +7,7 @@ import {
   closeDetail,
   detailsLoaded,
   healthLoaded,
+  hookNoticesLoaded,
   INITIAL_WORKBENCH,
   listFailed,
   listLoaded,
@@ -26,7 +27,12 @@ import {
   type WorkbenchState,
   type WorkbenchView,
 } from "@fresnel/client/workbench";
-import type { ExtGetResult, ExtHealthEntry, ExtListEntry } from "@fresnel/contracts/wire";
+import type {
+  ExtGetResult,
+  ExtHealthEntry,
+  ExtListEntry,
+  HookEntry,
+} from "@fresnel/contracts/wire";
 import { createStore } from "zustand/vanilla";
 import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
 
@@ -48,6 +54,7 @@ export interface WorkbenchActions {
   detailsLoaded(name: string, result: ExtGetResult): void;
   healthLoaded(entries: readonly ExtHealthEntry[]): void;
   ordersLoaded(order: Readonly<Record<string, readonly string[]>>): void;
+  hookNoticesLoaded(hooks: readonly HookEntry[]): void;
   markPending(name: string, target: boolean): void;
   clearPending(name: string): void;
   requestBuilder(hook: string | null): void;
@@ -99,6 +106,7 @@ export function createWorkbenchStore(
     detailsLoaded: (name, result) => apply((s) => detailsLoaded(s, name, result)),
     healthLoaded: (entries) => apply((s) => healthLoaded(s, entries)),
     ordersLoaded: (order) => apply((s) => ordersLoaded(s, order)),
+    hookNoticesLoaded: (hooks) => apply((s) => hookNoticesLoaded(s, hooks)),
     markPending: (name, target) => apply((s) => markPending(s, name, target)),
     clearPending: (name) => apply((s) => clearPending(s, name)),
     requestBuilder: (hook) => apply((s) => requestBuilder(s, hook)),

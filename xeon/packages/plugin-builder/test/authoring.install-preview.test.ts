@@ -104,3 +104,22 @@ test("installExtension: a matching expectedSha256 installs, a changed folder is 
   expect(installed).toMatchObject({ ok: true, value: { name: "pv-hash", replaced: false } });
   expect(readdirSync(extensions)).toEqual(["pv-hash"]);
 });
+
+test("previewInstall and installExtension refuse a name with the host's hook unit prefix, give the reason, and write nothing", async () => {
+  const source = await packed("pv-hooks-look");
+  const manifestPath = join(source, ".fresnel-plugin", "plugin.json");
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  writeFileSync(manifestPath, JSON.stringify({ ...manifest, name: "fresnel-hooks-x" }, null, 2));
+  const extensions = root.path("pv-hooks-ext");
+  const refusal = {
+    ok: false,
+    error: {
+      kind: "invalid_input",
+      message:
+        'manifest is not valid: extension name "fresnel-hooks-x" starts with "fresnel-hooks-", a prefix the host reserves for its own units',
+    },
+  } as const;
+  expect(await previewInstall({ source }, { extensionsDir: extensions })).toEqual(refusal);
+  expect(await installExtension({ source }, { extensionsDir: extensions })).toEqual(refusal);
+  expect(existsSync(extensions)).toBe(false);
+});

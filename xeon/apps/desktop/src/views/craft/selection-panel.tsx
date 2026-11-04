@@ -16,10 +16,12 @@ import {
 import { X } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { extOf } from "@fresnel/client/workbench";
-import type { CanvasGroup, CanvasPlugin } from "@fresnel/client/workbench/canvas";
+import type { CanvasGroup, CanvasPlugin, Sel } from "@fresnel/client/workbench/canvas";
 import { isOn } from "@fresnel/client/workbench/canvas";
 import type { ReactNode } from "react";
 import { ExtNotice } from "../workbench/craft-parts.tsx";
+import { HookNoticeFor } from "../workbench/hook-notice.tsx";
+import { useWorkbench } from "../../state/workbench/index.ts";
 import { useCraft } from "./craft-context.tsx";
 import { groupOnCount } from "./orbit-model.ts";
 import { layerName } from "./orbit-names.ts";
@@ -41,7 +43,38 @@ export function SelectionPanel(): ReactNode {
     const group = source.snapshot.groups.find((g) => g.id === sel.id);
     return group === undefined ? null : <GroupBody group={group} />;
   }
+  // 훅 칩을 고르면(순서 보기) 그 훅의 질문이나 꺼짐을 보인다. 질문도 꺼짐도 없으면 패널을 열지 않는다
+  const hook = hookOf(sel);
+  if (hook !== null) return <HookBody hook={hook} />;
   return null;
+}
+
+/** 고른 것이 훅이면 그 이름: 훅 칸(`hook`)이나 순서 보기의 `hook:<이름>` 칸(`builtin`) */
+function hookOf(sel: Sel): string | null {
+  if (sel.k === "hook") return sel.id;
+  if (sel.k === "builtin" && sel.slot.startsWith("hook:")) return sel.slot.slice("hook:".length);
+  return null;
+}
+
+function HookBody({ hook }: { readonly hook: string }): ReactNode {
+  const { dispatch } = useCraft();
+  // 훅 이름 칩이면 그 훅에 걸린 외부 훅(id)의 알림을, 외부 훅 id 자체이면 그 알림을 보인다
+  const ids = useWorkbench((s) =>
+    s.hookNotices.filter((n) => n.hook === hook || n.point === hook).map((n) => n.hook),
+  );
+  if (ids.length === 0) return null;
+  return (
+    <Frame
+      mark={<Mark shape="diamond" size={22} group={false} on failing />}
+      title={hook}
+      onClose={() => dispatch({ t: "clear" })}
+      action={null}
+    >
+      {ids.map((id) => (
+        <HookNoticeFor key={id} hook={id} />
+      ))}
+    </Frame>
+  );
 }
 
 interface SwitchRowProps {

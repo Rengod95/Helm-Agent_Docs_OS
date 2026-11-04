@@ -616,13 +616,13 @@ export const WIRE_ERRORS: {
     retryable: false,
     details: Type.Object({ id: Type.String({ maxLength: 128 }) }, { additionalProperties: false }),
   },
-  /** 안전 모드라 확장을 다시 켜거나 다시 읽을 수 없다(`ext.reenable`·`ext.reload`). 안전 모드를 끄고 다시 시작해야 한다 */
+  /** 안전 모드라 확장이나 외부 훅을 다시 켜거나 다시 읽을 수 없다(`ext.reenable`·`ext.reload`·`hooks.disableConfirm`·`hooks.reenable`). 안전 모드를 끄고 다시 시작해야 한다 */
   "extension.safeModeActive": {
     code: 3403,
     kind: "extension.safeModeActive",
     retryable: false,
   },
-  /** 그런 이름의 훅이 없다(`hooks.order.set`·`hooks.order.reset`·`hooks.order.preview`). 코드 3404는 옛 `hooks.guardPinned`가 쓰던 자리라 비워 둔다 */
+  /** 그런 이름의 훅이 없다(`hooks.order.set`·`hooks.order.reset`·`hooks.order.preview`·`hooks.disableConfirm`·`hooks.reenable`). 코드 3404는 옛 `hooks.guardPinned`가 쓰던 자리라 비워 둔다 */
   "hooks.notFound": {
     code: 3405,
     kind: "hooks.notFound",

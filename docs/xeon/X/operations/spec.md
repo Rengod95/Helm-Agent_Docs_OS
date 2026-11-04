@@ -1004,8 +1004,8 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 적용 시점: 저장은 즉시이고 디스패처가 쓰는 값은 새 단계가 시작될 때 바뀐다(`boundary.turn.before`와 `boundary.step.before`의 디스패치 시작에서 `DispatchPolicy.onStepBoundary`). 한 단계 안에서는 순서가 바뀌지 않는다. `hooks.order.get`의 `applied`가 그 차이를 말한다. 적용 중인 값은 처음 읽을 때가 아니라 시작 때 정한다. 정책을 만들 때 원천을 한 번 읽고, 조립이 설정 파일을 읽은 뒤 `start`로 저장된 순서를 다시 든다. 그래서 재시작하면 저장된 순서가 첫 단계부터 적용되고, 시작 뒤에 저장한 순서는 `hooks.order.get`이나 디스패치가 한 번도 없었더라도 다음 단계 경계까지 보류다(`pending: true`).
 - 의미: 덮어쓰기에 이름이 있는 핸들러는, 기본 순서에서 그 핸들러들이 차지한 자리에 덮어쓰기 순서대로 놓인다. 이름이 없는 핸들러는 자리를 지킨다. 한 Registration이 한 훅에 핸들러를 여럿 걸었으면 Registration 단위로 하나의 이름이고 서로의 상대 순서를 지킨다. 지워졌거나, 안전 모드로 싣지 않았거나, 꺼진 핸들러의 이름은 무시한다(오류가 아니다).
 - 범위: 설정 키는 `managed`와 `user`만 받는다(`allowedScopes`). 저장소 파일(`project` 범위)의 같은 키는 무시되고 `project` 쓰기는 `settings.scopeNotAllowed`(3103)다. 그래서 저장소 파일의 내용은 guard의 위치를 바꿀 수 없다(`settings-sources.test.ts`, `settings-write.int.test.ts`). [결정: 2026-11-03 사용자]
-- 저장(`checkOrder`): 제안을 저장할 값으로 고친다. 중복을 빼고 제안의 첫 출현 순서를 지킨다. 거부하지 않는다. guard 핸들러를 옮기거나 그 위에 다른 핸들러를 두는 제안도 그대로 저장된다. 알 수 없는 id도 그대로 저장한다. 저장을 막는 검사는 없다. [결정: 2026-11-03 사용자]
-- 건너뜀 미리보기(`previewOrder`, wire `hooks.order.preview`): 제안한 순서에서 어떤 핸들러가 어느 앞선 핸들러 때문에 실행되지 않을 수 있는지를 저장 전에 읽을 수 있다. 저장을 막지 않는다. 결과의 `saveable`은 항상 참이다. [결정: 2026-11-03 사용자]
+- 저장(`checkOrder`): 제안을 저장할 값으로 고친다. 중복을 빼고 제안의 첫 출현 순서를 지킨다. 거부하지 않는다. guard 핸들러를 옮기거나 그 위에 다른 핸들러를 두는 제안도 그대로 저장된다. 알 수 없는 id도 그대로 저장한다. 저장을 막는 검사는 없다(외부 훅 단위 이름은 호스트 처리기가 거절한다, §4.7.4 [근거: apps/host/src/assembly/m4/ext-read-port.ts `hookUnitIn`]). [결정: 2026-11-03 사용자]
+- 건너뜀 미리보기(`previewOrder`, wire `hooks.order.preview`): 제안한 순서에서 어떤 핸들러가 어느 앞선 핸들러 때문에 실행되지 않을 수 있는지를 저장 전에 읽을 수 있다. 저장을 막지 않는다. 결과의 `saveable`은 항상 참이다. 다만 외부 훅 단위 이름이 든 제안은 읽기도 저장도 `jsonrpc.invalidParams`로 거절한다(§4.7.4) [결정: 2026-11-03 사용자; 단위 이름 거절은 제안]
 - guard 위험(`guardRisk`, 미리보기 결과의 별도 칸): guard 핸들러가 제안 때문에 건너뛰어지거나 맨 앞을 잃으면 노트를 남긴다. `mayBeSkipped`는 제안이 앞에 둔 핸들러 때문에 이 훅에서 실행되지 않을 수 있다는 뜻이다. 기본 순서에서 이미 앞이던 핸들러는 세지 않는다. `losesFirstPosition`은 기본 순서에서 맨 앞이던 guard가 이 제안에서 맨 앞을 잃었다는 뜻이다. 목록이 비어 있지 않으면 설정 화면은 건너뛰어질 수 있는 플러그인의 이름을 보이는 강한 경고를 띄운다. 권한 판정(고정 단계 5b·5c)과 샌드박스는 순서와 무관하게 항상 돌므로 "건너뛰어진다"고 쓰지 않는다. 이 노트는 `skips`와 별개다. [결정: 2026-11-03 사용자]
 
 | 종류 | fold | 내용 |
@@ -1136,7 +1136,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
 - 기준과 무관한 `disableNow` 중 투영기 실패(§5 6번)만 같은 면제를 받는다. 격리 재시작 한도 초과(`isolation_restart_limit`)는 면제 없이 끈다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
 - 외부 훅은 같은 기준으로 그 훅만 끈다. 훅 끄기는 다음 디스패치부터 적용한다(훅은 scope가 없다).
-- 자동 끄기 상태는 설정 파일에 쓰지 않는다 [제안]. `ext.<name>.enabled` 값은 바뀌지 않고, 다음 시작에서 다시 실린다. 시작을 넘어 세는 원장은 두지 않는다(§10 미결 7).
+- 외부 훅 질문의 답 경로 [결정: 2026-11-04 사용자, "사용자가 끈 외부 훅은 재시작 뒤에도 꺼져 있다"; wire 이름과 키 이름은 제안]: 화면은 `hooks.list`의 외부 훅 줄(`hook`이 훅 id)의 `keepOffQuestion`을 읽고 "끄기"는 `hooks.disableConfirm { hook }`, "켜 두기"와 "다시 켜기"는 `hooks.reenable { hook }`로 답한다. 호스트는 끄기에서 먼저 설정 `x.operations.hookDisabled`(문자열 배열, 범위 managed, user, 기본 `[]`, live)에 훅 id를 user 범위로 쓰고(쓰기가 실패하면 끄지 않는다), `answer(hook:<id>, true)`를 부른다. 다시 켜기는 저장된 id를 지우고 질문이 있으면 `answer(…, false)`, 없으면 `reenable(hook:<id>)`를 부른다. 질문도 꺼짐 기록도 없는 id는 `hooks.notFound`다. 외부 훅 실행기(§4.7)가 시작할 때 `hookDisabled`에 든 id는 싣지 않는다. 실행기(§4.7.4)는 `OperationsDeps.hooks`로 연결되어 `hook:<id>`로 실패를 장부에 넣고, 끄기 답이 오면 그 id를 이번 실행에서 건너뛴다.
 
 #### 4.3.4 알림과 기록
 
@@ -1369,7 +1369,11 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - 작업 폴더: `cwd: "project"`(기본)는 작업 폴더 루트, `"home"`은 사용자 홈이다.
 - 예산: 훅 정의의 `timeoutMs`, 없으면 `x.operations.budget.hookMs`. 예산이 끝나면 signal을 abort하고 `ProcessService`가 프로세스 그룹을 종료한다(종료 방식은 `L0.process.spec`).
 - 같은 훅에 건 외부 훅은 순서대로 하나씩 실행한다. 정렬은 §4.1의 정렬 키를 따른다.
-- 디스패처 등록 [제안]: primitives 레지스트리는 확장·scope 단위로 핸들러를 받는다. 그래서 operations는 설정 범위마다 내부 내장 확장 단위 하나(`fresnel-hooks-managed`, `fresnel-hooks-user`, `fresnel-hooks-project`, `fresnel-hooks-local`)를 만들어 `ExtHost.install`로 싣고, 그 scope에서 훅마다 on 핸들러 하나를 등록한다. 이 단위들은 모든 확장 뒤의 `loadIndex`를 받고, `TierTable`에는 §4.7.6 표의 tier로 들어간다. 실패 장부 키는 단위 이름이 아닌 `hook:<id>`이고, operations가 (단위, 등록 순번) → 훅 id 표로 바꾼다.
+- 디스패처 등록 [제안]: primitives 레지스트리는 확장·scope 단위로 핸들러를 받는다. 그래서 operations는 설정 범위마다 내부 내장 확장 단위 하나(`fresnel-hooks-managed`, `fresnel-hooks-user`, `fresnel-hooks-project`, `fresnel-hooks-local`)를 만들어 `ExtHost.install`로 싣고, 그 scope에서 훅마다 on 핸들러 하나를 등록한다(아래 구현 방식). 이 단위들은 모든 확장 뒤의 `loadIndex`를 받고, `TierTable`에는 §4.7.6 표의 tier로 들어간다. 실패 장부 키는 단위 이름이 아닌 `hook:<id>`이고, 실행기가 훅 id로 직접 넣는다. 단위 이름의 접두 `fresnel-hooks-`는 외부 확장이 쓸 수 없다(F.extensions §4.7 `name_reserved`, 로더와 설치 미리 보기가 거절한다). 단위 판정(`isHookUnitName`)은 접두가 아니라 네 이름과 정확히 맞춘다 [제안].
+- 구현 방식 [제안: 2026-11-04 hookrun 기본값]: 훅마다 핸들러를 등록하지 않는다. 범위마다 단위 하나(`fresnel-hooks-<managed|user|project|local>`, Registration id는 단위 이름과 같다)가 허용 훅 8개에 핸들러 하나씩을 달고, 호출 때 그 범위의 훅 목록을 현재 설정에서 읽어 매칭되는 훅을 설정 순서로 하나씩 실행한다. 그래서 `hookDefs`를 고쳐도 다시 등록하지 않고(live), 작업 폴더·로컬 훅은 thread의 폴더 신뢰에 따라 그 호출에서 정해진다. 단위의 `tier`는 §4.7.6 표, `loadIndex`는 모든 확장 뒤(`1_000_000 +` 범위 순번)다. 단위 핸들러에는 바깥 시간 예산을 걸지 않고(`budgetMs`가 null) 훅마다 `timeoutMs`(없으면 `x.operations.budget.hookMs`)를 건다. 단위의 실패·성공 보고는 `ext:` 장부에 넣지 않고 실행기가 훅 id 단위로 직접 넣는다.
+- 훅별 결과 [제안: 2026-11-04 hookrun 기본값]: first 훅은 첫 결정·거부·실패에서 멈춘다. 실패는 그 훅의 `FIRST_DENY`로 거부한다. `thread.compact.before`는 fail-open 훅이라 거부값이 없어 실패와 exit 2가 모두 결정 없음이다. chain 훅은 한 범위 안에서 첫 패치에서 멈추고 뒤 훅은 그 호출에서 실행하지 않는다(패치 병합을 훅 프로세스 사이에서 하지 않는다). tap 훅은 멈추지 않는다. tap과 chain의 실패(시간 초과, 비정상 종료, 출력 오류)는 기록만 남기고 뒤 훅을 그대로 돈다. chain의 실패는 그 훅의 패치만 버린다 [제안: 위 표와 같은 뜻을 문장으로 적음]. 멈춘 뒤에 매칭된 훅만 `skipped` 행을 남기고 `skippedBy`가 멈춘 훅이다(§4.8.2). 결정·패치는 `HOOKS[point].result` 스키마로 다시 검사하고 틀리면 `hook_output` 실패다.
+- 훅별 순서(`hooks.order.*`, §4.1.5) [제안: 2026-11-04 hookrun 판단, 좁은 변경이 아니다. 사용자 결정 전]: 지금 외부 훅은 훅마다 순서를 받지 않는다. 디스패처는 Registration 단위로 정렬하므로(`orderEntries`가 `scopeId`를 맞춘다) 범위 단위 하나에 든 훅은 함께 움직인다. 읽기 원천도 단위 행을 뺀다(`apps/host/src/assembly/m4/ext-read-sources.ts`의 `isHookUnitName` 거르기), 그래서 `hooks.order.get`과 `preview`에 외부 훅이 나오지 않는다. 설정 `x.operations.hookOrder`의 키 모양(훅 이름 → id 목록)은 맞다. 단위 이름(`fresnel-hooks-<범위>`)은 `hooks.order.set`과 `hooks.order.preview`가 `jsonrpc.invalidParams`로 거절한다(`issues`에 자리와 이름을 싣고, 이름이 하나라도 들면 아무것도 저장하지 않는다 [제안]). 거절하기 전에는 범위 블록이 옮겨졌는데 화면과 미리보기에는 보이지 않았다. 훅마다 순서를 주려면 (1) 훅마다 Registration(`hook:<id>`)을 두고, (2) 설정이 바뀔 때 Registration을 넣고 빼어 맞추고(지금은 단위를 한 번 싣고 `live`로 읽는다), (3) 작업 폴더 신뢰 결정이 그 Registration을 넣고 빼게 하고, (4) 훅마다 tier를 얻도록 `tierOf` 표를 훅 단위로 두고, (5) 읽기 원천의 단위 거르기를 없애 미리보기 행을 훅 행으로 낸다. 그러면 훅의 계측도 디스패처가 직접 남기므로 §4.8.2의 단위 숨김이 필요 없어진다. 이 변경은 X의 등록 모양과 `live` 계약, 조립(`external-hooks.ts`), 와이어 읽기, 시험 `hook-order-real`을 함께 바꾼다. 권한 판정과 샌드박스는 이 순서와 무관하게 고정 단계로 돈다(§4.1.4).
+- 안전 모드와 시작 [제안]: 안전 모드(§4.6.2)면 외부 훅 단위 넷을 싣지 않는다. `fresnel.process` 포트가 없으면 훅은 실행하지 않는다. 설정 `x.operations.hookDisabled`의 id는 매 호출에서 건너뛴다.
 - 재생: 훅도 on 핸들러이므로 "다시 실행해도 되는 질의" 계약을 따른다(`F.extensions.spec` §4.3). 크래시 뒤 같은 페이로드로 다시 실행될 수 있다. 사용자 문서에 적는다.
 
 #### 4.7.5 환경 변수 정리
@@ -1437,6 +1441,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 - `skippedBy`: chain의 `stop` 규칙이나 first의 결정(거부 대체 포함)이 뒤 핸들러를 멈췄을 때, 실행하지 못한 핸들러마다 멈춘 핸들러의 RegistrationId를 적는다. 이 기록의 수가 "앞 핸들러 때문에 건너뛴 횟수"다(측정 저장소는 Turn 요약 행의 `hookSkippedByEarlier`로 둔다). 훅별 순서에서 빠진(꺼진) 핸들러는 세지 않는다.
 - 값을 낸 뒤 검사에서 걸러진 경우(`result_invalid`, `merge_rejected`)는 `failed`다. tap이 값을 반환한 `value_from_tap`은 동작에 영향이 없어 `passed`다.
 - collect는 병합이 끝난 뒤에 기록을 남기고(병합 거부가 기여 하나를 `failed`로 바꿀 수 있다), 순서는 실행 순서를 유지한다.
+- 외부 훅(§4.7) 행 [제안: 2026-11-04 hookrun 기본값]: 외부 훅 단위(`fresnel-hooks-<범위>`)는 자기 행을 기록하지 않는다. 실행기가 맞은 훅마다 `registrationId`가 `hook:<id>`인 행을 같은 항목에 넣는다. `ms`는 그 훅의 활성 시간, `atMs`는 그 훅이 시작한 시점이다. 결과는 패치가 합쳐지면 `modified`(`size`는 패치의 JSON 문자 수), `block`·`cancel`·`type: deny` 결정이나 종료 코드 2의 거부면 `blocked`, 빈 출력·패치 없는 출력이면 `passed`, 시간 초과는 `failed`(`timeout`), 출력 검사 실패는 `failed`(`result_invalid`), 그 밖의 비정상 종료와 시작 실패는 `failed`(`threw`)다. 같은 범위에서 앞 훅이 멈춘 뒤의 매칭 훅은 `skipped`이고 `skippedBy`가 멈춘 훅의 `hook:<id>`다. 훅이 하나도 맞지 않은 호출에는 단위 행도 항목도 없다 [근거: packages/ext-host/test/operations/hooks.test.ts, "trace: a call no external hook matches"]. 앞선 다른 핸들러가 디스패치를 멈춰 범위 단위가 실행되지 않으면 그 범위의 훅은 행이 없다(알려진 한계: 단위가 실행되지 않으면 실행기도 그 훅을 세지 않는다) [근거: 미구현, 알려진 한계].
 - 호출 경로 비용: 계측이 꺼져 있으면 `start`가 `undefined`라 기록은 비교 한 번이다. 켜져 있으면 핸들러 실행마다 `record` 한 번과 `modified`의 크기 계산(직렬화 한 번)이 든다. 저장소 쓰기는 하지 않는다(메모리 링 버퍼만).
 
 #### 4.8.3 보관 범위와 켜짐 시점
@@ -1504,9 +1509,10 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | `x.operations.trace.retentionDays` | integer | 30 | 1~3650 | live | managed, user | plugins | 1차 |
 | `x.operations.trace.storeRequestBody` | boolean | false | | live | managed, user | plugins | 1차 |
 | `x.operations.hookOrder` | `Record<훅 이름, registrationId[]>` | {} | | nextTurn | managed, user | plugins | 1차 |
-| `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 2차 |
-| `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
-| `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins(widget `list`) | 2차 |
+| `x.operations.hookDisabled` | string[] (꺼진 외부 훅 id) | [] | | live | managed, user | plugins | 1차 |
+| `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, launch | plugins | 1차 |
+| `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins | 1차 |
+| `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins | 1차 |
 
 - 예산과 자동 끄기 키는 `project` 범위를 받지 않는다 [제안]. 저장소에 든 설정이 예산을 늘려 루프를 오래 붙잡거나 자동 끄기를 꺼서 실패 확장을 남기지 못하게 한다.
 - `ui` 항목의 `label`과 `order`는 `L4.settings-ui.spec`이 정한다. 위젯은 boolean → `toggle`, integer·number → `number`다. 예산 키 단위는 `ms`다.
