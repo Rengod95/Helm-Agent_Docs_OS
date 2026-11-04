@@ -283,7 +283,7 @@ export interface LoadOptions {
    * "on_demand"는 판정도 적재도 하지 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 loadProject를 부른다(§4.7.8)
    */
   readonly projects?: "cwd" | "on_demand";
-  /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 끔, 프로젝트 앱 끔이다(ADR-0021 §3.6.2 3번, §6 미결 1: 실기 확인 전 빌드는 프레임 모드를 끈다. 켜는 시점은 [미결]이고 사용자가 정한다). `loadProject`도 이 값을 쓴다 */
+  /** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`, §4.3.4). 없는 값은 앱 켬, 프로젝트 앱 끔이다(ADR-0021 §6 1번: 프레임 격리 시험이 macOS에서 통과해 [결정: 2026-11-04 사용자] 켰다). `loadProject`도 이 값을 쓴다 */
   readonly uiPolicy?: { readonly apps?: boolean; readonly allowProjectApps?: boolean };
   readonly signal: AbortSignal;
 }
@@ -683,7 +683,7 @@ export interface UiPolicy {
   readonly apps: boolean;
   readonly allowProjectApps: boolean;
 }
-export const DEFAULT_UI_POLICY: UiPolicy;    // { apps: false, allowProjectApps: false }
+export const DEFAULT_UI_POLICY: UiPolicy;    // { apps: true, allowProjectApps: false }
 
 export interface UiIssue {
   readonly severity: "error" | "warning" | "info";
@@ -1415,7 +1415,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `x.loading-trust.paths` | `string[]` | `[]` | - | `restart` | `managed`, `user` | `list` |
 | `x.loading-trust.isolation.maxRestarts` | `integer` | `3` | 0~20 | `live` | `managed`, `user` | `number` |
 | `x.loading-trust.isolation.restartWindowSec` | `integer` | `600` | 10~86400 | `live` | `managed`, `user` | `number` |
-| `x.ui.apps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
+| `x.ui.apps` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
 | `x.ui.allowProjectApps` | `boolean` | `false` | - | `restart` | `managed`, `user` | `toggle` |
 
 - `x.loading-trust.*` 키는 프로젝트 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
@@ -1535,4 +1535,4 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 22. [미결] 이름 정리. L4.desktop-ux.spec §10.3 W-33과 X-7의 옛 이름(`ext.view.list`, `view_*`)은 이 문서의 `ext.ui.list`와 `ui_*`와 다르다. 화면 쪽 문서를 고치는 일은 L4 담당이다.
 23. [미결] `VersionHistoryFs`의 정본 위치. `PluginInstallFs`와 같은 사정이다. 쓰기 포트는 F.extensions.spec §3.2.1 로더 포트에 있어야 한다. F 수정 요청과 함께 정한다.
 24. [미결] 기본 플러그인 기록과 되돌리기 전 기록의 `stateSchemaVersion`은 파일에서 알 수 없어 `null`이다. 상태 스키마 검사(§4.4.8)가 번들 버전에 걸리려면, 로더가 확장을 등록할 때 `StateDecl.version`(F.extensions.spec)을 알려 보관 항목의 값을 채우는 경로를 정해야 한다.
-25. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.views.frames`와 `x.views.allowProjectFrames`의 소유 문서는 이 문서입니다(ADR-0021 §6 9번). 구현 때 §3.6의 `loadingTrustSettings` 키 집합에 더하고 §6 표에 값 스키마를 적습니다. 프레임 `call` 확인 줄은 끌 수 없습니다. 어떤 설정 범위에서도 끄는 키를 두지 않습니다.
+25. [결정: 2026-11-04 사용자, B2 1안] 설정 키 `x.ui.apps`와 `x.ui.allowProjectApps`(옛 이름 `x.views.frames`, `x.views.allowProjectFrames`)의 소유 문서는 이 문서입니다(ADR-0021 §6 9번). 구현 때 §3.6의 `loadingTrustSettings` 키 집합에 더하고 §6 표에 값 스키마를 적습니다. 프레임 `call` 확인 줄은 끌 수 없습니다. 어떤 설정 범위에서도 끄는 키를 두지 않습니다.

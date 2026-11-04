@@ -167,7 +167,7 @@ M4 첫 카탈로그 [제안]:
 | AU-003 | `composition`이 매니페스트 `plugins[]`의 `hooks`, `drives`, `usesPost`, `requires`, `optional`과 맞음 | 오류 |
 | AU-004 | drive 블록 둘(`drive_duplicate`), on 핸들러의 기능 호출(`on_capability_call`), 필수 기능의 제공자 없음(`capability_missing`) | 오류, 오류, 경고 |
 | AU-005 | 화면: `frame`은 `page`·`well`만, `frame.reason` 있음, `widgets`·`bridge` 범위가 지금 앱과 맞음 | 오류 |
-| AU-006 | 화면: 요청 등급 `project`인데 `frame` 사용 | 경고(설치 환경의 `x.views.allowProjectFrames`에 따름) |
+| AU-006 | 화면: 요청 등급 `project`인데 `frame` 사용 | 경고(설치 환경의 `x.ui.allowProjectApps`에 따름) |
 | AU-007 | 화면: 프레임 화면에 `fallback`도 `cli.command`도 없음 | 경고 |
 | AU-008 | 화면: 위젯 카탈로그로 그릴 수 있는 모양을 프레임으로 냄(트리 후보가 있음) | 정보 |
 | AU-009 | 시크릿: 설정에 시크릿처럼 보이는 키가 `secret: true` 없이 있음, 소스에 시크릿 리터럴 패턴 | 오류 |

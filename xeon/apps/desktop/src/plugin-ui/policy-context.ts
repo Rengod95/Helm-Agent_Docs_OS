@@ -35,7 +35,7 @@ export type PolicyContextError =
   | { readonly kind: "manifest_invalid" }
   | { readonly kind: "extension_mismatch" };
 
-/** 설정 키 `x.ui.apps`(기본 거짓, 실기 확인 전)와 `x.ui.allowProjectApps`(기본 거짓). ext-host 검사와 같은 키다 */
+/** 설정 키 `x.ui.apps`(기본 참, Windows는 클라이언트가 끈다)와 `x.ui.allowProjectApps`(기본 거짓). ext-host 검사와 같은 키다 */
 export const UI_APPS_KEY = "x.ui.apps";
 export const UI_ALLOW_PROJECT_APPS_KEY = "x.ui.allowProjectApps";
 
@@ -103,10 +103,10 @@ function flagOf(
 
 /**
  * 화면 앱을 쓸 수 있는가. `x.ui.apps`가 거짓이면 모든 앱이 막힌다. 프로젝트 등급의 앱은 `x.ui.allowProjectApps`가 참이어야 한다.
- * 설정 값이 없거나 불리언이 아니면 기본을 쓴다(앱 꺼짐, 프로젝트 앱 꺼짐)
+ * 설정 값이 없거나 불리언이 아니면 기본을 쓴다(앱 켜짐, 프로젝트 앱 꺼짐)
  */
 export function appsAllowed(trust: ExtTrust, settings: Readonly<Record<string, unknown>>): boolean {
-  if (!flagOf(settings, UI_APPS_KEY, false)) return false;
+  if (!flagOf(settings, UI_APPS_KEY, true)) return false;
   if (trust !== "project") return true;
   return flagOf(settings, UI_ALLOW_PROJECT_APPS_KEY, false);
 }

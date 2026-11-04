@@ -12,7 +12,7 @@ import {
 } from "./policy-context.ts";
 
 // 플러그인 화면의 실행 맥락. `ext.ui.list`를 읽어 항목을 들고, 앱 root를 셸에 알리고, 화면 장부 하나를 갖는다. React와 DOM이 없다.
-// 설정 키 `x.ui.apps`와 `x.ui.allowProjectApps`는 코드가 읽는 그대로 읽는다(`x.views.*`와의 이름 충돌은 사용자 결정 대기, 건드리지 않는다).
+// 설정 키 `x.ui.apps`와 `x.ui.allowProjectApps`는 코드가 읽는 그대로 읽는다(옛 이름 `x.views.*`는 없다. 문서도 `x.ui.*`로 통일했다).
 
 type PluginUiPhase = "loading" | "ready" | "offline";
 

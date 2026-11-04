@@ -34,13 +34,13 @@ export const HOST_BRIDGE_VERSION: string = `${String(BRIDGE_VERSION)}.0.0`;
 /** 화면 JSON 파일 하나의 크기 상한(1 MiB). 넘으면 `ui_limit`다 */
 export const UI_FILE_MAX_BYTES: number = 1_048_576;
 
-/** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`). 기본은 앱을 막는다(ADR-0021 §6 미결 1 확인 전). 프로젝트 확장의 앱도 막는다 */
+/** 화면 앱 정책(`x.ui.apps`, `x.ui.allowProjectApps`). 앱은 기본 켜짐(2026-11-04 사용자, 프레임 격리 시험 통과 뒤)이고 프로젝트 확장의 앱은 기본 막는다 */
 export interface UiPolicy {
   readonly apps: boolean;
   readonly allowProjectApps: boolean;
 }
 
-export const DEFAULT_UI_POLICY: UiPolicy = { apps: false, allowProjectApps: false };
+export const DEFAULT_UI_POLICY: UiPolicy = { apps: true, allowProjectApps: false };
 
 /** 확장 메시지 카탈로그: 로케일 -> 키 -> 문장 */
 type UiMessages = Readonly<Record<string, Readonly<Record<string, string>>>>;
