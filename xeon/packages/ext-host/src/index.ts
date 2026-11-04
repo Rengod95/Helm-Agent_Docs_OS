@@ -207,6 +207,7 @@ export type {
 // operations (X.operations.spec §3.1~§3.8, §6 중 M0·M1 몫)
 export {
   budgetClassOf,
+  createExtStorageManager,
   createOperationsPolicy,
   DEFAULT_BUDGETS_MS,
   DEFAULT_TRACE_SETTINGS,

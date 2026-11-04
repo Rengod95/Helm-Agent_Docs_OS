@@ -4,6 +4,7 @@ import type { JsonValue, ThreadId, TurnId, Usage } from "../conversation/index.t
 import type { Result } from "../base/index.ts";
 import type {
   ExtensionTables,
+  MigrationRunner,
   ProjectorRegistry,
   RecordCommitPort,
   StoreError,
@@ -154,12 +155,23 @@ export const ProjectorRegistryPortKey: PortKey<ProjectorRegistryPort> = {
 export type ScopedStorePort = Pick<StoreService, "scoped">;
 export const ScopedStorePortKey: PortKey<ScopedStorePort> = { name: "fresnel.store" };
 
-/** StoreService.extensions의 부분형. 확장 제거 때 그 확장의 접두 테이블을 지운다(X.operations.spec §4.4.7) */
-export type ExtensionTablesPort = Pick<ExtensionTables, "drop">;
+/**
+ * StoreService.extensions의 부분형. 테이블을 정의하기 전에 확장 접두를 등록하고(`register`, 이미 있으면 그대로 둔다),
+ * 확장 제거 때 그 확장의 접두 테이블을 지운다(`drop`, X.operations.spec §4.4.7)
+ */
+export type ExtensionTablesPort = Pick<ExtensionTables, "register" | "drop">;
 /** 서비스 fresnel.store의 `extensions` 속성(member). 접두 테이블 등록·삭제 자리다 */
 export const ExtensionTablesPortKey: PortKey<ExtensionTablesPort> = {
   name: "fresnel.store",
   member: "extensions",
+};
+
+/** StoreService.migrations의 부분형. 확장 호스트가 소유자 `xh`의 장부 테이블 마이그레이션을 적용한다(X.operations.spec §4.4.2) */
+export type StoreMigrationsPort = Pick<MigrationRunner, "apply">;
+/** 서비스 fresnel.store의 `migrations` 속성(member) */
+export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort> = {
+  name: "fresnel.store",
+  member: "migrations",
 };
 
 // ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ───────────

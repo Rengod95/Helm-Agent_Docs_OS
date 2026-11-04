@@ -697,8 +697,11 @@ export const ProjectorRegistryPortKey: PortKey<ProjectorRegistryPort>;  // { nam
 export type ScopedStorePort = Pick<StoreService, "scoped">;
 export const ScopedStorePortKey: PortKey<ScopedStorePort>;         // { name: "fresnel.store" }
 /** StoreService.extensions의 부분형. 확장 제거 때 접두 테이블을 지운다(X.operations.spec §4.4.7) [구현 2026-11-04] */
-export type ExtensionTablesPort = Pick<ExtensionTables, "drop">;
+export type ExtensionTablesPort = Pick<ExtensionTables, "register" | "drop">;
 export const ExtensionTablesPortKey: PortKey<ExtensionTablesPort>; // { name: "fresnel.store", member: "extensions" }
+/** StoreService.migrations의 부분형. 확장 호스트가 소유자 `xh`의 소유 장부 테이블 마이그레이션을 적용한다(X.operations.spec §4.4.3) */
+export type StoreMigrationsPort = Pick<MigrationRunner, "apply">;
+export const StoreMigrationsPortKey: PortKey<StoreMigrationsPort>; // { name: "fresnel.store", member: "migrations" }
 
 // ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ────────
 /** 격리 확장 자식 프로세스(2차). 사용처: X.loading-trust.spec §3.8 */

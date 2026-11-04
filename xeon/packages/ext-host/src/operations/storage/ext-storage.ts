@@ -4,6 +4,7 @@ import {
   ExtensionTablesPortKey,
   ProjectorRegistryPortKey,
   ScopedStorePortKey,
+  StoreMigrationsPortKey,
   type ExtensionName,
   type PortLookup,
   type RegistrationApi,
@@ -13,6 +14,7 @@ import {
   type DurableEventEnvelope,
   type EventKind,
   type ExtensionTableError,
+  type MigrationError,
   type ProjectionTx,
   type Projector,
   type ProjectorFailure,
@@ -24,6 +26,7 @@ import {
 import { scopeInternalsOf } from "../../primitives/host-api.ts";
 import type { DispatchPolicy } from "../../primitives/dispatch-types.ts";
 import { namesOf, readersOf, writersOf } from "../../erase.ts";
+import { LEDGER_MIGRATIONS, LEDGER_TABLE } from "./ledger-migrations.ts";
 import type { ExtRowError, ExtStorageError } from "./errors.ts";
 import { checkStatement } from "./guard.ts";
 import type { ExtReaders, ExtWriters, ExtTableReader, ExtTableWriter } from "./table-types.ts";
@@ -94,10 +97,6 @@ class ProjectionRollback extends Error {
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
-const LEDGER_TABLE = "xh_ext_tables";
-const LEDGER_DDL =
-  `CREATE TABLE IF NOT EXISTS "${LEDGER_TABLE}" ("table" TEXT NOT NULL, "extension" TEXT NOT NULL, ` +
-  `"local" TEXT NOT NULL, "projection_version" INTEGER NOT NULL, "created_at" INTEGER NOT NULL, PRIMARY KEY ("table")) STRICT`;
 
 function quote(identifier: string): string {
   return `"${identifier}"`;
@@ -368,6 +367,23 @@ function storageErrorOf(error: ExtensionTableError | StoreReadError): ExtStorage
   }
 }
 
+/** 소유 장부 마이그레이션의 실패를 `ExtStorageError`로 옮긴다. 재시도할 수 있는 것만 busy·io로 나누고 나머지는 코드 이름을 싣는다 */
+function migrationFailure(error: MigrationError): ExtStorageError {
+  switch (error.kind) {
+    case "busy":
+      return { kind: "busy" };
+    case "disk_full":
+      return { kind: "io", code: "disk_full" };
+    case "migration_checksum_mismatch":
+    case "migration_future_version":
+    case "migration_gap":
+    case "migration_failed":
+      return { kind: "io", code: error.kind };
+    default:
+      return assertNever(error, "MigrationError");
+  }
+}
+
 // ── 관리자 ────────────────────────────────────────────────────────────────
 
 export interface ExtStorageDeps {
@@ -460,9 +476,19 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
         if (guardFn !== undefined) for (const statement of ddl) guardFn(statement);
 
         // 소유 장부에서 이미 다른 확장이 가진 이름인지 본다
+        const tablesPort = deps.ports.get(ExtensionTablesPortKey);
+        if (tablesPort === undefined)
+          return err({ kind: "port_unavailable", port: "fresnel.store" });
+        const migrations = deps.ports.get(StoreMigrationsPortKey);
+        if (migrations === undefined)
+          return err({ kind: "port_unavailable", port: "fresnel.store" });
+        const migrated = migrations.apply(LEDGER_MIGRATIONS);
+        if (!migrated.ok) return err(migrationFailure(migrated.error));
+        // `scoped("ext.<이름>")`은 접두가 등록된 확장에만 핸들을 준다. 이미 등록돼 있으면 그대로 둔다
+        const registeredPrefix = tablesPort.register(extension);
+        if (!registeredPrefix.ok) return err(storageErrorOf(registeredPrefix.error));
         const ledger = store.scoped("xh");
         const owned = ledger.write((tx) => {
-          tx.run(LEDGER_DDL);
           for (const table of tables) {
             const row = tx.get(`SELECT * FROM ${quote(LEDGER_TABLE)} WHERE "table" = ?`, [table]);
             const owner = row?.["extension"];

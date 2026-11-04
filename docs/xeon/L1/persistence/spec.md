@@ -1012,7 +1012,7 @@ export interface RewindPlan {
   1. `name`이 `"core"`거나 `ext.`·`cap.` 접두가 아니면 `name_reserved`, 이미 있으면 `name_taken`.
   2. `ext.<이름>` 투영기의 `tables`는 모두 `x_<이름 '-'→'_'>_` 접두이고 지역 이름에 밑줄이 없어야 한다. 아니면 `table_not_owned`.
   3. 다른 투영기가 이미 가진 테이블이면 `table_taken`.
-- 등록 때 버전·`last_seq` 검사로 그 투영기만 다시 만든다. 저장소가 막혔거나 투영기의 `apply`가 재생 중 던져 다시 만들지 못하면 등록은 성공하되 그 투영기를 "뒤처짐"으로 표시하고 Logger에 남긴다 [제안: `ProjectorRegisterError`에 입출력 변형이 없다]. 뒤처진 투영기는 커밋이 건너뛰고(`projector_state.last_seq`도 올리지 않는다) 다음 쓰기 열기(`openForWrite`)가 다시 시도한다. 투영은 이벤트에서 다시 만들 수 있어서 건너뛴 이벤트는 재생성으로 메워진다.
+- 등록 때 버전·`last_seq` 검사로 그 투영기만 다시 만든다. 투영기가 선언한 `tables` 중 하나라도 저장소에 없으면(확장 데이터 지우기 `dropData`가 표만 지우고 `projector_state` 행을 남긴다) 낡은 것으로 보고 다시 만든다. 이벤트는 남아 있으므로 다시 설치하면 지운 행이 이벤트에서 되살아난다 [구현 2026-11-04] [미결: 지운 데이터를 다시 설치해도 되살리지 않을지는 사용자 결정, 근거: 코어 이벤트 불변 규칙과 `ext-storage.real.int.test.ts`의 재정의 시험]. 저장소가 막혔거나 투영기의 `apply`가 재생 중 던져 다시 만들지 못하면 등록은 성공하되 그 투영기를 "뒤처짐"으로 표시하고 Logger에 남긴다 [제안: `ProjectorRegisterError`에 입출력 변형이 없다]. 뒤처진 투영기는 커밋이 건너뛰고(`projector_state.last_seq`도 올리지 않는다) 다음 쓰기 열기(`openForWrite`)가 다시 시도한다. 투영은 이벤트에서 다시 만들 수 있어서 건너뛴 이벤트는 재생성으로 메워진다.
 - `ProjectionTx` 소유 검사(테스트·디버그 빌드): 문장에서 `INSERT INTO`, `REPLACE INTO`, `UPDATE`, `DELETE FROM`, `FROM`, `JOIN`, `CREATE`, `DROP` 뒤 식별자를 뽑아 그 투영기의 `tables`와 대조한다. 밖이면 `Bug("store.prefix_not_owned")`를 던지고 커밋 전체가 롤백된다. `ATTACH`, `DETACH`, `PRAGMA`, `VACUUM`, `sqlite_` 이름과 여러 문장은 항상 거부한다. 운영 빌드에서는 검사를 끈다. X의 `checkStatement`(`X.operations.spec` §4.4.6)와 겹치는 방어 검사다. `eng.events.design` §5.1 끝 항목이 이 검사의 정의를 이 문서와 `L0.store.spec`에 맡겼다.
 - 투영기 예외 처리 [결정: 오케스트레이터 기본값, M3-REQ-36]:
   - `core` 투영기 예외는 코드 결함입니다. 커밋을 롤백하고 Bug(`store.projection_failed`)를 다시 던집니다. 정지와 재시도는 하지 않습니다.

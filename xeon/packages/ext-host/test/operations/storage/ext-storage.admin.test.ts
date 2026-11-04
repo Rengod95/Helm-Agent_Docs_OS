@@ -5,6 +5,7 @@ import {
   ExtensionTablesPortKey,
   ProjectorRegistryPortKey,
   ScopedStorePortKey,
+  StoreMigrationsPortKey,
   type PortKey,
   type PortLookup,
 } from "@fresnel/contracts/extensions";
@@ -58,6 +59,12 @@ function setup(options: { readonly withTables?: boolean } = {}): {
         key.member === ExtensionTablesPortKey.member
       ) {
         return options.withTables === false ? undefined : portAs(key, session.tables);
+      }
+      if (
+        key.name === StoreMigrationsPortKey.name &&
+        key.member === StoreMigrationsPortKey.member
+      ) {
+        return portAs(key, session.store.migrations);
       }
       if (key.name === ScopedStorePortKey.name && key.member === undefined) {
         return portAs(key, session.store);

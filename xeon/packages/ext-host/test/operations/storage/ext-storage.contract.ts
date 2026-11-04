@@ -5,9 +5,13 @@ import { describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
+  ExtensionTablesPortKey,
   ProjectorRegistryPortKey,
   ScopedStorePortKey,
+  StoreMigrationsPortKey,
+  type ExtensionTablesPort,
   type PortKey,
+  type StoreMigrationsPort,
   type PortLookup,
 } from "@fresnel/contracts/extensions";
 import type { DurableEventEnvelope, ProjectorRegistry, StoreDb } from "@fresnel/contracts/records";
@@ -23,7 +27,11 @@ import {
 
 export interface ContractSession {
   readonly registry: Pick<ProjectorRegistry, "register" | "onFailure">;
-  readonly store: { scoped(owner: string): StoreDb };
+  readonly store: {
+    scoped(owner: string): StoreDb;
+    readonly migrations: StoreMigrationsPort;
+    readonly extensions: ExtensionTablesPort;
+  };
   /** 이벤트를 커밋한다. 투영기는 같은 트랜잭션에서 실행된다. 장애 지점이면 모두 되돌린다 */
   commit(
     events: readonly DurableEventEnvelope[],
@@ -55,6 +63,18 @@ function portsOf(session: ContractSession): PortLookup {
     get<Api>(key: PortKey<Api>): Api | undefined {
       if (key.name === ProjectorRegistryPortKey.name) {
         return portAs(key, session.registry);
+      }
+      if (
+        key.name === ExtensionTablesPortKey.name &&
+        key.member === ExtensionTablesPortKey.member
+      ) {
+        return portAs(key, session.store.extensions);
+      }
+      if (
+        key.name === StoreMigrationsPortKey.name &&
+        key.member === StoreMigrationsPortKey.member
+      ) {
+        return portAs(key, session.store.migrations);
       }
       if (key.name === ScopedStorePortKey.name) {
         return portAs(key, session.store);

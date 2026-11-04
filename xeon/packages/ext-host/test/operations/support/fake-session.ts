@@ -2,7 +2,7 @@
 // 트랜잭션 롤백, 장애 주입 지점(L0.store와 같은 문자열)을 갖는다(X.operations.plan O-15).
 import { err, ok, Bug } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { ExtensionTablesPort } from "@fresnel/contracts/extensions";
+import type { ExtensionTablesPort, StoreMigrationsPort } from "@fresnel/contracts/extensions";
 import type {
   DurableEventEnvelope,
   ProjectionTx,
@@ -21,7 +21,11 @@ type FaultPoint = "after_ext_projection:0";
 
 export interface FakeSession {
   readonly registry: Pick<ProjectorRegistry, "register" | "onFailure">;
-  readonly store: { scoped(owner: string): StoreDb };
+  readonly store: {
+    scoped(owner: string): StoreDb;
+    readonly migrations: StoreMigrationsPort;
+    readonly extensions: ExtensionTablesPort;
+  };
   /** fresnel.store의 `extensions`. 접두 테이블 삭제(소유 판정은 접두와 지역 이름 규칙) */
   readonly tables: ExtensionTablesPort;
   readonly sql: FakeSql;
@@ -164,6 +168,7 @@ export function createFakeSession(): FakeSession {
   };
 
   const tables: ExtensionTablesPort = {
+    register: (name) => ok({ owner: `ext.${name}`, tablePrefix: extTablePrefix(name) }),
     drop(name, names) {
       const prefix = extTablePrefix(name);
       for (const table of names) {
@@ -183,7 +188,25 @@ export function createFakeSession(): FakeSession {
     },
   };
 
+  const appliedMigrations = new Map<string, number>();
+  const migrations: StoreMigrationsPort = {
+    apply(set) {
+      const done = appliedMigrations.get(set.owner) ?? 0;
+      for (const step of set.steps) {
+        if (step.version <= done) continue;
+        // 가짜 SQL은 `IF NOT EXISTS` 형태만 안다. 실제 저장소는 단계를 한 번만 실행한다
+        for (const statement of step.sql) {
+          sql.run(statement.replace("CREATE TABLE ", "CREATE TABLE IF NOT EXISTS "), []);
+        }
+      }
+      appliedMigrations.set(set.owner, set.version);
+      return ok({ owner: set.owner, from: done, to: set.version });
+    },
+  };
+
   const store: FakeSession["store"] = {
+    migrations,
+    extensions: tables,
     scoped(owner) {
       const prefix = ownerPrefix(owner);
       const guard = (statement: string): void => {

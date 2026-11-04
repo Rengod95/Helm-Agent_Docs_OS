@@ -619,7 +619,7 @@ macOS `fullfsync` [제안]:
 |---|---|---|
 | `sys` | `sys_` | 이 패키지. 범위 핸들 없음 |
 | `core.persistence` | `events`, `requests`, `step_checkpoints`, `projector_state`, `consumer_cursors`, `p_` | 루트 핸들만. `scoped("core.persistence")`는 Bug |
-| `xh` | `xh_` | 코어 |
+| `xh` | `xh_` | 코어. 소유 장부 `xh_ext_tables`는 소유자 `xh`의 마이그레이션 세트(X가 `defineTables`에서 `migrations.apply`로 적용, `X.operations.spec` §4.4.3)가 만든다. 마이그레이션 밖의 DDL은 `xh` 핸들도 거부한다 [구현 2026-11-04] |
 | `core.models`, `core.tools` | `core_models_`, `core_tools_` | 코어 |
 | `cap.<도메인>` | `cap_<도메인>_` | 코어(L2 layout 도메인 8개) |
 | `ext.<확장 이름>` | `x_<확장 이름의 하이픈을 밑줄로 바꾼 값>_` | `extensions.register(name)` |

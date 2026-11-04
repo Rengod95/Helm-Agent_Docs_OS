@@ -96,6 +96,16 @@ function isStale(tx: SqlTx, projector: Projector): Result<boolean, RowFault> {
     [projector.name],
   );
   if (row === undefined) return ok(true);
+  // 확장 데이터 지우기(`dropData`)가 표만 지우고 상태 행은 남긴다. 선언한 표가 하나라도 없으면 다시 만든다
+  for (const table of projector.tables) {
+    if (
+      tx.get("SELECT 1 AS present FROM sqlite_schema WHERE type = 'table' AND name = ?", [
+        table,
+      ]) === undefined
+    ) {
+      return ok(true);
+    }
+  }
   const c = columns(row, "projector_state");
   const version = c.int("version");
   if (!version.ok) return version;

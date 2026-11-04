@@ -1191,6 +1191,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - DDL은 `CREATE TABLE IF NOT EXISTS "x_…" (…) STRICT`와 `CREATE INDEX IF NOT EXISTS`만 만든다. 식별자는 모두 검사한 뒤 큰따옴표로 감싼다. 값은 항상 바인딩 인자로 넘긴다.
 - DDL은 `ExtProjection`과 함께 `Projector.ddl`로 대화 저장소에 넘긴다. 테이블 생성과 다시 만들기는 투영기 수명 규칙(`eng.events.design` §5.1 규칙 4)을 따른다.
 - 소유 장부 `xh_ext_tables`에 `(table, extension, local, projectionVersion, createdAt)`를 쓴다. 이미 다른 확장이 소유한 이름이면 `table_owned`다.
+- [구현 2026-11-04] 장부 테이블은 소유자 `xh`의 마이그레이션(`LEDGER_MIGRATIONS`, `operations/storage/ledger-migrations.ts`)이 만든다. 저장소는 마이그레이션 밖의 DDL을 거부하므로(`L0.store.spec` §4.5, `store.ddl_outside_migration`) 장부 핸들로 `CREATE TABLE`을 보내면 안 된다. `defineTables`는 매번 `StoreMigrationsPortKey`(`fresnel.store`의 `migrations` 속성, `Pick<MigrationRunner, "apply">`)로 이 세트를 적용한다(이미 적용됐으면 그대로 둔다). 이어서 `ExtensionTablesPortKey`의 `register(확장 이름)`으로 접두 `x_<이름>_`를 등록한다(이미 있으면 그대로 둔다). `scoped("ext.<이름>")`은 접두가 등록된 확장에만 핸들을 주기 때문이다. 마이그레이션 실패는 `busy`, `io`(`code`에 실패 종류)로 돌려준다. 두 포트가 없으면 `port_unavailable`이다.
 
 #### 4.4.4 쓰기와 같은 트랜잭션
 
@@ -1557,7 +1558,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 | 이름 | 출처 |
 |---|---|
 | `HookName`, `HookDecl`, `HOOKS`, `FIRST_DENY`, `CHAIN_RULES`, `Fold`, `ExtensionName`, `ExtensionManifest`, `RegistrationId`, `HandlerContext` | F.extensions.spec |
-| `PortLookup`, `ProjectorRegistryPort`(`register`, `onFailure`), `ScopedStorePort`(`scoped(owner)`), `HookProcessPort`, `HookRunSpec`, `HookRawRun`과 키 | F.extensions.spec §3.2.1 `ports.ts` |
+| `PortLookup`, `ProjectorRegistryPort`(`register`, `onFailure`), `ScopedStorePort`(`scoped(owner)`), `StoreMigrationsPort`(`apply`), `ExtensionTablesPort`(`register`, `drop`), `HookProcessPort`, `HookRunSpec`, `HookRawRun`과 키 | F.extensions.spec §3.2.1 `ports.ts` |
 | `Projector`, `ProjectorRegistry`, `StoreService` | F.records.spec §3.9 |
 | `DurableEventEnvelope`, `EventKind`, `parseEventKind`, `ScopeChangedPayload` | F.records.spec |
 | `SettingDef`, `defineSettings`, 키 문법, 범위 | F.wire-settings.spec |
