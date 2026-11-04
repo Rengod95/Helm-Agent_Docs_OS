@@ -246,8 +246,11 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
       ...(ctx.signal === undefined ? {} : { signal: ctx.signal }),
     };
     const target = { provider: spec.provider, modelId: spec.modelId, role: ctx.role };
+    // pi-ai가 같은 요청을 재시도하면 onPayload가 다시 불린다. 본문은 호출 하나에 한 번만 넘긴다(재시도는 같은 입력이면 같은 본문이다)
+    let offered = false;
     const offer = (body: unknown): void => {
-      if (offerBody === undefined) return;
+      if (offerBody === undefined || offered) return;
+      offered = true;
       const sent = attempt(() => {
         offerBody({ ctx, at: deps.clock.now(), body });
       });

@@ -298,6 +298,38 @@ describe("request body offer (T-MEAS-REC)", () => {
     expect(count).toBe(0);
   });
 
+  test("a provider retry that calls onPayload again offers the same body once, not twice", async () => {
+    const offers: unknown[] = [];
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { payloadAttempts: 2 },
+      dispatcher: {
+        beforeProviderRequest: (input) =>
+          Promise.resolve({ chained: true, original: input.payload }),
+        guardProviderRequest: noGuard,
+      },
+      offerBody: (offer) => {
+        offers.push(offer.body);
+      },
+    });
+    await h.service.stream(h.request("hi")).result();
+    expect(offers).toHaveLength(1);
+    expect(offers[0]).toMatchObject({ chained: true });
+  });
+
+  test("without a dispatcher a provider retry also offers the body once", async () => {
+    const offers: unknown[] = [];
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { payloadAttempts: 3 },
+      offerBody: (offer) => {
+        offers.push(offer.body);
+      },
+    });
+    await h.service.stream(h.request("hi")).result();
+    expect(offers).toHaveLength(1);
+  });
+
   test("a throwing offer does not block the call", async () => {
     const h = createHarness({
       tape: ONE_TURN,
