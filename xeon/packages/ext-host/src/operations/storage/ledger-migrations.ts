@@ -5,16 +5,24 @@ import type { MigrationSet } from "@fresnel/contracts/records";
 
 const LEDGER_OWNER = "xh";
 export const LEDGER_TABLE = "xh_ext_tables";
+/** 확장별 지운 시점. `dropped_seq` 이하 이벤트는 다시 설치해도 투영하지 않는다(X.operations §4.4.7) */
+export const TOMBSTONE_TABLE = "xh_ext_tombstones";
 
 export const LEDGER_MIGRATIONS: MigrationSet = {
   owner: LEDGER_OWNER,
-  version: 1,
+  version: 2,
   steps: [
     {
       version: 1,
       sql: [
         `CREATE TABLE "${LEDGER_TABLE}" ("table" TEXT NOT NULL, "extension" TEXT NOT NULL, ` +
           `"local" TEXT NOT NULL, "projection_version" INTEGER NOT NULL, "created_at" INTEGER NOT NULL, PRIMARY KEY ("table")) STRICT`,
+      ],
+    },
+    {
+      version: 2,
+      sql: [
+        `CREATE TABLE "${TOMBSTONE_TABLE}" ("extension" TEXT NOT NULL, "dropped_seq" INTEGER NOT NULL, "dropped_at" INTEGER NOT NULL, PRIMARY KEY ("extension")) STRICT`,
       ],
     },
   ],

@@ -1223,7 +1223,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 #### 4.4.7 삭제
 
 - 확장을 제거할 때 `X.loading-trust.spec` §4.4.5의 제거 흐름이 `ExtStorageAdmin.dropExtension(name, confirmed)`를 부른다.
-- [구현 2026-11-04] 위 이름은 구현에서 `ExtStorageManager`의 `preview(name)`(장부의 테이블과 행 수, 아무것도 쓰지 않음)와 `drop(name)`(투영기 해제, 장부 테이블을 `fresnel.store`의 `extensions.drop`으로 지우고 장부 행을 뺌)이다. 포트는 `ExtensionTablesPortKey`(`fresnel.store`의 `extensions` 속성)이고, 제거 wire는 `ext.removePreview`와 `ext.remove { dropData }`다. 행 수는 장부 핸들(`xh`)이 아니라 그 확장의 접두 핸들(`ext.<이름>`)로 읽는다. `xh` 핸들은 확장 테이블을 읽을 수 없다.
+- [구현 2026-11-04] 위 이름은 구현에서 `ExtStorageManager`의 `preview(name)`(장부의 테이블과 행 수, 아무것도 쓰지 않음)와 `drop(name)`(투영기 해제, 장부 테이블을 `fresnel.store`의 `extensions.drop`으로 지우고 장부 행을 뺌)이다. 포트는 `ExtensionTablesPortKey`(`fresnel.store`의 `extensions` 속성)이고, 제거 wire는 `ext.removePreview`와 `ext.remove { dropData }`다. 행 수는 장부 핸들(`xh`)이 아니라 그 확장의 접두 핸들(`ext.<이름>`)로 읽는다. `xh` 핸들은 확장 테이블을 읽을 수 없다. `drop`은 지운 시점의 이벤트 seq(`extensions.drop`의 `headSeq`)를 `xh_ext_tombstones`에 적어, 다시 설치해도 그 이전 이벤트로 표를 채우지 않는다(`L1.persistence.spec` §4.5.3). 이벤트는 지우지 않는다.
 - 먼저 `ExtensionLoader.previewRemoval`이 `confirmed: false`로 대상 테이블 목록을 받아 사용자에게 보인다. 사용자가 확인하면 `ExtensionLoader.remove(name, { dropTables: true })`가 `confirmed: true`로 다시 부른다. 확인 화면은 L4가 만든다.
 - 지우는 대상은 `xh_ext_tables`에 그 확장 이름으로 오른 테이블뿐이다. `LIKE 'x_…%'` 같은 접두 패턴 삭제는 하지 않는다. 확장 `a`를 지울 때 확장 `a-b`의 테이블이 지워지지 않게 하기 위해서다.
 - 목록 전달: `dropExtension(name, true)`는 소유 장부에서 그 확장 이름의 테이블 이름 목록을 읽어 `fresnel.store`의 `extensions.drop(name, tables)`(`L0.store.spec`)에 정확한 이름 목록으로 넘긴다. store는 목록의 모든 이름이 `name`의 소유인지 먼저 확인하고, 하나라도 아니면 아무것도 지우지 않고 `table_not_owned`를 돌려준다. 이때 `dropExtension`은 `ExtStorageError`로 바꾸어 돌려주고 소유 장부를 고치지 않는다. 성공하면 지운 테이블의 장부 행을 지운다.

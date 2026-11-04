@@ -184,7 +184,7 @@ export function createFakeSession(): FakeSession {
         sql.run(`DROP TABLE "${table}"`);
         dropped.push(table);
       }
-      return ok({ dropped });
+      return ok({ dropped, headSeq: 0 });
     },
   };
 

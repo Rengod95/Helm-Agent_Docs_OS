@@ -26,7 +26,7 @@ import {
 import { scopeInternalsOf } from "../../primitives/host-api.ts";
 import type { DispatchPolicy } from "../../primitives/dispatch-types.ts";
 import { namesOf, readersOf, writersOf } from "../../erase.ts";
-import { LEDGER_MIGRATIONS, LEDGER_TABLE } from "./ledger-migrations.ts";
+import { LEDGER_MIGRATIONS, LEDGER_TABLE, TOMBSTONE_TABLE } from "./ledger-migrations.ts";
 import type { ExtRowError, ExtStorageError } from "./errors.ts";
 import { checkStatement } from "./guard.ts";
 import type { ExtReaders, ExtWriters, ExtTableReader, ExtTableWriter } from "./table-types.ts";
@@ -330,6 +330,14 @@ function readerFor(
 const TABLE_PRESENT_SQL = `SELECT 1 AS "present" FROM sqlite_schema WHERE type = 'table' AND name = ?`;
 
 /** 소유 장부에서 확장의 테이블 이름을 읽는다. 장부 테이블이 아직 없으면 빈 목록이다 */
+/** 마지막으로 지운 시점의 이벤트 위치. 지운 적이 없으면 0 */
+function droppedSeqOf(tx: SqlTx, extension: ExtensionName): number {
+  if (tx.get(TABLE_PRESENT_SQL, [TOMBSTONE_TABLE]) === undefined) return 0;
+  const row = tx.get(`SELECT * FROM ${quote(TOMBSTONE_TABLE)} WHERE "extension" = ?`, [extension]);
+  const seq = row?.["dropped_seq"];
+  return typeof seq === "number" ? seq : 0;
+}
+
 function ledgerTablesOf(tx: SqlTx, extension: ExtensionName): readonly string[] {
   if (tx.get(TABLE_PRESENT_SQL, [LEDGER_TABLE]) === undefined) return [];
   const rows = tx.all(`SELECT * FROM ${quote(LEDGER_TABLE)} WHERE "extension" = ?`, [extension]);
@@ -416,7 +424,7 @@ export interface ExtStorageManager {
   preview(extension: ExtensionName): Result<ExtStoragePreview, ExtStorageError>;
   /**
    * 제거 때 그 확장의 소유 테이블을 지우고 장부 행을 뺀다(X.operations.spec §4.4.7). 먼저 투영기를 해제해 지워질
-   * 테이블에 아무도 쓰지 않게 한다. 이벤트는 남는다. 지운 테이블 이름을 돌려준다
+   * 테이블에 아무도 쓰지 않게 한다. 이벤트는 남고, 지운 시점의 이벤트 위치를 기록해 다시 설치해도 그 이전 이벤트로 표를 채우지 않는다. 지운 테이블 이름을 돌려준다
    */
   drop(extension: ExtensionName): Result<{ readonly dropped: readonly string[] }, ExtStorageError>;
 }
@@ -501,6 +509,11 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
           return err({ kind: "table_owned", table: owned.value.table, owner: owned.value.owner });
         }
 
+        // 지운 시점(이벤트 위치) 이하 이벤트는 재생에서 건너뛴다. 이벤트는 남아 있고 표만 지운 시점부터 다시 쌓인다
+        const floored = ledger.read((tx) => droppedSeqOf(tx, extension));
+        if (!floored.ok) return err({ kind: "busy" });
+        const floor = floored.value;
+
         const projector: Projector = {
           name: `ext.${extension}`,
           version: projection.version,
@@ -508,6 +521,7 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
           ddl,
           kinds: projection.kinds,
           apply(tx: ProjectionTx, event: DurableEventEnvelope): void {
+            if (floor > 0 && event.seq <= floor) return;
             const runner: SqlRunner = {
               run: (sql, params) => {
                 tx.run(sql, params);
@@ -647,6 +661,12 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
       const cleared = store.scoped("xh").write((tx) => {
         if (tx.get(TABLE_PRESENT_SQL, [LEDGER_TABLE]) === undefined) return;
         tx.run(`DELETE FROM ${quote(LEDGER_TABLE)} WHERE "extension" = ?`, [extension]);
+        // 지운 시점을 같은 트랜잭션에 남긴다. 다시 설치하면 이 위치 뒤 이벤트만 표에 쌓는다
+        if (tx.get(TABLE_PRESENT_SQL, [TOMBSTONE_TABLE]) === undefined) return;
+        tx.run(
+          `INSERT OR REPLACE INTO ${quote(TOMBSTONE_TABLE)} ("extension", "dropped_seq", "dropped_at") VALUES (?, ?, ?)`,
+          [extension, dropped.value.headSeq, deps.now()],
+        );
       });
       if (!cleared.ok) return err(storageErrorOf(cleared.error));
       return ok({ dropped: dropped.value.dropped });
