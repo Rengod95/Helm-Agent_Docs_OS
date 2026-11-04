@@ -225,6 +225,29 @@ test("a user extension cannot ask for the builtin trust level", async () => {
   expect(fakeGroupSdk.seen).toEqual([]);
 });
 
+test("a user extension named with the host's hook unit prefix is rejected by name and gets no unit, tier or registration", async () => {
+  await writePlugin(userExtensions, "hooks-look-alike", { name: "fresnel-hooks-x" });
+  const harness = await harnessOf();
+  const report = await harness.loader.loadAll(loadOptions(harness));
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([
+    ["hooks-look-alike", "rejected"],
+  ]);
+  expect(report.diagnostics.find((entry) => entry.extension === "hooks-look-alike")).toMatchObject({
+    code: "manifest_invalid",
+    issues: [
+      {
+        severity: "error",
+        code: "name_reserved",
+        path: "/name",
+        message:
+          'extension name "fresnel-hooks-x" starts with "fresnel-hooks-", a prefix the host reserves for its own units',
+      },
+    ],
+  });
+  expect(harness.policy.tiers.get("fresnel-hooks-x")).toBeUndefined();
+  expect(harness.t.host.registration("fresnel-hooks-x")).toBeUndefined();
+});
+
 test("a user extension named like a guard package gets the user tier, never guard", async () => {
   // guard tier는 내장 위치의 허용 목록(GUARD_EXTENSIONS)만 받는다. 설치로 놓인 확장은 이름이 같아도 user tier다(X.operations.spec §4.1.2)
   await writePlugin(userExtensions, "core-tools", { name: "core-tools" });

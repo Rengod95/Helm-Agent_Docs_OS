@@ -109,6 +109,18 @@ const FOLD_OF: { readonly [N in HookHookName]: "tap" | "first" | "chain" } = {
   "thread.shutdown": "tap",
 };
 
+/**
+ * 이 결과가 같은 범위의 뒤 훅을 멈추는가(X.operations §4.7.4 훅별 결과). first는 결정·거부·실패에서 멈추고,
+ * chain은 첫 패치에서 멈춘다. tap은 멈추지 않는다. tap과 chain의 실패는 기록만 남기고 뒤 훅을 돈다
+ */
+function stopsScope(fold: "tap" | "first" | "chain", result: ExecResult): boolean {
+  if (fold === "first") {
+    return result.kind === "decision" || result.kind === "deny" || result.kind === "failed";
+  }
+  if (fold === "chain") return result.kind === "patch";
+  return false;
+}
+
 function isDecisionOf<N extends "tool.call.before" | "input.bash.before" | "thread.compact.before">(
   point: N,
   value: unknown,
@@ -265,12 +277,13 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
             hook.def.tools === undefined ||
             hook.def.tools.includes(toolName)),
       );
-    // 같은 지점의 훅은 하나씩 순서대로 실행한다. 결정·패치·거부·실패가 나오면 거기서 멈춘다
+    // 같은 지점의 훅은 하나씩 순서대로 실행한다. 멈추는 결과(stopsScope)가 나오면 거기서 멈춘다
+    const fold = FOLD_OF[point];
     const runFrom = async (position: number): Promise<ExecResult> => {
       const hook = matching[position];
       if (hook === undefined) return { kind: "none" };
       const result = await runOne(hook, point, payload, current, ctx, process);
-      if (result.kind === "none") return runFrom(position + 1);
+      if (!stopsScope(fold, result)) return runFrom(position + 1);
       // 멈춘 뒤의 매칭 훅은 실행하지 않았다. 계측에는 멈춘 훅을 가리키는 건너뜀 행으로 남긴다(X.operations §4.8.2)
       for (const later of matching.slice(position + 1)) {
         ambient()?.trace?.record({
