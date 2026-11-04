@@ -4,6 +4,7 @@ import type { NotifyDeliveredParams, StreamChunkParams } from "@fresnel/contract
 import {
   deliveredOpsOf,
   deliveredText,
+  disableQuestionText,
   handlerFailedOpsOf,
   handlerFailedText,
   isShownFailure,
@@ -214,5 +215,30 @@ test("control characters in the title and body are replaced, and an empty body a
 test("a delivered notice becomes one notice op", () => {
   expect(deliveredOpsOf(delivered(), threadId(1))).toEqual([
     { kind: "notice", text: "[완료] 작업이 끝났다" },
+  ]);
+});
+
+test("only the failure that raised the disable question carries the question line", () => {
+  expect(disableQuestionText({ ...payload(), consecutive: 4 })).toBeUndefined();
+  expect(disableQuestionText({ ...payload(), consecutive: 5, asksDisable: true })).toBe(
+    "확장 acme-notes에서 5번 연달아 실패했어요. 끌까요? 답할 때까지 켜 둔 채예요. 데스크톱 앱에서 답해요",
+  );
+});
+
+test("the chunk that raised the question draws the failure line and then the question line", () => {
+  const chunk: StreamChunkParams = {
+    event: handlerFailedChunk({
+      thread: threadId(1),
+      n: 3,
+      afterSeq: 3,
+      payload: payload({ consecutive: 5, asksDisable: true }),
+    }),
+  };
+  expect(handlerFailedOpsOf(chunk, threadId(1))).toEqual([
+    { kind: "notice", text: "확장 acme-notes의 tool.before 핸들러가 실패했다 (연속 5회): boom" },
+    {
+      kind: "notice",
+      text: "확장 acme-notes에서 5번 연달아 실패했어요. 끌까요? 답할 때까지 켜 둔 채예요. 데스크톱 앱에서 답해요",
+    },
   ]);
 });
