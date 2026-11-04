@@ -147,18 +147,14 @@ describe("plans in the mirror", () => {
     ]);
   });
 
-  test("a withdrawn version marks its record withdrawn and keeps the title; another version is ignored", () => {
-    const state = run([
-      submitted(1, "p1", 1, "계획"),
-      withdrawn(2, "p1", 2),
-      withdrawn(3, "p9", 1),
-    ]);
-    expect(state.plans).toEqual([
-      { threadId: T, planId: planIdOf("p1"), version: 1, title: "계획", status: "submitted" },
-    ]);
+  test("a withdrawn version marks its record withdrawn and keeps the title; an older version leaves the record alone", () => {
     const done = run([submitted(1, "p1", 1, "계획"), withdrawn(2, "p1", 1)]);
     expect(done.plans).toEqual([
       { threadId: T, planId: planIdOf("p1"), version: 1, title: "계획", status: "withdrawn" },
+    ]);
+    const older = run([submitted(1, "p1", 2, "새 판"), withdrawn(2, "p1", 1)]);
+    expect(older.plans).toEqual([
+      { threadId: T, planId: planIdOf("p1"), version: 2, title: "새 판", status: "submitted" },
     ]);
   });
 
@@ -201,5 +197,61 @@ describe("plans in the mirror", () => {
       from: "head",
     }).state;
     expect(reset.plans).toEqual([]);
+  });
+});
+
+/** head에서 시작한 거울(라이브 구독 하나) */
+const headAt = (start: number): EngineMirror =>
+  reduceMirror(INITIAL_MIRROR, {
+    type: "subscribed",
+    sub: SUB,
+    storeId: STORE,
+    start,
+    live: true,
+    from: "head",
+  }).state;
+/** 라이브 묶음 하나를 받은 뒤의 거울 */
+const batchOf = (state: EngineMirror, from: number, facts: readonly DurableFact[]): EngineMirror =>
+  reduceMirror(state, {
+    type: "batch",
+    sub: SUB,
+    from,
+    to: from + facts.length,
+    caughtUp: true,
+    facts: [...facts],
+  }).state;
+/** 연결 전 사건을 채우는 재생(backfill) 하나를 적용한 거울 */
+const replayOf = (state: EngineMirror, facts: readonly DurableFact[]): EngineMirror =>
+  reduceMirror(state, { type: "backfill", storeId: STORE, facts: [...facts] }).state;
+
+// 연결 전 계획은 처음부터 다시 읽는 재생(backfill)으로 라이브 사건 뒤에 올 수 있다. 철회가 먼저 와도 결과는 같아야 한다.
+describe("plans replayed after the live withdrawal", () => {
+  test("a withdrawal that arrives live first is kept as a withdrawn record without a title", () => {
+    const state = batchOf(headAt(10), 10, [withdrawn(11, "p1", 1)]);
+    expect(state.plans).toEqual([
+      { threadId: T, planId: planIdOf("p1"), version: 1, title: null, status: "withdrawn" },
+    ]);
+  });
+
+  test("a replayed submission of the withdrawn version does not resurrect it, whichever order they come in", () => {
+    const live = batchOf(headAt(10), 10, [withdrawn(11, "p1", 1)]);
+    const liveThenReplay = replayOf(live, [submitted(2, "p1", 1, "계획")]);
+    expect(liveThenReplay.plans).toEqual([
+      { threadId: T, planId: planIdOf("p1"), version: 1, title: "계획", status: "withdrawn" },
+    ]);
+    const replayThenLive = batchOf(replayOf(headAt(10), [submitted(2, "p1", 1, "계획")]), 10, [
+      withdrawn(11, "p1", 1),
+    ]);
+    expect(replayThenLive.plans).toEqual(liveThenReplay.plans);
+  });
+
+  test("a replayed older version does not undo a withdrawal of a newer one", () => {
+    const state = replayOf(batchOf(headAt(10), 10, [withdrawn(11, "p1", 2)]), [
+      submitted(2, "p1", 1, "옛 판"),
+      submitted(3, "p1", 2, "계획"),
+    ]);
+    expect(state.plans).toEqual([
+      { threadId: T, planId: planIdOf("p1"), version: 2, title: "계획", status: "withdrawn" },
+    ]);
   });
 });

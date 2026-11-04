@@ -7,6 +7,7 @@ import { Plus } from "@caustic/react/icons";
 import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands } from "../commands.ts";
+import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import {
   CountsLine,
   firstNoticeOf,
@@ -28,10 +29,14 @@ import { useSafeMode } from "../safe-mode-context.ts";
 export function ExtensionsScreen(): ReactNode {
   const controller = useWorkbenchController();
   const commands = useCommands();
+  // 플러그인 화면 항목은 상태가 ready일 때만 믿는다. 읽는 중이나 연결 없음이면 지우기 상자가 뷰를 "확인하지 못했어요"로 보인다
+  const plugin = usePluginUiState();
+  const pluginEntries = plugin.phase === "ready" ? plugin.entries : null;
   const loadPreview = useCallback(
     (name: string) => commands.workbench.removePreview(name),
     [commands],
   );
+  const loadProfiles = useCallback(() => commands.workbench.profiles(), [commands]);
   const [installing, setInstalling] = useState(false);
   // 지우기 확인 상자가 가리키는 이름과, 지우는 요청이 가는 중인지
   const [removing, setRemoving] = useState<string | null>(null);
@@ -175,6 +180,8 @@ export function ExtensionsScreen(): ReactNode {
         busy={removeBusy}
         dataFailed={removeDataFailed}
         loadPreview={loadPreview}
+        loadProfiles={loadProfiles}
+        pluginEntries={pluginEntries}
         onCancel={() => {
           if (!removeBusy) {
             setRemoving(null);

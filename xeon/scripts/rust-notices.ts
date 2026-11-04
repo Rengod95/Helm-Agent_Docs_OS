@@ -41,14 +41,12 @@ const NOTICE_FILE = "apps/desktop/src-tauri/resources/THIRD-PARTY-NOTICES-RUST.t
  * - retep998/winapi-rs root: LICENSE-APACHE, LICENSE-MIT (winapi-*-pc-windows-gnu)
  * - dropbox/rust-alloc-no-stdlib root: LICENSE, BSD-style (alloc-stdlib)
  * - tauri-apps/libappindicator-rs root: LICENSE-APACHE, LICENSE-MIT (libappindicator-sys, in its sys/ crate)
- * - emk/cesu8-rs: no license file; COPYRIGHT-RUST.txt says the Rust Project is dual-licensed Apache-2.0 and MIT
  * - r-efi/r-efi: no license file; the README names MIT OR Apache-2.0 OR LGPL-2.1-or-later
  * - servo/stylo: no MPL-2.0 file in the repository (selectors)
  */
 export const NO_LICENSE_FILE_CRATES: ReadonlySet<string> = new Set([
   "alloc-stdlib",
   "block2",
-  "cesu8",
   "dispatch2",
   "dlopen2",
   "dlopen2_derive",
@@ -93,8 +91,11 @@ export const REPOSITORY_FALLBACK: Readonly<Record<string, string>> = {
   "libappindicator-sys": "https://github.com/tauri-apps/libappindicator-rs",
 };
 
-/** License files of a crate: the names notices.ts reads, and UNLICENSE. */
-const LICENSE_FILE = /^(licen[sc]e|copying|notice|unlicense)([-._].*)?$/i;
+/**
+ * License files of a crate: the names notices.ts reads, COPYRIGHT (emk/cesu8-rs ships COPYRIGHT-RUST.txt, the license text of
+ * the Rust Project's dual license, and no LICENSE file) and UNLICENSE.
+ */
+const LICENSE_FILE = /^(licen[sc]e|copying|copyright|notice|unlicense)([-._].*)?$/i;
 
 /** A license file of a crate source directory. */
 export interface CrateLicenseFile {

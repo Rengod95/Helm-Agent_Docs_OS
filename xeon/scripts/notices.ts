@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 // Third-party notices for the release archive (L4.release.spec section 6, audit prod/P-LEGAL). Walks the production dependency
 // closure of the compiled binary's entry packages (apps/host, apps/cli) through each package's `dependencies`, follows
-// workspace links and node_modules symlinks, and prints the notice grouped by license: one section per license with its
-// standard text once and the packages under it. The Bun runtime that `bun build --compile` embeds is listed as well.
+// workspace links and node_modules symlinks, and prints the notice grouped by license: one section per license, each distinct
+// license text once with the packages that carry it under it. The Bun runtime that `bun build --compile` embeds is listed as well.
 //   notices [--out <file>]
 // A third-party package without license information is an error (exit 1), so an unlicensed dependency cannot ship silently.
 // This file imports no workspace package (eng.dependency-rules.guide section 1).
@@ -348,9 +348,9 @@ function textOf(texts: NoticeItem["texts"]): string {
 }
 
 /**
- * The text compared with the standard text of its section: no copyright lines (header lines, and the filled or template
- * copyright line of an Apache appendix), no title lines (`MIT License`, `License`, `(The MIT License)` ...), lower case words
- * only. Two packages with the same license text compare equal, whatever their copyright holders and title lines.
+ * The identity of a package's license text: no copyright lines (header lines, and the filled or template copyright line of an
+ * Apache appendix), no title lines (`MIT License`, `License`, `(The MIT License)` ...), lower case words only. Packages with
+ * the same license text compare equal, whatever their copyright holders and title lines, and share one printed copy (textGroups).
  */
 function comparableText(texts: NoticeItem["texts"]): string {
   return texts
@@ -374,33 +374,26 @@ function comparableText(texts: NoticeItem["texts"]): string {
     .join(" ");
 }
 
-/** The most common license text of a section, with the packages that carry it counted. */
-function standardText(
-  members: readonly NoticeItem[],
-): { readonly key: string; readonly body: string } | undefined {
-  const ranked = members
-    .filter((member) => member.texts.length > 0)
-    .map((member) => ({ member, key: comparableText(member.texts) }));
-  const count = (key: string): number => ranked.filter((entry) => entry.key === key).length;
-  // A stable sort keeps the first package in name order among equally common texts.
-  const best = ranked.toSorted((a, b) => count(b.key) - count(a.key))[0];
-  return best === undefined ? undefined : { key: best.key, body: textOf(best.member.texts) };
+/** A license text of a section, printed once, and the packages that carry it (name order). */
+interface TextGroup {
+  readonly body: string;
+  readonly packages: readonly NoticeItem[];
 }
 
 /**
- * True when every word pair of `text` also occurs in the standard text, so printing the standard text in full covers it. A
- * text with words the standard text does not have (an added clause, another holder's wording) is not covered and prints.
+ * The packages of a section that ship a license file, grouped by identical license text (comparableText). Each group prints its
+ * text once. The most common text comes first; the sort is stable, so equally common texts keep the order of their first package.
  */
-function coveredBy(text: string, standard: string): boolean {
-  const known = wordPairs(standard);
-  return [...wordPairs(text)].every((pair) => known.has(pair));
-}
-
-function wordPairs(words: string): Set<string> {
-  const list = words.split(" ");
-  const out = new Set<string>();
-  for (let i = 0; i + 1 < list.length; i++) out.add(list.slice(i, i + 2).join(" "));
-  return out;
+function textGroups(members: readonly NoticeItem[]): readonly TextGroup[] {
+  const groups = new Map<string, { body: string; packages: NoticeItem[] }>();
+  for (const member of members) {
+    if (member.texts.length === 0) continue;
+    const key = comparableText(member.texts);
+    const group = groups.get(key);
+    if (group === undefined) groups.set(key, { body: textOf(member.texts), packages: [member] });
+    else group.packages.push(member);
+  }
+  return [...groups.values()].toSorted((a, b) => b.packages.length - a.packages.length);
 }
 
 function byNameVersion(a: NoticeItem, b: NoticeItem): number {
@@ -417,11 +410,28 @@ function spdxLinks(license: string): string {
 
 const RULE = "=".repeat(78);
 
+/** The lines of one package's entry: name and version, header copyright lines, source link, notes, then a blank line. */
+function entryLines(member: NoticeItem): string[] {
+  return [
+    `${member.name} ${member.version}`,
+    ...member.copyright.map((line) => `  ${line}`),
+    `  link: ${member.link ?? "not stated in package.json"}`,
+    ...member.notes.map((note) => `  ${note}`),
+    "",
+  ];
+}
+
+/** "1 package" or "3 packages". */
+function countOf(count: number): string {
+  return `${String(count)} ${count === 1 ? "package" : "packages"}`;
+}
+
 /**
- * The notice text grouped by license: per license a header with its SPDX text links, its standard text once, then its
- * packages with name, version, header copyright lines and source link. A package whose license text differs from the
- * standard text prints its own text under its entry. `carrier` names the file that ships the notice, for the sentence about a
- * license with no text in it (the release archive by default; rust-notices.ts names its own file).
+ * The notice text grouped by license: per license a header with its SPDX text links, then each distinct license text once
+ * (packages with identical text share it, see textGroups), each followed by the packages that carry it with name, version,
+ * header copyright lines and source link. Packages without a license file come last, with their notes. `carrier` names the
+ * file that ships the notice, for the sentence about a license with no text in it (the release archive by default;
+ * rust-notices.ts names its own file).
  */
 export function groupedNoticesText(items: readonly NoticeItem[], carrier = "The archive"): string {
   if (items.length === 0) return "";
@@ -431,45 +441,35 @@ export function groupedNoticesText(items: readonly NoticeItem[], carrier = "The 
   const parts: string[] = [];
   for (const license of licenses) {
     const members = items.filter((item) => item.license === license).toSorted(byNameVersion);
-    const standard = standardText(members);
+    const groups = textGroups(members);
     parts.push(
       RULE,
-      `License: ${license} (${String(members.length)} ${members.length === 1 ? "package" : "packages"})`,
+      `License: ${license} (${countOf(members.length)})`,
       spdxLinks(license),
       RULE,
       "",
     );
-    if (standard === undefined) {
+    if (groups.length === 0) {
       parts.push(
         `${carrier} ships no license text for this license. The license text link above has it.`,
         "",
       );
-    } else {
+    }
+    groups.forEach((group, index) => {
       parts.push(
-        "Standard license text (printed once for this section; copyright lines are listed under each package):",
+        `License text ${String(index + 1)} of ${String(groups.length)} (printed once; ${countOf(group.packages.length)} ${group.packages.length === 1 ? "carries" : "carry"} it; copyright lines are listed under each package):`,
         "",
-        standard.body,
+        group.body,
+        "",
+        "Packages with this text:",
         "",
       );
-    }
-    parts.push("Packages:", "");
-    for (const member of members) {
-      parts.push(`${member.name} ${member.version}`);
-      for (const line of member.copyright) parts.push(`  ${line}`);
-      parts.push(`  link: ${member.link ?? "not stated in package.json"}`);
-      for (const note of member.notes) parts.push(`  ${note}`);
-      if (
-        standard !== undefined &&
-        member.texts.length > 0 &&
-        !coveredBy(comparableText(member.texts), standard.key)
-      ) {
-        parts.push(
-          "  This package's license text differs from the standard text above. Its text follows:",
-          "",
-          textOf(member.texts),
-        );
-      }
-      parts.push("");
+      for (const member of group.packages) parts.push(...entryLines(member));
+    });
+    const withoutText = members.filter((member) => member.texts.length === 0);
+    if (withoutText.length > 0) {
+      parts.push(groups.length === 0 ? "Packages:" : "Packages without license text:", "");
+      for (const member of withoutText) parts.push(...entryLines(member));
     }
   }
   return parts.length === 0 ? "" : `${parts.join("\n").trimEnd()}\n`;

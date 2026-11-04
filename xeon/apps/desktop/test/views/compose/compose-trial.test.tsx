@@ -77,19 +77,36 @@ function render(
   trial: TrialController,
   link: "live" | "offline" = "live",
   installed = true,
+  draft = false,
 ): string {
   return renderToString(
     <CommandsContext.Provider value={fakeCommands()}>
-      <TrialBar link={link} installed={installed} trial={trial} />
+      <TrialBar link={link} installed={installed} draft={draft} trial={trial} />
     </CommandsContext.Provider>,
   );
 }
+
+/** 초안을 고치는 중에 시험이 설치된 그룹을 돌린다는 경고. 정보 아이콘 글과 따로 보인다 */
+const DRAFT_WARNING =
+  "지금 고치는 초안은 시험에 들어가지 않아요. 시험 대화는 설치된 그룹을 돌려요.";
 
 describe("시험 시작 줄", () => {
   test("설치된 그룹은 시작 단추가 눌리고, 설명은 정보 아이콘 뒤에 있다", () => {
     const html = render(trialOf());
     expect(buttonNamed(html, "시험 대화에서 돌려 보기")?.disabled).toBe(false);
     expect(html).toContain("시험 대화를 새로 만들고 이 그룹을 그 대화에서 켜요.");
+  });
+
+  test("초안을 고치는 중이면 설치된 그룹을 돈다는 경고가 단추 옆에 글로 보인다", () => {
+    const html = render(trialOf(), "live", true, true);
+    expect(html).toContain(DRAFT_WARNING);
+    // 경고는 설명 아이콘의 글에 들어가지 않는다(정보 아이콘 글은 시험 방식만 적는다)
+    expect(html).not.toContain("고친 초안은 아직 돌지 않아요");
+    expect(buttonNamed(html, "시험 대화에서 돌려 보기")?.disabled).toBe(false);
+  });
+
+  test("초안이 아니면 그 경고는 보이지 않는다", () => {
+    expect(render(trialOf())).not.toContain(DRAFT_WARNING);
   });
 
   test("연결이 없으면 시작이 잠기고 연결하라는 줄이 보인다", () => {

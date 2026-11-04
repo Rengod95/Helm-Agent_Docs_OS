@@ -866,9 +866,9 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 칸 | 출처 | 누르면 |
 |---|---|---|
 | 대상 | 연결 설정, `host.hello`의 `transport`, `host.status.mode` | 대상 팝오버(P-08 요약, "대상 바꾸기") |
-| 엔진 | 셸 IPC `EngineState`(starting, running, restarting, stopping, failed, stopped) | 실패 시 "엔진 다시 시작" |
-| 연결 | 연결 상태 기계(offline, connecting, catchingUp, live, resyncing, reloading, failed) | 실패 시 "다시 연결", "진단 복사" |
-| 진행 중 | `host.status.liveTurns` | 실행 중 대화로 이동 |
+| 엔진 | 셸 IPC `EngineState`(starting, running, restarting, stopping, failed, stopped). 점은 돌고 있으면 초록, 시작·다시 시작·끄는 중이면 노랑, 실패면 빨강, 꺼짐은 회색 | `Popover`(제목 "엔진"). 실패와 다시 시작 중에는 한 문장을 더합니다. 실패 단추 "엔진 다시 시작"은 칸 옆 띠에 그대로 둡니다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `engineDotOf`, `engineDescriptionOf`] |
+| 연결 | 연결 상태 기계(offline, connecting, catchingUp, live, resyncing, reloading, failed). 점은 연결됨 초록, 실패 빨강, 연결 없음 회색, 그 밖은 노랑 | `Popover`(제목 "연결"). 끊김은 "읽기만 돼요"를, 맞추는 중은 맞추는 방법을 한 문장으로 보입니다. 실패 단추 "다시 연결", "진단 복사"는 그대로 둡니다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `LINK_DOT`, `LINK_DESCRIPTION`] |
+| 진행 중 | 거울의 실행 중 대화(`thread.list`의 `status`가 running). 테스트 대화는 `testRun` 표식, 예약은 `origin.kind`가 schedule로 가른다. `host.status.liveTurns`는 읽지 않는다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `liveRowsOf`] | `Popover`(넓은 크기). 머리 글 "대화", "테스트 대화", "예약"으로 묶고 행을 누르면 그 대화로 가며 `Popover`는 닫힙니다. 없으면 "지금 진행 중인 일이 없어요." 제작 대화는 읽을 값이 없어 아직 없습니다 [미결] |
 | 모델 | `settings.get { keys: ["l1.models.default"], threadId }` | 모델 `Combobox mode="popup"` |
 | 사용량 | `usage.get { threadId }` → 게이지 `[gap:V-11]` | 사용량 `Popover`(게이지 목록, P-11 링크) |
 | 목표 | "목표 2/3"(판정 횟수/최대, DP-25). `goal.status` [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. 이벤트 `agent.judged`·`work.goal_*`는 갱신 알림에만 씁니다 | `Popover` 첫 줄 "판정 2/3", 끝 영역 작업 탭 링크 |
@@ -1116,7 +1116,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 승인 카드는 트랜스크립트 끝(요청한 턴 아래)과 끝 영역 받은 요청에 같은 카드로 보입니다. 한쪽에서 답하면 `approval.resolved`로 양쪽에서 사라집니다(FS-02).
   - M4의 승인 기억은 요청 단위뿐입니다. 카드는 `remember: "once"`만 보내고 "이 대화에서 항상"·"항상" 단추와 `⇧Y`를 두지 않습니다. 엔진은 `once`만 제안하고 `thread`·`always` 응답을 `answer_invalid`로 거절합니다. 그룹 단위 기억도 두지 않습니다 [결정: 2026-10-31 사용자, 점검 2026-11-04].
   - 자식 에이전트가 낸 승인은 출처를 "렌즈 실패 사례 · grp:helm"처럼 보입니다(DP-33) [결정: 2026-10-31 사용자]. 데이터는 `ApprovalOrigin.caller`(`agentName`, `extension`)입니다(`L1.tools.spec` §3).
-  - 입력창 위 큐 표시: 대기 중인 입력은 칩으로 입력창 위에 보입니다. 칩에는 입력 글 앞부분, 모드 말("다음 도구 라운드 뒤 들어가요"(steer), "이번 턴이 끝나면 들어가요"(followUp·next), "다음 모델 요청과 함께 들어가요"(aside))과 "철회" 단추가 있습니다. 칩은 `input.queued`(사용자·확장 출처)로 생기고 `input.placed`나 `input.withdrawn`이 오면 사라집니다. "철회"는 `turn.withdraw { threadId, requestId }`를 부릅니다. 결과가 거짓이면(이미 배치됨) "이미 들어갔어요"를 보입니다. 잠기면 잠김 대화 상자를 띄우고, 실패하면 칩 안에 이유와 "다시 시도"를 둡니다. 연결이 없으면 단추를 끕니다. 정보 아이콘은 "아직 모델에 전달되지 않은 입력만 철회할 수 있어요."를 보입니다. 실행 중에 보낸 글은 `turn.start { whenBusy: "followUp" }`로 큐에 들어가 칩이 됩니다(F.wire-settings §3.3.1 0a, §12.1 12번). 칩의 글은 호스트가 보낸 화면 가림 표식(`mask`)을 적용한 것입니다
+  - 입력창 위 큐 표시: 대기 중인 입력은 칩으로 입력창 위에 보입니다. 칩에는 입력 글 앞부분, 모드 말("다음 도구 라운드 뒤 들어가요"(steer), "이번 턴이 끝나면 들어가요"(followUp·next), "다음 모델 요청과 함께 들어가요"(aside))과 "철회" 단추가 있습니다. 칩은 `input.queued`(사용자·확장 출처)로 생기고 `input.placed`나 `input.withdrawn`이 오면 사라집니다. 연결 전에 든 대기 입력은 계획과 같은 보조 재생으로 채우는데, 재생 범위 밖이면(`replay.outOfRange`) 칩이 보이지 않아 그 입력을 거둘 수도 없습니다 [미결: 대기 입력 목록을 읽는 기존 wire가 없다. `thread.list`의 `queuedInputs`는 개수뿐이다. `L4.desktop.spec` §4.6 6번 [근거: packages/contracts/src/wire-settings/wire/methods.ts]]. "철회"는 `turn.withdraw { threadId, requestId }`를 부릅니다. 결과가 거짓이면(이미 배치됨) "이미 들어갔어요"를 보입니다. 잠기면 잠김 대화 상자를 띄우고, 실패하면 칩 안에 이유와 "다시 시도"를 둡니다. 연결이 없으면 단추를 끕니다. 정보 아이콘은 "아직 모델에 전달되지 않은 입력만 철회할 수 있어요."를 보입니다. 실행 중에 보낸 글은 `turn.start { whenBusy: "followUp" }`로 큐에 들어가 칩이 됩니다(F.wire-settings §3.3.1 0a, §12.1 12번). 칩의 글은 호스트가 보낸 화면 가림 표식(`mask`)을 적용한 것입니다
 - 화면 가림 [결정: 2026-11-03 사용자]: 트랜스크립트는 값을 그리지 않습니다. 사용자 글, 어시스턴트 글, 생각, 도구 인자(JSON), 도구 결과, 스트리밍 행이 모두 같습니다. 호스트가 준 구간(`F.wire-settings.spec` §3.4.5a)을 F 층의 공용 적용기(`@fresnel/contracts/conversation`, DR-10)로 같은 문자열에 적용해 그리고, 가린 자리는 `[REDACTED:<표지>]`로 보입니다(표지: `known:<이름>`, 패턴 이름, `kv`). 값과 패턴의 판정은 호스트가 하고 화면은 구간만 적용합니다. 안전 트랙 S-01(2026-11-03 "화면 쪽에서")의 "화면 쪽"은 이 적용을 가리키는 것으로 읽어 코드와 맞춥니다. 판정까지 화면으로 옮기면 알려진 시크릿 값을 wire에 실어야 해서 `F.wire-settings.spec` §3.4.5a "값은 클라이언트에 따로 보내지 않는다"와 어긋나므로 옮기지 않았습니다 [미결: 사용자가 S-01을 판정의 이동까지 뜻했는지 확인]. 확정 item의 표식이 맞지 않으면 그 item은 그리지 않습니다. 스트리밍 행은 마지막 공백까지만 보이고(뒤 낱말은 확정 때까지 빠집니다), 조각을 놓쳐 길이가 맞지 않으면 그 파트를 확정 item이 올 때까지 비웁니다.
 - 복사: 화면에서 복사되는 글은 그려진 글이므로 값이 없습니다. 메시지 복사([제안], 위 표)를 만들면 그려진 텍스트를 써야 합니다. 지금은 트랜스크립트에 복사 동작이 없고 진단 복사(`copyDiagnostics`)만 있으며, 진단 묶음에는 대화 내용이 들어가지 않습니다(`FS-13`).
 - 범위 밖: 승인 카드(P-03)의 도구 인자와 설정 화면은 이 표식을 쓰지 않습니다 [미결]. 내보내기 `db export`는 가리지 않고 확인을 받습니다(`L4.cli.spec` §4.13).
@@ -1745,7 +1745,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 참조(설정 키, 활성 lease, 대화) | `secret.references { name }` |
 | 시험 결과 | `secret.test { name }` → 상태, 복호화, 길이, sha256 앞부분 |
 | 값 보기 상태 | `createSecretReveal({ port, scheduler })` → hidden, reauth, revealed, failed |
-| 사용 기록 | `secret.audit { name }` → 사용·거절 항목(시각, 대화, 도구 호출, 모습, 거절 사유). 값은 없습니다 [결정: 2026-11-04 사용자] 개수 상한 없음 |
+| 사용 기록 | `secret.audit { name }` → 사용·거절 항목(시각, 대화, 도구 호출, 모습, 거절 사유). 값은 없습니다 [결정: 2026-11-04 사용자] 개수 상한 없음. 대화 칸은 id가 아니라 제목입니다(엔진 거울의 대화 목록에서 찾고, 제목이 없으면 "제목 없음", 목록에 없으면 id 앞 4글자와 끝 6글자) [근거: `apps/desktop/src/views/pages/secrets/secret-audit.tsx`] |
 
 | 기능 | wire 또는 경로 |
 |---|---|
@@ -1989,7 +1989,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 항목 | 출처 |
 |---|---|
 | 목표(조건, 상태, "판정 2/3", 마지막 판정). 상태 표시줄 칩은 "목표 2/3", 칩 `Popover`와 이 탭은 "판정 2/3"으로 같은 숫자를 씁니다(DP-25, D-17) | `goal.status { threadId }`. 이전 임시 경로(`/goal status`, `work.goal_*` 이벤트 재구성)는 쓰지 않는다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`] `[gap:V-08]` |
-| 계획(최신 판의 번호, 상태, 제목). 계획 카드와 "버전 보기" 목록 | 계획 id는 `work.plan_*` 이벤트(거울의 `plans`. 앱을 켠 뒤 head부터 받는 것에 더해, 연결 전에 낸 것은 `work.plan_`·`input.`만 거른 보조 구독을 seq 0부터 열어 채운다 [결정: 2026-11-04 오케스트레이터 기본값]. 재생 한도를 넘으면(`replay.outOfRange`) 채우지 않고 연결 뒤 것만 보인다)에서 얻고, 판 목록 `work.plans.versions { threadId, planId }`(W-18)로 읽는다 |
+| 계획(최신 판의 번호, 상태, 제목). 계획 카드와 "버전 보기" 목록 | 계획 id는 `work.plan_*` 이벤트(거울의 `plans`. 앱을 켠 뒤 head부터 받는 것에 더해, 연결 전에 낸 것은 `work.plan_`·`input.`만 거른 보조 구독을 seq 0부터 열어 채운다 [결정: 2026-11-04 오케스트레이터 기본값]. 재생 범위 밖이면(`replay.outOfRange`, 한도 초과 또는 삭제로 올라간 재생 하한) 채우지 않고 연결 뒤 것만 보인다 [미결: 범위 밖의 계획을 전부 읽을 기존 wire가 없다. 계획 id를 모아 주는 목록 읽기가 없어서다. 승인 대기인 계획은 `approval.list`의 `planRef`로 id를 얻지만 처리되었거나 철회된 계획은 얻지 못한다. `L4.desktop.spec` §4.6 6번 [근거: packages/contracts/src/records/catalog/approval.ts]])에서 얻고, 판 목록 `work.plans.versions { threadId, planId }`(W-18)로 읽는다 |
 | 작업(내용, 상태, 막힘) | `work.task_*` 이벤트로 재구성 [제안], 목록 읽기 `work.tasks.list` |
 
 - 기능: 목표 걸기(`command.run { text: "/goal <조건>" }`), 해제(`/goal clear`), 계획 보기(트랜스크립트의 계획 카드로 스크롤. 계획 카드는 승인을 기다리는 계획의 승인 카드(`data-approval-kind="plan"`)라 그 카드를 화면 가운데로 스크롤하고 초점을 준다. 이미 처리돼 카드가 없으면 "대화에 보이는 계획 카드가 없어요"를 알리고, 정보 아이콘은 "계획 카드는 승인을 기다리는 동안 대화에 보여요"를 보인다 [결정: 2026-11-04 오케스트레이터 기본값]. 구현: `views/plan-card-jump.ts`), 작업 행 누르기(만든 턴으로 스크롤).
@@ -2175,7 +2175,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 확장 화면은 두 가지를 더 맡습니다 [근거: 트랙 h6ext 브리프(2026-11-04), ui-gaps B-04, B-05].
 
-- 지우기 규칙(B-04): 선택 패널과 확장 상세 머리의 "지우기" 단추가 위험 확인(`Dialog kind="alert"`)을 거쳐 `ext.remove { name }`을 부른다. 확인 문구는 설치 폴더를 지우고 바로 내려가며 실행 중인 Turn에서도 이 플러그인이 곧바로 빠지고 대화 기록은 남는다고 적는다. 지우는 동안 상자는 열려 있고 단추는 꺼진다. 결과 `appliesAt`은 `now`이면 "지웠어요. 목록에서 내렸어요", `nextStepBoundary`이면 "다음 단계부터 빠져요", `restart`이면 "앱을 다시 시작하면 빠져요"를 토스트로 알리고, 자세히 보기를 닫고 목록을 다시 읽는다. `extension.notFound`(3401)이면 낡은 목록이므로 실패 토스트와 함께 목록을 다시 읽는다. [제안] `origin`이 `user`인 확장만 지울 수 있다(`ext.remove`는 사용자 확장 위치의 설치본 폴더를 지운다). 내장, `managed`, `project` 확장과 `origin`이 없는 옛 호스트의 행은 단추가 꺼지고 마우스 올림과 포커스에서 이유를 보인다. 쓰는 프로필과 플러그인 화면 수는 넣지 않는다. 두 값은 `ext.list`와 `ext.get`에 없어서 상자를 열 때 `profile.list`와 `ext.ui.list`를 따로 읽어야 하고, 이번 범위에서는 읽지 않는다 [제안]. 시안 `b03-ext-trust`의 해당 행은 그 뒤에 더한다.
+- 지우기 규칙(B-04): 선택 패널과 확장 상세 머리의 "지우기" 단추가 위험 확인(`Dialog kind="alert"`)을 거쳐 `ext.remove { name }`을 부른다. 확인 문구는 설치 폴더를 지우고 바로 내려가며 실행 중인 Turn에서도 이 플러그인이 곧바로 빠지고 대화 기록은 남는다고 적는다. 지우는 동안 상자는 열려 있고 단추는 꺼진다. 결과 `appliesAt`은 `now`이면 "지웠어요. 목록에서 내렸어요", `nextStepBoundary`이면 "다음 단계부터 빠져요", `restart`이면 "앱을 다시 시작하면 빠져요"를 토스트로 알리고, 자세히 보기를 닫고 목록을 다시 읽는다. `extension.notFound`(3401)이면 낡은 목록이므로 실패 토스트와 함께 목록을 다시 읽는다. [제안] `origin`이 `user`인 확장만 지울 수 있다(`ext.remove`는 사용자 확장 위치의 설치본 폴더를 지운다). 내장, `managed`, `project` 확장과 `origin`이 없는 옛 호스트의 행은 단추가 꺼지고 마우스 올림과 포커스에서 이유를 보인다. 상자는 "이 확장을 쓰는 프로필"과 "플러그인 뷰" 두 줄을 보입니다(시안 `b03-ext-trust`의 해당 행). 쓰는 프로필은 `profile.list`의 `enable`에 이름이 있는 것이고, `disable`에만 적힌 프로필은 세지 않습니다. 플러그인 뷰는 플러그인 화면 항목 목록(`usePluginUiState`의 `entries`) 가운데 이 확장의 것을 항목 제목과 자리 이름으로 보이며, 상태(꺼짐, 고장)와 무관하게 지우면 빠지므로 넣습니다. 화면 항목 상태가 `ready`가 아니면(읽는 중, 연결 없음) "확인하지 못했어요"를 보이고 "없어요"라고 하지 않습니다. 두 값은 `ext.list`와 `ext.get`에 없어서 상자를 열 때 따로 읽고, 프로필 읽기가 실패하면 그 줄만 "프로필을 읽지 못했어요"입니다. 쓰는 프로필이나 뷰가 없으면 "없어요" [근거: `apps/desktop/src/views/workbench/remove-dialog.tsx`, `remove-model.ts`의 `profilesUsingOf`, `pluginViewsOf`] [제안].
 - 저장 데이터 지우기(B-04의 데이터 부분): 상자를 열 때마다 `ext.removePreview { name }`으로 그 확장이 소유한 저장 테이블과 행 수를 읽는다. 읽는 동안에는 "저장된 데이터를 확인하는 중이에요" 줄과 뼈대를 보이고, 지우기 단추는 누를 수 있다. 읽지 못하면 조용한 한 줄 "저장된 데이터를 확인하지 못했어요"와 "다시 확인" 단추를 보이고 경고 상자는 쓰지 않는다. 표가 있으면 테이블마다 mono 이름과 행 수("N행")를, 아래에 "합계 N행"을 보이고 "저장된 데이터도 지우기" 칸을 둔다. 칸은 기본으로 꺼져 있다. 표가 비었으면 "확인된 저장 데이터가 없어요" 한 줄만 보이고 칸은 그리지 않는다. 미리 보기는 장부의 테이블만 읽으므로 장부가 비어 있으면 데이터가 있어도 빈 목록이 올 수 있다. 이 문장은 데이터가 없다는 뜻이 아니다 [근거: `docs/xeon/X/operations/spec.md`의 `ExtStorageManager.preview`(장부의 테이블과 행 수)]. 장부는 확장이 `defineTables`로 정의한 테이블을 모두 싣는다. 장부 테이블은 소유자 `xh` 마이그레이션이 만든다(실제 SQLite 통합 시험 `core-persistence/test/ext-storage.real.int.test.ts`가 정의, 미리 보기, 지우기를 확인한다) [구현 2026-11-04]. 칸을 켜면 "표에 저장된 데이터는 지워지고 되돌릴 수 없어요. 대화 기록의 원본 이벤트는 남아요. 다시 설치해도 지운 데이터는 돌아오지 않아요." 경고(`Alert`, warning)를 보인다. 사실 그대로다: 표의 행은 지워지지만 이벤트는 지우지 않으므로 대화 기록에는 원본이 남는다 [제안: 이벤트 원본까지 지울지는 사용자 결정, `L1/persistence` §4.5.3 `[미결]`]. 확인 단추는 "지우기"로 그대로이고, 칸이 켜져 있고 표가 있을 때만 `ext.remove { name, dropData: true }`를 보낸다. 그 밖에는 `dropData`를 싣지 않는다. 저장 데이터 지우기가 실패하면(이미 없는 이름 `extension.notFound` 3401은 제외: 폴더도 데이터도 남지 않았으므로 상자를 닫고 "이미 지워졌거나 설치본이 아니에요. 목록을 다시 읽었어요." 토스트만 보인다 [구현 2026-11-04]) 상자를 닫지 않고 "저장된 데이터를 지우지 못했어요. 설치 폴더는 그대로 남아 있어요. 다시 시도하거나 취소해 주세요." 경고를 보인 채 목록을 다시 읽는다(호스트는 확장을 먼저 내리고 데이터를 지운 뒤 폴더를 지운다). 성공하면 토스트 제목은 `appliesAt` 문장 그대로이고, 저장 테이블을 지웠으면 "저장 테이블 N개도 지웠어요."를 설명으로 덧붙인다.
 - 기능 연결(B-05): 목록 위의 한 구역이 `ext.bindings`를 읽는다. 공급자가 없는(`unmet`) 기능이 있으면 경고 `Alert`에 기능 id를 mono로 모으고, "전체 보기"를 펴면 기능 id, 지금 바인딩한 공급자(등록 id와 버전), 받는 확장(필수·선택) 표를 보인다. 공급자 없는 행이 앞이고 나머지는 기능 id 순이다. 확장 목록이 바뀌는 알림(`onChanged`)마다 다시 읽는다. 읽기 실패는 이 구역에만 오류 한 줄이고 목록은 그대로다. [제안: 위치와 접힘은 시안 `c03-ext-list`가 행에 기능 id만 보이기 때문에 정한 기본값]
 
@@ -2681,6 +2681,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 #### 6.28.4 흐름 보기의 시험 실행
 
 - 흐름 머리의 "시험 대화에서 돌려 보기" → Test run을 만들고 그룹을 켠 뒤 같은 캔버스가 실행 보기로 바뀝니다.
+- 초안을 고치는 중이면 이 단추 아래에 경고를 글로 바로 보입니다(`Alert tone="warning"`): "지금 고치는 초안은 시험에 들어가지 않아요. 시험 대화는 설치된 그룹을 돌려요." 시험은 설치된 그룹을 켜므로 고친 초안은 돌지 않습니다. 경고는 정보 아이콘 뒤에 두지 않습니다(DP-58). 정보 아이콘 글은 "시험 대화를 새로 만들고 이 그룹을 그 대화에서 켜요. 켜기는 다음 단계 경계에서 적용돼요."입니다.
 - 캔버스 위 한 줄: Test run 이름과 경과, drive 락 사용량 막대 셋, 멈춤·이어서, 한 경계씩, replay로(개발 모드만), 시험 결과.
 - 지금 단계 노드 강조, 지난 단계 흐림, 아직 안 온 단계 반투명. 돌고 있는 렌즈와 실패 렌즈를 상태로 구분. 렌즈 노드 둘째 줄은 그 자식의 마지막 도구 호출입니다.
 - 가드 발화: 쓰기 거부 구간 이름 아래 "거부 1 · bash · exec" 칩. 오른쪽 "경계 기록" 열이 커밋·drive 락·거부 이벤트를 시간순으로 보입니다.
@@ -2691,7 +2692,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - 세 열: 블록 목록(그룹 머리 포함) · 만들 파일(종류의 템플릿 파일 목록, caustic `CodeRealization`) · 고른 파일의 생성 결과(`src/index.ts`, `plugin.json`).
 - 블록을 고르면 그 블록에서 나온 파일과 줄을 강조합니다.
-- "제작 확장으로 만들기": 제작 대화를 열고 초안을 넘깁니다(`L3.authoring.spec` §4.3). 엔진이 없거나 Plugin Builder가 꺼져 있으면 "제작 확장 켜기"만 보입니다(터미널 명령 복사는 두지 않습니다, CLI 표면 없음 2026-11-01).
+- "제작 확장으로 만들기": 제작 대화를 열고 초안을 넘깁니다(`L3.authoring.spec` §4.3). 엔진이 없으면 문장만 보입니다. Plugin Builder가 꺼져 있으면 "플러그인 빌더 켜기" 단추가 눌립니다. 목록에 Plugin Builder가 없거나 안전 모드·관리자 값으로 잠겨 있으면 단추는 잠긴 채 까닭 문장을 보입니다("확장 목록에 플러그인 빌더가 없어서 여기서 켤 수 없어요", "플러그인 빌더는 지금 켤 수 없어요. {까닭}"). 누르면 아무 일도 없는 단추는 두지 않습니다(터미널 명령 복사는 두지 않습니다, CLI 표면 없음 2026-11-01).
 
 #### 6.28.6 상태
 
@@ -3161,7 +3162,7 @@ export const palette = [
 | W-10 | 데스크톱 시크릿 값 보기 | P-10 | stdio·서비스에서 `secret.beginReveal`은 `started: false` | 셸 쪽 OS 인증과 표시 경로(§4.14.1과 같은 방식). [결정: 2026-11-04 사용자, B8 2안] 재인증 명령 `os_reauth`(`L4.desktop.spec` §4.17)는 셸에 구현됐습니다. 값 보기 화면은 macOS에서 이 명령을 먼저 부르고, 그 뒤의 보기는 stdio·서비스에서 `not_started`입니다 |
 | W-11 | 사용량 한도·창·계정 게이지 | P-11, S-03 | `session` 게이지만 | L1.models 계정·창 데이터 연결(B2-MDL 이후) |
 | W-12 | 연결된 클라이언트 목록 | P-08 | 구현됨. `host.clients`가 있다 [근거: `apps/host/src/handlers/host.ts`]. 화면은 상태 카드 아래에 목록으로 보인다 | `host.clients` |
-| W-13 | 시크릿 사용 기록 | P-10 | 구현됨. `secret.audit`가 있다 [근거: `apps/host/src/handlers/secret.ts`]. 기록 개수 상한은 없다 [결정: 2026-11-04 사용자] | `secret.audit { name, limit? }` |
+| W-13 | 시크릿 사용 기록 | P-10 | 구현됨. `secret.audit`가 있다 [근거: `apps/host/src/handlers/secret.ts`]. 기록 개수 상한은 없다 [결정: 2026-11-04 사용자]. 대화 칸은 `secret.audit`의 `threadId`를 거울의 `thread.list` 제목으로 바꿔 보인다(W-13 화면 쪽 일이고 와이어는 그대로) | `secret.audit { name, limit? }` |
 | W-14 | 스킬 본문 읽기(충돌 비교) | P-06 | 구현됨. `knowledge.skills.view { name, threadId? }`가 있다 [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. P-06 화면이 쓴다: 충돌하는 스킬 보기 대화 상자가 `commands.skills.view`로 한 번 읽는다 | `knowledge.skills.view { name, threadId? }` |
 | W-15 | 플러그인·그룹·MCP 서버 목록과 메타(층, 종류, 버전, 설치 위치, 유효 등급, tier, `ScopeStatus`, 진단, 자동 꺼짐, 안전 모드 제외 사유), 설치 | P-12, P-13, P-16, P-01, 런타임 탭 | `ext.list`가 있다 [근거: `apps/host/src/handlers/m4/ext-read.ts`]. MCP 서버 목록 wire(`mcp.servers`)는 없다 [근거: `apps/host/src`, `packages/contracts/src`에서 그 이름 grep 0건] | `ext.list { threadId? }`, `mcp.servers` [미결]. 설치는 W-32 |
 | W-16 | 이벤트 id로 item 읽기, 대화 출처(예약, 원격) | P-06, S-01 | 구현됨. `thread.read`의 `around` 인자와 `ThreadSummary.origin`이 있다 [근거: `apps/host/src/assembly/thread-read.ts`, `packages/contracts/src/wire-settings/wire/methods.ts:443`] | `thread.read`에 `around` 인자, `ThreadSummary.origin` |

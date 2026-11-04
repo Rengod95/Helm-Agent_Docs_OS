@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -184,7 +184,7 @@ test("a dual license keeps its expression as the section key, and a slash betwee
   expect(rustNoticesText(result.value)).toContain("License: MIT OR Apache-2.0 (2 packages)\n");
 });
 
-test("the notice text is the header, then the grouped notice with the standard text once and each package's copyright and link", () => {
+test("the notice text is the header, then the grouped notice with each license text once and each package's copyright and link", () => {
   const single = metadata(
     [
       root,
@@ -211,11 +211,11 @@ test("the notice text is the header, then the grouped notice with the standard t
       "License text (SPDX): https://spdx.org/licenses/MIT.html",
       rule,
       "",
-      "Standard license text (printed once for this section; copyright lines are listed under each package):",
+      "License text 1 of 1 (printed once; 1 package carries it; copyright lines are listed under each package):",
       "",
       "Permission is hereby granted.",
       "",
-      "Packages:",
+      "Packages with this text:",
       "",
       "a 1.0.0",
       "  Copyright (c) 2020 Alice",
@@ -350,4 +350,130 @@ test("readCrateLicenseFiles reads the LICENSE, COPYING, NOTICE and UNLICENSE fil
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+/** The desktop shell's Rust tree: its Cargo.lock, and the notice file rust-notices.ts writes from it. */
+const DESKTOP_DIR = join(import.meta.dir, "..", "apps", "desktop", "src-tauri");
+
+const CESU8_TEXT =
+  "The Rust Project is dual-licensed under Apache 2.0 and MIT\nterms.\n\nPermission is hereby granted.";
+
+test("readCrateLicenseFiles reads COPYRIGHT-RUST.txt, the license file of cesu8, and ignores the README beside it", () => {
+  const dir = mkdtempSync(join(tmpdir(), "rust-notices-cesu8-"));
+  try {
+    writeFileSync(join(dir, "COPYRIGHT-RUST.txt"), `${CESU8_TEXT}\n`);
+    writeFileSync(join(dir, "README.md"), "# CESU-8\n\nLICENSE-RUST.txt is named here.\n");
+    expect(readCrateLicenseFiles(dir)).toEqual({
+      ok: true,
+      value: [{ file: "COPYRIGHT-RUST.txt", body: `${CESU8_TEXT}\n` }],
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("cesu8 is listed under Apache-2.0 OR MIT with the text of its COPYRIGHT-RUST.txt, and fails without that file", () => {
+  expect(NO_LICENSE_FILE_CRATES.has("cesu8")).toBe(false);
+  const cesu8 = metadata(
+    [
+      root,
+      pkg("cesu8", "1.1.0", {
+        license: "Apache-2.0/MIT",
+        repository: "https://github.com/emk/cesu8-rs",
+      }),
+    ],
+    [
+      node("fresnel-desktop", "0.0.0", [[{ name: "cesu8", version: "1.1.0" }, NORMAL]], true),
+      node("cesu8", "1.1.0", []),
+    ],
+  );
+  expect(
+    rustNotices(
+      cesu8,
+      readerOf({ "/src/cesu8-1.1.0": [{ file: "COPYRIGHT-RUST.txt", body: CESU8_TEXT }] }),
+    ),
+  ).toEqual({
+    ok: true,
+    value: [
+      {
+        name: "cesu8",
+        version: "1.1.0",
+        license: "Apache-2.0 OR MIT",
+        link: "https://github.com/emk/cesu8-rs",
+        copyright: [],
+        texts: [{ file: "COPYRIGHT-RUST.txt", body: CESU8_TEXT }],
+        notes: [],
+      },
+    ],
+  });
+  expect(rustNotices(cesu8, readerOf({}))).toEqual({
+    ok: false,
+    error: [
+      "cesu8@1.1.0: no license file in the crate package (check the upstream repository, then list the crate in NO_LICENSE_FILE_CRATES)",
+    ],
+  });
+});
+
+/** `name@version` of each registry package in a Cargo.lock text. The workspace's own packages have no `source` line. */
+function registryCrates(lock: string): string[] {
+  return lock
+    .split("[[package]]\n")
+    .slice(1)
+    .flatMap((block) => {
+      const name = /^name = "(.+)"$/m.exec(block)?.[1];
+      const version = /^version = "(.+)"$/m.exec(block)?.[1];
+      if (name === undefined || version === undefined || !/^source = "registry\+/m.test(block)) {
+        return [];
+      }
+      return [`${name}@${version}`];
+    });
+}
+
+/** `name@version` of each crate entry of a notice text: a name and a version alone on a line, as rust-notices.ts writes them. */
+function noticeCrates(notice: string): string[] {
+  return [...notice.matchAll(/^([A-Za-z0-9_.+-]+) ([0-9]\S*)$/gm)].flatMap((match) =>
+    match[1] === undefined || match[2] === undefined ? [] : [`${match[1]}@${match[2]}`],
+  );
+}
+
+/**
+ * The registry crates of Cargo.lock that the notice does not list. Each is reached only through build or dev edges (build scripts
+ * and the code generators behind them), so cargo metadata's normal-edge closure from fresnel-desktop leaves it out: the app does
+ * not link it. A crate missing from the notice and from this list fails the test; regenerate the notice or classify the crate here.
+ */
+const BUILD_ONLY_CRATES = [
+  "autocfg@1.5.1",
+  "cargo_toml@1.0.1",
+  "cc@1.10.0",
+  "cfg-expr@0.15.8",
+  "embed-resource@3.0.12",
+  "find-msvc-tools@0.1.15",
+  "phf_codegen@0.13.1",
+  "pkg-config@0.3.34",
+  "rustc_version@0.4.1",
+  "shlex@2.0.1",
+  "static_vcruntime@3.0.0",
+  "string_cache_codegen@0.6.1",
+  "system-deps@6.2.2",
+  "target-lexicon@0.12.16",
+  "tauri-build@2.7.4",
+  "tauri-plugin@2.7.2",
+  "tauri-winres@0.3.7",
+  "toml@0.8.2",
+  "version-compare@0.2.1",
+  "version_check@0.9.5",
+  "vswhom-sys@0.1.3",
+  "vswhom@0.1.0",
+  "winreg@0.56.0",
+];
+
+test("every registry crate in apps/desktop/src-tauri/Cargo.lock has a notice, except the build-only crates the app does not link", () => {
+  const locked = registryCrates(readFileSync(join(DESKTOP_DIR, "Cargo.lock"), "utf8"));
+  const listed = noticeCrates(
+    readFileSync(join(DESKTOP_DIR, "resources", "THIRD-PARTY-NOTICES-RUST.txt"), "utf8"),
+  );
+  expect(locked.length).toEqual(476);
+  expect(listed.length).toEqual(453);
+  expect(locked.filter((crate) => !listed.includes(crate)).toSorted()).toEqual(BUILD_ONLY_CRATES);
+  expect(listed.filter((crate) => !locked.includes(crate))).toEqual([]);
 });

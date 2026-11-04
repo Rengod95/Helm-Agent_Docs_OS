@@ -201,8 +201,8 @@ export function noticesBody(
   const head = [
     `Fresnel ${version} (${triple}) third-party notices`,
     "",
-    "Grouped by license. Each section names the license and links its text, prints the standard text once, and lists its",
-    "packages with name, version, copyright line (from the package's license file) and source link.",
+    "Grouped by license. Each section names the license and links its text, prints each distinct license text once, and lists",
+    "under it the packages that carry that text, with name, version, copyright line (from the package's license file) and source link.",
     "",
   ];
   if (bundled.length === 0) head.push("Bundled external binaries: none.", "");

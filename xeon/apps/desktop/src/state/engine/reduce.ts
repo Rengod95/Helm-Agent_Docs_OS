@@ -691,8 +691,9 @@ function appendTransition(
 
 /**
  * 계획 사건 하나를 거울에 넣는다. 계획마다 한 줄이고 가장 최근에 받은 것이 뒤에 온다.
- * 옛 판의 제출은 무시하고(판 번호가 줄어들면 안 된다), 철회는 기록된 판과 같은 판일 때만 바꾼다.
- * 철회 사건은 제목이 없으므로 기록의 제목을 그대로 둔다.
+ * 옛 판의 사건은 무시한다(판 번호가 줄어들면 안 된다). 같은 판의 철회는 철회 상태로 바꾸고 제목은 그대로 둔다.
+ * 철회가 제출보다 먼저 오면(연결 전 제출은 재생으로 뒤에 온다) 제목 없는 철회 기록을 두고, 뒤에 온 같은 판의 제출은 철회 상태를 지킨 채 제목만 채운다.
+ * 그래서 두 순서의 결과가 같다.
  */
 function recordPlan(
   state: EngineMirror,
@@ -700,19 +701,26 @@ function recordPlan(
 ): EngineMirror {
   const { plan, threadId } = fact;
   const found = state.plans.find((r) => r.threadId === threadId && r.planId === plan.planId);
+  if (found !== undefined && found.version > plan.version) return state;
+  const same = found?.version === plan.version ? found : undefined;
   let record: PlanRecord;
   if (plan.status === "submitted") {
-    if (found !== undefined && found.version > plan.version) return state;
     record = {
       threadId,
       planId: plan.planId,
       version: plan.version,
       title: plan.title,
-      status: "submitted",
+      status: same?.status ?? "submitted",
     };
   } else {
-    if (found === undefined || found.version !== plan.version) return state;
-    record = { ...found, status: "withdrawn" };
+    // 철회 사건은 제목이 없다. 같은 판의 기록이 있으면 그 제목을 두고, 없으면 null이다
+    record = {
+      threadId,
+      planId: plan.planId,
+      version: plan.version,
+      title: same?.title ?? null,
+      status: "withdrawn",
+    };
   }
   const others = state.plans.filter((r) => r !== found);
   return { ...state, plans: capPlans([...others, record], threadId) };

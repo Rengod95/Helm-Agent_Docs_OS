@@ -212,8 +212,8 @@ test("noticesBody groups the bundled binaries by license, each with its link, on
     [
       "Fresnel 0.0.0-smoke (aarch64-apple-darwin) third-party notices",
       "",
-      "Grouped by license. Each section names the license and links its text, prints the standard text once, and lists its",
-      "packages with name, version, copyright line (from the package's license file) and source link.",
+      "Grouped by license. Each section names the license and links its text, prints each distinct license text once, and lists",
+      "under it the packages that carry that text, with name, version, copyright line (from the package's license file) and source link.",
       "",
       rule,
       "License: BSD-3-Clause (1 package)",
@@ -263,8 +263,8 @@ test("noticesBody on linux says nothing is bundled and names rg, bwrap and socat
     [
       "Fresnel 0.0.0-smoke (x86_64-unknown-linux-gnu) third-party notices",
       "",
-      "Grouped by license. Each section names the license and links its text, prints the standard text once, and lists its",
-      "packages with name, version, copyright line (from the package's license file) and source link.",
+      "Grouped by license. Each section names the license and links its text, prints each distinct license text once, and lists",
+      "under it the packages that carry that text, with name, version, copyright line (from the package's license file) and source link.",
       "",
       "Bundled external binaries: none.",
       "",
@@ -369,6 +369,22 @@ test("requiredPaths asks for the lock and the bundled binaries only on macOS", (
   ]);
   expect(requiredPaths(LINUX)).toEqual(common);
   expect(requiredPaths("x86_64-pc-windows-msvc")).toEqual(["fresnel.exe", ...common.slice(1)]);
+});
+
+test("the Rust notice file ships in the desktop bundle (tauri.conf.json), and the release archive's notices are the JS and Bun ones", () => {
+  const desktop = join(import.meta.dir, "..", "apps", "desktop", "src-tauri");
+  const conf: unknown = JSON.parse(readFileSync(join(desktop, "tauri.conf.json"), "utf8"));
+  expect(conf).toEqual(
+    expect.objectContaining({
+      bundle: expect.objectContaining({ resources: ["resources/THIRD-PARTY-NOTICES-RUST.txt"] }),
+    }),
+  );
+  expect(existsSync(join(desktop, "resources", "THIRD-PARTY-NOTICES-RUST.txt"))).toBe(true);
+  // The archive ships the Bun-compiled CLI entry (apps/desktop/sidecar.json), which links no Rust crate of the desktop shell.
+  for (const triple of [MAC, LINUX]) {
+    expect(requiredPaths(triple)).toContain("THIRD-PARTY-NOTICES.txt");
+    expect(requiredPaths(triple)).not.toContain("THIRD-PARTY-NOTICES-RUST.txt");
+  }
 });
 
 function miseVersions(file: string): readonly string[] | undefined {

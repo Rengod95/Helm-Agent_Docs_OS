@@ -392,6 +392,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 3. `replay.outOfRange`(2001)를 받으면 위치와 화면 캐시를 버리고 `from: "head"`로 다시 구독한 뒤 열린 thread를 `thread.open`(M2)으로 다시 읽는다.
 4. `stream.chunk`는 재전송되지 않는다. 끊긴 동안의 조각은 버리고, 완성된 item은 `events.batch`로 다시 받는다(`F.wire-settings.spec` §3.4.4).
 5. `storeId`가 바뀌면(DB 재생성) 3과 같이 처리한다.
+6. 연결 전에 낸 계획과 대기 입력(`work.plan_*`, `input.*`)은 head부터 맞춘 뒤, 이 두 종류만 거른 보조 구독(`events.subscribe`, `filter.kindPrefixes`)을 seq 0부터 열어 채운다(`apps/desktop/src/state/engine/link.ts`의 `backfill`). 보조 구독이 `replay.outOfRange`로 실패하면 채우지 않고 `desktop.link.backfill_failed`만 남긴다. 실패하는 경우는 두 가지다. `tooFar`는 head가 0에서 `l4.host-service.maxReplayEvents`(기본 100,000)보다 멀 때다. `beforeOldest`는 seq 0이 재생 하한보다 앞일 때다. 하한은 thread 삭제나 보관 정리가 지운 이벤트의 가장 큰 seq까지 올라가므로, 삭제 뒤에는 이벤트 수와 무관하게 실패한다. 실패하면 계획과 대기 입력은 연결 뒤 사건만 보인다. [미결: 범위 밖의 계획과 대기 입력을 읽는 기존 wire가 없다. 대기 입력 목록은 wire로 읽을 수 없고(`thread.list`의 `queuedInputs`는 개수다), 계획은 id를 모아 주는 목록 읽기가 없다(`work.plans.versions`는 id가 있어야 한다). `approval.list`의 계획 승인 `planRef`(`plan:<planId>:<version>`)로는 아직 승인 대기인 계획만 얻고, 처리되었거나 철회된 계획은 얻지 못한다. 대기 계획만 이 경로로 채울지, 새 목록 읽기를 더할지는 사용자 확인이 필요하다 [근거: apps/desktop/src/state/engine/link.ts, apps/host/src/handlers/events.ts, packages/contracts/src/wire-settings/wire/methods.ts, packages/contracts/src/records/catalog/approval.ts]]
 
 ### 4.7 이어서 실행
 

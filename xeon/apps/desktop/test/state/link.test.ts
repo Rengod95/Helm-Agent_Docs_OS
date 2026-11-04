@@ -354,6 +354,70 @@ describe("link: resync with a gap", () => {
     ).toEqual([{ sub: "back" }]);
   });
 
+  test("a live withdrawal that lands before the replay of an earlier submission keeps the plan withdrawn", async () => {
+    const h = harness();
+    const fake = fakeConnection({
+      "events.subscribe": (params) => {
+        if (params.filter === undefined) {
+          return Promise.resolve({
+            sub: "main",
+            start: 50,
+            headSeq: 50,
+            storeId: STORE,
+            mode: "live",
+          });
+        }
+        return Promise.resolve({
+          sub: "back",
+          start: 0,
+          headSeq: 50,
+          storeId: STORE,
+          mode: "replaying",
+        });
+      },
+      "events.unsubscribe": () => Promise.resolve({}),
+      "thread.list": () => Promise.resolve(listEmpty),
+    });
+    startLink({
+      connection: fake.connection,
+      store: h.store,
+      transcripts: noTranscripts,
+      logger: silent,
+      openThreadId: () => null,
+    });
+    await pump(h);
+    // 철회는 라이브 구독으로 먼저 오고, 연결 전에 낸 제출은 재생이 끝날 때 온다
+    fake.emit("events.batch", {
+      sub: "main",
+      from: 50,
+      to: 51,
+      caughtUp: true,
+      events: [wire(51, "work.plan_withdrawn", { planId: "p1", version: 1, reason: "exit_mode" })],
+    });
+    await pump(h);
+    fake.emit("events.batch", {
+      sub: "back",
+      from: 0,
+      to: 7,
+      caughtUp: true,
+      events: [
+        wire(7, "work.plan_submitted", {
+          planId: "p1",
+          version: 1,
+          title: "이전 계획",
+          body: "1. 읽기",
+          artifact: null,
+          supersedes: null,
+        }),
+      ],
+    });
+    await pump(h);
+    const s = h.store.read.getState();
+    expect(s.plans.map((r) => [String(r.planId), r.version, r.title, r.status])).toEqual([
+      ["p1", 1, "이전 계획", "withdrawn"],
+    ]);
+  });
+
   test("stream.chunk is decoded into a chunk input; an undecodable payload becomes 'other' and only advances n", async () => {
     const h = harness();
     const fake = fakeConnection({

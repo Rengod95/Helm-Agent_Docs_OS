@@ -1,12 +1,69 @@
 // 확장 지우기(B-04, `ext.remove`)의 순수 판단: 어떤 행을 지울 수 있나, 결과를 어떤 문장으로 알리나.
 import { assertNever } from "@fresnel/contracts";
 import type { MessageId } from "@fresnel/client/i18n";
+import type { Placement } from "@fresnel/contracts/extensions";
 import type {
   ExtListEntry,
   ExtRemovePreviewResult,
   ExtRemoveResult,
+  ExtUiEntry,
+  Profile,
 } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
+import { stripUnsafeText } from "@fresnel/client/views/app";
+
+/**
+ * 이 확장을 쓰는 프로필의 제목. 프로필의 `enable`에 이름이 있는 것만 센다. `disable`에만 적힌 프로필은 이 확장을 끄는 것이라 쓰는 것이 아니다.
+ * 목록 순서(`profile.list`의 순서)를 따른다
+ */
+export function profilesUsingOf(
+  profiles: readonly Pick<Profile, "title" | "enable">[],
+  name: string,
+): readonly string[] {
+  return profiles
+    .filter((profile) => profile.enable.includes(name))
+    .map((profile) => profile.title);
+}
+
+/** 확장이 낸 화면 항목 한 줄(지우면 빠지는 플러그인 뷰). 제목이 비면 화면 id를 쓴다 */
+export interface PluginViewRow {
+  readonly id: string;
+  readonly title: string;
+  readonly placement: Placement;
+}
+
+/** 이 확장이 낸 화면 항목(플러그인 뷰)을 항목 순서대로 준다. 확장이 꺼져 있거나 고장 난 항목도 지우면 빠지므로 넣는다 */
+export function pluginViewsOf(
+  entries: readonly Pick<ExtUiEntry, "extension" | "id" | "title" | "placement">[],
+  name: string,
+): readonly PluginViewRow[] {
+  return entries
+    .filter((entry) => entry.extension === name)
+    .map((entry) => {
+      const title = stripUnsafeText(entry.title, false).trim();
+      return { id: entry.id, title: title === "" ? entry.id : title, placement: entry.placement };
+    });
+}
+
+/** 배치 자리의 이름 문장(목록 한 줄 뒤에 붙는다) */
+export function placementTextOf(placement: Placement): MessageId {
+  switch (placement) {
+    case "page":
+      return "desktop.workbench.placement.page";
+    case "panel":
+      return "desktop.workbench.placement.panel";
+    case "card":
+      return "desktop.workbench.placement.card";
+    case "status":
+      return "desktop.workbench.placement.status";
+    case "command":
+      return "desktop.workbench.placement.command";
+    case "settings":
+      return "desktop.workbench.placement.settings";
+    default:
+      return assertNever(placement, "placementTextOf");
+  }
+}
 
 /**
  * 지울 수 있는 확장인가. `ext.remove`는 사용자 확장 위치의 설치본 폴더를 지우므로 `origin`이 `user`인 것만 지운다.

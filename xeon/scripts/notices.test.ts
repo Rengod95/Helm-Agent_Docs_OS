@@ -271,7 +271,7 @@ test("splitHeader reads copyright lines from the header of a license file, not f
   ).toEqual([]);
 });
 
-test("groupedNoticesText prints one section per license: the standard text once, then each package with its copyright line and link", () => {
+test("groupedNoticesText prints each distinct license text once, with the packages that carry it under it, then the packages without a license file", () => {
   const mitA: NoticeItem = {
     name: "a",
     version: "1.0.0",
@@ -286,7 +286,7 @@ test("groupedNoticesText prints one section per license: the standard text once,
     ],
     notes: [],
   };
-  // Same license text as a, with another copyright line and a title that differs: covered by the standard text.
+  // Same license text as a, with another copyright line and a title that differs: shares a's printed text.
   const mitB: NoticeItem = {
     name: "b",
     version: "2.0.0",
@@ -301,7 +301,7 @@ test("groupedNoticesText prints one section per license: the standard text once,
     ],
     notes: [],
   };
-  // Adds a clause the standard text does not have: its own text is printed under it.
+  // Adds a clause a's text does not have: its own text is printed once, under its own group.
   const mitC: NoticeItem = {
     name: "c",
     version: "3.0.0",
@@ -357,13 +357,13 @@ test("groupedNoticesText prints one section per license: the standard text once,
       "License text (SPDX): https://spdx.org/licenses/MIT.html",
       rule,
       "",
-      "Standard license text (printed once for this section; copyright lines are listed under each package):",
+      "License text 1 of 2 (printed once; 2 packages carry it; copyright lines are listed under each package):",
       "",
       "MIT License",
       "",
       "Permission is hereby granted.",
       "",
-      "Packages:",
+      "Packages with this text:",
       "",
       "a 1.0.0",
       "  Copyright (c) 2020 Alice",
@@ -373,9 +373,7 @@ test("groupedNoticesText prints one section per license: the standard text once,
       "  Copyright (c) 2021 Bob",
       "  link: https://example.test/b",
       "",
-      "c 3.0.0",
-      "  link: not stated in package.json",
-      "  This package's license text differs from the standard text above. Its text follows:",
+      "License text 2 of 2 (printed once; 1 package carries it; copyright lines are listed under each package):",
       "",
       "MIT License",
       "",
@@ -383,12 +381,52 @@ test("groupedNoticesText prints one section per license: the standard text once,
       "",
       "The extra clause applies to c only.",
       "",
+      "Packages with this text:",
+      "",
+      "c 3.0.0",
+      "  link: not stated in package.json",
+      "",
+      "Packages without license text:",
+      "",
       "z 0.1.0",
       "  link: https://example.test/z",
       "  The package ships no license file. Declared license: MIT. Origin: Z Author, https://example.test/z.",
       "",
     ].join("\n"),
   );
+});
+
+/** An MIT package whose license text is the same as every other one's, with its own copyright holder. */
+function sharingMit(name: string, holder: string): NoticeItem {
+  return {
+    name,
+    version: "1.0.0",
+    license: "MIT",
+    link: `https://example.test/${name}`,
+    copyright: [`Copyright (c) 2020 ${holder}`],
+    texts: [
+      { file: "LICENSE", body: `Copyright (c) 2020 ${holder}\n\nPermission is hereby granted.` },
+    ],
+    notes: [],
+  };
+}
+
+test("groupedNoticesText writes an identical license text once, however many packages carry it, and lists each of them", () => {
+  const text = groupedNoticesText([
+    sharingMit("x", "Xe"),
+    sharingMit("y", "Yo"),
+    sharingMit("w", "Wu"),
+  ]);
+  expect(text.split("Permission is hereby granted.").length - 1).toEqual(1);
+  expect(text.split("\n").filter((line) => line.startsWith("License text "))).toEqual([
+    "License text (SPDX): https://spdx.org/licenses/MIT.html",
+    "License text 1 of 1 (printed once; 3 packages carry it; copyright lines are listed under each package):",
+  ]);
+  expect(text.split("\n").filter((line) => /^[a-z]+ 1\.0\.0$/.test(line))).toEqual([
+    "w 1.0.0",
+    "x 1.0.0",
+    "y 1.0.0",
+  ]);
 });
 
 test("groupedNoticesText is empty when there is nothing to list", () => {
