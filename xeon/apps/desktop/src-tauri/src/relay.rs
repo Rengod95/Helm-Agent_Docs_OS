@@ -19,7 +19,7 @@ use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request};
 use tauri::State;
 use tokio::sync::{mpsc, Notify};
 
-use crate::engine::{AppSupervisor, EngineState, EngineTarget};
+use crate::engine::{AppSupervisor, EngineState, EngineTarget, RestoreOutput};
 
 /// 신용 창. 보낸 바이트에서 처리 확인된 바이트를 뺀 값이 이 값 이하일 때만 다음 묶음을 보낸다.
 pub const CREDIT_WINDOW_BYTES: u64 = 4 * 1024 * 1024;
@@ -30,6 +30,8 @@ pub const ACK_STEP_BYTES: u64 = 256 * 1024;
 pub const MAX_PENDING_LINE_BYTES: usize = 2 * 1024 * 1024;
 /// `engine_write` 한 번에 실을 수 있는 크기. 줄(프레임) 단위로 보낸다.
 pub const MAX_WRITE_BYTES: usize = 2 * 1024 * 1024;
+/// `db_restore`가 받는 백업 폴더 경로의 상한(바이트).
+pub const BACKUP_DIR_MAX_BYTES: usize = 4096;
 /// 쓰기 대기열 한도(메시지 수). 차면 `engine_write`가 비동기로 기다린다.
 pub const WRITE_QUEUE_FRAMES: usize = 16;
 
@@ -53,6 +55,10 @@ pub enum CommandError {
     BadRequest,
     /// 설정 파일을 읽거나 쓰지 못했다. 틀린 파일은 덮어쓰지 않으려고 이 오류를 돌려준다.
     StorageFailed,
+    /// 원격 대상일 때 데이터베이스 복원을 불렀다. 복원은 이 컴퓨터의 데이터 폴더에만 적용된다.
+    RemoteTarget,
+    /// 다른 데이터베이스 복원이 이미 돌고 있다.
+    Busy,
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -625,6 +631,26 @@ pub async fn engine_retarget(
     supervisor.retarget(target)
 }
 
+/// 백업 폴더 경로의 모양을 본다. 빈 값(공백만 있는 값 포함), 4096바이트를 넘는 값, NUL이 든 값은 거부한다.
+pub fn validate_backup_dir(path: &str) -> Result<(), CommandError> {
+    if path.trim().is_empty() || path.len() > BACKUP_DIR_MAX_BYTES || path.contains('\0') {
+        Err(CommandError::BadRequest)
+    } else {
+        Ok(())
+    }
+}
+
+/// `db export`로 만든 백업 폴더에서 데이터베이스를 되돌린다. 엔진을 멈춘 뒤 CLI를 한 번 돌리고, 끝나면 엔진을 다시 띄운다.
+/// 종료 코드와 출력은 해석하지 않고 그대로 돌려준다(예: 엔진이 DB를 쥐고 있으면 종료 코드 3).
+#[tauri::command]
+pub async fn db_restore(
+    supervisor: State<'_, Arc<AppSupervisor>>,
+    backup_dir: String,
+) -> Result<RestoreOutput, CommandError> {
+    validate_backup_dir(&backup_dir)?;
+    supervisor.restore_database(backup_dir).await
+}
+
 /// 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊는다.
 #[tauri::command]
 pub async fn engine_detach(relay: State<'_, Arc<Relay>>, epoch: u64) -> Result<(), CommandError> {
@@ -1183,5 +1209,29 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         panic!("stdin was not closed");
+    }
+
+    #[test]
+    fn backup_dir_is_checked_for_shape_only() {
+        assert_eq!(validate_backup_dir("/backups/2026-11-04"), Ok(()));
+        assert_eq!(validate_backup_dir(&"a".repeat(BACKUP_DIR_MAX_BYTES)), Ok(()));
+        // 길이는 바이트로 잰다. 한글 1365자는 4095바이트, 1366자는 4098바이트다.
+        assert_eq!(validate_backup_dir(&"가".repeat(1365)), Ok(()));
+        for bad in ["", "   ", "\t", "/tmp/a\0b"] {
+            assert_eq!(validate_backup_dir(bad), Err(CommandError::BadRequest), "{bad:?}");
+        }
+        assert_eq!(
+            validate_backup_dir(&"a".repeat(BACKUP_DIR_MAX_BYTES + 1)),
+            Err(CommandError::BadRequest)
+        );
+    }
+
+    #[test]
+    fn the_restore_errors_serialize_to_their_kebab_case_codes() {
+        assert_eq!(
+            serde_json::to_string(&CommandError::RemoteTarget).expect("json"),
+            "\"remote-target\""
+        );
+        assert_eq!(serde_json::to_string(&CommandError::Busy).expect("json"), "\"busy\"");
     }
 }
