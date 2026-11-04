@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, expect, test } from "bun:test";
@@ -6,7 +6,7 @@ import { err, ok } from "@fresnel/contracts";
 import type { DevkitError } from "@fresnel/contracts/services";
 import { KIND_CATALOG, locateTemplateDirs } from "@fresnel/plugin-builder";
 import type { RegistrationHandle } from "@fresnel/contracts/extensions";
-import type { RecordVersionInput, RegistrationInfo } from "@fresnel/ext-host";
+import type { LoadedExtensionInfo, RecordVersionInput, RegistrationInfo } from "@fresnel/ext-host";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
 import type { M4PortDeps } from "../../src/assembly/m4/deps.ts";
 import type { ExtUiVersionSource } from "../../src/assembly/m4/ext-ui-version-source.ts";
@@ -28,7 +28,12 @@ interface Fakes {
   readonly extensionsDir: string;
 }
 
-function fakes(name: string, running: readonly string[] = []): Fakes {
+interface Gate {
+  safeMode?: boolean;
+  locked?: readonly string[];
+}
+
+function fakes(name: string, running: readonly string[] = [], gate: Gate = {}): Fakes {
   const extensionsDir = join(root, `${name}-extensions`);
   const recorded: RecordVersionInput[] = [];
   const disabled: string[] = [];
@@ -45,6 +50,10 @@ function fakes(name: string, running: readonly string[] = []): Fakes {
         rollback: () => Promise.reject(new Error("not used")),
       },
       stateSchemaVersion: () => null,
+      installGate: {
+        safeMode: () => gate.safeMode === true,
+        managedLocked: (extension) => gate.locked?.includes(extension) === true,
+      },
       loader: () => undefined,
       heldThreads: () => [],
       hash: () => "hash",
@@ -86,6 +95,7 @@ test("devkit port: kinds are the catalog, and scaffold, validate, package and in
       name: "flow-demo",
       version: "0.1.0",
       location: join(state.extensionsDir, "flow-demo"),
+      appliesAt: "restart",
     },
   });
   // 첫 설치는 버전 기록에 남기지 않는다
@@ -162,4 +172,87 @@ test("devkit port: validateComposition reports composition issues against the gi
   });
   expect(bad.issues.length).toBeGreaterThan(0);
   expect(bad.issues.every((found) => found.severity === "error")).toBe(true);
+});
+
+async function packedDemo(name: string, state: Fakes): Promise<{ path: string; sha256: string }> {
+  const port = createDevkitPort(state.deps, { templates });
+  const dir = join(root, `${name}-src`);
+  const made = await port.scaffold({ kind: "single-plugin", name, dir });
+  if (!made.ok) throw new Error(made.error.message);
+  const packed = await port.pack({ dir });
+  if (!packed.ok) throw new Error(packed.error.message);
+  return packed.value;
+}
+
+test("devkit port: the preview shows the pack's values and writes nothing", async () => {
+  const state = fakes("pv");
+  const port = createDevkitPort(state.deps, { templates });
+  const packed = await packedDemo("pv-demo", state);
+  const preview = await port.installPreview({ source: packed.path });
+  expect(preview).toMatchObject({
+    ok: true,
+    value: {
+      name: "pv-demo",
+      version: "0.1.0",
+      source: packed.path,
+      sha256: packed.sha256,
+      installedVersion: null,
+      network: [],
+      files: [],
+      shell: [],
+    },
+  });
+  expect(existsSync(state.extensionsDir)).toBe(false);
+});
+
+test("devkit port: install refuses a changed folder, safe mode and a managed lock, and writes nothing", async () => {
+  const open = fakes("gate");
+  const packed = await packedDemo("gate-demo", open);
+  const port = createDevkitPort(open.deps, { templates });
+  const preview = await port.installPreview({ source: packed.path });
+  if (!preview.ok) throw new Error(preview.error.message);
+
+  writeFileSync(join(packed.path, "README.md"), "edited after the preview\n");
+  const changed = await port.install({ source: packed.path, expectedSha256: preview.value.sha256 });
+  expect(changed).toMatchObject({ ok: false, error: { kind: "source_changed" } });
+  expect(existsSync(join(open.extensionsDir, "gate-demo"))).toBe(false);
+
+  const safe = fakes("gate-safe", [], { safeMode: true });
+  const refusedSafe = await createDevkitPort(safe.deps, { templates }).install({
+    source: packed.path,
+  });
+  expect(refusedSafe).toMatchObject({ ok: false, error: { kind: "safe_mode_active" } });
+  expect(existsSync(safe.extensionsDir)).toBe(false);
+
+  const locked = fakes("gate-locked", [], { locked: ["gate-demo"] });
+  const refusedLocked = await createDevkitPort(locked.deps, { templates }).install({
+    source: packed.path,
+  });
+  expect(refusedLocked).toMatchObject({ ok: false, error: { kind: "managed_locked" } });
+  expect(existsSync(locked.extensionsDir)).toBe(false);
+});
+
+test("devkit port: replacing a running extension applies at the next step boundary, a new name waits for restart", async () => {
+  const state = fakes("reload");
+  const packed = await packedDemo("reload-demo", state);
+  const source = state.deps.extUi;
+  if (source === undefined) throw new Error("fake has no extUi");
+  const loader = partial<NonNullable<ReturnType<ExtUiVersionSource["loader"]>>>({
+    list: () => [partial<LoadedExtensionInfo>({ name: "reload-demo" })],
+  });
+  const running = createDevkitPort(
+    partial<M4PortDeps>({ extUi: { ...source, loader: () => loader } }),
+    {
+      templates,
+    },
+  );
+  expect(await running.install({ source: packed.path })).toMatchObject({
+    ok: true,
+    value: { appliesAt: "nextStepBoundary" },
+  });
+  const fresh = createDevkitPort(state.deps, { templates });
+  expect(await fresh.install({ source: packed.path })).toMatchObject({
+    ok: true,
+    value: { appliesAt: "restart" },
+  });
 });

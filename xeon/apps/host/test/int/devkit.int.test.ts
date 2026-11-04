@@ -101,8 +101,39 @@ realTest(
       });
       const packed = await session.connection.request("ext.package", { dir });
       expect(packed.files).toEqual([".fresnel-plugin/plugin.json", "README.md", "dist/index.js"]);
-      const installed = await session.connection.request("ext.install", { source: packed.path });
-      expect(installed).toEqual({ name: NAME, version: "0.1.0", location: installedDir });
+      const preview = await session.connection.request("ext.installPreview", {
+        source: packed.path,
+      });
+      expect(preview).toMatchObject({
+        name: NAME,
+        version: "0.1.0",
+        source: packed.path,
+        sha256: packed.sha256,
+        installedVersion: null,
+      });
+      expect(existsSync(installedDir)).toBe(false);
+      // 해시가 다르면 거부하고 아무것도 놓지 않는다
+      const mismatch = await session.connection
+        .request("ext.install", {
+          source: packed.path,
+          sha256: "0".repeat(64),
+        })
+        .then(
+          () => null,
+          (caught: unknown) => caught,
+        );
+      expect(mismatch).not.toBeNull();
+      expect(existsSync(installedDir)).toBe(false);
+      const installed = await session.connection.request("ext.install", {
+        source: packed.path,
+        sha256: preview.sha256,
+      });
+      expect(installed).toEqual({
+        name: NAME,
+        version: "0.1.0",
+        location: installedDir,
+        appliesAt: "restart",
+      });
       expect(existsSync(join(installedDir, "dist", "index.js"))).toBe(true);
 
       // 엔진을 다시 띄우면 설치한 확장이 실린다
@@ -127,8 +158,13 @@ realTest(
         ),
       );
       const repacked = await session.connection.request("ext.package", { dir });
+      const repreview = await session.connection.request("ext.installPreview", {
+        source: repacked.path,
+      });
+      expect(repreview.installedVersion).toBe("0.1.0");
       const reinstalled = await session.connection.request("ext.install", {
         source: repacked.path,
+        sha256: repreview.sha256,
       });
       expect(reinstalled.version).toBe("0.2.0");
       const versions = await session.connection.request("ext.versions", { name: NAME });

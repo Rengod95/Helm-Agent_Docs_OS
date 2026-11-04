@@ -7,6 +7,12 @@ import { createExtUiVersionHistory, sha256Hex } from "./ext-ui-version-fs.ts";
 // 확장 버전과 화면 목록(T-XV, HS-108)이 읽는 원천. 조립 루트(assemble.ts)가 만들어 엔진 포트에 넘긴다.
 // 로더는 조립의 뒤쪽에서 만들어지므로 지연 읽기 함수로 받는다. 기본 그룹이 꺼져 있으면 로더가 없다.
 
+export interface InstallGate {
+  readonly safeMode: () => boolean;
+  /** `managed` 범위가 이 이름의 확장 설정(`ext.<name>.enabled`)을 잠갔는가 */
+  readonly managedLocked: (name: string) => boolean;
+}
+
 export interface ExtUiVersionSource {
   /** 확장 등록(scope) 목록과 켜기·끄기, 상태 비우기에 쓴다 */
   readonly host: Pick<ExtHost, "registrations" | "registration" | "resetRegistrationState" | "ui">;
@@ -25,6 +31,8 @@ export interface ExtUiVersionSource {
    * 버전 목록의 `bundledVersion`과 되돌리기의 "앱에 든 버전" 기록이 쓴다
    */
   readonly bundle: (name: string) => Promise<BundledPluginVersion | null>;
+  /** 앱 안 설치가 거절할 때를 알려 주는 조회(HS-110). 안전 모드와 `managed` 범위의 잠금을 본다 */
+  readonly installGate: InstallGate;
   /** 매니페스트 텍스트의 해시. 버전 기록이 저장할 값과 같은 함수다(되돌리기가 보관 항목과 번들을 비교한다) */
   readonly hash: (text: string) => string;
 }
@@ -37,6 +45,7 @@ export function createExtUiVersionSource(input: {
   readonly loader: ExtUiVersionSource["loader"];
   readonly heldThreads: ExtUiVersionSource["heldThreads"];
   readonly bundle: ExtUiVersionSource["bundle"];
+  readonly installGate: InstallGate;
 }): ExtUiVersionSource {
   return {
     host: input.host,
@@ -45,6 +54,7 @@ export function createExtUiVersionSource(input: {
     extensionsDir: input.extensionsDir,
     heldThreads: input.heldThreads,
     bundle: input.bundle,
+    installGate: input.installGate,
     hash: sha256Hex,
     // ext-host는 상태 스키마 버전을 밝히지 않는다(StateDecl.version은 등록 정의 안에만 있다). X.loading-trust §10 24번 [미결]
     stateSchemaVersion: () => null,

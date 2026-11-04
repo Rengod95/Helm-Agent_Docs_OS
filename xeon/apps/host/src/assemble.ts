@@ -123,7 +123,7 @@ import { createExtUiVersionSource } from "./assembly/m4/ext-ui-version-source.ts
 import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
-import type { SettingCatalog } from "@fresnel/contracts/settings";
+import { resolveSetting, type SettingCatalog } from "@fresnel/contracts/settings";
 import {
   execOptionsOf,
   layersSource,
@@ -762,6 +762,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       clock,
       loader: () => external.loader,
       heldThreads: () => portsHandle?.heldThreads() ?? [],
+      installGate: {
+        safeMode: () => safeMode,
+        managedLocked: (name) => {
+          const def = built.catalog.get(`ext.${name}.enabled`);
+          return (
+            def !== undefined && resolveSetting(def, settings.layers(undefined)).setting.locked
+          );
+        },
+      },
       // 기본 플러그인 이름만 번들 판이 있다(개발 모드 이름은 개발 모드에서만 그 목록에 든다)
       bundle: (name) =>
         defaultPluginNames.includes(name)

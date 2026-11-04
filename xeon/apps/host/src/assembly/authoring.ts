@@ -1,4 +1,4 @@
-import { err } from "@fresnel/contracts";
+import { err, ok } from "@fresnel/contracts";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import type { DevkitService } from "@fresnel/contracts/services";
 import { createAuthoringGroup } from "@fresnel/plugin-builder";
@@ -44,7 +44,13 @@ export function devkitServiceOf(wiring: AuthoringWiring): DevkitService {
         err({ kind: "dev_mode_required", message: "replay runs only in development mode" }),
       ),
     pack: async (input) => (await port()?.pack(input)) ?? err(NOT_READY),
-    link: async (input) => (await port()?.install(input)) ?? err(NOT_READY),
+    link: async (input) => {
+      const installed = await port()?.install(input);
+      if (installed === undefined) return err(NOT_READY);
+      if (!installed.ok) return installed;
+      const { name, version, location } = installed.value;
+      return ok({ name, version, location });
+    },
   };
 }
 
