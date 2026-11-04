@@ -18,6 +18,10 @@ export interface RestoreHandlers {
 export interface RestoreViewProps {
   readonly state: RestoreState;
   readonly handlers: RestoreHandlers;
+  /** 폴더 선택 창을 여는 동작. 없으면(웹 등) 고르기 단추를 보이지 않는다 */
+  readonly onPick?: (() => void) | undefined;
+  /** 폴더 선택 창을 열지 못했을 때의 문장. 없으면 보이지 않는다 */
+  readonly pickError?: string | null | undefined;
 }
 
 /** 되돌린 방향의 문장 자리. 셸이 멈춘 이전 복원을 정리했을 때만 쓴다 */
@@ -33,7 +37,7 @@ function recoveredIdOf(direction: "rolled_back" | "rolled_forward"): MessageId {
 }
 
 export function RestoreView(props: RestoreViewProps): ReactNode {
-  const { state, handlers } = props;
+  const { state, handlers, onPick } = props;
   const block = restoreBlockOf(state);
   const running = state.phase.kind === "running";
   return (
@@ -42,16 +46,33 @@ export function RestoreView(props: RestoreViewProps): ReactNode {
         {t("desktop.settings.restore.title")}
       </span>
       <p className="text-ui-sm text-text-secondary">{t("desktop.settings.restore.intro")}</p>
-      <Input
-        type="text"
-        aria-label={t("desktop.settings.restore.path.label")}
-        placeholder={t("desktop.settings.restore.path.placeholder")}
-        value={state.path}
-        disabled={running}
-        spellCheck={false}
-        onValueChange={handlers.edit}
-      />
+      <div className="flex items-center gap-2">
+        <Input
+          type="text"
+          aria-label={t("desktop.settings.restore.path.label")}
+          placeholder={t("desktop.settings.restore.path.placeholder")}
+          value={state.path}
+          disabled={running}
+          spellCheck={false}
+          onValueChange={handlers.edit}
+        />
+        {onPick === undefined ? null : (
+          <Button variant="outline" size="sm" disabled={running} onClick={onPick}>
+            {t("desktop.workspace.pickFolderButton")}
+          </Button>
+        )}
+      </div>
       <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.restore.path.hint")}</p>
+      {block === "relative" ? (
+        <p className="text-ui-sm text-text-secondary">
+          {t("desktop.settings.restore.blocked.relative")}
+        </p>
+      ) : null}
+      {props.pickError === null || props.pickError === undefined ? null : (
+        <p role="alert" className="text-ui-sm text-text-secondary">
+          {props.pickError}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="outline" size="sm" disabled={block !== null} onClick={handlers.ask}>
           {t("desktop.settings.restore.button")}

@@ -128,6 +128,17 @@ describe("cancel and the blocked cases call nothing", () => {
     expect(controller.getState().phase).toEqual({ kind: "idle" });
   });
 
+  test("a relative folder does not open the dialog, and confirm does not call", async () => {
+    const fake = fakePort();
+    const controller = createRestoreController(fake.port);
+    controller.edit("backups/export-1");
+    controller.ask();
+    expect(controller.getState().asking).toBe(false);
+    await controller.confirm();
+    expect(fake.calls).toEqual([]);
+    expect(controller.getState().phase).toEqual({ kind: "idle" });
+  });
+
   test("a remote engine target blocks the dialog and the command", async () => {
     const fake = fakePort({ target: REMOTE });
     const controller = createRestoreController(fake.port);
@@ -184,5 +195,15 @@ describe("restoreBlockOf orders the reasons", () => {
     expect(restoreBlockOf({ ...idle, target: null, path: "" })).toBe("blank");
     expect(restoreBlockOf({ ...idle, target: REMOTE, path: "" })).toBe("remote");
     expect(restoreBlockOf({ ...idle, path: "  " })).toBe("blank");
+  });
+
+  test("a relative path is a block, and absolute POSIX, drive and UNC paths are not", () => {
+    expect(restoreBlockOf({ ...idle, path: "backups/export-1" })).toBe("relative");
+    expect(restoreBlockOf({ ...idle, path: "./export-1" })).toBe("relative");
+    expect(restoreBlockOf({ ...idle, path: "  /backups/export-1  " })).toBeNull();
+    expect(restoreBlockOf({ ...idle, path: "C:\\backups\\export-1" })).toBeNull();
+    expect(restoreBlockOf({ ...idle, path: "\\\\server\\share" })).toBeNull();
+    // 원격이 먼저다
+    expect(restoreBlockOf({ ...idle, target: REMOTE, path: "backups" })).toBe("remote");
   });
 });

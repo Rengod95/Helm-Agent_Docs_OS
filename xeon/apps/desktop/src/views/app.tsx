@@ -242,7 +242,7 @@ export function App(props: AppProps): ReactNode {
         onSettingsOpenChange={(open) => {
           commands.showScreen(open ? "settings" : "chat");
         }}
-        settingsScreen={<SettingsPage />}
+        settingsScreen={<SettingsPage folderPick={props.folderPick} />}
         threadList={<ThreadList folderPick={props.folderPick} />}
         statusBar={<StatusBar />}
         onGoToThread={openThread}

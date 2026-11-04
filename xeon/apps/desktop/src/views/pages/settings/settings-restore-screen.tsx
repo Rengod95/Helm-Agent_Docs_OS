@@ -2,6 +2,7 @@ import { toast } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { pickWorkspaceFolder, type FolderPickInvoke } from "../../folder-pick.ts";
 import { useCommands } from "../../commands.ts";
 import { createRestoreController, type RestorePhase } from "./settings-restore-model.ts";
 import { RestoreView, type RestoreHandlers } from "./settings-restore-view.tsx";
@@ -14,8 +15,12 @@ function announce(phase: RestorePhase): void {
   toast({ tone: "success", title: t("desktop.settings.restore.done.toast") });
 }
 
-export function RestorePanel(): ReactNode {
+export function RestorePanel(props: {
+  /** 폴더 선택 창을 부르는 invoke. 없으면(웹 등) 고르기 단추를 보이지 않는다 */
+  readonly folderPick?: FolderPickInvoke | undefined;
+}): ReactNode {
   const commands = useCommands();
+  const [pickError, setPickError] = useState<string | null>(null);
   const [controller] = useState(() =>
     createRestoreController(commands.restore, { settled: announce }),
   );
@@ -28,5 +33,24 @@ export function RestorePanel(): ReactNode {
       detach(controller.confirm(), rethrow);
     },
   };
-  return <RestoreView state={state} handlers={handlers} />;
+  const folderPick = props.folderPick;
+  // 취소는 입력란을 그대로 둔다. 창을 못 연 실패도 입력란은 그대로 두고 한 줄로만 알린다
+  const pick = async (invoke: FolderPickInvoke): Promise<void> => {
+    const picked = await pickWorkspaceFolder(invoke);
+    if (!picked.ok) {
+      setPickError(t("desktop.workspace.pickFailed"));
+      return;
+    }
+    if (picked.value === undefined) return;
+    setPickError(null);
+    controller.edit(picked.value);
+  };
+  return (
+    <RestoreView
+      state={state}
+      handlers={handlers}
+      onPick={folderPick === undefined ? undefined : () => detach(pick(folderPick), rethrow)}
+      pickError={pickError}
+    />
+  );
 }

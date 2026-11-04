@@ -1,6 +1,7 @@
 import type { Result } from "@fresnel/contracts";
 import type { EngineTarget, RestoreReport } from "../../../transport/ipc.ts";
 import type { RestoreCommands, RestoreRefusal } from "../../commands.ts";
+import { checkWorkspaceInput } from "../../workspace-model.ts";
 
 // 설정 고급 탭의 데이터 복원 구역(P-09)의 상태와 흐름. 그림은 `settings-restore-view.tsx`, 화면 연결은 `settings-restore-screen.tsx`.
 // 흐름은 컨트롤러 하나가 든다(`createRestoreController`). 확인 대화 상자를 열고, 취소하면 아무것도 부르지 않고, 확인하면 명령을 한 번 부른다.
@@ -23,16 +24,19 @@ export interface RestoreState {
 }
 
 /** 복원 단추를 막는 까닭. `null`이면 누를 수 있다. `running`은 진행 중이라는 뜻이다 */
-export type RestoreBlock = "running" | "remote" | "blank";
+export type RestoreBlock = "running" | "remote" | "blank" | "relative";
 
-/** 단추가 막히는 까닭. 진행 중이 가장 먼저고, 원격이 그다음, 입력이 비었는지가 마지막이다 */
+/** 단추가 막히는 까닭. 진행 중이 가장 먼저고, 원격이 그다음, 입력이 비었는지, 상대 경로인지가 마지막이다 */
 export function restoreBlockOf(
   state: Pick<RestoreState, "path" | "target" | "phase">,
 ): RestoreBlock | null {
   if (state.phase.kind === "running") return "running";
   // 대상을 아직 모르면(앱이 보낸 적 없음) 셸 기본값 로컬로 본다. 원격이면 셸이 `remote-target`으로 거절한다
   if (state.target?.kind === "remote") return "remote";
-  if (state.path.trim() === "") return "blank";
+  const input = checkWorkspaceInput(state.path);
+  if (input.kind === "none") return "blank";
+  // 셸 쪽은 경로 모양만 본다. 상대 경로는 사이드카의 작업 디렉터리(홈) 기준으로 읽혀 엉뚱한 폴더를 가리킬 수 있어 화면에서 막는다
+  if (input.kind === "invalid" && input.reason === "relative") return "relative";
   return null;
 }
 

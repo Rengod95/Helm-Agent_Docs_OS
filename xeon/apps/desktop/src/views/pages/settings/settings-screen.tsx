@@ -30,6 +30,7 @@ import { useCommands, type SettingsFileTarget, type SettingsFileWrite } from "..
 import { PROVIDER_EDITORS, RotationPanel, useUsageState } from "../providers/providers-screen.tsx";
 import { UsagePanelView } from "../providers/providers-view.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
+import type { FolderPickInvoke } from "../../folder-pick.ts";
 import { RestorePanel } from "./settings-restore-screen.tsx";
 import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
 import {
@@ -83,7 +84,10 @@ function withoutKey(set: ReadonlySet<SettingKey>, key: SettingKey): ReadonlySet<
   return next;
 }
 
-export function SettingsPage(): ReactNode {
+export function SettingsPage(props: {
+  /** 폴더 선택 창을 부르는 invoke. 데이터 복원 구역의 고르기 단추가 쓴다 */
+  readonly folderPick?: FolderPickInvoke | undefined;
+}): ReactNode {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
   const threadId = useSelectedThreadId();
@@ -429,7 +433,7 @@ export function SettingsPage(): ReactNode {
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
-      restorePanel={<RestorePanel />}
+      restorePanel={<RestorePanel folderPick={props.folderPick} />}
       rotationPanel={
         view === null ? null : <RotationPanel view={view} live={live} handlers={fields} />
       }

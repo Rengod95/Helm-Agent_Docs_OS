@@ -26,8 +26,11 @@ function stateOf(over: Partial<RestoreState> = {}): RestoreState {
   return { path: FOLDER, target: LOCAL, asking: false, phase: { kind: "idle" }, ...over };
 }
 
-function html(state: RestoreState): string {
-  return renderToString(<RestoreView state={state} handlers={handlers} />);
+function html(
+  state: RestoreState,
+  extra: { readonly onPick?: () => void; readonly pickError?: string | null } = {},
+): string {
+  return renderToString(<RestoreView state={state} handlers={handlers} {...extra} />);
 }
 
 /** 버튼이 막혔는지. 막힌 단추와 잠긴 입력창은 `disabled` 속성을 단다 */
@@ -56,8 +59,31 @@ describe("restore section states", () => {
     expect(buttonDisabled(out)).toBe(true);
   });
 
-  test("the hint says there is no folder picker, so the path is typed", () => {
-    expect(html(stateOf())).toContain(t("desktop.settings.restore.path.hint"));
+  test("the folder button shows only when a picker is given, and the typed field stays", () => {
+    const without = html(stateOf());
+    expect(without).not.toContain(t("desktop.workspace.pickFolderButton"));
+    expect(without).toContain(t("desktop.settings.restore.path.label"));
+    const withPick = html(stateOf(), { onPick: NOOP });
+    expect(withPick).toContain(t("desktop.workspace.pickFolderButton"));
+    expect(withPick).toContain(t("desktop.settings.restore.path.label"));
+    expect(withPick).toContain(t("desktop.settings.restore.path.hint"));
+  });
+
+  test("the folder button is disabled while a restore runs", () => {
+    const out = html(stateOf({ phase: { kind: "running" } }), { onPick: NOOP });
+    expect(out.split('disabled=""').length - 1).toBeGreaterThanOrEqual(3);
+  });
+
+  test("a relative path shows the reason line and keeps the button disabled", () => {
+    const out = html(stateOf({ path: "backups/export-1" }));
+    expect(out).toContain(t("desktop.settings.restore.blocked.relative"));
+    expect(buttonDisabled(out)).toBe(true);
+    expect(html(stateOf())).not.toContain(t("desktop.settings.restore.blocked.relative"));
+  });
+
+  test("a failed picker shows its line", () => {
+    const out = html(stateOf(), { onPick: NOOP, pickError: t("desktop.workspace.pickFailed") });
+    expect(out).toContain(t("desktop.workspace.pickFailed"));
   });
 });
 
