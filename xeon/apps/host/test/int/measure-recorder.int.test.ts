@@ -115,3 +115,11 @@ realTest(
     expect(lastWire).toEqual({ enabled: false, rows: [] });
   },
 );
+
+realTest("with storeRequestBody on the final request body of the call is stored", async () => {
+  const rows = await oneTurn({ "x.operations.trace.storeRequestBody": true });
+  const bodies = rows.filter((row) => row.kind === "body");
+  expect(bodies).toHaveLength(1);
+  expect(bodies[0]?.metrics["step"]).toBe(1);
+  expect(bodies[0]?.tags["body"]).toContain("hello");
+});

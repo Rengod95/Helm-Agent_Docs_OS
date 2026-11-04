@@ -56,6 +56,8 @@ export interface ModelsExtensionOptions {
   readonly scheduler?: Scheduler;
   /** 없으면 pi-ai 내장 provider 전체를 등록한 모음을 쓴다 */
   readonly buildModels?: ModelServiceDeps["buildModels"];
+  /** 최종 요청 본문을 받는 곳(측정 기록). 서비스가 만들어진 뒤에 불리므로 조립 루트가 늦게 채워도 된다 */
+  readonly offerBody?: ModelServiceDeps["offerBody"];
 }
 
 function dispatcherOf(ext: ExtHost): ProviderDispatcher {
@@ -198,6 +200,7 @@ export function createModelsExtension(
               .registrations()
               .some((info) => info.id === ROTATION_PLUGIN && info.status === "enabled"),
           dispatcher: dispatcherOf(ext),
+          ...(options.offerBody === undefined ? {} : { offerBody: options.offerBody }),
           // 꺼진 그룹의 groupRouting 값은 쓰지 않는다(L1.models.spec §5)
           scopeEnabled: (scopeId) =>
             ext.registrations().some((info) => info.id === scopeId && info.status === "enabled"),

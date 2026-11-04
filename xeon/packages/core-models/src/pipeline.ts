@@ -7,7 +7,7 @@ import {
   type ModelsSimpleStreamOptions,
 } from "@earendil-works/pi-ai";
 import { AssistantMessageEventStream as PiAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
-import { attemptAsync, type Clock, type Logger } from "@fresnel/contracts";
+import { attempt, attemptAsync, type Clock, type Logger } from "@fresnel/contracts";
 import type { AssistantMessage, ModelThinkingLevel } from "@fresnel/contracts/conversation";
 import { FIRST_DENY } from "@fresnel/contracts/extensions";
 import type {
@@ -44,6 +44,13 @@ import type { UsageRecorder } from "./usage.ts";
 // (model_select, thinking_level_select)은 M-11이다.
 // 7번 자격 증명 해석은 pi-ai Models가 요청 직전에 CredentialStore.read를 불러 하므로 이 파일에 코드가 없다.
 
+/** 모델로 나가는 최종 요청 본문 한 건. 측정 저장소가 받는다(T-MEAS-REC, B18) */
+export interface RequestBodyOffer {
+  readonly ctx: ModelCallContext;
+  readonly at: number;
+  readonly body: unknown;
+}
+
 export interface PipelineDeps {
   readonly models: Models;
   readonly clock: Clock;
@@ -59,6 +66,8 @@ export interface PipelineDeps {
   /** 헤더 값의 시크릿 참조 해석 */
   readonly resolver: SecretResolver;
   readonly logger?: Logger;
+  /** 가드를 통과한 최종 요청 본문을 받는다. 저장 여부는 받는 쪽이 정한다. 던져도 호출은 막히지 않는다 */
+  readonly offerBody?: (offer: RequestBodyOffer) => void;
   /** 계정 회전 설정. null이면 회전하지 않는다(기본 꺼짐, L1.models.spec §4.8) */
   readonly rotation:
     | (Pick<RotationDeps<CallSpec>, "pool" | "scheduler" | "accounts" | "policy"> & {
@@ -224,6 +233,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     const useSession = retention !== "none" && spec.cachePolicy.sessionKey === "thread";
     const dispatcher = dispatcherOf(spec);
     const hook = spec.internal?.payloadHook;
+    const offerBody = spec.internal?.skipHooks === true ? undefined : deps.offerBody;
     const rawSink = spec.internal?.rawEventSink;
     const marks: CacheMarks | undefined =
       api === "anthropic-messages" && retention !== "none" ? spec.options?.cacheMarks : undefined;
@@ -236,6 +246,13 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
       ...(ctx.signal === undefined ? {} : { signal: ctx.signal }),
     };
     const target = { provider: spec.provider, modelId: spec.modelId, role: ctx.role };
+    const offer = (body: unknown): void => {
+      if (offerBody === undefined) return;
+      const sent = attempt(() => {
+        offerBody({ ctx, at: deps.clock.now(), body });
+      });
+      if (!sent.ok) deps.logger?.warn("model.offer_body_failed", { threadId: ctx.threadId });
+    };
     let streamEvents = 0;
     return {
       ...(ctx.signal === undefined ? {} : { signal: ctx.signal }),
@@ -283,14 +300,20 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
           }
         : {}),
       // 5: 페이로드 확정 뒤 캐시 표식 적용 → before_provider_request. 재시도 때 다시 불려도 같은 입력이면 같은 결과다
-      ...(dispatcher === null && marks === undefined && hook === undefined
+      ...(dispatcher === null &&
+      marks === undefined &&
+      hook === undefined &&
+      offerBody === undefined
         ? {}
         : {
             onPayload: async (payload: unknown): Promise<unknown> => {
               const marked =
                 marks === undefined ? payload : applyCacheMarks(payload, marks, spec.context);
               const hooked = hook === undefined ? marked : hook(marked);
-              if (dispatcher === null) return hooked;
+              if (dispatcher === null) {
+                offer(hooked);
+                return hooked;
+              }
               const final = await dispatcher.beforeProviderRequest({
                 ...base,
                 ...target,
@@ -311,6 +334,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
                 ? guard.value?.reason
                 : FIRST_DENY["guard.model.before"].reason;
               if (reason !== undefined) throw new Error(`[fresnel:denied_by_guard] ${reason}`);
+              offer(final);
               return final;
             },
           }),

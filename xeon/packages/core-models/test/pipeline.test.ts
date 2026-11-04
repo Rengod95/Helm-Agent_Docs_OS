@@ -260,6 +260,56 @@ describe("guard.model.before (M3-REQ-109)", () => {
   });
 });
 
+describe("request body offer (T-MEAS-REC)", () => {
+  test("receives the final payload after the chain and the guard, with the call context", async () => {
+    const offers: { body: unknown; role: string; threadId: string }[] = [];
+    const h = createHarness({
+      tape: ONE_TURN,
+      dispatcher: {
+        beforeProviderRequest: (input) =>
+          Promise.resolve({ chained: true, original: input.payload }),
+        guardProviderRequest: noGuard,
+      },
+      offerBody: (offer) => {
+        offers.push({ body: offer.body, role: offer.ctx.role, threadId: offer.ctx.threadId });
+      },
+    });
+    await h.service.stream(h.request("hi")).result();
+    expect(offers).toHaveLength(1);
+    expect(offers[0]?.body).toEqual(h.fake.calls()[0]?.payload);
+    expect(offers[0]?.body).toMatchObject({ chained: true });
+    expect(offers[0]?.role).toBe("main");
+    expect(offers[0]?.threadId).toBe(h.threadId);
+  });
+
+  test("a guard block sends nothing to the offer", async () => {
+    let count = 0;
+    const h = createHarness({
+      tape: ONE_TURN,
+      dispatcher: {
+        beforeProviderRequest: (input) => Promise.resolve(input.payload),
+        guardProviderRequest: () => Promise.resolve({ block: true, reason: "no" }),
+      },
+      offerBody: () => {
+        count += 1;
+      },
+    });
+    await h.service.stream(h.request("hi")).result();
+    expect(count).toBe(0);
+  });
+
+  test("a throwing offer does not block the call", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      offerBody: () => {
+        throw new Error("sink exploded");
+      },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("stop");
+  });
+});
+
 describe("call timing for measurement", () => {
   test("the usage record carries when the request started and when the first chunk arrived", async () => {
     const h = createHarness({ tape: ONE_TURN });

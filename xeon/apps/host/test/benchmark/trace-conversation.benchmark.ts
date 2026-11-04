@@ -2,7 +2,7 @@
 // 실제 엔진(in-process 호스트, 기본 그룹 포함)에서 한 대화에 같은 입력을 여러 turn 보내고, turn 하나의 시작부터 `turn.completed`까지 걸린 시간을 모은다.
 // 조건은 계측 끔, 켬(thread마다 8턴), 켬(20턴, 기본값), 켬(200턴, 설정 상한)이다. 조건을 번갈아 가며 라운드를 되풀이해 시간에 따른 흐름이 한 조건에 몰리지 않게 한다.
 // 실행(xeon/에서): bash scripts/guard.sh run -- bun apps/host/test/benchmark/trace-conversation.benchmark.ts [--turns <n>] [--rounds <n>]
-// 출력: stdout에 JSON 한 줄씩(metric, unit, value, note). 판정은 하지 않는다. 버퍼 크기(8 또는 20)는 사용자 결정 대기(B18)라 값을 바꾸지 않는다.
+// 출력: stdout에 JSON 한 줄씩(metric, unit, value, note). 판정은 하지 않는다. 코드 기본값은 켬·20턴이다(B18, 2026-11-04 측정 결과는 X.operations.spec 미결 23).
 // 한계: 모델 응답이 즉시라 모델 시간이 0에 가깝다. 계측 비용이 turn 시간에서 차지하는 비중의 상한에 가깝고, 실제 대화에서는 모델 시간만큼 비중이 작아진다.
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";

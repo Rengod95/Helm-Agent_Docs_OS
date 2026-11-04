@@ -8,6 +8,7 @@ export {
   type ModelsExtensionOptions,
 } from "./plugin.ts";
 export { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
+export type { RequestBodyOffer } from "./pipeline.ts";
 export { ModelRegistrationError } from "./provider-registry.ts";
 export type {
   AfterProviderResponseInput,
