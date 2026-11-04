@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-export const SIZE_CAP_BYTES = 500 * 1024 * 1024;
+export const SIZE_CAP_BYTES: number = 500 * 1024 * 1024;
 /** A painted window of the real UI is about 190 KB of PNG; a blank or loading window is far smaller. */
 export const FIRST_SCREEN_MIN_BYTES = 100_000;
 export const POLL_NOTE_MS = 300;
