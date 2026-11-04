@@ -339,7 +339,10 @@ export interface RegistrationControl {
 
 /** 사용자 알림 포트. 구현은 휘발 이벤트 발신(§4.3.4) */
 export interface OperationsNotifier {
-  handlerFailed(outcome: HandlerOutcomeRecord, stats: FailureStats): void;
+  /** asksDisable이 참이면 이 실패가 "끌까요" 질문을 새로 냈다(§4.3.3) */
+  handlerFailed(outcome: HandlerOutcomeRecord, stats: FailureStats, asksDisable?: boolean): void;
+  /** 기준을 넘었으나 답할 화면이 없어 끄지 않았다. 운영 로그만 남는다 [제안] */
+  disableUnasked(key: HandlerOwnerKey, verdict: Extract<AutoDisableVerdict, { disable: true }>): void;
   autoDisabled(key: HandlerOwnerKey, verdict: Extract<AutoDisableVerdict, { disable: true }>): void;
   /** disableNow 호출을 알린다. disabled가 거짓이면 면제 주체라 끄지 않았다(§4.3.4, [결정: 오케스트레이터 기본값, M3-REQ-36]) */
   projectionFailed(key: HandlerOwnerKey, cause: "isolation_restart_limit" | "projection_failed", disabled: boolean): void;
@@ -354,11 +357,24 @@ export interface VolatileNotifierDeps {
 /** 실패마다 `scope.handler_failed`를 발신하고 운영 로그를 남긴다. 발신이 던지면 로그만 남긴다 */
 export function createVolatileNotifier(deps: VolatileNotifierDeps): OperationsNotifier;
 
+/** 끌까요 질문 [결정: 2026-11-04 사용자] */
+export interface DisableQuestion {
+  readonly key: HandlerOwnerKey;
+  readonly rule: "consecutive" | "rate";
+  /** 질문을 낸 시점의 연속 실패 수와 창 안 실패 수 */
+  readonly consecutive: number;
+  readonly windowFailures: number;
+}
+
 export interface AutoDisabler {
-  /** 장부에 기록하고 판정한다. 기준을 넘으면 RegistrationControl.requestDisable(…, "auto_disable")을 부른다 */
+  /** 장부에 기록하고 판정한다. 기준을 넘으면 끄지 않고 "끌까요" 질문을 만든다(§4.3.3). 끄기는 answer(…, true)가 RegistrationControl.requestDisable(…, "auto_disable")로 한다 */
   onOutcome(outcome: HandlerOutcomeRecord): void;
-  /** 사용자가 다시 켤 때. 장부를 비우고 requestEnable을 부른다 */
+  /** 사용자가 다시 켤 때(또는 질문에 "켜 두기"). 장부와 질문을 비우고 requestEnable을 부른다 */
   reenable(key: HandlerOwnerKey): void;
+  /** 답을 기다리는 질문. 주체마다 하나다 */
+  questions(): readonly DisableQuestion[];
+  /** 질문에 답한다. true면 끄고, false면 켜 둔 채 장부를 비운다. 질문이 없으면 false를 돌려준다 */
+  answer(key: HandlerOwnerKey, disable: boolean): boolean;
   /** 장부와 자동으로 꺼진 주체 표만 비운다. 켜기 요청은 부르지 않는다. 켜기를 `RegistrationHandle.enable()`로 이미 하는 `/group on`과 설정 토글이 부른다 */
   clearLedger(key: HandlerOwnerKey): void;
   /**
@@ -378,6 +394,7 @@ export function createAutoDisabler(deps: {
   readonly notifier: OperationsNotifier;
   readonly isExempt?: (key: HandlerOwnerKey) => boolean;   // essential 확장 면제. 조립 루트(createOperationsPolicy)가 admit 정보로 준다
   readonly tierOf?: (key: HandlerOwnerKey) => Tier | undefined; // 면제 tier 판정용. 표에 없으면(undefined) tier 면제는 없고 isExempt만 본다
+  readonly canAsk?: () => boolean; // 답할 화면(연결된 클라이언트)이 있나. 없거나 생략하면 묻지도 끄지도 않는다(§4.3.3)
 }): AutoDisabler;
 ```
 
@@ -771,6 +788,8 @@ export interface OperationsDeps {
    * 정책이 ExtHost보다 먼저 만들어지므로 조립 루트가 ExtHost.ports를 가리키는 늦은 연결로 넘긴다(RegistrationControl과 같은 방식)
    */
   readonly ports: PortLookup;
+  /** 답할 화면이 있나. `createAutoDisabler`의 `canAsk`로 간다(§4.3.3) */
+  readonly canAsk?: () => boolean;
 }
 
 export interface OperationsSettingsSource {
@@ -995,7 +1014,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `first_failure_deny` | `first`, 실패 정책 `closed` | 앞선 핸들러가 예외, 시간 초과, 스키마 위반을 내면 그 훅의 거부값(`FIRST_DENY`)이 결정이 되고 디스패치가 멈춘다(`fold/first.ts`). `open`인 `thread.compact.before`는 결정 없음으로 보고 계속하므로 이 종류가 없다 |
 | `chain_stop` | `chain`, `CHAIN_RULES[훅].stop`이 있는 훅 | 앞선 핸들러가 멈춤 값을 내면 뒤 핸들러는 실행되지 않는다(`input.user.before`의 `handled`) |
 | 값 변경(`valueChanges`) | `chain` | 건너뜀이 아니다. 뒤(안쪽) 핸들러의 패치가 앞(바깥) 핸들러의 패치를 덮어쓸 수 있다. 순서를 바꾸면 최종 값이 바뀐다 |
-| 자동 끄기(`autoDisable`) | `first`, `closed` | 면제가 아닌 핸들러가 실패하는 동안 뒤 핸들러가 가려지고, 연속 실패가 기준을 넘으면 그 확장이 꺼진다. `guard`·`core` tier와 essential 확장은 면제다(수용 기준 12) |
+| 자동 끄기(`autoDisable`) | `first`, `closed` | 면제가 아닌 핸들러가 실패하는 동안 뒤 핸들러가 가려지고, 연속 실패가 기준을 넘으면 그 확장을 끌지 사용자에게 묻고, 예라고 하면 꺼진다. `guard`·`core` tier와 essential 확장은 면제다(수용 기준 12) |
 
 `tap`과 `collect`는 모든 핸들러가 실행되므로 건너뜀과 값 변경 항목이 없다. 앞선 핸들러에는 guard도 들어간다. 가드가 답해서 뒤 핸들러를 멈추는 것은 순서와 무관한 기존 동작이다.
 
@@ -1092,16 +1111,24 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 최근 호출 창: 최근 `windowSize`번의 호출(`aborted` 제외)에서 실패 수를 센다.
 - 장부는 프로세스 메모리에만 있다. 재시작하면 비어 있다 [제안]. 영속 기록이 필요한 정보(자동 끄기 사실)는 이벤트로 남긴다(§4.3.4).
 
-#### 4.3.3 자동 끄기
+#### 4.3.3 자동 끄기와 끌까요 질문
 
-[제안] 다음 중 하나를 만족하면 그 확장을 자동으로 끈다(`judgeAutoDisable`).
+[결정: 2026-11-04 사용자] 자동 끄기는 연속 5회 실패이고, 끄기 전에 사용자에게 "끌까요"를 묻는다. 다음 중 하나를 만족하면 판정이 "끈다"가 된다(`judgeAutoDisable`, 기준값은 [제안]). 판정이 곧 끄기는 아니다. 아래 "질문" 규칙을 따른다.
 
 1. 연속 실패 수 ≥ `consecutive`(기본 5)
 2. 창 실패 수 ≥ `minFailures`(기본 10)이고 창 실패율 ≥ `failureRate`(기본 0.5). 창 크기 기본 50
 
 확장 메서드의 실패(`threw`, `timeout`, `result_invalid`)는 훅 실패와 같은 두 기준에 든다. 그래서 메서드만 계속 죽는 확장도 같은 알림과 함께 자동으로 꺼진다. 같은 확장의 tap 실패와 같은 취급이다 [제안, M4 T-XV]. 면제(`guard`·`core` tier, `essential`)는 메서드에도 그대로 적용한다.
 
-적용 규칙:
+질문 [결정: 2026-11-04 사용자] 아래 세부는 [제안]이다.
+
+- 판정이 "끈다"이면 `onOutcome`은 끄지 않고 `DisableQuestion`을 만든다. 연속 5회 규칙과 실패율 규칙이 같은 질문으로 간다. 답이 올 때까지 켜 둔 채이고, 그 주체에는 질문을 겹쳐 내지 않는다(`questions()`는 주체당 하나). 질문을 새로 낸 실패의 `scope.handler_failed`만 `asksDisable: true`를 싣는다.
+- `answer(key, true)`("예")는 끈다: 아래 끄기 규칙대로 `requestDisable(…, "auto_disable")`을 부르고 `autoDisabled`를 알린다. 끄기는 내구 `scope.changed`(reason `auto_disable`)로 남는다.
+- `answer(key, false)`("아니오")는 켜 둔 채 그 주체의 장부를 비운다. 다시 기준에 닿으면(연속 5회 또는 실패율) 또 묻는다. 시간 간격 조건은 두지 않는다.
+- 답할 화면이 없으면(`canAsk`가 거짓: 연결된 클라이언트가 없는 헤드리스·화면 없는 실행) 끄지도 묻지도 않는다. `scope.handler_failed` 알림은 그대로 나가고 `disableUnasked`가 운영 로그에 한 줄을 남긴다(성공 호출이 나오기 전까지 한 번). 화면이 생긴 뒤의 다음 실패에서 기준이 여전히 넘어 있으면 그때 묻는다.
+- 면제(`guard`·`core` tier, `essential`)는 그대로이고 질문도 없다. `disableNow`(격리 재시작 한도 초과, 투영기 실패)는 질문 없이 바로 끈다. 이 경로는 한도를 넘은 고장 격리이고 확장이 계속 돌면 호스트 안정성이 깨지기 때문이다. 질문이 걸려 있던 주체에 `disableNow`가 오면 질문을 거두고 끈다. `reenable`·`clearLedger`도 질문을 거둔다.
+
+적용 규칙(끄기가 일어날 때):
 
 - 끄기는 `RegistrationControl.requestDisable(scopeId, "auto_disable")`로 그 확장의 모든 scope에 요청한다. 적용은 다음 단계 경계다(`F.extensions.spec` §4.5). 실행 중인 디스패치와 step은 끊지 않는다.
 - 요청 뒤 적용 전까지의 호출도 실패 처리 규칙은 그대로 적용한다. 그 사이의 실패는 장부에 넣지만 두 번째 요청을 만들지 않는다.
@@ -1109,17 +1136,17 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 예외: `AUTO_DISABLE_EXEMPT_TIERS`(`guard`, `core`)와 `essential: true` 확장(X.loading-trust.spec §4.3.2)은 끄지 않는다. 이 tier의 실패는 fold 규칙대로 처리하고(가드의 first는 거부로 남아 fail-closed가 유지된다) 알림만 보낸다. 사용자가 이 tier를 끌 수 없는 이유는 보안 가드와 코어 기본 동작이 빠지면 안전과 기본 기능이 함께 빠지기 때문이다.
 - 기준과 무관한 `disableNow` 중 투영기 실패(§5 6번)만 같은 면제를 받는다. 격리 재시작 한도 초과(`isolation_restart_limit`)는 면제 없이 끈다. 면제 주체는 끄지 않고 `projectionFailed(key, cause, false)`를 실패마다 보낸다. 면제 tier는 `tierOf`로 본다. `tierOf`가 tier를 돌려주지 않는 주체(표에 없는 확장, 훅)는 tier 면제가 없고 `isExempt`만 본다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이미 끈 주체는 다시 끄지도, 다시 알리지도 않는다.
 - 외부 훅은 같은 기준으로 그 훅만 끈다. 훅 끄기는 다음 디스패치부터 적용한다(훅은 scope가 없다).
-- 자동 끄기 상태는 설정 파일에 쓰지 않는다 [제안]. `ext.<name>.enabled` 값은 바뀌지 않고, 다음 시작에서 다시 실린다. 반복되는 경우는 §10 미결 7이다.
+- 자동 끄기 상태는 설정 파일에 쓰지 않는다 [제안]. `ext.<name>.enabled` 값은 바뀌지 않고, 다음 시작에서 다시 실린다. 시작을 넘어 세는 원장은 두지 않는다(§10 미결 7).
 
 #### 4.3.4 알림과 기록
 
-- 실패마다 휘발 이벤트를 보낸다. kind `scope.handler_failed`(코어 영역 `scope`, 휘발)이며 F.records 코어 카탈로그(`ScopeHandlerFailedPayloadSchema`)에 있다(§10 미결 4). payload는 `{ owner: HandlerOwnerKey, point, result, message, consecutive }`다. `message`는 `outcome.message ?? ""`를 4000자로 자른 값이고, `consecutive`는 1 이상이다. L4는 같은 확장의 알림을 묶어 보인다.
+- 실패마다 휘발 이벤트를 보낸다. kind `scope.handler_failed`(코어 영역 `scope`, 휘발)이며 F.records 코어 카탈로그(`ScopeHandlerFailedPayloadSchema`)에 있다(§10 미결 4). payload는 `{ owner: HandlerOwnerKey, point, result, message, consecutive, asksDisable? }`다. `asksDisable`은 이 실패가 §4.3.3 질문을 새로 냈을 때만 `true`다. `message`는 `outcome.message ?? ""`를 4000자로 자른 값이고, `consecutive`는 1 이상이다. L4는 같은 확장의 알림을 묶어 보인다.
 - 확장 메서드 기록의 `point`는 `"ext.method"`다. `message`는 동사를 앞에 붙인다(`sum: boom`, 메시지가 없으면 `sum`). 운영 로그 줄은 `handler failed: ext:<이름> ext.method <동사> <result> (consecutive N)`다 [제안, M4 T-XV]. 페이로드 `point`는 훅 이름이 아니므로 L4가 그리는 방식은 따로 정한다 [미결, §10 23번].
 - 구현은 `createVolatileNotifier`(`operations/auto-disable.ts`)다. `handlerFailed`는 `createLogNotifier`와 같은 운영 로그 줄을 남기고 `emit`으로 페이로드를 보낸다. `autoDisabled`는 운영 로그 줄만 남긴다. 자동 끄기 사실은 아래 `scope.changed`가 이미 적는다.
 - `emit`이 던지면 호출자에게 던지지 않고 `scope.handler_failed not emitted: <owner> <point> (<원인 메시지>)` 줄을 운영 로그에 남긴다.
 - 조립 루트(`apps/host`)가 이 구현을 `createOperationsPolicy`의 `notifier`로 넘긴다. `emit`은 열린 thread마다 휘발 이벤트를 보내고(`L4.host-service` HS-80), `log`는 운영 로그다. `notifier`를 생략한 조립(시험 등)은 `createLogNotifier`를 쓴다.
 - 자동 끄기가 적용되면 `scope.changed`(내구, `F.records.spec` §3.3)를 `status: "disabled"`로 남긴다. 사유는 payload의 `reason` 필드(`ScopeChangeReason`, `F.records.spec` §3.3)로 구분한다. 사유를 primitives에 넘기는 인자는 §10 미결 4의 남은 일이다.
-- 사용자 알림 문구 예: "확장 acme-notes가 연속 5번 실패해 꺼졌다. 다시 켜기: fresnel ext enable acme-notes". 문구와 위치는 `L4.cli.spec`, `L4.settings-ui.spec`이 정한다.
+- 사용자 알림 문구 예: "acme-notes가 5번 연달아 실패했어요. 끌까요?" [끄기] [켜 두기]. 문구와 위치는 `L4.desktop-ux`, `L4.cli.spec`이 정한다.
 - `disableNow`가 불리면 `OperationsNotifier.projectionFailed(key, cause, disabled)`를 보낸다. 끈 주체는 `disabled: true`로 한 번, 면제 주체는 실패마다 `disabled: false`로 보낸다. 운영 로그(`createLogNotifier`)는 이 둘을 모두 남긴다 [결정: 오케스트레이터 기본값, M3-REQ-36]. 이 알림도 휘발 이벤트 발신은 L4 조립이 연결한다.
 
 #### 4.3.5 다시 켜기
@@ -1549,7 +1576,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
 8. 예산 초과 뒤 핸들러가 값을 반환해도 결정·패치에 반영되지 않는다.
 9. `thread.shutdown` 핸들러는 2,000ms에서 끊긴다.
 10. drive 함수는 가짜 시계로 600,000ms가 지나도 시간 예산으로 abort되지 않는다.
-11. 한 확장의 핸들러가 연속 5번 실패하면 끄기 요청이 기록되고, 다음 단계 경계에서 `scope.changed{status:"disabled"}`가 커밋된다. 요청과 경계 사이에 실행 중인 디스패치는 끊기지 않는다.
+11. 한 확장의 핸들러가 연속 5번 실패하면 끌까요 질문이 생기고 끄지 않는다. "끄기" 답이 오면 끄기 요청이 기록되고, 다음 단계 경계에서 `scope.changed{status:"disabled"}`가 커밋된다(시험 `auto-disable.test.ts` "five consecutive failures ask and do not disable", "no keeps it on", "without a screen", "failure-rate rule asks", "exempt owners are never asked", "disableNow cuts a pending question"). 요청과 경계 사이에 실행 중인 디스패치는 끊기지 않는다.
 12. `guard`, `core` tier 확장은 실패가 기준을 넘어도 자동으로 꺼지지 않는다.
 13. 자동으로 꺼진 확장을 `reenable`하면 장부가 비고 켜기 요청이 기록된다. `clearLedger`나 `settingChanged`로 다시 켜도 장부가 비어 같은 기준으로 다시 꺼진다.
 14. `aborted`로 끝난 호출은 연속 실패 수와 창 실패 수를 바꾸지 않는다.
@@ -1605,7 +1632,7 @@ primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `e
    - [미결] 남은 일: `RegistrationHandle.enable`/`disable`에 사유 인자가 없어 `RegistrationControl`의 사유를 `scope.changed`에 싣는 경로가 없다. `X.primitives.spec` §3.2에 사유 인자 추가를 요청한다.
 5. (해소, M2 O-07) [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않고 X 공개 API의 별도 함수 `hostOf(g).awaitUser`로 연결했다(§4.2.3). 핸들러에 UI 포트 자체를 주는 일은 L2.dialog가 정한다.
 6. (해소, M3-REQ-36) [결정: 오케스트레이터 기본값, M3-REQ-36] 확장 투영 `apply` 예외의 복구 경로(§5 6번)는 투영기를 정지한 뒤 커밋을 다시 시도하는 것으로 정했다. 대화를 읽기 전용으로 여는 방식은 채택하지 않았다. 정지와 재시도의 구현 위치는 `L1.persistence.spec`이다.
-7. (결정) 자동 끄기의 영속 [결정: 2026-11-04 사용자 B5 3번]. 자동 끄기 자체는 프로세스 단위다(재시작하면 다시 실린다). 같은 확장이 여러 번의 시작에서 반복해 꺼지면 사용자에게 계속 꺼 둘지 묻는다. `ext.<name>.enabled=false`를 조용히 기록하지 않는다. 엔진은 `createRepeatDisableLedger`(`operations/repeat-disable.ts`)가 시작(프로세스)마다 이름당 한 번 자동 끄기를 세어 저장 포트(`RepeatDisableBackend`, 호스트는 상태 디렉터리 `ext-auto-disable.json`)에 남기고, 기준 횟수(`REPEAT_DISABLE_THRESHOLD` = 3, [제안]) 이상이면 `question(name)`이 `{ name, disabledStarts }`를 돌려준다. `AutoDisablerDeps.onDisabled`가 끄기를 요청한 직후 원장에 알린다. 답은 둘이다. "계속 켠다"는 `ext.reenable`이고 원장의 횟수를 지운다. "계속 끈다"는 사용자가 `ext.<name>.enabled=false`를 설정으로 저장하는 것이다(질문은 이미 꺼 둔 확장에는 내지 않는다). 확장을 제거하면 횟수도 지운다. 질문의 화면은 화면 트랙이 잇는다. wire는 `ext.list`/`ext.get` 항목의 선택 필드 `keepOffQuestion`(`{ disabledStarts }`)이다.
+7. (결정) 자동 끄기와 질문 [결정: 2026-11-04 사용자] "자동꺼짐은 5회 및 끄기 전에 사용자에게 끌까요 물어보고 꺼". 자동 끄기 자체는 프로세스 단위다(재시작하면 다시 실린다). 앞선 B5 3번(앱 시작 3회 누적 뒤 질문)은 이 결정으로 대체되어 `createRepeatDisableLedger`, `RepeatDisableBackend`, 상태 디렉터리 `ext-auto-disable.json`, `AutoDisablerDeps.onDisabled`를 제거했다(쓰는 곳이 `keepOffQuestion` 하나뿐이었다) [제안]. 질문의 wire는 `ext.list`/`ext.get` 항목의 선택 필드 `keepOffQuestion`이고 답은 `ext.disableConfirm`("끄기"), `ext.reenable`("켜 두기")이다(`F.wire-settings`).
 8. [미결] 이벤트에서 다시 만들 수 없는 부가 데이터 테이블(보존 테이블)을 허용할지. 허용하면 `eng.context-map.design` §5.2의 "`x_`는 확장 투영기만 쓴다, 재생 가능"을 바꾸고, 직접 쓰기 경로(커밋 계획에 데이터 연산 목록을 싣는 F `CommitPlan` 확장)와 열 추가 마이그레이션(`storage/migrate.ts`)이 필요하다.
 9. [미결] `ExtQuery`의 범위 조건(`gt`, `lt`, `in`, 접두 일치)과 집계. 그리고 SQLite authorizer(§4.4.6 C안)를 `bun:sqlite`에서 쓸 수 있는지 확인.
 10. (닫힘) pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c]. 외부 확장의 내장 도구 교체는 규칙 2대로 허용하지 않는다. 이전 질문: pi 어댑터 확장의 내장 도구 교체 허용 여부. pi는 같은 이름 등록으로 내장 도구를 바꾼다. 허용하면 사용자 설정(예: `ext.<name>.overrideTools`)으로 명시 허용하는 방식을 제안한다.

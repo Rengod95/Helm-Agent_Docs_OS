@@ -61,11 +61,14 @@ function recorder(): Recorder {
       scopesOf: (extension: string) => [extension, `${extension}/sub`],
     },
     notifier: {
-      handlerFailed: (_outcome, stats) => {
-        notices.push(`failed:${stats.consecutive}`);
+      handlerFailed: (_outcome, stats, asksDisable) => {
+        notices.push(`failed:${stats.consecutive}${asksDisable === true ? ":asks" : ""}`);
       },
       autoDisabled: (key, verdict) => {
         notices.push(`disabled:${key}:${verdict.rule}`);
+      },
+      disableUnasked: (key, verdict) => {
+        notices.push(`unasked:${key}:${verdict.rule}`);
       },
       projectionFailed: (key, cause, disabled) => {
         projections.push(`projection:${key}:${cause}:${disabled}`);
@@ -78,6 +81,8 @@ interface DisablerOptions {
   readonly policy?: AutoDisablePolicy;
   readonly isExempt?: (key: string) => boolean;
   readonly tierOf?: (key: string) => Tier | undefined;
+  /** 답할 화면이 있나. 생략하면 있다 */
+  readonly canAsk?: boolean;
 }
 
 function disablerOf(rec: Recorder, options: DisablerOptions = {}) {
@@ -93,26 +98,127 @@ function disablerOf(rec: Recorder, options: DisablerOptions = {}) {
       enable: (id) => hooks.push(`enable:${id}`),
     },
     notifier: rec.notifier,
+    canAsk: () => options.canAsk ?? true,
     ...(options.isExempt === undefined ? {} : { isExempt: options.isExempt }),
     ...(options.tierOf === undefined ? {} : { tierOf: options.tierOf }),
   });
   return { disabler, ledger, hooks };
 }
 
-test("autoDisable: five consecutive failures request disable once", () => {
+test("autoDisable: five consecutive failures ask and do not disable; yes disables once", () => {
   const rec = recorder();
   const { disabler } = disablerOf(rec);
   for (let i = 0; i < 4; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
   expect(rec.requests).toEqual([]);
+  expect(disabler.questions()).toEqual([]);
   disabler.onOutcome(failed("flaky-ext", "user"));
+  // 5번째 실패에서 끄지 않고 묻는다
+  expect(rec.requests).toEqual([]);
+  expect(disabler.disabled()).toEqual([]);
+  expect(disabler.questions()).toEqual([
+    { key: "ext:flaky-ext", rule: "consecutive", consecutive: 5, windowFailures: 5 },
+  ]);
+  expect(rec.notices.at(-1)).toBe("failed:5:asks");
+  // 답이 올 때까지 켜 둔 채이고, 겹쳐 묻지 않는다
+  disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(rec.requests).toEqual([]);
+  expect(disabler.questions()).toHaveLength(1);
+  expect(rec.notices.at(-1)).toBe("failed:6");
+  expect(disabler.answer("ext:flaky-ext", true)).toBe(true);
   expect(rec.requests).toEqual([
     "disable:flaky-ext:auto_disable",
     "disable:flaky-ext/sub:auto_disable",
   ]);
-  disabler.onOutcome(failed("flaky-ext", "user"));
-  expect(rec.requests).toHaveLength(2);
   expect(disabler.disabled()).toEqual(["ext:flaky-ext"]);
+  expect(disabler.questions()).toEqual([]);
   expect(rec.notices).toContain("disabled:ext:flaky-ext:consecutive");
+  // 답은 한 번만 받는다
+  expect(disabler.answer("ext:flaky-ext", true)).toBe(false);
+  expect(rec.requests).toHaveLength(2);
+});
+
+test("autoDisable: no keeps it on, clears the counter, and the next five failures ask again", () => {
+  const rec = recorder();
+  const { disabler, ledger } = disablerOf(rec);
+  for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(disabler.answer("ext:flaky-ext", false)).toBe(true);
+  expect(rec.requests).toEqual([]);
+  expect(disabler.disabled()).toEqual([]);
+  expect(disabler.questions()).toEqual([]);
+  expect(ledger.stats("ext:flaky-ext").consecutive).toBe(0);
+  for (let i = 0; i < 4; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(disabler.questions()).toEqual([]);
+  disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(disabler.questions().map((q) => q.key)).toEqual(["ext:flaky-ext"]);
+  expect(rec.notices.at(-1)).toBe("failed:5:asks");
+  expect(rec.requests).toEqual([]);
+});
+
+test("autoDisable: without a screen to answer nothing is disabled or asked, and the log line is written once", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec, { canAsk: false });
+  for (let i = 0; i < 8; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(rec.requests).toEqual([]);
+  expect(disabler.disabled()).toEqual([]);
+  expect(disabler.questions()).toEqual([]);
+  expect(rec.notices.filter((n) => n.startsWith("unasked:"))).toEqual([
+    "unasked:ext:flaky-ext:consecutive",
+  ]);
+  // 실패 알림(scope.handler_failed)은 그대로 나간다
+  expect(rec.notices.filter((n) => n.startsWith("failed:"))).toHaveLength(8);
+});
+
+test("autoDisable: the failure-rate rule asks the same question", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec);
+  // 연속 실패는 5를 넘지 않게 번갈아: 창 안 실패 10회, 실패율 50% 이상
+  for (let i = 0; i < 10; i += 1) {
+    disabler.onOutcome(failed("rate-ext", "user"));
+    disabler.onOutcome(failed("rate-ext", "user", "ok"));
+  }
+  expect(disabler.disabled()).toEqual([]);
+  expect(disabler.questions()).toEqual([
+    { key: "ext:rate-ext", rule: "rate", consecutive: 1, windowFailures: 10 },
+  ]);
+  expect(rec.requests).toEqual([]);
+  disabler.answer("ext:rate-ext", true);
+  expect(rec.notices).toContain("disabled:ext:rate-ext:rate");
+});
+
+test("autoDisable: exempt owners are never asked", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec, { isExempt: (key) => key === "ext:essential-ext" });
+  for (let i = 0; i < 8; i += 1) {
+    disabler.onOutcome(failed("core-ext", "core"));
+    disabler.onOutcome(failed("guard-ext", "guard"));
+    disabler.onOutcome(failed("essential-ext", "user"));
+  }
+  expect(disabler.questions()).toEqual([]);
+  expect(rec.requests).toEqual([]);
+  expect(rec.notices.filter((n) => n.includes("asks"))).toEqual([]);
+});
+
+test("autoDisable: disableNow cuts a pending question and disables without asking", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec);
+  for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  expect(disabler.questions()).toHaveLength(1);
+  disabler.disableNow("ext:flaky-ext", "isolation_restart_limit");
+  expect(disabler.questions()).toEqual([]);
+  expect(disabler.disabled()).toEqual(["ext:flaky-ext"]);
+  expect(rec.requests).toContain("disable:flaky-ext:auto_disable");
+});
+
+test("autoDisable: reenable and clearLedger drop a pending question", () => {
+  const rec = recorder();
+  const { disabler } = disablerOf(rec);
+  for (const other of ["a-ext", "b-ext"]) {
+    for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed(other, "user"));
+  }
+  expect(disabler.questions()).toHaveLength(2);
+  disabler.reenable("ext:a-ext");
+  disabler.clearLedger("ext:b-ext");
+  expect(disabler.questions()).toEqual([]);
 });
 
 function stats(windowFailures: number, windowCalls: number) {
@@ -159,8 +265,9 @@ test("autoDisable: reenable resets ledger", () => {
   expect(ledger.stats("ext:flaky-ext").totalCalls).toBe(0);
   expect(rec.requests).toEqual(["enable:flaky-ext:request", "enable:flaky-ext/sub:request"]);
   expect(disabler.disabled()).toEqual([]);
-  // 다시 기준을 넘으면 다시 꺼진다
+  // 다시 기준을 넘으면 다시 묻고, 예라고 하면 꺼진다
   for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  disabler.answer("ext:flaky-ext", true);
   expect(rec.requests.filter((request) => request.startsWith("disable:flaky-ext"))).toHaveLength(2);
 });
 
@@ -187,6 +294,8 @@ test("autoDisable: hooks and forced disable", () => {
     at: 1,
   };
   for (let i = 0; i < 5; i += 1) disabler.onOutcome(hookOutcome);
+  expect(hooks).toEqual([]);
+  disabler.answer("hook:audit", true);
   expect(hooks).toEqual(["disable:audit"]);
   disabler.disableNow("ext:isolated-ext", "isolation_restart_limit");
   expect(rec.requests.filter((request) => request.includes("isolated-ext"))).toHaveLength(2);
@@ -293,6 +402,7 @@ test("autoDisable: applied at step boundary", async () => {
     );
   await fire("1");
   await fire("2");
+  harness.policy.autoDisabler.answer("ext:auto-bad", true);
   // 요청은 기록되었지만 적용 전이다: 실행 중인 디스패치는 끊기지 않고 핸들러는 계속 돈다
   expect(harness.requests).toEqual(["disable:auto-bad:auto_disable"]);
   expect(t.host.registration("auto-bad")?.status).toBe("disabling");
@@ -330,6 +440,8 @@ test("autoDisable: method failures count with the hook failures of the same exte
   disabler.onOutcome(failed("mixed-ext", "user"));
   expect(rec.requests).toEqual([]);
   disabler.onOutcome(methodFailed("mixed-ext", "user", "threw"));
+  expect(rec.requests).toEqual([]);
+  disabler.answer("ext:mixed-ext", true);
   expect(rec.requests).toEqual([
     "disable:mixed-ext:auto_disable",
     "disable:mixed-ext/sub:auto_disable",
@@ -355,6 +467,8 @@ test("autoDisable: each method failure kind counts once, and an ok resets the co
   disabler.onOutcome(methodFailed("calm-ext", "user", "timeout"));
   expect(rec.requests).toEqual([]);
   disabler.onOutcome(methodFailed("calm-ext", "user", "result_invalid"));
+  expect(rec.requests).toEqual([]);
+  disabler.answer("ext:calm-ext", true);
   expect(rec.requests).toEqual([
     "disable:calm-ext:auto_disable",
     "disable:calm-ext/sub:auto_disable",
@@ -479,9 +593,20 @@ test("volatile notifier: the disabler emits one payload per failure and one auto
     scopes: rec.scopes,
     hooks: { disable: () => {}, enable: () => {} },
     notifier,
+    canAsk: () => true,
   });
   for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
   expect(emitted.map((payload) => payload.consecutive)).toEqual([1, 2, 3, 4, 5]);
+  // 질문을 낸 5번째 실패만 asksDisable을 싣는다
+  expect(emitted.map((payload) => payload.asksDisable)).toEqual([
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    true,
+  ]);
+  expect(rec.requests).toEqual([]);
+  disabler.answer("ext:flaky-ext", true);
   expect(emitted[0]).toEqual({
     owner: "ext:flaky-ext",
     point: "tool.result",
@@ -508,26 +633,6 @@ test("autoDisable: clearLedger resets the ledger without a toggle request, so th
   expect(ledger.stats("ext:flaky-ext").totalCalls).toBe(0);
   expect(disabler.disabled()).toEqual([]);
   for (let i = 0; i < 5; i += 1) disabler.onOutcome(failed("flaky-ext", "user"));
+  disabler.answer("ext:flaky-ext", true);
   expect(rec.requests.filter((request) => request.startsWith("disable:flaky-ext"))).toHaveLength(2);
-});
-
-// 결정 2026-11-04 B5. 자동 끄기를 요청하면 `onDisabled`가 한 번 불리고, 끄지 않으면 불리지 않는다
-test("onDisabled fires once when a threshold crossing requests the disable", () => {
-  const r = recorder();
-  const fired: string[] = [];
-  const disabler = createAutoDisabler({
-    ledger: createFailureLedger({ windowSize: 50 }),
-    policy: () => DEFAULT_AUTO_DISABLE,
-    scopes: { ...r.scopes, scopesOf: () => ["flaky"] },
-    hooks: { disable: () => {}, enable: () => {} },
-    notifier: r.notifier,
-    onDisabled: (key) => fired.push(key),
-  });
-  for (let i = 0; i < DEFAULT_AUTO_DISABLE.consecutive - 1; i += 1) {
-    disabler.onOutcome(failed("flaky", "builtin"));
-  }
-  expect(fired).toEqual([]);
-  disabler.onOutcome(failed("flaky", "builtin"));
-  disabler.onOutcome(failed("flaky", "builtin"));
-  expect(fired).toEqual(["ext:flaky"]);
 });

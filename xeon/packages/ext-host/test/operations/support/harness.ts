@@ -77,6 +77,9 @@ export async function createOperationsHarness(
     autoDisabled: (key, verdict) => {
       notices.push(`auto-disabled:${key}:${verdict.rule}`);
     },
+    disableUnasked: (key, verdict) => {
+      notices.push(`auto-disable-unasked:${key}:${verdict.rule}`);
+    },
     projectionFailed: (key, cause, disabled) => {
       notices.push(`projection-failed:${key}:${cause}:${disabled}`);
     },
@@ -88,6 +91,7 @@ export async function createOperationsHarness(
     scopes,
     notifier,
     ports,
+    canAsk: () => true,
     ...(options.guardStatements === undefined ? {} : { guardStatements: options.guardStatements }),
     ...(options.reservedNames === undefined ? {} : { reservedNames: options.reservedNames }),
   });

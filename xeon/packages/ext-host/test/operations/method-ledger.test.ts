@@ -253,6 +253,9 @@ test("method: consecutive method failures auto-disable the extension, and params
     kind: "threw",
     message: "crash",
   });
+  expect(harness.requests).toEqual([]);
+  expect(policy.autoDisabler.questions().map((q) => q.key)).toEqual(["ext:crash-ext"]);
+  policy.autoDisabler.answer("ext:crash-ext", true);
   expect(harness.requests).toEqual(["disable:crash-ext:auto_disable"]);
   expect(harness.notices).toContain("auto-disabled:ext:crash-ext:consecutive");
   expect(policy.autoDisabler.disabled()).toEqual(["ext:crash-ext"]);
