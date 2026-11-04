@@ -6,7 +6,7 @@
 # (the seconds are those of the run that filled the cache).
 # The heavy packages (apps/host, core-persistence) take a machine-wide lock so that two of them never run at once.
 # env: FRESNEL_TEST_TIMEOUT_SEC (default 300) seconds per package; WS_GUARD_RUN_MAX (default 1500M) memory cap
-#      FRESNEL_HOST_TEST_PARALLEL bun test workers of apps/host (default 4 on macOS, serial elsewhere);
+#      FRESNEL_HOST_TEST_PARALLEL, FRESNEL_CLI_TEST_PARALLEL bun test workers of apps/host, apps/cli (default 4 on macOS, serial elsewhere);
 #      (see ../../scripts/guard.sh for the other WS_GUARD_* knobs); FRESNEL_HEAVY_LOCK lock file (default ~/.cache/fresnel/heavy.lock).
 # exit: bun's exit code (124: time limit; 137: memory cap, see journalctl --user -n 20), 2 when guard.sh is missing.
 set -euo pipefail
@@ -43,13 +43,16 @@ esac
 # apps/host: its test files own their temp dirs and ephemeral ports (no fixed port, socket path or shared file; FRESNEL_HOME is per process),
 # so bun runs them in worker processes. Same tests, same bun default 5s timeout. macOS only (4 workers, measured 60s -> 36s under load);
 # elsewhere serial until measured under the guard memory cap. FRESNEL_HOST_TEST_PARALLEL overrides (0 or 1 = serial).
+# apps/cli is the same on macOS (99s serial -> about 40s with 4 workers on a quiet machine; 6 workers hit a 5s test timeout under load 600, so it stays 4); FRESNEL_CLI_TEST_PARALLEL overrides.
 bun_args=()
-if [[ "$(basename "$PWD")" == "host" ]]; then
-  workers=0
-  if [[ "$(uname -s)" == "Darwin" ]]; then workers=4; fi
-  workers="${FRESNEL_HOST_TEST_PARALLEL:-$workers}"
-  if [[ "$workers" -gt 1 ]]; then bun_args=("--parallel=$workers"); fi
-fi
+case "$(basename "$PWD")" in
+  host | cli)
+    workers=0
+    if [[ "$(uname -s)" == "Darwin" ]]; then workers=4; fi
+    if [[ "$(basename "$PWD")" == "host" ]]; then workers="${FRESNEL_HOST_TEST_PARALLEL:-$workers}"; else workers="${FRESNEL_CLI_TEST_PARALLEL:-$workers}"; fi
+    if [[ "$workers" -gt 1 ]]; then bun_args=("--parallel=$workers"); fi
+    ;;
+esac
 
 # runs inside the guard scope: the command, then the scope's peak memory (cgroup v2 memory.peak) when readable
 scope_cmd='"$@"; status=$?; f="/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)/memory.peak"

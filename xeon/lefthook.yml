@@ -1,8 +1,9 @@
 # Hooks for xeon/. Lefthook only reads the git root, so the root lefthook.yml extends this file.
 # oxfmt and oxlint run under ../scripts/guard.sh run (1.5G each, shared ws-dev.slice budget) so concurrent commits stay inside it.
+# The commands only read the staged files (no fix mode), so they run side by side.
 # Install once from anywhere in the repo: `lefthook install`.
 pre-commit:
-  parallel: false
+  parallel: true
   commands:
     gitleaks:
       run: gitleaks git --pre-commit --staged --redact --no-banner
