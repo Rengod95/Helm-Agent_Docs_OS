@@ -142,6 +142,18 @@ export function createWorkbenchCommands(
     },
     applyProfile: (id, threadId) =>
       withConnection((c) => c.request("profile.apply", profileApplyRequestOf(id, threadId))),
+    putProfile: (profile, baseRev) =>
+      withConnection((c) => c.request("profile.put", { profile, baseRev })),
+    async deleteProfile(id) {
+      const done = await withConnection((c) => c.request("profile.delete", { id }));
+      return done.ok ? ok(done.value.rev) : err(done.error);
+    },
+    previewProfile: (id, threadId) =>
+      withConnection((c) =>
+        c.request("profile.preview", threadId === undefined ? { id } : { id, threadId }),
+      ),
+    validateComposition: (composition) =>
+      withConnection((c) => c.request("ext.validateComposition", { composition })),
     versions: (name) => withConnection((c) => c.request("ext.versions", { name })),
     async rollback(name, version, clearState) {
       const done = await withConnection((c) =>

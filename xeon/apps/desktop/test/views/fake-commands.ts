@@ -84,6 +84,22 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       profiles: () => Promise.resolve(ok([])),
       applyProfile: () =>
         Promise.resolve(ok({ written: [], layer: "thread", appliesAt: "nextStepBoundary" })),
+      putProfile: (profile) =>
+        Promise.resolve(ok({ profile: { ...profile, updatedAt: "2026-11-04T10:00:00Z", rev: 1 } })),
+      deleteProfile: () => Promise.resolve(ok(2)),
+      previewProfile: () =>
+        Promise.resolve(
+          ok({
+            enabled: [],
+            disabled: [],
+            candidates: [],
+            expectedHolder: null,
+            overrides: [],
+            hookCount: 0,
+            layer: "user",
+          }),
+        ),
+      validateComposition: () => Promise.resolve(ok({ issues: [] })),
       versions: () => Promise.resolve(ok({ versions: [] })),
       rollback: () => Promise.resolve(ok("nextStepBoundary")),
       health: () => Promise.resolve(ok([])),

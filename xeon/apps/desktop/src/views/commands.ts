@@ -1,5 +1,6 @@
 import type { EventId, ThreadId, TurnId } from "@fresnel/contracts/conversation";
 import type {
+  CompositionDecl,
   ExtTimingsResult,
   TestRunPhaseResult,
   TraceTurnResult,
@@ -31,6 +32,10 @@ import type {
   HooksOrderSetResult,
   Profile,
   ProfileApplyResult,
+  ProfileGetResult,
+  ProfileInput,
+  ProfilePreviewResult,
+  ExtValidateResult,
   SecretListEntry,
   SecretReferencesResult,
   SecretTestResult,
@@ -486,6 +491,22 @@ export interface WorkbenchCommands {
   profiles(): Promise<Result<readonly Profile[], CommandError>>;
   /** `profile.apply { id, threadId, layer: "thread" }`: 프로필을 이 대화에 쓴다. 결과는 쓴 키와 적용 시점이다 */
   applyProfile(id: string, threadId: ThreadId): Promise<Result<ProfileApplyResult, CommandError>>;
+  /** `profile.put { profile, baseRev }`: 프로필 저장. 처음 만들면 `baseRev`는 null이고, 저장된 `rev`와 다르면 `settings.conflict`로 거절된다 */
+  putProfile(
+    profile: ProfileInput,
+    baseRev: number | null,
+  ): Promise<Result<ProfileGetResult, CommandError>>;
+  /** `profile.delete { id }`: 프로필 삭제. 결과는 목록 개정이다 */
+  deleteProfile(id: string): Promise<Result<number, CommandError>>;
+  /** `profile.preview { id, threadId? }`(W-44): 적용했다면 어떻게 되는지 계산한다. 쓰지 않는다 */
+  previewProfile(
+    id: string,
+    threadId?: ThreadId,
+  ): Promise<Result<ProfilePreviewResult, CommandError>>;
+  /** `ext.validateComposition { composition }`(W-47): 구성 선언 검사. 이슈 목록은 비어 있으면 통과다 */
+  validateComposition(
+    composition: CompositionDecl,
+  ): Promise<Result<ExtValidateResult, CommandError>>;
   versions(name: string): Promise<Result<ExtVersionsResult, CommandError>>;
   /** 되돌리기. `restart`면 다음 시작에 적용된다(HS-108) */
   rollback(
