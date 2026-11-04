@@ -13,6 +13,7 @@ export const ACTION_LABEL_IDS: Readonly<Record<ActionId, MessageId>> = {
   "nav.3": "desktop.shortcuts.action.nav3",
   "nav.4": "desktop.shortcuts.action.nav4",
   "nav.5": "desktop.shortcuts.action.nav5",
+  "nav.6": "desktop.shortcuts.action.nav6",
   "settings.open": "desktop.shortcuts.action.settingsOpen",
   "sidebar.toggle": "desktop.shortcuts.action.sidebarToggle",
   "panel.toggle": "desktop.shortcuts.action.panelToggle",

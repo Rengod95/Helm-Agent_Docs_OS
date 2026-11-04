@@ -11,8 +11,9 @@ import type { ThreadId } from "@fresnel/contracts/conversation";
 import { toast } from "@caustic/react";
 import { useCallback, useEffect, useMemo } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
-import { useWorkbenchActions } from "../../state/workbench/index.ts";
+import { useWorkbenchActions, useWorkbenchScope } from "../../state/workbench/index.ts";
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
+import { scopeArg } from "../craft/craft-scope.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
 import { profileAppliesText, profileFailureText } from "./profile-text.ts";
@@ -55,6 +56,7 @@ export interface WorkbenchController {
 export function useWorkbenchController(): WorkbenchController {
   const commands = useCommands();
   const actions = useWorkbenchActions();
+  const scope = useWorkbenchScope();
   const phase = useLinkPhase();
 
   // 두 호출이 모두 성공했을 때만 표를 바꾼다. 하나라도 실패하면 이전 표를 그대로 둔다
@@ -86,7 +88,7 @@ export function useWorkbenchController(): WorkbenchController {
 
   const reload = useCallback(async (): Promise<void> => {
     if (actions.snapshot().list !== "ready") actions.listLoading();
-    const listed = await commands.workbench.list();
+    const listed = await commands.workbench.list(scopeArg(scope).listThreadId);
     if (!listed.ok) {
       actions.listFailed();
       return;
@@ -97,14 +99,17 @@ export function useWorkbenchController(): WorkbenchController {
       reloadHealth(),
       reloadOrders(),
     ]);
-  }, [actions, commands, reloadDetails, reloadHealth, reloadOrders]);
+  }, [actions, commands, scope, reloadDetails, reloadHealth, reloadOrders]);
 
   const toggle = useCallback(
     async (name: string, target: boolean): Promise<void> => {
       const plan = toggleRequestOf(actions.snapshot(), name, target);
       if (!plan.ok) return;
       actions.markPending(name, target);
-      const done = await commands.workbench.toggle(plan.request);
+      const done = await commands.workbench.toggle({
+        ...plan.request,
+        scope: scopeArg(scope).settingsScope,
+      });
       if (!done.ok) {
         actions.clearPending(name);
         toast({ tone: "danger", title: t("desktop.workbench.toggle.failed") });
@@ -112,7 +117,7 @@ export function useWorkbenchController(): WorkbenchController {
       }
       await reload();
     },
-    [actions, commands, reload],
+    [actions, commands, scope, reload],
   );
 
   const reenable = useCallback(

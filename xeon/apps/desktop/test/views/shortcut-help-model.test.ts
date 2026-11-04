@@ -16,6 +16,11 @@ describe("shortcutRowsOf", () => {
     expect(rows.find((row) => row.id === "panel.inbox")?.keys).toBe("⇧⌘I");
     expect(rows.find((row) => row.id === "thread.next")?.keys).toBe("⌥⌘↓");
     expect(rows.find((row) => row.id === "area.chat")?.keys).toBe("⌥⌘1");
+    expect(rows.find((row) => row.id === "nav.6")).toEqual({
+      id: "nav.6",
+      label: "desktop.shortcuts.action.nav6",
+      keys: "⌘6",
+    });
   });
 
   test("off macOS the same keys read with Ctrl and Shift", () => {

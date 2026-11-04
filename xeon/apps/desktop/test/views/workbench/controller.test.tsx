@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import { listLoaded, type WorkbenchState } from "@fresnel/client/workbench";
+import { listLoaded, pickGroup, type WorkbenchState } from "@fresnel/client/workbench";
 import type {
   ExtGetResult,
   ExtHealthEntry,
@@ -221,9 +221,10 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
     status: "enabled",
     autoDisabled: false,
   });
-  const autoOffText = t("desktop.workbench.autoDisabled", { name: "review" });
+  // 자동 꺼짐 표시는 고른 확장의 선택 패널(다시 켜기)에 보인다. 고르지 않은 목록 위에는 없다
+  const reenableText = t("desktop.workbench.reenable");
 
-  test("확장 설정 알림을 받으면 목록을 다시 읽고, 같은 화면이 띠와 개수를 새 값으로 그린다", async () => {
+  test("확장 설정 알림을 받으면 목록을 다시 읽고, 같은 화면이 선택 패널과 개수를 새 값으로 그린다", async () => {
     const store = createWorkbenchStore();
     const seen: { listener: (() => void) | null; listed: readonly ExtListEntry[] } = {
       listener: null,
@@ -241,8 +242,8 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
     const controller = controllerOf(store, commands);
     await controller.reload();
 
-    const before = renderSeeded(store.actions.snapshot());
-    expect(before).toContain(autoOffText);
+    const before = renderSeeded(pickGroup(store.actions.snapshot(), "review"));
+    expect(before).toContain(reenableText);
     expect(before).toContain(t("desktop.workbench.counts", { total: 2, on: 1, auto: 1 }));
 
     const stop = reloadOnExtChanges(commands.workbench, () => controller.reload());
@@ -251,11 +252,34 @@ describe("목록이 다시 읽히면 자동 꺼짐 표시는 스토어를 따른
     await settle();
 
     expect(store.actions.snapshot().entries).toEqual([WEB, REVIEW_ON]);
-    const after = renderSeeded(store.actions.snapshot());
-    expect(after).not.toContain(autoOffText);
+    const after = renderSeeded(pickGroup(store.actions.snapshot(), "review"));
+    expect(after).not.toContain(reenableText);
     expect(after).toContain(t("desktop.workbench.counts", { total: 2, on: 2, auto: 0 }));
 
     stop();
     expect(seen.listener).toBeNull();
+  });
+});
+
+describe("scope: 전역 범위의 호출 인자는 범위를 붙이기 전과 같다", () => {
+  test("목록은 대화 없이(threadId 없이) 읽고, 켜기·끄기는 사용자 범위로 쓴다", async () => {
+    const store = createWorkbenchStore((s) => listLoaded(s, ENTRIES));
+    const listed: (string | undefined)[] = [];
+    const written: unknown[] = [];
+    const commands = commandsWith({
+      list: (threadId) => {
+        listed.push(threadId);
+        return Promise.resolve(ok(ENTRIES));
+      },
+      toggle: (request) => {
+        written.push(request);
+        return Promise.resolve(ok(null));
+      },
+    });
+
+    await controllerOf(store, commands).toggle("web", false);
+
+    expect(listed).toStrictEqual([undefined]);
+    expect(written).toStrictEqual([{ key: "ext.web.enabled", value: false, scope: "user" }]);
   });
 });

@@ -14,7 +14,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 | `views/shell/registry.ts` | 화면과 오른쪽 탭 등록부 `createShellRegistry()`, 타입 `ScreenDef`, `EndTabDef` |
 | `views/shell/keybindings.ts` | 바로 가기 키 표(`ACTION_IDS`, `DEFAULT_KEYMAP`, `resolveKeymap`, `formatKey`) |
 | `views/shell/shortcuts.ts` | 키 → 동작 처리. 셸이 맡는 동작은 여기서 끝나고 나머지는 `onAction`으로 감 |
-| `views/shell/nav.ts` | 왼쪽 내비 항목 표(대화 다섯, 작업대 여섯) |
+| `views/shell/nav.ts` | 왼쪽 내비 항목 표(대화 여섯, 작업대 여섯) |
 | `views/shell/persist.ts` | 영역과 자리를 로컬 설정에 저장·복원 |
 | `views/shell/toaster-slot.ts` | 토스트 자리 계산 |
 | `views/shell/shell.tsx`, `start-panel.tsx`, `end-panel.tsx`, `context-picker.tsx` | 화면 부품 |
@@ -27,7 +27,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 | 슬롯 | 누가 채우나 | 어떻게 |
 |---|---|---|
 | 무대(가운데) | 화면 트랙 | `registry.registerScreen({ id, area, label, icon, badge?, render })`(`desktop-registry.tsx`에 더함). `id`는 내비 항목 id(`nav.ts`)와 같다 |
-| 오른쪽 탭 | 화면 트랙, 플러그인 well | `registry.registerEndTab({ id, area, label, icon, badge?, width?, screens?, render })`. 막대 칸 6개 뒤는 "더 보기" |
+| 오른쪽 탭 | 화면 트랙, 플러그인 well | `registry.registerEndTab({ id, area, label, icon, badge?, alwaysMounted?, width?, screens?, render })`. `badge`는 `TabBadge`(`read`, `subscribe`)라서 칸 숫자와 well 머리 글("플러그인 2")이 값이 바뀌면 따라 바뀐다. `alwaysMounted`는 탭을 열지 않아도 막대와 함께 그리는 부품(데이터를 읽어 두는 자리). 막대 칸 6개 뒤는 "더 보기" |
 | 왼쪽 대화 목록 | 대화 트랙 | `Shell`의 `threadList` 속성 |
 | 상태 표시줄(S-03) | 대화 트랙 | `Shell`의 `statusBar` 속성(지금 `status-bar.tsx`) |
 | 명령 팔레트(S-02) | T-CHAT1 | `Shell`의 `palette` 속성. 열림은 `useShell(s => s.paletteOpen)`, 여닫기는 `setPaletteOpen` |
@@ -36,7 +36,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 
 - 등록되지 않은 화면 id는 무대에 "이 화면은 아직 없어요" 빈 상태가 그려집니다.
 - 같은 `id`를 두 번 등록하면 `Bug`입니다.
-- 화면 `id` 목록: 대화 `chat`, `inbox`, `proposals`, `schedules`, `connection`. 작업대 `overview`, `extensions`, `tests`, `metrics`, `compose`, `engine`. `tests`(P-19 테스트)는 `views/tests/`가 그리고 `views/workbench/index.tsx`가 등록합니다. 플러그인 화면은 `<확장>/<화면>`이고 아직 내비에 없습니다(T-VIEW가 `nav.ts` 표에 목록 슬롯을 더함 [미결]). 플러그인 화면은 `<확장>/<화면>`이고 내비에 없습니다. 오른쪽 탭 `helm`(Helm 패널)과 `plugin-pages`(그 밖의 `page`·`panel`)가 그립니다(T-VIEW). `nav.ts`의 목록 슬롯은 [미결]입니다.
+- 화면 `id` 목록: 대화 `chat`, `inbox`, `proposals`, `schedules`, `connection`, `plugins`. 작업대 `overview`, `extensions`, `tests`, `metrics`, `compose`, `engine`. `tests`(P-19 테스트)는 `views/tests/`가 그리고 `views/workbench/index.tsx`가 등록합니다. `plugins`(플러그인 화면)는 대화 영역 내비의 여섯째 항목이고 `desktop-registry.tsx`가 등록합니다. 플러그인 화면 내비 항목은 하나이고 확장마다 항목을 두지 않습니다. 무대에는 모든 확장의 `page`와 Helm이 아닌 `panel` 항목을 그리며 항목 키는 `<확장>/<화면>`입니다(`PluginPagesTab`). 작업대 확장 상세의 "플러그인 화면 열기"가 이 화면으로 갑니다. 오른쪽 탭 `helm`(Helm 패널)과 `plugin-pages`(그 밖의 `page`·`panel`)가 그립니다(T-VIEW).
 - 오른쪽 탭은 `screens`(화면 id 목록)를 줄 수 있다. 주면 그 화면에서만 보이고(`registry.endTabs(area, screen)`), 없으면 영역의 모든 화면에서 보인다. `work` 탭은 `["chat"]`이다.
 - 오른쪽 탭 id 규약: `inbox`(받은 요청), `runtime`, `work`, `helm`(대화 영역), `inspect`, `log`, `thread`(작업대 영역). `panel.inbox`·`panel.helm`·`panel.work` 키는 `inbox`·`helm`·`work` 탭 id를 엽니다.
 - 문자열은 메시지 키(`desktop.shell.*`)입니다. 화면 이름과 라벨을 코드에 한국어로 쓰지 않습니다.
@@ -71,9 +71,9 @@ type WorkbenchContext =
 
 ## 바로 가기 키(V-15)
 
-- 동작 22개는 spec §4.8과 같고 `ACTION_IDS`가 정본입니다. 키 표기 `Mod+Shift+I`(Mod는 macOS ⌘, 그 밖의 Ctrl). Alt가 있으면 글쇠는 `KeyboardEvent.code`입니다.
+- 동작 23개이고 `ACTION_IDS`가 정본입니다. `nav.6`(플러그인 화면, ⌘6)은 spec §4.8에 있습니다. 키 표기 `Mod+Shift+I`(Mod는 macOS ⌘, 그 밖의 Ctrl). Alt가 있으면 글쇠는 `KeyboardEvent.code`입니다.
 - 사용자가 바꾼 키는 `l4.desktop.appearance.keybindings`(동작 id → 키)이고 `resolveKeymap`이 기본 표에 얹습니다. 읽을 수 없는 키와 모르는 동작 id는 버립니다. 겹침은 `keyConflicts`로 검사합니다.
-- 셸이 처리하는 동작: `palette.open`, `sidebar.toggle`, `panel.*`, `area.*`, `settings.open`, `nav.1~5`. 나머지(`thread.new`, `turn.interrupt`, `composer.focus`, `thread.next|prev`, `approval.next`, `help.shortcuts`)는 `Shell`의 `onAction(id)`로 갑니다. 화면 트랙이 `App`의 `onAction`에서 처리합니다.
+- 셸이 처리하는 동작: `palette.open`, `sidebar.toggle`, `panel.*`, `area.*`, `settings.open`, `nav.1~6`. 나머지(`thread.new`, `turn.interrupt`, `composer.focus`, `thread.next|prev`, `approval.next`, `help.shortcuts`)는 `Shell`의 `onAction(id)`로 갑니다. 화면 트랙이 `App`의 `onAction`에서 처리합니다.
 - Esc는 열린 끝 영역, compact의 시작 영역 순으로 닫습니다. 팔레트나 대화 상자(`modalOpen`)가 열려 있으면 셸은 Esc를 쓰지 않습니다.
 
 ## 로컬 설정(V-14)과 셸 명령

@@ -1,5 +1,6 @@
 // 오른쪽 떠 있는 막대 + 펼친 well(S-01 끝 영역, DP-10). 탭 내용은 `registry.endTabs(area)`가 준다.
 // 영역마다 마지막 탭을 기억한다(`AreaPlace.endTab`). 막대 칸은 6개까지 보이고 나머지는 "더 보기" 메뉴다.
+// 칸의 숫자(`badge`)는 값이 바뀌면 칸이 다시 그리고, 펼친 well 머리와 칸의 이름표에는 같은 글("플러그인 2")이 든다.
 import { t } from "@fresnel/client/i18n";
 import {
   Card,
@@ -12,8 +13,8 @@ import {
   ScrollArea,
 } from "@caustic/react";
 import { Ellipsis, X } from "@caustic/react/icons";
-import { useEffect, useRef, type ReactNode } from "react";
-import type { EndTabDef, ShellRegistry } from "./registry.ts";
+import { Fragment, useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
+import type { EndTabDef, ShellRegistry, TabBadge } from "./registry.ts";
 import { useShell, useShellActions } from "../../state/shell/index.ts";
 import { WELL_DEFAULT_WIDTH } from "./toaster-slot.ts";
 
@@ -21,10 +22,42 @@ const MAX_BAR_TABS = 6;
 const WELL_MIN_WIDTH = 320;
 const WELL_MAX_WIDTH = 480;
 
+const NO_BADGE: TabBadge = { read: () => undefined, subscribe: () => () => undefined };
+
+/** 칸의 숫자를 읽는다. 배지 값이 바뀌면 그리는 쪽이 다시 그린다. 서버 그리기에서도 같은 값을 준다 */
+function useBadge(badge: TabBadge | undefined): number | undefined {
+  const source = badge ?? NO_BADGE;
+  return useSyncExternalStore(source.subscribe, source.read, source.read);
+}
+
+/** 칸과 well 머리의 글: 알림 수가 있으면 이름 뒤에 숫자를 붙인다("플러그인 2") */
+export function tabTitleOf(label: string, badge: number | undefined): string {
+  return badge === undefined || badge <= 0 ? label : `${label} ${badge}`;
+}
+
 /** 지금 탭의 well 폭(px). 선언 폭을 320~480으로 자른다 */
 export function wellWidthOf(tab: EndTabDef | undefined): number {
   const w = tab?.width ?? WELL_DEFAULT_WIDTH;
   return Math.min(WELL_MAX_WIDTH, Math.max(WELL_MIN_WIDTH, w));
+}
+
+/** 막대의 한 칸. 숫자는 탭이 닫혀 있을 때만 칸 모서리에 보인다(열린 탭은 well 머리에 같은 숫자를 쓴다) */
+function EndBarItem(props: {
+  readonly tab: EndTabDef;
+  readonly active: boolean;
+  readonly onClick: () => void;
+}): ReactNode {
+  const badge = useBadge(props.tab.badge);
+  return (
+    <FloatingBarItem
+      icon={props.tab.icon}
+      aria-label={tabTitleOf(t(props.tab.label), badge)}
+      aria-expanded={props.active}
+      active={props.active}
+      badge={badge !== undefined && badge > 0 && !props.active ? badge : undefined}
+      onClick={props.onClick}
+    />
+  );
 }
 
 export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode {
@@ -37,6 +70,7 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
   const current = tabs.find((x) => x.id === tabId) ?? tabs[0];
   const barTabs = tabs.slice(0, MAX_BAR_TABS);
   const overflow = tabs.slice(MAX_BAR_TABS);
+  const currentBadge = useBadge(current?.badge);
   const asideRef = useRef<HTMLElement>(null);
   const wellRef = useRef<HTMLDivElement>(null);
   // 바깥을 누르면 닫는다
@@ -56,13 +90,18 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
     if (open) wellRef.current?.focus({ preventScroll: true });
   }, [open]);
   if (current === undefined) return null;
-  const label = t(current.label);
+  const label = tabTitleOf(t(current.label), currentBadge);
   return (
     <aside
       ref={asideRef}
       aria-label={t("desktop.shell.end.label")}
       className="pointer-events-none absolute end-1.5 top-1.5 bottom-0 z-20 flex items-start gap-1.5"
     >
+      {tabs.map((tab) =>
+        tab.alwaysMounted === undefined ? null : (
+          <Fragment key={tab.id}>{tab.alwaysMounted}</Fragment>
+        ),
+      )}
       {open ? (
         <Card
           variant="well"
@@ -104,18 +143,12 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
         className="pointer-events-auto"
       >
         {barTabs.map((tab) => {
-          const badge = tab.badge?.();
           const active = open && current.id === tab.id;
           return (
-            <FloatingBarItem
+            <EndBarItem
               key={tab.id}
-              icon={tab.icon}
-              aria-label={
-                badge === undefined || badge <= 0 ? t(tab.label) : `${t(tab.label)} ${badge}`
-              }
-              aria-expanded={active}
+              tab={tab}
               active={active}
-              {...(badge !== undefined && badge > 0 && !active ? { badge } : {})}
               onClick={() => {
                 if (active) actions.setEndOpen(false);
                 else actions.openEndTab(tab.id);

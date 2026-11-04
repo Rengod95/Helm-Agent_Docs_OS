@@ -52,7 +52,7 @@ binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/c
 
 | slot | 위치(`L4.desktop-ux.spec`) | 크기와 규칙 | 기본 개수 상한 | 허용 모드 |
 |---|---|---|---|---|
-| `page` | 플러그인 화면 호스트(P-18). [결정: 2026-11-04 사용자, 아직 안 만듦] 대화 영역 내비에서 열고, 크래프트의 플러그인 상세가 이 화면으로 링크한다 | 가운데 전체. 왼쪽 패널과 오른쪽 막대는 셸 것 | 확장당 4 | `declarative`, `frame` |
+| `page` | 플러그인 화면 호스트(P-18). [결정: 2026-11-04 사용자] 대화 영역 내비의 "플러그인 화면" 항목 하나(여섯째, ⌘6)에서 열고, 크래프트의 확장 상세가 이 화면으로 링크한다. 크래프트 내비에는 두지 않는다 | 가운데 전체. 왼쪽 패널과 오른쪽 막대는 셸 것 | 확장당 4 | `declarative`, `frame` |
 | `well` | 대화 영역 오른쪽 떠 있는 막대의 탭 하나와 well | 폭 320~480, 열린 대화 하나의 맥락 | 확장당 1 | `declarative`, `frame` |
 | `card` | 대화 트랜스크립트 안 카드 | 자기 레코드 kind 하나(`forKind`). 높이 상한 320, 넘으면 "더 보기"로 `page`나 `well` | kind당 1 | `declarative` |
 | `status` | 상태 표시줄 칸 하나 | 글자 24자, tone 하나, 누르면 `Popover` | 확장당 1 | `declarative` |

@@ -4,6 +4,7 @@ import { listLoaded, type WorkbenchState } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { EngineStoreContext } from "../../../src/state/engine/index.ts";
 import { reduceMirror } from "../../../src/state/engine/reduce.ts";
+import { createShellStore, ShellStoreContext } from "../../../src/state/shell/index.ts";
 import { createUiStore, UiStoreContext } from "../../../src/state/ui/index.ts";
 import { INITIAL_MIRROR, type EngineMirror } from "../../../src/state/engine/state.ts";
 import type { ReadonlyStore } from "../../../src/state/shared/readonly-store.ts";
@@ -40,6 +41,18 @@ export function entry(name: string, over: Partial<ExtListEntry> = {}): ExtListEn
     hookCount: 2,
     ...over,
   };
+}
+
+/** 여러 번 시작하며 자동으로 꺼져 "계속 꺼 둘까요?"를 묻는 확장(기본은 그룹 review, 시작 3번) */
+export function askingEntry(over: Partial<ExtListEntry> = {}): ExtListEntry {
+  return entry("review", {
+    layer: "L3",
+    isGroup: true,
+    status: "disabled",
+    autoDisabled: true,
+    keepOffQuestion: { disabledStarts: 3 },
+    ...over,
+  });
 }
 
 /** 확장 셋. 코어 하나(잠김), 웹 검색(표시 이름이 다름), 그룹 review(구성원 둘, 자동 꺼짐) */
@@ -106,13 +119,15 @@ export function inContexts(
 ): ReactNode {
   return (
     <EngineStoreContext value={engine}>
-      <UiStoreContext value={createUiStore().read}>
-        <CommandsContext value={fakeCommands()}>
-          <WorkbenchStoreContext value={store}>
-            <PluginUiProvider value={plugin}>{ui}</PluginUiProvider>
-          </WorkbenchStoreContext>
-        </CommandsContext>
-      </UiStoreContext>
+      <ShellStoreContext value={createShellStore(1400)}>
+        <UiStoreContext value={createUiStore().read}>
+          <CommandsContext value={fakeCommands()}>
+            <WorkbenchStoreContext value={store}>
+              <PluginUiProvider value={plugin}>{ui}</PluginUiProvider>
+            </WorkbenchStoreContext>
+          </CommandsContext>
+        </UiStoreContext>
+      </ShellStoreContext>
     </EngineStoreContext>
   );
 }

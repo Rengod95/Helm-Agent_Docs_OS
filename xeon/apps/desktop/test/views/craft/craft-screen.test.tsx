@@ -25,6 +25,7 @@ function fakeSource(): CraftSource {
     orderPort: port,
     openBuilder: () => undefined,
     recentRuns: () => Promise.resolve(null),
+    scope: { kind: "global" },
   };
 }
 

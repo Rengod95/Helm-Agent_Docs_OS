@@ -8,6 +8,7 @@ import {
   PHASES,
   hookDef,
   hookFold,
+  hookOrderMatters,
   hooksInOrder,
 } from "../../../src/workbench/canvas/hooks.ts";
 import { MOCK, plugin } from "./support.ts";
@@ -61,6 +62,7 @@ describe("hook table", () => {
       phase: "think",
       failure: "open",
       builtin: true,
+      orderMatters: true,
     });
   });
 
@@ -69,6 +71,56 @@ describe("hook table", () => {
     expect(hookFold("tool.execution.before")).toEqual("tap");
     expect(hookFold("thread.trust.before")).toEqual("first");
     expect(hookFold("no.such.hook")).toEqual(undefined);
+  });
+
+  test("orderMatters is true for exactly these 15 hooks, over all 46", () => {
+    const matters = [...HOOKS, ...OTHER_HOOKS].filter((h) => h.orderMatters).map((h) => h.id);
+    expect(matters).toEqual([
+      "input.user.before",
+      "thread.compact.before",
+      "request.provider.before",
+      "tool.result",
+      "boundary.step.after",
+      "input.bash.before",
+      "request.context.before",
+      "request.system.before",
+      "request.cache.before",
+      "request.headers.before",
+      "boundary.message.after",
+      "boundary.settle.before",
+      "thread.trust.before",
+      "thread.fork.before",
+      "thread.tree.before",
+    ]);
+  });
+
+  test("every chain hook matters, and no tap or collect hook does", () => {
+    const all = [...HOOKS, ...OTHER_HOOKS];
+    const chain = all.filter((h) => h.fold === "chain");
+    expect(chain.length).toEqual(10);
+    expect(chain.filter((h) => !h.orderMatters).map((h) => h.id)).toEqual([]);
+    const passive = all.filter((h) => h.fold === "tap" || h.fold === "collect");
+    expect(passive.filter((h) => h.orderMatters).map((h) => h.id)).toEqual([]);
+  });
+
+  test("among first hooks, only those with a value answer matter; block-only ones do not", () => {
+    const first = [...HOOKS, ...OTHER_HOOKS].filter((h) => h.fold === "first");
+    expect(first.length).toEqual(10);
+    // 막음만 담는 지점: ToolCallDecision, GuardDecision, SessionCancelDecision
+    expect(first.filter((h) => !h.orderMatters).map((h) => h.id)).toEqual([
+      "guard.model.before",
+      "tool.call.before",
+      "thread.switch.before",
+      "guard.tool.before",
+      "guard.output.before",
+    ]);
+  });
+
+  test("hookOrderMatters reads the table and is false for an unknown hook", () => {
+    expect(hookOrderMatters("tool.call.before")).toEqual(false);
+    expect(hookOrderMatters("thread.trust.before")).toEqual(true);
+    expect(hookOrderMatters("tool.execution.before")).toEqual(false);
+    expect(hookOrderMatters("no.such.hook")).toEqual(false);
   });
 
   test("core steps keep their lock and replace flags and point at known hooks", () => {

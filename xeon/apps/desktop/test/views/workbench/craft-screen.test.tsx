@@ -4,7 +4,9 @@ import {
   detailsLoaded,
   healthLoaded,
   listFailed,
+  listLoaded,
   ordersLoaded,
+  pickGroup,
   pickPlugin,
   setView,
   type WorkbenchView,
@@ -14,7 +16,7 @@ import { createWorkbenchStore, type WorkbenchStore } from "../../../src/state/wo
 import { createDesktopRegistry } from "../../../src/views/desktop-registry.tsx";
 import { CraftScreen } from "../../../src/views/workbench/craft-screen.tsx";
 import { renderWithWindowStub } from "../craft/render-support.tsx";
-import { entry, inContexts, liveEngine, screenStore } from "./support.tsx";
+import { askingEntry, entry, inContexts, liveEngine, screenStore } from "./support.tsx";
 
 /**
  * 개요 화면을 그린다. 캔버스가 첫 그리기 때 창 값을 읽으므로 창 흉내를 씌운다.
@@ -72,10 +74,23 @@ describe("크래프트 개요: 캔버스가 화면을 쓰고 목록 띠가 위�
     expect(labels).toContain("웹 검색, 켜짐");
   });
 
-  test("자동 꺼진 확장은 위 띠에 알림과 다시 켜기 단추를 보인다", () => {
-    const html = overview(screenStore());
-    expect(html).toContain(t("desktop.workbench.autoDisabled", { name: "review" }));
+  test("자동 꺼진 확장은 위 띠에 알림을 두지 않고, 고른 플러그인 카드에 알림과 다시 켜기를 보인다", () => {
+    const autoOff = t("desktop.workbench.autoDisabled", { name: "review" });
+    expect(overview(screenStore())).not.toContain(autoOff);
+    const html = overview(screenStore((s) => pickGroup(s, "review")));
+    expect(html).toContain(autoOff);
     expect(html).toContain(t("desktop.workbench.reenable"));
+  });
+
+  test("계속 꺼 둘까요 질문은 고른 카드에 질문과 두 답을 보인다", () => {
+    const store = createWorkbenchStore((initial) =>
+      pickGroup(listLoaded(initial, [entry("web"), askingEntry()]), "review"),
+    );
+    const html = overview(store, true);
+    expect(html).toContain(t("desktop.workbench.keepOff.question"));
+    expect(html).toContain(t("desktop.workbench.keepOff.keepOn"));
+    expect(html).toContain(t("desktop.workbench.keepOff.keepOff"));
+    expect(html).not.toContain(t("desktop.workbench.reenable"));
   });
 
   test("토글에는 스토어의 view 하나만 켜져 있고, 캔버스도 같은 보기다", () => {

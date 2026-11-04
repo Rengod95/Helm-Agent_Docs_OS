@@ -12,7 +12,16 @@ export function restoreShell(base: ShellModel, settings: LocalSettings): ShellMo
   return {
     ...base,
     area: settings.get(LOCAL.areaCurrent) ?? base.area,
-    places: { chat: chat ?? base.places.chat, workbench: workbench ?? base.places.workbench },
+    // 플러그인 화면이 대화 영역 내비로 옮겨 가기 전에 작업대 자리로 저장된 값은 개요로 돌린다
+    places: {
+      chat: chat ?? base.places.chat,
+      workbench:
+        workbench === undefined
+          ? base.places.workbench
+          : workbench.screen === "plugins"
+            ? { ...workbench, screen: "overview" }
+            : workbench,
+    },
     startOpen: base.layout === "compact" ? base.startOpen : (sidebar ?? base.startOpen),
   };
 }

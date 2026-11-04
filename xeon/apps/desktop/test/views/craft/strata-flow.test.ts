@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { err, ok, type Result } from "@fresnel/contracts";
-import type { HookOrderPort, OrderPortError } from "@fresnel/client/workbench/canvas";
+import type {
+  HookOrderPort,
+  HookOrderState,
+  OrderPortError,
+} from "@fresnel/client/workbench/canvas";
 import type {
   HooksOrderPreviewResult,
   HooksOrderResetResult,
@@ -10,6 +14,8 @@ import {
   keyReorder,
   requestReorder,
   saveConfirmed,
+  readOrderView,
+  warningsOf,
   type ReorderStep,
 } from "../../../src/views/craft/strata-flow.ts";
 
@@ -262,5 +268,138 @@ describe("keyReorder (Alt+ArrowLeft/Right on a handler pill)", () => {
     expect(keyReorder({ key: "ArrowRight", altKey: true }, ["a", "b"], "b")).toBeNull();
     expect(keyReorder({ key: "ArrowLeft", altKey: true }, ["a", "b"], "a")).toBeNull();
     expect(keyReorder({ key: "Enter", altKey: true }, ["a", "b"], "a")).toBeNull();
+  });
+});
+
+/** 저장과 적용이 같은 순서이고 적용 중인 상태 */
+const applied = (order: readonly string[]): HookOrderState => ({
+  applied: order,
+  saved: order,
+  pending: false,
+});
+
+/** 허용 뒤의 거부가 건너뛰어지는 미리보기 결과 */
+const SKIP_BY_ALLOW: Partial<Omit<HooksOrderPreviewResult, "hook" | "order">> = {
+  skips: [
+    {
+      registrationId: "deny",
+      extension: "x",
+      reason: "first_answer",
+      by: [{ registrationId: "allow", extension: "x", tier: 1 }],
+    },
+  ],
+};
+
+describe("warningsOf (the warning of the order in effect, per hook)", () => {
+  test("previews only the applied order of saved, not-pending hooks with two or more handlers", async () => {
+    const { port, calls } = fakePort({ preview: SKIP_BY_ALLOW });
+    const orders: Record<string, HookOrderState> = {
+      "tool.call.before": applied(["allow", "deny"]),
+      "thread.start": applied(["allow"]),
+      "input.user.before": { applied: ["allow", "deny"], saved: [], pending: false },
+      "tool.result": { applied: ["deny", "allow"], saved: ["allow", "deny"], pending: true },
+    };
+    const r = await warningsOf(port, orders, nameOf);
+    expect(calls).toEqual([{ op: "preview", hook: "tool.call.before", order: ["allow", "deny"] }]);
+    expect(r.ok).toEqual(true);
+    if (!r.ok) throw new Error("expected ok");
+    expect(Object.keys(r.value)).toEqual(["tool.call.before"]);
+    expect(r.value["tool.call.before"]?.skipped.map((s) => s.name)).toEqual(["name:deny"]);
+    expect(r.value["tool.call.before"]?.skipped[0]?.by).toEqual(["name:allow"]);
+  });
+
+  test("with no saved override (the default order) there is nothing to warn about and no call is made", async () => {
+    const { port, calls } = fakePort({ preview: SKIP_BY_ALLOW });
+    const defaultOrder: HookOrderState = { applied: ["allow", "deny"], saved: [], pending: false };
+    const r = await warningsOf(port, { "tool.call.before": defaultOrder }, nameOf);
+    expect(calls).toEqual([]);
+    expect(r).toEqual(ok({}));
+  });
+
+  test("a clean order gives a none warning for its hook", async () => {
+    const { port } = fakePort();
+    const r = await warningsOf(port, { "tool.call.before": applied(["allow", "deny"]) }, nameOf);
+    expect(r).toEqual(
+      ok({
+        "tool.call.before": {
+          severity: "none",
+          skipped: [],
+          guardLosesFirst: [],
+          guardMayBeSkipped: [],
+          valueChanges: [],
+          autoDisable: [],
+        },
+      }),
+    );
+  });
+
+  test("a port err on a preview comes back as the value", async () => {
+    const { port } = fakePort({ previewError: { kind: "offline" } });
+    const r = await warningsOf(port, { "tool.call.before": applied(["allow", "deny"]) }, nameOf);
+    expect(r).toEqual(err({ kind: "offline" }));
+  });
+});
+
+describe("readOrderView (the saved orders and their warnings, read together)", () => {
+  test("reads the saved state, then the warning of the order in effect", async () => {
+    const base = fakePort({ preview: SKIP_BY_ALLOW });
+    const port: HookOrderPort = {
+      ...base.port,
+      get: () =>
+        Promise.resolve(
+          ok({
+            hooks: [
+              {
+                hook: "tool.call.before",
+                saved: ["allow", "deny"],
+                applied: ["allow", "deny"],
+                pending: false,
+              },
+            ],
+          }),
+        ),
+    };
+    const r = await readOrderView(port, nameOf);
+    expect(base.calls).toEqual([
+      { op: "preview", hook: "tool.call.before", order: ["allow", "deny"] },
+    ]);
+    expect(r).toEqual(
+      ok({
+        orders: {
+          "tool.call.before": {
+            applied: ["allow", "deny"],
+            saved: ["allow", "deny"],
+            pending: false,
+          },
+        },
+        warnings: {
+          "tool.call.before": {
+            severity: "skip",
+            skipped: [
+              {
+                registrationId: "deny",
+                name: "name:deny",
+                reason: "first_answer",
+                by: ["name:allow"],
+              },
+            ],
+            guardLosesFirst: [],
+            guardMayBeSkipped: [],
+            valueChanges: [],
+            autoDisable: [],
+          },
+        },
+      }),
+    );
+  });
+
+  test("a get err comes back as the value, and no preview is made", async () => {
+    const base = fakePort();
+    const port: HookOrderPort = {
+      ...base.port,
+      get: () => Promise.resolve(err({ kind: "offline" })),
+    };
+    expect(await readOrderView(port, nameOf)).toEqual(err({ kind: "offline" }));
+    expect(base.calls).toEqual([]);
   });
 });

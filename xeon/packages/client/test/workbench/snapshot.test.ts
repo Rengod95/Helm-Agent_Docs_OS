@@ -456,3 +456,151 @@ describe("구성 요소 거르기와 매니페스트 읽기", () => {
     ]);
   });
 });
+
+describe("대표 플러그인이 없는 확장: 구성 요소는 대표 자리(첫 구성원 또는 첫 플러그인)가 싣는다", () => {
+  // 루트 플러그인이 없는 그룹. 구성 요소(스킬, MCP)는 확장의 것이고, 대표인 첫 구성원 search가 싣는다
+  const DOCS_PACK_MANIFEST: Readonly<Record<string, unknown>> = {
+    schemaVersion: 2,
+    name: "docs-pack",
+    version: "1.0.0",
+    displayName: "Docs pack",
+    description: "사내 문서를 모아 준다",
+    entry: "./src/index.ts",
+    group: {},
+    components: { skills: ["./skills/write.md"], mcpServers: "./mcp/docs.json" },
+    plugins: [
+      { id: "search", layer: "L2", hooks: [], provides: [{ id: "docs.search", version: "1.0.0" }] },
+      { id: "notes", layer: "L3", hooks: ["input.user.before"] },
+    ],
+  };
+  const docsEntry = listEntry("docs-pack", {
+    displayName: "Docs pack",
+    isGroup: true,
+    plugins: [
+      plugin("docs-pack/search", { id: "search", layer: "L2", inGroup: true }),
+      plugin("docs-pack/notes", { id: "notes", layer: "L3", inGroup: true }),
+    ],
+    hookCount: 1,
+  });
+  function docsSnapshot(): ReturnType<typeof snapshotOf> {
+    return snapshotOf(
+      stateOf(
+        [docsEntry],
+        [
+          getResult(docsEntry, DOCS_PACK_MANIFEST, [
+            {
+              registrationId: "docs-pack/notes",
+              hook: "input.user.before",
+              budgetClass: "chain",
+              budgetMs: 80,
+            },
+          ]),
+        ],
+      ),
+    );
+  }
+
+  test("그룹에 루트가 없으면 첫 구성원이 구성 요소를 싣고, 나머지 구성원은 비운다", () => {
+    expect(validateManifest(DOCS_PACK_MANIFEST).issues).toEqual([]);
+    const snap = docsSnapshot();
+    expect(snap.plugins).toEqual([
+      {
+        id: "docs-pack/search",
+        name: "search",
+        layer: "L2",
+        group: "docs-pack",
+        origin: "user",
+        version: "1.0.0",
+        hooks: [],
+        provides: ["docs.search"],
+        pieces: [
+          { kind: "skill", name: "write" },
+          { kind: "mcp", name: "docs" },
+        ],
+        on: true,
+      },
+      {
+        id: "docs-pack/notes",
+        name: "notes",
+        layer: "L3",
+        group: "docs-pack",
+        origin: "user",
+        version: "1.0.0",
+        hooks: ["input.user.before"],
+        provides: [],
+        pieces: [],
+        on: true,
+      },
+    ]);
+    expect(snap.groups).toEqual([
+      {
+        id: "docs-pack",
+        name: "Docs pack",
+        role: "사내 문서를 모아 준다",
+        version: "1.0.0",
+        origin: "user",
+        members: ["docs-pack/search", "docs-pack/notes"],
+      },
+    ]);
+  });
+
+  test("구성 요소 거르기는 대표가 싣는 구성 요소에 맞는 구성원만 남기고, 맞는 것이 없으면 그룹이 비게 된다", () => {
+    const snap = docsSnapshot();
+    expect(snap.plugins.filter((p) => keepsContrib(p, ["mcp"])).map((p) => p.id)).toEqual([
+      "docs-pack/search",
+    ]);
+    expect(snap.plugins.filter((p) => keepsContrib(p, ["skill"])).map((p) => p.id)).toEqual([
+      "docs-pack/search",
+    ]);
+    expect(snap.plugins.filter((p) => keepsContrib(p, ["tool"])).map((p) => p.id)).toEqual([]);
+  });
+
+  test("루트가 없는 확장(그룹이 아님)은 첫 플러그인이 구성 요소를 싣는다", () => {
+    const TOOLS_PACK_MANIFEST: Readonly<Record<string, unknown>> = {
+      schemaVersion: 2,
+      name: "tools-pack",
+      version: "1.0.0",
+      displayName: "Tools pack",
+      entry: "./src/index.ts",
+      components: { commands: ["./commands/run.md"] },
+      plugins: [
+        { id: "alpha", layer: "L2", hooks: [] },
+        { id: "beta", layer: "L2", hooks: [] },
+      ],
+    };
+    const toolsEntry = listEntry("tools-pack", {
+      displayName: "Tools pack",
+      plugins: [
+        plugin("tools-pack/alpha", { id: "alpha" }),
+        plugin("tools-pack/beta", { id: "beta" }),
+      ],
+    });
+    expect(validateManifest(TOOLS_PACK_MANIFEST).issues).toEqual([]);
+    const snap = snapshotOf(stateOf([toolsEntry], [getResult(toolsEntry, TOOLS_PACK_MANIFEST)]));
+    expect(snap.plugins).toEqual([
+      {
+        id: "tools-pack/alpha",
+        name: "alpha",
+        layer: "L2",
+        origin: "user",
+        version: "1.0.0",
+        hooks: [],
+        provides: [],
+        pieces: [{ kind: "command", name: "run" }],
+        on: true,
+      },
+      {
+        id: "tools-pack/beta",
+        name: "beta",
+        layer: "L2",
+        origin: "user",
+        version: "1.0.0",
+        hooks: [],
+        provides: [],
+        pieces: [],
+        on: true,
+      },
+    ]);
+    expect(snap.groups).toEqual([]);
+  });
+});
