@@ -1,6 +1,7 @@
-import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ItemId, ItemRecord, ThreadId } from "@fresnel/contracts/conversation";
+import { maskItemRecord } from "@fresnel/contracts/conversation";
 import type { ContextError } from "@fresnel/contracts/services";
-import { assertNever, Bug } from "@fresnel/contracts";
+import { assertNever, Bug, err, ok, type Result } from "@fresnel/contracts";
 import {
   wireError,
   type ThreadSummary,
@@ -8,7 +9,14 @@ import {
   type WireHandler,
 } from "@fresnel/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
-import { itemMaskEntries } from "../display-mask.ts";
+import { itemLeafMasks, itemMaskEntries } from "../display-mask.ts";
+import {
+  exportFileName,
+  exportLabelOf,
+  renderExportPage,
+  THREAD_EXPORT_BUDGET_BYTES,
+} from "../export/thread-export.ts";
+import { renderMarkdownHeader } from "../export/thread-markdown.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
 import { wireErrorOfApply } from "./m4/profile-test-run.ts";
@@ -161,6 +169,80 @@ export function createThreadReadHandler(engine: Engine): WireHandler<"thread.rea
     // 화면 가림 표식은 items 옆에 붙인다. items와 position은 바뀌지 않는다(L0.secrets.spec §3.5.1)
     const masks = itemMaskEntries(engine.ports.secrets.display, read.value.items);
     return masks.length === 0 ? read.value : { ...read.value, masks };
+  };
+}
+
+/** `thread.read`의 쪽 크기와 같다. 내보내기는 이 쪽을 끝까지 되읽어 가지 전체를 모은다 */
+const EXPORT_READ_PAGE = 500;
+
+/** 현재 가지의 item을 오래된 것부터 모두 모은다. 쪽 경계는 `thread.read`의 `hasMore`가 거짓이 될 때까지 되읽는다 */
+async function branchItemsOf(
+  engine: Engine,
+  threadId: ThreadId,
+): Promise<Result<ItemRecord[], ThreadReadFailure>> {
+  const pages: ItemRecord[][] = [];
+  let before: ItemId | undefined;
+  let more = true;
+  while (more) {
+    // oxlint-disable-next-line no-await-in-loop -- 앞 쪽의 가장 오래된 item이 다음 쪽의 경계다 (F.wire-settings.spec §3.4.6)
+    const page = await engine.ports.threads.read({
+      threadId,
+      limit: EXPORT_READ_PAGE,
+      ...(before === undefined ? {} : { before }),
+    });
+    if (!page.ok) return err(page.error);
+    pages.push(page.value.items);
+    const oldest = page.value.items[0];
+    more = page.value.hasMore && oldest !== undefined;
+    before = oldest?.itemId;
+  }
+  return ok(pages.toReversed().flat());
+}
+
+/**
+ * F wire §3.4.7 [제안]. 현재 가지를 `markdown` 문서나 `json` 배열로 옮겨 쪽 하나를 돌려준다. 소유를 얻지 않는 읽기다.
+ * 화면 가림은 `thread.read`와 같은 잎 표식으로 적용한 뒤 본문을 만든다. 쪽 예산은 `budgetBytes`(시험이 작은 값을 넣는다).
+ */
+export function createThreadExportHandler(
+  engine: Engine,
+  budgetBytes: number = THREAD_EXPORT_BUDGET_BYTES,
+): WireHandler<"thread.export"> {
+  const { ports } = engine;
+  const display = ports.secrets.display;
+  return async (params) => {
+    const { threadId, format, after } = params;
+    requireThread(engine, threadId, "thread.export");
+    const titled = ports.threads.title(threadId);
+    if (!titled.ok) throw wireErrorOfStore(titled.error, "thread.export title");
+    const loaded = await branchItemsOf(engine, threadId);
+    if (!loaded.ok) throw readFailure(loaded.error, "thread.export");
+    const items = loaded.value;
+    let start = 0;
+    if (after !== undefined) {
+      const found = items.findIndex((item) => item.itemId === after);
+      // 이 가지에 없는 item은 같은 thread에 있어도 item_not_found로 알린다
+      if (found < 0) {
+        throw readFailure({ kind: "invalid_target", reason: "item_not_found" }, "thread.export");
+      }
+      start = found + 1;
+    }
+    const label = exportLabelOf(display, threadId, titled.value);
+    const page = renderExportPage({
+      format,
+      items,
+      start,
+      leading: after === undefined,
+      header: renderMarkdownHeader({ title: label.shown, threadId, itemTotal: items.length }),
+      reveal: (item) => maskItemRecord(item, itemLeafMasks(display, item)),
+      budgetBytes,
+    });
+    return {
+      format,
+      filename: exportFileName(label.stem, format),
+      chunk: page.chunk,
+      ...(page.next === undefined ? {} : { next: page.next }),
+      itemCount: page.itemCount,
+    };
   };
 }
 

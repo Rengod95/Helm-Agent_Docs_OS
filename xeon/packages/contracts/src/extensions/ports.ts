@@ -3,6 +3,7 @@ import type { CallerInfo, ToolHints, ToolName, ToolRisk } from "../capabilities/
 import type { JsonValue, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type { Result } from "../base/index.ts";
 import type {
+  ExtensionTables,
   ProjectorRegistry,
   RecordCommitPort,
   StoreError,
@@ -152,6 +153,14 @@ export const ProjectorRegistryPortKey: PortKey<ProjectorRegistryPort> = {
 /** StoreService의 부분형. scoped(owner)는 그 소유자 접두 테이블만 쓰는 StoreDb를 돌려준다 */
 export type ScopedStorePort = Pick<StoreService, "scoped">;
 export const ScopedStorePortKey: PortKey<ScopedStorePort> = { name: "fresnel.store" };
+
+/** StoreService.extensions의 부분형. 확장 제거 때 그 확장의 접두 테이블을 지운다(X.operations.spec §4.4.7) */
+export type ExtensionTablesPort = Pick<ExtensionTables, "drop">;
+/** 서비스 fresnel.store의 `extensions` 속성(member). 접두 테이블 등록·삭제 자리다 */
+export const ExtensionTablesPortKey: PortKey<ExtensionTablesPort> = {
+  name: "fresnel.store",
+  member: "extensions",
+};
 
 // ── 프로세스 실행 (서비스 fresnel.process, 제공 platform-process) ───────────
 

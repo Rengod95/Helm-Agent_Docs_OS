@@ -62,7 +62,7 @@ import {
   StreamPositionSchema,
   type StreamPosition,
 } from "./cursor.ts";
-import { WireMetaSchema } from "./jsonrpc.ts";
+import { WIRE_LIMITS, WireMetaSchema } from "./jsonrpc.ts";
 import { RequestKeySchema } from "./schema-kit.ts";
 import { EXT_READ_METHODS, type ExtReadSchemas } from "./ext-read-methods.ts";
 import { DIALOG_AREA_METHODS, type DialogAreaSchemas } from "./dialog-area.ts";
@@ -726,6 +726,55 @@ export const ThreadCompactResultSchema: TUnsafe<ThreadCompactResult> =
       typeof threadCompactResultShape
     >,
   );
+
+/** thread.export의 형식. `markdown`은 사람이 읽는 문서, `json`은 화면 가림을 거친 ItemRecord의 배열이다 */
+const threadExportFormatSchema: TUnion<[TLiteral<"markdown">, TLiteral<"json">]> = Type.Union([
+  Type.Literal("markdown"),
+  Type.Literal("json"),
+]);
+
+/**
+ * thread.export params(F.wire-settings.spec §3.4.7 [제안]). 현재 가지의 item을 내보내기 문서로 옮긴다. 소유를 얻지 않는 읽기다.
+ * 프레임 한도 때문에 결과는 쪽 하나이고, 쪽이 더 있으면 결과 `next`를 `after`에 넣어 다시 부른다.
+ */
+export const ThreadExportParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  format: typeof threadExportFormatSchema;
+  after: TOptional<typeof ItemIdSchema>;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    format: threadExportFormatSchema,
+    /** 앞 쪽의 `next`. 이 item 바로 뒤부터 담는다. 없으면 첫 쪽이고 머리말을 싣는다 */
+    after: Type.Optional(ItemIdSchema),
+  },
+  { additionalProperties: false },
+);
+export type ThreadExportParams = Static<typeof ThreadExportParamsSchema>;
+
+/**
+ * thread.export result. `chunk`는 이 쪽의 본문이고, 쪽들을 순서대로 이어 붙이면 한 문서다. `next`가 없으면 마지막 쪽이다.
+ * `filename`은 제목(또는 가려져 쓸 수 없으면 thread id)을 다듬은 이름에 `.md` 또는 `.json`을 붙인 것이다.
+ * `itemCount`는 이 쪽에 담은 item 수다(가릴 수 없어 자리 표시로 낸 item도 센다).
+ */
+export const ThreadExportResultSchema: TObject<{
+  format: typeof threadExportFormatSchema;
+  filename: TString;
+  chunk: TString;
+  next: TOptional<typeof ItemIdSchema>;
+  itemCount: TInteger;
+}> = Type.Object(
+  {
+    format: threadExportFormatSchema,
+    filename: Type.String({ minLength: 1, maxLength: 200 }),
+    /** UTF-16 길이는 UTF-8 바이트 수보다 작거나 같으므로 프레임 한도를 상한으로 쓴다 */
+    chunk: Type.String({ maxLength: WIRE_LIMITS.maxFrameBytes }),
+    next: Type.Optional(ItemIdSchema),
+    itemCount: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type ThreadExportResult = Static<typeof ThreadExportResultSchema>;
 
 // ── turn.* ───────────────────────────────────────────────────────────────
 
@@ -1442,6 +1491,10 @@ interface WireSchemas
     params: WithMeta<typeof ThreadCompactParamsSchema>;
     result: typeof ThreadCompactResultSchema;
   };
+  "thread.export": {
+    params: WithMeta<typeof ThreadExportParamsSchema>;
+    result: typeof ThreadExportResultSchema;
+  };
   "turn.start": {
     params: WithMeta<typeof TurnStartParamsSchema>;
     result: typeof TurnStartResultSchema;
@@ -1666,6 +1719,7 @@ export const WIRE_METHODS: {
   "thread.revert": spec(withMeta(ThreadRevertParamsSchema), ThreadRevertResultSchema, "M2"),
   "thread.rename": spec(withMeta(ThreadRenameParamsSchema), ThreadRenameResultSchema, "M2"),
   "thread.compact": spec(withMeta(ThreadCompactParamsSchema), ThreadCompactResultSchema, "M2"),
+  "thread.export": spec(withMeta(ThreadExportParamsSchema), ThreadExportResultSchema, "M4"),
   "turn.start": spec(withMeta(TurnStartParamsSchema), TurnStartResultSchema, "M1"),
   "turn.interrupt": spec(withMeta(TurnInterruptParamsSchema), TurnInterruptResultSchema, "M2"),
   "turn.resume": spec(withMeta(TurnResumeParamsSchema), TurnResumeResultSchema, "M2"),

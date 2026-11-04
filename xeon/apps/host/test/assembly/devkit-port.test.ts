@@ -338,3 +338,103 @@ test("devkit port: replacing a running extension applies at the next step bounda
     },
   });
 });
+
+test("devkit port: the removal preview lists the stored tables, is empty without storage, and an uninstalled name is not_found", async () => {
+  const state = fakes("preview");
+  mkdirSync(join(state.extensionsDir, "preview-demo", ".fresnel-plugin"), { recursive: true });
+  const source = state.deps.extUi;
+  if (source === undefined) throw new Error("fake has no extUi");
+  const storage = partial<NonNullable<ExtUiVersionSource["storage"]>>({
+    preview: () => ok({ tables: [{ name: "x_preview_demo_pins", rows: 3 }] }),
+  });
+  const withStorage = createDevkitPort(partial<M4PortDeps>({ extUi: { ...source, storage } }), {
+    templates,
+  });
+  expect(await withStorage.removePreview("preview-demo")).toEqual(
+    ok({ name: "preview-demo", tables: [{ name: "x_preview_demo_pins", rows: 3 }] }),
+  );
+  const bare = createDevkitPort(state.deps, { templates });
+  expect(await bare.removePreview("preview-demo")).toEqual(
+    ok({ name: "preview-demo", tables: [] }),
+  );
+  expect(await bare.removePreview("ghost")).toMatchObject({
+    ok: false,
+    error: { kind: "not_found" },
+  });
+});
+
+test("devkit port: remove with dropData unloads, drops the stored data, then removes the folder; a failed drop keeps the folder for a retry", async () => {
+  const state = fakes("drop");
+  const source = state.deps.extUi;
+  if (source === undefined) throw new Error("fake has no extUi");
+  const folder = join(state.extensionsDir, "drop-demo");
+  mkdirSync(join(folder, ".fresnel-plugin"), { recursive: true });
+  const calls: string[] = [];
+  const loader = partial<NonNullable<ReturnType<ExtUiVersionSource["loader"]>>>({
+    unload: (name) => {
+      calls.push(`unload:${name}`);
+      return Promise.resolve(true);
+    },
+  });
+  const failing = partial<NonNullable<ExtUiVersionSource["storage"]>>({
+    drop: (name) => {
+      calls.push(`drop:${name}`);
+      return err({ kind: "busy" });
+    },
+  });
+  const failed = createDevkitPort(
+    partial<M4PortDeps>({ extUi: { ...source, loader: () => loader, storage: failing } }),
+    { templates },
+  );
+  expect(await failed.remove("drop-demo", { dropData: true })).toMatchObject({
+    ok: false,
+    error: { kind: "io" },
+  });
+  // 데이터를 못 지웠으면 폴더를 남겨 같은 요청을 다시 보낼 수 있게 한다
+  expect(existsSync(folder)).toBe(true);
+  const dropping = partial<NonNullable<ExtUiVersionSource["storage"]>>({
+    drop: (name) => {
+      calls.push(`drop:${name}`);
+      return ok({ dropped: ["x_drop_demo_marks", "x_drop_demo_pins"] });
+    },
+  });
+  const retried = createDevkitPort(
+    partial<M4PortDeps>({ extUi: { ...source, loader: () => loader, storage: dropping } }),
+    { templates },
+  );
+  expect(await retried.remove("drop-demo", { dropData: true })).toEqual(
+    ok({ name: "drop-demo", appliesAt: "now", dataDropped: 2 }),
+  );
+  expect(existsSync(folder)).toBe(false);
+  expect(calls).toEqual([
+    "unload:drop-demo",
+    "drop:drop-demo",
+    "unload:drop-demo",
+    "drop:drop-demo",
+  ]);
+});
+
+test("devkit port: remove without dropData keeps the stored data, and dropData without storage is io and touches nothing", async () => {
+  const state = fakes("keep");
+  const source = state.deps.extUi;
+  if (source === undefined) throw new Error("fake has no extUi");
+  mkdirSync(join(state.extensionsDir, "keep-demo", ".fresnel-plugin"), { recursive: true });
+  const dropped: string[] = [];
+  const storage = partial<NonNullable<ExtUiVersionSource["storage"]>>({
+    drop: (name) => {
+      dropped.push(name);
+      return ok({ dropped: [] });
+    },
+  });
+  const port = createDevkitPort(partial<M4PortDeps>({ extUi: { ...source, storage } }), {
+    templates,
+  });
+  expect(await port.remove("keep-demo")).toEqual(ok({ name: "keep-demo", appliesAt: "restart" }));
+  expect(dropped).toEqual([]);
+  const plain = createDevkitPort(state.deps, { templates });
+  mkdirSync(join(state.extensionsDir, "nostore-demo", ".fresnel-plugin"), { recursive: true });
+  expect(await plain.remove("nostore-demo", { dropData: true })).toEqual(
+    err({ kind: "io", message: "extension storage is not available" }),
+  );
+  expect(existsSync(join(state.extensionsDir, "nostore-demo"))).toBe(true);
+});

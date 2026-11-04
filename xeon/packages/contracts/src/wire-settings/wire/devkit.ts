@@ -281,15 +281,21 @@ export const ExtInstallPreviewResultSchema: TUnsafe<InstallPreview> = Type.Unsaf
 
 export interface ExtRemoveParams {
   readonly name: string;
+  /** 참이면 그 확장의 저장 테이블도 지운다. 이벤트 기록은 남는다. 생략하면 남긴다 */
+  readonly dropData?: boolean;
 }
-const ExtRemoveParamsShape = request({ name: Name });
+const ExtRemoveParamsShape = request({ name: Name, dropData: Type.Optional(Type.Boolean()) });
 export const ExtRemoveParamsSchema: TUnsafe<Req<ExtRemoveParams>> = Type.Unsafe<
   Req<ExtRemoveParams>
 >(ExtRemoveParamsShape satisfies SchemaProof<Req<ExtRemoveParams>, typeof ExtRemoveParamsShape>);
-/** 지운 확장이 내려가는 때. 로더가 내리면 `now`(목록에서 바로 빠진다), 로더가 없으면 `restart`다 */
+/**
+ * 지운 확장이 내려가는 때. 로더가 내리면 `now`(목록에서 바로 빠진다), 로더가 없으면 `restart`다.
+ * `dataDropped`는 `dropData`가 참이었을 때만 있고 지운 저장 테이블 수다
+ */
 export interface ExtRemoveResult {
   readonly name: string;
   readonly appliesAt: "now" | "nextStepBoundary" | "restart";
+  readonly dataDropped?: number;
 }
 const ExtRemoveResultShape = closed({
   name: Name,
@@ -298,10 +304,41 @@ const ExtRemoveResultShape = closed({
     Type.Literal("nextStepBoundary"),
     Type.Literal("restart"),
   ]),
+  dataDropped: Type.Optional(Count),
 });
 export const ExtRemoveResultSchema: TUnsafe<ExtRemoveResult> = Type.Unsafe<ExtRemoveResult>(
   ExtRemoveResultShape satisfies SchemaProof<ExtRemoveResult, typeof ExtRemoveResultShape>,
 );
+
+/** 지우기 확인 화면의 미리 보기. 아무것도 바꾸지 않는다 */
+export interface ExtRemovePreviewParams {
+  readonly name: string;
+}
+const ExtRemovePreviewParamsShape = request({ name: Name });
+export const ExtRemovePreviewParamsSchema: TUnsafe<Req<ExtRemovePreviewParams>> = Type.Unsafe<
+  Req<ExtRemovePreviewParams>
+>(
+  ExtRemovePreviewParamsShape satisfies SchemaProof<
+    Req<ExtRemovePreviewParams>,
+    typeof ExtRemovePreviewParamsShape
+  >,
+);
+/** 확장이 소유한 저장 테이블과 행 수. 저장 영역이 없거나 테이블이 없으면 빈 목록이다 */
+export interface ExtRemovePreviewResult {
+  readonly name: string;
+  readonly tables: readonly { readonly name: string; readonly rows: number }[];
+}
+const ExtRemovePreviewResultShape = closed({
+  name: Name,
+  tables: Type.Array(closed({ name: Id, rows: Count }), { maxItems: 64 }),
+});
+export const ExtRemovePreviewResultSchema: TUnsafe<ExtRemovePreviewResult> =
+  Type.Unsafe<ExtRemovePreviewResult>(
+    ExtRemovePreviewResultShape satisfies SchemaProof<
+      ExtRemovePreviewResult,
+      typeof ExtRemovePreviewResultShape
+    >,
+  );
 
 /**
  * `ext.test.run`(W-29). replay 실행은 개발 모드만(`dev_mode_required`). 이름이 Test run(격리 대화)과 헷갈리지만
@@ -396,6 +433,7 @@ export interface DevkitWireSchemas {
   "ext.installPreview": Io<U<Req<ExtInstallPreviewParams>>, U<InstallPreview>>;
   "ext.install": Io<U<Req<ExtInstallParams>>, U<ExtInstallResult>>;
   "ext.remove": Io<U<Req<ExtRemoveParams>>, U<ExtRemoveResult>>;
+  "ext.removePreview": Io<U<Req<ExtRemovePreviewParams>>, U<ExtRemovePreviewResult>>;
   "ext.test.run": Io<U<Req<ExtTestRunParams>>, U<ExtTestRunResult>>;
   "ext.test.list": Io<U<NoParams>, U<ExtTestListResult>>;
 }
@@ -413,6 +451,7 @@ export const DEVKIT_WIRE_METHODS: Table = {
   "ext.installPreview": m4(ExtInstallPreviewParamsSchema, ExtInstallPreviewResultSchema),
   "ext.install": m4(ExtInstallParamsSchema, ExtInstallResultSchema),
   "ext.remove": m4(ExtRemoveParamsSchema, ExtRemoveResultSchema),
+  "ext.removePreview": m4(ExtRemovePreviewParamsSchema, ExtRemovePreviewResultSchema),
   "ext.test.run": m4(ExtTestRunParamsSchema, ExtTestRunResultSchema),
   "ext.test.list": m4(NoParamsSchema, ExtTestListResultSchema),
 };

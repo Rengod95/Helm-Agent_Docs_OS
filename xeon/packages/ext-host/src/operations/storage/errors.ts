@@ -11,6 +11,8 @@ export type ExtStorageError =
   | { readonly kind: "already_defined" }
   | { readonly kind: "isolated" }
   | { readonly kind: "busy" }
+  /** 확장 테이블 삭제 중 저장소 입출력 오류(디스크 가득 포함). `code`는 저장소가 준 값이다 */
+  | { readonly kind: "io"; readonly code: string }
   /** 투영기 등록·접두 테이블 포트를 얻지 못함 */
   | { readonly kind: "port_unavailable"; readonly port: string };
 

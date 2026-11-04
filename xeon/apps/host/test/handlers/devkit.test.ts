@@ -127,6 +127,65 @@ test("ext.remove returns when the removal applies, and an unknown name is extens
   await connection.close();
 });
 
+test("ext.remove passes dropData to the port (false when omitted) and ext.removePreview returns the port's tables", async () => {
+  const seen: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        remove: (name, options) => {
+          seen.push(["remove", name, options]);
+          return Promise.resolve(
+            ok(
+              options?.dropData === true
+                ? { name, appliesAt: "now", dataDropped: 2 }
+                : { name, appliesAt: "now" },
+            ),
+          );
+        },
+        removePreview: (name) => {
+          seen.push(["removePreview", name]);
+          return Promise.resolve(ok({ name, tables: [{ name: "x_demo_pins", rows: 3 }] }));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  expect(await connection.request("ext.removePreview", { name: "demo" })).toEqual({
+    name: "demo",
+    tables: [{ name: "x_demo_pins", rows: 3 }],
+  });
+  expect(await connection.request("ext.remove", { name: "demo", dropData: true })).toEqual({
+    name: "demo",
+    appliesAt: "now",
+    dataDropped: 2,
+  });
+  expect(await connection.request("ext.remove", { name: "demo" })).toEqual({
+    name: "demo",
+    appliesAt: "now",
+  });
+  expect(seen).toEqual([
+    ["removePreview", "demo"],
+    ["remove", "demo", { dropData: true }],
+    ["remove", "demo", { dropData: false }],
+  ]);
+  await connection.close();
+});
+
+test("ext.removePreview of an unknown name is extension.notFound", async () => {
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        removePreview: () =>
+          Promise.resolve(err({ kind: "not_found", message: "ghost is not installed" })),
+      },
+    },
+  });
+  const connection = await open(host);
+  const missing = await wireErrorOf(connection.request("ext.removePreview", { name: "ghost" }));
+  expect(missing.data).toMatchObject({ kind: "extension.notFound" });
+  await connection.close();
+});
+
 test("ext.validateComposition returns the port's issues", async () => {
   const host = createFakeHost({
     overrides: {

@@ -1,11 +1,12 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { assertNever, err, ok, parseJson, type Result } from "@fresnel/contracts";
-import { validateManifest } from "@fresnel/contracts/extensions";
+import { EXTENSION_NAME_PATTERN, validateManifest } from "@fresnel/contracts/extensions";
 import type {
   ExtDiagnostic,
   ExtInstallResult,
   ExtLoadFailureReason,
+  ExtRemoveResult,
 } from "@fresnel/contracts/wire";
 import type { LoadDiagnostic } from "@fresnel/ext-host";
 import type { DevkitError, LinkInput } from "@fresnel/contracts/services";
@@ -25,6 +26,7 @@ import {
 import type { DevkitPort } from "../../handlers/m4/devkit.ts";
 import { hostResourceDir } from "../../state-paths.ts";
 import type { M4PortDeps } from "./deps.ts";
+import type { ExtUiVersionSource } from "./ext-ui-version-source.ts";
 
 // Devkit 포트 구현(L3.authoring.spec §3.3). 파일 작업은 `@fresnel/plugin-builder`가 하고 이 파일은 호스트 상태(설치된 확장 이름,
 // 사용자 확장 위치, 버전 기록, 등록 끄기)와 이어 준다. 사용자 확장 위치가 없으면(`extUi` 없음) 설치와 지우기는 `io`로 거절한다.
@@ -36,6 +38,58 @@ export interface DevkitPortOptions {
 
 function noLocation(): Result<never, DevkitError> {
   return err({ kind: "io", message: "the user extensions location is not available" });
+}
+
+function notInstalled(name: string): Result<never, DevkitError> {
+  return err({ kind: "not_found", message: `${name} is not installed` });
+}
+
+const EXTENSION_NAME = new RegExp(EXTENSION_NAME_PATTERN);
+
+/** 사용자 확장 위치에 그 이름의 설치본 폴더가 있는가. 이름이 규칙에 맞지 않거나 읽을 수 없으면 없는 것으로 본다(`manifestIdentity`와 같은 규칙) */
+async function hasInstalledFolder(extensionsDir: string, name: string): Promise<boolean> {
+  if (!EXTENSION_NAME.test(name)) return false;
+  return stat(join(extensionsDir, name)).then(
+    (found) => found.isDirectory(),
+    () => false,
+  );
+}
+
+/** 실행 중인 확장을 내리고 적용 시점을 돌려준다 */
+async function stopExtension(
+  source: ExtUiVersionSource,
+  name: string,
+): Promise<ExtRemoveResult["appliesAt"]> {
+  // 로더가 실은 확장은 재시작 없이 내려가 목록에서 바로 빠진다(X.loading-trust §4.4.5)
+  if ((await source.loader()?.unload(name)) === true) return "now";
+  // 로더가 모르는 확장은 실행 중인 등록의 끄기를 청한다. 단계 경계에서 적용되고, 등록이 없으면 다음 시작부터 빠진다
+  const scopes = source.host.registrations().filter((scope) => scope.extension === name);
+  for (const scope of scopes) source.host.registration(scope.id)?.disable();
+  return scopes.length > 0 ? "nextStepBoundary" : "restart";
+}
+
+/**
+ * 저장 테이블까지 지운다. 데이터를 먼저 지운다. 폴더를 먼저 지우면 데이터 지우기가 실패했을 때 폴더가 없어
+ * 같은 요청을 다시 보낼 수 없다(not_found). 데이터는 지웠는데 폴더 지우기가 실패하면 폴더가 남아 다시 보낼 수 있다.
+ */
+async function removeWithData(
+  source: ExtUiVersionSource,
+  name: string,
+): Promise<Result<ExtRemoveResult, DevkitError>> {
+  const storage = source.storage;
+  if (storage === undefined)
+    return err({ kind: "io", message: "extension storage is not available" });
+  if (!(await hasInstalledFolder(source.extensionsDir, name))) return notInstalled(name);
+  const appliesAt = await stopExtension(source, name);
+  const dropped = storage.drop(name);
+  if (!dropped.ok)
+    return err({
+      kind: "io",
+      message: `could not drop the stored data (${dropped.error.kind}); the extension folder is kept`,
+    });
+  const removed = await removeExtension(name, { extensionsDir: source.extensionsDir });
+  if (!removed.ok) return removed;
+  return ok({ name, appliesAt, dataDropped: dropped.value.dropped.length });
 }
 
 /** 설치 위치에 있는 지금 설치본의 이름 확인에 쓰는 매니페스트 이름과 버전. 읽을 수 없으면 null */
@@ -180,17 +234,28 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
           return assertNever(failure, "LoadInstalledFailure");
       }
     },
-    remove: async (name) => {
+    removePreview: async (name) => {
+      const source = deps.extUi;
+      // 사용자 확장 위치가 없으면 지울 저장 테이블도 없는 것으로 본다
+      if (source === undefined) return ok({ name, tables: [] });
+      if (!(await hasInstalledFolder(source.extensionsDir, name))) return notInstalled(name);
+      if (source.storage === undefined) return ok({ name, tables: [] });
+      const counted = source.storage.preview(name);
+      if (!counted.ok)
+        return err({
+          kind: "io",
+          message: `could not read the stored data (${counted.error.kind})`,
+        });
+      // 와이어는 64개까지 싣는다. 지우기는 목록과 관계없이 그 확장의 테이블을 모두 지운다
+      return ok({ name, tables: counted.value.tables.slice(0, 64) });
+    },
+    remove: async (name, removeOptions) => {
       const source = deps.extUi;
       if (source === undefined) return noLocation();
+      if (removeOptions?.dropData === true) return removeWithData(source, name);
       const removed = await removeExtension(name, { extensionsDir: source.extensionsDir });
       if (!removed.ok) return removed;
-      // 로더가 실은 확장은 재시작 없이 내려가 목록에서 바로 빠진다(X.loading-trust §4.4.5)
-      if ((await source.loader()?.unload(name)) === true) return ok({ name, appliesAt: "now" });
-      // 로더가 모르는 확장은 실행 중인 등록의 끄기를 청한다. 단계 경계에서 적용되고, 등록이 없으면 다음 시작부터 빠진다
-      const scopes = source.host.registrations().filter((scope) => scope.extension === name);
-      for (const scope of scopes) source.host.registration(scope.id)?.disable();
-      return ok({ name, appliesAt: scopes.length > 0 ? "nextStepBoundary" : "restart" });
+      return ok({ name, appliesAt: await stopExtension(source, name) });
     },
   };
 }

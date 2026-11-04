@@ -3,6 +3,7 @@ import {
   wireError,
   type ExtInstallPreviewParams,
   type ExtInstallResult,
+  type ExtRemovePreviewResult,
   type ExtRemoveResult,
   type ExtValidateCompositionParams,
   type ExtValidateResult,
@@ -35,7 +36,13 @@ export interface DevkitPort {
   pack(input: PackInput): Promise<Result<PackResult, DevkitError>>;
   installPreview(input: ExtInstallPreviewParams): Promise<Result<InstallPreview, DevkitError>>;
   install(input: LinkInput): Promise<Result<ExtInstallResult, DevkitError>>;
-  remove(name: string): Promise<Result<ExtRemoveResult, DevkitError>>;
+  /** 지우기 전 미리 보기. 확장이 소유한 저장 테이블과 행 수를 돌려준다. 아무것도 바꾸지 않는다 */
+  removePreview(name: string): Promise<Result<ExtRemovePreviewResult, DevkitError>>;
+  /** `dropData`가 참이면 저장 테이블도 지운다. 생략하면 남긴다 */
+  remove(
+    name: string,
+    options?: { readonly dropData?: boolean },
+  ): Promise<Result<ExtRemoveResult, DevkitError>>;
 }
 
 export type DevkitMethods =
@@ -46,6 +53,7 @@ export type DevkitMethods =
   | "ext.installPreview"
   | "ext.install"
   | "ext.remove"
+  | "ext.removePreview"
   | "ext.test.run"
   | "ext.test.list"
   | "ext.validateComposition";
@@ -63,7 +71,9 @@ export function createDevkitHandlers(port: DevkitPort): Pick<WireHandlers, Devki
         await port.install({ source: params.source, expectedSha256: params.sha256 }),
         "/source",
       ),
-    "ext.remove": async (params) => unwrap(await port.remove(params.name), "/name"),
+    "ext.removePreview": async (params) => unwrap(await port.removePreview(params.name), "/name"),
+    "ext.remove": async (params) =>
+      unwrap(await port.remove(params.name, { dropData: params.dropData === true }), "/name"),
     "ext.test.run": notImplemented("ext.test.run"),
     "ext.test.list": notImplemented("ext.test.list"),
     "ext.validateComposition": (params) => Promise.resolve(port.validateComposition(params)),

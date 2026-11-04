@@ -344,6 +344,8 @@ export interface ThreadPort {
   ): Result<{ readonly position: StreamPosition }, LifecycleError | ReadFailure>;
   /** 제목이 이미 있는가. 첫 입력 자동 제목이 사람이 정한 제목을 덮지 않게 한다. 모르는 thread는 없는 것(false)이다 */
   hasTitle(threadId: ThreadId): Result<boolean, ReadFailure>;
+  /** 제목 값(없으면 null). `thread.export`의 머리말과 파일 이름에 쓴다. 값을 가리지 않는다(처리기가 가린다). 모르는 thread는 null이다 */
+  title(threadId: ThreadId): Result<string | null, ReadFailure>;
   /** 쓰기 소유자만. 지운 뒤 이 프로세스가 쥔 그 thread의 임대와 확장 상태를 거둔다 */
   remove(threadId: ThreadId): Promise<Result<void, LifecycleError>>;
   /**

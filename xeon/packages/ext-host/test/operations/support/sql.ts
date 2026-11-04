@@ -10,6 +10,9 @@ interface FakeTable {
   rows: Record<string, SqlValue>[];
 }
 
+/** 저장소에 테이블이 있는지 묻는 문장(ext-storage.ts와 같은 글). 가짜 엔진은 이 모양만 안다 */
+const PRESENT_SQL = `SELECT 1 AS "present" FROM sqlite_schema WHERE type = 'table' AND name = ?`;
+
 export interface FakeSql {
   run(sql: string, params?: readonly SqlValue[]): { readonly changes: number };
   get(sql: string, params?: readonly SqlValue[]): SqlRow | undefined;
@@ -102,6 +105,10 @@ export function createFakeSql(): FakeSql {
   }
 
   function select(sql: string, params: readonly SqlValue[]): SqlRow[] {
+    if (sql === PRESENT_SQL) {
+      const name = params[0];
+      return typeof name === "string" && tables.has(name) ? [{ present: 1 }] : [];
+    }
     const count = /^SELECT COUNT\(\*\) AS "n" FROM "([^"]+)"( WHERE .*)?$/.exec(sql);
     if (count?.[1] !== undefined) {
       const table = tableOf(count[1]);
@@ -224,6 +231,12 @@ export function createFakeSql(): FakeSql {
       const before = table.rows.length;
       table.rows = table.rows.filter((row) => !matches(table, row, conditions, params, 0));
       return { changes: before - table.rows.length };
+    }
+    const drop = /^DROP TABLE "([^"]+)"$/.exec(sql);
+    if (drop?.[1] !== undefined) {
+      tableOf(drop[1]);
+      tables.delete(drop[1]);
+      return { changes: 0 };
     }
     throw new Error(`fake sql: unsupported statement ${sql}`);
   }
