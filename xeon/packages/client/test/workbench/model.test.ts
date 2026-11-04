@@ -149,30 +149,35 @@ describe("workbench model", () => {
     expect(toggleRequestOf(base, "nope", true)).toEqual({ ok: false, reason: "unknown" });
   });
 
-  test("계속 꺼 둘까요: 묻지 않은 확장은 null이고, 물으면 시작 횟수와 답할 수 있는지를 준다", () => {
+  test("끌까요: 묻지 않은 확장은 null이고, 물으면 기준과 실패 수와 답할 수 있는지를 준다", () => {
     const asked = entry("review", {
-      status: "disabled",
-      autoDisabled: true,
-      keepOffQuestion: { disabledStarts: 3 },
+      status: "enabled",
+      keepOffQuestion: { rule: "consecutive", consecutive: 5, windowFailures: 5 },
     });
     expect(keepOffOf(entry("web"), true)).toBeNull();
-    expect(keepOffOf(asked, true)).toEqual({ disabledStarts: 3, answerable: true });
+    expect(keepOffOf(asked, true)).toEqual({
+      rule: "consecutive",
+      consecutive: 5,
+      windowFailures: 5,
+      answerable: true,
+    });
   });
 
-  test("계속 꺼 둘까요: 연결이 끊기면 답할 수 없고, 잠긴 확장도 답할 수 없다", () => {
-    const asked = { keepOffQuestion: { disabledStarts: 2 } };
-    expect(keepOffOf(entry("review", asked), false)).toEqual({
-      disabledStarts: 2,
+  test("끌까요: 연결이 끊기면 답할 수 없고, 잠긴 확장도 답할 수 없다", () => {
+    const keepOffQuestion = { rule: "rate", consecutive: 1, windowFailures: 10 } as const;
+    const expected = {
+      rule: "rate",
+      consecutive: 1,
+      windowFailures: 10,
       answerable: false,
-    });
-    expect(keepOffOf(entry("review", { ...asked, enabledSource: "managed" }), true)).toEqual({
-      disabledStarts: 2,
-      answerable: false,
-    });
-    expect(keepOffOf(entry("acme", { ...asked, safeModeExcluded: "안전 모드" }), true)).toEqual({
-      disabledStarts: 2,
-      answerable: false,
-    });
+    } as const;
+    expect(keepOffOf(entry("review", { keepOffQuestion }), false)).toEqual(expected);
+    expect(keepOffOf(entry("review", { keepOffQuestion, enabledSource: "managed" }), true)).toEqual(
+      expected,
+    );
+    expect(
+      keepOffOf(entry("acme", { keepOffQuestion, safeModeExcluded: "안전 모드" }), true),
+    ).toEqual(expected);
   });
 
   test("대기 표시는 반영되면 목록이 걷어 낸다", () => {
