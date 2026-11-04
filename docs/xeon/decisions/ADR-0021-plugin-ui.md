@@ -26,7 +26,7 @@ binds: [xeon/apps/desktop/src/views/**, xeon/packages/client/**, xeon/packages/c
 
 - 지금 확장이 클라이언트에 정보를 보내는 길은 내구 이벤트(`x.<확장id>.*`, `grp.<그룹>.*`)뿐입니다(`F.wire-settings.spec` §4.2). 데스크톱은 이 이벤트를 종류 이름과 요약만 있는 일반 item으로 그립니다(`L4.desktop.spec` §4.13).
 - 확장 wire 메서드 `ext.<확장id>.<동사>`는 이름 규칙만 예약된 [제안]입니다. params·result 스키마는 매니페스트에 선언합니다(`F.wire-settings.spec` §4.2, §3.5.3 오류 코드 구간 10000~19999).
-- Helm 탐구 화면(`L4.desktop-ux.spec` P-05)은 `command.run { text: "/helm status" }` 결과를 임시로 읽습니다(`[gap:W-04]`). 그룹마다 같은 간극이 생깁니다.
+- Helm 탐구 화면(`L4.desktop-ux.spec` P-05)은 `command.run { text: "/helm status" }` 결과를 임시로 읽습니다. `ext.helm.status`는 group-helm에 등록돼 있고(`packages/group-helm/src/methods.ts:85`) 화면이 아직 쓰지 않습니다(`[gap:W-04]`). 그룹마다 같은 간극이 생깁니다.
 - [결정: review.decisions-2 U-07] 핸들러에 UI 포트(`HandlerContext.ui`)를 두지 않습니다(`X.operations.spec` §4.2.3). 확장이 TUI 컴포넌트를 돌려주는 방식은 원격·웹 클라이언트로 옮길 수 없습니다(`_research/refs/pi.md` 415행).
 - 신뢰 등급은 `builtin`, `user`, `project`, `untrusted` 넷이고 `untrusted`는 import하지 않습니다(`X.loading-trust.spec` §4.6.2, §4.6.3). Helm은 사용자 확장 위치에 설치되는 `user` 등급 기본 플러그인입니다(`L3.helm.spec` §3.1).
 - 데스크톱 WebView는 CSP `default-src 'self'`이고 셸은 바이트만 릴레이합니다(`architecture.security.spec` B-09, T-11). 신뢰하지 않은 스크립트가 앱 문서 안에서 돌면 wire 연결 전체(승인 응답 포함)를 쓸 수 있습니다.
@@ -283,7 +283,7 @@ interface ExtMethodDecl {
 | `status` | `helm/phase` | 단계 칩("탐색 2/3 렌즈") | `query ext.helm.status` |
 | `command` | `helm/start`, `helm/stop` | 팔레트 "탐구 시작…", "탐구 멈춤" | `/helm start`, `/helm stop` |
 
-- `ext.helm.status`가 생기면 `L4.desktop-ux.spec`의 `[gap:W-04]`가 닫힙니다(§6 미결 5).
+- `ext.helm.status`는 생겼고(`packages/group-helm/src/methods.ts:85`), 화면이 읽으면 `L4.desktop-ux.spec`의 `[gap:W-04]`가 닫힙니다(§6 미결 5).
 - 프레임 기준 사례는 카탈로그 밖 화면이 처음 나올 때 정합니다. 후보는 제작 확장이 만든 시험 플러그인 하나입니다(`L3.authoring.spec` §9 A-6) [제안].
 
 ## 4. 결과
