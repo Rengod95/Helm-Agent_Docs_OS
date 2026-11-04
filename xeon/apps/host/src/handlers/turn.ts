@@ -52,13 +52,20 @@ export function createTurnStartHandler(
     if (!exists.ok) throw wireErrorOfStore(exists.error, "turn.start thread lookup");
     if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
     await claimWrite(engine, hub(), context.connectionId, threadId);
-    const outcome = await ports.turns.submit(threadId, params.input, params.requestId);
+    const outcome = await ports.turns.submit(
+      threadId,
+      params.input,
+      params.requestId,
+      params.whenBusy,
+    );
     if (!outcome.ok) {
       if (outcome.reason === "rejected") throw loopRejection(outcome.error, "turn.start");
       throw wireError("turn.busy", { details: { turnId: outcome.turnId } });
     }
     nameThreadFromFirstInput(engine, threadId, params.input);
-    return { turnId: outcome.turnId };
+    return outcome.queued === true
+      ? { turnId: outcome.turnId, queued: true }
+      : { turnId: outcome.turnId };
   };
 }
 
