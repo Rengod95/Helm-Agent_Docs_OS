@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { TARGETS_KEY, type TargetEntry } from "@fresnel/client";
 import { WIRE_ERRORS, type WireResult } from "@fresnel/contracts/wire";
-import type { DesktopIpc } from "../../src/transport/ipc.ts";
+import type { DesktopIpc, RestartOptions } from "../../src/transport/ipc.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { fakeIpc } from "../transport/fake-ipc.ts";
 import { engineFake, makeApp, makeAppOver, until, type EngineExtra } from "./support.ts";
@@ -316,6 +316,32 @@ describe("retry restarts a stopped engine and re-attaches the rest", () => {
     const app = makeAppOver(ipc);
     await app.commands.connection.retry();
     expect(restarts).toBe(1);
+    await app.stop();
+  });
+});
+
+describe("session.restartEngine passes its options to the shell and reports the answer", () => {
+  test("options reach restart as given, and a refusal comes back as false", async () => {
+    const engine = engineFake();
+    const seen: (RestartOptions | undefined)[] = [];
+    const ipc: DesktopIpc = {
+      ...engine.fake.ipc,
+      restart: (options) => {
+        seen.push(options);
+        return Promise.resolve(
+          options?.confirmed === true
+            ? { ok: true, value: null }
+            : {
+                ok: false,
+                error: { kind: "command", command: "engine_restart", code: "not-confirmed" },
+              },
+        );
+      },
+    };
+    const app = makeAppOver(ipc);
+    expect(await app.session.restartEngine({ safeMode: true, confirmed: true })).toBe(true);
+    expect(await app.session.restartEngine()).toBe(false);
+    expect(seen).toStrictEqual([{ safeMode: true, confirmed: true }, undefined]);
     await app.stop();
   });
 });

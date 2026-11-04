@@ -2,7 +2,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema } from "@fresnel/contracts/capabilities";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import type { DesktopIpc } from "../../src/transport/ipc.ts";
+import type { DesktopIpc, RestartOptions } from "../../src/transport/ipc.ts";
 import { createTauriIpc } from "../../src/transport/ipc.ts";
 import type { FakeIpc } from "./fake-ipc.ts";
 
@@ -66,6 +66,16 @@ export function rejectLikeShell(value: unknown): Promise<never> {
   return Promise.reject(value);
 }
 
+/** `engine_restart`의 인자를 옵션으로 읽는다. 셸과 같이 boolean이 아닌 값과 빠진 키는 옵션에 없다 */
+function restartOptionsOf(args: unknown): RestartOptions {
+  const safeMode = field(args, "safeMode");
+  const confirmed = field(args, "confirmed");
+  return {
+    ...(typeof safeMode === "boolean" ? { safeMode } : {}),
+    ...(typeof confirmed === "boolean" ? { confirmed } : {}),
+  };
+}
+
 /** `secret_register`의 본문 `<동작> <이름>\n<값>`을 나눈다. 셸(secret_entry.rs `parse_request`)과 같은 규칙이다 */
 function entryOf(args: unknown): { name: string; action: string; value: Uint8Array } {
   const body = bytesIn(args);
@@ -123,7 +133,7 @@ export function tauriMockIpc(fake: FakeIpc): {
       return null;
     }
     if (cmd === "engine_restart") {
-      await fake.ipc.restart();
+      await fake.ipc.restart(restartOptionsOf(args));
       return null;
     }
     if (cmd === "secret_register") {

@@ -7,7 +7,7 @@ import {
   type EngineStore,
 } from "../state/engine/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
-import type { DesktopIpc, EngineState } from "../transport/ipc.ts";
+import type { DesktopIpc, EngineState, RestartOptions } from "../transport/ipc.ts";
 import {
   attachRelay,
   openEngineConnection,
@@ -37,7 +37,8 @@ export interface Session {
   engineVersion(): string | null;
   /** 연결 시도가 실패해 멈췄을 때 사용자가 다시 시작한다 */
   reconnect(): void;
-  restartEngine(): Promise<boolean>;
+  /** 엔진을 다시 띄운다. 셸이 거절하면 false다. `options`를 생략하면 `failed` 상태의 재기동과 같다 */
+  restartEngine(options?: RestartOptions): Promise<boolean>;
   stop(): Promise<void>;
 }
 
@@ -162,8 +163,8 @@ export function startSession(deps: SessionDeps): Session {
     link: () => current.link,
     engineVersion: () => current.engineVersion,
     reconnect: () => current.retry.open(),
-    async restartEngine() {
-      const restarted = await deps.ipc.restart();
+    async restartEngine(options) {
+      const restarted = await deps.ipc.restart(options);
       return restarted.ok;
     },
     async stop() {

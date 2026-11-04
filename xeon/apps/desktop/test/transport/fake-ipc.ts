@@ -6,6 +6,7 @@ import type {
   EngineState,
   EngineTarget,
   IpcError,
+  RestartOptions,
   RestoreReport,
   SecretRegisterError,
 } from "../../src/transport/ipc.ts";
@@ -33,6 +34,8 @@ export type FakeIpc = {
   readonly written: { readonly epoch: number; readonly text: string }[];
   readonly acks: { readonly epoch: number; readonly bytes: number }[];
   readonly detached: number[];
+  /** `restart` 호출의 옵션, 호출 순서. 옵션이 없으면 `{}`다 */
+  readonly restarts: RestartOptions[];
   /** `retarget` 호출 순서 */
   readonly retargeted: EngineTarget[];
   /** `desktop-settings.json`의 가짜 내용. `readSettings`·`writeSettings`가 이 객체를 읽고 쓴다 */
@@ -68,6 +71,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
   const written: { epoch: number; text: string }[] = [];
   const acks: { epoch: number; bytes: number }[] = [];
   const detached: number[] = [];
+  const restarts: RestartOptions[] = [];
   const retargeted: EngineTarget[] = [];
   const settingsFile: Record<string, unknown> = {};
   const registered: { name: string; action: string; text: string }[] = [];
@@ -97,7 +101,10 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
         acks.push({ epoch: e, bytes });
         return Promise.resolve({ ok: true, value: null });
       },
-      restart: () => Promise.resolve({ ok: true, value: null }),
+      restart(options) {
+        restarts.push(options ?? {});
+        return Promise.resolve({ ok: true, value: null });
+      },
       retarget(target) {
         retargeted.push(target);
         return Promise.resolve({ ok: true, value: null });
@@ -133,6 +140,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
     written,
     acks,
     detached,
+    restarts,
     retargeted,
     settingsFile,
     registered,
