@@ -36,6 +36,7 @@ import {
   readWebSettings,
   webApprovalTitle,
   webManifest,
+  type BrowserEnginePort,
   type DnsResolver,
   type HttpTransport,
   type PluginRegistration,
@@ -56,6 +57,7 @@ import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 import { readMcpSettings, readSettingsServers } from "@fresnel/cap-mcp";
 import { createBrowseConfirm } from "./web-browse-confirm.ts";
 import { BROWSER_MCP_SERVER, createBrowserMcpPort } from "./web-browser-mcp.ts";
+import { createStagehandEnginePort } from "./web-stagehand.ts";
 import { createWebHeaderSecrets } from "./web-header-secrets.ts";
 import type { WebStatusHolder } from "./web-providers.ts";
 
@@ -69,6 +71,7 @@ import type { WebStatusHolder } from "./web-providers.ts";
 // M3b(B2-WEB): 플러그인 provider 등록(`registrations`, `web_provider` 기록)과 헤더 시크릿(`headerSecrets`), 브라우저 MCP(`browserMcp`,
 // `playwright` 서버), 브라우저 도구(`web_browse_*`)를 잇는다. `browseConfirm`은 아직 잇지 않아 확인이 필요한 브라우저 동작은 거부된다 [미결].
 // `modelTool` 판정(`boundary.step.before`)은 L1.models의 hosted 경로가 연결된 뒤에 한다. 조립 루트 코드(DR-14 예외 2).
+// L2.web.spec §4.10.4a: 브라우저 엔진(`browserEngine`, Stagehand 어댑터 `web-stagehand.ts`)을 `stagehand` 후보로 잇는다.
 
 export interface HostWebOptions {
   /** 로컬 id 발급(원장·캐시 행). platform-os의 createLocalIdFactory */
@@ -80,6 +83,8 @@ export interface HostWebOptions {
   readonly transport?: HttpTransport;
   /** 시험 주입(AssembleOptions.webPorts): 모델 provider의 hosted 검색 대역. 생략하면 `fresnel.models`의 포트다 */
   readonly hostedSearch?: HostedSearchPort;
+  /** 시험 주입(AssembleOptions.webPorts): 브라우저 엔진. 생략하면 Stagehand 어댑터다. 시험은 실제 Chrome을 띄우지 않으려고 가짜를 넣는다 */
+  readonly browserEngine?: BrowserEnginePort;
   /** 설정이 바뀔 때마다 부른다. 돌려주는 함수로 구독을 푼다 */
   readonly onSettingsChange: (listener: () => void) => () => void;
   /** 이 엔진이 지금 쓰기 소유를 쥔 thread. `thread.shutdown`에서 살아 있는 세션을 가린다 */
@@ -226,6 +231,15 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
       const mcp = optionalCapability(g, McpClientKey);
       const hostedSearch = options.hostedSearch ?? models?.hostedSearch;
       const logger = os.logger("web");
+      // 엔진은 항상 붙인다. Chrome이 있는지는 첫 탐침(`available`)에서 알므로 시작할 때 로그를 남기지 않는다
+      const browserEngine =
+        options.browserEngine ??
+        createStagehandEnginePort({
+          tmpDir: os.dirs.tmp,
+          dataDir: os.dirs.data,
+          env: process.env,
+          logger,
+        });
       const headerSecrets =
         secrets === undefined
           ? undefined
@@ -260,6 +274,7 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
           : { asker: createAskAdapter(createBareL2ApprovalsPort(approvals, webApprovalTitle)) }),
         ...(secrets === undefined ? {} : { guard: secrets.redactor }),
         ...(headerSecrets === undefined ? {} : { headerSecrets }),
+        browserEngine,
         ...(browserMcp === undefined ? {} : { browserMcp }),
         ...(approvals === undefined ? {} : { browseConfirm: createBrowseConfirm(approvals) }),
         ...(hostedSearch === undefined ? {} : { hostedSearch }),
