@@ -36,7 +36,7 @@ import { buildCachePolicy, withRetention } from "./cache-policy.ts";
 import { classifyMessage } from "./classify.ts";
 import { createHostedSearch } from "./hosted-search.ts";
 import { createFailureLog } from "./failure-log.ts";
-import { createPipeline, type CallSpec } from "./pipeline.ts";
+import { createPipeline, type CallSpec, type RequestBodyOffer } from "./pipeline.ts";
 import type { ProviderDispatcher } from "./request-points.ts";
 import {
   createProviderRegistry,
@@ -79,6 +79,8 @@ export interface ModelServiceDeps {
   readonly rotationEnabled?: () => boolean;
   /** 회전의 기다림에 쓴다. 없으면 기다림이 필요한 자리에서 실패한다 */
   readonly scheduler?: Scheduler;
+  /** 가드를 통과한 최종 요청 본문을 받는다(측정 기록, T-MEAS-REC) */
+  readonly offerBody?: (offer: RequestBodyOffer) => void;
 }
 
 function modelError(kind: ModelError["kind"], message: string, ref?: string): ModelError {
@@ -205,6 +207,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
       policy: policyOf,
     },
     ...(deps.logger === undefined ? {} : { logger: deps.logger }),
+    ...(deps.offerBody === undefined ? {} : { offerBody: deps.offerBody }),
   });
 
   function resolveWith(

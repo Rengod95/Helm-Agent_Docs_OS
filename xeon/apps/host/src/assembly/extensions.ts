@@ -160,6 +160,8 @@ export interface ExtensionDeps {
   readonly agentDefinitions?: readonly AgentDefinition[];
   /** 테스트 주입(AssembleOptions.buildModels) */
   readonly buildModels?: ModelsExtensionOptions["buildModels"];
+  /** 최종 요청 본문을 측정 기록기로 넘긴다(T-MEAS-REC) */
+  readonly offerBody?: ModelsExtensionOptions["offerBody"];
 }
 
 /** 내장 확장 모듈(manifest + extension 엔트리) → ExtHost.install 단위. 내장이라 fresnel.* 포트를 쓸 수 있다 */
@@ -276,6 +278,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
             clock: deps.clock,
             scheduler: deps.scheduler,
             ...(deps.buildModels === undefined ? {} : { buildModels: deps.buildModels }),
+            ...(deps.offerBody === undefined ? {} : { offerBody: deps.offerBody }),
           }),
           loadIndex,
         ),

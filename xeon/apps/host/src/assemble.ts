@@ -95,7 +95,12 @@ import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { createDialogAreaHolder } from "./assembly/m4/dialog-area-bridge.ts";
 import { createExtensionRecords } from "./assembly/m4/ext-read-sources.ts";
-import { startMeasurement, type HandlerFailureInput } from "./assembly/measure/recorder.ts";
+import type { RequestBodyOffer } from "@fresnel/core-models";
+import {
+  startMeasurement,
+  type HandlerFailureInput,
+  type RequestBodyInput,
+} from "./assembly/measure/recorder.ts";
 import { DEFAULT_RETENTION_DAYS } from "./assembly/measure/store.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
@@ -480,7 +485,30 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   const measureSlot: {
     stop: (() => void) | undefined;
     recordFailure: ((input: HandlerFailureInput) => void) | undefined;
-  } = { stop: undefined, recordFailure: undefined };
+    recordBody: ((input: RequestBodyInput) => void) | undefined;
+  } = { stop: undefined, recordFailure: undefined, recordBody: undefined };
+  // 모델 호출마다 최종 요청 본문을 측정 기록기에 넘긴다(T-MEAS-REC, B18). 저장 여부는 기록기가 설정으로 정한다. 단계 번호는 같은 Turn의 호출 순번이다
+  const bodySteps = new Map<string, number>();
+  const offerRequestBody = (offer: RequestBodyOffer): void => {
+    const record = measureSlot.recordBody;
+    if (record === undefined) return;
+    const anchor = offer.ctx.turnId ?? offer.ctx.threadId;
+    const stepIndex = (bodySteps.get(anchor) ?? 0) + 1;
+    bodySteps.delete(anchor);
+    bodySteps.set(anchor, stepIndex);
+    // 끝난 Turn의 순번이 쌓이지 않게 오래된 것부터 버린다
+    if (bodySteps.size > 256) {
+      const oldest = bodySteps.keys().next();
+      if (!oldest.done) bodySteps.delete(oldest.value);
+    }
+    record({
+      threadId: offer.ctx.threadId,
+      turnId: offer.ctx.turnId,
+      stepIndex,
+      at: offer.at,
+      body: offer.body,
+    });
+  };
   /** 자동 제목 연결. 엔진 포트가 올라온 뒤에 연다. 닫을 때 구독을 거둔다 */
   const autoTitleSlot: { title: AutoTitle | undefined } = { title: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
@@ -826,6 +854,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
+        offerBody: offerRequestBody,
         ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
         ...(agentDefinitions === undefined ? {} : { agentDefinitions }),
       }),
@@ -970,6 +999,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     });
     measureSlot.stop = measurement.stop;
     measureSlot.recordFailure = measurement.offerFailure;
+    measureSlot.recordBody = measurement.offerBody;
     // spill 보관 정리(L0.exec.spec §3.8.2)와 블롭 GC(L0.store.spec §4.9)를 연다. 블롭 GC는 스케줄 실행권이 있는 서비스 모드만 돈다(HS-40)
     dataOpsSlot.ops = startDataOps({
       stateDir: os.dirs.state,

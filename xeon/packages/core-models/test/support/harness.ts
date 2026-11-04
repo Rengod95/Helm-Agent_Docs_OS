@@ -12,6 +12,7 @@ import type {
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import {
   createModelService,
+  type ModelServiceDeps,
   DEFAULT_MODELS_SETTINGS,
   type ModelsSettings,
   type ProviderDispatcher,
@@ -47,6 +48,8 @@ export interface HarnessOptions {
   readonly rotationEnabled?: boolean;
   /** 시크릿 저장소에 넣을 값. 기본은 tape-key 하나 */
   readonly secretValues?: Readonly<Record<string, string>>;
+  /** 최종 요청 본문을 받는 곳(측정 기록) */
+  readonly offerBody?: ModelServiceDeps["offerBody"];
 }
 
 export interface Harness {
@@ -93,6 +96,7 @@ export function createHarness(options: HarnessOptions): Harness {
     ...(options.dispatcher === undefined ? {} : { dispatcher: options.dispatcher }),
     ...(options.scopeEnabled === undefined ? {} : { scopeEnabled: options.scopeEnabled }),
     ...(options.logger === undefined ? {} : { logger: options.logger }),
+    ...(options.offerBody === undefined ? {} : { offerBody: options.offerBody }),
   });
 
   function ctx(role: ModelRole = "main", extra: Partial<ModelCallContext> = {}): ModelCallContext {
