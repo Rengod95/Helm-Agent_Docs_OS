@@ -179,7 +179,7 @@ const ExtInstallParamsShape = request({ source: Path, sha256: Sha256 });
 export const ExtInstallParamsSchema: TUnsafe<Req<ExtInstallParams>> = Type.Unsafe<
   Req<ExtInstallParams>
 >(ExtInstallParamsShape satisfies SchemaProof<Req<ExtInstallParams>, typeof ExtInstallParamsShape>);
-/** 설치한 확장이 켜지는 때. 같은 이름이 실행 중이면 로더가 다시 읽는다(`now`, 단계 경계). 새 이름은 다음 시작부터다(`restart`) */
+/** 설치한 확장이 켜지는 때. 같은 이름이 실행 중이면 호출자가 `ext.reload`로 단계 경계에서 바꾼다. 새 이름은 다음 시작부터다(`restart`) */
 export interface ExtInstallResult extends LinkResult {
   readonly appliesAt: "now" | "nextStepBoundary" | "restart";
 }
@@ -187,11 +187,7 @@ const ExtInstallResultShape = closed({
   name: Name,
   version: Name,
   location: Path,
-  appliesAt: Type.Union([
-    Type.Literal("now"),
-    Type.Literal("nextStepBoundary"),
-    Type.Literal("restart"),
-  ]),
+  appliesAt: Type.Union([Type.Literal("nextStepBoundary"), Type.Literal("restart")]),
 });
 export const ExtInstallResultSchema: TUnsafe<ExtInstallResult> = Type.Unsafe<ExtInstallResult>(
   ExtInstallResultShape satisfies SchemaProof<ExtInstallResult, typeof ExtInstallResultShape>,
