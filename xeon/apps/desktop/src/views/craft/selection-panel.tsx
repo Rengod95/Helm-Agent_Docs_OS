@@ -58,8 +58,11 @@ function hookOf(sel: Sel): string | null {
 
 function HookBody({ hook }: { readonly hook: string }): ReactNode {
   const { dispatch } = useCraft();
-  const has = useWorkbench((s) => s.hookNotices.some((n) => n.hook === hook));
-  if (!has) return null;
+  // 훅 이름 칩이면 그 훅에 걸린 외부 훅(id)의 알림을, 외부 훅 id 자체이면 그 알림을 보인다
+  const ids = useWorkbench((s) =>
+    s.hookNotices.filter((n) => n.hook === hook || n.point === hook).map((n) => n.hook),
+  );
+  if (ids.length === 0) return null;
   return (
     <Frame
       mark={<Mark shape="diamond" size={22} group={false} on failing />}
@@ -67,7 +70,9 @@ function HookBody({ hook }: { readonly hook: string }): ReactNode {
       onClose={() => dispatch({ t: "clear" })}
       action={null}
     >
-      <HookNoticeFor hook={hook} />
+      {ids.map((id) => (
+        <HookNoticeFor key={id} hook={id} />
+      ))}
     </Frame>
   );
 }

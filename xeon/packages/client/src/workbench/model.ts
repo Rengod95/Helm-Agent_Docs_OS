@@ -73,9 +73,11 @@ export interface HookNotice {
   readonly hook: string;
   readonly question: NonNullable<HookEntry["keepOffQuestion"]> | null;
   readonly off: boolean;
+  /** 걸린 훅 이름. 정의가 보이지 않는 훅이면 null */
+  readonly point: string | null;
 }
 
-/** `hooks.list`에서 질문이나 꺼짐이 있는 훅만 골라 훅 이름 순으로 둔다 */
+/** `hooks.list`에서 질문이나 꺼짐이 있는 외부 훅만 골라 훅 id 순으로 둔다 */
 export function hookNoticesOf(hooks: readonly HookEntry[]): readonly HookNotice[] {
   return hooks
     .filter((h) => h.keepOffQuestion !== undefined || h.autoDisabled === true)
@@ -83,6 +85,7 @@ export function hookNoticesOf(hooks: readonly HookEntry[]): readonly HookNotice[
       hook: h.hook,
       question: h.keepOffQuestion ?? null,
       off: h.autoDisabled === true,
+      point: h.point ?? null,
     }))
     .toSorted((a, b) => (a.hook < b.hook ? -1 : a.hook > b.hook ? 1 : 0));
 }

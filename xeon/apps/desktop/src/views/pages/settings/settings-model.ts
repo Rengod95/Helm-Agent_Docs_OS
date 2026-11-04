@@ -146,7 +146,7 @@ export type FieldControl = "switch" | "select" | "number" | "text" | "tags" | "e
 
 /**
  * 화면이 전용 편집기로 그리는 종류. 계정 풀, 레이트 리밋 표, 모델 역할, 대체 사슬(P-11), 권한 규칙, 샌드박스 목록,
- * 시크릿 참조(P-09 §6.13)와 일반 표(`table` 위젯의 세 모양)다.
+ * 시크릿 참조(P-09 §6.13), 외부 훅 정의(X.operations §4.7)와 일반 표(`table` 위젯의 세 모양)다.
  */
 export type DedicatedEditorKind =
   | "accountPool"
@@ -156,6 +156,7 @@ export type DedicatedEditorKind =
   | "permissionRules"
   | "sandboxLists"
   | "secretRef"
+  | "hookDefs"
   | "table";
 
 /** 키 이름으로 고르는 전용 편집기(L4.settings-ui §4.2.4). 편집기 힌트가 없을 때 쓴다 */
@@ -169,6 +170,7 @@ const EDITOR_BY_KEY: ReadonlyMap<SettingKey, DedicatedEditorKind> = new Map<
   ["l1.tools.rules", "permissionRules"],
   ["l0.sandbox.writeRoots.extra", "sandboxLists"],
   ["l0.sandbox.network.blockedDomains", "sandboxLists"],
+  ["x.operations.hookDefs", "hookDefs"],
 ]);
 
 /** 검색 순서 키. 도구와 웹 패널이 맡으므로 항목 목록에서 뺀다(`panelOwnedOf`) */

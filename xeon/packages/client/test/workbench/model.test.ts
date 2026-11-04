@@ -536,18 +536,18 @@ describe("기록 탭: 확장별 실패 묶음(scope.handler_failed)", () => {
 
 describe("hookNoticesOf", () => {
   const row = { fold: "first", handlers: 1, registrations: ["a"], external: true } as const;
-  test("keeps only hooks with a question or an off state, sorted by name", () => {
+  test("keeps only external hooks with a question or an off state, sorted by id, with the hook they sit on", () => {
     const question = { rule: "rate", consecutive: 2, windowFailures: 12 } as const;
     expect(
       hookNoticesOf([
         { ...row, hook: "zeta", autoDisabled: true },
         { ...row, hook: "quiet" },
-        { ...row, hook: "alpha", keepOffQuestion: question },
+        { ...row, hook: "alpha", point: "tool.call.before", keepOffQuestion: question },
         { ...row, hook: "off-false", autoDisabled: false },
       ]),
     ).toEqual([
-      { hook: "alpha", question, off: false },
-      { hook: "zeta", question: null, off: true },
+      { hook: "alpha", question, off: false, point: "tool.call.before" },
+      { hook: "zeta", question: null, off: true, point: null },
     ]);
   });
 });
