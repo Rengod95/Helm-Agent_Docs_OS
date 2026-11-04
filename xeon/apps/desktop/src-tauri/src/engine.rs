@@ -149,18 +149,67 @@ pub fn target_args(target: &EngineTarget) -> Vec<String> {
     }
 }
 
-/// 호스트 인자 뒤에 붙는 것: 안전 모드(로컬 대상에만 `--safe-mode`), 그다음 대상 인자다.
-fn engine_flags(target: &EngineTarget, safe_mode: bool) -> Vec<String> {
+/// 안전 모드를 어떻게 띄울지. `Default`는 플래그를 붙이지 않아 호스트가 설정 `x.operations.safeMode.default`를 따른다.
+/// `On`은 `--safe-mode`, `Off`는 `--no-safe-mode`라서 설정으로 켠 안전 모드도 꺼진다.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SafeMode {
+    #[default]
+    Default,
+    On,
+    Off,
+}
+
+impl SafeMode {
+    /// 사용자가 `safeMode`로 고른 값. `false`도 선택이라서 `Default`가 아니라 `Off`다.
+    fn chosen(on: bool) -> SafeMode {
+        if on {
+            SafeMode::On
+        } else {
+            SafeMode::Off
+        }
+    }
+}
+
+/// 호스트 인자 뒤에 붙는 것: 안전 모드(로컬 대상에만 `--safe-mode`나 `--no-safe-mode`), 그다음 대상 인자다.
+fn engine_flags(target: &EngineTarget, safe_mode: SafeMode) -> Vec<String> {
     let mut flags = Vec::new();
-    if safe_mode && !target.is_remote() {
-        flags.push("--safe-mode".to_string());
+    if !target.is_remote() {
+        match safe_mode {
+            SafeMode::Default => {}
+            SafeMode::On => flags.push("--safe-mode".to_string()),
+            SafeMode::Off => flags.push("--no-safe-mode".to_string()),
+        }
     }
     flags.extend(target_args(target));
     flags
 }
 
+/// 개발 덮어쓰기(`FRESNEL_DESKTOP_ENGINE_BIN`, `FRESNEL_DESKTOP_ENGINE_ARGS`) 값을 읽는다. 실행 파일이 없거나 비면 덮어쓰지 않는다.
+/// 인자는 공백으로 나눈다.
+fn parse_dev_override(
+    bin: Option<OsString>,
+    args: Option<String>,
+) -> Option<(OsString, Vec<OsString>)> {
+    let bin = bin.filter(|v| !v.is_empty())?;
+    let args = args
+        .map(|text| text.split_whitespace().map(OsString::from).collect())
+        .unwrap_or_default();
+    Some((bin, args))
+}
+
+/// 덮어쓴 엔진의 전체 인자. 덮어쓰기 인자는 이미 `host --stdio`로 끝나므로 그 뒤에 `engine_flags`만 붙인다.
+fn dev_override_argv(
+    args: Vec<OsString>,
+    target: &EngineTarget,
+    safe_mode: SafeMode,
+) -> Vec<OsString> {
+    args.into_iter()
+        .chain(engine_flags(target, safe_mode).into_iter().map(OsString::from))
+        .collect()
+}
+
 /// 사이드카를 띄우는 전체 인자: `host --stdio`, 그다음 `engine_flags`다.
-pub fn sidecar_args(target: &EngineTarget, safe_mode: bool) -> Vec<String> {
+pub fn sidecar_args(target: &EngineTarget, safe_mode: SafeMode) -> Vec<String> {
     SIDECAR_ARGS
         .iter()
         .map(|arg| arg.to_string())
@@ -427,7 +476,7 @@ pub struct RestoreOutput {
 /// 엔진 프로세스를 띄우고 그룹을 끝내는 수단. 운영은 `TauriLauncher`, 시험은 가짜다.
 pub trait Launcher: Send + Sync + 'static {
     /// 엔진을 띄운다. `safe_mode`면 안전 모드로 띄운다(로컬 대상에만 붙는다, `sidecar_args`).
-    fn launch(&self, target: &EngineTarget, safe_mode: bool) -> Result<Launched, LaunchError>;
+    fn launch(&self, target: &EngineTarget, safe_mode: SafeMode) -> Result<Launched, LaunchError>;
     /// 엔진 프로그램을 `args`로 한 번 돌리고 끝나기를 기다린다. 호스트 인자(`host --stdio`)는 붙이지 않는다.
     /// 호출 스레드를 막으므로 실행 루프 밖(blocking 스레드)에서만 부른다.
     fn run_once(&self, args: &[String]) -> Result<OnceOutput, LaunchError>;
@@ -458,8 +507,8 @@ struct Shared {
     target: EngineTarget,
     /// 대상을 바꿀 때마다 1씩 오른다. 실행 루프는 띄울 때의 값과 비교해 대상이 바뀌었는지 안다.
     target_epoch: u64,
-    /// 안전 모드로 띄운다. 앱을 켜 둔 동안 남고 자동 재기동에도 쓴다. 원격 대상에는 붙지 않는다(`sidecar_args`).
-    safe_mode: bool,
+    /// 안전 모드를 어떻게 띄울지. 앱을 켜 둔 동안 남고 자동 재기동에도 쓴다. 원격 대상에는 붙지 않는다(`sidecar_args`).
+    safe_mode: SafeMode,
     /// 데이터베이스 복원 중이다. 참인 동안 실행 루프는 엔진을 띄우지 않는다. 복원만 켜고 끈다.
     hold: bool,
     /// 실행 루프가 대상을 읽고 띄워 등록하기까지의 창이 열려 있다. 복원은 이 창이 닫힌 뒤에 보류를 건다.
@@ -589,7 +638,7 @@ impl<L: Launcher> Supervisor<L> {
             }
             if state.failed {
                 if let Some(on) = safe_mode {
-                    state.safe_mode = on;
+                    state.safe_mode = SafeMode::chosen(on);
                 }
                 drop(state);
                 self.inner.restart_wake.notify_one();
@@ -602,13 +651,13 @@ impl<L: Launcher> Supervisor<L> {
                 return Err(CommandError::NotConfirmed);
             }
             if let Some(on) = safe_mode {
-                state.safe_mode = on;
+                state.safe_mode = SafeMode::chosen(on);
             }
             state.target_epoch += 1;
             (state.target_epoch, live, state.safe_mode)
         };
         self.inner.log.line(&format!(
-            "restart: the live engine restarts, safe mode={safe}"
+            "restart: the live engine restarts, safe mode={safe:?}"
         ));
         self.end_for_new_epoch(epoch, Some(live));
         Ok(())
@@ -1201,11 +1250,11 @@ impl TauriLauncher {
 
     #[cfg(debug_assertions)]
     pub(crate) fn dev_override() -> Option<(OsString, Vec<OsString>)> {
-        let bin = std::env::var_os("FRESNEL_DESKTOP_ENGINE_BIN").filter(|v| !v.is_empty())?;
-        let args = std::env::var("FRESNEL_DESKTOP_ENGINE_ARGS")
-            .map(|text| text.split_whitespace().map(OsString::from).collect())
-            .unwrap_or_default();
-        Some((bin, args))
+        let bin = std::env::var_os("FRESNEL_DESKTOP_ENGINE_BIN")?;
+        parse_dev_override(
+            Some(bin),
+            std::env::var("FRESNEL_DESKTOP_ENGINE_ARGS").ok(),
+        )
     }
 
     #[cfg(not(debug_assertions))]
@@ -1279,15 +1328,14 @@ fn push_capped(buffer: &mut Vec<u8>, chunk: &[u8]) {
 }
 
 impl Launcher for TauriLauncher {
-    fn launch(&self, target: &EngineTarget, safe_mode: bool) -> Result<Launched, LaunchError> {
+    fn launch(&self, target: &EngineTarget, safe_mode: SafeMode) -> Result<Launched, LaunchError> {
         // 개발 덮어쓰기 인자(`FRESNEL_DESKTOP_ENGINE_ARGS`)는 이미 `host --stdio`로 끝나므로 그 뒤에 플래그만 붙인다.
         let command = match Self::dev_override() {
             Some((bin, args)) => self
                 .app
                 .shell()
                 .command(bin)
-                .args(args)
-                .args(engine_flags(target, safe_mode)),
+                .args(dev_override_argv(args, target, safe_mode)),
             None => self
                 .sidecar_command()?
                 .args(sidecar_args(target, safe_mode)),
@@ -1641,7 +1689,7 @@ mod tests {
         /// 띄울 때 받은 대상을 순서대로 남긴다.
         targets: Mutex<Vec<EngineTarget>>,
         /// 띄울 때 받은 안전 모드를 순서대로 남긴다.
-        safe_modes: Mutex<Vec<bool>>,
+        safe_modes: Mutex<Vec<SafeMode>>,
         killed: Mutex<Vec<u32>>,
         /// `launch`가 한 번 불리기 전에 실행한다(띄우는 사이의 대상 바꾸기를 재현한다).
         on_launch: Mutex<Option<Box<dyn FnOnce() + Send>>>,
@@ -1688,7 +1736,7 @@ mod tests {
     }
 
     impl Launcher for Arc<FakeLauncher> {
-        fn launch(&self, target: &EngineTarget, safe_mode: bool) -> Result<Launched, LaunchError> {
+        fn launch(&self, target: &EngineTarget, safe_mode: SafeMode) -> Result<Launched, LaunchError> {
             let hook = self.on_launch.lock().expect("lock").take();
             if let Some(hook) = hook {
                 hook();
@@ -2049,20 +2097,25 @@ mod tests {
     fn sidecar_args_add_safe_mode_to_a_local_engine_and_the_remote_address_to_a_remote_one() {
         assert_eq!(target_args(&EngineTarget::Local), Vec::<String>::new());
         assert_eq!(
-            sidecar_args(&EngineTarget::Local, false),
+            sidecar_args(&EngineTarget::Local, SafeMode::Default),
             ["host", "--stdio"]
         );
         assert_eq!(
-            sidecar_args(&EngineTarget::Local, true),
+            sidecar_args(&EngineTarget::Local, SafeMode::On),
             ["host", "--stdio", "--safe-mode"]
         );
+        // 끄기도 플래그다. 설정으로 켠 안전 모드를 호스트가 이번 시작에만 끈다.
         assert_eq!(
-            sidecar_args(&remote("tcp://host:1234"), false),
+            sidecar_args(&EngineTarget::Local, SafeMode::Off),
+            ["host", "--stdio", "--no-safe-mode"]
+        );
+        assert_eq!(
+            sidecar_args(&remote("tcp://host:1234"), SafeMode::Default),
             ["host", "--stdio", "--remote", "tcp://host:1234"]
         );
         // 안전 모드는 로컬 엔진에만 붙는다. 원격 대상에서 켜져 있어도 플래그는 빠진다.
         assert_eq!(
-            sidecar_args(&remote("tcp://host:1234"), true),
+            sidecar_args(&remote("tcp://host:1234"), SafeMode::On),
             ["host", "--stdio", "--remote", "tcp://host:1234"]
         );
     }
@@ -2396,7 +2449,7 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(30)).await;
         assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 1);
         assert!(rig.launcher.killed.lock().expect("lock").is_empty());
-        assert!(!shared(&rig.supervisor.inner).safe_mode);
+        assert_eq!(shared(&rig.supervisor.inner).safe_mode, SafeMode::Default);
         assert_eq!(kinds(&rig.sink), ["starting", "running"]);
     }
 
@@ -2415,7 +2468,7 @@ mod tests {
         );
         assert_eq!(
             *rig.launcher.safe_modes.lock().expect("lock"),
-            [false, true]
+            [SafeMode::Default, SafeMode::On]
         );
         assert_eq!(*rig.launcher.killed.lock().expect("lock"), [1001]);
         assert!(rig
@@ -2436,7 +2489,7 @@ mod tests {
         until("third running", || running_count(&rig.sink) == 3).await;
         assert_eq!(
             *rig.launcher.safe_modes.lock().expect("lock"),
-            [false, true, true]
+            [SafeMode::Default, SafeMode::On, SafeMode::On]
         );
         assert!(matches!(
             rig.relay.state(),
@@ -2461,7 +2514,84 @@ mod tests {
         until("running 4", || running_count(&rig.sink) == 4).await;
         assert_eq!(
             *rig.launcher.safe_modes.lock().expect("lock"),
-            [false, true, true, false]
+            [SafeMode::Default, SafeMode::On, SafeMode::On, SafeMode::Off]
+        );
+    }
+
+    /// 끄기를 고르면 다음 엔진은 `--no-safe-mode`를 받는 `Off`로 뜨고, 자동 재기동에도 그대로 남는다.
+    /// 고르지 않은 `Default`와 다르다: 설정이 켜 둔 안전 모드는 `Off`일 때만 꺼진다.
+    #[tokio::test(start_paused = true)]
+    async fn turning_safe_mode_off_is_kept_as_off_and_survives_an_automatic_restart() {
+        let rig = rig(EOF_EXIT, true, 3);
+        rig.supervisor.start();
+        until("running", || running_count(&rig.sink) == 1).await;
+        assert_eq!(rig.supervisor.restart_manually(Some(false), true), Ok(()));
+        until("running 2", || running_count(&rig.sink) == 2).await;
+        rig.launcher.handle(1).crash(1).await;
+        until("running 3", || running_count(&rig.sink) == 3).await;
+        assert_eq!(
+            *rig.launcher.safe_modes.lock().expect("lock"),
+            [SafeMode::Default, SafeMode::Off, SafeMode::Off]
+        );
+    }
+
+    /// 원격 대상에서 끄기는 받는다(엔진에 붙는 플래그는 없다). 켜기만 거절한다.
+    #[tokio::test(start_paused = true)]
+    async fn turning_safe_mode_off_is_accepted_for_a_remote_target_without_a_flag() {
+        let rig = rig(EOF_EXIT, true, 3);
+        assert_eq!(rig.supervisor.retarget(remote("tcp://host:1234")), Ok(()));
+        rig.supervisor.start();
+        until("running", || running_count(&rig.sink) == 1).await;
+        assert_eq!(rig.supervisor.restart_manually(Some(false), true), Ok(()));
+        until("running 2", || running_count(&rig.sink) == 2).await;
+        assert_eq!(
+            sidecar_args(&remote("tcp://host:1234"), SafeMode::Off),
+            ["host", "--stdio", "--remote", "tcp://host:1234"]
+        );
+    }
+
+    /// `FRESNEL_DESKTOP_ENGINE_ARGS` 경로: 값은 공백으로 나뉘고, 이미 `host --stdio`로 끝난 인자 뒤에 안전 모드 플래그와 대상 인자만 붙는다.
+    #[test]
+    fn the_dev_override_args_get_only_the_engine_flags_appended() {
+        let (bin, args) = parse_dev_override(
+            Some(OsString::from("/dev/fake-engine")),
+            Some("--inspect  host --stdio".to_string()),
+        )
+        .expect("override");
+        assert_eq!(bin, OsString::from("/dev/fake-engine"));
+        assert_eq!(args, ["--inspect", "host", "--stdio"].map(OsString::from));
+        let argv = |target: &EngineTarget, mode: SafeMode| {
+            dev_override_argv(args.clone(), target, mode)
+        };
+        assert_eq!(
+            argv(&EngineTarget::Local, SafeMode::Default),
+            ["--inspect", "host", "--stdio"].map(OsString::from)
+        );
+        assert_eq!(
+            argv(&EngineTarget::Local, SafeMode::On),
+            ["--inspect", "host", "--stdio", "--safe-mode"].map(OsString::from)
+        );
+        assert_eq!(
+            argv(&EngineTarget::Local, SafeMode::Off),
+            ["--inspect", "host", "--stdio", "--no-safe-mode"].map(OsString::from)
+        );
+        // 원격 대상에는 안전 모드 플래그가 없고 주소만 붙는다.
+        assert_eq!(
+            argv(&remote("tcp://host:1234"), SafeMode::On),
+            ["--inspect", "host", "--stdio", "--remote", "tcp://host:1234"].map(OsString::from)
+        );
+    }
+
+    #[test]
+    fn the_dev_override_needs_a_non_empty_binary_and_takes_no_args_by_default() {
+        assert_eq!(parse_dev_override(None, Some("host --stdio".to_string())), None);
+        assert_eq!(
+            parse_dev_override(Some(OsString::new()), Some("host --stdio".to_string())),
+            None
+        );
+        assert_eq!(
+            parse_dev_override(Some(OsString::from("fake")), None),
+            Some((OsString::from("fake"), Vec::new()))
         );
     }
 
@@ -2482,7 +2612,7 @@ mod tests {
         );
         tokio::time::sleep(Duration::from_secs(30)).await;
         assert_eq!(rig.launcher.launches.load(Ordering::SeqCst), 1);
-        assert!(!shared(&rig.supervisor.inner).safe_mode);
+        assert_eq!(shared(&rig.supervisor.inner).safe_mode, SafeMode::Default);
         assert_eq!(kinds(&rig.sink), ["starting", "running"]);
     }
 
@@ -2505,7 +2635,7 @@ mod tests {
         until("running again", || running_count(&rig.sink) == 2).await;
         assert_eq!(
             *rig.launcher.safe_modes.lock().expect("lock"),
-            [false, true]
+            [SafeMode::Default, SafeMode::On]
         );
         assert_eq!(
             kinds(&rig.sink),
@@ -2525,7 +2655,7 @@ mod tests {
             rig.supervisor.restart_manually(None, false),
             Err(CommandError::EngineNotRunning)
         );
-        assert!(!shared(&rig.supervisor.inner).safe_mode);
+        assert_eq!(shared(&rig.supervisor.inner).safe_mode, SafeMode::Default);
         assert!(rig.launcher.calls().is_empty());
     }
 

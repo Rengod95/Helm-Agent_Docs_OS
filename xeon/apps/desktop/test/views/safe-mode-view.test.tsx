@@ -41,13 +41,27 @@ function render(
     readonly snapshot: SafeModeSnapshot | null;
     readonly shell: boolean;
     readonly running: boolean;
+    readonly remote?: boolean;
   },
 ): string {
   const ui = createUiStore();
   return renderToString(
     <ShellRestartContext value={options.shell}>
       <SafeModeContext value={options.snapshot}>
-        <Providers engine={engineReadOf(options.running)} ui={ui.read} commands={fakeCommands()}>
+        <Providers
+          engine={engineReadOf(options.running)}
+          ui={ui.read}
+          commands={fakeCommands(
+            options.remote === true
+              ? {
+                  restore: {
+                    ...fakeCommands().restore,
+                    engineTarget: () => ({ kind: "remote", address: "tcp://host:1234" }),
+                  },
+                }
+              : {},
+          )}
+        >
           {node}
         </Providers>
       </SafeModeContext>
@@ -102,6 +116,20 @@ describe("the safe mode suggestion card", () => {
     expect(isDisabled(buttonOf(running, "그대로 다시 시작"))).toBe(false);
   });
 
+  test("a remote target gets only the restart-as-is button and a body that points to the service machine", () => {
+    const html = render(<SafeModeCard />, {
+      snapshot: SUGGEST,
+      shell: true,
+      running: true,
+      remote: true,
+    });
+    expect(html).toContain("엔진 연속 시작 실패 3회");
+    expect(html).toContain("그대로 다시 시작</button>");
+    expect(html).not.toContain("안전 모드로 시작</button>");
+    expect(html).toContain("원격 서비스는 서비스가 있는 기기에서 안전 모드로 시작해야 해요.");
+    expect(html).not.toContain("안전 모드로 시작하면 기본 에이전트만 띄워요.");
+  });
+
   test("nothing shows on the web, without a suggestion, or while in safe mode", () => {
     expect(render(<SafeModeCard />, { snapshot: SUGGEST, shell: false, running: true })).toBe("");
     expect(
@@ -130,9 +158,23 @@ describe("the safe mode chip in the status bar", () => {
     const html = render(<SafeModeChip />, { snapshot: SAFE, shell: true, running: true });
     expect(html).toContain('data-slot="safe-mode-chip"');
     expect(html).toContain("안전 모드</span>");
-    expect(html).toContain("꺼진 것: 그룹, 사용자·프로젝트 확장, X 훅. 원인: 직접 켰어요");
+    expect(html).toContain(
+      "꺼진 것: 그룹, 사용자·프로젝트 확장, X 훅. 원인: 설정에서 기본으로 켜 뒀어요",
+    );
     expect(isDisabled(buttonOf(html, "안전 모드 끄고 다시 시작"))).toBe(false);
-    expect(html).toContain("설정에서 안전 모드를 기본으로 켜 두었다면 설정을 먼저 바꿔 주세요.");
+    expect(html).toContain("설정의 기본값은 그대로라서 앱을 다시 켜면 안전 모드로 열려요.");
+  });
+
+  test("a safe mode from a launch option or startup failures has the button but not the setting note", () => {
+    for (const cause of ["flag", "startupFailures"] as const) {
+      const html = render(<SafeModeChip />, {
+        snapshot: { ...SAFE, cause },
+        shell: true,
+        running: true,
+      });
+      expect(isDisabled(buttonOf(html, "안전 모드 끄고 다시 시작"))).toBe(false);
+      expect(html).not.toContain("설정의 기본값은 그대로라서");
+    }
   });
 
   test("the turn-off button waits until the engine runs or has failed", () => {
@@ -144,7 +186,7 @@ describe("the safe mode chip in the status bar", () => {
     const html = render(<SafeModeChip />, { snapshot: SAFE, shell: false, running: true });
     expect(html).toContain('data-slot="safe-mode-chip"');
     expect(html).not.toContain("안전 모드 끄고 다시 시작");
-    expect(html).not.toContain("설정에서 안전 모드를 기본으로");
+    expect(html).not.toContain("설정의 기본값은 그대로라서");
   });
 
   test("the chip is hidden when safe mode is off, even with a suggestion", () => {

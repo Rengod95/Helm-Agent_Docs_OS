@@ -8,6 +8,7 @@ const PLACEHOLDERS: Readonly<Record<string, readonly string[]>> = {
   "desktop.safe.suggest.title": ["{count}"],
   "desktop.safe.suggest.body": [],
   "desktop.safe.suggest.info": [],
+  "desktop.safe.suggest.remote": [],
   "desktop.safe.start": [],
   "desktop.safe.retry": [],
   "desktop.safe.chip": [],

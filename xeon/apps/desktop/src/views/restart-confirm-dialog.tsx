@@ -3,12 +3,17 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { Button, Dialog, DialogAction, DialogClose, toast } from "@caustic/react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useApprovalCount, useEngineState, useRunningCount } from "../state/engine/index.ts";
 import type { RestartOptions } from "../transport/ipc.ts";
 import { useCommands } from "./commands.ts";
 import { InfoTip } from "./craft/info-tip.tsx";
-import { canRestartNowOf, restartConfirmOf } from "./restart-model.ts";
+import {
+  RESTART_HOLD_MS,
+  canRestartNowOf,
+  restartConfirmOf,
+  restartHoldOf,
+} from "./restart-model.ts";
 import { useShellRestart } from "./shell-restart-context.ts";
 
 function RestartConfirmDialog(props: {
@@ -64,7 +69,8 @@ export interface RestartChoice {
 
 /**
  * 다시 시작 단추 묶음. 멈출 턴이나 승인이 없으면 바로 다시 시작하고, 있으면 확인 대화 상자를 먼저 묻는다(기본 초점 "나중에").
- * 보내는 동안 누른 단추에 로딩을 주고 나머지는 누를 수 없다. 셸이 거절하면 실패 토스트를 띄운다.
+ * 보내는 동안 누른 단추에 로딩을 주고 나머지는 누를 수 없다. 셸이 받은 뒤에도 엔진 상태가 바뀔 때까지(`restartHoldOf`, 길어야 `RESTART_HOLD_MS`) 잠가
+ * 호출이 돌아온 뒤 엔진이 재시작 중으로 보이기 전의 틈에 두 번 누르지 못하게 한다. 셸이 거절하면 실패 토스트를 띄운다.
  * `allowed`가 거짓이면 단추는 보이지만 누를 수 없다(엔진이 다시 띄울 상태가 아닐 때).
  */
 export function RestartButtons(props: {
@@ -75,14 +81,33 @@ export function RestartButtons(props: {
   const commands = useCommands();
   const turns = useRunningCount();
   const approvals = useApprovalCount();
+  const kind = useEngineState()?.kind ?? null;
   const [sending, setSending] = useState<string | null>(null);
+  const [held, setHeld] = useState<{
+    readonly id: string;
+    readonly from: typeof kind;
+  } | null>(null);
   const [asking, setAsking] = useState<RestartChoice | null>(null);
+  // 엔진 상태가 누른 때와 달라졌으면 잠금을 푼다(렌더 중 상태 조정). 호출이 돌아오기 전에 이미 바뀌었어도 같은 길로 풀린다.
+  if (held !== null && !restartHoldOf(held.from, kind)) setHeld(null);
+  useEffect(() => {
+    if (held === null) return undefined;
+    const timer = setTimeout(() => {
+      setHeld(null);
+    }, RESTART_HOLD_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [held]);
   const run = async (choice: RestartChoice): Promise<void> => {
+    const from = kind;
     setSending(choice.id);
     const restarted = await commands.restartEngine(choice.options);
     setSending(null);
     if (!restarted) toast({ tone: "danger", title: t("desktop.restart.failed") });
+    else setHeld({ id: choice.id, from });
   };
+  const busy = sending !== null || held !== null;
   const start = (choice: RestartChoice): void => {
     if (restartConfirmOf(turns, approvals).needed) setAsking(choice);
     else detach(run(choice), rethrow);
@@ -94,8 +119,8 @@ export function RestartButtons(props: {
           key={choice.id}
           size={props.size}
           variant={choice.variant}
-          loading={sending === choice.id}
-          disabled={!props.allowed || sending !== null}
+          loading={sending === choice.id || held?.id === choice.id}
+          disabled={!props.allowed || busy}
           onClick={() => {
             start(choice);
           }}

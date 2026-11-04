@@ -20,6 +20,20 @@ export function canRestartNowOf(
   return shellRestart && engine === "running";
 }
 
+/** 재시작 호출이 돌아온 뒤 엔진 상태가 바뀌기를 기다리는 가장 긴 시간(밀리초). 이 안에 안 바뀌면 단추를 다시 푼다 */
+export const RESTART_HOLD_MS = 15_000;
+
+/**
+ * 재시작 호출이 돌아온 뒤에도 단추를 잠가 둘지. 호출은 셸이 재시작을 받았다는 뜻이고, 엔진이 재시작 중으로 보이는 것은 그 뒤다.
+ * 그 틈에 한 번 더 누르면 두 번 다시 시작하므로, 누른 때의 엔진 상태(`from`)에서 벗어날 때까지 잠근다.
+ */
+export function restartHoldOf(
+  from: EngineState["kind"] | null,
+  now: EngineState["kind"] | null,
+): boolean {
+  return from === now;
+}
+
 type ConfirmLineId = "desktop.restart.confirm.turns" | "desktop.restart.confirm.approvals";
 export type ConfirmLine = { readonly id: ConfirmLineId; readonly count: number };
 

@@ -6,7 +6,12 @@ import { useEngineState } from "../state/engine/index.ts";
 import { InfoTip } from "./craft/info-tip.tsx";
 import { RestartButtons, type RestartChoice } from "./restart-confirm-dialog.tsx";
 import { useSafeMode } from "./safe-mode-context.ts";
-import { canSwitchSafeModeOf, safeModeSurfaceOf, safeModeTipOf } from "./safe-mode-model.ts";
+import {
+  canSwitchSafeModeOf,
+  safeModeExitNoteOf,
+  safeModeSurfaceOf,
+  safeModeTipOf,
+} from "./safe-mode-model.ts";
 import { useShellRestart } from "./shell-restart-context.ts";
 
 const EXIT: RestartChoice = {
@@ -34,8 +39,8 @@ export function SafeModeChip(): ReactNode {
             size="xs"
             allowed={canSwitchSafeModeOf(engine?.kind ?? null)}
           />
-          {/* 설정에서 안전 모드를 기본으로 켜 두었으면 다시 시작해도 꺼지지 않는다. 그 안내를 정보 아이콘 뒤에 둔다 */}
-          <InfoTip text={t("desktop.safe.exit.info")} />
+          {/* 설정으로 켠 안전 모드는 다시 시작이 이번 실행에서만 끈다(`--no-safe-mode`). 설정 값은 그대로라는 안내를 정보 아이콘 뒤에 둔다 */}
+          {safeModeExitNoteOf(snapshot) ? <InfoTip text={t("desktop.safe.exit.info")} /> : null}
         </>
       ) : null}
     </>
