@@ -1,8 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import { reduceSettings, settingsViewOf, type SettingsView } from "@fresnel/client/settings";
+import {
+  initialSettingsState,
+  reduceSettings,
+  settingsViewOf,
+  type SettingsView,
+} from "@fresnel/client/settings";
+import { toSettingDefWire } from "@fresnel/contracts/settings";
 import { thr } from "../state/helpers.ts";
 import { renderToString } from "react-dom/server";
+import { DESKTOP_SETTING_DEFS } from "../../src/settings-store/defs.ts";
 import {
   SettingsPageView,
   type SettingsPageHandlers,
@@ -33,6 +40,7 @@ const handlers: SettingsPageHandlers = {
   promptSave: NOOP,
   promptDiscard: NOOP,
   promptStay: NOOP,
+  openFile: NOOP,
 };
 
 const MODEL = defOf(
@@ -75,8 +83,12 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     restartError: null,
     prompt: null,
     secretsPanel: <p>SECRETS PANEL</p>,
+    fileEditor: null,
+    fileOpen: false,
     editors: {},
     toolsPanel: <p>TOOLS PANEL</p>,
+    rotationPanel: null,
+    usagePanel: null,
     handlers,
     ...over,
   };
@@ -288,5 +300,92 @@ describe("widget controls", () => {
     const moved = reduceSettings(edited, { type: "invalidated", keys: [ALLOW.key] });
     const noticed = html(propsOf({ view: settingsViewOf(moved), tab: "models", hasThread: true }));
     expect(noticed).toContain(t("desktop.settings.field.remoteChanged"));
+  });
+});
+
+/** 글이 그 문장 하나인 단추의 태그 묶음. 없으면 빈 글이다 */
+function buttonOf(out: string, label: string): string {
+  const buttons = out.match(/<button[\s\S]*?<\/button>/g) ?? [];
+  return buttons.find((button) => button.includes(`>${label}<`)) ?? "";
+}
+
+describe("file editor entry", () => {
+  const label = t("desktop.settings.file.open.button");
+
+  test("a field tab offers the view-as-file button in its header", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    expect(buttonOf(html(propsOf({ view, tab: "models" })), label)).not.toBe("");
+  });
+
+  test("the button is locked offline and while the editor is already open", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    expect(buttonOf(html(propsOf({ view, tab: "models" })), label)).not.toContain('disabled=""');
+    expect(buttonOf(html(propsOf({ view, tab: "models", readOnly: true })), label)).toContain(
+      'disabled=""',
+    );
+    expect(buttonOf(html(propsOf({ view, tab: "models", fileOpen: true })), label)).toContain(
+      'disabled=""',
+    );
+  });
+
+  test("the secrets tab and a search result have no button of their own", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    expect(html(propsOf({ view, tab: "secrets" }))).not.toContain(label);
+    expect(html(propsOf({ view, query: "기본" }))).not.toContain(label);
+  });
+
+  test("an open editor is drawn above the field list", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    const out = html(propsOf({ view, tab: "models", fileEditor: <p>FILE EDITOR</p> }));
+    expect(out.indexOf("FILE EDITOR")).toBeGreaterThan(-1);
+    expect(out.indexOf("FILE EDITOR")).toBeLessThan(out.indexOf('data-slot="settings-field"'));
+  });
+});
+
+/** 항목 하나의 HTML 조각. 줄마다 `data-slot="settings-field"`로 시작하므로 다음 줄 전까지다 */
+function rowOf(out: string, key: string): string {
+  const start = out.indexOf(`data-key="${key}"`);
+  if (start < 0) return "";
+  const next = out.indexOf('data-slot="settings-field"', start + 1);
+  return out.slice(start, next < 0 ? undefined : next);
+}
+
+describe("offline with desktop settings (L4.settings-ui §4.1.3)", () => {
+  // 엔진은 없고, 엔진 모델 항목은 마지막으로 읽은 값이 있다. 데스크톱 항목은 엔진 없이 바꿀 수 있다
+  const CLOSE_KEY = "l4.desktop.window.closeBehavior";
+  const desktopDefs = DESKTOP_SETTING_DEFS.map(toSettingDefWire);
+  const offlineView = (): SettingsView => {
+    let state = reduceSettings(initialSettingsState, {
+      type: "catalogLoaded",
+      origin: "engine",
+      defs: [MODEL],
+    });
+    state = reduceSettings(state, { type: "catalogLoaded", origin: "desktop", defs: desktopDefs });
+    state = reduceSettings(state, { type: "engineStateChanged", offline: true });
+    state = reduceSettings(state, {
+      type: "valuesLoaded",
+      settings: [
+        settingOf(MODEL.key, "sonnet"),
+        settingOf(CLOSE_KEY, "quit", { source: { scope: "default" } }),
+      ],
+    });
+    return settingsViewOf(state);
+  };
+
+  test("an appearance field stays editable offline, and the engine field is read-only with the sentence", () => {
+    const view = offlineView();
+    const label = fieldIn(view, CLOSE_KEY)?.label ?? "";
+    expect(label).toBe("창 닫기 동작");
+
+    const appearance = html(propsOf({ view, tab: "appearance", readOnly: true }));
+    expect(appearance).toContain(t("desktop.settings.offline"));
+    expect(rowOf(appearance, CLOSE_KEY)).toContain(label);
+    expect(rowOf(appearance, CLOSE_KEY)).not.toContain('disabled=""');
+    expect(rowOf(appearance, CLOSE_KEY)).not.toContain(t("client.settings.origin.engineOffline"));
+
+    const models = html(propsOf({ view, tab: "models", readOnly: true }));
+    expect(rowOf(models, MODEL.key)).toContain(MODEL.ui?.label ?? "");
+    expect(rowOf(models, MODEL.key)).toContain('disabled=""');
+    expect(rowOf(models, MODEL.key)).toContain(t("client.settings.origin.engineOffline"));
   });
 });

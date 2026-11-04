@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ProviderEntry, SetupSnapshot } from "@fresnel/client/settings";
-import { toolsWebViewOf } from "@fresnel/client";
+import { toolsWebViewOf, type WebRecommendation } from "@fresnel/client";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
 import type {
@@ -10,12 +10,17 @@ import type {
 } from "@fresnel/contracts/wire";
 import type { GroupsSnapshot, SearchSnapshot } from "../../src/views/commands.ts";
 import {
+  firstRunAutoOpenDue,
   firstRunModelOf,
   groupOnOf,
   groupRowsOf,
   keyViewOf,
+  primaryActionOf,
+  recommendSecretOf,
+  showsInstallHelp,
   STEP_ORDER,
   stepIdAt,
+  type PrimaryInput,
   unknownStepsOf,
 } from "../../src/views/pages/first-run/first-run-model.ts";
 
@@ -282,3 +287,82 @@ describe("first-run key and step helpers", () => {
     ]);
   });
 });
+
+describe("first-run ⌘Enter", () => {
+  /** 잠기지 않았고 설정을 읽었고 할 일이 다 있는 상태. 시험마다 한 칸씩 바꾼다 */
+  const READY: PrimaryInput = {
+    step: "tools",
+    locked: false,
+    ready: true,
+    keyFormOpen: false,
+    secretKnown: true,
+    modelReady: true,
+    searchPending: true,
+  };
+
+  test("each step's primary action is the one its button does: recheck, register, save key, save model, dismiss", () => {
+    expect(primaryActionOf({ ...READY, step: "tools" })).toBe("recheck");
+    expect(primaryActionOf({ ...READY, step: "key" })).toBe("register");
+    expect(primaryActionOf({ ...READY, step: "model" })).toBe("saveModel");
+    expect(primaryActionOf({ ...READY, step: "search" })).toBe("dismissSearch");
+  });
+
+  test("an open key form takes ⌘Enter as save key, in the key step and in the search step", () => {
+    expect(primaryActionOf({ ...READY, step: "key", keyFormOpen: true })).toBe("submitKey");
+    expect(primaryActionOf({ ...READY, step: "search", keyFormOpen: true })).toBe("submitKey");
+  });
+
+  test("the default groups step has no primary action", () => {
+    expect(primaryActionOf({ ...READY, step: "groups" })).toBeNull();
+  });
+
+  test("a locked screen, an unread screen, or a key without a secret name does nothing", () => {
+    expect(primaryActionOf({ ...READY, locked: true })).toBeNull();
+    expect(primaryActionOf({ ...READY, ready: false })).toBeNull();
+    expect(primaryActionOf({ ...READY, step: "key", secretKnown: false })).toBeNull();
+  });
+
+  test("the model step saves only when its input is valid and the step is not locked", () => {
+    expect(primaryActionOf({ ...READY, step: "model", modelReady: false })).toBeNull();
+  });
+
+  test("the search step dismisses only while later is still pending", () => {
+    expect(primaryActionOf({ ...READY, step: "search", searchPending: false })).toBeNull();
+  });
+});
+
+describe("first-run recommendations", () => {
+  test("a recommended plugin's secret name reads as a secret name, and a name that breaks the rule has none", () => {
+    expect(recommendSecretOf(recommendation("exa-api-key"))).toEqual(nameOf("exa-api-key"));
+    expect(recommendSecretOf(recommendation("Exa Key"))).toBeNull();
+  });
+
+  test("the install help link shows for a plugin that is not installed or has no key, and not for a ready or unavailable one", () => {
+    expect(showsInstallHelp("not-installed")).toBe(true);
+    expect(showsInstallHelp("needs-key")).toBe(true);
+    expect(showsInstallHelp("ready")).toBe(false);
+    expect(showsInstallHelp("unavailable")).toBe(false);
+  });
+});
+
+describe("first-run auto open", () => {
+  test("the screen opens once when the setup is needed, and not again after the user left it", () => {
+    expect(firstRunAutoOpenDue({ needed: true, openedThisRun: false })).toBe(true);
+    expect(firstRunAutoOpenDue({ needed: true, openedThisRun: true })).toBe(false);
+  });
+
+  test("a ready setup does not open the screen, and neither does one not read yet (the hook reports it as not needed)", () => {
+    expect(firstRunAutoOpenDue({ needed: false, openedThisRun: false })).toBe(false);
+  });
+});
+
+/** 권장 플러그인 한 행. 상태만 시험에 필요하다 */
+function recommendation(secretName: string): WebRecommendation {
+  return {
+    label: "Exa",
+    providerId: "plugin:web-exa",
+    secretName,
+    state: "needs-key",
+    hint: "",
+  };
+}

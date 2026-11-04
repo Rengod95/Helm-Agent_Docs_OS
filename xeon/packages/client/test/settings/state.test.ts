@@ -64,6 +64,7 @@ function settingOf(def: SettingDefWire, value: unknown): EffectiveSetting {
 function loaded(...defs: readonly SettingDefWire[]): SettingsState {
   const withDefs = reduceSettings(initialSettingsState, {
     type: "catalogLoaded",
+    origin: "engine",
     defs,
   });
   return reduceSettings(withDefs, {
@@ -100,6 +101,7 @@ describe("loading", () => {
     });
     const state = reduceSettings(initialSettingsState, {
       type: "catalogLoaded",
+      origin: "engine",
       defs: [budgetDef, second],
     });
     expect(state.defs.get(BUDGET)).toEqual(budgetDef);

@@ -39,7 +39,7 @@ const KeybindingsSchema: TRecord<string, TString> = Type.Record(
 );
 
 /** 로컬 설정 키 하나: 이름과 값 스키마. 값의 타입은 스키마에서 나온다 */
-interface LocalKey<S extends TSchema> {
+export interface LocalKey<S extends TSchema> {
   readonly key: string;
   readonly schema: S;
 }
@@ -66,6 +66,12 @@ export const LOCAL: {
   readonly connectionTargets: LocalKey<TArray<TUnknown>>;
   /** 엔진 정상 종료 대기(ms). 셸이 같은 파일에서 읽는 키다. 대상을 바꾸는 동안의 쓰기 보류 한도를 정한다 */
   readonly shutdownGraceMs: LocalKey<TInteger>;
+  /** 창 닫기 동작. 설정 화면이 바꾸고 셸이 같은 파일에서 읽는다(`defs.ts`) */
+  readonly closeBehavior: LocalKey<TUnion<[TLiteral<"quit">, TLiteral<"tray">]>>;
+  /** 엔진 자동 재기동 횟수. 설정 화면이 바꾸고 셸이 같은 파일에서 읽는다(`defs.ts`) */
+  readonly restartLimit: LocalKey<TInteger>;
+  /** 명령 팔레트(S-02)의 명령별 실행 횟수. 키는 명령 id다. 값의 상한은 `palette-model.ts`의 `PALETTE_USE_MAX`와 같다 */
+  readonly paletteUses: LocalKey<TRecord<string, TInteger>>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -83,6 +89,18 @@ export const LOCAL: {
   shutdownGraceMs: localKey(
     "l4.desktop.engine.shutdownGraceMs",
     Type.Integer({ minimum: 1000, maximum: 180000 }),
+  ),
+  closeBehavior: localKey(
+    "l4.desktop.window.closeBehavior",
+    Type.Union([Type.Literal("quit"), Type.Literal("tray")]),
+  ),
+  restartLimit: localKey(
+    "l4.desktop.engine.restartLimit",
+    Type.Integer({ minimum: 0, maximum: 10 }),
+  ),
+  paletteUses: localKey(
+    "l4.desktop.window.paletteUses",
+    Type.Record(Type.String(), Type.Integer({ minimum: 0, maximum: 1_000_000 })),
   ),
 };
 

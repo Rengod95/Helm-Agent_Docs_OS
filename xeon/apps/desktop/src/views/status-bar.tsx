@@ -83,6 +83,16 @@ function StatusCells(): ReactNode {
   ));
 }
 
+/** 엔진 한 줄: 상태와, 실행 중이면 어디서 도는지. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다 */
+export function engineLineOf(engine: EngineState | null | undefined): string {
+  return `${t(engineTextOf(engine))}${engine?.kind === "running" ? ` (${t(SOURCE_TEXT[engine.source])})` : ""}`;
+}
+
+/** 연결 상태의 글. 상태 표시줄과 첫 실행 바닥글이 같이 쓴다 */
+export function linkTextOf(phase: Link["phase"]): MessageId {
+  return LINK_TEXT[phase];
+}
+
 export function StatusBar(): ReactNode {
   const commands = useCommands();
   const engine = useEngineState();
@@ -96,10 +106,7 @@ export function StatusBar(): ReactNode {
   };
   return (
     <footer className="statusbar" role="status">
-      <span>
-        {t(engineTextOf(engine))}
-        {engine?.kind === "running" ? ` (${t(SOURCE_TEXT[engine.source])})` : ""}
-      </span>
+      <span>{engineLineOf(engine)}</span>
       <span>
         {t(LINK_TEXT[banner.phase])}
         {banner.attempt > 0

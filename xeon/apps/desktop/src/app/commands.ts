@@ -27,11 +27,12 @@ import { createWorkCommands } from "./work.ts";
 import { createReviewCommands } from "./review.ts";
 import { createSetupCommands } from "./setup.ts";
 import { createMeasureCommands } from "./measure-commands.ts";
+import { createUsageCommands } from "./usage.ts";
 import { createTestCommands } from "./tests-commands.ts";
 import { createWorkbenchCommands, subscribeExtChanges } from "./workbench-commands.ts";
 import type { Session } from "./session.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
-import type { LocalSettings } from "../settings-store/index.ts";
+import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { EngineSwitch } from "./engine-switch.ts";
 
 export type CommandDeps = {
@@ -188,6 +189,16 @@ export function createCommands(deps: CommandDeps): Commands {
       const done = await withWriteConnection((c) => c.request("turn.interrupt", { threadId }));
       return done.ok ? ok(null) : done;
     },
+    compactThread: (threadId) =>
+      withWriteConnection((c) => c.request("thread.compact", { threadId })),
+    resumeTurn: (threadId) => withWriteConnection((c) => c.request("turn.resume", { threadId })),
+    runCommandLine: (threadId, text) =>
+      withWriteConnection((c) => c.request("command.run", { threadId, text })),
+    paletteUses: () => deps.local.get(LOCAL.paletteUses) ?? {},
+    async savePaletteUses(uses) {
+      const written = await deps.local.set(LOCAL.paletteUses, uses);
+      return written.ok;
+    },
     async respondApproval(approvalId: EventId, response: ApprovalDecision) {
       if (deps.engineSwitch.held()) {
         ui.actions.approvalFailed(approvalId, "switching");
@@ -247,11 +258,12 @@ export function createCommands(deps: CommandDeps): Commands {
       run: withConnection,
     }),
     secrets: createSecretCommands({ session, ipc: deps.ipc, clipboard: deps.clipboard }),
-    settings: createSettingsCommands({ session, ui }),
+    settings: createSettingsCommands({ session, ui, local: deps.local }),
     web: createWebCommands(withConnection),
     proposals: createProposalCommands(withConnection, withWriteConnection),
     work: createWorkCommands(withConnection, withWriteConnection),
     review: createReviewCommands(withConnection),
+    usage: createUsageCommands(withConnection),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),

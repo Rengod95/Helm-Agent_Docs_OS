@@ -10,7 +10,11 @@ import type {
   TurnId,
 } from "@fresnel/contracts/conversation";
 import type { TransitionEntry } from "@fresnel/client/workbench";
-import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
+import type {
+  ApprovalRequestedPayload,
+  ReviewAppliedPayload,
+  ReviewSubmittedPayload,
+} from "@fresnel/contracts/records";
 import type { StoreId, SubId, ThreadSummary } from "@fresnel/contracts/wire";
 import type { EngineState } from "../../transport/ipc.ts";
 
@@ -110,6 +114,21 @@ type Approvals = {
   readonly byId: Readonly<Record<string, PendingApproval>>;
 };
 
+/** 변경 검토 한 리뷰의 가장 최근 라운드 결과. `review_applied`(되돌림 결과)와 `review_submitted`(에이전트 전달)를 한 줄로 모은다 */
+export type ReviewResult = {
+  readonly reviewId: string;
+  readonly round: number;
+  /** `review_applied`의 결과. 되돌릴 것이 없었으면 이벤트가 없어서 null이다 */
+  readonly outcomes: ReviewAppliedPayload["outcomes"] | null;
+  /** `review_submitted`가 왔는지. 제출 결과 표는 이 값이 참일 때만 그린다 */
+  readonly submitted: boolean;
+  /** 에이전트 입력 전달. 전달할 결정·의견이 없었으면 null */
+  readonly delivery: ReviewSubmittedPayload["delivery"];
+};
+
+/** 결과 기록 상한(리뷰 수). 넘으면 가장 오래된 리뷰부터 버린다 */
+export const REVIEW_RESULT_CAP = 64;
+
 /** 확장 핸들러 실패 기록 한 건(`scope.handler_failed`). owner는 "ext:<이름>" 또는 "hook:<이름>"이다 */
 export type HandlerFailureRecord = {
   readonly owner: string;
@@ -151,6 +170,8 @@ export type EngineMirror = {
    * 거울을 head부터 다시 맞추면 비운다(실패 기록과 같다)
    */
   readonly transitions: readonly TransitionRecord[];
+  /** 변경 검토 결과(리뷰마다 가장 최근 라운드 하나). 받은 순서대로 가장 새 것이 뒤에 오고 `REVIEW_RESULT_CAP`개까지 둔다 */
+  readonly reviewResults: readonly ReviewResult[];
 };
 
 export const EMPTY_STREAMING: Streaming = {
@@ -174,4 +195,5 @@ export const INITIAL_MIRROR: EngineMirror = {
   recentTurnIds: {},
   handlerFailures: [],
   transitions: [],
+  reviewResults: [],
 };

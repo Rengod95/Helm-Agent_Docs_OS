@@ -493,6 +493,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 - ⌘K로 엽니다. `Dialog placement="center"` 안에 `Combobox mode="inline"`을 둡니다 `[gap:C-01]`.
 - 결과 묶음 순서: 최근 대화, 명령(앱 동작), 플러그인 명령(`command` 배치, 열린 대화가 있을 때만), 슬래시 명령(`command.list`), 설정 항목(키와 라벨), 화면 이동.
 - 앱 동작 목록: 새 대화, 대화 이름 바꾸기, 대화 분기, 대화 컴팩션, 중단, 이어서 실행, 탐구 시작·멈춤, 목표 걸기·해제, 받은 요청 열기, 설정 열기, 원격 대상 바꾸기, 엔진 재시작, 진단 복사, 테마 바꾸기.
+- 구현 상태: 대화 이름 바꾸기, 목표 걸기, 테마 바꾸기는 아직 없습니다(§6.2 구현 노트). 나머지 동작은 같은 일을 하는 wire나 `command.run` 줄로 보냅니다.
 - 행은 아이콘, 라벨, 보조 설명, 바로 가기 키(`Kbd`)를 보입니다. Enter로 실행하고 Esc로 닫습니다. 닫으면 연 곳으로 초점이 돌아갑니다.
 - 데이터: 대화는 거울의 `thread.list` 결과, 슬래시 명령은 `command.list { threadId }` → `commandListView`, 설정은 `settings.list` → `buildSettingsView`의 필드 라벨입니다. 팔레트 항목 모델은 없습니다 `[gap:V-01]`.
 
@@ -834,13 +835,14 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 
 #### 구현 노트 (트랙 chat3)
 
-- 묶음 순서는 대화, 명령, 플러그인, 슬래시 명령, 설정이다(`views/palette/palette-model.ts`의 `visibleGroupsOf`, §4.5의 화면 이동 묶음은 아직 없다). 묶음은 `views/palette/palette.tsx`의 `PaletteBody`가 그린다.
-- 묶음마다 찾는 글에 맞는 항목을 앞에서 다섯 개 보이고, 나머지는 "더 보기" 한 행 뒤에 둔다(`groupCellsOf`). 찾는 글은 라벨과 설명에서 찾는다. 빈 입력의 "자주 쓴 동작 5개"는 아직 쓰는 횟수를 세지 않아 명령 목록의 앞 다섯 개다 `[미결]`.
-- 상태: 빈 입력은 묶음을 그대로 보인다. 맞는 항목이 없으면 "맞는 항목이 없어요"다. 슬래시 명령과 설정 항목은 읽는 중과 읽기 실패를 그 묶음의 상태 칸으로만 보인다. 오프라인(엔진에 연결되지 않음)이면 앱 동작만 보이고 안내 한 줄을 둔다.
+- 묶음 순서는 대화, 명령, 플러그인, 슬래시 명령, 설정, 화면 이동이다(`views/palette/palette-model.ts`의 `visibleGroupsOf`). 화면 이동 행은 `screenTargetsOf`가 내비 표(`views/shell/nav.ts`)에서 만든다. 현재 영역의 화면이 먼저 오고 다른 영역의 화면이 뒤에 온다. 묶음은 `views/palette/palette.tsx`의 `PaletteBody`가 그린다.
+- 묶음마다 찾는 글에 맞는 항목을 앞에서 다섯 개 보이고, 나머지는 "더 보기" 한 행 뒤에 둔다(`groupCellsOf`). 찾는 글은 라벨과 설명에서 찾는다. 빈 입력의 "자주 쓴 동작 5개"는 명령 실행 횟수가 많은 순서의 앞 다섯 개다(`availableCommands`). 횟수는 명령 id마다 셈해 로컬 설정 `l4.desktop.window.paletteUses`에 둔다. 셈은 `App`의 `runCommand`가 하므로 팔레트 밖의 바로 가기로 실행한 것도 든다. 횟수가 같으면 표 순서이고, 표에 없는 id는 셈하지 않는다. 정렬은 최근 사용 순이 아니라 횟수 순이다(실행 시각은 기록하지 않는다).
+- 상태: 빈 입력은 묶음을 그대로 보인다. 맞는 항목이 없으면 "맞는 항목이 없어요"다. 슬래시 명령과 설정 항목은 읽는 중과 읽기 실패를 그 묶음의 상태 칸으로만 보인다. 오프라인(엔진에 연결되지 않음)이면 앱 동작과 화면 이동만 보이고 안내 한 줄을 둔다.
 - 슬래시 명령: 입력창이 있는 대화가 열려 있을 때만 묶음이 보인다. 팔레트를 열 때 `command.list { threadId }`를 읽는다(`commands.commandList`). 고르면 입력창에 `/이름 `을 채운다. 입력창에 쓴 글이 있으면 그 글을 지우지 않고 초점만 준다. 실행은 입력창에서 Enter로 보낼 때 한다.
 - 설정 항목: 탭 열세 개(고정 표)와 항목을 팔레트를 열 때 설정 목록으로 읽는다. 설정 화면의 컨트롤러를 잠깐 빌려 읽고 바로 놓는다. 고르면 설정 화면을 열고(`UiState.settingsJump`) 그 탭으로 옮기며 찾기 글을 비운 뒤 항목 자리로 스크롤한다. 항목을 강조하지는 않는다 `[미결]`. 초안이 있으면 §6.13의 묻는 대화 상자가 먼저 뜬다.
 - 요청 전달: 입력창과 설정 화면은 `UiState`의 `composerRequest`와 `settingsJump`를 받아 쓰고 바로 지운다(`views/commands.ts`의 `requestComposer`, `requestSettingsJump`). 팔레트는 입력창과 설정 화면의 상태를 직접 쓰지 않고 요청만 남긴다.
-- 아직 없는 것: 최근 사용 순 정렬, 화면 이동 묶음, 설정 항목 강조, §4.5의 나머지 앱 동작(대화 이름 바꾸기, 분기, 컴팩션, 이어서 실행, 탐구, 목표, 원격 대상 바꾸기, 테마)이다.
+- 앱 동작 실행: 대화 분기, 대화 압축(§4.5의 대화 컴팩션), 이어서 실행은 열린 대화로 `thread.fork`, `thread.compact`, `turn.resume`을 보낸다. 탐구 시작과 멈춤은 `command.run`에 `/helm start`, `/helm stop` 줄을 보내고, 목표 해제는 `/goal clear` 줄을 보낸다. 원격 대상 바꾸기는 연결 화면(P-08)을 연다. 결과가 오류이거나 명령 줄이 `done`으로 적용되지 않았으면 오류 토스트를 띄운다. 성공은 화면이 바뀐 것으로 보인다.
+- 아직 없는 것: 대화 이름 바꾸기(글을 받을 대화 상자가 없다), 목표 걸기(목표 글을 받는 자리가 작업 탭의 초안 칸뿐이다), 테마 바꾸기(데스크톱에 테마 설정 키가 없다), 설정 항목 강조다.
 
 ### 6.3 S-03 상태 표시줄
 
@@ -929,7 +931,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 ```
 
 - 목적: 첫 메시지를 보낼 수 있는 상태로 만듭니다(SC-01). 설정이 덜 됐으면 언제든 다시 열 수 있습니다.
-- 진입: 첫 실행에서 `readyToChat`이 거짓이면 무대에 자동으로 엽니다. 이후에는 "설정 필요" 띠의 "설정 열기"와 팔레트 "시작하기"입니다.
+- 진입: 첫 실행에서 `readyToChat`이 거짓이면 무대에 자동으로 엽니다. 자동 열기는 앱 실행마다 한 번이라서, 사용자가 다른 화면에 갔다가 돌아와도 다시 열지 않습니다(`firstRunAutoOpenDue`, `app.tsx`). 이후에는 "설정 필요" 띠의 "설정 열기"와 팔레트 "시작하기"(`firstRun.open`)입니다.
 
 | 항목 | 출처 |
 |---|---|
@@ -939,6 +941,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 시크릿 이름과 등록 여부 | `providerSecretName(id)`, `secret.list {}` → `SecretRow` |
 | 기본 모델 | `settings.get { keys: ["l1.models.default", "l1.models.providers"] }`, `defaultModelOf`, `checkModelRef` |
 | 검색 권장 | `web.providers {}` → `toolsWebViewOf` → `FirstRunSearch` |
+| 바닥글 | 앱 버전(`package.json`의 version), 엔진 한 줄과 연결 상태(`useEngineState`, `useLinkPhase`, 상태 표시줄과 같은 문장 `engineLineOf`, `linkTextOf`) |
 
 | 기능 | wire 또는 view-model |
 |---|---|
@@ -947,6 +950,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | provider에 연결 | `settings.set { key: "l1.models.providers", value: withProviderKey(...), scope: "user" }` |
 | 기본 모델 저장 | `settings.set { key: "l1.models.default", value, scope: "user" }`. 거절(3102)은 host 문장 그대로 |
 | 권장 플러그인 설치 | `[gap:W-15]` 플러그인 설치 wire가 없습니다. M4는 "설치 방법 보기" 링크로 둡니다 [제안]. CLI 명령 복사는 두지 않습니다(CLI 표면 없음, 2026-11-01) |
+| 플러그인 키 등록 | 키가 없는 권장 플러그인 행의 "키 등록"은 그 행의 시크릿 이름(`secretName`)으로 `secret.beginEntry`를 보내고, 저장은 `submitKey`입니다. 제공자에 잇지 않고 `web.providers`를 다시 읽습니다 |
 | 나중에 | `l4.desktop.firstRun.searchHintDismissed = true` (데스크톱 로컬 설정 `[gap:V-14]`) |
 | 대화 시작 | O-07 새 대화 |
 
@@ -958,13 +962,13 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
   - 권한 필요: 키체인 잠김 등 SOPS 실패는 `rejected` detail을 보입니다. 터미널 명령 안내는 두지 않습니다(CLI 표면 없음, 2026-11-01).
   - 긴 내용: 도구 표가 8행을 넘으면 필수만 펼치고 선택은 접습니다.
 - 상호작용: 단계는 순서대로 열리지만 끝난 단계도 다시 열 수 있습니다(`Stepper variant="checklist"`). 키 값 입력란은 제어하지 않는 password 입력이고 React 상태에 값이 없습니다(`L4.desktop.spec` §4.14.1). 키 단계가 끝나면 모델 단계가 자동으로 펼쳐집니다.
-- 바로 가기 키: ⌘Enter 현재 단계 주 동작.
+- 바로 가기 키: ⌘Enter는 현재 단계의 주 동작입니다. 도구 단계는 "다시 확인", 키 단계는 키 값 칸이 열려 있으면 저장, 아니면 등록, 기본 모델 단계는 저장, 검색 단계는 키 값 칸이 열려 있으면 저장, 아니면 "나중에"입니다(`primaryActionOf`). 잠겨 있거나 설정을 못 읽었거나 입력이 맞지 않으면 아무 일도 없습니다. 한글 조합 중 Enter는 무시합니다. 수식 키는 ⌘ 또는 Ctrl을 받습니다(`metaKey || ctrlKey`, 시크릿과 일정 화면과 같은 방식). 그래서 맥에서 Ctrl+Enter도 같은 일을 합니다.
 - 접근성: 단계 목록은 `aria-current="step"`, 완료는 문장 "완료됨"을 함께 읽습니다. 키 입력란 `autocomplete="off"`, 라벨 "키 값".
 - caustic: `Stepper`(checklist), `Card`, `FormLayout`, `Field`, `Input`, `Combobox mode="popup"`(provider, 모델), `Table`(도구), `Badge`, `Button`, `Alert`, `ChoiceGroup`(권장 provider 카드), `Progress`.
 
 - 기본 그룹 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 그룹" 단계를 둡니다. Helm과 학습 그룹은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm과 학습 그룹의 `Switch`와 한 줄 설명을 보이고 기본값은 둘 다 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1. 학습 그룹 `defaultEnabled: true`, `L3.learning.spec` §3.1 [결정: review.m3-design-inputs D-M3-02]). 값은 `ext.helm.enabled`, `ext.learning.enabled` 사용자 범위입니다. `fresnel group new` 안내는 두지 않고 "LightCraft에서 더 보기" 링크 하나만 둡니다(새 그룹은 LightCraft 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 그룹이 실리지 않았어요" 한 줄을 둡니다.
 
-- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "설정 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결]. (2) 검색 권장의 "설치"와 "키 등록"과 "설치 방법 보기"는 아직 없고 상태 문장과 "나중에"만 둡니다(`[gap:W-15]`). (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. (4) 첫 실행 자동 열기, ⌘Enter, 하단 앱 버전 줄은 아직 없습니다.
+- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "설정 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결]. (2) 검색 권장에는 "설치" 단추가 없고(`[gap:W-15]`), "설치 방법 보기" 링크가 설치 안 됨이나 키 없음 행에 있습니다. 링크는 설치를 이 화면에서 할 수 없다는 한 줄을 펼칩니다. 키 없는 플러그인의 "키 등록"은 행의 시크릿 이름으로 키 값 칸을 엽니다. (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. 플러그인 키는 연결하지 않고 저장만 합니다. (4) 구현됨: 첫 실행 자동 열기, 팔레트 "시작하기", ⌘Enter, 바닥글의 앱 버전과 엔진 한 줄. 바닥글의 "모델 없음" 칸은 아직 없습니다.
 
 ### 6.6 P-02 대화
 
@@ -1228,7 +1232,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 - 승인 카드 화면 가림 [결정: 2026-11-03 사용자]: 카드의 제목과 도구 인자(JSON)는 호스트가 준 표식(`F.wire-settings.spec` §3.4.5a, `approval.requested`의 `mask`와 `approval.list`의 `masks`)을 `@fresnel/contracts/records`의 `maskApprovalRequest`로 적용한 뒤에만 상태에 들어갑니다. 대화(P-02)와 같은 값 판정을 쓰므로 카드가 트랜스크립트가 가린 값을 보이지 않습니다. 계획, 질문, 검토 본문도 같은 방식으로 가립니다. 질문과 검토의 문자열 필드(질문 본문, 선택지 이름과 설명, 검토 제목과 파일 경로)는 필드마다 같은 자리의 표식을 적용합니다. 요청 키와 식별자는 화면 글이 아니므로 가리지 않습니다. 표식이 맞지 않는 승인은 목록에 넣지 않습니다(카드를 읽을 수 없는 것으로 둡니다).
 
-- 구현 노트 [구현: 2026-11-04, 카드 재구성 트랙]: 카드는 `apps/desktop/src/views/approval-card/`에 있습니다(`approval-card.tsx` 셸·상태·단추·Y/N/⇧Y, `bodies.tsx` 종류별 본문, `card-model.ts` 시간·만료·키·계획 접기·검토 합계 순수 값, `clock.ts` 30초 시계). 트랜스크립트 끝(`ApprovalQueue`)과 끝 영역 받은 요청(`InboxApprovals`)은 같은 `ApprovalCardList`를 씁니다. 판정과 답 조립(`approval-form.ts`)과 `respondApproval` 명령은 그대로입니다. caustic 부품: `AgentRequest`(머리, 종류 아이콘; `actions`는 쓰지 않고 단추 줄을 따로 그립니다), `ChoiceGroup`(질문과 승인 뒤 모드), `Input`(질문 직접 입력), `Textarea`(계획 피드백), `MessageCode`(명령, 인자, 계획 본문), `Alert`(내장 도구 대체 경고), `Badge`(요청한 곳), `Button`(단추). 검토 승인은 `allow`를 계약이 거절하므로 `ReviewAnswer`(`submit`, `approveRemaining`)를 답으로 보냅니다. 계획의 "수정 요청"과 "거부"는 둘 다 `deny`이고 수정 요청만 `{ feedback }`을 싣습니다 [가정, `[gap:V-12]`]. 시험: `test/views/approval-card-mounts.test.tsx`의 `approval-card.same-in-three-places`. 빠진 것: 원격 배지(승인 payload에 원격 표식이 없음), 대화 이름으로 가기, 검토 열기(P-04 없음), P-03 목록(화면 없음; 세 번째 자리는 `ApprovalCardList`가 맡음). caustic 빈틈: `AgentRequest`의 `actions`가 단추별 `disabled`를 받지 못해 보내는 중·답 미완성 잠금을 단추 줄로 옮겼습니다. `Plan`은 단계 진행 체크리스트라 Markdown 원문 계획에 맞지 않아 쓰지 않았습니다(`[gap:C-06]`).
+- 구현 노트 [구현: 2026-11-04, 카드 재구성 트랙]: 카드는 `apps/desktop/src/views/approval-card/`에 있습니다(`approval-card.tsx` 셸·상태·단추·Y/N/⇧Y, `bodies.tsx` 종류별 본문, `card-model.ts` 시간·만료·키·계획 접기·검토 합계 순수 값, `clock.ts` 30초 시계). 트랜스크립트 끝(`ApprovalQueue`)과 끝 영역 받은 요청(`InboxApprovals`)은 같은 `ApprovalCardList`를 씁니다. 판정과 답 조립(`approval-form.ts`)과 `respondApproval` 명령은 그대로입니다. caustic 부품: `AgentRequest`(머리, 종류 아이콘; `actions`는 쓰지 않고 단추 줄을 따로 그립니다), `ChoiceGroup`(질문과 승인 뒤 모드), `Input`(질문 직접 입력), `Textarea`(계획 피드백), `MessageCode`(명령, 인자, 계획 본문), `Alert`(내장 도구 대체 경고), `Badge`(요청한 곳), `Button`(단추). 검토 승인은 `allow`를 계약이 거절하므로 `ReviewAnswer`(`submit`, `approveRemaining`)를 답으로 보냅니다. 계획의 "수정 요청"과 "거부"는 둘 다 `deny`이고 수정 요청만 `{ feedback }`을 싣습니다 [가정, `[gap:V-12]`]. 대화 이름 링크: 카드 머리의 대화 이름은 트랜스크립트 밖(끝 영역 받은 요청)에서 누르면 그 대화를 엽니다. 셸이 받은 `onGoToThread`를 `views/thread-link.ts`의 `GoToThreadContext`로 내리고, 트랜스크립트 끝(`ApprovalQueue`)은 열린 대화를 `within`으로 넘겨 그 대화 안에서는 이름을 글로 둡니다(`threadLinkVisibleOf`). 거울에 없는 대화와 이동 문맥이 없는 자리에서는 링크를 그리지 않습니다. 부품은 `Button size="xs" variant="ghost"`입니다. 위 공통 머리의 "누르면 그 대화"는 트랜스크립트 밖에 한정합니다. 시험: `test/views/approval-card-mounts.test.tsx`의 `approval-card.same-in-three-places`와 `approval-card.thread-link-needs-a-target`, `test/views/approval-card-model.test.ts`의 `thread link in the card head`. 빠진 것: 원격 배지, 검토 열기(P-04 없음), P-03 목록(화면 없음; 세 번째 자리는 `ApprovalCardList`가 맡음). 원격 배지는 원천이 없어 달지 않았습니다. `approval.requested`의 `origin`에는 `caller`(main, background, host, subagent:<이름>, ext:<이름>)만 있고 원격 클라이언트를 가리는 필드가 없습니다. 턴 출처 `remote`는 엔진이 만들지 않으며(`originOfSource`는 user, delegation, scheduled, other만 냅니다), 데스크톱 거울도 턴 출처를 읽지 않습니다. 연결 대상(`EngineTarget` remote, `host.hello`의 transport)은 요청마다 달라지는 값이 아니어서 모든 카드에 찍지 않습니다. 빠진 wire: 승인 요청 `origin`의 원격 출처 표식 [gap]. caustic 빈틈: `AgentRequest`의 `actions`가 단추별 `disabled`를 받지 못해 보내는 중·답 미완성 잠금을 단추 줄로 옮겼습니다. `Plan`은 단계 진행 체크리스트라 Markdown 원문 계획에 맞지 않아 쓰지 않았습니다(`[gap:C-06]`).
 
 ### 6.8 P-04 변경 검토
 
@@ -1298,8 +1302,16 @@ compact 폭(720 이하)과 사이드바 시트:
 - 바로 가기 키: j·k 파일 이동, n·p hunk 이동, a 승인, r 거절, c 의견, ⇧A 파일 전체 승인, ⌘Enter 제출, Esc 의견 취소.
 - 접근성: 파일 목록은 `List` 단일 선택, hunk는 `article`과 제목(헤더 줄), 줄 앞 기호는 시각용이고 `aria-label`에 "추가된 줄 11" 같은 문장을 둡니다. 결정 상태는 색과 문자 둘 다로 보입니다.
 - caustic: `CodeDiff`, `CodeDiffLine`, `CodeDiffToken`, `ChangeDetail`, `List`, `ListRowIndicator`, `Textarea`(의견), `Checkbox`, `Button`, `Badge`, `ResizeHandle`. `CodeDiff`는 diff 하나에 수락·거절 하나라 hunk 단위 결정과 줄 의견이 없습니다 `[gap:C-08]`.
-- 구현 노트 [구현: 2026-11-04, P-04 트랙]: 화면은 `apps/desktop/src/views/pages/review/`(`review-screen.tsx` 동작, `review-view.tsx` 그림, `review-text.ts` 문장), 순수 값은 `apps/desktop/src/views/review-model.ts`(V-06)입니다. 승인 카드의 "검토 열기"(검토 승인에만 있음)는 UI 스토어의 `reviewTarget`(승인 id, 리뷰 id)을 두고, `App`이 무대를 내비 없는 `review` 화면(영역 `both`)으로 옮깁니다. 화면은 연 승인이 대기열에서 빠지면 같은 리뷰의 가장 높은 라운드 승인을 따라가고(초안은 비우고 다시 엽니다), 없으면 "이미 처리된 요청이에요"를 보입니다. 본문은 `review.get`(W-02, 계약과 host에 이미 있음)으로 읽고, 파일의 종류와 이진 여부는 승인 요청의 `files` 요약에서 옵니다(본문 wire는 이 둘을 싣지 않습니다). 결정과 의견과 "남은 것 모두 승인"은 화면 로컬 초안입니다(W-03은 [미결] 그대로). 제출은 `ReviewAnswer { decisions(결정한 hunk만), comments(hunk 대상), submit: true, approveRemaining }`이고, "모두 승인"은 `decisions: []`에 `approveRemaining: true`, "거부(검토 닫기)"는 `{ decision: "deny" }`입니다. 거부는 서버가 되돌릴 수 있는 hunk를 모두 거절하고 제출합니다. 대기 hunk가 있고 "남은 것 모두 승인"이 꺼져 있으면 제출이 잠기고 개수를 보입니다. 오프라인이면 결정은 남기고 제출·모두 승인·거부를 잠급니다. hunk 30개를 넘는 파일은 접어 둡니다. 단추는 caustic `CodeDiffHunk`·`CodeDiff`의 승인·거절 글자가 영어로 고정되어 있어 같은 자리에 현지화한 단추를 둡니다(`[gap:C-08]`의 글자 빈틈). 시험: `test/views/review-model.test.ts`(순수 값, 답의 정확한 모양), `test/views/review-view.test.tsx`(여섯 상태), `test/app/review-commands.test.ts`(wire params 정확 비교).
-  빠진 것: 제출 결과 표(되돌림·충돌·skipped는 승인 응답이 싣지 않아 `review_applied`를 구독해야 함), 줄 단위와 파일 단위와 리뷰 전체 의견(hunk 단위만), 지난 라운드 의견 "전달됨" 접기, 바로 가기 키(j·k·n·p·a·r·c·⇧A·⌘Enter·Esc), 이진 파일의 파일 단위 결정(wire에 hunk id가 없어 답으로 보낼 수 없으므로 읽기 전용), 파일 목록 가상 스크롤(`[gap:C-04]`), 파일 단위 읽기 실패(본문 전체 실패로 합침), 원격의 "권한 필요"(해당 없음).
+- 구현 노트 [구현: 2026-11-04, P-04 트랙]: 화면은 `apps/desktop/src/views/pages/review/`(`review-screen.tsx` 동작, `review-view.tsx` 그림, `review-text.ts` 문장), 순수 값은 `apps/desktop/src/views/review-model.ts`(V-06)입니다. 승인 카드의 "검토 열기"(검토 승인에만 있음)는 UI 스토어의 `reviewTarget`(승인 id, 리뷰 id)을 두고, `App`이 무대를 내비 없는 `review` 화면(영역 `both`)으로 옮깁니다. 화면은 연 승인이 대기열에서 빠지면 같은 리뷰의 가장 높은 라운드 승인을 따라가고(초안은 비우고 다시 엽니다), 없으면 "이미 처리된 요청이에요"를 보입니다. 본문은 `review.get`(W-02, 계약과 host에 이미 있음)으로 읽고, 파일의 종류와 이진 여부는 승인 요청의 `files` 요약에서 옵니다(본문 wire는 이 둘을 싣지 않습니다). 결정과 의견과 "남은 것 모두 승인"은 화면 로컬 초안입니다(W-03은 [미결] 그대로). 제출은 `ReviewAnswer { decisions(결정한 hunk만), comments(hunk 대상, 줄 의견은 `line`을 더함), submit: true, approveRemaining }`이고, "모두 승인"은 `decisions: []`에 `approveRemaining: true`, "거부(검토 닫기)"는 `{ decision: "deny" }`입니다. 거부는 서버가 되돌릴 수 있는 hunk를 모두 거절하고 제출합니다. 대기 hunk가 있고 "남은 것 모두 승인"이 꺼져 있으면 제출이 잠기고 개수를 보입니다. 오프라인이면 결정은 남기고 제출·모두 승인·거부를 잠급니다. hunk 30개를 넘는 파일은 접어 둡니다. 단추는 caustic `CodeDiffHunk`·`CodeDiff`의 승인·거절 글자가 영어로 고정되어 있어 같은 자리에 현지화한 단추를 둡니다(`[gap:C-08]`의 글자 빈틈). 키 바로 가기는 `reviewKeyOf(event, reviewKeyContextOf(…))`가 정합니다(순수 값, `review-model.ts`). 화면 상태의 집중한 hunk(`focusedHunkId`)가 커서입니다. j·k는 파일을, n·p는 보이는 hunk를 파일 경계를 넘어 옮기고, 끝에서는 멈춥니다(돌지 않습니다). 집중한 hunk가 없으면 n은 첫 hunk, p는 마지막 hunk를 고릅니다. a·r은 집중한 hunk를 단추와 같은 토글로 정하고, ⇧A는 고른 파일의 hunk 전체(접혀 있는 것 포함)를 승인합니다. 응답을 보내는 중에는 결정·의견·파일 승인 키가 먹지 않습니다. 의견 입력 칸에서는 ⌘Enter와 Esc만 받고, IME 조합 중과 열거되지 않은 수식 조합은 무시합니다. ⌘Enter는 제출 규칙이 열려 있을 때만 제출합니다. 키는 루트 `section`이 받고, 처리한 키는 셸의 창 바로 가기로 넘기지 않습니다. 힌트는 바닥글 줄에 보입니다. 검토 화면의 키는 고정이라 `l4.desktop.appearance.keybindings`에 들어가지 않습니다.
+
+제출 결과 표는 엔진 거울이 받은 `artifact.review_applied`·`artifact.review_submitted`를 리뷰마다 가장 최근 라운드 하나로 모읍니다(`state/engine`의 decode·input·reduce·state·hooks, `reviewResults`, 최대 64개). 구현 전 가정 `[가정: 이벤트 페이로드에 hunk별 결과가 있음]`은 확인되었습니다. `review_applied.outcomes[]`는 `path`, `hunkIds[]`, `result`(reverted·conflict·skipped), `method`, `detail?`을 싣고, `review_submitted.delivery`는 `requestId`, `when`, `commentIds`를 싣거나 null입니다. 되돌릴 것이 없으면 `review_applied`는 오지 않습니다. 화면은 이 리뷰의 승인이 대기열에서 빠지고 그 라운드 결과가 제출됐으면(`submitted`) `reviewResultViewOf`로 표를 만들어 보이고, [닫기]는 뒤로 가기와 같이 화면을 떠납니다. 표의 줄은 hunk마다 하나이고, hunk가 없는 결과는 hunk 칸을 비웁니다.
+
+줄 의견은 `ReviewAnswer`의 hunk 대상에 `line { side, number }`를 실어 보냅니다(wire에 있음). 줄 머리의 추가 단추는 caustic `CodeDiffLine`의 `onComment`를 씁니다. 지운 줄은 옛 파일 번호, 나머지 줄은 새 파일 번호입니다. 줄 의견은 hunk의 의견과 함께 hunk 끝에 `줄 N`을 앞세워 보입니다(줄 바로 아래에 끼우지는 않습니다). 키로는 줄을 고르지 않고 hunk 의견만 씁니다. 입력 칸은 열리면 초점을 받습니다.
+
+[미결] ⌘Enter는 입력 칸에 쓰던 글을 저장하지 않고 제출하므로 그 글은 답에 들지 않습니다. 저장한 뒤 제출할지는 정하지 않았습니다.
+
+시험: `test/views/review-model.test.ts`(순수 값, 답의 정확한 모양, 줄 의견, 키 판정의 상태별 값, 제출 결과 줄), `test/views/review-view.test.tsx`(여섯 상태, 제출 결과 표, 바닥글 힌트, 줄 의견 단추, 집중한 hunk), `test/app/review-commands.test.ts`(wire params 정확 비교), `test/state/review-results.test.ts`(결과 이벤트의 디코드와 거울의 기록).
+  빠진 것: 파일 단위와 리뷰 전체 의견(hunk와 줄 의견만 있음), 지난 라운드 의견 "전달됨" 접기, 이진 파일의 파일 단위 결정(wire에 hunk id가 없어 답으로 보낼 수 없으므로 읽기 전용), 파일 목록 가상 스크롤(`[gap:C-04]`), 파일 단위 읽기 실패(본문 전체 실패로 합침), 원격의 "권한 필요"(해당 없음), 검토 키를 도움말 대화상자(`shortcut-help-model`)에 올리는 일(검토 화면의 키는 고정이라 사용자 설정에 넣지 않았습니다), 입력 칸에 쓰던 글을 ⌘Enter가 저장하지 않고 제출하는 문제 [미결].
 
 ### 6.9 P-05 탐구(Helm, 끝 영역)
 
@@ -1649,7 +1661,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 엔진 재시작 | 셸 IPC `engine_restart` |
 | 키 찾기 | 탭 목록 위 입력란, 라벨·키·도움말 검색(로컬) |
 
-- 위젯 대응: toggle → `Switch`, select(8개 이하) → `RadioGroup`, select(9개 이상) → `Select`, number → `NumberField`, text → `Input`, list → `TagInput`(원시값) 또는 `List`, table(rows, record, fixed) → `Table` 편집 모드, secret → 시크릿 고르기 `Combobox mode="popup"`(P-10 목록), readonly → `ListDescription` 또는 JSON 접기. 전용 편집기 6종(modelRoles, fallbackChain, permissionRules, sandboxLists, searchOrder, accountPool)은 P-11, P-12와 이 화면에 둡니다. 전용 편집기 렌더러는 지금 없습니다.
+- 위젯 대응: toggle → `Switch`, select(8개 이하) → `RadioGroup`, select(9개 이상) → `Select`, number → `NumberField`, text → `Input`, list → `TagInput`(원시값) 또는 `List`, table(rows, record, fixed) → 행마다 칸을 나열하는 편집 모드(caustic `Table`은 첫 실행 화면의 읽기 표에만 쓰여서 여기서는 쓰지 않습니다), secret → 시크릿 고르기 `Select`(P-10 목록의 이름. 팝업 모드 `Combobox`는 데스크톱에 쓰인 곳이 없습니다), readonly → 객체와 배열은 JSON 접힘 보기(`Accordion`), 나머지는 글. 전용 편집기 6종(modelRoles, fallbackChain, permissionRules, sandboxLists, searchOrder, accountPool)은 P-11, P-12와 이 화면에 둡니다. 권한 규칙, 샌드박스 목록, 표, 시크릿 참조의 그림은 `settings-editors-screen.tsx`가 맡고, 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11이 `providers-screen.tsx`로 붙였습니다. 검색 순서는 P-12 패널이 맡습니다.
 - 상태
   - 빈: `TabVM.emptyText`.
   - 읽는 중: 탭 목록은 바로, 폼 `Skeleton`.
@@ -1663,10 +1675,12 @@ compact 폭(720 이하)과 사이드바 시트:
 - caustic: `Tabs`(세로 배치는 앱 스타일 [가정]) 또는 `ListNavigation kind="pages"`, `FormLayout`, `FormLayoutSection`, `FormLayoutFooter`, `Field`, `Switch`, `RadioGroup`, `Select`, `NumberField`, `Input`, `TagInput`, `Table`, `Checkbox`("이번 대화에만 적용"), `Badge`, `Alert`, `Accordion`(가려진 범위), `Textarea`(파일 편집, 코드 편집기는 없음 `[gap:C-06]`).
 
 - 구현 메모(데스크톱 설정 트랙, 2026-11-04)
-  - 파일: 화면은 `xeon/apps/desktop/src/views/pages/settings/`에 있다. `settings-model.ts`(탭, 찾기, 초안 묻기, 칸 고르기, 바로 가기 키의 순수 함수), `settings-screen.tsx`(컨트롤러의 수명, 저장됨 2초, 열린 대화가 바뀔 때의 다시 읽기), `settings-view.tsx`와 `settings-field.tsx`(그림), `settings-text.ts`(문장과 배지 색 토큰). 연결은 `xeon/apps/desktop/src/app/settings.ts`가 맡고, 명령은 `commands.settings.open()`(`views/commands.ts`)이다. 셸의 설정 슬롯(`views/app.tsx`)이 이 화면을 연다.
-  - 시험: `test/views/settings-model.test.ts`, `test/views/settings-page.test.tsx`(서버 렌더), `test/app/settings-commands.test.ts`(가짜 엔진의 `settings.set` 인자와 대화 범위 알림 판정).
+  - 파일: 화면은 `xeon/apps/desktop/src/views/pages/settings/`에 있다. `settings-model.ts`(탭, 찾기, 초안 묻기, 칸 고르기, 바로 가기 키의 순수 함수), `settings-file-model.ts`(파일 편집기의 상태와 전이, 저장 기준 해시, 번호가 맞지 않는 응답 버리기), `settings-screen.tsx`(컨트롤러의 수명, 저장됨 2초, 열린 대화가 바뀔 때의 다시 읽기, 파일 편집기의 읽기와 쓰기), `settings-view.tsx`와 `settings-field.tsx`(그림), `settings-file-view.tsx`(파일 편집기 그림), `settings-text.ts`(문장과 배지 색 토큰). 연결은 `xeon/apps/desktop/src/app/settings.ts`가 맡고, 명령은 `commands.settings.open()`과 `readFile`·`writeFile`(`views/commands.ts`)이다. 셸의 설정 슬롯(`views/app.tsx`)이 이 화면을 연다.
+  - 시험: `test/views/settings-model.test.ts`, `test/views/settings-page.test.tsx`(서버 렌더), `test/views/settings-file-model.test.ts`(편집기 전이), `test/views/settings-file-view.test.tsx`(편집기 상태의 서버 렌더), 전용 편집기는 `test/views/settings-rules-model.test.ts`, `settings-sandbox-model.test.ts`, `settings-table-model.test.ts`, `settings-secret-model.test.ts`(순수 모델)와 `settings-editors-view.test.tsx`(그림의 빈 상태, 채운 상태, 오류, 잠김), `test/app/settings-commands.test.ts`(가짜 엔진의 `settings.set` 인자와 대화 범위 알림 판정, `settings.readFile`·`writeFile`의 정확한 인자와 오류 종류).
   - 탭 목록은 `ListNavigation kind="pages"`다. 720 이하 폭(셸의 compact 단계)에서는 `Select`다. 시크릿 탭은 P-10 `SecretsPanel`을 그대로 넣는다. 옛 최소 설정 화면은 P-01 첫 실행 화면이 맡고, `views/settings.tsx`에는 두 화면이 쓰는 `errorText`만 남았다.
-  - 뒤로 미룬 것: 전용 편집기 여섯 가지의 그림은 P-11과 P-12 트랙이 붙인다(지금은 읽기 요약과 "파일로 보기" 안내). 표와 시크릿 위젯도 읽기 요약이다. 파일 편집기(`settings.readFile`·`settings.writeFile`)는 아직 없다. 데스크톱 로컬 설정과 엔진 값을 합치는 두 원천(L4.settings-ui §4.1.3)은 `localStore` 포트가 없어서 아직 합치지 않는다.
+  - 파일 편집기("파일로 보기"): 탭을 고른 자리의 "파일로 보기" 단추가 항목 목록 위에 편집기를 연다. 범위는 사용자이고, 열린 대화가 있으면 프로젝트와 로컬도 고른다(두 범위는 대화의 작업 폴더를 쓴다). 원문은 caustic `Textarea`로 고치고, 열 때 `settings.readFile { scope }`로 읽는다. "저장"은 `settings.writeFile { scope, text, baseSha256 }`이고, `baseSha256`은 마지막으로 읽거나 쓴 원문의 해시다(파일이 없었으면 null). 3107은 "다른 곳에서 바뀌었어요"와 "다시 읽기"로 맞춘다. 초안은 남고, 다시 읽으면 지금 파일 내용으로 바뀐다(고친 내용은 사라진다). 검사에 걸린 저장(`settings.fileInvalid`, 3108)은 호스트가 준 첫 문장을 보이고, 그 밖의 오류는 설정 화면의 공통 오류 문장을 쓴다. 오프라인이면 읽은 원문만 보이고 편집과 저장이 잠긴다. ⌘S는 저장, Esc는 되돌리기이고 편집기에 초점이 있을 때만 그렇다. "닫기"는 저장하지 않은 초안이 없을 때만 된다. 와이어 호출은 `packages/client/src/accounts/file.ts`의 `readSettingsFile`·`writeSettingsFile`을 쓰고, 모델 계정 저장(`saveModelAccounts`)도 같은 함수를 거친다.
+  - 두 원천(L4.settings-ui §4.1.3): 화면은 엔진 `settings.*` 항목과 데스크톱 로컬 설정(`l4.desktop.*`)을 한 목록으로 그린다. 로컬 원천은 `xeon/apps/desktop/src/settings-store/port.ts`의 `createLocalSettingsPort`가 `LocalSettingsPort`로 맞춘다. 정의는 `settings-store/defs.ts`의 `DESKTOP_SETTING_DEFS` 세 키다. 창 닫기 동작은 외관 탭, 재기동 횟수는 실행 탭, 엔진 종료 대기는 고급 탭에 든다. 창 자리, 검색 안내 키, 원격 대상 목록은 상태 값이라 정의가 없어 화면에 나오지 않는다. 키 바인딩(`l4.desktop.appearance.keybindings`)은 표 위젯의 정의가 아직 없어서 나오지 않는다 [gap]. 엔진이 없어도 `commands.settings.open()`이 컨트롤러를 주므로 로컬 항목은 바꿀 수 있고, 엔진 항목은 읽기 전용이며 "엔진과 연결되면 바꿀 수 있어요"를 보인다. 화면은 엔진 연결 상태가 바뀌어도 컨트롤러를 버리지 않는다. 연결이 살아날 때만 새로 만든다. 초안이 있을 때 연결이 끊기면 엔진 항목의 초안은 그대로 남고 저장만 막힌다. 첫 실행 검색 안내의 "다시 보지 않음" 기억(`l4.desktop.firstRun.searchHintDismissed`)은 정의로 두지 않았다. 설정 항목이 아니라 안내 상태라서다 [제안].
+  - 뒤로 미룬 것: 고급 탭의 파일 전용 항목(`SettingsView.fileOnly`)은 아직 목록에 그리지 않는다. 그 항목을 편집기로 가리키는 자리는 L4.settings-ui §4.2.3의 M2 단계가 맡는다 [gap]. 검색 순서 편집기의 그림은 P-12 트랙이 붙인다. 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11이 붙였다. 목록 원소가 객체인 `list`(`List` 행)는 아직 그리지 않는다. 클라이언트가 그런 정의를 `widgetMismatch`로 읽기 전용에 두기 때문이다(L4.settings-ui §4.2.1). 로컬 원천의 "기본값으로 되돌리기"는 파일에서 키를 지우지 못해 기본값을 쓴다. 출처 배지는 사용자 범위로 남는다 [미결].
 
 ### 6.14 P-10 시크릿
 
@@ -1823,8 +1837,9 @@ compact 폭(720 이하)과 사이드바 시트:
 - 편집기 네 종류와 고르는 법(§4.2.4, 편집기 힌트가 먼저, 없으면 키 이름): 계정 풀 `l1.models.accounts`(힌트 `accountPool`), 레이트 리밋 표 `l1.models.rateLimit`(키 이름), 대체 사슬 `l1.models.fallbackChains`(힌트 `fallbackChain`), 모델 역할(힌트 `modelRoles`).
 - 저장: 편집기는 초안만 바꾸고(`handlers.edit`), 저장과 되돌리기는 항목 아래 줄이 한다(`settings.set` 한 번, P-09 흐름). [구현 차이] 이 탭은 `saveModelAccounts`(파일 세 키 한 번 쓰기)를 쓰지 않는다. 초안, 바깥 변경 안내, "저장됨" 표시를 한 경로로 모으려는 이유다. 파일 충돌 문구와 "다시 읽기"는 이 화면에 없다(파일 편집기 소관).
 - 계정 순서: 끌기나 행 초점의 ↑·↓로 바꾸면 같은 provider 안에서 우선순위를 10 간격으로 다시 매긴다(§6.15 [제안] 그대로). 계정 20개를 넘는 provider는 접는다.
-- 게이지 자리: `GaugeSlotView`가 `GaugeSlotVM` 글을 보인다. `usage.get`은 contracts와 host에 있으나 `GaugeSlotVM`은 `unavailable`만 가진다 [gap:W-11]. 한도와 재설정 시각은 아직 보이지 않는다.
-- 빠진 것 [gap]: 계정 회전 스위치와 위험 확인 대화 상자(`ext.account-rotation.*`, `ROTATION_RISK_NOTICE`)는 이번 변경에 없다. `l1.models.fallbackChains`는 2차 키라 호스트가 정의를 실을 때까지 이 편집기는 나타나지 않는다. `l1.models.routing.<역할>`은 역할마다 키가 따로 있어 맵으로 묶는 키가 없다(모델 역할 편집기는 힌트 `modelRoles`가 붙은 항목에서만 그린다). 호스트 카탈로그는 아직 `ui.editor`를 싣지 않는다.
+- 사용량 (이 대화) 패널 [구현: 2026-11-04, chat4 트랙]: `UsagePanelView`(`providers-view.tsx`)가 탭의 게이지 자리에 들어간다(예산과 한도, 계정과 제공자). 읽기는 `commands.usage.get`이 `usage.get { threadId }`를 부르고(`app/usage.ts`), 대화를 고르지 않았으면 읽지 않고 안내만 보인다. 게이지마다 caustic `Progress`와 글을 함께 둔다. 한도를 모르면 막대는 indeterminate이고 숫자를 지어내지 않는다. 막대의 이름은 "anthropic 토큰 41천, 한도 모름"이다. 한도와 재설정 시각은 wire가 줄 때만 보이고, 둘 다 없으면 "한도와 재설정 시각은 아직 몰라요"를 보인다. 탭의 `GaugeSlotVM`은 바꾸지 않았다.
+- 계정 회전 행 [구현: 2026-11-04, chat4 트랙]: `RotationPanel`이 계정과 제공자 탭의 사용량 패널 아래, 계정 풀 위에 "계정 회전" 행을 그린다. 상태는 `modelAccountsView().rotation`(off, needsNotice, on)이고, 스위치는 on에서만 켜져 있다. 고지에 동의하지 않은 채 켜면 `Dialog kind="alert"`가 `ROTATION_RISK_NOTICE`(client 메시지 `client.accounts.rotationRiskNotice`)를 보이고 먼저 묻는다. "위험을 알고 켜기"는 `ext.account-rotation.acknowledgeRisk`를 `settings.set`으로 쓰고, 플러그인이 꺼져 있었으면 `ext.account-rotation.enabled`도 이어 쓴다. 끄기는 `enabled`만 `false`로 쓴다. 두 키는 엔진 카탈로그에 있다(`group-account-rotation`의 예약 키와 설정 묶음). 오프라인이거나 관리 잠금이면 스위치가 잠기고 이유를 문장으로 보인다. 키를 찾지 못하면 상태 없이 잠긴 행과 "이 엔진에는 계정 회전 설정이 없어요"를 보인다.
+- 빠진 것 [gap]: `l1.models.fallbackChains`는 2차 키라 호스트가 정의를 실을 때까지 이 편집기는 나타나지 않는다. `l1.models.routing.<역할>`은 역할마다 키가 따로 있어 맵으로 묶는 키가 없다(모델 역할 편집기는 힌트 `modelRoles`가 붙은 항목에서만 그린다). 호스트 카탈로그는 아직 `ui.editor`를 싣지 않는다. 사용량의 한도와 재설정 시각은 host가 `session` 게이지에 싣지 않아 비어 있고(`apps/host/src/assembly/usage.ts`), 계정(`account`)도 null이다 [gap:W-11]. P-09 플러그인 탭의 `ext.account-rotation.acknowledgeRisk` 토글은 이 행과 같은 키를 위험 확인 없이 쓴다. 그 토글을 이 행으로 옮길지는 P-09 소관이다 [미결]. 표의 고정(핀) 표시는 이 절에 정의가 없어 구현하지 않았다 [미결].
 
 ### 6.16 P-12 도구와 웹
 
@@ -1982,7 +1997,7 @@ compact 폭(720 이하)과 사이드바 시트:
 - 작업 목록: `Plan`을 `bare`로 써서 well 안에 테두리 없이 그린다(caustic C-19). 작업이 100개를 넘으면 완료 작업을 접는다(`DONE_FOLD_LIMIT`). 취소된 작업은 대기 칸에 "취소됨"으로 보인다.
 - 판정 2/3 자리: 목표 줄의 숫자와 "판정 2/3"은 `goal.status`의 `judged`와 `maxJudgments`다. 판정 모델을 고르는 select는 `/goal` 줄에 그 입력이 없어 넣지 않았다.
 - 빈 상태: 열린 대화가 없으면 "열린 대화가 없어요"만 보인다. 목표 칸은 진행 중인 목표가 있을 때 걸기 입력을 숨긴다. 권한 필요는 이 탭에 해당하지 않는다(목표와 작업은 승인을 묻지 않는다).
-- 탭 보임 범위: 끝 영역 탭은 `area`만 거르므로 대화 영역의 다른 내비 화면에서도 보인다. 화면별로 탭을 숨기려면 셸 등록부에 화면 목록이 필요하다(셸 파일은 이번 변경에서 고치지 않았다).
+- 탭 보임 범위: 끝 영역 탭은 `area`와 선택 필드 `screens`(화면 id 목록)로 거른다(`registry.endTabs(area, screen)`, `shell/README.md`). 이 탭은 `screens: ["chat"]`이라 대화 화면에서만 보인다. 다른 탭의 화면별 표시는 각 화면 트랙이 `screens`를 주면 된다.
 
 ### 6.19 P-15 진단과 정보
 

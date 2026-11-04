@@ -27,7 +27,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 | 슬롯 | 누가 채우나 | 어떻게 |
 |---|---|---|
 | 무대(가운데) | 화면 트랙 | `registry.registerScreen({ id, area, label, icon, badge?, render })`(`desktop-registry.tsx`에 더함). `id`는 내비 항목 id(`nav.ts`)와 같다 |
-| 오른쪽 탭 | 화면 트랙, 플러그인 well | `registry.registerEndTab({ id, area, label, icon, badge?, width?, render })`. 막대 칸 6개 뒤는 "더 보기" |
+| 오른쪽 탭 | 화면 트랙, 플러그인 well | `registry.registerEndTab({ id, area, label, icon, badge?, width?, screens?, render })`. 막대 칸 6개 뒤는 "더 보기" |
 | 왼쪽 대화 목록 | 대화 트랙 | `Shell`의 `threadList` 속성 |
 | 상태 표시줄(S-03) | 대화 트랙 | `Shell`의 `statusBar` 속성(지금 `status-bar.tsx`) |
 | 명령 팔레트(S-02) | T-CHAT1 | `Shell`의 `palette` 속성. 열림은 `useShell(s => s.paletteOpen)`, 여닫기는 `setPaletteOpen` |
@@ -37,6 +37,7 @@ S-01 앱 셸의 자리(슬롯), 영역 바꾸기, 맥락 모델의 정본 설명
 - 등록되지 않은 화면 id는 무대에 "이 화면은 아직 없어요" 빈 상태가 그려집니다.
 - 같은 `id`를 두 번 등록하면 `Bug`입니다.
 - 화면 `id` 목록: 대화 `chat`, `inbox`, `proposals`, `schedules`, `connection`. 작업대 `overview`, `extensions`, `tests`, `metrics`, `compose`, `engine`. `tests`(P-19 테스트)는 `views/tests/`가 그리고 `views/workbench/index.tsx`가 등록합니다. 플러그인 화면은 `<확장>/<화면>`이고 아직 내비에 없습니다(T-VIEW가 `nav.ts` 표에 목록 슬롯을 더함 [미결]). 플러그인 화면은 `<확장>/<화면>`이고 내비에 없습니다. 오른쪽 탭 `helm`(Helm 패널)과 `plugin-pages`(그 밖의 `page`·`panel`)가 그립니다(T-VIEW). `nav.ts`의 목록 슬롯은 [미결]입니다.
+- 오른쪽 탭은 `screens`(화면 id 목록)를 줄 수 있다. 주면 그 화면에서만 보이고(`registry.endTabs(area, screen)`), 없으면 영역의 모든 화면에서 보인다. `work` 탭은 `["chat"]`이다.
 - 오른쪽 탭 id 규약: `inbox`(받은 요청), `runtime`, `work`, `helm`(대화 영역), `inspect`, `log`, `thread`(작업대 영역). `panel.inbox`·`panel.helm`·`panel.work` 키는 `inbox`·`helm`·`work` 탭 id를 엽니다.
 - 문자열은 메시지 키(`desktop.shell.*`)입니다. 화면 이름과 라벨을 코드에 한국어로 쓰지 않습니다.
 - 색과 간격은 caustic 토큰과 Tailwind 유틸리티뿐입니다. 셸은 재디자인 토큰을 쓰지 않습니다(T-LANG 되돌림).

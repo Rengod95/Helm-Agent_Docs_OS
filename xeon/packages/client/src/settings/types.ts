@@ -1,4 +1,5 @@
 import type {
+  EffectiveSetting,
   RuntimeChange,
   SettingEditor,
   SettingKey,
@@ -8,6 +9,21 @@ import type {
 } from "@fresnel/contracts/settings";
 
 // 설정 화면 view-model 타입(L4.settings-ui §3.4). 화면 부품 없이 값만 담는다. 초안·저장 중·오류·외부 변경 필드는 `settingsViewOf`(state.ts)가 채운다.
+
+/** 정의 하나가 어느 원천에서 왔는가(L4.settings-ui §4.1.3). `l4.desktop.` 접두사 키는 desktop이다 */
+export type SettingOrigin = "engine" | "desktop";
+
+/** 데스크톱 로컬 저장소의 쓰기 실패(L4.desktop.spec §3.6). `storage`는 파일 쓰기 실패다 */
+export interface LocalWriteFailure {
+  readonly ok: false;
+  readonly kind: "settings.unknownKey" | "settings.invalidValue" | "storage";
+  readonly details: Readonly<Record<string, unknown>>;
+}
+
+/** 데스크톱 로컬 저장소의 쓰기 결과. 성공하면 바뀐 유효 값을 돌려준다 */
+export type LocalWrite =
+  | { readonly ok: true; readonly setting: EffectiveSetting }
+  | LocalWriteFailure;
 
 /** 클라이언트 검사나 서버 거절의 한 항목. `message`는 화면 문장이고 `path`는 JSON Pointer다 */
 export interface ValueIssue {
@@ -160,7 +176,11 @@ export interface FieldVM {
   } | null;
   /** 전용 편집기 힌트. 모르는 값은 일반 위젯으로 그린다(§4.2.4) */
   readonly editor: SettingEditor | null;
-  // ── 쓰기 상태(settingsViewOf가 채운다. buildSettingsView만 쓰면 기본값이다) ──
+  // ── 원천과 쓰기 상태(settingsViewOf가 채운다. buildSettingsView만 쓰면 기본값이다) ──
+  /** 정의가 온 원천. 엔진 연결이 없으면 `engine` 항목은 바꿀 수 없다(§4.1.3) */
+  readonly origin: SettingOrigin;
+  /** 엔진과 연결되지 않아 바꿀 수 없는 `engine` 항목에 보이는 안내 문장. 해당하지 않으면 null */
+  readonly offlineNote: string | null;
   /** 초안이 있다. `value`는 그때 초안 값이다 */
   readonly dirty: boolean;
   /** 초안의 클라이언트 검사 결과. 비어 있으면 저장할 수 있다 */

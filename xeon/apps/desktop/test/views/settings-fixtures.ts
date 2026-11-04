@@ -68,7 +68,11 @@ export function stateOf(
   settings: readonly EffectiveSetting[],
   threadId: ThreadId | null = null,
 ): SettingsState {
-  let state = reduceSettings(initialSettingsState, { type: "catalogLoaded", defs });
+  let state = reduceSettings(initialSettingsState, {
+    type: "catalogLoaded",
+    origin: "engine",
+    defs,
+  });
   state = reduceSettings(state, { type: "valuesLoaded", settings });
   return reduceSettings(state, { type: "threadChanged", threadId });
 }

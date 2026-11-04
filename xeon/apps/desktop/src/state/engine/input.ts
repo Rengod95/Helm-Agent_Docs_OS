@@ -16,6 +16,8 @@ import type {
   LeaseRejectedPayload,
   LeaseReleasedPayload,
   ScopeChangedPayload,
+  ReviewAppliedPayload,
+  ReviewSubmittedPayload,
   ScopeHandlerFailedPayload,
 } from "@fresnel/contracts/records";
 import type {
@@ -51,6 +53,8 @@ export type DurableFact =
   | (DurableBase & { readonly type: "lease.released"; readonly payload: LeaseReleasedPayload })
   | (DurableBase & { readonly type: "lease.rejected"; readonly payload: LeaseRejectedPayload })
   | (DurableBase & { readonly type: "scope.changed"; readonly payload: ScopeChangedPayload })
+  | (DurableBase & { readonly type: "review.applied"; readonly payload: ReviewAppliedPayload })
+  | (DurableBase & { readonly type: "review.submitted"; readonly payload: ReviewSubmittedPayload })
   | (DurableBase & { readonly type: "other" })
   | (DurableBase & { readonly type: "unreadable" });
 

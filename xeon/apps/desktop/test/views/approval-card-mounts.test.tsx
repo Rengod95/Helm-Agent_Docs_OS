@@ -13,11 +13,13 @@ import { createUiStore } from "../../src/state/ui/store.ts";
 import { ApprovalCardList } from "../../src/views/approval-card/approval-card.tsx";
 import { ApprovalQueue, InboxApprovals } from "../../src/views/approvals.tsx";
 import { Providers } from "../../src/views/providers.tsx";
+import { GoToThreadContext, type GoToThread } from "../../src/views/thread-link.ts";
 import { SUB, evt, openedHarness, summary, thr } from "../state/helpers.ts";
 import { fakeCommands } from "./fake-commands.ts";
 
 // 같은 승인 대기 넷(도구, 질문, 계획, 검토)을 트랜스크립트 끝, 끝 영역 받은 요청, P-03 목록 자리(ApprovalCardList)에 그린다.
-// 세 자리의 카드 HTML이 종류마다 같아야 하고, approval.resolved가 오면 세 자리에서 모두 사라져야 한다.
+// 세 자리의 카드는 머리 부제를 뺀 HTML이 종류마다 같아야 하고, approval.resolved가 오면 세 자리에서 모두 사라져야 한다.
+// 머리 부제에는 대화 이름이 들어간다. 트랜스크립트 끝(열린 대화 안)은 글이고, 받은 요청과 대화 밖 목록은 이름이 링크다.
 // React useId 값은 트리 위치에 따라 달라 id·aria-labelledby 값만 지우고 비교한다.
 
 const T = thr(1);
@@ -26,10 +28,11 @@ function frozen<T>(state: T): ReadonlyStore<T> {
   return { getState: () => state, getInitialState: () => state, subscribe: () => () => {} };
 }
 
-function render(node: ReactNode, state: EngineMirror): string {
+/** 이동 문맥을 넣을 때만 `goTo`를 준다. 없으면 대화 이름은 글이다 */
+function render(node: ReactNode, state: EngineMirror, goTo: GoToThread | null = null): string {
   return renderToString(
     <Providers engine={frozen(state)} ui={createUiStore().read} commands={fakeCommands()}>
-      {node}
+      <GoToThreadContext value={goTo}>{node}</GoToThreadContext>
     </Providers>,
   );
 }
@@ -125,14 +128,24 @@ function cardsOf(html: string): string[] {
   return html.match(/<li data-slot="approval-card-item"[\s\S]*?<\/li>/g) ?? [];
 }
 
-/** useId 값만 지운다(트리 위치가 달라도 같은 카드인지 본다) */
+/** 머리 부제를 뺀다(대화 이름 링크가 들어가는 자리). 부제는 글과 단추만 있어 첫 `</div>`가 끝이다 */
+const SUBTITLE = /<div data-slot="agent-request-subtitle"[\s\S]*?<\/div>/;
+
+/** useId 값만 지운다(트리 위치가 달라도 같은 카드인지 본다). 부제는 위치마다 달라 비교에서 뺀다 */
 function sameCardShape(card: string): string {
-  return card.replace(/\s(?:id|aria-labelledby)="[^"]*"/g, "");
+  return card.replace(SUBTITLE, "").replace(/\s(?:id|aria-labelledby)="[^"]*"/g, "");
 }
 
 function kindOf(card: string): string | undefined {
   return card.match(/data-approval-kind="([a-z]+)"/)?.[1];
 }
+
+/** 카드 머리의 대화 이름이 링크인가 */
+function threadLinkOf(card: string): boolean {
+  return card.includes('data-action="thread"');
+}
+
+const goTo: GoToThread = () => {};
 
 describe("approval card mounts", () => {
   test("approval-card.same-in-three-places", () => {
@@ -166,11 +179,11 @@ describe("approval card mounts", () => {
     const state = h.store.read.getState();
     expect(state.approvals.ids).toEqual(REQUESTS.map((_, index) => evt(6 + index)));
 
-    const queue = cardsOf(render(<ApprovalQueue />, state));
-    const inbox = cardsOf(render(<InboxApprovals />, state));
-    const shared = cardsOf(render(<ApprovalCardList ids={state.approvals.ids} />, state));
+    const queue = cardsOf(render(<ApprovalQueue />, state, goTo));
+    const inbox = cardsOf(render(<InboxApprovals />, state, goTo));
+    const shared = cardsOf(render(<ApprovalCardList ids={state.approvals.ids} />, state, goTo));
 
-    // 네 종류가 세 자리에 한 장씩 있고, 같은 카드는 같은 HTML이다
+    // 네 종류가 세 자리에 한 장씩 있고, 부제를 뺀 카드 HTML은 같다
     expect(queue.map(kindOf)).toEqual([...KINDS]);
     expect(inbox.map(kindOf)).toEqual([...KINDS]);
     expect(shared.map(kindOf)).toEqual([...KINDS]);
@@ -179,8 +192,13 @@ describe("approval card mounts", () => {
       expect(sameCardShape(inbox[index] ?? "")).toBe(reference);
       expect(sameCardShape(shared[index] ?? "")).toBe(reference);
     });
-    // 같은 카드 머리에 대화 이름과 만료가 함께 그려진다(한 줄 확인)
+    // 같은 카드 머리에 대화 이름과 만료가 함께 그려진다(한 줄 확인). 트랜스크립트 끝은 열린 대화 안이라 글이다
     expect(queue[0] ?? "").toContain("대화: Cache work");
+    expect(queue.map(threadLinkOf)).toEqual([false, false, false, false]);
+    // 받은 요청과 대화 밖 목록은 같은 이름을 링크로 낸다
+    expect(inbox.map(threadLinkOf)).toEqual([true, true, true, true]);
+    expect(shared.map(threadLinkOf)).toEqual([true, true, true, true]);
+    expect(inbox[0] ?? "").toContain(">Cache work</button>");
     // 검토 카드는 "검토 열기"를 낸다(P-04로 가는 단추)
     expect(queue[3] ?? "").toContain(`data-action="open"`);
     expect(queue[2] ?? "").not.toContain(`data-action="open"`);
@@ -242,5 +260,85 @@ describe("approval card mounts", () => {
     expect(cardsOf(render(<InboxApprovals />, empty))).toEqual([]);
     expect(render(<InboxApprovals />, empty)).toContain("기다리는 요청이 없어요");
     expect(cardsOf(render(<ApprovalCardList ids={empty.approvals.ids} />, empty))).toEqual([]);
+  });
+
+  test("approval-card.thread-link-needs-a-target", () => {
+    // 같은 대화(T)의 요청 하나와, 거울에 없는 대화(other)의 요청 하나
+    const other = thr(2);
+    const h = openedHarness();
+    h.store.ingest({ type: "threads", threads: [summary(T, { title: "Cache work" })] });
+    h.store.ingest({
+      type: "batch",
+      sub: SUB,
+      from: 5,
+      to: 6,
+      caughtUp: true,
+      facts: [
+        {
+          type: "approval.requested",
+          seq: 6,
+          eventId: evt(6),
+          threadId: T,
+          turnId: null,
+          at: "t",
+          request: payload({
+            requestKey: "tool-own",
+            title: "Allow bash in this conversation?",
+            body: {
+              kind: "tool",
+              tool: {
+                toolName: "bash",
+                risk: "execute",
+                args: { command: "ls" },
+                argsHash: "h1",
+                ruleId: null,
+              },
+            },
+          }),
+        },
+      ],
+    });
+    h.store.ingest({
+      type: "batch",
+      sub: SUB,
+      from: 6,
+      to: 7,
+      caughtUp: true,
+      facts: [
+        {
+          type: "approval.requested",
+          seq: 7,
+          eventId: evt(7),
+          threadId: other,
+          turnId: null,
+          at: "t",
+          request: payload({
+            origin: { ...origin, threadId: other },
+            surfaceThreadId: other,
+            requestKey: "tool-other",
+            title: "Allow bash in another conversation?",
+            body: {
+              kind: "tool",
+              tool: {
+                toolName: "bash",
+                risk: "execute",
+                args: { command: "pwd" },
+                argsHash: "h2",
+                ruleId: null,
+              },
+            },
+          }),
+        },
+      ],
+    });
+    h.store.flush();
+    const state = h.store.read.getState();
+
+    // 이동 문맥이 없으면 대화 이름은 글이다(받은 요청이어도)
+    expect(cardsOf(render(<InboxApprovals />, state)).map(threadLinkOf)).toEqual([false, false]);
+    // 문맥이 있어도 거울에 없는 대화는 링크가 아니다. 이름 없는 글로 보인다
+    const inbox = cardsOf(render(<InboxApprovals />, state, goTo));
+    expect(inbox.map(threadLinkOf)).toEqual([true, false]);
+    expect(inbox[1] ?? "").toContain("대화: 이름 없는 대화");
   });
 });

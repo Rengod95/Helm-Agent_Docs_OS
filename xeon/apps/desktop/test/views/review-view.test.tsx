@@ -6,6 +6,7 @@ import {
   INITIAL_REVIEW_STATE,
   addReviewComment,
   reviewFilesOf,
+  reviewResultViewOf,
   toggleHunkDecision,
   type ReviewState,
 } from "../../src/views/review-model.ts";
@@ -35,6 +36,7 @@ const HANDLERS: ReviewHandlers = {
   submit: NOOP,
   approveAll: NOOP,
   deny: NOOP,
+  key: NOOP,
 };
 
 function hunk(id: string, header: string): HunkView {
@@ -202,5 +204,89 @@ describe("review screen states", () => {
     const html = render(view({ body: { kind: "ready", files } }));
     expect(html).toContain(t("desktop.review.file.binary"));
     expect(html).not.toContain(t("desktop.review.file.approve"));
+  });
+});
+
+describe("the submit result table, the key hints, and the line comments", () => {
+  test("the footer line shows the key hints", () => {
+    expect(render(view({}))).toContain(t("desktop.review.keys"));
+  });
+
+  test("a closed review with a result shows the rows, the delivery line, and a close button", () => {
+    const result = reviewResultViewOf(
+      [
+        { path: "src/cache.ts", hunkIds: ["f0h2"], result: "reverted", method: "workspace_files" },
+        {
+          path: "docs/cache.md",
+          hunkIds: ["f2h0"],
+          result: "conflict",
+          method: "none",
+          detail: "새 줄이 맞지 않아요: 직접 고쳐 주세요",
+        },
+      ],
+      { requestId: "rv-01J", when: "followUp", commentIds: [] },
+    );
+    const html = renderToString(<ReviewView onBack={NOOP} open={null} result={result} />);
+    expect(html).toContain(t("desktop.review.result.title"));
+    expect(html).toContain("src/cache.ts");
+    expect(html).toContain("f0h2");
+    expect(html).toContain("docs/cache.md");
+    expect(html).toContain("f2h0");
+    expect(html).toContain(t("desktop.review.result.reverted"));
+    expect(html).toContain(t("desktop.review.result.method.workspaceFiles"));
+    expect(html).toContain(t("desktop.review.result.conflict"));
+    expect(html).toContain("새 줄이 맞지 않아요: 직접 고쳐 주세요");
+    expect(html).toContain(
+      t("desktop.review.result.delivery", { when: "followUp", requestId: "rv-01J" }),
+    );
+    expect(html).toContain(`>${t("desktop.review.result.close")}</button>`);
+    expect(html).not.toContain(t("desktop.review.closed"));
+  });
+
+  test("a result with no reverted hunks and no delivery says so, in the table's place and the delivery line's", () => {
+    const html = renderToString(
+      <ReviewView onBack={NOOP} open={null} result={reviewResultViewOf(null, null)} />,
+    );
+    expect(html).toContain(t("desktop.review.result.empty"));
+    expect(html).toContain(t("desktop.review.result.delivery.none"));
+  });
+
+  test("a line comment is offered on each line while editable, and not while a send is in flight", () => {
+    const label = t("desktop.review.line.comment", { number: 11 });
+    expect(render(view({}))).toContain(`aria-label="${label}"`);
+    expect(render(view({ busy: true }))).not.toContain(label);
+  });
+
+  test("a comment opened on a line labels the composer with the line and takes focus", () => {
+    const html = render(
+      view({
+        state: withState({
+          focusedHunkId: "f0h0",
+          composing: { hunkId: "f0h0", line: { side: "new", number: 11 }, text: "" },
+        }),
+      }),
+    );
+    expect(html).toContain(
+      `aria-label="${t("desktop.review.comment.line.label", { number: 11 })}"`,
+    );
+    expect(html).toContain(
+      `placeholder="${t("desktop.review.comment.line.placeholder", { number: 11 })}"`,
+    );
+    expect(html).toContain("autofocus");
+  });
+
+  test("a line comment shows its line before its text", () => {
+    const draft = addReviewComment(INITIAL_REVIEW_STATE.draft, "f0h0", "ms 단위 주석 필요", {
+      side: "new",
+      number: 11,
+    });
+    const html = render(view({ state: withState({ draft }) }));
+    expect(html).toContain(`${t("desktop.review.comment.line", { number: 11 })} ms 단위 주석 필요`);
+  });
+
+  test("the focused hunk is marked once, so the keyboard cursor shows", () => {
+    const html = render(view({ state: withState({ focusedHunkId: "f0h1" }) }));
+    expect(html).toContain('data-hunk="f0h1"');
+    expect(html.split('data-focused="true"').length - 1).toBe(1);
   });
 });

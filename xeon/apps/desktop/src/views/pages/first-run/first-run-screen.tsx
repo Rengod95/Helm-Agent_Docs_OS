@@ -10,8 +10,9 @@ import {
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import pkg from "../../../../package.json" with { type: "json" };
 import { keepTools } from "../../../app/setup.ts";
-import { useLinkPhase } from "../../../state/engine/index.ts";
+import { useEngineState, useLinkPhase } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
 import {
   useCommands,
@@ -21,6 +22,7 @@ import {
   type SearchSnapshot,
 } from "../../commands.ts";
 import { errorText } from "../../settings.tsx";
+import { engineLineOf, linkTextOf } from "../../status-bar.tsx";
 import {
   firstRunModelOf,
   type FirstRunKeyEntry,
@@ -52,7 +54,9 @@ function secretOf(
 export function FirstRunScreen(): ReactNode {
   const commands = useCommands();
   const shell = useShellActions();
-  const live = useLinkPhase() === "live";
+  const phase = useLinkPhase();
+  const live = phase === "live";
+  const engine = useEngineState();
   const [setup, setSetup] = useState<Loaded<SetupSnapshot>>({ kind: "loading" });
   const [search, setSearch] = useState<Loaded<SearchSnapshot>>({ kind: "loading" });
   const [groups, setGroups] = useState<Loaded<GroupsSnapshot>>({ kind: "loading" });
@@ -149,16 +153,25 @@ export function FirstRunScreen(): ReactNode {
     await reloadSetup(false);
   };
 
-  const register = (): void => {
-    const target = secretOf(providerInput);
-    if (target === null || setup.kind !== "ready") return;
-    const exists = (setup.value.secrets ?? []).some((s) => s.name === target.name && s.registered);
+  /**
+   * 키 등록을 시작한다. 호스트 창이 값을 받으면 그 창에서 입력하고, 아니면 이 화면의 키 값 칸을 연다.
+   * `providerId`가 null이면 검색 권장 플러그인의 키라서 저장만 한다.
+   */
+  const beginKey = (name: SecretName, providerId: string | null): void => {
+    if (setup.kind !== "ready") return;
+    const exists = (setup.value.secrets ?? []).some((s) => s.name === name && s.registered);
     const action = exists ? "set" : "add";
     work(async () => {
-      const begun = await commands.setup.beginKeyEntry(target.name, action);
+      const begun = await commands.setup.beginKeyEntry(name, action);
       // 호스트가 값을 받으면 그 창에서 입력한다. 연결하기는 입력이 끝난 뒤에 누른다
       if (begun.ok && begun.value) {
-        setNotice(t("desktop.firstRun.key.hostWindow"));
+        setNotice(
+          t(
+            providerId === null
+              ? "desktop.firstRun.search.hostWindow"
+              : "desktop.firstRun.key.hostWindow",
+          ),
+        );
         await reloadSetup(false);
         return;
       }
@@ -167,14 +180,23 @@ export function FirstRunScreen(): ReactNode {
         setKeyEntry({ state: "failed", text: errorText(begun.error) });
         return;
       }
-      setKeyEntry({ state: "form", name: target.name, action });
+      setKeyEntry({ state: "form", name, action, providerId });
     });
   };
 
-  const submitKeyValue = (field: KeyField): void => {
+  const register = (): void => {
     const target = secretOf(providerInput);
-    if (target === null || keyEntry.state !== "form") return;
-    const { name, action } = keyEntry;
+    if (target === null) return;
+    beginKey(target.name, target.providerId);
+  };
+
+  const registerSecret = (name: SecretName): void => {
+    beginKey(name, null);
+  };
+
+  const submitKeyValue = (field: KeyField): void => {
+    if (keyEntry.state !== "form") return;
+    const { name, action, providerId } = keyEntry;
     work(async () => {
       // `submitKey`는 첫 `await` 전에 입력란을 읽고 비운다. 이 함수는 이벤트 안에서 바로 불린다
       const outcome = await submitKey(commands.setup, name, action, field);
@@ -182,7 +204,9 @@ export function FirstRunScreen(): ReactNode {
         case "registered":
           setKeyEntry({ state: "idle" });
           setNotice(t("desktop.firstRun.key.saved"));
-          await connectNow(target.providerId, name);
+          // 제공자 키는 이어서 제공자에 잇고, 검색 플러그인 키는 저장만 하고 권장 상태를 다시 읽는다
+          if (providerId === null) await reloadAll(false);
+          else await connectNow(providerId, name);
           return;
         case "terminal":
           setKeyEntry({ state: "failed", text: t("desktop.firstRun.key.unavailable") });
@@ -275,6 +299,7 @@ export function FirstRunScreen(): ReactNode {
     saveModel,
     setGroup,
     dismissSearch,
+    registerSecret,
     openLightCraft: () => {
       shell.switchArea("workbench");
     },
@@ -292,6 +317,8 @@ export function FirstRunScreen(): ReactNode {
       modelInput={modelInput}
       keyEntry={keyEntry}
       notice={notice}
+      appVersion={pkg.version}
+      engineState={`${engineLineOf(engine)} · ${t(linkTextOf(phase))}`}
       handlers={handlers}
     />
   );

@@ -1,4 +1,5 @@
 import { err, ok } from "@fresnel/contracts";
+import { createSettingsController } from "@fresnel/client/settings";
 import type { Commands } from "../../src/views/commands.ts";
 
 /** 화면 시험이 쓰는 명령 대역. 기본은 모두 성공하고 신뢰 메서드는 host에 없는 것(unsupported)처럼 답한다 */
@@ -12,6 +13,11 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     createThread: () => Promise.resolve(ok(null)),
     sendTurn: () => Promise.resolve(ok(null)),
     interrupt: () => Promise.resolve(ok(null)),
+    compactThread: () => Promise.resolve(err({ kind: "unsupported" })),
+    resumeTurn: () => Promise.resolve(err({ kind: "unsupported" })),
+    runCommandLine: () => Promise.resolve(err({ kind: "unsupported" })),
+    paletteUses: () => ({}),
+    savePaletteUses: () => Promise.resolve(true),
     confirmShell: () => Promise.resolve(ok(null)),
     cancelShell: () => {},
     dismissCommandOutput: () => {},
@@ -120,7 +126,17 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       beginReveal: () => Promise.resolve(err({ kind: "unsupported" })),
       writeClipboard: () => Promise.resolve(),
     },
-    settings: { open: () => null },
+    settings: {
+      // 연결이 없는 컨트롤러다. 실제 명령과 같이 로컬 원천만 읽고 쓴다
+      open: () =>
+        createSettingsController({
+          connection: null,
+          currentThreadId: () => null,
+          requestHostRestart: () => Promise.resolve(),
+        }),
+      readFile: () => Promise.resolve(err({ kind: "unsupported" })),
+      writeFile: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
     web: {
       providers: () => Promise.resolve(err({ kind: "unsupported" })),
       setOrder: () => Promise.resolve(ok(null)),
@@ -135,6 +151,9 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       goalCommand: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     review: {
+      get: () => Promise.resolve(err({ kind: "unsupported" })),
+    },
+    usage: {
       get: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     observeThread: () => Promise.resolve(ok(null)),

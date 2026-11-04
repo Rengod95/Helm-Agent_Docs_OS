@@ -3,11 +3,13 @@ import { LEDGER_DISABLE_AFTER } from "@fresnel/client/views/ledger";
 import type { ExtListResult, ExtUiEntry } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { createShellStore, ShellStoreContext } from "../../src/state/shell/index.ts";
+import { switchArea } from "../../src/state/shell/model.ts";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
 import { createUiStore, type UiState } from "../../src/state/ui/store.ts";
 import { PaletteBody } from "../../src/views/palette/palette.tsx";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
+import type { PaletteUses } from "../../src/views/palette/palette-model.ts";
 import { Providers } from "../../src/views/providers.tsx";
 import { extListEntryOf, uiEntryOf } from "../plugin-ui/support.ts";
 import { harness, STORE, SUB, summary, thr } from "../state/helpers.ts";
@@ -31,6 +33,8 @@ async function render(input: {
   readonly extensions?: ExtListResult["extensions"];
   /** 장부가 이 화면 키들을 `view_disabled`로 끈 상태로 그린다(연속 실패 다섯 번) */
   readonly disabledViews?: readonly string[];
+  readonly area?: "chat" | "workbench";
+  readonly uses?: PaletteUses;
 }): Promise<string> {
   const h = harness();
   if (input.live) {
@@ -54,15 +58,19 @@ async function render(input: {
     selectedThreadId: input.selected ? thr(1) : null,
   };
   const engine: EngineMirror = h.store.read.getState();
-  const shell = createShellStore(1400);
+  // 영역은 시작 상태에서 고른다. SSR은 스토어의 처음 상태를 읽는다
+  const shell = createShellStore(1400, (model) =>
+    input.area === "workbench" ? switchArea(model, "workbench") : model,
+  );
   const plugin = await loadedPluginUi(input.plugins ?? [], input.extensions);
   for (const key of input.disabledViews ?? []) {
     for (let count = 0; count < LEDGER_DISABLE_AFTER; count += 1) {
       plugin.runtime.ledger.fail(key, "query_failed");
     }
   }
+  const commands = fakeCommands({ paletteUses: () => input.uses ?? {} });
   return renderToString(
-    <Providers engine={frozen(engine)} ui={frozen(uiState)} commands={fakeCommands()}>
+    <Providers engine={frozen(engine)} ui={frozen(uiState)} commands={commands}>
       <PluginUiProvider value={plugin}>
         <ShellStoreContext value={shell}>
           <PaletteBody mac onRun={() => {}} />
@@ -75,13 +83,47 @@ async function render(input: {
 const SEVEN = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf"];
 
 describe("palette body (server render)", () => {
-  test("offline the palette shows the app actions and the offline notice only", async () => {
+  test("offline the palette shows the app actions, the screen navigation and the offline notice", async () => {
     const html = await render({ live: false, titles: ["alpha"], selected: true });
     expect(html).toContain("새 대화");
+    expect(html).toContain("화면 이동");
+    expect(html).toContain("예약");
     expect(html).toContain("엔진에 연결되면");
     expect(html).not.toContain("명령 목록을 읽고 있어요");
     expect(html).not.toContain("설정 항목을 읽고 있어요");
     expect(html).not.toContain("alpha");
+  });
+
+  test("the screen navigation group comes after the settings group", async () => {
+    const html = await render({ live: true, titles: [], selected: true });
+    const settings = html.indexOf("설정 항목을 읽고 있어요");
+    const screens = html.indexOf("화면 이동");
+    expect(settings).toBeGreaterThan(-1);
+    expect(screens).toBeGreaterThan(settings);
+  });
+
+  test("the current area's screens show first and the other area's sit behind the more row", async () => {
+    const chat = await render({ live: false, titles: [], selected: false });
+    expect(chat).toContain("예약");
+    expect(chat).not.toContain("개요");
+    const workbench = await render({ live: false, titles: [], selected: false, area: "workbench" });
+    expect(workbench).toContain("개요");
+    expect(workbench).toContain("측정");
+    expect(workbench).not.toContain("예약");
+  });
+
+  test("the most used command shows among the first five rows of an empty input", async () => {
+    // 진단 복사는 표에서 여덟째라 셈이 없으면 첫 다섯 밖이다
+    const plain = await render({ live: true, titles: [], selected: true });
+    expect(plain).not.toContain("진단 복사");
+    const used = await render({
+      live: true,
+      titles: [],
+      selected: true,
+      uses: { "diagnostics.copy": 2 },
+    });
+    expect(used).toContain("진단 복사");
+    expect(used.indexOf("진단 복사")).toBeLessThan(used.indexOf("새 대화"));
   });
 
   test("connected with an open thread the slash and settings groups show while they load", async () => {

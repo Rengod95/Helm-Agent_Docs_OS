@@ -35,6 +35,9 @@ import type {
   ExtTestRunParams,
   ExtTestRunResult,
   SettingsExplainResult,
+  SettingsReadFileResult,
+  SettingsWritableFileScope,
+  SettingsWriteFileResult,
   TrustChoice,
   TrustStatus,
   WireParams,
@@ -52,6 +55,7 @@ import type { AttachFailureKind, OrderUpdate, TargetEntry, ToolsWebView } from "
 import type { ThreadToggleRequest, ToggleRequest } from "@fresnel/client/workbench";
 import type { LockedOption, ReviewTarget, Screen, SettingsJump } from "../state/ui/index.ts";
 import type { EngineTarget } from "../transport/ipc.ts";
+import type { PaletteUses } from "./palette/palette-model.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
 // 보낸 직후의 표시(보내는 중, 실패)는 UI 스토어가, 결과는 엔진 이벤트가 거울에 넣는다.
@@ -162,6 +166,14 @@ export interface ProposalCommands {
 export interface ReviewCommands {
   /** `review.get`. 리뷰의 파일과 hunk 본문을 읽는다 */
   get(reviewId: string): Promise<Result<WireResult<"review.get">, CommandError>>;
+}
+
+/**
+ * 사용량 게이지(P-11 "사용량 (이 대화)"). 게이지는 요청 결과라 거울에 넣지 않는다(FS-03). 읽기만 하고 연결과 host 실패만 `CommandError`다.
+ */
+export interface UsageCommands {
+  /** `usage.get`. `threadId`를 주면 그 대화의 게이지를 더한다. 한도와 재설정 시각은 host가 알 때만 준다 */
+  get(params: WireParams<"usage.get">): Promise<Result<WireResult<"usage.get">, CommandError>>;
 }
 
 /**
@@ -286,12 +298,31 @@ export interface WebCommands {
 }
 
 /**
- * 설정 화면(P-09)의 컨트롤러. 연결이 없으면 `null`이다. 컨트롤러는 연결마다 새로 만들고, 화면이 `dispose()`로 놓는다.
+ * 설정 화면(P-09)의 컨트롤러. 연결이 없어도 준다(엔진 원천 항목은 빠지고 로컬 원천 항목은 쓸 수 있다). 컨트롤러는 연결마다 새로 만들고, 화면이 `dispose()`로 놓는다.
  * 읽기·쓰기·알림의 판정은 `@fresnel/client/settings`가 하고, 이 명령은 연결과 현재 대화만 잇는다(`app/settings.ts`).
  */
 export interface SettingsCommands {
-  open(): SettingsController | null;
+  open(): SettingsController;
+  /** `settings.readFile`(파일 편집기). 범위가 `user`이면 대화를 보내지 않는다. 연결이 없으면 `offline`이다 */
+  readFile(target: SettingsFileTarget): Promise<Result<SettingsReadFileResult, CommandError>>;
+  /** `settings.writeFile`(파일 편집기). 읽은 뒤 파일이 바뀌었으면 `conflict`(3107)다 */
+  writeFile(write: SettingsFileWrite): Promise<Result<SettingsWriteFileResult, SettingsWriteError>>;
 }
+
+/** 파일 편집기가 고르는 범위와 대화. `project`와 `local`은 대화의 작업 폴더를 쓴다 */
+export interface SettingsFileTarget {
+  readonly scope: SettingsWritableFileScope;
+  readonly threadId: ThreadId | null;
+}
+
+/** 파일 전체를 바꾸는 요청. `baseSha256`은 읽었을 때의 해시이고, 파일이 없었으면 `null`이다 */
+export interface SettingsFileWrite extends SettingsFileTarget {
+  readonly text: string;
+  readonly baseSha256: string | null;
+}
+
+/** 파일 쓰기의 오류. 충돌은 화면이 다시 읽기로 맞추므로 따로 둔다 */
+export type SettingsWriteError = CommandError | { readonly kind: "conflict" };
 
 /**
  * 시크릿 화면의 기대하지 않은 실패. `secret.*`의 몇 가지 오류 종류만 구분하고 나머지는 `failed`다.
@@ -440,6 +471,22 @@ export interface Commands {
     requestId: string,
   ): Promise<Result<null, CommandError>>;
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
+  /** `thread.compact`: 지금 대화를 요약한다(수동 컴팩션). 요약할 것이 없으면 결과가 `skipped`로 와서 오류가 아니다 */
+  compactThread(threadId: ThreadId): Promise<Result<WireResult<"thread.compact">, CommandError>>;
+  /** `turn.resume`: 멈춘 턴을 이어서 실행한다 */
+  resumeTurn(threadId: ThreadId): Promise<Result<WireResult<"turn.resume">, CommandError>>;
+  /**
+   * 슬래시 명령 줄 하나를 `command.run`으로 보낸다. 대화 입력으로는 보내지 않는다(명령이 없으면 `not_command`로 온다).
+   * 명령이 적용됐는지는 결과의 `status`가 `done`인지로 본다. 명령 팔레트의 탐구 시작·멈춤이 쓴다.
+   */
+  runCommandLine(
+    threadId: ThreadId,
+    text: string,
+  ): Promise<Result<WireResult<"command.run">, CommandError>>;
+  /** 명령 팔레트의 명령별 실행 횟수(로컬 설정). 저장한 적이 없으면 빈 객체다 */
+  paletteUses(): PaletteUses;
+  /** 명령 팔레트의 실행 횟수를 저장한다. 저장하지 못하면 `false`다 */
+  savePaletteUses(uses: PaletteUses): Promise<boolean>;
   /**
    * 입력창이 `/`로 시작하는 줄을 슬래시 명령으로 보냈을 때(`sendTurn`) 호스트가 셸 주입 실행에 사람 확인을 요구했다. 이 호출이 같은 줄을
    * `confirmShell: true`로 다시 보낸다. 확인 대기가 없으면 아무 일도 하지 않는다.
@@ -479,6 +526,7 @@ export interface Commands {
   readonly proposals: ProposalCommands;
   readonly work: WorkCommands;
   readonly review: ReviewCommands;
+  readonly usage: UsageCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */

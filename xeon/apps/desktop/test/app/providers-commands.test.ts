@@ -103,7 +103,6 @@ async function openLoaded() {
   const app = makeApp(engine.fake);
   await until(() => app.engine.read.getState().link.phase === "live", "live link");
   const controller = app.commands.settings.open();
-  if (controller === null) throw new Error("a live connection must give a controller");
   await controller.load();
   return { app, controller, params: engine.params };
 }

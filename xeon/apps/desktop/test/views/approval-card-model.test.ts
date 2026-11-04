@@ -9,6 +9,7 @@ import {
   foldPlanLines,
   PLAN_FOLD_LINES,
   reviewTotalsOf,
+  threadLinkVisibleOf,
 } from "../../src/views/approval-card/card-model.ts";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import { thr } from "../state/helpers.ts";
@@ -144,5 +145,24 @@ describe("feedback text", () => {
   test("feedback is cut at the contract's maximum length", () => {
     const long = "a".repeat(FEEDBACK_MAX + 5);
     expect(feedbackTextOf(long)?.length).toBe(FEEDBACK_MAX);
+  });
+});
+
+describe("thread link in the card head", () => {
+  const T1 = thr(1);
+  const T2 = thr(2);
+
+  test("the name links only outside the transcript of its own conversation", () => {
+    // 받은 요청(밖, null)은 다른 대화든 같은 대화든 링크다
+    expect(threadLinkVisibleOf({ threadId: T1, within: null, openable: true })).toBe(true);
+    expect(threadLinkVisibleOf({ threadId: T1, within: T2, openable: true })).toBe(true);
+    // 그 대화의 트랜스크립트 안에서는 링크가 없다
+    expect(threadLinkVisibleOf({ threadId: T1, within: T1, openable: true })).toBe(false);
+  });
+
+  test("a conversation that cannot be opened is never a link", () => {
+    expect(threadLinkVisibleOf({ threadId: T1, within: null, openable: false })).toBe(false);
+    expect(threadLinkVisibleOf({ threadId: T1, within: T2, openable: false })).toBe(false);
+    expect(threadLinkVisibleOf({ threadId: T1, within: T1, openable: false })).toBe(false);
   });
 });

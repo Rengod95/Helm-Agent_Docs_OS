@@ -11,7 +11,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useApprovalMirror, useLinkPhase } from "../../../state/engine/index.ts";
+import { useApprovalMirror, useLinkPhase, useReviewResults } from "../../../state/engine/index.ts";
 import { useApprovalDetail, useApprovalSend, useReviewTarget } from "../../../state/ui/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
 import { useCommands } from "../../commands.ts";
@@ -23,8 +23,11 @@ import {
   reviewAnswerOf,
   reviewFilesOf,
   reviewReducer,
+  reviewResultViewOf,
+  shownHunkIdsOf,
   submitBlockOf,
   tallyOf,
+  type ReviewKeyAction,
   type ReviewSummary,
 } from "../../review-model.ts";
 import {
@@ -35,6 +38,7 @@ import {
 } from "./review-view.tsx";
 
 // 변경 검토 화면(P-04)의 동작. 연 승인은 UI 스토어의 `reviewTarget`이 정하고, 대기열에서 빠지면 같은 리뷰의 다음 라운드를 따라간다.
+// 검토가 닫혔으면 이 리뷰의 제출 결과(엔진 거울의 `review_applied`·`review_submitted`)를 보인다.
 // hunk 본문은 `commands.review.get`으로 읽고(파일 종류와 이진 여부는 승인 요청의 요약이 준다), 결정과 의견은 화면 로컬 초안(`reviewReducer`)이 든다.
 // 답은 `respondApproval`로 보낸다. 그림은 `review-view.tsx`가, 답과 초안의 값은 `review-model.ts`가 맡는다.
 
@@ -47,6 +51,7 @@ type LoadState =
 export function ReviewScreen(): ReactNode {
   const target = useReviewTarget();
   const mirror = useApprovalMirror();
+  const results = useReviewResults();
   const shell = useShellActions();
   const pending = useMemo(
     () =>
@@ -60,7 +65,16 @@ export function ReviewScreen(): ReactNode {
     shell.updatePlace({ screen: "chat", scroll: 0 });
   };
   const current = target === null ? null : currentReviewOf(target, pending);
-  if (current === null) return <ReviewView onBack={onBack} open={null} />;
+  if (current === null) {
+    // 제출이 끝나 승인이 대기열에서 빠졌다. 결과가 왔으면 제출 결과 표를 보인다
+    const record =
+      target === null ? undefined : results.find((r) => r.reviewId === target.reviewId);
+    const result =
+      record !== undefined && record.submitted
+        ? reviewResultViewOf(record.outcomes, record.delivery)
+        : null;
+    return <ReviewView onBack={onBack} open={null} result={result} />;
+  }
   // 승인이 바뀌면(다음 라운드) 화면 초안과 본문 읽기를 새로 시작한다
   return (
     <OpenReview
@@ -122,6 +136,10 @@ function OpenReview(props: {
   const denyWith = (): void => {
     detach(commands.respondApproval(approvalId, { decision: "deny" }), rethrow);
   };
+  const submitReview = (): void => {
+    if (!submitOpen()) return;
+    answerWith(reviewAnswerOf(hunkIds, state.draft));
+  };
 
   const handlers: ReviewHandlers = {
     retry: () => {
@@ -129,7 +147,10 @@ function OpenReview(props: {
       detach(readBody(), rethrow);
     },
     fileSelect: (path) => {
-      dispatch({ type: "fileSelected", path });
+      // 파일을 고르면 그 파일의 첫 보이는 hunk에 초점을 준다(j·k와 같은 규칙)
+      const file = body.kind === "ready" ? body.files.find((f) => f.path === path) : undefined;
+      const hunkId = file === undefined ? null : (shownHunkIdsOf(file, state.expanded)[0] ?? null);
+      dispatch({ type: "focusMoved", path, hunkId });
     },
     fileExpand: (path) => {
       dispatch({ type: "fileExpanded", path });
@@ -140,14 +161,14 @@ function OpenReview(props: {
     fileDecide: (ids, decision) => {
       dispatch({ type: "fileDecided", hunkIds: ids, decision });
     },
-    composeOpen: (hunkId) => {
-      dispatch({ type: "composeOpened", hunkId });
+    composeOpen: (hunkId, line) => {
+      dispatch({ type: "composeOpened", hunkId, line });
     },
     composeChange: (text) => {
       dispatch({ type: "composeChanged", text });
     },
-    composeSave: (hunkId) => {
-      dispatch({ type: "commentAdded", hunkId, text: state.composing?.text ?? "" });
+    composeSave: (hunkId, line) => {
+      dispatch({ type: "commentAdded", hunkId, line, text: state.composing?.text ?? "" });
     },
     composeCancel: () => {
       dispatch({ type: "composeCancelled" });
@@ -158,15 +179,20 @@ function OpenReview(props: {
     approveRemaining: (on) => {
       dispatch({ type: "approveRemainingChanged", on });
     },
-    submit: () => {
-      if (!submitOpen()) return;
-      answerWith(reviewAnswerOf(hunkIds, state.draft));
-    },
+    submit: submitReview,
     approveAll: () => {
       answerWith(APPROVE_ALL_ANSWER);
     },
     deny: () => {
       denyWith();
+    },
+    key: (action: ReviewKeyAction) => {
+      // ⌘Enter는 제출 규칙을 다시 본다(`submitReview`가 막힌 제출을 보내지 않는다)
+      if (action.type === "submit") {
+        submitReview();
+        return;
+      }
+      dispatch(action);
     },
   };
 

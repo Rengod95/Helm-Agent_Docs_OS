@@ -144,7 +144,7 @@ export type { SecretStatus };
   - `write-flow.ts`: `coerceInput`, `checkClientValue`(`toValueJsonSchema` + `typebox/schema`의 `Errors`), `planWrite`, `planReset`, `blockedBy`, `toFieldError`(§4.4.4 표, 서버 `message`는 쓰지 않는다).
   - `invalidation.ts`: `invalidationConcerns`, `affectedKeys`(§4.5.4).
   - 시험: `xeon/packages/client/test/settings/state.test.ts`(전이 값), `invalidation.test.ts`(알림 판정), `write-flow.test.ts`(검사·계획·오류 문장), `controller.test.ts`(가짜 호스트 위의 읽기·쓰기·알림), `fields-schema.test.ts`(시험 이름 `settings.fields-equal-schema-keys`, X10).
-- [V-09 구현 차이] (1) `SettingsHostPort.localStore`(§3.2 코드 블록의 `DesktopSettingsStore`)는 두지 않았다. `DesktopSettingsStore`는 `apps/desktop`의 타입이라 패키지가 가져올 수 없다(층 규칙, `L4.desktop.spec` §4.9). §4.1.3의 두 원천 합치기는 desktop이 이 포트에 구조 타입으로 더할 때 맞춘다. (2) 변경 수신은 `settings.invalidated` 알림이다(§4.5.1 머리 참고). (3) 대화에 묶인 쓰기 범위의 wire 값은 `launch`다. 이 문서의 `session`은 같은 범위를 가리키고, 코드는 `launch`를 쓴다. (4) `SecretStatus`는 현재 `unset`·`referenced` 두 값이다(§4.6.2의 `registered`·`missing`은 시크릿 상태 경로가 생길 때 더한다). (5) `openSecretFlow`는 포트에 타입만 있고 컨트롤러가 호출하지 않는다(§4.6.4 C안 흐름은 값 입력 화면이 맡는다). (6) `settings.readFile`·`settings.writeFile`(파일 편집기, §4.2.3)은 컨트롤러 밖이다. `settings.fileConflict`(3107)는 그 단계에서 "다른 곳에서 바뀌었어요"와 다시 읽기로 맞춘다. 이 컨트롤러의 `toFieldError`는 3107을 `internal`로 둔다.
+- [V-09 구현 차이] (1) `SettingsHostPort.localStore`는 §3.2 코드 블록의 `DesktopSettingsStore`가 아니라 클라이언트가 정의한 구조 타입 `LocalSettingsPort`(`controller.ts`)로 두고, 선택 필드로 둔다. `DesktopSettingsStore`는 `apps/desktop`의 타입이라 패키지가 가져올 수 없다(층 규칙, `L4.desktop.spec` §4.9). 필드가 없으면 `l4.desktop.*` 항목이 없다. `connection`은 `HostConnection | null`이다. 엔진이 없으면 `null`이고, 그 컨트롤러는 로컬 원천만 읽고 쓴다. desktop은 `apps/desktop/src/settings-store/port.ts`의 `createLocalSettingsPort(local)`로 `LOCAL` 키 표와 `DESKTOP_SETTING_DEFS`를 이 포트에 맞춘다. 두 원천 합치기는 §4.1.3대로 `catalog.ts`의 `mergeCatalogs`가 한다. (2) 변경 수신은 `settings.invalidated` 알림이다(§4.5.1 머리 참고). (3) 대화에 묶인 쓰기 범위의 wire 값은 `launch`다. 이 문서의 `session`은 같은 범위를 가리키고, 코드는 `launch`를 쓴다. (4) `SecretStatus`는 현재 `unset`·`referenced` 두 값이다(§4.6.2의 `registered`·`missing`은 시크릿 상태 경로가 생길 때 더한다). (5) `openSecretFlow`는 포트에 타입만 있고 컨트롤러가 호출하지 않는다(§4.6.4 C안 흐름은 값 입력 화면이 맡는다). (6) 파일 편집기(§4.2.3)의 `settings.readFile`·`settings.writeFile`은 컨트롤러 밖이다. 화면이 `commands.settings.readFile`·`writeFile`로 부르고(`apps/desktop/src/app/settings.ts`), 와이어 호출과 오류 분류는 `@fresnel/client`의 `readSettingsFile`·`writeSettingsFile`이 맡는다. 편집기의 상태 전이와 저장 기준 해시는 `apps/desktop/src/views/pages/settings/settings-file-model.ts`가 맡는다. `settings.fileConflict`(3107)는 "다른 곳에서 바뀌었어요"와 다시 읽기로 맞춘다. 초안은 남고, 다시 읽으면 파일 내용으로 바뀐다. 이 컨트롤러의 `toFieldError`는 3107을 `internal`로 둔다.
 
 ### 3.3 연결 어댑터
 
@@ -276,6 +276,8 @@ export interface FieldVM {
   readonly error: FieldError | null;
   readonly saving: boolean;
   readonly remoteChanged: boolean;           // 초안 편집 중 다른 곳에서 값이 바뀜(§4.5.3)
+  readonly origin: SettingOrigin;            // 정의가 온 원천(§4.1.3)
+  readonly offlineNote: string | null;       // 엔진이 없어 바꿀 수 없는 engine 항목의 안내 문장(§4.1.3)
 }
 
 export interface GaugeSlotVM {
@@ -599,23 +601,25 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 #### 4.1.3 두 원천 합치기
 
-`L4.desktop.spec` §3.6은 `l4.desktop.*` 키를 엔진 카탈로그 밖의 데스크톱 로컬 저장소에 둔다. [제안] 설정 화면은 두 원천을 아래 규칙으로 합친다.
+`L4.desktop.spec` §3.6은 `l4.desktop.*` 키를 엔진 카탈로그 밖의 데스크톱 로컬 저장소에 둔다. [제안] 설정 화면은 두 원천을 아래 규칙으로 합친다. [V-09 구현] 합치는 함수는 `packages/client/src/settings/catalog.ts`의 `mergeCatalogs`다. 상태는 원천별 목록(`catalogs`)에서 `defs`·`origins`·`duplicateKeys`를 다시 만든다. 로컬 원천의 포트 타입은 `LocalSettingsPort`(`controller.ts`)다.
 
 1. 정의 목록은 `settings.list` 결과와 `localStore.defs()`의 합집합이다. 키 `l4.desktop.`로 시작하는 정의는 `origin: "desktop"`, 나머지는 `origin: "engine"`이다.
-2. 같은 키가 양쪽에 있으면 desktop 쪽 정의를 쓰고 `duplicateKey` 진단을 남긴다.
+2. 같은 키가 양쪽에 있으면 desktop 쪽 정의를 쓰고 `duplicateKey` 진단을 남긴다. 한 원천 안에서 같은 키가 두 번 오면 처음 것을 쓴다.
 3. 읽기·쓰기·복귀·변경 수신은 `origin`으로 보낼 곳을 정한다.
 
 | 동작 | `origin: "engine"` | `origin: "desktop"` |
 |---|---|---|
 | 정의 | `settings.list` | `localStore.defs()` |
-| 유효 값 | `settings.get` | `localStore.get(key)` |
+| 유효 값 | `settings.get` | `localStore.get(key)`. 저장한 값이 없으면 선언의 기본값과 출처 `default`다 [V-09 구현] |
 | 쓰기 | `settings.set {key, value, scope, threadId?}` | `localStore.set(key, value)`. 범위는 user 하나다 |
-| 복귀 | `settings.reset` | `localStore.reset(key)` |
+| 복귀 | `settings.reset` | `localStore.reset(key)`. 파일에서 키를 지우는 명령이 없어서 기본값을 쓴다 [미결: `desktop_settings_write`에 지우기를 더한다] |
 | 변경 수신 | §4.5(이벤트 수신 뒤 다시 읽기) | `localStore.onChange`. 결과 `EffectiveSetting`을 바로 반영한다 |
-| 쓰기 실패 | `WireError`(§4.4.4) | `DesktopSettingWrite`의 `kind`(`settings.unknownKey`, `settings.invalidValue`). 같은 표로 변환한다 |
+| 쓰기 실패 | `WireError`(§4.4.4) | `settings.unknownKey`·`settings.invalidValue`는 엔진과 같은 `FieldError` 값으로 옮긴다. 파일 쓰기 실패(`storage`)는 `internal`로 옮긴다 [V-09 구현]. 다시 읽을 연결이 없으므로 뒤 처리는 없다 |
 
-- 엔진 연결이 없어도(엔진 `failed`·`restarting`) desktop 원천 항목은 편집할 수 있다. 엔진 원천 항목은 읽기 전용으로 두고 "엔진과 연결되면 바꿀 수 있어요"를 보인다.
+- 엔진 연결이 없어도 desktop 원천 항목은 편집할 수 있다. [V-09 구현] 연결 없이 만든 컨트롤러(`connection: null`)는 로컬 원천만 읽는다. 연결이 닫히면(`HostConnection.closed`) 엔진 원천 항목은 읽기 전용이 되고, 항목 아래에 "엔진과 연결되면 바꿀 수 있어요"를 보인다(`FieldVM.offlineNote`). 그 항목의 저장을 컨트롤러에 직접 시켜도 보내지 않고 `transient`로 막는다.
+- [V-09 구현] 엔진 목록을 읽지 못했는데 연결이 살아 있으면 §4.1의 `failed` 규칙을 따른다. 그때는 로컬 항목도 화면에 나오지 않는다 [제안].
 - 두 원천이 같은 `SettingDefWire`·`EffectiveSetting` 모양을 쓰므로 탭 생성, 위젯, 배지, 클라이언트 검사 규칙은 원천과 무관하게 같다.
+- 로컬 원천은 쓰기 범위를 user 하나로 둔다. 정의의 `allowedScopes`에 `managed`가 있어도 화면은 쓰지 않는다. 관리 범위의 잠금을 로컬 파일에서 읽는 방법은 `L4.desktop.spec` §10 미결 6이 정한다.
 - desktop이 `l4.desktop.*`를 엔진 카탈로그로 옮기면(`L4.desktop.spec` §10 미결 6의 대안) 이 절은 없어지고 원천은 하나가 된다.
 
 ### 4.2 항목 생성 규칙
@@ -670,6 +674,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 검색 도구 순서 | tools | 자동 선택 순서(`L2.web.spec`) | 등록된 검색 도구 목록(기본 웹 검색 도구 포함)을 끌어 옮겨 순서를 정한다. 플러그인은 기본 후순위다 [결정: review.m3-design-inputs D-M3-23]. 끌어 옮긴 결과는 `@fresnel/client/web`의 `orderUpdateOf`가 `settings.set` 값으로 바꾼다(§4.11) |
 | 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`). API 키 계정과 구독 계정 모두. 회전은 기본 꺼짐이고 켤 때 첫 사용 고지(약관 위험)를 보인다 [결정: review.m3-design-inputs D-M3-22] | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
 
+- 구현 상태(P-09): 권한 규칙(`l1.tools.rules`), 샌드박스 목록 두 개(`l0.sandbox.writeRoots.extra`, `l0.sandbox.network.blockedDomains`), 시크릿 참조는 `pages/settings/settings-editors-screen.tsx`의 전용 편집기로 그린다. 표(`table`의 세 모양)는 같은 파일의 표 편집기로 그린다(§4.2.1). 모델 역할, 대체 사슬, 계정 풀, 레이트 리밋은 P-11(`pages/providers`)이, 검색 순서는 P-12 패널이 맡는다. 위의 세 키는 키 이름 목록에 더했다. 값은 모두 `settings.set` 한 번으로 키 하나를 통째로 쓴다. 상세는 L4.desktop-ux §6.13.
 - 전용 편집기를 고르는 기준은 키 이름이다(예: 정의 키가 정해진 목록에 있음). [미결] 키 이름에 묶는 대신 F `SettingUi`에 편집기 힌트 필드를 더할지(§10 미결 8).
 
 ### 4.3 항목 공통 표시

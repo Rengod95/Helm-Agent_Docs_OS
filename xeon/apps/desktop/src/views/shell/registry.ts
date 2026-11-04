@@ -30,6 +30,8 @@ export interface EndTabDef {
   readonly badge?: () => number | undefined;
   /** well 폭(px). 없으면 352. 320~480으로 자른다 */
   readonly width?: number;
+  /** 이 탭을 보일 화면 id. 없으면 영역의 모든 화면에서 보인다 */
+  readonly screens?: readonly string[];
   readonly render: () => ReactNode;
 }
 
@@ -39,7 +41,8 @@ export interface ShellRegistry {
   screen(id: string): ScreenDef | undefined;
   /** 영역의 화면들(등록 순서). `"both"` 화면은 두 영역 모두에 든다 */
   screens(area: Area): readonly ScreenDef[];
-  endTabs(area: Area): readonly EndTabDef[];
+  /** 영역의 오른쪽 탭들. `screen`을 주면 `screens`가 그 화면을 빼는 탭을 거른다 */
+  endTabs(area: Area, screen?: string): readonly EndTabDef[];
 }
 
 const inArea = (a: Area | "both", area: Area): boolean => a === "both" || a === area;
@@ -59,6 +62,11 @@ export function createShellRegistry(): ShellRegistry {
     },
     screen: (id) => screens.get(id),
     screens: (area) => [...screens.values()].filter((s) => inArea(s.area, area)),
-    endTabs: (area) => [...tabs.values()].filter((t) => inArea(t.area, area)),
+    endTabs: (area, screen) =>
+      [...tabs.values()].filter(
+        (t) =>
+          inArea(t.area, area) &&
+          (screen === undefined || t.screens === undefined || t.screens.includes(screen)),
+      ),
   };
 }

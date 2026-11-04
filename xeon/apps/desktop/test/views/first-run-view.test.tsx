@@ -1,10 +1,16 @@
 import { describe, expect, test } from "bun:test";
+import { toolsWebViewOf } from "@fresnel/client";
 import { t } from "@fresnel/client/i18n";
 import type { BinaryView, SetupSnapshot } from "@fresnel/client/settings";
 import { parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
+import type {
+  WebProviderStatus,
+  WebProvidersResult,
+  WebSettingsWire,
+} from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
-import type { GroupsSnapshot } from "../../src/views/commands.ts";
+import type { GroupsSnapshot, SearchSnapshot } from "../../src/views/commands.ts";
 import {
   firstRunModelOf,
   type FirstRunKeyEntry,
@@ -16,7 +22,7 @@ import {
   type FirstRunViewProps,
 } from "../../src/views/pages/first-run/first-run-view.tsx";
 
-// 첫 실행 화면의 서버 렌더. 읽는 중, 오류, 오프라인, 안전 모드 그룹, 긴 도구 표, 키 칸, 잠긴 기본 모델을 그린다.
+// 첫 실행 화면의 서버 렌더. 읽는 중, 오류, 오프라인, 안전 모드 그룹, 긴 도구 표, 키 칸, 잠긴 기본 모델, 바닥글, 검색 권장을 그린다.
 // 클릭과 키 입력은 DOM이 없어 시험하지 못한다(뜻은 first-run-model.test.ts가 본다). 문장은 `t()`로 비교한다.
 
 const NOOP = (): void => {};
@@ -33,6 +39,7 @@ const handlers: FirstRunViewHandlers = {
   saveModel: NOOP,
   setGroup: NOOP,
   dismissSearch: NOOP,
+  registerSecret: NOOP,
   openLightCraft: NOOP,
 };
 
@@ -66,11 +73,43 @@ function propsOf(over: Partial<FirstRunViewProps> = {}): FirstRunViewProps {
     modelInput: "",
     keyEntry,
     notice: null,
+    appVersion: "0.4.0",
+    engineState: "엔진 실행 중 · 연결됨",
     handlers,
     ...over,
     setup,
     model,
   };
+}
+
+const WEB_SETTINGS: WebSettingsWire = {
+  searchProvider: "auto",
+  searchOrder: [],
+  searchParallel: 1,
+  browseProvider: "auto",
+  browseOrder: [],
+  robots: "never",
+};
+
+function webRow(id: string, status: WebProviderStatus["status"]): WebProviderStatus {
+  return {
+    id,
+    capability: "web.search",
+    origin: "plugin",
+    displayName: id,
+    auth: "bearer",
+    status,
+    pricingAsOf: null,
+    pricingStale: false,
+    firstUseNoticed: true,
+    autoRank: null,
+  };
+}
+
+/** 검색 권장을 읽은 결과. 행을 주지 않은 권장 플러그인은 "설치 안 됨"이다 */
+function searchOf(rows: readonly WebProviderStatus[]): SearchSnapshot {
+  const result: WebProvidersResult = { providers: [...rows], settings: WEB_SETTINGS };
+  return { web: toolsWebViewOf(result), dismissed: false };
 }
 
 function html(props: FirstRunViewProps): string {
@@ -155,11 +194,78 @@ describe("first-run screen server render", () => {
     const page = html(
       propsOf({
         open: "key",
-        keyEntry: { state: "form", name: nameOf("anthropic-api-key"), action: "add" },
+        keyEntry: {
+          state: "form",
+          name: nameOf("anthropic-api-key"),
+          action: "add",
+          providerId: "anthropic",
+        },
       }),
     );
     expect(page).toContain('type="password"');
     expect(page).toContain(t("desktop.firstRun.key.valueLabel"));
+  });
+
+  test("the footer shows the app version and the engine line as given", () => {
+    const page = html(propsOf({ appVersion: "0.4.0", engineState: "엔진 실행 중 · 연결됨" }));
+    expect(page).toContain(t("desktop.firstRun.footer.version", { version: "0.4.0" }));
+    expect(page).toContain("엔진 실행 중 · 연결됨");
+  });
+
+  test("a recommendation that is not installed or has no key offers the install help link, and a ready one offers nothing", () => {
+    const missingModel = firstRunModelOf({
+      setup: SETUP,
+      search: searchOf([webRow("plugin:web-exa", { kind: "unavailable", reason: "no-key" })]),
+      groups: GROUPS,
+    });
+    const missing = html(propsOf({ open: "search", model: missingModel }));
+    // Exa는 키 없음, Brave는 행이 없어 설치 안 됨이다. 둘 다 설치 방법 보기 링크가 있다
+    expect(missing.split(t("desktop.firstRun.search.installHelp")).length - 1).toBe(2);
+    const ready = firstRunModelOf({
+      setup: SETUP,
+      search: searchOf([
+        webRow("plugin:web-exa", { kind: "ok" }),
+        webRow("plugin:web-brave", { kind: "ok" }),
+      ]),
+      groups: GROUPS,
+    });
+    expect(html(propsOf({ open: "search", model: ready }))).not.toContain(
+      t("desktop.firstRun.search.installHelp"),
+    );
+  });
+
+  test("a plugin with no key shows a key button, and its key form names the recommended secret", () => {
+    const model = firstRunModelOf({
+      setup: SETUP,
+      search: searchOf([webRow("plugin:web-exa", { kind: "unavailable", reason: "no-key" })]),
+      groups: GROUPS,
+    });
+    const page = html(
+      propsOf({
+        open: "search",
+        model,
+        keyEntry: {
+          state: "form",
+          name: nameOf("exa-api-key"),
+          action: "add",
+          providerId: null,
+        },
+      }),
+    );
+    expect(page).toContain(t("desktop.settings.key.register.button"));
+    expect(page).toContain("<code>exa-api-key</code>");
+    expect(page).toContain('type="password"');
+  });
+
+  test("the install note stays closed until the help link is opened", () => {
+    const model = firstRunModelOf({
+      setup: SETUP,
+      search: searchOf([]),
+      groups: GROUPS,
+    });
+    expect(html(propsOf({ open: "search", model }))).not.toContain(
+      t("desktop.firstRun.search.installNote"),
+    );
   });
 
   test("the default model step is locked until a key is registered", () => {

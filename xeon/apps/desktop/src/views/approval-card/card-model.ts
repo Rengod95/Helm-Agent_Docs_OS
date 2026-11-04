@@ -100,3 +100,15 @@ export function feedbackTextOf(input: string): string | null {
   const text = input.trim();
   return text === "" ? null : text.slice(0, FEEDBACK_MAX);
 }
+
+/**
+ * 카드 머리의 대화 이름이 링크인가. `within`은 카드를 그리는 트랜스크립트의 대화이고, 받은 요청처럼 트랜스크립트 밖이면 null이다.
+ * 같은 대화의 트랜스크립트 안에서는 링크를 빼고, 열 수 없는 대화(이동 문맥이 없거나 거울에 없음)도 뺀다.
+ */
+export function threadLinkVisibleOf(input: {
+  readonly threadId: string;
+  readonly within: string | null;
+  readonly openable: boolean;
+}): boolean {
+  return input.openable && input.within !== input.threadId;
+}

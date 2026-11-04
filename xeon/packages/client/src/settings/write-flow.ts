@@ -13,7 +13,13 @@ import { Type } from "typebox";
 import { Errors } from "typebox/schema";
 import { t } from "../i18n/index.ts";
 import { scopeText, writableScopes } from "./badges.ts";
-import type { FieldError, ValueIssue, WidgetVM, WritableScope } from "./types.ts";
+import type {
+  FieldError,
+  LocalWriteFailure,
+  ValueIssue,
+  WidgetVM,
+  WritableScope,
+} from "./types.ts";
 
 // 쓰기 흐름의 순수 함수(L4.settings-ui §4.4). 입력 변환, 클라이언트 즉시 검사, 보내기 계획, 서버 오류의 문장 변환.
 // I/O가 없다. 연결과 상태 전이는 controller.ts와 state.ts가 맡는다.
@@ -203,6 +209,27 @@ function issuesOf(
   if (!parsed.ok) return [];
   const message = invalidMessage(def);
   return parsed.value.map((issue) => ({ path: issue.path, message }));
+}
+
+/**
+ * 데스크톱 로컬 저장소의 쓰기 실패를 필드 오류로 바꾼다. 엔진의 같은 종류와 같은 문장을 쓴다(L4.settings-ui §4.1.3 표).
+ * 로컬 저장소에는 연결이 없으므로 다시 읽을 것이 없고, 뒤 처리는 `none`이다.
+ */
+export function localFieldError(
+  def: SettingDefWire | undefined,
+  failure: LocalWriteFailure,
+): FieldError {
+  if (failure.kind === "settings.invalidValue") {
+    return {
+      kind: "invalidValue",
+      message: invalidMessage(def),
+      issues: issuesOf(failure.details, def),
+    };
+  }
+  if (failure.kind === "settings.unknownKey") {
+    return { kind: "unknownKey", message: t("client.settings.field.unknownKey") };
+  }
+  return { kind: "internal", message: t("client.settings.field.internal"), traceId: null };
 }
 
 /**
