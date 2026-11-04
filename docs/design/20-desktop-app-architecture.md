@@ -488,7 +488,7 @@ fn main() {
 | `tauri-plugin-autostart` | 2.7.0 | 로그인 시 시작 | macOS `MacosLauncher::LaunchAgent` |
 | `tauri-plugin-window-state` | 2.5.0 | 창 위치·크기 기억 | |
 | `tauri-plugin-store` | 2.5.0 | 화면 설정 `settings.json` | 비밀을 넣지 않는다 |
-| `tauri-plugin-dialog` | 2.8.2 | 파일 고르기(업로드), 확인 대화 상자 | |
+| `tauri-plugin-dialog` | 2.8.4 | 파일 고르기(업로드), 확인 대화 상자 | |
 | `tauri-plugin-opener` | 2.7.1 | 외부 링크를 기본 브라우저로 | `https`만 |
 | `tauri-plugin-clipboard-manager` | 2.4.2 | ID·진단 정보 복사 | 쓰기만 |
 | `tauri-plugin-log` | 2.10.1 | Rust·JS 로그 파일 | 마스킹: 로그 한 줄을 파일에 쓰기 전에 Rust 포매터가 정규식으로 가린다. 기기 토큰 `helm_dt_[A-Za-z0-9_-]{20,}`(18 §3.8.1), 런타임 토큰 `helm_rt_[A-Za-z0-9_-]{20,}`, `Authorization:\s*Bearer\s+\S+`, 쿠키 `__Host-helm_dt=[^;\s]+`, 페어링 코드 `\b[0-9A-HJKMNP-TV-Z]{4}-?[0-9A-HJKMNP-TV-Z]{4}-?[0-9A-HJKMNP-TV-Z]{4}\b`(18 §3.7.2 12자 형식), URL 쿼리의 `code=[^&\s]+`. 단위 시험에 각 정규식의 표본을 둔다 |

@@ -2209,7 +2209,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - 최근 실패: 시각, 훅, 사유.
 - 자동 꺼짐 설명은 나눔 보기 위 `Alert` 하나에만 둡니다. 검사기에 같은 Alert를 다시 두지 않습니다(DP-23).
 
-검사기의 쓰기(켜기·끄기)는 확인 대화 상자를 거치고 적용은 다음 단계 경계입니다. "이 대화의 프로필" 구역과 "이 대화에서 끄기" 스위치는 검사기에 없고 대화 영역 오른쪽 "플러그인" 탭에 있습니다(SC-18 4번) [결정: 2026-11-04 사용자: A5, 크래프트는 전역만]. 프로필 구역은 고른 프로필을 `profile.apply`(층 `thread`)로 이 대화에 씁니다(`views/workbench/thread-profile.tsx`). 그 탭(`plugin-pages`)은 대화 영역에만 등록합니다. 작업 영역(크래프트) 오른쪽에는 없습니다. [미결: 대화 값 `true`를 쓰면 덮어쓰기가 남아 전역을 나중에 꺼도 이 대화는 켜진 채일 수 있음, 상속으로 되돌리기는 `settings.reset` 필요. 이 대화에 적용된 프로필을 읽는 wire는 없음]
+검사기의 쓰기(켜기·끄기)는 확인 대화 상자를 거치고 적용은 다음 단계 경계입니다. "이 대화의 프로필" 구역과 "이 대화에서 끄기" 스위치는 검사기에 없고 대화 영역 오른쪽 "플러그인" 탭에 있습니다(SC-18 4번) [결정: 2026-11-04 사용자: A5, 크래프트는 전역만]. 프로필 구역은 고른 프로필을 `profile.apply`(층 `thread`)로 이 대화에 씁니다(`views/workbench/thread-profile.tsx`). 그 탭(`plugin-pages`)은 대화 영역에만 등록합니다. 작업 영역(크래프트) 오른쪽에는 없습니다. [미결: 대화 값 `true`를 쓰면 덮어쓰기가 남아 전역을 나중에 꺼도 이 대화는 켜진 채일 수 있음, 상속으로 되돌리기는 `settings.reset` 필요. 이 대화에 적용된 프로필을 읽는 wire는 없음 [근거: xeon/packages/contracts/src/wire-settings/wire/methods.ts]]
 
 #### 6.22.5 트레이스
 
@@ -2244,7 +2244,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 | "턴 재생" | 재생 막대 |
 | Alert·검사기 "다시 켜기" | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안] 뒤 `ext.reenable`(W-21) → "다음 단계 경계에 적용" 토스트 |
 | 끌까요 질문 "켜 두기" | `settings.set { key: "ext.<이름>.enabled", value: true, scope: "user" }` [제안], 그다음 `ext.reenable`(W-21), 목록 다시 읽기, "다음 단계 경계에 적용" 토스트 [제안] |
-| 끌까요 질문 "끄기" | `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` [제안], 그다음 `ext.disableConfirm { name }`, 목록 다시 읽기 [제안]. 설정 쓰기가 거절되면 `ext.disableConfirm`을 보내지 않고 "바꾸지 못했어요"를 띄웁니다 |
+| 끌까요 질문 "끄기" | `settings.set { key: "ext.<이름>.enabled", value: false, scope: "user" }` [제안], 그다음 `ext.disableConfirm { name }`, 목록 다시 읽기 [제안]. 설정 쓰기가 거절되면 `ext.disableConfirm`을 보내지 않고 "바꾸지 못했어요"를 띄웁니다. 쓰기는 됐는데 `ext.disableConfirm`이 거절되면 설정을 `true`로 되돌리고 같은 문장을 띄웁니다 |
 | 플러그인 탭 "이 대화에서 끄기" (SC-18 4번) | `settings.set { key: "ext.<이름>.enabled", scope: "launch", threadId }`. 목록은 `ext.list { threadId }` |
 | 검사기 "<맥락>에서 덮어쓰기" | 대화·시험: `settings.set { scope: "launch" }`. 프로필: `profile.put`(W-46) |
 
@@ -2659,7 +2659,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 층마다 띠 하나(X 외부 훅, L3 플러그인 그룹, plugin, L2 기능, L1 코어). 띠 안 블록마다 켜기·끄기·그대로(`SegmentedControl` xs). "그대로"는 enable·disable 어디에도 넣지 않습니다. core tier는 잠금 표시만.
 - 블록 줄에 "지금 <상태> → <바뀔 상태>"를 보입니다. 지금 상태는 맥락 칸의 대화(또는 전체) 기준입니다.
 - drive 락 칸: `x.primitives.activeDriver`은 한 Registration(플러그인) 또는 자동입니다. 바꾸면 적용 뒤 다음 경계에 지금 drive 락을 회수합니다(`L3.group-sdk.spec` §3.5).
-- first·chain 훅 순서는 기본이 (tier, loadIndex, 등록 순번)이고 사용자가 바꿀 수 있습니다 [결정: 2026-11-03 사용자, 15-2]. 순서 입력은 `hooks.order.get`·`set`·`reset`·`preview` wire와 설정 `x.operations.hookOrder`입니다(`X.operations.spec` §4.1.5). 기본은 guard가 맨 앞이고, guard를 옮겨 안전 검사가 건너뛰어질 수 있으면 경고 모달로 알립니다. 그래서 "런타임에 순서 입력 없음" 배지는 달지 않습니다. 병합 전 순서 입력 범위를 좁히는 문제는 2026-11-04 시안 Q2가 답 없이 열려 있습니다.
+- first·chain 훅 순서는 기본이 (tier, loadIndex, 등록 순번)이고 사용자가 바꿀 수 있습니다 [결정: 2026-11-03 사용자, 15-2]. 순서 입력은 `hooks.order.get`·`set`·`reset`·`preview` wire와 설정 `x.operations.hookOrder`입니다(`X.operations.spec` §4.1.5). 기본은 guard가 맨 앞이고, guard를 옮겨 안전 검사가 건너뛰어질 수 있으면 경고 모달로 알립니다. 그래서 "런타임에 순서 입력 없음" 배지는 달지 않습니다. 순서 입력 범위는 좁혀졌습니다 [결정: 2026-11-04 사용자, 시안 Q2 A·Q5 A]. 층 패널의 순서는 보기 전용이고, 훅 줄의 끌기는 승자나 값이 바뀌고 플러그인이 둘 이상일 때만 보입니다(위 6.22.0 표).
 - 오른쪽 "실효 스택": 맥락 대화의 지금 값과 프로필을 합친 결과(바뀌는 확장, drive, 덮어쓰는 설정, 켜지는 훅 수)이고 `profile.preview`(W-44)의 결과입니다.
 - 동작: 이 대화에 적용(`profile.apply { id, threadId }`, W-46. 엔진이 원자적으로 쓰고 하나라도 실패하면 모두 되돌림), 새 Test run으로(`thread.create { testRun: true, profileId }`), 저장(`profile.put`).
 - 프로필 저장 [결정: 2026-10-31 사용자, U-5]: 프로필은 데스크톱 로컬이 아니라 런타임 호스트 설정에 둡니다. 데스크톱·웹·앱과 서비스 모드가 같은 목록을 봅니다. 모양 [제안]: `{ id, title, enable: ExtensionName[], disable: ExtensionName[], settings: { key: value }[], driveGroup: string | null, updatedAt, rev }`. 저장소는 사용자 설정 폴더의 `profiles.json`이고 `settings.writeFile`처럼 `baseRev` 비교로 충돌을 막습니다. 키 검사는 F 설정 카탈로그로 하고, `allowedScopes`에 `session`이 없는 키는 프로필에 넣을 수 없습니다(F §4.7 4번).

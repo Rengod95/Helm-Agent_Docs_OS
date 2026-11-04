@@ -102,7 +102,7 @@ flowchart LR
 
 ### 3.3 셸과 WebView 사이 IPC
 
-[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래), 폴더 선택 명령 하나(`pick_folder`, 이 표 아래), 사람 재인증 명령 하나(`os_reauth`, 이 표 아래)만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
+[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래), 폴더 선택 명령 하나(`pick_folder`, 이 표 아래), 사람 재인증 명령 하나(`os_reauth`, 이 표 아래), 앱 root 목록 명령 하나(`app_roots_set`, 이 표 아래)와, 엔진 대상 바꾸기(`engine_retarget`), 데이터베이스 복원(`db_restore`, §4.3), 데스크톱 설정 읽기·쓰기(`desktop_settings_read`·`desktop_settings_write`, §3.6), 외부 링크 열기(`open_external`)만 WebView에 연다. 허용 목록 `src-tauri/capabilities/default.json`은 중계 다섯 명령에 이 아홉 명령을 더한 열네 개다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
 
 | 명령 | 인자 | 결과 | 뜻 |
 |---|---|---|---|
@@ -114,6 +114,7 @@ flowchart LR
 
 - 키 등록 명령 `secret_register`는 엔진 중계가 아니다. 원시 바이트 본문 `<동작> <이름>\n<값>`(동작은 `add` 또는 `set`)을 받아 번들된 사이드카를 `fresnel secret <동작> <이름>`으로 한 번 실행하고, 값을 그 stdin에 한 번 쓴 뒤 닫고, 끝나기를 기다려 `null`을 돌려준다. 거부는 `{ kind, ... }` 객체다: `bad-request`, `empty`, `too-large`(값 8 KiB 초과), `busy`(이미 진행 중), `timeout`(30초), `unavailable { detail }`(사이드카를 띄우지 못함), `rejected { exitCode, detail }`(자식이 0이 아닌 코드로 끝남). 규칙과 약점은 §4.14.1이다.
 - 폴더 선택 명령 `pick_folder`는 엔진 중계가 아니다. 인자가 없고, 고른 절대 경로를 문자열로, 취소하면 `null`을 돌려준다. Rust가 `tauri-plugin-dialog`의 `pick_folder` 콜백을 부르고 그 답을 비동기로 기다린다(`src-tauri/src/folder_pick.rs`). 창을 열지 못하면 `Err("dialog_unavailable")`로 거부한다. `file://` 주소와 UTF-8이 아닌 경로는 취소와 같이 `null`이다. WebView에는 `dialog:*` 권한을 주지 않는다. Rust의 플러그인 API는 capability 검사를 받지 않는다([가정], §3.5와 같다). §4.16과 §10 17번이다.
+- 앱 root 목록 명령 `app_roots_set`은 엔진 중계가 아니다. 인자는 `entries`(확장 이름, 버전, 등급, 폴더 경로의 목록)이고, 건너뛴 항목의 `{ index, kind }` 목록을 돌려준다(`src-tauri/src/view_scheme.rs`). 메인 창만 부를 수 있다(capability `allow-app-roots-set`). 목록을 통째로 바꾸고, 폴더가 그 확장의 설치 폴더 안이 아니거나 `/`, 홈 폴더, 홈 폴더를 품은 폴더면 그 항목만 거부한다. 같은 `(이름, 버전)`이 여러 등급으로 오면 높은 등급이 이긴다. 목록 수나 모양이 틀리면 `too_many` 같은 kind 문자열로 거부한다. `fresnel-view://` 프레임이 이 파일을 읽는 길은 ADR-0021 §3.6이다.
 - 사람 재인증 명령 `os_reauth`는 엔진 중계가 아니다. 인자는 시스템 창에 보일 사유 한 줄(`{ reason }`)이다. 성공하면 `{ verifiedAtMs }`(인증이 끝난 시각, epoch 밀리초)를, 실패하면 `{ kind }` 객체를 돌려준다. `kind`는 `cancelled`, `denied`, `unavailable`, `failed` 넷이다. macOS에서는 `LAContext`로 Touch ID나 기기 암호 창을 띄운다(`src-tauri/src/os_reauth.rs`). 규칙과 오류 표는 §4.17이다. [결정: 2026-11-04 사용자, B8 2안] 이 명령은 아무것도 대신하지 않는다. 값 보기 경로는 아직 이 명령을 부르지 않는다.
 - 오류 값은 kebab-case 문자열 코드다: `epoch-stale`, `engine-not-running`, `engine-stopping`, `not-failed`, `too-large`, `bad-request`.
 - `onBytes`의 메시지는 엔진 stdout 바이트 그대로이고 완성된 줄(`\n`으로 끝나는 바이트열)만 담는다. 종류 표지나 세대 접두사는 없다. attach마다 `Channel`이 따로이므로 세대는 `AttachResult.epoch`로 안다. 셸은 줄 끝이 오지 않은 꼬리를 쥐고 있다가 줄이 완성되면 보낸다.
@@ -352,7 +353,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 - [확인: `L4.desktop.plan` §3.1.1 S1, WSL2 WebKitGTK] 앱이 SIGTERM을 받을 때 처리기를 두지 않으면 `RunEvent::ExitRequested`도 `Exit`도 오지 않고 프로세스가 바로 사라진다. `signal-hook` 처리기에서 `app.exit(0)`을 부르면 `ExitRequested`(code `Some(0)`)와 `Exit`가 와서 같은 순서를 탄다. 그러므로 Unix에서는 셸이 SIGTERM·SIGINT 처리기를 둔다 [제안 유지]. 처리기가 없는 경우와 앱 SIGKILL은 E5(EOF 프로세스 락)만이 방어다. macOS는 미측정이다.
 - 닫기 동작이 `"tray"`이고 창이 모두 닫혀 생긴 종료(`ExitRequested`의 `code`가 없음)는 이 순서를 타지 않는다. `should_prevent_exit`가 참이면 `prevent_exit()`로 막고 셸과 엔진을 남긴다(§6). 명시 종료(코드가 있는 `app.exit`, 신호)는 닫기 동작과 관계없이 이 순서를 탄다.
-- 데이터베이스 복원(`db_restore`)이 도는 동안에는 엔진이 내려가 있어 살아 있는 엔진이 없다. 이때의 종료 요청은 `Allow`가 아니라 막는다(`ExitAction::PreventUntilRestore`). 셸이 복원이 끝나기를 기다렸다가 `app.exit(0)`을 다시 부르면 위 순서를 탄다. 복원 중의 두 번째 요청은 그냥 막는다. 막지 않으면 CLI가 도는 채로 앱이 끝나 결과(보고서)를 잃는다. 신호(SIGTERM)도 같다: 복원이 끝날 때까지(CLI 시한 안) 종료가 미뤄진다. macOS에서 `ExitRequested` 없이 `Exit`만 오는 경로(아래)는 막지 못한다.
+- 데이터베이스 복원(`db_restore`)이 도는 동안에는 엔진이 내려가 있어 살아 있는 엔진이 없다 [근거: xeon/apps/desktop/src-tauri/src/engine.rs `on_exit_requested`]. 이때의 종료 요청은 `Allow`가 아니라 막는다(`ExitAction::PreventUntilRestore`). 셸이 복원이 끝나기를 기다렸다가 `app.exit(0)`을 다시 부르면 위 순서를 탄다. 복원 중의 두 번째 요청은 그냥 막는다. 막지 않으면 CLI가 도는 채로 앱이 끝나 결과(보고서)를 잃는다. 신호(SIGTERM)도 같다: 복원이 끝날 때까지(CLI 시한 안) 종료가 미뤄진다. macOS에서 `ExitRequested` 없이 `Exit`만 오는 경로(아래)는 막지 못한다.
 - [미확인: macOS, 소스 읽기] `tauri-runtime-wry` 2.12.3과 `tao` 0.37.2에는 `applicationShouldTerminate` 처리가 보이지 않는다. 그래서 메뉴의 종료(Cmd+Q)가 `ExitRequested` 없이 `RunEvent::Exit`만 낼 수 있다. 그러면 이 순서 대신 `Exit`의 그룹 종료만 돈다. Mac에서 확인해야 한다.
 - [확인: S1] 5단계의 그룹 SIGKILL은 EOF 처리 시한 뒤에 한다. `Exit`에서 곧바로 그룹 SIGKILL을 하면 엔진이 새 "세션"으로 띄운 손자(E9 위반 구성)를 정리할 기회를 잃어 그 손자가 남았다. 프로세스 그룹을 끄면(E3 위반) 그룹 SIGKILL이 손자에 미치지 않았다.
 
