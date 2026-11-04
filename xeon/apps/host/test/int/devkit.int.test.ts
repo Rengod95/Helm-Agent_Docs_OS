@@ -132,9 +132,12 @@ realTest(
         name: NAME,
         version: "0.1.0",
         location: installedDir,
-        appliesAt: "restart",
+        appliesAt: "now",
       });
       expect(existsSync(join(installedDir, "dist", "index.js"))).toBe(true);
+      // 재시작 없이 바로 목록에 나타나고 켜져 있다(X.loading-trust §4.4.4)
+      const immediate = await session.connection.request("ext.list", {});
+      expect(immediate.extensions.find((entry) => entry.name === NAME)?.version).toBe("0.1.0");
 
       // 엔진을 다시 띄우면 설치한 확장이 실린다
       await session.connection.close();
@@ -167,6 +170,8 @@ realTest(
         sha256: repreview.sha256,
       });
       expect(reinstalled.version).toBe("0.2.0");
+      // 같은 이름이 돌고 있으니 호출자가 ext.reload로 바꾼다
+      expect(reinstalled.appliesAt).toBe("nextStepBoundary");
       const versions = await session.connection.request("ext.versions", { name: NAME });
       expect(versions.versions.map((entry) => `${entry.version}:${entry.source}`)).toContain(
         "0.1.0:authored",
@@ -181,11 +186,80 @@ realTest(
         "auth-demo v2 failed",
       );
 
+      // 지우기도 재시작 없이 내려가 목록에서 바로 빠진다
       expect(await session.connection.request("ext.remove", { name: NAME })).toEqual({
         name: NAME,
-        appliesAt: "nextStepBoundary",
+        appliesAt: "now",
       });
       expect(existsSync(installedDir)).toBe(false);
+      const removed = await session.connection.request("ext.list", {});
+      expect(removed.extensions.some((entry) => entry.name === NAME)).toBe(false);
+    } finally {
+      await session.connection.close();
+      await session.host.close();
+      home.dispose();
+      rmSync(source, { recursive: true, force: true });
+    }
+  },
+  120_000,
+);
+
+realTest(
+  "authoring wire: a package that cannot load is copied but reported with its reason, and a fixed one loads",
+  async () => {
+    const home = useEngineHome();
+    const source = mkdtempSync(join(tmpdir(), "devkit-bad-"));
+    const dir = join(source, "bad-demo");
+    const installedDir = join(home.root, "config", "extensions", "bad-demo");
+    const session = await startReal(home);
+    try {
+      await session.connection.request("ext.scaffold", {
+        kind: "single-plugin",
+        name: "bad-demo",
+        dir,
+      });
+      const manifestPath = join(dir, ".fresnel-plugin", "plugin.json");
+      writeFileSync(
+        manifestPath,
+        readFileSync(manifestPath, "utf8").replace(
+          '"defaultEnabled": false',
+          '"defaultEnabled": true',
+        ),
+      );
+      const entryPath = join(dir, "src", "index.ts");
+      const good = readFileSync(entryPath, "utf8");
+      writeFileSync(entryPath, `${good}\nthrow new Error("bad-demo cannot load");\n`);
+      const packed = await session.connection.request("ext.package", { dir });
+      const preview = await session.connection.request("ext.installPreview", {
+        source: packed.path,
+      });
+      const refused = await session.connection.request("ext.install", {
+        source: packed.path,
+        sha256: preview.sha256,
+      });
+      // 파일은 복사됐지만 싣지 못했다: 이유와 진단이 결과에 있고 목록에는 없다
+      expect(existsSync(installedDir)).toBe(true);
+      expect(refused.appliesAt).toBe("restart");
+      expect(refused.loadFailure?.reason).toBe("error");
+      expect(refused.loadFailure?.diagnostics.map((entry) => entry.code)).toContain(
+        "entry_import_failed",
+      );
+      const listed = await session.connection.request("ext.list", {});
+      expect(listed.extensions.some((entry) => entry.name === "bad-demo")).toBe(false);
+      // 고쳐 다시 설치하면 재시작 없이 실린다
+      writeFileSync(entryPath, good);
+      const repacked = await session.connection.request("ext.package", { dir });
+      const repreview = await session.connection.request("ext.installPreview", {
+        source: repacked.path,
+      });
+      const fixed = await session.connection.request("ext.install", {
+        source: repacked.path,
+        sha256: repreview.sha256,
+      });
+      expect(fixed).toMatchObject({ appliesAt: "now" });
+      expect(fixed.loadFailure).toBeUndefined();
+      const after = await session.connection.request("ext.list", {});
+      expect(after.extensions.some((entry) => entry.name === "bad-demo")).toBe(true);
     } finally {
       await session.connection.close();
       await session.host.close();

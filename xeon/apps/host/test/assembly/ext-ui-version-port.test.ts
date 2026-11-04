@@ -251,7 +251,13 @@ function rigOf(options: RigOptions): Rig {
       );
     },
   };
-  const loader: Pick<ExtensionLoader, "list" | "uiEntries" | "reload"> = {
+  const loader: Pick<
+    ExtensionLoader,
+    "list" | "uiEntries" | "reload" | "loadInstalled" | "unload"
+  > = {
+    // 이 시험은 설치와 지우기를 부르지 않는다
+    loadInstalled: () => Promise.resolve(err({ kind: "not_found", diagnostics: [] })),
+    unload: () => Promise.resolve(false),
     list: () => options.infos ?? [],
     uiEntries: () => options.entries ?? [],
     reload: (name, _signal, reloadOptions) => {

@@ -8,7 +8,7 @@ import { KIND_CATALOG, locateTemplateDirs } from "@fresnel/plugin-builder";
 import type { RegistrationHandle } from "@fresnel/contracts/extensions";
 import type { LoadedExtensionInfo, RecordVersionInput, RegistrationInfo } from "@fresnel/ext-host";
 import { createDevkitPort } from "../../src/assembly/m4/devkit-port.ts";
-import type { M4PortDeps } from "../../src/assembly/m4/deps.ts";
+import type { M4HostEnv, M4PortDeps } from "../../src/assembly/m4/deps.ts";
 import type { ExtUiVersionSource } from "../../src/assembly/m4/ext-ui-version-source.ts";
 import { partial } from "../fixtures/unsafe.ts";
 
@@ -96,6 +96,7 @@ test("devkit port: kinds are the catalog, and scaffold, validate, package and in
       version: "0.1.0",
       location: join(state.extensionsDir, "flow-demo"),
       appliesAt: "restart",
+      loadFailure: { reason: "loader_unavailable", diagnostics: [] },
     },
   });
   // 첫 설치는 버전 기록에 남기지 않는다
@@ -124,7 +125,7 @@ test("devkit port: installing over an installed version records the previous ins
   expect(state.recorded[0]?.manifestText).toContain('"version": "0.1.0"');
 });
 
-test("devkit port: remove deletes the folder and asks running registrations to disable", async () => {
+test("devkit port: remove takes a loaded extension down at once; an unknown one asks its registrations to disable", async () => {
   const state = fakes("remove", ["remove-demo"]);
   mkdirSync(join(state.extensionsDir, "remove-demo", ".fresnel-plugin"), { recursive: true });
   const port = createDevkitPort(state.deps, { templates });
@@ -137,6 +138,27 @@ test("devkit port: remove deletes the folder and asks running registrations to d
     ok: false,
     error: { kind: "not_found" },
   });
+  const unloaded: string[] = [];
+  const source = state.deps.extUi;
+  if (source === undefined) throw new Error("fake has no extUi");
+  const loader = partial<NonNullable<ReturnType<ExtUiVersionSource["loader"]>>>({
+    unload: (name) => {
+      unloaded.push(name);
+      return Promise.resolve(true);
+    },
+  });
+  mkdirSync(join(state.extensionsDir, "loaded-demo", ".fresnel-plugin"), { recursive: true });
+  const loaded = createDevkitPort(
+    partial<M4PortDeps>({ extUi: { ...source, loader: () => loader } }),
+    {
+      templates,
+    },
+  );
+  expect(await loaded.remove("loaded-demo")).toEqual({
+    ok: true,
+    value: { name: "loaded-demo", appliesAt: "now" },
+  });
+  expect(unloaded).toEqual(["loaded-demo"]);
 });
 
 test("devkit port: without a user extensions location install and remove are refused, and missing templates refuse scaffold", async () => {
@@ -232,27 +254,88 @@ test("devkit port: install refuses a changed folder, safe mode and a managed loc
   expect(existsSync(locked.extensionsDir)).toBe(false);
 });
 
-test("devkit port: replacing a running extension applies at the next step boundary, a new name waits for restart", async () => {
+test("devkit port: replacing a running extension applies at the next step boundary, a new name is loaded at once, a failed load is reported", async () => {
   const state = fakes("reload");
   const packed = await packedDemo("reload-demo", state);
   const source = state.deps.extUi;
   if (source === undefined) throw new Error("fake has no extUi");
-  const loader = partial<NonNullable<ReturnType<ExtUiVersionSource["loader"]>>>({
-    list: () => [partial<LoadedExtensionInfo>({ name: "reload-demo" })],
+  const withLoader = (
+    loader: Partial<NonNullable<ReturnType<ExtUiVersionSource["loader"]>>>,
+  ): ReturnType<typeof createDevkitPort> =>
+    createDevkitPort(
+      partial<M4PortDeps>({
+        env: partial<M4HostEnv>({ signal: new AbortController().signal }),
+        extUi: {
+          ...source,
+          loader: () => partial<NonNullable<ReturnType<ExtUiVersionSource["loader"]>>>(loader),
+        },
+      }),
+      { templates },
+    );
+  const running = withLoader({
+    list: () => [partial<LoadedExtensionInfo>({ name: "reload-demo", state: "active" })],
   });
-  const running = createDevkitPort(
-    partial<M4PortDeps>({ extUi: { ...source, loader: () => loader } }),
-    {
-      templates,
-    },
-  );
   expect(await running.install({ source: packed.path })).toMatchObject({
     ok: true,
     value: { appliesAt: "nextStepBoundary" },
   });
-  const fresh = createDevkitPort(state.deps, { templates });
-  expect(await fresh.install({ source: packed.path })).toMatchObject({
+  const loadedNames: string[] = [];
+  const fresh = withLoader({
+    list: () => [],
+    loadInstalled: (name) => {
+      loadedNames.push(name);
+      return Promise.resolve(
+        ok({ appliesAt: "now", info: partial<LoadedExtensionInfo>({ name }) }),
+      );
+    },
+  });
+  const loaded = await fresh.install({ source: packed.path });
+  expect(loaded).toMatchObject({ ok: true, value: { appliesAt: "now" } });
+  expect(loaded.ok && loaded.value.loadFailure).toBeUndefined();
+  expect(loadedNames).toEqual(["reload-demo"]);
+  const deferred = withLoader({
+    list: () => [],
+    loadInstalled: (name) =>
+      Promise.resolve(
+        ok({ appliesAt: "nextStepBoundary", info: partial<LoadedExtensionInfo>({ name }) }),
+      ),
+  });
+  expect(await deferred.install({ source: packed.path })).toMatchObject({
     ok: true,
-    value: { appliesAt: "restart" },
+    value: { appliesAt: "nextStepBoundary" },
+  });
+  const refusedLoad = withLoader({
+    list: () => [],
+    loadInstalled: () =>
+      Promise.resolve(
+        err({
+          kind: "not_active",
+          state: "error",
+          diagnostics: [
+            {
+              extension: "reload-demo",
+              source: "user",
+              stage: "entry",
+              severity: "error",
+              code: "entry_import_failed",
+              message: "cannot import",
+              generation: 0,
+            },
+          ],
+        }),
+      ),
+  });
+  expect(await refusedLoad.install({ source: packed.path })).toEqual({
+    ok: true,
+    value: {
+      name: "reload-demo",
+      version: "0.1.0",
+      location: join(state.extensionsDir, "reload-demo"),
+      appliesAt: "restart",
+      loadFailure: {
+        reason: "error",
+        diagnostics: [{ severity: "error", code: "entry_import_failed", message: "cannot import" }],
+      },
+    },
   });
 });

@@ -1,8 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { err, ok, parseJson, type Result } from "@fresnel/contracts";
+import { assertNever, err, ok, parseJson, type Result } from "@fresnel/contracts";
 import { validateManifest } from "@fresnel/contracts/extensions";
-import type { ExtInstallResult } from "@fresnel/contracts/wire";
+import type {
+  ExtDiagnostic,
+  ExtInstallResult,
+  ExtLoadFailureReason,
+} from "@fresnel/contracts/wire";
+import type { LoadDiagnostic } from "@fresnel/ext-host";
 import type { DevkitError, LinkInput } from "@fresnel/contracts/services";
 import {
   installExtension,
@@ -46,6 +51,28 @@ async function manifestIdentity(
   if (!json.ok) return null;
   const manifest = validateManifest(json.value).manifest;
   return manifest === undefined ? null : { name: manifest.name, version: manifest.version, text };
+}
+
+function wireDiagnosticOf(entry: LoadDiagnostic): ExtDiagnostic {
+  return {
+    severity: entry.severity === "warning" || entry.severity === "info" ? "warning" : "error",
+    code: entry.code,
+    message: entry.message,
+    ...(entry.path === undefined ? {} : { file: entry.path }),
+  };
+}
+
+/** 파일은 복사됐지만 싣지 못한 결과. 재시작해도 같은 파일을 다시 싣는다 */
+function notLoaded(
+  placed: { readonly name: string; readonly version: string; readonly location: string },
+  reason: ExtLoadFailureReason,
+  diagnostics: readonly LoadDiagnostic[],
+): ExtInstallResult {
+  return {
+    ...placed,
+    appliesAt: "restart",
+    loadFailure: { reason, diagnostics: diagnostics.slice(0, 64).map(wireDiagnosticOf) },
+  };
 }
 
 export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = {}): DevkitPort {
@@ -120,27 +147,47 @@ export function createDevkitPort(deps: M4PortDeps, options: DevkitPortOptions = 
         extensionsDir: source.extensionsDir,
       });
       if (!installed.ok) return installed;
-      // 실행 중인 같은 이름은 호출자가 `ext.reload`로 단계 경계에서 바꾼다. 새 이름은 로더가 싣지 않으므로 다음 시작부터다
+      // 같은 이름이 실행 중이면 호출자가 `ext.reload`로 단계 경계에서 바꾼다. 새 이름은 로더가 곧바로 싣는다(X.loading-trust §4.4.4)
       const name = installed.value.name;
-      const running =
-        source
-          .loader()
-          ?.list()
-          .some((info) => info.name === name) === true;
-      const result: ExtInstallResult = {
+      const placed = {
         name,
         version: installed.value.version,
         location: installed.value.location,
-        appliesAt: running ? "nextStepBoundary" : "restart",
       };
-      return ok(result);
+      const loader = source.loader();
+      if (loader === undefined) {
+        return ok(notLoaded(placed, "loader_unavailable", []));
+      }
+      const current = loader.list().find((info) => info.name === name);
+      if (current?.state === "active") {
+        return ok({ ...placed, appliesAt: "nextStepBoundary" });
+      }
+      // 실려 있지 못한 옛 기록(거부, 오류, 꺼짐)은 새 설치본으로 다시 싣는다
+      if (current !== undefined) await loader.unload(name);
+      const loaded = await loader.loadInstalled(name, deps.env.signal);
+      if (loaded.ok) return ok({ ...placed, appliesAt: loaded.value.appliesAt });
+      const failure = loaded.error;
+      switch (failure.kind) {
+        case "already_loaded":
+          return ok({ ...placed, appliesAt: "nextStepBoundary" });
+        case "safe_mode":
+          return ok(notLoaded(placed, "safe_mode", []));
+        case "not_found":
+          return ok(notLoaded(placed, "not_found", failure.diagnostics));
+        case "not_active":
+          return ok(notLoaded(placed, failure.state, failure.diagnostics));
+        default:
+          return assertNever(failure, "LoadInstalledFailure");
+      }
     },
     remove: async (name) => {
       const source = deps.extUi;
       if (source === undefined) return noLocation();
       const removed = await removeExtension(name, { extensionsDir: source.extensionsDir });
       if (!removed.ok) return removed;
-      // 실행 중인 등록은 끄기를 청한다. 단계 경계에서 적용된다. 등록이 없으면 다음 시작부터 빠진다
+      // 로더가 실은 확장은 재시작 없이 내려가 목록에서 바로 빠진다(X.loading-trust §4.4.5)
+      if ((await source.loader()?.unload(name)) === true) return ok({ name, appliesAt: "now" });
+      // 로더가 모르는 확장은 실행 중인 등록의 끄기를 청한다. 단계 경계에서 적용되고, 등록이 없으면 다음 시작부터 빠진다
       const scopes = source.host.registrations().filter((scope) => scope.extension === name);
       for (const scope of scopes) source.host.registration(scope.id)?.disable();
       return ok({ name, appliesAt: scopes.length > 0 ? "nextStepBoundary" : "restart" });
