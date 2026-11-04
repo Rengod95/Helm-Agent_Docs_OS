@@ -9,7 +9,6 @@ import {
   hooksInOrder,
   isOn,
   moveHandler,
-  readOrders,
   resetOrder,
   toggleTargets,
   type CanvasPlugin,
@@ -17,12 +16,13 @@ import {
   type Contrib,
   type HookOrderState,
   type KindFilter,
+  type OrderWarning,
   type Sel,
 } from "@fresnel/client/workbench/canvas";
 import type { HooksOrderSetResult } from "@fresnel/contracts/wire";
 import { attemptAsync, assertNever, detach, rethrow } from "@fresnel/contracts";
-import { Badge, Button, Card, SectionHeader, Tooltip } from "@caustic/react";
-import { GripVertical, Lock, Plus } from "@caustic/react/icons";
+import { Badge, Button, Card, SectionHeader } from "@caustic/react";
+import { GripVertical, Lock, Plus, TriangleAlert } from "@caustic/react/icons";
 import {
   useCallback,
   useEffect,
@@ -32,17 +32,27 @@ import {
   type ReactNode,
 } from "react";
 import { DropBar, useRowDrag, type RowDrag } from "./drag.tsx";
+import { InfoTip } from "./info-tip.tsx";
 import { OrderWarningModal } from "./order-modal.tsx";
 import { useCraft } from "./craft-context.tsx";
-import { keyReorder, requestReorder, saveConfirmed, type ReorderConfirm } from "./strata-flow.ts";
+import {
+  keyReorder,
+  readOrderView,
+  requestReorder,
+  saveConfirmed,
+  type ReorderConfirm,
+} from "./strata-flow.ts";
 import {
   litFor,
   matchesFilter,
   mergeVisibleLane,
   overridesOf,
+  reorderable,
+  rowWarningOf,
   visibleLane,
   type LaneMap,
   type Lit,
+  type RowWarning,
 } from "./strata-model.ts";
 
 type PhaseId = (typeof PHASES)[number];
@@ -55,7 +65,7 @@ type FailureKey =
   | "desktop.craft.strata.error.toggle";
 
 /** 줄 하나를 그리는 데 필요한 훅 정보. 13개(HOOKS)와 33개(OTHER_HOOKS)가 같은 모양으로 쓴다 */
-interface RowDef {
+export interface RowDef {
   readonly id: string;
   readonly fold: Fold;
   /** 내장이 이 순간을 맡고 있다(압축) */
@@ -110,7 +120,7 @@ const CORE_LABEL: Readonly<Record<string, MessageId>> = {
 };
 
 /** 화면의 모든 줄이 함께 쓰는 값과 동작. 줄 컴포넌트마다 props를 늘어놓지 않으려고 하나로 묶었다 */
-interface StrataCtx {
+export interface StrataCtx {
   readonly snapshot: CanvasSnapshot;
   readonly lanes: LaneMap;
   readonly lit: Lit;
@@ -121,6 +131,8 @@ interface StrataCtx {
   readonly pending: ReadonlySet<string>;
   /** 저장된 덮어쓰기가 있는 훅(기본 순서로 되돌리기를 보인다) */
   readonly saved: ReadonlySet<string>;
+  /** 적용 중인 저장 순서가 건너뛰는 것을 훅별로 미리 본 경고(`warningsOf`). 없는 훅은 줄 경고가 없다 */
+  readonly warnings: Readonly<Record<string, OrderWarning>>;
   readonly select: (sel: Sel) => void;
   readonly pickPlugin: (id: string) => void;
   readonly toggle: (p: CanvasPlugin) => void;
@@ -133,13 +145,17 @@ export function Strata(): ReactNode {
   const { source, state, dispatch } = useCraft();
   const { snapshot, orderPort: port } = source;
   const plugins = snapshot.plugins;
-  // 훅별 저장·보류 상태(readOrders). 적용 중인 순서는 source.order가 준다
+  // 훅별 저장·보류 상태(readOrderView가 읽는다). 적용 중인 순서는 source.order가 준다
   const [orders, setOrders] = useState<Readonly<Record<string, HookOrderState>>>({});
+  const [warnings, setWarnings] = useState<Readonly<Record<string, OrderWarning>>>({});
   const [confirm, setConfirm] = useState<ReorderConfirm | null>(null);
   const [failure, setFailure] = useState<FailureKey | null>(null);
   const [applies, setApplies] = useState<HooksOrderSetResult["appliesAt"] | null>(null);
 
-  const nameOf = (id: string): string => plugins.find((p) => p.id === id)?.name ?? id;
+  const nameOf = useCallback(
+    (id: string): string => plugins.find((p) => p.id === id)?.name ?? id,
+    [plugins],
+  );
   // 보류 중인 저장 순서는 적용 전에도 줄에 보인다. 사용자가 끌어 놓은 자리를 바로 보기 위해서다
   const lanes = hooksInOrder(plugins, overridesOf(source.order, orders));
   const lit = litFor(state.sel, snapshot, lanes);
@@ -154,29 +170,35 @@ export function Strata(): ReactNode {
       .map(([h]) => h),
   );
 
+  // 저장과 줄 경고를 읽어 화면에 넣는다. 실패는 줄 위에 알린다
   const loadOrders = useCallback(async (): Promise<void> => {
-    const r = await readOrders(port);
+    const r = await readOrderView(port, nameOf);
     if (!r.ok) {
       setFailure("desktop.craft.strata.error.load");
       return;
     }
-    setOrders(r.value);
-  }, [port]);
+    setOrders(r.value.orders);
+    setWarnings(r.value.warnings);
+  }, [port, nameOf]);
 
-  // 처음 열릴 때 한 번 읽는다. 실패는 줄 위에 알린다. 화면을 떠난 뒤 온 결과는 버린다
+  // 처음 열릴 때 한 번 읽고, 플러그인 목록이 바뀌면 다시 읽는다. 화면을 떠난 뒤 온 결과는 버린다
   useEffect(() => {
     let live = true;
-    const load = async (): Promise<void> => {
-      const r = await readOrders(port);
+    const first = async (): Promise<void> => {
+      const r = await readOrderView(port, nameOf);
       if (!live) return;
-      if (r.ok) setOrders(r.value);
-      else setFailure("desktop.craft.strata.error.load");
+      if (!r.ok) {
+        setFailure("desktop.craft.strata.error.load");
+        return;
+      }
+      setOrders(r.value.orders);
+      setWarnings(r.value.warnings);
     };
-    detach(load(), rethrow);
+    detach(first(), rethrow);
     return () => {
       live = false;
     };
-  }, [port]);
+  }, [port, nameOf]);
 
   const applyReorder = async (
     hook: string,
@@ -243,6 +265,7 @@ export function Strata(): ReactNode {
     contrib: state.contrib,
     pending,
     saved,
+    warnings,
     select: (sel) => dispatch({ t: "selectOther", sel }),
     pickPlugin: (id) => dispatch({ t: "selectPlugin", id }),
     toggle: (p) => detach(toggleOne(p), rethrow),
@@ -355,22 +378,20 @@ function Next(): ReactNode {
   );
 }
 
-/** 줄 이름 옆의 규칙 이름표(관찰·차단·수정·합치기). 올리면 한 줄로 설명한다 */
+/** 줄 이름 옆의 규칙 이름표(관찰·차단·수정·합치기). 이름은 보이고, 한 줄 설명은 옆의 정보 아이콘 뒤에 있다 */
 function FoldTag({ fold }: { readonly fold: Fold }): ReactNode {
   return (
-    <Tooltip content={t(FOLD_TIP[fold])} side="top" delayDuration={300}>
-      <span
-        tabIndex={0}
-        className="cursor-default rounded-md border border-border-subtle px-1.5 py-px text-footnote text-text-secondary outline-none focus-visible:shadow-focus"
-      >
+    <span className="inline-flex items-center gap-1">
+      <span className="cursor-default rounded-md border border-border-subtle px-1.5 py-px text-footnote text-text-secondary">
         {t(FOLD_LABEL[fold])}
       </span>
-    </Tooltip>
+      <InfoTip text={t(FOLD_TIP[fold])} />
+    </span>
   );
 }
 
-/** 훅 줄 하나: 이름과 규칙, 그 안의 핸들러들, 끝의 추가 */
-function HookRow({
+/** 훅 줄 하나: 이름과 규칙, 그 안의 핸들러들, 끝의 추가(와 그 옆의 경고 한 줄) */
+export function HookRow({
   def,
   mono,
   ctx,
@@ -380,6 +401,9 @@ function HookRow({
   readonly ctx: StrataCtx;
 }): ReactNode {
   const lane = ctx.lanes[def.id] ?? [];
+  const shownCount = visibleLane(lane, ctx.snapshot, ctx.contrib).length;
+  // 끌기 손잡이는 순서가 값을 바꾸는 훅에서만, 핸들러가 둘 이상일 때만 준다. 나머지 줄은 순서를 읽기만 한다
+  const movable = reorderable(def.id, shownCount);
   // 끌어 놓기의 자리는 보이는 핸들러 사이의 자리다. 가려진 핸들러는 제자리에 남긴다
   const drag = useRowDrag((id, index) => {
     const next = moveHandler(visibleLane(lane, ctx.snapshot, ctx.contrib), id, index);
@@ -390,6 +414,10 @@ function HookRow({
   const label = HOOK_LABEL[def.id];
   const isPending = ctx.pending.has(def.id);
   const isSaved = ctx.saved.has(def.id);
+  const warning = ctx.warnings[def.id];
+  // 경고는 저장된 순서가 적용 중이고 핸들러가 둘 이상일 때만. 기본 순서는 경고하지 않는다
+  const line: RowWarning | null =
+    warning === undefined || !isSaved || shownCount < 2 ? null : rowWarningOf(warning);
   return (
     <div data-hook={def.id} className={`${ROW} ${lit ? "bg-neutral-soft" : ""}`}>
       <Node core={false} />
@@ -422,7 +450,14 @@ function HookRow({
         className="flex min-h-8 min-w-0 flex-wrap content-start items-center gap-x-1.5 gap-y-2 rounded-lg"
       >
         {def.builtin && <CompactChip hook={def.id} ctx={ctx} />}
-        <LaneItems hook={def.id} lane={lane} drag={drag} ctx={ctx} withBuiltin={def.builtin} />
+        <LaneItems
+          hook={def.id}
+          lane={lane}
+          drag={drag}
+          ctx={ctx}
+          withBuiltin={def.builtin}
+          movable={movable}
+        />
         <Button
           variant="ghost"
           size="sm"
@@ -432,24 +467,62 @@ function HookRow({
         >
           {t("desktop.craft.strata.add")}
         </Button>
+        {line !== null && <RowWarningLine line={line} />}
       </div>
     </div>
   );
 }
 
-/** 줄 안의 핸들러들. 끌고 있는 칩은 흐리게 두고, 놓일 자리에 세로 막대를 둔다 */
+/** 추가 옆의 경고 한 줄: 저장된 순서가 건너뛰는 것을 이름으로 알린다. 자세한 것은 저장 전 확인 창이 보인다 */
+function RowWarningLine({ line }: { readonly line: RowWarning }): ReactNode {
+  return (
+    <span
+      role="status"
+      className="inline-flex min-w-0 items-center gap-1.5 text-ui-xs text-warning-text"
+    >
+      <TriangleAlert aria-hidden className="size-3.5 flex-none" />
+      {rowWarningText(line)}
+    </span>
+  );
+}
+
+function rowWarningText(line: RowWarning): string {
+  const first = firstWarningText(line);
+  return line.more > 0
+    ? t("desktop.craft.strata.rowWarning.more", { line: first, count: line.more })
+    : first;
+}
+
+function firstWarningText(line: RowWarning): string {
+  switch (line.k) {
+    case "skip":
+      return line.by === null
+        ? t("desktop.craft.strata.rowWarning.skipNoBy", { name: line.name })
+        : t("desktop.craft.strata.rowWarning.skip", { by: line.by, name: line.name });
+    case "guardSkip":
+      return t("desktop.craft.strata.rowWarning.guardSkip", { name: line.name });
+    case "guardFirst":
+      return t("desktop.craft.strata.rowWarning.guardFirst", { name: line.name });
+    default:
+      return assertNever(line, "firstWarningText");
+  }
+}
+
+/** 줄 안의 핸들러들. 끌고 있는 칩은 흐리게 두고, 놓일 자리에 세로 막대를 둔다. `movable`이 아니면 읽기만 한다 */
 function LaneItems({
   hook,
   lane,
   drag,
   ctx,
   withBuiltin,
+  movable,
 }: {
   readonly hook: string;
   readonly lane: readonly string[];
   readonly drag: RowDrag;
   readonly ctx: StrataCtx;
   readonly withBuiltin: boolean;
+  readonly movable: boolean;
 }): ReactNode {
   const items: ReactNode[] = [];
   let shown = withBuiltin ? 1 : 0;
@@ -474,6 +547,7 @@ function LaneItems({
         hook={hook}
         lane={lane}
         dragging={dragging}
+        movable={movable}
         ctx={ctx}
         onBegin={(e) => drag.begin(id, e)}
       />,
@@ -483,12 +557,16 @@ function LaneItems({
   return <>{items}</>;
 }
 
-/** 핸들러 하나: 앞의 점은 상태(켜짐 채움, 꺼짐 속 빔, 실패 붉음), 이름은 고르기, 올리면 끌기 손잡이 */
+/**
+ * 핸들러 하나: 앞의 점은 상태(켜짐 채움, 꺼짐 속 빔, 실패 붉음), 이름은 고르기.
+ * `movable`이면 올릴 때 끌기 손잡이가 나오고 끌기와 Alt+←·→가 된다. 아니면 칩은 순서를 읽기만 한다.
+ */
 function Pill({
   p,
   hook,
   lane,
   dragging,
+  movable,
   ctx,
   onBegin,
 }: {
@@ -496,6 +574,7 @@ function Pill({
   readonly hook: string;
   readonly lane: readonly string[];
   readonly dragging: boolean;
+  readonly movable: boolean;
   readonly ctx: StrataCtx;
   readonly onBegin: (e: ReactPointerEvent<HTMLElement>) => void;
 }): ReactNode {
@@ -522,8 +601,8 @@ function Pill({
   return (
     <div
       data-chip={p.id}
-      onPointerDown={onBegin}
-      style={{ touchAction: "none", cursor: "grab" }}
+      onPointerDown={movable ? onBegin : undefined}
+      style={movable ? { touchAction: "none", cursor: "grab" } : undefined}
       className={`group/pill relative inline-flex h-8 max-w-full select-none items-center gap-2 rounded-full border bg-surface-raised text-ui-sm transition-[border-color,background-color,box-shadow] hover:border-text-secondary ${edge} ps-2.5 pe-4 ${picked || lit ? "bg-neutral-soft" : ""} ${on || picked ? "text-text-primary" : "text-text-tertiary"} ${dragging || dim ? "opacity-35" : ""}`}
     >
       <button
@@ -549,9 +628,9 @@ function Pill({
       <button
         type="button"
         aria-pressed={picked}
-        aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight"
+        aria-keyshortcuts={movable ? "Alt+ArrowLeft Alt+ArrowRight" : undefined}
         onClick={() => ctx.pickPlugin(p.id)}
-        onKeyDown={onKey}
+        onKeyDown={movable ? onKey : undefined}
         className="min-w-0 cursor-pointer truncate whitespace-nowrap border-0 bg-transparent p-0 text-start text-inherit outline-none focus-visible:underline"
       >
         {p.name}
@@ -563,10 +642,12 @@ function Pill({
             : t("desktop.craft.strata.status.fail", { count: health.fails })}
         </span>
       )}
-      <GripVertical
-        aria-hidden
-        className="pointer-events-none absolute right-0.5 size-3.5 text-text-tertiary opacity-0 transition-opacity group-hover/pill:opacity-100"
-      />
+      {movable && (
+        <GripVertical
+          aria-hidden
+          className="pointer-events-none absolute right-0.5 size-3.5 text-text-tertiary opacity-0 transition-opacity group-hover/pill:opacity-100"
+        />
+      )}
     </div>
   );
 }
@@ -601,16 +682,12 @@ function CoreRow({ step }: { readonly step: CoreDef }): ReactNode {
         </span>
         <span className="truncate font-mono text-mono-sm text-text-tertiary">{step.id}</span>
       </div>
-      <div className="flex min-h-8 items-center">
-        <Tooltip content={tip} side="top" delayDuration={400}>
-          <span
-            tabIndex={0}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-default bg-neutral-soft px-3 text-ui-sm text-text-secondary outline-none focus-visible:shadow-focus"
-          >
-            {step.locked && <Lock aria-hidden className="size-3" />}
-            {t("desktop.craft.strata.core.builtin")}
-          </span>
-        </Tooltip>
+      <div className="flex min-h-8 items-center gap-1">
+        <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-default bg-neutral-soft px-3 text-ui-sm text-text-secondary">
+          {step.locked && <Lock aria-hidden className="size-3" />}
+          {t("desktop.craft.strata.core.builtin")}
+        </span>
+        <InfoTip text={tip} />
       </div>
     </div>
   );

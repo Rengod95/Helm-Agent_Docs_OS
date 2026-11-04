@@ -1,11 +1,13 @@
 // 순서 화면과 링크 화면이 함께 읽는 순수 값. 화면 문구와 React를 모른다.
 import {
+  hookOrderMatters,
   keepsContrib,
   matchesKind,
   type CanvasPlugin,
   type CanvasSnapshot,
   type Contrib,
   type KindFilter,
+  type OrderWarning,
   type Sel,
 } from "@fresnel/client/workbench/canvas";
 import { assertNever } from "@fresnel/contracts";
@@ -121,4 +123,35 @@ function shownInLane(id: string, snapshot: CanvasSnapshot, contrib: readonly Con
 /** 두 순서가 같은가(길이와 자리마다 id) */
 export function sameOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+/**
+ * 끌기 손잡이와 Alt+←·→를 줄지. 순서가 승자나 값을 바꾸는 훅이고(`hookOrderMatters`) 핸들러가 둘 이상일 때만 참이다.
+ * 그 밖의 줄은 순서를 읽기 전용으로 보인다(번호와 `›`는 그대로).
+ */
+export function reorderable(hook: string, handlerCount: number): boolean {
+  return hookOrderMatters(hook) && handlerCount >= 2;
+}
+
+/** 훅 줄 아래 한 줄로 보일 경고. 가장 먼저 볼 것 하나와, 같은 종류의 나머지 수 */
+export type RowWarning =
+  | { readonly k: "skip"; readonly name: string; readonly by: string | null; readonly more: number }
+  | { readonly k: "guardSkip"; readonly name: string; readonly more: number }
+  | { readonly k: "guardFirst"; readonly name: string; readonly more: number };
+
+/**
+ * 저장된 순서가 건너뛰는 것이 있으면 줄에 보일 경고 하나. 우선순위는 건너뜀, 건너뛰어질 수 있는 가드 플러그인, 맨 앞을 잃는 가드다.
+ * 값 바뀜과 자동 끄기는 줄에 두지 않는다(저장 전 확인 창이 맡는다). 없으면 null이다.
+ */
+export function rowWarningOf(w: OrderWarning): RowWarning | null {
+  const [skip] = w.skipped;
+  if (skip !== undefined)
+    return { k: "skip", name: skip.name, by: skip.by[0] ?? null, more: w.skipped.length - 1 };
+  const [guardSkip] = w.guardMayBeSkipped;
+  if (guardSkip !== undefined)
+    return { k: "guardSkip", name: guardSkip, more: w.guardMayBeSkipped.length - 1 };
+  const [guardFirst] = w.guardLosesFirst;
+  if (guardFirst !== undefined)
+    return { k: "guardFirst", name: guardFirst, more: w.guardLosesFirst.length - 1 };
+  return null;
 }

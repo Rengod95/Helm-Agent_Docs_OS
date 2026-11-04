@@ -5,8 +5,10 @@ import {
   needsConfirm,
   nextOrderForKey,
   proposeOrder,
+  readOrders,
   type CommittedOrder,
   type HookOrderPort,
+  type HookOrderState,
   type OrderPortError,
   type OrderWarning,
 } from "@fresnel/client/workbench/canvas";
@@ -60,6 +62,51 @@ export function saveConfirmed(
   confirm: ReorderConfirm,
 ): Promise<Result<CommittedOrder, OrderPortError>> {
   return commitOrder(port, confirm.hook, [...confirm.order]);
+}
+
+/**
+ * 저장 순서가 지금 적용돼 있고 핸들러가 둘 이상인 훅마다, 그 적용 순서의 미리보기 경고를 모은다.
+ * 적용 전(pending)의 훅은 뺀다. 그때 적용 순서는 저장 순서가 아니라 예전 것이라 경고가 엉뚱해진다.
+ * 미리보기는 저장하지 않는다. 포트가 err를 돌려주면 그 값을 그대로 돌려준다.
+ */
+export async function warningsOf(
+  port: HookOrderPort,
+  orders: Readonly<Record<string, HookOrderState>>,
+  nameOf: (registrationId: string) => string,
+): Promise<Result<Record<string, OrderWarning>, OrderPortError>> {
+  const checked = Object.entries(orders).filter(
+    ([, s]) => !s.pending && s.saved.length > 0 && s.applied.length >= 2,
+  );
+  const proposals = await Promise.all(
+    checked.map(async ([hook, s]) => ({
+      hook,
+      proposal: await proposeOrder(port, hook, s.applied, nameOf),
+    })),
+  );
+  const out: Record<string, OrderWarning> = {};
+  for (const { hook, proposal } of proposals) {
+    if (!proposal.ok) return proposal;
+    out[hook] = proposal.value.warning;
+  }
+  return ok(out);
+}
+
+/** 화면이 한 번에 넣는 값: 훅별 저장 상태와 적용 중 순서의 줄 경고 */
+export interface OrderView {
+  readonly orders: Readonly<Record<string, HookOrderState>>;
+  readonly warnings: Readonly<Record<string, OrderWarning>>;
+}
+
+/** 저장 순서를 읽고 그 줄 경고까지 모은다. 어느 쪽이든 err면 그 값을 그대로 돌려준다 */
+export async function readOrderView(
+  port: HookOrderPort,
+  nameOf: (registrationId: string) => string,
+): Promise<Result<OrderView, OrderPortError>> {
+  const orders = await readOrders(port);
+  if (!orders.ok) return orders;
+  const warnings = await warningsOf(port, orders.value, nameOf);
+  if (!warnings.ok) return warnings;
+  return ok({ orders: orders.value, warnings: warnings.value });
 }
 
 /**

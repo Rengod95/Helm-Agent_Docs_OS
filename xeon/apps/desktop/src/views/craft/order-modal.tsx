@@ -1,4 +1,5 @@
-// 순서 저장 전 확인. 건너뜀·값 변경·안전 검사 위험을 이름으로 보이고, `그대로 저장`을 눌러야만 저장한다.
+// 순서 저장 전 확인. 건너뜀·값 변경·가드 플러그인 위험을 이름으로 보이고, `그대로 저장`을 눌러야만 저장한다.
+// 권한 확인과 샌드박스는 순서와 무관하게 항상 돌아서 이 창의 대상이 아니다(X.operations §4.1.3, §4.1.4).
 import { t } from "@fresnel/client/i18n";
 import type { OrderWarning } from "@fresnel/client/workbench/canvas";
 import { assertNever } from "@fresnel/contracts";

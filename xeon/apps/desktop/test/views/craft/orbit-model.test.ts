@@ -6,7 +6,6 @@ import {
   type CanvasSnapshot,
 } from "@fresnel/client/workbench/canvas";
 import {
-  applyLayerOrder,
   groupOnCount,
   isDimmed,
   layerPlugins,
@@ -111,18 +110,6 @@ describe("orbit model: filters and finder", () => {
 });
 
 describe("orbit model: layer panel order and counts", () => {
-  test("saved order wins, unknown ids drop out, new ids come after in snapshot order", () => {
-    expect(applyLayerOrder(["b", "x", "a"], ["a", "b", "c"])).toEqual(["b", "a", "c"]);
-  });
-
-  test("a repeated saved id keeps its first place only", () => {
-    expect(applyLayerOrder(["a", "a"], ["a", "b"])).toEqual(["a", "b"]);
-  });
-
-  test("with nothing saved the snapshot order stands", () => {
-    expect(applyLayerOrder([], ["c", "a", "b"])).toEqual(["c", "a", "b"]);
-  });
-
   test("layerPlugins keeps snapshot order on one layer", () => {
     const small: CanvasSnapshot = {
       plugins: [byId("secret-scan"), byId("web"), byId("exa"), byId("lint-on-edit")],

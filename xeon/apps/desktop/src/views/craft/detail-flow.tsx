@@ -2,9 +2,10 @@
 // 그룹은 구성원마다 열 하나를 같은 생명선에 놓아 구성원 사이 손 넘김이 보이게 한다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { PHASES } from "@fresnel/client/workbench/canvas";
-import { Alert, Chip, Tooltip, type ChipProps } from "@caustic/react";
+import { Alert, Chip, type ChipProps } from "@caustic/react";
 import type { TraceFailureReason } from "@fresnel/contracts/extensions";
 import type { ReactNode } from "react";
+import { InfoTip } from "./info-tip.tsx";
 import {
   MOMENTS,
   TOOL_RUN,
@@ -70,7 +71,7 @@ const VERB_LABEL: Record<Verb, MessageId> = {
   call: "desktop.craft.detail.verb.call",
 };
 
-/** 한 줄 설명. 도구 실행(불려 나옴)은 설명이 없다 */
+/** 규칙 이름 옆 정보 아이콘의 한 줄 설명. 도구 실행(불려 나옴)은 설명이 없어 아이콘도 없다 */
 const VERB_TIP: Record<Verb, MessageId | null> = {
   observe: "desktop.craft.detail.verb.tip.observe",
   modify: "desktop.craft.detail.verb.tip.modify",
@@ -119,41 +120,54 @@ function momentText(id: string): string {
   return t(key ?? "desktop.craft.detail.moment.unknown");
 }
 
-function VerbChip({ verb }: { readonly verb: Verb }): ReactNode {
-  const chip = (
-    <Chip size="sm" variant={verb === "merge" ? "dashed" : "outline"}>
-      {t(VERB_LABEL[verb])}
-    </Chip>
-  );
+/** 규칙 이름표(관찰·수정·차단·합치기). 이름은 보이고, 하는 일 한 줄은 옆의 정보 아이콘 뒤에 있다 */
+export function VerbChip({ verb }: { readonly verb: Verb }): ReactNode {
   const tip = VERB_TIP[verb];
-  if (tip === null) return chip;
   return (
-    <Tooltip content={t(tip)} side="top" delayDuration={300}>
-      {chip}
-    </Tooltip>
+    <span className="inline-flex items-center gap-1">
+      <Chip size="sm" variant={verb === "merge" ? "dashed" : "outline"}>
+        {t(VERB_LABEL[verb])}
+      </Chip>
+      {tip === null ? null : <InfoTip text={t(tip)} />}
+    </span>
   );
 }
 
-function MarkLine({ mark }: { readonly mark: RunMark }): ReactNode {
+/**
+ * 최근 실행 기록 한 개의 카드. 위 왼쪽은 순간 이름, 위 오른쪽은 걸린 시간, 가운데는 실패 이유(있을 때만) 경고 한 줄,
+ * 아래는 결과 칩이다. 하는 일 설명은 이 카드에 없고 규칙 이름표의 정보 아이콘에 있다(DP-58).
+ */
+export function TraceCard({
+  title,
+  mark,
+}: {
+  readonly title: string;
+  readonly mark: RunMark;
+}): ReactNode {
   const time = timeLabel(mark.ms);
+  const timeKey: MessageId =
+    time.unit === "ms" ? "desktop.craft.detail.time.ms" : "desktop.craft.detail.time.s";
   const reason = mark.reason === null ? null : RESULT_REASON[mark.reason];
   return (
-    <div className="grid gap-1.5 border-t border-border-subtle pt-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-mono-sm text-text-secondary">
-          {t(time.unit === "ms" ? "desktop.craft.detail.time.ms" : "desktop.craft.detail.time.s", {
-            n: time.n,
-          })}
-        </span>
-        <Chip size="sm" className="ms-auto" {...OUTCOME_CHIP[mark.result]}>
+    <div className="grid border-t border-border-subtle pt-2">
+      <div className="grid gap-0.75">
+        <div className="flex min-w-0 items-baseline justify-between gap-3">
+          <span className="min-w-0 text-ui-strong text-text-primary">{title}</span>
+          <span className="flex-none font-mono text-mono-sm tabular-nums text-text-secondary">
+            {t(timeKey, { n: time.n })}
+          </span>
+        </div>
+        {reason !== null && (
+          <Alert tone="danger" size="sm" radius="lg">
+            {t(reason)}
+          </Alert>
+        )}
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-1.5">
+        <Chip size="sm" {...OUTCOME_CHIP[mark.result]}>
           {t(OUTCOME_LABEL[mark.result])}
         </Chip>
       </div>
-      {reason !== null && (
-        <Alert tone="danger" size="sm" radius="lg">
-          {t(reason)}
-        </Alert>
-      )}
     </div>
   );
 }
@@ -203,29 +217,46 @@ function StepCard({
         <Field label={t("desktop.craft.detail.card.gets")}>{t(VALUE_LABEL[part.gets])}</Field>
         <Field label={t("desktop.craft.detail.card.hands")}>{t(HAND_LABEL[part.hands])}</Field>
       </dl>
-      {marks !== null && <Marks marks={marks} />}
+      {marks !== null && <Marks marks={marks} title={momentText(part.moment)} />}
     </div>
   );
 }
 
-function Marks({ marks }: { readonly marks: readonly RunMark[] }): ReactNode {
+/** 기록 카드들. 기록이 없으면 빈 기록 안내 한 줄 */
+function Marks({
+  marks,
+  title,
+}: {
+  readonly marks: readonly RunMark[];
+  readonly title: string;
+}): ReactNode {
   if (marks.length === 0) {
     return <span className={LABEL}>{t("desktop.craft.detail.run.noRecord")}</span>;
   }
   return (
     <div className="grid gap-1.5">
       {marks.map((mark, i) => (
-        <MarkLine key={`${String(i)}:${String(mark.ms)}:${mark.result}`} mark={mark} />
+        <TraceCard
+          key={`${String(i)}:${String(mark.ms)}:${mark.result}`}
+          title={title}
+          mark={mark}
+        />
       ))}
     </div>
   );
 }
 
 /** 이 순간에 기록은 있는데 구조상 끼는 줄이 없는 칸. 기록을 그대로 보인다 */
-function RecordOnly({ marks }: { readonly marks: readonly RunMark[] }): ReactNode {
+function RecordOnly({
+  marks,
+  title,
+}: {
+  readonly marks: readonly RunMark[];
+  readonly title: string;
+}): ReactNode {
   return (
     <div className="grid gap-2 rounded-lg border border-dashed border-border-default bg-surface-base px-3 py-2.5">
-      <Marks marks={marks} />
+      <Marks marks={marks} title={title} />
     </div>
   );
 }
@@ -345,7 +376,9 @@ function MomentRow({
             />
           );
         }
-        if (recs !== undefined) return <RecordOnly key={c.plugin.id} marks={recs} />;
+        if (recs !== undefined) {
+          return <RecordOnly key={c.plugin.id} marks={recs} title={momentText(id)} />;
+        }
         return (
           <div key={c.plugin.id} aria-hidden className="relative">
             <span className="absolute inset-y-0 left-1/2 w-px border-l border-dashed border-border-default" />
@@ -420,7 +453,7 @@ export function Lifeline({ columns, grouped, nameOf, marks }: LifelineProps): Re
                       </Chip>
                     )}
                   </div>
-                  {recs !== undefined && <Marks marks={recs} />}
+                  {recs !== undefined && <Marks marks={recs} title={o.hook} />}
                 </div>
               );
             })}

@@ -139,18 +139,6 @@ export function layerPlugins(
   return snapshot.plugins.filter((p) => p.layer === layer && keepsContrib(p, contrib));
 }
 
-/**
- * 층 패널의 카드 순서. 저장된 순서가 있으면 따르고, 빠진 것은 스냅샷 순서로 뒤에 붙인다.
- * [미결: 사용자 확인] 이 순서가 불러오는 순서(load order)인지 화면만의 순서인지 정해지지 않았다.
- * 그래서 호출하는 쪽은 이 값을 컴포넌트 상태에만 두고 저장하지 않는다.
- */
-export function applyLayerOrder(saved: readonly string[], ids: readonly string[]): string[] {
-  const live = new Set(ids);
-  const kept = saved.filter((id, i) => live.has(id) && saved.indexOf(id) === i);
-  const keptSet = new Set(kept);
-  return [...kept, ...ids.filter((id) => !keptSet.has(id))];
-}
-
 /** 그룹이 켜진 구성원 수와 전체. 스위치와 "n/m 켜짐" 표시에 쓴다 */
 export function groupOnCount(
   snapshot: CanvasSnapshot,
