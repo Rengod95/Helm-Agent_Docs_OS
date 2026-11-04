@@ -1,17 +1,28 @@
 // 흐름 보기의 시험 실행(§6.28.4, S6). "시험 대화에서 돌려 보기"는 Test run 대화를 만들고(고른 프로필을 싣고) 이 그룹을 그 대화에서 켠다.
-// 그러면 같은 흐름 자리 위에 조종 한 줄이 나타난다: 멈춤·이어서·한 경계씩, 지금 단계, 새로 읽기, 끝내기. 명령 뒤에 단계를 한 번 읽고, 다시 읽는 타이머는 없다.
-// 드라이브 락 막대, 가드 칩, 경계 기록, replay로, 시험 결과는 wire가 없어 그리지 않는다(§6.28.8).
+// 그러면 같은 흐름 자리 위에 조종 한 줄이 나타난다: 멈춤·이어서·한 경계씩, 지금 단계, 새로 읽기, 끝내기. 명령 뒤에 `testRun.phase`를 한 번 읽고,
+// 그 값으로 드라이브 락 줄, 가드 칩, 단계 사이 기록을 그린다. 다시 읽는 타이머는 없다. "다시 돌려 검사"와 시험 결과는 `compose-trial-replay.tsx`가 그린다.
 import { t, type MessageId } from "@fresnel/client/i18n";
-import type { RunControl, TabLink, TestFailure } from "@fresnel/client/workbench";
+import {
+  boundaryLogOf,
+  guardChipOf,
+  lockBarOf,
+  type LockKind,
+  type RunControl,
+  type TabLink,
+  type TestFailure,
+} from "@fresnel/client/workbench";
 import { assertNever, detach, parse, rethrow } from "@fresnel/contracts";
 import { ThreadIdSchema, type ThreadId } from "@fresnel/contracts/conversation";
-import { Alert, Button, Field, Select, SelectOption } from "@caustic/react";
+import type { TestRunBoundary, TestRunPhaseResult } from "@fresnel/contracts/extensions";
+import { Alert, Button, Field, Select, SelectOption, Timeline, TimelineItem } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useCommands, type Commands, type TestCommands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
+import { Tag } from "../tests/test-detail.tsx";
 import { createTestRunThread, runControl } from "../tests/tests-actions.ts";
 import { noticeTextOf, testFailureOf } from "../tests/tests-text.ts";
 import { useTabRead } from "../workbench/tab-read.ts";
+import { ReplayBar, type ReplayController } from "./compose-trial-replay.tsx";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
 /** 프로필 고르기의 "없음" 값. Radix Select는 빈 문자열 값을 받지 않아 따로 둔다 */
@@ -21,10 +32,10 @@ const ID_SHOWN = 12;
 
 export type TrialMode = "running" | "pausing" | "paused";
 
-/** 지금 단계 읽기 값. 읽지 못한 것(failed)과 단계가 아직 없는 것(ready, phase null)은 다르다 */
+/** 지금 단계 읽기 값. 읽지 못한 것(failed)과 단계가 아직 없는 것(ready, 결과의 phase가 null)은 다르다. 읽은 값은 결과 전체다 */
 export type PhaseRead =
   | { readonly kind: "reading" }
-  | { readonly kind: "ready"; readonly phase: string | null }
+  | { readonly kind: "ready"; readonly result: TestRunPhaseResult }
   | { readonly kind: "failed" };
 
 export interface TrialRun {
@@ -69,10 +80,10 @@ export async function startTrialRun(
   return { ok: true, threadId: threadId.value };
 }
 
-/** 지금 단계 읽기. 읽지 못하면 `failed`다(단계가 없는 것과 다르다) */
+/** 지금 단계 읽기. 읽지 못하면 `failed`다(단계가 없는 것과 다르다). 읽은 값은 드라이브 락, 가드, 경계 기록까지 함께 든다 */
 export async function readPhaseOf(tests: TestCommands, threadId: string): Promise<PhaseRead> {
   const got = await tests.phase(threadId);
-  return got.ok ? { kind: "ready", phase: got.value.phase } : { kind: "failed" };
+  return got.ok ? { kind: "ready", result: got.value } : { kind: "failed" };
 }
 
 /** 조종 결과로 정한 모습. 멈춤 결과가 아직 멈춘 채가 아니면 "멈추는 중"으로 둔다(경계에 닿았는지는 wire가 알려 주지 않는다) */
@@ -83,7 +94,7 @@ export function modeAfter(action: RunControl, paused: boolean): TrialMode {
 
 /** 노드를 강조할 단계 이름. 읽지 못했거나 단계가 없으면 null이라 노드를 강조하지 않는다 */
 export function trialPhaseOf(read: PhaseRead): string | null {
-  return read.kind === "ready" ? read.phase : null;
+  return read.kind === "ready" ? read.result.phase : null;
 }
 
 /** 머리 글자만 보인다. 전체 id는 title로 본다 */
@@ -198,21 +209,98 @@ function PhaseText(props: { readonly read: PhaseRead }): ReactNode {
     case "failed":
       return <span className="text-danger-text">{t("desktop.compose.trial.phase.failed")}</span>;
     case "ready":
-      return read.phase === null ? (
+      return read.result.phase === null ? (
         <span className="text-text-secondary">{t("desktop.compose.trial.phase.none")}</span>
       ) : (
-        <span className="font-mono text-text-primary">{read.phase}</span>
+        <span className="font-mono text-text-primary">{read.result.phase}</span>
       );
     default:
       return assertNever(read, "PhaseRead");
   }
 }
 
-/** 실행 줄: 대화 id, 상태 문장, 지금 단계, 조종 단추. 조종 중이거나 연결이 없으면 단추는 모두 잠긴다 */
+const LOCK_TEXT: Readonly<Record<LockKind, MessageId>> = {
+  held: "desktop.compose.trial.lock.held",
+  releasing: "desktop.compose.trial.lock.releasing",
+  none: "desktop.compose.trial.lock.none",
+};
+
+/** 드라이브 락 줄: 쥔 그룹 이름(mono)과 상태 글. 쥔 것이 없으면 이름 자리는 "—"다 */
+function LockLine(props: { readonly phase: TestRunPhaseResult }): ReactNode {
+  const bar = lockBarOf(props.phase);
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-ui-sm">
+      <span className="text-text-tertiary">{t("desktop.compose.trial.lock.label")}</span>
+      <span className="font-mono text-text-primary">{bar.holder ?? "—"}</span>
+      <span className={bar.kind === "none" ? "text-text-tertiary" : "text-text-secondary"}>
+        {t(LOCK_TEXT[bar.kind])}
+      </span>
+    </div>
+  );
+}
+
+/** 가드 칩: 막은 횟수(경고 색), 측정이 꺼져 있으면 흐린 글과 설명 아이콘, 측정이 켜졌고 0이면 아무것도 그리지 않는다 */
+function GuardChip(props: { readonly phase: TestRunPhaseResult }): ReactNode {
+  const chip = guardChipOf(props.phase);
+  switch (chip.kind) {
+    case "hits":
+      return (
+        <Tag tone="warning">{t("desktop.compose.trial.guard.hits", { count: chip.count })}</Tag>
+      );
+    case "none":
+      return null;
+    case "off":
+      return (
+        <span className="inline-flex items-center gap-1 text-ui-sm text-text-tertiary">
+          {t("desktop.compose.trial.guard.off")}
+          <InfoTip text={t("desktop.compose.trial.guard.off.info")} />
+        </span>
+      );
+    default:
+      return assertNever(chip, "GuardChipVM");
+  }
+}
+
+/** 단계 사이 기록 열: 새것이 위다. 기록이 없으면 빈 글이다. 목록에는 aria-label을 준다 */
+function BoundaryLog(props: { readonly boundaries: readonly TestRunBoundary[] }): ReactNode {
+  const rows = boundaryLogOf(props.boundaries);
+  const label = t("desktop.compose.trial.boundary.label");
+  return (
+    <section aria-label={label} className="grid gap-2">
+      <h3 className="m-0 text-ui-sm font-semibold text-text-secondary">
+        {t("desktop.compose.trial.boundary.heading")}
+      </h3>
+      {rows.length === 0 ? (
+        <p className={MUTED}>{t("desktop.compose.trial.boundary.empty")}</p>
+      ) : (
+        <Timeline aria-label={label} size="sm">
+          {rows.map((row, index) => (
+            <TimelineItem
+              key={`${String(row.seq)}:${String(index)}`}
+              author="system"
+              title={
+                row.phase === null ? (
+                  t("desktop.compose.trial.boundary.noPhase")
+                ) : (
+                  <span className="font-mono">{row.phase}</span>
+                )
+              }
+              detail={row.paused ? t("desktop.compose.trial.boundary.paused") : undefined}
+              time={t("desktop.compose.trial.boundary.seq", { seq: row.seq })}
+            />
+          ))}
+        </Timeline>
+      )}
+    </section>
+  );
+}
+
+/** 실행 줄: 대화 id, 상태 문장, 지금 단계, 가드 칩, 드라이브 락 줄, 조종 단추, 단계 사이 기록. 조종 중이거나 연결이 없으면 단추는 모두 잠긴다 */
 function RunRow(props: { readonly trial: TrialController; readonly run: TrialRun }): ReactNode {
   const { trial, run } = props;
   const locked = !trial.online || run.busy;
   const pausing = run.mode === "pausing";
+  const ready = run.phase.kind === "ready" ? run.phase.result : null;
   return (
     <section
       aria-label={t("desktop.compose.trial.run.label")}
@@ -232,8 +320,10 @@ function RunRow(props: { readonly trial: TrialController; readonly run: TrialRun
           <span className="text-text-tertiary">{t("desktop.compose.trial.phase.label")}</span>
           <PhaseText read={run.phase} />
         </span>
+        {ready === null ? null : <GuardChip phase={ready} />}
         <InfoTip text={t("desktop.compose.trial.control.info")} />
       </div>
+      {ready === null ? null : <LockLine phase={ready} />}
       <div className="flex flex-wrap items-center gap-2">
         {run.mode === "paused" ? null : (
           <Button
@@ -274,6 +364,7 @@ function RunRow(props: { readonly trial: TrialController; readonly run: TrialRun
           {t("desktop.compose.trial.control.leave")}
         </Button>
       </div>
+      {ready === null ? null : <BoundaryLog boundaries={ready.boundaries} />}
       {trial.online ? null : <p className={MUTED}>{t("desktop.compose.trial.offline.run")}</p>}
     </section>
   );
@@ -343,31 +434,39 @@ export interface TrialBarProps {
   /** 흐름을 낸 그룹이 설치되어 있나. 아니면 시험을 돌릴 수 없다 */
   readonly installed: boolean;
   readonly trial: TrialController;
+  /** 다시 돌려 검사와 시험 결과 목록(`useReplayTrial`) */
+  readonly replay: ReplayController;
 }
 
-/** 흐름 머리 아래의 시험 줄: 시작 줄 또는 실행 줄, 그 아래에 실패 알림 하나 */
+/** 흐름 머리 아래의 시험 줄: 시작 줄 또는 실행 줄, 그 아래에 실패 알림 하나, 다시 돌려 검사 줄 */
 export function TrialBar(props: TrialBarProps): ReactNode {
-  const { trial } = props;
+  const { trial, replay } = props;
   return (
-    <div className="grid gap-2">
-      {trial.run === null ? (
-        <StartRow trial={trial} link={props.link} installed={props.installed} />
-      ) : (
-        <RunRow trial={trial} run={trial.run} />
-      )}
-      {trial.notice === null ? null : (
-        <Alert
-          tone="danger"
-          dismissible
-          dismissLabel={t("desktop.compose.dismiss")}
-          onDismiss={trial.dismiss}
-        >
-          {t(trial.notice.text)}
-          {trial.notice.orphan === null ? null : (
-            <> {t("desktop.compose.trial.error.orphan", { id: shortIdOf(trial.notice.orphan) })}</>
-          )}
-        </Alert>
-      )}
+    <div className="grid gap-3">
+      <div className="grid gap-2">
+        {trial.run === null ? (
+          <StartRow trial={trial} link={props.link} installed={props.installed} />
+        ) : (
+          <RunRow trial={trial} run={trial.run} />
+        )}
+        {trial.notice === null ? null : (
+          <Alert
+            tone="danger"
+            dismissible
+            dismissLabel={t("desktop.compose.dismiss")}
+            onDismiss={trial.dismiss}
+          >
+            {t(trial.notice.text)}
+            {trial.notice.orphan === null ? null : (
+              <>
+                {" "}
+                {t("desktop.compose.trial.error.orphan", { id: shortIdOf(trial.notice.orphan) })}
+              </>
+            )}
+          </Alert>
+        )}
+      </div>
+      <ReplayBar replay={replay} />
     </div>
   );
 }

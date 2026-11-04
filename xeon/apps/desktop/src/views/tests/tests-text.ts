@@ -1,5 +1,5 @@
 // 테스트 화면의 글 고르기. 모델의 값을 메시지 키로 바꾼다(글은 카탈로그에만 있다). 명령 오류는 화면이 쓰는 실패 종류로 줄인다.
-import type { MessageId } from "@fresnel/client/i18n";
+import { activeLocale, type MessageId } from "@fresnel/client/i18n";
 import {
   durationOf,
   type CutCell,
@@ -108,11 +108,20 @@ export function durationTextOf(ms: number): { readonly key: MessageId; readonly 
   }
 }
 
-/** 칸마다 글. 같음은 칠한 칸, 그 밖은 "다를 수 있음"이다 */
+/** 칸마다 글. 같음은 칠한 칸, 다름은 테두리만 둔 칸이다 */
 export const CELL_TEXT: Readonly<Record<CutCell, MessageId>> = {
   same: "desktop.tests.detail.cell.same",
-  unknown: "desktop.tests.detail.cell.unknown",
+  differs: "desktop.compose.trial.cut.differs",
 };
+
+/** 시각 칸의 글. 로케일의 날짜와 시간 짧은 형식이고, 시각을 읽을 수 없으면 "—"다 */
+export function timeTextOf(ms: number | null): string {
+  if (ms === null) return "—";
+  return new Intl.DateTimeFormat(activeLocale(), {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(ms));
+}
 
 /** 명령 오류를 화면의 실패 종류로 줄인다. 잠김과 대상 전환 중은 일반 실패다 */
 export function testFailureOf(error: CommandError): TestFailure {

@@ -14,6 +14,7 @@ import { Button, Progress } from "@caustic/react";
 import { Copy } from "@caustic/react/icons";
 import type { ReplayReport } from "@fresnel/contracts/services";
 import type { ReactNode } from "react";
+import { InfoTip } from "../craft/info-tip.tsx";
 import {
   CELL_TEXT,
   CONTROL_TEXT,
@@ -72,7 +73,7 @@ export function TestDetail(props: TestDetailProps): ReactNode {
         <span className="text-ui-sm text-text-tertiary">{t(KIND_TEXT[row.kind])}</span>
         <span className="text-ui-sm text-text-secondary">{t(STATE_TEXT[row.state])}</span>
       </header>
-      {row.replay === null ? null : <ReplayResult report={row.replay} handlers={handlers} />}
+      {row.replay === null ? null : <ReplayResult report={row.replay} onCopy={handlers.copy} />}
       {row.kind === "testRun" ? (
         <TestRunState row={row} paused={paused} phase={phase} handlers={handlers} />
       ) : null}
@@ -80,7 +81,7 @@ export function TestDetail(props: TestDetailProps): ReactNode {
   );
 }
 
-/** 절단 띠. 칸은 커밋 하나의 절단이다. 같은 칸만 칠하고 나머지는 wire가 칸별 값을 주지 않아 칠하지 않는다 */
+/** 절단 띠. 칸은 커밋 하나의 절단이다. 같은 칸은 칠하고, 다른 칸은 테두리만 둔다(`cuts`의 칸별 같음·다름) */
 function CutStrip(props: { readonly strip: CutStripVM }): ReactNode {
   const { strip } = props;
   return (
@@ -108,28 +109,31 @@ function CutStrip(props: { readonly strip: CutStripVM }): ReactNode {
   );
 }
 
-function ReplayResult(props: {
+/**
+ * replay 결과 한 장: 판정, 절단 띠, 첫 차이, 효과 수(참고), 실패 종류, "JSON 복사". Tests 화면과 구성기 시험 실행이 같이 쓴다.
+ * `limitInfo`가 참이면 한계 한 줄을 판정 옆 설명 아이콘 뒤에 둔다(구성기는 설명을 아이콘 뒤에 둔다). 테스트 화면은 줄로 둔다.
+ */
+export function ReplayResult(props: {
   readonly report: ReplayReport;
-  readonly handlers: TestDetailHandlers;
+  readonly onCopy: (report: ReplayReport) => void;
+  readonly limitInfo?: boolean;
 }): ReactNode {
-  const { report, handlers } = props;
+  const { report, onCopy, limitInfo = false } = props;
   const verdict = replayVerdictOf(report);
   const strip = cutStripOf(report);
   const tone: TagTone =
     verdict.kind === "same" ? "success" : verdict.kind === "digest-differs" ? "warning" : "danger";
   return (
     <div className="grid gap-3 text-ui-sm">
-      <p className={MUTED}>{t("desktop.tests.detail.limit")}</p>
+      {limitInfo ? null : <p className={MUTED}>{t("desktop.tests.detail.limit")}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <Tag tone={tone}>{t(VERDICT_TEXT[verdict.kind])}</Tag>
         <span className="text-text-primary">
           {t("desktop.tests.detail.cut", { commits: report.commits, passed: report.passed })}
         </span>
+        {limitInfo ? <InfoTip text={t("desktop.tests.detail.limit")} /> : null}
       </div>
       <CutStrip strip={strip} />
-      {report.passed === report.commits ? null : (
-        <p className={MUTED}>{t("desktop.tests.detail.cutNote")}</p>
-      )}
       <p className="m-0 text-text-primary">
         {report.firstDiff === null
           ? t("desktop.tests.detail.firstDiffNone")
@@ -159,7 +163,7 @@ function ReplayResult(props: {
           size="sm"
           iconStart={<Copy />}
           onClick={() => {
-            handlers.copy(report);
+            onCopy(report);
           }}
         >
           {t("desktop.tests.detail.copyJson")}

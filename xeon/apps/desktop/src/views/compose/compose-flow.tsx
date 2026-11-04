@@ -32,6 +32,7 @@ import { CheckBanner, IssueList, useDraftCheck, type CheckRead } from "./compose
 import { FlowEditor } from "./compose-flow-edit.tsx";
 import { FlowOutline } from "./compose-outline.tsx";
 import { NODE_TEXT } from "./compose-text.ts";
+import { useReplayTrial } from "./compose-trial-replay.tsx";
 import { TrialBar, trialPhaseOf, useTrialRun } from "./compose-trial.tsx";
 import { isCompactWidth, useContainerWidth } from "./compose-width.ts";
 
@@ -62,6 +63,7 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
   const [selected, setSelected] = useState<string | null>(null);
   const shown = draft ?? phases;
   const trial = useTrialRun(name, link);
+  const replay = useReplayTrial(name, link);
   // 시험 실행 중에만 지금 단계를 강조한다. 단계를 모르면 강조하지 않는다
   const runStates =
     trial.run === null ? undefined : runStatesOf(shown, trialPhaseOf(trial.run.phase));
@@ -83,7 +85,7 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
         <InfoTip text={t("desktop.compose.flow.boundary")} />
         {draft === null ? null : <Badge size="xs">{t("desktop.compose.flow.draft.badge")}</Badge>}
       </p>
-      <TrialBar link={link} installed={installed} trial={trial} />
+      <TrialBar link={link} installed={installed} trial={trial} replay={replay} />
       {draft === null ? (
         <ReadOnlyLine
           onStart={() => {
