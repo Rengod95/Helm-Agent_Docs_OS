@@ -45,8 +45,8 @@ export function approvalExpiryOf(request: ApprovalRequestedPayload): ApprovalExp
   };
 }
 
-/** 카드 안의 바로 가기 동작. Y는 기본 답, ⇧Y는 이 대화에서 항상, N은 거부 */
-type ApprovalKeyAction = "primary" | "always" | "deny";
+/** 카드 안의 바로 가기 동작. Y는 기본 답, N은 거부. 승인 기억은 요청 단위뿐이라 "항상"은 없다 [결정: 2026-10-31 사용자] */
+type ApprovalKeyAction = "primary" | "deny";
 
 type ApprovalKeyLike = {
   readonly key: string;
@@ -60,7 +60,7 @@ type ApprovalKeyLike = {
 export function approvalKeyOf(event: ApprovalKeyLike): ApprovalKeyAction | null {
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
   const key = event.key.toLowerCase();
-  if (key === "y") return event.shiftKey ? "always" : "primary";
+  if (key === "y" && !event.shiftKey) return "primary";
   if (key === "n" && !event.shiftKey) return "deny";
   return null;
 }
@@ -84,15 +84,6 @@ export function reviewTotalsOf(files: readonly { readonly hunks: number }[]): {
     files: files.length,
     hunks: files.reduce((sum, file) => sum + file.hunks, 0),
   };
-}
-
-/** 이 요청이 고를 수 있는 "이 대화에서 항상" 기억 범위. 없으면 null이다 */
-export function alwaysRememberOf(
-  remember: ApprovalRequestedPayload["remember"],
-): "thread" | "always" | null {
-  if (remember.includes("thread")) return "thread";
-  if (remember.includes("always")) return "always";
-  return null;
 }
 
 /** 피드백 입력을 보낼 글로 바꾼다. 앞뒤 공백만 있으면 없는 것으로 보고 null이다 */

@@ -46,22 +46,21 @@ function start(steps: readonly TapeStep[], lines: readonly string[]) {
   return { cli, prompts: input.prompts };
 }
 
-test("the card shows the whole command, and t remembers it for the session so the next call is not asked", async () => {
+test("the card shows the whole command, and y allows once so the next call is asked again", async () => {
   const { cli, prompts } = start(
     [bashCall(LONG, "call_1"), bashCall("echo second-call", "call_2"), say("끝났다")],
-    ["실행해 줘", "t"],
+    ["실행해 줘", "y", "y"],
   );
   expect(await cli.harness.run(["chat"])).toBe(EXIT.ok);
   // 인자 줄은 120자에서 잘리지만 명령 줄은 전체다
   expect(cli.harness.stderrText()).toContain(`  명령:\n    ${LONG}\n`);
-  expect(cli.sent("approval.respond")).toEqual([
-    {
-      method: "approval.respond",
-      params: { approvalId: expect.stringMatching(/^evt_/), decision: "allow", remember: "thread" },
-    },
-  ]);
-  // 두 번째 호출은 이 세션 동안 허용으로 기억되어 묻지 않고 실행된다
-  expect(prompts.filter((prompt) => prompt.includes("[y] 이번만 허용"))).toHaveLength(1);
+  const once = {
+    method: "approval.respond",
+    params: { approvalId: expect.stringMatching(/^evt_/), decision: "allow", remember: "once" },
+  };
+  expect(cli.sent("approval.respond")).toEqual([once, once]);
+  // 승인 기억은 요청 단위뿐이라 두 번째 호출도 묻는다
+  expect(prompts.filter((prompt) => prompt.includes("[y] 이번만 허용"))).toHaveLength(2);
   const out = cli.harness.stdoutText();
   expect(out).toContain("whole-command-ran");
   expect(out).toContain("second-call");

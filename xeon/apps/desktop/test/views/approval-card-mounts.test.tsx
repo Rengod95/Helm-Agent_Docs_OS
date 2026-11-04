@@ -45,7 +45,7 @@ function payload(input: Record<string, unknown>): ApprovalRequestedPayload {
     origin,
     surfaceThreadId: T,
     requestedAt: Date.now() - 5 * 60_000,
-    remember: ["once", "thread"],
+    remember: ["once"],
     ...input,
   });
   if (!parsed.ok) throw new Error("the test approval payload must be valid");

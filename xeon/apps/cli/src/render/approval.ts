@@ -1,7 +1,7 @@
 import { t } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ApprovalRespondParams, ApprovalRespondResult } from "@fresnel/contracts/wire";
-import type { ApprovalView, QuestionView, RememberChoice, ReviewFileView } from "./ops.ts";
+import type { ApprovalView, QuestionView, ReviewFileView } from "./ops.ts";
 
 // L4.cli.spec §4.11. 승인 프롬프트. 줄 입력으로 허용·거부·답을 받아 approval.respond 인자로 바꾼다.
 // 질문(question)은 QuestionAnswer, 계획(plan)의 허용은 PlanAnswer, 검토(review)는 ReviewAnswer, 거부는 DenyAnswer가 정본 모양이다(F wire §3.3.1).
@@ -31,12 +31,9 @@ function isAborted(signal: AbortSignal): boolean {
   return signal.aborted;
 }
 
-function rememberHint(remember: readonly RememberChoice[]): string {
-  const parts = [t("cli.render.approval.hint.once")];
-  if (remember.includes("thread")) parts.push(t("cli.render.approval.hint.thread"));
-  if (remember.includes("always")) parts.push(t("cli.render.approval.hint.always"));
-  parts.push(t("cli.render.approval.hint.deny"));
-  return parts.join("  ");
+/** 승인 기억은 요청 단위뿐이라 이번만 허용과 거부만 보인다 [결정: 2026-10-31 사용자] */
+function rememberHint(): string {
+  return [t("cli.render.approval.hint.once"), t("cli.render.approval.hint.deny")].join("  ");
 }
 
 async function askFeedback(io: PromptIo, signal: AbortSignal): Promise<ApprovalResponse> {
@@ -45,24 +42,14 @@ async function askFeedback(io: PromptIo, signal: AbortSignal): Promise<ApprovalR
   return feedback.length === 0 ? DENY_ONLY : { decision: "deny", answer: { feedback } };
 }
 
-/** 도구 호출 승인: 허용 범위를 고르거나 거부한다 */
-async function askTool(
-  view: ApprovalView,
-  io: PromptIo,
-  signal: AbortSignal,
-): Promise<AskOutcome | "retry"> {
-  const line = await io.readLine(`${rememberHint(view.remember)} > `, signal);
+/** 도구 호출 승인: 이번만 허용하거나 거부한다 */
+async function askTool(io: PromptIo, signal: AbortSignal): Promise<AskOutcome | "retry"> {
+  const line = await io.readLine(`${rememberHint()} > `, signal);
   if (isAborted(signal)) return { kind: "dismissed" };
   if (line === null) return { kind: "answered", response: DENY_ONLY };
   const choice = line.trim().toLowerCase();
   if (choice === "y" || choice === "yes") {
     return { kind: "answered", response: { decision: "allow", remember: "once" } };
-  }
-  if (choice === "t" && view.remember.includes("thread")) {
-    return { kind: "answered", response: { decision: "allow", remember: "thread" } };
-  }
-  if (choice === "a" && view.remember.includes("always")) {
-    return { kind: "answered", response: { decision: "allow", remember: "always" } };
   }
   if (choice === "n" || choice === "no") {
     const denied = await askFeedback(io, signal);
@@ -312,13 +299,12 @@ async function askQuestions(
 
 function askForm(
   form: Exclude<ApprovalView["form"], { readonly kind: "question" }>,
-  view: ApprovalView,
   io: PromptIo,
   signal: AbortSignal,
 ): Promise<AskOutcome | "retry"> {
   switch (form.kind) {
     case "tool":
-      return askTool(view, io, signal);
+      return askTool(io, signal);
     case "plan":
       return askPlan(form.nextModes, io, signal);
     case "review":
@@ -338,7 +324,7 @@ async function askApproval(
   if (form.kind === "question") return askQuestions(form.questions, io, signal);
   for (;;) {
     // oxlint-disable-next-line no-await-in-loop -- 알아듣는 입력이 올 때까지 같은 질문을 다시 묻는다 (L4.cli.spec §4.11)
-    const outcome = await askForm(form, view, io, signal);
+    const outcome = await askForm(form, io, signal);
     if (outcome !== "retry") return outcome;
   }
 }
