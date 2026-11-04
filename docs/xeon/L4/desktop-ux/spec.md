@@ -2712,6 +2712,12 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 - caustic: `NodeGraph`·`GraphNode`·`GraphPort`·`GraphEdge`·`GraphDraft`(caustic `xeon/m4-design`, `[gap:C-35]` `[gap:C-36]`), `ZoomControl`, `LayerTree`, `CodeRealization`, `SegmentedControl`, `Select`, `Button`, `Badge`, `Alert`, `Progress`, `ListDescription`, `Input`. 캔버스 호스트 `[gap:C-34]`.
 
+#### 6.28.8 구현 범위(2026-11-04 h5comp)
+
+- 구현: 보기 셋. 그룹 보기는 설치 그룹의 `composition` 블록 목록과 `ext.validateComposition` 검사 띠를 읽기 전용으로 그리고, 선언이 없으면 "구성 정보 없음" 한 블록이다(S1, S3, S9). 흐름 보기는 `composition.phases`를 단계 목록과 전이 줄로 그리고 선언이 없으면 "단계 선언이 없어요"다(S4 일부). 프로필 보기는 `profile.list`·`put`·`delete`·`preview`·`apply`로 확장마다 켜기·끄기·그대로를 편집한다(S7 일부, 실효 스택은 `profile.preview` 결과 요약).
+- 이 단계에서는 `NodeGraph` 캔버스 대신 목록 모양으로 그린다. 좁은 폭의 개요 편집기가 같은 모양이다.
+- 아직 없음: 코드 보기(S8), "새 그룹" 빈 구성기(S2), 초안 편집(S5), 흐름 보기의 시험 실행(S6, W-48·W-50), 프로필 보기의 "새 Test run으로". 화면은 이 동작을 두지 않는다.
+
 ### 6.29 P-22 새 그룹(P-21에 합침)
 
 [결정: 2026-10-31 사용자] 별도 "만들기" 화면을 두지 않습니다. 옛 P-22의 내용은 다음으로 나뉩니다.

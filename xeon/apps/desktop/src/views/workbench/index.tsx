@@ -1,10 +1,11 @@
-// 크래프트 화면 묶음(개요·확장·테스트·엔진). `desktop-registry.tsx`가 `registerWorkbench`를 부른다.
+// 크래프트 화면 묶음(개요·확장·테스트·측정·구성·엔진). `desktop-registry.tsx`가 `registerWorkbench`를 부른다.
 import type { ReactNode } from "react";
 import {
   useWorkbench,
   WorkbenchStoreContext,
   type WorkbenchStore,
 } from "../../state/workbench/index.ts";
+import { ComposeScreen } from "../compose/compose-screen.tsx";
 import { CraftScreen } from "./craft-screen.tsx";
 import { EngineScreen } from "./engine-screen.tsx";
 import { ExtensionsScreen } from "./extensions-screen.tsx";
@@ -16,7 +17,16 @@ import { ThreadProfile } from "./thread-profile.tsx";
 import { TestsScreen } from "../tests/tests-screen.tsx";
 import { AutoOffNotice, noticeCountOf } from "./craft-parts.tsx";
 import { detachVoid, useWorkbenchController } from "./controller.ts";
-import { Clock, Eye, FlaskConical, Layers, Package, Plug, Settings } from "@caustic/react/icons";
+import {
+  Shapes,
+  Clock,
+  Eye,
+  FlaskConical,
+  Layers,
+  Package,
+  Plug,
+  Settings,
+} from "@caustic/react/icons";
 
 function scoped(store: WorkbenchStore, children: ReactNode): ReactNode {
   return <WorkbenchStoreContext value={store}>{children}</WorkbenchStoreContext>;
@@ -50,6 +60,13 @@ export function registerWorkbench(registry: ShellRegistry, store: WorkbenchStore
     label: "desktop.shell.nav.metrics",
     icon: <Clock />,
     render: () => <MetricsScreen />,
+  });
+  registry.registerScreen({
+    id: "compose",
+    area: "workbench",
+    label: "desktop.shell.nav.compose",
+    icon: <Shapes />,
+    render: () => scoped(store, <ComposeScreen />),
   });
   registry.registerScreen({
     id: "engine",
