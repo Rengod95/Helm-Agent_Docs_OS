@@ -251,7 +251,7 @@ export const operationsSettings: SettingGroup<
       widget: "table",
       order: 600,
       label: "Handler order",
-      help: "Users set the order in which handlers (Registration id) run for each hook. The order applies when a new stage starts. Guard-tier handlers can also be moved, and moving one may skip safety checks.",
+      help: "Users set the order in which handlers (Registration id) run for each hook. The order applies when a new stage starts. Guard-tier handlers can also be moved, and moving one may let it be skipped. Permission checks and the sandbox always run regardless of order.",
     },
     since: "0.1.0",
   },
