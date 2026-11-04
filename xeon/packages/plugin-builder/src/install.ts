@@ -36,8 +36,16 @@ async function readInstallable(source: string): Promise<Result<ExtensionManifest
   if (!json.ok) return err(invalid(`${MANIFEST_PATH} is not JSON`));
   const checked = validateManifest(json.value);
   const manifest = checked.manifest;
-  if (manifest === undefined || checked.issues.some((entry) => entry.severity === "error"))
-    return err(invalid("manifest is not valid"));
+  // 첫 오류의 사유를 붙인다. 예약 이름(`name_reserved`)처럼 사용자가 고칠 수 있는 이유가 화면에 그대로 보이게 한다
+  const refused = checked.issues.find((entry) => entry.severity === "error");
+  if (manifest === undefined || refused !== undefined)
+    return err(
+      invalid(
+        refused === undefined
+          ? "manifest is not valid"
+          : `manifest is not valid: ${refused.message}`,
+      ),
+    );
   if (manifest.trust?.level === "builtin")
     return err({ kind: "denied", message: "AU-002: builtin trust cannot be installed" });
   if (!/\.(js|mjs)$/.test(manifest.entry))
