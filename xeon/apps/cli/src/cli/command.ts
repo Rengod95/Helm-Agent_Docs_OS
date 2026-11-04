@@ -184,6 +184,8 @@ export interface ServiceCommand {
 interface CliHostCommand {
   readonly kind: "host";
   readonly stdio: true;
+  /** `--safe-mode`: 이번 엔진 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다. 데스크톱 셸이 "안전 모드로 시작"에 쓴다 */
+  readonly safeMode: boolean;
 }
 export interface DoctorCommand {
   readonly kind: "doctor";
@@ -1699,7 +1701,10 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
 }
 
 function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostCommand, UsageError> {
-  const scanned = scanArgs(acc, rest, { "--stdio": { value: "none" } });
+  const scanned = scanArgs(acc, rest, {
+    "--stdio": { value: "none" },
+    "--safe-mode": { value: "none" },
+  });
   if (!scanned.ok) return scanned;
   if (scanned.value.positionals.length > 0) {
     return err(
@@ -1715,7 +1720,7 @@ function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostComma
       usage("missingArgument", t("cli.usage.host.stdioMissing.message"), "fresnel host --stdio"),
     );
   }
-  return ok({ kind: "host", stdio: true });
+  return ok({ kind: "host", stdio: true, safeMode: has(scanned.value, "--safe-mode") });
 }
 
 function parseDb(acc: GlobalAcc, rest: readonly string[]): Result<DbCommand, UsageError> {
