@@ -277,8 +277,8 @@ describe("크래프트 명령의 wire 호출", () => {
     await app.stop();
   });
 
-  test("설정에는 꺼졌는데 ext.disableConfirm이 거절되면 그 코드를 담은 오류 값이다", async () => {
-    const { app } = await liveApp({
+  test("설정에는 꺼졌는데 ext.disableConfirm이 거절되면 설정을 켜짐으로 되돌리고 그 코드를 담은 오류 값이다", async () => {
+    const { app, params, methods } = await liveApp({
       results: { "settings.set": SETTING_WRITTEN },
       errors: {
         "ext.disableConfirm": {
@@ -291,6 +291,15 @@ describe("크래프트 명령의 wire 호출", () => {
       ok: false,
       error: { kind: "rejected", code: WIRE_ERRORS["extension.safeModeActive"].code },
     });
+    expect(paramsOf(params, "settings.set")).toEqual([
+      { key: "ext.review.enabled", value: false, scope: "user" },
+      { key: "ext.review.enabled", value: true, scope: "user" },
+    ]);
+    expect(orderOf(methods, "settings.set", "ext.disableConfirm")).toEqual([
+      "settings.set",
+      "ext.disableConfirm",
+      "settings.set",
+    ]);
     await app.stop();
   });
 

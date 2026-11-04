@@ -101,14 +101,19 @@ export function createWorkbenchCommands(
       return done.ok ? ok(null) : err(done.error);
     },
     // "끄기" 답. 먼저 설정에 꺼짐을 써서 다음 시작에도 꺼진 채로 두고, 그다음 호스트가 auto_disable로 끈다(`ext.disableConfirm`).
-    // 쓰기가 실패하면 끄기를 요청하지 않는다
+    // 쓰기가 실패하면 끄기를 요청하지 않는다. 쓰기는 됐는데 `ext.disableConfirm`이 거절되면 설정을 켜짐으로 되돌린다:
+    // 확장은 이번 실행에서 켜진 채인데 설정만 꺼져 있으면 질문도 사라지고(호스트가 설정 꺼짐을 "끈다" 답으로 본다) 재시작 때 갑자기 꺼진다.
+    // 되돌리기도 실패하면 처음 오류를 돌려준다(되돌릴 수단이 더 없다)
     async keepOff(name) {
+      const key = `ext.${name}.enabled`;
       const saved = await withConnection((c) =>
-        c.request("settings.set", { key: `ext.${name}.enabled`, value: false, scope: "user" }),
+        c.request("settings.set", { key, value: false, scope: "user" }),
       );
       if (!saved.ok) return err(saved.error);
       const done = await withConnection((c) => c.request("ext.disableConfirm", { name }));
-      return done.ok ? ok(null) : err(done.error);
+      if (done.ok) return ok(null);
+      await withConnection((c) => c.request("settings.set", { key, value: true, scope: "user" }));
+      return err(done.error);
     },
     async toggleForThread(request) {
       const done = await withConnection((c) =>
