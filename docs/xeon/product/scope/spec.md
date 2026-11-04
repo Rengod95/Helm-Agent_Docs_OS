@@ -187,7 +187,7 @@ E 번호는 이 표가 정본이다. `review.m2-plan`과 각 층 plan은 이 번
 | Windows 네이티브 | 지원 안 함 | N4와 같다 | 없음 |
 
 - 한글 IME, 접근성, 로케일 확인은 macOS 우선 지원 범위에서 한다. IME 확인은 M2(`review.macos-checklist`), 접근성과 로케일은 M3다(`review.m3-plan`).
-- 임시 이름 `fresnel`은 미결 2번이 정해질 때까지 바이너리·디렉터리 이름으로 쓴다(ADR-0014). M3는 `fresnel`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b].
+- 제품 이름 Fresnel은 확정됐고 개명(T-REN)은 2026-11-02에 끝났다. 바이너리·디렉터리 이름은 `fresnel`이다(ADR-0014). M3는 `fresnel`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b].
 - 지원 언어는 한국어와 영어다. 로케일은 OS 설정을 따르고 지원하지 않으면 영어다(ADR-0016) [결정: review.m3-design-inputs D-M3-27].
 
 ## 5. 실패와 경계 사례: 위험 요약

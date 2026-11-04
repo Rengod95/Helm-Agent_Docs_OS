@@ -99,7 +99,7 @@ export interface SettingsHostPort {
   readonly connection: HostConnection;
   /** l4.desktop.* 키의 로컬 저장소(L4.desktop.spec §3.6). 엔진 연결이 없어도 읽고 쓸 수 있다. */
   readonly localStore: DesktopSettingsStore;
-  /** 현재 보고 있는 대화. 없으면 null이고 session 범위 쓰기를 숨긴다(§4.3.6). */
+  /** 현재 보고 있는 대화. 없으면 null이고 launch 범위 쓰기를 숨긴다(§4.3.6). */
   currentThreadId(): ThreadId | null;
   /** 재시작이 필요한 변경을 적용하려고 호스트 재시작을 요청한다. 수명 관리는 desktop 몫이다.
    *  [가정] desktop이 L4.desktop.spec §10 미결 2의 host.shutdown {reason: "restart"}와 재기동으로 구현한다. */
@@ -367,7 +367,7 @@ export declare function scopeBadge(source: EffectiveSetting["source"]): ScopeBad
 export declare function runtimeBadge(setting: EffectiveSetting): RuntimeBadge;
 export declare function lockInfo(setting: EffectiveSetting): LockInfo | null;
 export declare function deprecatedInfo(def: SettingDefWire, catalog: ReadonlyMap<SettingKey, SettingDefWire>): DeprecatedVM | null;
-/** allowedScopes에서 managed를 빼고, 잠겼으면 빈 배열, thread가 없으면 session을 뺀다. */
+/** allowedScopes에서 managed를 빼고, 잠겼으면 빈 배열, thread가 없으면 launch를 뺀다. */
 export declare function writableScopes(def: SettingDefWire, setting: EffectiveSetting | undefined, hasThread: boolean): readonly WritableScope[];
 /** user가 있으면 user, 없으면 project, local, launch 순으로 첫 값. 비어 있으면 null. */
 export declare function defaultWriteScope(scopes: readonly WritableScope[]): WritableScope | null;
@@ -702,7 +702,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `user` | 사용자 | `--badge-user`(파랑 계열) | 없음 |
 | `project` | 프로젝트 | `--badge-project`(초록 계열) | 없음 |
 | `local` | 로컬 | `--badge-local`(보라 계열) | 없음 |
-| `session` | 대화 | `--badge-session`(주황 계열) | 없음 |
+| `launch` | 대화 | `--badge-launch`(주황 계열) | 없음 |
 | `default` | 기본값 | `--badge-default`(회색) | 없음 |
 
 - 색 값은 desktop 테마가 정한다. 배지 글자와 배경의 대비는 4.5:1 이상이다.
@@ -715,7 +715,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | `nextTurn` | 다음 턴부터 | "다음 턴부터 적용돼요" |
 | `restart` | 재시작 필요 | "재시작해야 적용돼요". 화면 위 재시작 띠에 개수를 더한다(§4.4.5) |
 
-- 대화 중 변경 가능 여부는 `runtimeChange`와 `allowedScopes`에 `session`이 있는지로 보인다(`F.wire-settings.spec` §4.9 둘째 항목).
+- 대화 중 변경 가능 여부는 `runtimeChange`와 `allowedScopes`에 `launch`가 있는지로 보인다(`F.wire-settings.spec` §4.9 둘째 항목).
 
 #### 4.3.3 잠금
 
@@ -729,16 +729,16 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 
 #### 4.3.5 저장 파일 경로
 
-- `source.path`가 있으면 항목 아래에 경로를 보인다. `default`와 `session`은 경로가 없다. 경로 문자열은 그대로 보이고 홈 디렉터리만 `~`로 줄인다 [제안].
+- `source.path`가 있으면 항목 아래에 경로를 보인다. `default`와 `launch`은 경로가 없다. 경로 문자열은 그대로 보이고 홈 디렉터리만 `~`로 줄인다 [제안].
 - "파일 열기" 동작은 desktop 셸이 제공할 때만 보인다(§10 미결 6).
 
 #### 4.3.6 쓰기 범위 선택
 
 1. 후보는 `allowedScopes`에서 `managed`를 뺀 값이다. 화면은 managed에 쓰지 않는다.
 2. 잠겼으면 후보가 없다.
-3. `currentThreadId()`가 null이면 `session`을 뺀다. `settings.set`의 session 쓰기에는 `threadId`가 필요하기 때문이다.
+3. `currentThreadId()`가 null이면 `launch`를 뺀다. `settings.set`의 launch 쓰기에는 `threadId`가 필요하기 때문이다.
 4. 기본 선택은 `user`다. user가 후보에 없으면 project, local, launch 순으로 첫 값이다.
-5. `session`은 범위 선택 목록에 넣지 않고 "이번 대화에만 적용" 확인란으로 보인다. 켜면 쓰기 범위가 session이 되고 `threadId`를 함께 보낸다.
+5. `launch`은 범위 선택 목록에 넣지 않고 "이번 대화에만 적용" 확인란으로 보인다. 켜면 쓰기 범위가 launch가 되고 `threadId`를 함께 보낸다.
 6. 후보가 하나도 없으면 항목은 읽기 전용이고 "이 화면에서는 바꿀 수 없어요"를 보인다.
 7. 범위 밖 범위는 선택지에 나타나지 않는다. 서버가 `settings.scopeNotAllowed`를 돌려주면 §4.4.4대로 처리한다.
 
@@ -1031,7 +1031,7 @@ sequenceDiagram
 | 잠긴 키 편집 시도 | 부품이 꺼져 있다. 서버가 `settings.locked`를 돌려주면 값을 다시 읽는다 |
 | secret 위젯에 참조 아닌 문자열 입력 | 초안에 남기지 않고 버린다. 전송하지 않는다 |
 | 서버가 `settings.secretValue`를 돌려줌 | 초안을 버리고 §4.4.4 문구. 오류 객체에 값 없음 |
-| thread가 없는데 session 쓰기 | 선택지에 session이 없다(§4.3.6 3번) |
+| thread가 없는데 launch 쓰기 | 선택지에 launch가 없다(§4.3.6 3번) |
 | project·local 범위인데 열린 프로젝트가 없다 | 호스트가 3103 `settings.scopeNotAllowed`에 `details.reason: "workspaceRequired"`를 돌려준다(`L4.host-service.spec` §3.4 `settings.set` 행 [제안]). 화면은 §4.4.4 표의 workspaceRequired 행 문구를 보이고 초안을 지킨다 |
 | 연결이 끊긴 상태에서 저장 | `transient` 문구, 초안 유지. 재연결 뒤 desktop이 `load()`를 다시 부른다 |
 | 구독이 `replay.outOfRange` | `from: "head"`로 다시 구독하고 전체를 다시 읽는다(§4.5.1 6번) |
@@ -1051,7 +1051,7 @@ sequenceDiagram
 
 - 이 도메인은 on·post·drive·scope 훅을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
 - 확장(외부 플러그인 그룹 포함)의 설정은 `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그 → `settings.list` 경로로 들어오고, `ui.tab`이 `plugins`로 고정된다(`F.wire-settings.spec` §3.8.3 규칙 1). 설정 화면은 이 정의를 다른 정의와 같은 규칙으로 그린다.
-- L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정: review.decisions-2 K-04]. 범위는 X 정의(managed~session), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
+- L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정: review.decisions-2 K-04]. 범위는 X 정의(managed~launch), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
 - 주도 플러그인 선택은 X 키 `x.primitives.activeDriver`(`select`, 후보는 drive를 등록한 Registration, 빈 값은 "자동") 하나다 [결정: review.decisions-2 S-15]. 같은 탭의 `x.primitives.driveRequiresGroup`(boolean, 기본 켜짐)은 "drive는 플러그인 그룹만" 토글이다. 끄기 전에 "그룹이 아닌 플러그인도 대화를 주도할 수 있게 됩니다"를 보인다. group-sdk은 별도 키를 두지 않는다(`L3.group-sdk.spec` §6).
 - [제안] 확장이 설정 화면에 자기 화면 부품(맞춤 패널)을 넣는 것은 M3 범위에 두지 않는다(§10 미결 13).
 
@@ -1080,7 +1080,7 @@ sequenceDiagram
 - AC4. `SettingWidget` 8값 각각이 `resolveWidget`에서 같은 `kind`의 `WidgetVM`으로 바뀌고, 렌더러가 8종 모두를 그린다. `number`는 `range.min`·`max`·`ui.unit`을, `select`는 `range.enum`을 담는다.
 - AC5. `locked: true`인 항목은 `editable: false`, `writableScopes: []`, `canReset: false`다. 이 항목에 `commit`을 불러도 `settings.set`이 나가지 않는다.
 - AC6. 시크릿 키에 참조 아닌 문자열을 `edit`한 뒤의 상태를 `JSON.stringify`한 결과, 컨트롤러가 남긴 로그, `FieldError` 객체, 렌더링 결과 DOM 어디에도 그 문자열이 없다.
-- AC7. 쓰기 범위 선택지는 `allowedScopes`에서 managed를 뺀 집합의 부분집합이다. `allowedScopes`에 없는 범위는 선택지에 없다. thread가 없으면 session이 없다. 기본 선택은 user(있을 때)다.
+- AC7. 쓰기 범위 선택지는 `allowedScopes`에서 managed를 뺀 집합의 부분집합이다. `allowedScopes`에 없는 범위는 선택지에 없다. thread가 없으면 launch가 없다. 기본 선택은 user(있을 때)다.
 - AC8. `settings.changed` 이벤트를 받으면 그 키를 `settings.get`으로 다시 읽고 `FieldVM.value`와 배지가 새 `EffectiveSetting`으로 바뀐다. 이벤트 `payload.value`는 상태에 들어가지 않는다.
 - AC9. `settings.set` 실패의 `data.kind` 다섯 가지(`settings.invalidValue`, `settings.scopeNotAllowed`, `settings.locked`, `settings.secretValue`, `settings.unknownKey`)와 `settings.scopeNotAllowed`의 `details.reason: "workspaceRequired"`가 각각 §4.4.4 표의 `FieldError.kind`와 뒤따르는 동작으로 바뀐다. 서버 `message` 문자열은 `FieldError.message`에 없다.
 - AC10. `pendingUntil: "restart"`인 항목 수와 재시작 띠의 개수가 같다.

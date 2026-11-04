@@ -368,7 +368,7 @@ flowchart LR
 7. [미결] `eng.context-map.design` 미결 C-1(하위 층 이름과 layout 이름)과 C-3(내장 L2 기능 테이블 접두사를 `cap_<도메인>_`으로 둘지 설치형 확장 접두 `x_<extKey>_`로 통일할지). 설치형 확장 접두 `x_<extKey>_`는 [결정: review.decisions-2 U-18]로 정해졌다(`eng.context-map.design` §5.2). 이 층은 C-1의 현재 방침(코드에 layout 이름)과 C-3의 현재 값(`cap_<도메인>_`)을 따른다.
 8. [미결] 도구 없는 기능(`F.capabilities.spec` §4.4 [미결]). `workspace.images`처럼 그룹과 다른 기능만 쓰는 기능이 있다. 허용되지 않으면 해당 기능에 관리용 도구를 두어야 한다.
 9. [결정: review.decisions-2 U-23] 상주 수준 2 기능의 서비스 모드 꺼짐 처리(§8). 서비스 자동 기동을 시도하고, 실패하면 `unavailable` + `service_mode_off`와 조치 안내로 거부한다. 예약 생성의 기본값 이름은 `autoStart`다.
-10. [미결] `workspace.images` 최소형을 M2에 두는 배치(§2 각주 ws). JSON의 "이미지와 첨부 처리 2차"와 `dialog.attachments` 1차(M2) 사이의 차이를 사용자가 확인한다.
+10. (닫음) `workspace.images` 최소형을 M2에 둔 실제 배치를 인정한다(§2 각주 ws, [결정: 2026-11-04 사용자 B16]). JSON의 "이미지와 첨부 처리 2차"와 `dialog.attachments` 1차(M2) 사이의 차이를 사용자가 확인한다.
 11. [결정: 사용자 확인 2026-10-22] 마일스톤 M2·M3 정의가 확정됐다(`product.scope.spec` §4.3). 이 문서의 마일스톤 칸도 그 정의를 따른다.
 12. 닫힘. 호출 문맥(§5.8)은 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`로 들어갔다. 도메인 문서의 옛 요청(`L2.work.spec` W-1, `L2.dialog.spec` D-1, `L2.artifacts.spec` §10 미결 1, `L2.schedule.spec` §8, `L2.web.spec` §10 미결 2, `L2.knowledge.spec` §10 미결 2)도 이 정의를 따른다. `work.goals.judge`·`dialog.notify.emit`의 호출자 확인(`L2.work.spec` W-6, `L2.dialog.spec` D-4)은 `caller.extension`으로 한다.
 13. 닫힘. 이벤트 카탈로그 형식(§5.9)은 `F.records.spec` §3.3.2 도메인 소유 카탈로그(`records/catalog/<domain>.ts`, `<DOMAIN>_EVENT_CATALOG`, `TYPE_PREFIX_OWNERS` L2 행, 내장 패키지 접두 예외)로 들어갔다. `L2.work.spec` W-4, `L2.dialog.spec` §3.7, `L2.artifacts.spec` §3.6, `L2.schedule.spec` §3.7도 이 정의를 따른다.

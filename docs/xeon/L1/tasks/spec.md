@@ -610,7 +610,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 | D4 | 기본값 8, 16, 16은 각 range 안이다. 기본 문자열은 enum 안이다 |
 | D5 | min ≤ max. number 키에만 min·max, string 키에만 enum을 둔다 |
 | D6 | `type`은 `Type.Integer()`, `Type.String()`만 쓰고 제약은 `range`에만 둔다 |
-| D7 | `runtimeChange`가 `restart`인 키가 없으므로 `session` 범위를 허용한다 |
+| D7 | `runtimeChange`가 `restart`인 키가 없으므로 `launch` 범위를 허용한다 |
 | D8 | integer ↔ `number` 위젯, enum ↔ `select` 위젯 |
 | D9 | `deprecated` 없음 |
 

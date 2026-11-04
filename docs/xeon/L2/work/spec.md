@@ -851,7 +851,7 @@ CREATE TABLE cap_work_meta (
   session_id   TEXT NOT NULL PRIMARY KEY,
   turns_completed INTEGER NOT NULL,     -- turn.completed 개수(방치 알림용)
   last_task_change_turn INTEGER NOT NULL,
-  mode         TEXT,                    -- [결정: WK.2] 세션 범위에서 마지막으로 정한 권한 모드(없으면 NULL)
+  mode         TEXT,                    -- [결정: WK.2] 이번 실행(launch) 범위에서 마지막으로 정한 권한 모드(없으면 NULL)
   mode_before_plan TEXT,                -- 계획 모드에 들어가기 직전 모드
   plan_entered_seq INTEGER              -- 지금 계획 모드이면 들어온 시점의 seq, 아니면 NULL
 ) STRICT;

@@ -44,7 +44,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 | R5 | 템플릿 탐색의 자원 디렉터리 단계 | 구현됨 |
 | R6 | 액션 SHA 고정 회귀 시험(M3-30) | 구현됨 |
 | R7 | 문서: `L4.release.spec`과 이 계획, `L4.cli.spec` §10 29번 해소 | 구현됨 |
-| R8 | Tauri 자원 매핑과 앱 안의 업데이트 | M4로 넘김 |
+| R8 | Tauri 자원 매핑과 앱 안의 업데이트 | 확인 줄과 상태 표시만 M4, 내려받기와 교체는 M5 [결정: 2026-11-04 사용자, A2 2안] |
 
 ## 4. 채택 도구
 

@@ -649,7 +649,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `l4.desktop.window.closeBehavior` | string | `"quit"` | enum `quit`, `tray` | live | `managed`, `user` | appearance / select | M2 |
 | `l4.desktop.engine.restartLimit` | integer | `3` | min 0, max 10 | live | `managed`, `user` | execution / number | M2 |
 | `l4.desktop.engine.shutdownGraceMs` | integer | `7000` | min 1000, max 180000 | live | `managed`, `user` | advanced / number(unit `ms`) | M2 |
-| `l4.desktop.update.auto` | boolean | `false` | - | restart | `managed`, `user` | advanced / toggle | M3 [미결] |
+| `l4.desktop.update.auto` | boolean | `false` | - | restart | `managed`, `user` | advanced / toggle | M4(확인 줄과 상태만) [결정: 2026-11-04 사용자, A2 2안] |
 | `l4.desktop.firstRun.searchHintDismissed` | boolean | `false` | - | live | `user` | tools / toggle | M3 |
 
 - `closeBehavior`의 `tray`: 창을 닫으면 WebView를 해제하고(§4.10 수단 5) 셸과 엔진만 남는다. 진행 중 turn이 계속된다. `quit`이면 §4.3 정상 종료를 탄다. 기본값은 `quit`이다.

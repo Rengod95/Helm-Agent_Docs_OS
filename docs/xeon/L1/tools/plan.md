@@ -173,7 +173,7 @@ xeon/packages/core-tools/
 | `mcp_input_declined`, `mcp_input_non_interactive` | 거부와 비대화형은 모든 입력 요청에 `decline`으로 답하고 서버가 마무리한다. 비대화형은 요청과 거부 해결이 한 커밋이다 | TL-12 |
 | `mcp_input_cancelled_with_the_turn`, `mcp_input_second_round`, `mcp_input_malformed` | turn 취소는 승인을 닫고 재호출하지 않는다. 라운드마다 다른 요청이고 라운드 번호가 늘어난다. 모양이 틀린 변형은 오류 결과다 | TL-12 |
 | `secret_use_evidence_from_the_bash_approval` | `check`가 `needs_approval`인 `secretEnv` 호출이 정책 승인 하나로 증거를 얻고, 규칙이 허용한 호출은 `secret.use` 요청을 따로 올린다 | TL-18 |
-| `plan_approval_switches_mode` | 계획 승인 `answer: { mode: "acceptEdits" }`가 `settings.changed`(session 범위)를 남긴다 | TL-12 |
+| `plan_approval_switches_mode` | 계획 승인 `answer: { mode: "acceptEdits" }`가 `settings.changed`(launch 범위)를 남긴다 | TL-12 |
 | `truncate_spills_full_output_to_blob` | 60,000바이트 출력 → `putBlob` 1회, `effect.result.blobRef.sha256`가 원문 해시, 모델 내용은 51,200바이트 이하 미리보기 + 안내 문장 | TL-6 |
 | `bound_uses_exec_truncation` | `bound.ts`가 절단을 `fresnel.exec` 대역으로 부르고 `truncateHead` 결과를 그대로 미리보기로 쓴다(core-tools 소스에 `truncate.ts`가 없다) | TL-6 |
 | `self_bounded_tool_skips_bounding` | `outputLimits: "self"` 도구의 `details.blobRef`가 `effect.result.blobRef`로 옮겨지고 다시 자르지 않는다 | TL-6 |

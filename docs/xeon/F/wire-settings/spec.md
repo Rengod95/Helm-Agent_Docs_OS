@@ -62,7 +62,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 | 휘발 스트림 | 토큰 델타처럼 저장하지 않는 조각. seq가 없고 재전송하지 않는다 |
 | 위치(StreamPosition) | `{storeId, seq}` 쌍. 클라이언트가 저장하는 재개 시점 |
 | 설정 키 | `<층>.<도메인>.<이름>` 또는 `ext.<확장id>.<이름>` 형태의 점 표기 이름 |
-| 설정 범위(scope) | 값이 저장되는 계층. `managed`, `user`, `project`, `local`, `session` |
+| 설정 범위(scope) | 값이 저장되는 계층. `managed`, `user`, `project`, `local`, `launch` |
 | 유효 값 | 모든 범위를 우선순위대로 합친 결과 값과 그 출처 |
 
 thread, turn, step, item 용어는 `F.conversation.spec`을 따른다. 이 문서의 메서드 영역 `thread`는 F.conversation의 thread(대화 하나)를 뜻한다. [가정] F.conversation이 저장 단위인 대화와 thread를 1:1로 둔다. 다르면 메서드 영역 이름을 F.conversation 쪽에 맞춘다.
@@ -1183,7 +1183,7 @@ export const SettingDefWire = Obj({
 | D4 | `default`가 있으면 `type`과 `range`를 통과한다 | 기본값이 스스로 무효가 되지 않게 한다 |
 | D5 | `range.min ≤ range.max`. `range.min`·`max`는 `type`이 number·integer일 때만, `range.enum`은 string·number일 때만 쓴다 | |
 | D6 | `type`에 `minimum`·`maximum`·`enum`을 직접 두면서 `range`도 두면 거부한다 | 같은 제약을 두 곳에 적지 않는다. [제안] UI가 읽을 수 있게 제약은 `range`에 둔다 |
-| D7 | `allowedScopes`에 중복이 없다. `runtimeChange: "restart"`이면 `session`을 넣을 수 없다 | 재시작이 필요한 값은 이번 실행 한정으로 바꿀 수 없다 |
+| D7 | `allowedScopes`에 중복이 없다. `runtimeChange: "restart"`이면 `launch`를 넣을 수 없다 | 재시작이 필요한 값은 이번 실행 한정으로 바꿀 수 없다 |
 | D8 | `ui.widget`이 `type`과 맞는다(`toggle`↔boolean, `number`↔number·integer, `select`↔`range.enum`) | |
 | D9 | `deprecated.replacedBy`가 있으면 그 키는 같은 카탈로그에 있다(카탈로그 조립 때 검사) | |
 
@@ -1376,7 +1376,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 | 순위(높음 → 낮음) | 범위 | 저장 위치 [가정: 경로는 L0.os·L4가 정한다] | 쓰는 쪽 | 잠금 |
 |---|---|---|---|---|
 | 1 | `managed` | OS별 관리 정책 파일 | 관리자(사용자 앱에서는 읽기 전용) | 이 범위가 정한 키는 잠긴다 |
-| 2 | `session` | 저장하지 않음 또는 thread 기록. CLI 플래그, "이번만 적용" | 사용자, CLI 플래그 | - |
+| 2 | `launch` | 저장하지 않음 또는 thread 기록. CLI 플래그, "이번만 적용" | 사용자, CLI 플래그 | - |
 | 3 | `local` | 프로젝트의 개인 파일(버전 관리 제외) | 사용자 | - |
 | 4 | `project` | 프로젝트 공유 파일(버전 관리 대상) | 사용자, 팀 | - |
 | 5 | `user` | 사용자 홈의 설정 파일 | 사용자 | - |
@@ -1410,7 +1410,7 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 | 명령 | `L4.cli.spec`(`fresnel config get/set/reset/list`), wire `settings.*` | `checkSettingWrite`, `validateSettingValue`, `EffectiveSetting` |
 
 - 탭 [제안]: `SettingsTab`의 13개 값(M3-REQ-15가 `sandbox`를 더했다). `_research/settings.md` §4의 13개 탭 초안에서 "에이전트"를 "모델"에 합치고(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 모델 탭이 서브에이전트를 포함한다), "시크릿"(같은 구성안)과 "외관"(층 밖 항목)을 따로 둔 결과다. 최종 배치는 `L4.settings-ui.spec`이 정하고 enum 변경은 F 버전 정책(부 버전)을 따른다.
-- 화면 공통 규칙(`_research/settings.md` §4)에서 F 데이터로 보장하는 것: 범위 배지(`EffectiveSetting.source.scope`), 대화 중 변경 가능 여부(`runtimeChange`, `allowedScopes`에 `session` 포함 여부), 관리 잠금(`locked`), 저장 파일 경로(`source.path`).
+- 화면 공통 규칙(`_research/settings.md` §4)에서 F 데이터로 보장하는 것: 범위 배지(`EffectiveSetting.source.scope`), 대화 중 변경 가능 여부(`runtimeChange`, `allowedScopes`에 `launch` 포함 여부), 관리 잠금(`locked`), 저장 파일 경로(`source.path`).
 - 시크릿 값 비표시 규칙 [제안]
   1. 설정에는 시크릿 값이 없다. 시크릿 키의 값은 `secret://<name>` 참조 문자열뿐이다.
   2. `settings.get`, `EffectiveSetting`, JSON Schema 출력, 로그, 이벤트 어디에도 해석한 시크릿 값을 싣지 않는다. 참조 문자열만 싣는다.
@@ -1461,7 +1461,7 @@ export declare function settingsJsonSchema(catalog: SettingCatalog, options: Set
 | 같은 키를 두 패키지가 정의 | `buildCatalog`가 `duplicateKey`로 거부한다. 코어 키 중복은 시작 실패, 확장 키 중복은 뒤에 로드된 확장의 설정을 거부한다 |
 | 확장이 `l1.` 키를 정의 | `foreignNamespace`로 거부한다 |
 | `secret: true`에 `default` 지정 | `defineSettings`가 D2 위반으로 `SettingDefError`를 던진다. 매니페스트에서 온 정의면 그 확장의 설정 전체를 거부한다 |
-| `session` 범위 쓰기인데 키가 `session`을 허용하지 않음 | `settings.scopeNotAllowed`(3103) |
+| `launch` 범위 쓰기인데 키가 `launch`를 허용하지 않음 | `settings.scopeNotAllowed`(3103) |
 | 관리 범위가 잠근 키를 사용자가 바꾸려 함 | `settings.locked`(3104). 화면은 편집을 미리 막는다 |
 | 파일 값이 스키마에 맞지 않음 | 그 값을 건너뛰고 다음 순위 값을 쓴다. 진단을 남긴다 |
 | 폐기된 키를 씀 | 값은 적용하고 `deprecated: true`와 대체 키를 보인다. `removed`가 된 뒤에는 모르는 키로 보존만 한다 |
@@ -1529,9 +1529,9 @@ settings:
 
 - S1. `secret: true`이고 `default`가 있는 정의는 `defineSettings`가 거부한다(D2).
 - S2. `range.min > range.max`인 정의, `default`가 range 밖인 정의는 거부한다(D4, D5).
-- S3. `allowedScopes`에 `session`이 없는 키를 `session` 범위로 쓰면 `checkSettingWrite`가 `settings.scopeNotAllowed`를 돌려준다.
+- S3. `allowedScopes`에 `launch`가 없는 키를 `launch` 범위로 쓰면 `checkSettingWrite`가 `settings.scopeNotAllowed`를 돌려준다.
 - S4. `managed` 범위가 정한 키는 유효 값이 managed 값이고 `locked: true`다. 다른 범위의 쓰기는 `settings.locked`다.
-- S5. managed가 없을 때 같은 키를 user, project, local, launch이 모두 정하면 유효 값은 session 값이고 `shadowed`는 local, project, user 순이다.
+- S5. managed가 없을 때 같은 키를 user, project, local, launch가 모두 정하면 유효 값은 launch 값이고 `shadowed`는 local, project, user 순이다.
 - S6. 같은 `SettingDef`에 대해, 임의 값 v의 `validateSettingValue(def, v).ok`와 `settingsJsonSchema`가 낸 `properties[key]`로 v를 검사한 결과가 같다(속성 기반 테스트 포함). CLI 파서도 같은 결과를 낸다.
 - S7. `settingsJsonSchema({scope: "project"})`에는 `allowedScopes`에 `project`가 없는 키가 없다.
 - S8. 시크릿 키의 `EffectiveSetting.value`는 `secret://` 문자열이거나 `null`이다. 참조가 아닌 값 쓰기는 `settings.secretValue`이고 오류 `details`에 그 값이 없다.

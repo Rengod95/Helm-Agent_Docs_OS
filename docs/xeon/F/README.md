@@ -109,8 +109,8 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 기능, 
 | 스키마 상수 | 타입 `X`, 스키마 `XSchema` | `F.conversation.spec` §3 |
 | 이벤트 kind | 코어 `<영역>.<이름>`(snake_case, 점 하나). 내장 L2 도메인 `<도메인 영역>.<이름>`(`DomainArea`: `work`, `dialog`, `artifact`, `schedule`). 확장 `x.<extId>.<영역>.<이름>`, 플러그인 그룹 `grp.<groupId>.<영역>.<이름>`(`ExtensionEventKind`) | `F.records.spec` §3.2, §3.3.2 |
 | 그룹 레코드 kind, 커스텀 메시지 `customType` | 확장 이벤트 kind와 같은 형식(`RecordKind` = `ExtensionEventKind`). 예: `grp.learning.skill.proposed` | `F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2 |
-| 확장 이름 | `^[a-z][a-z0-9-]{1,31}$`(`ExtensionName`, 소문자·숫자·하이픈, 밑줄 없음). 매니페스트 `kind`는 `plugin` 또는 `group`. 확장 테이블 접두는 `x_<이름의 하이픈을 밑줄로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18] | `F.extensions.spec` §3.1 |
-| 훅 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(예: `tool.call.before`, `boundary.step.before`)이고 pi 이름은 별칭 없이 대응 열에만 남긴다 [결정: adr.0017]. 46종, 훅 종류 input·request·tool·boundary·session·lifecycle·guard. fold는 tap, first, chain, collect. 실패 정책은 훅 선언의 `failure` 필드 | `F.extensions.spec` §3.3~§3.4 |
+| 확장 이름 | `^[a-z][a-z0-9-]{1,31}$`(`ExtensionName`, 소문자·숫자·하이픈, 밑줄 없음). 매니페스트는 `plugins[]` 목록을 두고 `group` 선언이 있으면 플러그인 그룹이다. 확장 테이블 접두는 `x_<이름의 하이픈을 밑줄로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18] | `F.extensions.spec` §3.1 |
+| 훅 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(예: `tool.call.before`, `boundary.step.before`)이고 pi 이름은 별칭 없이 대응 열에만 남긴다 [결정: adr.0017]. 46종, 훅 종류 input·request·tool·boundary·thread·lifecycle·guard. fold는 tap, first, chain, collect. 실패 정책은 훅 선언의 `failure` 필드 | `F.extensions.spec` §3.3~§3.4 |
 | 기능 id | `<도메인>.<이름>` 소문자·하이픈, 2~4마디(예: `web.search`) | `F.capabilities.spec` §3.1 |
 | 도구 이름 | 내장 기능 작성 규칙 `^[a-z][a-z0-9_]{0,63}$`, 확장 도구 `<확장 이름>__<이름>`, 허용 문자 `^[a-zA-Z0-9_-]{1,64}$`. 표시 제목은 `label` | `F.capabilities.spec` §3.1, §3.3 |
 | wire 메서드 | `<영역>.<동사>` 소문자 낙타, `$/` 제어 예약, 확장은 `ext.<id>.<동사>`(M2 이후) | `F.wire-settings.spec` §3.2 |
