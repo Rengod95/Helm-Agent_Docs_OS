@@ -18,6 +18,7 @@
     "allow-app-roots-set",
     "allow-open-external",
     "allow-pick-folder",
+    "allow-pick-file",
     "allow-os-reauth"
   ]
 }

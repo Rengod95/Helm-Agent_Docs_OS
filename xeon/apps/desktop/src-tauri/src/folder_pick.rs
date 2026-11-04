@@ -19,6 +19,20 @@ pub async fn pick_folder(app: tauri::AppHandle) -> Result<Option<String>, String
     }
 }
 
+/// 첨부할 파일 하나를 고르는 운영체제 파일 선택 창을 띄우고 절대 경로를 돌려준다(U-03). 취소하면 `None`이다.
+/// 경로 규칙과 오류는 `pick_folder`와 같다. 파일 내용은 읽지 않는다. 읽는 쪽은 엔진(`attachments.add`)이다.
+#[tauri::command]
+pub async fn pick_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (answer, received) = tokio::sync::oneshot::channel();
+    app.dialog().file().pick_file(move |picked| {
+        let _ = answer.send(picked);
+    });
+    match received.await {
+        Ok(picked) => Ok(picked.and_then(folder_path_text)),
+        Err(_) => Err("dialog_unavailable".into()),
+    }
+}
+
 /// 플러그인이 준 경로를 입력란 글자로 바꾼다. 절대 경로 파일만 받는다.
 /// `file://` 주소와 UTF-8이 아닌 경로는 `None`이다. 입력란 글자는 JSON 문자열이라 깨진 글자를 옮기지 않는다.
 pub fn folder_path_text(path: FilePath) -> Option<String> {

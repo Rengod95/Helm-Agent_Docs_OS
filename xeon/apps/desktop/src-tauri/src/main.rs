@@ -74,6 +74,7 @@ fn main() {
             view_scheme::app_roots_set,
             open_external::open_external,
             folder_pick::pick_folder,
+            folder_pick::pick_file,
             os_reauth::os_reauth
         ])
         .setup(|app| {
