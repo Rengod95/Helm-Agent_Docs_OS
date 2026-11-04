@@ -102,6 +102,8 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
       create: () => Promise.resolve(err({ kind: "unsupported" })),
       cancel: () => Promise.resolve(err({ kind: "unsupported" })),
       fire: () => Promise.resolve(err({ kind: "unsupported" })),
+      update: () => Promise.resolve(err({ kind: "unsupported" })),
+      runs: () => Promise.resolve(err({ kind: "unsupported" })),
       enableService: () => Promise.resolve(err({ kind: "unsupported" })),
     },
     pluginUi: {

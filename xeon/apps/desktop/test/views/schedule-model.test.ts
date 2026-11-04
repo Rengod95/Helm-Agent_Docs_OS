@@ -4,6 +4,7 @@ import { scheduleRowOf, type ScheduleLastRun } from "@fresnel/client";
 import type { RunView, ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
 import {
   checkDraft,
+  checkEditDraft,
   draftOfEntry,
   emptyDraft,
   NO_ERRORS,
@@ -186,6 +187,7 @@ describe("sheet, cancel confirm and notices", () => {
     const state = scheduleReducer(loaded([]), { type: "openNew", nowMs: NOW });
     expect(state.sheet).toEqual({
       mode: "new",
+      scheduleId: null,
       draft: NEW_DRAFT,
       errors: NO_ERRORS,
       sending: false,
@@ -512,6 +514,8 @@ describe("filter, list time and the row menu", () => {
     expect(rowMenuOf(row, true, true)).toEqual([
       { action: "openThread", disabled: false },
       { action: "fire", disabled: false },
+      { action: "runs", disabled: false },
+      { action: "edit", disabled: false },
       { action: "cancel", disabled: false },
       { action: "copy", disabled: false },
     ]);
@@ -520,12 +524,16 @@ describe("filter, list time and the row menu", () => {
   test("an interval row with no run has only cancel and duplicate, and a thread no longer on the list is locked", () => {
     const plain = scheduleRowOf(itemOf({ id: "sch_pp1" }));
     expect(rowMenuOf(plain, true, false)).toEqual([
+      { action: "runs", disabled: false },
+      { action: "edit", disabled: false },
       { action: "cancel", disabled: false },
       { action: "copy", disabled: false },
     ]);
     const gone = scheduleRowOf(itemOf({ id: "sch_gg1" }, finishedRunOf({})));
     expect(rowMenuOf(gone, true, false)).toEqual([
       { action: "openThread", disabled: true },
+      { action: "runs", disabled: false },
+      { action: "edit", disabled: false },
       { action: "cancel", disabled: false },
       { action: "copy", disabled: false },
     ]);
@@ -537,6 +545,9 @@ describe("filter, list time and the row menu", () => {
     );
     expect(rowMenuOf(off, true, true)).toEqual([
       { action: "openThread", disabled: false },
+      { action: "reenable", disabled: false },
+      { action: "runs", disabled: false },
+      { action: "edit", disabled: false },
       { action: "copy", disabled: false },
     ]);
     const remote = scheduleRowOf(
@@ -545,6 +556,8 @@ describe("filter, list time and the row menu", () => {
     expect(rowMenuOf(remote, false, true)).toEqual([
       { action: "openThread", disabled: true },
       { action: "fire", disabled: true },
+      { action: "runs", disabled: true },
+      { action: "edit", disabled: true },
       { action: "cancel", disabled: true },
       { action: "copy", disabled: true },
     ]);
@@ -597,5 +610,62 @@ describe("filter, list time and the row menu", () => {
       expect(ko[id] === undefined).toBe(false);
       expect(en[id] === undefined).toBe(false);
     }
+  });
+});
+
+describe("edit sheet and run history", () => {
+  test("opening edit fills title and prompt from the entry and remembers the schedule id", () => {
+    const state = scheduleReducer(loaded([LATER]), { type: "openEdit", id: "sch_bb2", nowMs: NOW });
+    expect(state.sheet?.mode).toBe("edit");
+    expect(state.sheet?.scheduleId).toBe("sch_bb2");
+    expect(state.sheet?.draft.title).toBe("나중");
+    expect(state.sheet?.draft.prompt).toBe(LATER.entry.prompt);
+  });
+
+  test("edit check sends the prompt and a non-empty trimmed title only, and rejects an empty prompt", () => {
+    const base = emptyDraft(NOW);
+    expect(checkEditDraft({ ...base, title: " 새 제목 ", prompt: "해 줘" }, "sch_x")).toEqual({
+      ok: true,
+      params: { scheduleId: "sch_x", prompt: "해 줘", title: "새 제목" },
+    });
+    expect(checkEditDraft({ ...base, title: "  ", prompt: "해 줘" }, "sch_x")).toEqual({
+      ok: true,
+      params: { scheduleId: "sch_x", prompt: "해 줘" },
+    });
+    expect(checkEditDraft({ ...base, prompt: " " }, "sch_x")).toEqual({
+      ok: false,
+      errors: {
+        fields: { prompt: message("desktop.schedules.promptRequired") },
+        form: null,
+      },
+    });
+  });
+
+  test("run history ignores an answer for a schedule that is no longer shown", () => {
+    const started = scheduleReducer(loaded([LATER]), { type: "runsStarted", scheduleId: "sch_a" });
+    expect(started.runs).toEqual({ kind: "loading", scheduleId: "sch_a" });
+    const stale = scheduleReducer(started, { type: "runsLoaded", scheduleId: "sch_b", runs: [] });
+    expect(stale.runs).toEqual({ kind: "loading", scheduleId: "sch_a" });
+    const run = {
+      runId: "run_1",
+      startedAt: "2026-11-04T00:00:00.000Z",
+      endedAt: null,
+      outcome: "failed" as const,
+      threadId: null,
+      error: "boom",
+    };
+    const ready = scheduleReducer(started, {
+      type: "runsLoaded",
+      scheduleId: "sch_a",
+      runs: [run],
+    });
+    expect(ready.runs).toEqual({ kind: "ready", scheduleId: "sch_a", runs: [run] });
+    expect(scheduleReducer(ready, { type: "runsClosed" }).runs).toBeNull();
+    const failed = scheduleReducer(started, {
+      type: "runsFailed",
+      scheduleId: "sch_a",
+      reason: "offline",
+    });
+    expect(failed.runs).toEqual({ kind: "failed", scheduleId: "sch_a", reason: "offline" });
   });
 });

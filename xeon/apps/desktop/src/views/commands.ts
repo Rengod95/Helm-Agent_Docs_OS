@@ -127,6 +127,12 @@ export interface ScheduleCommands {
   ): Promise<Result<WireResult<"schedule.create">, CommandError>>;
   cancel(scheduleId: string): Promise<Result<WireResult<"schedule.cancel">, CommandError>>;
   fire(scheduleId: string): Promise<Result<WireResult<"schedule.fire">, CommandError>>;
+  /** `schedule.update`: 다시 켜기와 제목·프롬프트 고치기. 실패(없는 예약, 켠 예약 상한)는 호스트 오류라 `CommandError`다 */
+  update(
+    params: WireParams<"schedule.update">,
+  ): Promise<Result<WireResult<"schedule.update">, CommandError>>;
+  /** `schedule.runs`: 한 예약의 실행 기록(최근 것부터) */
+  runs(scheduleId: string): Promise<Result<WireResult<"schedule.runs">, CommandError>>;
   /** 서비스 모드를 켠다(`settings.set`, 사용자 범위) */
   enableService(): Promise<Result<null, CommandError>>;
 }

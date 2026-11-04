@@ -51,7 +51,11 @@ export function ScheduleSheet(props: ScheduleSheetProps): ReactNode {
   const { sheet, onChange, onSubmit, onClose } = props;
   const formId = useId();
   const title = t(
-    sheet?.mode === "copy" ? "desktop.schedules.sheet.copyTitle" : "desktop.schedules.new",
+    sheet?.mode === "copy"
+      ? "desktop.schedules.sheet.copyTitle"
+      : sheet?.mode === "edit"
+        ? "desktop.schedules.sheet.editTitle"
+        : "desktop.schedules.new",
   );
   return (
     <Sheet
@@ -118,24 +122,31 @@ function SheetForm(props: {
           }}
         />
       </Field>
-      <Field label={t("desktop.schedules.form.trigger")} group>
-        <SegmentedControl
-          size="sm"
-          className="w-full [&>[data-slot=segmented-control-item]]:flex-1"
-          value={draft.trigger.kind}
-          onValueChange={(value) => {
-            const kind = kindOf(value);
-            if (kind !== null) setTrigger({ kind });
-          }}
-        >
-          {TRIGGER_KINDS.map((kind) => (
-            <SegmentedControlItem key={kind} value={kind}>
-              {t(triggerKindId(kind))}
-            </SegmentedControlItem>
-          ))}
-        </SegmentedControl>
-      </Field>
-      <TriggerInputs draft={draft.trigger} error={fieldError} onChange={setTrigger} />
+      {sheet.mode === "edit" ? (
+        <Alert tone="info">{t("desktop.schedules.form.editHint")}</Alert>
+      ) : null}
+      {sheet.mode === "edit" ? null : (
+        <>
+          <Field label={t("desktop.schedules.form.trigger")} group>
+            <SegmentedControl
+              size="sm"
+              className="w-full [&>[data-slot=segmented-control-item]]:flex-1"
+              value={draft.trigger.kind}
+              onValueChange={(value) => {
+                const kind = kindOf(value);
+                if (kind !== null) setTrigger({ kind });
+              }}
+            >
+              {TRIGGER_KINDS.map((kind) => (
+                <SegmentedControlItem key={kind} value={kind}>
+                  {t(triggerKindId(kind))}
+                </SegmentedControlItem>
+              ))}
+            </SegmentedControl>
+          </Field>
+          <TriggerInputs draft={draft.trigger} error={fieldError} onChange={setTrigger} />
+        </>
+      )}
       <Field label={t("desktop.schedules.form.prompt")} error={fieldError("prompt")}>
         <Textarea
           rows={4}
@@ -145,30 +156,34 @@ function SheetForm(props: {
           }}
         />
       </Field>
-      <Field
-        label={t("desktop.schedules.form.workspace")}
-        hint={t("desktop.schedules.form.workspaceHint")}
-        error={fieldError("workspace")}
-      >
-        <Input
-          value={draft.workspace}
-          onValueChange={(value) => {
-            setDraft({ workspace: value });
-          }}
-        />
-      </Field>
-      <div className="flex items-center justify-between gap-3">
-        <span id={enabledId} className="text-ui text-text-primary">
-          {t("desktop.schedules.form.enabled")}
-        </span>
-        <Switch
-          aria-labelledby={enabledId}
-          checked={draft.enabled}
-          onCheckedChange={(checked) => {
-            setDraft({ enabled: checked });
-          }}
-        />
-      </div>
+      {sheet.mode === "edit" ? null : (
+        <>
+          <Field
+            label={t("desktop.schedules.form.workspace")}
+            hint={t("desktop.schedules.form.workspaceHint")}
+            error={fieldError("workspace")}
+          >
+            <Input
+              value={draft.workspace}
+              onValueChange={(value) => {
+                setDraft({ workspace: value });
+              }}
+            />
+          </Field>
+          <div className="flex items-center justify-between gap-3">
+            <span id={enabledId} className="text-ui text-text-primary">
+              {t("desktop.schedules.form.enabled")}
+            </span>
+            <Switch
+              aria-labelledby={enabledId}
+              checked={draft.enabled}
+              onCheckedChange={(checked) => {
+                setDraft({ enabled: checked });
+              }}
+            />
+          </div>
+        </>
+      )}
     </form>
   );
 }

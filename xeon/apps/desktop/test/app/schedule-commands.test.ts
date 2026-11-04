@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { RunView, ScheduleEntryView, ScheduleListItem } from "@fresnel/contracts/capabilities";
-import type { WireParams } from "@fresnel/contracts/wire";
+import type { WireParams, WireResult } from "@fresnel/contracts/wire";
 import { checkDraft, draftOfEntry } from "../../src/views/pages/schedules/schedule-draft.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until, type EngineExtra } from "./support.ts";
@@ -233,6 +233,62 @@ describe("each row action sends its exact wire params", () => {
     const created = await app.commands.schedule.create(expected);
     expect(created).toEqual({ ok: true, value: { ok: true, entry: ENTRY, warnings: [] } });
     expect(paramsOf(params, "schedule.create")).toEqual(expected);
+    await app.stop();
+  });
+});
+
+describe("schedule update and runs send their exact wire params", () => {
+  test("update sends the patch and returns the host's result as a value", async () => {
+    const result = { scheduleId: "sch_aa1", enabled: true, nextRunAt: "2026-11-05T00:00:00.000Z" };
+    const { app, params } = await liveApp({ results: { "schedule.update": result } });
+    const updated = await app.commands.schedule.update({
+      scheduleId: "sch_aa1",
+      enabled: true,
+      title: "새 제목",
+    });
+    expect(updated).toEqual({ ok: true, value: result });
+    expect(paramsOf(params, "schedule.update")).toEqual({
+      scheduleId: "sch_aa1",
+      enabled: true,
+      title: "새 제목",
+    });
+    await app.stop();
+  });
+
+  test("runs sends only the schedule id and returns the records in the host's order", async () => {
+    const runs: WireResult<"schedule.runs">["runs"] = [
+      {
+        runId: "run_b",
+        startedAt: "2026-11-04T01:00:00.000Z",
+        endedAt: null,
+        outcome: "running",
+        threadId: null,
+        error: null,
+      },
+      {
+        runId: "run_a",
+        startedAt: "2026-11-03T01:00:00.000Z",
+        endedAt: "2026-11-03T01:05:00.000Z",
+        outcome: "failed",
+        threadId: "thr_1",
+        error: "boom",
+      },
+    ];
+    const { app, params } = await liveApp({ results: { "schedule.runs": { runs } } });
+    const got = await app.commands.schedule.runs("sch_aa1");
+    expect(got).toEqual({ ok: true, value: { runs } });
+    expect(paramsOf(params, "schedule.runs")).toEqual({ scheduleId: "sch_aa1" });
+    await app.stop();
+  });
+
+  test("a host without schedule.runs gets the unsupported command error", async () => {
+    const { app } = await liveApp({
+      errors: { "schedule.runs": { code: -32601, kind: "jsonrpc.methodNotFound" } },
+    });
+    expect(await app.commands.schedule.runs("sch_aa1")).toEqual({
+      ok: false,
+      error: { kind: "unsupported" },
+    });
     await app.stop();
   });
 });

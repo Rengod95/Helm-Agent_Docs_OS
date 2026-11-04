@@ -36,6 +36,8 @@ export function createScheduleCommands(run: Run): ScheduleCommands {
     create: (params) => run((c) => c.request("schedule.create", params)),
     cancel: (scheduleId) => run((c) => c.request("schedule.cancel", { scheduleId })),
     fire: (scheduleId) => run((c) => c.request("schedule.fire", { scheduleId })),
+    update: (params) => run((c) => c.request("schedule.update", params)),
+    runs: (scheduleId) => run((c) => c.request("schedule.runs", { scheduleId })),
     async enableService() {
       const written = await run((c) =>
         c.request("settings.set", { key: SERVICE_ENABLED_KEY, value: true, scope: SCOPE }),

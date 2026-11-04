@@ -40,6 +40,9 @@ export interface RowHandlers {
   readonly toggleExpanded: (id: string) => void;
   readonly fire: (id: string) => void;
   readonly copy: (id: string) => void;
+  readonly reenable: (id: string) => void;
+  readonly edit: (id: string) => void;
+  readonly showRuns: (id: string) => void;
   readonly askCancel: (id: string) => void;
   readonly openThread: (threadId: string) => void;
 }
@@ -97,8 +100,17 @@ export function ScheduleTable(props: ScheduleTableProps): ReactNode {
         if (threadId !== null) handlers.openThread(threadId);
         return;
       }
+      case "reenable":
+        handlers.reenable(row.id);
+        return;
       case "fire":
         handlers.fire(row.id);
+        return;
+      case "runs":
+        handlers.showRuns(row.id);
+        return;
+      case "edit":
+        handlers.edit(row.id);
         return;
       case "cancel":
         handlers.askCancel(row.id);
