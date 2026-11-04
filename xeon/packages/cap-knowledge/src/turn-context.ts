@@ -99,11 +99,11 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
         const synced = await deps.skills.syncFor(threadId);
         if (!synced.ok) warn("knowledge.context.reindex_failed", threadId, synced.error);
       }
+      // 처음 시작하는 세션은 기록에 블록이 없어서 상태도 없어야 한다. 그래서 지우지 않고 돌아간다. 지우면 안 된다: 이 함수는
+      // 호출자가 기다리지 않는 thread.start(core-persistence lifecycle.ts createThread)로 불려서, 위 재색인이 끝나기 전에
+      // 첫 turn이 블록을 넣었을 수 있다. 그 뒤에 지우면 다음 turn이 같은 블록을 한 번 더 넣는다.
       const fresh = reason === "startup" || reason === "new";
-      if (fresh) {
-        states.delete(threadId);
-        return;
-      }
+      if (fresh) return;
       const snapshot = deps.skills.indexSnapshot(threadId);
       if (!snapshot.ok) {
         warn("knowledge.context.index_failed", threadId, snapshot.error);

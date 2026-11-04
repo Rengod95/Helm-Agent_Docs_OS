@@ -186,6 +186,30 @@ describe("turn context", () => {
     expect((await turns.beforeAgentStart("thr_a"))?.customType).toBe(INDEX_MESSAGE_TYPE);
   });
 
+  test("a turn that starts before a new session's start has finished is introduced once", async () => {
+    const world = await createWorld();
+    await created(world, "deploy", "Deploy steps.");
+    // 엔진은 thread.start를 기다리지 않고 발화한다. 이 시험은 재색인이 끝나기 전에 첫 turn이 블록을 넣는 순서를 만든다
+    const finishReindex = Promise.withResolvers<void>();
+    const turns = createTurnContext({
+      skills: {
+        ...world.runtime.skills,
+        reindex: async (threadId) => {
+          await finishReindex.promise;
+          return world.runtime.skills.reindex(threadId);
+        },
+      },
+      memory: world.runtime.memory,
+      logger: world.deps.logger,
+    });
+    const starting = turns.start(THREAD, "new");
+    expect((await turns.beforeAgentStart(THREAD))?.customType).toBe(INDEX_MESSAGE_TYPE);
+    finishReindex.resolve();
+    await starting;
+    // 첫 블록은 이미 기록에 있다. 다음 turn은 블록을 다시 넣지 않고 변경도 없으니 아무것도 더하지 않는다
+    expect(await turns.beforeAgentStart(THREAD)).toBeUndefined();
+  });
+
   test("a resumed session does not repeat the first-turn block and starts from the current index", async () => {
     const world = await createWorld();
     await created(world, "deploy", "Deploy steps.");
