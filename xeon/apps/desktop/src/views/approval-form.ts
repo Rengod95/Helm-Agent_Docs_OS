@@ -244,16 +244,17 @@ function replacementsOf(args: Readonly<Record<string, JsonValue>>): readonly Rep
 }
 
 /**
- * `edit`과 `write` 승인의 파일 변경 그림. 다른 도구, 참조로 빠진 인자, 모양이 맞지 않는 인자는 null이라 카드는 옛 본문을 그린다.
- * 인자는 프로세스 밖에서 온 값이라 던지지 않고 모양만 본다.
+ * 도구 호출 인자에서 파일 변경 그림을 만든다. `edit`과 `write`만 그림이 있다. 다른 도구, 모양이 맞지 않는 인자는 null이라 호출 행은 옛 모습(인자 JSON)을 그린다.
+ * 승인 카드(`fileChangeViewOf`)와 트랜스크립트 도구 행이 같이 쓴다. 인자는 프로세스 밖에서 온 값이라 던지지 않고 모양만 본다.
  */
-export function fileChangeViewOf(body: ToolApprovalBody): FileChangeView | null {
-  if (body.toolName !== "edit" && body.toolName !== "write") return null;
-  const { args } = body;
-  if (isBlobRef(args)) return null;
+export function fileChangeViewOfArgs(
+  toolName: string,
+  args: Readonly<Record<string, JsonValue>>,
+): FileChangeView | null {
+  if (toolName !== "edit" && toolName !== "write") return null;
   const path = args["path"];
   if (typeof path !== "string" || path.trim() === "") return null;
-  if (body.toolName === "write") {
+  if (toolName === "write") {
     const content = args["content"];
     if (typeof content !== "string") return null;
     const lines = linesOf(content);
@@ -275,6 +276,14 @@ export function fileChangeViewOf(body: ToolApprovalBody): FileChangeView | null 
     head: rows.slice(0, DIFF_HEAD_ROWS),
     rest: rows.slice(DIFF_HEAD_ROWS),
   };
+}
+
+/**
+ * `edit`과 `write` 승인의 파일 변경 그림. 저장된 인자(BlobRef)는 본문이 없어 null이고, 그 밖은 `fileChangeViewOfArgs`가 정한다.
+ */
+export function fileChangeViewOf(body: ToolApprovalBody): FileChangeView | null {
+  if (isBlobRef(body.args)) return null;
+  return fileChangeViewOfArgs(body.toolName, body.args);
 }
 
 // ── 내장 도구 대체 승인 ──────────────────────────────────────────────────

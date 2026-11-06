@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   answerOf,
   fileChangeViewOf,
+  fileChangeViewOfArgs,
   setPickText,
   toolApprovalView,
   toolReplaceView,
@@ -203,6 +204,43 @@ const numbered = (prefix: string, from: number, to: number): string[] =>
 function edit(args: ToolApprovalBody["args"]): FileChangeView | null {
   return fileChangeViewOf(fileTool("edit", args));
 }
+
+describe("fileChangeViewOfArgs", () => {
+  test("an edit call's args give the view the approval card draws for the same call", () => {
+    const args = { path: "a.ts", edits: [{ oldText: "x = 1", newText: "x = 2" }] };
+    expect(fileChangeViewOfArgs("edit", args)).toEqual({
+      kind: "edit",
+      path: "a.ts",
+      head: [
+        { kind: "remove", text: "x = 1" },
+        { kind: "add", text: "x = 2" },
+      ],
+      rest: [],
+    });
+    expect(fileChangeViewOfArgs("edit", args)).toEqual(fileChangeViewOf(fileTool("edit", args)));
+  });
+
+  test("a write call's args give the first forty lines of the content and count the rest", () => {
+    expect(fileChangeViewOfArgs("write", { path: "n.md", content: lines(42, "r") })).toEqual({
+      kind: "write",
+      path: "n.md",
+      head: numbered("r", 1, 40),
+      hiddenLines: 2,
+    });
+  });
+
+  test("another tool name has no file view even with edit-shaped args", () => {
+    expect(
+      fileChangeViewOfArgs("bash", { path: "a.ts", edits: [{ oldText: "a", newText: "b" }] }),
+    ).toBeNull();
+  });
+
+  test("args without a path, or with a broken edits or content value, have no file view", () => {
+    expect(fileChangeViewOfArgs("edit", { edits: [{ oldText: "a", newText: "b" }] })).toBeNull();
+    expect(fileChangeViewOfArgs("edit", { path: "a.ts", edits: "not json" })).toBeNull();
+    expect(fileChangeViewOfArgs("write", { path: "a.md", content: 1 })).toBeNull();
+  });
+});
 
 describe("fileChangeViewOf", () => {
   test("a single replacement shows only the changed lines, with up to two context lines around them", () => {

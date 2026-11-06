@@ -1,8 +1,10 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
 import type { ItemRecord } from "@fresnel/contracts/conversation";
+import { parseHTML } from "linkedom";
 import { renderToString } from "react-dom/server";
-import type { ReactNode } from "react";
+import { act, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
 import { RecordedItem, StreamingRow } from "../../src/views/item-view.tsx";
@@ -214,6 +216,123 @@ describe("one row per tool call", () => {
     ingestRecords(h, [callItem(1, 9, "bash")]);
     const call = visibleText(render(<RecordedItem id={itm(1)} />, h));
     expect(call).toContain(t("desktop.item.status.interrupted"));
+  });
+});
+
+function editCallItem(n: number, resultN: number): ItemRecord {
+  const base = assistantItem(n, "");
+  if (base.kind !== "assistant") throw new Error("assistantItem must build an assistant item");
+  return {
+    ...base,
+    message: {
+      ...base.message,
+      content: [
+        {
+          type: "toolCall",
+          id: `call-${resultN}`,
+          name: "edit",
+          arguments: {
+            path: "src/a.ts",
+            edits: [{ oldText: "const a = 1;", newText: "const a = 2;" }],
+          },
+        },
+      ],
+      stopReason: "toolUse",
+    },
+  };
+}
+
+describe("edit and write rows", () => {
+  test("an edit row with a done result shows its path as the detail and draws neither the args JSON nor the diff while folded", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      editCallItem(1, 2),
+      toolResultItem(2, "edit", "Successfully replaced text in src/a.ts.", false),
+    ]);
+    const html = render(<RecordedItem id={itm(1)} />, h);
+    expect(html).toMatch(/data-slot="tool-call-detail"[^>]*>src\/a\.ts</);
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("oldText");
+    expect(html).not.toContain("const a = 2;");
+  });
+});
+
+describe("an expanded edit row in the DOM", () => {
+  const GLOBAL_KEYS = [
+    "window",
+    "document",
+    "navigator",
+    "Node",
+    "HTMLElement",
+    "IS_REACT_ACT_ENVIRONMENT",
+  ] as const;
+  const saved = new Map<string, PropertyDescriptor | undefined>();
+
+  // 펼치기는 클릭이라 DOM이 있어야 한다. 서버 렌더는 접힌 본문을 그리지 않으므로 linkedom DOM에 올려 본다
+  beforeAll(() => {
+    const { window, document } = parseHTML("<!doctype html><html><body></body></html>");
+    const values: Record<(typeof GLOBAL_KEYS)[number], unknown> = {
+      window,
+      document,
+      navigator: window.navigator,
+      Node: window.Node,
+      HTMLElement: window.HTMLElement,
+      IS_REACT_ACT_ENVIRONMENT: true,
+    };
+    for (const key of GLOBAL_KEYS) {
+      saved.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+      Object.defineProperty(globalThis, key, {
+        value: values[key],
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
+
+  // 다른 시험 파일이 같은 프로세스에서 도므로 올린 전역을 원래대로 돌려 놓는다
+  afterAll(() => {
+    for (const key of GLOBAL_KEYS) {
+      const before = saved.get(key);
+      if (before === undefined) Reflect.deleteProperty(globalThis, key);
+      else Object.defineProperty(globalThis, key, before);
+    }
+  });
+
+  test("clicking the row shows the diff lines above the result text, and no args JSON", async () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      editCallItem(1, 2),
+      toolResultItem(2, "edit", "Successfully replaced text in src/a.ts.", false),
+    ]);
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(
+        <Providers
+          engine={frozen(h.store.read.getState())}
+          ui={createUiStore().read}
+          commands={fakeCommands()}
+        >
+          <RecordedItem id={itm(1)} />
+        </Providers>,
+      );
+    });
+    const header = container.querySelector('[data-slot="tool-call-header"]');
+    expect(header?.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      header?.dispatchEvent(new window.Event("click", { bubbles: true }));
+    });
+    expect(header?.getAttribute("aria-expanded")).toBe("true");
+    const body = container.querySelector('[data-slot="tool-call-body"]')?.textContent ?? "";
+    expect(body).toContain("const a = 1;");
+    expect(body).toContain("const a = 2;");
+    expect(body).toContain("Successfully replaced text in src/a.ts.");
+    expect(body).not.toContain("oldText");
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
   });
 });
 

@@ -14,7 +14,9 @@ import {
   useStreamingItem,
   useToolResult,
 } from "../state/engine/index.ts";
+import { fileChangeViewOfArgs } from "./approval-form.ts";
 import { bubbleOf } from "./attachment-bubble-model.ts";
+import { FileChangeDiff } from "./file-change-view.tsx";
 import { MessageAttachments } from "./message-attachments.tsx";
 import { usePluginUiState } from "./plugin/plugin-context.tsx";
 import { EntrySurface } from "./plugin/plugin-view.tsx";
@@ -92,6 +94,8 @@ function ToolRow(props: {
   /** 실패 알약의 글. 기본은 "실패"다(거부, 중단은 따로 쓴다) */
   readonly failedLabel?: string;
   readonly output?: string;
+  /** 펼친 본문에서 결과 글 위에 놓는 그림(edit·write의 diff). 결과가 없는 행에서는 그리지 않는다 */
+  readonly diff?: ReactNode;
 }): ReactNode {
   const { output } = props;
   return (
@@ -104,7 +108,12 @@ function ToolRow(props: {
       collapsible={output !== undefined}
       defaultOpen={props.status === "failed"}
     >
-      {output === undefined ? null : <pre className={MONO_CLASS}>{output}</pre>}
+      {output === undefined ? null : (
+        <>
+          {props.diff}
+          <pre className={MONO_CLASS}>{output}</pre>
+        </>
+      )}
     </ToolCall>
   );
 }
@@ -182,22 +191,27 @@ function resultViewOf(item: ItemRecord): ResultView | null {
   return { status: "failed", output: clip(body) };
 }
 
-/** 호출 하나에 행 하나. 결과가 오면 같은 행이 결과를 따른다. 결과가 없으면 실행 중이거나(대화가 실행 중) 끝내 못 받은 것이다 */
+/**
+ * 호출 하나에 행 하나. 결과가 오면 같은 행이 결과를 따른다. 결과가 없으면 실행 중이거나(대화가 실행 중) 끝내 못 받은 것이다.
+ * `edit`·`write`는 상세에 경로를 보이고, 결과가 있을 때 펼친 본문에 파일 변경 그림을 보인다. 그 밖의 도구와 모양이 맞지 않는 인자는 인자 JSON을 보인다.
+ */
 function CallRow(props: {
   readonly callId: string;
   readonly name: string;
-  readonly detail: string;
+  readonly args: JsonObject;
 }): ReactNode {
   const result = useToolResult(props.callId);
   const running = useOpenThreadRunning();
+  const change = fileChangeViewOfArgs(props.name, props.args);
+  const detail = change === null ? clip(JSON.stringify(props.args)) : change.path;
   const view = result === undefined ? null : resultViewOf(result);
   if (view === null) {
     return running ? (
-      <ToolRow name={props.name} detail={props.detail} status="running" />
+      <ToolRow name={props.name} detail={detail} status="running" />
     ) : (
       <ToolRow
         name={props.name}
-        detail={props.detail}
+        detail={detail}
         status="failed"
         failedLabel={t("desktop.item.status.interrupted")}
       />
@@ -206,10 +220,11 @@ function CallRow(props: {
   return (
     <ToolRow
       name={props.name}
-      detail={props.detail}
+      detail={detail}
       status={view.status}
       {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
       output={view.output}
+      diff={change === null ? undefined : <FileChangeDiff view={change} />}
     />
   );
 }
@@ -267,12 +282,7 @@ function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
                 );
               case "toolCall":
                 return (
-                  <CallRow
-                    key={key}
-                    callId={block.id}
-                    name={block.name}
-                    detail={clip(JSON.stringify(block.arguments))}
-                  />
+                  <CallRow key={key} callId={block.id} name={block.name} args={block.arguments} />
                 );
               default:
                 return assertNever(block, "assistant block");
