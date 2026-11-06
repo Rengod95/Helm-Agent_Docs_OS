@@ -224,8 +224,8 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   let scheduled = false;
   /** Turn별로 쌓은 호출. 그 Turn의 `turn.completed` 커밋이 오면 묶음에 넣는다 */
   const callsByTurn = new Map<string, MeasureRecord[]>();
-  /** Turn에 속하지 않는 호출(제목 등). 다음 커밋 묶음에 넣는다 */
-  let looseCalls: MeasureRecord[] = [];
+  /** thread별로 가장 나중에 끝난 Turn. Turn 밖 호출(제목 등)이 어느 Turn 뒤의 호출인지 붙이는 데 쓴다 */
+  const lastTurnOfThread = new Map<string, string>();
   let pendingCalls = 0;
 
   const offUsage = deps.usage.subscribe((call) => {
@@ -233,7 +233,16 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     pendingCalls += 1;
     const record = callRecord(call);
     if (call.turnId === null) {
-      looseCalls.push(record);
+      // Turn 밖 호출(제목, 요약, 검색, 판정)은 다음 Turn을 기다리지 않고 바로 쓴다. 어느 Turn 뒤의 호출인지는 `afterTurn` 태그로 남긴다
+      const after = lastTurnOfThread.get(call.threadId);
+      pending.push(
+        after === undefined ? record : { ...record, tags: { ...record.tags, afterTurn: after } },
+      );
+      pendingCalls -= 1;
+      if (!scheduled) {
+        scheduled = true;
+        queueMicrotask(flush);
+      }
       return;
     }
     const known = callsByTurn.get(call.turnId);
@@ -310,6 +319,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
       if (record === undefined) continue;
       const turnIndex = pending.push(record) - 1;
       if (event.turnId !== null) {
+        lastTurnOfThread.set(event.threadId, event.turnId);
         const calls = callsByTurn.get(event.turnId) ?? [];
         callsByTurn.delete(event.turnId);
         pendingCalls -= calls.length;
@@ -349,11 +359,6 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
           metrics: { ...record.metrics, hookSkippedByEarlier: skippedByEarlier },
         };
       }
-    }
-    if (pending.length > 0 && looseCalls.length > 0) {
-      pendingCalls -= looseCalls.length;
-      pending.push(...looseCalls);
-      looseCalls = [];
     }
     if (pending.length > 0 && !scheduled) {
       scheduled = true;

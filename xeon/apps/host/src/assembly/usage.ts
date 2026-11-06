@@ -17,7 +17,7 @@ import type { UsagePort } from "../types.ts";
 // 원천을 바꿔 끼우는 자리는 `EnginePorts.usage`다. 조립 루트 코드(DR-14 예외 2).
 
 /** provider 하나의 thread 안 합산. 기록 한 건마다 요청 수가 1 늘고 토큰과 비용이 더해진다 */
-interface Tally {
+export interface Tally {
   readonly tokens: number;
   readonly usd: number;
   readonly requests: number;
@@ -25,10 +25,19 @@ interface Tally {
   readonly cacheWrite: number;
 }
 
-const EMPTY_TALLY: Tally = { tokens: 0, usd: 0, requests: 0, cacheRead: 0, cacheWrite: 0 };
+export const EMPTY_TALLY: Tally = { tokens: 0, usd: 0, requests: 0, cacheRead: 0, cacheWrite: 0 };
 
 /** 호출마다 어시스턴트 `item.recorded`를 남기지 않는 역할. 내구 기록에서 다시 만든 합계에 합산기의 이 역할 기록을 더한다 */
-const OFF_LOOP_ROLES: ReadonlySet<string> = new Set(["summary", "search", "judge"]);
+export const OFF_LOOP_ROLES: readonly string[] = ["summary", "search", "judge", "review"];
+const OFF_LOOP_ROLE_SET: ReadonlySet<string> = new Set(OFF_LOOP_ROLES);
+
+/**
+ * 측정 저장소에 남은 배경 호출(`OFF_LOOP_ROLES`)을 provider별로 접어 낸다. 재시작 뒤에도 같은 값이 나온다. 측정이 꺼졌거나 저장소를 못 읽으면
+ * undefined이고, 그때는 이 프로세스의 합산기가 원천이다
+ */
+export type BackgroundCallReader = (
+  threadId: ThreadId | undefined,
+) => ReadonlyMap<string, Tally> | undefined;
 
 function addRecord(tally: Tally, record: UsageRecord): Tally {
   return {
@@ -108,13 +117,14 @@ export function createUsageSource(
   meter: UsageMeter,
   readEvents?: UsageEventReader,
   contextWindowOf?: ContextWindowLookup,
+  backgroundCalls?: BackgroundCallReader,
 ): UsagePort {
   const byThread = new Map<ThreadId, Map<string, Tally>>();
   /** 대화 루프 밖에서 부른 호출(요약, 검색, 판정)의 합산. 어시스턴트 `item.recorded`가 남지 않아 내구 기록에 없다. 이 프로세스가 본 것만 있다 */
   const offLoop = new Map<ThreadId, Map<string, Tally>>();
 
   meter.subscribe((record: UsageRecord) => {
-    if (OFF_LOOP_ROLES.has(record.role)) {
+    if (OFF_LOOP_ROLE_SET.has(record.role)) {
       const own = offLoop.get(record.threadId) ?? new Map<string, Tally>();
       own.set(record.provider, addRecord(own.get(record.provider) ?? EMPTY_TALLY, record));
       offLoop.set(record.threadId, own);
@@ -202,9 +212,16 @@ export function createUsageSource(
       // 내구 기록이 있으면 그것이 원천이다(재시작 뒤와 버린 분기 포함). 읽지 못할 때만 이 프로세스의 합산기로 돌아간다.
       // threadId가 없으면 모든 thread의 내구 기록 합이고, 읽지 못하면 이 프로세스가 본 모든 thread의 합산기 합이다
       const durable = await durableProviders(threadId);
+      const stored = backgroundCalls?.(threadId);
+      const background =
+        stored !== undefined
+          ? [stored]
+          : threadId === undefined
+            ? [...offLoop.values()]
+            : [offLoop.get(threadId)];
       const scoped =
         durable !== undefined
-          ? [durable, ...(threadId === undefined ? [...offLoop.values()] : [offLoop.get(threadId)])]
+          ? [durable, ...background]
           : threadId === undefined
             ? [...byThread.values()]
             : [byThread.get(threadId)];

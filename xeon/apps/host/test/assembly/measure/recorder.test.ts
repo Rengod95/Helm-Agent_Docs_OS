@@ -269,3 +269,72 @@ test("a turn commit writes call, ctx, cache and hook rows next to the turn row, 
 test("with measurement off no row of any kind is written", async () => {
   expect((await run(false)).rows).toEqual([]);
 });
+
+test("a call outside any turn is written at once and names the turn it came after", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "measure-recorder-"));
+  const listeners = new Set<CommitListener>();
+  let meterListener: ((record: UsageRecord) => void) | undefined;
+  const { stop } = startMeasurement({
+    dir,
+    session: {
+      feed: {
+        onCommit: (listener: CommitListener) => {
+          listeners.add(listener);
+          return () => {
+            listeners.delete(listener);
+          };
+        },
+      },
+    },
+    usage: {
+      subscribe: (listener) => {
+        meterListener = listener;
+        return () => {
+          meterListener = undefined;
+        };
+      },
+    },
+    enabled: () => true,
+    logger,
+    now: () => AT,
+  });
+  try {
+    const peek = openMeasureStore(join(dir, "measure.db"));
+    if (!peek.ok) throw new Bug("the measure database must open");
+    const title = { ...call(AT + 500, null, AT + 900), turnId: null, role: "summary" } as const;
+    for (const listener of listeners) {
+      listener({
+        firstSeq: 1,
+        lastSeq: 1,
+        events: [
+          event(1, "turn.completed", {
+            status: "completed",
+            stepCount: 1,
+            usage: null,
+            error: null,
+          }),
+        ],
+      });
+    }
+    await Promise.resolve();
+    meterListener?.(title);
+    await Promise.resolve();
+    const inTurn = peek.value.turn(THREAD, TURN);
+    const background = peek.value.callsOfRoles(["summary"], THREAD);
+    peek.value.close();
+    if (!inTurn.ok || !background.ok) throw new Bug("the measure database must be readable");
+    expect(
+      background.value.map((row) => [
+        row.turnId,
+        row.tags["afterTurn"],
+        row.metrics["totalTokens"],
+      ]),
+    ).toEqual([[null, TURN, 135]]);
+    expect(
+      inTurn.value.filter((row) => row.kind === "call").map((row) => row.tags["role"]),
+    ).toEqual(["summary"]);
+  } finally {
+    stop();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
