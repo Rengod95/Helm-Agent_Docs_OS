@@ -228,6 +228,11 @@ export interface Engine {
   };
   readonly storeId: StoreId;
   readonly catalog: SettingCatalog;
+  /**
+   * 지금 있는 확장(내장 단위와 설치한 외부 확장)의 예약 키 `ext.<이름>.enabled`를 카탈로그에 올린다. 설정 쓰기·읽기 앞에서 부른다.
+   * 없으면(시험 대역) 카탈로그가 이미 정해진 것이다
+   */
+  readonly syncExtensionKeys?: () => void;
   /** ms. host.status.startedAt의 원천 */
   readonly startedAt: number;
   readonly ports: EnginePorts;

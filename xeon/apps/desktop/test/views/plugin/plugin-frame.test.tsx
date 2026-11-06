@@ -62,7 +62,9 @@ describe("PluginFrame", () => {
     }
     const html = renderToString(<PluginFrame {...props(ledger)} />);
     expect(html).not.toContain("<iframe");
-    expect(html).toContain("이 화면이 꺼졌어요. 다시 켜면 처음부터 다시 불러와요.");
+    // 장부가 끈 이유(연속 조회 실패)가 한 줄로 보이고 풀이는 정보 아이콘 뒤에 있다
+    expect(html).toContain("화면이 한 조회가 연속으로 실패해서 닫혔어요");
+    expect(html).toContain("설명 보기");
     expect(html).toContain("다시 켜기");
   });
 

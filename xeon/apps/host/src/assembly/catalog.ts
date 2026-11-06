@@ -1,3 +1,4 @@
+import { defineManifest } from "@fresnel/contracts/extensions";
 import { AGENTS_SETTING_DEFS } from "@fresnel/core-agents";
 import { CONTEXT_SETTING_DEFS } from "@fresnel/core-context";
 import { MODELS_SETTING_DEFS } from "@fresnel/core-models";
@@ -25,7 +26,7 @@ import { WORK_SETTING_DEFS } from "@fresnel/cap-work";
 import { WORKSPACE_SETTING_DEFS } from "@fresnel/cap-workspace";
 import { accountRotationManifest, accountRotationSettings } from "@fresnel/group-account-rotation";
 import { helmManifest, helmSettings } from "@fresnel/group-helm";
-import { learningSettings } from "@fresnel/group-learning";
+import { learningManifest, learningSettings } from "@fresnel/group-learning";
 import {
   providerAnthropicOauthManifest,
   providerAnthropicOauthSettings,
@@ -44,13 +45,65 @@ import { PROCESS_SETTING_DEFS } from "@fresnel/platform-process";
 import { SANDBOX_SETTING_DEFS } from "@fresnel/platform-sandbox";
 import { SECRETS_SETTING_DEFS } from "@fresnel/platform-secrets";
 import { STORE_SETTING_DEFS } from "@fresnel/platform-store";
-import { authoringSettings } from "@fresnel/plugin-builder";
+import { authoringManifest, authoringSettings } from "@fresnel/plugin-builder";
 import { hostSettings } from "../settings.ts";
 
 // L4.host-service.spec §4.1 5단계. 모든 패키지의 설정 그룹을 한 카탈로그로 합친다. 이 파일은 assemble.ts의 일부다:
 // 아래 층 패키지를 import하는 조립 루트 코드(DR-14 예외 2).
 
 type AppGroup = SettingGroup<SettingNamespace, Readonly<Record<string, SettingDefInput>>>;
+
+/** 호스트가 싣는 내장 확장 단위(`builtinUnits`)의 이름, 표시 이름, 층. 예약 키 `ext.<이름>.enabled`를 정적 카탈로그에 올리는 데 쓴다 */
+const BUILTIN_EXTENSIONS: readonly {
+  readonly name: string;
+  readonly displayName: string;
+  readonly layer: "L1" | "L2" | "plugin";
+}[] = [
+  { name: "core-persistence", displayName: "Session persistence", layer: "L1" },
+  { name: "core-tasks", displayName: "Task engine", layer: "L1" },
+  { name: "core-models", displayName: "Model gateway", layer: "L1" },
+  { name: "core-context", displayName: "Context", layer: "L1" },
+  { name: "core-tools", displayName: "Tool runtime", layer: "L1" },
+  { name: "core-loop", displayName: "Agent loop", layer: "L1" },
+  { name: "host-groups", displayName: "Group service", layer: "plugin" },
+  { name: "core-agents", displayName: "Subagents", layer: "L1" },
+  { name: "cap-workspace", displayName: "Workspace tools", layer: "L2" },
+  { name: "cap-dialog", displayName: "Dialog", layer: "L2" },
+  { name: "cap-artifacts", displayName: "Artifacts and reviews", layer: "L2" },
+  { name: "host-dialog-bridge", displayName: "Dialog bridge", layer: "L2" },
+  { name: "cap-work", displayName: "Work management", layer: "L2" },
+  { name: "cap-mcp", displayName: "MCP client", layer: "L2" },
+  { name: "cap-web", displayName: "Web tools", layer: "L2" },
+  { name: "cap-knowledge", displayName: "Knowledge and memory", layer: "L2" },
+  { name: "host-dialog-area-bridge", displayName: "Dialog area bridge", layer: "L2" },
+  { name: "host-proposals-bridge", displayName: "Proposals bridge", layer: "L2" },
+  { name: "cap-schedule", displayName: "Schedules", layer: "L2" },
+];
+
+/** 내장 확장의 예약 키 그룹. 파일 스키마, `config list`, 설정 화면이 같은 키 집합을 보도록 정적 카탈로그에 넣는다(X10) */
+function builtinExtensionKeyGroups(): readonly CatalogGroupInput[] {
+  const manifests = [
+    ...BUILTIN_EXTENSIONS.map((unit) =>
+      defineManifest({
+        schemaVersion: 2,
+        name: unit.name,
+        version: "0.1.0",
+        displayName: unit.displayName,
+        description: unit.displayName,
+        entry: "./src/index.ts",
+        trust: { level: "builtin" },
+        plugins: [{ layer: unit.layer === "plugin" ? "plugin" : unit.layer, hooks: [] }],
+      }),
+    ),
+    // 설정 정의의 label은 영어 대체 문구다(한글은 locale 카탈로그에만 둔다)
+    { ...learningManifest, displayName: "Learning" },
+    authoringManifest,
+  ];
+  return manifests.map((manifest) => {
+    const group = reservedExtensionSettings(manifest, "builtin");
+    return ofDefs("builtin-extensions", group.namespace, group.defs);
+  });
+}
 
 function ofGroup(owner: string, group: AppGroup): CatalogGroupInput {
   return { owner, namespace: group.namespace, defs: Object.values<SettingDef>(group.defs) };
@@ -116,6 +169,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     // 제작 그룹의 설정(개발 모드, 기본 꺼짐). 소유는 plugin-builder다(L3.authoring.spec §6)
     ofGroup("plugin-builder", authoringSettings),
     ofGroup("host", hostSettings),
+    ...builtinExtensionKeyGroups(),
   ];
 }
 
