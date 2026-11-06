@@ -1118,7 +1118,7 @@ Plugin App 파일 풀이(`resolveAppFile`)는 desktop의 전용 URL 스킴이 �
 #### 4.5.1 userConfig
 
 - 로더는 5단계에서 `settingsFromManifest(manifest)`로 `SettingDef[]`를 얻는다(F.wire-settings.spec §3.8.3). 결과의 `issues`가 비어 있지 않으면 그 확장의 설정 전체가 거부된다.
-- `UserConfigEntry`에 값 스키마 필드가 없는 동안(F.wire-settings §10 미결 8) `settingsFromManifest`는 항목을 문자열 값(기본 빈 문자열)으로, `sensitive`면 `SecretRef` 비밀 키(`ui.widget` `secret`)로 만든다 [제안: 미결 8이 풀리면 고친다]. 접두가 `ext.<name>.`가 아니거나 예약 이름이면 그 항목은 정의 대신 `CatalogIssue`로 돌려준다.
+- `UserConfigEntry`에 값 스키마 필드가 없는 동안(F.wire-settings §10 미결 8) `settingsFromManifest`는 항목을 문자열 값(기본 빈 문자열)으로, `sensitive`면 `SecretRef` 시크릿 설정(`ui.widget` `secret`)로 만든다 [제안: 미결 8이 풀리면 고친다]. 접두가 `ext.<name>.`가 아니거나 예약 이름이면 그 항목은 정의 대신 `CatalogIssue`로 돌려준다.
 - 로더는 예약 키 두 개를 `reservedExtensionSettings`로 만들어 같은 그룹(`namespace: "ext.<name>"`, `owner: <name>`)에 더한다.
 - userConfig 키가 `enabled`나 `isolation`이면 `settings_reserved_key`다(F.wire-settings.spec §3.8.3 "userConfig는 이 이름을 쓸 수 없다").
 
