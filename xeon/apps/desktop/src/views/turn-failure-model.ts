@@ -5,6 +5,7 @@ import type { MessageId } from "@fresnel/client/i18n";
 
 type TurnFailureKind =
   | "auth"
+  | "host_mismatch"
   | "bad_request"
   | "model_not_found"
   | "rate_limited"
@@ -13,17 +14,21 @@ type TurnFailureKind =
   | "unknown";
 
 /** 오류 줄의 단추. 키 다시 등록은 설정 > 시크릿, 모델 바꾸기는 입력창 모델 고르기, 다시 보내기는 마지막 사용자 메시지를 다시 보낸다 */
-export type TurnFailureAction = "reregister-key" | "change-model" | "resend";
+export type TurnFailureAction = "reregister-key" | "open-providers" | "change-model" | "resend";
 
 export interface TurnFailureView {
   readonly kind: TurnFailureKind;
   readonly text: MessageId;
   readonly action: TurnFailureAction | null;
+  /** 문장의 `{host}` 같은 자리 값. 없으면 undefined */
+  readonly params?: Readonly<Record<string, string>>;
   /** 정보 아이콘 뒤 "자세히"에 보일 원문 */
   readonly detail: string;
 }
 
 const STATUS_PREFIX = /^\s*(\d{3})\b/;
+// 엔진(secrets-bridge)이 `denied: host_mismatch, host=<요청 호스트>`로 싣는다
+const HOST_MISMATCH = /denied: host_mismatch(?:, host=(\S+?))?\)?(?:\s|$)/;
 const OWN_KIND = /^\s*([a-z_]+):/;
 const NETWORK =
   /connection (?:error|refused|reset|closed)|ECONNRESET|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up|network|timed? ?out|provider_unavailable/i;
@@ -38,6 +43,7 @@ function statusKind(status: number): TurnFailureKind | null {
 }
 
 function kindOf(error: string): TurnFailureKind {
+  if (HOST_MISMATCH.test(error)) return "host_mismatch";
   const own = OWN_KIND.exec(error)?.[1];
   if (own === "secret_unresolved" || own === "oauth_token_on_default_provider") return "auth";
   if (own === "model_not_found" || own === "model_unavailable") return "model_not_found";
@@ -60,6 +66,7 @@ const VIEWS: Readonly<
   Record<TurnFailureKind, { readonly text: MessageId; readonly action: TurnFailureAction | null }>
 > = {
   auth: { text: "desktop.turnFailure.auth", action: "reregister-key" },
+  host_mismatch: { text: "desktop.turnFailure.hostMismatch", action: "open-providers" },
   bad_request: { text: "desktop.turnFailure.badRequest", action: null },
   model_not_found: { text: "desktop.turnFailure.modelNotFound", action: "change-model" },
   rate_limited: { text: "desktop.turnFailure.rateLimited", action: "resend" },
@@ -70,5 +77,12 @@ const VIEWS: Readonly<
 
 export function turnFailureOf(error: string): TurnFailureView {
   const kind = kindOf(error);
+  if (kind === "host_mismatch") {
+    const host = HOST_MISMATCH.exec(error)?.[1];
+    if (host === undefined) {
+      return { kind, ...VIEWS[kind], text: "desktop.turnFailure.hostMismatchAny", detail: error };
+    }
+    return { kind, ...VIEWS[kind], params: { host }, detail: error };
+  }
   return { kind, ...VIEWS[kind], detail: error };
 }

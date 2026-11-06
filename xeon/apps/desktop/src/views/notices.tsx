@@ -54,7 +54,12 @@ export function NoticeToasts(): ReactNode {
       const view = isTurnFailure && notice.body !== null ? turnFailureOf(notice.body) : null;
       const id = toast({
         tone: notice.kind === "error" ? "danger" : "neutral",
-        title: view === null ? noticeTitleText(notice) : t(view.text),
+        title:
+          view === null
+            ? noticeTitleText(notice)
+            : view.params === undefined
+              ? t(view.text)
+              : t(view.text, view.params),
         // 원문은 대화의 오류 줄이 "자세히"로 보인다. 토스트에는 싣지 않는다
         ...(notice.body === null || isTurnFailure ? {} : { description: notice.body }),
         ...(notice.kind === "error"
