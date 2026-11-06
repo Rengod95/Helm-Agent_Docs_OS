@@ -296,6 +296,7 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
         turnId: fact.turnId,
         kind: p.kind,
         toolName: p.toolName,
+        toolCallId: p.toolCallId,
         parts: [],
       };
       return keep({ ...state, streaming: putStreaming(counted, item) }, "applied");
@@ -444,6 +445,7 @@ function newAssistantItem(
     turnId: fact.turnId,
     kind: "assistant",
     toolName: null,
+    toolCallId: null,
     parts: [],
   };
 }

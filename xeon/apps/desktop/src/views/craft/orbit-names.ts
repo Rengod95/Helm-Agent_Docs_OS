@@ -26,9 +26,14 @@ export function layerTitle(layer: LayerKey): string {
   return t("desktop.craft.orbit.ringName", { code: layer, name: layerName(layer) });
 }
 
+/** 주도 중인 점: 주도를 선언했고 켜져 있고 실패가 없다 */
+export const isLead = (p: CanvasPlugin): boolean =>
+  p.drives === true && isOn(p) && p.health === undefined;
+
 /** 점의 상태 말: 실패와 자동 꺼짐은 색과 함께 글로도 적는다 */
 export function stateText(p: CanvasPlugin): string {
   if (p.health?.autoOff === true) return t("desktop.craft.orbit.state.autoOff");
   if (p.health !== undefined) return t("desktop.craft.orbit.state.failing");
+  if (isLead(p)) return t("desktop.craft.orbit.state.lead");
   return isOn(p) ? t("desktop.craft.orbit.state.on") : t("desktop.craft.orbit.state.off");
 }

@@ -728,6 +728,10 @@ export interface Commands {
   paletteUses(): PaletteUses;
   /** 명령 팔레트의 실행 횟수를 저장한다. 저장하지 못하면 `false`다 */
   savePaletteUses(uses: PaletteUses): Promise<boolean>;
+  /** 마지막에 보던 대화 id(로컬 설정). 없으면 null */
+  lastThreadId(): string | null;
+  /** 보던 대화를 저장한다. 보던 대화가 없으면 null. 저장하지 못하면 `false`다 */
+  saveLastThread(threadId: string | null): Promise<boolean>;
   /**
    * 입력창이 `/`로 시작하는 줄을 슬래시 명령으로 보냈을 때(`sendTurn`) 호스트가 셸 주입 실행에 사람 확인을 요구했다. 이 호출이 같은 줄을
    * `confirmShell: true`로 다시 보낸다. 확인 대기가 없으면 아무 일도 하지 않는다.

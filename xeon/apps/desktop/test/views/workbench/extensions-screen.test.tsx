@@ -85,14 +85,14 @@ function headingsOf(html: string): string[][] {
 }
 
 describe("확장 화면: 층별 목록과 찾기", () => {
-  test("층 묶음은 사람 말 이름으로 오케스트레이션, 기능, 에이전트 코어 순서이고 층마다 켜짐 수를 보인다", () => {
+  test("행은 층 순서(오케스트레이션, 기능, 에이전트 코어)로 늘어서고 층 칸은 사람 말 이름이다", () => {
     const html = render();
-    expect(sectionLayers(html)).toEqual([
+    expect(rowsOf(html).map((row) => row.cells[1])).toEqual([
       t("term.layerOrchestration"),
       t("term.layerCapabilities"),
       t("term.layerAgentCore"),
     ]);
-    expect(html).toContain(t("desktop.workbench.layers.count", { on: 1, total: 1 }));
+    expect(sectionLayers(html)).toEqual([]);
   });
 
   test("머리에 플러그인 가져오기 단추가 있고 닫힌 채로 시작한다", () => {
@@ -114,22 +114,24 @@ describe("확장 화면: 층별 목록과 찾기", () => {
 });
 
 describe("확장 화면: 층 표(caustic Table, §6.23)", () => {
-  test("층마다 표가 하나이고 열은 이름, 신뢰 수준, 상태, 켜짐이다", () => {
+  test("표는 하나이고 열은 이름, 층, 신뢰 수준, 상태, 켜짐이다", () => {
     const html = render();
-    expect(html.match(/data-slot="table"(?=[ >])/g)).toHaveLength(3);
+    expect(html.match(/data-slot="table"(?=[ >])/g)).toHaveLength(1);
     const columns = [
       t("desktop.workbench.col.name"),
+      t("desktop.workbench.col.layer"),
       t("desktop.workbench.col.trust"),
       t("desktop.workbench.col.state"),
       t("desktop.workbench.col.switch"),
     ];
-    expect(headingsOf(html)).toEqual([columns, columns, columns]);
+    expect(headingsOf(html)).toEqual([columns]);
   });
 
   test("행은 칸마다 이름, 상태, 켜짐 스위치를 보인다", () => {
     const web = rowsOf(render()).find((row) => row.cells[0]?.includes("웹 검색"));
     expect(web?.cells).toEqual([
       "웹 검색",
+      t("term.layerCapabilities"),
       t("desktop.workbench.origin.user"),
       t("desktop.workbench.state.on"),
       "",
@@ -157,10 +159,10 @@ describe("확장 화면: 층 표(caustic Table, §6.23)", () => {
     expect(off).toContain('aria-checked="false"');
   });
 
-  test("키보드로 들어가는 행은 표마다 하나다(고른 행, 없으면 첫 행)", () => {
+  test("키보드로 들어가는 행은 표에서 하나다(고른 행, 없으면 첫 행)", () => {
     const html = render((s) => pickPlugin(s, "web"));
     const stops = rowsOf(html).filter((row) => row.attrs.includes('tabindex="0"'));
-    expect(stops).toHaveLength(3);
+    expect(stops).toHaveLength(1);
     expect(stops.find((row) => row.cells[0]?.includes("웹 검색"))).toBeDefined();
   });
 });
@@ -224,7 +226,8 @@ describe("확장 화면: 잠긴 스위치의 이유는 Tooltip으로 보인다",
       ["web", null],
     ]);
     const rows = rowsOf(renderState(state));
-    for (const name of ["core-loop", "gate"]) {
+    // core-loop은 카탈로그의 한국어 이름(ext.name.coreLoop)으로 그려진다
+    for (const name of ["에이전트 실행기", "gate"]) {
       const row = rows.find((r) => r.cells[0]?.includes(name));
       expect(row?.markup).toContain(`aria-description="${t("desktop.workbench.lock.exempt")}"`);
       expect(row?.markup).toContain('data-slot="tooltip-trigger"');

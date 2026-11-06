@@ -280,6 +280,14 @@ export function createCommands(deps: CommandDeps): Commands {
       const written = await deps.local.set(LOCAL.paletteUses, uses);
       return written.ok;
     },
+    lastThreadId() {
+      const id = deps.local.get(LOCAL.lastThread);
+      return id === undefined || id === "" ? null : id;
+    },
+    async saveLastThread(threadId) {
+      const written = await deps.local.set(LOCAL.lastThread, threadId ?? "");
+      return written.ok;
+    },
     async respondApproval(approvalId: EventId, response: ApprovalDecision) {
       if (deps.engineSwitch.held()) {
         ui.actions.approvalFailed(approvalId, "switching");

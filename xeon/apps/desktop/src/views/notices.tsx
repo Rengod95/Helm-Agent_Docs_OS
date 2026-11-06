@@ -1,11 +1,17 @@
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
+import type { Notice } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { Alert, Button, EmptyState, Skeleton, toast } from "@caustic/react";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLinkPhase, useThread, useTurnFailures } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
-import { mergeNotices, noticeKindId, type NoticeEntry } from "./notices-model.ts";
+import {
+  mergeNotices,
+  noticeKindId,
+  noticeTitleViewOf,
+  type NoticeEntry,
+} from "./notices-model.ts";
 import { turnFailureOf } from "./turn-failure-model.ts";
 import { useGoToThread } from "./thread-link.ts";
 
@@ -24,6 +30,13 @@ interface FailureToasts {
   readonly seen: Set<number>;
 }
 
+/** 알림 제목. 아는 원문은 앱 말투로 바꾸고 모르는 것은 원문 그대로다 */
+function noticeTitleText(notice: Notice): string {
+  const view = noticeTitleViewOf(notice);
+  if (view === null) return notice.title;
+  return view.params === undefined ? t(view.id) : t(view.id, view.params);
+}
+
 /** 전달된 알림을 토스트로 알린다. 연결이 다시 붙으면 구독을 다시 건다 */
 export function NoticeToasts(): ReactNode {
   const commands = useCommands();
@@ -39,7 +52,7 @@ export function NoticeToasts(): ReactNode {
       const view = isTurnFailure && notice.body !== null ? turnFailureOf(notice.body) : null;
       const id = toast({
         tone: notice.kind === "error" ? "danger" : "neutral",
-        title: view === null ? notice.title : t(view.text),
+        title: view === null ? noticeTitleText(notice) : t(view.text),
         // 원문은 대화의 오류 줄이 "자세히"로 보인다. 토스트에는 싣지 않는다
         ...(notice.body === null || isTurnFailure ? {} : { description: notice.body }),
         ...(notice.kind === "error"
@@ -174,7 +187,7 @@ export function InboxNotices(): ReactNode {
         {entries.map(({ notice, threadId }) => (
           <li key={notice.seq} className="grid gap-0.5">
             <span className="dim">{t(noticeKindId(notice.kind))}</span>
-            <span>{notice.title}</span>
+            <span>{noticeTitleText(notice)}</span>
             {notice.body === null ? null : <span className="dim">{notice.body}</span>}
             {threadId === null ? null : <ThreadName threadId={threadId} />}
           </li>

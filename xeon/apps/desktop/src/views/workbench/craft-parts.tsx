@@ -1,7 +1,7 @@
 // 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인)와 켜기 요청, 자동 꺼짐 알림(플러그인 카드와 오른쪽 "플러그인" 탭).
 // 찾기 막대는 확장 화면이 쓴다.
 import { t } from "@fresnel/client/i18n";
-import { keepOffOf, listLayersOf, type HookNotice } from "@fresnel/client/workbench";
+import { extNameOf, keepOffOf, listLayersOf, type HookNotice } from "@fresnel/client/workbench";
 import { Alert, Button, Input, Select, SelectOption, Skeleton } from "@caustic/react";
 import { Bug } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
@@ -162,11 +162,11 @@ function KeepOffAlert(props: {
       <p>
         {question.rule === "consecutive"
           ? t("desktop.workbench.keepOff.consecutive", {
-              name: props.entry.displayName,
+              name: extNameOf(props.entry),
               count: question.consecutive,
             })
           : t("desktop.workbench.keepOff.rate", {
-              name: props.entry.displayName,
+              name: extNameOf(props.entry),
               count: question.windowFailures,
             })}
       </p>
@@ -302,7 +302,7 @@ export function AutoOffNotice(props: {
           </Button>
         }
       >
-        {t("desktop.workbench.autoDisabled", { name: entry.displayName })}
+        {t("desktop.workbench.autoDisabled", { name: extNameOf(entry) })}
       </Alert>
     );
   }

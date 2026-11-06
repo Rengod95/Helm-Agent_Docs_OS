@@ -94,8 +94,9 @@ describe("registering a model key from the settings screen", () => {
     const outcome = await submitKey(app.commands.setup, name, "add", inputOf(FAKE).field);
     expect(outcome).toEqual({
       kind: "failed",
-      text: "키를 저장하지 못했어요 (종료 코드 1).",
+      text: "키를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
       keystore: false,
+      detail: "종료 코드 1",
     });
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
     await app.stop();

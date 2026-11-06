@@ -60,6 +60,8 @@ export type FirstRunKeyEntry =
   | {
       readonly state: "failed";
       readonly text: string;
+      /** 기술 문구(종료 코드 등). 화면은 "자세히" 뒤에 둔다 */
+      readonly detail?: string;
       /** 키체인 실패면 있다. 화면이 "다시 시도"(키 값 칸을 다시 연다)와 "도움말 열기"를 보인다 */
       readonly keystore?: {
         readonly name: SecretName;

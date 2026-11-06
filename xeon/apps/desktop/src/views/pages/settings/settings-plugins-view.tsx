@@ -1,5 +1,6 @@
 import { t } from "@fresnel/client/i18n";
 import {
+  extNameOf,
   INITIAL_WORKBENCH,
   rowOf,
   toggleRequestOf,
@@ -49,7 +50,7 @@ function Row(props: {
         size="sm"
         checked={row.on}
         disabled={row.lock !== null || props.busy}
-        aria-label={t("desktop.settings.plugins.switch", { name: entry.displayName })}
+        aria-label={t("desktop.settings.plugins.switch", { name: extNameOf(entry) })}
         onCheckedChange={(target) => {
           props.onToggle(entry.name, target);
         }}

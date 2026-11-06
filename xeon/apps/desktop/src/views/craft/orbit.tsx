@@ -39,7 +39,7 @@ import {
 } from "./orbit-model.ts";
 import { RING_ORDER, layoutOrbit, pointAt, ringRadius, type OrbitArc } from "./orbit-layout.ts";
 import { chipWidth, visibleChips, type ChipCandidate, type ChipObstacle } from "./orbit-chips.ts";
-import { layerTitle, stateText } from "./orbit-names.ts";
+import { isLead, layerTitle, stateText } from "./orbit-names.ts";
 import { PANEL_W } from "./selection-panel.tsx";
 import { SPRING_MS, springLinear } from "./spring.ts";
 import { SpaceBackground } from "./space-bg.tsx";
@@ -231,6 +231,7 @@ const Node = memo(function Node(props: NodeProps): ReactNode {
   const on = isOn(p);
   const failing = p.health !== undefined;
   const autoOff = p.health?.autoOff === true;
+  const lead = isLead(p);
   const grouped = p.group !== undefined;
   const label = t("desktop.craft.orbit.dot.name", { name: p.name, state: stateText(p) });
   const showChip = chip || lit || picked || hot;
@@ -261,6 +262,7 @@ const Node = memo(function Node(props: NodeProps): ReactNode {
               on={on}
               group={grouped}
               failing={failing}
+              lead={lead}
               autoOff={autoOff}
               picked={picked}
               hot={hot}
@@ -282,6 +284,8 @@ const Node = memo(function Node(props: NodeProps): ReactNode {
               data-lit={lit && !picked ? "" : undefined}
               data-off={!on && !failing ? "" : undefined}
               data-fail={failing ? "" : undefined}
+              data-auto-off={autoOff ? "" : undefined}
+              data-lead={lead ? "" : undefined}
               onClick={() => onPick(p.id)}
               onPointerMove={spot}
               onPointerEnter={() => setHot(true)}
@@ -289,6 +293,9 @@ const Node = memo(function Node(props: NodeProps): ReactNode {
               className="craft-label flex h-7 items-center whitespace-nowrap rounded-full px-3 text-ui-strong"
             >
               {p.name}
+              {lead && (
+                <span className="craft-label-tag">{t("desktop.craft.orbit.state.lead")}</span>
+              )}
             </button>
           </div>
         )}
@@ -373,7 +380,7 @@ export function Orbit(): ReactNode {
       const dim = isDimmed(p, lit, state.kind, state.contrib, state.query);
       const priority = dim
         ? -1
-        : p.health !== undefined
+        : p.health !== undefined || isLead(p)
           ? 3
           : p.group !== undefined
             ? 2
@@ -742,8 +749,47 @@ export function Orbit(): ReactNode {
         <ZoomBar percent={vp.percent} onZoom={vp.zoomBy} onFit={vp.fit} />
         <Finder />
       </div>
+      <StateLegend plugins={onMap} />
       {state.sel.k === "layer" && <LayerPanel key={state.sel.id} layer={state.sel.id} />}
     </div>
+  );
+}
+
+/** 상태 범례: 지금 지도에 있는 상태만 모양과 글로 적는다(색만으로 가르지 않는다) */
+function StateLegend(props: { readonly plugins: readonly CanvasPlugin[] }): ReactNode {
+  const items = [
+    {
+      key: "lead",
+      shown: props.plugins.some(isLead),
+      text: t("desktop.craft.orbit.state.lead"),
+      mark: { lead: true },
+    },
+    {
+      key: "failing",
+      shown: props.plugins.some((p) => p.health !== undefined && p.health.autoOff !== true),
+      text: t("desktop.craft.orbit.state.failing"),
+      mark: { failing: true },
+    },
+    {
+      key: "autoOff",
+      shown: props.plugins.some((p) => p.health?.autoOff === true),
+      text: t("desktop.craft.orbit.state.autoOff"),
+      mark: { failing: true, autoOff: true },
+    },
+  ].filter((item) => item.shown);
+  if (items.length === 0) return null;
+  return (
+    <ul
+      aria-label={t("desktop.craft.orbit.legend.label")}
+      className="pointer-events-none absolute bottom-3 right-3 z-20 m-0 flex list-none items-center gap-3 p-0 text-ui-xs text-text-secondary"
+    >
+      {items.map((item) => (
+        <li key={item.key} className="flex items-center gap-1">
+          <Mark shape="diamond" size={16} {...item.mark} />
+          {item.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 

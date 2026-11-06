@@ -5,6 +5,7 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   rowOf,
+  extNameOf,
   threadPendingOf,
   threadSwitchOf,
   threadToggleRequestOf,
@@ -219,7 +220,7 @@ function renderThreadRow(props: {
           size="sm"
           checked={on}
           disabled={view.kind === "locked" || busy}
-          aria-label={t("desktop.plugin.thread.switch.label", { name: entry.displayName })}
+          aria-label={t("desktop.plugin.thread.switch.label", { name: extNameOf(entry) })}
           onCheckedChange={(target) => {
             props.onToggle(entry, target);
           }}

@@ -10,6 +10,7 @@ import {
   fieldMatches,
   hasFooter,
   launchChoiceOf,
+  numberDraftActionOf,
   numberValueOf,
   optionLabelOf,
   optionOf,
@@ -342,5 +343,29 @@ describe("advanced tab groups and option labels", () => {
     expect(optionLabelOf("l0.sandbox.onUnavailable", "run_unsandboxed")).toBe("격리 없이 실행");
     expect(optionLabelOf("l0.secrets.ageKey.source", "auto-file")).toBe("자동(파일 우선)");
     expect(optionLabelOf("l9.unknown.key", "raw-value")).toBe("raw-value");
+  });
+});
+
+describe("numberDraftActionOf", () => {
+  const typed = { dirty: true, error: null, value: 6 };
+  const cleared = { dirty: false, error: null, value: 6 };
+  const idle = { fieldDirty: true, committing: false, escaped: false };
+  test("typed text becomes a controller draft so an outside change is seen while editing", () => {
+    expect(numberDraftActionOf(typed, { ...idle, fieldDirty: false })).toEqual({
+      kind: "edit",
+      value: 6,
+    });
+  });
+  test("text that is not a usable value leaves the controller alone", () => {
+    const bad = { dirty: true, error: "range", value: null };
+    expect(numberDraftActionOf(bad, idle)).toBeNull();
+  });
+  test("a field that ends its edit saves the draft, Esc drops it", () => {
+    expect(numberDraftActionOf(cleared, idle)).toEqual({ kind: "commit" });
+    expect(numberDraftActionOf(cleared, { ...idle, escaped: true })).toEqual({ kind: "discard" });
+  });
+  test("a clean report after the value callback or without a draft does nothing", () => {
+    expect(numberDraftActionOf(cleared, { ...idle, committing: true })).toBeNull();
+    expect(numberDraftActionOf(cleared, { ...idle, fieldDirty: false })).toBeNull();
   });
 });

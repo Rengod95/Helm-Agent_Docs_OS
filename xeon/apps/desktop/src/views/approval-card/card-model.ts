@@ -1,3 +1,4 @@
+import type { MessageId } from "@fresnel/client/i18n";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 
 // 승인 카드가 그리는 순수 값(시간 표시, 만료, 키 해석, 계획 접기, 검토 합계). React 밖에서 시험한다(approval-card-model.test.ts).
@@ -102,4 +103,32 @@ export function threadLinkVisibleOf(input: {
   readonly openable: boolean;
 }): boolean {
   return input.openable && input.within !== input.threadId;
+}
+
+/** 카드 제목의 카탈로그 키. 엔진이 영어로 만든 제목(도구 승인, 계획 승인)만 한국어로 바꾸고, 그 밖의 제목(시크릿 사용, 질문)은 원문이다 */
+export type CardTitleView =
+  | { readonly id: "desktop.approvals.title.tool"; readonly params: { readonly tool: string } }
+  | { readonly id: "desktop.approvals.title.plan" };
+
+export function cardTitleViewOf(request: ApprovalRequestedPayload): CardTitleView | null {
+  const { body } = request;
+  if (body.kind === "tool" && request.title === `Allow tool "${body.tool.toolName}"?`) {
+    return { id: "desktop.approvals.title.tool", params: { tool: body.tool.toolName } };
+  }
+  if (body.kind === "plan" && request.title === "Review the plan") {
+    return { id: "desktop.approvals.title.plan" };
+  }
+  return null;
+}
+
+const MODE_LABEL: Readonly<Record<string, MessageId>> = {
+  default: "desktop.approvals.plan.mode.default",
+  acceptEdits: "desktop.approvals.plan.mode.acceptEdits",
+  plan: "desktop.approvals.plan.mode.plan",
+  bypass: "desktop.approvals.plan.mode.bypass",
+};
+
+/** 승인 뒤 모드의 라벨 키. 모르는 모드는 null이라 원시값을 그대로 보인다 */
+export function modeLabelIdOf(mode: string): MessageId | null {
+  return MODE_LABEL[mode] ?? null;
 }

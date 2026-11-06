@@ -8,7 +8,9 @@ import type { ThreadSummary } from "@fresnel/contracts/wire";
 export type NewThreadPlan =
   | { readonly kind: "open"; readonly threadId: ThreadSummary["threadId"] }
   | { readonly kind: "create"; readonly workspace: string }
-  | { readonly kind: "pickFolder" };
+  | { readonly kind: "pickFolder" }
+  /** 새 대화 대화 상자의 "폴더 없이 만들기"(사용자가 직접 고른 길). 계획 함수는 이 값을 내지 않는다 */
+  | { readonly kind: "createNoFolder" };
 
 /** 보낸 것이 없는 새 대화: 턴이 없고, 제목이 없고, 분기·시험 표식이 없고, 닫히지 않았다 */
 export function isBlankThread(thread: ThreadSummary): boolean {

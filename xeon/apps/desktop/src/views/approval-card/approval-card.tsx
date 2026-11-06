@@ -21,6 +21,7 @@ import {
   approvalAgeOf,
   approvalExpiryOf,
   approvalKeyOf,
+  cardTitleViewOf,
   clockTextOf,
   feedbackTextOf,
   threadLinkVisibleOf,
@@ -168,6 +169,13 @@ function PendingCard(props: {
     respond(decision);
   };
 
+  const titleView = cardTitleViewOf(request);
+  const cardTitle =
+    titleView === null
+      ? request.title
+      : titleView.id === "desktop.approvals.title.tool"
+        ? t(titleView.id, titleView.params)
+        : t(titleView.id);
   const origin = approvalOriginView(request.origin.caller);
   const expiry = approvalExpiryOf(request);
   const actionSize: ActionSize = body.kind === "plan" || body.kind === "review" ? "sm" : "xs";
@@ -265,7 +273,7 @@ function PendingCard(props: {
         data-approval-kind={body.kind}
         kind={AGENT_KIND[body.kind]}
         lead={t(KIND_LEAD[body.kind])}
-        title={request.title}
+        title={cardTitle}
         subtitle={subtitle}
         badge={origin === null ? undefined : originTextOf(origin)}
         actions={[]}

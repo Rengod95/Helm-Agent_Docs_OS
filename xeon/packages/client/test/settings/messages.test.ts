@@ -6,6 +6,7 @@ import {
   TAB_SPECS,
   binaryViewOf,
   decisionOutcomeOf,
+  keyErrorDetail,
   keyErrorText,
   lockInfo,
   proposalListView,
@@ -68,19 +69,16 @@ describe("settings sentences follow the locale", () => {
     );
   });
 
-  test("key entry errors keep the exit code and never show the server detail", () => {
+  test("key entry errors say what to do, keep the exit code in a separate detail, and never show the server detail", () => {
     expect(inLocale("en", () => keyErrorText({ kind: "rejected", exitCode: 3, detail: "" }))).toBe(
-      "The key could not be saved (exit code 3).",
-    );
-    expect(inLocale("ko", () => keyErrorText({ kind: "rejected", exitCode: 3, detail: "" }))).toBe(
-      "키를 저장하지 못했어요 (종료 코드 3).",
+      "The key couldn't be saved. Try again in a moment.",
     );
     expect(
-      inLocale("en", () => keyErrorText({ kind: "rejected", exitCode: null, detail: "" })),
-    ).toBe("The key could not be saved (no exit code).");
+      inLocale("ko", () => keyErrorText({ kind: "rejected", exitCode: 3, detail: "bad" })),
+    ).toBe("키를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
     expect(
-      inLocale("en", () => keyErrorText({ kind: "rejected", exitCode: 1, detail: "bad key" })),
-    ).toBe("The key could not be saved (exit code 1).");
+      inLocale("en", () => keyErrorDetail({ kind: "rejected", exitCode: 3, detail: "bad key" })),
+    ).toBe("Exit code 3");
     expect(inLocale("en", () => keyErrorText({ kind: "busy" }))).toBe(
       "Another key registration is in progress. Try again when it finishes.",
     );

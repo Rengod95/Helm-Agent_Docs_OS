@@ -4,6 +4,7 @@ import {
   base64Of,
   baseNameOf,
   chipsReady,
+  dataSourceLimit,
   exceedsLimit,
   failureOf,
   formatBytes,
@@ -165,5 +166,16 @@ describe("chipPreviewOf", () => {
     expect(chipPreviewOf(image)).toBe("data:image/png;base64,QUJD");
     expect(chipPreviewOf(chip({}))).toBeNull();
     expect(chipPreviewOf({ ...image, status: "failed" })).toBeNull();
+  });
+});
+
+describe("dataSourceLimit", () => {
+  test("a byte upload is capped by what fits in one 1 MiB request line, whatever the engine setting says", () => {
+    const framed = 780_288;
+    expect(dataSourceLimit(null)).toBe(framed);
+    expect(dataSourceLimit(20_971_520)).toBe(framed);
+    expect(dataSourceLimit(1024)).toBe(1024);
+    // base64로 늘어난 크기가 한 줄 한도 안에 든다
+    expect(Math.ceil(framed / 3) * 4).toBeLessThan(1_048_576 - 8 * 1024 + 1);
   });
 });

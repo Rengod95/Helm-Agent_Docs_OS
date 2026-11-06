@@ -1,6 +1,6 @@
 // 점의 모양과 빛깔. 층은 모양으로 가른다(L1 네모, L2 동그라미, L3 마름모, 외부 세모).
-// 그룹 구성원은 info 색, 단일 플러그인은 얼음빛 토큰, 실패는 danger 토큰이다. 색은 전부 caustic 토큰이라 밝은 판과 어두운 판을 따른다.
-// 상태는 모양과 무관하다: 꺼짐은 속이 비고 옅고, 가리키면 후광이 세지고, 고르면 얇은 색 고리가 선다. 색만으로 상태를 말하지 않는다.
+// 그룹 구성원은 info 색, 단일 플러그인은 얼음빛 토큰, 주도는 accent, 실패는 warning(주황) 토큰이다. 색은 전부 caustic 토큰이라 밝은 판과 어두운 판을 따른다.
+// 상태는 모양과 무관하다: 꺼짐은 속이 비고 옅고, 자동 꺼짐은 속이 비고 점선이며, 주도는 바깥 고리가 한 겹 더 서고, 가리키면 후광이 세지고, 고르면 얇은 색 고리가 선다. 색만으로 상태를 말하지 않는다.
 import { useId, type CSSProperties, type ReactElement } from "react";
 import type { LayerKey } from "@fresnel/client/workbench/canvas";
 import { assertNever } from "@fresnel/contracts";
@@ -22,11 +22,12 @@ export function shapeOf(layer: LayerKey): Shape {
   }
 }
 
-/** 몸과 번짐의 토큰. 실패는 이 셋 중 하나로 그린다 */
+/** 몸과 번짐의 토큰 */
 const TONE = {
   group: { body: "var(--cs-color-info-graphic)" },
   single: { body: "var(--cs-color-chart-6)" },
-  danger: { body: "var(--cs-color-danger-graphic)" },
+  lead: { body: "var(--cs-color-accent-graphic)" },
+  warning: { body: "var(--cs-color-warning-graphic)" },
 } as const;
 
 export interface MarkProps {
@@ -37,6 +38,8 @@ export interface MarkProps {
   readonly on?: boolean;
   readonly group?: boolean;
   readonly failing?: boolean;
+  /** 주도 중: 바깥 고리 한 겹 */
+  readonly lead?: boolean;
   /** 연속 실패로 자동 꺼짐 */
   readonly autoOff?: boolean;
   /** 고른 것: 얇은 색 고리 */
@@ -88,6 +91,7 @@ export function Mark({
   on = true,
   group = false,
   failing = false,
+  lead = false,
   autoOff = false,
   picked = false,
   hot = false,
@@ -96,7 +100,7 @@ export function Mark({
   // 번짐 그라데이션 id는 점마다 달라야 한다(같은 판에 점이 여럿이다)
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
   const haloId = `craft-halo-${uid}`;
-  const tone = failing ? TONE.danger : group ? TONE.group : TONE.single;
+  const tone = failing ? TONE.warning : lead ? TONE.lead : group ? TONE.group : TONE.single;
   const hollow = !on || autoOff;
   // 번짐의 세기: 꺼진 점은 옅고, 가리키면 세지고, 고르면 가장 세다
   const glow = hollow ? 0.2 : picked ? 0.9 : hot ? 0.74 : 0.56;
@@ -116,6 +120,15 @@ export function Mark({
           <stop offset={1} style={{ stopColor: tone.body }} stopOpacity={0} />
         </radialGradient>
       </defs>
+      {lead && (
+        <circle
+          r={12.8}
+          fill="none"
+          style={{ stroke: tone.body }}
+          strokeOpacity={0.8}
+          strokeWidth={1.2}
+        />
+      )}
       {picked && (
         <circle
           r={11.6}

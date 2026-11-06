@@ -1,4 +1,5 @@
 import { assertNever } from "@fresnel/contracts";
+import { tKey } from "../i18n/index.ts";
 import type {
   ExtGetResult,
   ExtHealthEntry,
@@ -337,7 +338,7 @@ export function rowOf(e: ExtListEntry, pending: WorkbenchState["pending"]): ExtR
   const target = pending[e.name];
   return {
     name: e.name,
-    displayName: e.displayName === e.name ? null : e.displayName,
+    displayName: extNameOf(e) === e.name ? null : extNameOf(e),
     layer: e.layer,
     kind: kindOf(e),
     grade: e.effectiveGrade,
@@ -352,10 +353,20 @@ export function rowOf(e: ExtListEntry, pending: WorkbenchState["pending"]): ExtR
   };
 }
 
+/** 확장의 사람 말 이름. 카탈로그에 `ext.name.<camelCase id>`(`core-loop` → `ext.name.coreLoop`)가 있으면 그것을, 없으면 매니페스트 이름을 쓴다 */
+export function extNameOf(entry: Pick<ExtListEntry, "name" | "displayName">): string {
+  const id = entry.name.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+  return tKey(`ext.name.${id}`, entry.displayName);
+}
+
 const matchesQuery = (e: ExtListEntry, query: string): boolean => {
   const q = query.trim().toLowerCase();
   if (q === "") return true;
-  return e.name.toLowerCase().includes(q) || e.displayName.toLowerCase().includes(q);
+  return (
+    e.name.toLowerCase().includes(q) ||
+    extNameOf(e).toLowerCase().includes(q) ||
+    e.displayName.toLowerCase().includes(q)
+  );
 };
 
 /** 찾기로 거른 확장 행. 구성 요소 필터는 매니페스트 읽기(`ext.get`)가 필요해 지도·순서가 자기 데이터로 건다 */
@@ -371,7 +382,7 @@ export interface LayerGroupVM {
 }
 
 /** 사용자에게 가까운 층이 위다(시안 c03 목록 순서) */
-const LAYER_ORDER: readonly string[] = ["L3", "L2", "external", "L1"];
+const LAYER_ORDER: readonly string[] = ["L3", "L2", "external", "plugin", "L1"];
 
 function layerRank(layer: string): number {
   const i = LAYER_ORDER.indexOf(layer);
