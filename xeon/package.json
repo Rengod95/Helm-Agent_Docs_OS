@@ -84,6 +84,7 @@
     "@tailwindcss/vite": "4.3.3"
   },
   "trustedDependencies": [
-    "electron"
+    "electron",
+    "mac-security"
   ]
 }

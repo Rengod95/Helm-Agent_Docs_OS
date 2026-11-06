@@ -3,6 +3,7 @@
 // clean home (CFFIXED_USER_HOME moves Electron's appData and log folders, HOME and FRESNEL_HOME move the engine's) and checks
 // what a user sees:
 //   structure       UI bundle, engine sidecar, tray icon and the notice files are in Resources
+//   mac-security    the addon (.node) is in Resources and loads; only the shape of canAuthenticate() is checked, no window opens
 //   window restore  a saved window position is where the first window appears; after a quit it reopens where it closed
 //   first screen    the window painted (screencapture of that window, same size heuristic as desktop-benchmark)
 //   engine          the app log says the sidecar started, and the sidecar is a child of the app
@@ -23,7 +24,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   FIRST_SCREEN_MIN_BYTES,
   isFirstScreen,
@@ -108,6 +109,13 @@ for w in list where (w[kCGWindowOwnerPID as String] as? Int32) == pid {
 }
 `;
 
+/** The addon report line `native=true available=<bool> biometry=<touchid|faceid|none>`: the binary loaded and canAuthenticate() has the documented shape. */
+export function isAddonReport(text: string): boolean {
+  return /^native=true available=(?:true|false) biometry=(?:touchid|faceid|none)$/u.test(
+    text.trim(),
+  );
+}
+
 const failures: string[] = [];
 function check(name: string, ok: boolean, detail = ""): void {
   process.stdout.write(`${ok ? "PASS" : "FAIL"} ${name}${detail === "" ? "" : `: ${detail}`}\n`);
@@ -171,6 +179,31 @@ if (import.meta.main) {
     check(`structure ${rel}`, existsSync(join(resources, rel)));
   }
   check("structure engine sidecar", existsSync(join(resources, "fresnel-aarch64-apple-darwin")));
+
+  // mac-security: the .node file sits in Resources and loads under the app's own Electron runtime (ELECTRON_RUN_AS_NODE).
+  // Only canAuthenticate() runs: it reads the Mac's capability and never opens an authentication window.
+  const addonDir = resolve(resources, "mac-security");
+  check(
+    "structure mac-security addon",
+    existsSync(join(addonDir, "build", "Release", "mac_security.node")),
+  );
+  const loaded = Bun.spawnSync(
+    [
+      bin,
+      "-e",
+      [
+        `const m = require(${JSON.stringify(join(addonDir, "index.js"))});`,
+        "const r = m.canAuthenticate();",
+        "process.stdout.write('native=' + (m.loadNative() !== null) + ' available=' + r.available + ' biometry=' + r.biometry);",
+      ].join(" "),
+    ],
+    { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 20_000 },
+  );
+  check(
+    "mac-security loads and reports canAuthenticate",
+    isAddonReport(loaded.stdout.toString()),
+    `exit ${String(loaded.exitCode)}`,
+  );
 
   const work = mkdtempSync(join(tmpdir(), "fresnel-electron-smoke-"));
   const swift = join(work, "probe.swift");

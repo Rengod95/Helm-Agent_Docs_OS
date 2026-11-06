@@ -24,3 +24,11 @@ test("the text starts with the header that points to the Electron and Chromium f
   expect(text.startsWith("Fresnel desktop shell (Electron) third-party notices")).toBe(true);
   expect(text).toContain("LICENSES.chromium.html");
 });
+
+test("the notice lists mac-security under MIT but not the build tools it only needs at install time", () => {
+  const built = shellNotices(xeon);
+  if (!built.ok) throw new Error(built.error.join("; "));
+  expect(built.value.text).toContain("mac-security 0.1.0");
+  expect(built.value.text).not.toContain("node-gyp");
+  expect(built.value.text).not.toContain("node-addon-api");
+});

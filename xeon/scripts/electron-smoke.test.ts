@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { boundsClose, mainWindowOf, parseWindowLine, savedBoundsOf } from "./electron-smoke.ts";
+import {
+  boundsClose,
+  isAddonReport,
+  mainWindowOf,
+  parseWindowLine,
+  savedBoundsOf,
+} from "./electron-smoke.ts";
 
 describe("parseWindowLine", () => {
   test("reads one probe line", () => {
@@ -48,5 +54,20 @@ describe("boundsClose and savedBoundsOf", () => {
     });
     expect(savedBoundsOf("not json")).toBeUndefined();
     expect(savedBoundsOf('{"x":1}')).toBeUndefined();
+  });
+});
+
+describe("isAddonReport", () => {
+  test("accepts a loaded addon with the documented shape", () => {
+    expect(isAddonReport("native=true available=true biometry=touchid")).toBe(true);
+    expect(isAddonReport("native=true available=false biometry=none\n")).toBe(true);
+  });
+
+  test("rejects a missing binary, another shape and empty output", () => {
+    expect(isAddonReport("native=false available=false biometry=none")).toBe(false);
+    expect(isAddonReport("native=true available=maybe biometry=none")).toBe(false);
+    expect(isAddonReport("native=true available=true biometry=retina")).toBe(false);
+    expect(isAddonReport("")).toBe(false);
+    expect(isAddonReport("Error: dlopen failed")).toBe(false);
   });
 });

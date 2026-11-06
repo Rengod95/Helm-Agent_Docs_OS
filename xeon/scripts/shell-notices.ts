@@ -31,7 +31,8 @@ export function shellNoticesText(items: readonly NoticeItem[]): string {
 
 /** Collects the shell's npm packages and builds the text; a package without license information is an error. */
 export function shellNotices(xeonRoot: string): Result<{ text: string; count: number }, string[]> {
-  const collected = collectNotices(xeonRoot, [SHELL_PACKAGE]);
+  // mac-security's own dependencies (node-gyp, node-addon-api) only compile the addon at install time; the app ships index.js and the .node file.
+  const collected = collectNotices(xeonRoot, [SHELL_PACKAGE], { leaves: ["mac-security"] });
   if (!collected.ok) return collected;
   return {
     ok: true,

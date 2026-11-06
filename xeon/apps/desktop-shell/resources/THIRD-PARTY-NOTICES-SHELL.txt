@@ -756,11 +756,11 @@ semver 7.7.4
   link: https://github.com/npm/node-semver
 
 ==============================================================================
-License: MIT (48 packages)
+License: MIT (49 packages)
 License text (SPDX): https://spdx.org/licenses/MIT.html
 ==============================================================================
 
-License text 1 of 5 (printed once; 37 packages carry it; copyright lines are listed under each package):
+License text 1 of 5 (printed once; 38 packages carry it; copyright lines are listed under each package):
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -870,6 +870,10 @@ jwa 2.0.1
 jws 4.0.1
   Copyright (c) 2013 Brian J. Brennan
   link: https://github.com/brianloveswords/node-jws
+
+mac-security 0.1.0
+  Copyright (c) 2026 Rengod95
+  link: not stated in package.json
 
 ms 2.1.3
   Copyright (c) 2020 Vercel, Inc.

@@ -18,7 +18,8 @@
   "dependencies": {
     "@fresnel/contracts": "workspace:*",
     "@fresnel/platform-process": "workspace:*",
-    "electron-updater": "catalog:"
+    "electron-updater": "catalog:",
+    "mac-security": "github:Rengod95/mac-security#cf3f4e0"
   },
   "devDependencies": {
     "@electron/packager": "catalog:",

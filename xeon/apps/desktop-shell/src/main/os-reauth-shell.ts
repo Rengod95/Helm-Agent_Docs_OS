@@ -1,22 +1,24 @@
-// `os_reauth`의 Electron 어댑터. `systemPreferences`(Touch ID), 시계, 앱 로그 파일을 os-reauth.ts의 ports에 잇는다.
+// `os_reauth`의 Electron 어댑터. `mac-security` 애드온(Touch ID, 안 되면 Mac 암호), 시계, 앱 로그 파일을 os-reauth.ts의 ports에 잇는다.
 // 사유 문구와 결과 판단은 os-reauth.ts에 있다. 이 파일은 연결만 한다.
-//
-// [알려진 차이, 사용자 결정 대기] Electron의 `promptTouchID`는 Touch ID 전용이라 Rust 원본의 기기 암호 대체(LAPolicy.DeviceOwnerAuthentication)가 없다.
-// Touch ID가 없는 맥은 `canPromptTouchID`가 거짓이라 `unavailable`이다. 기기 암호까지 쓰려면 네이티브 addon이 필요하다(임의로 넣지 않았다).
+// 애드온을 불러오지 못하면(`lib/mac-security.ts`) 재인증은 `unavailable`이고 앱은 계속 돈다.
 
-import { systemPreferences } from "electron";
 import type { ShellContext, ShellModule } from "./context.ts";
 import { appLogOf } from "./lib/applog.ts";
+import { loadMacSecurity } from "./lib/mac-security.ts";
 import { createOsReauthModule } from "./os-reauth.ts";
 
 export const osReauthShellModule: ShellModule = {
   name: "os-reauth",
   register(ctx: ShellContext) {
     const appLog = appLogOf(ctx);
+    // macOS가 아니면 애드온을 불러보지 않는다(명령이 포트를 부르지 않고 `unavailable`을 돌려준다)
+    const addon = ctx.platform === "darwin" ? loadMacSecurity(ctx.paths.resources) : null;
+    if (ctx.platform === "darwin" && addon === null) appLog.line("os reauth: addon not loaded");
     createOsReauthModule({
       platform: ctx.platform,
-      canPromptTouchID: () => systemPreferences.canPromptTouchID(),
-      promptTouchID: (reason) => systemPreferences.promptTouchID(reason),
+      canAuthenticate: () => addon?.canAuthenticate().available === true,
+      authenticate: (reason) =>
+        addon === null ? Promise.reject(new Error("addon not loaded")) : addon.authenticate(reason),
       now: () => Date.now(),
       log: (line) => {
         appLog.line(line);

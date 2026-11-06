@@ -23,6 +23,8 @@ const requiredInputs = [
   path.join(shell, "dist", "bundle", "main.mjs"),
   path.join(shell, "node_modules", "electron", "dist", "LICENSE"),
   path.join(shell, "dist", "engine-notices.txt"),
+  path.join(shell, "node_modules", "mac-security", "index.js"),
+  path.join(shell, "node_modules", "mac-security", "build", "Release", "mac_security.node"),
 ];
 for (const file of requiredInputs) {
   if (!existsSync(file)) {
@@ -53,6 +55,19 @@ copyFileSync(
   path.join(licenses, "THIRD-PARTY-NOTICES.txt"),
 );
 
+// mac-security(재인증): bun이 `.node`를 번들에 묶지 못한다. 애드온 폴더(index.js, package.json, 라이선스, `.node`)를
+// Resources/mac-security로 둔다(lib/mac-security.ts가 createRequire로 거기서 불러온다). Mach-O라 electron-sign.sh가 서명한다.
+const addonSrc = path.join(shell, "node_modules", "mac-security");
+const addonStage = path.join(stage, "mac-security");
+mkdirSync(path.join(addonStage, "build", "Release"), { recursive: true });
+for (const name of ["index.js", "package.json", "LICENSE"]) {
+  copyFileSync(path.join(addonSrc, name), path.join(addonStage, name));
+}
+copyFileSync(
+  path.join(addonSrc, "build", "Release", "mac_security.node"),
+  path.join(addonStage, "build", "Release", "mac_security.node"),
+);
+
 const feed = path.join(shell, "build", "update-feed.json");
 const extraResource = [
   path.join(desktop, "dist", "ui"),
@@ -60,6 +75,7 @@ const extraResource = [
   // 트레이 아이콘(tray-shell.ts가 Resources/assets/tray.png를 읽는다)
   path.join(shell, "assets"),
   licenses,
+  addonStage,
   ...(existsSync(feed) ? [feed] : []),
 ];
 

@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { type CommandRegistry, createCommandRegistry } from "../src/main/commands.ts";
 import type { IpcCaller, ShellContext } from "../src/main/context.ts";
+import { kindOfLaCode, MacSecurityError, reasonText } from "mac-security";
 import {
-  classifyTouchIdError,
   createOsReauthModule,
   type OsReauthPorts,
   promptText,
+  reauthKindOf,
 } from "../src/main/os-reauth.ts";
+import { loadMacSecurity, macSecuritySpecifier } from "../src/main/lib/mac-security.ts";
 
 /** 시험의 현재 시각. 실제 시계가 아니라 주입한 값이 그대로 나오는지 본다 */
 const NOW = 1_792_800_000_123;
@@ -50,11 +52,11 @@ function setup(options: SetupOptions = {}) {
   const counts = { canPrompt: 0 };
   const ports: OsReauthPorts = {
     platform: options.platform ?? "darwin",
-    canPromptTouchID: () => {
+    canAuthenticate: () => {
       counts.canPrompt += 1;
       return options.canPrompt?.() ?? true;
     },
-    promptTouchID: (reason) => {
+    authenticate: (reason) => {
       prompts.push(reason);
       return options.prompt?.(reason) ?? Promise.resolve();
     },
@@ -74,8 +76,8 @@ function setup(options: SetupOptions = {}) {
   };
 }
 
-/** 거절된 Touch ID 창의 답을 흉내 낸다. Electron은 Error로 거절한다 */
-function rejectWith(error: Error): () => Promise<void> {
+/** 거절된 인증 창의 답을 흉내 낸다. 애드온은 `kind`가 있는 `MacSecurityError`로 거절한다 */
+function rejectWith(error: unknown): () => Promise<void> {
   return async () => {
     throw error;
   };
@@ -118,46 +120,122 @@ describe("prompt text", () => {
   });
 });
 
-describe("Touch ID error classification", () => {
-  test("user, system, app cancels and fallback are cancelled", () => {
-    // ko 맥에서 실제로 받은 문구(2026-11-06)
-    expect(classifyTouchIdError(new Error("인증이 취소되었습니다."))).toBe("cancelled");
-    expect(classifyTouchIdError(new Error("인증하지 못했습니다."))).toBe("denied");
-    expect(classifyTouchIdError(new Error("알 수 없는 언어 문구"))).toBe("failed");
-    expect(classifyTouchIdError(new Error("User canceled the authentication"))).toBe("cancelled");
-    expect(classifyTouchIdError(new Error("Authentication was canceled by system"))).toBe(
-      "cancelled",
+describe("mac-security agreement", () => {
+  test("promptText equals the module's reasonText", () => {
+    const samples = [
+      "  Show   the\tsecret\nvalue  ",
+      "a\u001b[31mb",
+      "x\u0085y\u009bz",
+      "a　b",
+      "",
+      "  \n\t ",
+      "a".repeat(200),
+      "가".repeat(130),
+      "😀".repeat(130),
+      `${"a".repeat(119)} b`,
+    ];
+    expect(samples.map((text) => promptText(text))).toEqual(
+      samples.map((text) => reasonText(text)),
     );
-    expect(classifyTouchIdError(new Error("Authentication was canceled by application"))).toBe(
+  });
+});
+
+describe("rejection kind", () => {
+  test("the kind of a MacSecurityError is used as it is", () => {
+    expect(reauthKindOf(new MacSecurityError("cancelled", -2))).toBe("cancelled");
+    expect(reauthKindOf(new MacSecurityError("denied", -1))).toBe("denied");
+    expect(reauthKindOf(new MacSecurityError("unavailable", -5))).toBe("unavailable");
+    expect(reauthKindOf(new MacSecurityError("failed", -1000))).toBe("failed");
+  });
+
+  test("the module's LAError mapping reaches the command as the same kind", () => {
+    const codes = [-1, -2, -3, -4, -5, -6, -7, -8, -9, -1004, -1000, 7];
+    expect(
+      codes.map((code) => reauthKindOf(new MacSecurityError(kindOfLaCode(code), code))),
+    ).toEqual([
+      "denied",
       "cancelled",
+      "cancelled",
+      "cancelled",
+      "unavailable",
+      "unavailable",
+      "unavailable",
+      "unavailable",
+      "cancelled",
+      "unavailable",
+      "failed",
+      "failed",
+    ]);
+  });
+
+  test("a value without a known kind is failed", () => {
+    expect(reauthKindOf(new Error("User canceled the authentication"))).toBe("failed");
+    expect(reauthKindOf({ kind: "weird" })).toBe("failed");
+    expect(reauthKindOf({ kind: 3 })).toBe("failed");
+    expect(reauthKindOf("cancelled")).toBe("failed");
+    expect(reauthKindOf(42)).toBe("failed");
+    expect(reauthKindOf(null)).toBe("failed");
+    expect(reauthKindOf(undefined)).toBe("failed");
+  });
+});
+
+describe("addon loading", () => {
+  const api = { canAuthenticate: () => ({ available: true }), authenticate: async () => {} };
+
+  test("a bundled copy under Resources wins, else the module name is used", () => {
+    expect(macSecuritySpecifier("/R", (file) => file === "/R/mac-security/index.js")).toBe(
+      "/R/mac-security/index.js",
     );
-    expect(classifyTouchIdError(new Error("User tapped the fallback button"))).toBe("cancelled");
+    expect(macSecuritySpecifier("/R", () => false)).toBe("mac-security");
   });
 
-  test("a failed authentication or a non-matching fingerprint is denied", () => {
-    expect(classifyTouchIdError(new Error("Authentication failed"))).toBe("denied");
-    expect(classifyTouchIdError(new Error("Fingerprint did not match"))).toBe("denied");
+  test("the chosen specifier is loaded and a good module is returned", () => {
+    const seen: string[] = [];
+    const loaded = loadMacSecurity(
+      "/R",
+      (specifier) => {
+        seen.push(specifier);
+        return api;
+      },
+      () => true,
+    );
+    expect(seen).toEqual(["/R/mac-security/index.js"]);
+    expect(loaded?.canAuthenticate()).toEqual({ available: true });
   });
 
-  test("missing biometry, passcode, lockout and non-interactive are unavailable", () => {
-    expect(classifyTouchIdError(new Error("Biometry is not available"))).toBe("unavailable");
-    expect(classifyTouchIdError(new Error("Biometry is not enrolled"))).toBe("unavailable");
-    expect(classifyTouchIdError(new Error("Biometry lockout"))).toBe("unavailable");
-    expect(classifyTouchIdError(new Error("Passcode not set."))).toBe("unavailable");
-    expect(classifyTouchIdError(new Error("Not interactive"))).toBe("unavailable");
-    expect(classifyTouchIdError(new Error("No biometrics enrolled"))).toBe("unavailable");
+  test("a load failure or a wrong shape gives null, never a throw", () => {
+    const fail = loadMacSecurity(
+      "/R",
+      () => {
+        throw new Error("dlopen failed");
+      },
+      () => false,
+    );
+    expect(fail).toBeNull();
+    expect(
+      loadMacSecurity(
+        "/R",
+        () => ({ canAuthenticate: 1 }),
+        () => false,
+      ),
+    ).toBeNull();
+    expect(
+      loadMacSecurity(
+        "/R",
+        () => null,
+        () => false,
+      ),
+    ).toBeNull();
   });
 
-  test("an unknown message or value is failed", () => {
-    expect(classifyTouchIdError(new Error("Invalid context"))).toBe("failed");
-    expect(classifyTouchIdError(new Error("something unexpected"))).toBe("failed");
-    expect(classifyTouchIdError(42)).toBe("failed");
-    expect(classifyTouchIdError(undefined)).toBe("failed");
-  });
-
-  test("matching ignores case, and a bare string message counts too", () => {
-    expect(classifyTouchIdError(new Error("USER CANCELED"))).toBe("cancelled");
-    expect(classifyTouchIdError("Authentication failed")).toBe("denied");
+  test("the real module in node_modules loads in development and has the documented shape", () => {
+    const loaded = loadMacSecurity("/nonexistent-resources");
+    if (process.platform === "darwin") {
+      expect(loaded).not.toBeNull();
+      expect(typeof loaded?.canAuthenticate().available).toBe("boolean");
+    } else {
+      expect(loaded?.canAuthenticate().available ?? false).toBe(false);
+    }
   });
 });
 
@@ -172,7 +250,7 @@ describe("os_reauth command", () => {
     expect(runs.map((run) => run.logs)).toEqual(platforms.map(() => ["os reauth: unavailable"]));
   });
 
-  test("without Touch ID the answer is unavailable and nothing is shown", async () => {
+  test("without an available authenticator the answer is unavailable and nothing is shown", async () => {
     const run = setup({ canPrompt: () => false });
     expect(await run.dispatch({ reason: "Show it" })).toEqual({
       ok: false,
@@ -193,7 +271,7 @@ describe("os_reauth command", () => {
   });
 
   test("a cancelled prompt is rejected with cancelled", async () => {
-    const run = setup({ prompt: rejectWith(new Error("User canceled the authentication")) });
+    const run = setup({ prompt: rejectWith(new MacSecurityError("cancelled", -2)) });
     expect(await run.dispatch({ reason: "Show it" })).toEqual({
       ok: false,
       error: { kind: "cancelled" },
@@ -202,7 +280,7 @@ describe("os_reauth command", () => {
   });
 
   test("a denied prompt is rejected with denied", async () => {
-    const run = setup({ prompt: rejectWith(new Error("Authentication failed")) });
+    const run = setup({ prompt: rejectWith(new MacSecurityError("denied", -1)) });
     expect(await run.dispatch({ reason: "Show it" })).toEqual({
       ok: false,
       error: { kind: "denied" },
@@ -211,7 +289,7 @@ describe("os_reauth command", () => {
   });
 
   test("an unavailable prompt is rejected with unavailable", async () => {
-    const run = setup({ prompt: rejectWith(new Error("Biometry is not enrolled")) });
+    const run = setup({ prompt: rejectWith(new MacSecurityError("unavailable", -7)) });
     expect(await run.dispatch({ reason: "Show it" })).toEqual({
       ok: false,
       error: { kind: "unavailable" },
@@ -228,7 +306,7 @@ describe("os_reauth command", () => {
     expect(run.logs).toEqual(["os reauth: failed"]);
   });
 
-  test("a throw from the Touch ID check is failed", async () => {
+  test("a throw from the availability check is failed", async () => {
     const run = setup({
       canPrompt: () => {
         throw new Error("boom");
@@ -249,7 +327,7 @@ describe("os_reauth command", () => {
     expect(okRun.prompts).toEqual(["시크릿-이름 SECRET_NAME_42"]);
     expect(okRun.logs).toEqual(["os reauth: ok"]);
 
-    const failRun = setup({ prompt: rejectWith(new Error("User canceled the authentication")) });
+    const failRun = setup({ prompt: rejectWith(new MacSecurityError("cancelled", -2)) });
     await failRun.dispatch({ reason });
     expect(failRun.logs).toEqual(["os reauth: cancelled"]);
     expect(failRun.logs.join("\n")).not.toContain("SECRET_NAME_42");

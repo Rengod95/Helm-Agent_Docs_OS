@@ -201,9 +201,14 @@ function locate(name: string, fromDir: string): string | undefined {
 export function collectNotices(
   root: string,
   entries: readonly string[],
-  options: { readonly choice?: Readonly<Record<string, string>> } = {},
+  options: {
+    readonly choice?: Readonly<Record<string, string>>;
+    /** Packages that are listed but whose dependencies are not walked (their dependencies are build-time only and do not ship). */
+    readonly leaves?: readonly string[];
+  } = {},
 ): Result<NoticeItem[], string[]> {
   const choice = options.choice ?? LICENSE_CHOICE;
+  const leaves = new Set(options.leaves ?? []);
   const realRoot = realpathSync(root);
   const vendorDir = join(realRoot, "vendor") + sep;
   const seen = new Set<string>();
@@ -259,6 +264,7 @@ export function collectNotices(
             : [],
       });
     }
+    if (leaves.has(pkg.value.name)) return;
     for (const [names, isOptional] of [
       [pkg.value.dependencies, false],
       [pkg.value.optionalDependencies, true],
