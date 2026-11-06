@@ -57,7 +57,12 @@ run_step() {
 
 timings=()
 finish_failed() { # finish_failed <exit code> <step names>
-  echo "verify: step '$2' failed: exit $1 (137: memory cap ${step_max}, see journalctl --user -n 20)" >&2
+  # 메모리 안내는 실제로 137(상한에 걸려 죽음)일 때만 붙인다. macOS는 상한이 없으니 붙이지 않는다
+  if [[ "$1" == "137" && "$(uname -s)" != "Darwin" ]]; then
+    echo "verify: step '$2' failed: exit $1 (memory cap ${step_max}, see journalctl --user -n 20)" >&2
+  else
+    echo "verify: step '$2' failed: exit $1" >&2
+  fi
   echo "verify: step times: ${timings[*]}" >&2
   exit "$1"
 }
