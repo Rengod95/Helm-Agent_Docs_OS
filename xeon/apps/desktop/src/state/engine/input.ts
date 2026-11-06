@@ -56,7 +56,12 @@ export type PlanEventFact = {
  */
 export type QueuedPreview =
   | { readonly kind: "text"; readonly text: string }
-  | { readonly kind: "label"; readonly labelKey: "image" | "context" | "empty" };
+  | {
+      readonly kind: "label";
+      readonly labelKey: "image" | "context" | "helm" | "empty";
+      /** 화면에 그리지 않는 내부 지시(`display: false`). 칩으로 보이지 않는다 */
+      readonly internal?: true;
+    };
 
 /**
  * 큐에 든 입력 하나의 사실(내구, `input.queued`). 입력 id는 이벤트 id(`DurableBase.eventId`)다.

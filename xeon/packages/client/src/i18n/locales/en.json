@@ -1608,6 +1608,7 @@
   "desktop.composer.queue.mode.steer": "Goes in after the next tool round",
   "desktop.composer.queue.preview.context": "Added context",
   "desktop.composer.queue.preview.empty": "Empty input",
+  "desktop.composer.queue.preview.helm": "Helm notice",
   "desktop.composer.queue.preview.image": "Image input",
   "desktop.composer.queue.withdraw.ariaLabel": "Withdraw {text}",
   "desktop.composer.queue.withdraw.button": "Withdraw",

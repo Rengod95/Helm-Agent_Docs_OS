@@ -1608,6 +1608,7 @@
   "desktop.composer.queue.mode.steer": "다음 도구 라운드 뒤 들어가요",
   "desktop.composer.queue.preview.context": "추가 정보",
   "desktop.composer.queue.preview.empty": "빈 입력",
+  "desktop.composer.queue.preview.helm": "Helm 안내",
   "desktop.composer.queue.preview.image": "이미지 입력",
   "desktop.composer.queue.withdraw.ariaLabel": "{text} 철회",
   "desktop.composer.queue.withdraw.button": "철회",
