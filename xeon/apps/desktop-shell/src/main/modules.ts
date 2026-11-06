@@ -7,6 +7,7 @@ import { inspectModule } from "./inspect.ts";
 import { openExternalModule } from "./open-external.ts";
 import { secretEntryModule } from "./secret-entry.ts";
 import { notifyOsShellModule } from "./notify-os-shell.ts";
+import { osReauthShellModule } from "./os-reauth-shell.ts";
 import { shellIntentsModule } from "./shell-intents.ts";
 import { singleInstanceShellModule } from "./single-instance-shell.ts";
 import { trayShellModule } from "./tray-shell.ts";
@@ -27,4 +28,5 @@ export const MODULES: readonly ShellModule[] = [
   shellIntentsModule,
   trayShellModule,
   notifyOsShellModule,
+  osReauthShellModule,
 ];

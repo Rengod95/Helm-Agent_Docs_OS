@@ -826,3 +826,5 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 **셸 의도와 단일 인스턴스** (`intents.ts`, `shell-intents.ts`, `single-instance.ts`): 큐는 Tauri와 같다(최대 8개, 30초, 끝이 같은 `openThread`는 시각만 갱신). `shell_take_intents`와 `shell-intent` 이벤트도 같다. 잠금은 Electron `requestSingleInstanceLock()`이고 이 앱의 userData 기준이라 Tauri 셸(다른 데이터 폴더와 플러그인 잠금)과 서로 막지 않는다. `second-instance`와 `open-url`은 창을 앞으로 가져오기만 한다(URL 스킴은 아직 없다).
 
 **OS 알림** (`notify-os.ts`, `notify-os-shell.ts`): Electron `Notification`. 제목 80자, 본문 400자, 제어 문자 제거는 Tauri와 같고 문구는 UI가 카탈로그 문자열과 대화 제목으로 만든다(`notice.body`는 쓰지 않는다). 알림 클릭은 `click` 이벤트로 바로 `openThread` 의도를 큐에 넣고 창을 앞으로 가져온다. Tauri의 30초 기억(`notify_take_target`)은 필요 없어 이 명령은 항상 `null`을 준다(UI 호환용으로 남긴다). Electron에는 알림 권한 조회가 없어 `notify_permission`은 `Notification.isSupported()`로 `granted`/`denied`를 답한다.
+
+**재인증** (`os-reauth.ts`, `os-reauth-shell.ts`): `systemPreferences.promptTouchID()`. [미결] 동작 차이: Tauri는 `DeviceOwnerAuthentication`이라 Touch ID가 없는 Mac에서 기기 암호 창으로 갔지만 Electron API는 Touch ID만 지원한다. Touch ID가 없는 기기는 `unavailable`이다. 기기 암호까지 쓰려면 네이티브 애드온이 필요해 사용자가 정할 일이다. 오류 문구 분류는 Mac 실기 확인 전이다(`review.macos-checklist` M-05). macOS가 아닌 OS는 `unavailable`이다.
