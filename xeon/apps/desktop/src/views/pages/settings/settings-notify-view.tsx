@@ -98,10 +98,12 @@ export function NotifyPanelView(props: NotifyPanelViewProps): ReactNode {
             />
           </div>
         ))}
-        {view.kind === "prompt" || view.kind === "unknown" ? (
-          <p className="text-ui-sm text-text-tertiary">{t(view.text)}</p>
-        ) : null}
-        <p className="text-ui-sm text-text-tertiary">{t("desktop.notifySettings.focusOnly")}</p>
+        <div className="grid gap-1 pt-3">
+          {view.kind === "prompt" || view.kind === "unknown" ? (
+            <p className="text-ui-sm text-text-tertiary">{t(view.text)}</p>
+          ) : null}
+          <p className="text-ui-sm text-text-tertiary">{t("desktop.notifySettings.focusOnly")}</p>
+        </div>
       </SettingSection>
     </div>
   );
