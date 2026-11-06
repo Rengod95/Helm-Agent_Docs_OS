@@ -6,6 +6,7 @@ import {
   type TInteger,
   type TLiteral,
   type TNull,
+  type TNumber,
   type TObject,
   type TOptional,
   type TSchema,
@@ -650,6 +651,8 @@ export const ModelEntrySchema: TObject<{
   name: TString;
   contextWindow: TInteger;
   reasoning: TBoolean;
+  inputPrice: TUnion<[TNumber, TNull]>;
+  outputPrice: TUnion<[TNumber, TNull]>;
 }> = Type.Object(
   {
     /** `provider/id`. `thread.setModel`이 받는 값이다 */
@@ -658,6 +661,10 @@ export const ModelEntrySchema: TObject<{
     /** 문맥 창 크기(토큰). 문맥 사용량의 한도와 같은 값이다 */
     contextWindow: Type.Integer({ minimum: 1 }),
     reasoning: Type.Boolean(),
+    /** 입력 100만 토큰당 USD. 카탈로그가 가격을 모르면(0) null이다. 화면은 "가격 모름"으로 보인다 */
+    inputPrice: Nullable(Type.Number({ minimum: 0 })),
+    /** 출력 100만 토큰당 USD. 모르면 null이다 */
+    outputPrice: Nullable(Type.Number({ minimum: 0 })),
   },
   { additionalProperties: false },
 );

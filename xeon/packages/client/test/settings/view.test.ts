@@ -521,6 +521,27 @@ describe("labels, help and the restart banner come from the catalog", () => {
     );
   });
 
+  test("labelArgs fill the catalog sentence, in both locales", () => {
+    const enable = wireDef({
+      key: "ext.helm.enabled",
+      type: { type: "boolean" },
+      ui: {
+        tab: "plugins",
+        widget: "toggle",
+        order: 10,
+        label: "Enable Helm",
+        labelKey: "settings.ext.enabled.label",
+        labelArgs: { name: "Helm" },
+      },
+    });
+    const field = (): FieldVM | undefined =>
+      fieldOf(viewOf([enable], valuesOf(effectiveOf(enable.key, true))), enable.key);
+    setActiveLocale("ko");
+    expect(field()?.label).toBe("Helm 켜기");
+    setActiveLocale("en");
+    expect(field()?.label).toBe("Enable Helm");
+  });
+
   test("without labelKey, or with a key the catalog does not have, the definition text is shown in both locales", () => {
     const plain = wireDef({
       key: "l4.plain",

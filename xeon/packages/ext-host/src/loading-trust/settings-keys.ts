@@ -24,6 +24,7 @@ export function reservedExtensionSettings(
   source: InstallSource,
 ): { readonly namespace: SettingNamespace; readonly defs: readonly SettingDef[] } {
   const namespace: SettingNamespace = `ext.${manifest.name}`;
+  const shownName = manifest.displayName ?? manifest.name;
   const enabled: SettingDefInput = {
     type: Type.Boolean(),
     default: manifest.defaultEnabled ?? true,
@@ -33,7 +34,9 @@ export function reservedExtensionSettings(
       tab: "plugins",
       widget: "toggle",
       order: 10,
-      label: `Enable ${manifest.displayName ?? manifest.name}`,
+      label: `Enable ${shownName}`,
+      labelKey: "settings.ext.enabled.label",
+      labelArgs: { name: shownName },
     },
     since: "0.1.0",
   };
@@ -48,7 +51,9 @@ export function reservedExtensionSettings(
       tab: "plugins",
       widget: "select",
       order: 20,
-      label: `${manifest.displayName ?? manifest.name} isolation`,
+      label: `${shownName} isolation`,
+      labelKey: "settings.ext.isolation.label",
+      labelArgs: { name: shownName },
     },
     since: "0.1.0",
   };

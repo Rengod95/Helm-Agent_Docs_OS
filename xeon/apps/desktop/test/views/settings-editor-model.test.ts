@@ -187,6 +187,12 @@ describe("the tools panel owns the search order", () => {
     expect(dedicatedEditorOf(byHint)).toBeNull();
   });
 
+  test("an extension enabled key is the plugins panel's, its isolation key is not", () => {
+    expect(panelOwnedOf(fieldOf("ext.helm.enabled", "plugins", "toggle"))).toBe(true);
+    expect(panelOwnedOf(fieldOf("ext.helm.isolation", "plugins", "select"))).toBe(false);
+    expect(panelOwnedOf(fieldOf("ext.helm.autoStart", "plugins", "select"))).toBe(false);
+  });
+
   test("an ordinary tools field is not the panel's", () => {
     expect(panelOwnedOf(fieldOf("l2.web.search.parallel", "tools", "number"))).toBe(false);
   });

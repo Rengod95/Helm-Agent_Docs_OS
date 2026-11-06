@@ -55,6 +55,8 @@ import {
 import {
   DEFAULT_MODEL_CHOICE,
   modelOptionsOf,
+  priceNumberText,
+  type ModelOption,
   useDefaultModel,
   useModelChoices,
   useSessionUsage,
@@ -105,6 +107,17 @@ const RING_TEXT: Record<RingTone, string> = {
  * 고르면 `thread.setModel`로 이 대화의 다음 turn부터 바뀐다. 대화가 모델을 정했으면 끝에 "기본 모델"로 되돌리는 줄이 있다.
  * 목록은 호스트 카탈로그(`models.list`)다
  */
+function modelOptionText(option: ModelOption): string {
+  if (option.price === null) return option.label;
+  if (option.price === "unknown") {
+    return `${option.label} · ${t("desktop.composer.model.priceUnknown")}`;
+  }
+  return `${option.label} · ${t("desktop.composer.model.price", {
+    input: priceNumberText(option.price.input),
+    output: priceNumberText(option.price.output),
+  })}`;
+}
+
 export function ModelSelect(props: {
   /** 지금 쓰는 모델 참조(대화가 정한 모델, 없으면 기본 모델) */
   readonly current: string;
@@ -138,7 +151,7 @@ export function ModelSelect(props: {
         <SelectOption key={option.value} value={option.value}>
           {option.value === DEFAULT_MODEL_CHOICE
             ? t("desktop.composer.model.default", { model: option.label })
-            : option.label}
+            : modelOptionText(option)}
         </SelectOption>
       ))}
     </Select>

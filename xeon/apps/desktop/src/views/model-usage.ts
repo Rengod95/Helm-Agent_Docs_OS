@@ -54,40 +54,86 @@ export function sessionUsageOf(result: {
 /** 입력창 모델 select의 값. 대화가 정한 모델을 거두고 기본 모델로 돌아가는 줄이다 */
 export const DEFAULT_MODEL_CHOICE = "default";
 
+/** 100만 토큰당 USD 가격. 카탈로그가 가격을 모르면 `"unknown"`, 카탈로그 밖의 줄이면 null이다 */
+type ModelPrice = { readonly input: number; readonly output: number } | "unknown" | null;
+
 /** select의 한 줄. `value`는 모델 참조다 */
 export interface ModelOption {
   readonly value: string;
   readonly label: string;
   /** 문맥 창 크기. 모르면 null */
   readonly contextWindow: number | null;
+  readonly price: ModelPrice;
+}
+
+const DATED_REF = /-\d{8}$/;
+const LATEST_SUFFIX = / \(latest\)$/;
+
+/** 같은 모델의 날짜 붙은 사본(`…-20251001`)은 날짜 없는 별칭이 있으면 감춘다. 지금 쓰는 모델이면 남긴다 */
+function isHiddenDuplicate(
+  ref: string,
+  refs: ReadonlySet<string>,
+  current: string | null,
+): boolean {
+  return ref !== current && DATED_REF.test(ref) && refs.has(ref.replace(DATED_REF, ""));
+}
+
+/** 제공자 이름순, 같은 제공자에서는 새 버전이 앞에 오게 */
+function compareEntries(a: ModelEntry, b: ModelEntry): number {
+  const [pa = "", ...ra] = a.ref.split("/");
+  const [pb = "", ...rb] = b.ref.split("/");
+  if (pa !== pb) return pa < pb ? -1 : 1;
+  return rb.join("/").localeCompare(ra.join("/"), "en", { numeric: true });
+}
+
+function priceOf(entry: ModelEntry): ModelPrice {
+  return entry.inputPrice === null || entry.outputPrice === null
+    ? "unknown"
+    : { input: entry.inputPrice, output: entry.outputPrice };
 }
 
 /**
  * 모델 select의 줄. 호스트 카탈로그(`models.list`)의 모델에, 지금 쓰는 모델이 카탈로그에 없으면 그것을 더한다(자격 증명이 빠진 provider 등).
- * `returnTo`가 있으면(대화가 모델을 정했고 기본 모델을 안다) 끝에 기본 모델로 돌아가는 줄(`DEFAULT_MODEL_CHOICE`)을 둔다.
- * 이름은 `provider/`를 뗀 모델 이름이다
+ * 날짜 붙은 중복은 감추고 제공자순·새 버전순으로 줄 세운다. 이름은 카탈로그 이름(`(latest)` 뗌)이고 없으면 `provider/`를 뗀 모델 이름이다.
+ * `returnTo`가 있으면(대화가 모델을 정했고 기본 모델을 안다) 끝에 기본 모델로 돌아가는 줄(`DEFAULT_MODEL_CHOICE`)을 둔다
  */
 export function modelOptionsOf(
   choices: readonly ModelEntry[],
   current: string | null,
   returnTo: string | null,
 ): readonly ModelOption[] {
-  const options: ModelOption[] = choices.map((entry) => ({
-    value: entry.ref,
-    label: modelLabelOf(entry.ref),
-    contextWindow: entry.contextWindow,
-  }));
-  if (current !== null && !choices.some((entry) => entry.ref === current)) {
-    options.unshift({ value: current, label: modelLabelOf(current), contextWindow: null });
+  const refs = new Set(choices.map((entry) => entry.ref));
+  const options: ModelOption[] = choices
+    .filter((entry) => !isHiddenDuplicate(entry.ref, refs, current))
+    .toSorted(compareEntries)
+    .map((entry) => ({
+      value: entry.ref,
+      label: entry.name === "" ? modelLabelOf(entry.ref) : entry.name.replace(LATEST_SUFFIX, ""),
+      contextWindow: entry.contextWindow,
+      price: priceOf(entry),
+    }));
+  if (current !== null && !refs.has(current)) {
+    options.unshift({
+      value: current,
+      label: modelLabelOf(current),
+      contextWindow: null,
+      price: null,
+    });
   }
   if (returnTo !== null) {
     options.push({
       value: DEFAULT_MODEL_CHOICE,
       label: modelLabelOf(returnTo),
       contextWindow: null,
+      price: null,
     });
   }
   return options;
+}
+
+/** 가격 한 칸의 짧은 글자: 1 미만은 소수 셋째 자리까지 의미 있게, 그 이상은 둘째 자리까지 */
+export function priceNumberText(usd: number): string {
+  return usd < 1 ? String(Number(usd.toFixed(3))) : String(Number(usd.toFixed(2)));
 }
 
 /** 토큰 수를 짧게: 999 이하는 그대로, 천 단위는 `41k`, 백만 단위는 `1.2M` */
