@@ -12,6 +12,7 @@ import {
   IconButton,
   Input,
   NumberField,
+  type NumberFieldDraft,
   RadioGroup,
   RadioGroupItem,
   Select,
@@ -26,11 +27,12 @@ import {
   scopeText,
   type FieldVM,
   type RuntimeBadge,
+  type WidgetVM,
   type WritableScope,
 } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingKey } from "@fresnel/contracts/settings";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import {
   dedicatedEditorOf,
   fallbackScopeOf,
@@ -42,6 +44,7 @@ import {
   launchChoiceOf,
   numberValueOf,
   optionOf,
+  optionLabelOf,
   optionTextOf,
   remoteNoticeOf,
   scopeChoiceShown,
@@ -261,29 +264,13 @@ export function FieldRow(props: FieldRowProps): ReactNode {
         />
       ) : null}
       {control === "number" && field.widget.kind === "number" ? (
-        <Field disabled={disabled} error={errorText}>
-          <span className="flex items-center gap-2">
-            <NumberField
-              appearance="stepper"
-              size="sm"
-              containerClassName="w-36"
-              aria-label={field.label}
-              commitMode="release"
-              value={numberValueOf(field.value)}
-              min={field.widget.min ?? undefined}
-              max={field.widget.max ?? undefined}
-              step={field.widget.integer ? 1 : undefined}
-              disabled={disabled}
-              invalid={errorText !== null}
-              onValueChange={(next) => {
-                handlers.change(field.key, next);
-              }}
-            />
-            {field.widget.unit === null ? null : (
-              <span className="text-ui-sm text-text-tertiary">{field.widget.unit}</span>
-            )}
-          </span>
-        </Field>
+        <NumberControl
+          field={field}
+          widget={field.widget}
+          disabled={disabled}
+          errorText={errorText}
+          handlers={handlers}
+        />
       ) : null}
       {control === "text" ? (
         <Field disabled={disabled} error={errorText}>
@@ -416,6 +403,75 @@ export function FieldRow(props: FieldRowProps): ReactNode {
   );
 }
 
+/** 숫자 칸 입력이 값으로 받아지지 않을 때 칸 아래에 보일 이유. 범위는 스키마의 min/max에서 만든다 */
+function numberDraftTextOf(
+  error: NumberFieldDraft["error"],
+  widget: Extract<WidgetVM, { readonly kind: "number" }>,
+): string | null {
+  switch (error) {
+    case null:
+      return null;
+    case "empty":
+      return t("desktop.settings.field.number.empty");
+    case "syntax":
+      return t("desktop.settings.field.number.syntax");
+    case "range":
+      if (widget.min !== null && widget.max !== null) {
+        return t("client.settings.field.invalidRange", { min: widget.min, max: widget.max });
+      }
+      if (widget.min !== null) return t("client.settings.field.invalidMin", { min: widget.min });
+      if (widget.max !== null) return t("client.settings.field.invalidMax", { max: widget.max });
+      return t("client.settings.field.invalidValue");
+    default:
+      return assertNever(error, "CommittedValueError");
+  }
+}
+
+/**
+ * 숫자 칸. 칸은 `release` 방식이라 범위 밖 글은 값으로 올라오지 않고 칸 안에 초안으로 남는다.
+ * 그 초안의 사유는 `onDraftChange`로만 알 수 있어 여기서 받아 칸 아래 오류 문장으로 보인다.
+ */
+function NumberControl(props: {
+  readonly field: FieldVM;
+  readonly widget: Extract<WidgetVM, { readonly kind: "number" }>;
+  readonly disabled: boolean;
+  readonly errorText: string | null;
+  readonly handlers: FieldHandlers;
+}): ReactNode {
+  const { field, widget, disabled, handlers } = props;
+  const [draftError, setDraftError] = useState<NumberFieldDraft["error"]>(null);
+  const errorText = props.errorText ?? numberDraftTextOf(draftError, widget);
+  return (
+    <Field disabled={disabled} error={errorText}>
+      <span className="flex items-center gap-2">
+        <NumberField
+          appearance="stepper"
+          size="sm"
+          containerClassName="w-36"
+          aria-label={field.label}
+          commitMode="release"
+          value={numberValueOf(field.value)}
+          min={widget.min ?? undefined}
+          max={widget.max ?? undefined}
+          step={widget.integer ? 1 : undefined}
+          disabled={disabled}
+          invalid={errorText !== null}
+          onDraftChange={(draft) => {
+            setDraftError(draft.error);
+          }}
+          onValueChange={(next) => {
+            setDraftError(null);
+            handlers.change(field.key, next);
+          }}
+        />
+        {widget.unit === null ? null : (
+          <span className="text-ui-sm text-text-tertiary">{widget.unit}</span>
+        )}
+      </span>
+    </Field>
+  );
+}
+
 /** 고르기 칸. 선택지가 여덟 이하면 라디오 묶음, 넘으면 선택 상자다. 네 개 이하는 한 줄로 늘어놓는다(c04, P-09) */
 function ChoiceField(props: {
   readonly field: FieldVM;
@@ -443,7 +499,7 @@ function ChoiceField(props: {
         >
           {options.map((option) => (
             <RadioGroupItem key={optionTextOf(option)} value={optionTextOf(option)}>
-              {optionTextOf(option)}
+              {optionLabelOf(field.key, option)}
             </RadioGroupItem>
           ))}
         </RadioGroup>
@@ -459,7 +515,7 @@ function ChoiceField(props: {
         >
           {options.map((option) => (
             <SelectOption key={optionTextOf(option)} value={optionTextOf(option)}>
-              {optionTextOf(option)}
+              {optionLabelOf(field.key, option)}
             </SelectOption>
           ))}
         </Select>

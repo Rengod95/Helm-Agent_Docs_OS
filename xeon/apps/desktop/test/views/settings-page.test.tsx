@@ -174,6 +174,32 @@ describe("field rows", () => {
     expect(out).toContain(t("client.settings.field.invalidRange", { min: 1, max: 20 }));
   });
 
+  test("an out-of-range draft shows the range sentence under the number field", () => {
+    const state = reduceSettings(stateOf([STEPS], SETTINGS), {
+      type: "draftEdited",
+      key: STEPS.key,
+      raw: 99,
+    });
+    const out = html(propsOf({ view: settingsViewOf(state), tab: "budgets" }));
+    expect(out).toContain(t("client.settings.field.invalidRange", { min: 1, max: 20 }));
+  });
+
+  test("a choice field shows the catalog label of each option, not the raw value", () => {
+    const onUnavailable = defOf(
+      "l0.sandbox.onUnavailable",
+      "permissions",
+      "select",
+      { type: "string" },
+      { range: { enum: ["disable_execute", "ask", "run_unsandboxed"] } },
+      { order: 1, label: "When the sandbox is unavailable" },
+    );
+    const view = viewOf([onUnavailable], [settingOf(onUnavailable.key, "ask")]);
+    const out = html(propsOf({ view, tab: "permissions" }));
+    expect(out).toContain(t("settings.l0.sandbox.onUnavailable.option.runUnsandboxed"));
+    expect(out).toContain(t("settings.l0.sandbox.onUnavailable.option.disableExecute"));
+    expect(out).not.toContain(">run_unsandboxed<");
+  });
+
   test("a clean state has no error line for its field", () => {
     const out = html(propsOf({ view: viewOf([STEPS], SETTINGS), tab: "budgets" }));
     expect(out).not.toContain(t("client.settings.field.invalidRange", { min: 1, max: 20 }));

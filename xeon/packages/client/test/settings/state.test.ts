@@ -140,7 +140,7 @@ describe("drafts and client checks", () => {
     const state = run(base(), { type: "draftEdited", key: BUDGET, raw: 25 });
     expect(state.drafts.get(BUDGET)).toEqual({
       value: 25,
-      issues: [{ path: "", message: "1에서 20 사이 값만 넣을 수 있어요" }],
+      issues: [{ path: "", message: "1에서 20 사이로 적어 주세요" }],
     });
   });
 
@@ -403,7 +403,7 @@ describe("view overlay", () => {
     expect(field).toMatchObject({
       value: 25,
       dirty: true,
-      issues: [{ path: "", message: "1에서 20 사이 값만 넣을 수 있어요" }],
+      issues: [{ path: "", message: "1에서 20 사이로 적어 주세요" }],
       saving: false,
       error: null,
       remoteChanged: false,

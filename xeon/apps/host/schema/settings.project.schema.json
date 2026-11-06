@@ -372,9 +372,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Concurrent children of one owning tree root",
+          "help": "Concurrent children of one owning tree root. The limit for all conversations together is on the Execution tab.",
           "helpKey": "settings.l1.agents.maxConcurrent.help",
-          "label": "Concurrent subagents",
+          "label": "Concurrent subagents (per owning tree)",
           "labelKey": "settings.l1.agents.maxConcurrent.label",
           "order": 310,
           "tab": "models",
@@ -1046,7 +1046,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "provider → { minIntervalMs, onLimit(wait|switch|fail), maxWaitMs }",
+          "help": "Per provider: minimum interval (minIntervalMs), what to do at the limit (onLimit: wait, switch or fail), longest wait (maxWaitMs).",
           "helpKey": "settings.l1.models.rateLimit.help",
           "label": "Rate limit",
           "labelKey": "settings.l1.models.rateLimit.label",
@@ -1373,7 +1373,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "label": "Concurrent subagents",
+          "help": "Subagents running at the same time across the whole app, all conversations together. Each owning tree has its own, smaller limit on the Models tab.",
+          "helpKey": "settings.l1.tasks.limits.subagents.help",
+          "label": "Concurrent subagents (all)",
           "labelKey": "settings.l1.tasks.limits.subagents.label",
           "order": 20,
           "tab": "execution",

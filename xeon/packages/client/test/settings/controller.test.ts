@@ -194,8 +194,8 @@ describe("edit and commit", () => {
     expect(host.methods()).toEqual(["settings.list", "settings.get"]);
     expect(host.controller.getState().errors.get(BUDGET)).toEqual({
       kind: "invalidValue",
-      message: "1에서 20 사이 값만 넣을 수 있어요",
-      issues: [{ path: "", message: "1에서 20 사이 값만 넣을 수 있어요" }],
+      message: "1에서 20 사이로 적어 주세요",
+      issues: [{ path: "", message: "1에서 20 사이로 적어 주세요" }],
     });
   });
 
