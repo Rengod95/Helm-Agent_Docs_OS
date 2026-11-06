@@ -65,6 +65,11 @@ describe("Shell slots", () => {
     expect(out).toContain("상태 표시줄 슬롯");
   });
 
+  test("the stage reserves the end rail width so the rail cannot cover head buttons", () => {
+    const out = render(1400);
+    expect(out).toMatch(/<main[^>]*class="[^"]*\bpe-11\b/);
+  });
+
   test("a screen id nobody registered shows the not-yet empty state", () => {
     const out = render(1400, (model) => updatePlace(model, { screen: "proposals" }));
     expect(out).toContain("이 화면은 아직 없어요");
