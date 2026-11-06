@@ -1,7 +1,7 @@
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ModelEntry, UsageContext, UsageGauge } from "@fresnel/contracts/wire";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLinkPhase, useThread } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 import { usageFractionOf } from "./pages/providers/providers-model.ts";
@@ -49,6 +49,11 @@ export function sessionUsageOf(result: {
     return f === null ? [] : [f];
   });
   return { tokens, percent: fractions.length === 0 ? null : Math.max(...fractions), limit: null };
+}
+
+/** 사용량의 한도를 바꾼 모델의 문맥 창으로 갈아 끼운다. 쓴 토큰은 그대로이고 비율만 다시 구한다 */
+export function withLimit(usage: SessionUsage, limit: number): SessionUsage {
+  return { tokens: usage.tokens, limit, percent: Math.min(100, (usage.tokens / limit) * 100) };
 }
 
 /** 입력창 모델 select의 값. 대화가 정한 모델을 거두고 기본 모델로 돌아가는 줄이다 */
@@ -170,19 +175,44 @@ export function useDefaultModel(): string | null {
   return model;
 }
 
+// "대화 요약"이 끝난 직후 사용량을 다시 읽게 하는 신호. 요약은 턴이 아니라 `running`이 바뀌지 않아 따로 알린다.
+let usageEpoch = 0;
+const epochListeners = new Set<() => void>();
+
+/** 요약이 문맥 크기를 바꿨으니 열린 사용량 읽기를 다시 하라고 알린다 */
+export function bumpUsageEpoch(): void {
+  usageEpoch += 1;
+  for (const listener of epochListeners) listener();
+}
+
+function subscribeEpoch(listener: () => void): () => void {
+  epochListeners.add(listener);
+  return () => {
+    epochListeners.delete(listener);
+  };
+}
+
 /**
- * 이 대화의 사용량(`usage.get { threadId }`). 대화가 바뀌거나 턴이 끝나면(`running`이 거짓이 되면) 다시 읽는다.
- * 읽지 못하면 null이다(옛 값을 남기지 않는다).
+ * 이 대화의 사용량(`usage.get { threadId }`). 대화가 바뀌거나 턴이 끝나거나(`running`이 거짓이 됨) 요약이 끝나면 다시 읽는다.
+ * 읽지 못하면 null이다(옛 값을 남기지 않는다). 대화가 모델을 골랐으면 한도(문맥 창)는 읽은 마지막 호출의 모델이 아니라
+ * 고른 모델의 창이다(모델을 바꾼 직후 다음 호출 전에도 맞는다).
  */
-export function useSessionUsage(threadId: ThreadId | null, running: boolean): SessionUsage | null {
+export function useSessionUsage(threadId: ThreadId, running: boolean): SessionUsage | null {
   const commands = useCommands();
   const phase = useLinkPhase();
+  const epoch = useSyncExternalStore(
+    subscribeEpoch,
+    () => usageEpoch,
+    () => 0,
+  );
+  const chosen = useThread(threadId)?.model;
+  const choices = useModelChoices();
   const [slot, setSlot] = useState<{
     readonly thread: ThreadId;
     readonly usage: SessionUsage | null;
   } | null>(null);
   useEffect(() => {
-    if (phase !== "live" || threadId === null || running) return undefined;
+    if (phase !== "live" || running) return undefined;
     let stale = false;
     detach(
       commands.usage.get({ threadId }).then((result) => {
@@ -199,8 +229,11 @@ export function useSessionUsage(threadId: ThreadId | null, running: boolean): Se
     return () => {
       stale = true;
     };
-  }, [commands, phase, threadId, running]);
-  return slot !== null && slot.thread === threadId ? slot.usage : null;
+  }, [commands, phase, threadId, running, epoch]);
+  const usage = slot !== null && slot.thread === threadId ? slot.usage : null;
+  const window =
+    chosen === undefined ? undefined : choices.find((entry) => entry.ref === chosen)?.contextWindow;
+  return usage === null || window === undefined ? usage : withLimit(usage, window);
 }
 
 /**

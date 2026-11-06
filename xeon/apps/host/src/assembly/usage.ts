@@ -1,6 +1,7 @@
 import { err, ok, parse, type Result } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
+  CompactedPayloadSchema,
   ItemRecordedPayloadSchema,
   type DurableEventEnvelope,
   type ReadFailure,
@@ -160,10 +161,12 @@ export function createUsageSource(
       if (readEvents === undefined || contextWindowOf === undefined) return undefined;
       const read = await readEvents(threadId, { kindPrefix: "item.recorded" });
       if (!read.ok) return undefined;
-      // 커밋 순서로 가장 나중의 끝난 어시스턴트 호출이 지금 문맥의 크기다(분기를 되감았어도 돈을 쓴 마지막 호출을 본다)
+      // 커밋 순서로 가장 나중의 끝난 어시스턴트 호출이 지금 문맥의 크기다(분기를 되감았어도 돈을 쓴 마지막 호출을 본다).
+      // 그 호출 뒤에 요약(`thread.compacted`)이 커밋됐으면 다음 호출 전까지 문맥은 요약 뒤 추정 토큰(`tokensAfter`)이다
       let latest:
         | { readonly provider: string; readonly model: string; readonly used: number }
         | undefined;
+      let latestSeq = 0;
       for (const event of read.value) {
         if (event.kind !== "item.recorded") continue;
         const checked = parse(ItemRecordedPayloadSchema, event.payload);
@@ -175,6 +178,20 @@ export function createUsageSource(
           model: message.model,
           used: message.usage.totalTokens,
         };
+        latestSeq = event.seq;
+      }
+      if (latest !== undefined) {
+        const compactedRead = await readEvents(threadId, { kindPrefix: "thread.compacted" });
+        if (compactedRead.ok) {
+          let afterSeq = latestSeq;
+          for (const event of compactedRead.value) {
+            if (event.kind !== "thread.compacted" || event.seq <= afterSeq) continue;
+            const checked = parse(CompactedPayloadSchema, event.payload);
+            if (!checked.ok || checked.value.tokensAfter === undefined) continue;
+            afterSeq = event.seq;
+            latest = { ...latest, used: checked.value.tokensAfter };
+          }
+        }
       }
       if (latest === undefined) return undefined;
       const limit = contextWindowOf(latest.provider, latest.model);

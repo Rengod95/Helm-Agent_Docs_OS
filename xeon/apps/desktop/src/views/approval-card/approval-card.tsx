@@ -280,7 +280,21 @@ function PendingCard(props: {
         tabIndex={-1}
         onKeyDown={onKeyDown}
       >
-        {bodyNode}
+        {body.kind === "plan" ? (
+          // 긴 계획은 본문만 최대 높이 안에서 스크롤하고 단추 줄은 아래에 늘 보인다. 초점 순서는 본문 → 단추
+          <div
+            data-slot="approval-plan-scroll"
+            role="region"
+            aria-label={t("desktop.approvals.plan.scrollLabel")}
+            // 키보드로 방향키 스크롤을 하려면 스크롤 영역이 초점을 받아야 한다
+            tabIndex={0}
+            className="flex max-h-[min(20rem,28dvh)] flex-col gap-2 overflow-y-auto"
+          >
+            {bodyNode}
+          </div>
+        ) : (
+          bodyNode
+        )}
         {/* 대기열 띠 안에서 카드 본문이 스크롤될 때 응답 단추 줄이 바닥에 붙어 늘 닿는다(sticky, 배경은 카드 면과 같다) */}
         <div
           data-slot="approval-actions"
