@@ -2,6 +2,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { PostItem } from "@fresnel/contracts/extensions";
 import type { LensDef } from "./lenses.ts";
 import type { InquiryFinishedPayload } from "./records.ts";
+import { LIMIT_TEXT, OUTCOME_TEXT } from "./texts.ts";
 import {
   PHASE_TEXT,
   type HelmLens,
@@ -163,8 +164,9 @@ export function suggestionNotice(crossed: readonly HelmSignalKind[]): PostItem {
 export function finishedNotice(finished: InquiryFinishedPayload): PostItem {
   const skipped = finished.skippedLenses ?? 0;
   const skippedText = skipped > 0 ? `, ${String(skipped)}개 건너뜀(답을 받지 못해 돌지 않음)` : "";
-  const base = `[helm] 탐구를 마쳤습니다(${finished.outcome}). 발견 ${String(finished.findingCount)}개, 렌즈 ${String(finished.lensCount)}개 중 ${String(finished.failedLenses)}개 실패${skippedText}.`;
-  const limit = finished.limit === undefined ? "" : ` 임대 상한(${finished.limit})에 도달했습니다.`;
+  const base = `[helm] 탐구를 마쳤습니다(${OUTCOME_TEXT[finished.outcome]}). 발견 ${String(finished.findingCount)}개, 렌즈 ${String(finished.lensCount)}개 중 ${String(finished.failedLenses)}개 실패${skippedText}.`;
+  const limit =
+    finished.limit === undefined ? "" : ` ${LIMIT_TEXT[finished.limit]} 상한에 닿았어요.`;
   const reason = finished.reason === undefined ? "" : ` 사유: ${finished.reason}`;
   return notice("status", `${base}${limit}${reason}`);
 }
@@ -187,6 +189,6 @@ export function phaseNotice(from: HelmPhase, to: HelmPhase): PostItem {
 export function rejectedNotice(): PostItem {
   return notice(
     "status",
-    "[helm] 임대 대기 상한을 넘어 탐구 요청을 거두었습니다. 다시 시작하려면 /helm start 를 쓰세요.",
+    "[helm] 시작을 기다리는 시간이 너무 길어져 탐구 요청을 거두었어요. 다시 시작하려면 /helm start 를 쓰세요.",
   );
 }
