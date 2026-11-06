@@ -12,7 +12,7 @@ import {
   type BridgePolicyContext,
   type ThemePush,
 } from "@fresnel/client/views/app";
-import { Button } from "@caustic/react";
+import { Button, Chip } from "@caustic/react";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createBridgeBackend } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
@@ -61,14 +61,14 @@ const randomFill = (bytes: Uint8Array): void => {
   crypto.getRandomValues(bytes);
 };
 
-/** 한 줄 자리(상태 표시줄 칸)에서는 `dense`로 여백을 줄인다 */
+/** 한 줄 자리(상태 표시줄 칸)에서는 `dense`로 여백을 줄인다. 셸 한 줄 글은 본문 글 역할(text-ui-dense)이다 */
 function Note(props: { readonly text: string; readonly dense?: boolean }): ReactNode {
   return (
     <p
       className={
         props.dense === true
-          ? "px-1 text-ui-sm text-text-secondary"
-          : "p-3 text-ui text-text-secondary"
+          ? "m-0 px-1 text-ui-dense text-text-secondary"
+          : "m-0 p-3 text-ui-dense text-text-secondary"
       }
     >
       {props.text}
@@ -76,22 +76,25 @@ function Note(props: { readonly text: string; readonly dense?: boolean }): React
   );
 }
 
+/** 머리: 제목(strong) 옆에 연한 메타 한 줄. 선 없이 간격으로만 나눈다(DP-03) */
 function Header(props: { readonly entry: ExtUiEntry }): ReactNode {
   const { entry } = props;
   const trust = entry.trust === "managed" ? "user" : entry.trust;
   return (
-    <header className="flex items-baseline gap-2 border-b px-3 py-2">
-      <h2 className="text-ui font-medium">
+    <header className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 pt-3 pb-2">
+      <h2 className="m-0 font-ui text-ui-strong text-text-primary">
         {extMessageOf(entry.messages, activeLocale(), entry.title)}
       </h2>
-      <span className="text-ui-sm text-text-secondary">
+      <span className="min-w-0 text-ui-sm text-text-tertiary">
         {entry.extension} · v{entry.version}
       </span>
-      <span className="text-ui-sm text-text-secondary">
+      <span className="min-w-0 text-ui-sm text-text-tertiary">
         {t(`client.view.confirm.trust.${trust}`)}
       </span>
       {entry.trust === "project" ? (
-        <span className="text-ui-sm">{t("client.view.confirm.projectBadge")}</span>
+        <Chip size="sm" tone="warning" variant="soft">
+          {t("client.view.confirm.projectBadge")}
+        </Chip>
       ) : null}
     </header>
   );
@@ -119,6 +122,8 @@ function DisabledNote(props: {
     >
       <Note text={t("desktop.plugin.frame.disabled")} dense={props.dense === true} />
       <Button
+        size="xs"
+        variant="outline"
         onClick={() => {
           props.runtime.ledger.reenable(props.keyName);
         }}
@@ -485,7 +490,7 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
   return (
     <section className="flex min-h-0 flex-1 flex-col">
       <Header entry={entry} />
-      <div className="min-h-0 flex-1 overflow-auto">{body}</div>
+      <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">{body}</div>
     </section>
   );
 }

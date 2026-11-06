@@ -33,7 +33,10 @@ const LOADING: { readonly kind: "loading" } = { kind: "loading" };
 const ERROR: { readonly kind: "error" } = { kind: "error" };
 const IDLE: { readonly kind: "idle" } = { kind: "idle" };
 
-const MUTED = "m-0 text-ui-sm text-text-tertiary";
+/** 안내 한 줄(시안의 intro와 빈 자리 글). 글 역할은 본문 보조다 */
+const MUTED = "m-0 text-ui-dense text-text-secondary";
+/** 행 아래 캡션 한 줄(잠긴 이유, 적용 대기). 시안의 행 캡션 역할이다 */
+const CAPTION = "m-0 text-ui-xs text-text-tertiary";
 
 /** 스위치가 잠긴 이유의 한 줄 글. 전역에서 꺼진 것은 크래프트에서 켜라고 가리킨다 */
 const LOCK_TEXT: Readonly<Record<ThreadLock, MessageId>> = {
@@ -146,14 +149,15 @@ function useThreadList(
 function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
   return (
     <section aria-label={props.title} className="grid content-start gap-2 border-b p-3">
-      <h3 className="m-0 text-ui-sm font-semibold text-text-primary">{props.title}</h3>
+      {/* 구역 머리는 시안의 SectionTitle 역할(본문 크기, 굵은 글, 선 없음) */}
+      <h3 className="m-0 text-ui-dense font-semibold text-text-primary">{props.title}</h3>
       {props.children}
     </section>
   );
 }
 
 /**
- * 행의 배지. 쓰는 중에는 배지가 없고(목표 값이 그림을 대신한다), 경계를 기다리면 "적용 대기", 열린 대화에서만 꺼졌으면 "꺼짐"이다.
+ * 행의 배지. 쓰는 중이거나 경계를 기다리는 동안은 없고(적용 대기는 행 아래 캡션), 열린 대화에서만 꺼졌으면 "꺼짐"이다.
  */
 function rowBadge(props: {
   readonly view: ShownSwitch;
@@ -161,8 +165,7 @@ function rowBadge(props: {
   readonly pending: boolean;
   readonly writing: boolean;
 }): ReactNode {
-  if (props.writing) return null;
-  if (props.pending) return <Badge size="sm">{t("desktop.plugin.thread.appliesAt")}</Badge>;
+  if (props.writing || props.pending) return null;
   if (props.view.kind === "open" && !props.on) {
     return <Badge size="sm">{t("desktop.plugin.thread.off")}</Badge>;
   }
@@ -185,9 +188,12 @@ function renderThreadRow(props: {
   const pending = threadPendingOf(entry) !== null;
   const busy = props.writing !== undefined || pending;
   return (
-    <li key={entry.name} className="grid gap-1 border-b py-2.5 last:border-b-0">
-      <div className="flex items-center gap-2 text-ui-sm">
-        <span className="min-w-0 flex-1 truncate">
+    <li
+      key={entry.name}
+      className="grid gap-1 border-b border-border-subtle py-2.5 last:border-b-0"
+    >
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-ui font-medium text-text-primary">
           <ExtName row={rowOf(entry, {})} />
         </span>
         {rowBadge({ view, on, pending, writing: props.writing !== undefined })}
@@ -201,7 +207,12 @@ function renderThreadRow(props: {
           }}
         />
       </div>
-      {view.kind === "locked" && <p className={MUTED}>{t(LOCK_TEXT[view.lock])}</p>}
+      {view.kind === "locked" && <p className={CAPTION}>{t(LOCK_TEXT[view.lock])}</p>}
+      {pending && props.writing === undefined && (
+        <span role="status" className={CAPTION}>
+          {t("desktop.plugin.thread.appliesAt")}
+        </span>
+      )}
     </li>
   );
 }
@@ -237,7 +248,9 @@ export function ThreadSwitchesBody(props: {
   if (list.kind === "error") {
     return (
       <Section title={title}>
-        <Alert tone="danger">{t("desktop.plugin.thread.loadFailed")}</Alert>
+        <Alert tone="danger" layout="inline">
+          {t("desktop.plugin.thread.loadFailed")}
+        </Alert>
       </Section>
     );
   }

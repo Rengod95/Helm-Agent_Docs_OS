@@ -100,21 +100,23 @@ type FormValue = string | number | boolean;
 /** 목록 원소 가운데 객체(평평한 스칼라 레코드) */
 type ItemRecord = Exclude<ResolvedItem, UiScalar>;
 
+/** 간격 enum은 시안의 간격 단계에 맞춘다. 값을 안 주면 자리마다 기본 간격을 쓴다(Stack gap-5, Row gap-x-3 gap-y-1, Split gap-6) */
 const GAP_CLASS: Readonly<Record<Gap, string>> = {
   none: "gap-0",
-  sm: "gap-1.5",
-  md: "gap-3",
-  lg: "gap-4",
+  sm: "gap-2",
+  md: "gap-4",
+  lg: "gap-6",
 };
 const ALIGN_CLASS: Readonly<Record<(typeof ALIGNS)[number], string>> = {
   start: "items-start",
   center: "items-center",
   end: "items-end",
 };
+/** 글 크기 enum은 시안의 글 역할(text-<role>)에 맞춘다. 기본 글은 본문 보조 역할(text-ui-dense)이다 */
 const TEXT_SIZE: Readonly<Record<WidgetSize, string>> = {
-  sm: "text-ui-sm",
-  md: "text-ui",
-  lg: "text-ui-lg",
+  sm: "text-ui-xs",
+  md: "text-ui-dense",
+  lg: "text-ui-strong",
 };
 const TONE_TEXT: Readonly<Record<WidgetTone, string>> = {
   default: "",
@@ -236,9 +238,10 @@ function toneOf(tone: WidgetTone | undefined): CausticTone {
   }
 }
 
-function gapOf(node: ResolvedNode): string {
+/** 간격 enum이 없으면 그 자리의 기본 간격(`fallback`)을 쓴다 */
+function gapOf(node: ResolvedNode, fallback: string): string {
   const gap = choiceProp(node, "gap", GAPS);
-  return gap === undefined ? "gap-2" : GAP_CLASS[gap];
+  return gap === undefined ? fallback : GAP_CLASS[gap];
 }
 
 function joinClasses(...parts: readonly (string | undefined)[]): string {
@@ -364,12 +367,9 @@ function NodeList({ nodes }: { readonly nodes: readonly ResolvedNode[] }): React
   return inOrder(nodes, (child) => <NodeView node={child} />);
 }
 
+/** 셸이 그리는 한 줄 글(상자 없이 시안의 셸 글 단계). 노드 자리에 글자로만 남는다 */
 function Placeholder({ message }: { readonly message: string }): ReactNode {
-  return (
-    <div className="rounded-md bg-neutral-soft px-3 py-2 text-ui-sm text-text-tertiary">
-      {message}
-    </div>
-  );
+  return <p className="m-0 text-ui-dense text-text-tertiary">{message}</p>;
 }
 
 interface BoundaryProps {
@@ -491,7 +491,7 @@ function NodeBody({ node }: NodeProps): ReactNode {
 
 function StackNode({ node }: NodeProps): ReactNode {
   return (
-    <div className={joinClasses("flex min-w-0 flex-col", gapOf(node))}>
+    <div className={joinClasses("flex min-w-0 flex-col", gapOf(node, "gap-5"))}>
       <NodeList nodes={node.children} />
     </div>
   );
@@ -500,7 +500,13 @@ function StackNode({ node }: NodeProps): ReactNode {
 function RowNode({ node }: NodeProps): ReactNode {
   const align = choiceProp(node, "align", ALIGNS) ?? "center";
   return (
-    <div className={joinClasses("flex min-w-0 flex-wrap", ALIGN_CLASS[align], gapOf(node))}>
+    <div
+      className={joinClasses(
+        "flex min-w-0 flex-wrap",
+        ALIGN_CLASS[align],
+        gapOf(node, "gap-x-3 gap-y-1"),
+      )}
+    >
       <NodeList nodes={node.children} />
     </div>
   );
@@ -511,7 +517,7 @@ function SplitNode({ node }: NodeProps): ReactNode {
     <div
       className={joinClasses(
         "grid min-w-0 grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]",
-        gapOf(node),
+        gapOf(node, "gap-6"),
       )}
     >
       <NodeList nodes={node.children} />
@@ -522,7 +528,7 @@ function SplitNode({ node }: NodeProps): ReactNode {
 function SectionNode({ node }: NodeProps): ReactNode {
   const title = nonEmpty(textProp(node, "title"));
   return (
-    <section className="grid min-w-0 gap-2">
+    <section className="grid min-w-0 gap-1.5">
       {title === undefined ? null : <SectionHeader title={title} headingLevel={2} />}
       <NodeList nodes={node.children} />
     </section>
@@ -584,7 +590,7 @@ function MarkdownNode({ node }: NodeProps): ReactNode {
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph !== "");
   return (
-    <div className="grid min-w-0 gap-2 text-ui text-text-primary">
+    <div className="grid min-w-0 gap-2 text-ui-dense text-text-primary">
       {inOrder(paragraphs, (paragraph) => (
         <p className="m-0 whitespace-pre-wrap">{paragraph}</p>
       ))}
@@ -599,7 +605,7 @@ function CodeNode({ node }: NodeProps): ReactNode {
       {language === undefined ? null : (
         <span className="text-ui-xs text-text-tertiary">{language}</span>
       )}
-      <pre className="m-0 overflow-x-auto rounded-md bg-neutral-track p-3 font-mono text-mono-sm text-text-primary">
+      <pre className="m-0 overflow-x-auto rounded-lg bg-neutral-track px-3 py-2 font-mono text-mono-sm text-text-primary">
         <code>{textProp(node, "text") ?? ""}</code>
       </pre>
     </div>
@@ -686,12 +692,20 @@ function termsOf(
   );
 }
 
+/** 요약 줄은 시안의 well 요약과 같다: 면 없는 ghost, xs, 줄 안쪽 여백 없음 */
+const LIST_DESCRIPTION_CLASS = "rounded-none [&_[data-slot=list-description-row]]:px-0";
+
 function ListDescriptionNode({ node }: NodeProps): ReactNode {
   const items = node.lists?.["items"];
   return (
     <div className="grid min-w-0 gap-2">
       {items === undefined ? null : (
-        <ListDescription aria-label={collectionLabel()}>
+        <ListDescription
+          aria-label={collectionLabel()}
+          variant="ghost"
+          size="xs"
+          className={LIST_DESCRIPTION_CLASS}
+        >
           {inOrder(termsOf(items), (row) => (
             <ListDescriptionRow term={row.term}>{row.text}</ListDescriptionRow>
           ))}
@@ -755,7 +769,7 @@ function StepperNode({ node }: NodeProps): ReactNode {
       return { id, label: textProp(child, "text") ?? id };
     });
   const value = steps.findIndex((step) => step.id === current) + 1;
-  return <Stepper steps={steps} value={value} />;
+  return <Stepper steps={steps} value={value} variant="ghost" />;
 }
 
 function activityOf(item: ResolvedItem, index: number): ActivityNode {
@@ -869,7 +883,12 @@ function AlertNode({ node }: NodeProps): ReactNode {
   const text = textProp(node, "text") ?? "";
   const tone = choiceProp(node, "tone", TONES);
   return (
-    <Alert tone={toneOf(tone)} emphasis={title === undefined ? undefined : "lead"}>
+    <Alert
+      tone={toneOf(tone)}
+      size="sm"
+      layout="inline"
+      emphasis={title === undefined ? undefined : "lead"}
+    >
       {title === undefined ? (
         text
       ) : (
@@ -886,7 +905,12 @@ function EmptyStateNode({ node }: NodeProps): ReactNode {
   const title = nonEmpty(textProp(node, "title"));
   const text = nonEmpty(textProp(node, "text"));
   return (
-    <EmptyState title={title ?? text ?? ""} description={title === undefined ? undefined : text} />
+    <EmptyState
+      size="sm"
+      surface="none"
+      title={title ?? text ?? ""}
+      description={title === undefined ? undefined : text}
+    />
   );
 }
 
@@ -910,6 +934,7 @@ function ButtonNode({ node }: NodeProps): ReactNode {
   const variant = choiceProp(node, "variant", VARIANTS) ?? "primary";
   return (
     <Button
+      size="xs"
       variant={BUTTON_VARIANT[variant]}
       disabled={command === undefined}
       onClick={() => {
@@ -1022,7 +1047,7 @@ function FormNode({ node }: NodeProps): ReactNode {
       >
         <NodeList nodes={node.children} />
         <div className="flex justify-end">
-          <Button type="submit" variant="solid" disabled={command === undefined}>
+          <Button type="submit" size="xs" variant="solid" disabled={command === undefined}>
             {submitLabel}
           </Button>
         </div>
@@ -1043,7 +1068,8 @@ function LinkButton({
   const { actions } = useNative();
   return (
     <Button
-      variant="ghost"
+      size="xs"
+      variant="outline"
       disabled={link === undefined}
       onClick={() => {
         if (link !== undefined) actions.openLink(link);
