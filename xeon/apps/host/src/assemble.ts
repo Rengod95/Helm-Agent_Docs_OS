@@ -104,6 +104,7 @@ import { createExtDiagnosticSink } from "./assembly/diagnostics.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { createDialogAreaHolder } from "./assembly/m4/dialog-area-bridge.ts";
+import { registerExtensionKeys } from "./assembly/ext-keys.ts";
 import { createExtensionRecords } from "./assembly/m4/ext-read-sources.ts";
 import type { RequestBodyOffer } from "@fresnel/core-models";
 import {
@@ -373,9 +374,12 @@ export function logStoreWarning(logger: Logger, warning: StoreWarning): void {
 /** 엔진 하나를 만든다. 실패하면 AssembleError를 던지고, 그때까지 연 자원을 닫는다 */
 export async function assemble(options: AssembleOptions): Promise<Engine> {
   // 설정 카탈로그는 순수 계산이라 자원을 열기 전에 만든다. 코어 키 문제는 시작 거부다(F wire §5, AH-13)
-  const built = buildEngineCatalog(options.settingGroups);
-  if (!built.ok) throw new AssembleError([{ code: "catalog", issues: built.issues }]);
+  const builtCore = buildEngineCatalog(options.settingGroups);
+  if (!builtCore.ok) throw new AssembleError([{ code: "catalog", issues: builtCore.issues }]);
+  // 확장 예약 키(`ext.<이름>.enabled`)는 단위와 외부 확장이 정해진 뒤에 더한다(`registerExtensionKeys`). 그래서 같은 Map을 모두가 쥔다
+  const built = { catalog: new Map(builtCore.catalog) };
   const settings = createSettingsEngine(built.catalog);
+  const extensionKeys: { sync: () => void } = { sync: () => undefined };
 
   const baseRuntime = readOsRuntime();
   const runtime: OsRuntime =
@@ -804,6 +808,22 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 기본 플러그인(Helm)을 사용자 확장 위치에 설치한다. 설치본이 낸 서브에이전트 정의는 엔진 조립에 필요해 단위 목록보다 먼저 읽는다
     const defaultsEnabled = options.defaultGroups !== false;
     const userExtensionsDir = join(os.dirs.config, "extensions");
+    // 확장 목록(내장 단위 + 로더가 찾은 외부 확장). 예약 키 등록과 `ext.list`가 같은 원천을 읽는다
+    const listExtensions = createExtensionRecords({
+      units: () => [...unitList.units, ...lateUnits],
+      loader: () => external.loader,
+      tierOf: (name) => operations.tiers.get(name),
+      userExtensionsDir,
+    });
+    // 목록을 읽을 때마다 예약 키도 맞춘다: 새로 설치한 확장이 목록에 보이면 그 스위치도 바로 쓸 수 있다
+    const extensionRecords: typeof listExtensions = () => {
+      const records = listExtensions();
+      registerExtensionKeys(built.catalog, records);
+      return records;
+    };
+    extensionKeys.sync = () => {
+      extensionRecords();
+    };
     // 기본 플러그인 번들 뿌리. 설치 원본이자 버전 목록의 "앱에 든 버전"이 읽는 곳이다
     const bundleRoot = options.defaultPluginsDir ?? defaultPluginsDir();
     // 개발 모드에서만 계정 회전을 더 설치한다(결정 2026-11-04 A1). 키가 카탈로그에 없으면 꺼진 것이다
@@ -951,7 +971,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         logger: os.logger("ext-loader"),
         enabled: (name) => {
           const key = `ext.${name}.enabled`;
-          const value = built.catalog.has(key) ? settings.value(key) : undefined;
+          // 로더가 매니페스트를 읽는 중이라 키가 아직 없을 수 있다. 그때는 사용자 파일에 적힌 값을 그대로 읽는다(재시작 뒤에도 끈 채로 있게)
+          const value = built.catalog.has(key)
+            ? settings.value(key)
+            : settings.raw("ext.")[`${name}.enabled`];
           return typeof value === "boolean" ? value : undefined;
         },
         cwd: process.cwd(),
@@ -1142,12 +1165,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           active: safeMode,
           cause: safeModeSource === "flag" ? "flag" : safeModeSource === "setting" ? "user" : null,
         },
-        extensions: createExtensionRecords({
-          units: () => [...unitList.units, ...lateUnits],
-          loader: () => external.loader,
-          tierOf: (name) => operations.tiers.get(name),
-          userExtensionsDir,
-        }),
+        extensions: extensionRecords,
         loader: () => external.loader,
         now: () => clock.now(),
         groupService: () => groupServiceSlot.current,
@@ -1218,6 +1236,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       scheduleRuns,
       storeId: storeId.value,
       catalog: built.catalog,
+      syncExtensionKeys: () => {
+        extensionKeys.sync();
+      },
       safeMode,
       startup: startupHealthOf(startupFailures, suggestAfterOf(built.catalog, settings), safeMode),
       startedAt,
