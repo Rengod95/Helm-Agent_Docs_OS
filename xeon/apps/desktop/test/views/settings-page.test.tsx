@@ -304,6 +304,13 @@ describe("page layout", () => {
     expect(narrow).not.toContain(`aria-label="${t("desktop.settings.tabs.label")}"`);
   });
 
+  test("the tab list scrolls inside its own column so a short window never pushes it under the status bar", () => {
+    const out = html(propsOf({ narrow: false }));
+    const at = out.indexOf(`aria-label="${t("desktop.settings.tabs.label")}"`);
+    const tag = out.slice(out.lastIndexOf("<", at), out.indexOf(">", at));
+    expect(tag).toContain("min-h-0 flex-1 overflow-y-auto");
+  });
+
   test("the secrets tab shows the secrets panel instead of the field list", () => {
     const view = viewOf([MODEL], SETTINGS);
     const out = html(propsOf({ view, tab: "secrets" }));

@@ -410,7 +410,7 @@ export function RowsTableView(props: RowsTableViewProps): ReactNode {
       {rows.length === 0 ? (
         <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.table.empty")}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex max-w-full flex-col gap-2 overflow-x-auto">
           {keyedRowsOf(rows).map((item) => (
             <li key={item.key} data-slot="table-row" className="flex flex-wrap items-center gap-2">
               {columns.map((column) => (
@@ -471,7 +471,7 @@ export function RecordTableView(props: RecordTableViewProps): ReactNode {
       {entries.length === 0 ? (
         <p className="text-ui-sm text-text-tertiary">{t("desktop.settings.table.empty")}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex max-w-full flex-col gap-2 overflow-x-auto">
           {entries.map(([name, value]) => (
             <li key={name} data-slot="table-row" className="flex flex-wrap items-center gap-2">
               <span className="text-ui-strong text-text-primary">{name}</span>

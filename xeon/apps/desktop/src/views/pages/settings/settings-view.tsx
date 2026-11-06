@@ -17,7 +17,14 @@ import { Search } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { TAB_ORDER, TAB_SPECS, type FieldVM, type SettingsView } from "@fresnel/client/settings";
 import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
-import { useId, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useId,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefCallback,
+} from "react";
 import {
   advancedGroupsOf,
   budgetsGroupsOf,
@@ -108,9 +115,34 @@ export interface SettingsPageProps {
   readonly handlers: SettingsPageHandlers;
 }
 
+/** 탭 열을 두는 화면 폭의 하한(요소 좌표 px). 탭 열 208 + 본문 카드가 읽히는 폭 */
+const TAB_COLUMN_MIN_PANE = 640;
+
+/** 화면 요소 자신의 폭(`clientWidth`, 요소 좌표라 앱 확대와 무관). 재기 전에는 `null`이다 */
+function usePaneWidth(): readonly [number | null, RefCallback<HTMLElement>] {
+  const [width, setWidth] = useState<number | null>(null);
+  const ref = useCallback<RefCallback<HTMLElement>>((el) => {
+    if (el === null) return undefined;
+    const read = (): void => {
+      setWidth(el.clientWidth);
+    };
+    read();
+    const observer = new ResizeObserver(read);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+  return [width, ref];
+}
+
 export function SettingsPageView(props: SettingsPageProps): ReactNode {
-  const { handlers, tab, query, readOnly, fileOpen, narrow } = props;
+  const { handlers, tab, query, readOnly, fileOpen } = props;
   const headingId = useId();
+  // 탭 열(208px)과 본문이 같이 들어갈 폭이 아니면 셸이 compact가 아니어도 탭 열을 접어 찾기 칸 아래 선택 상자로 쓴다.
+  // 폭은 이 화면 자신의 폭이다(사이드바가 열려 있으면 창보다 좁다). 앱 확대 아래에서도 요소 자기 좌표라 맞다
+  const [pane, paneRef] = usePaneWidth();
+  const narrow = props.narrow || (pane !== null && pane < TAB_COLUMN_MIN_PANE);
   // 머리 제목은 고른 탭 이름이다(P-09 시안 `_settings/frame.tsx`). 찾는 중에는 `'찾는 글' 찾은 항목`이다(시안 `search.tsx`)
   const titleOf =
     query.trim() === ""
@@ -143,6 +175,7 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
     ) : null;
   return (
     <section
+      ref={paneRef}
       aria-labelledby={headingId}
       className="-m-1.5 mb-0 flex min-h-0 min-w-0 flex-1"
       onKeyDown={onKey}
@@ -195,7 +228,7 @@ function SearchField(props: SettingsPageProps): ReactNode {
 function TabColumn(props: SettingsPageProps): ReactNode {
   const { handlers, tab } = props;
   return (
-    <div className="flex w-52 flex-none flex-col border-e border-border-subtle ps-3 pe-2">
+    <div className="flex min-h-0 w-52 flex-none flex-col border-e border-border-subtle ps-3 pe-2">
       <div className="flex h-16 flex-none items-center">
         <SearchField {...props} />
       </div>
@@ -203,7 +236,7 @@ function TabColumn(props: SettingsPageProps): ReactNode {
         kind="pages"
         size="sm"
         aria-label={t("desktop.settings.tabs.label")}
-        className="pb-2"
+        className="min-h-0 flex-1 overflow-y-auto pb-2"
         onKeyDown={(event) => {
           // ↑↓은 탭 목록에서 옆 탭으로 옮긴다(§6.13). 옮긴 뒤의 초점은 그대로 둔다
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
