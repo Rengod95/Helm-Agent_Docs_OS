@@ -1034,7 +1034,7 @@
   "desktop.schedules.retry": "다시 읽기",
   "desktop.schedules.loading": "불러오는 중…",
   "desktop.schedules.empty": "예약이 없어요",
-  "desktop.schedules.columns.title": "제목",
+  "desktop.schedules.columns.title": "예약",
   "desktop.schedules.columns.trigger": "트리거",
   "desktop.schedules.columns.next": "다음 실행",
   "desktop.schedules.columns.last": "마지막 실행",

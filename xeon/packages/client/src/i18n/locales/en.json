@@ -1034,7 +1034,7 @@
   "desktop.schedules.retry": "Retry",
   "desktop.schedules.loading": "Loading…",
   "desktop.schedules.empty": "No schedules yet",
-  "desktop.schedules.columns.title": "Title",
+  "desktop.schedules.columns.title": "Schedule",
   "desktop.schedules.columns.trigger": "Trigger",
   "desktop.schedules.columns.next": "Next run",
   "desktop.schedules.columns.last": "Last run",
