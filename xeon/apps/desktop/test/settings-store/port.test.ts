@@ -44,7 +44,7 @@ describe("desktop local settings port (localStore)", () => {
     expect(defs.map((def) => def.key).toSorted()).toEqual([RESTART, GRACE, CLOSE].toSorted());
     expect(defs.find((def) => def.key === CLOSE)).toMatchObject({
       type: { type: "string" },
-      default: "quit",
+      default: "tray",
       range: { enum: ["quit", "tray"] },
       runtimeChange: "live",
       layer: "L4",
@@ -57,7 +57,7 @@ describe("desktop local settings port (localStore)", () => {
 
   test("a key with no saved value reads its default from the declaration, with source default", async () => {
     const { port } = await portOver();
-    expect(port.get(CLOSE)).toEqual(defaultOf(CLOSE, "quit"));
+    expect(port.get(CLOSE)).toEqual(defaultOf(CLOSE, "tray"));
     expect(port.get(GRACE)).toEqual(defaultOf(GRACE, 7000));
     expect(port.get("l4.desktop.window.sidebarOpen")).toBeUndefined();
   });

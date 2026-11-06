@@ -11,7 +11,7 @@ const DESKTOP_SCOPES = ["managed", "user"] as const;
 const desktopSettings = defineSettings("l4.desktop", {
   "window.closeBehavior": {
     type: Type.String(),
-    default: "quit",
+    default: "tray",
     range: { enum: ["quit", "tray"] },
     runtimeChange: "live",
     allowedScopes: DESKTOP_SCOPES,

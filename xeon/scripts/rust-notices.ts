@@ -35,7 +35,9 @@ const NOTICE_FILE = "apps/desktop/src-tauri/resources/THIRD-PARTY-NOTICES-RUST.t
  * only applies when no file is found: a later version that ships one is read from its file.
  * - madsmtm/objc2 root: LICENSE-APACHE.txt, LICENSE-MIT.txt, LICENSE-ZLIB.txt (block2, dispatch2, objc2 and the objc2-* crates)
  * - OpenByteDev/dlopen2 root: LICENSE (dlopen2, dlopen2_derive)
- * - jni-rs/jni-sys root: LICENSE-APACHE, LICENSE-MIT (jni-sys-macros)
+ * - jni-rs/jni-sys root: LICENSE-APACHE, LICENSE-MIT (jni-sys-macros); jni-rs/jni-rs root: the same (jni, jni-macros)
+ * - h4llow3En/mac-notification-sys root: LICENSE-Apache, LICENSE-MIT (mac-notification-sys)
+ * - rustls/rustls-platform-verifier root: LICENSE-APACHE, LICENSE-MIT (rustls-platform-verifier-android)
  * - rust-mobile/ndk root: LICENSE-APACHE, LICENSE-MIT (ndk, ndk-sys); rust-windowing/android-ndk-rs root: the same (ndk-context)
  * - wravery/webview2-rs root: LICENSE (webview2-com, webview2-com-macros, webview2-com-sys)
  * - retep998/winapi-rs root: LICENSE-APACHE, LICENSE-MIT (winapi-*-pc-windows-gnu)
@@ -50,8 +52,11 @@ export const NO_LICENSE_FILE_CRATES: ReadonlySet<string> = new Set([
   "dispatch2",
   "dlopen2",
   "dlopen2_derive",
+  "jni",
+  "jni-macros",
   "jni-sys-macros",
   "libappindicator-sys",
+  "mac-notification-sys",
   "ndk",
   "ndk-context",
   "ndk-sys",
@@ -69,11 +74,13 @@ export const NO_LICENSE_FILE_CRATES: ReadonlySet<string> = new Set([
   "objc2-foundation",
   "objc2-io-surface",
   "objc2-local-authentication",
+  "objc2-osa-kit",
   "objc2-quartz-core",
   "objc2-ui-kit",
   "objc2-user-notifications",
   "objc2-web-kit",
   "r-efi",
+  "rustls-platform-verifier-android",
   "selectors",
   "webview2-com",
   "webview2-com-macros",

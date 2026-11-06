@@ -12,25 +12,36 @@ mod file_save;
 mod folder_pick;
 #[cfg(debug_assertions)]
 mod inspect;
+// OS 알림(B-10). WebView에는 알림 권한을 주지 않고 이 모듈의 명령이 띄운다.
+mod notify_os;
 mod open_external;
 mod os_reauth;
 mod relay;
 mod secret_entry;
+// 셸 의도 큐(B-10). 트레이와 알림의 "새 대화", "이 대화 열기" 요청을 창이 없을 때도 들고 있는다.
+mod shell_intent;
 mod time;
+// 트레이 아이콘(B-10). 창을 닫아도 앱이 남게 한다.
+mod tray;
+// 앱 업데이트(B-10). 서명 공개키와 배포 주소가 비어 있으면 플러그인을 등록하지 않는다.
+mod updater;
 mod view_scheme;
 mod window;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use tauri::{Manager, RunEvent, WindowEvent};
 
 use crate::applog::AppLog;
-use crate::desktop_settings::{should_prevent_exit, CloseBehavior};
+use crate::desktop_settings::{effective_close_behavior, should_prevent_exit, CloseBehavior};
 use crate::engine::{
     AppSupervisor, EngineConfig, EngineState, ExitAction, Supervisor, TauriLauncher,
 };
+use crate::notify_os::NotifyTarget;
 use crate::relay::Relay;
 use crate::secret_entry::{AppSecretEntry, SecretEntry, TauriEntryLauncher, ENTRY_TIMEOUT};
+use crate::shell_intent::IntentQueue;
+use crate::tray::TrayActive;
 
 fn main() {
     let builder = tauri::Builder::default()
@@ -42,6 +53,8 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         // 폴더 선택 창. WebView에는 dialog 권한을 주지 않는다. 창은 folder_pick::pick_folder가 Rust에서 연다
         .plugin(tauri_plugin_dialog::init())
+        // OS 알림 플러그인. WebView에는 notification 권한을 주지 않는다. 띄우는 일은 notify_os.rs의 명령이 한다.
+        .plugin(tauri_plugin_notification::init())
         // Plugin App 전용 스킴. 프레임 파일은 이 스킴으로만 나온다(view_scheme.rs, ADR-0021 §3.6.2)
         .register_uri_scheme_protocol(view_scheme::SCHEME, |ctx, request| {
             match ctx.app_handle().try_state::<Arc<view_scheme::AppRoots>>() {
@@ -77,7 +90,17 @@ fn main() {
             folder_pick::pick_folder,
             folder_pick::pick_file,
             file_save::save_file,
-            os_reauth::os_reauth
+            os_reauth::os_reauth,
+            updater::update_status,
+            updater::update_check,
+            updater::update_download,
+            updater::update_install_restart,
+            shell_intent::shell_take_intents,
+            tray::tray_update,
+            notify_os::notify_permission,
+            notify_os::notify_request_permission,
+            notify_os::notify_os,
+            notify_os::notify_take_target
         ])
         .setup(|app| {
             let log = Arc::new(AppLog::open(app.path().app_log_dir().ok().as_deref()));
@@ -110,8 +133,14 @@ fn main() {
             app.manage(Arc::new(view_scheme::AppRoots::default()));
             app.manage(relay.clone());
             app.manage(supervisor.clone());
-            app.manage(settings.close_behavior);
+            // 닫기 동작은 설정 화면이 바꾸면 바로 바뀌므로 Mutex에 둔다 (desktop_settings_write).
+            app.manage(Mutex::new(settings.close_behavior));
             app.manage(log.clone());
+            app.manage(IntentQueue::default());
+            app.manage(NotifyTarget::default());
+            // 트레이를 못 만들면 `TrayActive(false)`다. 그때 창을 닫으면 앱이 끝난다 (effective_close_behavior).
+            app.manage(TrayActive(tray::create(app.handle(), &log)));
+            updater::manage(app, &log);
             #[cfg(all(debug_assertions, unix))]
             start_inspect(app.handle(), &relay, &log);
             #[cfg(unix)]
@@ -130,7 +159,11 @@ fn main() {
 
     app.run(|handle, event| match event {
         RunEvent::ExitRequested { code, api, .. } => {
-            let behavior = *handle.state::<CloseBehavior>();
+            let configured = *handle
+                .state::<Mutex<CloseBehavior>>()
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            let behavior = effective_close_behavior(configured, handle.state::<TrayActive>().0);
             if should_prevent_exit(behavior, code) {
                 // 트레이 유지: 창이 모두 닫혀 생긴 종료다. WebView는 이미 없고, 셸과 엔진과 진행 중 turn은 남는다 (§4.3, §6).
                 api.prevent_exit();

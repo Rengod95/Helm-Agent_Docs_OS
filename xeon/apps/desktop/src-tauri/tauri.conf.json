@@ -18,6 +18,9 @@
       "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; frame-src fresnel-view:"
     }
   },
+  "plugins": {
+    "updater": { "pubkey": "", "endpoints": [] }
+  },
   "bundle": {
     "active": true,
     "icon": ["icons/icon.png"],

@@ -56,7 +56,7 @@ test("each key has the spec layer, version, scopes, runtime change, and no secre
 });
 
 test("defaults and ranges match the spec §6 rows", () => {
-  expect(close.default).toBe("quit");
+  expect(close.default).toBe("tray");
   expect(restart.default).toBe(3);
   expect(grace.default).toBe(7000);
   expect(close.range).toEqual({ enum: ["quit", "tray"] });
@@ -104,8 +104,8 @@ test("the defaults and ranges equal the Rust shell constants", () => {
   expect(restart.default).toBe(3);
 
   const closeEnum = blockAfter(settings, /pub enum CloseBehavior \{/);
-  expect(closeEnum).toMatch(/#\[default\]\s+Quit,/);
-  expect(close.default).toBe("quit");
+  expect(closeEnum).toMatch(/#\[default\]\s+Tray,/);
+  expect(close.default).toBe("tray");
 
   expect(settings).toContain("SHUTDOWN_GRACE_MS_RANGE: RangeInclusive<i64> = 1000..=180_000;");
   expect(settings).toContain("RESTART_LIMIT_RANGE: RangeInclusive<i64> = 0..=10;");
