@@ -296,7 +296,7 @@ test("an unknown approval is told apart from one answered elsewhere on the termi
   expect(h.stdoutText()).toContain("(host가 모르는 승인이다. 재시작으로 사라졌을 수 있다)");
 });
 
-test("print mode tells when its deny answer was not applied", async () => {
+test("print mode does not say denied for an approval that was already resolved", async () => {
   const h = createHarness({
     env: { NO_COLOR: "1" },
     server: {
@@ -311,9 +311,8 @@ test("print mode tells when its deny answer was not applied", async () => {
   });
   harnesses.push(h);
   expect(await h.run(["chat", "-p", "run it"])).toBe(EXIT.ok);
-  expect(h.stderrText()).toContain(
-    '승인 요청 "bash 실행"에 비대화 모드라 거부로 답했으나 적용되지 않았다 (already_resolved)',
-  );
+  expect(h.stderrText()).toContain('승인 요청 "bash 실행"은 이미 처리되어 있다');
+  expect(h.stderrText()).not.toContain("거부로 답했");
 });
 
 test("a review approval shows its title, round and one row per file (compile fix for ADR-0018 review)", () => {

@@ -5,6 +5,7 @@
   "cli.chat.autoDeny.denied": "Denied approval request \"{title}\" because print mode is non-interactive\n",
   "cli.chat.autoDeny.deniedFailed": "Tried to deny approval request \"{title}\" because print mode is non-interactive, but the host did not respond\n",
   "cli.chat.autoDeny.deniedNotApplied": "Denied approval request \"{title}\" because print mode is non-interactive, but it was not applied ({reason})\n",
+  "cli.chat.autoNotice.alreadyResolved": "Approval request \"{title}\" was already handled\n",
   "cli.chat.idleCtrlCHint": "(press once more to quit)\n",
   "cli.chat.notice.approvalsUnreadable": "Could not read the pending approvals",
   "cli.chat.notice.replayUnavailable": "The saved position cannot be resumed, so output starts from now",

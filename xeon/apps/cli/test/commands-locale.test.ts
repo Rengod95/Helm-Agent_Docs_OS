@@ -122,7 +122,7 @@ test("a failed print turn with --json names the error and the fix in English", a
   );
 });
 
-test("--auto-approve says in English why an answer was not applied", async () => {
+test("--auto-approve says in English that an already resolved approval was handled", async () => {
   const h = createHarness({
     env: { NO_COLOR: "1" },
     server: {
@@ -137,9 +137,7 @@ test("--auto-approve says in English why an answer was not applied", async () =>
   });
   harnesses.push(h);
   expect(await h.run(["chat", "-p", "run it", "--auto-approve"])).toBe(EXIT.ok);
-  expect(h.stderrText()).toContain(
-    'Tried to allow approval request "run ls" with --auto-approve, but it was not applied (already_resolved)\n',
-  );
+  expect(h.stderrText()).toContain('Approval request "run ls" was already handled\n');
 });
 
 test("a usage slash command names its syntax in English", () => {

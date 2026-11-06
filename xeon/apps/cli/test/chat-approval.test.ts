@@ -468,13 +468,11 @@ test("--auto-approve answers a tool approval with allow once, without remember, 
   ]);
 });
 
-test("--auto-approve says why an allow was not applied", async () => {
+test("--auto-approve only says an already resolved approval was handled", async () => {
   const { h, responds } = printWithApproval({ notApplied: true });
   expect(await h.run(["chat", "-p", "run it", "--auto-approve"])).toBe(EXIT.ok);
   expect(responds).toHaveLength(1);
-  expect(noticeLines(h.stderrText())).toEqual([
-    '승인 요청 "bash 실행"을 --auto-approve로 허용하려 했으나 적용되지 않았다 (already_resolved)',
-  ]);
+  expect(noticeLines(h.stderrText())).toEqual(['승인 요청 "bash 실행"은 이미 처리되어 있다']);
 });
 
 test("--auto-approve still denies a question approval, with the same notice as the default", async () => {

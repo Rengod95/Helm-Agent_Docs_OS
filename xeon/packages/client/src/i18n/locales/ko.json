@@ -5,6 +5,7 @@
   "cli.chat.autoDeny.denied": "승인 요청 \"{title}\"에 비대화 모드라 거부로 답했다\n",
   "cli.chat.autoDeny.deniedFailed": "승인 요청 \"{title}\"에 비대화 모드라 거부로 답하려 했으나 host가 응답을 받지 못했다\n",
   "cli.chat.autoDeny.deniedNotApplied": "승인 요청 \"{title}\"에 비대화 모드라 거부로 답했으나 적용되지 않았다 ({reason})\n",
+  "cli.chat.autoNotice.alreadyResolved": "승인 요청 \"{title}\"은 이미 처리되어 있다\n",
   "cli.chat.idleCtrlCHint": "(한 번 더 누르면 끝낸다)\n",
   "cli.chat.notice.approvalsUnreadable": "대기 중인 승인을 읽지 못했다",
   "cli.chat.notice.replayUnavailable": "저장된 위치부터 이어 받을 수 없어 지금부터 보인다",
