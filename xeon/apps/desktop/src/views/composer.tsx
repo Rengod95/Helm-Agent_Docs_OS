@@ -32,6 +32,7 @@ import {
   attachDisabledReason,
   baseNameOf,
   chipsReady,
+  dataSourceLimit,
   exceedsLimit,
   failureOf,
   readyParts,
@@ -244,8 +245,9 @@ function ComposerFor(props: {
 
   const addFile = async (file: File): Promise<void> => {
     const name = file.name === "" ? t("desktop.composer.attach.pasted") : file.name;
-    if (exceedsLimit(file.size, limit.current)) {
-      // 큰 파일은 읽지 않고 바로 실패 칩을 보인다(다시 시도 없음)
+    const fileLimit = dataSourceLimit(limit.current);
+    if (exceedsLimit(file.size, fileLimit)) {
+      // 큰 파일은 읽지 않고 바로 실패 칩을 보인다(다시 시도 없음). 한도는 한 요청에 실을 수 있는 크기다
       setChips((current) => [
         ...current,
         {
@@ -254,7 +256,7 @@ function ComposerFor(props: {
           size: file.size,
           source: { kind: "data", data: "-", mime: "application/octet-stream" },
           status: "failed",
-          failure: { kind: "tooLarge", limit: limit.current },
+          failure: { kind: "tooLarge", limit: fileLimit },
           parts: null,
         },
       ]);

@@ -1,5 +1,5 @@
 import { t } from "@fresnel/client/i18n";
-import type { WireParams } from "@fresnel/contracts/wire";
+import { WIRE_LIMITS, type WireParams } from "@fresnel/contracts/wire";
 import type { AttachmentParts, CommandError } from "./commands.ts";
 
 // 입력창 첨부의 순수 부분(U-03). 칩 상태, 실패 이유, 입력 파트 조립, 파일 → `data` 소스를 화면에서 떼어 시험한다.
@@ -65,6 +65,19 @@ export function failureText(failure: AttachFailure): string {
   if (failure.error.kind === "offline") return t("desktop.composer.error.offline");
   if (failure.error.kind === "switching") return t("desktop.composer.error.switching");
   return t("desktop.composer.attach.error.failed");
+}
+
+/** 요청 한 줄에 `threadId`, 이름, 형식 같은 겉 글자가 차지할 자리(바이트) */
+const FRAME_ENVELOPE_BYTES = 8 * 1024;
+
+/**
+ * 파일을 바이트째 보내는 길(끌어놓기, 붙여넣기, 파일 칸)에서 한 번에 올릴 수 있는 크기. 데이터는 base64로 한 요청 줄에 실리고
+ * 줄 하나는 `WIRE_LIMITS.maxFrameBytes`를 넘지 못하므로, 엔진 설정 한도(`knownLimit`)가 더 커도 이 값이 실제 한도다.
+ * 경로로 올리는 길(파일 선택 창)은 이 값에 걸리지 않는다
+ */
+export function dataSourceLimit(knownLimit: number | null): number {
+  const framed = Math.floor((WIRE_LIMITS.maxFrameBytes - FRAME_ENVELOPE_BYTES) / 4) * 3;
+  return knownLimit === null ? framed : Math.min(knownLimit, framed);
 }
 
 /** 올리기 전에 알 수 있는 크기 초과. 한도를 모르면 엔진이 판정한다 */
