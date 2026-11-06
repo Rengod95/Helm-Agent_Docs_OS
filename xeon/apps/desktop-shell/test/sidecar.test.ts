@@ -10,7 +10,7 @@ import {
 import { engineEnv } from "../src/main/lib/env-path.ts";
 
 const RESOURCES = "/work/apps/desktop-shell";
-const DEV_DIR = "/work/apps/desktop/src-tauri/binaries";
+const DEV_DIR = "/work/apps/desktop/dist/sidecar";
 const only =
   (...files: string[]) =>
   (file: string): boolean =>

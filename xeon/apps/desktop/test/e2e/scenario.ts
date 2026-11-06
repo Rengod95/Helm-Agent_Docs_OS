@@ -21,7 +21,7 @@ const TRIPLES: Readonly<Record<string, string>> = {
 export function sidecarPath(): string | null {
   const triple = TRIPLES[`${platform()}/${arch()}`];
   if (triple === undefined) return null;
-  const path = join(DESKTOP, "src-tauri", "binaries", `fresnel-${triple}`);
+  const path = join(DESKTOP, "dist", "sidecar", `fresnel-${triple}`);
   return existsSync(path) ? path : null;
 }
 

@@ -56,7 +56,7 @@ function resourcesDir(): string {
 function uiDir(): string {
   const override = shellEnvOf(process.env, app.isPackaged)["FRESNEL_UI_DIR"];
   // 개발 중에는 Tauri와 같은 UI 번들(`just desktop-ui`의 출력)을 쓴다
-  const dev = path.join(resourcesDir(), "..", "desktop", "src-tauri", "ui");
+  const dev = path.join(resourcesDir(), "..", "desktop", "dist", "ui");
   return path.resolve(override ?? (app.isPackaged ? path.join(resourcesDir(), "ui") : dev));
 }
 

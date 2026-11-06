@@ -290,7 +290,7 @@ export function releaseSidecarDir(outDir: string): string {
 
 /** The development sidecar directory (build-sidecar's default). Only `--no-build` reads it; no release build writes it. */
 export function devSidecarDir(fresnelRoot: string): string {
-  return join(fresnelRoot, "apps", "desktop", "src-tauri", "binaries");
+  return join(fresnelRoot, "apps", "desktop", "dist", "sidecar");
 }
 
 /** Lays out and packs one release. Returns the archive path. */

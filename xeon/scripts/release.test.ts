@@ -423,7 +423,7 @@ test("a release build writes its sidecar under the output directory, never the d
   const out = "/o/release";
   expect(releaseSidecarDir(out)).toBe("/o/release/.sidecar-build");
   expect(releaseSidecarDir(out)).not.toBe(devSidecarDir("/x"));
-  expect(devSidecarDir("/x")).toBe(join("/x", "apps", "desktop", "src-tauri", "binaries"));
+  expect(devSidecarDir("/x")).toBe(join("/x", "apps", "desktop", "dist", "sidecar"));
 });
 
 test("release-smoke.sh passes its version to release.ts, and fresnel-release.yml sets FRESNEL_RELEASE_VERSION from a tag", () => {

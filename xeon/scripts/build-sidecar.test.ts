@@ -165,10 +165,10 @@ test("a build runs bun with the mapped target and reports the size against the c
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.value.bunTarget).toBe("bun-darwin-arm64");
-  expect(result.value.outFile).toBe(`${DESKTOP}/src-tauri/binaries/fresnel-aarch64-apple-darwin`);
+  expect(result.value.outFile).toBe(`${DESKTOP}/dist/sidecar/fresnel-aarch64-apple-darwin`);
   expect(result.value.bytes).toBe(102 * MIB);
   expect(result.value.maxBytes).toBe(500 * MIB);
-  expect(calls.dirs).toEqual([`${DESKTOP}/src-tauri/binaries`]);
+  expect(calls.dirs).toEqual([`${DESKTOP}/dist/sidecar`]);
   expect(calls.cwd).toEqual([DESKTOP]);
   expect(calls.args[0]).toEqual([
     "build",
@@ -178,7 +178,7 @@ test("a build runs bun with the mapped target and reports the size against the c
     "--target=bun-darwin-arm64",
     "/work/apps/cli/src/main.ts",
     "--outfile",
-    `${DESKTOP}/src-tauri/binaries/fresnel-aarch64-apple-darwin`,
+    `${DESKTOP}/dist/sidecar/fresnel-aarch64-apple-darwin`,
   ]);
 });
 

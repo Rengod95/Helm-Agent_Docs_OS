@@ -20,8 +20,8 @@ test("X11 the release archive of this machine builds and passes the smoke checks
     "..",
     "apps",
     "desktop",
-    "src-tauri",
-    "binaries",
+    "dist",
+    "sidecar",
     `fresnel-${hostTripleOrThrow()}`,
   );
   const before = existsSync(dev) ? readFileSync(dev) : null;

@@ -160,10 +160,10 @@ test("a line for several conditions parses, and only desktop lines need the side
 
 test("the sidecar binary path follows the triple of the machine", () => {
   expect(sidecarBinaryPath("fresnel", "linux", "x64")).toBe(
-    "apps/desktop/src-tauri/binaries/fresnel-x86_64-unknown-linux-gnu",
+    "apps/desktop/dist/sidecar/fresnel-x86_64-unknown-linux-gnu",
   );
   expect(sidecarBinaryPath("fresnel", "darwin", "arm64")).toBe(
-    "apps/desktop/src-tauri/binaries/fresnel-aarch64-apple-darwin",
+    "apps/desktop/dist/sidecar/fresnel-aarch64-apple-darwin",
   );
   expect(sidecarBinaryPath("fresnel", "freebsd", "x64")).toBeUndefined();
 });

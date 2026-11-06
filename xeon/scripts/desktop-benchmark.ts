@@ -169,7 +169,7 @@ function emit(metric: string, unit: string, value: number | string, note: string
 function measureSize(): void {
   const shell = join(releaseDir, SHELL_NAME);
   const sidecar = join(releaseDir, SIDECAR_NAME);
-  const ui = join(root, "apps/desktop/src-tauri/ui");
+  const ui = join(root, "apps/desktop/dist/ui");
   for (const file of [shell, sidecar]) {
     if (!existsSync(file))
       fail(

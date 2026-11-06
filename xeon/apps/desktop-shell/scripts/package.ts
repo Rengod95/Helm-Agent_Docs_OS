@@ -18,8 +18,8 @@ const version = (process.env["FRESNEL_RELEASE_VERSION"] ?? "").replace(/^v/u, ""
 const BUNDLE_ID = "dev.fresnel.desktop";
 
 const requiredInputs = [
-  path.join(desktop, "src-tauri", "ui", "index.html"),
-  path.join(desktop, "src-tauri", "binaries", "fresnel-aarch64-apple-darwin"),
+  path.join(desktop, "dist", "ui", "index.html"),
+  path.join(desktop, "dist", "sidecar", "fresnel-aarch64-apple-darwin"),
   path.join(shell, "dist", "bundle", "main.mjs"),
   path.join(shell, "node_modules", "electron", "dist", "LICENSE"),
   path.join(shell, "dist", "engine-notices.txt"),
@@ -55,8 +55,8 @@ copyFileSync(
 
 const feed = path.join(shell, "build", "update-feed.json");
 const extraResource = [
-  path.join(desktop, "src-tauri", "ui"),
-  path.join(desktop, "src-tauri", "binaries", "fresnel-aarch64-apple-darwin"),
+  path.join(desktop, "dist", "ui"),
+  path.join(desktop, "dist", "sidecar", "fresnel-aarch64-apple-darwin"),
   // 트레이 아이콘(tray-shell.ts가 Resources/assets/tray.png를 읽는다)
   path.join(shell, "assets"),
   licenses,

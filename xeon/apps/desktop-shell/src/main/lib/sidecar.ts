@@ -3,7 +3,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-/** `scripts/package.ts`의 extraResource와 `src-tauri/binaries`의 파일 이름 앞부분 */
+/** `scripts/package.ts`의 extraResource와 `dist/sidecar`의 파일 이름 앞부분 */
 export const SIDECAR_NAME = "fresnel";
 /** 사이드카를 엔진으로 띄울 때의 인자. 개발 덮어쓰기 인자가 이것으로 끝나야 쓸 수 있다 */
 export const SIDECAR_ARGS = ["host", "--stdio"] as const;
@@ -29,7 +29,7 @@ export interface SidecarInputs {
 export interface SidecarCandidates {
   /** 패키지 앱: `<resources>/fresnel-<삼중항>` */
   readonly bundled: string;
-  /** 개발: `<resources>/../desktop/src-tauri/binaries/fresnel-<삼중항>` */
+  /** 개발: `<resources>/../desktop/dist/sidecar/fresnel-<삼중항>` */
   readonly dev: string;
 }
 
@@ -42,7 +42,7 @@ export function sidecarCandidates(
   const file = `${SIDECAR_NAME}-${triple}${input.platform === "win32" ? ".exe" : ""}`;
   return {
     bundled: path.join(input.resources, file),
-    dev: path.join(input.resources, "..", "desktop", "src-tauri", "binaries", file),
+    dev: path.join(input.resources, "..", "desktop", "dist", "sidecar", file),
   };
 }
 

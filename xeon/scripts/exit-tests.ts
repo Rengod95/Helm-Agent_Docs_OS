@@ -86,7 +86,7 @@ export function sidecarBinaryPath(
 ): string | undefined {
   const triple = hostTriple(platform, arch);
   if (!triple.ok) return undefined;
-  return join(SIDECAR_PACKAGE, "src-tauri", "binaries", outputFileName(name, triple.value));
+  return join(SIDECAR_PACKAGE, "dist", "sidecar", outputFileName(name, triple.value));
 }
 
 /** Reads the `N pass`, `N skip`, `N fail` lines of `bun test` output. undefined when there is no pass line. */

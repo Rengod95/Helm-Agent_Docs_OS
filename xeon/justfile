@@ -126,7 +126,7 @@ release-archive triple *flags:
 release-smoke:
     scripts/release-smoke.sh
 
-# 데스크톱 화면 번들 (bun build → apps/desktop/src-tauri/ui). 인자 dev는 불변식 검사를 켠 개발 빌드. just verify 밖
+# 데스크톱 화면 번들 (bun build → apps/desktop/dist/ui). 인자 dev는 불변식 검사를 켠 개발 빌드. just verify 밖
 [group('local')]
 desktop-ui mode="release":
     {{bun}} run --cwd apps/desktop {{ if mode == "dev" { "build:ui:dev" } else { "build:ui" } }}
@@ -141,8 +141,8 @@ desktop-run:
 desktop-run-electron:
     #!/usr/bin/env bash
     set -euo pipefail
-    [ -f apps/desktop/src-tauri/ui/index.html ] || { echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
-    ls apps/desktop/src-tauri/binaries/fresnel-* >/dev/null 2>&1 || { echo "사이드카가 없다: just desktop-sidecar host" >&2; exit 2; }
+    [ -f apps/desktop/dist/ui/index.html ] || { echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
+    ls apps/desktop/dist/sidecar/fresnel-* >/dev/null 2>&1 || { echo "사이드카가 없다: just desktop-sidecar host" >&2; exit 2; }
     {{bun}} run --cwd apps/desktop-shell build
     cd apps/desktop-shell && FRESNEL_DESKTOP_INSPECT=1 exec node_modules/.bin/electron .
 
@@ -151,8 +151,8 @@ desktop-run-electron:
 desktop-build-electron:
     #!/usr/bin/env bash
     set -euo pipefail
-    [ -f apps/desktop/src-tauri/ui/index.html ] || { echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
-    ls apps/desktop/src-tauri/binaries/fresnel-aarch64-apple-darwin >/dev/null 2>&1 || { echo "사이드카가 없다: just desktop-sidecar host" >&2; exit 2; }
+    [ -f apps/desktop/dist/ui/index.html ] || { echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
+    ls apps/desktop/dist/sidecar/fresnel-aarch64-apple-darwin >/dev/null 2>&1 || { echo "사이드카가 없다: just desktop-sidecar host" >&2; exit 2; }
     {{bun}} run --cwd apps/desktop-shell build
     # 엔진 사이드카(Bun, host, cli) 고지: package.ts가 Resources/licenses/에 넣는다(process 실행은 L0 소유라 여기서 만든다)
     {{bun}} scripts/notices.ts --out apps/desktop-shell/dist/engine-notices.txt
