@@ -313,5 +313,5 @@ test("authoring.card-text: the confirmation cards are Korean and name the kind a
   expect(JSON.stringify(request?.body)).toContain('플러그인 \\"demo\\"을 /work/demo에 만들까요?');
   expect(JSON.stringify(request?.body)).toContain('"label":"예"');
   expect(JSON.stringify(request?.body)).toContain('"label":"아니요"');
-  expect(request?.title).toBe("플러그인 빌더");
+  expect(request?.title).toBe("Plugin Builder");
 });
