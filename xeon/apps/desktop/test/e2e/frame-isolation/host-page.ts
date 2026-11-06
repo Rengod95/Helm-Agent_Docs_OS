@@ -152,7 +152,10 @@ attachFrame({
     },
   },
   initialPushes: () => [{ name: "theme", value: { scheme: "dark" } }],
-  onClosed: () => {},
+  // 다리가 닫히면(ready_timeout, liveness_lost 등) 이유를 남긴다. 시험이 보고를 기다리다 60초를 쓰지 않고 바로 이유로 실패한다
+  onClosed: (reason) => {
+    window.frameClosedReason = reason;
+  },
 });
 
 function finish(): void {
@@ -169,6 +172,17 @@ function finish(): void {
       ledger: ledger.stateOf("helm/app"),
       hostUrl: location.href,
     });
+    // 보고는 창 값에도 둔다. 시험은 POST가 닿지 않아도 이 값을 읽는다
+    window.frameReportBody = body;
     detach(fetch("/report", { method: "POST", body }), rethrow);
   }, 0);
+}
+
+declare global {
+  interface Window {
+    /** 다리가 닫힌 이유. 시험이 읽는다 */
+    frameClosedReason?: string;
+    /** 보고 본문. `/report` POST와 같은 값이다 */
+    frameReportBody?: string;
+  }
 }

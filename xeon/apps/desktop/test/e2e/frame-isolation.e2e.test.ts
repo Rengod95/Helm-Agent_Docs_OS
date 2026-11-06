@@ -64,6 +64,27 @@ let run: Run | undefined;
 let resolveReport: (text: string) => void = () => {};
 const servers: { stop(force?: boolean): unknown }[] = [];
 
+const REPORT_DEADLINE_MS = 45_000;
+const REPORT_POLL_MS = 500;
+
+interface Evaluable {
+  evaluate(script: string): Promise<unknown>;
+}
+
+/** 창의 `frameReportBody`를 주기로 읽는다. 다리가 닫혔거나 기한이 지나면 이유를 담아 실패한다 */
+async function pollReport(
+  view: Evaluable,
+  deadline: number = Date.now() + REPORT_DEADLINE_MS,
+): Promise<string> {
+  if (Date.now() >= deadline) throw new Error(`no report within ${String(REPORT_DEADLINE_MS)} ms`);
+  const closed: unknown = await view.evaluate("window.frameClosedReason ?? null");
+  if (typeof closed === "string") throw new Error(`bridge closed before the report: ${closed}`);
+  const report: unknown = await view.evaluate("window.frameReportBody ?? null");
+  if (typeof report === "string") return report;
+  await Bun.sleep(REPORT_POLL_MS);
+  return pollReport(view, deadline);
+}
+
 async function bundleHostPage(): Promise<string> {
   const built = await Bun.build({
     entrypoints: [new URL("./frame-isolation/host-page.ts", import.meta.url).pathname],
@@ -145,8 +166,9 @@ beforeAll(async () => {
     await view.navigate(
       `http://127.0.0.1:${String(shell.port)}/host.html?frame=${encodeURIComponent(frameUrl)}`,
     );
-    // 보고가 올 때까지 기다린다. 보고가 안 오면 시험 시간 제한이 끊는다
-    const text = await reported;
+    // 보고를 기다린다. POST가 닿거나 창 값(`frameReportBody`)에 보고가 생기면 읽는다. 다리가 닫혔으면 이유로 바로 실패한다.
+    // 기다림에는 끝이 있다(REPORT_DEADLINE_MS). 부하가 큰 기기에서 POST만 사라지는 일이 있어 창 값을 함께 본다
+    const text = await Promise.race([reported, pollReport(view)]);
     const json = parseJson(text);
     if (!json.ok) throw new Error("report is not JSON");
     const report = parse(ReportSchema, json.value);
