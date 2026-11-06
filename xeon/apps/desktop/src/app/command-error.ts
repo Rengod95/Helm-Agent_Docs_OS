@@ -1,3 +1,4 @@
+import { HostClientError } from "@fresnel/client";
 import { parse } from "@fresnel/contracts";
 import { WIRE_ERRORS, WireError } from "@fresnel/contracts/wire";
 import { Type } from "typebox";
@@ -10,6 +11,8 @@ import type { CommandError } from "../views/commands.ts";
 // - 3102 settings.invalidValue: 저장하려던 값이 틀렸다(예: 모르는 모델 id). host가 쓴 첫 문제의 문장을 남긴다.
 // - 그 밖: 코드만 남긴다.
 
+/** 시간 안에 응답이 없을 때 `rejected.issue`에 남기는 값. 화면이 "엔진이 답하지 않았다"를 가른다(`views/workspace-model.ts`가 같은 글자를 읽는다) */
+const TIMEOUT_ISSUE = "timeout";
 const METHOD_NOT_FOUND = WIRE_ERRORS["jsonrpc.methodNotFound"].code;
 const LOCKED_CODE = WIRE_ERRORS["thread.locked"].code;
 const INVALID_VALUE_CODE = WIRE_ERRORS["settings.invalidValue"].code;
@@ -46,6 +49,9 @@ function visibleOptions(options: readonly string[]): readonly LockedOption[] {
 }
 
 export function errorOf(cause: unknown): CommandError {
+  // 응답이 시간 안에 오지 않았다. 요청은 취소를 보냈고 결과는 모른다
+  if (cause instanceof HostClientError && cause.kind === "timeout")
+    return { kind: "rejected", code: null, issue: TIMEOUT_ISSUE };
   if (!(cause instanceof WireError)) return { kind: "failed" };
   if (cause.code === METHOD_NOT_FOUND) return { kind: "unsupported" };
   if (cause.code === LOCKED_CODE) {

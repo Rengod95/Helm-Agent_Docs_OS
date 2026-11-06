@@ -1,8 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import { HostClientError } from "@fresnel/client";
 import { wireError } from "@fresnel/contracts/wire";
 import { errorOf } from "../../src/app/command-error.ts";
 
 describe("errorOf", () => {
+  test("a request that got no answer in time is a timeout, not a generic failure", () => {
+    expect(
+      errorOf(new HostClientError("timeout", "thread.create timed out after 30000ms")),
+    ).toEqual({ kind: "rejected", code: null, issue: "timeout" });
+    expect(errorOf(new HostClientError("closed", "connection is closed"))).toEqual({
+      kind: "failed",
+    });
+  });
+
   test("a missing method is unsupported, not a rejection", () => {
     expect(
       errorOf(wireError("jsonrpc.methodNotFound", { details: { method: "trust.get" } })),

@@ -85,6 +85,9 @@ describe("desktop sentences in English", () => {
       "Could not open the working folder. Check that it is the absolute path of an existing folder.",
     );
     expect(createFailureText(refused, false)).toBe("Could not create the new conversation.");
+    expect(createFailureText({ kind: "rejected", code: null, issue: "timeout" }, false)).toBe(
+      "The engine did not answer in time. Check the engine status and try again.",
+    );
     expect(createFailureText({ kind: "offline" }, true)).toBe(
       "Could not create the new conversation.",
     );

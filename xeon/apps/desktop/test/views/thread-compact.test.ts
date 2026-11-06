@@ -23,6 +23,26 @@ describe("compactNoticeOf", () => {
       args: { before: 12_500, after: 3_100 },
     });
   });
+  test("요약 뒤가 앞보다 크거나 같으면 줄었다는 말 없이 따로 안내한다", () => {
+    for (const tokensAfter of [19_909, 19_897]) {
+      expect(
+        compactNoticeOf(
+          ok({
+            status: "compacted",
+            eventId: evt(1),
+            tokensBefore: 19_897,
+            tokensAfter,
+            fromExtension: null,
+            position: { storeId: STORE, seq: 3 },
+          }),
+        ),
+      ).toEqual({
+        tone: "info",
+        id: "desktop.threads.compact.done.same",
+        args: { after: tokensAfter },
+      });
+    }
+  });
   test("요약할 것이 없으면 이유별 안내다", () => {
     expect(compactNoticeOf(ok({ status: "skipped", why: "disabled" }))).toEqual({
       tone: "info",

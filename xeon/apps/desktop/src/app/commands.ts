@@ -59,6 +59,9 @@ import type { DesktopIpc } from "../transport/ipc.ts";
 import { LOCAL, type LocalSettings } from "../settings-store/index.ts";
 import type { EngineSwitch } from "./engine-switch.ts";
 
+/** 새 대화 만들기를 기다리는 시간(ms). 응답이 끝내 없으면 바쁨을 풀고 이유를 말한다 */
+const CREATE_THREAD_TIMEOUT_MS = 30_000;
+
 export type CommandDeps = {
   readonly session: Session;
   /** 키 등록(`registerSecret`), 엔진 대상 바꾸기(`retarget`), 데이터 복원(`dbRestore`)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
@@ -200,7 +203,9 @@ export function createCommands(deps: CommandDeps): Commands {
     },
     async createThread(workspace) {
       const created = await withWriteConnection((c) =>
-        c.request("thread.create", workspace === undefined ? {} : { workspace }),
+        c.request("thread.create", workspace === undefined ? {} : { workspace }, {
+          timeoutMs: CREATE_THREAD_TIMEOUT_MS,
+        }),
       );
       if (!created.ok) return created;
       // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다

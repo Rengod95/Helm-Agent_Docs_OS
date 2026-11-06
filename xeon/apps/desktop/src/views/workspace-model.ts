@@ -42,5 +42,7 @@ export function createFailureText(error: CommandError, sentWorkspace: boolean): 
   if (sentWorkspace && error.kind === "rejected" && error.code === INVALID_PARAMS) {
     return t("desktop.workspace.folderRefused");
   }
+  if (error.kind === "rejected" && error.code === null && error.issue === "timeout")
+    return t("desktop.workspace.createTimeout");
   return t("desktop.workspace.createFailed");
 }
