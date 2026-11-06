@@ -82,7 +82,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel sessions rm <id> [--yes]` | 대화 삭제. TTY에서는 확인을 받는다 | `thread.delete` | M2 |
 | `fresnel sessions rename <id> <제목>` | 대화 제목을 바꾼다. 제목은 낱말 여러 개를 따옴표 없이 써도 되고 1~200자다. 목록(`sessions ls`, `/resume`)은 제목이 없으면 `(제목 없음)`을 보인다 | `thread.rename` | M2 |
 | `fresnel config get [<key>…] [--json]` | 유효 값과 출처(`source`), 잠금, 가려진 범위, 적용 대기를 출력한다 | `settings.get` | M1 |
-| `fresnel config set <key> <value> [--scope user\|project\|local]` | 값을 쓴다. 기본 범위는 `user` [제안] | `settings.set` | M2 |
+| `fresnel config set <key> <value> [--scope user\|project\|local]` | 값을 쓴다. 기본 범위는 `user` [제안]. `project`·`local`은 이 작업 폴더의 가장 최근 대화(`thread.list { workspace, limit: 1 }`)의 `threadId`를 함께 보내 작업 폴더를 정한다(F wire `settings.set`). 대화가 없으면 보내지 않고 그 사실을 알리며 2로 끝낸다. `config get`·`reset`도 같은 `threadId`를 보내 작업 폴더 설정 파일 값이 유효 값에 들어온다. host가 `settings.scopeNotAllowed`의 `details.reason`(`untrustedProject`, `workspaceRequired`, `managedReadOnly`)을 주면 "허용 범위" 목록 대신 그 이유와 `fresnel trust allow` 같은 다음 행동을 말한다 [결정: 오케스트레이터 기본값, scF-S3] | `settings.set` | M2 |
 | `fresnel config reset <key> [--scope …]` | 그 범위의 값을 지운다 | `settings.reset` | M2 |
 | `fresnel config list [--prefix p] [--deprecated] [--json]` | 정의 목록과 유효 값 | `settings.list`, `settings.get` | M2 |
 | `fresnel config schema --scope <managed\|user\|project\|local> [--out <path>] [--core-only]` | 설정 파일 JSON Schema 출력. `--out`이 없으면 stdout에 쓴다. 엔진 연결 없이 로컬 명령으로 돈다(`L4.host-service.spec` §6.2) | 없음. `runHostCommand({ kind: "config-schema" })` | M1 |

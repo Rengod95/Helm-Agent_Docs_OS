@@ -1,7 +1,10 @@
 import { afterEach, expect, test } from "bun:test";
+import { wireError } from "@fresnel/contracts/wire";
+import { failureOfWire } from "../src/errors.ts";
 import { EXIT } from "../src/exit-codes.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
-import { def, fakeSettings } from "./support/m2.ts";
+import { threadId } from "./support/ids.ts";
+import { def, fakeSettings, summary } from "./support/m2.ts";
 
 const harnesses: Harness[] = [];
 afterEach(() => {
@@ -26,12 +29,28 @@ const DEFS = [
   def("l2.web.search.provider", { default: "auto", layer: "L2" }),
 ];
 
-function harness(initial: Record<string, unknown> = {}): {
+const T1 = threadId(1);
+
+function harness(
+  initial: Record<string, unknown> = {},
+  folderThreads: readonly ReturnType<typeof threadId>[] = [T1],
+): {
   h: Harness;
   settings: ReturnType<typeof fakeSettings>;
 } {
   const settings = fakeSettings(DEFS, initial);
-  const h = createHarness({ env: { NO_COLOR: "1" }, server: { handlers: settings.handlers } });
+  const h = createHarness({
+    env: { NO_COLOR: "1" },
+    server: {
+      handlers: {
+        ...settings.handlers,
+        "thread.list": () => ({
+          threads: folderThreads.map((id) => summary(id)),
+          nextCursor: null,
+        }),
+      },
+    },
+  });
   harnesses.push(h);
   return { h, settings };
 }
@@ -55,7 +74,19 @@ test("config set --scope project and a JSON string value", async () => {
   expect(await h.run(["config", "set", "l4.cli.theme", '"light"', "--scope", "project"])).toBe(
     EXIT.ok,
   );
-  expect(settings.writes[0]).toMatchObject({ value: "light", scope: "project" });
+  // project 범위는 이 작업 폴더의 대화로 작업 폴더를 정한다
+  expect(settings.writes[0]).toMatchObject({ value: "light", scope: "project", threadId: T1 });
+});
+
+test("config set --scope project without a conversation in the folder says why and exits 2", async () => {
+  const { h, settings } = harness({}, []);
+  expect(await h.run(["config", "set", "l4.cli.theme", '"light"', "--scope", "project"])).toBe(
+    EXIT.usage,
+  );
+  expect(settings.writes).toEqual([]);
+  expect(h.stderrText()).toContain(
+    "이 작업 폴더에 대화가 없어 project 범위를 쓸 곳을 정할 수 없다",
+  );
 });
 
 test("config set errors from the host become the §4.10 sentences and codes", async () => {
@@ -71,6 +102,22 @@ test("config set errors from the host become the §4.10 sentences and codes", as
   expect(scoped.h.stderrText()).toContain("허용 범위: user");
 });
 
+test("a refused project write names the reason instead of listing allowed scopes", () => {
+  const caught = wireError("settings.scopeNotAllowed", {
+    details: {
+      key: "l4.cli.theme",
+      scope: "project",
+      allowedScopes: ["user", "project"],
+      reason: "untrustedProject",
+    },
+  });
+  const failure = failureOfWire(caught);
+  expect(failure.message).toBe(
+    "작업 폴더를 신뢰하지 않아 l4.cli.theme를 project·local 범위에 쓰거나 읽을 수 없다",
+  );
+  expect(failure.fix).toBe("`fresnel trust allow`로 이 작업 폴더를 신뢰한 뒤 다시 한다");
+});
+
 test("config reset clears the value in that scope and prints the value that remains", async () => {
   const { h, settings } = harness({ "l4.cli.theme": "dark" });
   expect(await h.run(["config", "reset", "l4.cli.theme", "--scope", "local"])).toBe(EXIT.ok);
@@ -78,6 +125,7 @@ test("config reset clears the value in that scope and prints the value that rema
     key: "l4.cli.theme",
     scope: "local",
     value: undefined,
+    threadId: T1,
   });
   expect(h.stdoutText()).toContain('l4.cli.theme = "system"');
 });
