@@ -136,7 +136,18 @@ export function ConfirmHost(props: ConfirmHostProps): ReactNode {
   const { queue } = props;
   const current = useSyncExternalStore(queue.subscribe, queue.current, queue.current);
   if (current === undefined) return null;
-  return <ConfirmDialog key={current.sequence} item={current} now={props.now ?? monotonicNow} />;
+  // 줄은 셸 포털에 떠서 끝 영역 패널의 "바깥 누름 닫기"가 줄 안의 누름을 바깥으로 본다. 패널이 닫히면 화면의 실행기가 거둬져
+  // 열린 확인이 거부로 끝난다(허용을 눌러도 "확인하지 않음"). React 이벤트는 포털을 지나 올라오므로 여기서 누름이 문서까지 번지지 않게 막는다
+  return (
+    <div
+      className="contents"
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+    >
+      <ConfirmDialog key={current.sequence} item={current} now={props.now ?? monotonicNow} />
+    </div>
+  );
 }
 
 function ConfirmDialog(props: {
