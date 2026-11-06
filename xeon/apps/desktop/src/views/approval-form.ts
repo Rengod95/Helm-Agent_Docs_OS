@@ -1,4 +1,5 @@
 import type { MessageId } from "@fresnel/client/i18n";
+import { parseJson } from "@fresnel/contracts";
 import type { JsonValue } from "@fresnel/contracts/conversation";
 import type { ApprovalRequestedPayload, BlobRef } from "@fresnel/contracts/records";
 import { TOOL_REPLACE_APPROVAL_TOOL } from "@fresnel/contracts/services";
@@ -107,6 +108,172 @@ export function toolApprovalView(body: ToolApprovalBody): ToolApprovalView {
     argsTruncated: shown.clipped,
     argsStored: false,
     secrets: secretsOf(args),
+  };
+}
+
+// ── 파일 변경(edit, write) ───────────────────────────────────────────────
+
+/** 파일 변경 미리보기의 한 줄. `context`는 바뀌지 않은 앞뒤 줄이다 */
+export type FileChangeRow = {
+  readonly kind: "context" | "add" | "remove";
+  readonly text: string;
+};
+
+/**
+ * 파일 변경 승인의 그림 값. 파일은 승인 시점에 읽지 않으므로 줄 번호가 없다.
+ * `edit`은 바뀐 줄의 diff이고, 앞 `DIFF_HEAD_ROWS`줄 뒤는 `rest`로 접는다. `write`는 쓸 내용의 앞 줄과 남은 줄 수다.
+ */
+export type FileChangeView =
+  | {
+      readonly kind: "edit";
+      readonly path: string;
+      readonly head: readonly FileChangeRow[];
+      readonly rest: readonly FileChangeRow[];
+    }
+  | {
+      readonly kind: "write";
+      readonly path: string;
+      readonly head: readonly string[];
+      readonly hiddenLines: number;
+    };
+
+const DIFF_CONTEXT_LINES = 2;
+const DIFF_HEAD_ROWS = 30;
+const WRITE_HEAD_LINES = 40;
+
+type Replacement = { readonly oldText: string; readonly newText: string };
+
+function isRecordValue(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isUnknownArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value);
+}
+
+/** 글을 줄로 나눈다. 빈 글은 줄이 없고, 끝의 줄바꿈 하나는 줄을 늘리지 않는다 */
+function linesOf(text: string): string[] {
+  if (text === "") return [];
+  const lines = text.split(/\r?\n/);
+  if (text.endsWith("\n")) lines.pop();
+  return lines;
+}
+
+function rowsOf(lines: readonly string[], kind: FileChangeRow["kind"]): FileChangeRow[] {
+  return lines.map((text): FileChangeRow => ({ kind, text }));
+}
+
+/**
+ * 바꿀 곳 하나를 diff 줄로 바꾼다. 앞뒤 공통 줄은 떼고, 떼어 낸 줄 중 가까운 `DIFF_CONTEXT_LINES`줄만 문맥으로 남긴다.
+ * 바뀐 줄이 없으면(옛 글과 새 글이 같으면) 빈 목록이다.
+ */
+function replacementRowsOf(oldText: string, newText: string): FileChangeRow[] {
+  const before = linesOf(oldText);
+  const after = linesOf(newText);
+  const limit = Math.min(before.length, after.length);
+  let prefix = 0;
+  while (prefix < limit && before[prefix] === after[prefix]) prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < limit - prefix &&
+    before[before.length - 1 - suffix] === after[after.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+  const removed = before.slice(prefix, before.length - suffix);
+  const added = after.slice(prefix, after.length - suffix);
+  if (removed.length === 0 && added.length === 0) return [];
+  const leading = before.slice(Math.max(0, prefix - DIFF_CONTEXT_LINES), prefix);
+  const trailing = before.slice(
+    before.length - suffix,
+    before.length - suffix + Math.min(DIFF_CONTEXT_LINES, suffix),
+  );
+  return [
+    ...rowsOf(leading, "context"),
+    ...rowsOf(removed, "remove"),
+    ...rowsOf(added, "add"),
+    ...rowsOf(trailing, "context"),
+  ];
+}
+
+function replacementOf(value: unknown): Replacement | null {
+  if (!isRecordValue(value)) return null;
+  const oldText = value["oldText"];
+  const newText = value["newText"];
+  return typeof oldText === "string" && typeof newText === "string" ? { oldText, newText } : null;
+}
+
+/** `edits`의 세 모양(배열, 객체 하나, 그 둘의 JSON 문자열)을 항목 목록으로 바꾼다. 모양이 아니면 null */
+function editItemsOf(value: unknown): readonly unknown[] | null {
+  let shaped: unknown = value;
+  if (typeof value === "string") {
+    const parsed = parseJson(value);
+    if (!parsed.ok) return null;
+    shaped = parsed.value;
+  }
+  if (isUnknownArray(shaped)) return shaped;
+  return isRecordValue(shaped) ? [shaped] : null;
+}
+
+/**
+ * 인자에서 바꿀 곳 목록을 읽는다. `edits`가 있으면 그 항목을, 없거나 빈 배열이면 최상위 `oldText`·`newText` 한 쌍을 쓴다(도구의 규칙과 같다).
+ * 항목 하나라도 모양이 다르면 null이다. 그러면 카드는 인자 JSON만 보인다.
+ */
+function replacementsOf(args: Readonly<Record<string, JsonValue>>): readonly Replacement[] | null {
+  const edits = args["edits"];
+  let items: readonly unknown[] = [];
+  if (edits !== undefined) {
+    const shaped = editItemsOf(edits);
+    if (shaped === null) return null;
+    items = shaped;
+  }
+  if (items.length === 0) {
+    const oldText = args["oldText"];
+    const newText = args["newText"];
+    return typeof oldText === "string" && typeof newText === "string"
+      ? [{ oldText, newText }]
+      : null;
+  }
+  const replacements: Replacement[] = [];
+  for (const item of items) {
+    const replacement = replacementOf(item);
+    if (replacement === null) return null;
+    replacements.push(replacement);
+  }
+  return replacements;
+}
+
+/**
+ * `edit`과 `write` 승인의 파일 변경 그림. 다른 도구, 참조로 빠진 인자, 모양이 맞지 않는 인자는 null이라 카드는 옛 본문을 그린다.
+ * 인자는 프로세스 밖에서 온 값이라 던지지 않고 모양만 본다.
+ */
+export function fileChangeViewOf(body: ToolApprovalBody): FileChangeView | null {
+  if (body.toolName !== "edit" && body.toolName !== "write") return null;
+  const { args } = body;
+  if (isBlobRef(args)) return null;
+  const path = args["path"];
+  if (typeof path !== "string" || path.trim() === "") return null;
+  if (body.toolName === "write") {
+    const content = args["content"];
+    if (typeof content !== "string") return null;
+    const lines = linesOf(content);
+    return {
+      kind: "write",
+      path,
+      head: lines.slice(0, WRITE_HEAD_LINES),
+      hiddenLines: Math.max(0, lines.length - WRITE_HEAD_LINES),
+    };
+  }
+  const replacements = replacementsOf(args);
+  if (replacements === null) return null;
+  const rows = replacements.flatMap((replacement) =>
+    replacementRowsOf(replacement.oldText, replacement.newText),
+  );
+  return {
+    kind: "edit",
+    path,
+    head: rows.slice(0, DIFF_HEAD_ROWS),
+    rest: rows.slice(DIFF_HEAD_ROWS),
   };
 }
 

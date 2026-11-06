@@ -1229,7 +1229,7 @@ compact 폭(720 이하)과 사이드바 시트:
 
 | 기능 | wire 또는 view-model |
 |---|---|
-| 도구 승인 | `approval.respond { decision: "allow" | "deny", remember }`, 보기 `toolApprovalView` |
+| 도구 승인 | `approval.respond { decision: "allow" | "deny", remember }`, 보기 `toolApprovalView`, 파일 변경 보기 `fileChangeViewOf` |
 | 질문 답 | `approval.respond { decision: "answer", answer: QuestionAnswer }`, `togglePick`, `setPickText`, `answerOf` |
 | 계획 승인 | `approval.respond { decision: "allow", answer: { mode } }`, 수정 요청과 거부는 `{ decision: "deny", answer: { feedback } }` [가정: 수정 요청과 거부의 구분 값은 L1.tools §3.6 확인] `[gap:V-12]` |
 | 변경 검토 | "검토 열기" → P-04, "모두 승인"은 `ReviewAnswer { decisions: [], comments: [], submit: true, approveRemaining: true }` |
@@ -1242,7 +1242,8 @@ compact 폭(720 이하)과 사이드바 시트:
 
 - 승인 카드 규칙
   - 공통 머리: kind 라벨, 대화 이름(누르면 그 대화), 상대 시각, caller 배지(`background`, `subagent:<이름>`, `ext:<이름>`), 원격에서 온 요청이면 "원격" 배지, `expiresAt`이 있으면 "HH:MM에 자동 거부/답"(`onExpire`).
-  - 도구: 도구 이름, 위험도(`risk`), `command` 전문(`MessageCode`), `secretEnv` 핸들 목록, 인자 접힘(4000자), BlobRef면 "별도 저장소에 있어요". `ruleId`가 있으면 "규칙 <id> 때문에 물어요".
+  - 도구: 도구 이름, 위험도(`risk`), `command` 전문(`MessageCode`), `secretEnv` 핸들 목록, 인자 JSON을 "자세히" 접힘(4000자), BlobRef면 "별도 저장소에 있어요". `ruleId`가 있으면 "규칙 <id> 때문에 물어요".
+  - 파일 변경(`edit`, `write`): 경로(`<code>`)와 "수정" 또는 "파일 쓰기" 글을 머리에 두고, 그 아래 줄 diff(`CodeDiffLine`, `codeDiffVariants` 카드)를 그립니다. `edit`은 바꿀 곳마다 앞뒤 공통 줄을 떼고 바뀐 줄과 가까운 문맥 최대 2줄만 보입니다. 파일을 읽지 않으므로 줄 번호는 파일의 줄 번호가 아니라 diff 줄의 순서입니다. 앞 30줄 뒤는 "더 보기 (N줄)"로 접습니다. `write`는 쓸 내용의 앞 40줄과 "N줄 더 있어요"이고, 기존 내용은 보이지 않으니 "새 파일"이라 쓰지 않습니다. 인자가 모양에 맞지 않거나 BlobRef면 그림 없이 일반 도구 카드로 그립니다. 시험: `test/views/approval-form.test.ts`의 `fileChangeViewOf`, `test/views/approvals.test.tsx`의 `file change approval card` [구현: 2026-11-07, 승인 카드 파일 변경 트랙].
   - 내장 도구 대체(도구 이름 `tool_replace`, 규칙 `tools.replace`, L1.tools §4.13): 일반 도구 카드의 머리에 "기본 도구를 대체하려는 요청이에요"와 확장 이름, 대체할 기본 도구, 확장 신뢰 등급(기본 제공·사용자·작업 폴더·신뢰하지 않음), 위험도(원본 → 실제, 같으면 한 값)를 `args`에서 읽어 보이고, `Alert tone="warning"`으로 "기본 도구에 들어 있는 파일 경로 보호는 대체 도구에 적용되지 않아요. 대체 도구가 경로 보호를 직접 지켜야 해요."를 항상 보입니다(본문 `notice`와 무관). 허용은 이 대화 안에서만 효력이 있고(`remember`는 `once`뿐) 거부하면 기본 도구가 그대로입니다. 확장 이름이나 대체 도구 이름이 `args`에 없으면 일반 도구 카드로 그립니다 [결정: 2026-11-03 사용자: 같은 이름 대체 지원].
   - 요청한 곳(U-7): `origin.caller`가 `main`이 아니면 "요청한 곳: 백그라운드 | 앱 | 보조 에이전트 <이름> | 그룹 <이름>" 한 줄을 제목 아래에 보입니다(`ext:<이름>`은 그룹 이름으로 보임).
   - 질문: 1~4문항, 문항마다 `header`, `text`, 선택지(`recommended`는 "(추천)"), `multiSelect`면 체크박스, `allowFreeText`면 직접 입력. 모든 문항에 답이 있어야 "답하기"가 켜집니다.
