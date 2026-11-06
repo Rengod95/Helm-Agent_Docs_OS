@@ -1,4 +1,4 @@
-import type { Result } from "@fresnel/contracts";
+import { attemptAsync, rethrow, type Result } from "@fresnel/contracts";
 import {
   isId,
   type ItemId,
@@ -8,6 +8,7 @@ import {
   type Usage,
 } from "@fresnel/contracts/conversation";
 import type { AgentSettledPayload, HandlerContext } from "@fresnel/contracts/extensions";
+import { PrimitiveError } from "@fresnel/ext-host";
 import type { GroupApi, GroupUsageDelta } from "@fresnel/group-sdk";
 import type { LearningDeps } from "./deps.ts";
 import type { LearningWriter } from "./proposals/ops.ts";
@@ -59,6 +60,31 @@ const STALE_REVIEW_MS = 2 * 60 * 60 * 1000;
 
 function sameState(a: LearningState, b: LearningState): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** 판 충돌로 커밋을 다시 시도하는 횟수의 상한. 겹치는 쓰기는 이 핸들러와 검토 종료 구독 둘이라 한두 번이면 끝난다 */
+const COMMIT_ATTEMPTS = 3;
+
+/**
+ * 상태 커밋. 같은 상태 문서에 검토 종료 구독과 `boundary.settle.after`가 겹쳐 쓰면(위임을 기다리는 사이 자식이 정착한 경우) 뒤 커밋이
+ * 앞 커밋 전의 판을 기대해 `state_conflict`가 난다. 충돌이면 최신 상태를 다시 읽어 `rebuild`로 값을 새로 만들고 다시 낸다(`null`이면 그만둔다).
+ * 커밋은 핸들러의 마지막 효과이고 값이 같으면 쓰지 않으므로 다시 시도해도 두 번 반영되지 않는다
+ */
+export async function commitFresh(
+  g: Pick<LearningApi, "state" | "commit">,
+  first: LearningState,
+  rebuild: (latest: LearningState) => LearningState | null,
+  attempt = 1,
+): Promise<void> {
+  if (sameState(g.state(), first)) return;
+  const done = await attemptAsync(() => g.commit(first));
+  if (done.ok) return;
+  const cause = done.error.cause;
+  const conflict = cause instanceof PrimitiveError && cause.code === "state_conflict";
+  if (!conflict || attempt >= COMMIT_ATTEMPTS) return rethrow(cause);
+  const next = rebuild(g.state());
+  if (next === null) return;
+  await commitFresh(g, next, rebuild, attempt + 1);
 }
 
 export function writerOf(g: LearningApi): LearningWriter {
@@ -132,17 +158,29 @@ async function finishReview(
     g.metrics.addUsage(usageDeltaOf(settled.usage));
   }
   // 커밋은 마지막이다. 직전에 다시 읽어 선후 경합을 본다(§4.3)
-  const latest = g.state();
-  const next = reviewFinishOutcome(latest, settled);
-  if (next.kind === "finished" && !sameState(next.next, latest)) await g.commit(next.next);
+  const outcomeOf = (latest: LearningState): LearningState | null => {
+    const next = reviewFinishOutcome(latest, settled);
+    return next.kind === "finished" ? next.next : null;
+  };
+  const first = outcomeOf(g.state());
+  if (first !== null) await commitFresh(g, first, outcomeOf);
 }
 
 export function registerTriggers(env: HandlerEnv): void {
   const { g, deps, writer } = env;
   const tallies = new Map<string, OpenTally>();
 
-  async function commitIfChanged(next: LearningState): Promise<void> {
-    if (!sameState(g.state(), next)) await g.commit(next);
+  /** 충돌하면 검토 표지(진행 중, 정착)만 최신 값으로 바꿔 다시 낸다. 카운터와 turn 표지는 이 처리기가 정한 값이다. 같은 turn이 이미 반영됐으면 그만둔다 */
+  async function commitIfChanged(next: LearningState, turnId: TurnId): Promise<void> {
+    await commitFresh(g, next, (latest) =>
+      latest.lastTurnId === turnId
+        ? null
+        : {
+            ...next,
+            inFlightReviewId: latest.inFlightReviewId,
+            settledReviewId: latest.settledReviewId,
+          },
+    );
   }
 
   /** 정착했는데 진행 중 표지가 남은 검토(그룹이 꺼진 동안 끝남)를 투영된 검토 행으로 비운다 [제안]. 행이 닫혔거나 너무 오래되면 끝난 검토다 */
@@ -220,12 +258,12 @@ export function registerTriggers(env: HandlerEnv): void {
       true,
     );
     if (decision.kind === "skip") {
-      await commitIfChanged(withItem(decision.next));
+      await commitIfChanged(withItem(decision.next), payload.turnId);
       return;
     }
     // 포크 지점을 정할 수 없으면 검토를 시작하지 않고 카운터를 유지한다(§5 사례 17)
     if (lastItemId === null) {
-      await commitIfChanged(advanceCounters(before, tally));
+      await commitIfChanged(advanceCounters(before, tally), payload.turnId);
       return;
     }
     const spec = buildReviewSpec({
@@ -240,7 +278,10 @@ export function registerTriggers(env: HandlerEnv): void {
       await g.delegate(spec, { threadId: hctx.threadId, signal: hctx.signal }),
     );
     if (started.kind === "retryLater") {
-      await commitIfChanged(withItem(afterDelegateFailure(before, advanceCounters(before, tally))));
+      await commitIfChanged(
+        withItem(afterDelegateFailure(before, advanceCounters(before, tally))),
+        payload.turnId,
+      );
       return;
     }
     // `already`(duplicate)에서도 쓴다: 위임과 이 기록 사이에서 프로세스가 끝났으면 기록이 없다. 같은 디스패치 키의 두 번째 쓰기는 X가 한 번으로 합친다 [제안]
@@ -253,15 +294,17 @@ export function registerTriggers(env: HandlerEnv): void {
       parentThreadId: hctx.threadId,
       at: deps.clock.now(),
     });
-    // 커밋 직전에 다시 읽는다: 자식이 이미 정착해 구독 핸들러가 먼저 돌았으면 진행 중 표지를 세우지 않는다(§4.3 4)
-    const fresh = g.state();
-    const settledFirst = fresh.settledReviewId === decision.requestId;
-    await commitIfChanged(
+    // 커밋 직전에 다시 읽는다: 자식이 이미 정착해 구독 핸들러가 먼저 돌았으면 진행 중 표지를 세우지 않는다(§4.3 4).
+    // 충돌하면 같은 규칙을 최신 상태에 다시 적용한다
+    const settledNow = (latest: LearningState): LearningState =>
       withItem({
         ...decision.next,
-        settledReviewId: fresh.settledReviewId ?? decision.next.settledReviewId,
-        inFlightReviewId: settledFirst ? null : decision.next.inFlightReviewId,
-      }),
+        settledReviewId: latest.settledReviewId ?? decision.next.settledReviewId,
+        inFlightReviewId:
+          latest.settledReviewId === decision.requestId ? null : decision.next.inFlightReviewId,
+      });
+    await commitFresh(g, settledNow(g.state()), (latest) =>
+      latest.lastTurnId === payload.turnId ? null : settledNow(latest),
     );
   }
 
