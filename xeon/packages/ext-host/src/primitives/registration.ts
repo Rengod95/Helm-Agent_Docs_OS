@@ -856,6 +856,16 @@ export function createRegistrationRuntime(
       thread.refused.delete(record.id);
       if (enabled) record.driveError = false;
     }
+    // 끄기 요청은 임대를 바로 거둔다. 단계 경계가 올 때까지 기다리면 하위 대화의 승인을 기다리는 drive가 경계에 닿지 못해 끄기가 끝나지 않는다.
+    // 임대 신호가 abort되어 진행 중인 spawn이 끝나고, 반납 기록은 다음 경계가 남긴다
+    if (!enabled) {
+      if (threadId === undefined) deps.lease.releaseForRegistration(record.id, "disabled");
+      else {
+        const thread = core.threads.get(threadId);
+        if (thread !== undefined)
+          deps.lease.releaseForRegistrationIn(thread, record.id, "disabled");
+      }
+    }
     refreshStatus(record);
     core.notify({ kind: "scope", scopeId: record.id, threadId: threadId ?? null });
     deps.requestApply(threadId);

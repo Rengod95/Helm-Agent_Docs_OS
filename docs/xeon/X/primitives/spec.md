@@ -1336,7 +1336,7 @@ stateDiagram-v2
 끄기(`disabling` → `disabled`), 순서 [제안, F.extensions.spec §4.5]:
 
 1. 핸들러 제외: `prepare`에서 세대를 닫는다. 이후 스냅샷에 들어가지 않는다.
-2. drive 락 반납: 이 scope가 drive 락을 가지고 있으면 `releasing`으로 바꾸고 경계 기여에 `lease.released { reason: "disabled" }`를 넣는다. 진행 중인 `loop.turn`이 있으면 이 경계는 그 turn 안의 단계 경계다. 반납은 기록되지만 그 `runTurn`은 정착까지 진행한다. drive 함수에는 `lease.signal` abort로 알린다.
+2. drive 락 반납: 이 scope가 drive 락을 가지고 있으면 `releasing`으로 바꾸고 경계 기여에 `lease.released { reason: "disabled" }`를 넣는다. 진행 중인 `loop.turn`이 있으면 이 경계는 그 turn 안의 단계 경계다. 반납은 기록되지만 그 `runTurn`은 정착까지 진행한다. drive 함수에는 `lease.signal` abort로 알린다. 끄기 요청(`disable()`, 대화별 포함)은 경계를 기다리지 않고 요청 즉시 락을 `releasing`으로 바꿔 `lease.signal`을 abort한다(진행 중인 spawn이 끝난다). 경계를 기다리면 하위 대화의 승인 답을 기다리는 drive가 경계에 닿지 못해 `disabling`에 멈춘다. `lease.released` 기록은 다음 경계가 남긴다.
 3. 경계 기여에 `scope.changed { status: "disabled" }`를 넣는다.
 4. `settle(committed)`에서 세대 `AbortController`를 abort하고 `fiber.dispose()`를 await한다. 이 dispose가 `onDispose` 정리 동작과 등록 해제기(on, drive 등록, 리소스, provide)를 실행한다.
 
