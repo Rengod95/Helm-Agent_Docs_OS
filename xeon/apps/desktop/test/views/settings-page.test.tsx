@@ -512,15 +512,13 @@ describe("overview tab sections", () => {
     expect(offline).not.toMatch(/py-12"><section/);
   });
 
-  test("every section title uses the mockup's small semibold text", () => {
+  test("every section title renders at the mockup's 16px title-2 ink (its unlayered h2 rule beats text-ui-sm)", () => {
     const out = html(propsOf({ view, tab: "overview" }));
     const headingClasses = [...out.matchAll(/<h2 id="[^"]*" class="([^"]*)"/g)].map(
       (match) => match[1] ?? "",
     );
     expect(headingClasses.length).toBeGreaterThan(0);
-    expect(new Set(headingClasses)).toEqual(
-      new Set(["m-0 flex-1 text-ui-sm font-semibold text-text-secondary"]),
-    );
+    expect(new Set(headingClasses)).toEqual(new Set(["m-0 flex-1 text-title-2 text-text-primary"]));
   });
 });
 

@@ -67,7 +67,7 @@ export function ConnectionSection(props: {
   return (
     <section aria-labelledby={headingId} className="grid content-start gap-1.5">
       <div className="flex min-h-7 items-center gap-1.5">
-        <h2 id={headingId} className="m-0 flex-1 text-ui-sm font-semibold text-text-primary">
+        <h2 id={headingId} className="m-0 flex-1 text-title-2 text-text-primary">
           {title}
         </h2>
         {end}

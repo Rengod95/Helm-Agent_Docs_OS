@@ -152,7 +152,7 @@ function FrameBox(props: { readonly label: string; readonly children: ReactNode 
     <section
       role="region"
       aria-label={props.label}
-      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl shadow-[inset_0_0_0_1px_var(--cs-color-border-default)]"
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-default"
     >
       {props.children}
     </section>

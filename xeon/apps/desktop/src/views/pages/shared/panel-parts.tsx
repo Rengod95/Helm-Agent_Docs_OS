@@ -14,7 +14,7 @@ export function PanelBlock(props: {
   return (
     <section className="pt-6 first:pt-0">
       <div className="flex h-8 items-center gap-2">
-        <h2 className="m-0 flex-1 text-ui-sm font-semibold text-text-secondary">{props.title}</h2>
+        <h2 className="m-0 flex-1 text-title-2 text-text-primary">{props.title}</h2>
         {props.end}
       </div>
       <div className="mt-1 grid gap-2 rounded-2xl bg-surface-base px-4 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">

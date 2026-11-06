@@ -12,7 +12,8 @@ import {
   type BridgePolicyContext,
   type ThemePush,
 } from "@fresnel/client/views/app";
-import { Button, Chip } from "@caustic/react";
+import { Button, Chip, Tooltip } from "@caustic/react";
+import { CodeXml, MessageSquare } from "@caustic/react/icons";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createBridgeBackend, type PluginShellPort } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
@@ -76,26 +77,59 @@ function Note(props: { readonly text: string; readonly dense?: boolean }): React
   );
 }
 
-/** 머리: 제목(strong) 옆에 연한 메타 한 줄. 선 없이 간격으로만 나눈다(DP-03) */
-function Header(props: { readonly entry: ExtUiEntry }): ReactNode {
+/**
+ * 머리: 제목(strong) 옆에 연한 메타 한 줄, 앱 화면이면 "플러그인 앱" 표지(툴팁은 앱 선언의 이유), 끝에 "대화로".
+ * 선 없이 간격으로만 나눈다(DP-03). 폭은 시안 b01 `FRAME_WIDTH`(가운데 68rem, 좌우 여백 한 번)다
+ */
+function Header(props: {
+  readonly entry: ExtUiEntry;
+  readonly onBackToChat: () => void;
+}): ReactNode {
   const { entry } = props;
   const trust = entry.trust === "managed" ? "user" : entry.trust;
+  const reason = entry.app?.reason;
   return (
-    <header className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 px-3 pt-3 pb-2">
-      <h2 className="m-0 font-ui text-ui-strong text-text-primary">
-        {extMessageOf(entry.messages, activeLocale(), entry.title)}
-      </h2>
-      <span className="min-w-0 text-ui-sm text-text-tertiary">
-        {entry.extension} · v{entry.version}
-      </span>
-      <span className="min-w-0 text-ui-sm text-text-tertiary">
-        {t(`client.view.confirm.trust.${trust}`)}
-      </span>
-      {entry.trust === "project" ? (
-        <Chip size="sm" tone="warning" variant="soft">
-          {t("client.view.confirm.projectBadge")}
-        </Chip>
-      ) : null}
+    <header className="mx-auto flex w-full max-w-[68rem] min-w-0 items-center gap-2 px-3 pt-3 pb-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h2 className="m-0 font-ui text-ui-strong text-text-primary">
+          {extMessageOf(entry.messages, activeLocale(), entry.title)}
+        </h2>
+        <span className="min-w-0 text-ui-sm text-text-tertiary">
+          {entry.extension} · v{entry.version}
+        </span>
+        <span className="min-w-0 text-ui-sm text-text-tertiary">
+          {t(`client.view.confirm.trust.${trust}`)}
+        </span>
+        {entry.trust === "project" ? (
+          <Chip size="sm" tone="warning" variant="soft">
+            {t("client.view.confirm.projectBadge")}
+          </Chip>
+        ) : null}
+        {entry.mode === "app" ? (
+          <Tooltip
+            side="bottom"
+            align="start"
+            content={reason === undefined ? "" : stripUnsafeText(reason, false)}
+          >
+            <button
+              type="button"
+              className="inline-flex flex-none rounded-full outline-none focus-visible:focus-ring"
+            >
+              <Chip size="sm" tone="neutral" variant="soft" icon={<CodeXml aria-hidden />}>
+                {t("desktop.workbench.uiMode.app")}
+              </Chip>
+            </button>
+          </Tooltip>
+        ) : null}
+      </div>
+      <Button
+        size="xs"
+        variant="outline"
+        iconStart={<MessageSquare aria-hidden />}
+        onClick={props.onBackToChat}
+      >
+        {t("desktop.plugin.header.backToChat")}
+      </Button>
     </header>
   );
 }
@@ -472,6 +506,7 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
   const loaded = useLoaded(runtime, entry, threadId);
   const key = screenKeyOf(entry);
   const frameDisabled = useDisabled(runtime, key);
+  const commands = useCommands();
   const pluginState = usePluginUiState();
   const inactive = pluginState.inactive.has(entry.extension);
   const rootSkipped = pluginState.rootsSkipped.find(
@@ -500,7 +535,12 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
   else body = <Note text={t("desktop.plugin.state.frameBlocked")} />;
   return (
     <section className="flex min-h-0 flex-1 flex-col">
-      <Header entry={entry} />
+      <Header
+        entry={entry}
+        onBackToChat={() => {
+          commands.showScreen("chat");
+        }}
+      />
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">{body}</div>
     </section>
   );
