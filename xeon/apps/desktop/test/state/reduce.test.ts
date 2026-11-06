@@ -914,3 +914,28 @@ describe("thread model", () => {
     expect(cleared.threads.byId[T] !== undefined && "model" in cleared.threads.byId[T]).toBe(false);
   });
 });
+
+describe("spawned marks", () => {
+  test("attach spawnedBy only to listed threads that have none and leave other fields alone", () => {
+    const child = thr(2);
+    const parent = thr(1);
+    const state = run([
+      {
+        type: "threads",
+        threads: [summary(child, { title: "explore" }), summary(parent, { title: "부모" })],
+      },
+      {
+        type: "spawned",
+        marks: [
+          { threadId: child, spawnedBy: { threadId: parent, kind: "subagent" } },
+          { threadId: thr(9), spawnedBy: { threadId: parent, kind: "internal" } },
+        ],
+      },
+    ]);
+    expect(state.threads.byId[child]).toEqual(
+      summary(child, { title: "explore", spawnedBy: { threadId: parent, kind: "subagent" } }),
+    );
+    expect(state.threads.byId[parent]).toEqual(summary(parent, { title: "부모" }));
+    expect(state.threads.byId[thr(9)]).toBeUndefined();
+  });
+});

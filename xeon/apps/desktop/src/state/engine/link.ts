@@ -88,14 +88,34 @@ export function startLink(deps: LinkDeps): EngineLink {
   };
 
   const ingestBatch = (p: EventsBatchParams): void => {
+    const facts = p.events.map(decodeDurable);
     deps.store.ingest({
       type: "batch",
       sub: p.sub,
       from: p.from,
       to: p.to,
       caughtUp: p.caughtUp,
-      facts: p.events.map(decodeDurable),
+      facts,
     });
+    // 대화 시작 사실에는 위임으로 만든 자식인지가 없다. 새 대화가 생기면 첫 쪽 목록에서 표지만 가져온다(rtE R-3)
+    if (facts.some((fact) => fact.type === "thread.started")) detach(loadSpawnedMarks(), report);
+  };
+
+  /** 첫 쪽(최근 활동 먼저) 목록의 `spawnedBy`만 거울에 붙인다. 읽지 못하면 표지 없이 둔다 */
+  const loadSpawnedMarks = async (): Promise<void> => {
+    const listed = await attemptAsync(() => deps.connection.request("thread.list", { limit: 50 }));
+    if (!listed.ok) {
+      deps.logger.warn("desktop.link.spawned_marks_failed", {
+        error: listed.error.cause instanceof Error ? listed.error.cause.name : "unknown",
+      });
+      return;
+    }
+    const marks = listed.value.threads.flatMap((thread) =>
+      thread.spawnedBy === undefined
+        ? []
+        : [{ threadId: thread.threadId, spawnedBy: thread.spawnedBy }],
+    );
+    if (marks.length > 0) deps.store.ingest({ type: "spawned", marks });
   };
 
   const finishBackfill = (sub: SubId, storeId: StoreId, facts: readonly DurableFact[]): void => {

@@ -154,6 +154,17 @@ export type MirrorInput =
   | { readonly type: "out_of_range" }
   | { readonly type: "subscribe_failed" }
   | { readonly type: "threads"; readonly threads: readonly ThreadSummary[] }
+  /**
+   * 새로 열린 대화의 `spawnedBy` 표지. 대화 시작 사실(`thread.started`)에는 위임으로 만든 자식인지가 없어서 목록을 다시 읽어 표지만 가져온다.
+   * 표지가 없는 대화에만 붙이고 다른 칸은 건드리지 않는다 [결정: 오케스트레이터 기본값, rtE R-3]
+   */
+  | {
+      readonly type: "spawned";
+      readonly marks: readonly {
+        readonly threadId: ThreadId;
+        readonly spawnedBy: NonNullable<ThreadSummary["spawnedBy"]>;
+      }[];
+    }
   | { readonly type: "transcript_opening"; readonly threadId: ThreadId }
   | {
       readonly type: "transcript";

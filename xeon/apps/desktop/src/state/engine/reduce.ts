@@ -188,6 +188,18 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
         "applied",
       );
     }
+    case "spawned": {
+      const byId: Record<string, ThreadSummary> = { ...state.threads.byId };
+      let changed = false;
+      for (const mark of input.marks) {
+        const known = byId[mark.threadId];
+        if (known === undefined || known.spawnedBy !== undefined) continue;
+        byId[mark.threadId] = { ...known, spawnedBy: mark.spawnedBy };
+        changed = true;
+      }
+      if (!changed) return keep(state, "stale");
+      return keep({ ...state, threads: { ...state.threads, byId } }, "applied");
+    }
     case "threads_failed": {
       // 이미 읽은 목록이 있으면 그대로 둔다. 가진 것이 없을 때만 오류를 보인다
       if (state.threads.status === "ready") return keep(state, "stale");
