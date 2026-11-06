@@ -22,7 +22,7 @@ import type {
   LayerKey,
   Origin,
 } from "./canvas/types.ts";
-import type { WorkbenchState } from "./model.ts";
+import { extNameOf, type WorkbenchState } from "./model.ts";
 
 type Relation = ExtBindingEdge["relation"];
 
@@ -157,7 +157,7 @@ function pluginOf(
   const on = plugin.status === "enabled" || plugin.status === "enabling";
   return {
     id: plugin.registrationId,
-    name: plugin.id === undefined ? entry.displayName : (decl?.title ?? plugin.id),
+    name: plugin.id === undefined ? extNameOf(entry) : (decl?.title ?? plugin.id),
     layer: layerOf(plugin.layer),
     origin: originOf(entry.origin),
     version: entry.version,
@@ -182,7 +182,7 @@ function groupOf(entry: ExtListEntry, manifest: ExtensionManifest | undefined): 
   const description = manifest?.description;
   return {
     id: entry.name,
-    name: entry.displayName,
+    name: extNameOf(entry),
     ...(description === undefined ? {} : { role: description }),
     version: entry.version,
     origin: originOf(entry.origin),

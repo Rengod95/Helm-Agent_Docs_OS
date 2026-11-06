@@ -16,6 +16,7 @@ import {
   snapshotOf,
   type WorkbenchState,
 } from "../../src/workbench/index.ts";
+import { setActiveLocale } from "../../src/i18n/index.ts";
 import { keepsContrib } from "../../src/workbench/canvas/index.ts";
 
 // 검사를 통과하는 매니페스트 픽스처. 시험 맨 앞에서 검사 통과를 확인한다.
@@ -602,5 +603,18 @@ describe("대표 플러그인이 없는 확장: 구성 요소는 대표 자리(�
       },
     ]);
     expect(snap.groups).toEqual([]);
+  });
+});
+
+describe("개요 노드 이름", () => {
+  test("루트 플러그인은 카탈로그의 한국어 부품 이름을 쓴다", () => {
+    setActiveLocale("ko");
+    const snap = snapshotOf(
+      stateOf([
+        listEntry("core-loop", { displayName: "Agent loop", layer: "L1" }),
+        listEntry("other-tool", { displayName: "Other Tool" }),
+      ]),
+    );
+    expect(snap.plugins.map((p) => p.name)).toEqual(["에이전트 실행기", "Other Tool"]);
   });
 });

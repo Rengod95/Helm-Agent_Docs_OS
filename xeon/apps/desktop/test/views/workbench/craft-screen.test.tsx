@@ -70,7 +70,7 @@ describe("크래프트 개요: 캔버스가 화면을 쓰고 목록 띠가 위�
     const labels = dotLabels(overview(screenStore()));
     // core-loop, 웹 검색, review(루트)와 review/lint: 플러그인 넷
     expect(labels).toHaveLength(4);
-    expect(labels).toContain("core-loop, 켜짐");
+    expect(labels).toContain("에이전트 실행기, 켜짐");
     expect(labels).toContain("웹 검색, 켜짐");
   });
 
