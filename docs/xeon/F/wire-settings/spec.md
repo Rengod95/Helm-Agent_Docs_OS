@@ -335,7 +335,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | attachments | `attachments.add` | `{ threadId?: ThreadId, source: AttachmentSource }` | `{ attachment: Attachment, parts: (TextContent\|ImageContent)[] }` | M3 |
 | notify | `notify.list` | `{ threadId?: ThreadId, afterSeq: integer, kinds?: NoticeKind[], limit?: integer(1..500) }` | `{ notices: Notice[], nextSeq: integer }` | M3 |
 | web | `web.providers` | `{}` | `{ providers: WebProviderStatus[](최대 64), settings: WebSettings }`. 모양은 아래 글머리 | M3 |
-| usage | `usage.get` | `{ providerId?: string, threadId?: ThreadId }` | `{ gauges: UsageGauge[], asOf: IsoTime }` | M3 |
+| usage | `usage.get` | `{ providerId?: string, threadId?: ThreadId }` | `{ gauges: UsageGauge[], asOf: IsoTime, context?: { model: string, used: number, limit: integer } }`(`context`는 M4 T-MODEL) | M3 |
 | secret | `secret.list` | `{ meta?: boolean, usage?: boolean }` | `{ secrets: SecretListEntry[] }` | M2 |
 | secret | `secret.meta` | `{ name: SecretName, …메타·정책 필드 }` | `{ secret: SecretListEntry }` | M2 |
 | secret | `secret.remove` | `{ name: SecretName }` | `{ removed: boolean }` | M2 |
@@ -665,6 +665,7 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 
 - [결정: M3-REQ-15] 설정 파일 메서드: `settings.readFile`은 범위 하나의 파일 원문을 돌려준다. 파일이 없으면 `exists: false`, `text: ""`, `sha256: null`이다. `managed`는 읽기만 되고 `readOnly: true`다. `project`·`local`은 작업 폴더가 있어야 하므로 `threadId`로 그 thread의 작업 폴더를 쓴다. `unknownKeys`는 카탈로그에 없는 키이고 파일에는 그대로 보존한다(§4.8). `settings.writeFile`은 파일 전체를 바꾼다. 호스트는 `text`를 JSON 객체로 읽고 그 범위의 `settingsJsonSchema`로 검사한 뒤 쓴다. `baseSha256`은 `readFile`이 준 해시이고 파일이 없었으면 null이다. 지금 파일과 다르면 `settings.fileConflict`(3107)이고, JSON 객체가 아니거나 스키마에 맞지 않으면 `settings.fileInvalid`(3108)다. `managed`에 쓰려는 요청은 `jsonrpc.invalidParams`다(params 스키마가 거른다). 쓰기에 성공하면 `settings.invalidated`를 보낸다.
 - [결정: M3-REQ-15] `usage.get`은 사용량 게이지를 읽는다. `UsageGauge`는 `{ id, providerId, account, window, unit, used, limit, resetsAt }`이고 `window`는 `minute`·`hour`·`day`·`week`·`month`·`session`, `unit`은 `tokens`·`usd`·`requests`·`cacheRead`·`cacheWrite`다(뒤 둘은 T-MEAS-FIX가 더했다, 가산). `limit`이 null이면 한도를 모르는 것이라 화면은 사용량만 보인다. `threadId`를 주면 그 thread의 `session` 창을 더한다. 데이터 원천(레이트 리밋, 계정 풀)은 B2-MDL 트랙이 채우며, 그 전까지 `gauges`는 빈 목록이다 [구현: M3b B1-NTF H4].
+- [결정: 오케스트레이터 기본값, M4 T-MODEL] `usage.get`의 `context`는 `threadId`를 줄 때만 오는 문맥 사용량이다. `used`는 그 대화에서 가장 나중에 끝난 모델 호출의 `usage.totalTokens`(입력, 캐시 읽기·쓰기, 출력의 합. 다음 요청이 담을 문맥의 크기와 같다), `limit`는 그 호출의 모델이 카탈로그에서 가진 `contextWindow`, `model`은 그 호출의 `provider/id`다. 끝난 호출이 없거나 문맥 창을 모르면(카탈로그에서 빠진 모델) 필드를 생략하고 비율을 지어내지 않는다. 게이지 목록(`gauges`)과 단위는 바뀌지 않는다.
 - [결정: m2c G1-08] `settings.invalidated`의 `keys`는 바뀐 키 목록이고 비어 있으면 어느 키인지 모르는 변경(파일 통째 교체, 손상 복구)이다. `scopes`는 바뀐 범위이고 1개 이상이다. `threadId`는 `session` 범위 변경이 속한 thread이고 다른 범위면 `null`이다. 호스트는 모든 범위의 `settings.set`·`settings.reset`과 project·local·user 파일 변경 결과에 이 알림을 연결 전체에 보낸다. 같은 연결의 `settings.set` 호출자도 받는다.
 - [결정: m2c G1-08] 설정 변경 반영 규칙의 소유자는 호스트다. 알림을 받은 클라이언트는 `settings.get`으로 다시 읽을 뿐이고 값을 추측해 바꾸지 않는다. MCP 정의 재적재는 호스트 안에서 같은 신호를 받아 다음 단계 시작에 처리한다(`L2.mcp.spec`).
 - 판정이 "보류"인 요청은 M3 계획(`review.m3-plan`)이 받는다. 정하기 전에는 소비 문서가 이 요청에 의존하지 않는다.

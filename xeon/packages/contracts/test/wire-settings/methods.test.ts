@@ -779,3 +779,16 @@ describe("thread.setModel", () => {
     expect(parse(result, { position: { storeId: STORE, seq: 3 } }).ok).toBe(true);
   });
 });
+
+describe("usage.get context", () => {
+  test("the optional context needs a model, used tokens and a positive integer window", () => {
+    const { result } = WIRE_METHODS["usage.get"];
+    const asOf = "2026-11-06T00:00:00.000Z";
+    expect(parse(result, { gauges: [], asOf }).ok).toBe(true);
+    const context = { model: "anthropic/claude-haiku-5-5", used: 4200, limit: 200_000 };
+    expect(parse(result, { gauges: [], asOf, context }).ok).toBe(true);
+    expect(parse(result, { gauges: [], asOf, context: { ...context, limit: 0 } }).ok).toBe(false);
+    expect(parse(result, { gauges: [], asOf, context: { ...context, used: -1 } }).ok).toBe(false);
+    expect(parse(result, { gauges: [], asOf, context: { model: "x", used: 1 } }).ok).toBe(false);
+  });
+});

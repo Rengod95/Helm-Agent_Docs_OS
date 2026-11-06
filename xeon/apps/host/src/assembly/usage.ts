@@ -48,6 +48,9 @@ export type UsageEventReader = (
   query: { readonly kindPrefix: string },
 ) => Promise<Result<readonly DurableEventEnvelope[], unknown>>;
 
+/** `provider`와 모델 id로 문맥 창 크기를 찾는다. 모르면 undefined(카탈로그에서 빠진 모델 등) */
+export type ContextWindowLookup = (provider: string, modelId: string) => number | undefined;
+
 /** 세션 게이지의 한 줄. 계정이 없으므로 id의 계정 자리는 빈 문자열이다 */
 function sessionGauge(providerId: string, unit: UsageUnit, used: number): UsageGauge {
   return {
@@ -100,7 +103,11 @@ function compareNames(a: string, b: string): number {
  * `meter`의 모든 기록(중단된 호출 포함)을 한 번 구독해 thread와 provider별로 합산하는 원천을 만든다.
  * `gauges`는 `threadId`가 없으면 이 프로세스가 본 모든 thread의 합산이고, 모르는 thread는 빈 목록이다. 창 데이터는 없다.
  */
-export function createUsageSource(meter: UsageMeter, readEvents?: UsageEventReader): UsagePort {
+export function createUsageSource(
+  meter: UsageMeter,
+  readEvents?: UsageEventReader,
+  contextWindowOf?: ContextWindowLookup,
+): UsagePort {
   const byThread = new Map<ThreadId, Map<string, Tally>>();
   /** 대화 루프 밖에서 부른 호출(요약, 검색, 판정)의 합산. 어시스턴트 `item.recorded`가 남지 않아 내구 기록에 없다. 이 프로세스가 본 것만 있다 */
   const offLoop = new Map<ThreadId, Map<string, Tally>>();
@@ -149,6 +156,31 @@ export function createUsageSource(meter: UsageMeter, readEvents?: UsageEventRead
   }
 
   return {
+    context: async (threadId) => {
+      if (readEvents === undefined || contextWindowOf === undefined) return undefined;
+      const read = await readEvents(threadId, { kindPrefix: "item.recorded" });
+      if (!read.ok) return undefined;
+      // 커밋 순서로 가장 나중의 끝난 어시스턴트 호출이 지금 문맥의 크기다(분기를 되감았어도 돈을 쓴 마지막 호출을 본다)
+      let latest:
+        | { readonly provider: string; readonly model: string; readonly used: number }
+        | undefined;
+      for (const event of read.value) {
+        if (event.kind !== "item.recorded") continue;
+        const checked = parse(ItemRecordedPayloadSchema, event.payload);
+        if (!checked.ok || checked.value.item.kind !== "assistant") continue;
+        if (checked.value.item.status !== "completed") continue;
+        const message = checked.value.item.message;
+        latest = {
+          provider: message.provider,
+          model: message.model,
+          used: message.usage.totalTokens,
+        };
+      }
+      if (latest === undefined) return undefined;
+      const limit = contextWindowOf(latest.provider, latest.model);
+      if (limit === undefined || limit < 1) return undefined;
+      return { model: `${latest.provider}/${latest.model}`, used: latest.used, limit };
+    },
     gauges: async ({ providerId, threadId }) => {
       // 내구 기록이 있으면 그것이 원천이다(재시작 뒤와 버린 분기 포함). 읽지 못할 때만 이 프로세스의 합산기로 돌아간다.
       // threadId가 없으면 모든 thread의 내구 기록 합이고, 읽지 못하면 이 프로세스가 본 모든 thread의 합산기 합이다

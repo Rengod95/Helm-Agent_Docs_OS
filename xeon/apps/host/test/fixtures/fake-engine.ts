@@ -460,6 +460,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     },
     usage: {
       gauges: () => Promise.resolve([]),
+      context: () => Promise.resolve(undefined),
       ...options.overrides?.usage,
     },
     measure: {

@@ -771,8 +771,12 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     web: createWebPort({ holder: deps.web, settings: deps.settings }),
     dialog: createDialogWirePort({ holder: deps.commands }),
-    usage: createUsageSource(deps.models.usage, (threadId, query) =>
-      readEventsOfAllBranches(deps.session, threadId, query.kindPrefix),
+    usage: createUsageSource(
+      deps.models.usage,
+      (threadId, query) => readEventsOfAllBranches(deps.session, threadId, query.kindPrefix),
+      (provider, modelId) =>
+        deps.models.list({ provider }).find((info) => info.ref === `${provider}/${modelId}`)
+          ?.contextWindow,
     ),
     measure: createMeasurePort(deps.measure),
     proposals: deps.proposals,

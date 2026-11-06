@@ -165,3 +165,27 @@ test("host.hello lists usage.get among the features the host implements", async 
   expect(hello.features.map((feature) => feature.name)).toContain("usage.get");
   await connection.close();
 });
+
+test("usage.get with a threadId carries the source's context, and without one it asks for none", async () => {
+  const asked: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      usage: {
+        context: (threadId) => {
+          asked.push(threadId);
+          return Promise.resolve({ model: "tape/tape-1", used: 4200, limit: 200_000 });
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  const threadId = host.fake.seedThread();
+  expect(await connection.request("usage.get", { threadId })).toEqual({
+    gauges: [],
+    asOf: AS_OF,
+    context: { model: "tape/tape-1", used: 4200, limit: 200_000 },
+  });
+  expect(await connection.request("usage.get", {})).toEqual({ gauges: [], asOf: AS_OF });
+  expect(asked).toEqual([threadId]);
+  await connection.close();
+});

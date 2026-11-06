@@ -37,6 +37,11 @@ export function createUsageGetHandler(engine: Engine): WireHandler<"usage.get"> 
         message: `usage.get: the usage source returned ${String(matched.length)} gauges, the limit is ${String(USAGE_GAUGES_MAX)}`,
       });
     }
-    return { gauges: matched, asOf: new Date(engine.ports.clock.now()).toISOString() };
+    const asOf = new Date(engine.ports.clock.now()).toISOString();
+    const filled =
+      threadId === undefined ? undefined : await usage.context(threadId, context.signal);
+    return filled === undefined
+      ? { gauges: matched, asOf }
+      : { gauges: matched, asOf, context: filled };
   };
 }

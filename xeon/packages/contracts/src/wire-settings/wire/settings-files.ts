@@ -3,6 +3,7 @@ import {
   type Static,
   type TArray,
   type TBoolean,
+  type TInteger,
   type TLiteral,
   type TNumber,
   type TObject,
@@ -189,11 +190,35 @@ export const UsageGetParamsSchema: TObject<{
 );
 export type UsageGetParams = Static<typeof UsageGetParamsSchema>;
 
+/**
+ * 대화의 문맥 사용량(M4 T-MODEL). `used`는 가장 나중 모델 호출이 문맥 창에 차지한 토큰(입력, 캐시 읽기·쓰기, 출력의 합)이고
+ * `limit`는 그 모델의 문맥 창 크기다. `model`은 그 호출의 `provider/id`다
+ */
+export const UsageContextSchema: TObject<{
+  model: TString;
+  used: TNumber;
+  limit: TInteger;
+}> = Type.Object(
+  {
+    model: Type.String({ minLength: 1, maxLength: 256 }),
+    used: Type.Number({ minimum: 0 }),
+    limit: Type.Integer({ minimum: 1 }),
+  },
+  { additionalProperties: false },
+);
+export type UsageContext = Static<typeof UsageContextSchema>;
+
 export const UsageGetResultSchema: TObject<{
   gauges: TArray<typeof UsageGaugeSchema>;
   asOf: typeof IsoTimeSchema;
+  context: TOptional<typeof UsageContextSchema>;
 }> = Type.Object(
-  { gauges: Type.Array(UsageGaugeSchema, { maxItems: 256 }), asOf: IsoTimeSchema },
+  {
+    gauges: Type.Array(UsageGaugeSchema, { maxItems: 256 }),
+    asOf: IsoTimeSchema,
+    /** `threadId`를 주었고 그 대화에 끝난 모델 호출과 알려진 문맥 창이 있을 때만 있다 */
+    context: Type.Optional(UsageContextSchema),
+  },
   { additionalProperties: false },
 );
 export type UsageGetResult = Static<typeof UsageGetResultSchema>;

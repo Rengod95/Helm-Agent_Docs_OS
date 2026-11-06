@@ -427,3 +427,49 @@ test("calls with no assistant item (summary, search, judge) are added to the dur
     sessionGauges("anthropic", { tokens: 13, usd: 0.625, requests: 2 }),
   );
 });
+
+test("context gives the last finished call's total tokens against that model's window, and nothing when the window is unknown", async () => {
+  const { meter } = fakeMeter();
+  const events = [
+    recordedEvent(1, THREAD_A, "anthropic", {
+      input: 10,
+      output: 5,
+      cacheRead: 100,
+      cacheWrite: 20,
+      cost: 0,
+    }),
+    recordedEvent(2, THREAD_A, "anthropic", {
+      input: 30,
+      output: 7,
+      cacheRead: 150,
+      cacheWrite: 0,
+      cost: 0,
+    }),
+  ];
+  const read = async (_threadId: ThreadId | undefined, query: { readonly kindPrefix: string }) =>
+    ok(events.filter((event) => event.kind.startsWith(query.kindPrefix)));
+  const windows = new Map([["anthropic/anthropic-model", 200_000]]);
+  const source = createUsageSource(meter, read, (provider, modelId) =>
+    windows.get(`${provider}/${modelId}`),
+  );
+  expect(await source.context(THREAD_A, SIGNAL)).toEqual({
+    model: "anthropic/anthropic-model",
+    used: 187,
+    limit: 200_000,
+  });
+  windows.clear();
+  expect(await source.context(THREAD_A, SIGNAL)).toBeUndefined();
+  expect(await createUsageSource(meter).context(THREAD_A, SIGNAL)).toBeUndefined();
+  const empty = createUsageSource(
+    meter,
+    async () => ok([]),
+    () => 1000,
+  );
+  expect(await empty.context(THREAD_A, SIGNAL)).toBeUndefined();
+  const broken = createUsageSource(
+    meter,
+    async () => err("io"),
+    () => 1000,
+  );
+  expect(await broken.context(THREAD_A, SIGNAL)).toBeUndefined();
+});

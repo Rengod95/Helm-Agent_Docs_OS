@@ -48,6 +48,7 @@ import type {
   TurnStartInput,
   WhenBusy,
   Unsubscribe,
+  UsageContext,
   UsageGauge,
   WireParams,
   WireResult,
@@ -492,6 +493,11 @@ export interface UsagePort {
     input: { readonly providerId?: string; readonly threadId?: ThreadId },
     signal: AbortSignal,
   ): Promise<readonly UsageGauge[]>;
+  /**
+   * 대화의 문맥 사용량(`usage.get` 결과의 `context`). 가장 나중에 끝난 모델 호출이 문맥 창에 찬 토큰과 그 모델의 문맥 창 크기다.
+   * 끝난 호출이 없거나 문맥 창을 모르거나 기록을 읽지 못하면 undefined다
+   */
+  context(threadId: ThreadId, signal: AbortSignal): Promise<UsageContext | undefined>;
 }
 
 /**
