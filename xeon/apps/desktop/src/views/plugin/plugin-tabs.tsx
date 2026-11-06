@@ -2,7 +2,14 @@ import { activeLocale, t } from "@fresnel/client/i18n";
 import { extMessageOf } from "@fresnel/client/views/native";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
-import { Button, EmptyState } from "@caustic/react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  Button,
+  EmptyState,
+} from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { PlacedEntry } from "../../plugin-ui/placements.ts";
 import { watchExtensionChanges } from "../../plugin-ui/watch.ts";
@@ -65,20 +72,30 @@ export function HelmPanelTab(): ReactNode {
   return <EntryList items={items} />;
 }
 
-/** 맨 위에 이 대화에서 끄기 구역을 두고, 그 아래에 모든 확장의 `page` 항목과 Helm이 아닌 확장의 `panel` 항목을 잇는다 */
+/**
+ * 화면(프레임)이 위에서 남는 높이를 다 쓰고, "이 대화에서 끄기" 구역은 맨 아래에 접힌 줄 하나로 둔다.
+ * 시안(chat-plugin-off)은 목록을 맨 위에 두지만 목록이 길면 프레임이 밀려나므로, 프레임이 주인공이 되게 접는다.
+ * 펼친 목록은 높이를 제한하고 안에서 스크롤한다(프레임은 자기 스크롤을 따로 가진다)
+ */
 export function PluginPagesTab(): ReactNode {
   const state = usePluginUiState();
   const items = [
     ...state.groups.page,
     ...state.groups.panel.filter(({ entry }) => entry.extension !== HELM_EXTENSION),
   ];
-  // 탭 전체가 한 스크롤 컨테이너다. 이 대화에서 끄기 구역과 화면이 한 흐름으로 흐르고, 안쪽에 두 번째 스크롤을 두지 않는다
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <ThreadSwitches />
-        <EntryList items={items} />
-      </div>
+      <EntryList items={items} />
+      <Accordion size="xs" className="flex-none border-t border-border-subtle">
+        <AccordionItem value="thread-off">
+          <AccordionTrigger>{t("desktop.plugin.thread.title")}</AccordionTrigger>
+          <AccordionContent>
+            <div className="max-h-[40vh] overflow-y-auto">
+              <ThreadSwitches heading={false} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

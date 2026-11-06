@@ -146,14 +146,20 @@ function useThreadList(
   };
 }
 
-function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
+function Section(props: {
+  readonly title: string;
+  readonly heading: boolean;
+  readonly children: ReactNode;
+}): ReactNode {
   return (
     <section
       aria-label={props.title}
       className="grid content-start gap-2 border-b border-border-subtle p-3 pe-12"
     >
       {/* 구역 머리는 시안의 SectionTitle 역할(본문 크기, 굵은 글, 선 없음) */}
-      <h3 className="m-0 text-ui-dense font-semibold text-text-primary">{props.title}</h3>
+      {props.heading && (
+        <h3 className="m-0 text-ui-dense font-semibold text-text-primary">{props.title}</h3>
+      )}
       {props.children}
     </section>
   );
@@ -231,18 +237,21 @@ export function ThreadSwitchesBody(props: {
   /** 쓰는 중인 스위치의 목표 값 */
   readonly showing: Showing;
   readonly onToggle: (entry: ExtListEntry, target: boolean) => void;
+  /** 구역 제목을 그리는가. 접는 줄이 제목을 이미 보이면 거짓이다. 기본은 참 */
+  readonly heading?: boolean;
 }): ReactNode {
+  const heading = props.heading !== false;
   const title = t("desktop.plugin.thread.title");
   if (!props.threadOpen) {
     return (
-      <Section title={title}>
+      <Section title={title} heading={heading}>
         <p className={MUTED}>{t("desktop.plugin.thread.noThread")}</p>
       </Section>
     );
   }
   if (props.link === "offline") {
     return (
-      <Section title={title}>
+      <Section title={title} heading={heading}>
         <p className={MUTED}>{t("desktop.runtime.offline")}</p>
       </Section>
     );
@@ -250,7 +259,7 @@ export function ThreadSwitchesBody(props: {
   const list = props.list;
   if (list.kind === "error") {
     return (
-      <Section title={title}>
+      <Section title={title} heading={heading}>
         <Alert tone="danger" layout="inline">
           {t("desktop.plugin.thread.loadFailed")}
         </Alert>
@@ -259,7 +268,7 @@ export function ThreadSwitchesBody(props: {
   }
   if (list.kind !== "ready") {
     return (
-      <Section title={title}>
+      <Section title={title} heading={heading}>
         <Skeleton height={24} />
       </Section>
     );
@@ -270,13 +279,13 @@ export function ThreadSwitchesBody(props: {
   });
   if (rows.length === 0) {
     return (
-      <Section title={title}>
+      <Section title={title} heading={heading}>
         <p className={MUTED}>{t("desktop.plugin.thread.empty")}</p>
       </Section>
     );
   }
   return (
-    <Section title={title}>
+    <Section title={title} heading={heading}>
       <p className={MUTED}>{t("desktop.plugin.thread.intro")}</p>
       <ul className="m-0 grid list-none p-0">
         {rows.map(({ entry, view }) =>
@@ -293,7 +302,7 @@ export function ThreadSwitchesBody(props: {
 }
 
 /** 대화 영역 "플러그인" 탭의 이 대화에서 끄기 구역. 열린 대화의 확장마다 스위치 하나를 그린다 */
-export function ThreadSwitches(): ReactNode {
+export function ThreadSwitches(props: { readonly heading?: boolean }): ReactNode {
   const commands = useCommands();
   const threadId = useOpenThreadId();
   const link = linkOf(useLinkPhase());
@@ -320,6 +329,7 @@ export function ThreadSwitches(): ReactNode {
       list={list}
       showing={showing}
       onToggle={onToggle}
+      heading={props.heading !== false}
     />
   );
 }
