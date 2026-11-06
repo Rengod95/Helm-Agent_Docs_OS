@@ -118,6 +118,25 @@ export const selectOpenThreadRunning = (s: EngineMirror): boolean => {
 };
 export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string | null =>
   id === null ? null : (s.turnFailures[id] ?? null);
+/** 열린 대화의 마지막 사용자 메시지 글. 다시 보내기가 쓴다. 첨부는 싣지 않는다. 글이 없으면 null이다 */
+export const selectLastUserText = (s: EngineMirror): string | null => {
+  const transcript = s.transcript;
+  if (transcript?.status !== "ready") return null;
+  for (let i = transcript.itemIds.length - 1; i >= 0; i -= 1) {
+    const id = transcript.itemIds[i];
+    const item = id === undefined ? undefined : transcript.items[id];
+    if (item?.kind !== "user") continue;
+    const content = item.message.content;
+    if (typeof content === "string") return content === "" ? null : content;
+    const parts: string[] = [];
+    for (const block of content) {
+      if ("text" in block && typeof block.text === "string") parts.push(block.text);
+    }
+    const text = parts.join("\n");
+    return text === "" ? null : text;
+  }
+  return null;
+};
 /** 대화별 실패로 끝난 마지막 turn의 문장. 거울의 기록 객체를 그대로 준다 */
 export const selectTurnFailures = (s: EngineMirror): Readonly<Record<string, string>> =>
   s.turnFailures;

@@ -10,6 +10,7 @@ import {
   useTurnFailure,
 } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
+import { TurnFailureRow } from "./turn-failure-row.tsx";
 import { ResumeBand } from "./resume-band.tsx";
 import { RecordedItem, StreamingRow } from "./item-view.tsx";
 import { VirtualList, type VirtualRow } from "./virtual-list.tsx";
@@ -56,11 +57,7 @@ export function Transcript(): ReactNode {
     );
   }
   const failureNotice =
-    failure === null ? null : (
-      <div className="error" role="alert">
-        {t("desktop.transcript.turnFailed", { failure })}
-      </div>
-    );
+    failure === null ? null : <TurnFailureRow threadId={threadId} error={failure} />;
   if (rows.length === 0) {
     return (
       <>
