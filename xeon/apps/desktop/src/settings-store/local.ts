@@ -76,6 +76,10 @@ export const LOCAL: {
   readonly notifyTurnDone: LocalKey<TBoolean>;
   readonly notifyApproval: LocalKey<TBoolean>;
   readonly notifyScheduleFailed: LocalKey<TBoolean>;
+  /** 움직임 줄이기를 앱에서 켠다. 없으면 운영체제 설정을 따른다(`appearance-prefs.ts`) */
+  readonly motionReduce: LocalKey<TBoolean>;
+  /** 화면 확대 비율(%). 허용 값은 `ZOOM_STEPS`다 */
+  readonly zoomPercent: LocalKey<TInteger>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -109,6 +113,8 @@ export const LOCAL: {
   notifyTurnDone: localKey("l4.desktop.window.notify.turnDone", Type.Boolean()),
   notifyApproval: localKey("l4.desktop.window.notify.approval", Type.Boolean()),
   notifyScheduleFailed: localKey("l4.desktop.window.notify.scheduleFailed", Type.Boolean()),
+  motionReduce: localKey("l4.desktop.appearance.motion", Type.Boolean()),
+  zoomPercent: localKey("l4.desktop.appearance.zoom", Type.Integer({ minimum: 90, maximum: 200 })),
 };
 
 type LocalSettingsError =
