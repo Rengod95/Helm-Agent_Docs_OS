@@ -79,11 +79,13 @@ describe("work commands", () => {
 
   test("/plan enters plan mode and /plan exit leaves it after an approval", async () => {
     const { h, registry } = await boot();
-    expect((await registry.run("plan", [])).message).toContain("계획 모드를 시작");
+    expect((await registry.run("plan", [])).message).toBe(
+      "계획 모드를 시작했어요. 이전 승인 모드: 기본 (실행마다 묻기)",
+    );
     expect(h.mode.current(h.threadId)).toBe("plan");
     await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
-    expect((await registry.run("plan", ["approve", "looks", "good"])).message).toContain(
-      "승인했습니다",
+    expect((await registry.run("plan", ["approve", "looks", "good"])).message).toBe(
+      "계획 p1 v1을 승인했어요.",
     );
     await h.settle();
     expect(h.mode.current(h.threadId)).toBe("default");
@@ -92,13 +94,15 @@ describe("work commands", () => {
   test("/plan reject and /plan revise answer the pending plan", async () => {
     const { h, registry } = await boot();
     await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
-    expect((await registry.run("plan", ["revise"])).message).toContain("피드백이 필요");
-    expect((await registry.run("plan", ["revise", "add", "tests"])).message).toContain(
-      "수정을 요청",
+    expect((await registry.run("plan", ["revise"])).message).toBe(
+      "수정을 요청하려면 피드백이 필요해요: /plan revise <피드백>",
+    );
+    expect((await registry.run("plan", ["revise", "add", "tests"])).message).toBe(
+      "계획 p1 v1에 수정을 요청했어요.",
     );
     await h.plans.submit({ title: "t", body: "b2" }, h.opts("c2"));
-    expect((await registry.run("plan", ["reject", "no", "thanks"])).message).toContain(
-      "반려했습니다",
+    expect((await registry.run("plan", ["reject", "no", "thanks"])).message).toBe(
+      "계획 p2 v1을 반려했어요.",
     );
     const versions = await h.plans.versions({ planId: PlanId("p1") }, h.opts());
     expect(versions.versions[0]).toMatchObject({
@@ -110,7 +114,7 @@ describe("work commands", () => {
   test("without a pending plan the decide commands say so", async () => {
     const { registry } = await boot();
     expect((await registry.run("plan", ["approve"])).message).toBe(
-      "승인 대기 중인 계획이 없습니다.",
+      "승인을 기다리는 계획이 없어요.",
     );
     expect((await registry.run("plan", ["unknown"])).message).toContain("사용법");
   });

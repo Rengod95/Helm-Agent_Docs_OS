@@ -43,6 +43,21 @@ async function reported(work: () => Promise<CommandActionResult>): Promise<Comma
   }
 }
 
+/**
+ * 승인 모드 이름. 입력창의 승인 모드 칩과 같은 글이다(데스크톱 로캘 `desktop.approvals.plan.mode.*`).
+ * 원시 값(`default`)은 화면에 보이지 않는다. 모르는 값은 그대로 둔다
+ */
+const MODE_NAMES: Readonly<Record<string, string>> = {
+  default: "기본 (실행마다 묻기)",
+  acceptEdits: "편집 자동 허용",
+  plan: "계획 모드 유지",
+  bypass: "모두 허용",
+};
+
+function modeNameOf(mode: string): string {
+  return MODE_NAMES[mode] ?? mode;
+}
+
 async function planCommand(
   deps: WorkCommandDeps,
   args: readonly string[],
@@ -52,30 +67,35 @@ async function planCommand(
   const options = optionsOf(ctx);
   if (verb === undefined) {
     const out = await deps.plans.enterMode({}, options);
-    return { message: `계획 모드를 시작했습니다. 이전 모드: ${out.previousMode ?? "없음"}` };
+    return {
+      message:
+        out.previousMode === null
+          ? "이미 계획 모드예요."
+          : `계획 모드를 시작했어요. 이전 승인 모드: ${modeNameOf(out.previousMode)}`,
+    };
   }
   if (verb === "exit") {
     const out = await deps.plans.exitMode({}, options);
-    return { message: `계획 모드를 끝냈습니다. 현재 모드: ${out.mode}` };
+    return { message: `계획 모드를 끝냈어요. 지금 승인 모드: ${modeNameOf(out.mode)}` };
   }
   if (verb !== "approve" && verb !== "reject" && verb !== "revise") {
     return { message: "사용법: /plan [exit | approve | reject [사유] | revise <피드백>]" };
   }
   const pending = deps.runtime.pendingPlan(ctx.threadId);
-  if (pending === undefined) return { message: "승인 대기 중인 계획이 없습니다." };
+  if (pending === undefined) return { message: "승인을 기다리는 계획이 없어요." };
   const target = { planId: pending.planId, version: pending.version };
   const text = rest.join(" ");
   if (verb === "approve") {
     await deps.plans.approve({ ...target, ...(text === "" ? {} : { note: text }) }, options);
-    return { message: `계획 ${pending.planId} v${pending.version}을 승인했습니다.` };
+    return { message: `계획 ${pending.planId} v${pending.version}을 승인했어요.` };
   }
   if (verb === "reject") {
     await deps.plans.reject({ ...target, ...(text === "" ? {} : { reason: text }) }, options);
-    return { message: `계획 ${pending.planId} v${pending.version}을 반려했습니다.` };
+    return { message: `계획 ${pending.planId} v${pending.version}을 반려했어요.` };
   }
-  if (text === "") return { message: "수정 요청에는 피드백이 필요합니다: /plan revise <피드백>" };
+  if (text === "") return { message: "수정을 요청하려면 피드백이 필요해요: /plan revise <피드백>" };
   await deps.plans.revise({ ...target, feedback: text }, options);
-  return { message: `계획 ${pending.planId} v${pending.version}에 수정을 요청했습니다.` };
+  return { message: `계획 ${pending.planId} v${pending.version}에 수정을 요청했어요.` };
 }
 
 async function tasksCommand(
