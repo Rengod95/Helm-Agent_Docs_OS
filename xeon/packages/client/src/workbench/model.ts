@@ -33,6 +33,10 @@ export interface WorkbenchState {
   /** 자세히 보기로 열린 플러그인 또는 그룹 id(루트는 확장 이름, 구성원은 "<확장>/<id>"). 있으면 캔버스 전체가 그 하나로 바뀐다 */
   readonly detail: string | null;
   readonly query: string;
+  /** 확장 목록 거르기: 층("all"이면 거르지 않는다) */
+  readonly listLayer: string;
+  /** 확장 목록 거르기: 켜짐·꺼짐 */
+  readonly listState: ListStateFilter;
   /** 지도 거르기: 플러그인 종류 */
   readonly kind: KindFilter;
   /** 지도 거르기: 무엇을 넣어 주나. 고른 것만 담는다 */
@@ -58,6 +62,8 @@ export const INITIAL_WORKBENCH: WorkbenchState = {
   ...clearSel(),
   detail: null,
   query: "",
+  listLayer: "all",
+  listState: "all",
   kind: "all",
   contrib: [],
   details: {},
@@ -194,6 +200,16 @@ export function requestBuilder(s: WorkbenchState, hook: string | null): Workbenc
 
 export function closeBuilder(s: WorkbenchState): WorkbenchState {
   return { ...s, builder: null };
+}
+
+export type ListStateFilter = "all" | "on" | "off";
+
+export function setListLayer(s: WorkbenchState, listLayer: string): WorkbenchState {
+  return { ...s, listLayer };
+}
+
+export function setListState(s: WorkbenchState, listState: ListStateFilter): WorkbenchState {
+  return { ...s, listState };
 }
 
 export function setQuery(s: WorkbenchState, query: string): WorkbenchState {
@@ -354,17 +370,30 @@ export interface LayerGroupVM {
   readonly rows: readonly ExtRowVM[];
 }
 
-const LAYER_ORDER: readonly string[] = ["L1", "L2", "L3", "external"];
+/** 사용자에게 가까운 층이 위다(시안 c03 목록 순서) */
+const LAYER_ORDER: readonly string[] = ["L3", "L2", "external", "L1"];
 
 function layerRank(layer: string): number {
   const i = LAYER_ORDER.indexOf(layer);
   return i === -1 ? LAYER_ORDER.length : i;
 }
 
-/** 층별 묶음(층 패널과 지도의 고리 재료). 알려진 층은 L1 → L2 → L3 → 그 밖, 나머지는 이름순 */
+/** 확장 목록에 보이는 층 고르기 값: 지금 목록에 있는 층, 위에서 아래 순서 */
+export function listLayersOf(s: WorkbenchState): readonly string[] {
+  return [...new Set(s.entries.map((e) => e.layer))].toSorted(
+    (a, b) => layerRank(a) - layerRank(b) || a.localeCompare(b),
+  );
+}
+
+/** 확장 목록의 층별 묶음. 알려진 층은 L3 → L2 → external → L1, 나머지는 이름순. 찾기와 층·켜짐 거르기를 건다 */
 export function layerGroups(s: WorkbenchState): readonly LayerGroupVM[] {
   const byLayer = new Map<string, ExtRowVM[]>();
-  for (const row of visibleRows(s)) {
+  const shown = visibleRows(s).filter(
+    (row) =>
+      (s.listLayer === "all" || row.layer === s.listLayer) &&
+      (s.listState === "all" || (s.listState === "on") === row.on),
+  );
+  for (const row of shown) {
     const list = byLayer.get(row.layer);
     if (list === undefined) byLayer.set(row.layer, [row]);
     else list.push(row);

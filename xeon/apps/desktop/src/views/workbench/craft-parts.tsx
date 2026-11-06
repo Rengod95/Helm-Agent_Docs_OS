@@ -1,14 +1,15 @@
 // 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인)와 켜기 요청, 자동 꺼짐 알림(플러그인 카드와 오른쪽 "플러그인" 탭).
 // 찾기 막대는 확장 화면이 쓴다.
 import { t } from "@fresnel/client/i18n";
-import { keepOffOf, type HookNotice } from "@fresnel/client/workbench";
-import { Alert, Button, Input, Skeleton } from "@caustic/react";
+import { keepOffOf, listLayersOf, type HookNotice } from "@fresnel/client/workbench";
+import { Alert, Button, Input, Select, SelectOption, Skeleton } from "@caustic/react";
 import { Bug } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { detachVoid, type WorkbenchController } from "./controller.ts";
+import { layerNameOf } from "./layer-list.tsx";
 import { needsTrustConfirm, TrustDialog } from "./trust-dialog.tsx";
 
 /** 켜기 요청. 꺼져 있던 user·project 확장을 켜면 O-10을 먼저 보인다. `dialog`를 화면 어딘가에 그려야 한다 */
@@ -58,6 +59,50 @@ export function SearchField(): ReactNode {
       }}
       containerClassName="w-60"
     />
+  );
+}
+
+/** 확장 목록의 층·켜짐 거르기(시안 c03: 찾기 옆의 두 Select) */
+export function ListFilters(): ReactNode {
+  const state0 = useWorkbench((s) => s);
+  const layers = listLayersOf(state0);
+  const layer = useWorkbench((s) => s.listLayer);
+  const state = useWorkbench((s) => s.listState);
+  const actions = useWorkbenchActions();
+  return (
+    <>
+      <Select
+        size="xs"
+        variant="ghost"
+        aria-label={t("desktop.workbench.filter.layer")}
+        value={layer}
+        onValueChange={(value) => {
+          actions.setListLayer(value);
+        }}
+        className="w-auto"
+      >
+        <SelectOption value="all">{t("desktop.workbench.filter.layerAll")}</SelectOption>
+        {layers.map((id) => (
+          <SelectOption key={id} value={id}>
+            {layerNameOf(id)}
+          </SelectOption>
+        ))}
+      </Select>
+      <Select
+        size="xs"
+        variant="ghost"
+        aria-label={t("desktop.workbench.filter.state")}
+        value={state}
+        onValueChange={(value) => {
+          if (value === "all" || value === "on" || value === "off") actions.setListState(value);
+        }}
+        className="w-auto"
+      >
+        <SelectOption value="all">{t("desktop.workbench.filter.stateAll")}</SelectOption>
+        <SelectOption value="on">{t("desktop.workbench.state.on")}</SelectOption>
+        <SelectOption value="off">{t("desktop.workbench.state.off")}</SelectOption>
+      </Select>
+    </>
   );
 }
 

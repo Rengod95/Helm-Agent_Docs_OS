@@ -21,9 +21,12 @@ import {
   requestBuilder,
   select,
   setKind,
+  setListLayer,
+  setListState,
   setQuery,
   setView,
   toggleContrib,
+  type ListStateFilter,
   type WorkbenchState,
   type WorkbenchView,
 } from "@fresnel/client/workbench";
@@ -49,6 +52,8 @@ export interface WorkbenchActions {
   openDetail(id: string): void;
   closeDetail(): void;
   setQuery(query: string): void;
+  setListLayer(layer: string): void;
+  setListState(state: ListStateFilter): void;
   setKind(kind: KindFilter): void;
   toggleContrib(c: Contrib): void;
   detailsLoaded(name: string, result: ExtGetResult): void;
@@ -102,6 +107,8 @@ export function createWorkbenchStore(
     openDetail: (id) => apply((s) => openDetail(s, id)),
     closeDetail: () => apply(closeDetail),
     setQuery: (query) => apply((s) => setQuery(s, query)),
+    setListLayer: (layer) => apply((s) => setListLayer(s, layer)),
+    setListState: (state) => apply((s) => setListState(s, state)),
     setKind: (kind) => apply((s) => setKind(s, kind)),
     toggleContrib: (c) => apply((s) => toggleContrib(s, c)),
     detailsLoaded: (name, result) => apply((s) => detailsLoaded(s, name, result)),
