@@ -46,7 +46,8 @@ body {
   background: var(--bg);
   color: var(--fg);
 }
-button {
+/* 옛 화면용 기본 모양. caustic 부품(data-slot)은 자기 스타일을 쓰므로 이 규칙에서 뺀다(무층 규칙이라 유틸리티 층을 이긴다) */
+button:not([data-slot]) {
   font: inherit;
   color: inherit;
   background: var(--panel);
@@ -55,23 +56,23 @@ button {
   padding: 4px 10px;
   cursor: pointer;
 }
-button:disabled {
+button:not([data-slot]):disabled {
   opacity: 0.5;
   cursor: default;
 }
-button.primary {
+button.primary:not([data-slot]) {
   background: var(--accent);
   color: var(--accent-fg);
   border-color: var(--accent);
 }
-button.link {
+button.link:not([data-slot]) {
   background: none;
   border: 0;
   padding: 0;
   color: var(--accent);
 }
-textarea,
-input[type="text"] {
+textarea:not([data-slot]),
+input[type="text"]:not([data-slot]) {
   font: inherit;
   color: inherit;
   background: var(--bg);
