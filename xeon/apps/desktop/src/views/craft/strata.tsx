@@ -35,6 +35,7 @@ import { DropBar, useRowDrag, type RowDrag } from "./drag.tsx";
 import { InfoTip } from "./info-tip.tsx";
 import { OrderWarningModal } from "./order-modal.tsx";
 import { useCraft } from "./craft-context.tsx";
+import { PANEL_W } from "./selection-panel.tsx";
 import {
   keyReorder,
   readOrderView,
@@ -274,8 +275,14 @@ export function Strata(): ReactNode {
     add: (hook) => source.openBuilder(hook),
   };
 
+  // 선택 패널이 오른쪽에 뜨면 줄이 그 밑으로 가지 않게 오른쪽 여백을 비운다(시안 Lanes rightInset)
+  const panelOpen = state.panel && state.sel.k !== "layer";
   return (
-    <section aria-label={t("desktop.craft.strata.title")} className="h-full overflow-y-auto">
+    <section
+      aria-label={t("desktop.craft.strata.title")}
+      className="h-full overflow-y-auto"
+      style={panelOpen ? { paddingRight: PANEL_W + 24 } : undefined}
+    >
       <div className="mx-auto grid max-w-[960px] gap-3 px-4 pb-10 pt-4">
         <Card variant="surface" size="sm" shadow="3" className="gap-0 p-2">
           <SectionHeader

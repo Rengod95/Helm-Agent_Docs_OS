@@ -4,13 +4,16 @@ import {
   Alert,
   Badge,
   Button,
+  Card,
+  CardFooter,
   CardHeader,
   CardHeading,
   CardTitle,
-  Card,
   IconButton,
   List,
   ListRow,
+  ScrollArea,
+  SectionHeader,
   Switch,
 } from "@caustic/react";
 import { X } from "@caustic/react/icons";
@@ -29,7 +32,7 @@ import { Mark, shapeOf } from "./marks.tsx";
 import { useSwitch } from "./use-switch.ts";
 
 /** 패널의 폭(화면 px). 지도는 이만큼 오른쪽을 비우고 맞춘다 */
-export const PANEL_W = 340;
+export const PANEL_W = 320;
 
 export function SelectionPanel(): ReactNode {
   const { source, state } = useCraft();
@@ -121,7 +124,7 @@ function Frame(props: {
       variant="surface"
       size="sm"
       shadow="4"
-      className="craft-glass animate-enter absolute right-3 top-16 z-20 flex max-h-[calc(100%-120px)] flex-col gap-0 overflow-hidden"
+      className="craft-glass animate-enter absolute right-3 top-27 z-20 flex max-h-[calc(100%-120px)] flex-col gap-0 overflow-hidden"
       style={{ width: PANEL_W }}
     >
       <div className="grid gap-2 pb-3">
@@ -142,10 +145,15 @@ function Frame(props: {
           </IconButton>
         </CardHeader>
       </div>
-      <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto pb-3">{props.children}</div>
-      <div className="flex items-center gap-2 border-t border-divider-line pt-3">
-        {props.action}
-      </div>
+      {/* 가운데만 길면 스크롤한다. 머리와 아래 줄(하는 일)은 고정이다 */}
+      <ScrollArea className="-mx-1 min-h-0 flex-1" label={t("desktop.craft.orbit.panel.content")}>
+        <div className="grid gap-3 px-1 pb-3">{props.children}</div>
+      </ScrollArea>
+      {props.action === null ? null : (
+        <CardFooter footer="divided" className="flex-nowrap">
+          {props.action}
+        </CardFooter>
+      )}
     </Card>
   );
 }
@@ -217,9 +225,7 @@ function PluginBody({ plugin }: { readonly plugin: CanvasPlugin }): ReactNode {
         </div>
       )}
       <section className="grid gap-1.5">
-        <h3 className="m-0 text-footnote text-text-tertiary">
-          {t("desktop.craft.orbit.panel.does")}
-        </h3>
+        <SectionHeader size="xs" headingLevel={3} title={t("desktop.craft.orbit.panel.does")} />
         {plugin.role !== undefined && (
           <p className="m-0 text-body text-text-primary">{plugin.role}</p>
         )}
@@ -285,9 +291,7 @@ function GroupBody({ group }: { readonly group: CanvasGroup }): ReactNode {
         </div>
       )}
       <section className="grid gap-1.5">
-        <h3 className="m-0 text-footnote text-text-tertiary">
-          {t("desktop.craft.orbit.panel.members")}
-        </h3>
+        <SectionHeader size="xs" headingLevel={3} title={t("desktop.craft.orbit.panel.members")} />
         <List
           size="xs"
           variant="ghost"

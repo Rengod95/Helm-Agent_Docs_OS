@@ -2,7 +2,7 @@
 // 그룹은 구성원마다 열 하나를 같은 생명선에 놓아 구성원 사이 손 넘김이 보이게 한다.
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { PHASES } from "@fresnel/client/workbench/canvas";
-import { Alert, Chip, type ChipProps } from "@caustic/react";
+import { Alert, Button, Chip, type ChipProps, Tooltip } from "@caustic/react";
 import type { TraceFailureReason } from "@fresnel/contracts/extensions";
 import type { ReactNode } from "react";
 import { InfoTip } from "./info-tip.tsx";
@@ -198,8 +198,12 @@ function StepCard({
   /** 최근 실행이면 이 순간의 기록(없으면 빈 목록). 예시 흐름이면 null */
   readonly marks: readonly RunMark[] | null;
 }): ReactNode {
+  // 이 순간에 실패가 남았으면 테두리를 위험 색으로 바꾼다(시안 StepCard의 failed)
+  const failed = marks?.some((mark) => mark.result === "failed") === true;
   return (
-    <div className="grid gap-2 rounded-lg border border-border-default bg-surface-base px-3 py-2.5">
+    <div
+      className={`grid gap-2 rounded-lg border bg-surface-base px-3 py-2.5 ${failed ? "border-danger-border" : "border-border-default"}`}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <VerbChip verb={part.verb} />
         {part.from !== null && (
@@ -389,28 +393,82 @@ function MomentRow({
   );
 }
 
+/**
+ * 한 턴 전체를 한 줄로: 생명선 순간마다 점 하나. 끼어드는 순간은 짙게, 아닌 순간은 옅게, 최근 실행의 실패는 위험 색이다.
+ * 누르면 그 순간으로 간다. 머리글과 함께 위에 붙어 있는다.
+ */
+function Overview({
+  active,
+  marks,
+}: {
+  readonly active: ReadonlySet<string>;
+  readonly marks: ReadonlyMap<string, RunMarks> | null;
+}): ReactNode {
+  return (
+    <div
+      role="group"
+      aria-label={t("desktop.craft.detail.overview.label")}
+      className="-mx-1 flex gap-1 px-1 pb-2 pt-1"
+    >
+      {MOMENTS.map((m) => {
+        const label = momentText(m.id);
+        const failed =
+          marks !== null &&
+          [...marks.values()].some((byHook) =>
+            (byHook.get(m.id) ?? []).some((mark) => mark.result === "failed"),
+          );
+        const tone = failed
+          ? "h-2.5 bg-danger-graphic"
+          : active.has(m.id)
+            ? "h-2.5 bg-text-primary"
+            : "h-1 bg-border-subtle";
+        return (
+          <Tooltip key={m.id} content={label}>
+            <Button
+              size="xs"
+              variant="ghost"
+              aria-label={t("desktop.craft.detail.overview.go", { name: label })}
+              onClick={() => {
+                document
+                  .querySelector(`[data-moment="${m.id}"]`)
+                  ?.scrollIntoView({ block: "start", behavior: "smooth" });
+              }}
+              className="h-5 min-w-0 flex-1 p-0"
+            >
+              <span aria-hidden className={`block w-full rounded-full ${tone}`} />
+            </Button>
+          </Tooltip>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Lifeline({ columns, grouped, nameOf, marks }: LifelineProps): ReactNode {
   const active = activeOf(columns, marks);
   const off = offRowsOf(columns, marks);
   return (
     <div className="grid" style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
-      {grouped && (
-        <div
-          className="sticky top-0 z-10 grid gap-x-3 bg-surface-base pb-2"
-          style={{
-            gridTemplateColumns: `${railOf(grouped)} repeat(${String(columns.length)}, minmax(0,1fr))`,
-          }}
-        >
-          <span />
-          {columns.map((c) => (
-            <div key={c.plugin.id} className="min-w-0">
-              <Chip size="md" tone="info" variant="soft" className="max-w-full">
-                <span className="min-w-0 truncate">{c.plugin.name}</span>
-              </Chip>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="sticky top-0 z-10 bg-surface-base">
+        <Overview active={active} marks={marks} />
+        {grouped && (
+          <div
+            className="grid gap-x-3 pb-2"
+            style={{
+              gridTemplateColumns: `${railOf(grouped)} repeat(${String(columns.length)}, minmax(0,1fr))`,
+            }}
+          >
+            <span />
+            {columns.map((c) => (
+              <div key={c.plugin.id} className="min-w-0">
+                <Chip size="md" tone="info" variant="soft" className="max-w-full">
+                  <span className="min-w-0 truncate">{c.plugin.name}</span>
+                </Chip>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       {PHASES.map((phase) => (
         <div key={phase}>
           <div className="ps-[3.4rem] flex items-center gap-3 pb-0.5 pt-3 text-footnote text-text-tertiary">

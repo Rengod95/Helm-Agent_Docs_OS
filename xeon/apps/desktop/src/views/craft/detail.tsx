@@ -7,6 +7,7 @@ import type {
   Origin,
   PieceKind,
 } from "@fresnel/client/workbench/canvas";
+import { isOn } from "@fresnel/client/workbench/canvas";
 import {
   Accordion,
   AccordionContent,
@@ -39,6 +40,7 @@ import {
   type DetailTarget,
   type SwitchModel,
 } from "./detail-model.ts";
+import { Mark, shapeOf } from "./marks.tsx";
 import { columnsFor, loadRuns, type Column, type RunsLoad } from "./turn-flow.ts";
 
 type DetailMode = "example" | "recent";
@@ -214,6 +216,22 @@ export function DetailView(props: DetailViewProps): ReactNode {
       <header className="flex min-h-14 flex-none flex-wrap items-center gap-x-4 gap-y-2 border-b border-border-subtle py-2 ps-4">
         {header}
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          {target.k === "group" ? (
+            <span
+              aria-hidden
+              className="size-3 flex-none rounded-full"
+              style={{ background: "var(--cs-color-info-border-strong)" }}
+            />
+          ) : (
+            <Mark
+              shape={shapeOf(target.plugin.layer)}
+              size={22}
+              group={target.group !== undefined}
+              on={isOn(target.plugin)}
+              failing={target.plugin.health !== undefined}
+              autoOff={target.plugin.health?.autoOff === true}
+            />
+          )}
           <h2 className="m-0 truncate text-title-2 text-text-primary">{title}</h2>
           <Chip
             size="md"

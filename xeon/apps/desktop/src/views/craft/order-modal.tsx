@@ -3,7 +3,7 @@
 import { t } from "@fresnel/client/i18n";
 import type { OrderWarning } from "@fresnel/client/workbench/canvas";
 import { assertNever } from "@fresnel/contracts";
-import { Button, Dialog } from "@caustic/react";
+import { Alert, Button, Dialog } from "@caustic/react";
 import type { ReactNode } from "react";
 import type { ReorderConfirm } from "./strata-flow.ts";
 
@@ -51,12 +51,9 @@ function WarningBody({ warning }: { readonly warning: OrderWarning }): ReactNode
   return (
     <div className="grid gap-4">
       {warning.severity === "guard" && (
-        <p
-          role="alert"
-          className="m-0 rounded-xl border border-danger-border bg-danger-soft px-3 py-2 text-ui-sm text-danger-text"
-        >
+        <Alert tone="danger" size="sm" radius="md" role="alert">
           {t("desktop.craft.strata.modal.guardNotice")}
-        </p>
+        </Alert>
       )}
       {warning.guardLosesFirst.length > 0 && (
         <NameList
@@ -72,13 +69,13 @@ function WarningBody({ warning }: { readonly warning: OrderWarning }): ReactNode
       )}
       {warning.skipped.length > 0 && (
         <section className="grid gap-2">
-          <h3 className="m-0 text-footnote font-medium text-text-tertiary">
+          <h3 className="m-0 text-footnote text-text-tertiary">
             {t("desktop.craft.strata.modal.skipped")}
           </h3>
           <ul className="m-0 grid list-none gap-2 p-0">
             {warning.skipped.map((s) => (
               <li key={s.registrationId} className="grid gap-0.5">
-                <span className="text-ui-sm text-text-primary">
+                <span className="text-body text-text-primary">
                   {t("desktop.craft.strata.modal.skippedItem", {
                     name: s.name,
                     reason: skipReasonText(s.reason),
@@ -116,8 +113,8 @@ function NameList(props: {
 }): ReactNode {
   return (
     <section className="grid gap-1.5">
-      <h3 className="m-0 text-footnote font-medium text-text-tertiary">{props.heading}</h3>
-      <p className="m-0 text-ui-sm text-text-primary">{props.names.join(" · ")}</p>
+      <h3 className="m-0 text-footnote text-text-tertiary">{props.heading}</h3>
+      <p className="m-0 text-body text-text-primary">{props.names.join(" · ")}</p>
     </section>
   );
 }

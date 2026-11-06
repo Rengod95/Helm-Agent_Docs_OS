@@ -70,7 +70,7 @@ export function LayerPanel({ layer }: { readonly layer: LayerKey }): ReactNode {
       variant="surface"
       size="sm"
       shadow="4"
-      className="craft-glass animate-enter absolute bottom-16 left-3 right-3 z-20 gap-2"
+      className="craft-glass animate-enter absolute bottom-14 left-3 right-3 z-20 gap-2"
     >
       <header className="flex items-center gap-2">
         <Mark shape={shapeOf(layer)} size={18} />
@@ -180,6 +180,7 @@ function Connector(): ReactNode {
         strokeWidth={1.4}
         strokeLinecap="round"
         strokeDasharray="3 4"
+        className="craft-flow"
       />
       <path
         d="M26 3.5 L32.5 8 L26 12.5"

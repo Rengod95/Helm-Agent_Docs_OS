@@ -28,6 +28,7 @@ export function InfoTip({
       <Popover
         trigger="hover"
         size="xs"
+        className="craft-glass"
         open={open}
         onOpenChange={setOpen}
         aria-hidden

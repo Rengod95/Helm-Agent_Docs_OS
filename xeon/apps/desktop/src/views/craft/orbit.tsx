@@ -38,7 +38,7 @@ import {
 } from "./orbit-model.ts";
 import { RING_ORDER, layoutOrbit, pointAt, ringRadius, type OrbitArc } from "./orbit-layout.ts";
 import { layerTitle, stateText } from "./orbit-names.ts";
-import { PANEL_W, SelectionPanel } from "./selection-panel.tsx";
+import { PANEL_W } from "./selection-panel.tsx";
 import { SPRING_MS, springLinear } from "./spring.ts";
 import { SpaceBackground } from "./space-bg.tsx";
 import { useViewport } from "./use-viewport.ts";
@@ -288,7 +288,7 @@ const Node = memo(function Node(props: NodeProps): ReactNode {
               onPointerMove={spot}
               onPointerEnter={() => setHot(true)}
               onPointerLeave={() => setHot(false)}
-              className="craft-label flex h-6 items-center whitespace-nowrap rounded-full px-2.5 text-footnote"
+              className="craft-label flex h-7 items-center whitespace-nowrap rounded-full px-3 text-ui-strong"
             >
               {p.name}
             </button>
@@ -594,7 +594,7 @@ export function Orbit(): ReactNode {
                 <div className="pointer-events-auto -translate-x-1/2 -translate-y-1/2">
                   <button
                     type="button"
-                    className="craft-label flex h-6 items-center whitespace-nowrap rounded-full px-2.5 text-footnote"
+                    className="craft-label flex h-6 items-center whitespace-nowrap rounded-full px-2.5 text-ui-sm"
                     data-picked={openLayer === layer ? "" : undefined}
                     aria-label={t("desktop.craft.orbit.ring.open", { name: layerTitle(layer) })}
                     onClick={() => onOpenRing(layer)}
@@ -626,7 +626,7 @@ export function Orbit(): ReactNode {
           {/* 이름표는 구체 아래 첫 고리의 바깥쪽에 앉는다(글자 배율만 따른다) */}
           <Pin x={CENTER} y={CENTER + ringRadius("L1")}>
             <div className="pointer-events-none -translate-x-1/2 pt-1.5">
-              <span className="craft-label flex h-6 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-footnote">
+              <span className="craft-label flex h-6 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-ui-sm">
                 {t("desktop.craft.orbit.core.name")}
                 <span className="font-mono text-mono-sm opacity-60">
                   {t("desktop.craft.orbit.core.id")}
@@ -651,7 +651,7 @@ export function Orbit(): ReactNode {
                 >
                   <button
                     type="button"
-                    className="craft-label flex h-6 items-center whitespace-nowrap rounded-full px-2.5 text-footnote font-semibold"
+                    className="craft-label flex h-7 items-center whitespace-nowrap rounded-full px-3 text-ui-strong font-semibold"
                     data-group=""
                     data-picked={pickedGroup ? "" : undefined}
                     data-lit={groupSel === group.id && !pickedGroup ? "" : undefined}
@@ -696,7 +696,6 @@ export function Orbit(): ReactNode {
         <ZoomBar percent={vp.percent} onZoom={vp.zoomBy} onFit={vp.fit} />
         <Finder />
       </div>
-      <SelectionPanel />
       {state.sel.k === "layer" && <LayerPanel key={state.sel.id} layer={state.sel.id} />}
     </div>
   );
