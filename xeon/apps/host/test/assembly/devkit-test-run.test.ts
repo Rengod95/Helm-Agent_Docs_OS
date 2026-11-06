@@ -75,7 +75,11 @@ interface Rig {
   readonly port: ReturnType<typeof createDevkitPort>;
   readonly configDir: string;
   readonly storePath: string;
-  readonly created: { readonly workspace?: string; readonly testRun?: boolean }[];
+  readonly created: {
+    readonly workspace?: string;
+    readonly title?: string;
+    readonly testRun?: boolean;
+  }[];
   readonly removed: ThreadId[];
   readonly toggles: {
     readonly id: string;
@@ -407,9 +411,33 @@ test("a test run opens a thread with the test run mark, enables the target on it
       options: { workspace: "/work/a" },
     }),
   ).toEqual(ok({ testId: "t-1", threadId: THREAD }));
-  expect(session.created).toEqual([{ workspace: "/work/a", testRun: true }]);
+  expect(session.created).toEqual([{ workspace: "/work/a", title: "demo-plugin", testRun: true }]);
   expect(session.toggles).toEqual([{ id: "reg-demo-plugin", enabled: true, threadId: THREAD }]);
   expect(session.removed).toEqual([]);
+  expect(await session.port.testList()).toEqual(
+    ok({
+      tests: [
+        {
+          testId: "t-1",
+          kind: "testRun",
+          target: "demo-plugin",
+          state: "running",
+          startedAt: "2026-11-04T09:00:00.000Z",
+          durationMs: null,
+          threadId: THREAD,
+          replay: null,
+        },
+      ],
+    }),
+  );
+});
+
+test("a test run without options names its thread after the target and records it running with that thread", async () => {
+  const session = await rig({ installed: GROUP, loaded: ["demo-plugin"] });
+  expect(await session.port.testRun({ kind: "testRun", target: "demo-plugin" })).toEqual(
+    ok({ testId: "t-1", threadId: THREAD }),
+  );
+  expect(session.created).toEqual([{ title: "demo-plugin", testRun: true }]);
   expect(await session.port.testList()).toEqual(
     ok({
       tests: [

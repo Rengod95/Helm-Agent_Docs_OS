@@ -8,7 +8,8 @@ import { ALL_TESTS, NEW_TEST_DEFAULT, type NewTestDraft, type TestFilter } from 
 export type TestFailure = "offline" | "unsupported" | "rejected" | "failed";
 
 export type TestsNotice =
-  | { readonly kind: "created" }
+  /** Test run 대화를 만들었다. `name`은 대화 이름이 된 대상 확장 이름이다 */
+  | { readonly kind: "created"; readonly name: string }
   | { readonly kind: "started" }
   | { readonly kind: "copied" }
   | { readonly kind: "copyFailed" }

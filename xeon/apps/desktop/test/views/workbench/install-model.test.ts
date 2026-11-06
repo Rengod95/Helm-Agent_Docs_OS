@@ -101,6 +101,12 @@ describe("설치 실패 갈래", () => {
     expect(installFailureOf(issue("invalid_input: source must be an absolute path"))).toBe(
       "invalid_input",
     );
+    expect(installFailureOf(issue("not_absolute: source must be an absolute path"))).toBe(
+      "not_absolute",
+    );
+    expect(installFailureOf(issue("no_manifest: .fresnel-plugin/plugin.json is missing"))).toBe(
+      "no_manifest",
+    );
     expect(installFailureOf(issue("not_found: manifest"))).toBe("not_found");
     expect(installFailureOf(issue("denied: builtin"))).toBe("denied");
     expect(installFailureOf({ kind: "offline" })).toBe("offline");

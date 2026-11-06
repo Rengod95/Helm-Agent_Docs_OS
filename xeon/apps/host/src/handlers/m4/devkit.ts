@@ -110,6 +110,8 @@ function wireErrorOf(error: DevkitError, path: string): WireError {
     case "dev_mode_required":
     case "source_changed":
     case "managed_locked":
+    case "not_absolute":
+    case "no_manifest":
       return issue(`${error.kind}: ${error.message}`);
     case "not_found":
       return path === "/name"

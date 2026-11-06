@@ -118,6 +118,7 @@ export const manifest = defineManifest({
 - 스캔은 `knowledge.ledger.scan`으로 따로 노출된다(L2.knowledge.spec §3). 그래서 사전 스캔(§4.6 2단계)은 `knowledge.ledger`가 제공되면 항상 돌 수 있다.
 - 위임 서비스(`fresnel.agents`)는 기능이 아니므로 `requires`에 넣지 않는다(F.extensions.spec §3.1에 위임 필드가 없다). 학습 그룹은 group-sdk의 `GroupApi.delegate`(§3.4)로만 위임한다. `GroupApi.delegate`가 매니페스트 선언을 요구할지는 L3.group-sdk.spec이 정한다 [가정].
 - `components.agents`의 `learning-review` 정의 파일은 그룹 패키지 안에 둔다. L1.agents.spec §4.9는 확장 경로(매니페스트 `components.agents`)의 정의 읽기를 M2에 둔다. 정의의 `tools`에는 §3.4 허용 목록을 넣고 위임 도구를 넣지 않는다(재귀 방지, §4.3).
+- [제안] 호스트는 내장 그룹의 `components.agents` 파일을 읽지 않는다(기본 플러그인 번들의 `agents/`만 읽는다, `apps/host/src/assembly/default-plugins.ts`). 그래서 같은 정의를 코드로도 준다: `review/agent.ts`의 `learningAgentDefinitions()`가 이름, 설명, 역할 `review`, §3.4 허용 도구, 본문을 주고, 조립 루트(`apps/host/src/assemble.ts`)가 학습 그룹을 싣을 때만(`learningAgentsLoaded`, 기본 그룹 끔이나 안전 모드면 싣지 않는다) `builtinDefinitions`에 더한다. `agents/learning-review.md`는 사람이 읽는 원본이고, 시험 `test/agent.test.ts`가 두 원본의 이름, 설명, 역할, 도구, 본문이 같은지 본다. 어긋나면 시험이 실패한다.
 - `readsRecordKinds`는 빈 목록이다 [결정: review.decisions-2 D-10]. 그룹 사이 레코드는 F에 스키마가 없으므로 학습 그룹은 Helm을 비롯한 다른 그룹의 레코드를 읽지 않는다. 검토 포크의 입력은 부모 대화 스냅샷뿐이다.
 
 ### 3.2 그룹 정의와 상태 (`index.ts`, `state.ts`)
@@ -269,7 +270,7 @@ export function reviewFinishOutcome(state: LearningState, settled: ReviewSettled
 
 | 필드 | 값 | 근거 |
 |---|---|---|
-| `agent` | `"learning-review"` | §3.1 매니페스트 `components.agents`, L3.learning.plan §2 `agents/learning-review.md` |
+| `agent` | `"learning-review"` | §3.1 매니페스트 `components.agents`, L3.learning.plan §2 `agents/learning-review.md`. 정의는 §3.1의 `learningAgentDefinitions()`가 조립 루트를 거쳐 싣는다 |
 | `task` | `review/prompts.ts`가 만든 검토 지시(§4.4) | |
 | `requestId` | `learning:review:<epoch>` 또는 `learning:review:manual:<n>`. 1~48자 | L3.group-sdk.spec §3.4(보고 키 `:report`를 붙여 64자 안) |
 | `report` | 넣지 않는다 [결정: review.m3-design-inputs D-M3-03] | §4.3 완료 통지, 요구 REQ-LN-08(`report` 선택 필드) |
@@ -858,6 +859,7 @@ M3 1차 범위 밖이고 M4 이후에 둔다(`product/scope/spec.md` 4.5, `_rese
 | 16 | 위임 자식이 정착했는데 부모 대화가 삭제됨 | L1-g는 `agent.settled`를 남기지 않을 수 있다(L1.agents.spec §5 7번). 부모 대화가 없으므로 그 대화의 학습 상태도 없다. 대기열의 그 검토 후보는 대화 단위로 남는다 |
 | 17 | `AgentSettledPayload.lastItemId` 없음 | 검토를 시작하지 않고 카운터를 유지한다(`skip/excluded`로 기록하지 않는다). REQ-LN-01이 들어오기 전에는 학습 그룹이 검토를 시작할 수 없다 |
 | 18 | 승인 때 `scope: "project"`인데 L2-d가 작업 폴더 쓰기를 거부 | 적용 결과가 `approval_required`(증거를 믿지 않는 구성)이면 후보는 `approved`에 남고 사용자에게 사유를 보인다. 다음 지연 정리가 다시 적용한다. 결과가 `invalid`이면 `apply_failed` 기록과 함께 `rejected/apply_failed`로 닫는다. 범위를 `user`로 바꾼 새 제안이 필요하다 |
+| 19 | 검토 포크 정의 `learning-review`가 등록되지 않음 | §3.1 경로로 정의가 항상 실리므로 정상 조립에서는 생기지 않는다. 그래도 없으면 `g.delegate`가 L1의 `agents.unknown_definition`으로 거부되어 `group.delegateFailed`가 된다. 사례 7과 같게 카운터만 갱신하고 세 번째 실패에서 검토를 포기한다. 자동 경로는 진단을 남기지 않아 제안이 생기지 않아도 화면에 원인이 없다. 원인은 수동 검토 `/learning review`가 돌려주는 `learning.delegateFailed`(사유 문장 포함)로만 보인다. [미결] 자동 경로의 위임 실패를 진단으로 남길지 정한다 |
 
 ## 6. 설정 노출
 

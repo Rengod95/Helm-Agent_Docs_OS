@@ -71,14 +71,14 @@ realTest(
     expect(seenSecond.map((params) => params.notice.kind)).toEqual(["completed"]);
     const [delivered] = seenFirst;
     expect(delivered?.threadId).toBe(created.threadId);
-    expect(delivered?.notice.title).toBe("작업이 끝났다");
+    expect(delivered?.notice.title).toBe("작업이 끝났어요");
     expect(delivered?.deliveredAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
     expect(seenSecond[0]).toEqual(delivered);
 
     // notify.list는 같은 알림(seq, 제목, 본문까지)을 돌려준다
     const listed = await second.request("notify.list", { afterSeq: 0 });
     expect(listed.notices).toEqual(seenFirst.map((params) => params.notice));
-    expect(listed.notices.map((notice) => notice.title)).toEqual(["작업이 끝났다"]);
+    expect(listed.notices.map((notice) => notice.title)).toEqual(["작업이 끝났어요"]);
 
     await first.close();
     await second.close();

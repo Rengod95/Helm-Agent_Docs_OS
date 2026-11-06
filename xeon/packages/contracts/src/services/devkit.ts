@@ -198,6 +198,10 @@ export const DEVKIT_ERROR_KINDS = [
   "safe_mode_active",
   /** `managed` 범위가 이 확장의 설정을 잠갔다 */
   "managed_locked",
+  /** 설치할 폴더 경로가 절대 경로가 아니다 */
+  "not_absolute",
+  /** 폴더는 있지만 `.fresnel-plugin/plugin.json`이 없다(폴더가 없으면 `not_found`) */
+  "no_manifest",
   "io",
 ] as const;
 export type DevkitErrorKind = (typeof DEVKIT_ERROR_KINDS)[number];

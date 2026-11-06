@@ -187,6 +187,31 @@ describe("테스트 화면 상세", () => {
 });
 
 describe("새 시험 시트", () => {
+  test("a Test run draft shows the target field, asks for a target before it can start, and has no replay commit limit", () => {
+    const empty = renderToString(
+      <NewTestForm
+        id="new-test"
+        draft={NEW_TEST_DEFAULT}
+        devMode={false}
+        onChange={NOOP}
+        onSubmit={NOOP}
+      />,
+    );
+    expect(empty).toContain("대상 이름을 적어 주세요.");
+    expect(empty).not.toContain("최대 커밋 수");
+    expect(submitPlanOf(NEW_TEST_DEFAULT, false).kind).toBe("invalid");
+    const named = { ...NEW_TEST_DEFAULT, target: "demo-plugin" };
+    const filled = renderToString(
+      <NewTestForm id="new-test" draft={named} devMode={false} onChange={NOOP} onSubmit={NOOP} />,
+    );
+    expect(filled).not.toContain("대상 이름을 적어 주세요.");
+    expect(submitPlanOf(named, false)).toEqual({
+      kind: "run",
+      params: { kind: "testRun", target: "demo-plugin" },
+      confirm: false,
+    });
+  });
+
   test("test-run.dev-only-locked: outside dev mode a replay draft shows the developer-mode badge", () => {
     const markup = renderToString(
       <NewTestForm
@@ -223,5 +248,12 @@ describe("새 시험 시트", () => {
       />,
     );
     expect(markup).toContain("작업 폴더를 격리하는 기능이 아직 없어요");
+  });
+});
+
+describe("테스트 화면 알림", () => {
+  test("a created Test run notice names the conversation after its target", () => {
+    const markup = html({ ui: { ...UI, notice: { kind: "created", name: "demo-plugin" } } });
+    expect(markup).toContain("demo-plugin 시험 대화를 만들었어요.");
   });
 });

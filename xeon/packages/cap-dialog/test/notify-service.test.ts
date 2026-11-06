@@ -41,13 +41,13 @@ describe("emit과 list", () => {
     const { api } = setup();
     const thread = newThread();
     const emitted = await api.emit(
-      { kind: "completed", title: "작업이 끝났다", body: "본문", origin: "group.a" },
+      { kind: "completed", title: "작업이 끝났어요", body: "본문", origin: "group.a" },
       callOptions(thread, { requestId: "r1" }),
     );
     expect(emitted).toEqual({
       notice: {
         kind: "completed",
-        title: "작업이 끝났다",
+        title: "작업이 끝났어요",
         body: "본문",
         seq: 1,
         sourceType: "dialog.notified",
@@ -71,7 +71,7 @@ describe("emit과 list", () => {
   test("같은 requestId의 재호출은 처음 알림을 돌려주고 기록을 늘리지 않는다", async () => {
     const { port, api } = setup();
     const thread = newThread();
-    const input = { kind: "completed", title: "작업이 끝났다", origin: "group.a" } as const;
+    const input = { kind: "completed", title: "작업이 끝났어요", origin: "group.a" } as const;
     const first = await api.emit(input, callOptions(thread, { requestId: "same" }));
     const again = await api.emit(input, callOptions(thread, { requestId: "same" }));
     expect(again).toEqual(first);
@@ -100,7 +100,7 @@ describe("emit과 list", () => {
   test("스레드 문맥이 없으면 emit은 invalid_input이다", async () => {
     const { api, port } = setup();
     const failure = await rejectionOf(
-      api.emit({ kind: "completed", title: "작업이 끝났다", origin: "group.a" }, {}),
+      api.emit({ kind: "completed", title: "작업이 끝났어요", origin: "group.a" }, {}),
     );
     expect(failure).toMatchObject({ data: { code: "invalid_input" } });
     expect(port.log).toHaveLength(0);
@@ -125,7 +125,7 @@ describe("emit과 list", () => {
     const thread = newThread();
     const emitFailure = await rejectionOf(
       notify.api.emit(
-        { kind: "completed", title: "작업이 끝났다", origin: "group.a" },
+        { kind: "completed", title: "작업이 끝났어요", origin: "group.a" },
         callOptions(thread),
       ),
     );
@@ -148,7 +148,7 @@ describe("emit과 list", () => {
       notices: [
         {
           kind: "approval_waiting",
-          title: "승인이 필요하다: bash",
+          title: "승인이 필요해요: bash",
           body: null,
           seq: 2,
           sourceType: "approval.requested",
@@ -226,7 +226,7 @@ describe("구독", () => {
         thread,
         {
           kind: "completed",
-          title: "작업이 끝났다",
+          title: "작업이 끝났어요",
           body: null,
           seq: 1,
           sourceType: "turn.completed",
@@ -236,7 +236,7 @@ describe("구독", () => {
         thread,
         {
           kind: "approval_waiting",
-          title: "승인이 필요하다: bash",
+          title: "승인이 필요해요: bash",
           body: null,
           seq: 2,
           sourceType: "approval.requested",
@@ -316,7 +316,7 @@ describe("같은 스레드·같은 종류 묶음", () => {
     expect(got).toEqual([
       {
         kind: "completed",
-        title: "작업이 끝났다",
+        title: "작업이 끝났어요",
         body: null,
         seq: 1,
         sourceType: "turn.completed",

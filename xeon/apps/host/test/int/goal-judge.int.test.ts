@@ -279,7 +279,7 @@ realTest(
     const listed = await second.request("notify.list", { afterSeq: 0 });
     const turnNotice: Notice = {
       kind: "completed",
-      title: "작업이 끝났다",
+      title: "작업이 끝났어요",
       body: null,
       seq: turnEvent.seq,
       sourceType: "turn.completed",

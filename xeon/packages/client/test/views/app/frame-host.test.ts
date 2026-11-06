@@ -369,8 +369,12 @@ describe("theme tokens and confirm line", () => {
     expect(confirmLineText({ ...base, kind: "approval", approval: true })).toBe(
       '"helm" 확장이 "start" 동작의 승인 카드를 띄우려고 해요',
     );
+    // 비밀 키 확인 줄은 내부 이름 대신 "확장의 'key' 키"로 보인다. 모양이 다른 이름은 그대로 보인다
     expect(confirmLineText({ ...base, kind: "secret", action: "ext--helm--token" })).toBe(
-      '"helm" 확장이 시크릿 "ext--helm--token"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요',
+      '"helm" 확장이 시크릿 "helm의 \'token\' 키"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요',
+    );
+    expect(confirmLineText({ ...base, kind: "secret", action: "api-key" })).toBe(
+      '"helm" 확장이 시크릿 "api-key"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요',
     );
     expect(confirmLineText({ ...base, kind: "external", action: "https://example.com/a" })).toBe(
       '"helm" 확장이 브라우저에서 "https://example.com/a" 주소를 열려고 해요',

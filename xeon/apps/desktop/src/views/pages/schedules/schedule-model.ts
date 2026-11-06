@@ -24,9 +24,13 @@ type ListState =
   /** 연결이 없다. 행은 마지막 목록을 그대로 두고 동작은 모두 잠근다 */
   | { readonly kind: "offline" };
 
+/** 알림에 붙는 동작. `restartEngine`은 "지금 다시 시작" 단추다 */
+export type NoticeAction = "restartEngine" | null;
+
 export interface Notice {
   readonly tone: "danger" | "success";
   readonly text: MessageRef;
+  readonly action: NoticeAction;
 }
 
 /** 실행 기록 한 줄 */
@@ -58,6 +62,8 @@ export interface ScheduleState {
   /** host가 준 목록 항목 그대로다. 행(`ScheduleRow`)은 `rowsOf`가 만든다 */
   readonly items: readonly ScheduleListItem[];
   readonly serviceModeOff: boolean;
+  /** 서비스 모드를 켰지만 엔진을 다시 시작하지 않아 아직 꺼진 것과 같다. 띠가 "다시 시작해야 켜져요"를 보인다 */
+  readonly serviceRestartPending: boolean;
   readonly filter: ScheduleFilter;
   /** 목록을 마지막으로 읽은 시각(epoch ms). 상대 시각은 이 값 기준이다(화면을 다시 그리지 않는다) */
   readonly nowMs: number;
@@ -78,6 +84,7 @@ export const INITIAL_SCHEDULE_STATE: ScheduleState = {
   list: { kind: "loading" },
   items: [],
   serviceModeOff: false,
+  serviceRestartPending: false,
   filter: "enabled",
   nowMs: 0,
   selectedId: null,
@@ -95,8 +102,10 @@ export type ScheduleAction =
       readonly type: "listLoaded";
       readonly items: readonly ScheduleListItem[];
       readonly serviceModeOff: boolean;
+      readonly serviceRestartPending: boolean;
       readonly nowMs: number;
     }
+  | { readonly type: "serviceEnabled"; readonly restartPending: boolean }
   | { readonly type: "listFailed"; readonly reason: ListFailure }
   | { readonly type: "filterChanged"; readonly filter: ScheduleFilter }
   | { readonly type: "select"; readonly id: string }
@@ -225,15 +234,22 @@ export function scheduleReducer(state: ScheduleState, action: ScheduleAction): S
       return { ...state, list: { kind: "loading" } };
     case "listLoaded": {
       const rows = scheduleListView(action.items);
+      // 다시 시작 알림은 재시작으로 대기가 풀리면 지운다. 남기면 이미 켜진 서비스를 아직 다시 시작하라고 말하게 된다
+      const stale = !action.serviceRestartPending && state.notice?.action === "restartEngine";
       return {
         ...state,
         list: { kind: "ready" },
         items: action.items,
         serviceModeOff: action.serviceModeOff,
+        serviceRestartPending: action.serviceRestartPending,
+        notice: stale ? null : state.notice,
         nowMs: action.nowMs,
         selectedId: keepSelection(state.selectedId, rows),
       };
     }
+    case "serviceEnabled":
+      // 서비스 모드를 켰으면 꺼짐 띠는 물러난다. 다시 시작이 필요하면 대기 띠가 대신한다
+      return { ...state, serviceModeOff: false, serviceRestartPending: action.restartPending };
     case "listFailed":
       return { ...state, list: listStateOf(action.reason) };
     case "filterChanged":
@@ -381,6 +397,10 @@ export function selectedItemOf(state: ScheduleState): ScheduleListItem | null {
   return state.items.find((item) => item.entry.id === state.selectedId) ?? null;
 }
 
-export function noticeOf(text: MessageRef, tone: Notice["tone"]): Notice {
-  return { tone, text };
+export function noticeOf(
+  text: MessageRef,
+  tone: Notice["tone"],
+  action: NoticeAction = null,
+): Notice {
+  return { tone, text, action };
 }

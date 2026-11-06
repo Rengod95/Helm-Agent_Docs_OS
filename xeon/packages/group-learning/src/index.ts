@@ -29,6 +29,7 @@ import { learningStateDecl } from "./state.ts";
 
 export { createLearningBridge, type LearningBridge, type LearningQueueApi } from "./bridge.ts";
 export { decisionCommandLine } from "./commands.ts";
+export { learningAgentDefinitions, REVIEW_AGENT_NAME } from "./review/agent.ts";
 export { APPROVAL_SOURCE } from "./proposals/knowledge.ts";
 export type { ProposalDecision } from "./proposals/ops.ts";
 export {

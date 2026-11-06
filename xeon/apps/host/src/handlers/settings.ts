@@ -18,8 +18,9 @@ import {
 } from "@fresnel/contracts/wire";
 import { keyReusedBug, wireErrorOfStore } from "../store-error.ts";
 import { settingProblemOf } from "../settings-problems.ts";
+import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, SettingsFileFailure, SettingsWriteFailure } from "../types.ts";
-import { threadLocked } from "./owner.ts";
+import { threadLocked, withWriteOwner } from "./owner.ts";
 
 // L4.host-service.spec §3.4. settings.get(M1)과 settings.set, settings.reset, settings.list(M2, HOST.2).
 // 값 검사는 F의 checkSettingWrite가 한다. 오류 details에는 값을 싣지 않는다(F wire §4.9 시크릿 값 비표시 규칙 4).
@@ -30,6 +31,21 @@ function requireThreadIfGiven(engine: Engine, threadId: ThreadId | undefined, wh
   const exists = engine.ports.threads.exists(threadId);
   if (!exists.ok) throw wireErrorOfStore(exists.error, `${where} thread lookup`);
   if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
+}
+
+/**
+ * 세션 범위(`launch`) 쓰기는 thread의 쓰기 소유를 요구한다. 이 프로세스가 소유를 쥐지 않았으면 `thread.rename`처럼 한 번 얻어 쓰고 놓는다
+ * (HS-28). `thread.open`을 observe로 열었던 대화도 이렇게 바꾼다. 얻지 못하면 3002다.
+ */
+function writeOwned<T>(
+  engine: Engine,
+  hub: () => ConnectionHub,
+  scope: SettingScope,
+  threadId: ThreadId | undefined,
+  write: () => Promise<T>,
+): Promise<T> {
+  if (scope !== "launch" || threadId === undefined) return write();
+  return withWriteOwner(engine, hub(), threadId, write);
 }
 
 export function createSettingsGetHandler(engine: Engine): WireHandler<"settings.get"> {
@@ -201,7 +217,10 @@ function requireKnownModel(engine: Engine, key: string, value: unknown): void {
   });
 }
 
-export function createSettingsSetHandler(engine: Engine): WireHandler<"settings.set"> {
+export function createSettingsSetHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"settings.set"> {
   const { ports, catalog } = engine;
   return async (params) => {
     const { threadId, key, scope } = params;
@@ -225,7 +244,9 @@ export function createSettingsSetHandler(engine: Engine): WireHandler<"settings.
     if (def === undefined) throw wireError("settings.unknownKey", { details: { key } });
     requireKnownModel(engine, key, checked.value);
     rememberApplied(engine, def, threadId);
-    const written = await ports.settings.write(scope, key, checked.value, threadId);
+    const written = await writeOwned(engine, hub, scope, threadId, () =>
+      ports.settings.write(scope, key, checked.value, threadId),
+    );
     if (!written.ok) throw writeFailure(written.error, def, scope);
     // 사용자 범위의 provider 키 연결은 사람의 허용이다: 그 시크릿에 모델 provider 사용 하나를 더한다(HS-45)
     if (key === "l1.models.providers" && scope === "user") await ports.secrets.linkModelProviders();
@@ -233,7 +254,10 @@ export function createSettingsSetHandler(engine: Engine): WireHandler<"settings.
   };
 }
 
-export function createSettingsResetHandler(engine: Engine): WireHandler<"settings.reset"> {
+export function createSettingsResetHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"settings.reset"> {
   const { ports, catalog } = engine;
   return async (params) => {
     const { threadId, key, scope } = params;
@@ -250,7 +274,9 @@ export function createSettingsResetHandler(engine: Engine): WireHandler<"setting
       }
     }
     rememberApplied(engine, def, threadId);
-    const cleared = await ports.settings.reset(scope, key, threadId);
+    const cleared = await writeOwned(engine, hub, scope, threadId, () =>
+      ports.settings.reset(scope, key, threadId),
+    );
     if (!cleared.ok) throw writeFailure(cleared.error, def, scope);
     return { setting: effectiveOf(engine, def, threadId) };
   };

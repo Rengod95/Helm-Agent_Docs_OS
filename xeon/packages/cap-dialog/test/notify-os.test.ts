@@ -293,7 +293,7 @@ describe("묶음과 신호", () => {
     const thread = newThread();
     port.commit(thread, "turn.completed", turnCompleted("completed"));
     port.commit(thread, "work.goal_settled", goalSettled("met", 1));
-    expect(fake.sent.map((call) => call.notification.title)).toEqual(["작업이 끝났다"]);
+    expect(fake.sent.map((call) => call.notification.title)).toEqual(["작업이 끝났어요"]);
 
     await h.timers.advance(NOTICE_COALESCE_MS);
     port.commit(thread, "turn.completed", turnCompleted("completed"));

@@ -8,8 +8,8 @@ import {
   testsUiReducer,
   type TestsUiState,
 } from "@fresnel/client/workbench";
-import type { ExtTestRecord } from "@fresnel/contracts/wire";
-import { phaseOf, runControl } from "../../../src/views/tests/tests-actions.ts";
+import type { ExtTestRecord, ExtTestRunParams } from "@fresnel/contracts/wire";
+import { phaseOf, runControl, startTest } from "../../../src/views/tests/tests-actions.ts";
 import { TestsView, type TestsViewHandlers } from "../../../src/views/tests/tests-view.tsx";
 import { fakeCommands } from "../fake-commands.ts";
 
@@ -141,5 +141,35 @@ describe("Y9 test-run pause", () => {
       paused: true,
     });
     expect(viewOf(ui, "thr_1")).toContain("이어서");
+  });
+});
+
+describe("새 시험 시작", () => {
+  test("a Test run start sends ext.test.run with the testRun kind and the target, and returns the test id", async () => {
+    const calls: ExtTestRunParams[] = [];
+    const base = fakeCommands();
+    const commands = fakeCommands({
+      tests: {
+        ...base.tests,
+        run: (params) => {
+          calls.push(params);
+          return Promise.resolve(ok({ testId: "t-7", threadId: "thr_7" }));
+        },
+      },
+    });
+    const outcome = await startTest(commands.tests, { kind: "testRun", target: "demo-plugin" });
+    expect(outcome).toEqual({ ok: true, value: "t-7" });
+    expect(calls).toEqual([{ kind: "testRun", target: "demo-plugin" }]);
+  });
+
+  test("a rejected Test run start reports the rejected failure and no test id", async () => {
+    const commands = fakeCommands({
+      tests: {
+        ...fakeCommands().tests,
+        run: () => Promise.resolve(err({ kind: "rejected", code: 3313 })),
+      },
+    });
+    const outcome = await startTest(commands.tests, { kind: "testRun", target: "demo-plugin" });
+    expect(outcome).toEqual({ ok: false, failure: "rejected" });
   });
 });

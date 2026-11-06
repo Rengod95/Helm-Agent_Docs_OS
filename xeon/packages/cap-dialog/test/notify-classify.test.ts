@@ -85,12 +85,12 @@ function runPayload(outcome: string): unknown {
 }
 
 describe("classifyNotice: turn.completed", () => {
-  test("completed는 작업이 끝났다는 completed 알림이다", () => {
+  test("completed는 작업이 끝났어요라는 completed 알림이다", () => {
     const thread = newThread();
     const event = envelope(thread, "turn.completed", turnPayload("completed", null));
     expect(classifyNotice(event)).toStrictEqual({
       kind: "completed",
-      title: "작업이 끝났다",
+      title: "작업이 끝났어요",
       body: null,
       seq: event.seq,
       sourceType: "turn.completed",
@@ -188,7 +188,7 @@ describe("classifyNotice: approval.requested", () => {
     const event = envelope(thread, "approval.requested", approvalPayload(thread, TOOL_BODY));
     expect(classifyNotice(event)).toStrictEqual({
       kind: "approval_waiting",
-      title: "승인이 필요하다: bash",
+      title: "승인이 필요해요: bash",
       body: null,
       seq: event.seq,
       sourceType: "approval.requested",
@@ -201,7 +201,7 @@ describe("classifyNotice: approval.requested", () => {
     const event = envelope(thread, "approval.requested", approvalPayload(thread, body));
     expect(classifyNotice(event)).toMatchObject({
       kind: "approval_waiting",
-      title: "승인이 필요하다: plan",
+      title: "승인이 필요해요: plan",
     });
   });
 
@@ -242,17 +242,17 @@ describe("classifyNotice: approval.requested", () => {
     const event = envelope(thread, "approval.requested", approvalPayload(thread, body));
     const notice = classifyNotice(event);
     expect(notice?.title).toHaveLength(120);
-    expect(notice?.title.startsWith("승인이 필요하다: ")).toBe(true);
+    expect(notice?.title.startsWith("승인이 필요해요: ")).toBe(true);
   });
 });
 
 describe("classifyNotice: agent.settled", () => {
-  test("completed는 백그라운드 작업이 끝났다는 background_completed 알림이다", () => {
+  test("completed는 백그라운드 작업이 끝났어요라는 background_completed 알림이다", () => {
     const thread = newThread();
     const event = envelope(thread, "agent.settled", settledPayload(thread, "completed", null));
     expect(classifyNotice(event)).toStrictEqual({
       kind: "background_completed",
-      title: "백그라운드 작업이 끝났다",
+      title: "백그라운드 작업이 끝났어요",
       body: null,
       seq: event.seq,
       sourceType: "agent.settled",
@@ -279,12 +279,12 @@ describe("classifyNotice: agent.settled", () => {
 });
 
 describe("classifyNotice: schedule.run_finished", () => {
-  test("completed는 예약 작업이 끝났다는 background_completed 알림이다", () => {
+  test("completed는 예약 작업이 끝났어요라는 background_completed 알림이다", () => {
     const thread = newThread();
     const event = envelope(thread, "schedule.run_finished", runPayload("completed"));
     expect(classifyNotice(event)).toStrictEqual({
       kind: "background_completed",
-      title: "예약 작업이 끝났다",
+      title: "예약 작업이 끝났어요",
       body: null,
       seq: event.seq,
       sourceType: "schedule.run_finished",

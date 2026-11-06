@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
 import {
@@ -70,8 +70,26 @@ test("previewInstall: reports the installed version it would replace and refuses
   expect(preview.ok && preview.value.installedVersion).toBe("0.1.0");
   expect(await previewInstall({ source: "relative/dir" }, { extensionsDir: extensions })).toEqual({
     ok: false,
-    error: { kind: "invalid_input", message: "source must be an absolute path" },
+    error: { kind: "not_absolute", message: "source must be an absolute path" },
   });
+});
+
+test("previewInstall and installExtension tell a folder without the plugin file from a missing folder, and write nothing", async () => {
+  const bare = root.path("pv-bare-folder");
+  mkdirSync(bare, { recursive: true });
+  const extensions = root.path("pv-bare-ext");
+  const noManifest = {
+    ok: false,
+    error: { kind: "no_manifest", message: ".fresnel-plugin/plugin.json is missing" },
+  } as const;
+  expect(await previewInstall({ source: bare }, { extensionsDir: extensions })).toEqual(noManifest);
+  expect(await installExtension({ source: bare }, { extensionsDir: extensions })).toEqual(
+    noManifest,
+  );
+  const gone = root.path("pv-gone-folder");
+  const missing = await previewInstall({ source: gone }, { extensionsDir: extensions });
+  expect(missing.ok ? "ok" : missing.error.kind).toBe("not_found");
+  expect(existsSync(extensions)).toBe(false);
 });
 
 test("installExtension: a matching expectedSha256 installs, a changed folder is refused and leaves nothing", async () => {

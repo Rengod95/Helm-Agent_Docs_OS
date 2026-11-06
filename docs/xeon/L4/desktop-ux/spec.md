@@ -1533,7 +1533,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 항목 | 출처 |
 |---|---|
 | 행: 예약, 트리거, 다음 실행, 마지막 실행(상태 글자 색과 상대 시각). 꺼진 행은 칸을 흐리게 두고 배지를 쓰지 않는다. 반복 수, 멈춘 이유, 켜짐 칸은 시안(p07)에 없어 뺐다(실패 사유는 실행 기록 시트에서 본다) [결정: 시안 P-07 NOTES] | `schedule.list { enabled? }` → `{ entry, lastRun }` `[gap:V-04]` |
-| 서비스 모드 경고 | `settings.get { keys: ["l0.process.service.enabled", "l2.schedule.timers.whenServiceOff"] }`, `host.status.mode` |
+| 서비스 모드 경고 | `settings.get { keys: ["l0.process.service.enabled", "l2.schedule.timers.whenServiceOff"] }`, `host.status.mode`. 다시 시작 대기는 같은 응답의 `pendingUntil: "restart"`로 정한다 |
 | 실행 기록 | `schedule.runs` |
 
 | 기능 | wire |
@@ -1544,7 +1544,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 지금 실행 | `schedule.fire { scheduleId }`(원격 트리거만) |
 | 마지막 실행 대화 열기 | `lastRun.threadId` → P-02 |
 | 복제 | 시트를 같은 값으로 열기(로컬) |
-| 서비스 켜기 | P-08 또는 `settings.set { key: "l0.process.service.enabled", value: true }` |
+| 서비스 켜기 | P-08 또는 `settings.set { key: "l0.process.service.enabled", value: true }`. 결과의 `setting.pendingUntil`이 `restart`면 "다시 시작 대기" 알림 |
 
 - 시트 입력: 트리거 종류 `SegmentedControl`(간격, 시각, 파일 감시, 원격, 루프). 간격은 초(1~31536000)로 `NumberField`에 단위 "초"를 붙여 쓴다. 시각은 날짜·시각 입력(`datetime-local`)이다(시안의 `DatePicker`와 시간 칸은 날짜와 시각을 한 값으로 합치는 자리가 아직 없어 쓰지 않았다. 최소 간격 300초는 칸 아래 오류 글로만 보인다). 파일 감시는 경로 목록(1~16)과 debounce, 루프는 간격·최대 반복·만료. 오류 값 문장: `interval_too_short`("최소 {minSeconds}초예요"), `at_in_past`, `invalid_trigger`, `limit_reached`, `store_failed`.
 - 상태
@@ -1553,6 +1553,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 오류: `ok: false`는 입력란 아래, 목록 읽기 실패는 표 위 `Alert`.
   - 오프라인: 목록 유지, 동작 잠금.
   - 권한 필요: 서비스 모드 꺼짐 경고와 "서비스 켜기", `not_remote`(지금 실행 불가).
+  - 다시 시작 대기: 서비스 모드를 켰지만 엔진이 아직 다시 시작하지 않았으면(`pendingUntil: "restart"`) 띠가 "엔진을 다시 시작해야 서비스 모드가 켜져요"와 "지금 다시 시작"을 보입니다. 켜자마자는 알림이 "서비스 모드를 켜 두었어요. 엔진을 다시 시작해야 켜져요."와 "지금 다시 시작"을 붙이고, 그 알림이 보이는 동안 띠는 숨겨 단추가 하나만 보이게 합니다. 재시작으로 대기가 풀리면 목록을 다시 읽을 때 띠와 그 알림이 사라집니다. 셸이 없는 웹에서는 글만 보이고 단추는 없습니다.
   - 긴 내용: 200개 상한, 프롬프트는 2줄 뒤 접기.
 - 바로 가기 키: ⌘N(이 화면에서는 새 예약), ↑↓ 행, Enter 마지막 실행 대화, ⌫ 취소(확인).
 - 접근성: 표는 `Table` 머리와 정렬, 상태는 문자와 색 둘 다.
@@ -1565,8 +1566,8 @@ compact 폭(720 이하)과 사이드바 시트:
 - 행 메뉴(W-07, 트랙 h7sched로 일곱 항목): 행 끝의 `[...]`(`IconButton`, `Menu`)에 항목을 둔다. 꺼진 행은 "다시 켜기"(`schedule.update { scheduleId, enabled: true }`), 모든 행은 "실행 기록"(`schedule.runs { scheduleId }`, 읽기 전용 `Sheet`: 읽는 중, 비었음, 읽기 실패 Alert와 다시 읽기, 결과 글자(색)·시작 시각·호스트가 준 오류 글·그 실행의 대화 열기)과 "고치기…"(O-08 시트를 제목·프롬프트만 남겨 열고 `schedule.update`로 저장. 트리거와 작업 폴더는 와이어가 받지 않아 "복제해서 새로 만들라"고 안내, 제목은 비워 지울 수 없다)를 둔다. 다시 켜기 응답의 `enabled`가 거짓이면(지난 `at`, 끝난 반복: L2.schedule §4.4.9 [미결] 14) 성공으로 보이지 않고 "다시 켤 수 없어요" 오류를 띄운다. 아래 네 항목의 설명은 그대로다. [근거: `apps/desktop/src/views/pages/schedules/schedule-model.ts` `rowMenuOf`, `schedules-screen.tsx` `reenableSchedule`]
 - 행 메뉴: 행 끝의 `[...]`(`IconButton`, `Menu`)에 네 항목을 둔다. 항목과 잠금은 `rowMenuOf`가 정한다: 마지막 실행 대화 열기(대화 id가 있을 때만, 목록에 없으면 잠금), 지금 실행(원격 트리거 행만, `schedule.fire { scheduleId }`), 취소(켜진 행만, 기존 O-06 확인), 복제(늘, O-08 시트를 같은 값으로 연다). 마지막 실행 칸은 그 실행의 대화가 목록에 있으면 누를 수 있다(`Button`). 원격 행의 "지금 실행"과 꺼진 행의 "다시 켜기"는 칸 옆에 바로 둔다(시안 p07, d03). Enter로 대화를 여는 키는 그대로다.
 - 상대 시각: 다음 실행은 `dueAgeOf`가 "곧", "N분 뒤", "14:20", "내일 09:00"을 만들고, 그 밖은 절대 시각이다. 마지막 실행은 끝난 때(없으면 시작한 때, 그도 없으면 잡은 때)를 "N분 전"으로 쓴다. 절대 시각을 `Tooltip`으로 보이는 것은 시안에 없어 뺐다. 기준 시각은 목록을 마지막으로 읽은 때(`state.nowMs`)다. "완료 어제"의 "어제"는 아직 없어 "1일 전"으로 쓴다 [미결].
-- 경고: 서비스 모드 꺼짐 띠와 "서비스 켜기"는 이미 있던 그대로다. 행의 멈춘 이유 칸은 시안에 없어 뺐다(`stoppedReason`은 데이터로만 남는다). `l2.schedule.timers.whenServiceOff`와 `host.status.mode`는 읽지 않는다(L2 schedule §4.4.6에서 자동 기동은 M4에 구현하지 않기로 했다).
-- 시험: `test/views/schedule-model.test.ts`(거르기 인자, 정렬과 갱신, 행 메뉴 항목과 잠금, 다음 실행과 마지막 실행 문장, 카탈로그 키), `test/views/relative-age.test.ts`(`dueAgeOf`), `test/views/schedules-screen.test.tsx`(서버 렌더: 거르기 칸, 상대 시각, 메뉴 단추), `test/app/schedule-commands.test.ts`(가짜 엔진: list 인자, fire 인자와 결과, 복제한 시트의 create 인자).
+- 경고: 서비스 모드 꺼짐 띠와 "서비스 켜기"는 이미 있던 그대로다. 다시 시작 대기는 `pendingUntil`만 본다(등록 파일의 상태를 데스크톱이 읽는 wire는 없다. `fresnel service status`는 CLI 명령이다). 띠의 "지금 다시 시작"은 `RestartNowButton`(엔진이 running이고 셸이 있을 때만 보인다)을 쓴다. 행의 멈춘 이유 칸은 시안에 없어 뺐다(`stoppedReason`은 데이터로만 남는다). `l2.schedule.timers.whenServiceOff`와 `host.status.mode`는 읽지 않는다(L2 schedule §4.4.6에서 자동 기동은 M4에 구현하지 않기로 했다).
+- 시험: `test/views/schedule-model.test.ts`(거르기 인자, 정렬과 갱신, 행 메뉴 항목과 잠금, 다음 실행과 마지막 실행 문장, 카탈로그 키), `test/views/relative-age.test.ts`(`dueAgeOf`), `test/views/schedules-screen.test.tsx`(서버 렌더: 거르기 칸, 상대 시각, 메뉴 단추, 다시 시작 대기 띠와 알림), `test/app/schedule-commands.test.ts`(가짜 엔진: list 인자, fire 인자와 결과, 복제한 시트의 create 인자, 다시 시작 대기 값).
 - 빠진 것: 메뉴 항목은 열어야 그려지므로 서버 렌더에서는 보이지 않는다(뜻은 모델 시험이 본다). 실행 기록은 `lastRun`만 쓴다(`schedule.runs` wire는 있다). `schedule.list`의 `before` 쪽 나누기는 쓰지 않는다(200개 상한).
 
 ### 6.12 P-08 연결
@@ -2355,7 +2356,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 기존 §6.17 P-13 "플러그인과 그룹"을 LightCraft "확장"으로 옮기고 넓힙니다. 설정 P-09의 "플러그인과 그룹" 탭은 스키마 필드(X10)를 그대로 두고, 탭 머리에 "LightCraft에서 관리" 링크를 둡니다 [제안].
 
-[결정: 2026-11-03 사용자] 크래프트 8차 시안에는 확장 목록 표 화면이 없습니다. 이 화면의 기능은 지도의 층 패널(고리를 누르면 그 층의 플러그인, 카드의 켜기·끄기 단추, 순서)과 선택 패널의 켜짐 스위치 하나, 도구 막대의 "구성 요소" 필터와 찾기로 옮겨집니다(§6.22.0). 아래 표 화면은 같은 데이터(`ext.list`)의 목록 모양으로 남기고, 따로 화면을 둘지는 구현 때 정합니다 [제안]. 켜기·끄기는 전역뿐입니다: 범위 고르기(사용자·작업 폴더·이 대화만)는 크래프트에서 빼고 사용자 범위(`user`) 값만 씁니다 [제안]. 이 대화만 끄기는 대화 영역 런타임 탭(§4.9.8)이 합니다. 그룹은 그룹 하나의 스위치로 끕니다(구성원 하나씩 끄기와 "하나씩 끄고 테스트"는 없음, 15-1). 아래 wire 표의 "범위 고르기"와 `scope: "launch"` 행은 대화 영역 쪽 동작으로 읽습니다.
+[결정: 2026-11-03 사용자] 크래프트 8차 시안에는 확장 목록 표 화면이 없습니다. 이 화면의 기능은 지도의 층 패널(고리를 누르면 그 층의 플러그인, 카드의 켜기·끄기 단추, 순서)과 선택 패널의 켜짐 스위치 하나, 도구 막대의 "구성 요소" 필터와 찾기로 옮겨집니다(§6.22.0). 아래 표 화면은 같은 데이터(`ext.list`)의 목록 모양으로 남기고, 따로 화면을 둘지는 구현 때 정합니다 [제안]. 표의 켜짐 스위치 이름은 "{이름} 사용"입니다. 켜짐과 꺼짐은 이름이 아니라 스위치 상태(`aria-checked`)로 전하므로, 켠 뒤에도 이름이 뜻을 바꾸지 않습니다. 켜기·끄기는 전역뿐입니다: 범위 고르기(사용자·작업 폴더·이 대화만)는 크래프트에서 빼고 사용자 범위(`user`) 값만 씁니다 [제안]. 이 대화만 끄기는 대화 영역 런타임 탭(§4.9.8)이 합니다. 그룹은 그룹 하나의 스위치로 끕니다(구성원 하나씩 끄기와 "하나씩 끄고 테스트"는 없음, 15-1). 아래 wire 표의 "범위 고르기"와 `scope: "launch"` 행은 대화 영역 쪽 동작으로 읽습니다.
 
 ```text
 ┌────────────────────────┐
@@ -2545,7 +2546,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
   - 요청 판정 순서는 크기 1 MiB, 초당 50개(고정 1초 창), 모양, `decide`(op 허용 목록, 확장 상태, 인자 스키마, 매니페스트 선언, 열린 대화)다. 인자 오류 문장은 위치와 키워드만 담는다. 크기·속도·모양 위반은 장부에 세고 `args`가 마지막 5번이면 포트를 닫는다. 정책 거부는 세지 않는다.
   - `query`는 `readOnly: true` 선언만, `call`은 `readOnly: false` 선언만, `command`는 확장이 등록한 이름만, `settings`는 `ext.<이름>.`·`l3.<이름>.` 키만, `events`는 `x.<이름>.`·`grp.<이름>.`, `readsRecordKinds`, `turn.`·`lease.` 접두와 `scope.changed`·`scope.handler_failed`만, `post`·`requestApproval`은 지금 열린 대화에만 받는다. `post`는 신뢰 등급이 허용할 때만 받는다. `navigate`의 외부 링크는 `http(s)`에 계정 정보 없이만 받고 셸이 먼저 확인한다.
   - 시크릿 설정 키는 값 대신 `status: "set" | "unset"`만 건넨다. `host`는 필드를 하나씩 옮긴다. `log`는 op와 크기만 진단에 남긴다. `query` 결과 256 KiB, `events` 500행, 응답 1 MiB를 넘으면 `too_large`와 장부 계수다.
-  - 확인 줄: `call`과 `command`는 사용자가 확인 줄에서 허용하기 전에 실행되지 않는다(`command`까지 확인하는 것은 §3.4 표보다 엄격한 [제안]이다). 줄의 글은 매니페스트의 확장 이름과 동사로만 만들고 프레임이 준 글은 받지 않는다(알 수 없는 인자는 `args_invalid`). 한 번에 하나만 열 수 있고 두 번째는 즉시 거부되며 60초 뒤 자동 거부다. 허용 뒤 확장이 꺼지거나 안전 모드가 되면 `extension_off`·`safe_mode`로 멈춘다. 확인 줄은 끌 수 없고 호출마다 뜬다. 허용한 뒤에도 같은 확장의 다음 `call`·`command`는 다시 묻는다. "이 화면에서 묻지 않기"와 확장별 허용 기억은 없다(B2 1안) [결정: 2026-11-04 사용자]. 표준 승인 카드(`approval: true`)는 이 줄과 따로 엔진이 낸다. 선언형 화면의 버튼(`runCommand`)과 데이터 읽기 폴링도 같은 실행기(`createActionRunner`: 판정 `decide`, 확인 줄, 연속 거부 쿨다운, 예산, `queryResultBytes` 상한, 장부)를 거치고 다른 길로 백엔드를 부르지 않는다. `ConfirmRequest`는 `command`의 `args`를 보이고, 라벨 옆에 실제 동사를 함께 보인다.
+  - 확인 줄: `call`과 `command`는 사용자가 확인 줄에서 허용하기 전에 실행되지 않는다(`command`까지 확인하는 것은 §3.4 표보다 엄격한 [제안]이다). 줄의 글은 매니페스트의 확장 이름과 동사로만 만들고 프레임이 준 글은 받지 않는다(알 수 없는 인자는 `args_invalid`). 시크릿 등록 줄은 키 이름 `ext--<확장>--<꼬리>`에서 읽어 "<확장>의 '<꼬리>' 키"로 보이고(예: "permdemo의 'token' 키"), 그 모양이 아니면 이름을 그대로 보인다. 한 번에 하나만 열 수 있고 두 번째는 즉시 거부되며 60초 뒤 자동 거부다. 허용 뒤 확장이 꺼지거나 안전 모드가 되면 `extension_off`·`safe_mode`로 멈춘다. 확인 줄은 끌 수 없고 호출마다 뜬다. 허용한 뒤에도 같은 확장의 다음 `call`·`command`는 다시 묻는다. "이 화면에서 묻지 않기"와 확장별 허용 기억은 없다(B2 1안) [결정: 2026-11-04 사용자]. 표준 승인 카드(`approval: true`)는 이 줄과 따로 엔진이 낸다. 선언형 화면의 버튼(`runCommand`)과 데이터 읽기 폴링도 같은 실행기(`createActionRunner`: 판정 `decide`, 확인 줄, 연속 거부 쿨다운, 예산, `queryResultBytes` 상한, 장부)를 거치고 다른 길로 백엔드를 부르지 않는다. `ConfirmRequest`는 `command`의 `args`를 보이고, 라벨 옆에 실제 동사를 함께 보인다.
   - 생존 확인: 5초마다 `ping` 푸시 `{ n }`을 보내고 프레임은 `pong` 요청 `{ n }`으로 답한다(`pong`에는 응답이 없다). 번호가 다른 `pong`은 답이 아니다. 2번 연속 답이 없으면 `liveness_lost`로 닫는다.
   - 전용 스킴 주소는 `fresnel-view://<확장이름>/<버전>/<경로>`이고 확장 이름과 버전 마디는 문자 집합을 좁혀 조립·해석한다. `%2e%2e`는 URL 규칙이 점 마디로 접으므로 해석에서 거부되고, `%252e%252e`는 그대로 넘어가 `resolveAppFile`이 한 번만 풀어 글자로 다룬다. 응답 헤더는 프레임 문서 CSP(ADR-0021 §3.6.3의 목록이되 `'self'` 자리에 그 확장 버전의 주소 접두 `fresnel-view://<확장이름>/<버전>/`를 쓴다. WebKit은 sandbox 프레임(불투명 origin)에서 `'self'`를 같은 출처로 풀지 않아 프레임 자기 스크립트가 막힌다. 시험 `frame-isolation.e2e`가 WKWebView에서 확인했고 접두 소스는 WebKit과 Chrome 둘 다 된다. ADR-0021 §3.6.3에 반영했다, 2026-11-04), `X-Content-Type-Options: nosniff`, `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, 권한 정책 비움이다. 앱 문서 CSP는 `frame-src fresnel-view:`만 더한다.
   - 설정 키 `x.ui.apps`, `x.ui.allowProjectApps`는 X가 소유한다(B2) [결정: 2026-11-04 사용자]. 이 절은 키 값을 읽기만 하고, 키의 정의와 소유 문서는 X 트랙에 둔다.
@@ -2588,6 +2589,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 전체 보고서는 개발 모드에서만 [결정: 2026-11-04 사용자]: 위 전체 보고서(절단 띠, 첫 차이, 효과 수, "JSON 복사")는 개발 모드(`l3.authoring.devMode`)에서만 보입니다. 배포 앱의 replay 행 상세는 판정과 절단 수만 읽기 전용 목록(시안 `c01-trials` `ReplayDetail`)으로 보입니다.
 - Test run 멈춤 [결정: 2026-10-31 사용자]: 실행 중 Test run 행의 "멈춤"은 다음 단계 경계에서 실제로 멈추고 drive 락을 쥔 채 둡니다. "이어서", "한 경계씩"이 있습니다(W-48). 행을 고르면 아래 상세에 트레이스 막대(§6.22.5)와 경계 기록이 보입니다.
 - 맥락: 맥락 칸이 시험이면 그 Test run의 결과만, 대화면 그 대화를 대상으로 한 시험만 보입니다(§4.9.3).
+- 새 Test run 시작: 대상 확장 이름을 적어야 시작합니다. 설치되어 실린 확장이어야 하고, 아니면 이유를 알림으로 보입니다. 성공하면 "{이름} 시험 대화를 만들었어요."를 보이고 목록을 다시 읽습니다. 끝내는 wire가 없어 기록은 `running`으로 남고, 호스트를 다시 띄운 뒤 처음 읽을 때 `failed`로 바뀝니다 [미결].
 - replay 결과 읽기: `replayDrive`는 첫 실패에서 멈추지 않고 모든 커밋 시점을 끊어 다시 돌립니다. 그래서 상세는 절단 띠(커밋 수만큼 칸, 다른 칸 강조)로 보입니다. 이벤트열이 하나라도 다르면 `failure` 없이 `ok: false`이고 판정 배지는 "digest 다름"입니다. `effects-doubled`·`effects-mismatch`는 모든 절단이 같을 때만 나오므로 "digest 다름"과 함께 보이지 않습니다. 절단의 효과 수는 판정 없이 참고 값으로만 보입니다. wire `ReplayReport`는 칸별 `cuts`(커밋 순, `commitIndex`·`equal`·`firstDiff`, 최대 1000칸)를 싣습니다 [결정: 2026-11-04 사용자 지시에 따른 기본값]. 화면은 아직 `passed`만 읽어 칸을 커밋 수만큼 그리고 모든 절단이 같을 때만 칠합니다. 칸별 "다름" 강조는 화면이 `cuts`를 읽도록 바꾼 뒤이고 그 일은 클라이언트 몫입니다. 호스트 `ext.test.run`(replay)과 `ext.test.list` 처리기는 HS-112에 따라 들어와 있습니다 [결정: 2026-11-04 사용자 지시에 따른 기본값].
 - 개발 모드 판정: 호스트와 같은 `l3.authoring.devMode` 설정을 읽습니다(`settings.get`). 이 키가 아직 카탈로그에 없어 지금은 읽히지 않고 배포 앱은 늘 개발 모드가 아닌 것으로 잠급니다 `[gap:W-29]`.
 - 코어 변경 검사의 실행과 상세(보호 경로 변경 파일 목록)는 이 화면에만 둡니다. P-20은 마지막 결과 한 줄과 링크만 보입니다(DP-23).
@@ -2611,8 +2613,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 | 기능 | wire |
 |---|---|
-| 새 시험(O-12) | `ext.test.run { kind, target, options }`과 진행 이벤트 `[gap:W-29]`. 켬/끔 비교는 `kind` 값 하나를 더합니다 [제안] [불일치: 2026-11-04 T-MEAS-TERM, wire 표의 `kind`는 `replay`·`testRun` 둘뿐이고 진행 이벤트 이름도 아직 없다. 이름 `ext.test.*`는 그대로 둔다 [결정: 2026-11-03 제안 기본값 자동 승인]] |
-| Test run 만들기 | `thread.create { workspace?, testRun: true, profileId? }`(`profileId`는 `testRun`이 참일 때만, 만들면서 `thread` 층에 적용). 새 시험(O-12)의 Test run 종류도 이 호출로 만듭니다. 이렇게 만든 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결] [근거: `apps/host/src/handlers/m4/devkit.ts`, 기록은 `ext.test.run`만 남긴다] |
+| 새 시험(O-12) | `ext.test.run { kind, target, options }`과 진행 이벤트 `[gap:W-29]`. Test run 종류는 `kind: "testRun"`과 대상 확장 이름으로 시작합니다. 켬/끔 비교는 `kind` 값 하나를 더합니다 [제안] [불일치: 2026-11-04 T-MEAS-TERM, wire 표의 `kind`는 `replay`·`testRun` 둘뿐이고 진행 이벤트 이름도 아직 없다. 이름 `ext.test.*`는 그대로 둔다 [결정: 2026-11-03 제안 기본값 자동 승인]] |
+| Test run 만들기 | 새 시험(O-12)의 Test run 종류는 `ext.test.run { kind: "testRun", target }`으로 만듭니다. 대화 이름은 대상 확장 이름이고, 그 확장을 이 대화에서 켜며, `ext.test.list`에 `running` 기록을 남깁니다 [근거: `apps/host/src/assembly/m4/devkit-port.ts`의 `testRunThread`]. 제작 화면의 "새 Test run으로"(프로필 적용)는 `thread.create { workspace?, testRun: true, profileId? }`(`profileId`는 `testRun`이 참일 때만, 만들면서 `thread` 층에 적용)로 대화만 만들고, 이 대화는 `ext.test.list`에 기록이 없어 목록에 나타나지 않습니다 [미결] [근거: `apps/desktop/src/views/compose/compose-profile.tsx`] |
 | 이벤트 비교 열기 | 두 이벤트열을 나란히(`[gap:C-20]`) |
 | 다시 실행 | 같은 인자로 `ext.test.run` |
 
@@ -2809,7 +2811,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 |---|---|---|---|---|---|
 | O-10 | 확장 신뢰 확인 | `Dialog kind="alert"` | 요청 등급, 설치 위치 상한, 쓰는 연산(on, post, drive, 저장, 리소스 등록), 훅 목록 | 켜기, 취소 | 처음 켜는 `user`·`project` 위치 확장. 기본 초점 "취소" |
 | O-11 | 되돌리기 확인 | `Dialog kind="alert"` | 지금 버전, 되돌릴 버전, 상태 스키마 버전 차이 | 되돌리기 | 상태 마이그레이션이 없으면 경고. 대체 단계는 §6.24.1 |
-| O-12 | 새 시험 | `Sheet side="right"` | 종류(켬/끔 비교 포함), 대상, 프로필, 옵션(replay `maxCommits` 기본 200, benchmark `--runs` 1~50, 켬/끔 비교 케이스 묶음·반복 수) | `ext.test.run` `[gap:W-29]` | 비용 드는 시험과 켬/끔 비교는 예상 실행 수와 비용 범위 확인(§6.26). replay·benchmark·diff는 개발 모드만 |
+| O-12 | 새 시험 | `Sheet side="right"` | 종류(켬/끔 비교 포함), 대상, 프로필, 옵션(replay `maxCommits` 기본 200, benchmark `--runs` 1~50, 켬/끔 비교 케이스 묶음·반복 수) | `ext.test.run` `[gap:W-29]` | 비용 드는 시험과 켬/끔 비교는 예상 실행 수와 비용 범위 확인(§6.26). replay·benchmark·diff는 개발 모드만. Test run은 대상(확장 이름)을 받아 `ext.test.run { kind: "testRun", target }`으로 시작하고, 대화 이름은 대상 이름입니다(§6.26) |
 | O-13 | 대화 내보내기 | `Dialog` | 대화 제목, 형식(Markdown·JSON), 저장 창(데스크톱) 또는 내려받기(웹) | 저장…(데스크톱) · 내려받기(웹), 취소, 실패 뒤 다시 시도 | 행 메뉴 "내보내기…"와 대화 머리 ⋯가 연다. 읽기는 `thread.export`를 쪽마다 불러 `next`가 없을 때까지 이어 받는다(쪽 상한 5000, 앞 `next`와 같은 값이 다시 오면 실패). 읽는 동안과 저장 창이 떠 있는 동안은 닫지 못한다. 저장 창에서 취소하면 대화 상자를 그대로 둔다. 읽기 실패와 저장 실패는 문장을 가르고 한 줄로 보인다. 시크릿 값은 어느 형식에도 없고 이름만 남는다는 한 줄을 늘 보인다. 목업의 "도구 결과 포함"과 "런타임 행 포함" 칸은 와이어가 형식만 받으므로 두지 않는다. 웹은 저장 창이 없어 파일 위치를 고르지 않고 내려받는다 [구현: 2026-11-04, 대화 내보내기 트랙] |
 
 ## 7. 화면 사이 흐름
@@ -3250,7 +3252,7 @@ export const palette = [
   - 흐름: 출처 입력 → 확인하기(`ext.installPreview`, 디스크에 쓰지 않음) → 권한 확인(이름, 버전, 출처, 바꿀 설치본 버전, 요청 권한, 들어 있는 것) → "허용하고 설치"(`ext.install`에 미리 보기의 `sha256`을 돌려줌) → 결과. 확인 화면에서 "뒤로"는 출처 입력으로 돌아간다.
   - 출처는 이 컴퓨터의 묶은 폴더 경로(절대 경로 글 입력)만 받는다. URL, 마켓플레이스, 원격 카탈로그, 자동 업데이트는 범위 밖이다. 경로 칸 옆의 "폴더 고르기…" 단추가 셸 `pick_folder`를 불러 고른 경로를 칸에 넣는다(복원 화면과 같은 `pickWorkspaceFolder`, 문맥 `FolderPickContext`로 받는다). 취소는 칸을 그대로 두고, 창을 못 열면 한 줄로 알린다. 셸이 없으면(웹) 단추가 없고 붙여넣기 칸만 남는다.
   - 위험 경고는 평소 보이는 `Alert`다: 명령 실행(`workspace.shell`), 인터넷(`web.*`, `mcp.*`), 작업 폴더 파일(`workspace.files`, `workspace.images`), 기본 도구 바꾸기(`replaces`), 신뢰할 수 없는 등급 요청, 검사 경고. 화면(`ui.items`)이 선언한 다리 권한(`app.capabilities`: 파일·폴더, 알림, 설정 쓰기, 시크릿 등록)도 권한마다 한 줄로 보이고, 시크릿 등록·설정 쓰기·파일 쓰기는 경고 `Alert`, 알림은 보통 줄이다 [결정: 2026-11-07 시나리오 작업, 기본값: 강조 수준은 사용자 확인 대기]. "들어 있는 것"에는 훅 수와 함께 화면 수와 화면 목록(프레임/기본 화면)이 보인다(`InstallPreview.screens`). 요청한 것이 없으면 "추가로 요청하는 권한이 없어요" 한 줄이다. 섹션 설명(권한이 무엇인지, 훅이 무엇인지)과 출처 설명은 정보 아이콘 뒤에 둔다.
-  - 실패 문구는 갈래마다 하나다: 안전 모드(`extension.safeModeActive`), 관리자 잠금(`managed_locked`), 확인 뒤 내용 바뀜(`source_changed`, 확인 화면에 남아 "뒤로"로 다시 확인), 설치할 수 없는 폴더(`invalid_input`), 폴더 없음(`not_found`), 거부(`denied`), 연결 없음, 엔진 미지원, 그 밖. 입력 거절의 `<종류>: ` 머리를 `errorOf`가 `issue`로 남기고 화면이 가른다.
+  - 실패 문구는 갈래마다 하나다: 안전 모드(`extension.safeModeActive`), 관리자 잠금(`managed_locked`), 확인 뒤 내용 바뀜(`source_changed`, 확인 화면에 남아 "뒤로"로 다시 확인), 설치할 수 없는 폴더(`invalid_input`, 다른 입력 문제), 절대 경로가 아님(`not_absolute`, "절대 경로로 적어 주세요."), 폴더는 있는데 플러그인 파일이 없음(`no_manifest`, "이 폴더에 플러그인 파일(.fresnel-plugin/plugin.json)이 없어요."), 폴더 없음(`not_found`), 거부(`denied`), 연결 없음, 엔진 미지원, 그 밖. 입력 거절의 `<종류>: ` 머리를 `errorOf`가 `issue`로 남기고 화면이 가른다.
   - 결과 문구는 호스트가 새 이름을 설치 뒤 곧바로 싣는 것을 따른다(`install-model.ts`의 `installDoneOf`) [결정: 2026-11-03 사용자 (a), M4 T-RELOAD; 2026-11-04 사용자: 새 이름 플러그인도 재시작 없이 바로 불러온다. `L4.host-service.spec` HS-111 (6)]. `now`이면 "설치했어요. 목록에 바로 나타나요", `nextStepBoundary`이면 "다음 단계부터 적용돼요"다. 결과에 `loadFailure`가 있으면(파일은 복사됐는데 싣지 못함) 경고 `Alert`로 "설치 파일은 복사했지만 켜지 못했어요. 플러그인을 고친 뒤 다시 설치해 주세요"(이유가 `safe_mode`, `disabled`이면 그 이유의 문장)와 첫 오류 진단의 문장을 함께 보인다. `restart`는 로더가 없을 때만 남고 "지금은 켤 수 없어서 앱을 다시 시작하면 불러와요"다. 결과에 `needsReload: true`(같은 이름이 이미 돌고 있다)가 있을 때만 설치 성공 뒤 데스크톱이 `ext.reload { name }`을 불러 실행 중인 판을 바꾼다(`applyInstalled`). `reload`가 거절되면 "설치했지만 지금 돌고 있는 판을 바꾸지 못했어요" 경고를 보인다. 꺼진 이유(`disabled`)는 문장이 말하므로 진단 원문(`ext.<이름>.enabled is false`)을 붙이지 않는다. 설치가 끝나면 플러그인 화면 목록(`ext.ui.list`)도 다시 읽어 새 화면이 재시작 없이 탭에 오른다 [결정: 2026-11-07 기본값, rtC R-1, R-5]. 설치 뒤 확장 목록을 다시 읽고(`onInstalled`) 새 이름이 `ext.list`와 만들기 화면에 바로 나타난다. 지우기(`ext.remove`)도 재시작 없이 내려가 `appliesAt: "now"`로 목록에서 바로 빠진다.
 
 ### 10.2 view-model 간극

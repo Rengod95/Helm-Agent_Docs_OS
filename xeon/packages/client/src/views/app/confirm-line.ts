@@ -1,7 +1,7 @@
 import { assertNever } from "@fresnel/contracts";
 import { t } from "../../i18n/index.ts";
 import type { ConfirmRequest } from "./bridge-host.ts";
-import { stripUnsafeText } from "./policy.ts";
+import { secretKeyPartsOf, stripUnsafeText } from "./policy.ts";
 
 // 프레임 `call` 확인 줄의 글과 규칙(ADR-0021 §3.4). 확장 이름, 동작 이름, 라벨은 매니페스트에서 온 값이고 프레임이 정한 글은 없다.
 // 줄은 셸 층에 그리고 프레임 위에 겹치지 않는다. 화면 쪽이 지킬 계약: 줄이 나타난 뒤 `CONFIRM_CLICK_GUARD_MS` 동안 누름을 무시하고,
@@ -42,8 +42,15 @@ export function confirmLineText(request: ConfirmRequest): string {
             url: request.action,
             host: request.punycodeHost,
           });
-    case "secret":
-      return t("client.view.confirm.secret", { extension, name: request.action });
+    case "secret": {
+      // 내부 이름(`ext--<확장>--<꼬리>`) 대신 "확장의 'key' 키"로 보인다. 모양이 다르면 이름을 그대로 보인다
+      const parts = secretKeyPartsOf(request.action);
+      const name =
+        parts === null
+          ? request.action
+          : t("client.view.confirm.secretKey", { plugin: parts.plugin, key: parts.key });
+      return t("client.view.confirm.secret", { extension, name });
+    }
     case "approval":
       return t("client.view.confirm.approval", { extension, action: shownAction(request) });
     case "call":

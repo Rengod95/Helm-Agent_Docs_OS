@@ -153,10 +153,12 @@ interface TrustCommands {
   decide(workspace: string, choice: TrustChoice): Promise<Result<TrustStatus, CommandError>>;
 }
 
-/** `schedule.list` 값 + 서비스 모드 꺼짐 여부(`settings.get`의 `l0.process.service.enabled`) */
+/** `schedule.list` 값 + 서비스 모드 꺼짐 여부와 다시 시작 대기 여부(`settings.get`의 `l0.process.service.enabled`) */
 export interface ScheduleSnapshot {
   readonly items: readonly ScheduleListItem[];
   readonly serviceModeOff: boolean;
+  /** 서비스 모드 값이 바뀌어 엔진을 다시 시작해야 적용되는가(`pendingUntil: "restart"`) */
+  readonly serviceRestartPending: boolean;
 }
 
 /**
@@ -178,8 +180,8 @@ export interface ScheduleCommands {
   ): Promise<Result<WireResult<"schedule.update">, CommandError>>;
   /** `schedule.runs`: 한 예약의 실행 기록(최근 것부터) */
   runs(scheduleId: string): Promise<Result<WireResult<"schedule.runs">, CommandError>>;
-  /** 서비스 모드를 켠다(`settings.set`, 사용자 범위) */
-  enableService(): Promise<Result<null, CommandError>>;
+  /** 서비스 모드를 켠다(`settings.set`, 사용자 범위). `restartPending`은 엔진을 다시 시작해야 켜지는가다 */
+  enableService(): Promise<Result<{ readonly restartPending: boolean }, CommandError>>;
 }
 
 /**

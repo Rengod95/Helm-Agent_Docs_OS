@@ -259,6 +259,44 @@ test("a port failure becomes the wire error of the table: input problems are inv
   await connection.close();
 });
 
+test("ext.installPreview tells a relative path and a folder without the plugin file apart from a missing folder", async () => {
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        installPreview: (input) =>
+          Promise.resolve(
+            input.source === "relative/dir"
+              ? err({ kind: "not_absolute", message: "source must be an absolute path" })
+              : input.source === "/bare"
+                ? err({ kind: "no_manifest", message: ".fresnel-plugin/plugin.json is missing" })
+                : err({ kind: "not_found", message: "/gone is not found" }),
+          ),
+      },
+    },
+  });
+  const connection = await open(host);
+  const relative = await wireErrorOf(
+    connection.request("ext.installPreview", { source: "relative/dir" }),
+  );
+  expect(relative.data).toMatchObject({
+    kind: "jsonrpc.invalidParams",
+    details: {
+      issues: [{ path: "/source", message: "not_absolute: source must be an absolute path" }],
+    },
+  });
+  const bare = await wireErrorOf(connection.request("ext.installPreview", { source: "/bare" }));
+  expect(bare.data).toMatchObject({
+    details: {
+      issues: [{ path: "/source", message: "no_manifest: .fresnel-plugin/plugin.json is missing" }],
+    },
+  });
+  const gone = await wireErrorOf(connection.request("ext.installPreview", { source: "/gone" }));
+  expect(gone.data).toMatchObject({
+    details: { issues: [{ path: "/source", message: "not_found: /gone is not found" }] },
+  });
+  await connection.close();
+});
+
 test("host.hello lists the authoring methods, the test run pair included, as features", async () => {
   const host = createFakeHost({});
   const { connection } = host.connect();

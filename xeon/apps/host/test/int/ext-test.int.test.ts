@@ -90,6 +90,8 @@ realTest(
         target: null,
         paused: false,
       });
+      // 대화 이름은 대상 확장 이름이다(제목 없음이 아니다)
+      expect(threads.threads.find((item) => item.threadId === run.threadId)?.title).toBe(NAME);
       expect(await session.connection.request("ext.test.list", {})).toEqual({
         tests: [
           {

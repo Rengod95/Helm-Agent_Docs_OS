@@ -25,6 +25,7 @@ import { ScheduleRunsSheet } from "./schedule-runs-sheet.tsx";
 import { ScheduleSheet } from "./schedule-sheet.tsx";
 import { ScheduleTable, type RowHandlers } from "./schedule-table.tsx";
 import { FILTER_ID } from "./schedule-text.ts";
+import { RestartNowButton } from "../../restart-confirm-dialog.tsx";
 
 // 예약 화면의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 바로 가기 키의 뜻은 `keyIntentOf`가, 실제 동작은 `schedules-screen.tsx`의 `SchedulesScreen`이 맡는다.
@@ -112,6 +113,15 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
             >
               {t("desktop.schedules.service.warning")}
             </Alert>
+          ) : state.serviceRestartPending && state.notice?.action !== "restartEngine" ? (
+            // 켜 두었지만 엔진을 다시 시작해야 켜진다. 다시 시작 알림이 보이는 동안에는 그 알림이 단추를 가진다(단추는 하나만)
+            <Alert
+              tone="warning"
+              size="sm"
+              action={<RestartNowButton size="xs" info={t("desktop.restart.info")} />}
+            >
+              {t("desktop.schedules.service.restartNeeded")}
+            </Alert>
           ) : null}
           {state.list.kind === "failed" ? (
             <Alert
@@ -142,6 +152,11 @@ export function ScheduleScreenView(props: ScheduleScreenViewProps): ReactNode {
               dismissible
               dismissLabel={t("desktop.schedules.dismiss")}
               onDismiss={handlers.dismissNotice}
+              action={
+                state.notice.action === "restartEngine" ? (
+                  <RestartNowButton size="xs" info={t("desktop.restart.info")} />
+                ) : undefined
+              }
             >
               {t(state.notice.text.id, state.notice.text.args)}
             </Alert>

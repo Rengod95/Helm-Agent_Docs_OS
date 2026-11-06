@@ -30,6 +30,8 @@ const FAILURE_TEXT: Readonly<Record<InstallFailure, MessageId>> = {
   managed_locked: "desktop.install.fail.managedLocked",
   source_changed: "desktop.install.fail.sourceChanged",
   invalid_input: "desktop.install.fail.invalidInput",
+  not_absolute: "desktop.install.fail.notAbsolute",
+  no_manifest: "desktop.install.fail.noManifest",
   not_found: "desktop.install.fail.notFound",
   denied: "desktop.install.fail.denied",
   offline: "desktop.install.fail.offline",

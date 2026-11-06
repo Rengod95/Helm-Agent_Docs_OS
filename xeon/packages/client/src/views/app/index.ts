@@ -54,6 +54,7 @@ export {
   defaultAllowPost,
   eventKindAllowed,
   normalizeExternalLink,
+  secretKeyPartsOf,
   secretNameOf,
   stripBidi,
   stripUnsafeText,

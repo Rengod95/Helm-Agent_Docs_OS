@@ -89,6 +89,7 @@ import {
 import { isGroupCatalogManifest } from "./assembly/groups.ts";
 import {
   createLearningWiring,
+  learningAgentsLoaded,
   learningLoaded,
   registerLearningProjection,
 } from "./assembly/learning.ts";
@@ -882,10 +883,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           os.logger("default-plugins"),
         )
       : [];
+    // 학습 그룹의 검토 포크 정의는 내장 그룹 구성 요소라 호스트가 파일에서 읽지 않는다. 그룹을 싣을 때만 더한다 (L3.learning.spec §3.1)
+    const learningAgents = learningAgentsLoaded({ defaultGroups: options.defaultGroups, safeMode });
     const agentDefinitions =
-      options.agentDefinitions === undefined && pluginAgents.length === 0
+      options.agentDefinitions === undefined &&
+      pluginAgents.length === 0 &&
+      learningAgents.length === 0
         ? undefined
-        : [...(options.agentDefinitions ?? []), ...pluginAgents];
+        : [...(options.agentDefinitions ?? []), ...learningAgents, ...pluginAgents];
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,

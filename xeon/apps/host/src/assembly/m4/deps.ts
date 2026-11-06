@@ -22,6 +22,7 @@ export interface M4EngineDeps {
     exists(threadId: ThreadId): Result<boolean, ReadFailure>;
     create(input: {
       readonly workspace?: string;
+      readonly title?: string;
       readonly testRun?: boolean;
     }): Promise<{ readonly threadId: ThreadId }>;
     remove(threadId: ThreadId): Promise<Result<void, { readonly kind: string }>>;

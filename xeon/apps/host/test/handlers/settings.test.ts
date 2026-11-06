@@ -13,6 +13,7 @@ import { Type } from "typebox";
 import { defineSettings } from "@fresnel/contracts/settings";
 import { flushMicrotasks, settleUntil } from "../fixtures/clock.ts";
 import type { WireNotificationParams } from "../fixtures/notifications.ts";
+import type { FakeEngine } from "../fixtures/fake-engine.ts";
 
 async function wireErrorOf(call: Promise<unknown>): Promise<WireError> {
   try {
@@ -739,5 +740,89 @@ test("settings-get-pending: a restart key changed after the engine started repor
     value: ["op"],
     pendingUntil: def?.runtimeChange,
   });
+  await connection.close();
+});
+
+// HS-28: 세션 범위(launch) 쓰기는 thread의 쓰기 소유를 빌려 쓰고 놓는다. `thread.open`을 observe로 열었던 옛 대화도 바꿀 수 있다.
+test("a launch write to a thread only observed here borrows the write owner, writes the sent value and lets it go", async () => {
+  const writes: unknown[] = [];
+  const heldAtWrite: boolean[] = [];
+  const seen: { fake: FakeEngine | undefined } = { fake: undefined };
+  const host = createFakeHost({
+    overrides: {
+      settings: {
+        write: (scope, key, value, threadId) => {
+          writes.push({ scope, key, value, threadId });
+          heldAtWrite.push(threadId !== undefined && seen.fake?.held.has(threadId) === true);
+          return Promise.resolve(ok(undefined));
+        },
+      },
+    },
+  });
+  seen.fake = host.fake;
+  const threadId = host.fake.seedThread();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  await connection.request("settings.set", {
+    key: "l1.loop.maxSteps",
+    value: 3,
+    scope: "launch",
+    threadId,
+  });
+  expect(writes).toEqual([{ scope: "launch", key: "l1.loop.maxSteps", value: 3, threadId }]);
+  expect(heldAtWrite).toEqual([true]);
+  expect(host.fake.acquisitions).toEqual([{ threadId, kind: "cli" }]);
+  expect(host.fake.released).toEqual([threadId]);
+  expect(host.fake.held.has(threadId)).toBe(false);
+  await connection.close();
+});
+
+test("a launch reset borrows the write owner the same way and lets it go", async () => {
+  const host = createFakeHost({
+    overrides: { settings: { reset: () => Promise.resolve(ok(undefined)) } },
+  });
+  const threadId = host.fake.seedThread();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  await connection.request("settings.reset", {
+    key: "l1.loop.maxSteps",
+    scope: "launch",
+    threadId,
+  });
+  expect(host.fake.acquisitions).toEqual([{ threadId, kind: "cli" }]);
+  expect(host.fake.released).toEqual([threadId]);
+  expect(host.fake.held.has(threadId)).toBe(false);
+  await connection.close();
+});
+
+test("a launch write to a thread another process owns is thread.locked with the owner kind and writes nothing", async () => {
+  const writes: unknown[] = [];
+  const host = createFakeHost({
+    lockedBy: "app",
+    overrides: {
+      settings: {
+        write: (scope, key, value, threadId) => {
+          writes.push({ scope, key, value, threadId });
+          return Promise.resolve(ok(undefined));
+        },
+      },
+    },
+  });
+  const threadId = host.fake.seedThread();
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const error = await wireErrorOf(
+    connection.request("settings.set", {
+      key: "l1.loop.maxSteps",
+      value: 3,
+      scope: "launch",
+      threadId,
+    }),
+  );
+  expect(error.code).toBe(3002);
+  expect(error.data.details).toEqual({ ownerKind: "app", options: ["observe", "fork"] });
+  expect(writes).toEqual([]);
+  expect(host.fake.released).toEqual([]);
+  expect(host.fake.held.has(threadId)).toBe(false);
   await connection.close();
 });
