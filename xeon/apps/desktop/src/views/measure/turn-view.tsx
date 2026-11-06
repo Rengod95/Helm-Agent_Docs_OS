@@ -5,6 +5,7 @@ import {
   turnViewOf,
   type CompositionBarVM,
   type HookEventVM,
+  type PhaseVM,
   type PluginShareVM,
   type TabRead,
   type TurnViewVM,
@@ -69,12 +70,17 @@ function PluginRows(props: {
             >
               <span className="font-mono text-text-primary">{share.owner}</span>
               <span className="ms-auto text-text-tertiary tabular-nums">
-                {t("desktop.measure.turn.pluginRow", {
-                  ms: share.hookMs,
-                  tokens: share.sectionTokens,
-                  problems: share.problems,
-                  cache: share.cacheEvents,
-                })}
+                {t(
+                  share.tokensEstimated
+                    ? "desktop.measure.turn.pluginRowEstimated"
+                    : "desktop.measure.turn.pluginRow",
+                  {
+                    ms: share.hookMs,
+                    tokens: share.tokens,
+                    problems: share.problems,
+                    cache: share.cacheEvents,
+                  },
+                )}
               </span>
             </Button>
           </li>
@@ -82,6 +88,43 @@ function PluginRows(props: {
       })}
       <Capped total={props.plugins.length} />
     </ul>
+  );
+}
+
+function PhaseRows(props: { readonly phases: readonly PhaseVM[] }): ReactNode {
+  if (props.phases.length === 0)
+    return <p className={MUTED}>{t("desktop.measure.turn.phasesNone")}</p>;
+  const longest = Math.max(1, ...props.phases.map((phase) => phase.ms));
+  return (
+    <ol className="m-0 grid list-none gap-1 p-0 text-ui-sm">
+      {props.phases.slice(0, TURN_LIST_CAP).map((phase) => (
+        <li key={`${phase.kind}:${phase.atMs}`} className="grid gap-0.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-text-primary">
+              {phase.kind === "wait"
+                ? t("desktop.measure.turn.phaseWait")
+                : t("desktop.measure.turn.phaseModel", { role: phase.role })}
+            </span>
+            {phase.kind === "model" && (
+              <span className="font-mono text-text-secondary">{phase.model}</span>
+            )}
+            {phase.firstTokenMs !== null && (
+              <span className="text-text-tertiary">
+                {t("desktop.measure.turn.phaseFirstToken", { ms: phase.firstTokenMs })}
+              </span>
+            )}
+            <span className="ms-auto tabular-nums text-text-primary">
+              {t("desktop.measure.ms", { ms: phase.ms })}
+            </span>
+          </div>
+          <div
+            className={`h-1 rounded-sm ${phase.kind === "wait" ? "bg-warning-graphic" : "bg-border-strong"}`}
+            style={{ width: `${Math.max(1, Math.round((phase.ms / longest) * 100))}%` }}
+          />
+        </li>
+      ))}
+      <Capped total={props.phases.length} />
+    </ol>
   );
 }
 
@@ -197,6 +240,10 @@ function ReadyView(props: { readonly view: TurnViewVM }): ReactNode {
       <section aria-label={t("desktop.measure.turn.plugins")} className="grid gap-1">
         <SectionTitle level={3} title={t("desktop.measure.turn.plugins")} />
         <PluginRows plugins={view.plugins} focus={focus} onFocus={setFocus} />
+      </section>
+      <section aria-label={t("desktop.measure.turn.phases")} className="grid gap-1">
+        <SectionTitle level={3} title={t("desktop.measure.turn.phases")} />
+        <PhaseRows phases={view.phases} />
       </section>
       <section aria-label={t("desktop.measure.turn.hooks")} className="grid gap-1">
         <SectionTitle level={3} title={t("desktop.measure.turn.hooks")} />

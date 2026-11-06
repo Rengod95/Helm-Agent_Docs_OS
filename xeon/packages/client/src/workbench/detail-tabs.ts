@@ -140,6 +140,7 @@ export function durationOf(ms: number): DurationVM {
  * 구독 사용자의 실제 청구액과 다르므로 화면은 "정가 기준 추정"이라고 붙인다(§6.27).
  */
 export function costText(usd: number): string {
+  if (usd > 0 && usd < 0.0001) return "< $0.0001";
   const digits = usd === 0 || usd >= 0.01 ? 2 : 4;
   return `$${usd.toFixed(digits)}`;
 }

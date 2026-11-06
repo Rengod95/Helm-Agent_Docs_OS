@@ -143,6 +143,20 @@ export function priceNumberText(usd: number): string {
   return usd < 1 ? String(Number(usd.toFixed(3))) : String(Number(usd.toFixed(2)));
 }
 
+/**
+ * 지금 문맥(`contextTokens`)을 이 가격으로 새로 보낼 때의 입력 비용 한 줄. 모델을 바꾸면 캐시가 비워지므로 캐시 읽기 할인 없이 입력 단가로 센다.
+ * 0이거나 1센트 이상이면 소수 둘, 그 밑이면 소수 넷이다. 문맥을 모르거나 비어 있으면 null이다
+ */
+export function contextCostText(
+  contextTokens: number | null,
+  inputPerMillion: number,
+): string | null {
+  if (contextTokens === null || contextTokens <= 0) return null;
+  const usd = (contextTokens / 1_000_000) * inputPerMillion;
+  if (usd > 0 && usd < 0.0001) return "< $0.0001";
+  return `$${usd.toFixed(usd === 0 || usd >= 0.01 ? 2 : 4)}`;
+}
+
 /** 토큰 수를 짧게: 999 이하는 그대로, 천 단위는 `41k`, 백만 단위는 `1.2M` */
 export function tokenCountText(tokens: number): string {
   if (tokens < 1000) return String(Math.round(tokens));

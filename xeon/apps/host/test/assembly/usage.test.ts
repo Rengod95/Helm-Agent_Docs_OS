@@ -527,3 +527,21 @@ test("context after a summary is the engine's estimate after summarising, until 
     limit: 200_000,
   });
 });
+
+test("background calls read from the store survive a restart and replace the in-memory tally", async () => {
+  const { meter, push } = fakeMeter();
+  const stored = new Map([
+    ["anthropic", { tokens: 513, usd: 0.000116, requests: 1, cacheRead: 0, cacheWrite: 0 }],
+  ]);
+  const source = createUsageSource(
+    meter,
+    () => Promise.resolve(ok([])),
+    undefined,
+    () => stored,
+  );
+  // 이 프로세스가 본 요약 호출은 저장소 값이 있으므로 더하지 않는다(이중 계산 방지)
+  push({ ...record(THREAD_A, "anthropic", 513, 0.000116), role: "summary" });
+  // 합산기만 원천인 경로(내구 기록 없음)에서는 합산기가 쓰인다. 저장소 값은 offLoop을 대신할 뿐이다
+  const gauges = await source.gauges({ threadId: THREAD_A }, SIGNAL);
+  expect(gauges.find((g) => g.unit === "tokens")?.used).toBe(513);
+});

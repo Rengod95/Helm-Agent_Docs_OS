@@ -59,6 +59,8 @@ export interface TurnSummaryVM {
 export interface TurnCallVM {
   readonly role: string;
   readonly model: string;
+  /** 요청을 보낸 시각(ms). 옛 기록처럼 모르면 null */
+  readonly startedAt: number | null;
   readonly durationMs: number;
   readonly firstTokenMs: number | null;
   readonly totalTokens: number;
@@ -73,6 +75,8 @@ export interface HookEventVM {
   readonly hook: string;
   readonly registrationId: string;
   readonly ms: number;
+  /** 이 핸들러가 문맥에 넣은 글자 수. 모르면 0 */
+  readonly size: number;
   readonly outcome: OutcomeVM;
 }
 
@@ -104,6 +108,9 @@ export interface CacheEventVM {
   readonly at: number | null;
   readonly added: number | null;
   readonly removed: number | null;
+  /** 캐시 만료(`cache_expired`)일 때 다시 쓴 캐시 토큰과 앞 호출과의 간격(ms). 아니면 null */
+  readonly cacheWrite: number | null;
+  readonly gapMs: number | null;
 }
 
 /** 플러그인 하나가 이 Turn에 낸 몫. 점수가 아니라 칸마다 따로 보인다 */
@@ -116,11 +123,39 @@ export interface PluginShareVM {
   readonly sectionTokens: number;
   /** 원인 소유자가 이 플러그인으로 적힌 캐시 사건 수 */
   readonly cacheEvents: number;
+  /** 이 플러그인의 훅이 문맥에 넣은 글자 수의 합 */
+  readonly hookChars: number;
+  /** 이 Turn에서 이 플러그인이 문맥에 더한 토큰. 절 토큰과 훅 글자 수 추정(`estimateTokens`) 가운데 큰 쪽이다(같은 글을 두 번 세지 않는다) */
+  readonly tokens: number;
+  /** `tokens`가 훅 글자 수에서 추정한 값이면 true */
+  readonly tokensEstimated: boolean;
+}
+
+/** 글자 수에서 토큰을 추정한다. 모델 호출 쪽 추정(pi-ai, core-context `textTokens`)과 같은 글자 수 / 4 올림이다 */
+export function estimateTokens(chars: number): number {
+  return Math.ceil(chars / 4);
+}
+
+/**
+ * 한 Turn의 단계 한 칸. `model`은 모델 호출 한 번이고, `wait`는 한 main 호출이 끝난 뒤 다음 main 호출이 시작할 때까지의 틈이다.
+ * 이 틈은 도구 실행과 승인 대기를 합친 시간이다(측정 행이 둘을 가르지 않는다)
+ */
+export interface PhaseVM {
+  readonly kind: "model" | "wait";
+  /** 첫 호출 시작에서 이 칸이 시작한 때까지(ms) */
+  readonly atMs: number;
+  readonly ms: number;
+  /** model일 때만 */
+  readonly role: string;
+  readonly model: string;
+  readonly firstTokenMs: number | null;
 }
 
 export interface TurnViewVM {
   readonly summary: TurnSummaryVM | null;
   readonly calls: readonly TurnCallVM[];
+  /** 모델 호출과 호출 사이 틈을 시간 순으로. 시작 시각을 아는 호출만 든다 */
+  readonly phases: readonly PhaseVM[];
   readonly hooks: readonly HookEventVM[];
   readonly hookTotalMs: number;
   readonly bars: readonly CompositionBarVM[];
@@ -156,12 +191,46 @@ function callsOf(rows: readonly MeasureRow[]): readonly TurnCallVM[] {
     .map((row) => ({
       role: tag(row, "role"),
       model: tag(row, "model"),
+      startedAt: numOrNull(row, "startedAt"),
       durationMs: num(row, "durationMs"),
       firstTokenMs: numOrNull(row, "firstTokenMs"),
       totalTokens: num(row, "totalTokens"),
       cacheRead: num(row, "cacheRead"),
       usd: num(row, "usd"),
     }));
+}
+
+function phasesOf(calls: readonly TurnCallVM[]): readonly PhaseVM[] {
+  const timed = calls.flatMap((call) =>
+    call.startedAt === null ? [] : [{ call, startedAt: call.startedAt }],
+  );
+  const sorted = timed.toSorted((a, b) => a.startedAt - b.startedAt);
+  const first = sorted[0];
+  if (first === undefined) return [];
+  const out: PhaseVM[] = [];
+  let lastMainEnd: number | null = null;
+  for (const { call, startedAt } of sorted) {
+    if (call.role === "main" && lastMainEnd !== null && startedAt > lastMainEnd) {
+      out.push({
+        kind: "wait",
+        atMs: lastMainEnd - first.startedAt,
+        ms: startedAt - lastMainEnd,
+        role: "",
+        model: "",
+        firstTokenMs: null,
+      });
+    }
+    out.push({
+      kind: "model",
+      atMs: startedAt - first.startedAt,
+      ms: call.durationMs,
+      role: call.role,
+      model: call.model,
+      firstTokenMs: call.firstTokenMs,
+    });
+    if (call.role === "main") lastMainEnd = startedAt + call.durationMs;
+  }
+  return out;
 }
 
 function hooksOf(rows: readonly MeasureRow[]): readonly HookEventVM[] {
@@ -176,6 +245,7 @@ function hooksOf(rows: readonly MeasureRow[]): readonly HookEventVM[] {
         hook: tag(row, "hook"),
         registrationId: tag(row, "registrationId"),
         ms: num(row, "ms"),
+        size: num(row, "size"),
         outcome: outcomeOf(tag(row, "result")),
       },
     }))
@@ -225,6 +295,8 @@ function cacheOf(rows: readonly MeasureRow[]): readonly CacheEventVM[] {
         at: at === null || at < 0 ? null : at,
         added: numOrNull(row, "added"),
         removed: numOrNull(row, "removed"),
+        cacheWrite: numOrNull(row, "cacheWrite"),
+        gapMs: numOrNull(row, "gapMs"),
       };
     })
     .toSorted((a, b) => a.step - b.step);
@@ -246,6 +318,9 @@ function pluginsOf(
       problems: 0,
       sectionTokens: 0,
       cacheEvents: 0,
+      hookChars: 0,
+      tokens: 0,
+      tokensEstimated: false,
     };
     byOwner.set(owner, made);
     return made;
@@ -255,6 +330,7 @@ function pluginsOf(
     const share = slot(hook.registrationId);
     share.hookMs += hook.ms;
     share.handlers += 1;
+    share.hookChars += hook.size;
     if (hook.outcome.problem) share.problems += 1;
   }
   for (const bar of bars) {
@@ -269,6 +345,11 @@ function pluginsOf(
     const share = byOwner.get(event.owner);
     if (share !== undefined) share.cacheEvents += 1;
   }
+  for (const share of byOwner.values()) {
+    const hookTokens = estimateTokens(share.hookChars);
+    share.tokensEstimated = hookTokens > share.sectionTokens;
+    share.tokens = share.tokensEstimated ? hookTokens : share.sectionTokens;
+  }
   return [...byOwner.values()].toSorted(
     (a, b) =>
       b.hookMs - a.hookMs || b.sectionTokens - a.sectionTokens || a.owner.localeCompare(b.owner),
@@ -282,11 +363,13 @@ export function turnViewOf(result: MeasureTurnResult): TurnViewState {
   const hooks = hooksOf(result.rows);
   const bars = barsOf(result.rows);
   const cache = cacheOf(result.rows);
+  const calls = callsOf(result.rows);
   return {
     kind: "ready",
     view: {
       summary: summaryOf(result.rows),
-      calls: callsOf(result.rows),
+      calls,
+      phases: phasesOf(calls),
       hooks,
       hookTotalMs: hooks.reduce((sum, hook) => sum + hook.ms, 0),
       bars,

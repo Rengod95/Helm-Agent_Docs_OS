@@ -15,6 +15,13 @@ const hook = (
   tags: { hook: "context", registrationId, result },
 });
 
+const callRow = (role: string, startedAt: number, durationMs: number): MeasureRow => ({
+  at: startedAt + durationMs,
+  kind: "call",
+  metrics: { startedAt, durationMs, firstTokenMs: 400 },
+  tags: { role, model: "haiku" },
+});
+
 const ctx: MeasureRow = {
   at: 1,
   kind: "ctx",
@@ -83,8 +90,28 @@ describe("turnViewOf", () => {
     ]);
     expect(view.hookTotalMs).toBe(905);
     expect(view.plugins).toEqual([
-      { owner: "acme", hookMs: 900, handlers: 2, problems: 1, sectionTokens: 70, cacheEvents: 1 },
-      { owner: "helm", hookMs: 5, handlers: 1, problems: 0, sectionTokens: 30, cacheEvents: 0 },
+      {
+        owner: "acme",
+        hookMs: 900,
+        handlers: 2,
+        problems: 1,
+        sectionTokens: 70,
+        cacheEvents: 1,
+        hookChars: 0,
+        tokens: 70,
+        tokensEstimated: false,
+      },
+      {
+        owner: "helm",
+        hookMs: 5,
+        handlers: 1,
+        problems: 0,
+        sectionTokens: 30,
+        cacheEvents: 0,
+        hookChars: 0,
+        tokens: 30,
+        tokensEstimated: false,
+      },
     ]);
     expect(view.bars).toEqual([
       {
@@ -110,6 +137,8 @@ describe("turnViewOf", () => {
         at: 12,
         added: null,
         removed: null,
+        cacheWrite: null,
+        gapMs: null,
       },
       {
         step: 1,
@@ -120,9 +149,82 @@ describe("turnViewOf", () => {
         at: null,
         added: null,
         removed: null,
+        cacheWrite: null,
+        gapMs: null,
       },
     ]);
     expect(view.summary).toBeNull();
+  });
+
+  test("a plugin with no section tokens gets an estimate from the characters its hooks added", () => {
+    const state = turnViewOf({
+      enabled: true,
+      rows: [
+        {
+          at: 1,
+          kind: "hook",
+          metrics: { ms: 3, seq: 1, step: 0, size: 1466 },
+          tags: { hook: "context", registrationId: "cap-dialog", result: "modified" },
+        },
+        {
+          at: 1,
+          kind: "hook",
+          metrics: { ms: 1, seq: 2, step: 0, size: 509 },
+          tags: { hook: "context", registrationId: "cap-dialog", result: "modified" },
+        },
+      ],
+    });
+    if (state.kind !== "ready") throw new Error("ready expected");
+    expect(
+      state.view.plugins.map((p) => [p.owner, p.hookChars, p.tokens, p.tokensEstimated]),
+    ).toEqual([["cap-dialog", 1975, 494, true]]);
+  });
+
+  test("lays model calls and the waits between main calls on one timeline", () => {
+    const state = turnViewOf({
+      enabled: true,
+      rows: [
+        callRow("main", 10_000, 2800),
+        callRow("main", 38_000, 2200),
+        callRow("summary", 50_000, 500),
+      ],
+    });
+    if (state.kind !== "ready") throw new Error("ready expected");
+    expect(state.view.phases.map((p) => [p.kind, p.atMs, p.ms, p.role])).toEqual([
+      ["model", 0, 2800, "main"],
+      ["wait", 2800, 25_200, ""],
+      ["model", 28_000, 2200, "main"],
+      ["model", 40_000, 500, "summary"],
+    ]);
+  });
+
+  test("reads a cache expiry row with the rewritten tokens and the gap", () => {
+    const state = turnViewOf({
+      enabled: true,
+      rows: [
+        {
+          at: 1,
+          kind: "cache",
+          metrics: { step: 2, cacheWrite: 13_456, gapMs: 399_600 },
+          tags: { code: "cache_expired", owner: "ttl" },
+        },
+      ],
+    });
+    if (state.kind !== "ready") throw new Error("ready expected");
+    expect(state.view.cache).toEqual([
+      {
+        step: 2,
+        code: "cache_expired",
+        owner: "ttl",
+        from: "",
+        to: "",
+        at: null,
+        added: null,
+        removed: null,
+        cacheWrite: 13_456,
+        gapMs: 399_600,
+      },
+    ]);
   });
 
   test("reads the turn row and call rows; missing numbers become 0 or null", () => {
@@ -153,6 +255,7 @@ describe("turnViewOf", () => {
       {
         role: "main",
         model: "m",
+        startedAt: null,
         durationMs: 40,
         firstTokenMs: null,
         totalTokens: 0,

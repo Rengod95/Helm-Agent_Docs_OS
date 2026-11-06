@@ -35,12 +35,14 @@ const CACHE_CODE_TEXT: Readonly<Record<string, MessageId>> = {
   cache_prefix_reset: "desktop.measure.cache.prefixReset",
   cache_reset_model_switch: "desktop.measure.cache.modelSwitch",
   tools_deferred: "desktop.measure.cache.toolsDeferred",
+  cache_expired: "desktop.measure.cache.expired",
 };
 
 const CACHE_OWNER_TEXT: Readonly<Record<string, MessageId>> = {
   "context-hook": "desktop.measure.cache.owner.contextHook",
   model: "desktop.measure.cache.owner.model",
   tools: "desktop.measure.cache.owner.tools",
+  ttl: "desktop.measure.cache.owner.ttl",
 };
 
 export function cacheCodeText(code: string): string {
@@ -64,6 +66,12 @@ export function cacheDetailText(event: CacheEventVM): string {
     parts.push(
       t("desktop.measure.cache.tools", { added: event.added ?? 0, removed: event.removed ?? 0 }),
     );
+  }
+  if (event.cacheWrite !== null) {
+    parts.push(t("desktop.measure.cache.rewrite", { tokens: event.cacheWrite }));
+  }
+  if (event.gapMs !== null) {
+    parts.push(t("desktop.measure.cache.gap", { minutes: (event.gapMs / 60_000).toFixed(1) }));
   }
   return parts.join(" · ");
 }

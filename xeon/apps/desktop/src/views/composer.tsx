@@ -2,6 +2,8 @@ import { t } from "@fresnel/client/i18n";
 import {
   Button,
   IconButton,
+  Popover,
+  PopoverTitle,
   SegmentedControl,
   SegmentedControlItem,
   Select,
@@ -30,6 +32,7 @@ import {
   useThreadRunning,
 } from "../state/engine/index.ts";
 import { useComposerRequest, useObserving, useSelectedThreadId } from "../state/ui/index.ts";
+import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import {
   attachDisabledReason,
   baseNameOf,
@@ -59,6 +62,7 @@ import {
 import {
   DEFAULT_MODEL_CHOICE,
   modelOptionsOf,
+  contextCostText,
   priceNumberText,
   type ModelOption,
   useDefaultModel,
@@ -167,15 +171,19 @@ export function PermissionModeSelect(props: {
  * 고르면 `thread.setModel`로 이 대화의 다음 turn부터 바뀐다. 대화가 모델을 정했으면 끝에 "기본 모델"로 되돌리는 줄이 있다.
  * 목록은 호스트 카탈로그(`models.list`)다
  */
-function modelOptionText(option: ModelOption): string {
+function modelOptionText(option: ModelOption, contextTokens: number | null): string {
   if (option.price === null) return option.label;
   if (option.price === "unknown") {
     return `${option.label} · ${t("desktop.composer.model.priceUnknown")}`;
   }
-  return `${option.label} · ${t("desktop.composer.model.price", {
+  const base = `${option.label} · ${t("desktop.composer.model.price", {
     input: priceNumberText(option.price.input),
     output: priceNumberText(option.price.output),
   })}`;
+  const estimate = contextCostText(contextTokens, option.price.input);
+  return estimate === null
+    ? base
+    : `${base} · ${t("desktop.composer.model.contextCost", { cost: estimate })}`;
 }
 
 export function ModelSelect(props: {
@@ -187,6 +195,8 @@ export function ModelSelect(props: {
   readonly fallback: string | null;
   readonly choices: readonly ModelEntry[];
   readonly disabled: boolean;
+  /** 이 대화의 지금 문맥 토큰. 줄마다 "이 문맥을 보내면 약 얼마"를 보이는 데 쓴다. 모르면 null */
+  readonly contextTokens?: number | null;
   /** 모델 참조를 고르면 그 값, 기본 모델로 돌아가면 null */
   readonly onChange: (model: string | null) => void;
 }): ReactNode {
@@ -211,7 +221,7 @@ export function ModelSelect(props: {
         <SelectOption key={option.value} value={option.value}>
           {option.value === DEFAULT_MODEL_CHOICE
             ? t("desktop.composer.model.default", { model: option.label })
-            : modelOptionText(option)}
+            : modelOptionText(option, props.contextTokens ?? null)}
         </SelectOption>
       ))}
     </Select>
@@ -225,12 +235,15 @@ export function ModelSelect(props: {
 export function UsageRing(props: {
   readonly percent: number | null;
   readonly disabled: boolean;
+  /** 있으면 링을 눌러 토큰·비용 내역 Popover를 연다 */
+  readonly threadId?: ThreadId;
 }): ReactNode {
+  const [open, setOpen] = useState(false);
   if (props.percent === null) return null;
   const pct = Math.min(100, Math.max(0, props.percent));
   const tone: RingTone = pct > USAGE_DANGER ? "danger" : pct > USAGE_WARNING ? "warning" : "accent";
   const color = props.disabled ? "text-disabled-text" : RING_TEXT[tone];
-  return (
+  const ring = (
     <svg
       data-level={tone === "accent" ? undefined : tone}
       role="img"
@@ -250,6 +263,29 @@ export function UsageRing(props: {
         className="stroke-current transition-[stroke-dashoffset] duration-gentle ease-standard"
       />
     </svg>
+  );
+  if (props.threadId === undefined) return ring;
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      side="top"
+      align="end"
+      size="sm"
+      anchor={
+        <Button
+          size="xs"
+          variant="ghost"
+          className="h-6 px-1"
+          aria-label={t("desktop.usage.breakdown.open")}
+        >
+          {ring}
+        </Button>
+      }
+    >
+      <PopoverTitle>{t("desktop.status.cell.tokens.title")}</PopoverTitle>
+      <UsageBreakdownBody threadId={props.threadId} />
+    </Popover>
   );
 }
 
@@ -762,6 +798,7 @@ function ComposerFor(props: {
                 fallback={defaultModel}
                 choices={modelChoices}
                 disabled={props.disabledReason !== null}
+                contextTokens={usage === null ? null : usage.tokens}
                 onChange={(model) => {
                   detach(
                     commands.setThreadModel(props.threadId, model).then((result) => {
@@ -773,7 +810,11 @@ function ComposerFor(props: {
                 }}
               />
             )}
-            <UsageRing percent={usage?.percent ?? null} disabled={props.disabledReason !== null} />
+            <UsageRing
+              percent={usage?.percent ?? null}
+              disabled={props.disabledReason !== null}
+              threadId={props.threadId}
+            />
             {running ? (
               <IconButton
                 type="button"

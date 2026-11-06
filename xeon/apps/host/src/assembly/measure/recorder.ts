@@ -134,6 +134,48 @@ function callRecord(call: UsageRecord): MeasureRecord {
   };
 }
 
+/** 앞 호출과 견줄 수 있게 남기는, thread별 가장 나중의 main 호출 */
+interface PriorCall {
+  readonly model: string;
+  readonly at: number;
+  readonly cacheRead: number;
+  readonly cacheWrite: number;
+}
+
+/** 캐시 쓰기가 이 토큰 수 아래면 접두를 새로 쓴 것으로 보지 않는다 */
+const CACHE_EXPIRED_MIN_WRITE = 1000;
+
+/**
+ * 캐시 만료 사건. 같은 모델의 앞 main 호출보다 캐시 쓰기가 두 배 넘게(그리고 `CACHE_EXPIRED_MIN_WRITE` 이상) 늘고 캐시 읽기가 반 밑으로 줄었으면
+ * 접두를 통째로 다시 쓴 것이다(보통 5분을 넘겨 캐시가 만료된 호출). 앞 호출이 없거나 모델이 바뀌었으면(`cache_reset_model_switch`가 따로 있다) 아니다
+ */
+function cacheExpiredRecord(
+  prior: PriorCall | undefined,
+  call: UsageRecord,
+  step: number,
+): MeasureRecord | undefined {
+  if (prior === undefined || prior.model !== call.modelId) return undefined;
+  if (prior.cacheRead + prior.cacheWrite === 0) return undefined;
+  const { cacheRead, cacheWrite } = call.usage;
+  if (cacheWrite < CACHE_EXPIRED_MIN_WRITE || cacheWrite < prior.cacheWrite * 2) return undefined;
+  if (cacheRead > prior.cacheRead / 2) return undefined;
+  return {
+    at: call.recordedAt,
+    threadId: call.threadId,
+    turnId: call.turnId,
+    kind: "cache",
+    metrics: {
+      step,
+      cacheWrite,
+      priorCacheWrite: prior.cacheWrite,
+      cacheRead,
+      priorCacheRead: prior.cacheRead,
+      gapMs: Math.max(0, (call.startedAt ?? call.recordedAt) - prior.at),
+    },
+    tags: { code: "cache_expired", owner: "ttl" },
+  };
+}
+
 /** `step.completed`의 요청 구성(`ctx`)과 캐시 사건(`cache`) */
 function stepRecords(event: CommitBatch["events"][number]): readonly MeasureRecord[] {
   if (event.kind !== "step.completed") return [];
@@ -224,8 +266,9 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
   let scheduled = false;
   /** Turn별로 쌓은 호출. 그 Turn의 `turn.completed` 커밋이 오면 묶음에 넣는다 */
   const callsByTurn = new Map<string, MeasureRecord[]>();
-  /** Turn에 속하지 않는 호출(제목 등). 다음 커밋 묶음에 넣는다 */
-  let looseCalls: MeasureRecord[] = [];
+  /** thread별로 가장 나중에 끝난 Turn. Turn 밖 호출(제목 등)이 어느 Turn 뒤의 호출인지 붙이는 데 쓴다 */
+  const lastTurnOfThread = new Map<string, string>();
+  const priorMainCall = new Map<string, PriorCall>();
   let pendingCalls = 0;
 
   const offUsage = deps.usage.subscribe((call) => {
@@ -233,12 +276,35 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
     pendingCalls += 1;
     const record = callRecord(call);
     if (call.turnId === null) {
-      looseCalls.push(record);
+      // Turn 밖 호출(제목, 요약, 검색, 판정)은 다음 Turn을 기다리지 않고 바로 쓴다. 어느 Turn 뒤의 호출인지는 `afterTurn` 태그로 남긴다
+      const after = lastTurnOfThread.get(call.threadId);
+      pending.push(
+        after === undefined ? record : { ...record, tags: { ...record.tags, afterTurn: after } },
+      );
+      pendingCalls -= 1;
+      if (!scheduled) {
+        scheduled = true;
+        queueMicrotask(flush);
+      }
       return;
     }
-    const known = callsByTurn.get(call.turnId);
-    if (known === undefined) callsByTurn.set(call.turnId, [record]);
-    else known.push(record);
+    const known = callsByTurn.get(call.turnId) ?? [];
+    known.push(record);
+    if (call.role === "main") {
+      const step = known.filter((row) => row.kind === "call").length;
+      const expired = cacheExpiredRecord(priorMainCall.get(call.threadId), call, step);
+      if (expired !== undefined) {
+        known.push(expired);
+        pendingCalls += 1;
+      }
+      priorMainCall.set(call.threadId, {
+        model: call.modelId,
+        at: call.recordedAt,
+        cacheRead: call.usage.cacheRead,
+        cacheWrite: call.usage.cacheWrite,
+      });
+    }
+    callsByTurn.set(call.turnId, known);
   });
 
   function flush(): void {
@@ -310,6 +376,7 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
       if (record === undefined) continue;
       const turnIndex = pending.push(record) - 1;
       if (event.turnId !== null) {
+        lastTurnOfThread.set(event.threadId, event.turnId);
         const calls = callsByTurn.get(event.turnId) ?? [];
         callsByTurn.delete(event.turnId);
         pendingCalls -= calls.length;
@@ -349,11 +416,6 @@ function startMeasureRecorder(deps: MeasureRecorderDeps): {
           metrics: { ...record.metrics, hookSkippedByEarlier: skippedByEarlier },
         };
       }
-    }
-    if (pending.length > 0 && looseCalls.length > 0) {
-      pendingCalls -= looseCalls.length;
-      pending.push(...looseCalls);
-      looseCalls = [];
     }
     if (pending.length > 0 && !scheduled) {
       scheduled = true;

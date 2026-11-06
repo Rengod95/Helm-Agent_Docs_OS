@@ -113,6 +113,12 @@ function formatTokens(tokens: number): string {
   return String(tokens);
 }
 
+/** 비용. 0이거나 1센트 이상이면 소수 둘, 그 밑이면 소수 넷이다. 0.0001 밑은 "< $0.0001"이다 */
+export function formatCost(usd: number): string {
+  if (usd > 0 && usd < 0.0001) return "< $0.0001";
+  return `$${usd.toFixed(usd === 0 || usd >= 0.01 ? 2 : 4)}`;
+}
+
 /** 상태에서 내장 세그먼트 셋을 만든다. 보여 줄 내용이 없는 세그먼트는 null이다 */
 export function coreItems(state: CoreState): {
   readonly turn: StatusItem | null;
@@ -134,7 +140,7 @@ export function coreItems(state: CoreState): {
     usage: hasUsage
       ? {
           id: USAGE_SEGMENT,
-          text: `${formatTokens(state.usage.tokens)} 토큰 · $${state.usage.cost.toFixed(2)}`,
+          text: `${formatTokens(state.usage.tokens)} 토큰 · ${formatCost(state.usage.cost)}`,
           tone: "normal",
           order: 120,
         }

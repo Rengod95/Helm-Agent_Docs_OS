@@ -6,6 +6,7 @@ import {
   type BurdenRowVM,
   type ChangeVM,
   type CurvePointVM,
+  type FailingExtensionVM,
   type PerfViewVM,
   type SignalVM,
   type TabRead,
@@ -110,7 +111,11 @@ function Burden(props: {
             </OpenButton>
           );
         }
-        if (column.key === "tokens") return numberText(row.tokensPerTurn);
+        if (column.key === "tokens") {
+          return row.tokensEstimated
+            ? t("desktop.measure.perf.tokensEstimated", { count: numberText(row.tokensPerTurn) })
+            : numberText(row.tokensPerTurn);
+        }
         if (column.key === "cost") {
           return row.costUsd === null ? (
             <span className="text-text-tertiary">{t("desktop.measure.perf.costUnknown")}</span>
@@ -192,8 +197,24 @@ function Curve(props: {
   );
 }
 
+/** 지금 연달아 실패 중인 확장. 크래프트 확장 화면과 같은 글이다(같은 `ext.health` 장부) */
+function FailingRows(props: { readonly failing: readonly FailingExtensionVM[] }): ReactNode {
+  if (props.failing.length === 0) return null;
+  return (
+    <ul className="m-0 grid list-none gap-0.5 p-0">
+      {props.failing.map((row) => (
+        <li key={row.name} className="text-text-primary">
+          {t("desktop.workbench.keepOff.consecutive", { name: row.name, count: row.consecutive })}
+          {row.autoDisabled ? ` · ${t("desktop.inspect.failures.autoOff")}` : ""}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function Ready(props: {
   readonly view: PerfViewVM;
+  readonly failing: readonly FailingExtensionVM[];
   readonly capped: boolean;
   readonly turnCount: number;
   readonly onOpenTurn: (turnId: string) => void;
@@ -217,8 +238,11 @@ function Ready(props: {
       </section>
       <section aria-label={t("desktop.measure.perf.signals")} className={SECTION}>
         <SectionTitle title={t("desktop.measure.perf.signals")} />
+        <FailingRows failing={props.failing} />
         {view.signals.length === 0 ? (
-          <p className={MUTED}>{t("desktop.measure.perf.signalsNone")}</p>
+          props.failing.length === 0 ? (
+            <p className={MUTED}>{t("desktop.measure.perf.signalsNone")}</p>
+          ) : null
         ) : (
           <ul className="m-0 grid list-none gap-0.5 p-0">
             {view.signals.map((signal) => (
@@ -304,11 +328,17 @@ export function PerfView(props: {
           case "off":
             return <p className={MUTED}>{t("desktop.measure.off")}</p>;
           case "empty":
-            return <p className={MUTED}>{t("desktop.measure.noTurns")}</p>;
+            return (
+              <div className="grid gap-2">
+                <FailingRows failing={input.failing} />
+                <p className={MUTED}>{t("desktop.measure.noTurns")}</p>
+              </div>
+            );
           case "ready":
             return (
               <Ready
                 view={state.view}
+                failing={input.failing}
                 capped={input.capped}
                 turnCount={input.turns.length}
                 onOpenTurn={props.onOpenTurn}

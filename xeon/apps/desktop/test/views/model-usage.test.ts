@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ModelEntry, UsageGauge } from "@fresnel/contracts/wire";
 import {
+  contextCostText,
   modelLabelOf,
   modelOptionsOf,
   priceNumberText,
@@ -158,5 +159,15 @@ describe("withLimit", () => {
     const usage = { tokens: 50_000, percent: 25, limit: 200_000 };
     expect(withLimit(usage, 1_000_000)).toEqual({ tokens: 50_000, percent: 5, limit: 1_000_000 });
     expect(withLimit(usage, 40_000)).toEqual({ tokens: 50_000, percent: 100, limit: 40_000 });
+  });
+});
+
+describe("contextCostText", () => {
+  test("a context sent at the input price, with sub-cent amounts keeping four decimals", () => {
+    expect(contextCostText(13_000, 0.1)).toBe("$0.0013");
+    expect(contextCostText(2_000_000, 3)).toBe("$6.00");
+    expect(contextCostText(10, 0.1)).toBe("< $0.0001");
+    expect(contextCostText(null, 3)).toBeNull();
+    expect(contextCostText(0, 3)).toBeNull();
   });
 });

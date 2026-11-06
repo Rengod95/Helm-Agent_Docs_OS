@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { DurableEventEnvelope, EventKind } from "@fresnel/contracts/records";
 import { createStatusService, STATUS_BATCH_MS } from "../src/status/service.ts";
+import { formatCost } from "../src/status/core-segments.ts";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { callOptions, harness, newThread } from "./support/harness.ts";
@@ -221,5 +222,14 @@ describe("내장 세그먼트", () => {
     expect(
       (await itemsOf(h, status.api, thread)).find((item) => item.id === "core.usage"),
     ).toBeUndefined();
+  });
+});
+
+describe("status usage cost format", () => {
+  test("sub-cent costs keep four decimals and tiny ones read as a bound", () => {
+    expect(formatCost(0)).toBe("$0.00");
+    expect(formatCost(0.03)).toBe("$0.03");
+    expect(formatCost(0.0008)).toBe("$0.0008");
+    expect(formatCost(0.00003)).toBe("< $0.0001");
   });
 });

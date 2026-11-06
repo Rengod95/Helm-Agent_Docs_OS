@@ -75,7 +75,14 @@ import { createCommandPort } from "./commands.ts";
 import { createDialogWirePort } from "./dialog-wire.ts";
 import { unreadableInputNotice } from "@fresnel/cap-dialog";
 import { createMeasurePort, type MeasureReadSource } from "./measure/read.ts";
-import { createUsageSource, readEventsOfAllBranches } from "./usage.ts";
+import {
+  createUsageSource,
+  EMPTY_TALLY,
+  OFF_LOOP_ROLES,
+  readEventsOfAllBranches,
+  type BackgroundCallReader,
+  type Tally,
+} from "./usage.ts";
 import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 import { createWebPort, type WebStatusHolder } from "./web-providers.ts";
@@ -225,6 +232,29 @@ function scheduleOriginsOf(schedule: ScheduleService): ReadonlyMap<string, strin
     }
   }
   return origins;
+}
+
+/** 측정 저장소의 배경 호출 행을 provider별 합계로 접는다. 측정이 꺼졌거나 저장소가 없으면 undefined */
+function backgroundCallsOf(source: MeasureReadSource): BackgroundCallReader {
+  return (threadId) => {
+    const store = source.store();
+    if (store === undefined || !source.enabled()) return undefined;
+    const rows = store.callsOfRoles(OFF_LOOP_ROLES, threadId);
+    if (!rows.ok) return undefined;
+    const providers = new Map<string, Tally>();
+    for (const row of rows.value) {
+      const name = row.tags["provider"] ?? "";
+      const tally = providers.get(name) ?? EMPTY_TALLY;
+      providers.set(name, {
+        tokens: tally.tokens + (row.metrics["totalTokens"] ?? 0),
+        usd: tally.usd + (row.metrics["usd"] ?? 0),
+        requests: tally.requests + 1,
+        cacheRead: tally.cacheRead + (row.metrics["cacheRead"] ?? 0),
+        cacheWrite: tally.cacheWrite + (row.metrics["cacheWrite"] ?? 0),
+      });
+    }
+    return providers;
+  };
 }
 
 export function createEnginePorts(deps: PortsDeps): PortsHandle {
@@ -793,6 +823,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       (provider, modelId) =>
         deps.models.list({ provider }).find((info) => info.ref === `${provider}/${modelId}`)
           ?.contextWindow,
+      backgroundCallsOf(deps.measure),
     ),
     measure: createMeasurePort(deps.measure),
     proposals: deps.proposals,

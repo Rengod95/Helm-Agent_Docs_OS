@@ -227,7 +227,7 @@ describe("usage panel", () => {
     expect(html).toContain(t("desktop.providers.usage.title"));
     expect(html).toContain(t("desktop.providers.usage.loading"));
     expect(html).toContain('role="status"');
-    expect(html).not.toContain("41천");
+    expect(html).not.toContain("41.0k");
   });
 
   test("a failed read names the failure and offers a read again", () => {
@@ -242,14 +242,14 @@ describe("usage panel", () => {
     const load: UsageLoad = { status: "ready", gauges: [gaugeOf()] };
     const html = renderToString(<UsagePanelView {...usageProps(load, { offline: true })} />);
     expect(html).toContain(t("desktop.providers.usage.offline"));
-    expect(html).not.toContain("41천");
+    expect(html).not.toContain("41.0k");
   });
 
   test("without a conversation it says to pick one and shows no gauges", () => {
     const load: UsageLoad = { status: "ready", gauges: [gaugeOf()] };
     const html = renderToString(<UsagePanelView {...usageProps(load, { hasThread: false })} />);
     expect(html).toContain(t("desktop.providers.usage.noThread"));
-    expect(html).not.toContain("41천");
+    expect(html).not.toContain("41.0k");
   });
 
   test("a conversation with no usage says so", () => {
@@ -263,9 +263,9 @@ describe("usage panel", () => {
     const html = renderToString(
       <UsagePanelView {...usageProps({ status: "ready", gauges: [gaugeOf()] })} />,
     );
-    expect(html).toContain('aria-label="anthropic 토큰 41천, 한도 모름"');
+    expect(html).toContain('aria-label="anthropic 토큰 41.0k, 한도 모름"');
     expect(html).toContain("anthropic 토큰");
-    expect(html).toContain("41천");
+    expect(html).toContain("41.0k");
     expect(html).toContain(t("desktop.providers.usage.limitUnknown"));
     // 한도를 모르면 막대에 숫자를 지어내지 않는다(빈 막대 자리만 보인다)
     expect(html).not.toContain("aria-valuenow");
@@ -280,10 +280,10 @@ describe("usage panel", () => {
         })}
       />,
     );
-    expect(html).toContain('aria-label="anthropic 토큰 41천, 100천 중"');
+    expect(html).toContain('aria-label="anthropic 토큰 41.0k, 100.0k 중"');
     // 막대는 장식(aria-hidden)이고 채운 비율은 글 줄의 이름 문장이 말한다. 막대 칸에는 비율만 들어간다
     expect(html).toContain("--cs-progress:41%");
-    expect(html).toContain("100천 중");
+    expect(html).toContain("100.0k 중");
     expect(html).not.toContain(t("desktop.providers.usage.limitUnknown"));
     expect(html).not.toContain("재설정");
   });

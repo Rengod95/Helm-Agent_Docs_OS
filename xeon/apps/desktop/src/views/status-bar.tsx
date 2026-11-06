@@ -46,6 +46,7 @@ import {
 import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { RestartLine } from "./restart-line.tsx";
+import { UsageBreakdownBody } from "./usage-breakdown.tsx";
 import { SafeModeChip } from "./safe-mode-chip.tsx";
 import { StatusCell, type StatusDot } from "./status-cell.tsx";
 import { useGoToThread, type GoToThread } from "./thread-link.ts";
@@ -497,7 +498,11 @@ export function tokensDescriptionOf(usage: SessionUsage): string {
 }
 
 /** "사용량" 칸(시안 `tokens`). 글은 쓴 토큰 수이고, 한도를 알 때만 칸 뒤에 막대를 붙인다 */
-export function TokensCell(props: { readonly usage: SessionUsage }): ReactNode {
+export function TokensCell(props: {
+  readonly usage: SessionUsage;
+  /** 있으면 Popover에 토큰·비용 내역을 더한다 */
+  readonly threadId?: ThreadId;
+}): ReactNode {
   const { usage } = props;
   const [open, setOpen] = useState(false);
   return (
@@ -512,6 +517,9 @@ export function TokensCell(props: { readonly usage: SessionUsage }): ReactNode {
       trailing={usage.percent === null ? undefined : <TokenBar percent={usage.percent} />}
       title={t("desktop.status.cell.tokens.title")}
       description={tokensDescriptionOf(usage)}
+      body={
+        props.threadId === undefined ? undefined : <UsageBreakdownBody threadId={props.threadId} />
+      }
       open={open}
       onOpenChange={setOpen}
     />
@@ -526,7 +534,7 @@ function ThreadUsageCells(props: { readonly threadId: ThreadId }): ReactNode {
   return (
     <>
       {model.ref === null ? null : <ModelCell model={model.ref} />}
-      {usage === null ? null : <TokensCell usage={usage} />}
+      {usage === null ? null : <TokensCell usage={usage} threadId={props.threadId} />}
       <GoalCell threadId={props.threadId} />
     </>
   );

@@ -26,6 +26,7 @@ const input: PerfInput = {
   ],
   turns: [{ turnId: "trn_a", result: { enabled: true, rows: [hook("acme", 900, "failed")] } }],
   capped: true,
+  failing: [{ name: "helm", consecutive: 5, autoDisabled: false }],
 };
 const noop = (): void => {};
 
@@ -37,12 +38,14 @@ describe("PerfView", () => {
     expect(out).toContain("Turn당 토큰 하루 평균 300, 앞선 날들 100 (올랐어요)");
     expect(out).toContain("Turn 1: 실패나 예산 초과 핸들러 1");
     expect(out).toContain("acme");
+    expect(out).toContain("helm · 5번 연달아 실패했어요");
     expect(out).toContain("900ms");
     expect(out).toContain("1개 Turn만 읽었어요");
   });
   test("off and empty", () => {
     const off = {
       series: [],
+      failing: [],
       turns: [{ turnId: "a", result: { enabled: false, rows: [] } }],
       capped: false,
     };
@@ -51,7 +54,7 @@ describe("PerfView", () => {
         <PerfView read={{ kind: "ready", value: off, stale: false }} onOpenTurn={noop} />,
       ),
     ).toContain("꺼져 있어");
-    const empty = { series: [], turns: [], capped: false };
+    const empty = { series: [], turns: [], capped: false, failing: [] };
     expect(
       renderToString(
         <PerfView read={{ kind: "ready", value: empty, stale: false }} onOpenTurn={noop} />,

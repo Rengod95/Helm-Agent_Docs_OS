@@ -56,8 +56,13 @@ export interface MeasureStore {
   ): Result<number | undefined, MeasureStoreError>;
   /** 원본 행 수 */
   rawCount(): Result<number, MeasureStoreError>;
-  /** 한 Turn의 원본 행(시간 순) */
+  /** 한 Turn의 원본 행(시간 순). Turn 밖 호출 중 이 Turn 뒤의 것(`afterTurn` 태그)도 호출 행으로 함께 낸다 */
   turn(threadId: string, turnId: string): Result<readonly MeasureRecord[], MeasureStoreError>;
+  /** 역할이 `roles`에 드는 호출 행. `threadId`가 없으면 모든 thread다. 사용량 합산이 재시작 뒤에도 배경 호출을 세는 원천이다 */
+  callsOfRoles(
+    roles: readonly string[],
+    threadId: string | undefined,
+  ): Result<readonly MeasureRecord[], MeasureStoreError>;
   close(): void;
 }
 
@@ -252,15 +257,47 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
         const out: MeasureRecord[] = [];
         for (const row of db
           .query(
-            "SELECT at, kind, metrics, tags FROM measure_raw WHERE thread_id = ? AND turn_id = ? ORDER BY id",
+            `SELECT at, kind, metrics, tags FROM measure_raw WHERE thread_id = ? AND (turn_id = ?
+               OR (turn_id IS NULL AND kind = 'call' AND json_extract(tags, '$.afterTurn') = ?)) ORDER BY id`,
           )
-          .all(threadId, turnId)) {
+          .all(threadId, turnId, turnId)) {
           if (typeof row !== "object" || row === null) continue;
           out.push({
             at: num("at" in row ? row.at : undefined),
             threadId,
             turnId,
             kind: text("kind" in row ? row.kind : undefined),
+            metrics: numbersOf(text("metrics" in row ? row.metrics : undefined)),
+            tags: stringsOf(text("tags" in row ? row.tags : undefined)),
+          });
+        }
+        return out;
+      }),
+    callsOfRoles: (roles, threadId) =>
+      run(() => {
+        const out: MeasureRecord[] = [];
+        if (roles.length === 0) return out;
+        const marks = roles.map(() => "?").join(",");
+        const rows =
+          threadId === undefined
+            ? db
+                .query(
+                  `SELECT at, thread_id, turn_id, kind, metrics, tags FROM measure_raw WHERE kind = 'call' AND json_extract(tags, '$.role') IN (${marks}) ORDER BY id`,
+                )
+                .all(...roles)
+            : db
+                .query(
+                  `SELECT at, thread_id, turn_id, kind, metrics, tags FROM measure_raw WHERE kind = 'call' AND thread_id = ? AND json_extract(tags, '$.role') IN (${marks}) ORDER BY id`,
+                )
+                .all(threadId, ...roles);
+        for (const row of rows) {
+          if (typeof row !== "object" || row === null) continue;
+          const turn = "turn_id" in row ? row.turn_id : undefined;
+          out.push({
+            at: num("at" in row ? row.at : undefined),
+            threadId: text("thread_id" in row ? row.thread_id : undefined),
+            turnId: typeof turn === "string" ? turn : null,
+            kind: "call",
             metrics: numbersOf(text("metrics" in row ? row.metrics : undefined)),
             tags: stringsOf(text("tags" in row ? row.tags : undefined)),
           });
