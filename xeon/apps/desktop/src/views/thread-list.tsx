@@ -58,10 +58,9 @@ const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummar
       >
         {title}
       </ListNavigationItem>
-      {/* 행 뒤 높이 0인 칸에 ⋯를 겹친다(caustic 행에 동작 자리가 없다). 보임 규칙은 styles.css [data-row-menu] */}
+      {/* 행 뒤 높이 0인 칸에 ⋯를 겹친다(caustic 행에 동작 자리가 없다). 보임과 승인 수 비움은 styles.css [data-row-menu] */}
       <li
         data-row-menu=""
-        data-current={selected ? "" : undefined}
         className="pointer-events-none relative -mt-control-sm flex h-control-sm list-none items-center justify-end pe-1"
       >
         <ThreadRowMenu id={id} title={title} status={props.thread.status} bare />

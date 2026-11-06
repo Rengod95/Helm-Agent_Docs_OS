@@ -62,16 +62,25 @@
 }
 
 @layer components {
-  /* 대화 목록 행 ⋯(thread-list.tsx): 행에 올리거나 초점이 있거나 고른 행이거나 메뉴가 열렸을 때만 보인다 */
+  /* 대화 목록 행 ⋯(thread-list.tsx): 행에 올리거나 초점이 있거나 메뉴가 열렸을 때만 보인다(고른 행도 마찬가지다) */
   [data-row-menu] button {
     opacity: 0;
   }
   [data-slot="list-navigation-item"]:hover + [data-row-menu] button,
   [data-row-menu]:hover button,
   [data-row-menu]:focus-within button,
-  [data-row-menu][data-current] button,
   [data-row-menu]:has([aria-expanded="true"]) button {
     opacity: 1;
+  }
+  /* 그때 행 끝의 짧은 글(승인 수)은 ⋯가 자리를 쓰도록 지운다(시안 start-panel: ⋯가 꼬리 자리를 바꾼다) */
+  [data-slot="list-navigation-item"]:hover [data-slot="list-navigation-meta"],
+  [data-slot="list-navigation-item"]:has(+ [data-row-menu]:hover)
+    [data-slot="list-navigation-meta"],
+  [data-slot="list-navigation-item"]:has(+ [data-row-menu]:focus-within)
+    [data-slot="list-navigation-meta"],
+  [data-slot="list-navigation-item"]:has(+ [data-row-menu] [aria-expanded="true"])
+    [data-slot="list-navigation-meta"] {
+    opacity: 0;
   }
   .warn {
     color: var(--warn);

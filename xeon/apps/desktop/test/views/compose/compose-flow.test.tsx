@@ -5,7 +5,7 @@ import type { WireManifestIssue } from "@fresnel/contracts/wire";
 import { renderToString } from "react-dom/server";
 import { CommandsContext } from "../../../src/views/commands.ts";
 import { FlowBody } from "../../../src/views/compose/compose-group.tsx";
-import { FlowCanvas } from "../../../src/views/compose/compose-flow.tsx";
+import { canvasEdgesOf, FlowCanvas } from "../../../src/views/compose/compose-flow.tsx";
 import { FlowEditor } from "../../../src/views/compose/compose-flow-edit.tsx";
 import { announceOf, FlowOutline } from "../../../src/views/compose/compose-outline.tsx";
 import { fakeCommands } from "../fake-commands.ts";
@@ -153,6 +153,35 @@ describe("캔버스 노드", () => {
     );
     expect(html).toContain('data-state="invalid"');
     expect(html).toContain("검사에서 막혔어요");
+  });
+});
+
+describe("캔버스의 선", () => {
+  test("전이 하나에 선 하나이고, 선마다 이름표가 없다", () => {
+    expect(canvasEdgesOf(PHASES)).toEqual([
+      { from: "start:out", to: "review:in" },
+      { from: "review:out", to: "done:in" },
+    ]);
+  });
+
+  test("같은 두 노드 사이 전이가 여럿이면 선도 여럿이고 모두 이름표 없이 같은 자리를 잇는다", () => {
+    const draft: FlowDraft = {
+      initial: "idle",
+      nodes: [
+        { id: "idle", kind: "phase", title: "대기" },
+        { id: "diverge", kind: "phase", title: "발산" },
+      ],
+      transitions: [
+        { from: "diverge", to: "idle", event: "stopRequested" },
+        { from: "diverge", to: "idle", event: "limitReached" },
+        { from: "diverge", to: "idle", event: "failed" },
+      ],
+    };
+    expect(canvasEdgesOf(draft)).toEqual([
+      { from: "diverge:out", to: "idle:in" },
+      { from: "diverge:out", to: "idle:in" },
+      { from: "diverge:out", to: "idle:in" },
+    ]);
   });
 });
 

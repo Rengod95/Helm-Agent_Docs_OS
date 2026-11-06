@@ -1,6 +1,7 @@
 // 작업대 영역의 맥락 칸(§4.9.3, V-25). 값 하나가 모든 작업대 화면의 맥락을 정한다: 전체·대화·프로필·시험.
 // 대화 값은 기본으로 대화 영역에서 열린 대화를 따라가고, 자물쇠로 고정·풀기를 한다.
 import { t } from "@fresnel/client/i18n";
+import type { ThreadSummary } from "@fresnel/contracts/wire";
 import {
   IconButton,
   Select,
@@ -13,11 +14,20 @@ import { Lock, LockOpen, MessageSquare } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { useThreadSummaries } from "../../state/engine/index.ts";
 import { useShell, useShellActions, type WorkbenchContext } from "../../state/shell/index.ts";
+import { contextThreadGroupsOf } from "../thread-groups.ts";
 
 /** 프로필 목록은 프로필 화면 트랙(T-BENCH)이 채운다. 셸은 그 값을 받아 칸에 올릴 뿐이다 */
 export interface ContextProfile {
   readonly id: string;
   readonly title: string;
+}
+
+/** 칸의 대화 항목 값: id와 보일 이름(제목이 없으면 "제목 없음") */
+function namedThreads(list: readonly ThreadSummary[]): { id: string; title: string }[] {
+  return list.map((th) => ({
+    id: th.threadId,
+    title: th.title ?? t("desktop.threads.untitled"),
+  }));
 }
 
 function encodeContext(c: WorkbenchContext): string {
@@ -43,10 +53,9 @@ export function ContextPicker(props: {
   const context = useShell((s) => s.context);
   const actions = useShellActions();
   const threads = useThreadSummaries();
-  const named = threads.map((th) => ({
-    id: th.threadId,
-    title: th.title ?? t("desktop.threads.untitled"),
-  }));
+  const groups = contextThreadGroupsOf(threads);
+  const plain = namedThreads(groups.threads);
+  const trials = namedThreads(groups.trials);
   return (
     <div className="flex min-w-0 items-center gap-1">
       <Select
@@ -67,7 +76,7 @@ export function ContextPicker(props: {
         </SelectOption>
         <SelectGroup>
           <SelectHeading>{t("desktop.shell.context.thread")}</SelectHeading>
-          {named.map((th) => (
+          {plain.map((th) => (
             <SelectOption key={th.id} value={`thread:${th.id}`}>
               {context.kind === "thread" && context.threadId === th.id
                 ? `${t("desktop.shell.context.thread")} · ${th.title}`
@@ -87,7 +96,7 @@ export function ContextPicker(props: {
         </SelectGroup>
         <SelectGroup>
           <SelectHeading>{t("desktop.shell.context.trial")}</SelectHeading>
-          {named.map((th) => (
+          {trials.map((th) => (
             <SelectOption key={th.id} value={`trial:${th.id}`}>
               {context.kind === "trial" && context.threadId === th.id
                 ? `${t("desktop.shell.context.trial")} · ${th.title}`

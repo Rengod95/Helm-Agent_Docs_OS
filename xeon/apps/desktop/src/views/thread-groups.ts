@@ -1,5 +1,20 @@
 // 대화 목록의 작업 폴더 묶음(시안 _shell start-panel). 목록 순서(최근 활동 먼저)를 지키고 폴더는 처음 나온 순서로 둔다.
 // 폴더 없는 대화는 마지막 묶음이다.
+import type { ThreadSummary } from "@fresnel/contracts/wire";
+
+/**
+ * 맥락 칸의 두 묶음(시안 start-panel의 plain·trials). 시험 대화(`testRun` 표식이 있는 대화)는 "시험" 묶음에만 들고,
+ * "대화" 묶음에는 들지 않는다. 나머지 대화는 "대화" 묶음에만 든다. 목록 순서는 그대로다
+ */
+export function contextThreadGroupsOf(threads: readonly ThreadSummary[]): {
+  readonly threads: readonly ThreadSummary[];
+  readonly trials: readonly ThreadSummary[];
+} {
+  return {
+    threads: threads.filter((thread) => thread.testRun === undefined),
+    trials: threads.filter((thread) => thread.testRun !== undefined),
+  };
+}
 
 export interface ThreadGroup<T> {
   /** 작업 폴더 절대 경로. 폴더 없는 묶음은 null */

@@ -285,7 +285,18 @@ function FlowNode(props: {
   );
 }
 
-/** 흐름 캔버스. 자리는 `graphPlacementsOf`(시작에서 전이를 따른 깊이가 열), 선은 전이 하나에 하나다. `runStates`가 있으면 시험 실행의 단계 강조를 그린다 */
+/**
+ * 캔버스의 선: 전이 하나에 선 하나다. 이름표는 달지 않는다(시안 wb-compose: 선 = 전이, 이름표 없음). 같은 두 노드 사이의
+ * 전이 여럿은 선이 겹치고, 이벤트 이름은 개요와 속성 칸이 보인다. 이름표가 겹쳐 읽히지 않게 하려고 캔버스에서 뺀다
+ */
+export function canvasEdgesOf(draft: FlowDraft): GraphEdge[] {
+  return draft.transitions.map((edge) => ({
+    from: `${edge.from}:out`,
+    to: `${edge.to}:in`,
+  }));
+}
+
+/** 흐름 캔버스. 자리는 `graphPlacementsOf`(시작에서 전이를 따른 깊이가 열), 선은 `canvasEdgesOf`다. `runStates`가 있으면 시험 실행의 단계 강조를 그린다 */
 export function FlowCanvas(props: {
   readonly draft: FlowDraft;
   readonly selected: string | null;
@@ -297,11 +308,7 @@ export function FlowCanvas(props: {
   const places = graphPlacementsOf(draft);
   const size = graphSizeOf(places);
   const placeOf = new Map(places.map((place): [string, GraphPlacement] => [place.id, place]));
-  const edges: GraphEdge[] = draft.transitions.map((edge) => ({
-    from: `${edge.from}:out`,
-    to: `${edge.to}:in`,
-    label: edge.event,
-  }));
+  const edges = canvasEdgesOf(draft);
   return (
     <NodeGraph
       aria-label={t("desktop.compose.flow.canvas.label")}

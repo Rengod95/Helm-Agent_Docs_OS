@@ -183,6 +183,8 @@ export function InstallDialog(props: {
             <div className="flex items-center gap-2">
               <Input
                 size="sm"
+                // 입력란이 줄 폭을 다 쓰고 고르기 단추는 오른쪽에 붙는다(시안 b03 install: 입력란이 폭을 채운다)
+                containerClassName="min-w-0 flex-1"
                 value={flow.source}
                 disabled={flow.step === "previewing"}
                 placeholder={t("desktop.install.source.placeholder")}
