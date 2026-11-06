@@ -5,6 +5,8 @@ name: Fresnel Release
 # that touches the release files. The macOS job is also started by hand at milestone close.
 # Signing and notarization (macOS) need the repository secrets APPLE_CERTIFICATE_P12_BASE64, APPLE_CERTIFICATE_PASSWORD,
 # APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_TEAM_ID, APPLE_APP_PASSWORD. Without them the archive is reported UNSIGNED (warning and job summary), and a v* tag run fails.
+# The macOS job also builds the bundled Electron app (xeon/scripts/release-electron.sh --smoke: Fresnel.app, signing step, launch smoke,
+# zip) beside the Tauri archive; the Tauri path stays until the Rust shell is removed (L4.release.spec §3.5).
 on:
   workflow_dispatch:
   push:
@@ -12,6 +14,8 @@ on:
   pull_request:
     paths:
       - "xeon/scripts/release*"
+      - "xeon/scripts/electron-*"
+      - "xeon/apps/desktop-shell/**"
       - "xeon/packages/group-sdk/templates/**"
       - ".github/workflows/fresnel-release.yml"
 
@@ -73,4 +77,21 @@ jobs:
         with:
           name: fresnel-release-${{ runner.os }}
           path: xeon/dist/release-smoke/*.tar.gz*
+          if-no-files-found: error
+      - name: Electron app smoke (build, sign step, launch, zip)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          FRESNEL_RELEASE_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+        run: just release-smoke-electron
+      - uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        if: runner.os == 'macOS'
+        with:
+          name: fresnel-electron-app
+          path: xeon/dist/release-electron/*.zip*
           if-no-files-found: error
