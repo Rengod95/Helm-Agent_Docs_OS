@@ -1428,6 +1428,7 @@
   "desktop.trust.option.trustParent": "Trust the whole parent folder",
   "desktop.trust.option.trustSession": "Trust for this run only",
   "desktop.workspace.createFailed": "Could not create the new conversation.",
+  "desktop.workspace.createTimeout": "The engine did not answer in time. Check the engine status and try again.",
   "desktop.workspace.folderRefused": "Could not open the working folder. Check that it is the absolute path of an existing folder.",
   "desktop.workspace.hint.relative": "Enter the working folder as an absolute path. Example: /Users/me/project",
   "desktop.workspace.hint.tooLong": "The working folder path is too long.",

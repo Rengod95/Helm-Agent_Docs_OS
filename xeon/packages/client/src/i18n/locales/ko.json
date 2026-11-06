@@ -1428,6 +1428,7 @@
   "desktop.trust.option.trustParent": "상위 폴더 전체 신뢰",
   "desktop.trust.option.trustSession": "이번 실행 동안만 신뢰",
   "desktop.workspace.createFailed": "새 대화를 만들지 못했어요.",
+  "desktop.workspace.createTimeout": "엔진이 시간 안에 답하지 않았어요. 엔진 상태를 확인하고 다시 시도해 주세요.",
   "desktop.workspace.folderRefused": "작업 폴더를 열 수 없어요. 있는 폴더의 절대 경로인지 확인해 주세요.",
   "desktop.workspace.hint.relative": "작업 폴더는 절대 경로로 적어야 해요. 예: /Users/me/project",
   "desktop.workspace.hint.tooLong": "작업 폴더 경로가 너무 길어요.",
