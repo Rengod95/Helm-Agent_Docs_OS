@@ -6,6 +6,7 @@ import {
   escapeMarkers,
   explorerTask,
   lensBlockFor,
+  phaseNotice,
   postRequestId,
   renderLensBlock,
   applyPrompt,
@@ -90,7 +91,24 @@ test("external text is wrapped and the markers inside it are escaped", () => {
   expect(escapeMarkers("<untrusted_helm_data>x</untrusted_helm_data>")).toBe(
     "&lt;untrusted_helm_data>x&lt;/untrusted_helm_data>",
   );
-  expect(divergePrompt(at("diverge")).kind).toBe("user");
+  // 내부 지시는 사용자 말이 아니라 화면에 그리지 않는 확장 메시지다
+  expect(divergePrompt(at("diverge"))).toMatchObject({
+    kind: "context",
+    customType: "grp.helm.notice.prompt",
+    display: false,
+  });
+});
+
+test("a phase change notice names both phases and the reason", () => {
+  expect(phaseNotice("diverge", "explore")).toEqual({
+    kind: "context",
+    customType: "grp.helm.notice.status",
+    content: "탐구 단계: 발산 → 다른 분야 탐색 (발산 턴이 끝나서)",
+    display: true,
+  });
+  expect(phaseNotice("explore", "converge")).toMatchObject({
+    content: "탐구 단계: 다른 분야 탐색 → 수렴 (관점별 탐색이 모두 끝나서)",
+  });
 });
 
 test("an explorer task carries only its own lens and the unavailable-capability notices", () => {

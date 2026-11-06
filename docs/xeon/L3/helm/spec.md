@@ -1049,7 +1049,8 @@ export type HelmReaction =
 | 경로 | 연산 | 쓰는 단계 | 내용 |
 |---|---|---|---|
 | 시스템 프롬프트 추가분 | `on("input.agent.before")` collect 기여 | `diverge`, `explore`, `converge`, `apply`의 Helm 대화 turn | `renderLensBlock(lensBlockFor(state))`를 현재 시스템 프롬프트 끝에 붙인다 |
-| turn 입력 | `loop.turn({ input })` | `diverge`, `apply` | `divergePrompt(state)`, `applyPrompt(state)` |
+| turn 입력 | `loop.turn({ input })` | `diverge`, `apply` | `divergePrompt(state)`, `applyPrompt(state)`. 내부 지시라 `kind: "context"`, `customType: "grp.helm.notice.prompt"`, `display: false`로 넣어 사용자 말풍선으로 보이지 않는다 [제안: 기본값] |
+| 단계 안내 | `post` | 단계 전이(`diverge→explore→converge→apply`) | `phaseNotice(from, to)`: "탐구 단계: X → Y (이유)" 한 줄, `kind: "context"`, `customType: "grp.helm.notice.status"`, `display: true`, `when: "next"`. 이유는 전이마다 정해진 문장이다 [제안: 기본값] |
 | 입력 큐 | `post` | 제안, 상한 도달·부분 실패·종료 알림 | `kind: "context"`, `display: true`, `when: "next"`(adr.0013). 단계 중간에 방법 힌트를 넣을 때만 `when: "steer"`이고, drive 락을 가진 탐구 turn이 실행 중일 때로 한정한다 |
 
 - collect 패치 [결정: ADR-0017]: `input.agent.before`는 collect 훅이다. 모든 핸들러가 원본 `payload`(`prompt`, `systemPrompt`)를 받고 반환값(`BeforeAgentStartPatch`의 `systemPrompt`, `message`)이 등록 순서로 모인다. 시스템 프롬프트 교체값은 마지막으로 정의한 핸들러가 이긴다. Helm 핸들러는 `{ systemPrompt: payload.systemPrompt + "\n\n" + block }`을 돌려준다. 다른 그룹이 같은 훅에서 교체값을 내면 순서에 따라 한쪽이 이긴다 [미결: 병합 규칙이 바뀌면 이 문장을 고친다].

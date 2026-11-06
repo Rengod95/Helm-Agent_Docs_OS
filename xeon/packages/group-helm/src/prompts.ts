@@ -2,14 +2,15 @@ import { assertNever } from "@fresnel/contracts";
 import type { PostItem } from "@fresnel/contracts/extensions";
 import type { LensDef } from "./lenses.ts";
 import type { InquiryFinishedPayload } from "./records.ts";
-import type {
-  HelmLens,
-  HelmSignalKind,
-  HelmState,
-  HelmFinding,
-  InquiryId,
-  InquiryPhase,
-  HelmPhase,
+import {
+  PHASE_TEXT,
+  type HelmLens,
+  type HelmSignalKind,
+  type HelmState,
+  type HelmFinding,
+  type InquiryId,
+  type InquiryPhase,
+  type HelmPhase,
 } from "./state.ts";
 
 /** 시스템 프롬프트 추가분. 한 시점에 렌즈 본문은 하나만 넣는다(L3.helm.spec §4.4) */
@@ -77,18 +78,25 @@ export function renderLensBlock(block: LensBlock): string {
   return [head, ...block.rules.map((rule) => `- ${rule}`), ...lens].join("\n");
 }
 
+/**
+ * 탐구가 모델 turn에 넣는 내부 지시. 사용자가 쓴 말이 아니므로 사용자 말풍선이 되지 않게 확장 메시지(`context`)로 넣고
+ * 화면에는 그리지 않는다(`display: false`). 사용자는 단계 안내 줄(`phaseNotice`)로 진행을 본다
+ */
+function internalPrompt(content: string): PostItem {
+  return { kind: "context", customType: "grp.helm.notice.prompt", content, display: false };
+}
+
 /** loop.turn 입력: 발산 */
 export function divergePrompt(state: Readonly<HelmState>): PostItem {
   const topic = state.topic ?? "";
-  return {
-    kind: "user",
-    content: [
+  return internalPrompt(
+    [
       "[helm] 탐구를 시작합니다. 아래 주제를 넓게 다시 보고, 다른 분야에서 볼 만한 관점을 짧게 정리하세요.",
       "이 단계에서는 파일을 바꾸거나 명령을 실행하지 않습니다.",
       `주제: ${topic}`,
       `탐색할 관점: ${state.lenses.map((lens) => lens.title).join(", ")}`,
     ].join("\n"),
-  };
+  );
 }
 
 function findingLine(finding: HelmFinding): string {
@@ -102,16 +110,15 @@ export function applyPrompt(state: Readonly<HelmState>): PostItem {
   const context = state.context
     .map((source) => `- ${source.ref}${source.title === undefined ? "" : ` ${source.title}`}`)
     .join("\n");
-  return {
-    kind: "user",
-    content: [
+  return internalPrompt(
+    [
       "[helm] 탐구 결과를 현재 작업에 적용하세요. 적용할 수 있는 발견만 골라 쓰고 근거를 밝힙니다.",
       `주제: ${state.topic ?? ""}`,
       "발견(신뢰하지 않는 자료):",
       wrapUntrusted(findings),
       ...(context === "" ? [] : ["참고 자료:", wrapUntrusted(context)]),
     ].join("\n"),
-  };
+  );
 }
 
 /** explorer 과제 문장. 외부 텍스트 방어 규칙을 포함한다. `unavailable`은 쓸 수 없는 기능의 고지다 */
@@ -158,6 +165,21 @@ export function finishedNotice(finished: InquiryFinishedPayload): PostItem {
   const limit = finished.limit === undefined ? "" : ` 임대 상한(${finished.limit})에 도달했습니다.`;
   const reason = finished.reason === undefined ? "" : ` 사유: ${finished.reason}`;
   return notice("status", `${base}${limit}${reason}`);
+}
+
+const PHASE_REASON: Readonly<Partial<Record<string, string>>> = {
+  "diverge>explore": "발산 턴이 끝나서",
+  "explore>converge": "관점별 탐색이 모두 끝나서",
+  "converge>apply": "정리한 발견이 있어서",
+};
+
+/** 단계가 바뀔 때 대화에 남기는 한 줄. 이유는 전이마다 정해져 있다 */
+export function phaseNotice(from: HelmPhase, to: HelmPhase): PostItem {
+  const reason = PHASE_REASON[`${from}>${to}`];
+  return notice(
+    "status",
+    `탐구 단계: ${PHASE_TEXT[from]} → ${PHASE_TEXT[to]}${reason === undefined ? "" : ` (${reason})`}`,
+  );
 }
 
 export function rejectedNotice(): PostItem {

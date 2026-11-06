@@ -349,3 +349,12 @@ export async function updateState(
   if (!settled.ok) return rethrow(settled.error.cause);
   return settled.value;
 }
+
+/** 단계 이름. 사용자에게 보이는 글이다 */
+export const PHASE_TEXT: Readonly<Record<HelmPhase, string>> = {
+  idle: "대기",
+  diverge: "발산",
+  explore: "다른 분야 탐색",
+  converge: "수렴",
+  apply: "적용",
+};

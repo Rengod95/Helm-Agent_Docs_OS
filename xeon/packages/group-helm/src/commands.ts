@@ -3,6 +3,7 @@ import type { GroupApi } from "@fresnel/group-sdk";
 import type { HelmCommandError } from "./failures.ts";
 import { inquiryIdFrom } from "./signals.ts";
 import {
+  PHASE_TEXT,
   updateState,
   type HelmLens,
   type HelmPhase,
@@ -136,14 +137,6 @@ export function commandErrorText(error: HelmCommandError): string {
       return assertNever(error, "HelmCommandError");
   }
 }
-
-const PHASE_TEXT: Readonly<Record<HelmPhase, string>> = {
-  idle: "대기",
-  diverge: "발산",
-  explore: "다른 분야 탐색",
-  converge: "수렴",
-  apply: "적용",
-};
 
 /** 상태 한 줄 문장. `missingMeta`가 있으면 도구 메타 없음 경고를 붙인다 */
 export function statusText(view: HelmStatusView, missingMeta: readonly string[]): string {

@@ -19,6 +19,7 @@ import {
   divergePrompt,
   explorerTask,
   finishedNotice,
+  phaseNotice,
   postRequestId,
 } from "./prompts.ts";
 import { reactionOf } from "./reaction.ts";
@@ -112,6 +113,18 @@ async function step(g: DriveApi, event: HelmEvent): Promise<Result<void, HelmFai
     await g.post(finishedNotice(finished), {
       when: "next",
       requestId: `${postRequestId(finished.inquiryId, before.phase, before.round)}:${finished.outcome === "limit" ? "limit" : "finished"}`,
+    });
+  }
+  const next = transition(before, event).state;
+  if (
+    before.inquiryId !== null &&
+    before.phase !== "idle" &&
+    next.phase !== "idle" &&
+    before.phase !== next.phase
+  ) {
+    await g.post(phaseNotice(before.phase, next.phase), {
+      when: "next",
+      requestId: `${postRequestId(before.inquiryId, before.phase, before.round)}:phase`,
     });
   }
   const written = await updateState(g, (current) => transition(current, event).state);
