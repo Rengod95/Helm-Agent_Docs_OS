@@ -4057,6 +4057,8 @@
   "desktop.settings.plugins.settings": "Group settings",
   "settings.ext.enabled.label": "Enable {name}",
   "settings.ext.isolation.label": "{name} isolation",
+  "settings.ext.isolation.option.none": "No isolation",
+  "settings.ext.isolation.option.process": "Separate process",
   "ext.name.coreAgents": "Subagents",
   "ext.name.coreContext": "Context",
   "ext.name.coreLoop": "Agent loop",

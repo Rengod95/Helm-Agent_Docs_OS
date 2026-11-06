@@ -17,7 +17,7 @@ import {
 } from "./settings-text.ts";
 
 // 개요 탭(P-09 시안 `overview-tab.tsx`): "설정 파일"(경로는 `settings.readFile`의 `path`), "지금 상태", "화면 진단"(진단 복사) 카드.
-const ROWS_CLASS =
+export const ROWS_CLASS =
   "rounded-none [--cs-size-list-term:9rem] [&_[data-slot=list-description-row]]:px-0 @max-[26rem]:[&_[data-slot=list-description-row]]:grid-cols-[minmax(0,1fr)_auto] @max-[26rem]:[&_[data-slot=list-description-term]]:col-span-full";
 
 const count = (n: number): string => t("desktop.settings.overview.count", { count: n });

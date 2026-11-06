@@ -542,6 +542,27 @@ describe("labels, help and the restart banner come from the catalog", () => {
     expect(field()?.label).toBe("Enable Helm");
   });
 
+  test("an extension setting label uses the catalog extension name, not the manifest English name (rtE R-6c)", () => {
+    const isolation = wireDef({
+      key: "ext.account-rotation.isolation",
+      type: { type: "string" },
+      ui: {
+        tab: "plugins",
+        widget: "select",
+        order: 20,
+        label: "Account rotation isolation",
+        labelKey: "settings.ext.isolation.label",
+        labelArgs: { name: "Account rotation" },
+      },
+    });
+    const field = (): FieldVM | undefined =>
+      fieldOf(viewOf([isolation], valuesOf(effectiveOf(isolation.key, "none"))), isolation.key);
+    setActiveLocale("ko");
+    expect(field()?.label).toBe("계정 회전 격리");
+    setActiveLocale("en");
+    expect(field()?.label).toBe("Account rotation isolation");
+  });
+
   test("without labelKey, or with a key the catalog does not have, the definition text is shown in both locales", () => {
     const plain = wireDef({
       key: "l4.plain",

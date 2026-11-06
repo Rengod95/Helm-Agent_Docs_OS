@@ -352,6 +352,8 @@ describe("advanced tab groups and option labels", () => {
   test("an option label comes from the catalog and falls back to the raw value", () => {
     expect(optionLabelOf("l0.sandbox.onUnavailable", "run_unsandboxed")).toBe("격리 없이 실행");
     expect(optionLabelOf("l0.secrets.ageKey.source", "auto-file")).toBe("자동(파일 우선)");
+    expect(optionLabelOf("ext.account-rotation.isolation", "none")).toBe("격리 안 함");
+    expect(optionLabelOf("ext.account-rotation.isolation", "process")).toBe("별도 프로세스");
     expect(optionLabelOf("l9.unknown.key", "raw-value")).toBe("raw-value");
   });
 

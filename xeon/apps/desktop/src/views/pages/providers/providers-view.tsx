@@ -243,7 +243,8 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
   const title = t("desktop.providers.rotation.title");
   return (
     <div data-slot="rotation-row" className="grid gap-1.5">
-      <span className="text-ui font-medium text-text-primary">{title}</span>
+      {/* 섹션 제목(설정의 패널 머리)이 이미 같은 글이라 눈에는 한 번만 보이고, 읽기 도구에는 이름으로 남는다(rtE R-6b) */}
+      <span className="sr-only">{title}</span>
       <Switch
         size="sm"
         aria-label={title}

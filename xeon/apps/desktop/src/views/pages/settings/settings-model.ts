@@ -373,7 +373,10 @@ function camel(word: string): string {
  */
 export function optionLabelOf(key: SettingKey, option: string | number): string {
   const text = optionTextOf(option);
-  const base = `settings.${camel(key)}`;
+  // 확장마다 있는 격리 설정(`ext.<이름>.isolation`)은 선택지 문구를 한 벌로 둔다(rtE R-6c)
+  const base = /^ext\.[^.]+\.isolation$/.test(key)
+    ? "settings.ext.isolation"
+    : `settings.${camel(key)}`;
   return tKey(`${base}.option.${camel(text)}`, text);
 }
 

@@ -154,6 +154,21 @@ function textOf(
   return key === undefined ? text : tKey(key, text, args);
 }
 
+/**
+ * 확장 설정(`ext.<이름>.…`)의 문구에 들어가는 확장 이름. 카탈로그에 `ext.name.<camelCase 이름>`이 있으면 그 이름이고, 없으면 정의가 실은 이름이다.
+ * 정의는 매니페스트의 영어 `displayName`을 싣으므로 화면에서 사람 말 이름으로 바꾼다(rtE R-6c)
+ */
+function labelArgsOf(
+  key: string,
+  args: Readonly<Record<string, string>> | undefined,
+): Readonly<Record<string, string>> | undefined {
+  const name = args?.["name"];
+  const id = /^ext\.([^.]+)\./.exec(key)?.[1];
+  if (args === undefined || name === undefined || id === undefined) return args;
+  const camel = id.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+  return { ...args, name: tKey(`ext.name.${camel}`, name) };
+}
+
 /** 설명. 설명 문구와 키가 모두 없으면 null이다 */
 function helpOf(ui: SettingUi): string | null {
   if (ui.help === undefined && ui.helpKey === undefined) return null;
@@ -174,7 +189,7 @@ function fieldOf(
     key: def.key,
     tab,
     order: ui.order,
-    label: textOf(ui.label, ui.labelKey, ui.labelArgs),
+    label: textOf(ui.label, ui.labelKey, labelArgsOf(def.key, ui.labelArgs)),
     help: helpOf(ui),
     widget,
     value: facts.value,
