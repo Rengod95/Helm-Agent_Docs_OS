@@ -1,17 +1,52 @@
 import { t } from "@fresnel/client/i18n";
+import type { ThreadId } from "@fresnel/contracts/conversation";
 import { ScrollArea } from "@caustic/react";
 import type { ReactNode } from "react";
-import { useApprovalIds, useOpenThreadId } from "../state/engine/index.ts";
+import {
+  useApprovalIds,
+  useApprovalMirror,
+  useOpenThreadId,
+  useThreadSummaries,
+} from "../state/engine/index.ts";
 import { InboxNotices } from "./notices.tsx";
 import { ApprovalCardList } from "./approval-card/approval-card.tsx";
+import {
+  arrangeInboxApprovals,
+  inboxRowsOf,
+  inboxThreadIdsOf,
+  type InboxSort,
+  type InboxThread,
+} from "./inbox-model.ts";
 
 // 승인 대기열의 마운트 자리 두 곳. 카드 본문과 단추는 approval-card/가 그린다(네 종류가 세 자리에서 같다).
 // 트랜스크립트 끝은 ApprovalQueue, 끝 영역 받은 요청 탭은 InboxApprovals다. P-03 목록은 아직 없어 ApprovalCardList를 그대로 쓴다.
 // 대화 이름 링크는 트랜스크립트 밖에서만 보인다: 트랜스크립트 끝은 열린 대화를 `within`으로 넘기고, 받은 요청은 넘기지 않는다.
 
-/** 끝 영역 받은 요청 탭. 트랜스크립트 아래와 같은 카드를 쓴다(`approval.resolved`로 함께 사라진다) */
-export function InboxApprovals(props: { readonly show?: InboxFilter }): ReactNode {
-  const ids = useApprovalIds();
+/** 대화 셀렉트의 항목 하나: 대기 승인이 있는 대화. 이름이 없으면 title이 null이다 */
+export type InboxThreadChoice = { readonly id: ThreadId; readonly title: string | null };
+
+/** 대기 승인이 있는 대화를 승인 순서대로 돌려준다. 이름은 대화 요약에서 읽고 카드 머리와 같은 값이다 */
+export function useInboxThreads(): readonly InboxThreadChoice[] {
+  const approvals = useApprovalMirror();
+  const summaries = useThreadSummaries();
+  return inboxThreadIdsOf(inboxRowsOf(approvals.ids, approvals.byId)).map((id) => ({
+    id,
+    title: summaries.find((summary) => summary.threadId === id)?.title ?? null,
+  }));
+}
+
+/** 끝 영역 받은 요청 탭과 받은 요청 화면. 트랜스크립트 아래와 같은 카드를 쓴다(`approval.resolved`로 함께 사라진다).
+ * 대화와 정렬은 승인 구역만 거른다. 기본은 모든 대화이고 오래된 것 먼저다 */
+export function InboxApprovals(props: {
+  readonly show?: InboxFilter;
+  readonly thread?: InboxThread;
+  readonly sort?: InboxSort;
+}): ReactNode {
+  const approvals = useApprovalMirror();
+  const ids = arrangeInboxApprovals(inboxRowsOf(approvals.ids, approvals.byId), {
+    thread: props.thread ?? "all",
+    sort: props.sort ?? "oldest",
+  });
   const show = props.show ?? "all";
   const heads = show === "all";
   return (

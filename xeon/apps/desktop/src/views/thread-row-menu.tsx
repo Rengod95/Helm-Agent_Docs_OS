@@ -17,6 +17,7 @@ import {
 import { Ellipsis } from "@caustic/react/icons";
 import { useRef, useState, type ReactNode } from "react";
 import { useCommands, type CommandError } from "./commands.ts";
+import { runThreadCompact } from "./thread-compact.ts";
 import { ThreadExportDialog } from "./thread-export-dialog.tsx";
 
 // 대화 행 ⋯ 메뉴(d01-chat-gaps). 이름 바꾸기, 분기, 대화 요약, 내보내기, 닫기, 지우기. 지우기는 확인 창을 거친다.
@@ -109,7 +110,7 @@ export function ThreadRowMenu(props: {
         <MenuItem
           disabled={running || closed}
           onSelect={() => {
-            run(commands.compactThread(props.id));
+            runThreadCompact(commands, props.id);
           }}
         >
           {t("desktop.threads.menu.compact")}
