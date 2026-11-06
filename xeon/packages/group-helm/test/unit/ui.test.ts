@@ -384,7 +384,7 @@ test("ui.text: the page and panel show the real status, lens, finding and past i
     "캐시 무효화",
     "발견",
     "0",
-    "held",
+    "탐구하는 중이에요",
   ]);
   expect(textsOf(page, root)).toEqual([
     "대기",
@@ -392,22 +392,22 @@ test("ui.text: the page and panel show the real status, lens, finding and past i
     "다른 분야 탐색",
     "수렴",
     "적용",
-    "held",
+    "탐구하는 중이에요",
     "다른 분야의 유사 문제",
-    "running",
+    "진행 중",
     "선행 사례와 문헌",
-    "running",
+    "진행 중",
     "기본 원리로 다시 보기",
-    "running",
+    "진행 중",
     "면역 기억을 닮은 재검증",
-    "medium",
+    "보통",
     "선행 사례: 버전 태그 캐시",
-    "medium",
+    "보통",
     "전제: 무효화는 일관성 비용이다",
-    "medium",
+    "보통",
     "캐시 무효화",
-    "finished",
-    "applied",
+    "끝남",
+    "적용됨",
   ]);
 });
 
@@ -416,7 +416,7 @@ test("ui.bind: the finished card resolves against the real finished record and s
   const card = await treeOf("./ui/helm-finished.view.json");
   const scope: Scope = { root: real.finished, items: [] };
   expect(unresolvedOf(card, scope)).toEqual([]);
-  expect(textsOf(card, scope)).toEqual(["캐시 무효화", "applied", "발견", "3"]);
+  expect(textsOf(card, scope)).toEqual(["캐시 무효화", "적용됨", "발견", "3"]);
 });
 
 test("ui.bind: the suggestion card shows only for a suggested signal and resolves its payload", async () => {
@@ -449,4 +449,18 @@ test("ui.bind: a path that the result does not have is reported, so the check is
   expect(unresolvedOf(bound, { root: { status: real.status }, items: [] })).toEqual([
     " bind.text /status/nope",
   ]);
+});
+
+test("ui.text: no tree shows a stored English key through a Badge bind", async () => {
+  const trees = await Promise.all(
+    ["helm-inquiry", "helm-panel", "helm-finished"].map((id) => {
+      const file = nativeFiles().find((entry) => entry.id === id)?.file;
+      if (file === undefined) throw new Error(`${id} has no tree file`);
+      return treeOf(file);
+    }),
+  );
+  const rawBadges = (node: UiNode): number =>
+    (node.type === "Badge" && node.bind?.text !== undefined ? 1 : 0) +
+    (node.children ?? []).reduce((sum, child) => sum + rawBadges(child), 0);
+  expect(trees.map(rawBadges)).toEqual([0, 0, 0]);
 });

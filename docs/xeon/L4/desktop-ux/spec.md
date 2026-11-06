@@ -1410,7 +1410,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 오프라인: 마지막 상태를 흐리게 보이고 시작·멈춤 잠금.
   - 권한 필요: Helm 꺼짐 또는 안전 모드(D) "안전 모드에서는 그룹을 불러오지 않아요".
   - 긴 내용: 발견 24개 상한, 렌즈별로 접기, 출처는 4개까지.
-- 상호작용: 단계 표시는 `Stepper` 4단계, 렌즈 진행은 `ActivityTree`(렌즈 = 노드, 상태 pending, running, done, failed, skipped). explore 동안 탭 머리에 "쓰기 도구 거부 중" `Badge tone="warning"`. 상한에 걸리면 어느 상한(turns, spawns, tokens)인지와 남은 단계를 문장으로 보입니다. 탐구 시작은 주제 입력 칸(`TextField`)이 든 폼이라 주제를 적으면 `/helm start <주제>`를, 비우면 `/helm start`만 보내고 주제는 마지막 입력에서 뽑은 낱말(앞 3개)로 정해집니다(칸 안내: "비우면 마지막 입력에서 뽑은 낱말로 정해요"). 칸은 300자까지만 받고 머리 줄에 "글자 수/300"을 보입니다(`TextField`의 `maxLength` 속성, 선언형 화면 공통).
+- 상호작용: 단계 표시는 `Stepper` 4단계, 렌즈 진행은 `ActivityTree`(렌즈 = 노드, 상태 pending, running, done, failed, skipped). explore 동안 탭 머리에 "쓰기 도구 거부 중" `Badge tone="warning"`. 상한에 걸리면 어느 상한(turns, spawns, tokens)인지와 남은 단계를 문장으로 보입니다. 탐구 시작은 주제 입력 칸(`TextField`)이 든 폼이라 주제를 적으면 `/helm start <주제>`를, 비우면 `/helm start`만 보내고 주제는 마지막 입력에서 뽑은 낱말(앞 3개)로 정해집니다(칸 안내: "비우면 마지막 입력에서 뽑은 낱말로 정해요"). 패널·지난 탐구·결과 카드의 상태 값은 저장 값(`held`, `running`, `finished`, `failed` 등)이 아니라 `/helm` 결과 글과 같은 말로 보입니다(탐구하는 중이에요·시작을 기다리는 중이에요·쉬는 중이에요, 렌즈 대기·진행 중·끝남·실패·건너뜀, 결과 적용됨·발견 없음·멈춤·상한에 걸림·실패, 신뢰도 높음·보통·낮음). 화면 트리에는 값을 말로 바꾸는 서식이 없어 값마다 `when`이 걸린 글자 `Badge`를 둡니다(L3.helm.spec §3.9). 칸은 300자까지만 받고 머리 줄에 "글자 수/300"을 보입니다(`TextField`의 `maxLength` 속성, 선언형 화면 공통).
 - 접근성: 단계 바뀜과 탐구 끝을 `aria-live="polite"`로 한 번씩 알립니다.
 - caustic: `Stepper`, `ActivityTree`, `ToolCall`(렌즈 실행 행 대용), `Card`, `Badge`, `Progress`, `Button`, `Input`, `EmptyState`, `AgentWorkArea`는 쓰지 않습니다(캔버스 전용).
 
