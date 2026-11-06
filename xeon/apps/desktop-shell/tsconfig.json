@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "lib": ["es2024", "esnext.disposable", "dom"],
+    "types": ["bun"]
+  },
+  "include": ["src", "test", "scripts"],
+  "references": [{ "path": "../../packages/contracts" }]
+}

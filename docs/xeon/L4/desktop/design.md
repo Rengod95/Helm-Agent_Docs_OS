@@ -5,7 +5,7 @@ domain: desktop
 kind: design
 status: draft
 depends_on: [L4.desktop.spec, adr.0010, eng.frontend-state.guide, F.wire-settings.spec, F.conversation.spec, F.records.spec]
-binds: [xeon/apps/desktop/**]
+binds: [xeon/apps/desktop/**, xeon/apps/desktop-shell/**]
 ---
 
 # L4 데스크톱 프런트엔드 상태 설계
@@ -1759,3 +1759,23 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 11. [가정] 숨겨진 창에서는 타이머도 늦춰진다(WebKit 약 1초, Chromium은 오래 숨기면 분 단위. MDN `setTimeout`의 지연 이유). 프레임 커밋 큐는 그동안 쌓인다. 델타 50건/초 × 60초 = 3,000개의 작은 입력이고 reducer 비용은 입력당 수 µs라 문제가 아니라고 본다. 복귀 때 큐 길이와 첫 커밋 ms를 S5에서 잰다. 길어지면 큐 길이 상한에서 동기 커밋을 건다.
 12. [미결] `subscribed(head)`가 `threads`, `transcript`, `approvals`를 비운 뒤 `thread.list`와 스냅샷이 올 때까지 `link`는 `live`이고 목록은 비어 있다. 화면이 "비어 있음"과 "아직 읽는 중"을 구분할 신호(`Threads`·`Transcript`의 loaded 표시, 또는 `link`의 `loading` 단계)가 없다. `thread.list` 실패는 로그만 남는다(12.7). 구현 때 `threads`에 `status: "loading" | "ready"`를 더하고 실패를 `subscribe_failed`와 같은 시도 상한에 태운다.
 13. [미결] 재설정(`reducer_failed`, `out_of_range`, `store_changed`)은 `approvals`를 비운다. `approval.list`(2번)가 생기기 전에는 대기 중이던 승인이 화면에서 사라지고 turn은 응답을 기다린다. `ThreadSummary.pendingApprovals`가 thread별 수만 보인다. 2번을 M2 F 요청의 필수 항목으로 올리고, 그 전까지 `pendingApprovals > 0`인 thread에 "승인 대기 중, 목록을 불러오지 못함" 표시를 둔다.
+
+## 15. Electron 셸의 구조 (ADR 성격, `L4.desktop.spec` §11)
+
+[결정: 2026-11-06 사용자] 셸 구현이 Electron으로 바뀐다. 이 절은 UI와 셸의 경계 설계를 적는다.
+
+### 15.1 UI 쪽 어댑터
+
+`apps/desktop/src/shell/`이 셸 호출을 한 곳으로 모은다. `ShellBridge`는 `invoke(command, args)`, `invokeBytes(command, body, headers)`, `createChannel(onMessage)`, `listen(event, onEvent)`를 가진다. Tauri 구현은 `@tauri-apps/api`의 `invoke`, `Channel`, `listen`을 그대로 감싸고, Electron 구현은 preload의 `window.fresnelShell`을 감싼다. `detectShell()`이 실행 때 하나를 고르고 둘 다 없으면 `null`(웹)이다. `transport/ipc.ts`의 `DesktopIpc`와 화면 쪽 `*Invoke` 함수들은 어댑터를 거친다.
+
+### 15.2 Tauri capability 대응표
+
+(각 모듈이 들어올 때 행을 채운다. 최종 검토는 사용자 몫이다.)
+
+| Tauri capability / 설정 | Electron 대응 |
+|---|---|
+| `core:default` 외 플러그인 권한을 WebView에 주지 않음 | preload가 `invoke`, 채널, 이벤트만 내놓음. ipcRenderer와 Node API는 renderer에 없음 |
+| 명령별 `allow-*` 허용 | `ctx.handle`로 등록된 명령만 닿음. 등록 없으면 `unknown-command` |
+| 원격 URL의 IPC 접근 없음(`remote` 비어 있음) | 발신 프레임이 최상위 `app://localhost`가 아니면 `forbidden-frame` |
+| `fresnel-view://` 프레임은 IPC에 닿지 못함 | 같은 프레임 검사(자식 프레임 거부) |
+| CSP(`tauri.conf.json`) | `app://` 응답 헤더의 CSP, 같은 지시문 |
