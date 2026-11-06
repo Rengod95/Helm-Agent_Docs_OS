@@ -2,7 +2,8 @@
 import { assertNever, type Result } from "@fresnel/contracts";
 import type { RunControl, TestFailure } from "@fresnel/client/workbench";
 import type { ExtTestRunParams } from "@fresnel/contracts/wire";
-import type { CommandError, TestCommands } from "../commands.ts";
+import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { Commands, CommandError, TestCommands } from "../commands.ts";
 import { testFailureOf } from "./tests-text.ts";
 
 /** 동작의 결과. 실패는 화면이 쓰는 실패 종류로 줄여 든다 */
@@ -40,14 +41,14 @@ export async function phaseOf(tests: TestCommands, threadId: string): Promise<st
   return got.ok ? got.value.phase : null;
 }
 
-/** 시험 시작(`ext.test.run`). replay와 Test run이 같은 호출을 쓴다. 성공하면 시험 id를 돌려준다 */
+/** 시험 시작(`ext.test.run`). replay와 Test run이 같은 호출을 쓴다. 성공하면 시험 id와(Test run이면) 시험 대화 id를 돌려준다 */
 export async function startTest(
   tests: TestCommands,
   params: ExtTestRunParams,
-): Promise<ActionOutcome<string>> {
+): Promise<ActionOutcome<{ readonly testId: string; readonly threadId: string | null }>> {
   const started = await tests.run(params);
   return started.ok
-    ? { ok: true, value: started.value.testId }
+    ? { ok: true, value: { testId: started.value.testId, threadId: started.value.threadId } }
     : { ok: false, failure: testFailureOf(started.error) };
 }
 
@@ -57,4 +58,18 @@ export async function createTestRunThread(
   profileId?: string,
 ): Promise<ActionOutcome<string>> {
   return outcomeOf(await tests.createTestRun(profileId));
+}
+
+/**
+ * Test run의 과제를 시험 대화의 첫 턴으로 보낸다. 대화를 열고(`selectThread`) 보낸다. 실패는 화면이 쓰는 실패 종류로 돌려준다.
+ * 이미 만든 시험 대화와 기록은 지우지 않는다(대화에서 다시 보낼 수 있다).
+ */
+export async function sendTestPrompt(
+  commands: Pick<Commands, "selectThread" | "sendTurn">,
+  threadId: ThreadId,
+  prompt: string,
+  requestId: string,
+): Promise<ActionOutcome<null>> {
+  commands.selectThread(threadId);
+  return outcomeOf(await commands.sendTurn(threadId, prompt, requestId));
 }

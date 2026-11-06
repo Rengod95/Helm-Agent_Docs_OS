@@ -64,7 +64,7 @@ export async function replayTrialRun(
   const listed = await tests.list();
   if (!listed.ok) return { ok: true, report: null };
   const record: ExtTestRecord | undefined = listed.value.find(
-    (item) => item.testId === started.value,
+    (item) => item.testId === started.value.testId,
   );
   return { ok: true, report: record?.replay ?? null };
 }

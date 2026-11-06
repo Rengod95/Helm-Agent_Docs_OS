@@ -209,6 +209,8 @@ export const DEFAULT_RUNS = "3";
 export interface NewTestDraft {
   readonly kind: NewTestKind;
   readonly target: string;
+  /** Test run의 과제. 시험 대화를 열고 첫 턴으로 보낸다(Test run만 쓴다) */
+  readonly prompt: string;
   readonly maxCommits: string;
   readonly runs: string;
 }
@@ -216,11 +218,14 @@ export interface NewTestDraft {
 export const NEW_TEST_DEFAULT: NewTestDraft = {
   kind: "testRun",
   target: "",
+  prompt: "",
   maxCommits: DEFAULT_MAX_COMMITS,
   runs: DEFAULT_RUNS,
 };
 
-export type NewTestField = "target" | "maxCommits" | "runs";
+export const TEST_PROMPT_MAX = 8000;
+
+export type NewTestField = "target" | "prompt" | "maxCommits" | "runs";
 
 export interface NewTestError {
   readonly field: NewTestField;
@@ -238,6 +243,11 @@ export function draftErrorsOf(draft: NewTestDraft): readonly NewTestError[] {
   const target = draft.target.trim();
   if (target === "") errors.push({ field: "target", reason: "required" });
   else if (target.length > TEST_TARGET_MAX) errors.push({ field: "target", reason: "tooLong" });
+  if (draft.kind === "testRun") {
+    const prompt = draft.prompt.trim();
+    if (prompt === "") errors.push({ field: "prompt", reason: "required" });
+    else if (prompt.length > TEST_PROMPT_MAX) errors.push({ field: "prompt", reason: "tooLong" });
+  }
   if (draft.kind === "replay") {
     const commits = integerOf(draft.maxCommits);
     if (commits === null || commits < REPLAY_MAX_COMMITS.min || commits > REPLAY_MAX_COMMITS.max) {
@@ -259,7 +269,13 @@ export type SubmitPlan =
   | { readonly kind: "unwired" }
   | { readonly kind: "invalid"; readonly errors: readonly NewTestError[] }
   /** `confirm`이 참이면 실행 전에 예상 실행 수와 비용 범위를 확인한다 */
-  | { readonly kind: "run"; readonly params: ExtTestRunParams; readonly confirm: boolean };
+  | {
+      readonly kind: "run";
+      readonly params: ExtTestRunParams;
+      /** Test run이면 시험 대화의 첫 턴으로 보낼 과제(앞뒤 공백을 뺀 것), 아니면 null */
+      readonly prompt: string | null;
+      readonly confirm: boolean;
+    };
 
 export function submitPlanOf(draft: NewTestDraft, devMode: boolean): SubmitPlan {
   const item = newTestItemOf(draft.kind, devMode);
@@ -272,6 +288,7 @@ export function submitPlanOf(draft: NewTestDraft, devMode: boolean): SubmitPlan 
       return {
         kind: "run",
         params: { kind: "testRun", target: draft.target.trim() },
+        prompt: draft.prompt.trim(),
         confirm: item.costConfirm,
       };
     case "replay":
@@ -282,6 +299,7 @@ export function submitPlanOf(draft: NewTestDraft, devMode: boolean): SubmitPlan 
           target: draft.target.trim(),
           options: { maxCommits: Number(draft.maxCommits.trim()) },
         },
+        prompt: null,
         confirm: item.costConfirm,
       };
     case "benchmark":

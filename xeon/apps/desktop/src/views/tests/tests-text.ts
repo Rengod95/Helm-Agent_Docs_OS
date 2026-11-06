@@ -84,6 +84,10 @@ export function newTestErrorTextOf(error: NewTestError): MessageId {
       return error.reason === "tooLong"
         ? "desktop.tests.error.targetTooLong"
         : "desktop.tests.error.targetRequired";
+    case "prompt":
+      return error.reason === "tooLong"
+        ? "desktop.tests.error.promptTooLong"
+        : "desktop.tests.error.promptRequired";
     case "maxCommits":
       return "desktop.tests.error.maxCommits";
     case "runs":

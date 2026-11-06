@@ -200,7 +200,7 @@ describe("새 테스트 시트", () => {
     expect(empty).toContain("대상 이름을 적어 주세요.");
     expect(empty).not.toContain("최대 커밋 수");
     expect(submitPlanOf(NEW_TEST_DEFAULT, false).kind).toBe("invalid");
-    const named = { ...NEW_TEST_DEFAULT, target: "demo-plugin" };
+    const named = { ...NEW_TEST_DEFAULT, target: "demo-plugin", prompt: "1+1은?" };
     const filled = renderToString(
       <NewTestForm id="new-test" draft={named} devMode={false} onChange={NOOP} onSubmit={NOOP} />,
     );
@@ -208,6 +208,7 @@ describe("새 테스트 시트", () => {
     expect(submitPlanOf(named, false)).toEqual({
       kind: "run",
       params: { kind: "testRun", target: "demo-plugin" },
+      prompt: "1+1은?",
       confirm: false,
     });
   });
