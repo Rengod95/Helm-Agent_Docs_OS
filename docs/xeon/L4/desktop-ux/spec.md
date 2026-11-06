@@ -1681,6 +1681,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 빈: `TabVM.emptyText`.
   - 읽는 중: 탭 목록은 바로, 폼 `Skeleton`.
   - 오류: `FieldError` 7종(`invalidValue`, `scopeNotAllowed`, `locked`, `secretValue`, `unknownKey`, `transient`, `internal`)을 필드 아래 `Field error`로. `ViewDiagnostic`은 개요 탭 아래 "화면 진단"에 모읍니다.
+  - 개요 탭의 "설정 파일"(시안 P-09 S7)은 사용자·프로젝트·관리 정책 파일 경로를 `settings.readFile`의 `path`로 읽어 그립니다(프로젝트는 열린 대화의 작업 폴더가 있어야 정해지고, 읽지 못한 범위의 줄은 그리지 않습니다). "화면 진단" 머리 끝의 "진단 복사"는 상태줄과 같은 진단 묶음을 복사합니다.
   - 오프라인: 읽은 값을 보이고 모든 편집 잠금.
   - 권한 필요: 잠금(`managed`) 문장과 정책 파일 경로, 대화 범위는 열린 대화가 있을 때만.
   - 긴 내용: 탭 하나에 40개 넘으면 `FormLayoutSection` 묶음과 묶음 머리 고정, 표 위젯은 20행 뒤 스크롤.

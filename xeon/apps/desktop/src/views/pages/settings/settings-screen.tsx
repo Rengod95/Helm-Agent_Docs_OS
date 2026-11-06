@@ -31,6 +31,7 @@ import { PROVIDER_EDITORS, RotationPanel, useUsageState } from "../providers/pro
 import { UsagePanelView } from "../providers/providers-view.tsx";
 import { SecretsPanel } from "../secrets/secrets-screen.tsx";
 import type { FolderPickInvoke } from "../../folder-pick.ts";
+import { useSettingsFilePaths } from "./settings-file-paths.ts";
 import { RestorePanel } from "./settings-restore-screen.tsx";
 import { ToolsWebPanel, useToolsWebState } from "../tools-web/tools-web-screen.tsx";
 import {
@@ -167,6 +168,7 @@ export function SettingsPage(props: {
   const view = useMemo(() => (status === "ready" ? settingsViewOf(state) : null), [status, state]);
   const toolsWeb = useToolsWebState(live);
   const usage = useUsageState(live, threadId);
+  const filePaths = useSettingsFilePaths(live, threadId);
   const jump = useSettingsJump();
   const dirtyKeys = view === null ? [] : dirtyKeysOf(view.tabs);
 
@@ -434,6 +436,7 @@ export function SettingsPage(props: {
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
       restorePanel={<RestorePanel folderPick={props.folderPick} />}
       updatePanel={<UpdatePanel />}
+      filePaths={filePaths}
       notifyPanel={<NotifyPanel />}
       rotationPanel={
         view === null ? null : <RotationPanel view={view} live={live} handlers={fields} />

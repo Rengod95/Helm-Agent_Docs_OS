@@ -9,6 +9,7 @@ import type {
   CommandError,
   SettingsCommands,
   SettingsFileTarget,
+  SettingsReadTarget,
   SettingsWriteError,
 } from "../views/commands.ts";
 import { errorOf } from "./command-error.ts";
@@ -65,6 +66,12 @@ function scopeParamsOf(target: SettingsFileTarget) {
     : { scope: target.scope, threadId: target.threadId };
 }
 
+/** 읽기는 `managed`도 받는다. `managed`도 대화를 보내지 않는다 */
+function readParamsOf(target: SettingsReadTarget) {
+  if (target.scope === "managed") return { scope: target.scope };
+  return scopeParamsOf({ scope: target.scope, threadId: target.threadId });
+}
+
 export function createSettingsCommands(deps: SettingsDeps): SettingsCommands {
   // 로컬 원천 포트는 명령마다 하나만 만든다. 청취자는 컨트롤러가 놓을 때 떼어 낸다
   const localStore = createLocalSettingsPort(deps.local);
@@ -84,7 +91,7 @@ export function createSettingsCommands(deps: SettingsDeps): SettingsCommands {
     async readFile(target) {
       const connection = deps.session.connection();
       if (connection === null) return err({ kind: "offline" });
-      const outcome = await readSettingsFile(connection, scopeParamsOf(target));
+      const outcome = await readSettingsFile(connection, readParamsOf(target));
       return outcome.ok ? ok(outcome.value) : err(readErrorOf(outcome.error));
     },
     async writeFile(write) {

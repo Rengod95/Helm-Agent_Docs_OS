@@ -9,6 +9,8 @@ import {
 import { toSettingDefWire } from "@fresnel/contracts/settings";
 import { thr } from "../state/helpers.ts";
 import { renderToString } from "react-dom/server";
+import { CommandsContext } from "../../src/views/commands.ts";
+import { fakeCommands } from "./fake-commands.ts";
 import { DESKTOP_SETTING_DEFS } from "../../src/settings-store/defs.ts";
 import {
   SettingsPageView,
@@ -89,13 +91,18 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
     restorePanel: <p>RESTORE PANEL</p>,
     rotationPanel: null,
     usagePanel: null,
+    filePaths: [],
     handlers,
     ...over,
   };
 }
 
 function html(props: SettingsPageProps): string {
-  return renderToString(<SettingsPageView {...props} />);
+  return renderToString(
+    <CommandsContext.Provider value={fakeCommands()}>
+      <SettingsPageView {...props} />
+    </CommandsContext.Provider>,
+  );
 }
 
 const SETTINGS = [
@@ -457,5 +464,27 @@ describe("overview tab sections", () => {
     expect(out).toContain(">3개<");
     expect(out).toContain(">1개<");
     expect(out.match(/>0개</g)?.length).toBe(3);
+  });
+
+  test("draws the 설정 파일 card with the user, project and managed paths, and none when no path was read", () => {
+    const withPaths = html(
+      propsOf({
+        view,
+        tab: "overview",
+        filePaths: [
+          { scope: "user", path: "/home/me/.fresnel/settings.json" },
+          { scope: "project", path: "/repo/.fresnel/settings.json" },
+          { scope: "managed", path: "/etc/fresnel/managed.json" },
+        ],
+      }),
+    );
+    expect(withPaths).toContain(t("desktop.settings.overview.files.title"));
+    expect(withPaths).toContain("/home/me/.fresnel/settings.json");
+    expect(withPaths).toContain("/repo/.fresnel/settings.json");
+    expect(withPaths).toContain("/etc/fresnel/managed.json");
+    expect(withPaths).toContain(t("desktop.settings.overview.files.managed"));
+    expect(html(propsOf({ view, tab: "overview" }))).not.toContain(
+      t("desktop.settings.overview.files.title"),
+    );
   });
 });

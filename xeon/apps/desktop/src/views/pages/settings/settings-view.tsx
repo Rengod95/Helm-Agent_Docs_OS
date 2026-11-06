@@ -29,6 +29,7 @@ import {
 } from "./settings-model.ts";
 import { FieldRow, type DedicatedEditors, type FieldHandlers } from "./settings-field.tsx";
 import { PanelBlock } from "../shared/panel-parts.tsx";
+import type { SettingsPathRow } from "./settings-file-paths.ts";
 import { OverviewPanels } from "./settings-overview.tsx";
 import { SettingSection } from "./settings-section.tsx";
 
@@ -85,6 +86,8 @@ export interface SettingsPageProps {
   readonly usagePanel: ReactNode;
   /** 앱 업데이트 줄(B-10). 개요 탭 맨 위에 보인다. 웹이나 문맥이 없으면 `null`이다 */
   readonly updatePanel?: ReactNode | undefined;
+  /** 개요의 설정 파일 경로 목록(사용자·프로젝트·관리 정책) */
+  readonly filePaths: readonly SettingsPathRow[];
   /** OS 알림 묶음(B-10). "실행과 서비스" 탭 맨 위에 보인다. 웹이나 문맥이 없으면 `null`이다 */
   readonly notifyPanel?: ReactNode | undefined;
   readonly handlers: SettingsPageHandlers;
@@ -358,7 +361,10 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
   const emptyText =
     fields.length === 0 && tabView.emptyText !== null && tab !== "tools" ? tabView.emptyText : null;
   const hasCard = tab === "advanced" || fields.length > 0 || emptyText !== null;
-  if (tab === "overview") return <OverviewPanels view={view} updatePanel={props.updatePanel} />;
+  if (tab === "overview")
+    return (
+      <OverviewPanels view={view} updatePanel={props.updatePanel} filePaths={props.filePaths} />
+    );
   return (
     <>
       {panels}
