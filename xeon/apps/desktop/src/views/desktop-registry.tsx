@@ -1,11 +1,14 @@
 import {
   CalendarClock,
+  Compass,
   Inbox,
   Lightbulb,
+  Link,
   ListChecks,
   MessageSquare,
-  Plug,
+  WandSparkles,
 } from "@caustic/react/icons";
+import { t } from "@fresnel/client/i18n";
 import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
 import { ChatHeader } from "./chat-header.tsx";
 import { Composer } from "./composer.tsx";
@@ -57,6 +60,29 @@ function InboxTab(): ReactNode {
   return <InboxApprovals />;
 }
 
+/** 받은 요청 화면(시안 p03). 왼쪽 내비의 "받은 요청"이 무대에 연다. 끝 영역 탭과 같은 목록을 그린다 */
+function InboxScreen(): ReactNode {
+  return (
+    <section
+      aria-labelledby="inbox-heading"
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
+    >
+      <h1 id="inbox-heading" className="text-ui-strong text-text-primary">
+        {t("desktop.shell.nav.inbox")}
+      </h1>
+      <InboxApprovals />
+    </section>
+  );
+}
+
+const INBOX_SCREEN: ScreenDef = {
+  id: "inbox",
+  area: "chat",
+  label: "desktop.shell.nav.inbox",
+  icon: <Inbox />,
+  render: () => <InboxScreen />,
+};
+
 const CHAT_SCREEN: ScreenDef = {
   id: "chat",
   area: "chat",
@@ -85,7 +111,7 @@ const CONNECTION_SCREEN: ScreenDef = {
   id: "connection",
   area: "chat",
   label: "desktop.shell.nav.connection",
-  icon: <Plug />,
+  icon: <Link />,
   render: () => <ConnectionScreen />,
 };
 
@@ -94,7 +120,7 @@ const PLUGINS_SCREEN: ScreenDef = {
   id: "plugins",
   area: "chat",
   label: "desktop.shell.nav.plugins",
-  icon: <Plug />,
+  icon: <WandSparkles />,
   render: () => <PluginPagesTab />,
 };
 
@@ -134,7 +160,7 @@ const HELM_TAB: EndTabDef = {
   id: "helm",
   area: "chat",
   label: "desktop.plugin.tab.helm",
-  icon: <Plug />,
+  icon: <Compass />,
   render: () => <HelmPanelTab />,
 };
 
@@ -152,6 +178,7 @@ const WORK_TAB: EndTabDef = {
 export function createDesktopRegistry(): ShellRegistry {
   const registry = createShellRegistry();
   registry.registerScreen(CHAT_SCREEN);
+  registry.registerScreen(INBOX_SCREEN);
   registry.registerScreen(SCHEDULES_SCREEN);
   registry.registerScreen(PROPOSALS_SCREEN);
   registry.registerScreen(CONNECTION_SCREEN);
