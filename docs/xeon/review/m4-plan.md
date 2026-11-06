@@ -82,7 +82,7 @@ binds: []
 | T-CANVAS, T-TRIAL, T-VIEW, T-GK | 부분 | 개요·Test run 화면 병합. selection-sync, order-persists, view-host 시험, Helm 메서드 3개는 확인 필요 |
 | T-COMPOSE, T-A11Y, T-CLN, T-QUAL, T-JUDGE, T-SENSOR, T-CONV, T-EXPORT | 미착수 | 코드 없음. T-QUAL은 단계 0 결과 뒤 |
 | T-MEAS-*, T-VIEW-TURN/PERF, T-TEST-* | 대부분 부분 | 저장·호출·훅·읽기는 병합. `ext.test.run`·`ext.test.list`는 아직 `notImplemented`. 단계 0 실험은 dry run만 했고 현재 계정 API 실행 대기 |
-| T-RT1, T-RT2, T-CAU2 | 분류 완료, 구현은 확인 필요. T-CAU2는 C-34·C-37·C-38이 caustic main에 없음 | `5d37ce32`, `48a50681` |
+| T-RT1, T-RT2, T-CAU2 | 분류 완료, 구현은 확인 필요. T-CAU2: submodule은 caustic main `4143b43`을 가리킴. C-34·C-37·C-38·C-39가 caustic main에 없음(코드로 확인), 올릴지는 사용자 [미결] | `5d37ce32`, `48a50681` |
 
 종료 조건: Y10, Y11, Y16은 완료. Y8, Y9, Y12, Y15, Y17은 대체로 완료(시험 줄 활성화 남음). Y1, Y2, Y4, Y5, Y6, Y7, Y13은 부분. Y14는 미착수. Y3는 아래 메모를 봅니다.
 
