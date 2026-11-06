@@ -315,7 +315,8 @@ export interface Rig {
   readonly thread: ThreadId;
   readonly fakes: Fakes;
   /** /helm 명령 처리기를 부른다 */
-  command(args: string): Promise<void>;
+  /** 명령 결과 글(`command.run`의 message). 결과가 없으면 null */
+  command(args: string): Promise<string | null>;
   /** boundary.settle.after를 한 번 발화한다 */
   settle(key: string, turnId?: TurnId): Promise<void>;
   /** 경계를 돌려 drive가 다시 불리게 한다 */
@@ -357,7 +358,11 @@ async function provideSettings(
 const invocations = { count: 0 };
 
 /** 등록된 /helm 명령 처리기를 부른다. 호출마다 다른 invocationId를 넘긴다 */
-export async function callCommand(t: TestHost, thread: ThreadId, args: string): Promise<void> {
+export async function callCommand(
+  t: TestHost,
+  thread: ThreadId,
+  args: string,
+): Promise<string | null> {
   const def: unknown = t.host.resources.list("command").find((entry) => entry.name === "helm")?.def;
   if (typeof def !== "object" || def === null || !("handler" in def)) {
     throw new Error("the helm command is not registered");
@@ -372,7 +377,8 @@ export async function callCommand(t: TestHost, thread: ThreadId, args: string): 
       signal: new AbortController().signal,
     },
   ]);
-  await done;
+  const output = await done;
+  return typeof output === "string" ? output : null;
 }
 
 export function settleOnce(

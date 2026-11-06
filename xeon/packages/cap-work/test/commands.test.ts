@@ -59,6 +59,7 @@ async function boot() {
   const unregister = registerWorkCommands(registry, {
     plans: opened.plans,
     tasks: opened.api,
+    goals: opened.goals,
     runtime: opened.runtime,
   });
   return { h: opened, registry, unregister };
@@ -70,9 +71,10 @@ describe("work commands", () => {
     expect(registry.decls.map((d) => `${d.name}:${d.origin}`)).toEqual([
       `plan:${WORK_COMMAND_ORIGIN}`,
       `tasks:${WORK_COMMAND_ORIGIN}`,
+      `goal:${WORK_COMMAND_ORIGIN}`,
     ]);
     unregister();
-    expect(registry.removed).toEqual(["plan", "tasks"]);
+    expect(registry.removed).toEqual(["plan", "tasks", "goal"]);
   });
 
   test("/plan enters plan mode and /plan exit leaves it after an approval", async () => {
@@ -136,5 +138,28 @@ describe("work commands", () => {
       h.opts(),
     );
     expect((await registry.run("tasks", [])).message).toBe("[>] t1 writing the spec");
+  });
+
+  test("/goal sets, shows and clears the goal", async () => {
+    const { h, registry } = await boot();
+    expect((await registry.run("goal", [])).message).toBe(
+      "사용법: /goal <조건> | /goal status | /goal clear",
+    );
+    expect((await registry.run("goal", ["status"])).message).toBe("걸린 목표가 없습니다.");
+    expect((await registry.run("goal", ["clear"])).message).toBe("해제할 활성 목표가 없습니다.");
+    const set = await registry.run("goal", ["all", "tests", "pass"]);
+    expect(set.message).toBe("목표를 걸었습니다. 목표: all tests pass (active, 판정 0/3)");
+    const status = await h.goals.status({}, h.opts());
+    expect(status.goal).toMatchObject({ condition: "all tests pass", status: "active" });
+    expect((await registry.run("goal", ["status"])).message).toBe(
+      "목표: all tests pass (active, 판정 0/3)",
+    );
+    expect((await registry.run("goal", ["another"])).message).toBe(
+      "활성 목표가 이미 있습니다. 먼저 /goal clear로 해제하세요.",
+    );
+    expect((await registry.run("goal", ["clear"])).message).toBe(
+      "목표를 해제했습니다: all tests pass",
+    );
+    expect((await h.goals.status({}, h.opts())).goal).toBeNull();
   });
 });

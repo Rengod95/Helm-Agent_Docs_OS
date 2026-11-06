@@ -26,15 +26,15 @@ test("drive.recall-from-committed-state-spawns-once", async () => {
   expect(report.ok).toBe(true);
 });
 
-test("replay.twice-effects-once: new turns 2, spawns 3, finish notice 1, inquiry.finished 1", async () => {
+test("replay.twice-effects-once: new turns 2, spawns 3, notices 4 (phase changes 3, finish 1), inquiry.finished 1", async () => {
   const replay = createHelmReplay();
   const report = await replayDrive({
     group: helmGroup,
     harness: replay.harness,
-    expectEffects: { turn: 2, spawn: 3, post: 1, delegate: 0 },
+    expectEffects: { turn: 2, spawn: 3, post: 4, delegate: 0 },
   });
   expect(report.failure).toBeUndefined();
-  expect(report.effects).toEqual({ turn: 2, spawn: 3, delegate: 0, post: 1 });
+  expect(report.effects).toEqual({ turn: 2, spawn: 3, delegate: 0, post: 4 });
   expect(report.ok).toBe(true);
 });
 

@@ -152,14 +152,6 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
       }
       const tasksApi = createTasksApi(deps);
       host.provide(WorkTasksKey, tasksApi);
-      if (options.commands !== undefined) {
-        const unregister = registerWorkCommands(options.commands, {
-          plans: plans.api,
-          tasks: tasksApi,
-          runtime: plans,
-        });
-        g.onDispose(unregister);
-      }
       // 목표 지속(M3-REQ-90): 판정과 완료 보고. 완료 게이트는 `boundary.settle.before` chain 핸들러 하나다
       const goals = createGoals({
         ...deps,
@@ -168,6 +160,15 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
       });
       host.provide(WorkGoalsKey, goals.goalsApi);
       host.provide(WorkReportsKey, goals.reportsApi);
+      if (options.commands !== undefined) {
+        const unregister = registerWorkCommands(options.commands, {
+          plans: plans.api,
+          tasks: tasksApi,
+          goals: goals.goalsApi,
+          runtime: plans,
+        });
+        g.onDispose(unregister);
+      }
       const gate = createSettleGate({
         goals,
         reader,

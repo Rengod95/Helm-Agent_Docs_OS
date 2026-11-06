@@ -5,13 +5,14 @@ import {
   type CommandActionContext,
   type CommandActionRegistry,
   type CommandActionResult,
+  type WorkGoals,
   type WorkPlans,
   type WorkTasks,
 } from "@fresnel/contracts/capabilities";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { PlansRuntime } from "./plans/service.ts";
 
-// L2.work.spec §6.2. 계획 모드와 작업 목록의 슬래시 명령. 목표 명령(/goal)은 work.goals와 함께 M3에서 더한다.
+// L2.work.spec §6.2. 계획 모드, 작업 목록, 목표(/goal)의 슬래시 명령.
 // 등록은 dialog.commands의 동작 명령 등록부(CommandActionRegistry)로 한다. 그 기능은 선택 의존이라(W-10) 조립 루트가 등록부를 넘길 때만 등록한다.
 
 export const WORK_COMMAND_ORIGIN = "cap-work";
@@ -19,6 +20,7 @@ export const WORK_COMMAND_ORIGIN = "cap-work";
 export interface WorkCommandDeps {
   readonly plans: CapabilityApi<typeof WorkPlans>;
   readonly tasks: CapabilityApi<typeof WorkTasks>;
+  readonly goals: CapabilityApi<typeof WorkGoals>;
   readonly runtime: Pick<PlansRuntime, "pendingPlan">;
 }
 
@@ -87,7 +89,52 @@ async function tasksCommand(
   return { message: first?.type === "text" ? first.text : "(작업 없음)" };
 }
 
-/** `/plan`, `/tasks`를 등록하고 해제 함수를 돌려준다. 이름이 이미 쓰이면 등록부가 CapabilityError(command_name_taken)로 거부한다 */
+const GOAL_USAGE = "사용법: /goal <조건> | /goal status | /goal clear";
+
+function goalLine(goal: {
+  readonly condition: string;
+  readonly status: string;
+  readonly judgments: number;
+  readonly maxRuns: number;
+}): string {
+  return `목표: ${goal.condition} (${goal.status}, 판정 ${String(goal.judgments)}/${String(goal.maxRuns)})`;
+}
+
+async function goalCommand(
+  deps: WorkCommandDeps,
+  args: readonly string[],
+  ctx: CommandActionContext,
+): Promise<CommandActionResult> {
+  const options = optionsOf(ctx);
+  const text = args.join(" ").trim();
+  if (text === "") return { message: GOAL_USAGE };
+  if (text === "status") {
+    const out = await deps.goals.status({}, options);
+    if (out.goal === null) return { message: "걸린 목표가 없습니다." };
+    const last = out.goal.lastVerdict;
+    return {
+      message:
+        last === null ? goalLine(out.goal) : `${goalLine(out.goal)}\n마지막 판정: ${last.reason}`,
+    };
+  }
+  if (text === "clear") {
+    const out = await deps.goals.status({}, options);
+    if (out.goal === null || out.goal.status !== "active")
+      return { message: "해제할 활성 목표가 없습니다." };
+    await deps.goals.clear({ goalId: out.goal.goalId }, options);
+    return { message: `목표를 해제했습니다: ${out.goal.condition}` };
+  }
+  try {
+    const out = await deps.goals.set({ condition: text }, options);
+    return { message: `목표를 걸었습니다. ${goalLine(out.goal)}` };
+  } catch (caught) {
+    if (isCapabilityError(caught) && caught.data.code === "goal_active")
+      return { message: "활성 목표가 이미 있습니다. 먼저 /goal clear로 해제하세요." };
+    throw caught;
+  }
+}
+
+/** `/plan`, `/tasks`, `/goal`을 등록하고 해제 함수를 돌려준다. 이름이 이미 쓰이면 등록부가 CapabilityError(command_name_taken)로 거부한다 */
 export function registerWorkCommands(
   registry: CommandActionRegistry,
   deps: WorkCommandDeps,
@@ -109,8 +156,18 @@ export function registerWorkCommands(
     },
     (_args, ctx) => reported(() => tasksCommand(deps, ctx.threadId, ctx)),
   );
+  const goal = registry.registerAction(
+    {
+      name: "goal",
+      description: "완료 조건을 걸고 턴마다 판정한다. status로 보고 clear로 해제한다",
+      argumentHint: "<조건> | status | clear",
+      origin: WORK_COMMAND_ORIGIN,
+    },
+    (args, ctx) => reported(() => goalCommand(deps, args, ctx)),
+  );
   return () => {
     plan();
     tasks();
+    goal();
   };
 }

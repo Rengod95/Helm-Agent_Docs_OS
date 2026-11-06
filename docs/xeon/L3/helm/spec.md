@@ -741,7 +741,7 @@ export function runHelmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit">,
 export function helmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit" | "post">, tallies: TallyStore, missingMeta: ReadonlySet<string>): Parameters<GroupApi<HelmState>["registerCommand"]>[1];
 ```
 
-- 명령 처리기는 X의 명령 문맥(X.primitives §4.6.6) 안에서 실행된다. `threadId`가 있으면 `state()`·`commit`·`post`가 되고 문맥에 호출 id `invocationId`가 있다(같은 호출을 다시 실행하면 같은 값). `helmCommand`의 처리기는 `runHelmCommand`로 상태를 바로 바꾸고 결과를 알림(`grp.helm.notice.status`, requestId `helm:cmd:<invocationId>`)으로 남기므로 `/helm start`·`/helm stop`은 즉시 반영된다. `threadId`가 없는 호출은 아무것도 하지 않는다. 인자 없는 `/helm`은 `status`다. 외부 플러그인은 `GroupService`에 닿지 못하므로 `HelmStatusView.lease`는 커밋된 상태에서 얻는다(탐구 중이면 `held`, `pending`만 있으면 `waiting`).
+- 명령 처리기는 X의 명령 문맥(X.primitives §4.6.6) 안에서 실행된다. `threadId`가 있으면 `state()`·`commit`·`post`가 되고 문맥에 호출 id `invocationId`가 있다(같은 호출을 다시 실행하면 같은 값). `helmCommand`의 처리기는 `runHelmCommand`로 상태를 바로 바꾸고 결과 글을 명령 결과(`command.run`의 `message`)로 돌려주므로 `/helm start`·`/helm stop`은 즉시 반영되고, 결과 글은 모델 입력 대기열(`post`)에 쌓이지 않는다. 탐구 끝·거절·제안 알림만 `post`의 `when: next`로 남는다. `threadId`가 없는 호출은 아무것도 하지 않는다. 인자 없는 `/helm`은 `status`다. 외부 플러그인은 `GroupService`에 닿지 못하므로 `HelmStatusView.lease`는 커밋된 상태에서 얻는다(탐구 중이면 `held`, `pending`만 있으면 `waiting`).
 - 명령 등록은 group-sdk `g.registerCommand("helm", …)`로 한다(L3.group-sdk.spec §3.2). group-sdk은 X `hostOf(g).registerCommand`(X.primitives.spec §4.8)로 넘긴다. 이름은 `helm`이고 하위 명령을 인자로 받는다.
 - `/helm start [주제]`: `idle`이고 `pending`이 없을 때만 `pending`(`source: "command"`)을 커밋한다. 주제를 생략하면 마지막 신호 기록의 근거나 현재 turn 입력 용어 후보를 쓴다. `inquiryId`는 `inquiryIdFrom("command:" + (turnId ?? "none") + ":" + topic)`다 [제안].
 - `/helm stop`: §5 4번.
@@ -1049,7 +1049,8 @@ export type HelmReaction =
 | 경로 | 연산 | 쓰는 단계 | 내용 |
 |---|---|---|---|
 | 시스템 프롬프트 추가분 | `on("input.agent.before")` collect 기여 | `diverge`, `explore`, `converge`, `apply`의 Helm 대화 turn | `renderLensBlock(lensBlockFor(state))`를 현재 시스템 프롬프트 끝에 붙인다 |
-| turn 입력 | `loop.turn({ input })` | `diverge`, `apply` | `divergePrompt(state)`, `applyPrompt(state)` |
+| turn 입력 | `loop.turn({ input })` | `diverge`, `apply` | `divergePrompt(state)`, `applyPrompt(state)`. 내부 지시라 `kind: "context"`, `customType: "grp.helm.notice.prompt"`, `display: false`로 넣어 사용자 말풍선으로 보이지 않는다 [결정: 오케스트레이터 기본값, scH] |
+| 단계 안내 | `post` | 단계 전이(`diverge→explore→converge→apply`) | `phaseNotice(from, to)`: "탐구 단계: X → Y (이유)" 한 줄, `kind: "context"`, `customType: "grp.helm.notice.status"`, `display: true`, `when: "next"`. 이유는 전이마다 정해진 문장이다 [결정: 오케스트레이터 기본값, scH] |
 | 입력 큐 | `post` | 제안, 상한 도달·부분 실패·종료 알림 | `kind: "context"`, `display: true`, `when: "next"`(adr.0013). 단계 중간에 방법 힌트를 넣을 때만 `when: "steer"`이고, drive 락을 가진 탐구 turn이 실행 중일 때로 한정한다 |
 
 - collect 패치 [결정: ADR-0017]: `input.agent.before`는 collect 훅이다. 모든 핸들러가 원본 `payload`(`prompt`, `systemPrompt`)를 받고 반환값(`BeforeAgentStartPatch`의 `systemPrompt`, `message`)이 등록 순서로 모인다. 시스템 프롬프트 교체값은 마지막으로 정의한 핸들러가 이긴다. Helm 핸들러는 `{ systemPrompt: payload.systemPrompt + "\n\n" + block }`을 돌려준다. 다른 그룹이 같은 훅에서 교체값을 내면 순서에 따라 한쪽이 이긴다 [미결: 병합 규칙이 바뀌면 이 문장을 고친다].

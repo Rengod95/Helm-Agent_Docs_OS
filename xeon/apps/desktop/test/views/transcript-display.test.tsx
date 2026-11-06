@@ -54,8 +54,10 @@ describe("custom items", () => {
     });
     h.store.flush();
     expect(render(<RecordedItem id={itm(1)} />, h)).toBe("");
-    // 카드가 없는 확장 기록은 종류 이름을 보인다(역할 이름 "확장"은 그리지 않는다)
-    expect(render(<RecordedItem id={itm(2)} />, h)).toContain("x.knowledge.context");
+    // 카드가 없는 확장 기록은 본문 글을 보인다. 종류 이름과 역할 이름 "확장"은 그리지 않는다
+    const html = render(<RecordedItem id={itm(2)} />, h);
+    expect(html).toContain("ctx");
+    expect(html).not.toContain("x.knowledge.context");
   });
 });
 

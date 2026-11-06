@@ -202,10 +202,17 @@ function dataDocOf(details: JsonValue): Readonly<Record<string, unknown>> {
 function CustomBody(props: {
   readonly customType: string;
   readonly details: JsonValue;
+  /** 기록의 본문 글. 카드가 없을 때 종류 이름 대신 이 글을 한 줄로 보인다 */
+  readonly text: string;
 }): ReactNode {
   const plugin = usePluginUiState();
   const card = cardOf(plugin.groups.card, plugin.inactive, props.customType);
-  if (card === undefined) return <p className={QUIET_CLASS}>{props.customType}</p>;
+  if (card === undefined)
+    return (
+      <p className={`${QUIET_CLASS} whitespace-pre-wrap`}>
+        {props.text === "" ? props.customType : props.text}
+      </p>
+    );
   return (
     <>
       {/* 카드는 높이 상한(max-h-80, 320px)을 넘으면 잘린다. "더 보기"는 아직 없다([미결], spec 2478) */}
@@ -577,7 +584,13 @@ function RecordBody(props: { readonly item: ItemRecord; readonly unsent: boolean
     case "system":
       return <p className={QUIET_CLASS}>{textOf(item.message.content)}</p>;
     case "custom":
-      return <CustomBody customType={item.message.customType} details={item.message.details} />;
+      return (
+        <CustomBody
+          customType={item.message.customType}
+          details={item.message.details}
+          text={textOf(item.message.content)}
+        />
+      );
     default:
       return assertNever(item, "item kind");
   }

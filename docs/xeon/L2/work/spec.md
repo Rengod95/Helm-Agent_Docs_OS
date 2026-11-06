@@ -1288,7 +1288,7 @@ export interface JudgePort {
 | `/plan approve` · `/plan reject [사유]` · `/plan revise <피드백>` | 사유·피드백 | `plans.approve` · `plans.reject` · `plans.revise` |
 | `/tasks` | 없음 | `tasks.list({})` 결과 표시 |
 
-- [결정: WK.3] 구현은 `/plan`, `/plan exit`, `/plan approve|reject|revise`, `/tasks`까지다(`src/commands.ts`). `/goal`은 `work.goals`(M3)와 함께 더한다. `approve`·`reject`·`revise`에 계획 ID를 받지 않는다: 승인 대기 중인 가장 최근 판에 적용한다. 서비스 거부(`CapabilityError`)는 예외 대신 `[<코드>] <메시지>` 한 줄 응답으로 바꾼다. 등록부(`CommandActionRegistry`)는 조립 루트가 `WorkPluginOptions.commands`로 넘길 때만 쓴다. 기능 선택 의존(W-10)이 확정되면 매니페스트 `optional`로 받는다.
+- [결정: WK.3] 구현은 `/plan`, `/plan exit`, `/plan approve|reject|revise`, `/tasks`, `/goal <조건>`, `/goal status`, `/goal clear`다(`src/commands.ts`). `/goal`은 `replace` 없이 `goals.set`을 부르므로 활성 목표가 있으면 "먼저 /goal clear로 해제하세요"를 답한다 [결정: 오케스트레이터 기본값, scH]. `/goal clear`는 활성 목표가 없으면 "해제할 활성 목표가 없습니다."를 답한다. `approve`·`reject`·`revise`에 계획 ID를 받지 않는다: 승인 대기 중인 가장 최근 판에 적용한다. 서비스 거부(`CapabilityError`)는 예외 대신 `[<코드>] <메시지>` 한 줄 응답으로 바꾼다. 등록부(`CommandActionRegistry`)는 조립 루트가 `WorkPluginOptions.commands`로 넘길 때만 쓴다. 기능 선택 의존(W-10)이 확정되면 매니페스트 `optional`로 받는다.
 - 명령 실행의 `requestId`는 클라이언트 입력 키(`in:<clientUlid>`)에서 파생한다(eng.transactions.design §4.8 사용자 입력 행).
 - 이 등록은 work → `dialog.commands` 선택 의존을 만든다. `L2.readme` §6 표에 [미결] 간선으로 올라 있다(§10 W-10, `L2.readme` §10 미결 16).
 

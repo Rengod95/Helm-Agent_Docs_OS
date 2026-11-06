@@ -335,7 +335,7 @@ describe("work.plans through the plugin", () => {
     expect(approvals.requests).toHaveLength(1);
   });
 
-  test("a command registry from the assembly gets /plan and /tasks and loses them on uninstall", async () => {
+  test("a command registry from the assembly gets /plan, /tasks and /goal and loses them on uninstall", async () => {
     const calls: string[] = [];
     const commands: CommandActionRegistry = {
       registerAction(decl) {
@@ -346,9 +346,16 @@ describe("work.plans through the plugin", () => {
       },
     };
     const { t } = await boot({ commands });
-    expect(calls).toEqual(["add:plan", "add:tasks"]);
+    expect(calls).toEqual(["add:plan", "add:tasks", "add:goal"]);
     await t.host.uninstall(WORK_EXTENSION_NAME);
-    expect(calls.toSorted()).toEqual(["add:plan", "add:tasks", "remove:plan", "remove:tasks"]);
+    expect(calls.toSorted()).toEqual([
+      "add:goal",
+      "add:plan",
+      "add:tasks",
+      "remove:goal",
+      "remove:plan",
+      "remove:tasks",
+    ]);
   });
 
   test("a plugin without approvals reports submit_plan as unavailable and says so at startup", async () => {

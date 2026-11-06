@@ -127,15 +127,16 @@ describe("custom records in the transcript", () => {
     expect(html).not.toContain("x.helm.note.saved");
   });
 
-  test("a record without a card keeps the type name and draws no provenance line", async () => {
+  test("a record without a card shows its text instead of the type name and draws no provenance line", async () => {
     const plugin = await loadedPluginUi([FINISHED, SAVED]);
     const html = renderRecord(customOf(1, "x.knowledge.context", {}), plugin);
-    expect(html).toContain("x.knowledge.context");
+    expect(html).toContain("ctx");
+    expect(html).not.toContain("x.knowledge.context");
     expect(html).not.toContain("grp:");
     expect(html).not.toContain("ext:");
   });
 
-  test("a card of a switched-off extension falls back to the type name", async () => {
+  test("a card of a switched-off extension falls back to its text", async () => {
     const plugin = await loadedPluginUi(
       [FINISHED],
       [extListEntryOf("helm", { status: "disabled" })],
@@ -144,7 +145,8 @@ describe("custom records in the transcript", () => {
       customOf(1, "grp.helm.inquiry.finished", { lens: "실패 사례" }),
       plugin,
     );
-    expect(html).toContain("grp.helm.inquiry.finished");
+    expect(html).toContain("ctx");
+    expect(html).not.toContain("grp.helm.inquiry.finished");
     expect(html).not.toContain("grp:helm");
     expect(html).not.toContain(t("desktop.plugin.state.loading"));
   });
