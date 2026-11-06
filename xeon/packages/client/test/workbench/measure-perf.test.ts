@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MeasureRow, MeasureTurnResult } from "@fresnel/contracts/wire";
-import { changesOf, perfViewOf } from "../../src/workbench/index.ts";
+import { changesOf, failingOf, perfViewOf } from "../../src/workbench/index.ts";
 
 const day = (d: string, count: number, sum: number) => ({ day: d, count, sum, min: 0, max: sum });
 
@@ -139,5 +139,37 @@ describe("perfViewOf", () => {
     const state = perfViewOf([], [turn("a", [turnRow(1)]), turn("b", [turnRow(1000)])]);
     if (state.kind !== "ready") throw new Error("expected ready");
     expect(state.view.signals).toEqual([]);
+  });
+});
+
+const entry = (
+  name: string,
+  registrationId: string,
+  consecutiveFailures: number,
+  autoDisabled = false,
+) => ({
+  name,
+  registrationId,
+  consecutiveFailures,
+  windowFailures: 0,
+  windowMs: 0,
+  autoDisabled,
+  lastFailureAt: null,
+  lastError: null,
+});
+
+describe("failingOf", () => {
+  test("keeps extensions failing now or auto-disabled, longest streak per name first", () => {
+    expect(
+      failingOf([
+        entry("helm", "helm:a", 2),
+        entry("helm", "helm:b", 5),
+        entry("ok", "ok:a", 0),
+        entry("gone", "gone:a", 0, true),
+      ]),
+    ).toEqual([
+      { name: "helm", consecutive: 5, autoDisabled: false },
+      { name: "gone", consecutive: 0, autoDisabled: true },
+    ]);
   });
 });

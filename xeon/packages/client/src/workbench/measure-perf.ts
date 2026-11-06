@@ -1,6 +1,6 @@
 // P-20 성능 측정 첫 화면(§6.27, T-VIEW-PERF)의 순수 모델: 최근 달라진 것, 이상 신호, 읽어 볼 Turn, 플러그인 부담 표, Turn 번호 곡선.
 // 합치는 점수와 숫자 판은 만들지 않는다. 모든 칸은 wire가 준 값에서 바로 나오고, 값이 없는 칸(플러그인별 비용)은 null이다.
-import type { MeasureDay, MeasureTurnResult } from "@fresnel/contracts/wire";
+import type { ExtHealthEntry, MeasureDay, MeasureTurnResult } from "@fresnel/contracts/wire";
 import { turnViewOf, type TurnViewVM } from "./measure-turn.ts";
 
 /** 지표 하나의 일별 집계 */
@@ -57,6 +57,32 @@ export function changesOf(series: readonly DailySeries[]): readonly ChangeVM[] {
     });
   }
   return out;
+}
+
+/**
+ * 지금 연달아 실패 중이거나 자동으로 꺼진 확장. 크래프트 확장 화면의 "N번 연달아 실패"와 같은 원천(`ext.health`)이다.
+ * Turn 행에는 핸들러 실패가 Turn 단위로만 남아 Turn 밖 실패(상태 조회 등)가 빠지므로, 측정 화면은 이 장부를 함께 보인다
+ */
+export interface FailingExtensionVM {
+  readonly name: string;
+  /** 같은 확장의 Registration 가운데 가장 긴 연속 실패 수 */
+  readonly consecutive: number;
+  readonly autoDisabled: boolean;
+}
+
+export function failingOf(entries: readonly ExtHealthEntry[]): readonly FailingExtensionVM[] {
+  const byName = new Map<string, { consecutive: number; autoDisabled: boolean }>();
+  for (const entry of entries) {
+    if (entry.consecutiveFailures <= 0 && !entry.autoDisabled) continue;
+    const known = byName.get(entry.name);
+    byName.set(entry.name, {
+      consecutive: Math.max(known?.consecutive ?? 0, entry.consecutiveFailures),
+      autoDisabled: (known?.autoDisabled ?? false) || entry.autoDisabled,
+    });
+  }
+  return [...byName.entries()]
+    .map(([name, row]) => ({ name, consecutive: row.consecutive, autoDisabled: row.autoDisabled }))
+    .toSorted((a, b) => b.consecutive - a.consecutive || a.name.localeCompare(b.name));
 }
 
 /** 읽은 Turn 하나. `turnId`와 번호(읽은 목록 안의 차례, 1부터) */
