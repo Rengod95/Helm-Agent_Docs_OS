@@ -1251,6 +1251,7 @@
   "desktop.connection.stopDialog.keep": "Keep running",
   "desktop.threads.compact.dismiss": "Dismiss",
   "desktop.threads.compact.done": "Conversation summarized. Context is now about {before} → {after} tokens.",
+  "desktop.threads.compact.done.same": "Summarized, but the context size is about the same (about {after} tokens). The earlier summary is long.",
   "desktop.threads.compact.failed": "Couldn't summarize the conversation. Try again.",
   "desktop.threads.compact.failed.busy": "A reply is being generated, so it can't be summarized. Try again when it finishes.",
   "desktop.threads.compact.failed.cancelled": "An extension blocked the summary.",

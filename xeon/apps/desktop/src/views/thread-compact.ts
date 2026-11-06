@@ -27,6 +27,14 @@ export function compactNoticeOf(
   if (result.ok) {
     const { value } = result;
     if (value.status === "compacted") {
+      // 요약 뒤가 앞보다 크거나 같으면 줄었다고 말하지 않는다(앞 요약이 길 때)
+      if (value.tokensAfter >= value.tokensBefore) {
+        return {
+          tone: "info",
+          id: "desktop.threads.compact.done.same",
+          args: { after: value.tokensAfter },
+        };
+      }
       return {
         tone: "success",
         id: "desktop.threads.compact.done",
