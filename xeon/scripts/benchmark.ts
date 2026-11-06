@@ -181,8 +181,8 @@ if (import.meta.main) {
         fresnelRoot,
         "apps",
         "desktop",
-        "src-tauri",
-        "binaries",
+        "dist",
+        "sidecar",
         outputFileName("fresnel", triple.value),
       )
     : undefined;

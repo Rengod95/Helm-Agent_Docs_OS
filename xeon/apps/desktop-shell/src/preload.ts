@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld("fresnelShell", {
     const reply: unknown = await ipcRenderer.invoke(SHELL_CHANNELS.invoke, command, args);
     if (typeof reply === "object" && reply !== null && "ok" in reply) {
       if (reply.ok === true && "value" in reply) return reply.value;
-      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- Tauri invoke는 명령의 Err 값(문자열 코드나 {kind})을 그대로 거절 값으로 준다. UI 어댑터가 그 모양을 읽는다 (L4.desktop.design)
+      // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- 셸 명령은 Err 값(문자열 코드나 {kind})을 그대로 거절 값으로 준다. UI 어댑터가 그 모양을 읽는다 (L4.desktop.design)
       if (reply.ok === false && "error" in reply) return Promise.reject(reply.error);
     }
     // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- 위와 같은 문자열 코드 (L4.desktop.design)

@@ -1,5 +1,5 @@
 // Plugin App 전용 URI 스킴과 응답 헤더(ADR-0021 §3.6.2, §3.6.3, §3.6.8). 주소 만들기와 풀기, 프레임 문서 CSP 문자열이 한 곳에 있다.
-// Rust 셸(`apps/desktop/src-tauri/src/view_scheme.rs`)이 같은 CSP 글자와 같은 경로 규칙을 쓴다. 시험이 두 파일의 글자를 맞춰 본다.
+// Electron 셸(`apps/desktop-shell/src/main/view-scheme.ts`)이 같은 CSP 글자와 같은 경로 규칙을 쓴다. 셸의 시험(`view-scheme.test.ts`)이 이 파일의 출력과 맞춰 본다.
 
 /** 확장 이름과 버전 마디. 주소를 조립할 때 경로 마디가 되므로 문자 집합을 좁힌다 */
 const NAME_SEGMENT = /^[a-z][a-z0-9-]{0,63}$/;

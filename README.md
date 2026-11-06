@@ -10,7 +10,7 @@ Status: pre-release. The desktop app, CLI and background service are under devel
 
 | Path | Contents |
 |------|----------|
-| `xeon/` | The workspace: engine, host, CLI and desktop app (TypeScript on Bun, Tauri shell in Rust) |
+| `xeon/` | The workspace: engine, host, CLI and desktop app (TypeScript on Bun, Electron shell) |
 | `docs/xeon/` | Product plan, per-layer specs and plans, binding engineering rules |
 | `packages/agent-docs-init/` | `@helmdocs/init`, the Agent Docs OS installer (a separate tool from the runtime) |
 

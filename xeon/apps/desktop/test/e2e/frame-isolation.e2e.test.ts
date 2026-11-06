@@ -7,7 +7,7 @@ import { FRAME_HTML, FRAME_JS, SECRET_SENTINEL } from "./frame-isolation/frame-a
 // Y5(Linux e2e): 격리 프레임이 막혀야 하는 일을 실제 WebView에서 시도한다(ADR-0021 §3.6.2~§3.6.5).
 // 셸 쪽은 운영 코드(attachFrame, 다리 호스트)를 그대로 쓴다. 프레임 파일은 전용 스킴 대신 http 서버가 같은 응답 헤더로 낸다.
 // 이 시험이 보는 것: sandbox 속성과 CSP가 실제로 막는 것(저장소, 부모 DOM, eval, 팝업, 네트워크), 프레임 안 승인 버튼이 효력 없음,
-// 다리 메시지에 시크릿 없음. 이 시험이 보지 못하는 것: Tauri가 전용 스킴 프레임에 IPC를 주입하지 않는지(`__TAURI__`는 여기서 애초에 없다).
+// 다리 메시지에 시크릿 없음. 이 시험이 보지 못하는 것: Electron 셸이 전용 스킴 프레임에 preload API(`fresnelShell`)나 Node 전역을 주입하지 않는지(여기서는 애초에 없다).
 // 그 부분은 macOS와 Linux 데스크톱 빌드의 실기 시험이다(ADR-0021 §6 미결 1). WebView를 띄울 수 없는 환경에서는 건너뛰고 이유를 남긴다.
 
 const ReportSchema = Type.Object(
@@ -165,20 +165,23 @@ afterAll(() => {
 });
 
 describe("Plugin App frame isolation (Y5, Linux e2e)", () => {
-  e2e("the frame got no Tauri globals, no parent or storage access, no eval, no popup", () => {
-    expect(run?.frame.probes).toEqual({
-      tauri: "undefined/undefined/undefined",
-      parentDom: "threw:SecurityError",
-      topDom: "threw:SecurityError",
-      localStorage: "threw:SecurityError",
-      sessionStorage: "threw:SecurityError",
-      cookie: "threw:SecurityError",
-      eval: "threw:EvalError",
-      open: "null",
-      origin: "null",
-      topNavigation: "threw:SecurityError",
-    });
-  });
+  e2e(
+    "the frame got no shell or Node globals, no parent or storage access, no eval, no popup",
+    () => {
+      expect(run?.frame.probes).toEqual({
+        shellGlobals: "undefined/undefined/undefined",
+        parentDom: "threw:SecurityError",
+        topDom: "threw:SecurityError",
+        localStorage: "threw:SecurityError",
+        sessionStorage: "threw:SecurityError",
+        cookie: "threw:SecurityError",
+        eval: "threw:EvalError",
+        open: "null",
+        origin: "null",
+        topNavigation: "threw:SecurityError",
+      });
+    },
+  );
 
   e2e(
     "every network route from the frame failed and nothing reached the canary or the shell server",

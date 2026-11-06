@@ -24,7 +24,7 @@ binds: [xeon/scripts/release*, xeon/scripts/release-bundle.json, .github/workflo
 
 ### 1.2 다루지 않는 것
 
-- Tauri 데스크톱 앱 번들의 자원 매핑, 곧 사이드카 옆에 템플릿과 기본 플러그인을 두는 설정. M4 패키징이 맡습니다([미결] §8).
+- 데스크톱 앱 번들의 자원 매핑, 곧 사이드카 옆에 템플릿과 기본 플러그인을 두는 설정. 옛 Tauri 구현(커밋 424f338a)에서는 M4 패키징 몫이었고, Electron 묶음(§3.5, `L4.desktop.spec` §11.7)의 Resources 목록에도 아직 없습니다([미결] §8) [근거: `xeon/apps/desktop-shell/scripts/package.ts`].
 - 앱 안의 자동 업데이트의 내려받기와 교체. M5입니다. M4는 "업데이트 확인" 줄과 상태 표시만 둡니다(§5) [결정: 2026-11-04 사용자, A2 2안].
 - 번들 바이너리를 찾고 실행하는 규칙. `L0.os.spec` §3.6이 정합니다.
 - Windows 서명, Intel macOS 빌드, npm 공개. 범위 밖입니다(D-M3-25 행 2, 행 6).
@@ -79,7 +79,7 @@ fresnel-<버전>-<triple>/
 2. `<자원 디렉터리>/group-sdk/templates/index.json`이 있는 폴더. 컴파일 바이너리는 이 자리로 찾습니다.
 3. 시작 폴더 `from`에서 위로 올라가며 찾는 `packages/group-sdk/templates/index.json`. 소스 실행(`bun run`)은 이 자리로 찾습니다.
 
-Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므로 그 폴더가 자원 디렉터리가 됩니다. 템플릿과 기본 플러그인을 같은 폴더에 두는 매핑은 M4 패키징이 맡습니다([미결] §8).
+옛 Tauri 구현(커밋 424f338a)에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓여 그 폴더가 자원 디렉터리가 됐습니다. Electron 묶음은 사이드카를 `Resources`에 둡니다(`L4.desktop.spec` §11.7). 템플릿과 기본 플러그인을 같은 폴더에 두는 매핑은 M4 패키징이 맡습니다([미결] §8). [근거: `xeon/apps/desktop-shell/scripts/package.ts`]
 
 ### 3.3 번들 바이너리와 시스템 요구
 
@@ -105,9 +105,9 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 | x86_64-apple-darwin | 빌드하지 않습니다(D-M3-25 행 2) | 해당 없음 | `release.ts`가 막지 않습니다([미결] §8) |
 | x86_64-pc-windows-msvc | 범위 밖 | 해당 없음 | 없음 |
 
-### 3.5 Electron 앱 묶음 (Tauri 경로 옆, 3단계)
+### 3.5 Electron 앱 묶음
 
-[결정: 2026-11-06 사용자] 데스크톱 셸은 Electron으로 바꾼다(`L4.desktop.spec` §11). 이 단계에서 Tauri 경로(`release-archive`, `release-smoke`, `desktop-build`, `desktop-notices`)는 그대로 두고, Electron 경로를 옆에 더한다. Tauri 경로는 마지막 단계에서 지운다.
+[결정: 2026-11-06 사용자] 데스크톱 셸은 Electron으로 바꿨습니다(`L4.desktop.spec` §11). 릴리즈 흐름은 두 가지입니다. CLI 아카이브(`release-archive`, 스모크 `release-smoke`)와 Electron 앱(`release-archive-electron`)입니다. Tauri 릴리즈 경로(`desktop-build`, `desktop-notices`, 옛 Tauri 구현(커밋 424f338a)의 Tauri 앱 번들)는 지웠습니다.
 
 - `just release-archive-electron`(`xeon/scripts/release-electron.sh`): 화면 번들, 사이드카, 셸 번들, `Fresnel.app`(`just desktop-build-electron`), 서명 단계(§4.2), `Fresnel-<버전>-arm64.zip`과 `.sha256`을 `FRESNEL_RELEASE_OUT`(기본 `xeon/dist/release-electron`)에 만든다. 버전은 `FRESNEL_RELEASE_VERSION`(`v` 접두사는 뗀다, 기본 `0.0.0-smoke`). macOS arm64만이고 다른 곳에서는 종료코드 2다. Windows와 Linux 묶음은 만들지 않는다.
 - `just release-smoke-electron`: 위에 묶은 앱 실행 스모크(`just desktop-smoke-electron`, `L4.desktop.spec` §11.7)를 더한다. 로컬 측정: 캐시가 따뜻한 arm64 Mac에서 전체 40초(화면 번들, 사이드카, 셸 번들 합쳐 4초, 묶기 3초, 임시 서명 3초, 실행 스모크 17초, zip 13초).
@@ -132,8 +132,8 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - [결정: 오케스트레이터 기본값] M3b에는 자동 업데이트가 없습니다. 사용자는 새 아카이브를 받고, `.sha256`과 `SHA256SUMS`로 내용을 확인한 뒤 설치 폴더를 새 것으로 바꿉니다.
 - 설정과 상태는 설치 폴더 밖의 `OsDirs`에 있으므로 폴더를 바꿔도 잃지 않습니다(§3.2).
 - 기본 플러그인은 처음 실행할 때 사용자 확장 폴더에 복사본을 둡니다. 새 아카이브의 번들 버전이 복사본과 다르면 복사본을 바꿉니다. 사용자가 지운 복사본은 다시 설치하지 않습니다([결정: A5 T-H], `X.loading-trust.spec`).
-- [결정: 2026-11-06 사용자, B-10 승인] 데스크톱 앱은 `tauri-plugin-updater`로 확인, 내려받기, 설치 뒤 다시 시작을 합니다(`L4.desktop.spec` §4.18). 업데이트 서명 공개키와 배포 주소(endpoint)는 사용자가 정해 `tauri.conf.json`의 `plugins.updater`에 넣습니다. 비어 있으면 업데이트는 "설정되지 않음"으로 꺼지고 앱은 그대로 돕니다. 서명 개인키와 배포 서버, `createUpdaterArtifacts` 켜기, Apple 서명 시크릿은 아직 없습니다([미결] §8의 서명 항목) [근거: 2026-11-06 B-10 승인 기록]. 아카이브를 받는 방식(위)은 그대로 쓸 수 있습니다.
-- [결정: 2026-11-06 사용자] 업데이트는 Electron 셸의 `electron-updater`로 한다(`L4.desktop.spec` §11.6). 피드 파일 `Resources/update-feed.json`의 자리와 서명 검증(sha512 무결성, macOS는 Squirrel.Mac의 코드 서명 서명자 비교)은 `L4.desktop.spec` §11.10에 있다. 배포 주소, `latest-mac.yml` 생성과 업로드, Apple 서명은 사용자 몫이다. Tauri의 `tauri-plugin-updater` 줄은 Tauri 셸을 지울 때 정리한다.
+- [결정: 2026-11-06 사용자, B-10 승인, 옛 Tauri 구현(커밋 424f338a)] 데스크톱 앱은 `tauri-plugin-updater`로 확인, 내려받기, 설치 뒤 다시 시작을 합니다(`L4.desktop.spec` §4.18). 업데이트 서명 공개키와 배포 주소(endpoint)는 사용자가 정해 `tauri.conf.json`의 `plugins.updater`에 넣습니다. 비어 있으면 업데이트는 "설정되지 않음"으로 꺼지고 앱은 그대로 돕니다. 서명 개인키와 배포 서버, `createUpdaterArtifacts` 켜기, Apple 서명 시크릿은 아직 없습니다([미결] §8의 서명 항목) [근거: 2026-11-06 B-10 승인 기록]. 아카이브를 받는 방식(위)은 그대로 쓸 수 있습니다. 이 줄은 Tauri 시절의 기록이고, 지금 업데이트는 다음 줄의 Electron 방식입니다.
+- [결정: 2026-11-06 사용자] 업데이트는 Electron 셸의 `electron-updater`로 한다(`L4.desktop.spec` §11.6). 피드 파일 `Resources/update-feed.json`의 자리와 서명 검증(sha512 무결성, macOS는 Squirrel.Mac의 코드 서명 서명자 비교)은 `L4.desktop.spec` §11.10에 있다. 배포 주소, `latest-mac.yml` 생성과 업로드, Apple 서명은 사용자 몫이다. Tauri 셸은 2026-11-06에 지웠다. 마지막 Tauri 구현은 커밋 424f338a이고, `tauri-plugin-updater` 기록은 위 줄에만 남는다.
 - 의존 버전은 현재 버전에 고정하고 점진적으로 올립니다([결정: review.m3-design-inputs D-M3-29 행 1]). 빌드는 `bun install --frozen-lockfile`로 잠금 파일을 따릅니다(`xeon/justfile`의 `setup`).
 
 ## 6. 공급망과 고지
@@ -142,7 +142,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - 이 해시들은 서명이 아닙니다. `.sha256`과 아카이브를 같은 곳에서 받으므로, 그 자체로는 변조를 막지 못합니다([미결] §8).
 - [결정: 2026-11-04 사용자] `THIRD-PARTY-NOTICES.txt`는 라이선스별로 한 절씩 묶습니다(B19). 번들 바이너리 sops, age, rg, npm 의존, Bun 런타임이 같은 절에 들어갑니다. 각 절은 라이선스의 SPDX 텍스트 링크를 적고, 표준 라이선스 전문을 한 번만 싣고, 패키지마다 이름, 버전, 저작권 줄, 출처 또는 라이선스 링크를 적습니다. 아카이브에 라이선스 파일이 없는 번들 바이너리는 출처 링크와 SPDX 링크만 적습니다.
 - [결정: 2026-11-04 사용자] npm 의존의 고지는 `xeon/scripts/notices.ts`가 만듭니다. `apps/host`와 `apps/cli`의 `dependencies`를 `node_modules` 심볼릭 링크를 따라 훑고(devDependencies 제외), 제3자 패키지마다 이름, 버전, 라이선스, 링크를 적습니다. 링크는 package.json의 저장소나 홈페이지이고, `vendor/`의 패키지는 UPSTREAM.json의 `upstream`입니다. 저작권 줄은 라이선스 파일의 머리말(라이선스 본문이 시작하기 전)에서 읽고, 읽을 수 없으면 적지 않습니다. 패키지의 본문이 절의 표준 전문에 있는 단어 쌍만 가지면 표준 전문으로 갈음하고, 그렇지 않으면 본문 전문을 그 패키지 항목 아래에 싣습니다. 선택 가능한 이중 라이선스는 고른 쪽을 적습니다(node-forge는 BSD-3-Clause). 라이선스 파일이 없고 `NO_LICENSE_FILE` 허용 목록에도 없는 패키지가 있거나 라이선스 정보가 없는 패키지가 있으면 `release.ts`가 `notices.failed`로 실패합니다. 허용 목록의 패키지는 package.json의 선언 라이선스, 저자, 저장소를 적습니다. Bun 런타임은 MIT, 저작권 줄, 출처 주소를 적고, 내장 JavaScriptCore 등의 고지는 Bun의 LICENSE.md를 가리킵니다.
-- 데스크톱 앱 번들에는 Rust 크레이트의 고지 `THIRD-PARTY-NOTICES-RUST.txt`가 `tauri.conf.json`의 `bundle.resources`로 들어갑니다. JS와 Bun의 고지는 아카이브의 `THIRD-PARTY-NOTICES.txt`에 있습니다. 이 파일은 `just desktop-notices`(`xeon/scripts/rust-notices.ts`)가 `Cargo.lock`의 정상 의존에서 만들고, `just desktop-notices --check`가 커밋된 파일이 `Cargo.lock`과 맞는지 검사합니다.
+- 옛 Tauri 구현(커밋 424f338a)의 데스크톱 앱 번들에는 Rust 크레이트의 고지 `THIRD-PARTY-NOTICES-RUST.txt`가 `tauri.conf.json`의 `bundle.resources`로 들어갔습니다. JS와 Bun의 고지는 아카이브의 `THIRD-PARTY-NOTICES.txt`에 있습니다. 이 파일은 `just desktop-notices`(`xeon/scripts/rust-notices.ts`, 지웠습니다)가 `Cargo.lock`의 정상 의존에서 만들었고, `just desktop-notices --check`가 커밋된 파일이 `Cargo.lock`과 맞는지 검사했습니다. 지금 셸의 고지는 아래 줄의 Electron 묶음 고지입니다.
 - Electron 앱(`L4.desktop.spec` §11.9)의 고지는 앱의 `Resources/licenses/`에 있다: Electron `LICENSE`, `LICENSES.chromium.html`, 셸 npm 고지 `THIRD-PARTY-NOTICES-SHELL.txt`(`just desktop-notices-electron`, `xeon/scripts/shell-notices.ts`, `--check`로 커밋된 파일과 맞는지 본다), 엔진 사이드카 고지 `THIRD-PARTY-NOTICES.txt`(`notices.ts`).
 - 워크플로의 액션은 커밋 SHA로 고정하고, 버전 주석을 붙입니다(M3-30). 주석의 버전이 SHA와 맞는지는 저장소 안에서 확인하지 않습니다([미결] §8).
 - 시크릿 검사: `fresnel-ci.yml`의 `secrets` 작업이 전체 이력에 `gitleaks git --redact`를 돌립니다. 버전은 로컬 훅과 같은 8.30.1이고 mise로 설치합니다 [결정: 2026-11-04 사용자]. 오탐은 `.gitleaksignore`에 지문으로 적습니다.
@@ -168,26 +168,26 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 
 ### 8.1 결정
 
-- [결정: review.m3-design-inputs D-M3-25 행 1~6] Tauri 내장 서명과 Developer ID 공증, macOS 14 이상 arm64만 지원, macOS는 sops·age·rg를 번들하고 Linux는 시스템 요구, 단일 아카이브, npm 공개 없음.
+- [결정: review.m3-design-inputs D-M3-25 행 1~6] Developer ID 서명과 공증(옛 Tauri 구현(커밋 424f338a)은 Tauri 내장 서명, 지금은 §4.2의 Electron 서명 단계), macOS 14 이상 arm64만 지원, macOS는 sops·age·rg를 번들하고 Linux는 시스템 요구, 단일 아카이브, npm 공개 없음.
 - [결정: 오케스트레이터 기본값] 자원 디렉터리는 실행 파일이 든 폴더입니다. 그룹 템플릿의 탐색 순서는 §3.2의 세 단계입니다.
 - [결정: 오케스트레이터 기본값] 릴리즈 스크립트는 workspace 패키지를 import하지 않습니다(`eng.dependency-rules.guide` §1). 스크립트가 함께 쓰는 값은 `xeon/scripts/release-bundle.json`에 둡니다.
 - [결정: 오케스트레이터 기본값] M3b에는 자동 업데이트가 없습니다(§5).
 - [결정: 2026-11-04 사용자, A2 2안] 앱 안 업데이트는 M4에 확인 줄과 상태 표시만, 내려받기와 교체는 M5.
-- [결정: 오케스트레이터 기본값] 개발 사이드카 보호(M3b B6-FIX). 릴리즈 빌드는 `build-sidecar.ts --out-dir <출력 폴더>/.sidecar-build`로 사이드카를 따로 만들고(`release.ts`의 `releaseSidecarDir`), 개발 사이드카 경로 `apps/desktop/src-tauri/binaries/fresnel-<triple>`에는 쓰지 않습니다. 그 경로는 e2e 시험과 `ensure-sidecar.sh`가 `0.0.0` 빌드로 다시 쓰기 때문입니다. `--no-build`만 개발 사이드카를 읽습니다. `ensure-sidecar.sh`는 실행되는 바이너리의 `version --json`이 `0.0.0`이 아닌 `cli` 값을 알리면 낡은 것으로 보고 다시 만듭니다. X11 시험(`release-smoke.test.ts`)은 스모크 전후로 개발 사이드카 파일이 같은지 확인합니다.
-- [결정: 오케스트레이터 기본값] 버전 주입(M3b B5-FIX2). `release.ts`가 `--version`을 `build-sidecar.ts`에 넘기고, 빌드가 `bun build --define FRESNEL_BUILD_VERSION="<버전>"`으로 문자열 상수를 넣습니다. `CLI_VERSION`(`xeon/apps/cli/src/commands/version.ts`)과 `ENGINE_VERSION`(`xeon/apps/host/src/assemble.ts`)은 `typeof FRESNEL_BUILD_VERSION`이 문자열이면 그 값을, 아니면(소스 실행, 개발 빌드) `"0.0.0"`을 씁니다. 버전은 `x.y.z` 또는 `x.y.z-<꼬리>` 모양만 받습니다. `fresnel-release.yml`은 `v<x.y.z>` 태그에서 태그의 버전을 `FRESNEL_RELEASE_VERSION`으로 넘기고, 그 밖에는 스모크 기본값 `0.0.0-smoke`입니다. 스모크는 `fresnel version` 출력에 아카이브 버전이 있는지 확인합니다(`run.version-injected`). 앱 번들(Tauri) 버전과의 정합은 M4 패키징 몫입니다.
+- [결정: 오케스트레이터 기본값] 개발 사이드카 보호(M3b B6-FIX). 릴리즈 빌드는 `build-sidecar.ts --out-dir <출력 폴더>/.sidecar-build`로 사이드카를 따로 만들고(`release.ts`의 `releaseSidecarDir`), 개발 사이드카 경로 `apps/desktop/dist/sidecar/fresnel-<triple>`(옛 Tauri 구현(커밋 424f338a)은 `apps/desktop/src-tauri/binaries/fresnel-<triple>`)에는 쓰지 않습니다. 그 경로는 e2e 시험과 `ensure-sidecar.sh`가 `0.0.0` 빌드로 다시 쓰기 때문입니다. `--no-build`만 개발 사이드카를 읽습니다. `ensure-sidecar.sh`는 실행되는 바이너리의 `version --json`이 `0.0.0`이 아닌 `cli` 값을 알리면 낡은 것으로 보고 다시 만듭니다. X11 시험(`release-smoke.test.ts`)은 스모크 전후로 개발 사이드카 파일이 같은지 확인합니다.
+- [결정: 오케스트레이터 기본값] 버전 주입(M3b B5-FIX2). `release.ts`가 `--version`을 `build-sidecar.ts`에 넘기고, 빌드가 `bun build --define FRESNEL_BUILD_VERSION="<버전>"`으로 문자열 상수를 넣습니다. `CLI_VERSION`(`xeon/apps/cli/src/commands/version.ts`)과 `ENGINE_VERSION`(`xeon/apps/host/src/assemble.ts`)은 `typeof FRESNEL_BUILD_VERSION`이 문자열이면 그 값을, 아니면(소스 실행, 개발 빌드) `"0.0.0"`을 씁니다. 버전은 `x.y.z` 또는 `x.y.z-<꼬리>` 모양만 받습니다. `fresnel-release.yml`은 `v<x.y.z>` 태그에서 태그의 버전을 `FRESNEL_RELEASE_VERSION`으로 넘기고, 그 밖에는 스모크 기본값 `0.0.0-smoke`입니다. 스모크는 `fresnel version` 출력에 아카이브 버전이 있는지 확인합니다(`run.version-injected`). 앱 번들 버전(옛 Tauri 구현(커밋 424f338a)의 Tauri 버전, 지금은 Electron 앱 버전 `FRESNEL_RELEASE_VERSION`, `L4.desktop.spec` §11.7)과의 정합은 M4 패키징 몫입니다.
 - [결정: 2026-11-04 사용자] 고지는 라이선스별로 묶습니다(§6, B19). 번들 바이너리의 라이선스 전문은 싣지 않고 출처 링크와 SPDX 링크를 적습니다.
 
 ### 8.2 미결
 
 1. [해소] 버전 값은 §8.1의 버전 주입으로 정했습니다.
-2. [미결] Tauri 자원 매핑. `xeon/apps/desktop/src-tauri/tauri.conf.json`에는 `externalBin`만 있습니다. 템플릿과 기본 플러그인을 `Contents/MacOS`에 두는 설정(`resources`와 macOS 파일 매핑)은 M4입니다.
+2. [미결] 자원 매핑. 옛 Tauri 구현(커밋 424f338a)의 `xeon/apps/desktop/src-tauri/tauri.conf.json`에는 `externalBin`만 있었습니다. 템플릿과 기본 플러그인을 `Contents/MacOS`에 두는 설정(`resources`와 macOS 파일 매핑)은 M4입니다. Electron 묶음의 Resources 목록(`L4.desktop.spec` §11.7)에는 아직 없습니다. [근거: `xeon/apps/desktop-shell/scripts/package.ts`]
 3. [해소] 번들 바이너리(sops, age, rg)의 라이선스 전문은 싣지 않고, 라이선스별 절의 출처 링크와 SPDX 링크로 적습니다([결정: 2026-11-04 사용자], §6). 아카이브에 라이선스 파일이 없으므로 이 세 바이너리의 저작권 줄은 적지 않습니다. [미결] Bun의 LICENSE.md 전문(JavaScriptCore 등)을 싣는지는 사용자가 정합니다. 지금은 주소만 적습니다.
 4. [미결] 체크섬의 출처. `.sha256`과 아카이브는 같은 곳에서 받습니다. 서명된 체크섬이나 별도 공개 키는 없습니다.
 5. [해소] CI의 gitleaks 단계는 `secrets` 작업으로 들어갔습니다(§6) [결정: 2026-11-04 사용자].
 6. [미결] 액션 주석 검증. 주석의 `v<버전>`과 SHA가 맞는지는 저장소 안에서 검사하지 않습니다. 사용자나 리뷰가 한 번 확인합니다.
 7. [미결] Linux arm64 스모크. X11은 x86_64에서만 돕니다. aarch64 Linux 아카이브는 빌드 대상이지만 검증하지 않습니다.
 8. [미결] Intel macOS. `release.ts`는 `bundledBinaries`에 없는 triple도 번들 없이 아카이브로 만듭니다. 지원하지 않는 triple을 막는 검사는 없습니다.
-9. [미결] 이름 `fresnel`의 소비처. 릴리즈 스크립트(`release.ts`, `release-smoke.ts`, `release-smoke.sh`), `xeon/apps/desktop/sidecar.json`의 `name`, `tauri.conf.json`의 `productName`과 `externalBin`이 이름을 적습니다. M4 개명 때 함께 바꿉니다(M3-REQ-54).
+9. [미결] 이름 `fresnel`의 소비처. 릴리즈 스크립트(`release.ts`, `release-smoke.ts`, `release-smoke.sh`), `xeon/apps/desktop/sidecar.json`의 `name`, 옛 Tauri 구현(커밋 424f338a)의 `tauri.conf.json`의 `productName`과 `externalBin`, Electron 묶음의 사이드카 이름 `fresnel-<triple>`(`L4.desktop.spec` §11.7)이 이름을 적습니다. M4 개명 때 함께 바꿉니다(M3-REQ-54). [근거: `xeon/apps/desktop-shell/scripts/package.ts`]
 10. [미결] Windows 서명. 범위 밖입니다. Windows 아카이브는 실행 파일 이름(`fresnel.exe`)만 정했고, 번들과 스모크가 없습니다.
 11. [미결] Linux rg. 번들하지 않고 시스템 요구로 둡니다(§3.3). 스모크는 Linux에서 `rg` 줄을 확인하지 않습니다.
 12. [미결] `L0.os.spec` §10 3번(번들 정책)과 §3.6의 "미정" 표기가 이 결정과 어긋납니다. `L0.os` 문서는 B0-OS 트랙이 맡으므로 이 문서에서 고치지 않습니다.

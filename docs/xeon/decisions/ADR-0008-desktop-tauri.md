@@ -142,3 +142,9 @@ binds: [xeon/apps/desktop/**, xeon/apps/host/**]
 - [미결] 사이드카 허용 크기 상한. Hello World와 실제 엔진 번들을 측정한 뒤 `L4.desktop.plan`에서 정한다(`arch-2.md §5` 7행).
 - [가정] Windows 네이티브는 나중에 지원하지만 빌드 대상에서 빼지 않는다.
 - [가정] §4.1의 메모리·번들·기동 수치는 3차 또는 벤더 수치이고 측정 논쟁(tauri#5889)이 있다.
+
+## 상태 갱신
+
+- [결정: 2026-11-06 사용자] 데스크톱 셸을 Tauri(Rust)에서 Electron(TypeScript)으로 옮겼다. 근거와 범위는 `L4.desktop.spec` §11이다.
+- Tauri 제거 완료: 2026-11-06. 마지막 Tauri 구현은 커밋 `424f338a`에 있다(`git show 424f338a:xeon/apps/desktop/src-tauri/<path>`).
+- 이 ADR은 Tauri 선택의 기록으로 남긴다. 위 본문은 옛 Tauri 구현(커밋 424f338a)의 결정과 근거이고, 현재 셸의 정본은 `L4.desktop.spec` §11이다.

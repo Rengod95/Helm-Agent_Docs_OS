@@ -3,7 +3,7 @@
 # notarizes it with scripts/electron-sign.sh (without the six Apple secrets: UNSIGNED, printed, exit 0 outside a release tag),
 # and packs Fresnel-<version>-arm64.zip with its .sha256 into $FRESNEL_RELEASE_OUT. With --smoke it also launches the app
 # (scripts/electron-smoke.ts: engine, first screen, window restore, second launch, tray, inspect off, quit).
-# The Tauri path (`release-archive`, `release-smoke`) stays; this is the Electron one beside it. macOS arm64 only (Windows and
+# `release-archive` and `release-smoke` build the CLI archive; this is the Electron app one beside it. macOS arm64 only (Windows and
 # Linux bundles are not made yet).
 #   release-electron.sh [--smoke]
 # env: FRESNEL_RELEASE_VERSION (default 0.0.0-smoke), FRESNEL_RELEASE_OUT (default dist/release-electron),

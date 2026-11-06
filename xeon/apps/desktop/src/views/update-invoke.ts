@@ -8,7 +8,7 @@ import {
 } from "./update-model.ts";
 
 // 업데이트 명령의 invoke 모양과 응답 읽기(B-10). 명령은 Rust `updater.rs`가 등록하고 WebView에는 업데이트 플러그인 권한을 주지 않는다.
-// 운영은 main.tsx가 `@tauri-apps/api/core`의 `invoke`와 `Channel`을 넘기고, 시험은 가짜를 넣는다(os-reauth.ts와 같은 방식).
+// 운영은 main.tsx가 셸 다리의 `invoke`와 채널을 넘기고, 시험은 가짜를 넣는다(os-reauth.ts와 같은 방식).
 // 응답은 `as` 없이 타입 가드로 읽는다. 모양이 틀리면 확인과 내려받기는 `other`, 설치도 `other`로 본다.
 
 type UpdateCommand =
@@ -23,7 +23,7 @@ export type UpdateInvoke = (
   args?: { readonly onEvent?: unknown },
 ) => Promise<unknown>;
 
-/** 진행 통로를 만든다. 받은 조각은 `onMessage`로 간다. 운영은 main.tsx가 Tauri `Channel`을 만들어 넘긴다 */
+/** 진행 통로를 만든다. 받은 조각은 `onMessage`로 간다. 운영은 main.tsx가 셸 다리의 채널을 만들어 넘긴다 */
 export type UpdateChannelOf = (onMessage: (event: unknown) => void) => unknown;
 
 /** 내려받기 진행 한 번. 전체 크기를 모르면 `total`은 `null`이다 */

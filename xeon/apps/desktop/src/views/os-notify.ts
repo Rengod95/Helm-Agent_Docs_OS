@@ -18,7 +18,7 @@ export const NOTIFY_FAILED_EVENT = "notify-failed";
 
 export type OsNotifyCommand = "notify_permission" | "notify_request_permission" | "notify_os";
 
-/** `notify_os`의 인자. Rust가 `thread_id`로 받는다(Tauri가 camelCase를 옮긴다) */
+/** `notify_os`의 인자. 셸이 `thread_id`로 받는다 */
 type OsNotifyArgs = {
   readonly title: string;
   readonly body: string;

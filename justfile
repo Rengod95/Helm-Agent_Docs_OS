@@ -151,30 +151,15 @@ release-archive triple *flags:
 release-smoke:
     cd xeon && just release-smoke
 
-# 데스크톱 화면 번들 (bun build → apps/desktop/src-tauri/ui). 인자 dev는 불변식 검사를 켠 개발 빌드. just verify 밖
+# 데스크톱 화면 번들 (bun build → apps/desktop/dist/ui). 인자 dev는 불변식 검사를 켠 개발 빌드. just verify 밖
 [group('local')]
 desktop-ui mode="release":
     cd xeon && just desktop-ui {{mode}}
 
-# 데스크톱 개발 실행 (cargo run, 사이드카 필요: 없으면 종료코드 2). just verify 밖
+# 데스크톱 개발 실행: Electron 셸을 번들해 띄운다. 화면(`just desktop-ui`)과 사이드카(`just desktop-sidecar host`)가 없으면 종료코드 2. just verify 밖
 [group('local')]
 desktop-run:
     cd xeon && just desktop-run
-
-# 데스크톱 앱 릴리스 빌드 (cargo build --release, 사이드카 필요: 없으면 종료코드 2). just verify 밖
-[group('local')]
-desktop-build:
-    cd xeon && just desktop-build
-
-# 데스크톱 Rust 셸 단위 시험 (cargo test: 릴레이, 엔진 수명). 사이드카 불필요. just verify 밖
-[group('local')]
-desktop-test:
-    cd xeon && just desktop-test
-
-# 데스크톱 Rust 셸 고지(resources/THIRD-PARTY-NOTICES-RUST.txt): 인자 없으면 파일을 다시 쓰고, --check면 커밋된 파일이 Cargo.lock과 맞는지만 본다(다르면 종료코드 1). cargo가 필요하다 (xeon/scripts/rust-notices.ts)
-[group('local')]
-desktop-notices *flags:
-    cd xeon && just desktop-notices {{flags}}
 
 # 묶은 Electron 앱 Fresnel.app(macOS arm64) 만들기. 화면 번들과 사이드카가 없으면 종료코드 2. 출력 xeon/apps/desktop-shell/dist-app/. just verify 밖
 [group('local')]
@@ -196,7 +181,7 @@ desktop-smoke-electron:
 desktop-notices-electron *flags:
     cd xeon && just desktop-notices-electron {{flags}}
 
-# Electron 릴리즈 묶음: Fresnel.app 서명(시크릿 없으면 UNSIGNED)과 Fresnel-<version>-arm64.zip, .sha256. Tauri release-archive는 그대로. macOS arm64만 (xeon/scripts/release-electron.sh)
+# Electron 릴리즈 묶음: Fresnel.app 서명(시크릿 없으면 UNSIGNED)과 Fresnel-<version>-arm64.zip, .sha256. release-archive는 CLI 릴리즈 아카이브라 그대로다. macOS arm64만 (xeon/scripts/release-electron.sh)
 [group('local')]
 release-archive-electron:
     cd xeon && just release-archive-electron

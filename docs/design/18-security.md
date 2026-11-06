@@ -1,5 +1,7 @@
 # 18. 보안
 
+> 2026-11-06: 데스크톱 셸은 Tauri에서 Electron으로 바뀌었고 Tauri와 Rust 셸은 저장소에서 제거했다(마지막 Tauri 커밋 424f338a). 아래 Tauri 서술은 당시 설계 기록이다. 현재 구조는 docs/xeon/L4/desktop/spec.md §11을 따른다.
+
 - 작성: 2026-10-11, P11(데몬)
 - 상태: 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 조정자 판정(`process/rulings-stage2a.md` J-01~J-351)이다. 모바일은 결정 47~49와 판정 J-118대로 26(데몬이 서빙하는 PWA, HttpOnly 쿠키 토큰, Web Push)을 따른다.
 - 소유: 위협 모델, 리스너별 연결 정책(모바일 쿠키 갈래 포함), 주체(principal)와 권한, 인증(Tailscale 신원 + whois + 기기 토큰, SSH 경로, 로컬), 기기 페어링 규칙, 토큰 형식·수명·회전·폐기·저장, 비밀 저장·주입 정책과 마스킹, 도구 실행 격리의 보안 요구(13과 맞춤), 보호 경로, 감사 기록, 속도·크기 한도의 보안 상한, 공급망, 백업·복구의 보안 조건, `/m/*` 정적 응답의 헤더·캐시·쿠키 조건, 보안 테스트 목록.
@@ -506,7 +508,7 @@ export interface PairingCodeRecord {
 #### 3.7.3 SSH 발급 규칙
 
 - `helm device issue --stdin --json`은 표준 입력에서 JSON 한 줄 `{"name":…,"platform":…,"client":…}`을 읽어 로컬 관리자로 `admin.issueDevice`를 부르고 `HELM-DEVICE/1 {json}` 한 줄을 표준 출력에 쓴다(20 §3.8.7, 17 §3.15). 토큰은 이 출력에만 한 번 나온다.
-- 셸 해석 방지: 원격 명령 문자열은 로그인 셸이 해석한다. 그래서 기기 이름·플랫폼 같은 사용자 입력은 원격 명령 인자에 넣지 않고 표준 입력 JSON으로만 보낸다. 앱(Rust)은 원격 명령의 각 인자를 POSIX 작은따옴표로 인용한다(`'` → `'\''`). `helmCliPath`는 `^~?/[A-Za-z0-9/._-]+$` 또는 정확히 `helm`만 받고, 기본값은 `~/.local/bin/helm`(17 §3.2.2의 링크)이다(20에 요구). 데몬 쪽 검증: 이름은 1~64자, 제어 문자·양방향 제어 문자 거부, 플랫폼·클라이언트 종류는 열거 값만.
+- 셸 해석 방지: 원격 명령 문자열은 로그인 셸이 해석한다. 그래서 기기 이름·플랫폼 같은 사용자 입력은 원격 명령 인자에 넣지 않고 표준 입력 JSON으로만 보낸다. 앱(옛 Tauri 구현 커밋 424f338a의 Rust)은 원격 명령의 각 인자를 POSIX 작은따옴표로 인용한다(`'` → `'\''`). `helmCliPath`는 `^~?/[A-Za-z0-9/._-]+$` 또는 정확히 `helm`만 받고, 기본값은 `~/.local/bin/helm`(17 §3.2.2의 링크)이다(20에 요구). 데몬 쪽 검증: 이름은 1~64자, 제어 문자·양방향 제어 문자 거부, 플랫폼·클라이언트 종류는 열거 값만.
 - `--name` 등 인자 형식(`helm device issue --name <이름> …`)은 사람이 서버 셸에서 직접 쓸 때를 위해 남긴다. 앱은 쓰지 않는다.
 - SSH 세션의 출처를 기록한다: CLI가 `SSH_CONNECTION` 환경 변수의 첫 필드(클라이언트 IP)를 `admin.issueDevice`의 진단 필드로 넘기고, 데몬이 그 IP로 whois를 불러 `tailnetNodeId`를 미리 묶는다(실패하면 묶지 않고 첫 WSS 접속 때 묶는다, §3.6.1). CLI가 보낸 값은 같은 uid가 만든 값이므로 감사 정보이지 보안 근거가 아니다.
 - 설정 `auth.sshIssue.enabled`(기본 true). 끄면 흐름 A만 남는다.
@@ -566,7 +568,7 @@ export interface PairingCodeRecord {
 |---|---|---|---|
 | 서버 DB | 기기 레코드(`deviceId`, 이름, 플랫폼, 클라이언트 종류, `credentialCarrier`, 페어링 경로, `tokenHash`, `prevTokenHash`+유효 시각, `tailnetNodeId`, `tailnetLogin`, 생성·만료·폐기 시각(마지막 인증 시각은 09 `device_presence.last_auth_at`), `publicKey?`). 운영 테이블 `push_tokens`의 Web Push 구독 원문(26 §3.4.6, 이벤트 밖) | 토큰 원문, 페어링 코드 원문 | 파일 0600, 디렉터리 0700, 오프사이트 사본은 restic 암호화(H-2 반영 뒤, §3.16) |
 | 서버 디스크 그 밖 | 없음(로컬 CLI·TUI는 토큰을 쓰지 않는다) | 토큰 파일 | - |
-| 데스크톱 앱 | OS 키체인(macOS Keychain, Windows Credential Manager)에 토큰. 앱 설정 파일에 `deviceId`, `serverId` | 웹뷰 메모리·IndexedDB·로그·진단의 토큰 | 20 §3.2 `secrets.rs`, APP-D02 |
+| 데스크톱 앱(옛 Tauri 구현, 커밋 424f338a) | OS 키체인(macOS Keychain, Windows Credential Manager)에 토큰. 앱 설정 파일에 `deviceId`, `serverId` | 웹뷰 메모리·IndexedDB·로그·진단의 토큰 | 20 §3.2 `secrets.rs`, APP-D02 |
 | 모바일 PWA(iOS 홈 화면 앱) | 쿠키 `__Host-helm_dt`(`HttpOnly; Secure; SameSite=Strict`, `Max-Age` = 토큰 남은 수명). 스크립트 저장소(`localStorage`·IndexedDB)에는 `deviceId`, `serverId`만 | 페이지 스크립트·서비스 워커·IndexedDB·로그의 토큰 | 홈 화면 앱의 쿠키 저장소는 Safari와 따로다(26 X-7). 휴대폰 자체 잠금과 기기 암호화에 기댄다 |
 | 이벤트 로그 | `device.*` 이벤트에 `tokenId`, `tokenHash` | 토큰 원문 | `tokenHash` 필드는 19 재전송·투영·관찰 입력에서 지운다(§5.2 09·19 요구) |
 
@@ -583,7 +585,7 @@ export interface PairingCodeRecord {
 | VAPID 개인 키(`HELM_VAPID_PRIVATE_KEY`) | 같은 SOPS 원본 | `helmd` 메모리 | 데몬의 Web Push 송신(26 §3.4.7). 없으면 푸시만 꺼진다 |
 | MCP 서버 자격(`tools.mcp[].env`·`headersFromSecrets`에 이름을 적은 키) | 같은 SOPS 원본(17 `secrets.keys`에 이름 추가) | `helmd` 메모리 → 그 MCP 서버 프로세스의 환경(`env`) 또는 HTTP 헤더(`headersFromSecrets`)에만 | 13 §3.9.1. 운영자 설정에 적힌 이름만 넘긴다(R-2 예외) |
 | 웹 검색 제공자 키 `BRAVE_SEARCH_API_KEY`(필수), `TAVILY_API_KEY`(선택) | 같은 SOPS 원본. 사람이 `secrets edit prod`로 넣는다(발급과 등록은 사람이 한다. Brave 발급에는 카드 본인 확인이 필요하다) | `helmd` 메모리 | `web_search` 제공자 어댑터(13). 제공자 순서는 설정 `tools.webSearch`가 정한다(§3.11.11) |
-| 기기 토큰 | (발급 시 생성) | 클라이언트 키체인 | 앱 Rust |
+| 기기 토큰 | (발급 시 생성) | 클라이언트 키체인 | 앱(옛 Tauri 구현의 Rust, 커밋 424f338a) |
 | 페어링 코드 | (생성) | 화면·QR·클립보드(짧게) | 사람 |
 | 홈랩 비밀(restic 등) | 홈랩 SOPS | Helm은 쓰지 않는다 | 홈랩 |
 
@@ -995,8 +997,8 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | npm 의존 | 정확한 버전(`^` 없음), `pnpm-lock.yaml` 커밋, `pnpm install --frozen-lockfile`. pi 패키지끼리의 `^1.1.0` 범위는 `overrides`로 한 버전에 묶는다(facts-2 §13 공통) |
 | 설치 스크립트 | `pnpm-workspace.yaml`의 `allowBuilds`(pnpm 11, 이름별 `true`/`false`)에 `better-sqlite3: true`만 두고, 설치 스크립트가 있는 그 밖의 의존(pi 쪽 `@google/genai`, `protobufjs` 등)은 이름별로 `false`를 적는다(07 §3.3.2). 서버 pnpm 11.21(17 §2.2 표 7번 행)은 허용 여부를 정하지 않은 빌드 스크립트를 만나면 `ERR_PNPM_IGNORED_BUILDS`로 설치를 실패시키고, `onlyBuiltDependencies`·`ignoredBuiltDependencies`로는 이 실패를 막지 못한다 [실험: 07 §3.3.2, 07 실험 표]. 그래서 새 의존이 빌드 스크립트를 가져오면 설치가 실패하고 사람이 허용 여부를 정한다 |
 | 네이티브 모듈 | `better-sqlite3`의 미리 빌드된 `.node`를 내려받으면 잠금 파일 무결성 밖의 코드가 들어온다. 릴리스 빌드(17 §3.10.2)는 `npm_config_build_from_source=true`로 소스에서 컴파일한다(서버에 `g++`·`make`·`python3`가 있다 [실험: `which`]). 만든 `.node`의 sha256을 릴리스 매니페스트(17 §3.10.1 `native`)에 적고 `helm doctor`가 대조한다. 판에 따라 설치 스크립트가 없을 수 있다(06·07 확인 결과를 따른다) |
-| Rust(데스크톱 앱, 20) | `Cargo.lock` 커밋, 빌드는 `cargo build --locked`, 크레이트는 정확한 판(`=x.y.z`). `cargo deny check`(라이선스·알려진 취약점·출처)와 `cargo audit`을 `just verify`의 앱 단계에 경고로 넣는다. 크레이트 "최신" 지정 금지 |
-| CI·빌드 도구 | GitHub Actions의 액션은 커밋 SHA로 고정한다(`tauri-apps/tauri-action@<sha>`, 움직이는 태그 `@v1` 금지). `cargo-xwin`·`tauri-cli` 같은 빌드 도구는 판을 고정해 `mise`나 `cargo install --locked --version`으로 설치한다(20 §3.12에 요구) |
+| Electron 셸(TypeScript, `apps/desktop-shell`) | `bun.lock` 커밋. `electron`, `electron-updater`, `@electron/packager`는 카탈로그에서 정확한 판(`45.2.3`, `6.8.11`, `18.3.6`)으로 고정한다. 옛 Tauri 구현(커밋 424f338a)의 `Cargo.lock`, `cargo build --locked`, `cargo deny`, `cargo audit` 규칙은 Rust 셸과 함께 없어졌다 |
+| CI·빌드 도구 | GitHub Actions의 액션은 커밋 SHA로 고정한다(움직이는 태그 `@v1` 금지). 빌드 도구는 판을 고정해 `mise`로 설치한다(20 §3.12에 요구). 옛 Tauri 구현(커밋 424f338a)의 `tauri-apps/tauri-action`, `cargo-xwin`, `tauri-cli`, `cargo install --locked` 항목은 Rust 셸과 함께 없어졌다 |
 | 실행 중 내려받기 | 금지. coding-agent `tools-manager`의 rg/fd 자동 내려받기를 제거하거나 `PI_OFFLINE=1`(facts-1 §0-7, 07). 데몬은 실행 중 npm·바이너리를 받지 않는다 |
 | 웹·브라우저 도구 | `playwright-core` 1.64(의존 0), `@mozilla/readability`·`linkedom`·`turndown`은 정확한 판으로 고정한다. 브라우저 바이너리는 설치된 Chrome 또는 Playwright 캐시만 쓴다. 실행 중 `playwright install`을 하지 않는다. `rg`·`ast-grep`은 설치된 바이너리만 쓴다. Stagehand, oh-my-pi, browser-use는 의존성으로 쓰지 않는다(판정 J-190. Stagehand는 자체 LLM 호출 층 때문에 모델 키 경계를 우회한다) |
 | 운영 릴리스 | 커밋에서만 빌드, 작업 트리 변경이 있으면 거부, 매니페스트 파일 해시로 변조 확인(17 ADR-17-5) |
@@ -1200,7 +1202,7 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | 15 | `web_fetch`·`web_search` 정책(§3.11.8, §3.11.11). `<data>` 표식을 12 렌더러로(§3.12 8번). 자극·문서·작업 공간을 모델에 넣거나 저장할 때 마스킹기 적용(§3.10.3) |
 | 16 | (1) 마스킹 규칙 표를 18 §3.10.4와 한 곳에서(합집합). (2) 관찰 자식 가림 목록에 `/srv/volumes/helm/private`(17 §3.1.3과 같게), fork 자식의 `private/` 비접근 규칙(§3.11.3) |
 | 19 | (1) `helm-bearer.` 하위 프로토콜은 정식 데몬이 받지 않는다(§3.4.4). P-03·§3.2.2·§3.17·CT-33·Q-16을 "헤더(데스크톱) 또는 쿠키(모바일 PWA), 하위 프로토콜은 가짜 데몬 시험 전송만"으로. (2) HTTP 경로 표에 `/m/*`, `/m/pair`, `/m/whoami`, `/m/logout`, `/m/cmd`와 hello 전 처리 예외. (3) `checkTransport` 반환에 `carrier`. (4) `1004` 고정(해시 조회 실패), `1006`은 토큰 경로에서 쓰지 않음, `1008` 사유에 `carrier_mismatch`, Host 불일치는 403 하나(§3.4.5). (5) 브라우저 전송의 업그레이드 실패 판정(`/m/whoami` 401 사유, §3.4.3 규칙 5)을 §3.14에. (6) scope `decideMobile`(26 §3.3.3 표), 비대화 `localAdmin`의 scope(`decide` 없음), `runtimeAdapter`의 scope `modelTool`, `tty_cli` 확인 요청 메서드와 명령 필드(§3.5 규칙 6). (7) `device.revoke`의 `cascade`. (8) 다운로드 티켓은 19 §3.11.2가 정본(18 §3.8.2를 맞췄다). (9) `policy.files`에 기기당 대기 업로드 총량·동시 세션 상한(§3.14). (10) 1005·4009 사유별 클라이언트 데이터 처리(§3.19)를 F-06에. (11) `/m/*` 정적 응답의 헤더·캐시·쿠키 값은 18 §3.4.6을 인용하고 복제하지 않는다 |
-| 20 | (1) `ForwardAgent=no`, `StrictHostKeyChecking=yes` 기본, 첫 접속 지문 대조 안내, 앱 전용 제한 키 권장 구성(§3.6.2). (2) 키체인 항목 이름에 `serverId`. (3) SSH 발급은 `--stdin` JSON, 원격 인자 POSIX 인용, `helmCliPath` 형식 검사와 기본값 `~/.local/bin/helm`, §6에 셸 메타 문자 시험(§3.7.3). (4) 사유별 클라이언트 데이터 처리(§3.19). (5) 첫 실행 안내에 디스크 암호화 권장. (6) app-dev Vite 프록시: 127.0.0.1 바인딩, 대상 포트는 `HELM_LISTEN_SSH_PORT`, Origin이 Vite 주소일 때만 토큰(§3.4.5). (7) Cargo·CI 공급망 규칙(§3.15) |
+| 20 | (1) `ForwardAgent=no`, `StrictHostKeyChecking=yes` 기본, 첫 접속 지문 대조 안내, 앱 전용 제한 키 권장 구성(§3.6.2). (2) 키체인 항목 이름에 `serverId`. (3) SSH 발급은 `--stdin` JSON, 원격 인자 POSIX 인용, `helmCliPath` 형식 검사와 기본값 `~/.local/bin/helm`, §6에 셸 메타 문자 시험(§3.7.3). (4) 사유별 클라이언트 데이터 처리(§3.19). (5) 첫 실행 안내에 디스크 암호화 권장. (6) app-dev Vite 프록시: 127.0.0.1 바인딩, 대상 포트는 `HELM_LISTEN_SSH_PORT`, Origin이 Vite 주소일 때만 토큰(§3.4.5). (7) 공급망·CI 규칙(§3.15. 옛 Cargo 항목은 Tauri 구현, 커밋 424f338a 기준) |
 | 22 | §3.17의 새 시험(T18-07b·07c, T18-34~T18-52)을 시험 계층에 |
 | 23 | (1) 프록시 스파이크(§3.11.9 6번)와 실패 시 대체 구성. (2) 사람 작업: `sudo apt install bubblewrap`(필수), `fonts-noto-cjk`(권고, 한글 페이지), 컴퓨터 사용 단계의 `xdotool`·`openbox`·`x11-utils`·`scrot`. 비밀 `BRAVE_SEARCH_API_KEY`(필수)·`TAVILY_API_KEY`(선택)를 `secrets edit prod`로 넣는다(§3.10.1). 같은 uid 다른 에이전트에 `helm` CLI 사용 금지 지침(§3.5 규칙 7), Helm 작업 폴더의 git 설정 확인 안내(§3.11.10). (3) M0-03 pnpm `allowBuilds` 확인(07 실험으로 닫힘). (4) 브라우저 스파이크(판정 J-190 (7)): S1 안 Chrome 기동과 프록시 경유, `helm-netshim` 중계 비용, 요청 가로채기 누락(`sendBeacon`·keepalive·서비스 워커, T18-52), Brave 약관의 결과 저장 조항과 ledger 보존의 충돌, Chrome 실제 메모리 사용량, 한글 페이지의 변환 품질(§3.11.8 5번). (5) SP-15(`tailscale serve`가 쿠키·Origin 헤더를 넘기는지)가 실패해도 `helm-bearer.` 대체를 쓰지 않고, 전송 방식을 사용자 결정으로 올린다(§3.4.4, 판정 J-241) |
 | 24 | ADR 번호(판정 J-156): ADR-18-01~04, ADR-18-06(J-134 네트워크 격리), ADR-18-07(J-147 후보, 민감 필드를 체인 밖에 둔다, §3.10.6). ADR-18-05(쿠키 인증)는 ADR-26-03에 합쳤다. 24의 ADR-18-05·06 항목은 이 번호로 고친다 |

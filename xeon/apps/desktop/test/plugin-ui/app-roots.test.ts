@@ -7,7 +7,7 @@ import {
 } from "../../src/plugin-ui/app-roots.ts";
 import { APP_DECL, APP_ROOT, appEntryOf, uiEntryOf } from "./support.ts";
 
-/** Tauri는 Rust가 준 값(대개 문자열)으로 거절한다. 이유는 `unknown`으로 받아 그 값을 그대로 흉내 낸다 */
+/** 셸은 오류 값(대개 문자열)으로 거절한다. 이유는 `unknown`으로 받아 그 값을 그대로 흉내 낸다 */
 function rejectingWith(reason: unknown): ReturnType<typeof recorder> {
   return recorder(async () => {
     throw reason;

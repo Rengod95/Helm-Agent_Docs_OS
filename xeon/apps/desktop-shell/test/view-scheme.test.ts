@@ -34,7 +34,7 @@ import {
   type Tier,
 } from "../src/main/view-scheme.ts";
 
-// 글자 검사 기준은 Rust 원본 `apps/desktop/src-tauri/src/view_scheme.rs`의 시험과 `packages/client/src/views/app/scheme.ts`의 출력이다.
+// 글자 검사 기준은 옛 Tauri 구현(커밋 424f338a)의 `view_scheme.rs` 시험과 `packages/client/src/views/app/scheme.ts`의 출력이다.
 // desktop-shell은 packages/client에 닿지 않으므로(L4끼리 import 금지, DR-10 허용 목록에 없다) TS 출력의 글자를 여기에 옮겨 적는다.
 
 /** `appFrameCsp("fresnel-view://helm/1.0.0/")`의 출력과 같다 */

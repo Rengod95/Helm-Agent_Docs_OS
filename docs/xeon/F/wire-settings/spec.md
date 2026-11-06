@@ -35,7 +35,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 ### 1.2 다루지 않는 것
 
-- `HostConnection` 구현(`createHostConnection`)은 L4 공유 패키지 `@fresnel/client`가 가진다(§3.1, [결정: adr.0020]). F는 `HostConnection` 인터페이스만 둔다. 전송 구현 가운데 stdio 줄 프레이밍은 서버 쪽(L0, 호스트)도 써서 F가 가진다. 프로세스 기동, 소켓 서버, Tauri 릴레이는 `L0.process.spec`, `L4.host-service.spec`, `L4.desktop.spec`, `L4.cli.spec`가 맡는다.
+- `HostConnection` 구현(`createHostConnection`)은 L4 공유 패키지 `@fresnel/client`가 가진다(§3.1, [결정: adr.0020]). F는 `HostConnection` 인터페이스만 둔다. 전송 구현 가운데 stdio 줄 프레이밍은 서버 쪽(L0, 호스트)도 써서 F가 가진다. 프로세스 기동, 소켓 서버, 데스크톱 릴레이(Electron 셸 `engine/relay.ts`, 옛 Tauri 구현(커밋 424f338a)은 Tauri 릴레이)는 `L0.process.spec`, `L4.host-service.spec`, `L4.desktop.spec`, `L4.cli.spec`가 맡는다.
 - 엔진 쪽 메서드 처리기 구현: `L4.host-service.spec`이 L1 서비스를 엮어 구현한다.
 - 대화 소유 잠금 구현: `L0.process.spec`, `L1.persistence.spec`.
 - 설정 파일 위치, 파일 감시, 병합 실행: `L1.persistence.spec`과 `L4.host-service.spec` [가정. 아래 §4.9 참조].
@@ -95,7 +95,7 @@ thread, turn, step, item 용어는 `F.conversation.spec`을 따른다. 이 문�
 | 배포 형태 | 전송 | 프레이밍 | 단계 |
 |---|---|---|---|
 | CLI(`fresnel chat`) | in-process | 없음. 메시지 객체를 그대로 넘긴다 | M1 |
-| 데스크톱(Tauri 2 + 엔진 사이드카) | stdio | JSON Lines(UTF-8, 메시지 하나당 한 줄, `\n` 구분) | M1(계약), 구현은 L4 plan |
+| 데스크톱(Electron 셸 + 엔진 사이드카. 옛 Tauri 구현(커밋 424f338a)은 Tauri 2) | stdio | JSON Lines(UTF-8, 메시지 하나당 한 줄, `\n` 구분) | M1(계약), 구현은 L4 plan |
 | 서비스(`fresnel service`) | socket | Unix 도메인 소켓 위 JSON Lines | M2 이후 |
 
 ```ts

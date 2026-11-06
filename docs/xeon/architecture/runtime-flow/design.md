@@ -271,7 +271,7 @@ flowchart TB
 
 - service 열은 로컬 서비스 전송이다(ADR-0006 §3.3). 원격 사용은 1차(M3)에 넣고, 같은 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결한다. 흐름은 service 열과 같다. 내장 TLS + 토큰 WebSocket 전송은 2차다 [결정: review.decisions-2 U-11].
 - [제안] 대화 스트림 재전송은 내구 이벤트의 `seq` 커서를 기준으로 한다. 클라이언트는 마지막으로 받은 `seq`를 보내고, 호스트는 그 뒤의 내구 이벤트를 DB에서 읽어 보낸다.
-- [제안] 데스크톱 종료 처리는 SIGTERM 체크포인트를 가정하지 않는다. Tauri 셸 플러그인은 정상 종료 때 SIGKILL만 보내므로, 종료 전에 shutdown 요청을 stdin으로 보내고 응답을 기다린다(`_research/notes/arch-2.md` §5 1·2행).
+- [제안] 데스크톱 종료 처리는 SIGTERM 체크포인트를 가정하지 않는다. 옛 Tauri 구현(커밋 424f338a)의 Tauri 셸 플러그인은 정상 종료 때 SIGKILL만 보냈으므로, 종료 전에 shutdown 요청을 stdin으로 보내고 응답을 기다린다(`_research/notes/arch-2.md` §5 1·2행). Electron 셸도 신호 전에 이 요청을 보낸다(`apps/desktop-shell/src/main/engine/supervisor.ts`).
 
 ## 5. 결과로 생기는 제약
 

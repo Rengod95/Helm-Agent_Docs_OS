@@ -1,5 +1,7 @@
 # 20. 데스크톱 앱 아키텍처
 
+> 2026-11-06: 데스크톱 셸은 Tauri에서 Electron으로 바뀌었고 Tauri와 Rust 셸은 저장소에서 제거했다(마지막 Tauri 소스 커밋 424f338a). 이 문서의 Tauri 설계는 당시 결정 기록이다. 현재 구조는 `docs/xeon/L4/desktop/spec.md` §11을 따른다.
+
 - 작성: P13(데스크톱 앱), 2026-10-11. 1단계 초안
 - 상태: 4c 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 판정 `rulings-stage2a.md`(§1~§11, J-01~J-351)다. 03·04·05·06·07·09·11·16·17·18·19·21·26의 같은 시기 판과 맞췄다.
 - 소유: Tauri 구조(Rust 쪽과 웹뷰 쪽 책임, IPC, 권한), 연결 관리(프로필, SSH, 상태 기계), React 앱 구조(폴더, 라우팅, 상태 관리), 클라이언트 저장소와 동기화, 오프라인 표시, OS 통합(알림, 메뉴 막대·트레이, 배지, 단축키, 로그인 시 시작, 딥 링크, 키체인), UI 번들 방식, 빌드·배포, 앱 테스트.
@@ -94,7 +96,7 @@
 | `server`는 "WSL을 띄우는 호스트 + 직접 쓰는 PC"다 [원문: `machines.md` 7행] | Windows 앱은 서버 PC 자신에서 돌 수 있다. 이때도 같은 WSS 경로(자기 tailnet 이름)를 쓴다(§3.8.10) |
 | Windows 호스트의 PATH에는 Node 등 개발 도구가 없고, 호스트 변경은 사람이 `.ps1`로 한다 [브리프 §2.5] | Windows 설치 파일은 Windows 호스트에서 빌드하지 않는다(§3.12.4). 앱 설치는 사람이 설치 파일을 실행한다 |
 | macOS 빌드는 Mac에서만 된다. 서버는 `run-on mac <cmd>`로 지시한다. `run-on`은 `bash -lc`와 mise shim을 PATH에 넣고, 대상 기기에 연결하지 못하면 종료 코드 2를 낸다 [원문: `~/.local/bin/run-on`] | macOS 빌드 레시피는 서버의 `just app-build-mac`이 `run-on mac`으로 Mac의 `app-build-local`을 부른다(§3.12.2) |
-| `~/projects`는 Syncthing으로 Mac과 양방향 동기화된다. `.stignore-dev`는 `node_modules`, `dist`, `build`, `.git` 등을 빼지만 Cargo의 `target`은 빼지 않는다 [원문: `~/projects/.stignore-dev`] | Rust 빌드 산출물을 저장소 안 `src-tauri/target`에 두면 수 GB가 동기화된다. 레시피에서 `CARGO_TARGET_DIR`를 동기화 폴더 밖으로 돌린다(§3.12.1) |
+| `~/projects`는 Syncthing으로 Mac과 양방향 동기화된다. `.stignore-dev`는 `node_modules`, `dist`, `build`, `.git` 등을 빼지만 Cargo의 `target`은 빼지 않는다 [원문: `~/projects/.stignore-dev`] | Rust 빌드 산출물을 저장소 안(옛 Tauri 구현(커밋 424f338a)의 `src-tauri/target`)에 두면 수 GB가 동기화된다. 레시피에서 `CARGO_TARGET_DIR`를 동기화 폴더 밖으로 돌린다(§3.12.1) |
 | 빌드·검증은 `justfile` 레시피로만 한다. `just verify` 통과가 완료다 | 앱 레시피 목록을 §3.12.2에 둔다. 06·23이 저장소 전체 레시피를 합친다 |
 
 ### 2.3 이 문서의 주요 선택
@@ -118,7 +120,8 @@
 | APP-D12 | 대용량 파일은 Rust의 사용자 정의 URI 스킴(`helm-blob`)으로 받는다. Rust가 현재 경로로 HTTP 요청(`/files/b/<blobId>`, 기기 토큰 헤더)을 하고 디스크에 캐시한다 | [제안], 결정 31, 19 P-13 | §3.8.6 |
 | APP-D13 | macOS 빌드는 Mac에서 `run-on mac`으로, Windows 설치 파일은 WSL에서 교차 빌드(NSIS)하는 것을 기본으로 하고 GitHub Actions Windows 러너를 대체 경로로 둔다 | [제안] | §3.12.4 |
 | APP-D14 | 1차에는 자동 업데이트를 넣지 않는다. 앱은 hello에서 호환 범위를 확인하고 맞지 않으면 갱신 방법을 안내한다 | [제안] | §3.12.6 |
-| APP-D15 | E2E의 주 경로는 같은 SPA를 브라우저(Playwright)에서 가짜 데몬에 붙여 돌리는 것이다. Tauri 셸 자체의 E2E는 WebdriverIO `@wdio/tauri-service`로 macOS·Windows 스모크만 한다 | [제안] | §3.13.4 |
+| APP-D15 | E2E의 주 경로는 같은 SPA를 브라우저(Playwright)에서 가짜 데몬에 붙여 돌리는 것이다. 옛 Tauri 구현(커밋 424f338a)의 셸 E2E는 WebdriverIO `@wdio/tauri-service`로 macOS·Windows 스모크만 한다 | [제안] | §3.13.4 |
+| — | Tauri 제거 완료, 2026-11-06, 마지막 Tauri 소스 커밋 424f338a | [결정: 2026-11-06 사용자] | 머리 메모, `docs/xeon/L4/desktop/spec.md` §11 |
 
 ### 2.4 가정
 
@@ -129,7 +132,7 @@
 | AS-3 | 데몬의 WebSocket 업그레이드는 `Authorization: Bearer` 헤더로 기기 토큰을 받는다(19 P-03이 택함. 최종은 18) | 토큰을 hello 인자로 보내야 하면 §3.8.5-7의 "인증 프레임 주입" 대안을 쓴다 |
 | AS-4 | WSL `sshd`가 `127.0.0.1:<HELM_LOOPBACK_PORT>`로의 포워딩(`-W`)을 허용한다(OpenSSH 기본값 `AllowTcpForwarding yes`) | 17·18이 막았다면 `PermitOpen 127.0.0.1:<HELM_LOOPBACK_PORT>`로 이 포트만 열어 달라고 요구한다(§5.2). 그것도 안 되면 19 §3.2.3의 예비 경로(`helm bridge`)를 쓴다 |
 | AS-5 | 서버 PC 자신에서 자기 tailnet 이름(`server.tail7ad0b4.ts.net`)의 serve 포트로 접속할 수 있다 | 서버 PC의 Windows 앱에 `ws://127.0.0.1:<포트>` 경로를 따로 허용해야 한다(§7 Q-05) |
-| AS-6 | Tauri 웹뷰를 숨긴 상태(창 닫기 = 숨기기)에서도 IPC 채널 메시지와 JS 타이머가 알림을 띄울 만큼 동작한다 | 알림 표시를 Rust로 옮긴다(§7 Q-06) |
+| AS-6 | 옛 Tauri 구현(커밋 424f338a)의 웹뷰를 숨긴 상태(창 닫기 = 숨기기)에서도 IPC 채널 메시지와 JS 타이머가 알림을 띄울 만큼 동작한다 | 알림 표시를 Rust로 옮긴다(§7 Q-06) |
 
 ## 3. 명세 본문
 
@@ -164,7 +167,7 @@
 
 원칙: Rust에는 웹뷰가 할 수 없는 일과 웹뷰에 두면 안 되는 비밀만 둔다. Rust 코드는 Helm 도메인 타입과 JSON-RPC 메서드를 모른다. 전송 프레임은 해석하지 않고 문자열로 넘긴다. 예외는 없다(페어링 응답은 JSON-RPC가 아니라 HTTP·SSH 출력이다, §3.8.7).
 
-| 모듈 (`src-tauri/src/`) | 책임 | 웹뷰에 두지 않는 이유 |
+| 모듈 (옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/`) | 책임 | 웹뷰에 두지 않는 이유 |
 |---|---|---|
 | `lib.rs` | `tauri::Builder` 구성: 플러그인 등록, 명령 등록, 상태(`AppState`), 트레이, `helm-blob` 스킴, 창 이벤트 | 앱 수명주기 |
 | `profiles.rs` | 연결 프로필 파일(`<app_config_dir>/profiles.json`) 읽기·쓰기·검증, 스키마 버전 이행 | 경로 검증 결과가 SSH 인자로 들어가므로 Rust에서 한 번 더 검증한다 |
@@ -196,12 +199,12 @@ Rust가 하지 않는 일: 재접속 시점 판단(TS 연결 상태 기계가 �
 
 ### 3.4 IPC 명령 목록 [제안]
 
-모든 명령은 `apps/desktop/src/platform/ipc.ts`의 타입 있는 함수로만 부른다. 화면 코드는 `@tauri-apps/api`의 `invoke`를 직접 부르지 않는다(브라우저 실행용 대체 구현으로 바꿔 끼우기 위해서다, §3.13.3). JS 인자 이름은 camelCase이고 Tauri가 Rust 쪽 snake_case 인자로 맞춘다 [지식: Tauri v2 명령 인자 기본 규칙].
+모든 명령은 옛 Tauri 구현(커밋 424f338a)의 `apps/desktop/src/platform/ipc.ts`의 타입 있는 함수로만 부른다. 화면 코드는 옛 Tauri 구현(커밋 424f338a)의 `@tauri-apps/api`의 `invoke`를 직접 부르지 않는다(브라우저 실행용 대체 구현으로 바꿔 끼우기 위해서다, §3.13.3). JS 인자 이름은 camelCase이고 Tauri가 Rust 쪽 snake_case 인자로 맞춘다 [지식: Tauri v2 명령 인자 기본 규칙].
 
 #### 3.4.1 공통 타입
 
 ```ts
-// apps/desktop/src/platform/types.ts
+// 옛 Tauri 구현(커밋 424f338a): apps/desktop/src/platform/types.ts
 export type AppErrorCode =
   | 'invalid_input'        // 프로필·인자 검증 실패
   | 'not_found'            // 프로필·전송 ID 없음
@@ -363,12 +366,12 @@ Rust 쪽 공통 규칙:
 
 #### 3.6.1 capabilities
 
-- 파일: `src-tauri/capabilities/main.json` 하나. `tauri.conf.json`의 `app.security.capabilities`에 `["main"]`을 명시해 이 파일만 쓰게 한다. 명시하지 않으면 디렉터리 안의 모든 capability가 켜진다 [검색: v2.tauri.app/security/capabilities].
+- 파일: 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/capabilities/main.json` 하나. `tauri.conf.json`의 `app.security.capabilities`에 `["main"]`을 명시해 이 파일만 쓰게 한다. 명시하지 않으면 디렉터리 안의 모든 capability가 켜진다 [검색: v2.tauri.app/security/capabilities].
 - 앱 명령은 `build.rs`의 `AppManifest::commands`로 등록한다. 이렇게 하면 앱 매니페스트가 생기고, capability에 적지 않은 앱 명령은 웹뷰에서 부를 수 없다. 매니페스트가 없으면 로컬 origin에서 모든 앱 명령이 열린다 [원문: tauri `crates/tauri/src/webview/mod.rs`의 판정 `plugin_command.is_some() || has_app_acl_manifest || !is_local`, 보조 에이전트가 2.12.3 소스로 확인].
 - 원격 URL capability(`remote.urls`)는 두지 않는다. 웹뷰는 원격 페이지를 열지 않는다.
 
 ```rust
-// src-tauri/build.rs
+// 옛 Tauri 구현(커밋 424f338a): src-tauri/build.rs
 fn main() {
     tauri_build::try_build(
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
@@ -386,7 +389,7 @@ fn main() {
 ```
 
 ```json
-// src-tauri/capabilities/main.json
+// 옛 Tauri 구현(커밋 424f338a): src-tauri/capabilities/main.json
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
@@ -423,12 +426,12 @@ fn main() {
 - 저장소 플러그인은 `store:default`(모든 명령)를 주지 않는다. `allow-load`가 있으면 웹뷰가 임의 경로의 저장 파일을 열 수 있다. 플러그인은 경로를 `app.path().resolve(path, BaseDirectory::AppData)`로 풀고, 절대 경로를 막지 않는다 [원문: plugins-workspace v2 `plugins/store/src/store.rs` 40~45행 `resolve_store_path`, `plugins/store/permissions/default.toml`]. 그래서 Rust가 시작할 때 `settings.json` 하나만 열어 두고, 웹뷰는 이미 열린 저장소를 `getStore`로 받아 읽고 쓰기만 한다. 로그 플러그인은 `log:allow-log`만 준다(플러그인의 `default`와 같다 [원문: `plugins/log/permissions/default.toml`]).
 - 넣지 않는 권한: `shell`(프로세스 실행은 Rust 내부만), `fs`(파일 읽기는 `blob_upload_path`가 대화 상자 결과만 받는다), `http`(데몬 통신은 Rust 전송), `websocket` 플러그인, `process`, `updater`(APP-D14).
 - `core:window:allow-set-badge-count`, `allow-set-overlay-icon`은 `core:window:default`에 없어 따로 적는다 [원문: tauri 2.12.3 `packages/api/src/window.ts`와 권한 목록, 보조 에이전트 확인].
-- 권한 이름은 `pnpm tauri build`가 만드는 `gen/schemas/desktop-schema.json`으로 검사한다. 목록에 없는 이름이 있으면 빌드가 실패한다 [지식].
+- 권한 이름은 옛 Tauri 구현(커밋 424f338a)의 `pnpm tauri build`가 만드는 `gen/schemas/desktop-schema.json`으로 검사한다. 목록에 없는 이름이 있으면 빌드가 실패한다 [지식].
 
 #### 3.6.2 CSP와 보안 설정
 
 ```jsonc
-// src-tauri/tauri.conf.json 중 app.security
+// 옛 Tauri 구현(커밋 424f338a): src-tauri/tauri.conf.json 중 app.security
 {
   "csp": {
     "default-src": "'self'",
@@ -453,7 +456,7 @@ fn main() {
 - 사용자 정의 스킴은 macOS에서 `helm-blob://localhost/…`, Windows에서 `http://helm-blob.localhost/…` 모양이라 둘 다 적는다 [지식: Tauri의 사용자 정의 프로토콜 URL 규칙. `convertFileSrc`와 같은 규칙].
 - 스타일은 Tauri가 빌드 때 nonce를 붙인다. React가 DOM의 `style` 속성을 JS로 바꾸는 것은 CSP `style-src`의 대상이 아니다 [지식].
 - 글꼴은 앱에 넣는다(21 UI-D12, `font-src 'self'`). 원격 글꼴·스크립트·이미지는 없다. 21 §4 E21의 "그림은 데몬 HTTP 출처만"은 데스크톱에서 `helm-blob` 스킴(§3.8.6)으로 구현한다. 데몬 주소를 `img-src`에 넣지 않는다(웹뷰가 데몬에 직접 요청하지 않으므로, 21 §5.2의 20 요구 (5)에 대한 답).
-- `withGlobalTauri: false`. `@tauri-apps/api`는 ES 모듈로 가져온다.
+- `withGlobalTauri: false`. 옛 Tauri 구현(커밋 424f338a)의 `@tauri-apps/api`는 ES 모듈로 가져온다.
 - Vite `envPrefix`는 `['VITE_', 'TAURI_ENV_']`만 쓴다. `TAURI_`를 통째로 넣으면 서명 키 같은 빌드 환경 변수가 번들에 들어갈 수 있다 [검색: CVE-2023-46115 설명].
 - Tauri 버전 하한은 2.11.6이다. 2.11.1(원격 페이지의 로컬 IPC 호출, CVE-2026-42184)과 2.11.6(fetch 명령 접근 제어)의 보안 수정이 들어간 판이다 [검색: github.com/tauri-apps/tauri/security/advisories].
 - isolation 패턴은 1차에 쓰지 않는다. 원격 콘텐츠는 없지만, 번들에 들어가는 npm UI 의존(React, Radix, assistant-ui 등)은 서드파티 스크립트이고 앱 IPC 명령은 21개다. isolation은 모든 IPC를 iframe에서 다시 검사하는데, Windows에서 ES 모듈 제약이 있고 검사 규칙을 따로 짜야 한다 [검색: v2.tauri.app/concept/inter-process-communication/isolation]. 그 대신 웹뷰가 오염됐을 때 피해가 큰 명령(경로 추가·주소 변경, `pairing_*`, `credential_forget`, `profile_delete`)은 Rust가 띄우는 네이티브 확인 창을 거치게 한다(§3.6.3). 웹뷰 코드는 이 창을 건너뛸 수 없다. 의존 오염은 §3.12.2의 공급망 규칙으로 줄인다. 데몬이 보낸 텍스트(모델 출력, 도구 출력)는 신뢰하지 않는 입력이다. 마크다운 렌더러는 원시 HTML을 끄고 링크 스킴을 `https`, `helm`으로 제한한다(21 E21).
@@ -470,11 +473,11 @@ fn main() {
 | 외부 링크는 `opener`로 `https`만 연다. 열기 전에 주소를 보이고 확인을 받는다(05) | 데몬 텍스트에 섞인 링크 |
 | 딥 링크 인자는 §3.10.6의 형식 검사를 통과한 것만 라우팅한다 | 다른 앱이 임의 URL로 앱을 열 수 있다 [검색: v2.tauri.app/plugin/deep-linking "보안"] |
 
-### 3.7 쓰는 플러그인과 크레이트, 버전
+### 3.7 쓰는 플러그인과 크레이트, 버전(옛 Tauri 구현 기준)
 
 버전은 2026-10-11 기준 최신 안정판이다. 정확한 버전으로 고정하고(npm은 `^` 없이, Cargo는 `=x.y.z`), 올릴 때는 ADR 없이 `just verify`와 `just app-e2e` 통과로 충분하다. 확인 수준은 보조 에이전트의 crates.io·npm 레지스트리 조회와 소스 확인이다 [검색].
 
-#### 3.7.1 Tauri와 공식 플러그인
+#### 3.7.1 Tauri와 공식 플러그인(옛 Tauri 구현 기준)
 
 | 이름 (crate / npm) | 버전 | 용도 | 비고 |
 |---|---|---|---|
@@ -525,7 +528,7 @@ fn main() {
 | `@tauri-apps/plugin-*` | 위 표와 같은 번호 | | |
 | `@helm/protocol`, `@helm/client` | 저장소 workspace | 메서드·이벤트·뷰 타입과 TypeBox 스키마, 클라이언트 코어(브라우저 진입점) | 19·06 |
 | `@assistant-ui/react` | 0.15.28 | 대화 스레드(21 UI-D11) | 21이 범위 결정. 피어 `react ^18 \|\| ^19` [검색: npm]. 헤드리스 부품 `radix-ui` 1.8.0(피어에 React 19 포함)과 `lucide-react` 1.55.0은 21이 고른다 |
-| 개발: `vite` 8.3.4, `vitest` 5.0.3, `@testing-library/react` 16.3.3, `jsdom` 30.1.2, `msw` 3.0.3, `@playwright/test` 1.64.0, `@wdio/tauri-service` 1.5.0 | | 테스트 | Vitest 5는 Node `^22.12 \|\| ^24`, jsdom 30은 Node 22.22.2 이상 또는 24.15 이상을 요구한다 [검색]. 06의 Node 24(`>=24.11.0`)에서는 jsdom 30 때문에 24.15 이상이 필요하다(06에 요구, §5.2) |
+| 개발: `vite` 8.3.4, `vitest` 5.0.3, `@testing-library/react` 16.3.3, `jsdom` 30.1.2, `msw` 3.0.3, `@playwright/test` 1.64.0, `@wdio/tauri-service` 1.5.0(옛 Tauri 구현) | | 테스트 | Vitest 5는 Node `^22.12 \|\| ^24`, jsdom 30은 Node 22.22.2 이상 또는 24.15 이상을 요구한다 [검색]. 06의 Node 24(`>=24.11.0`)에서는 jsdom 30 때문에 24.15 이상이 필요하다(06에 요구, §5.2) |
 
 ### 3.8 연결 관리
 
@@ -875,29 +878,29 @@ apps/desktop/
     screens/common/            # 04 §3.0의 공통 상태(불러오는 중, 캐시 표시, 빈 상태, 오류, 연결 상태 열 가지) 배치(04 §6)
     intents/                   # CommandIntentBase(멱등 키·basisSeq), UiIntent → useCommand 연결(04 §6 "명령 의도 공통")
     (UI 부품과 토큰은 앱 안에 두지 않는다. `packages/ui`(`@helm/ui`)와 `packages/ui-tokens`(`@helm/ui-tokens`)를 가져온다. 21 §3.13, 판정 J-85)
-    connection/                # routes.ts(MultiRouteTransport), tauri-transport.ts, probe.ts(깨어남·포커스), store.ts(connStore에 AppConnModel 채우기)
+    connection/                # routes.ts(MultiRouteTransport), tauri-transport.ts(옛 Tauri 구현), probe.ts(깨어남·포커스), store.ts(connStore에 AppConnModel 채우기)
     sync/                      # client.ts(HelmClient 생성), session.ts(§3.9.6), stores.ts(ClientStateStorage IndexedDB), views.ts(useView),
                                # liveText.ts(휘발 스트림 반영), commands.ts(useCommand)
     db/                        # idb.ts(스키마·이행), quota.ts
     platform/                  # ipc.ts, types.ts, index.ts(구현 고르기)
-      tauri/                   # transport.ts, notifications.ts, tray.ts, badge.ts, shortcuts.ts, autostart.ts, deeplink.ts, settings.ts
+      tauri/                   # 옛 Tauri 구현(커밋 424f338a): transport.ts, notifications.ts, tray.ts, badge.ts, shortcuts.ts, autostart.ts, deeplink.ts, settings.ts
       browser/                 # 개발·테스트용 대체 구현(§3.13.3). 배포 빌드에서는 빠진다
     state/                     # zustand: connStore.ts, uiStore.ts, liveTextStore.ts
     (문구는 앱 안에 두지 않는다. 연결·OS 알림·트레이 문구도 `@helm/ui-language`의 05 키로 만든다. 판정 J-103)
     errors/                    # 오류 경계, 오류 → 문구 대응
     test/                      # renderWithProviders, 고정 투영 표본, 가짜 데몬 연결 도우미
-  src-tauri/
+  src-tauri/  # 옛 Tauri 구현(커밋 424f338a)
     Cargo.toml  build.rs  tauri.conf.json  capabilities/main.json  icons/
     src/ main.rs  lib.rs  error.rs  profiles.rs  secrets.rs  pairing.rs  blob.rs  http_stream.rs  diag.rs
          transport/{mod,wss,ssh,ws}.rs  os/{tray,badge,window}.rs
     tests/ ssh_classify.rs  profiles_validate.rs  ws_over_stream.rs
   e2e/
     web/                       # Playwright: 브라우저에서 SPA + 가짜 데몬
-    shell/                     # WebdriverIO + @wdio/tauri-service: 실제 Tauri 셸 스모크
+    shell/                     # WebdriverIO + @wdio/tauri-service: 옛 Tauri 구현(커밋 424f338a)의 셸 스모크
 ```
 
 - 위 트리에서 플랫폼과 무관한 부분(`sync/views.ts`, `sync/commands.ts`, `sync/stores.ts`, 연결 모델·사용자용 상태·`decisionsAllowed`(§3.8.8·§3.8.9), 알림 규칙의 순수 함수, 딥 링크 해석)은 `packages/client-react`(`@helm/client-react`)에 두고 앱은 가져와 쓴다. 모바일 클라이언트와 나눠 쓰기 위해서다(§3.14).
-- 의존 방향: `screens → @helm/ui, sync, navigation` / `sync → @helm/client(코어), @helm/protocol(타입), db, connection(상태 읽기)` / `connection → platform` / `platform/tauri → @tauri-apps/*`. `@helm/ui`는 `sync`, `platform`, `@helm/client`를 가져오지 않는다(21 UI-D01: 컴포넌트는 표현 전용). ESLint `import/no-restricted-paths`로 검사한다. 앱과 L6c 패키지는 `kernel`·`engine`·`runtime`·`daemon`을 import하지 않는다(06 R12).
+- 의존 방향: `screens → @helm/ui, sync, navigation` / `sync → @helm/client(코어), @helm/protocol(타입), db, connection(상태 읽기)` / `connection → platform` / `platform/tauri → @tauri-apps/*`(옛 Tauri 구현). `@helm/ui`는 `sync`, `platform`, `@helm/client`를 가져오지 않는다(21 UI-D01: 컴포넌트는 표현 전용). ESLint `import/no-restricted-paths`로 검사한다. 앱과 L6c 패키지는 `kernel`·`engine`·`runtime`·`daemon`을 import하지 않는다(06 R12).
 - 세션·구독·재전송·뷰 무효화 판정은 코어(`@helm/client`, §3.9.4)가 하고 TUI도 같은 코어를 쓴다(§3.9.4). `@helm/client-react`의 연결 모델과 IndexedDB 저장소는 Tauri를 모르는 순수 TS다. TUI는 경로 선택과 IndexedDB가 필요 없어 이 패키지를 쓰지 않는다. 경로 선택기(`MultiRouteTransport`)는 Tauri IPC를 쓰므로 앱에 둔다.
 - `@helm/protocol`(19)에서 메서드 이름, 파라미터·결과 타입, 뷰 이름·데이터 타입, TypeBox 스키마를 가져온다. 앱은 프로토콜 타입을 다시 정의하지 않는다.
 
@@ -943,7 +946,7 @@ export function pathFor<S extends ScreenId>(id: S, params: PathParams<S>): strin
 - 경로 인자는 ID 형식(`^cn_[0-9A-HJKMNP-TV-Z]{26}$` 등, 브리프 §3.2)으로 검사하고, 틀리면 "찾을 수 없음" 상태(04 §3.0.5)를 보인다.
 - 모든 화면은 루트 레이아웃(셸) 아래 `lazy` 경로로 둔다. 화면 코드는 처음 열 때 읽는다.
 - 시작 경로: (1) 처리할 딥 링크가 있으면 그 경로, (2) 프로필이 없으면 `/onboard`, (3) 마지막 경로(설정의 `lastRoute`), (4) `/home`. 첫 동기화가 끝난 뒤 데몬이 준 `sinceLastAck.briefRecommended`가 참이면 `SCR-BRIEF`(`/brief`)를 자동으로 연다. 기준은 데몬이 정하고(04 §3.2, 부재 2시간 뒤 복귀는 14 §3.13.8), 딥 링크가 있으면 딥 링크가 먼저다.
-- 최소 창 크기는 760×560(03 §3.4.2)이고 `tauri.conf.json`의 `minWidth`, `minHeight`로 둔다. 기본 크기는 1280×800이다.
+- 최소 창 크기는 760×560(03 §3.4.2)이고 옛 Tauri 구현(커밋 424f338a)의 `tauri.conf.json`의 `minWidth`, `minHeight`로 둔다. 기본 크기는 1280×800이다.
 
 #### 3.9.3 상태 관리 [제안, ADR 후보 ADR-20-05]
 
@@ -1388,7 +1391,7 @@ interface DeliveryPayloadForApp {
 }
 ```
 
-처리(`platform/tauri/notifications.ts`, 05 §3.7):
+처리(옛 Tauri 구현의 `platform/tauri/notifications.ts`, 05 §3.7):
 
 1. **재전송 중 받은 전달은 하나씩 띄우지 않는다.** 이벤트 구독이 `caughtUp` 전이면 개수만 센다. `ready`가 되면 남아 있는 것(이미 답했거나 만료된 것 제외, `inbox` 뷰로 확인)이 하나 이상일 때 묶음 알림 하나 "접속하지 않은 동안 전달된 질문 n개"(05 키)를 띄운다(19 §3.8.3). 실시간으로 받은 전달도 `batchKey`가 같으면 알림 하나로 묶는다.
 2. `channel`이 `app`이 아니거나, `surface`에 `os`가 없거나, `targetDevices`가 `'all'`이 아니면서 이 기기의 `deviceId`를 담지 않았거나, `expiresAt`이 지났으면 띄우지 않는다. `category`가 `observer`면 기본으로 띄우지 않는다(설정으로 켬, 04 §5.2). 연결 차단(§3.8.9의 `blocked`)은 OS 알림이 아니라 앱 안 배너로만 보인다. 결과 확인 대기(`category: 'review'`, 11 §3.5.6)는 배지로만 알리고, `notifications.resultReview`가 `immediate`일 때만 `surface`에 `os`가 오므로 앱은 `surface`를 그대로 따른다 [결정 60].
@@ -1405,7 +1408,7 @@ interface DeliveryPayloadForApp {
 
 | 항목 | macOS | Windows |
 |---|---|---|
-| 개발 실행(`tauri dev`)의 알림 | Terminal 이름·아이콘으로 나온다(`notify_rust::set_application("com.apple.Terminal")`). Terminal 알림이 꺼져 있으면 안 보인다 | PowerShell 이름·아이콘. 설치한 앱에서만 정상 동작한다 |
+| 개발 실행(옛 Tauri 구현의 `tauri dev`)의 알림 | Terminal 이름·아이콘으로 나온다(`notify_rust::set_application("com.apple.Terminal")`). Terminal 알림이 꺼져 있으면 안 보인다 | PowerShell 이름·아이콘. 설치한 앱에서만 정상 동작한다 |
 | 권한 | 플러그인의 `requestPermission`은 데스크톱에서 항상 허용을 돌려준다. 실제 허용은 시스템 설정 > 알림에서 사용자가 정한다 | 설정 > 시스템 > 알림 |
 | 띄운 알림 지우기 | `removeActive`가 동작하지 않는다. 다른 기기에서 답한 질문의 알림도 남는다. 클릭하면 04 §3.0.5 "이미 답했습니다" 화면이 열린다 | 같음 |
 
@@ -1447,7 +1450,7 @@ interface DeliveryPayloadForApp {
 
 #### 3.10.6 딥 링크 [제안, 형식은 03 §3.5.4]
 
-- 스킴 `helm`을 `tauri.conf.json`의 `plugins.deep-link.desktop.schemes: ["helm"]`로 등록한다. macOS는 번들의 `Info.plist`에 들어가고 실행 중 등록은 안 되며, `/Applications`에 설치한 앱에서만 시험할 수 있다. Windows는 설치 때 등록되고, 개발 빌드에서는 `register_all()`을 부른다 [검색: v2.tauri.app/plugin/deep-linking].
+- 스킴 `helm`을 옛 Tauri 구현(커밋 424f338a)의 `tauri.conf.json`의 `plugins.deep-link.desktop.schemes: ["helm"]`로 등록한다. macOS는 번들의 `Info.plist`에 들어가고 실행 중 등록은 안 되며, `/Applications`에 설치한 앱에서만 시험할 수 있다. Windows는 설치 때 등록되고, 개발 빌드에서는 `register_all()`을 부른다 [검색: v2.tauri.app/plugin/deep-linking].
 - 받기: 시작할 때 `getCurrent()`, 실행 중에는 `onOpenUrl(urls)`. Windows의 두 번째 실행 인자는 단일 인스턴스 플러그인이 넘긴다.
 - 해석(`navigation/deeplink.ts`). 인자 형식 검사를 통과하지 못하면 무시하고 로그만 남긴다. 다른 앱이 임의 URL로 앱을 열 수 있기 때문이다.
 
@@ -1495,7 +1498,7 @@ interface DeliveryPayloadForApp {
 | Windows 10 | 늘 효과 없음(Mica는 Windows 11 전용) | - |
 
 - 투명도 줄이기: WKWebView는 `prefers-reduced-transparency` 미디어 쿼리를 지원하지 않는다(21 §2.5.7). 그래서 macOS에서는 Rust가 OS 설정(`NSWorkspace`의 `accessibilityDisplayShouldReduceTransparency`)을 읽고, 접근성 표시 설정 변경 알림을 받아 `app://appearance`로 넘긴다 [지식, 구현 때 objc2 바인딩으로 확인]. Windows는 WebView2가 미디어 쿼리를 지원하므로 웹뷰가 직접 판정한다.
-- 웹뷰 쪽(`platform/tauri/appearance.ts`): 시작할 때 `appearance_get()`을 부르고 `app://appearance`를 구독해 `<html>`에 두 속성을 둔다.
+- 웹뷰 쪽(옛 Tauri 구현의 `platform/tauri/appearance.ts`): 시작할 때 `appearance_get()`을 부르고 `app://appearance`를 구독해 `<html>`에 두 속성을 둔다.
   - `data-transparency`: 설정 `transparency`가 `full`·`reduced`면 그 값. `system`이면 macOS는 Rust 값, Windows는 미디어 쿼리 결과.
   - `data-window-effect`: 실제로 효과를 적용했으면 `on`, 아니면 `off`. 21의 CSS는 `off`일 때만 `bg-app`을 칠한다.
 - `windowEffect = system`이면 투명도 줄이기가 켜졌을 때 효과를 끈다(21 U-23).
@@ -1524,13 +1527,13 @@ A를 고른다. 버전 문제는 §3.12.7의 호환 범위와 갱신 안내로 �
 | Node | 06의 Node 24 LTS(`.mise.toml`), 앱 개발 도구 때문에 24.15 이상. Mac은 `run-on`이 mise shim을 PATH에 넣는다 |
 | pnpm | workspace(결정 36) |
 | Rust | `rust-toolchain.toml`로 1.90 이상의 안정판 하나에 고정. 타깃: `aarch64-apple-darwin`, `x86_64-apple-darwin`(Mac), `x86_64-pc-windows-msvc`(WSL 교차 빌드) |
-| Cargo 산출물 | `CARGO_TARGET_DIR=$HOME/.cache/helm/cargo-target`(Mac·WSL 각자). 저장소 안 `src-tauri/target`을 만들지 않는다(Syncthing, §2.2) |
+| Cargo 산출물 | `CARGO_TARGET_DIR=$HOME/.cache/helm/cargo-target`(Mac·WSL 각자). 저장소 안 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/target`을 만들지 않는다(Syncthing, §2.2) |
 | 번들 산출물 | `$HOME/.cache/helm/desktop-artifacts/<version>/`. Windows 설치 파일은 Windows 탐색기에서 `\\wsl.localhost\Ubuntu-24.04\home\user\.cache\helm\desktop-artifacts\…`로 연다. Windows 디스크(`/mnt/c`)에 쓰지 않는다 |
-| 순수 Rust 모듈 | SSH 인자·실패 분류, 프로필 검증, WebSocket-over-stream, blob 캐시 검증은 Tauri에 의존하지 않는 크레이트 `apps/desktop/src-tauri/core`(`helm-desktop-core`)로 둔다. WSL에서 Tauri의 Linux 시스템 의존(webkit2gtk) 없이 `cargo test`를 돌릴 수 있다 |
+| 순수 Rust 모듈 | SSH 인자·실패 분류, 프로필 검증, WebSocket-over-stream, blob 캐시 검증은 Tauri에 의존하지 않는 크레이트 옛 Tauri 구현(커밋 424f338a)의 `apps/desktop/src-tauri/core`(`helm-desktop-core`)로 둔다. WSL에서 Tauri의 Linux 시스템 의존(webkit2gtk) 없이 `cargo test`를 돌릴 수 있다 |
 | 번들 식별자 | `dev.helm.desktop`, 제품 이름 `Helm` |
 | `.env.example`에 더할 키 | `HELM_DEV_DEVICE_ID=`(비밀 아님, 값 없음), `HELM_DEV_DEVICE_TOKEN=`(비밀, `app-dev`용 dev 데몬 기기 토큰), `HELM_APP_SIGNING_IDENTITY=Helm Local Code Signing`(비밀 아님, Mac 서명 인증서 이름). 값은 사람이 `secrets edit dev`로 넣는다 |
 
-#### 3.12.2 just 레시피 [제안, 이름은 06 §3.16 표에 맞춤]
+#### 3.12.2 just 레시피 [제안, 이름은 06 §3.16 표에 맞춤, 옛 Tauri 구현 기준]
 
 06 §3.16이 `app-dev`, `app-build-mac`, `app-build-win`, `shot`을 이름만 두고 내용을 20에 맡겼다. 아래는 그 내용과 앱에 필요한 나머지 레시피다. 모두 `.just/helm.just`에 둔다.
 
@@ -1541,12 +1544,12 @@ A를 고른다. 버전 문제는 §3.12.7의 호환 범위와 갱신 안내로 �
 | `app-test-ssh` | 서버 | WSL 자신의 sshd(127.0.0.1:22)로 SSH 경로 통합 시험(가짜 데몬 포트로 `-W`) | sshd 없음, 시험 키 없음 |
 | `app-e2e` | 서버 | 가짜 데몬 + Vite 미리보기 + Playwright(Chromium, WebKit), IT-01~20 | 브라우저 미설치 |
 | `app-dev` | 서버 | Vite 개발 서버 + 브라우저 대체 실행으로 개발 데몬에 붙음(06 정의, 개발 전용). 브라우저는 헤더를 붙일 수 없으므로 Vite 개발 서버의 WebSocket 프록시(`/rpc` → `ws://127.0.0.1:<HELM_LISTEN_SSH_PORT>/rpc`)가 `.env`의 `HELM_DEV_DEVICE_TOKEN`으로 `Authorization` 헤더를 붙인다. 대상 포트는 `.env`의 `HELM_LISTEN_SSH_PORT`(개발 데몬 7851, 17 §3.15)에서 읽고, 값이 정식 데몬 포트 7841이면 시작하지 않는다. Vite 서버는 `127.0.0.1`에만 바인딩하고, 업그레이드 요청의 `Origin`이 Vite 개발 서버 주소(`http://127.0.0.1:1420`)와 정확히 같을 때만 토큰을 붙인다. 서버 PC 브라우저의 다른 페이지가 인증된 연결을 열지 못하게 하기 위해서다. 토큰은 Node 프로세스에만 있고 브라우저 번들에 들어가지 않는다(`envPrefix` 규칙, §3.6.2). 앱이 비밀 환경 변수를 읽는 예외는 이 레시피 하나다(06 §3.17) | `.env` 없음(`just dotenv`), 포트가 7841 |
-| `app-dev-mac` | 서버 → Mac | `run-on mac 'cd ~/projects/helm/code/helm && just app-dev-local'` → Mac에서 `pnpm tauri dev` | Mac에 연결 못 함 |
+| `app-dev-mac` | 서버 → Mac | `run-on mac 'cd ~/projects/helm/code/helm && just app-dev-local'` → Mac에서 옛 Tauri 구현의 `pnpm tauri dev` | Mac에 연결 못 함 |
 | `app-build-mac` | 서버 → Mac | `run-on mac`으로 `app-build-local` 실행(06 정의) | Mac에 연결 못 함 |
-| `app-build-local` | Mac | `pnpm tauri build --target universal-apple-darwin --bundles app -- --locked`, 끝나면 산출물 폴더에 `SHA256SUMS`(`shasum -a 256`)를 쓴다 | Xcode 명령줄 도구 없음 |
+| `app-build-local` | Mac | 옛 Tauri 구현(커밋 424f338a)의 `pnpm tauri build --target universal-apple-darwin --bundles app -- --locked`, 끝나면 산출물 폴더에 `SHA256SUMS`(`shasum -a 256`)를 쓴다 | Xcode 명령줄 도구 없음 |
 | `app-install-mac` | 서버 → Mac | 빌드 결과를 `/Applications/Helm.app`에 바꿔 넣고, 실행 중이면 끝낸 뒤 다시 띄움 | 같음 |
-| `app-verify-mac` | 서버 → Mac | `cargo clippy`(Tauri 크레이트 포함), WebdriverIO 셸 스모크(§3.13.4) | 같음 |
-| `app-build-win` | 서버 | `pnpm tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis -- --locked`, 산출물을 아티팩트 폴더로 옮기고 `SHA256SUMS`(`sha256sum`)를 쓴다(§3.12.4) | NSIS·lld·llvm·cargo-xwin 없음 |
+| `app-verify-mac` | 서버 → Mac | `cargo clippy`(옛 Tauri 크레이트 포함), WebdriverIO 셸 스모크(§3.13.4) | 같음 |
+| `app-build-win` | 서버 | 옛 Tauri 구현(커밋 424f338a)의 `pnpm tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis -- --locked`, 산출물을 아티팩트 폴더로 옮기고 `SHA256SUMS`(`sha256sum`)를 쓴다(§3.12.4) | NSIS·lld·llvm·cargo-xwin 없음 |
 | `app-build-win-ci` | 서버 | `gh workflow run desktop-windows.yml` 후 `gh run download`. 브랜치 push가 필요하므로 사람 확인 뒤에만 | `gh` 인증 없음 |
 | `shot` | 서버 | 가짜 데몬 고정 데이터로 화면별 스크린샷과 기준 비교(§3.13.5, 06 정의) | 브라우저 미설치 |
 
@@ -1597,7 +1600,7 @@ A를 기본으로 한다. 개인 앱이라 MSI가 필요 없고, NSIS 사용자 
 
 #### 3.12.7 버전 표기와 호환 [제안]
 
-- 앱 버전: `apps/desktop/package.json`의 semver(`0.y.z`). `tauri.conf.json`의 `version`은 `"../package.json"`을 가리켜 한곳에서 관리한다 [지식: Tauri 설정은 package.json 경로를 받는다]. 빌드 ID는 `<git 짧은 해시>-<UTC 날짜>`를 빌드 환경 변수로 넣는다. `SCR-SETTINGS`의 정보와 진단 묶음에 보인다.
+- 앱 버전: `apps/desktop/package.json`의 semver(`0.y.z`). 옛 Tauri 구현(커밋 424f338a)의 `tauri.conf.json`의 `version`은 `"../package.json"`을 가리켜 한곳에서 관리한다 [지식: Tauri 설정은 package.json 경로를 받는다]. 빌드 ID는 `<git 짧은 해시>-<UTC 날짜>`를 빌드 환경 변수로 넣는다. `SCR-SETTINGS`의 정보와 진단 묶음에 보인다.
 - 프로토콜: `@helm/protocol`이 `PROTOCOL_VERSION`(정수)을 내보낸다. 앱은 `{min: PROTOCOL_VERSION - 1, max: PROTOCOL_VERSION}`을 hello에 보낸다(`PROTOCOL_VERSION`이 1이면 `min`도 1). 데몬은 겹치는 가장 큰 값을 고르거나 `1003 protocol.unsupported`(`serverMin`, `serverMax`)로 거부한다(19 §3.4.3, P-14). 앱은 `serverMax < 앱 min`이면 "데몬이 오래됨", `serverMin > 앱 max`이면 "앱이 오래됨"으로 판정한다. 추가 변경은 버전을 올리지 않고 `features`로 알리므로(19 P-14), 앱은 화면 동작을 켜기 전에 `features.methods`·`views`에 있는지 확인하고 없으면 그 동작을 숨긴다. 앱과 데몬을 같은 커밋에서 만들면 항상 맞는다. 한쪽만 갱신한 경우를 위해 한 판 차이까지 허용한다.
 - 스키마: hello의 `features.schemaHash`(19 §3.4.4)가 캐시 행의 값과 다르면 그 행을 버리고 다시 받는다(§3.9.5).
 - 불일치 문구: 05 `err.protocol.version`("앱(v{app})과 서버(v{server})의 버전이 맞지 않습니다. {which}을 업데이트하세요.")을 쓴다. `{which}`는 앱이 오래됐으면 "앱", 서버가 오래됐으면 "서버의 Helm"이다. 화면 문구에 "데몬"을 쓰지 않는다. 업데이트 명령 안내는 17의 레시피 이름을 쓴다. 05의 `notice.app.updateRequired`가 "갱신"을 쓰는 것은 05에 "업데이트"로 맞춰 달라고 요구한다(§5.2).
@@ -1628,7 +1631,7 @@ A를 기본으로 한다. 개인 앱이라 MSI가 필요 없고, NSIS 사용자 
 #### 3.13.2 컴포넌트 [제안]
 
 - `@testing-library/react` 16 + jsdom 30으로 훅(`useView`, `useCommand`)과 화면 조립(`screens/*/useScreenModel.ts`)을 시험한다. 데이터는 `test/fixtures/views/*.json`이다. 데몬의 뷰가 생기기 전에는 손으로 만든 고정 데이터이고, 뷰가 생긴 뒤에는 `just test-fixtures-views`(22의 `protocol` 모드 대본)가 만든 표본으로 바꾼다(22 §3.15.3·§5.2).
-- Tauri API는 `@tauri-apps/api/mocks`의 `mockIPC`, `mockWindows`, `clearMocks`로 대신한다 [검색: v2.tauri.app/develop/tests/mocking].
+- 옛 Tauri 구현(커밋 424f338a)의 Tauri API는 `@tauri-apps/api/mocks`의 `mockIPC`, `mockWindows`, `clearMocks`로 대신한다 [검색: v2.tauri.app/develop/tests/mocking].
 - 컴포넌트 자체의 시각 시험(Storybook, 스크린샷)은 21 UI-D14가 정한다.
 
 #### 3.13.3 가짜 데몬과 통합 시험 [제안]
@@ -1667,7 +1670,7 @@ A를 기본으로 한다. 개인 앱이라 MSI가 필요 없고, NSIS 사용자 
 | 층 | 도구 | 플랫폼 | 범위 |
 |---|---|---|---|
 | 웹 E2E (주 경로) | Playwright 1.64, Chromium + WebKit | 서버(Linux) | IT-01~20, 화면 흐름(유즈케이스 UC-01~09의 화면 경로, 03 §3.7). WebKit은 macOS WKWebView와 같은 엔진 계열로 렌더 차이를 미리 잡는다 [가정: 같은 판이 아니므로 완전히 같지는 않다] |
-| 셸 E2E (스모크) | WebdriverIO + `@wdio/tauri-service` 1.5.0, 앱에 `tauri-plugin-wdio-webdriver`(시험 빌드의 cargo feature `e2e`에서만) | macOS(Mac), Windows(`app-build-win-ci` 수동 워크플로 안, 사람 확인 뒤) | 앱 실행, 가짜 데몬에 WSS(개발 빌드 http 허용)로 연결, 홈 표시, 창 닫기 = 숨기기, `window_reveal`. `tauri-driver`는 Windows·Linux만 지원하고 macOS에는 WKWebView 드라이버가 없다. `@wdio/tauri-service`는 앱 안에 WebDriver 서버를 넣는 방식으로 macOS를 지원한다 [검색: v2.tauri.app/develop/tests/webdriver] |
+| 셸 E2E (스모크, 옛 Tauri 구현) | WebdriverIO + `@wdio/tauri-service` 1.5.0(옛 Tauri 구현), 앱에 `tauri-plugin-wdio-webdriver`(시험 빌드의 cargo feature `e2e`에서만) | macOS(Mac), Windows(`app-build-win-ci` 수동 워크플로 안, 사람 확인 뒤) | 앱 실행, 가짜 데몬에 WSS(개발 빌드 http 허용)로 연결, 홈 표시, 창 닫기 = 숨기기, `window_reveal`. `tauri-driver`는 Windows·Linux만 지원하고 macOS에는 WKWebView 드라이버가 없다. `@wdio/tauri-service`는 앱 안에 WebDriver 서버를 넣는 방식으로 macOS를 지원한다 [검색: v2.tauri.app/develop/tests/webdriver] |
 | 수동 확인 | 체크리스트(§6.2) | 둘 다 | 알림 클릭, 트레이 메뉴, Dock 배지·작업 표시줄 덧그림, 로그인 시 시작, 딥 링크(설치한 앱), 키체인 확인 창, SSH 경로 실제 서버 |
 
 OS 알림 표시, 트레이 메뉴 클릭, 딥 링크 등록은 자동화 도구가 OS UI를 다루지 못해 수동 확인으로 둔다.
@@ -1688,9 +1691,9 @@ OS 알림 표시, 트레이 메뉴 클릭, 딥 링크 등록은 자동화 도구
 | 문구 | `@helm/ui-language` | 05 문구 키, 상태 라벨, 조사(판정 §2, J-103). 앱이 보이는 모든 문구 | 씀 | 씀 | 씀 |
 | React 연결 | `@helm/client-react` (새 패키지, 제안) | `useView`, `useCommand`, TanStack Query 연결, `IdbClientStateStorage`와 뷰 캐시·초안 store(§3.9.5. 데이터베이스 이름은 앱이 넘긴다: 데스크톱 `helm-desktop`, 모바일 `helm-mobile`), 연결 모델·`UserConnState`·`needsUser` 원인 표·`decisionsAllowed`(§3.8.8·§3.8.9), 딥 링크 해석(§3.10.6의 표를 경로 의도로), 알림 규칙(중복 제거, 재전송 묶음, 강도별 표시, §3.10.1)의 순수 함수, presence 판정(§3.9.12) | 씀 | React면 씀 | 쓰지 않음 |
 | UI 토큰·부품 | `@helm/ui-tokens`, `@helm/ui`(21 §3.13, 판정 J-85) | 토큰(CSS 변수·Tailwind 테마)과 부품. 처음부터 플랫폼 중립 패키지다: `@tauri-apps/*`, 앱 저장소, 프로토콜 호출을 가져오지 않는다 | 씀 | React면 씀(26이 정함) | 쓰지 않음 |
-| 셸과 플랫폼 | `apps/desktop`(`src/shell`, `src/screens`, `src/platform`, `src-tauri`) | 셸 배치, 화면 컨테이너, Rust 전송(WSS·SSH), 키체인, 트레이, 배지, 전역 단축키, 로그인 시 시작, `helm-blob` 스킴, 창 관리·창 효과 | 데스크톱만 | 모바일이 자기 셸·플랫폼 구현을 둔다 | - |
+| 셸과 플랫폼 | `apps/desktop`(`src/shell`, `src/screens`, `src/platform`, 옛 Tauri 구현(커밋 424f338a)의 `src-tauri`) | 셸 배치, 화면 컨테이너, Rust 전송(WSS·SSH), 키체인, 트레이, 배지, 전역 단축키, 로그인 시 시작, `helm-blob` 스킴, 창 관리·창 효과 | 데스크톱만 | 모바일이 자기 셸·플랫폼 구현을 둔다 | - |
 
-`@helm/client-react`가 플랫폼에서 받는 것(데스크톱은 `platform/tauri`, 모바일은 26의 구현):
+`@helm/client-react`가 플랫폼에서 받는 것(데스크톱은 옛 Tauri 구현의 `platform/tauri`, 모바일은 26의 구현):
 
 ```ts
 // packages/client-react/src/platform.ts
@@ -1824,17 +1827,17 @@ export interface PlatformAdapter {
 
 | ID | 단위 | 위치 | 완료 기준(테스트로 확인할 조건) |
 |---|---|---|---|
-| DM-01 | 프로필 저장·검증 | `src-tauri/src/profiles.rs`, `src-tauri/core/src/profile.rs`, `src/platform/types.ts` | TS와 Rust가 같은 표본(`fixtures/profile-validation.json`, 정상 20개·비정상 30개)에서 같은 판정을 한다. `-oProxyCommand=…`, 공백, 상대 경로 키 파일이 거부된다. 저장 중 앱을 죽여도 파일이 깨지지 않는다(임시 파일 + 이름 바꾸기) |
-| DM-02 | 키체인 | `src-tauri/src/secrets.rs` | Mac·Windows 수동 확인: 저장·조회·삭제. 토큰 값이 IPC 응답·로그·진단 묶음에 없다(로그 grep 시험, 진단 묶음 내용 시험) |
-| DM-03 | SSH 인자·실패 분류 | `src-tauri/core/src/ssh.rs` | 인자 목록이 §3.8.3과 같다(스냅샷). SSH 발급 원격 인자가 인자마다 작은따옴표로 감싸이고, 셸 메타 문자 표본 20개를 담은 기기 이름·경로가 원격 셸에서 명령으로 실행되지 않는다(WSL sshd 통합 시험에서 표시 파일이 생기지 않음). 실제로 모은 stderr 표본(macOS 15·26, Windows 11, Ubuntu 24.04)이 표대로 분류된다. PQ KEX 경고만 있는 경우 실패가 아니다 |
-| DM-04 | WebSocket-over-stream | `src-tauri/core/src/ws.rs` | `tokio::io::duplex` 시험: 업그레이드 헤더 세 가지, 서버 ping에 pong, 바이너리 → 1003, 16 MiB 초과 → 닫힘, 송신 대기 4 MiB 초과 → 닫힘, `closed`가 정확히 한 번 |
-| DM-05 | 전송 관리자 | `src-tauri/src/transport/` | 프로필당 연결용 전송 하나(두 번째 `transport_open`이 첫 번째를 닫음). 앱 종료 때 ssh 자식이 남지 않는다(Mac·Windows에서 프로세스 목록 확인, F-30) |
+| DM-01 | 프로필 저장·검증 | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/profiles.rs`, `src-tauri/core/src/profile.rs`, `src/platform/types.ts` | TS와 Rust가 같은 표본(`fixtures/profile-validation.json`, 정상 20개·비정상 30개)에서 같은 판정을 한다. `-oProxyCommand=…`, 공백, 상대 경로 키 파일이 거부된다. 저장 중 앱을 죽여도 파일이 깨지지 않는다(임시 파일 + 이름 바꾸기) |
+| DM-02 | 키체인 | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/secrets.rs` | Mac·Windows 수동 확인: 저장·조회·삭제. 토큰 값이 IPC 응답·로그·진단 묶음에 없다(로그 grep 시험, 진단 묶음 내용 시험) |
+| DM-03 | SSH 인자·실패 분류 | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/core/src/ssh.rs` | 인자 목록이 §3.8.3과 같다(스냅샷). SSH 발급 원격 인자가 인자마다 작은따옴표로 감싸이고, 셸 메타 문자 표본 20개를 담은 기기 이름·경로가 원격 셸에서 명령으로 실행되지 않는다(WSL sshd 통합 시험에서 표시 파일이 생기지 않음). 실제로 모은 stderr 표본(macOS 15·26, Windows 11, Ubuntu 24.04)이 표대로 분류된다. PQ KEX 경고만 있는 경우 실패가 아니다 |
+| DM-04 | WebSocket-over-stream | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/core/src/ws.rs` | `tokio::io::duplex` 시험: 업그레이드 헤더 세 가지, 서버 ping에 pong, 바이너리 → 1003, 16 MiB 초과 → 닫힘, 송신 대기 4 MiB 초과 → 닫힘, `closed`가 정확히 한 번 |
+| DM-05 | 전송 관리자 | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/transport/` | 프로필당 연결용 전송 하나(두 번째 `transport_open`이 첫 번째를 닫음). 앱 종료 때 ssh 자식이 남지 않는다(Mac·Windows에서 프로세스 목록 확인, F-30) |
 | DM-06 | SSH 경로 통합 | `just app-test-ssh` | WSL sshd + 가짜 데몬: 열림, `daemon_unreachable`, `ssh_auth_failed`, `ssh_host_key_unknown`이 각각 나온다 |
-| DM-07 | blob | `src-tauri/src/blob.rs`, `core/src/blob_cache.rs` | 캐시 적중 시 네트워크 요청이 없다. 해시가 맞지 않으면 캐시에 쓰지 않는다. 연결이 없으면 503. 8 MiB 넘는 파일은 청크로 올라간다(가짜 서버) |
-| DM-08 | 페어링 | `src-tauri/src/pairing.rs` | 코드 페어링과 SSH 발급 모두 결과 토큰이 키체인에만 있고 웹뷰 응답에는 `serverId`, `deviceId`만 있다. `HELM-DEVICE/1` 줄 앞의 셸 잡음 10줄을 무시한다. 페어링 실패는 사유와 관계없이 `pairing_failed` 하나다 |
-| DM-09 | 토큰 보낼 곳 | `src-tauri/src/transport/`, `profiles.rs` | 웹뷰 인자로 주소를 넘기는 명령이 없다(명령 표 정적 검사). `route_check`로 저장하지 않은 주소를 점검할 때 가짜 서버가 받은 요청에 `Authorization` 헤더가 없다. 경로 추가·주소 변경·`pairing_*`·`credential_forget`·`profile_delete`가 네이티브 확인 없이 실행되지 않는다(Rust 시험에서 확인 창 함수를 가짜로 바꿔 취소를 돌려주면 `user_cancelled`) |
-| DM-10 | capability·CSP | `src-tauri/capabilities/main.json`, `tauri.conf.json` | `app-check`의 정적 검사: 앱 명령 목록(`build.rs`)과 capability의 `allow-*`가 일대일, `shell`·`fs`·`http` 권한 없음, `store:default`·`store:allow-load`·`log:default` 없음, CSP `connect-src`가 `ipc: http://ipc.localhost`뿐, `remote.urls` 없음 |
-| DM-11 | blob 스킴 응답 | `src-tauri/src/blob.rs` | 허용 목록 밖 MIME(`image/svg+xml`, `text/html`)이 `application/octet-stream`으로 나간다. 모든 응답에 `nosniff`. 해시를 확인하지 못한 응답은 캐시에 남지 않는다 |
+| DM-07 | blob | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/blob.rs`, `core/src/blob_cache.rs` | 캐시 적중 시 네트워크 요청이 없다. 해시가 맞지 않으면 캐시에 쓰지 않는다. 연결이 없으면 503. 8 MiB 넘는 파일은 청크로 올라간다(가짜 서버) |
+| DM-08 | 페어링 | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/pairing.rs` | 코드 페어링과 SSH 발급 모두 결과 토큰이 키체인에만 있고 웹뷰 응답에는 `serverId`, `deviceId`만 있다. `HELM-DEVICE/1` 줄 앞의 셸 잡음 10줄을 무시한다. 페어링 실패는 사유와 관계없이 `pairing_failed` 하나다 |
+| DM-09 | 토큰 보낼 곳 | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/transport/`, `profiles.rs` | 웹뷰 인자로 주소를 넘기는 명령이 없다(명령 표 정적 검사). `route_check`로 저장하지 않은 주소를 점검할 때 가짜 서버가 받은 요청에 `Authorization` 헤더가 없다. 경로 추가·주소 변경·`pairing_*`·`credential_forget`·`profile_delete`가 네이티브 확인 없이 실행되지 않는다(Rust 시험에서 확인 창 함수를 가짜로 바꿔 취소를 돌려주면 `user_cancelled`) |
+| DM-10 | capability·CSP | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/capabilities/main.json`, `tauri.conf.json` | `app-check`의 정적 검사: 앱 명령 목록(`build.rs`)과 capability의 `allow-*`가 일대일, `shell`·`fs`·`http` 권한 없음, `store:default`·`store:allow-load`·`log:default` 없음, CSP `connect-src`가 `ipc: http://ipc.localhost`뿐, `remote.urls` 없음 |
+| DM-11 | blob 스킴 응답 | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/blob.rs` | 허용 목록 밖 MIME(`image/svg+xml`, `text/html`)이 `application/octet-stream`으로 나간다. 모든 응답에 `nosniff`. 해시를 확인하지 못한 응답은 캐시에 남지 않는다 |
 | DM-12 | 공급망 | `app-check` | `cargo deny check`, `cargo audit` 통과. `--locked` 없는 cargo 호출이 레시피에 없다. 워크플로의 `uses:`가 모두 커밋 SHA다 |
 | DM-13 | 연결 계층 | `packages/client-react/src/connection/`, `apps/desktop/src/connection/` | §3.8.9 표의 각 행과 §3.8.8의 `needsUser` 원인 표 각 행이 시험 한 줄. 읽기 전용 사유별 배너 키. `MultiRouteTransport`가 토큰 계열에서 다음 경로로 넘어가지 않고, SSH 차단 계열을 `blocked`로 바꾼다. 인증 계열에서 재시도가 없다 |
 | DM-14 | 깨어남·포커스 확인 | `src/connection/probe.ts` | 벽시계 20초 밀림을 깨어남으로 판정, `ready`면 `ping` 3초, 실패하면 4000으로 닫음, `backoff`면 `retryNow()` |
@@ -1845,15 +1848,15 @@ export interface PlatformAdapter {
 | DM-19 | 시작 시간 | `src/app/boot.ts` | 앱 실행부터 IndexedDB 고정 뷰로 홈이 그려지기까지 2초 이하(01 NFR-P-3, Mac·Windows에서 측정). 연결을 기다리지 않는다 |
 | DM-20 | 라우터 | `src/navigation/screens.ts`, `router.tsx` | 03 §3.5.5의 모든 화면 ID에 경로가 있다(타입 검사). 잘못된 ID 인자는 "찾을 수 없음". 시작 경로 우선순위(딥 링크 > 온보딩 > 마지막 경로 > 홈) |
 | DM-21 | 딥 링크 | `src/navigation/deeplink.ts`, 플러그인 설정 | §3.10.6 표의 모든 형식(단위). 설치한 앱에서 수동 확인(§6.2) |
-| DM-22 | 알림 | `src/platform/tauri/notifications.ts` | 재전송 중 전달은 띄우지 않음, `deliveryId` 중복 없음, `channel`이 `app`이 아니면 띄우지 않음, `surface`·`targetDevices`(`'all'`과 목록)·`expiresAt` 규칙, `batchKey` 묶음, 협상 전달은 `notifications.negotiated`가 켜졌을 때만(IT-12) |
-| DM-23 | 트레이·배지 | `src-tauri/src/os/tray.rs`, `badge.rs`, `src/platform/tauri/tray.ts` | `tray` 뷰 값을 그대로 쓴다(앱이 세지 않음, 단위 시험: 뷰 표본 → `TraySummary`). 배지는 선택 필요 수만 |
+| DM-22 | 알림 | 옛 Tauri 구현(커밋 424f338a)의 `src/platform/tauri/notifications.ts` | 재전송 중 전달은 띄우지 않음, `deliveryId` 중복 없음, `channel`이 `app`이 아니면 띄우지 않음, `surface`·`targetDevices`(`'all'`과 목록)·`expiresAt` 규칙, `batchKey` 묶음, 협상 전달은 `notifications.negotiated`가 켜졌을 때만(IT-12) |
+| DM-23 | 트레이·배지 | 옛 Tauri 구현(커밋 424f338a)의 `src-tauri/src/os/tray.rs`, `badge.rs`, `src/platform/tauri/tray.ts` | `tray` 뷰 값을 그대로 쓴다(앱이 세지 않음, 단위 시험: 뷰 표본 → `TraySummary`). 배지는 선택 필요 수만 |
 | DM-24 | 오류 경계 | `src/errors/` | 화면 하나의 렌더 오류가 셸을 무너뜨리지 않는다(컴포넌트 시험). 모르는 오류 코드도 문구가 있다 |
 | DM-25 | 빌드 | `app-build-local`, `app-build-win` | Mac: universal `.app`이 서명(자체 서명 또는 ad-hoc)되어 `/Applications`에서 열린다. Windows: NSIS 설치 파일이 Windows 11에서 관리자 권한 없이 설치·실행된다(수동). 태그 때 CI 빌드도 통과 |
 | DM-26 | `@helm/client-react` | `packages/client-react/` | `@tauri-apps/*`·Node 모듈을 가져오지 않는다(의존 규칙 검사). 가짜 `PlatformAdapter`와 가짜 서버로 `useView`·`useCommand`·초안·알림 규칙 시험이 브라우저 없이(jsdom) 돈다 |
-| DM-27 | 설정 | `src/platform/tauri/settings.ts` | §3.9.11의 모든 키에 기본값이 있고, 글자 크기 변경이 웹뷰 확대로 적용된다(Mac·Windows 수동) |
+| DM-27 | 설정 | 옛 Tauri 구현(커밋 424f338a)의 `src/platform/tauri/settings.ts` | §3.9.11의 모든 키에 기본값이 있고, 글자 크기 변경이 웹뷰 확대로 적용된다(Mac·Windows 수동) |
 | DM-28 | 알림 규칙 | `packages/client-react/src/notify.ts` | 재전송 묶음 1개, `digest` 전달은 OS 알림 없음, 방해 금지 중 없음과 끝난 뒤 묶음, 같은 질문 2회 상한, `observer` 기본 끔, `showContent` 끔이면 `notif.hidden.*`(개수 있음·없음)(가짜 시계 시험) |
 | DM-29 | 서드파티 고지 | `just licenses` | `THIRD_PARTY_NOTICES.md`(npm·Rust 항목)가 `just licenses` 생성 결과와 같다. "정보" 절에 보인다 |
-| DM-30 | 셸 스모크 | `e2e/shell/` | `@wdio/tauri-service`로 Mac·Windows에서: 앱이 뜨고, 가짜 데몬에 연결해 홈이 보이고, 창 닫기 뒤 프로세스가 살아 있다 |
+| DM-30 | 셸 스모크 | `e2e/shell/` | `@wdio/tauri-service`(옛 Tauri 구현)로 Mac·Windows에서: 앱이 뜨고, 가짜 데몬에 연결해 홈이 보이고, 창 닫기 뒤 프로세스가 살아 있다 |
 
 ### 6.2 수동 확인 체크리스트 (출시 전, 플랫폼마다)
 

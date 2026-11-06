@@ -1,28 +1,25 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createApp } from "../../src/app/bootstrap.ts";
 import { err, ok } from "@fresnel/contracts";
-import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
-import { createDesktopIpc } from "../../src/transport/ipc.ts";
-import { selectShellBridge } from "../../src/shell/index.ts";
 import { summary, thr } from "../state/helpers.ts";
 import { engineFake, until } from "../app/support.ts";
 import { fakeIpc } from "./fake-ipc.ts";
-import { tauriMockIpc } from "./tauri-mock.ts";
+import { rawShellIpc, shellMockIpc } from "./shell-mock.ts";
 
-// createDesktopIpc를 mockIPC 위에서: 명령 이름과 인자 모양, Channel 메시지(바이트와 상태)의 해석, 오류 코드 변환을 본다.
+// createDesktopIpc를 Electron 다리 위에서: 명령 이름과 인자 모양, 채널 메시지(바이트와 상태)의 해석, 오류 코드 변환을 본다.
 
 const disposers: (() => void)[] = [];
 afterEach(() => {
   for (const dispose of disposers.splice(0)) dispose();
 });
 
-function mocked(fake = fakeIpc()): ReturnType<typeof tauriMockIpc> {
-  const shell = tauriMockIpc(fake);
+function mocked(fake = fakeIpc()): ReturnType<typeof shellMockIpc> {
+  const shell = shellMockIpc(fake);
   disposers.push(shell.dispose);
   return shell;
 }
 
-describe("createDesktopIpc over mockIPC", () => {
+describe("createDesktopIpc over the shell bridge", () => {
   test("attach sends two channels, parses the result and delivers bytes and states", async () => {
     const fake = fakeIpc({ state: { kind: "running", source: "sidecar", pid: 7 } });
     const shell = mocked(fake);
@@ -109,13 +106,9 @@ describe("createDesktopIpc over mockIPC", () => {
   });
 
   test("an attach result that does not match the schema is an invalid error", async () => {
-    tauriMockIpc(fakeIpc());
     // 세대가 0인 결과는 셸이 보내서는 안 된다(TY-10: 셸의 값도 프로세스 밖의 값이다)
-    mockIPC(() => ({ epoch: 0, state: { kind: "stopped" } }));
-    disposers.push(() => {
-      clearMocks();
-    });
-    const attached = await createDesktopIpc(selectShellBridge()).attach(
+    const ipc = rawShellIpc(() => ({ epoch: 0, state: { kind: "stopped" } }));
+    const attached = await ipc.attach(
       () => {},
       () => {},
     );
@@ -123,7 +116,7 @@ describe("createDesktopIpc over mockIPC", () => {
   });
 });
 
-describe("db_restore over mockIPC", () => {
+describe("db_restore over the shell bridge", () => {
   test("sends the backup folder as backupDir and hands back the exit code and both outputs", async () => {
     const reply = {
       exitCode: 3,
@@ -151,20 +144,16 @@ describe("db_restore over mockIPC", () => {
   });
 
   test("a reply that does not match the schema is an invalid error", async () => {
-    tauriMockIpc(fakeIpc());
     // 종료 코드가 정수가 아니면 셸이 보낸 값이 아니다(TY-10)
-    mockIPC(() => ({ exitCode: "3", stdout: "", stderr: "" }));
-    disposers.push(() => {
-      clearMocks();
-    });
-    expect(await createDesktopIpc(selectShellBridge()).dbRestore("/backups/export-1")).toEqual({
+    const ipc = rawShellIpc(() => ({ exitCode: "3", stdout: "", stderr: "" }));
+    expect(await ipc.dbRestore("/backups/export-1")).toEqual({
       ok: false,
       error: { kind: "invalid", command: "db_restore" },
     });
   });
 });
 
-describe("the whole app over mockIPC", () => {
+describe("the whole app over the shell bridge", () => {
   test("attach, hello, subscribe and thread.list reach a live link through the real ipc.ts", async () => {
     const { fake, methods } = engineFake([summary(thr(1))]);
     const shell = mocked(fake);

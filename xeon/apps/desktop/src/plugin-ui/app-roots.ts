@@ -34,7 +34,7 @@ export interface AppRootsSyncError {
   readonly kind: AppRootErrorKind | "unknown";
 }
 
-/** Tauri `invoke`를 구조로만 받는다. 운영은 `@tauri-apps/api/core`의 `invoke`를, 시험은 가짜를 넣는다 */
+/** 셸 `invoke`를 구조로만 받는다. 운영은 셸 다리의 `invoke`를, 시험은 가짜를 넣는다 */
 export type AppRootsInvoke = (
   command: "app_roots_set",
   args: { readonly entries: readonly AppRootEntry[] },

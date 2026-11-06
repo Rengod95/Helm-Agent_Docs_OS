@@ -1,4 +1,4 @@
-// 단일 인스턴스의 Electron 어댑터. 잠금은 Electron 것이라 이 앱의 userData 폴더 기준이다. Tauri 셸과 따로 잡혀 둘이 같이 떠도 된다.
+// 단일 인스턴스의 Electron 어댑터. 잠금은 Electron 것이라 이 앱의 userData 폴더 기준이다.
 // 순서와 시험은 single-instance.ts와 test/single-instance.test.ts에 있다.
 import { app } from "electron";
 import type { ShellModule } from "./context.ts";

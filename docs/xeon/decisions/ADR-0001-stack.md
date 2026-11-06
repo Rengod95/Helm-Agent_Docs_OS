@@ -55,7 +55,7 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 
 - DI·플러그인(Cordis 4.0.0-rc.x vendored): ADR-0002
 - DB 사용 방식(이벤트 소싱, 단일 DB): ADR-0004
-- 데스크톱 셸(Tauri 2.12 + 사이드카): ADR-0008
+- 데스크톱 셸(옛 Tauri 구현(커밋 424f338a)의 Tauri 2.12 + 사이드카. 2026-11-06 Electron으로 대체): ADR-0008
 - 모델(`@earendil-works/pi-ai` 1.3.0): `L1.models.spec`. 루프는 pi-agent-core 1.3.0을 포크한 자체 루프이고 pi-agent-core에 의존하지 않는다: ADR-0009, `L1.loop.spec`
 - MCP(`@modelcontextprotocol/client` 2.3.1): `L2.mcp.spec`
 - 샌드박스, 웹, 비밀 도구: `L0.sandbox.spec`, `L2.web.spec`, `L0.secrets.spec`
@@ -105,7 +105,7 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 | better-sqlite3 13 | 네이티브 애드온 SQLite | Bun 런타임에서는 `bun:sqlite`가 내장이다. 단일 실행 파일에 네이티브 애드온을 넣는 제약이 생기고, v13 prebuilt 플랫폼 목록이 확인되지 않았다(`§7-E`) |
 | `node:sqlite` | Node 내장 SQLite | stability 1.2 Release candidate, CVE-2026-58041 수정 버전 미확인(`§7-A`). Bun 런타임 결정과 맞지 않는다 |
 | pnpm 12 | Rust 재작성 패키지 매니저 | Bun workspaces + catalog로 같은 기능을 얻는다. 도구를 하나 줄인다 |
-| Electron(데스크톱) | Chromium 번들 데스크톱 | 이 ADR의 범위가 아니다. Tauri 2 선택은 ADR-0008에서 다룬다 |
+| Electron(데스크톱) | Chromium 번들 데스크톱 | 이 ADR의 범위가 아니다. 옛 Tauri 2 선택(커밋 424f338a)은 ADR-0008에서 다룬다. 2026-11-06에 셸은 Electron으로 바뀌었다(ADR-0008 상태 갱신) |
 
 ## 6. 가정
 

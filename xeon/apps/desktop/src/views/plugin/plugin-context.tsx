@@ -9,7 +9,7 @@ import type { ConfirmQueue } from "./confirm-host.tsx";
 export interface PluginUiContextValue {
   readonly runtime: PluginUiRuntime;
   readonly confirm: ConfirmQueue;
-  /** 확인 줄을 거친 `http(s)` 주소를 OS 브라우저로 연다. 운영은 Tauri 명령 `open_external`이다 */
+  /** 확인 줄을 거친 `http(s)` 주소를 OS 브라우저로 연다. 운영은 셸 명령 `open_external`이다 */
   readonly openExternal: (href: string) => Promise<void>;
   /** 파일·알림·시크릿 등록 같은 셸 기능. 프레임 대신 앱 본 화면이 부른다. 웹 빌드에는 없다(ADR-0021 §3.4.3) */
   readonly shell?: PluginShellPort | undefined;

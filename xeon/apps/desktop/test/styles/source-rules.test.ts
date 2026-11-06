@@ -13,7 +13,7 @@ test("no underscore token inside a Tailwind arbitrary value", () => {
 });
 
 test("no inline <style> element in a view", () => {
-  // Tauri CSP(`default-src 'self'`)는 인라인 <style>을 막는다. 웹에서만 되고 데스크톱에서 스타일이 사라진다. CSS 파일로 두고
+  // 셸 CSP(`default-src 'self'`)는 인라인 <style>을 막는다. 웹에서만 되고 데스크톱에서 스타일이 사라진다. CSS 파일로 두고
   // src/styles.css에서 가져온다.
   const found = sourceFiles([".tsx"])
     .filter((file) => /<style[\s>]/.test(read(file)))

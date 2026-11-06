@@ -1,8 +1,8 @@
 import { attemptAsync, err, ok, type Result, type Thrown } from "@fresnel/contracts";
 
-// 새 대화의 작업 폴더를 OS 폴더 선택 창으로 고른다(L4.desktop.spec §4.16). 창은 Rust `pick_folder`가 띄운다.
-// WebView에는 dialog 권한을 주지 않으므로 이 명령 하나만 부른다. Tauri `invoke`는 구조로만 받는다(app-roots.ts와 같은 방식).
-// 운영은 main.tsx가 `@tauri-apps/api/core`의 `invoke`를 넘기고, 시험은 가짜를 넣는다.
+// 새 대화의 작업 폴더를 OS 폴더 선택 창으로 고른다(L4.desktop.spec §4.16). 창은 셸의 `pick_folder`가 띄운다.
+// WebView에는 dialog 권한을 주지 않으므로 이 명령 하나만 부른다. 셸 `invoke`는 구조로만 받는다(app-roots.ts와 같은 방식).
+// 운영은 main.tsx가 셸 다리의 `invoke`를 넘기고, 시험은 가짜를 넣는다.
 
 /** `pick_folder`와 `pick_file`의 invoke 모양. 인자는 없다 */
 export type FolderPickInvoke = (command: "pick_folder" | "pick_file") => Promise<unknown>;

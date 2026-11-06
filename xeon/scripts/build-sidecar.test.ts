@@ -74,7 +74,7 @@ test("every triple resolves to its bun target and an unknown one lists the known
   expect(describeError(unknown.error)).toContain("x86_64-unknown-linux-gnu");
 });
 
-test("output names follow the Tauri externalBin convention, .exe on Windows only", () => {
+test("output names follow the <name>-<triple> convention, .exe on Windows only", () => {
   expect(outputFileName("fresnel", "aarch64-apple-darwin")).toBe("fresnel-aarch64-apple-darwin");
   expect(outputFileName("fresnel", "x86_64-unknown-linux-gnu")).toBe(
     "fresnel-x86_64-unknown-linux-gnu",
@@ -165,10 +165,10 @@ test("a build runs bun with the mapped target and reports the size against the c
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(result.value.bunTarget).toBe("bun-darwin-arm64");
-  expect(result.value.outFile).toBe(`${DESKTOP}/src-tauri/binaries/fresnel-aarch64-apple-darwin`);
+  expect(result.value.outFile).toBe(`${DESKTOP}/dist/sidecar/fresnel-aarch64-apple-darwin`);
   expect(result.value.bytes).toBe(102 * MIB);
   expect(result.value.maxBytes).toBe(500 * MIB);
-  expect(calls.dirs).toEqual([`${DESKTOP}/src-tauri/binaries`]);
+  expect(calls.dirs).toEqual([`${DESKTOP}/dist/sidecar`]);
   expect(calls.cwd).toEqual([DESKTOP]);
   expect(calls.args[0]).toEqual([
     "build",
@@ -178,7 +178,7 @@ test("a build runs bun with the mapped target and reports the size against the c
     "--target=bun-darwin-arm64",
     "/work/apps/cli/src/main.ts",
     "--outfile",
-    `${DESKTOP}/src-tauri/binaries/fresnel-aarch64-apple-darwin`,
+    `${DESKTOP}/dist/sidecar/fresnel-aarch64-apple-darwin`,
   ]);
 });
 
@@ -191,7 +191,7 @@ test("an out-dir request writes there and leaves the development sidecar path al
   expect(result.ok && result.value.outFile).toBe("/o/rel/fresnel-x86_64-unknown-linux-gnu");
   expect(calls.dirs).toEqual(["/o/rel"]);
   expect(calls.args[0]?.at(-1)).toBe("/o/rel/fresnel-x86_64-unknown-linux-gnu");
-  expect(calls.args[0]?.join(" ")).not.toContain("src-tauri");
+  expect(calls.args[0]?.join(" ")).not.toContain("dist/sidecar");
 });
 
 test("the Windows build writes an .exe", async () => {

@@ -12,7 +12,7 @@ function open(threadId: string): Intent {
 }
 
 describe("intent queue", () => {
-  test("the wire constants are the Tauri ones", () => {
+  test("the wire constants are the ones the UI expects", () => {
     expect(INTENT_CAPACITY).toBe(8);
     expect(INTENT_LIFETIME_MS).toBe(30_000);
     expect(INTENT_EVENT).toBe("shell-intent");

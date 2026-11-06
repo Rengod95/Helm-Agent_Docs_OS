@@ -10,7 +10,7 @@ import {
 import { engineEnv } from "../src/main/lib/env-path.ts";
 
 const RESOURCES = "/work/apps/desktop-shell";
-const DEV_DIR = "/work/apps/desktop/src-tauri/binaries";
+const DEV_DIR = "/work/apps/desktop/dist/sidecar";
 const only =
   (...files: string[]) =>
   (file: string): boolean =>
@@ -73,7 +73,7 @@ describe("sidecar lookup", () => {
     ).toEqual({ bundled: true, file: bundled });
   });
 
-  test("a development run falls back to the src-tauri binaries folder", () => {
+  test("a development run falls back to the apps/desktop/dist/sidecar folder", () => {
     expect(
       resolveSidecar({
         platform: "darwin",

@@ -15,7 +15,7 @@ declare global {
 
 /**
  * Electron 셸. 바이트 명령은 `{ body, headers }`로 보낸다(셸 모듈이 그 모양으로 읽는다).
- * 오류 값은 Tauri와 같은 모양으로 거부된다(문자열 코드나 `{kind}`).
+ * 오류 값은 문자열 코드나 `{kind}`로 거부된다.
  */
 export function createElectronBridge(api: FresnelShellApi): ShellBridge {
   return {

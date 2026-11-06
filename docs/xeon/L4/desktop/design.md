@@ -83,7 +83,7 @@ sequenceDiagram
 
 ```text
 src/
-  transport/            # ipc.ts, tauri-stdio.ts (L4.desktop.spec §3.3, §3.4)
+  transport/            # ipc.ts, relay-stdio.ts (L4.desktop.spec §3.3, §3.4)
   state/
     shared/             # pipeline.ts, journal.ts, frame.ts, readonly-store.ts, watch.ts
     engine/             # state.ts, input.ts, decode.ts, reduce.ts, invariants.ts, describe.ts,
@@ -1766,25 +1766,29 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 
 ### 15.1 UI 쪽 어댑터
 
-`apps/desktop/src/shell/`이 셸 호출을 한 곳으로 모은다. `ShellBridge`는 `invoke(command, args)`, `invokeBytes(command, body, headers)`, `createChannel(onMessage)`, `listen(event, onEvent)`를 가진다. Tauri 구현은 `@tauri-apps/api`의 `invoke`, `Channel`, `listen`을 그대로 감싸고, Electron 구현은 preload의 `window.fresnelShell`을 감싼다. `detectShell()`이 실행 때 하나를 고르고 둘 다 없으면 `null`(웹)이다. `transport/ipc.ts`의 `DesktopIpc`와 화면 쪽 `*Invoke` 함수들은 어댑터를 거친다.
+`apps/desktop/src/shell/`이 셸 호출을 한 곳으로 모은다. `ShellBridge`(`bridge.ts`)는 `kind`, `invoke(command, args)`, `invokeBytes(command, body, headers)`, `createChannel(onMessage)`, `listen(event, onEvent)`를 가진다. Electron 다리(`electron-bridge.ts`)는 preload가 내놓는 `window.fresnelShell`(`invoke`, `openChannel`, `closeChannel`, `listen`)을 감싸고, 바이트 명령은 `{ body, headers }`로 보낸다. `selectShellBridge()`(`index.ts`)가 실행 때 고른다. `window.fresnelShell`이 없으면(웹 빌드) 명령은 모두 `shell-unavailable`로 거부되고 이벤트는 오지 않는다. `transport/ipc.ts`의 `createDesktopIpc(bridge)`로 만든 `DesktopIpc`가 이 다리를 거친다. 옛 Tauri 구현(커밋 424f338a)의 다리는 `@tauri-apps/api`의 `invoke`, `Channel`, `listen`을 감쌌다.
 
-### 15.2 Tauri capability 대응표
+### 15.2 옛 Tauri capability 대응표 (커밋 424f338a)
 
 (각 모듈이 들어올 때 행을 채운다. 최종 검토는 사용자 몫이다.)
 
-| Tauri capability / 설정 | Electron 대응 |
+| 옛 Tauri capability / 설정 (커밋 424f338a) | Electron 대응 |
 |---|---|
 | `core:default` 외 플러그인 권한을 WebView에 주지 않음 | preload가 `invoke`, 채널, 이벤트만 내놓음. ipcRenderer와 Node API는 renderer에 없음 |
 | 명령별 `allow-*` 허용 | `ctx.handle`로 등록된 명령만 닿음. 등록 없으면 `unknown-command` |
 | 원격 URL의 IPC 접근 없음(`remote` 비어 있음) | 발신 프레임이 최상위 `app://localhost`가 아니면 `forbidden-frame` |
 | `fresnel-view://` 프레임은 IPC에 닿지 못함 | 같은 프레임 검사(자식 프레임 거부) |
-| CSP(`tauri.conf.json`) | `app://` 응답 헤더의 CSP, 같은 지시문 |
+| CSP(옛 Tauri 구현(커밋 424f338a)의 `tauri.conf.json`) | `app://` 응답 헤더의 CSP, 같은 지시문 |
 | `fresnel-view://`의 `capabilities` 대응 | 스킴은 `registerSchemesAsPrivileged`로 standard, secure, supportFetchAPI, corsEnabled만 준다(`bypassCSP`, 서비스 워커 없음). 응답마다 프레임 CSP를 붙인다. Electron에서의 실제 프레임 격리는 실기 확인이 남았다 |
 | `allow-secret-register` | `secret_register`는 값을 stdin에만 쓰고 argv, env, 로그에 넣지 않는다 |
 | `allow-open-external` | 스킴 허용 목록(http, https)을 메인 프로세스가 검사한다 |
 | `allow-pick-folder`, `allow-pick-file`, `allow-save-file` | 메인 프로세스가 `dialog`를 연다. renderer에는 dialog API가 없다 |
 | `allow-engine-*`, `allow-db-restore` | 같은 이름의 명령을 `ctx.handle`로 등록한다. 세대(epoch) 검사와 크기 상한은 명령 안에서 한다 |
 | 플러그인 화면(`fresnel-view://`)의 파일·알림·설정·시크릿 기능 [결정: 2026-11-06 사용자] | 프레임에는 IPC가 없고(`forbidden-frame`) 다리 op(`pickFile`, `pickFolder`, `saveFile`, `notify`, `writeSetting`, `registerSecret`)만 있다. 앱 본 화면이 판정을 거친 요청만 위 명령(`pick_file_read`, `pick_folder`, `save_file`, `notify_os`, `secret_register`)으로 바꿔 부른다. 선언은 매니페스트 `app.capabilities`다(ADR-0021 §3.4.3) |
-| `allow-os-reauth`, `allow-update-*`, `allow-shell-take-intents`, `allow-tray-update`, `allow-notify-*` | 이번 단계에 없다. 등록되지 않았으므로 `unknown-command`로 거부된다(다음 단계에서 모듈로 더한다) |
+| `allow-os-reauth`, `allow-update-*`, `allow-shell-take-intents`, `allow-tray-update`, `allow-notify-*` | 이 표를 쓴 단계에는 없었고 등록되지 않아 `unknown-command`로 거부됐다. 지금은 `os-reauth.ts`, `updater.ts`, `tray.ts`, `notify-os.ts`, `shell-intents.ts`가 모듈로 붙어 있다 |
 
-이 표는 개발자가 Tauri capability 파일과 맞춰 본 것이며 새 IPC 보안 모델의 최종 검토는 사용자 몫이다.
+이 표는 개발자가 옛 Tauri 구현(커밋 424f338a)의 capability 파일과 맞춰 본 것이며 새 IPC 보안 모델의 최종 검토는 사용자 몫이다.
+
+### 15.3 Tauri 제거 완료
+
+Tauri 제거 완료(2026-11-06), 마지막 Tauri 커밋 `424f338a`. Electron 셸이 같은 기능을 모두 갖춘 뒤 `xeon/apps/desktop/src-tauri/`(Rust 셸), `@tauri-apps/*` 의존, Rust 툴체인(mise), cargo·rust-notices 스크립트, `spike/shell`, UI 쪽 Tauri 다리를 지웠다. Rust 레시피(`desktop-build`, `desktop-test`, `desktop-ipc-probe`, `desktop-notices`)도 없어졌다. 옛 파일은 `git show 424f338a:xeon/apps/desktop/src-tauri/<path>`로 본다. 명령별 Electron 대응은 `L4.desktop.spec` §11.5에 있다.

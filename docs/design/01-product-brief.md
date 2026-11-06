@@ -1,5 +1,7 @@
 # 01. 제품 브리프
 
+> 2026-11-06: 데스크톱 셸은 Tauri에서 Electron으로 바뀌었고 Tauri와 Rust 셸은 저장소에서 제거했다(마지막 Tauri 커밋 424f338a). 아래 Tauri 서술은 당시 설계 기록이다. 현재 구조는 docs/xeon/L4/desktop/spec.md §11을 따른다.
+
 - 작성: P1 기획, 2026-10-11 (1단계 초안)
 - 상태: 설계 초안. 2단계 통합에서 03·06·14·16과 맞춘다.
 - 함께 읽을 문서: [02 유즈케이스와 단계 흐름](02-usecases-and-scenarios.md), `process/00-design-brief.md`(이하 "브리프")

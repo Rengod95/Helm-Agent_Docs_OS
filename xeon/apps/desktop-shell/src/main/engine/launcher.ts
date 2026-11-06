@@ -1,4 +1,4 @@
-// 엔진 프로세스를 띄우고 끝내는 수단(engine.rs의 Launcher와 TauriLauncher, L4.desktop.spec 4.1 E1~E3, E6, E7).
+// 엔진 프로세스를 띄우고 끝내는 수단(옛 Tauri 구현(커밋 424f338a)의 engine.rs Launcher, L4.desktop.spec 4.1 E1~E3, E6, E7).
 // 운영은 `pipedLauncher`가 `@fresnel/platform-process/piped`의 spawnPiped로 띄운다. 시험은 `Launcher`를 가짜로 바꾼다.
 // 프로세스 그룹 종료는 PipedChild.signalTree가 한다(Rust의 killpg와 taskkill /T에 해당한다).
 import path from "node:path";

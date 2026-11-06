@@ -371,16 +371,8 @@ test("requiredPaths asks for the lock and the bundled binaries only on macOS", (
   expect(requiredPaths("x86_64-pc-windows-msvc")).toEqual(["fresnel.exe", ...common.slice(1)]);
 });
 
-test("the Rust notice file ships in the desktop bundle (tauri.conf.json), and the release archive's notices are the JS and Bun ones", () => {
-  const desktop = join(import.meta.dir, "..", "apps", "desktop", "src-tauri");
-  const conf: unknown = JSON.parse(readFileSync(join(desktop, "tauri.conf.json"), "utf8"));
-  expect(conf).toEqual(
-    expect.objectContaining({
-      bundle: expect.objectContaining({ resources: ["resources/THIRD-PARTY-NOTICES-RUST.txt"] }),
-    }),
-  );
-  expect(existsSync(join(desktop, "resources", "THIRD-PARTY-NOTICES-RUST.txt"))).toBe(true);
-  // The archive ships the Bun-compiled CLI entry (apps/desktop/sidecar.json), which links no Rust crate of the desktop shell.
+test("the release archive's notices are the JS and Bun ones", () => {
+  // The archive ships the Bun-compiled CLI entry (apps/desktop/sidecar.json), which links no shell crate or Electron code.
   for (const triple of [MAC, LINUX]) {
     expect(requiredPaths(triple)).toContain("THIRD-PARTY-NOTICES.txt");
     expect(requiredPaths(triple)).not.toContain("THIRD-PARTY-NOTICES-RUST.txt");
@@ -423,7 +415,7 @@ test("a release build writes its sidecar under the output directory, never the d
   const out = "/o/release";
   expect(releaseSidecarDir(out)).toBe("/o/release/.sidecar-build");
   expect(releaseSidecarDir(out)).not.toBe(devSidecarDir("/x"));
-  expect(devSidecarDir("/x")).toBe(join("/x", "apps", "desktop", "src-tauri", "binaries"));
+  expect(devSidecarDir("/x")).toBe(join("/x", "apps", "desktop", "dist", "sidecar"));
 });
 
 test("release-smoke.sh passes its version to release.ts, and fresnel-release.yml sets FRESNEL_RELEASE_VERSION from a tag", () => {

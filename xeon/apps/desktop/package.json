@@ -26,7 +26,6 @@
     "@caustic/tokens": "workspace:*",
     "@fresnel/client": "workspace:*",
     "@fresnel/contracts": "workspace:*",
-    "@tauri-apps/api": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typebox": "catalog:",

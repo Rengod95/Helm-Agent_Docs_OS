@@ -147,11 +147,11 @@ binds: []
 | 외부 훅(셸 JSON 프로토콜) | M3-REQ-34 본문 `[결정: 2026-10-28 사용자]` |
 | 웹 클라이언트, 웹 UI | M3-REQ-44 본문 `[결정: 2026-10-28 사용자]` |
 | 비협조 확장 코드의 격리. 같은 프로세스의 한계는 받아들입니다 | M3-REQ-34 본문 |
-| M3-40 원격 점검 Phase 2(Victauri PoC). 데스크톱 화면 점검 도구라서 화면과 함께 옮깁니다 | `review.m3b-plan` §1.2 `[결정: 오케스트레이터 기본값]` |
+| M3-40 원격 점검 Phase 2(옛 Tauri 구현(커밋 424f338a)의 Victauri PoC). 데스크톱 화면 점검 도구라서 화면과 함께 옮깁니다 | `review.m3b-plan` §1.2 `[결정: 오케스트레이터 기본값]` |
 | `label`·`help` 필드 제거. `labelKey`·`helpKey`를 남깁니다 | M3-REQ-21, `review.m3b-plan` §5 |
 | 데스크톱 쪽 항목: `desktop_settings_read/write`, 트레이 아이콘과 메뉴, `handler_failed` 화면 표시, 설정 쓰기 흐름의 reducer와 초안 | 이월 목록(B4-DSK, B1-NTF, B3-SET) |
 | 학습 그룹의 Curator, 이력, 스크립트 제안 | 이월 목록(LR-17 항목의 "M4+") |
-| 앱 안 업데이터, Tauri 번들 리소스 매핑(패키징) | 이월 목록(B5-REL) |
+| 앱 안 업데이터, 옛 Tauri 구현(커밋 424f338a)의 번들 리소스 매핑(패키징) | 이월 목록(B5-REL) |
 
 ## 4. 제품 이름 상수
 

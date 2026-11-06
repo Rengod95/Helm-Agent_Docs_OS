@@ -990,7 +990,7 @@ export type NotifyError =
 - 기능 밖의 도구도 같은 비교 함수에 넣는다 [제안]. 순서 키의 `capability` 자리에 확장 도구는 `ext.<확장 이름>`, MCP 도구는 `mcp.<서버 이름>`을 쓴다.
 - `orderTools(defs)`는 입력 배열 순서와 무관하게 같은 결과를 낸다. 같은 키가 두 번 나오면 결과를 만들지 않고 예외를 던진다. 이 경우는 `validateCapabilitySet`의 `tool_name_conflict`로 먼저 걸러야 한다.
 - `toolsetFingerprint`는 모델에게 보이는 부분만 해시한다. 입력은 순서대로 늘어놓은 `{ name, description, parameters: toJsonSchema(parameters) }` 배열의 정규화 JSON이다. `label`, `hints`, `replay`, `version`은 포함하지 않는다.
-- 해시는 Web Crypto SHA-256을 쓴다 [제안]. Bun 1.4, Tauri WebView, 브라우저에 모두 있는 표준 API이므로 F에 패키지 의존이 늘지 않는다. 비동기라서 반환 타입이 `Promise`다. 대안인 순수 TS 구현은 F.capabilities.plan §3 P6에서 비교한다.
+- 해시는 Web Crypto SHA-256을 쓴다 [제안]. Bun 1.4, 데스크톱 WebView(Electron의 Chromium), 브라우저에 모두 있는 표준 API이므로 F에 패키지 의존이 늘지 않는다. 비동기라서 반환 타입이 `Promise`다. 대안인 순수 TS 구현은 F.capabilities.plan §3 P6에서 비교한다.
 - 대화 중간의 추가·제거: 첫 요청의 도구 집합은 정렬 목록 전체를 앞머리에 둔다. 그 뒤의 변경은 정렬 목록을 다시 만들지 않는다. L1.context가 `diffToolsets(prev, next)`의 `added`와 `removed`를 pi-ai `SystemMessage.toolsAdded`, `toolsRemoved`로 대화 기록의 그 위치에 넣는다(`~/projects/_ref/pi-src/packages/ai/src/types.ts:541-557`). Anthropic API에서는 pi-ai가 이 메시지를 `tool_addition`, `tool_removal` 블록으로 바꾼다(`~/projects/_ref/pi-src/packages/ai/src/api/anthropic-messages.ts:1325-1352`). 같은 이름의 재정의는 제거 없이 추가만 보낸다(같은 파일 1340-1343행). 이렇게 하면 앞머리 접두가 유지되어 프롬프트 캐시가 깨지지 않는다(`_research/item-catalog.md` 진보된 설계 10번).
 - `firstChangedIndex`는 정렬 목록 전체를 다시 광고할 경우 캐시 접두가 깨지는 위치를 알려 준다. L1.context가 재광고와 시스템 메시지 추가 중 하나를 고르는 근거로 쓴다.
 
@@ -1045,7 +1045,7 @@ export type NotifyError =
 4. 도구 이름이 provider 허용 문자 밖임: `validateCapability`가 `tool_name_invalid`로 거부한다. pi-ai는 도구 호출 ID를 `[^a-zA-Z0-9_-]` 치환과 64자 절단으로 맞춘다(`~/projects/_ref/pi-src/packages/ai/src/api/anthropic-messages.ts:1291`, `ai/src/api/transform-messages.ts:62`). [가정] 도구 이름에도 같은 문자 제약이 있다고 본다. provider별 공식 이름 제약은 확인하지 않았다.
 5. 대화 중간에 기능이 꺼짐: 그 기능의 도구는 다음 step 경계에서 `toolsRemoved`로 빠진다. 이미 시작한 도구 호출은 끝까지 실행된다(F.extensions.spec §4.5 켜기·끄기 규칙).
 6. 동적 도구 집합(MCP 서버 도구): 정의가 실행 중에 생기므로 정적 `CapabilityDef.tools`로 표현하지 않는다. `mcp` 기능의 서비스 메서드(목록 조회, 호출)는 정적 정의로 두고, 서버별 도구 광고는 L2.mcp가 X 리소스 등록으로 한다. 이 도구들도 §4.5의 순서 키(`mcp.<서버>`)와 `diffToolsets`를 쓴다.
-7. `toolsetFingerprint` 실행 환경에 `crypto.subtle`이 없음: 예외를 던진다. 지원 대상 런타임(Bun 1.4, Tauri WebView)에는 있으므로 대체 경로를 두지 않는다 [제안].
+7. `toolsetFingerprint` 실행 환경에 `crypto.subtle`이 없음: 예외를 던진다. 지원 대상 런타임(Bun 1.4, Electron의 Chromium)에는 있으므로 대체 경로를 두지 않는다 [제안].
 
 ## 6. 설정 노출
 

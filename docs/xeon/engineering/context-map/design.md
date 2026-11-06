@@ -19,7 +19,7 @@ Fresnel 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유
 - 층 구성 계획 v2는 구성요소 182개를 41개 하위 층에 나눴고, `routes.yaml` layout은 이를 37개 도메인과 패키지 경로로 옮겼다. 층은 import 방향을 정하지만 "이 테이블은 누가 쓰는가", "이 이벤트 type은 누가 만드는가"는 정하지 않는다.
 - 단일 DB 파일(`eng.transactions.design` 3.1절)에 대화 코어, L2 기능, 확장의 테이블이 함께 있다. 소유 규칙이 없으면 한 컨텍스트가 다른 컨텍스트 테이블을 직접 읽고 써서, 투영 재생성·확장 제거·스키마 변경 때 숨은 결합이 드러난다.
 - 같은 층 패키지끼리는 import할 수 없다(DR-02). 그러면 같은 일을 하는 L1 패키지 넷(tasks, loop, context, agents)이 어떤 단위로 협력하는지, 그 단위가 무엇을 외부에 내놓는지를 따로 정해야 한다.
-- 외부 라이브러리(pi-ai, MCP SDK, Tauri, Cordis, bun:sqlite)의 타입이 여러 컨텍스트로 퍼지면 버전 고정과 포크 범위를 관리할 수 없다.
+- 외부 라이브러리(pi-ai, MCP SDK, Electron, Cordis, bun:sqlite)의 타입이 여러 컨텍스트로 퍼지면 버전 고정과 포크 범위를 관리할 수 없다.
 - Helm과 학습 그룹은 L3 기본 그룹으로 공존한다. 둘 사이, 그리고 그룹과 기능 사이의 결합 방식이 정해지지 않으면 한 그룹을 끌 때 다른 쪽이 깨진다(`_research/decisions-log.md` 2026-10-21 "그룹 간 강결합 우려").
 
 ## 2. 선택지 비교
@@ -89,7 +89,7 @@ flowchart LR
   subgraph EXTLIB["외부 라이브러리"]
     PIAI["pi-ai"]
     MCPSDK["MCP SDK v2"]
-    TAURI["Tauri 2"]
+    ELECTRON["Electron"]
     CORDIS["Cordis (vendored)"]
     SQLITE["bun:sqlite"]
   end
@@ -132,7 +132,7 @@ flowchart LR
   PIAI -->|"순응자: F1 메시지 타입 재노출"| F
   PIAI -->|"ACL: provider·스트림"| MG
   MCPSDK -->|"ACL: F3 도구로 번역"| MCP
-  TAURI -->|"ACL: F5 wire"| CL
+  ELECTRON -->|"ACL: F5 wire"| CL
 
   ST -->|"고객-공급자"| SC
   ST -->|"고객-공급자: scoped"| KN
@@ -164,7 +164,7 @@ flowchart LR
 | 공유 커널 | `contracts`(F) | 모든 컨텍스트가 같은 타입과 카탈로그를 쓴다. 바꿀 때 모든 소비자를 함께 확인한다 |
 | 고객-공급자 | 위 그림의 대부분 | 하류가 F의 서비스 인터페이스로 상류를 쓴다. 인터페이스 변경은 F 문서와 함께 한다 |
 | 순응자 | pi-ai 메시지 타입 → F1. pi-agent-core 루프는 run-engine이 포크해 자체 코드로 가지므로(adr.0009) 순응 관계가 없다 | 외부 모델을 바꾸지 않고 따른다. 정확 버전 고정 + 별칭 재노출(`_research/packages.md §4.1` F1 메시지 스키마 "그대로") |
-| 부패 방지 계층 | `model-gateway`(pi-ai provider·스트림), `mcp`(MCP SDK), `clients`·`host`(Tauri IPC ↔ F5 wire), `extension-host`(Cordis), `platform-store`(bun:sqlite) | 외부 타입을 경계에서 F 타입으로 바꾼다. 경계 밖으로 외부 타입이 나가지 않는다(CM-03) |
+| 부패 방지 계층 | `model-gateway`(pi-ai provider·스트림), `mcp`(MCP SDK), `clients`·`host`(Electron IPC ↔ F5 wire), `extension-host`(Cordis), `platform-store`(bun:sqlite) | 외부 타입을 경계에서 F 타입으로 바꾼다. 경계 밖으로 외부 타입이 나가지 않는다(CM-03) |
 | 양방향(파트너) | `extension-host` ↔ `run-engine` | run-engine은 훅을 열고 ext-host는 핸들러를 실행한다. drive는 ext-host가 `fresnel.loop`로 턴을 요청한다. 두 쪽 계약은 F4 훅 선언 하나다(DR-12) |
 
 ### 4.3 층 의존 그림

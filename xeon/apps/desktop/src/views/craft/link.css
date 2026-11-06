@@ -1,5 +1,5 @@
 /* 링크 보기의 스타일. 색은 caustic 토큰(--cs-*)만 쓴다. 이름은 craft-link-로 시작해 다른 화면과 겹치지 않는다.
-   Tauri CSP가 인라인 <style>을 막아 JSX가 아니라 이 파일로 두고 styles.css가 가져온다. */
+   셸 CSP가 인라인 <style>을 막아 JSX가 아니라 이 파일로 두고 styles.css가 가져온다. */
 .craft-link-strand {
   fill: none;
   stroke-width: var(--craft-link-w);

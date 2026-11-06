@@ -1,5 +1,7 @@
 # 06. 시스템 아키텍처
 
+> 2026-11-06: 데스크톱 셸은 Tauri에서 Electron으로 바뀌었고 Tauri와 Rust 셸은 저장소에서 제거했다(마지막 Tauri 커밋 424f338a). 아래 Tauri 서술은 당시 설계 기록이다. 현재 구조는 docs/xeon/L4/desktop/spec.md §11을 따른다.
+
 - 작성: P3 아키텍트, 2026-10-11 (1단계 초안), 2026-10-12 (2a단계 통합, 4단계 보완)
 - 상태: 설계 초안 3판. 기준은 브리프 결정 1~64과 `process/rulings-stage2a.md`(이하 "판정") J-01~J-351이다. 모바일 클라이언트는 결정 42·47에 따라 데몬이 서빙하는 PWA이고 세부는 26이 정한다.
 - 함께 읽을 문서: `process/00-design-brief.md`(이하 "브리프"), [24 ADR](24-adr.md)
@@ -1455,9 +1457,9 @@ pi-ai는 `StreamOptions.telemetryContext`로 pi-telemetry의 `TelemetryContext`�
 | 린트 | ESLint(flat config) + typescript-eslint | 정확한 버전 | 템플릿 `node.just`의 `check`·`lint`가 ESLint를 전제한다. 의존 규칙 일부를 ESLint로 검사한다(§3.5.3) | 이 문서가 정함 |
 | 형식 | Prettier | 정확한 버전 | vendor 코드는 제외(§3.5.3) | 이 문서가 정함 |
 | 빌드(Node 패키지) | `tsc -b` (번들러 없음) | - | §3.12.4 | 이 문서가 정함 |
-| 빌드(데스크톱) | Vite 8 + Tauri v2 CLI | 정확한 버전 | 결정 32 | 같음 |
+| 빌드(데스크톱) | Vite 8 + Electron 셸(`apps/desktop-shell`, 묶기는 `@electron/packager`. 옛 Tauri v2 CLI는 커밋 424f338a) | 정확한 버전 | 결정 32 | 같음 |
 | UI | **React 19**. UI 부품은 Helm이 직접 만들고(헤드리스 부품 위), 시각 언어는 글래스모피즘. Caustic 토큰은 복사(의존 없음). 판과 라이브러리 목록은 20 §3.7.3, 21 | 정확한 버전 | 결정 41, 43 | 결정 32의 React 18을 결정 41이 대체 |
-| Rust(데스크톱 셸) | `rust-toolchain.toml`로 안정판 하나에 고정(1.90 이상), Windows는 WSL에서 cargo-xwin 교차 빌드 | `rust-toolchain.toml`, `just app-setup` | 20 §3.12.1 | 이 문서가 받음 |
+| Rust(옛 Tauri 데스크톱 셸, 커밋 424f338a) | 옛 설계: `rust-toolchain.toml`로 안정판 하나에 고정(1.90 이상), Windows는 WSL에서 cargo-xwin 교차 빌드. Electron 전환 뒤 Rust 도구는 저장소에 없다 | 저장소에 없음(옛 `rust-toolchain.toml`, `just app-setup`) | 20 §3.12.1 | 이 문서가 받음 |
 | 웹·브라우저 도구 | `playwright-core` 1.64.0, `linkedom` 0.18.13, `@mozilla/readability` 0.6.0, `turndown` 7.2.4 | 정확한 버전. 사용처와 설치 조건은 §3.12.5 | §3.12.5 | 이 문서가 정함(결정 55, 판정 J-190 (1)) |
 | 작업 실행 | just(`justfile` + `.just/`) | 사용자 템플릿 모듈 복사 | 브리프 §2.5. 서버에 1.58.0 [실험] | 같음 |
 | 도구 버전 관리 | mise(`.mise.toml`) | - | 사용자 템플릿 | 같음 |
@@ -1544,7 +1546,7 @@ TypeScript 공통 설정(`tsconfig.base.json`) [제안]:
 - 운영 데몬은 저장소 작업 트리에서 실행하지 않는다. git 커밋 하나에서 `tsc -b` + `pnpm deploy`로 만든 불변 릴리스 디렉터리(`/srv/volumes/helm/app/releases/<ID>/`)를 `current` 링크로 바꿔 실행한다(17 D17-11, §3.10). 동기화 폴더(`~/projects`)의 편집이 실행 중 코드에 섞이지 않게 하기 위해서다.
 - 개발 데몬(`just daemon-dev`)은 `pnpm --filter @helm/daemon dev`로 전경 실행한다(17 §3.14). 이 스크립트는 `node --conditions=source packages/daemon/src/bin/helmd.ts`로 소스를 타입 제거 실행하는 것을 기본으로 한다 [제안]. `node --watch`는 쓰지 않는다. pi-codemode의 worker 채널이 `node --watch`에서 깨지는 문제가 업스트림 Unreleased 변경으로만 고쳐져 있기 때문이다(07 §4 E14). Node의 타입 제거는 `node_modules` 아래 파일을 처리하지 않는다 [지식]. 워크스페이스 패키지는 심볼릭 링크의 실제 경로가 `packages/…`라 해당하지 않는다고 보며, 07은 vendor 진입점을 Node 24 타입 제거 실행으로 불러온 결과를 기록했다(07 §3.6.3 "진입점 두 개 로드에 303 ms(Node 24, 타입 제거 실행)") [가정: 워크스페이스 전체에서의 동작은 S1에서 확인]. 안 되면 `tsc -b --watch` + 수동 재시작으로 바꾼다.
 - Vitest는 `resolve.conditions: ["source"]`로 소스를 바로 읽는다(pi와 같음).
-- 데스크톱 앱은 Vite가 React 코드를 묶고 Tauri CLI가 앱을 만든다. macOS 빌드는 `run-on mac`(브리프 §2.5), Windows 빌드 경로는 20이 정한다.
+- 데스크톱 앱은 Vite가 React 코드를 묶고 Electron 셸(`apps/desktop-shell`)을 `@electron/packager`로 묶는다(`docs/xeon/L4/desktop/spec.md` §11.7. 옛 Tauri CLI는 커밋 424f338a까지다). macOS 빌드는 `run-on mac`(브리프 §2.5), Windows 빌드 경로는 20이 정한다.
 
 #### 3.12.5 웹·브라우저 도구의 의존과 사람 작업 [결정 55 / 판정 J-190 (1)·(6)]
 
@@ -1685,7 +1687,7 @@ helm/
 │  ├─ node.just                 ~/.dotfiles/templates/just/node.just 복사 (수정하지 않음)
 │  └─ helm.just                 Helm 전용 레시피
 ├─ .mise.toml                   node = "24", pnpm = "11", just
-├─ rust-toolchain.toml          Rust 안정판 하나에 고정(20 §3.12.1). 데스크톱 셸 빌드용
+├─ rust-toolchain.toml          (옛 Tauri 셸 빌드용, 커밋 424f338a. 저장소에는 없다) Rust 안정판 하나에 고정(20 §3.12.1)
 ├─ .env.example                 §3.17
 ├─ .gitignore                   node_modules, dist, .env, .just/.last-verify, *.db, .worktrees/, …
 ├─ lefthook.yml                 템플릿(gitleaks, secrets check) + 빠른 lint
@@ -1717,7 +1719,7 @@ helm/
 │  ├─ client/  client-react/  ui-language/  ui-tokens/  ui/      L6c (§3.4.13, §3.4.16, §3.4.17)
 │  └─ testkit/
 ├─ apps/
-│  ├─ desktop/                  Tauri v2 (src-tauri/ + src/ React 19). 구조는 20
+│  ├─ desktop/                  React 19 화면(src/). 셸은 Electron(apps/desktop-shell/, 옛 Tauri src-tauri/는 커밋 424f338a). 구조는 20
 │  ├─ mobile/                   @helm/mobile, PWA(결정 47). 구조는 26 §3.2.1
 │  ├─ cli/
 │  └─ tui/

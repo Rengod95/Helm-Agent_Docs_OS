@@ -9,7 +9,7 @@ export type Intent =
 export const INTENT_CAPACITY = 8;
 /** 의도가 살아 있는 시간(ms) */
 export const INTENT_LIFETIME_MS = 30_000;
-/** 떠 있는 UI를 깨우는 이벤트 이름(Tauri와 같다) */
+/** 떠 있는 UI를 깨우는 이벤트 이름(UI의 `SHELL_INTENT_EVENT`와 같다) */
 export const INTENT_EVENT = "shell-intent";
 
 export interface IntentQueue {

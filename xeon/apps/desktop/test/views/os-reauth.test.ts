@@ -14,7 +14,7 @@ function replying(reply: () => Promise<unknown>): {
   return { invoke, calls };
 }
 
-/** Tauri는 Rust가 준 `Err(ReauthError)`를 `{ kind }` 객체로 거절한다. 그 값을 그대로 던진다 */
+/** 셸은 오류를 `{ kind }` 객체로 거절한다. 그 값을 그대로 던진다 */
 function rejectingWith(reason: unknown): ReturnType<typeof replying> {
   return replying(async () => {
     throw reason;

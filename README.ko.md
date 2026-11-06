@@ -10,7 +10,7 @@ Fresnel(임시 이름)은 대화형 에이전트 런타임입니다. 런타임 �
 
 | 경로 | 내용 |
 |------|------|
-| `xeon/` | 작업 공간: 엔진, 호스트, CLI, 데스크톱 앱(Bun 위의 TypeScript, Rust Tauri 셸) |
+| `xeon/` | 작업 공간: 엔진, 호스트, CLI, 데스크톱 앱(Bun 위의 TypeScript, Electron 셸) |
 | `docs/xeon/` | 제품 기획, 층별 스펙과 구현 계획, 구속력 있는 엔지니어링 규칙 |
 | `packages/agent-docs-init/` | `@helmdocs/init`, Agent Docs OS 설치 도구(런타임과 별개 도구) |
 

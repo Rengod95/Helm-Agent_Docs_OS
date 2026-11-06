@@ -58,13 +58,13 @@ jobs:
       - name: exit-condition tests
         if: always()
         run: just exit-tests
-      # Checklist rows M-07 (sidecar build) and M-08 (Tauri shell tests).
+      # Checklist rows M-07 (sidecar build) and M-08 (Electron shell tests).
       - name: sidecar aarch64-apple-darwin
         if: always()
         run: just desktop-sidecar aarch64-apple-darwin
-      - name: desktop Rust shell tests
+      - name: desktop Electron shell tests
         if: always()
-        run: just desktop-test
+        run: just desktop-shell-test
       # X11: the release archive of this machine (bundled sops, age, rg from mise above), unpacked and run; the signing step skips without secrets.
       - name: release smoke (X11)
         if: always()

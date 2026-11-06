@@ -1,6 +1,6 @@
 // 앱 업데이트 화면의 순수 모델(B-10). 상태 합집합과 이벤트 리듀서, 상태 칸과 설정 줄의 모양, 확인과 설치의 허용 규칙,
 // 실패 이유의 문구 표를 둔다. 명령은 `update-invoke.ts`가, 상태 보관과 호출 순서는 `update-controller.ts`가 맡는다.
-// 이 파일은 React와 Tauri를 보지 않는다. 시험은 값을 비교한다(test/views/update-model.test.ts).
+// 이 파일은 React와 셸을 보지 않는다. 시험은 값을 비교한다(test/views/update-model.test.ts).
 import type { MessageArgs, MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { StatusDot } from "./status-cell.tsx";

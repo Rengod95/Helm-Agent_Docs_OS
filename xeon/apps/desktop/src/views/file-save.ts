@@ -1,11 +1,10 @@
 import { attempt, attemptAsync, err, ok, type Result, type Thrown } from "@fresnel/contracts";
 
-// 내보낸 글을 파일로 저장한다(L4.desktop.spec §3.3, L4.desktop-ux §6.31 O-13). 데스크톱은 Rust `save_file`이 운영체제 저장 창을 띄우고
+// 내보낸 글을 파일로 저장한다(L4.desktop.spec §3.3, L4.desktop-ux §6.31 O-13). 데스크톱은 셸의 `save_file`이 운영체제 저장 창을 띄우고
 // 내용을 써서 고른 절대 경로를 돌려준다. 웹(invoke가 없음)은 브라우저 내려받기로 보낸다. 시험은 가짜 invoke와 가짜 내려받기를 넣는다.
 
 /**
- * `save_file`의 invoke 모양. 인자는 제안 이름과 내용이다. Tauri는 JS의 camelCase 키를 Rust의 snake_case 인자로 옮긴다
- * (`suggestedName` → `suggested_name`).
+ * `save_file`의 invoke 모양. 인자는 제안 이름과 내용이다(`suggestedName`, `content`).
  */
 export type FileSaveInvoke = (
   command: "save_file",

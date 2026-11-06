@@ -93,7 +93,7 @@ export type TargetEntry = { readonly id: string; readonly label: string; readonl
 
 /**
  * 로컬 설정 키. 셸이 쓰기를 허용하는 접두사(`l4.desktop.window.`) 안에 둔다. `l4.desktop.targets`는 접두사 밖이라 셸이 거부한다
- * (src-tauri/src/desktop_settings.rs `UI_KEY_PREFIXES`).
+ * (옛 Tauri 구현(커밋 424f338a)의 `desktop_settings.rs` `UI_KEY_PREFIXES`; 지금은 apps/desktop-shell의 `desktop-settings.ts`).
  */
 export const TARGETS_KEY = "l4.desktop.window.targets";
 

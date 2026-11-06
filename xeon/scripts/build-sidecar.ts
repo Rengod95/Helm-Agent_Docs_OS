@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 // Sidecar build (m2-plan DESK.3, L4.desktop.plan 2.1, D3). Compiles the engine entry named in
 // apps/desktop/sidecar.json with `bun build --compile --minify --bytecode` for one Rust target triple and
-// checks the size cap. Output: apps/desktop/src-tauri/binaries/<name>-<triple>[.exe] (not committed, TC-05).
+// checks the size cap. Output: apps/desktop/dist/sidecar/<name>-<triple>[.exe] (not committed, TC-05).
 //   build-sidecar <triple|host> [--no-bytecode] [--version x.y.z] [--out-dir <dir>]
-// `--out-dir` writes the binary there instead of src-tauri/binaries. Release builds use it so a release version never lands on the
+// `--out-dir` writes the binary there instead of dist/sidecar. Release builds use it so a release version never lands on the
 // development sidecar (the e2e tests and ensure-sidecar reuse that one and expect "0.0.0").
 // `--version` defines the string constant FRESNEL_BUILD_VERSION (bun build --define); CLI_VERSION and ENGINE_VERSION read it.
 //   build-sidecar --list
@@ -132,7 +132,7 @@ export function hostTriple(platform: string, arch: string): Result<string, Build
     : succeed(triple);
 }
 
-/** `<name>-<triple>`, with `.exe` for Windows triples (Tauri externalBin naming, adr.0008 3.2). */
+/** `<name>-<triple>`, with `.exe` for Windows triples (the naming the Electron packaging and the dev lookup expect). */
 export function outputFileName(name: string, triple: string): string {
   return triple.includes("-windows-") ? `${name}-${triple}.exe` : `${name}-${triple}`;
 }
@@ -211,7 +211,7 @@ export interface BuildRequest {
   readonly bytecode: boolean;
   /** The release version to inject; undefined builds the "0.0.0" development binary. */
   readonly version?: string | undefined;
-  /** Where the binary goes. Default: apps/desktop/src-tauri/binaries (the development sidecar). */
+  /** Where the binary goes. Default: apps/desktop/dist/sidecar (the development sidecar). */
   readonly outDir?: string | undefined;
 }
 
@@ -231,7 +231,7 @@ export async function buildSidecar(
   if (!target.ok) return target;
 
   const outFile = join(
-    request.outDir ?? join(request.desktopDir, "src-tauri", "binaries"),
+    request.outDir ?? join(request.desktopDir, "dist", "sidecar"),
     outputFileName(config.value.name, target.value.triple),
   );
   io.ensureDir(dirname(outFile));

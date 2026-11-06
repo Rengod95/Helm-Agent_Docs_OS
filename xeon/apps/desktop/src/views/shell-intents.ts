@@ -17,7 +17,7 @@ export type ShellInvoke = (
   command: "shell_take_intents" | "notify_take_target",
 ) => Promise<unknown>;
 
-/** 깨우기 이벤트를 듣는다. 반환값은 해제 함수다. 운영은 main.tsx가 Tauri `listen`을 감싸 넘긴다 */
+/** 깨우기 이벤트를 듣는다. 반환값은 해제 함수다. 운영은 main.tsx가 셸 다리의 `listen`을 감싸 넘긴다 */
 export type SubscribeShellIntent = (onWake: () => void) => Promise<() => void>;
 
 export interface ShellIntentPort {

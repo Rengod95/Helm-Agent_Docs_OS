@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-dir="apps/desktop/src-tauri/binaries"
+dir="apps/desktop/dist/sidecar"
 stamp="$dir/.sources.sha256"
 
 packages="$(mise exec -- bun run turbo ls --filter='@fresnel/cli...' --output=json 2>/dev/null | sed -n 's/^ *"path": "\(.*\)"$/\1/p')"

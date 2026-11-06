@@ -16,8 +16,8 @@ import { dirname, join } from "node:path";
 const SCRIPT = join(import.meta.dir, "ensure-sidecar.sh");
 const PACKAGE = "packages/fake-cli";
 const SOURCE = `${PACKAGE}/src/main.ts`;
-const BINARY = "apps/desktop/src-tauri/binaries/fresnel-test";
-const STAMP = "apps/desktop/src-tauri/binaries/.sources.sha256";
+const BINARY = "apps/desktop/dist/sidecar/fresnel-test";
+const STAMP = "apps/desktop/dist/sidecar/.sources.sha256";
 
 // Stands in for `mise exec -- <command>`, the only two calls the script makes: turbo's package listing (the line format the
 // script's sed reads) and the sidecar build (appends to the build log and creates the binary, cwd is the fixture root).
@@ -36,8 +36,8 @@ if [ "$1 $2 $3" = "bun run turbo" ]; then
 JSON
 elif [ "$*" = "bun scripts/build-sidecar.ts host" ]; then
   echo build >>"$FAKE_BUILD_LOG"
-  mkdir -p apps/desktop/src-tauri/binaries
-  echo built >apps/desktop/src-tauri/binaries/fresnel-test
+  mkdir -p apps/desktop/dist/sidecar
+  echo built >apps/desktop/dist/sidecar/fresnel-test
 else
   echo "fake mise: unexpected $*" >&2
   exit 3

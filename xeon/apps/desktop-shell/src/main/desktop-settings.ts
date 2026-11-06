@@ -1,4 +1,4 @@
-// 데스크톱 설정 파일(desktop_settings.rs). Tauri 셸과 Electron 셸이 `<configDir>/desktop-settings.json`을 같이 읽고 쓴다.
+// 데스크톱 설정 파일(desktop_settings.rs). `<configDir>/desktop-settings.json`을 읽고 쓴다.
 // 시작할 때 한 번 읽는다. 값 하나가 틀리면 그 키만 기본값을 쓰고, 파일 전체가 틀리면 모두 기본값을 쓴다.
 // 진단은 키 이름과 이유만 담는다(E11). 닫기 동작은 쓰기가 성공하면 바로 반영하고, 엔진 값은 다음 실행부터 반영한다.
 import {

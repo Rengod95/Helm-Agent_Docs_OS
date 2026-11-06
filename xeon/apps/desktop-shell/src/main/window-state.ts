@@ -1,5 +1,5 @@
-// 메인 창의 위치와 크기를 기억한다(Tauri 셸에는 없는 새 기능). 파일은 `<configDir>/window-state-electron.json`이다.
-// Tauri 셸의 파일과 이름이 달라 서로 덮어쓰지 않는다. 창을 만들 때 저장된 값을 옵션으로 넘기고, 움직이거나 크기를 바꾸면
+// 메인 창의 위치와 크기를 기억한다(Electron 셸에서 더한 기능). 파일은 `<configDir>/window-state-electron.json`이다.
+// 창을 만들 때 저장된 값을 옵션으로 넘기고, 움직이거나 크기를 바꾸면
 // 잠깐 뒤에 저장한다(닫을 때는 바로). 최소화된 창은 저장하지 않는다.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
