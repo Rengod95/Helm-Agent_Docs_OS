@@ -401,13 +401,15 @@ export interface GraphPlacement {
   readonly y: number;
 }
 
-export const GRAPH_NODE_WIDTH = 168;
-export const GRAPH_COLUMN_STEP = 232;
-export const GRAPH_ROW_STEP = 96;
+export const GRAPH_NODE_WIDTH = 230;
+/** 같은 깊이의 노드 사이 가로 간격 */
+export const GRAPH_COLUMN_STEP = 246;
+/** 깊이 하나의 세로 간격(시안 wb-compose S4: 위에서 아래로) */
+export const GRAPH_ROW_STEP = 100;
 
 /**
- * 캔버스 자리. 시작 노드에서 전이를 따라 가장 이른 깊이를 열로, 같은 열의 순서를 행으로 둔다.
- * 닿지 않는 노드는 맨 오른쪽 열 뒤에 둔다. 값은 모두 정수이고 같은 입력이면 같은 자리다.
+ * 캔버스 자리(위에서 아래로). 시작 노드에서 전이를 따라 가장 이른 깊이를 행으로 둔다. 같은 깊이의 노드는 한 줄에 나란히 서고,
+ * 가장 많은 줄의 폭에 맞춰 가운데로 모은다. 닿지 않는 노드는 맨 아래 줄 뒤에 둔다. 값은 모두 정수이고 같은 입력이면 같은 자리다.
  */
 export function graphPlacementsOf(draft: FlowDraft): readonly GraphPlacement[] {
   const depth = new Map<string, number>([[draft.initial, 0]]);
@@ -422,13 +424,18 @@ export function graphPlacementsOf(draft: FlowDraft): readonly GraphPlacement[] {
       queue.push(edge.to);
     }
   }
-  const lastColumn = Math.max(-1, ...depth.values());
-  const rows = new Map<number, number>();
+  const lastRow = Math.max(-1, ...depth.values());
+  const rowOf = (id: string): number => depth.get(id) ?? lastRow + 1;
+  const counts = new Map<number, number>();
+  for (const node of draft.nodes) counts.set(rowOf(node.id), (counts.get(rowOf(node.id)) ?? 0) + 1);
+  const widest = Math.max(1, ...counts.values());
+  const seen = new Map<number, number>();
   return draft.nodes.map((node) => {
-    const column = depth.get(node.id) ?? lastColumn + 1;
-    const row = rows.get(column) ?? 0;
-    rows.set(column, row + 1);
-    return { id: node.id, x: column * GRAPH_COLUMN_STEP, y: row * GRAPH_ROW_STEP };
+    const row = rowOf(node.id);
+    const index = seen.get(row) ?? 0;
+    seen.set(row, index + 1);
+    const lead = Math.round(((widest - (counts.get(row) ?? 1)) * GRAPH_COLUMN_STEP) / 2);
+    return { id: node.id, x: lead + index * GRAPH_COLUMN_STEP, y: row * GRAPH_ROW_STEP };
   });
 }
 
@@ -489,7 +496,7 @@ export function runStatesOf(
   if (phase === null || !states.has(phase)) return states;
   const placements = graphPlacementsOf(draft);
   const column = (id: string): number =>
-    (placements.find((place) => place.id === id)?.x ?? 0) / GRAPH_COLUMN_STEP;
+    (placements.find((place) => place.id === id)?.y ?? 0) / GRAPH_ROW_STEP;
   const now = column(phase);
   for (const node of draft.nodes) {
     states.set(node.id, node.id === phase ? "active" : column(node.id) < now ? "done" : "idle");

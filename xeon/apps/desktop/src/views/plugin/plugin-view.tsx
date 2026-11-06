@@ -405,8 +405,10 @@ export function NativeSurface(props: {
   readonly loaded: Loaded;
   readonly doc?: Readonly<Record<string, unknown>> | undefined;
   readonly dense?: boolean;
+  /** 값을 읽지 못했는지가 바뀔 때 알린다. 상태 표시줄 칸이 값 없는 칸을 감춘다 */
+  readonly onFailed?: ((failed: boolean) => void) | undefined;
 }): ReactNode {
-  const { entry, loaded, doc, dense = false } = props;
+  const { entry, loaded, doc, dense = false, onFailed } = props;
   const { runtime, openExternal, shell } = usePluginUi();
   const commands = useCommands();
   const threadId = useSelectedThreadId();
@@ -453,6 +455,10 @@ export function NativeSurface(props: {
       window.clearInterval(timer);
     };
   }, [runner, session, runtime, key, disabled, treeDoc, doc, entry.messages]);
+  const failed = tree === "failed" && doc === undefined;
+  useEffect(() => {
+    onFailed?.(failed);
+  }, [onFailed, failed]);
   if (disabled) return <DisabledNote runtime={runtime} keyName={key} dense={dense} />;
   if (treeDoc === undefined) return null;
   // 고정 문서는 그릴 때 바로 자른다(읽기 폴링 없이 첫 장면부터 글이 보인다)
@@ -486,8 +492,9 @@ export function EntrySurface(props: {
   readonly entry: ExtUiEntry;
   readonly dense?: boolean;
   readonly doc?: Readonly<Record<string, unknown>> | undefined;
+  readonly onFailed?: ((failed: boolean) => void) | undefined;
 }): ReactNode {
-  const { entry, dense = false, doc } = props;
+  const { entry, dense = false, doc, onFailed } = props;
   const { runtime } = usePluginUi();
   const threadId = useSelectedThreadId();
   const loaded = useLoaded(runtime, entry, threadId);
@@ -496,7 +503,9 @@ export function EntrySurface(props: {
   if (!loaded.context.enabled || loaded.context.safeMode) {
     return <Note dense={dense} text={t("desktop.plugin.state.disabled")} />;
   }
-  return <NativeSurface entry={entry} loaded={loaded} dense={dense} doc={doc} />;
+  return (
+    <NativeSurface entry={entry} loaded={loaded} dense={dense} doc={doc} onFailed={onFailed} />
+  );
 }
 
 export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {

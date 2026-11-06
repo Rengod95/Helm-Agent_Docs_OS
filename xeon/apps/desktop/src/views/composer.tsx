@@ -8,7 +8,7 @@ import {
   SelectOption,
   Textarea,
 } from "@caustic/react";
-import { ArrowUp, Paperclip } from "@caustic/react/icons";
+import { ArrowUp, Plus } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { ModelEntry } from "@fresnel/contracts/wire";
@@ -41,7 +41,6 @@ import {
   type AttachmentSource,
 } from "./attachment-model.ts";
 import { AttachmentRow } from "./composer-attachments.tsx";
-import { InfoTip } from "./craft/info-tip.tsx";
 import { pickAttachmentFile } from "./folder-pick.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
 import { useCommands, type BusyInputMode, type CommandError } from "./commands.ts";
@@ -50,6 +49,7 @@ import {
   composerDisabledReason,
   createEnterGuard,
   createSendLatch,
+  looksLikeSecret,
 } from "./composer-model.ts";
 import {
   DEFAULT_MODEL_CHOICE,
@@ -381,6 +381,8 @@ function ComposerFor(props: {
   // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·바로/끝난 뒤·모델·사용량·중단·보내기)은 Textarea의 아래 칸에 둔다.
   // caustic Composer를 쓰지 않는 까닭: 실행 중에는 Enter가 보내기를 막고 단추가 중단으로 바뀌는데, 앱은 실행 중에도 큐에 넣으며 보내고 중단을 따로 둔다.
   // 또 Composer는 글이 빈 첨부만의 보내기를 막는다.
+  // 경고는 늘 보이게 둔다(정보 아이콘 뒤에 숨기지 않는다): 비밀처럼 보이는 글이나 첨부가 있을 때 입력창 위 한 줄
+  const secretWarning = secretWarningOf(draft, chips.length > 0);
   return (
     <form
       className="grid gap-1.5"
@@ -433,6 +435,15 @@ function ComposerFor(props: {
           detach(addFiles(picked), rethrow);
         }}
       />
+      {secretWarning === null ? null : (
+        <p
+          role="note"
+          data-composer-secret-warning
+          className="m-0 px-1 text-ui-sm text-warning-text"
+        >
+          {secretWarning}
+        </p>
+      )}
       <Textarea
         ref={textarea}
         aria-label={t("desktop.composer.input.label")}
@@ -463,15 +474,14 @@ function ComposerFor(props: {
             <IconButton
               label={attachBlocked ?? t("desktop.composer.attach.button")}
               size="xs"
-              variant="ghost"
+              aria-description={t("desktop.composer.attach.info")}
               disabled={attachBlocked !== null}
               onClick={() => {
                 detach(pickFile(), rethrow);
               }}
             >
-              <Paperclip aria-hidden />
+              <Plus aria-hidden />
             </IconButton>
-            <InfoTip text={t("desktop.composer.attach.info")} />
             <SegmentedControl
               size="xs"
               aria-label={t("desktop.composer.mode.label")}
@@ -546,6 +556,13 @@ function ComposerFor(props: {
       />
     </form>
   );
+}
+
+/** 입력창 위에 보일 비밀 경고 글. 보일 때가 아니면 null */
+export function secretWarningOf(draft: string, hasAttachments: boolean): string | null {
+  if (looksLikeSecret(draft)) return t("desktop.composer.secret.warning");
+  if (hasAttachments) return t("desktop.composer.attach.info");
+  return null;
 }
 
 export function Composer(): ReactNode {

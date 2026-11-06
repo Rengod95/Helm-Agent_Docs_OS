@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { runStatesOf, type FlowDraft } from "@fresnel/client/workbench";
 import type { CompositionDecl } from "@fresnel/contracts/extensions";
 import type { WireManifestIssue } from "@fresnel/contracts/wire";
+import { t } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
 import { CommandsContext } from "../../../src/views/commands.ts";
 import { FlowBody } from "../../../src/views/compose/compose-group.tsx";
@@ -153,6 +154,18 @@ describe("캔버스 노드", () => {
     );
     expect(html).toContain('data-state="invalid"');
     expect(html).toContain("검사에서 막혔어요");
+  });
+});
+
+describe("세로 캔버스 틀", () => {
+  test("점 격자 틀 안에 그리고 배율 캡슐이 100%에서 시작한다", () => {
+    const html = renderToString(
+      <FlowCanvas draft={PHASES} selected={null} issues={new Map()} onSelect={NOOP} />,
+    );
+    expect(html).toContain(t("desktop.compose.flow.zoom.label"));
+    expect(html).toContain("100%");
+    expect(html).toContain('data-side="top"');
+    expect(html).toContain('data-side="bottom"');
   });
 });
 

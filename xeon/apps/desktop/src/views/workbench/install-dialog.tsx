@@ -2,6 +2,7 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import { Alert, Button, Dialog, Input } from "@caustic/react";
+import { Folder, Package } from "@caustic/react/icons";
 import { useReducer, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "../folder-pick.ts";
@@ -115,6 +116,8 @@ export function InstallDialog(props: {
       onOpenChange={(open) => {
         if (!open && !busy) props.onClose();
       }}
+      size="md"
+      icon={<Package />}
       title={
         flow.step === "confirm" || flow.step === "installing"
           ? t("desktop.install.confirm.heading", {
@@ -128,7 +131,9 @@ export function InstallDialog(props: {
           ? t("desktop.install.confirm.body", {
               name: flow.preview.displayName ?? flow.preview.name,
             })
-          : undefined
+          : flow.step === "source" || flow.step === "previewing"
+            ? t("desktop.install.subtitle")
+            : undefined
       }
       footer={
         <>
@@ -176,9 +181,8 @@ export function InstallDialog(props: {
       <div className="grid gap-3">
         {(flow.step === "source" || flow.step === "previewing") && (
           <div className="grid gap-1.5">
-            <span className="flex items-center gap-1 text-ui-dense text-text-secondary">
+            <span className="text-ui-dense text-text-secondary">
               {t("desktop.install.source.label")}
-              <InfoTip text={t("desktop.install.source.info")} />
             </span>
             <div className="flex items-center gap-2">
               <Input
@@ -198,6 +202,7 @@ export function InstallDialog(props: {
                 <Button
                   size="sm"
                   variant="outline"
+                  iconStart={<Folder />}
                   disabled={flow.step === "previewing"}
                   onClick={() => run(pick(folderPick))}
                 >
@@ -205,6 +210,9 @@ export function InstallDialog(props: {
                 </Button>
               )}
             </div>
+            <span className="text-ui-xs text-text-tertiary">
+              {t("desktop.install.source.hint")}
+            </span>
             {pickError === null ? null : (
               <p role="alert" className="m-0 text-ui-xs text-text-secondary">
                 {pickError}

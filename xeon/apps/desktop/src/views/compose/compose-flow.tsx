@@ -27,6 +27,7 @@ import {
 } from "@caustic/react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { InfoTip } from "../craft/info-tip.tsx";
+import { CanvasHost } from "./compose-canvas-host.tsx";
 import { CheckBanner, IssueList, useDraftCheck, type CheckRead } from "./compose-check.tsx";
 import { FlowEditor } from "./compose-flow-edit.tsx";
 import { FlowOutline } from "./compose-outline.tsx";
@@ -107,7 +108,7 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
         <DraftLines link={link} check={check} issues={issues} />
       )}
       <div className="flex flex-wrap items-start gap-3">
-        <div className={compact ? "min-w-0 basis-full" : "min-w-0 flex-1 basis-96 overflow-x-auto"}>
+        <div className={compact ? "min-w-0 basis-full" : "min-w-0 flex-1 basis-96"}>
           {compact ? (
             <FlowOutline draft={shown} selected={selected} onSelect={setSelected} />
           ) : (
@@ -259,7 +260,7 @@ function FlowNode(props: {
         }
       }}
     >
-      <NodeGraphPort portId={`${node.id}:in`} side="start" state="connected" />
+      <NodeGraphPort portId={`${node.id}:in`} side="top" state="connected" />
       <div className="grid gap-1">
         {props.initial ? (
           <span className="text-footnote text-text-tertiary">
@@ -280,7 +281,7 @@ function FlowNode(props: {
           </span>
         ) : null}
       </div>
-      <NodeGraphPort portId={`${node.id}:out`} side="end" state="connected" />
+      <NodeGraphPort portId={`${node.id}:out`} side="bottom" state="connected" />
     </NodeGraphNode>
   );
 }
@@ -310,30 +311,31 @@ export function FlowCanvas(props: {
   const placeOf = new Map(places.map((place): [string, GraphPlacement] => [place.id, place]));
   const edges = canvasEdgesOf(draft);
   return (
-    <NodeGraph
-      aria-label={t("desktop.compose.flow.canvas.label")}
-      width={size.width}
-      height={size.height}
-      surface="grid"
-      edges={edges}
-    >
-      {draft.nodes.flatMap((node) => {
-        const place = placeOf.get(node.id);
-        if (place === undefined) return [];
-        return [
-          <FlowNode
-            key={node.id}
-            node={node}
-            x={place.x}
-            y={place.y}
-            initial={node.id === draft.initial}
-            selected={props.selected === node.id}
-            issues={props.issues.get(node.id) ?? []}
-            runStates={props.runStates}
-            onSelect={props.onSelect}
-          />,
-        ];
-      })}
-    </NodeGraph>
+    <CanvasHost width={size.width} height={size.height}>
+      <NodeGraph
+        aria-label={t("desktop.compose.flow.canvas.label")}
+        width={size.width}
+        height={size.height}
+        edges={edges}
+      >
+        {draft.nodes.flatMap((node) => {
+          const place = placeOf.get(node.id);
+          if (place === undefined) return [];
+          return [
+            <FlowNode
+              key={node.id}
+              node={node}
+              x={place.x}
+              y={place.y}
+              initial={node.id === draft.initial}
+              selected={props.selected === node.id}
+              issues={props.issues.get(node.id) ?? []}
+              runStates={props.runStates}
+              onSelect={props.onSelect}
+            />,
+          ];
+        })}
+      </NodeGraph>
+    </CanvasHost>
   );
 }

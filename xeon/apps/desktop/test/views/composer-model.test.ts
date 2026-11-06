@@ -8,6 +8,7 @@ import {
   composerDisabledReason,
   createEnterGuard,
   createSendLatch,
+  looksLikeSecret,
   queuedModeText,
   queuedPreviewText,
   withdrawStateOf,
@@ -183,5 +184,28 @@ describe("queued input chips", () => {
       status: "failed",
       message: "철회하지 못했어요.",
     });
+  });
+});
+
+// 가짜 값은 실행 때 조립한다(저장소 비밀 검사가 리터럴을 진짜로 본다)
+const fake = (head: string, tail: string, n: number): string => `${head}${tail.repeat(n)}`;
+
+describe("looksLikeSecret", () => {
+  test("flags key, token and private key shapes", () => {
+    expect(looksLikeSecret(`my key is ${fake("sk-", "a1b2c3d4", 3)}`)).toBe(true);
+    expect(looksLikeSecret(fake("ghp_", "A", 30))).toBe(true);
+    expect(looksLikeSecret(`${fake("AK", "IA", 1)}ABCDEFGHIJKLMNOP`)).toBe(true);
+    expect(looksLikeSecret(`${fake("-----BEGIN OPENSSH ", "PRIVATE KEY", 1)}-----\nabc`)).toBe(
+      true,
+    );
+    expect(looksLikeSecret(`export ${fake("API_", "KEY", 1)}=abcdef0123456789`)).toBe(true);
+    expect(looksLikeSecret(`Authorization: ${fake("Bearer ", "x", 24)}`)).toBe(true);
+  });
+
+  test("leaves ordinary writing alone", () => {
+    expect(looksLikeSecret("")).toBe(false);
+    expect(looksLikeSecret("이 함수의 token 처리를 고쳐 줘")).toBe(false);
+    expect(looksLikeSecret("password: short")).toBe(false);
+    expect(looksLikeSecret("sk-short")).toBe(false);
   });
 });

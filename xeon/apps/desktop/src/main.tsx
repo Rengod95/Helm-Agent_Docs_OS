@@ -135,6 +135,7 @@ if (container === null) {
       framesSupported,
     }),
     confirm: createConfirmQueue(),
+    logger: app.log.logger,
     openExternal: async (href: string) => {
       await invoke("open_external", { href });
     },

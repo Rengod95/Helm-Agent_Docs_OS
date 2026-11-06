@@ -354,23 +354,23 @@ describe("흐름 초안 편집", () => {
 });
 
 describe("캔버스 자리와 개요", () => {
-  test("깊이는 열, 같은 열의 순서는 행이다. 닿지 않는 노드는 오른쪽 끝 뒤", () => {
+  test("깊이는 행(위에서 아래로), 같은 깊이는 한 줄에 나란히 가운데로 모은다. 닿지 않는 노드는 맨 아래 줄 뒤", () => {
     const flow = {
       ...FLOW,
       nodes: [...FLOW.nodes, { id: "d", kind: "turn" as const }, { id: "e", kind: "end" as const }],
       transitions: [...FLOW.transitions, { from: "a", to: "d" }],
     };
     expect(graphPlacementsOf(flow)).toEqual([
-      { id: "a", x: 0, y: 0 },
-      { id: "b", x: 232, y: 0 },
-      { id: "c", x: 464, y: 0 },
-      { id: "d", x: 232, y: 96 },
-      { id: "e", x: 696, y: 0 },
+      { id: "a", x: 123, y: 0 },
+      { id: "b", x: 0, y: 100 },
+      { id: "c", x: 123, y: 200 },
+      { id: "d", x: 246, y: 100 },
+      { id: "e", x: 123, y: 300 },
     ]);
   });
 
   test("캔버스 크기는 가장 먼 노드를 감싼다", () => {
-    expect(graphSizeOf(graphPlacementsOf(FLOW))).toEqual({ width: 464 + 168 + 32, height: 112 });
+    expect(graphSizeOf(graphPlacementsOf(FLOW))).toEqual({ width: 230 + 32, height: 316 });
   });
 
   test("개요: 노드 다음에 나가는 전이가 들여 쓰인다", () => {
@@ -383,7 +383,7 @@ describe("캔버스 자리와 개요", () => {
     ]);
   });
 
-  test("지금 단계: 앞 열은 done, 뒤 열은 idle, 모르면 모두 idle", () => {
+  test("지금 단계: 앞 행은 done, 뒤 행은 idle, 모르면 모두 idle", () => {
     expect([...runStatesOf(FLOW, "b")]).toEqual([
       ["a", "done"],
       ["b", "active"],
