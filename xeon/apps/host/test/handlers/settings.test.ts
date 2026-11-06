@@ -720,3 +720,24 @@ test("settings-get-pending: a fresh engine with no change reports no pending res
   }
   await connection.close();
 });
+
+// scA-4-1: 엔진이 켜진 뒤 첫 settings.get 전에 앱 밖에서 바뀐 재시작 키도 재시작 대기로 센다.
+test("settings-get-pending: a restart key changed after the engine started reports pending restart on the first get", async () => {
+  const restartKey = "l0.secrets.providers";
+  const values = new Map<string, unknown>();
+  const host = createFakeHost({
+    overrides: { settings: { layers: () => [{ scope: "user", values }] } },
+  });
+  const def = host.fake.engine.catalog.get(restartKey);
+  expect(def?.runtimeChange).not.toBe("live");
+  values.set(restartKey, ["op"]);
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const result = await connection.request("settings.get", { keys: [restartKey] });
+  expect(result.settings[0]).toMatchObject({
+    key: restartKey,
+    value: ["op"],
+    pendingUntil: def?.runtimeChange,
+  });
+  await connection.close();
+});
