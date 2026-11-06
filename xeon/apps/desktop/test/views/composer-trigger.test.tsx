@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
-import { ModelSelect, UsageRing, secretWarningOf } from "../../src/views/composer.tsx";
+import {
+  ModelSelect,
+  UsageRing,
+  ownsComposerRequest,
+  secretWarningOf,
+} from "../../src/views/composer.tsx";
+import { thr } from "../state/helpers.ts";
 
 // 입력창 단추 줄의 모델 select와 문맥 사용량 링. 효과가 없는 서버 렌더로만 본다(DOM이 없다).
 // 링의 값은 표식 속성과 호의 dash offset으로 비교한다. 호가 빈 만큼 offset이 커진다.
@@ -87,5 +93,13 @@ describe("secret warning line", () => {
 
   test("nothing is shown for plain text without attachments", () => {
     expect(secretWarningOf("hello", false)).toBeNull();
+  });
+});
+
+describe("composer focus request owner", () => {
+  test("only the composer of the selected thread takes the request", () => {
+    expect(ownsComposerRequest(thr(2), thr(1))).toBe(false);
+    expect(ownsComposerRequest(thr(2), thr(2))).toBe(true);
+    expect(ownsComposerRequest(null, thr(1))).toBe(true);
   });
 });

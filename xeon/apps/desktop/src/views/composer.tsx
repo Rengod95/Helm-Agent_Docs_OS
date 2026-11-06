@@ -27,7 +27,7 @@ import {
   useOpenThreadId,
   useThreadRunning,
 } from "../state/engine/index.ts";
-import { useComposerRequest, useObserving } from "../state/ui/index.ts";
+import { useComposerRequest, useObserving, useSelectedThreadId } from "../state/ui/index.ts";
 import {
   attachDisabledReason,
   baseNameOf,
@@ -194,6 +194,11 @@ export function UsageRing(props: {
   );
 }
 
+/** 선택된 대화의 입력창만 초점 요청을 받는다. 선택이 없으면 어느 입력창이든 받는다 */
+export function ownsComposerRequest(selected: ThreadId | null, own: ThreadId): boolean {
+  return selected === null || selected === own;
+}
+
 function ComposerFor(props: {
   readonly threadId: ThreadId;
   readonly disabledReason: string | null;
@@ -211,6 +216,7 @@ function ComposerFor(props: {
   const requestId = useRef<string>(newRequestId());
   const textarea = useRef<HTMLTextAreaElement>(null);
   const request = useComposerRequest();
+  const selectedThread = useSelectedThreadId();
   const folderPick = useFolderPick();
   const [chips, setChips] = useState<readonly AttachChip[]>([]);
   // 실행 중에 보낸 글이 들어갈 자리. 기본은 끝난 뒤(followUp)다. 시안이 말하는 기본 모드 설정(l1.tasks.queue.defaultMode)은 설정 카탈로그에 없어서 읽지 않는다
@@ -372,13 +378,15 @@ function ComposerFor(props: {
   // 요청은 입력창이 받는 순간 지운다. 입력 중인 글이 있으면 채우지 않고 초점만 준다(글을 지우지 않는다)
   useEffect(() => {
     if (request === null) return;
+    // 대화를 바꾸는 중에는 옛 대화의 입력창이 아직 떠 있다. 선택된 대화의 입력창이 마운트될 때까지 요청을 남겨 둔다
+    if (!ownsComposerRequest(selectedThread, props.threadId)) return;
     if (request.insert !== null && draftRef.current === "") {
       draftRef.current = request.insert;
       setDraft(request.insert);
     }
     textarea.current?.focus();
     commands.settleComposerRequest();
-  }, [request, commands]);
+  }, [request, commands, selectedThread, props.threadId]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     // 한글 조합 중의 Enter는 글자 확정이다. 보내지 않는다(WebKit은 keyCode 229, compositionend가 먼저)
