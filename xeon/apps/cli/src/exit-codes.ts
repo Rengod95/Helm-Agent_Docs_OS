@@ -2,7 +2,8 @@
 
 import { assertNever } from "@fresnel/contracts";
 
-export type ExitCode = 0 | 1 | 2 | 3 | 4 | 129 | 130 | 143;
+/** 70~73은 `fresnel host --stdio`(데스크톱 사이드카 진입)만 돌려준다. 앱 셸이 시작 실패의 분류를 종료 코드로 읽는다 */
+export type ExitCode = 0 | 1 | 2 | 3 | 4 | 70 | 71 | 72 | 73 | 129 | 130 | 143;
 
 export const EXIT: {
   readonly ok: 0;

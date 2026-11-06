@@ -84,6 +84,15 @@ test("a host that refuses to start exits 1 and explains on stderr only", async (
   expect(h.stdoutBytes).toEqual([]);
 });
 
+test("a startup failure with a classified code (store 70~72, data folder permission 73) keeps its code for the app shell", async () => {
+  const codes = await Promise.all(
+    ([70, 71, 72, 73] as const).map((code) =>
+      harness({ code, reason: "startup", message: "startup failed" }).run(["host", "--stdio"]),
+    ),
+  );
+  expect(codes).toEqual([70, 71, 72, 73]);
+});
+
 test("a host that stops on a signal after its deadline exits 1", async () => {
   const h = harness({ code: 1, reason: "signal", message: "the running turn did not stop" });
   expect(await h.run(["host", "--stdio"])).toBe(EXIT.error);
