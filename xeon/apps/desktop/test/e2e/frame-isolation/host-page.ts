@@ -68,7 +68,10 @@ const backend: BridgeBackend = {
   // 셸 기능 op는 이 시험의 대상이 아니다. 프레임이 어떤 것도 못 닿는지는 선언 없음(`not_declared`)으로 막혀 여기까지 오지 않는다
   pickFile: () => Promise.resolve(ok(null)),
   pickFolder: () => Promise.resolve(ok(null)),
-  saveFile: () => Promise.resolve(ok({ saved: false })),
+  listFolder: () => Promise.resolve(ok({ entries: [], truncated: false })),
+  readFolderFile: () =>
+    Promise.resolve<BackendResult<never>>({ ok: false, error: { kind: "failed" } }),
+  saveFile: () => Promise.resolve(ok({ saved: false, path: null })),
   notify: () => Promise.resolve(ok({ shown: false })),
   writeSetting: () => Promise.resolve(ok(null)),
   secretExists: () => Promise.resolve(ok(false)),

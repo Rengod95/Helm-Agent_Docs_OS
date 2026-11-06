@@ -37,7 +37,13 @@ import {
 type ShellNavigateTarget = Exclude<NavigateTarget, { readonly kind: "external" }>;
 
 /** 플러그인 화면 다리가 부르는 셸 명령. 프레임에 IPC를 주지 않고 앱 본 화면이 대신 부른다(ADR-0021 §3.4.3) */
-export type PluginShellCommand = "pick_file_read" | "pick_folder" | "save_file" | "notify_os";
+export type PluginShellCommand =
+  | "pick_file_read"
+  | "pick_folder_open"
+  | "folder_list"
+  | "folder_read"
+  | "save_file"
+  | "notify_os";
 
 /** 셸 기능 입구. 운영은 셸 어댑터와 `createDesktopIpc`가 채운다. 없으면(웹, 시험) 셸 기능 op는 `shell_unavailable`이다 */
 export interface PluginShellPort {
@@ -78,10 +84,45 @@ const POST_NAME = "message";
 /** `events` 행 상한. 다리 상한(`UI_LIMITS.eventRows`)과 `thread.read` 상한이 같다 */
 const EVENT_ROWS_MAX = UI_LIMITS.eventRows;
 
-const PickedFileSchema = Type.Union([
+const FileReadShape = Type.Object(
+  {
+    name: Type.String(),
+    path: Type.String(),
+    size: Type.Integer({ minimum: 0 }),
+    encoding: Type.Union([Type.Literal("utf8"), Type.Literal("base64")]),
+    content: Type.String(),
+  },
+  { additionalProperties: false },
+);
+const PickedFileSchema = Type.Union([Type.Null(), FileReadShape]);
+const PickedFolderSchema = Type.Union([
   Type.Null(),
-  Type.Object({ name: Type.String(), content: Type.String() }, { additionalProperties: false }),
+  Type.Object(
+    {
+      handle: Type.String({ minLength: 1 }),
+      path: Type.String({ minLength: 1 }),
+      name: Type.String(),
+    },
+    { additionalProperties: false },
+  ),
 ]);
+const FolderListSchema = Type.Object(
+  {
+    entries: Type.Array(
+      Type.Object(
+        {
+          path: Type.String(),
+          name: Type.String(),
+          kind: Type.Union([Type.Literal("file"), Type.Literal("dir")]),
+          size: Type.Optional(Type.Integer({ minimum: 0 })),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+    truncated: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
 const PathReplySchema = Type.Union([Type.Null(), Type.String()]);
 const NotifyReplySchema = Type.Object(
   { kind: Type.Union([Type.Literal("shown"), Type.Literal("denied"), Type.Literal("failed")]) },
@@ -92,14 +133,12 @@ const SHELL_CODE = /^[a-z][a-z_-]{0,31}$/u;
 
 function shellFailure(cause: unknown): BackendResult<never> {
   if (typeof cause === "string" && SHELL_CODE.test(cause)) {
-    return cause === "too-large" ? fail("too_large") : fail("failed", cause);
+    if (cause === "too-large") return fail("too_large");
+    // 고른 폴더 밖이거나 이 화면이 고르지 않은 폴더는 거부다
+    if (cause === "outside-folder" || cause === "unknown-folder") return fail("denied", cause);
+    return fail("failed", cause);
   }
   return fail("failed", "shell");
-}
-
-/** 폴더 경로의 마지막 조각. 경로 전체는 프레임에 주지 않는다 */
-function lastSegment(picked: string): string {
-  return picked.split(/[\\/]/u).findLast((part) => part !== "") ?? "";
 }
 
 function fail(kind: BridgeError["kind"], detail?: string): BackendResult<never> {
@@ -207,6 +246,8 @@ function commandResultOf(output: CommandRunResult): BackendResult<unknown> {
 }
 
 export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
+  /** 셸이 폴더 핸들을 묶는 단위. 화면마다 따로라 다른 화면의 핸들은 쓰지 못한다 */
+  const scope = `${deps.extension}/${deps.screen}`;
   /** 지금 연결로 wire 호출 하나. 연결이 없으면 `offline`이다 */
   function onWire<T>(run: (connection: HostConnection) => Promise<T>): Promise<BackendResult<T>> {
     const connection = deps.connection();
@@ -333,12 +374,35 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
     async pickFolder() {
       const shell = deps.shell;
       if (shell === undefined) return fail("failed", "shell_unavailable");
-      const reply = await attemptAsync(() => shell.invoke("pick_folder"));
+      // 고른 폴더는 이 화면의 핸들로만 셸이 기억한다. 프레임은 핸들 id로 `listFolder`, `readFolderFile`을 부른다
+      const reply = await attemptAsync(() => shell.invoke("pick_folder_open", { scope }));
       if (!reply.ok) return shellFailure(reply.error.cause);
-      const parsed = parse(PathReplySchema, reply.value);
+      const parsed = parse(PickedFolderSchema, reply.value);
       if (!parsed.ok) return fail("failed", "shell_reply");
-      if (parsed.value === null || parsed.value === "") return ok(null);
-      return ok({ name: lastSegment(parsed.value) });
+      if (parsed.value === null) return ok(null);
+      return ok({ name: parsed.value.name, path: parsed.value.path, folder: parsed.value.handle });
+    },
+
+    async listFolder(folder, relative, recursive) {
+      const shell = deps.shell;
+      if (shell === undefined) return fail("failed", "shell_unavailable");
+      const reply = await attemptAsync(() =>
+        shell.invoke("folder_list", { scope, handle: folder, path: relative, recursive }),
+      );
+      if (!reply.ok) return shellFailure(reply.error.cause);
+      const parsed = parse(FolderListSchema, reply.value);
+      return parsed.ok ? ok(parsed.value) : fail("failed", "shell_reply");
+    },
+
+    async readFolderFile(folder, relative) {
+      const shell = deps.shell;
+      if (shell === undefined) return fail("failed", "shell_unavailable");
+      const reply = await attemptAsync(() =>
+        shell.invoke("folder_read", { scope, handle: folder, path: relative }),
+      );
+      if (!reply.ok) return shellFailure(reply.error.cause);
+      const parsed = parse(FileReadShape, reply.value);
+      return parsed.ok ? ok(parsed.value) : fail("failed", "shell_reply");
     },
 
     async saveFile(suggestedName, content) {
@@ -347,8 +411,10 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
       const reply = await attemptAsync(() => shell.invoke("save_file", { suggestedName, content }));
       if (!reply.ok) return shellFailure(reply.error.cause);
       const parsed = parse(PathReplySchema, reply.value);
-      // 고른 경로는 프레임에 주지 않는다. 저장했는지만 알린다
-      return parsed.ok ? ok({ saved: parsed.value !== null }) : fail("failed", "shell_reply");
+      // 고른 전체 경로를 프레임에 알린다(2026-11-06)
+      return parsed.ok
+        ? ok({ saved: parsed.value !== null, path: parsed.value })
+        : fail("failed", "shell_reply");
     },
 
     async notify(title, body) {
