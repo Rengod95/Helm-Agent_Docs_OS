@@ -67,7 +67,7 @@ describe("Shell slots", () => {
 
   test("the stage reserves the end rail width so the rail cannot cover head buttons", () => {
     const out = render(1400);
-    expect(out).toMatch(/<main[^>]*class="[^"]*\bpe-11\b/);
+    expect(out).toMatch(/<main[^>]*class="[^"]*\bpe-10\b/);
   });
 
   test("a screen id nobody registered shows the not-yet empty state", () => {

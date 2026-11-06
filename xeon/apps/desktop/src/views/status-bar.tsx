@@ -1,4 +1,4 @@
-import { Progress } from "@caustic/react";
+import { Button, Progress } from "@caustic/react";
 import { TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
@@ -397,16 +397,17 @@ function LiveRowLine(props: {
       <div className="flex min-w-0 items-center gap-2 text-ui-sm text-text-primary">{content}</div>
     );
   return (
-    <button
-      type="button"
-      className="-mx-1.5 flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-start text-ui-sm text-text-primary outline-none focus-visible:focus-ring"
+    <Button
+      size="sm"
+      variant="ghost"
+      className="-mx-1.5 h-auto min-w-0 justify-start px-1.5 py-1 text-start font-normal"
       onClick={() => {
         goTo(row.threadId);
         close();
       }}
     >
       {content}
-    </button>
+    </Button>
   );
 }
 
@@ -652,34 +653,37 @@ export function StatusBar(): ReactNode {
     <footer className="statusbar" role="status">
       <EngineCell engine={engine} />
       {engine?.kind === "failed" ? (
-        <button
-          type="button"
+        <Button
+          size="xs"
+          variant="outline"
           onClick={() => {
             detach(commands.restartEngine(), rethrow);
           }}
         >
           {t("desktop.status.restartEngineButton")}
-        </button>
+        </Button>
       ) : null}
       <LinkCell phase={banner.phase} attempt={banner.attempt} />
       {banner.phase === "failed" || connectError !== null ? (
         <>
-          <button
-            type="button"
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => {
               commands.reconnect();
             }}
           >
             {t("desktop.status.reconnectButton")}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
             onClick={() => {
               detach(copy(), rethrow);
             }}
           >
             {t("desktop.status.copyDiagnosticsButton")}
-          </button>
+          </Button>
           {copied === null ? null : (
             <span className="dim">
               {copied
