@@ -67,7 +67,10 @@ function VersionsBody(props: {
         setLoad(
           r.ok
             ? { kind: "ready", result: r.value }
-            : r.error.kind === "unsupported"
+            : r.error.kind === "unsupported" ||
+                (r.error.kind === "rejected" &&
+                  (r.error.issue?.startsWith("history_unavailable") === true ||
+                    r.error.issue?.startsWith("unknown_extension") === true))
               ? { kind: "unsupported" }
               : { kind: "error" },
         );

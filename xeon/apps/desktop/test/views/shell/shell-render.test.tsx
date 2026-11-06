@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import { renderToString } from "react-dom/server";
 import { EngineStoreContext } from "../../../src/state/engine/index.ts";
 import {
@@ -83,5 +84,14 @@ describe("Shell slots", () => {
     const out = render(600);
     expect(out).not.toContain("대화 목록 슬롯");
     expect(out).toContain("채팅 화면 내용");
+  });
+
+  test("a closed start panel gets an open button on every screen except chat, which has its own in the head", () => {
+    const label = `aria-label="${t("desktop.shell.start.expand")}"`;
+    expect(render(600, (model) => updatePlace(model, { screen: "proposals" }))).toContain(label);
+    expect(render(600)).not.toContain(label);
+    expect(render(1400, (model) => updatePlace(model, { screen: "proposals" }))).not.toContain(
+      label,
+    );
   });
 });

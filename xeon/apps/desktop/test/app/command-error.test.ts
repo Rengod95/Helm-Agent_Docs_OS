@@ -65,6 +65,30 @@ describe("errorOf", () => {
     });
   });
 
+  test("a bundled extension with no version history keeps history_unavailable as the issue", () => {
+    const none = wireError("jsonrpc.invalidParams", {
+      details: { issues: [{ path: "/name", message: "history_unavailable: bundled" }] },
+    });
+    expect(errorOf(none)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "history_unavailable: bundled",
+      path: "/name",
+    });
+  });
+
+  test("an extension the loader does not know (a built-in core plugin) keeps unknown_extension as the issue", () => {
+    const unknown = wireError("jsonrpc.invalidParams", {
+      details: { issues: [{ path: "/name", message: "unknown_extension: core-persistence" }] },
+    });
+    expect(errorOf(unknown)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "unknown_extension: core-persistence",
+      path: "/name",
+    });
+  });
+
   test("other wire errors keep their code and a foreign throw is a plain failure", () => {
     expect(errorOf(wireError("thread.notFound"))).toEqual({ kind: "rejected", code: 3001 });
     expect(errorOf(new Error("boom"))).toEqual({ kind: "failed" });

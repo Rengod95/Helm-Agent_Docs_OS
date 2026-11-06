@@ -29,8 +29,8 @@ import {
 } from "./settings-model.ts";
 import { FieldRow, type DedicatedEditors, type FieldHandlers } from "./settings-field.tsx";
 import { PanelBlock } from "../shared/panel-parts.tsx";
+import { OverviewPanels } from "./settings-overview.tsx";
 import { SettingSection } from "./settings-section.tsx";
-import { diagnosticIdOf } from "./settings-text.ts";
 
 // 설정 화면(P-09)의 그림. 상태와 명령은 없고 props만 받는다(서버 렌더 시험이 이 부품을 직접 그린다).
 // 틀은 P-09 시안(`_settings/frame.tsx`)을 따른다. 왼쪽은 키 찾기와 탭 목록(지금 탭은 올린 흰 칸), 오른쪽은 큰 제목과 머리 아래 선,
@@ -131,10 +131,11 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
     >
       {narrow ? null : <TabColumn {...props} />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-16 flex-none items-center gap-2 border-b border-border-subtle ps-6 pe-6">
+        <header className="flex h-16 flex-none items-center gap-2 border-b border-border-subtle ps-6 pe-11">
           <h1
             id={headingId}
-            className="m-0 min-w-0 flex-1 truncate font-ui text-ui-strong font-bold text-text-primary"
+            data-page-title=""
+            className="m-0 min-w-0 flex-1 truncate text-text-primary"
           >
             {titleOf}
           </h1>
@@ -356,67 +357,19 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
   );
   const emptyText =
     fields.length === 0 && tabView.emptyText !== null && tab !== "tools" ? tabView.emptyText : null;
-  const hasCard =
-    tab === "overview" || tab === "advanced" || fields.length > 0 || emptyText !== null;
+  const hasCard = tab === "advanced" || fields.length > 0 || emptyText !== null;
+  if (tab === "overview") return <OverviewPanels view={view} updatePanel={props.updatePanel} />;
   return (
     <>
       {panels}
       {hasCard ? (
         <SettingSection label={tabView.label}>
-          {tab === "overview" ? props.updatePanel : null}
-          {tab === "overview" ? <OverviewSummary view={view} /> : null}
           {tab === "advanced" ? props.restorePanel : null}
           {emptyText === null ? null : <p className="text-ui-sm text-text-tertiary">{emptyText}</p>}
           {fields.map(rowOf)}
         </SettingSection>
       ) : null}
-      {tab === "overview" && view.diagnostics.length > 0 ? (
-        <DiagnosticsSection view={view} />
-      ) : null}
     </>
-  );
-}
-
-/** 개요 탭의 요약. 잠긴 항목과 재시작 대기는 개요에서 셀 수 있다 */
-function OverviewSummary(props: { readonly view: SettingsView }): ReactNode {
-  const { overview } = props.view;
-  const lines = [
-    t("desktop.settings.overview.locked", { count: overview.locked.length }),
-    t("desktop.settings.overview.pendingRestart", { count: overview.pendingRestart.length }),
-    t("desktop.settings.overview.pendingNextTurn", { count: overview.pendingNextTurn.length }),
-    t("desktop.settings.overview.deprecated", { count: overview.deprecatedInUse.length }),
-  ];
-  return (
-    <ul className="m-0 grid list-none gap-1 p-0 text-ui-sm text-text-secondary">
-      {lines.map((line) => (
-        <li key={line}>{line}</li>
-      ))}
-    </ul>
-  );
-}
-
-/** 화면 진단. 개요 탭 아래 구역 하나다(P-15 시안): 키는 글꼴 mono로, 문장은 그 옆에 둔다 */
-function DiagnosticsSection(props: { readonly view: SettingsView }): ReactNode {
-  const { diagnostics } = props.view;
-  return (
-    <SettingSection
-      title={t("desktop.settings.diagnostics.title")}
-      end={<span className="text-ui-xs tabular-nums text-text-tertiary">{diagnostics.length}</span>}
-    >
-      <ul className="m-0 grid list-none gap-1 p-0 text-ui-sm">
-        {diagnostics.map((diagnostic) => (
-          <li
-            key={`${diagnostic.code}:${diagnostic.key}`}
-            className="flex min-w-0 items-baseline gap-2"
-          >
-            <code className="shrink-0 font-mono text-mono-sm text-text-secondary">
-              {diagnostic.key}
-            </code>
-            <span className="truncate text-text-primary">{t(diagnosticIdOf(diagnostic.code))}</span>
-          </li>
-        ))}
-      </ul>
-    </SettingSection>
   );
 }
 

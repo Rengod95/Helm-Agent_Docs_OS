@@ -1,7 +1,8 @@
 // S-01 앱 셸. 제목 띠 없음(DP-05). 왼쪽 패널(창 위아래 끝까지) | 가운데 무대(투명) | 오른쪽 떠 있는 막대 + well | 아래 상태 표시줄.
 // 두 영역(대화, 작업대)은 이 셸 하나를 같이 쓰고 왼쪽 패널 내용과 오른쪽 탭만 바뀐다. 화면은 등록부(registry)가 준다.
 import { t } from "@fresnel/client/i18n";
-import { EmptyState, Toaster } from "@caustic/react";
+import { EmptyState, IconButton, Toaster } from "@caustic/react";
+import { PanelLeft } from "@caustic/react/icons";
 import { useEffect, useMemo, type ReactNode } from "react";
 import { EndPanel, wellWidthOf } from "./end-panel.tsx";
 import type { ContextProfile } from "./context-picker.tsx";
@@ -132,6 +133,7 @@ function ShellFrame(props: ShellProps): ReactNode {
   const actions = useShellActions();
   const layout = useShell((s) => s.layout);
   const startOpen = useShell((s) => s.startOpen);
+  const onChatScreen = useShell((s) => s.area === "chat" && s.places.chat.screen === "chat");
   useWindowResize();
   useShellShortcuts(props);
   const compact = layout === "compact";
@@ -181,6 +183,23 @@ function ShellFrame(props: ShellProps): ReactNode {
           </div>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
+          {/* 패널이 닫혔을 때 다시 여는 단추. 대화 화면은 머리줄(chat-header)이 자기 단추를 가진다 */}
+          {startOpen || (onChatScreen && !props.settingsOpen) ? null : (
+            <div className="flex h-9 flex-none items-end px-3 pt-1.5">
+              <IconButton
+                size="sm"
+                variant="ghost"
+                label={t("desktop.shell.start.expand")}
+                aria-expanded={false}
+                className="-ms-1.5"
+                onClick={() => {
+                  actions.setStartOpen(true);
+                }}
+              >
+                <PanelLeft />
+              </IconButton>
+            </div>
+          )}
           <div className="relative flex min-h-0 flex-1 p-1.5 pb-0">
             <main
               id={STAGE_ID}

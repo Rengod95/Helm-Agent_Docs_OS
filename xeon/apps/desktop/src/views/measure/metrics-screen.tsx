@@ -44,7 +44,7 @@ export function MetricsScreen(): ReactNode {
   return (
     // 머리(제목)는 붙박이고 내용만 한 스크롤 컨테이너에서 흐른다. 내용은 시안 WB_WIDTH와 같은 가운데 폭(60rem, 좌우 여백 3)이다
     <div className="flex min-h-0 flex-1 flex-col">
-      <h1 className="mx-auto w-full max-w-240 px-3 pt-6 text-title-3 font-bold text-text-primary">
+      <h1 className="mx-auto w-full max-w-240 px-3 pt-6 text-text-primary">
         {t("desktop.measure.title")}
       </h1>
       <div className="min-h-0 flex-1 overflow-y-auto">

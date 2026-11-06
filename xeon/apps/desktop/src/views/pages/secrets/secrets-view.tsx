@@ -122,7 +122,7 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
         <div className="flex min-w-0 items-center gap-1">
           <h1
             id={headingId}
-            className={`m-0 text-ui-strong text-text-primary ${props.embedded === true ? "sr-only" : ""}`}
+            className={`m-0 text-text-primary ${props.embedded === true ? "sr-only" : ""}`}
           >
             {t("desktop.secrets.title")}
           </h1>

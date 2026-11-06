@@ -436,3 +436,26 @@ describe("update line section", () => {
     ).not.toContain("UPDATE LINE");
   });
 });
+
+describe("overview tab sections", () => {
+  const view = viewOf([MODEL, STEPS, LOCKED], SETTINGS);
+
+  test("shows one 지금 상태 card of term rows with counts and no old summary sentences", () => {
+    const out = html(propsOf({ view, tab: "overview" }));
+    expect(out).toContain(t("desktop.settings.overview.state"));
+    for (const label of [
+      t("desktop.settings.overview.changed"),
+      t("desktop.settings.overview.locked"),
+      t("desktop.settings.overview.pendingRestart"),
+      t("desktop.settings.overview.pendingNextTurn"),
+      t("desktop.settings.overview.deprecated"),
+    ]) {
+      expect(out).toContain(label);
+    }
+    expect(out).not.toContain("요약할 설정이 아직 없어요");
+    // 사용자 값 2개 + 관리 정책 값 1개 = 바꾼 항목 3개, 잠긴 항목 1개, 나머지 셋은 0개
+    expect(out).toContain(">3개<");
+    expect(out).toContain(">1개<");
+    expect(out.match(/>0개</g)?.length).toBe(3);
+  });
+});

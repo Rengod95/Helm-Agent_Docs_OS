@@ -179,7 +179,7 @@ export function FirstRunView(props: FirstRunViewProps): ReactNode {
       className="flex min-h-0 flex-1 flex-col"
       onKeyDown={onKeyDown}
     >
-      <header className="mx-auto flex h-10 w-full max-w-184 flex-none items-center gap-1 px-3">
+      <header className="mx-auto flex h-10 w-full max-w-184 flex-none items-center gap-1 ps-3 pe-11">
         <div className="flex min-w-0 flex-1 items-baseline gap-2.5">
           <h1 id={headingId} className="m-0 truncate text-ui-strong text-text-primary">
             {t("desktop.firstRun.steps.label")}

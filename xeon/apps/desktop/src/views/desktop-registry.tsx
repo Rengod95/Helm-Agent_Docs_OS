@@ -68,7 +68,7 @@ function InboxScreen(): ReactNode {
   return (
     <section aria-labelledby="inbox-heading" className="flex min-h-0 flex-1 flex-col">
       <header className="mx-auto flex min-h-10 w-full max-w-184 flex-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1">
-        <h1 id="inbox-heading" className="m-0 me-1 font-ui text-ui-strong text-text-primary">
+        <h1 id="inbox-heading" className="m-0 me-1 text-text-primary">
           {t("desktop.shell.nav.inbox")}
         </h1>
         <SegmentedControl

@@ -66,7 +66,8 @@ describe("Orbit with 77 plugins", () => {
 
   test("the four layer names open the layer panel, and each group has a named button", () => {
     expect(html.match(/층 보기"/g)?.length).toBe(4);
-    expect(html.match(/data-group=""/g)?.length).toBe(11);
+    // 이름표를 보인 그룹 구성원의 표식도 data-group이라, 이름이 붙은 그룹 단추(aria-label)만 센다
+    expect(html.match(/data-group=""[^>]*aria-label="/g)?.length).toBe(11);
   });
 
   test("the zoom bar and the finder are on the map", () => {

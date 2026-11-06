@@ -152,10 +152,7 @@ export function NewGroupScreen(props: {
   return (
     <section aria-labelledby="compose-new-group-title" className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2
-          id="compose-new-group-title"
-          className="m-0 flex items-center gap-1 text-title-3 font-semibold text-text-primary"
-        >
+        <h2 id="compose-new-group-title" className="m-0 flex items-center gap-1 text-text-primary">
           {t("desktop.compose.newGroup.title")}
           {props.prefill?.composition === undefined ? null : (
             <InfoTip text={t("desktop.compose.flow.draft.newGroupNote")} />

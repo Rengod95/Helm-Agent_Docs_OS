@@ -84,10 +84,7 @@ export function TestsView(props: TestsViewProps): ReactNode {
     >
       <div className="mx-auto grid w-full max-w-240 gap-5 px-3 pt-4 pb-8">
         <header className="flex h-10 min-w-0 items-center gap-2">
-          <h1
-            id="tests-screen-title"
-            className="m-0 min-w-0 truncate text-title-3 font-bold text-text-primary"
-          >
+          <h1 id="tests-screen-title" className="m-0 min-w-0 truncate text-text-primary">
             {t("desktop.tests.title")}
           </h1>
           <Button
@@ -319,9 +316,7 @@ function Group(props: {
   return (
     <section className="grid gap-2">
       <div className="flex min-h-7 min-w-0 items-center gap-2">
-        <h2 className="m-0 min-w-0 truncate text-title-3 font-semibold text-text-primary">
-          {props.title}
-        </h2>
+        <h2 className="m-0 min-w-0 truncate text-text-primary">{props.title}</h2>
         {props.end === undefined ? null : (
           <span className="ms-auto flex items-center gap-1 text-ui-xs text-text-tertiary">
             {props.end}

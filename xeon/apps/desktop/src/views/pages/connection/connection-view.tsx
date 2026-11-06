@@ -72,7 +72,7 @@ export function ConnectionScreenView(props: ConnectionScreenViewProps): ReactNod
       className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-3 pb-4"
     >
       <header className="flex h-10 flex-none items-center gap-2">
-        <h1 id={headingId} className="m-0 text-ui-strong text-text-primary">
+        <h1 id={headingId} className="m-0 text-text-primary">
           {t("desktop.connection.title")}
         </h1>
       </header>

@@ -67,7 +67,7 @@ export function TestDetail(props: TestDetailProps): ReactNode {
   const { row, paused, phase, handlers } = props;
   return (
     <section aria-label={t("desktop.tests.detail.heading")} className="grid gap-4">
-      <h2 className="m-0 truncate text-title-3 font-semibold text-text-primary">
+      <h2 className="m-0 truncate text-text-primary">
         {`${row.target} ${t(KIND_TEXT[row.kind])}`}
       </h2>
       {row.replay === null ? null : <ReplayResult report={row.replay} onCopy={handlers.copy} />}
