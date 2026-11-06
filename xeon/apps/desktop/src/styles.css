@@ -207,7 +207,8 @@
       border: 1px solid ButtonBorder !important;
     }
     [data-slot="segmented-control-item"][data-state="checked"],
-    [data-slot="list-navigation-item"][aria-current="page"] {
+    [data-slot="list-navigation-link"][aria-current="page"],
+    [data-slot="list-navigation-sub-link"][aria-current="page"] {
       forced-color-adjust: none;
       background: Highlight !important;
       color: HighlightText !important;
@@ -217,7 +218,8 @@
     [data-slot="segmented-control-item"][data-state="checked"] * {
       color: HighlightText !important;
     }
-    [data-slot="list-navigation-item"][aria-current="page"] * {
+    [data-slot="list-navigation-link"][aria-current="page"] *,
+    [data-slot="list-navigation-sub-link"][aria-current="page"] * {
       color: HighlightText !important;
     }
   }
