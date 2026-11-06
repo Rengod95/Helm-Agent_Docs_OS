@@ -17,6 +17,7 @@ import {
   useHasToolCall,
   useItem,
   useOpenThreadId,
+  useOpenThread,
   useOpenThreadRunning,
   usePartText,
   useStreamingItem,
@@ -538,7 +539,10 @@ export const RecordedItem: NamedExoticComponent<{ readonly id: ItemId }> = memo(
   function RecordedItem(props: { readonly id: ItemId }): ReactNode {
     const item = useItem(props.id);
     const pairedCall = useHasToolCall(item?.kind === "toolResult" ? item.message.toolCallId : "");
+    const spawned = useOpenThread()?.spawnedBy !== undefined;
     if (item === undefined) return null;
+    // 위임으로 만든 자식 대화의 사용자 말은 엔진이 넣은 지시문(시스템 프롬프트)이다. 사용자가 쓴 말이 아니라 그리지 않는다 [결정: 오케스트레이터 기본값, rtE R-3]
+    if (spawned && item.kind === "user") return null;
     // 짝이 되는 호출 행이 결과를 따라 보이므로 결과 item은 따로 그리지 않는다(호출 하나에 행 하나)
     if (item.kind === "toolResult" && pairedCall) return null;
     // display가 거짓인 확장 item은 모델 문맥 전용이라 화면에 그리지 않는다(F.conversation.spec 3.5.2)

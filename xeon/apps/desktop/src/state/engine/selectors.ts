@@ -26,7 +26,6 @@ const NO_PLANS: readonly PlanRecord[] = Object.freeze([]);
 const NO_QUEUED: readonly QueuedInput[] = Object.freeze([]);
 const NO_STATUS: readonly StatusItemRecord[] = Object.freeze([]);
 
-export const selectThreadIds = (s: EngineMirror): readonly ThreadId[] => s.threads.ids;
 export const selectThread = (s: EngineMirror, id: ThreadId): ThreadSummary | undefined =>
   s.threads.byId[id];
 export const selectTranscriptItemIds = (s: EngineMirror): readonly ItemId[] =>

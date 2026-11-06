@@ -22,6 +22,7 @@ import { ChatHeader } from "./chat-header.tsx";
 import { Composer } from "./composer.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
+import { SpawnedNotice } from "./spawned-notice.tsx";
 import { SchedulesScreen } from "./pages/schedules/schedules-screen.tsx";
 import { ConnectionScreen } from "./pages/connection/connection-screen.tsx";
 import { FirstRunScreen } from "./pages/first-run/first-run-screen.tsx";
@@ -45,13 +46,14 @@ import {
   runtimeEndTab,
 } from "./workbench/index.tsx";
 import { HelmPanelTab, PluginPagesTab } from "./plugin/plugin-tabs.tsx";
-import { useApprovalCount, useThreadIds } from "../state/engine/index.ts";
+import { useApprovalCount, useOpenThread, useThreadIds } from "../state/engine/index.ts";
 import { useState, type ReactNode } from "react";
 
 // 지금 만들어져 있는 화면만 등록한다. 나머지 화면 id는 셸이 "아직 없어요" 빈 상태로 그린다.
 // 화면 트랙은 여기에 `registerScreen`·`registerEndTab`을 더한다(shell/README.md).
 
 function ChatScreen(): ReactNode {
+  const spawned = useOpenThread()?.spawnedBy !== undefined;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ChatHeader />
@@ -63,7 +65,7 @@ function ChatScreen(): ReactNode {
         <ApprovalQueue />
         <SafeModeCard />
       </div>
-      <Composer />
+      {spawned ? <SpawnedNotice /> : <Composer />}
     </div>
   );
 }
