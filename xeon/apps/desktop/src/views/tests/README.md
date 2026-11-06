@@ -21,10 +21,11 @@
 - 목록은 `ext.test.list`의 `replay`와 `testRun` 기록만 보입니다. 벤치마크와 보호 경로 검사는 wire가 없어 목록에 없습니다(W-30).
 - 개발 모드(`l3.authoring.devMode` 설정)가 아니면 replay·벤치마크·보호 경로 검사는 "새 시험"에서 "개발 모드에서만" 배지로 잠깁니다. Test run과 목록 읽기는 늘 열려 있습니다. 설정 키를 읽지 못하면 개발 모드가 아닌 것으로 봅니다.
 - 판정은 실패 종류가 있으면 그것, 없고 같지 않으면 "digest 다름", 같으면 "같음"입니다(`replayVerdictOf`). 보고서 글은 `ReplayReport`를 그대로 복사합니다(`reportJsonOf`).
-- 절단 띠는 `ReplayReport.cuts`의 커밋마다 칸 하나를 그립니다. 같은 절단은 칠하고, 다른 절단은 테두리만 둡니다. 칸이 200개를 넘으면 나머지는 수로 셉니다.
+- 절단 띠는 `ReplayReport.cuts`의 커밋마다 칸 하나를 그립니다. 같은 절단은 회색 칸, 다른 절단은 붉은 칸입니다(시안 c01-trials). 칸이 200개를 넘으면 나머지는 정보 아이콘 뒤에 수로 적습니다.
+- 화면은 "시험 대화" 구역(Test run)과 "재실행 검사 · 성능 측정 · 보호 경로 검사" 구역(replay)으로 나눕니다. 고른 행의 상세는 그 행의 구역 아래에 펼칩니다. 설명 글은 정보 아이콘(`InfoTip`, DP-58) 뒤에 둡니다. 720 아래 폭은 표 대신 두 줄 목록입니다(`compact`).
 - Test run의 멈춤 표지는 명령 결과가 든 값입니다. 목록에는 표지가 없습니다. "멈춤" 뒤에는 "이어서"와 "한 경계씩"만 보이고, 새 턴을 여는 동작은 없습니다.
 - 맥락 칸이 시험이나 대화이면 그 대화 id의 Test run만 보입니다. replay 기록에는 대화가 없어 대화 맥락에서는 보이지 않습니다.
-- 글은 모두 `desktop.tests.*` 메시지 키입니다. 색은 caustic 토큰 클래스만 씁니다. caustic `Badge`의 `tone`은 deprecated 표시가 있어 쓰지 않고, `Tag`(`test-detail.tsx`)를 씁니다.
+- 글은 모두 `desktop.tests.*` 메시지 키입니다. 색은 caustic 토큰 클래스만 씁니다. caustic `Button`과 `Badge`는 `tone` prop이 lint(`no-deprecated`)에 걸려 `variant`만 씁니다. 판정 표지는 `Tag`(`test-detail.tsx`)를 씁니다.
 
 ## 아직 없는 것과 이유
 

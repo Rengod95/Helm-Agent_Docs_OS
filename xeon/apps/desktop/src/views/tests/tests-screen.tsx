@@ -40,6 +40,7 @@ export function TestsScreen(): ReactNode {
   const link = tabLinkOf(useLinkPhase());
   const online = link === "live";
   const scope = threadScopeOf(useShell((s) => s.context));
+  const compact = useShell((s) => s.layout) === "compact";
   const [ui, dispatch] = useReducer(testsUiReducer, INITIAL_TESTS_UI);
   const list = useTestList(link);
   const records = list.read.kind === "ready" ? list.read.value : [];
@@ -184,6 +185,7 @@ export function TestsScreen(): ReactNode {
       ui={ui}
       online={online}
       scoped={scope !== null}
+      compact={compact}
       selectedPaused={selectedThread !== null && ui.paused[selectedThread] === true}
       selectedPhase={selectedThread === null ? null : (ui.phase[selectedThread] ?? null)}
       handlers={handlers}
