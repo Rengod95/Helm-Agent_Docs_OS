@@ -37,6 +37,7 @@ export function createSettingsGetHandler(engine: Engine): WireHandler<"settings.
   return async (params) => {
     const { threadId } = params;
     requireThreadIfGiven(engine, threadId, "settings.get");
+    engine.syncExtensionKeys?.();
     if (threadId !== undefined) await ports.settings.prepare(threadId);
     const keys = params.keys ?? [...catalog.keys()].toSorted();
     const layers = ports.settings.layers(threadId);
@@ -200,6 +201,7 @@ export function createSettingsSetHandler(engine: Engine): WireHandler<"settings.
   return async (params) => {
     const { threadId, key, scope } = params;
     requireThreadIfGiven(engine, threadId, "settings.set");
+    engine.syncExtensionKeys?.();
     if (threadId !== undefined) await ports.settings.prepare(threadId);
     const checked = checkSettingWrite(
       catalog,
@@ -231,6 +233,7 @@ export function createSettingsResetHandler(engine: Engine): WireHandler<"setting
   return async (params) => {
     const { threadId, key, scope } = params;
     requireThreadIfGiven(engine, threadId, "settings.reset");
+    engine.syncExtensionKeys?.();
     if (threadId !== undefined) await ports.settings.prepare(threadId);
     const def = catalog.get(key);
     if (def === undefined) throw wireError("settings.unknownKey", { details: { key } });
@@ -255,6 +258,7 @@ export function createSettingsResetHandler(engine: Engine): WireHandler<"setting
 export function createSettingsListHandler(engine: Engine): WireHandler<"settings.list"> {
   const { catalog } = engine;
   return (params) => {
+    engine.syncExtensionKeys?.();
     const prefix = params.prefix ?? "";
     const defs = [...catalog.values()]
       .filter((def) => def.key.startsWith(prefix))
