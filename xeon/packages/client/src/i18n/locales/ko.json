@@ -1249,7 +1249,7 @@
   "desktop.connection.stopDialog.confirm": "멈추기",
   "desktop.connection.stopDialog.keep": "그대로 두기",
   "desktop.threads.compact.dismiss": "닫기",
-  "desktop.threads.compact.done": "대화를 요약했어요. 요약 전 문맥은 약 {tokens}토큰이었어요.",
+  "desktop.threads.compact.done": "대화를 요약했어요. 앞으로 문맥은 약 {before} → {after}토큰이에요.",
   "desktop.threads.compact.failed": "대화를 요약하지 못했어요. 다시 시도해 주세요.",
   "desktop.threads.compact.failed.busy": "답을 만드는 중이라 요약할 수 없어요. 끝난 뒤에 다시 눌러 주세요.",
   "desktop.threads.compact.failed.cancelled": "확장이 요약을 막았어요.",
