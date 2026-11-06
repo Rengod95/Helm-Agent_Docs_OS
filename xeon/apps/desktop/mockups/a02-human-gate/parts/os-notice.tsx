@@ -45,7 +45,7 @@ export function OsNotice({
         <span className="text-ui-sm text-text-secondary">{body}</span>
       </button>
       <div className="flex justify-end">
-        <Button size="xs" tone="neutral" variant="ghost" onClick={onOpen}>
+        <Button size="xs" variant="ghost" onClick={onOpen}>
           열기
         </Button>
       </div>

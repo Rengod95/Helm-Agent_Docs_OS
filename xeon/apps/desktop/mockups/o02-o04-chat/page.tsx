@@ -203,16 +203,10 @@ export function OverlayPage({ state }: { state: OverlayState }) {
         footer={
           <>
             <span aria-hidden className="flex-1" />
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="outline"
-              autoFocus
-              onClick={() => setConfirmOpen(false)}
-            >
+            <Button size="sm" variant="outline" autoFocus onClick={() => setConfirmOpen(false)}>
               취소
             </Button>
-            <Button size="sm" tone="neutral" variant="solid" onClick={() => setConfirmOpen(false)}>
+            <Button size="sm" variant="solid" onClick={() => setConfirmOpen(false)}>
               실행
             </Button>
           </>
@@ -245,11 +239,11 @@ export function OverlayPage({ state }: { state: OverlayState }) {
         closeLabel="닫기"
         footer={
           <>
-            <Button size="sm" tone="neutral" variant="ghost">
+            <Button size="sm" variant="ghost">
               복사
             </Button>
             <span aria-hidden className="flex-1" />
-            <Button size="sm" tone="neutral" variant="solid" onClick={() => setSheetOpen(false)}>
+            <Button size="sm" variant="solid" onClick={() => setSheetOpen(false)}>
               닫기
             </Button>
           </>
@@ -284,7 +278,6 @@ export function OverlayPage({ state }: { state: OverlayState }) {
           <div className="grid gap-1.5">
             <Button
               size="xs"
-              tone="neutral"
               variant="ghost"
               aria-expanded={jsonOpen}
               iconStart={jsonOpen ? <ChevronDown /> : <ChevronRight />}

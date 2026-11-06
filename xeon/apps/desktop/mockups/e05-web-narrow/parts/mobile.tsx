@@ -130,12 +130,7 @@ function Banner({ go }: { go: (a: A) => void }) {
           bash · rm -rf .cache && bun test
         </span>
       </div>
-      <Button
-        size="sm"
-        tone="neutral"
-        variant="outline"
-        onClick={() => go({ t: "go", m: "inbox" })}
-      >
+      <Button size="sm" variant="outline" onClick={() => go({ t: "go", m: "inbox" })}>
         {L2("보기", "View")}
       </Button>
     </div>
@@ -246,7 +241,6 @@ function ApproveScreen({ s, go }: { s: S; go: (a: A) => void }) {
       <div className="grid flex-none grid-cols-[1fr_1fr] gap-2 px-3 pt-2 pb-3">
         <Button
           size="lg"
-          tone="neutral"
           variant="outline"
           disabled={done}
           onClick={() => go({ t: "decide", d: "denied" })}
@@ -255,14 +249,13 @@ function ApproveScreen({ s, go }: { s: S; go: (a: A) => void }) {
         </Button>
         <Button
           size="lg"
-          tone="neutral"
           variant="solid"
           disabled={done}
           onClick={() => go({ t: "decide", d: "allowed" })}
         >
           {L("허용")}
         </Button>
-        <Button size="md" tone="neutral" variant="ghost" disabled={done} className="col-span-2">
+        <Button size="md" variant="ghost" disabled={done} className="col-span-2">
           {L("이 대화에서 항상")}
         </Button>
       </div>

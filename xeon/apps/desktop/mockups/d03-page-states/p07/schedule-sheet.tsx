@@ -119,10 +119,10 @@ export function ScheduleSheet({
       footer={
         <>
           <span className="flex-1" />
-          <Button size="sm" tone="neutral" variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)}>
             취소
           </Button>
-          <Button size="sm" tone="neutral" variant="solid" disabled={mode.saving}>
+          <Button size="sm" variant="solid" disabled={mode.saving}>
             {mode.saving ? "서비스 켜는 중" : "저장"}
           </Button>
         </>

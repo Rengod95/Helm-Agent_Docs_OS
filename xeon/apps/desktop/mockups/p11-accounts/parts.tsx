@@ -167,7 +167,7 @@ export function AccountGrid({
 
 export function AddAccountButton({ disabled }: { disabled?: boolean | undefined }) {
   return (
-    <Button size="xs" tone="neutral" variant="ghost" disabled={disabled === true}>
+    <Button size="xs" variant="ghost" disabled={disabled === true}>
       계정 추가
     </Button>
   );

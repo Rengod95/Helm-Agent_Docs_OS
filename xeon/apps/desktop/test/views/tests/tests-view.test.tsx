@@ -142,14 +142,24 @@ describe("테스트 화면 목록 상태", () => {
 });
 
 describe("테스트 화면 상세", () => {
-  test("a replay that differs shows the digest verdict, the one-line limit, the cut count and the JSON copy button", () => {
+  test("a replay that differs shows the digest verdict, the one-line limit, the cut count and the JSON copy button in dev mode", () => {
     const row = testRowsOf([record()], ALL_TESTS, null)[0];
-    const markup = html({ selected: row ?? null });
+    const markup = html({ selected: row ?? null, ui: { ...UI, devMode: true } });
     expect(markup).toContain("digest 다름");
     expect(markup).toContain("테이프 재생은 응답이 고정되어");
     expect(markup).toContain("41개 중 39개가 같아요");
     expect(markup).toContain("첫 차이 seq 212");
     expect(markup).toContain("JSON 복사");
+  });
+
+  test("outside dev mode a replay detail shows only the read-only verdict and cut count", () => {
+    const row = testRowsOf([record()], ALL_TESTS, null)[0];
+    const markup = html({ selected: row ?? null });
+    expect(markup).toContain("digest 다름");
+    expect(markup).toContain("41개 중 39개가 같아요");
+    expect(markup).not.toContain("테이프 재생은 응답이 고정되어");
+    expect(markup).not.toContain("첫 차이 seq 212");
+    expect(markup).not.toContain("JSON 복사");
   });
 
   test("a running Test run that is paused shows resume and one boundary, and no pause button or new turn", () => {

@@ -142,18 +142,12 @@ function rowActionsFor(o: {
     return (
       <div className="flex items-center justify-end gap-0.5">
         {off && (
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="outline"
-            disabled={o.offline}
-            onClick={o.onReenable}
-          >
+          <Button size="xs" variant="outline" disabled={o.offline} onClick={o.onReenable}>
             다시 켜기
           </Button>
         )}
         {s.trigger === "remote" && s.enabled && (
-          <Button size="xs" tone="neutral" variant="ghost" disabled={o.offline}>
+          <Button size="xs" variant="ghost" disabled={o.offline}>
             지금 실행
           </Button>
         )}
@@ -255,7 +249,7 @@ function RunsSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: bo
             </span>
           </div>
         ))}
-        <Button size="xs" tone="neutral" variant="ghost" className="justify-self-start">
+        <Button size="xs" variant="ghost" className="justify-self-start">
           더 보기
         </Button>
       </div>
@@ -335,13 +329,7 @@ function Page({ state }: { state: S }) {
             <SegmentedControlItem value="enabled">켜진 것</SegmentedControlItem>
             <SegmentedControlItem value="all">모두</SegmentedControlItem>
           </SegmentedControl>
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="solid"
-            disabled={offline}
-            onClick={() => setSheetOpen(true)}
-          >
+          <Button size="sm" variant="solid" disabled={offline} onClick={() => setSheetOpen(true)}>
             새 예약
           </Button>
         </header>
@@ -357,7 +345,7 @@ function Page({ state }: { state: S }) {
                 tone="warning"
                 size="sm"
                 action={
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     서비스 켜기
                   </Button>
                 }
@@ -370,7 +358,7 @@ function Page({ state }: { state: S }) {
                 tone="danger"
                 size="sm"
                 action={
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     다시 읽기
                   </Button>
                 }
@@ -395,12 +383,7 @@ function Page({ state }: { state: S }) {
                 surface="none"
                 title="예약이 없어요"
                 actions={
-                  <Button
-                    size="sm"
-                    tone="neutral"
-                    variant="solid"
-                    onClick={() => setSheetOpen(true)}
-                  >
+                  <Button size="sm" variant="solid" onClick={() => setSheetOpen(true)}>
                     새 예약
                   </Button>
                 }

@@ -131,7 +131,7 @@ function Member(props: { readonly member: DriveMemberVM }): ReactNode {
 }
 
 /** 턴·spawn·토큰 사용량 한 줄. 토큰 상한이 없으면 사용량만 보인다 */
-export function driveUsageText(view: RuntimeDriveView): string {
+function driveUsageText(view: RuntimeDriveView): string {
   const { limits, used } = view;
   return limits.tokens === null
     ? t("desktop.runtime.lock.usage.noTokenLimit", {

@@ -90,7 +90,7 @@ function AttentionRow({
         <span className="flex-none text-text-primary">{name}</span>
         <span className="truncate text-text-secondary">{text}</span>
       </span>
-      <Button size="xs" tone="neutral" variant="ghost" onClick={onOpen}>
+      <Button size="xs" variant="ghost" onClick={onOpen}>
         자세히
       </Button>
     </li>
@@ -111,20 +111,10 @@ function Attention() {
           tone="danger"
           action={
             <div className="flex gap-1">
-              <Button
-                size="xs"
-                tone="neutral"
-                variant="ghost"
-                onClick={() => m.openDetail("review", "log")}
-              >
+              <Button size="xs" variant="ghost" onClick={() => m.openDetail("review", "log")}>
                 기록
               </Button>
-              <Button
-                size="xs"
-                tone="neutral"
-                variant="outline"
-                onClick={() => m.reenable("review")}
-              >
+              <Button size="xs" variant="outline" onClick={() => m.reenable("review")}>
                 다시 켜기
               </Button>
             </div>
@@ -236,7 +226,7 @@ export function Overview() {
         title="크래프트 개요"
         actions={
           !m.safeMode && (
-            <Button size="xs" tone="neutral" variant="ghost">
+            <Button size="xs" variant="ghost">
               안전 모드로 다시 시작
             </Button>
           )
@@ -258,7 +248,7 @@ export function Overview() {
             <Alert
               tone="warning"
               action={
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   보통 모드로 다시 시작
                 </Button>
               }

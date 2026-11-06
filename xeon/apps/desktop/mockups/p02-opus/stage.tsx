@@ -283,13 +283,7 @@ export function StageContent() {
           surface="none"
           title="왼쪽에서 대화를 고르거나 새로 만드세요"
           actions={
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="solid"
-              onClick={m.newThread}
-              aria-keyshortcuts="Meta+N"
-            >
+            <Button size="sm" variant="solid" onClick={m.newThread} aria-keyshortcuts="Meta+N">
               새 대화
             </Button>
           }
@@ -305,7 +299,7 @@ export function StageContent() {
           <Alert
             tone="warning"
             action={
-              <Button size="xs" tone="neutral" variant="ghost" onClick={m.reconnect}>
+              <Button size="xs" variant="ghost" onClick={m.reconnect}>
                 다시 연결
               </Button>
             }

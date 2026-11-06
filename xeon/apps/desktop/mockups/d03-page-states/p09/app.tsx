@@ -63,7 +63,7 @@ export function App({ state }: { state: State }) {
   const searching = state === "S6";
 
   const fileAction = (
-    <Button size="xs" tone="neutral" variant="ghost">
+    <Button size="xs" variant="ghost">
       파일로 보기
     </Button>
   );
@@ -73,7 +73,7 @@ export function App({ state }: { state: State }) {
         tone="warning"
         layout="inline"
         action={
-          <Button size="xs" tone="neutral" variant="outline" disabled={offline}>
+          <Button size="xs" variant="outline" disabled={offline}>
             엔진 재시작
           </Button>
         }

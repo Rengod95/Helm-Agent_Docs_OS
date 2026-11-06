@@ -110,7 +110,7 @@ function KindCard({
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         {actions.map((a, i) => (
           <Fragment key={a.id}>
-            <Button size="sm" tone="neutral" {...LOOK[a.tone]} onClick={() => onAction(a.id)}>
+            <Button size="sm" {...LOOK[a.tone]} onClick={() => onAction(a.id)}>
               {a.label}
             </Button>
             {a.tone === "danger" && i === 0 && <span aria-hidden className="flex-1" />}

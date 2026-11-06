@@ -98,7 +98,7 @@ export function NewTrialSheet({
           모델 토큰을 써서 {josa(T.trialThread, "을", "를")} 시작할까요?{" "}
           <span className="text-text-tertiary">예상 40k · 약 $0.12</span>
         </p>
-        <Button size="sm" tone="neutral" variant="ghost" onClick={onBack}>
+        <Button size="sm" variant="ghost" onClick={onBack}>
           돌아가기
         </Button>
         <Button size="sm" tone="accent" variant="solid" onClick={onConfirm} autoFocus>
@@ -122,7 +122,7 @@ export function NewTrialSheet({
         <span className="min-w-0 flex-1 text-ui-xs text-text-tertiary">
           {costly ? "모델 토큰을 써요 · 예상 40k" : "토큰을 쓰지 않아요"}
         </span>
-        <Button size="sm" tone="neutral" variant="ghost" onClick={onClose}>
+        <Button size="sm" variant="ghost" onClick={onClose}>
           취소
         </Button>
         <Button size="sm" tone="accent" variant="solid" disabled={previewFail} onClick={onStart}>
@@ -192,12 +192,7 @@ export function NewTrialSheet({
                 size="sm"
                 emphasis="lead"
                 action={
-                  <Button
-                    size="xs"
-                    tone="neutral"
-                    variant="outline"
-                    onClick={() => goFolder("c03-ext-list")}
-                  >
+                  <Button size="xs" variant="outline" onClick={() => goFolder("c03-ext-list")}>
                     확장 열기
                   </Button>
                 }
@@ -306,17 +301,11 @@ export function DevModeDialog({
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" disabled={checking}>
+            <Button size="sm" variant="outline" disabled={checking}>
               취소
             </Button>
           </DialogClose>
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="solid"
-            disabled={checking || bad}
-            onClick={onCheck}
-          >
+          <Button size="sm" variant="solid" disabled={checking || bad} onClick={onCheck}>
             {checking ? "확인 중" : "켜기"}
           </Button>
         </>
@@ -332,7 +321,7 @@ export function DevModeDialog({
               className="font-mono"
               containerClassName="min-w-0 flex-1"
             />
-            <Button size="xs" tone="neutral" variant="outline" disabled={checking}>
+            <Button size="xs" variant="outline" disabled={checking}>
               고르기
             </Button>
           </div>
@@ -340,7 +329,7 @@ export function DevModeDialog({
         {bad && (
           <p className="m-0 flex items-center gap-2 text-ui-sm text-text-secondary">
             이 컴퓨터에서 찾은 저장소 <Mono dim={false}>{REPO_OK}</Mono>
-            <Button size="xs" tone="neutral" variant="ghost" onClick={() => onRepo(REPO_OK)}>
+            <Button size="xs" variant="ghost" onClick={() => onRepo(REPO_OK)}>
               이걸로
             </Button>
           </p>

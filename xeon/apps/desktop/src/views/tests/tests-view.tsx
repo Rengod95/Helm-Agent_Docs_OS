@@ -248,6 +248,7 @@ function Sections(props: TestsViewProps & { readonly rows: readonly TestRowVM[] 
         paused={props.selectedPaused}
         phase={props.selectedPhase}
         handlers={handlers}
+        devMode={ui.devMode}
       />
     );
   // 고른 행이 속한 구역이 그려질 때만 그 구역 아래에 상세를 둔다(거른 목록 밖이면 구역들 뒤)

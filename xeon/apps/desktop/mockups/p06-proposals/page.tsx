@@ -124,23 +124,17 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
       {mode === "edit" ? (
         <>
           <span aria-hidden className="flex-1" />
-          <Button size="sm" tone="neutral" variant="ghost" onClick={() => setMode("view")}>
+          <Button size="sm" variant="ghost" onClick={() => setMode("view")}>
             취소
           </Button>
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="solid"
-            disabled={offline}
-            onClick={() => setMode("view")}
-          >
+          <Button size="sm" variant="solid" disabled={offline} onClick={() => setMode("view")}>
             저장
           </Button>
         </>
       ) : mode === "reject" ? (
         <>
           <span aria-hidden className="flex-1" />
-          <Button size="sm" tone="neutral" variant="ghost" onClick={() => setMode("view")}>
+          <Button size="sm" variant="ghost" onClick={() => setMode("view")}>
             취소
           </Button>
           <Button size="sm" tone="danger" variant="solid" disabled={offline}>
@@ -156,26 +150,14 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
         </>
       ) : p.status === "rejected" ? null : (
         <>
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="ghost"
-            disabled={offline}
-            onClick={() => setMode("reject")}
-          >
+          <Button size="sm" variant="ghost" disabled={offline} onClick={() => setMode("reject")}>
             거절
           </Button>
           <span aria-hidden className="flex-1" />
-          <Button
-            size="sm"
-            tone="neutral"
-            variant="outline"
-            disabled={offline}
-            onClick={() => setMode("edit")}
-          >
+          <Button size="sm" variant="outline" disabled={offline} onClick={() => setMode("edit")}>
             수정
           </Button>
-          <Button size="sm" tone="neutral" variant="solid" disabled={offline}>
+          <Button size="sm" variant="solid" disabled={offline}>
             승인
           </Button>
         </>
@@ -280,7 +262,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                   </ul>
                 )}
                 {!loading && filter === "all" && (
-                  <Button size="xs" tone="neutral" variant="ghost" className="ms-1">
+                  <Button size="xs" variant="ghost" className="ms-1">
                     더 보기
                   </Button>
                 )}
@@ -354,7 +336,7 @@ export function ProposalsPage({ state }: { state: ProposalState }) {
                         <ListDescriptionRow term="이유">{p.rationale}</ListDescriptionRow>
                         <ListDescriptionRow term="근거">
                           <span className="flex items-center gap-2">
-                            <Button size="xs" tone="neutral" variant="ghost">
+                            <Button size="xs" variant="ghost">
                               대화에서 보기
                             </Button>
                           </span>

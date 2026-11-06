@@ -137,7 +137,6 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
           <div
             key={row.key}
             data-row-key={row.key}
-            className="vrow"
             style={{ position: "absolute", top: offsets[first + i] ?? 0, left: 0, right: 0 }}
             ref={(el) => {
               if (el === null) return undefined;

@@ -210,7 +210,7 @@ function BudgetsTab() {
       <SettingSection
         title="레이트 리밋"
         end={
-          <Button size="xs" tone="neutral" variant="ghost">
+          <Button size="xs" variant="ghost">
             정책 추가
           </Button>
         }
@@ -264,7 +264,7 @@ export function App({ state }: { state: State }) {
               tone="warning"
               layout="inline"
               action={
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   다시 읽기
                 </Button>
               }
@@ -287,11 +287,11 @@ export function App({ state }: { state: State }) {
         footer={
           <>
             <DialogClose asChild>
-              <Button size="sm" tone="neutral" variant="outline" autoFocus>
+              <Button size="sm" variant="outline" autoFocus>
                 취소
               </Button>
             </DialogClose>
-            <Button size="sm" tone="neutral" variant="solid" onClick={() => setRiskOpen(false)}>
+            <Button size="sm" variant="solid" onClick={() => setRiskOpen(false)}>
               위험을 알고 켜기
             </Button>
           </>

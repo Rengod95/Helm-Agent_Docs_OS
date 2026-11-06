@@ -29,6 +29,14 @@ function sectionOf(html: string, title: string): string {
   return html.slice(start, end === -1 ? undefined : end);
 }
 
+/** 글이 정확히 `label`인 단추 하나의 마크업(없으면 ""). "다시 켜기"와 "켜기"처럼 글이 겹쳐도 글 전체로 맞춘다 */
+function buttonOf(html: string, label: string): string {
+  const found = [...html.matchAll(/<button[\s\S]*?>([^<]*)<\/button>/g)].find(
+    (m) => m[1] === label,
+  );
+  return found?.[0] ?? "";
+}
+
 const REVIEW = entry("review", { layer: "L3", isGroup: true, hookCount: 1 });
 const WEB = entry("web", { displayName: "웹 검색" });
 
@@ -121,12 +129,13 @@ function body(
     readonly link?: "live" | "offline" | "pending";
     readonly health?: readonly ExtHealthEntry[];
     readonly records?: readonly HandlerFailureEntry[];
+    readonly pending?: Readonly<Record<string, boolean>>;
   } = {},
 ): string {
   return renderToString(
     <InspectBody
       entry={entryValue}
-      pending={{}}
+      pending={over.pending ?? {}}
       link={over.link ?? "live"}
       data={data}
       health={over.health ?? []}
@@ -154,22 +163,30 @@ describe("검사 탭: 고른 것이 없으면 빈 상태", () => {
 });
 
 describe("검사 탭 구역: 값이 있을 때", () => {
-  test("훅 줄은 p95와 예산 막대(60/100 warning)와 실패 수를 보인다", () => {
-    const hooks = sectionOf(body(REVIEW, READY_DATA), t("desktop.inspect.section.hooks") + " 1");
-    expect(hooks).toContain(t("desktop.inspect.hook.p95", { ms: 60 }));
+  test("훅 줄은 훅 이름, fold 글, 예산, 예산 대비 막대와 퍼센트, p95, 실패 수를 보인다", () => {
+    const hooks = sectionOf(body(REVIEW, READY_DATA), t("desktop.inspect.section.hooks"));
+    const text = textOf(hooks);
+    expect(text).toContain("tool.call.before");
+    expect(text).toContain(t("desktop.inspect.fold.first"));
+    expect(text).toContain(t("desktop.inspect.hook.budget", { ms: 100 }));
+    expect(text).toContain(t("desktop.inspect.hook.p95", { ms: 60 }));
+    expect(text).toContain("60%");
+    expect(text).toContain(t("desktop.inspect.hook.failures", { count: 2 }));
     expect(hooks).toContain('data-slot="progress"');
     expect(hooks).toContain('data-tone="warning"');
-    expect(hooks).toContain(t("desktop.inspect.hook.failures", { count: 2 }));
-    expect(hooks).toContain("tool.call.before");
+    expect(text).toContain(t("desktop.inspect.section.count", { count: 1 }));
   });
 
-  test("계측이 꺼져 있으면 p95 대신 계측 꺼짐 글을 보인다", () => {
+  test("계측이 꺼져 있으면 막대 없이 측정 없음을 보이고, 이유는 정보 아이콘 뒤에 둔다", () => {
     const html = body(REVIEW, {
       ...READY_DATA,
       timings: { kind: "ready", value: { traceEnabled: false, timings: [] } },
     });
-    expect(html).toContain(t("desktop.inspect.hook.traceOff"));
-    expect(html).not.toContain('data-slot="progress"');
+    const hooks = sectionOf(html, t("desktop.inspect.section.hooks"));
+    expect(textOf(hooks)).toContain(t("desktop.inspect.hook.noMeasure"));
+    expect(hooks).toContain(t("desktop.inspect.hook.traceOff"));
+    expect(hooks).toContain(t("desktop.craft.infoTip.label"));
+    expect(hooks).not.toContain('data-slot="progress"');
   });
 
   test("요구 기능이 묶이지 않았으면 묶인 제공자 없음을 보인다", () => {
@@ -184,6 +201,53 @@ describe("검사 탭 구역: 값이 있을 때", () => {
     const lock = sectionOf(html, t("desktop.inspect.drive.title"));
     expect(lock).toContain(t("desktop.runtime.role.waiting"));
     expect(textOf(lock)).toContain(t("desktop.inspect.drive.waits", { waits: 1, waitLimit: 3 }));
+  });
+
+  test("주도 구역은 차수와 턴·하위 실행 사용량 막대를 보이고, 토큰 상한이 없으면 그렇게 적는다", () => {
+    const lock = sectionOf(body(REVIEW, READY_DATA), t("desktop.inspect.drive.title"));
+    expect(textOf(lock)).toContain(t("desktop.runtime.lock.epoch", { epoch: 1 }));
+    expect(textOf(lock)).toContain("2 / 4");
+    expect(textOf(lock)).toContain("0 / 4");
+    expect(lock).toContain(t("desktop.inspect.drive.noLimit"));
+    const capped = sectionOf(
+      body(REVIEW, {
+        ...READY_DATA,
+        drive: {
+          kind: "ready",
+          value: {
+            groups: WAITING,
+            lock: {
+              ...LOCK,
+              limits: { ...LOCK.limits, tokens: 400 },
+              used: { ...LOCK.used, tokens: 120 },
+            },
+          },
+        },
+      }),
+      t("desktop.inspect.drive.title"),
+    );
+    expect(textOf(capped)).toContain("120 / 400");
+    expect(capped).not.toContain(t("desktop.inspect.drive.noLimit"));
+  });
+
+  test("drive를 안 쓰는 그룹은 주도 구역을 그리지 않는다", () => {
+    const noDrive: readonly GroupStatusWire[] = [
+      {
+        id: "review",
+        displayName: "review",
+        scope: "enabled",
+        pendingToggle: null,
+        usesDrive: false,
+        drive: "none",
+        lastError: null,
+        metrics: null,
+      },
+    ];
+    const html = body(REVIEW, {
+      ...READY_DATA,
+      drive: { kind: "ready", value: { groups: noDrive, lock: LOCK } },
+    });
+    expect(html).not.toContain(`aria-label="${t("desktop.inspect.drive.title")}"`);
   });
 
   test("설정 바인딩은 값과 이긴 범위를 보이고 시크릿은 값을 가린다", () => {
@@ -217,6 +281,7 @@ describe("검사 탭 구역: 값이 있을 때", () => {
     });
     const section = sectionOf(html, t("desktop.inspect.settings.title"));
     expect(textOf(section)).toContain("깊이");
+    expect(textOf(section)).toContain("ext.review.depth");
     expect(textOf(section)).toContain(
       t("desktop.inspect.settings.from", { scope: t("desktop.inspect.scope.session") }),
     );
@@ -249,34 +314,91 @@ describe("검사 탭 구역: 값이 있을 때", () => {
       ],
     });
     const failures = sectionOf(html, t("desktop.inspect.failures.title"));
-    expect(textOf(failures)).toContain(t("desktop.inspect.failures.consecutive", { count: 2 }));
-    expect(textOf(failures)).toContain("boom");
-    expect(failures).toContain('data-slot="table"');
+    const text = textOf(failures);
+    expect(text).toContain(t("desktop.inspect.failures.consecutive", { count: 2 }));
+    expect(text).toContain(
+      t("desktop.inspect.failures.last", { at: "2026-11-04T10:00:00Z", error: "timeout" }),
+    );
+    expect(text).toContain("tool.call.before");
+    expect(text).toContain("boom");
+    expect(text).toContain(t("desktop.inspect.failures.streak", { count: 2 }));
+    expect(failures).not.toContain('data-slot="table"');
   });
 
-  test("자동 꺼진 확장은 다시 켜기 단추를 보인다", () => {
+  test("자동 꺼진 확장은 다시 켜기 단추를 보이고, 켜기·끄기 단추는 보이지 않는다", () => {
     const off = entry("review", {
       layer: "L3",
       isGroup: true,
       status: "disabled",
       autoDisabled: true,
     });
-    const html = body(off, READY_DATA);
-    expect(html).toContain(t("desktop.workbench.reenable"));
+    const html = body(off, READY_DATA, {
+      health: [
+        {
+          name: "review",
+          registrationId: "review",
+          consecutiveFailures: 5,
+          windowFailures: 5,
+          windowMs: 0,
+          autoDisabled: true,
+          lastFailureAt: null,
+          lastError: null,
+        },
+      ],
+    });
+    expect(buttonOf(html, t("desktop.workbench.reenable"))).not.toBe("");
+    expect(buttonOf(html, t("desktop.inspect.toggle.on"))).toBe("");
+    expect(textOf(sectionOf(html, t("desktop.inspect.failures.title")))).toContain(
+      t("desktop.inspect.failures.autoOff"),
+    );
+  });
+
+  test("켜진 확장의 단추는 끄기이고, 꺼진 확장의 단추는 켜기다", () => {
+    expect(buttonOf(body(REVIEW, READY_DATA), t("desktop.inspect.toggle.off"))).not.toBe("");
+    const off = entry("review", { layer: "L3", isGroup: true, status: "disabled" });
+    expect(buttonOf(body(off, READY_DATA), t("desktop.inspect.toggle.on"))).not.toBe("");
+  });
+
+  test("잠긴 확장(면제 tier)은 켜기·끄기 단추가 꺼지고 이유는 정보 아이콘 뒤에 있다", () => {
+    const core = entry("core-loop", { layer: "L1", tier: "core", origin: "builtin" });
+    const html = body(core, READY_DATA);
+    expect(buttonOf(html, t("desktop.inspect.toggle.off"))).toContain("disabled");
+    expect(html).toContain(t("desktop.workbench.lock.exempt"));
+    expect(html).toContain(t("desktop.craft.infoTip.label"));
+  });
+
+  test("요청이 기다리는 동안은 켜기·끄기 단추가 꺼진다", () => {
+    const html = body(REVIEW, READY_DATA, { pending: { review: false } });
+    expect(buttonOf(html, t("desktop.inspect.toggle.off"))).toContain("disabled");
+  });
+
+  test("머리는 표시 이름 옆에 mono id를 보이고, 확장 메뉴 단추를 둔다", () => {
+    const html = body(WEB, READY_DATA);
+    expect(textOf(html)).toContain("웹 검색");
+    expect(textOf(html)).toContain("web");
+    expect(html).toContain(t("desktop.inspect.menu.label"));
+  });
+
+  test("구성 선언이 없는 그룹은 구성 정보 없음을 보인다", () => {
+    const html = body(REVIEW, {
+      ...READY_DATA,
+      detail: { kind: "ready", value: detailOf("review") },
+    });
+    expect(sectionOf(html, t("desktop.inspect.composition.title"))).toContain(
+      t("desktop.inspect.composition.none"),
+    );
   });
 });
 
 describe("검사 탭 상태: 읽는 중, 오류, 끊김, 대화 없음", () => {
   test("읽는 중이면 훅 구역에 Skeleton을 그린다", () => {
     const html = body(REVIEW, { ...READY_DATA, detail: { kind: "loading" } });
-    expect(sectionOf(html, `${t("desktop.inspect.section.hooks")} 1`)).toContain(
-      'data-slot="skeleton"',
-    );
+    expect(sectionOf(html, t("desktop.inspect.section.hooks"))).toContain('data-slot="skeleton"');
   });
 
   test("읽기가 실패하면 훅·기능·구성 구역이 같은 오류 한 줄을 보인다", () => {
     const html = body(REVIEW, { ...READY_DATA, detail: { kind: "error" } });
-    expect(sectionOf(html, `${t("desktop.inspect.section.hooks")} 1`)).toContain(
+    expect(sectionOf(html, t("desktop.inspect.section.hooks"))).toContain(
       t("desktop.inspect.load.failed"),
     );
     expect(sectionOf(html, t("desktop.inspect.features.title"))).toContain(

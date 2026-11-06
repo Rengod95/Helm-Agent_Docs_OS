@@ -1681,6 +1681,7 @@ compact 폭(720 이하)과 사이드바 시트:
   - 빈: `TabVM.emptyText`.
   - 읽는 중: 탭 목록은 바로, 폼 `Skeleton`.
   - 오류: `FieldError` 7종(`invalidValue`, `scopeNotAllowed`, `locked`, `secretValue`, `unknownKey`, `transient`, `internal`)을 필드 아래 `Field error`로. `ViewDiagnostic`은 개요 탭 아래 "화면 진단"에 모읍니다.
+  - 개요 탭의 "설정 파일"(시안 P-09 S7)은 사용자·프로젝트·관리 정책 파일 경로를 `settings.readFile`의 `path`로 읽어 그립니다(프로젝트는 열린 대화의 작업 폴더가 있어야 정해지고, 읽지 못한 범위의 줄은 그리지 않습니다). "화면 진단" 머리 끝의 "진단 복사"는 상태줄과 같은 진단 묶음을 복사합니다.
   - 오프라인: 읽은 값을 보이고 모든 편집 잠금.
   - 권한 필요: 잠금(`managed`) 문장과 정책 파일 경로, 대화 범위는 열린 대화가 있을 때만.
   - 긴 내용: 탭 하나에 40개 넘으면 `FormLayoutSection` 묶음과 묶음 머리 고정, 표 위젯은 20행 뒤 스크롤.
@@ -2558,6 +2559,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 - 목적: replay, benchmark, 코어 변경 검사, Test run을 한 목록에서 시작하고 결과를 봅니다(SC-19).
 - 실행 범위 [결정: 2026-10-31 사용자]: replay, benchmark, 코어 변경 검사의 실행은 개발 모드에서만 합니다. 배포 앱은 Test run을 만들고 돌리며, 지난 결과는 읽기만 합니다. 배포 앱에서 "새 시험"의 replay·benchmark·diff 항목은 "개발 모드에서만" 배지로 잠급니다.
 - replay 보고 형식 [결정: 2026-10-31 사용자]: `ReplayDriveReport` 그대로(절단 띠, `firstDiff`, `EffectCounts`)이고 "JSON 복사"를 둡니다. 새 형식을 만들지 않습니다.
+- 전체 보고서는 개발 모드에서만 [결정: 2026-11-04 사용자]: 위 전체 보고서(절단 띠, 첫 차이, 효과 수, "JSON 복사")는 개발 모드(`l3.authoring.devMode`)에서만 보입니다. 배포 앱의 replay 행 상세는 판정과 절단 수만 읽기 전용 목록(시안 `c01-trials` `ReplayDetail`)으로 보입니다.
 - Test run 멈춤 [결정: 2026-10-31 사용자]: 실행 중 Test run 행의 "멈춤"은 다음 단계 경계에서 실제로 멈추고 drive 락을 쥔 채 둡니다. "이어서", "한 경계씩"이 있습니다(W-48). 행을 고르면 아래 상세에 트레이스 막대(§6.22.5)와 경계 기록이 보입니다.
 - 맥락: 맥락 칸이 시험이면 그 Test run의 결과만, 대화면 그 대화를 대상으로 한 시험만 보입니다(§4.9.3).
 - replay 결과 읽기: `replayDrive`는 첫 실패에서 멈추지 않고 모든 커밋 시점을 끊어 다시 돌립니다. 그래서 상세는 절단 띠(커밋 수만큼 칸, 다른 칸 강조)로 보입니다. 이벤트열이 하나라도 다르면 `failure` 없이 `ok: false`이고 판정 배지는 "digest 다름"입니다. `effects-doubled`·`effects-mismatch`는 모든 절단이 같을 때만 나오므로 "digest 다름"과 함께 보이지 않습니다. 절단의 효과 수는 판정 없이 참고 값으로만 보입니다. wire `ReplayReport`는 칸별 `cuts`(커밋 순, `commitIndex`·`equal`·`firstDiff`, 최대 1000칸)를 싣습니다 [결정: 2026-11-04 사용자 지시에 따른 기본값]. 화면은 아직 `passed`만 읽어 칸을 커밋 수만큼 그리고 모든 절단이 같을 때만 칠합니다. 칸별 "다름" 강조는 화면이 `cuts`를 읽도록 바꾼 뒤이고 그 일은 클라이언트 몫입니다. 호스트 `ext.test.run`(replay)과 `ext.test.list` 처리기는 HS-112에 따라 들어와 있습니다 [결정: 2026-11-04 사용자 지시에 따른 기본값].

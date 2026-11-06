@@ -36,7 +36,7 @@ export function TurnReplayLocked({
           : `${josa(T.instrumentation, "이", "가")} 꺼져 있어 ${josa(T.turnReplay, "을", "를")} 쓸 수 없어요`}
       </span>
       {!evicted && onSettings !== undefined && (
-        <Button size="xs" tone="neutral" variant="ghost" className="ms-auto" onClick={onSettings}>
+        <Button size="xs" variant="ghost" className="ms-auto" onClick={onSettings}>
           설정에서 켜기
         </Button>
       )}

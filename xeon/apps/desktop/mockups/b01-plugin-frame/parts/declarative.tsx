@@ -53,7 +53,6 @@ export function BoardFallback({
                   {c === "todo" ? (
                     <Button
                       size="xs"
-                      tone="neutral"
                       variant="ghost"
                       disabled={locked}
                       onClick={() => onMove(t.id)}
@@ -104,7 +103,7 @@ export function HelmTree({
         <span className="text-text-secondary">
           {q.signal.kind} · {q.signal.text}
         </span>
-        <Button size="xs" tone="neutral" variant="outline" className="ms-auto" disabled={offline}>
+        <Button size="xs" variant="outline" className="ms-auto" disabled={offline}>
           멈춤
         </Button>
       </div>

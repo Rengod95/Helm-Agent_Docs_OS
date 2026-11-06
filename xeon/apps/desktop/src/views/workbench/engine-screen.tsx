@@ -102,7 +102,7 @@ export function EngineScreen(): ReactNode {
   }, [load]);
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col px-3 pt-6 pb-4">
-      <header className="flex h-10 flex-none items-center gap-1">
+      <header className="flex h-10 flex-none items-center gap-1 pe-8">
         <h1 className="m-0 min-w-0 flex-1 truncate text-text-primary">
           {t("desktop.workbench.engine.title")}
         </h1>

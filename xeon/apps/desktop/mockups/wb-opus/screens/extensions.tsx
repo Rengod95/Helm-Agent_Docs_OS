@@ -122,15 +122,10 @@ export function ExtensionList() {
         title="확장"
         actions={
           <>
-            <Button size="xs" tone="neutral" variant="ghost" disabled={m.offline}>
+            <Button size="xs" variant="ghost" disabled={m.offline}>
               가져오기
             </Button>
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="outline"
-              onClick={() => m.go("other", "만들기", "create")}
-            >
+            <Button size="xs" variant="outline" onClick={() => m.go("other", "만들기", "create")}>
               만들기
             </Button>
           </>
@@ -222,20 +217,10 @@ export function ExtensionList() {
               tone="danger"
               action={
                 <div className="flex gap-1">
-                  <Button
-                    size="xs"
-                    tone="neutral"
-                    variant="ghost"
-                    onClick={() => m.openDetail("review", "log")}
-                  >
+                  <Button size="xs" variant="ghost" onClick={() => m.openDetail("review", "log")}>
                     기록
                   </Button>
-                  <Button
-                    size="xs"
-                    tone="neutral"
-                    variant="outline"
-                    onClick={() => m.reenable("review")}
-                  >
+                  <Button size="xs" variant="outline" onClick={() => m.reenable("review")}>
                     다시 켜기
                   </Button>
                 </div>
@@ -306,7 +291,7 @@ export function ExtensionList() {
             <span className="text-text-tertiary">안전 모드</span>
             <span className="flex flex-wrap items-center gap-2">
               <span className="text-text-secondary">꺼짐</span>
-              <Button size="xs" tone="neutral" variant="ghost" disabled={m.offline}>
+              <Button size="xs" variant="ghost" disabled={m.offline}>
                 안전 모드로 다시 시작
               </Button>
             </span>

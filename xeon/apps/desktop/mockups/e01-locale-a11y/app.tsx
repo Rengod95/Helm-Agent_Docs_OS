@@ -361,10 +361,10 @@ export function App({ state }: { state: StateId }) {
               title={T.extension}
               actions={
                 <>
-                  <Button size="xs" tone="neutral" variant="ghost">
+                  <Button size="xs" variant="ghost">
                     {L2("가져오기", "Import")}
                   </Button>
-                  <Button size="xs" tone="neutral" variant="outline">
+                  <Button size="xs" variant="outline">
                     {L2(`새 ${T.group}`, `New ${T.group.toLowerCase()}`)}
                   </Button>
                 </>

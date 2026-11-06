@@ -65,7 +65,7 @@ export function OverviewTab({ onWipe, data = false }: { onWipe?: () => void; dat
       <SettingSection
         title="화면 진단"
         end={
-          <Button size="xs" tone="neutral" variant="ghost">
+          <Button size="xs" variant="ghost">
             진단 복사
           </Button>
         }
@@ -104,7 +104,7 @@ export function OverviewTab({ onWipe, data = false }: { onWipe?: () => void; dat
             </ListDescriptionRow>
           </ListDescription>
           <div className="flex flex-wrap items-center gap-1.5 pt-2">
-            <Button size="xs" tone="neutral" variant="outline">
+            <Button size="xs" variant="outline">
               모든 대화 내보내기…
             </Button>
             <Button size="xs" tone="danger" variant="ghost" onClick={onWipe}>

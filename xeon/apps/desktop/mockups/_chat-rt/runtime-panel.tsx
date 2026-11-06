@@ -174,7 +174,6 @@ export function RuntimePanel({
                 {q.state === "waiting" && onFirst !== undefined && (
                   <Button
                     size="xs"
-                    tone="neutral"
                     variant={q.first === true ? "ghost" : "outline"}
                     disabled={q.first === true}
                     data-tour="group-first"
@@ -236,13 +235,7 @@ export function RuntimePanel({
         </section>
       )}
       <div>
-        <Button
-          size="xs"
-          tone="neutral"
-          variant="outline"
-          data-tour="to-workbench"
-          onClick={goWorkbench}
-        >
+        <Button size="xs" variant="outline" data-tour="to-workbench" onClick={goWorkbench}>
           {L2(`${T.workbench}에서 보기`, `View in ${T.workbench.toLowerCase()}`)}
         </Button>
       </div>

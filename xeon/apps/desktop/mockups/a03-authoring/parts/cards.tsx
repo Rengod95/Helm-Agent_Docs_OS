@@ -410,37 +410,24 @@ export function ResultCard({
         </ListDescriptionRow>
       </ListDescription>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Button size="xs" tone="neutral" variant="solid" onClick={onTrial}>
+        <Button size="xs" variant="solid" onClick={onTrial}>
           {T.trialThread}에서 켜기
         </Button>
         {web ? (
-          <Button
-            size="xs"
-            tone="neutral"
-            variant="outline"
-            iconStart={<Copy />}
-            onClick={() => setCopied(true)}
-          >
+          <Button size="xs" variant="outline" iconStart={<Copy />} onClick={() => setCopied(true)}>
             {copied ? "경로 복사함" : "경로 복사"}
           </Button>
         ) : (
-          <Button size="xs" tone="neutral" variant="outline" iconStart={<FolderOpen />}>
+          <Button size="xs" variant="outline" iconStart={<FolderOpen />}>
             편집기에서 열기
           </Button>
         )}
-        <Button size="xs" tone="neutral" variant="outline" disabled={linked} onClick={onLink}>
+        <Button size="xs" variant="outline" disabled={linked} onClick={onLink}>
           {linked ? `${T.installLink}됨` : `${T.userExtDir}에 ${T.installLink}`}
         </Button>
         <Tooltip content={`${T.devMode}에서만 돌아요. 배포 앱은 ${T.trialThread}로 확인해요`}>
           <span className="ms-auto">
-            <Button
-              size="xs"
-              tone="neutral"
-              variant="ghost"
-              iconStart={<Lock />}
-              aria-disabled
-              onClick={onReplay}
-            >
+            <Button size="xs" variant="ghost" iconStart={<Lock />} aria-disabled onClick={onReplay}>
               {T.replay}
             </Button>
           </span>

@@ -71,7 +71,7 @@ export function NoMatch({
       actions={
         <>
           {onClear !== undefined && (
-            <Button size="sm" tone="neutral" variant="outline" onClick={onClear}>
+            <Button size="sm" variant="outline" onClick={onClear}>
               {clearLabel ?? L2("거르기 지우기", "Clear filters")}
             </Button>
           )}
@@ -124,10 +124,10 @@ export function ExtListScreen({
         title={T.extension}
         actions={
           <>
-            <Button size="sm" tone="neutral" variant="ghost" disabled={!ready}>
+            <Button size="sm" variant="ghost" disabled={!ready}>
               {L2("가져오기", "Import")}
             </Button>
-            <Button size="sm" tone="neutral" variant="outline" disabled={!ready}>
+            <Button size="sm" variant="outline" disabled={!ready}>
               {L2(`새 ${T.group}`, `New ${T.group.toLowerCase()}`)}
             </Button>
           </>
@@ -187,7 +187,7 @@ export function ExtListScreen({
                 "No extensions you installed or built",
               )}
               actions={
-                <Button size="sm" tone="neutral" variant="solid">
+                <Button size="sm" variant="solid">
                   {L2(`새 ${T.group}`, `New ${T.group.toLowerCase()}`)}
                 </Button>
               }
@@ -417,12 +417,7 @@ export function DetailScreen({
         title={extName("helm")}
         actions={
           <>
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="outline"
-              disabled={offline || mode === "loading"}
-            >
+            <Button size="sm" variant="outline" disabled={offline || mode === "loading"}>
               {L2("끄기", "Turn off")}
             </Button>
             <IconButton size="sm" variant="ghost" label={L2("더 보기", "More")}>
@@ -512,7 +507,7 @@ export function MetricsScreen({ mode }: { mode: MetricsMode }) {
               surface="none"
               title={L2(`${T.instrumentation}이 꺼져 있어요`, "Instrumentation is off")}
               actions={
-                <Button size="sm" tone="neutral" variant="outline">
+                <Button size="sm" variant="outline">
                   {L2(`${T.instrumentation} 켜기`, "Turn on instrumentation")}
                 </Button>
               }
@@ -523,7 +518,7 @@ export function MetricsScreen({ mode }: { mode: MetricsMode }) {
               surface="none"
               title={L2("이 기간에 기록이 없어요", "Nothing recorded in this period")}
               actions={
-                <Button size="sm" tone="neutral" variant="outline">
+                <Button size="sm" variant="outline">
                   {L2("30일로 넓히기", "Widen to 30 days")}
                 </Button>
               }
@@ -624,7 +619,7 @@ export function ProposalsFilterEmpty({ onClear }: { onClear: () => void }) {
           what={`"rollback"`}
           onClear={onClear}
           extra={
-            <Button size="sm" tone="neutral" variant="ghost">
+            <Button size="sm" variant="ghost">
               {L2("지난 제안까지 찾기", "Include past proposals")}
             </Button>
           }

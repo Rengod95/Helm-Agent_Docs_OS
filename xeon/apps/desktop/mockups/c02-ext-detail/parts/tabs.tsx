@@ -252,7 +252,7 @@ export function ViewsTab({
       align: "end",
       cell: (v) =>
         v.state === "view_disabled" ? (
-          <Button size="xs" tone="neutral" variant="outline" onClick={onReenable}>
+          <Button size="xs" variant="outline" onClick={onReenable}>
             {T.viewReenable}
           </Button>
         ) : null,
@@ -317,7 +317,7 @@ export function LogTab({ web }: { web: boolean }) {
     <div className="grid gap-2">
       <SectionTitle
         end={
-          <Button size="xs" tone="neutral" variant="ghost" iconStart={<RotateCw />}>
+          <Button size="xs" variant="ghost" iconStart={<RotateCw />}>
             다시 읽기
           </Button>
         }
@@ -346,11 +346,11 @@ export function LogTab({ web }: { web: boolean }) {
                 <span className="flex min-w-0 items-center gap-1.5">
                   <Mono dim={false}>{l.loc}</Mono>
                   {web ? (
-                    <Button size="xs" tone="neutral" variant="ghost" iconStart={<Copy />}>
+                    <Button size="xs" variant="ghost" iconStart={<Copy />}>
                       경로 복사
                     </Button>
                   ) : (
-                    <Button size="xs" tone="neutral" variant="ghost" iconStart={<FileText />}>
+                    <Button size="xs" variant="ghost" iconStart={<FileText />}>
                       파일 열기
                     </Button>
                   )}
@@ -444,7 +444,7 @@ export function OverviewTab({ ext }: { ext: string }) {
       <ListDescriptionRow term="이 시안 밖">
         <span className="inline-flex items-center gap-1 text-text-tertiary">
           훅·주도·측정 탭은 wb-opus 시안을 따라요
-          <Button size="xs" tone="neutral" variant="ghost" onClick={() => goFolder("wb-opus")}>
+          <Button size="xs" variant="ghost" onClick={() => goFolder("wb-opus")}>
             열기
           </Button>
         </span>

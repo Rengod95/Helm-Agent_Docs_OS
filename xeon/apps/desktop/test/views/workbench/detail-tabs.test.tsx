@@ -9,6 +9,7 @@ import {
   type ScreenRowVM,
   type TabRead,
 } from "@fresnel/client/workbench";
+import type { EffectiveSetting } from "@fresnel/contracts/settings";
 import { renderToString } from "react-dom/server";
 import { createWorkbenchStore } from "../../../src/state/workbench/index.ts";
 import { ExtDetail } from "../../../src/views/workbench/ext-detail.tsx";
@@ -28,6 +29,18 @@ const badgesOf = (html: string): string[] =>
 /** 설정 탭의 값 칸 글, 그린 순서대로 */
 const settingValuesOf = (html: string): string[] =>
   [...html.matchAll(/data-slot="setting-value"[^>]*>([^<]*)</g)].map((m) => m[1] ?? "");
+
+/** 설정 줄의 적용 시점 자리 글(보이는 쪽), 그린 순서대로. 즉시는 빈 글이다 */
+const applyMarksOf = (html: string): string[] =>
+  [
+    ...html.matchAll(
+      /aria-hidden="true" class="flex flex-none items-center gap-2">([\s\S]*?)<\/div>/g,
+    ),
+  ].map((m) => textOf(m[1] ?? ""));
+
+/** 낭독기에만 읽히는 줄 글(이름 뒤 적용 시점), 그린 순서대로 */
+const srOnlyOf = (html: string): string[] =>
+  [...html.matchAll(/class="sr-only">([^<]*)</g)].map((m) => m[1] ?? "");
 
 /** 측정 탭의 값과 이름(caustic CardStat 칸의 label·value), 그린 순서대로 */
 const valuesOf = (html: string): string[] =>
@@ -58,10 +71,89 @@ const SETTINGS: readonly ExtSettingRowVM[] = [
   { key: "ext.web.model", label: "모델", value: { kind: "unset" }, scope: "thread" },
 ];
 
+/** 엔진 설정 값 하나(시험용). 빠진 칸은 기본값이다 */
+function effective(
+  key: string,
+  over: Partial<Omit<EffectiveSetting, "key">> = {},
+): EffectiveSetting {
+  return {
+    key,
+    value: null,
+    source: { scope: "default" },
+    locked: false,
+    shadowed: [],
+    runtimeChange: "live",
+    pendingUntil: null,
+    deprecated: false,
+    ...over,
+  };
+}
+
+/** 적용 시점과 출처가 다른 세 줄: 즉시, 다음 턴, 재시작 */
+const TIMED: readonly (ExtSettingRowVM & { readonly setting: EffectiveSetting })[] = [
+  {
+    key: "ext.web.enabled",
+    label: "웹 검색 켜기",
+    value: { kind: "text", text: "true" },
+    scope: "global",
+    setting: effective("ext.web.enabled", { source: { scope: "user", path: "/u/settings.json" } }),
+  },
+  {
+    key: "ext.web.model",
+    label: "모델",
+    value: { kind: "text", text: "m1" },
+    scope: "project",
+    setting: effective("ext.web.model", {
+      source: { scope: "project", path: "/p/.fresnel/settings.json" },
+      runtimeChange: "nextTurn",
+      pendingUntil: "nextTurn",
+    }),
+  },
+  {
+    key: "ext.web.port",
+    label: "포트",
+    value: { kind: "text", text: "8080" },
+    scope: "global",
+    setting: effective("ext.web.port", {
+      source: { scope: "user", path: "/u/settings.json" },
+      runtimeChange: "restart",
+      pendingUntil: "restart",
+    }),
+  },
+];
+
+/** 다른 범위(프로젝트)가 이긴 줄에 사용자 범위 값이 가려져 있다 */
+const SHADOWED: readonly (ExtSettingRowVM & { readonly setting: EffectiveSetting })[] = [
+  {
+    key: "ext.web.model",
+    label: "모델",
+    value: { kind: "text", text: "m2" },
+    scope: "project",
+    setting: effective("ext.web.model", {
+      source: { scope: "project", path: "/p/.fresnel/settings.json" },
+      shadowed: [{ scope: "user", path: "/u/settings.json" }],
+    }),
+  },
+];
+
+/** 이 대화(launch)에서 정한 값이 줄을 이긴다. 가려진 목록은 펼쳐져 있어야 한다 */
+const THREAD_SHADOWED: readonly (ExtSettingRowVM & { readonly setting: EffectiveSetting })[] = [
+  {
+    key: "ext.web.model",
+    label: "모델",
+    value: { kind: "text", text: "m3" },
+    scope: "thread",
+    setting: effective("ext.web.model", {
+      source: { scope: "launch" },
+      shadowed: [{ scope: "user", path: "/u/settings.json" }],
+    }),
+  },
+];
+
 describe("설정 탭 그림", () => {
-  test("값이 있으면 줄마다 키, 이름, 값, 범위 배지를 보인다. 시크릿은 값 없이 가린다", () => {
+  test("값이 있으면 줄마다 이름, 값, 범위 배지를 보인다. 키는 그리지 않고 시크릿은 값 없이 가린다", () => {
     const html = renderToString(<SettingsPanel read={ready(SETTINGS)} />);
-    expect(textOf(html)).toContain("ext.web.enabled");
+    expect(textOf(html)).not.toContain("ext.web.enabled");
     expect(textOf(html)).toContain("웹 검색 켜기");
     expect(settingValuesOf(html)).toEqual([
       "true",
@@ -98,6 +190,63 @@ describe("설정 탭 그림", () => {
     expect(skeletonOf(renderToString(<SettingsPanel read={{ kind: "loading" }} />))).toBe(true);
     const offline = renderToString(<SettingsPanel read={{ kind: "offline" }} />);
     expect(textOf(offline)).toBe(t("desktop.workbench.detail.offline"));
+  });
+
+  test("적용 시점: 즉시는 글을 그리지 않고, 다음 턴은 연한 글, 재시작은 warning 배지다. 셋 다 낭독기에 읽힌다", () => {
+    const html = renderToString(<SettingsPanel read={ready(TIMED)} />);
+    expect(applyMarksOf(html)).toEqual([
+      "",
+      t("client.settings.runtime.nextTurn"),
+      t("client.settings.runtime.restart"),
+    ]);
+    expect(badgesOf(html)).toEqual([
+      t("desktop.workbench.scope.global"),
+      t("desktop.workbench.scope.project"),
+      t("desktop.workbench.scope.global"),
+      t("client.settings.runtime.restart"),
+    ]);
+    expect(srOnlyOf(html)).toEqual([
+      `, ${t("client.settings.runtime.live")}`,
+      `, ${t("client.settings.runtime.nextTurn")}`,
+      `, ${t("client.settings.runtime.restart")}`,
+    ]);
+  });
+
+  test("값 출처 줄은 이긴 범위와 파일 경로를 보인다", () => {
+    const html = renderToString(<SettingsPanel read={ready(TIMED)} />);
+    expect(textOf(html)).toContain(t("desktop.workbench.detail.settings.source"));
+    expect(textOf(html)).toContain(
+      t("desktop.workbench.detail.settings.wins", {
+        scope: t("desktop.workbench.scope.project"),
+      }),
+    );
+    expect(textOf(html)).toContain("/p/.fresnel/settings.json");
+  });
+
+  test("읽기에 설정 값이 없는 줄은 적용 시점 자리와 낭독기 글을 비운다", () => {
+    const html = renderToString(<SettingsPanel read={ready(SETTINGS)} />);
+    expect(applyMarksOf(html)).toEqual(["", "", ""]);
+    expect(srOnlyOf(html)).toEqual([]);
+  });
+
+  test("가려진 범위가 있으면 접힌 목록 단추만 보이고, 펼치면 범위와 파일 경로를 보인다", () => {
+    const html = renderToString(<SettingsPanel read={ready(SHADOWED)} />);
+    expect(html).toContain('aria-expanded="false"');
+    expect(textOf(html)).toContain(t("desktop.workbench.detail.settings.shadowed"));
+    expect(textOf(html)).not.toContain("/u/settings.json");
+  });
+
+  test("이 대화에서 정한 값이면 가려진 목록을 펼쳐 둔다", () => {
+    const html = renderToString(<SettingsPanel read={ready(THREAD_SHADOWED)} />);
+    expect(html).toContain('aria-expanded="true"');
+    expect(textOf(html)).toContain("/u/settings.json");
+    expect(textOf(html)).toContain(t("desktop.workbench.scope.global"));
+  });
+
+  test("가려진 범위가 없으면 목록 단추를 두지 않는다", () => {
+    const html = renderToString(<SettingsPanel read={ready(TIMED)} />);
+    expect(html).not.toContain("aria-expanded");
+    expect(textOf(html)).not.toContain(t("desktop.workbench.detail.settings.shadowed"));
   });
 });
 

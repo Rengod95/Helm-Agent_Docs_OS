@@ -1,14 +1,16 @@
-import { Badge, ListDescription, ListDescriptionRow } from "@caustic/react";
+import { Badge, Button, ListDescription, ListDescriptionRow, toast } from "@caustic/react";
 import { Info, TriangleAlert } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
+import { detach, rethrow } from "@fresnel/contracts";
 import type { SettingsView, ViewDiagnostic } from "@fresnel/client/settings";
 import type { ReactNode } from "react";
+import { useCommands } from "../../commands.ts";
 import { useSafeMode } from "../../safe-mode-context.ts";
+import { pathTermOf, type SettingsPathRow } from "./settings-file-paths.ts";
 import { SettingSection } from "./settings-section.tsx";
 import { diagnosticIdOf, TONE_CLASS } from "./settings-text.ts";
 
-// 개요 탭(P-09 시안 `overview-tab.tsx`): "지금 상태" 한 카드(ListDescription)와 "화면 진단" 한 카드.
-// 시안의 "설정 파일"(사용자·프로젝트·관리 정책 경로)과 "진단 복사"는 엔진이 개요에 경로를 주지 않고 복사 동작이 없어 그리지 않는다.
+// 개요 탭(P-09 시안 `overview-tab.tsx`): "설정 파일"(경로는 `settings.readFile`의 `path`), "지금 상태", "화면 진단"(진단 복사) 카드.
 const ROWS_CLASS =
   "rounded-none [--cs-size-list-term:9rem] [&_[data-slot=list-description-row]]:px-0";
 
@@ -23,7 +25,10 @@ export function OverviewPanels(props: {
   readonly view: SettingsView;
   /** 앱 업데이트 줄(웹에서는 아무것도 그리지 않는다) */
   readonly updatePanel: ReactNode;
+  /** 사용자·프로젝트·관리 정책 설정 파일 경로. 읽지 못한 범위는 빠진다 */
+  readonly filePaths: readonly SettingsPathRow[];
 }): ReactNode {
+  const commands = useCommands();
   const { overview, diagnostics } = props.view;
   const safeMode = useSafeMode();
   const changed = Object.entries(overview.countsByScope).reduce(
@@ -32,6 +37,27 @@ export function OverviewPanels(props: {
   );
   return (
     <>
+      {props.filePaths.length === 0 ? null : (
+        <SettingSection title={t("desktop.settings.overview.files.title")}>
+          <ListDescription
+            variant="ghost"
+            size="xs"
+            aria-label={t("desktop.settings.overview.files.title")}
+            className={ROWS_CLASS}
+          >
+            {props.filePaths.map((row) => (
+              <ListDescriptionRow
+                key={row.scope}
+                term={pathTermOf(row.scope)}
+                mono
+                copyValue={row.path}
+              >
+                {row.path}
+              </ListDescriptionRow>
+            ))}
+          </ListDescription>
+        </SettingSection>
+      )}
       <SettingSection title={t("desktop.settings.overview.state")}>
         {props.updatePanel}
         <ListDescription
@@ -71,7 +97,27 @@ export function OverviewPanels(props: {
         </ListDescription>
       </SettingSection>
       {diagnostics.length === 0 ? null : (
-        <SettingSection title={t("desktop.settings.diagnostics.title")}>
+        <SettingSection
+          title={t("desktop.settings.diagnostics.title")}
+          end={
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                detach(
+                  commands.copyDiagnostics().then((ok) => {
+                    if (ok)
+                      toast({ tone: "success", title: t("desktop.settings.overview.copied") });
+                    return undefined;
+                  }),
+                  rethrow,
+                );
+              }}
+            >
+              {t("desktop.settings.overview.copyDiagnostics")}
+            </Button>
+          }
+        >
           <ul className="m-0 grid list-none gap-1 p-0">
             {diagnostics.map((diagnostic) => {
               const tone = toneOf(diagnostic.code);

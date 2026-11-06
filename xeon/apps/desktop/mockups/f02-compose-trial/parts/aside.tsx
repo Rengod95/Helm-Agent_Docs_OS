@@ -56,7 +56,7 @@ function Report({ s, onCopy }: { s: Model; onCopy: () => void }) {
       <CutStrip done={done} />
       {!running && (
         <div>
-          <Button size="xs" tone="neutral" variant="outline" onClick={onCopy}>
+          <Button size="xs" variant="outline" onClick={onCopy}>
             JSON 복사
           </Button>
         </div>

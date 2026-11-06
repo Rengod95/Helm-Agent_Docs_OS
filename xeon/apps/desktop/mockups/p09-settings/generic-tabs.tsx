@@ -209,7 +209,7 @@ export function GenericTab({ tab, disabled }: { tab: TabId; disabled: boolean })
           surface="none"
           title="이 탭 항목은 파일에서만 바꿔요"
           actions={
-            <Button size="sm" tone="neutral" variant="outline">
+            <Button size="sm" variant="outline">
               파일로 보기
             </Button>
           }

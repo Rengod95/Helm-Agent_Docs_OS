@@ -71,22 +71,16 @@ export function InstallDialog({
         <>
           <span aria-hidden className="flex-1" />
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="outline" autoFocus>
+            <Button size="sm" variant="outline" autoFocus>
               취소
             </Button>
           </DialogClose>
           {failed ? (
-            <Button size="sm" tone="neutral" variant="solid" onClick={onRepick}>
+            <Button size="sm" variant="solid" onClick={onRepick}>
               다른 {T.installFolder} 고르기
             </Button>
           ) : (
-            <Button
-              size="sm"
-              tone="neutral"
-              variant="solid"
-              disabled={step !== "done"}
-              onClick={onNext}
-            >
+            <Button size="sm" variant="solid" disabled={step !== "done"} onClick={onNext}>
               다음: {T.trustConfirm}
             </Button>
           )}
@@ -141,7 +135,7 @@ export function InstallDialog({
                     placeholder="build-box:~/ext/graph-lens"
                     className="w-[20rem]"
                   />
-                  <Button size="sm" tone="neutral" variant="outline" onClick={() => onPick("good")}>
+                  <Button size="sm" variant="outline" onClick={() => onPick("good")}>
                     {T.installCheck}
                   </Button>
                 </div>
@@ -153,7 +147,6 @@ export function InstallDialog({
               trigger={
                 <Button
                   size="sm"
-                  tone="neutral"
                   variant="outline"
                   iconStart={<Folder />}
                   className="justify-self-start"

@@ -119,7 +119,7 @@ export function ContextView({ title }: { title: string }) {
         title={title}
         actions={
           c.kind === "profile" ? (
-            <Button size="xs" tone="neutral" variant="outline">
+            <Button size="xs" variant="outline">
               {T.profile} 고치기
             </Button>
           ) : undefined

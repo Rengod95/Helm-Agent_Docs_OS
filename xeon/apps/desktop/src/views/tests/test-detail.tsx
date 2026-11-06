@@ -61,16 +61,22 @@ export interface TestDetailProps {
   /** 단계 이름. 읽지 못했거나 Test run이 아니면 null */
   readonly phase: string | null;
   readonly handlers: TestDetailHandlers;
+  /** 개발 모드인가. 아니면 replay는 지난 결과 요약만 읽기 전용으로 보인다(c01 시안 `ReplayDetail`) */
+  readonly devMode: boolean;
 }
 
 export function TestDetail(props: TestDetailProps): ReactNode {
-  const { row, paused, phase, handlers } = props;
+  const { row, paused, phase, handlers, devMode } = props;
   return (
     <section aria-label={t("desktop.tests.detail.heading")} className="grid gap-4">
       <h2 className="m-0 truncate text-text-primary">
         {`${row.target} ${t(KIND_TEXT[row.kind])}`}
       </h2>
-      {row.replay === null ? null : <ReplayResult report={row.replay} onCopy={handlers.copy} />}
+      {row.replay === null ? null : devMode ? (
+        <ReplayResult report={row.replay} onCopy={handlers.copy} />
+      ) : (
+        <ReplaySummary report={row.replay} />
+      )}
       {row.kind === "testRun" ? (
         <TestRunState row={row} paused={paused} phase={phase} handlers={handlers} />
       ) : null}
@@ -99,6 +105,29 @@ function CutStrip(props: { readonly strip: CutStripVM }): ReactNode {
         <InfoTip text={t("desktop.tests.detail.cutHidden", { hidden: strip.hidden })} />
       ) : null}
     </div>
+  );
+}
+
+/** 배포 앱의 지난 replay 결과: 판정과 절단 수만 읽기 전용으로 보인다. 전체 보고서와 JSON 복사는 개발 모드에서만이다 */
+function ReplaySummary(props: { readonly report: ReplayReport }): ReactNode {
+  const { report } = props;
+  const verdict = replayVerdictOf(report);
+  const tone: TagTone =
+    verdict.kind === "same" ? "success" : verdict.kind === "digest-differs" ? "warning" : "danger";
+  return (
+    <ListDescription
+      variant="ghost"
+      size="xs"
+      aria-label={t("desktop.tests.detail.heading")}
+      className={LD}
+    >
+      <ListDescriptionRow term={t("desktop.tests.detail.verdict")}>
+        <Tag tone={tone}>{t(VERDICT_TEXT[verdict.kind])}</Tag>
+      </ListDescriptionRow>
+      <ListDescriptionRow term={t("desktop.tests.detail.cutTerm")}>
+        {t("desktop.tests.detail.cut", { commits: report.commits, passed: report.passed })}
+      </ListDescriptionRow>
+    </ListDescription>
   );
 }
 

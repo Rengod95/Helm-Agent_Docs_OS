@@ -201,7 +201,6 @@ export function RuntimePanel() {
             </span>
             <Button
               size="xs"
-              tone="neutral"
               variant="ghost"
               className="ms-auto"
               onClick={() => m.openDetail("acme-notes", "log")}
@@ -219,7 +218,6 @@ export function RuntimePanel() {
             </span>
             <Button
               size="xs"
-              tone="neutral"
               variant="ghost"
               className="ms-auto"
               onClick={() => m.openDetail("review", "log")}
@@ -230,7 +228,7 @@ export function RuntimePanel() {
         </ul>
       </section>
       <div>
-        <Button size="xs" tone="neutral" variant="outline" onClick={() => m.go("overview")}>
+        <Button size="xs" variant="outline" onClick={() => m.go("overview")}>
           크래프트에서 보기
         </Button>
       </div>

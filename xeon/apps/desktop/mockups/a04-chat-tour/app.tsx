@@ -136,7 +136,6 @@ export function App({ state }: { state: StateId }) {
             </span>
             <Button
               size="xs"
-              tone="neutral"
               variant="ghost"
               className="ms-auto -my-1 flex-none"
               onClick={() => setAt(0)}
@@ -205,12 +204,7 @@ export function App({ state }: { state: StateId }) {
               </span>
               <p className="m-0 text-ui-sm text-text-secondary">다시 열면 이어서 짚어 드려요.</p>
               <div>
-                <Button
-                  size="xs"
-                  tone="neutral"
-                  variant="outline"
-                  onClick={() => shell.openEnd("runtime")}
-                >
+                <Button size="xs" variant="outline" onClick={() => shell.openEnd("runtime")}>
                   {T.runtime} 탭 다시 열기
                 </Button>
               </div>

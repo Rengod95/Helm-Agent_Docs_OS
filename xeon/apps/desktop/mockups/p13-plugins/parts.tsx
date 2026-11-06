@@ -165,7 +165,7 @@ export function PluginRow({ e, safe = false }: { e: Ext; safe?: boolean }) {
 
 export function InlineButton({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
   return (
-    <Button size="xs" tone="neutral" variant="ghost" onClick={onClick}>
+    <Button size="xs" variant="ghost" onClick={onClick}>
       {children}
     </Button>
   );

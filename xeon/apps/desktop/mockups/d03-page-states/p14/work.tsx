@@ -130,11 +130,11 @@ function Goal({ kind }: { kind: keyof typeof STATUS }) {
       title="목표"
       end={
         settled ? (
-          <Button size="xs" tone="neutral" variant="ghost">
+          <Button size="xs" variant="ghost">
             다시 걸기
           </Button>
         ) : (
-          <Button size="xs" tone="neutral" variant="ghost">
+          <Button size="xs" variant="ghost">
             해제
           </Button>
         )
@@ -168,7 +168,7 @@ function PlanRef({ approved = true }: { approved?: boolean }) {
         <Badge size="xs" tone={approved ? "success" : "neutral"}>
           {approved ? "승인됨" : "초안"}
         </Badge>
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           보기
         </Button>
       </div>
@@ -301,7 +301,7 @@ export function WorkPanel({ state }: { state: WorkState }) {
                 </Field>
               </div>
               <div>
-                <Button size="sm" tone="neutral" variant="solid">
+                <Button size="sm" variant="solid">
                   목표 걸기
                 </Button>
               </div>

@@ -39,7 +39,7 @@ export function ThreadTail({ onGoToThread }: { onGoToThread?: (() => void) | und
         )}
       </ol>
       <div>
-        <Button size="xs" tone="neutral" variant="outline" onClick={onGoToThread}>
+        <Button size="xs" variant="outline" onClick={onGoToThread}>
           대화로 가기
         </Button>
       </div>

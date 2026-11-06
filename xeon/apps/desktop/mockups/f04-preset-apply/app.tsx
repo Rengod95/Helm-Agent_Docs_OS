@@ -199,7 +199,6 @@ export function App({ state }: { state: StateId }) {
                   action={
                     <Button
                       size="xs"
-                      tone="neutral"
                       variant="outline"
                       onClick={() => set({ reviewOn: true, phase: "preview-loading" })}
                     >

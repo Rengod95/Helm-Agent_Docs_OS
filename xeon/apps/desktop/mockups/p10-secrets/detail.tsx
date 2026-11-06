@@ -60,10 +60,10 @@ function ValueCell({
       <span className="grid gap-1.5 py-1">
         <span className="break-all font-mono text-mono text-text-primary">{FAKE}</span>
         <span className="flex flex-wrap items-center gap-1">
-          <Button size="xs" tone="neutral" variant="outline">
+          <Button size="xs" variant="outline">
             복사
           </Button>
-          <Button size="xs" tone="neutral" variant="ghost" onClick={onHide}>
+          <Button size="xs" variant="ghost" onClick={onHide}>
             지금 가리기
           </Button>
           <span className="ms-2">
@@ -88,13 +88,7 @@ function ValueCell({
       >
         ••••••••••••
       </span>
-      <Button
-        size="xs"
-        tone="neutral"
-        variant="outline"
-        onClick={onReveal}
-        disabled={reveal === "reauth"}
-      >
+      <Button size="xs" variant="outline" onClick={onReveal} disabled={reveal === "reauth"}>
         값 보기
       </Button>
     </span>
@@ -157,7 +151,7 @@ export function SecretDetail({
           tone="danger"
           layout="inline"
           action={
-            <Button size="xs" tone="neutral" variant="outline" onClick={onReveal}>
+            <Button size="xs" variant="outline" onClick={onReveal}>
               다시 시도
             </Button>
           }

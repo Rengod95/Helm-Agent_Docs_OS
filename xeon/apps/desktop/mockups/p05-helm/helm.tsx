@@ -109,7 +109,7 @@ export function GroupsSection({
     <Section
       title="이 대화의 그룹"
       end={
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           그룹
         </Button>
       }
@@ -277,7 +277,7 @@ function InquiryHead({
         </h3>
         {action}
         {onFull !== undefined && (
-          <Button size="xs" tone="neutral" variant="ghost" onClick={onFull}>
+          <Button size="xs" variant="ghost" onClick={onFull}>
             {full ? "대화로" : "크게"}
           </Button>
         )}
@@ -300,7 +300,7 @@ const writeDenied = (
 
 export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => void }) {
   const stop = (
-    <Button size="xs" tone="neutral" variant="ghost">
+    <Button size="xs" variant="ghost">
       멈춤
     </Button>
   );
@@ -354,7 +354,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
               ttl을 저장할 때 밀리초로 바꾸고 경계 시각 테스트를 더했어요.
             </p>
             <div className="flex flex-wrap gap-1.5">
-              <Button size="xs" tone="neutral" variant="soft">
+              <Button size="xs" variant="soft">
                 적용 턴으로
               </Button>
             </div>
@@ -389,7 +389,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
                   containerClassName="min-w-0 flex-1"
                   invalid={state === "S11"}
                 />
-                <Button size="sm" tone="neutral" variant="solid">
+                <Button size="sm" variant="solid">
                   시작
                 </Button>
               </div>
@@ -430,7 +430,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
               주도를 {extJ("review", "이", "가")} 쥐고 있어요.
             </p>
             <div>
-              <Button size="xs" tone="neutral" variant="soft">
+              <Button size="xs" variant="soft">
                 요청 취소
               </Button>
             </div>
@@ -462,7 +462,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
               meta="같은 오류 3번"
               badge={writeDenied}
               action={
-                <Button size="xs" tone="neutral" variant="ghost" disabled>
+                <Button size="xs" variant="ghost" disabled>
                   멈추는 중
                 </Button>
               }
@@ -492,7 +492,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
           <div className="grid gap-2">
             <h3 className="m-0 text-ui-strong text-text-primary">Helm이 꺼져 있어요</h3>
             <div>
-              <Button size="xs" tone="neutral" variant="soft">
+              <Button size="xs" variant="soft">
                 플러그인과 그룹에서 켜기
               </Button>
             </div>
@@ -531,7 +531,7 @@ export function HelmPanel({ state, onFull }: { state: HelmState; onFull: () => v
               <InquiryHead
                 meta="같은 오류 3번"
                 action={
-                  <Button size="xs" tone="neutral" variant="ghost" disabled>
+                  <Button size="xs" variant="ghost" disabled>
                     멈춤
                   </Button>
                 }
@@ -561,10 +561,10 @@ export function HelmPage({ onBack }: { onBack: () => void }) {
         </h1>
         <span className="flex-1" />
         {writeDenied}
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           멈춤
         </Button>
-        <Button size="xs" tone="neutral" variant="ghost" onClick={onBack}>
+        <Button size="xs" variant="ghost" onClick={onBack}>
           대화로
         </Button>
       </header>

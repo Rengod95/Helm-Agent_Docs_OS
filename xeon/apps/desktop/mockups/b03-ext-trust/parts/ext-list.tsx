@@ -81,7 +81,6 @@ export function ExtList({
               <Tooltip content={`${e.version} → ${e.update}`}>
                 <Button
                   size="xs"
-                  tone="neutral"
                   variant="outline"
                   aria-label={`${josa(e.update, "으로", "로")} 업데이트`}
                   onClick={() => onUpdate(e.name)}
@@ -91,7 +90,7 @@ export function ExtList({
               </Tooltip>
             )}
             {e.state === "trust_undecided" && (
-              <Button size="xs" tone="neutral" variant="outline" onClick={() => onEnable(e.name)}>
+              <Button size="xs" variant="outline" onClick={() => onEnable(e.name)}>
                 켜기
               </Button>
             )}

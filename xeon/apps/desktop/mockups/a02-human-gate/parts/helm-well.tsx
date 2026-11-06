@@ -13,7 +13,7 @@ export function HelmWell({ onRuntime }: { onRuntime: () => void }) {
           <h3 className="m-0 min-w-0 flex-1 truncate text-ui-strong text-text-primary">
             캐시 무효화 원인
           </h3>
-          <Button size="xs" tone="neutral" variant="ghost">
+          <Button size="xs" variant="ghost">
             멈춤
           </Button>
         </div>

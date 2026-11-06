@@ -33,7 +33,7 @@ export function ReadFail({ onRetry, busy }: { onRetry: () => void; busy: boolean
       title="대화를 읽지 못했어요"
       description="thread.open 시간 초과 · 10초"
       actions={
-        <Button size="sm" tone="neutral" variant="outline" loading={busy} onClick={onRetry}>
+        <Button size="sm" variant="outline" loading={busy} onClick={onRetry}>
           다시 읽기
         </Button>
       }
@@ -72,7 +72,6 @@ export function NewMessages({ count, onJump }: { count: number; onJump: () => vo
     <div className="pointer-events-none flex justify-center">
       <Button
         size="xs"
-        tone="neutral"
         variant="outline"
         radius="full"
         iconStart={<ArrowDown />}
@@ -130,7 +129,6 @@ export function LongToolRow({
             {cut && (
               <Button
                 size="xs"
-                tone="neutral"
                 variant="ghost"
                 className="relative z-10 -ms-2 justify-self-start"
                 onClick={() => setAll(!all)}
@@ -174,7 +172,7 @@ export function ResumeBand({
       icon={<RotateCcw />}
       action={
         <span className="flex items-center gap-1.5">
-          <Button size="xs" tone="neutral" variant="ghost" disabled={busy} onClick={onLeave}>
+          <Button size="xs" variant="ghost" disabled={busy} onClick={onLeave}>
             그대로 두기
           </Button>
           <Button size="xs" tone="warning" variant="solid" loading={busy} onClick={onResume}>

@@ -69,7 +69,7 @@ export function InboxContent() {
             <div className="min-w-0 flex-1 truncate text-ui-sm text-text-primary">
               {proposal.kind} <span className="font-mono text-mono-sm">{proposal.target}</span>
             </div>
-            <Button size="xs" tone="neutral" variant="ghost">
+            <Button size="xs" variant="ghost">
               열기
             </Button>
           </div>

@@ -49,7 +49,7 @@ function ThisThread({ safe }: { safe: boolean }) {
     <SettingSection
       title="이 대화 · 캐시 무효화 조사"
       end={
-        <Button size="xs" tone="neutral" variant="ghost" onClick={() => shell.openEnd("helm")}>
+        <Button size="xs" variant="ghost" onClick={() => shell.openEnd("helm")}>
           탐구 보기
         </Button>
       }
@@ -161,7 +161,7 @@ function FailureDetail({ open }: { open: boolean }) {
       defaultOpen={open}
       className="w-80"
       anchor={
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           자세히
         </Button>
       }
@@ -177,10 +177,10 @@ function FailureDetail({ open }: { open: boolean }) {
         <ListDescriptionRow term="마지막">3분 전</ListDescriptionRow>
       </ListDescription>
       <div className="flex justify-end gap-1 pt-2">
-        <Button size="xs" tone="neutral" variant="ghost">
+        <Button size="xs" variant="ghost">
           진단 복사
         </Button>
-        <Button size="xs" tone="neutral" variant="outline">
+        <Button size="xs" variant="outline">
           다시 켜기
         </Button>
       </div>
@@ -206,11 +206,11 @@ function NewGroupDialog({
       footer={
         <>
           <DialogClose asChild>
-            <Button size="sm" tone="neutral" variant="ghost">
+            <Button size="sm" variant="ghost">
               닫기
             </Button>
           </DialogClose>
-          <Button size="sm" tone="neutral" variant="solid">
+          <Button size="sm" variant="solid">
             만들기
           </Button>
         </>
@@ -245,10 +245,10 @@ export function App({ state }: { state: State }) {
         modalOpen={newOpen}
         actions={
           <>
-            <Button size="xs" tone="neutral" variant="ghost" disabled={reloading}>
+            <Button size="xs" variant="ghost" disabled={reloading}>
               {reloading ? "다시 불러오는 중" : "다시 불러오기"}
             </Button>
-            <Button size="xs" tone="neutral" variant="outline" onClick={() => setNewOpen(true)}>
+            <Button size="xs" variant="outline" onClick={() => setNewOpen(true)}>
               그룹 만들기
             </Button>
           </>
@@ -259,7 +259,7 @@ export function App({ state }: { state: State }) {
               tone="warning"
               layout="inline"
               action={
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   안전 모드 끄고 다시 시작
                 </Button>
               }

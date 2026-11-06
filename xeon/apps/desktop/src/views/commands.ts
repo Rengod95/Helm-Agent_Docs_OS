@@ -55,6 +55,7 @@ import type {
   ExtTestRunResult,
   SettingsExplainResult,
   SettingsReadFileResult,
+  SettingsFileScope,
   SettingsWritableFileScope,
   SettingsWriteFileResult,
   TrustChoice,
@@ -390,9 +391,15 @@ export interface WebCommands {
 export interface SettingsCommands {
   open(): SettingsController;
   /** `settings.readFile`(파일 편집기). 범위가 `user`이면 대화를 보내지 않는다. 연결이 없으면 `offline`이다 */
-  readFile(target: SettingsFileTarget): Promise<Result<SettingsReadFileResult, CommandError>>;
+  readFile(target: SettingsReadTarget): Promise<Result<SettingsReadFileResult, CommandError>>;
   /** `settings.writeFile`(파일 편집기). 읽은 뒤 파일이 바뀌었으면 `conflict`(3107)다 */
   writeFile(write: SettingsFileWrite): Promise<Result<SettingsWriteFileResult, SettingsWriteError>>;
+}
+
+/** 파일을 읽는 범위와 대화. 읽기는 관리 정책(`managed`)도 받는다(개요의 설정 파일 경로 목록) */
+export interface SettingsReadTarget {
+  readonly scope: SettingsFileScope;
+  readonly threadId: ThreadId | null;
 }
 
 /** 파일 편집기가 고르는 범위와 대화. `project`와 `local`은 대화의 작업 폴더를 쓴다 */

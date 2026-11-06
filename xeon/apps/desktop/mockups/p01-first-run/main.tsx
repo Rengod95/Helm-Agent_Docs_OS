@@ -68,13 +68,7 @@ function Head() {
   const m = useFirstRun();
   const count = STEP_IDS.filter((id) => m.done[id]).length;
   const start = (
-    <Button
-      size="sm"
-      tone="neutral"
-      variant="solid"
-      disabled={!m.ready}
-      onClick={() => m.setDialogOpen(true)}
-    >
+    <Button size="sm" variant="solid" disabled={!m.ready} onClick={() => m.setDialogOpen(true)}>
       대화 시작
     </Button>
   );

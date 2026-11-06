@@ -254,7 +254,7 @@ export function App({ state }: { state: StateId }) {
             }
             actions={
               <>
-                <Button size="xs" tone="neutral" variant="outline" disabled={busy || safe}>
+                <Button size="xs" variant="outline" disabled={busy || safe}>
                   끄기
                 </Button>
                 <Menu

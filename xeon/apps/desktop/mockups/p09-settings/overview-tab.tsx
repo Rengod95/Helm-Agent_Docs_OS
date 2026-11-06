@@ -58,7 +58,7 @@ export function OverviewTab() {
       <SettingSection
         title="화면 진단"
         end={
-          <Button size="xs" tone="neutral" variant="ghost">
+          <Button size="xs" variant="ghost">
             진단 복사
           </Button>
         }

@@ -285,7 +285,6 @@ function Stage({ state }: { state: StateId }) {
         </div>
         <Button
           size="sm"
-          tone="neutral"
           variant="ghost"
           iconStart={<RotateCcw />}
           loading={loading}
@@ -294,7 +293,7 @@ function Stage({ state }: { state: StateId }) {
         >
           다시 확인
         </Button>
-        <Button size="sm" tone="neutral" variant="outline" iconStart={<Copy />} onClick={copy}>
+        <Button size="sm" variant="outline" iconStart={<Copy />} onClick={copy}>
           진단 복사
         </Button>
       </header>
@@ -311,7 +310,7 @@ function Stage({ state }: { state: StateId }) {
               layout="inline"
               size="sm"
               action={
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   보통 모드로 다시 시작
                 </Button>
               }
@@ -326,7 +325,7 @@ function Stage({ state }: { state: StateId }) {
               <>
                 <span className="tabular-nums">층 6 · {plugins.length}개</span>
                 <span className="flex-1" />
-                <Button size="xs" tone="neutral" variant="ghost">
+                <Button size="xs" variant="ghost">
                   그룹 다시 읽기
                 </Button>
               </>
@@ -343,10 +342,10 @@ function Stage({ state }: { state: StateId }) {
                     size="sm"
                     action={
                       <>
-                        <Button size="xs" tone="neutral" variant="ghost">
+                        <Button size="xs" variant="ghost">
                           파일 열기
                         </Button>
-                        <Button size="xs" tone="neutral" variant="outline" disabled={offline}>
+                        <Button size="xs" variant="outline" disabled={offline}>
                           다시 켜기
                         </Button>
                       </>
@@ -396,7 +395,7 @@ function Stage({ state }: { state: StateId }) {
                       <span className="text-text-secondary">꺼짐</span>
                     )}
                     {!safe && (
-                      <Button size="xs" tone="neutral" variant="ghost" disabled={offline}>
+                      <Button size="xs" variant="ghost" disabled={offline}>
                         안전 모드로 다시 시작
                       </Button>
                     )}
@@ -438,7 +437,7 @@ function Stage({ state }: { state: StateId }) {
             trailing={
               <>
                 <span className="flex-1" />
-                <Button size="xs" tone="neutral" variant="ghost">
+                <Button size="xs" variant="ghost">
                   도구와 웹 열기
                 </Button>
               </>
@@ -484,7 +483,7 @@ function Stage({ state }: { state: StateId }) {
             trailing={
               <>
                 <span className="flex-1" />
-                <Button size="xs" tone="neutral" variant="ghost">
+                <Button size="xs" variant="ghost">
                   오픈 소스 고지 전체
                 </Button>
               </>

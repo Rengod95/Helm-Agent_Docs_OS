@@ -79,7 +79,7 @@ export function Appearance({
           hint={L2("바뀐 키 2개", "2 shortcuts changed")}
         >
           <div>
-            <Button size="sm" tone="neutral" variant="outline" onClick={onShortcuts}>
+            <Button size="sm" variant="outline" onClick={onShortcuts}>
               {L2("바로 가기 키 보기와 바꾸기", "View and change shortcuts")}
             </Button>
           </div>

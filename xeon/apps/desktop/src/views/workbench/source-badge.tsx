@@ -18,7 +18,11 @@ const SCOPE_TEXT: Readonly<Record<SourceScope, MessageId>> = {
 /** 범위의 글. 어느 층이 값을 정했는지 글로 보인다 */
 export const scopeText = (scope: SourceScope): string => t(SCOPE_TEXT[scope]);
 
-/** 범위 배지. 설정 행마다 하나 */
+/** 범위 배지. 설정 행마다 하나(c02 시안과 같은 연한 중립 배지) */
 export function ScopeBadge(props: { readonly scope: SourceScope }): ReactNode {
-  return <Badge size="sm">{scopeText(props.scope)}</Badge>;
+  return (
+    <Badge size="sm" variant="soft">
+      {scopeText(props.scope)}
+    </Badge>
+  );
 }

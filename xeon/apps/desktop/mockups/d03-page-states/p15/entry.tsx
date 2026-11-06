@@ -282,17 +282,10 @@ function Stage({ state }: { state: StateId }) {
           </h1>
           {offline && <span className="text-ui-sm text-text-tertiary">3분 전 값</span>}
         </div>
-        <Button
-          size="sm"
-          tone="neutral"
-          variant="ghost"
-          loading={loading}
-          disabled={offline}
-          onClick={recheck}
-        >
+        <Button size="sm" variant="ghost" loading={loading} disabled={offline} onClick={recheck}>
           다시 확인
         </Button>
-        <Button size="sm" tone="neutral" variant="outline" onClick={copy}>
+        <Button size="sm" variant="outline" onClick={copy}>
           진단 복사
         </Button>
       </header>
@@ -309,7 +302,7 @@ function Stage({ state }: { state: StateId }) {
               layout="inline"
               size="sm"
               action={
-                <Button size="xs" tone="neutral" variant="outline">
+                <Button size="xs" variant="outline">
                   보통 모드로 다시 시작
                 </Button>
               }
@@ -326,7 +319,7 @@ function Stage({ state }: { state: StateId }) {
             trailing={
               <>
                 <span className="flex-1" />
-                <Button size="xs" tone="neutral" variant="ghost">
+                <Button size="xs" variant="ghost">
                   그룹 다시 읽기
                 </Button>
               </>
@@ -343,10 +336,10 @@ function Stage({ state }: { state: StateId }) {
                     size="sm"
                     action={
                       <>
-                        <Button size="xs" tone="neutral" variant="ghost">
+                        <Button size="xs" variant="ghost">
                           파일 열기
                         </Button>
-                        <Button size="xs" tone="neutral" variant="outline" disabled={offline}>
+                        <Button size="xs" variant="outline" disabled={offline}>
                           다시 켜기
                         </Button>
                       </>
@@ -386,7 +379,7 @@ function Stage({ state }: { state: StateId }) {
                       <span className="text-text-secondary">꺼짐</span>
                     )}
                     {!safe && (
-                      <Button size="xs" tone="neutral" variant="ghost" disabled={offline}>
+                      <Button size="xs" variant="ghost" disabled={offline}>
                         안전 모드로 다시 시작
                       </Button>
                     )}
@@ -428,7 +421,7 @@ function Stage({ state }: { state: StateId }) {
             trailing={
               <>
                 <span className="flex-1" />
-                <Button size="xs" tone="neutral" variant="ghost">
+                <Button size="xs" variant="ghost">
                   도구와 웹 열기
                 </Button>
               </>
@@ -468,7 +461,7 @@ function Stage({ state }: { state: StateId }) {
             trailing={
               <>
                 <span className="flex-1" />
-                <Button size="xs" tone="neutral" variant="ghost">
+                <Button size="xs" variant="ghost">
                   오픈 소스 고지 전체
                 </Button>
               </>
@@ -521,7 +514,7 @@ function EngineSection({ state }: { state: StateId }) {
         <ListDescriptionRow term="대상">
           <span className="flex flex-wrap items-baseline gap-x-2">
             {T.localEngine}
-            <Button size="xs" tone="neutral" variant="ghost" className="-my-1">
+            <Button size="xs" variant="ghost" className="-my-1">
               {T.connection} 화면 열기
             </Button>
           </span>
@@ -537,7 +530,7 @@ function EngineSection({ state }: { state: StateId }) {
                 <Badge size="xs" tone="success">
                   0.4.2 있음
                 </Badge>
-                <Button size="xs" tone="neutral" variant="outline" className="-my-1">
+                <Button size="xs" variant="outline" className="-my-1">
                   내려받기
                 </Button>
               </>
@@ -547,7 +540,7 @@ function EngineSection({ state }: { state: StateId }) {
               <span className="text-danger-text">확인하지 못했어요 · 연결 시간 초과</span>
             )}
             {(upd === "idle" || upd === "latest" || upd === "fail") && (
-              <Button size="xs" tone="neutral" variant="ghost" className="-my-1">
+              <Button size="xs" variant="ghost" className="-my-1">
                 업데이트 확인
               </Button>
             )}

@@ -635,7 +635,7 @@ export function StartPanel({
               surface="none"
               title={L("대화 목록을 읽지 못했어요")}
               actions={
-                <Button size="xs" tone="neutral" variant="outline" onClick={list.onRetry}>
+                <Button size="xs" variant="outline" onClick={list.onRetry}>
                   {L("다시 읽기")}
                 </Button>
               }
@@ -647,7 +647,7 @@ export function StartPanel({
               surface="none"
               title={L("아직 대화가 없어요")}
               actions={
-                <Button size="xs" tone="neutral" variant="outline" onClick={list.onNew}>
+                <Button size="xs" variant="outline" onClick={list.onNew}>
                   {L("새 대화")}
                 </Button>
               }
@@ -719,7 +719,6 @@ export function StartPanel({
           {list.listState === undefined && list.more !== undefined && (
             <Button
               size="xs"
-              tone="neutral"
               variant="ghost"
               className="justify-self-start"
               loading={list.more.loading === true}
