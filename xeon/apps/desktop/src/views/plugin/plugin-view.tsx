@@ -14,7 +14,7 @@ import {
 } from "@fresnel/client/views/app";
 import { Button, Chip } from "@caustic/react";
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { createBridgeBackend } from "../../plugin-ui/backend.ts";
+import { createBridgeBackend, type PluginShellPort } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
 import { useCommands } from "../commands.ts";
@@ -201,6 +201,7 @@ export function createSession(
   current: () => HostConnection | null,
   runtime: PluginUiRuntime,
   openExternal: (href: string) => Promise<void>,
+  shell?: PluginShellPort,
 ): Session {
   const box: SessionBox = { thread: threadId, context };
   return {
@@ -220,6 +221,7 @@ export function createSession(
       createBridgeBackend({
         // 재연결 뒤에도 낡은 연결로 보내지 않게 요청마다 지금 연결을 읽는다
         connection: () => current() ?? undefined,
+        shell,
         extension: entry.extension,
         screen: entry.id,
         openThreadId: () => box.thread ?? undefined,
@@ -261,6 +263,7 @@ function useSession(
   threadId: string | null,
   runtime: PluginUiRuntime,
   openExternal: (href: string) => Promise<void>,
+  shell: PluginShellPort | undefined,
 ): Session {
   const commands = useCommands();
   const [session] = useState(() =>
@@ -272,6 +275,7 @@ function useSession(
       () => commands.pluginUi.current(),
       runtime,
       openExternal,
+      shell,
     ),
   );
   useEffect(() => {
@@ -288,7 +292,14 @@ function FrameBody(props: {
   const { entry, loaded, runtime } = props;
   const plugin = usePluginUi();
   const threadId = useSelectedThreadId();
-  const session = useSession(entry, loaded.context, threadId, runtime, plugin.openExternal);
+  const session = useSession(
+    entry,
+    loaded.context,
+    threadId,
+    runtime,
+    plugin.openExternal,
+    plugin.shell,
+  );
   const app = entry.app;
   const url =
     app === undefined
@@ -362,10 +373,10 @@ export function NativeSurface(props: {
   readonly dense?: boolean;
 }): ReactNode {
   const { entry, loaded, doc, dense = false } = props;
-  const { runtime, openExternal } = usePluginUi();
+  const { runtime, openExternal, shell } = usePluginUi();
   const commands = useCommands();
   const threadId = useSelectedThreadId();
-  const session = useSession(entry, loaded.context, threadId, runtime, openExternal);
+  const session = useSession(entry, loaded.context, threadId, runtime, openExternal, shell);
   const [backend] = useState(() => session.makeBackend(() => {}));
   const key = screenKeyOf(entry);
   const runner = useRunner(session, backend, runtime, key);

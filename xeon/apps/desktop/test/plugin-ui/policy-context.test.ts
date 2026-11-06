@@ -209,3 +209,57 @@ describe("appsAllowed", () => {
     expect(appsAllowed("project", { [UI_ALLOW_PROJECT_APPS_KEY]: 1 })).toBe(false);
   });
 });
+
+const withApp = (capabilities: readonly string[] | undefined) =>
+  uiEntryOf({
+    mode: "app",
+    app: {
+      root: "./ui/graph",
+      entry: "index.html",
+      bridge: "^1.0.0",
+      reason: "canvas",
+      ...(capabilities === undefined ? {} : { capabilities: capabilities.filter(isCapability) }),
+    },
+  });
+
+describe("policyContextOf shell capabilities", () => {
+  test("capabilities come from the screen's app declaration and are empty without one", () => {
+    const declared = policyContextOf({
+      get: extGetOf(),
+      entry: withApp(["files", "secrets"]),
+      openThreadId: undefined,
+      commands,
+    });
+    const none = policyContextOf({
+      get: extGetOf(),
+      entry: withApp(undefined),
+      openThreadId: undefined,
+      commands,
+    });
+    const native = policyContextOf({
+      get: extGetOf(),
+      entry: uiEntryOf(),
+      openThreadId: undefined,
+      commands,
+    });
+    expect(declared.ok && [...declared.value.capabilities]).toEqual(["files", "secrets"]);
+    expect(none.ok && [...none.value.capabilities]).toEqual([]);
+    expect(native.ok && [...native.value.capabilities]).toEqual([]);
+  });
+
+  test("only declared non-sensitive userConfig keys are writable", () => {
+    const context = policyContextOf({
+      get: extGetOf(),
+      entry: withApp(["settingsWrite"]),
+      openThreadId: undefined,
+      commands,
+    });
+    expect(context.ok && [...context.value.writableSettingKeys]).toEqual(["ext.helm.model"]);
+    // 읽기 선언은 비밀 키도 포함한다(값은 상태만 준다)
+    expect(context.ok && context.value.declaredSettingKeys.has("ext.helm.token")).toBe(true);
+  });
+});
+
+function isCapability(name: string): name is "files" | "notify" | "settingsWrite" | "secrets" {
+  return name === "files" || name === "notify" || name === "settingsWrite" || name === "secrets";
+}

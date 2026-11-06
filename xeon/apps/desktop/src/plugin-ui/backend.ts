@@ -7,6 +7,8 @@ import {
   parse,
   type Result,
 } from "@fresnel/contracts";
+import { Type } from "typebox";
+import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
 import { ThreadIdSchema, type ItemRecord, type ThreadId } from "@fresnel/contracts/conversation";
 import { UI_LIMITS, type BridgeError } from "@fresnel/contracts/extensions";
 import {
@@ -34,7 +36,23 @@ import {
 /** 셸이 직접 여는 이동(외부 링크 제외). 외부 링크는 `openExternal`로만 간다 */
 type ShellNavigateTarget = Exclude<NavigateTarget, { readonly kind: "external" }>;
 
+/** 플러그인 화면 다리가 부르는 셸 명령. 프레임에 IPC를 주지 않고 앱 본 화면이 대신 부른다(ADR-0021 §3.4.3) */
+export type PluginShellCommand = "pick_file_read" | "pick_folder" | "save_file" | "notify_os";
+
+/** 셸 기능 입구. 운영은 셸 어댑터와 `createDesktopIpc`가 채운다. 없으면(웹, 시험) 셸 기능 op는 `shell_unavailable`이다 */
+export interface PluginShellPort {
+  invoke(command: PluginShellCommand, args?: Readonly<Record<string, unknown>>): Promise<unknown>;
+  /** 값은 셸 stdin으로만 간다. 호출자(백엔드)가 부른 뒤 `value`를 0으로 덮는다 */
+  registerSecret(
+    name: SecretName,
+    action: "add" | "set",
+    value: Uint8Array,
+  ): Promise<Result<null, unknown>>;
+}
+
 export interface BridgeBackendDeps {
+  /** 셸 기능(파일, 알림, 시크릿 등록). 웹 빌드에는 없다 */
+  readonly shell?: PluginShellPort | undefined;
   /** 요청마다 지금 연결을 읽는다. 재연결 뒤에도 낡은 연결로 보내지 않는다. 연결이 없으면 요청은 실패한다 */
   readonly connection: () => HostConnection | undefined;
   /** 확장 이름. `ext.ui.post`의 `extension`에 쓴다 */
@@ -59,6 +77,30 @@ export interface BridgeBackendDeps {
 const POST_NAME = "message";
 /** `events` 행 상한. 다리 상한(`UI_LIMITS.eventRows`)과 `thread.read` 상한이 같다 */
 const EVENT_ROWS_MAX = UI_LIMITS.eventRows;
+
+const PickedFileSchema = Type.Union([
+  Type.Null(),
+  Type.Object({ name: Type.String(), content: Type.String() }, { additionalProperties: false }),
+]);
+const PathReplySchema = Type.Union([Type.Null(), Type.String()]);
+const NotifyReplySchema = Type.Object(
+  { kind: Type.Union([Type.Literal("shown"), Type.Literal("denied"), Type.Literal("failed")]) },
+  { additionalProperties: false },
+);
+/** 셸이 거부하며 준 짧은 코드(`too-large`, `not-text`, `read_failed` 같은 것)만 세부로 옮긴다. 그 밖의 값은 옮기지 않는다 */
+const SHELL_CODE = /^[a-z][a-z_-]{0,31}$/u;
+
+function shellFailure(cause: unknown): BackendResult<never> {
+  if (typeof cause === "string" && SHELL_CODE.test(cause)) {
+    return cause === "too-large" ? fail("too_large") : fail("failed", cause);
+  }
+  return fail("failed", "shell");
+}
+
+/** 폴더 경로의 마지막 조각. 경로 전체는 프레임에 주지 않는다 */
+function lastSegment(picked: string): string {
+  return picked.split(/[\\/]/u).findLast((part) => part !== "") ?? "";
+}
 
 function fail(kind: BridgeError["kind"], detail?: string): BackendResult<never> {
   return err(detail === undefined ? { kind } : { kind, detail });
@@ -277,6 +319,84 @@ export function createBridgeBackend(deps: BridgeBackendDeps): BridgeBackend {
       const href = target.link.href;
       const opened = await attemptAsync(() => deps.openExternal(href));
       return opened.ok ? ok(null) : fail("failed", "open_external");
+    },
+
+    async pickFile() {
+      const shell = deps.shell;
+      if (shell === undefined) return fail("failed", "shell_unavailable");
+      const reply = await attemptAsync(() => shell.invoke("pick_file_read"));
+      if (!reply.ok) return shellFailure(reply.error.cause);
+      const parsed = parse(PickedFileSchema, reply.value);
+      return parsed.ok ? ok(parsed.value) : fail("failed", "shell_reply");
+    },
+
+    async pickFolder() {
+      const shell = deps.shell;
+      if (shell === undefined) return fail("failed", "shell_unavailable");
+      const reply = await attemptAsync(() => shell.invoke("pick_folder"));
+      if (!reply.ok) return shellFailure(reply.error.cause);
+      const parsed = parse(PathReplySchema, reply.value);
+      if (!parsed.ok) return fail("failed", "shell_reply");
+      if (parsed.value === null || parsed.value === "") return ok(null);
+      return ok({ name: lastSegment(parsed.value) });
+    },
+
+    async saveFile(suggestedName, content) {
+      const shell = deps.shell;
+      if (shell === undefined) return fail("failed", "shell_unavailable");
+      const reply = await attemptAsync(() => shell.invoke("save_file", { suggestedName, content }));
+      if (!reply.ok) return shellFailure(reply.error.cause);
+      const parsed = parse(PathReplySchema, reply.value);
+      // 고른 경로는 프레임에 주지 않는다. 저장했는지만 알린다
+      return parsed.ok ? ok({ saved: parsed.value !== null }) : fail("failed", "shell_reply");
+    },
+
+    async notify(title, body) {
+      const shell = deps.shell;
+      if (shell === undefined) return fail("failed", "shell_unavailable");
+      const reply = await attemptAsync(() => shell.invoke("notify_os", { title, body }));
+      if (!reply.ok) return shellFailure(reply.error.cause);
+      const parsed = parse(NotifyReplySchema, reply.value);
+      if (!parsed.ok) return fail("failed", "shell_reply");
+      if (parsed.value.kind === "denied") return fail("denied", "os_denied");
+      return parsed.value.kind === "shown" ? ok({ shown: true }) : fail("failed", "not_shown");
+    },
+
+    async writeSetting(key, value) {
+      // 정의를 다시 본다: 모르는 키와 비밀 키는 쓰지 않는다(닫힌 쪽). 판정이 이미 선언한 키만 보냈지만 엔진 정의가 정본이다
+      const defs = await onWire((connection) => connection.request("settings.list", {}));
+      if (!defs.ok) return defs;
+      const def = defs.value.defs.find((candidate) => candidate.key === key);
+      if (def === undefined || def.secret === true) return fail("denied", "setting_secret");
+      const written = await onWire((connection) =>
+        connection.request("settings.set", { key, value, scope: "user" }),
+      );
+      return written.ok ? ok(null) : written;
+    },
+
+    async secretExists(secretName) {
+      const listed = await onWire((connection) => connection.request("secret.list", {}));
+      if (!listed.ok) return listed;
+      return ok(listed.value.secrets.some((secret) => secret.name === secretName));
+    },
+
+    async registerSecret(secretName, value, overwrite) {
+      const shell = deps.shell;
+      if (shell === undefined) return fail("failed", "shell_unavailable");
+      // 이름은 셸의 이름 검사와 같은 규칙(`SecretNameSchema`)을 한 번 더 통과해야 한다
+      const name = parse(SecretNameSchema, secretName);
+      if (!name.ok) return fail("args_invalid", "secret_name");
+      const bytes = new TextEncoder().encode(value);
+      try {
+        const sent = await attemptAsync(() =>
+          shell.registerSecret(name.value, overwrite ? "set" : "add", bytes),
+        );
+        // 거부 값에는 셸의 자식 출력 요약이 들어 있을 수 있어 옮기지 않는다. 이름 있는 종류만 고정 글로 돌려준다
+        if (!sent.ok || !sent.value.ok) return fail("failed", "secret_register");
+        return ok(null);
+      } finally {
+        bytes.fill(0);
+      }
     },
 
     resize(height) {

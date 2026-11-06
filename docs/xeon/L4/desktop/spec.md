@@ -792,6 +792,8 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`. 모든 IPC는 발신 프레임이 최상위 프레임이고 `app://localhost`일 때만 핸들러에 닿는다(`fresnel-view://` 프레임은 닿지 못한다). 창 안 이동과 새 창은 막고, 밖으로 여는 일은 `open_external`(스킴 허용 목록)뿐이다. CSP는 Tauri 설정과 같은 수준이다. Tauri capability와의 대응표는 `L4.desktop.design` §15에 있다. 새 IPC 보안 모델의 최종 검토는 사용자 몫이다.
 
+[결정: 2026-11-06 사용자] `fresnel-view://` 프레임은 IPC를 받지 않는다(위 검사 그대로). 대신 프레임이 파일 고르기·저장, 외부 링크, OS 알림, 앱 설정 쓰기, 시크릿 등록을 쓸 수 있게 기존 Plugin App 다리에 op 여섯을 더했다(ADR-0021 §3.4.3). 앱 본 화면(`plugin-ui/backend.ts`의 `createBridgeBackend`)이 판정(선언 `capabilities`, 켜짐, 안전 모드, 자기 접두, 속도, 확인 줄)을 통과한 요청만 셸 명령 `pick_file_read`, `pick_folder`, `save_file`, `notify_os`, `secret_register`와 엔진 wire(`settings.set`, `secret.list`)로 바꿔 부른다. 프레임에는 경로, 셸 오류 원문, 시크릿 값이 가지 않는다. 폴더는 이름만, 저장은 `{ saved }`만 돌려준다. 새 셸 명령은 `pick_file_read` 하나뿐이고 고른 파일 하나만 읽는다(§11.5).
+
 ### 11.3 실행
 
 `just desktop-run-electron`(Tauri `just desktop-run`은 그대로). 단일 인스턴스 잠금은 이 앱의 userData 기준이라 Tauri 셸과 서로 막지 않는다(§11.6).

@@ -82,6 +82,14 @@ export function policyContextOf(
     declaredSettingKeys: new Set(
       Object.values(manifest.userConfig ?? {}).map((setting) => setting.setting),
     ),
+    // 셸 기능 권한은 이 화면의 앱 선언에서만 온다. 앱이 아니거나 적지 않았으면 비어 있다(ADR-0021 §3.4.3)
+    capabilities: new Set(entry.app?.capabilities ?? []),
+    // 쓰기는 선언했고 `sensitive`가 아닌 키만이다. 시크릿 키는 `registerSecret`으로만 간다
+    writableSettingKeys: new Set(
+      Object.values(manifest.userConfig ?? {})
+        .filter((setting) => setting.sensitive !== true)
+        .map((setting) => setting.setting),
+    ),
     ownCommands: new Set(
       input.commands
         .filter((command) => command.origin === extension)

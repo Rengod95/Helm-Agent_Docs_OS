@@ -24,7 +24,7 @@ const executedCalls: string[] = [];
 const confirmAsked: ConfirmRequest[] = [];
 const unexpectedWindowMessages: unknown[] = [];
 
-const ok = (value: unknown): BackendResult<unknown> => ({ ok: true, value });
+const ok = <T>(value: T): BackendResult<T> => ({ ok: true, value });
 
 const backend: BridgeBackend = {
   query(verb, queryParams) {
@@ -65,6 +65,14 @@ const backend: BridgeBackend = {
     return Promise.resolve(ok({ outcome: "pending" }));
   },
   navigate: () => Promise.resolve(ok(null)),
+  // 셸 기능 op는 이 시험의 대상이 아니다. 프레임이 어떤 것도 못 닿는지는 선언 없음(`not_declared`)으로 막혀 여기까지 오지 않는다
+  pickFile: () => Promise.resolve(ok(null)),
+  pickFolder: () => Promise.resolve(ok(null)),
+  saveFile: () => Promise.resolve(ok({ saved: false })),
+  notify: () => Promise.resolve(ok({ shown: false })),
+  writeSetting: () => Promise.resolve(ok(null)),
+  secretExists: () => Promise.resolve(ok(false)),
+  registerSecret: () => Promise.resolve(ok(null)),
   resize: () => {},
   diagnostic: () => {},
 };
@@ -81,6 +89,8 @@ const context: BridgePolicyContext = {
   readsRecordKinds: [],
   settingPrefixes: ["ext.helm."],
   declaredSettingKeys: new Set(["ext.helm.depth"]),
+  capabilities: new Set(),
+  writableSettingKeys: new Set(),
   ownCommands: new Set<string>(),
   allowPost: false,
   openThreadId: "thr_1",

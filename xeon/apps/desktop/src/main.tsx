@@ -9,6 +9,7 @@ import { selectShellBridge } from "./shell/index.ts";
 import { createDesktopIpc } from "./transport/ipc.ts";
 import { Providers } from "./views/providers.tsx";
 import { App } from "./views/app.tsx";
+import type { PluginShellPort } from "./plugin-ui/backend.ts";
 import { createPluginUiRuntime } from "./plugin-ui/runtime.ts";
 import { createConfirmQueue } from "./views/plugin/confirm-host.tsx";
 import { PluginUiProvider } from "./views/plugin/plugin-context.tsx";
@@ -137,6 +138,11 @@ if (container === null) {
     openExternal: async (href: string) => {
       await invoke("open_external", { href });
     },
+    // 프레임 대신 앱 본 화면이 셸 명령을 부른다. 웹 빌드는 어댑터가 명령을 거절하므로 op가 `failed`로 끝난다
+    shell: {
+      invoke: (command, args) => invoke(command, args),
+      registerSecret: (name, action, value) => ipc.registerSecret(name, action, value),
+    } satisfies PluginShellPort,
   };
   window.addEventListener("error", (event) => {
     app.log.logger.error("desktop.window.error", {

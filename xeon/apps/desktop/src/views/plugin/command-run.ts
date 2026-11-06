@@ -6,6 +6,7 @@ import {
   type BridgePolicyContext,
 } from "@fresnel/client/views/app";
 import { useEffect, useState, useSyncExternalStore } from "react";
+import type { PluginShellPort } from "../../plugin-ui/backend.ts";
 import { commandEntriesOf } from "../../plugin-ui/placements.ts";
 import type { PluginUiRuntime } from "../../plugin-ui/runtime.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
@@ -68,6 +69,7 @@ export function createEntryCommandRunner(options: {
   readonly runtime: PluginUiRuntime;
   readonly confirm: ConfirmQueue;
   readonly openExternal: (href: string) => Promise<void>;
+  readonly shell?: PluginShellPort | undefined;
   readonly current: () => HostConnection | null;
   readonly showScreen: (screen: "chat" | "settings") => void;
   /** 시계와 타이머. 생략하면 브라우저 것이다(시험은 고정 값을 넣는다) */
@@ -84,6 +86,7 @@ export function createEntryCommandRunner(options: {
     options.current,
     runtime,
     options.openExternal,
+    options.shell,
   );
   const runner: ActionRunner = createActionRunner({
     screenKey: key,
