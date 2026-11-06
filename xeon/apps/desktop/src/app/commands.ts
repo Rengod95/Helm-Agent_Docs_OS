@@ -399,6 +399,7 @@ export function createCommands(deps: CommandDeps): Commands {
       return restarted;
     },
     noteRestartNeeded: (reason) => ui.actions.noteRestartNeeded(reason),
+    versions: () => deps.versions(),
     async copyDiagnostics() {
       engine.flush();
       const bundle = buildDiagnostics(

@@ -224,6 +224,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     noteRestartNeeded: () => {},
     retargetEngine: () => Promise.resolve(ok(null)),
     copyDiagnostics: () => Promise.resolve(true),
+    versions: () => ({ app: "0.0.0-test", engine: null }),
     ...overrides,
   };
 }

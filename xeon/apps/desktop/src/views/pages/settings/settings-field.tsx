@@ -69,6 +69,8 @@ export interface FieldHandlers {
   /** 초안을 저장한다 */
   readonly commit: (key: SettingKey) => void;
   readonly discard: (key: SettingKey) => void;
+  /** 다른 곳에서 바뀐 값을 두고 내 초안을 유지한다("내 값 유지") */
+  readonly keepDraft: (key: SettingKey) => void;
   readonly selectScope: (key: SettingKey, scope: WritableScope) => void;
   /** 범위 값을 지운다 */
   readonly reset: (key: SettingKey, scope: WritableScope) => void;
@@ -337,9 +339,31 @@ export function FieldRow(props: FieldRowProps): ReactNode {
         </p>
       )}
       {remoteNoticeOf(field) ? (
-        <Alert tone="warning" variant="ghost" size="sm">
-          {t("desktop.settings.field.remoteChanged")}
-        </Alert>
+        <div className="grid gap-1.5" data-slot="settings-remote-changed">
+          <Alert tone="warning" variant="ghost" size="sm">
+            {t("desktop.settings.conflict.label")}: {t("desktop.settings.field.remoteChanged")}
+          </Alert>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => {
+                handlers.discard(field.key);
+              }}
+            >
+              {t("desktop.settings.conflict.useNew")}
+            </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              onClick={() => {
+                handlers.keepDraft(field.key);
+              }}
+            >
+              {t("desktop.settings.conflict.keepMine")}
+            </Button>
+          </div>
+        </div>
       ) : null}
       {field.deprecated === null ? null : (
         <Alert tone="warning" variant="ghost" size="sm">

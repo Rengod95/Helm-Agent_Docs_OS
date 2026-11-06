@@ -4,6 +4,7 @@ import { desktopSettingsModule } from "./desktop-settings.ts";
 import { dialogsModule } from "./dialogs.ts";
 import { engineModule } from "./engine.ts";
 import { inspectModule } from "./inspect.ts";
+import { logFolderShellModule } from "./log-folder-shell.ts";
 import { openExternalModule } from "./open-external.ts";
 import { secretEntryModule } from "./secret-entry.ts";
 import { notifyOsShellModule } from "./notify-os-shell.ts";
@@ -23,6 +24,7 @@ export const MODULES: readonly ShellModule[] = [
   inspectModule,
   windowStateModule,
   openExternalModule,
+  logFolderShellModule,
   dialogsModule,
   secretEntryModule,
   viewSchemeModule,

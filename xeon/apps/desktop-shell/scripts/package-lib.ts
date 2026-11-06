@@ -54,3 +54,15 @@ const MIB = 1024 * 1024;
 export function mibOf(bytes: number): number {
   return Math.round((bytes / MIB) * 10) / 10;
 }
+
+/**
+ * `FRESNEL_UPDATE_REPO`(`소유자/저장소`)로 GitHub Releases 업데이트 피드 파일 글을 만든다. 형식이 틀리면 `null`이다.
+ * 저장소 이름은 사용자 몫이라 코드에 박지 않는다.
+ */
+export function githubFeedText(repo: string | undefined): string | null {
+  const match = /^([A-Za-z0-9._-]{1,100})\/([A-Za-z0-9._-]{1,100})$/u.exec((repo ?? "").trim());
+  const owner = match?.[1];
+  const name = match?.[2];
+  if (owner === undefined || name === undefined) return null;
+  return `${JSON.stringify({ provider: "github", owner, repo: name })}\n`;
+}

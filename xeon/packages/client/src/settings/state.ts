@@ -78,6 +78,7 @@ export type SettingsAction =
   | { readonly type: "loadFailed"; readonly error: FieldError }
   | { readonly type: "draftEdited"; readonly key: SettingKey; readonly raw: unknown }
   | { readonly type: "draftDiscarded"; readonly key: SettingKey }
+  | { readonly type: "remoteKept"; readonly key: SettingKey }
   /** 범위는 화면 입력이라 모든 범위를 받는다. 쓸 수 있는 범위가 아니면 전이가 버린다 */
   | { readonly type: "scopeSelected"; readonly key: SettingKey; readonly scope: SettingScope }
   | { readonly type: "writeBlocked"; readonly key: SettingKey; readonly error: FieldError }
@@ -233,8 +234,20 @@ export function reduceSettings(state: SettingsState, action: SettingsAction): Se
         : { ...state, engineOffline: action.offline };
     case "valuesLoaded": {
       const values = new Map(state.values);
-      for (const setting of action.settings) values.set(setting.key, setting);
-      return { ...state, values, status: "ready", loadError: null };
+      // 다시 읽은 값이 이전 값과 같으면 바깥 변경이 아니다(내 쓰기의 알림, 같은 값으로 쓴 파일). 그런 표시는 걷는다
+      let remoteChanged = state.remoteChanged;
+      for (const setting of action.settings) {
+        const before = values.get(setting.key);
+        if (
+          remoteChanged.has(setting.key) &&
+          before !== undefined &&
+          JSON.stringify(before.value ?? null) === JSON.stringify(setting.value ?? null)
+        ) {
+          remoteChanged = withoutMember(remoteChanged, setting.key);
+        }
+        values.set(setting.key, setting);
+      }
+      return { ...state, values, remoteChanged, status: "ready", loadError: null };
     }
     case "valueChanged":
       return { ...state, values: withEntry(state.values, action.setting.key, action.setting) };
@@ -249,6 +262,10 @@ export function reduceSettings(state: SettingsState, action: SettingsAction): Se
         errors: withoutEntry(state.errors, action.key),
         remoteChanged: withoutMember(state.remoteChanged, action.key),
       };
+    case "remoteKept":
+      return state.remoteChanged.has(action.key)
+        ? { ...state, remoteChanged: withoutMember(state.remoteChanged, action.key) }
+        : state;
     case "scopeSelected": {
       const def = state.defs.get(action.key);
       if (def === undefined) return state;

@@ -859,6 +859,8 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ### 11.10 업데이트 피드 자리와 서명 검증 (3단계)
 
+[구현: 2026-11-07, scA-6] 피드 파일은 `{"provider":"generic","url":…}` 또는 GitHub Releases를 가리키는 `{"provider":"github","owner":…,"repo":…}`다([결정: 2026-11-04 사용자] 피드는 GitHub Releases). `scripts/package.ts`는 `build/update-feed.json`이 있으면 넣고, 없으면 환경 변수 `FRESNEL_UPDATE_REPO=소유자/저장소`로 `github` 피드를 만들어 넣는다. 둘 다 없으면 피드 없이 묶여 앱은 "업데이트를 확인할 수 없어요"를 보인다. 저장소가 비공개면 앱이 릴리스를 읽지 못하므로 공개 릴리스 저장소와 그 이름은 사용자 몫이다.
+
 - 자리: `Resources/update-feed.json`, 내용은 `{"provider":"generic","url":"<배포 주소>"}`(§11.6 업데이트). 묶기는 `apps/desktop-shell/build/update-feed.json`이 있으면 그 파일을 Resources에 넣고 없으면 넣지 않는다(앱은 `notConfigured`로 돈다). 배포 주소의 값과 파일 커밋은 사용자 몫이다.
 - 서버가 주는 것: electron-updater 일반 제공자는 `<배포 주소>/latest-mac.yml`(버전, 파일 이름, sha512, 크기)과 그 파일이 가리키는 zip을 읽는다. 이 저장소는 아직 `latest-mac.yml`을 만들지 않는다(`release-archive-electron`은 zip과 `.sha256`만 낸다). 만드는 일과 올리는 일은 [미결]이고 사용자 몫이다. zip 이름에 `arm64`가 들어 있어(`Fresnel-<버전>-arm64.zip`) arm64 Mac이 이 파일을 고른다. [근거: `xeon/apps/desktop-shell/src/main/updater-shell.ts`]
 - 검증(electron-updater 문서 기준이며 이 저장소에서 실제 피드로 실행해 보지 않았다): 내려받은 zip의 sha512를 `latest-mac.yml` 값과 맞춰 보고(무결성. 어긋나면 오류 문구에 sha512가 들어가 `failed(signature)`로 분류된다, `updater.ts`), macOS에서 설치는 Squirrel.Mac이 한다. Squirrel.Mac은 새 앱의 코드 서명이 지금 실행 중인 앱의 서명과 같은 서명자인지 확인하므로(진위) 앱이 Developer ID로 서명돼 있어야 하고, 서명 없는 앱은 macOS에서 자동 업데이트가 설치까지 가지 못한다. electron-updater의 `publisherName` 검증은 Windows용이라 쓰지 않는다. 즉 옛 Tauri 구현(커밋 424f338a)의 minisign 공개키 같은 별도 업데이트 키는 없고, 신뢰는 Apple 서명과 배포 주소(HTTPS)에 있다. 서버 주소가 뚫리면 sha512만으로는 막지 못하지만 서명자가 다른 zip은 Squirrel.Mac이 거부한다.

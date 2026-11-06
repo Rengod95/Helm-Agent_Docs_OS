@@ -34,6 +34,11 @@ function requireThreadIfGiven(engine: Engine, threadId: ThreadId | undefined, wh
 
 export function createSettingsGetHandler(engine: Engine): WireHandler<"settings.get"> {
   const { ports, catalog } = engine;
+  // 적용된 값은 엔진이 켜질 때 바로 기억한다. 첫 settings.get까지 미루면 그 전에 앱 밖(CLI)에서 바뀐 값이 기준이 되어
+  // 재시작 대기로 세지 못한다(scA-4-1)
+  for (const def of catalog.values()) {
+    if (def.runtimeChange !== "live") rememberApplied(engine, def, undefined);
+  }
   return async (params) => {
     const { threadId } = params;
     requireThreadIfGiven(engine, threadId, "settings.get");

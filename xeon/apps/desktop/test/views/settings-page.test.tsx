@@ -36,6 +36,7 @@ const handlers: SettingsPageHandlers = {
     change: NOOP,
     commit: NOOP,
     discard: NOOP,
+    keepDraft: NOOP,
     selectScope: NOOP,
     reset: NOOP,
   },
@@ -330,6 +331,9 @@ describe("widget controls", () => {
     const moved = reduceSettings(edited, { type: "invalidated", keys: [ALLOW.key] });
     const noticed = html(propsOf({ view: settingsViewOf(moved), tab: "models", hasThread: true }));
     expect(noticed).toContain(t("desktop.settings.field.remoteChanged"));
+    expect(noticed).toContain(t("desktop.settings.conflict.label"));
+    expect(noticed).toContain(t("desktop.settings.conflict.useNew"));
+    expect(noticed).toContain(t("desktop.settings.conflict.keepMine"));
   });
 });
 
@@ -465,6 +469,16 @@ describe("overview tab sections", () => {
     expect(out).toContain(">3개<");
     expect(out).toContain(">1개<");
     expect(out.match(/>0개</g)?.length).toBe(3);
+  });
+
+  test("draws the 정보와 진단 card with versions and the copy button, and no log button on the web", () => {
+    const out = html(propsOf({ view, tab: "overview" }));
+    expect(out).toContain(t("desktop.settings.about.title"));
+    expect(out).toContain(t("desktop.settings.about.appVersion"));
+    expect(out).toContain("0.0.0-test");
+    expect(out).toContain(t("desktop.settings.about.engineUnknown"));
+    expect(out).toContain(t("desktop.settings.overview.copyDiagnostics"));
+    expect(out).not.toContain(t("desktop.settings.about.openLogs"));
   });
 
   test("draws the 설정 파일 card with the user, project and managed paths, and none when no path was read", () => {

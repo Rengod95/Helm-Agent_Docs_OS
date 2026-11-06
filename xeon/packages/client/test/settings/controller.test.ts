@@ -345,6 +345,48 @@ describe("changes from elsewhere", () => {
     expect([...state.remoteChanged]).toEqual([BUDGET]);
   });
 
+  test("a flagged draft is not written until the user keeps it, and then it overwrites", async () => {
+    const host = hostFor();
+    await host.controller.load();
+    host.controller.edit(BUDGET, 3);
+    host.stored.set(BUDGET, effectiveOf(BUDGET, 9, { source: { scope: "user" } }));
+    host.fake.emit("settings.invalidated", { keys: [BUDGET], scopes: ["user"], threadId: null });
+    await flush();
+    await host.controller.commit(BUDGET);
+    expect(host.methods().includes("settings.set")).toBe(false);
+    expect(host.controller.getState().drafts.get(BUDGET)).toEqual({ value: 3, issues: [] });
+    host.controller.keepDraft(BUDGET);
+    expect(host.controller.getState().remoteChanged.size).toBe(0);
+    await host.controller.commit(BUDGET);
+    expect(host.fake.calls.at(-1)).toEqual({
+      method: "settings.set",
+      params: { key: BUDGET, value: 3, scope: "user" },
+    });
+  });
+
+  test("taking the new value drops the draft and the flag", async () => {
+    const host = hostFor();
+    await host.controller.load();
+    host.controller.edit(BUDGET, 3);
+    host.stored.set(BUDGET, effectiveOf(BUDGET, 9, { source: { scope: "user" } }));
+    host.fake.emit("settings.invalidated", { keys: [BUDGET], scopes: ["user"], threadId: null });
+    await flush();
+    host.controller.discard(BUDGET);
+    const state = host.controller.getState();
+    expect(state.drafts.has(BUDGET)).toBe(false);
+    expect(state.remoteChanged.size).toBe(0);
+    expect(state.values.get(BUDGET)?.value).toBe(9);
+  });
+
+  test("a notice whose reloaded value equals the old one is not a change elsewhere", async () => {
+    const host = hostFor();
+    await host.controller.load();
+    host.controller.edit(BUDGET, 3);
+    host.fake.emit("settings.invalidated", { keys: [BUDGET], scopes: ["user"], threadId: null });
+    await flush();
+    expect(host.controller.getState().remoteChanged.size).toBe(0);
+  });
+
   test("a change with empty keys reads the catalog and every value again", async () => {
     const host = hostFor();
     await host.controller.load();
