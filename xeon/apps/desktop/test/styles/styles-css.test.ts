@@ -110,3 +110,11 @@ test("forced-colors rules exist for the input border and the selected states", (
   expect(forced).toContain('[data-slot="list-navigation-item"][aria-current="page"]');
   expect(forced).toContain("background: Highlight");
 });
+
+test("prefers-contrast: more raises the border and secondary text tokens", () => {
+  expect(STYLES).toContain('@import "./high-contrast.css"');
+  const contrast = withoutComments(read(join(SRC, "high-contrast.css")));
+  expect(contrast).toContain("@media (prefers-contrast: more)");
+  expect(contrast).toContain("--cs-color-border-default:");
+  expect(contrast).toContain("--cs-color-text-secondary:");
+});

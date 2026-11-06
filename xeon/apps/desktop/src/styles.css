@@ -5,6 +5,7 @@
 @import "@caustic/react/styles.css";
 @import "@caustic/tokens/fonts.css";
 @import "./type-scale.css";
+@import "./high-contrast.css";
 @import "./views/craft/orbit.css";
 @import "./views/craft/link.css";
 @import "./views/transcript-caret.css";

@@ -1,0 +1,25 @@
+/* 고대비 선호(`prefers-contrast: more`): 경계선과 보조 글자 색을 올린다. 강제 색(`forced-colors`)과 달리 앱이 토큰을 올려야 하는 설정이다.
+   [기본값] 스펙 V-14는 고대비를 넣지 않았다고 적었으나 이 미디어 쿼리는 OS 강제 색이 아니라 앱 몫이라 최소 규칙만 둔다. 제품 요구인지는 사용자 결정으로 남긴다.
+   라이트·다크 모두 본문 글 색(text-primary)에서 파생해 두 테마가 같은 식으로 간다. type-scale.css의 글 색 변수보다 특이도를 높여(:root 세 번) 이긴다.
+   무층으로 두는 것은 변수 선언뿐이다. */
+@media (prefers-contrast: more) {
+  html:root:root:root {
+    --cs-color-border-default: color-mix(in oklch, var(--cs-color-text-primary) 60%, transparent);
+    --cs-color-border-strong: color-mix(in oklch, var(--cs-color-text-primary) 80%, transparent);
+    --cs-color-text-secondary: color-mix(
+      in oklch,
+      var(--cs-color-text-primary) 92%,
+      var(--cs-color-surface-base)
+    );
+    --cs-color-text-tertiary: color-mix(
+      in oklch,
+      var(--cs-color-text-primary) 85%,
+      var(--cs-color-surface-base)
+    );
+    --cs-color-text-placeholder: color-mix(
+      in oklch,
+      var(--cs-color-text-primary) 75%,
+      var(--cs-color-surface-base)
+    );
+  }
+}
