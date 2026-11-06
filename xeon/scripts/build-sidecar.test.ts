@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -395,3 +395,29 @@ test("a compiled binary carries the injected version, and reports 0.0.0 without 
     rmSync(dir, { recursive: true, force: true });
   }
 }, 120_000);
+
+test("worker files are compiled in as extra entries after the main entry", () => {
+  const base = { entry: "/e/main.ts", outFile: "/o/fresnel-x", bunTarget: "bun-linux-x64" };
+  expect(compileArgs({ ...base, bytecode: true, workers: ["../w/a.ts", "../w/b.ts"] })).toEqual([
+    "build",
+    "--compile",
+    "--minify",
+    "--bytecode",
+    "--target=bun-linux-x64",
+    "/e/main.ts",
+    "../w/a.ts",
+    "../w/b.ts",
+    "--outfile",
+    "/o/fresnel-x",
+  ]);
+});
+
+test("the shipped sidecar.json lists the web convert worker and the file exists", () => {
+  const text = readFileSync(join(import.meta.dir, "..", "apps", "desktop", "sidecar.json"), "utf8");
+  const config = parseSidecarConfig(text);
+  expect(config.ok).toBe(true);
+  if (!config.ok) return;
+  expect(config.value.workers).toEqual(["../../packages/cap-web/src/fetch/convert-worker.ts"]);
+  const worker = join(import.meta.dir, "..", "apps", "desktop", config.value.workers?.[0] ?? "");
+  expect(existsSync(worker)).toBe(true);
+});

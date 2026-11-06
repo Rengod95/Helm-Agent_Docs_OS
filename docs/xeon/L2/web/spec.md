@@ -1448,7 +1448,8 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 | 금지 import | `node:http`, `node:https`, `node:http2`, `node:net`, `node:tls`, `node:dgram`, `node:dns`, `node:child_process`, `node:worker_threads`, 같은 이름의 접두 없는 지정자, `undici`, `ws`, `guarded-fetch`, `request-filtering-agent`, `playwright-core`, 이 디렉터리 밖의 `cap-web` 소스 |
 | 금지 전역 | `fetch`, `WebSocket`, `EventSource`, `XMLHttpRequest`, `Bun`, `navigator` |
 | 함수 모양 | `convert(input: { bytes: Uint8Array; contentType: string; baseUrl: string; extractor: "readability" \| "defuddle" }): ConvertResult`. 동기 순수 함수. 시각·난수·I/O를 쓰지 않는다 |
-| 실행 위치 | Bun Worker 하나에서 돈다. 워커 시작 코드가 `globalThis`의 `fetch`, `WebSocket`, `EventSource`, `XMLHttpRequest`를 지운 뒤 변환 모듈을 import한다. 테스트는 같은 함수를 직접 부른다 |
+| 실행 위치 | Bun Worker 하나에서 돈다. 워커 시작 코드가 `globalThis`의 `fetch`, `WebSocket`, `EventSource`, `XMLHttpRequest`를 지운 뒤 변환 모듈이 평가된다. 테스트는 같은 함수를 직접 부른다 |
+| 묶은 사이드카 | 컴파일 사이드카는 워커 파일이 묶음에 들어 있어야 돈다. 워커 파일은 `apps/desktop/sidecar.json`의 `workers`에 올려 `build-sidecar`가 컴파일 진입점으로 함께 묶는다. 동적 `import()`는 묶음에 들어가지 않고 `--bytecode`는 최상위 await도 거부하므로, 워커는 전역을 지우는 `convert-lockdown.ts`를 변환 모듈보다 먼저 정적 import해 평가 순서로 같은 보장을 얻는다 [제안]. 묶음 안 워커 경로는 `build-sidecar`의 작업 폴더(`apps/desktop`) 기준 상대 경로로 정해지며 `scripts/sidecar-worker.test.ts`가 컴파일해 돌려 본다. 변환 실패는 사용자에게 내부 경로 없이 한국어 안내(`페이지를 읽기 쉬운 형태로 바꾸지 못했어요. …`)로 보인다(시나리오 scE S6). |
 | DOM 설정 | linkedom 문서는 외부 리소스를 읽지 않는다. `<img>`, `<link>`, `<script>`, `<iframe>`은 텍스트 추출 전에 지운다. CSS로 숨긴 요소(`hidden`, `display:none`, `aria-hidden="true"`), HTML 주석은 지운다(`_research/web-tools.md` §5.2 6번) |
 
 강제 수단:

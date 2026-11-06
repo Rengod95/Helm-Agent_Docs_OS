@@ -2,6 +2,7 @@
   "name": "fresnel",
   "args": ["host", "--stdio"],
   "entry": "../cli/src/main.ts",
+  "workers": ["../../packages/cap-web/src/fetch/convert-worker.ts"],
   "maxSizeMiB": 500,
   "targets": {
     "aarch64-apple-darwin": "bun-darwin-arm64",

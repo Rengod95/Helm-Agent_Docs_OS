@@ -36,6 +36,29 @@ function page(world: WebWorld, url: string): Promise<WebFetchOutput> {
 }
 
 describe("fetch pipeline", () => {
+  test("a failed conversion tells the user in Korean and leaks no development path", async () => {
+    const world = await makeWebWorld({
+      routes: { "https://example.com/a": { headers: HTML, body: ARTICLE } },
+      convert: {
+        convert: () =>
+          Promise.resolve({
+            ok: false as const,
+            error: {
+              kind: "worker_failed" as const,
+              message:
+                "error: Cannot find module '@fresnel/contracts' from '/Users/dev/xeon/packages/cap-web/src/fetch/convert/convert.ts'",
+            },
+          }),
+        close: () => Promise.resolve(),
+      },
+    });
+    const error = await rejection(page(world, "https://example.com/a"));
+    expect(error.message).toBe(
+      "페이지를 읽기 쉬운 형태로 바꾸지 못했어요. 잠시 뒤 다시 하거나 원본 그대로 읽어 보세요.",
+    );
+    expect(error.message).not.toContain("packages/cap-web");
+  });
+
   test("negotiated markdown path", async () => {
     let conversions = 0;
     const direct = directConvertRunner();

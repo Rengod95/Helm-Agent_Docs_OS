@@ -56,7 +56,8 @@ function convertFailure(failure: ConvertFailure): WebFailure {
     case "worker_failed":
       return {
         code: "internal",
-        message: `Converting the page failed: ${failure.message}`,
+        message:
+          "페이지를 읽기 쉬운 형태로 바꾸지 못했어요. 잠시 뒤 다시 하거나 원본 그대로 읽어 보세요.",
         retryable: false,
       };
     default:

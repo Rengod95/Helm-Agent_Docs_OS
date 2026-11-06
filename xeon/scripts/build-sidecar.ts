@@ -28,6 +28,8 @@ const SidecarConfigSchema = Type.Object(
     name: Type.String({ pattern: "^[a-z][a-z0-9-]*$" }),
     args: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
     entry: Type.String({ minLength: 1 }),
+    /** Extra compile entries: files a Worker loads at run time (relative to apps/desktop). A compiled binary only carries them when listed. */
+    workers: Type.Optional(Type.Array(Type.String({ minLength: 1 }))),
     maxSizeMiB: Type.Integer({ minimum: 1 }),
     targets: Type.Record(Type.String({ minLength: 1 }), Type.String({ pattern: "^bun-" }), {
       minProperties: 1,
@@ -41,6 +43,8 @@ export interface SidecarConfig {
   readonly args: readonly string[];
   /** Relative to apps/desktop. */
   readonly entry: string;
+  /** Worker files, relative to apps/desktop; compiled in as extra entries. */
+  readonly workers?: readonly string[] | undefined;
   readonly maxSizeMiB: number;
   /** Rust target triple -> bun compile target. */
   readonly targets: Readonly<Record<string, string>>;
@@ -147,6 +151,8 @@ export function isBuildVersion(version: string): boolean {
 
 export interface CompileOptions {
   readonly entry: string;
+  /** Worker files compiled in beside the entry, relative to the build working directory (apps/desktop): the bundle names each module by that path. */
+  readonly workers?: readonly string[] | undefined;
   readonly outFile: string;
   readonly bunTarget: string;
   readonly bytecode: boolean;
@@ -166,6 +172,7 @@ export function compileArgs(options: CompileOptions): string[] {
       ? []
       : ["--define", `${VERSION_DEFINE_NAME}=${JSON.stringify(options.version)}`]),
     options.entry,
+    ...(options.workers ?? []),
     "--outfile",
     options.outFile,
   ];
@@ -237,6 +244,7 @@ export async function buildSidecar(
   io.ensureDir(dirname(outFile));
   const args = compileArgs({
     entry: resolve(request.desktopDir, config.value.entry),
+    workers: config.value.workers,
     outFile,
     bunTarget: target.value.bunTarget,
     bytecode: request.bytecode,
