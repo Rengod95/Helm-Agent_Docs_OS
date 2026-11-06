@@ -28,6 +28,10 @@ import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspa
 const UNTITLED_LABEL =
   "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary";
 
+/** 긴 제목이 열을 넓히지 않게 목록·그룹·행의 격자 열을 minmax(0,1fr)로 묶는다(말줄임은 caustic 라벨의 truncate가 한다) */
+const LIST_COLUMN =
+  "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)]";
+
 /** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수 중 하나(시안: 행 meta는 짧게) */
 function metaOf(thread: ThreadSummary): string | undefined {
   if (thread.resumable !== null) return t("desktop.threads.resumableBadge");
@@ -50,7 +54,7 @@ const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummar
         current={selected}
         {...(props.thread.status === "running" ? { status: "running" as const } : {})}
         meta={metaOf(props.thread)}
-        title={unlisted > 0 ? t("desktop.threads.unlistedApprovals") : undefined}
+        title={unlisted > 0 ? `${title}\n${t("desktop.threads.unlistedApprovals")}` : title}
         className={props.thread.title === null ? UNTITLED_LABEL : undefined}
         onSelect={() => {
           commands.selectThread(id);
@@ -162,7 +166,7 @@ export function ThreadList(props: {
 
   const groups = groupByWorkspace(threads);
   return (
-    <div className="grid gap-1">
+    <div className={LIST_COLUMN}>
       <ListNavigation
         aria-label={t("desktop.threads.listLabel")}
         kind="sessions"

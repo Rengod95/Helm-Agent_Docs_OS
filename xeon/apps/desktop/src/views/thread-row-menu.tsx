@@ -6,6 +6,7 @@ import {
   Alert,
   Button,
   Dialog,
+  DialogClose,
   IconButton,
   Input,
   Menu,
@@ -14,7 +15,7 @@ import {
   toast,
 } from "@caustic/react";
 import { Ellipsis } from "@caustic/react/icons";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useCommands, type CommandError } from "./commands.ts";
 import { ThreadExportDialog } from "./thread-export-dialog.tsx";
 
@@ -58,6 +59,13 @@ export function ThreadRowMenu(props: {
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // 확인 창이 닫히면 ⋯ 단추로 초점을 돌린다(메뉴 항목은 이미 사라져서 브라우저가 몸통으로 보낸다)
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocus = (): void => {
+    queueMicrotask(() => {
+      triggerRef.current?.focus();
+    });
+  };
   const running = props.status === "running";
   const closed = props.status === "closed";
 
@@ -69,6 +77,7 @@ export function ThreadRowMenu(props: {
         aria-label={t("desktop.threads.menu.label", { title: props.title })}
         trigger={
           <IconButton
+            ref={triggerRef}
             size={props.bare === true ? "xs" : "sm"}
             variant="ghost"
             label={t("desktop.threads.menu.label", { title: props.title })}
@@ -136,6 +145,7 @@ export function ThreadRowMenu(props: {
           title={props.title}
           onDone={() => {
             setRenaming(false);
+            restoreFocus();
           }}
         />
       ) : null}
@@ -146,6 +156,7 @@ export function ThreadRowMenu(props: {
           running={running}
           onDone={() => {
             setDeleting(false);
+            restoreFocus();
           }}
         />
       ) : null}
@@ -155,6 +166,7 @@ export function ThreadRowMenu(props: {
           title={props.title}
           onDone={() => {
             setExporting(false);
+            restoreFocus();
           }}
         />
       ) : null}
@@ -273,9 +285,11 @@ function DeleteDialog(props: {
       )}
       footer={
         <>
-          <Button size="sm" variant="outline" onClick={props.onDone}>
-            {t("desktop.threads.menu.cancel")}
-          </Button>
+          <DialogClose asChild>
+            <Button size="sm" variant="outline" autoFocus>
+              {t("desktop.threads.menu.cancel")}
+            </Button>
+          </DialogClose>
           <Button size="sm" variant="solid" disabled={props.running || busy} onClick={confirm}>
             {t("desktop.threads.menu.delete.confirm")}
           </Button>
