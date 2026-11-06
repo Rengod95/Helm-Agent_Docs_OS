@@ -176,6 +176,8 @@ export type MirrorInput =
       readonly threadId: ThreadId;
       readonly asOfSeq: number;
       readonly items: readonly ItemRecord[];
+      /** 읽는 상한에서 멈췄고 더 오래된 item이 남았다 */
+      readonly truncated?: true;
     }
   | { readonly type: "transcript_closed" }
   | { readonly type: "approvals"; readonly approvals: readonly WirePendingApproval[] }

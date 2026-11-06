@@ -52,6 +52,7 @@ export type SessionsCommand =
       readonly kind: "sessions.ls";
       readonly all: boolean;
       readonly limit: number;
+      readonly offset: number;
       readonly output: OutputMode;
     }
   | { readonly kind: "sessions.show"; readonly threadId: ThreadId; readonly output: OutputMode }
@@ -1196,6 +1197,7 @@ function parseSessions(
       const scanned = scanArgs(acc, tail, {
         "--all": { value: "none" },
         "--limit": { value: "required" },
+        "--offset": { value: "required" },
         "--json": { value: "none" },
       });
       if (!scanned.ok) return scanned;
@@ -1219,10 +1221,22 @@ function parseSessions(
           ),
         );
       }
+      const offsetText = valueOf(scanned.value, "--offset");
+      const offset = offsetText === null ? 0 : Number(offsetText);
+      if (!Number.isInteger(offset) || offset < 0) {
+        return err(
+          usage(
+            "unexpectedArgument",
+            t("cli.usage.threads.offset.message"),
+            t("cli.usage.threads.offset.fix"),
+          ),
+        );
+      }
       return ok({
         kind: "sessions.ls",
         all: has(scanned.value, "--all"),
         limit,
+        offset,
         output: outputOf(scanned.value),
       });
     }

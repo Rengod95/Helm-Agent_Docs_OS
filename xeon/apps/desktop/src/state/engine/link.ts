@@ -27,6 +27,8 @@ import type { EngineStore } from "./store.ts";
 export type TranscriptSnapshot = {
   readonly asOfSeq: number;
   readonly items: readonly ItemRecord[];
+  /** 읽는 상한(MAX_SNAPSHOT_ITEMS)에서 멈췄고 더 오래된 item이 남았다 */
+  readonly truncated?: true;
 };
 
 export type SnapshotError = { readonly kind: "unavailable" | "failed" | "timeout" };

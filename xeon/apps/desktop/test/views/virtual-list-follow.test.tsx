@@ -47,9 +47,10 @@ afterAll(() => {
   }
 });
 
-function list(keys: readonly string[]) {
+function list(keys: readonly string[], ownTailKey: string | null = null) {
   return (
     <VirtualList
+      ownTailKey={ownTailKey}
       rows={keys.map((key) => ({ key }))}
       followTail
       label="대화 기록"
@@ -58,7 +59,10 @@ function list(keys: readonly string[]) {
   );
 }
 
-async function scrolledUpThen(next: readonly string[]): Promise<number> {
+async function scrolledUpThen(
+  next: readonly string[],
+  ownTailKey: string | null = null,
+): Promise<{ top: number; text: string }> {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -74,18 +78,27 @@ async function scrolledUpThen(next: readonly string[]): Promise<number> {
     scroller.dispatchEvent(new Event("scroll"));
   });
   await act(async () => {
-    root.render(list(next));
+    root.render(list(next, ownTailKey));
   });
   const top = scroller.scrollTop;
+  const text = container.textContent;
   await act(async () => root.unmount());
-  return top;
+  return { top, text };
 }
 
 describe("VirtualList follows the tail", () => {
   test("a different list sticks to the bottom again", async () => {
-    expect(await scrolledUpThen(["b1", "b2"])).toBe(1000);
+    expect((await scrolledUpThen(["b1", "b2"])).top).toBe(1000);
   });
   test("the same list keeps the position the user scrolled to", async () => {
-    expect(await scrolledUpThen(["a1", "a2", "a3"])).toBe(0);
+    const after = await scrolledUpThen(["a1", "a2", "a3"]);
+    expect(after.top).toBe(0);
+    // 남의 새 출력이면 위치를 지키고 "새 메시지 1" 단추로 알린다
+    expect(after.text).toContain("새 메시지 1");
+  });
+  test("a message I just sent takes the list to the bottom and shows no button", async () => {
+    const after = await scrolledUpThen(["a1", "a2", "a3"], "a3");
+    expect(after.top).toBe(1000);
+    expect(after.text).not.toContain("새 메시지");
   });
 });

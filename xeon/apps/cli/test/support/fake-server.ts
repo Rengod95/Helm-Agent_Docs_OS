@@ -62,6 +62,8 @@ export interface FakeServerOptions {
   readonly failures?: Readonly<Partial<Record<WireMethodName, WireError>>>;
   /** 이미 있는 thread(재개 시험용) */
   readonly knownThreads?: readonly ThreadId[];
+  /** 재전송 하한(`oldestReplayableSeq`). 이보다 이른 seq에서 구독하면 beforeOldest로 거절한다. 기본 0 */
+  readonly replayFloor?: number;
 }
 
 export interface FakeServer {
@@ -275,6 +277,17 @@ export function startFakeServer(
                 storeId: options.storeId,
                 headSeq: head,
                 oldestReplayableSeq: 0,
+              },
+            });
+          }
+          const floor = options.replayFloor ?? 0;
+          if (seq < floor) {
+            throw wireError("replay.outOfRange", {
+              details: {
+                reason: "beforeOldest",
+                storeId: options.storeId,
+                headSeq: head,
+                oldestReplayableSeq: floor,
               },
             });
           }

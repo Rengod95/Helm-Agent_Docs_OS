@@ -179,6 +179,19 @@ export const selectCustomCount = (s: EngineMirror, kinds: readonly string[]): nu
   }
   return count;
 };
+/** 열린 대화가 읽는 상한에서 잘려 더 오래된 기록이 화면에 없으면 참 */
+export const selectTranscriptTruncated = (s: EngineMirror): boolean =>
+  s.transcript?.status === "ready" && s.transcript.truncated === true;
+/** 열린 대화의 마지막 사용자 말 item id. 보낸 뒤 목록이 바닥으로 내려가는 기준이다(scJ S2-2). 없으면 null */
+export const selectLastUserItemId = (s: EngineMirror): ItemId | null => {
+  const transcript = s.transcript;
+  if (transcript?.status !== "ready") return null;
+  for (let i = transcript.itemIds.length - 1; i >= 0; i -= 1) {
+    const id = transcript.itemIds[i];
+    if (id !== undefined && transcript.items[id]?.kind === "user") return id;
+  }
+  return null;
+};
 /** 열린 대화의 마지막 사용자 메시지 글. 다시 보내기가 쓴다. 첨부는 싣지 않는다. 글이 없으면 null이다 */
 export const selectLastUserText = (s: EngineMirror): string | null => {
   const transcript = s.transcript;

@@ -23,6 +23,7 @@ describe("thread.read snapshot port", () => {
     const loaded = await port.load(thr(1));
     expect(loaded.ok && loaded.value.asOfSeq).toBe(40);
     expect(loaded.ok && loaded.value.items.map((i) => i.itemId)).toEqual([itm(1), itm(2)]);
+    expect(loaded.ok && loaded.value.truncated).toBeUndefined();
   });
 
   test("older pages are requested with before = items[0] and put in front; their position is not used", async () => {
@@ -61,6 +62,7 @@ describe("thread.read snapshot port", () => {
     const port = createThreadReaderPort({ connection: fake.connection, storeId: () => STORE });
     const loaded = await port.load(thr(1));
     expect(loaded.ok && loaded.value.items.length).toBe(MAX_SNAPSHOT_ITEMS);
+    expect(loaded.ok && loaded.value.truncated).toBe(true);
     expect(page).toBe(MAX_SNAPSHOT_ITEMS / 200);
   });
 

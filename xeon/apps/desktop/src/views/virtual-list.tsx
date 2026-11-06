@@ -1,3 +1,5 @@
+import { Button } from "@caustic/react";
+import { t } from "@fresnel/client/i18n";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 // 가상 스크롤(L4.desktop.spec 4.10 수단 3). 화면에 보이는 행과 앞뒤 여유분만 DOM에 둔다.
@@ -17,7 +19,19 @@ type Props<R extends VirtualRow> = {
   readonly followTail: boolean;
   /** 스크롤 영역의 이름(화면 낭독이 영역으로 읽는다) */
   readonly label: string;
+  /** 내가 보낸 마지막 말의 행 키. 이 값이 바뀌면(같은 목록 안에서) 위로 올려 둔 채여도 바닥으로 내려간다(scJ S2-2) */
+  readonly ownTailKey?: string | null;
 };
+
+/** 진행 중 행의 키 접두사(transcript.tsx). 기록이 오면 이 행은 사라지고 같은 내용의 기록 행이 생긴다 */
+const LIVE_PREFIX = "live:";
+
+/** 바닥에 있던 때보다 늘어난 "새 메시지" 수. 진행 중 행은 기록 행이 생기기 전까지 하나로 센다 */
+function unseenCount(keys: readonly string[], baseline: number): number {
+  const recorded = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
+  const grown = Math.max(0, recorded - baseline);
+  return grown > 0 || recorded === keys.length ? grown : 1;
+}
 
 /** 시작 위치 offsets[i] (i번째 행의 위쪽)와 전체 높이 */
 function layout(
@@ -113,19 +127,33 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
 
   // 내용이 늘면 바닥에 붙어 있던 경우에만 따라 내려간다. 사용자가 위로 올렸으면 건드리지 않는다
   // 목록이 다른 대화의 것으로 바뀌면(첫 행 키가 달라지면) 이전 대화에서 위로 올려 둔 위치를 잇지 않고 다시 바닥에 붙는다(rtE R-11)
+  // 내가 보내면(ownTailKey가 같은 목록 안에서 바뀌면) 바닥으로 간다. 남의 새 출력은 위로 올린 자리를 지키고 "새 메시지" 단추로 알린다(scJ S2-2)
   const firstKey = useRef<string | undefined>(undefined);
+  const ownKey = useRef<string | null | undefined>(props.ownTailKey);
+  const baseline = useRef(0);
+  const [unseen, setUnseen] = useState(0);
   useLayoutEffect(() => {
     const el = scroller.current;
     const head = keys[0];
-    if (firstKey.current !== undefined && head !== firstKey.current) stuck.current = true;
+    const switched = firstKey.current !== undefined && head !== firstKey.current;
+    if (switched) stuck.current = true;
     firstKey.current = head;
+    const own = props.ownTailKey ?? null;
+    if (!switched && own !== null && own !== ownKey.current) stuck.current = true;
+    ownKey.current = own;
     if (el !== null && followTail && stuck.current) el.scrollTop = el.scrollHeight;
+    if (stuck.current) baseline.current = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
   });
+  // 새 내용이나 스크롤이 있을 때마다 바닥에서 벗어난 채 늘어난 수를 다시 센다
+  useLayoutEffect(() => {
+    setUnseen(followTail && !stuck.current ? unseenCount(keys, baseline.current) : 0);
+  }, [keys, followTail]);
 
   const onScroll = (): void => {
     const el = scroller.current;
     if (el === null) return;
     stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < STICK_THRESHOLD_PX;
+    setUnseen(followTail && !stuck.current ? unseenCount(keys, baseline.current) : 0);
     setViewport({ top: el.scrollTop, height: el.clientHeight });
   };
 
@@ -137,34 +165,65 @@ export function VirtualList<R extends VirtualRow>(props: Props<R>): ReactNode {
   }, [viewport.height]);
 
   const mounted = rows.slice(first, last);
+  // 스크롤 영역은 키보드로 들어가 PageUp/PageDown/Home/End/방향키로 움직인다(scD 1-3). 브라우저가 초점 있는 스크롤 영역에 그 키를 준다
   return (
-    // 키보드로 들어가 PageUp/PageDown/Home/End/방향키로 움직이는 스크롤 영역이다(scD 1-3). 브라우저가 초점 있는 스크롤 영역에 그 키를 준다
-    <div
-      className="scroller"
-      ref={scroller}
-      onScroll={onScroll}
-      tabIndex={0}
-      role="region"
-      aria-label={props.label}
-    >
-      <div style={{ height: total, position: "relative" }}>
-        {mounted.map((row, i) => (
-          <div
-            key={row.key}
-            data-row-key={row.key}
-            style={{ position: "absolute", top: offsets[first + i] ?? 0, left: 0, right: 0 }}
-            ref={(el) => {
-              if (el === null) return undefined;
-              observer?.observe(el);
-              return () => {
-                observer?.unobserve(el);
-              };
-            }}
-          >
-            {renderRow(row)}
-          </div>
-        ))}
+    <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex" }}>
+      <div
+        className="scroller"
+        ref={scroller}
+        onScroll={onScroll}
+        tabIndex={0}
+        role="region"
+        aria-label={props.label}
+      >
+        <div style={{ height: total, position: "relative" }}>
+          {mounted.map((row, i) => (
+            <div
+              key={row.key}
+              data-row-key={row.key}
+              style={{ position: "absolute", top: offsets[first + i] ?? 0, left: 0, right: 0 }}
+              ref={(el) => {
+                if (el === null) return undefined;
+                observer?.observe(el);
+                return () => {
+                  observer?.unobserve(el);
+                };
+              }}
+            >
+              {renderRow(row)}
+            </div>
+          ))}
+        </div>
       </div>
+      {unseen > 0 ? (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 8,
+            textAlign: "center",
+            pointerEvents: "none",
+          }}
+        >
+          <span style={{ pointerEvents: "auto" }}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => {
+                const el = scroller.current;
+                if (el === null) return;
+                el.scrollTop = el.scrollHeight;
+                stuck.current = true;
+                baseline.current = keys.filter((key) => !key.startsWith(LIVE_PREFIX)).length;
+                setViewport({ top: el.scrollTop, height: el.clientHeight });
+              }}
+            >
+              {t("desktop.transcript.newMessages", { count: unseen })}
+            </Button>
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -135,7 +135,7 @@ Commands
   chat --continue           Resume the last conversation in the current working folder
   chat --resume <id>        Resume the given conversation
   chat --set <key>=<value>  Override a setting for this conversation only (can be repeated)
-  sessions ls [--all] [--limit n] [--json]
+  sessions ls [--all] [--limit n] [--offset n] [--json]
   sessions show <id> [--json]
   sessions fork <id> [--at <item id>]
   sessions rm <id> [--yes]  List, show, fork, and delete conversations

@@ -4,13 +4,16 @@ import type { ItemId } from "@fresnel/contracts/conversation";
 import { useMemo, type ReactNode } from "react";
 import {
   useOpenThreadId,
+  useLastUserItemId,
   useStreamingIds,
   useTranscriptItemIds,
   useTranscriptFailure,
   useTranscriptStatus,
+  useTranscriptTruncated,
   useTurnFailure,
   useUnsentUserItemId,
 } from "../state/engine/index.ts";
+import { MAX_SNAPSHOT_ITEMS } from "../state/engine/thread-reader.ts";
 import { useCommands } from "./commands.ts";
 import { TurnFailureRow } from "./turn-failure-row.tsx";
 import { ResumeBand } from "./resume-band.tsx";
@@ -44,6 +47,8 @@ export function Transcript(): ReactNode {
   const commands = useCommands();
   const failure = useTurnFailure(threadId);
   const unsentId = useUnsentUserItemId();
+  const lastUserId = useLastUserItemId();
+  const truncated = useTranscriptTruncated();
   // 진행 중 item은 열린 thread의 것만 보인다
   const rows = useMemo<readonly Row[]>(
     () => [
@@ -84,9 +89,15 @@ export function Transcript(): ReactNode {
   }
   return (
     <>
+      {truncated ? (
+        <div className="truncated-note">
+          {t("desktop.transcript.truncated", { count: MAX_SNAPSHOT_ITEMS })}
+        </div>
+      ) : null}
       <VirtualList
         rows={rows}
         followTail
+        ownTailKey={lastUserId}
         label={t("desktop.transcript.label")}
         renderRow={(row) =>
           row.live ? (

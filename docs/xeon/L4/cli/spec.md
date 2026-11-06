@@ -77,7 +77,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel chat --resume <id>` | 지정 대화를 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
 | `fresnel chat --set <key>=<value>` | 이 대화에만 설정을 덮어쓴다(launch 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `launch`, `threadId`) | M2 |
 | `fresnel chat --safe-mode`, `fresnel --safe-mode` | 이번 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다(`X.operations.spec` §4.6). `AssembleOptions.safeMode`로 넘긴다. 설정 `x.operations.safeMode.default`가 켜져 있어도 같고, 호스트가 `host.status.safeMode`로 알린다. 서비스 모드의 안전 모드는 서비스를 새로 띄울 때 `service start --safe-mode`로 정한다 | 없음(조립 옵션). `host.status`가 `safeMode: true`를 돌려준다 | M3(구현됨, M3b B1-SVC) |
-| `fresnel sessions ls [--all] [--limit n] [--json]` | 대화 목록. 기본은 현재 작업 폴더 | `thread.list` | M2 |
+| `fresnel sessions ls [--all] [--limit n] [--offset n] [--json]` | 대화 목록. 기본은 현재 작업 폴더. `--offset`은 앞의 n개를 건너뛴다. 이 구간 뒤에 대화가 더 있으면 stderr에 "더 있어요 (n개)"와 다음 `--offset` 값을 보인다 [결정: 오케스트레이터 기본값, scJ] | `thread.list` | M2 |
 | `fresnel sessions show <id> [--json]` | 대화의 내구 이벤트를 트랜스크립트로 출력한다 | `events.subscribe`(filter `threadIds`), `events.unsubscribe` | M2 |
 | `fresnel sessions fork <id> [--at <itemId>]` | 분기를 만들고 새 id를 출력한다 | `thread.fork` | M2 |
 | `fresnel sessions rm <id> [--yes]` | 대화 삭제. TTY에서는 확인을 받는다 | `thread.delete` | M2 |
@@ -156,7 +156,7 @@ export interface ChatCommand {
 }
 
 export type SessionsCommand =
-  | { readonly kind: "sessions.ls"; readonly all: boolean; readonly limit: number; readonly output: OutputMode }
+  | { readonly kind: "sessions.ls"; readonly all: boolean; readonly limit: number; readonly offset: number; readonly output: OutputMode }
   | { readonly kind: "sessions.show"; readonly threadId: ThreadId; readonly output: OutputMode }
   | { readonly kind: "sessions.fork"; readonly threadId: ThreadId; readonly at: ItemId | null }
   | { readonly kind: "sessions.rm"; readonly threadId: ThreadId; readonly yes: boolean };
@@ -569,8 +569,10 @@ export interface GroupTemplatesPort {
   - 대화형은 `{ storeId, seq: 0 }`, `filter.threadIds`로 구독해 이전 대화를 접힌 형태(user·assistant 텍스트만)로 그리고, 저장 위치 이후부터 전체 형태로 그린다.
 - `replay.outOfRange`:
   - `storeMismatch`: 위치를 버리고 `from: "head"`로 다시 구독한다. "저장소가 바뀌어 이전 기록을 이어 받지 못했다"를 알린다.
-  - `tooFar`, `beforeOldest`: 대화형은 `from: "head"`로 다시 구독하고 알린다. print 모드도 같다.
+  - `beforeOldest`: 보관 정리로 재전송 하한이 올라 있으면 오류 details의 `oldestReplayableSeq`부터 다시 구독해 남은 이전 기록을 그린다. `sessions show`와 `--resume` 모두 같다 [결정: 오케스트레이터 기본값, scJ].
+  - `tooFar`: 대화형은 `from: "head"`로 다시 구독하고 알린다. print 모드도 같다.
 - 구간 검사(F wire §4.5): `applyBatch`가 `from ≠ position.seq`를 받으면 `gap`을 돌려준다. CLI는 마지막 `to`부터 다시 구독한다.
+- print 모드 침묵 안내: 긴 대화를 이어 가면 요약(`thread.compacted`)과 모델 호출로 첫 출력까지 수십 초가 걸릴 수 있다. turn을 보낸 뒤 5초 안에 stdout 출력이 없으면 stderr에 "응답을 기다리는 중이다 (대화가 길면 요약하느라 오래 걸릴 수 있다)" 한 줄을 한 번만 쓴다. 출력이 먼저 시작되면 쓰지 않고, JSON 모드에서는 쓰지 않는다. §4.2의 "성공한 실행의 stderr를 비운다"는 완료 알림에 대한 말이라 이 한 줄은 예외다(`render/wait-notice.ts`) [결정: 오케스트레이터 기본값, scJ].
 - 상태 파일 갱신: `events.batch`를 반영할 때마다 메모리의 위치를 바꾸고, 파일 쓰기는 turn 경계(`turn.completed`)와 종료 때 한다 [제안]. 강제 종료로 파일이 덜 갱신돼도 더 이른 위치부터 구독하므로 이벤트를 놓치지 않는다. 다시 받은 이벤트는 `applyBatch`가 seq로 걸러 중복 출력하지 않는다.
 
 - 끊긴 turn 이어 실행 [결정: m2c G1-02]:
