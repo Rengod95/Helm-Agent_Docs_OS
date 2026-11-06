@@ -73,6 +73,25 @@ describe("blob store", () => {
     expect(readdirSync(join(blobsDir, "tmp"))).toEqual([]);
   });
 
+  test("readBlobByHash reads by hash alone and reports a missing hash", async () => {
+    const fixture = own(await open());
+    const { store } = fixture;
+    const ref = put(store, BYTES, "image/png");
+    expect(store.service.readBlobByHash(ref.sha256)).toEqual({
+      ok: true,
+      value: new Uint8Array(BYTES),
+    });
+    const missing = "c".repeat(64);
+    expect(store.service.readBlobByHash(missing)).toEqual({
+      ok: false,
+      error: { kind: "blob_missing", sha256: missing },
+    });
+    expect(store.service.readBlobByHash("../etc/passwd")).toEqual({
+      ok: false,
+      error: { kind: "blob_missing", sha256: "../etc/passwd" },
+    });
+  });
+
   test("empty blobs and a null media type are supported", async () => {
     const fixture = own(await open());
     const { store } = fixture;

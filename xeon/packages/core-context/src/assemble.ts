@@ -33,6 +33,7 @@ import {
 } from "./branch.ts";
 import { computeCacheMarks } from "./cache-marks.ts";
 import { maskMessages, type MessageMasker } from "./mask-messages.ts";
+import { resolveImageBlobs, type BlobByHashReader } from "./resolve-blobs.ts";
 import { convertToLlm } from "./convert.ts";
 import { buildPrefixMessage, prefixHash, prefixToolset, replaySystemMessages } from "./prefix.ts";
 import { DEFAULT_CONTEXT_SETTINGS, type ContextSettings } from "./settings.ts";
@@ -50,6 +51,8 @@ export interface AssembleDeps extends BranchReaderDeps {
   readonly reinject?: ReadonlySet<string>;
   /** 모델 입력 사후 가림(L0.secrets.spec §3.5.1). 없으면 가리지 않는다 */
   readonly redactor?: MessageMasker;
+  /** 이미지 `blob:sha256:<hex>` 자리표시를 모델 요청에서 base64로 푸는 읽기(`fresnel.store`). 없으면 풀지 않는다 */
+  readonly readBlobByHash?: BlobByHashReader;
   readonly logger?: Logger;
 }
 
@@ -387,8 +390,13 @@ export async function assembleContext(
   }
 
   // 모델 입력 사후 가림. 표식은 위에서 인덱스로만 정해졌으므로 내용을 바꿔도 같다. 접두 판정(cache_prefix_reset, prefixHash)은 가리기 전 값으로 했다
-  const outgoing =
+  const masked =
     deps.redactor === undefined ? finalMessages : maskMessages(deps.redactor, finalMessages);
+  // 이미지 자리표시는 요청에서만 푼다(기록과 접두 판정은 자리표시 그대로). 풀 수 없으면 자리 문장으로 바꾼다
+  const outgoing =
+    deps.readBlobByHash === undefined
+      ? masked
+      : resolveImageBlobs(deps.readBlobByHash, masked, deps.logger);
   const estimate = deps.models.tokens.estimateContext(outgoing);
   if (estimate.tokens > opts.contextWindow - settings.reserveTokens) {
     warnings.push({

@@ -49,6 +49,8 @@ export interface StoreService {
   /** 트랜잭션 밖에서만 부른다(TX-04). 같은 해시면 파일을 다시 쓰지 않는다 */
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
+  /** 자리표시 `blob:sha256:<hex>`처럼 해시만 아는 호출자용. 크기 대조 없이 해시로 읽는다. 오류는 `readBlob`과 같다 */
+  readBlobByHash(sha256: string): Result<Uint8Array, BlobError>;
   /**
    * 범위 핸들 소유자(`cap.*`, `ext.*`)가 블롭을 참조한다고 적는다. 참조가 있는 블롭은 GC가 지우지 않는다(M3-REQ-62).
    * 트랜잭션 밖에서 부른다. 블롭 행이 없으면 `blob_missing`. 등록되지 않은 소유자나 루트 전용 소유자는 Bug(store.prefix_not_owned)

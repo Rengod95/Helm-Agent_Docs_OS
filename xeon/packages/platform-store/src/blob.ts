@@ -64,6 +64,7 @@ export interface BlobGcReport {
 export interface BlobStore {
   putBlob(bytes: Uint8Array, mediaType: string | null): Result<BlobRef, BlobError>;
   readBlob(ref: BlobRef): Result<Uint8Array, BlobError>;
+  readBlobByHash(sha256: string): Result<Uint8Array, BlobError>;
   /** 소유자 검증은 호출 쪽(service.ts)이 끝낸 뒤 부른다 */
   pinRef(sha256: string, owner: string, refKey: string): Result<void, BlobError>;
   unpinRefs(owner: string, refKey: string): Result<number, BlobError>;
@@ -169,27 +170,35 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
     return ok({ type: "blob", sha256, size, mediaType });
   };
 
-  const readBlob = (ref: BlobRef): Result<Uint8Array, BlobError> => {
+  /** expectedSize가 undefined이면 크기를 대조하지 않는다(해시만 아는 읽기) */
+  const readByHash = (
+    sha256: string,
+    expectedSize: number | undefined,
+  ): Result<Uint8Array, BlobError> => {
     // 저장된 참조가 깨졌더라도 경로 조작이 되지 않게 해시 모양을 먼저 본다
-    if (!SHA256_HEX.test(ref.sha256)) return err({ kind: "blob_missing", sha256: ref.sha256 });
-    const path = blobPath(blobsDir, ref.sha256);
+    if (!SHA256_HEX.test(sha256)) return err({ kind: "blob_missing", sha256 });
+    const path = blobPath(blobsDir, sha256);
     try {
       const stat = statSync(path);
-      if (!stat.isFile() || stat.size !== ref.size) {
-        return err({ kind: "blob_corrupt", sha256: ref.sha256, reason: "size" });
+      if (!stat.isFile() || (expectedSize !== undefined && stat.size !== expectedSize)) {
+        return err({ kind: "blob_corrupt", sha256, reason: "size" });
       }
       const bytes = readFileSync(path);
-      if (deps.verifyHash && sha256Hex(bytes) !== ref.sha256) {
-        return err({ kind: "blob_corrupt", sha256: ref.sha256, reason: "hash" });
+      if (deps.verifyHash && sha256Hex(bytes) !== sha256) {
+        return err({ kind: "blob_corrupt", sha256, reason: "hash" });
       }
       return ok(bytes);
     } catch (caught) {
-      if (fsCodeOf(caught) === "ENOENT") return err({ kind: "blob_missing", sha256: ref.sha256 });
+      if (fsCodeOf(caught) === "ENOENT") return err({ kind: "blob_missing", sha256 });
       const mapped = mapFsError(caught);
       if (mapped === undefined) throw caught;
       return err(mapped);
     }
   };
+  const readBlob = (ref: BlobRef): Result<Uint8Array, BlobError> =>
+    readByHash(ref.sha256, ref.size);
+  const readBlobByHash = (sha256: string): Result<Uint8Array, BlobError> =>
+    readByHash(sha256, undefined);
 
   const pins: BlobPins = {
     pin(tx: SqlTx, sha256: string, owner: string, refKey: string): void {
@@ -315,7 +324,7 @@ export function createBlobStore(deps: BlobDeps): BlobStore {
     }
   };
 
-  return { putBlob, readBlob, pinRef, unpinRefs, gc, pins };
+  return { putBlob, readBlob, readBlobByHash, pinRef, unpinRefs, gc, pins };
 }
 
 /** 파일을 지운다. 없으면 이미 지운 것으로 본다. 그 밖의 실패(사용 중 등)는 false로 다음 주기에 미룬다 */

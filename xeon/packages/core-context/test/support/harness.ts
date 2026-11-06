@@ -9,6 +9,7 @@ import type { ProducerHandle } from "@fresnel/contracts/records";
 import type { ContextService, Redactor } from "@fresnel/contracts/services";
 import type { ExtensionUnit } from "@fresnel/ext-host";
 import { createTestHost, type TestHost } from "@fresnel/ext-host/testing";
+import type { BlobByHashReader } from "../../src/resolve-blobs.ts";
 import { createContextService } from "../../src/service.ts";
 import { DEFAULT_CONTEXT_SETTINGS, type ContextSettings } from "../../src/settings.ts";
 import { fakeModels, type FakeModels, type FakeModelsOptions } from "./fake-models.ts";
@@ -49,6 +50,8 @@ export interface HarnessOptions {
   readonly reinjectCustomTypes?: readonly string[];
   /** 모델 입력 사후 가림 */
   readonly redactor?: Pick<Redactor, "mask" | "maskDeep">;
+  /** 이미지 blob 자리표시를 푸는 읽기 */
+  readonly readBlobByHash?: BlobByHashReader;
 }
 
 export interface Harness {
@@ -83,6 +86,7 @@ export async function harness(options: HarnessOptions = {}): Promise<Harness> {
       ? {}
       : { reinjectCustomTypes: options.reinjectCustomTypes }),
     ...(options.redactor === undefined ? {} : { redactor: options.redactor }),
+    ...(options.readBlobByHash === undefined ? {} : { readBlobByHash: options.readBlobByHash }),
     logger: memoryLogger(logged),
   });
   return {

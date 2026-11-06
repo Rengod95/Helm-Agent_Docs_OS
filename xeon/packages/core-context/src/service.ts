@@ -23,6 +23,7 @@ import { compactThread, type CompactDeps, type PromptInputs } from "./compaction
 import { shouldCompactTokens } from "./compaction/threshold.ts";
 import { convertToLlm } from "./convert.ts";
 import type { MessageMasker } from "./mask-messages.ts";
+import type { BlobByHashReader } from "./resolve-blobs.ts";
 import { disabledOverflowRecovery, recoverOverflow } from "./overflow.ts";
 import { DEFAULT_CONTEXT_SETTINGS, type ContextSettingsSource } from "./settings.ts";
 
@@ -47,6 +48,8 @@ export interface ContextServiceDeps {
   readonly reinjectCustomTypes?: readonly string[];
   /** 모델 입력 단계 사후 가림(`fresnel.secrets`의 redactor, L0.secrets.spec §3.5.1). 없으면 가리지 않는다 */
   readonly redactor?: MessageMasker;
+  /** 이미지 blob 자리표시를 요청에서 푸는 읽기(`fresnel.store`의 readBlobByHash). 없으면 풀지 않는다 */
+  readonly readBlobByHash?: BlobByHashReader;
   readonly logger?: Logger;
 }
 
