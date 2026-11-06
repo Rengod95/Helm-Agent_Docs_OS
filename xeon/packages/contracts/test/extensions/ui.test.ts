@@ -6,6 +6,7 @@ import {
   BridgeRequestSchema,
   BridgeResponseSchema,
   BRIDGE_CAPABILITIES,
+  BRIDGE_FILE_OPS,
   BRIDGE_OPS,
   UI_LIMITS,
   bridgeMessageWithinLimit,
@@ -219,6 +220,11 @@ describe("bridge messages", () => {
     expect(bridgeMessageWithinLimit({ a: "x".repeat(1000) })).toBe(true);
     expect(bridgeMessageWithinLimit({ a: "x".repeat(UI_LIMITS.bridgeMessageBytes) })).toBe(false);
     expect(bridgeMessageWithinLimit(undefined)).toBe(false);
+    // 파일 op 메시지는 따로 준 상한까지 받는다
+    const big = { a: "x".repeat(UI_LIMITS.bridgeMessageBytes) };
+    expect(bridgeMessageWithinLimit(big, UI_LIMITS.bridgeFileMessageBytes)).toBe(true);
+    expect(BRIDGE_FILE_OPS.has("pickFile")).toBe(true);
+    expect(BRIDGE_FILE_OPS.has("notify")).toBe(false);
     const cyclic: Record<string, unknown> = {};
     cyclic["self"] = cyclic;
     expect(bridgeMessageWithinLimit(cyclic)).toBe(false);
@@ -252,10 +258,12 @@ describe("app capabilities (ADR-0021 §3.4.3)", () => {
     expect(result.issues.length).toBeGreaterThan(0);
   });
 
-  test("the bridge ops list holds the six shell ops", () => {
+  test("the bridge ops list holds the eight shell ops", () => {
     for (const op of [
       "pickFile",
       "pickFolder",
+      "listFolder",
+      "readFolderFile",
       "saveFile",
       "notify",
       "writeSetting",
@@ -265,5 +273,19 @@ describe("app capabilities (ADR-0021 §3.4.3)", () => {
       expect(parse(BridgeRequestSchema, { v: 1, id: 1, op, args: {} }).ok).toBe(true);
     }
     expect(parse(BridgeRequestSchema, { v: 1, id: 1, op: "reauth", args: {} }).ok).toBe(false);
+  });
+});
+
+describe("bridge limits (2026-11-06 relaxation)", () => {
+  test("file bytes are 64 MiB and a file message fits its base64 form", () => {
+    expect(UI_LIMITS.fileBytes).toBe(67_108_864);
+    expect(UI_LIMITS.bridgeFileMessageBytes).toBeGreaterThan(
+      Math.ceil((UI_LIMITS.fileBytes * 4) / 3),
+    );
+  });
+
+  test("abuse limits are 30 notifications and 120 setting writes per minute", () => {
+    expect(UI_LIMITS.notifyPerMinute).toBe(30);
+    expect(UI_LIMITS.settingWritesPerMinute).toBe(120);
   });
 });
