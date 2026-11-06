@@ -1407,6 +1407,7 @@
   "desktop.approvals.plan.feedback": "Feedback",
   "desktop.approvals.plan.approve.button": "Approve",
   "desktop.approvals.plan.edit.button": "Request changes",
+  "desktop.approvals.plan.scrollLabel": "Plan text",
   "desktop.approvals.plan.more": "Show all",
   "desktop.approvals.review.round": "Round {round}",
   "desktop.approvals.review.totals": "{files} files · {hunks} hunks",

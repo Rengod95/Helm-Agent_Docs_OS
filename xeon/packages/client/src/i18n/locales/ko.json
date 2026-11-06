@@ -1407,6 +1407,7 @@
   "desktop.approvals.plan.feedback": "피드백",
   "desktop.approvals.plan.approve.button": "승인",
   "desktop.approvals.plan.edit.button": "수정 요청",
+  "desktop.approvals.plan.scrollLabel": "계획 본문",
   "desktop.approvals.plan.more": "전체 보기",
   "desktop.approvals.review.round": "라운드 {round}",
   "desktop.approvals.review.totals": "파일 {files} · hunk {hunks}",
