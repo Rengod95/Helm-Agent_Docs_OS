@@ -16,6 +16,7 @@ import { shouldQuitWhenWindowsClosed } from "./main/close-behavior.ts";
 import { createCommandRegistry } from "./main/commands.ts";
 import type { ShellContext } from "./main/context.ts";
 import { isTrustedFrame, isUiUrl } from "./main/frame-check.ts";
+import { dataRootsOf } from "./main/lib/data-roots.ts";
 import { shellEnvOf } from "./main/lib/packaged-env.ts";
 import { MODULES } from "./main/modules.ts";
 import { CHANNEL_KEY, SHELL_CHANNELS } from "./shared/channels.ts";
@@ -40,14 +41,19 @@ protocol.registerSchemesAsPrivileged([
   ...MODULES.flatMap((module) => module.schemes ?? []),
 ]);
 
-// Electron 전용 상태(캐시, 세션)는 설정 폴더(configDir)와 섞이지 않게 따로 둔다
+// Electron 전용 상태(캐시, 세션)는 설정 폴더(configDir)와 섞이지 않게 따로 둔다.
+// FRESNEL_DESKTOP_USER_DATA(절대 경로)가 있으면 셋을 그 폴더 안으로 옮긴다(개발·시험용. 반드시 ready 전에 정한다)
 const IDENTIFIER = "dev.fresnel.desktop";
-const configDir = path.join(app.getPath("appData"), IDENTIFIER);
-app.setPath("userData", path.join(app.getPath("appData"), `${IDENTIFIER}.electron`));
-const logsDir =
-  process.platform === "darwin"
-    ? path.join(app.getPath("home"), "Library", "Logs", IDENTIFIER)
-    : path.join(app.getPath("userData"), "logs");
+const roots = dataRootsOf({
+  env: process.env,
+  platform: process.platform,
+  appData: app.getPath("appData"),
+  home: app.getPath("home"),
+  identifier: IDENTIFIER,
+});
+const configDir = roots.configDir;
+app.setPath("userData", roots.userData);
+const logsDir = roots.logs;
 
 function resourcesDir(): string {
   return app.isPackaged ? process.resourcesPath : path.resolve(import.meta.dirname, "..", "..");

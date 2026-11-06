@@ -23,13 +23,17 @@ const requiredInputs = [
   path.join(shell, "dist", "bundle", "main.mjs"),
   path.join(shell, "node_modules", "electron", "dist", "LICENSE"),
   path.join(shell, "dist", "engine-notices.txt"),
+  path.join(shell, "dist", "default-plugins"),
   path.join(shell, "node_modules", "mac-security", "index.js"),
   path.join(shell, "node_modules", "mac-security", "build", "Release", "mac_security.node"),
 ];
 for (const file of requiredInputs) {
   if (!existsSync(file)) {
+    const electronHint = file.includes(`${path.sep}electron${path.sep}dist${path.sep}`)
+      ? "; the Electron binary was not unpacked (bun install skipped its postinstall): cd apps/desktop-shell/node_modules/electron && node install.js"
+      : "";
     process.stderr.write(
-      `package: missing ${file} (just desktop-ui, just desktop-sidecar host, bun run build)\n`,
+      `package: missing ${file} (just desktop-build-electron builds the inputs; or just desktop-ui, just desktop-sidecar host)${electronHint}\n`,
     );
     process.exit(2);
   }
@@ -84,6 +88,8 @@ const extraResource = [
   path.join(shell, "assets"),
   licenses,
   addonStage,
+  // 기본 플러그인(Helm 등): `just desktop-build-electron`이 scripts/default-plugins.ts로 먼저 만든다. 엔진 사이드카가 Resources/default-plugins/를 설치 원본으로 읽는다
+  path.join(shell, "dist", "default-plugins"),
   ...(existsSync(feed) ? [feed] : []),
 ];
 
