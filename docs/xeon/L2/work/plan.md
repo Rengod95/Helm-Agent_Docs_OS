@@ -253,7 +253,7 @@ M3:
 | T6 `submit_plan` → 승인(kind `plan`), `input_required`·`decided`, `approve`·`reject`·`revise`, 승인 해결 뒤 모드 복원 리스너, 재개 절차 | 완료: core-tools의 실제 `ApprovalService` 위에서 시험한다. 어댑터는 `planApprovalsOver`(W-15). 수정 요청은 `deny` + `{ feedback }`(W-2 (c)) | SIGKILL 재개는 HOST.4의 한 엔진 시험 |
 | T7 계획 산출물 등록(선택 의존) | 부분: `PlanArtifactsPort`와 사용 가능·불가 두 경로를 시험했다 | `artifacts.registry` 정의가 F에 들어온 뒤 어댑터(L2.artifacts M3) |
 | T8 설정 키 여섯 개 | 완료 | 없음 |
-| T8 명령 `/plan`, `/tasks` | 부분: 등록 함수와 시험 완료 | `dialog.commands` 선택 의존 확정(W-10) 뒤 매니페스트 `optional`로 연결. `/goal`은 M3 |
+| T8 명령 `/plan`, `/tasks` | 부분: 등록 함수와 시험 완료 | `dialog.commands` 선택 의존 확정(W-10) 뒤 매니페스트 `optional`로 연결. `/goal`은 M3에 더했다(`test/commands.test.ts`) |
 
 대역은 `@fresnel/cap-work/testing`에 `createFakeArtifacts`(산출물 등록)만 둔다. 승인과 권한 모드는 대역이 없다: 시험은 core-tools의 `testing` 서브패스 `realTools`로 실제 `ToolService`·`ApprovalService`를 같은 실제 대화 위에 세우고(`test/support/l1.ts`가 요청 목록, 호출 기록, 요청 커밋 장애 주입의 관찰 창을 더한다), 플러그인이 기본으로 만드는 `planApprovalsOver`·`toolsPermissionMode`를 그대로 쓴다.
 
