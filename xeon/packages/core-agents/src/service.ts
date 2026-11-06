@@ -98,6 +98,8 @@ export interface AgentServiceImpl extends AgentService {
   dispose(): void;
   /** 차단 규칙과 정의 규칙을 다시 등록한다(maxDepth나 정의가 바뀌었을 때) */
   syncRules(): void;
+  /** 정의 등록이나 해제로 목록이 바뀔 때 부른다. 해제 함수를 돌려준다 */
+  onDefinitionsChange(listener: () => void): () => void;
 }
 
 interface PreparedSpawn {
@@ -203,8 +205,10 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       log.warn("agents.rule_issue", { ruleId: issue.ruleId, code: issue.code });
     }
   };
+  const definitionListeners = new Set<() => void>();
   const registry = createDefinitionRegistry(() => {
     syncRules();
+    for (const listener of definitionListeners) listener();
   });
 
   const gateOf = (root: ThreadId): ConcurrencyGate => {
@@ -300,7 +304,11 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     });
     const definition = registry.get(request.agent);
     if (definition === undefined) {
-      return refuse("agents.unknown_definition", `no subagent definition named "${request.agent}"`);
+      const names = registry.list().map((entry) => entry.name);
+      return refuse(
+        "agents.unknown_definition",
+        `no subagent definition named "${request.agent}". Available: ${names.join(", ")}`,
+      );
     }
     if (!mode.background && request.background === true) {
       return refuse("agents.invalid_request", "background runs go through delegate");
@@ -1251,6 +1259,12 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     contextOf,
     liveCount: () => live.size,
     syncRules,
+    onDefinitionsChange(listener) {
+      definitionListeners.add(listener);
+      return () => {
+        definitionListeners.delete(listener);
+      };
+    },
     dispose(): void {
       rules?.dispose();
       rules = undefined;

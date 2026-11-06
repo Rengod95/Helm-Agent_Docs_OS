@@ -20,6 +20,7 @@ import { hostOf, type ExtensionUnit } from "@fresnel/ext-host";
 import type { AgentsLoop, AgentsSettingsSource } from "./deps.ts";
 import { AgentServicePortKey, LoopServicePortKey } from "./ports.ts";
 import { createAgentService } from "./service.ts";
+import { coreAgentDefinitions } from "./definitions/builtin.ts";
 import { agentToolRegistration } from "./tool.ts";
 
 export const AGENTS_EXTENSION_NAME = "core-agents";
@@ -39,6 +40,8 @@ export interface AgentsPluginOptions {
   readonly loop?: (resolve: () => AgentsLoop) => AgentsLoop;
   /** 내장 정의(출처 builtin) */
   readonly builtinDefinitions?: readonly AgentDefinition[];
+  /** 모델에게 광고하지 않는 내부용 정의 이름(예: 학습 검토). 위임은 이름으로 계속 부를 수 있다 */
+  readonly unlistedDefinitions?: readonly string[];
   readonly loadIndex?: number;
 }
 
@@ -88,15 +91,31 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
           return found.ok ? found.value : undefined;
         },
       });
+      // 코어 기본 정의를 먼저 둔다. 같은 출처끼리는 나중 등록이 이기므로 호스트가 넣은 같은 이름 정의가 덮는다
+      for (const definition of coreAgentDefinitions()) service.define(definition);
       for (const definition of options.builtinDefinitions ?? []) service.define(definition);
       service.syncRules();
-      const registered = tools.register(agentToolRegistration(service, tasks, tools));
-      if (!registered.ok) {
-        options.log.warn("agents.tool_not_registered", { reason: registered.error.kind });
-      }
+      const unlisted = options.unlistedDefinitions ?? [];
+      let unregisterTool: (() => void) | undefined;
+      const registerTool = (): void => {
+        const registered = tools.register(agentToolRegistration(service, tasks, tools, unlisted));
+        if (!registered.ok) {
+          options.log.warn("agents.tool_not_registered", { reason: registered.error.kind });
+          return;
+        }
+        unregisterTool = registered.value;
+      };
+      registerTool();
+      // 정의가 바뀌면 도구 설명의 이름 목록도 바꾼다(다음 턴 광고에 반영)
+      const stopWatching = service.onDefinitionsChange(() => {
+        unregisterTool?.();
+        unregisterTool = undefined;
+        registerTool();
+      });
       host.providePort(AgentServicePortKey, service);
       g.onDispose(() => {
-        if (registered.ok) registered.value();
+        stopWatching();
+        unregisterTool?.();
         service.dispose();
       });
     });
