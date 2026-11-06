@@ -105,32 +105,20 @@ describe("확장 화면: 층별 목록과 찾기", () => {
 });
 
 describe("확장 화면: 층 표(caustic Table, §6.23)", () => {
-  test("층마다 표가 하나이고 열은 이름, 층, 종류, 등급, 상태, 버전, 켜짐이다", () => {
+  test("층마다 표가 하나이고 열은 이름, 상태, 켜짐이다", () => {
     const html = render();
     expect(html.match(/data-slot="table"(?=[ >])/g)).toHaveLength(3);
     const columns = [
       t("desktop.workbench.col.name"),
-      t("desktop.workbench.col.layer"),
-      t("desktop.workbench.col.kind"),
-      t("desktop.workbench.col.grade"),
       t("desktop.workbench.col.state"),
-      t("desktop.workbench.col.version"),
       t("desktop.workbench.col.switch"),
     ];
     expect(headingsOf(html)).toEqual([columns, columns, columns]);
   });
 
-  test("행은 칸마다 이름, 층, 종류, 등급, 상태, 버전, 켜짐 스위치를 보인다", () => {
+  test("행은 칸마다 이름, 상태, 켜짐 스위치를 보인다", () => {
     const web = rowsOf(render()).find((row) => row.cells[0]?.includes("웹 검색"));
-    expect(web?.cells).toEqual([
-      "웹 검색 web",
-      "L2",
-      t("desktop.workbench.kind.plugin"),
-      "user",
-      t("desktop.workbench.state.on"),
-      "1.0.0",
-      "",
-    ]);
+    expect(web?.cells).toEqual(["웹 검색", t("desktop.workbench.state.on"), ""]);
   });
 
   test("행의 켜짐 칸에는 스위치가 있고 이름표는 표시 이름이다", () => {
@@ -231,13 +219,11 @@ describe("확장 화면: 배지는 스토어를 따른다(목록을 다시 읽�
     const reenable = t("desktop.workbench.reenable");
     const before = renderState(pickGroup(store.actions.snapshot(), "review"));
     expect(before).toContain(reenable);
-    expect(before).toContain(t("desktop.workbench.counts", { total: 3, on: 2, auto: 1 }));
 
     store.actions.listLoaded(store.actions.snapshot().entries.map(reviewRecovered));
 
     const after = renderState(pickGroup(store.actions.snapshot(), "review"));
     expect(after).not.toContain(reenable);
-    expect(after).toContain(t("desktop.workbench.counts", { total: 3, on: 3, auto: 0 }));
   });
 });
 

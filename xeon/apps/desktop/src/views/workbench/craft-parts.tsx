@@ -1,7 +1,7 @@
 // 개요와 확장 화면이 같이 쓰는 부품: 목록 상태 띠(읽는 중·오류·오프라인)와 켜기 요청, 자동 꺼짐 알림(플러그인 카드와 오른쪽 "플러그인" 탭).
-// 찾기 막대와 개수 줄은 확장 화면이 쓴다.
+// 찾기 막대는 확장 화면이 쓴다.
 import { t } from "@fresnel/client/i18n";
-import { countsOf, keepOffOf, type HookNotice } from "@fresnel/client/workbench";
+import { keepOffOf, type HookNotice } from "@fresnel/client/workbench";
 import { Alert, Button, Input, Skeleton } from "@caustic/react";
 import { Bug } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
@@ -42,25 +42,13 @@ export function useToggleRequest(controller: WorkbenchController): {
   };
 }
 
-export function CountsLine(): ReactNode {
-  const counts = useWorkbench(countsOf);
-  return (
-    <p className="text-ui-sm text-text-tertiary">
-      {t("desktop.workbench.counts", {
-        total: counts.total,
-        on: counts.on,
-        auto: counts.autoDisabled,
-      })}
-    </p>
-  );
-}
-
 export function SearchField(): ReactNode {
   const query = useWorkbench((s) => s.query);
   const actions = useWorkbenchActions();
   return (
     <Input
       size="sm"
+      variant="soft"
       type="search"
       value={query}
       placeholder={t("desktop.workbench.search")}
@@ -82,10 +70,10 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
   }
   if (list === "loading" || list === "idle") {
     return (
-      <div role="status" aria-label={t("desktop.workbench.loading")} className="grid gap-2 p-4">
-        <Skeleton height={20} />
-        <Skeleton height={20} />
-        <Skeleton height={20} />
+      <div role="status" aria-label={t("desktop.workbench.loading")} className="grid gap-3 p-4">
+        <Skeleton className="h-5" style={{ width: "80%" }} />
+        <Skeleton className="h-5" style={{ width: "64%" }} />
+        <Skeleton className="h-5" style={{ width: "72%" }} />
       </div>
     );
   }
@@ -96,6 +84,7 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
         actions={[
           {
             label: t("desktop.workbench.error.retry"),
+            primary: true,
             onClick: () => {
               detachVoid(props.controller.reload());
             },
@@ -137,7 +126,7 @@ function KeepOffAlert(props: {
             })}
       </p>
       <p className="text-ui-strong">{t("desktop.workbench.keepOff.question")}</p>
-      <div className="mt-1 flex flex-wrap gap-2">
+      <div className="mt-1 flex flex-wrap gap-1">
         <Button
           size="xs"
           variant="outline"
@@ -262,7 +251,11 @@ export function AutoOffNotice(props: {
       <Alert
         tone="danger"
         size={props.compact === true ? "sm" : undefined}
-        actions={[{ label: t("desktop.workbench.reenable"), onClick: props.onKeepOn }]}
+        action={
+          <Button size="xs" variant="outline" onClick={props.onKeepOn}>
+            {t("desktop.workbench.reenable")}
+          </Button>
+        }
       >
         {t("desktop.workbench.autoDisabled", { name: entry.displayName })}
       </Alert>

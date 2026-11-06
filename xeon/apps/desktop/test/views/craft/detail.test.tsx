@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import { buildFixture, FIXTURE_ORDER } from "@fresnel/client/workbench/canvas";
+import { buildFixture, FIXTURE_ORDER, type CanvasPlugin } from "@fresnel/client/workbench/canvas";
 import { renderToString } from "react-dom/server";
 import {
   CraftProvider,
@@ -9,6 +9,7 @@ import {
 } from "../../../src/views/craft/craft-context.tsx";
 import { Detail, DetailView, type RunsView } from "../../../src/views/craft/detail.tsx";
 import { TraceCard, VerbChip } from "../../../src/views/craft/detail-flow.tsx";
+import { Provides } from "../../../src/views/craft/provides.tsx";
 import {
   membersOfTarget,
   targetOf,
@@ -215,5 +216,65 @@ describe("Detail: 자세히 보기가 닫혀 있을 때", () => {
       ),
     );
     expect(out).toBe("");
+  });
+});
+
+describe("TraceCard: 걸린 시간 막대", () => {
+  const title = t("desktop.craft.detail.moment.tool.call.before");
+
+  test("막대는 걸린 시간을 값으로 가진다(1.5초에서 꽉 찬다)", () => {
+    const out = renderToString(
+      <TraceCard title={title} mark={{ ms: 300, result: "passed", reason: null }} />,
+    );
+    expect(out).toContain('role="meter"');
+    expect(out).toContain(`aria-label="${t("desktop.craft.detail.run.duration")}"`);
+    expect(out).toContain('aria-valuenow="300"');
+    expect(out).toContain(`aria-valuetext="${t("desktop.craft.detail.time.ms", { n: 300 })}"`);
+  });
+
+  test("눈금을 넘는 시간은 꽉 찬 막대이고 실패면 위험 색이다", () => {
+    const out = renderToString(
+      <TraceCard title={title} mark={{ ms: 30000, result: "failed", reason: "timeout" }} />,
+    );
+    expect(out).toContain('aria-valuenow="1500"');
+    expect(out).toContain('data-level="danger"');
+  });
+});
+
+describe("Provides: 구성의 표", () => {
+  test("훅, 제공 기능, 구성 요소, 함께 쓰면 좋은 기능이 줄로 나온다", () => {
+    const target = need(targetOf(snapshot, "helm"));
+    const out = render(target, { k: "loading" }, "example");
+    expect(out).toContain(t("term.hook"));
+    expect(out).toContain(t("term.capability"));
+    expect(out).toContain(t("desktop.craft.detail.provides.optional"));
+    expect(out).toContain(">web.search<");
+    expect(out).toContain(">tool.call.before<");
+  });
+
+  test("아무것도 선언하지 않은 플러그인은 없음 한 줄만 보인다", () => {
+    const bare: CanvasPlugin = {
+      id: "bare",
+      name: "Bare",
+      layer: "L3",
+      origin: "user",
+      hooks: [],
+      provides: [],
+      pieces: [],
+      on: true,
+    };
+    const out = renderToString(<Provides plugin={bare} />);
+    expect(out).toContain(t("desktop.craft.detail.provides.none"));
+    expect(out).not.toContain("<dl");
+  });
+});
+
+describe("StepCard: 그룹 색 가는 줄", () => {
+  test("그룹 대상의 카드 위에는 그룹 색 줄이 있다", () => {
+    const target = need(targetOf(snapshot, "helm"));
+    expect(target.k).toBe("group");
+    const out = render(target, { k: "loading" }, "example");
+    expect(out).toContain("border-t-2");
+    expect(out).toContain("border-top-color:var(--cs-color-info-graphic)");
   });
 });

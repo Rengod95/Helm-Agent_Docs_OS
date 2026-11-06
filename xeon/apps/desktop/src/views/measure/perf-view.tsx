@@ -11,7 +11,7 @@ import {
   type TabRead,
 } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
-import { Button } from "@caustic/react";
+import { Button, Table, type TableColumn } from "@caustic/react";
 import type { ReactNode } from "react";
 import { MUTED, TabBody } from "../workbench/tab-body.tsx";
 import type { PerfInput } from "./perf-read.ts";
@@ -84,51 +84,59 @@ function Burden(props: {
 }): ReactNode {
   if (props.rows.length === 0)
     return <p className={MUTED}>{t("desktop.measure.perf.burdenNone")}</p>;
+  // 읽기 전용 표: caustic Table을 ghost로, 행 사이 선 없이 쓴다(DP-26). 플러그인 이름만 그 플러그인의 가장 무거운 Turn으로 내려간다
+  const byOwner = new Map(props.rows.map((row) => [row.owner, row] as const));
+  const columns: TableColumn[] = [
+    { key: "plugin", header: t("desktop.measure.perf.col.plugin") },
+    { key: "tokens", header: t("desktop.measure.perf.col.tokens"), align: "end" },
+    { key: "cost", header: t("desktop.measure.perf.col.cost"), align: "end" },
+    { key: "time", header: t("desktop.measure.perf.col.time"), align: "end" },
+    { key: "cache", header: t("desktop.measure.perf.col.cache"), align: "end" },
+    { key: "problems", header: t("desktop.measure.perf.col.problems"), align: "end" },
+  ];
   return (
-    <table className="w-full border-collapse text-ui-sm">
-      <thead>
-        <tr className="text-start text-text-tertiary">
-          <th scope="col" className="text-start font-medium">
-            {t("desktop.measure.perf.col.plugin")}
-          </th>
-          <th scope="col" className="text-end font-medium">
-            {t("desktop.measure.perf.col.tokens")}
-          </th>
-          <th scope="col" className="text-end font-medium">
-            {t("desktop.measure.perf.col.cost")}
-          </th>
-          <th scope="col" className="text-end font-medium">
-            {t("desktop.measure.perf.col.time")}
-          </th>
-          <th scope="col" className="text-end font-medium">
-            {t("desktop.measure.perf.col.cache")}
-          </th>
-          <th scope="col" className="text-end font-medium">
-            {t("desktop.measure.perf.col.problems")}
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {props.rows.map((row) => (
-          <tr key={row.owner}>
-            <th scope="row" className="text-start font-mono font-normal text-text-primary">
-              <OpenButton turnId={row.worstTurnId} number={null} onOpenTurn={props.onOpenTurn}>
-                {row.owner}
-              </OpenButton>
-            </th>
-            <td className="text-end font-mono">{numberText(row.tokensPerTurn)}</td>
-            <td className="text-end font-mono text-text-tertiary">
+    <Table
+      variant="ghost"
+      size="xs"
+      dividers={false}
+      columns={columns}
+      rows={props.rows.map((row) => ({ id: row.owner }))}
+      renderCell={(picked, column) => {
+        const row = byOwner.get(picked.id);
+        if (row === undefined) return null;
+        if (column.key === "plugin") {
+          return (
+            <OpenButton turnId={row.worstTurnId} number={null} onOpenTurn={props.onOpenTurn}>
+              {row.owner}
+            </OpenButton>
+          );
+        }
+        if (column.key === "tokens") {
+          return <span className="font-mono">{numberText(row.tokensPerTurn)}</span>;
+        }
+        if (column.key === "cost") {
+          return (
+            <span className="font-mono text-text-tertiary">
               {row.costUsd === null
                 ? t("desktop.measure.perf.costUnknown")
                 : numberText(row.costUsd)}
-            </td>
-            <td className="text-end font-mono">{t("desktop.measure.ms", { ms: row.msPerTurn })}</td>
-            <td className="text-end font-mono">{row.cacheEvents}</td>
-            <td className="text-end font-mono">{row.problems}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+            </span>
+          );
+        }
+        if (column.key === "time") {
+          return (
+            <span className="font-mono">{t("desktop.measure.ms", { ms: row.msPerTurn })}</span>
+          );
+        }
+        if (column.key === "cache") {
+          return <span className="font-mono">{row.cacheEvents}</span>;
+        }
+        if (column.key === "problems") {
+          return <span className="font-mono">{row.problems}</span>;
+        }
+        return null;
+      }}
+    />
   );
 }
 
@@ -153,7 +161,7 @@ function Curve(props: {
       <figcaption className="text-ui-sm text-text-tertiary">{props.label}</figcaption>
       <svg
         viewBox={`0 0 ${CURVE_W} ${CURVE_H}`}
-        className="h-16 w-full max-w-[36rem]"
+        className="h-16 w-full max-w-144"
         role="img"
         aria-label={props.label}
       >

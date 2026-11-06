@@ -152,18 +152,21 @@ export function NewGroupScreen(props: {
   return (
     <section aria-labelledby="compose-new-group-title" className="grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="compose-new-group-title" className="m-0 text-ui-strong text-text-primary">
+        <h2
+          id="compose-new-group-title"
+          className="m-0 flex items-center gap-1 text-title-3 font-semibold text-text-primary"
+        >
           {t("desktop.compose.newGroup.title")}
+          {props.prefill?.composition === undefined ? null : (
+            <InfoTip text={t("desktop.compose.flow.draft.newGroupNote")} />
+          )}
         </h2>
-        <Button size="sm" variant="outline" onClick={props.onBack}>
+        <Button size="xs" variant="outline" onClick={props.onBack}>
           {t("desktop.compose.newGroup.back")}
         </Button>
       </div>
-      {props.prefill?.composition === undefined ? null : (
-        <p className={MUTED}>{t("desktop.compose.flow.draft.newGroupNote")}</p>
-      )}
       <div className="grid gap-2">
-        <p className="m-0 flex items-center gap-1 text-ui-sm font-semibold text-text-primary">
+        <p className="m-0 flex items-center gap-1 text-title-3 text-text-primary">
           {t("desktop.compose.newGroup.place.head")}
           <InfoTip text={t("desktop.compose.newGroup.place.info")} />
         </p>
@@ -179,7 +182,7 @@ export function NewGroupScreen(props: {
         />
       </div>
       <div className="grid gap-2">
-        <p className="m-0 flex items-center gap-1 text-ui-sm font-semibold text-text-primary">
+        <p className="m-0 flex items-center gap-1 text-title-3 text-text-primary">
           {t("desktop.compose.newGroup.start.head")}
           <InfoTip text={t("desktop.compose.newGroup.start.info")} />
         </p>
@@ -204,7 +207,7 @@ export function NewGroupScreen(props: {
         {props.link !== "live" ? (
           <p className={MUTED}>{t("desktop.compose.newGroup.offline")}</p>
         ) : ready ? null : (
-          <p className={MUTED}>{t("desktop.compose.newGroup.hint")}</p>
+          <InfoTip text={t("desktop.compose.newGroup.hint")} />
         )}
       </div>
       {result === null ? null : result.kind === "failed" ? (

@@ -2,7 +2,7 @@ import { activeLocale, t } from "@fresnel/client/i18n";
 import { extMessageOf } from "@fresnel/client/views/native";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ExtUiEntry } from "@fresnel/contracts/wire";
-import { Button } from "@caustic/react";
+import { Button, EmptyState } from "@caustic/react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { PlacedEntry } from "../../plugin-ui/placements.ts";
 import { watchExtensionChanges } from "../../plugin-ui/watch.ts";
@@ -25,7 +25,7 @@ function Pick(props: {
 }): ReactNode {
   if (props.items.length < 2) return null;
   return (
-    <div className="flex flex-wrap gap-1 border-b px-2 py-1">
+    <div className="flex flex-wrap gap-1 px-3 pt-3">
       {props.items.map(({ entry }) => (
         <Button
           key={screenKeyOf(entry)}
@@ -48,7 +48,7 @@ function EntryList(props: { readonly items: readonly PlacedEntry[] }): ReactNode
   const current: ExtUiEntry | undefined =
     props.items.find(({ entry }) => screenKeyOf(entry) === picked)?.entry ?? props.items[0]?.entry;
   if (current === undefined) {
-    return <p className="p-3 text-ui text-text-secondary">{t("desktop.plugin.state.empty")}</p>;
+    return <EmptyState size="sm" surface="none" title={t("desktop.plugin.state.empty")} />;
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -72,12 +72,13 @@ export function PluginPagesTab(): ReactNode {
     ...state.groups.page,
     ...state.groups.panel.filter(({ entry }) => entry.extension !== HELM_EXTENSION),
   ];
+  // 탭 전체가 한 스크롤 컨테이너다. 이 대화에서 끄기 구역과 화면이 한 흐름으로 흐르고, 안쪽에 두 번째 스크롤을 두지 않는다
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="max-h-72 shrink-0 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <ThreadSwitches />
+        <EntryList items={items} />
       </div>
-      <EntryList items={items} />
     </div>
   );
 }

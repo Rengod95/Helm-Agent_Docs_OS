@@ -140,7 +140,7 @@ export function InstallDialog(props: {
             <>
               <Button
                 size="sm"
-                variant="ghost"
+                variant="outline"
                 disabled={busy}
                 onClick={flow.step === "confirm" ? () => dispatch({ type: "back" }) : props.onClose}
               >
@@ -204,7 +204,7 @@ export function InstallDialog(props: {
               )}
             </div>
             {pickError === null ? null : (
-              <p role="alert" className="m-0 text-footnote text-text-secondary">
+              <p role="alert" className="m-0 text-ui-xs text-text-secondary">
                 {pickError}
               </p>
             )}
@@ -212,11 +212,11 @@ export function InstallDialog(props: {
         )}
         {(flow.step === "confirm" || flow.step === "installing") && (
           <>
-            <span className="truncate text-footnote text-text-secondary">
+            <span className="truncate text-ui-xs text-text-tertiary">
               {t("desktop.install.confirm.source", { source: flow.preview.source })}
             </span>
             {flow.preview.installedVersion !== null && (
-              <span className="text-footnote text-text-secondary">
+              <span className="text-ui-xs text-text-tertiary">
                 {t("desktop.install.confirm.replaces", { version: flow.preview.installedVersion })}
               </span>
             )}
@@ -259,9 +259,7 @@ export function InstallDialog(props: {
           <Alert tone="danger">{t("desktop.install.fail.reload")}</Alert>
         )}
         {flow.step === "installing" && (
-          <span className="text-footnote text-text-secondary">
-            {t("desktop.install.installing")}
-          </span>
+          <span className="text-ui-xs text-text-secondary">{t("desktop.install.installing")}</span>
         )}
         {failure !== null && <Alert tone="danger">{t(FAILURE_TEXT[failure])}</Alert>}
       </div>

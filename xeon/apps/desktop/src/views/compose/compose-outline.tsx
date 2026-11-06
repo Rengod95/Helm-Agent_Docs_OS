@@ -46,6 +46,7 @@ export function FlowOutline(props: FlowOutlineProps): ReactNode {
   return (
     <LayerTree
       aria-label={t("desktop.compose.flow.outline.label")}
+      size="sm"
       announce={announceOf}
       value={props.selected === null ? [] : [`node:${props.selected}`]}
       expanded={expanded}
@@ -70,7 +71,7 @@ export function FlowOutline(props: FlowOutlineProps): ReactNode {
               itemId={row.id}
               depth={0}
               label={row.label}
-              tag={kind === undefined ? undefined : t(NODE_TEXT[kind])}
+              caption={kind === undefined ? undefined : t(NODE_TEXT[kind])}
               expandable={withLines.has(row.nodeId)}
               onPointerDown={NO_DRAG}
             />

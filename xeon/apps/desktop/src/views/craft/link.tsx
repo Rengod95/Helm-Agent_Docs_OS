@@ -1,6 +1,6 @@
 // 링크(Link): 고른 플러그인 하나가 다른 것들과 어떻게 엮였나. 왼쪽 카드가 초점이고, 오른쪽 열이 상대들이며,
 // 사이를 잇는 실 묶음이 관계 종류마다 하나다. 같은 종류의 실은 카드 오른쪽 가장자리의 한 점에서 나온다.
-import { Badge, Card, Meter, StatusDot } from "@caustic/react";
+import { Badge, Card, Chip, Meter } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import {
   HOOKS,
@@ -9,7 +9,6 @@ import {
   isOn,
   relationsOf,
   type CanvasPlugin,
-  type LayerKey,
   type Relation,
   type RelKind,
 } from "@fresnel/client/workbench/canvas";
@@ -26,6 +25,8 @@ import {
   type SetStateAction,
 } from "react";
 import { useCraft } from "./craft-context.tsx";
+import { Mark, shapeOf } from "./marks.tsx";
+import { layerTitle } from "./orbit-names.ts";
 import {
   focusOf,
   kindsOf,
@@ -83,14 +84,6 @@ const KIND_TEXT: Readonly<Record<RelKind, MessageId>> = {
   group: "desktop.craft.link.kind.group",
   drive: "desktop.craft.link.kind.drive",
   record: "desktop.craft.link.kind.record",
-};
-
-/** 층 이름은 용어집의 값을 쓴다(term.* 키는 용어 검사가 맡는다). 외부 플러그인만 이 화면의 말이다 */
-const LAYER_TEXT: Readonly<Record<LayerKey, MessageId>> = {
-  L1: "term.layerAgentCore",
-  L2: "term.layerCapabilities",
-  L3: "term.layerOrchestration",
-  plugin: "desktop.craft.link.layer.plugin",
 };
 
 /** 관계 모형이 내는 번역 키(relations.ts의 labelKey·msg keys)를 이 조각의 메시지 id로 옮긴다 */
@@ -649,16 +642,6 @@ function meterOf(label: string, value: number, max: number, danger: boolean): Me
   return { label, value, max, danger, text: `${value}/${max}` };
 }
 
-/** 상태 점: 실패는 붉은 채움, 켜짐은 채움, 꺼짐은 속 빔. 색만으로 읽히지 않게 모양을 다르게 둔다 */
-function StateDot({ on, failing }: { readonly on: boolean; readonly failing: boolean }): ReactNode {
-  const fill = failing
-    ? "bg-danger-graphic"
-    : on
-      ? "bg-text-primary"
-      : "border border-text-tertiary bg-transparent";
-  return <span aria-hidden className={`inline-block size-2.5 flex-none rounded-full ${fill}`} />;
-}
-
 /** 고른 플러그인의 카드: 이름, 역할, 칩 세 개, 네 개의 값 막대 */
 function FocusCard({ p }: { readonly p: CanvasPlugin }): ReactNode {
   const { source } = useCraft();
@@ -697,7 +680,14 @@ function FocusCard({ p }: { readonly p: CanvasPlugin }): ReactNode {
       className="gap-3"
     >
       <div className="flex items-center gap-3">
-        <StateDot on={on} failing={failing} />
+        <Mark
+          shape={shapeOf(p.layer)}
+          size={28}
+          group={grpName !== undefined}
+          on={on}
+          failing={failing}
+          autoOff={h?.autoOff === true}
+        />
         <div className="grid min-w-0 gap-0.5">
           <span className="truncate text-title-4 text-text-primary">{p.name}</span>
           {p.role !== undefined && (
@@ -706,9 +696,15 @@ function FocusCard({ p }: { readonly p: CanvasPlugin }): ReactNode {
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Badge size="sm">{t(LAYER_TEXT[p.layer])}</Badge>
-        {grpName !== undefined && <Badge size="sm">{grpName}</Badge>}
-        <StatusDot tone={stateText.tone} label={stateText.text} />
+        <Badge size="sm">{layerTitle(p.layer)}</Badge>
+        {grpName !== undefined && (
+          <Chip size="sm" tone="info" variant="soft">
+            {grpName}
+          </Chip>
+        )}
+        <Chip size="sm" tone={stateText.tone} dot>
+          {stateText.text}
+        </Chip>
       </div>
       <div className="grid gap-2.5 border-t border-border-subtle pt-3">
         {meters.map((r) => (
@@ -817,7 +813,14 @@ function RelRow({
           onFocus={() => setHov({ k: "row", id: other.id })}
           onBlur={() => setHov(null)}
         >
-          <StateDot on={on} failing={failing} />
+          <Mark
+            shape={shapeOf(other.layer)}
+            size={18}
+            group={other.group !== undefined}
+            on={on}
+            failing={failing}
+            autoOff={other.health?.autoOff === true}
+          />
           <span
             className={`min-w-0 flex-1 truncate text-ui-strong ${on ? "text-text-primary" : "text-text-tertiary"}`}
           >

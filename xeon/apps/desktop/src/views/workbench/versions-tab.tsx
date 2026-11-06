@@ -7,11 +7,23 @@ import {
   type VersionsLoad,
   type VersionsView,
 } from "@fresnel/client/workbench";
-import { detach, rethrow } from "@fresnel/contracts";
+import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
-import { Alert, Badge, Button, Skeleton, toast } from "@caustic/react";
+import {
+  Alert,
+  Badge,
+  Button,
+  ListDescription,
+  ListDescriptionRow,
+  Skeleton,
+  Table,
+  toast,
+  type TableColumn,
+} from "@caustic/react";
+import { History, RotateCcw } from "@caustic/react/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
+import { PLAIN_TABLE } from "./tab-body.tsx";
 import { RollbackDialog } from "./rollback-dialog.tsx";
 
 type Load = { readonly kind: "loading" } | VersionsLoad;
@@ -145,31 +157,13 @@ export function VersionsPanel(props: {
 
   return (
     <>
-      <ul className="grid gap-1">
-        {view.rows.map((row) => (
-          <li key={row.version} className="flex items-center gap-3 px-2 py-1 text-ui-sm">
-            <span className="w-16 font-mono text-text-primary">{row.version}</span>
-            <span className="text-text-tertiary">
-              {row.installedAt ?? t("desktop.workbench.versions.inApp")}
-            </span>
-            <Badge size="sm">{t(SOURCE_TEXT[row.source])}</Badge>
-            {row.current && <Badge size="sm">{t("desktop.workbench.versions.current")}</Badge>}
-            {row.canRollback && (
-              <Button
-                size="xs"
-                variant="outline"
-                className="ms-auto"
-                disabled={props.locked}
-                onClick={() => {
-                  setTarget(row);
-                }}
-              >
-                {t("desktop.workbench.versions.rollback")}
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+      <VersionsTable
+        rows={view.rows}
+        locked={props.locked}
+        onPick={(row) => {
+          setTarget(row);
+        }}
+      />
       <RollbackDialog
         current={current}
         target={target}
@@ -185,6 +179,85 @@ export function VersionsPanel(props: {
   );
 }
 
+/** 이력 표의 열 */
+type VersionColumn = "version" | "source" | "installed" | "act";
+
+const VERSION_COLUMNS: readonly VersionColumn[] = ["version", "source", "installed", "act"];
+
+/** 표 열의 키(문자열)를 열 이름으로 바꾼다. 열 이름이 아니면 undefined */
+function versionColumnOf(key: string): VersionColumn | undefined {
+  return VERSION_COLUMNS.find((column) => column === key);
+}
+
+/**
+ * 전체 단계의 이력 표(wb-opus 버전 탭): 버전(mono, 지금 표지), 출처, 설치 시각(없으면 "앱에 든 버전"), 되돌리기 단추.
+ * 행 사이 선 없이 표 하나로 읽는다. 저장 형식과 매니페스트 해시는 이 읽기에 없어 칸을 두지 않는다.
+ */
+function VersionsTable(props: {
+  readonly rows: readonly VersionRowVM[];
+  readonly locked: boolean;
+  readonly onPick: (row: VersionRowVM) => void;
+}): ReactNode {
+  const columns: TableColumn[] = [
+    { key: "version", header: t("desktop.workbench.versions.col.version") },
+    { key: "source", header: t("desktop.workbench.versions.col.source") },
+    { key: "installed", header: t("desktop.workbench.versions.installed") },
+    { key: "act", header: "" },
+  ];
+  return (
+    <Table
+      variant="ghost"
+      size="xs"
+      aria-label={t("desktop.workbench.detail.tab.versions")}
+      className={PLAIN_TABLE}
+      columns={columns}
+      rows={props.rows.map((_, index) => ({ id: String(index) }))}
+      renderCell={(picked, column) => {
+        const row = props.rows[Number(picked.id)];
+        const name = versionColumnOf(column.key);
+        if (row === undefined || name === undefined) return null;
+        switch (name) {
+          case "version":
+            return (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="font-mono text-mono-sm text-text-primary">{row.version}</span>
+                {row.current && (
+                  <Badge size="xs" variant="soft">
+                    {t("desktop.workbench.versions.current")}
+                  </Badge>
+                )}
+              </span>
+            );
+          case "source":
+            return <span className="text-text-secondary">{t(SOURCE_TEXT[row.source])}</span>;
+          case "installed":
+            return (
+              <span className="text-text-secondary">
+                {row.installedAt ?? t("desktop.workbench.versions.inApp")}
+              </span>
+            );
+          case "act":
+            return row.canRollback ? (
+              <Button
+                size="xs"
+                variant="ghost"
+                iconStart={<RotateCcw />}
+                disabled={props.locked}
+                onClick={() => {
+                  props.onPick(row);
+                }}
+              >
+                {t("desktop.workbench.versions.rollback")}
+              </Button>
+            ) : null;
+          default:
+            return assertNever(name, "VersionsTable");
+        }
+      }}
+    />
+  );
+}
+
 /**
  * 대체 단계: 설치본 버전과 앱에 든 번들 버전(기본 플러그인만)을 읽기 전용으로 보인다.
  * 번들 버전으로 되돌리는 명령은 wire가 없어(`ext.rollback`은 기록이 없는 확장을 거절한다) 단추를 두지 않는다.
@@ -197,29 +270,34 @@ function FallbackVersions(props: {
   readonly onRollback: (() => void) | null;
 }): ReactNode {
   return (
-    <div className="grid gap-2 text-ui-sm">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        <dt className="text-text-tertiary">{t("desktop.workbench.versions.installed")}</dt>
-        <dd className="font-mono text-text-primary">{props.installed}</dd>
+    <div className="grid gap-3">
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.workbench.detail.tab.versions")}
+        className="rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0"
+      >
+        <ListDescriptionRow term={t("desktop.workbench.versions.installed")}>
+          <span className="font-mono text-mono-sm text-text-primary">{props.installed}</span>
+        </ListDescriptionRow>
         {props.bundled !== null && (
-          <>
-            <dt className="text-text-tertiary">{t("desktop.workbench.versions.bundled")}</dt>
-            <dd className="font-mono text-text-primary">{props.bundled}</dd>
-          </>
+          <ListDescriptionRow term={t("desktop.workbench.versions.bundled")}>
+            <span className="font-mono text-mono-sm text-text-primary">{props.bundled}</span>
+          </ListDescriptionRow>
         )}
-      </dl>
-      <p className="text-text-tertiary">{t("desktop.workbench.versions.noHistory")}</p>
+      </ListDescription>
+      <p className="m-0 inline-flex items-center gap-1.5 text-ui-sm text-text-secondary">
+        <History aria-hidden emphasis="muted" className="size-icon-sm" />
+        {t("desktop.workbench.versions.noHistory")}
+      </p>
       {props.onRollback !== null ? (
-        <Button
-          size="xs"
-          variant="outline"
-          className="justify-self-start"
-          onClick={props.onRollback}
-        >
-          {t("desktop.workbench.versions.rollbackToBundled")}
-        </Button>
+        <div className="flex flex-wrap gap-1.5">
+          <Button size="sm" variant="outline" iconStart={<RotateCcw />} onClick={props.onRollback}>
+            {t("desktop.workbench.versions.rollbackToBundled")}
+          </Button>
+        </div>
       ) : (
-        <p className="text-text-tertiary">
+        <p className="m-0 text-ui-xs text-text-tertiary">
           {props.bundled !== null
             ? t("desktop.workbench.versions.bundledNoRollback")
             : t("desktop.workbench.versions.userNoRollback")}

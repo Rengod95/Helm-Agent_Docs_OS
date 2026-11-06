@@ -2,8 +2,11 @@
 // "처음 켜는" 기록이 없어서 지금은 꺼져 있던 user·project 확장을 켤 때마다 묻는다 [제안: 기본값].
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
-import { Button, Dialog, DialogAction, DialogClose } from "@caustic/react";
+import { Button, Dialog, DialogClose, ListDescription, ListDescriptionRow } from "@caustic/react";
 import type { ReactNode } from "react";
+
+/** 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이 */
+const LD = "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
 
 const ORIGIN_TEXT: Readonly<Record<NonNullable<ExtListEntry["origin"]>, MessageId>> = {
   builtin: "desktop.workbench.origin.builtin",
@@ -36,16 +39,7 @@ export function TrustDialog(props: {
       title={
         entry === null ? "" : t("desktop.workbench.trust.heading", { name: entry.displayName })
       }
-      description={
-        entry === null
-          ? ""
-          : t("desktop.workbench.trust.body", {
-              origin: originText(entry.origin),
-              requested: entry.requestedGrade,
-              effective: entry.effectiveGrade,
-              hooks: entry.hookCount,
-            })
-      }
+      description={entry === null ? "" : t("desktop.workbench.trust.lead")}
       footer={
         <>
           <DialogClose asChild>
@@ -53,15 +47,37 @@ export function TrustDialog(props: {
               {t("desktop.workbench.cancel")}
             </Button>
           </DialogClose>
-          <DialogAction
-            onClick={() => {
-              if (entry !== null) props.onConfirm(entry.name);
-            }}
-          >
-            {t("desktop.workbench.trust.confirm")}
-          </DialogAction>
+          {/* 켜기는 확인이라 중립 면으로 두고, 닫기는 Close가 맡는다(DialogAction은 위험 톤이라 쓰지 않는다) */}
+          <DialogClose asChild>
+            <Button
+              variant="solid"
+              size="sm"
+              onClick={() => {
+                if (entry !== null) props.onConfirm(entry.name);
+              }}
+            >
+              {t("desktop.workbench.trust.confirm")}
+            </Button>
+          </DialogClose>
         </>
       }
-    />
+    >
+      {entry === null ? null : (
+        <ListDescription variant="ghost" size="xs" className={LD}>
+          <ListDescriptionRow term={t("desktop.workbench.detail.origin")}>
+            {originText(entry.origin)}
+          </ListDescriptionRow>
+          <ListDescriptionRow term={t("desktop.workbench.detail.grade")}>
+            {t("desktop.workbench.detail.grade.value", {
+              requested: entry.requestedGrade,
+              effective: entry.effectiveGrade,
+            })}
+          </ListDescriptionRow>
+          <ListDescriptionRow term={t("desktop.workbench.detail.tab.hooks")}>
+            {t("desktop.install.parts.hooks", { count: entry.hookCount })}
+          </ListDescriptionRow>
+        </ListDescription>
+      )}
+    </Dialog>
   );
 }

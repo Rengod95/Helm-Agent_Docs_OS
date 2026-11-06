@@ -18,7 +18,6 @@ import {
 import type { CompositionDecl, PhaseNodeDecl } from "@fresnel/contracts/extensions";
 import type { WireManifestIssue } from "@fresnel/contracts/wire";
 import {
-  Badge,
   Button,
   NodeGraph,
   NodeGraphNode,
@@ -37,6 +36,8 @@ import { TrialBar, trialPhaseOf, useTrialRun } from "./compose-trial.tsx";
 import { isCompactWidth, useContainerWidth } from "./compose-width.ts";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
+/** 흐름 노드의 겉모양(시안 blockClass와 같은 값): 간격, 안쪽 여백, 제목 글자 역할 */
+const NODE_CLASS = "gap-1.5 px-3 py-2.5 [&_[data-slot=node-graph-node-title]]:text-title-3";
 
 export interface FlowWorkspaceProps {
   /** 설치된 구성 선언. 초안을 낼 때 이 값의 나머지(블록)를 그대로 쓴다 */
@@ -80,11 +81,15 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
 
   return (
     <div ref={ref} className="grid min-w-0 gap-3">
-      <p className="m-0 flex flex-wrap items-center gap-1 text-ui-sm text-text-secondary">
-        {t("desktop.compose.flow.head")}
+      {/* 흐름 설명은 정보 아이콘 뒤에 둔다(DP-58). 초안이면 머리에 "초안"이라고 흐리게 적는다 */}
+      <div className="flex flex-wrap items-center gap-2">
+        {draft === null ? null : (
+          <span className="text-ui-sm text-text-tertiary">
+            {t("desktop.compose.flow.draft.badge")}
+          </span>
+        )}
         <InfoTip text={t("desktop.compose.flow.boundary")} />
-        {draft === null ? null : <Badge size="xs">{t("desktop.compose.flow.draft.badge")}</Badge>}
-      </p>
+      </div>
       <TrialBar
         link={link}
         installed={installed}
@@ -146,11 +151,11 @@ export function FlowWorkspace(props: FlowWorkspaceProps): ReactNode {
 function ReadOnlyLine(props: { readonly onStart: () => void }): ReactNode {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <p className="m-0 flex items-center gap-1 text-ui-sm text-text-tertiary">
+      <p className="m-0 flex items-center gap-1 text-ui-sm text-text-secondary">
         {t("desktop.compose.flow.readOnly")}
         <InfoTip text={t("desktop.compose.flow.readOnly.info")} />
       </p>
-      <Button size="sm" variant="outline" onClick={props.onStart}>
+      <Button size="xs" variant="solid" onClick={props.onStart}>
         {t("desktop.compose.flow.draft.start")}
       </Button>
     </div>
@@ -237,6 +242,8 @@ function FlowNode(props: {
       x={props.x}
       y={props.y}
       width={GRAPH_NODE_WIDTH}
+      // 시안의 블록 노드 겉모양: 간격과 제목 글자(text-title-3)만 준다
+      className={NODE_CLASS}
       title={node.title ?? node.id}
       meta={t(NODE_TEXT[node.kind])}
       state={nodeStateOf(props.runStates, node.id, invalid)}
@@ -253,8 +260,12 @@ function FlowNode(props: {
       }}
     >
       <NodeGraphPort portId={`${node.id}:in`} side="start" state="connected" />
-      <div className="grid gap-1 px-3 pb-3">
-        {props.initial ? <Badge size="xs">{t("desktop.compose.flow.initial")}</Badge> : null}
+      <div className="grid gap-1">
+        {props.initial ? (
+          <span className="text-footnote text-text-tertiary">
+            {t("desktop.compose.flow.initial")}
+          </span>
+        ) : null}
         {node.kind === "human" && node.askTitle !== undefined ? (
           <span className="text-footnote text-text-secondary">{node.askTitle}</span>
         ) : null}
@@ -298,7 +309,6 @@ export function FlowCanvas(props: {
       height={size.height}
       surface="grid"
       edges={edges}
-      className="rounded-xl border border-border-subtle"
     >
       {draft.nodes.flatMap((node) => {
         const place = placeOf.get(node.id);

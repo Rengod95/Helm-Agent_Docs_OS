@@ -231,7 +231,7 @@ export function RemoveDialogBody(props: {
     <div className="grid gap-3">
       <ImpactRows impact={props.impact} />
       <section aria-label={t("desktop.workbench.remove.storage.title")} className="grid gap-2">
-        <h3 className="m-0 text-ui-sm font-medium text-text-primary">
+        <h3 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
           {t("desktop.workbench.remove.storage.title")}
         </h3>
         {note === null ? null : (
@@ -260,7 +260,7 @@ export function RemoveDialogBody(props: {
         ) : null}
       </section>
       {props.dataFailed ? (
-        <Alert tone="danger" size="sm" radius="md" role="alert">
+        <Alert tone="danger" layout="inline" size="sm" role="alert">
           {t("desktop.workbench.remove.dataFailed")}
         </Alert>
       ) : null}
@@ -304,7 +304,7 @@ function StorageTables(props: {
         {t("desktop.workbench.remove.storage.drop")}
       </label>
       {props.checked ? (
-        <Alert tone="warning" size="sm" radius="md" role="status">
+        <Alert tone="warning" layout="inline" size="sm" role="status">
           {t("desktop.workbench.remove.storage.warning")}
         </Alert>
       ) : null}

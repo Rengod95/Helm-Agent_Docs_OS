@@ -1,12 +1,5 @@
-import {
-  Badge,
-  Button,
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@caustic/react";
+import { Badge, Button, Dialog } from "@caustic/react";
+import { Shield } from "@caustic/react/icons";
 import {
   CONFIRM_CLICK_GUARD_MS,
   confirmBadges,
@@ -187,6 +180,31 @@ export function ConfirmDialogView(props: {
       size="sm"
       inline={props.inline ?? false}
       open
+      icon={<Shield />}
+      title={confirmLineText(request)}
+      description={
+        <span className="flex flex-wrap gap-1.5">
+          {confirmBadges(request).map((badge) => (
+            <Badge key={badge} size="sm">
+              {badge}
+            </Badge>
+          ))}
+        </span>
+      }
+      footer={confirmButtons().map((button) => (
+        <Button
+          key={button.answer}
+          ref={button.defaultFocus ? focusRef : undefined}
+          variant={button.defaultFocus ? "solid" : "outline"}
+          size="sm"
+          data-default-focus={button.defaultFocus ? "true" : undefined}
+          onClick={() => {
+            props.onAnswer(button.answer);
+          }}
+        >
+          {button.label}
+        </Button>
+      ))}
       onOpenChange={(open) => {
         if (!open) props.onDismiss();
       }}
@@ -195,35 +213,11 @@ export function ConfirmDialogView(props: {
         focusRef.current?.focus();
       }}
     >
-      <DialogHeader>
-        <DialogTitle>{confirmLineText(request)}</DialogTitle>
-        <DialogDescription>
-          <span className="flex flex-wrap gap-1.5">
-            {confirmBadges(request).map((badge) => (
-              <Badge key={badge}>{badge}</Badge>
-            ))}
-          </span>
-        </DialogDescription>
-      </DialogHeader>
       {request.paramsSummary === "" ? null : (
-        <p className="break-all text-ui-dense text-text-secondary">{request.paramsSummary}</p>
+        <p className="m-0 break-all rounded-lg bg-neutral-track px-3 py-2 font-mono text-mono-sm text-text-primary">
+          {request.paramsSummary}
+        </p>
       )}
-      <DialogFooter>
-        {confirmButtons().map((button) => (
-          <Button
-            key={button.answer}
-            ref={button.defaultFocus ? focusRef : undefined}
-            variant={button.defaultFocus ? "solid" : "outline"}
-            size="sm"
-            data-default-focus={button.defaultFocus ? "true" : undefined}
-            onClick={() => {
-              props.onAnswer(button.answer);
-            }}
-          >
-            {button.label}
-          </Button>
-        ))}
-      </DialogFooter>
     </Dialog>
   );
 }

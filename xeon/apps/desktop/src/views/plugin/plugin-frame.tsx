@@ -1,4 +1,4 @@
-import { EmptyState } from "@caustic/react";
+import { Button, EmptyState, Skeleton } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import {
   attachFrame,
@@ -105,7 +105,7 @@ function createFrameChannel(): { readonly port1: BridgePort; readonly port2: Mes
 }
 
 export function PluginFrame(props: PluginFrameProps): ReactNode {
-  const { screenKey, ledger, onClosed } = props;
+  const { screenKey, ledger, onClosed, title } = props;
   const [closed, setClosed] = useState(false);
   // 다시 켜기마다 올린다. 새 iframe 요소를 만들어 이전 문서의 흔적을 남기지 않는다
   const [generation, setGeneration] = useState(0);
@@ -132,26 +132,69 @@ export function PluginFrame(props: PluginFrameProps): ReactNode {
 
   if (disabled || closed) {
     return (
-      <FramePlaceholder
-        onReenable={() => {
-          ledger.reenable(screenKey);
-          setClosed(false);
-          setGeneration((current) => current + 1);
-        }}
-      />
+      <FrameBox label={title}>
+        <FramePlaceholder
+          onReenable={() => {
+            ledger.reenable(screenKey);
+            setClosed(false);
+            setGeneration((current) => current + 1);
+          }}
+        />
+      </FrameBox>
     );
   }
   return <PluginFrameMount key={generation} {...props} onClosed={handleClosed} />;
 }
 
-/** 자리 표시. 장부가 끈 화면이나 닫힌 프레임을 대신한다 */
+/** 프레임 상자: 셸이 긋는 경계 하나(안쪽 1px 그림자, 여백 없음). 안쪽 여백은 플러그인 몫이라 셸은 주지 않는다 */
+function FrameBox(props: { readonly label: string; readonly children: ReactNode }): ReactNode {
+  return (
+    <section
+      role="region"
+      aria-label={props.label}
+      className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl shadow-[inset_0_0_0_1px_var(--cs-color-border-default)]"
+    >
+      {props.children}
+    </section>
+  );
+}
+
+/** 자리 표시. 장부가 끈 화면이나 닫힌 프레임을 상자 안 가운데에 대신한다 */
 function FramePlaceholder(props: { readonly onReenable: () => void }): ReactNode {
   return (
-    <EmptyState
-      size="sm"
-      title={t("desktop.plugin.frame.disabled")}
-      actions={[{ label: t("desktop.plugin.frame.reenable"), onClick: props.onReenable }]}
-    />
+    <div className="grid flex-1 place-items-center px-3 py-6">
+      <EmptyState
+        size="sm"
+        surface="none"
+        title={t("desktop.plugin.frame.disabled")}
+        actions={
+          <Button size="xs" variant="outline" onClick={props.onReenable}>
+            {t("desktop.plugin.frame.reenable")}
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
+/** ready를 기다리는 동안 상자를 덮는 Skeleton과 한 줄 글. ready를 받으면 걷힌다 */
+function FrameLoading(props: { readonly line: string }): ReactNode {
+  return (
+    <div aria-busy="true" className="absolute inset-0 grid content-start gap-4 bg-surface-base p-4">
+      <p role="status" className="m-0 text-ui-xs text-text-tertiary">
+        {props.line}
+      </p>
+      <div className="grid grid-cols-3 gap-4">
+        {[0, 1, 2].map((column) => (
+          <div key={column} className="grid content-start gap-2">
+            <Skeleton height={14} width="40%" />
+            <Skeleton height={56} />
+            <Skeleton height={56} />
+            {column === 0 && <Skeleton height={56} />}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -219,12 +262,7 @@ function PluginFrameMount(props: PluginFrameProps): ReactNode {
   }, [screenKey, url, nonce, declaredBridge, ledger]);
 
   return (
-    <div className="flex w-full flex-col gap-2">
-      {ready ? null : (
-        <p role="status" className="text-ui-dense text-text-tertiary">
-          {t("desktop.plugin.frame.loading")}
-        </p>
-      )}
+    <FrameBox label={title}>
       {/* sandbox 값은 attachFrame(applyFrameAttributes)이 같은 상수로 다시 건다. 여기서는 그 상수만 준다. 넓히는 토큰은 없다 */}
       <iframe
         ref={iframeRef}
@@ -233,6 +271,7 @@ function PluginFrameMount(props: PluginFrameProps): ReactNode {
         className="w-full border-0"
         style={{ height }}
       />
-    </div>
+      {ready ? null : <FrameLoading line={t("desktop.plugin.frame.loading")} />}
+    </FrameBox>
   );
 }

@@ -4,7 +4,7 @@ import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
 import type { ExtKind, ExtRowVM, ExtState, ToggleLock } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
-import { Badge, Button, StatusDot, Switch, Tooltip } from "@caustic/react";
+import { Button, StatusDot, Switch, Tooltip } from "@caustic/react";
 import type { ReactNode } from "react";
 import { removableOf } from "./remove-model.ts";
 
@@ -49,8 +49,11 @@ export function ExtName(props: { readonly row: ExtRowVM }): ReactNode {
   const { row } = props;
   return (
     <span className="min-w-0 truncate">
-      {row.displayName !== null && <span className="text-text-primary">{row.displayName} </span>}
-      <span className="font-mono text-text-tertiary">{row.name}</span>
+      {row.displayName !== null ? (
+        <span className="text-text-primary">{row.displayName}</span>
+      ) : (
+        <span className="font-mono text-mono-sm text-text-tertiary">{row.name}</span>
+      )}
     </span>
   );
 }
@@ -79,10 +82,7 @@ export function ExtSwitch(props: {
   if (reason === undefined) return control;
   return (
     <Tooltip content={reason}>
-      <span
-        tabIndex={0}
-        className="inline-flex rounded-full outline-none focus-visible:shadow-focus"
-      >
+      <span tabIndex={0} className="inline-flex rounded-sm outline-none focus-visible:focus-ring">
         {control}
       </span>
     </Tooltip>
@@ -118,15 +118,15 @@ export function ExtCell(props: {
     case "name":
       return <ExtName row={row} />;
     case "layer":
-      return <span className="font-mono text-text-tertiary">{row.layer}</span>;
+      return <span className="font-mono text-mono-sm text-text-tertiary">{row.layer}</span>;
     case "kind":
-      return <Badge size="sm">{kindText(row.kind)}</Badge>;
+      return <span className="text-text-tertiary">{kindText(row.kind)}</span>;
     case "grade":
       return <span className="text-text-tertiary">{row.grade}</span>;
     case "state":
       return <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />;
     case "version":
-      return <span className="font-mono text-text-tertiary">{row.version}</span>;
+      return <span className="font-mono text-mono-sm text-text-tertiary">{row.version}</span>;
     case "switch":
       return <ExtSwitch row={row} onToggle={props.onToggle} />;
     default:
@@ -144,15 +144,15 @@ export function RemoveButton(props: {
 }): ReactNode {
   if (removableOf(props.entry)) {
     return (
-      <Button size="sm" variant="outline" onClick={props.onRemove}>
+      <Button size="xs" variant="outline" onClick={props.onRemove}>
         {t("desktop.workbench.remove.open")}
       </Button>
     );
   }
   return (
     <Tooltip content={t("desktop.workbench.remove.locked")}>
-      <span tabIndex={0} className="inline-flex rounded-md outline-none focus-visible:shadow-focus">
-        <Button size="sm" variant="outline" disabled>
+      <span tabIndex={0} className="inline-flex rounded-sm outline-none focus-visible:focus-ring">
+        <Button size="xs" variant="outline" disabled>
           {t("desktop.workbench.remove.open")}
         </Button>
       </span>

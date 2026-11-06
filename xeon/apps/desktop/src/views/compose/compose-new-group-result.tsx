@@ -5,6 +5,7 @@ import { assertNever } from "@fresnel/contracts";
 import type { DevkitIssue, PackResult } from "@fresnel/contracts/services";
 import { Alert, Button } from "@caustic/react";
 import type { ReactNode } from "react";
+import { issueToneOf } from "./compose-check.tsx";
 import { MONO } from "./compose-new-group-form.tsx";
 
 export type DirCheck =
@@ -42,19 +43,25 @@ function summaryTextOf(errors: number, warnings: number): string {
 export function CheckNotice(props: { readonly check: DirCheck }): ReactNode {
   const { check } = props;
   if (check.kind === "failed") {
-    return <Alert tone="warning">{t("desktop.compose.newGroup.check.failed")}</Alert>;
+    return (
+      <Alert tone="warning" variant="soft" size="sm">
+        {t("desktop.compose.newGroup.check.failed")}
+      </Alert>
+    );
   }
   const { errors, warnings } = devkitSummaryOf(check.issues);
   const tone = errors > 0 ? "danger" : warnings > 0 ? "warning" : "success";
   return (
     <div className="grid gap-2">
-      <Alert tone={tone}>{summaryTextOf(errors, warnings)}</Alert>
+      <Alert tone={tone} variant="soft" size="sm">
+        {summaryTextOf(errors, warnings)}
+      </Alert>
       {check.issues.length === 0 ? null : (
         <ul className="m-0 grid list-none gap-1.5 p-0">
           {check.issues.map((issue) => (
             <li
               key={`${issue.code}:${issue.path}:${issue.message}`}
-              className="text-ui-sm text-text-secondary"
+              className={`text-footnote ${issueToneOf(issue.severity)}`}
             >
               <span className="font-mono">{issue.code}</span> {issue.message}
             </li>
@@ -67,7 +74,11 @@ export function CheckNotice(props: { readonly check: DirCheck }): ReactNode {
 
 /** 만들지 못한 까닭. 호스트가 준 거절 문장이 있으면 그대로 보이고, 없으면 일반 문장이다 */
 export function FailedNotice(props: { readonly issue: string | null }): ReactNode {
-  return <Alert tone="danger">{props.issue ?? t("desktop.compose.newGroup.failed")}</Alert>;
+  return (
+    <Alert tone="danger" variant="soft" size="sm">
+      {props.issue ?? t("desktop.compose.newGroup.failed")}
+    </Alert>
+  );
 }
 
 function PackNote(props: { readonly pack: PackRead }): ReactNode {
@@ -76,7 +87,11 @@ function PackNote(props: { readonly pack: PackRead }): ReactNode {
     case "idle":
       return null;
     case "failed":
-      return <Alert tone="danger">{t("desktop.compose.newGroup.pack.failed")}</Alert>;
+      return (
+        <Alert tone="danger" variant="soft" size="sm">
+          {t("desktop.compose.newGroup.pack.failed")}
+        </Alert>
+      );
     case "done":
       return (
         <dl className="m-0 grid gap-2 text-ui-sm">
@@ -106,13 +121,13 @@ export function MadeResult(props: {
   return (
     <div className="grid gap-3">
       <div className="grid gap-1">
-        <span className="text-ui-sm font-semibold text-text-primary">
+        <span className="text-title-3 text-text-primary">
           {t("desktop.compose.newGroup.made.dir")}
         </span>
         <p className={MONO}>{made.dir}</p>
       </div>
       <div className="grid gap-1">
-        <span className="text-ui-sm font-semibold text-text-primary">
+        <span className="text-title-3 text-text-primary">
           {t("desktop.compose.newGroup.made.files")}
         </span>
         <ul className="m-0 grid list-none gap-0.5 p-0">

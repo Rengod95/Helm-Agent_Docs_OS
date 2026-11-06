@@ -19,11 +19,15 @@ export function CheckBanner(props: { readonly check: CheckRead }): ReactNode {
   const { check } = props;
   if (check.kind === "loading") return null;
   if (check.kind === "failed")
-    return <Alert tone="warning">{t("desktop.compose.check.failed")}</Alert>;
+    return (
+      <Alert tone="warning" variant="soft" size="sm">
+        {t("desktop.compose.check.failed")}
+      </Alert>
+    );
   const { errors, warnings } = issueSummaryOf(check.issues);
   if (errors === 0 && warnings === 0) return null;
   return (
-    <Alert tone={errors > 0 ? "danger" : "warning"}>
+    <Alert tone={errors > 0 ? "danger" : "warning"} variant="soft" size="sm">
       {errors > 0 ? t("desktop.compose.check.errors", { count: errors }) : null}
       {errors > 0 && warnings > 0 ? " " : null}
       {warnings > 0 ? t("desktop.compose.check.warnings", { count: warnings }) : null}
@@ -31,7 +35,13 @@ export function CheckBanner(props: { readonly check: CheckRead }): ReactNode {
   );
 }
 
-/** 검사 이슈 줄들: 코드와 문장. 띠의 개수 밑에 모두 보여 경고도 숨기지 않는다 */
+/** 문제 줄의 글 색: 오류는 danger, 경고는 warning, 안내는 보통 글(검사 결과 두 곳이 같이 쓴다) */
+export function issueToneOf(severity: string): string {
+  if (severity === "error") return "text-danger-text";
+  return severity === "warning" ? "text-warning-text" : "text-text-secondary";
+}
+
+/** 검사 이슈 줄들: 코드와 문장. 띠의 개수 밑에 모두 보여 경고도 숨기지 않는다. 글자 색은 심각도를 따른다 */
 export function IssueList(props: { readonly issues: readonly WireManifestIssue[] }): ReactNode {
   if (props.issues.length === 0) return null;
   return (
@@ -39,7 +49,7 @@ export function IssueList(props: { readonly issues: readonly WireManifestIssue[]
       {props.issues.map((issue) => (
         <li
           key={`${issue.code}:${issue.path}:${issue.message}`}
-          className="text-ui-sm text-text-secondary"
+          className={`text-footnote ${issueToneOf(issue.severity)}`}
         >
           <span className="font-mono">{issue.code}</span> {issue.message}
         </li>

@@ -157,8 +157,8 @@ describe("검사 탭 구역: 값이 있을 때", () => {
   test("훅 줄은 p95와 예산 막대(60/100 warning)와 실패 수를 보인다", () => {
     const hooks = sectionOf(body(REVIEW, READY_DATA), t("desktop.inspect.section.hooks") + " 1");
     expect(hooks).toContain(t("desktop.inspect.hook.p95", { ms: 60 }));
-    expect(hooks).toContain('data-slot="meter"');
-    expect(hooks).toContain('data-level="warning"');
+    expect(hooks).toContain('data-slot="progress"');
+    expect(hooks).toContain('data-tone="warning"');
     expect(hooks).toContain(t("desktop.inspect.hook.failures", { count: 2 }));
     expect(hooks).toContain("tool.call.before");
   });
@@ -169,7 +169,7 @@ describe("검사 탭 구역: 값이 있을 때", () => {
       timings: { kind: "ready", value: { traceEnabled: false, timings: [] } },
     });
     expect(html).toContain(t("desktop.inspect.hook.traceOff"));
-    expect(html).not.toContain('data-slot="meter"');
+    expect(html).not.toContain('data-slot="progress"');
   });
 
   test("요구 기능이 묶이지 않았으면 묶인 제공자 없음을 보인다", () => {

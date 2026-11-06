@@ -27,13 +27,13 @@ const badgesOf = (html: string): string[] =>
 
 /** 설정 탭의 값 칸 글, 그린 순서대로 */
 const settingValuesOf = (html: string): string[] =>
-  [...html.matchAll(/ms-auto text-text-secondary">([^<]*)</g)].map((m) => m[1] ?? "");
+  [...html.matchAll(/data-slot="setting-value"[^>]*>([^<]*)</g)].map((m) => m[1] ?? "");
 
-/** 측정 탭의 값(dd)과 이름(dt), 그린 순서대로 */
+/** 측정 탭의 값과 이름(caustic CardStat 칸의 label·value), 그린 순서대로 */
 const valuesOf = (html: string): string[] =>
-  [...html.matchAll(/<dd\b[^>]*>([^<]*)<\/dd>/g)].map((m) => m[1] ?? "");
+  [...html.matchAll(/data-slot="card-stat-value"[^>]*>([^<]*)</g)].map((m) => m[1] ?? "");
 const labelsOf = (html: string): string[] =>
-  [...html.matchAll(/<dt\b[^>]*>([^<]*)<\/dt>/g)].map((m) => m[1] ?? "");
+  [...html.matchAll(/data-slot="card-stat-label"[^>]*>([^<]*)</g)].map((m) => m[1] ?? "");
 
 /** 화면 탭의 상태 점: 색(`data-tone`)과 글, 그린 순서대로 */
 const statesOf = (html: string): { tone: string; text: string }[] =>
@@ -196,12 +196,12 @@ describe("화면 탭 그림", () => {
   test("값이 있으면 화면마다 자리, 모드, 상태 배지와 진단 수를 보인다", () => {
     const html = renderToString(<ScreensPanel read={ready(SCREENS)} />);
     expect(textOf(html)).toContain("웹 패널");
-    expect(badgesOf(html)).toEqual([
-      t("desktop.workbench.placement.panel"),
-      t("desktop.workbench.uiMode.native"),
-      t("desktop.workbench.placement.status"),
-      t("desktop.workbench.uiMode.app"),
-    ]);
+    // 자리와 모드는 시안처럼 글로 보인다(배지 아님)
+    expect(badgesOf(html)).toEqual([]);
+    expect(textOf(html)).toContain(t("desktop.workbench.placement.panel"));
+    expect(textOf(html)).toContain(t("desktop.workbench.uiMode.native"));
+    expect(textOf(html)).toContain(t("desktop.workbench.placement.status"));
+    expect(textOf(html)).toContain(t("desktop.workbench.uiMode.app"));
     expect(statesOf(html)).toEqual([
       { tone: "success", text: t("desktop.workbench.screenState.ok") },
       { tone: "danger", text: t("desktop.workbench.screenState.invalid") },
@@ -247,31 +247,27 @@ function headerOf(over: Parameters<typeof entry>[1]): string {
   );
 }
 
-describe("머리 출처 배지", () => {
-  test("설치 등급과 켜짐 출처를 배지로 보인다(사용자 설치, 전역)", () => {
+describe("머리 출처 글", () => {
+  // 시안 머리 줄은 배지 대신 글로 잇는다: 설치 위치 · 종류 · 버전, 상태 글 뒤에 범위 글
+  test("설치 위치와 켜짐 범위를 머리 글로 보이고 배지는 두지 않는다(사용자 설치, 전역)", () => {
     const html = headerOf({ origin: "user", enabledSource: "user" });
-    expect(badgesOf(html)).toEqual([
-      t("desktop.workbench.origin.user"),
-      t("desktop.workbench.scope.global"),
-    ]);
+    expect(textOf(html)).toContain(t("desktop.workbench.origin.user"));
+    expect(textOf(html)).toContain(t("desktop.workbench.scope.global"));
+    expect(badgesOf(html)).toEqual([]);
   });
 
-  test("작업 폴더 등급과 이 대화 출처를 보이고, 출처가 없으면 범위 배지를 두지 않는다", () => {
+  test("작업 폴더 등급과 이 대화 출처를 보이고, 출처가 없으면 범위 글을 두지 않는다", () => {
     const withThread = headerOf({ origin: "project", enabledSource: "thread" });
-    expect(badgesOf(withThread)).toEqual([
-      t("desktop.workbench.origin.project"),
-      t("desktop.workbench.scope.thread"),
-    ]);
+    expect(textOf(withThread)).toContain(t("desktop.workbench.origin.project"));
+    expect(textOf(withThread)).toContain(t("desktop.workbench.scope.thread"));
     const withoutSource = headerOf({ origin: "builtin" });
-    expect(badgesOf(withoutSource)).toEqual([t("desktop.workbench.origin.builtin")]);
+    expect(textOf(withoutSource)).toContain(t("desktop.workbench.origin.builtin"));
+    expect(textOf(withoutSource)).not.toContain(t("desktop.workbench.scope.global"));
   });
 
   test("작업 폴더 범위는 wire가 준 출처가 project일 때만 보인다", () => {
     const html = headerOf({ origin: "user", enabledSource: "project" });
-    expect(badgesOf(html)).toEqual([
-      t("desktop.workbench.origin.user"),
-      t("desktop.workbench.scope.project"),
-    ]);
+    expect(textOf(html)).toContain(t("desktop.workbench.scope.project"));
   });
 });
 

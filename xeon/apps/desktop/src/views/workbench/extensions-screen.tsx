@@ -3,13 +3,11 @@
 import { t } from "@fresnel/client/i18n";
 import { selectedEntry, visibleRows } from "@fresnel/client/workbench";
 import { Alert, Button, EmptyState } from "@caustic/react";
-import { Plus } from "@caustic/react/icons";
 import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands } from "../commands.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import {
-  CountsLine,
   firstNoticeOf,
   ListStatusBand,
   noticeTotalOf,
@@ -57,16 +55,14 @@ export function ExtensionsScreen(): ReactNode {
   const noticeTotal = noticeTotalOf(state.entries, state.hookNotices, safe);
   const firstNotice = firstNoticeOf(state.entries);
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-6">
+    <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pt-6 pb-4">
       <header className="flex items-start justify-between gap-2">
-        <div className="grid gap-0.5">
-          <h1 className="text-ui-strong text-text-primary">{t("desktop.workbench.list.title")}</h1>
-          <CountsLine />
-        </div>
+        <h1 className="m-0 text-title-3 font-bold text-text-primary">
+          {t("desktop.workbench.list.title")}
+        </h1>
         <Button
-          size="sm"
+          size="xs"
           variant="outline"
-          iconStart={<Plus />}
           onClick={() => {
             setInstalling(true);
           }}
@@ -85,12 +81,14 @@ export function ExtensionsScreen(): ReactNode {
           }}
         />
       )}
-      <BindingsPanel />
-      <SearchField />
+      {detailEntry === null && <BindingsPanel />}
+      {detailEntry === null && <SearchField />}
       <ListStatusBand controller={controller} />
       {noticeTotal > 0 && (
         <Alert
           tone="danger"
+          layout="inline"
+          size="sm"
           actions={
             firstNotice === null
               ? []

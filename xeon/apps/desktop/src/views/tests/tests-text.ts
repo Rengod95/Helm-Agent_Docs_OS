@@ -93,7 +93,7 @@ export function newTestErrorTextOf(error: NewTestError): MessageId {
   }
 }
 
-/** 시간 칸의 글: 1초 밑은 밀리초, 1분 밑은 초, 그 밖은 분 */
+/** 시간 칸의 글: 1초 밑은 밀리초, 1분 밑은 초, 그 밖은 분(구성기 시험 결과가 쓴다) */
 export function durationTextOf(ms: number): { readonly key: MessageId; readonly value: number } {
   const duration = durationOf(ms);
   switch (duration.unit) {
@@ -108,7 +108,7 @@ export function durationTextOf(ms: number): { readonly key: MessageId; readonly 
   }
 }
 
-/** 칸마다 글. 같음은 칠한 칸, 다름은 테두리만 둔 칸이다 */
+/** 칸마다 글. 같음은 칠한 칸, 다름은 칠한 붉은 칸이다 */
 export const CELL_TEXT: Readonly<Record<CutCell, MessageId>> = {
   same: "desktop.tests.detail.cell.same",
   differs: "desktop.compose.trial.cut.differs",

@@ -17,13 +17,13 @@ import {
 import { assertNever, attemptAsync, detach, rethrow } from "@fresnel/contracts";
 import type { ReplayReport } from "@fresnel/contracts/services";
 import type { ExtTestRecord } from "@fresnel/contracts/wire";
-import { Alert, Badge, Button, Progress, Tooltip } from "@caustic/react";
+import { Alert, Button, Progress, Timeline, TimelineItem, Tooltip } from "@caustic/react";
 import { Lock } from "@caustic/react/icons";
 import { useCallback, useId, useState, type ReactNode } from "react";
 import type { SettingsJump } from "../../state/ui/index.ts";
 import { useCommands, type Commands, type TestCommands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
-import { ReplayResult, Tag, type TagTone } from "../tests/test-detail.tsx";
+import { ReplayResult, type TagTone } from "../tests/test-detail.tsx";
 import { startReplay } from "../tests/tests-actions.ts";
 import {
   durationTextOf,
@@ -261,21 +261,29 @@ function ReplayDone(props: {
   return <ReplayResult report={report} onCopy={onCopy} limitInfo />;
 }
 
+/**
+ * 지난 결과 한 줄: 시안의 기록 줄(Timeline)과 같은 모양. 판정은 제목 글과 줄 색, 시각은 time, 걸린 시간과 "가장 최근"은 detail에 둔다
+ */
 function ResultRow(props: { readonly row: LastResultVM; readonly latest: boolean }): ReactNode {
   const { row, latest } = props;
   const tag = resultTagOf(row);
+  const duration = durationLabelOf(row.durationMs);
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 text-ui-sm">
-      <Tag tone={tag.tone}>{t(tag.text)}</Tag>
-      <span className="text-text-secondary">{timeTextOf(row.startedMs)}</span>
-      <span className="text-text-tertiary">{durationLabelOf(row.durationMs)}</span>
-      {latest ? <Badge size="xs">{t("desktop.compose.trial.results.latest")}</Badge> : null}
-    </li>
+    <TimelineItem
+      author="system"
+      tone={tag.tone}
+      title={t(tag.text)}
+      time={timeTextOf(row.startedMs)}
+      detail={latest ? `${duration} · ${t("desktop.compose.trial.results.latest")}` : duration}
+    />
   );
 }
 
-function ResultsBody(props: { readonly replay: ReplayController }): ReactNode {
-  const { replay } = props;
+function ResultsBody(props: {
+  readonly replay: ReplayController;
+  readonly label: string;
+}): ReactNode {
+  const { replay, label } = props;
   const read = replay.results;
   switch (read.kind) {
     case "loading":
@@ -290,6 +298,8 @@ function ResultsBody(props: { readonly replay: ReplayController }): ReactNode {
       return (
         <Alert
           tone="danger"
+          variant="soft"
+          size="sm"
           action={
             <Button size="xs" variant="outline" onClick={replay.reread}>
               {t("desktop.tests.retry")}
@@ -302,16 +312,16 @@ function ResultsBody(props: { readonly replay: ReplayController }): ReactNode {
     case "ready": {
       const { rows, latest } = lastResultsOf(read.value, replay.target);
       return (
-        <div className="grid gap-2">
+        <div className="grid gap-3">
           {read.stale ? <p className={MUTED}>{t("desktop.tests.stale")}</p> : null}
           {rows.length === 0 ? (
             <p className={MUTED}>{t("desktop.compose.trial.results.empty")}</p>
           ) : (
-            <ol className="m-0 grid list-none gap-1.5 p-0">
+            <Timeline aria-label={label} size="sm">
               {rows.map((row) => (
                 <ResultRow key={row.testId} row={row} latest={latest?.testId === row.testId} />
               ))}
-            </ol>
+            </Timeline>
           )}
         </div>
       );
@@ -328,12 +338,12 @@ function ResultsSection(props: { readonly replay: ReplayController }): ReactNode
     replay.devMode ? "desktop.compose.trial.results.heading" : "desktop.compose.trial.results.past",
   );
   return (
-    <section aria-label={heading} className="grid gap-2">
+    <section aria-label={heading} className="grid gap-3">
       <div className="flex flex-wrap items-center gap-1">
-        <h3 className="m-0 text-ui-sm font-semibold text-text-secondary">{heading}</h3>
+        <h3 className="m-0 text-title-3 text-text-primary">{heading}</h3>
         {replay.devMode ? null : <InfoTip text={t("desktop.compose.trial.results.readOnly")} />}
       </div>
-      <ResultsBody replay={replay} />
+      <ResultsBody replay={replay} label={heading} />
     </section>
   );
 }
@@ -361,7 +371,11 @@ export function ReplayBar(props: { readonly replay: ReplayController }): ReactNo
       </div>
       {running ? (
         <div className="flex items-center gap-2 text-ui-sm text-text-secondary">
-          <Progress indeterminate size="sm" />
+          <Progress
+            indeterminate
+            size="sm"
+            aria-label={t("desktop.compose.trial.replay.running")}
+          />
           <span>{t("desktop.compose.trial.replay.running")}</span>
         </div>
       ) : null}
@@ -371,6 +385,8 @@ export function ReplayBar(props: { readonly replay: ReplayController }): ReactNo
       {replay.notice === null ? null : (
         <Alert
           tone={replay.notice.failed ? "danger" : "success"}
+          variant="soft"
+          size="sm"
           dismissible
           dismissLabel={t("desktop.compose.dismiss")}
           onDismiss={replay.dismiss}

@@ -17,7 +17,6 @@ import {
 } from "@fresnel/contracts/extensions";
 import type { WireManifestIssue } from "@fresnel/contracts/wire";
 import {
-  Badge,
   Button,
   EmptyState,
   Field,
@@ -35,7 +34,8 @@ import { IssueList } from "./compose-check.tsx";
 import { NODE_TEXT } from "./compose-text.ts";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
-const HEAD = "m-0 text-ui-sm font-semibold text-text-primary";
+/** 팔레트와 속성의 구역 제목(시안 PageSection group 제목과 같은 글 역할) */
+const HEAD = "m-0 text-title-3 text-text-primary";
 
 export interface FlowEditorProps {
   readonly draft: FlowDraft;
@@ -61,7 +61,12 @@ export function FlowEditor(props: FlowEditorProps): ReactNode {
         }}
       />
       {node === undefined ? (
-        <EmptyState size="sm" surface="none" title={t("desktop.compose.flow.inspect.empty")} />
+        <EmptyState
+          size="sm"
+          surface="none"
+          mark={null}
+          title={t("desktop.compose.flow.inspect.empty")}
+        />
       ) : (
         <Inspector
           key={node.id}
@@ -113,6 +118,7 @@ function TextField(props: {
     <Field label={props.label}>
       <Input
         size="sm"
+        variant="soft"
         value={text}
         placeholder={props.placeholder}
         maxLength={props.maxLength}
@@ -145,13 +151,15 @@ function Inspector(props: {
   const connectable = target !== null && !outgoing.some((edge) => edge.to === target);
   const titleValue = node.title ?? "";
   return (
-    <div className="grid gap-3 rounded-lg border border-border-subtle p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="m-0 text-ui-sm font-semibold text-text-primary">{node.title ?? node.id}</h3>
-        <Badge size="xs" mono variant="outline">
-          {t(NODE_TEXT[node.kind])}
-        </Badge>
-        {props.initial ? <Badge size="xs">{t("desktop.compose.flow.initial")}</Badge> : null}
+    <div className="grid content-start gap-3">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-2.5">
+        <h3 className={HEAD}>{node.title ?? node.id}</h3>
+        <span className="text-ui-sm text-text-tertiary">{t(NODE_TEXT[node.kind])}</span>
+        {props.initial ? (
+          <span className="text-footnote text-text-tertiary">
+            {t("desktop.compose.flow.initial")}
+          </span>
+        ) : null}
       </div>
       <IssueList issues={props.issues} />
       <TextField
@@ -198,10 +206,10 @@ function Inspector(props: {
         >
           {t("desktop.compose.flow.inspect.remove")}
         </Button>
+        {draft.nodes.length <= 1 ? (
+          <InfoTip text={t("desktop.compose.flow.inspect.keepOne")} />
+        ) : null}
       </div>
-      {draft.nodes.length <= 1 ? (
-        <p className={MUTED}>{t("desktop.compose.flow.inspect.keepOne")}</p>
-      ) : null}
       <div className="grid gap-2">
         <div className="flex flex-wrap items-end gap-2">
           <Field label={t("desktop.compose.flow.inspect.next")}>

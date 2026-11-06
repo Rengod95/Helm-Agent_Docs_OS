@@ -8,6 +8,7 @@ import { LinkView } from "./link.tsx";
 import { Orbit, useCraftTheme } from "./orbit.tsx";
 import { SpaceBackground } from "./space-bg.tsx";
 import { Strata } from "./strata.tsx";
+import { SelectionPanel } from "./selection-panel.tsx";
 import { CraftToolbar } from "./toolbar.tsx";
 
 /** 순서·링크 뒤에 깔리는 배경. 지도처럼 움직이지 않으므로 시점은 고정이다 */
@@ -38,6 +39,8 @@ export function CraftBody(): ReactNode {
         </>
       )}
       <CraftToolbar />
+      {/* 선택 패널은 지도와 순서에서 뜬다. 링크 보기는 오른쪽 열이 그 자리를 쓰므로 숨는다(시안 panelOpen) */}
+      {state.mode !== "link" && <SelectionPanel />}
     </div>
   );
 }

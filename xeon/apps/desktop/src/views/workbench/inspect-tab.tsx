@@ -34,13 +34,13 @@ import type {
   GroupDriveLockResult,
   GroupStatusWire,
 } from "@fresnel/contracts/wire";
-import { Alert, Badge, Button, EmptyState, Meter, Skeleton, StatusDot } from "@caustic/react";
+import { Alert, Badge, Button, EmptyState, Progress, Skeleton, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useHandlerFailures, useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
-import { FailureRecords } from "./ext-detail.tsx";
+import { BAR_TONE, FailureRecords, FOLD_TEXT } from "./ext-detail.tsx";
 import { ExtName, ExtSwitch, kindText, lockText, stateText, stateTone } from "./ext-row.tsx";
 import { detachVoid, reloadOnExtChanges, useWorkbenchController } from "./controller.ts";
 import { useToggleRequest } from "./craft-parts.tsx";
@@ -166,20 +166,15 @@ function useInspectData(name: string, threadId: ThreadId | null, live: boolean):
 function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
   return (
     <section aria-label={props.title} className="grid content-start gap-2">
-      <h3 className="m-0 text-ui-sm font-semibold text-text-primary">{props.title}</h3>
+      <h3 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
+        {props.title}
+      </h3>
       {props.children}
     </section>
   );
 }
 
-/** 훅 fold의 사용자 글(용어 `fold`: 보기·막기·고치기·모으기) */
-const FOLD_TEXT: Readonly<Record<string, MessageId>> = {
-  tap: "desktop.inspect.fold.tap",
-  first: "desktop.inspect.fold.first",
-  chain: "desktop.inspect.fold.chain",
-  collect: "desktop.inspect.fold.collect",
-};
-
+/** 훅 fold 글(`FOLD_TEXT`는 확장 상세와 같다) */
 function FoldBadge(props: { readonly fold: string }): ReactNode {
   const id = FOLD_TEXT[props.fold];
   return id === undefined ? null : <Badge size="sm">{t(id)}</Badge>;
@@ -216,14 +211,13 @@ function HooksSection(props: {
               })}
             </span>
           </div>
-          {row.p95Ms !== null && row.budgetMs > 0 ? (
-            <Meter
-              size="sm"
-              value={row.p95Ms}
-              max={row.budgetMs}
-              high={row.budgetMs / 2}
+          {/* 예산 대비 막대(wb-opus 훅 탭): 50% 넘으면 warning, 100%면 danger. 측정이 없으면 막대를 두지 않는다 */}
+          {row.p95Ms !== null && row.level !== null && row.budgetMs > 0 ? (
+            <Progress
+              size="xs"
+              value={Math.max(2, Math.round((row.p95Ms / row.budgetMs) * 100))}
+              tone={BAR_TONE[row.level]}
               label={row.hook}
-              valueText={t("desktop.inspect.hook.p95", { ms: row.p95Ms })}
             />
           ) : null}
           <div className="flex flex-wrap items-center gap-2 text-text-tertiary">

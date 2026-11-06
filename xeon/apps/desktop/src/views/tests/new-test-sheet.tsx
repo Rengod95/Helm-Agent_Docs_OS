@@ -1,5 +1,5 @@
 // 새 시험 시트(O-12, §6.31). 종류(Test run, replay, benchmark, 보호 경로 검사, 켬/끔 비교), 대상, 옵션을 받는다.
-// 개발 모드에서만 열리는 종류는 배포 앱에서 잠기고 "개발 모드에서만" 배지를 단다. 켬/끔 비교는 작업 폴더 격리 전까지 잠긴다.
+// 시안(c01-trials parts/sheets.tsx): 종류는 라디오 묶음이고, 개발 모드에서만 열리는 종류는 배포 앱에서 잠기며 "개발 모드에서만" 배지를 단다.
 // 입력 검사와 잠김은 `@fresnel/client/workbench`의 `submitPlanOf`가 정하고, 여기는 그 결과를 그린다.
 import { t } from "@fresnel/client/i18n";
 import {
@@ -14,19 +14,21 @@ import {
 } from "@fresnel/client/workbench";
 import {
   Alert,
+  Badge,
   Button,
   Dialog,
   DialogAction,
   DialogClose,
   Field,
   Input,
-  Select,
-  SelectOption,
+  RadioGroup,
+  RadioGroupItem,
   Sheet,
 } from "@caustic/react";
+import { Lock } from "@caustic/react/icons";
 import type { ExtTestRunParams } from "@fresnel/contracts/wire";
 import { useId, type ReactNode } from "react";
-import { Tag } from "./test-detail.tsx";
+import { InfoTip } from "../craft/info-tip.tsx";
 import { NEW_KIND_TEXT, newTestErrorTextOf } from "./tests-text.ts";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
@@ -52,6 +54,7 @@ export function NewTestSheet(props: NewTestSheetProps): ReactNode {
   const canStart = plan !== null && (plan.kind === "run" || plan.kind === "create-test-run");
   return (
     <Sheet
+      size="sm"
       open={draft !== null}
       onOpenChange={(open) => {
         if (!open) handlers.close();
@@ -60,10 +63,18 @@ export function NewTestSheet(props: NewTestSheetProps): ReactNode {
       footer={
         draft === null ? null : (
           <>
-            <Button variant="outline" size="sm" disabled={sending} onClick={handlers.close}>
+            <Button variant="ghost" size="sm" disabled={sending} onClick={handlers.close}>
               {t("desktop.tests.sheet.close")}
             </Button>
-            <Button type="submit" form={formId} size="sm" loading={sending} disabled={!canStart}>
+            <Button
+              type="submit"
+              form={formId}
+
+              variant="solid"
+              size="sm"
+              loading={sending}
+              disabled={!canStart}
+            >
               {t("desktop.tests.sheet.start")}
             </Button>
           </>
@@ -107,63 +118,68 @@ export function NewTestForm(props: {
     <form
       id={props.id}
       noValidate
-      className="grid gap-4"
+      className="grid min-w-0 gap-4"
       onSubmit={(event) => {
         event.preventDefault();
         props.onSubmit();
       }}
     >
-      <Field label={t("desktop.tests.sheet.kind")}>
-        <Select
+      <Field label={t("desktop.tests.sheet.kind")} group>
+        <RadioGroup
+          size="sm"
           value={draft.kind}
           onValueChange={(value) => {
             const kind = kindOf(value);
             if (kind !== null) onChange({ ...draft, kind });
           }}
+          className="gap-0"
         >
           {items.map((item) => (
-            <SelectOption key={item.kind} value={item.kind} disabled={item.lock !== null}>
-              <span className="inline-flex items-center gap-2">
-                {t(NEW_KIND_TEXT[item.kind])}
+            <RadioGroupItem key={item.kind} value={item.kind} disabled={item.lock !== null}>
+              <span className="flex min-w-0 items-center gap-2 py-1">
+                <span className="min-w-0 flex-1 text-ui-dense text-text-primary">
+                  {t(NEW_KIND_TEXT[item.kind])}
+                </span>
                 {item.lock === "devMode" ? (
-                  <Tag tone="warning">{t("desktop.tests.lock.devMode")}</Tag>
+                  <Badge size="xs" variant="soft" icon={<Lock />}>
+                    {t("desktop.tests.lock.devMode")}
+                  </Badge>
                 ) : null}
               </span>
-            </SelectOption>
+            </RadioGroupItem>
           ))}
-        </Select>
+        </RadioGroup>
       </Field>
       {items.some((item) => item.lock === "isolation") ? (
         <p className={MUTED}>{t("desktop.tests.lock.isolation")}</p>
-      ) : null}
-      {current.lock === "devMode" ? (
-        <div>
-          <Tag tone="warning">{t("desktop.tests.lock.devMode")}</Tag>
-        </div>
       ) : null}
       {current.lock === null && !current.startable ? (
         <Alert tone="info">{t("desktop.tests.lock.unwired")}</Alert>
       ) : null}
       {draft.kind === "testRun" ? null : (
-        <Field
-          label={t("desktop.tests.sheet.target")}
-          hint={t("desktop.tests.sheet.targetHint")}
-          error={errorOf("target")}
-        >
-          <Input
-            spellCheck={false}
-            value={draft.target}
-            onValueChange={(value) => {
-              onChange({ ...draft, target: value });
-            }}
-          />
+        <Field label={t("desktop.tests.sheet.target")} error={errorOf("target")}>
+          <div className="flex items-center gap-1.5">
+            <Input
+              size="xs"
+              spellCheck={false}
+              value={draft.target}
+              className="font-mono"
+              containerClassName="min-w-0 flex-1"
+              onValueChange={(value) => {
+                onChange({ ...draft, target: value });
+              }}
+            />
+            <InfoTip text={t("desktop.tests.sheet.targetHint")} />
+          </div>
         </Field>
       )}
       {draft.kind === "replay" ? (
         <Field label={t("desktop.tests.sheet.maxCommits")} error={errorOf("maxCommits")}>
           <Input
+            size="xs"
             inputMode="numeric"
             value={draft.maxCommits}
+            containerClassName="w-36"
             onValueChange={(value) => {
               onChange({ ...draft, maxCommits: value });
             }}
@@ -173,8 +189,10 @@ export function NewTestForm(props: {
       {draft.kind === "benchmark" ? (
         <Field label={t("desktop.tests.sheet.runs")} error={errorOf("runs")}>
           <Input
+            size="xs"
             inputMode="numeric"
             value={draft.runs}
+            containerClassName="w-36"
             onValueChange={(value) => {
               onChange({ ...draft, runs: value });
             }}
