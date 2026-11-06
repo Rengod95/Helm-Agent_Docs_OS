@@ -67,9 +67,12 @@ export function HelmPanelTab(): ReactNode {
   const state = usePluginUiState();
   const items = state.groups.panel.filter(({ entry }) => entry.extension === HELM_EXTENSION);
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <EntryList items={items} />
-      <div className="max-h-[40vh] flex-none overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* 화면 높이가 내용보다 작아도 두 구역이 겹치지 않게, 둘 다 자기 키로 두고 바깥이 같이 스크롤한다 */}
+      <div className="flex-none">
+        <EntryList items={items} />
+      </div>
+      <div className="flex-none">
         <HelmResults />
       </div>
     </div>
