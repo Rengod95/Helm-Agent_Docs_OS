@@ -5,7 +5,7 @@
 //! 진단은 키 이름과 이유만 담는다. 다른 키의 값은 담지 않는다(E11).
 //! WebView는 `desktop_settings_read/write`로 같은 파일을 읽고 쓴다. 알려진 키는 `parse`와 같은 범위로 검사하고,
 //! UI 상태 키(`UI_KEY_PREFIXES`)는 값을 해석하지 않고 저장한다. 쓰기는 임시 파일을 거쳐 이름을 바꾼다.
-//! 셸은 시작할 때 한 번만 읽으므로 바뀐 값은 다음 실행부터 반영된다.
+//! 셸은 시작할 때 한 번 읽는다. 다만 닫기 동작(`closeBehavior`)은 쓰는 즉시 셸 상태에 반영된다. 나머지 엔진 값은 다음 실행부터 반영된다.
 
 use std::fs::File;
 use std::io::{self, ErrorKind, Read, Write};
@@ -42,13 +42,13 @@ pub const SHUTDOWN_GRACE_MS_RANGE: RangeInclusive<i64> = 1000..=180_000;
 /// `l4.desktop.engine.restartLimit`의 range (spec §6).
 pub const RESTART_LIMIT_RANGE: RangeInclusive<i64> = 0..=10;
 
-/// 창을 닫을 때의 동작 (`l4.desktop.window.closeBehavior`).
+/// 창을 닫을 때의 동작 (`l4.desktop.window.closeBehavior`). 기본값은 트레이 유지다.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CloseBehavior {
-    /// 정상 종료 순서를 탄다 (§4.3). 기본값이다.
-    #[default]
+    /// 정상 종료 순서를 탄다 (§4.3).
     Quit,
-    /// WebView를 해제하고 셸과 엔진을 남긴다 (§6).
+    /// WebView를 해제하고 셸과 엔진을 남긴다 (§6). 기본값이다.
+    #[default]
     Tray,
 }
 
@@ -159,6 +159,26 @@ pub fn should_prevent_exit(behavior: CloseBehavior, code: Option<i32>) -> bool {
     behavior == CloseBehavior::Tray && code.is_none()
 }
 
+/// 설정된 닫기 동작을 실제 동작으로 바꾼다. 트레이 유지인데 트레이 아이콘이 없으면 창을 닫은 뒤 남을 곳이 없으니 끝낸다.
+pub fn effective_close_behavior(configured: CloseBehavior, tray_active: bool) -> CloseBehavior {
+    match configured {
+        CloseBehavior::Tray if !tray_active => CloseBehavior::Quit,
+        other => other,
+    }
+}
+
+/// 쓴 키와 값이 닫기 동작을 바꾸면 그 새 동작을 돌려준다. 다른 키이거나 값이 맞지 않으면 `None`이다.
+pub fn close_behavior_update(key: &str, value: &Value) -> Option<CloseBehavior> {
+    if key != KEY_CLOSE_BEHAVIOR {
+        return None;
+    }
+    match value.as_str() {
+        Some("quit") => Some(CloseBehavior::Quit),
+        Some("tray") => Some(CloseBehavior::Tray),
+        _ => None,
+    }
+}
+
 /// `desktop_settings_read`: 설정 파일을 JSON 객체로 돌려준다. 파일이 없으면 `{}`다.
 #[tauri::command]
 pub async fn desktop_settings_read(app: AppHandle) -> Result<Value, CommandError> {
@@ -167,6 +187,7 @@ pub async fn desktop_settings_read(app: AppHandle) -> Result<Value, CommandError
 }
 
 /// `desktop_settings_write`: 키 하나를 검사해 쓴다. 알 수 없는 키와 틀린 값은 `BadRequest`다.
+/// 닫기 동작은 파일 쓰기가 성공한 뒤 셸 상태에도 바로 반영한다.
 #[tauri::command]
 pub async fn desktop_settings_write(
     app: AppHandle,
@@ -174,7 +195,14 @@ pub async fn desktop_settings_write(
     value: Value,
 ) -> Result<(), CommandError> {
     let dir = config_dir(&app)?;
-    write_key(&dir, &key, value)
+    let closing = close_behavior_update(&key, &value);
+    write_key(&dir, &key, value)?;
+    if let Some(behavior) = closing {
+        *app.state::<Mutex<CloseBehavior>>()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = behavior;
+    }
+    Ok(())
 }
 
 /// `load`와 같은 디렉터리(`app_config_dir`)를 쓴다.
@@ -411,8 +439,70 @@ mod tests {
         );
         let (settings, diagnostics) = parse(&text);
         assert_eq!(settings.restart_limit, Some(4));
-        assert_eq!(settings.close_behavior, CloseBehavior::Quit);
+        assert_eq!(settings.close_behavior, CloseBehavior::Tray);
         assert!(diagnostics.is_empty(), "{diagnostics:?}");
+    }
+
+    /// 기본 닫기 동작은 트레이 유지다. 설정 파일이 없거나 닫기 키가 없으면 이 값을 쓴다.
+    #[test]
+    fn the_close_behavior_defaults_to_tray_everywhere() {
+        assert_eq!(CloseBehavior::default(), CloseBehavior::Tray);
+        assert_eq!(
+            DesktopSettings::default().close_behavior,
+            CloseBehavior::Tray
+        );
+        assert_eq!(parse("{}").0.close_behavior, CloseBehavior::Tray);
+        assert_eq!(
+            parse(r#"{"l4.desktop.window.closeBehavior":"quit"}"#)
+                .0
+                .close_behavior,
+            CloseBehavior::Quit,
+            "명시한 quit은 그대로 둔다"
+        );
+    }
+
+    /// 트레이가 없으면 설정이 tray여도 quit이 된다. 나머지 조합은 그대로다.
+    #[test]
+    fn a_tray_setting_without_a_tray_icon_quits_on_close() {
+        let table = [
+            (CloseBehavior::Quit, false, CloseBehavior::Quit),
+            (CloseBehavior::Quit, true, CloseBehavior::Quit),
+            (CloseBehavior::Tray, false, CloseBehavior::Quit),
+            (CloseBehavior::Tray, true, CloseBehavior::Tray),
+        ];
+        for (configured, tray_active, expected) in table {
+            assert_eq!(
+                effective_close_behavior(configured, tray_active),
+                expected,
+                "{configured:?} with tray {tray_active}"
+            );
+        }
+    }
+
+    /// 쓰기 명령이 닫기 동작을 바꾸는 값은 quit과 tray뿐이다. 다른 키와 틀린 값은 상태를 바꾸지 않는다.
+    #[test]
+    fn a_close_behavior_write_updates_the_live_state_only_for_valid_values() {
+        let key = KEY_CLOSE_BEHAVIOR;
+        assert_eq!(
+            close_behavior_update(key, &json!("tray")),
+            Some(CloseBehavior::Tray)
+        );
+        assert_eq!(
+            close_behavior_update(key, &json!("quit")),
+            Some(CloseBehavior::Quit)
+        );
+        for value in [json!("exit"), json!("Tray"), json!(1), Value::Null] {
+            assert_eq!(close_behavior_update(key, &value), None, "{value}");
+        }
+        assert_eq!(
+            close_behavior_update(KEY_RESTART_LIMIT, &json!(2)),
+            None,
+            "다른 키는 닫기 동작을 바꾸지 않는다"
+        );
+        assert_eq!(
+            close_behavior_update("l4.desktop.appearance.theme", &json!("tray")),
+            None
+        );
     }
 
     /// 범위 밖 숫자는 `parse`에서 걸러져 `from_values`가 기본값으로 바꾼다.

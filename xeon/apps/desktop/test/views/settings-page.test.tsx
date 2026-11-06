@@ -218,6 +218,28 @@ describe("page layout", () => {
   });
 });
 
+describe("notify section", () => {
+  // OS 알림 묶음(B-10)은 "실행과 서비스" 탭 맨 위에 보이고, 다른 탭에는 보이지 않는다
+  const RESTART_LIMIT = defOf(
+    "l0.process.port",
+    "execution",
+    "number",
+    { type: "integer" },
+    { runtimeChange: "restart" },
+  );
+
+  test("the execution tab shows the notify panel above its fields, and other tabs do not", () => {
+    const view = viewOf([RESTART_LIMIT], [settingOf(RESTART_LIMIT.key, 7000)]);
+    const panel = <p>NOTIFY PANEL</p>;
+    const out = html(propsOf({ view, tab: "execution", notifyPanel: panel }));
+    expect(out.indexOf("NOTIFY PANEL")).toBeGreaterThan(-1);
+    expect(out.indexOf("NOTIFY PANEL")).toBeLessThan(out.indexOf('data-slot="settings-field"'));
+    expect(html(propsOf({ view, tab: "models", notifyPanel: panel }))).not.toContain(
+      "NOTIFY PANEL",
+    );
+  });
+});
+
 describe("widget controls", () => {
   const TOGGLE = defOf(
     "l4.cli.on",
@@ -401,5 +423,17 @@ describe("restore section", () => {
   test("a search lists fields instead, so the panel hides", () => {
     const view = viewOf([MODEL], SETTINGS);
     expect(html(propsOf({ view, tab: "advanced", query: "기본" }))).not.toContain("RESTORE PANEL");
+  });
+});
+
+describe("update line section", () => {
+  test("the update line sits on the overview tab only, and a search hides it", () => {
+    const view = viewOf([MODEL], SETTINGS);
+    const line = <p>UPDATE LINE</p>;
+    expect(html(propsOf({ view, tab: "overview", updatePanel: line }))).toContain("UPDATE LINE");
+    expect(html(propsOf({ view, tab: "models", updatePanel: line }))).not.toContain("UPDATE LINE");
+    expect(
+      html(propsOf({ view, tab: "overview", query: "기본", updatePanel: line })),
+    ).not.toContain("UPDATE LINE");
   });
 });

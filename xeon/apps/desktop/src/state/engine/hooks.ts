@@ -82,6 +82,9 @@ export const useThreadRunning = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectThreadRunning(s, id));
 export const useTurnFailure = (id: ThreadId | null): string | null =>
   useEngine((s) => sel.selectTurnFailure(s, id));
+/** 대화별 실패로 끝난 마지막 turn의 문장. 진행 중 칸이 예약 실패 행을 고른다 */
+export const useTurnFailures = (): Readonly<Record<string, string>> =>
+  useEngine(sel.selectTurnFailures);
 export const useLatestTurnId = (id: ThreadId | null): TurnId | null =>
   useEngine((s) => sel.selectLatestTurnId(s, id));
 export const useRecentTurnIds = (id: string | null): readonly TurnId[] =>

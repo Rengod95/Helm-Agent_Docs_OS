@@ -52,6 +52,8 @@ import type { DedicatedEditors, FieldHandlers } from "./settings-field.tsx";
 import { SettingsFileEditorView, type SettingsFileHandlers } from "./settings-file-view.tsx";
 import { SETTINGS_EDITORS } from "./settings-editors-screen.tsx";
 import { SettingsPageView, type SettingsPageHandlers } from "./settings-view.tsx";
+import { UpdatePanel } from "./settings-update-view.tsx";
+import { NotifyPanel } from "./settings-notify-view.tsx";
 
 // 설정 화면(P-09)의 동작. 컨트롤러(`commands.settings.open()`)는 연결마다 하나씩 만든다. 읽기와 알림 구독은 효과가 하고,
 // 상태는 `useSyncExternalStore`로 받는다. 탭 옮기기의 초안 묻기, 저장됨 표시 2초, ⌘S와 Esc, 열린 대화가 바뀔 때의 다시 읽기가 여기 있다.
@@ -434,6 +436,8 @@ export function SettingsPage(props: {
       editors={EDITORS}
       toolsPanel={<ToolsWebPanel state={toolsWeb} live={live} />}
       restorePanel={<RestorePanel folderPick={props.folderPick} />}
+      updatePanel={<UpdatePanel />}
+      notifyPanel={<NotifyPanel />}
       rotationPanel={
         view === null ? null : <RotationPanel view={view} live={live} handlers={fields} />
       }

@@ -17,7 +17,7 @@ import {
 import { evt, STORE, SUB, summary, thr, trn } from "./state/helpers.ts";
 
 // 데스크톱 `.ts` 문장을 카탈로그 id로 옮긴 뒤의 시험(B4-I18N D1). 시험 프로세스는 ko로 시작하므로(scripts/test-preload.ts)
-// 영어를 보는 시험은 로케일을 바꾸고 끝나면 되돌린다. 설정 항목의 ko 문장은 옮기기 전 원문과 같아야 한다.
+// 영어를 보는 시험은 로케일을 바꾸고 끝나면 되돌린다. 설정 항목의 ko 문장은 카탈로그의 ko 문장과 같아야 한다.
 
 const T = thr(1);
 
@@ -135,11 +135,11 @@ describe("desktop sentences in English", () => {
 });
 
 describe("desktop setting labels in the catalog", () => {
-  // 옮기기 전 ko 원문과 영어 대체 문구. 설정 화면은 labelKey·helpKey로 카탈로그 문장을 읽는다
+  // 설정 항목의 ko 문장과 영어 대체 문구. 설정 화면은 labelKey·helpKey로 카탈로그 문장을 읽는다
   const SETTING_KO: Readonly<Record<string, readonly [string, string]>> = {
     "l4.desktop.window.closeBehavior": [
       "창 닫기 동작",
-      "tray이면 창을 닫아도 엔진과 진행 중인 턴이 남아요. 창은 다시 실행하거나 Dock을 눌러 다시 열어요.",
+      "트레이로 두면 창을 닫아도 메뉴 막대(트레이) 아이콘이 남고 엔진과 진행 중인 턴이 계속돼요. 아이콘이 열기, 새 대화, 끝내기를 줘요.",
     ],
     "l4.desktop.engine.restartLimit": [
       "엔진 자동 재기동 횟수",
@@ -151,7 +151,7 @@ describe("desktop setting labels in the catalog", () => {
     ],
   };
 
-  test("every desktop setting has a label and help id, ko keeps the original sentence", () => {
+  test("every desktop setting has a label and help id, and the ko sentences match the catalog", () => {
     const ko = catalogOf("ko");
     expect(DESKTOP_SETTING_DEFS.map((def) => def.key).toSorted()).toEqual(
       Object.keys(SETTING_KO).toSorted(),

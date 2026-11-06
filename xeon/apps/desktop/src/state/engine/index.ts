@@ -8,3 +8,4 @@ export type { EngineState } from "../../transport/ipc.ts";
 export type { EngineMirror, Link, QueuedInput } from "./state.ts";
 export type { ReadonlyStore } from "../shared/readonly-store.ts";
 export { createThreadReaderPort } from "./thread-reader.ts";
+export { selectThread } from "./selectors.ts";

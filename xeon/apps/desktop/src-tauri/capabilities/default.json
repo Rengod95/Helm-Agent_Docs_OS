@@ -20,6 +20,16 @@
     "allow-pick-folder",
     "allow-pick-file",
     "allow-save-file",
-    "allow-os-reauth"
+    "allow-os-reauth",
+    "allow-update-status",
+    "allow-update-check",
+    "allow-update-download",
+    "allow-update-install-restart",
+    "allow-shell-take-intents",
+    "allow-tray-update",
+    "allow-notify-permission",
+    "allow-notify-request-permission",
+    "allow-notify-os",
+    "allow-notify-take-target"
   ]
 }

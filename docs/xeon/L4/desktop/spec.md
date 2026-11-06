@@ -102,7 +102,7 @@ flowchart LR
 
 ### 3.3 셸과 WebView 사이 IPC
 
-[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래), 폴더 선택 명령 하나(`pick_folder`, 이 표 아래), 파일 선택 명령 하나(`pick_file`, 이 표 아래), 파일 저장 명령 하나(`save_file`, 이 표 아래), 사람 재인증 명령 하나(`os_reauth`, 이 표 아래), 앱 root 목록 명령 하나(`app_roots_set`, 이 표 아래)와, 엔진 대상 바꾸기(`engine_retarget`), 데이터베이스 복원(`db_restore`, §4.3), 데스크톱 설정 읽기·쓰기(`desktop_settings_read`·`desktop_settings_write`, §3.6), 외부 링크 열기(`open_external`)만 WebView에 연다. 허용 목록 `src-tauri/capabilities/default.json`은 중계 다섯 명령에 이 열 명령을 더한 열여섯 개다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
+[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래), 폴더 선택 명령 하나(`pick_folder`, 이 표 아래), 파일 선택 명령 하나(`pick_file`, 이 표 아래), 파일 저장 명령 하나(`save_file`, 이 표 아래), 사람 재인증 명령 하나(`os_reauth`, 이 표 아래), 앱 root 목록 명령 하나(`app_roots_set`, 이 표 아래)와, 엔진 대상 바꾸기(`engine_retarget`), 데이터베이스 복원(`db_restore`, §4.3), 데스크톱 설정 읽기·쓰기(`desktop_settings_read`·`desktop_settings_write`, §3.6), 외부 링크 열기(`open_external`)만 WebView에 연다. 허용 목록 `src-tauri/capabilities/default.json`은 중계 다섯 명령에 이 열 명령을 더한 열여섯 개에, 업데이트 넷(`update_status`, `update_check`, `update_download`, `update_install_restart`), 셸 의도 하나(`shell_take_intents`), 트레이 하나(`tray_update`), OS 알림 넷(`notify_permission`, `notify_request_permission`, `notify_os`, `notify_take_target`)을 더한 스물여섯 개다(§4.18). 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
 
 | 명령 | 인자 | 결과 | 뜻 |
 |---|---|---|---|
@@ -645,6 +645,26 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - 값 보기 연결 [결정: 2026-11-04 사용자, B8 2안: 재인증 먼저, 그다음 보기]: 앱 진입점(`main.tsx`)이 macOS에서만 `createOsReauthGate`를 `RevealGateContext`에 넣는다. 그 밖의 OS와 웹은 `UNAVAILABLE_GATE`라 값 보기가 잠기고 이유를 보인다. 게이트는 시크릿 이름마다 이 명령을 한 번 부르고 통과했을 때만 값 경로를 연다. 창이 떠 있는 동안 같은 이름의 호출은 그 창의 결과를 함께 기다려 창이 두 번 뜨지 않고, 다른 이름의 호출은 앞의 창이 닫힌 뒤에 자기 창을 띄운다. `cancelled`와 `denied`는 "재인증을 취소했어요", `unavailable`은 잠김 문장, `failed`는 일반 실패로 보인다. 사유 문구에는 시크릿 이름만 싣고 값은 어디에도 싣지 않는다. `osascript` 방식(`platform-secrets/src/os-auth.ts`)은 그대로 둔다.
 - 확인 상태: 코드 매핑과 문구 정리는 값으로 시험했다. 실제 Touch ID 창과 취소 동작은 Mac에서 아직 돌리지 않았다(`review.macos-checklist` M-05).
 
+### 4.18 앱 업데이트, 트레이, OS 알림 [결정: 2026-11-06 사용자, B-10 승인]
+
+이 절의 의존성(`tauri-plugin-updater` 2.14.1, `tauri-plugin-notification` 2.8.0, `tauri`의 `tray-icon`·`image-png` 기능)은 사용자가 승인했다. 나머지 설계 선택은 [제안]이다. WebView에는 세 플러그인의 권한을 주지 않고, 아래 앱 명령만 `capabilities/default.json`에 연다(W2, `src/shell/**`가 부른다).
+
+**업데이트** (`src-tauri/src/updater.rs`)
+- 설정 자리: `tauri.conf.json`의 `plugins.updater.pubkey`(서명 공개키)와 `plugins.updater.endpoints`(배포 주소 목록). 둘 중 하나라도 비었거나 틀리면 `is_configured`가 거짓이고 플러그인을 등록하지 않는다. 앱은 정상으로 돌고 `update_check`는 `{ kind: "notConfigured" }`를 돌려준다. 키를 만들거나 배포 서버를 정하는 일은 사용자 몫이다(`L4.release.spec` §5).
+- 명령: `update_status`(설정 여부, 현재 버전), `update_check`(`notConfigured`, `upToDate`, `available { version, notes }`, `offline`, `failed { reason }`), `update_download`(진행을 `Channel`로 `progress { downloaded, total }`, 끝나면 `ready`), `update_install_restart`(설치, 엔진 정상 종료, 다시 시작). 이유 코드는 `signature`, `no_release`, `network`, `busy`, `nothing_to_download`, `nothing_to_install`, `other`이고 주소와 키는 담지 않는다. 확인은 30초가 지나면 `offline`으로 본다.
+- 서명 불일치는 설치하지 않고 "그래도 설치"를 두지 않는다. 설치가 실패하면 엔진은 그대로다.
+- 화면 상태(`src/views/update-model.ts`): `unconfigured`, `checking`, `current`, `available`, `downloading`, `ready`, `failed`, `offline`. 상태 표시줄 업데이트 칸과 설정의 업데이트 줄이 같은 상태를 쓴다(`L4.desktop-ux.spec` 시안 `d02`). 다시 시작 전에 진행 중 turn이 있으면 확인을 거친다.
+
+**트레이** (`src-tauri/src/tray.rs`, `shell_intent.rs`)
+- 메뉴: 열기, 새 대화, 진행 중 n(눌리지 않는 줄), 끝내기. 글은 WebView가 `tray_update`로 보낸 현재 언어의 문구다(처음에는 영어). macOS 메뉴 막대 아이콘은 템플릿 이미지다(`icons/tray.png`).
+- 창이 없을 때의 "새 대화"는 창을 다시 만들고 의도 큐(`shell_take_intents`, 30초 안의 것만)에 `newThread`를 둔다. WebView는 시작할 때와 `shell-intent` 이벤트를 받을 때 큐를 비운다.
+- "끝내기"는 `app.exit(0)`이라 §4.3 정상 종료 순서를 탄다.
+
+**OS 알림** (`src-tauri/src/notify_os.rs`)
+- 호스트가 `notify.delivered`를 모든 클라이언트에 보낸다(`L2.dialog.spec` §4.7.2). 데스크톱 화면은 창이 앞에 있지 않을 때만 `notify_os { title, body, threadId }`로 OS 알림을 띄운다. 제목은 80자, 본문은 400자로 줄이고 제어 문자를 지운다. 종류별 켬/끔은 데스크톱 로컬 키(`l4.desktop.window.notify.*`)다.
+- 알림을 눌렀을 때 그 대화로 가는 길: 알림 플러그인은 데스크톱 알림 눌림을 이 셸이 쓰는 방식으로 돌려주지 않는다. 그래서 셸이 마지막 알림의 대화를 30초 동안 기억하고(`notify_take_target`), 앱이 앞으로 올라오면 화면이 그 대화를 연다.
+- 권한: `notify_permission`, `notify_request_permission`은 `granted`, `denied`, `prompt`를 돌려준다. 데스크톱 플러그인은 권한 상태를 알려 주지 않아 지금은 항상 `granted`이고, 전달이 실패하면 설정에 "알림을 보내지 못했어요"로 보인다 [미결] [근거: `src-tauri/src/notify_os.rs`, Mac 실기 확인 전].
+
 ## 5. 실패와 경계 사례
 
 | 사례 | 처리 |
@@ -674,19 +694,19 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | `l4.desktop.appearance.fontFamily` | string(maxLength 128) | `""`(시스템 글꼴) | - | live | `managed`, `user` | appearance / text | M2 |
 | `l4.desktop.appearance.fontSize` | integer | `14` | min 10, max 24 | live | `managed`, `user` | appearance / number(unit `px`) | M2 |
 | `l4.desktop.appearance.keybindings` | object(동작 이름 → 키 문자열) | `{}`(내장 기본값) | - | live | `user` | appearance / table | M2 |
-| `l4.desktop.window.closeBehavior` | string | `"quit"` | enum `quit`, `tray` | live | `managed`, `user` | appearance / select | M2 |
+| `l4.desktop.window.closeBehavior` | string | `"tray"` | enum `quit`, `tray` | live | `managed`, `user` | appearance / select | M2 |
 | `l4.desktop.engine.restartLimit` | integer | `3` | min 0, max 10 | live | `managed`, `user` | execution / number | M2 |
 | `l4.desktop.engine.shutdownGraceMs` | integer | `7000` | min 1000, max 180000 | live | `managed`, `user` | advanced / number(unit `ms`) | M2 |
-| `l4.desktop.update.auto` | boolean | `false` | - | restart | `managed`, `user` | advanced / toggle | M4(확인 줄과 상태만) [결정: 2026-11-04 사용자, A2 2안] |
+| `l4.desktop.update.auto` | boolean | `false` | - | restart | `managed`, `user` | advanced / toggle | (선언하지 않는다. §4.18) |
 | `l4.desktop.firstRun.searchHintDismissed` | boolean | `false` | - | live | `user` | tools / toggle | M3 |
 
-- `closeBehavior`의 `tray`: 창을 닫으면 WebView를 해제하고(§4.10 수단 5) 셸과 엔진만 남는다. 진행 중 turn이 계속된다. `quit`이면 §4.3 정상 종료를 탄다. 기본값은 `quit`이다.
-- 트레이 유지 뒤 창을 다시 여는 길은 두 가지다. 두 번째 실행(단일 실행 알림)과 macOS Dock 클릭(`RunEvent::Reopen`)은 메인 창이 없으면 `tauri.conf.json`의 `main` 항목으로 창을 만들고 앞으로 가져온다(`window.rs` `ensure_main`). 새 페이지는 `engine_attach`로 다시 붙는다(§4.5). 이 구현에는 트레이 아이콘이 없어 트레이 항목으로 앱을 끝내는 길도 아직 없다 [미결].
+- `closeBehavior`의 `tray`: 창을 닫으면 WebView를 해제하고(§4.10 수단 5) 셸과 엔진만 남는다. 진행 중 turn이 계속된다. `quit`이면 §4.3 정상 종료를 탄다. 기본값은 `tray`다 [결정: 2026-11-06 사용자, B-10 승인]. 트레이 아이콘을 만들지 못한 기기에서는 `tray`여도 `quit`처럼 움직인다(`effective_close_behavior`, 창을 닫았는데 앱이 보이지 않게 남는 일을 막는다). 설정을 바꾸면 바로 적용된다(`desktop_settings_write`가 상태를 갱신한다).
+- 트레이 유지 뒤 창을 다시 여는 길은 두 가지다. 두 번째 실행(단일 실행 알림)과 macOS Dock 클릭(`RunEvent::Reopen`)은 메인 창이 없으면 `tauri.conf.json`의 `main` 항목으로 창을 만들고 앞으로 가져온다(`window.rs` `ensure_main`). 새 페이지는 `engine_attach`로 다시 붙는다(§4.5). 세 번째 길은 트레이 메뉴의 "열기"다(§4.18).
 - [미결] 트레이 유지 e2e(plan `tray-close-no-webview`, D-10)는 Mac에서만 돌린다. Linux에서는 종료 결정 함수와 `ensure_main` 시험까지만 확인했다.
 - `restartLimit` 0은 자동 재기동을 끈다는 뜻이다.
 - `firstRun.searchHintDismissed`: 첫 실행 권장 화면(`L4.settings-ui.spec` §4.10)을 처음 연 뒤 닫으면 참이 된다. 참이면 첫 실행 때 자동으로 띄우지 않고 `tools` 탭 묶음에만 보인다 [제안].
 - `shutdownGraceMs`의 기본 7000은 엔진 체크포인트 시한 `l0.process.shutdown.timeoutMs` 기본 3000에 2000을 더한 하한(5000)보다 2000 크다. 여유분은 엔진 시한을 5000까지 올려도 불변식이 깨지지 않게 둔 값이다. 하한 규칙은 `service stop`의 "`l0.process.shutdown.timeoutMs` + 2000ms 뒤 SIGKILL"(`L4.host-service.spec` SV-07)과 같다 [제안]. 불변식은 §4.3에 둔다. S1 측정 뒤 확정한다.
-- `l4.desktop.update.auto`: [결정: 2026-11-04 사용자, A2 2안] M4는 "업데이트 확인" 줄과 상태 표시만 둔다. 내려받기와 교체는 M5다(`L4.release.spec` §5). 설정 키 정의는 확인 줄을 만들 때 더한다.
+- `l4.desktop.update.auto`: 선언하지 않는다. 업데이트 확인은 설정이 채워진 빌드에서 시작할 때 한 번 하고 설정의 "업데이트" 줄이 다시 확인한다(§4.18) [제안].
 - `allowedScopes`에 `managed`를 넣은 키는 관리 범위가 잠글 수 있다. 데스크톱 로컬 저장소가 관리 범위 파일을 읽는 방법은 `L4.settings-ui.spec`과 함께 정한다 [미결: §10 미결 6에 포함].
 - 서비스 사용 설정 키는 `l0.process.service.enabled`이고 `L0.process.spec` §6이 소유한다. 데스크톱은 §4.2 2단계의 `fresnel service launch-mode --json`으로 읽기만 한다.
 
@@ -747,7 +767,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다. 참고: WSLg(XWayland, llvmpipe)에서 Tauri 창이 열리고 S1·S3이 돌았다(`L4.desktop.plan` §3.1.1).
 10. [결정: review.m3-design-inputs D-M3-25 행 3] 최소 지원 macOS는 14이고 arm64만이다. Linux는 x86_64·arm64이고 WebKitGTK 4.1은 [가정]으로 둔다. 실측 뒤 배포판 목록을 적는다. 빌드 타깃(V5)이 여기에 묶인다.
 11. (닫힘) 프런트엔드 프레임워크와 상태 라이브러리는 React 19 + Zustand 5다(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`다.
-12. [결정: 2026-11-04 사용자, A2 2안] M4는 업데이트 확인 줄과 상태만, 내려받기와 교체는 M5. Tauri updater 플러그인과 서명 키 관리는 M5에서 정한다.
+12. [결정: 2026-11-06 사용자, B-10 승인] `tauri-plugin-updater`, `tauri-plugin-notification`, Tauri `tray-icon` 기능을 쓴다(§4.18). 서명 공개키와 배포 주소는 사용자 몫이고 `tauri.conf.json`에 빈 자리만 있다. 값이 비면 업데이트는 "설정되지 않음"으로 꺼진다.
 13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Linux/WSL2에서 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
 14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
 15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `fresnel secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.

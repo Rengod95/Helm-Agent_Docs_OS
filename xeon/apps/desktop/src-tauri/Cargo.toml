@@ -9,10 +9,14 @@ publish = false
 tauri-build = { version = "=2.7.4", features = [] }
 
 [dependencies]
-tauri = { version = "=2.12.3", features = [] }
+tauri = { version = "=2.12.3", features = ["tray-icon", "image-png"] }
 tauri-plugin-shell = "=2.5.0"
 # 폴더 선택 창(folder_pick.rs). WebView에는 dialog 권한을 주지 않고 Rust의 pick_folder 명령이 부른다.
 tauri-plugin-dialog = "=2.8.4"
+# 앱 업데이트(updater.rs). 서명 공개키와 배포 주소가 tauri.conf.json에 비어 있으면 등록하지 않는다(B-10, 사용자 승인 2026-11-06).
+tauri-plugin-updater = "=2.14.1"
+# OS 알림(notify_os.rs). WebView에는 notification 권한을 주지 않고 Rust 명령이 부른다(B-10).
+tauri-plugin-notification = "=2.8.0"
 tauri-plugin-single-instance = "=2.5.4"
 tauri-plugin-log = "=2.10.1"
 serde = { version = "1", features = ["derive"] }

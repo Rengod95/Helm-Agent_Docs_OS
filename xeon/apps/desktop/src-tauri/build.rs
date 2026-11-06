@@ -17,6 +17,16 @@ fn main() {
         "pick_file",
         "save_file",
         "os_reauth",
+        "update_status",
+        "update_check",
+        "update_download",
+        "update_install_restart",
+        "shell_take_intents",
+        "tray_update",
+        "notify_permission",
+        "notify_request_permission",
+        "notify_os",
+        "notify_take_target",
     ]);
     if let Err(error) =
         tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest))

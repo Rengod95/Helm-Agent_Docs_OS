@@ -11,7 +11,7 @@ const DESKTOP_SCOPES = ["managed", "user"] as const;
 const desktopSettings = defineSettings("l4.desktop", {
   "window.closeBehavior": {
     type: Type.String(),
-    default: "quit",
+    default: "tray",
     range: { enum: ["quit", "tray"] },
     runtimeChange: "live",
     allowedScopes: DESKTOP_SCOPES,
@@ -22,7 +22,7 @@ const desktopSettings = defineSettings("l4.desktop", {
       // 대체 문구는 영어다. 화면은 labelKey·helpKey로 카탈로그 문장을 읽고, 키가 없을 때만 이 문구를 쓴다
       label: "Window close behavior",
       labelKey: "settings.l4.desktop.window.closeBehavior.label",
-      help: "With tray, the engine and any running turn keep going after the window closes. Reopen the window by launching the app again or clicking the Dock icon.",
+      help: "With tray, closing the window leaves a menu bar (tray) icon, and the engine and running turns keep going. The icon offers Open, New conversation, and Quit.",
       helpKey: "settings.l4.desktop.window.closeBehavior.help",
     },
     since: "0.1.0",

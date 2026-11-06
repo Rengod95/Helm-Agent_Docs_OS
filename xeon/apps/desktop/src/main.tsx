@@ -1,7 +1,8 @@
 import { activeLocale, t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { toast } from "@caustic/react";
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { createRoot } from "react-dom/client";
 import pkg from "../package.json" with { type: "json" };
 import { createApp } from "./app/bootstrap.ts";
@@ -14,13 +15,21 @@ import { createConfirmQueue } from "./views/plugin/confirm-host.tsx";
 import { PluginUiProvider } from "./views/plugin/plugin-context.tsx";
 import { createDesktopRegistry } from "./views/desktop-registry.tsx";
 import { createShellStore, ShellStoreContext } from "./state/shell/index.ts";
+import { selectThread } from "./state/engine/index.ts";
 import { persistShell, restoreShell } from "./views/shell/persist.ts";
+import { DesktopShellContext, type DesktopShell } from "./views/desktop-shell-context.ts";
+import { createOsNotifier, type OsNotifyInvoke } from "./views/os-notify.ts";
+import { notifyPrefsOf, notifyPrefsPortOf } from "./views/os-notify-prefs.ts";
+import { SHELL_INTENT_EVENT, type SubscribeShellIntent } from "./views/shell-intents.ts";
 import type { FileSaveInvoke } from "./views/file-save.ts";
 import type { FolderPickInvoke } from "./views/folder-pick.ts";
 import type { OsReauthInvoke } from "./views/os-reauth.ts";
 import { createOsReauthGate, UNAVAILABLE_GATE } from "./app/secret-reveal-gate.ts";
 import { RevealGateContext } from "./views/pages/secrets/reveal-gate-context.ts";
 import { ShellRestartContext } from "./views/shell-restart-context.ts";
+import { UpdateContext } from "./views/update-context.ts";
+import { createUpdateController, type UpdatePort } from "./views/update-controller.ts";
+import type { UpdateChannelOf, UpdateInvoke } from "./views/update-invoke.ts";
 
 const osReauth: OsReauthInvoke = (command, args) => invoke(command, args);
 
@@ -29,6 +38,18 @@ const folderPick: FolderPickInvoke = (command) => invoke(command);
 
 // 저장 창도 Rust가 띄운다. 내용을 넘기는 인자는 `save_file`의 `suggestedName`, `content`다(Tauri가 snake_case로 옮긴다)
 const fileSave: FileSaveInvoke = (command, args) => invoke(command, args);
+
+// 업데이트 명령(B-10)도 Rust가 부른다. 확인, 내려받기, 설치는 Rust의 `updater.rs`가 하고, 내려받기 진행만 채널로 받는다
+const updateInvoke: UpdateInvoke = (command, args) => invoke(command, args);
+const updateChannel: UpdateChannelOf = (onMessage) => new Channel<unknown>(onMessage);
+const updatePort: UpdatePort = { invoke: updateInvoke, createChannel: updateChannel };
+
+// OS 알림, 트레이, 셸 의도 명령도 Rust가 부른다(WebView에는 알림 플러그인 권한을 주지 않는다). 깨우기 이벤트만 Tauri `listen`으로 듣는다
+const osNotifyInvoke: OsNotifyInvoke = (command, args) => invoke(command, args);
+const subscribeShellIntent: SubscribeShellIntent = (onWake) =>
+  listen(SHELL_INTENT_EVENT, () => {
+    onWake();
+  });
 
 // WebView 진입점. 스토어와 연결은 createApp이 만들고 여기서는 화면에 붙이기만 한다.
 const container = document.getElementById("root");
@@ -69,6 +90,27 @@ if (container === null) {
     appVersion: pkg.version,
     frameFallbackMs: 100,
   });
+  // 업데이트는 열 때 한 번 조용히 확인한다. 설정이 안 됐으면 칸과 줄이 "설정되지 않았어요"로 끝나고 토스트는 없다
+  const updateController = createUpdateController(updatePort);
+  detach(updateController.start(), rethrow);
+  // OS 알림 전달기. 듣기는 셸 다리가 연결이 살아 있을 때 건다(`notices.onDelivered`는 연결이 바뀌면 끊긴다)
+  const notifier = createOsNotifier({
+    subscribe: (listener) => app.commands.notices.onDelivered(listener),
+    invoke: osNotifyInvoke,
+    isFocused: () => document.hasFocus(),
+    prefs: () => notifyPrefsOf(localSettings),
+    threadOf: (threadId) => selectThread(app.engine.read.getState(), threadId),
+    now: () => Date.now(),
+    onResult: (outcome) => {
+      if (outcome !== "shown") app.log.logger.warn("desktop.notify.not_shown", { outcome });
+    },
+  });
+  const desktopShell: DesktopShell = {
+    invoke: (command, args) => invoke(command, args),
+    subscribeIntent: subscribeShellIntent,
+    notifier,
+    prefs: notifyPrefsPortOf(localSettings),
+  };
   // 플러그인 화면 실행 맥락. Windows는 전용 스킴 주소가 달라 프레임 모드를 켜지 않는다(ADR-0021 §3.6.2)
   const framesSupported = !navigator.platform.startsWith("Win");
   const pluginUi = {
@@ -100,20 +142,24 @@ if (container === null) {
     root.render(
       <ShellStoreContext value={shell}>
         <Providers key={locale} engine={app.engine.read} ui={app.ui.read} commands={app.commands}>
-          <PluginUiProvider value={pluginUi}>
-            <RevealGateContext value={revealGate}>
-              {/* 셸이 엔진을 다시 띄울 수 있다. 웹 진입점은 이 문맥을 주지 않아 단추 대신 한 줄만 보인다(U-02) */}
-              <ShellRestartContext value>
-                <App
-                  registry={registry}
-                  keyOverrides={localSettings.get(LOCAL.keybindings)}
-                  mac={mac}
-                  folderPick={folderPick}
-                  fileSave={fileSave}
-                />
-              </ShellRestartContext>
-            </RevealGateContext>
-          </PluginUiProvider>
+          <DesktopShellContext value={desktopShell}>
+            <UpdateContext value={updateController}>
+              <PluginUiProvider value={pluginUi}>
+                <RevealGateContext value={revealGate}>
+                  {/* 셸이 엔진을 다시 띄울 수 있다. 웹 진입점은 이 문맥을 주지 않아 단추 대신 한 줄만 보인다(U-02) */}
+                  <ShellRestartContext value>
+                    <App
+                      registry={registry}
+                      keyOverrides={localSettings.get(LOCAL.keybindings)}
+                      mac={mac}
+                      folderPick={folderPick}
+                      fileSave={fileSave}
+                    />
+                  </ShellRestartContext>
+                </RevealGateContext>
+              </PluginUiProvider>
+            </UpdateContext>
+          </DesktopShellContext>
         </Providers>
       </ShellStoreContext>,
     );
