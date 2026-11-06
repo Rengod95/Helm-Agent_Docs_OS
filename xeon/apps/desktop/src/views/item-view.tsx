@@ -359,7 +359,8 @@ function AgentRow(props: {
   const view = resultViewOf(result);
   if (view === null) return null;
   const parsed = agentResultOf(view.output, result.message.details, result.message.isError);
-  const fold = reportFoldOf(parsed.body);
+  // 중단된 하위 에이전트의 본문은 엔진의 영어 안내 한 줄뿐이라 알약("중단됨")이 대신한다
+  const fold = reportFoldOf(parsed.outcome === "aborted" ? "" : parsed.body);
   const childId = parsed.childThreadId;
   const foot = (
     <>

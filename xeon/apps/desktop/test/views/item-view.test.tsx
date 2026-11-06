@@ -317,10 +317,14 @@ describe("agent row", () => {
 
   test("a stopped subagent says interrupted, not failed", () => {
     const h = openedHarness();
-    ingestRecords(h, [agentCall(1, 2), agentResult(2, "", "aborted", true)]);
+    ingestRecords(h, [
+      agentCall(1, 2),
+      agentResult(2, "[fresnel:aborted] Subagent aborted", "aborted", true),
+    ]);
     const text = visibleText(renderWithPlugin(<RecordedItem id={itm(1)} />, h));
     expect(text).toContain(t("desktop.item.status.interrupted"));
     expect(text).not.toContain(t("desktop.item.status.failed"));
+    expect(text).not.toContain("Subagent aborted");
   });
 
   test("an errored subagent says failed with the reason", () => {
