@@ -14,6 +14,8 @@ export type KeyRegisterError =
   | { readonly kind: "too-large" }
   | { readonly kind: "busy" }
   | { readonly kind: "timeout" }
+  /** OS 키 저장소(키체인 등)에 키를 만들거나 읽지 못했다. 파일 보관으로 몰래 넘어가지 않는다: 이유와 다시 시도만 보인다 */
+  | { readonly kind: "keystore" }
   /** 사이드카의 `fresnel secret`이 0이 아닌 코드로 끝났다. `detail`은 그 출력의 앞부분이다(값이 있으면 비어 있다) */
   | { readonly kind: "rejected"; readonly exitCode: number | null; readonly detail: string }
   | { readonly kind: "failed" };
@@ -37,7 +39,8 @@ export type KeyOutcome =
   | { readonly kind: "empty" }
   /** 이 연결에서는 화면이 값을 받을 수 없다. 터미널 명령을 안내한다 */
   | { readonly kind: "terminal" }
-  | { readonly kind: "failed"; readonly text: string };
+  /** 키체인 실패(`keystore`)나 시간 초과(`timeout`, 키체인 창이 응답을 기다리는 경우)라서 화면이 "다시 시도"와 "도움말 열기"를 함께 보인다 */
+  | { readonly kind: "failed"; readonly text: string; readonly keystore: boolean };
 
 const ENCODER = new TextEncoder();
 
@@ -53,9 +56,10 @@ export function keyErrorText(error: KeyRegisterError): string {
       return t("client.settings.key.busy");
     case "timeout":
       return t("client.settings.key.timeout");
+    case "keystore":
+      return t("client.settings.key.keystore");
     case "rejected":
-      if (error.detail !== "")
-        return t("client.settings.key.rejectedDetail", { detail: error.detail });
+      // 사이드카의 영어 문장(`detail`)은 보이지 않는다: 터미널 안내가 섞여 있다
       return error.exitCode === null
         ? t("client.settings.key.rejectedNoCode")
         : t("client.settings.key.rejectedCode", { exitCode: error.exitCode });
@@ -83,7 +87,11 @@ export async function submitKey(
     const result = await registrar.registerKey(secretName, action, bytes);
     if (result.ok) return { kind: "registered" };
     if (result.error.kind === "unavailable") return { kind: "terminal" };
-    return { kind: "failed", text: keyErrorText(result.error) };
+    return {
+      kind: "failed",
+      text: keyErrorText(result.error),
+      keystore: result.error.kind === "keystore" || result.error.kind === "timeout",
+    };
   } finally {
     bytes.fill(0);
   }

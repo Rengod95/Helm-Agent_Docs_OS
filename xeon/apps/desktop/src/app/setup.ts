@@ -48,6 +48,7 @@ export function keyRegisterErrorOf(error: SecretRegisterError): KeyRegisterError
     case "too-large":
     case "busy":
     case "timeout":
+    case "keystore":
       return { kind: error.kind };
     case "rejected":
       return { kind: "rejected", exitCode: error.exitCode, detail: error.detail };
@@ -159,19 +160,21 @@ export function createSetupCommands(
       return written.ok ? ok(null) : written;
     },
     async loadGroups() {
-      const settings = await run((c) =>
-        c.request("settings.get", { keys: [GROUP_KEY.helm, GROUP_KEY.learning] }),
-      );
-      if (!settings.ok) return settings;
-      const valueOf = (key: string): unknown =>
-        settings.value.settings.find((s) => s.key === key)?.value;
+      // 켜기 키는 하나씩 읽는다. 설치되지 않은 그룹의 키는 엔진이 "모르는 설정 키"로 거절해서(`rejected`), 한 번에 읽으면
+      // 다른 그룹까지 읽지 못해 "확인할 수 없음"으로 남았다. 거절된 키는 값을 쓴 적 없는 것(null, 기본값)으로 본다.
+      const stored = async (key: string): Promise<Result<boolean | null, CommandError>> => {
+        const read = await run((c) => c.request("settings.get", { keys: [key] }));
+        if (!read.ok) return read.error.kind === "rejected" ? ok(null) : read;
+        return ok(storedBoolOf(read.value.settings.find((s) => s.key === key)?.value));
+      };
+      const helm = await stored(GROUP_KEY.helm);
+      if (!helm.ok) return helm;
+      const learning = await stored(GROUP_KEY.learning);
+      if (!learning.ok) return learning;
       const status = await run((c) => c.request("host.status", {}));
       if (!status.ok) return status;
       const snapshot: GroupsSnapshot = {
-        enabled: {
-          helm: storedBoolOf(valueOf(GROUP_KEY.helm)),
-          learning: storedBoolOf(valueOf(GROUP_KEY.learning)),
-        },
+        enabled: { helm: helm.value, learning: learning.value },
         safeMode: status.value.safeMode === true,
       };
       return ok(snapshot);

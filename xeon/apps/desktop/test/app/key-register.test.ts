@@ -5,6 +5,9 @@ import { submitKey, type KeyField, type KeyOutcome } from "@fresnel/client/setti
 import { rejectLikeShell, shellMockIpc } from "../transport/shell-mock.ts";
 import { engineFake, makeAppOver, until } from "./support.ts";
 
+const KEYSTORE_TEXT =
+  "이 기기의 키체인에 키를 저장하지 못했어요. 키체인 접근을 허용했는지, 로그인 키체인이 잠겨 있지 않은지 확인하고 다시 시도해 주세요.";
+
 // 키 등록의 앱 쪽 흐름(L4.desktop.spec §4.14.1): 실제 createApp과 ipc.ts를 Electron 다리 위에서 돌린다.
 // 입력란 -> submitKey -> commands.setup.registerKey -> ipc.registerSecret -> invoke("secret_register", 원시 바이트).
 // 값은 가짜다. 값이 상태, 로그, wire에 없고 셸로 가는 본문 바이트는 호출이 끝난 뒤 0이어야 한다.
@@ -91,7 +94,8 @@ describe("registering a model key from the settings screen", () => {
     const outcome = await submitKey(app.commands.setup, name, "add", inputOf(FAKE).field);
     expect(outcome).toEqual({
       kind: "failed",
-      text: "키를 저장하지 못했어요. 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
+      text: "키를 저장하지 못했어요 (종료 코드 1).",
+      keystore: false,
     });
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
     await app.stop();
@@ -115,27 +119,37 @@ describe("shell errors on the page side", () => {
       outcome: {
         kind: "failed",
         text: "다른 키 등록이 진행 중이에요. 끝난 뒤 다시 시도해 주세요.",
+        keystore: false,
       },
     },
     {
       label: "a child that never ends",
       reject: { kind: "timeout" },
-      outcome: { kind: "failed", text: "키 등록이 시간 안에 끝나지 않았어요. 다시 시도해 주세요." },
+      outcome: {
+        kind: "failed",
+        text: "키 등록이 시간 안에 끝나지 않았어요. 다시 시도해 주세요.",
+        keystore: true,
+      },
     },
     {
       label: "a request the shell rejected as malformed",
       reject: { kind: "bad-request" },
-      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요." },
+      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요.", keystore: false },
     },
     {
       label: "a string rejection",
       reject: "some-code",
-      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요." },
+      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요.", keystore: false },
     },
     {
       label: "an object of an unknown shape",
       reject: { kind: "exploded", value: FAKE },
-      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요." },
+      outcome: { kind: "failed", text: "키 등록 요청에 실패했어요.", keystore: false },
+    },
+    {
+      label: "the OS key store refused the key",
+      reject: { kind: "keystore" },
+      outcome: { kind: "failed", text: KEYSTORE_TEXT, keystore: true },
     },
   ];
   for (const item of cases) {

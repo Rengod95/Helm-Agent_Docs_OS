@@ -105,11 +105,26 @@ describe("submitKey", () => {
     const outcome = await submitKey(registrar, NAME, "set", input.field);
     expect(outcome).toEqual({
       kind: "failed",
-      text: "키를 저장하지 못했어요. 시크릿 제공자(sops)를 쓸 수 없다 (not_registered)",
+      // 사이드카의 원문은 보이지 않는다
+      text: "키를 저장하지 못했어요 (종료 코드 1).",
+      keystore: false,
     });
     expect(input.shown()).toBe("");
     expect(wiped(seen.bytes)).toBe(true);
     expect(JSON.stringify(outcome)).not.toContain(FAKE);
+  });
+
+  test("a key store failure is a Korean sentence without a terminal command and asks for the retry and help buttons", async () => {
+    const registrar: KeyRegistrar = {
+      registerKey: () => Promise.resolve(err<KeyRegisterError>({ kind: "keystore" })),
+    };
+    const outcome = await submitKey(registrar, NAME, "add", field(FAKE).field);
+    expect(outcome).toEqual({
+      kind: "failed",
+      text: "이 기기의 키체인에 키를 저장하지 못했어요. 키체인 접근을 허용했는지, 로그인 키체인이 잠겨 있지 않은지 확인하고 다시 시도해 주세요.",
+      keystore: true,
+    });
+    expect(JSON.stringify(outcome)).not.toContain("fresnel config");
   });
 
   test("a shell without the route falls back to the terminal hint", async () => {
@@ -130,6 +145,7 @@ describe("keyErrorText", () => {
       { kind: "too-large" },
       { kind: "busy" },
       { kind: "timeout" },
+      { kind: "keystore" },
       { kind: "rejected", exitCode: 3, detail: "" },
       { kind: "failed" },
     ];

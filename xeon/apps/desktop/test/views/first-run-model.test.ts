@@ -19,6 +19,8 @@ import {
   recommendSecretOf,
   showsInstallHelp,
   STEP_ORDER,
+  modelGroupsOf,
+  modelInChoices,
   stepIdAt,
   type PrimaryInput,
   unknownStepsOf,
@@ -157,6 +159,16 @@ describe("first-run steps", () => {
       optional: false,
       locked: false,
     });
+    expect(model.next).toEqual("key");
+  });
+
+  test("an unread key list does not let the optional steps open first", () => {
+    const model = firstRunModelOf({
+      setup: { ...TOOLS_OK, secrets: null },
+      search: searchOf([], false),
+      groups: GROUPS_DEFAULT,
+    });
+    expect(model.steps.find((step) => step.id === "key")?.unknown).toBe(true);
     expect(model.next).toEqual("key");
   });
 
@@ -366,3 +378,35 @@ function recommendation(secretName: string): WebRecommendation {
     hint: "",
   };
 }
+
+describe("default model list", () => {
+  const CHOICES = [
+    {
+      ref: "anthropic/claude-haiku-5-5",
+      name: "Haiku 5.5",
+      contextWindow: 200000,
+      reasoning: true,
+    },
+    { ref: "anthropic/claude-sonnet-5-5", name: "", contextWindow: 200000, reasoning: true },
+    { ref: "openai/gpt-x", name: "GPT X", contextWindow: 100000, reasoning: false },
+  ];
+
+  test("models group by provider in list order and fall back to the id when the name is empty", () => {
+    expect(modelGroupsOf(CHOICES)).toEqual([
+      {
+        provider: "anthropic",
+        options: [
+          { value: "anthropic/claude-haiku-5-5", label: "Haiku 5.5" },
+          { value: "anthropic/claude-sonnet-5-5", label: "claude-sonnet-5-5" },
+        ],
+      },
+      { provider: "openai", options: [{ value: "openai/gpt-x", label: "GPT X" }] },
+    ]);
+  });
+
+  test("a model that is not in the catalog cannot be chosen", () => {
+    expect(modelInChoices(CHOICES, "anthropic/claude-haiku-5-5")).toBe(true);
+    expect(modelInChoices(CHOICES, "anthropic/claude-nonexistent-9")).toBe(false);
+    expect(modelInChoices([], "anthropic/claude-haiku-5-5")).toBe(false);
+  });
+});

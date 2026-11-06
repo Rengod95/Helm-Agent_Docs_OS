@@ -94,9 +94,24 @@ describe("the group step reads its switches and the safe mode flag", () => {
       ok: true,
       value: { enabled: { helm: false, learning: null }, safeMode: true },
     });
+    // 키는 하나씩 읽는다: 설치되지 않은 그룹의 키 하나가 거절돼도 다른 그룹을 읽는다
     expect(paramsOf(params, "settings.get")).toEqual([
-      { keys: ["ext.helm.enabled", "ext.learning.enabled"] },
+      { keys: ["ext.helm.enabled"] },
+      { keys: ["ext.learning.enabled"] },
     ]);
+    await app.stop();
+  });
+
+  test("a switch key the engine does not know reads as unset, and the step still loads", async () => {
+    const { app } = await liveApp({
+      errors: { "settings.get": { code: 3102, kind: "settings.unknownKey" } },
+      results: { "host.status": HOST_STATUS },
+    });
+    const loaded = await app.commands.setup.loadGroups();
+    expect(loaded).toEqual({
+      ok: true,
+      value: { enabled: { helm: null, learning: null }, safeMode: true },
+    });
     await app.stop();
   });
 });

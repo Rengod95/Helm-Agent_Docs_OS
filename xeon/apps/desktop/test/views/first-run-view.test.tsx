@@ -35,6 +35,7 @@ const handlers: FirstRunViewHandlers = {
   register: NOOP,
   submitKey: NOOP,
   cancelKey: NOOP,
+  retryKey: NOOP,
   connect: NOOP,
   saveModel: NOOP,
   setGroup: NOOP,
@@ -72,6 +73,7 @@ function propsOf(over: Partial<FirstRunViewProps> = {}): FirstRunViewProps {
     open: "tools",
     providerInput: "anthropic",
     modelInput: "",
+    modelChoices: [],
     keyEntry,
     notice: null,
     engineState: "엔진 실행 중 · 연결됨",
@@ -279,5 +281,51 @@ describe("first-run screen server render", () => {
       propsOf({ open: "key", keyEntry: { state: "failed", text: "the keychain is locked" } }),
     );
     expect(page).toContain("the keychain is locked");
+    expect(page).not.toContain(t("desktop.firstRun.key.retry"));
+  });
+
+  test("a key store failure shows the sentence with retry and help buttons and no terminal command", () => {
+    const page = html(
+      propsOf({
+        open: "key",
+        keyEntry: {
+          state: "failed",
+          text: t("client.settings.key.keystore"),
+          keystore: { name: nameOf("anthropic-api-key"), action: "add", providerId: "anthropic" },
+        },
+      }),
+    );
+    expect(page).toContain(t("client.settings.key.keystore"));
+    expect(page).toContain(t("desktop.firstRun.key.retry"));
+    expect(page).toContain(t("desktop.firstRun.key.help"));
+    expect(page).not.toContain("fresnel config");
+  });
+
+  test("the default model step lists the host catalog and has no free text box", () => {
+    const keyed: SetupSnapshot = {
+      ...SETUP,
+      providers: [
+        { id: "anthropic", enabled: true, apiKeyRef: "secret://anthropic-api-key", baseUrl: null },
+      ],
+      secrets: [{ name: "anthropic-api-key", registered: true }],
+    };
+    const page = html(
+      propsOf({
+        open: "model",
+        setup: keyed,
+        model: modelOf(keyed, GROUPS),
+        modelChoices: [
+          {
+            ref: "anthropic/claude-haiku-5-5",
+            name: "Haiku 5.5",
+            contextWindow: 200000,
+            reasoning: true,
+          },
+        ],
+        modelInput: "anthropic/claude-nonexistent-9",
+      }),
+    );
+    expect(page).toContain(t("desktop.firstRun.model.missing"));
+    expect(page).not.toContain(t("desktop.firstRun.model.locked"));
   });
 });

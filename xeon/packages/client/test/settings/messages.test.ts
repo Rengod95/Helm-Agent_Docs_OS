@@ -68,7 +68,7 @@ describe("settings sentences follow the locale", () => {
     );
   });
 
-  test("key entry errors keep the exit code and the server detail as arguments", () => {
+  test("key entry errors keep the exit code and never show the server detail", () => {
     expect(inLocale("en", () => keyErrorText({ kind: "rejected", exitCode: 3, detail: "" }))).toBe(
       "The key could not be saved (exit code 3).",
     );
@@ -80,7 +80,7 @@ describe("settings sentences follow the locale", () => {
     ).toBe("The key could not be saved (no exit code).");
     expect(
       inLocale("en", () => keyErrorText({ kind: "rejected", exitCode: 1, detail: "bad key" })),
-    ).toBe("The key could not be saved. bad key");
+    ).toBe("The key could not be saved (exit code 1).");
     expect(inLocale("en", () => keyErrorText({ kind: "busy" }))).toBe(
       "Another key registration is in progress. Try again when it finishes.",
     );
