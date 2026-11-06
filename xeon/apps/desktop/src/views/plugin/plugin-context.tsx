@@ -32,6 +32,11 @@ export function usePluginUi(): PluginUiContextValue {
   return value;
 }
 
+/** 맥락이 없으면 null(셸만 따로 그린 시험 등). 있으면 `usePluginUi`와 같다 */
+export function useOptionalPluginUi(): PluginUiContextValue | null {
+  return useContext(PluginUiContext);
+}
+
 export function usePluginUiState(): PluginUiState {
   const { runtime } = usePluginUi();
   return useSyncExternalStore(runtime.subscribe, runtime.getState, runtime.getState);
