@@ -30,16 +30,17 @@ test("a leftover recovery marker shows the crashed band even while the status sa
         resumeAttempts: 0,
       },
     }),
+    0,
   );
   expect(view).toEqual({ kind: "crashed", runningSince: "2026-11-07T00:00:00.000Z" });
 });
 
 test("queued input left in an idle thread shows the held band with its count", () => {
-  expect(resumeBandOf(summary({ queuedInputs: 2 }))).toEqual({ kind: "held", queued: 2 });
+  expect(resumeBandOf(summary({}), 2)).toEqual({ kind: "held", queued: 2 });
 });
 
 test("no band for a quiet thread, a running thread with a queue, or no thread", () => {
-  expect(resumeBandOf(summary({}))).toBeNull();
-  expect(resumeBandOf(summary({ status: "running", queuedInputs: 3 }))).toBeNull();
-  expect(resumeBandOf(undefined)).toBeNull();
+  expect(resumeBandOf(summary({}), 0)).toBeNull();
+  expect(resumeBandOf(summary({ status: "running" }), 3)).toBeNull();
+  expect(resumeBandOf(undefined, 1)).toBeNull();
 });

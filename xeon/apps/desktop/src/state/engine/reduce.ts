@@ -564,7 +564,12 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       return withTurnFailure({ ...running, latestTurnId, recentTurnIds }, fact.threadId, null);
     }
     case "turn.completed": {
-      const done = patchThread(state, fact.threadId, (t) => ({ ...t, status: "idle" }));
+      // 닫힌 turn은 복구 표식도 지운다(T6가 표식을 지운다, L1.loop.spec §4.8). 남겨 두면 "이어서 실행" 띠가 그대로 보인다
+      const done = patchThread(state, fact.threadId, (t) => ({
+        ...t,
+        status: "idle",
+        resumable: null,
+      }));
       const failure =
         fact.payload.status === "failed" ? (fact.payload.error ?? unknownFailureText()) : null;
       return withTurnFailure(

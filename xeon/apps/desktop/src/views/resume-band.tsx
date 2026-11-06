@@ -3,7 +3,7 @@ import { RotateCcw } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
-import { useOpenThread } from "../state/engine/index.ts";
+import { useOpenThread, useQueuedInputs } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 import { resumeBandOf } from "./resume-band-model.ts";
 
@@ -23,7 +23,8 @@ export function ResumeBand(): ReactNode {
   const thread = useOpenThread();
   const commands = useCommands();
   const [busy, setBusy] = useState(false);
-  const view = resumeBandOf(thread);
+  const queued = useQueuedInputs(thread?.threadId ?? null);
+  const view = resumeBandOf(thread, queued.length);
   if (thread === undefined || view === null) return null;
   const { threadId } = thread;
   const run = (action: Promise<{ readonly ok: boolean }>): void => {

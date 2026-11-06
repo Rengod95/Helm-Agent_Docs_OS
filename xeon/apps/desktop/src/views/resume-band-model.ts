@@ -7,13 +7,17 @@ export type ResumeBandView =
   | { readonly kind: "crashed"; readonly runningSince: string }
   | { readonly kind: "held"; readonly queued: number };
 
-export function resumeBandOf(thread: ThreadSummary | undefined): ResumeBandView | null {
+/** `queued`는 거울의 대기 입력 수다. 요약의 `queuedInputs`는 목록을 읽을 때만 채워지므로 쓰지 않는다 */
+export function resumeBandOf(
+  thread: ThreadSummary | undefined,
+  queued: number,
+): ResumeBandView | null {
   if (thread === undefined) return null;
   if (thread.resumable !== null) {
     return { kind: "crashed", runningSince: thread.resumable.runningSince };
   }
-  if (thread.status === "idle" && thread.queuedInputs > 0) {
-    return { kind: "held", queued: thread.queuedInputs };
+  if (thread.status === "idle" && queued > 0) {
+    return { kind: "held", queued };
   }
   return null;
 }
