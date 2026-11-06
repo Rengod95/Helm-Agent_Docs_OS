@@ -77,7 +77,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `fresnel chat --resume <id>` | 지정 대화를 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
 | `fresnel chat --set <key>=<value>` | 이 대화에만 설정을 덮어쓴다(launch 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `launch`, `threadId`) | M2 |
 | `fresnel chat --safe-mode`, `fresnel --safe-mode` | 이번 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다(`X.operations.spec` §4.6). `AssembleOptions.safeMode`로 넘긴다. 설정 `x.operations.safeMode.default`가 켜져 있어도 같고, 호스트가 `host.status.safeMode`로 알린다. 서비스 모드의 안전 모드는 서비스를 새로 띄울 때 `service start --safe-mode`로 정한다 | 없음(조립 옵션). `host.status`가 `safeMode: true`를 돌려준다 | M3(구현됨, M3b B1-SVC) |
-| `fresnel sessions ls [--all] [--limit n] [--json]` | 대화 목록. 기본은 현재 작업 폴더 | `thread.list` | M2 |
+| `fresnel sessions ls [--all] [--limit n] [--offset n] [--json]` | 대화 목록. 기본은 현재 작업 폴더. `--offset`은 앞의 n개를 건너뛴다. 이 구간 뒤에 대화가 더 있으면 stderr에 "더 있어요 (n개)"와 다음 `--offset` 값을 보인다 [결정: 오케스트레이터 기본값, scJ] | `thread.list` | M2 |
 | `fresnel sessions show <id> [--json]` | 대화의 내구 이벤트를 트랜스크립트로 출력한다 | `events.subscribe`(filter `threadIds`), `events.unsubscribe` | M2 |
 | `fresnel sessions fork <id> [--at <itemId>]` | 분기를 만들고 새 id를 출력한다 | `thread.fork` | M2 |
 | `fresnel sessions rm <id> [--yes]` | 대화 삭제. TTY에서는 확인을 받는다 | `thread.delete` | M2 |
@@ -156,7 +156,7 @@ export interface ChatCommand {
 }
 
 export type SessionsCommand =
-  | { readonly kind: "sessions.ls"; readonly all: boolean; readonly limit: number; readonly output: OutputMode }
+  | { readonly kind: "sessions.ls"; readonly all: boolean; readonly limit: number; readonly offset: number; readonly output: OutputMode }
   | { readonly kind: "sessions.show"; readonly threadId: ThreadId; readonly output: OutputMode }
   | { readonly kind: "sessions.fork"; readonly threadId: ThreadId; readonly at: ItemId | null }
   | { readonly kind: "sessions.rm"; readonly threadId: ThreadId; readonly yes: boolean };

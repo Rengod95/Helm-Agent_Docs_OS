@@ -46,27 +46,40 @@ function formatThreadLine(thread: ThreadSummary): string {
   return `${thread.threadId}  ${thread.updatedAt}  ${thread.status}  ${title}${flagsOf(thread)}`;
 }
 
-/** thread.list를 limit개가 찰 때까지 쪽 단위로 읽는다 */
+/** 한 번에 세어 볼 대화 수의 상한. 넘으면 "더 있어요"의 개수는 이 상한까지만 센 값이다 */
+const COUNT_CEILING = 5000;
+
+interface ListedThreads {
+  readonly threads: readonly ThreadSummary[];
+  /** 읽은 구간 뒤에 남은 대화 수 */
+  readonly remaining: number;
+}
+
+/** thread.list를 쪽 단위로 읽어 offset 뒤 limit개를 고르고, 그 뒤에 남은 수를 센다 */
 async function listThreads(
   connection: HostConnection,
   workspace: string | null,
+  offset: number,
   limit: number,
-): Promise<readonly ThreadSummary[]> {
+): Promise<ListedThreads> {
   const found: ThreadSummary[] = [];
+  let seen = 0;
   let cursor: string | null = null;
-  while (found.length < limit) {
-    const want = Math.min(PAGE_SIZE, limit - found.length);
+  while (seen < COUNT_CEILING) {
     // oxlint-disable-next-line no-await-in-loop -- 쪽은 앞 쪽의 cursor가 있어야 읽을 수 있다 (L4.cli.spec §3.1)
     const page: ThreadListResult = await connection.request("thread.list", {
-      limit: want,
+      limit: PAGE_SIZE,
       ...(workspace === null ? {} : { workspace }),
       ...(cursor === null ? {} : { cursor }),
     });
-    found.push(...page.threads);
+    for (const thread of page.threads) {
+      if (seen >= offset && found.length < limit) found.push(thread);
+      seen += 1;
+    }
     if (page.nextCursor === null || page.threads.length === 0) break;
     cursor = page.nextCursor;
   }
-  return found.slice(0, limit);
+  return { threads: found, remaining: Math.max(0, seen - offset - found.length) };
 }
 
 async function runLs(
@@ -74,9 +87,10 @@ async function runLs(
   command: Extract<SessionsCommand, { kind: "sessions.ls" }>,
 ): Promise<ExitCode> {
   return withEngine(ctx, async (handle) => {
-    const threads = await listThreads(
+    const { threads, remaining } = await listThreads(
       handle.connection,
       command.all ? null : ctx.workspace,
+      command.offset,
       command.limit,
     );
     if (command.output === "json") {
@@ -85,6 +99,11 @@ async function runLs(
       await ctx.io.stderr(command.all ? t("cli.threads.none") : t("cli.threads.noneInWorkspace"));
     } else {
       await ctx.io.stdout(`${threads.map(formatThreadLine).join("\n")}\n`);
+    }
+    if (remaining > 0) {
+      await ctx.io.stderr(
+        t("cli.threads.more", { count: remaining, offset: command.offset + threads.length }),
+      );
     }
     return EXIT.ok;
   });

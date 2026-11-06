@@ -46,7 +46,7 @@ test("sessions ls asks for the current working folder and prints one line per co
     },
   });
   expect(await h.run(["sessions", "ls"])).toBe(EXIT.ok);
-  expect(seen).toEqual([{ limit: 20, workspace: "/work/project" }]);
+  expect(seen).toEqual([{ limit: 200, workspace: "/work/project" }]);
   const lines = h.stdoutText().trimEnd().split("\n");
   expect(lines).toHaveLength(2);
   expect(lines[0]).toContain(T1);
@@ -72,9 +72,37 @@ test("sessions ls --all drops the workspace filter and follows the cursor up to 
     },
   });
   expect(await h.run(["sessions", "ls", "--all", "--limit", "5", "--json"])).toBe(EXIT.ok);
-  expect(pages).toEqual([{ limit: 5 }, { limit: 4, cursor: "c2" }]);
+  expect(pages).toEqual([{ limit: 200 }, { limit: 200, cursor: "c2" }]);
   const parsed: unknown = JSON.parse(h.stdoutText());
   expect(Array.isArray(parsed) ? parsed.length : -1).toBe(2);
+});
+
+test("sessions ls --offset skips rows and reports how many remain", async () => {
+  const ids = [1, 2, 3, 4, 5].map((n) => threadId(n));
+  const h = harness({
+    server: {
+      handlers: {
+        "thread.list": () => ({ threads: ids.map((id) => summary(id)), nextCursor: null }),
+      },
+    },
+  });
+  expect(await h.run(["sessions", "ls", "--offset", "1", "--limit", "2"])).toBe(EXIT.ok);
+  const lines = h.stdoutText().trimEnd().split("\n");
+  expect(lines.map((line) => line.split("  ")[0])).toEqual([ids[1], ids[2]]);
+  expect(h.stderrText()).toBe("더 있어요 (2개). --offset 3으로 이어 본다\n");
+});
+
+test("sessions ls prints no more-line when the page reaches the end", async () => {
+  const h = harness({
+    server: { handlers: { "thread.list": () => ({ threads: [summary(T1)], nextCursor: null }) } },
+  });
+  expect(await h.run(["sessions", "ls"])).toBe(EXIT.ok);
+  expect(h.stderrText()).toBe("");
+});
+
+test("sessions ls rejects a negative --offset", async () => {
+  const h = harness();
+  expect(await h.run(["sessions", "ls", "--offset", "-1"])).toBe(EXIT.usage);
 });
 
 test("sessions ls says so on stderr when there is nothing", async () => {
