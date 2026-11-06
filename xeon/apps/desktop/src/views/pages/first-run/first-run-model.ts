@@ -8,6 +8,7 @@ import {
 import type { WebRecommendation } from "@fresnel/client";
 import { assertNever, parse } from "@fresnel/contracts";
 import { SecretNameSchema, type SecretName } from "@fresnel/contracts/capabilities";
+import type { ModelEntry } from "@fresnel/contracts/wire";
 import type { DefaultGroupId, GroupsSnapshot, SearchSnapshot } from "../../commands.ts";
 
 // 첫 실행 화면(P-01)의 순수 모델. 단계 목록, 완료 여부, 다음 단계, 대화 시작 가능 여부, 기본 그룹 행을 값으로 만든다.
@@ -56,7 +57,16 @@ export type FirstRunKeyEntry =
       readonly action: "add" | "set";
       readonly providerId: string | null;
     }
-  | { readonly state: "failed"; readonly text: string };
+  | {
+      readonly state: "failed";
+      readonly text: string;
+      /** 키체인 실패면 있다. 화면이 "다시 시도"(키 값 칸을 다시 연다)와 "도움말 열기"를 보인다 */
+      readonly keystore?: {
+        readonly name: SecretName;
+        readonly action: "add" | "set";
+        readonly providerId: string | null;
+      };
+    };
 
 /** 검색 권장 단계의 상태. `unknown`은 `web.providers`를 읽지 못했다는 뜻이다 */
 type SearchState = "ready" | "dismissed" | "pending" | "unknown";
@@ -177,7 +187,11 @@ export function firstRunModelOf(input: FirstRunInput): FirstRunModel {
       locked: id === "model" && !keyDone,
     };
   });
-  const next = steps.find((step) => !step.done && !step.unknown)?.id ?? null;
+  // 끝나지 않은 첫 필수 단계를 연다. 모델 키 목록을 못 읽은 경우도 건너뛰지 않는다(선택 단계가 먼저 열리면 안 된다).
+  // 외부 도구 점검과 선택 단계는 모르면 건너뛴다
+  const next =
+    steps.find((step) => !step.done && (!step.unknown || (!step.optional && step.id !== "tools")))
+      ?.id ?? null;
 
   return {
     steps,
@@ -281,4 +295,32 @@ export function primaryActionOf(input: PrimaryInput): PrimaryAction | null {
     default:
       return assertNever(input.step, "StepId");
   }
+}
+
+// ── 기본 모델 목록 ───────────────────────────────────────────────────────
+
+/** 모델 Combobox의 한 묶음: 제공자 하나와 그 모델들. 값은 `provider/id`, 이름은 카탈로그의 이름(없으면 id)이다 */
+export interface ModelGroup {
+  readonly provider: string;
+  readonly options: readonly { readonly value: string; readonly label: string }[];
+}
+
+/** 모델 목록(`models.list`)을 제공자별 묶음으로 만든다. 순서는 목록 순서를 따른다 */
+export function modelGroupsOf(choices: readonly ModelEntry[]): readonly ModelGroup[] {
+  const groups: { provider: string; options: { value: string; label: string }[] }[] = [];
+  for (const entry of choices) {
+    const slash = entry.ref.indexOf("/");
+    const provider = slash < 0 ? entry.ref : entry.ref.slice(0, slash);
+    const id = slash < 0 ? entry.ref : entry.ref.slice(slash + 1);
+    const label = entry.name === "" ? id : entry.name;
+    const group = groups.find((found) => found.provider === provider);
+    if (group === undefined) groups.push({ provider, options: [{ value: entry.ref, label }] });
+    else group.options.push({ value: entry.ref, label });
+  }
+  return groups;
+}
+
+/** 입력한 모델이 목록에 있는 모델인가. 없는 모델은 저장할 수 없다 */
+export function modelInChoices(choices: readonly ModelEntry[], ref: string): boolean {
+  return choices.some((entry) => entry.ref === ref);
 }

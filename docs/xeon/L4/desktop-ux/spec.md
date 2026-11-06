@@ -951,7 +951,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 외부 도구 표 | `host.status { includeBinaries: true }` → `binaryViewOf` |
 | provider 후보 | `PRESET_PROVIDERS`, `providersOf(settings)` |
 | 시크릿 이름과 등록 여부 | `providerSecretName(id)`, `secret.list {}` → `SecretRow` |
-| 기본 모델 | `settings.get { keys: ["l1.models.default", "l1.models.providers"] }`, `defaultModelOf`, `checkModelRef` |
+| 기본 모델 | `settings.get { keys: ["l1.models.default", "l1.models.providers"] }`, `defaultModelOf`. 고를 모델은 `models.list`(대화 입력창과 같은 목록, `modelGroupsOf`로 제공자별 묶음), 목록에 없는 모델은 저장할 수 없습니다(`modelInChoices`) |
 | 검색 권장 | `web.providers {}` → `toolsWebViewOf` → `FirstRunSearch` |
 | 바닥글 | 앱 버전(`package.json`의 version), 엔진 한 줄과 연결 상태(`useEngineState`, `useLinkPhase`, 상태 표시줄과 같은 문장 `engineLineOf`, `linkTextOf`) |
 
@@ -969,10 +969,11 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 - 상태
   - 빈: 해당 없음(단계는 항상 셋 이상).
   - 읽는 중: 단계 옆 `Progress indeterminate`, 도구 표 `Skeleton`.
-  - 오류: 설정을 못 읽으면 "설정을 읽지 못했어요" + "다시 시도". 키 등록 오류는 `keyErrorText` 문장(busy, timeout, rejected detail).
+  - 오류: 설정을 못 읽으면 "설정을 읽지 못했어요" + "다시 시도". 키 등록 오류는 `keyErrorText` 문장(busy, timeout, keystore, 종료 코드). 사이드카의 영어 원문(`rejected` detail)은 보이지 않습니다.
   - 오프라인: 모든 쓰기 잠금, 도구 표는 "엔진에 연결되면 확인해요".
-  - 권한 필요: 키체인 잠김 등 SOPS 실패는 `rejected` detail을 보입니다. 터미널 명령 안내는 두지 않습니다(CLI 표면 없음, 2026-11-01).
+  - 권한 필요: 키체인 실패(셸이 사이드카 오류 문장에서 `keystore`로 가릅니다)와 시간 초과는 한국어 문장 아래에 "다시 시도"(키 값 칸을 다시 엽니다)와 "도움말 열기"(앱 안에서 키체인 확인 방법 한 문단을 펼칩니다)를 둡니다. 키를 디스크 파일에 두는 방식으로는 자동으로 바꾸지 않습니다 [기본값, 2026-11-07: 시크릿 보관 방식은 사용자 몫]. 터미널 명령 안내는 두지 않습니다(CLI 표면 없음, 2026-11-01).
   - 긴 내용: 도구 표가 8행을 넘으면 필수만 펼치고 선택은 접습니다.
+  - 기본 그룹 읽기: 켜기 키를 하나씩 읽습니다. 엔진이 모르는 키(설치되지 않은 그룹)는 거절되지만 쓴 적 없는 값(기본값)으로 보고 단계를 그립니다. 시작할 때 첫 미완료 필수 단계를 엽니다(모델 키 목록을 못 읽은 경우도 선택 단계보다 먼저).
 - 상호작용: 단계는 순서대로 열리지만 끝난 단계도 다시 열 수 있습니다(`Stepper variant="checklist"`). 키 값 입력란은 제어하지 않는 password 입력이고 React 상태에 값이 없습니다(`L4.desktop.spec` §4.14.1). 키 단계가 끝나면 모델 단계가 자동으로 펼쳐집니다.
 - 바로 가기 키: ⌘Enter는 현재 단계의 주 동작입니다. 도구 단계는 "다시 확인", 키 단계는 키 값 칸이 열려 있으면 저장, 아니면 등록, 기본 모델 단계는 저장, 검색 단계는 키 값 칸이 열려 있으면 저장, 아니면 "나중에"입니다(`primaryActionOf`). 잠겨 있거나 설정을 못 읽었거나 입력이 맞지 않으면 아무 일도 없습니다. 한글 조합 중 Enter는 무시합니다. 수식 키는 ⌘ 또는 Ctrl을 받습니다(`metaKey || ctrlKey`, 시크릿과 일정 화면과 같은 방식). 그래서 맥에서 Ctrl+Enter도 같은 일을 합니다.
 - 접근성: 단계 목록은 `aria-current="step"`, 완료는 문장 "완료됨"을 함께 읽습니다. 키 입력란 `autocomplete="off"`, 라벨 "키 값".

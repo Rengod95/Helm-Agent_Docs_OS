@@ -180,6 +180,7 @@ export type SecretRegisterError =
   | { readonly kind: "too-large" }
   | { readonly kind: "busy" }
   | { readonly kind: "timeout" }
+  | { readonly kind: "keystore" }
   | { readonly kind: "unavailable"; readonly detail: string }
   | { readonly kind: "rejected"; readonly exitCode: number | null; readonly detail: string }
   | { readonly kind: "unknown" };
@@ -193,6 +194,7 @@ const SecretRegisterErrorSchema = Type.Union([
         Type.Literal("too-large"),
         Type.Literal("busy"),
         Type.Literal("timeout"),
+        Type.Literal("keystore"),
       ]),
     },
     { additionalProperties: false },

@@ -6,6 +6,7 @@ import {
   Alert,
   Badge,
   Button,
+  Combobox,
   Input,
   ListDescription,
   ListDescriptionRow,
@@ -14,12 +15,13 @@ import {
   Switch,
   Table,
   Tooltip,
+  type ComboboxGroupData,
+  type ComboboxOptionData,
   type TableColumn,
   type TableRow,
 } from "@caustic/react";
 import { ArrowRight, CircleAlert, CircleCheck, RotateCcw } from "@caustic/react/icons";
 import {
-  checkModelRef,
   PRESET_PROVIDERS,
   type BinaryView,
   type KeyField,
@@ -27,12 +29,15 @@ import {
 } from "@fresnel/client/settings";
 import { t } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
+import type { ModelEntry } from "@fresnel/contracts/wire";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import { useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import type { DefaultGroupId } from "../../commands.ts";
 import {
   groupRowsOf,
   keyViewOf,
+  modelGroupsOf,
+  modelInChoices,
   primaryActionOf,
   recommendSecretOf,
   showsInstallHelp,
@@ -75,6 +80,8 @@ export interface FirstRunViewHandlers {
   readonly register: () => void;
   readonly submitKey: (field: KeyField) => void;
   readonly cancelKey: () => void;
+  /** 키체인 실패 뒤 "다시 시도": 키 값 칸을 다시 연다 */
+  readonly retryKey: () => void;
   readonly connect: () => void;
   readonly saveModel: () => void;
   readonly setGroup: (group: DefaultGroupId, on: boolean) => void;
@@ -97,6 +104,8 @@ export interface FirstRunViewProps {
   readonly open: StepId;
   readonly providerInput: string;
   readonly modelInput: string;
+  /** 호스트 카탈로그(`models.list`)의 모델. 이 목록에서만 기본 모델을 고른다 */
+  readonly modelChoices: readonly ModelEntry[];
   readonly keyEntry: FirstRunKeyEntry;
   /** 화면 아래 한 줄 알림(저장됨, 저장 실패). 없으면 null */
   readonly notice: string | null;
@@ -115,7 +124,7 @@ function primaryInputOf(props: FirstRunViewProps): PrimaryInput {
     keyFormOpen: props.keyEntry.state === "form",
     secretKnown:
       props.setup !== null && keyViewOf(props.setup, props.providerInput).secretName !== null,
-    modelReady: modelStep?.locked !== true && checkModelRef(props.modelInput).ok,
+    modelReady: modelStep?.locked !== true && modelInChoices(props.modelChoices, props.modelInput),
     searchPending: props.model?.searchState === "pending",
   };
 }
@@ -512,9 +521,7 @@ function KeyBody(props: StepBodyProps & { readonly setup: SetupSnapshot }): Reac
   return (
     <div className="grid gap-2">
       {keyEntry.state === "failed" ? (
-        <Alert tone="danger" layout="inline" size="sm">
-          {keyEntry.text}
-        </Alert>
+        <KeyFailure entry={keyEntry} onRetry={handlers.retryKey} />
       ) : null}
       <ListDescription
         variant="ghost"
@@ -602,15 +609,50 @@ function KeyBody(props: StepBodyProps & { readonly setup: SetupSnapshot }): Reac
   );
 }
 
+/**
+ * 키 저장 실패 문장. 키체인 실패면 "다시 시도"와 "도움말 열기"가 붙는다. 도움말은 앱 안에서 한 문단을 펼친다.
+ * 터미널 명령은 보이지 않고, 키를 파일에 두는 쪽으로 몰래 넘어가지 않는다.
+ */
+function KeyFailure(props: {
+  readonly entry: Extract<FirstRunKeyEntry, { readonly state: "failed" }>;
+  readonly onRetry: () => void;
+}): ReactNode {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const { entry } = props;
+  return (
+    <div className="grid gap-2">
+      <Alert tone="danger" layout="inline" size="sm">
+        {entry.text}
+      </Alert>
+      {entry.keystore === undefined ? null : (
+        <span className="flex min-w-0 flex-wrap items-center gap-2">
+          <Button size="sm" variant="solid" onClick={props.onRetry}>
+            {t("desktop.firstRun.key.retry")}
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-expanded={helpOpen}
+            onClick={() => {
+              setHelpOpen((open) => !open);
+            }}
+          >
+            {t("desktop.firstRun.key.help")}
+          </Button>
+        </span>
+      )}
+      {helpOpen ? (
+        <p className="m-0 text-ui-xs text-text-tertiary">{t("desktop.firstRun.key.helpBody")}</p>
+      ) : null}
+    </div>
+  );
+}
+
 /** 키 값 칸과 실패 문장(검색 권장 단계). 검색 플러그인 키는 providerId가 null이라 시크릿 이름을 먼저 보인다 */
 function KeyEntryView(props: StepBodyProps): ReactNode {
   const { keyEntry, handlers, locked, keyFormRef } = props;
   if (keyEntry.state === "failed")
-    return (
-      <Alert tone="danger" layout="inline" size="sm">
-        {keyEntry.text}
-      </Alert>
-    );
+    return <KeyFailure entry={keyEntry} onRetry={handlers.retryKey} />;
   if (keyEntry.state !== "form") return null;
   return (
     <div className="grid gap-2">
@@ -632,12 +674,31 @@ function KeyEntryView(props: StepBodyProps): ReactNode {
 
 // ── 기본 모델 ────────────────────────────────────────────────────────────
 
+/** 모델 Combobox의 단추 글. 고른 모델의 이름, 아직 없으면 안내 문장이다 */
+function modelTriggerContent(option: ComboboxOptionData | undefined): ReactNode {
+  return (
+    <span className="block w-56 min-w-0 truncate text-start">
+      {option === undefined ? (
+        <span className="text-text-tertiary">{t("desktop.firstRun.model.placeholder")}</span>
+      ) : (
+        option.label
+      )}
+    </span>
+  );
+}
+
 function ModelBody(props: StepBodyProps & { readonly model: FirstRunModel }): ReactNode {
   const { model, handlers, locked } = props;
   const step = model.steps.find((entry) => entry.id === "model");
   const stepLocked = step?.locked === true;
-  const check = checkModelRef(props.modelInput);
-  const invalid = props.modelInput.trim() !== "" && !check.ok;
+  const groups: ComboboxGroupData[] = modelGroupsOf(props.modelChoices).map((group) => ({
+    label: group.provider,
+    options: group.options.map((option) => ({ value: option.value, label: option.label })),
+  }));
+  const chosen = modelInChoices(props.modelChoices, props.modelInput);
+  const noList = props.modelChoices.length === 0;
+  // 저장한 기본 모델이 목록에 없으면 그 사실을 문장으로 보인다(목록에서 다시 고른다)
+  const missing = props.modelInput.trim() !== "" && !chosen && !noList;
   return (
     <div className="grid gap-2">
       {stepLocked ? (
@@ -651,22 +712,26 @@ function ModelBody(props: StepBodyProps & { readonly model: FirstRunModel }): Re
       >
         <ListDescriptionRow term={t(stepTitleOf("model"))}>
           <span className="flex min-w-0 flex-wrap items-center gap-2">
-            <Input
+            <Combobox
+              mode="popup"
               size="xs"
               aria-label={t("desktop.firstRun.model.label")}
-              placeholder="anthropic/claude-sonnet-5-5"
-              value={props.modelInput}
-              invalid={invalid}
-              disabled={locked || stepLocked}
+              popupLabel={t("desktop.firstRun.model.label")}
+              searchLabel={t("desktop.firstRun.model.label")}
+              listLabel={t("desktop.firstRun.model.label")}
+              groups={groups}
+              popupWidth="lg"
+              triggerContent={modelTriggerContent}
+              {...(chosen ? { value: props.modelInput } : {})}
+              disabled={locked || stepLocked || noList}
+              emptyMessage={t("desktop.firstRun.model.empty")}
               onValueChange={handlers.model}
-              containerClassName="w-56"
-              className="font-mono"
             />
             <WriteGate offline={props.status === "offline"}>
               <Button
                 size="sm"
                 variant="solid"
-                disabled={locked || stepLocked || !check.ok}
+                disabled={locked || stepLocked || !chosen}
                 onClick={handlers.saveModel}
               >
                 {t("desktop.settings.save.button")}
@@ -680,8 +745,11 @@ function ModelBody(props: StepBodyProps & { readonly model: FirstRunModel }): Re
           </span>
         </ListDescriptionRow>
       </ListDescription>
-      {invalid ? (
-        <p className="m-0 text-ui-xs text-danger-text">{t("desktop.firstRun.model.invalid")}</p>
+      {noList && !stepLocked ? (
+        <p className="m-0 text-ui-xs text-text-tertiary">{t("desktop.firstRun.model.empty")}</p>
+      ) : null}
+      {missing ? (
+        <p className="m-0 text-ui-xs text-danger-text">{t("desktop.firstRun.model.missing")}</p>
       ) : null}
     </div>
   );

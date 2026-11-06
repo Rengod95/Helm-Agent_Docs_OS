@@ -21,10 +21,12 @@ import {
   type SearchSnapshot,
 } from "../../commands.ts";
 import { errorText } from "../../settings.tsx";
+import { useModelChoices } from "../../model-usage.ts";
 import { engineLineOf, linkTextOf } from "../../status-bar.tsx";
 import {
   firstRunModelOf,
   type FirstRunKeyEntry,
+  modelInChoices,
   type FirstRunStatus,
   type StepId,
 } from "./first-run-model.ts";
@@ -52,6 +54,7 @@ function secretOf(
 
 export function FirstRunScreen(): ReactNode {
   const commands = useCommands();
+  const modelChoices = useModelChoices();
   const shell = useShellActions();
   const phase = useLinkPhase();
   const live = phase === "live";
@@ -214,7 +217,11 @@ export function FirstRunScreen(): ReactNode {
           setKeyEntry({ state: "failed", text: t("desktop.settings.keyValue.empty") });
           return;
         case "failed":
-          setKeyEntry({ state: "failed", text: outcome.text });
+          setKeyEntry(
+            outcome.keystore
+              ? { state: "failed", text: outcome.text, keystore: { name, action, providerId } }
+              : { state: "failed", text: outcome.text },
+          );
           return;
         default:
           assertNever(outcome, "KeyOutcome");
@@ -231,7 +238,8 @@ export function FirstRunScreen(): ReactNode {
 
   const saveModel = (): void => {
     const model = checkModelRef(modelInput);
-    if (!model.ok) return;
+    // 목록에 없는 모델은 저장하지 않는다(화면도 저장 단추를 막는다)
+    if (!model.ok || !modelInChoices(modelChoices, modelInput)) return;
     work(async () => {
       const saved = await commands.setup.setDefaultModel(model.value);
       setNotice(saved.ok ? t("desktop.settings.defaultModel.saved") : errorText(saved.error));
@@ -308,6 +316,10 @@ export function FirstRunScreen(): ReactNode {
     cancelKey: () => {
       setKeyEntry({ state: "idle" });
     },
+    retryKey: () => {
+      if (keyEntry.state !== "failed" || keyEntry.keystore === undefined) return;
+      setKeyEntry({ state: "form", ...keyEntry.keystore });
+    },
     connect,
     saveModel,
     setGroup,
@@ -329,6 +341,7 @@ export function FirstRunScreen(): ReactNode {
       open={openStep}
       providerInput={providerInput}
       modelInput={modelInput}
+      modelChoices={modelChoices}
       keyEntry={keyEntry}
       notice={notice}
       engineState={`${engineLineOf(engine)} · ${t(linkTextOf(phase))}`}
