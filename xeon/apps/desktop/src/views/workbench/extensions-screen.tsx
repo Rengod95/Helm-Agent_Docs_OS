@@ -6,7 +6,7 @@ import { Alert, Button, EmptyState } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands } from "../commands.ts";
-import { usePluginUiState } from "../plugin/plugin-context.tsx";
+import { usePluginUi, usePluginUiState } from "../plugin/plugin-context.tsx";
 import {
   firstNoticeOf,
   ListFilters,
@@ -30,6 +30,7 @@ export function ExtensionsScreen(): ReactNode {
   const commands = useCommands();
   // 플러그인 화면 항목은 상태가 ready일 때만 믿는다. 읽는 중이나 연결 없음이면 지우기 상자가 뷰를 "확인하지 못했어요"로 보인다
   const plugin = usePluginUiState();
+  const pluginUi = usePluginUi();
   const pluginEntries = plugin.phase === "ready" ? plugin.entries : null;
   const loadPreview = useCallback(
     (name: string) => commands.workbench.removePreview(name),
@@ -80,6 +81,8 @@ export function ExtensionsScreen(): ReactNode {
           }}
           onInstalled={() => {
             detachVoid(controller.reload());
+            // 설치한 확장의 화면이 재시작 없이 플러그인 화면 탭에 오른다(rtC R-1)
+            detachVoid(pluginUi.runtime.refresh());
           }}
         />
       )}

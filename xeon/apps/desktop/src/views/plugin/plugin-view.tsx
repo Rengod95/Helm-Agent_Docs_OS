@@ -14,9 +14,10 @@ import {
 } from "@fresnel/client/views/app";
 import { Button, Chip, Tooltip } from "@caustic/react";
 import { CodeXml, MessageSquare } from "@caustic/react/icons";
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createBridgeBackend, type PluginShellPort } from "../../plugin-ui/backend.ts";
 import { newFrameNonce, type PluginUiRuntime } from "../../plugin-ui/runtime.ts";
+import { ShellStoreContext } from "../../state/shell/index.ts";
 import { useSelectedThreadId } from "../../state/ui/index.ts";
 import { useCommands } from "../commands.ts";
 import { NativeTree } from "./native-tree.tsx";
@@ -291,6 +292,21 @@ export function createSession(
   };
 }
 
+/**
+ * 대화 화면으로 간다. 플러그인 화면은 셸의 화면 자리(`places.chat.screen`)에 있으므로 스토어의 화면만 바꾸면 돌아가지 않는다(rtC R-2).
+ * 앱 셸의 `showChat`과 같은 순서다
+ */
+function useShowChat(): () => void {
+  const commands = useCommands();
+  // 셸 없이 그린 화면(시험, 따로 끼운 곳)에서는 스토어 화면만 바꾼다
+  const shell = useContext(ShellStoreContext)?.actions;
+  return () => {
+    shell?.switchArea("chat");
+    commands.showScreen("chat");
+    shell?.updatePlace({ screen: "chat", scroll: 0 });
+  };
+}
+
 function useSession(
   entry: ExtUiEntry,
   context: BridgePolicyContext,
@@ -300,12 +316,16 @@ function useSession(
   shell: PluginShellPort | undefined,
 ): Session {
   const commands = useCommands();
+  const showChat = useShowChat();
   const [session] = useState(() =>
     createSession(
       entry,
       context,
       threadId,
-      (screen) => commands.showScreen(screen),
+      (screen) => {
+        if (screen === "chat") showChat();
+        else commands.showScreen(screen);
+      },
       () => commands.pluginUi.current(),
       runtime,
       openExternal,
@@ -515,7 +535,7 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
   const loaded = useLoaded(runtime, entry, threadId);
   const key = screenKeyOf(entry);
   const frameDisabled = useDisabled(runtime, key);
-  const commands = useCommands();
+  const showChat = useShowChat();
   const pluginState = usePluginUiState();
   const inactive = pluginState.inactive.has(entry.extension);
   const rootSkipped = pluginState.rootsSkipped.find(
@@ -547,7 +567,7 @@ export function PluginView(props: { readonly entry: ExtUiEntry }): ReactNode {
       <Header
         entry={entry}
         onBackToChat={() => {
-          commands.showScreen("chat");
+          showChat();
         }}
       />
       <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">{body}</div>

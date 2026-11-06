@@ -190,7 +190,12 @@ export function installDoneOf(result: ExtInstallResult): InstallDone {
       failure.reason === "safe_mode" || failure.reason === "disabled" ? failure.reason : "error";
     const first =
       failure.diagnostics.find((entry) => entry.severity === "error") ?? failure.diagnostics[0];
-    return { kind: "notLoaded", reason, detail: first?.message ?? null };
+    // 꺼진 이유는 문장이 이미 말한다. 진단 원문(`ext.<이름>.enabled is false`)은 영어 내부 메시지라 붙이지 않는다(rtC R-5)
+    return {
+      kind: "notLoaded",
+      reason,
+      detail: reason === "disabled" ? null : (first?.message ?? null),
+    };
   }
   if (result.appliesAt === "now") return { kind: "listed" };
   return result.appliesAt === "restart" ? { kind: "restart" } : { kind: "boundary" };

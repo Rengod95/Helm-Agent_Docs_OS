@@ -215,7 +215,12 @@ describe("설치 결과의 갈래", () => {
       reason: "safe_mode",
       detail: "cannot import",
     });
-    expect(installDoneOf(failed("disabled"))).toMatchObject({ reason: "disabled" });
+    // 꺼진 채 설치된 그룹은 영어 진단 원문을 붙이지 않는다
+    expect(installDoneOf(failed("disabled"))).toEqual({
+      kind: "notLoaded",
+      reason: "disabled",
+      detail: null,
+    });
     expect(installDoneOf(failed("loader_unavailable"))).toEqual({ kind: "restart" });
     expect(
       installDoneOf({

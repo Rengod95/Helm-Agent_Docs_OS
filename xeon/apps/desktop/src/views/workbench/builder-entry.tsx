@@ -39,8 +39,10 @@ export function BuilderEntry(props: { readonly controller: WorkbenchController }
   const entries = useWorkbench((s) => s.entries);
   const link = tabLinkOf(useLinkPhase());
   const entry = entries.find((item) => item.name === AUTHORING_EXT);
-  const state = forwardStateOf(link, builderOf(entry));
   const enabling = entry?.status === "enabling";
+  const base = forwardStateOf(link, builderOf(entry));
+  // 켜기가 다음 단계 경계를 기다리는 중이면 새 대화가 그 경계를 만든다. 켜기에서 멈추지 않고 대화 열기로 간다(rtC R-3)
+  const state: Forward = enabling && base.kind === "enable" ? { kind: "make" } : base;
 
   const open = (): void => {
     detach(
