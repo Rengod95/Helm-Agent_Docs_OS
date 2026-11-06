@@ -657,7 +657,7 @@ describe("OS 알림", () => {
     const thread = t.newThread();
     feedTurnCompleted(collected, thread, 11, "failed", "boom");
     expect(collected.notified.map((sent) => sent.notification)).toEqual([
-      { kind: "error", title: "턴이 실패했다", body: "boom", threadId: thread },
+      { kind: "error", title: "턴이 실패했어요", body: "boom", threadId: thread },
     ]);
   });
 

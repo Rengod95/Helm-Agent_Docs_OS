@@ -102,7 +102,7 @@ describe("classifyNotice: turn.completed", () => {
     const event = envelope(thread, "turn.completed", turnPayload("failed", "모델 호출 실패"));
     expect(classifyNotice(event)).toStrictEqual({
       kind: "error",
-      title: "턴이 실패했다",
+      title: "턴이 실패했어요",
       body: "모델 호출 실패",
       seq: event.seq,
       sourceType: "turn.completed",
@@ -134,7 +134,7 @@ describe("classifyNotice: work.goal_settled", () => {
     });
     expect(classifyNotice(event)).toStrictEqual({
       kind: "completed",
-      title: "목표를 달성했다",
+      title: "목표를 달성했어요",
       body: "판정 2회",
       seq: event.seq,
       sourceType: "work.goal_settled",
@@ -150,7 +150,7 @@ describe("classifyNotice: work.goal_settled", () => {
     });
     expect(classifyNotice(event)).toStrictEqual({
       kind: "completed",
-      title: "목표 판정 한도에 도달했다",
+      title: "목표 판정 한도에 도달했어요",
       body: "판정 5회",
       seq: event.seq,
       sourceType: "work.goal_settled",
@@ -166,7 +166,7 @@ describe("classifyNotice: work.goal_settled", () => {
     });
     expect(classifyNotice(event)).toStrictEqual({
       kind: "error",
-      title: "목표 판정에 실패했다",
+      title: "목표 판정에 실패했어요",
       body: null,
       seq: event.seq,
       sourceType: "work.goal_settled",
@@ -210,7 +210,7 @@ describe("classifyNotice: approval.requested", () => {
     const event = envelope(thread, "approval.requested", approvalPayload(thread, QUESTION_BODY));
     expect(classifyNotice(event)).toStrictEqual({
       kind: "question_waiting",
-      title: "질문에 답이 필요하다",
+      title: "질문에 답이 필요해요",
       body: null,
       seq: event.seq,
       sourceType: "approval.requested",
@@ -264,7 +264,7 @@ describe("classifyNotice: agent.settled", () => {
     const event = envelope(thread, "agent.settled", settledPayload(thread, "error", "자식 실패"));
     expect(classifyNotice(event)).toStrictEqual({
       kind: "error",
-      title: "백그라운드 작업이 실패했다",
+      title: "백그라운드 작업이 실패했어요",
       body: "자식 실패",
       seq: event.seq,
       sourceType: "agent.settled",
@@ -296,7 +296,7 @@ describe("classifyNotice: schedule.run_finished", () => {
     const event = envelope(thread, "schedule.run_finished", runPayload("failed"));
     expect(classifyNotice(event)).toStrictEqual({
       kind: "error",
-      title: "예약 작업이 실패했다",
+      title: "예약 작업이 실패했어요",
       body: null,
       seq: event.seq,
       sourceType: "schedule.run_finished",
@@ -357,8 +357,8 @@ describe("unreadableInputNotice", () => {
   test("is an error notice from origin tasks that names the reason", () => {
     expect(unreadableInputNotice("blob_unreadable")).toEqual({
       kind: "error",
-      title: "읽을 수 없는 입력이 큐에 있다",
-      body: "큐에 넣은 입력을 읽지 못해 건너뛴다(blob_unreadable). 큐에서 지우고 다시 보내 달라.",
+      title: "읽을 수 없는 입력이 큐에 있어요",
+      body: "큐에 넣은 입력을 읽지 못해 건너뛰었어요(blob_unreadable). 큐에서 지우고 다시 보내 주세요.",
       origin: "tasks",
     });
   });

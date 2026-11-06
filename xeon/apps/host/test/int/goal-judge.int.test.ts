@@ -265,7 +265,7 @@ realTest(
     }
     const goalNotice: Notice = {
       kind: "completed",
-      title: "목표 판정 한도에 도달했다",
+      title: "목표 판정 한도에 도달했어요",
       body: "판정 3회",
       seq: settledEvent.seq,
       sourceType: "work.goal_settled",
