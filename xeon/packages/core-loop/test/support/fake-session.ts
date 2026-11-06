@@ -134,6 +134,8 @@ export interface FakeSession {
   setLeaseEpoch(threadId: ThreadId, scopeId: string, epoch: number): void;
   /** 이 thread를 위임으로 만들어진 자식으로 표시한다(`query.agentOfChild`가 부모 연결을 돌려준다). 재시작해도 남는다 */
   markChild(childThreadId: ThreadId, parentThreadId: ThreadId): void;
+  /** 이 thread가 정한 모델 참조(`thread.setModel`)를 투영 행에 싣는다. null이면 거둔다 */
+  chooseModel(threadId: ThreadId, model: string | null): void;
   /** 프로세스 재시작을 흉내 낸다: 구독과 생산자 점유와 장애 설정을 비우고 기록은 그대로 둔다 */
   restartProcess(): void;
   readonly commitCalls: number;
@@ -170,6 +172,11 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
   }
   const recordStore = memoryRecordStore();
 
+  const chosenModels = new Map<ThreadId, string>();
+  const modelFieldOf = (threadId: ThreadId): { readonly model?: string } => {
+    const model = chosenModels.get(threadId);
+    return model === undefined ? {} : { model };
+  };
   const eventsOf = (threadId: ThreadId): DurableEventEnvelope[] =>
     log.filter((event) => event.threadId === threadId);
 
@@ -646,6 +653,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
                 queuedInputs: 0,
                 pendingApprovals: 0,
                 lastTurnId: null,
+                ...modelFieldOf(threadId),
               },
         ),
       turn: (threadId, turnId) => read(turnsOf(threadId).get(turnId)),
@@ -756,6 +764,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       revert: () => notImplemented("threads.revert"),
       moveLeaf: () => notImplemented("threads.moveLeaf"),
       setTitle: () => notImplemented("threads.setTitle"),
+      setModel: () => notImplemented("threads.setModel"),
       prepareSwitch: () => notImplemented("threads.prepareSwitch"),
     },
     sessionSettings: {
@@ -812,6 +821,10 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
     },
     setLeaseEpoch(threadId, scopeId, epoch) {
       epochOverrides.set(`${threadId}|${scopeId}`, epoch);
+    },
+    chooseModel(threadId, model) {
+      if (model === null) chosenModels.delete(threadId);
+      else chosenModels.set(threadId, model);
     },
     markChild(childThreadId, parentThreadId) {
       childLinks.set(childThreadId, parentThreadId);

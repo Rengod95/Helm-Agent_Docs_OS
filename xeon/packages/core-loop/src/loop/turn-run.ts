@@ -239,7 +239,12 @@ export function overrides(run: TurnRun): { readonly scopeId?: string } {
 function roleOf(run: TurnRun): { readonly role: ModelRole; readonly overrides: RoleOverrides } {
   const child = run.spec.child;
   const base = overrides(run);
-  if (child === null) return { role: "main", overrides: base };
+  if (child === null) {
+    // 대화가 정한 모델(`thread.setModel`)은 다음 turn부터 main 역할을 덮어쓴다. 읽지 못하거나 정하지 않았으면 역할 표의 기본이다
+    const chosen = run.ctx.session.query.thread(run.threadId);
+    const ref = chosen.ok ? chosen.value?.model : undefined;
+    return { role: "main", overrides: ref === undefined ? base : { ...base, ref } };
+  }
   const named = MODEL_ROLES.find((role) => role === child.model);
   if (named !== undefined) return { role: named, overrides: base };
   return { role: "main", overrides: { ...base, ref: child.model } };

@@ -651,6 +651,10 @@ runTurn(req: LoopTurnRequest):
 - 주입: `Clock`, `IdFactory`, 모델 테이프 streamFn. core-loop 경로에서 `Date.now`, `Math.random`, `crypto.randomUUID`를 쓰지 않는다(TX-06).
 - 같은 모델 테이프와 같은 입력, 같은 주입값이면 이벤트 열(내구 envelope, 휘발 envelope의 `kind`·`n`·`afterSeq`·payload)이 같다(`eng.testing.guide` TS-02 D0).
 
+### 4.12.1 대화별 모델 [결정: 오케스트레이터 기본값, M4 T-MODEL]
+
+주 대화와 drive turn은 단계마다 모델을 해석할 때 `session.query.thread(threadId).model`을 읽는다(`thread.setModel`이 `thread.updated { model }`로 정한 값, L1.persistence.spec §4.10.5). 값이 있으면 역할 `main`의 `ref`를 그 참조로 덮어쓰고(역할 표의 `explicit` 단계), 없으면 역할 표의 기본(`l1.models.default`)이다. 해석은 turn 시작과 단계 사이에서 하므로 바꾼 값은 다음 turn부터 적용되고 열린 turn은 이미 묶은 바인딩(`pinned`)으로 끝난다. 참조가 카탈로그에서 사라졌거나 거부 목록에 있으면 `model_unavailable`로 끝나고 기본 모델로 조용히 돌아가지 않는다(역할 표 규칙: 값이 틀렸으면 다음 단계로 넘어가지 않는다). 자식 turn은 이 값을 읽지 않는다(요청의 `model`이 정한다, §4.13).
+
 ### 4.13 자식 thread turn (`runChildTurn`)
 
 [제안] L1.agents.spec §4.1 5번과 §8.4의 요청을 받는다. 자식 대화도 주 대화와 같은 루프(§3.2)와 같은 커밋 시점(§3.5)으로 돈다. 다른 점은 시스템 프롬프트, 모델, 도구 맥락을 요청에서 받는다는 것이다.

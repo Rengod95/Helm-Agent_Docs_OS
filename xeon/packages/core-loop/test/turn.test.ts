@@ -349,3 +349,26 @@ async function expectStepCommits(count: number): Promise<void> {
 test("each_step_commits_three_plus_three_per_tool_call", async () => {
   await Promise.all([0, 1, 2, 3].map(expectStepCommits));
 });
+
+test("a_model_chosen_for_the_thread_overrides_main_from_the_next_turn_and_null_restores_the_default", async () => {
+  const h = await createHarness({ script: [text("one"), text("two"), text("three")] });
+  const mainRefs = (): (string | undefined)[] =>
+    h.models.resolves.filter((r) => r.role === "main").map((r) => r.overrides?.ref);
+  await h.loop.admit({ threadId: h.threadId, content: "a", via: "interactive" });
+  await h.settle();
+  expect(new Set(mainRefs())).toEqual(new Set([undefined]));
+  const before = h.models.resolves.length;
+  h.fake.chooseModel(h.threadId, "anthropic/claude-haiku-5-5");
+  await h.loop.admit({ threadId: h.threadId, content: "b", via: "interactive" });
+  await h.settle();
+  const during = h.models.resolves.slice(before).map((r) => r.overrides?.ref);
+  expect(during.length).toBeGreaterThan(0);
+  expect(new Set(during)).toEqual(new Set(["anthropic/claude-haiku-5-5"]));
+  const mid = h.models.resolves.length;
+  h.fake.chooseModel(h.threadId, null);
+  await h.loop.admit({ threadId: h.threadId, content: "c", via: "interactive" });
+  await h.settle();
+  expect(new Set(h.models.resolves.slice(mid).map((r) => r.overrides?.ref))).toEqual(
+    new Set([undefined]),
+  );
+});
