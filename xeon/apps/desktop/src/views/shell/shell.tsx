@@ -132,7 +132,6 @@ function ShellFrame(props: ShellProps): ReactNode {
   const actions = useShellActions();
   const layout = useShell((s) => s.layout);
   const startOpen = useShell((s) => s.startOpen);
-  const keymap = useMemo(() => resolveKeymap(props.keyOverrides), [props.keyOverrides]);
   useWindowResize();
   useShellShortcuts(props);
   const compact = layout === "compact";
@@ -158,14 +157,13 @@ function ShellFrame(props: ShellProps): ReactNode {
           <div
             className={
               compact
-                ? "absolute inset-y-0 start-0 z-30 flex w-[min(20rem,calc(100%-3rem))]"
+                ? "absolute inset-y-0 start-0 z-30 flex w-[min(20rem,calc(100%-3rem))] animate-enter-panel enter-from-start"
                 : "flex"
             }
           >
             <StartPanel
               registry={props.registry}
-              keymap={keymap}
-              mac={props.mac}
+              floating={compact}
               settingsOpen={props.settingsOpen}
               onOpenSettings={() => {
                 props.onSettingsOpenChange(true);
@@ -188,7 +186,7 @@ function ShellFrame(props: ShellProps): ReactNode {
               id={STAGE_ID}
               tabIndex={-1}
               aria-label={t("desktop.shell.stage.label")}
-              className="flex min-w-0 flex-1 flex-col pe-9 outline-none"
+              className="flex min-w-0 flex-1 flex-col outline-none"
             >
               <Stage
                 registry={props.registry}

@@ -10,7 +10,6 @@ import {
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { SecretName } from "@fresnel/contracts/capabilities";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import pkg from "../../../../package.json" with { type: "json" };
 import { keepTools } from "../../../app/setup.ts";
 import { useEngineState, useLinkPhase } from "../../../state/engine/index.ts";
 import { useShellActions } from "../../../state/shell/index.ts";
@@ -256,6 +255,20 @@ export function FirstRunScreen(): ReactNode {
     });
   };
 
+  /** 대화를 새로 만들고 대화 화면으로 간다(팔레트의 "새 대화"와 같은 명령이다) */
+  const startChat = (): void => {
+    work(async () => {
+      const created = await commands.createThread();
+      if (!created.ok) {
+        setNotice(errorText(created.error));
+        return;
+      }
+      shell.switchArea("chat");
+      commands.showScreen("chat");
+      shell.updatePlace({ screen: "chat", scroll: 0 });
+    });
+  };
+
   const setupValue = setup.kind === "ready" ? setup.value : null;
   const model =
     setupValue === null
@@ -303,6 +316,7 @@ export function FirstRunScreen(): ReactNode {
     openLightCraft: () => {
       shell.switchArea("workbench");
     },
+    startChat,
   };
 
   return (
@@ -317,7 +331,6 @@ export function FirstRunScreen(): ReactNode {
       modelInput={modelInput}
       keyEntry={keyEntry}
       notice={notice}
-      appVersion={pkg.version}
       engineState={`${engineLineOf(engine)} · ${t(linkTextOf(phase))}`}
       handlers={handlers}
     />

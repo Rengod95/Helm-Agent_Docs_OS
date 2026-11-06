@@ -1,3 +1,4 @@
+import { AgentRequest, Button } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -52,8 +53,8 @@ function TrustCardFor(props: { readonly threadId: ThreadId }): ReactNode {
   if (workspace === null || loaded === null || loaded.workspace !== workspace) return null;
   if ("failed" in loaded) {
     return (
-      <section className="approvals" aria-label={t("desktop.trust.card.title")}>
-        <div className="error" role="alert">
+      <section aria-label={t("desktop.trust.card.title")}>
+        <div className="text-ui-sm text-danger-text" role="alert">
           {t("desktop.trust.card.loadFailed")}
         </div>
       </section>
@@ -88,35 +89,52 @@ export function TrustCardBody(props: {
   readonly onDecide: (choice: TrustChoice) => void;
 }): ReactNode {
   const { card, sending } = props;
+  // 신뢰 카드는 caustic AgentRequest(permission: 방패 타일, 제목, 부제)다. 단추는 판정마다 꺼짐과 저장 위치 툴팁이 달라
+  // AgentRequest의 actions 대신 아래 단추 줄에 caustic Button으로 둔다(approval-card와 같은 규칙, 오른쪽 정렬)
   return (
-    <section className="approvals" aria-label={t("desktop.trust.card.title")}>
-      <h2>{t("desktop.trust.card.title")}</h2>
-      <div className="approval">
-        <div className="approval-title">
-          {card.state === "denied"
+    <section aria-label={t("desktop.trust.card.title")}>
+      <AgentRequest
+        kind="permission"
+        lead={t("desktop.trust.card.title")}
+        title={
+          card.state === "denied"
             ? t("desktop.trust.card.denied")
-            : t("desktop.trust.card.undecided")}
-        </div>
-        <div className="dim">{card.projectRoot}</div>
+            : t("desktop.trust.card.undecided")
+        }
+        subtitle={card.projectRoot}
+        actions={[]}
+      >
         {card.resources.length === 0 ? null : (
-          <>
-            <div>{t("desktop.trust.card.resources.label")}</div>
-            <ul className="trust-resources">
+          <div className="grid gap-1">
+            <div className="text-ui-sm text-text-secondary">
+              {t("desktop.trust.card.resources.label")}
+            </div>
+            <ul className="m-0 list-disc pl-5">
               {card.resources.map((resource) => (
                 <li key={resource}>
                   <code>{resource}</code>
                 </li>
               ))}
             </ul>
-          </>
+          </div>
         )}
-        <div className="dim">{t("desktop.trust.card.warning")}</div>
-        <div className="approval-actions">
+        <div className="text-ui-sm text-text-secondary">{t("desktop.trust.card.warning")}</div>
+        <div className="mt-1.5 flex flex-wrap items-center justify-end gap-1.5">
+          {sending === "sending" ? (
+            <span className="text-ui-sm text-text-secondary">
+              {t("desktop.trust.card.sendingStatus")}
+            </span>
+          ) : null}
+          {sending === "failed" ? (
+            <span className="text-ui-sm text-danger-text" role="alert">
+              {t("desktop.trust.card.sendFailed")}
+            </span>
+          ) : null}
           {card.buttons.map((button) => (
-            <button
+            <Button
               key={`${button.choice.kind}:${button.choice.verdict}`}
-              type="button"
-              className={button.primary ? "primary" : undefined}
+              size="xs"
+              variant={button.primary ? "solid" : "ghost"}
               disabled={sending === "sending"}
               title={button.savedPath ?? undefined}
               onClick={() => {
@@ -124,18 +142,10 @@ export function TrustCardBody(props: {
               }}
             >
               {button.text}
-            </button>
+            </Button>
           ))}
-          {sending === "sending" ? (
-            <span className="dim">{t("desktop.trust.card.sendingStatus")}</span>
-          ) : null}
-          {sending === "failed" ? (
-            <span className="error" role="alert">
-              {t("desktop.trust.card.sendFailed")}
-            </span>
-          ) : null}
         </div>
-      </div>
+      </AgentRequest>
     </section>
   );
 }

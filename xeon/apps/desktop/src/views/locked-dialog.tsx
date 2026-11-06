@@ -1,3 +1,4 @@
+import { Alert, Button, Dialog } from "@caustic/react";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
@@ -66,39 +67,45 @@ export function LockedDialogView(props: {
   readonly onObserve: () => void;
   readonly onFork: () => void;
   readonly onClose: () => void;
+  /** 겹침 없이 제자리에 그린다(미리보기·서버 렌더 시험용) */
+  readonly inline?: boolean;
 }): ReactNode {
   const { locked, busy } = props;
   return (
-    <div className="dialog-backdrop">
-      <div
-        className="dialog"
-        role="alertdialog"
-        aria-modal="true"
-        aria-label={t("desktop.lockedDialog.inUse")}
-      >
-        <h2>{t("desktop.lockedDialog.heading", { owner: ownerText(locked.ownerKind) })}</h2>
-        <p className="dim">{t("desktop.lockedDialog.hint")}</p>
-        <div className="approval-actions">
+    <Dialog
+      open
+      kind="alert"
+      inline={props.inline === true}
+      size="sm"
+      onOpenChange={(open) => {
+        if (!open && !busy) props.onClose();
+      }}
+      title={t("desktop.lockedDialog.heading", { owner: ownerText(locked.ownerKind) })}
+      description={t("desktop.lockedDialog.hint")}
+      aria-label={t("desktop.lockedDialog.inUse")}
+      footer={
+        <>
+          <Button size="sm" variant="outline" disabled={busy} onClick={props.onClose}>
+            {t("desktop.lockedDialog.close.button")}
+          </Button>
           {locked.options.includes("observe") ? (
-            <button type="button" disabled={busy} onClick={props.onObserve}>
+            <Button size="sm" variant="outline" disabled={busy} onClick={props.onObserve}>
               {t("desktop.lockedDialog.observe.button")}
-            </button>
+            </Button>
           ) : null}
           {locked.options.includes("fork") ? (
-            <button type="button" className="primary" disabled={busy} onClick={props.onFork}>
+            <Button size="sm" variant="solid" disabled={busy} onClick={props.onFork}>
               {t("desktop.lockedDialog.fork.button")}
-            </button>
+            </Button>
           ) : null}
-          <button type="button" disabled={busy} onClick={props.onClose}>
-            {t("desktop.lockedDialog.close.button")}
-          </button>
-        </div>
-        {props.failed ? (
-          <div className="error" role="alert">
-            {t("desktop.lockedDialog.failed")}
-          </div>
-        ) : null}
-      </div>
-    </div>
+        </>
+      }
+    >
+      {props.failed ? (
+        <Alert tone="danger" size="sm" role="alert">
+          {t("desktop.lockedDialog.failed")}
+        </Alert>
+      ) : null}
+    </Dialog>
   );
 }

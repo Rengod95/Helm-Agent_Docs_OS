@@ -1,5 +1,5 @@
 import { t } from "@fresnel/client/i18n";
-import { Alert, Chip, Progress } from "@caustic/react";
+import { Alert, Button, Chip, Progress } from "@caustic/react";
 import { Paperclip } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 import { failureText, formatBytes, type AttachChip } from "./attachment-model.ts";
@@ -13,7 +13,10 @@ export function AttachmentRow(props: {
 }): ReactNode {
   if (props.chips.length === 0) return null;
   return (
-    <ul className="composer-attachments" aria-label={t("desktop.composer.attach.list.label")}>
+    <ul
+      className="m-0 flex list-none flex-wrap gap-1.5 p-0"
+      aria-label={t("desktop.composer.attach.list.label")}
+    >
       {props.chips.map((chip) => (
         <li key={chip.id}>
           {chip.status === "failed" && chip.failure !== null ? (
@@ -26,24 +29,26 @@ export function AttachmentRow(props: {
               </span>{" "}
               {chip.failure.kind === "tooLarge" ? null : (
                 <>
-                  <button
-                    type="button"
+                  <Button
+                    size="xs"
+                    variant="outline"
                     onClick={() => {
                       props.onRetry(chip.id);
                     }}
                   >
                     {t("desktop.composer.attach.retry")}
-                  </button>{" "}
+                  </Button>{" "}
                 </>
               )}
-              <button
-                type="button"
+              <Button
+                size="xs"
+                variant="outline"
                 onClick={() => {
                   props.onRemove(chip.id);
                 }}
               >
                 {t("desktop.composer.attach.remove")}
-              </button>
+              </Button>
             </Alert>
           ) : (
             <Chip

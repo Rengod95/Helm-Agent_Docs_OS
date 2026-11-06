@@ -110,7 +110,8 @@ export function EndPanel(props: { readonly registry: ShellRegistry }): ReactNode
           role="region"
           tabIndex={-1}
           aria-label={label}
-          className="pointer-events-auto absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex max-w-[calc(100vw-4.5rem)] flex-col shadow-3 outline-none"
+          // 아이콘 쪽(위 오른쪽)에서 펼쳐지는 느낌: 그 모서리를 원점으로 커지며 나타난다(시안 right-panel)
+          className="pointer-events-auto absolute inset-y-0 end-[calc(100%+0.375rem)] z-30 flex max-w-[calc(100vw-4.5rem)] origin-top-right animate-enter flex-col shadow-3 outline-none enter-scale"
           style={{ width: wellWidthOf(current) }}
         >
           <div className="flex h-8 flex-none items-center gap-1.5 ps-2.5 pe-0.5">

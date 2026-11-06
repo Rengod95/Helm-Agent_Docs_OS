@@ -41,6 +41,7 @@ const handlers: FirstRunViewHandlers = {
   dismissSearch: NOOP,
   registerSecret: NOOP,
   openLightCraft: NOOP,
+  startChat: NOOP,
 };
 
 const SETUP: SetupSnapshot = {
@@ -73,7 +74,6 @@ function propsOf(over: Partial<FirstRunViewProps> = {}): FirstRunViewProps {
     modelInput: "",
     keyEntry,
     notice: null,
-    appVersion: "0.4.0",
     engineState: "엔진 실행 중 · 연결됨",
     handlers,
     ...over,
@@ -139,12 +139,13 @@ function binaries(total: number, required: number): BinaryView {
 }
 
 describe("first-run screen server render", () => {
-  test("the five steps are a checklist, the done step is marked, and the open step's heading shows", () => {
+  test("the five steps are one accordion list, the done step is marked, and the open step shows its body", () => {
     const page = html(propsOf({ open: "tools" }));
-    expect(page.match(/data-slot="stepper-item"/g)?.length).toBe(5);
+    expect(page.match(/data-slot="accordion-item"/g)?.length).toBe(5);
     expect(page).toContain(t("desktop.firstRun.step.tools"));
     expect(page).toContain(t("desktop.firstRun.step.groups"));
     expect(page).toContain('data-status="done"');
+    expect(page).toContain(t("desktop.firstRun.chat.start"));
   });
 
   test("loading shows a progress indicator on the steps and no error", () => {
@@ -165,7 +166,8 @@ describe("first-run screen server render", () => {
   test("offline keeps the last read values, says the writes are locked, and disables the switches", () => {
     const page = html(propsOf({ status: "offline", locked: true, open: "groups" }));
     expect(page).toContain(t("desktop.firstRun.offline"));
-    expect(page.match(/role="switch"[^>]*disabled=""/g)?.length).toBe(2);
+    // helm, learning, review 세 줄의 스위치가 모두 잠긴다(review는 원래 바꿀 수 없다)
+    expect(page.match(/role="switch"[^>]*disabled=""/g)?.length).toBe(3);
   });
 
   test("the safe mode line shows at the top of the default groups step, with helm and learning on and review off", () => {
@@ -173,7 +175,7 @@ describe("first-run screen server render", () => {
     const page = html(propsOf({ open: "groups", model: modelOf(SETUP, groups) }));
     expect(page).toContain(t("desktop.firstRun.groups.safeMode"));
     expect(page.match(/role="switch"[^>]*data-state="checked"/g)?.length).toBe(2);
-    expect(page).toContain(t("desktop.firstRun.group.off"));
+    expect(page).toContain(t("desktop.firstRun.group.review.name"));
     expect(page).toContain(t("desktop.firstRun.groups.lightCraft"));
     expect(page).not.toContain("group new");
   });
@@ -206,9 +208,8 @@ describe("first-run screen server render", () => {
     expect(page).toContain(t("desktop.firstRun.key.valueLabel"));
   });
 
-  test("the footer shows the app version and the engine line as given", () => {
-    const page = html(propsOf({ appVersion: "0.4.0", engineState: "엔진 실행 중 · 연결됨" }));
-    expect(page).toContain(t("desktop.firstRun.footer.version", { version: "0.4.0" }));
+  test("the footer shows the engine line as given", () => {
+    const page = html(propsOf({ engineState: "엔진 실행 중 · 연결됨" }));
     expect(page).toContain("엔진 실행 중 · 연결됨");
   });
 

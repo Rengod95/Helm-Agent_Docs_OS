@@ -1,3 +1,4 @@
+import { Button } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import type { ItemId } from "@fresnel/contracts/conversation";
 import { useMemo, type ReactNode } from "react";
@@ -41,14 +42,15 @@ export function Transcript(): ReactNode {
     return (
       <Notice>
         {t("desktop.transcript.loadFailed")}{" "}
-        <button
-          type="button"
+        <Button
+          size="xs"
+          variant="outline"
           onClick={() => {
             commands.retryTranscript();
           }}
         >
           {t("desktop.transcript.reloadButton")}
-        </button>
+        </Button>
       </Notice>
     );
   }

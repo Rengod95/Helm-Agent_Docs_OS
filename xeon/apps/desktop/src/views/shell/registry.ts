@@ -13,8 +13,10 @@ export interface ScreenDef {
   /** 내비 라벨의 메시지 id */
   readonly label: MessageId;
   readonly icon?: ReactNode;
-  /** 내비 배지(개수). 0이나 undefined면 안 보인다 */
-  readonly badge?: () => number | undefined;
+  /** 내비 배지(개수)를 읽는 부품. 개수를 읽어 `render`로 넘기므로 값이 바뀌면 이 줄만 다시 그린다. 0이나 undefined면 안 보인다 */
+  readonly Badge?: (props: {
+    readonly render: (count: number | undefined) => ReactNode;
+  }) => ReactNode;
   /** 무대에 그릴 내용 */
   readonly render: () => ReactNode;
   /** 화면을 열 때 오른쪽 탭 기본값. 영역이 기억한 탭이 있으면 그것이 우선이다 */

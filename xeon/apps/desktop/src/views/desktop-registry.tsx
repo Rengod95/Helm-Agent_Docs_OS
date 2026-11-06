@@ -9,7 +9,8 @@ import {
   WandSparkles,
 } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
-import { ApprovalQueue, InboxApprovals } from "./approvals.tsx";
+import { ScrollArea, SegmentedControl, SegmentedControlItem } from "@caustic/react";
+import { ApprovalQueue, InboxApprovals, type InboxFilter } from "./approvals.tsx";
 import { ChatHeader } from "./chat-header.tsx";
 import { Composer } from "./composer.tsx";
 import { SafeModeCard } from "./safe-mode-card.tsx";
@@ -37,7 +38,8 @@ import {
   runtimeEndTab,
 } from "./workbench/index.tsx";
 import { HelmPanelTab, PluginPagesTab } from "./plugin/plugin-tabs.tsx";
-import type { ReactNode } from "react";
+import { useApprovalCount, useThreadIds } from "../state/engine/index.ts";
+import { useState, type ReactNode } from "react";
 
 // 지금 만들어져 있는 화면만 등록한다. 나머지 화면 id는 셸이 "아직 없어요" 빈 상태로 그린다.
 // 화면 트랙은 여기에 `registerScreen`·`registerEndTab`을 더한다(shell/README.md).
@@ -62,15 +64,35 @@ function InboxTab(): ReactNode {
 
 /** 받은 요청 화면(시안 p03). 왼쪽 내비의 "받은 요청"이 무대에 연다. 끝 영역 탭과 같은 목록을 그린다 */
 function InboxScreen(): ReactNode {
+  const [filter, setFilter] = useState<InboxFilter>("all");
   return (
-    <section
-      aria-labelledby="inbox-heading"
-      className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
-    >
-      <h1 id="inbox-heading" className="text-ui-strong text-text-primary">
-        {t("desktop.shell.nav.inbox")}
-      </h1>
-      <InboxApprovals />
+    <section aria-labelledby="inbox-heading" className="flex min-h-0 flex-1 flex-col">
+      <header className="mx-auto flex min-h-10 w-full max-w-184 flex-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1">
+        <h1 id="inbox-heading" className="m-0 me-1 font-ui text-ui-strong text-text-primary">
+          {t("desktop.shell.nav.inbox")}
+        </h1>
+        <SegmentedControl
+          aria-label={t("desktop.inbox.filter.label")}
+          size="xs"
+          value={filter}
+          onValueChange={(v) => {
+            setFilter(v === "approvals" || v === "notices" ? v : "all");
+          }}
+        >
+          <SegmentedControlItem value="all">{t("desktop.inbox.filter.all")}</SegmentedControlItem>
+          <SegmentedControlItem value="approvals">
+            {t("desktop.inbox.filter.approvals")}
+          </SegmentedControlItem>
+          <SegmentedControlItem value="notices">
+            {t("desktop.inbox.filter.notices")}
+          </SegmentedControlItem>
+        </SegmentedControl>
+      </header>
+      <ScrollArea label={t("desktop.shell.nav.inbox")} className="min-h-0 flex-1">
+        <div className="mx-auto w-full max-w-184 px-3 pb-4 pt-1">
+          <InboxApprovals show={filter} />
+        </div>
+      </ScrollArea>
     </section>
   );
 }
@@ -80,6 +102,7 @@ const INBOX_SCREEN: ScreenDef = {
   area: "chat",
   label: "desktop.shell.nav.inbox",
   icon: <Inbox />,
+  Badge: (p) => p.render(useApprovalCount()),
   render: () => <InboxScreen />,
 };
 
@@ -88,6 +111,7 @@ const CHAT_SCREEN: ScreenDef = {
   area: "chat",
   label: "desktop.shell.nav.chat",
   icon: <MessageSquare />,
+  Badge: (p) => p.render(useThreadIds().length),
   render: () => <ChatScreen />,
 };
 

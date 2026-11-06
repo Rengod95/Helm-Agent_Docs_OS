@@ -16,6 +16,7 @@ describe("LockedDialogView", () => {
         onObserve={noop}
         onFork={noop}
         onClose={noop}
+        inline
       />,
     );
     expect(out).toContain("터미널(fresnel CLI)");
@@ -33,6 +34,7 @@ describe("LockedDialogView", () => {
         onObserve={noop}
         onFork={noop}
         onClose={noop}
+        inline
       />,
     );
     expect(out).not.toContain("관찰만 하기");

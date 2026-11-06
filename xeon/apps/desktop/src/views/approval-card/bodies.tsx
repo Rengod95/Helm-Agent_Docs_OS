@@ -1,6 +1,15 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
-import { Alert, ChoiceGroup, ChoiceGroupItem, Input, MessageCode, Textarea } from "@caustic/react";
+import {
+  Alert,
+  ChoiceGroup,
+  ChoiceGroupItem,
+  Input,
+  ListDescription,
+  ListDescriptionRow,
+  MessageCode,
+  Textarea,
+} from "@caustic/react";
 import type { ReactNode } from "react";
 import {
   QUESTION_TEXT_MAX,
@@ -36,37 +45,37 @@ const TRUST_TEXT: Readonly<Record<NonNullable<ToolReplaceView["trust"]>, Message
 function ReplaceDetails(props: { readonly view: ToolReplaceView }): ReactNode {
   const { view } = props;
   return (
-    <div>
+    <div className="grid gap-1.5">
       <div>{t("desktop.approvals.replace.heading")}</div>
-      <dl>
-        <dt>{t("desktop.approvals.replace.extension")}</dt>
-        <dd>
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.approvals.replace.heading")}
+      >
+        <ListDescriptionRow term={t("desktop.approvals.replace.extension")}>
           <code>{view.extension}</code>
-        </dd>
-        <dt>{t("desktop.approvals.replace.tool")}</dt>
-        <dd>
+        </ListDescriptionRow>
+        <ListDescriptionRow term={t("desktop.approvals.replace.tool")}>
           <code>{view.tool}</code>
-        </dd>
+        </ListDescriptionRow>
         {view.trust === null ? null : (
-          <>
-            <dt>{t("desktop.approvals.replace.trust")}</dt>
-            <dd>{t(TRUST_TEXT[view.trust])}</dd>
-          </>
+          <ListDescriptionRow term={t("desktop.approvals.replace.trust")}>
+            {t(TRUST_TEXT[view.trust])}
+          </ListDescriptionRow>
         )}
-        <dt>{t("desktop.approvals.replace.risk")}</dt>
-        <dd>
+        <ListDescriptionRow term={t("desktop.approvals.replace.risk")}>
           {view.originalRisk === view.effectiveRisk
             ? view.effectiveRisk
             : t("desktop.approvals.replace.risk.value", {
                 originalRisk: view.originalRisk,
                 effectiveRisk: view.effectiveRisk,
               })}
-        </dd>
-      </dl>
+        </ListDescriptionRow>
+      </ListDescription>
       <Alert tone="warning" layout="inline">
         {t("desktop.approvals.replace.pathProtection")}
       </Alert>
-      <div className="dim">{t("desktop.approvals.replace.effect")}</div>
+      <div className="text-ui-sm text-text-secondary">{t("desktop.approvals.replace.effect")}</div>
     </div>
   );
 }
@@ -98,7 +107,11 @@ function SecretsNote(props: { readonly secrets: ToolApprovalView["secrets"] }): 
 function ArgsFold(props: { readonly view: ToolApprovalView }): ReactNode {
   const { view } = props;
   if (view.argsStored)
-    return <div className="dim">{t("desktop.approvals.args.storedElsewhere")}</div>;
+    return (
+      <div className="text-ui-sm text-text-secondary">
+        {t("desktop.approvals.args.storedElsewhere")}
+      </div>
+    );
   return (
     <details className="mt-1.5">
       <summary>{t("desktop.approvals.args.label")}</summary>
@@ -117,11 +130,13 @@ export function ToolBody(props: { readonly body: ToolApprovalBody }): ReactNode 
   return (
     <>
       {replace === null ? null : <ReplaceDetails view={replace} />}
-      <div className="dim">
+      <div className="text-ui-sm text-text-secondary">
         {t("desktop.approvals.tool.summary", { toolName: view.toolName, risk: view.risk })}
       </div>
       {ruleId === null ? null : (
-        <div className="dim">{t("desktop.approvals.rule", { id: ruleId })}</div>
+        <div className="text-ui-sm text-text-secondary">
+          {t("desktop.approvals.rule", { id: ruleId })}
+        </div>
       )}
       {view.command === null ? null : (
         <MessageCode aria-label={t("desktop.approvals.command.label")} className={BLOCK_CODE}>
@@ -172,7 +187,10 @@ function QuestionField(props: {
                 <>
                   {option.label}
                   {option.recommended === true ? (
-                    <span className="dim"> {t("desktop.approvals.option.recommended")}</span>
+                    <span className="text-ui-sm text-text-secondary">
+                      {" "}
+                      {t("desktop.approvals.option.recommended")}
+                    </span>
                   ) : null}
                 </>
               }
@@ -240,7 +258,9 @@ export function PlanBody(props: {
   return (
     <>
       {fold === null ? (
-        <div className="dim">{t("desktop.approvals.plan.storageNote")}</div>
+        <div className="text-ui-sm text-text-secondary">
+          {t("desktop.approvals.plan.storageNote")}
+        </div>
       ) : (
         <>
           <MessageCode className={BLOCK_CODE}>{fold.head}</MessageCode>
@@ -285,7 +305,7 @@ export function ReviewBody(props: { readonly review: ReviewView }): ReactNode {
   const totals = reviewTotalsOf(review.files);
   return (
     <>
-      <div className="dim">
+      <div className="text-ui-sm text-text-secondary">
         {t("desktop.approvals.review.totals", { files: totals.files, hunks: totals.hunks })}
       </div>
       <div
@@ -295,9 +315,11 @@ export function ReviewBody(props: { readonly review: ReviewView }): ReactNode {
       >
         {review.files.map((file) => (
           <div key={file.path} role="listitem" className="flex flex-wrap items-baseline gap-2">
-            <span className="dim">{t(REVIEW_CHANGE_ID[file.change])}</span>
+            <span className="text-ui-sm text-text-secondary">
+              {t(REVIEW_CHANGE_ID[file.change])}
+            </span>
             <MessageCode>{file.path}</MessageCode>
-            <span className="dim">
+            <span className="text-ui-sm text-text-secondary">
               {file.binary
                 ? t("desktop.approvals.review.binary")
                 : t("desktop.approvals.review.hunks", { count: file.hunks })}

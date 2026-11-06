@@ -1,6 +1,6 @@
 import { t } from "@fresnel/client/i18n";
-import { IconButton } from "@caustic/react";
-import { Paperclip } from "@caustic/react/icons";
+import { Button, IconButton, Textarea } from "@caustic/react";
+import { ArrowUp, Paperclip } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import {
@@ -250,9 +250,12 @@ function ComposerFor(props: {
     detach(send(), rethrow);
   };
 
+  // 입력창 부품은 caustic Textarea다. 글과 Enter 처리는 이 파일이 맡고, 단추 줄(첨부·중단·보내기)은 Textarea의 아래 칸에 둔다.
+  // caustic Composer를 쓰지 않는 까닭: 실행 중에는 Enter가 보내기를 막고 단추가 중단으로 바뀌는데, 앱은 실행 중에도 큐에 넣으며 보내고 중단을 따로 둔다.
+  // 또 Composer는 글이 빈 첨부만의 보내기를 막는다.
   return (
     <form
-      className={dragging ? "composer composer-dragging" : "composer"}
+      className="grid gap-1.5"
       onDragOver={(event) => {
         if (attachBlocked !== null) return;
         event.preventDefault();
@@ -276,14 +279,42 @@ function ComposerFor(props: {
         onRetry={retry}
       />
       {dragging ? (
-        <div className="composer-drop-hint" role="status">
+        <p role="status" className="m-0 text-center text-ui-sm text-text-secondary">
           {t("desktop.composer.attach.dropHint")}
-        </div>
+        </p>
       ) : null}
-      <textarea
+      {attachNote === null ? null : (
+        <p role="alert" className="m-0 px-1 text-ui-sm text-danger-text">
+          {attachNote}
+        </p>
+      )}
+      {error === null ? null : (
+        <p role="alert" className="m-0 px-1 text-ui-sm text-danger-text">
+          {error}
+        </p>
+      )}
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        hidden
+        aria-label={t("desktop.composer.attach.button")}
+        onChange={(event) => {
+          const picked = [...(event.currentTarget.files ?? [])];
+          event.currentTarget.value = "";
+          detach(addFiles(picked), rethrow);
+        }}
+      />
+      <Textarea
         ref={textarea}
         aria-label={t("desktop.composer.input.label")}
-        rows={3}
+        variant="solid"
+        size="md"
+        radius="2xl"
+        shadow="3"
+        tone={dragging ? "accent" : "neutral"}
+        rows={2}
+        className="resize-none"
         value={draft}
         placeholder={props.disabledReason ?? t("desktop.composer.placeholder")}
         disabled={props.disabledReason !== null}
@@ -299,65 +330,56 @@ function ComposerFor(props: {
         onCompositionEnd={(event) => {
           guard.current.compositionEnd(event.timeStamp);
         }}
+        actions={
+          <>
+            <IconButton
+              label={attachBlocked ?? t("desktop.composer.attach.button")}
+              size="xs"
+              variant="ghost"
+              disabled={attachBlocked !== null}
+              onClick={() => {
+                detach(pickFile(), rethrow);
+              }}
+            >
+              <Paperclip aria-hidden />
+            </IconButton>
+            <InfoTip text={t("desktop.composer.attach.info")} />
+          </>
+        }
+        submit={
+          <span className="flex items-center gap-1">
+            {running ? (
+              <IconButton
+                type="button"
+                variant="solid"
+                radius="full"
+                size="sm"
+                label={t("desktop.composer.interrupt.button")}
+                onClick={() => {
+                  detach(commands.interrupt(props.threadId), rethrow);
+                }}
+              >
+                <span aria-hidden className="block size-stop-glyph rounded-2xs bg-current" />
+              </IconButton>
+            ) : null}
+            <IconButton
+              type="submit"
+              variant="solid"
+              radius="full"
+              size="sm"
+              label={t("desktop.composer.send.button")}
+              disabled={
+                props.disabledReason !== null ||
+                sending ||
+                !chipsReady(chips) ||
+                (draft.trim() === "" && chips.length === 0)
+              }
+            >
+              <ArrowUp aria-hidden />
+            </IconButton>
+          </span>
+        }
       />
-      <div className="composer-actions">
-        <input
-          ref={fileInput}
-          type="file"
-          multiple
-          hidden
-          aria-label={t("desktop.composer.attach.button")}
-          onChange={(event) => {
-            const picked = [...(event.currentTarget.files ?? [])];
-            event.currentTarget.value = "";
-            detach(addFiles(picked), rethrow);
-          }}
-        />
-        <IconButton
-          label={attachBlocked ?? t("desktop.composer.attach.button")}
-          size="sm"
-          variant="ghost"
-          disabled={attachBlocked !== null}
-          onClick={() => {
-            detach(pickFile(), rethrow);
-          }}
-        >
-          <Paperclip aria-hidden />
-        </IconButton>
-        <InfoTip text={t("desktop.composer.attach.info")} />
-        {attachNote === null ? null : (
-          <span className="error" role="alert">
-            {attachNote}
-          </span>
-        )}
-        <span className="composer-actions-spacer" />
-        {error === null ? null : (
-          <span className="error" role="alert">
-            {error}
-          </span>
-        )}
-        {running ? (
-          <button
-            type="button"
-            onClick={() => {
-              detach(commands.interrupt(props.threadId), rethrow);
-            }}
-          >
-            {t("desktop.composer.interrupt.button")}
-          </button>
-        ) : null}
-        <button
-          type="submit"
-          disabled={
-            props.disabledReason !== null ||
-            sending ||
-            !chipsReady(chips) ||
-            (draft.trim() === "" && chips.length === 0)
-          }
-        >
-          {t("desktop.composer.send.button")}
-        </button>
-      </div>
     </form>
   );
 }
@@ -376,23 +398,29 @@ export function Composer(): ReactNode {
     observing,
     setupNeeded,
   });
-  // thread가 바뀌면 입력 중이던 글자를 버린다(key)
+  // thread가 바뀌면 입력 중이던 글자를 버린다(key). 관찰 띠는 입력창 자리에 같은 모서리로 놓인다(p02-opus ObserveBand)
   return (
-    <>
+    <div className="grid gap-1.5 px-4 py-2">
       {observing ? (
-        <div className="observing" role="status">
-          <span className="dim">{t("desktop.composer.observing.notice")}</span>{" "}
-          <button
-            type="button"
+        <div
+          role="status"
+          className="flex min-h-14 items-center gap-3 rounded-2xl bg-neutral-well px-4 py-3"
+        >
+          <p className="m-0 min-w-0 flex-1 text-ui-strong text-text-primary">
+            {t("desktop.composer.observing.notice")}
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={() => {
               commands.retryWrite(threadId);
             }}
           >
             {t("desktop.composer.retryWrite.button")}
-          </button>
+          </Button>
         </div>
       ) : null}
       <ComposerFor key={threadId} threadId={threadId} disabledReason={disabledReason} />
-    </>
+    </div>
   );
 }

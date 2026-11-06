@@ -1,4 +1,4 @@
-import { Badge, Button } from "@caustic/react";
+import { Badge, Button, Chip } from "@caustic/react";
 import { t } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -55,45 +55,44 @@ function QueuedChip(props: {
   };
 
   return (
-    <li
-      className="flex max-w-full items-center gap-2 rounded-md border border-border-default px-2 py-1 text-ui"
-      data-status={state.status}
-    >
-      <Badge size="xs" variant="outline">
-        {queuedModeText(props.input.mode)}
-      </Badge>
-      <span className="min-w-0 truncate" title={text}>
-        {text}
-      </span>
-      <Button
-        size="xs"
-        variant="ghost"
-        loading={controls.busy}
-        disabled={props.disabled || controls.locked}
-        aria-label={t("desktop.composer.queue.withdraw.ariaLabel", { text })}
-        onClick={() => {
-          detach(withdraw(), rethrow);
-        }}
-      >
-        {controls.retry
-          ? t("desktop.composer.queue.withdraw.retry")
-          : t("desktop.composer.queue.withdraw.button")}
-      </Button>
-      {state.status === "placed" ? (
-        <span role="status" className="dim shrink-0">
-          {t("desktop.composer.queue.withdraw.placed")}
+    <li data-status={state.status} className="max-w-full">
+      <Chip size="md" radius="md">
+        <Badge size="xs" variant="outline">
+          {queuedModeText(props.input.mode)}
+        </Badge>
+        <span className="min-w-0 truncate" title={text}>
+          {text}
         </span>
-      ) : null}
-      {state.status === "withdrawn" ? (
-        <span role="status" className="dim shrink-0">
-          {t("desktop.composer.queue.withdraw.done")}
-        </span>
-      ) : null}
-      {state.status === "failed" ? (
-        <span role="alert" className="error shrink-0">
-          {state.message}
-        </span>
-      ) : null}
+        <Button
+          size="xs"
+          variant="ghost"
+          loading={controls.busy}
+          disabled={props.disabled || controls.locked}
+          aria-label={t("desktop.composer.queue.withdraw.ariaLabel", { text })}
+          onClick={() => {
+            detach(withdraw(), rethrow);
+          }}
+        >
+          {controls.retry
+            ? t("desktop.composer.queue.withdraw.retry")
+            : t("desktop.composer.queue.withdraw.button")}
+        </Button>
+        {state.status === "placed" ? (
+          <span role="status" className="shrink-0 text-text-secondary">
+            {t("desktop.composer.queue.withdraw.placed")}
+          </span>
+        ) : null}
+        {state.status === "withdrawn" ? (
+          <span role="status" className="shrink-0 text-text-secondary">
+            {t("desktop.composer.queue.withdraw.done")}
+          </span>
+        ) : null}
+        {state.status === "failed" ? (
+          <span role="alert" className="shrink-0 text-danger-text">
+            {state.message}
+          </span>
+        ) : null}
+      </Chip>
     </li>
   );
 }
@@ -108,7 +107,7 @@ export function QueuedInputs(props: {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-1">
-        <span className="dim text-ui-sm">{t("term.inputQueue")}</span>
+        <span className="text-ui-sm text-text-secondary">{t("term.inputQueue")}</span>
         <InfoTip text={t("desktop.composer.queue.info")} />
       </div>
       <ul aria-label={t("term.inputQueue")} className="flex flex-wrap gap-1.5">
