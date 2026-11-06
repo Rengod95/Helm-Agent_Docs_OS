@@ -325,6 +325,36 @@ export function createDialogAreaPort(deps: M4PortDeps): DialogAreaPort {
       return ok(skillViewResultOf(viewed.value));
     },
 
+    async skillList(threadId, signal) {
+      if (threadId !== undefined) {
+        const missing = threadExists(threadId);
+        if (missing !== undefined) return err(missing);
+      }
+      const api = dialogArea.skills;
+      if (api === undefined) return err({ kind: "unavailable" });
+      const context: CallContext =
+        threadId === undefined ? { caller: { kind: "host" } } : hostContext(threadId);
+      const options: CallOptions = { signal, context };
+      // 모델이 못 부르는 스킬도 슬래시로는 부를 수 있어 숨은 것까지 읽는다
+      const listed = await attemptAsync(() => api.list({ includeHidden: true }, options));
+      if (!listed.ok) {
+        const cause = listed.error.cause;
+        if (isCapabilityError(cause) && cause.data.code === "unavailable") {
+          return err({ kind: "unavailable" });
+        }
+        return err(rejectedOf(cause));
+      }
+      return ok({
+        skills: listed.value.skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+          scope: skill.scope,
+          modelInvocable: skill.modelInvocable,
+        })),
+        diagnostics: listed.value.diagnostics,
+      });
+    },
+
     memoryRead: (params, signal) =>
       memoryCall(
         (api, options) =>

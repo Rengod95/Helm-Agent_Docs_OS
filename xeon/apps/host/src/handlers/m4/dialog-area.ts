@@ -18,6 +18,7 @@ import {
   type ScheduleRunsResult,
   type ScheduleUpdateParams,
   type ScheduleUpdateResult,
+  type SkillListResult,
   type SkillViewResult,
   type WireError,
   type WireHandlers,
@@ -71,6 +72,11 @@ export interface DialogAreaPort {
     threadId: ThreadId | undefined,
     signal: AbortSignal,
   ): Promise<DialogAreaOutcome<SkillViewResult>>;
+  /** 대화가 쓸 수 있는 스킬과 빠진 이유(W-14b). `threadId`가 있으면 그 대화의 작업 폴더 기준. 스킬 설정이 꺼져 있으면 `unavailable` */
+  skillList(
+    threadId: ThreadId | undefined,
+    signal: AbortSignal,
+  ): Promise<DialogAreaOutcome<SkillListResult>>;
   /** 계획의 모든 판(W-18). 기능이 꺼져 있으면 빈 목록 */
   plansVersions(
     threadId: ThreadId,
@@ -108,6 +114,7 @@ export type DialogAreaMethods =
   | "schedule.update"
   | "schedule.runs"
   | "knowledge.skills.view"
+  | "knowledge.skills.list"
   | "work.plans.versions";
 
 const MESSAGE_MAX = 200;
@@ -210,6 +217,14 @@ export function createDialogAreaHandlers(
           context.signal,
         ),
         "knowledge.skills.view",
+      ),
+    "knowledge.skills.list": (params, context) =>
+      unwrapped(
+        port.skillList(
+          params.threadId === undefined ? undefined : threadIdOf(params.threadId),
+          context.signal,
+        ),
+        "knowledge.skills.list",
       ),
     "knowledge.memory.read": (params, context) =>
       unwrapped(port.memoryRead(params, context.signal), "knowledge.memory.read"),

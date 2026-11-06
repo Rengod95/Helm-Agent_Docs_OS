@@ -6,6 +6,7 @@ import {
   wireError,
   type GoalView,
   type ScheduleRunRecord,
+  type SkillListResult,
   type SkillViewResult,
   type TaskView,
   type WireParams,
@@ -369,6 +370,7 @@ test("host.hello lists the dialog-area methods the host now implements", async (
   expect(names).toContain("host.clients");
   expect(names).toContain("turn.withdraw");
   expect(names).toContain("knowledge.skills.view");
+  expect(names).toContain("knowledge.skills.list");
   expect(names).toContain("work.plans.versions");
   await connection.close();
 });
@@ -412,6 +414,30 @@ test("knowledge.skills.view without a thread asks the port with no thread", asyn
   const connection = await open(host);
   expect(await connection.request("knowledge.skills.view", { name: "deploy" })).toEqual(SKILL);
   expect(asked).toEqual([undefined]);
+  await connection.close();
+});
+
+test("knowledge.skills.list hands the thread to the port and returns the list it reports", async () => {
+  const asked: (string | undefined)[] = [];
+  const listed: SkillListResult = {
+    skills: [{ name: "home", description: "From home.", scope: "user", modelInvocable: true }],
+    diagnostics: [{ severity: "warning", message: "not trusted", path: "/w/.fresnel/skills" }],
+  };
+  const host = createFakeHost({
+    overrides: {
+      dialogArea: {
+        skillList: (threadId) => {
+          asked.push(threadId);
+          return Promise.resolve(ok(listed));
+        },
+      },
+    },
+  });
+  const threadId = host.fake.ids.next("thr");
+  const connection = await open(host);
+  expect(await connection.request("knowledge.skills.list", { threadId })).toEqual(listed);
+  expect(await connection.request("knowledge.skills.list", {})).toEqual(listed);
+  expect(asked).toEqual([threadId, undefined]);
   await connection.close();
 });
 
