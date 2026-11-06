@@ -66,7 +66,12 @@ const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummar
     <>
       <ListNavigationItem
         current={selected}
-        {...(props.thread.status === "running" ? { status: "running" as const } : {})}
+        {...(props.thread.status === "running"
+          ? {
+              status: "running" as const,
+              statusLabels: { running: t("desktop.threads.status.running") },
+            }
+          : {})}
         meta={metaOf(props.thread)}
         title={unlisted > 0 ? `${title}\n${t("desktop.threads.unlistedApprovals")}` : title}
         className={props.thread.title === null ? UNTITLED_LABEL : undefined}

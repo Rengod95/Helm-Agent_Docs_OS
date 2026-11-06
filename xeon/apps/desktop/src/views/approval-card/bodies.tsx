@@ -24,7 +24,19 @@ import {
   type ToolApprovalView,
   type ToolReplaceView,
 } from "../approval-form.ts";
-import { FEEDBACK_MAX, PLAN_FOLD_LINES, foldPlanLines, reviewTotalsOf } from "./card-model.ts";
+import {
+  FEEDBACK_MAX,
+  PLAN_FOLD_LINES,
+  foldPlanLines,
+  modeLabelIdOf,
+  reviewTotalsOf,
+} from "./card-model.ts";
+
+/** 승인 뒤 모드의 화면 글. 모르는 모드는 원시값이다 */
+function modeLabelOf(mode: string): string {
+  const id = modeLabelIdOf(mode);
+  return id === null ? mode : t(id);
+}
 
 // 승인 카드 본문(종류별). 상태와 단추는 approval-card.tsx가 맡는다. 본문은 값만 받고 응답을 보내지 않는다.
 
@@ -283,7 +295,7 @@ export function PlanBody(props: {
           }}
         >
           {plan.nextModes.map((mode) => (
-            <ChoiceGroupItem key={mode} value={mode} title={mode} />
+            <ChoiceGroupItem key={mode} value={mode} title={modeLabelOf(mode)} />
           ))}
         </ChoiceGroup>
       )}

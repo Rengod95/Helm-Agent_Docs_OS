@@ -25,7 +25,8 @@ import { EntrySurface } from "./plugin/plugin-view.tsx";
 
 const PREVIEW_CHARS = 400;
 /** 한 행의 읽기 열(시안 READ_WIDTH)과 행 사이 간격(시안 로그의 gap-4). 행 사이 간격은 아래쪽 pb-4가 맡는다 */
-const ROW_CLASS = "mx-auto grid w-full min-w-0 max-w-184 gap-2 px-3 pb-4";
+// 한 열 격자는 열 폭을 minmax(0,1fr)로 고정한다. 그렇지 않으면 긴 도구 인자 한 줄이 열을 대화 칸 밖으로 민다
+const ROW_CLASS = "mx-auto grid w-full min-w-0 max-w-184 grid-cols-[minmax(0,1fr)] gap-2 px-3 pb-4";
 /** 글. 줄바꿈을 살리고 붙은 긴 토큰도 열 안에서 줄을 넘긴다 */
 const TEXT_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:anywhere]";
 /** 보조 글(생각, 확장 종류, 출처). 본문보다 작고 흐리다 */
@@ -350,9 +351,12 @@ export const StreamingRow: NamedExoticComponent<{ readonly id: ItemId }> = memo(
   function StreamingRow(props: { readonly id: ItemId }): ReactNode {
     const item = useStreamingItem(props.id);
     const openThreadId = useOpenThreadId();
+    const hasCallRow = useHasToolCall(item?.toolCallId ?? "");
     // 진행 목록은 모든 thread의 것을 담는다(design 6절). 열린 thread의 것만 그린다
     if (item === undefined || item.threadId !== openThreadId) return null;
     if (item.kind === "toolCall") {
+      // 호출 행(어시스턴트 item의 toolCall)이 이미 실행 중으로 보이면 같은 호출을 한 번 더 그리지 않는다(호출 하나에 행 하나)
+      if (hasCallRow) return null;
       return (
         <article className={ROW_CLASS}>
           <ToolCall

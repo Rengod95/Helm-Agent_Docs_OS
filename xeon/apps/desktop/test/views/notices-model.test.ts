@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Notice } from "@fresnel/contracts/capabilities";
-import { mergeNotices, NOTICE_KEEP, noticeKindId } from "../../src/views/notices-model.ts";
+import {
+  mergeNotices,
+  NOTICE_KEEP,
+  noticeKindId,
+  noticeTitleViewOf,
+} from "../../src/views/notices-model.ts";
 import { checkTitle, deleteFailureId } from "../../src/views/thread-row-menu.tsx";
 import { thr } from "../state/helpers.ts";
 
@@ -72,5 +77,48 @@ describe("thread row menu rules", () => {
     );
     expect(deleteFailureId({ kind: "offline" })).toBe("desktop.threads.menu.failed.offline");
     expect(deleteFailureId({ kind: "failed" })).toBe("desktop.threads.menu.delete.failed");
+  });
+});
+
+const of = (kind: Notice["kind"], sourceType: string, title: string): Notice => ({
+  kind,
+  title,
+  body: null,
+  seq: 1,
+  sourceType,
+});
+
+describe("noticeTitleViewOf", () => {
+  test("a notice kind and its source event pick the polite catalog title", () => {
+    expect(noticeTitleViewOf(of("completed", "turn.completed", "x"))).toEqual({
+      id: "desktop.notices.title.completed",
+    });
+    expect(noticeTitleViewOf(of("question_waiting", "approval.requested", "x"))).toEqual({
+      id: "desktop.notices.title.question",
+    });
+    expect(noticeTitleViewOf(of("background_completed", "schedule.run_finished", "x"))).toEqual({
+      id: "desktop.notices.title.scheduleCompleted",
+    });
+    expect(noticeTitleViewOf(of("background_completed", "agent.settled", "x"))).toEqual({
+      id: "desktop.notices.title.backgroundCompleted",
+    });
+    expect(noticeTitleViewOf(of("error", "agent.settled", "x"))).toEqual({
+      id: "desktop.notices.title.backgroundFailed",
+    });
+  });
+
+  test("an approval notice carries its tool name after the colon, and plan has its own title", () => {
+    expect(noticeTitleViewOf(of("approval_waiting", "approval.requested", "a: edit"))).toEqual({
+      id: "desktop.notices.title.approvalTool",
+      params: { tool: "edit" },
+    });
+    expect(noticeTitleViewOf(of("approval_waiting", "approval.requested", "a: plan"))).toEqual({
+      id: "desktop.notices.title.approvalPlan",
+    });
+    expect(noticeTitleViewOf(of("approval_waiting", "approval.requested", "no colon"))).toBeNull();
+  });
+
+  test("an error from a source the app does not know keeps its own title", () => {
+    expect(noticeTitleViewOf(of("error", "dialog.notified", "x"))).toBeNull();
   });
 });
