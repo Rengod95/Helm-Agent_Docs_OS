@@ -24,6 +24,26 @@
         { "type": "Text", "bind": { "text": { "path": "/status/findings", "format": "number" } } },
         { "type": "Badge", "bind": { "text": { "path": "/status/lease" } } }
       ]
+    },
+    {
+      "type": "Form",
+      "props": { "command": "helm start", "submitLabel": "탐구 시작" },
+      "when": { "path": "/status/lease", "op": "eq", "value": "none" },
+      "children": [
+        {
+          "type": "TextField",
+          "props": {
+            "name": "arg",
+            "label": "주제",
+            "placeholder": "비우면 이 대화의 마지막 질문을 주제로 써요"
+          }
+        }
+      ]
+    },
+    {
+      "type": "Button",
+      "props": { "label": "탐구 멈춤", "command": "helm stop" },
+      "when": { "path": "/status/lease", "op": "ne", "value": "none" }
     }
   ]
 }

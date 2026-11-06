@@ -10,35 +10,56 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { detachVoid, type WorkbenchController } from "./controller.ts";
 import { layerNameOf } from "./layer-list.tsx";
-import { needsTrustConfirm, TrustDialog } from "./trust-dialog.tsx";
+import { OffConfirmDialog, toggleRouteOf, TrustDialog } from "./trust-dialog.tsx";
 
-/** 켜기 요청. 꺼져 있던 user·project 확장을 켜면 O-10을 먼저 보인다. `dialog`를 화면 어딘가에 그려야 한다 */
+/**
+ * 켜고 끄기 요청. 꺼져 있던 user·project 확장을 켜면 O-10을 먼저 보이고, 그룹을 끄면 "끄기" 확인을 먼저 보인다.
+ * 일반 확장을 끄는 것은 바로 끈다. `dialog`를 화면 어딘가에 그려야 한다
+ */
 export function useToggleRequest(controller: WorkbenchController): {
   readonly request: (name: string, target: boolean) => void;
   readonly dialog: ReactNode;
 } {
   const entries = useWorkbench((s) => s.entries);
   const [asking, setAsking] = useState<ExtListEntry | null>(null);
+  const [offAsking, setOffAsking] = useState<ExtListEntry | null>(null);
   return {
     request(name, target) {
       const entry = entries.find((e) => e.name === name);
-      if (target && entry !== undefined && needsTrustConfirm(entry)) {
+      const route = toggleRouteOf(entry, target);
+      if (entry !== undefined && route === "trust") {
         setAsking(entry);
+        return;
+      }
+      if (entry !== undefined && route === "off-confirm") {
+        setOffAsking(entry);
         return;
       }
       detachVoid(controller.toggle(name, target));
     },
     dialog: (
-      <TrustDialog
-        entry={asking}
-        onCancel={() => {
-          setAsking(null);
-        }}
-        onConfirm={(name) => {
-          setAsking(null);
-          detachVoid(controller.toggle(name, true));
-        }}
-      />
+      <>
+        <TrustDialog
+          entry={asking}
+          onCancel={() => {
+            setAsking(null);
+          }}
+          onConfirm={(name) => {
+            setAsking(null);
+            detachVoid(controller.toggle(name, true));
+          }}
+        />
+        <OffConfirmDialog
+          entry={offAsking}
+          onCancel={() => {
+            setOffAsking(null);
+          }}
+          onConfirm={(name) => {
+            setOffAsking(null);
+            detachVoid(controller.toggle(name, false));
+          }}
+        />
+      </>
     ),
   };
 }
