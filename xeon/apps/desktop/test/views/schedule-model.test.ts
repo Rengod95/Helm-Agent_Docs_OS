@@ -538,8 +538,26 @@ describe("message keys", () => {
 
   test("trigger summaries are data with a message key and its arguments", () => {
     expect(triggerSummaryOf({ kind: "interval", everySeconds: 600 }, "ko")).toEqual({
-      id: "desktop.schedules.summary.interval",
-      args: { seconds: 600 },
+      id: "desktop.schedules.summary.everyMinutes",
+      args: { count: 10 },
+    });
+    expect(triggerSummaryOf({ kind: "interval", everySeconds: 3600 }, "ko")).toEqual({
+      id: "desktop.schedules.summary.everyHours",
+      args: { count: 1 },
+    });
+    expect(triggerSummaryOf({ kind: "interval", everySeconds: 86400 }, "ko").args).toEqual({
+      count: 24,
+    });
+    expect(triggerSummaryOf({ kind: "interval", everySeconds: 5400 }, "ko").args).toEqual({
+      count: 90,
+    });
+    expect(triggerSummaryOf({ kind: "interval", everySeconds: 90 }, "ko")).toEqual({
+      id: "desktop.schedules.summary.everySeconds",
+      args: { count: 90 },
+    });
+    expect(triggerSummaryOf({ kind: "interval", everySeconds: 301 }, "ko")).toEqual({
+      id: "desktop.schedules.summary.everySeconds",
+      args: { count: 301 },
     });
     expect(triggerSummaryOf({ kind: "remote" }, "en")).toEqual({
       id: "desktop.schedules.summary.remote",

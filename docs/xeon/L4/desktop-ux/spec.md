@@ -1549,7 +1549,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 복제 | 시트를 같은 값으로 열기(로컬) |
 | 서비스 켜기 | P-08 또는 `settings.set { key: "l0.process.service.enabled", value: true }`. 결과의 `setting.pendingUntil`이 `restart`면 "다시 시작 대기" 알림 |
 
-- 시트 입력: 트리거 종류 `SegmentedControl`(간격, 시각, 파일 감시, 원격, 루프). 간격은 초(1~31536000)로 `NumberField`에 단위 "초"를 붙여 쓴다. 시각은 날짜·시각 입력(`datetime-local`)이다(시안의 `DatePicker`와 시간 칸은 날짜와 시각을 한 값으로 합치는 자리가 아직 없어 쓰지 않았다. 최소 간격 300초는 칸 아래 오류 글로만 보인다). 파일 감시는 경로 목록(1~16)과 debounce, 루프는 간격·최대 반복·만료. 오류 값 문장: `interval_too_short`("최소 {minSeconds}초예요"), `at_in_past`, `invalid_trigger`, `limit_reached`, `store_failed`.
+- 시트 입력: 트리거 종류 `SegmentedControl`(간격, 시각, 파일 감시, 원격, 루프). 간격은 초(1~31536000)로 `NumberField`에 단위 "초"를 붙여 쓴다. 목록의 트리거 칸은 간격을 사람이 읽는 단위로 보입니다: 3600초는 "1시간 간격", 86400초는 "24시간 간격", 60의 배수면 분, 아니면 초(`intervalSummaryOf`) [결정: 기본값, 문구는 해요체 검사 때문에 "마다" 대신 "간격"]. 시각은 날짜·시각 입력(`datetime-local`)이다(시안의 `DatePicker`와 시간 칸은 날짜와 시각을 한 값으로 합치는 자리가 아직 없어 쓰지 않았다. 최소 간격 300초는 칸 아래 오류 글로만 보인다). 파일 감시는 경로 목록(1~16)과 debounce, 루프는 간격·최대 반복·만료. 오류 값 문장: `interval_too_short`("최소 {minSeconds}초예요"), `at_in_past`, `invalid_trigger`, `limit_reached`, `store_failed`.
 - 상태
   - 빈: "예약이 없어요" + "새 예약".
   - 읽는 중: 표 `Skeleton`.
