@@ -13,6 +13,7 @@ import {
 import { useReviewTarget, useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { CommandOutputSheet } from "./command-output-sheet.tsx";
 import { useCommands, type CommandError } from "./commands.ts";
+import { mayPersistSelection, restoreStepOf } from "./last-thread.ts";
 import { LockedDialog } from "./locked-dialog.tsx";
 import { runThreadCompact } from "./thread-compact.ts";
 import { SettingsPage } from "./pages/settings/settings-screen.tsx";
@@ -98,16 +99,26 @@ export function App(props: AppProps): ReactNode {
   // 복원이 끝나기 전의 선택(처음의 null)은 저장하지 않는다
   const threadsStatus = useThreadsStatus();
   const lastThreadRestored = useRef(false);
+  const lastThreadOpening = useRef<string | null>(null);
   useEffect(() => {
-    if (lastThreadRestored.current || threadsStatus !== "ready") return;
+    const step = restoreStepOf({
+      decided: lastThreadRestored.current,
+      threadsReady: threadsStatus === "ready",
+      selected,
+      saved: commands.lastThreadId(),
+      threadIds,
+    });
+    if (step.kind === "wait") return;
     lastThreadRestored.current = true;
-    if (selected !== null) return;
-    const saved = commands.lastThreadId();
-    const found = saved === null ? undefined : threads.find((s) => s.threadId === saved);
-    if (found !== undefined) commands.selectThread(found.threadId);
-  }, [threadsStatus, selected, threads, commands]);
+    if (step.kind === "open") {
+      lastThreadOpening.current = step.threadId;
+      commands.selectThread(step.threadId);
+    }
+  }, [threadsStatus, selected, threadIds, commands]);
   useEffect(() => {
-    if (!lastThreadRestored.current) return;
+    const opening = lastThreadOpening.current;
+    if (!mayPersistSelection({ decided: lastThreadRestored.current, opening, selected })) return;
+    if (opening !== null) lastThreadOpening.current = null;
     detach(commands.saveLastThread(selected), rethrow);
   }, [selected, commands]);
   // 모델 키와 기본 모델이 끝나지 않았으면 첫 실행 화면(P-01)을 이 앱 실행에서 한 번 무대에 연다. 나중에 다른 화면에 가도 다시 열지 않는다
