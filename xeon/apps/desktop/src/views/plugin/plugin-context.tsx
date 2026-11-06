@@ -1,4 +1,4 @@
-import { Bug } from "@fresnel/contracts";
+import { Bug, type Logger } from "@fresnel/contracts";
 import { createContext, useContext, useSyncExternalStore, type ReactNode } from "react";
 import type { PluginShellPort } from "../../plugin-ui/backend.ts";
 import type { PluginUiRuntime, PluginUiState } from "../../plugin-ui/runtime.ts";
@@ -13,6 +13,8 @@ export interface PluginUiContextValue {
   readonly openExternal: (href: string) => Promise<void>;
   /** 파일·알림·시크릿 등록 같은 셸 기능. 프레임 대신 앱 본 화면이 부른다. 웹 빌드에는 없다(ADR-0021 §3.4.3) */
   readonly shell?: PluginShellPort | undefined;
+  /** 진단 로그. 값을 읽지 못해 칸을 감출 때 한 줄을 남긴다. 없으면 남기지 않는다 */
+  readonly logger?: Pick<Logger, "warn"> | undefined;
 }
 
 const PluginUiContext = createContext<PluginUiContextValue | null>(null);

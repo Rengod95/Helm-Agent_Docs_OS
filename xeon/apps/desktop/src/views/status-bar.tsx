@@ -5,7 +5,14 @@ import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { storeFailureOfExitCode, type StatusItemRecord } from "@fresnel/contracts/records";
 import type { ExtUiEntry, ThreadSummary } from "@fresnel/contracts/wire";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { nativeEntriesOf, originTitleOf } from "../plugin-ui/placements.ts";
 import {
   useApprovalCount,
@@ -30,7 +37,7 @@ import {
   type SessionUsage,
 } from "./model-usage.ts";
 import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
-import { usePluginUiState } from "./plugin/plugin-context.tsx";
+import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { RestartLine } from "./restart-line.tsx";
 import { SafeModeChip } from "./safe-mode-chip.tsx";
 import { StatusCell, type StatusDot } from "./status-cell.tsx";
@@ -105,9 +112,24 @@ function StatusCells(): ReactNode {
 }
 
 /** 값을 읽지 못한 칸은 감춘다. 표면은 그대로 두어 읽기 폴링이 이어지고 값이 오면 다시 보인다 */
-function StatusCellBox(props: { readonly entry: ExtUiEntry }): ReactNode {
+export function StatusCellBox(props: { readonly entry: ExtUiEntry }): ReactNode {
   const { entry } = props;
+  const { logger } = usePluginUi();
   const [failed, setFailed] = useState(false);
+  // 감춘 동안에도 진단에는 남긴다(한 번 감출 때 한 줄. 읽기가 되살아나면 다시 보이고, 또 실패하면 또 한 줄)
+  const onFailed = useCallback(
+    (next: boolean) => {
+      setFailed(next);
+      if (next) {
+        logger?.warn("desktop.status_cell.hidden", {
+          extension: entry.extension,
+          screen: entry.id,
+          reason: "read_failed",
+        });
+      }
+    },
+    [logger, entry.extension, entry.id],
+  );
   return (
     <div
       className={`flex min-w-0 max-w-[24ch] items-center gap-1 truncate${failed ? " hidden" : ""}`}
@@ -121,7 +143,7 @@ function StatusCellBox(props: { readonly entry: ExtUiEntry }): ReactNode {
       >
         {entry.extension}
       </span>
-      <EntrySurface entry={entry} dense onFailed={setFailed} />
+      <EntrySurface entry={entry} dense onFailed={onFailed} />
     </div>
   );
 }

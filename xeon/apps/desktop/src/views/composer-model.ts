@@ -168,7 +168,7 @@ const SECRET_SHAPES: readonly RegExp[] = [
   /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
   /\bAIza[0-9A-Za-z_-]{30,}/,
   /\bBearer\s+[A-Za-z0-9._~+/-]{20,}=*/,
-  /\b(?:api[_-]?key|secret|token|password|passwd)\s*[:=]\s*["']?[A-Za-z0-9._~+/-]{12,}/i,
+  /\b(?:api[_-]?key|secret|token|password|passwd)\s*[:=]\s*[\u0022\u0027]?[A-Za-z0-9._~+/-]{12,}/i,
 ];
 
 /** 입력 글이 비밀 값(API 키, 토큰, 개인 키 등)처럼 보이는가. 입력창 위 경고 한 줄을 보일지 정한다 */
