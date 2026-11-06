@@ -9,7 +9,16 @@ import {
 } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
-import { Alert, Badge, Button, Skeleton, toast } from "@caustic/react";
+import {
+  Alert,
+  Badge,
+  Button,
+  ListDescription,
+  ListDescriptionRow,
+  Skeleton,
+  toast,
+} from "@caustic/react";
+import { History, RotateCcw } from "@caustic/react/icons";
 import { useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
 import { RollbackDialog } from "./rollback-dialog.tsx";
@@ -145,20 +154,28 @@ export function VersionsPanel(props: {
 
   return (
     <>
-      <ul className="grid gap-1">
+      {/* 한 줄: 판 번호(mono)와 지금 표지, 둘째 줄에 설치 시각 · 출처. 되돌리기는 끝에 둔다 */}
+      <ul className="m-0 grid list-none gap-1.5 p-0">
         {view.rows.map((row) => (
-          <li key={row.version} className="flex items-center gap-3 px-2 py-1 text-ui-sm">
-            <span className="w-16 font-mono text-text-primary">{row.version}</span>
-            <span className="text-text-tertiary">
-              {row.installedAt ?? t("desktop.workbench.versions.inApp")}
+          <li key={row.version} className="flex min-w-0 items-center gap-2">
+            <span className="grid min-w-0 flex-1 gap-0">
+              <span className="inline-flex items-center gap-1.5 text-ui-dense">
+                <span className="font-mono text-mono-sm text-text-primary">{row.version}</span>
+                {row.current && (
+                  <Badge size="xs" variant="soft">
+                    {t("desktop.workbench.versions.current")}
+                  </Badge>
+                )}
+              </span>
+              <span className="truncate text-ui-xs text-text-tertiary">
+                {`${row.installedAt ?? t("desktop.workbench.versions.inApp")} · ${t(SOURCE_TEXT[row.source])}`}
+              </span>
             </span>
-            <Badge size="sm">{t(SOURCE_TEXT[row.source])}</Badge>
-            {row.current && <Badge size="sm">{t("desktop.workbench.versions.current")}</Badge>}
             {row.canRollback && (
               <Button
                 size="xs"
-                variant="outline"
-                className="ms-auto"
+                variant="ghost"
+                iconStart={<RotateCcw />}
                 disabled={props.locked}
                 onClick={() => {
                   setTarget(row);
@@ -197,29 +214,34 @@ function FallbackVersions(props: {
   readonly onRollback: (() => void) | null;
 }): ReactNode {
   return (
-    <div className="grid gap-2 text-ui-sm">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        <dt className="text-text-tertiary">{t("desktop.workbench.versions.installed")}</dt>
-        <dd className="font-mono text-text-primary">{props.installed}</dd>
+    <div className="grid gap-3">
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.workbench.detail.tab.versions")}
+        className="rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0"
+      >
+        <ListDescriptionRow term={t("desktop.workbench.versions.installed")}>
+          <span className="font-mono text-mono-sm text-text-primary">{props.installed}</span>
+        </ListDescriptionRow>
         {props.bundled !== null && (
-          <>
-            <dt className="text-text-tertiary">{t("desktop.workbench.versions.bundled")}</dt>
-            <dd className="font-mono text-text-primary">{props.bundled}</dd>
-          </>
+          <ListDescriptionRow term={t("desktop.workbench.versions.bundled")}>
+            <span className="font-mono text-mono-sm text-text-primary">{props.bundled}</span>
+          </ListDescriptionRow>
         )}
-      </dl>
-      <p className="text-text-tertiary">{t("desktop.workbench.versions.noHistory")}</p>
+      </ListDescription>
+      <p className="m-0 inline-flex items-center gap-1.5 text-ui-sm text-text-secondary">
+        <History aria-hidden emphasis="muted" className="size-icon-sm" />
+        {t("desktop.workbench.versions.noHistory")}
+      </p>
       {props.onRollback !== null ? (
-        <Button
-          size="xs"
-          variant="outline"
-          className="justify-self-start"
-          onClick={props.onRollback}
-        >
-          {t("desktop.workbench.versions.rollbackToBundled")}
-        </Button>
+        <div className="flex flex-wrap gap-1.5">
+          <Button size="sm" variant="outline" iconStart={<RotateCcw />} onClick={props.onRollback}>
+            {t("desktop.workbench.versions.rollbackToBundled")}
+          </Button>
+        </div>
       ) : (
-        <p className="text-text-tertiary">
+        <p className="m-0 text-ui-xs text-text-tertiary">
           {props.bundled !== null
             ? t("desktop.workbench.versions.bundledNoRollback")
             : t("desktop.workbench.versions.userNoRollback")}

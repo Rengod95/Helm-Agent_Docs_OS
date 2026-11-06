@@ -13,6 +13,8 @@ import type { ExtGetResult, ExtListEntry } from "@fresnel/contracts/wire";
 import {
   Alert,
   Button,
+  ListDescription,
+  ListDescriptionRow,
   Skeleton,
   Table,
   Tabs,
@@ -28,14 +30,19 @@ import { useHandlerFailures, useLinkPhase } from "../../state/engine/index.ts";
 import { useShellActions, type ShellActions } from "../../state/shell/index.ts";
 import { EntrySurface } from "../plugin/plugin-view.tsx";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
+import { InfoTip } from "../craft/info-tip.tsx";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import { ExtName, ExtSwitch, RemoveButton, kindText, lockText, stateText } from "./ext-row.tsx";
 import { MetricsTab } from "./metrics-tab.tsx";
-import { OriginBadge, ScopeBadge } from "./source-badge.tsx";
+import { scopeText } from "./source-badge.tsx";
 import { ScreensTab } from "./screens-tab.tsx";
 import { SettingsTab } from "./settings-tab.tsx";
+import { MUTED } from "./tab-body.tsx";
 import { originText } from "./trust-dialog.tsx";
 import { VersionsTab } from "./versions-tab.tsx";
+
+/** 확장 상세의 설명 목록 자리: 줄 머리 8rem, 바깥 칸 없이 */
+const LD = "rounded-none [--cs-size-list-term:8rem] [&_[data-slot=list-description-row]]:px-0";
 
 type Load =
   | { readonly kind: "loading" }
@@ -44,28 +51,50 @@ type Load =
 
 function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): ReactNode {
   const { entry } = props;
+  const bindings = props.get.kind === "ready" ? props.get.result.bindings : [];
   return (
-    <div className="grid gap-3 text-ui-sm">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        <dt className="text-text-tertiary">{t("desktop.workbench.detail.origin")}</dt>
-        <dd>
+    <div className="grid gap-3">
+      <ListDescription
+        variant="ghost"
+        size="xs"
+        aria-label={t("desktop.workbench.detail.tab.overview")}
+        className={LD}
+      >
+        <ListDescriptionRow term={t("desktop.workbench.detail.origin")}>
           {originText(entry.origin)}{" "}
-          <span className="font-mono text-text-tertiary">{entry.location}</span>
-        </dd>
-        <dt className="text-text-tertiary">{t("desktop.workbench.detail.grade")}</dt>
-        <dd>
+          <span className="font-mono text-mono-sm text-text-tertiary">{entry.location}</span>
+        </ListDescriptionRow>
+        <ListDescriptionRow term={t("desktop.workbench.detail.grade")}>
           {t("desktop.workbench.detail.grade.value", {
             requested: entry.requestedGrade,
             effective: entry.effectiveGrade,
           })}
-        </dd>
-      </dl>
+        </ListDescriptionRow>
+        {bindings.map((b) => (
+          <ListDescriptionRow
+            key={`${b.registrationId}:${b.relation}:${b.capability}`}
+            term={t("desktop.workbench.detail.bindings")}
+          >
+            <span className="inline-flex flex-wrap items-baseline gap-x-2">
+              <span className="font-mono text-mono-sm text-text-tertiary">{b.relation}</span>
+              <span className="font-mono text-mono-sm text-text-primary">{b.capability}</span>
+              <span className="text-text-tertiary">
+                {b.satisfied
+                  ? t("desktop.workbench.detail.binding.ok")
+                  : t("desktop.workbench.detail.binding.unmet")}
+              </span>
+            </span>
+          </ListDescriptionRow>
+        ))}
+      </ListDescription>
       {entry.diagnostics.length > 0 && (
         <section aria-label={t("desktop.workbench.detail.diagnostics")} className="grid gap-1">
           {entry.diagnostics.map((d) => (
             <Alert
               key={`${d.code}:${d.message}`}
               tone={d.severity === "error" ? "danger" : "warning"}
+              layout="inline"
+              size="sm"
             >
               {d.message}
               {d.file !== undefined && (
@@ -79,26 +108,6 @@ function Overview(props: { readonly entry: ExtListEntry; readonly get: Load }): 
           ))}
         </section>
       )}
-      {props.get.kind === "ready" && props.get.result.bindings.length > 0 && (
-        <section aria-label={t("desktop.workbench.detail.bindings")} className="grid gap-1">
-          <h4 className="text-ui-strong text-text-primary">
-            {t("desktop.workbench.detail.bindings")}
-          </h4>
-          <ul>
-            {props.get.result.bindings.map((b) => (
-              <li key={`${b.registrationId}:${b.relation}:${b.capability}`} className="flex gap-2">
-                <span className="font-mono text-text-tertiary">{b.relation}</span>
-                <span className="font-mono">{b.capability}</span>
-                <span className="ms-auto text-text-tertiary">
-                  {b.satisfied
-                    ? t("desktop.workbench.detail.binding.ok")
-                    : t("desktop.workbench.detail.binding.unmet")}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }
@@ -110,18 +119,20 @@ function HooksTab(props: { readonly get: Load }): ReactNode {
   }
   const hooks = props.get.result.hooks;
   if (hooks.length === 0)
-    return <p className="text-text-tertiary">{t("desktop.workbench.detail.hooks.empty")}</p>;
+    return <p className={MUTED}>{t("desktop.workbench.detail.hooks.empty")}</p>;
   return (
-    <ul className="grid gap-0.5 text-ui-sm">
+    <ListDescription
+      variant="ghost"
+      size="xs"
+      aria-label={t("desktop.workbench.detail.tab.hooks")}
+      className={LD}
+    >
       {hooks.map((h) => (
-        <li key={`${h.registrationId}:${h.hook}`} className="flex gap-3 px-2">
-          <span className="font-mono text-text-primary">{h.hook}</span>
-          <span className="ms-auto text-text-tertiary">
-            {t("desktop.workbench.detail.hooks.budget")} {h.budgetClass} · {h.budgetMs}ms
-          </span>
-        </li>
+        <ListDescriptionRow key={`${h.registrationId}:${h.hook}`} term={h.hook}>
+          {t("desktop.workbench.detail.hooks.budget")} {h.budgetClass} · {h.budgetMs}ms
+        </ListDescriptionRow>
       ))}
-    </ul>
+    </ListDescription>
   );
 }
 
@@ -168,7 +179,7 @@ export function FailureRecords(props: {
     return <Alert tone="danger">{t("desktop.workbench.detail.record.failed")}</Alert>;
   }
   if (props.rows.length === 0) {
-    return <p className="text-text-tertiary">{t("desktop.workbench.detail.record.empty")}</p>;
+    return <p className={MUTED}>{t("desktop.workbench.detail.record.empty")}</p>;
   }
   // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다
   const columns: TableColumn[] = [
@@ -208,7 +219,9 @@ function SettingsSection(props: { readonly name: string }): ReactNode {
   if (shown === undefined) return null;
   return (
     <section aria-label={shown.title} className="grid gap-2">
-      <h4 className="text-ui-strong text-text-primary">{shown.title}</h4>
+      <h4 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
+        {shown.title}
+      </h4>
       <EntrySurface entry={shown} />
     </section>
   );
@@ -235,7 +248,7 @@ function PluginScreensLink(props: { readonly name: string }): ReactNode {
   return (
     <div className="flex">
       <Button
-        size="sm"
+        size="xs"
         variant="ghost"
         onClick={() => {
           openPluginScreens(shell);
@@ -279,24 +292,32 @@ export function ExtDetail(props: {
   }, [commands, entry.name]);
   return (
     <article className="grid min-h-0 content-start gap-3 p-4">
-      <header className="flex items-center gap-3">
-        <Button size="sm" variant="ghost" onClick={props.onBack}>
+      <header className="flex flex-wrap items-center gap-3">
+        <Button size="xs" variant="ghost" onClick={props.onBack}>
           {t("desktop.workbench.detail.back")}
         </Button>
-        <ExtName row={row} />
-        <span className="font-mono text-text-tertiary">
-          {row.layer} · {kindText(row.kind)} · {row.version}
+        {/* 머리 줄: 이름(표시 이름 + 회색 mono id), 층 mono · 종류 · 설치 위치 · 버전 */}
+        <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2">
+          <ExtName row={row} />
+          <span className="text-ui-sm text-text-tertiary">
+            <span className="font-mono text-mono-sm">{row.layer}</span>
+            {` · ${kindText(row.kind)}`}
+            {entry.origin === undefined ? "" : ` · ${originText(entry.origin)}`}
+            {` · ${row.version}`}
+          </span>
         </span>
-        {entry.origin !== undefined && <OriginBadge origin={entry.origin} />}
-        {scope !== null && <ScopeBadge scope={scope} />}
-        <span className="ms-auto text-ui-sm text-text-secondary">{stateText(row.state)}</span>
+        {/* 범위 배지 대신 상태 글 뒤에 범위 글을 잇는다. 잠금 이유는 스위치의 툴팁이 보인다 */}
+        <span className="ms-auto text-ui-dense text-text-secondary">
+          {scope === null ? stateText(row.state) : `${stateText(row.state)} · ${scopeText(scope)}`}
+        </span>
         <ExtSwitch row={row} onToggle={props.onToggle} />
+        {/* 잠긴 이유는 설명 한 줄이라 정보 아이콘 뒤에 둔다(DP-58). 스위치 툴팁과 같은 글이다 */}
+        {row.lock === null ? null : <InfoTip text={lockText(row.lock)} />}
         <RemoveButton entry={entry} onRemove={props.onRemove} />
       </header>
-      {row.lock !== null && <p className="text-ui-sm text-text-tertiary">{lockText(row.lock)}</p>}
       <AutoOffNotice entry={entry} onKeepOn={props.onKeepOn} onKeepOff={props.onKeepOff} />
       <PluginScreensLink name={entry.name} />
-      <Tabs defaultValue="overview">
+      <Tabs defaultValue="overview" variant="soft" size="xs">
         <TabsList>
           <TabsTrigger value="overview">{t("desktop.workbench.detail.tab.overview")}</TabsTrigger>
           <TabsTrigger value="hooks" count={entry.hookCount}>

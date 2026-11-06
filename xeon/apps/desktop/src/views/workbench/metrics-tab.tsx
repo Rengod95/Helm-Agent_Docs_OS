@@ -11,7 +11,9 @@ import {
 } from "@fresnel/client/workbench";
 import { assertNever, err, ok } from "@fresnel/contracts";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
+import { CardStat } from "@caustic/react";
 import { useCallback, type ReactNode } from "react";
+import { InfoTip } from "../craft/info-tip.tsx";
 import { useLinkPhase, useOpenThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
 import { TabBody, MUTED } from "./tab-body.tsx";
@@ -35,14 +37,9 @@ function numberText(value: number): string {
   return t("desktop.workbench.metrics.number", { value });
 }
 
-/** 측정 칸 하나: 이름과 값 */
+/** 측정 칸 하나: 이름과 값(caustic `CardStat` 유령 면) */
 function Cell(props: { readonly label: string; readonly value: string }): ReactNode {
-  return (
-    <div className="grid gap-0.5">
-      <dt className="text-ui-sm text-text-tertiary">{props.label}</dt>
-      <dd className="m-0 font-mono text-text-primary">{props.value}</dd>
-    </div>
-  );
+  return <CardStat variant="ghost" size="sm" label={props.label} value={props.value} />;
 }
 
 /** 측정 값 그림. 계측이 꺼져 있으면(`metrics`가 null) 빈 문장이다 */
@@ -52,22 +49,23 @@ function GroupMetricsBody(props: { readonly metrics: GroupMetricsVM | null }): R
   return (
     <div className="grid gap-4 text-ui-sm">
       <section aria-label={t("desktop.workbench.metrics.tokens")} className="grid gap-1.5">
-        <h4 className="m-0 font-semibold text-text-secondary">
+        <h4 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
           {t("desktop.workbench.metrics.tokens")}
         </h4>
-        <dl className="m-0 grid grid-cols-2 gap-3 compact:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 compact:grid-cols-4">
           {metrics.tokens.map((cell) => (
             <Cell key={cell.key} label={t(TOKEN_TEXT[cell.key])} value={numberText(cell.value)} />
           ))}
-        </dl>
+        </div>
       </section>
       <section className="grid gap-0.5">
-        <p className="m-0 text-text-primary">
+        {/* 설명 한 줄은 정보 아이콘 뒤에 둔다(DP-58) */}
+        <p className="m-0 flex items-center gap-1 text-text-primary">
           {t("desktop.workbench.metrics.cost", { amount: costText(metrics.costUsd) })}
+          <InfoTip text={t("desktop.workbench.metrics.costNote")} />
         </p>
-        <p className={MUTED}>{t("desktop.workbench.metrics.costNote")}</p>
       </section>
-      <dl className="m-0 grid grid-cols-2 gap-3 compact:grid-cols-3">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 compact:grid-cols-5">
         <Cell
           label={t("desktop.workbench.metrics.lead")}
           value={t(LEAD_TEXT[metrics.lead.unit], { value: metrics.lead.value })}
@@ -79,7 +77,7 @@ function GroupMetricsBody(props: { readonly metrics: GroupMetricsVM | null }): R
         />
         <Cell label={t("desktop.workbench.metrics.posts")} value={numberText(metrics.posts)} />
         <Cell label={t("desktop.workbench.metrics.spawns")} value={numberText(metrics.spawns)} />
-      </dl>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,6 @@
 import { t } from "@fresnel/client/i18n";
 import { selectedEntry, visibleRows } from "@fresnel/client/workbench";
 import { Alert, Button, EmptyState } from "@caustic/react";
-import { Plus } from "@caustic/react/icons";
 import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { useCommands } from "../commands.ts";
@@ -60,13 +59,14 @@ export function ExtensionsScreen(): ReactNode {
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-6">
       <header className="flex items-start justify-between gap-2">
         <div className="grid gap-0.5">
-          <h1 className="text-ui-strong text-text-primary">{t("desktop.workbench.list.title")}</h1>
+          <h1 className="m-0 text-ui-strong text-text-primary">
+            {t("desktop.workbench.list.title")}
+          </h1>
           <CountsLine />
         </div>
         <Button
-          size="sm"
+          size="xs"
           variant="outline"
-          iconStart={<Plus />}
           onClick={() => {
             setInstalling(true);
           }}
@@ -91,6 +91,8 @@ export function ExtensionsScreen(): ReactNode {
       {noticeTotal > 0 && (
         <Alert
           tone="danger"
+          layout="inline"
+          size="sm"
           actions={
             firstNotice === null
               ? []

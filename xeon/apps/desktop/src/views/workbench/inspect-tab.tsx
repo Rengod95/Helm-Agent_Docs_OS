@@ -166,7 +166,9 @@ function useInspectData(name: string, threadId: ThreadId | null, live: boolean):
 function Section(props: { readonly title: string; readonly children: ReactNode }): ReactNode {
   return (
     <section aria-label={props.title} className="grid content-start gap-2">
-      <h3 className="m-0 text-ui-sm font-semibold text-text-primary">{props.title}</h3>
+      <h3 className="m-0 min-w-0 truncate text-ui-dense font-semibold text-text-primary">
+        {props.title}
+      </h3>
       {props.children}
     </section>
   );

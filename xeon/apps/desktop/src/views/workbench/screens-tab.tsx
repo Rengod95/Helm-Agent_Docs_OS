@@ -3,7 +3,7 @@
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { screenRowsOf, type ScreenRowVM, type TabRead } from "@fresnel/client/workbench";
 import { err, ok } from "@fresnel/contracts";
-import { Badge, StatusDot } from "@caustic/react";
+import { StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { useCallback } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
@@ -49,11 +49,11 @@ export function ScreensPanel(props: { readonly read: TabRead<readonly ScreenRowV
         ) : (
           <ul className="m-0 grid list-none gap-1.5 p-0 text-ui-sm">
             {rows.map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center gap-2 px-2">
+              <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-2">
                 <span className="text-text-primary">{row.title}</span>
-                <span className="font-mono text-text-tertiary">{row.id}</span>
-                <Badge size="sm">{t(PLACEMENT_TEXT[row.placement])}</Badge>
-                <Badge size="sm">{t(MODE_TEXT[row.mode])}</Badge>
+                <span className="font-mono text-mono-sm text-text-tertiary">{row.id}</span>
+                <span className="text-text-secondary">{t(PLACEMENT_TEXT[row.placement])}</span>
+                <span className="text-text-secondary">{t(MODE_TEXT[row.mode])}</span>
                 <StatusDot tone={STATE_TONE[row.state]} label={t(STATE_TEXT[row.state])} />
                 {row.issues > 0 && (
                   <span className="ms-auto text-text-tertiary">
