@@ -1098,7 +1098,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 기능 | wire 또는 view-model |
 |---|---|
 | 보내기 | `turn.start { threadId, input, requestId }`. `/이름`은 `command.run { threadId, text }` → `slashStepOf` |
-| 실행 중 입력 | `turn.start`가 큐에 넣고 `input.queued`가 큐 모드를 실음. 입력창 큐 모드 선택(steer, followUp)은 기본값 `l1.tasks.queue.defaultMode` [가정: 키 이름은 F 카탈로그 확인] |
+| 실행 중 입력 | `turn.start`가 큐에 넣고 `input.queued`가 큐 모드를 실음. 입력창 큐 모드 선택(steer, followUp)은 기본값은 "끝난 뒤"(followUp)이고 대화를 바꾸면 돌아간다. 설정 카탈로그에 기본 모드 키는 없다(`steeringMode`·`followUpMode`는 큐를 비우는 방식이라 뜻이 다르다) [결정: 2026-11-06 메인, 옛 가정 `l1.tasks.queue.defaultMode`는 카탈로그에 없어 버림] |
 | 중단 | `turn.interrupt { threadId }` |
 | 이어서 실행 | `turn.resume { threadId }` → resumed, closed, nothing |
 | 첨부 | `attachments.add { threadId, source }` 결과의 `parts`를 `turn.start` 입력에 글과 함께 넣는다. 파일 고르기(데스크톱 로컬 엔진은 셸 `pick_file`의 경로 소스, 원격과 웹은 `<input type=file>`의 `data` 소스), 끌어 놓기와 클립보드 붙여넣기(`data` 소스). 크기 상한은 `settings.get l2.dialog.attachments.maxBytes`(호스트 값)로 미리 읽고, 넘는 파일은 올리지 않고 칩에 실패로 보인다. 호스트 거절은 `issues[].message`의 `attachment_too_large: `·`attachment_type_unsupported: ` 머리로 가른다. 턴이 도는 중과 입력창 잠금 중에는 단추·놓기·붙여넣기를 막는다. 첨부가 있으면 슬래시 명령으로 풀지 않는다 |
