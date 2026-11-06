@@ -337,19 +337,6 @@ describe("plan approval card", () => {
     expect(html(planRequest(long))).toContain("전체 보기");
     expect(html(planRequest("1. only step"))).not.toContain("전체 보기");
   });
-
-  test("the plan body is markdown: bold renders as strong, not as the literal stars", () => {
-    const out = html(planRequest("**굵게** 계획"));
-    expect(out).toMatch(/<strong[^>]*>굵게<\/strong>/);
-    expect(out).not.toContain("**굵게**");
-  });
-
-  test("a plan heading and list render as elements, and raw html in the plan stays text", () => {
-    const out = html(planRequest("# 목표\n- 항목 <script>x</script>"));
-    expect(out).toMatch(/role="heading" aria-level="1"[^>]*>목표</);
-    expect(out).toMatch(/<ul[^>]*>.*<li>항목 &lt;script&gt;x&lt;\/script&gt;<\/li>/s);
-    expect(out).not.toContain("<script>");
-  });
 });
 
 const reviewRequest: ApprovalRequestedPayload = {
