@@ -166,6 +166,8 @@ Commands
   group new <name> [--drive|--policy] [--dir <folder>] [--json]
                             Create a group skeleton. The default is an observe group, --drive makes a drive group,
                             and --policy makes a policy group. The target folder must be empty, and dependencies are not installed
+  author scaffold|validate|pack|install|remove|ls
+                            Create, check, pack, install and remove extensions without a model. ls lists installed extensions. install and remove ask for confirmation; without a terminal they need --yes
   doctor [--json]           Diagnose the engine, storage, secret store, terminal, and search providers
   usage [--thread <id>] [--json]
                             Model usage (tokens, cost, calls). Without a conversation it is the total of all conversations

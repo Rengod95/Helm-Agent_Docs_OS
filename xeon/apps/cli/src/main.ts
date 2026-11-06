@@ -110,6 +110,15 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       const { runGroup } = await import("./commands/group.ts");
       return runGroup(ctx, command);
     }
+    case "author.scaffold":
+    case "author.validate":
+    case "author.pack":
+    case "author.install":
+    case "author.remove":
+    case "author.ls": {
+      const { runAuthor } = await import("./commands/author.ts");
+      return runAuthor(ctx, command);
+    }
     case "host": {
       const { runHostStdio } = await import("./commands/host.ts");
       return runHostStdio(ctx, command);

@@ -56,6 +56,8 @@ interface RealCliOptions {
   readonly harness?: Omit<HarnessOptions, "connect" | "cwd" | "stateFile">;
   /** 이미 만든 홈을 쓴다(같은 저장소를 다른 프로세스가 먼저 썼을 때). 지우는 일은 만든 쪽이 한다 */
   readonly home?: ScenarioHome;
+  /** true면 기본 플러그인과 외부 확장 로더를 켠다(설치한 확장이 목록에 보이는 시험). 기본은 끈 채다 */
+  readonly loadExtensions?: boolean;
 }
 
 export interface RealCli {
@@ -109,7 +111,7 @@ export function createRealCli(options: RealCliOptions = {}): RealCli {
         ...connectOptions,
         stateFile: home.stateFile,
         assemble: {
-          defaultGroups: false,
+          defaultGroups: options.loadExtensions === true,
           ...(options.models === undefined ? {} : { buildModels: options.models }),
         },
         observe: (message) => {
