@@ -6,6 +6,7 @@ import { t } from "@fresnel/client/i18n";
 import {
   CENTER,
   isOn,
+  labelScale,
   type CanvasPlugin,
   type CanvasSnapshot,
   type LayerKey,
@@ -37,6 +38,7 @@ import {
   shownOnMap,
 } from "./orbit-model.ts";
 import { RING_ORDER, layoutOrbit, pointAt, ringRadius, type OrbitArc } from "./orbit-layout.ts";
+import { chipWidth, visibleChips, type ChipCandidate, type ChipObstacle } from "./orbit-chips.ts";
 import { layerTitle, stateText } from "./orbit-names.ts";
 import { PANEL_W } from "./selection-panel.tsx";
 import { SPRING_MS, springLinear } from "./spring.ts";
@@ -55,10 +57,6 @@ const EDGE = 12;
 const BOTTOM_INSET = 64;
 /** 층 패널이 열렸을 때 추가로 비우는 높이(px) */
 const LAYER_INSET = 150;
-/** 점이 이 개수 이하면 이름표를 모두 보인다. 많을 때는 고른 것·가리킨 것·확대한 때만 보인다 */
-const CHIP_ALL_MAX = 24;
-/** 이 배율(%) 이상으로 확대하면 이름표를 모두 보인다 */
-const CHIP_ZOOM_PERCENT = 170;
 /** 중심 구체의 지름(CSS px, 배율 1): 첫 고리(L1) 안지름의 75%. 고리와 함께 같은 비율로 앉는다 */
 const CORE = 0.75 * 2 * ringRadius("L1");
 /** 구체는 자기 크기를 고정 px로 그리므로, 지도 배율(--k)을 글자 배율(--ls)로 나눈 값만큼 부모가 키운다 */
@@ -221,21 +219,21 @@ interface NodeProps {
   readonly lit: boolean;
   readonly picked: boolean;
   readonly dim: boolean;
-  readonly chipsAll: boolean;
+  readonly chip: boolean;
   readonly groupName: string | undefined;
   readonly onPick: (id: string) => void;
 }
 
 /** 점 하나와 이름표. 가리킴은 이 점만 다시 그린다 */
 const Node = memo(function Node(props: NodeProps): ReactNode {
-  const { plugin: p, x, y, right, lit, picked, dim, chipsAll, groupName, onPick } = props;
+  const { plugin: p, x, y, right, lit, picked, dim, chip, groupName, onPick } = props;
   const [hot, setHot] = useState(false);
   const on = isOn(p);
   const failing = p.health !== undefined;
   const autoOff = p.health?.autoOff === true;
   const grouped = p.group !== undefined;
   const label = t("desktop.craft.orbit.dot.name", { name: p.name, state: stateText(p) });
-  const showChip = chipsAll || lit || picked || hot;
+  const showChip = chip || lit || picked || hot;
   const tip = (
     <span className="flex flex-col gap-0.5">
       <span>{layerTitle(p.layer)}</span>
@@ -365,7 +363,55 @@ export function Orbit(): ReactNode {
       : state.sel.k === "plugin"
         ? (pluginOf.get(state.sel.id)?.group ?? null)
         : null;
-  const chipsAll = snapshot.plugins.length <= CHIP_ALL_MAX || vp.percent >= CHIP_ZOOM_PERCENT;
+
+  // 이름표는 겹치지 않는 것만 보인다(고른 것·밝힌 것은 늘 보인다). 배율(percent)이 바뀌면 다시 센다
+  const chips = useMemo(() => {
+    const items = onMap.flatMap((p): ChipCandidate[] => {
+      const d = dotOf.get(p.id);
+      if (d === undefined) return [];
+      const forced = lit.ids.has(p.id) || picked === p.id;
+      const dim = isDimmed(p, lit, state.kind, state.contrib, state.query);
+      const priority = dim
+        ? -1
+        : p.health !== undefined
+          ? 3
+          : p.group !== undefined
+            ? 2
+            : isOn(p)
+              ? 1
+              : 0;
+      return [
+        { id: p.id, x: d.x, y: d.y, name: p.name, right: d.x >= CENTER - 1, priority, forced },
+      ];
+    });
+    const obstacles: ChipObstacle[] = [
+      ...RING_ORDER.map((layer) => {
+        const at = pointAt(ringRadius(layer), 0);
+        return { x: at.x, y: at.y, w: chipWidth(layerTitle(layer)), h: 24 };
+      }),
+      { x: CENTER, y: CENTER + ringRadius("L1"), w: 150, h: 36 },
+      ...layout.arcs.flatMap((arc) => {
+        const group = snapshot.groups.find((g) => g.id === arc.groupId);
+        if (group === undefined || !groupShown(snapshot, arc.groupId, state.contrib)) return [];
+        const mid = pointAt(arc.radius + 16, (arc.from + arc.to) / 2);
+        return [{ x: mid.x, y: mid.y, w: chipWidth(group.name), h: 28 }];
+      }),
+    ];
+    // 배율은 화면에 보이는 정수 퍼센트에서 얻는다(오차 0.5% 안). 정수가 바뀔 때만 다시 센다
+    const k = vp.percent / 100;
+    return visibleChips(items, obstacles, k, labelScale(k));
+  }, [
+    onMap,
+    dotOf,
+    layout,
+    lit,
+    picked,
+    snapshot,
+    state.kind,
+    state.contrib,
+    state.query,
+    vp.percent,
+  ]);
 
   const onPick = useCallback(
     (id: string) => {
@@ -683,7 +729,7 @@ export function Orbit(): ReactNode {
                 lit={lit.ids.has(p.id)}
                 picked={picked === p.id}
                 dim={isDimmed(p, lit, state.kind, state.contrib, state.query)}
-                chipsAll={chipsAll}
+                chip={chips.has(p.id)}
                 groupName={p.group === undefined ? undefined : groupNameOf(snapshot, p.group)}
                 onPick={onPick}
               />
