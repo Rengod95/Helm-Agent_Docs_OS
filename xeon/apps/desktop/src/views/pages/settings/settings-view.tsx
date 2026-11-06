@@ -238,7 +238,7 @@ function TabColumn(props: SettingsPageProps): ReactNode {
         kind="pages"
         size="sm"
         aria-label={t("desktop.settings.tabs.label")}
-        className="min-h-0 flex-1 overflow-y-auto pb-2"
+        className="min-h-0 flex-1 content-start overflow-y-auto pb-2"
         onKeyDown={(event) => {
           // ↑↓은 탭 목록에서 옆 탭으로 옮긴다(§6.13). 옮긴 뒤의 초점은 그대로 둔다
           if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
