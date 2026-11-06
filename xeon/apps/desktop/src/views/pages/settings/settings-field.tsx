@@ -221,8 +221,8 @@ export function FieldRow(props: FieldRowProps): ReactNode {
       aria-describedby={field.lock === null ? undefined : lockId}
       className="grid gap-1.5 py-3"
     >
-      <div className="flex min-h-6 min-w-0 items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex min-h-6 min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <div className="flex min-w-0 flex-[1_1_12rem] items-center gap-2">
           <span id={titleId} className="shrink-0 text-ui font-medium text-text-primary">
             {field.label}
             <span className="sr-only">
