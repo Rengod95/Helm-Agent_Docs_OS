@@ -322,5 +322,6 @@ describe("project and local scope", () => {
       expect(ignored.settings[0]).toMatchObject({ source: { scope: "default" } });
       await untrusted.close();
     },
+    60_000, // 엔진을 두 번 띄운다. 다른 호스트 통합 시험과 같은 상한
   );
 });

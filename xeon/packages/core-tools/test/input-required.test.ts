@@ -112,7 +112,7 @@ test("ask_user_after_restart: restore plus rerun continues the same request and 
   expect(result.state).toBe("executed");
   expect(textOf(result.result)).toContain("color: Selected: red");
   expect(kindsOf(h, "effect.result")).toHaveLength(1);
-});
+}, 30_000); // 승인 대기 두 번과 재시작을 거친다. 기본 5초는 부하에서 모자라 조건 대기 상한(30초)에 맞춘다
 
 test("ask_user_after_the_answer_was_committed: a rerun gets the stored answer without waiting", async () => {
   const h = await createHarness();

@@ -105,7 +105,7 @@ describe("startBackground", () => {
     });
     await handle.exited;
     expect(output.join("")).toBe("$HOME `x` ;");
-  });
+  }, 30_000); // 실제 자식 프로세스를 띄운다. 부하에서는 기동만으로 기본 5초를 넘길 수 있다
 
   test("cwd option is resolved against the service cwd", async () => {
     const root = tempDir();

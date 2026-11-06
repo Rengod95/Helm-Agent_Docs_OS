@@ -128,4 +128,4 @@ test("the stdio host exits with one code per store failure so the app shell can 
   } finally {
     failed.dispose();
   }
-});
+}, 60_000); // 데이터베이스를 세 번 만들고 호스트를 세 번 띄운다. 다른 호스트 통합 시험과 같은 상한
