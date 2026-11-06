@@ -42,16 +42,27 @@ export interface ShellProps {
   readonly onGoToThread: (threadId: string) => void;
 }
 
+/** 폭 판정에 쓰는 CSS 픽셀 폭. 앱 확대는 `<html>`의 `zoom`이라 `innerWidth`가 그대로이므로 확대 비율로 나눈다(150%에서 733, 200%에서 550) */
+export function layoutWidthOf(innerWidth: number, zoomStyle: string): number {
+  const zoom = Number.parseFloat(zoomStyle);
+  return Number.isFinite(zoom) && zoom > 0 ? innerWidth / zoom : innerWidth;
+}
+
 function useWindowResize(): void {
   const actions = useShellActions();
   useEffect(() => {
+    const root = document.documentElement;
     const update = (): void => {
-      actions.resize(window.innerWidth);
+      actions.resize(layoutWidthOf(window.innerWidth, root.style.zoom));
     };
     update();
     window.addEventListener("resize", update);
+    // 설정에서 확대를 바꾸면 창 크기는 그대로라 resize가 오지 않는다. `<html style>` 변화를 본다
+    const observer = new MutationObserver(update);
+    observer.observe(root, { attributes: true, attributeFilter: ["style"] });
     return () => {
       window.removeEventListener("resize", update);
+      observer.disconnect();
     };
   }, [actions]);
 }

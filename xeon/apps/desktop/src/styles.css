@@ -125,6 +125,16 @@
     padding: 1px 8px;
     font-size: 12px;
   }
+  /* 입력창 아래 단추 줄(caustic Textarea 푸터)은 좁으면 줄을 바꿔 보내기·모델 단추가 밀려나지 않게 한다 */
+  [data-slot="textarea-footer"] {
+    flex-wrap: wrap;
+    row-gap: 4px;
+    min-width: 0;
+  }
+  [data-slot="textarea-actions"] {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
   .field {
     display: flex;
     flex-direction: column;
