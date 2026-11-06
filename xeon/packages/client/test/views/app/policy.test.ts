@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { decide, eventKindAllowed, settingKeyAllowed } from "../../../src/views/app/index.ts";
+import {
+  decide,
+  eventKindAllowed,
+  secretKeyPartsOf,
+  secretNameOf,
+  settingKeyAllowed,
+} from "../../../src/views/app/index.ts";
 import { policyContext } from "./support.ts";
 
 function req(op: Parameters<typeof decide>[0]["op"], args: unknown): Parameters<typeof decide>[0] {
@@ -217,5 +223,27 @@ describe("bridge policy", () => {
       action: { op: "log", size: 6 },
     });
     expect(decide(req("log", { message: "x".repeat(513) }), context).ok).toBe(false);
+  });
+});
+
+describe("secretKeyPartsOf", () => {
+  test("splits the internal secret name into the extension and the key, and is the inverse of secretNameOf", () => {
+    expect(secretKeyPartsOf("ext--permdemo--token")).toEqual({ plugin: "permdemo", key: "token" });
+    expect(secretKeyPartsOf("ext--a-b--my-key-1")).toEqual({ plugin: "a-b", key: "my-key-1" });
+    // 확장 이름에는 `--`가 없어서 첫 `--`가 경계다. 꼬리는 등록 이름 규칙대로 `--`를 담을 수 있다
+    expect(secretKeyPartsOf("ext--a--b--c")).toEqual({ plugin: "a", key: "b--c" });
+    expect(secretKeyPartsOf("ext--a--token-")).toEqual({ plugin: "a", key: "token-" });
+    expect(secretKeyPartsOf(secretNameOf("helm", "api-key"))).toEqual({
+      plugin: "helm",
+      key: "api-key",
+    });
+  });
+
+  test("returns null for a name that does not have the ext--<extension>--<key> shape", () => {
+    expect(secretKeyPartsOf("ext--permdemo")).toBeNull();
+    expect(secretKeyPartsOf("ext----token")).toBeNull();
+    expect(secretKeyPartsOf("ext--Perm--token")).toBeNull();
+    expect(secretKeyPartsOf("api-key")).toBeNull();
+    expect(secretKeyPartsOf("")).toBeNull();
   });
 });

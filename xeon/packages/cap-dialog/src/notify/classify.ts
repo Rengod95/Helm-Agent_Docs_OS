@@ -50,7 +50,7 @@ function fromTurnCompleted(event: DurableEventEnvelope): Notice | null {
   const { status, error } = parsed.value;
   switch (status) {
     case "completed":
-      return notice(event, "completed", "작업이 끝났다", null);
+      return notice(event, "completed", "작업이 끝났어요", null);
     case "failed":
       return notice(event, "error", "턴이 실패했다", error);
     // 사용자가 직접 끊은 턴은 알리지 않는다
@@ -86,9 +86,9 @@ function fromApprovalRequested(event: DurableEventEnvelope): Notice | null {
   const body = parsed.value.body;
   switch (body.kind) {
     case "tool":
-      return notice(event, "approval_waiting", `승인이 필요하다: ${body.tool.toolName}`, null);
+      return notice(event, "approval_waiting", `승인이 필요해요: ${body.tool.toolName}`, null);
     case "plan":
-      return notice(event, "approval_waiting", "승인이 필요하다: plan", null);
+      return notice(event, "approval_waiting", "승인이 필요해요: plan", null);
     case "question":
       return notice(event, "question_waiting", "질문에 답이 필요하다", null);
     // 검토 승인은 §4.7.1 표에 없다 [미결]
@@ -109,7 +109,7 @@ function fromAgentSettled(event: DurableEventEnvelope): Notice | null {
   const { status, error } = parsed.value;
   switch (status) {
     case "completed":
-      return notice(event, "background_completed", "백그라운드 작업이 끝났다", null);
+      return notice(event, "background_completed", "백그라운드 작업이 끝났어요", null);
     case "error":
       return notice(event, "error", "백그라운드 작업이 실패했다", error);
     case "aborted":
@@ -126,7 +126,7 @@ function fromRunFinished(event: DurableEventEnvelope): Notice | null {
   const { outcome } = parsed.value;
   switch (outcome) {
     case "completed":
-      return notice(event, "background_completed", "예약 작업이 끝났다", null);
+      return notice(event, "background_completed", "예약 작업이 끝났어요", null);
     case "failed":
       return notice(event, "error", "예약 작업이 실패했다", null);
     case "aborted":

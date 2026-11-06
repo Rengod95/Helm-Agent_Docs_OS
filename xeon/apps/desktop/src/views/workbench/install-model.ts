@@ -27,6 +27,8 @@ export type InstallFailure =
   | "managed_locked"
   | "source_changed"
   | "invalid_input"
+  | "not_absolute"
+  | "no_manifest"
   | "not_found"
   | "denied"
   | "offline"
@@ -38,6 +40,8 @@ export const INITIAL_INSTALL_FLOW: InstallFlow = { step: "source", source: "", f
 const SAFE_MODE_CODE = WIRE_ERRORS["extension.safeModeActive"].code;
 const ISSUE_KINDS: Readonly<Record<string, InstallFailure>> = {
   invalid_input: "invalid_input",
+  not_absolute: "not_absolute",
+  no_manifest: "no_manifest",
   not_found: "not_found",
   denied: "denied",
   source_changed: "source_changed",

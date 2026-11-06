@@ -15,7 +15,7 @@ const LOCKED_CODE = WIRE_ERRORS["thread.locked"].code;
 const INVALID_VALUE_CODE = WIRE_ERRORS["settings.invalidValue"].code;
 /** 제작 wire(`ext.*`)가 입력 문제를 알리는 `<DevkitError 종류>: ` 머리(`ext.versions`의 `history_unavailable`·`unknown_extension`: 번들·프로젝트·기본 내장 확장은 설치 기록이 없다). 다른 메서드의 입력 거절 문장은 건드리지 않는다 */
 const DEVKIT_ISSUE =
-  /^(invalid_input|not_found|exists|blocked_kind|denied|dev_mode_required|source_changed|managed_locked|attachment_too_large|attachment_type_unsupported|history_unavailable|unknown_extension): /;
+  /^(invalid_input|not_found|exists|blocked_kind|denied|dev_mode_required|source_changed|managed_locked|not_absolute|no_manifest|attachment_too_large|attachment_type_unsupported|history_unavailable|unknown_extension): /;
 const INVALID_PARAMS_CODE = WIRE_ERRORS["jsonrpc.invalidParams"].code;
 /** 값 검사 실패의 details(wire/errors.ts `settings.invalidValue`). 첫 문제의 문장만 쓴다 */
 const InvalidValueDetailsSchema = Type.Object({

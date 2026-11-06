@@ -59,6 +59,19 @@ export function secretNameOf(extension: string, suffix: string): string {
   return `ext--${extension}--${suffix}`;
 }
 
+/** `secretNameOf`의 거꾸로. `ext--<확장>--<꼬리>` 모양이면 확장 이름과 꼬리를, 아니면 null이다(확인 줄은 이름을 그대로 보인다). 확장 이름에는 `--`가 없어서 첫 `--`가 경계다 */
+const SECRET_NAME_PARTS =
+  /^ext--(?<plugin>[a-z][a-z0-9]*(?:-[a-z0-9]+)*)--(?<key>[a-z][a-z0-9-]*)$/u;
+export function secretKeyPartsOf(
+  name: string,
+): { readonly plugin: string; readonly key: string } | null {
+  const groups = SECRET_NAME_PARTS.exec(name)?.groups;
+  const plugin = groups?.plugin;
+  const key = groups?.key;
+  if (plugin === undefined || key === undefined) return null;
+  return { plugin, key };
+}
+
 /** 코어 이벤트 허용 목록(§3.4 `events`). `turn.*`, `lease.*`는 접두, 나머지는 같은 이름만이다 */
 const CORE_EVENT_PREFIXES: readonly string[] = ["turn.", "lease."];
 const CORE_EVENT_KINDS: ReadonlySet<string> = new Set(["scope.changed", "scope.handler_failed"]);

@@ -27,11 +27,19 @@ export interface InstallOutcome extends LinkResult {
 
 const NAME_REGEX = new RegExp(EXTENSION_NAME_PATTERN);
 
+/** 매니페스트를 못 읽었을 때: 폴더가 있으면 `no_manifest`, 폴더도 없으면 그 `not_found`다(둘 다 ENOENT라 가르지 않으면 같아 보인다) */
+async function missingManifest(source: string): Promise<Result<never, DevkitError>> {
+  const folder = await io(source, () => stat(source));
+  if (!folder.ok) return folder;
+  return err({ kind: "no_manifest", message: `${MANIFEST_PATH} is missing` });
+}
+
 /** 설치와 미리 보기가 같이 쓰는 검사. 설치할 수 있는 폴더면 매니페스트를 돌려준다 */
 async function readInstallable(source: string): Promise<Result<ExtensionManifest, DevkitError>> {
-  if (!isAbsolute(source)) return err(invalid("source must be an absolute path"));
+  if (!isAbsolute(source))
+    return err({ kind: "not_absolute", message: "source must be an absolute path" });
   const text = await io(MANIFEST_PATH, () => readFile(join(source, MANIFEST_PATH), "utf8"));
-  if (!text.ok) return text;
+  if (!text.ok) return text.error.kind === "not_found" ? missingManifest(source) : text;
   const json = parseJson(text.value);
   if (!json.ok) return err(invalid(`${MANIFEST_PATH} is not JSON`));
   const checked = validateManifest(json.value);

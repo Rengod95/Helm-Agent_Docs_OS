@@ -540,7 +540,7 @@ describe("plugin", () => {
     expect(got).toEqual([
       {
         kind: "completed",
-        title: "작업이 끝났다",
+        title: "작업이 끝났어요",
         body: null,
         seq: 11,
         sourceType: "turn.completed",
@@ -648,7 +648,7 @@ describe("OS 알림", () => {
     const thread = t.newThread();
     feedTurnCompleted(collected, thread, 11, "completed");
     expect(collected.notified.map((sent) => sent.notification)).toEqual([
-      { kind: "done", title: "작업이 끝났다", body: "", threadId: thread },
+      { kind: "done", title: "작업이 끝났어요", body: "", threadId: thread },
     ]);
   });
 

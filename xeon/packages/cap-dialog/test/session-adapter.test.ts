@@ -196,7 +196,7 @@ describe("알림 저장소 어댑터", () => {
     recordedAt: 1,
     causationId: null,
     correlationId: null,
-    payload: { notice: { kind: "completed", title: "작업이 끝났다", body: null, origin: "g" } },
+    payload: { notice: { kind: "completed", title: "작업이 끝났어요", body: null, origin: "g" } },
     durable: true,
     seq: 4,
     parentId: null,
@@ -257,7 +257,7 @@ describe("알림 저장소 어댑터", () => {
     const port = sessionNoticePort(session, producer, fixedIdFactory(), recordingLogger(lines));
     const result = port.emit(
       notified.threadId,
-      { kind: "completed", title: "작업이 끝났다", body: null, origin: "g" },
+      { kind: "completed", title: "작업이 끝났어요", body: null, origin: "g" },
       "req-1",
     );
     expect(result).toEqual(ok(notified));
@@ -281,7 +281,7 @@ describe("알림 저장소 어댑터", () => {
     const port = sessionNoticePort(session, producer, fixedIdFactory(), recordingLogger(lines));
     const result = port.emit(
       notified.threadId,
-      { kind: "completed", title: "작업이 끝났다", body: null, origin: "g" },
+      { kind: "completed", title: "작업이 끝났어요", body: null, origin: "g" },
       "req-1",
     );
     expect(result).toEqual(err({ kind: "key_reused", requestId: "req-1" }));
@@ -291,7 +291,12 @@ describe("알림 저장소 어댑터", () => {
   test("requestId가 없으면 키가 매번 달라 멱등을 걸지 않는다", () => {
     const { session, requests } = fakeNoticeSession(committed);
     const port = sessionNoticePort(session, producer, fixedIdFactory(), recordingLogger([]));
-    const record = { kind: "completed", title: "작업이 끝났다", body: null, origin: "g" } as const;
+    const record = {
+      kind: "completed",
+      title: "작업이 끝났어요",
+      body: null,
+      origin: "g",
+    } as const;
     port.emit(notified.threadId, record, undefined);
     port.emit(notified.threadId, record, undefined);
     const keys = requests.map((request) => request.requestId);

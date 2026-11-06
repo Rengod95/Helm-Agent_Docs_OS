@@ -77,6 +77,33 @@ describe("errorOf", () => {
     });
   });
 
+  test("an install source that is not absolute or has no plugin file keeps its kind as the issue", () => {
+    const relative = wireError("jsonrpc.invalidParams", {
+      details: {
+        issues: [{ path: "/source", message: "not_absolute: source must be an absolute path" }],
+      },
+    });
+    expect(errorOf(relative)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "not_absolute: source must be an absolute path",
+      path: "/source",
+    });
+    const bare = wireError("jsonrpc.invalidParams", {
+      details: {
+        issues: [
+          { path: "/source", message: "no_manifest: .fresnel-plugin/plugin.json is missing" },
+        ],
+      },
+    });
+    expect(errorOf(bare)).toEqual({
+      kind: "rejected",
+      code: -32602,
+      issue: "no_manifest: .fresnel-plugin/plugin.json is missing",
+      path: "/source",
+    });
+  });
+
   test("an extension the loader does not know (a built-in core plugin) keeps unknown_extension as the issue", () => {
     const unknown = wireError("jsonrpc.invalidParams", {
       details: { issues: [{ path: "/name", message: "unknown_extension: core-persistence" }] },

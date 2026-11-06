@@ -63,6 +63,12 @@ function rowsOf(html: string): {
     }));
 }
 
+/** 행 하나의 켜짐 스위치 태그(없으면 빈 글) */
+function switchOf(html: string, name: string): string {
+  const row = rowsOf(html).find((r) => r.cells[0]?.includes(name));
+  return row?.markup.match(/<button[^>]*role="switch"[^>]*>/)?.[0] ?? "";
+}
+
 /** 고른 행의 칸 글. 고른 행이 없으면 빈 목록 */
 function selectedRows(html: string): (readonly string[])[] {
   return rowsOf(html)
@@ -132,9 +138,23 @@ describe("확장 화면: 층 표(caustic Table, §6.23)", () => {
 
   test("행의 켜짐 칸에는 스위치가 있고 이름표는 표시 이름이다", () => {
     const html = render();
-    expect(html).toContain(
-      `aria-label="${t("desktop.workbench.switch.label", { name: "웹 검색" })}"`,
+    expect(html).toContain('aria-label="웹 검색 사용"');
+  });
+
+  test("스위치 이름은 상태와 상관없이 '사용'이고 상태는 aria-checked로 전한다", () => {
+    const on = switchOf(render(), "웹 검색");
+    expect(on).toContain('aria-label="웹 검색 사용"');
+    expect(on).toContain('aria-checked="true"');
+    const off = switchOf(
+      renderState(
+        listLoaded(INITIAL_WORKBENCH, [
+          entry("web", { displayName: "웹 검색", status: "disabled" }),
+        ]),
+      ),
+      "웹 검색",
     );
+    expect(off).toContain('aria-label="웹 검색 사용"');
+    expect(off).toContain('aria-checked="false"');
   });
 
   test("키보드로 들어가는 행은 표마다 하나다(고른 행, 없으면 첫 행)", () => {
