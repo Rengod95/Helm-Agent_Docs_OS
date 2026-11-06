@@ -13,6 +13,7 @@ const LAYER_NAME: Readonly<Record<string, MessageId>> = {
   L3: "term.layerOrchestration",
   L2: "term.layerCapabilities",
   external: "term.plugin",
+  plugin: "term.plugin",
   L1: "term.layerAgentCore",
 };
 
@@ -32,10 +33,10 @@ export function LayerList(props: {
   // 머리글은 그릴 때 고른다. 말투(로케일)가 연결 뒤에 바뀔 수 있다
   const columns: TableColumn[] = [
     { key: "name", header: t("desktop.workbench.col.name") },
-    { key: "layer", header: t("desktop.workbench.col.layer"), width: 130 },
-    { key: "origin", header: t("desktop.workbench.col.trust"), width: 130 },
-    { key: "state", header: t("desktop.workbench.col.state"), width: 170 },
-    { key: "switch", header: t("desktop.workbench.col.switch"), align: "end", width: 80 },
+    { key: "layer", header: t("desktop.workbench.col.layer"), width: 112 },
+    { key: "origin", header: t("desktop.workbench.col.trust"), width: 92 },
+    { key: "state", header: t("desktop.workbench.col.state"), width: 128 },
+    { key: "switch", header: t("desktop.workbench.col.switch"), align: "end", width: 64 },
   ];
   return (
     <Table

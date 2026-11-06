@@ -382,7 +382,7 @@ export interface LayerGroupVM {
 }
 
 /** 사용자에게 가까운 층이 위다(시안 c03 목록 순서) */
-const LAYER_ORDER: readonly string[] = ["L3", "L2", "external", "L1"];
+const LAYER_ORDER: readonly string[] = ["L3", "L2", "external", "plugin", "L1"];
 
 function layerRank(layer: string): number {
   const i = LAYER_ORDER.indexOf(layer);
