@@ -297,6 +297,44 @@ test("ext.installPreview tells a relative path and a folder without the plugin f
   await connection.close();
 });
 
+test("ext.installPreview carries the reasons of a refused manifest in the invalidParams details", async () => {
+  const misspelt = {
+    code: "unknown_key",
+    field: "entrie",
+    line: 6,
+    message: 'unknown top-level key "entrie" was removed',
+  };
+  const host = createFakeHost({
+    overrides: {
+      devkit: {
+        installPreview: () =>
+          Promise.resolve(
+            err({
+              kind: "invalid_input",
+              message: "manifest is not valid: must have required properties entry",
+              reasons: [misspelt, { code: "missing_field", field: "entry" }],
+            }),
+          ),
+      },
+    },
+  });
+  const connection = await open(host);
+  const refused = await wireErrorOf(connection.request("ext.installPreview", { source: "/bad" }));
+  expect(refused.data).toMatchObject({
+    kind: "jsonrpc.invalidParams",
+    details: {
+      issues: [
+        {
+          path: "/source",
+          message: "invalid_input: manifest is not valid: must have required properties entry",
+        },
+      ],
+      reasons: [misspelt, { code: "missing_field", field: "entry" }],
+    },
+  });
+  await connection.close();
+});
+
 test("host.hello lists the authoring methods, the test run pair included, as features", async () => {
   const host = createFakeHost({});
   const { connection } = host.connect();
