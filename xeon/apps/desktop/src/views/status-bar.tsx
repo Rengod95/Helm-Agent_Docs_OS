@@ -26,6 +26,7 @@ import {
   tokenCountText,
   useDefaultModel,
   useSessionUsage,
+  useThreadModel,
   type SessionUsage,
 } from "./model-usage.ts";
 import { EntrySurface, screenKeyOf } from "./plugin/plugin-view.tsx";
@@ -409,8 +410,8 @@ function LiveCell(): ReactNode {
 }
 
 /**
- * "모델" 칸(시안 `model`). 대화별 모델을 읽을 wire가 없어 이 대화가 새 턴에 쓰는 기본 모델을 보인다.
- * 칸 글은 모델 이름만 두고(`provider/` 접두사는 뗀다), 설명이 기본 모델이라는 것을 말한다. 고르는 길은 아직 없어 누를 동작은 없다
+ * "모델" 칸(시안 `model`). 이 대화가 다음 턴부터 쓰는 모델(대화가 정한 모델, 없으면 기본 모델)을 보인다.
+ * 칸 글은 모델 이름만 두고(`provider/` 접두사는 뗀다). 고르는 곳은 입력창의 모델 select다
  */
 export function ModelCell(props: { readonly model: string }): ReactNode {
   const [open, setOpen] = useState(false);
@@ -464,11 +465,11 @@ export function TokensCell(props: { readonly usage: SessionUsage }): ReactNode {
 /** 모델과 사용량 칸을 대화에 맞춰 읽는다. 훅은 대화 id가 있어야 하므로 대화가 있을 때만 이 조각을 그린다 */
 function ThreadUsageCells(props: { readonly threadId: ThreadId }): ReactNode {
   const running = useThreadRunning(props.threadId);
-  const model = useDefaultModel();
+  const model = useThreadModel(props.threadId, useDefaultModel());
   const usage = useSessionUsage(props.threadId, running);
   return (
     <>
-      {model === null ? null : <ModelCell model={model} />}
+      {model.ref === null ? null : <ModelCell model={model.ref} />}
       {usage === null ? null : <TokensCell usage={usage} />}
     </>
   );

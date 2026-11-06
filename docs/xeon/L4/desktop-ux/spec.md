@@ -508,7 +508,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 알림 | 받은 요청 안 "알림" 구역, 토스트 | `notify.list { afterSeq }`, 알림 `notify.delivered` | 알림 행을 누르면 원인 대화나 화면으로 앱 안 알림만 하고 OS 알림은 플러그인 승인 전이라 하지 않습니다. 구현: 받은 요청 탭 "알림" 구역(`notices.tsx`)이 `notify.list { afterSeq: 0 }`과 `notify.delivered`를 받아 새것이 위로 오게 100건까지 보이고, 전달된 알림은 토스트로도 보입니다(오류는 자동으로 닫히지 않음). 빈 상태, 읽는 중, 읽기 실패(다시 읽기), 연결 끊김 줄을 둡니다 |
 | 연결·서비스 상태 | 상태 표시줄 왼쪽 | 셸 IPC 엔진 상태(`EngineState`), 연결 상태 기계, `host.status` | 실패 시 "다시 연결", "엔진 다시 시작", "진단 복사" |
 | 원격 대상 | 제목 띠 경로 첫 항목, 상태 표시줄 첫 칸 | 데스크톱 설정 `l0.process.service.remote` [가정], `host.hello` 결과 `transport` | 누르면 대상 팝오버(P-08 요약과 "대상 바꾸기") |
-| 모델 | 상태 표시줄, 입력창 모델 칸 | `settings.get { keys: ["l1.models.default"], threadId }` | 누르면 모델 고르기 `Combobox mode="popup"`. 대화 범위 저장은 `settings.set { scope: "launch" }` |
+| 모델 | 상태 표시줄, 입력창 모델 칸 | 대화 요약의 `model`(거울, `thread.setModel`이 `thread.updated { model }`로 정함), 없으면 `l1.models.default`. 목록은 `models.list` | 입력창의 `Select`(시안 `sonnet-5-5 ⌄`)가 대화별로 고른다. 고르면 `thread.setModel { threadId, model }`이고 다음 턴부터 적용된다. 대화가 모델을 정했으면 끝 줄 "기본 모델 · …"이 지정을 거둔다(`model: null`) [결정: 오케스트레이터 기본값, M4 T-MODEL]. 모델을 바꿀 때 비용·캐시 경고를 보일지는 사용자 정책이라 이 화면은 정하지 않는다 |
 | 사용량 | 상태 표시줄 게이지 | `usage.get { threadId }` | 누르면 `Popover`에 게이지 목록 |
 | 목표 | 상태 표시줄 칩 "목표 2/3"(판정 횟수/최대, DP-25) | `goal.status` | 누르면 `Popover`(첫 줄 "판정 2/3"), 거기서 끝 영역 작업 탭 |
 | Helm 단계 | 상태 표시줄 칩 | `[gap:W-04]` | 누르면 끝 영역 탐구 탭 |
@@ -871,8 +871,8 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 엔진 | 셸 IPC `EngineState`(starting, running, restarting, stopping, failed, stopped). 점은 돌고 있으면 초록, 시작·다시 시작·끄는 중이면 노랑, 실패면 빨강, 꺼짐은 회색 | `Popover`(제목 "엔진"). 실패와 다시 시작 중에는 한 문장을 더합니다. 실패 단추 "엔진 다시 시작"은 칸 옆 띠에 그대로 둡니다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `engineDotOf`, `engineDescriptionOf`] |
 | 연결 | 연결 상태 기계(offline, connecting, catchingUp, live, resyncing, reloading, failed). 점은 연결됨 초록, 실패 빨강, 연결 없음 회색, 그 밖은 노랑 | `Popover`(제목 "연결"). 끊김은 "읽기만 돼요"를, 맞추는 중은 맞추는 방법을 한 문장으로 보입니다. 실패 단추 "다시 연결", "진단 복사"는 그대로 둡니다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `LINK_DOT`, `LINK_DESCRIPTION`] |
 | 진행 중 | 거울의 실행 중 대화(`thread.list`의 `status`가 running). 테스트 대화는 `testRun` 표식, 예약은 `origin.kind`가 schedule로 가른다. `host.status.liveTurns`는 읽지 않는다 [근거: `apps/desktop/src/views/status-bar.tsx`의 `liveRowsOf`] | `Popover`(넓은 크기). 머리 글 "대화", "테스트 대화", "예약"으로 묶고 행을 누르면 그 대화로 가며 `Popover`는 닫힙니다. 없으면 "지금 진행 중인 일이 없어요." 제작 대화는 읽을 값이 없어 아직 없습니다 [미결] |
-| 모델 | 기본 모델. `setup.load`의 `defaultModel`(설정 `l1.models.default`)을 읽습니다. 대화별 모델을 읽는 wire가 없어 이 대화가 새 턴에 쓰는 기본 모델을 보입니다 [근거: `apps/desktop/src/views/model-usage.ts`의 `useDefaultModel`, `apps/desktop/src/views/status-bar.tsx`의 `ModelCell`] | `Popover`(제목 "모델"). 칸 글은 모델 이름이고, 설명이 기본 모델이라고 말합니다. 대화마다 고르는 `Combobox`는 아직 없습니다 [미결] |
-| 사용량 | `usage.get { threadId }`의 `session` 토큰 게이지를 더한 값. 한도를 알 때만 비율을 냅니다 [근거: `apps/desktop/src/views/model-usage.ts`의 `useSessionUsage`] | `Popover`(제목 "문맥 사용량"). 이 대화에서 쓴 토큰 수를 말하고, 한도를 알면 비율을 한 문장 더합니다. 칸 뒤의 `Progress` 막대는 비율을 알 때만 그립니다. 지금은 한도가 비어 있어 막대가 보이지 않습니다 [gap:W-11]. 게이지 목록과 P-11 링크는 아직 없습니다 [gap:V-11] |
+| 모델 | 이 대화가 다음 턴부터 쓰는 모델. 거울의 대화 요약 `model`(`thread.setModel`)이 있으면 그것이고 없으면 `setup.load`의 `defaultModel`(설정 `l1.models.default`)입니다 [근거: `apps/desktop/src/views/model-usage.ts`의 `useThreadModel`, `apps/desktop/src/views/status-bar.tsx`의 `ModelCell`] | `Popover`(제목 "모델"). 칸 글은 모델 이름이고, 설명이 다음 턴부터 쓰는 모델이며 입력창에서 대화마다 고른다고 말합니다. 고르는 곳은 입력창 `Select`입니다(요소 표의 모델 행) |
+| 사용량 | `usage.get { threadId }`의 `context`(가장 나중에 끝난 호출의 `totalTokens`와 그 모델의 문맥 창). `context`가 없으면(끝난 호출이 없거나 문맥 창을 모름) `session` 토큰 게이지 합으로 돌아가고 이때는 비율이 없습니다 [근거: `apps/desktop/src/views/model-usage.ts`의 `sessionUsageOf`, `useSessionUsage`] | `Popover`(제목 "문맥 사용량"). 지금 문맥에 찬 토큰 수를 말하고, 문맥 창을 알면 비율을 한 문장 더합니다. 칸 뒤의 `Progress` 막대와 입력창 보내기 옆 링은 비율을 알 때만 그립니다. 문맥 창은 모델 카탈로그의 `contextWindow`입니다. 게이지 목록과 P-11 링크는 아직 없습니다 [gap:V-11] |
 | 목표 | "목표 2/3"(판정 횟수/최대, DP-25). `goal.status` [근거: `apps/host/src/handlers/m4/dialog-area.ts`]. 이벤트 `agent.judged`·`work.goal_*`는 갱신 알림에만 씁니다 | `Popover` 첫 줄 "판정 2/3", 끝 영역 작업 탭 링크 |
 | Helm | `[gap:W-04]`, 임시로 `grp.helm.*` 이벤트 | 끝 영역 탐구 탭 |
 | 승인 | §4.6 | 끝 영역 받은 요청 탭. 칸은 `Popover` 설명(답을 기다리는 승인 수)만 보이고, 누르면 받은 요청 탭을 여는 동작은 아직 없습니다 [미결] [근거: `apps/desktop/src/views/status-bar.tsx`의 `ApprovalsCell`] |
@@ -1092,7 +1092,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | 인라인 승인 카드 | 이 대화의 대기 승인 | `approval.requested` 내구 이벤트, 재접속 뒤 `approval.list { threadId }` |
 | 신뢰 카드 | 작업 폴더 자원과 선택지 | `trust.get { workspace }` → `trustCardOf` |
 | 띠 | 설정 필요, 오프라인, 관찰 중, 이어서 실행, turn 실패 | `useSetupNeeded`, 연결 상태, `observing`, `ThreadSummary.resumable`, `turnFailures` |
-| 입력창 | 텍스트, 첨부, 모델, 큐 모드, 보내기·중단 | `composerDisabledReason`, `createEnterGuard`, `createSendLatch` |
+| 입력창 | 텍스트, 첨부, 모델(대화별 `Select`: `models.list`, `thread.setModel`), 큐 모드, 문맥 링, 보내기·중단 | `composerDisabledReason`, `createEnterGuard`, `createSendLatch`, `ModelSelect`, `useThreadModel`, `useModelChoices` |
 | 슬래시 자동 완성 | `/`로 시작하면 명령 목록 | `command.list` → `completeSlash` |
 
 | 기능 | wire 또는 view-model |
@@ -1832,7 +1832,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | provider별 계정(계정 id, 자격 시크릿, 우선순위, 예비%) | `settings.readFile { scope: "user" }` 또는 `settings.get` → `accountsOf` → `modelAccountsView` |
 | 레이트 리밋 정책 | `rateLimitOf` |
 | 회전 상태(off, needsNotice, on)와 안내 | `modelAccountsView().rotation`, `ROTATION_RISK_NOTICE` |
-| 사용량 게이지 | `usage.get { providerId?, threadId? }` → `UsageGauge[]` `[gap:V-11]`. 지금은 `session` 게이지만 있고 한도·재설정 시각이 비어 있습니다 `[gap:W-11]` |
+| 사용량 게이지 | `usage.get { providerId?, threadId? }` → `UsageGauge[]` `[gap:V-11]`. 지금은 `session` 게이지만 있고 한도·재설정 시각이 비어 있습니다 `[gap:W-11]`. 대화의 문맥 사용량은 결과의 `context`(M4 T-MODEL)가 따로 줍니다 |
 
 | 기능 | view-model 또는 wire |
 |---|---|

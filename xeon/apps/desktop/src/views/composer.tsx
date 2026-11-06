@@ -1,15 +1,17 @@
 import { t } from "@fresnel/client/i18n";
-import { DEFAULT_MODEL_KEY } from "@fresnel/client/settings";
 import {
   Button,
   IconButton,
   SegmentedControl,
   SegmentedControlItem,
+  Select,
+  SelectOption,
   Textarea,
 } from "@caustic/react";
-import { ArrowUp, ChevronDown, Paperclip } from "@caustic/react/icons";
+import { ArrowUp, Paperclip } from "@caustic/react/icons";
 import { detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
+import type { ModelEntry } from "@fresnel/contracts/wire";
 import {
   useEffect,
   useRef,
@@ -42,14 +44,21 @@ import { AttachmentRow } from "./composer-attachments.tsx";
 import { InfoTip } from "./craft/info-tip.tsx";
 import { pickAttachmentFile } from "./folder-pick.ts";
 import { useFolderPick } from "./folder-pick-context.ts";
-import { useCommands, type BusyInputMode, type CommandError, type Commands } from "./commands.ts";
+import { useCommands, type BusyInputMode, type CommandError } from "./commands.ts";
 import {
   busyModeOf,
   composerDisabledReason,
   createEnterGuard,
   createSendLatch,
 } from "./composer-model.ts";
-import { modelLabelOf, useDefaultModel, useSessionUsage } from "./model-usage.ts";
+import {
+  DEFAULT_MODEL_CHOICE,
+  modelOptionsOf,
+  useDefaultModel,
+  useModelChoices,
+  useSessionUsage,
+  useThreadModel,
+} from "./model-usage.ts";
 import { QueuedInputs } from "./queued-inputs.tsx";
 import { useSetupNeeded } from "./setup-needed.ts";
 
@@ -72,6 +81,14 @@ function sendErrorText(error: CommandError): string {
   return t("desktop.composer.error.failed");
 }
 
+/** 모델을 바꾸지 못했을 때의 문장. 잠김과 연결 끊김은 보낼 때와 같은 문장이고 나머지는 모델 문장이다 */
+function modelErrorText(error: CommandError): string {
+  if (error.kind === "offline" || error.kind === "switching" || error.kind === "locked") {
+    return sendErrorText(error);
+  }
+  return t("desktop.composer.model.error");
+}
+
 const RING_C = 50.27;
 const USAGE_WARNING = 80;
 const USAGE_DANGER = 95;
@@ -82,24 +99,48 @@ const RING_TEXT: Record<RingTone, string> = {
   danger: "text-danger-solid",
 };
 
-/** 기본 모델 단추. 대화별 모델을 바꿀 wire가 없어서 누르면 설정의 모델 탭을 기본 모델 줄로 연다 */
-export function ModelButton(props: {
-  readonly label: string;
+/**
+ * 대화별 모델 select(시안 `sonnet-5-5 ⌄`). 값은 대화가 정한 모델이고 정하지 않았으면 기본 모델이다.
+ * 고르면 `thread.setModel`로 이 대화의 다음 turn부터 바뀐다. 대화가 모델을 정했으면 끝에 "기본 모델"로 되돌리는 줄이 있다.
+ * 목록은 호스트 카탈로그(`models.list`)다
+ */
+export function ModelSelect(props: {
+  /** 지금 쓰는 모델 참조(대화가 정한 모델, 없으면 기본 모델) */
+  readonly current: string;
+  /** 대화가 모델을 정했는가 */
+  readonly chosen: boolean;
+  /** 정하지 않았을 때 쓰는 기본 모델. 모르면 null */
+  readonly fallback: string | null;
+  readonly choices: readonly ModelEntry[];
   readonly disabled: boolean;
-  readonly onClick: () => void;
+  /** 모델 참조를 고르면 그 값, 기본 모델로 돌아가면 null */
+  readonly onChange: (model: string | null) => void;
 }): ReactNode {
+  const options = modelOptionsOf(
+    props.choices,
+    props.current,
+    props.chosen ? props.fallback : null,
+  );
   return (
-    <Button
-      type="button"
-      variant="ghost"
+    <Select
       size="xs"
+      aria-label={t("desktop.composer.model.label")}
+      value={props.current}
       disabled={props.disabled}
-      iconEnd={<ChevronDown aria-hidden />}
-      className="h-control-inline pl-2 pr-1.5 text-text-tertiary"
-      onClick={props.onClick}
+      onValueChange={(value) => {
+        if (value === DEFAULT_MODEL_CHOICE) props.onChange(null);
+        else if (value !== props.current) props.onChange(value);
+      }}
+      className="w-auto text-text-tertiary"
     >
-      {props.label}
-    </Button>
+      {options.map((option) => (
+        <SelectOption key={option.value} value={option.value}>
+          {option.value === DEFAULT_MODEL_CHOICE
+            ? t("desktop.composer.model.default", { model: option.label })
+            : option.label}
+        </SelectOption>
+      ))}
+    </Select>
   );
 }
 
@@ -138,19 +179,16 @@ export function UsageRing(props: {
   );
 }
 
-/** 기본 모델 단추가 여는 설정 자리: 모델 탭의 기본 모델 줄. 설정을 바꾸지는 않는다 */
-export function openDefaultModelSetting(commands: Pick<Commands, "requestSettingsJump">): void {
-  commands.requestSettingsJump({ tab: "models", key: DEFAULT_MODEL_KEY });
-}
-
 function ComposerFor(props: {
   readonly threadId: ThreadId;
   readonly disabledReason: string | null;
 }): ReactNode {
   const commands = useCommands();
   const running = useThreadRunning(props.threadId);
-  // 기본 모델과 이 대화의 문맥 사용량. 모델은 대화마다 고를 수 없어 기본 모델만 보인다(model-usage.ts)
+  // 이 대화의 모델(정하지 않았으면 기본 모델)과 문맥 사용량(model-usage.ts)
   const defaultModel = useDefaultModel();
+  const threadModel = useThreadModel(props.threadId, defaultModel);
+  const modelChoices = useModelChoices();
   const usage = useSessionUsage(props.threadId, running);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -455,12 +493,21 @@ function ComposerFor(props: {
         }
         submit={
           <span className="flex items-center gap-1">
-            {defaultModel === null ? null : (
-              <ModelButton
-                label={modelLabelOf(defaultModel)}
+            {threadModel.ref === null ? null : (
+              <ModelSelect
+                current={threadModel.ref}
+                chosen={threadModel.chosen}
+                fallback={defaultModel}
+                choices={modelChoices}
                 disabled={props.disabledReason !== null}
-                onClick={() => {
-                  openDefaultModelSetting(commands);
+                onChange={(model) => {
+                  detach(
+                    commands.setThreadModel(props.threadId, model).then((result) => {
+                      if (!result.ok) setError(modelErrorText(result.error));
+                      return undefined;
+                    }),
+                    rethrow,
+                  );
                 }}
               />
             )}

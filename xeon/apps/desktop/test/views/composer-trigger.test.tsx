@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
-import type { SettingsJump } from "../../src/state/ui/index.ts";
-import { ModelButton, UsageRing, openDefaultModelSetting } from "../../src/views/composer.tsx";
+import { ModelSelect, UsageRing } from "../../src/views/composer.tsx";
 
-// 입력창 단추 줄의 모델 단추와 문맥 사용량 링. 효과가 없는 서버 렌더로만 본다(DOM이 없다).
+// 입력창 단추 줄의 모델 select와 문맥 사용량 링. 효과가 없는 서버 렌더로만 본다(DOM이 없다).
 // 링의 값은 표식 속성과 호의 dash offset으로 비교한다. 호가 빈 만큼 offset이 커진다.
 
 const RING_C = 50.27;
@@ -51,35 +50,27 @@ describe("usage ring", () => {
   });
 });
 
-describe("model button", () => {
-  test("is a plain button that does not submit the form and shows the model name", () => {
-    const markup = renderToString(
-      <ModelButton label="claude-haiku-5-5" disabled={false} onClick={() => {}} />,
-    );
+describe("model select", () => {
+  const props = {
+    current: "anthropic/claude-haiku-5-5",
+    chosen: false,
+    fallback: "anthropic/claude-haiku-5-5",
+    choices: [],
+    onChange: () => {},
+  };
+
+  test("is a combobox button named for the conversation's model that does not submit the form", () => {
+    const markup = renderToString(<ModelSelect {...props} disabled={false} />);
     const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
     expect(tag).toContain('type="button"');
-    expect(markup).toContain("claude-haiku-5-5");
-    // 꺼짐은 disabled 특성으로 본다(클래스의 disabled: 변형은 셈하지 않는다)
+    expect(tag).toContain('role="combobox"');
+    expect(tag).toContain('aria-label="이 대화의 모델"');
     expect(tag).not.toMatch(/ disabled=""/);
   });
 
-  test("a disabled composer disables the model button", () => {
-    const markup = renderToString(
-      <ModelButton label="claude-haiku-5-5" disabled onClick={() => {}} />,
-    );
+  test("a disabled composer disables the select", () => {
+    const markup = renderToString(<ModelSelect {...props} disabled />);
     const tag = markup.match(/<button[^>]*>/)?.[0] ?? "";
     expect(tag).toMatch(/ disabled=""/);
-  });
-});
-
-describe("opening the default model setting", () => {
-  test("asks the settings screen for the models tab at the default-model row", () => {
-    const jumps: SettingsJump[] = [];
-    openDefaultModelSetting({
-      requestSettingsJump: (jump) => {
-        jumps.push(jump);
-      },
-    });
-    expect(jumps).toEqual([{ tab: "models", key: "l1.models.default" }]);
   });
 });

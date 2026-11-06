@@ -693,6 +693,13 @@ export interface Commands {
   compactThread(threadId: ThreadId): Promise<Result<WireResult<"thread.compact">, CommandError>>;
   /** `thread.rename`: 대화 제목을 바꾼다. 목록 제목은 `thread.updated` 이벤트가 거울에 넣는다 */
   renameThread(threadId: ThreadId, title: string): Promise<Result<null, CommandError>>;
+  /**
+   * `thread.setModel`: 대화가 다음 turn부터 쓸 모델(`provider/id`)을 정한다. null이면 지정을 거두고 기본 모델로 돌아간다.
+   * 값은 `thread.updated` 이벤트가 거울의 대화 요약(`ThreadSummary.model`)에 넣는다. 카탈로그에 없는 모델은 host가 거절한다
+   */
+  setThreadModel(threadId: ThreadId, model: string | null): Promise<Result<null, CommandError>>;
+  /** `models.list`: 대화가 고를 수 있는 모델(문맥 창 포함). 요청 결과라 거울에 넣지 않는다(FS-03) */
+  listModels(): Promise<Result<WireResult<"models.list">, CommandError>>;
   /** `thread.close`: 대화를 닫는다(열린 turn이 있으면 host가 `turn_running`으로 거절한다). 닫힘 표시는 `thread.closed` 이벤트가 한다 */
   closeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** `thread.delete`: 대화를 지운다. 성공하면 목록을 다시 읽고, 열려 있던 대화였다면 선택을 푼다 */

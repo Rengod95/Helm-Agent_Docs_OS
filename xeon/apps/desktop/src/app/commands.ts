@@ -239,6 +239,14 @@ export function createCommands(deps: CommandDeps): Commands {
       );
       return done.ok ? ok(null) : done;
     },
+    async setThreadModel(threadId, model) {
+      const done = await withWriteConnection((c) =>
+        c.request("thread.setModel", { threadId, model }),
+      );
+      if (!done.ok) showLockedIfLocked(threadId, done.error);
+      return done.ok ? ok(null) : done;
+    },
+    listModels: () => withConnection((c) => c.request("models.list", {})),
     async closeThread(threadId) {
       const done = await withWriteConnection((c) => c.request("thread.close", { threadId }));
       return done.ok ? ok(null) : done;

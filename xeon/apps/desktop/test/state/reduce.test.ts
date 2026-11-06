@@ -864,3 +864,32 @@ describe("lease.*·scope.changed: 디코드와 거울의 전환 기록", () => {
     expect(reset.transitions).toEqual([]);
   });
 });
+
+const updated = (
+  seq: number,
+  payload: { readonly model?: string | null; readonly title?: string },
+): DurableFact => ({
+  type: "thread.updated",
+  seq,
+  eventId: evt(seq),
+  threadId: T,
+  turnId: null,
+  at: "2026-10-25T00:00:00.000Z",
+  payload,
+});
+
+describe("thread model", () => {
+  test("thread.updated sets, keeps through a title change, and clears the thread's model", () => {
+    const base: MirrorInput[] = [head(5), { type: "threads", threads: [summary(T)] }];
+    const chosen = run([
+      ...base,
+      batch(5, 6, [updated(6, { model: "anthropic/claude-haiku-5-5" })]),
+    ]);
+    expect(chosen.threads.byId[T]?.model).toBe("anthropic/claude-haiku-5-5");
+    const renamed = run([batch(6, 7, [updated(7, { title: "새 제목" })])], chosen);
+    expect(renamed.threads.byId[T]?.model).toBe("anthropic/claude-haiku-5-5");
+    expect(renamed.threads.byId[T]?.title).toBe("새 제목");
+    const cleared = run([batch(7, 8, [updated(8, { model: null })])], renamed);
+    expect(cleared.threads.byId[T] !== undefined && "model" in cleared.threads.byId[T]).toBe(false);
+  });
+});

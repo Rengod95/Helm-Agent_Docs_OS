@@ -478,14 +478,14 @@ describe("status bar model and usage cells", () => {
 
   test("the tokens sentence names the tokens, and the percent only when the limit is known", () => {
     expect(tokensDescriptionOf({ tokens: 41_000, percent: null })).toBe(
-      "이 대화에서 41k 토큰을 썼어요.",
+      "지금 문맥에 41k 토큰이 있어요.",
     );
     expect(tokensDescriptionOf({ tokens: 41_000, percent: 40.4 })).toBe(
-      "이 대화에서 41k 토큰을 썼고, 한도의 40%예요.",
+      "지금 문맥에 41k 토큰이 있고, 문맥 창의 40%예요.",
     );
     setActiveLocale("en");
     expect(tokensDescriptionOf({ tokens: 41_000, percent: 40 })).toBe(
-      "This conversation has used 41k tokens, 40% of the limit.",
+      "The context holds 41k tokens right now, 40% of the context window.",
     );
   });
 

@@ -398,6 +398,13 @@ function applyDelta(item: StreamingItem, delta: PartDelta): StreamingItem {
 }
 // ---- 7.2 표를 옮긴 나머지 함수(문서에는 표로만 있다) ----
 
+/** `thread.updated { model }`가 요약의 모델에 하는 일: 없으면 그대로, null이면 지정을 거두고(필드 없음), 문자열이면 바꾼다 */
+function withModel(summary: ThreadSummary, model: string | null | undefined): ThreadSummary {
+  if (model === undefined) return summary;
+  const { model: _previous, ...rest } = summary;
+  return model === null ? rest : { ...rest, model };
+}
+
 function patchThread(
   state: EngineMirror,
   id: ThreadId,
@@ -527,12 +534,17 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       };
     }
     case "thread.updated":
-      return patchThread(state, fact.threadId, (t) => ({
-        ...t,
-        title: fact.payload.title !== undefined ? fact.payload.title : t.title,
-        status: fact.payload.status ?? t.status,
-        updatedAt: fact.at,
-      }));
+      return patchThread(state, fact.threadId, (t) =>
+        withModel(
+          {
+            ...t,
+            title: fact.payload.title !== undefined ? fact.payload.title : t.title,
+            status: fact.payload.status ?? t.status,
+            updatedAt: fact.at,
+          },
+          fact.payload.model,
+        ),
+      );
     case "thread.closed":
       return patchThread(state, fact.threadId, (t) => ({ ...t, status: "closed" }));
     case "turn.started": {
