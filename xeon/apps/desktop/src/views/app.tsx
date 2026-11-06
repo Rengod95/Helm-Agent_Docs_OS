@@ -1,10 +1,15 @@
 import type { EventId } from "@fresnel/contracts/conversation";
 import { assertNever, detach, rethrow, type Result } from "@fresnel/contracts";
-import type { ThreadSummary, WireResult } from "@fresnel/contracts/wire";
+import type { WireResult } from "@fresnel/contracts/wire";
 import { t } from "@fresnel/client/i18n";
 import { toast } from "@caustic/react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useApprovalIds, useThreadIds, useThreadSummaries } from "../state/engine/index.ts";
+import {
+  useApprovalIds,
+  useThreadIds,
+  useThreadSummaries,
+  useThreadsStatus,
+} from "../state/engine/index.ts";
 import { useReviewTarget, useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { CommandOutputSheet } from "./command-output-sheet.tsx";
 import { useCommands, type CommandError } from "./commands.ts";
@@ -32,8 +37,7 @@ import { FileSaveContext } from "./file-save-context.ts";
 import { NoticeToasts } from "./notices.tsx";
 import { SafeModeProvider } from "./safe-mode-provider.tsx";
 import { ShellBridges } from "./shell-bridges.tsx";
-import { blankThreadIn, planNewThread } from "./new-thread-model.ts";
-import { pickWorkspaceFolder } from "./folder-pick.ts";
+import { useStartNewThread } from "./new-thread-flow.ts";
 import { ThreadList } from "./thread-list.tsx";
 import { installFileDropGuard } from "./file-drop-guard.ts";
 
@@ -93,6 +97,23 @@ export function App(props: AppProps): ReactNode {
   const threadIds = useThreadIds();
   const approvalIds = useApprovalIds();
   const runPluginCommand = usePluginCommandRunner();
+  const startThread = useStartNewThread(props.folderPick);
+  // 앱을 다시 켜면 마지막에 보던 대화를 연다. 목록이 다 온 뒤 한 번만 읽고, 없어졌으면 빈 무대로 둔다.
+  // 복원이 끝나기 전의 선택(처음의 null)은 저장하지 않는다
+  const threadsStatus = useThreadsStatus();
+  const lastThreadRestored = useRef(false);
+  useEffect(() => {
+    if (lastThreadRestored.current || threadsStatus !== "ready") return;
+    lastThreadRestored.current = true;
+    if (selected !== null) return;
+    const saved = commands.lastThreadId();
+    const found = saved === null ? undefined : threads.find((s) => s.threadId === saved);
+    if (found !== undefined) commands.selectThread(found.threadId);
+  }, [threadsStatus, selected, threads, commands]);
+  useEffect(() => {
+    if (!lastThreadRestored.current) return;
+    detach(commands.saveLastThread(selected), rethrow);
+  }, [selected, commands]);
   // 모델 키와 기본 모델이 끝나지 않았으면 첫 실행 화면(P-01)을 이 앱 실행에서 한 번 무대에 연다. 나중에 다른 화면에 가도 다시 열지 않는다
   const setupNeeded = useSetupNeeded();
   const firstRunOpened = useRef(false);
@@ -158,35 +179,12 @@ export function App(props: AppProps): ReactNode {
         return assertNever(run, "PaletteRun");
     }
   };
-  /** 새 대화(⌘N, 팔레트, 빈 무대 단추): 보던 작업 폴더로 열고, 보낸 것 없는 빈 대화가 있으면 그리로 가고, 폴더를 모르면 폴더 고르기를 연다. 열리면 입력창에 초점 */
+  /** 새 대화(⌘N, 팔레트, 트레이): 사이드바 단추와 같은 길이다(`new-thread-flow.ts`) */
   const startNewThread = async (): Promise<void> => {
-    const plan = planNewThread(threads, selected);
-    showChat();
-    const goTo = (threadId: ThreadSummary["threadId"]): void => {
-      commands.selectThread(threadId);
-      commands.requestComposer(null);
-    };
-    if (plan.kind === "open") return goTo(plan.threadId);
-    let workspace: string | undefined;
-    if (plan.kind === "create") workspace = plan.workspace;
-    else if (props.folderPick !== undefined) {
-      const picked = await pickWorkspaceFolder(props.folderPick);
-      if (!picked.ok) {
-        toast({ tone: "danger", title: t("desktop.workspace.pickFailed") });
-        return;
-      }
-      if (picked.value === undefined) return;
-      workspace = picked.value;
-    }
-    // 고른 폴더(폴더 선택 창이 없는 환경이면 폴더 없음)에 빈 새 대화가 이미 있으면 새로 만들지 않는다
-    const blank = blankThreadIn(threads, workspace ?? null);
-    if (blank !== null) return goTo(blank);
-    const created = await commands.createThread(workspace);
-    if (!created.ok) {
-      notifyActionFailed();
-      return;
-    }
-    commands.requestComposer(null);
+    const result = await startThread();
+    if (result.kind === "pickFailed")
+      toast({ tone: "danger", title: t("desktop.workspace.pickFailed") });
+    else if (result.kind === "failed") notifyActionFailed();
   };
   const runCommand = (id: PaletteCommandId): void => {
     // 실행 횟수는 팔레트 밖의 바로 가기로 실행한 것도 센다. 저장하지 못하면 이번 실행만 세지 않는다

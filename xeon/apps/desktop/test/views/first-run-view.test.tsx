@@ -301,6 +301,42 @@ describe("first-run screen server render", () => {
     expect(page).not.toContain("fresnel config");
   });
 
+  test("a technical detail such as an exit code stays behind the details button, after the sentence that says what to do", () => {
+    const page = html(
+      propsOf({
+        open: "key",
+        keyEntry: {
+          state: "failed",
+          text: t("client.settings.key.rejected"),
+          detail: "종료 코드 3",
+        },
+      }),
+    );
+    expect(page).toContain("키를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+    expect(page).toContain(t("desktop.firstRun.key.details"));
+    expect(page).not.toContain("종료 코드");
+  });
+
+  test("a start button that is off says why in one visible line, key first and then the default model", () => {
+    const noKey = html(propsOf());
+    expect(noKey).toContain(t("desktop.firstRun.chat.blockedKey"));
+    expect(noKey).not.toContain(t("desktop.firstRun.chat.blockedModel"));
+    const keyed: SetupSnapshot = {
+      ...SETUP,
+      providers: [
+        { id: "anthropic", enabled: true, apiKeyRef: "secret://anthropic-api-key", baseUrl: null },
+      ],
+      secrets: [{ name: "anthropic-api-key", registered: true }],
+    };
+    const noModel = html(propsOf({ setup: keyed, model: modelOf(keyed, GROUPS) }));
+    expect(noModel).toContain(t("desktop.firstRun.chat.blockedModel"));
+    expect(noModel).not.toContain(t("desktop.firstRun.chat.blockedKey"));
+    const ready: SetupSnapshot = { ...keyed, defaultModel: "anthropic/claude-haiku-5-5" };
+    const done = html(propsOf({ setup: ready, model: modelOf(ready, GROUPS) }));
+    expect(done).not.toContain(t("desktop.firstRun.chat.blockedKey"));
+    expect(done).not.toContain(t("desktop.firstRun.chat.blockedModel"));
+  });
+
   test("the default model step lists the host catalog and has no free text box", () => {
     const keyed: SetupSnapshot = {
       ...SETUP,

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { err, ok, parse } from "@fresnel/contracts";
 import { SecretNameSchema } from "@fresnel/contracts/capabilities";
 import {
+  keyErrorDetail,
   keyErrorText,
   submitKey,
   type KeyField,
@@ -106,8 +107,9 @@ describe("submitKey", () => {
     expect(outcome).toEqual({
       kind: "failed",
       // 사이드카의 원문은 보이지 않는다
-      text: "키를 저장하지 못했어요 (종료 코드 1).",
+      text: "키를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
       keystore: false,
+      detail: "종료 코드 1",
     });
     expect(input.shown()).toBe("");
     expect(wiped(seen.bytes)).toBe(true);
@@ -152,7 +154,10 @@ describe("keyErrorText", () => {
     const texts = kinds.map(keyErrorText);
     expect(new Set(texts).size).toBe(kinds.length);
     expect(keyErrorText({ kind: "rejected", exitCode: 3, detail: "" })).toBe(
-      "키를 저장하지 못했어요 (종료 코드 3).",
+      "키를 저장하지 못했어요. 잠시 뒤 다시 시도해 주세요.",
     );
+    expect(keyErrorDetail({ kind: "rejected", exitCode: 3, detail: "" })).toBe("종료 코드 3");
+    expect(keyErrorDetail({ kind: "rejected", exitCode: null, detail: "" })).toBeNull();
+    expect(keyErrorDetail({ kind: "failed" })).toBeNull();
   });
 });
