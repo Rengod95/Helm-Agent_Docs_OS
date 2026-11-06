@@ -3,9 +3,11 @@ import {
   approvalAgeOf,
   approvalExpiryOf,
   approvalKeyOf,
+  cardTitleViewOf,
   feedbackTextOf,
   FEEDBACK_MAX,
   foldPlanLines,
+  modeLabelIdOf,
   PLAN_FOLD_LINES,
   reviewTotalsOf,
   threadLinkVisibleOf,
@@ -151,5 +153,43 @@ describe("thread link in the card head", () => {
     expect(threadLinkVisibleOf({ threadId: T1, within: null, openable: false })).toBe(false);
     expect(threadLinkVisibleOf({ threadId: T1, within: T2, openable: false })).toBe(false);
     expect(threadLinkVisibleOf({ threadId: T1, within: T1, openable: false })).toBe(false);
+  });
+});
+
+const toolBody = (toolName: string): ApprovalRequestedPayload["body"] => ({
+  kind: "tool",
+  tool: { toolName, risk: "write", args: {}, argsHash: "h", ruleId: null },
+});
+
+describe("card title", () => {
+  test("the engine's English tool title becomes a Korean title with the tool name", () => {
+    expect(
+      cardTitleViewOf(requestWith({ title: 'Allow tool "edit"?', body: toolBody("edit") })),
+    ).toEqual({ id: "desktop.approvals.title.tool", params: { tool: "edit" } });
+  });
+
+  test("the plan title is translated and any other title stays as written", () => {
+    expect(
+      cardTitleViewOf(
+        requestWith({
+          title: "Review the plan",
+          body: { kind: "plan", plan: { plan: "1. x", planRef: null, nextModes: ["default"] } },
+        }),
+      ),
+    ).toEqual({ id: "desktop.approvals.title.plan" });
+    expect(
+      cardTitleViewOf(requestWith({ title: "edit 쓰기 허용", body: toolBody("edit") })),
+    ).toBeNull();
+    expect(
+      cardTitleViewOf(requestWith({ title: 'Allow tool "bash"?', body: toolBody("edit") })),
+    ).toBeNull();
+  });
+});
+
+describe("plan mode label", () => {
+  test("known modes map to catalog keys and an unknown mode keeps its raw value", () => {
+    expect(modeLabelIdOf("default")).toBe("desktop.approvals.plan.mode.default");
+    expect(modeLabelIdOf("acceptEdits")).toBe("desktop.approvals.plan.mode.acceptEdits");
+    expect(modeLabelIdOf("custom-mode")).toBeNull();
   });
 });

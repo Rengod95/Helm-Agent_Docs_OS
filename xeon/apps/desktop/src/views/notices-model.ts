@@ -1,4 +1,5 @@
 import type { MessageId } from "@fresnel/client/i18n";
+import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
 
@@ -23,6 +24,50 @@ const KIND_TEXT: Readonly<Record<NoticeKind, MessageId>> = {
 
 export function noticeKindId(kind: NoticeKind): MessageId {
   return KIND_TEXT[kind];
+}
+
+/**
+ * 알림 제목을 앱 말투로 바꿀 카탈로그 키. 알림 원문은 엔진이 반말로 만들어 OS 알림과 CLI도 쓰므로 원문은 두고
+ * 이 앱의 토스트와 목록에서만 바꾼다. 종류와 출처 이벤트로 고르고 원문 문장은 비교하지 않는다. 못 고르면 null이라 원문 그대로다
+ */
+export type NoticeTitleView = {
+  readonly id: MessageId;
+  readonly params?: { readonly tool: string };
+};
+
+/** 승인 알림 원문은 "<말>: <도구 이름>"이다. 콜론 뒤를 도구 이름으로 읽고, 말 자체는 보지 않는다 */
+const TOOL_SEPARATOR = ": ";
+
+export function noticeTitleViewOf(notice: Notice): NoticeTitleView | null {
+  switch (notice.kind) {
+    case "completed":
+      return { id: "desktop.notices.title.completed" };
+    case "question_waiting":
+      return { id: "desktop.notices.title.question" };
+    case "approval_waiting": {
+      const at = notice.title.indexOf(TOOL_SEPARATOR);
+      if (at < 0) return null;
+      const tool = notice.title.slice(at + TOOL_SEPARATOR.length);
+      return tool === "plan"
+        ? { id: "desktop.notices.title.approvalPlan" }
+        : { id: "desktop.notices.title.approvalTool", params: { tool } };
+    }
+    case "background_completed":
+      return notice.sourceType === "schedule.run_finished"
+        ? { id: "desktop.notices.title.scheduleCompleted" }
+        : { id: "desktop.notices.title.backgroundCompleted" };
+    case "error":
+      if (notice.sourceType === "turn.completed") return { id: "desktop.notices.title.turnFailed" };
+      if (notice.sourceType === "agent.settled") {
+        return { id: "desktop.notices.title.backgroundFailed" };
+      }
+      if (notice.sourceType === "schedule.run_finished") {
+        return { id: "desktop.notices.title.scheduleFailed" };
+      }
+      return null;
+    default:
+      return assertNever(notice.kind, "noticeTitleViewOf");
+  }
 }
 
 /** 같은 seq는 한 번만 둔다(목록 읽기와 전달 알림이 겹칠 수 있다). 새것이 위로 오고 상한을 넘으면 오래된 것을 버린다 */

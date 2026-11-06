@@ -82,6 +82,8 @@ export type StreamingItem = {
   readonly turnId: TurnId | null;
   readonly kind: ItemKind;
   readonly toolName: string | null;
+  /** 도구 실행 item이면 그 호출 id. 확정된 호출 행이 화면에 있으면 진행 행은 그리지 않는다 */
+  readonly toolCallId: string | null;
   readonly parts: readonly StreamingPart[];
 };
 

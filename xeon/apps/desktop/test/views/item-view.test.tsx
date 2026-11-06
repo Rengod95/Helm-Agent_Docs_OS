@@ -111,6 +111,39 @@ describe("user and assistant text", () => {
   });
 });
 
+function callingAssistant(n: number, callId: string): ItemRecord {
+  const base = assistantItem(n, "");
+  if (base.kind !== "assistant") throw new Error("assistantItem builds an assistant item");
+  return {
+    ...base,
+    message: {
+      ...base.message,
+      content: [{ type: "toolCall", id: callId, name: "read", arguments: { path: "a.ts" } }],
+      stopReason: "toolUse",
+    },
+  };
+}
+
+describe("one row per tool call while it runs", () => {
+  test("the running execution item draws nothing once the recorded call row is on screen", () => {
+    const h = openedHarness();
+    ingestRecords(h, [callingAssistant(1, "call-8")]);
+    h.store.ingest({
+      type: "chunk",
+      fact: {
+        type: "item.started",
+        n: 1,
+        threadId: thr(1),
+        turnId: null,
+        payload: { itemId: itm(8), kind: "toolCall", toolCallId: "call-8", toolName: "read" },
+      },
+    });
+    h.store.flush();
+    expect(render(<StreamingRow id={itm(8)} />, h)).toBe("");
+    expect(visibleText(render(<RecordedItem id={itm(1)} />, h))).toContain("read");
+  });
+});
+
 describe("tool results", () => {
   test("a successful result is collapsed by default and its output is not drawn", () => {
     const h = openedHarness();

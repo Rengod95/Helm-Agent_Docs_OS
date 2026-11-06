@@ -5,7 +5,7 @@ import { detach, rethrow } from "@fresnel/contracts";
 import { useState, type ReactNode } from "react";
 import { useOpenThread, useQueuedInputs } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
-import { resumeBandOf } from "./resume-band-model.ts";
+import { resumeBandClosed, resumeBandOf } from "./resume-band-model.ts";
 
 // 트랜스크립트 끝의 "이어서 실행" 띠(시안 d01-chat-gaps ResumeBand, 스펙 SC-12).
 // 강제 종료 뒤에는 이어서 실행 / 그대로 두기, 중단 뒤 대기 입력이 남았으면 보내기를 준다.
@@ -23,13 +23,27 @@ export function ResumeBand(): ReactNode {
   const thread = useOpenThread();
   const commands = useCommands();
   const [busy, setBusy] = useState(false);
+  // 이어서 실행이 시작된 turn. 실행이 시작되면 같은 복구 표식의 띠는 닫는다(표식은 turn이 끝나야 지워진다)
+  const [resumedTurn, setResumedTurn] = useState<string | null>(null);
   const queued = useQueuedInputs(thread?.threadId ?? null);
   const view = resumeBandOf(thread, queued.length);
   if (thread === undefined || view === null) return null;
   const { threadId } = thread;
+  if (resumeBandClosed(view, resumedTurn)) return null;
   const run = (action: Promise<{ readonly ok: boolean }>): void => {
     setBusy(true);
     detach(settle(action, setBusy), rethrow);
+  };
+  // 이어서 실행이 실제로 시작되면(status "resumed") 이 표식의 띠를 닫는다
+  const resume = (): void => {
+    run(
+      commands.resumeTurn(threadId).then((result) => {
+        if (result.ok && result.value.status === "resumed" && view.kind === "crashed") {
+          setResumedTurn(view.turnId);
+        }
+        return result;
+      }),
+    );
   };
   if (view.kind === "held") {
     return (
@@ -72,14 +86,7 @@ export function ResumeBand(): ReactNode {
           >
             {t("desktop.resumeBand.leave.button")}
           </Button>
-          <Button
-            size="xs"
-            variant="solid"
-            loading={busy}
-            onClick={() => {
-              run(commands.resumeTurn(threadId));
-            }}
-          >
+          <Button size="xs" variant="solid" loading={busy} onClick={resume}>
             {t("desktop.resumeBand.resume.button")}
           </Button>
         </span>
