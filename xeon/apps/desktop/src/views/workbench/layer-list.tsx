@@ -30,13 +30,18 @@ export function LayerList(props: {
         const byName = new Map(group.rows.map((row) => [row.name, row] as const));
         return (
           <section key={group.layer} aria-label={group.layer} className="grid gap-1">
-            <h3 className="flex items-baseline gap-2 px-2 text-ui-strong text-text-primary">
-              <span className="font-mono">{group.layer}</span>
-              <span className="text-ui-sm font-normal text-text-tertiary">
+            <div className="flex items-baseline gap-2 px-2 pb-1">
+              <h3 className="m-0 font-mono text-ui-sm font-semibold text-text-primary">
+                {group.layer}
+              </h3>
+              <span className="text-ui-xs text-text-tertiary tabular-nums">
                 {t("desktop.workbench.layers.count", { on: group.on, total: group.total })}
               </span>
-            </h3>
+            </div>
             <Table
+              variant="ghost"
+              size="xs"
+              dividers={false}
               columns={columns}
               rows={group.rows.map((row) => ({ id: row.name }))}
               selectionMode="single"

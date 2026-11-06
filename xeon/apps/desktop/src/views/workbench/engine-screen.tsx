@@ -30,7 +30,6 @@ export function EngineScreen(): ReactNode {
       <div className="flex gap-2">
         <Button
           size="sm"
-
           variant="outline"
           onClick={() => {
             commands.reconnect();
@@ -40,7 +39,6 @@ export function EngineScreen(): ReactNode {
         </Button>
         <Button
           size="sm"
-
           variant="outline"
           onClick={() => {
             detach(commands.restartEngine(), rethrow);
@@ -50,7 +48,6 @@ export function EngineScreen(): ReactNode {
         </Button>
         <Button
           size="sm"
-
           variant="outline"
           onClick={() => {
             detach(

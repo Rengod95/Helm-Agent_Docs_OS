@@ -61,6 +61,7 @@ export function SearchField(): ReactNode {
   return (
     <Input
       size="sm"
+      variant="soft"
       type="search"
       value={query}
       placeholder={t("desktop.workbench.search")}
@@ -82,10 +83,10 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
   }
   if (list === "loading" || list === "idle") {
     return (
-      <div role="status" aria-label={t("desktop.workbench.loading")} className="grid gap-2 p-4">
-        <Skeleton height={20} />
-        <Skeleton height={20} />
-        <Skeleton height={20} />
+      <div role="status" aria-label={t("desktop.workbench.loading")} className="grid gap-3 p-4">
+        <Skeleton className="h-5" style={{ width: "80%" }} />
+        <Skeleton className="h-5" style={{ width: "64%" }} />
+        <Skeleton className="h-5" style={{ width: "72%" }} />
       </div>
     );
   }
@@ -96,6 +97,7 @@ export function ListStatusBand(props: { readonly controller: WorkbenchController
         actions={[
           {
             label: t("desktop.workbench.error.retry"),
+            primary: true,
             onClick: () => {
               detachVoid(props.controller.reload());
             },
@@ -137,7 +139,7 @@ function KeepOffAlert(props: {
             })}
       </p>
       <p className="text-ui-strong">{t("desktop.workbench.keepOff.question")}</p>
-      <div className="mt-1 flex flex-wrap gap-2">
+      <div className="mt-1 flex flex-wrap gap-1">
         <Button
           size="xs"
           variant="outline"
@@ -262,7 +264,11 @@ export function AutoOffNotice(props: {
       <Alert
         tone="danger"
         size={props.compact === true ? "sm" : undefined}
-        actions={[{ label: t("desktop.workbench.reenable"), onClick: props.onKeepOn }]}
+        action={
+          <Button size="xs" variant="outline" onClick={props.onKeepOn}>
+            {t("desktop.workbench.reenable")}
+          </Button>
+        }
       >
         {t("desktop.workbench.autoDisabled", { name: entry.displayName })}
       </Alert>

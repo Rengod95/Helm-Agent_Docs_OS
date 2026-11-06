@@ -11,7 +11,7 @@ import {
 } from "@fresnel/client/workbench";
 import { assertNever } from "@fresnel/contracts";
 import type { MeasureTurnResult } from "@fresnel/contracts/wire";
-import { Badge } from "@caustic/react";
+import { Button } from "@caustic/react";
 import { useState, type ReactNode } from "react";
 import { MUTED, TabBody } from "../workbench/tab-body.tsx";
 import {
@@ -63,10 +63,11 @@ function PluginRows(props: {
         const active = props.focus === share.owner;
         return (
           <li key={share.owner}>
-            <button
-              type="button"
+            <Button
+              size="sm"
+              variant={active ? "soft" : "ghost"}
               aria-pressed={active}
-              className={`flex w-full flex-wrap items-center gap-3 rounded-sm px-2 py-1 text-start ${active ? "bg-neutral-soft" : "bg-transparent"}`}
+              className="w-full flex-wrap justify-start gap-3 text-start"
               onClick={() => props.onFocus(active ? null : share.owner)}
             >
               <span className="font-mono text-text-primary">{share.owner}</span>
@@ -78,7 +79,7 @@ function PluginRows(props: {
                   cache: share.cacheEvents,
                 })}
               </span>
-            </button>
+            </Button>
           </li>
         );
       })}
@@ -109,7 +110,7 @@ function HookRows(props: {
               </span>
               <span className="font-mono text-text-primary">{hook.hook}</span>
               <span className="font-mono text-text-secondary">{hook.registrationId}</span>
-              <Badge size="sm">{outcomeText(hook.outcome)}</Badge>
+              <span className="text-text-secondary">{outcomeText(hook.outcome)}</span>
               <span className="ms-auto font-mono text-text-primary">
                 {t("desktop.measure.ms", { ms: hook.ms })}
               </span>

@@ -2,7 +2,7 @@
 import { t } from "@fresnel/client/i18n";
 import { rowOf, type WorkbenchState } from "@fresnel/client/workbench";
 import type { ExtListEntry } from "@fresnel/contracts/wire";
-import { Badge, Button, StatusDot } from "@caustic/react";
+import { Button, StatusDot } from "@caustic/react";
 import type { ReactNode } from "react";
 import { AutoOffNotice } from "./craft-parts.tsx";
 import {
@@ -30,7 +30,7 @@ export function SelectionPanel(props: {
   return (
     <aside
       aria-label={t("desktop.workbench.selection.label")}
-      className="grid w-80 shrink-0 content-start gap-3 p-4"
+      className="grid min-h-0 w-80 shrink-0 content-start gap-3 overflow-y-auto p-4"
     >
       <div className="flex items-center gap-2">
         <ExtName row={row} />
@@ -38,10 +38,12 @@ export function SelectionPanel(props: {
           {t("desktop.workbench.selection.close")}
         </Button>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-text-tertiary">{row.layer}</span>
-        <Badge size="sm">{kindText(row.kind)}</Badge>
-        <Badge size="sm">{row.grade}</Badge>
+      {/* 시안의 머리 줄처럼 층 mono, 종류·등급 글, 상태 점을 한 줄에 둔다. 종류와 등급은 칩이 아니라 글이다 */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-ui-dense">
+        <span className="font-mono text-mono-sm text-text-tertiary">{row.layer}</span>
+        <span className="text-text-secondary">
+          {kindText(row.kind)} · {row.grade}
+        </span>
         <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />
       </div>
       <div className="flex items-center gap-3">

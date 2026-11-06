@@ -2,11 +2,18 @@
 import { t } from "@fresnel/client/i18n";
 import type { TabRead } from "@fresnel/client/workbench";
 import type { WireResult } from "@fresnel/contracts/wire";
+import { Table, type TableColumn } from "@caustic/react";
 import type { ReactNode } from "react";
 import { InfoTip } from "../craft/info-tip.tsx";
 import { MUTED, TabBody } from "../workbench/tab-body.tsx";
 
 export type PromotionReport = WireResult<"group.promotion">;
+type Candidate = PromotionReport["candidates"][number];
+
+/** 후보 하나의 행 id. 소유자와 도구 이름의 쌍이다 */
+function keyOf(candidate: Candidate): string {
+  return `${candidate.owner}:${candidate.tool}`;
+}
 
 /** 보고 본문. 서버 렌더 시험이 읽기 상태 없이 직접 그린다 */
 export function PromotionBody(props: { readonly report: PromotionReport }): ReactNode {
@@ -14,6 +21,15 @@ export function PromotionBody(props: { readonly report: PromotionReport }): Reac
   if (report.candidates.length === 0) {
     return <p className={MUTED}>{t("desktop.measure.promotion.empty")}</p>;
   }
+  const columns: TableColumn[] = [
+    { key: "tool", header: t("desktop.measure.promotion.col.tool") },
+    { key: "owner", header: t("desktop.measure.promotion.col.owner") },
+    { key: "consumers", header: t("desktop.measure.promotion.col.consumers") },
+    { key: "userCalls", header: t("desktop.measure.promotion.col.userCalls"), align: "end" },
+  ];
+  const byKey = new Map(
+    report.candidates.map((candidate) => [keyOf(candidate), candidate] as const),
+  );
   return (
     <div className="grid gap-1.5">
       <p className={MUTED}>
@@ -22,36 +38,32 @@ export function PromotionBody(props: { readonly report: PromotionReport }): Reac
           seq: report.throughSeq,
         })}
       </p>
-      <table className="w-full border-collapse text-ui-sm">
-        <thead>
-          <tr className="text-start text-text-tertiary">
-            <th scope="col" className="text-start font-medium">
-              {t("desktop.measure.promotion.col.tool")}
-            </th>
-            <th scope="col" className="text-start font-medium">
-              {t("desktop.measure.promotion.col.owner")}
-            </th>
-            <th scope="col" className="text-start font-medium">
-              {t("desktop.measure.promotion.col.consumers")}
-            </th>
-            <th scope="col" className="text-end font-medium">
-              {t("desktop.measure.promotion.col.userCalls")}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {report.candidates.map((candidate) => (
-            <tr key={`${candidate.owner}:${candidate.tool}`}>
-              <th scope="row" className="text-start font-mono font-normal text-text-primary">
-                {candidate.tool}
-              </th>
-              <td className="font-mono">{candidate.owner}</td>
-              <td className="font-mono text-text-tertiary">{candidate.consumers.join(", ")}</td>
-              <td className="text-end font-mono">{candidate.userCalls}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <Table
+        variant="ghost"
+        size="xs"
+        dividers={false}
+        columns={columns}
+        rows={report.candidates.map((candidate) => ({ id: keyOf(candidate) }))}
+        renderCell={(picked, column) => {
+          const candidate = byKey.get(picked.id);
+          if (candidate === undefined) return null;
+          if (column.key === "tool") {
+            return <span className="font-mono text-text-primary">{candidate.tool}</span>;
+          }
+          if (column.key === "owner") {
+            return <span className="font-mono">{candidate.owner}</span>;
+          }
+          if (column.key === "consumers") {
+            return (
+              <span className="font-mono text-text-tertiary">{candidate.consumers.join(", ")}</span>
+            );
+          }
+          if (column.key === "userCalls") {
+            return <span className="font-mono">{candidate.userCalls}</span>;
+          }
+          return null;
+        }}
+      />
     </div>
   );
 }
