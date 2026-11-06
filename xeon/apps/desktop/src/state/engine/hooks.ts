@@ -36,7 +36,7 @@ function useEngineStore(): ReadonlyStore<EngineMirror> {
 
 /** 모듈 안에서만 쓴다. 화면은 아래 도메인 훅만 쓴다 */
 function useEngine<U>(selector: (state: EngineMirror) => U): U {
-  return useStore(useEngineStore(), selector);
+  return useStore(useEngineStore(), useShallow(selector));
 }
 
 export const useThreadIds = (): readonly ThreadId[] => useEngine(sel.selectThreadIds);

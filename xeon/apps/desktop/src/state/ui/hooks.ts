@@ -3,6 +3,7 @@ import { Bug } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import type { ReadonlyStore } from "../shared/readonly-store.ts";
 import type {
   ApprovalSend,
@@ -27,7 +28,7 @@ function useUiStore(): ReadonlyStore<UiState> {
 
 /** 모듈 안에서만 쓴다. 화면은 아래 도메인 훅만 쓴다 */
 function useUi<U>(selector: (state: UiState) => U): U {
-  return useStore(useUiStore(), selector);
+  return useStore(useUiStore(), useShallow(selector));
 }
 
 export const useSelectedThreadId = (): ThreadId | null => useUi((s) => s.selectedThreadId);
