@@ -315,7 +315,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | E4 | 종료할 때는 신호 전에 stdin으로 `host.shutdown` 요청을 쓰고 stdin을 닫는다. 앱 종료 요청(`before-quit`)에서 `preventDefault()`로 종료를 미루고, 엔진 프로세스가 끝나거나 `l4.desktop.engine.shutdownGraceMs`가 지나면 다음 단계로 넘어간다(§4.3). 옛 Tauri 구현(커밋 424f338a)은 `RunEvent::ExitRequested`에서 `prevent_exit()`를 불렀다 | adr.0008 §3.3 제안 3, arch-2 §3.3, §5 1행 | [제안]. `host.shutdown`은 F 변경 요청(§10 미결 2) |
 | E5 | 엔진은 stdin EOF를 읽으면 안전 경계에서 체크포인트하고 종료한다(stdin EOF 프로세스 락). 앱이 어떻게 끝나든 OS가 파이프 쓰기 끝을 닫으므로 앱 SIGKILL에서도 엔진이 스스로 끝난다 | adr.0008 §3.3 [결정], adr.0006 §3.7 6번 | 엔진 쪽 구현은 `L4.host-service.spec` |
 | E6 | 엔진의 cwd와 엔진에 넘기는 모든 경로를 절대 경로로 둔다. cwd는 사용자 홈 디렉터리의 절대 경로다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
-| E7 | 엔진 환경에서 `BUN_OPTIONS`를 지운다. PATH에는 없는 도구 디렉터리만 뒤에 붙인다(아래 항목). 그 밖의 환경은 상속한다 | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
+| E7 | 엔진 환경에서 `BUN_OPTIONS`를 지운다. PATH에는 없는 도구 디렉터리만 뒤에 붙인다(아래 항목). 그 밖의 환경은 상속한다. 로컬 엔진과 한 번 돌리는 명령(`secret`, `db restore`)에는 `FRESNEL_REMOTE_TOKEN`도 지운다. 원격 대상(`host --stdio --remote <주소>`)에만 그대로 넘긴다 [결정: 2026-11-06 사용자] | adr.0008 §3.3 제안 4, arch-2 §4.2 | [제안] |
 | E8 | 대화 DB는 바이너리에 임베드하지 않는다. DB 위치는 엔진이 `L0.os.spec`의 사용자 데이터 디렉터리에서 정하고, 셸은 DB 경로를 넘기지 않는다. 그래야 CLI와 데스크톱이 같은 DB를 연다 | adr.0008 §3.3 제안 5, `_research/stack-status.md §7-C` 임베디드 SQLite 행 | [제안] |
 | E9 | 엔진의 손자 프로세스는 엔진과 같은 프로세스 그룹에 남아야 한다. 엔진 쪽 실행 코드가 손자를 새 그룹이나 새 "세션"으로 떼어 내면 E3의 그룹 종료가 그 손자에 미치지 않는다. 떼어 낸 손자는 엔진이 EOF·shutdown 처리 때 직접 정리한다 | arch-2 §3.2 그룹 범위 행 | [제안]. `L0.process.spec`에 요구 |
 | E10 | stdout은 JSON Lines 전용이다. 엔진 로그는 stderr로 쓰고, 셸은 stderr를 줄 단위로 앱 로그 파일에 남긴다. stderr 줄 길이는 8 KiB에서 자른다 | `F.wire-settings.spec` §3.1 프레이밍 | [제안] |

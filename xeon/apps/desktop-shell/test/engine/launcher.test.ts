@@ -9,6 +9,7 @@ import {
   pipedLauncher,
   planCommand,
   type PlanInputs,
+  type PlanMode,
 } from "../../src/main/engine/launcher.ts";
 import { createRelay } from "../../src/main/engine/relay.ts";
 import {
@@ -84,6 +85,23 @@ describe("command plan (engine.rs launch and run_once)", () => {
       "--remote",
       "tcp://host:1234",
     ]);
+  });
+
+  test("the remote token goes only to a remote engine", () => {
+    const base = {
+      PATH: "/usr/bin:/bin",
+      FRESNEL_REMOTE_TOKEN: "tok-123",
+      FRESNEL_DESKTOP_ENGINE_BIN: OVERRIDE_BIN,
+      FRESNEL_DESKTOP_ENGINE_ARGS: "host --stdio",
+    };
+    const plan = (mode: PlanMode) => {
+      const planned = planCommand(inputs({ env: base }), mode);
+      return planned.ok ? planned.value.env["FRESNEL_REMOTE_TOKEN"] : "plan failed";
+    };
+    const remoteTarget = { kind: "remote", address: "tcp://host:1234" } as const;
+    expect(plan({ kind: "engine", flags: engineFlags({ kind: "local" }, "on") })).toBeUndefined();
+    expect(plan({ kind: "once", args: ["db", "restore", "/b"] })).toBeUndefined();
+    expect(plan({ kind: "engine", flags: engineFlags(remoteTarget, "on") })).toBe("tok-123");
   });
 
   test("a once run uses the dev override only through its host --stdio prefix", () => {

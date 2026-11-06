@@ -46,6 +46,9 @@ import { withTimeout, type Timed } from "./wait.ts";
 /** spawnPiped가 끝난 뒤 표준 출력이 닫히기를 기다리는 시간(ms) */
 const DRAIN_MS = 1_000;
 
+/** 원격 접속 토큰 환경 변수. 값은 apps/host `launch-mode.ts`의 `REMOTE_TOKEN_ENV`와 같다 */
+const REMOTE_TOKEN_ENV = "FRESNEL_REMOTE_TOKEN";
+
 /** 엔진 이벤트 하나. 감독자의 펌프와 `db restore`의 수집이 같은 모양을 쓴다 */
 export type EngineEvent =
   | { readonly kind: "stdout"; readonly bytes: Uint8Array }
@@ -120,6 +123,8 @@ export function planCommand(
 ): Result<PlannedCommand, LaunchFailure> {
   if (!path.isAbsolute(inputs.home)) return err({ message: "home directory is not absolute" });
   const env = engineEnv(inputs.env, inputs.home, inputs.platform);
+  // 원격 대상(`--remote <주소>`)만 접속 토큰을 받는다. 로컬 엔진과 한 번 돌리는 명령에는 넘기지 않는다
+  if (!(mode.kind === "engine" && mode.flags.includes("--remote"))) delete env[REMOTE_TOKEN_ENV];
   const lookup = resolveSidecar(inputs);
   const override = devOverrideOf(inputs.env);
   if (override !== null && !lookup.bundled) {
