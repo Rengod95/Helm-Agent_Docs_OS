@@ -7,6 +7,7 @@ import { assertNever } from "@fresnel/contracts";
 import { Button, StatusDot, Switch, Tooltip } from "@caustic/react";
 import type { ReactNode } from "react";
 import { removableOf } from "./remove-model.ts";
+import { originText } from "./trust-dialog.tsx";
 
 type DotTone = "neutral" | "success" | "warning" | "danger" | "info";
 
@@ -90,13 +91,22 @@ export function ExtSwitch(props: {
 }
 
 /** 확장 표의 열(§6.23). 칸 내용은 이 이름으로 고른다 */
-export type ExtColumn = "name" | "layer" | "kind" | "grade" | "state" | "version" | "switch";
+export type ExtColumn =
+  | "name"
+  | "layer"
+  | "kind"
+  | "grade"
+  | "origin"
+  | "state"
+  | "version"
+  | "switch";
 
 const EXT_COLUMNS: readonly ExtColumn[] = [
   "name",
   "layer",
   "kind",
   "grade",
+  "origin",
   "state",
   "version",
   "switch",
@@ -123,6 +133,8 @@ export function ExtCell(props: {
       return <span className="text-text-tertiary">{kindText(row.kind)}</span>;
     case "grade":
       return <span className="text-text-tertiary">{row.grade}</span>;
+    case "origin":
+      return <span className="text-text-tertiary">{originText(row.origin)}</span>;
     case "state":
       return <StatusDot tone={stateTone(row.state)} label={stateText(row.state)} />;
     case "version":

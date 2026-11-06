@@ -177,7 +177,7 @@ describe("캔버스의 선", () => {
     ]);
   });
 
-  test("같은 두 노드 사이 전이가 여럿이면 선도 여럿이고 모두 이름표 없이 같은 자리를 잇는다", () => {
+  test("같은 두 노드 사이 전이가 여럿이어도 선은 하나다(겹치면 키가 겹치고 선이 굵어진다)", () => {
     const draft: FlowDraft = {
       initial: "idle",
       nodes: [
@@ -190,11 +190,7 @@ describe("캔버스의 선", () => {
         { from: "diverge", to: "idle", event: "failed" },
       ],
     };
-    expect(canvasEdgesOf(draft)).toEqual([
-      { from: "diverge:out", to: "idle:in" },
-      { from: "diverge:out", to: "idle:in" },
-      { from: "diverge:out", to: "idle:in" },
-    ]);
+    expect(canvasEdgesOf(draft)).toEqual([{ from: "diverge:out", to: "idle:in" }]);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { CompositionDecl } from "@fresnel/contracts/extensions";
+import type { CompositionDecl, PhasesDecl } from "@fresnel/contracts/extensions";
 import type { Profile, WireManifestIssue } from "@fresnel/contracts/wire";
 import {
   blockRowsOf,
@@ -376,10 +376,30 @@ describe("캔버스 자리와 개요", () => {
   test("개요: 노드 다음에 나가는 전이가 들여 쓰인다", () => {
     expect(outlineOf(FLOW).map((row) => [row.id, row.depth, row.label, row.target])).toEqual([
       ["node:a", 0, "시작", null],
-      ["edge:a>b", 1, "ask", "b"],
+      ["edge:a>b#0", 1, "ask", "b"],
       ["node:b", 0, "b", null],
-      ["edge:b>c", 1, "c", "c"],
+      ["edge:b>c#0", 1, "c", "c"],
       ["node:c", 0, "c", null],
+    ]);
+  });
+
+  test("개요: 같은 두 노드 사이 전이가 여럿이어도 줄 id는 겹치지 않는다", () => {
+    const draft: PhasesDecl = {
+      initial: "a",
+      nodes: [
+        { id: "a", kind: "phase" },
+        { id: "b", kind: "phase" },
+      ],
+      transitions: [
+        { from: "b", to: "a", event: "x" },
+        { from: "b", to: "a", event: "y" },
+      ],
+    };
+    expect(outlineOf(draft).map((row) => row.id)).toEqual([
+      "node:a",
+      "node:b",
+      "edge:b>a#0",
+      "edge:b>a#1",
     ]);
   });
 

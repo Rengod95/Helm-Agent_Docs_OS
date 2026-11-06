@@ -15,6 +15,9 @@ import {
   hookNoticesOf,
   keepOffOf,
   layerGroups,
+  listLayersOf,
+  setListLayer,
+  setListState,
   listLoaded,
   markPending,
   openDetail,
@@ -121,11 +124,22 @@ describe("workbench model", () => {
 
   test("층 묶음은 L1, L2, L3, 그 밖 순서이고 켜짐 수를 센다", () => {
     expect(layerGroups(base).map((g) => [g.layer, g.total, g.on])).toEqual([
-      ["L1", 1, 1],
-      ["L2", 1, 1],
       ["L3", 2, 1],
+      ["L2", 1, 1],
       ["external", 1, 1],
+      ["L1", 1, 1],
     ]);
+  });
+
+  test("층·켜짐 거르기는 층 묶음에만 걸리고 층 고르기 값은 목록의 층 순서다", () => {
+    expect(listLayersOf(base)).toEqual(["L3", "L2", "external", "L1"]);
+    const l3 = setListLayer(base, "L3");
+    expect(layerGroups(l3).map((g) => [g.layer, g.rows.map((r) => r.name).toSorted()])).toEqual([
+      ["L3", ["helm", "review"]],
+    ]);
+    const off = setListState(l3, "off");
+    expect(layerGroups(off).flatMap((g) => g.rows.map((r) => r.name))).toEqual(["review"]);
+    expect(visibleRows(off)).toHaveLength(5);
   });
 
   test("행 모델: 종류, 표시 이름, 상태, 잠금", () => {

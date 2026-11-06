@@ -79,10 +79,13 @@ function headingsOf(html: string): string[][] {
 }
 
 describe("확장 화면: 층별 목록과 찾기", () => {
-  test("층 묶음은 L1, L2, L3 순서이고 층마다 켜짐 수를 보인다", () => {
+  test("층 묶음은 사람 말 이름으로 오케스트레이션, 기능, 에이전트 코어 순서이고 층마다 켜짐 수를 보인다", () => {
     const html = render();
-    expect(sectionLayers(html)).toEqual(["L1", "L2", "L3"]);
-    expect(html.indexOf(`aria-label="L1"`)).toBeLessThan(html.indexOf(`aria-label="L2"`));
+    expect(sectionLayers(html)).toEqual([
+      t("term.layerOrchestration"),
+      t("term.layerCapabilities"),
+      t("term.layerAgentCore"),
+    ]);
     expect(html).toContain(t("desktop.workbench.layers.count", { on: 1, total: 1 }));
   });
 
@@ -105,11 +108,12 @@ describe("확장 화면: 층별 목록과 찾기", () => {
 });
 
 describe("확장 화면: 층 표(caustic Table, §6.23)", () => {
-  test("층마다 표가 하나이고 열은 이름, 상태, 켜짐이다", () => {
+  test("층마다 표가 하나이고 열은 이름, 신뢰 수준, 상태, 켜짐이다", () => {
     const html = render();
     expect(html.match(/data-slot="table"(?=[ >])/g)).toHaveLength(3);
     const columns = [
       t("desktop.workbench.col.name"),
+      t("desktop.workbench.col.trust"),
       t("desktop.workbench.col.state"),
       t("desktop.workbench.col.switch"),
     ];
@@ -118,7 +122,12 @@ describe("확장 화면: 층 표(caustic Table, §6.23)", () => {
 
   test("행은 칸마다 이름, 상태, 켜짐 스위치를 보인다", () => {
     const web = rowsOf(render()).find((row) => row.cells[0]?.includes("웹 검색"));
-    expect(web?.cells).toEqual(["웹 검색", t("desktop.workbench.state.on"), ""]);
+    expect(web?.cells).toEqual([
+      "웹 검색",
+      t("desktop.workbench.origin.user"),
+      t("desktop.workbench.state.on"),
+      "",
+    ]);
   });
 
   test("행의 켜짐 칸에는 스위치가 있고 이름표는 표시 이름이다", () => {

@@ -1,7 +1,7 @@
 // 구성기 화면의 글 고르기. 모델의 값을 메시지 키로 바꾼다(글은 카탈로그에만 있다).
 import type { MessageId } from "@fresnel/client/i18n";
 import type { ProfileChoice, ProfileDraftProblem, ProductText } from "@fresnel/client/workbench";
-import type { CompositionOp, PhaseNodeKind } from "@fresnel/contracts/extensions";
+import type { PhaseNodeKind } from "@fresnel/contracts/extensions";
 import { assertNever } from "@fresnel/contracts";
 import { WIRE_ERRORS } from "@fresnel/contracts/wire";
 import type { CommandError } from "../commands.ts";
@@ -15,14 +15,6 @@ export const VIEW_TEXT: Readonly<Record<ComposeViewId, MessageId>> = {
   flow: "desktop.compose.view.flow",
   profile: "desktop.compose.view.profile",
   code: "desktop.compose.view.code",
-};
-
-export const OP_TEXT: Readonly<Record<CompositionOp, MessageId>> = {
-  on: "desktop.compose.op.on",
-  post: "desktop.compose.op.post",
-  drive: "desktop.compose.op.drive",
-  record: "desktop.compose.op.record",
-  register: "desktop.compose.op.register",
 };
 
 export const PRODUCT_TEXT: Readonly<Record<ProductText, MessageId>> = {

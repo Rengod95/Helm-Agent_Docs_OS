@@ -2340,6 +2340,8 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 ### 6.23 P-13 확장 목록(LightCraft로 옮김)
 
+구현 줄(dfB4): 확장 목록은 찾기 옆에 층·켜짐 Select(`listLayer`, `listState`)를 두고, 층 묶음 머리는 사람 말(오케스트레이션·기능·플러그인·에이전트 코어) 순서로 위에서 아래로(L3, L2, external, L1) 그리며, 표 열은 이름·신뢰 수준(`origin`)·상태·켜짐이다. 찾기 칸 글은 "찾기"다. 자세히 보기를 열면 목록 머리는 숨기고, 상세 머리는 "끄기/켜기" 단추 하나와 "…" 메뉴(지우기)다(시안 c02, 되돌리기 단추는 기능이 없어 두지 않는다). 개요 범위 칸의 "그룹"은 "플러그인 그룹"이다.
+
 기존 §6.17 P-13 "플러그인과 그룹"을 LightCraft "확장"으로 옮기고 넓힙니다. 설정 P-09의 "플러그인과 그룹" 탭은 스키마 필드(X10)를 그대로 두고, 탭 머리에 "LightCraft에서 관리" 링크를 둡니다 [제안].
 
 [결정: 2026-11-03 사용자] 크래프트 8차 시안에는 확장 목록 표 화면이 없습니다. 이 화면의 기능은 지도의 층 패널(고리를 누르면 그 층의 플러그인, 카드의 켜기·끄기 단추, 순서)과 선택 패널의 켜짐 스위치 하나, 도구 막대의 "구성 요소" 필터와 찾기로 옮겨집니다(§6.22.0). 아래 표 화면은 같은 데이터(`ext.list`)의 목록 모양으로 남기고, 따로 화면을 둘지는 구현 때 정합니다 [제안]. 켜기·끄기는 전역뿐입니다: 범위 고르기(사용자·작업 폴더·이 대화만)는 크래프트에서 빼고 사용자 범위(`user`) 값만 씁니다 [제안]. 이 대화만 끄기는 대화 영역 런타임 탭(§4.9.8)이 합니다. 그룹은 그룹 하나의 스위치로 끕니다(구성원 하나씩 끄기와 "하나씩 끄고 테스트"는 없음, 15-1). 아래 wire 표의 "범위 고르기"와 `scope: "launch"` 행은 대화 영역 쪽 동작으로 읽습니다.
@@ -2756,7 +2758,7 @@ caustic: `Dialog`(`kind="alert"`, `DialogHeader`, `DialogBody`, `DialogFooter`, 
 
 #### 6.28.8 구현 범위(2026-11-04 h5comp)
 
-- 구현: 보기 셋. 그룹 보기는 설치 그룹의 `composition` 블록 목록과 `ext.validateComposition` 검사 띠를 읽기 전용으로 그리고, 선언이 없으면 "구성 정보 없음" 한 블록이다(S1, S3, S9). 흐름 보기는 `composition.phases`를 단계 목록과 전이 줄로 그리고 선언이 없으면 "단계 선언이 없어요"다(S4 일부). 프로필 보기는 `profile.list`·`put`·`delete`·`preview`·`apply`로 확장마다 켜기·끄기·그대로를 편집한다(S7 일부, 실효 스택은 `profile.preview` 결과 요약).
+- 구현: 보기 셋. 그룹 보기는 설치 그룹의 `composition` 블록을 caustic NodeGraph 캔버스(왼쪽 블록 열, 오른쪽 "기록과 상태" 열, 고른 블록의 선만)로, `ext.validateComposition` 검사 띠를 읽기 전용으로 그리고(제공자 열은 선언에 제공자가 없어 두지 않는다), 선언이 없으면 "구성 정보 없음" 한 블록이다(S1, S3, S9). 흐름 보기는 `composition.phases`를 단계 목록과 전이 줄로 그리고 선언이 없으면 "단계 선언이 없어요"다(S4 일부). 프로필 보기는 `profile.list`·`put`·`delete`·`preview`·`apply`로 확장마다 켜기·끄기·그대로를 편집한다(S7 일부, 실효 스택은 `profile.preview` 결과 요약).
 - 흐름 보기는 caustic `NodeGraph` 캔버스로 그린다. 설치 그룹은 읽기 전용이고, "초안으로 고치기"로 복사한 초안만 고친다. 선은 포트를 끌지 않고 속성의 "다음 단계"에서 잇는다. 좁은 폭(본문 720 이하)의 개요 편집기는 caustic `LayerTree`로 그린 보기 전용 목록이라 끌어 옮기지 않는다.
 - 구현 범위 추가(2026-11-04 comp2): 순수 모델 `workbench/compose.ts`가 새 그룹 초안(이름 규칙 `^[a-z][a-z0-9-]{1,31}$`, 시작점 = `ext.kinds` 종류, `stable`·`preview`만 고름, 대상 폴더 = 사용자가 고른 부모 + 이름, `ext.scaffold` 입력), 흐름 초안 편집(노드 더하기·지우기, 시작 지정, 전이 잇기·끊기, 제목·`askTitle`), 캔버스 자리(시작 노드에서의 깊이 = 행, 위에서 아래로. 같은 깊이는 한 줄에 나란히 가운데로 모은다. 시안 wb-compose S4. 2026-11-07 dsgn10)와 개요 줄(`LayerTree`), Test run 지금 단계 강조, 프로필 `driver` 편집, 코어 확장 잠금(`tier: "core"` 또는 `origin: "builtin"`)을 계산한다. 예약 이름 23개는 호스트(`ext.scaffold`)가 `invalid_input`으로 거절하고 화면이 그 문장을 보인다. 아래 줄의 "아직 없음" 가운데 화면에 닿은 것은 각 화면 커밋이 이 줄을 고친다.
 - 명령(2026-11-04 comp2): `workbench.kinds`·`scaffold`·`validateDir`·`packDir`는 `ext.kinds`·`ext.scaffold`·`ext.validate`·`ext.package`를 그대로 부른다(wire는 W-27·W-28·W-49로 이미 있다). `tests.createTestRun(profileId?)`는 `thread.create { testRun: true, profileId? }`를 보낸다. 호스트 처리기(`handlers/thread.ts`)가 `profileId`를 이미 받으므로 wire 변경은 없다. `ext.test.run`·`ext.test.list`는 호스트 처리기가 채웠다(HS-112, `apps/host/src/handlers/m4/devkit.ts`) [결정: 2026-11-04 사용자 지시에 따른 기본값] [근거: apps/host/src/handlers/m4/devkit.ts].

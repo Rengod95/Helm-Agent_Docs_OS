@@ -1,7 +1,7 @@
 // 확장 목록(`extensions`, P-13): 같은 `ext.list` 데이터의 목록 모양. 층별 묶음, 찾기, 행마다 켜기·끄기(전역). 범위 고르기는 없다.
 // 고른 확장은 옆의 선택 패널이 보이고, "자세히 보기"가 열려 있으면 목록 대신 P-17 상세(버전 탭과 되돌리기 포함)를 그린다.
 import { t } from "@fresnel/client/i18n";
-import { selectedEntry, visibleRows } from "@fresnel/client/workbench";
+import { layerGroups, selectedEntry } from "@fresnel/client/workbench";
 import { Alert, Button, EmptyState } from "@caustic/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
@@ -9,6 +9,7 @@ import { useCommands } from "../commands.ts";
 import { usePluginUiState } from "../plugin/plugin-context.tsx";
 import {
   firstNoticeOf,
+  ListFilters,
   ListStatusBand,
   noticeTotalOf,
   SearchField,
@@ -45,8 +46,9 @@ export function ExtensionsScreen(): ReactNode {
   const actions = useWorkbenchActions();
   const state = useWorkbench((s) => s);
   const ready = state.list === "ready";
-  const empty = visibleRows(state).length === 0;
-  const searching = state.query.trim() !== "";
+  const empty = layerGroups(state).length === 0;
+  const searching =
+    state.query.trim() !== "" || state.listLayer !== "all" || state.listState !== "all";
   // 자세히 보기가 열렸을 때만 그 확장이 상세가 된다. 선택 패널은 고른 확장을 본다
   const entry = selectedEntry(state);
   const detailEntry = state.detail === null ? null : entry;
@@ -56,18 +58,20 @@ export function ExtensionsScreen(): ReactNode {
   const firstNotice = firstNoticeOf(state.entries);
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-240 flex-1 flex-col gap-3 px-3 pt-6 pb-4">
-      <header className="flex items-start justify-between gap-2 pe-8">
-        <h1 className="m-0 text-text-primary">{t("desktop.workbench.list.title")}</h1>
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={() => {
-            setInstalling(true);
-          }}
-        >
-          {t("desktop.install.open")}
-        </Button>
-      </header>
+      {detailEntry === null && (
+        <header className="flex items-start justify-between gap-2 pe-8">
+          <h1 className="m-0 text-text-primary">{t("desktop.workbench.list.title")}</h1>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => {
+              setInstalling(true);
+            }}
+          >
+            {t("desktop.install.open")}
+          </Button>
+        </header>
+      )}
       {installing && (
         <InstallDialog
           open
@@ -80,7 +84,12 @@ export function ExtensionsScreen(): ReactNode {
         />
       )}
       {detailEntry === null && <BindingsPanel />}
-      {detailEntry === null && <SearchField />}
+      {detailEntry === null && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <SearchField />
+          <ListFilters />
+        </div>
+      )}
       <ListStatusBand controller={controller} />
       {noticeTotal > 0 && (
         <Alert

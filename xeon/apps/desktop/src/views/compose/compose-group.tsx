@@ -7,14 +7,12 @@ import {
   compositionOf,
   flowDraftOf,
   issuesByBlockOf,
-  type BlockRow,
   type FlowDraft,
   type TabLink,
   type TabRead,
 } from "@fresnel/client/workbench";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { CompositionDecl } from "@fresnel/contracts/extensions";
-import type { WireManifestIssue } from "@fresnel/contracts/wire";
 import { Alert, Button, EmptyState, Skeleton } from "@caustic/react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useCommands } from "../commands.ts";
@@ -22,7 +20,7 @@ import { InfoTip } from "../craft/info-tip.tsx";
 import { useTabRead } from "../workbench/tab-read.ts";
 import { CheckBanner, type CheckRead } from "./compose-check.tsx";
 import { FlowWorkspace } from "./compose-flow.tsx";
-import { OP_TEXT, PRODUCT_TEXT } from "./compose-text.ts";
+import { GroupCanvas } from "./compose-group-canvas.tsx";
 
 const MUTED = "m-0 text-ui-sm text-text-tertiary";
 
@@ -95,64 +93,6 @@ export function ReadGate<T>(props: {
   }
 }
 
-/**
- * 블록 한 장(시안의 블록 노드). 제목 줄에 연산과 단계를 흐린 글로 붙이고, 훅 이름은 그 아래 mono 글 한 줄이다.
- * 설명은 정보 아이콘 뒤에 둔다(DP-58). 읽기·만들기 자리는 왼쪽과 오른쪽 두 열의 글 줄이다. 칩과 배지는 쓰지 않는다.
- */
-function BlockCard(props: {
-  readonly row: BlockRow;
-  readonly issues: readonly WireManifestIssue[];
-}): ReactNode {
-  const { row, issues } = props;
-  const invalid = issues.some((issue) => issue.severity === "error");
-  return (
-    <li
-      className={`grid gap-1.5 rounded-lg border px-3 py-2.5 ${invalid ? "border-danger-border" : "border-border-subtle"}`}
-    >
-      <div className="flex min-w-0 flex-wrap items-baseline gap-2.5">
-        <h3 className="m-0 text-title-3 text-text-primary">{row.title}</h3>
-        <span className="text-ui-sm text-text-tertiary">{t(OP_TEXT[row.op])}</span>
-        <span className="font-mono text-footnote text-text-tertiary">{row.stage}</span>
-        {row.summary === null ? null : <InfoTip text={row.summary} />}
-      </div>
-      {row.hooks.length === 0 ? null : (
-        <p className="m-0 break-words font-mono text-footnote text-text-tertiary">
-          {row.hooks.join(", ")}
-        </p>
-      )}
-      <div className="grid grid-cols-2 gap-x-3">
-        <div className="grid min-w-0 content-start gap-0.5">
-          {row.consumes.map((id) => (
-            <span key={`use:${id}`} className="truncate text-footnote text-text-secondary">
-              {t("desktop.compose.block.consumes", { id })}
-            </span>
-          ))}
-        </div>
-        <div className="grid min-w-0 content-start gap-0.5">
-          {row.produces.map((product) => (
-            <span
-              key={`out:${product.kind}:${product.recordKind ?? ""}`}
-              className="truncate text-footnote text-text-secondary"
-            >
-              {t(PRODUCT_TEXT[product.kind])}
-              {product.recordKind === null ? "" : ` ${product.recordKind}`}
-            </span>
-          ))}
-        </div>
-      </div>
-      {issues.map((issue) => (
-        <p
-          key={`${issue.code}:${issue.path}`}
-          role="alert"
-          className="m-0 text-ui-sm text-text-secondary"
-        >
-          <span className="font-mono">{issue.code}</span> {issue.message}
-        </p>
-      ))}
-    </li>
-  );
-}
-
 export function NoComposition(): ReactNode {
   return (
     <EmptyState
@@ -165,7 +105,7 @@ export function NoComposition(): ReactNode {
   );
 }
 
-/** 블록 목록과 검사 띠. 검사 값은 호출자가 읽어 준다 */
+/** 블록 캔버스와 검사 띠. 검사 값은 호출자가 읽어 준다 */
 export function GroupBlocks(props: {
   readonly composition: CompositionDecl;
   readonly check: CheckRead;
@@ -175,11 +115,7 @@ export function GroupBlocks(props: {
   return (
     <>
       <CheckBanner check={props.check} />
-      <ul aria-label={t("desktop.compose.blocks")} className="m-0 grid list-none gap-3 p-0">
-        {blockRowsOf(props.composition).map((row) => (
-          <BlockCard key={row.id} row={row} issues={byBlock.get(row.id) ?? []} />
-        ))}
-      </ul>
+      <GroupCanvas rows={blockRowsOf(props.composition)} issuesByBlock={byBlock} />
     </>
   );
 }

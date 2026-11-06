@@ -9,6 +9,7 @@ import {
   NoComposition,
   ReadGate,
 } from "../../../src/views/compose/compose-group.tsx";
+import { groupEdgesOf, outputGroupsOf } from "../../../src/views/compose/compose-group-canvas.tsx";
 import { fakeCommands } from "../fake-commands.ts";
 
 // 구성기 그림의 서버 렌더. 글과 상태 가르기만 본다(읽기와 클릭은 DOM이 없어 시험하지 않는다).
@@ -31,13 +32,13 @@ const COMPOSITION: CompositionDecl = {
 const NOOP = (): void => {};
 
 describe("GroupBlocks", () => {
-  test("블록마다 제목, 연산, 훅 이름을 그린다", () => {
+  test("블록마다 제목을 노드로 그리고 선언에 없는 연산·훅 글은 그리지 않는다", () => {
     const html = renderToString(
       <GroupBlocks composition={COMPOSITION} check={{ kind: "done", issues: [] }} />,
     );
     expect(html).toContain("신호 감지");
-    expect(html).toContain("tool.call.before");
-    expect(html).toContain(">drive<");
+    expect(html).toContain("drive");
+    expect(html).not.toContain("tool.call.before");
     expect(html).not.toContain('role="alert"');
   });
 
@@ -130,5 +131,46 @@ describe("ReadGate", () => {
     const stale = gate({ kind: "ready", value: "본문", stale: true });
     expect(stale).toContain("마지막으로 읽은 값이에요.");
     expect(stale).toContain("본문");
+  });
+});
+
+describe("그룹 캔버스 모델", () => {
+  const rows = [
+    {
+      id: "a",
+      title: "A",
+      stage: "s",
+      op: "on" as const,
+      summary: null,
+      hooks: [],
+      consumes: ["cap.x"],
+      produces: [
+        { kind: "record" as const, recordKind: "note" },
+        { kind: "state" as const, recordKind: null },
+      ],
+    },
+    {
+      id: "b",
+      title: "B",
+      stage: "s",
+      op: "post" as const,
+      summary: null,
+      hooks: [],
+      consumes: [],
+      produces: [{ kind: "record" as const, recordKind: "note" }],
+    },
+  ];
+  test("오른쪽 열은 같은 기록 종류를 한 포트로 모으고 기록, 입력 큐, 상태 문서 순이다", () => {
+    expect(outputGroupsOf(rows).map((g) => [g.kind, g.ports.map((p) => p.key)])).toEqual([
+      ["record", ["record:note"]],
+      ["state", ["state:"]],
+    ]);
+  });
+  test("선은 고른 블록의 것만 그린다", () => {
+    expect(groupEdgesOf(rows, null)).toEqual([]);
+    expect(groupEdgesOf(rows, "a")).toEqual([
+      { from: "a:out:record:note", to: "out:record:note" },
+      { from: "a:out:state:", to: "out:state:" },
+    ]);
   });
 });
