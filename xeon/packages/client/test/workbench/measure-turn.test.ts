@@ -100,6 +100,9 @@ describe("turnViewOf", () => {
         hookChars: 0,
         tokens: 70,
         tokensEstimated: false,
+        callTokens: 0,
+        callUsd: 0,
+        callCount: 0,
       },
       {
         owner: "helm",
@@ -111,6 +114,9 @@ describe("turnViewOf", () => {
         hookChars: 0,
         tokens: 30,
         tokensEstimated: false,
+        callTokens: 0,
+        callUsd: 0,
+        callCount: 0,
       },
     ]);
     expect(view.bars).toEqual([
@@ -261,7 +267,38 @@ describe("turnViewOf", () => {
         totalTokens: 0,
         cacheRead: 0,
         usd: 0,
+        scope: "",
       },
+    ]);
+  });
+
+  test("model calls tagged with a group scope count toward that group's share", () => {
+    const state = turnViewOf({
+      enabled: true,
+      rows: [
+        {
+          at: 1,
+          kind: "call",
+          metrics: { totalTokens: 1000, usd: 0.25 },
+          tags: { role: "search", model: "m", scope: "helm" },
+        },
+        {
+          at: 2,
+          kind: "call",
+          metrics: { totalTokens: 500, usd: 0.05 },
+          tags: { role: "main", model: "m", scope: "helm" },
+        },
+        {
+          at: 3,
+          kind: "call",
+          metrics: { totalTokens: 70, usd: 0.01 },
+          tags: { role: "main", model: "m" },
+        },
+      ],
+    });
+    if (state.kind !== "ready") throw new Error("expected ready");
+    expect(state.view.plugins.map((p) => [p.owner, p.callTokens, p.callUsd, p.callCount])).toEqual([
+      ["helm", 1500, 0.3, 2],
     ]);
   });
 });

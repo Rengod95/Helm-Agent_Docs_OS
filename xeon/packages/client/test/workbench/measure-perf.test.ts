@@ -111,6 +111,8 @@ describe("perfViewOf", () => {
         problems: 1,
         cacheEvents: 0,
         costUsd: null,
+        callTokens: 0,
+        callCount: 0,
         worstTurnId: "t2",
       },
       {
@@ -124,6 +126,8 @@ describe("perfViewOf", () => {
         problems: 0,
         cacheEvents: 0,
         costUsd: null,
+        callTokens: 0,
+        callCount: 0,
         worstTurnId: "t2",
       },
     ]);

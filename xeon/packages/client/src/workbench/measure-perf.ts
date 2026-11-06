@@ -124,8 +124,11 @@ export interface BurdenRowVM {
   readonly msPerTurn: number;
   readonly problems: number;
   readonly cacheEvents: number;
-  /** 플러그인별 비용은 wire에 없다 */
+  /** 이 플러그인(그룹)에 귀속된 모델 호출의 비용 합. 귀속된 호출이 없으면 null */
   readonly costUsd: number | null;
+  /** 귀속된 모델 호출의 토큰 합과 호출 수 */
+  readonly callTokens: number;
+  readonly callCount: number;
   /** 이 플러그인이 훅 시간을 가장 많이 쓴 Turn. 눌러서 내려갈 곳 */
   readonly worstTurnId: string;
 }
@@ -252,6 +255,9 @@ export function perfViewOf(
       hookMs: number;
       problems: number;
       cacheEvents: number;
+      callTokens: number;
+      callUsd: number;
+      callCount: number;
       worstMs: number;
       worstTurnId: string;
     }
@@ -266,6 +272,9 @@ export function perfViewOf(
         hookMs: 0,
         problems: 0,
         cacheEvents: 0,
+        callTokens: 0,
+        callUsd: 0,
+        callCount: 0,
         worstMs: -1,
         worstTurnId: read.turnId,
       };
@@ -276,6 +285,9 @@ export function perfViewOf(
       row.hookMs += plugin.hookMs;
       row.problems += plugin.problems;
       row.cacheEvents += plugin.cacheEvents;
+      row.callTokens += plugin.callTokens;
+      row.callUsd += plugin.callUsd;
+      row.callCount += plugin.callCount;
       if (plugin.hookMs > row.worstMs) {
         row.worstMs = plugin.hookMs;
         row.worstTurnId = read.turnId;
@@ -294,7 +306,9 @@ export function perfViewOf(
       msPerTurn: Math.round(row.hookMs / row.turns),
       problems: row.problems,
       cacheEvents: row.cacheEvents,
-      costUsd: null,
+      costUsd: row.callCount === 0 ? null : row.callUsd,
+      callTokens: row.callTokens,
+      callCount: row.callCount,
       worstTurnId: row.worstTurnId,
     }))
     .toSorted(
