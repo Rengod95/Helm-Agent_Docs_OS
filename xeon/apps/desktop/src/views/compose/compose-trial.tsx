@@ -18,7 +18,6 @@ import { Alert, Button, Field, Select, SelectOption, Timeline, TimelineItem } fr
 import { useCallback, useState, type ReactNode } from "react";
 import { useCommands, type Commands, type TestCommands } from "../commands.ts";
 import { InfoTip } from "../craft/info-tip.tsx";
-import { Tag } from "../tests/test-detail.tsx";
 import { createTestRunThread, runControl } from "../tests/tests-actions.ts";
 import { noticeTextOf, testFailureOf } from "../tests/tests-text.ts";
 import { useTabRead } from "../workbench/tab-read.ts";
@@ -239,19 +238,24 @@ function LockLine(props: { readonly phase: TestRunPhaseResult }): ReactNode {
   );
 }
 
-/** 가드 칩: 막은 횟수(경고 색), 측정이 꺼져 있으면 흐린 글과 설명 아이콘, 측정이 켜졌고 0이면 아무것도 그리지 않는다 */
+/**
+ * 가드 글: 막은 횟수(경고 색, 시안의 "쓰기 거부" 구간 글과 같은 자리), 측정이 꺼져 있으면 흐린 글과 설명 아이콘,
+ * 측정이 켜졌고 0이면 아무것도 그리지 않는다
+ */
 function GuardChip(props: { readonly phase: TestRunPhaseResult }): ReactNode {
   const chip = guardChipOf(props.phase);
   switch (chip.kind) {
     case "hits":
       return (
-        <Tag tone="warning">{t("desktop.compose.trial.guard.hits", { count: chip.count })}</Tag>
+        <span className="text-footnote text-warning-text tabular-nums">
+          {t("desktop.compose.trial.guard.hits", { count: chip.count })}
+        </span>
       );
     case "none":
       return null;
     case "off":
       return (
-        <span className="inline-flex items-center gap-1 text-ui-sm text-text-tertiary">
+        <span className="inline-flex items-center gap-1 text-footnote text-text-tertiary">
           {t("desktop.compose.trial.guard.off")}
           <InfoTip text={t("desktop.compose.trial.guard.off.info")} />
         </span>
@@ -266,8 +270,8 @@ function BoundaryLog(props: { readonly boundaries: readonly TestRunBoundary[] })
   const rows = boundaryLogOf(props.boundaries);
   const label = t("desktop.compose.trial.boundary.label");
   return (
-    <section aria-label={label} className="grid gap-2">
-      <h3 className="m-0 text-ui-sm font-semibold text-text-secondary">
+    <section aria-label={label} className="grid gap-3">
+      <h3 className="m-0 text-title-3 text-text-primary">
         {t("desktop.compose.trial.boundary.heading")}
       </h3>
       {rows.length === 0 ? (
@@ -302,10 +306,7 @@ function RunRow(props: { readonly trial: TrialController; readonly run: TrialRun
   const pausing = run.mode === "pausing";
   const ready = run.phase.kind === "ready" ? run.phase.result : null;
   return (
-    <section
-      aria-label={t("desktop.compose.trial.run.label")}
-      className="grid gap-2 rounded-xl border border-border-subtle p-3"
-    >
+    <section aria-label={t("desktop.compose.trial.run.label")} className="grid gap-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-ui-sm">
         <span className="flex items-baseline gap-1.5">
           <span className="text-text-tertiary">{t("desktop.compose.trial.run.thread")}</span>
@@ -313,7 +314,7 @@ function RunRow(props: { readonly trial: TrialController; readonly run: TrialRun
             {shortIdOf(run.threadId)}
           </span>
         </span>
-        <span role="status" className="text-text-primary">
+        <span role="status" className="text-body text-text-primary">
           {t(MODE_TEXT[run.mode])}
         </span>
         <span className="flex items-baseline gap-1.5">
@@ -409,8 +410,8 @@ function StartRow(props: {
           </Select>
         </Field>
         <Button
-          size="sm"
-          variant="outline"
+          size="xs"
+          variant="solid"
           disabled={locked}
           onClick={() => trial.start(profileId ?? undefined)}
         >
@@ -424,7 +425,11 @@ function StartRow(props: {
           }
         />
       </div>
-      {draft ? <Alert tone="warning">{t("desktop.compose.trial.draftWarning")}</Alert> : null}
+      {draft ? (
+        <Alert tone="warning" variant="soft" size="sm">
+          {t("desktop.compose.trial.draftWarning")}
+        </Alert>
+      ) : null}
       {installed ? null : <p className={MUTED}>{t("desktop.compose.trial.notInstalled")}</p>}
       {read.kind === "error" ? (
         <p className={MUTED}>{t("desktop.compose.profile.loadFailed")}</p>
@@ -464,6 +469,8 @@ export function TrialBar(props: TrialBarProps): ReactNode {
         {trial.notice === null ? null : (
           <Alert
             tone="danger"
+            variant="soft"
+            size="sm"
             dismissible
             dismissLabel={t("desktop.compose.dismiss")}
             onDismiss={trial.dismiss}

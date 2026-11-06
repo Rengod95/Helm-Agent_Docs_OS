@@ -329,8 +329,8 @@ describe("드라이브 락 줄", () => {
   });
 });
 
-describe("가드 칩", () => {
-  test("막은 횟수가 있으면 N번 막았어요를 경고 칩으로 보인다", () => {
+describe("가드 글", () => {
+  test("막은 횟수가 있으면 N번 막았어요를 경고 색 글로 보인다", () => {
     const html = render(
       trialOf({
         run: runOf({
@@ -341,7 +341,7 @@ describe("가드 칩", () => {
     expect(html).toContain("3번 막았어요");
   });
 
-  test("측정이 켜져 있고 0이면 칩이 없다", () => {
+  test("측정이 켜져 있고 0이면 가드 글이 없다", () => {
     const html = render(trialOf({ run: runOf() }));
     expect(html).not.toContain("막았어요");
     expect(html).not.toContain("측정이 꺼져 있어요");

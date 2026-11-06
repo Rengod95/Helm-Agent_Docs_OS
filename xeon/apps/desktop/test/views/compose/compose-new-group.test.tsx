@@ -42,6 +42,12 @@ function buttonWith(html: string, text: string): string {
   return piece === undefined ? "" : `<button${piece}`;
 }
 
+/** 글을 품은 시작점 칸 하나의 HTML. 칸은 단추가 아니라 role="radio"인 div라서 따로 찾는다 */
+function radioWith(html: string, text: string): string {
+  const piece = html.split('role="radio"').find((part) => part.includes(text));
+  return piece === undefined ? "" : `<div role="radio"${piece}`;
+}
+
 const POINTS = startPointsOf([
   kindOf("single-plugin", "stable", "플러그인 하나"),
   kindOf("plugin-group", "blocked", "플러그인 그룹"),
@@ -52,7 +58,7 @@ describe("StartGrid", () => {
     const html = renderToString(
       <StartGrid points={POINTS} selected="single-plugin" onPick={NOOP} />,
     );
-    const blocked = buttonWith(html, "플러그인 그룹");
+    const blocked = radioWith(html, "플러그인 그룹");
     expect(blocked).toContain('aria-disabled="true"');
     expect(blocked).toContain('tabindex="-1"');
     expect(blocked).toContain("지금 막혀 있어요");
@@ -63,7 +69,7 @@ describe("StartGrid", () => {
     const html = renderToString(
       <StartGrid points={POINTS} selected="single-plugin" onPick={NOOP} />,
     );
-    const chosen = buttonWith(html, "플러그인 하나");
+    const chosen = radioWith(html, "플러그인 하나");
     expect(chosen).toContain('aria-checked="true"');
     expect(chosen).toContain('aria-disabled="false"');
     expect(chosen).toContain('tabindex="0"');
@@ -78,7 +84,7 @@ describe("StartGrid", () => {
         onPick={NOOP}
       />,
     );
-    const preview = buttonWith(html, "플러그인 그룹");
+    const preview = radioWith(html, "플러그인 그룹");
     expect(preview).toContain("미리 보기");
     expect(preview).toContain('aria-disabled="false"');
   });

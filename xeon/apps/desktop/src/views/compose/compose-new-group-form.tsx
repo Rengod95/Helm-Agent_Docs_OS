@@ -43,13 +43,14 @@ export function PlaceFields(props: {
   const { draft } = props;
   const nameError = newGroupNameErrorOf(draft.name);
   return (
-    <div className="grid gap-3 compact:grid-cols-2">
+    <div className="grid gap-4 compact:grid-cols-2">
       <Field
         label={t("desktop.compose.newGroup.name.label")}
         error={nameError === null ? undefined : t("desktop.compose.newGroup.name.pattern")}
       >
         <Input
           size="sm"
+          variant="soft"
           value={draft.name}
           placeholder="lens-review"
           onValueChange={props.onName}
@@ -60,6 +61,7 @@ export function PlaceFields(props: {
           <div className="flex items-center gap-2">
             <Input
               size="sm"
+              variant="soft"
               className="min-w-0 flex-1"
               value={draft.parentDir}
               placeholder={t("desktop.compose.newGroup.parent.placeholder")}
@@ -79,10 +81,18 @@ export function PlaceFields(props: {
         ) : null}
       </div>
       <Field label={t("desktop.compose.newGroup.target.label")}>
-        <Input size="sm" readOnly className="font-mono" value={targetDirOf(draft)} />
+        <Input size="sm" variant="soft" readOnly className="font-mono" value={targetDirOf(draft)} />
       </Field>
     </div>
   );
+}
+
+/** 시작점 칸의 면: 고른 칸은 눌린 면, 고를 수 있는 칸은 바탕과 가리킴 면, 막힌 칸은 바탕에 금지 커서 */
+function cellSurfaceOf(on: boolean, selectable: boolean): string {
+  if (on) return "bg-neutral-soft";
+  return selectable
+    ? "bg-surface-base cursor-pointer hover:bg-neutral-hover"
+    : "bg-surface-base cursor-not-allowed";
 }
 
 function StatusNote(props: { readonly status: StartPoint["status"] }): ReactNode {
@@ -96,6 +106,7 @@ export function StartGrid(props: {
   readonly selected: ExtensionKind | null;
   readonly onPick: (id: ExtensionKind) => void;
 }): ReactNode {
+  // 칸은 시안의 선 격자 칸(LineGridCell)처럼 div에 role="radio"를 단다. 단추 요소가 아니라서 Enter와 Space를 직접 받는다
   return (
     <div
       role="radiogroup"
@@ -104,26 +115,32 @@ export function StartGrid(props: {
     >
       {props.points.map((point) => {
         const on = point.id === props.selected;
+        const pick = (): void => {
+          if (point.selectable) props.onPick(point.id);
+        };
         return (
-          <button
+          <div
             key={point.id}
-            type="button"
             role="radio"
             aria-checked={on}
             aria-disabled={!point.selectable}
             tabIndex={point.selectable ? 0 : -1}
-            onClick={() => {
-              if (point.selectable) props.onPick(point.id);
+            onClick={pick}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                pick();
+              }
             }}
-            className={`grid min-h-20 content-start gap-1 p-3 text-start outline-none focus-visible:shadow-focus ${on ? "bg-neutral-soft" : "bg-surface-base"} ${point.selectable ? "cursor-pointer hover:bg-neutral-soft" : "cursor-not-allowed"}`}
+            className={`grid min-h-24 content-start gap-1 px-4 py-3 text-start outline-none focus-visible:focus-ring ${cellSurfaceOf(on, point.selectable)}`}
           >
             <span
-              className={`text-ui-strong ${point.selectable ? "text-text-primary" : "text-text-tertiary"}`}
+              className={`text-title-3 ${point.selectable ? "text-text-primary" : "text-text-tertiary"}`}
             >
               {point.title}
             </span>
             <StatusNote status={point.status} />
-          </button>
+          </div>
         );
       })}
     </div>
@@ -154,6 +171,8 @@ export function StartPicker(props: {
       return (
         <Alert
           tone="danger"
+          variant="soft"
+          size="sm"
           action={
             <Button size="xs" variant="outline" onClick={props.onRetry}>
               {t("desktop.compose.retry")}
@@ -171,6 +190,7 @@ export function StartPicker(props: {
             <EmptyState
               size="sm"
               surface="none"
+              mark={null}
               title={t("desktop.compose.newGroup.start.empty.title")}
               description={t("desktop.compose.newGroup.start.empty.body")}
             />

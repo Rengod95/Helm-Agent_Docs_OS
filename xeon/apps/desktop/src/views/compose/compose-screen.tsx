@@ -5,13 +5,11 @@ import type { FlowDraft } from "@fresnel/client/workbench";
 import { detach, rethrow } from "@fresnel/contracts";
 import {
   Button,
-  Field,
   SegmentedControl,
   SegmentedControlItem,
   Select,
   SelectOption,
 } from "@caustic/react";
-import { Plus } from "@caustic/react/icons";
 import { useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench } from "../../state/workbench/index.ts";
@@ -62,7 +60,7 @@ export function ComposeScreen(): ReactNode {
         </h1>
         <SegmentedControl
           aria-label={t("desktop.compose.view.label")}
-          size="sm"
+          size="xs"
           // 새 그룹을 여는 동안에는 보기 하나도 고른 것으로 보이지 않는다
           value={creating ? "" : view}
           onValueChange={(value) => {
@@ -90,22 +88,26 @@ export function ComposeScreen(): ReactNode {
         />
       ) : (
         <>
-          <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {view === "profile" || group === null ? null : (
-              <Field label={t("desktop.compose.pickGroup")}>
-                <Select value={group.name} onValueChange={setPicked}>
-                  {groups.map((entry) => (
-                    <SelectOption key={entry.name} value={entry.name}>
-                      {entry.displayName}
-                    </SelectOption>
-                  ))}
-                </Select>
-              </Field>
+              // 시안처럼 고르기 칸에 보이는 이름은 두지 않는다. 이름은 aria-label로만 붙는다
+              <Select
+                size="xs"
+                aria-label={t("desktop.compose.pickGroup")}
+                className="w-36"
+                value={group.name}
+                onValueChange={setPicked}
+              >
+                {groups.map((entry) => (
+                  <SelectOption key={entry.name} value={entry.name}>
+                    {entry.displayName}
+                  </SelectOption>
+                ))}
+              </Select>
             )}
             <Button
-              size="sm"
+              size="xs"
               variant="outline"
-              iconStart={<Plus />}
               onClick={() => {
                 openNew(null);
               }}

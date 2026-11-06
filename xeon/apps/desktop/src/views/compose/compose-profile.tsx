@@ -23,7 +23,6 @@ import { detach, rethrow } from "@fresnel/contracts";
 import type { ExtListEntry, Profile, ProfilePreviewResult } from "@fresnel/contracts/wire";
 import {
   Alert,
-  Badge,
   Button,
   Dialog,
   DialogAction,
@@ -37,7 +36,6 @@ import {
   SelectOption,
   Skeleton,
 } from "@caustic/react";
-import { Lock, Plus } from "@caustic/react/icons";
 import { useCallback, useState, type ReactNode } from "react";
 import { useOpenThreadId } from "../../state/engine/index.ts";
 import { useCommands } from "../commands.ts";
@@ -73,11 +71,10 @@ export function ChoiceRow(props: {
 }): ReactNode {
   const { entry } = props;
   return (
-    <li className="flex flex-wrap items-center justify-between gap-2 py-1.5">
-      <span className="text-ui-sm text-text-primary">{entry.displayName}</span>
+    <li className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+      <span className="min-w-0 truncate text-body text-text-primary">{entry.displayName}</span>
       {props.locked ? (
-        <span className="flex items-center gap-1 text-ui-sm text-text-tertiary">
-          <Lock aria-hidden className="size-icon-xs flex-none" />
+        <span className="flex items-center gap-1 text-footnote text-text-tertiary">
           {t("desktop.compose.profile.locked")}
           <InfoTip text={t("desktop.compose.profile.locked.info")} />
         </span>
@@ -133,7 +130,7 @@ export function DriverField(props: {
 }
 
 /**
- * "새 Test run으로": 저장된 프로필로 새 시험 대화를 만든다. 저장하지 않은 바꿈이 있으면 누를 수 없고, 그 까닭을 보인다.
+ * "새 Test run으로": 저장된 프로필로 새 시험 대화를 만든다. 저장하지 않은 바꿈이 있으면 누를 수 없고, 그 까닭은 정보 아이콘에 보인다.
  */
 export function TestRunButton(props: {
   readonly online: boolean;
@@ -150,8 +147,13 @@ export function TestRunButton(props: {
       <Button size="sm" variant="outline" disabled={disabled} onClick={props.onRun}>
         {t("desktop.compose.profile.testRun")}
       </Button>
-      <InfoTip text={t("desktop.compose.profile.testRun.info")} />
-      {unsaved ? <p className={MUTED}>{t("desktop.compose.profile.testRun.unsaved")}</p> : null}
+      <InfoTip
+        text={
+          unsaved
+            ? t("desktop.compose.profile.testRun.unsaved")
+            : t("desktop.compose.profile.testRun.info")
+        }
+      />
     </>
   );
 }
@@ -163,7 +165,7 @@ function PreviewBlock(props: { readonly preview: ProfilePreviewResult }): ReactN
       aria-label={t("desktop.compose.profile.preview.title")}
       className="grid gap-1 rounded-lg border border-border-subtle p-3"
     >
-      <h3 className="m-0 text-ui-sm font-semibold text-text-primary">
+      <h3 className="m-0 text-title-3 text-text-primary">
         {t("desktop.compose.profile.preview.title")}
       </h3>
       <p className={MUTED}>
@@ -324,6 +326,8 @@ export function ProfilePanel(props: {
     return (
       <Alert
         tone="danger"
+        variant="soft"
+        size="sm"
         action={
           <Button size="xs" variant="outline" onClick={reload}>
             {t("desktop.compose.retry")}
@@ -340,6 +344,8 @@ export function ProfilePanel(props: {
       {notice === null ? null : (
         <Alert
           tone={notice.tone}
+          variant="soft"
+          size="sm"
           dismissible
           dismissLabel={t("desktop.compose.dismiss")}
           onDismiss={() => setNotice(null)}
@@ -365,7 +371,6 @@ export function ProfilePanel(props: {
         <Button
           size="sm"
           variant="outline"
-          iconStart={<Plus />}
           disabled={!online || busy}
           onClick={() => pick(NEW_PROFILE)}
         >
@@ -373,14 +378,20 @@ export function ProfilePanel(props: {
         </Button>
       </div>
       {profiles.length === 0 && draft === null ? (
-        <EmptyState size="sm" surface="none" title={t("desktop.compose.profile.empty")} />
+        <EmptyState
+          size="sm"
+          surface="none"
+          mark={null}
+          title={t("desktop.compose.profile.empty")}
+        />
       ) : null}
       {draft === null ? null : (
         <>
-          <div className="grid gap-2 compact:grid-cols-2">
+          <div className="grid gap-4 compact:grid-cols-2">
             <Field label={t("desktop.compose.profile.id")}>
               <Input
                 size="sm"
+                variant="soft"
                 value={draft.id}
                 disabled={draft.baseRev !== null}
                 onValueChange={(id) => setDraft({ ...draft, id })}
@@ -389,6 +400,7 @@ export function ProfilePanel(props: {
             <Field label={t("desktop.compose.profile.title")}>
               <Input
                 size="sm"
+                variant="soft"
                 value={draft.title}
                 onValueChange={(title) => setDraft({ ...draft, title })}
               />
@@ -404,7 +416,7 @@ export function ProfilePanel(props: {
             choices={driverChoicesOf(props.entries)}
             onChange={(driver) => setDraft(withDriver(draft, driver))}
           />
-          <p className="m-0 flex items-center gap-1 text-ui-sm font-semibold text-text-primary">
+          <p className="m-0 flex items-center gap-1 text-title-3 text-text-primary">
             {t("desktop.compose.profile.extensions")}
             <InfoTip text={t("desktop.compose.profile.keepTip")} />
           </p>
@@ -432,6 +444,7 @@ export function ProfilePanel(props: {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
+              variant="outline"
               disabled={!online || busy || problem !== null}
               onClick={() => run(save())}
             >
@@ -447,7 +460,7 @@ export function ProfilePanel(props: {
             </Button>
             <Button
               size="sm"
-              variant="outline"
+              variant="solid"
               disabled={!online || busy || saved === null || threadId === null}
               onClick={() => {
                 if (saved !== null && threadId !== null) {
@@ -457,6 +470,10 @@ export function ProfilePanel(props: {
             >
               {t("desktop.compose.profile.apply")}
             </Button>
+            {threadId === null ? (
+              // 대화가 없으면 적용 단추는 잠긴다. 그 까닭은 정보 아이콘에 둔다(시안은 글 없이 잠근다)
+              <InfoTip text={t("desktop.compose.profile.noThread")} />
+            ) : null}
             <TestRunButton
               online={online}
               busy={busy}
@@ -474,11 +491,6 @@ export function ProfilePanel(props: {
             >
               {t("desktop.compose.profile.delete")}
             </Button>
-            {threadId === null ? (
-              <Badge size="xs" variant="outline">
-                {t("desktop.compose.profile.noThread")}
-              </Badge>
-            ) : null}
           </div>
         </>
       )}
