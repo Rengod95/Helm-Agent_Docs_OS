@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { copyTextOf, hasResultOf, resultJsonOf } from "../../src/views/command-output-model.ts";
+import {
+  copyTextOf,
+  hasResultOf,
+  presentationOf,
+  resultJsonOf,
+} from "../../src/views/command-output-model.ts";
 
 // 명령 결과 시트(O-03)의 모델. `done { message, result }`를 JSON 글과 복사 글로 바꾼다. 값은 `toEqual`로 비교한다.
 
@@ -36,5 +41,17 @@ describe("copyTextOf", () => {
 
   test("an empty message is treated as no message", () => {
     expect(copyTextOf({ message: "", result: { ok: true } })).toBe('{\n  "ok": true\n}');
+  });
+});
+
+describe("presentationOf", () => {
+  test("nothing to show opens nothing, one short line is a toast, the rest is a sheet", () => {
+    expect(presentationOf({ message: null, result: null })).toBe("none");
+    expect(presentationOf({ message: "  ", result: null })).toBe("none");
+    expect(presentationOf({ message: "목표를 걸었습니다.", result: null })).toBe("toast");
+    expect(presentationOf({ message: "첫 줄\n둘째 줄", result: null })).toBe("sheet");
+    expect(presentationOf({ message: "가".repeat(101), result: null })).toBe("sheet");
+    expect(presentationOf({ message: "끝", result: { ok: true } })).toBe("sheet");
+    expect(presentationOf({ message: null, result: { ok: true } })).toBe("sheet");
   });
 });

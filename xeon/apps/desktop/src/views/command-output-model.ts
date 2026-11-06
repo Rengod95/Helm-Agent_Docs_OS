@@ -23,3 +23,21 @@ export function copyTextOf(output: {
   if (json === "") return output.message;
   return `${output.message}\n\n${json}`;
 }
+
+/** 한 줄 메시지를 토스트로 보이는 길이 상한 */
+const TOAST_MAX_LENGTH = 100;
+
+/** 결과를 어떻게 보이는가. none: 보일 것이 없다, toast: 짧은 한 줄이라 입력을 막지 않는다, sheet: 여러 줄이나 결과 JSON이 있다 */
+export type OutputPresentation = "none" | "toast" | "sheet";
+
+export function presentationOf(output: {
+  readonly message: string | null;
+  readonly result: JsonValue;
+}): OutputPresentation {
+  const message = output.message?.trim() ?? "";
+  if (!hasResultOf(output.result)) {
+    if (message === "") return "none";
+    if (!message.includes("\n") && message.length <= TOAST_MAX_LENGTH) return "toast";
+  }
+  return "sheet";
+}
