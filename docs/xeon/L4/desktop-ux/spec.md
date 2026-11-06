@@ -448,7 +448,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 상태 표시줄 | 앱 부품 `StatusBar` `[gap:C-03]`: `Badge`, `Button size="xs" variant="ghost"`, `Popover`, `Progress` | 높이 28 [제안] | 줄 폭 820px 이하(앱 확대 반영)에서 연결·모델·사용량 칸은 글을 접고 아이콘(연결은 점)과 툴팁만 보이고, 넘치면 다음 줄로 넘어갑니다. `role="status"`는 줄 전체가 아니라 엔진 상태 한 줄만 갖습니다 |
 | 떠 있는 층 | `AppShellOverlay`, `Toaster`, `Dialog`, `Sheet` | | |
 
-- 창 최소 크기는 720×480입니다 [제안]. 그보다 좁으면 옛 Tauri 구현(커밋 424f338a)은 창 최소값으로 막았습니다. 현재 Electron 셸의 창 생성(`apps/desktop-shell/src/main.ts`)에는 최소 크기가 없습니다.
+- 창 최소 크기는 720×480입니다 [제안]. 그보다 좁으면 옛 Tauri 구현(커밋 424f338a)은 창 최소값으로 막았습니다. Electron 셸의 창 생성(`apps/desktop-shell/src/main.ts`)은 2026-11-07에 `minWidth: 720`, `minHeight: 480`을 둡니다(스펙 [제안] 값 그대로).
 - 사이드바와 끝 영역의 열림 상태와 폭은 UI 스토어에 두고 `l4.desktop.window.*`에 저장합니다 [제안] `[gap:V-14]`.
 
 ### 4.2 주 내비게이션
