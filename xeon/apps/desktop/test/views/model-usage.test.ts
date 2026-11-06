@@ -3,6 +3,7 @@ import type { ModelEntry, UsageGauge } from "@fresnel/contracts/wire";
 import {
   modelLabelOf,
   modelOptionsOf,
+  priceNumberText,
   sessionUsageOf,
   tokenCountText,
 } from "../../src/views/model-usage.ts";
@@ -66,30 +67,36 @@ describe("sessionUsageOf", () => {
   });
 });
 
-const entry = (ref: string, contextWindow: number): ModelEntry => ({
+const entry = (ref: string, contextWindow: number, over: Partial<ModelEntry> = {}): ModelEntry => ({
   ref,
-  name: ref,
+  name: "",
   contextWindow,
   reasoning: false,
+  inputPrice: null,
+  outputPrice: null,
+  ...over,
 });
 
 describe("modelOptionsOf", () => {
-  test("카탈로그 모델을 이름과 문맥 창으로 줄 세운다", () => {
+  test("카탈로그 모델을 이름·문맥 창·가격으로 제공자순으로 줄 세운다", () => {
     expect(
       modelOptionsOf(
-        [entry("anthropic/a", 200_000), entry("openai/b", 128_000)],
+        [
+          entry("openai/b", 128_000),
+          entry("anthropic/a", 200_000, { inputPrice: 1, outputPrice: 5 }),
+        ],
         "anthropic/a",
         null,
       ),
     ).toEqual([
-      { value: "anthropic/a", label: "a", contextWindow: 200_000 },
-      { value: "openai/b", label: "b", contextWindow: 128_000 },
+      { value: "anthropic/a", label: "a", contextWindow: 200_000, price: { input: 1, output: 5 } },
+      { value: "openai/b", label: "b", contextWindow: 128_000, price: "unknown" },
     ]);
   });
-  test("지금 쓰는 모델이 카탈로그에 없으면 맨 앞에 더한다", () => {
+  test("지금 쓰는 모델이 카탈로그에 없으면 맨 앞에 가격 없이 더한다", () => {
     expect(modelOptionsOf([entry("openai/b", 128_000)], "gone/x", null)).toEqual([
-      { value: "gone/x", label: "x", contextWindow: null },
-      { value: "openai/b", label: "b", contextWindow: 128_000 },
+      { value: "gone/x", label: "x", contextWindow: null, price: null },
+      { value: "openai/b", label: "b", contextWindow: 128_000, price: "unknown" },
     ]);
   });
   test("모르는 현재 모델은 줄을 더하지 않는다", () => {
@@ -97,9 +104,43 @@ describe("modelOptionsOf", () => {
   });
   test("대화가 모델을 정했으면 끝에 기본 모델로 돌아가는 줄이 있다", () => {
     expect(modelOptionsOf([entry("a/x", 1)], "a/x", "a/base")).toEqual([
-      { value: "a/x", label: "x", contextWindow: 1 },
-      { value: "default", label: "base", contextWindow: null },
+      { value: "a/x", label: "x", contextWindow: 1, price: "unknown" },
+      { value: "default", label: "base", contextWindow: null, price: null },
     ]);
+  });
+  test("날짜 붙은 중복은 감추고 새 버전을 앞에 두며 (latest)를 뗀다", () => {
+    const options = modelOptionsOf(
+      [
+        entry("anthropic/claude-haiku-4-5-20251001", 1, { name: "Claude Haiku 4.5" }),
+        entry("anthropic/claude-haiku-4-5", 1, { name: "Claude Haiku 4.5 (latest)" }),
+        entry("anthropic/claude-haiku-5-5", 1, { name: "Claude Haiku 5.5" }),
+        entry("anthropic/claude-haiku-5", 1, { name: "Claude Haiku 5" }),
+      ],
+      null,
+      null,
+    );
+    expect(options.map((o) => [o.value, o.label])).toEqual([
+      ["anthropic/claude-haiku-5-5", "Claude Haiku 5.5"],
+      ["anthropic/claude-haiku-5", "Claude Haiku 5"],
+      ["anthropic/claude-haiku-4-5", "Claude Haiku 4.5"],
+    ]);
+  });
+  test("지금 쓰는 모델이 날짜 붙은 사본이면 그 줄은 남는다", () => {
+    const options = modelOptionsOf(
+      [entry("a/m-20251001", 1), entry("a/m", 1)],
+      "a/m-20251001",
+      null,
+    );
+    expect(options.map((o) => o.value)).toEqual(["a/m-20251001", "a/m"]);
+  });
+});
+
+describe("priceNumberText", () => {
+  test("작은 값은 의미 있는 자리까지, 큰 값은 둘째 자리까지", () => {
+    expect(priceNumberText(0.1)).toBe("0.1");
+    expect(priceNumberText(0.125)).toBe("0.125");
+    expect(priceNumberText(12.5)).toBe("12.5");
+    expect(priceNumberText(3)).toBe("3");
   });
 });
 
