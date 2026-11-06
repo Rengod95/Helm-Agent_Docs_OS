@@ -15,7 +15,6 @@ import {
 import { shouldQuitWhenWindowsClosed } from "./main/close-behavior.ts";
 import { createCommandRegistry } from "./main/commands.ts";
 import type { ShellContext } from "./main/context.ts";
-import { APP_CSP } from "./main/app-csp.ts";
 import { isTrustedFrame, isUiUrl } from "./main/frame-check.ts";
 import { dataRootsOf } from "./main/lib/data-roots.ts";
 import { shellEnvOf } from "./main/lib/packaged-env.ts";
@@ -23,6 +22,8 @@ import { MODULES } from "./main/modules.ts";
 import { CHANNEL_KEY, SHELL_CHANNELS } from "./shared/channels.ts";
 
 const SCHEME = "app";
+/** 옛 Tauri 구현(커밋 424f338a)의 CSP와 같은 수준 */
+const CSP = "default-src 'self'; connect-src 'self'; frame-src fresnel-view:";
 const MIME: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -81,7 +82,7 @@ function serveUi(root: string, request: Request): Response {
   return new Response(readFileSync(file), {
     headers: {
       "content-type": MIME[path.extname(file)] ?? "application/octet-stream",
-      "content-security-policy": APP_CSP,
+      "content-security-policy": CSP,
     },
   });
 }
