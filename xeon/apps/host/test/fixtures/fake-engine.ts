@@ -11,7 +11,7 @@ import type {
   VolatileEventEnvelope,
 } from "@fresnel/contracts/records";
 import type { TestRunControlPort, TraceReadPort } from "@fresnel/contracts/extensions";
-import type { LoopError } from "@fresnel/contracts/services";
+import type { LoopError, ModelInfo } from "@fresnel/contracts/services";
 import type { ScopeStack } from "@fresnel/contracts/settings";
 import type { StoreId, StreamPosition, ThreadSummary } from "@fresnel/contracts/wire";
 import { fixedIdFactory } from "@fresnel/ext-host/testing";
@@ -197,6 +197,18 @@ export interface FakeEngine {
 }
 
 const RECORDED_AT = 1_767_571_200_000;
+
+const TAPE_MODEL: ModelInfo = {
+  ref: "tape/tape-1",
+  name: "Tape One",
+  contextWindow: 8192,
+  maxTokens: 1024,
+  reasoning: false,
+  input: ["text"],
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  supportedThinkingLevels: [],
+  available: true,
+};
 
 let profileDirs = 0;
 
@@ -490,7 +502,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       },
     },
     secrets: { ...secrets.port, display: options.display ?? NO_DISPLAY },
-    models: { modelIds: (provider) => (provider === "tape" ? ["tape-1"] : []) },
+    models: {
+      modelIds: (provider) => (provider === "tape" ? ["tape-1"] : []),
+      available: () => [TAPE_MODEL],
+    },
     ids,
     clock: { now: () => RECORDED_AT },
     scheduler,

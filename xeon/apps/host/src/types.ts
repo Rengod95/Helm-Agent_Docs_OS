@@ -23,6 +23,7 @@ import type {
   HostedSearchPort,
   InputQueueError,
   LoopError,
+  ModelInfo,
   ResumeResult,
   Redactor,
   SecretAdminService,
@@ -718,6 +719,8 @@ export interface SecretsPort {
 interface ModelCatalogPort {
   /** `provider`에 등록된 모델 id들 */
   modelIds(provider: string): readonly string[];
+  /** 자격 증명이 있는 provider의 모델(`models.list`) */
+  available(): readonly ModelInfo[];
 }
 
 /** 신뢰 질의·결정이 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.3.1 trust.*) */

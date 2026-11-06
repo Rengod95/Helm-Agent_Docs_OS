@@ -767,7 +767,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     notify,
     log,
     secrets: deps.secrets,
-    models: { modelIds: (provider) => modelIdsOf(deps.models, provider) },
+    models: {
+      modelIds: (provider) => modelIdsOf(deps.models, provider),
+      available: () => deps.models.list({ available: true }),
+    },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     web: createWebPort({ holder: deps.web, settings: deps.settings }),
     dialog: createDialogWirePort({ holder: deps.commands }),

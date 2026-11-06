@@ -644,6 +644,37 @@ export const ThreadRevertResultSchema: TObject<{ position: typeof StreamPosition
   Type.Object({ position: StreamPositionSchema }, { additionalProperties: false });
 export type ThreadRevertResult = Static<typeof ThreadRevertResultSchema>;
 
+/** models.list의 한 줄. 대화가 고를 수 있는 모델이다(M4 T-MODEL) */
+export const ModelEntrySchema: TObject<{
+  ref: TString;
+  name: TString;
+  contextWindow: TInteger;
+  reasoning: TBoolean;
+}> = Type.Object(
+  {
+    /** `provider/id`. `thread.setModel`이 받는 값이다 */
+    ref: Type.String({ minLength: 1, maxLength: 200 }),
+    name: Type.String({ maxLength: 200 }),
+    /** 문맥 창 크기(토큰). 문맥 사용량의 한도와 같은 값이다 */
+    contextWindow: Type.Integer({ minimum: 1 }),
+    reasoning: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type ModelEntry = Static<typeof ModelEntrySchema>;
+
+/** models.list params. 비어 있다 */
+export const ModelsListParamsSchema: TObject<{}> = Type.Object({}, { additionalProperties: false });
+export type ModelsListParams = Static<typeof ModelsListParamsSchema>;
+
+/** 자격 증명이 있는 provider의 모델만, `ref` 순서로. 최대 1000개이고 넘으면 뒤를 자른다 */
+export const ModelsListResultSchema: TObject<{ models: TArray<typeof ModelEntrySchema> }> =
+  Type.Object(
+    { models: Type.Array(ModelEntrySchema, { maxItems: 1000 }) },
+    { additionalProperties: false },
+  );
+export type ModelsListResult = Static<typeof ModelsListResultSchema>;
+
 /**
  * thread.setModel params. 대화가 다음 turn부터 쓸 모델을 정한다(`thread.updated { model }`를 커밋). `model`은 `provider/id`이고
  * 카탈로그에 없으면 `jsonrpc.invalidParams`로 거절한다. null이면 지정을 거두고 기본 모델로 돌아간다. 진행 중인 turn은 이미 묶은 모델로 끝난다.
@@ -1593,6 +1624,10 @@ interface WireSchemas
     params: WithMeta<typeof ThreadRenameParamsSchema>;
     result: typeof ThreadRenameResultSchema;
   };
+  "models.list": {
+    params: WithMeta<typeof ModelsListParamsSchema>;
+    result: typeof ModelsListResultSchema;
+  };
   "thread.setModel": {
     params: WithMeta<typeof ThreadSetModelParamsSchema>;
     result: typeof ThreadSetModelResultSchema;
@@ -1832,6 +1867,7 @@ export const WIRE_METHODS: {
   "thread.fork": spec(withMeta(ThreadForkParamsSchema), ThreadForkResultSchema, "M2"),
   "thread.revert": spec(withMeta(ThreadRevertParamsSchema), ThreadRevertResultSchema, "M2"),
   "thread.rename": spec(withMeta(ThreadRenameParamsSchema), ThreadRenameResultSchema, "M2"),
+  "models.list": spec(withMeta(ModelsListParamsSchema), ModelsListResultSchema, "M4"),
   "thread.setModel": spec(withMeta(ThreadSetModelParamsSchema), ThreadSetModelResultSchema, "M4"),
   "thread.compact": spec(withMeta(ThreadCompactParamsSchema), ThreadCompactResultSchema, "M2"),
   "thread.export": spec(withMeta(ThreadExportParamsSchema), ThreadExportResultSchema, "M4"),
