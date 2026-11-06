@@ -445,7 +445,7 @@ M4 데스크톱 앱의 화면 전부를 정하는 정본입니다. 사용 시나
 | 시작 영역 | `AppShellStart` > `SidePanel side="start" preset="inspector"`, `ListNavigation` | 272(240~360), 끌어서 조절 | compact(720 이하)에서 전체 폭 시트, 토글로 엽니다 |
 | 무대 | `AppShellStage stageLabel` | 나머지 | 최소 480 [제안] |
 | 끝 영역 | `AppShellEnd` > `SidePanel side="end" preset="pane"`, `Tabs` | 352(320~480) | medium(1100 이하)에서 무대 위 시트 |
-| 상태 표시줄 | 앱 부품 `StatusBar` `[gap:C-03]`: `Badge`, `Button size="xs" variant="ghost"`, `Popover`, `Progress` | 높이 28 [제안] | compact에서 대상·엔진·승인만 |
+| 상태 표시줄 | 앱 부품 `StatusBar` `[gap:C-03]`: `Badge`, `Button size="xs" variant="ghost"`, `Popover`, `Progress` | 높이 28 [제안] | 줄 폭 820px 이하(앱 확대 반영)에서 연결·모델·사용량 칸은 글을 접고 아이콘(연결은 점)과 툴팁만 보이고, 넘치면 다음 줄로 넘어갑니다. `role="status"`는 줄 전체가 아니라 엔진 상태 한 줄만 갖습니다 |
 | 떠 있는 층 | `AppShellOverlay`, `Toaster`, `Dialog`, `Sheet` | | |
 
 - 창 최소 크기는 720×480입니다 [제안]. 그보다 좁으면 옛 Tauri 구현(커밋 424f338a)은 창 최소값으로 막았습니다. 현재 Electron 셸의 창 생성(`apps/desktop-shell/src/main.ts`)에는 최소 크기가 없습니다.

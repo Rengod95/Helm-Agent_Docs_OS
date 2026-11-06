@@ -117,6 +117,10 @@
     background: var(--panel);
     padding: 4px 12px;
     font-size: 12px;
+    /* 칸이 겹치거나 잘리지 않게 넘치면 다음 줄로 보낸다. 폭 판정은 창이 아니라 이 줄의 폭이다(앱 확대도 반영) */
+    flex-wrap: wrap;
+    row-gap: 2px;
+    container-type: inline-size;
   }
   .statusbar .grow {
     flex: 1;
@@ -141,6 +145,29 @@
     gap: 2px;
     max-width: 420px;
     margin: 6px 0;
+  }
+}
+
+/* 상태 줄이 좁으면(compact) 덜 중요한 칸(연결, 모델, 사용량)은 글을 접고 아이콘(연결은 점)만 보인다. 글은 화면 낭독용으로 남고 단추 title이 툴팁이다 */
+@layer components {
+  @container (max-width: 820px) {
+    [data-bar-collapsible] [data-bar-text] {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    [data-bar-collapsible] [data-bar-icon] {
+      display: inline-flex;
+    }
+    [data-bar-collapsible] [data-bar-trailing] {
+      display: none;
+    }
+    /* 점이 있는 칸은 점이 아이콘 노릇을 하므로 아이콘은 겹쳐 그리지 않는다 */
+    [data-bar-collapsible]:has([data-bar-dot]) [data-bar-icon] {
+      display: none;
+    }
   }
 }
 

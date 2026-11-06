@@ -1,5 +1,5 @@
 import { Button, Progress } from "@caustic/react";
-import { TriangleAlert } from "@caustic/react/icons";
+import { Layers, Link2, Sparkles, TriangleAlert } from "@caustic/react/icons";
 import { t, type MessageId } from "@fresnel/client/i18n";
 import { assertNever, detach, rethrow } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
@@ -311,6 +311,7 @@ function LinkCell(props: { readonly phase: Link["phase"]; readonly attempt: numb
   return (
     <StatusCell
       cellId="link"
+      collapseIcon={<Link2 className="size-3.5" />}
       text={`${t(LINK_TEXT[phase])}${attempt > 0 ? ` ${t("desktop.status.link.attempt", { attempt })}` : ""}`}
       dot={LINK_DOT[phase]}
       title={t("desktop.status.cell.link.title")}
@@ -453,6 +454,7 @@ export function ModelCell(props: { readonly model: string | null }): ReactNode {
   return (
     <StatusCell
       cellId="model"
+      collapseIcon={<Sparkles className="size-3.5" />}
       text={props.model === null ? t("desktop.status.cell.model.none") : modelLabelOf(props.model)}
       title={t("desktop.status.cell.model.title")}
       description={
@@ -491,6 +493,7 @@ export function TokensCell(props: { readonly usage: SessionUsage }): ReactNode {
   return (
     <StatusCell
       cellId="tokens"
+      collapseIcon={<Layers className="size-3.5" />}
       text={
         usage.limit === null
           ? tokenCountText(usage.tokens)
@@ -650,7 +653,11 @@ export function StatusBar(): ReactNode {
   // 실패 단추는 자기 칸 옆에 둔다(시안 `inline`). 오른쪽은 진행 중, 모델, 사용량, 승인 칸이다. 모델과 사용량 칸은 열린 대화가 있고
   // 값을 읽었을 때만 그린다. 시안의 목표·Helm 칸은 클라이언트에 맞는 값이 없어 아직 없고, 알림 칸은 개수를 거울이 들고 있지 않아 아직 없다.
   return (
-    <footer className="statusbar" role="status">
+    <footer className="statusbar">
+      {/* 줄 전체를 낭독 영역으로 두면 갱신마다 읽힌다. 사용자가 알아야 할 바뀜(엔진 상태)만 이 한 줄이 맡는다 */}
+      <span role="status" className="sr-only">
+        {engineLineOf(engine)}
+      </span>
       <EngineCell engine={engine} />
       {engine?.kind === "failed" ? (
         <Button

@@ -22,6 +22,8 @@ export interface StatusCellProps {
   readonly trailing?: ReactNode;
   /** 상태 점. 없으면 점을 그리지 않는다 */
   readonly dot?: StatusDot | undefined;
+  /** 좁은 폭(`styles.css`의 `.statusbar` 컨테이너 쿼리)에서 글을 접고 이 아이콘만 보일 칸. 없으면 접히지 않는다 */
+  readonly collapseIcon?: ReactNode;
   /** Popover 제목 */
   readonly title: string;
   /** Popover 설명. 없으면 생략한다 */
@@ -36,7 +38,19 @@ export interface StatusCellProps {
 }
 
 export function StatusCell(props: StatusCellProps): ReactNode {
-  const { cellId, text, trailing, dot, title, description, body, wide, open, onOpenChange } = props;
+  const {
+    cellId,
+    text,
+    trailing,
+    dot,
+    collapseIcon,
+    title,
+    description,
+    body,
+    wide,
+    open,
+    onOpenChange,
+  } = props;
   return (
     <Popover
       open={open}
@@ -50,7 +64,14 @@ export function StatusCell(props: StatusCellProps): ReactNode {
           variant="ghost"
           className="h-6 min-w-0 max-w-full gap-1.5 px-1.5 text-ui-xs font-normal"
           data-bar-cell={cellId}
+          data-bar-collapsible={collapseIcon === undefined ? undefined : ""}
+          title={collapseIcon === undefined ? undefined : text}
         >
+          {collapseIcon === undefined ? null : (
+            <span aria-hidden data-bar-icon className="hidden shrink-0">
+              {collapseIcon}
+            </span>
+          )}
           {dot === undefined ? null : (
             <span
               aria-hidden
@@ -58,8 +79,10 @@ export function StatusCell(props: StatusCellProps): ReactNode {
               className={`size-1.5 shrink-0 rounded-full ${DOT_CLASS[dot]}`}
             />
           )}
-          <span className="min-w-0 whitespace-nowrap tabular-nums">{text}</span>
-          {trailing}
+          <span data-bar-text className="min-w-0 whitespace-nowrap tabular-nums">
+            {text}
+          </span>
+          {trailing === undefined ? null : <span data-bar-trailing>{trailing}</span>}
         </Button>
       }
     >

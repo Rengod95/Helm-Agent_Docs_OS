@@ -481,6 +481,25 @@ describe("status bar model and usage cells", () => {
     expect(unknown).not.toContain('data-slot="progress"');
   });
 
+  test("collapsible cells keep their text for screen readers and carry it as the tooltip", () => {
+    const html = renderToString(
+      <TokensCell usage={{ tokens: 41_000, percent: 40, limit: 100_000 }} />,
+    );
+    expect(html).toContain("data-bar-collapsible");
+    expect(html).toContain('title="41k / 100k"');
+    expect(html).toContain("data-bar-icon");
+    expect(html).toContain("data-bar-trailing");
+    const model = renderToString(<ModelCell model="sonnet-5-5" />);
+    expect(model).toContain('title="sonnet-5-5"');
+  });
+
+  test("the status bar row is not a live region, only the engine line is", () => {
+    const html = barWith(mirrorWithApproval());
+    expect(html).toContain('<footer class="statusbar">');
+    expect(html.match(/role="status"/g)?.length).toBe(1);
+    expect(html).toMatch(/<span role="status" class="sr-only">[^<]+<\/span>/);
+  });
+
   test("the tokens sentence names the tokens, and the percent only when the limit is known", () => {
     expect(tokensDescriptionOf({ tokens: 41_000, percent: null, limit: null })).toBe(
       "지금 문맥에 41k 토큰이 있어요.",
