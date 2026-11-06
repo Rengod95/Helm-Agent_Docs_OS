@@ -66,7 +66,15 @@ export function createAskAdapter(approvals: L2ApprovalsPort): WebAskPort {
       let snapshot = requested.value;
       if (snapshot.state === "pending") {
         const waited = await approvals.wait(request.threadId, snapshot.approvalId, signal);
-        if (!waited.ok) return err({ kind: "unavailable", message: "approval wait was cancelled" });
+        if (!waited.ok) {
+          // 기다림이 끊기면(호출이 중단됨, 탐구 하위 대화가 끝남) 답을 줄 곳이 없는 요청이므로 닫는다. 남기면 승인 대기 표시가 계속 남는다
+          await approvals.cancel(
+            request.threadId,
+            snapshot.approvalId,
+            "web access request abandoned",
+          );
+          return err({ kind: "unavailable", message: "approval wait was cancelled" });
+        }
         snapshot = waited.value;
       }
       return ok(

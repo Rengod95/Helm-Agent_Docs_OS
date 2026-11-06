@@ -34,8 +34,9 @@ function portOf(options: {
   waited?: L2ApprovalSnapshot;
   requestFails?: boolean;
   waitCancelled?: boolean;
-}): { port: L2ApprovalsPort; requests: L2ApprovalRequest[] } {
+}): { port: L2ApprovalsPort; requests: L2ApprovalRequest[]; cancelled: string[] } {
   const requests: L2ApprovalRequest[] = [];
+  const cancelled: string[] = [];
   const port: L2ApprovalsPort = {
     request(input) {
       requests.push(input);
@@ -46,13 +47,16 @@ function portOf(options: {
     },
     get: () => Promise.resolve(ok(null)),
     respond: () => Promise.resolve({ applied: true }),
-    cancel: () => Promise.resolve({ applied: true }),
+    cancel: (_threadId, approvalId) => {
+      cancelled.push(approvalId);
+      return Promise.resolve({ applied: true });
+    },
     wait() {
       if (options.waitCancelled === true) return Promise.resolve(err({ kind: "cancelled" }));
       return Promise.resolve(ok(options.waited ?? snapshot("resolved", "deny")));
     },
   };
-  return { port, requests };
+  return { port, requests, cancelled };
 }
 
 describe("ask adapter", () => {
@@ -96,5 +100,8 @@ describe("ask adapter", () => {
     const cancelled = portOf({ requested: snapshot("pending"), waitCancelled: true });
     const two = await createAskAdapter(cancelled.port).ask(REQUEST, SIGNAL);
     expect(two.ok).toBe(false);
+    // 기다림이 끊긴 요청은 닫는다(남은 승인 정리)
+    expect(cancelled.cancelled).toEqual([snapshot("pending").approvalId]);
+    expect(failed.cancelled).toEqual([]);
   });
 });

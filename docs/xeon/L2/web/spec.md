@@ -1230,6 +1230,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 - `ask` 판정이면 `fresnel.approvals`로 승인을 요청한다(`L2.readme` §5.7). 요청 kind는 `tool`이고 대상은 도구 승인 body(`ToolApprovalDetail`, `additionalProperties:false`)다: `toolName`은 기능 id(`web.fetch`), `capability`는 `{ id, method }`, `risk`는 `"read"`(`ToolRisk` 안의 값만 읽힌다), `args`는 `{ host, reasons }`, `argsHash`는 그 정규화 JSON의 sha256, `ruleId`는 `null`이다. 화면 제목은 호스트 이름을 넣어 만든다(`ask-adapter.ts`의 `webApprovalTitle`).
 - 승인 범위는 승인 프로토콜의 기억 범위(이번만, 이 대화, 항상)를 따른다(`L4.cli.spec` 승인 화면). "항상"이면 local 범위 `l2.web.policy.allow`에 그 호스트를 더한다. project 범위는 허용하지 않는다(§6) [제안].
+- 승인 대기가 끊기면(호출 중단, 탐구 하위 대화의 끝) 그 요청을 `cancel`로 닫는다. 답을 줄 곳이 없는 요청이 승인 대기 표시로 남지 않게 한다. 호출은 `unavailable`이다.
 - 호출자가 확장이고 대화가 없으면 승인 창을 띄울 곳이 없다. 이때 `ask`는 `denied`(`detail.reason: "ask_without_session"`)다.
 - 백그라운드 포크(`caller.agent = "background"`)는 `ask`를 `denied`로 바꾼다. 사람이 없는 경로에서 승인 대기를 만들지 않는다 [제안].
 
