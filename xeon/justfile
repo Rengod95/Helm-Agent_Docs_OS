@@ -141,16 +141,20 @@ desktop-run:
     {{bun}} run --cwd apps/desktop-shell build
     cd apps/desktop-shell && FRESNEL_DESKTOP_INSPECT=1 exec node_modules/.bin/electron .
 
-# 묶은 Electron 앱 Fresnel.app(macOS arm64) 만들기(전환 3단계): 셸 번들 뒤 @electron/packager로 묶는다. 화면 번들(`just desktop-ui`)과 사이드카(`just desktop-sidecar host`)가 없으면 종료코드 2. Resources에 화면, 엔진, 트레이 아이콘, licenses/(Electron, Chromium, npm 고지)가 들어가고 크기는 마지막 줄에 나온다. 개발용 환경 변수는 묶은 앱에서 꺼져 있다. 출력 apps/desktop-shell/dist-app/. just verify 밖
+# 묶은 Electron 앱 Fresnel.app(macOS arm64) 만들기(전환 3단계): 셸 번들 뒤 @electron/packager로 묶는다. 화면 번들(`just desktop-ui`)과 사이드카(`just desktop-sidecar host`)가 없으면 종료코드 2. Resources에 화면, 엔진, 기본 플러그인(default-plugins/, 릴리스와 같은 목록), 트레이 아이콘, licenses/(Electron, Chromium, npm 고지)가 들어가고 크기는 마지막 줄에 나온다. 개발용 환경 변수는 묶은 앱에서 꺼져 있다. 출력 apps/desktop-shell/dist-app/. just verify 밖
 [group('local')]
 desktop-build-electron:
     #!/usr/bin/env bash
     set -euo pipefail
     [ -f apps/desktop/dist/ui/index.html ] || { echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
     ls apps/desktop/dist/sidecar/fresnel-aarch64-apple-darwin >/dev/null 2>&1 || { echo "사이드카가 없다: just desktop-sidecar host" >&2; exit 2; }
+    # bun install 뒤 electron postinstall이 안 돌아 바이너리가 없으면 직접 푼다(받기는 electron 패키지의 install.js가 한다. 네트워크 실패는 종료코드 2)
+    [ -f apps/desktop-shell/node_modules/electron/dist/LICENSE ] || { echo "electron 바이너리가 없어 푼다: node install.js" >&2; (cd apps/desktop-shell/node_modules/electron && node install.js) || { echo "electron 바이너리를 풀지 못했다(네트워크?). 직접: cd apps/desktop-shell/node_modules/electron && node install.js" >&2; exit 2; }; }
     {{bun}} run --cwd apps/desktop-shell build
     # 엔진 사이드카(Bun, host, cli) 고지: package.ts가 Resources/licenses/에 넣는다(process 실행은 L0 소유라 여기서 만든다)
     {{bun}} scripts/notices.ts --out apps/desktop-shell/dist/engine-notices.txt
+    # 기본 플러그인(릴리스 아카이브와 같은 목록, scripts/release-bundle.json): 개발 빌드도 같은 단계를 거친다. package.ts가 Resources/default-plugins/에 넣는다
+    {{bun}} scripts/default-plugins.ts --out apps/desktop-shell/dist/default-plugins
     {{bun}} run --cwd apps/desktop-shell package
 
 # Fresnel.app 서명과 공증(헬퍼 앱, 프레임워크, 사이드카를 안쪽부터 하드닝 런타임과 entitlements로 서명). Apple 시크릿 여섯 개가 없으면 서명 없이 UNSIGNED를 출력하고 종료코드 0(릴리스 태그면 1). 인자 --adhoc는 로컬 구조 점검용 임시 서명(릴리스 아님). 시크릿 값은 만들지도 출력하지도 않는다 (scripts/electron-sign.sh)
