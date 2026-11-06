@@ -1141,7 +1141,7 @@ stateDiagram-v2
      - `judged`·`recorded`(`not_met`·`undecidable`) → `work.goal_judged`(`n` = `record.run`). `n`이 그 시점의 `l1.agents.judge.maxRuns` 이상이면 `work.goal_settled(limit_reached)`와 `work.report_built`를 같은 커밋에 더하고 turn을 끝낸다. 아니면 목표는 활성으로 남고 한 단계 더 돈다.
      - `capped` → 판정 기록 없이 `work.goal_settled(limit_reached)`와 `work.report_built`. turn을 끝낸다.
      - `failed` → `work.goal_settled(judge_failed)`와 `work.report_built`. 판정 없이 계속 돌지 않고 turn을 끝낸다(§4.3.6).
-  5. 한 단계 더 돌 때는 지시 문장을 custom 항목(`customType: "x.cap-work.goal.continue"`, `display: true`)으로 `BoundaryPatch.entries`에 싣고 `continue: true`를 돌려준다. turn을 끝낼 때(상한, 판정 실패)는 사유 문장을 `x.cap-work.goal.notice` custom 항목으로 싣고 `continue: false`를 돌려준다. 단계 id를 모르면(`boundary.step.after`가 먼저 발화하지 않은 경우) 지시는 싣지 않고 계속만 하며 끝내는 안내는 `stepId: null`인 turn 수준 항목으로 남긴다 [제안]. 정착 훅의 payload에는 단계 id가 없어 엔트리의 범위 필드를 맞추려고 `boundary.step.after`에서 마지막 단계 id를 기억한다(같은 단계 안에서 `boundary.step.after`가 먼저 발화한다).
+  5. 한 단계 더 돌 때는 지시 문장(영어, 판정 모델의 원문 이유 포함)을 custom 항목(`customType: "x.cap-work.goal.continue"`, `display: false`, 모델 문맥 전용)으로, 사용자에게는 한국어 해요체 한 줄("목표 판정 n/최대: 아직 달성하지 못했어요")을 `x.cap-work.goal.notice` 항목(`display: true`)으로 `BoundaryPatch.entries`에 싣고 `continue: true`를 돌려준다. turn을 끝낼 때(상한, 판정 실패)는 한국어 안내 문장(상한 도달, 판정 실패)을 `x.cap-work.goal.notice` custom 항목으로 싣고 `continue: false`를 돌려준다. 판정 모델의 원문 이유는 화면에 보이지 않는다 [결정: 오케스트레이터 기본값, rtG]. 단계 id를 모르면(`boundary.step.after`가 먼저 발화하지 않은 경우) 지시는 싣지 않고 계속만 하며 끝내는 안내는 `stepId: null`인 turn 수준 항목으로 남긴다 [제안]. 정착 훅의 payload에는 단계 id가 없어 엔트리의 범위 필드를 맞추려고 `boundary.step.after`에서 마지막 단계 id를 기억한다(같은 단계 안에서 `boundary.step.after`가 먼저 발화한다).
 - 판정을 기다리지 않는 한 단계가 지나면 같은 turn 안에서 다시 정착 후보가 되고 판정은 `n`을 늘리며 반복한다. 한 turn의 계속 횟수는 게이트 상한(`l1.loop.gate.maxContinues`)이 따로 막고, 판정 횟수는 `l1.agents.judge.maxRuns`가 막는다.
 - 판정 실행 중에 사용자 입력으로 새 turn이 시작되는 경우는 없다. 판정은 turn 정착 전에 끝나는 한 호출이다. 이전 설계의 "다음 턴 시작(post)"은 쓰지 않는다. 한 단계 더 도는 것이 다음 턴을 대신한다.
 - 알려진 한계 [제안]: 정착 직전에 판정하므로 목표 종결 보고의 `resources.agent`에는 마지막 turn의 사용량이 들지 않는다(그 turn의 `turn.completed`가 아직 없다). 필요하면 마지막 turn은 `work.reports.build({ subject: { kind: "turn" } })`로 따로 만든다.
@@ -1289,6 +1289,7 @@ export interface JudgePort {
 | `/tasks` | 없음 | `tasks.list({})` 결과 표시 |
 
 - [결정: WK.3] 구현은 `/plan`, `/plan exit`, `/plan approve|reject|revise`, `/tasks`, `/goal <조건>`, `/goal status`, `/goal clear`다(`src/commands.ts`). `/goal`은 `replace` 없이 `goals.set`을 부르므로 활성 목표가 있으면 "먼저 /goal clear로 해제하세요"를 답한다 [결정: 오케스트레이터 기본값, scH]. `/plan`의 결과 문구는 해요체 한 줄이고 모드는 원시 값이 아니라 입력창 승인 모드 칩과 같은 이름으로 쓴다("계획 모드를 시작했어요. 이전 승인 모드: 기본 (실행마다 묻기)"). `/goal clear`는 활성 목표가 없으면 "해제할 활성 목표가 없습니다."를 답한다. `approve`·`reject`·`revise`에 계획 ID를 받지 않는다: 승인 대기 중인 가장 최근 판에 적용한다. 서비스 거부(`CapabilityError`)는 예외 대신 `[<코드>] <메시지>` 한 줄 응답으로 바꾼다. 등록부(`CommandActionRegistry`)는 조립 루트가 `WorkPluginOptions.commands`로 넘길 때만 쓴다. 기능 선택 의존(W-10)이 확정되면 매니페스트 `optional`로 받는다.
+- `/plan exit`가 `plan_not_approved`(승인 필수 설정에서 승인 전 나가기)나 `plan_mode_inactive`로 거절되면 원시 코드와 영어 사유 대신 한국어 해요체 한 줄을 돌려준다: "계획을 승인해야 계획 모드를 나갈 수 있어요. 계획을 승인하거나, 설정의 '계획 승인 필수'를 꺼 주세요.", "지금은 계획 모드가 아니에요." 한 줄 결과라 데스크톱은 토스트로 보인다. 거절 자체는 §4.2.5 그대로다 [결정: 오케스트레이터 기본값, rtG].
 - 명령 실행의 `requestId`는 클라이언트 입력 키(`in:<clientUlid>`)에서 파생한다(eng.transactions.design §4.8 사용자 입력 행).
 - 이 등록은 work → `dialog.commands` 선택 의존을 만든다. `L2.readme` §6 표에 [미결] 간선으로 올라 있다(§10 W-10, `L2.readme` §10 미결 16).
 

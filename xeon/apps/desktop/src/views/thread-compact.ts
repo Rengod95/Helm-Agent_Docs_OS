@@ -23,6 +23,7 @@ const CANCELLED = WIRE_ERRORS["thread.cancelledByExtension"].code;
 /** 엔진이 준 결과나 실패를 사용자에게 보일 한 줄로 */
 export function compactNoticeOf(
   result: Result<WireResult<"thread.compact">, CommandError>,
+  keepTokens: number | null = null,
 ): CompactNotice {
   if (result.ok) {
     const { value } = result;
@@ -47,6 +48,14 @@ export function compactNoticeOf(
     if (value.why === "last_entry_is_compaction") {
       return { tone: "info", id: "desktop.threads.compact.skipped.already" };
     }
+    // 문턱을 알면 함께 말한다(요약하지 않고 그대로 두는 최근 토큰 수보다 적게 쌓인 대화는 요약할 것이 없다)
+    if (keepTokens !== null) {
+      return {
+        tone: "info",
+        id: "desktop.threads.compact.skipped.threshold",
+        args: { tokens: keepTokens },
+      };
+    }
     return { tone: "info", id: "desktop.threads.compact.skipped.nothing" };
   }
   const { error } = result;
@@ -67,7 +76,7 @@ export function compactNoticeOf(
 
 /** 진행 토스트를 띄우고 요약을 보낸 뒤 결과 토스트로 바꾼다. 실패 토스트는 자동으로 닫히지 않는다 */
 export function runThreadCompact(
-  commands: Pick<Commands, "compactThread">,
+  commands: Pick<Commands, "compactThread" | "compactKeepTokens">,
   threadId: ThreadId,
   instructions?: string,
 ): void {
@@ -77,11 +86,16 @@ export function runThreadCompact(
     duration: 0,
   });
   detach(
-    commands.compactThread(threadId, instructions).then((result) => {
+    commands.compactThread(threadId, instructions).then(async (result) => {
+      const nothing =
+        result.ok &&
+        result.value.status === "skipped" &&
+        result.value.why === "nothing_to_summarize";
+      const keepTokens = nothing ? await commands.compactKeepTokens() : null;
       toast.dismiss(progress);
       // 요약 직후 상태 줄 문맥 크기를 요약 뒤 값으로 다시 읽게 한다
       if (result.ok && result.value.status === "compacted") bumpUsageEpoch();
-      const notice = compactNoticeOf(result);
+      const notice = compactNoticeOf(result, keepTokens);
       toast({
         tone: notice.tone,
         title: t(notice.id, notice.args),

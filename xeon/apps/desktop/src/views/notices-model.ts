@@ -1,7 +1,7 @@
 import type { MessageId } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ThreadId } from "@fresnel/contracts/conversation";
-import type { Notice, NoticeKind } from "@fresnel/contracts/capabilities";
+import { INPUT_NEEDED_KINDS, type Notice, type NoticeKind } from "@fresnel/contracts/capabilities";
 
 // 받은 요청 탭의 알림 묶음(p03-inbox)이 쓰는 순수 함수. 목록은 요청 결과이고 거울에 넣지 않는다(FS-03).
 
@@ -104,4 +104,13 @@ export function threadBySeqOf(
     }
   }
   return found;
+}
+
+/**
+ * 사용자의 답을 기다리던 알림(승인·질문 대기)이 이미 풀렸나. 알림은 요청 id를 싣지 않아 대화 단위로 본다:
+ * 알림의 대화가 알려져 있고 그 대화에 지금 기다리는 승인이 없으면 풀린 것이다. 대화를 모르면 풀렸다고 하지 않는다
+ */
+export function noticeResolved(entry: NoticeEntry, waitingThreads: ReadonlySet<string>): boolean {
+  if (!INPUT_NEEDED_KINDS.includes(entry.notice.kind)) return false;
+  return entry.threadId !== null && !waitingThreads.has(entry.threadId);
 }

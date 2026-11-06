@@ -25,6 +25,17 @@ export const GOAL_CONTINUE_TYPE = "x.cap-work.goal.continue";
 /** 판정이 turn을 끝낸 이유(상한, 판정 실패)를 사용자에게 알리는 안내 */
 export const GOAL_NOTICE_TYPE = "x.cap-work.goal.notice";
 
+/** 사용자에게 보이는 판정 안내(한국어 해요체). 판정 모델의 원문 이유는 모델에게만 가는 숨김 지시에 든다 */
+function cappedNotice(max: number): string {
+  return `목표 판정을 최대 ${String(max)}번까지 했지만 목표를 달성하지 못한 채 턴을 끝냈어요.`;
+}
+function failedNotice(): string {
+  return "목표를 판정하지 못해서 턴을 멈췄어요.";
+}
+function progressNotice(n: number, max: number): string {
+  return `목표 판정 ${String(n)}/${String(max)}: 아직 달성하지 못했어요. 이어서 작업해요.`;
+}
+
 export interface SettleGateDeps {
   readonly goals: GoalsRuntime;
   readonly reader: WorkReader;
@@ -77,6 +88,7 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
     stepId: StepId | null,
     customType: string,
     text: string,
+    display: boolean,
   ): DurableEventDraft {
     return {
       id: deps.ids.next("evt"),
@@ -97,7 +109,7 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
             role: "custom",
             customType,
             content: text,
-            display: true,
+            display,
             details: null,
             timestamp: deps.clock.now(),
           },
@@ -153,7 +165,7 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
         continue: false,
         reason: "capped",
         instruction: null,
-        notice: `The goal judge reached its limit of ${String(deps.goals.maxRuns(threadId))} runs, so the turn ended without meeting the goal.`,
+        notice: cappedNotice(deps.goals.maxRuns(threadId)),
       };
     }
     return decision;
@@ -198,17 +210,41 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
 
       const final = finalDecision(decision, recorded.value.goal.status, ctx.threadId);
       if (!final.continue && final.notice === null) return undefined;
-      const text = final.instruction ?? final.notice;
       const stepId = lastStep.get(ctx.threadId);
       const entries = [...current.entries];
-      if (text !== null && final.instruction === null) {
+      if (final.instruction === null) {
         // 끝내는 안내는 단계 id를 모르면 turn 수준 항목(`stepId: null`)으로 남긴다. 경계 검증이 거부해도 turn은 어차피 끝난다 [제안]
+        const shown =
+          final.reason === "capped"
+            ? cappedNotice(deps.goals.maxRuns(ctx.threadId))
+            : failedNotice();
         entries.push(
-          customEntry(ctx.threadId, payload.turnId, stepId ?? null, GOAL_NOTICE_TYPE, text),
+          customEntry(ctx.threadId, payload.turnId, stepId ?? null, GOAL_NOTICE_TYPE, shown, true),
         );
-      } else if (text !== null && stepId !== undefined) {
-        entries.push(customEntry(ctx.threadId, payload.turnId, stepId, GOAL_CONTINUE_TYPE, text));
-      } else if (text !== null) {
+      } else if (stepId !== undefined) {
+        // 모델 지시(영어, 판정 원문 이유 포함)는 화면에 그리지 않는다. 사용자에게는 판정 n/최대 한 줄만 보인다
+        entries.push(
+          customEntry(
+            ctx.threadId,
+            payload.turnId,
+            stepId,
+            GOAL_CONTINUE_TYPE,
+            final.instruction,
+            false,
+          ),
+        );
+        const n = outcome.kind === "judged" || outcome.kind === "recorded" ? outcome.record.run : 0;
+        entries.push(
+          customEntry(
+            ctx.threadId,
+            payload.turnId,
+            stepId,
+            GOAL_NOTICE_TYPE,
+            progressNotice(n, deps.goals.maxRuns(ctx.threadId)),
+            true,
+          ),
+        );
+      } else {
         deps.logger.warn("work.goal_gate.no_step", { thread: ctx.threadId });
       }
       lastStep.delete(ctx.threadId);

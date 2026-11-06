@@ -52,6 +52,11 @@ describe("compactNoticeOf", () => {
       tone: "info",
       id: "desktop.threads.compact.skipped.nothing",
     });
+    expect(compactNoticeOf(ok({ status: "skipped", why: "nothing_to_summarize" }), 20000)).toEqual({
+      tone: "info",
+      id: "desktop.threads.compact.skipped.threshold",
+      args: { tokens: 20000 },
+    });
     expect(compactNoticeOf(ok({ status: "skipped", why: "last_entry_is_compaction" }))).toEqual({
       tone: "info",
       id: "desktop.threads.compact.skipped.already",

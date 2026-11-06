@@ -297,4 +297,27 @@ describe("attachments", () => {
     expect(await app.commands.attachmentLimit()).toBe(1048576);
     await app.stop();
   });
+
+  test("compactKeepTokens reads the host setting that decides when compaction has something to summarize", async () => {
+    const { app } = await liveApp({
+      results: {
+        "settings.get": {
+          settings: [
+            {
+              key: "l1.context.keepRecentTokens",
+              value: 20000,
+              source: { scope: "user" },
+              locked: false,
+              shadowed: [],
+              runtimeChange: "nextTurn",
+              pendingUntil: null,
+              deprecated: false,
+            },
+          ],
+        },
+      },
+    });
+    expect(await app.commands.compactKeepTokens()).toBe(20000);
+    await app.stop();
+  });
 });

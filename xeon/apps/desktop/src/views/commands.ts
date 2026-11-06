@@ -715,6 +715,8 @@ export interface Commands {
   ): Promise<Result<WireResult<"attachments.add">, CommandError>>;
   /** 첨부 하나의 크기 상한(`l2.dialog.attachments.maxBytes`, 호스트 값). 읽지 못하면 `null`이고 엔진이 올릴 때 판정한다 */
   attachmentLimit(): Promise<number | null>;
+  /** 요약 뒤에도 그대로 두는 최근 토큰 수(`l1.context.keepRecentTokens`, 호스트 값). 이보다 적게 쌓인 대화는 요약할 것이 없다. 읽지 못하면 `null` */
+  compactKeepTokens(): Promise<number | null>;
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /**
    * `turn.withdraw`(W-17): 큐에 넣고 아직 배치되지 않은 입력을 요청 키로 거둔다. 거둬졌으면 `true`, 찾지 못했거나 이미 배치됐으면 `false`다.

@@ -63,7 +63,12 @@ function previewText(text: string): string {
  * 확장의 맥락 항목과 이미지 항목은 본문을 싣지 않는다.
  */
 function queuedPreviewOf(item: InputQueuedPayload["item"]): QueuedPreview {
-  if (item.kind === "context") return { kind: "label", labelKey: "context" };
+  if (item.kind === "context") {
+    const labelKey = item.customType.startsWith("grp.helm.") ? "helm" : "context";
+    return !item.display
+      ? { kind: "label", labelKey, internal: true }
+      : { kind: "label", labelKey };
+  }
   const { content } = item;
   const raw =
     typeof content === "string"

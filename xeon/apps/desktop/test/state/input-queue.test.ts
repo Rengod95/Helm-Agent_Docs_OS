@@ -180,8 +180,25 @@ describe("input.* events: decode", () => {
       input: {
         mode: "next",
         sourceType: "extension",
-        preview: { kind: "label", labelKey: "context" },
+        preview: { kind: "label", labelKey: "context", internal: true },
       },
+    });
+    const helm = decodeDurable(
+      wire(4, "input.queued", {
+        mode: "next",
+        item: {
+          kind: "context",
+          customType: "grp.helm.notice.status",
+          content: "안내",
+          display: true,
+          details: {},
+        },
+        requestId: "helm",
+        source: { type: "extension", scopeId: "grp:helm" },
+      }),
+    );
+    expect(helm).toMatchObject({
+      input: { preview: { kind: "label", labelKey: "helm" } },
     });
     expect(queued(3, { content: "   " })).toMatchObject({
       input: { preview: { kind: "label", labelKey: "empty" } },

@@ -218,7 +218,7 @@ export function ModelSelect(props: {
         if (value === DEFAULT_MODEL_CHOICE) props.onChange(null);
         else if (value !== props.current) props.onChange(value);
       }}
-      className="w-auto text-text-tertiary"
+      className="w-auto max-w-56 min-w-0 shrink text-text-tertiary"
     >
       {options.map((option) => (
         <SelectOption key={option.value} value={option.value}>
@@ -808,7 +808,7 @@ function ComposerFor(props: {
           </>
         }
         submit={
-          <span className="flex items-center gap-1">
+          <span className="flex min-w-0 items-center gap-1">
             {permission.mode === null ? null : (
               <PermissionModeSelect
                 mode={permission.mode}

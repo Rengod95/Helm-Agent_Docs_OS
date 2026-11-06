@@ -81,6 +81,16 @@ function customOf(entry: { readonly payload: unknown }): { customType: string; c
   return { customType: item.value.message.customType, content: item.value.message.content };
 }
 
+function displayOf(entry: { readonly payload: unknown }): boolean {
+  const payload = entry.payload;
+  if (typeof payload !== "object" || payload === null || !("item" in payload)) {
+    throw new Bug("the entry holds no item");
+  }
+  const item = parse(CustomItemRecordSchema, payload.item);
+  if (!item.ok) throw new Bug("the entry item is not a custom item", { cause: item.error });
+  return item.value.message.display;
+}
+
 describe("a goal that is not met", () => {
   test("not_met keeps the goal active, records the judgment and continues with the missing criteria as an instruction", async () => {
     const h = await open();
@@ -94,12 +104,18 @@ describe("a goal that is not met", () => {
     const patch = await rig.settle();
 
     expect(patch?.continue).toBe(true);
-    const [entry] = patch?.entries ?? [];
+    const [entry, shown] = patch?.entries ?? [];
     expect(entry && customOf(entry)).toEqual({
       customType: GOAL_CONTINUE_TYPE,
       content:
         "The goal is not yet shown to be met. Tests are missing. Missing: tests. Continue working, and show evidence for each criterion.",
     });
+    expect(entry && displayOf(entry)).toBe(false);
+    expect(shown && customOf(shown)).toEqual({
+      customType: GOAL_NOTICE_TYPE,
+      content: "목표 판정 1/3: 아직 달성하지 못했어요. 이어서 작업해요.",
+    });
+    expect(shown && displayOf(shown)).toBe(true);
     expect(goalState(h)).toEqual([["g1", "active", 1]]);
     expect(judgments(h)).toMatchObject([
       {
@@ -142,7 +158,7 @@ describe("a goal that is not met", () => {
     await h.goals.set({ condition: "x" }, h.opts());
     const other = rig.noticeEntry();
     const patch = await rig.settle({ entries: [other] });
-    expect(patch?.entries).toHaveLength(2);
+    expect(patch?.entries).toHaveLength(3);
     expect(patch?.entries?.[0]).toBe(other);
     const second = patch?.entries?.[1];
     expect(second && customOf(second).customType).toBe(GOAL_CONTINUE_TYPE);
@@ -196,7 +212,7 @@ describe("the judge limit", () => {
     const [entry] = patch?.entries ?? [];
     expect(entry && customOf(entry)).toEqual({
       customType: GOAL_NOTICE_TYPE,
-      content: "The goal judge reached its limit of 3 runs, so the turn ended without a verdict.",
+      content: "목표 판정을 최대 3번까지 했지만 목표를 달성하지 못한 채 턴을 끝냈어요.",
     });
     expect(goalState(h)).toEqual([["g1", "limit_reached", 0]]);
     expect(judgments(h)).toEqual([]);
@@ -215,8 +231,7 @@ describe("the judge limit", () => {
     const [entry] = last?.entries ?? [];
     expect(entry && customOf(entry)).toEqual({
       customType: GOAL_NOTICE_TYPE,
-      content:
-        "The goal judge reached its limit of 2 runs, so the turn ended without meeting the goal.",
+      content: "목표 판정을 최대 2번까지 했지만 목표를 달성하지 못한 채 턴을 끝냈어요.",
     });
     expect(goalState(h)).toEqual([["g1", "limit_reached", 2]]);
     expect(reports(h)).toMatchObject([
@@ -239,7 +254,7 @@ describe("a judge failure stops", () => {
     const [entry] = patch?.entries ?? [];
     expect(entry && customOf(entry)).toEqual({
       customType: GOAL_NOTICE_TYPE,
-      content: "The goal judge failed (fresnel.models is not available), so the turn stopped.",
+      content: "목표를 판정하지 못해서 턴을 멈췄어요.",
     });
     expect(goalState(h)).toEqual([["g1", "judge_failed", 0]]);
     expect(reports(h)).toMatchObject([

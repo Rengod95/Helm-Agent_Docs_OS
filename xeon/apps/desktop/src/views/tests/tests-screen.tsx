@@ -16,8 +16,9 @@ import type { ReplayReport } from "@fresnel/contracts/services";
 import type { ExtTestRunParams } from "@fresnel/contracts/wire";
 import { useEffect, useReducer, useState, type ReactNode } from "react";
 import { useLinkPhase } from "../../state/engine/index.ts";
-import { useShell, useShellActions, type WorkbenchContext } from "../../state/shell/index.ts";
+import { useShell, type WorkbenchContext } from "../../state/shell/index.ts";
 import { useCommands } from "../commands.ts";
+import { useShowChat } from "../plugin/plugin-view.tsx";
 import { tabLinkOf } from "../workbench/tab-read.ts";
 import { phaseOf, runControl, sendTestPrompt, startTest, targetNamesOf } from "./tests-actions.ts";
 import { useTestList } from "./tests-read.ts";
@@ -48,7 +49,7 @@ export function TestsScreen(): ReactNode {
   const online = link === "live";
   const scope = threadScopeOf(useShell((s) => s.context));
   const compact = useShell((s) => s.layout) === "compact";
-  const shell = useShellActions();
+  const showChat = useShowChat();
   const [ui, dispatch] = useReducer(testsUiReducer, INITIAL_TESTS_UI);
   const list = useTestList(link);
   const records = list.read.kind === "ready" ? list.read.value : [];
@@ -125,8 +126,8 @@ export function TestsScreen(): ReactNode {
     }
     dispatch({ type: "sending", sending: false });
     if (started.ok) {
-      // 과제를 보냈으면 화면을 시험 대화로 옮긴다(목록에 남아 있으면 열린 줄 모른다)
-      if (prompt !== null && started.value.threadId !== null) shell.switchArea("chat");
+      // 과제를 보냈으면 화면을 시험 대화로 옮긴다(영역만 바꾸면 플러그인 화면이 남아 열린 줄 모른다. 화면 자리까지 대화로 돌린다)
+      if (prompt !== null && started.value.threadId !== null) showChat();
       dispatch({ type: "sheetClose" });
       dispatch({ type: "notice", notice: startNoticeOf(params) });
       list.reload();

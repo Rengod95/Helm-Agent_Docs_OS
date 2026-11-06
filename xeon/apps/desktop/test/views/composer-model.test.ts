@@ -137,6 +137,23 @@ describe("queued input chips", () => {
     expect(chipInputs(list).map((c) => c.inputId)).toEqual([evt(1), evt(2)]);
   });
 
+  test("an internal instruction (display false) is not a chip, a shown Helm notice is named", () => {
+    const list = [
+      chip({
+        inputId: evt(1),
+        sourceType: "extension",
+        preview: { kind: "label", labelKey: "helm", internal: true },
+      }),
+      chip({
+        inputId: evt(2),
+        sourceType: "extension",
+        preview: { kind: "label", labelKey: "helm" },
+      }),
+    ];
+    expect(chipInputs(list).map((c) => c.inputId)).toEqual([evt(2)]);
+    expect(queuedPreviewText({ kind: "label", labelKey: "helm" })).toBe("Helm 안내");
+  });
+
   test("the mode is said in the chip's short words: steer after the next tool round, followUp and next when the turn ends", () => {
     expect(queuedModeText("steer")).toBe("다음 도구 라운드 뒤 들어가요");
     expect(queuedModeText("followUp")).toBe("이번 턴이 끝나면 들어가요");

@@ -39,6 +39,7 @@ export const useApprovalDetail = (id: EventId): string | undefined =>
   useUi((s) => s.approvalDetails[id]);
 export const useScreen = (): Screen => useUi((s) => s.screen);
 export const useLocked = (): LockedThread | null => useUi((s) => s.locked);
+export const useCommandRuns = (): number => useUi((s) => s.commandRuns);
 export const useCommandOutput = (): CommandOutput | null => useUi((s) => s.commandOutput);
 export const useObserving = (id: ThreadId | null): boolean =>
   useUi((s) => id !== null && s.observing[id] === true);
