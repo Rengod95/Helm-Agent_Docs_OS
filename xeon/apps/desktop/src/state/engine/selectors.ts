@@ -91,6 +91,11 @@ export const selectThreadsStatus = (s: EngineMirror): EngineMirror["threads"]["s
   s.threads.status;
 export const selectTranscriptStatus = (s: EngineMirror): "none" | "loading" | "ready" | "error" =>
   s.transcript === null ? "none" : s.transcript.status;
+/** 대화를 읽지 못했을 때 그 이유. 오류가 아니면 null */
+export const selectTranscriptFailure = (
+  s: EngineMirror,
+): "unavailable" | "failed" | "timeout" | "stale" | null =>
+  s.transcript?.status === "error" ? s.transcript.reason : null;
 export const selectOpenThreadId = (s: EngineMirror): ThreadId | null =>
   s.transcript?.threadId ?? null;
 /** 엔진이 열어 본문까지 받은 대화. 다시 켠 뒤 고른 채로만 남은 대화와 열리는 중인 대화는 아니다 */

@@ -37,7 +37,7 @@ function mirrorWith(request: ApprovalRequestedPayload): EngineMirror {
 function html(
   request: ApprovalRequestedPayload,
   options: {
-    readonly failure?: "invalid" | "closed" | "unapplied" | "failed";
+    readonly failure?: "invalid" | "closed" | "unapplied" | "failed" | "gone" | "locked";
     readonly detail?: string;
   } = {},
 ): string {
@@ -228,15 +228,28 @@ describe("question approval card", () => {
 
 describe("failure marks tell the user what to do", () => {
   const request = toolRequest({ command: "ls" });
-  test("answer invalid, already resolved, unapplied and failed read differently", () => {
-    const texts = (["invalid", "closed", "unapplied", "failed"] as const).map((failure) => {
-      const out = html(request, { failure });
-      expect(out).toContain(`data-failure="${failure}"`);
-      return out.match(/data-failure="[a-z]+">([^<]*)</)?.[1];
-    });
-    expect(new Set(texts).size).toBe(4);
+  test("answer invalid, already resolved, unapplied, failed and gone read differently", () => {
+    const texts = (["invalid", "closed", "unapplied", "failed", "gone", "locked"] as const).map(
+      (failure) => {
+        const out = html(request, { failure });
+        expect(out).toContain(`data-failure="${failure}"`);
+        return out.match(/data-failure="[a-z]+">([^<]*)</)?.[1];
+      },
+    );
+    expect(new Set(texts).size).toBe(6);
     expect(texts[0]).toContain("올바르지 않아");
     expect(texts[1]).toContain("이미 처리된");
+    expect(texts[4]).toBe("이 승인은 더 이상 답할 수 없어요.");
+    expect(texts[5]).toContain("다른 곳(터미널 등)에서 이 대화를 쓰고 있어서");
+  });
+
+  test("only a gone approval offers the remove button; the other failures do not", () => {
+    expect(html(request, { failure: "gone" })).toContain('data-action="dismiss"');
+    expect(html(request, { failure: "gone" })).toContain("지우기");
+    for (const failure of ["invalid", "closed", "unapplied", "failed"] as const) {
+      expect(html(request, { failure })).not.toContain('data-action="dismiss"');
+    }
+    expect(html(request)).not.toContain('data-action="dismiss"');
   });
 });
 

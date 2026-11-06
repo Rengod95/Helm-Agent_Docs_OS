@@ -63,7 +63,11 @@ export type Transcript =
       readonly itemIds: readonly ItemId[];
       readonly items: Readonly<Record<string, ItemRecord>>;
     }
-  | { readonly status: "error"; readonly threadId: ThreadId };
+  | {
+      readonly status: "error";
+      readonly threadId: ThreadId;
+      readonly reason: "unavailable" | "failed" | "timeout" | "stale";
+    };
 
 export type StreamingPart = {
   readonly partId: PartId;

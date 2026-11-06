@@ -20,6 +20,8 @@ export function approvalFailureOf(
   decision: "allow" | "deny" | "answer",
 ): ApprovalFailureView | null {
   if (!sent.ok) {
+    // 다른 프로세스(터미널 등)가 이 대화를 쥐고 있다(3002): 이유를 말해야 사용자가 그쪽을 끝낸다
+    if (sent.error.kind === "locked") return { kind: "locked" };
     // 스키마에 맞지 않는 질문 답은 host가 -32602로 거절한다
     return sent.error.kind === "rejected" &&
       sent.error.code === INVALID_PARAMS &&
@@ -32,7 +34,9 @@ export function approvalFailureOf(
   if (reason === "answer_invalid") {
     return detail === undefined ? { kind: "invalid" } : { kind: "invalid", detail };
   }
-  if (reason === "already_resolved" || reason === "unknown_approval") return { kind: "closed" };
+  // 이미 해결된 승인은 곧 대기열에서 빠지고, host가 모르는 승인은 지울 때까지 카드에 남는다
+  if (reason === "already_resolved") return { kind: "closed" };
+  if (reason === "unknown_approval") return { kind: "gone" };
   if (reason === "commit_failed") return { kind: "failed" };
   return { kind: "unapplied" };
 }

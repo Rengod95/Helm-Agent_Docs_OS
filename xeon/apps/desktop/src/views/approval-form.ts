@@ -26,6 +26,8 @@ export const APPROVAL_FAILURE_ID: Readonly<Record<Exclude<ApprovalSend, "sending
   closed: "desktop.approvals.failure.closed",
   unapplied: "desktop.approvals.failure.unapplied",
   switching: "desktop.approvals.failure.switching",
+  gone: "desktop.approvals.failure.gone",
+  locked: "desktop.approvals.failure.locked",
 };
 
 // 거울이 쥔 승인은 wire payload 모양이다(ApprovalRequestedPayload). 서비스 쪽 타입은 브랜드 문자열을 써서 쓰지 않는다

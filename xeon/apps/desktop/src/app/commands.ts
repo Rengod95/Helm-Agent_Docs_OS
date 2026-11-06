@@ -12,6 +12,7 @@ import {
   ok,
   type Logger,
   type Result,
+  type Scheduler,
 } from "@fresnel/contracts";
 import type { EventId, ThreadId } from "@fresnel/contracts/conversation";
 import {
@@ -77,13 +78,27 @@ export type CommandDeps = {
   readonly engineSwitch: EngineSwitch;
   /** 안전 모드 상태 읽기가 실패하면 원인을 남긴다(`setup.loadSafeMode`) */
   readonly logger: Pick<Logger, "warn">;
+  /** 이미 해결된 승인을 대기열에서 빼기 전 잠깐 보이는 시간을 잰다(`respondApproval`). 시험은 직접 넘기는 예약기를 준다 */
+  readonly scheduler: Pick<Scheduler, "setTimeout">;
 };
 
 /** 첨부 크기 상한 설정 키(L2.dialog, 호스트 값) */
 const ATTACHMENT_LIMIT_KEY = "l2.dialog.attachments.maxBytes";
 
+/**
+ * 이미 해결된 승인("다른 곳에서 처리됨")을 카드에 보이는 시간(ms). 뒤에 대기열에서 뺀다.
+ * host는 이미 해결했다고 답하므로 approval.resolved가 오면 거기서 빠진다. 안 오면 이 시간 뒤에 거울에서 뺀다.
+ */
+const CLOSED_APPROVAL_LINGER_MS = 2_500;
+
 export function createCommands(deps: CommandDeps): Commands {
   const { session, engine, ui } = deps;
+
+  /** 승인 하나를 대기열에서 뺀다. 거울에서 지우고(해결된 것으로 기억한다) 카드의 응답 표시도 지운다 */
+  const removeApproval = (approvalId: EventId): void => {
+    engine.ingest({ type: "approval_dismissed", approvalId });
+    ui.actions.approvalSettled(approvalId);
+  };
 
   const withConnection = async <T>(
     run: (connection: NonNullable<ReturnType<Session["connection"]>>) => Promise<T>,
@@ -383,7 +398,14 @@ export function createCommands(deps: CommandDeps): Commands {
       // 대기열에서 빠지는 일은 approval.resolved 이벤트가 한다. 여기서는 보낸 결과 표시만 고친다
       const failure = approvalFailureOf(sent, response.decision);
       if (failure !== null) ui.actions.approvalFailed(approvalId, failure.kind, failure.detail);
+      // 이미 해결된 승인은 approval.resolved가 끝내 오지 않으면 카드에 남는다. 표시를 잠깐 보인 뒤 아직 그 표시이면 뺀다
+      if (failure?.kind === "closed") {
+        deps.scheduler.setTimeout(() => {
+          if (ui.read.getState().approvalSends[approvalId] === "closed") removeApproval(approvalId);
+        }, CLOSED_APPROVAL_LINGER_MS);
+      }
     },
+    dismissApproval: (approvalId) => removeApproval(approvalId),
     trust: {
       status: (workspace) => withConnection((c) => c.request("trust.get", { workspace })),
       decide: (workspace, choice) =>

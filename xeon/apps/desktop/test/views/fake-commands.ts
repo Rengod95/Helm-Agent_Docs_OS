@@ -42,6 +42,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     copyText: () => Promise.resolve(true),
     commandList: () => Promise.resolve(ok([])),
     respondApproval: () => Promise.resolve(),
+    dismissApproval: () => {},
     trust: {
       status: () => Promise.resolve(err({ kind: "unsupported" })),
       decide: () => Promise.resolve(err({ kind: "unsupported" })),

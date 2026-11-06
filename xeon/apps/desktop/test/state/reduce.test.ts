@@ -11,7 +11,12 @@ import type { EventWire, VolatileEventWire } from "@fresnel/contracts/wire";
 import type { DurableFact, MirrorInput } from "../../src/state/engine/input.ts";
 import { MAX_SYNC_ATTEMPTS, reduceMirror } from "../../src/state/engine/reduce.ts";
 import { checkMirror } from "../../src/state/engine/invariants.ts";
-import { selectLatestTurnId, selectRecentTurnIds } from "../../src/state/engine/selectors.ts";
+import {
+  selectLatestTurnId,
+  selectRecentTurnIds,
+  selectThreadApprovals,
+} from "../../src/state/engine/selectors.ts";
+import { inboxRowsOf } from "../../src/views/inbox-model.ts";
 import {
   STORE,
   SUB,
@@ -396,17 +401,21 @@ describe("loading and failure states, approval restoration", () => {
 
   test("transcript_failed only applies to the loading transcript of that thread", () => {
     const loading = reduceAll(live(), { type: "transcript_opening", threadId: thr(1) });
-    expect(reduceMirror(loading, { type: "transcript_failed", threadId: thr(2) }).note).toBe(
-      "foreign",
-    );
-    expect(reduceAll(loading, { type: "transcript_failed", threadId: thr(1) }).transcript).toEqual({
+    expect(
+      reduceMirror(loading, { type: "transcript_failed", threadId: thr(2), reason: "failed" }).note,
+    ).toBe("foreign");
+    expect(
+      reduceAll(loading, { type: "transcript_failed", threadId: thr(1), reason: "failed" })
+        .transcript,
+    ).toEqual({
       status: "error",
       threadId: thr(1),
+      reason: "failed",
     });
     // 다시 열면 loading으로 돌아간다
     const again = reduceAll(
       loading,
-      { type: "transcript_failed", threadId: thr(1) },
+      { type: "transcript_failed", threadId: thr(1), reason: "failed" },
       { type: "transcript_opening", threadId: thr(1) },
     );
     expect(again.transcript?.status).toBe("loading");
@@ -442,6 +451,84 @@ describe("loading and failure states, approval restoration", () => {
     expect(
       reduceAll(resolvedFirst, { type: "approvals", approvals: [listed] }).approvals.ids,
     ).toEqual([]);
+  });
+});
+
+/** 화면이 승인 하나를 대기열에서 뺀다(`approval_dismissed`) */
+const dismiss = (n: number): MirrorInput => ({ type: "approval_dismissed", approvalId: evt(n) });
+
+describe("approval_dismissed takes an approval out of the queue", () => {
+  const req: DurableFact = {
+    type: "approval.requested",
+    seq: 6,
+    eventId: evt(6),
+    threadId: T,
+    turnId: null,
+    at: "t",
+    request: approvalRequest(T),
+  };
+  const res: DurableFact = {
+    type: "approval.resolved",
+    seq: 7,
+    eventId: evt(8),
+    threadId: T,
+    turnId: null,
+    at: "t",
+    approvalId: evt(6),
+  };
+  const waiting = (): EngineMirror =>
+    run([head(5), { type: "threads", threads: [summary(T)] }, batch(5, 6, [req])]);
+
+  test("removes the approval, lowers its thread's count, and the inbox and sidebar count follow", () => {
+    const before = waiting();
+    expect(selectThreadApprovals(before, T)).toBe(1);
+    expect(inboxRowsOf(before.approvals.ids, before.approvals.byId)).toEqual([
+      { id: evt(6), threadId: T, requestedAt: 0 },
+    ]);
+    const after = reduceMirror(before, dismiss(6));
+    expect(after.note).toBe("applied");
+    expect(after.state.approvals.ids).toEqual([]);
+    expect(after.state.approvals.byId).toEqual({});
+    expect(after.state.threads.byId[T]?.pendingApprovals).toBe(0);
+    expect(selectThreadApprovals(after.state, T)).toBe(0);
+    expect(inboxRowsOf(after.state.approvals.ids, after.state.approvals.byId)).toEqual([]);
+    expect(checkMirror(after.state)).toEqual([]);
+  });
+
+  test("an id the mirror does not hold changes nothing and is not remembered", () => {
+    const before = waiting();
+    const unknown = reduceMirror(before, dismiss(9));
+    expect(unknown.state).toBe(before);
+    expect(unknown.note).toBe("stale");
+    // 모르는 id는 해결된 목록에도 들어가지 않는다. 그래서 뒤의 승인 복원이 그 승인을 막지 않는다
+    expect(unknown.state.approvals.resolved).toEqual([]);
+  });
+
+  test("a later approvals input does not bring a dismissed approval back", () => {
+    const after = reduceMirror(waiting(), dismiss(6)).state;
+    const listed = { approvalId: evt(6), seq: 6, request: approvalRequest(T) };
+    expect(reduceAll(after, { type: "approvals", approvals: [listed] }).approvals.ids).toEqual([]);
+  });
+
+  test("a second dismissal is stale and the count never goes below zero", () => {
+    const after = reduceMirror(waiting(), dismiss(6));
+    const again = reduceMirror(after.state, dismiss(6));
+    expect(again.state).toBe(after.state);
+    expect(again.note).toBe("stale");
+    expect(again.state.threads.byId[T]?.pendingApprovals).toBe(0);
+  });
+
+  test("the approval.resolved that arrives after a dismissal does not lower the count again", () => {
+    const s = run([
+      head(5),
+      { type: "threads", threads: [summary(T)] },
+      batch(5, 6, [req]),
+      dismiss(6),
+      batch(6, 7, [res]),
+    ]);
+    expect(s.approvals.ids).toEqual([]);
+    expect(s.threads.byId[T]?.pendingApprovals).toBe(0);
+    expect(checkMirror(s)).toEqual([]);
   });
 });
 

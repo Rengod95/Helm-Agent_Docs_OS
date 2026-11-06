@@ -95,6 +95,8 @@ export const useThreadsStatus = (): EngineMirror["threads"]["status"] =>
   useEngine(sel.selectThreadsStatus);
 export const useTranscriptStatus = (): "none" | "loading" | "ready" | "error" =>
   useEngine(sel.selectTranscriptStatus);
+export const useTranscriptFailure = (): "unavailable" | "failed" | "timeout" | "stale" | null =>
+  useEngine(sel.selectTranscriptFailure);
 export const useOpenThreadId = (): ThreadId | null => useEngine(sel.selectOpenThreadId);
 export const useReadyThreadId = (): ThreadId | null => useEngine(sel.selectReadyThreadId);
 export const useUnlistedApprovals = (id: ThreadId): number =>
