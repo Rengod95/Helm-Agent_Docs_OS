@@ -299,11 +299,20 @@ describe("이 대화에서 끄기: 클릭과 쓰기", () => {
       ["web", false],
       ["web", null],
     ]);
-    expect(notes.map(({ tone, title, actionLabel }) => ({ tone, title, actionLabel }))).toEqual([
+    expect(
+      notes.map(({ tone, title, actionLabel, dismissLabel }) => ({
+        tone,
+        title,
+        actionLabel,
+        dismissLabel,
+      })),
+    ).toEqual([
       {
         tone: "danger",
         title: t("desktop.plugin.thread.failed"),
         actionLabel: t("desktop.plugin.thread.retry"),
+        // 실패 토스트는 저절로 닫히지 않으므로 닫기 단추가 있다(F-S4-3)
+        dismissLabel: "닫기",
       },
     ]);
     expect(requests).toHaveLength(1);

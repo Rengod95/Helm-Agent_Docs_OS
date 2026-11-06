@@ -21,6 +21,7 @@ import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { ExtName } from "../workbench/ext-row.tsx";
 import { linkOf, type LinkState } from "../runtime/runtime-tab.tsx";
 import { detachVoid, reloadOnExtChanges } from "../workbench/controller.ts";
+import { showFailureToast } from "../workbench/failure-toast.ts";
 
 /** 열린 대화의 `ext.list` 한 번 읽기. `idle`은 대화가 없어 읽지 않는다는 뜻이다 */
 export type ThreadListLoad =
@@ -82,6 +83,7 @@ export async function writeThreadSwitch(
     port.notify({
       tone: "danger",
       title: t("desktop.plugin.thread.failed"),
+      dismissLabel: t("desktop.workbench.toast.dismiss"),
       actionLabel: t("desktop.plugin.thread.retry"),
       onAction: () => {
         detachVoid(writeThreadSwitch(port, threadId, entry, target));
@@ -317,7 +319,8 @@ export function ThreadSwitches(props: { readonly heading?: boolean }): ReactNode
         setShowing((current) => withShowing(current, name, next));
       },
       notify: (options) => {
-        toast(options);
+        if (options.tone === "danger") showFailureToast(options);
+        else toast(options);
       },
     };
     detachVoid(writeThreadSwitch(port, threadId, entry, target));

@@ -10,6 +10,7 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbenchActions, useWorkbenchScope } from "../../state/workbench/index.ts";
 import { useCommands, type WorkbenchCommands } from "../commands.ts";
 import { scopeArg } from "../craft/craft-scope.ts";
+import { showFailureToast } from "./failure-toast.ts";
 import { useSafeMode } from "../safe-mode-context.ts";
 import { mapLimited } from "./load-details.ts";
 import { orderTableOf } from "./order-merge.ts";
@@ -121,7 +122,7 @@ export function useWorkbenchController(): WorkbenchController {
       });
       if (!done.ok) {
         actions.clearPending(name);
-        toast({ tone: "danger", title: t("desktop.workbench.toggle.failed") });
+        showFailureToast({ title: t("desktop.workbench.toggle.failed") });
         return;
       }
       await reload();
@@ -133,7 +134,7 @@ export function useWorkbenchController(): WorkbenchController {
     async (name: string): Promise<void> => {
       const done = await commands.workbench.reenable(name);
       if (!done.ok) {
-        toast({ tone: "danger", title: t("desktop.workbench.toggle.failed") });
+        showFailureToast({ title: t("desktop.workbench.toggle.failed") });
         return;
       }
       toast({ tone: "success", title: t("desktop.workbench.reenable.done") });
@@ -146,7 +147,7 @@ export function useWorkbenchController(): WorkbenchController {
     async (name: string): Promise<void> => {
       const done = await commands.workbench.keepOff(name);
       if (!done.ok) {
-        toast({ tone: "danger", title: t("desktop.workbench.toggle.failed") });
+        showFailureToast({ title: t("desktop.workbench.toggle.failed") });
         return;
       }
       await reload();

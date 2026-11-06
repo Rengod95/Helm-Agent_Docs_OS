@@ -21,6 +21,8 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import { InfoTip } from "../craft/info-tip.tsx";
+import { frameReasonText } from "./frame-reason.ts";
 
 // Plugin App 프레임 한 칸(ADR-0021 §3.4.2, §3.6.2). iframe 하나를 그리고 `attachFrame`으로 그 수명을 맡는다.
 // sandbox 값은 `attachFrame`이 건다(`allow-scripts`만, `allow-same-origin` 없음). 이 파일은 같은 상수 `FRAME_SANDBOX`를 JSX에 주기만 한다.
@@ -106,7 +108,8 @@ function createFrameChannel(): { readonly port1: BridgePort; readonly port2: Mes
 
 export function PluginFrame(props: PluginFrameProps): ReactNode {
   const { screenKey, ledger, onClosed, title } = props;
-  const [closed, setClosed] = useState(false);
+  // 프레임이 스스로 닫힌 이유. 장부가 끈 화면의 이유는 장부에서 읽는다
+  const [closed, setClosed] = useState<LedgerFailure | null>(null);
   // 다시 켜기마다 올린다. 새 iframe 요소를 만들어 이전 문서의 흔적을 남기지 않는다
   const [generation, setGeneration] = useState(0);
 
@@ -126,17 +129,20 @@ export function PluginFrame(props: PluginFrameProps): ReactNode {
 
   const handleClosed = (reason: LedgerFailure | "disposed"): void => {
     // 언마운트나 주소 바뀜으로 거두는 것(disposed)은 자리 표시를 띄우지 않는다
-    if (reason !== "disposed") setClosed(true);
+    if (reason !== "disposed") setClosed(reason);
     onClosed(reason);
   };
 
-  if (disabled || closed) {
+  if (disabled || closed !== null) {
+    const state = ledger.stateOf(screenKey);
+    const reason = closed ?? (state.state === "view_disabled" ? state.last : null);
     return (
       <FrameBox label={title}>
         <FramePlaceholder
+          reason={reason}
           onReenable={() => {
             ledger.reenable(screenKey);
-            setClosed(false);
+            setClosed(null);
             setGeneration((current) => current + 1);
           }}
         />
@@ -160,13 +166,26 @@ function FrameBox(props: { readonly label: string; readonly children: ReactNode 
 }
 
 /** 자리 표시. 장부가 끈 화면이나 닫힌 프레임을 상자 안 가운데에 대신한다 */
-function FramePlaceholder(props: { readonly onReenable: () => void }): ReactNode {
+function FramePlaceholder(props: {
+  readonly reason: LedgerFailure | null;
+  readonly onReenable: () => void;
+}): ReactNode {
+  const text = frameReasonText(props.reason);
   return (
     <div className="grid flex-1 place-items-center px-3 py-6">
       <EmptyState
         size="sm"
         surface="none"
-        title={t("desktop.plugin.frame.disabled")}
+        title={
+          text.info === null ? (
+            text.line
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              {text.line}
+              <InfoTip text={text.info} />
+            </span>
+          )
+        }
         actions={
           <Button size="xs" variant="outline" onClick={props.onReenable}>
             {t("desktop.plugin.frame.reenable")}
