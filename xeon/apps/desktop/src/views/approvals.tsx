@@ -2,7 +2,11 @@ import { t } from "@fresnel/client/i18n";
 import type { ThreadId } from "@fresnel/contracts/conversation";
 import { ScrollArea } from "@caustic/react";
 import type { ReactNode } from "react";
-import { useApprovalMirror, useOpenThreadId, useThreadSummaries } from "../state/engine/index.ts";
+import {
+  useAllThreadSummaries,
+  useApprovalMirror,
+  useOpenThreadId,
+} from "../state/engine/index.ts";
 import { InboxNotices } from "./notices.tsx";
 import { ApprovalCardList } from "./approval-card/approval-card.tsx";
 import {
@@ -23,7 +27,8 @@ export type InboxThreadChoice = { readonly id: ThreadId; readonly title: string 
 /** 대기 승인이 있는 대화를 승인 순서대로 돌려준다. 이름은 대화 요약에서 읽고 카드 머리와 같은 값이다 */
 export function useInboxThreads(): readonly InboxThreadChoice[] {
   const approvals = useApprovalMirror();
-  const summaries = useThreadSummaries();
+  // 대기 승인이 있는 대화는 내부 대화여도 이름이 보여야 처리할 수 있다
+  const summaries = useAllThreadSummaries();
   return inboxThreadIdsOf(inboxRowsOf(approvals.ids, approvals.byId)).map((id) => ({
     id,
     title: summaries.find((summary) => summary.threadId === id)?.title ?? null,

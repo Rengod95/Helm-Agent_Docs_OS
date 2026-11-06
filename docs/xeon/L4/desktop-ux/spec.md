@@ -808,7 +808,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 | 사이드바 대화 목록 | `thread.list { limit }` → 거울, `ThreadSummary.status`, `resumable`, `pendingApprovals`, `queuedInputs` |
 | 창·패널 상태 | UI 스토어(`sidebarOpen`, 끝 영역 탭과 폭) `[gap:V-14]` |
 
-- 기능: 사이드바·끝 영역 토글, 폭 끌기(`ResizeHandle`), 대화 고르기(`selectThread`), 새 대화(O-07), 대화 행 메뉴(이름 바꾸기 `thread.rename`, 분기 `thread.fork`, 컴팩션 `thread.compact`(누르면 진행 토스트, 끝나면 엔진이 준 요약 전 토큰 수나 요약하지 않은 이유를 한 줄로, 실패하면 이유별 문장을 닫기 전까지 보인다), 내보내기 `thread.export`(O-13), 닫기 `thread.close`, 삭제 `thread.delete` + O-06).
+- 기능: 사이드바·끝 영역 토글, 폭 끌기(`ResizeHandle`), 대화 고르기(`selectThread`, 설정이나 받은 요청·예약·플러그인 같은 전체 쪽이 열려 있으면 그 대화 화면으로 간다 `rowOpensChat` [근거: rtE R-5, `views/thread-nav-model.ts`]), 새 대화(O-07), 대화 행 메뉴(이름 바꾸기 `thread.rename`, 분기 `thread.fork`, 컴팩션 `thread.compact`(누르면 진행 토스트, 끝나면 엔진이 준 요약 전 토큰 수나 요약하지 않은 이유를 한 줄로, 실패하면 이유별 문장을 닫기 전까지 보인다), 내보내기 `thread.export`(O-13), 닫기 `thread.close`, 삭제 `thread.delete` + O-06).
 - 대화 행 메뉴 구현 [근거: `apps/desktop/src/views/thread-row-menu.tsx`]: 행 오른쪽 ⋯ 버튼(행에 마우스를 올리거나 초점이 있거나 메뉴가 열려 있을 때 보임)에 이름 바꾸기(1~200자, 앞뒤 공백 제거), 분기, 대화 요약, 내보내기, 닫기, 지우기를 둡니다. 실행 중인 대화는 분기와 닫기, 지우기를 막고 지우기 확인 창이 이유를 말합니다. 닫힌 대화는 요약과 닫기를 막습니다. 지우기는 확인 창(`kind=alert`)을 거치고, 열릴 때 초점은 "취소"에 있고 Esc로 닫으며 닫으면 ⋯ 단추로 돌아옵니다(Enter로 지우지 않습니다). 같은 모양의 확인 창(잠금 안내 포함)도 안전한 단추가 첫 초점입니다. 긴 제목은 행과 대화 머리에서 한 줄 말줄임이고 사이드바는 가로로 밀리지 않으며 전체 제목은 툴팁입니다. 그리고 분기한 대화가 가리키는 대화는 host가 `thread.hasForks`로 거절해 그 이유를 창 안에 보입니다. 지운 뒤에는 목록을 다시 읽고, 열려 있던 대화였다면 선택을 풉니다. 그 밖의 실패는 오류 토스트입니다. 내보내기는 O-13 대화 상자를 엽니다(§6.31, 와이어 W-51). 예약 지우기는 이 구현에 없습니다(사용자 몫).
 - 상태: 대화 목록 빈 경우 "아직 대화가 없어요" + "새 대화" (`EmptyState variant="dashed"`), 읽는 중 `Skeleton` 5행, 읽기 실패 "대화 목록을 읽지 못했어요" + "다시 읽기", 오프라인은 목록 유지와 흐린 표시, 긴 목록은 폴더 묶음 접기와 50개 뒤 "더 보기"(`nextCursor`).
 - 대화 행: 제목(없으면 "제목 없음"), 배지 `실행 중`(running), `이어서 실행`(resumable이면서 답을 기다리는 승인이 없을 때만. 승인을 기다리는 턴은 멈춘 턴이 아니므로 `승인 N`만 보입니다. 띠와 같은 기준 `rowResumable`), `승인 N`, `잠김`(다른 소유자, 알 수 있을 때), `예약`(schedule이 만든 대화) (출처는 `ThreadSummary.origin`) [근거: `packages/contracts/src/wire-settings/wire/methods.ts:443`].
@@ -957,7 +957,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 ```
 
 - 목적: 첫 메시지를 보낼 수 있는 상태로 만듭니다(SC-01). 설정이 덜 됐으면 언제든 다시 열 수 있습니다.
-- 진입: 첫 실행에서 `readyToChat`이 거짓이면 무대에 자동으로 엽니다. 자동 열기는 앱 실행마다 한 번이라서, 사용자가 다른 화면에 갔다가 돌아와도 다시 열지 않습니다(`firstRunAutoOpenDue`, `app.tsx`). 이후에는 "설정 필요" 띠의 "설정 열기"와 팔레트 "시작하기"(`firstRun.open`)입니다.
+- 진입: 첫 실행에서 `readyToChat`이 거짓이면 무대에 자동으로 엽니다. 자동 열기는 앱 실행마다 한 번이라서, 사용자가 다른 화면에 갔다가 돌아와도 다시 열지 않습니다(`firstRunAutoOpenDue`, `app.tsx`). 이후에는 "설정 필요" 띠의 "시작 안내 열기"(rtE R-7, 예전 글자는 "설정 열기")와 팔레트 "시작하기"(`firstRun.open`)입니다.
 
 | 항목 | 출처 |
 |---|---|
@@ -995,7 +995,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 
 - 기본 그룹 단계 [결정: 2026-10-31 사용자]: 첫 실행은 검색 권장 다음에 건너뛸 수 있는 "기본 그룹" 단계를 둡니다. Helm과 학습 그룹은 켬, review는 끔이고, 안전 모드 안내 한 줄을 둡니다. Helm과 학습 그룹의 `Switch`와 한 줄 설명을 보이고 기본값은 둘 다 켬입니다(Helm `defaultEnabled: true`, `L3.helm.spec` §3.1. 학습 그룹 `defaultEnabled: true`, `L3.learning.spec` §3.1 [결정: review.m3-design-inputs D-M3-02]). 값은 `ext.helm.enabled`, `ext.learning.enabled` 사용자 범위입니다. `fresnel group new` 안내는 두지 않고 "LightCraft에서 더 보기" 링크 하나만 둡니다(새 그룹은 LightCraft 구성기 P-21 소유). 안전 모드로 시작했으면 이 단계 맨 위에 "안전 모드라 그룹이 실리지 않았어요" 한 줄을 둡니다.
 
-- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "설정 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결] [근거: `m4-decisions` 2026-11-04 블록까지 review 켜기 키 결정 없음]. (2) 검색 권장에는 "설치" 단추가 없고(설치 wire `ext.install`은 있다), "설치 방법 보기" 링크가 설치 안 됨이나 키 없음 행에 있습니다. 링크는 설치를 이 화면에서 할 수 없다는 한 줄을 펼칩니다. 키 없는 플러그인의 "키 등록"은 행의 시크릿 이름으로 키 값 칸을 엽니다. (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. 플러그인 키는 연결하지 않고 저장만 합니다. (4) 구현됨: 첫 실행 자동 열기, 팔레트 "시작하기", ⌘Enter, 바닥글의 앱 버전과 엔진 한 줄. 바닥글의 "모델 없음" 칸은 아직 없습니다.
+- 구현 메모 [제안]: 화면 파일은 `apps/desktop/src/views/pages/first-run/`에 있습니다(`first-run-model.ts` 단계와 기본 그룹 값, `first-run-view.tsx` 그림, `first-run-screen.tsx` 명령, `first-run-key.tsx` 키 값 칸). 등록은 `desktop-registry.tsx`의 id `first-run`이고, "설정 필요" 띠의 "시작 안내 열기"가 무대에 엽니다. 명령은 `SetupCommands`의 `loadGroups`, `setGroupEnabled`, `loadSearch`, `dismissSearchHint`입니다(`app/setup.ts`). 위 항목과 다른 점은 이렇습니다. (1) review는 켜기 키가 정해지지 않아 "꺼짐" 표시만 두고 `Switch`는 두지 않습니다 [미결] [근거: `m4-decisions` 2026-11-04 블록까지 review 켜기 키 결정 없음]. (2) 검색 권장에는 "설치" 단추가 없고(설치 wire `ext.install`은 있다), "설치 방법 보기" 링크가 설치 안 됨이나 키 없음 행에 있습니다. 링크는 설치를 이 화면에서 할 수 없다는 한 줄을 펼칩니다. 키 없는 플러그인의 "키 등록"은 행의 시크릿 이름으로 키 값 칸을 엽니다. (3) 키 등록이 끝나면 provider 연결을 이어서 합니다. "provider에 연결" 버튼은 남깁니다. 플러그인 키는 연결하지 않고 저장만 합니다. (4) 구현됨: 첫 실행 자동 열기, 팔레트 "시작하기", ⌘Enter, 바닥글의 앱 버전과 엔진 한 줄. 바닥글의 "모델 없음" 칸은 아직 없습니다.
 
 ### 6.6 P-02 대화
 
@@ -2118,7 +2118,7 @@ compact 폭(720 이하)과 사이드바 시트:
 | O-04 | `trust.get` → `trustCardOf` | `trust.decide { choice }` | 입력창 위 카드, 대화 상자 아님 |
 | O-05 | 시크릿 이름 | `SecretRevealPort.reveal` | 기본 초점 "취소", 실패 사유 문장 |
 | O-06 | 참조와 영향 | 삭제 동작 | `tone="danger"`, 기본 초점 "취소" |
-| O-07 | 최근 작업 폴더 `recentWorkspacesOf`(서로 다른 작업 폴더, 목록 순서, 최대 5개, "대화 N") | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 대화 목록은 작업 폴더별 묶음(머리의 `+`가 그 폴더에서 새 대화, 보낸 것 없는 빈 대화가 있으면 그리로 감)이고 ⌘N은 보던 폴더에서 열거나 폴더가 없으면 폴더 고르기 창을 연다(`L4.desktop.spec` §4.16). 폴더 입력란은 목록 아래 "다른 폴더에서 시작…" 단추가 여는 대화 상자(`Dialog`)에서 경로를 직접 적는 길로 남고, 최근 작업 폴더를 고르면 입력란을 채운다. 만들면 대화 상자가 닫힌다 [근거: `views/thread-list.tsx`(`OtherFolder`), `views/new-thread-model.ts`, `views/thread-groups.ts`] |
+| O-07 | 최근 작업 폴더 `recentWorkspacesOf`(서로 다른 작업 폴더, 목록 순서, 최대 5개, "대화 N") | `thread.create { workspace? }`, 검사 `checkWorkspaceInput` | OS 폴더 고르기는 `pick_folder`(W-19). 대화 목록은 작업 폴더별 묶음(머리의 `+`가 그 폴더에서 새 대화, 보낸 것 없는 빈 대화가 있으면 그리로 감)이고 ⌘N은 보던 폴더에서 열거나 폴더가 없으면 폴더 고르기 창을 연다(`L4.desktop.spec` §4.16). 폴더 입력란은 목록 아래 "다른 폴더에서 시작…" 단추가 여는 대화 상자(`Dialog`)에서 경로를 직접 적는 길로 남고, 최근 작업 폴더를 고르면 입력란을 채운다. 만들면 대화 상자가 닫힌다 [근거: `views/thread-list.tsx`(`OtherFolder`), `views/new-thread-model.ts`, `views/thread-groups.ts`]. 엔진 내부 일로 만든 대화(학습 검토 등, `ThreadSummary.spawnedBy.kind` = `internal`)는 사이드바·팔레트·⌥⌘↑↓ 이동·받은 요청의 대화 선택에서 숨기고(대화는 지우지 않음, 대기 승인이 있는 대화의 이름은 그대로 읽는다), 하위 에이전트가 만든 자식 대화(`subagent`)는 작업 폴더가 없으면 부모의 폴더 묶음에 들어 부모 행 바로 아래 한 칸 들여 쓴 "하위" 행으로 보인다. 직접 열면 위임으로 만든 대화의 사용자 말풍선(엔진이 넣은 지시문)은 그리지 않고, 입력창 자리에 "하위 대화예요"와 "부모로 가기"를 둔다 엔진 거울은 새 대화 시작 사실(`thread.started`)에 위임 표지가 없어서, 새 대화가 생기면 `thread.list` 첫 쪽에서 `spawnedBy`만 읽어 표지 없는 대화에 붙인다(`spawned` 입력) [결정: 오케스트레이터 기본값, rtE R-3] [근거: `views/thread-groups.ts`(`sidebarGroupsOf`), `views/spawned-notice.tsx`, `state/engine/link.ts`(`loadSpawnedMarks`)] |
 | O-08 | §6.11 | `schedule.create` | 닫을 때 초안 확인 |
 | O-09 | §4.8 표 | 없음 | `[gap:C-11]` |
 

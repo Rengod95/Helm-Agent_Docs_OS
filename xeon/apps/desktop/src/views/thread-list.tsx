@@ -23,18 +23,23 @@ import {
   useThreadApprovals,
   useUnlistedApprovals,
 } from "../state/engine/index.ts";
-import { useSelectedThreadId } from "../state/ui/index.ts";
+import { useShellActions } from "../state/shell/index.ts";
+import { useScreen, useSelectedThreadId } from "../state/ui/index.ts";
 import { useCommands } from "./commands.ts";
 import { pickWorkspaceFolder, type FolderPickInvoke } from "./folder-pick.ts";
 import { useStartNewThread } from "./new-thread-flow.ts";
 import { recentWorkspacesOf, type RecentWorkspace } from "./new-thread-model.ts";
 import { rowResumable } from "./resume-band-model.ts";
-import { folderLabel, groupByWorkspace } from "./thread-groups.ts";
+import { folderLabel, sidebarGroupsOf } from "./thread-groups.ts";
+import { rowOpensChat } from "./thread-nav-model.ts";
 import { ThreadRowMenu } from "./thread-row-menu.tsx";
 import { checkWorkspaceInput, createFailureText, workspaceHint } from "./workspace-model.ts";
 
 /** 대화 상자가 닫히며 초점을 되돌리는 시간(ms)보다 넉넉히 */
 const DIALOG_CLOSE_MS = 300;
+
+/** 하위 대화 행은 부모보다 한 칸 들여 쓴다 */
+const CHILD_ROW = "ms-4";
 
 const UNTITLED_LABEL =
   "[&_[data-slot=list-navigation-label]]:italic [&_[data-slot=list-navigation-label]]:text-text-tertiary";
@@ -44,7 +49,7 @@ const LIST_COLUMN =
   "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 [&_ul]:grid-cols-[minmax(0,1fr)] [&_[data-slot=list-navigation-item]]:min-w-0 [&_[data-slot=list-navigation-item]]:grid-cols-[minmax(0,1fr)]";
 
 /** 행 오른쪽 짧은 글자. 이어서 실행, 닫힘, 승인 수 중 하나(시안: 행 meta는 짧게) */
-function metaOf(thread: ThreadSummary, approvals: number): ReactNode {
+function metaOf(thread: ThreadSummary, approvals: number, child: boolean): ReactNode {
   // 이어서 실행은 아이콘과 글(시안 threadMeta의 RotateCcw + 이어서 실행)
   if (rowResumable(thread, approvals)) {
     return (
@@ -58,11 +63,17 @@ function metaOf(thread: ThreadSummary, approvals: number): ReactNode {
   if (approvals > 0) {
     return t("desktop.threads.approvalsBadge", { count: approvals });
   }
-  return undefined;
+  return child ? t("desktop.threads.subBadge") : undefined;
 }
 
-const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummary }): ReactNode {
+const ThreadRow = memo(function ThreadRow(props: {
+  readonly thread: ThreadSummary;
+  /** 하위 에이전트가 만든 자식 대화: 부모 아래 들여 쓴 행 */
+  readonly child: boolean;
+}): ReactNode {
   const commands = useCommands();
+  const shell = useShellActions();
+  const screen = useScreen();
   const id: ThreadId = props.thread.threadId;
   const selected = useSelectedThreadId() === id;
   const unlisted = useUnlistedApprovals(id);
@@ -78,10 +89,28 @@ const ThreadRow = memo(function ThreadRow(props: { readonly thread: ThreadSummar
               statusLabels: { running: t("desktop.threads.status.running") },
             }
           : {})}
-        meta={metaOf(props.thread, approvals)}
+        meta={metaOf(props.thread, approvals, props.child)}
         title={unlisted > 0 ? `${title}\n${t("desktop.threads.unlistedApprovals")}` : title}
-        className={props.thread.title === null ? UNTITLED_LABEL : undefined}
+        className={
+          [props.thread.title === null ? UNTITLED_LABEL : "", props.child ? CHILD_ROW : ""]
+            .filter((c) => c !== "")
+            .join(" ") || undefined
+        }
         onSelect={() => {
+          // 설정이나 받은 요청 같은 전체 쪽이 열려 있으면 그 대화 화면으로 간다(rtE R-5)
+          const model = shell.snapshot();
+          if (
+            rowOpensChat({
+              screen,
+              area: model.area,
+              chatPlaceScreen: model.places.chat.screen,
+            })
+          ) {
+            if (model.area !== "chat") shell.switchArea("chat");
+            commands.showScreen("chat");
+            if (model.places.chat.screen !== "chat")
+              shell.updatePlace({ screen: "chat", scroll: 0 });
+          }
           commands.selectThread(id);
         }}
       >
@@ -268,7 +297,7 @@ export function ThreadList(props: {
     detach(run(), rethrow);
   };
 
-  const groups = groupByWorkspace(threads);
+  const groups = sidebarGroupsOf(threads);
   const recent = recentWorkspacesOf(threads);
   return (
     <div className={LIST_COLUMN}>
@@ -299,8 +328,8 @@ export function ThreadList(props: {
               start(group.workspace ?? undefined);
             }}
           >
-            {group.items.map((thread) => (
-              <ThreadRow key={thread.threadId} thread={thread} />
+            {group.items.map((row) => (
+              <ThreadRow key={row.thread.threadId} thread={row.thread} child={row.child} />
             ))}
           </ListNavigationGroup>
         ))}

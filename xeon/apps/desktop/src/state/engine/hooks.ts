@@ -39,11 +39,29 @@ function useEngine<U>(selector: (state: EngineMirror) => U): U {
   return useStore(useEngineStore(), useShallow(selector));
 }
 
-export const useThreadIds = (): readonly ThreadId[] => useEngine(sel.selectThreadIds);
+/** 엔진 내부 일로 만든 대화(`spawnedBy.kind === "internal"`)는 목록·이동에서 뺀다 [결정: 오케스트레이터 기본값, rtE R-3] */
+const hiddenFromList = (summary: ThreadSummary | undefined): boolean =>
+  summary?.spawnedBy?.kind === "internal";
+export const useThreadIds = (): readonly ThreadId[] =>
+  useEngine(
+    useShallow((s: EngineMirror) =>
+      s.threads.ids.filter((id) => !hiddenFromList(sel.selectThread(s, id))),
+    ),
+  );
 export const useThread = (id: ThreadId): ThreadSummary | undefined =>
   useEngine((s) => sel.selectThread(s, id));
-/** 목록 순서(최근 활동 먼저)의 대화 요약. 셸의 맥락 칸이 쓴다 */
+/** 목록 순서(최근 활동 먼저)의 대화 요약. 셸의 맥락 칸이 쓴다. 엔진 내부 대화는 없다 */
 export const useThreadSummaries = (): readonly ThreadSummary[] =>
+  useEngine(
+    useShallow((s: EngineMirror) =>
+      s.threads.ids.flatMap((id) => {
+        const summary = sel.selectThread(s, id);
+        return summary === undefined || hiddenFromList(summary) ? [] : [summary];
+      }),
+    ),
+  );
+/** 내부 대화까지 포함한 요약. 대기 승인의 대화 이름처럼 숨기면 안 되는 곳만 쓴다 */
+export const useAllThreadSummaries = (): readonly ThreadSummary[] =>
   useEngine(
     useShallow((s: EngineMirror) =>
       s.threads.ids.flatMap((id) => {

@@ -286,6 +286,8 @@ export interface AgentView {
   readonly parentThreadId: ThreadId;
   /** 자식 requestId(L1.agents.spec §4.5) */
   readonly requestId: string;
+  /** `agent.spawned.owner.kind`(`p_agents.owner_kind`). 엔진 내부 일(scope)과 하위 에이전트(tool, drive)를 가른다. 읽을 수 없는 값이면 없다 [결정: 오케스트레이터 기본값, rtE R-3] [근거: packages/core-persistence/src/views.ts] */
+  readonly ownerKind?: "tool" | "drive" | "scope";
   readonly ownerTurnId: TurnId | null;
   readonly background: boolean;
   readonly depth: number;

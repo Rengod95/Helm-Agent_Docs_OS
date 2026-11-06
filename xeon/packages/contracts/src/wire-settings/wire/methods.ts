@@ -425,6 +425,19 @@ export const ThreadOriginSchema: TUnion<
 ]);
 export type ThreadOrigin = Static<typeof ThreadOriginSchema>;
 
+/** 위임으로 만든 자식 대화의 표지: 부모 대화와 종류(하위 에이전트 / 엔진 내부 일) */
+export const ThreadSpawnedBySchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  kind: TUnion<[TLiteral<"subagent">, TLiteral<"internal">]>;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    kind: Type.Union([Type.Literal("subagent"), Type.Literal("internal")]),
+  },
+  { additionalProperties: false },
+);
+export type ThreadSpawnedBy = Static<typeof ThreadSpawnedBySchema>;
+
 export const ThreadSummarySchema: TObject<{
   threadId: typeof ThreadIdSchema;
   title: TUnion<[TString, TNull]>;
@@ -442,6 +455,7 @@ export const ThreadSummarySchema: TObject<{
   lastTurnId: TOptional<typeof TurnIdSchema>;
   origin: TOptional<typeof ThreadOriginSchema>;
   testRun: TOptional<typeof TestRunMarkerSchema>;
+  spawnedBy: TOptional<typeof ThreadSpawnedBySchema>;
   model: TOptional<TString>;
 }> = Type.Object(
   {
@@ -471,6 +485,8 @@ export const ThreadSummarySchema: TObject<{
     origin: Type.Optional(ThreadOriginSchema),
     /** Test run 표지(W-34, X-14). Test run이 아니면 생략한다 */
     testRun: Type.Optional(TestRunMarkerSchema),
+    /** 위임으로 만든 자식 대화의 표지. 사용자가 만든 대화이면 생략한다 [결정: 오케스트레이터 기본값, rtE R-3] */
+    spawnedBy: Type.Optional(ThreadSpawnedBySchema),
     /** 이 대화가 다음 turn부터 쓰도록 정한 모델 참조(`provider/id`). 정하지 않았으면 생략한다(기본 모델 `l1.models.default`) */
     model: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   },

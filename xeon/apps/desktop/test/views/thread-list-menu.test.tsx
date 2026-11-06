@@ -24,6 +24,14 @@ function mirror(): EngineMirror {
       summary(thr(1), { title: "첫 대화" }),
       summary(thr(2), { title: "닫은 대화", status: "closed" }),
       summary(thr(3), { title: LONG_TITLE }),
+      summary(thr(4), {
+        title: "하위 조사",
+        spawnedBy: { threadId: thr(1), kind: "subagent" },
+      }),
+      summary(thr(5), {
+        title: "검토 대화",
+        spawnedBy: { threadId: thr(1), kind: "internal" },
+      }),
     ],
   });
   h.store.flush();
@@ -44,6 +52,15 @@ describe("thread list row menu", () => {
     const out = html(<ThreadList />);
     expect(out).toContain("첫 대화 메뉴");
     expect(out).toContain("닫은 대화 메뉴");
+  });
+});
+
+describe("thread list internal and sub conversations", () => {
+  test("the internal conversation is not listed and the sub conversation is marked as one", () => {
+    const out = html(<ThreadList />);
+    expect(out).not.toContain("검토 대화");
+    expect(out).toContain("하위 조사");
+    expect(out).toContain("하위</");
   });
 });
 

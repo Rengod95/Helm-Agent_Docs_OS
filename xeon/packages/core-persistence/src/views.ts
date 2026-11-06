@@ -406,7 +406,7 @@ export function readThreadSummary(
 }
 
 const AGENT_COLUMNS =
-  "child_thread_id, thread_id, request_id, owner_turn_id, background, depth, settled_seq, settled_status, settled_event_id";
+  "child_thread_id, thread_id, request_id, owner_kind, owner_turn_id, background, depth, settled_seq, settled_status, settled_event_id";
 
 function agentViewOf(row: SqlRow): Result<AgentView, RowFault> {
   const c = columns(row, "p_agents");
@@ -416,6 +416,8 @@ function agentViewOf(row: SqlRow): Result<AgentView, RowFault> {
   if (!parentThreadId.ok) return parentThreadId;
   const requestId = c.string("request_id");
   if (!requestId.ok) return requestId;
+  const ownerKindText = c.string("owner_kind");
+  if (!ownerKindText.ok) return ownerKindText;
   const ownerTurnId = c.nullableId("trn", "owner_turn_id");
   if (!ownerTurnId.ok) return ownerTurnId;
   const background = c.bool("background");
@@ -436,6 +438,11 @@ function agentViewOf(row: SqlRow): Result<AgentView, RowFault> {
     childThreadId: childThreadId.value,
     parentThreadId: parentThreadId.value,
     requestId: requestId.value,
+    ...(ownerKindText.value === "tool" ||
+    ownerKindText.value === "drive" ||
+    ownerKindText.value === "scope"
+      ? { ownerKind: ownerKindText.value }
+      : {}),
     ownerTurnId: ownerTurnId.value,
     background: background.value,
     depth: depth.value,

@@ -516,6 +516,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
     lastTurnId: Type.Optional(TurnIdSchema),     // 대화의 마지막 turn id(ThreadSummaryRow.lastTurnId). turn이 없으면 생략. 데스크톱이 최근 실행의 기준 턴으로 쓴다
     origin: Type.Optional(ThreadOriginSchema),   // M4, W-16. { kind: "user" } | { kind: "schedule", scheduleId } | { kind: "remote" }
     testRun: Type.Optional(TestRunMarkerSchema), // M4, W-34. { profileId, target, paused }. Test run이 아니면 생략
+    spawnedBy: Type.Optional(ThreadSpawnedBySchema), // M4, rtE R-3. { threadId(부모), kind: "subagent"\|"internal" }. 위임으로 만든 자식이 아니면 생략 [결정: 오케스트레이터 기본값, rtE R-3]
     model: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })), // M4, T-MODEL. 대화가 다음 turn부터 쓰도록 정한 `provider/id`. 정하지 않았으면 생략(기본 모델)
   }, { additionalProperties: false });
   ```

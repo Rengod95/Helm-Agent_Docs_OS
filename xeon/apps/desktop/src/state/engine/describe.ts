@@ -32,6 +32,7 @@ export function describeInput(input: MirrorInput): InputLabel {
     case "out_of_range":
     case "subscribe_failed":
     case "threads":
+    case "spawned":
     case "transcript_opening":
     case "transcript_closed":
     case "approvals":

@@ -296,11 +296,9 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         // 위임으로 만든 자식 thread의 열린 turn은 요청의 맥락 없이 이어 끝낼 수 없다. 부모가 같은 requestId로 다시 부를 때만 이어지므로
         // 재개 후보(`resumable`)에서 뺀다(L1.loop.spec §4.13)
         let row = listed;
-        if (row.marker !== null) {
-          const link = session.query.agentOfChild(row.threadId);
-          if (!link.ok) throw wireErrorOfStore(link.error, "thread.list child lookup");
-          if (link.value !== undefined) row = { ...row, marker: null };
-        }
+        const link = session.query.agentOfChild(row.threadId);
+        if (!link.ok) throw wireErrorOfStore(link.error, "thread.list child lookup");
+        if (row.marker !== null && link.value !== undefined) row = { ...row, marker: null };
         // 열린 turn의 표식이 있는데 이 프로세스에 그 turn의 범위가 없으면 turn은 이미 멈췄다(강제 종료 뒤 재시작). 저장된 상태는 running으로
         // 남아 있으므로 idle로 알려 화면이 거짓 "실행 중"을 그리지 않게 한다. 표식은 그대로라 "이어서 실행"은 남는다
         const stale =
@@ -314,11 +312,20 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
           });
         }
         const scheduleId = origins.get(row.threadId);
-        summaries.push(
-          scheduleId === undefined
-            ? summary.value
-            : { ...summary.value, origin: { kind: "schedule", scheduleId } },
-        );
+        const spawnedBy: Pick<ThreadSummary, "spawnedBy"> =
+          link.value === undefined
+            ? {}
+            : {
+                spawnedBy: {
+                  threadId: link.value.parentThreadId,
+                  kind: link.value.ownerKind === "scope" ? "internal" : "subagent",
+                },
+              };
+        summaries.push({
+          ...summary.value,
+          ...spawnedBy,
+          ...(scheduleId === undefined ? {} : { origin: { kind: "schedule", scheduleId } }),
+        });
       }
       return { threads: summaries, nextCursor: page.nextCursor };
     },

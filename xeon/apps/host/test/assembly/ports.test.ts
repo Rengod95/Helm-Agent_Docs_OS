@@ -5,6 +5,7 @@ import { describe, expect, test } from "bun:test";
 import { Bug, err, ok, type Logger } from "@fresnel/contracts";
 import type { ThreadId, ThreadStatus } from "@fresnel/contracts/conversation";
 import type {
+  AgentView,
   InputView,
   LeaseError,
   LeaseOwnerInfo,
@@ -490,6 +491,7 @@ describe("threads", () => {
         },
         list: () => ({ threads: rows, nextCursor: "next" }),
       }),
+      query: partial<SessionService["query"]>({ agentOfChild: () => ok(undefined) }),
       feed: h.deps.session.feed,
     });
     const { ports } = createEnginePorts({ ...h.deps, session });
@@ -537,6 +539,49 @@ describe("threads", () => {
     ).toEqual([
       { id: topLevel, resumable: true },
       { id: child, resumable: false },
+    ]);
+  });
+
+  test("thread.list marks a delegated child with its parent and kind (subagent vs internal)", async () => {
+    const h = harness();
+    const top = ids.next("thr");
+    const sub = ids.next("thr");
+    const internal = ids.next("thr");
+    const linkOf = (child: ThreadId, ownerKind: "tool" | "scope"): AgentView => ({
+      childThreadId: child,
+      parentThreadId: top,
+      requestId: "req-1",
+      ownerKind,
+      ownerTurnId: null,
+      background: false,
+      depth: 1,
+      settled: null,
+    });
+    const session = partial<SessionService>({
+      threads: partial<SessionService["threads"]>({
+        list: () => ({
+          threads: [markedRow(top), markedRow(sub), markedRow(internal)],
+          nextCursor: null,
+        }),
+      }),
+      query: partial<SessionService["query"]>({
+        agentOfChild: (threadId) =>
+          ok(
+            threadId === sub
+              ? linkOf(sub, "tool")
+              : threadId === internal
+                ? linkOf(internal, "scope")
+                : undefined,
+          ),
+      }),
+      feed: h.deps.session.feed,
+    });
+    const { ports } = createEnginePorts({ ...h.deps, session });
+    const listed = await ports.threads.list({});
+    expect(listed.threads.map((thread) => thread.spawnedBy)).toEqual([
+      undefined,
+      { threadId: top, kind: "subagent" },
+      { threadId: top, kind: "internal" },
     ]);
   });
 
