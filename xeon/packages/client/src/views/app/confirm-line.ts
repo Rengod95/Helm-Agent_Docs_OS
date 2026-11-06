@@ -43,12 +43,7 @@ export function confirmLineText(request: ConfirmRequest): string {
             host: request.punycodeHost,
           });
     case "secret":
-      return t(
-        request.overwrite === true
-          ? "client.view.confirm.secretOverwrite"
-          : "client.view.confirm.secret",
-        { extension, name: request.action },
-      );
+      return t("client.view.confirm.secret", { extension, name: request.action });
     case "approval":
       return t("client.view.confirm.approval", { extension, action: shownAction(request) });
     case "call":

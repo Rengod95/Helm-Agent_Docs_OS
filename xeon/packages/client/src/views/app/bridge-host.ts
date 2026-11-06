@@ -2,6 +2,7 @@ import {
   BRIDGE_VERSION,
   BridgeRequestSchema,
   UI_LIMITS,
+  BRIDGE_FILE_OPS,
   bridgeMessageWithinLimit,
   type BridgeError,
   type BridgePush,
@@ -81,27 +82,64 @@ export interface BridgeBackend {
   resize(height: number): void;
   /** 진단 줄. op와 크기만 온다 */
   diagnostic(line: { readonly op: string; readonly size: number }): void;
-  /** OS 파일 창에서 사용자가 고른 파일 하나의 이름과 글 내용. 취소면 `null`. 경로는 프레임에 주지 않는다 */
-  pickFile(): Promise<BackendResult<{ readonly name: string; readonly content: string } | null>>;
-  /** OS 폴더 창에서 사용자가 고른 폴더의 이름(마지막 조각)만. 취소면 `null`. 경로와 안의 파일은 주지 않는다 */
-  pickFolder(): Promise<BackendResult<{ readonly name: string } | null>>;
-  /** OS 저장 창에서 사용자가 정한 곳에 내용을 쓴다. 취소면 `saved`가 거짓이다. 경로는 주지 않는다 */
+  /** OS 파일 창에서 사용자가 고른 파일 하나: 이름, 전체 경로, 크기, 내용(글이면 `utf8` 문자열, 아니면 `base64`). 취소면 `null` */
+  pickFile(): Promise<BackendResult<FileRead | null>>;
+  /** OS 폴더 창에서 사용자가 고른 폴더의 이름, 전체 경로, 이 화면에서 폴더 안을 볼 핸들 id. 취소면 `null` */
+  pickFolder(): Promise<
+    BackendResult<{
+      readonly name: string;
+      readonly path: string;
+      readonly folder: string;
+    } | null>
+  >;
+  /** 이 화면이 고른 폴더 안의 목록. `path`는 폴더 기준 상대 경로(빈 문자열은 폴더 자신) */
+  listFolder(
+    folder: string,
+    path: string,
+    recursive: boolean,
+  ): Promise<BackendResult<FolderListing>>;
+  /** 이 화면이 고른 폴더 안의 파일 하나 읽기 */
+  readFolderFile(folder: string, path: string): Promise<BackendResult<FileRead>>;
+  /** OS 저장 창에서 사용자가 정한 곳에 내용을 쓴다. 취소면 `saved`가 거짓이고 `path`는 `null`이다 */
   saveFile(
     suggestedName: string,
     content: string,
-  ): Promise<BackendResult<{ readonly saved: boolean }>>;
+  ): Promise<BackendResult<{ readonly saved: boolean; readonly path: string | null }>>;
   /** OS 알림 하나. 제목에는 실행기가 확장 이름을 붙여 넘긴다 */
   notify(title: string, body: string): Promise<BackendResult<{ readonly shown: boolean }>>;
   /** 확장 접두 설정 키 하나를 사용자 범위에 쓴다. 비밀 키인지는 이 쪽에서 정의로 다시 본다 */
   writeSetting(key: string, value: string | number | boolean): Promise<BackendResult<unknown>>;
-  /** 같은 이름의 비밀 키가 이미 있는가. 덮어쓰기를 확인 줄에 따로 보이려고 확인 전에 묻는다 */
+  /** 같은 이름의 비밀 키가 이미 있는가(`secret.list`). 있으면 확인 줄 없이 갱신한다 */
   secretExists(secretName: string): Promise<BackendResult<boolean>>;
-  /** 비밀 키 값을 셸에만 보낸다(`overwrite`면 덮어쓰기). 값은 응답, 로그, 오류에 담지 않는다 */
+  /** 비밀 키 값을 셸에만 보낸다(`overwrite`면 이미 있는 키의 갱신). 값은 응답, 로그, 오류에 담지 않는다 */
   registerSecret(
     secretName: string,
     value: string,
     overwrite: boolean,
   ): Promise<BackendResult<null>>;
+}
+
+/** 읽은 파일. 글이면 `utf8`과 문자열, 아니면 `base64`와 바이트의 base64 문자열이다 */
+export interface FileRead {
+  readonly name: string;
+  readonly path: string;
+  readonly size: number;
+  readonly encoding: "utf8" | "base64";
+  readonly content: string;
+}
+
+export interface FolderEntry {
+  /** 고른 폴더 기준 상대 경로(`/` 구분) */
+  readonly path: string;
+  readonly name: string;
+  readonly kind: "file" | "dir";
+  readonly size?: number | undefined;
+}
+
+export interface FolderListing {
+  readonly entries: readonly FolderEntry[];
+  /** 항목 수 상한에서 멈췄으면 참 */
+  readonly truncated: boolean;
 }
 
 export type ConfirmAnswer = "allow" | "deny";
@@ -125,8 +163,6 @@ export interface ConfirmRequest {
   readonly paramsSummary: string;
   /** 표준 승인 카드가 따로 뜨는 메서드인가(그 카드는 끌 수 없다) */
   readonly approval: boolean;
-  /** `secret`이고 같은 이름의 키가 이미 있어 덮어쓰게 되면 참. 확인 문구가 덮어쓴다고 따로 말한다 */
-  readonly overwrite?: boolean;
 }
 
 export interface BridgeHostOptions {
@@ -164,11 +200,13 @@ export const CONFIRM_DENY_STREAK = 3;
 export const CONFIRM_COOLDOWN_MS = 5000;
 /** 읽기 길 동시 처리 상한 */
 export const QUERY_INFLIGHT_MAX = 8;
-/** 셸 기능 예산. 창을 여는 op(`pickFile`, `pickFolder`, `saveFile`)와 `registerSecret`은 `post`와 같은 5초 1번이고, 알림과 설정 쓰기는 분당 상한이다 */
+/** 셸 기능 예산(남용 방지 수준, 2026-11-06). 창을 여는 op(`pickFile`, `pickFolder`, `saveFile`)와 `registerSecret`의 확인 창은 한 번에 하나, 알림과 설정 쓰기는 분당 상한(`UI_LIMITS`)이다 */
 const WINDOW_BUDGET_MS = 60000;
 /** `post`, `requestApproval` 화면당 예산: 5초에 1번, 미결 5개 */
 export const POST_MIN_INTERVAL_MS = 5000;
 export const POST_OUTSTANDING_MAX = 5;
+/** 고른 폴더 안 목록·읽기 동시 처리 상한 */
+const FOLDER_READS_MAX = 2;
 export const PARAMS_SUMMARY_MAX = 400;
 
 /** 장부의 연속 실패를 되돌리는 성공은 일을 한 것뿐이다. 생존 확인, 크기 조절, 진단, host 읽기, 이동은 세지 않는다(싸서 실패 사이에 끼워 넣어 장부를 비울 수 있다) */
@@ -182,6 +220,8 @@ const SUBSTANTIVE_OPS: ReadonlySet<string> = new Set([
   "requestApproval",
   "pickFile",
   "pickFolder",
+  "listFolder",
+  "readFolderFile",
   "saveFile",
   "notify",
   "writeSetting",
@@ -238,6 +278,13 @@ function idOf(data: unknown): number | undefined {
   return typeof id === "number" && Number.isSafeInteger(id) && id >= 0 ? id : undefined;
 }
 
+/** 요청 크기 상한. 파일 내용을 싣는 요청은 `saveFile`뿐이라 그 op만 파일 상한을 받는다. 나머지는 1 MiB다 */
+function requestLimitOf(data: unknown): number {
+  if (typeof data !== "object" || data === null) return UI_LIMITS.bridgeMessageBytes;
+  const op: unknown = Object.getOwnPropertyDescriptor(data, "op")?.value;
+  return op === "saveFile" ? UI_LIMITS.bridgeFileMessageBytes : UI_LIMITS.bridgeMessageBytes;
+}
+
 function sizeOf(value: unknown): number {
   const text = attempt(() => JSON.stringify(value));
   // 직렬화되지 않는 값은 상한을 넘은 것으로 본다
@@ -289,8 +336,9 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
   let queriesInflight = 0;
   const postBudget = createCallBudget();
   const navigateBudget = createCallBudget();
-  const dialogBudget = createCallBudget();
-  const secretBudget = createCallBudget();
+  /** 한 번에 열 수 있는 창: 파일·폴더·저장 창과 시크릿 확인 창 */
+  let windowOpen = false;
+  let folderReads = 0;
   const notifyBudget = createWindowBudget(UI_LIMITS.notifyPerMinute, WINDOW_BUDGET_MS);
   const settingBudget = createWindowBudget(UI_LIMITS.settingWritesPerMinute, WINDOW_BUDGET_MS);
   let confirmTimer: TimerHandle | undefined;
@@ -335,7 +383,6 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
     params: Readonly<Record<string, unknown>>,
     approval: boolean,
     punycodeHost?: string,
-    overwrite?: boolean,
   ): Promise<BridgeError | undefined> {
     if (options.clock.now() < cooldownUntil) {
       count("confirm_denied");
@@ -355,7 +402,6 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       label,
       paramsSummary: summarizeParams(params),
       approval,
-      ...(overwrite === true ? { overwrite } : {}),
     });
     if (outcome === "allow") {
       denyStreak = 0;
@@ -473,15 +519,17 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
     return result.ok ? result.value : failed("failed");
   }
 
-  /** 창을 여는 셸 기능. 예산을 쓰고 OS 창의 답만 돌려준다(경로는 백엔드가 이미 걸렀다) */
+  /** 창을 여는 셸 기능. 창은 한 번에 하나이고, 열려 있으면 `rate_limited`다. OS 창의 답만 돌려준다 */
   async function runDialog(
     action: Extract<RunnableAction, { op: "pickFile" | "pickFolder" | "saveFile" }>,
   ): Promise<BackendResult<unknown>> {
-    const over = budgetError(dialogBudget);
-    if (over !== undefined) return { ok: false, error: over };
+    if (windowOpen) {
+      count("limit_exceeded");
+      return failed("rate_limited");
+    }
     const before = stillRunnable();
     if (before !== undefined) return { ok: false, error: before };
-    dialogBudget.begin();
+    windowOpen = true;
     const result = await attemptAsync((): Promise<BackendResult<unknown>> => {
       switch (action.op) {
         case "pickFile":
@@ -494,16 +542,34 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
           return assertNever(action, "DialogAction");
       }
     });
-    dialogBudget.end();
+    windowOpen = false;
     // 창이 떠 있는 동안 꺼졌으면 고른 내용은 건네지 않는다
     const after = stillRunnable();
     if (after !== undefined) return { ok: false, error: after };
-    if (!result.ok) return failed("failed");
-    if (result.value.ok && sizeOf(result.value.value) > UI_LIMITS.fileBytes * 2) {
+    // 응답 크기는 메시지를 보낼 때 파일 op 상한으로 본다
+    return result.ok ? result.value : failed("failed");
+  }
+
+  /** 고른 폴더 안의 목록과 파일 읽기. 동시에 2개까지다. 접근 범위는 백엔드와 셸이 지킨다 */
+  async function runFolder(
+    action: Extract<RunnableAction, { op: "listFolder" | "readFolderFile" }>,
+  ): Promise<BackendResult<unknown>> {
+    if (folderReads >= FOLDER_READS_MAX) {
       count("limit_exceeded");
-      return failed("too_large");
+      return failed("rate_limited");
     }
-    return result.value;
+    const before = stillRunnable();
+    if (before !== undefined) return { ok: false, error: before };
+    folderReads += 1;
+    const result = await attemptAsync((): Promise<BackendResult<unknown>> =>
+      action.op === "listFolder"
+        ? backend.listFolder(action.folder, action.path, action.recursive)
+        : backend.readFolderFile(action.folder, action.path),
+    );
+    folderReads -= 1;
+    const after = stillRunnable();
+    if (after !== undefined) return { ok: false, error: after };
+    return result.ok ? result.value : failed("failed");
   }
 
   async function runNotify(
@@ -531,13 +597,18 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
     return result.value.ok ? { ok: true, value: null } : result.value;
   }
 
-  /** 비밀 키 등록. 매번 확인 줄을 거치고 덮어쓰기는 줄에 따로 보인다. 줄에는 이름만 보이고 값은 어디에도 나오지 않는다 */
+  /**
+   * 비밀 키 등록. 그 확장이 그 이름을 처음 등록할 때만 확인 줄을 거친다(2026-11-06). 이미 있는 키(`secret.list`)를 다시 등록·갱신할 때는 묻지 않는다.
+   * 줄에는 이름만 보이고 값은 어디에도 나오지 않는다. 확인 창은 한 번에 하나다
+   */
   async function runRegisterSecret(
     action: Extract<RunnableAction, { op: "registerSecret" }>,
   ): Promise<BackendResult<unknown>> {
-    const over = budgetError(secretBudget);
-    if (over !== undefined) return { ok: false, error: over };
-    secretBudget.begin();
+    if (windowOpen) {
+      count("limit_exceeded");
+      return failed("rate_limited");
+    }
+    windowOpen = true;
     try {
       const before = stillRunnable();
       if (before !== undefined) return { ok: false, error: before };
@@ -545,16 +616,10 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       if (!existing.ok) return failed("failed");
       if (!existing.value.ok) return existing.value;
       const overwrite = existing.value.value;
-      const refused = await confirmGate(
-        "secret",
-        action.secretName,
-        undefined,
-        {},
-        false,
-        undefined,
-        overwrite,
-      );
-      if (refused !== undefined) return { ok: false, error: refused };
+      if (!overwrite) {
+        const refused = await confirmGate("secret", action.secretName, undefined, {}, false);
+        if (refused !== undefined) return { ok: false, error: refused };
+      }
       const off = await gone();
       if (off !== undefined) return { ok: false, error: off };
       const result = await attemptAsync(() =>
@@ -563,7 +628,7 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       if (!result.ok) return failed("failed");
       return result.value.ok ? { ok: true, value: null } : result.value;
     } finally {
-      secretBudget.end();
+      windowOpen = false;
     }
   }
 
@@ -657,6 +722,9 @@ export function createActionRunner(options: ActionRunnerOptions): ActionRunner {
       case "pickFolder":
       case "saveFile":
         return runDialog(action);
+      case "listFolder":
+      case "readFolderFile":
+        return runFolder(action);
       case "notify":
         return runNotify(action);
       case "writeSetting":
@@ -801,7 +869,7 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
   async function onMessage(data: unknown): Promise<void> {
     if (closed) return;
     // 1. 크기. 직렬화되지 않는 값도 여기서 걸린다
-    if (!bridgeMessageWithinLimit(data)) {
+    if (!bridgeMessageWithinLimit(data, requestLimitOf(data))) {
       const id = idOf(data);
       if (id !== undefined) respondError(id, { kind: "too_large" });
       count("limit_exceeded");
@@ -846,7 +914,14 @@ export function createBridgeHost(options: BridgeHostOptions): BridgeHost {
       ok: true,
       value: outcome.value.value,
     };
-    if (!bridgeMessageWithinLimit(response)) {
+    if (
+      !bridgeMessageWithinLimit(
+        response,
+        BRIDGE_FILE_OPS.has(decision.action.op)
+          ? UI_LIMITS.bridgeFileMessageBytes
+          : UI_LIMITS.bridgeMessageBytes,
+      )
+    ) {
       count("limit_exceeded");
       respondError(request.id, { kind: "too_large" });
       return;

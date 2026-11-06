@@ -46,12 +46,18 @@ export const UI_LIMITS = {
   bridgeMessageBytes: 1048576,
   bridgeMessagesPerSecond: 50,
   minPollSeconds: 5,
-  /** `pickFile` 읽기와 `saveFile` 쓰기 내용의 상한(바이트) */
-  fileBytes: 262144,
-  /** `notify` 확장·화면당 분당 상한 */
-  notifyPerMinute: 5,
-  /** `writeSetting` 화면당 분당 상한 */
-  settingWritesPerMinute: 20,
+  /** 파일 읽기(`pickFile`, `readFolderFile`)와 `saveFile` 쓰기 내용의 상한(바이트). 셸의 `PICK_READ_MAX_BYTES`와 같다 */
+  fileBytes: 67108864,
+  /** 파일 내용이 오가는 다리 메시지 하나의 상한(바이트). 글자 이스케이프와 base64 부풀림(4/3)을 받도록 `fileBytes`의 두 배에 봉투 몫을 더했다 */
+  bridgeFileMessageBytes: 135266304,
+  /** `notify` 확장·화면당 분당 상한(남용 방지 수준) */
+  notifyPerMinute: 30,
+  /** `writeSetting` 화면당 분당 상한(남용 방지 수준) */
+  settingWritesPerMinute: 120,
+  /** `listFolder` 한 번에 돌려주는 항목 수 상한. 넘으면 `truncated`다 */
+  folderListEntries: 10000,
+  /** `listFolder`가 내려가는 하위 폴더 깊이 상한 */
+  folderListDepth: 16,
 } as const;
 
 /** 프레임이 셸 기능을 쓰려면 앱 선언에 적어야 하는 권한(ADR-0021 §3.4.3). 적지 않은 권한은 `not_declared`로 막힌다 */
@@ -333,7 +339,7 @@ export function validateUiTree(input: unknown): UiTreeResult {
 
 export const BRIDGE_VERSION = 1 as const;
 
-/** 요청 op. 호스트 API 아홉, 셸 기능 여섯(`pickFile`~`registerSecret`, 앱 선언 권한이 필요하다)과 resize, log, pong */
+/** 요청 op. 호스트 API 아홉, 셸 기능 여덟(`pickFile`~`registerSecret`, 앱 선언 권한이 필요하다)과 resize, log, pong */
 export const BRIDGE_OPS = [
   "query",
   "events",
@@ -346,6 +352,8 @@ export const BRIDGE_OPS = [
   "navigate",
   "pickFile",
   "pickFolder",
+  "listFolder",
+  "readFolderFile",
   "saveFile",
   "notify",
   "writeSetting",
@@ -462,9 +470,23 @@ export const BridgeReadySchema: TUnsafe<BridgeReady> = Type.Unsafe<BridgeReady>(
   BridgeReadyShape satisfies SchemaProof<BridgeReady, typeof BridgeReadyShape>,
 );
 
-/** 메시지 직렬화 크기가 상한 안인가. JSON으로 직렬화되지 않는 값(순환, BigInt, undefined)은 거짓이다 */
-export function bridgeMessageWithinLimit(message: unknown): boolean {
+/** 파일 내용을 싣는 요청·응답의 op. 이 op의 메시지는 `bridgeFileMessageBytes`까지 받는다 */
+export const BRIDGE_FILE_OPS: ReadonlySet<string> = new Set([
+  "pickFile",
+  "listFolder",
+  "readFolderFile",
+  "saveFile",
+]);
+
+/**
+ * 메시지 직렬화 크기가 상한 안인가. `limit`을 주지 않으면 `bridgeMessageBytes`(1 MiB)이고, 파일 op 메시지는 호출자가
+ * `UI_LIMITS.bridgeFileMessageBytes`를 준다. JSON으로 직렬화되지 않는 값(순환, BigInt, undefined)은 거짓이다
+ */
+export function bridgeMessageWithinLimit(
+  message: unknown,
+  limit: number = UI_LIMITS.bridgeMessageBytes,
+): boolean {
   const text = attempt((): string | undefined => JSON.stringify(message));
   if (!text.ok || text.value === undefined) return false;
-  return new TextEncoder().encode(text.value).byteLength <= UI_LIMITS.bridgeMessageBytes;
+  return new TextEncoder().encode(text.value).byteLength <= limit;
 }

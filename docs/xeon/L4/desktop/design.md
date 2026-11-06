@@ -1784,7 +1784,7 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 | `allow-open-external` | 스킴 허용 목록(http, https)을 메인 프로세스가 검사한다 |
 | `allow-pick-folder`, `allow-pick-file`, `allow-save-file` | 메인 프로세스가 `dialog`를 연다. renderer에는 dialog API가 없다 |
 | `allow-engine-*`, `allow-db-restore` | 같은 이름의 명령을 `ctx.handle`로 등록한다. 세대(epoch) 검사와 크기 상한은 명령 안에서 한다 |
-| 플러그인 화면(`fresnel-view://`)의 파일·알림·설정·시크릿 기능 [결정: 2026-11-06 사용자] | 프레임에는 IPC가 없고(`forbidden-frame`) 다리 op(`pickFile`, `pickFolder`, `saveFile`, `notify`, `writeSetting`, `registerSecret`)만 있다. 앱 본 화면이 판정을 거친 요청만 위 명령(`pick_file_read`, `pick_folder`, `save_file`, `notify_os`, `secret_register`)으로 바꿔 부른다. 선언은 매니페스트 `app.capabilities`다(ADR-0021 §3.4.3) |
+| 플러그인 화면(`fresnel-view://`)의 파일·알림·설정·시크릿 기능 [결정: 2026-11-06 사용자] | 프레임에는 IPC가 없고(`forbidden-frame`) 다리 op(`pickFile`, `pickFolder`, `listFolder`, `readFolderFile`, `saveFile`, `notify`, `writeSetting`, `registerSecret`)만 있다. 앱 본 화면이 판정을 거친 요청만 위 명령(`pick_file_read`, `pick_folder_open`, `folder_list`, `folder_read`, `save_file`, `notify_os`, `secret_register`)으로 바꿔 부른다. 선언은 매니페스트 `app.capabilities`다(ADR-0021 §3.4.3) |
 | `allow-os-reauth`, `allow-update-*`, `allow-shell-take-intents`, `allow-tray-update`, `allow-notify-*` | 이 표를 쓴 단계에는 없었고 등록되지 않아 `unknown-command`로 거부됐다. 지금은 `os-reauth.ts`, `updater.ts`, `tray.ts`, `notify-os.ts`, `shell-intents.ts`가 모듈로 붙어 있다 |
 
 이 표는 개발자가 옛 Tauri 구현(커밋 424f338a)의 capability 파일과 맞춰 본 것이며 새 IPC 보안 모델의 최종 검토는 사용자 몫이다.

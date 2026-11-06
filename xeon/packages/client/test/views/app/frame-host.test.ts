@@ -372,11 +372,6 @@ describe("theme tokens and confirm line", () => {
     expect(confirmLineText({ ...base, kind: "secret", action: "ext--helm--token" })).toBe(
       '"helm" 확장이 시크릿 "ext--helm--token"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요',
     );
-    expect(
-      confirmLineText({ ...base, kind: "secret", action: "ext--helm--token", overwrite: true }),
-    ).toBe(
-      '"helm" 확장이 이미 있는 시크릿 "ext--helm--token"를 덮어쓰려고 해요. 이전 값은 사라져요',
-    );
     expect(confirmLineText({ ...base, kind: "external", action: "https://example.com/a" })).toBe(
       '"helm" 확장이 브라우저에서 "https://example.com/a" 주소를 열려고 해요',
     );

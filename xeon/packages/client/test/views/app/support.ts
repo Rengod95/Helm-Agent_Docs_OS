@@ -139,6 +139,8 @@ export interface FakeBackendOptions {
   readonly settings?: readonly SettingRead[];
   readonly eventRows?: readonly unknown[];
   readonly secretExists?: boolean;
+  /** 주면 `pickFile`이 이것이 끝날 때까지 창이 열려 있는 것처럼 기다린다 */
+  readonly holdPickFile?: Promise<void>;
 }
 
 export function fakeBackend(options: FakeBackendOptions = {}): {
@@ -189,17 +191,45 @@ export function fakeBackend(options: FakeBackendOptions = {}): {
     diagnostic(line) {
       calls.diagnostics.push(line);
     },
-    pickFile() {
+    async pickFile() {
       calls.names.push("pickFile");
-      return Promise.resolve(okValue({ name: "a.txt", content: "hello" }));
+      await options.holdPickFile;
+      return okValue({
+        name: "a.txt",
+        path: "/Users/me/a.txt",
+        size: 5,
+        encoding: "utf8" as const,
+        content: "hello",
+      });
     },
     pickFolder() {
       calls.names.push("pickFolder");
-      return Promise.resolve(okValue({ name: "docs" }));
+      return Promise.resolve(okValue({ name: "docs", path: "/Users/me/docs", folder: "fld_1" }));
+    },
+    listFolder(folder, path, recursive) {
+      calls.names.push(`listFolder:${folder}:${path}:${String(recursive)}`);
+      return Promise.resolve(
+        okValue({
+          entries: [{ path: "a.md", name: "a.md", kind: "file" as const, size: 3 }],
+          truncated: false,
+        }),
+      );
+    },
+    readFolderFile(folder, path) {
+      calls.names.push(`readFolderFile:${folder}:${path}`);
+      return Promise.resolve(
+        okValue({
+          name: "a.md",
+          path: "/Users/me/docs/a.md",
+          size: 3,
+          encoding: "utf8" as const,
+          content: "abc",
+        }),
+      );
     },
     saveFile(suggestedName, content) {
       calls.names.push(`saveFile:${suggestedName}:${content}`);
-      return Promise.resolve(okValue({ saved: true }));
+      return Promise.resolve(okValue({ saved: true, path: "/Users/me/a.md" }));
     },
     notify(title, body) {
       calls.names.push(`notify:${title}:${body}`);

@@ -7,7 +7,7 @@ import { policyContextOf } from "../../src/plugin-ui/policy-context.ts";
 import { fakeConnection, type Table } from "../state/fake-connection.ts";
 import { extGetOf, uiEntryOf } from "./support.ts";
 
-// 셸 기능 op의 백엔드(ADR-0021 §3.4.3): 셸 명령 답을 다리 값으로 바꾸고, 경로와 오류 원문은 프레임에 주지 않는다
+// 셸 기능 op의 백엔드(ADR-0021 §3.4.3): 셸 명령 답을 다리 값으로 바꾼다. 고른 경로는 프레임에 주고, 오류 원문은 주지 않는다
 
 const snapshot = {
   threadId: undefined,
@@ -101,40 +101,101 @@ function def(key: string, secret: boolean) {
 }
 
 describe("files", () => {
-  test("pickFile gives name and content; pickFolder gives only the last path segment", async () => {
+  test("pickFile gives name, full path, size and content; pickFolder gives the full path and a handle", async () => {
+    const file = {
+      name: "a.md",
+      path: "/Users/me/projects/docs/a.md",
+      size: 2,
+      encoding: "utf8" as const,
+      content: "hi",
+    };
     const h = harness({
-      pick_file_read: { name: "a.md", content: "hi" },
-      pick_folder: "/Users/me/projects/docs/",
+      pick_file_read: file,
+      pick_folder_open: { handle: "fld_1", path: "/Users/me/projects/docs", name: "docs" },
     });
-    expect(await h.backend.pickFile()).toEqual(ok({ name: "a.md", content: "hi" }));
-    expect(await h.backend.pickFolder()).toEqual(ok({ name: "docs" }));
-    // 폴더 경로의 앞부분은 프레임에 가지 않는다
-    expect(JSON.stringify(await h.backend.pickFolder())).not.toContain("Users");
+    expect(await h.backend.pickFile()).toEqual(ok(file));
+    expect(await h.backend.pickFolder()).toEqual(
+      ok({ name: "docs", path: "/Users/me/projects/docs", folder: "fld_1" }),
+    );
+    // 셸은 화면 단위(`확장/화면`)로 핸들을 묶는다
+    expect(h.log.commands.at(-1)).toEqual({
+      command: "pick_folder_open",
+      args: { scope: "helm/status" },
+    });
+  });
+
+  test("a binary file comes through as base64", async () => {
+    const file = {
+      name: "x.bin",
+      path: "/t/x.bin",
+      size: 2,
+      encoding: "base64" as const,
+      content: "/wA=",
+    };
+    expect(await harness({ pick_file_read: file }).backend.pickFile()).toEqual(ok(file));
+  });
+
+  test("listFolder and readFolderFile pass the handle, scope and relative path to the shell", async () => {
+    const listing = {
+      entries: [
+        { path: "src", name: "src", kind: "dir" as const },
+        { path: "a.md", name: "a.md", kind: "file" as const, size: 3 },
+      ],
+      truncated: false,
+    };
+    const file = {
+      name: "a.md",
+      path: "/t/a.md",
+      size: 3,
+      encoding: "utf8" as const,
+      content: "abc",
+    };
+    const h = harness({ folder_list: listing, folder_read: file });
+    expect(await h.backend.listFolder("fld_1", "src", true)).toEqual(ok(listing));
+    expect(await h.backend.readFolderFile("fld_1", "a.md")).toEqual(ok(file));
+    expect(h.log.commands).toEqual([
+      {
+        command: "folder_list",
+        args: { scope: "helm/status", handle: "fld_1", path: "src", recursive: true },
+      },
+      { command: "folder_read", args: { scope: "helm/status", handle: "fld_1", path: "a.md" } },
+    ]);
+  });
+
+  test("a folder the shell does not know or a path outside it is denied, a malformed reply is failed", async () => {
+    expect(
+      await harness({}, {}, { reject: "unknown-folder" }).backend.listFolder("fld_x", "", false),
+    ).toEqual(err({ kind: "denied", detail: "unknown-folder" }));
+    expect(
+      await harness({}, {}, { reject: "outside-folder" }).backend.readFolderFile("fld_1", "x"),
+    ).toEqual(err({ kind: "denied", detail: "outside-folder" }));
+    expect(
+      await harness({ folder_list: { entries: 1 } }).backend.listFolder("f", "", false),
+    ).toEqual(err({ kind: "failed", detail: "shell_reply" }));
   });
 
   test("a cancelled dialog is null", async () => {
-    const h = harness({ pick_file_read: null, pick_folder: null, save_file: null });
+    const h = harness({ pick_file_read: null, pick_folder_open: null, save_file: null });
     expect(await h.backend.pickFile()).toEqual(ok(null));
     expect(await h.backend.pickFolder()).toEqual(ok(null));
-    expect(await h.backend.saveFile("a.md", "x")).toEqual(ok({ saved: false }));
+    expect(await h.backend.saveFile("a.md", "x")).toEqual(ok({ saved: false, path: null }));
   });
 
-  test("saveFile sends only the suggested name and content and hides the chosen path", async () => {
-    const h = harness({ save_file: "/Users/me/secret-folder/a.md" });
+  test("saveFile sends only the suggested name and content and returns the chosen path", async () => {
+    const h = harness({ save_file: "/Users/me/docs/a.md" });
     const result = await h.backend.saveFile("a.md", "body");
-    expect(result).toEqual(ok({ saved: true }));
+    expect(result).toEqual(ok({ saved: true, path: "/Users/me/docs/a.md" }));
     expect(h.log.commands).toEqual([
       { command: "save_file", args: { suggestedName: "a.md", content: "body" } },
     ]);
-    expect(JSON.stringify(result)).not.toContain("secret-folder");
   });
 
   test("a shell code is passed on, any other rejection is hidden, and a missing shell is unavailable", async () => {
     expect(await harness({}, {}, { reject: "too-large" }).backend.pickFile()).toEqual(
       err({ kind: "too_large" }),
     );
-    expect(await harness({}, {}, { reject: "not-text" }).backend.pickFile()).toEqual(
-      err({ kind: "failed", detail: "not-text" }),
+    expect(await harness({}, {}, { reject: "read_failed" }).backend.pickFile()).toEqual(
+      err({ kind: "failed", detail: "read_failed" }),
     );
     expect(
       await harness({}, {}, { reject: { kind: "x", path: "/Users/me/leak" } }).backend.pickFile(),

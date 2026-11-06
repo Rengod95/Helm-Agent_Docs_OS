@@ -161,19 +161,22 @@ M4 첫 카탈로그 [제안]:
 
 #### 3.4.1 Plugin App의 셸 기능 다리 API [결정: 2026-11-06 사용자]
 
-`view.frame` 뼈대의 다리 래퍼는 호스트 API 아홉과 셸 기능 여섯을 요청 `{ v: 1, id, op, args }`로 보냅니다(ADR-0021 §3.4, §3.4.3). 셸 기능은 매니페스트 `ui.items[].app.capabilities`에 권한을 적어야 합니다. 적지 않은 권한의 op는 `not_declared`로 돌아옵니다.
+`view.frame` 뼈대의 다리 래퍼는 호스트 API 아홉과 셸 기능 여덟을 요청 `{ v: 1, id, op, args }`로 보냅니다(ADR-0021 §3.4, §3.4.3). 셸 기능은 매니페스트 `ui.items[].app.capabilities`에 권한을 적어야 합니다. 적지 않은 권한의 op는 `not_declared`로 돌아옵니다.
 
 | op | 권한 | args | 값 |
 |---|---|---|---|
-| `pickFile` | `files` | 없음 | `{ name, content }` 또는 `null`(취소). 글 파일 256 KiB 이하 |
-| `pickFolder` | `files` | 없음 | `{ name }` 또는 `null`. 이름만 |
-| `saveFile` | `files` | `{ suggestedName, content }` | `{ saved }` |
-| `notify` | `notify` | `{ title, body? }` 제목 40자, 본문 400자 | `{ shown }`. 분당 5개 |
+| `pickFile` | `files` | 없음 | `{ name, path, size, encoding, content }` 또는 `null`(취소). 64 MiB 이하. 글이면 `encoding: "utf8"`과 문자열, 아니면 `"base64"` |
+| `pickFolder` | `files` | 없음 | `{ name, path, folder }` 또는 `null`. `folder`는 이 화면에서 폴더 안을 볼 핸들 id |
+| `listFolder` | `files` | `{ folder, path?, recursive? }` `path`는 고른 폴더 기준 상대 경로 | `{ entries: [{ path, name, kind, size? }], truncated }`. 한 번에 10000개, 깊이 16 |
+| `readFolderFile` | `files` | `{ folder, path }` | `pickFile`과 같은 모양. 64 MiB 이하 |
+| `saveFile` | `files` | `{ suggestedName, content }` 내용 64 MiB 이하 | `{ saved, path }`(취소면 `path`는 `null`) |
+| `notify` | `notify` | `{ title, body? }` 제목 40자, 본문 400자 | `{ shown }`. 분당 30개 |
 | `writeSetting` | `settingsWrite` | `{ key, value }` 자기 접두의 선언한 시크릿이 아닌 키 | `null` |
-| `registerSecret` | `secrets` | `{ name, value }` 이름은 소문자·숫자·하이픈 24자 이하, `--` 없음 | `null`. 저장 이름은 `ext--<확장>--<name>` |
+| `registerSecret` | `secrets` | `{ name, value }` 이름은 소문자·숫자·하이픈 24자 이하, `--` 없음 | `null`. 저장 이름은 `ext--<확장>--<name>`. 처음 등록할 때만 확인이 뜸 |
 
-- 창을 여는 op(`pickFile`, `pickFolder`, `saveFile`)와 `registerSecret`은 5초에 1번입니다. 넘으면 `rate_limited`입니다.
-- `registerSecret`은 매번 사용자 확인이 뜨고, 사용자가 거절하면 `denied`(`not_confirmed`)입니다.
+- 창을 여는 op(`pickFile`, `pickFolder`, `saveFile`)와 `registerSecret`의 확인 창은 한 번에 하나입니다. 열려 있는 동안 다시 부르면 `rate_limited`입니다. `writeSetting`은 분당 120번입니다.
+- `listFolder`와 `readFolderFile`은 그 화면이 `pickFolder`로 고른 폴더 안만 봅니다. `path`의 `..`, 절대 경로, 밖으로 나가는 링크와 고르지 않은 폴더는 `args_invalid` 또는 `denied`입니다.
+- `registerSecret`은 그 확장이 그 이름을 처음 등록할 때만 사용자 확인이 뜨고, 사용자가 거절하면 `denied`(`not_confirmed`)입니다. 이미 등록한 이름의 갱신은 묻지 않습니다.
 - 외부 링크는 `navigate`의 `{ target: { kind: "external", url } }`입니다. 확인 줄 뒤 OS 브라우저가 엽니다.
 - 재인증, 엔진 재시작·대상 변경·DB 복원, 엔진 직접 연결은 다리에 없습니다.
 

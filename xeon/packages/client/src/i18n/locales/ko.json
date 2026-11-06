@@ -804,7 +804,6 @@
   "client.view.confirm.externalPunycode": "\"{extension}\" 확장이 브라우저에서 \"{url}\" 주소를 열려고 해요 (실제 호스트: {host})",
   "client.view.confirm.approval": "\"{extension}\" 확장이 \"{action}\" 동작의 승인 카드를 띄우려고 해요",
   "client.view.confirm.secret": "\"{extension}\" 확장이 시크릿 \"{name}\"를 새로 등록하려고 해요. 값은 이 화면에 보이지 않아요",
-  "client.view.confirm.secretOverwrite": "\"{extension}\" 확장이 이미 있는 시크릿 \"{name}\"를 덮어쓰려고 해요. 이전 값은 사라져요",
   "client.view.confirm.allow": "허용",
   "client.view.confirm.deny": "거부",
   "client.view.confirm.trust.builtin": "기본 제공",

@@ -127,16 +127,18 @@ interface ExtMethodDecl {
 | 동작 | `post` | 열린 대화 입력 큐에 넣기 | 신뢰 등급의 `post` 허용, scope 켜짐 | `ext.view.post` (닫음: 아래 2026-11-04 R15) |
 | 동작 | `requestApproval` | 선언된 쓰기 메서드의 사용자 승인 요청. 인자는 `{ threadId, verb, params? }`이고 화면이 쓴 제목·설명은 받지 않는다(카드 글은 엔진이 확장 이름과 동사로 만든다) | 셸 확인 줄(`kind: approval`)을 먼저 거친 뒤 앱이 그리는 표준 승인 카드로만 보임(ADR-0018). 화면은 승인 id만 받음 | `ext.ui.requestApproval` |
 | 동작 | `navigate` | 자기 다른 화면, 대화·턴, 확장 상세(P-17), 자기 설정 구역, 비밀 화면(P-10) 열기, 외부 링크 | 앱 화면은 정해진 목록만. 외부 링크는 셸 확인 줄(`kind: external`)을 거친 뒤 OS 브라우저(셸 명령 `open_external`, `http(s)`만. 옛 Tauri 구현(커밋 424f338a)의 Tauri 명령이고 Electron도 같은 이름을 쓴다, `L4.desktop.spec` §11.5) | 클라이언트 |
-| 셸 기능 | `pickFile` | OS 파일 창에서 사용자가 고른 파일 하나의 이름과 글 내용(256 KiB 이하) | 앱 선언 `capabilities`에 `files`. 경로는 주지 않음 | 셸 명령 `pick_file_read` |
-| 셸 기능 | `pickFolder` | OS 폴더 창에서 고른 폴더의 이름 | `files`. 이름만, 경로와 안의 파일은 주지 않음 | 셸 명령 `pick_folder` |
-| 셸 기능 | `saveFile` | 프레임이 준 내용을 OS 저장 창에서 사용자가 정한 곳에 쓰기 | `files`. 제안 이름 200자, 내용 256 KiB. 경로는 주지 않고 `{ saved }`만 | 셸 명령 `save_file` |
-| 셸 기능 | `notify` | OS 알림 | `notify`. 제목 40자(앞에 확장 이름이 붙음), 본문 400자, 화면당 분당 5개 | 셸 명령 `notify_os` |
-| 셸 기능 | `writeSetting` | 자기 설정 키 쓰기(사용자 범위) | `settingsWrite`. 자기 접두이면서 매니페스트 `userConfig`가 선언했고 `sensitive`가 아닌 키만. 값은 글·수·참거짓, 화면당 분당 20번 | `settings.set` |
-| 셸 기능 | `registerSecret` | 자기 시크릿 등록 | `secrets`. 이름은 `ext--<확장>--<꼬리>`로 셸이 붙임(꼬리 24자 이하, `--` 없음). 매번 확인 줄, 덮어쓰기는 줄에 따로 보임 | `secret.list`(있는지), 셸 명령 `secret_register` |
+| 셸 기능 | `pickFile` | OS 파일 창에서 사용자가 고른 파일 하나의 이름, 전체 경로, 크기, 내용(64 MiB 이하. 글이면 `utf8` 문자열, 아니면 `base64`) [결정: 2026-11-06 사용자] | 앱 선언 `capabilities`에 `files` | 셸 명령 `pick_file_read` |
+| 셸 기능 | `pickFolder` | OS 폴더 창에서 고른 폴더의 이름, 전체 경로, 이 화면에서 폴더 안을 볼 핸들 id(`folder`) [결정: 2026-11-06 사용자] | `files` | 셸 명령 `pick_folder_open` |
+| 셸 기능 | `listFolder` | 이 화면이 `pickFolder`로 고른 폴더 안의 목록 `{ entries: [{ path, name, kind, size? }], truncated }`. 인자 `{ folder, path?, recursive? }`(`path`는 폴더 기준 상대 경로) [결정: 2026-11-06 사용자] | `files`. 고른 폴더 안만(`..`, 밖으로 나가는 링크, 고르지 않은 폴더는 거부). 한 번에 10000개, 깊이 16 | 셸 명령 `folder_list` |
+| 셸 기능 | `readFolderFile` | 같은 폴더 안 파일 하나 읽기. 인자 `{ folder, path }`, 값은 `pickFile`과 같은 모양 [결정: 2026-11-06 사용자] | `files`. 위와 같은 범위, 64 MiB 이하 | 셸 명령 `folder_read` |
+| 셸 기능 | `saveFile` | 프레임이 준 내용을 OS 저장 창에서 사용자가 정한 곳에 쓰기 | `files`. 제안 이름 200자, 내용 64 MiB. 고른 전체 경로를 `{ saved, path }`로 줌 | 셸 명령 `save_file` |
+| 셸 기능 | `notify` | OS 알림 | `notify`. 제목 40자(앞에 확장 이름이 붙음), 본문 400자, 화면당 분당 30개 | 셸 명령 `notify_os` |
+| 셸 기능 | `writeSetting` | 자기 설정 키 쓰기(사용자 범위) | `settingsWrite`. 자기 접두이면서 매니페스트 `userConfig`가 선언했고 `sensitive`가 아닌 키만. 값은 글·수·참거짓, 화면당 분당 120번 | `settings.set` |
+| 셸 기능 | `registerSecret` | 자기 시크릿 등록 | `secrets`. 이름은 `ext--<확장>--<꼬리>`로 셸이 붙임(꼬리 24자 이하, `--` 없음). 그 확장이 그 이름을 처음 등록할 때만 확인 줄. 이미 등록한 키(`secret.list`)의 재등록·갱신은 묻지 않음 [결정: 2026-11-06 사용자] | `secret.list`(있는지), 셸 명령 `secret_register` |
 
 - "사용자 조작 뒤에만"의 판정: 선언형은 렌더러가 누름 이벤트를 압니다. 프레임은 셸이 프레임 안 입력을 볼 수 없으므로, 프레임의 `call`과 `command`는 셸이 띄우는 확인 줄("<확장>이 <동작 라벨>을 하려고 해요")을 거칩니다(`command`까지 거치는 것은 표보다 엄격한 [제안]입니다). 확인 줄은 끌 수 없고 호출마다 뜹니다. 허용한 뒤에도 같은 확장의 다음 호출은 다시 묻고, "이 화면에서 묻지 않기" 같은 선택과 확장별 허용 기억은 두지 않습니다(B2 1안) [결정: 2026-11-04 사용자]. `approval: true` 메서드의 표준 승인 카드는 이 줄과 따로 뜨며 끌 수 없습니다 [제안].
 - `query` 갱신: `invalidateOn`(자기 kind 목록) 이벤트가 오면 다시 부릅니다. 주기 갱신은 5초 이상만 허용합니다 [제안].
-- 크기 상한 [제안]: `query` 결과 256 KiB, `events` 목록 500행. 선언형 트리는 노드 2000개, 깊이 24입니다. 프레임 다리 메시지는 하나에 1 MiB, 초당 50개입니다. 넘으면 선언형은 그 노드를 "긴 내용"으로 자르고, 프레임은 그 메시지를 오류로 돌려주고 장부에 셉니다.
+- 크기 상한 [제안]: `query` 결과 256 KiB, `events` 목록 500행. 선언형 트리는 노드 2000개, 깊이 24입니다. 프레임 다리 메시지는 하나에 1 MiB, 초당 50개입니다. 파일 내용을 싣는 메시지(`saveFile` 요청, `pickFile`·`listFolder`·`readFolderFile` 응답)만 64 MiB 파일이 글자 이스케이프와 base64(4/3)로 부풀어도 담기도록 약 129 MiB까지입니다(`UI_LIMITS.bridgeFileMessageBytes`) [결정: 2026-11-06 사용자]. 넘으면 선언형은 그 노드를 "긴 내용"으로 자르고, 프레임은 그 메시지를 오류로 돌려주고 장부에 셉니다.
 
 #### 3.4.1 선언형 화면 트리
 
@@ -201,14 +203,15 @@ interface ExtMethodDecl {
 
 #### 3.4.3 셸 기능 op [결정: 2026-11-06 사용자]
 
-플러그인 화면이 파일 고르기·저장, 외부 링크, OS 알림, 앱 설정 쓰기, 시크릿 등록을 쓸 수 있게 §3.4 표에 op 여섯(`pickFile`, `pickFolder`, `saveFile`, `notify`, `writeSetting`, `registerSecret`)을 더했습니다. 외부 링크는 새 op 없이 `navigate`의 `external`이 그대로 맡습니다(확인 줄 유지).
+플러그인 화면이 파일 고르기·저장, 외부 링크, OS 알림, 앱 설정 쓰기, 시크릿 등록을 쓸 수 있게 §3.4 표에 op 여덟(`pickFile`, `pickFolder`, `listFolder`, `readFolderFile`, `saveFile`, `notify`, `writeSetting`, `registerSecret`)을 더했습니다. 외부 링크는 새 op 없이 `navigate`의 `external`이 그대로 맡습니다(확인 줄 유지).
 
 - 프레임에 셸 IPC를 주지 않습니다(§3.6.4). 앱 본 화면이 다리를 받아 셸 명령을 대신 부릅니다. Electron 셸의 `frame-check`(최상위 `app://localhost`만 IPC)는 그대로입니다.
 - 선언: 앱 선언 `app.capabilities`(`files`, `notify`, `settingsWrite`, `secrets`)에 적은 권한의 op만 쓸 수 있습니다. 적지 않으면 `not_declared`(`detail: "capability"`)입니다. 확장 꺼짐은 `extension_off`, 안전 모드는 `safe_mode`입니다.
-- 파일: 사용자가 OS 창에서 고른 것만 다룹니다. 임의 경로는 받지 않고 프레임은 경로를 알 수 없습니다. 읽기는 그 창이 고른 파일 하나를 셸이 읽어 주는 좁은 명령(`pick_file_read`)이고, 저장은 프레임이 준 제안 이름과 내용만 씁니다(256 KiB 상한, 넘으면 `too_large`). 창을 여는 op는 화면당 5초에 1번입니다(`rate_limited`).
-- 알림: 확장 이름이 제목 앞에 붙습니다(`<확장> · <제목>`). 확장과 화면당 분당 5개이고 넘으면 `rate_limited`입니다. 글 길이는 `notify_os`와 같게 줄입니다.
-- 설정 쓰기: 자기 접두(`ext.<이름>.`, 내장은 `l3.<이름>.`)이면서 매니페스트가 선언한 비밀 아닌 키만 씁니다. 엔진 정의가 비밀이거나 모르는 키면 거부합니다. 비밀 키 값은 `settings` 읽기에서도 여전히 보이지 않습니다.
-- 시크릿 등록: 이름은 확장 이름이 앞에 붙은 `ext--<확장>--<꼬리>`뿐이라 다른 확장의 이름과 겹치지 않습니다. 매번 확인 줄(`kind: secret`)을 거치고, 같은 이름이 이미 있으면 줄이 "덮어쓴다"고 따로 말합니다. 값은 프레임 → 다리 → 셸 stdin으로만 가고 확인 줄, 응답, 오류, 진단 로그에 남지 않습니다. 화면당 5초에 1번입니다.
+- 파일 [결정: 2026-11-06 사용자: "전반적으로 제약이 너무 세다"]: 프레임이 만지는 것은 사용자가 OS 창에서 고른 파일, 저장 위치, 고른 폴더 안뿐입니다. 임의 경로 인자는 받지 않지만, 고른 파일·폴더·저장 위치의 전체 경로는 프레임이 압니다. 읽기는 그 창이 고른 파일 하나를 셸이 읽어 주는 좁은 명령(`pick_file_read`)이고 64 MiB까지입니다(넘으면 `too_large`). UTF-8 글이면 문자열(`encoding: "utf8"`), 아니면 base64 바이트(`"base64"`)로 줍니다. 저장은 프레임이 준 제안 이름과 내용(64 MiB)만 씁니다.
+- 고른 폴더 안: `pickFolder`는 셸이 이 창·이 화면(`확장/화면`)의 핸들로 폴더를 기억하게 하고 핸들 id를 줍니다(앱을 다시 켜면 잊습니다. 창당 64개까지). `listFolder`와 `readFolderFile`은 핸들 id와 폴더 기준 상대 경로만 받습니다. 접근 범위는 그 화면이 고른 폴더들 안입니다. 다른 창·다른 화면이 만든 핸들과 모르는 핸들은 `denied`(`unknown-folder`)입니다. 상대 경로의 `..`, `.`, 빈 마디, 절대 경로, 역슬래시는 글자 검사에서 거부하고(`view-scheme.ts`의 경로 규칙과 같은 글자), 그 뒤 심볼릭 링크를 푼 실제 경로가 폴더 실제 경로 밖이면 `denied`(`outside-folder`)입니다. 폴더 밖으로 나가는 링크는 목록에서 뺍니다. 폴더 안을 가리키는 링크는 보이지만 링크 폴더로는 내려가지 않습니다. 목록은 한 번에 10000개, 깊이 16까지이고 넘으면 `truncated`입니다. 파일 창과 저장 창은 한 번에 하나만 열립니다(`rate_limited`). 목록과 읽기는 동시에 2개까지입니다.
+- 알림: 확장 이름이 제목 앞에 붙습니다(`<확장> · <제목>`). 확장과 화면당 분당 30개이고 넘으면 `rate_limited`입니다(남용 방지 수준, `UI_LIMITS.notifyPerMinute`). 글 길이는 `notify_os`와 같게 줄입니다.
+- 설정 쓰기: 자기 접두(`ext.<이름>.`, 내장은 `l3.<이름>.`)이면서 매니페스트가 선언한 비밀 아닌 키만 씁니다. 엔진 정의가 비밀이거나 모르는 키면 거부합니다. 비밀 키 값은 `settings` 읽기에서도 여전히 보이지 않습니다. 화면당 분당 120번입니다(`UI_LIMITS.settingWritesPerMinute`).
+- 시크릿 등록: 이름은 확장 이름이 앞에 붙은 `ext--<확장>--<꼬리>`뿐이라 다른 확장의 이름과 겹치지 않습니다. 그 확장이 그 이름을 처음 등록할 때만 확인 줄(`kind: secret`)을 거칩니다. 이미 등록한 키(`secret.list`에 있는 이름)를 다시 등록·갱신할 때는 묻지 않고 덮어씁니다 [결정: 2026-11-06 사용자, 메인 해석]. 값은 프레임 → 다리 → 셸 stdin으로만 가고 확인 줄, 응답, 오류, 진단 로그에 남지 않습니다. 확인 창은 한 번에 하나입니다.
 - 계속 막는 것: 재인증, 엔진 재시작·대상 변경·DB 복원, 엔진 직접 연결은 op가 없습니다.
 
 #### 3.6.4 wire 직접 연결 없음
@@ -239,11 +242,11 @@ interface ExtMethodDecl {
 보안 검토 결과를 다리에 넣습니다. 확인 줄은 항상 켜져 있습니다(B2 1안).
 
 - 외부 링크: 원문에 제어 문자(탭, 줄바꿈 포함), 공백, 방향 제어 글자가 있으면 거부합니다. 통과한 글은 `new URL`로 정규화하고 확인 줄과 OS 브라우저 열기에 둘 다 `href`를 씁니다. 보일 글에서 방향 제어 글자를 빼고, 사용자가 쓴 호스트와 정규화된 호스트가 다르면(국제화 도메인) 퓨니코드 호스트를 함께 보입니다.
-- 확인 줄은 `call`, `command`, `requestApproval`, 외부 링크, `registerSecret`에 뜹니다(`ConfirmRequest.kind`). 외부 링크 줄은 정규화한 주소(`href`)를 보이고, 승인 요청 줄은 승인을 청할 동사를 보입니다. 허용 뒤 `recheck`로 확장이 꺼지지 않았는지 다시 봅니다.
+- 확인 줄은 `call`, `command`, `requestApproval`, 외부 링크, 처음 등록하는 `registerSecret`에 뜹니다(`ConfirmRequest.kind`). 외부 링크 줄은 정규화한 주소(`href`)를 보이고, 승인 요청 줄은 승인을 청할 동사를 보입니다. 허용 뒤 `recheck`로 확장이 꺼지지 않았는지 다시 봅니다.
 - 확인 줄: 허용·거부는 장부에 센다(거부 `confirm_denied`, 시간 초과 `confirm_timeout`). 연속 3번 거부하면 5초 동안 줄을 띄우지 않고 거부합니다(그 거부도 셉니다). 줄은 확장 신뢰 등급 배지와, `project`이면 프로젝트 배지, 매니페스트 라벨과 실제로 실행될 동사(라벨 옆에 함께, 라벨이 없으면 동사만), 실제로 실행될 params의 요약을 보입니다. `command`는 실행될 `args`를 `args="…"`로 보입니다. 요약에서 제어·방향 제어 글자와 보이지 않는 글자(U+200B, 200C, 200D, 2060, FEFF, 00AD)를 뺍니다. 요약이 400자를 넘으면 앞쪽 키만 보이고 빠진 키 수를 `…(+N)`으로 붙입니다. 값 하나가 400자를 넘어 다 보일 수 없으면 줄을 띄우지 않고 거부합니다(`params_too_long_to_confirm`, 장부에 `confirm_denied`). 시간 초과와 프레임 닫힘 때는 줄에 남은 요청을 `ConfirmQueue.cancel`로 뺍니다. 화면은 줄이 나타난 뒤 500 ms 동안 누름을 무시하고 거부에 처음 초점을 둡니다(UI가 지킬 계약, `confirmButtons().defaultFocus`, `CONFIRM_CLICK_GUARD_MS`).
 - `post`, `requestApproval`, `navigate`: 화면마다 5초에 1번, 미결 5개까지입니다(`navigate`는 같은 한도의 따로 센 예산이고 넘으면 `rate_limited`와 장부 `limit_exceeded`). 제어·방향 제어 글자를 빼고, 카드는 확장 이름과 등급을 보입니다(B3 1안: 기존 질문 카드 + 출처). `post`는 `allowPost`가 참일 때만이고 기본은 `builtin`만 참입니다. 사용자·프로젝트 확장은 `requestApproval`로만 묻습니다.
 - `settings`: 매니페스트에 선언한 키만 값을 돌려줍니다. 선언하지 않은 키와 `secret` 키는 `status`만 줍니다.
-- 장부: 연속 실패를 되돌리는 성공은 일을 한 `query`, `events`, `settings`, `call`, `command`, `post`, `requestApproval`과 셸 기능 여섯(§3.4.3)뿐입니다. `host`, `pong`, `resize`, `log`, `navigate`는 되돌리지 않습니다. `query`는 동시 8개까지입니다. params의 `__proto__`는 자료 키로만 다룹니다.
+- 장부: 연속 실패를 되돌리는 성공은 일을 한 `query`, `events`, `settings`, `call`, `command`, `post`, `requestApproval`과 셸 기능 여덟(§3.4.3)뿐입니다. `host`, `pong`, `resize`, `log`, `navigate`는 되돌리지 않습니다. `query`는 동시 8개까지입니다. params의 `__proto__`는 자료 키로만 다룹니다.
 
 #### 3.6.8 테마 토큰 전달
 
