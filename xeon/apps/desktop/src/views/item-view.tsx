@@ -3,7 +3,7 @@ import { ChevronRight } from "@caustic/react/icons";
 import { t } from "@fresnel/client/i18n";
 import { assertNever } from "@fresnel/contracts";
 import type { ItemId, ItemRecord, JsonObject, JsonValue } from "@fresnel/contracts/conversation";
-import { memo, useState, type NamedExoticComponent, type ReactNode } from "react";
+import { memo, useEffect, useState, type NamedExoticComponent, type ReactNode } from "react";
 import { cardOf, provenanceOf } from "../plugin-ui/placements.ts";
 import {
   useHasToolCall,
@@ -18,6 +18,7 @@ import { bubbleOf } from "./attachment-bubble-model.ts";
 import { MessageAttachments } from "./message-attachments.tsx";
 import { usePluginUiState } from "./plugin/plugin-context.tsx";
 import { EntrySurface } from "./plugin/plugin-view.tsx";
+import { toolOutputOf } from "./tool-output-model.ts";
 
 // 확정 item과 진행 중 item의 한 행(시안 _chat-rt/items.tsx ItemView). 행 부품은 자기 id만 구독한다(FS-19).
 // 사용자 글은 말풍선, 어시스턴트 글은 말풍선 없는 글이고 역할 이름은 적지 않는다. 도구 호출과 결과는 ToolCall 한 줄이다.
@@ -34,6 +35,8 @@ const QUIET_CLASS = "m-0 text-ui-sm text-text-tertiary";
 /** 실패·중단 줄. 행 맨 아래에 한 줄로 둔다 */
 const NOTE_CLASS = "m-0 text-ui-xs text-text-tertiary";
 /** 도구 결과 본문 */
+/** 펼친 출력의 높이 상한과 안쪽 스크롤 */
+const OUTPUT_BOX_CLASS = "max-h-80 overflow-auto";
 const MONO_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:anywhere] font-mono text-mono-sm";
 
 type Block = { readonly type: string };
@@ -92,19 +95,40 @@ function ToolRow(props: {
   /** 실패 알약의 글. 기본은 "실패"다(거부, 중단은 따로 쓴다) */
   readonly failedLabel?: string;
   readonly output?: string;
+  /** 엔진 또는 화면이 잘랐을 때 전체 줄 수와 보인 줄 수 */
+  readonly cut?: { readonly shown: number; readonly total: number };
 }): ReactNode {
   const { output } = props;
+  const elapsed = useElapsedSeconds(props.status === "running");
   return (
     <ToolCall
       name={props.name}
       detail={props.detail}
       status={props.status}
-      activity={t("desktop.item.toolRunning")}
+      activity={
+        elapsed > 0
+          ? t("desktop.item.toolRunningFor", { seconds: elapsed })
+          : t("desktop.item.toolRunning")
+      }
       failedLabel={props.failedLabel ?? t("desktop.item.status.failed")}
       collapsible={output !== undefined}
       defaultOpen={props.status === "failed"}
     >
-      {output === undefined ? null : <pre className={MONO_CLASS}>{output}</pre>}
+      {output === undefined ? null : (
+        <>
+          <pre className={`${MONO_CLASS} ${OUTPUT_BOX_CLASS}`} tabIndex={0}>
+            {output}
+          </pre>
+          {props.cut === undefined ? null : (
+            <p className={NOTE_CLASS}>
+              {t("desktop.item.output.partial", {
+                total: props.cut.total,
+                shown: props.cut.shown,
+              })}
+            </p>
+          )}
+        </>
+      )}
     </ToolCall>
   );
 }
@@ -155,16 +179,39 @@ type ResultView = {
   readonly status: "done" | "failed";
   readonly failedLabel?: string;
   readonly output: string;
+  readonly cut?: { readonly shown: number; readonly total: number };
 };
+
+/** 실행 중인 동안 1초마다 늘어나는 경과 초. 실행 중이 아니면 0 */
+function useElapsedSeconds(active: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!active) return undefined;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [active]);
+  return active ? seconds : 0;
+}
 
 /** 도구 결과 item을 행 상태로 옮긴다. 거부와 중단은 알약이 "거부함", "중단됨"이고 내부 오류 코드는 본문에 드러내지 않는다 */
 function resultViewOf(item: ItemRecord): ResultView | null {
   if (item.kind !== "toolResult") return null;
-  const text = textOf(item.message.content);
+  const shown = toolOutputOf(
+    item.message.content,
+    item.message.details,
+    t("desktop.item.imagePlaceholder"),
+  );
+  const cut =
+    shown.totalLines === null ? {} : { cut: { shown: shown.shownLines, total: shown.totalLines } };
   if (!item.message.isError && item.status === "completed") {
-    return { status: "done", output: clip(text) };
+    return { status: "done", output: shown.text, ...cut };
   }
-  const { code, body } = splitCode(text);
+  const { code, body } = splitCode(shown.text);
   if (code === DENIED_CODE) {
     return {
       status: "failed",
@@ -172,14 +219,15 @@ function resultViewOf(item: ItemRecord): ResultView | null {
       output: t("desktop.item.denied.body"),
     };
   }
-  if (item.status === "interrupted") {
+  if (item.status === "interrupted" || code === "fresnel:aborted" || code === "aborted") {
     return {
       status: "failed",
       failedLabel: t("desktop.item.status.interrupted"),
-      output: clip(body),
+      output: body,
+      ...cut,
     };
   }
-  return { status: "failed", output: clip(body) };
+  return { status: "failed", output: body, ...cut };
 }
 
 /** 호출 하나에 행 하나. 결과가 오면 같은 행이 결과를 따른다. 결과가 없으면 실행 중이거나(대화가 실행 중) 끝내 못 받은 것이다 */
@@ -210,6 +258,7 @@ function CallRow(props: {
       status={view.status}
       {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
       output={view.output}
+      {...(view.cut === undefined ? {} : { cut: view.cut })}
     />
   );
 }
