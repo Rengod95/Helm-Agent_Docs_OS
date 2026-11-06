@@ -53,7 +53,9 @@ function resourcesDir(): string {
 
 function uiDir(): string {
   const override = process.env["FRESNEL_UI_DIR"];
-  return path.resolve(override ?? path.join(resourcesDir(), "ui"));
+  // 개발 중에는 Tauri와 같은 UI 번들(`just desktop-ui`의 출력)을 쓴다
+  const dev = path.join(resourcesDir(), "..", "desktop", "src-tauri", "ui");
+  return path.resolve(override ?? (app.isPackaged ? path.join(resourcesDir(), "ui") : dev));
 }
 
 function readChannelId(value: unknown): number | null {

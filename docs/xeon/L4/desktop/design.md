@@ -1783,3 +1783,7 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 | `allow-secret-register` | `secret_register`는 값을 stdin에만 쓰고 argv, env, 로그에 넣지 않는다 |
 | `allow-open-external` | 스킴 허용 목록(http, https)을 메인 프로세스가 검사한다 |
 | `allow-pick-folder`, `allow-pick-file`, `allow-save-file` | 메인 프로세스가 `dialog`를 연다. renderer에는 dialog API가 없다 |
+| `allow-engine-*`, `allow-db-restore` | 같은 이름의 명령을 `ctx.handle`로 등록한다. 세대(epoch) 검사와 크기 상한은 명령 안에서 한다 |
+| `allow-os-reauth`, `allow-update-*`, `allow-shell-take-intents`, `allow-tray-update`, `allow-notify-*` | 이번 단계에 없다. 등록되지 않았으므로 `unknown-command`로 거부된다(다음 단계에서 모듈로 더한다) |
+
+이 표는 개발자가 Tauri capability 파일과 맞춰 본 것이며 새 IPC 보안 모델의 최종 검토는 사용자 몫이다.

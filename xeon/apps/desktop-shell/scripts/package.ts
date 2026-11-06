@@ -14,7 +14,7 @@ const paths = await packager({
   overwrite: true,
   prune: false,
   asar: true,
-  ignore: [/^\/(src|test|scripts|dist|dist-app|node_modules|tsconfig\.json|bun\.lock)(\/|$)/],
+  ignore: [/^\/(src|test|scripts|dist-app|node_modules|tsconfig\.json|bun\.lock)(\/|$)/],
   extraResource: [
     `${desktop}/src-tauri/ui`,
     `${desktop}/src-tauri/binaries/fresnel-aarch64-apple-darwin`,
