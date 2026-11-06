@@ -1,12 +1,13 @@
 // electron과 electron-updater를 잇는 어댑터(B-10). 설정 파일(`ctx.paths.resources`의 `update-feed.json`)을 읽어 설정 여부를 정하고,
 // 설정됐을 때만 electron-updater를 동적으로 불러온다. 설정이 없으면 electron-updater는 적재되지 않는다.
 // 서명 검증은 electron-updater가 한다. 검증이 실패하면 설치하지 않는다. 이 파일에는 검증을 건너뛰는 길이 없다.
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { attempt } from "@fresnel/contracts";
 import { app } from "electron";
 import type { AppUpdater, ProgressInfo, UpdateInfo } from "electron-updater";
 import type { ShellModule } from "./context.ts";
+import { appLogOf } from "./lib/applog.ts";
 import {
   createUpdaterModule,
   feedFromText,
@@ -17,8 +18,6 @@ import {
 
 /** 설정 파일 이름. `ctx.paths.resources` 아래에 둔다. 저장소에는 두지 않는다(배포 주소는 사용자가 채운다) */
 const FEED_FILE = "update-feed.json";
-/** Tauri `applog.rs`와 같은 로그 파일 이름. 줄마다 시각을 붙인다 */
-const LOG_FILE = "fresnel-desktop.log";
 
 /** 설정이 있을 때 electron-updater를 불러와 피드를 맞춘다. 자동 내려받기와 종료 때 자동 설치는 끈다 */
 async function loadUpdater(feed: UpdateFeed): Promise<AppUpdater> {
@@ -109,22 +108,13 @@ function isMissing(cause: unknown): boolean {
   return cause instanceof Error && "code" in cause && cause.code === "ENOENT";
 }
 
-/** 앱 로그 파일에 시각을 붙여 한 줄 덧붙인다. 쓰지 못하면 표준 오류로 대신한다(로그 때문에 앱이 멈추지 않는다) */
-function appendLog(logsDir: string, line: string): void {
-  const text = `${new Date().toISOString()} ${line}\n`;
-  const written = attempt(() => {
-    mkdirSync(logsDir, { recursive: true });
-    appendFileSync(path.join(logsDir, LOG_FILE), text);
-  });
-  if (!written.ok) process.stderr.write(text);
-}
-
 /** 업데이트 모듈의 셸 쪽 진입점. `modules.ts`의 목록에 넣는다 */
 export const updaterShellModule: ShellModule = {
   name: "updater",
   register(ctx) {
+    const appLog = appLogOf(ctx);
     const log = (line: string): void => {
-      appendLog(ctx.paths.logs, line);
+      appLog.line(line);
     };
     const feed = readFeed(ctx.paths.resources, log);
     createUpdaterModule({

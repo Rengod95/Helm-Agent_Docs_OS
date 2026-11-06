@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { ShellContext } from "../src/main/context.ts";
 import { sharedIntents } from "../src/main/intents.ts";
 import {
   createSingleInstanceModule,
@@ -36,11 +37,17 @@ function fakeLock(granted: boolean): FakeLock {
   };
 }
 
+function startInstance(ports: SingleInstancePorts, ctx: ShellContext): void {
+  const module = createSingleInstanceModule(ports);
+  module.beforeReady?.();
+  module.register(ctx);
+}
+
 describe("single instance", () => {
   test("a second launch exits with 0 and listens to nothing", () => {
     const lock = fakeLock(false);
     const fake = createFakeContext();
-    createSingleInstanceModule(lock.ports).register(fake.ctx);
+    startInstance(lock.ports, fake.ctx);
     expect(lock.exits).toEqual([0]);
     expect({
       second: lock.secondListeners.length,
@@ -49,10 +56,26 @@ describe("single instance", () => {
     expect(fake.shown.count).toBe(0);
   });
 
+  test("the lock is requested before register, so before the app is ready", () => {
+    const calls: string[] = [];
+    const lock = fakeLock(true);
+    const module = createSingleInstanceModule({
+      ...lock.ports,
+      requestLock: () => {
+        calls.push("lock");
+        return true;
+      },
+    });
+    module.beforeReady?.();
+    calls.push("ready");
+    module.register(createFakeContext().ctx);
+    expect(calls).toEqual(["lock", "ready"]);
+  });
+
   test("the first launch keeps running and listens for the second launch and open-url", () => {
     const lock = fakeLock(true);
     const fake = createFakeContext();
-    createSingleInstanceModule(lock.ports).register(fake.ctx);
+    startInstance(lock.ports, fake.ctx);
     expect(lock.exits).toEqual([]);
     expect({
       second: lock.secondListeners.length,
@@ -64,7 +87,7 @@ describe("single instance", () => {
     sharedIntents.take(Date.now());
     const lock = fakeLock(true);
     const fake = createFakeContext();
-    createSingleInstanceModule(lock.ports).register(fake.ctx);
+    startInstance(lock.ports, fake.ctx);
     for (const listener of lock.secondListeners) listener();
     expect(fake.shown.count).toBe(1);
     expect(lock.exits).toEqual([]);
@@ -75,7 +98,7 @@ describe("single instance", () => {
     sharedIntents.take(Date.now());
     const lock = fakeLock(true);
     const fake = createFakeContext();
-    createSingleInstanceModule(lock.ports).register(fake.ctx);
+    startInstance(lock.ports, fake.ctx);
     for (const listener of lock.openUrlListeners) listener();
     expect(fake.shown.count).toBe(1);
     expect(sharedIntents.take(Date.now())).toEqual([]);

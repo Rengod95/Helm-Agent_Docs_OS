@@ -195,6 +195,7 @@ function createWindow(windows: Set<BrowserWindow>, hooks: WindowHooks): BrowserW
 }
 
 async function main(): Promise<void> {
+  for (const module of MODULES) module.beforeReady?.();
   await app.whenReady();
   const root = uiDir();
   protocol.handle(SCHEME, (request) => serveUi(root, request));

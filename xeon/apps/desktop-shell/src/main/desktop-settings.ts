@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { assertNever, attempt, parseJson, rethrow } from "@fresnel/contracts";
+import { setConfiguredCloseBehavior } from "./close-behavior.ts";
 import { ShellError } from "./commands.ts";
 import type { ShellContext, ShellModule } from "./context.ts";
 import { appLogOf } from "./lib/applog.ts";
@@ -237,11 +238,13 @@ export const desktopSettingsModule: ShellModule = {
     const store = desktopSettingsStore(ctx);
     const log = appLogOf(ctx);
     for (const line of store.diagnostics) log.line(line);
+    setConfiguredCloseBehavior(store.current().closeBehavior);
     ctx.handle("desktop_settings_read", () => readSettingsObject(ctx.paths.configDir));
     ctx.handle("desktop_settings_write", (_caller, args) => {
       const key = ownField(args, "key");
       if (typeof key !== "string") throw new ShellError("bad-request");
       store.write(key, ownField(args, "value"));
+      setConfiguredCloseBehavior(store.current().closeBehavior);
       return null;
     });
   },

@@ -71,5 +71,7 @@ export interface ShellModule {
   readonly name: string;
   /** `app.ready` 전에 등록해야 하는 사용자 정의 스킴. main.ts가 모아 한 번에 등록한다 */
   readonly schemes?: readonly CustomScheme[];
+  /** `app.ready` 전에 부른다. 단일 인스턴스 잠금처럼 ready 전에 해야 하는 일만 둔다 */
+  beforeReady?(): void;
   register(ctx: ShellContext): void;
 }

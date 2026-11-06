@@ -36,7 +36,7 @@ export interface UpdaterPorts {
   readonly checkTimeoutMs?: number;
 }
 
-/** 실패 이유 코드. UI의 `UPDATE_REASONS`와 같은 값이다. `network`는 Rust 쪽 코드와 맞추려고 남겼고 `classifyError`는 만들지 않는다 */
+/** 실패 이유 코드. UI의 `UPDATE_REASONS`와 같은 값이다. `network`는 연결은 됐는데 서버가 오류 상태로 답한 경우(404 제외)다 */
 export type UpdateFailReason =
   | "signature"
   | "no_release"
@@ -46,15 +46,14 @@ export type UpdateFailReason =
   | "nothing_to_install"
   | "other";
 
-/** 명령의 답. WebView는 `kind`로 가른다. 설치 성공(`restarting`)은 앱이 끝나므로 보통 닿지 않는다 */
+/** 명령의 답. WebView는 `kind`로 가른다. 설치가 성공하면 앱이 끝나므로 `update_install_restart`는 답하지 않는다 */
 export type UpdateReply =
   | { readonly kind: "notConfigured" }
   | { readonly kind: "upToDate" }
   | { readonly kind: "available"; readonly version: string; readonly notes: string | null }
   | { readonly kind: "offline" }
   | { readonly kind: "failed"; readonly reason: UpdateFailReason }
-  | { readonly kind: "ready" }
-  | { readonly kind: "restarting" };
+  | { readonly kind: "ready" };
 
 /** 내려받는 동안 채널로 보내는 진행 알림 */
 export type DownloadEvent = {
@@ -66,7 +65,7 @@ export type DownloadEvent = {
 /** 오류를 나눈 결과. 연결 문제는 `offline`, 나머지는 이유 코드다 */
 export type ErrorClass =
   | { readonly kind: "offline" }
-  | { readonly kind: "failed"; readonly reason: "signature" | "no_release" | "other" };
+  | { readonly kind: "failed"; readonly reason: "signature" | "no_release" | "network" | "other" };
 
 /** 설정 파일(`update-feed.json`)의 모양. 배포 주소 하나를 가진 일반 제공자다 */
 export interface UpdateFeed {
@@ -123,6 +122,8 @@ export function classifyError(error: unknown): ErrorClass {
   ) {
     return { kind: "failed", reason: "no_release" };
   }
+  // 서버가 답은 했지만 오류 상태(5xx, 403 등)다. electron-updater의 HttpError는 숫자 `statusCode`를 가진다
+  if (statusOf(error) !== null) return { kind: "failed", reason: "network" };
   return { kind: "failed", reason: "other" };
 }
 
@@ -217,12 +218,13 @@ export function createUpdaterModule(ports: UpdaterPorts): ShellModule {
     return { kind: "ready" };
   };
 
-  const install = (): UpdateReply => {
+  const install = (): UpdateReply | Promise<UpdateReply> => {
     if (!staged) return { kind: "failed", reason: "nothing_to_install" };
     const result = attempt(() => ports.backend.quitAndInstall());
     if (!result.ok) return failureReply("install", classifyError(result.error.cause), ports.log);
-    // 설치가 앱 종료를 시작한다. 엔진을 내리는 일은 ecore가 ctx.onQuit에 건 정리가 will-quit에서 맡는다(Rust의 supervisor.shutdown 자리)
-    return { kind: "restarting" };
+    // 설치가 앱 종료를 시작한다. 엔진을 내리는 일은 ecore가 ctx.onQuit에 건 정리가 before-quit에서 맡는다(Rust의 supervisor.shutdown 자리).
+    // UI는 Tauri처럼 성공 답이 오지 않는다고 본다(installing에 머문다). 그래서 답하지 않고 앱이 끝나기를 기다린다
+    return new Promise<UpdateReply>(() => undefined);
   };
 
   return {
@@ -248,6 +250,12 @@ export function createUpdaterModule(ports: UpdaterPorts): ShellModule {
 function codeOf(error: unknown): string | null {
   if (!(error instanceof Error) || !("code" in error)) return null;
   return typeof error.code === "string" ? error.code : null;
+}
+
+/** 오류 값의 HTTP 상태. `Error`이면서 숫자 `statusCode`를 가질 때만 읽는다 */
+function statusOf(error: unknown): number | null {
+  if (!(error instanceof Error) || !("statusCode" in error)) return null;
+  return typeof error.statusCode === "number" ? error.statusCode : null;
 }
 
 /** 오류 값의 메시지. `Error`가 아니면 빈 글이다 */

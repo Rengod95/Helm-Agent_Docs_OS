@@ -219,6 +219,15 @@ describe("error classification", () => {
     });
   });
 
+  test("a server error status that is not 404 is network", () => {
+    for (const statusCode of [403, 500, 503]) {
+      const error = Object.assign(new Error(`${statusCode} "server said no"`), { statusCode });
+      expect(classifyError(error)).toEqual({ kind: "failed", reason: "network" });
+    }
+    const missing = Object.assign(new Error('404 "Not Found"'), { statusCode: 404 });
+    expect(classifyError(missing)).toEqual({ kind: "failed", reason: "no_release" });
+  });
+
   test("everything else is other, and a connection code wins over the message", () => {
     expect(classifyError(new Error("disk full"))).toEqual({ kind: "failed", reason: "other" });
     expect(classifyError(coded("EPERM", "permission denied"))).toEqual({
@@ -406,7 +415,7 @@ describe("download and install", () => {
     expect(h.sent).toEqual([{ kind: "progress", downloaded: 100, total: null }]);
   });
 
-  test("a finished download installs and reports restarting", async () => {
+  test("a finished download installs and gives no answer, the app is quitting", async () => {
     const { backend, calls } = backendOf({
       check: () => Promise.resolve(READY_1_2),
       download: () => Promise.resolve(),
@@ -414,10 +423,9 @@ describe("download and install", () => {
     const h = harness({ backend });
     await h.dispatch("update_check", null);
     await h.dispatch("update_download", { onEvent: CHANNEL });
-    expect(await h.dispatch("update_install_restart", null)).toEqual({
-      ok: true,
-      value: { kind: "restarting" },
-    });
+    const answer = h.dispatch("update_install_restart", null).then(() => "answered");
+    const waited = Bun.sleep(50).then(() => "no answer");
+    expect(await Promise.race([answer, waited])).toBe("no answer");
     expect(calls).toEqual(["check", "download", "install"]);
   });
 

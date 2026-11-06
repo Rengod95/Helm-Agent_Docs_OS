@@ -3,6 +3,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { rethrow } from "@fresnel/contracts";
+import {
+  resetCloseBehavior,
+  setTrayActive,
+  shouldQuitWhenWindowsClosed,
+} from "../src/main/close-behavior.ts";
 import { ShellError } from "../src/main/commands.ts";
 import {
   DEFAULT_DESKTOP_SETTINGS,
@@ -440,6 +445,22 @@ describe("desktop settings module", () => {
       value: { [KEY_CLOSE_BEHAVIOR]: "quit" },
     });
     expect(desktopSettingsStore(fake.ctx).current().closeBehavior).toBe("quit");
+  });
+
+  test("the stored close behavior reaches the window-close decision at start and on write", async () => {
+    resetCloseBehavior();
+    setTrayActive(true);
+    const fake = fakeCtx();
+    mkdirSync(fake.ctx.paths.configDir, { recursive: true });
+    writeFileSync(
+      path.join(fake.ctx.paths.configDir, SETTINGS_FILE_NAME),
+      JSON.stringify({ [KEY_CLOSE_BEHAVIOR]: "quit" }),
+    );
+    desktopSettingsModule.register(fake.ctx);
+    expect(shouldQuitWhenWindowsClosed()).toBe(true);
+    await fake.call("desktop_settings_write", { key: KEY_CLOSE_BEHAVIOR, value: "tray" });
+    expect(shouldQuitWhenWindowsClosed()).toBe(false);
+    resetCloseBehavior();
   });
 
   test("rejects a bad key, a bad value and malformed args with their codes", async () => {

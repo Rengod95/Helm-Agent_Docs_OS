@@ -1,10 +1,8 @@
 // OS 알림의 Electron 어댑터(B-10). 이 파일만 electron 값을 가져온다. 권한 API가 없어 지원 여부로 답한다.
 // Electron은 알림 객체를 치우면 클릭을 잃으므로, 닫히거나 눌리거나 실패할 때까지 `live`가 붙든다.
-import { appendFileSync, mkdirSync } from "node:fs";
-import path from "node:path";
-import { attempt } from "@fresnel/contracts";
 import { Notification } from "electron";
 import type { ShellModule } from "./context.ts";
+import { appLogOf } from "./lib/applog.ts";
 import {
   createNotifyOsModule,
   permissionWordOf,
@@ -12,20 +10,8 @@ import {
   type ShownNotice,
 } from "./notify-os.ts";
 
-/** Rust 앱 로그와 같은 파일이다(`applog.rs`) */
-const LOG_FILE = "fresnel-desktop.log";
-
 /** 떠 있는 알림. 눌림 이벤트를 받으려고 닫히거나 눌리거나 실패할 때까지 든다 */
 const live = new Set<Notification>();
-
-/** 로그 한 줄을 앱 로그 파일에 붙인다. 쓰지 못하면 표준 오류로 대신한다(로그 때문에 앱이 멈추지 않는다) */
-function appendLog(logs: string, line: string): void {
-  const written = attempt(() => {
-    mkdirSync(logs, { recursive: true });
-    appendFileSync(path.join(logs, LOG_FILE), `${new Date().toISOString()} ${line}\n`);
-  });
-  if (!written.ok) process.stderr.write(`${line}\n`);
-}
 
 function showNotice(
   notice: ShownNotice,
@@ -60,8 +46,9 @@ function showNotice(
 export const notifyOsShellModule: ShellModule = {
   name: "notify-os",
   register(ctx) {
+    const appLog = appLogOf(ctx);
     const log = (line: string): void => {
-      appendLog(ctx.paths.logs, line);
+      appLog.line(line);
     };
     createNotifyOsModule({
       permission: () => permissionWordOf(Notification.isSupported()),

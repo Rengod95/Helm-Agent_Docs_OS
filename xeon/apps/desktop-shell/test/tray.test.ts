@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { err, ok } from "@fresnel/contracts";
-import {
-  setConfiguredCloseBehavior,
-  shouldQuitWhenWindowsClosed,
-} from "../src/main/close-behavior.ts";
+import { resetCloseBehavior, shouldQuitWhenWindowsClosed } from "../src/main/close-behavior.ts";
 import type { ShellReply } from "../src/main/commands.ts";
 import { INTENT_EVENT, sharedIntents } from "../src/main/intents.ts";
 import {
@@ -146,7 +143,7 @@ describe("tray running line and labels", () => {
 
 describe("tray module", () => {
   beforeEach(() => {
-    setConfiguredCloseBehavior("tray");
+    resetCloseBehavior();
   });
 
   test("creates the tray with the English defaults and keeps the app in tray mode", () => {

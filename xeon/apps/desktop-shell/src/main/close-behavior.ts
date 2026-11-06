@@ -28,6 +28,12 @@ export function setConfiguredCloseBehavior(value: CloseBehavior): void {
   state.configured = value;
 }
 
+/** 모듈 전역 상태를 처음 값(`tray`, 트레이 없음)으로 되돌린다. 시험이 서로 새지 않게 쓴다 */
+export function resetCloseBehavior(): void {
+  state.configured = "tray";
+  state.trayActive = false;
+}
+
 export function setTrayActive(active: boolean): void {
   state.trayActive = active;
 }
