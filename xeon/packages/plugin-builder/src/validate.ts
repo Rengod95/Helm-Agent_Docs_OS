@@ -88,6 +88,16 @@ function lineOf(text: string, index: number): number {
   return line;
 }
 
+/**
+ * 원문에서 `"key":`가 처음 나오는 줄(1부터). 원문에 없으면 undefined다. JSON 파서는 위치를 주지 않아 글자 찾기로 본다.
+ * 같은 이름의 키가 여러 곳에 있으면 처음 것이라 중첩된 같은 이름의 키는 다른 줄을 가리킬 수 있다
+ */
+export function lineOfKey(text: string, key: string): number | undefined {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const found = new RegExp(`"${escaped}"\\s*:`).exec(text);
+  return found === null ? undefined : lineOf(text, found.index);
+}
+
 function recordOf(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? { ...value }

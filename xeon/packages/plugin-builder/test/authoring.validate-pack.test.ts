@@ -247,6 +247,8 @@ test("authoring.pack: refuses invalid input, leaves secret-looking files out and
     error: {
       kind: "invalid_input",
       message: "entry must be a bundled single file (run ext.package first)",
+      // 템플릿 매니페스트의 `"entry": "./src/index.ts"`는 여섯 번째 줄이다
+      reasons: [{ code: "entry_format", field: "entry", line: 6 }],
     },
   });
   expect(looksSecret(".env.local")).toBe(true);
