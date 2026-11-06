@@ -1,15 +1,25 @@
 import { describe, expect, test } from "bun:test";
-import { reduceSettings, TAB_ORDER, settingsViewOf } from "@fresnel/client/settings";
+import { activeLocale, setActiveLocale } from "@fresnel/client/i18n";
+import {
+  reduceSettings,
+  TAB_ORDER,
+  settingsViewOf,
+  type FieldVM,
+  type SettingsView,
+} from "@fresnel/client/settings";
 import { thr } from "../state/helpers.ts";
 import {
   advancedGroupsOf,
   allFieldsOf,
+  budgetsGroupsOf,
+  columnLabelOf,
   dirtyKeysOf,
   fallbackScopeOf,
   fieldControlOf,
   fieldMatches,
   hasFooter,
   launchChoiceOf,
+  modelsGroupsOf,
   numberDraftActionOf,
   numberValueOf,
   optionLabelOf,
@@ -343,6 +353,127 @@ describe("advanced tab groups and option labels", () => {
     expect(optionLabelOf("l0.sandbox.onUnavailable", "run_unsandboxed")).toBe("격리 없이 실행");
     expect(optionLabelOf("l0.secrets.ageKey.source", "auto-file")).toBe("자동(파일 우선)");
     expect(optionLabelOf("l9.unknown.key", "raw-value")).toBe("raw-value");
+  });
+
+  test("the desktop, CLI, and model option labels are Korean sentences", () => {
+    expect(optionLabelOf("l4.desktop.window.closeBehavior", "tray")).toBe("트레이에 남기기");
+    expect(optionLabelOf("l4.desktop.window.closeBehavior", "quit")).toBe("앱 끝내기");
+    expect(optionLabelOf("l4.ui.locale", "auto")).toBe("시스템 설정 따르기");
+    expect(optionLabelOf("l4.cli.theme", "dark")).toBe("어둡게");
+    expect(optionLabelOf("l4.cli.outputMode", "json")).toBe("JSON");
+    expect(optionLabelOf("l1.models.cacheRetention", "long")).toBe("길게");
+  });
+
+  test("an English session shows the English option labels", () => {
+    const previous = activeLocale();
+    setActiveLocale("en");
+    try {
+      expect(optionLabelOf("l4.desktop.window.closeBehavior", "tray")).toBe("Keep in tray");
+      expect(optionLabelOf("l4.ui.locale", "ko")).toBe("Korean");
+      expect(columnLabelOf("l1.models.retry", "baseDelayMs")).toBe("Base delay (ms)");
+    } finally {
+      setActiveLocale(previous);
+    }
+  });
+});
+
+/** 키 목록의 항목을 입력 순서대로 모은다. 없는 키는 빠진다 */
+function fieldsInOrder(view: SettingsView, keys: readonly string[]): FieldVM[] {
+  return keys.flatMap((key) => fieldIn(view, key) ?? []);
+}
+
+describe("models and budgets card groups", () => {
+  test("the models tab splits basic and routing keys out and keeps the rest in input order", () => {
+    const keys = [
+      "l1.models.routing.judge",
+      "l1.models.allowedModels",
+      "l1.models.default",
+      "l1.agents.maxDepth",
+      "l1.models.groupRouting",
+      "l1.models.thinkingLevel",
+      "l1.models.routing.review",
+      "l1.agents.judge.maxRuns",
+      "l1.models.thinkingBudgets",
+    ];
+    const defs = keys.map((key, order) =>
+      defOf(key, "models", "text", { type: "string" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, "x")),
+    );
+    const groups = modelsGroupsOf(fieldsInOrder(view, keys));
+    expect(groups.basic.map((field) => field.key)).toEqual([
+      "l1.models.default",
+      "l1.models.thinkingLevel",
+      "l1.agents.judge.maxRuns",
+    ]);
+    expect(groups.routing.map((field) => field.key)).toEqual([
+      "l1.models.routing.judge",
+      "l1.models.groupRouting",
+      "l1.models.routing.review",
+    ]);
+    expect(groups.rest.map((field) => field.key)).toEqual([
+      "l1.models.allowedModels",
+      "l1.agents.maxDepth",
+      "l1.models.thinkingBudgets",
+    ]);
+  });
+
+  test("a models tab with only basic keys leaves routing and the rest empty", () => {
+    const keys = ["l1.models.default"];
+    const defs = keys.map((key, order) =>
+      defOf(key, "models", "text", { type: "string" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, "sonnet")),
+    );
+    const groups = modelsGroupsOf(fieldsInOrder(view, keys));
+    expect(groups.basic.map((field) => field.key)).toEqual(["l1.models.default"]);
+    expect(groups.routing).toEqual([]);
+    expect(groups.rest).toEqual([]);
+  });
+
+  test("the budgets tab puts the rate limit apart and every other key, unknown ones included, in the budget group", () => {
+    const keys = ["l1.loop.maxSteps", "l1.models.rateLimit", "l9.not.registered"];
+    const defs = keys.map((key, order) =>
+      defOf(key, "budgets", "number", { type: "integer" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, 3)),
+    );
+    const groups = budgetsGroupsOf(fieldsInOrder(view, keys));
+    expect(groups.budget.map((field) => field.key)).toEqual([
+      "l1.loop.maxSteps",
+      "l9.not.registered",
+    ]);
+    expect(groups.rateLimit.map((field) => field.key)).toEqual(["l1.models.rateLimit"]);
+  });
+
+  test("a budgets tab without a rate limit key leaves the rate limit group empty", () => {
+    const keys = ["l1.loop.maxSteps"];
+    const defs = keys.map((key, order) =>
+      defOf(key, "budgets", "number", { type: "integer" }, {}, { order, label: key }),
+    );
+    const view = viewOf(
+      defs,
+      keys.map((key) => settingOf(key, 3)),
+    );
+    const groups = budgetsGroupsOf(fieldsInOrder(view, keys));
+    expect(groups.budget.map((field) => field.key)).toEqual(["l1.loop.maxSteps"]);
+    expect(groups.rateLimit).toEqual([]);
+  });
+});
+
+describe("columnLabelOf", () => {
+  test("a table column shows its catalog sentence, and an unknown column shows its name", () => {
+    expect(columnLabelOf("l1.models.retry", "maxRetries")).toBe("최대 재시도 횟수");
+    expect(columnLabelOf("l1.models.providers", "apiKeyRef")).toBe("API 키(시크릿 참조)");
+    expect(columnLabelOf("l1.models.thinkingBudgets", "xhigh")).toBe("아주 높게");
+    expect(columnLabelOf("l1.models.retry", "unknownColumn")).toBe("unknownColumn");
+    expect(columnLabelOf("l9.unknown.table", "rawColumn")).toBe("rawColumn");
   });
 });
 

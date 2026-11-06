@@ -20,6 +20,8 @@ import type { SettingKey, SettingsTab } from "@fresnel/contracts/settings";
 import { useId, type KeyboardEvent, type ReactNode } from "react";
 import {
   advancedGroupsOf,
+  budgetsGroupsOf,
+  modelsGroupsOf,
   panelOwnedOf,
   restartCountOf,
   searchGroupsOf,
@@ -109,12 +111,12 @@ export interface SettingsPageProps {
 export function SettingsPageView(props: SettingsPageProps): ReactNode {
   const { handlers, tab, query, readOnly, fileOpen, narrow } = props;
   const headingId = useId();
-  // 머리 제목은 고른 탭 이름이다(P-09 시안 `_settings/frame.tsx`). 찾는 중에는 화면 이름이다
+  // 머리 제목은 고른 탭 이름이다(P-09 시안 `_settings/frame.tsx`). 찾는 중에는 `'찾는 글' 찾은 항목`이다(시안 `search.tsx`)
   const titleOf =
     query.trim() === ""
       ? (props.view?.tabs.find((candidate) => candidate.id === tab)?.label ??
         t("desktop.settings.title"))
-      : t("desktop.settings.title");
+      : t("desktop.settings.search.resultsTitle", { query: query.trim() });
   const onKey = (event: KeyboardEvent<HTMLElement>): void => {
     // 묻는 대화 상자가 열려 있으면 그 키는 대화 상자의 것이다. 포털의 키 입력도 이 자리까지 올라오므로 여기서 막는다
     if (props.prompt !== null) return;
@@ -321,11 +323,38 @@ function FieldList(props: SettingsPageProps & { readonly view: SettingsView }): 
   );
 }
 
+/** 제목 카드 하나. 제목이 없는 카드는 탭 이름을 라벨로 쓰는 나머지 카드다 */
+interface TitledCard {
+  readonly title: string | undefined;
+  readonly fields: readonly FieldVM[];
+}
+
+/** 모델과 예산 탭을 제목 카드 목록으로 나눈다(카드 순서는 시안과 같다). 다른 탭은 `null`이라 한 카드로 그린다 */
+function titledCardsOf(tab: SettingsTab, fields: readonly FieldVM[]): readonly TitledCard[] | null {
+  if (tab === "models") {
+    const groups = modelsGroupsOf(fields);
+    return [
+      { title: t("desktop.settings.models.basic"), fields: groups.basic },
+      { title: t("desktop.settings.models.routing"), fields: groups.routing },
+      { title: undefined, fields: groups.rest },
+    ];
+  }
+  if (tab === "budgets") {
+    const groups = budgetsGroupsOf(fields);
+    return [
+      { title: t("desktop.settings.budgets.budget"), fields: groups.budget },
+      { title: t("desktop.settings.budgets.rateLimit"), fields: groups.rateLimit },
+    ];
+  }
+  return null;
+}
+
 /** 찾기 결과나 고른 탭의 항목. 시크릿 탭은 시크릿 화면이 자리를 차지한다 */
 function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }): ReactNode {
   const { view, query, tab, hasThread, readOnly, saved, handlers } = props;
   const rowHandlers = handlers.fields;
-  const rowOf = (field: FieldVM): ReactNode => (
+  // 설정 키는 찾기 결과에서만 라벨 옆에 보인다(시안 `_settings/row.tsx` showKey)
+  const rowOf = (field: FieldVM, showKey: boolean): ReactNode => (
     <FieldRow
       key={field.key}
       field={field}
@@ -334,6 +363,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
       saved={saved.has(field.key)}
       editors={props.editors}
       handlers={rowHandlers}
+      showKey={showKey}
     />
   );
   if (query.trim() !== "") {
@@ -347,7 +377,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
       <>
         {groups.map((group) => (
           <SettingSection key={group.tab} title={group.label}>
-            {group.fields.map(rowOf)}
+            {group.fields.map((field) => rowOf(field, true))}
           </SettingSection>
         ))}
       </>
@@ -376,25 +406,38 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     return (
       <OverviewPanels view={view} updatePanel={props.updatePanel} filePaths={props.filePaths} />
     );
+  // 모델과 예산 탭은 제목 카드로 나눈다(시안 p09 `models-tab`, p11 `BudgetsTab`). 항목이 없으면 아래 한 카드가 빈 항목 문장을 맡는다
+  const cards = fields.length === 0 ? null : titledCardsOf(tab, fields);
   // 고급 탭은 운영자용 항목을 따로 묶어 제목으로 가른다(시안 `_settings`의 구역 모양)
   const groups = tab === "advanced" ? advancedGroupsOf(fields) : { general: fields, operator: [] };
   return (
     <>
       {panels}
-      {hasCard ? (
+      {cards === null && hasCard ? (
         <SettingSection
           label={tabView.label}
           title={tab === "plugins" ? t("desktop.settings.plugins.settings") : undefined}
         >
           {tab === "advanced" ? props.restorePanel : null}
           {emptyText === null ? null : <p className="text-ui-sm text-text-tertiary">{emptyText}</p>}
-          {groups.general.map(rowOf)}
+          {groups.general.map((field) => rowOf(field, false))}
         </SettingSection>
       ) : null}
+      {cards?.map((card) =>
+        card.fields.length === 0 ? null : (
+          <SettingSection
+            key={card.title ?? tabView.label}
+            label={tabView.label}
+            title={card.title}
+          >
+            {card.fields.map((field) => rowOf(field, false))}
+          </SettingSection>
+        ),
+      )}
       {tab === "appearance" ? props.appearancePanel : null}
       {groups.operator.length === 0 ? null : (
         <SettingSection title={t("desktop.settings.advanced.operator.title")}>
-          {groups.operator.map(rowOf)}
+          {groups.operator.map((field) => rowOf(field, false))}
         </SettingSection>
       )}
     </>

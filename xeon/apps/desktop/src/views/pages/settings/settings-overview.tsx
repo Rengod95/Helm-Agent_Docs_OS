@@ -34,7 +34,7 @@ export function OverviewPanels(props: {
   readonly view: SettingsView;
   /** 앱 업데이트 줄(웹에서는 아무것도 그리지 않는다) */
   readonly updatePanel: ReactNode;
-  /** 사용자·프로젝트·관리 정책 설정 파일 경로. 읽지 못한 범위는 빠진다 */
+  /** 사용자·프로젝트·관리 정책 설정 파일 경로 줄. 연결이 없으면 빈 목록이다. 경로를 모르면 줄은 `없음`으로 보인다 */
   readonly filePaths: readonly SettingsPathRow[];
 }): ReactNode {
   const commands = useCommands();
@@ -56,16 +56,22 @@ export function OverviewPanels(props: {
             aria-label={t("desktop.settings.overview.files.title")}
             className={ROWS_CLASS}
           >
-            {props.filePaths.map((row) => (
-              <ListDescriptionRow
-                key={row.scope}
-                term={pathTermOf(row.scope)}
-                mono
-                copyValue={row.path}
-              >
-                {shortenHome(row.path)}
-              </ListDescriptionRow>
-            ))}
+            {props.filePaths.map((row) =>
+              row.path === null ? (
+                <ListDescriptionRow key={row.scope} term={pathTermOf(row.scope)}>
+                  {t("desktop.settings.overview.files.none")}
+                </ListDescriptionRow>
+              ) : (
+                <ListDescriptionRow
+                  key={row.scope}
+                  term={pathTermOf(row.scope)}
+                  mono
+                  copyValue={row.path}
+                >
+                  {shortenHome(row.path)}
+                </ListDescriptionRow>
+              ),
+            )}
           </ListDescription>
         </SettingSection>
       )}

@@ -550,6 +550,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
    - `ui.tab`이 `TAB_SPECS`에 없는 값이면(새 F 부 버전) advanced 탭 파일 편집기 목록에 넣고 `unknownTab` 진단을 남긴다.
 3. 탭 안 정렬은 `ui.order` 오름차순, 같으면 `key` 오름차순이다. 같은 입력이면 순서가 같다.
 4. 개요(overview) 탭은 `ui.tab: "overview"`인 정의의 항목과 함께 요약(`OverviewVM`)을 보인다. 요약은 다른 탭 항목으로 가는 바로 가기 목록이다. 그래서 규칙 2의 "정확히 한 곳"은 요약 목록을 세지 않는다.
+   - 개요의 "설정 파일" 카드는 사용자·프로젝트·관리 정책 줄을 이 순서로 늘 보인다(연결이 살아 있을 때). 경로를 모르면(`settings.readFile`의 `path`가 null, 작업 폴더 없는 프로젝트 범위나 읽기 실패) 그 줄의 값은 `없음`이고 복사 단추는 없다 [근거: xeon/apps/desktop/src/views/pages/settings/settings-overview.tsx].
 5. 폐기된 정의(`deprecated` 있음)는 `settings.list({includeDeprecated: true})`로 받는다. 유효 값 출처가 `default`이면 화면에 보이지 않고, 사용자가 값을 둔 경우에만 항목과 폐기 배지를 보인다 [제안].
 6. 각 정의가 어느 탭에 들어갈지는 정의의 `ui.tab`이 정한다. 아래 표의 "들어오는 층·키 네임스페이스"는 키 소유 층이 탭을 고를 때 쓰는 기본 배치 안내다 [제안]. 설정 화면은 네임스페이스로 탭을 바꾸지 않는다.
 
@@ -642,6 +643,7 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 - [결정: M3b B3-SET] `table`은 세 모양을 더 받는다. `fixed`는 `properties`가 고정된 원시 값 객체이고 `additionalProperties`가 없다(열 = 속성 이름, 예: `l1.models.thinkingBudgets`의 레벨별 토큰 예산 여섯 개). `record`는 `additionalProperties`나 TypeBox `Type.Record`가 내는 항목 하나짜리 `patternProperties`를 값 스키마로 읽고, 값이 객체 같은 중첩 값이면 `값` 열이 `json`(읽기만, 편집은 파일 편집기)이다. 널을 허용하는 원시 값(`anyOf [X, null]`, `type: [X, "null"]`)은 그 원시 값으로 본다. 모델 참조(`provider/modelId`)는 `text`다: `l1.models.routing.*`는 `text`로 선언한다.
 - 위젯이 `widgetMismatch`이거나 알 수 없는 값(`unknownWidget`)이면 그 항목을 `readonly`로 그리고 진단을 advanced 탭에 모은다. 편집은 파일 편집기로만 한다 [제안].
 - 표 열 하나가 원시 타입이나 enum이 아니면(중첩 객체) 그 열은 JSON 접힘 보기로 읽기만 하고, 그 열 편집은 파일 편집기로 넘긴다 [제안].
+- 표 열 머리와 선택지 값은 카탈로그 문장으로 보인다: `settings.<설정 키>.column.<열 이름>`, `settings.<설정 키>.option.<값>`(값의 `-`·`_`는 camelCase). 없으면 열 이름이나 값 그대로 보인다 [제안].
 
 #### 4.2.2 값이 없을 때
 
@@ -692,6 +694,8 @@ export declare function moveInOrder(ids: readonly string[], from: number, to: nu
 | 쓰기 범위 | `SettingDefWire.allowedScopes` | §4.3.6 |
 | 기본값 복귀 | `settings.reset` | §4.3.7 |
 | 폐기 | `EffectiveSetting.deprecated`, `SettingDefWire.deprecated` | §4.3.8 |
+
+- [제안] 찾기 결과(찾는 글이 있을 때)는 머리 제목을 `‘찾는 글’ 찾은 항목`으로 바꾸고, 맞는 항목을 탭 이름의 제목 카드로 묶는다. 각 항목은 라벨 옆에 설정 키를 연한 고정폭 글(`showKey`, 시안 `_settings/row.tsx`)로 보이고, 재시작 필요 항목은 위 §4.3.2의 `재시작 필요` 배지를 그대로 단다. 찾기 입력란은 라벨·키·설명을 모두 보므로 문구를 "이름, 키, 설명으로 찾아요"로 둔다(시안의 "키 찾기"보다 넓다).
 
 #### 4.3.1 범위 배지
 
@@ -964,6 +968,7 @@ sequenceDiagram
   - 공유 패키지로 내린다. L4 아래 층에 화면 view-model을 두는 것이 층 뜻과 맞는지 정해야 한다.
   - `apps/` 아래 라이브러리 패키지(앱이 아닌 L4 패키지)를 허용한다. DR-10과 `architecture.layers.spec` §10 "같은 층 예외"를 바꾸는 일이다.
   - CLI는 `fresnel config`(F `checkSettingWrite` 기반)만 쓰고 view-model을 공유하지 않는다.
+- 모델 탭은 제목 카드 `기본`(`l1.models.default`, `l1.models.thinkingLevel`, `l1.agents.judge.maxRuns`)과 `라우팅`(`l1.models.routing.*`, `l1.models.groupRouting`), 제목 없는 나머지 카드로, 예산과 한도 탭은 `예산`과 `레이트 리밋`(`l1.models.rateLimit`) 카드로 그린다. 키가 어느 카드에 드는지는 `settings-model.ts`의 `modelsGroupsOf`·`budgetsGroupsOf`가 정하는 화면 배치이고, 값·기본값·검사·저장 범위는 바꾸지 않는다. 항목이 없는 카드는 그리지 않는다. 시안의 하루 비용 한도와 한도 도달 시 동작(시안 p11), 폴백 체인(시안 p09)은 이 저장소에 설정 키가 없어 그리지 않는다 [제안].
 
 ### 4.10 첫 실행 권장 화면 (M3)
 

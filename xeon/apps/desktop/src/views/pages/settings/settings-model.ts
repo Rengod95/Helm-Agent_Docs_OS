@@ -81,6 +81,58 @@ export function advancedGroupsOf(fields: readonly FieldVM[]): AdvancedGroups {
   };
 }
 
+// ── 모델과 예산 탭 구역 ───────────────────────────────────────────────────
+
+/** 모델 탭의 `기본` 카드 키. 기본 모델, 추론 레벨, 판정 실행 상한이다(시안 p09 `models-tab`) */
+const MODELS_BASIC_KEYS: ReadonlySet<string> = new Set([
+  "l1.models.default",
+  "l1.models.thinkingLevel",
+  "l1.agents.judge.maxRuns",
+]);
+
+/** 모델 탭의 `라우팅` 카드 키. 용도별 모델과 그룹 라우팅이다 */
+const MODELS_ROUTING_KEYS: ReadonlySet<string> = new Set([
+  "l1.models.routing.review",
+  "l1.models.routing.summary",
+  "l1.models.routing.subagent",
+  "l1.models.routing.judge",
+  "l1.models.routing.search",
+  "l1.models.groupRouting",
+]);
+
+/** 예산과 한도 탭의 `레이트 리밋` 카드 키. 나머지 예산 항목은 `예산` 카드다(시안 p11 `BudgetsTab`) */
+const BUDGETS_RATE_LIMIT_KEYS: ReadonlySet<string> = new Set(["l1.models.rateLimit"]);
+
+export interface ModelsGroups {
+  readonly basic: readonly FieldVM[];
+  readonly routing: readonly FieldVM[];
+  readonly rest: readonly FieldVM[];
+}
+
+/** 모델 탭의 항목을 `기본`, `라우팅`, 그 밖으로 가른다. 순서는 그대로다. 두 목록에 없는 키는 그 밖이다 */
+export function modelsGroupsOf(fields: readonly FieldVM[]): ModelsGroups {
+  return {
+    basic: fields.filter((field) => MODELS_BASIC_KEYS.has(field.key)),
+    routing: fields.filter((field) => MODELS_ROUTING_KEYS.has(field.key)),
+    rest: fields.filter(
+      (field) => !MODELS_BASIC_KEYS.has(field.key) && !MODELS_ROUTING_KEYS.has(field.key),
+    ),
+  };
+}
+
+export interface BudgetsGroups {
+  readonly budget: readonly FieldVM[];
+  readonly rateLimit: readonly FieldVM[];
+}
+
+/** 예산과 한도 탭의 항목을 `예산`과 `레이트 리밋`으로 가른다. 순서는 그대로다. 레이트 리밋 키가 아니면 예산이다 */
+export function budgetsGroupsOf(fields: readonly FieldVM[]): BudgetsGroups {
+  return {
+    budget: fields.filter((field) => !BUDGETS_RATE_LIMIT_KEYS.has(field.key)),
+    rateLimit: fields.filter((field) => BUDGETS_RATE_LIMIT_KEYS.has(field.key)),
+  };
+}
+
 // ── 키 찾기 ────────────────────────────────────────────────────────────────
 
 /** 찾기 입력은 앞뒤 공백을 뺀 소문자로 비교한다 */
@@ -323,6 +375,14 @@ export function optionLabelOf(key: SettingKey, option: string | number): string 
   const text = optionTextOf(option);
   const base = `settings.${camel(key)}`;
   return tKey(`${base}.option.${camel(text)}`, text);
+}
+
+/**
+ * 표 열 머리의 화면 글. 카탈로그에 `settings.<설정 키>.column.<열 이름>`이 있으면 그 문장이고, 없으면 열 이름 그대로다.
+ * 열 이름은 속성 이름이라(`apiKeyRef`) 보통 그대로 쓰고, `-`·`_`만 camelCase로 바꾼다.
+ */
+export function columnLabelOf(key: SettingKey, column: string): string {
+  return tKey(`settings.${camel(key)}.column.${camel(column)}`, column);
 }
 
 /** 화면 문자열을 원래 옵션 값(문자열 또는 숫자)으로 되돌린다. 맞는 옵션이 없으면 `null`이다 */
