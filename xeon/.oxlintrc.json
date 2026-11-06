@@ -21,6 +21,7 @@
     "vendor/**",
     "packages/group-sdk/templates/**",
     "packages/plugin-builder/templates/**",
+    "examples/**",
     "apps/desktop/mockups/**"
   ],
   "rules": {

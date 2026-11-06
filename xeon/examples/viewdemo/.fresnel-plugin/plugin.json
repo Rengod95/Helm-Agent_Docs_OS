@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "name": "viewdemo",
+  "version": "1.0.0",
+  "entry": "./src/index.js",
+  "plugins": [{ "layer": "plugin", "hooks": ["boundary.settle.after"] }],
+  "ui": {
+    "schemaVersion": 1,
+    "widgets": "^1.0.0",
+    "items": [
+      {
+        "id": "frame",
+        "placement": "page",
+        "mode": "app",
+        "title": "Frame demo",
+        "app": {
+          "root": "./ui/app",
+          "entry": "index.html",
+          "bridge": "^1.0.0",
+          "reason": "Shows how a Plugin App frame signals ready and answers ping."
+        },
+        "fallback": "./ui/native/frame-fallback.json"
+      },
+      {
+        "id": "notes",
+        "placement": "page",
+        "mode": "native",
+        "title": "Native demo",
+        "file": "./ui/native/notes.json"
+      }
+    ]
+  }
+}
