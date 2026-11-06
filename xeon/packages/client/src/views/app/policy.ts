@@ -133,6 +133,28 @@ const NavigateArgs = Type.Object(
 );
 // 셸 기능 op의 인자(ADR-0021 §3.4.3). 크기 상한은 글자 수로 먼저 걸고 바이트 상한은 판정에서 본다
 const PickArgs = Type.Optional(Type.Object({}, { additionalProperties: false }));
+/** 고른 폴더 핸들 id와 그 안의 상대 경로. 핸들은 셸이 만든 `fld_<uuid>`다 */
+const FolderHandleSchema = Type.String({ minLength: 1, maxLength: 64 });
+const FolderPathSchema = Type.String({ maxLength: 1024 });
+const ListFolderArgs = Type.Object(
+  {
+    folder: FolderHandleSchema,
+    path: Type.Optional(FolderPathSchema),
+    recursive: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+const ReadFolderFileArgs = Type.Object(
+  { folder: FolderHandleSchema, path: Type.String({ minLength: 1, maxLength: 1024 }) },
+  { additionalProperties: false },
+);
+
+/** 폴더 안 상대 경로의 글자 검사: `..`, `.`, 빈 마디, 절대 경로, 역슬래시, NUL은 앞에서 거부한다(셸이 실제 경로로 한 번 더 막는다) */
+function folderPathAllowed(relative: string): boolean {
+  if (relative === "") return true;
+  if (relative.includes("\\") || relative.includes("\0") || relative.startsWith("/")) return false;
+  return relative.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+}
 const SaveFileArgs = Type.Object(
   {
     suggestedName: Type.String({ minLength: 1, maxLength: 200 }),
@@ -225,6 +247,15 @@ export type BridgeAction =
     }
   | { readonly op: "pickFile" }
   | { readonly op: "pickFolder" }
+  | {
+      readonly op: "listFolder";
+      /** `pickFolder`가 준 핸들 id */
+      readonly folder: string;
+      /** 고른 폴더 기준 상대 경로. 빈 문자열은 폴더 자신 */
+      readonly path: string;
+      readonly recursive: boolean;
+    }
+  | { readonly op: "readFolderFile"; readonly folder: string; readonly path: string }
   | { readonly op: "saveFile"; readonly suggestedName: string; readonly content: string }
   | { readonly op: "notify"; readonly title: string; readonly body: string }
   | {
@@ -464,6 +495,33 @@ export function decide(request: BridgeRequest, context: BridgePolicyContext): De
       if (!parsed.ok) return argsInvalid(parsed.error);
       if (!context.capabilities.has("files")) return deny("not_declared", "capability");
       return { ok: true, action: { op: request.op } };
+    }
+    case "listFolder": {
+      const parsed = parse(ListFolderArgs, request.args);
+      if (!parsed.ok) return argsInvalid(parsed.error);
+      if (!context.capabilities.has("files")) return deny("not_declared", "capability");
+      const relative = parsed.value.path ?? "";
+      if (!folderPathAllowed(relative)) return deny("args_invalid", "/path outside_folder");
+      return {
+        ok: true,
+        action: {
+          op: "listFolder",
+          folder: parsed.value.folder,
+          path: relative,
+          recursive: parsed.value.recursive === true,
+        },
+      };
+    }
+    case "readFolderFile": {
+      const parsed = parse(ReadFolderFileArgs, request.args);
+      if (!parsed.ok) return argsInvalid(parsed.error);
+      if (!context.capabilities.has("files")) return deny("not_declared", "capability");
+      if (!folderPathAllowed(parsed.value.path))
+        return deny("args_invalid", "/path outside_folder");
+      return {
+        ok: true,
+        action: { op: "readFolderFile", folder: parsed.value.folder, path: parsed.value.path },
+      };
     }
     case "saveFile": {
       const parsed = parse(SaveFileArgs, request.args);

@@ -804,7 +804,6 @@
   "client.view.confirm.externalPunycode": "The \"{extension}\" extension wants to open \"{url}\" in your browser (actual host: {host})",
   "client.view.confirm.approval": "The \"{extension}\" extension wants to show an approval card for \"{action}\"",
   "client.view.confirm.secret": "The \"{extension}\" extension wants to register a new secret \"{name}\". The value is not shown here",
-  "client.view.confirm.secretOverwrite": "The \"{extension}\" extension wants to overwrite the existing secret \"{name}\". The old value will be lost",
   "client.view.confirm.allow": "Allow",
   "client.view.confirm.deny": "Deny",
   "client.view.confirm.trust.builtin": "Built-in",

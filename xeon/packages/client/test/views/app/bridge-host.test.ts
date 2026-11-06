@@ -332,6 +332,18 @@ describe("bridge host", () => {
     expect(ledger.stateOf("helm/inquiry")).toEqual({ state: "active", consecutive: 1 });
   });
 
+  test("a file message may pass 1 MiB: saveFile with 2 MiB of text reaches the shell", async () => {
+    const { pair, calls } = setup();
+    pair.frame.send(
+      request(4, "saveFile", { suggestedName: "big.txt", content: "x".repeat(2_000_000) }),
+    );
+    await flush();
+    expect(calls.names).toEqual([`saveFile:big.txt:${"x".repeat(2_000_000)}`]);
+    expect(pair.toFrame).toEqual([
+      { v: 1, id: 4, ok: true, value: { saved: true, path: "/Users/me/a.md" } },
+    ]);
+  });
+
   test("a query result over 256 KiB is refused", async () => {
     const { pair, ledger } = setup({
       backend: { queryResult: { ok: true, value: { big: "x".repeat(262_200) } } },

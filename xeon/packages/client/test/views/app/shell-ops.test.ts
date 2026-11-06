@@ -23,7 +23,7 @@ import {
   type FakeBackendOptions,
 } from "./support.ts";
 
-// 셸 기능 op 여섯(ADR-0021 §3.4.3): 판정(선언 없음, 꺼짐, 안전 모드, 다른 확장 접두)과 실행(확인 거절, 속도 초과, 값 비노출)
+// 셸 기능 op 여덟(ADR-0021 §3.4.3): 판정(선언 없음, 꺼짐, 안전 모드, 다른 확장 접두)과 실행(확인 거절, 속도 초과, 값 비노출)
 
 function decision(op: string, args: unknown, context: BridgePolicyContext): Decision {
   const parsed = parse(BridgeRequestSchema, { v: 1, id: 1, op, args });
@@ -61,6 +61,8 @@ function build(
 const CASES: readonly { op: string; args: unknown; capability: string }[] = [
   { op: "pickFile", args: {}, capability: "files" },
   { op: "pickFolder", args: {}, capability: "files" },
+  { op: "listFolder", args: { folder: "fld_1" }, capability: "files" },
+  { op: "readFolderFile", args: { folder: "fld_1", path: "a.md" }, capability: "files" },
   { op: "saveFile", args: { suggestedName: "a.md", content: "x" }, capability: "files" },
   { op: "notify", args: { title: "done" }, capability: "notify" },
   { op: "writeSetting", args: { key: "ext.helm.depth", value: 3 }, capability: "settingsWrite" },
@@ -122,6 +124,34 @@ describe("shell ops: decide", () => {
     });
   });
 
+  test("folder paths with .., absolute, backslash or empty segments are refused before the shell", () => {
+    for (const bad of ["../x", "a/../b", "/etc/passwd", "a\\b", "a//b", "./a", "a/"]) {
+      for (const op of ["listFolder", "readFolderFile"]) {
+        expect(decision(op, { folder: "fld_1", path: bad }, policyContext())).toEqual({
+          ok: false,
+          error: { kind: "args_invalid", detail: "/path outside_folder" },
+        });
+      }
+    }
+    expect(decision("readFolderFile", { folder: "fld_1" }, policyContext()).ok).toBe(false);
+    expect(
+      actionOf("listFolder", { folder: "fld_1", path: "src", recursive: true }, policyContext()),
+    ).toEqual({ op: "listFolder", folder: "fld_1", path: "src", recursive: true });
+  });
+
+  test("a 64 MiB file limit: saveFile accepts content under it and refuses over it", () => {
+    expect(UI_LIMITS.fileBytes).toBe(67_108_864);
+    const big = "가".repeat(Math.floor(UI_LIMITS.fileBytes / 3) + 1);
+    expect(
+      decision("saveFile", { suggestedName: "a", content: "가".repeat(100_000) }, policyContext())
+        .ok,
+    ).toBe(true);
+    expect(decision("saveFile", { suggestedName: "a", content: big }, policyContext())).toEqual({
+      ok: false,
+      error: { kind: "too_large" },
+    });
+  });
+
   test("saveFile over the byte limit and notify with a blank title are refused", () => {
     const big = "가".repeat(Math.floor(UI_LIMITS.fileBytes / 3) + 1);
     expect(decision("saveFile", { suggestedName: "a", content: big }, policyContext())).toEqual({
@@ -133,19 +163,59 @@ describe("shell ops: decide", () => {
 });
 
 describe("shell ops: run", () => {
-  test("pickFile returns name and content only, and a second dialog inside 5 seconds is rate limited", async () => {
+  test("pickFile and pickFolder return the full path, and only one window is open at a time", async () => {
     const context = policyContext();
-    const { runner, calls, time } = build(context);
-    const first = await runner.run(actionOf("pickFile", {}, context));
-    expect(first).toEqual({ ok: true, value: { name: "a.txt", content: "hello" } });
-    const second = await runner.run(actionOf("pickFolder", {}, context));
-    expect(second).toEqual({ ok: false, error: { kind: "rate_limited" } });
-    time.advance(5000);
+    const hold = Promise.withResolvers<void>();
+    const { runner, calls } = build(context, ["allow"], { holdPickFile: hold.promise });
+    const first = runner.run(actionOf("pickFile", {}, context));
+    // 창이 열려 있는 동안 다른 창은 열지 않는다
+    expect(await runner.run(actionOf("pickFolder", {}, context))).toEqual({
+      ok: false,
+      error: { kind: "rate_limited" },
+    });
+    hold.resolve();
+    expect(await first).toEqual({
+      ok: true,
+      value: {
+        name: "a.txt",
+        path: "/Users/me/a.txt",
+        size: 5,
+        encoding: "utf8",
+        content: "hello",
+      },
+    });
+    // 닫힌 뒤에는 바로 다시 열 수 있다(5초를 기다리지 않는다)
     expect(await runner.run(actionOf("pickFolder", {}, context))).toEqual({
       ok: true,
-      value: { name: "docs" },
+      value: { name: "docs", path: "/Users/me/docs", folder: "fld_1" },
     });
     expect(calls.names).toEqual(["pickFile", "pickFolder"]);
+  });
+
+  test("listFolder and readFolderFile reach the backend with the handle and relative path", async () => {
+    const context = policyContext();
+    const { runner, calls } = build(context);
+    const listed = await runner.run(
+      actionOf("listFolder", { folder: "fld_1", path: "src", recursive: true }, context),
+    );
+    expect(listed).toEqual({
+      ok: true,
+      value: { entries: [{ path: "a.md", name: "a.md", kind: "file", size: 3 }], truncated: false },
+    });
+    const read = await runner.run(
+      actionOf("readFolderFile", { folder: "fld_1", path: "a.md" }, context),
+    );
+    expect(read).toEqual({
+      ok: true,
+      value: {
+        name: "a.md",
+        path: "/Users/me/docs/a.md",
+        size: 3,
+        encoding: "utf8",
+        content: "abc",
+      },
+    });
+    expect(calls.names).toEqual(["listFolder:fld_1:src:true", "readFolderFile:fld_1:a.md"]);
   });
 
   test("saveFile passes only the suggested name and content", async () => {
@@ -154,7 +224,7 @@ describe("shell ops: run", () => {
     const result = await runner.run(
       actionOf("saveFile", { suggestedName: "../a.md", content: "body" }, context),
     );
-    expect(result).toEqual({ ok: true, value: { saved: true } });
+    expect(result).toEqual({ ok: true, value: { saved: true, path: "/Users/me/a.md" } });
     expect(calls.names).toEqual(["saveFile:../a.md:body"]);
   });
 
@@ -186,33 +256,36 @@ describe("shell ops: run", () => {
     expect(await runner.run(action)).toEqual({ ok: false, error: { kind: "rate_limited" } });
   });
 
-  test("registerSecret asks every time, names the key, never shows the value, and says overwrite when the key exists", async () => {
+  test("registerSecret for a key that already exists updates it without asking, and never shows the value", async () => {
     const context = policyContext();
-    const { runner, calls, confirm } = build(context, ["allow"], { secretExists: true });
+    const { runner, calls, confirm } = build(context, [], { secretExists: true });
     const result = await runner.run(
       actionOf("registerSecret", { name: "token", value: "s3cret-value" }, context),
     );
     expect(result).toEqual({ ok: true, value: null });
-    expect(
-      confirm.asked.map((line) => [line.kind, line.action, line.overwrite, line.paramsSummary]),
-    ).toEqual([["secret", "ext--helm--token", true, ""]]);
-    expect(JSON.stringify(confirm.asked)).not.toContain("s3cret-value");
+    expect(confirm.asked).toEqual([]);
     expect(calls.names).toEqual([
       "secretExists:ext--helm--token",
       "registerSecret:ext--helm--token:12:true",
     ]);
   });
 
-  test("registerSecret for a new key is not an overwrite, a denial stops it, and a second try inside 5 seconds is rate limited", async () => {
+  test("registerSecret asks once for a new key by name only, and a denial stops it", async () => {
     const context = policyContext();
     const { runner, calls, confirm } = build(context, ["deny", "allow"]);
-    const action = actionOf("registerSecret", { name: "token", value: "v" }, context);
+    const action = actionOf("registerSecret", { name: "token", value: "s3cret-value" }, context);
     expect(await runner.run(action)).toEqual({
       ok: false,
       error: { kind: "denied", detail: "not_confirmed" },
     });
     expect(calls.names).toEqual(["secretExists:ext--helm--token"]);
-    expect(await runner.run(action)).toEqual({ ok: false, error: { kind: "rate_limited" } });
-    expect(confirm.asked.map((line) => line.overwrite)).toEqual([undefined]);
+    // 거부 뒤 바로 다시 해도 창은 하나씩이라 막히지 않는다. 승인하면 새 키로 등록한다
+    expect(await runner.run(action)).toEqual({ ok: true, value: null });
+    expect(confirm.asked.map((line) => [line.kind, line.action, line.paramsSummary])).toEqual([
+      ["secret", "ext--helm--token", ""],
+      ["secret", "ext--helm--token", ""],
+    ]);
+    expect(JSON.stringify(confirm.asked)).not.toContain("s3cret-value");
+    expect(calls.names.at(-1)).toBe("registerSecret:ext--helm--token:12:false");
   });
 });
