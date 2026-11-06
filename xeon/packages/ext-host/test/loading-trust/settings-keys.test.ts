@@ -4,6 +4,7 @@ import {
   loadingTrustSettings,
   RESERVED_EXT_KEYS,
   reservedExtensionSettings,
+  settingsFromManifest,
 } from "../../src/loading-trust/index.ts";
 import { makeManifest } from "../primitives/fixtures/support.ts";
 import { createLoaderHarness, moduleOf } from "./support/harness.ts";
@@ -211,4 +212,37 @@ test("settings: turning an auto-disabled extension back on clears its failure le
   harness.settings.enabled.set("set-ledger", true);
   await harness.loader.settingChanged("set-ledger", signal);
   expect(harness.policy.ledger.stats(key).consecutive).toBe(0);
+});
+
+test("settingsFromManifest: userConfig becomes ext keys, sensitive becomes a secret", () => {
+  const manifest = {
+    ...makeManifest({ name: "cfg-demo" }),
+    userConfig: {
+      greeting: { setting: "ext.cfg-demo.greeting", title: "Greeting", description: "Say hi" },
+      token: { setting: "ext.cfg-demo.token", title: "Token", sensitive: true },
+    },
+  };
+  const built = settingsFromManifest(manifest);
+  expect(built.issues).toEqual([]);
+  expect(built.defs.map((def) => [def.key, def.secret === true, def.ui?.widget])).toEqual([
+    ["ext.cfg-demo.greeting", false, "text"],
+    ["ext.cfg-demo.token", true, "secret"],
+  ]);
+  expect(built.defs.flatMap((def) => checkSettingDef(def))).toEqual([]);
+});
+
+test("settingsFromManifest: foreign and reserved keys are issues, not defs", () => {
+  const manifest = {
+    ...makeManifest({ name: "cfg-bad" }),
+    userConfig: {
+      other: { setting: "ext.someone.else", title: "Other" },
+      on: { setting: "ext.cfg-bad.enabled", title: "On" },
+    },
+  };
+  const built = settingsFromManifest(manifest);
+  expect(built.defs).toEqual([]);
+  expect(built.issues.map((issue) => [issue.code, issue.key])).toEqual([
+    ["foreignNamespace", "ext.someone.else"],
+    ["invalidDef", "ext.cfg-bad.enabled"],
+  ]);
 });

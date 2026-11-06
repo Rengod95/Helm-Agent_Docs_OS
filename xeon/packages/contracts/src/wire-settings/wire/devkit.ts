@@ -1,6 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../../base/index.ts";
 import {
+  BRIDGE_CAPABILITIES,
   CompositionDeclSchema,
   ExtensionLayerSchema,
   PluginIdSchema,
@@ -239,6 +240,15 @@ export const ExtInstallPreviewParamsSchema: TUnsafe<Req<ExtInstallPreviewParams>
   >,
 );
 const CapabilityRef = closed({ id: Name, optional: Type.Boolean() });
+const PreviewScreen = closed({
+  id: Name,
+  title: Type.String({ maxLength: 128 }),
+  placement: Name,
+  mode: Type.Union([Type.Literal("native"), Type.Literal("app")]),
+  capabilities: Type.Array(Type.Union(BRIDGE_CAPABILITIES.map((name) => Type.Literal(name))), {
+    maxItems: BRIDGE_CAPABILITIES.length,
+  }),
+});
 const ExtInstallPreviewResultShape = closed({
   name: Name,
   version: Name,
@@ -260,6 +270,7 @@ const ExtInstallPreviewResultShape = closed({
   files: Type.Array(Name, { maxItems: 256 }),
   shell: Type.Array(Name, { maxItems: 256 }),
   drives: Type.Boolean(),
+  screens: Type.Array(PreviewScreen, { maxItems: 64 }),
   warnings: Type.Array(
     closed({
       severity: Type.Union([Type.Literal("error"), Type.Literal("warning"), Type.Literal("info")]),

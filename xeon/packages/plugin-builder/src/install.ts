@@ -109,6 +109,13 @@ export async function previewInstall(
     files: unique(ids.filter((id) => FILE_IDS.has(id))),
     shell: unique(ids.filter((id) => SHELL_IDS.has(id))),
     drives: manifest.plugins.some((plugin) => plugin.drives === true),
+    screens: (manifest.ui?.items ?? []).map((item) => ({
+      id: item.id,
+      title: item.title,
+      placement: item.placement,
+      mode: item.mode ?? "native",
+      capabilities: item.app?.capabilities ?? [],
+    })),
     warnings,
   });
 }

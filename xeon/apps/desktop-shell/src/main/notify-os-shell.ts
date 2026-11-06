@@ -8,8 +8,15 @@ import { createNotifyOsModule, permissionWordOf, type ShownNotice } from "./noti
 /** 떠 있는 알림. 눌림 이벤트를 받으려고 닫히거나 눌리거나 실패할 때까지 든다 */
 const live = new Set<Notification>();
 
-function showNotice(notice: ShownNotice, onClick: () => void, onFailed: () => void): boolean {
-  if (!Notification.isSupported()) return false;
+/** OS가 `show`나 `failed`로 답하길 기다리는 상한(ms). 넘으면 띄운 것으로 보고 답한다(그 뒤 실패는 `onFailed`가 알린다) */
+const SETTLE_MS = 2000;
+
+function showNotice(
+  notice: ShownNotice,
+  onClick: () => void,
+  onFailed: () => void,
+): Promise<boolean> {
+  if (!Notification.isSupported()) return Promise.resolve(false);
   const note = new Notification({
     title: notice.title,
     body: notice.body ?? "",
@@ -19,18 +26,33 @@ function showNotice(notice: ShownNotice, onClick: () => void, onFailed: () => vo
   const release = (): void => {
     live.delete(note);
   };
-  note.once("click", () => {
-    release();
-    onClick();
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const settle = (shown: boolean): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(shown);
+    };
+    const timer = setTimeout(() => {
+      settle(true);
+    }, SETTLE_MS);
+    note.once("show", () => {
+      settle(true);
+    });
+    note.once("click", () => {
+      release();
+      onClick();
+    });
+    note.once("close", release);
+    // 답하기 전의 실패는 답이 `failed`가 된다. 답한 뒤의 실패는 로그와 UI 이벤트로 알린다(`onFailed`)
+    note.once("failed", () => {
+      release();
+      if (settled) onFailed();
+      else settle(false);
+    });
+    note.show();
   });
-  note.once("close", release);
-  // 띄운 뒤에 실패하면 답은 이미 `shown`이라 로그와 UI 이벤트로 알린다(`onFailed`)
-  note.once("failed", () => {
-    release();
-    onFailed();
-  });
-  note.show();
-  return true;
 }
 
 /** OS 알림 명령 셋을 Electron에 엮는 셸 모듈. `modules.ts`에 한 줄로 더한다 */

@@ -1,5 +1,10 @@
 import type { Result } from "../base/index.ts";
-import type { CompositionDecl, ExtensionLayer, UiDecl } from "../extensions/index.ts";
+import type {
+  BridgeCapability,
+  CompositionDecl,
+  ExtensionLayer,
+  UiDecl,
+} from "../extensions/index.ts";
 
 // L3.authoring.spec §3.3. 제작에 필요한 특권 동작의 F 서비스 계약(X-22). 구현은 apps/host(L4)이고 그룹에는 DI로 준다.
 // wire(W-27~W-29, W-32, W-49)는 이 서비스를 그대로 노출한다(`wire/devkit.ts`).
@@ -138,6 +143,15 @@ export interface LinkInput {
   readonly expectedSha256?: string;
 }
 /** 앱 안 설치의 미리 보기(`ext.installPreview`). 디스크에 아무것도 쓰지 않는다 */
+/** 설치 미리 보기에 보이는 화면(`ui.items`) 하나. 프레임(`app`)이면 선언한 다리 권한이 따른다 */
+export interface InstallPreviewScreen {
+  readonly id: string;
+  readonly title: string;
+  readonly placement: string;
+  readonly mode: "native" | "app";
+  /** `app` 화면이 선언한 셸 기능 권한. `native`는 비어 있다 */
+  readonly capabilities: readonly BridgeCapability[];
+}
 export interface InstallPreview {
   readonly name: string;
   readonly version: string;
@@ -161,6 +175,8 @@ export interface InstallPreview {
   readonly files: readonly string[];
   readonly shell: readonly string[];
   readonly drives: boolean;
+  /** 매니페스트 `ui.items`의 화면 목록과 그 화면이 선언한 다리 권한 */
+  readonly screens: readonly InstallPreviewScreen[];
   readonly warnings: readonly DevkitIssue[];
 }
 export interface LinkResult {

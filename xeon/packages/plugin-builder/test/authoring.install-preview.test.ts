@@ -123,3 +123,43 @@ test("previewInstall and installExtension refuse a name with the host's hook uni
   expect(await installExtension({ source }, { extensionsDir: extensions })).toEqual(refusal);
   expect(existsSync(extensions)).toBe(false);
 });
+
+test("previewInstall: lists the screens and the bridge capabilities each frame declares", async () => {
+  const source = await packed("pv-screens");
+  const path = join(source, ".fresnel-plugin", "plugin.json");
+  const manifest = JSON.parse(readFileSync(path, "utf8"));
+  manifest.ui = {
+    schemaVersion: 1,
+    widgets: "^1.0.0",
+    items: [
+      {
+        id: "all",
+        placement: "page",
+        mode: "app",
+        title: "Perm all",
+        app: {
+          root: "./ui/all",
+          entry: "index.html",
+          bridge: "^1.0.0",
+          reason: "Test every shell permission.",
+          capabilities: ["files", "notify", "settingsWrite", "secrets"],
+        },
+        fallback: "./ui/fallback.json",
+      },
+      { id: "plain", placement: "page", title: "Plain", file: "./ui/plain.json" },
+    ],
+  };
+  writeFileSync(path, JSON.stringify(manifest, null, 2));
+  const preview = await previewInstall({ source }, { extensionsDir: root.path("pv-screens-ext") });
+  if (!preview.ok) throw new Error(preview.error.message);
+  expect(preview.value.screens).toEqual([
+    {
+      id: "all",
+      title: "Perm all",
+      placement: "page",
+      mode: "app",
+      capabilities: ["files", "notify", "settingsWrite", "secrets"],
+    },
+    { id: "plain", title: "Plain", placement: "page", mode: "native", capabilities: [] },
+  ]);
+});

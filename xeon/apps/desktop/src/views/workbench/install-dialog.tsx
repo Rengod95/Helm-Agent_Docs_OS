@@ -17,7 +17,10 @@ import {
   installFailureOf,
   pickOutcomeOf,
   installReduce,
+  accessIsEmpty,
+  bridgeAccessOf,
   warningsOf,
+  type BridgeAccess,
   type InstallFailure,
   type InstallWarning,
 } from "./install-model.ts";
@@ -52,6 +55,13 @@ function warningText(warning: InstallWarning): string {
       return assertNever(warning, "InstallWarning");
   }
 }
+
+const BRIDGE_TEXT: Readonly<Record<BridgeAccess["capability"], MessageId>> = {
+  files: "desktop.install.bridge.files",
+  notify: "desktop.install.bridge.notify",
+  settingsWrite: "desktop.install.bridge.settingsWrite",
+  secrets: "desktop.install.bridge.secrets",
+};
 
 function run(work: Promise<void>): void {
   detach(work, rethrow);
@@ -235,16 +245,32 @@ export function InstallDialog(props: {
                 {t("desktop.install.section.access")}
                 <InfoTip text={t("desktop.install.info.access")} />
               </span>
-              {warningsOf(flow.preview).length === 0 ? (
+              {accessIsEmpty(flow.preview) ? (
                 <span className="text-ui-dense text-text-secondary">
                   {t("desktop.install.none")}
                 </span>
               ) : (
-                warningsOf(flow.preview).map((warning) => (
-                  <Alert key={warning.kind} tone="warning">
-                    {warningText(warning)}
-                  </Alert>
-                ))
+                <>
+                  {warningsOf(flow.preview).map((warning) => (
+                    <Alert key={warning.kind} tone="warning">
+                      {warningText(warning)}
+                    </Alert>
+                  ))}
+                  {bridgeAccessOf(flow.preview).map((access) => {
+                    const text = t(BRIDGE_TEXT[access.capability], {
+                      screens: access.screens.join(", "),
+                    });
+                    return access.strong ? (
+                      <Alert key={access.capability} tone="warning">
+                        {text}
+                      </Alert>
+                    ) : (
+                      <span key={access.capability} className="text-ui-dense text-text-secondary">
+                        {text}
+                      </span>
+                    );
+                  })}
+                </>
               )}
             </div>
             <div className="grid gap-1">
@@ -256,6 +282,19 @@ export function InstallDialog(props: {
                 {t("desktop.install.parts.hooks", { count: flow.preview.hooks.length })}
                 {flow.preview.drives ? ` · ${t("desktop.install.parts.drives")}` : ""}
               </span>
+              <span className="text-ui-dense text-text-secondary">
+                {t("desktop.install.parts.screens", { count: flow.preview.screens.length })}
+              </span>
+              {flow.preview.screens.map((screen) => (
+                <span key={screen.id} className="text-ui-xs text-text-tertiary">
+                  {t(
+                    screen.mode === "app"
+                      ? "desktop.install.parts.screen.app"
+                      : "desktop.install.parts.screen.native",
+                    { title: screen.title },
+                  )}
+                </span>
+              ))}
             </div>
           </>
         )}

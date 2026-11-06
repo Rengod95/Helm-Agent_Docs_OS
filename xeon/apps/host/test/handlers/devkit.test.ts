@@ -400,6 +400,7 @@ const PREVIEW = {
   files: [],
   shell: [],
   drives: false,
+  screens: [],
   warnings: [],
 } as const;
 

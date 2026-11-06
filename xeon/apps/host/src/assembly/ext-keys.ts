@@ -1,4 +1,4 @@
-import { reservedExtensionSettings } from "@fresnel/ext-host";
+import { reservedExtensionSettings, settingsFromManifest } from "@fresnel/ext-host";
 import type { SettingDef, SettingKey } from "@fresnel/contracts/settings";
 import type { ExtensionRecord } from "./m4/ext-read-port.ts";
 
@@ -13,6 +13,12 @@ export function registerExtensionKeys(
 ): number {
   let added = 0;
   for (const record of records) {
+    // 매니페스트가 선언한 userConfig 키(`settingsFromManifest`): 사용자 플러그인의 설정 읽기·쓰기가 쓰는 정의다
+    for (const def of settingsFromManifest(record.manifest).defs) {
+      if (catalog.has(def.key)) continue;
+      catalog.set(def.key, def);
+      added += 1;
+    }
     if (catalog.has(`ext.${record.manifest.name}.enabled`)) continue;
     for (const def of reservedExtensionSettings(record.manifest, record.origin).defs) {
       if (catalog.has(def.key)) continue;

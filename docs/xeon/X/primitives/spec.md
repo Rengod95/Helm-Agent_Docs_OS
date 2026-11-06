@@ -112,7 +112,7 @@ import type {
 | `LoaderFs`, `LoaderPaths` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.2) |
 | `LoadState`, `LoadStage`, `LoadDiagnosticCode`, `LoadDiagnostic`, `LoadDiagnosticSchema`, `LoadedExtensionInfo` | 타입, 스키마 | X.loading-trust.spec §3.4 |
 | `createExtensionLoader`, `ExtensionLoader`, `LoaderMode`, `LoadOptions`, `LoadProjectOptions`, `LoadReport`, `ProjectLoadReport`, `LoadAbortError`, `LoaderDeps`, `RemovalPreview`, `RemoveResult`, `ReloadOptions`, `ReloadStarted`, `ReloadApplied`, `ReloadFailure`, `LoadInstalledStarted`, `LoadInstalledFailure` | 함수, 인터페이스, 클래스 | X.loading-trust.spec §3.5, §4.4.4 |
-| `RESERVED_EXT_KEYS`, `reservedExtensionSettings`, `loadingTrustSettings` | 상수, 함수, `defineSettings` 결과 | X.loading-trust.spec §3.6 |
+| `RESERVED_EXT_KEYS`, `reservedExtensionSettings`, `settingsFromManifest`, `loadingTrustSettings` | 상수, 함수, `defineSettings` 결과 | X.loading-trust.spec §3.6 |
 | `uiSettings` | `defineSettings` 결과 | X.loading-trust.spec §3.10, §6 |
 | `resolveAppFile`, `AppFileResult` | 함수, 타입 | X.loading-trust.spec §3.10 |
 | `UiItemReport`, `UiEntryReport`, `UiIssue` | 인터페이스 | X.loading-trust.spec §3.10 |

@@ -1,6 +1,9 @@
 import { effectiveLayer, type ExtensionManifest } from "@fresnel/contracts/extensions";
+import { SecretRef } from "@fresnel/contracts/capabilities";
 import {
+  checkSettingDef,
   defineSettings,
+  type CatalogIssue,
   type SettingDef,
   type SettingDefInput,
   type SettingGroup,
@@ -57,6 +60,62 @@ export function reservedExtensionSettings(
     Object.assign({}, def, { layer }),
   );
   return { namespace, defs };
+}
+
+/**
+ * 매니페스트 `userConfig`를 설정 정의로 바꾼다(F.wire-settings §3.8.3 규칙 1, 순수 함수). 키는 항목의 `setting`(`ext.<이름>.<키>`)이다.
+ * 항목에 값 스키마 필드가 아직 없으므로(F.wire-settings §10 미결 8) 값은 문자열이고, `sensitive`는 `SecretRef` 문자열 비밀 키가 된다.
+ * 접두가 맞지 않거나 예약 이름이거나 정의 규칙을 어기면 그 항목은 `issues`로 돌려주고 정의에는 넣지 않는다.
+ */
+export function settingsFromManifest(manifest: ExtensionManifest): {
+  readonly defs: readonly SettingDef[];
+  readonly issues: readonly CatalogIssue[];
+} {
+  const defs: SettingDef[] = [];
+  const issues: CatalogIssue[] = [];
+  const prefix = `ext.${manifest.name}.`;
+  const declared = effectiveLayer(manifest);
+  const layer = declared === "plugin" ? "L2" : declared;
+  let order = 100;
+  for (const entry of Object.values(manifest.userConfig ?? {})) {
+    order += 10;
+    const rest = entry.setting.startsWith(prefix) ? entry.setting.slice(prefix.length) : undefined;
+    if (rest === undefined) {
+      issues.push({ code: "foreignNamespace", key: entry.setting, owner: manifest.name });
+      continue;
+    }
+    const secret = entry.sensitive === true;
+    const def: SettingDef = {
+      key: entry.setting,
+      type: secret ? SecretRef : Type.String(),
+      ...(secret ? {} : { default: "" }),
+      runtimeChange: "live",
+      layer,
+      allowedScopes: ["managed", "user", "project", "local", "launch"],
+      ui: {
+        tab: "plugins",
+        widget: secret ? "secret" : "text",
+        order,
+        label: entry.title,
+        ...(entry.description === undefined ? {} : { help: entry.description }),
+      },
+      ...(secret ? { secret: true } : {}),
+      since: "0.1.0",
+    };
+    const broken = checkSettingDef(def);
+    const reserved = RESERVED_EXT_KEYS.some((name) => name === rest);
+    if (reserved || broken.length > 0) {
+      issues.push({
+        code: "invalidDef",
+        key: entry.setting,
+        rule: broken[0]?.rule ?? "D1",
+        message: reserved ? `"${rest}" is a reserved name` : (broken[0]?.message ?? ""),
+      });
+      continue;
+    }
+    defs.push(def);
+  }
+  return { defs, issues };
 }
 
 /** X 층 키. defineSettings("x.loading-trust", …). 프로젝트 범위를 허용하지 않는다(§6) */

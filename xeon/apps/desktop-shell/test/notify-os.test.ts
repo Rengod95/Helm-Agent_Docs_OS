@@ -65,7 +65,7 @@ function fakeShell(): FakeShell {
   return { ctx, handlers, emitted, window };
 }
 
-type ShowMode = "shows" | "false" | "throws";
+type ShowMode = "shows" | "false" | "throws" | "osFailed";
 
 interface FakeState {
   permission: NotifyPermission;
@@ -92,9 +92,9 @@ function fakePorts(): FakePorts {
     },
     show: (notice, onClick, onFailed) => {
       if (state.showMode === "throws") throw new Error(`cannot show ${notice.title}`);
-      if (state.showMode === "false") return false;
+      if (state.showMode === "false") return Promise.resolve(false);
       shown.push({ notice, click: onClick, fail: onFailed });
-      return true;
+      return Promise.resolve(state.showMode !== "osFailed");
     },
     log: (line) => {
       logs.push(line);
@@ -245,6 +245,18 @@ describe("notify_os replies", () => {
   test("replies failed and logs the fixed line when show reports false", async () => {
     const { shell, fake } = setup();
     fake.state.showMode = "false";
+    expect(await dispatch(shell, "notify_os", { title: "완료" })).toEqual({
+      ok: true,
+      value: { kind: "failed" },
+    });
+    expect(fake.logs).toEqual(["notify: not shown (reason: show_failed)"]);
+  });
+});
+
+describe("OS failure before the reply", () => {
+  test("replies failed and logs the fixed line when the OS reports the failure first", async () => {
+    const { shell, fake } = setup();
+    fake.state.showMode = "osFailed";
     expect(await dispatch(shell, "notify_os", { title: "완료" })).toEqual({
       ok: true,
       value: { kind: "failed" },

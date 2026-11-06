@@ -63,6 +63,7 @@ const REQUIRED_VALUES: readonly string[] = [
   "createExtensionLoader",
   "LoadAbortError",
   "RESERVED_EXT_KEYS",
+  "settingsFromManifest",
   "loadingTrustSettings",
   "TIERS",
   "storageOf",

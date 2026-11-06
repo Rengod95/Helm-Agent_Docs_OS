@@ -127,6 +127,32 @@ export function warningsOf(preview: InstallPreview): readonly InstallWarning[] {
   return found;
 }
 
+/** 화면(프레임)이 선언한 셸 기능 권한. 비밀 키 등록·설정 쓰기·파일 고르기와 저장은 `strong`이라 경고 색으로 보인다 */
+export type BridgeAccess = {
+  readonly capability: "files" | "notify" | "settingsWrite" | "secrets";
+  readonly strong: boolean;
+  /** 그 권한을 선언한 화면의 제목 */
+  readonly screens: readonly string[];
+};
+
+/** 선언한 다리 권한을 권한마다 한 줄로 모은다. 순서는 `files`, `settingsWrite`, `secrets`, `notify`(강조가 먼저)다 */
+export function bridgeAccessOf(preview: InstallPreview): readonly BridgeAccess[] {
+  const order = ["secrets", "settingsWrite", "files", "notify"] as const;
+  return order.flatMap((capability) => {
+    const screens = preview.screens
+      .filter((screen) => screen.capabilities.includes(capability))
+      .map((screen) => screen.title);
+    return screens.length === 0
+      ? []
+      : [{ capability, strong: capability !== "notify", screens } satisfies BridgeAccess];
+  });
+}
+
+/** 확인 화면이 "요청하는 권한"에 보일 것이 하나도 없는가 */
+export function accessIsEmpty(preview: InstallPreview): boolean {
+  return warningsOf(preview).length === 0 && bridgeAccessOf(preview).length === 0;
+}
+
 /**
  * 설치가 끝난 뒤 실행 중인 판을 바꾼다. 같은 이름이 이미 돌아 호스트가 `needsReload`를 알릴 때만 `ext.reload`를 부른다.
  * 새 이름은 호스트가 설치 뒤 곧바로 싣는다(`now`, 켜기가 미뤄지면 `nextStepBoundary`이지만 `needsReload`는 없다).
