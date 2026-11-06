@@ -136,7 +136,7 @@ desktop-ui mode="release":
 desktop-run:
     bash apps/desktop/scripts/cargo.sh run
 
-# Electron 셸 개발 실행(전환 1단계, Tauri와 따로 돈다): 셸을 번들하고 electron으로 띄운다. 화면은 `just desktop-ui`, 사이드카는 `just desktop-sidecar host`를 먼저 해 둔다(없으면 종료코드 2). 단일 인스턴스 잠금이 없어 Tauri `desktop-run`과 동시에 떠도 서로 막지 않는다. FRESNEL_HOME으로 데이터 폴더를 바꾼다. just verify 밖
+# Electron 셸 개발 실행(전환 1단계, Tauri와 따로 돈다): 셸을 번들하고 electron으로 띄운다. 화면은 `just desktop-ui`, 사이드카는 `just desktop-sidecar host`를 먼저 해 둔다(없으면 종료코드 2). 단일 인스턴스 잠금이 없어 Tauri `desktop-run`과 동시에 떠도 서로 막지 않는다. 개발 실행이라 inspect 소켓(`<로그 폴더>/inspect.sock`, FRESNEL_DESKTOP_INSPECT=1)이 켜진다. just verify 밖
 [group('local')]
 desktop-run-electron:
     #!/usr/bin/env bash
@@ -144,7 +144,7 @@ desktop-run-electron:
     [ -f apps/desktop/src-tauri/ui/index.html ] || { echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
     ls apps/desktop/src-tauri/binaries/fresnel-* >/dev/null 2>&1 || { echo "사이드카가 없다: just desktop-sidecar host" >&2; exit 2; }
     {{bun}} run --cwd apps/desktop-shell build
-    cd apps/desktop-shell && exec node_modules/.bin/electron .
+    cd apps/desktop-shell && FRESNEL_DESKTOP_INSPECT=1 exec node_modules/.bin/electron .
 
 # Electron 셸 단위 시험(bun test, electron 없이 가짜 ctx로 돈다)
 [group('local')]

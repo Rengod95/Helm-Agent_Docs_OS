@@ -218,6 +218,15 @@ async function main(): Promise<void> {
   app.on("window-all-closed", () => {
     app.quit();
   });
+  // SIGTERM, SIGINT는 정상 종료 순서(onQuit)를 탄다. 종료 중에 한 번 더 오면 바로 끝낸다
+  let signaled = false;
+  for (const signal of ["SIGTERM", "SIGINT"] as const) {
+    process.on(signal, () => {
+      if (signaled) app.exit(130);
+      signaled = true;
+      app.quit();
+    });
+  }
   const win = createWindow(windows, hooks);
   await win.loadURL(`${SCHEME}://localhost/index.html`);
 }

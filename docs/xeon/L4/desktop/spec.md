@@ -812,3 +812,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 | (Tauri에 없음) 창 위치·크기 기억 | `window-state.ts` | `window.rs`는 창 다시 열기만 하고 위치를 기억하지 않는다. Electron 쪽에 새로 넣었고 파일은 `window-state-electron.json`이다 |
 | 앱 로그 | `lib/applog.ts` | `<logs>/fresnel-desktop.log`(macOS `~/Library/Logs/dev.fresnel.desktop/`), 줄 단위, 제어 문자는 공백 |
 | PATH 보정 | `env-path.ts`, `lib/env-path.ts` | 엔진과 `fresnel secret` 자식의 환경에만 적용한다(Rust `engine_env`와 같다) |
+| `engine_attach`, `engine_write`, `engine_ack`, `engine_detach` | `engine.ts`, `engine/relay.ts` | 신용 기반 ack(창 4 MiB, 확인 단위 256 KiB), 세대별 줄 버퍼, 쓰기 대기열 16개는 Rust와 같다. 채널은 preload가 `{$channel: id}`로 넘기고 바이트 명령은 `{body, headers}`로 온다. 거부 코드는 같은 kebab-case 문자열이다 |
+| `engine_restart`, `engine_retarget`, `db_restore` | `engine.ts`, `engine/supervisor.ts`, `engine/policy.ts`, `engine/launcher.ts` | 세대 관리, 크래시 재시작(10분 창, 지수 백오프), 안전 모드, service 대상, 정상 종료 순서(EOF, 유예, 그룹 종료)는 Rust와 같다. 프로세스 기동은 `@fresnel/platform-process/piped`다(DR-07). 차이: 기동이 비동기라 기동 중 종료 요청이 오면 새 엔진을 낡은 것으로 보고 멈춘다. 엔진 프로세스가 끝나면 남은 손자 프로세스도 같이 끝난다. `FRESNEL_REMOTE_TOKEN`은 Rust처럼 환경 전체 상속으로 간다 |
+| (디버그) inspect 소켓 | `inspect.ts` | `<로그 폴더>/inspect.sock`, 줄 단위 JSON-RPC 2.0, `state.dump`, `viewport.snapshot`(`webContents.capturePage`, PNG는 파일로 쓰고 경로만 응답). Electron은 릴리스에도 코드가 들어가므로 환경 변수 `FRESNEL_DESKTOP_INSPECT=1`일 때만 켜진다. 패키징은 이 변수를 설정하지 않는다 |
+| SIGTERM, SIGINT | `main.ts` | 첫 신호는 정상 종료(onQuit), 종료 중 두 번째 신호는 즉시 종료 |

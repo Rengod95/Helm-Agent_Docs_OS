@@ -2,6 +2,8 @@
 import type { ShellModule } from "./context.ts";
 import { desktopSettingsModule } from "./desktop-settings.ts";
 import { dialogsModule } from "./dialogs.ts";
+import { engineModule } from "./engine.ts";
+import { inspectModule } from "./inspect.ts";
 import { openExternalModule } from "./open-external.ts";
 import { secretEntryModule } from "./secret-entry.ts";
 import { viewSchemeModule } from "./view-scheme.ts";
@@ -9,6 +11,8 @@ import { windowStateModule } from "./window-state.ts";
 
 export const MODULES: readonly ShellModule[] = [
   desktopSettingsModule,
+  engineModule,
+  inspectModule,
   windowStateModule,
   openExternalModule,
   dialogsModule,

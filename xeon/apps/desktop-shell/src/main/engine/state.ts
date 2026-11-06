@@ -3,7 +3,7 @@
 import { ShellError } from "../commands.ts";
 
 /** 엔진 공급원. `service`는 M3 서비스 모드 자리다(UI 스키마가 받으므로 타입에 둔다) */
-export type EngineSource = "sidecar" | "service";
+type EngineSource = "sidecar" | "service";
 
 /** 엔진이 끝난 기록. 신호로 끝나면 `code`가 null, Windows에서는 `signal`이 항상 null이다 */
 export interface EngineExit {

@@ -232,7 +232,7 @@ interface StreamStats {
 }
 
 /** 엔진 세대 하나의 stdout 흐름. 읽기 작업 하나가 `push`를 순서대로 부른다 */
-export interface EngineStream {
+interface EngineStream {
   /** 엔진 stdout 조각 하나를 처리한다. 신용이 찰 때까지 기다리는 동안 호출자도 멈추므로 역압이 엔진까지 간다 */
   push(chunk: Uint8Array): Promise<void>;
   /** 세대가 끝났다. 줄 끝이 오지 않은 꼬리를 버린다 */

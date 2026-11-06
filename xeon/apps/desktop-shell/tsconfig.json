@@ -7,7 +7,7 @@
     "lib": ["es2024", "esnext.disposable", "dom"],
     "types": ["bun"]
   },
-  "include": ["src", "test", "scripts"],
+  "include": ["src", "test", "scripts", "package.json"],
   "references": [
     { "path": "../../packages/contracts" },
     { "path": "../../packages/platform-process" }
