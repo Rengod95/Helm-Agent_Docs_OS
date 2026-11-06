@@ -36,7 +36,7 @@ export const uiSettings: SettingGroup<
       tab: "plugins",
       widget: "toggle",
       order: 460,
-      label: "Allow app screens for project plugins",
+      label: "Allow app screens for work folder plugins",
     },
     since: "0.1.0",
   },
