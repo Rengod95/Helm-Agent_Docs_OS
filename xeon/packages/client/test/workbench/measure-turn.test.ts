@@ -301,4 +301,35 @@ describe("turnViewOf", () => {
       ["helm", 1500, 0.3, 2],
     ]);
   });
+  test("child-thread calls merged into the parent Turn count toward the owner group, not the Turn's own totals", () => {
+    const state = turnViewOf({
+      enabled: true,
+      rows: [
+        {
+          at: 1,
+          kind: "call",
+          metrics: { totalTokens: 70, usd: 0.01, startedAt: 1, durationMs: 5 },
+          tags: { role: "main", model: "m" },
+        },
+        {
+          at: 2,
+          kind: "call",
+          metrics: { totalTokens: 900, usd: 0.2, startedAt: 2, durationMs: 50 },
+          tags: { role: "main", model: "m", scope: "helm", viaChild: "1" },
+        },
+        {
+          at: 3,
+          kind: "call",
+          metrics: { totalTokens: 100, usd: 0.02, startedAt: 3, durationMs: 9 },
+          tags: { role: "search", model: "m", scope: "helm", viaChild: "1" },
+        },
+      ],
+    });
+    if (state.kind !== "ready") throw new Error("expected ready");
+    expect(state.view.calls.map((call) => call.totalTokens)).toEqual([70]);
+    expect(state.view.phases).toHaveLength(1);
+    expect(state.view.plugins.map((p) => [p.owner, p.callTokens, p.callUsd, p.callCount])).toEqual([
+      ["helm", 1000, 0.22, 2],
+    ]);
+  });
 });

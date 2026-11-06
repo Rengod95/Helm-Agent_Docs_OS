@@ -423,6 +423,7 @@ export function toolRunContext(run: TurnRun, step: StepRef): ToolRunContext {
     interactive: run.spec.interactive,
     surfaceThreadId: child === null ? threadId : child.tools.surfaceThreadId,
     ...(child === null ? {} : { ceiling: child.tools.ceiling }),
+    ...(child?.tools.source === undefined ? {} : { source: child.tools.source }),
     signal: run.scope.signal,
     drafts,
   };

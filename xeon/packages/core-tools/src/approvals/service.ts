@@ -25,6 +25,7 @@ import {
   PERMISSION_MODE_STRICTNESS,
   type ApprovalApplyOutcome,
   type CallerId,
+  type RunSource,
   type ApprovalOrigin,
   type ApprovalWaitFailure,
   type OpenedApproval,
@@ -69,9 +70,13 @@ export interface ApprovalDeps {
    * 도구 호출 id 없이 올라온 요청(기능 서비스의 도메인 승인)의 표면 thread와 요청자를 찾는다. 하위 대화에서 도는 호출이면 부모 쪽 표면과
    * `subagent:<이름>`이다. 없으면 요청한 thread가 표면이고 origin은 그대로다
    */
-  readonly requesterOf?: (
-    threadId: ThreadId,
-  ) => { readonly surfaceThreadId: ThreadId; readonly caller: CallerId } | undefined;
+  readonly requesterOf?: (threadId: ThreadId) =>
+    | {
+        readonly surfaceThreadId: ThreadId;
+        readonly caller: CallerId;
+        readonly source?: RunSource;
+      }
+    | undefined;
   /** 계획 승인의 `{ mode }`를 적용한다(ToolService.setMode "plan_approval") */
   readonly setMode: (threadId: ThreadId, mode: PermissionMode) => Promise<ModeChangeResult>;
   readonly modeOf: (threadId: ThreadId) => PermissionMode;
@@ -443,10 +448,12 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       requester !== undefined && requester.surfaceThreadId !== input.origin.threadId
         ? requester.caller
         : input.origin.caller;
+    // 그룹이 띄운 하위 대화의 호출이면 출처(소유 그룹, 이름)를 origin에 싣는다. caller와 interactive는 그대로다
+    const source = call === undefined ? requester?.source : call.run.source;
     const origin: ApprovalOrigin =
-      stepId === input.origin.stepId && caller === input.origin.caller
+      stepId === input.origin.stepId && caller === input.origin.caller && source === undefined
         ? input.origin
-        : { ...input.origin, stepId, caller };
+        : { ...input.origin, stepId, caller, ...(source === undefined ? {} : { source }) };
     const payload = {
       origin,
       requestKey: input.requestKey,

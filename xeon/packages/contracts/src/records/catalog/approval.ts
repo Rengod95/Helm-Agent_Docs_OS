@@ -45,6 +45,7 @@ export const ApprovalOriginJsonSchema: TObject<{
   stepId: TUnion<[TUnsafe<StepId>, TNull]>;
   toolCallId: TUnion<[TString, TNull]>;
   caller: TString;
+  source: TOptional<TObject<{ scopeId: TString; label: TUnion<[TString, TNull]> }>>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
@@ -53,6 +54,16 @@ export const ApprovalOriginJsonSchema: TObject<{
     toolCallId: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
     /** `ApprovalCaller`(`approvalCallerOf`가 만든다): main, background, host, subagent:<이름>, ext:<이름> */
     caller: Type.String({ minLength: 1, maxLength: 128, pattern: APPROVAL_CALLER_PATTERN }),
+    /** 하위 대화를 띄운 그룹의 출처(`RunSource`). 선택이라 옛 기록에는 없다 */
+    source: Type.Optional(
+      Type.Object(
+        {
+          scopeId: Type.String({ minLength: 1, maxLength: 96 }),
+          label: Nullable(Type.String({ minLength: 1, maxLength: 64 })),
+        },
+        { additionalProperties: false },
+      ),
+    ),
   },
   { additionalProperties: false },
 );

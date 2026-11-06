@@ -28,6 +28,7 @@ import {
   type MimicryFlag,
   type PolicyCeiling,
   type ReportDelivery,
+  type RunSource,
   type RuleRegistration,
   type SpawnOrigin,
   type SpawnOwner,
@@ -112,6 +113,8 @@ interface PreparedSpawn {
   readonly background: boolean;
   /** 완료 보고를 부모 inbox에 넣는 방법. 없으면 agent.settled만 남는다(M3-REQ-66) */
   readonly report: ReportDelivery | undefined;
+  /** 자식을 띄운 그룹(scope·drive 소유자)의 출처. 도구 소유(모델의 `agent` 도구)면 없다 */
+  readonly source: RunSource | undefined;
 }
 
 /** 거절 사유. spawn은 SpawnResult로, delegate는 DelegateResult로 바꾼다 */
@@ -355,6 +358,10 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         interactive: parentContext.interactive,
         background: mode.background,
         report: mode.report,
+        source:
+          origin.owner.kind === "tool"
+            ? undefined
+            : { scopeId: origin.owner.scopeId, label: request.label ?? null },
       },
     };
   };
@@ -673,6 +680,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         ceiling,
         surfaceThreadId: prepared.surfaceThreadId,
         interactive: prepared.interactive,
+        ...(prepared.source === undefined ? {} : { source: prepared.source }),
         ...(ceiling.allow === undefined ? {} : { allow: ceiling.allow }),
         ...(request.tools?.deny === undefined || request.tools.deny.length === 0
           ? {}

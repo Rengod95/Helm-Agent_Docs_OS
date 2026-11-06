@@ -529,4 +529,17 @@ describe("spawn permission check outside the tool path", () => {
     );
     expect(delegated.ok).toBe(true);
   });
+  test("a group-owned child's turn request carries the owner's source; a tool-owned one does not", async () => {
+    const h = openHarness();
+    await h.service.spawn(
+      { agent: "explorer", task: "t", label: "렌즈 실패 사례", requestId: "lens-1" },
+      scopeOrigin(h, "helm", "own-1"),
+    );
+    expect(h.loop.calls[0]?.tools.source).toEqual({ scopeId: "helm", label: "렌즈 실패 사례" });
+    // Turn 정체성은 그대로다
+    expect(h.loop.calls[0]?.tools.caller).toBe("subagent:explorer");
+    const { origin } = h.openToolCall("tc-src");
+    await h.service.spawn({ agent: "explorer", task: "t" }, origin);
+    expect(h.loop.calls[1]?.tools).not.toHaveProperty("source");
+  });
 });

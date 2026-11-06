@@ -183,3 +183,107 @@ test("a request without toolCallId from a child thread lands on the surface thre
   });
   await done;
 });
+
+// fxHL: 그룹이 띄운 하위 대화의 승인은 소유 그룹과 이름을 origin.source로 싣는다. Turn 정체성(caller)과 interactive는 그대로다.
+for (const withToolCallId of [false, true]) {
+  test(`a group-owned child's approval carries its source in origin (${withToolCallId ? "with" : "without"} toolCallId)`, async () => {
+    const h = await createHarness();
+    const child = h.deps.ids.next("thr");
+    const run = {
+      ...h.run(),
+      threadId: child,
+      surfaceThreadId: h.thread,
+      caller: "subagent:explorer" as const,
+      depth: 1,
+      source: { scopeId: "helm", label: "렌즈 실패 사례" },
+    };
+    expectOk(
+      h.runtime.tools.register({
+        kind: "direct",
+        orderKey: "core.test",
+        tool: directTool(
+          "lens_web",
+          async (toolCallId, _params, signal) => {
+            await h.runtime.approvals.request(
+              {
+                origin: {
+                  threadId: child,
+                  turnId: run.turnId,
+                  stepId: null,
+                  toolCallId: withToolCallId ? toolCallId : null,
+                  caller: withToolCallId ? "subagent:explorer" : "main",
+                },
+                requestKey: "web-src",
+                title: "Allow web access to www.joda.org?",
+                body: QUESTION,
+                remember: ["once"],
+              },
+              signal,
+            );
+            return { content: [{ type: "text", text: "done" }], details: null };
+          },
+          { replay: "safe" },
+        ),
+        policy: { risk: "read" },
+      }),
+    );
+    const done = callTool(h.runtime.tools, run, { id: "call_s1", name: "lens_web", args: {} });
+    await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+    const [request] = h.runtime.approvals.pending(h.thread);
+    expect(request?.origin.source).toEqual({ scopeId: "helm", label: "렌즈 실패 사례" });
+    expect(request?.origin.caller).toBe("subagent:explorer");
+    expect(requestedPayloads(h)[0]?.payload.origin.source).toEqual({
+      scopeId: "helm",
+      label: "렌즈 실패 사례",
+    });
+    await h.runtime.approvals.respond(request?.approvalId ?? "", {
+      decision: "answer",
+      answer: { note: { selected: [], text: "x" } },
+    });
+    await done;
+  });
+}
+
+test("a main-thread request has no source", async () => {
+  const h = await createHarness();
+  const run = h.run();
+  expectOk(
+    h.runtime.tools.register({
+      kind: "direct",
+      orderKey: "core.test",
+      tool: directTool(
+        "ask_main",
+        async (toolCallId, _params, signal) => {
+          await h.runtime.approvals.request(
+            {
+              origin: {
+                threadId: h.thread,
+                turnId: run.turnId,
+                stepId: null,
+                toolCallId,
+                caller: "main",
+              },
+              requestKey: "ask-m",
+              title: "Ask",
+              body: QUESTION,
+              remember: ["once"],
+            },
+            signal,
+          );
+          return { content: [{ type: "text", text: "done" }], details: null };
+        },
+        { replay: "safe" },
+      ),
+      policy: { risk: "read" },
+    }),
+  );
+  const done = callTool(h.runtime.tools, run, { id: "call_m1", name: "ask_main", args: {} });
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const [request] = h.runtime.approvals.pending(h.thread);
+  expect(request?.origin.source).toBeUndefined();
+  await h.runtime.approvals.respond(request?.approvalId ?? "", {
+    decision: "answer",
+    answer: { note: { selected: [], text: "x" } },
+  });
+  await done;
+});

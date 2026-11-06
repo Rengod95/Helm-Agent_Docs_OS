@@ -786,7 +786,12 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       throw new LoopRejection({ kind: "thread_not_found", threadId: request.threadId });
     }
     const result = await agents.spawn(
-      { agent: request.spec.agent, task: request.spec.task, requestId: request.requestId },
+      {
+        agent: request.spec.agent,
+        task: request.spec.task,
+        requestId: request.requestId,
+        ...(request.spec.label === undefined ? {} : { label: request.spec.label }),
+      },
       {
         parentThreadId: request.threadId,
         owner: {

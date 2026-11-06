@@ -56,7 +56,11 @@ export interface MeasureStore {
   ): Result<number | undefined, MeasureStoreError>;
   /** 원본 행 수 */
   rawCount(): Result<number, MeasureStoreError>;
-  /** 한 Turn의 원본 행(시간 순). Turn 밖 호출 중 이 Turn 뒤의 것(`afterTurn` 태그)도 호출 행으로 함께 낸다 */
+  /**
+   * 한 Turn의 원본 행(시간 순). Turn 밖 호출 중 이 Turn 뒤의 것(`afterTurn` 태그)도 호출 행으로 함께 낸다.
+   * 이 Turn이 띄운 하위 대화의 호출 행(`ownerThread`·`ownerTurn` 태그)도 합친다. 합친 행은 `viaChild: "1"` 태그가 붙고 `threadId`는 하위 대화다
+   * (하위 대화를 따로 읽는 쪽과 같은 행이므로 두 읽기를 더하면 이중 계산이다)
+   */
   turn(threadId: string, turnId: string): Result<readonly MeasureRecord[], MeasureStoreError>;
   /** 역할이 `roles`에 드는 호출 행. `threadId`가 없으면 모든 thread다. 사용량 합산이 재시작 뒤에도 배경 호출을 세는 원천이다 */
   callsOfRoles(
@@ -78,6 +82,7 @@ CREATE TABLE IF NOT EXISTS measure_raw (
 );
 CREATE INDEX IF NOT EXISTS measure_raw_at ON measure_raw(at);
 CREATE INDEX IF NOT EXISTS measure_raw_turn ON measure_raw(thread_id, turn_id);
+CREATE INDEX IF NOT EXISTS measure_raw_owner ON measure_raw(json_extract(tags, '$.ownerThread'));
 CREATE TABLE IF NOT EXISTS measure_daily (
   day TEXT NOT NULL,
   kind TEXT NOT NULL,
@@ -271,7 +276,26 @@ export function openMeasureStore(path: string): Result<MeasureStore, MeasureStor
             tags: stringsOf(text("tags" in row ? row.tags : undefined)),
           });
         }
-        return out;
+        // 이 Turn이 띄운 하위 대화의 모델 호출(탐구 하위 에이전트, 웹 검색)을 합친다
+        for (const row of db
+          .query(
+            `SELECT at, thread_id, turn_id, kind, metrics, tags FROM measure_raw WHERE kind = 'call'
+               AND json_extract(tags, '$.ownerThread') = ? AND json_extract(tags, '$.ownerTurn') = ? ORDER BY id`,
+          )
+          .all(threadId, turnId)) {
+          if (typeof row !== "object" || row === null) continue;
+          const child = text("thread_id" in row ? row.thread_id : undefined);
+          if (child === threadId) continue;
+          out.push({
+            at: num("at" in row ? row.at : undefined),
+            threadId: child,
+            turnId: "turn_id" in row && typeof row.turn_id === "string" ? row.turn_id : null,
+            kind: "call",
+            metrics: numbersOf(text("metrics" in row ? row.metrics : undefined)),
+            tags: { ...stringsOf(text("tags" in row ? row.tags : undefined)), viaChild: "1" },
+          });
+        }
+        return out.length === 0 ? out : out.toSorted((a, b) => a.at - b.at);
       }),
     callsOfRoles: (roles, threadId) =>
       run(() => {

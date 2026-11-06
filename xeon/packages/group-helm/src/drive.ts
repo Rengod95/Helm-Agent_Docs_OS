@@ -237,6 +237,11 @@ async function diverge(
   await settle(g, st, await step(g, { type: "diverged", outcome: out.value }));
 }
 
+/** 승인 카드의 출처 이름: "렌즈 실패 사례". `SpawnSpec.label` 상한 64자 안으로 자른다 */
+function lensLabel(title: string): string {
+  return `렌즈 ${title}`.slice(0, 64);
+}
+
 async function explore(
   g: DriveApi,
   loop: LoopHandle,
@@ -264,6 +269,7 @@ async function explore(
           loop.spawn({
             agent: "explorer",
             task: explorerTask(st, lens, BUILTIN_LENSES),
+            label: lensLabel(lens.title),
             requestId: spawnRequestId(inquiry.inquiryId, inquiry.round, lens.id),
           }),
         { limit: "spawns" },

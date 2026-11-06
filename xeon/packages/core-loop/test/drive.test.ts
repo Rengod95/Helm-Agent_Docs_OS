@@ -217,6 +217,30 @@ test("spawn_delegates_to_agents_with_the_drive_owner_and_maps_the_result", async
   });
 });
 
+test("spawn_passes_the_label_to_agents", async () => {
+  const labels: (string | undefined)[] = [];
+  const h = await createHarness({
+    agents: () => ({
+      spawn: (request) => {
+        labels.push(request.label);
+        return Promise.resolve({
+          childThreadId: CHILD_THREAD,
+          status: "completed",
+          answer: "ok",
+          requestId: request.requestId ?? "",
+          report: null,
+          usage: CHILD_USAGE,
+          reused: false,
+        });
+      },
+    }),
+  });
+  await h.loop.spawn(
+    spawnRequest(h, { spec: { agent: "explorer", task: "t", label: "렌즈 실패 사례" } }),
+  );
+  expect(labels).toEqual(["렌즈 실패 사례"]);
+});
+
 test("spawn_rejects_a_background_request", async () => {
   const h = await createHarness({
     agents: () => ({ spawn: () => Promise.reject(new Error("must not be called")) }),

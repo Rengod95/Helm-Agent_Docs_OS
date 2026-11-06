@@ -399,9 +399,28 @@ export type ApprovalOriginView =
   | { readonly kind: "background" }
   | { readonly kind: "host" }
   | { readonly kind: "subagent"; readonly name: string }
-  | { readonly kind: "group"; readonly name: string };
+  | { readonly kind: "group"; readonly name: string }
+  /** 그룹이 띄운 하위 에이전트(Helm 렌즈 등). 화면은 "<이름> · grp:<그룹>"이다. 이름이 없으면 하위 에이전트 이름 */
+  | {
+      readonly kind: "groupChild";
+      readonly name: string;
+      readonly label: string | null;
+      readonly scope: string;
+    };
 
-export function approvalOriginView(caller: string): ApprovalOriginView | null {
+/** 승인 origin의 요청자와 출처(`origin.source`)로 표시를 만든다. 출처가 있고 하위 에이전트이면 소유 그룹을 함께 보인다 */
+export function approvalOriginView(
+  caller: string,
+  source?: { readonly scopeId: string; readonly label: string | null },
+): ApprovalOriginView | null {
+  if (source !== undefined && caller.startsWith("subagent:")) {
+    return {
+      kind: "groupChild",
+      name: caller.slice(9),
+      label: source.label,
+      scope: source.scopeId,
+    };
+  }
   if (caller === "background") return { kind: "background" };
   if (caller === "host") return { kind: "host" };
   if (caller.startsWith("subagent:")) return { kind: "subagent", name: caller.slice(9) };

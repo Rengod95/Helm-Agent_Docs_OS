@@ -1553,6 +1553,7 @@
   "desktop.approvals.origin.host": "App",
   "desktop.approvals.origin.subagent": "Sub-agent {name}",
   "desktop.approvals.origin.group": "Group {name}",
+  "desktop.approvals.origin.groupChild": "{label} · grp:{scope}",
   "desktop.approvals.inbox.empty": "No requests waiting",
   "desktop.approvals.replace.heading": "Request to replace a built-in tool",
   "desktop.approvals.replace.extension": "Extension",
