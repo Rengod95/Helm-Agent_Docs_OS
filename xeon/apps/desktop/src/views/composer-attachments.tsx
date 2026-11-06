@@ -2,9 +2,19 @@ import { t } from "@fresnel/client/i18n";
 import { Alert, Button, Chip, Progress } from "@caustic/react";
 import { Paperclip } from "@caustic/react/icons";
 import type { ReactNode } from "react";
-import { failureText, formatBytes, type AttachChip } from "./attachment-model.ts";
+import { chipPreviewOf, failureText, formatBytes, type AttachChip } from "./attachment-model.ts";
 
 // 입력 위의 첨부 칩 줄(U-03). 올리는 중은 칩 안의 Progress, 실패는 danger Alert와 "다시 시도"·"빼기"다.
+
+/** 이미지는 작은 썸네일, 그 밖은 클립 아이콘 */
+function ChipIcon(props: { readonly chip: AttachChip }): ReactNode {
+  const preview = chipPreviewOf(props.chip);
+  return preview === null ? (
+    <Paperclip aria-hidden />
+  ) : (
+    <img src={preview} alt="" aria-hidden className="size-5 rounded-sm object-cover" />
+  );
+}
 
 export function AttachmentRow(props: {
   readonly chips: readonly AttachChip[];
@@ -55,7 +65,7 @@ export function AttachmentRow(props: {
               size="md"
               variant="outline"
               radius="md"
-              icon={<Paperclip aria-hidden />}
+              icon={<ChipIcon chip={chip} />}
               removeLabel={t("desktop.composer.attach.remove")}
               onRemove={() => {
                 props.onRemove(chip.id);

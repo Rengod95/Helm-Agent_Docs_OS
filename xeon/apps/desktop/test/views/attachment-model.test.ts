@@ -9,6 +9,8 @@ import {
   formatBytes,
   readyParts,
   replaceChip,
+  sendBlockedText,
+  chipPreviewOf,
   sourceOfFile,
   turnInputOf,
   type AttachChip,
@@ -137,5 +139,31 @@ describe("files", () => {
   test("baseNameOf takes the last path piece for both separators", () => {
     expect(baseNameOf("/Users/me/a.png")).toBe("a.png");
     expect(baseNameOf("C:\\Users\\me\\b.txt")).toBe("b.txt");
+  });
+});
+
+describe("sendBlockedText", () => {
+  test("names the failed chip and its reason", () => {
+    const failed = chip({
+      name: "big.bin",
+      status: "failed",
+      failure: { kind: "tooLarge", limit: 1024 },
+      parts: null,
+    });
+    expect(sendBlockedText([chip({}), failed])).toContain("big.bin");
+    expect(sendBlockedText([failed])).toContain("1 KB");
+  });
+  test("an upload in flight blocks with its own sentence, ready chips do not block", () => {
+    expect(sendBlockedText([chip({ status: "uploading", parts: null })])).not.toBeNull();
+    expect(sendBlockedText([chip({})])).toBeNull();
+  });
+});
+
+describe("chipPreviewOf", () => {
+  test("only a ready image data source has a preview", () => {
+    const image = chip({ source: { kind: "data", data: "QUJD", mime: "image/png" } });
+    expect(chipPreviewOf(image)).toBe("data:image/png;base64,QUJD");
+    expect(chipPreviewOf(chip({}))).toBeNull();
+    expect(chipPreviewOf({ ...image, status: "failed" })).toBeNull();
   });
 });

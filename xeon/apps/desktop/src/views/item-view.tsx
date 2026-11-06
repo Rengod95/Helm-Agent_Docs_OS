@@ -14,6 +14,8 @@ import {
   useStreamingItem,
   useToolResult,
 } from "../state/engine/index.ts";
+import { bubbleOf } from "./attachment-bubble-model.ts";
+import { MessageAttachments } from "./message-attachments.tsx";
 import { usePluginUiState } from "./plugin/plugin-context.tsx";
 import { EntrySurface } from "./plugin/plugin-view.tsx";
 
@@ -228,12 +230,19 @@ function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
 function RecordBody(props: { readonly item: ItemRecord }): ReactNode {
   const item = props.item;
   switch (item.kind) {
-    case "user":
+    case "user": {
+      const bubble = bubbleOf(item.message.content);
       return (
-        <Message author="user" className="whitespace-pre-wrap [overflow-wrap:anywhere]">
-          {textOf(item.message.content)}
-        </Message>
+        <>
+          {bubble.text === "" ? null : (
+            <Message author="user" className="whitespace-pre-wrap [overflow-wrap:anywhere]">
+              {bubble.text}
+            </Message>
+          )}
+          <MessageAttachments attachments={bubble.attachments} />
+        </>
       );
+    }
     case "assistant":
       return (
         <>
