@@ -46,7 +46,18 @@ export const UI_LIMITS = {
   bridgeMessageBytes: 1048576,
   bridgeMessagesPerSecond: 50,
   minPollSeconds: 5,
+  /** `pickFile` 읽기와 `saveFile` 쓰기 내용의 상한(바이트) */
+  fileBytes: 262144,
+  /** `notify` 확장·화면당 분당 상한 */
+  notifyPerMinute: 5,
+  /** `writeSetting` 화면당 분당 상한 */
+  settingWritesPerMinute: 20,
 } as const;
+
+/** 프레임이 셸 기능을 쓰려면 앱 선언에 적어야 하는 권한(ADR-0021 §3.4.3). 적지 않은 권한은 `not_declared`로 막힌다 */
+export const BRIDGE_CAPABILITIES = ["files", "notify", "settingsWrite", "secrets"] as const;
+export type BridgeCapability = (typeof BRIDGE_CAPABILITIES)[number];
+const BridgeCapabilitySchema = Type.Union(BRIDGE_CAPABILITIES.map((name) => Type.Literal(name)));
 
 /** Placement별 확장당 개수 상한. card는 kind마다 1이라 별도 검사한다 */
 export const PLACEMENT_LIMITS: Readonly<Record<Placement, number>> = {
@@ -80,6 +91,8 @@ export interface AppDecl {
   readonly bridge: string;
   /** Native UI로 그릴 수 없는 이유 한 줄. 빈 문자열은 검사가 막는다 */
   readonly reason: string;
+  /** 다리로 쓸 셸 기능 권한. 생략하면 없다(ADR-0021 §3.4.3) */
+  readonly capabilities?: readonly BridgeCapability[];
 }
 const AppDeclShape = Type.Object(
   {
@@ -87,6 +100,9 @@ const AppDeclShape = Type.Object(
     entry: RelativePathSchema,
     bridge: SemVerRangeSchema,
     reason: Type.String({ maxLength: 256 }),
+    capabilities: Type.Optional(
+      Type.Array(BridgeCapabilitySchema, { maxItems: BRIDGE_CAPABILITIES.length }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -317,7 +333,7 @@ export function validateUiTree(input: unknown): UiTreeResult {
 
 export const BRIDGE_VERSION = 1 as const;
 
-/** 요청 op. 호스트 API 아홉과 resize, log, pong */
+/** 요청 op. 호스트 API 아홉, 셸 기능 여섯(`pickFile`~`registerSecret`, 앱 선언 권한이 필요하다)과 resize, log, pong */
 export const BRIDGE_OPS = [
   "query",
   "events",
@@ -328,6 +344,12 @@ export const BRIDGE_OPS = [
   "post",
   "requestApproval",
   "navigate",
+  "pickFile",
+  "pickFolder",
+  "saveFile",
+  "notify",
+  "writeSetting",
+  "registerSecret",
   "resize",
   "log",
   "pong",

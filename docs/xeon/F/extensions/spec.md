@@ -257,7 +257,7 @@ export interface UiContribution {
   readonly forKind?: string;           // card 전용
   readonly when?: { readonly thread?: "required" | "optional" };
 }
-export interface AppDecl { root: string; entry: string; bridge: string; reason: string }
+export interface AppDecl { root: string; entry: string; bridge: string; reason: string; capabilities?: readonly BridgeCapability[] }  // BridgeCapability = "files" | "notify" | "settingsWrite" | "secrets" [결정: 2026-11-06 사용자]
 export interface UiDecl {
   readonly schemaVersion: 1;
   readonly widgets?: string;           // native 화면이 있으면 필수. 위젯 카탈로그 SemVer 범위

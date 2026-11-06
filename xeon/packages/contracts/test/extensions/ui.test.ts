@@ -5,6 +5,8 @@ import {
   ExtMethodDeclSchema,
   BridgeRequestSchema,
   BridgeResponseSchema,
+  BRIDGE_CAPABILITIES,
+  BRIDGE_OPS,
   UI_LIMITS,
   bridgeMessageWithinLimit,
   validateManifest,
@@ -220,5 +222,48 @@ describe("bridge messages", () => {
     const cyclic: Record<string, unknown> = {};
     cyclic["self"] = cyclic;
     expect(bridgeMessageWithinLimit(cyclic)).toBe(false);
+  });
+});
+
+const appPage = (capabilities: unknown): Record<string, unknown> => ({
+  id: "graph",
+  placement: "page",
+  mode: "app",
+  title: "Graph",
+  app: { ...app, capabilities },
+});
+
+describe("app capabilities (ADR-0021 §3.4.3)", () => {
+  test("declares the four shell capabilities and nothing else", () => {
+    expect([...BRIDGE_CAPABILITIES]).toEqual(["files", "notify", "settingsWrite", "secrets"]);
+  });
+
+  test("a known capability list passes and is kept as written", () => {
+    const result = validateManifest(
+      uiJson([appPage(["files", "secrets"])], { widgets: undefined }),
+    );
+    expect(result.issues).toEqual([]);
+    expect(result.manifest?.ui?.items[0]?.app?.capabilities).toEqual(["files", "secrets"]);
+  });
+
+  test("an unknown capability name is rejected", () => {
+    const result = validateManifest(uiJson([appPage(["files", "engine"])], { widgets: undefined }));
+    expect(result.manifest).toBeUndefined();
+    expect(result.issues.length).toBeGreaterThan(0);
+  });
+
+  test("the bridge ops list holds the six shell ops", () => {
+    for (const op of [
+      "pickFile",
+      "pickFolder",
+      "saveFile",
+      "notify",
+      "writeSetting",
+      "registerSecret",
+    ]) {
+      expect(BRIDGE_OPS.some((known) => known === op)).toBe(true);
+      expect(parse(BridgeRequestSchema, { v: 1, id: 1, op, args: {} }).ok).toBe(true);
+    }
+    expect(parse(BridgeRequestSchema, { v: 1, id: 1, op: "reauth", args: {} }).ok).toBe(false);
   });
 });
