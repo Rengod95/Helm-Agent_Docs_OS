@@ -13,12 +13,20 @@ const nonce = new URLSearchParams(location.hash.slice(1)).get("n");
 let port;
 let nextId = 1;
 
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.style.colorScheme = theme.scheme;
+  for (const [name, value] of Object.entries(theme.tokens)) root.style.setProperty(name, value);
+}
+
 window.addEventListener("message", (event) => {
   if (port || event.ports.length === 0) return;
   port = event.ports[0];
   status.textContent = "connected";
   port.onmessage = (message) => {
     const data = message.data;
+    // 테마 push(`{ push: "theme", value }`): 셸이 고른 색 체계와 토큰을 문서에 적용한다. 안 하면 다크에서 브라우저 기본 흰 바탕이 남는다.
+    if (data && data.push === "theme") applyTheme(data.value);
     if (data && data.push === "ping") {
       port.postMessage({ v: 1, id: nextId++, op: "pong", args: { n: data.value.n } });
       status.textContent = "ping " + data.value.n;

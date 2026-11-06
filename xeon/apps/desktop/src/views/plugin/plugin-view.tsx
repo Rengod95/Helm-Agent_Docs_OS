@@ -46,12 +46,21 @@ const THEME_TOKEN_NAMES: readonly string[] = [
 
 export const screenKeyOf = (entry: ExtUiEntry): string => `${entry.extension}/${entry.id}`;
 
+/** 앱이 정한 테마(data-theme)가 있으면 따르고, 없으면 시스템 설정을 따른다. 프레임에 보내는 색 체계가 셸 색과 어긋나지 않게 한다 */
+export function schemeOf(explicit: string | null, systemDark: boolean): ThemePush["scheme"] {
+  if (explicit === "dark" || explicit === "light") return explicit;
+  return systemDark ? "dark" : "light";
+}
+
 function themeNow(): ThemePush {
   const style = getComputedStyle(document.documentElement);
   const locale = activeLocale();
   return {
     tokens: collectThemeTokens(THEME_TOKEN_NAMES, (name) => style.getPropertyValue(name)),
-    scheme: window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+    scheme: schemeOf(
+      document.documentElement.getAttribute("data-theme"),
+      window.matchMedia("(prefers-color-scheme: dark)").matches,
+    ),
     density: "comfortable",
     locale,
     reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
