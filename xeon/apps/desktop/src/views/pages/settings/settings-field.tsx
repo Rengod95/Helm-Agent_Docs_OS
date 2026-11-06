@@ -224,6 +224,9 @@ export function FieldRow(props: FieldRowProps): ReactNode {
           {explain.length === 0 ? null : <InfoTip label={field.label} lines={explain} />}
         </div>
         <div className="flex flex-none items-center gap-2">
+          {editable && scopeChoiceShown(field) ? (
+            <ScopeChoice field={field} handlers={handlers} />
+          ) : null}
           {saved ? (
             <SavedMark />
           ) : field.saving ? (
@@ -349,9 +352,6 @@ export function FieldRow(props: FieldRowProps): ReactNode {
         </Alert>
       )}
       {field.shadowed.length === 0 ? null : <ShadowedNote field={field} />}
-      {editable && scopeChoiceShown(field) ? (
-        <ScopeChoice field={field} handlers={handlers} />
-      ) : null}
       <LaunchChoice field={field} hasThread={hasThread} disabled={disabled} handlers={handlers} />
       {editable && field.dirty && hasFooter(field) ? (
         <FormLayoutFooter>
@@ -537,7 +537,8 @@ function ScopeChoice(props: {
     <Select
       aria-label={t("desktop.settings.field.scope.label")}
       size="xs"
-      className="w-36"
+      variant="ghost"
+      className="w-auto"
       value={field.selectedScope ?? ""}
       onValueChange={(next) => {
         const scope = field.writableScopes.find((candidate) => candidate === next);

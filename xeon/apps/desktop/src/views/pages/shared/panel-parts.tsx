@@ -3,21 +3,23 @@ import { Info } from "@caustic/react/icons";
 import type { ReactNode } from "react";
 
 // 설정 묶음 안의 공용 부품(P-11, P-12). 목업 `_settings/row.tsx`의 SettingSection 머리 줄과 같은 글 모양을 쓰고,
-// 카드는 두지 않는다(바깥 설정 섹션이 카드다). 설명은 정보 아이콘 뒤에 둔다(목업의 Tooltip).
+// 머리 아래에 표면 카드 하나를 둔다(SettingSection과 같다). 설명은 정보 아이콘 뒤에 둔다(목업의 Tooltip).
 
-/** 묶음 머리: 글 제목 하나와 끝 동작. 목업 SettingSection의 머리 줄과 같다 */
+/** 묶음: 머리(글 제목과 끝 동작)와 카드 하나. 목업 SettingSection의 머리 줄과 같다 */
 export function PanelBlock(props: {
   readonly title: ReactNode;
   readonly end?: ReactNode;
   readonly children: ReactNode;
 }): ReactNode {
   return (
-    <section className="grid gap-2">
+    <section className="pt-6 first:pt-0">
       <div className="flex h-8 items-center gap-2">
-        <h3 className="m-0 flex-1 text-ui-sm font-semibold text-text-secondary">{props.title}</h3>
+        <h2 className="m-0 flex-1 text-ui-sm font-semibold text-text-secondary">{props.title}</h2>
         {props.end}
       </div>
-      {props.children}
+      <div className="mt-1 grid gap-2 rounded-2xl bg-surface-base px-4 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)]">
+        {props.children}
+      </div>
     </section>
   );
 }

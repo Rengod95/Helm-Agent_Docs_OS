@@ -48,7 +48,8 @@ function messageOf(ref: MessageRef): string {
   return t(ref.id, ref.args);
 }
 
-export function SecretsPanel(): ReactNode {
+/** `embedded`: 설정 화면 안에 넣을 때. 설정의 스크롤과 머리 제목을 그대로 쓴다 */
+export function SecretsPanel(props: { readonly embedded?: boolean }): ReactNode {
   const commands = useCommands();
   const live = useLinkPhase() === "live";
   const gate = useContext(RevealGateContext);
@@ -459,6 +460,7 @@ export function SecretsPanel(): ReactNode {
       locale={activeLocale()}
       nowMs={state.nowMs}
       handlers={handlers}
+      embedded={props.embedded === true}
     />
   );
 }

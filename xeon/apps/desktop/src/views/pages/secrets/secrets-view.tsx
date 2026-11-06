@@ -62,6 +62,8 @@ export interface SecretsScreenViewProps {
   readonly locale: Locale;
   readonly nowMs: number;
   readonly handlers: SecretsScreenHandlers;
+  /** 설정 화면 안: 바깥 스크롤과 머리 제목을 쓴다 */
+  readonly embedded?: boolean;
 }
 
 function sortOf(value: string): SecretSort | null {
@@ -107,12 +109,21 @@ export function SecretsScreenView(props: SecretsScreenViewProps): ReactNode {
   return (
     <section
       aria-labelledby={headingId}
-      className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+      className={
+        props.embedded === true
+          ? "flex flex-col gap-4"
+          : "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+      }
       onKeyDown={onKey}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div
+        className={`flex flex-wrap items-center gap-3 ${props.embedded === true ? "justify-end" : "justify-between"}`}
+      >
         <div className="flex min-w-0 items-center gap-1">
-          <h1 id={headingId} className="m-0 text-ui-strong text-text-primary">
+          <h1
+            id={headingId}
+            className={`m-0 text-ui-strong text-text-primary ${props.embedded === true ? "sr-only" : ""}`}
+          >
             {t("desktop.secrets.title")}
           </h1>
           <InfoTip text={t("desktop.secrets.intro")} />

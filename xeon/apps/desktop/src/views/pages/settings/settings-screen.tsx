@@ -425,7 +425,7 @@ export function SettingsPage(props: {
       saved={saved}
       restartError={state.restartError?.message ?? null}
       prompt={pending === null ? null : { to: pending.to, count: pending.keys.length }}
-      secretsPanel={<SecretsPanel />}
+      secretsPanel={<SecretsPanel embedded />}
       fileEditor={fileEditor}
       fileOpen={file.phase !== "closed"}
       editors={EDITORS}

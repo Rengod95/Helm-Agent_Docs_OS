@@ -38,7 +38,7 @@ export function ToolsWebPanelView(props: ToolsWebViewProps): ReactNode {
   if (load.status === "loading") {
     if (offline) return <EmptyState size="sm" surface="none" title={t("desktop.tools.offline")} />;
     return (
-      <div className="grid gap-6">
+      <div className="grid">
         <PanelBlock title={t("desktop.tools.search.title")}>
           <ListSkeleton label={t("desktop.tools.loading")} />
         </PanelBlock>
@@ -68,7 +68,7 @@ export function ToolsWebPanelView(props: ToolsWebViewProps): ReactNode {
   }
   const view = load.view;
   return (
-    <div className="grid gap-6">
+    <div className="grid">
       <SearchSection
         section={view.search}
         editable={!offline}

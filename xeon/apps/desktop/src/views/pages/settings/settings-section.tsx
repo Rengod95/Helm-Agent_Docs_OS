@@ -5,7 +5,8 @@ import { useId, type ReactNode } from "react";
 // 카드 첫 줄 위와 끝 줄 아래 여백은 카드가 한 번만 준다.
 
 export interface SettingSectionProps {
-  readonly title: ReactNode;
+  readonly title?: ReactNode | undefined;
+  readonly label?: string | undefined;
   readonly end?: ReactNode | undefined;
   readonly children: ReactNode;
 }
@@ -13,13 +14,19 @@ export interface SettingSectionProps {
 export function SettingSection(props: SettingSectionProps): ReactNode {
   const id = useId();
   return (
-    <section aria-labelledby={id} className="pt-6 first:pt-0">
-      <div className="sticky top-0 z-[5] flex h-8 items-center gap-2 bg-bg-app">
-        <h2 id={id} className="m-0 flex-1 text-ui-sm font-semibold text-text-secondary">
-          {props.title}
-        </h2>
-        {props.end}
-      </div>
+    <section
+      aria-labelledby={props.title === undefined ? undefined : id}
+      aria-label={props.title === undefined ? props.label : undefined}
+      className="pt-6 first:pt-0"
+    >
+      {props.title === undefined ? null : (
+        <div className="sticky top-0 z-[5] flex h-8 items-center gap-2 bg-bg-app">
+          <h2 id={id} className="m-0 flex-1 text-ui-sm font-semibold text-text-secondary">
+            {props.title}
+          </h2>
+          {props.end}
+        </div>
+      )}
       <div className="mt-1 grid divide-y divide-border-subtle rounded-2xl bg-surface-base px-4 py-3 shadow-[inset_0_0_0_1px_var(--cs-color-border-subtle)] [&>:first-child]:pt-0 [&>:last-child]:pb-0">
         {props.children}
       </div>

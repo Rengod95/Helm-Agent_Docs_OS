@@ -242,7 +242,7 @@ export function RotationRowView(props: RotationRowViewProps): ReactNode {
   const { state, editable } = props;
   const title = t("desktop.providers.rotation.title");
   return (
-    <div data-slot="rotation-row" className="grid gap-1.5 py-3">
+    <div data-slot="rotation-row" className="grid gap-1.5">
       <span className="text-ui font-medium text-text-primary">{title}</span>
       <Switch
         size="sm"
@@ -335,7 +335,7 @@ export interface AccountPoolViewProps {
 export function AccountPoolView(props: AccountPoolViewProps): ReactNode {
   const { pools, editable } = props;
   return (
-    <div className="grid gap-4">
+    <div className="grid">
       {pools.length === 0 ? (
         <EmptyState size="sm" surface="none" title={t("desktop.providers.pool.empty")} />
       ) : (

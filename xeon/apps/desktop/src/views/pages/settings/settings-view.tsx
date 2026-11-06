@@ -28,6 +28,7 @@ import {
   type SettingsKeyIntent,
 } from "./settings-model.ts";
 import { FieldRow, type DedicatedEditors, type FieldHandlers } from "./settings-field.tsx";
+import { PanelBlock } from "../shared/panel-parts.tsx";
 import { SettingSection } from "./settings-section.tsx";
 import { diagnosticIdOf } from "./settings-text.ts";
 
@@ -88,6 +89,12 @@ export interface SettingsPageProps {
 export function SettingsPageView(props: SettingsPageProps): ReactNode {
   const { handlers, tab, query, readOnly, fileOpen, narrow } = props;
   const headingId = useId();
+  // 머리 제목은 고른 탭 이름이다(P-09 시안 `_settings/frame.tsx`). 찾는 중에는 화면 이름이다
+  const titleOf =
+    query.trim() === ""
+      ? (props.view?.tabs.find((candidate) => candidate.id === tab)?.label ??
+        t("desktop.settings.title"))
+      : t("desktop.settings.title");
   const onKey = (event: KeyboardEvent<HTMLElement>): void => {
     // 묻는 대화 상자가 열려 있으면 그 키는 대화 상자의 것이다. 포털의 키 입력도 이 자리까지 올라오므로 여기서 막는다
     if (props.prompt !== null) return;
@@ -125,7 +132,7 @@ export function SettingsPageView(props: SettingsPageProps): ReactNode {
             id={headingId}
             className="m-0 min-w-0 flex-1 truncate font-ui text-ui-strong font-bold text-text-primary"
           >
-            {t("desktop.settings.title")}
+            {titleOf}
           </h1>
           {fileAction === null ? null : (
             <div className="flex flex-none items-center">{fileAction}</div>
@@ -333,19 +340,30 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
   if (tabView === undefined) return null;
   // 검색 순서는 도구와 웹 패널이 그린다. 패널이 있는 탭은 빈 항목 문장 대신 패널을 보인다
   const fields = tabView.fields.filter((field) => !panelOwnedOf(field));
+  const panels = (
+    <>
+      {tab === "tools" ? props.toolsPanel : null}
+      {tabView.gauge === null ? null : props.usagePanel}
+      {tab === "providers" && props.rotationPanel !== null ? (
+        <PanelBlock title={t("desktop.providers.rotation.title")}>{props.rotationPanel}</PanelBlock>
+      ) : null}
+    </>
+  );
+  const emptyText =
+    fields.length === 0 && tabView.emptyText !== null && tab !== "tools" ? tabView.emptyText : null;
+  const hasCard =
+    tab === "overview" || tab === "advanced" || fields.length > 0 || emptyText !== null;
   return (
     <>
-      <SettingSection title={tabView.label}>
-        {tab === "overview" ? <OverviewSummary view={view} /> : null}
-        {tab === "tools" ? props.toolsPanel : null}
-        {tab === "advanced" ? props.restorePanel : null}
-        {tabView.gauge === null ? null : props.usagePanel}
-        {tab === "providers" ? props.rotationPanel : null}
-        {fields.length === 0 && tabView.emptyText !== null && tab !== "tools" ? (
-          <p className="text-ui-sm text-text-tertiary">{tabView.emptyText}</p>
-        ) : null}
-        {fields.map(rowOf)}
-      </SettingSection>
+      {panels}
+      {hasCard ? (
+        <SettingSection label={tabView.label}>
+          {tab === "overview" ? <OverviewSummary view={view} /> : null}
+          {tab === "advanced" ? props.restorePanel : null}
+          {emptyText === null ? null : <p className="text-ui-sm text-text-tertiary">{emptyText}</p>}
+          {fields.map(rowOf)}
+        </SettingSection>
+      ) : null}
       {tab === "overview" && view.diagnostics.length > 0 ? (
         <DiagnosticsSection view={view} />
       ) : null}
