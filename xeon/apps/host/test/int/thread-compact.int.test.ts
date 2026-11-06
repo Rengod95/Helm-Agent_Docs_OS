@@ -63,10 +63,14 @@ realTest(
       if (result.status !== "compacted") return;
       expect(result.fromExtension).toBeNull();
       expect(result.tokensBefore).toBeGreaterThan(1024);
+      expect(result.tokensAfter).toBeLessThan(result.tokensBefore);
       const committed = await collector.waitFor((event) => event.kind === "thread.compacted");
       expect(committed.id).toBe(result.eventId);
       expect(committed.seq).toBeLessThanOrEqual(result.position.seq);
-      expect(committed.payload).toMatchObject({ tokensBefore: result.tokensBefore });
+      expect(committed.payload).toMatchObject({
+        tokensBefore: result.tokensBefore,
+        tokensAfter: result.tokensAfter,
+      });
       expect(JSON.stringify(committed.payload)).toContain("캐시 설정을 확인했다");
       // 마지막 이벤트가 컴팩션이면 요약할 것이 없다(오류가 아니다)
       expect(await compactWhenIdle(connection, { threadId: created.threadId })).toEqual({

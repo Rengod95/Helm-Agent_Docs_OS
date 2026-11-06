@@ -759,7 +759,7 @@ export type ThreadCompactSkipReason =
 /**
  * thread.compact result. `CompactOutcome`(`services/context.ts`)의 두 모양에 위치를 더했다.
  * `compacted`는 `thread.compacted` 이벤트를 커밋했다는 뜻이고 `eventId`가 그 이벤트, `position`이 그 이벤트를 반영한 저장소 위치다.
- * `tokensBefore`는 요약 전 추정 토큰 수이고 `fromExtension`은 요약 내용을 낸 확장 이름(없으면 `null`)이다.
+ * `tokensBefore`는 요약 전, `tokensAfter`는 요약 뒤 추정 토큰 수이고 `fromExtension`은 요약 내용을 낸 확장 이름(없으면 `null`)이다.
  * `skipped`는 요약할 것이 없거나 컴팩션이 꺼져 있어 아무것도 커밋하지 않았다는 뜻이고 오류가 아니다.
  * 확장이 막은 경우(`CompactOutcome`의 `cancelled`)와 요약 실패는 결과가 아니라 오류다(`thread.cancelledByExtension`, `thread.compactFailed`).
  */
@@ -768,6 +768,7 @@ export type ThreadCompactResult =
       readonly status: "compacted";
       readonly eventId: EventId;
       readonly tokensBefore: number;
+      readonly tokensAfter: number;
       readonly fromExtension: string | null;
       readonly position: StreamPosition;
     }
@@ -778,6 +779,7 @@ const threadCompactResultShape = Type.Union([
       status: Type.Literal("compacted"),
       eventId: EventIdSchema,
       tokensBefore: Type.Integer({ minimum: 0 }),
+      tokensAfter: Type.Integer({ minimum: 0 }),
       fromExtension: Nullable(Type.String({ maxLength: 32 })),
       position: StreamPositionSchema,
     },

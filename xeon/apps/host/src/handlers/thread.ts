@@ -433,6 +433,7 @@ export function createThreadCompactHandler(
           status: "compacted",
           eventId: outcome.eventId,
           tokensBefore: outcome.tokensBefore,
+          tokensAfter: outcome.tokensAfter,
           fromExtension: outcome.fromExtension,
           position: position.value,
         };

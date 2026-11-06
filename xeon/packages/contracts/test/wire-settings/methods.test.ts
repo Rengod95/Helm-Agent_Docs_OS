@@ -351,6 +351,7 @@ describe("M2 method schemas are written out", () => {
       status: "compacted",
       eventId,
       tokensBefore: 91_234,
+      tokensAfter: 20_100,
       fromExtension: null,
       position,
     };
@@ -359,6 +360,7 @@ describe("M2 method schemas are written out", () => {
     expect(value).toEqual(compacted);
     expect(parse(result, { ...compacted, fromExtension: "summarizer" }).ok).toBe(true);
     expect(parse(result, { ...compacted, tokensBefore: -1 }).ok).toBe(false);
+    expect(parse(result, { ...compacted, tokensAfter: -1 }).ok).toBe(false);
     expect(parse(result, { ...compacted, eventId: "not-an-event" }).ok).toBe(false);
     expect(parse(result, { ...compacted, position: undefined }).ok).toBe(false);
     expect(parse(result, { ...compacted, extra: 1 }).ok).toBe(false);

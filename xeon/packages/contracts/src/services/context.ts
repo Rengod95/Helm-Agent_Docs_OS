@@ -144,6 +144,8 @@ export type CompactOutcome =
       readonly status: "compacted";
       readonly eventId: EventId;
       readonly tokensBefore: number;
+      /** 요약 뒤 추정 토큰 수(요약과 남긴 메시지). `thread.compacted`의 `tokensAfter`와 같은 값이다 */
+      readonly tokensAfter: number;
       readonly fromExtension: string | null;
     }
   | {

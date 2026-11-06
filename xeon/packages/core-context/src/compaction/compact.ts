@@ -505,7 +505,13 @@ export async function compactThread(
     },
     { threadId, dispatchKey: `${key}:session.compact.after`, ...options },
   );
-  return ok({ status: "compacted", eventId, tokensBefore: prep.tokensBefore, fromExtension });
+  return ok({
+    status: "compacted",
+    eventId,
+    tokensBefore: prep.tokensBefore,
+    tokensAfter,
+    fromExtension,
+  });
 }
 
 async function failed(

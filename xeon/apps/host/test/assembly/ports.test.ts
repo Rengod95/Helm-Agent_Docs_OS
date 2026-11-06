@@ -1171,6 +1171,7 @@ describe("threads.compact", () => {
       status: "compacted",
       eventId: ids.next("evt"),
       tokensBefore: 91_000,
+      tokensAfter: 18_000,
       fromExtension: null,
     };
     h.state.compact = ok(compacted);
