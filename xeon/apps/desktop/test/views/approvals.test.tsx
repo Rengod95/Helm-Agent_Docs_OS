@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { t } from "@fresnel/client/i18n";
 import type { ApprovalRequestedPayload } from "@fresnel/contracts/records";
 import { renderToString } from "react-dom/server";
 import type { EngineMirror } from "../../src/state/engine/index.ts";
@@ -99,7 +100,7 @@ describe("tool approval card", () => {
     expect(out).toContain("secret://prod/token");
     expect(out).toContain("시크릿");
     expect(out).toContain("bash");
-    expect(out).toContain("execute");
+    expect(out).toContain(t("desktop.approvals.risk.exec"));
   });
 
   test("a call with no secrets shows no secret block", () => {
@@ -281,7 +282,7 @@ describe("tool replacement approval card", () => {
     expect(out).toContain("<code>safe-write</code>");
     expect(out).toContain("<code>write</code>");
     expect(out).toContain("신뢰하지 않음");
-    expect(out).toContain("write → execute");
+    expect(out).toContain("쓰기 → 실행");
     expect(out).toContain("파일 경로 보호는 대체 도구에 적용되지 않아요");
     // 같은 카드의 허용·거부 단추와 일반 도구 요약도 그대로 있다
     expect(out).toContain("허용");
