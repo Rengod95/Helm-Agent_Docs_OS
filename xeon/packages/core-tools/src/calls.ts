@@ -8,6 +8,8 @@ export interface CallTable {
   get(threadId: ThreadId, toolCallId: string): CallState | undefined;
   put(state: CallState): void;
   remove(state: CallState): void;
+  /** thread에서 진행 중인 도구 호출이 속한 표면 thread. 진행 중인 호출이 없으면 undefined */
+  surfaceOf(threadId: ThreadId): ThreadId | undefined;
 }
 
 function keyOf(threadId: ThreadId, toolCallId: string): string {
@@ -24,6 +26,12 @@ export function createCallTable(): CallTable {
     remove: (state) => {
       const key = keyOf(state.threadId, state.toolCallId);
       if (table.get(key) === state) table.delete(key);
+    },
+    surfaceOf: (threadId) => {
+      for (const state of table.values()) {
+        if (state.threadId === threadId) return state.run.surfaceThreadId;
+      }
+      return undefined;
     },
   };
 }

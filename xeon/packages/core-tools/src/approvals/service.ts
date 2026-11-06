@@ -64,6 +64,11 @@ export interface ApprovalDeps {
   readonly logger: Logger | undefined;
   /** 활성 호출 표에서 origin의 호출을 찾는다. 없으면 턴 밖의 요청(그룹 코드)이다 */
   readonly callOf: (origin: ApprovalOrigin) => ActiveCall | undefined;
+  /**
+   * 도구 호출 id 없이 올라온 요청(기능 서비스의 도메인 승인)의 표면 thread를 찾는다. 하위 대화에서 도는 호출이면 부모 쪽 표면이다.
+   * 없으면 요청한 thread가 표면이다
+   */
+  readonly surfaceOf?: (threadId: ThreadId) => ThreadId | undefined;
   /** 계획 승인의 `{ mode }`를 적용한다(ToolService.setMode "plan_approval") */
   readonly setMode: (threadId: ThreadId, mode: PermissionMode) => Promise<ModeChangeResult>;
   readonly modeOf: (threadId: ThreadId) => PermissionMode;
@@ -407,7 +412,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     if (issue !== undefined) return err(invalidRequest(issue));
 
     const call = deps.callOf(input.origin);
-    const surfaceThreadId = call?.run.surfaceThreadId ?? input.origin.threadId;
+    const surfaceThreadId =
+      call?.run.surfaceThreadId ?? deps.surfaceOf?.(input.origin.threadId) ?? input.origin.threadId;
     const knownId = byKey.get(keyOf(surfaceThreadId, input.requestKey));
     const known = knownId === undefined ? undefined : byId.get(knownId);
     if (known !== undefined) return ok(opened(known));
