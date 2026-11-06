@@ -32,6 +32,8 @@ import { MessageAttachments } from "./message-attachments.tsx";
 import { EntrySurface } from "./plugin/plugin-view.tsx";
 import { usePluginUi, usePluginUiState } from "./plugin/plugin-context.tsx";
 import { useGoToThread } from "./thread-link.ts";
+import { useOpenExtensionRecords } from "./extension-records-link.ts";
+import { hookDenialOf, type HookDenialView } from "./hook-denial-model.ts";
 import { toolOutputOf } from "./tool-output-model.ts";
 import {
   AGENT_TOOL,
@@ -58,6 +60,9 @@ const TEXT_CLASS = "m-0 whitespace-pre-wrap [overflow-wrap:anywhere]";
 const QUIET_CLASS = "m-0 text-ui-sm text-text-tertiary";
 /** 실패·중단 줄. 행 맨 아래에 한 줄로 둔다 */
 const NOTE_CLASS = "m-0 text-ui-xs text-text-tertiary";
+/** 훅이 막은 행(막힘, 훅 오류)의 경고 빛깔. 테두리와 알약의 실패 빛깔을 경고 토큰으로 바꾼다. 안쪽 선택자가 caustic의 실패 클래스보다 세다 */
+const HOOK_ROW_CLASS =
+  "[&[data-status=failed]]:shadow-[inset_0_0_0_1px_var(--cs-color-warning-border)] [&_[data-slot=tool-call-status]]:bg-warning-tint [&_[data-slot=tool-call-status]]:text-warning-text";
 /** 도구 결과 본문 */
 /** 펼친 출력의 높이 상한과 안쪽 스크롤 */
 const OUTPUT_BOX_CLASS = "max-h-80 overflow-auto";
@@ -107,6 +112,27 @@ function Collapsible(props: { readonly summary: string; readonly children: React
   );
 }
 
+/** 확장이 오류를 낸 거부의 "기록 보기" 단추. 확장 이름이 없거나 열 곳(문맥)이 없으면 그리지 않는다 */
+function HookRecordsLink(props: { readonly hook: HookDenialView }): ReactNode {
+  const openRecords = useOpenExtensionRecords();
+  const { hook } = props;
+  if (hook.outcome !== "threw" || hook.extension === null || openRecords === null) return null;
+  const extension = hook.extension;
+  return (
+    <div className="justify-self-start">
+      <Button
+        size="xs"
+        variant="ghost"
+        onClick={() => {
+          openRecords(extension);
+        }}
+      >
+        {t("desktop.item.hookDenial.records")}
+      </Button>
+    </div>
+  );
+}
+
 /**
  * 도구 호출·결과 한 줄(시안 p02-opus ToolRow). 이름, 짧은 요약, 상태 알약을 보인다.
  * 결과(output)가 있으면 접는 머리가 되고 기본은 접힘이다. 실패한 결과만 펼쳐 둔다. 결과가 없는 호출은 접을 것이 없다.
@@ -127,6 +153,8 @@ function ToolRow(props: {
   readonly awaitingApproval?: boolean;
   /** 출력 아래에 덧붙이는 것(접은 나머지, 자식 대화 링크) */
   readonly foot?: ReactNode;
+  /** 훅이 막은 거부. 경고 빛깔이고, 훅이 오류를 냈으면 "기록 보기"를 덧붙인다 */
+  readonly hook?: HookDenialView;
   /** 끝난 뒤에도 펼쳐 둔다(하위 에이전트의 보고는 결과 블록이다) */
   readonly openWhenDone?: boolean;
   /** 펼친 본문에서 결과 글 위에 놓는 그림(edit·write의 diff). 결과가 없는 행에서는 그리지 않는다 */
@@ -158,6 +186,7 @@ function ToolRow(props: {
               : t("desktop.item.toolRunning")
       }
       failedLabel={props.failedLabel ?? t("desktop.item.status.failed")}
+      {...(props.hook === undefined ? {} : { className: HOOK_ROW_CLASS })}
       collapsible={output !== undefined || props.foot !== undefined}
       open={open}
       onOpenChange={setOpen}
@@ -171,6 +200,7 @@ function ToolRow(props: {
             </pre>
           )}
           {props.foot}
+          {props.hook === undefined ? null : <HookRecordsLink hook={props.hook} />}
           {props.cut === undefined ? null : (
             <p className={NOTE_CLASS}>
               {t("desktop.item.output.partial", {
@@ -242,7 +272,21 @@ type ResultView = {
   readonly failedLabel?: string;
   readonly output: string;
   readonly cut?: { readonly shown: number; readonly total: number };
+  /** 훅이 막은 거부(`details`의 `denied_by_extension`). 있으면 경고 빛깔이고 알약 글과 본문이 훅 문구다 */
+  readonly hook?: HookDenialView;
 };
+
+/** 훅 거부의 본문 한 줄. 확장 이름을 모르면 이름 없는 글을 쓴다 */
+function hookDenialText(hook: HookDenialView): string {
+  if (hook.outcome === "blocked") {
+    return hook.extension === null
+      ? t("desktop.item.hookDenial.blockedNoName", { reason: hook.reason })
+      : t("desktop.item.hookDenial.blocked", { extension: hook.extension, reason: hook.reason });
+  }
+  return hook.extension === null
+    ? t("desktop.item.hookDenial.threwNoName")
+    : t("desktop.item.hookDenial.threw", { extension: hook.extension });
+}
 
 /** 실행 중인 동안 1초마다 늘어나는 경과 초. 실행 중이 아니면 0 */
 function useElapsedSeconds(active: boolean): number {
@@ -291,6 +335,21 @@ function resultViewOf(item: ItemRecord): ResultView | null {
       status: "failed",
       failedLabel: t("desktop.item.status.denied"),
       output: t("desktop.item.denied.body"),
+    };
+  }
+  // 훅이 막은 호출은 모델에 가는 본문이 아니라 화면용 details로 알아본다. 막았는지와 오류를 냈는지를 알약 글로 가른다
+  const hook = hookDenialOf(item.message.details);
+  if (hook !== null) {
+    return {
+      status: "failed",
+      failedLabel: t(
+        hook.outcome === "blocked"
+          ? "desktop.item.status.hookBlocked"
+          : "desktop.item.status.hookThrew",
+      ),
+      output: hookDenialText(hook),
+      hook,
+      ...cut,
     };
   }
   if (
@@ -476,6 +535,7 @@ function CallRow(props: {
         {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
         output={view.output}
         {...(view.cut === undefined ? {} : { cut: view.cut })}
+        {...(view.hook === undefined ? {} : { hook: view.hook })}
         diff={change === null ? undefined : <FileChangeDiff view={change} />}
       />
       <SourceChips sources={sources} />
@@ -493,6 +553,7 @@ function ResultRow(props: { readonly item: ItemRecord }): ReactNode {
       status={view.status}
       {...(view.failedLabel === undefined ? {} : { failedLabel: view.failedLabel })}
       output={view.output}
+      {...(view.hook === undefined ? {} : { hook: view.hook })}
     />
   );
 }

@@ -5,6 +5,7 @@ import {
   clearPick,
   closeBuilder,
   closeDetail,
+  type DetailTab,
   detailsLoaded,
   healthLoaded,
   hookNoticesLoaded,
@@ -20,6 +21,7 @@ import {
   pickSel,
   requestBuilder,
   select,
+  selectDetailTab,
   setKind,
   setListLayer,
   setListState,
@@ -49,8 +51,10 @@ export interface WorkbenchActions {
   pickSel(sel: Sel): void;
   clearPick(): void;
   select(name: string | null): void;
-  openDetail(id: string): void;
+  /** 자세히 보기를 연다. `tab`을 주면 그 탭으로 연다(기본 개요) */
+  openDetail(id: string, tab?: DetailTab): void;
   closeDetail(): void;
+  selectDetailTab(tab: DetailTab): void;
   setQuery(query: string): void;
   setListLayer(layer: string): void;
   setListState(state: ListStateFilter): void;
@@ -104,8 +108,9 @@ export function createWorkbenchStore(
     pickSel: (sel) => apply((s) => pickSel(s, sel)),
     clearPick: () => apply(clearPick),
     select: (name) => apply((s) => select(s, name)),
-    openDetail: (id) => apply((s) => openDetail(s, id)),
+    openDetail: (id, tab) => apply((s) => openDetail(s, id, tab)),
     closeDetail: () => apply(closeDetail),
+    selectDetailTab: (tab) => apply((s) => selectDetailTab(s, tab)),
     setQuery: (query) => apply((s) => setQuery(s, query)),
     setListLayer: (layer) => apply((s) => setListLayer(s, layer)),
     setListState: (state) => apply((s) => setListState(s, state)),

@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { t } from "@fresnel/client/i18n";
-import type { ItemRecord } from "@fresnel/contracts/conversation";
+import type { ItemRecord, JsonObject } from "@fresnel/contracts/conversation";
 import { parseHTML } from "linkedom";
 import { renderToString } from "react-dom/server";
 import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { ReadonlyStore } from "../../src/state/shared/readonly-store.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
+import { OpenExtensionRecordsContext } from "../../src/views/extension-records-link.ts";
 import { RecordedItem, StreamingRow } from "../../src/views/item-view.tsx";
 import { Providers } from "../../src/views/providers.tsx";
 import { PluginUiProvider } from "../../src/views/plugin/plugin-context.tsx";
@@ -540,5 +541,127 @@ describe("engine failure texts are shown in Korean (rtE R-10)", () => {
     expect(text).toContain(t("desktop.item.interrupted.body"));
     expect(text).toContain(t("desktop.item.status.interrupted"));
     expect(text).not.toContain("aborted");
+  });
+});
+
+/** 훅이 막은 호출의 결과 item. 모델에 가는 본문은 `[fresnel:denied_by_extension] …`이고 화면은 details를 읽는다 */
+function hookResultItem(n: number, text: string, details: JsonObject): ItemRecord {
+  return {
+    itemId: itm(n),
+    status: "failed",
+    kind: "toolResult",
+    effectId: null,
+    message: {
+      role: "toolResult",
+      toolCallId: `call-${n}`,
+      toolName: "read",
+      content: [{ type: "text", text }],
+      details,
+      isError: true,
+      timestamp: 0,
+    },
+  };
+}
+
+/** 기록 보기 문맥을 준 채 그린다. 누르면 이름을 받는 자리만 있으면 된다 */
+function renderWithRecords(node: ReactNode, h: Harness): string {
+  return render(
+    <OpenExtensionRecordsContext value={() => {}}>{node}</OpenExtensionRecordsContext>,
+    h,
+  );
+}
+
+describe("a hook that stopped a call says which hook and whether it blocked or threw", () => {
+  const blocked: JsonObject = {
+    code: "denied_by_extension",
+    hook: "tool.call.before",
+    extension: "guard",
+    outcome: "blocked",
+    reason: "no reads today",
+  };
+  const threw: JsonObject = {
+    code: "denied_by_extension",
+    hook: "tool.call.before",
+    extension: "bad-guard",
+    outcome: "threw",
+    reason: null,
+  };
+
+  test("a blocked call shows the hook's blocking reason and the blocked label, not the failed label", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      callItem(1, 2, "read"),
+      hookResultItem(2, "[fresnel:denied_by_extension] no reads today", blocked),
+    ]);
+    const text = visibleText(render(<RecordedItem id={itm(1)} />, h));
+    expect(text).toContain(
+      t("desktop.item.hookDenial.blocked", { extension: "guard", reason: "no reads today" }),
+    );
+    expect(text).toContain(t("desktop.item.status.hookBlocked"));
+    expect(text).not.toContain(t("desktop.item.status.failed"));
+    expect(text).not.toContain("fresnel:denied_by_extension");
+  });
+
+  test("a threw call shows the error sentence and the records link when a records handler is given", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      callItem(1, 2, "read"),
+      hookResultItem(2, "[fresnel:denied_by_extension] extension handler failed", threw),
+    ]);
+    const html = renderWithRecords(<RecordedItem id={itm(1)} />, h);
+    const text = visibleText(html);
+    expect(text).toContain(t("desktop.item.hookDenial.threw", { extension: "bad-guard" }));
+    expect(text).toContain(t("desktop.item.status.hookThrew"));
+    expect(text).not.toContain(t("desktop.item.status.failed"));
+    expect(text).toContain(t("desktop.item.hookDenial.records"));
+  });
+
+  test("a threw call has no records link without a records handler, and a blocked call never has one", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      callItem(1, 2, "read"),
+      hookResultItem(2, "[fresnel:denied_by_extension] extension handler failed", threw),
+    ]);
+    expect(visibleText(render(<RecordedItem id={itm(1)} />, h))).not.toContain(
+      t("desktop.item.hookDenial.records"),
+    );
+    const other = openedHarness();
+    ingestRecords(other, [
+      callItem(1, 2, "read"),
+      hookResultItem(2, "[fresnel:denied_by_extension] no reads today", blocked),
+    ]);
+    expect(visibleText(renderWithRecords(<RecordedItem id={itm(1)} />, other))).not.toContain(
+      t("desktop.item.hookDenial.records"),
+    );
+  });
+
+  test("a dispatcher failure with no extension name says a hook hit an error and offers no link", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      callItem(1, 2, "read"),
+      hookResultItem(2, "[fresnel:denied_by_extension] extension handler failed", {
+        code: "denied_by_extension",
+        hook: "tool.call.before",
+        extension: null,
+        outcome: "threw",
+        reason: null,
+      }),
+    ]);
+    const text = visibleText(renderWithRecords(<RecordedItem id={itm(1)} />, h));
+    expect(text).toContain(t("desktop.item.hookDenial.threwNoName"));
+    expect(text).not.toContain(t("desktop.item.hookDenial.records"));
+  });
+
+  test("the hook row is drawn with the warning colours, an ordinary failure is not", () => {
+    const h = openedHarness();
+    ingestRecords(h, [
+      callItem(1, 2, "read"),
+      hookResultItem(2, "[fresnel:denied_by_extension] no reads today", blocked),
+    ]);
+    expect(render(<RecordedItem id={itm(1)} />, h)).toContain("bg-warning-tint");
+
+    const plain = openedHarness();
+    ingestRecords(plain, [callItem(1, 2, "read"), toolResultItem(2, "read", "boom", true)]);
+    expect(render(<RecordedItem id={itm(1)} />, plain)).not.toContain("warning-tint");
   });
 });

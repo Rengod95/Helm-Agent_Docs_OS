@@ -23,6 +23,8 @@ function detailOf(name: string, plugin: PluginUiContextValue): string {
       <ExtDetail
         state={state}
         entry={row}
+        tab="overview"
+        onTab={() => undefined}
         onBack={() => undefined}
         onToggle={() => undefined}
         onKeepOn={() => undefined}

@@ -124,6 +124,10 @@ export function ExtensionsScreen(): ReactNode {
             key={detailEntry.name}
             state={state}
             entry={detailEntry}
+            tab={state.detailTab}
+            onTab={(tab) => {
+              actions.selectDetailTab(tab);
+            }}
             onBack={() => {
               actions.closeDetail();
             }}
