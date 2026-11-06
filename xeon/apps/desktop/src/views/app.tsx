@@ -30,6 +30,7 @@ import type { FileSaveInvoke } from "./file-save.ts";
 import { FileSaveContext } from "./file-save-context.ts";
 import { NoticeToasts } from "./notices.tsx";
 import { SafeModeProvider } from "./safe-mode-provider.tsx";
+import { ShellBridges } from "./shell-bridges.tsx";
 import { ThreadList } from "./thread-list.tsx";
 import { installFileDropGuard } from "./file-drop-guard.ts";
 
@@ -264,6 +265,13 @@ export function App(props: AppProps): ReactNode {
         </FileSaveContext>
       </SafeModeProvider>
       <NoticeToasts />
+      {/* 셸 다리는 대화 열기와 "새 대화"를 App의 함수로 받는다. 대화 이동 문맥은 Shell 안에만 있어 여기서 준다 */}
+      <ShellBridges
+        onNewThread={() => {
+          runCommand("thread.new");
+        }}
+        onGoToThread={openThread}
+      />
       <LockedDialog />
       <PluginUiHost />
       <CommandOutputSheet />

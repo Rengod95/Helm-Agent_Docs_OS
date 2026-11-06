@@ -888,6 +888,7 @@ M4 우선순위: P0은 셸 목업 다음 첫 묶음이고 M4 종료에 반드시
 - 규칙: 성공·정보는 4초 뒤 닫힘, `tone="danger"`는 닫지 않음(`role="alert"`). 같은 kind와 같은 대화는 1초 안에 하나로 합칩니다(`L2.dialog.spec` §4.7과 같은 규칙). 토스트 동작 버튼은 하나(예: "열기")입니다.
 - 받은 요청과의 관계: 알림 토스트는 받은 요청의 알림 구역에도 남습니다. 토스트를 닫아도 알림은 남습니다.
 - 위치 [결정: 2026-10-31 사용자]: 오른쪽 well이 열려 있으면 토스트 자리를 well 왼쪽 끝으로 옮깁니다. 토스트가 well 내용을 가리지 않게 합니다.
+- OS 알림 [결정: 2026-11-06 사용자, B-10 승인]: 앱이 앞에 있지 않을 때 턴 끝남(`completed`, `background_completed`), 승인 대기(`approval_waiting`, `question_waiting`), 예약 실패(예약에서 시작한 대화의 `error`)를 `notify_os`로 알립니다(`L4.desktop.spec` §4.18). 제목은 "무엇 · 대화 제목"이고 본문은 고정 한 줄입니다. 알림 본문과 명령 전문은 OS 알림 센터에 넘기지 않습니다. 같은 종류·같은 대화는 3초 안에 하나로 합칩니다. 종류별 켬/끔은 설정 "실행" 탭 맨 위(`l4.desktop.window.notify.turnDone`, `.approval`, `.scheduleFailed`, 기본 켬)이고, 전달에 실패하면 같은 자리에 경고가 보입니다. 알림을 누르면 앱이 앞으로 올라오고 마지막 알림의 대화(30초 안)가 열립니다. 창 닫기(`l4.desktop.window.closeBehavior`)는 기본이 트레이이고 트레이 메뉴는 열기, 새 대화, 진행 중 n, 끝내기입니다.
 - caustic: `Toaster`, `toast()`, `ToastViewport label="알림"`.
 
 ### 6.5 P-01 첫 실행

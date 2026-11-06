@@ -72,6 +72,10 @@ export const LOCAL: {
   readonly restartLimit: LocalKey<TInteger>;
   /** 명령 팔레트(S-02)의 명령별 실행 횟수. 키는 명령 id다. 값의 상한은 `palette-model.ts`의 `PALETTE_USE_MAX`와 같다 */
   readonly paletteUses: LocalKey<TRecord<string, TInteger>>;
+  /** OS 알림 종류별 켜짐(B-10). 값이 없으면 켠 것이다(`os-notify-prefs.ts`가 읽는다). 설정 화면의 "실행과 서비스" 묶음이 바꾼다 */
+  readonly notifyTurnDone: LocalKey<TBoolean>;
+  readonly notifyApproval: LocalKey<TBoolean>;
+  readonly notifyScheduleFailed: LocalKey<TBoolean>;
 } = {
   sidebarOpen: localKey("l4.desktop.window.sidebarOpen", Type.Boolean()),
   sidebarWidth: localKey(
@@ -102,6 +106,9 @@ export const LOCAL: {
     "l4.desktop.window.paletteUses",
     Type.Record(Type.String(), Type.Integer({ minimum: 0, maximum: 1_000_000 })),
   ),
+  notifyTurnDone: localKey("l4.desktop.window.notify.turnDone", Type.Boolean()),
+  notifyApproval: localKey("l4.desktop.window.notify.approval", Type.Boolean()),
+  notifyScheduleFailed: localKey("l4.desktop.window.notify.scheduleFailed", Type.Boolean()),
 };
 
 type LocalSettingsError =

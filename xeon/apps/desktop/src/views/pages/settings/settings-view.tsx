@@ -80,6 +80,8 @@ export interface SettingsPageProps {
   readonly usagePanel: ReactNode;
   /** 앱 업데이트 줄(B-10). 개요 탭 맨 위에 보인다. 웹이나 문맥이 없으면 `null`이다 */
   readonly updatePanel?: ReactNode | undefined;
+  /** OS 알림 묶음(B-10). "실행과 서비스" 탭 맨 위에 보인다. 웹이나 문맥이 없으면 `null`이다 */
+  readonly notifyPanel?: ReactNode | undefined;
   readonly handlers: SettingsPageHandlers;
 }
 
@@ -313,6 +315,7 @@ function FieldItems(props: SettingsPageProps & { readonly view: SettingsView }):
     <FormLayoutSection title={tabView.label}>
       {tab === "overview" ? props.updatePanel : null}
       {tab === "overview" ? <OverviewSummary view={view} /> : null}
+      {tab === "execution" ? props.notifyPanel : null}
       {tab === "tools" ? props.toolsPanel : null}
       {tab === "advanced" ? props.restorePanel : null}
       {tabView.gauge === null ? null : props.usagePanel}
