@@ -425,6 +425,21 @@ describe("approvalOriginView", () => {
     expect(approvalOriginView("host")).toEqual({ kind: "host" });
     expect(approvalOriginView("subagent:렌즈")).toEqual({ kind: "subagent", name: "렌즈" });
     expect(approvalOriginView("ext:helm")).toEqual({ kind: "group", name: "helm" });
+    expect(
+      approvalOriginView("subagent:explorer", { scopeId: "helm", label: "렌즈 실패 사례" }),
+    ).toEqual({
+      kind: "groupChild",
+      name: "explorer",
+      label: "렌즈 실패 사례",
+      scope: "helm",
+    });
+    expect(approvalOriginView("subagent:explorer", { scopeId: "helm", label: null })).toEqual({
+      kind: "groupChild",
+      name: "explorer",
+      label: null,
+      scope: "helm",
+    });
+    expect(approvalOriginView("main", { scopeId: "helm", label: "x" })).toBeNull();
   });
 });
 

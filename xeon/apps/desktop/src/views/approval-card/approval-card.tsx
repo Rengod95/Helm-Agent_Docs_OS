@@ -69,7 +69,13 @@ function originTextOf(origin: ApprovalOriginView): string {
         ? t("desktop.approvals.origin.host")
         : origin.kind === "subagent"
           ? t("desktop.approvals.origin.subagent", { name: origin.name })
-          : t("desktop.approvals.origin.group", { name: origin.name });
+          : origin.kind === "groupChild"
+            ? t("desktop.approvals.origin.groupChild", {
+                label:
+                  origin.label ?? t("desktop.approvals.origin.subagent", { name: origin.name }),
+                scope: origin.scope,
+              })
+            : t("desktop.approvals.origin.group", { name: origin.name });
   return `${t("desktop.approvals.origin.label")}: ${text}`;
 }
 
@@ -180,7 +186,7 @@ function PendingCard(props: {
           : titleView.id === "desktop.approvals.title.web"
             ? t(titleView.id, titleView.params)
             : t(titleView.id, { name: titleView.params.name, op: t(titleView.params.opId) });
-  const origin = approvalOriginView(request.origin.caller);
+  const origin = approvalOriginView(request.origin.caller, request.origin.source);
   const expiry = approvalExpiryOf(request);
   const actionSize: ActionSize = body.kind === "plan" || body.kind === "review" ? "sm" : "xs";
   const review = body.kind === "review" ? body.review : null;
