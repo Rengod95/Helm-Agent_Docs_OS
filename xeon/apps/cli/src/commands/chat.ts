@@ -33,6 +33,7 @@ import { createMinimalSink, runInteractive } from "../tui/minimal.ts";
 import { resolvePrintInput } from "./chat-input.ts";
 import { printUsageLine } from "./usage.ts";
 import { applyOverrides } from "./overrides.ts";
+import { PRINT_WAIT_NOTICE_MS, startWaitNotice } from "../render/wait-notice.ts";
 import { offerTurnResume } from "./resume-turn.ts";
 import { noteUndecidedTrust, offerTrust } from "./trust.ts";
 import {
@@ -91,12 +92,27 @@ async function runPrint(
   input: string,
   jsonMode: boolean,
   slash: Omit<EngineSlashContext, "engineCommands">,
+  progress: {
+    readonly hasOutput: () => boolean;
+    readonly onWriteFailure: (caught: unknown) => void;
+  },
 ): Promise<ExitCode> {
   // 엔진에 등록된 명령(`/helm status`, `/goal …`)은 대화형처럼 명령으로 실행한다. 모델을 부르지 않는다
   const ran = await runPrintSlash(input, slash);
   if (ran.kind === "ran") return ran.failed ? EXIT.error : EXIT.ok;
+  // 긴 대화를 이어 가면 첫 출력까지 오래 걸린다. 침묵이 길면 stderr에 한 줄 알린다(JSON 모드 제외)
+  const waiting = jsonMode
+    ? null
+    : startWaitNotice({
+        afterMs: PRINT_WAIT_NOTICE_MS,
+        hasOutput: progress.hasOutput,
+        write: (text) => ctx.io.stderr(text),
+        text: t("cli.chat.waitNotice"),
+        onWriteFailure: progress.onWriteFailure,
+      });
   const sent = await session.sendTurn(ran.kind === "send" ? ran.text : input);
   const end = await sent.done;
+  waiting?.stop();
   await session.idle();
   if (jsonMode && end.status !== "completed") {
     // JSON 모드는 사람용 출력이 없다. 실패 이유는 stderr에 한 줄 남긴다
@@ -201,6 +217,7 @@ async function chatWork(
     const jsonMode = tap.mode === "on";
 
     const colorOn = global.color && io.terminal.stdoutIsTty;
+    const printed = { any: false };
     let sink: RenderSink | null;
     if (jsonMode) {
       sink = null;
@@ -215,7 +232,10 @@ async function chatWork(
       });
     } else {
       sink = createTextSink({
-        stdout: io.stdout,
+        stdout: (text) => {
+          printed.any = true;
+          return io.stdout(text);
+        },
         stderr: io.stderr,
         layout: "print",
         color: colorOn,
@@ -360,13 +380,25 @@ async function chatWork(
             },
           },
         })
-      : await runPrint(ctx, opened.value, input, jsonMode, {
-          io,
-          connection: handle.connection,
-          supports: (feature) => handle.supports(feature),
-          threadId: () => opened.value.threadId,
-          signal: exitAbort.signal,
-        });
+      : await runPrint(
+          ctx,
+          opened.value,
+          input,
+          jsonMode,
+          {
+            io,
+            connection: handle.connection,
+            supports: (feature) => handle.supports(feature),
+            threadId: () => opened.value.threadId,
+            signal: exitAbort.signal,
+          },
+          {
+            hasOutput: () => printed.any,
+            onWriteFailure: () => {
+              wiring.exit.request(EXIT.ok);
+            },
+          },
+        );
     // print 모드(JSON 모드 제외)는 끝에 이 대화의 사용량을 stderr에 한 줄로 알린다. --quiet이면 내지 않는다
     if (!interactive && !jsonMode && !command.quiet) {
       await printUsageLine(ctx, handle, opened.value.threadId);
