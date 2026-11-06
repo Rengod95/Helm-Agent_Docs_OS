@@ -195,8 +195,10 @@ function renderThreadRow(props: {
   readonly onToggle: (entry: ExtListEntry, target: boolean) => void;
 }): ReactNode {
   const { entry, view } = props;
-  const on = props.writing ?? view.on;
-  const pending = threadPendingOf(entry) !== null;
+  const pendingTarget = threadPendingOf(entry);
+  // 다음 단계 경계를 기다리는 값이 있으면 스위치는 그 값(꺼짐 예정)을 보인다(rtC R-4)
+  const on = props.writing ?? pendingTarget ?? view.on;
+  const pending = pendingTarget !== null;
   const busy = props.writing !== undefined || pending;
   return (
     <li

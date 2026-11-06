@@ -32,7 +32,7 @@ import {
 } from "@fresnel/client/settings";
 import { assertNever } from "@fresnel/contracts";
 import type { SettingKey } from "@fresnel/contracts/settings";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import {
   dedicatedEditorOf,
   fallbackScopeOf,
@@ -42,6 +42,7 @@ import {
   type DedicatedEditorKind,
   type FieldControl,
   launchChoiceOf,
+  numberDraftActionOf,
   numberValueOf,
   optionOf,
   optionLabelOf,
@@ -440,6 +441,9 @@ function NumberControl(props: {
 }): ReactNode {
   const { field, widget, disabled, handlers } = props;
   const [draftError, setDraftError] = useState<NumberFieldDraft["error"]>(null);
+  // 저장으로 칸이 비는 알림과 Esc로 되돌리는 알림을 가른다
+  const committing = useRef(false);
+  const escaped = useRef(false);
   const errorText = props.errorText ?? numberDraftTextOf(draftError, widget);
   return (
     <Field disabled={disabled} error={errorText}>
@@ -458,9 +462,24 @@ function NumberControl(props: {
           invalid={errorText !== null}
           onDraftChange={(draft) => {
             setDraftError(draft.error);
+            // 칸 안에서 치는 글은 저장 전까지 칸이 쥔다. 컨트롤러에도 초안으로 알려야 그 사이 다른 곳이 바꾼 값을 "다른 곳에서 바뀜"으로 알아챈다(scA-4-2)
+            const action = numberDraftActionOf(draft, {
+              fieldDirty: field.dirty,
+              committing: committing.current,
+              escaped: escaped.current,
+            });
+            if (action?.kind === "edit") handlers.edit(field.key, action.value);
+            else if (action?.kind === "discard") handlers.discard(field.key);
+            else if (action?.kind === "commit") handlers.commit(field.key);
+            committing.current = false;
+            escaped.current = false;
+          }}
+          onKeyDown={(event) => {
+            escaped.current = event.key === "Escape";
           }}
           onValueChange={(next) => {
             setDraftError(null);
+            committing.current = true;
             handlers.change(field.key, next);
           }}
         />

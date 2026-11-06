@@ -267,8 +267,10 @@ export function SettingsPage(props: {
     commit: (key) => {
       detach(saveKey(key), rethrow);
     },
+    // "내 값 유지"는 덮어쓰기를 고른 것이다. 표시를 걷고 바로 저장한다(숫자 칸은 이미 끝난 편집이라 블러가 다시 오지 않는다)
     keepDraft: (key) => {
       controller?.keepDraft(key);
+      detach(saveKey(key), rethrow);
     },
     discard: (key) => {
       controller?.discard(key);
@@ -396,9 +398,6 @@ export function SettingsPage(props: {
       setQuery(text);
     },
     keyIntent,
-    restart: () => {
-      if (controller !== null) detach(controller.restartHost(), rethrow);
-    },
     retry: () => {
       if (controller !== null) detach(controller.load(), rethrow);
     },

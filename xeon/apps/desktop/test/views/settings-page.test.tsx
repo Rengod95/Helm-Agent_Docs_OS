@@ -7,9 +7,10 @@ import {
   type SettingsView,
 } from "@fresnel/client/settings";
 import { toSettingDefWire } from "@fresnel/contracts/settings";
-import { thr } from "../state/helpers.ts";
+import { harness, thr } from "../state/helpers.ts";
 import { renderToString } from "react-dom/server";
-import { CommandsContext } from "../../src/views/commands.ts";
+import { createUiStore } from "../../src/state/ui/index.ts";
+import { Providers } from "../../src/views/providers.tsx";
 import { fakeCommands } from "./fake-commands.ts";
 import { DESKTOP_SETTING_DEFS } from "../../src/settings-store/defs.ts";
 import {
@@ -29,7 +30,6 @@ const handlers: SettingsPageHandlers = {
   select: NOOP,
   query: NOOP,
   keyIntent: NOOP,
-  restart: NOOP,
   retry: NOOP,
   fields: {
     edit: NOOP,
@@ -100,10 +100,19 @@ function propsOf(over: Partial<SettingsPageProps> = {}): SettingsPageProps {
 }
 
 function html(props: SettingsPageProps): string {
+  const h = harness();
+  h.store.ingest({ type: "engine", state: { kind: "running", source: "sidecar", pid: 1 } });
+  h.store.flush();
+  const state = h.store.read.getState();
+  const engine = {
+    getState: () => state,
+    getInitialState: () => state,
+    subscribe: () => () => undefined,
+  };
   return renderToString(
-    <CommandsContext.Provider value={fakeCommands()}>
+    <Providers engine={engine} ui={createUiStore().read} commands={fakeCommands()}>
       <SettingsPageView {...props} />
-    </CommandsContext.Provider>,
+    </Providers>,
   );
 }
 
@@ -249,6 +258,10 @@ describe("page layout", () => {
     const out = html(propsOf({ view, tab: "execution" }));
     expect(out).toContain(t("client.settings.view.restartBanner", { count: 1 }));
     expect(out).toContain(t("desktop.settings.restart.button"));
+    // 엔진이 살아 있어도 단추가 눌린다(R1: 예전에는 거절되는 호출에 묶여 있었다)
+    const button = buttonOf(out, t("desktop.settings.restart.button"));
+    expect(button).not.toBe("");
+    expect(button).not.toContain('disabled=""');
   });
 });
 

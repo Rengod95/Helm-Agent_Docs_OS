@@ -8,6 +8,7 @@ import { useLinkPhase } from "../../state/engine/index.ts";
 import { useWorkbench, useWorkbenchActions } from "../../state/workbench/index.ts";
 import { AUTHORING_EXT, builderOf, forwardStateOf } from "../compose/compose-code.tsx";
 import { useCommands } from "../commands.ts";
+import { useShowChat } from "../plugin/plugin-view.tsx";
 import { tabLinkOf } from "./tab-read.ts";
 import { lockText } from "./ext-row.tsx";
 import type { WorkbenchController } from "./controller.ts";
@@ -35,12 +36,15 @@ export function BuilderEntry(props: { readonly controller: WorkbenchController }
   const { controller } = props;
   const commands = useCommands();
   const actions = useWorkbenchActions();
+  const showChat = useShowChat();
   const request = useWorkbench((s) => s.builder);
   const entries = useWorkbench((s) => s.entries);
   const link = tabLinkOf(useLinkPhase());
   const entry = entries.find((item) => item.name === AUTHORING_EXT);
-  const state = forwardStateOf(link, builderOf(entry));
   const enabling = entry?.status === "enabling";
+  const base = forwardStateOf(link, builderOf(entry));
+  // 켜기가 다음 단계 경계를 기다리는 중이면 새 대화가 그 경계를 만든다. 켜기에서 멈추지 않고 대화 열기로 간다(rtC R-3)
+  const state: Forward = enabling && base.kind === "enable" ? { kind: "make" } : base;
 
   const open = (): void => {
     detach(
@@ -50,7 +54,8 @@ export function BuilderEntry(props: { readonly controller: WorkbenchController }
           return undefined;
         }
         actions.closeBuilder();
-        commands.showScreen("chat");
+        // 크래프트에서 열었으면 영역도 대화로 옮겨야 제작 대화가 보인다(rtC R-3)
+        showChat();
         toast({ tone: "success", title: t("desktop.craft.builder.opened") });
         return undefined;
       }),

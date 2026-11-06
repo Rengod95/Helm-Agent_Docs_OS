@@ -89,6 +89,15 @@ describe("이 대화에서 끄기 스위치의 그림", () => {
     expect(threadSwitchOf(OFF, true)).toEqual({ kind: "locked", lock: "global_off", on: false });
   });
 
+  test("이 대화에서 끈 값이 전체 상태를 꺼짐으로 보여도 전역이 꺼진 것이 아니라서 열려 있다", () => {
+    expect(
+      threadSwitchOf(
+        { ...HELM, status: "disabled", registration: "disabled", enabledSource: "thread" },
+        true,
+      ),
+    ).toEqual({ kind: "open", on: false });
+  });
+
   test("면제 tier(core, guard)는 스위치가 아예 없다", () => {
     expect(threadSwitchOf(CORE, true)).toEqual({ kind: "hidden" });
     expect(threadSwitchOf(GUARD, false)).toEqual({ kind: "hidden" });
