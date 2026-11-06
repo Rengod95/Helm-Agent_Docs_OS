@@ -798,7 +798,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 ### 11.4 이 단계의 범위
 
-이 단계는 엔진 릴레이, 엔진 수명, 복원, 설정, 키 등록, 앱 루트와 `fresnel-view://`, 외부 열기, 폴더·파일 선택, 파일 저장, 창 위치, 앱 로그, PATH 보정, inspect 소켓을 옮긴다. 트레이, OS 알림, 업데이트, 재인증, 단일 인스턴스와 셸 의도는 다음 단계, 서명·공증·릴리스 묶음과 고지는 그 다음 단계, Tauri·Rust 삭제는 마지막이다.
+이 단계는 엔진 릴레이, 엔진 수명, 복원, 설정, 키 등록, 앱 루트와 `fresnel-view://`, 외부 열기, 폴더·파일 선택, 파일 저장, 창 위치, 앱 로그, PATH 보정, inspect 소켓을 옮긴다. 트레이, OS 알림, 업데이트, 재인증, 단일 인스턴스와 셸 의도는 2단계(§11.6)에서 옮겼고, 묶은 앱, 서명·공증 자리, 릴리스 절차, 고지, 업데이트 피드 자리는 3단계(§11.7~§11.10)다. Tauri·Rust 삭제는 마지막이다.
 
 ### 11.5 명령별 Electron 대응
 
@@ -832,3 +832,29 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 모듈이 앱 로그를 남길 때는 모두 `lib/applog.ts`의 `appLogOf(ctx)` 하나를 쓴다.
 
 **재인증** (`os-reauth.ts, `os-reauth-shell.ts`): `systemPreferences.promptTouchID()`. [미결] 동작 차이: Tauri는 `DeviceOwnerAuthentication`이라 Touch ID가 없는 Mac에서 기기 암호 창으로 갔지만 Electron API는 Touch ID만 지원한다. Touch ID가 없는 기기는 `unavailable`이다. 기기 암호까지 쓰려면 네이티브 애드온이 필요해 사용자가 정할 일이다. 오류 문구 분류는 Mac 실기 확인 전이다(`review.macos-checklist` M-05). macOS가 아닌 OS는 `unavailable`이다.
+
+### 11.7 묶은 앱 (3단계)
+
+`just desktop-build-electron`(`apps/desktop-shell/scripts/package.ts`, `scripts/package-lib.ts`)이 `@electron/packager`로 `Fresnel.app`(macOS arm64)을 `apps/desktop-shell/dist-app/Fresnel-darwin-arm64/`에 만든다. 화면 번들(`just desktop-ui`)과 사이드카(`just desktop-sidecar host`)가 없으면 종료코드 2다. Windows와 Linux 묶기는 이 단계에서 하지 않는다(적어만 둔다: packager는 `platform`과 `arch`만 바꾸면 되지만 사이드카 triple, 트레이 아이콘, 서명 도구가 따로 필요하다).
+
+- 앱 버전은 `FRESNEL_RELEASE_VERSION`(없으면 셸 `package.json`의 `0.0.0`), 번들 식별자는 `dev.fresnel.desktop`(Tauri와 같다. Tauri 셸은 마지막 단계에서 지우므로 둘이 한 기기에 동시에 설치되는 일은 정해 두지 않는다).
+- Resources: `app.asar`(셸 번들 `dist/bundle/main.mjs`, `preload.cjs`와 `package.json`뿐이다. `src`, `test`, `scripts`, `resources`, `build`, `node_modules`는 뺀다), `ui/`(화면 번들), `fresnel-aarch64-apple-darwin`(엔진 사이드카), `assets/tray.png`, `licenses/`(§11.9), 그리고 `build/update-feed.json`이 있으면 `update-feed.json`(§11.10).
+- 크기 줄이기: asar는 켰다. Chromium 로캘 폴더(`*.lproj`)는 `en`과 `ko`만 남기고 지운다(UI 카탈로그가 ko·en이고 나머지 로캘은 en으로 돌아간다. 앱 Resources와 Electron Framework Resources에서 271개). 줄어드는 양은 작다: 측정값은 357 MiB에서 353.9 MiB다. 크기의 대부분은 Electron 프레임워크(약 250 MiB)와 엔진 사이드카(약 98 MiB)다. 앱 전체 크기 상한 500 MiB(`desktop-benchmark.ts`의 `SIZE_CAP_BYTES`)는 지킨다. 압축한 zip은 161 MiB다.
+- 개발용 환경 변수는 묶은 앱에서 켜지지 않는다(§11.5의 inspect 줄과 `lib/packaged-env.ts`). 시험은 `packaged-env.test.ts`(변수 목록, 묶은 앱의 환경에서 inspect 모듈이 아무것도 등록하지 않음)와 실행 스모크의 "inspect 소켓이 꺼져 있음" 검사다.
+- 실행 스모크 `just desktop-smoke-electron`(`scripts/electron-smoke.ts`)은 깨끗한 홈(`CFFIXED_USER_HOME`이 Electron의 appData와 로그 폴더를 옮긴다)에서 묶은 앱을 띄워 다음을 확인한다: Resources 구성, 저장해 둔 창 위치에서 창이 뜸, 첫 화면(창 캡처가 비어 있지 않음), 엔진 시작(앱 로그)과 사이드카가 앱의 자식 프로세스임, 트레이 생성(앱 로그 `tray: created`. 메뉴 막대는 손쉬운 사용 권한 없이 읽을 수 없어 로그로 본다), `FRESNEL_DESKTOP_INSPECT=1`을 일부러 줘도 소켓이 없음, 두 번째 실행이 끝나고 창이 하나로 남음, SIGTERM이 앱과 엔진을 끝냄, 종료 뒤 다시 켜면 닫은 자리에서 창이 뜸. macOS에 화면이 있는 로그인 환경이 필요하고 없으면 종료코드 2다. 로컬(arm64 Mac, 임시 서명 앱)에서 20개 검사가 모두 통과했다. 트레이가 메뉴 막대에 실제로 보이는 모습과 두 번째 실행이 창을 앞으로 가져오는 모습은 사람 눈 확인이 남아 있다(`review.macos-checklist`).
+
+### 11.8 서명과 공증 자리 (3단계)
+
+`just desktop-sign-electron`(`scripts/electron-sign.sh`)이 Electron 앱의 서명 단계와 공증 단계다. 절차와 종료코드는 `L4.release.spec` §4.2에 있다. 코드 단위가 여럿이라(주 실행 파일, 헬퍼 앱 4개(Helper, GPU, Renderer, Plugin), Electron Framework와 그 dylib·crashpad 핸들러, Mantle, ReactiveObjC, Squirrel, 엔진 사이드카) 안쪽부터 하나씩 하드닝 런타임과 `apps/desktop-shell/build/entitlements.mac.plist`로 서명한다. entitlements는 `com.apple.security.cs.allow-jit`과 `allow-unsigned-executable-memory` 둘이다(V8과, 엔진 사이드카에 든 JavaScriptCore가 실행 중에 코드를 만든다). 라이브러리 검증 예외, 네트워크·파일 entitlements, 샌드박스는 쓰지 않는다. Apple 서명 시크릿 여섯 개가 없으면 Tauri `release-smoke`처럼 서명 없이 지나가며 `UNSIGNED`를 출력한다. 시크릿 값은 만들지도 출력하지도 않는다(사용자 몫). 실제 서명과 공증은 시크릿 등록 뒤에 Mac에서 해 봐야 하며 이 변경으로 실행하지 않았다.
+
+### 11.9 오픈소스 고지 (3단계)
+
+묶은 앱의 `Resources/licenses/`에 다음이 들어간다: `LICENSE.electron`(Electron `LICENSE`), `LICENSES.chromium.html`(Chromium과 그 의존의 라이선스, Electron 배포물에 든 것), `THIRD-PARTY-NOTICES-SHELL.txt`(셸 번들에 든 npm 의존, electron-updater 포함), `THIRD-PARTY-NOTICES.txt`(엔진 사이드카: Bun 런타임과 `apps/host`·`apps/cli`의 npm 의존, 아카이브의 고지와 같은 생성기). 앱 안에 오픈소스 고지 화면은 아직 없고(화면 디자인은 이 단계 밖), 이 파일 목록이 고지다. 화면을 만들 때는 이 폴더를 읽는다. [근거: `xeon/apps/desktop-shell/scripts/package.ts`]
+
+셸 npm 고지는 Rust 고지와 같은 방식이다: `just desktop-notices-electron`(`scripts/shell-notices.ts`)이 `apps/desktop-shell/resources/THIRD-PARTY-NOTICES-SHELL.txt`를 다시 쓰고, `--check`는 커밋된 파일이 의존과 맞는지만 본다(`shell-notices.test.ts`가 같은 비교를 시험으로 돈다). 수집은 `notices.ts`의 `collectNotices`를 셸 패키지에서 시작해 쓴다(`dependencies`만, 워크스페이스 패키지는 훑되 싣지 않음). 번들러가 실제로 넣은 모듈이 아니라 package.json 의존 닫힘이라 번들에 안 든 패키지가 더 실릴 수 있다(99개, 과잉 쪽이라 고지 누락은 없다). `lazy-val`은 npm 패키지에 라이선스 파일이 없어 `notices.ts`의 `NO_LICENSE_FILE`에 더했다(package.json이 MIT를 선언한다. 저장소 쪽 파일은 확인하지 않았다). 개발 의존인 `electron`과 `@electron/packager`는 앱에 들어가지 않고 Electron의 라이선스는 위 두 파일이 맡는다. [근거: `xeon/scripts/shell-notices.ts`]
+
+### 11.10 업데이트 피드 자리와 서명 검증 (3단계)
+
+- 자리: `Resources/update-feed.json`, 내용은 `{"provider":"generic","url":"<배포 주소>"}`(§11.6 업데이트). 묶기는 `apps/desktop-shell/build/update-feed.json`이 있으면 그 파일을 Resources에 넣고 없으면 넣지 않는다(앱은 `notConfigured`로 돈다). 배포 주소의 값과 파일 커밋은 사용자 몫이다.
+- 서버가 주는 것: electron-updater 일반 제공자는 `<배포 주소>/latest-mac.yml`(버전, 파일 이름, sha512, 크기)과 그 파일이 가리키는 zip을 읽는다. 이 저장소는 아직 `latest-mac.yml`을 만들지 않는다(`release-archive-electron`은 zip과 `.sha256`만 낸다). 만드는 일과 올리는 일은 [미결]이고 사용자 몫이다. zip 이름에 `arm64`가 들어 있어(`Fresnel-<버전>-arm64.zip`) arm64 Mac이 이 파일을 고른다. [근거: `xeon/apps/desktop-shell/src/main/updater-shell.ts`]
+- 검증(electron-updater 문서 기준이며 이 저장소에서 실제 피드로 실행해 보지 않았다): 내려받은 zip의 sha512를 `latest-mac.yml` 값과 맞춰 보고(무결성. 어긋나면 오류 문구에 sha512가 들어가 `failed(signature)`로 분류된다, `updater.ts`), macOS에서 설치는 Squirrel.Mac이 한다. Squirrel.Mac은 새 앱의 코드 서명이 지금 실행 중인 앱의 서명과 같은 서명자인지 확인하므로(진위) 앱이 Developer ID로 서명돼 있어야 하고, 서명 없는 앱은 macOS에서 자동 업데이트가 설치까지 가지 못한다. electron-updater의 `publisherName` 검증은 Windows용이라 쓰지 않는다. 즉 Tauri의 minisign 공개키 같은 별도 업데이트 키는 없고, 신뢰는 Apple 서명과 배포 주소(HTTPS)에 있다. 서버 주소가 뚫리면 sha512만으로는 막지 못하지만 서명자가 다른 zip은 Squirrel.Mac이 거부한다.

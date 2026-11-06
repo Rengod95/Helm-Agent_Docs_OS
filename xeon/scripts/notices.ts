@@ -48,6 +48,7 @@ export const NO_LICENSE_FILE: ReadonlySet<string> = new Set([
   "@earendil-works/pi-telemetry",
   "@swc/counter",
   "data-uri-to-buffer",
+  "lazy-val",
   "proxy-agent-negotiate",
   "standardwebhooks",
   "tr46",

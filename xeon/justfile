@@ -146,6 +146,43 @@ desktop-run-electron:
     {{bun}} run --cwd apps/desktop-shell build
     cd apps/desktop-shell && FRESNEL_DESKTOP_INSPECT=1 exec node_modules/.bin/electron .
 
+# 묶은 Electron 앱 Fresnel.app(macOS arm64) 만들기(전환 3단계): 셸 번들 뒤 @electron/packager로 묶는다. 화면 번들(`just desktop-ui`)과 사이드카(`just desktop-sidecar host`)가 없으면 종료코드 2. Resources에 화면, 엔진, 트레이 아이콘, licenses/(Electron, Chromium, npm 고지)가 들어가고 크기는 마지막 줄에 나온다. 개발용 환경 변수는 묶은 앱에서 꺼져 있다. 출력 apps/desktop-shell/dist-app/. just verify 밖
+[group('local')]
+desktop-build-electron:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -f apps/desktop/src-tauri/ui/index.html ] || { echo "화면 번들이 없다: just desktop-ui" >&2; exit 2; }
+    ls apps/desktop/src-tauri/binaries/fresnel-aarch64-apple-darwin >/dev/null 2>&1 || { echo "사이드카가 없다: just desktop-sidecar host" >&2; exit 2; }
+    {{bun}} run --cwd apps/desktop-shell build
+    # 엔진 사이드카(Bun, host, cli) 고지: package.ts가 Resources/licenses/에 넣는다(process 실행은 L0 소유라 여기서 만든다)
+    {{bun}} scripts/notices.ts --out apps/desktop-shell/dist/engine-notices.txt
+    {{bun}} run --cwd apps/desktop-shell package
+
+# Fresnel.app 서명과 공증(헬퍼 앱, 프레임워크, 사이드카를 안쪽부터 하드닝 런타임과 entitlements로 서명). Apple 시크릿 여섯 개가 없으면 서명 없이 UNSIGNED를 출력하고 종료코드 0(릴리스 태그면 1). 인자 --adhoc는 로컬 구조 점검용 임시 서명(릴리스 아님). 시크릿 값은 만들지도 출력하지도 않는다 (scripts/electron-sign.sh)
+[group('local')]
+desktop-sign-electron *flags:
+    bash scripts/electron-sign.sh {{flags}} apps/desktop-shell/dist-app/Fresnel-darwin-arm64/Fresnel.app
+
+# 묶은 앱 실행 스모크: 깨끗한 홈에서 Fresnel.app을 띄워 구조, 창 위치 복원, 첫 화면, 엔진 연결, 트레이, inspect 꺼짐, 두 번째 실행, 종료를 확인한다. macOS 화면 있는 로그인 환경 필요(없으면 종료코드 2) (scripts/electron-smoke.ts)
+[group('local')]
+desktop-smoke-electron:
+    bash ../scripts/guard.sh run -- {{bun}} scripts/electron-smoke.ts apps/desktop-shell/dist-app/Fresnel-darwin-arm64/Fresnel.app
+
+# Electron 셸 npm 고지(apps/desktop-shell/resources/THIRD-PARTY-NOTICES-SHELL.txt, `desktop-notices`의 Rust 고지와 같은 방식): 인자 없으면 다시 쓰고, --check면 커밋된 파일이 의존과 맞는지만 본다(다르면 종료코드 1). 앱에는 Resources/licenses/로 들어간다 (scripts/shell-notices.ts)
+[group('local')]
+desktop-notices-electron *flags:
+    {{bun}} scripts/shell-notices.ts {{flags}}
+
+# Electron 릴리즈 묶음: 화면, 사이드카, 셸, Fresnel.app, 서명(시크릿 없으면 UNSIGNED), Fresnel-<version>-arm64.zip과 .sha256을 FRESNEL_RELEASE_OUT(기본 dist/release-electron)에 만든다. Tauri `release-archive`는 그대로. macOS arm64만 (scripts/release-electron.sh)
+[group('local')]
+release-archive-electron:
+    scripts/release-electron.sh
+
+# Electron 릴리즈 스모크: release-archive-electron에 묶은 앱 실행 스모크(`desktop-smoke-electron`)를 더한다. CI macOS job이 돈다
+[group('local')]
+release-smoke-electron:
+    scripts/release-electron.sh --smoke
+
 # Electron 셸 단위 시험(bun test, electron 없이 가짜 ctx로 돈다)
 [group('local')]
 desktop-shell-test:

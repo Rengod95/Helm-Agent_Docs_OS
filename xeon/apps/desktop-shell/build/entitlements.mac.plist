@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Hardened runtime exceptions, applied to every executable in Fresnel.app (main, Electron helpers, engine sidecar).
+       V8 (Chromium) and JavaScriptCore (the Bun-compiled engine) generate code at run time and need these two. Nothing else:
+       no library validation exception, no network or file entitlements (the app is not sandboxed). L4.desktop.spec §11.7 -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+</dict>
+</plist>

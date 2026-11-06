@@ -176,6 +176,36 @@ desktop-test:
 desktop-notices *flags:
     cd xeon && just desktop-notices {{flags}}
 
+# 묶은 Electron 앱 Fresnel.app(macOS arm64) 만들기. 화면 번들과 사이드카가 없으면 종료코드 2. 출력 xeon/apps/desktop-shell/dist-app/. just verify 밖
+[group('local')]
+desktop-build-electron:
+    cd xeon && just desktop-build-electron
+
+# Fresnel.app 서명과 공증. Apple 시크릿 여섯 개가 없으면 서명 없이 UNSIGNED를 출력하고 종료코드 0(릴리스 태그면 1). 인자 --adhoc는 로컬 구조 점검용 (xeon/scripts/electron-sign.sh)
+[group('local')]
+desktop-sign-electron *flags:
+    cd xeon && just desktop-sign-electron {{flags}}
+
+# 묶은 앱 실행 스모크: 구조, 창 위치 복원, 첫 화면, 엔진, 트레이, inspect 꺼짐, 두 번째 실행, 종료. macOS 화면 있는 로그인 환경 필요(없으면 종료코드 2) (xeon/scripts/electron-smoke.ts)
+[group('local')]
+desktop-smoke-electron:
+    cd xeon && just desktop-smoke-electron
+
+# Electron 셸 npm 고지(xeon/apps/desktop-shell/resources/THIRD-PARTY-NOTICES-SHELL.txt): 인자 없으면 다시 쓰고, --check면 커밋된 파일이 의존과 맞는지만 본다(다르면 종료코드 1) (xeon/scripts/shell-notices.ts)
+[group('local')]
+desktop-notices-electron *flags:
+    cd xeon && just desktop-notices-electron {{flags}}
+
+# Electron 릴리즈 묶음: Fresnel.app 서명(시크릿 없으면 UNSIGNED)과 Fresnel-<version>-arm64.zip, .sha256. Tauri release-archive는 그대로. macOS arm64만 (xeon/scripts/release-electron.sh)
+[group('local')]
+release-archive-electron:
+    cd xeon && just release-archive-electron
+
+# Electron 릴리즈 스모크: release-archive-electron에 묶은 앱 실행 스모크를 더한다. CI macOS job이 돈다
+[group('local')]
+release-smoke-electron:
+    cd xeon && just release-smoke-electron
+
 # 실제 provider로 모델 테이프 녹화 <scenario>: 비용이 들어 사람 확인 뒤 --yes, 없으면 종료코드 3 (xeon/scripts/tape-record.ts)
 [group('local')]
 tape-record scenario *flags:
@@ -186,7 +216,7 @@ tape-record scenario *flags:
 benchmark *flags:
     cd xeon && just benchmark {{flags}}
 
-# 데스크톱 속도·크기(Y17): size, startup, frame, trace, all. 실제 모델 호출 없음. startup은 macOS GUI 세션 필요 (xeon/scripts/desktop-benchmark.ts)
+# 데스크톱 속도·크기(Y17): size, startup, frame, trace, all. 실제 모델 호출 없음. startup은 macOS 화면 있는 로그인 환경 필요 (xeon/scripts/desktop-benchmark.ts)
 [group('local')]
 desktop-benchmark *flags:
     cd xeon && just desktop-benchmark {{flags}}

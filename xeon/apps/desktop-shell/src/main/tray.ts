@@ -7,6 +7,9 @@ import type { ShellContext, ShellModule } from "./context.ts";
 import { INTENT_EVENT, sharedIntents } from "./intents.ts";
 
 /** 메뉴 항목이 가리키는 동작. 진행 중 줄은 비활성이라 동작이 없다 */
+/** 트레이를 만든 뒤 앱 로그에 남는 줄 */
+export const TRAY_CREATED_LOG = "tray: created";
+
 export type TrayAction = "open" | "newThread" | "quit";
 
 /**
@@ -143,7 +146,8 @@ export function createTrayModule(ports: TrayPorts): ShellModule {
         { ...DEFAULT_TRAY_LABELS, running: runningText(DEFAULT_TRAY_LABELS.running, 0) },
         onAction,
       );
-      if (!made.ok) ports.log(`tray: not created (reason: ${made.error.reason})`);
+      // 만든 줄도 남긴다: 묶기 스모크(`electron-smoke.ts`)가 메뉴 막대를 읽을 수 없어 이 줄로 트레이가 만들어졌는지 본다
+      ports.log(made.ok ? TRAY_CREATED_LOG : `tray: not created (reason: ${made.error.reason})`);
       setTrayActive(made.ok);
       const handle = made.ok ? made.value : null;
       if (handle !== null) {

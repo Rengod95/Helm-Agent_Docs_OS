@@ -105,6 +105,15 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 | x86_64-apple-darwin | 빌드하지 않습니다(D-M3-25 행 2) | 해당 없음 | `release.ts`가 막지 않습니다([미결] §8) |
 | x86_64-pc-windows-msvc | 범위 밖 | 해당 없음 | 없음 |
 
+### 3.5 Electron 앱 묶음 (Tauri 경로 옆, 3단계)
+
+[결정: 2026-11-06 사용자] 데스크톱 셸은 Electron으로 바꾼다(`L4.desktop.spec` §11). 이 단계에서 Tauri 경로(`release-archive`, `release-smoke`, `desktop-build`, `desktop-notices`)는 그대로 두고, Electron 경로를 옆에 더한다. Tauri 경로는 마지막 단계에서 지운다.
+
+- `just release-archive-electron`(`xeon/scripts/release-electron.sh`): 화면 번들, 사이드카, 셸 번들, `Fresnel.app`(`just desktop-build-electron`), 서명 단계(§4.2), `Fresnel-<버전>-arm64.zip`과 `.sha256`을 `FRESNEL_RELEASE_OUT`(기본 `xeon/dist/release-electron`)에 만든다. 버전은 `FRESNEL_RELEASE_VERSION`(`v` 접두사는 뗀다, 기본 `0.0.0-smoke`). macOS arm64만이고 다른 곳에서는 종료코드 2다. Windows와 Linux 묶음은 만들지 않는다.
+- `just release-smoke-electron`: 위에 묶은 앱 실행 스모크(`just desktop-smoke-electron`, `L4.desktop.spec` §11.7)를 더한다. 로컬 측정: 캐시가 따뜻한 arm64 Mac에서 전체 40초(화면 번들, 사이드카, 셸 번들 합쳐 4초, 묶기 3초, 임시 서명 3초, 실행 스모크 17초, zip 13초).
+- CI: `fresnel-release.yml`의 macOS job과 `fresnel-macos.yml`이 이 레시피를 돈다(릴리스 job은 Apple 시크릿을 환경 변수로 넘기고 zip을 산출물로 올린다). 걸리는 시간은 CI에서 재 보지 않았다. 로컬 40초에 러너의 Electron 내려받기(`bun install`의 postinstall, 약 100 MiB)와 차가운 캐시가 더해지므로 추정은 2~4분이고 이것은 측정이 아니라 추정이다. 러너에 화면 녹화 권한이 없으면 스모크의 "첫 화면" 검사가 실패할 수 있어 첫 실행에서 확인이 필요하다. `fresnel-ci.yml`에는 데스크톱 전용 단계가 없어(층별 lint, typecheck, test만) 바꾸지 않았다.
+- 고지: 앱의 `Resources/licenses/`(`L4.desktop.spec` §11.9). 아카이브의 `THIRD-PARTY-NOTICES.txt`(§6)와 별개다.
+
 ## 4. 서명과 공증
 
 - 서명은 macOS 아카이브에만 합니다(triple에 `-apple-`이 든 경우). `release.ts`는 스테이징 폴더를 `xeon/scripts/release-sign.sh`에 넘긴 뒤에 해시를 계산합니다. 서명이 파일을 바꾸므로 해시는 서명 뒤에 계산합니다.
@@ -114,12 +123,17 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - 시크릿의 등록은 사용자가 합니다. 저장소는 시크릿을 등록하지 않고, `fresnel-release.yml`이 시크릿을 환경 변수로 넘길 뿐입니다.
 - 서명과 공증의 실제 실행은 Mac 실기와 시크릿 등록 뒤의 일입니다([미결] §8). 이 저장소의 시험은 시크릿이 없는 미서명 경로(0, 태그에서 1)만 확인합니다(§7).
 
+### 4.2 Electron 앱의 서명과 공증
+
+`xeon/scripts/electron-sign.sh <Fresnel.app>`(`just desktop-sign-electron`)가 `release-sign.sh`(§4)와 같은 여섯 시크릿으로 정한다. 하나라도 비면 서명하지 않고 `electron-sign: UNSIGNED, secrets not set: <이름>`을 출력하며(CI 경고 주석과 작업 요약 포함, 값은 출력하지 않음) 종료코드 0이고, 릴리스 태그(`refs/tags/v*`)에서는 1이다. 시크릿이 모두 있으면 임시 키체인에 인증서를 가져와 코드 단위를 안쪽(경로가 깊은 것)부터 `codesign --force --options runtime --timestamp --entitlements apps/desktop-shell/build/entitlements.mac.plist`로 서명한다. 대상은 Mach-O 파일(dylib, 헬퍼 실행 파일, crashpad 핸들러, 엔진 사이드카), `.framework`, `.app`(헬퍼 앱 4개, 마지막에 주 앱)이다. `codesign --verify --deep --strict` 뒤 앱을 zip으로 묶어 `xcrun notarytool submit --wait`로 공증하고 `xcrun stapler staple`로 앱에 티켓을 붙인다(앱 번들은 바이너리와 달리 스테이플할 수 있다). 인자 `--adhoc`는 로컬에서 서명 구조(코드 단위 수, 하드닝 플래그, entitlements)와 그 상태로의 실행을 확인하는 임시 서명이다. 임시 서명 앱은 팀 ID가 없어 라이브러리 검증이 자기 프레임워크를 거부하므로 이 모드만 임시 entitlements 사본에 `disable-library-validation`을 더한다. `--adhoc`는 릴리스가 아니며 태그에서는 거부된다. 실제 서명과 공증은 시크릿 등록 뒤 Mac에서 확인해야 한다([미결] §8). [근거: `xeon/scripts/electron-sign.sh`]
+
 ## 5. 업데이트
 
 - [결정: 오케스트레이터 기본값] M3b에는 자동 업데이트가 없습니다. 사용자는 새 아카이브를 받고, `.sha256`과 `SHA256SUMS`로 내용을 확인한 뒤 설치 폴더를 새 것으로 바꿉니다.
 - 설정과 상태는 설치 폴더 밖의 `OsDirs`에 있으므로 폴더를 바꿔도 잃지 않습니다(§3.2).
 - 기본 플러그인은 처음 실행할 때 사용자 확장 폴더에 복사본을 둡니다. 새 아카이브의 번들 버전이 복사본과 다르면 복사본을 바꿉니다. 사용자가 지운 복사본은 다시 설치하지 않습니다([결정: A5 T-H], `X.loading-trust.spec`).
 - [결정: 2026-11-06 사용자, B-10 승인] 데스크톱 앱은 `tauri-plugin-updater`로 확인, 내려받기, 설치 뒤 다시 시작을 합니다(`L4.desktop.spec` §4.18). 업데이트 서명 공개키와 배포 주소(endpoint)는 사용자가 정해 `tauri.conf.json`의 `plugins.updater`에 넣습니다. 비어 있으면 업데이트는 "설정되지 않음"으로 꺼지고 앱은 그대로 돕니다. 서명 개인키와 배포 서버, `createUpdaterArtifacts` 켜기, Apple 서명 시크릿은 아직 없습니다([미결] §8의 서명 항목) [근거: 2026-11-06 B-10 승인 기록]. 아카이브를 받는 방식(위)은 그대로 쓸 수 있습니다.
+- [결정: 2026-11-06 사용자] 업데이트는 Electron 셸의 `electron-updater`로 한다(`L4.desktop.spec` §11.6). 피드 파일 `Resources/update-feed.json`의 자리와 서명 검증(sha512 무결성, macOS는 Squirrel.Mac의 코드 서명 서명자 비교)은 `L4.desktop.spec` §11.10에 있다. 배포 주소, `latest-mac.yml` 생성과 업로드, Apple 서명은 사용자 몫이다. Tauri의 `tauri-plugin-updater` 줄은 Tauri 셸을 지울 때 정리한다.
 - 의존 버전은 현재 버전에 고정하고 점진적으로 올립니다([결정: review.m3-design-inputs D-M3-29 행 1]). 빌드는 `bun install --frozen-lockfile`로 잠금 파일을 따릅니다(`xeon/justfile`의 `setup`).
 
 ## 6. 공급망과 고지
@@ -129,6 +143,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 - [결정: 2026-11-04 사용자] `THIRD-PARTY-NOTICES.txt`는 라이선스별로 한 절씩 묶습니다(B19). 번들 바이너리 sops, age, rg, npm 의존, Bun 런타임이 같은 절에 들어갑니다. 각 절은 라이선스의 SPDX 텍스트 링크를 적고, 표준 라이선스 전문을 한 번만 싣고, 패키지마다 이름, 버전, 저작권 줄, 출처 또는 라이선스 링크를 적습니다. 아카이브에 라이선스 파일이 없는 번들 바이너리는 출처 링크와 SPDX 링크만 적습니다.
 - [결정: 2026-11-04 사용자] npm 의존의 고지는 `xeon/scripts/notices.ts`가 만듭니다. `apps/host`와 `apps/cli`의 `dependencies`를 `node_modules` 심볼릭 링크를 따라 훑고(devDependencies 제외), 제3자 패키지마다 이름, 버전, 라이선스, 링크를 적습니다. 링크는 package.json의 저장소나 홈페이지이고, `vendor/`의 패키지는 UPSTREAM.json의 `upstream`입니다. 저작권 줄은 라이선스 파일의 머리말(라이선스 본문이 시작하기 전)에서 읽고, 읽을 수 없으면 적지 않습니다. 패키지의 본문이 절의 표준 전문에 있는 단어 쌍만 가지면 표준 전문으로 갈음하고, 그렇지 않으면 본문 전문을 그 패키지 항목 아래에 싣습니다. 선택 가능한 이중 라이선스는 고른 쪽을 적습니다(node-forge는 BSD-3-Clause). 라이선스 파일이 없고 `NO_LICENSE_FILE` 허용 목록에도 없는 패키지가 있거나 라이선스 정보가 없는 패키지가 있으면 `release.ts`가 `notices.failed`로 실패합니다. 허용 목록의 패키지는 package.json의 선언 라이선스, 저자, 저장소를 적습니다. Bun 런타임은 MIT, 저작권 줄, 출처 주소를 적고, 내장 JavaScriptCore 등의 고지는 Bun의 LICENSE.md를 가리킵니다.
 - 데스크톱 앱 번들에는 Rust 크레이트의 고지 `THIRD-PARTY-NOTICES-RUST.txt`가 `tauri.conf.json`의 `bundle.resources`로 들어갑니다. JS와 Bun의 고지는 아카이브의 `THIRD-PARTY-NOTICES.txt`에 있습니다. 이 파일은 `just desktop-notices`(`xeon/scripts/rust-notices.ts`)가 `Cargo.lock`의 정상 의존에서 만들고, `just desktop-notices --check`가 커밋된 파일이 `Cargo.lock`과 맞는지 검사합니다.
+- Electron 앱(`L4.desktop.spec` §11.9)의 고지는 앱의 `Resources/licenses/`에 있다: Electron `LICENSE`, `LICENSES.chromium.html`, 셸 npm 고지 `THIRD-PARTY-NOTICES-SHELL.txt`(`just desktop-notices-electron`, `xeon/scripts/shell-notices.ts`, `--check`로 커밋된 파일과 맞는지 본다), 엔진 사이드카 고지 `THIRD-PARTY-NOTICES.txt`(`notices.ts`).
 - 워크플로의 액션은 커밋 SHA로 고정하고, 버전 주석을 붙입니다(M3-30). 주석의 버전이 SHA와 맞는지는 저장소 안에서 확인하지 않습니다([미결] §8).
 - 시크릿 검사: `fresnel-ci.yml`의 `secrets` 작업이 전체 이력에 `gitleaks git --redact`를 돌립니다. 버전은 로컬 훅과 같은 8.30.1이고 mise로 설치합니다 [결정: 2026-11-04 사용자]. 오탐은 `.gitleaksignore`에 지문으로 적습니다.
 - npm 공개는 없습니다(D-M3-25 행 6).
@@ -140,6 +155,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 | `xeon/scripts/release.test.ts` | 단위 | 설정 파싱과 잘못된 설정, 잠금 파일, SHA256SUMS, 고지, 아카이브 이름, 버전 검사, 종료 코드, 스모크의 배치와 sums 파싱, 번들 버전과 mise 고정 값의 일치 | fresnel-ci `root` 층(Linux x86_64, `bun test scripts`) |
 | `xeon/scripts/notices.test.ts` | 단위 | 고지 수집의 링크(저장소 형식, UPSTREAM.json), 저작권 줄(머리말만), 라이선스 정보와 파일이 없을 때의 실패, 라이선스별 절의 표준 전문 한 번 싣기와 다른 본문의 전문, Bun 항목 | fresnel-ci `root` 층(Linux x86_64, `bun test scripts`) |
 | `xeon/scripts/workflow-pins.test.ts` | 단위 | 워크플로 `uses:`의 SHA 고정과 버전 주석(M3-30), 시크릿이 없을 때와 APPLE_ID만 있을 때의 UNSIGNED 상태, 태그에서의 실패, 값 미출력 | 같음 |
+| `xeon/scripts/electron-sign.test.ts`, `electron-smoke.test.ts`, `shell-notices.test.ts`, `xeon/apps/desktop-shell/test/package-lib.test.ts`, `packaged-env.test.ts` | 단위 | Electron 서명 단계의 UNSIGNED 경로와 태그에서의 실패, 묶은 앱 스모크의 창 목록 해석과 위치 비교, 셸 npm 고지가 커밋된 파일과 같음, 로캘 정리와 크기 계산, 묶은 앱에서 개발용 환경 변수 제거 | fresnel-ci `root`와 `L4` 층 |
 | `xeon/apps/cli/test/group-templates-locate.test.ts` | 단위 | 템플릿 탐색 순서와 찾지 못했을 때 null | fresnel-ci `L4` 층 |
 | `xeon/packages/platform-os/test/binaries.test.ts` | 단위 | Linux에서 bwrap과 socat이 없을 때의 설치 안내 문구 | fresnel-ci `L0` 층, `fresnel-macos.yml`(`just test packages/platform-os`) |
 | `xeon/scripts/release-smoke.test.ts`(X11) | 종단 | `release-smoke.sh`가 이 기기의 아카이브를 만들고, §3.1 배치, 해시, 잠금, 실행, 템플릿, doctor 줄, `@swc/core` 부재를 확인합니다 | fresnel-ci `exit-tests`(Linux x86_64), `fresnel-macos.yml`의 `exit-tests`와 `release smoke`(macOS arm64), `fresnel-release.yml`(두 OS) |
@@ -176,3 +192,7 @@ Tauri 앱에서는 사이드카가 앱 번들의 `Contents/MacOS`에 놓이므�
 11. [미결] Linux rg. 번들하지 않고 시스템 요구로 둡니다(§3.3). 스모크는 Linux에서 `rg` 줄을 확인하지 않습니다.
 12. [미결] `L0.os.spec` §10 3번(번들 정책)과 §3.6의 "미정" 표기가 이 결정과 어긋납니다. `L0.os` 문서는 B0-OS 트랙이 맡으므로 이 문서에서 고치지 않습니다.
 13. [미결] X11의 실행 시간. X11은 `bun test scripts`에도 들어 있어 root 층 시험에서 아카이브를 한 번 더 만듭니다. 빌드가 시험 상한(300초) 안에 끝나는지는 기기 성능에 달려 있습니다.
+14. [미결] Electron 앱의 실제 서명과 공증(§4.2). 시크릿이 없어 임시 서명(`--adhoc`)만 로컬에서 돌려 봤다. 헬퍼 앱과 프레임워크를 안쪽부터 서명하는 순서, 공증 통과, 스테이플, Gatekeeper 수락은 시크릿 등록 뒤 Mac에서 확인해야 한다. [근거: `xeon/scripts/electron-sign.sh`]
+15. [미결] Electron 업데이트 피드(`L4.desktop.spec` §11.10): 배포 주소, `latest-mac.yml`의 생성과 업로드, 실제 피드로 한 번 돌려 보는 일. [근거: `xeon/apps/desktop-shell/src/main/updater-shell.ts`]
+16. [미결] Electron 앱의 Windows와 Linux 묶음(packager의 `platform`과 `arch`, 사이드카 triple, 트레이 아이콘, 서명 도구). 범위 밖이다. [근거: `xeon/scripts/release-electron.sh`]
+17. [미결] Electron 묶음 CI의 실제 시간과 러너의 화면 녹화 권한(§3.5). 첫 CI 실행에서 확인한다. [근거: `xeon/scripts/release-electron.sh`]

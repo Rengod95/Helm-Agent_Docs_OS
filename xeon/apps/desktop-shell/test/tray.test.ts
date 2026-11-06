@@ -7,6 +7,7 @@ import {
   actionOf,
   createTrayModule,
   DEFAULT_TRAY_LABELS,
+  TRAY_CREATED_LOG,
   labelsFit,
   runningText,
   type TrayAction,
@@ -152,7 +153,8 @@ describe("tray module", () => {
     expect(tray.created).toEqual([
       { open: "Open Fresnel", newThread: "New chat", running: "Running 0", quit: "Quit" },
     ]);
-    expect(tray.logs).toEqual([]);
+    expect(tray.logs).toEqual(["tray: created"]);
+    expect(TRAY_CREATED_LOG).toBe("tray: created");
     expect(shouldQuitWhenWindowsClosed()).toBe(false);
     expect(fake.cleanups).toHaveLength(1);
   });
@@ -232,7 +234,7 @@ describe("tray module", () => {
       ok: true,
       value: { kind: "failed", reason: "set_text" },
     });
-    expect(tray.logs).toEqual(["tray: set_text failed"]);
+    expect(tray.logs).toEqual(["tray: created", "tray: set_text failed"]);
   });
 
   test("open shows the main window and queues no intent", () => {
